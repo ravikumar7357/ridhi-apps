@@ -43,27 +43,44 @@ Object.keys(fns).forEach(n => {
   if (n !== 'ptGet' && /\bptGet\(\s*(?![`'"])[A-Za-z_$]/.test(body)) dynamic.push(n);
   nameRe.lastIndex = 0; while ((m = nameRe.exec(body))) if (m[1] !== n) calls[n].add(m[1]);
 });
+/* THE TAB SWITCHER IS NOT A CALL INTO EVERY TAB. showTab names every loader in the app, so anything that
+ * calls it — sign-in, a "go to the order" link inside a pane — would appear to read the whole database.
+ * It opens ONE tab, and that tab's own entry accounts for what it reads. */
+const SWITCHER = Object.keys(fns).find(n => fns[n].indexOf("if (which === 'hr') ensureHr();") >= 0) || 'showTab';
 const closure = {};
 const reach = n => { if (closure[n]) return closure[n]; const out = new Set(direct[n] || []); closure[n] = out;
-  (calls[n] || []).forEach(c => reach(c).forEach(x => out.add(x))); return out; };
+  (calls[n] || []).forEach(c => { if (c !== SWITCHER) reach(c).forEach(x => out.add(x)); }); return out; };
 
 /* ---- 3. the tab table ---- */
 const tabFn = {};
 lines.forEach(l => { const m = l.match(/^\s*if \(which === '([a-zA-Z]+)'(?: \|\| which === '([a-zA-Z]+)')?\)\s*(.*)$/); if (!m) return;
   const fnsHere = (m[3].match(nameRe) || []);
   [m[1], m[2]].filter(Boolean).forEach(t => fnsHere.forEach(f => (tabFn[t] = tabFn[t] || new Set()).add(f))); });
+/* A BUTTON BELONGS TO THE TAB WHOSE PANE IT SITS IN. The dispatch table only says what OPENING a tab reads;
+ * Vendor Orders' Reserve button loads the whole order book, and nothing above knew that belonged to vord.
+ * showTab carries the tab → pane map; an element's pane is the last pane opened before it in the page. */
+const paneOfTab = {}; { const m = mod.match(/const panes = \{([^}]+)\}/); if (m) m[1].split(',').forEach(kv => { const p = kv.match(/(\w+)\s*:\s*'(pane\w+)'/); if (p) paneOfTab[p[1]] = p[2]; }); }
+if (Object.keys(paneOfTab).length < 20) throw new Error('the tab → pane map in showTab was not found; buttons cannot be given to tabs');
+const tabsOfPane = {}; Object.keys(paneOfTab).forEach(t => (tabsOfPane[paneOfTab[t]] = tabsOfPane[paneOfTab[t]] || []).push(t));
+const paneStarts = []; { const re = /<div id="(pane[A-Za-z]+)"/g; let m; while ((m = re.exec(src))) paneStarts.push({ pane: m[1], at: m.index }); }
+const firstScript = src.indexOf('<script type="module">');
+const paneOfId = id => { const i = src.indexOf('id="' + id + '"'); if (i < 0 || i > firstScript) return ''; let p = ''; paneStarts.forEach(x => { if (x.at < i) p = x.pane; }); return p; };
+const handlerTabs = {};
+Object.keys(fns).filter(n => n[0] === '@' && n !== '@boot').forEach(h => { const id = h.slice(1).split('.')[0]; const tabs = tabsOfPane[paneOfId(id)] || [];
+  handlerTabs[h] = tabs; tabs.forEach(t => (tabFn[t] = tabFn[t] || new Set()).add(h)); });
+
 /* tab keys the Access screen grants that are views of another tab's loader */
 [['shopprod', 'ord'], ['qcalt', 'qc'], ['qcret', 'qc'], ['ptapp', 'prod']].forEach(([t, parent]) => {
   (tabFn[parent] || []).forEach(f => (tabFn[t] = tabFn[t] || new Set()).add(f)); });
 
-const out = { generatedFrom: APP, tabs: {}, signIn: [], nodes: {}, dynamic };
+const out = { generatedFrom: APP, tabs: {}, signIn: [], nodes: {}, dynamic, handlersWithNoTab: Object.keys(handlerTabs).filter(h => !handlerTabs[h].length && (reach(h).size > 0)) };
 Object.keys(tabFn).sort().forEach(t => { const nodes = new Set(); tabFn[t].forEach(f => reach(f).forEach(x => nodes.add(x)));
   out.tabs[t] = { entry: [...tabFn[t]], nodes: [...nodes].sort() }; });
 const bootNodes = fns['@boot'] ? reach('@boot') : new Set();
 out.signIn = [...bootNodes].sort();
 
 /* ---- per node: who reaches it, and which readers nothing accounts for ---- */
-const covered = new Set(); const walk = f => { if (covered.has(f)) return; covered.add(f); (calls[f] || []).forEach(walk); };
+const covered = new Set(); const walk = f => { if (covered.has(f) || f === SWITCHER) return; covered.add(f); (calls[f] || []).forEach(walk); };
 Object.values(tabFn).forEach(s => s.forEach(walk)); if (fns['@boot']) walk('@boot');
 const allNodes = [...new Set([].concat(...Object.values(direct).map(x => [...x])))].sort();
 allNodes.forEach(n => { const readers = Object.keys(direct).filter(f => direct[f].has(n));
@@ -77,3 +94,5 @@ console.log('\n' + 'node'.padEnd(18) + 'tabs whose code can reach it'.padEnd(74)
 allNodes.forEach(n => { const r = out.nodes[n];
   console.log(n.replace('pt_', '').padEnd(18) + ((r.signIn ? '[sign-in] ' : '') + r.tabs.join(' ')).slice(0, 72).padEnd(74) + r.untraced.join(', ').slice(0, 100)); });
 console.log('\nnode names worked out at run time — checked by hand: ' + dynamic.join(', '));
+
+console.log('\nhandlers that read something but sit in no tab\'s pane — checked by hand: ' + (out.handlersWithNoTab.join(', ') || 'none'));

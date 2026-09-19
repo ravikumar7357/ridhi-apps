@@ -3,15 +3,27 @@
   "tabs": {
     "acc": {
       "entry": [
-        "ensureAcc"
+        "ensureAcc",
+        "@acTemplate.onclick",
+        "@acImport.onclick",
+        "@acFile.onchange",
+        "@acNewItem.onclick",
+        "@acNewTxn.onclick",
+        "@acTable.listener17345",
+        "@acKpis.listener17358",
+        "@acClear.onclick",
+        "@acGo.onclick",
+        "@acExport.onclick"
       ],
       "nodes": [
         "pt_accLedger",
+        "pt_approvals",
         "pt_baseData",
         "pt_cuttingData",
         "pt_cuttingFreezes",
         "pt_masterDB",
         "pt_masters",
+        "pt_obDeleteReqs",
         "pt_orderBook",
         "pt_pressInventory",
         "pt_shopProd",
@@ -20,7 +32,90 @@
     },
     "adj": {
       "entry": [
-        "ensureAdj"
+        "ensureAdj",
+        "@pjCancel.onclick",
+        "@projModal.onclick",
+        "@pjMonth.listener905",
+        "@pjTemplate.onclick",
+        "@pjImport.onclick",
+        "@pjFile.onchange",
+        "@pjClear.onclick",
+        "@momCancel.onclick",
+        "@momModal.listener1416",
+        "@momSave.onclick",
+        "@hideClose.onclick",
+        "@hideAdd.onclick",
+        "@hideClear.onclick",
+        "@pmAddLine.onclick",
+        "@pmCancel.onclick",
+        "@poModal.onclick",
+        "@pmSave.onclick",
+        "@pmDelete.onclick",
+        "@fuDate.listener3285",
+        "@fuCancel.onclick",
+        "@fuModal.onclick",
+        "@fuSaveBtn.onclick",
+        "@prodLogCancel.onclick",
+        "@prodModal.listener3699",
+        "@prodLogSave.onclick",
+        "@pkCancel.onclick",
+        "@pkSave.onclick",
+        "@pkEdApplyDim.onclick",
+        "@pkEdClose.onclick",
+        "@pkEdSave.onclick",
+        "@pkEdPrint.onclick",
+        "@pkEdLabels.onclick",
+        "@pkLblCancel.onclick",
+        "@pkLblGo.onclick",
+        "@bdmClose.onclick",
+        "@bdmCancel.onclick",
+        "@bdModal.listener8575",
+        "@bdmSave.onclick",
+        "@bdmAsk.onclick",
+        "@bdmDelete.onclick",
+        "@ptDlgClose.onclick",
+        "@ptDlgCancel.onclick",
+        "@ptDlg.listener9160",
+        "@ptDlgSave.onclick",
+        "@ptDlgAlt.onclick",
+        "@ptDlgDelete.onclick",
+        "@ptDlgBody.listener19779",
+        "@ptDlgBody.listener19786",
+        "@ptDlgBody.listener19790",
+        "@ptDlgBody.listener20906",
+        "@ptDlgBody.listener20934",
+        "@ptDlgBody.listener23893",
+        "@ptDlgBody.listener27063",
+        "@ptDlgBody.listener28417",
+        "@ptDlgBody.listener28428",
+        "@ptDlgBody.listener28438",
+        "@ptDlgBody.listener29086",
+        "@soCur.listener34354",
+        "@adjSave.onclick",
+        "@adjDelete.onclick",
+        "@adjCancel.onclick",
+        "@soStatus.listener35262",
+        "@soNote.listener35263",
+        "@soMcfPreview.onclick",
+        "@soSave.onclick",
+        "@soCancel.onclick",
+        "@ajFilter.listener36157",
+        "@ajSent.onclick",
+        "@ajAccept.onclick",
+        "@ajRecv.onclick",
+        "@ajwCancel.onclick",
+        "@ajwSave.onclick",
+        "@ajExport.onclick",
+        "@ajPrint.onclick",
+        "@soPrint.onclick",
+        "@soImpCancel.onclick",
+        "@soImpModal.onclick",
+        "@soImpChan.onchange",
+        "@soImpTemplate.onclick",
+        "@soImpPick.onclick",
+        "@soImpFile.onchange",
+        "@soImpSave.onclick",
+        "@soImpClear.onclick"
       ],
       "nodes": [
         "pt_approvals",
@@ -33,32 +128,53 @@
         "pt_obDeleteReqs",
         "pt_orderBook",
         "pt_pressInventory",
+        "pt_salesOrders",
         "pt_shopProd",
-        "pt_skuImages"
+        "pt_skuImages",
+        "pt_vendorMap",
+        "pt_vendorOrders"
       ]
     },
     "article": {
       "entry": [
-        "renderArticle"
+        "renderArticle",
+        "@arTable.listener1435",
+        "@arTable.listener1907",
+        "@arPrioSeg.listener1949",
+        "@arCoverSeg.listener1957",
+        "@arBrand.listener1963",
+        "@arFilter.listener1965",
+        "@arCsv.onclick"
       ],
       "nodes": []
     },
     "att": {
       "entry": [
-        "ensureAtt"
+        "ensureAtt",
+        "@attToday.onclick",
+        "@attGo.onclick",
+        "@attTable.listener6560",
+        "@attTable.listener6567",
+        "@attExport.onclick"
       ],
       "nodes": [
         "pt_accLedger",
         "pt_approvals",
         "pt_attend",
-        "pt_empList"
+        "pt_empList",
+        "pt_obDeleteReqs"
       ]
     },
     "cx": {
       "entry": [
-        "ensureCx"
+        "ensureCx",
+        "@cxTable.listener29441",
+        "@cxGo.onclick",
+        "@cxUpload.onclick",
+        "@cxExport.onclick"
       ],
       "nodes": [
+        "pt_approvals",
         "pt_baseData",
         "pt_cuttingData",
         "pt_cuttingFreezes",
@@ -66,24 +182,42 @@
         "pt_fgiLedger",
         "pt_masterDB",
         "pt_masters",
+        "pt_obDeleteReqs",
         "pt_orderBook",
         "pt_pressInventory",
+        "pt_salesOrders",
         "pt_shopProd",
-        "pt_skuImages"
+        "pt_skuImages",
+        "pt_vendorMap",
+        "pt_vendorOrders"
       ]
     },
     "fab": {
       "entry": [
-        "ensureFab"
+        "ensureFab",
+        "@fbClear.onclick",
+        "@fbGo.onclick",
+        "@fbExport.onclick",
+        "@fbEntry.onclick",
+        "@fbTemplate.onclick",
+        "@fbImport.onclick",
+        "@fbFile.onchange"
       ],
       "nodes": [
         "pt_approvals",
-        "pt_fabInvLedger"
+        "pt_fabInvLedger",
+        "pt_obDeleteReqs"
       ]
     },
     "fba": {
       "entry": [
-        "ensureFba"
+        "ensureFba",
+        "@fbaTable.listener26868",
+        "@fbaAccept.onclick",
+        "@fbaShip.onclick",
+        "@fbaReturn.onclick",
+        "@fbaGo.onclick",
+        "@fbaExport.onclick"
       ],
       "nodes": [
         "pt_amzListings",
@@ -108,7 +242,18 @@
     },
     "fgi": {
       "entry": [
-        "ensureFgi"
+        "ensureFgi",
+        "@fgTable.listener23831",
+        "@fgEntry.onclick",
+        "@fgScan.onclick",
+        "@fgEditPicked.onclick",
+        "@fgDelPicked.onclick",
+        "@fgLstRefresh.onclick",
+        "@fgView.listener23897",
+        "@fgKpis.listener23898",
+        "@fgZero.listener23914",
+        "@fgOpening.onclick",
+        "@fgExport.onclick"
       ],
       "nodes": [
         "pt_amzListings",
@@ -133,16 +278,41 @@
     },
     "follow": {
       "entry": [
-        "ensureFollow"
+        "ensureFollow",
+        "@fuBrand.listener3151",
+        "@fuNew.onclick",
+        "@fuSku.listener3268",
+        "@fuExport.onclick",
+        "@fuImport.onclick",
+        "@fuFile.onchange"
       ],
       "nodes": []
     },
     "hr": {
       "entry": [
-        "ensureHr"
+        "ensureHr",
+        "@hrPrTmpl.onclick",
+        "@hrPrStatus.onchange",
+        "@hrPrUp.onclick",
+        "@hrPrFile.onchange",
+        "@hrPrNew.onclick",
+        "@hrPrOkAll.onclick",
+        "@hrEmpNew.onclick",
+        "@hrRateNew.onclick",
+        "@hrEhNew.onclick",
+        "@hrTable.listener15016",
+        "@hrGo.onclick",
+        "@hrExport.onclick",
+        "@hrSlipPrint.onclick",
+        "@hrTable.listener15692",
+        "@hrAuthAll.onclick",
+        "@hrTable.listener15777",
+        "@hrTable.listener15873",
+        "@hrFreeze.onclick"
       ],
       "nodes": [
         "pt_advances",
+        "pt_approvals",
         "pt_baseData",
         "pt_cuttingData",
         "pt_cuttingFreezes",
@@ -151,6 +321,7 @@
         "pt_extraHours",
         "pt_masterDB",
         "pt_masters",
+        "pt_obDeleteReqs",
         "pt_orderBook",
         "pt_payoutFreezes",
         "pt_pressInventory",
@@ -164,17 +335,30 @@
     },
     "india": {
       "entry": [
-        "ensureIndia"
+        "ensureIndia",
+        "@inModeList.onclick",
+        "@inModeProj.onclick",
+        "@inSku.listener4187",
+        "@inKpis.listener4189",
+        "@inTemplate.onclick",
+        "@inExport.onclick",
+        "@inImport.onclick",
+        "@inFile.onchange"
       ],
       "nodes": []
     },
     "ka": {
       "entry": [
-        "ensurePa"
+        "ensurePa",
+        "@kaDetail.listener32547",
+        "@kaQ.listener32555",
+        "@kaGo.onclick",
+        "@kaTable.listener32557",
+        "@kaLevelsBtn.onclick",
+        "@kaExport.onclick"
       ],
       "nodes": [
         "pt_accLedger",
-        "pt_approvals",
         "pt_articleLevel",
         "pt_attend",
         "pt_baseData",
@@ -195,7 +379,17 @@
     },
     "mst": {
       "entry": [
-        "ensureMst"
+        "ensureMst",
+        "@mstTable.listener23973",
+        "@mstTable.listener23994",
+        "@mstTable.listener24002",
+        "@mstTable.listener24435",
+        "@mstTable.listener24439",
+        "@mstPick.listener24469",
+        "@mstOff.listener24470",
+        "@mstNew.onclick",
+        "@mstGo.onclick",
+        "@mstExport.onclick"
       ],
       "nodes": [
         "pt_approvals",
@@ -214,7 +408,25 @@
     "ord": {
       "entry": [
         "ptGatesFresh",
-        "ensureOrd"
+        "ensureOrd",
+        "@spBulkOpen.onclick",
+        "@spBulkBox.listener12830",
+        "@spBulkBox.listener12835",
+        "@spBulkBox.listener12840",
+        "@spBulkSheet.onclick",
+        "@spPrnSheet.onclick",
+        "@spPrnUp.onclick",
+        "@spPrnFile.onchange",
+        "@spBulkUp.onclick",
+        "@spBulkFile.onchange",
+        "@odTable.listener13080",
+        "@odTable.listener13173",
+        "@odClear.onclick",
+        "@odKpis.listener13406",
+        "@odKpis.listener13407",
+        "@odGo.onclick",
+        "@odView.listener13410",
+        "@odExport.onclick"
       ],
       "nodes": [
         "pt_accLedger",
@@ -248,11 +460,15 @@
     },
     "pa": {
       "entry": [
-        "ensurePa"
+        "ensurePa",
+        "@paWk.listener32544",
+        "@paBasis.listener32545",
+        "@paBody.listener32546",
+        "@paTarget.listener32548",
+        "@paGo.onclick"
       ],
       "nodes": [
         "pt_accLedger",
-        "pt_approvals",
         "pt_articleLevel",
         "pt_attend",
         "pt_baseData",
@@ -273,16 +489,28 @@
     },
     "pack": {
       "entry": [
-        "ensurePack"
+        "ensurePack",
+        "@pkClear.onclick",
+        "@pkNew.onclick",
+        "@pkFile.onchange",
+        "@pkTemplate.onclick"
       ],
       "nodes": []
     },
     "palloc": {
       "entry": [
-        "ensurePal"
+        "ensurePal",
+        "@palView.listener29059",
+        "@palWeeks.listener29060",
+        "@palBrand.listener29061",
+        "@palQ.listener29062",
+        "@palPrinterAdd.onclick",
+        "@palExport.onclick",
+        "@palRefresh.onclick",
+        "@palTable.listener29082",
+        "@palTable.listener29090"
       ],
       "nodes": [
-        "pt_approvals",
         "pt_baseData",
         "pt_blockHave",
         "pt_blockNeed",
@@ -303,7 +531,21 @@
     "pbase": {
       "entry": [
         "ptGatesFresh",
-        "ensurePbase"
+        "ensurePbase",
+        "@pbClear.onclick",
+        "@pbGo.onclick",
+        "@pbKpis.listener6918",
+        "@pbKpis.listener6919",
+        "@pbExport.onclick",
+        "@bwToggle.onclick",
+        "@bwClear.onclick",
+        "@bwSku.listener8127",
+        "@bwPcs.listener8132",
+        "@bwSave.onclick",
+        "@pbTable.listener8335",
+        "@pbTable.listener8355",
+        "@pbTable.listener8412",
+        "@pbApv.onclick"
       ],
       "nodes": [
         "pt_accLedger",
@@ -325,7 +567,15 @@
     "pcut": {
       "entry": [
         "ptGatesFresh",
-        "ensurePcut"
+        "ensurePcut",
+        "@pcClear.onclick",
+        "@pcGo.onclick",
+        "@pcExport.onclick",
+        "@cwToggle.onclick",
+        "@cwSku.listener7454",
+        "@cwOrd.listener7465",
+        "@cwSave.onclick",
+        "@pcTable.listener8359"
       ],
       "nodes": [
         "pt_approvals",
@@ -334,6 +584,7 @@
         "pt_cuttingFreezes",
         "pt_masterDB",
         "pt_masters",
+        "pt_obDeleteReqs",
         "pt_orderBook",
         "pt_pressInventory",
         "pt_shopProd",
@@ -342,31 +593,62 @@
     },
     "pmdb": {
       "entry": [
-        "ensurePmdb"
+        "ensurePmdb",
+        "@ptmClear.onclick",
+        "@ptmGo.onclick",
+        "@ptmExport.onclick",
+        "@ptmNew.onclick",
+        "@ptmTable.listener10169",
+        "@ptmConsApply.onclick",
+        "@ptmView.listener10182",
+        "@ptmImgs.onclick",
+        "@ptmRecFile.onchange",
+        "@ptmTemplate.onclick",
+        "@ptmImport.onclick",
+        "@ptmFile.onchange",
+        "@ptmImpCancel.onclick",
+        "@ptmImpGo.onclick",
+        "@ptmRename.onclick",
+        "@ptmTable.listener31442",
+        "@ptmRecSeed.onclick",
+        "@ptmRecApply.onclick"
       ],
       "nodes": [
         "pt_baseData",
+        "pt_customSkus",
         "pt_cuttingData",
         "pt_cuttingFreezes",
         "pt_masterDB",
         "pt_masters",
+        "pt_obDeleteReqs",
         "pt_orderBook",
         "pt_pressInventory",
         "pt_shopProd",
-        "pt_skuImages"
+        "pt_skuImages",
+        "pt_skuPriority",
+        "pt_vendorOrders"
       ]
     },
     "ppress": {
       "entry": [
         "ptGatesFresh",
-        "ensurePpress"
+        "ensurePpress",
+        "@pwToggle.onclick",
+        "@pwSku.listener8995",
+        "@pwSave.onclick",
+        "@ppClear.onclick",
+        "@ppGo.onclick",
+        "@ppTable.listener9045",
+        "@ppExport.onclick"
       ],
       "nodes": [
+        "pt_approvals",
         "pt_baseData",
         "pt_cuttingData",
         "pt_cuttingFreezes",
         "pt_masterDB",
         "pt_masters",
+        "pt_obDeleteReqs",
         "pt_orderBook",
         "pt_pressFreezes",
         "pt_pressInventory",
@@ -376,28 +658,54 @@
     },
     "prod": {
       "entry": [
-        "ensureProd"
+        "ensureProd",
+        "@pdSku.listener4645",
+        "@pdKpis.listener4646",
+        "@pdTemplate.onclick",
+        "@pdExport.onclick",
+        "@pdImport.onclick",
+        "@pdFile.onchange"
       ],
       "nodes": []
     },
     "ptapp": {
       "entry": [
-        "ensureProd"
+        "ensureProd",
+        "@pdSku.listener4645",
+        "@pdKpis.listener4646",
+        "@pdTemplate.onclick",
+        "@pdExport.onclick",
+        "@pdImport.onclick",
+        "@pdFile.onchange"
       ],
       "nodes": []
     },
     "qc": {
       "entry": [
-        "ensureQc"
+        "ensureQc",
+        "@qcrToggle.onclick",
+        "@qcrSave.onclick",
+        "@qcwSku.listener9727",
+        "@qcwSave.onclick",
+        "@qciSave.onclick",
+        "@qcTable.listener9938",
+        "@qcView.listener9942",
+        "@qcClear.onclick",
+        "@qcGo.onclick",
+        "@qcwToggle.onclick",
+        "@qciToggle.onclick",
+        "@qcExport.onclick"
       ],
       "nodes": [
         "pt_accLedger",
+        "pt_approvals",
         "pt_baseData",
         "pt_cuttingData",
         "pt_cuttingFreezes",
         "pt_empList",
         "pt_masterDB",
         "pt_masters",
+        "pt_obDeleteReqs",
         "pt_orderBook",
         "pt_pressInventory",
         "pt_qcChecks",
@@ -409,16 +717,30 @@
     },
     "qcalt": {
       "entry": [
-        "ensureQc"
+        "ensureQc",
+        "@qcrToggle.onclick",
+        "@qcrSave.onclick",
+        "@qcwSku.listener9727",
+        "@qcwSave.onclick",
+        "@qciSave.onclick",
+        "@qcTable.listener9938",
+        "@qcView.listener9942",
+        "@qcClear.onclick",
+        "@qcGo.onclick",
+        "@qcwToggle.onclick",
+        "@qciToggle.onclick",
+        "@qcExport.onclick"
       ],
       "nodes": [
         "pt_accLedger",
+        "pt_approvals",
         "pt_baseData",
         "pt_cuttingData",
         "pt_cuttingFreezes",
         "pt_empList",
         "pt_masterDB",
         "pt_masters",
+        "pt_obDeleteReqs",
         "pt_orderBook",
         "pt_pressInventory",
         "pt_qcChecks",
@@ -430,16 +752,30 @@
     },
     "qcret": {
       "entry": [
-        "ensureQc"
+        "ensureQc",
+        "@qcrToggle.onclick",
+        "@qcrSave.onclick",
+        "@qcwSku.listener9727",
+        "@qcwSave.onclick",
+        "@qciSave.onclick",
+        "@qcTable.listener9938",
+        "@qcView.listener9942",
+        "@qcClear.onclick",
+        "@qcGo.onclick",
+        "@qcwToggle.onclick",
+        "@qciToggle.onclick",
+        "@qcExport.onclick"
       ],
       "nodes": [
         "pt_accLedger",
+        "pt_approvals",
         "pt_baseData",
         "pt_cuttingData",
         "pt_cuttingFreezes",
         "pt_empList",
         "pt_masterDB",
         "pt_masters",
+        "pt_obDeleteReqs",
         "pt_orderBook",
         "pt_pressInventory",
         "pt_qcChecks",
@@ -451,31 +787,70 @@
     },
     "rep": {
       "entry": [
-        "ensureRep"
+        "ensureRep",
+        "@repView.listener25146",
+        "@repGo.onclick",
+        "@repExport.onclick"
       ],
       "nodes": [
+        "pt_approvals",
         "pt_baseData",
         "pt_cuttingData",
         "pt_cuttingFreezes",
         "pt_fgiLedger",
         "pt_masterDB",
         "pt_masters",
+        "pt_obDeleteReqs",
         "pt_orderBook",
         "pt_pressInventory",
+        "pt_qcChecks",
         "pt_shopProd",
         "pt_skuImages"
       ]
     },
+    "repl": {
+      "entry": [
+        "@rGo.onclick",
+        "@rFilter.listener776",
+        "@rBrand.listener777",
+        "@rNeed.listener778",
+        "@rSupply.listener779",
+        "@rTopOnly.onclick",
+        "@rCoverSeg.listener788",
+        "@rHorizon.listener813",
+        "@rTable.listener820",
+        "@rTable.listener830",
+        "@rTable.listener840",
+        "@rTable.listener863",
+        "@rTable.listener874",
+        "@rTable.listener879",
+        "@rProj.onclick",
+        "@rClear.listener953",
+        "@rHide.onclick",
+        "@rMarket.listener2350",
+        "@rCsv.onclick",
+        "@rPo.onclick"
+      ],
+      "nodes": []
+    },
     "rfd": {
       "entry": [
-        "ensureRfd"
+        "ensureRfd",
+        "@rfdTable.listener30721",
+        "@rfdKpis.listener30775",
+        "@rfdKpis.listener30776",
+        "@rfdClear.onclick",
+        "@rfdGo.onclick",
+        "@rfdExport.onclick"
       ],
       "nodes": [
+        "pt_approvals",
         "pt_baseData",
         "pt_cuttingData",
         "pt_cuttingFreezes",
         "pt_masterDB",
         "pt_masters",
+        "pt_obDeleteReqs",
         "pt_orderBook",
         "pt_pressInventory",
         "pt_rfdDecisions",
@@ -487,10 +862,18 @@
     },
     "shop": {
       "entry": [
-        "ensureShop"
+        "ensureShop",
+        "@soGo.onclick",
+        "@soDay.listener35946",
+        "@soAdj.onclick",
+        "@soPrintMany.onclick",
+        "@soImp.onclick",
+        "@soBulkSheet.onclick",
+        "@soBulkPick.onclick",
+        "@soBulkFile.onchange",
+        "@soExport.onclick"
       ],
       "nodes": [
-        "pt_approvals",
         "pt_baseData",
         "pt_customSkus",
         "pt_cuttingData",
@@ -506,14 +889,35 @@
     },
     "shopify": {
       "entry": [
-        "ensureShopify"
+        "ensureShopify",
+        "@shGo.onclick",
+        "@shSeg.listener3901",
+        "@shCsv.onclick"
       ],
       "nodes": []
     },
     "shopprod": {
       "entry": [
         "ptGatesFresh",
-        "ensureOrd"
+        "ensureOrd",
+        "@spBulkOpen.onclick",
+        "@spBulkBox.listener12830",
+        "@spBulkBox.listener12835",
+        "@spBulkBox.listener12840",
+        "@spBulkSheet.onclick",
+        "@spPrnSheet.onclick",
+        "@spPrnUp.onclick",
+        "@spPrnFile.onchange",
+        "@spBulkUp.onclick",
+        "@spBulkFile.onchange",
+        "@odTable.listener13080",
+        "@odTable.listener13173",
+        "@odClear.onclick",
+        "@odKpis.listener13406",
+        "@odKpis.listener13407",
+        "@odGo.onclick",
+        "@odView.listener13410",
+        "@odExport.onclick"
       ],
       "nodes": [
         "pt_accLedger",
@@ -547,10 +951,19 @@
     },
     "so": {
       "entry": [
-        "ensureSox"
+        "ensureSox",
+        "@sxTable.listener17779",
+        "@sxStatus.listener17784",
+        "@sxClear.onclick",
+        "@sxGo.onclick",
+        "@sxExport.onclick",
+        "@sxNew.onclick",
+        "@sxDelReqs.onclick"
       ],
       "nodes": [
+        "pt_approvals",
         "pt_baseData",
+        "pt_customSkus",
         "pt_cuttingData",
         "pt_cuttingFreezes",
         "pt_masterDB",
@@ -565,19 +978,44 @@
     },
     "target": {
       "entry": [
-        "ensureTarget"
+        "ensureTarget",
+        "@tgTable.listener2225",
+        "@tgTable.listener2234",
+        "@tgTotal.listener2250",
+        "@tgBrand.listener2264",
+        "@tgMonth.listener2265",
+        "@tgFilter.listener2267",
+        "@tgCsv.onclick",
+        "@tgClear.onclick"
       ],
       "nodes": []
     },
     "top": {
       "entry": [
-        "ensureTop"
+        "ensureTop",
+        "@topBrand.listener3520",
+        "@topExport.onclick",
+        "@topTable.listener3673",
+        "@topTable.listener3715"
       ],
       "nodes": []
     },
     "vend": {
       "entry": [
-        "ensureVp"
+        "ensureVp",
+        "@vpBody.listener22278",
+        "@vpQ.oninput",
+        "@vpRecordAll.onclick",
+        "@vpSaveProm.onclick",
+        "@vpClear.onclick",
+        "@vpTabBulk.onclick",
+        "@vpTabShop.onclick",
+        "@vpTabHist.onclick",
+        "@vpTabRfd.onclick",
+        "@vpGo.onclick",
+        "@vpPinBtn.onclick",
+        "@vpExport.onclick",
+        "@vpBody.listener22710"
       ],
       "nodes": [
         "pt_skuImages",
@@ -589,35 +1027,73 @@
     },
     "vlog": {
       "entry": [
-        "ensureVlog"
+        "ensureVlog",
+        "@vlTable.listener19102",
+        "@vlAccept.onclick",
+        "@vlClear.onclick",
+        "@vlGo.onclick",
+        "@vlExport.onclick"
       ],
       "nodes": [
         "pt_approvals",
+        "pt_obDeleteReqs",
         "pt_vendorMap",
         "pt_vendorOrders"
       ]
     },
     "vord": {
       "entry": [
-        "ensureVo"
+        "ensureVo",
+        "@voTable.listener19364",
+        "@voAttrClear.onclick",
+        "@voCards.listener19410",
+        "@voCards.listener19435",
+        "@voDelPicked.onclick",
+        "@voGo.onclick",
+        "@voExport.onclick",
+        "@voReserve.onclick",
+        "@voNew.onclick",
+        "@voSync.onclick",
+        "@voVendors.onclick"
       ],
       "nodes": [
+        "pt_approvals",
+        "pt_baseData",
+        "pt_cuttingData",
+        "pt_cuttingFreezes",
+        "pt_masterDB",
+        "pt_masters",
+        "pt_obDeleteReqs",
+        "pt_orderBook",
+        "pt_pressInventory",
+        "pt_salesOrders",
+        "pt_shopProd",
+        "pt_skuImages",
         "pt_vendorMap",
         "pt_vendorOrders"
       ]
     },
     "vreq": {
       "entry": [
-        "ensureVrq"
+        "ensureVrq",
+        "@vrqTable.listener29902",
+        "@vrqKpis.listener29924",
+        "@vrqKpis.listener29925",
+        "@vrqGo.onclick",
+        "@vrqNew.onclick",
+        "@vrqExport.onclick"
       ],
       "nodes": [
+        "pt_approvals",
         "pt_baseData",
         "pt_cuttingData",
         "pt_cuttingFreezes",
         "pt_masterDB",
         "pt_masters",
+        "pt_obDeleteReqs",
         "pt_orderBook",
         "pt_pressInventory",
+        "pt_salesOrders",
         "pt_shopProd",
         "pt_skuImages",
         "pt_vendorMap",
@@ -627,57 +1103,14 @@
     }
   },
   "signIn": [
-    "pt_accLedger",
-    "pt_advances",
     "pt_amzListings",
-    "pt_approvals",
-    "pt_articleLevel",
-    "pt_attend",
-    "pt_baseData",
-    "pt_blockHave",
-    "pt_blockNeed",
-    "pt_colorGroups",
-    "pt_customSkus",
-    "pt_cutRequired",
-    "pt_cuttingData",
-    "pt_cuttingFreezes",
-    "pt_cxOrders",
-    "pt_ehFreezes",
-    "pt_empList",
-    "pt_extraHours",
-    "pt_fabInvLedger",
     "pt_fgiCorrReqs",
     "pt_fgiLedger",
-    "pt_fgiSettings",
-    "pt_fnskuMap",
-    "pt_issueRecipients",
     "pt_listingAlerts",
-    "pt_masterDB",
-    "pt_masters",
     "pt_obDeleteReqs",
-    "pt_orderBook",
-    "pt_payoutFreezes",
-    "pt_pressFreezes",
-    "pt_pressInventory",
-    "pt_printerRates",
-    "pt_printers",
-    "pt_qcChecks",
-    "pt_qcIssuance",
-    "pt_qcReturns",
-    "pt_rateList",
     "pt_rfdDecisions",
-    "pt_salesOrders",
-    "pt_shopProd",
-    "pt_skuImages",
-    "pt_skuPriority",
-    "pt_teamSize",
     "pt_vendorByEmail",
-    "pt_vendorMap",
-    "pt_vendorOrderReqs",
-    "pt_vendorOrders",
-    "pt_vendorPin",
-    "pt_waTemplates",
-    "pt_whatsappCutoffDate"
+    "pt_vendorOrderReqs"
   ],
   "nodes": {
     "pt_accLedger": {
@@ -693,7 +1126,7 @@
         "qcret",
         "shopprod"
       ],
-      "signIn": true,
+      "signIn": false,
       "readers": [
         "ptLoadEmp",
         "ensureAcc"
@@ -704,7 +1137,7 @@
       "tabs": [
         "hr"
       ],
-      "signIn": true,
+      "signIn": false,
       "readers": [
         "ensureHr"
       ],
@@ -726,23 +1159,31 @@
     },
     "pt_approvals": {
       "tabs": [
+        "acc",
         "adj",
         "att",
+        "cx",
         "fab",
         "fba",
         "fgi",
-        "ka",
+        "hr",
         "mst",
         "ord",
-        "pa",
-        "palloc",
         "pbase",
         "pcut",
-        "shop",
+        "ppress",
+        "qc",
+        "qcalt",
+        "qcret",
+        "rep",
+        "rfd",
         "shopprod",
-        "vlog"
+        "so",
+        "vlog",
+        "vord",
+        "vreq"
       ],
-      "signIn": true,
+      "signIn": false,
       "readers": [
         "apvLoad"
       ],
@@ -753,14 +1194,12 @@
         "ka",
         "pa"
       ],
-      "signIn": true,
+      "signIn": false,
       "readers": [
         "ensurePa",
         "paRefresh"
       ],
-      "untraced": [
-        "paRefresh"
-      ]
+      "untraced": []
     },
     "pt_attend": {
       "tabs": [
@@ -768,15 +1207,13 @@
         "ka",
         "pa"
       ],
-      "signIn": true,
+      "signIn": false,
       "readers": [
         "ensureAtt",
         "ensurePa",
         "paRefresh"
       ],
-      "untraced": [
-        "paRefresh"
-      ]
+      "untraced": []
     },
     "pt_baseData": {
       "tabs": [
@@ -803,24 +1240,23 @@
         "shop",
         "shopprod",
         "so",
+        "vord",
         "vreq"
       ],
-      "signIn": true,
+      "signIn": false,
       "readers": [
         "ensurePbase",
         "@pbGo.onclick",
         "ptLoadGates",
         "ensureHr"
       ],
-      "untraced": [
-        "@pbGo.onclick"
-      ]
+      "untraced": []
     },
     "pt_blockHave": {
       "tabs": [
         "palloc"
       ],
-      "signIn": true,
+      "signIn": false,
       "readers": [
         "palLoad"
       ],
@@ -830,7 +1266,7 @@
       "tabs": [
         "palloc"
       ],
-      "signIn": true,
+      "signIn": false,
       "readers": [
         "palLoad"
       ],
@@ -840,7 +1276,7 @@
       "tabs": [
         "palloc"
       ],
-      "signIn": true,
+      "signIn": false,
       "readers": [
         "palLoad"
       ],
@@ -850,27 +1286,26 @@
       "tabs": [
         "adj",
         "ord",
+        "pmdb",
         "shop",
-        "shopprod"
+        "shopprod",
+        "so"
       ],
-      "signIn": true,
+      "signIn": false,
       "readers": [
         "@ptmView.listener10182",
         "ensureOrd",
         "soFormSave",
         "shpPlanAll"
       ],
-      "untraced": [
-        "@ptmView.listener10182",
-        "soFormSave"
-      ]
+      "untraced": []
     },
     "pt_cutRequired": {
       "tabs": [
         "ord",
         "shopprod"
       ],
-      "signIn": true,
+      "signIn": false,
       "readers": [
         "ensureOrd"
       ],
@@ -901,17 +1336,16 @@
         "shop",
         "shopprod",
         "so",
+        "vord",
         "vreq"
       ],
-      "signIn": true,
+      "signIn": false,
       "readers": [
         "ensurePcut",
         "@pcGo.onclick",
         "ptLoadGates"
       ],
-      "untraced": [
-        "@pcGo.onclick"
-      ]
+      "untraced": []
     },
     "pt_cuttingFreezes": {
       "tabs": [
@@ -938,9 +1372,10 @@
         "shop",
         "shopprod",
         "so",
+        "vord",
         "vreq"
       ],
-      "signIn": true,
+      "signIn": false,
       "readers": [
         "ptLoadGates"
       ],
@@ -950,7 +1385,7 @@
       "tabs": [
         "cx"
       ],
-      "signIn": true,
+      "signIn": false,
       "readers": [
         "ensureCx"
       ],
@@ -960,7 +1395,7 @@
       "tabs": [
         "hr"
       ],
-      "signIn": true,
+      "signIn": false,
       "readers": [
         "ensureHr"
       ],
@@ -979,7 +1414,7 @@
         "qcret",
         "shopprod"
       ],
-      "signIn": true,
+      "signIn": false,
       "readers": [
         "ptLoadEmp",
         "ensureHr"
@@ -990,7 +1425,7 @@
       "tabs": [
         "hr"
       ],
-      "signIn": true,
+      "signIn": false,
       "readers": [
         "ensureHr"
       ],
@@ -1000,7 +1435,7 @@
       "tabs": [
         "fab"
       ],
-      "signIn": true,
+      "signIn": false,
       "readers": [
         "ensureFab"
       ],
@@ -1038,10 +1473,7 @@
         "fgiEditApply",
         "ensureCx"
       ],
-      "untraced": [
-        "@repView.listener25146",
-        "@repGo.onclick"
-      ]
+      "untraced": []
     },
     "pt_fgiSettings": {
       "tabs": [
@@ -1050,7 +1482,7 @@
         "ord",
         "shopprod"
       ],
-      "signIn": true,
+      "signIn": false,
       "readers": [
         "fgiLoad"
       ],
@@ -1063,7 +1495,7 @@
         "ord",
         "shopprod"
       ],
-      "signIn": true,
+      "signIn": false,
       "readers": [
         "fnLoad"
       ],
@@ -1076,7 +1508,7 @@
         "ord",
         "shopprod"
       ],
-      "signIn": true,
+      "signIn": false,
       "readers": [
         "fgiLoad"
       ],
@@ -1121,16 +1553,15 @@
         "shop",
         "shopprod",
         "so",
+        "vord",
         "vreq"
       ],
-      "signIn": true,
+      "signIn": false,
       "readers": [
         "@ptmGo.onclick",
         "ptLoadGates"
       ],
-      "untraced": [
-        "@ptmGo.onclick"
-      ]
+      "untraced": []
     },
     "pt_masters": {
       "tabs": [
@@ -1157,9 +1588,10 @@
         "shop",
         "shopprod",
         "so",
+        "vord",
         "vreq"
       ],
-      "signIn": true,
+      "signIn": false,
       "readers": [
         "ptLoadGates"
       ],
@@ -1167,17 +1599,33 @@
     },
     "pt_obDeleteReqs": {
       "tabs": [
+        "acc",
         "adj",
+        "att",
+        "cx",
+        "fab",
         "fba",
         "fgi",
+        "hr",
         "ka",
         "mst",
         "ord",
         "pa",
         "palloc",
+        "pcut",
+        "pmdb",
+        "ppress",
+        "qc",
+        "qcalt",
+        "qcret",
+        "rep",
+        "rfd",
         "shop",
         "shopprod",
-        "so"
+        "so",
+        "vlog",
+        "vord",
+        "vreq"
       ],
       "signIn": true,
       "readers": [
@@ -1210,22 +1658,21 @@
         "shop",
         "shopprod",
         "so",
+        "vord",
         "vreq"
       ],
-      "signIn": true,
+      "signIn": false,
       "readers": [
         "ptLoadGates",
         "odrDeleteRun"
       ],
-      "untraced": [
-        "odrDeleteRun"
-      ]
+      "untraced": []
     },
     "pt_payoutFreezes": {
       "tabs": [
         "hr"
       ],
-      "signIn": true,
+      "signIn": false,
       "readers": [
         "ensureHr"
       ],
@@ -1235,7 +1682,7 @@
       "tabs": [
         "ppress"
       ],
-      "signIn": true,
+      "signIn": false,
       "readers": [
         "ensurePpress"
       ],
@@ -1266,9 +1713,10 @@
         "shop",
         "shopprod",
         "so",
+        "vord",
         "vreq"
       ],
-      "signIn": true,
+      "signIn": false,
       "readers": [
         "ptLoadGates"
       ],
@@ -1278,20 +1726,18 @@
       "tabs": [
         "hr"
       ],
-      "signIn": true,
+      "signIn": false,
       "readers": [
         "ensureHr",
         "hrSavePrRate"
       ],
-      "untraced": [
-        "hrSavePrRate"
-      ]
+      "untraced": []
     },
     "pt_printers": {
       "tabs": [
         "palloc"
       ],
-      "signIn": true,
+      "signIn": false,
       "readers": [
         "palLoad"
       ],
@@ -1303,19 +1749,17 @@
         "qc",
         "qcalt",
         "qcret",
+        "rep",
         "shopprod"
       ],
-      "signIn": true,
+      "signIn": false,
       "readers": [
         "ensureQc",
         "ensureOrd",
         "@repView.listener25146",
         "@repGo.onclick"
       ],
-      "untraced": [
-        "@repView.listener25146",
-        "@repGo.onclick"
-      ]
+      "untraced": []
     },
     "pt_qcIssuance": {
       "tabs": [
@@ -1325,7 +1769,7 @@
         "qcret",
         "shopprod"
       ],
-      "signIn": true,
+      "signIn": false,
       "readers": [
         "ensureQc",
         "ensureOrd"
@@ -1338,7 +1782,7 @@
         "qcalt",
         "qcret"
       ],
-      "signIn": true,
+      "signIn": false,
       "readers": [
         "ensureQc"
       ],
@@ -1350,15 +1794,13 @@
         "ka",
         "pa"
       ],
-      "signIn": true,
+      "signIn": false,
       "readers": [
         "ensureHr",
         "ensurePa",
         "paRefresh"
       ],
-      "untraced": [
-        "paRefresh"
-      ]
+      "untraced": []
     },
     "pt_rfdDecisions": {
       "tabs": [
@@ -1373,9 +1815,13 @@
     },
     "pt_salesOrders": {
       "tabs": [
-        "so"
+        "adj",
+        "cx",
+        "so",
+        "vord",
+        "vreq"
       ],
-      "signIn": true,
+      "signIn": false,
       "readers": [
         "ensureSox",
         "voFormOpen",
@@ -1383,12 +1829,7 @@
         "odrDeleteRun",
         "vrqApprove"
       ],
-      "untraced": [
-        "voFormOpen",
-        "resOpen",
-        "odrDeleteRun",
-        "vrqApprove"
-      ]
+      "untraced": []
     },
     "pt_shopProd": {
       "tabs": [
@@ -1415,9 +1856,10 @@
         "shop",
         "shopprod",
         "so",
+        "vord",
         "vreq"
       ],
-      "signIn": true,
+      "signIn": false,
       "readers": [
         "ptLoadGates"
       ],
@@ -1449,9 +1891,10 @@
         "shopprod",
         "so",
         "vend",
+        "vord",
         "vreq"
       ],
-      "signIn": true,
+      "signIn": false,
       "readers": [
         "ptImgShared"
       ],
@@ -1460,30 +1903,27 @@
     "pt_skuPriority": {
       "tabs": [
         "ord",
+        "pmdb",
         "shopprod"
       ],
-      "signIn": true,
+      "signIn": false,
       "readers": [
         "mdbRenameLoadAll",
         "ensureOrd"
       ],
-      "untraced": [
-        "mdbRenameLoadAll"
-      ]
+      "untraced": []
     },
     "pt_teamSize": {
       "tabs": [
         "ka",
         "pa"
       ],
-      "signIn": true,
+      "signIn": false,
       "readers": [
         "ensurePa",
         "paRefresh"
       ],
-      "untraced": [
-        "paRefresh"
-      ]
+      "untraced": []
     },
     "pt_vendorByEmail": {
       "tabs": [
@@ -1498,6 +1938,8 @@
     },
     "pt_vendorMap": {
       "tabs": [
+        "adj",
+        "cx",
         "hr",
         "ord",
         "rfd",
@@ -1507,7 +1949,7 @@
         "vord",
         "vreq"
       ],
-      "signIn": true,
+      "signIn": false,
       "readers": [
         "ensureVo",
         "ensureVp"
@@ -1527,11 +1969,14 @@
     },
     "pt_vendorOrders": {
       "tabs": [
+        "adj",
+        "cx",
         "hr",
         "ka",
         "ord",
         "pa",
         "palloc",
+        "pmdb",
         "rfd",
         "shopprod",
         "vend",
@@ -1539,7 +1984,7 @@
         "vord",
         "vreq"
       ],
-      "signIn": true,
+      "signIn": false,
       "readers": [
         "mdbRenameLoadAll",
         "ensureVo",
@@ -1547,15 +1992,13 @@
         "ensurePal",
         "ensurePa"
       ],
-      "untraced": [
-        "mdbRenameLoadAll"
-      ]
+      "untraced": []
     },
     "pt_vendorPin": {
       "tabs": [
         "vend"
       ],
-      "signIn": true,
+      "signIn": false,
       "readers": [
         "ensureVp"
       ],
@@ -1565,7 +2008,7 @@
       "tabs": [
         "pbase"
       ],
-      "signIn": true,
+      "signIn": false,
       "readers": [
         "waLoad"
       ],
@@ -1575,7 +2018,7 @@
       "tabs": [
         "pbase"
       ],
-      "signIn": true,
+      "signIn": false,
       "readers": [
         "waLoad"
       ],
@@ -1588,5 +2031,6 @@
     "spMirror",
     "hrPutList",
     "ensureHr"
-  ]
+  ],
+  "handlersWithNoTab": []
 }
