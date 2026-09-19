@@ -16730,13 +16730,21 @@ function prRateRowFor(vendorCode, o, l) {
    * approving would be a badge on a screen and a proposed rate would be paying vendors. */
   /* Everything that matches but for the colours, then the narrowest range that covers this design.
    * A rate with no range covers any number, so it is the fallback without being a special case. */
-  const hits = (HR.prate || [])
+  const cand = (HR.prate || [])
     .filter(r => prApproved(r) && prLineMatches(r, o, l, vendorCode))
     /* A labelled rate is recorded, not matched: nothing on an order line says "Gadd", so picking one
      * here would be guessing with somebody's money. */
-    .filter(r => !prColIsLabel(r))
-    .filter(r => (cols ? prColCovers(r, cols) : !prColSpec(r.colours)))
+    .filter(r => !prColIsLabel(r));
+  let hits = cand.filter(r => (cols ? prColCovers(r, cols) : !prColSpec(r.colours)))
     .sort((a, b) => prColWidth(a) - prColWidth(b));
+  /* NO COLOUR COUNT, BUT EVERY BAND SAYS THE SAME PRICE — then there is nothing to choose, and the
+   * missing number cannot change the answer. One printer's whole card is written that way, and not
+   * one tablecloth in the master carries a count. Where the bands DISAGREE this does not apply: that
+   * is a real choice, and it is refused below for want of the number that would make it. */
+  if (!hits.length && !cols && cand.length
+      && new Set(cand.map(r => String(parseFloat(r.rate) || 0))).size === 1
+      && new Set(cand.map(r => prNameKey(r.filler))).size === 1)
+    hits = [Object.assign({}, cand[0], { colours: '', anyBand: true })];
   /* TWO FILLERS, NO WORD ON WHICH — NO RATE. Surgical cotton and cotton are Rs.100 apart on the same
    * quilt, and [0] was whichever had been saved first. A price nobody can say the reason for is
    * not a price; it is a guess with somebody's money, and this says so instead. */
@@ -16763,6 +16771,9 @@ function prRateWhy(vendorCode, o, l) {
   const colsRaw = (l && l.colours) != null && l.colours !== '' ? l.colours : (m && m.printColours);
   const n = parseInt(colsRaw, 10);
   if (n > 0) return 'the design has ' + n + ' colours and no approved rate covers that count';
+  const prices = [...new Set(ok.filter(r => !prColIsLabel(r)).map(r => 'Rs.' + (parseFloat(r.rate) || 0)))];
+  if (prices.length > 1) return 'the colour bands charge different prices (' + prices.join(', ')
+    + ') and this design has no colour count written — put one on the SKU in the master database';
   return 'no approved rate covers a design with no colour count written';
 }
 
@@ -17864,6 +17875,7 @@ const vpaySort = (a, b) => String(a.vendor).toLowerCase().localeCompare(String(b
 
 /** What a rate row says about itself, in words — kept on the payout row so a FROZEN one can still say it. */
 const vpayRateNote = rw => (rw ? (rw.service || 'Block print')
+  + (rw.anyBand ? ', every colour band charges this' : '')
   + (prCols(rw) ? ', ' + prCols(rw) + ' colours' : '')
   + (rw.approvedBy ? ', approved by ' + rw.approvedBy : '') : '');
 

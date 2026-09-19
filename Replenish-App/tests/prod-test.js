@@ -6668,6 +6668,38 @@ console.log('\n== what each vendor is owed ==');
        A.prColIsLabel({ colours: 'Gadd' }) === true);
   }
 
+  /* ---- WHEN EVERY COLOUR BAND CHARGES THE SAME, THE COUNT DOES NOT MATTER ----
+   *
+   * One printer's whole card is "1-4" and "5+" at the same price, sixteen sizes out of sixteen, and
+   * not one of 2,647 tablecloth SKUs carries a colour count: 516 received pieces went unpriced for
+   * want of a number that could not have changed the answer. */
+  {
+    const band = (colours, r) => A.prRec({ vendor: 'VND002', service: 'Block print', kind: 'cut',
+      at: 'Tablecloth', sub: 'Square Tablecloth', size: '60X60', colours, rate: r });
+    const o = { vendorCode: 'VND002', id: 'pb', orderNo: 'VPO-B', orderType: 'cut', status: 'Placed',
+      lines: [{ kind: 'cut', sku: 'RTC-6060', qty: 20, deliveries: [del(10, '05/09/2026', { qty: 10 })] }] };   // no colour count anywhere
+    A.setHR(Object.assign(A.HR(), { prate: [band('1-4', '125'), band('5+', '125')] }));
+    ok('two bands at one price need no colour count', A.prRateFor('VND002', o, o.lines[0]) === 125,
+       String(A.prRateFor('VND002', o, o.lines[0])));
+    A.setVO({ busy: false, err: '', at: '', shown: [], map: {}, rows: [o] });
+    const row = A.vpayRows(2026, 9, 1)[0] || {};
+    ok('…and the payout says that is why none was needed', /every colour band charges this/.test(row.rateNote || ''), row.rateNote);
+    ok('…without claiming it was a 1-4 colour job', !/1-4/.test(row.rateNote || ''), row.rateNote);
+
+    /* BUT BANDS THAT DISAGREE ARE A REAL CHOICE, and with no count there is nothing to make it with. */
+    A.setHR(Object.assign(A.HR(), { prate: [band('1-4', '125'), band('5+', '180')] }));
+    ok('two bands at two prices, and no count, is still no rate', A.prRateFor('VND002', o, o.lines[0]) === null);
+    ok('…and the reason names both prices and where to put the count',
+       /Rs\.125/.test(A.prRateWhy('VND002', o, o.lines[0])) && /Rs\.180/.test(A.prRateWhy('VND002', o, o.lines[0]))
+       && /master database/.test(A.prRateWhy('VND002', o, o.lines[0])), A.prRateWhy('VND002', o, o.lines[0]));
+    /* And a design that DOES say its count still gets its own band, same price or not. */
+    const five = Object.assign({}, o, { lines: [Object.assign({}, o.lines[0], { colours: 6 })] });
+    ok('…while a design that says six colours takes the 5+ band', A.prRateFor('VND002', five, five.lines[0]) === 180);
+    /* A label is still not a band: "Gadd" at the same price does not make a labelled rate match. */
+    A.setHR(Object.assign(A.HR(), { prate: [band('Gadd', '125')] }));
+    ok('…and a labelled rate is still not reached this way', A.prRateFor('VND002', o, o.lines[0]) === null);
+  }
+
   /* ---- A-2: TWO FILLERS, AND THE ORDER SAYS WHICH ----
    *
    * The filling firm prices the same quilt at Rs.550 in surgical cotton and Rs.450 in cotton, and an
