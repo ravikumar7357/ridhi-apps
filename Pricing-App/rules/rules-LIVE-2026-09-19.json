@@ -1,0 +1,74 @@
+{
+  // ── The production tracker's data, moved into this project so ONE login governs it ──────────────
+  //
+  // The database it came from was readable by anyone on the internet with no sign-in at all: a plain
+  // curl on /.json?shallow=true returned every node name, payroll and attendance included. Stopping
+  // that is the first thing this file exists for.
+  //
+  // Nothing here is readable or writable without a Firebase sign-in IN THIS PROJECT — which is
+  // exactly why the data had to move. A token issued by another project cannot be checked here, so
+  // while the data sat there no rule of ours could ever have applied to it.
+  //
+  // WHO may do WHAT is otherwise still decided by the app, from pt_users. That is the level the tool
+  // has always worked at, and tightening it here before the writes are ours would lock the factory
+  // out mid-shift. Role-level rules belong with the native rebuild.
+  //
+  // THE ONE EXCEPTION IS VENDORS, and it is not optional. A printer is not staff: they are outside
+  // the company, and they must never be able to read another printer's orders, their prices, or
+  // anything else in here. "Signed in = may work" would give them all of it the moment they went
+  // around the app with a plain fetch.
+  //
+  // So the top-level grant below is "signed in AND NOT a vendor". Vendor-ness is a lookup the rules
+  // can do for themselves: pt_vendorByEmail is keyed by the account's own email with its dots turned
+  // into commas, which is exactly what auth.token.email.replace('.', ',') produces. A vendor is
+  // therefore refused at the root and granted ONLY pt_vendorOrders/<their own code>. Read rules
+  // cascade downward and cannot be revoked lower, which is why the root grant has to exclude them
+  // rather than the branch having to allow staff back in.
+  //
+  // Only staff can write pt_vendorByEmail (it sits under the root grant), so a vendor cannot delete
+  // their own entry to promote themselves.
+  //
+  // The indexes are on the fields the tool actually queries by, so a lookup does not drag a whole
+  // node down to the browser.
+  "rules": {
+    ".read":  "auth != null && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()",
+    ".write": "auth != null && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()",
+
+    // A vendor reads and writes one branch: their own. Staff already have both from the root.
+    "pt_vendorOrders": {
+      "$code": {
+        ".read":  "auth != null && root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).child('code').val() === $code",
+        ".write": "auth != null && root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).child('code').val() === $code"
+      }
+    },
+
+    // The portal has to find out which vendor the account belongs to. It may read its OWN row only,
+    // so this cannot be used to enumerate anybody else.
+    "pt_vendorByEmail": {
+      "$emailKey": {
+        ".read": "auth != null && $emailKey === auth.token.email.replace('.', ',')"
+      }
+    },
+
+    // Whether an account has changed the PIN it was handed. The FACT only — never the PIN itself.
+    // Its own row is the one thing a vendor may write outside their orders, and writing it cannot
+    // reach anything: the portal only ever reads changedAt from it.
+    "pt_vendorPin": {
+      "$emailKey": {
+        ".read":  "auth != null && $emailKey === auth.token.email.replace('.', ',')",
+        ".write": "auth != null && $emailKey === auth.token.email.replace('.', ',') && newData.hasChildren(['changedAt'])"
+      }
+    },
+    "pt_baseData":       { ".indexOn": ["sku", "empName", "issueDate", "frozen"] },
+    "pt_cuttingData":    { ".indexOn": ["sku", "orderNo", "cutDate"] },
+    "pt_masterDB":       { ".indexOn": ["sku", "brand", "articleType", "color"] },
+    "pt_pressInventory": { ".indexOn": ["sku", "orderNo", "entryDate"] },
+    "pt_orderBook":      { ".indexOn": ["sku", "orderNo", "orderDate"] },
+    "pt_customSkus":     { ".indexOn": ["sku", "brand", "articleType"] },
+    "pt_fabInvLedger":   { ".indexOn": ["orderNo", "date", "fabricType"] },
+    "pt_qcChecks":       { ".indexOn": ["sku", "date"] },
+    "pt_qcIssuance":     { ".indexOn": ["sku", "date", "employee"] },
+    "pt_extraHours":     { ".indexOn": ["date", "empName", "status"] },
+    "pt_salesOrders":    { ".indexOn": ["orderNo", "orderDate", "channel"] }
+  }
+}

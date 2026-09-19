@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shopify authorisation code</title>
+<!--
+  ONE JOB: catch the `code` Shopify sends back after an app is authorised, and show it.
+
+  This page never sees the app's secret and never calls anything. The code on its own is useless
+  and dies in a couple of minutes; the exchange for a real token is done from a terminal, by hand,
+  so the secret and the token stay on the person's own machine.
+-->
+<style>
+  :root {
+    --paper: #f4f6f8; --card: #fff; --ink: #14181d; --ink2: #5a6672;
+    --line: #dfe5ea; --accent: #166534; --bad: #991b1b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --paper: #11161b; --card: #19212a; --ink: #e8edf2; --ink2: #9aa8b4; --line: #2a333d; --accent: #4cbc93; --bad: #ff6076; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink);
+    font: 15px/1.6 ui-sans-serif, system-ui, "Segoe UI", sans-serif; }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 32px 18px 64px; }
+  h1 { font-size: 22px; margin: 0 0 6px; }
+  p { margin: 0 0 12px; color: var(--ink2); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-top: 16px; }
+  code, .code { font-family: ui-monospace, Consolas, monospace; }
+  .code { display: block; word-break: break-all; background: var(--paper); border: 1px solid var(--line);
+    border-radius: 8px; padding: 12px; font-size: 15px; margin: 10px 0; }
+  button { font: inherit; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--ink); color: var(--paper); cursor: pointer; }
+  ol { padding-left: 20px; color: var(--ink2); }
+  li { margin: 8px 0; }
+  .err { color: var(--bad); font-weight: 600; }
+  .ok { color: var(--accent); font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Shopify authorisation code</h1>
+  <p id="lede">Reading what Shopify sent back…</p>
+
+  <div class="card" id="box">
+    <div id="out"></div>
+  </div>
+
+  <div class="card">
+    <strong>What to do with it</strong>
+    <ol>
+      <li>Copy the code above (it is only good for a minute or two).</li>
+      <li>Run the exchange command on your own computer — it needs the app's <em>secret</em>, which
+        must never be typed into a web page.</li>
+      <li>The answer contains <code>access_token</code>, starting <code>shpat_</code>. That is the
+        permanent token; put it straight into Script Properties.</li>
+    </ol>
+  </div>
+</div>
+<script>
+  var q = new URLSearchParams(location.search);
+  var code = q.get('code'), shop = q.get('shop'), err = q.get('error');
+  var out = document.getElementById('out');
+  var lede = document.getElementById('lede');
+  if (code) {
+    lede.textContent = shop ? 'Authorised on ' + shop + '. Here is the one-time code.' : 'Here is the one-time code.';
+    out.innerHTML = '<div class="ok">Code received</div><div class="code" id="c"></div>'
+      + '<button id="cp" type="button">Copy the code</button>';
+    document.getElementById('c').textContent = code;
+    document.getElementById('cp').onclick = function () {
+      navigator.clipboard.writeText(code).then(function () {
+        document.getElementById('cp').textContent = 'Copied';
+      }, function () {
+        document.getElementById('cp').textContent = 'Copy failed — select it by hand';
+      });
+    };
+  } else if (err) {
+    lede.textContent = 'Shopify refused the authorisation.';
+    out.innerHTML = '<div class="err">' + String(err).replace(/[<>&]/g, '') + '</div>'
+      + '<p>Check that the redirect URL of this page is listed in the app, and that the scopes asked for are the ones the app is configured with.</p>';
+  } else {
+    lede.textContent = 'Nothing to show yet.';
+    out.innerHTML = '<p>Open this page by authorising the app — Shopify then sends the code here. '
+      + 'Opening it directly shows nothing, which is exactly as it should be.</p>';
+  }
+</script>
+</body>
+</html>

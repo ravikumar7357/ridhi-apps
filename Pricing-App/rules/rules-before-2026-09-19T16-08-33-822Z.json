@@ -1,0 +1,111 @@
+{
+  // ── PHASE 1: THE DATABASE ENFORCES WHO MAY WRITE THE NODES THAT ARE MONEY ────────────────────────
+  //
+  // Until this file, every right in the app — can approve a rate, can freeze a payout, can edit the
+  // master database — was a button the app chose to show or hide. The database itself allowed any
+  // signed-in member of staff to write anything, so anybody who opened the browser console could
+  // approve their own rate or re-open a settled fortnight. 44 accounts, 3 admins.
+  //
+  // WHY THE ROOT NO LONGER GRANTS WRITE. A grant given at a parent cannot be taken back lower down —
+  // rules cascade. While the root said "any staff may write", no stricter rule under it could mean
+  // anything. So the root grants READ only, and write is granted node by node: the money nodes to
+  // the people who hold the right, and EVERYTHING ELSE to staff exactly as before, through the
+  // "$other" rule at the bottom. A node nobody thought of is therefore not locked — it is staff-
+  // writable, which is what it was yesterday.
+  //
+  // A NODE NAMED HERE IS NOT COVERED BY "$other". That is why the indexed nodes each carry their own
+  // staff .write: naming one for its index and forgetting the write would lock the factory out of it.
+  //
+  // THE APP WRITES WITH A PATCH AT THE ROOT, keys like "pt_masters/recipe/x". That is judged key by
+  // key, not as a write to the root — proven on the live database on 2026-09-19 with a simulated
+  // vendor, before the root grant was removed.
+  //
+  // THE OWNER IS ALWAYS AN ADMIN, by email, exactly as firestore.rules has it (OWNER_EMAIL) and as the app
+  // has it — so the account can never be locked out of its own database by a missing or mistaken copy.
+  // The first draft of this file left that out and would have refused the owner every node below.
+  //
+  // WHERE THE RIGHTS COME FROM. They live in Firestore (perms/<email>), which these rules cannot read.
+  // pt_perms/<email, dots as commas> is a copy the rules CAN read: { admin, r: {right: true}, t: {tab: true} }.
+  // Sellora's Access screen writes both. Only an admin may write pt_perms, so nobody can grant
+  // themselves anything — and rules/rules-tool.js compares the copy with Firestore and says when
+  // they differ.
+  //
+  // NOT YET ENFORCED (phase 2): pt_masters has eight writers holding five different rights, and the
+  // rate list is saved as ONE array, so "may propose" and "may approve" cannot be told apart here
+  // until rates are stored a row at a time. pt_vendorByEmail is still staff-writable, and deleting a
+  // vendor's row from it would promote that vendor to staff — it needs its own right.
+  "rules": {
+    ".read": "auth != null && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()",
+
+    // ── the copy of the rights themselves: admins only ──
+    "pt_perms": {
+      ".write": "auth != null && (auth.token.email.toLowerCase() === 'ravi@thefabricrush.com' || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).child('admin').val() === true)"
+    },
+
+    // ── a settled fortnight: only an admin freezes or re-opens one (the app says the same) ──
+    "pt_payoutFreezes": {
+      ".write": "auth != null && (auth.token.email.toLowerCase() === 'ravi@thefabricrush.com' || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).child('admin').val() === true)"
+    },
+
+    // ── what people and vendors are paid: whoever holds Finance & HR ──
+    "pt_printerRates": {
+      ".write": "auth != null && ((auth.token.email.toLowerCase() === 'ravi@thefabricrush.com' || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).child('admin').val() === true) || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).child('t').child('hr').val() === true)"
+    },
+    "pt_rateList": {
+      ".write": "auth != null && ((auth.token.email.toLowerCase() === 'ravi@thefabricrush.com' || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).child('admin').val() === true) || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).child('t').child('hr').val() === true)"
+    },
+    "pt_advances": {
+      ".write": "auth != null && ((auth.token.email.toLowerCase() === 'ravi@thefabricrush.com' || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).child('admin').val() === true) || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).child('t').child('hr').val() === true)"
+    },
+    // The employee list has one more way in: "Can add and delete employees" opens it on its own.
+    "pt_empList": {
+      ".write": "auth != null && ((auth.token.email.toLowerCase() === 'ravi@thefabricrush.com' || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).child('admin').val() === true) || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).child('t').child('hr').val() === true || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).child('r').child('empEdit').val() === true)"
+    },
+
+    // ── the master database: "Can edit the master database", or "Can edit production entries" (which
+    //    is what Apply consumption asks for), or an admin ──
+    "pt_masterDB": {
+      ".write": "auth != null && ((auth.token.email.toLowerCase() === 'ravi@thefabricrush.com' || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).child('admin').val() === true) || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).child('r').child('mdbEdit').val() === true || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).child('r').child('prodEdit').val() === true)",
+      ".indexOn": ["sku", "brand", "articleType", "color"]
+    },
+
+    // ── vendors: unchanged. A vendor reads and writes one branch, their own. Staff write the node. ──
+    "pt_vendorOrders": {
+      ".write": "auth != null && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()",
+      "$code": {
+        ".read":  "auth != null && root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).child('code').val() === $code",
+        ".write": "auth != null && root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).child('code').val() === $code"
+      }
+    },
+    "pt_vendorByEmail": {
+      ".write": "auth != null && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()",
+      "$emailKey": {
+        ".read": "auth != null && $emailKey === auth.token.email.replace('.', ',')"
+      }
+    },
+    "pt_vendorPin": {
+      ".write": "auth != null && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()",
+      "$emailKey": {
+        ".read":  "auth != null && $emailKey === auth.token.email.replace('.', ',')",
+        ".write": "auth != null && $emailKey === auth.token.email.replace('.', ',') && newData.hasChildren(['changedAt'])"
+      }
+    },
+
+    // ── named only for their indexes, so each says again what "$other" would have said for it ──
+    "pt_baseData":       { ".write": "auth != null && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()", ".indexOn": ["sku", "empName", "issueDate", "frozen"] },
+    "pt_cuttingData":    { ".write": "auth != null && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()", ".indexOn": ["sku", "orderNo", "cutDate"] },
+    "pt_pressInventory": { ".write": "auth != null && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()", ".indexOn": ["sku", "orderNo", "entryDate"] },
+    "pt_orderBook":      { ".write": "auth != null && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()", ".indexOn": ["sku", "orderNo", "orderDate"] },
+    "pt_customSkus":     { ".write": "auth != null && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()", ".indexOn": ["sku", "brand", "articleType"] },
+    "pt_fabInvLedger":   { ".write": "auth != null && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()", ".indexOn": ["orderNo", "date", "fabricType"] },
+    "pt_qcChecks":       { ".write": "auth != null && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()", ".indexOn": ["sku", "date"] },
+    "pt_qcIssuance":     { ".write": "auth != null && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()", ".indexOn": ["sku", "date", "employee"] },
+    "pt_extraHours":     { ".write": "auth != null && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()", ".indexOn": ["date", "empName", "status"] },
+    "pt_salesOrders":    { ".write": "auth != null && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()", ".indexOn": ["orderNo", "orderDate", "channel"] },
+
+    // ── everything else: staff, exactly as yesterday ──
+    "$other": {
+      ".write": "auth != null && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()"
+    }
+  }
+}

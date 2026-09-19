@@ -1,0 +1,27 @@
+# ONLY THE CODE. This folder also holds order exports, payroll backups and workbooks that must never
+# be committed, so everything is ignored and the code folders are let back in one by one.
+/*
+!/.gitignore
+!/.gitattributes
+!/Replenish-App/
+!/Pricing-App/
+!/Pricing-API/
+!/Repl-API/
+!/Repl-API-CPC/
+
+# Firebase's local deploy cache, and anything installed.
+.firebase/
+node_modules/
+firebase-debug.log
+
+# LIVE DATA the suites read when it is there — employee names, payouts, the master database. It stays
+# on this disk beside the tests and never goes into history.
+/Replenish-App/tests/pa/
+/Replenish-App/tests/mix/
+/Replenish-App/tests/*.json
+# …and what a run writes out.
+/Replenish-App/tests/*.xlsx
+/Replenish-App/tests/*.csv
+
+# Office lock files.
+~$*

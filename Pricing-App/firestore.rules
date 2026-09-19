@@ -1,0 +1,316 @@
+rules_version = '2';
+
+// Access is per user, by EMAIL, held in perms/{email} = { admin: bool, tabs: [ … ] }.
+//
+// These rules are the REAL gate. Hiding a tab in the browser is only cosmetic — anyone signed in
+// could otherwise read every collection straight from the console — so every collection below is
+// gated on the permission its tab needs.
+//
+// ⚠️ OWNER_EMAIL below is always an admin, so the account can never be locked out of its own app.
+//    If the owner ever signs in with a different address, CHANGE IT HERE FIRST or nobody can grant
+//    permissions to anybody.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function email() { return request.auth != null ? request.auth.token.email : ''; }
+    function permPath() { return /databases/$(database)/documents/perms/$(email()); }
+    function hasPerms() { return request.auth != null && exists(permPath()); }
+    function permData() { return get(permPath()).data; }
+
+    function isOwner() { return email() == 'ravi@thefabricrush.com'; }
+    function isAdmin() { return isOwner() || (hasPerms() && permData().admin == true); }
+
+    // Default DENY: a signed-in user with no perms doc gets nothing. Adding an account in the
+    // Firebase console is therefore no longer the same as granting access to everything.
+    function can(tab) {
+      return isAdmin() || (hasPerms() && permData().tabs is list && tab in permData().tabs);
+    }
+    // Every tab that CALLS THE BACKEND has to be in here, or its users cannot even read the
+    // endpoint's address and the app reports "Backend not configured" — which reads as a broken
+    // deployment rather than a missing permission. Adding a tab that talks to Apps Script and
+    // forgetting this line is the failure mode; sales, plaudit and shop were all missing it.
+    //
+    // WRITTEN AS ONE hasAny() ON PURPOSE. Chaining twelve can() calls meant twelve trips through
+    // exists() + get() on the same perms document, and Firestore caps how many document accesses a
+    // single rule evaluation may make. Past that cap the rule does not return false, it FAILS — and
+    // a failed rule is indistinguishable from a denial, so the app just says "not configured".
+    // One exists, one get, however many tabs the list grows to.
+    function canAny() {
+      return isAdmin() || (hasPerms() && permData().tabs is list && permData().tabs.hasAny([
+        'new', 'link', 'age', 'health', 'lrules', 'kw', 'ba', 'weekly', 'trends', 'deals',
+        'sales', 'plaudit', 'shop',
+        // Search Terms and Placement read their caches THROUGH the backend and hold nothing in
+        // Firestore, so this list is the only thing standing between them and working. Missing
+        // here, an account granted the advertising tabs and nothing else was told "Backend not
+        // configured" — which reads as a broken deployment, not as a permission that was never
+        // given. Exactly the failure this function's comment warns about.
+        'st', 'plc', 'profit',
+        // Sales Analysis reads the Orders workbook THROUGH the backend and holds only its own cache
+        // here, so without this line its users are told "Backend not configured".
+        'sa',
+        // The listing optimiser reads the catalogue and the ad caches through the backend.
+        'opt', 'basket'
+      ]));
+    }
+    // The FBA Replenishment app is a separate frontend sharing this project. Its own permission flag.
+    function canRepl() { return isAdmin() || (hasPerms() && permData().repl == true); }
+    // Changing the MONTHLY PROJECTIONS is a narrower right than using the app: those numbers drive
+    // every requirement and lane decision, so they are granted separately (perms.replProj).
+    function canProj() { return isAdmin() || (hasPerms() && permData().replProj == true); }
+
+    // A user may read their OWN permissions (the app needs them to build the menu) and nobody
+    // else's. Only an admin can grant or revoke.
+    // NOTE ON perms.brands: it restricts what the APP SHOWS, not what Firestore serves. The cached
+    // documents below hold both brands in one place, so a user who may read a tab can still read the
+    // other brand's numbers directly. Making that restriction real means splitting these caches into
+    // per-brand documents and gating each one — worth doing if the brands are ever separate parties.
+    match /perms/{userEmail} {
+      allow read: if request.auth != null && (userEmail == email() || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    // The Apps Script endpoint + its key. Restricted to users who have a tab that actually calls
+    // Amazon — an audit-only user has no reason to hold the backend key.
+    // ⚠️ Anyone who CAN read this can call the backend directly, so tab permissions limit what
+    //    people can do IN THE APP; they are not isolation from the backend itself.
+    match /config/{doc} {
+      allow read: if canAny();
+      allow write: if false;
+    }
+
+    // Costing rates — readable by anyone with app access, writable by the costing tab or an admin.
+    match /settings/{doc} {
+      allow read: if canAny() || can('audit');
+      allow write: if can('new') || isAdmin();
+    }
+
+    match /history/{doc} {
+      allow read, write: if canAny();
+    }
+
+    // Cached FBA inventory-age snapshots, one doc per brand.
+    match /age/{brand} {
+      allow read, write: if can('age') || can('health');
+    }
+
+    // Listing health: metadata doc plus the row chunks (one document could only hold ~1,500 rows).
+    // The Listing Health snapshot is built from GET_MERCHANT_LISTINGS_ALL_DATA for ONE marketplace
+    // (the US), so it doubles as the only trustworthy answer to "is this SKU on the US marketplace".
+    // The Replenishment app READS it for exactly that — never writes it — which is why canRepl() is
+    // on read only. Without this line that app can see nothing and, by design, hides nothing.
+    match /health/{brand} {
+      allow read: if can('health') || canRepl();
+      allow write: if can('health');
+    }
+    // Listing Rules: the issues, title templates and season calendar Listing Health judges by, plus a day's
+    // cache of each brand catalogue (colour, size, sub-category) the title templates are filled from.
+    match /listingrules/{doc} {
+      allow read: if can('health') || can('lrules');
+      allow write: if can('health') || can('lrules');
+    }
+    match /healthrows/{doc} {
+      allow read: if can('health') || canRepl();
+      allow write: if can('health');
+    }
+
+    // sku -> FBA quantity, one doc per brand. Used by both the health and age views.
+    // Shopify Orders READS it to answer "could Amazon ship this order", but never writes it — the
+    // quantities are Amazon's, maintained by the Listing Health pull.
+    match /stock/{brand} {
+      allow read: if can('health') || can('age') || can('shop');
+      allow write: if can('health') || can('age');
+    }
+
+    // Listing audit: the INDEX of supporting documents per parent ASIN (type, label, link, date).
+    // The files themselves live in the user's own Dropbox and never pass through here.
+    match /audit/{brand} {
+      allow read, write: if can('audit');
+    }
+
+    // Manually-added audit parents (products not yet on Amazon).
+    match /auditmanual/{brand} {
+      allow read, write: if can('audit');
+    }
+
+    // Launch details per parent (shipment + lane, Vine, influencers, Creator Connections, PPC,
+    // Meta ads, launch date). Same audience as the documents they sit beside.
+    // NOTE: the cached 30-day sales figures live at audit/sales30, so they are already covered by
+    // the audit/{brand} rule above — deliberately, since they are read on the same screen.
+    match /auditlaunch/{brand} {
+      allow read, write: if can('audit');
+    }
+
+    // Parent names typed by hand. Readable by any section that shows a parent, writable by those
+    // same sections — a curated name is shared context, not private to one tab.
+    match /parentnames/{brand} {
+      allow read: if can('health') || can('audit') || can('bsr');
+      allow write: if can('health') || can('audit') || can('bsr');
+    }
+
+    // PPC & Organic (weekly). Its metadata and change log sit under audit/ so they travel with the
+    // rest of the launch data, but the tab has its own permission — these are the only two audit/
+    // documents a weekly-only user may touch, which is why they are named rather than covered by a
+    // wildcard. (Matches are OR'd, so an audit user still reaches them through audit/{brand}.)
+    match /audit/weekly {
+      allow read, write: if can('weekly') || can('profit') || can('audit');
+    }
+    match /audit/weeklylog {
+      allow read, write: if can('weekly') || can('audit');
+    }
+    // Per-ASIN week rows, chunked — 26 weeks across a full catalogue does not fit in one document.
+    match /weeklyrows/{doc} {
+      allow read, write: if can('weekly') || can('profit') || can('audit');
+    }
+    // Account Trends: whole-account daily totals per brand. No ASIN dimension, so a year of days
+    // fits comfortably in one document.
+    match /audit/trends {
+      allow read, write: if can('trends') || can('audit');
+    }
+    // Unit costs, per ASIN, plus the percentage model the profit figures are built on. Amazon has no
+    // API for what goods cost, so this document is typed by hand and is the ONLY copy — nothing can
+    // regenerate it. Gated on the Profit tab, so an account granted the ad tabs cannot read margins.
+    match /audit/costs {
+      allow read, write: if can('profit') || can('audit');
+    }
+    // Deal calendar: your own entries + the imported recommendations (chunked — Amazon's file runs
+    // to a few thousand rows).
+    match /audit/deals {
+      allow read, write: if can('deals') || can('audit');
+    }
+    match /dealrows/{doc} {
+      allow read, write: if can('deals') || can('audit');
+    }
+
+    // ===== Shopify Orders + Adjustments =====
+    // These sit under audit/ so they travel with the rest of the operational data, but the tabs
+    // have their own permissions — so, like audit/weekly above, they are NAMED rather than left to
+    // the audit/{brand} wildcard. Matches are OR'd, so an audit user still reaches them.
+    //
+    // The two tabs share one record on purpose: an adjustment is raised inside an order and worked
+    // through on the Adjustments tab, so anybody who can do either has to reach the same document.
+    // Splitting them would mean a job could exist on one screen and not the other.
+    match /audit/shoporders {
+      allow read, write: if can('shop') || can('adj') || can('audit');
+    }
+    // Per-SKU master: shelf bin, HS code, GST rate, invoice rate. Facts about the PRODUCT, written
+    // by whoever is picking or preparing the invoice.
+    // Orders IMPORTED from a shop with no API key (CPC Shopify, the Etsy stores). Same audience as
+    // the tab that shows them; chunked, because one document will not hold them.
+    /* ── THE PRODUCTION APP ──────────────────────────────────────────────────────────────────
+     * A second app in a DIFFERENT Firebase project reads the orders from HERE rather than keeping
+     * its own copy, so there is one list and one truth. Its people sign in with their own accounts
+     * in this project, carrying `perms.prod` — no shared key, and every write is attributable.
+     *
+     * The split is deliberate. They may READ the published orders and they may WRITE only their own
+     * notes document; they cannot touch an order, a status, or anything else in this project. And
+     * `prodorders` is written only by whoever runs the Shopify tab — production reads what it is
+     * given and answers in its own column.
+     */
+    function canProd() { return isAdmin() || (hasPerms() && permData().prod == true); }
+    match /prod/orders {
+      allow read: if canProd() || can('shop');
+      allow write: if can('shop');
+    }
+    match /prodorders/{doc} {
+      allow read: if canProd() || can('shop');
+      allow write: if can('shop');
+    }
+    match /prod/notes {
+      allow read: if canProd() || can('shop') || can('adj');
+      allow write: if canProd();
+    }
+
+    /* Sales Analysis: the monthly matrix this app builds from the brand's own Orders workbook.
+     * Written by whoever presses Rebuild, read by everyone who can see the tab. The SKU rows are
+     * chunked because 3,000 SKUs across two years of months does not fit in one document. */
+    match /salesanalysis/{brand} {
+      allow read, write: if can('sa') || can('audit');
+    }
+    match /sarows/{doc} {
+      allow read, write: if can('sa') || can('audit');
+    }
+
+    match /shop/imported {
+      allow read, write: if can('shop');
+    }
+    match /shopimp/{doc} {
+      allow read, write: if can('shop');
+    }
+
+    match /audit/skumeta {
+      allow read, write: if can('shop') || can('adj') || can('audit');
+    }
+    // The bin-only document this replaced. Still read once, to carry old entries over.
+    match /audit/skuloc {
+      allow read, write: if can('shop') || can('adj') || can('audit');
+    }
+
+    // BSR audit: an index of which weeks exist, plus one append-only document per brand per ISO week.
+    // History is the whole point of the feature, so nothing here is ever meant to be deleted.
+    match /bsr/{brand} {
+      allow read, write: if can('bsr');
+    }
+    match /bsrweeks/{doc} {
+      allow read, write: if can('bsr');
+      allow delete: if false;
+    }
+
+    // ===== FBA Replenishment app (separate frontend, same project) =====
+    // Its backend URL + key. A more-specific match than config/{doc} above, OR'd with it, so a
+    // replenishment-only user can read this without holding an Amazon-tab permission.
+    match /config/replapi {
+      allow read: if canRepl();
+      allow write: if false;
+    }
+    // The PRICE RESEARCH backend, opened to replenishment users as well.
+    //
+    // The Shopify connection lives only in that backend (SHOPIFY_STORE / SHOPIFY_TOKEN), and the
+    // Replenishment app's own Apps Script has no Shopify at all — so the Shopify tab there has to
+    // read this endpoint. Widening this was Ravi's explicit call, 2026-08-16.
+    //
+    // ⚠️ Understand what it costs. A replenishment-only account can now call the Amazon backend
+    //    directly, not just the Shopify parts of it. The warning on config/{doc} above applies here
+    //    in full: tab permissions limit what people can do IN THE APP, never what the key can reach.
+    match /config/api {
+      allow read: if canAny() || canRepl();
+      allow write: if false;
+    }
+    // Cached replenishment snapshot per brand (metadata), plus its row chunks — one doc could not
+    // hold 3,000+ SKUs with image URLs under Firestore's 1 MB limit. Also holds the app's small
+    // side docs (prodstatus, indiastock, inproduction).
+    // ⚠️ Matches are OR'd in Firestore, so a narrower rule below can only ADD permission, never remove
+    //    it — 'projoverride' therefore has to be carved OUT here for its own rule to be the real gate.
+    match /repl/{brand} {
+      allow read: if canRepl();
+      allow write: if canRepl() && brand != 'projoverride';
+    }
+    // Manual monthly projections ("SKU|YYYY-MM" -> units). Readable by anyone who uses the app —
+    // everyone needs to SEE the numbers the plan is built on — but writable only with canProj().
+    match /repl/projoverride {
+      allow read: if canRepl();
+      allow write: if canProj();
+    }
+    match /replrows/{doc} {
+      allow read, write: if canRepl();
+    }
+    // India Stock + In Production lists — uploaded by the user in their own tabs (CSV import).
+    // Metadata lives in repl/indiastock + repl/inproduction (covered by repl/{brand} above); these
+    // are their row chunks, same pattern as replrows.
+    match /repl_india/{doc} {
+      allow read, write: if canRepl();
+    }
+    match /repl_inprod/{doc} {
+      allow read, write: if canRepl();
+    }
+    // Purchase orders.
+    match /po/{doc} {
+      allow read, write: if canRepl();
+    }
+    // Packing lists — one document per shipment, holding its boxes and their line items. Sized to
+    // fit: a few hundred lines of {sku, desc, qty, weight} is far inside Firestore's 1 MB, and a
+    // packing list that outgrew one document would be a shipment nobody could load anyway.
+    match /packlist/{doc} {
+      allow read, write: if canRepl();
+    }
+  }
+}

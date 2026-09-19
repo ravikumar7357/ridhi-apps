@@ -1,0 +1,4 @@
+# GIT NEVER TOUCHES A LINE ENDING HERE. Replenish-App is CRLF, Sellora is LF with a BOM, and the test
+# suite is mixed; the apply scripts match text exactly, and a converted file would deploy different bytes
+# from the ones that were tested.
+* -text

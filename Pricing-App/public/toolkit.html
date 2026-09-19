@@ -1,0 +1,616 @@
+<title>Ridhi Seller Toolkit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --bg:#EEF1EC; --panel:#FFFFFF; --sunk:#E3E8E1; --field:#FBFCFA;
+  --ink:#16202B; --ink-2:#44544E; --ink-3:#6E7C76;
+  --rule:#D3DBD2; --rule-2:#BCC7BB;
+  --sage:#4F6F49; --sage-soft:#E2EADF;
+  --madder:#A8342A; --madder-soft:#F7E7E4;
+  --turmeric:#8A6416; --turmeric-soft:#F5ECD9;
+  --focus:#2F6E8F;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#11161A; --panel:#191F23; --sunk:#222A2E; --field:#141A1E;
+    --ink:#E9EEE8; --ink-2:#B3BFB8; --ink-3:#8A9891;
+    --rule:#2B3438; --rule-2:#3A4549;
+    --sage:#9CC091; --sage-soft:#1E2A1D;
+    --madder:#E79184; --madder-soft:#3B2421;
+    --turmeric:#DEB566; --turmeric-soft:#2F2718;
+    --focus:#7FB6D4;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#11161A; --panel:#191F23; --sunk:#222A2E; --field:#141A1E;
+  --ink:#E9EEE8; --ink-2:#B3BFB8; --ink-3:#8A9891;
+  --rule:#2B3438; --rule-2:#3A4549;
+  --sage:#9CC091; --sage-soft:#1E2A1D;
+  --madder:#E79184; --madder-soft:#3B2421;
+  --turmeric:#DEB566; --turmeric-soft:#2F2718;
+  --focus:#7FB6D4;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+  font-size:15px; line-height:1.55; -webkit-font-smoothing:antialiased;
+}
+.mono{font-family:"IBM Plex Mono",ui-monospace,monospace; font-variant-numeric:tabular-nums}
+.wrap{max-width:1080px; margin:0 auto; padding:0 20px 80px}
+:focus-visible{outline:2px solid var(--focus); outline-offset:2px}
+
+header{padding:36px 0 22px}
+.brandline{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:6px}
+h1{font-size:26px; font-weight:700; letter-spacing:-.02em; margin:0}
+.sub{font-size:13.5px; color:var(--ink-3)}
+.lede{font-size:15px; color:var(--ink-2); margin:0; max-width:70ch}
+
+nav{display:flex; gap:2px; flex-wrap:wrap; margin:22px 0 0; border-bottom:1px solid var(--rule)}
+.tab{
+  appearance:none; border:1px solid transparent; border-bottom:none; background:none;
+  font:inherit; font-weight:600; font-size:14px; color:var(--ink-3);
+  padding:11px 16px; cursor:pointer; border-radius:4px 4px 0 0; margin-bottom:-1px;
+}
+.tab:hover{color:var(--ink)}
+.tab[aria-selected="true"]{
+  background:var(--panel); border-color:var(--rule); color:var(--ink);
+  box-shadow:inset 0 2px 0 var(--sage);
+}
+.panel{display:none; padding-top:26px}
+.panel.on{display:block}
+
+h2{font-size:18px; font-weight:600; letter-spacing:-.01em; margin:0 0 4px}
+h3{font-size:13px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); margin:0}
+.hint{font-size:13.5px; color:var(--ink-3); margin:0}
+.card{background:var(--panel); border:1px solid var(--rule); border-radius:5px; padding:20px 22px}
+.stack{display:flex; flex-direction:column; gap:16px}
+.stack-s{display:flex; flex-direction:column; gap:9px}
+
+label.fl{font-size:12px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3)}
+select,textarea,input[type=text]{
+  font:inherit; width:100%; background:var(--field); color:var(--ink);
+  border:1px solid var(--rule-2); border-radius:4px; padding:10px 12px;
+}
+textarea{resize:vertical; min-height:88px; line-height:1.5}
+select{cursor:pointer}
+button.act{
+  appearance:none; font:inherit; font-weight:600; font-size:13.5px; cursor:pointer;
+  background:var(--ink); color:var(--panel); border:none; border-radius:4px; padding:9px 16px;
+}
+button.act.ghost{background:none; color:var(--ink-2); border:1px solid var(--rule-2)}
+button.act:hover{opacity:.88}
+.row{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+
+.out{
+  background:var(--sage-soft); border:1px solid var(--sage); border-radius:4px;
+  padding:14px 16px; font-size:16px; font-weight:600; line-height:1.45; word-break:break-word;
+}
+.meter{display:flex; align-items:center; gap:10px; font-size:13px; color:var(--ink-3)}
+.meter .bar{flex:1; height:6px; background:var(--sunk); border-radius:3px; overflow:hidden}
+.meter .bar i{display:block; height:100%; background:var(--sage); border-radius:3px}
+.meter .bar i.warn{background:var(--turmeric)}
+.meter .bar i.over{background:var(--madder)}
+
+.phone{
+  background:var(--sunk); border:1px solid var(--rule-2); border-radius:5px;
+  padding:14px 16px; display:flex; gap:12px; align-items:flex-start;
+}
+.thumb{width:46px; height:46px; border-radius:4px; background:linear-gradient(150deg,#9DB596,#6B8A63); flex:none}
+.phone .t{font-size:13.5px; line-height:1.35; font-weight:500}
+.phone .t .cut{color:var(--ink-3); opacity:.45}
+.phone .p{font-size:14px; font-weight:700; margin-top:3px}
+.phlabel{font-size:11px; letter-spacing:.09em; text-transform:uppercase; font-weight:600; color:var(--ink-3); margin:0 0 6px}
+
+ul.issues{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px}
+ul.issues li{
+  font-size:13.5px; padding:9px 12px; border-radius:4px; display:flex; gap:9px; align-items:flex-start;
+  background:var(--madder-soft); color:var(--ink-2); border-left:3px solid var(--madder);
+}
+ul.issues li.warn{background:var(--turmeric-soft); border-left-color:var(--turmeric)}
+ul.issues li.ok{background:var(--sage-soft); border-left-color:var(--sage)}
+ul.issues b{color:var(--ink)}
+.pill{
+  font-family:"IBM Plex Mono",monospace; font-size:11px; font-weight:600; padding:1px 6px;
+  border-radius:3px; background:var(--panel); border:1px solid var(--rule-2); flex:none; margin-top:1px;
+}
+
+.scroll{overflow-x:auto}
+table{border-collapse:collapse; width:100%; font-size:14px; min-width:400px}
+th,td{text-align:left; padding:9px 12px; border-bottom:1px solid var(--rule); vertical-align:top}
+th{font-size:11px; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3); font-weight:600; border-bottom:1.5px solid var(--rule-2)}
+tbody tr:last-child td{border-bottom:none}
+td.k{font-weight:600; white-space:nowrap; color:var(--ink)}
+
+ol.steps{list-style:none; counter-reset:s; margin:0; padding:0; display:flex; flex-direction:column; gap:1px}
+ol.steps li{
+  counter-increment:s; background:var(--panel); border:1px solid var(--rule);
+  padding:13px 16px 13px 48px; position:relative; font-size:14.5px; color:var(--ink-2);
+}
+ol.steps li::before{
+  content:counter(s); position:absolute; left:16px; top:13px;
+  font-family:"IBM Plex Mono",monospace; font-size:12px; font-weight:600; color:var(--panel);
+  background:var(--ink); width:20px; height:20px; border-radius:3px; display:grid; place-items:center;
+}
+ol.steps li:first-child{border-radius:5px 5px 0 0}
+ol.steps li:last-child{border-radius:0 0 5px 5px}
+ol.steps b{color:var(--ink); font-weight:600}
+.crit{background:var(--madder-soft) !important; border-left:3px solid var(--madder) !important}
+
+.tags{display:flex; flex-wrap:wrap; gap:6px}
+.tag{
+  appearance:none; font:inherit; font-size:13px; cursor:pointer;
+  background:var(--field); border:1px solid var(--rule-2); color:var(--ink-2);
+  border-radius:14px; padding:5px 12px;
+}
+.tag[aria-pressed="true"]{background:var(--sage); border-color:var(--sage); color:var(--panel); font-weight:600}
+.count{font-size:12.5px; color:var(--ink-3)}
+
+.chk{display:flex; flex-direction:column; gap:1px}
+.chk label{
+  display:flex; gap:11px; align-items:flex-start; background:var(--panel);
+  border:1px solid var(--rule); padding:12px 16px; font-size:14.5px; cursor:pointer; color:var(--ink-2);
+}
+.chk label:first-of-type{border-radius:5px 5px 0 0}
+.chk label:last-of-type{border-radius:0 0 5px 5px}
+.chk input{margin-top:3px; accent-color:var(--sage); width:16px; height:16px; flex:none}
+.chk input:checked + span{color:var(--ink-3); text-decoration:line-through}
+.chk b{color:var(--ink); font-weight:600}
+.chk input:checked + span b{color:var(--ink-3)}
+
+.note{font-size:13px; color:var(--ink-3); border-left:2px solid var(--rule-2); padding-left:12px; margin:0}
+.grid2{display:grid; grid-template-columns:1fr 1fr; gap:16px}
+@media (max-width:760px){ .grid2{grid-template-columns:1fr} .wrap{padding:0 14px 60px} }
+footer{margin-top:44px; padding-top:18px; border-top:1px solid var(--rule); font-size:12.5px; color:var(--ink-3)}
+</style>
+
+<div class="wrap">
+<header>
+  <div class="brandline">
+    <h1>Ridhi Seller Toolkit</h1>
+    <span class="sub mono">TikTok Shop US &middot; 35 listings loaded</span>
+  </div>
+  <p class="lede">Fix your titles, post correctly, and optimize your listings &mdash; all in one place. Every tool runs on your real catalog.</p>
+</header>
+
+<nav role="tablist">
+  <button class="tab" role="tab" aria-selected="true" data-p="t1">1 &middot; Title Fix</button>
+  <button class="tab" role="tab" aria-selected="false" data-p="t2">2 &middot; How to Post</button>
+  <button class="tab" role="tab" aria-selected="false" data-p="t3">3 &middot; Caption + Hashtags</button>
+  <button class="tab" role="tab" aria-selected="false" data-p="t4">4 &middot; Specs</button>
+  <button class="tab" role="tab" aria-selected="false" data-p="t5">5 &middot; Checklists</button>
+</nav>
+
+<!-- ============ TAB 1 ============ -->
+<div class="panel on" id="t1">
+  <div class="stack">
+    <div class="card stack">
+      <div class="stack-s">
+        <h2>Title Optimizer</h2>
+        <p class="hint">Pick one of your products, or paste any title. The tool moves the product type to the front, swaps invented colour names for searched ones, and tells you what&rsquo;s wrong.</p>
+      </div>
+      <div class="stack-s">
+        <label class="fl" for="pick">Pick a product from your catalog</label>
+        <select id="pick"><option value="">&mdash; choose a product &mdash;</option></select>
+      </div>
+      <div class="stack-s">
+        <label class="fl" for="inp">Or paste a title here</label>
+        <textarea id="inp" spellcheck="false" placeholder="Ridhi Asparagus Green Block Print Handmade Office Desk Organizer..."></textarea>
+        <div class="meter">
+          <span class="mono" id="inlen">0 chars</span>
+          <span>&mdash;</span>
+          <span id="inverdict">Only the first ~40 characters show on a phone</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card stack" id="resbox" hidden>
+      <div class="stack-s">
+        <h3>New title</h3>
+        <div class="out" id="out"></div>
+        <div class="meter">
+          <span class="mono" id="outlen">0</span>
+          <div class="bar"><i id="outbar" style="width:0%"></i></div>
+          <span class="mono" id="outmax">/ 255 max</span>
+        </div>
+        <div class="row"><button class="act" id="copy">Copy title</button><span class="count" id="copied"></span></div>
+      </div>
+
+      <div class="stack-s">
+        <h3>What a shopper sees on their phone</h3>
+        <div class="grid2">
+          <div>
+            <p class="phlabel">Now</p>
+            <div class="phone">
+              <div class="thumb"></div>
+              <div><div class="t" id="prevOld"></div><div class="p mono" id="prevOldP"></div></div>
+            </div>
+          </div>
+          <div>
+            <p class="phlabel">After</p>
+            <div class="phone">
+              <div class="thumb"></div>
+              <div><div class="t" id="prevNew"></div><div class="p mono" id="prevNewP"></div></div>
+            </div>
+          </div>
+        </div>
+        <p class="note">The faded grey text is the part a shopper never sees.</p>
+      </div>
+
+      <div class="stack-s">
+        <h3>Problems found</h3>
+        <ul class="issues" id="issues"></ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ TAB 2 ============ -->
+<div class="panel" id="t2">
+  <div class="stack">
+    <div class="card stack-s">
+      <h2>Posting a video</h2>
+      <p class="hint">Get the video onto your phone first &mdash; Google Drive, WhatsApp (send it as a <i>document</i>, or the quality drops), or a USB cable.</p>
+    </div>
+    <ol class="steps">
+      <li>Open TikTok &rarr; tap <b>+</b> at the bottom &rarr; tap <b>Upload</b> on the right.</li>
+      <li>Select your video &rarr; <b>Next</b>. Don&rsquo;t trim it &mdash; it&rsquo;s already 9:16 and the right length.</li>
+      <li>Write your caption. The first line <i>is</i> the hook &mdash; that&rsquo;s all that shows in the feed.</li>
+      <li class="crit"><b>Most important step:</b> tap <b>Add link &rarr; Product</b> and tag the product from your shop. Skip this and the video earns views but cannot earn a single sale.</li>
+      <li>Choose a <b>cover</b>. Don&rsquo;t accept the first frame &mdash; pick the frame where the product reads clearly, and add text to the cover.</li>
+      <li>Tap <b>Post</b>, then reply to comments in the first hour. TikTok weighs early engagement heavily.</li>
+    </ol>
+
+    <div class="card stack-s">
+      <h2>Posting a photo carousel</h2>
+      <p class="hint">Carousels often beat video for home decor &mdash; people swipe, and every swipe counts as watch time. You already have good product photography for this.</p>
+    </div>
+    <ol class="steps">
+      <li>TikTok &rarr; <b>+</b> &rarr; <b>Upload</b> &rarr; switch to the <b>Photo</b> tab at the top.</li>
+      <li>Select your photos. The limit is 35, but <b>6&ndash;10 performs best</b>. <b>Order matters</b> &mdash; photo one is your hook.</li>
+      <li>Put a text overlay on photo one (something like <i>&ldquo;the desk set that&rsquo;s actually handmade&rdquo;</i>). Keep the rest as clean product shots.</li>
+      <li>Pick a trending sound, not your own audio.</li>
+      <li>Caption plus <b>product tag</b> &mdash; same rule as video, no tag means no sale.</li>
+      <li><b>Post.</b> Carousels take 24&ndash;48 hours to pick up distribution, slower than video.</li>
+    </ol>
+
+    <div class="card stack-s">
+      <h2>Optimizing a listing</h2>
+      <p class="hint">In Seller Center: <span class="mono">seller-us.tiktok.com</span> &rarr; Products &rarr; Manage Products &rarr; Edit.</p>
+    </div>
+    <ol class="steps">
+      <li><b>Title:</b> run it through Tab 1. The product type belongs in the first three words.</li>
+      <li class="crit"><b>Set an original price.</b> None of your 35 products has a compare-at price right now, so no discount badge shows anywhere in your store. Set it 30&ndash;40% above your selling price. It is free and it is the fastest lever you have.</li>
+      <li><b>Image 1:</b> white background, whole product visible. <b>Images 2&ndash;3:</b> lifestyle &mdash; on a real desk, a real table. <b>Image 4:</b> a dimensions graphic. <b>Image 5:</b> close-up of the print.</li>
+      <li><b>Description:</b> short bullets. Size, material, care instructions, and one line saying &ldquo;hand block printed &mdash; every piece varies slightly.&rdquo; That variation is your differentiator, not a defect.</li>
+      <li><b>Check stock.</b> A sold-out variant leaves the listing live but blocks the sale &mdash; this may be exactly what&rsquo;s happening with the spa towel.</li>
+      <li><b>Shipping:</b> conversion drops sharply past a 5-day delivery estimate. Get it as low as you can.</li>
+    </ol>
+  </div>
+</div>
+
+<!-- ============ TAB 3 ============ -->
+<div class="panel" id="t3">
+  <div class="stack">
+    <div class="card stack">
+      <div class="stack-s">
+        <h2>Caption + Hashtag Builder</h2>
+        <p class="hint">The first line of your caption is the hook. Use <b>3&ndash;5 hashtags</b> &mdash; piling on 30 doesn&rsquo;t widen reach, it just blurs what TikTok thinks your post is about.</p>
+      </div>
+      <div class="stack-s">
+        <label class="fl" for="cap">Caption</label>
+        <textarea id="cap" spellcheck="false" placeholder="Hand block printed desk set. Every piece stamped by hand, so no two are ever identical."></textarea>
+        <div class="meter"><span class="mono" id="caplen">0 / 4,000</span></div>
+      </div>
+      <div class="stack-s">
+        <label class="fl">Pick hashtags &mdash; 1 broad + 2 niche + 1 branded</label>
+        <div class="tags" id="tagbox"></div>
+        <span class="count" id="tagcount">0 selected</span>
+      </div>
+      <div class="stack-s">
+        <h3>Finished caption</h3>
+        <div class="out" id="capout" style="font-size:14.5px; font-weight:400"></div>
+        <div class="row"><button class="act" id="capcopy">Copy caption</button><span class="count" id="capcopied"></span></div>
+      </div>
+    </div>
+    <p class="note">The hashtags your creators have been using &mdash; #HomeDecorFinds, #CottageStyleDecor, #tablescape, #diningroomdecor &mdash; averaged 212 views per video. Don&rsquo;t lean on them; the tighter niche tags above are a better bet.</p>
+  </div>
+</div>
+
+<!-- ============ TAB 4 ============ -->
+<div class="panel" id="t4">
+  <div class="stack">
+    <div class="card stack-s">
+      <h2>Video specs</h2>
+      <div class="scroll"><table><tbody>
+        <tr><td class="k">Resolution</td><td class="mono">1080 &times; 1920</td><td class="hint">9:16 vertical. No benefit to uploading above 1080p &mdash; TikTok downscales it anyway.</td></tr>
+        <tr><td class="k">Format</td><td class="mono">MP4 (H.264 + AAC)</td><td class="hint">MOV also works.</td></tr>
+        <tr><td class="k">Frame rate</td><td class="mono">30 fps</td><td class="hint">Use 60 fps only for fast-motion shots.</td></tr>
+        <tr><td class="k">Length</td><td class="mono">15&ndash;60 sec</td><td class="hint">Best range for shop videos. In-app recording allows 10 min; uploads allow up to 60 min.</td></tr>
+        <tr><td class="k">File size</td><td class="mono">~72 MB / ~288 MB</td><td class="hint">Android app / iOS app. The web uploader accepts up to 4 GB.</td></tr>
+        <tr><td class="k">Caption</td><td class="mono">4,000 chars</td><td class="hint">Stop at 2,200 if you post through a scheduler or the API.</td></tr>
+      </tbody></table></div>
+    </div>
+
+    <div class="card stack-s">
+      <h2>Photo carousel specs</h2>
+      <div class="scroll"><table><tbody>
+        <tr><td class="k">Images</td><td class="mono">Up to 35</td><td class="hint">But 6&ndash;10 performs best.</td></tr>
+        <tr><td class="k">Size</td><td class="mono">1080 &times; 1920</td><td class="hint">Same 9:16 as video. Square photos upload fine but sit small in the feed.</td></tr>
+        <tr><td class="k">Format</td><td class="mono">JPG / PNG</td><td class="hint">&mdash;</td></tr>
+        <tr><td class="k">Auto-scroll</td><td class="mono">~2.5 sec / image</td><td class="hint">Which is why each image needs very little text &mdash; there isn&rsquo;t time to read it.</td></tr>
+      </tbody></table></div>
+    </div>
+
+    <div class="card stack-s">
+      <h2>Safe zones &mdash; keep text out of these</h2>
+      <div class="scroll"><table><tbody>
+        <tr><td class="k">Bottom</td><td class="mono">~480 px</td><td class="hint">Caption, username and the product card sit here.</td></tr>
+        <tr><td class="k">Right</td><td class="mono">~160 px</td><td class="hint">Like, comment and share buttons.</td></tr>
+        <tr><td class="k">Top</td><td class="mono">~200 px</td><td class="hint">Search bar and the &ldquo;Following / For You&rdquo; switch.</td></tr>
+      </tbody></table></div>
+      <p class="note">The pipeline built for you (<span class="mono">src/make.py</span>) already respects these &mdash; it keeps text 520 px clear of the bottom edge.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ============ TAB 5 ============ -->
+<div class="panel" id="t5">
+  <div class="stack">
+    <div class="card stack-s">
+      <h2>Before you post</h2>
+      <p class="hint">Run this every time. The first item costs you more sales than all the others combined.</p>
+    </div>
+    <div class="chk" id="chk1"></div>
+    <div class="card stack-s">
+      <h2>Before you publish a listing</h2>
+    </div>
+    <div class="chk" id="chk2"></div>
+    <p class="note">These checkboxes last for this session only &mdash; reloading the page clears them.</p>
+  </div>
+</div>
+
+<footer>Ridhi Block Print &middot; specs current as of Aug 2026 &middot; TikTok changes its limits regularly &mdash; if something looks off, confirm in the app.</footer>
+</div>
+
+<script>
+"use strict";
+
+/* ---------- real catalog ---------- */
+const CATALOG = [
+["Desk Organizer",29.99,"Ridhi Asparagus Green Block Print Handmade Office Desk Organizer Pen and Sticky Note accessories Holder Cute, Aesthetic, Decor workspace Caddy Gift for Office, Teachers, Professionals, Students"],
+["Spa Towel set of 2",39.99,"Ridhi Block Print Aquamarine Blue Cotton Spa Towel 27\"x54\" Set of 2 Handmade Bath Towel, Quick Dry Turkish Style Bath Sheet, Soft Absorbent Luxury Towel for Home, Gym & Spa, Boho Bathroom Decor"],
+["Pillow Cover Aquamarine",23.99,"Ridhi Block Print Aquamarine Blue Pillow Cover 16\" x 16\" (Pack of 2) Decorative Couch Pillows for Living Room, Farmhouse Chic Boho Cute Outdoor Pillows Covers Gifts for Spring, Mother's Day"],
+["Lampshade Asparagus set of 2",69.99,"Ridhi Block Print Asparagus Green Lamp Shade 4\" Top x 5\" Bottom x 6\" Slant Set of 2 Handmade Pleated Cotton Lampshade, Fits E26/E27 Base Table Lamps Boho Vintage Decorative For Bedroom, Living Room"],
+["Lampshade Dark Salmon set of 2",69.99,"Ridhi Block Print Dark Salmon Lamp Shade 4\" Top x 5\" Bottom x 6\" Slant Set of 2 Handmade Pleated Cotton Lampshade, Fits E26/E27 Base Table Lamps Boho Vintage Decorative For Bedroom, Living Room"],
+["Ruffle Tablecloth 60x60",45.99,"Ridhi Asparagus Green Ruffle Block Print Tablecloth 100% Cotton 60x60 Square Floral Table Cover, Elegant, Vintage, Shabby Chic Home Decor for Wedding, Kitchen, Farmhouse, Garden, Gift for Festival"],
+["Placemats Round pack of 4",33.29,"Ridhi Bo-ho Round Place Mat Easter Floral Cotton Washable Placemats 15\" Round Embroidery Block Print Table Mat (Pack of 4-15 Inch Round, Asparagus Green)"],
+["Sticky Note Holder Asparagus",19.99,"Ridhi Block Print Asparagus Green Sticky Note Holder Box for Desk, Aesthetic Memo Pad Organizer, Sticky Note Box Decorative Office Accessory, Stationery Gift for Teachers, Students, Professionals"],
+["Sticky Note Holder Oak Brown",19.99,"Ridhi Block Print Oak Brown Sticky Note Holder Box for Desk, Aesthetic Memo Pad Organizer, Sticky Note Box Decorative Office Accessory, Stationery Gift for Teachers, Students, Professionals"],
+["Tissue Box Asparagus",22.99,"Ridhi Asparagus Green Block Print Tissue Box Cover Handmade Cotton Fabric Decorative Square Napkin Holder for Home Bedroom Living Room Bathroom Vanity Countertop Car Night Stands Office Kitchen"],
+["Ruffle Tissue Box",24.99,"Ridhi Asparagus Green Block Print Ruffle Tissue Box Cover Handmade Cotton Decorative Square Napkin Holder for Home Bedroom Living Room Bathroom Vanity Countertop Car Office Kitchen"],
+["Cushion Cover Amber Fern",36.99,"Ridhi Amber Fern Garden Block Print Cotton Handmade TNT Cushion Cover 18x18 Inch Decorative Throw Pillow Cover for Sofa, Living Room, Bedroom Decor, Soft, Cushion Case for Spring, Easter"],
+["Toiletry Bag set of 3",54.99,"Ridhi Asparagus Green Block Print Designer Toiletry Bag and Makeup Case Set of 3 (10x6x4)(8x5x3.25)(7x4x2.5) - Boho Floral Quilted Pouch for Cosmetics, Skincare Bag, Purse, Travel Gift Spring, Easter"],
+["Tote Bag zipper",69.99,"Ridhi Asparagus Green Cotton Block Printed Zipper 17.7x14.6x6.7 Tote Bag with Handle, 1 Outer And Inner Pocket, Reusable Shopping Bag, Office Handbag, College Tote, Travel, Daily Use, Spring, Easter"],
+["Picture Frame 5x7",25.99,"Ridhi Block Print Asparagus Green Tabletop Picture Frame 5\"x7\" wall and Table Decor Rustic Modern Home Decor, Vintage Photo Display For Living Room, Bedroom Gift For Office, Wedding, Spring, Summer"],
+["Table Runner Basil Green",28.99,"Ridhi Basil Green Hand Block Print 100% Cotton Reusable Table Runner 16\" X 70\" Inches Table Runner Decorative Everyday Use for Dining, HomeGift for Spring, Easter, Valentine"],
+["Table Runner Queen Blue",27.99,"Ridhi Queen Blue Hand Block Print 100% Cotton Reusable Table Runner 16\" X 70\" Inches Table Runner Decorative Everyday Use for Dining, Home Gift for Spring, Easter, Valentine"],
+["Round Tablecloth Magic Blue",59.99,"Ridhi Round Tablecloth Hand Block Print 100% Cotton ReusableMagic Blue 60 Inch Table Cover Decorative Everyday Use for Dining, Home, Party, Wedding, Farmhouse, Party Gift for Spring, Summer"],
+["Rect Tablecloth Quiet Earth",108.99,"Ridhi Block Print Quiet Earth Rectangle Cotton Tablecloth 140\" x 72\" Reusable Table Cover Decorative Everyday Use for Dining, Farmhouse, Home Gift for Spring, Easter, Summer"],
+["Rect Tablecloth Taffy Pink",99.49,"Ridhi Taffy Pink Hand Block Print Cotton Rectangle Tablecloth 120\" x 80\" inches Reusable Table Cover Decorative Everyday Use for Dining Room, Farmhouse, Home Gift for Spring, Summer"],
+["Sq Tablecloth Turquoise Moss",129.99,"Ridhi Turquoise Moss Green 100% Cotton Boho Square Fall Tablecloth, Handblock Floral Print Linen for Kitchen Dining I Parties, Outdoors, Weddings, Christmas, Thanksgiving Decor 132\" Inches Round"],
+["Fabricrush Maxi Dress",59.00,"Fabricrush Women's 2024 Summer Casual Floral Block Print Long Sleeve Neck Flowy Maxi Dress with Pocket Gifts for her S"]
+];
+
+/* ---------- rules ---------- */
+const TYPES = [
+ [/desk organizer|workspace caddy/i, "Desk Organizer Set"],
+ [/sticky note holder|memo pad/i,    "Sticky Note Holder"],
+ [/tissue box cover|napkin holder/i, "Tissue Box Cover"],
+ [/lamp ?shade/i,                    "Lampshade"],
+ [/table runner/i,                   "Table Runner"],
+ [/tablecloth|table cover/i,         "Tablecloth"],
+ [/place ?mat|table mat/i,           "Placemats"],
+ [/cushion cover/i,                  "Cushion Cover"],
+ [/pillow cover|throw pillow/i,      "Pillow Covers"],
+ [/toiletry bag|makeup case/i,       "Makeup Bag Set"],
+ [/tote bag/i,                       "Tote Bag"],
+ [/picture frame/i,                  "Picture Frame"],
+ [/spa towel|bath towel|bath sheet/i,"Bath Towel Set"],
+ [/bottle holder|bottle cover/i,     "Water Bottle Holder"],
+ [/maxi dress|sundress|dress/i,      "Dress"]
+];
+const COLORS = [
+ [/asparagus green/i,"Sage Green"], [/basil green/i,"Olive Green"],
+ [/turquoise moss(?: green)?/i,"Teal Green"], [/dark salmon/i,"Terracotta"],
+ [/taffy pink/i,"Blush Pink"], [/light steel blue/i,"Dusty Blue"],
+ [/steel blue/i,"Dusty Blue"], [/magic blue/i,"Navy Blue"],
+ [/queen blue/i,"Indigo Blue"], [/aquamarine blue/i,"Aqua Blue"],
+ [/quiet earth/i,"Taupe"], [/amber fern(?: garden)?/i,"Mustard"],
+ [/oak brown/i,"Warm Brown"], [/blue stripe/i,"Blue Striped"]
+];
+const OCCASIONS = [
+ [/teacher/i,"Teacher Gift"], [/student|college/i,"Student Gift"],
+ [/wedding/i,"Wedding"], [/christmas|thanksgiving/i,"Holiday"],
+ [/mother'?s day/i,"Mother's Day"], [/easter/i,"Easter"],
+ [/housewarming/i,"Housewarming"], [/farmhouse/i,"Farmhouse Decor"]
+];
+const MOBILE_CUT = 40, MAX_LEN = 255;
+
+function firstMatch(list, s){ for (const [re,v] of list) if (re.test(s)) return [v,re]; return [null,null]; }
+
+function detail(s){
+  const bits = [];
+  const pack = s.match(/(?:pack|set) of (\d+)/i);
+  if (pack) bits.push("Set of " + pack[1]);
+  // Two-part dimensions only — a third "x N" means a 3D box measurement, skip it.
+  const dim = s.match(/(\d+(?:\.\d+)?)\s*["″]?\s*[xX×]\s*(\d+(?:\.\d+)?)\s*["″]?(?!\s*[xX×]\s*\d)/);
+  const rd  = s.match(/(\d+)\s*inch(?:es)?\s*round/i) || (/round/i.test(s) ? s.match(/(\d+)\s*inch(?:es)?/i) : null);
+  if (rd) bits.push(rd[1] + '" Round');
+  else if (dim) bits.push(dim[1] + '" x ' + dim[2] + '"');
+  if (/100% cotton|cotton/i.test(s)) bits.push("Cotton");
+  return bits;
+}
+
+function optimize(raw){
+  const s = raw.replace(/\s+/g," ").trim();
+  const [type, typeRe] = firstMatch(TYPES, s);
+  const [color, colorRe] = firstMatch(COLORS, s);
+  const [occ]  = firstMatch(OCCASIONS, s);
+  const issues = [];
+
+  if (!type) issues.push(["bad","Type","No recognisable product type in this title. A shopper can&rsquo;t tell what the item actually is."]);
+  else {
+    const at = s.search(typeRe);
+    if (at > MOBILE_CUT) issues.push(["bad","Position", "<b>&ldquo;" + type + "&rdquo;</b> starts at character " + at + ". A phone shows only the first " + MOBILE_CUT + ", so it never appears on screen."]);
+    else issues.push(["ok","Position","Product type falls inside the first " + MOBILE_CUT + " characters. Good."]);
+  }
+  if (colorRe) issues.push(["warn","Colour", "Nobody searches <b>&ldquo;" + s.match(colorRe)[0] + "&rdquo;</b>. Swapped for <b>&ldquo;" + color + "&rdquo;</b>."]);
+  if (s.length > 150) issues.push(["warn","Length", s.length + " characters is far too long. Keyword stuffing no longer lifts ranking &mdash; TikTok reads it as spam."]);
+  if (/^fabricrush/i.test(s)) issues.push(["bad","Brand","This title leads with <b>&ldquo;Fabricrush&rdquo;</b> but the store is <b>Ridhi Block Print</b>. It blurs what TikTok understands your shop to sell."]);
+  const words = s.toLowerCase().match(/[a-z]{4,}/g) || [];
+  const seen = {}; let dupes = 0;
+  words.forEach(w => { seen[w] = (seen[w]||0)+1; if (seen[w] === 3) dupes++; });
+  if (dupes) issues.push(["warn","Repeats", dupes + " word(s) appear three or more times. Repetition adds nothing."]);
+  if (!/hand ?block print/i.test(s)) issues.push(["warn","Missing USP","<b>&ldquo;Hand Block Print&rdquo;</b> isn&rsquo;t in this title. That&rsquo;s your differentiator &mdash; it belongs there."]);
+
+  const parts = [];
+  parts.push(type || "Product");
+  const d = detail(s); if (d.length) parts.push(d.join(", "));
+  parts.push("Hand Block Print");
+  if (color) parts.push(color);
+  if (occ) parts.push(occ);
+  let out = parts[0] + " — " + parts.slice(1).join(", ");
+  if (out.length > MAX_LEN) out = out.slice(0, MAX_LEN - 1).trim();
+  return { out, issues };
+}
+
+/* ---------- wiring ---------- */
+const $ = id => document.getElementById(id);
+
+document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => {
+  document.querySelectorAll(".tab").forEach(x => x.setAttribute("aria-selected", String(x === t)));
+  document.querySelectorAll(".panel").forEach(p => p.classList.toggle("on", p.id === t.dataset.p));
+}));
+
+const pick = $("pick");
+CATALOG.forEach(([n, p], i) => {
+  const o = document.createElement("option");
+  o.value = String(i); o.textContent = n + "  —  $" + p.toFixed(2);
+  pick.appendChild(o);
+});
+pick.addEventListener("change", () => {
+  if (pick.value === "") return;
+  $("inp").value = CATALOG[+pick.value][2];
+  run(CATALOG[+pick.value][1]);
+});
+$("inp").addEventListener("input", () => { pick.value = ""; run(null); });
+
+function preview(el, text){
+  el.textContent = "";
+  const head = text.slice(0, MOBILE_CUT), tail = text.slice(MOBILE_CUT);
+  el.appendChild(document.createTextNode(head));
+  if (tail){ const s = document.createElement("span"); s.className = "cut"; s.textContent = tail; el.appendChild(s); }
+}
+
+function run(price){
+  const raw = $("inp").value.trim();
+  $("inlen").textContent = raw.length + " chars";
+  if (!raw){ $("resbox").hidden = true; return; }
+  $("resbox").hidden = false;
+
+  const { out, issues } = optimize(raw);
+  $("out").textContent = out;
+  $("outlen").textContent = out.length + " chars";
+  $("outmax").textContent = "/ " + MAX_LEN + " max";
+  const bar = $("outbar"), pct = Math.min(100, out.length / MAX_LEN * 100);
+  bar.style.width = pct + "%";
+  bar.className = out.length > MAX_LEN ? "over" : out.length > 150 ? "warn" : "";
+
+  preview($("prevOld"), raw);
+  preview($("prevNew"), out);
+  const shown = price != null ? "$" + price.toFixed(2) : "";
+  $("prevOldP").textContent = shown;
+  $("prevNewP").textContent = shown;
+
+  const ul = $("issues"); ul.textContent = "";
+  issues.forEach(([kind, label, msg]) => {
+    const li = document.createElement("li");
+    li.className = kind === "bad" ? "" : kind;
+    const p = document.createElement("span"); p.className = "pill"; p.textContent = label;
+    const t = document.createElement("span"); t.innerHTML = msg;
+    li.append(p, t); ul.appendChild(li);
+  });
+}
+
+function copyTo(text, note){
+  navigator.clipboard.writeText(text).then(
+    () => { note.textContent = "Copied"; setTimeout(() => note.textContent = "", 1800); },
+    () => { note.textContent = "Copy blocked — select the text manually"; }
+  );
+}
+$("copy").addEventListener("click", () => copyTo($("out").textContent, $("copied")));
+
+/* ---------- hashtags ---------- */
+const TAGS = [
+ "#deskorganization","#aestheticdesk","#deskdecor","#desksetup","#teachergift",
+ "#backtoschool","#studygram","#officedecor","#homedecorfinds","#cottagecore",
+ "#farmhousedecor","#bohodecor","#tablescape","#blockprint","#handblockprint",
+ "#handmade","#smallbusiness","#tiktokshop","#tiktokmademebuyit"
+];
+const chosen = new Set();
+const tagbox = $("tagbox");
+TAGS.forEach(t => {
+  const b = document.createElement("button");
+  b.className = "tag"; b.type = "button"; b.textContent = t; b.setAttribute("aria-pressed","false");
+  b.addEventListener("click", () => {
+    if (chosen.has(t)) chosen.delete(t); else chosen.add(t);
+    b.setAttribute("aria-pressed", String(chosen.has(t)));
+    renderCap();
+  });
+  tagbox.appendChild(b);
+});
+function renderCap(){
+  const cap = $("cap").value.trim();
+  const tags = [...chosen];
+  $("caplen").textContent = cap.length.toLocaleString() + " / 4,000";
+  $("tagcount").textContent = tags.length + " selected" + (tags.length > 5 ? "  —  that's more than 5, cut some" : "");
+  $("capout").textContent = [cap, tags.join(" ")].filter(Boolean).join("\n\n") || "Write a caption and pick some hashtags…";
+}
+$("cap").addEventListener("input", renderCap);
+$("capcopy").addEventListener("click", () => copyTo($("capout").textContent, $("capcopied")));
+renderCap();
+
+/* ---------- checklists ---------- */
+const CHK1 = [
+ ["Product tagged?","The shop product tag on the video or carousel. <b>Miss this and the post cannot make a single sale.</b>"],
+ ["Video is 1080×1920?","9:16 vertical. Square or horizontal gets letterboxed and looks cheap in the feed."],
+ ["Text inside the safe zone?","TikTok's own buttons cover roughly 480px at the bottom and 160px on the right."],
+ ["Cover frame chosen?","Not the first frame — pick the one where the product reads clearly."],
+ ["First caption line is a hook?","It's the only line that shows in the feed."],
+ ["3–5 hashtags?","More than that doesn't widen reach."],
+ ["Trending sound attached?","Your own audio gives TikTok no reason to push the post."]
+];
+const CHK2 = [
+ ["Product type in the first 3 words?","Run it through Tab 1."],
+ ["Original price set?","<b>Not one of your 35 listings has one.</b> Set it 30–40% above the selling price."],
+ ["5 or more images?","White background → lifestyle → dimensions → close-up of the print."],
+ ["Stock actually available?","A sold-out variant blocks the sale — likely the spa towel problem."],
+ ["“Hand block print” included?","In the title and the description. It's your differentiator."],
+ ["Priced in the $25–35 band?","94% of your sales came from that band."],
+ ["No duplicate listing?","Two listings of one product cannibalise each other."]
+];
+function buildChk(el, items){
+  items.forEach(([t, d]) => {
+    const l = document.createElement("label");
+    const i = document.createElement("input"); i.type = "checkbox";
+    const s = document.createElement("span");
+    s.innerHTML = "<b>" + t + "</b><br>" + d;
+    l.append(i, s); el.appendChild(l);
+  });
+}
+buildChk($("chk1"), CHK1);
+buildChk($("chk2"), CHK2);
+</script>
