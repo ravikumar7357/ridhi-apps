@@ -5,6 +5,7 @@
  *   node rules-tool.js ghosts     rights on record with NO login behind them — see ghosts() for why that is a door
  *   node rules-tool.js check p0   play every account against the LIVE rules, expecting the behaviour before any of this
  *   node rules-tool.js check p1   …expecting phase 1 (the money nodes)
+ *   node rules-tool.js check p4   …expecting phase 4: every node READ only by the tabs (or rights) that need it
  *   node rules-tool.js check p3   …expecting phase 3: a login with no rights on record reads and writes NOTHING
  *   node rules-tool.js check p2   …expecting phase 2 (rates by the row, the master lists, vendor identity) — what ../database.rules.next.json promises
  *   node rules-tool.js deploy     seed → save the live rules → put the new ones → check new →
@@ -26,6 +27,7 @@ const fs = require('fs'), https = require('https'), pathm = require('path');
 const FTL = 'C:/Users/ravik/AppData/Roaming/npm/node_modules/firebase-tools/lib/';
 const HOST = 'price-research-48ff3-default-rtdb.asia-southeast1.firebasedatabase.app';
 const PROJ = 'price-research-48ff3';
+const READS = require('./read-model');
 /* Always an admin, with or without a perms document — firestore.rules and the app both say so, and the
  * database rules have to agree or the owner is the one person they lock out. */
 const OWNER = 'ravi@thefabricrush.com';
@@ -153,11 +155,11 @@ function expectWrite(who, node, mode) {
   if (who.kind === 'nobody') return false;
   if (who.kind === 'vendor') return node === 'pt_vendorOrders/' + who.code;
   /* PHASE 3: signed in is not enough. Anybody can sign themselves up; only rights on record make staff. */
-  if (mode === 'p3' && !who.p) return false;
+  if ((mode === 'p3' || mode === 'p4') && !who.p) return false;
   if (node.indexOf('pt_vendorOrders/') === 0) return true;          // staff write every vendor branch
   if (mode === 'p0') return true;                                    // before any of this: any staff, anything
   const p = who.p || { admin: false, r: {}, t: {} };
-  if (mode === 'p2' || mode === 'p3') {
+  if (mode === 'p2' || mode === 'p3' || mode === 'p4') {
     if (APPROVED_ROW && node === APPROVED_ROW) return p.admin || !!p.r.rateApprove;   // an approved rate: approvers only
     if (node === 'pt_printerRates') return p.admin || !!p.r.rateApprove || !!p.t.hr;     // a new row: whoever holds Finance & HR
     if (node === 'pt_masters/accessories') return p.admin || !!p.r.accEdit;
@@ -199,8 +201,15 @@ async function check(mode) {
     if (APPROVED_ROW) nodes.push(APPROVED_ROW);
     nodes.forEach(n => jobs.push({ w, n, as, what: 'write', want: expectWrite(w, n, mode) }));
     /* And reading: staff read everything, a vendor reads its own branch only, nobody reads nothing. */
-    jobs.push({ w, n: 'pt_printerRates', as, what: 'read', want: w.kind === 'staff' && !(mode === 'p3' && !w.p) });
-    jobs.push({ w, n: 'pt_empList', as, what: 'read', want: w.kind === 'staff' && !(mode === 'p3' && !w.p) });
+    if (mode === 'p4') {
+      /* EVERY node the app reads, for EVERY person: allowed exactly where the model says their tabs or
+       * rights need it. A vendor and a stranger read none of them; a node nobody named is admins-only. */
+      READS.NODES.concat(['pt_perms', 'pt_loginDir', 'zz_unnamedNode']).forEach(n => jobs.push({ w, n, as, what: 'read',
+        want: w.kind === 'staff' && !!w.p && (n === 'pt_perms' || n === 'pt_loginDir' || n === 'zz_unnamedNode' ? w.p.admin : READS.mayRead(w.p, n)) }));
+    } else {
+      jobs.push({ w, n: 'pt_printerRates', as, what: 'read', want: w.kind === 'staff' && !(mode === 'p3' && !w.p) });
+      jobs.push({ w, n: 'pt_empList', as, what: 'read', want: w.kind === 'staff' && !(mode === 'p3' && !w.p) });
+    }
     if (w.kind === 'vendor') jobs.push({ w, n: 'pt_vendorOrders/' + w.code, as, what: 'read', want: true });
   });
 
@@ -235,7 +244,7 @@ const putRules = text => req('PUT', '.settings/rules', text, undefined, true);
   if (cmd === 'drift') return void await drift(true);
   if (cmd === 'ghosts') return void await ghosts();
   if (cmd === 'seed') { await seed(); return void await drift(true); }
-  if (cmd === 'check') return void await check(['p0', 'p1', 'p2', 'p3'].indexOf(arg) >= 0 ? arg : 'p3');
+  if (cmd === 'check') return void await check(['p0', 'p1', 'p2', 'p3', 'p4'].indexOf(arg) >= 0 ? arg : 'p4');
   if (cmd === 'rollback') {
     const r = await putRules(fs.readFileSync(arg, 'utf8'));
     if (r.status === 200) fs.copyFileSync(arg, LIVE_FILE);
@@ -252,7 +261,7 @@ const putRules = text => req('PUT', '.settings/rules', text, undefined, true);
     if (r.status !== 200) throw new Error('the new rules were refused, nothing changed: ' + r.status + ' ' + r.body.slice(0, 300));
     console.log('new rules are live — checking every account now…');
     let wrong;
-    try { wrong = await check('p3'); } catch (e) { wrong = ['the check itself failed: ' + (e.message || e)]; }
+    try { wrong = await check('p4'); } catch (e) { wrong = ['the check itself failed: ' + (e.message || e)]; }
     if (wrong.length) {
       const back = await putRules(before);
       console.log('\nROLLED BACK (' + back.status + '). The old rules are live again. Nothing above was acceptable.');
@@ -262,5 +271,5 @@ const putRules = text => req('PUT', '.settings/rules', text, undefined, true);
     return void console.log('\nDEPLOYED, and database.rules.json now says what is live.'
       + '\nTo undo:  node rules-tool.js rollback "' + keep + '"   (and restore database.rules.json from it)');
   }
-  console.log('usage: node rules-tool.js drift | seed | ghosts | check p0|p1|p2|p3 | deploy | rollback <file>');
+  console.log('usage: node rules-tool.js drift | seed | ghosts | check p0|p1|p2|p3|p4 | deploy | rollback <file>');
 })().catch(e => { console.error('FAILED', e && (e.stack || e.message || e)); process.exit(1); });

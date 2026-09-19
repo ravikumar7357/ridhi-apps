@@ -1,0 +1,1584 @@
+{
+  "generatedFrom": "C:/AMAZON/Amazon Inventory/Replenish-App/public/index.html",
+  "tabs": {
+    "acc": {
+      "entry": [
+        "ensureAcc"
+      ],
+      "nodes": [
+        "pt_accLedger",
+        "pt_baseData",
+        "pt_cuttingData",
+        "pt_cuttingFreezes",
+        "pt_masterDB",
+        "pt_masters",
+        "pt_orderBook",
+        "pt_pressInventory",
+        "pt_shopProd",
+        "pt_skuImages"
+      ]
+    },
+    "adj": {
+      "entry": [
+        "ensureAdj"
+      ],
+      "nodes": [
+        "pt_approvals",
+        "pt_baseData",
+        "pt_customSkus",
+        "pt_cuttingData",
+        "pt_cuttingFreezes",
+        "pt_masterDB",
+        "pt_masters",
+        "pt_obDeleteReqs",
+        "pt_orderBook",
+        "pt_pressInventory",
+        "pt_shopProd",
+        "pt_skuImages"
+      ]
+    },
+    "article": {
+      "entry": [
+        "renderArticle"
+      ],
+      "nodes": []
+    },
+    "att": {
+      "entry": [
+        "ensureAtt"
+      ],
+      "nodes": [
+        "pt_accLedger",
+        "pt_approvals",
+        "pt_attend",
+        "pt_empList"
+      ]
+    },
+    "cx": {
+      "entry": [
+        "ensureCx"
+      ],
+      "nodes": [
+        "pt_baseData",
+        "pt_cuttingData",
+        "pt_cuttingFreezes",
+        "pt_cxOrders",
+        "pt_fgiLedger",
+        "pt_masterDB",
+        "pt_masters",
+        "pt_orderBook",
+        "pt_pressInventory",
+        "pt_shopProd",
+        "pt_skuImages"
+      ]
+    },
+    "fab": {
+      "entry": [
+        "ensureFab"
+      ],
+      "nodes": [
+        "pt_approvals",
+        "pt_fabInvLedger"
+      ]
+    },
+    "fba": {
+      "entry": [
+        "ensureFba"
+      ],
+      "nodes": [
+        "pt_amzListings",
+        "pt_approvals",
+        "pt_baseData",
+        "pt_cuttingData",
+        "pt_cuttingFreezes",
+        "pt_fgiCorrReqs",
+        "pt_fgiLedger",
+        "pt_fgiSettings",
+        "pt_fnskuMap",
+        "pt_issueRecipients",
+        "pt_listingAlerts",
+        "pt_masterDB",
+        "pt_masters",
+        "pt_obDeleteReqs",
+        "pt_orderBook",
+        "pt_pressInventory",
+        "pt_shopProd",
+        "pt_skuImages"
+      ]
+    },
+    "fgi": {
+      "entry": [
+        "ensureFgi"
+      ],
+      "nodes": [
+        "pt_amzListings",
+        "pt_approvals",
+        "pt_baseData",
+        "pt_cuttingData",
+        "pt_cuttingFreezes",
+        "pt_fgiCorrReqs",
+        "pt_fgiLedger",
+        "pt_fgiSettings",
+        "pt_fnskuMap",
+        "pt_issueRecipients",
+        "pt_listingAlerts",
+        "pt_masterDB",
+        "pt_masters",
+        "pt_obDeleteReqs",
+        "pt_orderBook",
+        "pt_pressInventory",
+        "pt_shopProd",
+        "pt_skuImages"
+      ]
+    },
+    "follow": {
+      "entry": [
+        "ensureFollow"
+      ],
+      "nodes": []
+    },
+    "hr": {
+      "entry": [
+        "ensureHr"
+      ],
+      "nodes": [
+        "pt_advances",
+        "pt_baseData",
+        "pt_cuttingData",
+        "pt_cuttingFreezes",
+        "pt_ehFreezes",
+        "pt_empList",
+        "pt_extraHours",
+        "pt_masterDB",
+        "pt_masters",
+        "pt_orderBook",
+        "pt_payoutFreezes",
+        "pt_pressInventory",
+        "pt_printerRates",
+        "pt_rateList",
+        "pt_shopProd",
+        "pt_skuImages",
+        "pt_vendorMap",
+        "pt_vendorOrders"
+      ]
+    },
+    "india": {
+      "entry": [
+        "ensureIndia"
+      ],
+      "nodes": []
+    },
+    "ka": {
+      "entry": [
+        "ensurePa"
+      ],
+      "nodes": [
+        "pt_accLedger",
+        "pt_approvals",
+        "pt_articleLevel",
+        "pt_attend",
+        "pt_baseData",
+        "pt_cuttingData",
+        "pt_cuttingFreezes",
+        "pt_empList",
+        "pt_masterDB",
+        "pt_masters",
+        "pt_obDeleteReqs",
+        "pt_orderBook",
+        "pt_pressInventory",
+        "pt_rateList",
+        "pt_shopProd",
+        "pt_skuImages",
+        "pt_teamSize",
+        "pt_vendorOrders"
+      ]
+    },
+    "mst": {
+      "entry": [
+        "ensureMst"
+      ],
+      "nodes": [
+        "pt_approvals",
+        "pt_baseData",
+        "pt_cuttingData",
+        "pt_cuttingFreezes",
+        "pt_masterDB",
+        "pt_masters",
+        "pt_obDeleteReqs",
+        "pt_orderBook",
+        "pt_pressInventory",
+        "pt_shopProd",
+        "pt_skuImages"
+      ]
+    },
+    "ord": {
+      "entry": [
+        "ptGatesFresh",
+        "ensureOrd"
+      ],
+      "nodes": [
+        "pt_accLedger",
+        "pt_amzListings",
+        "pt_approvals",
+        "pt_baseData",
+        "pt_customSkus",
+        "pt_cutRequired",
+        "pt_cuttingData",
+        "pt_cuttingFreezes",
+        "pt_empList",
+        "pt_fgiCorrReqs",
+        "pt_fgiLedger",
+        "pt_fgiSettings",
+        "pt_fnskuMap",
+        "pt_issueRecipients",
+        "pt_listingAlerts",
+        "pt_masterDB",
+        "pt_masters",
+        "pt_obDeleteReqs",
+        "pt_orderBook",
+        "pt_pressInventory",
+        "pt_qcChecks",
+        "pt_qcIssuance",
+        "pt_shopProd",
+        "pt_skuImages",
+        "pt_skuPriority"
+      ]
+    },
+    "pa": {
+      "entry": [
+        "ensurePa"
+      ],
+      "nodes": [
+        "pt_accLedger",
+        "pt_approvals",
+        "pt_articleLevel",
+        "pt_attend",
+        "pt_baseData",
+        "pt_cuttingData",
+        "pt_cuttingFreezes",
+        "pt_empList",
+        "pt_masterDB",
+        "pt_masters",
+        "pt_obDeleteReqs",
+        "pt_orderBook",
+        "pt_pressInventory",
+        "pt_rateList",
+        "pt_shopProd",
+        "pt_skuImages",
+        "pt_teamSize",
+        "pt_vendorOrders"
+      ]
+    },
+    "pack": {
+      "entry": [
+        "ensurePack"
+      ],
+      "nodes": []
+    },
+    "palloc": {
+      "entry": [
+        "ensurePal"
+      ],
+      "nodes": [
+        "pt_approvals",
+        "pt_baseData",
+        "pt_blockHave",
+        "pt_blockNeed",
+        "pt_colorGroups",
+        "pt_cuttingData",
+        "pt_cuttingFreezes",
+        "pt_masterDB",
+        "pt_masters",
+        "pt_obDeleteReqs",
+        "pt_orderBook",
+        "pt_pressInventory",
+        "pt_printers",
+        "pt_shopProd",
+        "pt_skuImages",
+        "pt_vendorOrders"
+      ]
+    },
+    "pbase": {
+      "entry": [
+        "ptGatesFresh",
+        "ensurePbase"
+      ],
+      "nodes": [
+        "pt_accLedger",
+        "pt_approvals",
+        "pt_baseData",
+        "pt_cuttingData",
+        "pt_cuttingFreezes",
+        "pt_empList",
+        "pt_masterDB",
+        "pt_masters",
+        "pt_orderBook",
+        "pt_pressInventory",
+        "pt_shopProd",
+        "pt_skuImages",
+        "pt_waTemplates",
+        "pt_whatsappCutoffDate"
+      ]
+    },
+    "pcut": {
+      "entry": [
+        "ptGatesFresh",
+        "ensurePcut"
+      ],
+      "nodes": [
+        "pt_approvals",
+        "pt_baseData",
+        "pt_cuttingData",
+        "pt_cuttingFreezes",
+        "pt_masterDB",
+        "pt_masters",
+        "pt_orderBook",
+        "pt_pressInventory",
+        "pt_shopProd",
+        "pt_skuImages"
+      ]
+    },
+    "pmdb": {
+      "entry": [
+        "ensurePmdb"
+      ],
+      "nodes": [
+        "pt_baseData",
+        "pt_cuttingData",
+        "pt_cuttingFreezes",
+        "pt_masterDB",
+        "pt_masters",
+        "pt_orderBook",
+        "pt_pressInventory",
+        "pt_shopProd",
+        "pt_skuImages"
+      ]
+    },
+    "ppress": {
+      "entry": [
+        "ptGatesFresh",
+        "ensurePpress"
+      ],
+      "nodes": [
+        "pt_baseData",
+        "pt_cuttingData",
+        "pt_cuttingFreezes",
+        "pt_masterDB",
+        "pt_masters",
+        "pt_orderBook",
+        "pt_pressFreezes",
+        "pt_pressInventory",
+        "pt_shopProd",
+        "pt_skuImages"
+      ]
+    },
+    "prod": {
+      "entry": [
+        "ensureProd"
+      ],
+      "nodes": []
+    },
+    "ptapp": {
+      "entry": [
+        "ensureProd"
+      ],
+      "nodes": []
+    },
+    "qc": {
+      "entry": [
+        "ensureQc"
+      ],
+      "nodes": [
+        "pt_accLedger",
+        "pt_baseData",
+        "pt_cuttingData",
+        "pt_cuttingFreezes",
+        "pt_empList",
+        "pt_masterDB",
+        "pt_masters",
+        "pt_orderBook",
+        "pt_pressInventory",
+        "pt_qcChecks",
+        "pt_qcIssuance",
+        "pt_qcReturns",
+        "pt_shopProd",
+        "pt_skuImages"
+      ]
+    },
+    "qcalt": {
+      "entry": [
+        "ensureQc"
+      ],
+      "nodes": [
+        "pt_accLedger",
+        "pt_baseData",
+        "pt_cuttingData",
+        "pt_cuttingFreezes",
+        "pt_empList",
+        "pt_masterDB",
+        "pt_masters",
+        "pt_orderBook",
+        "pt_pressInventory",
+        "pt_qcChecks",
+        "pt_qcIssuance",
+        "pt_qcReturns",
+        "pt_shopProd",
+        "pt_skuImages"
+      ]
+    },
+    "qcret": {
+      "entry": [
+        "ensureQc"
+      ],
+      "nodes": [
+        "pt_accLedger",
+        "pt_baseData",
+        "pt_cuttingData",
+        "pt_cuttingFreezes",
+        "pt_empList",
+        "pt_masterDB",
+        "pt_masters",
+        "pt_orderBook",
+        "pt_pressInventory",
+        "pt_qcChecks",
+        "pt_qcIssuance",
+        "pt_qcReturns",
+        "pt_shopProd",
+        "pt_skuImages"
+      ]
+    },
+    "rep": {
+      "entry": [
+        "ensureRep"
+      ],
+      "nodes": [
+        "pt_baseData",
+        "pt_cuttingData",
+        "pt_cuttingFreezes",
+        "pt_fgiLedger",
+        "pt_masterDB",
+        "pt_masters",
+        "pt_orderBook",
+        "pt_pressInventory",
+        "pt_shopProd",
+        "pt_skuImages"
+      ]
+    },
+    "rfd": {
+      "entry": [
+        "ensureRfd"
+      ],
+      "nodes": [
+        "pt_baseData",
+        "pt_cuttingData",
+        "pt_cuttingFreezes",
+        "pt_masterDB",
+        "pt_masters",
+        "pt_orderBook",
+        "pt_pressInventory",
+        "pt_rfdDecisions",
+        "pt_shopProd",
+        "pt_skuImages",
+        "pt_vendorMap",
+        "pt_vendorOrders"
+      ]
+    },
+    "shop": {
+      "entry": [
+        "ensureShop"
+      ],
+      "nodes": [
+        "pt_approvals",
+        "pt_baseData",
+        "pt_customSkus",
+        "pt_cuttingData",
+        "pt_cuttingFreezes",
+        "pt_masterDB",
+        "pt_masters",
+        "pt_obDeleteReqs",
+        "pt_orderBook",
+        "pt_pressInventory",
+        "pt_shopProd",
+        "pt_skuImages"
+      ]
+    },
+    "shopify": {
+      "entry": [
+        "ensureShopify"
+      ],
+      "nodes": []
+    },
+    "shopprod": {
+      "entry": [
+        "ptGatesFresh",
+        "ensureOrd"
+      ],
+      "nodes": [
+        "pt_accLedger",
+        "pt_amzListings",
+        "pt_approvals",
+        "pt_baseData",
+        "pt_customSkus",
+        "pt_cutRequired",
+        "pt_cuttingData",
+        "pt_cuttingFreezes",
+        "pt_empList",
+        "pt_fgiCorrReqs",
+        "pt_fgiLedger",
+        "pt_fgiSettings",
+        "pt_fnskuMap",
+        "pt_issueRecipients",
+        "pt_listingAlerts",
+        "pt_masterDB",
+        "pt_masters",
+        "pt_obDeleteReqs",
+        "pt_orderBook",
+        "pt_pressInventory",
+        "pt_qcChecks",
+        "pt_qcIssuance",
+        "pt_shopProd",
+        "pt_skuImages",
+        "pt_skuPriority"
+      ]
+    },
+    "so": {
+      "entry": [
+        "ensureSox"
+      ],
+      "nodes": [
+        "pt_baseData",
+        "pt_cuttingData",
+        "pt_cuttingFreezes",
+        "pt_masterDB",
+        "pt_masters",
+        "pt_obDeleteReqs",
+        "pt_orderBook",
+        "pt_pressInventory",
+        "pt_salesOrders",
+        "pt_shopProd",
+        "pt_skuImages"
+      ]
+    },
+    "target": {
+      "entry": [
+        "ensureTarget"
+      ],
+      "nodes": []
+    },
+    "top": {
+      "entry": [
+        "ensureTop"
+      ],
+      "nodes": []
+    },
+    "vend": {
+      "entry": [
+        "ensureVp"
+      ],
+      "nodes": [
+        "pt_skuImages",
+        "pt_vendorByEmail",
+        "pt_vendorMap",
+        "pt_vendorOrders",
+        "pt_vendorPin"
+      ]
+    },
+    "vlog": {
+      "entry": [
+        "ensureVlog"
+      ],
+      "nodes": [
+        "pt_approvals",
+        "pt_vendorMap",
+        "pt_vendorOrders"
+      ]
+    },
+    "vord": {
+      "entry": [
+        "ensureVo"
+      ],
+      "nodes": [
+        "pt_vendorMap",
+        "pt_vendorOrders"
+      ]
+    },
+    "vreq": {
+      "entry": [
+        "ensureVrq"
+      ],
+      "nodes": [
+        "pt_baseData",
+        "pt_cuttingData",
+        "pt_cuttingFreezes",
+        "pt_masterDB",
+        "pt_masters",
+        "pt_orderBook",
+        "pt_pressInventory",
+        "pt_shopProd",
+        "pt_skuImages",
+        "pt_vendorMap",
+        "pt_vendorOrderReqs",
+        "pt_vendorOrders"
+      ]
+    }
+  },
+  "signIn": [
+    "pt_accLedger",
+    "pt_advances",
+    "pt_amzListings",
+    "pt_approvals",
+    "pt_articleLevel",
+    "pt_attend",
+    "pt_baseData",
+    "pt_blockHave",
+    "pt_blockNeed",
+    "pt_colorGroups",
+    "pt_customSkus",
+    "pt_cutRequired",
+    "pt_cuttingData",
+    "pt_cuttingFreezes",
+    "pt_cxOrders",
+    "pt_ehFreezes",
+    "pt_empList",
+    "pt_extraHours",
+    "pt_fabInvLedger",
+    "pt_fgiCorrReqs",
+    "pt_fgiLedger",
+    "pt_fgiSettings",
+    "pt_fnskuMap",
+    "pt_issueRecipients",
+    "pt_listingAlerts",
+    "pt_masterDB",
+    "pt_masters",
+    "pt_obDeleteReqs",
+    "pt_orderBook",
+    "pt_payoutFreezes",
+    "pt_pressFreezes",
+    "pt_pressInventory",
+    "pt_printerRates",
+    "pt_printers",
+    "pt_qcChecks",
+    "pt_qcIssuance",
+    "pt_qcReturns",
+    "pt_rateList",
+    "pt_rfdDecisions",
+    "pt_salesOrders",
+    "pt_shopProd",
+    "pt_skuImages",
+    "pt_skuPriority",
+    "pt_teamSize",
+    "pt_vendorByEmail",
+    "pt_vendorMap",
+    "pt_vendorOrderReqs",
+    "pt_vendorOrders",
+    "pt_vendorPin",
+    "pt_waTemplates",
+    "pt_whatsappCutoffDate"
+  ],
+  "nodes": {
+    "pt_accLedger": {
+      "tabs": [
+        "acc",
+        "att",
+        "ka",
+        "ord",
+        "pa",
+        "pbase",
+        "qc",
+        "qcalt",
+        "qcret",
+        "shopprod"
+      ],
+      "signIn": true,
+      "readers": [
+        "ptLoadEmp",
+        "ensureAcc"
+      ],
+      "untraced": []
+    },
+    "pt_advances": {
+      "tabs": [
+        "hr"
+      ],
+      "signIn": true,
+      "readers": [
+        "ensureHr"
+      ],
+      "untraced": []
+    },
+    "pt_amzListings": {
+      "tabs": [
+        "fba",
+        "fgi",
+        "ord",
+        "shopprod"
+      ],
+      "signIn": true,
+      "readers": [
+        "@boot",
+        "lstLoad"
+      ],
+      "untraced": []
+    },
+    "pt_approvals": {
+      "tabs": [
+        "adj",
+        "att",
+        "fab",
+        "fba",
+        "fgi",
+        "ka",
+        "mst",
+        "ord",
+        "pa",
+        "palloc",
+        "pbase",
+        "pcut",
+        "shop",
+        "shopprod",
+        "vlog"
+      ],
+      "signIn": true,
+      "readers": [
+        "apvLoad"
+      ],
+      "untraced": []
+    },
+    "pt_articleLevel": {
+      "tabs": [
+        "ka",
+        "pa"
+      ],
+      "signIn": true,
+      "readers": [
+        "ensurePa",
+        "paRefresh"
+      ],
+      "untraced": [
+        "paRefresh"
+      ]
+    },
+    "pt_attend": {
+      "tabs": [
+        "att",
+        "ka",
+        "pa"
+      ],
+      "signIn": true,
+      "readers": [
+        "ensureAtt",
+        "ensurePa",
+        "paRefresh"
+      ],
+      "untraced": [
+        "paRefresh"
+      ]
+    },
+    "pt_baseData": {
+      "tabs": [
+        "acc",
+        "adj",
+        "cx",
+        "fba",
+        "fgi",
+        "hr",
+        "ka",
+        "mst",
+        "ord",
+        "pa",
+        "palloc",
+        "pbase",
+        "pcut",
+        "pmdb",
+        "ppress",
+        "qc",
+        "qcalt",
+        "qcret",
+        "rep",
+        "rfd",
+        "shop",
+        "shopprod",
+        "so",
+        "vreq"
+      ],
+      "signIn": true,
+      "readers": [
+        "ensurePbase",
+        "@pbGo.onclick",
+        "ptLoadGates",
+        "ensureHr"
+      ],
+      "untraced": [
+        "@pbGo.onclick"
+      ]
+    },
+    "pt_blockHave": {
+      "tabs": [
+        "palloc"
+      ],
+      "signIn": true,
+      "readers": [
+        "palLoad"
+      ],
+      "untraced": []
+    },
+    "pt_blockNeed": {
+      "tabs": [
+        "palloc"
+      ],
+      "signIn": true,
+      "readers": [
+        "palLoad"
+      ],
+      "untraced": []
+    },
+    "pt_colorGroups": {
+      "tabs": [
+        "palloc"
+      ],
+      "signIn": true,
+      "readers": [
+        "palLoad"
+      ],
+      "untraced": []
+    },
+    "pt_customSkus": {
+      "tabs": [
+        "adj",
+        "ord",
+        "shop",
+        "shopprod"
+      ],
+      "signIn": true,
+      "readers": [
+        "@ptmView.listener10182",
+        "ensureOrd",
+        "soFormSave",
+        "shpPlanAll"
+      ],
+      "untraced": [
+        "@ptmView.listener10182",
+        "soFormSave"
+      ]
+    },
+    "pt_cutRequired": {
+      "tabs": [
+        "ord",
+        "shopprod"
+      ],
+      "signIn": true,
+      "readers": [
+        "ensureOrd"
+      ],
+      "untraced": []
+    },
+    "pt_cuttingData": {
+      "tabs": [
+        "acc",
+        "adj",
+        "cx",
+        "fba",
+        "fgi",
+        "hr",
+        "ka",
+        "mst",
+        "ord",
+        "pa",
+        "palloc",
+        "pbase",
+        "pcut",
+        "pmdb",
+        "ppress",
+        "qc",
+        "qcalt",
+        "qcret",
+        "rep",
+        "rfd",
+        "shop",
+        "shopprod",
+        "so",
+        "vreq"
+      ],
+      "signIn": true,
+      "readers": [
+        "ensurePcut",
+        "@pcGo.onclick",
+        "ptLoadGates"
+      ],
+      "untraced": [
+        "@pcGo.onclick"
+      ]
+    },
+    "pt_cuttingFreezes": {
+      "tabs": [
+        "acc",
+        "adj",
+        "cx",
+        "fba",
+        "fgi",
+        "hr",
+        "ka",
+        "mst",
+        "ord",
+        "pa",
+        "palloc",
+        "pbase",
+        "pcut",
+        "pmdb",
+        "ppress",
+        "qc",
+        "qcalt",
+        "qcret",
+        "rep",
+        "rfd",
+        "shop",
+        "shopprod",
+        "so",
+        "vreq"
+      ],
+      "signIn": true,
+      "readers": [
+        "ptLoadGates"
+      ],
+      "untraced": []
+    },
+    "pt_cxOrders": {
+      "tabs": [
+        "cx"
+      ],
+      "signIn": true,
+      "readers": [
+        "ensureCx"
+      ],
+      "untraced": []
+    },
+    "pt_ehFreezes": {
+      "tabs": [
+        "hr"
+      ],
+      "signIn": true,
+      "readers": [
+        "ensureHr"
+      ],
+      "untraced": []
+    },
+    "pt_empList": {
+      "tabs": [
+        "att",
+        "hr",
+        "ka",
+        "ord",
+        "pa",
+        "pbase",
+        "qc",
+        "qcalt",
+        "qcret",
+        "shopprod"
+      ],
+      "signIn": true,
+      "readers": [
+        "ptLoadEmp",
+        "ensureHr"
+      ],
+      "untraced": []
+    },
+    "pt_extraHours": {
+      "tabs": [
+        "hr"
+      ],
+      "signIn": true,
+      "readers": [
+        "ensureHr"
+      ],
+      "untraced": []
+    },
+    "pt_fabInvLedger": {
+      "tabs": [
+        "fab"
+      ],
+      "signIn": true,
+      "readers": [
+        "ensureFab"
+      ],
+      "untraced": []
+    },
+    "pt_fgiCorrReqs": {
+      "tabs": [
+        "fba",
+        "fgi",
+        "ord",
+        "shopprod"
+      ],
+      "signIn": true,
+      "readers": [
+        "fgiCorrLoad"
+      ],
+      "untraced": []
+    },
+    "pt_fgiLedger": {
+      "tabs": [
+        "cx",
+        "fba",
+        "fgi",
+        "ord",
+        "rep",
+        "shopprod"
+      ],
+      "signIn": true,
+      "readers": [
+        "fgiLoad",
+        "ensureRep",
+        "@repView.listener25009",
+        "@repGo.onclick",
+        "fbaFresh",
+        "fgiEditApply",
+        "ensureCx"
+      ],
+      "untraced": [
+        "@repView.listener25009",
+        "@repGo.onclick"
+      ]
+    },
+    "pt_fgiSettings": {
+      "tabs": [
+        "fba",
+        "fgi",
+        "ord",
+        "shopprod"
+      ],
+      "signIn": true,
+      "readers": [
+        "fgiLoad"
+      ],
+      "untraced": []
+    },
+    "pt_fnskuMap": {
+      "tabs": [
+        "fba",
+        "fgi",
+        "ord",
+        "shopprod"
+      ],
+      "signIn": true,
+      "readers": [
+        "fnLoad"
+      ],
+      "untraced": []
+    },
+    "pt_issueRecipients": {
+      "tabs": [
+        "fba",
+        "fgi",
+        "ord",
+        "shopprod"
+      ],
+      "signIn": true,
+      "readers": [
+        "fgiLoad"
+      ],
+      "untraced": []
+    },
+    "pt_listingAlerts": {
+      "tabs": [
+        "fba",
+        "fgi",
+        "ord",
+        "shopprod"
+      ],
+      "signIn": true,
+      "readers": [
+        "lstLoad",
+        "lstLoadAlerts"
+      ],
+      "untraced": []
+    },
+    "pt_masterDB": {
+      "tabs": [
+        "acc",
+        "adj",
+        "cx",
+        "fba",
+        "fgi",
+        "hr",
+        "ka",
+        "mst",
+        "ord",
+        "pa",
+        "palloc",
+        "pbase",
+        "pcut",
+        "pmdb",
+        "ppress",
+        "qc",
+        "qcalt",
+        "qcret",
+        "rep",
+        "rfd",
+        "shop",
+        "shopprod",
+        "so",
+        "vreq"
+      ],
+      "signIn": true,
+      "readers": [
+        "@ptmGo.onclick",
+        "ptLoadGates"
+      ],
+      "untraced": [
+        "@ptmGo.onclick"
+      ]
+    },
+    "pt_masters": {
+      "tabs": [
+        "acc",
+        "adj",
+        "cx",
+        "fba",
+        "fgi",
+        "hr",
+        "ka",
+        "mst",
+        "ord",
+        "pa",
+        "palloc",
+        "pbase",
+        "pcut",
+        "pmdb",
+        "ppress",
+        "qc",
+        "qcalt",
+        "qcret",
+        "rep",
+        "rfd",
+        "shop",
+        "shopprod",
+        "so",
+        "vreq"
+      ],
+      "signIn": true,
+      "readers": [
+        "ptLoadGates"
+      ],
+      "untraced": []
+    },
+    "pt_obDeleteReqs": {
+      "tabs": [
+        "adj",
+        "fba",
+        "fgi",
+        "ka",
+        "mst",
+        "ord",
+        "pa",
+        "palloc",
+        "shop",
+        "shopprod",
+        "so"
+      ],
+      "signIn": true,
+      "readers": [
+        "odrLoad"
+      ],
+      "untraced": []
+    },
+    "pt_orderBook": {
+      "tabs": [
+        "acc",
+        "adj",
+        "cx",
+        "fba",
+        "fgi",
+        "hr",
+        "ka",
+        "mst",
+        "ord",
+        "pa",
+        "palloc",
+        "pbase",
+        "pcut",
+        "pmdb",
+        "ppress",
+        "qc",
+        "qcalt",
+        "qcret",
+        "rep",
+        "rfd",
+        "shop",
+        "shopprod",
+        "so",
+        "vreq"
+      ],
+      "signIn": true,
+      "readers": [
+        "ptLoadGates",
+        "odrDeleteRun"
+      ],
+      "untraced": [
+        "odrDeleteRun"
+      ]
+    },
+    "pt_payoutFreezes": {
+      "tabs": [
+        "hr"
+      ],
+      "signIn": true,
+      "readers": [
+        "ensureHr"
+      ],
+      "untraced": []
+    },
+    "pt_pressFreezes": {
+      "tabs": [
+        "ppress"
+      ],
+      "signIn": true,
+      "readers": [
+        "ensurePpress"
+      ],
+      "untraced": []
+    },
+    "pt_pressInventory": {
+      "tabs": [
+        "acc",
+        "adj",
+        "cx",
+        "fba",
+        "fgi",
+        "hr",
+        "ka",
+        "mst",
+        "ord",
+        "pa",
+        "palloc",
+        "pbase",
+        "pcut",
+        "pmdb",
+        "ppress",
+        "qc",
+        "qcalt",
+        "qcret",
+        "rep",
+        "rfd",
+        "shop",
+        "shopprod",
+        "so",
+        "vreq"
+      ],
+      "signIn": true,
+      "readers": [
+        "ptLoadGates"
+      ],
+      "untraced": []
+    },
+    "pt_printerRates": {
+      "tabs": [
+        "hr"
+      ],
+      "signIn": true,
+      "readers": [
+        "ensureHr",
+        "hrSavePrRate"
+      ],
+      "untraced": [
+        "hrSavePrRate"
+      ]
+    },
+    "pt_printers": {
+      "tabs": [
+        "palloc"
+      ],
+      "signIn": true,
+      "readers": [
+        "palLoad"
+      ],
+      "untraced": []
+    },
+    "pt_qcChecks": {
+      "tabs": [
+        "ord",
+        "qc",
+        "qcalt",
+        "qcret",
+        "shopprod"
+      ],
+      "signIn": true,
+      "readers": [
+        "ensureQc",
+        "ensureOrd",
+        "@repView.listener25009",
+        "@repGo.onclick"
+      ],
+      "untraced": [
+        "@repView.listener25009",
+        "@repGo.onclick"
+      ]
+    },
+    "pt_qcIssuance": {
+      "tabs": [
+        "ord",
+        "qc",
+        "qcalt",
+        "qcret",
+        "shopprod"
+      ],
+      "signIn": true,
+      "readers": [
+        "ensureQc",
+        "ensureOrd"
+      ],
+      "untraced": []
+    },
+    "pt_qcReturns": {
+      "tabs": [
+        "qc",
+        "qcalt",
+        "qcret"
+      ],
+      "signIn": true,
+      "readers": [
+        "ensureQc"
+      ],
+      "untraced": []
+    },
+    "pt_rateList": {
+      "tabs": [
+        "hr",
+        "ka",
+        "pa"
+      ],
+      "signIn": true,
+      "readers": [
+        "ensureHr",
+        "ensurePa",
+        "paRefresh"
+      ],
+      "untraced": [
+        "paRefresh"
+      ]
+    },
+    "pt_rfdDecisions": {
+      "tabs": [
+        "rfd"
+      ],
+      "signIn": true,
+      "readers": [
+        "@boot",
+        "ensureRfd"
+      ],
+      "untraced": []
+    },
+    "pt_salesOrders": {
+      "tabs": [
+        "so"
+      ],
+      "signIn": true,
+      "readers": [
+        "ensureSox",
+        "voFormOpen",
+        "resOpen",
+        "odrDeleteRun",
+        "vrqApprove"
+      ],
+      "untraced": [
+        "voFormOpen",
+        "resOpen",
+        "odrDeleteRun",
+        "vrqApprove"
+      ]
+    },
+    "pt_shopProd": {
+      "tabs": [
+        "acc",
+        "adj",
+        "cx",
+        "fba",
+        "fgi",
+        "hr",
+        "ka",
+        "mst",
+        "ord",
+        "pa",
+        "palloc",
+        "pbase",
+        "pcut",
+        "pmdb",
+        "ppress",
+        "qc",
+        "qcalt",
+        "qcret",
+        "rep",
+        "rfd",
+        "shop",
+        "shopprod",
+        "so",
+        "vreq"
+      ],
+      "signIn": true,
+      "readers": [
+        "ptLoadGates"
+      ],
+      "untraced": []
+    },
+    "pt_skuImages": {
+      "tabs": [
+        "acc",
+        "adj",
+        "cx",
+        "fba",
+        "fgi",
+        "hr",
+        "ka",
+        "mst",
+        "ord",
+        "pa",
+        "palloc",
+        "pbase",
+        "pcut",
+        "pmdb",
+        "ppress",
+        "qc",
+        "qcalt",
+        "qcret",
+        "rep",
+        "rfd",
+        "shop",
+        "shopprod",
+        "so",
+        "vend",
+        "vreq"
+      ],
+      "signIn": true,
+      "readers": [
+        "ptImgShared"
+      ],
+      "untraced": []
+    },
+    "pt_skuPriority": {
+      "tabs": [
+        "ord",
+        "shopprod"
+      ],
+      "signIn": true,
+      "readers": [
+        "mdbRenameLoadAll",
+        "ensureOrd"
+      ],
+      "untraced": [
+        "mdbRenameLoadAll"
+      ]
+    },
+    "pt_teamSize": {
+      "tabs": [
+        "ka",
+        "pa"
+      ],
+      "signIn": true,
+      "readers": [
+        "ensurePa",
+        "paRefresh"
+      ],
+      "untraced": [
+        "paRefresh"
+      ]
+    },
+    "pt_vendorByEmail": {
+      "tabs": [
+        "vend"
+      ],
+      "signIn": true,
+      "readers": [
+        "hideVendTabUnlessVendor",
+        "ensureVp"
+      ],
+      "untraced": []
+    },
+    "pt_vendorMap": {
+      "tabs": [
+        "hr",
+        "rfd",
+        "vend",
+        "vlog",
+        "vord",
+        "vreq"
+      ],
+      "signIn": true,
+      "readers": [
+        "ensureVo",
+        "ensureVp"
+      ],
+      "untraced": []
+    },
+    "pt_vendorOrderReqs": {
+      "tabs": [
+        "vreq"
+      ],
+      "signIn": true,
+      "readers": [
+        "@boot",
+        "ensureVrq"
+      ],
+      "untraced": []
+    },
+    "pt_vendorOrders": {
+      "tabs": [
+        "hr",
+        "ka",
+        "pa",
+        "palloc",
+        "rfd",
+        "vend",
+        "vlog",
+        "vord",
+        "vreq"
+      ],
+      "signIn": true,
+      "readers": [
+        "mdbRenameLoadAll",
+        "ensureVo",
+        "ensureVp",
+        "ensurePal",
+        "ensurePa"
+      ],
+      "untraced": [
+        "mdbRenameLoadAll"
+      ]
+    },
+    "pt_vendorPin": {
+      "tabs": [
+        "vend"
+      ],
+      "signIn": true,
+      "readers": [
+        "ensureVp"
+      ],
+      "untraced": []
+    },
+    "pt_waTemplates": {
+      "tabs": [
+        "pbase"
+      ],
+      "signIn": true,
+      "readers": [
+        "waLoad"
+      ],
+      "untraced": []
+    },
+    "pt_whatsappCutoffDate": {
+      "tabs": [
+        "pbase"
+      ],
+      "signIn": true,
+      "readers": [
+        "waLoad"
+      ],
+      "untraced": []
+    }
+  },
+  "dynamic": [
+    "ptLoad",
+    "mdbRenameLoadAll",
+    "spMirror",
+    "hrPutList",
+    "ensureHr"
+  ]
+}

@@ -37,8 +37,20 @@ const PENDING = "(!data.exists() || data.child('status').val() === 'Pending') &&
 
 const staffIndexed = ix => ({ '.write': STAFF, '.indexOn': ix });
 
+/* PHASE 4 — READING IS GRANTED NODE BY NODE, BY THE TABS SOMEBODY HOLDS.
+ *
+ * Until this, any of the 44 staff accounts could read the whole database — the employee list, every
+ * rate, every advance — whatever screens they had been given, because the root granted read and a
+ * grant at a parent cannot be narrowed below it. So the root grants NOTHING now, and each node says who
+ * may read it: an admin, or somebody holding a tab whose code reads that node (read-model.js, derived
+ * from the app's call graph by read-audit.js), or — for Change SKU — the right that needs it.
+ * A vendor is never staff here; their own branch and their own rows are granted where they always were.
+ * A node nobody has named is readable by admins only: the app reads no such node. */
+const { readersOf, NODES } = require('./read-model');
+const readExpr = node => { const r = readersOf(node);
+  return `auth != null && ${NOT_VENDOR} && (${[ADMIN].concat(r.tabs.map(tab), r.rights.map(right)).join(' || ')})`; };
+
 const rules = {
-  '.read': STAFF,
 
   pt_perms: { '.write': any(ADMIN) },
   pt_payoutFreezes: { '.write': any(ADMIN) },
@@ -85,8 +97,13 @@ const rules = {
   pt_extraHours: staffIndexed(['date', 'empName', 'status']),
   pt_salesOrders: staffIndexed(['orderNo', 'orderDate', 'channel']),
 
-  $other: { '.write': STAFF },
+  $other: { '.read': any(ADMIN), '.write': STAFF },
 };
+
+/* Every node the app reads is NAMED, so that it can say who reads it. Naming a node takes it out from
+ * under "$other", so one that had no entry above is given the staff write it had there. */
+NODES.forEach(n => { if (!rules[n]) rules[n] = { '.write': STAFF }; rules[n] = Object.assign({ '.read': readExpr(n) }, rules[n]); });
+['pt_perms', 'pt_loginDir'].forEach(n => { rules[n] = Object.assign({ '.read': any(ADMIN) }, rules[n]); });   // read by nothing in the app
 
 const HEAD = `{
   // ── THE DATABASE ENFORCES WHO MAY WRITE WHAT ─────────────────────────────────────────────────────
@@ -99,7 +116,11 @@ const HEAD = `{
   // database — was a button the app chose to show or hide; the database let any signed-in member of
   // staff write anything. 177 (account, node) pairs could write what they should not.
   //
-  // THE ROOT GRANTS READ ONLY. A grant given at a parent cannot be taken back lower down, so while the
+  // READING IS BY TAB (phase 4). The root grants nothing; each node names who may read it — an admin, or
+  // a holder of a tab whose code reads it (rules/read-model.js, from the app's call graph). Before this,
+  // any staff account could read the employee list, every rate and every advance.
+  //
+  // THE ROOT GRANTS NOTHING. A grant given at a parent cannot be taken back lower down, so while the
   // root said "any staff may write" no stricter rule beneath it could mean anything. Write is granted
   // node by node, and EVERYTHING NOT NAMED stays staff-writable through "$other" — a node nobody
   // thought of is what it was yesterday, not locked.
