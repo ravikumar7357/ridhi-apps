@@ -241,7 +241,9 @@
         "pt_qcIssuance",
         "pt_shopProd",
         "pt_skuImages",
-        "pt_skuPriority"
+        "pt_skuPriority",
+        "pt_vendorMap",
+        "pt_vendorOrders"
       ]
     },
     "pa": {
@@ -538,7 +540,9 @@
         "pt_qcIssuance",
         "pt_shopProd",
         "pt_skuImages",
-        "pt_skuPriority"
+        "pt_skuPriority",
+        "pt_vendorMap",
+        "pt_vendorOrders"
       ]
     },
     "so": {
@@ -1028,14 +1032,14 @@
       "readers": [
         "fgiLoad",
         "ensureRep",
-        "@repView.listener25009",
+        "@repView.listener25146",
         "@repGo.onclick",
         "fbaFresh",
         "fgiEditApply",
         "ensureCx"
       ],
       "untraced": [
-        "@repView.listener25009",
+        "@repView.listener25146",
         "@repGo.onclick"
       ]
     },
@@ -1305,11 +1309,11 @@
       "readers": [
         "ensureQc",
         "ensureOrd",
-        "@repView.listener25009",
+        "@repView.listener25146",
         "@repGo.onclick"
       ],
       "untraced": [
-        "@repView.listener25009",
+        "@repView.listener25146",
         "@repGo.onclick"
       ]
     },
@@ -1495,7 +1499,9 @@
     "pt_vendorMap": {
       "tabs": [
         "hr",
+        "ord",
         "rfd",
+        "shopprod",
         "vend",
         "vlog",
         "vord",
@@ -1523,9 +1529,11 @@
       "tabs": [
         "hr",
         "ka",
+        "ord",
         "pa",
         "palloc",
         "rfd",
+        "shopprod",
         "vend",
         "vlog",
         "vord",
