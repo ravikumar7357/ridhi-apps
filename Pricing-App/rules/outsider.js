@@ -76,8 +76,19 @@ const verdict = (r, what) => {
     const closed = ((ac.client || {}).permissions || {}).disabledUserSignup === true;
     console.log('  email + password sign-in : ' + (email.enabled ? 'on' : 'off'));
     console.log('  anonymous sign-in        : ' + (anonOn ? 'ON !!' : 'off'));
-    console.log('  SELF SIGN-UP             : ' + (closed ? 'blocked — only an admin path can create an account' : 'OPEN !! — anybody can create an account with the public web key'));
-    if (!closed && email.enabled) { holes++; console.log('     → and the production database lets ANY signed-in non-vendor read everything and write most of it.'); }
+    console.log('  SELF SIGN-UP             : ' + (closed ? 'blocked — only an admin path can create an account' : 'open — anybody can create an account with the public web key (see below for what that gets them)'));
+    /* OPEN SIGN-UP IS ONLY A DOOR IF A SELF-MADE LOGIN CAN REACH SOMETHING. So one is played — through
+     * auth_variable_override, no account is created — against the payroll and against a register. */
+    if (!closed && email.enabled) {
+      const as = '?auth_variable_override=' + encodeURIComponent(JSON.stringify({ uid: 'stranger', token: { email: 'a-stranger-who-signed-up@example.invalid' } }));
+      const asStranger = (method, p, body) => new Promise(res => { const r = https.request({ host: new URL(NEW).host, path: '/' + p + '.json' + as, method,
+        headers: { Authorization: 'Bearer ' + at, 'Content-Type': 'application/json' } }, x => { let d = ''; x.on('data', c => d += c); x.on('end', () => res(x.statusCode)); }); if (body) r.write(JSON.stringify(body)); r.end(); });
+      const rd = await asStranger('GET', 'pt_empList'), wr = await asStranger('PATCH', '', { 'pt_orderBook/zz_ruletest': null });
+      console.log('     a self-made login reading the employee list : ' + (rd === 200 ? 'ALLOWED !!' : 'refused (' + rd + ')'));
+      console.log('     a self-made login writing to the order book : ' + (wr === 200 ? 'ALLOWED !!' : 'refused (' + wr + ')'));
+      if (rd === 200 || wr === 200) holes++;
+      else console.log('     → sign-up is open because the app makes PIN logins through it, but a login with no rights on record reaches nothing.');
+    }
     if (anonOn) holes++;
   }
 
