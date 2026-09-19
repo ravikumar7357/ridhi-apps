@@ -67,10 +67,7 @@ const breaks = [
    "        const key = [run ? 'running' : 'cut', what, rate == null ? 'no-rate' : rate].join('|');"],
 
   /* ---- the screen ---- */
-  ['the screen says nothing on it is settled',
-   '      <span class="kpiwhen">live — nothing on this screen is settled</span></div>',
-   '      <span class="kpiwhen">&nbsp;</span></div>'],
-
+  /* 'nothing on it is settled' became 'frozen or live' once the freeze existed — broken in teeth-vpay2.js. */
   ['…and says what it counts and how it dates it',
    "    + 'counted on what was KEPT, dated by the day the goods came'",
    "    + ''"],
@@ -96,11 +93,8 @@ const breaks = [
    "  $('hrPeriod').classList.toggle('hide', !(payView || view === 'vpay'));",
    "  $('hrPeriod').classList.toggle('hide', !payView);"],
 
-  /* AND NO FREEZE. There is nothing on this screen that means settled, and a Freeze button that
-   * locked nothing would say there were. */
-  ['…and no Freeze button on it',
-   "  $('hrFreeze').classList.toggle('hide', !payView);",
-   "  $('hrFreeze').classList.toggle('hide', !(payView || view === 'vpay'));"],
+  /* The rule that there is NO Freeze button was reversed when the freeze was built; teeth-vpay2.js breaks
+   * the button, its label and the freeze itself. */
 
   /* ---- taking a figure apart ---- */
   ['a figure can be taken apart into its deliveries',
@@ -108,7 +102,7 @@ const breaks = [
    '  const r = null;' + NL + '  if (!r) return;'],
 
   ['…and it names the rate it used',
-   "      : `Paid at Rs.${r.rate} ${r.run ? 'per metre' : 'per piece'} — ${rw.service || 'Block print'}`",
+   "      : `Paid at Rs.${r.rate} ${r.run ? 'per metre' : 'per piece'} — ${r.rateNote || 'Block print'}`",
    "      : `Paid at Rs.${r.rate}`"],
 
   ['…and shows the arithmetic',

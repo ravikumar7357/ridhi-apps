@@ -16145,7 +16145,7 @@ function renderHr() {
    * on it that means settled, and a Freeze button that locked nothing would say there were. */
   $('hrPeriod').classList.toggle('hide', !(payView || view === 'vpay'));
   $('hrPayEmp').classList.toggle('hide', view !== 'cc');   // an EC line is the firm's, not a person's
-  $('hrFreeze').classList.toggle('hide', !payView);
+  $('hrFreeze').classList.toggle('hide', !(payView || view === 'vpay'));
   $('hrSlipEmp').classList.toggle('hide', view !== 'slip');
   $('hrSlipPrint').classList.toggle('hide', view !== 'slip');
   $('hrEhStatus').classList.toggle('hide', view !== 'eh');
@@ -17569,7 +17569,9 @@ $('hrTable').addEventListener('click', async e => {
 ptDebounce('hrQ', renderHr);
 /* Refresh is the only thing that re-reads these lists, which is why a stale snapshot can sit here
  * all day. It clears HR.emp, and ensureHr rewrites HR_SEEN from what it finds. */
-$('hrGo').onclick = async () => { HR.emp = null; await ensureHr(); };
+/* The vendor payout and the rate list's "on live orders" are built from the vendor orders, so a
+ * refresh that left those alone showed a delivery accepted a minute ago as not there. */
+$('hrGo').onclick = async () => { HR.emp = null; if (!hrEmpOnly()) { VO.rows = null; VO.err = ''; } await ensureHr(); };
 $('hrExport').onclick = () => {
   const view = $('hrView').value, rows = HR.rows || [];
   if (!rows.length) return;
@@ -17830,7 +17832,42 @@ function vpayInWindow(d, w) {
  * The rate is part of the key and not only of the row: the same cloth in two colours is two prices,
  * so merging them would produce a figure at a rate that priced neither.
  */
+/** The type a vendor freeze is filed under, beside the two contractor types, in pt_payoutFreezes. */
+const VPAY_TYPE = 'Vendor';
+
+/**
+ * The payout for a period: each half frozen-or-live ON ITS OWN, then the month is the two merged.
+ * A month is never one 1st-to-end sum — freezing the first half and then opening the month would
+ * quietly recalculate it, which is the one thing a freeze exists to prevent.
+ */
 function vpayRows(yr, mo, period) {
+  if (period === 3) {
+    const m = {};
+    [1, 2].forEach(p => vpayRows(yr, mo, p).forEach(x => {
+      if (!m[x.key]) { m[x.key] = Object.assign({}, x, { dels: (x.dels || []).slice() }); return; }
+      const t = m[x.key];
+      /* AMOUNTS ARE ADDED, never re-multiplied — re-pricing the merged quantity would pay the frozen
+       * half at today's rate. */
+      ['qty', 'over', 'rej', 'gone', 'amount'].forEach(f => { t[f] = (t[f] || 0) + (x[f] || 0); });
+      t.dels = t.dels.concat(x.dels || []);
+      t.frozen = t.frozen && x.frozen;
+    }));
+    return Object.values(m).sort(vpaySort);
+  }
+  const held = payFrozenRows(VPAY_TYPE, yr, mo, period);
+  if (held) return held.map(x => Object.assign({ over: 0, rej: 0, gone: 0, why: '', dels: [] }, x,
+    { rate: x.rate == null ? null : x.rate, frozen: true }));
+  return vpayLive(yr, mo, period);
+}
+const vpaySort = (a, b) => String(a.vendor).toLowerCase().localeCompare(String(b.vendor).toLowerCase())
+  || String(a.what).toLowerCase().localeCompare(String(b.what).toLowerCase());
+
+/** What a rate row says about itself, in words — kept on the payout row so a FROZEN one can still say it. */
+const vpayRateNote = rw => (rw ? (rw.service || 'Block print')
+  + (prCols(rw) ? ', ' + prCols(rw) + ' colours' : '')
+  + (rw.approvedBy ? ', approved by ' + rw.approvedBy : '') : '');
+
+function vpayLive(yr, mo, period) {
   const w = payWindow(period, yr, mo);
   const g = {};
   (VO.rows || []).forEach(o => {
@@ -17860,7 +17897,7 @@ function vpayRows(yr, mo, period) {
         if (!vpayInWindow(d, w)) return;
         const key = [o.vendorCode, run ? 'running' : 'cut', what, rate == null ? 'no-rate' : rate].join('|');
         if (!g[key]) g[key] = { key, vendorCode: o.vendorCode, vendor: voName(o.vendorCode),
-          run, unit: run ? 'm' : 'pcs', what, rate, rateRow: row, why,
+          run, unit: run ? 'm' : 'pcs', what, rate, rateNote: vpayRateNote(row), why,
           service: row ? (row.service || '') : (prLineServices(o.vendorCode, o)[0] || ''),
           qty: 0, over: 0, rej: 0, gone: 0, dels: [] };
         g[key].qty += kept;
@@ -17869,21 +17906,35 @@ function vpayRows(yr, mo, period) {
         if (gone) g[key].gone += kept;
         g[key].dels.push({ day: voDayOf(d.date), orderNo: o.orderNo || o.id, sku: l.sku || '',
           claimed: parseFloat(d.qty) || 0, kept, rej: parseFloat(ok.rej) || 0,
-          over: parseFloat(ok.over) || 0, note: ok.note || '', by: ok.by || '', li, di, gone });
+          over: parseFloat(ok.over) || 0, note: ok.note || '', by: ok.by || '', li, di, gone,
+          /* WHAT IT SAID BEFORE. A receipt that was corrected is a different fact from one that was
+           * right first time, and this figure is what somebody is paid on. */
+          was: (Array.isArray(ok.was) ? ok.was : []).map(x => parseFloat(x && x.qty) || 0) });
       });
     });
   });
   return Object.values(g)
     .map(x => Object.assign(x, { amount: x.rate == null ? 0 : x.qty * x.rate }))
-    .sort((a, b) => String(a.vendor).toLowerCase().localeCompare(String(b.vendor).toLowerCase())
-      || String(a.what).toLowerCase().localeCompare(String(b.what).toLowerCase()));
+    .sort(vpaySort);
 }
 
 function renderVpay() {
   const { yr, mo } = payParts(), per = payPeriod(), w = payWindow(per, yr, mo);
+  if (VO.err) {
+    $('hrKpis').innerHTML = ''; ptEmpty('hrTable', 'Nothing to show.');
+    $('hrMsg').className = 'err';
+    $('hrMsg').textContent = 'The vendor orders could not be read, so there is no payout to show: ' + VO.err + '. Press Refresh.';
+    return;
+  }
   const q = $('hrQ').value.trim().toLowerCase();
   const all = vpayRows(yr, mo, per);
   const rows = all.filter(r => !q || [r.vendor, r.vendorCode, r.service, r.what].join(' ').toLowerCase().includes(q));
+  const frozen = payFrozen(VPAY_TYPE, yr, mo, per);
+  $('hrFreeze').textContent = per === 3 ? 'Freeze a fortnight' : (frozen ? `Re-open ${PER_LBL[per]}` : `Freeze ${PER_LBL[per]}`);
+  $('hrFreeze').disabled = per === 3 || !ME.admin;
+  $('hrFreeze').title = per === 3 ? 'The two halves are settled separately — pick a fortnight.'
+    : (ME.admin ? 'Freezing locks these figures so a later rate change cannot move them.'
+                : 'Only an admin can freeze or re-open a period.');
   HR.rows = rows;
 
   const amt = rows.reduce((t, r) => t + r.amount, 0);
@@ -17895,7 +17946,7 @@ function renderVpay() {
 
   $('hrKpis').innerHTML = `<div class="kpi" style="flex-basis:100%">
     <div class="kpihead"><span class="kpiname">Vendor payout — ${esc(payYM())} · ${PER_LBL[per]}</span>
-      <span class="kpiwhen">live — nothing on this screen is settled</span></div>
+      <span class="kpiwhen">${frozen ? 'frozen — settled figures' : 'live — not settled yet'}</span></div>
     <div class="metrics">
       <div class="metric"><div class="v">${nf(vendors)}</div><div class="l">Vendors</div></div>
       <div class="metric"><div class="v">${nf(rows.length)}</div><div class="l">Lines</div></div>
@@ -17948,7 +17999,8 @@ function renderVpay() {
   $('hrMsg').className = noRate.length ? 'err' : 'muted';
   $('hrMsg').textContent = `${nf(rows.length)} line(s) · click one to see the deliveries behind it · `
     + 'counted on what was KEPT, dated by the day the goods came'
-    + ' · nothing here is settled, so a rate change will move these figures'
+    + (frozen ? ' · FROZEN — these are the settled figures and a rate change cannot move them'
+              : ' · not frozen, so a rate change will still move these figures')
     + (noRate.length ? ` · ${nf(noRate.length)} line(s) covering ${nf(noRateQty)} received have NO approved rate and are `
       + 'adding nothing to the total — check the Vendor rate list' : '');
 }
@@ -17965,27 +18017,26 @@ function vpayShowDrill(key) {
   if (!r) return;
   const head = ['Date', 'Order', 'SKU', 'Challan said', 'Kept', 'Returned', 'Over', 'Accepted by', 'Note']
     .map((h, i) => `<th${i >= 3 && i <= 6 ? ' class="num"' : ''}>${h}</th>`).join('');
-  const body = r.dels.slice().sort((a, b) => voDayKey(a.day).localeCompare(voDayKey(b.day))).map(d => '<tr>'
+  const body = (r.dels || []).slice().sort((a, b) => voDayKey(a.day).localeCompare(voDayKey(b.day))).map(d => '<tr>'
     + `<td>${esc(d.day) || '<span class="muted">—</span>'}</td>`
     + `<td>${esc(d.orderNo)}${d.gone ? ' <span class="pill pill-low" title="Cancelled after this was taken in. Still owed.">cancelled</span>' : ''}</td>`
     + `<td style="font-family:ui-monospace,monospace">${esc(d.sku) || '<span class="muted">—</span>'}</td>`
     + `<td class="num">${nf(d.claimed)}</td>`
-    + `<td class="num" style="font-weight:700">${nf(d.kept)}</td>`
+    + `<td class="num" style="font-weight:700">${nf(d.kept)}${(d.was || []).length
+        ? ` <span class="muted" style="font-weight:400;font-size:11px" title="This receipt was corrected after it was first accepted.">was ${d.was.map(nf).join(' → ')}</span>` : ''}</td>`
     + `<td class="num"${d.rej ? ' style="color:var(--bad)"' : ''}>${d.rej ? nf(d.rej) : '<span class="muted">—</span>'}</td>`
     + `<td class="num"${d.over ? ' style="color:#C55A11;font-weight:700"' : ''}>${d.over ? nf(d.over) : '<span class="muted">—</span>'}</td>`
     + `<td class="muted" style="font-size:12px">${esc(String(d.by || '').split('@')[0])}</td>`
     + `<td style="text-align:left;white-space:normal;max-width:260px;font-size:12px" class="muted">${esc(d.note)}</td></tr>`).join('');
-  const rw = r.rateRow;
   ptOpenDialog({
     title: r.what + ' — ' + voName(r.vendorCode),
     subtitle: `${PER_LBL[per]} of ${payYM()}  ·  ${w.from} to ${w.to}`,
     note: (r.rate == null
       ? 'NO APPROVED RATE prices this work, so it is adding nothing to the total: ' + r.why + '. The pieces '
         + 'were still received and are still owed — the rate is what is missing, not the work.'
-      : `Paid at Rs.${r.rate} ${r.run ? 'per metre' : 'per piece'} — ${rw.service || 'Block print'}`
-        + `${prCols(rw) ? ', ' + prCols(rw) + ' colours' : ''}`
-        + `${rw.approvedBy ? ', approved by ' + rw.approvedBy : ''}`
+      : `Paid at Rs.${r.rate} ${r.run ? 'per metre' : 'per piece'} — ${r.rateNote || 'Block print'}`
         + `. ${nf(r.qty)} ${r.unit} × Rs.${r.rate} = ${rs(r.amount)}.`)
+      + (r.frozen ? ' FROZEN — this is the settled figure, at the rate that applied when it was frozen.' : '')
       + ' Returned pieces are not in this figure — the vendor is credited with what was kept, so a '
       + 'returned piece stays owed and has to be made again.',
     html: `<div class="driller">
@@ -18367,6 +18418,7 @@ function payFreezeRec(empType, yr, mo) {
 
 async function paySetFreeze(on) {
   const kind = $('hrView').value;
+  if (kind === 'vpay') return vpaySetFreeze(on);
   if (kind !== 'cc' && kind !== 'ec') return;
   if (!ME.admin) { $('hrMsg').className = 'err'; $('hrMsg').textContent = 'Only an admin can freeze or re-open a period.'; return; }
   const empType = PAY_TYPES[kind];
@@ -18423,8 +18475,55 @@ async function paySetFreeze(on) {
 $('hrFreeze').onclick = () => {
   const kind = $('hrView').value;
   const { yr, mo } = payParts();
-  paySetFreeze(!payFrozen(PAY_TYPES[kind], yr, mo, payPeriod()));
+  paySetFreeze(!payFrozen(kind === 'vpay' ? VPAY_TYPE : PAY_TYPES[kind], yr, mo, payPeriod()));
 };
+
+/**
+ * Freeze or re-open one fortnight of the vendor payout.
+ *
+ * WORK WITH NO RATE CANNOT BE FROZEN. A freeze says "this is what is owed and it is settled"; a line
+ * with no rate is owed an amount nobody has written down, and locking it in at nothing would settle
+ * real work for Rs.0 where no later rate could reach it.
+ */
+async function vpaySetFreeze(on) {
+  const say = (t, bad) => { $('hrMsg').className = bad ? 'err' : 'muted'; $('hrMsg').textContent = t; };
+  if (!ME.admin) return say('Only an admin can freeze or re-open a period.', true);
+  const { yr, mo } = payParts(), per = payPeriod();
+  if (per === 3) return say('Freeze a fortnight, not the whole month — the two halves are settled separately.', true);
+  const key = payFreezeKey(VPAY_TYPE, yr, mo), rec = payFreezeRec(VPAY_TYPE, yr, mo);
+  if (on) {
+    const live = vpayLive(yr, mo, per);
+    if (!live.length) return say('Nothing to freeze in this period.', true);
+    const bare = live.filter(r => r.rate == null);
+    if (bare.length) return say(`${nf(bare.length)} line(s) in this period have NO approved rate — `
+      + bare.slice(0, 3).map(r => r.vendor + ' · ' + r.what).join('; ') + (bare.length > 3 ? '; …' : '')
+      + '. Freezing would settle that work at nothing, where no later rate could reach it. Price them first.', true);
+    const amt = live.reduce((t, r) => t + r.amount, 0);
+    if (!confirm(`Freeze ${PER_LBL[per]} of ${payYM()} for vendors?\n\n`
+      + `${nf(live.length)} line(s) · ${nf(new Set(live.map(r => r.vendorCode)).size)} vendor(s) · ${rs(amt)}\n\n`
+      + 'These figures are locked from now on: a later rate change, a corrected receipt or a cancelled '
+      + 'order will not move them. It can be re-opened, but only by an admin.')) return;
+    rec.frozen[per] = true;
+    rec.periods[per] = live.map(r => ({ key: r.key, vendorCode: r.vendorCode, vendor: r.vendor, run: r.run, unit: r.unit,
+      what: r.what, service: r.service, rate: r.rate, rateNote: r.rateNote, qty: r.qty, over: r.over, rej: r.rej,
+      gone: r.gone, amount: r.amount, dels: r.dels }));
+    rec.meta[per] = { by: ME.email, at: new Date().toISOString(), lines: live.length, amount: amt };
+  } else {
+    if (!confirm(`Re-open ${PER_LBL[per]} of ${payYM()} for vendors?\n\nThe locked figures are discarded and the `
+      + 'period goes back to being calculated live, which means it can change.')) return;
+    delete rec.frozen[per]; delete rec.periods[per]; delete rec.meta[per];
+  }
+  $('hrFreeze').disabled = true;
+  try {
+    const empty = !Object.keys(rec.frozen).length;
+    await ptPut('pt_payoutFreezes/' + key, empty ? null : rec);
+    const next = Object.assign({}, HR.freezes || {});
+    if (empty) delete next[key]; else next[key] = rec;
+    HR.freezes = next;
+    renderHr();
+    say(on ? `${PER_LBL[per]} of ${payYM()} is frozen for vendors.` : `${PER_LBL[per]} of ${payYM()} is live again.`);
+  } catch (e) { $('hrFreeze').disabled = false; say('Not saved: ' + (e.message || e), true); }
+}
 
 /* ================= FABRIC INVENTORY =================
  *
