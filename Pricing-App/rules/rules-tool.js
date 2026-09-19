@@ -2,8 +2,10 @@
  *
  *   node rules-tool.js drift      is pt_perms (what the rules read) the same as Firestore perms?
  *   node rules-tool.js seed       rewrite pt_perms from Firestore
+ *   node rules-tool.js ghosts     rights on record with NO login behind them — see ghosts() for why that is a door
  *   node rules-tool.js check p0   play every account against the LIVE rules, expecting the behaviour before any of this
  *   node rules-tool.js check p1   …expecting phase 1 (the money nodes)
+ *   node rules-tool.js check p3   …expecting phase 3: a login with no rights on record reads and writes NOTHING
  *   node rules-tool.js check p2   …expecting phase 2 (rates by the row, the master lists, vendor identity) — what ../database.rules.next.json promises
  *   node rules-tool.js deploy     seed → save the live rules → put the new ones → check new →
  *                                 PUT THE OLD ONES BACK BY ITSELF if a single answer is not the expected one
@@ -99,6 +101,38 @@ async function drift(say) {
   return bad;
 }
 
+/**
+ * RIGHTS WITH NO LOGIN BEHIND THEM ARE A DOOR.
+ *
+ * Self sign-up is open, and the rules know a person by the email in their token — unverified, because
+ * the PIN logins have no mailbox to verify. So if rights are ever recorded for an address BEFORE that
+ * person has a login, a stranger can sign up as that address first and the rights are theirs. Create
+ * the login first, or grant the rights and make the login in the same sitting. This lists every such
+ * address; on 2026-09-19 there were none. Also lists logins that hold no rights at all, which are
+ * harmless now but are worth deleting when nobody can say whose they are.
+ */
+async function ghosts() {
+  let users = [], page = '';
+  do {
+    const j = await new Promise((res, rej) => https.get('https://identitytoolkit.googleapis.com/v1/projects/' + PROJ + '/accounts:batchGet?maxResults=500'
+      + (page ? '&nextPageToken=' + page : ''), { headers: { Authorization: 'Bearer ' + AT, 'x-goog-user-project': PROJ } },
+      r => { let d = ''; r.on('data', c => d += c); r.on('end', () => res(JSON.parse(d))); }).on('error', rej));
+    if (j.error) throw new Error('could not list the logins: ' + j.error.message);
+    users = users.concat(j.users || []); page = j.nextPageToken || '';
+  } while (page);
+  const have = new Set(users.map(u => String(u.email || '').toLowerCase()).filter(Boolean));
+  const fsP = await firestorePerms();
+  const vbe = JSON.parse((await req('GET', 'pt_vendorByEmail')).body) || {};
+  const ghost = fsP.filter(p => !have.has(p.email));
+  const bare = [...have].filter(e => e !== OWNER && !fsP.some(p => p.email === e) && !vbe[emailKey(e)]);
+  const NL = String.fromCharCode(10);
+  console.log(ghost.length ? 'RIGHTS WITH NO LOGIN — a stranger could sign up as these and inherit them:' + NL + '  '
+    + ghost.map(p => p.email.split('@')[0] + (p.admin ? '  (ADMIN)' : '')).join(NL + '  ')
+    : 'Every set of rights has a login behind it (' + fsP.length + ').');
+  console.log(bare.length ? 'Logins holding no rights at all (they can read and write nothing): ' + bare.map(e => e.split('@')[0]).join(', ') : 'No login is without rights.');
+  return ghost;
+}
+
 async function seed() {
   const fsP = await firestorePerms(), all = {};
   fsP.forEach(p => { all[emailKey(p.email)] = Object.assign(mirrorOf(p), { at: new Date().toISOString(), by: 'rules-tool seed' }); });
@@ -118,10 +152,12 @@ let APPROVED_ROW = '';
 function expectWrite(who, node, mode) {
   if (who.kind === 'nobody') return false;
   if (who.kind === 'vendor') return node === 'pt_vendorOrders/' + who.code;
+  /* PHASE 3: signed in is not enough. Anybody can sign themselves up; only rights on record make staff. */
+  if (mode === 'p3' && !who.p) return false;
   if (node.indexOf('pt_vendorOrders/') === 0) return true;          // staff write every vendor branch
   if (mode === 'p0') return true;                                    // before any of this: any staff, anything
   const p = who.p || { admin: false, r: {}, t: {} };
-  if (mode === 'p2') {
+  if (mode === 'p2' || mode === 'p3') {
     if (APPROVED_ROW && node === APPROVED_ROW) return p.admin || !!p.r.rateApprove;   // an approved rate: approvers only
     if (node === 'pt_printerRates') return p.admin || !!p.r.rateApprove || !!p.t.hr;     // a new row: whoever holds Finance & HR
     if (node === 'pt_masters/accessories') return p.admin || !!p.r.accEdit;
@@ -163,7 +199,8 @@ async function check(mode) {
     if (APPROVED_ROW) nodes.push(APPROVED_ROW);
     nodes.forEach(n => jobs.push({ w, n, as, what: 'write', want: expectWrite(w, n, mode) }));
     /* And reading: staff read everything, a vendor reads its own branch only, nobody reads nothing. */
-    jobs.push({ w, n: 'pt_printerRates', as, what: 'read', want: w.kind === 'staff' });
+    jobs.push({ w, n: 'pt_printerRates', as, what: 'read', want: w.kind === 'staff' && !(mode === 'p3' && !w.p) });
+    jobs.push({ w, n: 'pt_empList', as, what: 'read', want: w.kind === 'staff' && !(mode === 'p3' && !w.p) });
     if (w.kind === 'vendor') jobs.push({ w, n: 'pt_vendorOrders/' + w.code, as, what: 'read', want: true });
   });
 
@@ -196,8 +233,9 @@ const putRules = text => req('PUT', '.settings/rules', text, undefined, true);
   await token();
   const [cmd, arg] = process.argv.slice(2);
   if (cmd === 'drift') return void await drift(true);
+  if (cmd === 'ghosts') return void await ghosts();
   if (cmd === 'seed') { await seed(); return void await drift(true); }
-  if (cmd === 'check') return void await check(['p0', 'p1', 'p2'].indexOf(arg) >= 0 ? arg : 'p2');
+  if (cmd === 'check') return void await check(['p0', 'p1', 'p2', 'p3'].indexOf(arg) >= 0 ? arg : 'p3');
   if (cmd === 'rollback') {
     const r = await putRules(fs.readFileSync(arg, 'utf8'));
     if (r.status === 200) fs.copyFileSync(arg, LIVE_FILE);
@@ -214,7 +252,7 @@ const putRules = text => req('PUT', '.settings/rules', text, undefined, true);
     if (r.status !== 200) throw new Error('the new rules were refused, nothing changed: ' + r.status + ' ' + r.body.slice(0, 300));
     console.log('new rules are live — checking every account now…');
     let wrong;
-    try { wrong = await check('p2'); } catch (e) { wrong = ['the check itself failed: ' + (e.message || e)]; }
+    try { wrong = await check('p3'); } catch (e) { wrong = ['the check itself failed: ' + (e.message || e)]; }
     if (wrong.length) {
       const back = await putRules(before);
       console.log('\nROLLED BACK (' + back.status + '). The old rules are live again. Nothing above was acceptable.');
@@ -224,5 +262,5 @@ const putRules = text => req('PUT', '.settings/rules', text, undefined, true);
     return void console.log('\nDEPLOYED, and database.rules.json now says what is live.'
       + '\nTo undo:  node rules-tool.js rollback "' + keep + '"   (and restore database.rules.json from it)');
   }
-  console.log('usage: node rules-tool.js drift | seed | check p0|p1|p2 | deploy | rollback <file>');
+  console.log('usage: node rules-tool.js drift | seed | ghosts | check p0|p1|p2|p3 | deploy | rollback <file>');
 })().catch(e => { console.error('FAILED', e && (e.stack || e.message || e)); process.exit(1); });

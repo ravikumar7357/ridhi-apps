@@ -14,7 +14,19 @@ const KEY = "auth.token.email.toLowerCase().replace('.', ',')";
 const ME = `root.child('pt_perms').child(${KEY})`;
 const NOT_VENDOR = `!root.child('pt_vendorByEmail').child(${VKEY}).exists()`;
 
-const STAFF = `auth != null && ${NOT_VENDOR}`;
+/* STAFF MEANS SOMEBODY WHOSE RIGHTS ARE ON RECORD — NOT MERELY SOMEBODY SIGNED IN.
+ *
+ * Self sign-up is open on this project (the app itself creates PIN logins through it), so "signed in"
+ * is something a stranger can do for themselves with the public web key, in one request, with no
+ * password of anybody's. While staff meant "signed in and not a vendor", that stranger could read the
+ * whole production database — payroll, rates, every order — and write most of it. Found 2026-09-19 by
+ * knocking on every door with no credentials: this was the only one that opened.
+ *
+ * Nobody holding rights is affected: the 44 accounts with rights all have a pt_perms entry, and the
+ * owner is named. The four logins with none (two of Vimal's, two unused PIN accounts) saw nothing in the
+ * app already. */
+const KNOWN = `(auth.token.email.toLowerCase() === '${OWNER}' || ${ME}.exists())`;
+const STAFF = `auth != null && ${KNOWN} && ${NOT_VENDOR}`;
 const ADMIN = `(auth.token.email.toLowerCase() === '${OWNER}' || ${ME}.child('admin').val() === true)`;
 const right = r => `${ME}.child('r').child('${r}').val() === true`;
 const tab = t => `${ME}.child('t').child('${t}').val() === true`;
@@ -96,6 +108,10 @@ const HEAD = `{
   //
   // THE APP PATCHES AT THE ROOT with keys like "pt_masters/recipe/x"; that is judged key by key
   // (proven on the live database with a simulated vendor before the root grant was removed).
+  //
+  // STAFF MEANS SOMEBODY WHOSE RIGHTS ARE ON RECORD, not merely somebody signed in: self sign-up is open
+  // on this project, so a stranger can sign THEMSELVES in with the public web key. A login with no
+  // pt_perms entry reads nothing and writes nothing here.
   //
   // THE OWNER IS ALWAYS AN ADMIN, by email, as firestore.rules (OWNER_EMAIL) and the app both have it.
   //

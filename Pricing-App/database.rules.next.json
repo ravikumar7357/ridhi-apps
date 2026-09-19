@@ -19,6 +19,10 @@
   // THE APP PATCHES AT THE ROOT with keys like "pt_masters/recipe/x"; that is judged key by key
   // (proven on the live database with a simulated vendor before the root grant was removed).
   //
+  // STAFF MEANS SOMEBODY WHOSE RIGHTS ARE ON RECORD, not merely somebody signed in: self sign-up is open
+  // on this project, so a stranger can sign THEMSELVES in with the public web key. A login with no
+  // pt_perms entry reads nothing and writes nothing here.
+  //
   // THE OWNER IS ALWAYS AN ADMIN, by email, as firestore.rules (OWNER_EMAIL) and the app both have it.
   //
   // THE RIGHTS live in Firestore, which these rules cannot read. pt_perms/<email, dots as commas> is
@@ -29,7 +33,7 @@
   // Only an approver may write one that is Approved — and a row with no status at all IS approved,
   // which is why the test is "=== 'Pending'" and never "!== 'Approved'".
   "rules": {
-    ".read": "auth != null && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()",
+    ".read": "auth != null && (auth.token.email.toLowerCase() === 'ravi@thefabricrush.com' || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).exists()) && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()",
     "pt_perms": {
       ".write": "auth != null && ((auth.token.email.toLowerCase() === 'ravi@thefabricrush.com' || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).child('admin').val() === true))"
     },
@@ -97,14 +101,14 @@
       }
     },
     "pt_vendorOrders": {
-      ".write": "auth != null && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()",
+      ".write": "auth != null && (auth.token.email.toLowerCase() === 'ravi@thefabricrush.com' || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).exists()) && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()",
       "$code": {
         ".read": "auth != null && root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).child('code').val() === $code",
         ".write": "auth != null && root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).child('code').val() === $code"
       }
     },
     "pt_baseData": {
-      ".write": "auth != null && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()",
+      ".write": "auth != null && (auth.token.email.toLowerCase() === 'ravi@thefabricrush.com' || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).exists()) && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()",
       ".indexOn": [
         "sku",
         "empName",
@@ -113,7 +117,7 @@
       ]
     },
     "pt_cuttingData": {
-      ".write": "auth != null && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()",
+      ".write": "auth != null && (auth.token.email.toLowerCase() === 'ravi@thefabricrush.com' || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).exists()) && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()",
       ".indexOn": [
         "sku",
         "orderNo",
@@ -121,7 +125,7 @@
       ]
     },
     "pt_pressInventory": {
-      ".write": "auth != null && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()",
+      ".write": "auth != null && (auth.token.email.toLowerCase() === 'ravi@thefabricrush.com' || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).exists()) && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()",
       ".indexOn": [
         "sku",
         "orderNo",
@@ -129,7 +133,7 @@
       ]
     },
     "pt_orderBook": {
-      ".write": "auth != null && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()",
+      ".write": "auth != null && (auth.token.email.toLowerCase() === 'ravi@thefabricrush.com' || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).exists()) && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()",
       ".indexOn": [
         "sku",
         "orderNo",
@@ -137,7 +141,7 @@
       ]
     },
     "pt_customSkus": {
-      ".write": "auth != null && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()",
+      ".write": "auth != null && (auth.token.email.toLowerCase() === 'ravi@thefabricrush.com' || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).exists()) && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()",
       ".indexOn": [
         "sku",
         "brand",
@@ -145,7 +149,7 @@
       ]
     },
     "pt_fabInvLedger": {
-      ".write": "auth != null && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()",
+      ".write": "auth != null && (auth.token.email.toLowerCase() === 'ravi@thefabricrush.com' || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).exists()) && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()",
       ".indexOn": [
         "orderNo",
         "date",
@@ -153,14 +157,14 @@
       ]
     },
     "pt_qcChecks": {
-      ".write": "auth != null && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()",
+      ".write": "auth != null && (auth.token.email.toLowerCase() === 'ravi@thefabricrush.com' || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).exists()) && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()",
       ".indexOn": [
         "sku",
         "date"
       ]
     },
     "pt_qcIssuance": {
-      ".write": "auth != null && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()",
+      ".write": "auth != null && (auth.token.email.toLowerCase() === 'ravi@thefabricrush.com' || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).exists()) && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()",
       ".indexOn": [
         "sku",
         "date",
@@ -168,7 +172,7 @@
       ]
     },
     "pt_extraHours": {
-      ".write": "auth != null && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()",
+      ".write": "auth != null && (auth.token.email.toLowerCase() === 'ravi@thefabricrush.com' || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).exists()) && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()",
       ".indexOn": [
         "date",
         "empName",
@@ -176,7 +180,7 @@
       ]
     },
     "pt_salesOrders": {
-      ".write": "auth != null && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()",
+      ".write": "auth != null && (auth.token.email.toLowerCase() === 'ravi@thefabricrush.com' || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).exists()) && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()",
       ".indexOn": [
         "orderNo",
         "orderDate",
@@ -184,7 +188,7 @@
       ]
     },
     "$other": {
-      ".write": "auth != null && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()"
+      ".write": "auth != null && (auth.token.email.toLowerCase() === 'ravi@thefabricrush.com' || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).exists()) && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()"
     }
   }
 }
