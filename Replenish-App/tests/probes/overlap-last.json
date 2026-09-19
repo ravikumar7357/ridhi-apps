@@ -1,9 +1,9 @@
 {
-  "at": "2026-09-19T18:21:25.275Z",
+  "at": "2026-09-19T18:35:16.600Z",
   "fixable": {
     "Job Work Register (Base Data)": {
-      "one": 359,
-      "many": 161,
+      "one": 360,
+      "many": 160,
       "zero": 1202
     },
     "Press": {
@@ -12,8 +12,8 @@
       "zero": 256
     },
     "QC checks": {
-      "one": 196,
-      "many": 20,
+      "one": 201,
+      "many": 15,
       "zero": 29
     },
     "Finished goods ledger": {

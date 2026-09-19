@@ -10819,6 +10819,14 @@ $('bwPcs').addEventListener('input', bdMatFill);
   $(id).addEventListener('change', typed);
 });
 
+/** An identical issue — karigar, SKU, order, pieces — saved in the last two minutes, or null. */
+function bdTwinOf(entry) {
+  const now = Date.now();
+  return (PT.base || []).find(r => r && r.empName === entry.empName && obUC(r.sku) === obUC(entry.sku)
+    && String(r.orderNo || '') === String(entry.orderNo || '') && ptNum(r.issuePieces) === ptNum(entry.issuePieces)
+    && now - (Date.parse(r.addedAt || '') || 0) < 120000) || null;
+}
+
 $('bwSave').onclick = async () => {
   const custom = bdIsCustom();
   const type = $('bwType').value.trim();
@@ -10873,6 +10881,16 @@ $('bwSave').onclick = async () => {
     isCustom: custom || undefined,
     addedBy: ME.email, addedAt: new Date().toISOString(),
   };
+
+  /* THE SAME ISSUE, AGAIN, INSIDE TWO MINUTES. Eleven pairs like this are in the live register — same karigar,
+   * SKU, order and pieces, 0 to 47 seconds apart, ten of them already paid in a frozen fortnight. A second
+   * identical issue can be real, so it is asked about, not refused. */
+  const twin = bdTwinOf(entry);
+  if (twin && !confirm(`${nf(pcs)} piece(s) of ${entry.sku} were issued to ${entry.empName}${orderNo ? ' against ' + orderNo : ''} `
+    + `${Math.max(1, Math.round((Date.now() - Date.parse(twin.addedAt)) / 1000))} second(s) ago.
+
+This would be a SECOND, identical issue — and a second payment. OK saves it anyway.`))
+    return bdFormMsg('Not saved — that exact issue was already saved a moment ago. It is in the register below.', true);
 
   $('bwSave').disabled = true;
   bdFormMsg('Saving…');

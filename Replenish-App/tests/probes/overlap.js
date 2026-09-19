@@ -54,11 +54,13 @@ const DB = 'https://price-research-48ff3-default-rtdb.asia-southeast1.firebaseda
     + ' → ' + Math.round(exact.reduce((t, a) => t + (a.length - 1) * N(a[0].qty), 0)) + ' pieces counted extra if they are duplicates');
   exact.slice(0, 6).forEach(a => console.log('      ' + line(a[0]).padEnd(40) + a.length + ' × ' + N(a[0].qty) + '   ids: ' + a.map(r => r._key || r.id).join(', ').slice(0, 70)));
   /* a sales order pushed into the book more than once */
-  const soByNo = {}; so.forEach(o => { const no = U(o.orderNo || o.id); (soByNo[no] = soByNo[no] || []).push(o); });
+  const soNoOf = o => U(o.orderNo || o.soNo || o.orderId || o.no || o.number || o._key || o.id);
+  console.log('  (fields on a sales order: ' + Object.keys(so[0] || {}).slice(0, 14).join(', ') + ')');
+  const soByNo = {}; so.forEach(o => { const no = soNoOf(o); (soByNo[no] = soByNo[no] || []).push(o); });
   console.log('  sales orders sharing an order number: ' + Object.values(soByNo).filter(a => a.length > 1).length);
   const soLines = o => list(o.lines);
   let soBookMismatch = 0; const mm = [];
-  so.filter(o => /approv/i.test(o.status || '')).forEach(o => { const no = U(o.orderNo || o.id);
+  so.filter(o => /approv/i.test(o.status || '')).forEach(o => { const no = soNoOf(o);
     soLines(o).forEach(l => { const k = no + '|' + U(l.sku); const inBook = (byLine[k] || []).reduce((t, r) => t + N(r.qty), 0), want = N(l.qty);
       if (U(l.sku) && Math.abs(inBook - want) > 0.01) { soBookMismatch++; if (mm.length < 6) mm.push(k + '  sales order says ' + want + ', order book holds ' + inBook); } }); });
   console.log('  approved sales-order lines whose quantity in the order book is DIFFERENT: ' + soBookMismatch); mm.forEach(x => console.log('      ' + x));
@@ -66,7 +68,7 @@ const DB = 'https://price-research-48ff3-default-rtdb.asia-southeast1.firebaseda
   /* ---- 3. a stage claiming more than the one before it ---- */
   H('3. ONE STAGE HOLDING MORE PIECES THAN THE STAGE BEFORE COULD HAVE GIVEN IT');
   const sum = (rows, f) => { const m = {}; rows.forEach(r => { if (!U(r.orderNo) || !U(r.sku)) return; m[line(r)] = (m[line(r)] || 0) + f(r); }); return m; };
-  const ordered = sum(ob, r => N(r.qty) * (N(r.packOf) || 1)), cutM = sum(cut, r => N(r.pieces) - N(r.rejPieces)), issued = sum(base, r => N(r.issuePieces)),
+  const ordered = sum(ob, r => (N(r.pcs) > 0 ? N(r.pcs) : N(r.qty))), cutM = sum(cut, r => N(r.pieces) - N(r.rejPieces)), issued = sum(base, r => N(r.issuePieces)),
     recv = sum(base, r => N(r.receivedPieces)), pressed = sum(press, r => N(r.pieces)), store = sum(fg.filter(r => /in|recv|receive/i.test(r.type || 'in')), r => N(r.qty));
   const over = (a, b, la, lb) => { const k = Object.keys(a).filter(x => a[x] > (b[x] || 0) + 0.01); console.log('  ' + (la + ' more than ' + lb).padEnd(34) + String(k.length).padStart(5) + ' lines   '
     + Math.round(k.reduce((t, x) => t + a[x] - (b[x] || 0), 0)) + ' pieces'); return k; };
