@@ -1,22 +1,11 @@
 const fs = require('fs'), cp = require('child_process'), pathm = require('path');
 const P = 'C:/AMAZON/Amazon Inventory/Replenish-App/public/index.html';
 const good = fs.readFileSync(P, 'utf8'); const NL = String.fromCharCode(10);
+/* The order book, previousQty and the log all moved when a change became a REQUEST: the figures now
+ * move inside ordQtyApprove, and the log is written by the ask. Those four breaks live in
+ * teeth-qty-told.js beside the rest of the approve flow. What is left here is the PLAN — the floor,
+ * where a change lands, and what is refused — which is still soQtyPlan's. */
 const breaks = [
-  ['the order book moves with the sales order',
-   "  if (plan.book != null) patch['pt_orderBook/' + soBookId(o._id, sku) + '/qty'] = plan.to;",
-   ''],
-  /* Split into two writes. Valid JS, and exactly the regression that matters: the sales order moves,
-   * the order book moves separately, and between them is a window where they disagree. */
-  ['…in ONE write, so the two cannot drift apart',
-   "  if (plan.book != null) patch['pt_orderBook/' + soBookId(o._id, sku) + '/qty'] = plan.to;" + NL
-     + '  try { await ptPatch(patch); }' + NL
-     + "  catch (e) { return 'Not saved: ' + (e.message || e); }",
-   '  try { await ptPatch(patch); }' + NL
-     + "  catch (e) { return 'Not saved: ' + (e.message || e); }" + NL
-     + '  if (plan.book != null) {' + NL
-     + "    try { await ptPut('pt_orderBook/' + soBookId(o._id, sku) + '/qty', plan.to); }" + NL
-     + "    catch (e) { return 'Not saved: ' + (e.message || e); }" + NL
-     + '  }'],
   ['it cannot go below what has been made',
    '  if (n < done.floor) {',
    '  if (false) {'],
@@ -53,12 +42,6 @@ const breaks = [
   ['…and a cut comes off the latest first',
    '    for (let j = order.length - 1; j >= 0 && cut > 0; j--) {',
    '    for (let j = 0; j < order.length && cut > 0; j++) {'],
-  ['what the line used to say is kept',
-   "    patch['pt_salesOrders/' + o._id + '/lines/' + m.i + '/previousQty'] = m.from;",
-   ''],
-  ['and who changed it, when and why is written down',
-   "  patch['pt_salesOrders/' + o._id + '/qtyAdjustments/' + logId] = log;",
-   ''],
 ];
 let bad = 0;
 for (const [what, from, to] of breaks) {

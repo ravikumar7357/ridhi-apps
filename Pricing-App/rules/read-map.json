@@ -9,8 +9,8 @@
         "@acFile.onchange",
         "@acNewItem.onclick",
         "@acNewTxn.onclick",
-        "@acTable.listener17771",
-        "@acKpis.listener17784",
+        "@acTable.listener17922",
+        "@acKpis.listener17935",
         "@acClear.onclick",
         "@acGo.onclick",
         "@acExport.onclick"
@@ -78,27 +78,28 @@
         "@ptDlgSave.onclick",
         "@ptDlgAlt.onclick",
         "@ptDlgDelete.onclick",
-        "@ptDlgBody.listener20529",
-        "@ptDlgBody.listener20536",
-        "@ptDlgBody.listener20540",
-        "@ptDlgBody.listener21660",
-        "@ptDlgBody.listener21688",
-        "@ptDlgBody.listener24701",
-        "@ptDlgBody.listener27873",
-        "@ptDlgBody.listener29277",
-        "@ptDlgBody.listener29288",
-        "@ptDlgBody.listener29298",
-        "@ptDlgBody.listener29946",
-        "@soCur.listener35490",
+        "@ptDlgBody.listener13934",
+        "@ptDlgBody.listener20675",
+        "@ptDlgBody.listener20682",
+        "@ptDlgBody.listener20686",
+        "@ptDlgBody.listener21806",
+        "@ptDlgBody.listener21834",
+        "@ptDlgBody.listener24847",
+        "@ptDlgBody.listener28019",
+        "@ptDlgBody.listener29423",
+        "@ptDlgBody.listener29434",
+        "@ptDlgBody.listener29444",
+        "@ptDlgBody.listener30092",
+        "@soCur.listener35636",
         "@adjSave.onclick",
         "@adjDelete.onclick",
         "@adjCancel.onclick",
-        "@soStatus.listener36398",
-        "@soNote.listener36399",
+        "@soStatus.listener36544",
+        "@soNote.listener36545",
         "@soMcfPreview.onclick",
         "@soSave.onclick",
         "@soCancel.onclick",
-        "@ajFilter.listener37293",
+        "@ajFilter.listener37439",
         "@ajSent.onclick",
         "@ajAccept.onclick",
         "@ajRecv.onclick",
@@ -124,6 +125,7 @@
         "pt_cuttingFreezes",
         "pt_masterDB",
         "pt_masters",
+        "pt_obDeleteReqs",
         "pt_orderBook",
         "pt_pressInventory",
         "pt_salesOrders",
@@ -165,7 +167,7 @@
     "cx": {
       "entry": [
         "ensureCx",
-        "@cxTable.listener30301",
+        "@cxTable.listener30447",
         "@cxGo.onclick",
         "@cxUpload.onclick",
         "@cxExport.onclick"
@@ -204,7 +206,7 @@
     "fba": {
       "entry": [
         "ensureFba",
-        "@fbaTable.listener27676",
+        "@fbaTable.listener27822",
         "@fbaAccept.onclick",
         "@fbaShip.onclick",
         "@fbaReturn.onclick",
@@ -234,15 +236,15 @@
     "fgi": {
       "entry": [
         "ensureFgi",
-        "@fgTable.listener24639",
+        "@fgTable.listener24785",
         "@fgEntry.onclick",
         "@fgScan.onclick",
         "@fgEditPicked.onclick",
         "@fgDelPicked.onclick",
         "@fgLstRefresh.onclick",
-        "@fgView.listener24705",
-        "@fgKpis.listener24706",
-        "@fgZero.listener24722",
+        "@fgView.listener24851",
+        "@fgKpis.listener24852",
+        "@fgZero.listener24868",
         "@fgOpening.onclick",
         "@fgExport.onclick"
       ],
@@ -290,14 +292,14 @@
         "@hrEmpNew.onclick",
         "@hrRateNew.onclick",
         "@hrEhNew.onclick",
-        "@hrTable.listener15442",
+        "@hrTable.listener15593",
         "@hrGo.onclick",
         "@hrExport.onclick",
         "@hrSlipPrint.onclick",
-        "@hrTable.listener16118",
+        "@hrTable.listener16269",
         "@hrAuthAll.onclick",
-        "@hrTable.listener16203",
-        "@hrTable.listener16299",
+        "@hrTable.listener16354",
+        "@hrTable.listener16450",
         "@hrFreeze.onclick"
       ],
       "nodes": [
@@ -350,10 +352,10 @@
     "ka": {
       "entry": [
         "ensurePa",
-        "@kaDetail.listener33683",
-        "@kaQ.listener33691",
+        "@kaDetail.listener33829",
+        "@kaQ.listener33837",
         "@kaGo.onclick",
-        "@kaTable.listener33693",
+        "@kaTable.listener33839",
         "@kaLevelsBtn.onclick",
         "@kaExport.onclick"
       ],
@@ -379,13 +381,13 @@
     "mst": {
       "entry": [
         "ensureMst",
-        "@mstTable.listener24781",
-        "@mstTable.listener24802",
-        "@mstTable.listener24810",
-        "@mstTable.listener25243",
-        "@mstTable.listener25247",
-        "@mstPick.listener25277",
-        "@mstOff.listener25278",
+        "@mstTable.listener24927",
+        "@mstTable.listener24948",
+        "@mstTable.listener24956",
+        "@mstTable.listener25389",
+        "@mstTable.listener25393",
+        "@mstPick.listener25423",
+        "@mstOff.listener25424",
         "@mstNew.onclick",
         "@mstGo.onclick",
         "@mstExport.onclick"
@@ -408,23 +410,24 @@
         "ptGatesFresh",
         "ensureOrd",
         "@spBulkOpen.onclick",
-        "@spBulkBox.listener13184",
-        "@spBulkBox.listener13189",
-        "@spBulkBox.listener13194",
+        "@spBulkBox.listener13258",
+        "@spBulkBox.listener13263",
+        "@spBulkBox.listener13268",
         "@spBulkSheet.onclick",
         "@spPrnSheet.onclick",
         "@spPrnUp.onclick",
         "@spPrnFile.onchange",
         "@spBulkUp.onclick",
         "@spBulkFile.onchange",
-        "@odTable.listener13434",
-        "@odTable.listener13527",
+        "@odTable.listener13508",
+        "@odTable.listener13601",
         "@odClear.onclick",
-        "@odTable.listener13802",
-        "@odKpis.listener13812",
-        "@odKpis.listener13813",
+        "@odMsg.listener13960",
+        "@odTable.listener13961",
+        "@odKpis.listener13963",
+        "@odKpis.listener13964",
         "@odGo.onclick",
-        "@odView.listener13816",
+        "@odView.listener13967",
         "@odExport.onclick"
       ],
       "nodes": [
@@ -461,10 +464,10 @@
     "pa": {
       "entry": [
         "ensurePa",
-        "@paWk.listener33680",
-        "@paBasis.listener33681",
-        "@paBody.listener33682",
-        "@paTarget.listener33684",
+        "@paWk.listener33826",
+        "@paBasis.listener33827",
+        "@paBody.listener33828",
+        "@paTarget.listener33830",
         "@paGo.onclick"
       ],
       "nodes": [
@@ -499,15 +502,15 @@
     "palloc": {
       "entry": [
         "ensurePal",
-        "@palView.listener29919",
-        "@palWeeks.listener29920",
-        "@palBrand.listener29921",
-        "@palQ.listener29922",
+        "@palView.listener30065",
+        "@palWeeks.listener30066",
+        "@palBrand.listener30067",
+        "@palQ.listener30068",
         "@palPrinterAdd.onclick",
         "@palExport.onclick",
         "@palRefresh.onclick",
-        "@palTable.listener29942",
-        "@palTable.listener29950"
+        "@palTable.listener30088",
+        "@palTable.listener30096"
       ],
       "nodes": [
         "pt_baseData",
@@ -606,7 +609,7 @@
         "@ptmImpCancel.onclick",
         "@ptmImpGo.onclick",
         "@ptmRename.onclick",
-        "@ptmTable.listener32552",
+        "@ptmTable.listener32698",
         "@ptmRecSeed.onclick",
         "@ptmRecApply.onclick"
       ],
@@ -776,7 +779,7 @@
     "rep": {
       "entry": [
         "ensureRep",
-        "@repView.listener25954",
+        "@repView.listener26100",
         "@repGo.onclick",
         "@repExport.onclick"
       ],
@@ -834,9 +837,9 @@
     "rfd": {
       "entry": [
         "ensureRfd",
-        "@rfdTable.listener31831",
-        "@rfdKpis.listener31885",
-        "@rfdKpis.listener31886",
+        "@rfdTable.listener31977",
+        "@rfdKpis.listener32031",
+        "@rfdKpis.listener32032",
         "@rfdClear.onclick",
         "@rfdGo.onclick",
         "@rfdExport.onclick"
@@ -862,7 +865,7 @@
       "entry": [
         "ensureShop",
         "@soGo.onclick",
-        "@soDay.listener37082",
+        "@soDay.listener37228",
         "@soAdj.onclick",
         "@soPrintMany.onclick",
         "@soImp.onclick",
@@ -898,23 +901,24 @@
         "ptGatesFresh",
         "ensureOrd",
         "@spBulkOpen.onclick",
-        "@spBulkBox.listener13184",
-        "@spBulkBox.listener13189",
-        "@spBulkBox.listener13194",
+        "@spBulkBox.listener13258",
+        "@spBulkBox.listener13263",
+        "@spBulkBox.listener13268",
         "@spBulkSheet.onclick",
         "@spPrnSheet.onclick",
         "@spPrnUp.onclick",
         "@spPrnFile.onchange",
         "@spBulkUp.onclick",
         "@spBulkFile.onchange",
-        "@odTable.listener13434",
-        "@odTable.listener13527",
+        "@odTable.listener13508",
+        "@odTable.listener13601",
         "@odClear.onclick",
-        "@odTable.listener13802",
-        "@odKpis.listener13812",
-        "@odKpis.listener13813",
+        "@odMsg.listener13960",
+        "@odTable.listener13961",
+        "@odKpis.listener13963",
+        "@odKpis.listener13964",
         "@odGo.onclick",
-        "@odView.listener13816",
+        "@odView.listener13967",
         "@odExport.onclick"
       ],
       "nodes": [
@@ -951,8 +955,8 @@
     "so": {
       "entry": [
         "ensureSox",
-        "@sxTable.listener18261",
-        "@sxStatus.listener18266",
+        "@sxTable.listener18412",
+        "@sxStatus.listener18417",
         "@sxClear.onclick",
         "@sxGo.onclick",
         "@sxExport.onclick",
@@ -1005,7 +1009,7 @@
     "vend": {
       "entry": [
         "ensureVp",
-        "@vpBody.listener23044",
+        "@vpBody.listener23190",
         "@vpQ.oninput",
         "@vpRecordAll.onclick",
         "@vpSaveProm.onclick",
@@ -1017,8 +1021,8 @@
         "@vpGo.onclick",
         "@vpPinBtn.onclick",
         "@vpExport.onclick",
-        "@vpBody.listener23507",
-        "@vpBody.listener23518"
+        "@vpBody.listener23653",
+        "@vpBody.listener23664"
       ],
       "nodes": [
         "pt_rfdStock",
@@ -1032,7 +1036,7 @@
     "vlog": {
       "entry": [
         "ensureVlog",
-        "@vlTable.listener19729",
+        "@vlTable.listener19871",
         "@vlAccept.onclick",
         "@vlClear.onclick",
         "@vlGo.onclick",
@@ -1047,10 +1051,10 @@
     "vord": {
       "entry": [
         "ensureVo",
-        "@voTable.listener19991",
+        "@voTable.listener20133",
         "@voAttrClear.onclick",
-        "@voCards.listener20037",
-        "@voCards.listener20062",
+        "@voCards.listener20179",
+        "@voCards.listener20204",
         "@voDelPicked.onclick",
         "@voGo.onclick",
         "@voExport.onclick",
@@ -1078,9 +1082,9 @@
     "vreq": {
       "entry": [
         "ensureVrq",
-        "@vrqTable.listener30762",
-        "@vrqKpis.listener30784",
-        "@vrqKpis.listener30785",
+        "@vrqTable.listener30908",
+        "@vrqKpis.listener30930",
+        "@vrqKpis.listener30931",
         "@vrqGo.onclick",
         "@vrqNew.onclick",
         "@vrqExport.onclick"
@@ -1486,7 +1490,7 @@
       "readers": [
         "fgiLoad",
         "ensureRep",
-        "@repView.listener25954",
+        "@repView.listener26100",
         "@repGo.onclick",
         "fbaFresh",
         "fgiEditApply",
@@ -1624,6 +1628,7 @@
     },
     "pt_obDeleteReqs": {
       "tabs": [
+        "adj",
         "ord",
         "shopprod",
         "so"
@@ -1763,7 +1768,7 @@
       "readers": [
         "ensureQc",
         "ensureOrd",
-        "@repView.listener25954",
+        "@repView.listener26100",
         "@repGo.onclick"
       ],
       "untraced": []

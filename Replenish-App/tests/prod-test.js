@@ -196,7 +196,7 @@ const PRAPI = null;
 const prGet = async () => ({ ok: true, d: {} });
 const localStorage = { getItem: k => ((global.__kaStore || {})[k] ?? null), setItem: () => {} };
 const ctx = { localStorage, URL: URL_, window, SHOP_ONLY, $, esc, nf, csvCell, dToday, parseCsv, colIdx, getDoc, setDoc, doc, db: dbx, serverTimestamp, PRAPI, prGet, document, Blob, fetch, AbortController, auth, ME, PUTS, NET, confirm, pkReadFile, replRowMap, INDIA_LOADED, INDIA_ROWS, loadIndiaStock, signInWithEmailAndPassword, SETDOCS, FB_KEY: 'stub-key', console, setTimeout, clearTimeout, Set, Map, Date, Number, String, Object, Array, JSON, Math, isFinite, parseInt, encodeURIComponent };
-const fn = new Function(...Object.keys(ctx), block + '\n;return {PT:()=>PT, setPT:v=>{PT=v}, ptDtMs, ptList, ptNum, whoCell, whoTouched, whoList, spCanAssign, renderPmdb, renderPbase, renderPcut, ensurePmdb, ensurePbase, ensurePcut, bdKpi:()=>PT_BD_KPI, setBdKpi:v=>{PT_BD_KPI=v}, PTG:()=>PTG, setPTG:v=>{PTG=v}, cutGuard, cutFabrics, cutFillFabrics, renderCutPick, cutSkuTyped, ptConsumeZippers, ptUnconsumeZippers, ptConsumeRuffle, ptUnconsumeRuffle, ptIsRuffle, ptRuffleOf, ruffleCombos, ruffleRuleSave, renderMst, MST:()=>MST, obOrderedQty, obCutQty, cutOrdersFor, validateAgainstMasters, ptStampDate, cutMonthFrozen, ptMonthKey, obUC, bdGuard, bdApplyRecv, bdApplyRej, bdOrdersFor, obIssueUsed, obPressQty, ptZipCheck, PTE:()=>PTE, setPTE:v=>{PTE=v}, ptFindExistingSku, ptGenCustomSku, ptCustomPrefix, bdMaterialsFor, bdMaterialsTxt, bdMatFill, bdMatEntry, bdZipTyped, ptIsRuffle, ptRuffleOf, mdbZipQty, accCode, bdOpenOrders, bdEdit, bdSkuTyped, renderBdForm, bdClearForm, ptCanEdit, PT_NO_EDIT, ptPath, ptGet, ptPut, ptDelete, apvAsk, apvAnswer, apvOpen, apvLoad, APV:()=>APV, setAPV:v=>{APV=v}, pressEdit_:pressEdit, waNum, waSubstitute, waMsg, waWhyBlocked, waCell, waSendRow, WA_TPL_DEFAULT, waCutoffMs, WA:()=>WA, setWA:v=>{WA=v}, resRows, resWho, resRender, resSend, RES_PICK:()=>RES_PICK, voDemandMap, voExistingMap, voCutAllowed, resSourceMap, resSrcText, resTotals, soChannels, mdbRenamePlan, mdbRenameFromRows, mdbRenameRun, mdbRenamePaths, mdbRenameWhyBad, obLines, ptStampFrom, ptIsoDate, pressGuard, renderPpress, pressEdit, cutEdit, ptOpenDialog, qcParts, qcAvailToCheck, qcAvailToIssue, qcAltTotal, qcIssuedTotal, qcCheckable, qcIssuable, qcDeptEmps, qcEditCheck, qcEditIssue, ATT:()=>ATT, setATT:v=>{ATT=v}, attSave, attPunch, attAbsent, attPeople, attOfDay, attHours, attState, attId, attNameKey, attCanMark, renderAtt, ensureAtt, qcSaveReturn, qcRetOf, qcViewsAllowed, qcView, QC_VIEWS, cutFabPlan, renderCutFab, cutFabFields, qcPendingOf, qcOutstanding, renderQcRetForm, renderQc, mdbUsage, mdbValidate, fsSku, fsCodeOf, fsColourCodes, fsLinesFor, fsRows, fsOf, renderMdbFabric, FS_WIDTHS, mdbRecord, mdbEdit, mdbAddNew, mdbZipQty, mdbFromCsv, mdbYes, ptImgOf, ptImgCell, ordLines, ordOrphans, ordCutReq, renderOrd, ordFilters, ordApply, ptInRange, ptRangeOf, shppLines, shppBySku, shppApply, renderOrdShopify, spSave, spHandover, spIssueReal, spReceiveReal, spIsQuilt, spQuiltHand, spAssignPicked, spPrinters, spIsPrinterCode, spPrinterByText, spPrintSheetRows, spPrintSheetEntries, spPrintPlan, spPrintRun, spSkuKeys, spSkuPicked, spSkuToggle, spAssignPickedOpen, spBulkPlan, spBulkApply, spBulkState, spBulkWho, spBulkDate, spBulkSheetEntries, spBulkSheetRows, spBulkEntries, setSPBULK:v=>{SP_BULK_VALS=v}, paWeekFacts, paNeed, paAvgBase, paTeamSize, paTeamSave, paVerdict, paWeeks, setPA:v=>{PA=v}, renderPa, renderKa, kaTable, kaDetail, kaMix, kaLevelOf, kaLevelKey, kaLevelsSave, kaArticles, renderKaMix, renderQcCheckForm, KA:()=>KA, PA:()=>PA, KA:()=>KA, obPcsPerPack, obPieces, obOrderedQty, ordKpiApply, ORD_KPI:()=>ORD_KPI, setORD_KPI:v=>{ORD_KPI=v}, spCutReal, spPressReal, spBaseRows, spIssuedReal, spRecvReal, spHandoverPicked, spAssign, spPrint, spCanPrint, spCanSee, spIsVendor, spPrinter, ORD:()=>ORD, setORD_:v=>{ORD=v}, spOf, spKey, spKeySafe, spMirror, spShopOrderId, spShopOrderNo, spHanded, ordView, ehHours, rateFor, hrRateCheck, hrEmpUsage, hrRateFields, hrRateKnown, hrRateRec, prCheck, prRec, prKey, prStatus, prApproved, prCanApprove, prSetOk, prRateCell, prWhat, prUnit, prRateFor, prUsage, prFields, prFromRows, prPlan, prVendorCode, PR_COLS, prKnown, ptDlgValues, PR_SERVICES, prSvc, prIsFill, prIsPrinting, prCols, prColSpec, prColCovers, prColOverlap, prColLabel, prColIsLabel, prSvcKey, PR_SVC_ALIAS, PR_SVC_AMBIGUOUS, prLineMatches, prLineServices, prLineWant, prNameKey, prSizeKey, prNorm, PR_SPELL, prRateRowFor, vpayRows, vpayInWindow, renderVpay, vpayShowDrill, prRateWhy, prLineFiller, PR_COL_ANY, voIsFilling, vpayLive, vpaySetFreeze, VPAY_TYPE, payFreezeKey, ordVendorAlloc, ordVendorOf, ordWaitingAt, ordJourney, ensureOrd, voStampOrders, ordBookCsv, qcOrdersFor, ordQcOf, ordFgAt, ordShareBySku, fbaState, ORD_KPI_FIELDS, spHandover, setORD_KPI:v=>{ORD_KPI=v}, bdTwinOf, voOnServicePick, voPlace,  voAllVendors, voCatOf, VENDOR_CATS, ehFrozen, ehMonthKey, renderHr, payRows, payFrozen, payAdvance, payAdvanceTotal, renderPayout, renderAdvance, renderSlip, ehStamp, payDrill, payWindow, payShowDrill, fabMove, fabKnown, fabBalances, renderFab, fabSave, fabCsvRows, fabCsvRun, fabState, fabStockOf, fabWithProcessor, fabFlowRows, fabLots, fabLot, fabNextLot, fabLotsWithGreige, fabLotsOut, fabLotsOfFabric, accMove, accBalances, accLow, renderAcc, accEditTxn, accListNow, accLedgerNow, ptAccBalance, ptConsumeZippers, accOutWith, accCanEntry, accCanEdit, vlCanAccept, soCanApprove, mdbCanEdit, soApproveRun, soReturnRun, mdbRenameRun, vlAcceptWrite, accCat, accUnit, accReturnable, accWho, accTxnCheck, accCsvRows, accCsvRun, accItemRec, accTakeBack, accWhoList, ACC_TYPES, ACC_CATS, ACC:()=>ACC, setACC:v=>{ACC=v}, soLines, soStatus, soWork, soQtyPlan, soQtyRun, soDoneOn, soQtySheetRead, soQtyBulkPlan, ordQtyAdj, ordQtyUnseen, ordQtyUnseenAll, ordQtySeen, ordQtyBadge, ordQtyPill, soQtyBulkRun, soQtyTemplate, SO_QTY_COLS, soQtyOf, soLinesOf, soBookId, soQtyOpen, SO_NO_APPROVE_:()=>SO_NO_APPROVE, soSkus, soSummary, renderSox, SOX:()=>SOX, setSOX:v=>{SOX=v}, voName, voKnown, voLines, voRunning, voUnit, voQty, voDels, voDone, voStale, voSummary, renderVo, voDayOf, voDayKey, voLogRows, renderVlog, vlCanAccept, vlOk, vlNo, vlOver, vlQtyOf, vlFind, voSqm, voFabWidthM, vlInHand, vlNoWrite, vlAcceptWrite, vlAcceptOne, vlAcceptPicked, VL_PICKED:()=>VL_PICKED, ensureVlog, vlogApply, vlogFilters, VLOG:()=>VLOG, setVLOG:v=>{VLOG=v}, voEditRead, voEditSave, voEditRow, voOpen, voSaveQty, voCancelPicked, voWhyNoCancel, voPicked, voWant, voProm, voPromFirst, voDue, voDays, voGap, voSlip, voMoves, voLateBy, voDueCell, dShow, vpPromise, vpCard, voClaimed, voConfirmed, voPriBadge, VOE:()=>VOE, voDelete, renderVoCards, voLineMatches, voOrderPri, voAttrOn, VO_CARD_LINES, voDeletePicked, voDeliveredCount, VO_PICKED:()=>VO_PICKED, ptImgOf, ptImgCell, setPTIMG:v=>{PTIMG=v}, setVOE:v=>{VOE=v}, VO:()=>VO, setVO:v=>{VO=v}, soChannels, soDateTag, soGenId, soB2BRows, soB2BMint, soIsB2B, soCurrentNetQty, soCanEdit, soFormOpen, soFormSave, soFormLines, soParseDMY, soNormType, soBulkFile, soReview, soApproveRun, soReturnRun, soDeleteOrder, SOF:()=>SOF, setSOF:v=>{SOF=v}, voVendors, voMasterList, voCutAllowed, voDemandMap, voExistingMap, voValidateCut, voCapMsg, voHolders, voNewOrderNo, voTodayDMY, voFormOpen, voSetKind, voFabricCatalogue, voFabricSkuTyped, voFabricFromFields, vrqSubmit, vrqApprove, vrqReject, vrqWithdraw, vrqCopy, vrqStage, vrqOrder, renderVrq, vrqCanApprove, vrqBadge, VRQ:()=>VRQ, RFD:()=>RFD, setRFD:v=>{RFD=v}, rfdLineNeed, rfdOrderNeed, rfdFabrics, rfdAllowed, rfdReqsOf, rfdStage, rfdAuto, rfdSubmit, rfdWithdraw, rfdDecide, rfdMarkSent, rfdRows, rfdFind, rfdRecord, rfdSeq, rfdCanSee, rfdCanApprove, rfdCanSend, rfdDecisionOf, rfdSentQty, rfdRound, rfdPieceLines, rfdPieceOf, rfdPcsAllowed, rfdSubmitPcs, rfdSizeGroups, rfdSizeRaw, rfdSizeOf, rfdFabKey, rfdKeyUnit, rfdRoomFor, rfdUsedM, rfdSubmit, rfdAllowed, rfdVendorOf, rfdStockRow, rfdSizeKey, rfdStockKey, rfdSpread, rfdSubmitSize, rfdStockSave, rfdStockOf, rfdStockHere, rfdStockForSku, rfdUsedPcs, setRFD_:v=>{RFD=v}, rfdSentFor, rfdSentPcsFor, rfdSentSeen, rfdSubmitOrder, vpRfdSends, vpRfdOrder, vpRfdOrders, rfdPcsTxt, rfdUnit, rfdWant, rfdQtyTxt, rfdIssueAs, rfdIssueRuled, vpRfdRender, renderRfd, rfdApply, rfdFilters, vpRfdRows, RFD_STAGE, rfdBadge, setVRQ:v=>{VRQ=v}, setVRQ_KPI:v=>{VRQ_KPI=v}, voAddLine, voOnVendorPick, voOnServicePick, voDraftPrinting, voIsPrinting, voServiceOf, voCheckDraft, voDraft, voSkuInfo, voBulkFile, voTemplate, voPlace, voSetStatus, voMoveTo, voMoveLog, voMovePill, VOF:()=>VOF, setVOF:v=>{VOF=v}, vpPhone, vpQty, vpDone, renderVp, vpCard, vpTable, vpExportRows, vpGroups, vpPriRank, vpVisible, voWhenMs, vpOrderMatches, vpFillFilters, vpF, vpFlow, vpIsShop, vpShopTable, vpHistRows, vpHistTable, vpDeliver, vpDeliverWith, vpRecordAll, vpPromiseAll, vpSave, ensureVp, voSyncAccess, VP:()=>VP, setVP:v=>{VP=v}, vmValid, vmReal, vfNeeded, vfInvented, pinEmails, PIN_DOMAINS, VM_PLACEHOLDER, vmOpen, vmSave, vpEmailKey, pinEmail, pinWhyBad, pinWhyNoLogin, pinRoute, pinCanLink, pinLink, voMasterRow, pinRandom, pinGrant, pinChange, pinOpenChange, vpOnPin, vendTabRule, fgiStock, fgiOf, fgiPressLeft, fgiPending, renderFgi, fgiTransferOpen, fgiTransferSave, fgiReceiveOpen, fgiReceiveSave, fgiReturnSave, fgiIssueOpen, fgiOpeningOpen, fgiOpeningParse, fgiOpeningSave, fgiNewId, FGI:()=>FGI, setFGI:v=>{FGI=v}, FGT:()=>FGT, setFGT:v=>{FGT=v}, fgiEntryOpen, fgiEntrySave, fgiNum, fgiSetOpen, fgiStatus, fgiSeen, PTE:()=>PTE, setPTE:v=>{PTE=v}, fgiFbaOpen, fgiReceiveNewOpen, fgiDelete, fgiDeleteAsk, fgiSeedOpen, fgiSeedSave, fgiSheetRead, fgiSheetShow, fgiSheetNewMasters, fgiSheetPlan, fgiSheetImport, FGF:()=>FGF, setFGF:v=>{FGF=v}, fgiWipeOpen, fgiWipeRun, fgiCanEdit, fgiEffect, fgiDeletePlan, fgiDeleteRun, fgiEditOpen, fgiEditSave, fgiEditLocked, fgiBulkEditOpen, fgiBulkEditSave, fgiBulkDeleteAsk, fgiSkuEditOpen, fgiSkuEditSave, fgiSkuBulkEditOpen, fgiSkuBulkEditSave, fgiSkuDeleteAsk, fgiPickCount, FGI_PICK:()=>FGI_PICK, setFGI_PICK:v=>{FGI_PICK=v}, fgiLoad, fbaCan, fbaLegacy, fbaState, fbaAll, fbaRows, renderFba, fbaBadge, fbaAccept, fbaShipOpen, fbaShipSave, fbaReturnOpen, fbaReturnSave, fbaUndo, FBA_PICK:()=>FBA_PICK, setFBA_PICK:v=>{FBA_PICK=v}, FBA:()=>FBA, PTD_:()=>PTD, cxAmz, cxIndia, renderCx, cxOpen, cxSet, cxFromIndia, cxDelete, cxUploadOpen, cxUploadRead, cxUploadSave, CX:()=>CX, setCX:v=>{CX=v}, CXU:()=>CXU, setCXU:v=>{CXU=v}, FGF:()=>FGF, setFGF:v=>{FGF=v}, vmNextKey, vmNextCode, vmAddPrinter, mstRows, mstDef, mstNextKey, mstUsage, renderMst, mstEdit, mstSave, MST:()=>MST, setMST:v=>{MST=v}, repPack, repAt, repBrand, repBrands, repInhouse, repWeekly, repWeekLabel, repSurplus, renderRep, ensureRep, repWow, repByWeek, repWkShift, repWkRange, repLastFullWeek, repRenderWow, repFillWeeks, repPctCell, repWeekStart, repWkIso, repByWindow, repLive, repLiveStart, repDaysIn, repRenderLive, ptImgSrc, ptImgInner, REP:()=>REP, setREP:v=>{REP=v}, FAB:()=>FAB, setFAB:v=>{FAB=v}, HR:()=>HR, setHR:v=>{HR=v}, hrPutList, hrCanon, PAL:()=>PAL, setPAL:v=>{PAL=v}, palDesigns, palGroups, palPlan, palGroupOf, palFamily, palKey, palNum, palSetGroup, palSetBlocks, palSetHave, palPrinterSave, palPrinterDelete, palPrinterOpen, palBlocksOpen, palCanEdit, palGroupBlocks, palBlocksNeed, palBlocksHave, palPrinters, renderPal, palExport, palCellSave, palNeedSplit, palNeedWhy, ptPrintNeeded, ptPrintFabric, ptCutOf, ptLayOn, ptConsPlan, ptLayOf, PT_LAYS, ptFabricWidths, PT_MARGIN_IN, renderMdbCons, mdbConsApply, RECIPE_FIELDS, recKey, recipeOf, recipeMap, recipeValue, recipeFill, recipeSays, recipeCombos, recipeSeedPlan, recipeSeedRun, recipeSave, recipeApplyPlan, recipeApplyRun, renderMdbRecipe, recipeEdit, recipeRows, recipeSheetRows, recipeSheetEntries, recipeUploadPlan, recipeUploadRun, mdbFields, fabListOr, pdIso, ordDueIndex, ordProdRows, RECIPE_FAB, recipeEdit, recipeSheetHead, SOX:()=>SOX, setSOX_:v=>{SOX=v}, pmdbTools, PMDB_TOOLS, ptPrintIssueAs, ptPrintRuleOf, ptPrintRules, ptColourPrints, printCombos, printRuleSave, colourPrintSave, renderPrintRules, fabWidthIn, fabWidthMap, fabWidthSave, fgiScanOpen, fgiScanAdd, fgiScanSave, fgiScanRender, fgiScanResolve, fgiScanAuto, fgiScanHead, fgiScanFlush, fgiScanUndo, fgiScanState, fnParse, fnFromRows, fnSave, fnSaveFromPaste, fnLoad, FN:()=>FN, setFN:v=>{FN=v}, FGS:()=>FGS, setFGS:v=>{FGS=v}, fgiFbaAcctFor, FGI_FBA_ACCOUNTS, fgiExtOrder, fgiExtNewNo, fgiRenderOver, fgiOverReview, fgiOverBadge, fgiEditApply, fgiCorrOpen, fgiCorrSave, fgiCorrApprove, fgiCorrReject, fgiRenderCorr, fgiCorrCell, fgiCorrLoad, fgiCorrCanAsk, FGC:()=>FGC, setFGC:v=>{FGC=v}, pafNeed, pafHistory, pafWeekOf, repWkIso, repWkShift, paWeekStart, voSqm, voFabWidthM, voLogRows, ordSrcOf, ordBrandOf, ordCustomBrands, spCanAssign, bkCanAssign, spCanAssignOrder, spNoAssignFor, MDBX:()=>MDBX, setMDBX:v=>{MDBX=v}, ordQcOf, ordFgOf, fgiCanEntry, fgiOrdersFor, fgiOrderKnown, fgiOrdFill, fgiRecvOnOrder, lstParse, lstOf, lstKey, lstLoad, lstAlertFor, lstClose, lstRenderAlerts, lstOpen, lstBadge, lstCanRefresh, LST:()=>LST, setLST:v=>{LST=v}, odrId, odrCanAsk, odrCanAnswer, odrAskOpen, odrAskSave, odrListOpen, odrDeleteRun, odrKeepRun, odrBadge, odrPendingOf, ODR:()=>ODR, setODR:v=>{ODR=v}, hrEditEmp, hrCanEmpDelete, hrEmpOnly, setHrSeen:v=>{HR_SEEN=v; if (!Object.keys(v || {}).length) PR_SNAP = {};}, HR_SEEN:()=>HR_SEEN, hrSavePrRate, prRowsOf, prSnapTake, PR_SNAP:()=>PR_SNAP, ptPatch, prEdit, ensureHr, ORD:()=>ORD, setORD:v=>{ORD=v}, QC:()=>QC, setQC:v=>{QC=v}, PP:()=>PP, setPP:v=>{PP=v}, els:null};');
+const fn = new Function(...Object.keys(ctx), block + '\n;return {PT:()=>PT, setPT:v=>{PT=v}, ptDtMs, ptList, ptNum, whoCell, whoTouched, whoList, spCanAssign, renderPmdb, renderPbase, renderPcut, ensurePmdb, ensurePbase, ensurePcut, bdKpi:()=>PT_BD_KPI, setBdKpi:v=>{PT_BD_KPI=v}, PTG:()=>PTG, setPTG:v=>{PTG=v}, cutGuard, cutFabrics, cutFillFabrics, renderCutPick, cutSkuTyped, ptConsumeZippers, ptUnconsumeZippers, ptConsumeRuffle, ptUnconsumeRuffle, ptIsRuffle, ptRuffleOf, ruffleCombos, ruffleRuleSave, renderMst, MST:()=>MST, obOrderedQty, obCutQty, cutOrdersFor, validateAgainstMasters, ptStampDate, cutMonthFrozen, ptMonthKey, obUC, bdGuard, bdApplyRecv, bdApplyRej, bdOrdersFor, obIssueUsed, obPressQty, ptZipCheck, PTE:()=>PTE, setPTE:v=>{PTE=v}, ptFindExistingSku, ptGenCustomSku, ptCustomPrefix, bdMaterialsFor, bdMaterialsTxt, bdMatFill, bdMatEntry, bdZipTyped, ptIsRuffle, ptRuffleOf, mdbZipQty, accCode, bdOpenOrders, bdEdit, bdSkuTyped, renderBdForm, bdClearForm, ptCanEdit, PT_NO_EDIT, ptPath, ptGet, ptPut, ptDelete, apvAsk, apvAnswer, apvOpen, apvLoad, APV:()=>APV, setAPV:v=>{APV=v}, pressEdit_:pressEdit, waNum, waSubstitute, waMsg, waWhyBlocked, waCell, waSendRow, WA_TPL_DEFAULT, waCutoffMs, WA:()=>WA, setWA:v=>{WA=v}, resRows, resWho, resRender, resSend, RES_PICK:()=>RES_PICK, voDemandMap, voExistingMap, voCutAllowed, resSourceMap, resSrcText, resTotals, soChannels, mdbRenamePlan, mdbRenameFromRows, mdbRenameRun, mdbRenamePaths, mdbRenameWhyBad, obLines, ptStampFrom, ptIsoDate, pressGuard, renderPpress, pressEdit, cutEdit, ptOpenDialog, qcParts, qcAvailToCheck, qcAvailToIssue, qcAltTotal, qcIssuedTotal, qcCheckable, qcIssuable, qcDeptEmps, qcEditCheck, qcEditIssue, ATT:()=>ATT, setATT:v=>{ATT=v}, attSave, attPunch, attAbsent, attPeople, attOfDay, attHours, attState, attId, attNameKey, attCanMark, renderAtt, ensureAtt, qcSaveReturn, qcRetOf, qcViewsAllowed, qcView, QC_VIEWS, cutFabPlan, renderCutFab, cutFabFields, qcPendingOf, qcOutstanding, renderQcRetForm, renderQc, mdbUsage, mdbValidate, fsSku, fsCodeOf, fsColourCodes, fsLinesFor, fsRows, fsOf, renderMdbFabric, FS_WIDTHS, mdbRecord, mdbEdit, mdbAddNew, mdbZipQty, mdbFromCsv, mdbYes, ptImgOf, ptImgCell, ordLines, ordOrphans, ordCutReq, renderOrd, ordFilters, ordApply, ptInRange, ptRangeOf, shppLines, shppBySku, shppApply, renderOrdShopify, spSave, spHandover, spIssueReal, spReceiveReal, spIsQuilt, spQuiltHand, spAssignPicked, spPrinters, spIsPrinterCode, spPrinterByText, spPrintSheetRows, spPrintSheetEntries, spPrintPlan, spPrintRun, spSkuKeys, spSkuPicked, spSkuToggle, spAssignPickedOpen, spBulkPlan, spBulkApply, spBulkState, spBulkWho, spBulkDate, spBulkSheetEntries, spBulkSheetRows, spBulkEntries, setSPBULK:v=>{SP_BULK_VALS=v}, paWeekFacts, paNeed, paAvgBase, paTeamSize, paTeamSave, paVerdict, paWeeks, setPA:v=>{PA=v}, renderPa, renderKa, kaTable, kaDetail, kaMix, kaLevelOf, kaLevelKey, kaLevelsSave, kaArticles, renderKaMix, renderQcCheckForm, KA:()=>KA, PA:()=>PA, KA:()=>KA, obPcsPerPack, obPieces, obOrderedQty, ordKpiApply, ORD_KPI:()=>ORD_KPI, setORD_KPI:v=>{ORD_KPI=v}, spCutReal, spPressReal, spBaseRows, spIssuedReal, spRecvReal, spHandoverPicked, spAssign, spPrint, spCanPrint, spCanSee, spIsVendor, spPrinter, ORD:()=>ORD, setORD_:v=>{ORD=v}, spOf, spKey, spKeySafe, spMirror, spShopOrderId, spShopOrderNo, spHanded, ordView, ehHours, rateFor, hrRateCheck, hrEmpUsage, hrRateFields, hrRateKnown, hrRateRec, prCheck, prRec, prKey, prStatus, prApproved, prCanApprove, prSetOk, prRateCell, prWhat, prUnit, prRateFor, prUsage, prFields, prFromRows, prPlan, prVendorCode, PR_COLS, prKnown, ptDlgValues, PR_SERVICES, prSvc, prIsFill, prIsPrinting, prCols, prColSpec, prColCovers, prColOverlap, prColLabel, prColIsLabel, prSvcKey, PR_SVC_ALIAS, PR_SVC_AMBIGUOUS, prLineMatches, prLineServices, prLineWant, prNameKey, prSizeKey, prNorm, PR_SPELL, prRateRowFor, vpayRows, vpayInWindow, renderVpay, vpayShowDrill, prRateWhy, prLineFiller, PR_COL_ANY, voIsFilling, vpayLive, vpaySetFreeze, VPAY_TYPE, payFreezeKey, ordVendorAlloc, ordVendorOf, ordWaitingAt, ordJourney, ensureOrd, voStampOrders, ordBookCsv, qcOrdersFor, ordQcOf, ordFgAt, ordShareBySku, fbaState, ORD_KPI_FIELDS, spHandover, setORD_KPI:v=>{ORD_KPI=v}, bdTwinOf, voOnServicePick, voPlace,  voAllVendors, voCatOf, VENDOR_CATS, ehFrozen, ehMonthKey, renderHr, payRows, payFrozen, payAdvance, payAdvanceTotal, renderPayout, renderAdvance, renderSlip, ehStamp, payDrill, payWindow, payShowDrill, fabMove, fabKnown, fabBalances, renderFab, fabSave, fabCsvRows, fabCsvRun, fabState, fabStockOf, fabWithProcessor, fabFlowRows, fabLots, fabLot, fabNextLot, fabLotsWithGreige, fabLotsOut, fabLotsOfFabric, accMove, accBalances, accLow, renderAcc, accEditTxn, accListNow, accLedgerNow, ptAccBalance, ptConsumeZippers, accOutWith, accCanEntry, accCanEdit, vlCanAccept, soCanApprove, mdbCanEdit, soApproveRun, soReturnRun, mdbRenameRun, vlAcceptWrite, accCat, accUnit, accReturnable, accWho, accTxnCheck, accCsvRows, accCsvRun, accItemRec, accTakeBack, accWhoList, ACC_TYPES, ACC_CATS, ACC:()=>ACC, setACC:v=>{ACC=v}, soLines, soStatus, soWork, soQtyPlan, soQtyRun, soDoneOn, soQtySheetRead, soQtyBulkPlan, ordQtyAdj, ordQtyUnseen, ordQtyUnseenAll, ordQtyBadge, ordQtyApprove, ordQtyReject, ordQtyAnswerRun, ordQtyCanApprove, ordQtyListOpen, soQtyStage, ordQtyPill, soQtyBulkRun, soQtyTemplate, SO_QTY_COLS, soQtyOf, soLinesOf, soBookId, soQtyOpen, SO_NO_APPROVE_:()=>SO_NO_APPROVE, soSkus, soSummary, renderSox, SOX:()=>SOX, setSOX:v=>{SOX=v}, voName, voKnown, voLines, voRunning, voUnit, voQty, voDels, voDone, voStale, voSummary, renderVo, voDayOf, voDayKey, voLogRows, renderVlog, vlCanAccept, vlOk, vlNo, vlOver, vlQtyOf, vlFind, voSqm, voFabWidthM, vlInHand, vlNoWrite, vlAcceptWrite, vlAcceptOne, vlAcceptPicked, VL_PICKED:()=>VL_PICKED, ensureVlog, vlogApply, vlogFilters, VLOG:()=>VLOG, setVLOG:v=>{VLOG=v}, voEditRead, voEditSave, voEditRow, voOpen, voSaveQty, voCancelPicked, voWhyNoCancel, voPicked, voWant, voProm, voPromFirst, voDue, voDays, voGap, voSlip, voMoves, voLateBy, voDueCell, dShow, vpPromise, vpCard, voClaimed, voConfirmed, voPriBadge, VOE:()=>VOE, voDelete, renderVoCards, voLineMatches, voOrderPri, voAttrOn, VO_CARD_LINES, voDeletePicked, voDeliveredCount, VO_PICKED:()=>VO_PICKED, ptImgOf, ptImgCell, setPTIMG:v=>{PTIMG=v}, setVOE:v=>{VOE=v}, VO:()=>VO, setVO:v=>{VO=v}, soChannels, soDateTag, soGenId, soB2BRows, soB2BMint, soIsB2B, soCurrentNetQty, soCanEdit, soFormOpen, soFormSave, soFormLines, soParseDMY, soNormType, soBulkFile, soReview, soApproveRun, soReturnRun, soDeleteOrder, SOF:()=>SOF, setSOF:v=>{SOF=v}, voVendors, voMasterList, voCutAllowed, voDemandMap, voExistingMap, voValidateCut, voCapMsg, voHolders, voNewOrderNo, voTodayDMY, voFormOpen, voSetKind, voFabricCatalogue, voFabricSkuTyped, voFabricFromFields, vrqSubmit, vrqApprove, vrqReject, vrqWithdraw, vrqCopy, vrqStage, vrqOrder, renderVrq, vrqCanApprove, vrqBadge, VRQ:()=>VRQ, RFD:()=>RFD, setRFD:v=>{RFD=v}, rfdLineNeed, rfdOrderNeed, rfdFabrics, rfdAllowed, rfdReqsOf, rfdStage, rfdAuto, rfdSubmit, rfdWithdraw, rfdDecide, rfdMarkSent, rfdRows, rfdFind, rfdRecord, rfdSeq, rfdCanSee, rfdCanApprove, rfdCanSend, rfdDecisionOf, rfdSentQty, rfdRound, rfdPieceLines, rfdPieceOf, rfdPcsAllowed, rfdSubmitPcs, rfdSizeGroups, rfdSizeRaw, rfdSizeOf, rfdFabKey, rfdKeyUnit, rfdRoomFor, rfdUsedM, rfdSubmit, rfdAllowed, rfdVendorOf, rfdStockRow, rfdSizeKey, rfdStockKey, rfdSpread, rfdSubmitSize, rfdStockSave, rfdStockOf, rfdStockHere, rfdStockForSku, rfdUsedPcs, setRFD_:v=>{RFD=v}, rfdSentFor, rfdSentPcsFor, rfdSentSeen, rfdSubmitOrder, vpRfdSends, vpRfdOrder, vpRfdOrders, rfdPcsTxt, rfdUnit, rfdWant, rfdQtyTxt, rfdIssueAs, rfdIssueRuled, vpRfdRender, renderRfd, rfdApply, rfdFilters, vpRfdRows, RFD_STAGE, rfdBadge, setVRQ:v=>{VRQ=v}, setVRQ_KPI:v=>{VRQ_KPI=v}, voAddLine, voOnVendorPick, voOnServicePick, voDraftPrinting, voIsPrinting, voServiceOf, voCheckDraft, voDraft, voSkuInfo, voBulkFile, voTemplate, voPlace, voSetStatus, voMoveTo, voMoveLog, voMovePill, VOF:()=>VOF, setVOF:v=>{VOF=v}, vpPhone, vpQty, vpDone, renderVp, vpCard, vpTable, vpExportRows, vpGroups, vpPriRank, vpVisible, voWhenMs, vpOrderMatches, vpFillFilters, vpF, vpFlow, vpIsShop, vpShopTable, vpHistRows, vpHistTable, vpDeliver, vpDeliverWith, vpRecordAll, vpPromiseAll, vpSave, ensureVp, voSyncAccess, VP:()=>VP, setVP:v=>{VP=v}, vmValid, vmReal, vfNeeded, vfInvented, pinEmails, PIN_DOMAINS, VM_PLACEHOLDER, vmOpen, vmSave, vpEmailKey, pinEmail, pinWhyBad, pinWhyNoLogin, pinRoute, pinCanLink, pinLink, voMasterRow, pinRandom, pinGrant, pinChange, pinOpenChange, vpOnPin, vendTabRule, fgiStock, fgiOf, fgiPressLeft, fgiPending, renderFgi, fgiTransferOpen, fgiTransferSave, fgiReceiveOpen, fgiReceiveSave, fgiReturnSave, fgiIssueOpen, fgiOpeningOpen, fgiOpeningParse, fgiOpeningSave, fgiNewId, FGI:()=>FGI, setFGI:v=>{FGI=v}, FGT:()=>FGT, setFGT:v=>{FGT=v}, fgiEntryOpen, fgiEntrySave, fgiNum, fgiSetOpen, fgiStatus, fgiSeen, PTE:()=>PTE, setPTE:v=>{PTE=v}, fgiFbaOpen, fgiReceiveNewOpen, fgiDelete, fgiDeleteAsk, fgiSeedOpen, fgiSeedSave, fgiSheetRead, fgiSheetShow, fgiSheetNewMasters, fgiSheetPlan, fgiSheetImport, FGF:()=>FGF, setFGF:v=>{FGF=v}, fgiWipeOpen, fgiWipeRun, fgiCanEdit, fgiEffect, fgiDeletePlan, fgiDeleteRun, fgiEditOpen, fgiEditSave, fgiEditLocked, fgiBulkEditOpen, fgiBulkEditSave, fgiBulkDeleteAsk, fgiSkuEditOpen, fgiSkuEditSave, fgiSkuBulkEditOpen, fgiSkuBulkEditSave, fgiSkuDeleteAsk, fgiPickCount, FGI_PICK:()=>FGI_PICK, setFGI_PICK:v=>{FGI_PICK=v}, fgiLoad, fbaCan, fbaLegacy, fbaState, fbaAll, fbaRows, renderFba, fbaBadge, fbaAccept, fbaShipOpen, fbaShipSave, fbaReturnOpen, fbaReturnSave, fbaUndo, FBA_PICK:()=>FBA_PICK, setFBA_PICK:v=>{FBA_PICK=v}, FBA:()=>FBA, PTD_:()=>PTD, cxAmz, cxIndia, renderCx, cxOpen, cxSet, cxFromIndia, cxDelete, cxUploadOpen, cxUploadRead, cxUploadSave, CX:()=>CX, setCX:v=>{CX=v}, CXU:()=>CXU, setCXU:v=>{CXU=v}, FGF:()=>FGF, setFGF:v=>{FGF=v}, vmNextKey, vmNextCode, vmAddPrinter, mstRows, mstDef, mstNextKey, mstUsage, renderMst, mstEdit, mstSave, MST:()=>MST, setMST:v=>{MST=v}, repPack, repAt, repBrand, repBrands, repInhouse, repWeekly, repWeekLabel, repSurplus, renderRep, ensureRep, repWow, repByWeek, repWkShift, repWkRange, repLastFullWeek, repRenderWow, repFillWeeks, repPctCell, repWeekStart, repWkIso, repByWindow, repLive, repLiveStart, repDaysIn, repRenderLive, ptImgSrc, ptImgInner, REP:()=>REP, setREP:v=>{REP=v}, FAB:()=>FAB, setFAB:v=>{FAB=v}, HR:()=>HR, setHR:v=>{HR=v}, hrPutList, hrCanon, PAL:()=>PAL, setPAL:v=>{PAL=v}, palDesigns, palGroups, palPlan, palGroupOf, palFamily, palKey, palNum, palSetGroup, palSetBlocks, palSetHave, palPrinterSave, palPrinterDelete, palPrinterOpen, palBlocksOpen, palCanEdit, palGroupBlocks, palBlocksNeed, palBlocksHave, palPrinters, renderPal, palExport, palCellSave, palNeedSplit, palNeedWhy, ptPrintNeeded, ptPrintFabric, ptCutOf, ptLayOn, ptConsPlan, ptLayOf, PT_LAYS, ptFabricWidths, PT_MARGIN_IN, renderMdbCons, mdbConsApply, RECIPE_FIELDS, recKey, recipeOf, recipeMap, recipeValue, recipeFill, recipeSays, recipeCombos, recipeSeedPlan, recipeSeedRun, recipeSave, recipeApplyPlan, recipeApplyRun, renderMdbRecipe, recipeEdit, recipeRows, recipeSheetRows, recipeSheetEntries, recipeUploadPlan, recipeUploadRun, mdbFields, fabListOr, pdIso, ordDueIndex, ordProdRows, RECIPE_FAB, recipeEdit, recipeSheetHead, SOX:()=>SOX, setSOX_:v=>{SOX=v}, pmdbTools, PMDB_TOOLS, ptPrintIssueAs, ptPrintRuleOf, ptPrintRules, ptColourPrints, printCombos, printRuleSave, colourPrintSave, renderPrintRules, fabWidthIn, fabWidthMap, fabWidthSave, fgiScanOpen, fgiScanAdd, fgiScanSave, fgiScanRender, fgiScanResolve, fgiScanAuto, fgiScanHead, fgiScanFlush, fgiScanUndo, fgiScanState, fnParse, fnFromRows, fnSave, fnSaveFromPaste, fnLoad, FN:()=>FN, setFN:v=>{FN=v}, FGS:()=>FGS, setFGS:v=>{FGS=v}, fgiFbaAcctFor, FGI_FBA_ACCOUNTS, fgiExtOrder, fgiExtNewNo, fgiRenderOver, fgiOverReview, fgiOverBadge, fgiEditApply, fgiCorrOpen, fgiCorrSave, fgiCorrApprove, fgiCorrReject, fgiRenderCorr, fgiCorrCell, fgiCorrLoad, fgiCorrCanAsk, FGC:()=>FGC, setFGC:v=>{FGC=v}, pafNeed, pafHistory, pafWeekOf, repWkIso, repWkShift, paWeekStart, voSqm, voFabWidthM, voLogRows, ordSrcOf, ordBrandOf, ordCustomBrands, spCanAssign, bkCanAssign, spCanAssignOrder, spNoAssignFor, MDBX:()=>MDBX, setMDBX:v=>{MDBX=v}, ordQcOf, ordFgOf, fgiCanEntry, fgiOrdersFor, fgiOrderKnown, fgiOrdFill, fgiRecvOnOrder, lstParse, lstOf, lstKey, lstLoad, lstAlertFor, lstClose, lstRenderAlerts, lstOpen, lstBadge, lstCanRefresh, LST:()=>LST, setLST:v=>{LST=v}, odrId, odrCanAsk, odrCanAnswer, odrAskOpen, odrAskSave, odrListOpen, odrDeleteRun, odrKeepRun, odrBadge, odrPendingOf, ODR:()=>ODR, setODR:v=>{ODR=v}, hrEditEmp, hrCanEmpDelete, hrEmpOnly, setHrSeen:v=>{HR_SEEN=v; if (!Object.keys(v || {}).length) PR_SNAP = {};}, HR_SEEN:()=>HR_SEEN, hrSavePrRate, prRowsOf, prSnapTake, PR_SNAP:()=>PR_SNAP, ptPatch, prEdit, ensureHr, ORD:()=>ORD, setORD:v=>{ORD=v}, QC:()=>QC, setQC:v=>{QC=v}, PP:()=>PP, setPP:v=>{PP=v}, els:null};');
 const A = fn(...Object.values(ctx));
 
 /* ---- real data ---- */
@@ -16343,13 +16343,23 @@ console.log('\n== a quantity changed after approval reaches the floor, or it is 
     A.setORD({ req: {}, busy: false, at: '', rows: [], pick: new Set() });
   };
   const ord = () => (A.SOX().rows || [])[0];
+  /* ASK, THEN APPROVE. Asking no longer changes anything — production answers, and that is when the
+   * figures move. Most of what follows is about where a change LANDS, so the two steps are one call. */
+  const pendingOf = o2 => { const r = (A.SOX().rows || []).find(x => x._id === o2._id) || o2;
+    return Object.keys(r.qtyAdjustments || {}).filter(k => A.soQtyStage(r.qtyAdjustments[k]) === 'pending'); };
+  const askApprove = async (o2, sku, qty, why) => {
+    const e1 = await A.soQtyRun(o2, sku, qty, why);
+    if (e1) return e1;
+    const ids = pendingOf(o2);
+    return A.ordQtyApprove(o2._id, ids[ids.length - 1]);
+  };
   reset();
 
   ok('the order says what it says to start with', A.soQtyOf(ord(), 'QTY-A') === 100, String(A.soQtyOf(ord(), 'QTY-A')));
   ok('…and the order book says the same', A.soBookId('AMZ-Q1', 'QTY-A') === 'ob_so_AMZ-Q1_QTY-A', A.soBookId('AMZ-Q1', 'QTY-A'));
 
   /* ---- GOING UP ---- */
-  let err = await A.soQtyRun(ord(), 'QTY-A', 150, 'buyer added 50');
+  let err = await askApprove(ord(), 'QTY-A', 150, 'buyer added 50');
   ok('a quantity can be increased', err === '', err);
   ok('…on the sales order', A.soQtyOf(ord(), 'QTY-A') === 150, String(A.soQtyOf(ord(), 'QTY-A')));
   /* THE WHOLE POINT. The floor works to the order book, not to the sales order. */
@@ -16377,7 +16387,7 @@ console.log('\n== a quantity changed after approval reaches the floor, or it is 
 
   /* ---- GOING DOWN ---- */
   reset();
-  err = await A.soQtyRun(ord(), 'QTY-A', 60, 'buyer cut it');
+  err = await askApprove(ord(), 'QTY-A', 60, 'buyer cut it');
   ok('a quantity can be decreased', err === '' && A.soQtyOf(ord(), 'QTY-A') === 60, err || String(A.soQtyOf(ord(), 'QTY-A')));
   ok('…and the order book comes down with it',
      (A.PTG().ob.find(r => r.id === 'ob_so_AMZ-Q1_QTY-A') || {}).qty === 60,
@@ -16395,7 +16405,7 @@ console.log('\n== a quantity changed after approval reaches the floor, or it is 
   ok('it cannot be cut below what has already been cut', /cannot go below 70/.test(err), err);
   ok('…and nothing moved', A.soQtyOf(ord(), 'QTY-A') === 100 && (A.PTG().ob.find(r => r.id === 'ob_so_AMZ-Q1_QTY-A') || {}).qty === 100);
   ok('…but it can be closed at exactly what was made',
-     (await A.soQtyRun(ord(), 'QTY-A', 70, 'closing at what was cut')) === '' && A.soQtyOf(ord(), 'QTY-A') === 70,
+     (await askApprove(ord(), 'QTY-A', 70, 'closing at what was cut')) === '' && A.soQtyOf(ord(), 'QTY-A') === 70,
      String(A.soQtyOf(ord(), 'QTY-A')));
 
   reset({ base: [{ id: 'b1', orderNo: 'AMZ-Q1', sku: 'QTY-A', issuePieces: 90, receivedPieces: 85 }] });
@@ -16444,10 +16454,10 @@ console.log('\n== a quantity changed after approval reaches the floor, or it is 
   A.setSOX(Object.assign({}, A.SOX(), { rows: [twoLines()] }));
   A.setPTG(Object.assign({}, A.PTG(), { ob: [{ id: 'ob_so_AMZ-Q2_QTY-A', orderNo: 'AMZ-Q2', sku: 'QTY-A', qty: 50, src: 'SO' }] }));
   ok('a SKU on two lines is one quantity to the order book', A.soQtyOf(two(), 'QTY-A') === 50, String(A.soQtyOf(two(), 'QTY-A')));
-  await A.soQtyRun(two(), 'QTY-A', 70, 'more');
+  await askApprove(two(), 'QTY-A', 70, 'more');
   ok('extra goes on the latest delivery date',
      A.soLines(two()).map(l => l.qty).join(',') === '30,40', A.soLines(two()).map(l => l.qty + '@' + l.deliveryDate).join(' '));
-  await A.soQtyRun(two(), 'QTY-A', 20, 'less');
+  await askApprove(two(), 'QTY-A', 20, 'less');
   ok('…and a cut comes off the latest first, so the earliest date keeps its pieces',
      A.soLines(two()).map(l => l.qty).join(',') === '20,0', A.soLines(two()).map(l => l.qty + '@' + l.deliveryDate).join(' '));
   ok('…and the order book follows the total, not one line',
@@ -16458,7 +16468,7 @@ console.log('\n== a quantity changed after approval reaches the floor, or it is 
   A.setSOX(Object.assign({}, A.SOX(), { rows: [order()] }));
   A.setPTG(Object.assign({}, A.PTG(), { ob: [] }));
   ok('a SKU the book never got can still be changed on the order',
-     (await A.soQtyRun(ord(), 'QTY-A', 120, 'fix')) === '' && A.soQtyOf(ord(), 'QTY-A') === 120,
+     (await askApprove(ord(), 'QTY-A', 120, 'fix')) === '' && A.soQtyOf(ord(), 'QTY-A') === 120,
      String(A.soQtyOf(ord(), 'QTY-A')));
   ok('…and no order-book row is invented for it',
      !(A.PTG().ob || []).some(r => r && r.id === 'ob_so_AMZ-Q1_QTY-A'), JSON.stringify(A.PTG().ob));
@@ -16496,8 +16506,16 @@ console.log('\n== a quantity changed after approval reaches the floor, or it is 
     ok('…knowing which way each one goes',
        bp.ok[0].delta === 50 && bp.ok[1].delta === -30, JSON.stringify(bp.ok.map(x => x.delta)));
     let out = await A.soQtyBulkRun(bp);
-    ok('…and writes them', out.err === '' && out.done === 2, out.err || String(out.done));
-    ok('…on the sales order', A.soQtyOf(ord(), 'QTY-A') === 150 && A.soQtyOf(ord(), 'QTY-B') === 10,
+    ok('…and records them', out.err === '' && out.done === 2, out.err || String(out.done));
+    /* A SHEET ASKS. Fifty rows that changed fifty figures the moment they were uploaded is exactly
+     * what the floor was never told about. */
+    ok('…without changing anything yet', A.soQtyOf(ord(), 'QTY-A') === 100 && A.soQtyOf(ord(), 'QTY-B') === 40,
+       JSON.stringify([A.soQtyOf(ord(), 'QTY-A'), A.soQtyOf(ord(), 'QTY-B')]));
+    ok('…and both are waiting for production', A.ordQtyUnseenAll().length === 2,
+       String(A.ordQtyUnseenAll().length));
+    for (const k of pendingOf(ord())) await A.ordQtyApprove('AMZ-Q1', k);
+    ok('…and once production approves, the sales order moves',
+       A.soQtyOf(ord(), 'QTY-A') === 150 && A.soQtyOf(ord(), 'QTY-B') === 10,
        JSON.stringify([A.soQtyOf(ord(), 'QTY-A'), A.soQtyOf(ord(), 'QTY-B')]));
     ok('…and in the order book, which is what the floor works to',
        (A.PTG().ob.find(r => r.id === 'ob_so_AMZ-Q1_QTY-A') || {}).qty === 150
@@ -16535,7 +16553,8 @@ console.log('\n== a quantity changed after approval reaches the floor, or it is 
        /Why column is empty/.test(((A.soQtyBulkPlan(sheet([row('AMZ-Q1', 'QTY-A', '90', '  ')]).entries).skip)[0] || {}).why || ''),
        JSON.stringify(A.soQtyBulkPlan(sheet([row('AMZ-Q1', 'QTY-A', '90', '  ')]).entries).skip));
     out = await A.soQtyBulkRun(bp);
-    ok('writing the sheet writes only the good row',
+    for (const k of pendingOf(ord())) await A.ordQtyApprove('AMZ-Q1', k);
+    ok('writing the sheet asks for only the good row',
        out.err === '' && out.done === 1 && A.soQtyOf(ord(), 'QTY-B') === 55, out.err || String(A.soQtyOf(ord(), 'QTY-B')));
     ok('…and the refused one is exactly as it was',
        A.soQtyOf(ord(), 'QTY-A') === 100 && (A.PTG().ob.find(r => r.id === 'ob_so_AMZ-Q1_QTY-A') || {}).qty === 100,
@@ -16546,7 +16565,7 @@ console.log('\n== a quantity changed after approval reaches the floor, or it is 
     bp = A.soQtyBulkPlan(sheet([row('AMZ-Q1', 'QTY-A', '150', 'x')]).entries);
     ME.admin = false; ME.soApprove = false;
     out = await A.soQtyBulkRun(bp);
-    ok('a sheet from somebody who cannot approve an order writes nothing',
+    ok('a sheet from somebody who cannot approve an order records nothing',
        out.err === A.SO_NO_APPROVE_() && A.soQtyOf(ord(), 'QTY-A') === 100, out.err);
     ME.admin = true; ME.soApprove = true;
 
@@ -16572,6 +16591,17 @@ console.log('\n== a quantity changed after approval reaches the floor, or it is 
     reset();
     await A.soQtyRun(ord(), 'QTY-A', 150, 'buyer added 50');
     const logId = Object.keys(ord().qtyAdjustments || {})[0];
+    /* NOTHING HAS MOVED. That is the whole of it: the floor cannot miss a change that cannot happen
+     * until somebody here answers it. */
+    ok('asking changes nothing on the sales order', A.soQtyOf(ord(), 'QTY-A') === 100, String(A.soQtyOf(ord(), 'QTY-A')));
+    ok('…and nothing in the order book',
+       (A.PTG().ob.find(r => r.id === 'ob_so_AMZ-Q1_QTY-A') || {}).qty === 100,
+       String((A.PTG().ob.find(r => r.id === 'ob_so_AMZ-Q1_QTY-A') || {}).qty));
+    ok('…and it is waiting', A.soQtyStage((ord().qtyAdjustments || {})[logId]) === 'pending',
+       A.soQtyStage((ord().qtyAdjustments || {})[logId]));
+    ok('…and a second ask on the same line is refused while it waits',
+       /already waiting/.test(await A.soQtyRun(ord(), 'QTY-A', 200, 'again')),
+       await A.soQtyRun(ord(), 'QTY-A', 200, 'again'));
 
     ok('the change is found from the line it happened to, not from the sales order',
        A.ordQtyAdj('AMZ-Q1', 'QTY-A').length === 1, JSON.stringify(A.ordQtyAdj('AMZ-Q1', 'QTY-A')));
@@ -16584,17 +16614,18 @@ console.log('\n== a quantity changed after approval reaches the floor, or it is 
     ok('a line nothing happened to has nothing on it', A.ordQtyAdj('AMZ-Q1', 'QTY-B').length === 0);
     /* A LINE CAN MOVE TWICE, and the last thing that happened to it is the thing somebody needs to
      * read first. With one change on the line the order proves nothing. */
+    /* A LINE CAN MOVE TWICE, and the last thing that happened to it is read first. */
+    await A.ordQtyApprove('AMZ-Q1', logId);
     await A.soQtyRun(ord(), 'QTY-A', 175, 'and 25 more');
     ok('a line that moved twice carries both', A.ordQtyAdj('AMZ-Q1', 'QTY-A').length === 2,
        JSON.stringify(A.ordQtyAdj('AMZ-Q1', 'QTY-A').map(a => a.from + '->' + a.to)));
     ok('…newest first', (l => (l[0] || {}).to === 175 && (l[1] || {}).to === 150)(A.ordQtyAdj('AMZ-Q1', 'QTY-A')),
        JSON.stringify(A.ordQtyAdj('AMZ-Q1', 'QTY-A').map(a => a.at + ' ' + a.to)));
-    ok('…and both are news until somebody reads them', A.ordQtyUnseenAll().length === 2,
+    ok('…and only the unanswered one is waiting', A.ordQtyUnseenAll().length === 1,
        String(A.ordQtyUnseenAll().length));
-    /* Back to one, so the rest of this reads as it did. */
-    await A.soQtyRun(ord(), 'QTY-A', 150, 'back');
-    Object.keys(ord().qtyAdjustments).slice(1).forEach(k => { delete ord().qtyAdjustments[k]; });
-    A.setSOX(Object.assign({}, A.SOX(), { rows: (A.SOX().rows || []).slice() }));
+    /* Back to one waiting change of 100 -> 150, so the rest of this reads as it did. */
+    reset();
+    await A.soQtyRun(ord(), 'QTY-A', 150, 'buyer added 50');
 
     /* ---- UNTIL SOMEBODY SAYS THEY SAW IT, IT IS NEWS ---- */
     ok('nobody has seen it yet', A.ordQtyUnseen('AMZ-Q1', 'QTY-A').length === 1);
@@ -16609,14 +16640,16 @@ console.log('\n== a quantity changed after approval reaches the floor, or it is 
     els.odView.value = 'book';
     ['odOrd', 'odArt', 'odSub', 'odCol', 'odSz', 'odStatus', 'odQ'].forEach(i => { els[i].value = ''; });
     A.setORD_KPI(''); A.renderOrd();
-    ok('the line says the quantity moved', /qty 100 → 150/.test(els.odTable.innerHTML),
+    ok('the line says a change has been asked for', /qty asked 100 → 150/.test(els.odTable.innerHTML),
        els.odTable.innerHTML.slice(0, 400));
-    ok('…and offers somebody the chance to say they have seen it',
-       /data-ordseen=/.test(els.odTable.innerHTML));
-    ok('the top of the screen says it too, not only the row',
-       /nobody here has said they have seen it/.test(els.odMsg.innerHTML), els.odMsg.innerHTML.slice(0, 300));
-    ok('…and names the order and the SKU', /AMZ-Q1 QTY-A 100 → 150/.test(els.odMsg.innerHTML),
-       els.odMsg.innerHTML.slice(0, 400));
+    ok('…and offers somebody the chance to answer it',
+       /data-ordqtyopen/.test(els.odTable.innerHTML));
+    /* ONE LINE AND A BUTTON. A paragraph of red naming three orders and "and 54 more" is a wall
+     * nobody reads, and the answer to it is a window. */
+    ok('the top of the screen offers the window, not a wall of text',
+       /1 quantity change to approve/.test(els.odMsg.innerHTML), els.odMsg.innerHTML.slice(0, 300));
+    ok('…and it is a button, not a sentence', /<button data-ordqtyopen/.test(els.odMsg.innerHTML),
+       els.odMsg.innerHTML.slice(0, 200));
     ok('…and the line count is still there with it', /line\(s\)/.test(els.odMsg.innerHTML),
        els.odMsg.innerHTML.slice(-200));
     ok('the panel counts it in a tile of its own', /Quantity changed/.test(els.odKpis.innerHTML),
@@ -16630,43 +16663,120 @@ console.log('\n== a quantity changed after approval reaches the floor, or it is 
     A.setORD_KPI(''); A.renderOrd();
 
     /* ---- SOMEBODY SAYS THEY SAW IT, AND THE LOOP CLOSES AT BOTH ENDS ---- */
+    /* ---- PRODUCTION ANSWERS, AND THAT IS WHEN THE FIGURES MOVE ---- */
+    /* The id of the one actually waiting now — the block above reset and asked again. */
+    const liveId = pendingOf(ord())[0];
     NET.calls.length = 0;
-    const err = await A.ordQtySeen('AMZ-Q1', logId);
-    ok('somebody on the floor can say they have seen it', err === '', err);
-    /* THE WRITE ITSELF, not the copy of it on screen. Local state cannot show that a patch left. */
-    const seenPatch = NET.calls.filter(c => c.method === 'PATCH' && c.body
-      && Object.keys(c.body).some(k => /qtyAdjustments\/.*\/seenAt$/.test(k)));
-    ok('…and it is actually written to the change', seenPatch.length === 1,
-       JSON.stringify(NET.calls.map(c => c.method + ' ' + c.url)));
-    ok('…with who said it, not just when',
-       seenPatch.length === 1 && Object.keys(seenPatch[0].body).some(k => /\/seenBy$/.test(k)),
-       JSON.stringify(seenPatch.map(c => Object.keys(c.body))));
-    ok('…and it stops being news', A.ordQtyUnseen('AMZ-Q1', 'QTY-A').length === 0
-       && A.ordQtyUnseenAll().length === 0, JSON.stringify(A.ordQtyUnseenAll()));
+    const err = await A.ordQtyApprove('AMZ-Q1', liveId);
+    ok('production can approve it', err === '', err);
+    ok('…and THAT is when the sales order moves', A.soQtyOf(ord(), 'QTY-A') === 150,
+       String(A.soQtyOf(ord(), 'QTY-A')));
+    ok('…and the order book with it',
+       (A.PTG().ob.find(r => r.id === 'ob_so_AMZ-Q1_QTY-A') || {}).qty === 150,
+       String((A.PTG().ob.find(r => r.id === 'ob_so_AMZ-Q1_QTY-A') || {}).qty));
+    /* IN ONE WRITE. Two would leave a window where the sales order and the order book disagree. */
+    const appPatch = NET.calls.filter(c => c.method === 'PATCH' && c.body
+      && Object.keys(c.body).some(k => k.indexOf('pt_salesOrders/AMZ-Q1/lines/') === 0));
+    ok('…both in ONE write', appPatch.length === 1
+       && Object.keys(appPatch[0].body).some(k => k === 'pt_orderBook/ob_so_AMZ-Q1_QTY-A/qty'),
+       JSON.stringify(appPatch.map(c => Object.keys(c.body))));
+    ok('…stamped with who approved it and when',
+       (x => x.stage === 'applied' && x.decidedBy && x.decidedAt)((ord().qtyAdjustments || {})[liveId]),
+       JSON.stringify((ord().qtyAdjustments || {})[liveId]));
+    ok('…and it stops waiting', A.ordQtyUnseenAll().length === 0, JSON.stringify(A.ordQtyUnseenAll()));
     ok('…and the sidebar count clears', (A.ordQtyBadge(), els.ordAdjBadge.textContent === ''),
        els.ordAdjBadge.textContent);
-    /* THE PERSON WHO CHANGED IT READS THAT BACK. Delivered and read are different things. */
-    ok('…and who saw it, and when, is on the change itself',
-       (a => a.seenBy && a.seenAt)((ord().qtyAdjustments || {})[logId]),
-       JSON.stringify((ord().qtyAdjustments || {})[logId]));
-    /* AND THE CHANGE ITSELF IS STILL THERE — seen is not deleted, it is history. */
+    ok('answering it twice is refused', /already been answered/.test(await A.ordQtyApprove('AMZ-Q1', liveId)),
+       await A.ordQtyApprove('AMZ-Q1', liveId));
+
+    /* THE PLAN IS WORKED OUT AGAIN AT APPROVAL. Between asking and answering, pieces get cut. */
+    reset();
+    await A.soQtyRun(ord(), 'QTY-A', 20, 'buyer cut it hard');
+    const lateId = pendingOf(ord())[0];
+    A.setPT(Object.assign({}, A.PT(), { cut: [{ id: 'cL', orderNo: 'AMZ-Q1', sku: 'QTY-A', pieces: 60 }] }));
     A.setORD({ req: {}, busy: false, at: '', rows: [], pick: new Set() });
-    A.renderOrd();
-    ok('the line still says what happened to it', /qty 100 → 150/.test(els.odTable.innerHTML));
-    ok('…without asking to be seen again', !/data-ordseen=/.test(els.odTable.innerHTML));
-    ok('…and the red line at the top is gone', !/nobody here has said/.test(els.odMsg.innerHTML),
+    ok('a change that was fine when asked is refused if the floor has moved since',
+       /cannot go below 60/.test(await A.ordQtyApprove('AMZ-Q1', lateId)),
+       await A.ordQtyApprove('AMZ-Q1', lateId));
+    ok('…and nothing moved', A.soQtyOf(ord(), 'QTY-A') === 100, String(A.soQtyOf(ord(), 'QTY-A')));
+    ok('…and it is still waiting for an answer', A.ordQtyUnseenAll().length === 1);
+
+    /* ---- OR IT IS TURNED DOWN, WITH A REASON ---- */
+    ok('turning one down needs a reason',
+       /why it is being turned down/i.test(await A.ordQtyReject('AMZ-Q1', lateId, '  ')),
+       await A.ordQtyReject('AMZ-Q1', lateId, '  '));
+    ok('…and then it is refused, not applied',
+       (await A.ordQtyReject('AMZ-Q1', lateId, 'already cut for the 25th')) === ''
+       && A.soQtyStage((ord().qtyAdjustments || {})[lateId]) === 'rejected',
+       A.soQtyStage((ord().qtyAdjustments || {})[lateId]));
+    ok('…with the reason the sales team reads',
+       (ord().qtyAdjustments || {})[lateId].decidedWhy === 'already cut for the 25th',
+       JSON.stringify((ord().qtyAdjustments || {})[lateId]));
+    ok('…nothing moved', A.soQtyOf(ord(), 'QTY-A') === 100, String(A.soQtyOf(ord(), 'QTY-A')));
+    ok('…and it stops waiting', A.ordQtyUnseenAll().length === 0);
+    ok('…and a new ask on that line is allowed again',
+       (await A.soQtyRun(ord(), 'QTY-A', 80, 'try again')) === '');
+
+    /* ---- IT NEEDS THE ORDER CONSOLE ---- */
+    const openId = pendingOf(ord())[0];
+    /* VP CLEARED FIRST. A signed-in printer is never staff here — spIsVendor is true for anybody who
+     * is not an admin and has a vendor code, and the RFD tests above leave one set. Without this the
+     * next assertion passes for the wrong reason. */
+    const wasVPq = A.VP(); A.setVP({});
+    const wasTabs = ME.tabs; ME.admin = false; ME.tabs = ['so'];
+    ok('somebody without the Order Console cannot approve one',
+       /needs the Order Console/.test(await A.ordQtyApprove('AMZ-Q1', openId)),
+       await A.ordQtyApprove('AMZ-Q1', openId));
+    ok('…nor turn one down', /needs the Order Console/.test(await A.ordQtyReject('AMZ-Q1', openId, 'no')));
+    ME.tabs = ['ord'];
+    ok('…but somebody with it can, without being an admin',
+       (await A.ordQtyApprove('AMZ-Q1', openId)) === '' && A.soQtyOf(ord(), 'QTY-A') === 80,
+       (await A.ordQtyApprove('AMZ-Q1', openId)) + ' / ' + A.soQtyOf(ord(), 'QTY-A'));
+    /* AND A PRINTER NEVER CAN, whatever tabs they hold. */
+    ME.tabs = ['ord']; A.setVP({ code: 'VND001', name: 'RBP-Bagru' });
+    ok('a signed-in printer can never approve one',
+       /needs the Order Console/.test(await A.ordQtyApprove('AMZ-Q1', 'anything')),
+       await A.ordQtyApprove('AMZ-Q1', 'anything'));
+    A.setVP(wasVPq);
+    ME.admin = true; ME.tabs = wasTabs;
+
+    ok('a request that is not there is said so', /that request is gone/i.test(await A.ordQtyApprove('AMZ-Q1', 'nope')),
+       await A.ordQtyApprove('AMZ-Q1', 'nope'));
+    ok('…and so is an order that is not there', /that order is gone/i.test(await A.ordQtyApprove('NOPE', openId)),
+       await A.ordQtyApprove('NOPE', openId));
+
+    /* ---- A CHANGE ALREADY MADE COUNTS AS APPROVED ----
+     *
+     * 57 went in this morning under the old rule, which applied them on the spot. They have no stage
+     * on them at all. Reading those as waiting would ask the floor to approve what is already on a
+     * machine. */
+    reset();
+    A.setSOX(Object.assign({}, A.SOX(), { rows: [Object.assign(order(), {
+      qtyAdjustments: { old1: { id: 'old1', sku: 'QTY-A', from: 80, to: 100, why: 'this morning',
+        by: 'ravi@thefabricrush.com', at: '2026-09-20T04:00:00Z' } } }) ] }));
+    A.setORD({ req: {}, busy: false, at: '', rows: [], pick: new Set() });
+    ok('a change written before any of this existed reads as already applied',
+       A.soQtyStage((ord().qtyAdjustments || {}).old1) === 'applied',
+       A.soQtyStage((ord().qtyAdjustments || {}).old1));
+    ok('…so nobody is asked to approve what is already on a machine',
+       A.ordQtyUnseenAll().length === 0 && A.ordQtyUnseen('AMZ-Q1', 'QTY-A').length === 0,
+       JSON.stringify(A.ordQtyUnseenAll()));
+    /* AND THE TILE COUNTS WAITING ONES, not every one ever made. */
+    els.odView.value = 'book';
+    ['odOrd', 'odArt', 'odSub', 'odCol', 'odSz', 'odStatus', 'odQ'].forEach(i => { els[i].value = ''; });
+    A.setORD_KPI(''); A.renderOrd();
+    ok('…and the tile counts none of them',
+       /Quantity changed/.test(els.odKpis.innerHTML)
+       && !/0 quantity change/.test(els.odMsg.innerHTML) && !/data-ordqtyopen/.test(els.odMsg.innerHTML),
        els.odMsg.innerHTML.slice(0, 200));
+    ok('…while the line still shows what happened to it', /qty 80 → 100/.test(els.odTable.innerHTML),
+       els.odTable.innerHTML.slice(0, 300));
+    ok('…without asking to be answered', !/data-ordqtyopen/.test(els.odTable.innerHTML));
 
-    ok('saying it twice is not an error', (await A.ordQtySeen('AMZ-Q1', logId)) === '');
-    ok('a change that is not there is said so', /that change is gone/i.test(await A.ordQtySeen('AMZ-Q1', 'nope')),
-       await A.ordQtySeen('AMZ-Q1', 'nope'));
-    ok('…and so is an order that is not there', /that order is gone/i.test(await A.ordQtySeen('NOPE', logId)),
-       await A.ordQtySeen('NOPE', logId));
-
-    /* ---- NOTHING HERE CAN CHANGE A QUANTITY ---- */
-    ok('saying you have seen it does not touch the figure',
-       A.soQtyOf(ord(), 'QTY-A') === 150 && (A.PTG().ob.find(r => r.id === 'ob_so_AMZ-Q1_QTY-A') || {}).qty === 150,
-       String(A.soQtyOf(ord(), 'QTY-A')));
+    /* ---- AND THE TWO STAY IN STEP THROUGHOUT ---- */
+    ok('the sales order and the order book say the same thing at the end',
+       A.soQtyOf(ord(), 'QTY-A') === (A.PTG().ob.find(r => r.id === 'ob_so_AMZ-Q1_QTY-A') || {}).qty,
+       A.soQtyOf(ord(), 'QTY-A') + ' vs ' + (A.PTG().ob.find(r => r.id === 'ob_so_AMZ-Q1_QTY-A') || {}).qty);
   }
 
   ME.admin = wasME2.admin; ME.soApprove = wasME2.soApprove;

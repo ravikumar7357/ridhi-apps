@@ -14342,48 +14342,122 @@ function ordQtyAdjIndex() {
       map.get(k).push(Object.assign({ orderNo: o._id }, a));
     });
   });
-  /* Newest first — the last thing that happened to a line is the thing somebody needs to read. */
-  map.forEach(l => l.sort((x, y) => String(y.at || '').localeCompare(String(x.at || ''))));
+  /* Newest first — the last thing that happened to a line is the thing somebody needs to read. The
+   * id breaks a tie, because a sheet writes every one of its asks in the same millisecond. */
+  map.forEach(l => l.sort((x, y) => String(y.at || '').localeCompare(String(x.at || ''))
+    || String(y.id || '').localeCompare(String(x.id || ''))));
   ORD_ADJ_IX = { src, n: src.length, map };
   return map;
 }
 const ordQtyAdj = (orderNo, sku) => ordQtyAdjIndex().get(obKeyOf(orderNo, sku)) || [];
-/** The ones nobody on the floor has said they have seen. */
-const ordQtyUnseen = (orderNo, sku) => ordQtyAdj(orderNo, sku).filter(a => !a.seenAt);
-/** Every unseen change across the whole book, newest first — what the banner counts. */
+/** The ones waiting for an answer on this line. */
+const ordQtyUnseen = (orderNo, sku) => ordQtyAdj(orderNo, sku).filter(a => soQtyStage(a) === 'pending');
+/** Every one waiting across the whole book, oldest first — the order they should be answered in. */
 const ordQtyUnseenAll = () => {
   const out = [];
-  ordQtyAdjIndex().forEach(l => l.forEach(a => { if (!a.seenAt) out.push(a); }));
-  return out.sort((x, y) => String(y.at || '').localeCompare(String(x.at || '')));
+  ordQtyAdjIndex().forEach(l => l.forEach(a => { if (soQtyStage(a) === 'pending') out.push(a); }));
+  return out.sort((x, y) => String(x.at || '').localeCompare(String(y.at || ''))
+    || String(x.id || '').localeCompare(String(y.id || '')));
 };
 
+/** Who answers a quantity change: the people doing the work, and the admins. */
+const ordQtyCanApprove = () => !spIsVendor() && !!(ME.admin || (ME.tabs || []).includes('ord'));
+
 /**
- * SOMEBODY ON THE FLOOR SAYS THEY HAVE SEEN IT.
+ * APPROVE A CHANGE — and this is the moment the figures move.
  *
- * Stamped onto the adjustment itself, where whoever changed the quantity reads it back — a message
- * that is delivered and a message that is read are different things, and the person who changed a
- * figure needs to know which one this was.
+ * THE PLAN IS WORKED OUT AGAIN, not carried from when it was asked. Pieces get cut between the two,
+ * and other changes land, so a request to drop a line to 20 that was fine on Monday is refused on
+ * Wednesday if 40 have been made since. What was agreed to is the FIGURE; the arithmetic behind it
+ * belongs to the moment it is applied.
+ *
+ * The sales-order lines and the order book move in ONE write with the stamp that says it was
+ * approved, so there is no instant where one of the three disagrees with the others.
  */
-async function ordQtySeen(orderNo, logId) {
+async function ordQtyApprove(orderNo, logId) {
+  if (!ordQtyCanApprove()) return 'Approving a quantity change needs the Order Console.';
   const o = (SOX.rows || []).find(x => x && obUC(x._id) === obUC(orderNo));
   if (!o) return 'That order is gone.';
   const a = (o.qtyAdjustments || {})[logId];
-  if (!a) return 'That change is gone.';
-  if (a.seenAt) return '';
+  if (!a) return 'That request is gone.';
+  if (soQtyStage(a) !== 'pending') return 'That one has already been answered.';
+  const plan = soQtyPlan(o, a.sku, a.to, logId);
+  if (plan.err) return a.sku + ': ' + plan.err;
   const now = new Date().toISOString();
-  const base = 'pt_salesOrders/' + o._id + '/qtyAdjustments/' + logId + '/';
-  const patch = { [base + 'seenAt']: now, [base + 'seenBy']: ME.email };
+  const base = 'pt_salesOrders/' + o._id + '/';
+  const patch = {};
+  plan.moves.forEach(m => {
+    patch[base + 'lines/' + m.i + '/qty'] = m.to;
+    patch[base + 'lines/' + m.i + '/previousQty'] = m.from;
+  });
+  patch[base + 'qtyAdjustments/' + logId + '/stage'] = 'applied';
+  patch[base + 'qtyAdjustments/' + logId + '/decidedBy'] = ME.email;
+  patch[base + 'qtyAdjustments/' + logId + '/decidedAt'] = now;
+  /* WHAT IT ACTUALLY MOVED FROM, which is not always what the ask said: the line may have moved in
+   * between, and the record should say what happened rather than what was expected. */
+  patch[base + 'qtyAdjustments/' + logId + '/appliedFrom'] = plan.from;
+  patch[base + 'updatedAt'] = now;
+  if (plan.book != null) patch['pt_orderBook/' + soBookId(o._id, a.sku) + '/qty'] = plan.to;
   try { await ptPatch(patch); }
   catch (e) { return 'Not saved: ' + (e.message || e); }
-  /* FROM WHAT WAS WRITTEN, not from a second copy of the same reasoning — the same rule as the
-   * change itself. Otherwise the screen says "seen" for a write that never left. */
+  /* THE SCREEN FROM WHAT WAS WRITTEN, never from a second run of the same reasoning. */
+  const lines = soLines(o).map((l, i) => (patch[base + 'lines/' + i + '/qty'] === undefined ? l
+    : Object.assign({}, l, { qty: patch[base + 'lines/' + i + '/qty'],
+      previousQty: patch[base + 'lines/' + i + '/previousQty'] })));
   const adj = Object.assign({}, o.qtyAdjustments);
-  adj[logId] = Object.assign({}, a, { seenAt: patch[base + 'seenAt'], seenBy: patch[base + 'seenBy'] });
-  /* A NEW ARRAY, which is what the index invalidates on — it holds the one it was built from and
-   * compares by identity, so there is nothing else to clear. */
+  adj[logId] = Object.assign({}, a, { stage: patch[base + 'qtyAdjustments/' + logId + '/stage'],
+    decidedBy: patch[base + 'qtyAdjustments/' + logId + '/decidedBy'],
+    decidedAt: patch[base + 'qtyAdjustments/' + logId + '/decidedAt'],
+    appliedFrom: patch[base + 'qtyAdjustments/' + logId + '/appliedFrom'] });
+  SOX.rows = (SOX.rows || []).map(x => (x._id === o._id
+    ? Object.assign({}, o, { lines, qtyAdjustments: adj, updatedAt: now }) : x));
+  const bp = 'pt_orderBook/' + soBookId(o._id, a.sku) + '/qty';
+  if (patch[bp] !== undefined) PTG.ob = (PTG.ob || []).map(r =>
+    (r && r.id === soBookId(o._id, a.sku) ? Object.assign({}, r, { qty: patch[bp] }) : r));
+  ordQtyBadge();
+  return '';
+}
+
+/** Say no, with a reason — which is the part the person who asked has to read. */
+async function ordQtyReject(orderNo, logId, why) {
+  if (!ordQtyCanApprove()) return 'Answering a quantity change needs the Order Console.';
+  const o = (SOX.rows || []).find(x => x && obUC(x._id) === obUC(orderNo));
+  if (!o) return 'That order is gone.';
+  const a = (o.qtyAdjustments || {})[logId];
+  if (!a) return 'That request is gone.';
+  if (soQtyStage(a) !== 'pending') return 'That one has already been answered.';
+  const note = String(why || '').trim();
+  if (!note) return 'Say why it is being turned down — the sales team reads it on the order.';
+  const now = new Date().toISOString();
+  const base = 'pt_salesOrders/' + o._id + '/qtyAdjustments/' + logId + '/';
+  const patch = { [base + 'stage']: 'rejected', [base + 'decidedBy']: ME.email,
+    [base + 'decidedAt']: now, [base + 'decidedWhy']: note };
+  try { await ptPatch(patch); }
+  catch (e) { return 'Not saved: ' + (e.message || e); }
+  const adj = Object.assign({}, o.qtyAdjustments);
+  adj[logId] = Object.assign({}, a, { stage: patch[base + 'stage'], decidedBy: patch[base + 'decidedBy'],
+    decidedAt: patch[base + 'decidedAt'], decidedWhy: patch[base + 'decidedWhy'] });
   SOX.rows = (SOX.rows || []).map(x => (x._id === o._id ? Object.assign({}, x, { qtyAdjustments: adj }) : x));
   ordQtyBadge();
   return '';
+}
+
+/** Answer a list of them in one go, and say what happened to each. */
+async function ordQtyAnswerRun(ids, reject, why) {
+  const list = (ids || []).map(k => { const [orderNo, logId] = String(k).split('|'); return { orderNo, logId }; });
+  if (!list.length) return 'Tick the ones you are answering first.';
+  const bad = [];
+  let done = 0;
+  for (const x of list) {
+    const err = reject ? await ordQtyReject(x.orderNo, x.logId, why) : await ordQtyApprove(x.orderNo, x.logId);
+    if (err) bad.push(x.orderNo + ': ' + err); else done++;
+  }
+  renderOrd();
+  if (!bad.length) return '';
+  /* PART DONE IS PART DONE. Saying "failed" when eleven of twelve went through sends somebody to
+   * approve them all again. */
+  return nf(done) + ' answered. ' + nf(bad.length) + ' could not be: ' + bad.slice(0, 4).join(' · ')
+    + (bad.length > 4 ? ' and ' + nf(bad.length - 4) + ' more.' : '');
 }
 
 /** The count on the sidebar, so it does not need the tab open to be noticed. */
@@ -16366,14 +16440,24 @@ function renderOrd() {
         + ' piece(s) were handed to shipping with nothing in the registers to say they were made.')}">${nf(r.unrecorded)} never recorded</span></div>` : '')
       /* THE QUANTITY MOVED, SAID WHERE THE WORK IS DONE. It was written on the sales order, and
        * nobody on this floor opens one. */
-      + ordQtyAdj(r.orderNo, r.sku).slice(0, 3).map(a => `<div><span class="pill"`
-        + ` style="background:${a.seenAt ? 'var(--chip)' : '#fef3c7'};color:${a.seenAt ? 'var(--muted)' : '#7c2d12'};border:1px solid ${a.seenAt ? 'var(--line)' : '#fbbf24'}"`
-        + ` title="${esc('Changed by ' + String(a.by || '').split('@')[0] + ' on ' + (ptIsoDate(a.at) || '')
-          + (a.why ? ' — ' + a.why : '') + (a.via === 'sheet' ? ' (from a sheet)' : '')
-          + (a.seenAt ? '. Seen by ' + String(a.seenBy || '').split('@')[0] + ' on ' + (ptIsoDate(a.seenAt) || '') + '.' : '. Nobody here has said they have seen it.'))}">`
-        + `qty ${ordQtyPill(a)}</span>`
-        + (a.seenAt ? '' : ` <a href="#" data-ordseen="${esc(a.orderNo)}|${esc(a.id)}" style="font-size:10.5px">Seen</a>`)
-        + '</div>').join('')
+      + ordQtyAdj(r.orderNo, r.sku).slice(0, 3).map(a => {
+        const st = soQtyStage(a);
+        /* WAITING is the loud one: nothing has moved yet and somebody has to answer. Applied is
+         * history and rejected is a dead end — both are quiet. */
+        const look = st === 'pending' ? 'background:#fef3c7;color:#7c2d12;border:1px solid #fbbf24'
+          : (st === 'rejected' ? 'background:var(--chip);color:var(--muted);border:1px solid var(--line);text-decoration:line-through'
+          : 'background:var(--chip);color:var(--muted);border:1px solid var(--line)');
+        return `<div><span class="pill" style="${look}"`
+          + ` title="${esc('Asked by ' + String(a.by || '').split('@')[0] + ' on ' + (ptIsoDate(a.at) || '')
+            + (a.why ? ' — ' + a.why : '') + (a.via === 'sheet' ? ' (from a sheet)' : '')
+            + (st === 'pending' ? '. Nothing has moved: it is waiting to be approved here.'
+              : (st === 'rejected' ? '. Turned down by ' + String(a.decidedBy || '').split('@')[0]
+                + (a.decidedWhy ? ' — ' + a.decidedWhy : '') + '.'
+                : '. Approved by ' + String(a.decidedBy || '').split('@')[0] + ' on ' + (ptIsoDate(a.decidedAt) || '') + '.')))}">`
+          + (st === 'pending' ? 'qty asked ' : (st === 'rejected' ? 'qty refused ' : 'qty ')) + ordQtyPill(a) + '</span>'
+          + (st === 'pending' ? ' <a href="#" data-ordqtyopen style="font-size:10.5px">Answer</a>' : '')
+          + '</div>';
+      }).join('')
       + (odrPendingOf(r.orderNo, r.sku)
         ? `<div><span class="pill pill-out" title="${esc('Asked by ' + String(odrPendingOf(r.orderNo, r.sku).by || '').split('@')[0] + ': ' + (odrPendingOf(r.orderNo, r.sku).why || ''))}">delete asked</span></div>`
         : (o => (o && o.status === 'kept'
@@ -16474,15 +16558,14 @@ function renderOrd() {
    *
    * ONE innerHTML, and everything that came out of the data is escaped on the way in. Setting
    * textContent afterwards would wipe the markup, which is exactly what I did first. */
+  /* ONE LINE AND A BUTTON. A paragraph of red naming three orders and "and 54 more" is a wall
+   * nobody reads — and the answer to it is a window, not a sentence. */
   const unseen = ordQtyUnseenAll();
-  $('odMsg').className = (unseen.length || orphanTotal) ? 'err' : 'muted';
+  $('odMsg').className = orphanTotal ? 'err' : 'muted';
   $('odMsg').innerHTML = (unseen.length
-    ? '<b>' + nf(unseen.length) + ' quantit' + (unseen.length > 1 ? 'ies were' : 'y was')
-      + ' changed on an order, and nobody here has said they have seen it</b> — '
-      + esc(unseen.slice(0, 3).map(a => a.orderNo + ' ' + a.sku + ' ' + ordQtyPill(a)).join(', '))
-      + (unseen.length > 3 ? ' and ' + nf(unseen.length - 3) + ' more' : '')
-      + '. The "Quantity changed" tile shows only those lines. · ' : '')
-    + (ORD.adjErr ? esc('The quantity changes could not be read (' + ORD.adjErr + '), so the pills are missing. · ') : '')
+    ? '<button data-ordqtyopen style="padding:3px 10px;font-size:12px;margin-right:8px">'
+      + nf(unseen.length) + ' quantity change' + (unseen.length > 1 ? 's' : '') + ' to approve</button>' : '')
+    + (ORD.adjErr ? esc('The quantity changes could not be read (' + ORD.adjErr + '). · ') : '')
     + esc(`${nf(rows.length)} of ${nf(all.length)} line(s)`
       + (rows.length > 600 ? ' · showing the first 600' : '')
       + ordKpiNote()
@@ -16510,15 +16593,83 @@ function ordKpiClick(e) {
 }
 /* SOMEBODY ON THE FLOOR SAYS THEY SAW IT, and the person who changed the figure can read that back
  * on the order. Delivered and read are different things. */
-$('odTable').addEventListener('click', async e => {
-  const a = e.target.closest('[data-ordseen]');
-  if (!a) return;
-  e.preventDefault();
-  const [orderNo, logId] = a.getAttribute('data-ordseen').split('|');
-  const err = await ordQtySeen(orderNo, logId);
-  if (err) { $('odMsg').className = 'err'; $('odMsg').textContent = err; return; }
-  renderOrd();
+/**
+ * THE WINDOW, the way a sales order gets one.
+ *
+ * Everything the answer needs is on it: what the order says now, what is being asked for, what has
+ * already been made against the line — because that is what decides whether it can be granted — who
+ * asked and why. Tick and approve, or tick and turn down with a reason.
+ */
+function ordQtyListOpen() {
+  const rows = ordQtyUnseenAll();
+  ORD.qtyPick = new Set([...(ORD.qtyPick || [])].filter(k => rows.some(r => r.orderNo + '|' + r.id === k)));
+  ptOpenDialog({
+    title: 'Quantity changes to approve',
+    subtitle: rows.length ? `${nf(rows.length)} change(s) the sales team has asked for` : 'Nothing is waiting',
+    note: 'Nothing has moved yet. Approving a change moves the sales order AND the order book together, '
+      + 'so the figure you work to changes at that moment and not before. Turning one down needs a reason — '
+      + 'the sales team reads it on the order. A change cannot take a line below what has already been '
+      + 'cut, received or pressed, and that is checked again now, not when it was asked for.',
+    html: rows.length ? `<div class="xlwrap" style="max-height:44vh"><table class="xl"><thead><tr>
+        <th><input type="checkbox" data-ordqty-all style="width:auto;margin:0" title="Tick every change"></th>
+        <th>Order</th><th>SKU</th><th class="num">Now</th><th class="num">Asked</th><th class="num">Made so far</th><th>Why</th><th>Asked by</th></tr></thead><tbody>
+        ${rows.map(r => {
+          const o = (SOX.rows || []).find(x => x && obUC(x._id) === obUC(r.orderNo));
+          const nowQty = o ? soQtyOf(o, r.sku) : r.from;
+          const d = soDoneOn(r.orderNo, r.sku);
+          const blocked = r.to < d.floor;
+          return `<tr${blocked ? ' style="background:var(--bad-bg)"' : ''}>`
+            + `<td><input type="checkbox" data-ordqty-pick="${esc(r.orderNo + '|' + r.id)}"${
+              (ORD.qtyPick || new Set()).has(r.orderNo + '|' + r.id) ? ' checked' : ''} style="width:auto;margin:0"></td>`
+            + `<td style="text-align:left">${esc(r.orderNo)}</td>`
+            + `<td style="font-family:ui-monospace,monospace;text-align:left">${esc(r.sku)}</td>`
+            + `<td class="num">${nf(nowQty)}</td>`
+            + `<td class="num" style="font-weight:700;color:${r.to > nowQty ? '#166534' : 'var(--bad)'}">${nf(r.to)}</td>`
+            + `<td class="num"${blocked ? ' style="color:var(--bad);font-weight:700"' : ''}>${nf(d.floor)}`
+            + (blocked ? '<div style="font-size:10.5px">cannot go below this</div>' : '') + '</td>'
+            + `<td style="text-align:left;white-space:normal;max-width:220px">${esc(r.why || '')}${
+              r.via === 'sheet' ? '<div class="muted" style="font-size:10.5px">from a sheet</div>' : ''}</td>`
+            + `<td style="font-size:12px">${esc(String(r.by || '').split('@')[0])}<div class="muted" style="font-size:10.5px">${esc(ptIsoDate(r.at) || '')}</div></td>`
+            + '</tr>';
+        }).join('')}
+      </tbody></table></div>
+      <label style="display:block;margin-top:10px">Reason, if you are turning them down<input id="ordQtyWhy" type="text" placeholder="e.g. already cut for the 25th, cannot drop it now"></label>`
+      : '<div class="muted">Nothing is waiting.</div>',
+    onSave: rows.length ? () => ordQtyAnswerRun([...(ORD.qtyPick || [])], false) : null,
+    saveLabel: 'Approve ticked',
+    alt: rows.length ? { label: 'Turn down ticked',
+      run: () => ordQtyAnswerRun([...(ORD.qtyPick || [])], true, (($('ordQtyWhy') || {}).value) || '') } : null,
+  });
+}
+
+$('ptDlgBody').addEventListener('change', e => {
+  const all = e.target.closest('[data-ordqty-all]');
+  if (all) {
+    ORD.qtyPick = all.checked ? new Set(ordQtyUnseenAll().map(r => r.orderNo + '|' + r.id)) : new Set();
+    return ordQtyListOpen();
+  }
+  const p = e.target.closest('[data-ordqty-pick]');
+  if (!p) return;
+  const k = p.getAttribute('data-ordqty-pick');
+  ORD.qtyPick = ORD.qtyPick || new Set();
+  if (p.checked) ORD.qtyPick.add(k); else ORD.qtyPick.delete(k);
 });
+
+/* The window opens from the button at the top and from the Answer link on any waiting line — the two
+ * places it appears, rather than a listener on the whole document. */
+function ordQtyOpenClick(e) {
+  const b = e.target.closest('[data-ordqtyopen]');
+  if (!b) return;
+  e.preventDefault();
+  if (!ordQtyCanApprove()) {
+    $('odMsg').className = 'err';
+    $('odMsg').textContent = 'Answering a quantity change needs the Order Console.';
+    return;
+  }
+  ordQtyListOpen();
+}
+$('odMsg').addEventListener('click', ordQtyOpenClick);
+$('odTable').addEventListener('click', ordQtyOpenClick);
 
 $('odKpis').addEventListener('click', ordKpiClick);
 $('odKpis').addEventListener('keydown', ordKpiClick);
@@ -21084,17 +21235,14 @@ async function soQtyBulkRun(plan) {
   const now = new Date().toISOString();
   const all = [];
   rows.forEach(r => {
+    /* A SHEET ASKS, LIKE THE BUTTON ASKS. Fifty rows that changed fifty figures the moment they were
+     * uploaded is exactly what the floor was never told about. */
     const base = 'pt_salesOrders/' + r.o._id + '/';
-    const patch = {};
-    r.moves.forEach(m => {
-      patch[base + 'lines/' + m.i + '/qty'] = m.to;
-      patch[base + 'lines/' + m.i + '/previousQty'] = m.from;
-    });
     const logId = 'adj_' + Date.now() + '_' + String(all.length).padStart(4, '0') + '_' + Math.random().toString(36).slice(2, 6);
+    const patch = {};
     patch[base + 'qtyAdjustments/' + logId] = { id: logId, sku: r.sku, from: r.from, to: r.to,
-      why: r.why, by: ME.email, at: now, via: 'sheet' };
+      why: r.why, by: ME.email, at: now, via: 'sheet', stage: 'pending' };
     patch[base + 'updatedAt'] = now;
-    if (r.book != null) patch['pt_orderBook/' + soBookId(r.o._id, r.sku) + '/qty'] = r.to;
     all.push({ r, patch });
   });
   let done = 0, stopped = null;
@@ -21104,22 +21252,16 @@ async function soQtyBulkRun(plan) {
     batch.forEach(x => Object.assign(patch, x.patch));
     try { await ptPatch(patch); }
     catch (e) { stopped = e; break; }
-    /* THE SCREEN FROM WHAT WAS WRITTEN, one order at a time — the same rule as the single change. */
+    /* THE SCREEN FROM WHAT WAS WRITTEN, one order at a time — the same rule as the single ask. */
     batch.forEach(x => {
       const base = 'pt_salesOrders/' + x.r.o._id + '/';
       const o = (SOX.rows || []).find(y => y._id === x.r.o._id) || x.r.o;
-      const lines = soLines(o).map((l, j) => (x.patch[base + 'lines/' + j + '/qty'] === undefined ? l
-        : Object.assign({}, l, { qty: x.patch[base + 'lines/' + j + '/qty'],
-          previousQty: x.patch[base + 'lines/' + j + '/previousQty'] })));
       const adj = Object.assign({}, o.qtyAdjustments || {});
       Object.keys(x.patch).forEach(k => {
         if (k.indexOf(base + 'qtyAdjustments/') === 0) adj[k.slice((base + 'qtyAdjustments/').length)] = x.patch[k];
       });
-      const next = Object.assign({}, o, { lines, qtyAdjustments: adj, updatedAt: now });
-      SOX.rows = (SOX.rows || []).map(y => (y._id === o._id ? next : y));
-      const bp = 'pt_orderBook/' + soBookId(x.r.o._id, x.r.sku) + '/qty';
-      if (x.patch[bp] !== undefined) PTG.ob = (PTG.ob || []).map(rr =>
-        (rr && rr.id === soBookId(x.r.o._id, x.r.sku) ? Object.assign({}, rr, { qty: x.patch[bp] }) : rr));
+      SOX.rows = (SOX.rows || []).map(y => (y._id === o._id
+        ? Object.assign({}, o, { qtyAdjustments: adj, updatedAt: now }) : y));
       done++;
     });
     ptDlgMsg(`Writing… ${nf(done)} of ${nf(all.length)} line(s).`);
@@ -22934,12 +23076,18 @@ const soMine = o => String(o.buyerEmail || '').toLowerCase() === String(ME.email
 const soCanEdit = o => !o || ME.admin || (soMine(o) && (soStatus(o) === 'draft' || soStatus(o) === 'returned'));
 
 /**
+ * Where a change has got to. A record written before this existed applied on the spot, so it is
+ * applied — reading those as pending would ask the floor to approve what is already on a machine.
+ */
+const soQtyStage = a => String((a && a.stage) || 'applied');
+
+/**
  * MOVE A SKU'S QUANTITY ON AN ORDER THAT IS ALREADY OUT — the sales order and the order book together.
  *
  * Returns a plan rather than writing, so the dialog can show exactly what would happen before it
  * happens: which lines move, what the book row becomes, and why it is refused when it is.
  */
-function soQtyPlan(o, sku, want) {
+function soQtyPlan(o, sku, want, exceptId) {
   if (!o) return { err: 'That order is gone.' };
   if (soStatus(o) !== 'approved') return { err: 'Only an approved order has anything in the order book to change. Edit a draft on the order itself.' };
   const mine = soLinesOf(o, sku);
@@ -22949,6 +23097,14 @@ function soQtyPlan(o, sku, want) {
   if (!isFinite(n) || n < 0) return { err: 'What should the new quantity be?' };
   if (Math.round(n) !== n) return { err: 'Pieces have to be a whole number.' };
   if (n === now) return { err: 'That is what it already says.' };
+  /* ONE ASK AT A TIME PER LINE. Two requests waiting on the same SKU, one saying 80 and one saying
+   * 120, is two different answers and whichever is approved second would quietly undo the first. */
+  /* NOT COUNTING THE ONE BEING ANSWERED. Approving re-runs this plan, and a request that refused
+   * itself for being a request is a request nobody can ever grant. */
+  const waiting = Object.values(o.qtyAdjustments || {})
+    .find(a => a && a.id !== exceptId && obUC(a.sku) === obUC(sku) && soQtyStage(a) === 'pending');
+  if (waiting) return { err: 'A change to ' + nf(waiting.to) + ' is already waiting for production to approve. '
+    + 'They have to answer that one first.' };
   const done = soDoneOn(o._id, sku);
   /* THE FLOOR. Reducing below what is already made does not un-make it — it leaves the registers
    * describing pieces on the floor as pieces nobody ordered. */
@@ -22982,6 +23138,13 @@ function soQtyPlan(o, sku, want) {
     book: book ? (parseFloat(book.qty) || 0) : null };
 }
 
+/**
+ * ASK FOR A QUANTITY TO CHANGE. It does not change anything.
+ *
+ * The sales-order line and the order book both stay exactly where they are until somebody on the
+ * floor approves it — the same way a sales order does nothing until it is approved. The plan is run
+ * here only to refuse an ask that could never be granted, so nobody waits on an answer of no.
+ */
 async function soQtyRun(o, sku, want, why) {
   if (!soCanApprove()) return SO_NO_APPROVE;
   const plan = soQtyPlan(o, sku, want);
@@ -22990,39 +23153,22 @@ async function soQtyRun(o, sku, want, why) {
   /* A CHANGE WITH NO REASON IS THE ONE NOBODY CAN EXPLAIN LATER. */
   if (!reason) return 'Say why it is changing — it goes on the order beside the figure.';
   const now = new Date().toISOString();
-  const patch = {};
-  plan.moves.forEach(m => {
-    patch['pt_salesOrders/' + o._id + '/lines/' + m.i + '/qty'] = m.to;
-    patch['pt_salesOrders/' + o._id + '/lines/' + m.i + '/previousQty'] = m.from;
-  });
-  const logId = 'adj_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+  /* PADDED SO IT SORTS AS A NUMBER, and strictly after everything the order already holds. Two asks
+   * in one millisecond tie on `at`, and then five random characters decide which reads as the later
+   * one — which is the order somebody answers them in. The bulk writer has always done this. */
+  const logId = 'adj_' + Date.now() + '_'
+    + String(Object.keys(o.qtyAdjustments || {}).length).padStart(4, '0') + '_'
+    + Math.random().toString(36).slice(2, 6);
   const log = { id: logId, sku: plan.sku, from: plan.from, to: plan.to, why: reason,
-    by: ME.email, at: now };
-  patch['pt_salesOrders/' + o._id + '/qtyAdjustments/' + logId] = log;
-  patch['pt_salesOrders/' + o._id + '/updatedAt'] = now;
-  /* AND THE ORDER BOOK IN THE SAME WRITE. Two writes could leave the two disagreeing, which is the
-   * whole thing this is here to prevent. A SKU the book never got is left alone and said out loud —
-   * "Add the missing" is the button for that, and it builds the row from these same lines. */
-  if (plan.book != null) patch['pt_orderBook/' + soBookId(o._id, sku) + '/qty'] = plan.to;
+    by: ME.email, at: now, stage: 'pending' };
+  const base = 'pt_salesOrders/' + o._id + '/';
+  const patch = { [base + 'qtyAdjustments/' + logId]: log, [base + 'updatedAt']: now };
   try { await ptPatch(patch); }
   catch (e) { return 'Not saved: ' + (e.message || e); }
-  /* THE SCREEN IS BUILT FROM WHAT WAS WRITTEN, not from a second run of the same reasoning. Two
-   * independent builds is exactly how a screen comes to show a change the database never took —
-   * and how a test of the screen passes while the write is missing. */
-  const base = 'pt_salesOrders/' + o._id + '/';
-  const lines = soLines(o).map((l, i) => (patch[base + 'lines/' + i + '/qty'] === undefined ? l
-    : Object.assign({}, l, { qty: patch[base + 'lines/' + i + '/qty'],
-      previousQty: patch[base + 'lines/' + i + '/previousQty'] })));
   const adj = Object.assign({}, o.qtyAdjustments || {});
-  Object.keys(patch).forEach(k => {
-    const at = k.indexOf(base + 'qtyAdjustments/');
-    if (at === 0) adj[k.slice((base + 'qtyAdjustments/').length)] = patch[k];
-  });
-  const next = Object.assign({}, o, { lines, qtyAdjustments: adj, updatedAt: patch[base + 'updatedAt'] || o.updatedAt });
-  SOX.rows = (SOX.rows || []).map(x => (x._id === o._id ? next : x));
-  const bookPath = 'pt_orderBook/' + soBookId(o._id, sku) + '/qty';
-  if (patch[bookPath] !== undefined) PTG.ob = (PTG.ob || []).map(r =>
-    (r && r.id === soBookId(o._id, sku) ? Object.assign({}, r, { qty: patch[bookPath] }) : r));
+  adj[logId] = patch[base + 'qtyAdjustments/' + logId];
+  SOX.rows = (SOX.rows || []).map(x => (x._id === o._id
+    ? Object.assign({}, x, { qtyAdjustments: adj, updatedAt: patch[base + 'updatedAt'] }) : x));
   return '';
 }
 

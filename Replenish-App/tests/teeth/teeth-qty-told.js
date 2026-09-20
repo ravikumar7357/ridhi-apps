@@ -2,55 +2,89 @@ const fs = require('fs'), cp = require('child_process'), pathm = require('path')
 const P = 'C:/AMAZON/Amazon Inventory/Replenish-App/public/index.html';
 const good = fs.readFileSync(P, 'utf8'); const NL = String.fromCharCode(10);
 const breaks = [
-  ['the change is found from the line it happened to',
-   '      const k = obKeyOf(o._id, a.sku);' + NL + '      if (!map.has(k)) map.set(k, []);',
-   '      const k = obKeyOf(o._id, a.sku);' + NL + '      if (true) return;' + NL + '      if (!map.has(k)) map.set(k, []);'],
-  ['…and the newest is the one at the front',
-   "  map.forEach(l => l.sort((x, y) => String(y.at || '').localeCompare(String(x.at || ''))));",
+  /* ---- asking must not change anything ---- */
+  ['asking for a change does not change the sales order',
+   "  const patch = { [base + 'qtyAdjustments/' + logId]: log, [base + 'updatedAt']: now };",
+   "  const patch = { [base + 'qtyAdjustments/' + logId]: log, [base + 'updatedAt']: now };" + NL
+     + "  plan.moves.forEach(m => { patch[base + 'lines/' + m.i + '/qty'] = m.to; });"],
+  ['…and a sheet asks the same way, it does not change either',
+   "      why: r.why, by: ME.email, at: now, via: 'sheet', stage: 'pending' };",
+   "      why: r.why, by: ME.email, at: now, via: 'sheet', stage: 'applied' };"],
+  ['one ask at a time on a line',
+   "    .find(a => a && a.id !== exceptId && obUC(a.sku) === obUC(sku) && soQtyStage(a) === 'pending');",
+   '    .find(a => false);'],
+  ['…but the one being answered does not block itself',
+   "    .find(a => a && a.id !== exceptId && obUC(a.sku) === obUC(sku) && soQtyStage(a) === 'pending');",
+   "    .find(a => a && obUC(a.sku) === obUC(sku) && soQtyStage(a) === 'pending');"],
+  /* ---- a change already made counts as approved ---- */
+  ['a record written before this existed reads as applied',
+   "const soQtyStage = a => String((a && a.stage) || 'applied');",
+   "const soQtyStage = a => String((a && a.stage) || 'pending');"],
+  /* ---- approving is what moves the figures ---- */
+  ['approving moves the sales order',
+   '  plan.moves.forEach(m => {' + NL + "    patch[base + 'lines/' + m.i + '/qty'] = m.to;" + NL
+     + "    patch[base + 'lines/' + m.i + '/previousQty'] = m.from;" + NL + '  });' + NL
+     + "  patch[base + 'qtyAdjustments/' + logId + '/stage'] = 'applied';",
+   "  patch[base + 'qtyAdjustments/' + logId + '/stage'] = 'applied';"],
+  ['…and the order book with it',
+   "  if (plan.book != null) patch['pt_orderBook/' + soBookId(o._id, a.sku) + '/qty'] = plan.to;",
    ''],
-  ['one that nobody has seen is news',
-   "const ordQtyUnseen = (orderNo, sku) => ordQtyAdj(orderNo, sku).filter(a => !a.seenAt);",
-   'const ordQtyUnseen = (orderNo, sku) => [];'],
-  ['…and one that somebody HAS seen is not',
-   "const ordQtyUnseen = (orderNo, sku) => ordQtyAdj(orderNo, sku).filter(a => !a.seenAt);",
+  ['…and the plan is worked out again at that moment',
+   '  const plan = soQtyPlan(o, a.sku, a.to, logId);' + NL + "  if (plan.err) return a.sku + ': ' + plan.err;",
+   "  const plan = { err: '', from: a.from, to: a.to, moves: [], book: null };"],
+  ['…in ONE write, so the two cannot drift apart',
+   "  if (plan.book != null) patch['pt_orderBook/' + soBookId(o._id, a.sku) + '/qty'] = plan.to;" + NL
+     + '  try { await ptPatch(patch); }' + NL
+     + "  catch (e) { return 'Not saved: ' + (e.message || e); }",
+   '  try { await ptPatch(patch); }' + NL
+     + "  catch (e) { return 'Not saved: ' + (e.message || e); }" + NL
+     + '  if (plan.book != null) {' + NL
+     + "    try { await ptPut('pt_orderBook/' + soBookId(o._id, a.sku) + '/qty', plan.to); }" + NL
+     + "    catch (e) { return 'Not saved: ' + (e.message || e); }" + NL
+     + '  }'],
+  ['what the line used to say is kept',
+   "    patch[base + 'lines/' + m.i + '/previousQty'] = m.from;",
+   ''],
+  ['and who asked, when and why is written down',
+   '  const log = { id: logId, sku: plan.sku, from: plan.from, to: plan.to, why: reason,',
+   '  const log = { id: logId, sku: plan.sku, from: plan.from, to: plan.to,'],
+  ['…and it is stamped with who approved it',
+   "  patch[base + 'qtyAdjustments/' + logId + '/decidedBy'] = ME.email;",
+   ''],
+  ['answering the same one twice is refused',
+   "  if (soQtyStage(a) !== 'pending') return 'That one has already been answered.';" + NL
+     + '  const plan = soQtyPlan(o, a.sku, a.to, logId);',
+   '  const plan = soQtyPlan(o, a.sku, a.to, logId);'],
+  /* ---- turning one down ---- */
+  ['turning one down needs a reason',
+   "  if (!note) return 'Say why it is being turned down — the sales team reads it on the order.';",
+   ''],
+  ['…and a rejected one is not applied',
+   "  const patch = { [base + 'stage']: 'rejected', [base + 'decidedBy']: ME.email,",
+   "  const patch = { [base + 'stage']: 'applied', [base + 'decidedBy']: ME.email,"],
+  /* ---- who may ---- */
+  ['answering needs the Order Console',
+   "const ordQtyCanApprove = () => !spIsVendor() && !!(ME.admin || (ME.tabs || []).includes('ord'));",
+   'const ordQtyCanApprove = () => true;'],
+  ['…and a printer never may',
+   "const ordQtyCanApprove = () => !spIsVendor() && !!(ME.admin || (ME.tabs || []).includes('ord'));",
+   "const ordQtyCanApprove = () => !!(ME.admin || (ME.tabs || []).includes('ord'));"],
+  /* ---- the screen ---- */
+  ['one waiting is one waiting, not every one ever made',
+   "const ordQtyUnseen = (orderNo, sku) => ordQtyAdj(orderNo, sku).filter(a => soQtyStage(a) === 'pending');",
    'const ordQtyUnseen = (orderNo, sku) => ordQtyAdj(orderNo, sku);'],
-  ['it is counted across the whole book',
-   '  ordQtyAdjIndex().forEach(l => l.forEach(a => { if (!a.seenAt) out.push(a); }));',
-   ''],
-  ['the sidebar count says how many are waiting',
-   "  const el = $('ordAdjBadge'); if (!el) return;" + NL + '  const n = ordQtyUnseenAll().length;',
-   "  const el = $('ordAdjBadge'); if (!el) return;" + NL + '  const n = 0;'],
-  ['saying you have seen it is actually written, not just shown',
-   "  const patch = { [base + 'seenAt']: now, [base + 'seenBy']: ME.email };" + NL
-     + '  try { await ptPatch(patch); }',
-   "  const patch = { [base + 'seenAt']: now, [base + 'seenBy']: ME.email };" + NL
-     + '  try { 0; }'],
-  ['…with who said it, not just when',
-   "  const patch = { [base + 'seenAt']: now, [base + 'seenBy']: ME.email };",
-   "  const patch = { [base + 'seenAt']: now };"],
-  /* "The screen is built from the patch, not from a second copy" has no break of its own: swapping
-   * patch[base + 'seenAt'] for `now` is the same value by definition. The property is what makes the
-   * break above bite — drop seenBy from the patch and the screen loses it too, which is exactly what
-   * an independent copy would have hidden. */
-  ['the line says the quantity moved',
-   '      + ordQtyAdj(r.orderNo, r.sku).slice(0, 3).map(a => `<div><span class="pill"`',
-   '      + [].slice(0, 3).map(a => `<div><span class="pill"`'],
-  ['…and offers the chance to say it was seen',
-   '        + (a.seenAt ? \'\' : ` <a href="#" data-ordseen="${esc(a.orderNo)}|${esc(a.id)}" style="font-size:10.5px">Seen</a>`)',
-   "        + ''"],
-  ['…but stops offering once it has been',
-   '        + (a.seenAt ? \'\' : ` <a href="#" data-ordseen="${esc(a.orderNo)}|${esc(a.id)}" style="font-size:10.5px">Seen</a>`)',
-   '        + ` <a href="#" data-ordseen="${esc(a.orderNo)}|${esc(a.id)}" style="font-size:10.5px">Seen</a>`'],
-  ['the top of the screen says it, not only the row',
-   "    ? '<b>' + nf(unseen.length) + ' quantit' + (unseen.length > 1 ? 'ies were' : 'y was')" + NL
-     + "      + ' changed on an order, and nobody here has said they have seen it</b> — '",
-   "    ? ''" + NL + "      + ''"],
+  ['the line says a change has been ASKED for while it waits',
+   "          + (st === 'pending' ? 'qty asked ' : (st === 'rejected' ? 'qty refused ' : 'qty ')) + ordQtyPill(a) + '</span>'",
+   "          + 'qty ' + ordQtyPill(a) + '</span>'"],
+  ['…and offers a way to answer it',
+   '          + (st === \'pending\' ? \' <a href="#" data-ordqtyopen style="font-size:10.5px">Answer</a>\' : \'\')',
+   "          + ''"],
+  ['the top of the screen offers the window',
+   '    ? \'<button data-ordqtyopen style="padding:3px 10px;font-size:12px;margin-right:8px">\'',
+   "    ? '<span>'"],
   ['…and the line count is not lost with it',
    '    + esc(`${nf(rows.length)} of ${nf(all.length)} line(s)`',
-   "    + esc(``"],
-  ['it has a tile of its own',
-   "  qtyChanged: { label: 'Quantity changed', of: r => ordQtyUnseen(r.orderNo, r.sku).length },",
-   ''],
+   '    + esc(``'],
 ];
 let bad = 0;
 for (const [what, from, to] of breaks) {
