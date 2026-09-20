@@ -12805,6 +12805,8 @@ function mdbValidate(v, existingSku) {
 }
 
 const YESNO = ['yes', 'no'];
+/** The Fabric Type master, with whatever this row already says kept at the top of it. */
+const fabListOr = cur => [...new Set([String(cur || '').trim()].filter(Boolean).concat(cutFabrics()))];
 /** The dialog's fields, shared by add and edit so the two cannot drift. */
 function mdbFields(r) {
   const m = (k, d) => (r ? (r[k] == null ? d : r[k]) : d);
@@ -12822,7 +12824,11 @@ function mdbFields(r) {
       options: [''].concat(listOr('colour', m('color', ''))) },
     { key: 'size', label: 'Size', type: 'select', value: m('size', ''),
       options: [''].concat(listOr('size', m('size', ''))) },
-    { key: 'fabric', label: 'Fabric', value: m('fabric', '') },
+    /* FROM THE FABRIC TYPE MASTER — the same list, by the same rule, that Cutting picks from. A
+     * spelling typed here used to become a fabric nobody had agreed to, with no width and no ledger.
+     * The row's own spelling is kept at the top of the list so an edit can never change its cloth. */
+    { key: 'fabric', label: 'Fabric', type: 'select', value: m('fabric', ''),
+      options: [''].concat(fabListOr(m('fabric', ''))) },
     { key: 'packOf', label: 'Pack of', value: m('packOf', '') },
     { key: 'consumption', label: 'Consumption (m)', type: 'number', step: '0.01', value: m('consumption', '') },
     { key: 'cuttingRequired', label: 'Cutting required', type: 'select', value: yn(m('cuttingRequired', true)), options: YESNO },
@@ -12831,7 +12837,9 @@ function mdbFields(r) {
     { key: 'zipQty', label: 'Zips per piece', type: 'number', step: '1', min: 1, value: m('zipQty', '') },
     { key: 'isRuffle', label: 'Ruffle', type: 'select', value: yn(m('isRuffle', false)), options: YESNO },
     { key: 'ruffleMeters', label: 'Ruffle fabric consumption (m)', type: 'number', step: '0.01', value: m('ruffleMeters', '') },
-    { key: 'ruffleFabric', label: 'Ruffle fabric', value: m('ruffleFabric', '') },
+    /* The ruffle cloth is written onto the fabric ledger as it stands, so it is picked too. */
+    { key: 'ruffleFabric', label: 'Ruffle fabric', type: 'select', value: m('ruffleFabric', ''),
+      options: [''].concat(fabListOr(m('ruffleFabric', ''))) },
     { key: 'fillerFabricRequired', label: 'Filler fabric', type: 'select', value: yn(m('fillerFabricRequired', false)), options: YESNO },
     { key: 'standardFillingQty', label: 'Standard filling qty', type: 'number', step: '0.01', value: m('standardFillingQty', '') },
     { key: 'inventoryValuationPrice', label: 'Valuation price', type: 'number', step: '0.01', value: m('inventoryValuationPrice', '') },
