@@ -86,6 +86,12 @@ const rules = {
 
   pt_vendorOrders: { '.write': STAFF, $code: { '.read': OWN_BRANCH, '.write': OWN_BRANCH } },
 
+  /* WHAT A PRINTER SAYS IS ALREADY ON THEIR FLOOR, per size, so the factory stops sending cloth they
+   * have. Their own branch and nobody else's, exactly as their orders are — one printer must not be
+   * able to read, still less edit, what another one is holding. It comes off what gets sent, so it
+   * is a claim the office has to be able to see: staff read and write the lot. */
+  pt_rfdStock: { '.write': STAFF, $code: { '.read': OWN_BRANCH, '.write': OWN_BRANCH } },
+
   pt_baseData: staffIndexed(['sku', 'empName', 'issueDate', 'frozen']),
   pt_cuttingData: staffIndexed(['sku', 'orderNo', 'cutDate']),
   pt_pressInventory: staffIndexed(['sku', 'orderNo', 'entryDate']),

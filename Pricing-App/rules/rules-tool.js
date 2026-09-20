@@ -153,10 +153,12 @@ const NODES = ['pt_perms', 'pt_payoutFreezes', 'pt_printerRates', 'pt_rateList',
 let APPROVED_ROW = '';
 function expectWrite(who, node, mode) {
   if (who.kind === 'nobody') return false;
-  if (who.kind === 'vendor') return node === 'pt_vendorOrders/' + who.code;
+  /* A printer writes their own branch of either node, and nothing else anywhere. */
+  if (who.kind === 'vendor') return node === 'pt_vendorOrders/' + who.code || node === 'pt_rfdStock/' + who.code;
   /* PHASE 3: signed in is not enough. Anybody can sign themselves up; only rights on record make staff. */
   if ((mode === 'p3' || mode === 'p4') && !who.p) return false;
-  if (node.indexOf('pt_vendorOrders/') === 0) return true;          // staff write every vendor branch
+  // staff write every vendor branch of both vendor-keyed nodes
+  if (node.indexOf('pt_vendorOrders/') === 0 || node.indexOf('pt_rfdStock/') === 0) return true;
   if (mode === 'p0') return true;                                    // before any of this: any staff, anything
   const p = who.p || { admin: false, r: {}, t: {} };
   if (mode === 'p2' || mode === 'p3' || mode === 'p4') {
@@ -196,8 +198,13 @@ async function check(mode) {
   people.forEach(w => {
     const as = w.kind === 'nobody' ? null : { uid: 'ruletest', token: { email: w.email } };
     const nodes = NODES.slice();
-    if (w.kind === 'vendor') { nodes.push('pt_vendorOrders/' + w.code); if (w.other) nodes.push('pt_vendorOrders/' + w.other); }
-    else nodes.push('pt_vendorOrders/' + vbe[v1].code);
+    /* A PRINTER'S OWN BRANCH, AND SOMEBODY ELSE'S. Both nodes are keyed by vendor code and both are
+     * written by the printer themselves, so "can they write their own" and "can they write another
+     * printer's" are the two questions that matter, and neither is asked by the bare node name. */
+    if (w.kind === 'vendor') {
+      nodes.push('pt_vendorOrders/' + w.code, 'pt_rfdStock/' + w.code);
+      if (w.other) nodes.push('pt_vendorOrders/' + w.other, 'pt_rfdStock/' + w.other);
+    } else nodes.push('pt_vendorOrders/' + vbe[v1].code, 'pt_rfdStock/' + vbe[v1].code);
     if (APPROVED_ROW) nodes.push(APPROVED_ROW);
     nodes.forEach(n => jobs.push({ w, n, as, what: 'write', want: expectWrite(w, n, mode) }));
     /* And reading: staff read everything, a vendor reads its own branch only, nobody reads nothing. */

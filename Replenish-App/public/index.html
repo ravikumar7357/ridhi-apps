@@ -24465,6 +24465,14 @@ async function ensureVp() {
       VP.name = name;
       // Only this vendor's branch is ever asked for. Reading the node would hand over every vendor.
       VP.rows = code ? ptList(await ptGet('pt_vendorOrders/' + code)) : [];
+      /* WHAT THIS PRINTER HAS SAID IS ON THEIR FLOOR. Their branch and nobody else's, for the same
+       * reason. A failed read leaves the boxes empty and the requirement at its full size, which is
+       * the safe way round — it asks for cloth that may not be needed rather than skipping cloth
+       * that is. */
+      if (code) {
+        try { RFD.stock = Object.assign({}, RFD.stock || {}, { [obUC(code)]: (await ptGet('pt_rfdStock/' + code)) || {} }); }
+        catch (e) { RFD.stock = RFD.stock || {}; }
+      }
       /* The pictures. This account cannot reach the backend that finds them, so it reads the ones
        * somebody with that access has already looked up. */
       try { await ptImgShared(); } catch (e) { /* the portal works without them */ }
@@ -25594,22 +25602,37 @@ function vpRfdRender(matched, nag) {
    *
    * FOUR COLUMNS. The three that were a dash on every row are gone: what has been asked for is said
    * under the size when there is something to say, and nowhere when there is not. */
-  const rowsP = pcsLines.map(x => {
-    const cap = rfdPcsAllowed(o, x.sku);
-    const got = rfdSentPcsFor(o, x.sku);
-    const shortOf = rfdRound(Math.max(0, cap.need - got));
-    return `<tr><td style="text-align:left">${esc(x.size || x.sku)}`
-      + `<div class="muted" style="font-size:10.5px">${esc([x.what, x.colour].filter(Boolean).join(' · '))}</div>`
-      + (cap.used ? `<div style="font-size:10.5px;color:#7f6000">${nf(cap.used)} pcs asked for</div>` : '')
+  /* ONE ROW PER SIZE. Thirteen colours of a 60X60 tablecloth are thirteen sums to answer one
+   * question, and the answer is the same cloth — the colour is printed on afterwards. */
+  const sizes = rfdSizeGroups(o);
+  const rowsP = sizes.map(g => {
+    const got = g.sent;
+    const shortOf = rfdRound(Math.max(0, g.pieces - got - g.stock));
+    const elsewhere = rfdRound(Math.max(0, g.pool - g.stock));
+    const said = rfdStockRow(rfdVendorOf(o), g.stockKey);
+    return `<tr><td style="text-align:left">${esc(g.size || g.key)}`
+      + `<div class="muted" style="font-size:10.5px">${esc(g.what)}${g.colours.length
+        ? ' · <span title="' + esc(g.colours.join(', ')) + '">' + nf(g.colours.length) + ' colour'
+          + (g.colours.length > 1 ? 's' : '') + '</span>' : ''}${
+        g.fabrics.length ? ' · ' + esc(g.fabrics.join(' / ')) : ''}</div>`
+      + (g.used ? `<div style="font-size:10.5px;color:#7f6000">${nf(g.used)} pcs asked for</div>` : '')
       + '</td>'
-      + `<td class="num">${nf(cap.need)} pcs</td>`
-      + `<td class="num" style="font-weight:700;color:${got >= cap.need ? '#166534' : (got ? '#7f6000' : 'var(--muted)')}">`
-      + `${got ? nf(got) + ' pcs' : '&mdash;'}</td>`
+      + `<td class="num">${nf(g.pieces)} pcs</td>`
+      /* WITH YOU IS A BOX NOW. What was sent against this order is said under it, because it is a
+       * fact and the box is a claim, and the two should not be added up by eye. */
+      + '<td class="num">'
+      + `<input data-vprfd-stock="${esc(o.id)}|${esc(g.stockKey)}" type="number" min="0" step="1"`
+      + ` value="${g.pool || ''}" placeholder="0" style="width:88px;text-align:right"`
+      + ` title="How many of these you already have. Yours to keep up to date — it comes off what is left to ask for, on this order and the next one.">`
+      + (got ? `<div style="font-size:10.5px;color:#166534">${nf(got)} pcs sent to you</div>` : '')
+      + (elsewhere ? `<div style="font-size:10.5px;color:#7f6000" title="This order can only use what it still needs. The rest of your pile is counted on your other open orders.">${nf(elsewhere)} counted elsewhere</div>` : '')
+      + (said && said.at ? `<div class="muted" style="font-size:10px">you said, ${esc(ptIsoDate(said.at) || '')}</div>` : '')
+      + '</td>'
       /* ONE COLUMN, THREE ANSWERS. There is something left to ask for, or it has all been asked
        * for and is on its way, or it is on the floor. Three separate columns said the same thing in
        * a row of dashes. */
-      + `<td class="num"${cap.left > 0 ? ' style="color:var(--bad);font-weight:700"' : ''}>`
-      + `${cap.left > 0 ? nf(cap.left) + ' pcs to ask for'
+      + `<td class="num"${g.left > 0 ? ' style="color:var(--bad);font-weight:700"' : ''}>`
+      + `${g.left > 0 ? nf(g.left) + ' pcs to ask for'
         : (shortOf > 0 ? '<span style="color:#7f6000">' + nf(shortOf) + ' pcs on the way</span>'
         : '<span style="color:#166534">all here</span>')}</td></tr>`;
   }).join('');
@@ -25632,13 +25655,13 @@ function vpRfdRender(matched, nag) {
 
   const head = (what, unit) => `<table class="xl" style="margin-bottom:10px"><thead><tr>
     <th>${what}</th><th class="num">On this order</th>
-    <th class="num" title="Already sent to you against this order.">With you</th>
+    <th class="num" title="What you already have. Type it in — it comes off what is left to ask for, here and on your later orders. Sent against this order is shown underneath.">With you</th>
     <th class="num" title="What is left to ask for, or what has been asked for and is still to arrive.">Still to ask for</th>
   </tr></thead><tbody>`;
 
   const unruled = pcsLines.filter(x => !x.ruled);
-  const pcsOpts = pcsLines.map(x => `<option value="${esc(x.sku)}">`
-    + `${esc(x.size || x.sku)}${x.colour ? ' · ' + esc(x.colour) : ''}</option>`).join('');
+  const pcsOpts = sizes.map(g => `<option value="${esc(g.stockKey)}">`
+    + `${esc(g.size || g.key)} · ${esc(g.what)}${g.left > 0 ? ' — ' + nf(g.left) + ' left' : ''}</option>`).join('');
   const fabOpts = fabLines.map(x => `<option value="${esc(x.fabric)}">${esc(x.fabric)}</option>`).join('');
 
   /* What has been asked, and where each one has got to. Only drawn once there is something in it. */
@@ -25679,6 +25702,7 @@ function vpRfdRender(matched, nag) {
 
       <details style="margin-top:6px">
         <summary class="muted" style="font-size:12px;cursor:pointer">Ask for one size or one fabric only</summary>
+        <div class="muted" style="font-size:11.5px;margin-top:6px">A size is asked for once. It is shared out over that size's colours for you, in proportion to what each still needs.</div>
         <div style="margin-top:8px">
           ${pcsOpts ? `<div class="toolbar" style="margin-bottom:6px">
             <select data-vprfd-sku="${esc(o.id)}" style="flex:0 0 260px">${pcsOpts}</select>
@@ -25722,6 +25746,20 @@ function vpRfdRender(matched, nag) {
   ptImgFill([], false, ptImgPatch);
 }
 
+/* WHAT IS ALREADY WITH YOU, saved the moment the printer tabs out of the box. A button beside every
+ * size would be another thing to forget to press, and forgetting this one means the factory keeps
+ * sending cloth they already have. */
+$('vpBody').addEventListener('change', async e => {
+  const stock = e.target.closest('[data-vprfd-stock]');
+  if (!stock) return;
+  const [oid, key] = stock.getAttribute('data-vprfd-stock').split('|');
+  const o = (VP.rows || []).find(x => x && x.id === oid); if (!o) return;
+  const err = await rfdStockSave(o, key, String(stock.value).trim());
+  $('vpMsg').className = err ? 'err' : 'muted';
+  $('vpMsg').textContent = err || 'Saved. It comes off what is left to ask for, here and on your other orders.';
+  if (!err) renderVp();
+});
+
 $('vpBody').addEventListener('click', async e => {
   const ask = e.target.closest('[data-vprfd-ask]');
   if (ask) {
@@ -25739,7 +25777,7 @@ $('vpBody').addEventListener('click', async e => {
     const id = askp.getAttribute('data-vprfd-askp');
     const o = (VP.rows || []).find(x => x && x.id === id); if (!o) return;
     const g = k => document.querySelector('[data-vprfd-' + k + '="' + id + '"]');
-    const err = await rfdSubmitPcs(o, (g('sku') || {}).value, (g('p') || {}).value, (g('pn') || {}).value);
+    const err = await rfdSubmitSize(o, (g('sku') || {}).value, (g('p') || {}).value, (g('pn') || {}).value);
     if (err) { $('vpMsg').className = 'err'; $('vpMsg').textContent = err; return; }
     renderVp();
     const box = document.querySelector('[data-vprfd-p="' + id + '"]'); if (box) box.value = '';
@@ -33000,7 +33038,7 @@ $('vrqExport').onclick = () => {
  * gets an approval queue, which is exactly what he asked for.
  */
 
-let RFD = { decisions: null, err: '', busy: false, at: '', shown: [] };
+let RFD = { decisions: null, err: '', busy: false, at: '', shown: [], stock: {} };
 
 /* ---- who may do what ----
  *
@@ -33155,6 +33193,201 @@ function rfdPieceLines(o) {
     .sort((a, b) => b.pieces - a.pieces);
 }
 const rfdPieceOf = (o, sku) => rfdPieceLines(o).find(x => obUC(x.sku) === obUC(sku)) || null;
+
+/* ================= A SIZE, NOT A SIZE PER COLOUR =================
+ *
+ * A printer asks for blank cloth cut to a size; the colour is what they are about to print on it.
+ * Listing 60X60 Square Tablecloth once per colour asked somebody to do thirteen sums to answer one
+ * question. These collapse the order to one row per size. The stored request is still per SKU.
+ */
+const rfdSizeKey = x => [String((x && x.what) || ''), String((x && x.size) || '')]
+  .map(v => v.trim().toLowerCase()).join(' | ');
+/** The same group as a key a database will take: no dots, slashes, brackets or hashes. */
+const rfdStockKey = x => rfdSizeKey(x).toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'X';
+
+/**
+ * The order's pieces by size — BEFORE the declared pile is counted.
+ *
+ * The pile is allocated across orders by looking at what each one still needs, which is worked out
+ * from here, so this one has to be answerable without it.
+ */
+function rfdSizeRaw(o) {
+  const by = new Map();
+  rfdPieceLines(o).forEach(x => {
+    const k = rfdSizeKey(x);
+    if (!by.has(k)) by.set(k, { key: k, stockKey: rfdStockKey(x), what: x.what, size: x.size,
+      skus: [], pieces: 0, fabrics: [], colours: [], ruled: true });
+    const g = by.get(k);
+    g.skus.push(x); g.pieces += x.pieces;
+    if (!x.ruled) g.ruled = false;
+    if (x.fabric && g.fabrics.indexOf(x.fabric) < 0) g.fabrics.push(x.fabric);
+    if (x.colour && g.colours.indexOf(x.colour) < 0) g.colours.push(x.colour);
+  });
+  return [...by.values()].map(g => Object.assign(g, {
+    pieces: rfdRound(g.pieces),
+    used: rfdRound(g.skus.reduce((a, x) => a + rfdUsedPcs(o, x.sku), 0)),
+    sent: rfdRound(g.skus.reduce((a, x) => a + rfdSentPcsFor(o, x.sku), 0)),
+  })).sort((a, b) => b.pieces - a.pieces);
+}
+
+/** The order's sizes with the pile counted in — what the screen shows. */
+function rfdSizeGroups(o) {
+  return rfdSizeRaw(o).map(g => {
+    const stock = rfdStockHere(o, g.stockKey);
+    return Object.assign(g, { stock, pool: rfdStockOf(rfdVendorOf(o), g.stockKey),
+      left: rfdRound(Math.max(0, g.pieces - g.used - stock)) });
+  });
+}
+const rfdSizeOf = (o, key) => rfdSizeGroups(o).find(g => g.key === key || g.stockKey === key) || null;
+
+const rfdVendorOf = o => obUC((o && o.vendorCode) || VP.code || '');
+/** What a printer has said is with them, per size. Their own branch in the portal, the lot in the office. */
+const rfdStockOf = (code, stockKey) => {
+  const r = ((RFD.stock || {})[obUC(code)] || {})[stockKey];
+  const n = r ? parseFloat(r.pcs) : 0;
+  return isFinite(n) && n > 0 ? Math.round(n) : 0;
+};
+const rfdStockRow = (code, stockKey) => ((RFD.stock || {})[obUC(code)] || {})[stockKey] || null;
+
+/** The orders of one printer that can be asked against, oldest first — the order the pile is shared in. */
+const rfdStockOrders = code => {
+  const src = (VP.code && obUC(VP.code) === obUC(code) && VP.rows)
+    ? VP.rows : (VO.rows || []).filter(o => o && obUC(o.vendorCode) === obUC(code));
+  return (src || []).filter(o => o && ['Received', 'Cancelled'].indexOf(o.status || 'Placed') < 0)
+    .slice().sort((a, b) => String(a.orderNo || a.id).localeCompare(String(b.orderNo || b.id)));
+};
+
+/**
+ * HOW MUCH OF THE PILE THIS ORDER MAY COUNT.
+ *
+ * 39 size groups sit on two or three open orders of the same printer. One declaration counted
+ * against each of them would be the same cloth counted three times, and the factory would stop
+ * sending against requirements that are not in fact met. So the orders take from it oldest first,
+ * each up to what it still needs, and what is left over goes to the next one.
+ */
+function rfdStockHere(o, stockKey) {
+  const code = rfdVendorOf(o);
+  let pool = rfdStockOf(code, stockKey);
+  if (!(pool > 0) || !o) return 0;
+  let mine = 0;
+  rfdStockOrders(code).forEach(x => {
+    if (pool <= 0) return;
+    const g = rfdSizeRaw(x).find(y => y.stockKey === stockKey);
+    if (!g) return;
+    const take = Math.min(pool, Math.max(0, g.pieces - g.used));
+    pool -= take;
+    if (x.id === o.id) mine = take;
+  });
+  return rfdRound(mine);
+}
+
+/**
+ * SPLIT A WHOLE NUMBER ACROSS PARTS AND LOSE NOTHING TO ROUNDING.
+ *
+ * Every part gets its share of the total in proportion to how much room it has, and the pieces that
+ * the fractions leave over go to the largest remainders first. The result always adds up to the
+ * total — or to the room available, when that is smaller — because half a tablecloth is not
+ * something anybody can cut, and thirteen roundings that each lose a piece lose thirteen pieces.
+ */
+function rfdSpread(total, weights) {
+  const t = Math.max(0, Math.round(parseFloat(total) || 0));
+  let w = (weights || []).map(x => Math.max(0, parseFloat(x) || 0));
+  const out = w.map(() => 0);
+  if (!t || !w.length) return out;
+  /* NOTHING LEFT ANYWHERE AND STILL ASKING. Asking beyond what the order covers is allowed — it goes
+   * to the office to approve — so dividing by a total of nothing must share the extra out, not throw
+   * it away. */
+  let sum = w.reduce((a, b) => a + b, 0);
+  if (!sum) { w = w.map(() => 1); sum = w.length; }
+  const exact = w.map(x => (x / sum) * t);
+  exact.forEach((v, i) => { out[i] = Math.floor(v); });
+  let left = t - out.reduce((a, b) => a + b, 0);
+  /* The pieces the fractions leave over go to the largest remainders first, so the result adds up to
+   * exactly what was asked for. Thirteen colours each rounded down lose thirteen pieces. */
+  w.map((x, i) => ({ i, rem: exact[i] - Math.floor(exact[i]) }))
+    .sort((a, b) => b.rem - a.rem || w[b.i] - w[a.i] || a.i - b.i)
+    .forEach(x => { if (left > 0) { out[x.i]++; left--; } });
+  return out;
+}
+
+/** One SKU's share of its size's pile, spread across the colours by what each still needs. */
+function rfdStockForSku(o, sku) {
+  const line = rfdPieceOf(o, sku);
+  if (!line) return 0;
+  const key = rfdStockKey(line);
+  const here = rfdStockHere(o, key);
+  if (!(here > 0)) return 0;
+  const g = rfdSizeRaw(o).find(x => x.stockKey === key);
+  if (!g) return 0;
+  const i = g.skus.findIndex(x => obUC(x.sku) === obUC(sku));
+  if (i < 0) return 0;
+  return rfdSpread(here, g.skus.map(x => Math.max(0, x.pieces - rfdUsedPcs(o, x.sku))))[i];
+}
+
+/**
+ * Ask for a whole size at once, spread across its colours.
+ *
+ * The REQUEST is still one per SKU, with its own colour and its own fabric, because that is what the
+ * office approves, sends and counts against. Only the typing is by size.
+ */
+async function rfdSubmitSize(o, key, pieces, note) {
+  if (!o) return 'That order is no longer here.';
+  const g = rfdSizeOf(o, key);
+  if (!g) return 'Pick which size you need.';
+  const want = parseFloat(pieces) || 0;
+  if (!(want > 0)) return 'How many pieces do you need?';
+  if (Math.round(want) !== want) return 'Pieces have to be a whole number.';
+  /* SPREAD OVER WHAT EACH COLOUR STILL NEEDS. Asking for more than the size needs is allowed — it
+   * goes to the office to approve — so the room is stretched to fit rather than the ask trimmed. */
+  const rooms = g.skus.map(x => Math.max(0, x.pieces - rfdUsedPcs(o, x.sku) - rfdStockForSku(o, x.sku)));
+  /* SHARED OUT BY WHAT EACH COLOUR STILL NEEDS — or, when none of them needs anything and the
+   * printer is asking beyond the order anyway, by how big each colour is. */
+  const share = rfdSpread(want, rooms.some(x => x > 0) ? rooms : g.skus.map(x => x.pieces));
+  const asks = [];
+  g.skus.forEach((x, i) => {
+    if (!(share[i] > 0)) return;
+    asks.push({ unit: 'pcs', pieces: share[i], sku: x.sku, size: x.size, what: x.what,
+      colour: x.colour, fabric: x.fabric, metres: x.per ? rfdRound(share[i] * x.per) : 0 });
+  });
+  if (!asks.length) return 'There is nothing left to ask for on that size.';
+  const recs = asks.map((a, i) => rfdRecord(o, a, note, i + 1));
+  const base = 'pt_vendorOrders/' + (VP.code || o.vendorCode) + '/' + o.id + '/rfdReqs/';
+  const patch = {};
+  recs.forEach(r => { patch[base + r.id] = r; });
+  try { await ptPatch(patch); }
+  catch (e) { return 'Not saved: ' + (e.message || e); }
+  rfdKeep(o, recs);
+  return '';
+}
+
+/**
+ * The printer's own count of what is on their floor, per size.
+ *
+ * Their own branch and nobody else's. It is a DECLARATION, not a receipt — it is stamped with who
+ * said it and when, and the office sees both, because it comes off what the factory will send.
+ */
+async function rfdStockSave(o, stockKey, pcs) {
+  const code = rfdVendorOf(o);
+  if (!code) return 'This sign-in is not linked to a printer.';
+  const g = rfdSizeOf(o, stockKey);
+  const n = parseFloat(pcs);
+  if (pcs !== '' && (!isFinite(n) || n < 0)) return 'How many pieces do you have? A number, or leave it empty.';
+  if (isFinite(n) && Math.round(n) !== n) return 'Pieces have to be a whole number.';
+  const path = 'pt_rfdStock/' + code + '/' + stockKey;
+  try {
+    if (pcs === '' || !isFinite(n) || n === 0) await ptDelete(path);
+    else await ptPut(path, { pcs: Math.round(n), what: (g && g.what) || '', size: (g && g.size) || '',
+      by: ME.email, at: new Date().toISOString() });
+  } catch (e) { return 'Not saved: ' + (e.message || e); }
+  const all = Object.assign({}, RFD.stock || {});
+  const mine = Object.assign({}, all[code] || {});
+  if (pcs === '' || !isFinite(n) || n === 0) delete mine[stockKey];
+  else mine[stockKey] = { pcs: Math.round(n), what: (g && g.what) || '', size: (g && g.size) || '',
+    by: ME.email, at: new Date().toISOString() };
+  all[code] = mine;
+  RFD.stock = all;
+  return '';
+}
 /** How a piece ask reads on a screen: "39 pcs of 60X60". */
 const rfdPcsTxt = r => (r && r.pieces > 0)
   ? nf(rfdRound(r.pieces)) + ' pcs' + (r.size ? ' of ' + r.size : (r.sku ? ' of ' + r.sku : '')) : '';
@@ -33222,12 +33455,17 @@ function rfdAllowed(o, fabric, before) {
  * The third argument behaves as it does on rfdAllowed: pass a request to ask what was left when IT
  * was raised, pass nothing to ask what is left for a new one.
  */
-function rfdPcsAllowed(o, sku, before) {
-  const line = rfdPieceOf(o, sku);
-  const need = line ? line.pieces : 0;
+/**
+ * How many pieces of one size have already been asked for on this order.
+ *
+ * Lifted out of rfdPcsAllowed so the size groups can ask for it WITHOUT asking for "what is left" —
+ * which now depends on the declared pile, which is worked out from the size groups. Calling the
+ * whole thing there would have been a loop with no bottom.
+ */
+function rfdUsedPcs(o, sku, before) {
   const cut = before && typeof before === 'object' ? rfdSeq(before) : null;
   const exceptId = before && typeof before === 'string' ? before : (before && before.id) || '';
-  const used = rfdReqsOf(o).reduce((a, r) => {
+  return rfdReqsOf(o).reduce((a, r) => {
     if (rfdUnit(r) !== 'pcs' || obUC(r.sku) !== obUC(sku)) return a;
     if (exceptId && r.id === exceptId) return a;
     if (cut && rfdSeq(r) >= cut) return a;
@@ -33235,7 +33473,19 @@ function rfdPcsAllowed(o, sku, before) {
     if (d && d.stage === 'rejected') return a;
     return a + (parseFloat(r.pieces) || 0);
   }, 0);
-  return { need: rfdRound(need), used: rfdRound(used), left: rfdRound(Math.max(0, need - used)) };
+}
+
+function rfdPcsAllowed(o, sku, before) {
+  const line = rfdPieceOf(o, sku);
+  const need = line ? line.pieces : 0;
+  const used = rfdUsedPcs(o, sku, before);
+  /* WHAT THE PRINTER SAYS IS ALREADY WITH THEM comes off what is left to ask for — but only when we
+   * are asked about a NEW request. `before` means "what was left at the moment that one was raised",
+   * and that answer decided whether it was agreed on the spot; a count typed today must not reach
+   * back and turn an agreed request into one that needs approval. */
+  const stock = before ? 0 : rfdStockForSku(o, sku);
+  return { need: rfdRound(need), used: rfdRound(used), stock: rfdRound(stock),
+    left: rfdRound(Math.max(0, need - used - stock)) };
 }
 
 /* ---- the decision, which a printer cannot write ---- */
@@ -33567,6 +33817,10 @@ async function ensureRfd(force) {
     RFD.busy = true; renderRfd();
     try { RFD.decisions = (await ptGet('pt_rfdDecisions')) || {}; RFD.err = ''; }
     catch (e) { RFD.err = e.message || String(e); RFD.decisions = RFD.decisions || {}; }
+    /* AND WHAT EVERY PRINTER SAYS IS ON THEIR FLOOR. The office has to see it: it is a claim, it
+     * comes off what gets sent, and it is stamped with who said it and when. */
+    try { RFD.stock = (await ptGet('pt_rfdStock')) || {}; }
+    catch (e) { RFD.stock = RFD.stock || {}; }
     /* The requirements themselves live inside the vendor orders, so there is nothing to show until
      * those are loaded. */
     if (VO.rows === null || force) { VO.rows = null; try { await ensureVo(); } catch (e) { /* shown as none */ } }
