@@ -14374,7 +14374,9 @@ function ordWaitingAt(r) {
   const fin = ordFgAt(r.orderNo, r.sku) || { store: 0, fbaOpen: 0, in: 0 };
   const tail = fin.fbaOpen ? ' · ' + nf(fin.fbaOpen) + ' waiting to ship to FBA'
     : (fin.store ? ' · ' + nf(fin.store) + ' in store' : '');
-  if (!r.open) return 'Complete' + tail;
+  /* HANDED OVER IS THE END OF A SHOPIFY LINE, and it says so by name — "Complete" on its own leaves you
+   * wondering whether the goods actually went anywhere. */
+  if (!r.open) return (r.handedAt ? 'Handed over' : 'Complete') + tail;
   const v = ordVendorOf(r.orderNo, r.sku);
   const vGiven = r.printer ? r.qty : (v ? v.given : 0), vBack = r.printer ? r.printed : (v ? v.back : 0);
   if (vGiven > vBack && (r.cutReq ? r.cut < vGiven : r.received < vGiven)) return 'Vendor — ' + nf(vGiven - vBack) + ' to come back';
@@ -14382,10 +14384,10 @@ function ordWaitingAt(r) {
   if (r.issued < r.qty) return 'Issue — ' + nf(r.qty - r.issued) + ' not given to a karigar';
   if (r.received < r.issued) return 'Karigar — ' + nf(r.issued - r.received) + ' out';
   if (r.pressed < r.received) return 'Press — ' + nf(r.received - r.pressed) + ' to press';
-  /* Anything past here can only be reached by figures that contradict each other — a line is open only
-   * while pressed < ordered, and getting this far means pressed >= ordered. Saying where the pieces are
-   * is still the most useful answer if it ever happens. */
-  return tail ? 'Store —' + tail.replace(' · ', ' ') : 'Store / dispatch';
+  /* ONLY A SHOPIFY LINE CAN BE HERE. Every other kind is open only while pressed < ordered, so getting
+   * past the press check means it is not open and this function returned at the top. A Shopify line
+   * stays open until the shipping team takes it, which is exactly what it is waiting for. */
+  return 'Ready to hand over to shipping' + tail;
 }
 
 /**
@@ -14400,16 +14402,23 @@ function ordJourney(orderNo) {
       cut: r.cutReq ? r.cut : null, issued: r.issued, received: r.received, qc: q ? q.ok : null, pressed: r.pressed,
       store: (ordFgAt(r.orderNo, r.sku) || {}).store || 0, fba: (ordFgAt(r.orderNo, r.sku) || {}).fba || 0, v }; };
   const S = rows.map(stage), sum = f => S.reduce((t, x) => t + (x[f] || 0), 0);
+  /* A SHOPIFY ORDER ENDS AT THE SHIPPING TABLE, not at Amazon, and it does not normally pass through the
+   * store — so those two tiles are shown only when they hold something, and the handover takes their
+   * place. Tiles for stages an order never has are noise on the one screen meant to answer "where is it". */
+  const shop = rows.some(r => r.src === 'SHP');
+  const handed = rows.filter(r => r.handedAt).reduce((t, r) => t + r.qty, 0);
   const tiles = [['Ordered', sum('ordered')], ['With vendor', sum('given')], ['Back from vendor', sum('back')], ['Cut', sum('cut')],
-    ['Issued', sum('issued')], ['Received', sum('received')], ['QC passed', sum('qc')], ['Pressed', sum('pressed')],
-    ['In store', sum('store')], ['To FBA', sum('fba')]];
+    ['Issued', sum('issued')], ['Received', sum('received')], ['QC passed', sum('qc')], ['Pressed', sum('pressed')]]
+    .concat(shop && !sum('store') && !sum('fba') ? [] : [['In store', sum('store')], ['To FBA', sum('fba')]])
+    .concat(shop ? [['Handed over', handed]] : []);
   const strip = '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">' + tiles.map(([l, n], i) =>
     `<div style="flex:1 1 92px;border:1px solid var(--line);border-radius:10px;padding:7px 9px;text-align:center">`
     + `<div style="font-size:17px;font-weight:700${i && n < tiles[0][1] ? ';color:#7f6000' : ';color:var(--accent)'}">${nf(n)}</div>`
     + `<div class="muted" style="font-size:11px">${l}</div></div>`).join('<div style="align-self:center" class="muted">›</div>') + '</div>';
   const num = (n, of) => n == null ? '<span class="muted">n/a</span>' : (n >= of ? `<span style="color:#166534;font-weight:700">${nf(n)}</span>` : nf(n));
-  const head = ['SKU', 'What', 'Ordered', 'With vendor', 'Back', 'Cut', 'Issued', 'Received', 'QC', 'Pressed', 'In store', 'To FBA', 'Waiting at']
-    .map((h, i) => `<th${i >= 2 && i <= 11 ? ' class="num"' : ''}>${h}</th>`).join('');
+  const head = ['SKU', 'What', 'Ordered', 'With vendor', 'Back', 'Cut', 'Issued', 'Received', 'QC', 'Pressed', 'In store', 'To FBA']
+    .concat(shop ? ['Handed over'] : []).concat(['Waiting at'])
+    .map((h, i) => `<th${i >= 2 && i <= (shop ? 12 : 11) ? ' class="num"' : ''}>${h}</th>`).join('');
   const body = rows.map((r, i) => { const x = S[i];
     const vend = r.printer ? [`${esc(voName(r.printer))} · put on this line from the Order Console · ${nf(r.printed)} of ${nf(r.qty)} back`]
       : (x.v ? x.v.parts.map(p => `${esc(p.vpo)} · ${esc(voName(p.vendorCode))}${p.service ? ' · ' + esc(p.service) : ''} · ${nf(p.qty)} given, ${nf(p.back)} back`
@@ -14424,11 +14433,14 @@ function ordJourney(orderNo) {
       + `<td class="num">${num(x.qc, x.ordered)}</td><td class="num">${num(x.pressed, x.ordered)}</td>`
       + `<td class="num">${x.store ? nf(x.store) : '<span class="muted">—</span>'}</td>`
       + `<td class="num">${x.fba ? `<span style="color:#166534">${nf(x.fba)}</span>` : '<span class="muted">—</span>'}</td>`
+      + (!shop ? '' : `<td class="num"${r.handedAt ? ` title="${esc(String(r.handedBy || '').split('@')[0] + ' · ' + (ptIsoDate(r.handedAt) || ''))}"` : ''}>`
+          + (r.handedAt ? `<b style="color:#166534">${nf(r.qty)}</b>` : '<span class="muted">—</span>') + '</td>')
       + `<td style="text-align:left;font-size:12px${r.open ? '' : ';color:#166534'}">${esc(ordWaitingAt(r))}</td></tr>`; }).join('');
   const first = rows[0], openN = rows.filter(r => r.open).length;
   ptOpenDialog({
     title: 'Order ' + no + ' — start to finish',
-    subtitle: `${first.orderDate || '—'}${first.shopOrderNo ? '  ·  Shopify ' + first.shopOrderNo : ''}  ·  ${nf(rows.length)} line(s), ${nf(openN)} still open`,
+    subtitle: `${first.orderDate || '—'}${first.shopOrderNo ? '  ·  Shopify ' + first.shopOrderNo : ''}  ·  ${nf(rows.length)} line(s), ${nf(openN)} still open`
+      + (shop ? `  ·  ${nf(rows.filter(r => r.handedAt).length)} of ${nf(rows.length)} handed to shipping` : ''),
     note: 'Each figure is the same one its own register shows — cutting, Base Data, QC, press, finished goods and the vendor orders. '
       + 'A vendor order names a SKU and not a sales order, so where several orders want the same SKU the vendor\'s pieces are shared '
       + 'out once between them: open orders first, oldest first.',
@@ -14794,8 +14806,10 @@ function renderOrdShopify(bySku) {
     </div></div>`;
 
   const head = bySku
-    ? ['SKU', 'Image', 'Article', 'Subtype', 'Color', 'Size', 'Orders', 'Pieces', 'Cut', 'Issued', 'Pressed', 'To make', 'Shopify orders']
-    : ['Order No', 'Shopify', 'Date', 'SKU', 'Image', 'Article', 'Subtype', 'Color', 'Size', 'Pieces', 'Printing', 'Cut', 'Issued', 'Pressed', 'To make', 'Quilt team', 'Status', 'Entry'];
+    ? ['SKU', 'Image', 'Article', 'Subtype', 'Color', 'Size', 'Orders', 'Pieces', 'Cut', 'Issued', 'Received', 'Pressed', 'To make', 'Shopify orders']
+    /* RECEIVED AND QC were missing from the sequence: "issued 5, pressed 0, to make 5" does not say
+     * whether the karigar ever brought them back. */
+    : ['Order No', 'Shopify', 'Date', 'SKU', 'Image', 'Article', 'Subtype', 'Color', 'Size', 'Pieces', 'Printing', 'Cut', 'Issued', 'Received', 'QC', 'Pressed', 'To make', 'Quilt team', 'Status', 'Entry'];
   /* Somebody allowed only to assign printers ticks lines too — for that, and nothing else.
    *
    * ON BOTH VIEWS NOW. It used to be the by-order one alone, because a combined row is not a line —
@@ -14803,7 +14817,9 @@ function renderOrdShopify(bySku) {
    * line behind the SKU, which is exactly the bulk assign Ravi asked for. Handing over to shipping
    * stays on the by-order view: that is a decision per order, and a row here hides which. */
   const spPick = (ptCanEdit() || spCanAssign()) && (!bySku || spCanAssign());
-  const numFrom = bySku ? 6 : 9, numTo = bySku ? 11 : 14;
+  /* THE NUMERIC RUN ENDS AT "To make" ON BOTH. Adding a column inside it and leaving these alone leaves
+   * every heading after it over the wrong cells. */
+  const numFrom = bySku ? 6 : 9, numTo = bySku ? 12 : 16;
   /* PINNED TO THE LEFT, because this table is wider than any screen and the first column is the
    * first thing to slide off it — which is how a tick box that is right there stops existing. */
   const thead = '<thead><tr>'
@@ -14817,8 +14833,8 @@ function renderOrdShopify(bySku) {
      * the rest are in the tooltip and in the by-order view. */
     const sortedOrders = r.orders.slice().sort((a, b) => String(a.date).localeCompare(String(b.date)));
     const chips = sortedOrders.slice(0, 6)
-      .map(o => `<span title="${esc(o.no)}${o.adj ? ' · ' + esc(o.adj) : ''} — ${nf(o.qty)} piece(s)${o.open ? '' : ', done'}">`
-        + `${esc(o.shop || o.no)}<span class="muted">&times;${nf(o.qty)}</span></span>`).join(', ')
+      .map(o => `<a href="#" data-ordj="${esc(o.no)}" style="color:inherit;text-decoration:underline dotted" title="${esc(o.no)}${o.adj ? ' · ' + esc(o.adj) : ''} — ${nf(o.qty)} piece(s)${o.open ? '' : ', done'} — click for this order start to finish">`
+        + `${esc(o.shop || o.no)}<span class="muted">&times;${nf(o.qty)}</span></a>`).join(', ')
       + (sortedOrders.length > 6 ? ` <span class="muted" title="${esc(sortedOrders.slice(6).map(o => (o.shop || o.no) + ' ×' + o.qty).join(', '))}">+${nf(sortedOrders.length - 6)} more</span>` : '');
     /* One tick, every open line behind it. A SKU whose orders are all finished has nothing to give
      * anybody, so it has no box rather than a box that does nothing. */
@@ -14841,6 +14857,7 @@ function renderOrdShopify(bySku) {
       + `<td class="num">${nf(r.orders.length)}</td>`
       + `<td class="num" style="font-weight:700">${nf(r.qty)}</td>`
       + `<td class="num">${nf(r.cut)}</td><td class="num">${nf(r.issued)}</td>`
+      + `<td class="num"${r.overRecv ? ' style="color:#7f6000;font-weight:700"' : ''}>${nf(r.received)}</td>`
       + `<td class="num" style="color:#166534">${nf(r.pressed)}</td>`
       + `<td class="num"${r.pendingMake ? ' style="color:var(--bad);font-weight:700"' : ''}>${r.pendingMake ? nf(r.pendingMake) : '<span class="muted">—</span>'}</td>`
       + `<td style="text-align:left;white-space:normal;max-width:320px;font-size:12px">${chips}</td></tr>`;
@@ -14857,7 +14874,7 @@ function renderOrdShopify(bySku) {
     return '<tr>'
       + (spPick ? `<td class="frz"><input type="checkbox" data-sppick="${esc(pk)}"${
           (ORD.pick || new Set()).has(pk) ? ' checked' : ''} style="width:auto;margin:0"></td>` : '')
-      + `<td${spPick ? '' : ' class="frz"'} style="text-align:left">${esc(r.orderNo)}</td>`
+      + `<td${spPick ? '' : ' class="frz"'} style="text-align:left"><a href="#" data-ordj="${esc(r.orderNo)}" title="This order, start to finish" style="color:inherit;text-decoration:underline dotted">${esc(r.orderNo)}</a></td>`
       + `<td style="text-align:left">${esc(r.shopOrderNo) || '<span class="muted">—</span>'}`
         + (r.adjId ? `<div class="muted" style="font-size:11px;font-family:ui-monospace,monospace">${esc(r.adjId)}</div>` : '')
       + '</td>'
@@ -14871,11 +14888,21 @@ function renderOrdShopify(bySku) {
       + `<td class="num" style="font-weight:700">${nf(r.qty)}${r.pcsPer > 1 ? `<div class="muted" style="font-size:10px;font-weight:400">${nf(r.packs)} × ${nf(r.pcsPer)}</div>` : ''}</td>`
       /* WHO IS PRINTING IT, AND HOW MUCH OF IT. A line nobody prints says so plainly rather than
        * showing a nought that reads like work nobody has started. */
+      /* THE SAME FAULT THE ORDER BOOK HAD: this knew only a printer put on the line from this screen, and
+       * said "not printed" on cloth that had been with a vendor for a week. */
       + `<td style="text-align:left;font-size:12px">${r.printer
           ? `<b>${nf(r.printed)}</b> <span class="muted">of ${nf(r.qty)}</span>`
             + `<div class="muted" style="font-size:11px">${esc(voName(r.printer))}</div>`
-          : '<span class="muted">not printed</span>'}</td>`
+          : (v => (v
+            ? `<b>${nf(v.back)}</b> <span class="muted">back of ${nf(v.given)}</span>`
+              + `<div class="muted" style="font-size:11px">${esc([...new Set(v.parts.map(p => voName(p.vendorCode)))].join(', '))}${v.shared ? ' · shared' : ''}</div>`
+            : '<span class="muted">not given to a vendor</span>'))(ordVendorOf(r.orderNo, r.sku))}</td>`
       + `<td class="num">${nf(r.cut)}</td><td class="num">${nf(r.issued)}</td>`
+      + `<td class="num"${r.overRecv ? ' style="color:#7f6000;font-weight:700"' : ''}>${nf(r.received)}</td>`
+      + (q => `<td class="num">` + (q
+          ? `<span style="color:#166534;font-weight:700">${nf(q.ok)}</span>`
+            + (q.rej ? ` <span style="color:var(--bad)">${nf(q.rej)} ✗</span>` : '')
+          : '<span class="muted">—</span>') + '</td>')(ordQcOf(r.orderNo, r.sku))
       + `<td class="num" style="color:#166534">${nf(r.pressed)}</td>`
       + `<td class="num"${r.pendingMake ? ' style="color:var(--bad);font-weight:700"' : ''}>${r.pendingMake ? nf(r.pendingMake) : '<span class="muted">—</span>'}</td>`
       /* WHO HAS THE QUILT. Only a quilt has a quilt team to be with; everything else says so by
@@ -16342,18 +16369,22 @@ $('odExport').onclick = () => {
      * separately. */
     const bySku = v === 'shopsku';
     const out = bySku
-      ? [['SKU', 'Priority', 'Article', 'Subtype', 'Color', 'Size', 'Orders', 'Pieces', 'Cut', 'Issued', 'Pressed',
+      ? [['SKU', 'Priority', 'Article', 'Subtype', 'Color', 'Size', 'Orders', 'Pieces', 'Cut', 'Issued', 'Received', 'Pressed',
           'To make', 'Shopify orders', 'Needs master row'].map(csvCell).join(',')]
       : [['Order No', 'Shopify Order', 'Adjustment', 'Date', 'SKU', 'Priority', 'Article', 'Subtype', 'Color',
-          'Size', 'Pieces', 'Cut', 'Issued', 'Pressed', 'To make', 'Status', 'Printer', 'Printed'].map(csvCell).join(',')];
+          'Size', 'Pieces', 'Cut', 'Issued', 'Received', 'QC passed', 'Pressed', 'To make', 'Status', 'Printer', 'Printed',
+          'With vendor', 'Back from vendor', 'Handed over', 'Waiting at'].map(csvCell).join(',')];
     rows.forEach(r => out.push(bySku
       ? [r.sku, ordPri(r.sku), r.articleType, r.articleSubtype, r.color, r.size, r.orders.length, r.qty, r.cut,
-        r.issued, r.pressed, r.pendingMake,
+        r.issued, r.received, r.pressed, r.pendingMake,
         r.orders.map(o => (o.shop || o.no) + '×' + o.qty).join(' '), r.needsSku ? 'yes' : ''].map(csvCell).join(',')
-      : [r.orderNo, r.shopOrderNo || '', r.adjId || '', r.orderDate, r.sku, ordPri(r.sku), r.articleType,
-        r.articleSubtype, r.color, r.size, r.qty, r.cut, r.issued, r.pressed, r.pendingMake,
+      : ((v, q) => [r.orderNo, r.shopOrderNo || '', r.adjId || '', r.orderDate, r.sku, ordPri(r.sku), r.articleType,
+        r.articleSubtype, r.color, r.size, r.qty, r.cut, r.issued, r.received, q ? q.ok : '', r.pressed, r.pendingMake,
         r.handedAt ? 'Handed over' : (r.open ? 'Open' : 'Complete'),
-        r.printer ? voName(r.printer) : '', r.printer ? r.printed : ''].map(csvCell).join(',')));
+        r.printer ? voName(r.printer) : (v ? [...new Set(v.parts.map(p => voName(p.vendorCode)))].join(' + ') : ''),
+        r.printer ? r.printed : '',
+        v ? v.given : '', v ? v.back : '', r.handedAt ? ptIsoDate(r.handedAt) : '', ordWaitingAt(r)].map(csvCell).join(','))(
+          ordVendorOf(r.orderNo, r.sku), ordQcOf(r.orderNo, r.sku))));
     ptDownload(bySku ? 'shopify-production-by-sku' : 'shopify-production-by-order', out);
     return;
   }
