@@ -224,7 +224,7 @@ async function check(mode) {
   }
   const left = (await req('GET', 'zz_unnamedNode')).body;
   console.log(`${done} attempts as ${people.length} people, expecting the ${mode} behaviour · left behind: ${left}`);
-  if (wrong.length) { console.log('WRONG — ' + wrong.length + ':'); wrong.slice(0, 40).forEach(x => console.log('  ' + x)); }
+  if (wrong.length) { console.log('WRONG — ' + wrong.length + ':'); wrong.slice(0, 200).forEach(x => console.log('  ' + x)); }
   else console.log('every answer was the expected one.');
   if (mode !== 'p0' && !wrong.length) {
     const can = n => people.filter(w => w.kind === 'staff' && w.p && expectWrite(w, n, mode)).map(w => w.name).join(', ');

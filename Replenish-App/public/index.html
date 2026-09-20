@@ -933,7 +933,7 @@
           <select id="pdBrand" style="flex:0 0 120px">
             <option value="ALL">Both brands</option><option value="SP">Ridhi</option><option value="CPC">CPC</option>
           </select>
-          <select id="pdSupplier" style="flex:0 0 150px"><option value="">All suppliers</option></select>
+          <select id="pdSupplier" style="flex:0 0 150px" title="The order a SKU is being made against."><option value="">All orders</option></select>
           <select id="pdSubcat" style="flex:0 0 160px"><option value="">All sub-categories</option></select>
           <select id="pdBasis" style="flex:0 0 250px" title="Which number counts as 'my requirement'. Pick how far ahead production should cover. AWD Req is excluded — it moves stock you already own inside the US, it is not fresh production."></select>
           <select id="pdShow" style="flex:0 0 215px">
@@ -950,10 +950,7 @@
           </select>
           <input id="pdSku" placeholder="Filter SKU" style="flex:0 0 120px">
           <span style="flex:1"></span>
-          <button id="pdTemplate" class="ghost">Template</button>
           <button id="pdExport" class="ghost">Export</button>
-          <button id="pdImport" class="ghost">Import</button>
-          <input id="pdFile" type="file" accept=".csv,text/csv" style="display:none">
         </div>
         <div id="pdMsg" class="muted" style="font-size:12px"></div>
         <div id="pdKpis" class="kpis" style="margin-top:10px"></div>
@@ -3439,7 +3436,12 @@ async function ensureRepl() {
      *
      * Kicked off here so it is already in flight, and the table is redrawn when it lands. */
     loadIndiaStock().then(() => { if (REPL_LOADED) renderRepl(); }).catch(() => {});
-    await Promise.all([loadReplCache(), loadProd(), loadInProd(), loadUsSkus()]);
+    /* IN PRODUCTION IS NOT LOADED HERE ANY MORE. ensureRepl runs at sign-in for every non-factory
+     * account, and the figure now comes out of the order book - so loading it here would give
+     * every one of those accounts, the fifteen vendor-portal logins among them, read on
+     * pt_orderBook and pt_salesOrders. renderRepl, the India projection and the In Production tab
+     * each load it themselves when they are opened, and re-render when it lands. */
+    await Promise.all([loadReplCache(), loadProd(), loadUsSkus()]);
     REPL_LOADED = true; rMsg('');
   }
   renderRepl();
@@ -5308,7 +5310,7 @@ function renderRepl() {
     // What a factory is already making for this SKU, from the In Production tab. Sits next to India
     // Stock because the two together are the answer to "do we need to make anything at all".
     { k: 'inProd', t: 'In Production', num: 1, map: r => r._sup.prodQty,
-      tip: 'Units currently being made, from the In Production tab. The Ready Date decides which month they can first cover — hover a “← Production” cell for that.',
+      tip: 'Units still being made, from the Order Console: ordered less pressed, over every order line that is still open. The order’s own delivery date decides which month they can first cover — hover a “← Production” cell for that.',
       cell: r => { const s = r._sup;
         if (!s.prodQty) return '<span class="muted">—</span>';
         const guessed = !!INPROD_GUESSED[skuKey(r.sku)];
@@ -5316,7 +5318,7 @@ function renderRepl() {
         return `<span class="pill pill-sea" title="${guessed
             ? `No Ready Date on the uploaded row. These units ARE counted — the batch is assumed to take a full production cycle (${LEAD.prod}d) from today, so it first covers ${covers}.`
             : `Ready ${esc(s.ready)} — first covers ${covers}`}">${nf(s.prodQty)}</span>`
-          + (guessed ? ' <span class="lane lane-late" title="Counted on an assumed date. Add the Ready Date on the In Production tab for the real month.">no date</span>' : ''); } },
+          + (guessed ? ' <span class="lane lane-late" title="The order these pieces are on promised no delivery date, so they are counted on an assumed one - a full production cycle from today. Put a delivery date on that sales order for the real month.">no date</span>' : ''); } },
   );
 
   // ---- Month-by-month forecast: On Hand → Proj → Excess, carried forward (see replForecast). ----
@@ -5368,7 +5370,7 @@ function renderRepl() {
             + (c.prod
                 ? ` <span class="pill pill-sea" title="Already covered by a batch on a machine">${nf(c.prod)} running</span>`
                   + (INPROD_GUESSED[skuKey(r.sku)]
-                      ? ` <span class="lane lane-late" title="That batch has no Ready Date, so it is assumed to take a full production cycle (${LEAD.prod}d) from today. Add the Ready Date on the In Production tab for the real month.">assumed</span>` : '')
+                      ? ` <span class="lane lane-late" title="The order behind that batch promised no delivery date, so it is assumed to take a full production cycle (${LEAD.prod}d) from today. Put a delivery date on the sales order for the real month.">assumed</span>` : '')
                 : '');
         } },
       { k: `fc${i}new`, t: `${p.label} · Produce`, num: 1, bold: 1, map: r => r._sup.m[i].fresh,
@@ -6865,7 +6867,7 @@ function renderIndiaProj() {
       ${monthCells}
       <td class="num"${r.indiaLeft > 0 ? '' : ' style="color:var(--bad)"'}>${nf(r.indiaLeft)}</td>
       <td class="num"${r.prodQty > 0 ? ' style="font-weight:700"' : ''}>${r.prodQty ? nf(r.prodQty) : '<span class="muted">—</span>'}</td>
-      <td${r.prodQty && r.arrival < 0 ? ' title="No ready date on the uploaded row, so these units cannot be credited to a month — they are counted in the total only"' : ''}>${
+      <td${r.prodQty && r.arrival < 0 ? ' title="The order behind these pieces promised no delivery date, so they cannot be credited to a month — they are counted in the total only"' : ''}>${
         esc(r.ready || (r.prodQty ? '⚠ no date' : '—'))}</td>
       <td class="num">${r.fromProd ? nf(r.fromProd) : '<span class="muted">—</span>'}</td>
       <td class="num"${r.fresh > 0 ? ' style="color:var(--bad);font-weight:700"' : ' style="color:#166534"'}>${nf(r.fresh)}</td>
@@ -6958,33 +6960,33 @@ $('inFile').onchange = async e => {
   } catch (err) { $('inMsg').textContent = 'Import failed: ' + (err.message || err); }
 };
 
-/* ================= IN PRODUCTION (uploaded) ================= */
+/* ================= IN PRODUCTION (from the Order Console) ================= */
 // What the factories are currently making. Cross-checked against the ongoing POs and the backend's
 // Air/Sea/AWD requirement so a SKU being made for NO reason is caught before the money is spent.
 const PD_COLS = ['SKU', 'Qty', 'Start Date', 'Ready Date', 'Supplier'];
 const PD_ROW_CAP = 200;   // only the painted tbody is capped; subtotal / KPIs / Export use every row
 const PD_CHUNK = 900;
-let INPROD_ROWS = [], INPROD_AT = null, INPROD_LOADED = false, PD_LAST = [];
+let INPROD_ROWS = [], INPROD_AT = null, INPROD_LOADED = false, PD_LAST = [], INPROD_ERR = '';
+/**
+ * READ THE ORDER BOOK AND THE REGISTERS, then build the list from them.
+ *
+ * pt_salesOrders is read straight rather than through ensureSox, which would paint the Sales Orders
+ * screen as a side effect of opening Replenishment.
+ *
+ * A FAILED READ LEAVES THE LIST EMPTY AND SAYS WHY. An empty In Production column makes the forecast
+ * ask for production that may already be running, so this is the one case where the screen has to
+ * carry the reason rather than quietly show a dash.
+ */
 async function loadInProd() {
-  INPROD_ROWS = []; INPROD_AT = null;
+  INPROD_ROWS = []; INPROD_AT = null; INPROD_ERR = '';
   try {
-    const meta = await getDoc(doc(db, 'repl', 'inproduction'));
-    if (!meta.exists()) { INPROD_LOADED = true; return; }
-    const d = meta.data();
-    INPROD_AT = d.at && d.at.toDate ? d.at.toDate() : null;
-    let rows = [];
-    if (d.chunks) {
-      const got = await Promise.all(Array.from({ length: d.chunks }, (_, i) => getDoc(doc(db, 'repl_inprod', String(i)))));
-      got.forEach(s => { if (s.exists()) rows = rows.concat(s.data().r || []); });
-    } else rows = d.rows || [];
-    INPROD_ROWS = rows;
-  } catch (e) { INPROD_ROWS = []; }
+    if (!PTG.mdb) await ptLoadGates();
+    if (PTG.err) throw new Error(PTG.err);
+    if (SOX.rows === null) SOX.rows = ptList(await ptGet('pt_salesOrders'));
+    INPROD_ROWS = ordProdRows();
+    INPROD_AT = new Date();
+  } catch (e) { INPROD_ROWS = []; INPROD_ERR = e.message || String(e); }
   INPROD_LOADED = true;
-}
-async function saveInProd(rows) {
-  const chunks = Math.ceil(rows.length / PD_CHUNK) || 1;
-  for (let i = 0; i < chunks; i++) await setDoc(doc(db, 'repl_inprod', String(i)), { r: rows.slice(i * PD_CHUNK, (i + 1) * PD_CHUNK) });
-  await setDoc(doc(db, 'repl', 'inproduction'), { chunks, n: rows.length, rows: null, by: ME.email, at: serverTimestamp() });
 }
 async function ensureProd() {
   $('pdMsg').textContent = 'Loading…';
@@ -7064,7 +7066,9 @@ function inProdReadyMap() {
   INPROD_ROWS.forEach(r => {
     const k = String(r.sku || '').trim().toUpperCase(); if (!k) return;
     if (!(Number(r.qty) > 0)) return;
-    const d = String(r.ready || '').trim();
+    /* pdIso FIRST. "29-09-2026" is a date; new Date("29-09-2026T00:00:00") is not, and every row of
+     * the old workbook fell into the guess below because of it. */
+    const d = pdIso(r.ready);
     let ms = d ? new Date(d + 'T00:00:00').getTime() : NaN;
     if (isNaN(ms)) { ms = guess; INPROD_GUESSED[k] = true; }
     if (m[k] == null || ms < m[k]) m[k] = ms;
@@ -7273,7 +7277,7 @@ function renderProd() {
     }
   });
 
-  fillSel('pdSupplier', rows.flatMap(r => (r.supplier || '').split(', ')), 'All suppliers');
+  fillSel('pdSupplier', rows.flatMap(r => (r.supplier || '').split(', ')), 'All orders');
   fillSel('pdSubcat', rows.map(r => r.subcat), 'All sub-categories');
   const fSup = $('pdSupplier').value, fSub = $('pdSubcat').value, fSku = $('pdSku').value.trim().toLowerCase();
   if (fSup) rows = rows.filter(r => (r.supplier || '').split(', ').includes(fSup));
@@ -7284,8 +7288,11 @@ function renderProd() {
   const base = rows, cnt = k => base.filter(r => r.v.k === k);
   const wrong = cnt('wrong'), short = cnt('short'), surplus = cnt('surplus'), fromIndia = cnt('india'), fresh = cnt('new');
   const inProdRows = base.filter(r => r.prod > 0);
-  const when = INPROD_AT ? INPROD_AT.toLocaleString() : 'never uploaded';
-  $('pdKpis').innerHTML = `<div class="kpi" style="flex-basis:100%"><div class="kpihead"><span class="kpiname">In Production — plan &amp; check</span><span class="kpiwhen">last upload: ${esc(when)} · ${esc(basisLabel)}</span></div>
+  /* WHERE THE FIGURE COMES FROM, on the screen that shows it. It is the Order Console's open lines as
+   * of this read - not a workbook, and not something anybody has to remember to refresh. */
+  const when = INPROD_ERR ? 'COULD NOT READ THE ORDER BOOK - ' + INPROD_ERR
+    : (INPROD_AT ? 'from the Order Console, read ' + INPROD_AT.toLocaleString() : 'not read yet');
+  $('pdKpis').innerHTML = `<div class="kpi" style="flex-basis:100%"><div class="kpihead"><span class="kpiname">In Production — plan &amp; check</span><span class="kpiwhen"${INPROD_ERR ? ' style="color:var(--bad)"' : ''}>${esc(when)} · ${esc(basisLabel)}</span></div>
     <div class="metrics">
       <div class="metric"><div class="v">${nf(inProdRows.length)}</div><div class="l">SKUs in production</div></div>
       <div class="metric"><div class="v">${nf(inProdRows.reduce((s, r) => s + r.prod, 0))}</div><div class="l">Units in production</div></div>
@@ -7359,52 +7366,12 @@ $('pdKpis').addEventListener('click', e => {
   $('pdShow').value = $('pdShow').value === t.dataset.show ? 'action' : t.dataset.show;
   renderProd();
 });
-$('pdTemplate').onclick = () => csvDownload('in-production-template', PD_COLS, [['ABC-123', '200', '2026-07-20', '2026-08-15', 'Factory A']]);
 $('pdExport').onclick = () => csvDownload('in-production',
   ['SKU', 'What to do', 'Why', 'Brand', 'Sub-Category', 'Color', 'Size', 'Air Req', 'Sea Req', 'NEED',
    'India Stock', 'Ongoing PO', 'In Production', 'Start Date', 'Ready Date', 'Supplier', 'Total cover', 'Gap', 'FBA Stock'],
   PD_LAST.map(r => { const [pill, why] = verdictText(r);
     return [r.sku, pill, why, BRAND_NAME[r.brand] || '', r.subcat, r.color, r.size,
       r.air, r.sea, r.need, r.india, r.po, r.prod, r.start, r.ready, r.supplier, r.cover, r.gap, r.fba]; }));
-$('pdImport').onclick = () => $('pdFile').click();
-$('pdFile').onchange = async e => {
-  const file = e.target.files[0]; e.target.value = ''; if (!file) return;
-  try {
-    const rows = parseCsv(await file.text());
-    if (rows.length < 2) { $('pdMsg').textContent = 'File is empty.'; return; }
-    const head = rows[0].map(h => h.trim().toLowerCase());
-    const iSku = colIdx(head, ['sku']);
-    const iQty = colIdx(head, ['qty', 'quantity', 'prod. qty', 'production qty']);
-    const iStart = colIdx(head, ['start date', 'start', 'production start']);
-    const iReady = colIdx(head, ['ready date', 'ready', 'expected ready', 'eta']);
-    const iSup = colIdx(head, ['supplier', 'factory', 'vendor']);
-    if (iSku < 0) { $('pdMsg').textContent = 'CSV needs at least a "SKU" column.'; return; }
-    const list = [];
-    for (let i = 1; i < rows.length; i++) {
-      const sku = cellAt(rows[i], iSku); if (!sku) continue;
-      list.push({ sku, qty: Number(String(cellAt(rows[i], iQty)).replace(/[, ]/g, '')) || 0,
-        start: cellAt(rows[i], iStart).slice(0, 20), ready: cellAt(rows[i], iReady).slice(0, 20), supplier: cellAt(rows[i], iSup).slice(0, 60) });
-    }
-    if (!list.length) { $('pdMsg').textContent = 'No valid rows found.'; return; }
-    /* HOW MANY ROWS ACTUALLY GOT A READY DATE, said before anything is saved.
-     *
-     * A Ready Date decides which month a batch can cover; without one the units are counted in the
-     * total and nothing else. If the column header does not match what colIdx looks for, EVERY row
-     * loses its date silently and the forecast quietly plans a second production run for goods that
-     * are already on a machine. Naming the count here turns that from a mystery into a header to fix. */
-    const withReady = list.filter(x => x.ready).length;
-    const dateWarn = withReady === list.length ? ''
-      : `\n\n⚠ ${list.length - withReady} of ${list.length} row(s) have NO Ready Date.`
-        + (withReady === 0 ? `\nThe date column was not recognised. The importer looks for a header called "Ready Date", "Ready", "Expected Ready" or "ETA".` : '')
-        + `\nUndated units still count in the In Production total, and the forecast assumes a full production cycle from today.`;
-    if (!confirm(`Replace the In Production list with ${list.length} row(s) from this file?${dateWarn}\n\nThis REPLACES the whole list (it is a full snapshot, not a merge).`)) return;
-    $('pdMsg').textContent = 'Saving…';
-    await saveInProd(list);
-    INPROD_ROWS = list; INPROD_AT = new Date();
-    renderProd();
-    $('pdMsg').textContent = `Imported ${list.length} row(s).`; setTimeout(() => renderProd(), 2500);
-  } catch (err) { $('pdMsg').textContent = 'Import failed: ' + (err.message || err); }
-};
 
 /* ============================================================================
    PACKING LIST + BOX LABELS
@@ -14272,6 +14239,77 @@ function ordLinesBuild() {
     return Object.assign(l, { unrecorded: Math.max(0, l.qty - l.made),
       pendingCut: 0, pendingMake: 0, madeToPress: 0 });
   }).sort((a, b) => String(a.orderDate).localeCompare(String(b.orderDate)) || a.orderNo.localeCompare(b.orderNo) || a.sku.localeCompare(b.sku));
+}
+
+/**
+ * A date as the registers write it, turned into YYYY-MM-DD - or an empty string when it is not a
+ * date at all.
+ *
+ * TWO SHAPES ARE IN THE DATA and only one of them parsed. Sales orders write ISO; the production
+ * workbook and the vendor orders write DD-MM-YYYY. Handing the second to new Date gives Invalid
+ * Date, which is how 234,847 units came to be marked "no date" while every row had one.
+ */
+function pdIso(v) {
+  const d = String(v == null ? '' : v).trim();
+  if (!d) return '';
+  let m = d.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return m[1] + '-' + m[2] + '-' + m[3];
+  m = d.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})/);   // day first, as India writes it
+  if (m) return m[3] + '-' + String(m[2]).padStart(2, '0') + '-' + String(m[1]).padStart(2, '0');
+  return '';
+}
+
+/**
+ * Order + SKU -> the date that order promised, earliest first.
+ *
+ * The line's own delivery date where it has one, else the order's. This is a PROMISE, not a guess:
+ * a line whose order said nothing gets nothing here and is shown as undated.
+ */
+function ordDueIndex() {
+  const m = new Map();
+  (SOX.rows || []).forEach(o => {
+    if (!o) return;
+    const no = obUC(o._id || o._key), ord = pdIso(o.deliveryDate);
+    soLines(o).forEach(l => {
+      const d = pdIso(l.deliveryDate) || ord;
+      if (!d) return;
+      const k = no + '|' + obUC(l.sku);
+      const cur = m.get(k);
+      if (!cur || d < cur) m.set(k, d);
+    });
+  });
+  return m;
+}
+
+/**
+ * WHAT IS BEING MADE RIGHT NOW, read off the Order Console.
+ *
+ * One row per open order line, in the shape the In Production list has always had, so everything
+ * downstream - the map, the forecast, the India Stock projection, the exports - is unchanged.
+ *
+ * ORDERED MINUS PRESSED. Pressing is the last stage inside the factory and the console closes a line
+ * at it, so a piece that is through the press is finished goods, not production. A Shopify line stays
+ * open until shipping takes it; if its pieces are already pressed it contributes nothing here, which
+ * is right - it is waiting to go out, not waiting to be made.
+ *
+ * The supplier field carries the ORDER NUMBER. That is what the floor asks about now that everything goes by
+ * order, and it means the cell can say which orders a total is made of instead of one bare figure.
+ */
+function ordProdRows() {
+  const due = ordDueIndex();
+  const out = [];
+  ordLines().forEach(r => {
+    if (!r.open) return;
+    const left = Math.max(0, r.qty - r.pressed);
+    if (!left) return;
+    out.push({ sku: r.sku, qty: left, start: pdIso(r.orderDate),
+      ready: due.get(r.orderNo + '|' + r.sku) || '',
+      supplier: r.orderNo, orderNo: r.orderNo,
+      /* Which stage it is sitting at, from the line's own figures - no vendor or finished-goods read,
+       * so this stays a cheap screen to open. */
+      stage: r.pendingCut > 0 ? 'to cut' : (r.pendingMake > 0 ? 'to make' : (r.madeToPress > 0 ? 'to press' : 'made')) });
+  });
+  return out;
 }
 
 /* ================= WHAT THE VENDORS HOLD, ORDER BY ORDER =================

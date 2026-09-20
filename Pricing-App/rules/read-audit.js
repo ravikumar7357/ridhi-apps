@@ -16,7 +16,22 @@ const fs = require('fs'), pathm = require('path');
 const APP = 'C:/AMAZON/Amazon Inventory/Replenish-App/public/index.html';
 const src = fs.readFileSync(APP, 'utf8').replace(/\r\n/g, '\n');
 const mod = src.match(/<script type="module">([\s\S]*?)<\/script>/)[1];
-const lines = mod.split('\n');
+/* A NAME IN A COMMENT IS NOT A CALL.
+ *
+ * The call graph is found by looking for known function names in a body, and a body is every line
+ * from one top-level function to the next — so a comment block sitting between two functions belongs
+ * to the one above it. `esc` is followed by a note explaining that poQtyMap and INDIA_STOCK "load
+ * through ensureRepl/ensureProd", and that alone made esc a caller of ensureProd. esc is used by
+ * every render function in the app, so the moment ensureProd read anything, EVERY tab appeared to
+ * read it — which is how a Replenishment column came within one deploy of handing the fifteen
+ * vendor-portal logins the order book.
+ *
+ * Whole-line comments are dropped here, before anything is read out of the text: only lines that are
+ * nothing but comment. A trailing `// note` after real code is left alone, because erring towards
+ * MORE reads is the safe direction and unpicking a // inside a string or a URL is not worth it.
+ * Nothing executable is removed, so a real call can never be lost this way — and the lines are
+ * blanked rather than deleted, because the handler names are built from their numbers. */
+const lines = mod.split('\n').map(l => (/^\s*(?:\/\/|\/?\*)/.test(l) ? '' : l));
 
 /* ---- 1. top-level functions, handlers and the sign-in callback, each with its body ---- */
 const starts = [];
@@ -69,8 +84,16 @@ const handlerTabs = {};
 Object.keys(fns).filter(n => n[0] === '@' && n !== '@boot').forEach(h => { const id = h.slice(1).split('.')[0]; const tabs = tabsOfPane[paneOfId(id)] || [];
   handlerTabs[h] = tabs; tabs.forEach(t => (tabFn[t] = tabFn[t] || new Set()).add(h)); });
 
-/* tab keys the Access screen grants that are views of another tab's loader */
-[['shopprod', 'ord'], ['qcalt', 'qc'], ['qcret', 'qc'], ['ptapp', 'prod']].forEach(([t, parent]) => {
+/* tab keys the Access screen grants that are views of another tab's loader
+ *
+ * 'ptapp' USED TO BE LISTED HERE, as a view of 'prod'. It is not one: nothing in this page or in
+ * Sellora names that key, showTab has no pane for it, and the four accounts that hold it — and hold
+ * NOTHING else — see an empty screen. The guess cost nothing while In Production read no RTDB node;
+ * the moment it read the order book, those four would have been handed every order, every sales
+ * order and all three registers for a screen they cannot open. A key no screen uses reads nothing.
+ * If it turns out to mean something, it grants nothing today either, so nothing is lost by waiting
+ * to be told what it is. */
+[['shopprod', 'ord'], ['qcalt', 'qc'], ['qcret', 'qc']].forEach(([t, parent]) => {
   (tabFn[parent] || []).forEach(f => (tabFn[t] = tabFn[t] || new Set()).add(f)); });
 
 const out = { generatedFrom: APP, tabs: {}, signIn: [], nodes: {}, dynamic, handlersWithNoTab: Object.keys(handlerTabs).filter(h => !handlerTabs[h].length && (reach(h).size > 0)) };
