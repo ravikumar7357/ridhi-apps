@@ -85,21 +85,21 @@
         "@ptDlgBody.listener21806",
         "@ptDlgBody.listener21834",
         "@ptDlgBody.listener24847",
-        "@ptDlgBody.listener28019",
-        "@ptDlgBody.listener29423",
-        "@ptDlgBody.listener29434",
-        "@ptDlgBody.listener29444",
-        "@ptDlgBody.listener30271",
-        "@soCur.listener35815",
+        "@ptDlgBody.listener28155",
+        "@ptDlgBody.listener29559",
+        "@ptDlgBody.listener29570",
+        "@ptDlgBody.listener29580",
+        "@ptDlgBody.listener30407",
+        "@soCur.listener35951",
         "@adjSave.onclick",
         "@adjDelete.onclick",
         "@adjCancel.onclick",
-        "@soStatus.listener36723",
-        "@soNote.listener36724",
+        "@soStatus.listener36859",
+        "@soNote.listener36860",
         "@soMcfPreview.onclick",
         "@soSave.onclick",
         "@soCancel.onclick",
-        "@ajFilter.listener37618",
+        "@ajFilter.listener37754",
         "@ajSent.onclick",
         "@ajAccept.onclick",
         "@ajRecv.onclick",
@@ -167,7 +167,7 @@
     "cx": {
       "entry": [
         "ensureCx",
-        "@cxTable.listener30626",
+        "@cxTable.listener30762",
         "@cxGo.onclick",
         "@cxUpload.onclick",
         "@cxExport.onclick"
@@ -206,7 +206,7 @@
     "fba": {
       "entry": [
         "ensureFba",
-        "@fbaTable.listener27822",
+        "@fbaTable.listener27958",
         "@fbaAccept.onclick",
         "@fbaShip.onclick",
         "@fbaReturn.onclick",
@@ -352,10 +352,10 @@
     "ka": {
       "entry": [
         "ensurePa",
-        "@kaDetail.listener34008",
-        "@kaQ.listener34016",
+        "@kaDetail.listener34144",
+        "@kaQ.listener34152",
         "@kaGo.onclick",
-        "@kaTable.listener34018",
+        "@kaTable.listener34154",
         "@kaLevelsBtn.onclick",
         "@kaExport.onclick"
       ],
@@ -464,10 +464,10 @@
     "pa": {
       "entry": [
         "ensurePa",
-        "@paWk.listener34005",
-        "@paBasis.listener34006",
-        "@paBody.listener34007",
-        "@paTarget.listener34009",
+        "@paWk.listener34141",
+        "@paBasis.listener34142",
+        "@paBody.listener34143",
+        "@paTarget.listener34145",
         "@paGo.onclick"
       ],
       "nodes": [
@@ -502,15 +502,15 @@
     "palloc": {
       "entry": [
         "ensurePal",
-        "@palView.listener30244",
-        "@palWeeks.listener30245",
-        "@palBrand.listener30246",
-        "@palQ.listener30247",
+        "@palView.listener30380",
+        "@palWeeks.listener30381",
+        "@palBrand.listener30382",
+        "@palQ.listener30383",
         "@palPrinterAdd.onclick",
         "@palExport.onclick",
         "@palRefresh.onclick",
-        "@palTable.listener30267",
-        "@palTable.listener30275"
+        "@palTable.listener30403",
+        "@palTable.listener30411"
       ],
       "nodes": [
         "pt_baseData",
@@ -609,7 +609,7 @@
         "@ptmImpCancel.onclick",
         "@ptmImpGo.onclick",
         "@ptmRename.onclick",
-        "@ptmTable.listener32877",
+        "@ptmTable.listener33013",
         "@ptmRecSeed.onclick",
         "@ptmRecApply.onclick"
       ],
@@ -779,7 +779,7 @@
     "rep": {
       "entry": [
         "ensureRep",
-        "@repView.listener26100",
+        "@repView.listener26236",
         "@repGo.onclick",
         "@repExport.onclick"
       ],
@@ -837,9 +837,9 @@
     "rfd": {
       "entry": [
         "ensureRfd",
-        "@rfdTable.listener32156",
-        "@rfdKpis.listener32210",
-        "@rfdKpis.listener32211",
+        "@rfdTable.listener32292",
+        "@rfdKpis.listener32346",
+        "@rfdKpis.listener32347",
         "@rfdClear.onclick",
         "@rfdGo.onclick",
         "@rfdExport.onclick"
@@ -865,7 +865,7 @@
       "entry": [
         "ensureShop",
         "@soGo.onclick",
-        "@soDay.listener37407",
+        "@soDay.listener37543",
         "@soAdj.onclick",
         "@soPrintMany.onclick",
         "@soImp.onclick",
@@ -1082,9 +1082,9 @@
     "vreq": {
       "entry": [
         "ensureVrq",
-        "@vrqTable.listener31087",
-        "@vrqKpis.listener31109",
-        "@vrqKpis.listener31110",
+        "@vrqTable.listener31223",
+        "@vrqKpis.listener31245",
+        "@vrqKpis.listener31246",
         "@vrqGo.onclick",
         "@vrqNew.onclick",
         "@vrqExport.onclick"
@@ -1490,7 +1490,7 @@
       "readers": [
         "fgiLoad",
         "ensureRep",
-        "@repView.listener26100",
+        "@repView.listener26236",
         "@repGo.onclick",
         "fbaFresh",
         "fgiEditApply",
@@ -1768,7 +1768,7 @@
       "readers": [
         "ensureQc",
         "ensureOrd",
-        "@repView.listener26100",
+        "@repView.listener26236",
         "@repGo.onclick"
       ],
       "untraced": []
