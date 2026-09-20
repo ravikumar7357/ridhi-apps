@@ -32284,6 +32284,11 @@ function palDesigns() {
 }
 
 /** The designs gathered into the buckets a printer is actually given. */
+/** Every colour group there is, for the printer form to offer. */
+function palGroupNames() {
+  return [...new Set(palGroups().map(g => g.name))].sort((a, b) => a.localeCompare(b));
+}
+
 function palGroups(designs) {
   const g = new Map();
   (designs || palDesigns()).forEach(d => {
@@ -32308,6 +32313,141 @@ function palGroupBlocks(printerKey, group) {
 }
 
 /** A printer already printing the colour, or already holding its blocks, is the cheapest to load. */
+/* ================= WHAT A PRINTER CAN DO IN A MONTH, FROM WHAT THEY HAVE DONE =================
+ *
+ * The typed figures were badly wrong — one printer was down as 280 a month against 1,745 delivered
+ * in a month. These read the delivery log instead.
+ */
+
+/** A delivery date, day-first or ISO, as the month it fell in. */
+function palYm(v) {
+  const t = String(v == null ? '' : v).trim();
+  let m = t.match(/^(\d{4})-(\d{2})/);
+  if (m) return m[1] + '-' + m[2];
+  m = t.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})/);
+  return m ? m[3] + '-' + String(m[2]).padStart(2, '0') : '';
+}
+/** How much of the month we are in has gone — never 0, so nothing is ever divided by nothing. */
+function palMonthPart(ym) {
+  const now = new Date();
+  const here = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+  if (ym !== here) return 1;
+  const days = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  return Math.max(1, now.getDate()) / days;
+}
+
+/** Which vendor a printer is, by the code they were linked to or by their name. */
+function palVendorOf(p) {
+  if (!p) return '';
+  const code = String(p.vendorCode || '').trim().toUpperCase();
+  if (code) return code;
+  const norm = x => String(x || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
+  const want = norm(p.name);
+  if (!want) return '';
+  const hit = (voAllVendors ? voAllVendors() : []).find(v =>
+    norm(v.name) === want || norm(v.desc) === want || norm(v.code) === want);
+  return hit ? String(hit.code || '').toUpperCase() : '';
+}
+
+let PAL_DEL_IX = { src: null, n: -1, map: null };
+/** Vendor code → month → pieces delivered. Built once per version of the vendor orders. */
+function palDelivered() {
+  const src = VO.rows || [];
+  if (PAL_DEL_IX.map && PAL_DEL_IX.src === src && PAL_DEL_IX.n === src.length) return PAL_DEL_IX.map;
+  const map = new Map();
+  src.forEach(o => {
+    const code = String((o && o.vendorCode) || '').toUpperCase();
+    if (!code) return;
+    voLines(o || {}).forEach(l => voDels(l || {}).forEach(d => {
+      const q = palNum(d && d.qty);
+      if (!(q > 0)) return;
+      const k = palYm(d.at || d.date || d.on);
+      if (!k) return;
+      if (!map.has(code)) map.set(code, new Map());
+      const m = map.get(code);
+      m.set(k, palNum(m.get(k)) + q);
+    }));
+  });
+  PAL_DEL_IX = { src, n: src.length, map };
+  return map;
+}
+
+/**
+ * Pieces per table per month, from the best month this printer has managed.
+ *
+ * THE BEST MONTH, NOT THE AVERAGE: an average measures how much work we gave them. And the month we
+ * are in is scaled up to the month it is on course for, because reading 20 days as 30 under-counts
+ * a printer by a third.
+ *
+ * Tables are today's tables applied to past months — a printer who has just added ten of them will
+ * read low until a month has run on the new number. That is the safe direction: it under-promises.
+ */
+function palRateOf(p) {
+  const tables = palNum(p && p.tables);
+  const code = palVendorOf(p);
+  const months = code ? palDelivered().get(code) : null;
+  if (!tables || !months || !months.size) return null;
+  let best = 0, bestMonth = '', part = false;
+  months.forEach((pcs, ym) => {
+    const share = palMonthPart(ym);
+    const full = pcs / share;
+    if (full > best) { best = full; bestMonth = ym; part = share < 1; }
+  });
+  if (!(best > 0)) return null;
+  return { perTable: best / tables, month: bestMonth, partMonth: part, months: months.size, pcs: best };
+}
+
+/** The rate to lend a printer who has no history of their own: what the others manage. */
+function palRateShared() {
+  const all = palPrinters().map(palRateOf).filter(Boolean).map(r => r.perTable).sort((a, b) => a - b);
+  if (!all.length) return 0;
+  /* The middle one, not the average — one printer having a spectacular month must not raise
+   * everybody else's capacity with it. */
+  return all[Math.floor(all.length / 2)];
+}
+
+/**
+ * WHAT THIS PRINTER CAN DO IN A MONTH, and how we know.
+ *
+ * Tables times the measured rate. Nothing here is typed unless nothing can be measured at all, and
+ * the answer always says which of the three it is, because a capacity nobody can account for is one
+ * nobody should plan against.
+ */
+function palCapacity(p) {
+  const tables = palNum(p && p.tables);
+  const own = palRateOf(p);
+  const shared = palRateShared();
+  /* TABLES TIMES THE FLOOR'S RATE - that is what makes adding a table mean something, and it is the
+   * whole of "me table add kar dunga". A rate worked out FROM this printer's own tables and then
+   * multiplied BY them cancels out, and tables would mean nothing at all.
+   *
+   * Their OWN best month is the floor under it: a printer who has proved they can do 1,745 is not
+   * told they can do less because the average table is slower than theirs. */
+  const byTables = tables > 0 && shared > 0 ? tables * shared : 0;
+  const proven = own ? own.pcs : 0;
+  if (byTables || proven) {
+    return { pcs: Math.round(Math.max(byTables, proven)), from: byTables >= proven ? 'tables' : 'own',
+      perTable: shared, proven: Math.round(proven), tables,
+      months: own ? own.months : 0, month: own ? own.month : '', partMonth: !!(own && own.partMonth) };
+  }
+  return { pcs: Math.round(palNum(p && p.pcsMonth)), from: 'typed', perTable: 0, proven: 0, tables, months: 0 };
+}
+/** How the capacity was arrived at, for the cell that shows it. */
+function palCapWhy(c) {
+  if (!c) return '';
+  if (c.from === 'tables') return nf(c.tables) + ' table(s) at ' + nf(Math.round(c.perTable))
+    + ' pieces per table a month, which is what the printers with a delivery record manage.'
+    + (c.proven ? ' Their own best month so far is ' + nf(c.proven) + '.' : ' Nothing delivered by them yet.');
+  if (c.from === 'own') return 'Their own best month' + (c.partMonth ? ' so far, scaled to a full month' : '')
+    + ' is ' + nf(c.proven) + ', which is more than ' + nf(c.tables) + ' table(s) at the usual rate. Over '
+    + nf(c.months) + ' month(s) on record.';
+  return 'Nothing to measure yet - no deliveries on record and no rate to borrow, so this is the figure '
+    + 'that was typed in.';
+}
+
+/** A group only goes to a printer who has been given it. */
+const palTakes = (p, g) => (Array.isArray(p && p.groups) ? p.groups : []).indexOf(g.name) >= 0;
+
 const palScore = (p, g) => (g.now.has(p.name) ? 4 : 0) + (palGroupBlocks(p.key, g).have > 0 ? 2 : 0);
 
 /**
@@ -32321,12 +32461,18 @@ const palScore = (p, g) => (g.now.has(p.name) ? 4 : 0) + (palGroupBlocks(p.key, 
 function palPlan(designs) {
   const groups = palGroups(designs);
   const printers = palPrinters().filter(p => p.active !== false);
-  const free = new Map(printers.map(p => [p.key, palNum(p.pcsMonth)]));
+  /* MEASURED, NOT TYPED. What each printer can do in a month comes off the delivery log. */
+  const cap = new Map(printers.map(p => [p.key, palCapacity(p)]));
+  const free = new Map(printers.map(p => [p.key, palNum((cap.get(p.key) || {}).pcs)]));
   const rows = groups.map(g => {
     let left = Math.round(g.toMake);
     const picks = [];
-    if (left > 0) {
-      const order = printers.slice().sort((a, b) =>
+    /* ONLY WHOEVER WAS GIVEN THIS GROUP. Who prints which colour is a relationship, not something to
+     * work out from who happens to hold a block — that is how all three printers came back at 100%
+     * on one group. A group nobody has been given goes to nobody, and says so. */
+    const mine = printers.filter(p => palTakes(p, g));
+    if (left > 0 && mine.length) {
+      const order = mine.slice().sort((a, b) =>
         (palScore(b, g) - palScore(a, g))
         || (palNum(free.get(b.key)) - palNum(free.get(a.key)))
         || String(a.name || '').localeCompare(String(b.name || '')));
@@ -32342,11 +32488,13 @@ function palPlan(designs) {
         left -= take;
       }
     }
-    return { group: g, picks, short: left };
+    /* NOBODY HAS BEEN GIVEN IT is a different answer from EVERYBODY IS FULL, and the screen has to
+     * be able to tell them apart — one is a decision waiting to be made, the other is a wall. */
+    return { group: g, picks, short: left, unassigned: !printers.some(p => palTakes(p, g)) };
   });
   const load = new Map(printers.map(p => [p.key, 0]));
   rows.forEach(r => r.picks.forEach(pk => load.set(pk.key, palNum(load.get(pk.key)) + pk.pcs)));
-  return { rows, free, load, printers };
+  return { rows, free, load, printers, cap };
 }
 
 /* ---- reading and writing ---- */
@@ -32424,12 +32572,23 @@ function palPrinterOpen(key) {
   ptOpenDialog({
     title: p ? 'Printer' : 'Add a printer',
     subtitle: p ? p.name : '',
-    note: 'Capacity is the pieces this printer can finish in a month. Tables are what they print on — '
-      + 'they do not change the arithmetic, they explain it.',
+    note: (c => 'Capacity is worked out from what they have actually delivered — tables times their best '
+      + 'month per table — so the only number to enter is the tables. ' + (p ? palCapWhy(c) + ' ' : '')
+      + 'Which colour groups they take is your choice; a group nobody is given goes to nobody.')(p ? palCapacity(p) : null),
     fields: [
       { key: 'palName', label: 'Name', value: p ? p.name || '' : '', span: true },
       { key: 'palTables', label: 'Tables', type: 'number', min: 0, step: 1, value: p ? palNum(p.tables) : '' },
-      { key: 'palCap', label: 'Capacity — pieces a month', type: 'number', min: 0, step: 1, value: p ? palNum(p.pcsMonth) : '' },
+      /* THE VENDOR THEY ARE, because that is what the delivery log is keyed by. Guessed from the name
+       * when it matches one, and correctable — a printer tied to the wrong vendor would be measured
+       * on somebody else's work. */
+      { key: 'palVendor', label: 'Vendor (for the delivery history)', type: 'select',
+        value: p ? (p.vendorCode || palVendorOf(p) || '') : '',
+        options: [['', '— not linked —']].concat(voAllVendors().map(v => [String(v.code || ''), String(v.name || v.code || '')])) },
+      /* WHICH GROUPS THEY TAKE. Several at once, ticked — this is the allocation. */
+      { key: 'palGroups', label: 'Colour groups this printer takes', type: 'multi', span: true,
+        value: Array.isArray(p && p.groups) ? p.groups : [],
+        options: palGroupNames() },
+      { key: 'palCap', label: 'Capacity if there is nothing to measure yet', type: 'number', min: 0, step: 1, value: p ? palNum(p.pcsMonth) : '' },
       { key: 'palActive', label: 'Taking work', type: 'select', options: ['Yes', 'No'], value: p && p.active === false ? 'No' : 'Yes' },
       { key: 'palNote', label: 'Note', value: p ? p.note || '' : '', span: true },
     ],
@@ -32447,8 +32606,16 @@ async function palPrinterSave(key, v) {
   const clash = (PAL.printers || []).find(p => p.key !== key && obUC(p.name) === obUC(name));
   if (clash) return `${name} is already on the list.`;
   const cap = Math.max(0, Math.round(palNum(v.palCap)));
-  if (!cap) return 'Put in how many pieces a month this printer can finish — the whole plan is built on it.';
-  const rec = { name, tables: Math.max(0, Math.round(palNum(v.palTables))), pcsMonth: cap,
+  /* The ticked groups, and the vendor they are. Both are decisions, so both are stored as given. */
+  const groups = (Array.isArray(v.palGroups) ? v.palGroups : []).map(String).filter(Boolean);
+  const vendorCode = String(v.palVendor || '').trim().toUpperCase();
+  const tables = Math.max(0, Math.round(palNum(v.palTables)));
+  /* TABLES OR A TYPED CAPACITY — one of the two, because with neither there is nothing to plan
+   * against. Tables are the one to want: the capacity is then measured and moves on its own. */
+  if (!tables && !cap)
+    return 'Put in how many tables this printer has — the capacity is worked out from that and what '
+      + 'they have delivered. If they have never delivered anything, type a capacity instead.';
+  const rec = { name, tables, pcsMonth: cap, groups, vendorCode,
     active: String(v.palActive || 'Yes') !== 'No', note: String(v.palNote || '').trim(),
     at: new Date().toISOString(), by: ME.email };
   const k = key || ('PRN-' + Date.now().toString(36).toUpperCase());
@@ -32599,18 +32766,30 @@ function renderPal() {
     head = ['Printer', 'Tables', 'Capacity/month', 'Given', 'Load', 'Groups', 'Blocks needed', 'Has', 'To make', ''];
     body = rows.length ? rows.map(p => {
       const given = palNum(plan.load.get(p.key));
-      const pct = palNum(p.pcsMonth) > 0 ? (given / palNum(p.pcsMonth)) * 100 : 0;
+      /* MEASURED, AND IT SAYS SO. A capacity nobody can account for is one nobody should plan
+       * against, so the cell carries where the figure came from. */
+      const c = (plan.cap && plan.cap.get(p.key)) || palCapacity(p);
+      const capN = palNum(c.pcs);
+      const pct = capN > 0 ? (given / capN) * 100 : 0;
       const mine = plan.rows.filter(r => r.picks.some(x => x.key === p.key));
+      /* WHAT THEY WERE GIVEN, not what the plan happened to use: a group they take and have no work
+       * on this month is still theirs, and showing "nothing yet" for it reads as a missing decision. */
+      const takes = (Array.isArray(p.groups) ? p.groups : []).slice().sort((a, b) => a.localeCompare(b));
       let need = 0, has = 0;
       mine.forEach(r => { const b = palGroupBlocks(p.key, r.group); need += b.need; has += b.have; });
       return '<tr>'
         + `<td style="text-align:left"><b>${esc(p.name)}</b>${p.active === false ? ' <span class="muted">(not taking work)</span>' : ''}`
         + `${p.note ? `<div class="muted" style="font-size:10.5px">${esc(p.note)}</div>` : ''}</td>`
         + `<td class="num">${palNum(p.tables) ? nf(palNum(p.tables)) : '—'}</td>`
-        + `<td class="num">${nf(palNum(p.pcsMonth))}</td>`
+        + `<td class="num" title="${esc(palCapWhy(c))}">${nf(capN)}`
+        + `<div class="muted" style="font-size:10.5px">${c.from === 'own'
+            ? 'measured' + (c.partMonth ? ' · part month' : '')
+            : (c.from === 'tables' ? 'tables × rate' : 'typed in')}</div></td>`
         + `<td class="num">${nf(Math.round(given))}</td>`
-        + `<td class="num">${palNum(p.pcsMonth) ? `<span class="${pct > 99 ? 'err' : ''}">${pct.toFixed(0)}%</span>` : '—'}</td>`
-        + `<td style="text-align:left;font-size:12px">${mine.length ? mine.map(r => esc(r.group.name)).join('<br>') : '<span class="muted">nothing yet</span>'}</td>`
+        + `<td class="num">${capN ? `<span class="${pct > 99 ? 'err' : ''}">${pct.toFixed(0)}%</span>` : '—'}</td>`
+        + `<td style="text-align:left;font-size:12px">${takes.length
+            ? takes.map(n => esc(n) + (mine.some(r => r.group.name === n) ? '' : ' <span class="muted">(no work)</span>')).join('<br>')
+            : '<span class="muted">none picked — give them one</span>'}</td>`
         + `<td class="num">${need ? nf(need) : '—'}</td>`
         + `<td class="num">${has ? nf(has) : '—'}</td>`
         + `<td class="num">${need > has ? `<b class="err">${nf(need - has)}</b>` : '—'}</td>`
