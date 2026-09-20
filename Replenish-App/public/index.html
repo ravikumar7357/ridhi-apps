@@ -568,7 +568,7 @@
       <span class="caret">&#9656;</span> Production</button>
     <div class="navsec" id="secProd">
       <button id="tabSo" class="nav">Sales Orders <span id="soDelBadge" class="navbadge hide"></span></button>
-      <button id="tabOrd" class="nav">Order Console</button>
+      <button id="tabOrd" class="nav">Order Console <span id="ordAdjBadge" class="navbadge hide" title="Quantities changed on an order that nobody here has said they have seen" style="background:#b45309"></span></button>
       <button id="tabPcut" class="nav">Cutting Data</button>
       <button id="tabPbase" class="nav">Job Work Register</button>
       <button id="tabPpress" class="nav">Press Inventory</button>
@@ -13731,7 +13731,14 @@ async function ensureOrd() {
     catch (e) { MDBX.err = e.message || String(e); MDBX.custom = []; }
   }
   await odrLoad();
+  /* THE QUANTITY CHANGES, which live on the sales orders. A failed read leaves the pills off rather
+   * than stopping the screen — but it is the one thing here that is news, so it says so. */
+  if (SOX.rows === null) {
+    try { SOX.rows = ptList(await ptGet('pt_salesOrders')); }
+    catch (e) { SOX.rows = []; ORD.adjErr = e.message || String(e); }
+  }
   ORD.busy = false; ORD.at = ptStamp();
+  ordQtyBadge();
   renderOrd();
 }
 
@@ -14315,6 +14322,81 @@ function ordProdRows() {
   return out;
 }
 
+/* ================= A QUANTITY THAT MOVED, CARRIED TO THE PEOPLE MAKING IT =================
+ *
+ * The record lives on the sales order because that is where the decision was taken. Nobody on the
+ * floor opens a sales order, so it is indexed here by the line it happened to and shown where the
+ * work is.
+ */
+let ORD_ADJ_IX = { src: null, n: -1, map: null };
+function ordQtyAdjIndex() {
+  const src = SOX.rows || [];
+  if (ORD_ADJ_IX.map && ORD_ADJ_IX.src === src && ORD_ADJ_IX.n === src.length) return ORD_ADJ_IX.map;
+  const map = new Map();
+  src.forEach(o => {
+    if (!o) return;
+    Object.values(o.qtyAdjustments || {}).forEach(a => {
+      if (!a || !a.sku) return;
+      const k = obKeyOf(o._id, a.sku);
+      if (!map.has(k)) map.set(k, []);
+      map.get(k).push(Object.assign({ orderNo: o._id }, a));
+    });
+  });
+  /* Newest first — the last thing that happened to a line is the thing somebody needs to read. */
+  map.forEach(l => l.sort((x, y) => String(y.at || '').localeCompare(String(x.at || ''))));
+  ORD_ADJ_IX = { src, n: src.length, map };
+  return map;
+}
+const ordQtyAdj = (orderNo, sku) => ordQtyAdjIndex().get(obKeyOf(orderNo, sku)) || [];
+/** The ones nobody on the floor has said they have seen. */
+const ordQtyUnseen = (orderNo, sku) => ordQtyAdj(orderNo, sku).filter(a => !a.seenAt);
+/** Every unseen change across the whole book, newest first — what the banner counts. */
+const ordQtyUnseenAll = () => {
+  const out = [];
+  ordQtyAdjIndex().forEach(l => l.forEach(a => { if (!a.seenAt) out.push(a); }));
+  return out.sort((x, y) => String(y.at || '').localeCompare(String(x.at || '')));
+};
+
+/**
+ * SOMEBODY ON THE FLOOR SAYS THEY HAVE SEEN IT.
+ *
+ * Stamped onto the adjustment itself, where whoever changed the quantity reads it back — a message
+ * that is delivered and a message that is read are different things, and the person who changed a
+ * figure needs to know which one this was.
+ */
+async function ordQtySeen(orderNo, logId) {
+  const o = (SOX.rows || []).find(x => x && obUC(x._id) === obUC(orderNo));
+  if (!o) return 'That order is gone.';
+  const a = (o.qtyAdjustments || {})[logId];
+  if (!a) return 'That change is gone.';
+  if (a.seenAt) return '';
+  const now = new Date().toISOString();
+  const base = 'pt_salesOrders/' + o._id + '/qtyAdjustments/' + logId + '/';
+  const patch = { [base + 'seenAt']: now, [base + 'seenBy']: ME.email };
+  try { await ptPatch(patch); }
+  catch (e) { return 'Not saved: ' + (e.message || e); }
+  /* FROM WHAT WAS WRITTEN, not from a second copy of the same reasoning — the same rule as the
+   * change itself. Otherwise the screen says "seen" for a write that never left. */
+  const adj = Object.assign({}, o.qtyAdjustments);
+  adj[logId] = Object.assign({}, a, { seenAt: patch[base + 'seenAt'], seenBy: patch[base + 'seenBy'] });
+  /* A NEW ARRAY, which is what the index invalidates on — it holds the one it was built from and
+   * compares by identity, so there is nothing else to clear. */
+  SOX.rows = (SOX.rows || []).map(x => (x._id === o._id ? Object.assign({}, x, { qtyAdjustments: adj }) : x));
+  ordQtyBadge();
+  return '';
+}
+
+/** The count on the sidebar, so it does not need the tab open to be noticed. */
+function ordQtyBadge() {
+  const el = $('ordAdjBadge'); if (!el) return;
+  const n = ordQtyUnseenAll().length;
+  el.textContent = n ? String(n) : '';
+  el.classList.toggle('hide', !n);
+}
+
+/** How one change reads on a line: "was 100, now 150". */
+const ordQtyPill = a => nf(a.from) + ' → ' + nf(a.to);
+
 /* ================= WHAT THE VENDORS HOLD, ORDER BY ORDER =================
  *
  * A vendor order line names a SKU and a quantity; it has never named the sales order it was raised
@@ -14529,6 +14611,9 @@ const ORD_KPI_FIELDS = {
   /* SENT WITHOUT A RECORD OF BEING MADE. Not outstanding work — the pieces have gone — but a hole in
    * the registers, and the one number that says how big it is. Clicking it shows exactly those lines. */
   unrecorded: { label: 'Sent, never recorded', of: r => r.unrecorded },
+  /* A QUANTITY SOMEBODY MOVED AND NOBODY HERE HAS READ. Not pieces — changes: one line whose figure
+   * moved twice is two things to read, and the number people act on is how many are waiting. */
+  qtyChanged: { label: 'Quantity changed', of: r => ordQtyUnseen(r.orderNo, r.sku).length },
 };
 function ordKpiApply(rows) {
   const k = ORD_KPI_FIELDS[ORD_KPI];
@@ -14536,12 +14621,14 @@ function ordKpiApply(rows) {
 }
 /** The clickable tiles, the same on the order book and on the Shopify view. */
 function ordKpiTiles(s) {
-  const colour = { received: '#166534', overRecv: '#7f6000', pressed: '#166534', pendingMake: 'var(--bad)', madeToPress: '#7f6000', unrecorded: '#7f6000' };
+  const colour = { received: '#166534', overRecv: '#7f6000', pressed: '#166534', pendingMake: 'var(--bad)', madeToPress: '#7f6000', unrecorded: '#7f6000', qtyChanged: '#b45309' };
   return Object.keys(ORD_KPI_FIELDS).map(key => {
     const k = ORD_KPI_FIELDS[key], on = ORD_KPI === key;
     const tip = key === 'overRecv' ? ODK_OVER.replace(/^ title="|"$/g, '') + ' — '
       : (key === 'unrecorded' ? 'Handed to shipping with no record of being cut, issued or received. The pieces '
-        + 'have gone, so they are not counted as work outstanding — this is what the registers are missing. ' : '');
+        + 'have gone, so they are not counted as work outstanding — this is what the registers are missing. '
+      : (key === 'qtyChanged' ? 'The quantity on the sales order was changed after it was approved, and nobody '
+        + 'here has said they have seen it. Click to see only those lines. ' : ''));
     return '<div class="metric pt-kpi' + (on ? ' pt-kpi-on' : '') + '" data-odkpi="' + key + '" role="button" tabindex="0"'
       + ' title="' + tip + (on ? 'Showing only these lines. Click again to show all.' : 'Show only the lines with ' + k.label.toLowerCase() + '.') + '">'
       + '<div class="v"' + (colour[key] ? ' style="color:' + colour[key] + '"' : '') + '>' + nf(s(k.of)) + '</div>'
@@ -16277,6 +16364,16 @@ function renderOrd() {
       : `<span class="pill pill-low">${nf(r.madeToPress)} to press</span>`)
       + (r.unrecorded ? `<div><span class="pill pill-low" title="${esc(nf(r.unrecorded) + ' of these ' + nf(r.qty)
         + ' piece(s) were handed to shipping with nothing in the registers to say they were made.')}">${nf(r.unrecorded)} never recorded</span></div>` : '')
+      /* THE QUANTITY MOVED, SAID WHERE THE WORK IS DONE. It was written on the sales order, and
+       * nobody on this floor opens one. */
+      + ordQtyAdj(r.orderNo, r.sku).slice(0, 3).map(a => `<div><span class="pill"`
+        + ` style="background:${a.seenAt ? 'var(--chip)' : '#fef3c7'};color:${a.seenAt ? 'var(--muted)' : '#7c2d12'};border:1px solid ${a.seenAt ? 'var(--line)' : '#fbbf24'}"`
+        + ` title="${esc('Changed by ' + String(a.by || '').split('@')[0] + ' on ' + (ptIsoDate(a.at) || '')
+          + (a.why ? ' — ' + a.why : '') + (a.via === 'sheet' ? ' (from a sheet)' : '')
+          + (a.seenAt ? '. Seen by ' + String(a.seenBy || '').split('@')[0] + ' on ' + (ptIsoDate(a.seenAt) || '') + '.' : '. Nobody here has said they have seen it.'))}">`
+        + `qty ${ordQtyPill(a)}</span>`
+        + (a.seenAt ? '' : ` <a href="#" data-ordseen="${esc(a.orderNo)}|${esc(a.id)}" style="font-size:10.5px">Seen</a>`)
+        + '</div>').join('')
       + (odrPendingOf(r.orderNo, r.sku)
         ? `<div><span class="pill pill-out" title="${esc('Asked by ' + String(odrPendingOf(r.orderNo, r.sku).by || '').split('@')[0] + ': ' + (odrPendingOf(r.orderNo, r.sku).why || ''))}">delete asked</span></div>`
         : (o => (o && o.status === 'kept'
@@ -16371,15 +16468,29 @@ function renderOrd() {
     };
   }
 
-  $('odMsg').className = orphanTotal ? 'err' : 'muted';
-  $('odMsg').textContent = `${nf(rows.length)} of ${nf(all.length)} line(s)`
-    + (rows.length > 600 ? ' · showing the first 600' : '')
-    + ordKpiNote()
-    + (orphanTotal
-      ? ` · ${nf(orphanTotal)} row(s) carry NO Order ID and are counted against nothing here `
-        + `(Job Work Register ${nf(orphan.base)}, cutting ${nf(orphan.cut)}, press ${nf(orphan.press)}) — `
-        + 'those pieces were made, they just cannot be attributed to an order.'
-      : '');
+  /* SAID AT THE TOP, NOT ONLY ON THE ROW. A pill halfway down 1,300 lines is not news, and "production
+   * ko pata hi nahi chala" is the whole complaint. This is the ORDER BOOK view because that is where a
+   * sales order's lines are — a quantity change cannot happen to a Shopify line.
+   *
+   * ONE innerHTML, and everything that came out of the data is escaped on the way in. Setting
+   * textContent afterwards would wipe the markup, which is exactly what I did first. */
+  const unseen = ordQtyUnseenAll();
+  $('odMsg').className = (unseen.length || orphanTotal) ? 'err' : 'muted';
+  $('odMsg').innerHTML = (unseen.length
+    ? '<b>' + nf(unseen.length) + ' quantit' + (unseen.length > 1 ? 'ies were' : 'y was')
+      + ' changed on an order, and nobody here has said they have seen it</b> — '
+      + esc(unseen.slice(0, 3).map(a => a.orderNo + ' ' + a.sku + ' ' + ordQtyPill(a)).join(', '))
+      + (unseen.length > 3 ? ' and ' + nf(unseen.length - 3) + ' more' : '')
+      + '. The "Quantity changed" tile shows only those lines. · ' : '')
+    + (ORD.adjErr ? esc('The quantity changes could not be read (' + ORD.adjErr + '), so the pills are missing. · ') : '')
+    + esc(`${nf(rows.length)} of ${nf(all.length)} line(s)`
+      + (rows.length > 600 ? ' · showing the first 600' : '')
+      + ordKpiNote()
+      + (orphanTotal
+        ? ` · ${nf(orphanTotal)} row(s) carry NO Order ID and are counted against nothing here `
+          + `(Job Work Register ${nf(orphan.base)}, cutting ${nf(orphan.cut)}, press ${nf(orphan.press)}) — `
+          + 'those pieces were made, they just cannot be attributed to an order.'
+        : ''));
   ptImgFill(rows.slice(0, 600).map(r => r.sku), false, renderOrd);
 }
 
@@ -16397,6 +16508,18 @@ function ordKpiClick(e) {
   ORD_KPI = ORD_KPI === key ? '' : key;
   renderOrd();
 }
+/* SOMEBODY ON THE FLOOR SAYS THEY SAW IT, and the person who changed the figure can read that back
+ * on the order. Delivered and read are different things. */
+$('odTable').addEventListener('click', async e => {
+  const a = e.target.closest('[data-ordseen]');
+  if (!a) return;
+  e.preventDefault();
+  const [orderNo, logId] = a.getAttribute('data-ordseen').split('|');
+  const err = await ordQtySeen(orderNo, logId);
+  if (err) { $('odMsg').className = 'err'; $('odMsg').textContent = err; return; }
+  renderOrd();
+});
+
 $('odKpis').addEventListener('click', ordKpiClick);
 $('odKpis').addEventListener('keydown', ordKpiClick);
 ['odSrc', 'odBrand', 'odD1', 'odD2'].forEach(id => { const el = $(id); if (el) el.addEventListener('change', renderOrd); });
