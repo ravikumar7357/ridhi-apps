@@ -34617,13 +34617,22 @@ function recipeUploadPlan(entries) {
           skip.push({ row: e.row, key, why: `${spec[1]} must be yes or no, not "${raw}".` });
           return;
         }
+      } else if (spec[2] === 'fab') {
+        /* A SPELLING THE MASTER DOES NOT HAVE IS A FABRIC NOBODY AGREED TO — and from here it would
+         * be written onto every SKU under this combination. The row is refused with the reason. */
+        const hit = cutFabrics().find(x => recNorm(x) === recNorm(raw));
+        if (!hit) {
+          skip.push({ row: e.row, key, why: `"${raw}" is not in the Fabric Type master. Add it there first, or fix the spelling.` });
+          return;
+        }
+        e.vals[f] = hit;                       // the master's own spelling, not the sheet's
       } else if (spec[2] === 'num' && !Number.isFinite(mdbNum(raw))) {
         /* NOT `mdbNum(raw) >= 0`. mdbNum answers null for anything that is not a number, and
          * null >= 0 is true — so "lots" sailed through and would have been written as a quantity. */
         skip.push({ row: e.row, key, why: `${spec[1]} must be a number, not "${raw}".` });
         return;
       }
-      const want = spec[2] === 'yn' ? recNorm(raw) : String(raw).trim();
+      const want = spec[2] === 'yn' ? recNorm(raw) : String(e.vals[f]).trim();
       const had = (c.recipe || {})[f];
       if (recSaid(had) && String(had).trim() === want) return;      // already says exactly that
       (recSaid(had) ? change : set).push({ row: e.row, key, field: f, label: spec[1],
@@ -34672,20 +34681,29 @@ function recipeXlsx(rows) {
     const t = String(v == null ? '' : v); if (t === '') return '';
     return `<c r="${ref}" t="inlineStr"${head ? ' s="1"' : ''}><is><t xml:space="preserve">${soXml(t)}</t></is></c>`;
   };
-  const dvs = RECIPE_FIELDS.filter(f => f[2] === 'yn').map(f => {
+  /* THE FABRICS GO IN THE HIDDEN Lists SHEET beside yes/no, so the cloth columns are a dropdown in
+   * Excel rather than a box to mistype into. */
+  const fabs = cutFabrics();
+  const dvFor = (kind, name) => RECIPE_FIELDS.filter(f => f[2] === kind).map(f => {
     const c = soColName(rows[0].indexOf(f[1]));
-    return `<dataValidation type="list" allowBlank="1" showErrorMessage="0" sqref="${c}2:${c}${last}"><formula1>YesNo</formula1></dataValidation>`;
+    return `<dataValidation type="list" allowBlank="1" showErrorMessage="0" sqref="${c}2:${c}${last}"><formula1>${name}</formula1></dataValidation>`;
   }).join('');
+  const dvs = dvFor('yn', 'YesNo') + (fabs.length ? dvFor('fab', 'Fabrics') : '');
+  const dvN = RECIPE_FIELDS.filter(f => f[2] === 'yn').length
+    + (fabs.length ? RECIPE_FIELDS.filter(f => f[2] === 'fab').length : 0);
   const sheet1 = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
     + '<sheetViews><sheetView workbookViewId="0"><pane xSplit="3" ySplit="1" topLeftCell="D2" activePane="bottomRight" state="frozen"/></sheetView></sheetViews>'
     + '<cols>' + rows[0].map((h, i) => `<col min="${i + 1}" max="${i + 1}" width="${i < 3 ? 22 : (i < 4 ? 8 : (i < 4 + RECIPE_FIELDS.length ? 16 : 26))}" customWidth="1"/>`).join('') + '</cols>'
     + '<sheetData>' + rows.map((r, i) => `<row r="${i + 1}">${r.map((v, j) => cellX(v, soColName(j) + (i + 1), i === 0)).join('')}</row>`).join('') + '</sheetData>'
-    + `<dataValidations count="${RECIPE_FIELDS.filter(f => f[2] === 'yn').length}">${dvs}</dataValidations></worksheet>`;
+    + `<dataValidations count="${dvN}">${dvs}</dataValidations></worksheet>`;
   const sheet2 = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>'
-    + `<row r="1">${cellX('yes', 'A1')}</row><row r="2">${cellX('no', 'A2')}</row>` + '</sheetData></worksheet>';
+    + `<row r="1">${cellX('yes', 'A1')}${cellX(fabs[0], 'B1')}</row><row r="2">${cellX('no', 'A2')}${cellX(fabs[1], 'B2')}</row>`
+    + fabs.slice(2).map((f, i) => `<row r="${i + 3}">${cellX(f, 'B' + (i + 3))}</row>`).join('') + '</sheetData></worksheet>';
   const workbook = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
     + '<sheets><sheet name="Recipes" sheetId="1" r:id="rId1"/><sheet name="Lists" sheetId="2" state="hidden" r:id="rId2"/></sheets>'
-    + '<definedNames><definedName name="YesNo">Lists!$A$1:$A$2</definedName></definedNames></workbook>';
+    + '<definedNames><definedName name="YesNo">Lists!$A$1:$A$2</definedName>'
+    + (fabs.length ? '<definedName name="Fabrics">Lists!$B$1:$B$' + fabs.length + '</definedName>' : '')
+    + '</definedNames></workbook>';
   const styles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
     + '<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>'
     + '<fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>'
@@ -34780,6 +34798,8 @@ function recipeEdit(key) {
     fields: RECIPE_FIELDS.map(([f, label, kind]) => {
       const s = c.says[f];
       const said = s.values.map(v => nf(v.n) + ' × ' + v.value).join(', ') + (s.blank ? ', ' + nf(s.blank) + ' blank' : '');
+      if (kind === 'fab') return { key: f, label: label + '  [' + said + ']', type: 'select',
+        value: recSaid(r[f]) ? String(r[f]).trim() : '', options: [''].concat(fabListOr(r[f])) };
       return kind === 'yn'
         ? { key: f, label: label + '  [' + said + ']', type: 'select', value: recSaid(r[f]) ? recNorm(r[f]) : '',
             options: ['', 'yes', 'no'] }
@@ -34807,6 +34827,9 @@ function recipeEdit(key) {
  * and is shown what would change, because quietly rewriting 4,730 rows is not a feature.
  */
 const RECIPE_FIELDS = [
+  /* FIRST, because it is the first thing anybody asks about a product. 'fab' is text picked from the
+   * Fabric Type master rather than typed: see RECIPE_FAB below. */
+  ['fabric', 'Fabric', 'fab'],
   ['consumption', 'Consumption (m)', 'num'],
   ['packOf', 'Pack of', 'txt'],
   ['cuttingRequired', 'Cutting required', 'yn'],
@@ -34815,7 +34838,7 @@ const RECIPE_FIELDS = [
   ['chainLength', 'Zip size', 'num'],
   ['isRuffle', 'Ruffle', 'yn'],
   ['ruffleMeters', 'Ruffle metres', 'num'],
-  ['ruffleFabric', 'Ruffle fabric', 'txt'],
+  ['ruffleFabric', 'Ruffle fabric', 'fab'],
   ['fillerFabricRequired', 'Filler fabric', 'yn'],
   ['standardFillingQty', 'Filling qty', 'num'],
 ];
@@ -34823,6 +34846,9 @@ const RECIPE_FIELDS = [
  * cannot be told apart on the SKU. A recipe CAN be silent about one, which is why these are stored
  * as the strings 'yes', 'no' or '' rather than as booleans. */
 const RECIPE_YN = RECIPE_FIELDS.filter(f => f[2] === 'yn').map(f => f[0]);
+/* THE CLOTH FIELDS. Stored as text like any other, but only ever a spelling the Fabric Type master
+ * already has — anywhere one can be typed, it is checked against that list first. */
+const RECIPE_FAB = RECIPE_FIELDS.filter(f => f[2] === 'fab').map(f => f[0]);
 
 const recNorm = v => String(v == null ? '' : v).trim().toLowerCase().replace(/\s+/g, ' ');
 /** The one key. Article, subtype and size — brand was tested and does not help. */
