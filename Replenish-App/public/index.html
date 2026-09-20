@@ -520,6 +520,14 @@
 </div>
 
 <!-- ============ APP ============ -->
+<!-- A NEWER BUILD IS LIVE. Outside appView so it shows on the sign-in screen too; see the script just
+     before the module for why it exists and why it never reloads the page itself. -->
+<div id="appvBar" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:#7f1d1d;color:#fff;
+  padding:9px 14px;font-size:13.5px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.25)">
+  <b>A newer version of this app is live.</b> This tab is still running the old one, so some figures may be
+  wrong or missing. Finish what you are typing, then
+  <button id="appvReload" style="margin-left:8px;padding:3px 12px;border-radius:7px;border:0;background:#fff;color:#7f1d1d;font-weight:700;cursor:pointer">Reload</button>
+</div>
 <div id="appView" class="shell hide">
   <!-- Shown only while the perms read is in flight. Every account sees this, briefly; nobody sees a
        sidebar full of sections they do not have. -->
@@ -2669,6 +2677,37 @@
   </div>
 </div>
 
+<script>
+/* ==== APP VERSION — does this tab still run the build that is live? ==== */
+(function () {
+  var APPV = window.__APPV = { base: '', now: '', stale: false, checks: 0 };
+  /** Two answers that are both known and differ. An answer that could not be read says nothing. */
+  APPV.isStale = function (base, now) { return !!base && !!now && base !== now; };
+  APPV.read = function () {
+    return fetch(location.pathname + '?appv=' + Date.now(), { method: 'HEAD', cache: 'no-store' })
+      .then(function (r) { return (r && r.ok && r.headers && (r.headers.get('etag') || r.headers.get('last-modified'))) || ''; })
+      .catch(function () { return ''; });
+  };
+  APPV.show = function () { var b = document.getElementById('appvBar'); if (b) b.style.display = 'block'; };
+  APPV.tick = function () {
+    return APPV.read().then(function (now) {
+      APPV.checks++;
+      /* An answer that could not be read (offline, no ETag) is '' — and isStale treats '' as no opinion, so it
+       * needs no guard of its own here. Two guards for one fact is how they come to disagree. */
+      if (!APPV.base) { APPV.base = now; return; }   // the first answer is the build this tab was loaded with
+      APPV.now = now;
+      if (APPV.isStale(APPV.base, now) && !APPV.stale) { APPV.stale = true; APPV.show(); }
+    });
+  };
+  document.addEventListener('DOMContentLoaded', function () {
+    var btn = document.getElementById('appvReload'); if (btn) btn.onclick = function () { location.reload(); };
+  });
+  APPV.tick();
+  setInterval(APPV.tick, 5 * 60 * 1000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) APPV.tick(); });
+})();
+/* ==== END APP VERSION ==== */
+</script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail,
