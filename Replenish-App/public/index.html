@@ -1413,6 +1413,9 @@
           <input id="palQ" placeholder="Search design / group / printer" style="flex:1 1 160px;min-width:0">
           <button id="palPrinterAdd">+ Printer</button>
           <button id="palExport" class="ghost">Export</button>
+          <button id="palSheet" class="ghost hide" title="Every design, with its group, whether it is still being made, and what the registers say about it. Fill in Group and Continue; the rest is worked out.">Design sheet</button>
+          <button id="palImport" class="ghost hide" title="Read a filled design sheet back. You are shown what it would do before anything is written.">Design import</button>
+          <input id="palFile" type="file" accept=".xlsx,.csv,text/csv" style="display:none">
           <button id="palRefresh" class="ghost">Refresh</button>
         </div>
         <div id="palMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
@@ -32473,10 +32476,17 @@ function palDesigns() {
     });
   });
 
-  return [...out.values()].map(d => Object.assign(d, {
-    group: palGroupOf(d.brand, d.color),
-    blocks: palBlocksNeed(d.key),
-  })).sort((a, b) => b.toMake - a.toMake || b.skus - a.skus);
+  return [...out.values()].map(d => {
+    /* A DESIGN NOBODY IS CONTINUING STOPS BEING WORK, BUT DOES NOT STOP BEING A ROW. Its outstanding
+     * pieces are kept as an open figure — somebody will ask how much was still on order when it was stopped,
+     * and a row that vanished cannot answer. */
+    const live = palLiveOf(d.key);
+    return Object.assign(d, {
+      live, open: d.toMake, toMake: live ? d.toMake : 0,
+      group: palGroupOf(d.brand, d.color),
+      blocks: palBlocksNeed(d.key),
+    });
+  }).sort((a, b) => b.toMake - a.toMake || b.skus - a.skus);
 }
 
 /** The designs gathered into the buckets a printer is actually given. */
@@ -32701,7 +32711,7 @@ async function palLoad() {
     const [g, p, n, h] = await Promise.all([
       ptGet('pt_colorGroups'), ptGet('pt_printers'), ptGet('pt_blockNeed'), ptGet('pt_blockHave'),
     ]);
-    PAL.groups = { map: (g && g.map) || {}, at: (g && g.at) || '', by: (g && g.by) || '' };
+    PAL.groups = { map: (g && g.map) || {}, live: (g && g.live) || {}, at: (g && g.at) || '', by: (g && g.by) || '' };
     PAL.need = { map: (n && n.map) || {}, at: (n && n.at) || '', by: (n && n.by) || '' };
     PAL.have = h || {};
     PAL.printers = Object.entries(p || {}).map(([key, v]) => Object.assign({ key }, v));
@@ -32727,16 +32737,39 @@ async function ensurePal() {
   renderPal();
 }
 
+/**
+ * IS THIS DESIGN STILL BEING MADE?
+ *
+ * Everything is, until somebody says otherwise — a design that has never been mentioned must not
+ * quietly drop out of the plan. Only an explicit false stops one.
+ */
+const palLiveOf = key => ((PAL.groups || {}).live || {})[key] !== false;
+
+/** Both decisions in one record, so the two can never be written apart and disagree. */
+async function palPutGroups(map, live) {
+  const rec = { at: new Date().toISOString(), by: ME.email, map, live };
+  await ptPut('pt_colorGroups', rec);
+  PAL.groups = rec;
+  return '';
+}
+
 async function palSetGroup(designKey, name) {
   if (!palCanEdit()) return PAL_NO_EDIT;
   const map = Object.assign({}, (PAL.groups || {}).map || {});
   const v = String(name == null ? '' : name).trim();
   /* Clearing it does not write an empty name — it drops the decision, and the guess comes back. */
   if (v) map[designKey] = v; else delete map[designKey];
-  const rec = { at: new Date().toISOString(), by: ME.email, map };
-  await ptPut('pt_colorGroups', rec);
-  PAL.groups = rec;
-  return '';
+  /* THE OTHER MAP IS CARRIED THROUGH. Writing the record without it would stop every design that
+   * had been stopped, silently, on the next group edit. */
+  return palPutGroups(map, Object.assign({}, (PAL.groups || {}).live || {}));
+}
+
+/** Stop a design, or start it again. Stopping writes false; starting drops the entry. */
+async function palSetLive(designKey, on) {
+  if (!palCanEdit()) return PAL_NO_EDIT;
+  const live = Object.assign({}, (PAL.groups || {}).live || {});
+  if (on) delete live[designKey]; else live[designKey] = false;
+  return palPutGroups(Object.assign({}, (PAL.groups || {}).map || {}), live);
 }
 
 async function palSetBlocks(designKey, blocks) {
@@ -32865,8 +32898,95 @@ function palBlocksOpen(key) {
   });
 }
 
+/* ================= THE DESIGN SHEET =================
+ *
+ * Two columns are Ravi's: the group, and whether it is still being made. Every other column is
+ * worked out from the registers and read back for nothing — it is there to decide WITH.
+ */
+const PAL_SHEET_COLS = ['Brand', 'Design', 'Group', 'Continue',
+  'SKUs', 'Ordered', 'Still to make', 'Sold 90d', 'Blocks/design', 'Printing now'];
+
+/** Every design there is, with what the registers say about it. */
+function palSheetRows() {
+  const rows = [PAL_SHEET_COLS];
+  palDesigns().forEach(d => {
+    rows.push([d.brand, d.color, d.group || '', d.live ? 'yes' : 'no',
+      d.skus, Math.round(d.ordered), Math.round(d.open), Math.round(d.l90), d.blocks || '',
+      [...d.now.keys()].join(' / ')]);
+  });
+  return rows;
+}
+
+/** Read a filled sheet back, by column name. */
+function palSheetRead(rows) {
+  if (!rows || rows.length < 2) return { err: 'That file has no rows.' };
+  const head = rows[0].map(h => String(h == null ? '' : h).trim().toLowerCase());
+  const at = names => { for (const n of names) { const i = head.indexOf(n); if (i >= 0) return i; } return -1; };
+  const iB = at(['brand']), iD = at(['design', 'colour', 'color']);
+  const iG = at(['group', 'colour group', 'color group']), iC = at(['continue', 'still making', 'active']);
+  if (iB < 0 || iD < 0) return { err: 'The file needs Brand and Design columns. Download the design sheet to see them.' };
+  if (iG < 0 && iC < 0) return { err: 'The file has neither a Group nor a Continue column, so there is nothing in it to read.' };
+  const out = [];
+  for (let i = 1; i < rows.length; i++) {
+    const cell = j => (j >= 0 && rows[i][j] != null ? String(rows[i][j]).trim() : '');
+    const brand = cell(iB), design = cell(iD);
+    if (!brand && !design) continue;
+    out.push({ row: i + 1, brand, design, group: cell(iG), cont: cell(iC), hasG: iG >= 0, hasC: iC >= 0 });
+  }
+  return { entries: out };
+}
+
+/** What the sheet would do, before anything is written. */
+function palSheetPlan(entries) {
+  const known = new Map(palDesigns().map(d => [d.key, d]));
+  const set = [], skip = [], seen = new Map();
+  (entries || []).forEach(e => {
+    const key = palKey(e.brand, e.design);
+    if (seen.has(key)) { skip.push({ row: e.row, key, why: 'the same brand and design is on row ' + seen.get(key) + ' as well.' }); return; }
+    seen.set(key, e.row);
+    const d = known.get(key);
+    /* A DESIGN THE CATALOGUE HAS NEVER SEEN is a typo far more often than it is a new colour, and
+     * inventing one here would put a group on something nothing can ever be made of. */
+    if (!d) { skip.push({ row: e.row, key, why: 'no SKU in the catalogue is ' + (e.brand || '?') + ' ' + (e.design || '?') + '.' }); return; }
+    if (e.hasG) {
+      const want = e.group;
+      if (want !== (d.group || '')) set.push({ row: e.row, key, d, field: 'group', from: d.group || '', to: want });
+    }
+    if (e.hasC && e.cont !== '') {
+      const yes = /^(y|yes|true|1|continue|on)$/i.test(e.cont);
+      const no = /^(n|no|false|0|stop|stopped|off)$/i.test(e.cont);
+      if (!yes && !no) { skip.push({ row: e.row, key, why: 'Continue has to be yes or no, not "' + e.cont + '".' }); return; }
+      if (yes !== d.live) set.push({ row: e.row, key, d, field: 'live', from: d.live ? 'yes' : 'no', to: yes ? 'yes' : 'no', on: yes });
+    }
+  });
+  return { set, skip };
+}
+
+/**
+ * Write what the plan showed, in ONE record.
+ *
+ * Both maps go together: written apart, a group edit landing between them would carry the old stop
+ * list back over the new one.
+ */
+async function palSheetRun(plan) {
+  if (!palCanEdit()) return PAL_NO_EDIT;
+  const rows = (plan && plan.set) || [];
+  if (!rows.length) return 'There is nothing to write.';
+  const map = Object.assign({}, (PAL.groups || {}).map || {});
+  const live = Object.assign({}, (PAL.groups || {}).live || {});
+  rows.forEach(r => {
+    if (r.field === 'group') { if (r.to) map[r.key] = r.to; else delete map[r.key]; }
+    else if (r.on) delete live[r.key]; else live[r.key] = false;
+  });
+  try { await palPutGroups(map, live); }
+  catch (e) { return 'Not saved: ' + (e.message || e); }
+  return '';
+}
+
 /* ---- the screen ---- */
 function renderPal() {
+  /* The sheet writes groups and stop decisions, so it is the same right that ticks them by hand. */
+  ['palSheet', 'palImport'].forEach(id => { if ($(id)) $(id).classList.toggle('hide', !palCanEdit()); });
   const view = ($('palView') || {}).value || PAL.view || 'design';
   PAL.view = view;
   const brand = ($('palBrand') || {}).value || '';
@@ -33154,6 +33274,66 @@ $('palBrand').addEventListener('change', () => renderPal());
 $('palQ').addEventListener('input', () => renderPal());
 $('palPrinterAdd').onclick = () => palPrinterOpen('');
 $('palExport').onclick = () => palExport();
+
+$('palSheet').onclick = () => {
+  const rows = palSheetRows();
+  if (rows.length < 2) {
+    $('palMsg').className = 'err';
+    $('palMsg').textContent = 'There are no designs to write — the master database has no colours in it yet.';
+    return;
+  }
+  ptDownload('designs', rows.map(r => r.map(csvCell).join(',')));
+  $('palMsg').className = 'muted';
+  $('palMsg').textContent = nf(rows.length - 1) + ' design(s) written. Fill in Group and Continue; '
+    + 'every other column is worked out from the registers and is read back for nothing.';
+};
+$('palImport').onclick = () => $('palFile').click();
+$('palFile').onchange = async e => {
+  const file = e.target.files[0]; e.target.value = ''; if (!file) return;
+  try {
+    const rows = /\.xlsx$/i.test(file.name) ? await pkReadXlsx(new Uint8Array(await file.arrayBuffer())) : parseCsv(await file.text());
+    const read = palSheetRead(rows);
+    if (read.err) { $('palMsg').className = 'err'; $('palMsg').textContent = read.err; return; }
+    const plan = palSheetPlan(read.entries);
+    if (!plan.set.length) {
+      $('palMsg').className = plan.skip.length ? 'err' : 'muted';
+      $('palMsg').textContent = plan.skip.length
+        ? nf(plan.skip.length) + ' row(s) refused, and nothing written: '
+          + plan.skip.slice(0, 3).map(x => 'row ' + x.row + ': ' + x.why).join(' · ')
+          + (plan.skip.length > 3 ? ' and ' + nf(plan.skip.length - 3) + ' more.' : '')
+        : 'Every row in that file already says what the screen says.';
+      return;
+    }
+    const gs = plan.set.filter(x => x.field === 'group'), ls = plan.set.filter(x => x.field === 'live');
+    const show = list => list.slice(0, 12).map(x => esc(x.d.brand + ' · ' + x.d.color) + ': '
+      + (x.from === '' ? '<i>not set</i>' : esc(x.from)) + ' → <b>' + esc(x.to) + '</b>').join('<br>');
+    ptOpenDialog({
+      title: 'Write these decisions?',
+      subtitle: nf(gs.length) + ' group(s) · ' + nf(ls.length) + ' started or stopped',
+      /* WHAT STOPPING ONE DOES, said before it is done: the pieces stop being planned, the row stays. */
+      note: 'A design you stop keeps its row and its figures — its outstanding pieces simply stop counting '
+        + 'towards what has to be made, and stop being offered to a printer. Nothing is deleted. '
+        + 'Only Group and Continue are read; every other column on the sheet is worked out here.',
+      html: '<div class="muted" style="font-size:12.5px;line-height:1.7">'
+        + (gs.length ? '<b>Group</b><br>' + show(gs) + (gs.length > 12 ? '<br>…and ' + nf(gs.length - 12) + ' more.' : '') + '<br><br>' : '')
+        + (ls.length ? '<b>Continue</b><br>' + show(ls) + (ls.length > 12 ? '<br>…and ' + nf(ls.length - 12) + ' more.' : '') + '<br><br>' : '')
+        + (plan.skip.length ? '<b style="color:var(--bad)">' + nf(plan.skip.length) + ' row(s) refused, and not written</b><br>'
+          + plan.skip.slice(0, 10).map(x => 'row ' + x.row + ': ' + esc(x.why)).join('<br>')
+          + (plan.skip.length > 10 ? '<br>…and ' + nf(plan.skip.length - 10) + ' more.' : '') : '')
+        + '</div>',
+      saveLabel: 'Write ' + nf(plan.set.length) + ' decision(s)',
+      onSave: async () => {
+        const err = await palSheetRun(plan);
+        if (err) return err;
+        renderPal();
+        $('palMsg').className = 'muted';
+        $('palMsg').textContent = nf(plan.set.length) + ' decision(s) written.'
+          + (plan.skip.length ? ' ' + nf(plan.skip.length) + ' row(s) were refused and left alone.' : '');
+        return '';
+      },
+    });
+  } catch (err) { $('palMsg').className = 'err'; $('palMsg').textContent = 'Could not read it: ' + (err.message || err); }
+};
 $('palRefresh').onclick = async () => { PAL.printers = null; await ensurePal(); };
 
 /** One place saves what is typed into a table, whichever table it is. */

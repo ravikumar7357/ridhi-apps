@@ -89,17 +89,17 @@
         "@ptDlgBody.listener29559",
         "@ptDlgBody.listener29570",
         "@ptDlgBody.listener29580",
-        "@ptDlgBody.listener30407",
-        "@soCur.listener35951",
+        "@ptDlgBody.listener30584",
+        "@soCur.listener36128",
         "@adjSave.onclick",
         "@adjDelete.onclick",
         "@adjCancel.onclick",
-        "@soStatus.listener36859",
-        "@soNote.listener36860",
+        "@soStatus.listener37036",
+        "@soNote.listener37037",
         "@soMcfPreview.onclick",
         "@soSave.onclick",
         "@soCancel.onclick",
-        "@ajFilter.listener37754",
+        "@ajFilter.listener37931",
         "@ajSent.onclick",
         "@ajAccept.onclick",
         "@ajRecv.onclick",
@@ -167,7 +167,7 @@
     "cx": {
       "entry": [
         "ensureCx",
-        "@cxTable.listener30762",
+        "@cxTable.listener30939",
         "@cxGo.onclick",
         "@cxUpload.onclick",
         "@cxExport.onclick"
@@ -352,10 +352,10 @@
     "ka": {
       "entry": [
         "ensurePa",
-        "@kaDetail.listener34144",
-        "@kaQ.listener34152",
+        "@kaDetail.listener34321",
+        "@kaQ.listener34329",
         "@kaGo.onclick",
-        "@kaTable.listener34154",
+        "@kaTable.listener34331",
         "@kaLevelsBtn.onclick",
         "@kaExport.onclick"
       ],
@@ -464,10 +464,10 @@
     "pa": {
       "entry": [
         "ensurePa",
-        "@paWk.listener34141",
-        "@paBasis.listener34142",
-        "@paBody.listener34143",
-        "@paTarget.listener34145",
+        "@paWk.listener34318",
+        "@paBasis.listener34319",
+        "@paBody.listener34320",
+        "@paTarget.listener34322",
         "@paGo.onclick"
       ],
       "nodes": [
@@ -502,15 +502,18 @@
     "palloc": {
       "entry": [
         "ensurePal",
-        "@palView.listener30380",
-        "@palWeeks.listener30381",
-        "@palBrand.listener30382",
-        "@palQ.listener30383",
+        "@palView.listener30497",
+        "@palWeeks.listener30498",
+        "@palBrand.listener30499",
+        "@palQ.listener30500",
         "@palPrinterAdd.onclick",
         "@palExport.onclick",
+        "@palSheet.onclick",
+        "@palImport.onclick",
+        "@palFile.onchange",
         "@palRefresh.onclick",
-        "@palTable.listener30403",
-        "@palTable.listener30411"
+        "@palTable.listener30580",
+        "@palTable.listener30588"
       ],
       "nodes": [
         "pt_baseData",
@@ -609,7 +612,7 @@
         "@ptmImpCancel.onclick",
         "@ptmImpGo.onclick",
         "@ptmRename.onclick",
-        "@ptmTable.listener33013",
+        "@ptmTable.listener33190",
         "@ptmRecSeed.onclick",
         "@ptmRecApply.onclick"
       ],
@@ -837,9 +840,9 @@
     "rfd": {
       "entry": [
         "ensureRfd",
-        "@rfdTable.listener32292",
-        "@rfdKpis.listener32346",
-        "@rfdKpis.listener32347",
+        "@rfdTable.listener32469",
+        "@rfdKpis.listener32523",
+        "@rfdKpis.listener32524",
         "@rfdClear.onclick",
         "@rfdGo.onclick",
         "@rfdExport.onclick"
@@ -865,7 +868,7 @@
       "entry": [
         "ensureShop",
         "@soGo.onclick",
-        "@soDay.listener37543",
+        "@soDay.listener37720",
         "@soAdj.onclick",
         "@soPrintMany.onclick",
         "@soImp.onclick",
@@ -1082,9 +1085,9 @@
     "vreq": {
       "entry": [
         "ensureVrq",
-        "@vrqTable.listener31223",
-        "@vrqKpis.listener31245",
-        "@vrqKpis.listener31246",
+        "@vrqTable.listener31400",
+        "@vrqKpis.listener31422",
+        "@vrqKpis.listener31423",
         "@vrqGo.onclick",
         "@vrqNew.onclick",
         "@vrqExport.onclick"
