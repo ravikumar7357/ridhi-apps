@@ -28,7 +28,9 @@ const want = String(process.argv[2] || '').toUpperCase();
   const lines = app.ordLines().filter(r => !want || r.orderNo === want);
   console.log((want || 'every order') + ' — ' + lines.length + ' line(s), as the deployed code computes them from the live database:\n');
   lines.slice(0, 40).forEach(r => { const q = app.ordQcOf(r.orderNo, r.sku), v = app.ordVendorOf(r.orderNo, r.sku);
+    const g = app.ordFgAt(r.orderNo, r.sku) || { in: 0, store: 0, fba: 0, fbaOpen: 0, worked: 0 };
     console.log('  ' + r.sku.padEnd(20) + 'ordered ' + String(r.qty).padStart(4) + '  received ' + String(r.received).padStart(4)
+      + '   store: ' + String(g.store).padStart(4) + ' (of ' + g.in + ' in)  toFBA ' + String(g.fba).padStart(4) + (g.fbaOpen ? ' (' + g.fbaOpen + ' waiting)' : '') + (g.worked ? ' [' + g.worked + ' shared]' : '')
       + '   QC: ' + (q ? q.checked + ' checked, ' + q.ok + ' ok' + (q.worked ? ' (' + q.worked + ' shared by SKU)' : '') : '—')
       + '   vendor: ' + (v ? v.back + ' back of ' + v.given : '—') + '   waiting: ' + app.ordWaitingAt(r)); });
   if (!want) { const withQc = app.ordLines().filter(r => app.ordQcOf(r.orderNo, r.sku)).length; console.log('\norder lines that show a QC figure: ' + withQc + ' of ' + app.ordLines().length); }

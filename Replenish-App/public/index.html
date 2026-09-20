@@ -14368,7 +14368,13 @@ const ordVendorOf = (orderNo, sku) => ordVendorAlloc().get(obUC(orderNo) + '|' +
  * Read off the same figures the row shows, so the two cannot disagree.
  */
 function ordWaitingAt(r) {
-  if (!r.open) return 'Complete';
+  /* THE LAST LEG IS WORTH SAYING EVEN ON A FINISHED LINE — that is Ravi's own case: 25 ordered, 25 made,
+   * and all 25 sitting dispatched to FBA. "Complete" leads, so anything reading the first word still
+   * reads what it always did. */
+  const fin = ordFgAt(r.orderNo, r.sku) || { store: 0, fbaOpen: 0, in: 0 };
+  const tail = fin.fbaOpen ? ' · ' + nf(fin.fbaOpen) + ' waiting to ship to FBA'
+    : (fin.store ? ' · ' + nf(fin.store) + ' in store' : '');
+  if (!r.open) return 'Complete' + tail;
   const v = ordVendorOf(r.orderNo, r.sku);
   const vGiven = r.printer ? r.qty : (v ? v.given : 0), vBack = r.printer ? r.printed : (v ? v.back : 0);
   if (vGiven > vBack && (r.cutReq ? r.cut < vGiven : r.received < vGiven)) return 'Vendor — ' + nf(vGiven - vBack) + ' to come back';
@@ -14376,7 +14382,10 @@ function ordWaitingAt(r) {
   if (r.issued < r.qty) return 'Issue — ' + nf(r.qty - r.issued) + ' not given to a karigar';
   if (r.received < r.issued) return 'Karigar — ' + nf(r.issued - r.received) + ' out';
   if (r.pressed < r.received) return 'Press — ' + nf(r.received - r.pressed) + ' to press';
-  return 'Store / dispatch';
+  /* Anything past here can only be reached by figures that contradict each other — a line is open only
+   * while pressed < ordered, and getting this far means pressed >= ordered. Saying where the pieces are
+   * is still the most useful answer if it ever happens. */
+  return tail ? 'Store —' + tail.replace(' · ', ' ') : 'Store / dispatch';
 }
 
 /**
@@ -14389,17 +14398,18 @@ function ordJourney(orderNo) {
   const stage = r => { const v = ordVendorOf(r.orderNo, r.sku), q = ordQcOf(r.orderNo, r.sku);
     return { ordered: r.qty, given: r.printer ? r.qty : (v ? v.given : 0), back: r.printer ? r.printed : (v ? v.back : 0),
       cut: r.cutReq ? r.cut : null, issued: r.issued, received: r.received, qc: q ? q.ok : null, pressed: r.pressed,
-      store: ordFgOf(r.orderNo, r.sku) || 0, v }; };
+      store: (ordFgAt(r.orderNo, r.sku) || {}).store || 0, fba: (ordFgAt(r.orderNo, r.sku) || {}).fba || 0, v }; };
   const S = rows.map(stage), sum = f => S.reduce((t, x) => t + (x[f] || 0), 0);
   const tiles = [['Ordered', sum('ordered')], ['With vendor', sum('given')], ['Back from vendor', sum('back')], ['Cut', sum('cut')],
-    ['Issued', sum('issued')], ['Received', sum('received')], ['QC passed', sum('qc')], ['Pressed', sum('pressed')], ['In store', sum('store')]];
+    ['Issued', sum('issued')], ['Received', sum('received')], ['QC passed', sum('qc')], ['Pressed', sum('pressed')],
+    ['In store', sum('store')], ['To FBA', sum('fba')]];
   const strip = '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">' + tiles.map(([l, n], i) =>
     `<div style="flex:1 1 92px;border:1px solid var(--line);border-radius:10px;padding:7px 9px;text-align:center">`
     + `<div style="font-size:17px;font-weight:700${i && n < tiles[0][1] ? ';color:#7f6000' : ';color:var(--accent)'}">${nf(n)}</div>`
     + `<div class="muted" style="font-size:11px">${l}</div></div>`).join('<div style="align-self:center" class="muted">›</div>') + '</div>';
   const num = (n, of) => n == null ? '<span class="muted">n/a</span>' : (n >= of ? `<span style="color:#166534;font-weight:700">${nf(n)}</span>` : nf(n));
-  const head = ['SKU', 'What', 'Ordered', 'With vendor', 'Back', 'Cut', 'Issued', 'Received', 'QC', 'Pressed', 'In store', 'Waiting at']
-    .map((h, i) => `<th${i >= 2 && i <= 10 ? ' class="num"' : ''}>${h}</th>`).join('');
+  const head = ['SKU', 'What', 'Ordered', 'With vendor', 'Back', 'Cut', 'Issued', 'Received', 'QC', 'Pressed', 'In store', 'To FBA', 'Waiting at']
+    .map((h, i) => `<th${i >= 2 && i <= 11 ? ' class="num"' : ''}>${h}</th>`).join('');
   const body = rows.map((r, i) => { const x = S[i];
     const vend = r.printer ? [`${esc(voName(r.printer))} · put on this line from the Order Console · ${nf(r.printed)} of ${nf(r.qty)} back`]
       : (x.v ? x.v.parts.map(p => `${esc(p.vpo)} · ${esc(voName(p.vendorCode))}${p.service ? ' · ' + esc(p.service) : ''} · ${nf(p.qty)} given, ${nf(p.back)} back`
@@ -14411,7 +14421,9 @@ function ordJourney(orderNo) {
       + `<td class="num" style="font-weight:700">${nf(x.ordered)}</td>`
       + `<td class="num">${x.given ? nf(x.given) : '<span class="muted">—</span>'}</td><td class="num">${x.given ? num(x.back, x.given) : '<span class="muted">—</span>'}</td>`
       + `<td class="num">${num(x.cut, x.ordered)}</td><td class="num">${num(x.issued, x.ordered)}</td><td class="num">${num(x.received, x.ordered)}</td>`
-      + `<td class="num">${num(x.qc, x.ordered)}</td><td class="num">${num(x.pressed, x.ordered)}</td><td class="num">${num(x.store, x.ordered)}</td>`
+      + `<td class="num">${num(x.qc, x.ordered)}</td><td class="num">${num(x.pressed, x.ordered)}</td>`
+      + `<td class="num">${x.store ? nf(x.store) : '<span class="muted">—</span>'}</td>`
+      + `<td class="num">${x.fba ? `<span style="color:#166534">${nf(x.fba)}</span>` : '<span class="muted">—</span>'}</td>`
       + `<td style="text-align:left;font-size:12px${r.open ? '' : ';color:#166534'}">${esc(ordWaitingAt(r))}</td></tr>`; }).join('');
   const first = rows[0], openN = rows.filter(r => r.open).length;
   ptOpenDialog({
@@ -14502,6 +14514,36 @@ function ordBrandOf(sku) {
  * passed". Shared out across orders by a guess it would be worse than useless: it decides pay.
  */
 let ORD_QC_IX = { src: null, n: -1, map: null };
+/**
+ * ROWS THAT NAME NO ORDER, SHARED AMONG THE ORDERS OF THEIR SKU.
+ *
+ * QC checks and finished-goods outflows both record a SKU and not an order, and both have to be shown
+ * against an order anyway. One rule, written once, because two copies of it would be two chances to
+ * disagree: deal each SKU's loose pieces to its order lines OLDEST FIRST, never beyond the room that
+ * line has, and never twice. What is left over belongs to no order in the book and is shown on none.
+ *
+ *   loose   Map sku → a number of pieces (and whatever else rides along)
+ *   lines   the order lines to deal to
+ *   roomOf  (line) → how many that line can still take; 0 or less means skip it
+ *   give    (line, taken, fraction) → called for each share, fraction being taken/the SKU's whole
+ */
+function ordShareBySku(loose, lines, roomOf, give) {
+  const when = r => ptDtMs(r.orderDate) || 0;
+  const bySku = new Map();
+  lines.forEach(r => { if (!bySku.has(r.sku)) bySku.set(r.sku, []); bySku.get(r.sku).push(r); });
+  loose.forEach((whole, sku) => {
+    let left = whole;
+    if (!(left > 0)) return;
+    (bySku.get(sku) || []).slice().sort((a, b) => when(a) - when(b)).forEach(r => {
+      if (!(left > 0)) return;
+      const take = Math.min(left, roomOf(r));
+      if (!(take > 0)) return;
+      give(r, take, take / whole);
+      left -= take;
+    });
+  });
+}
+
 function ordQcIndex() {
   const src = QC.checks || [], lines = ordLines();
   if (ORD_QC_IX.map && ORD_QC_IX.src === src && ORD_QC_IX.n === src.length && ORD_QC_IX.lines === lines) return ORD_QC_IX.map;
@@ -14517,41 +14559,70 @@ function ordQcIndex() {
     p.checked += ptNum(r.checked); p.ok += ptNum(r.ok); p.rej += ptNum(r.rejected); p.alt += ptNum(r.forAlteration);
     loose.set(sku, p);
   });
-  /* SHARED OUT ONCE, AND NEVER BEYOND WHAT AN ORDER RECEIVED. Nothing can be inspected that did not come
-   * back, so each order takes at most its received pieces less what was checked against it by name —
-   * oldest order first. The outcome (passed / rejected / alteration) goes with the pieces in proportion.
-   * What is left over belongs to no order in the book and is shown on none. */
-  const when = r => ptDtMs(r.orderDate) || 0;
-  loose.forEach((p, sku) => {
-    let left = p.checked; if (!(left > 0)) return;
-    lines.filter(r => r.sku === sku && r.received > 0).sort((a, b) => when(a) - when(b)).forEach(r => {
-      if (!(left > 0)) return;
-      const k = obKeyOf(r.orderNo, r.sku), room = r.received - ((map.get(k) || {}).checked || 0), take = Math.min(left, room);
-      if (!(take > 0)) return;
-      const f = take / p.checked;
-      add(k, take, Math.round(p.ok * f), Math.round(p.rej * f), Math.round(p.alt * f), true); left -= take;
-    });
-  });
+  /* SHARED OUT ONCE, AND NEVER BEYOND WHAT AN ORDER RECEIVED — nothing can be inspected that did not
+   * come back. The outcome (passed / rejected / alteration) goes with the pieces in proportion. */
+  const whole = new Map(); loose.forEach((p, sku) => whole.set(sku, p.checked));
+  ordShareBySku(whole, lines.filter(r => r.received > 0),
+    r => r.received - ((map.get(obKeyOf(r.orderNo, r.sku)) || {}).checked || 0),
+    (r, take, f) => { const p = loose.get(r.sku);
+      add(obKeyOf(r.orderNo, r.sku), take, Math.round(p.ok * f), Math.round(p.rej * f), Math.round(p.alt * f), true); });
   ORD_QC_IX = { src, n: src.length, lines, map };
   return map;
 }
 const ordQcOf = (orderNo, sku) => ordQcIndex().get(obKeyOf(orderNo, sku)) || null;
 
-/** Pieces of this order that actually reached the finished-goods store. */
-let ORD_FG_IX = { src: null, n: -1, map: null };
+/**
+ * WHERE AN ORDER'S FINISHED PIECES ARE NOW.
+ *
+ * What came IN is a fact — a RECEIVE names its order. What went OUT names none, because the store keeps
+ * stock by SKU and nobody taking pieces off a shelf is told which order they were made for; those are
+ * shared among the SKU's orders by ordShareBySku, oldest first, never beyond what that order received.
+ *
+ * Returned: in (received), out, fba (of that, sent to Amazon), fbaOpen (dispatched and not yet shipped,
+ * so still the factory's), store (in − out) and worked (how many of the outward pieces were shared
+ * rather than written down).
+ */
+let ORD_FG_IX = { src: null, n: -1, lines: null, map: null };
 function ordFgIndex() {
-  const src = FGI.rows || [];
-  if (ORD_FG_IX.map && ORD_FG_IX.src === src && ORD_FG_IX.n === src.length) return ORD_FG_IX.map;
-  const map = new Map();
+  const src = FGI.rows || [], lines = ordLines();
+  if (ORD_FG_IX.map && ORD_FG_IX.src === src && ORD_FG_IX.n === src.length && ORD_FG_IX.lines === lines) return ORD_FG_IX.map;
+  const map = new Map(), loose = new Map();
+  const get = k => { let e = map.get(k); if (!e) { e = { in: 0, out: 0, fba: 0, fbaOpen: 0, worked: 0 }; map.set(k, e); } return e; };
+  const pool = sku => { let p = loose.get(sku); if (!p) { p = { out: 0, fba: 0, fbaOpen: 0 }; loose.set(sku, p); } return p; };
   src.forEach(r => {
-    if (!r || !r.orderNo || r.txnType !== 'RECEIVE') return;
-    const k = obKeyOf(r.orderNo, r.sku);
-    map.set(k, (map.get(k) || 0) + fgiNum(r.qty));
+    if (!r) return;
+    const q = fgiNum(r.qty), sku = obUC(r.sku); if (!sku) return;
+    /* IN — the same rules the Finished Goods screen counts by: a confirmed transfer from the press is
+     * stock, an unconfirmed one is not yet, and a reversed one never was. */
+    if (r.txnType === 'RECEIVE' || (r.txnType === 'TRANSFER_IN' && r.confirmed === true && r.reversed !== true)) {
+      if (r.orderNo) get(obKeyOf(r.orderNo, sku)).in += q;
+      return;
+    }
+    if (r.txnType !== 'ISSUE' && r.txnType !== 'FBA' && r.txnType !== 'FBA_RETURN') return;   // OPENING and the markers
+    /* OUT. A return from FBA gives the pieces back, so it is the same figures with the sign turned. */
+    const sign = r.txnType === 'FBA_RETURN' ? -1 : 1;
+    const isFba = r.txnType === 'FBA' || r.txnType === 'FBA_RETURN';
+    const st = r.txnType === 'FBA' ? fbaState(r) : null;
+    const open = st ? st.open : 0;                       // dispatched and not yet shipped to Amazon
+    const shipped = st && st.st === 'shipped';
+    const add = (e, f) => { e.out += sign * q * f; if (isFba) { e.fba += sign * q * f; e.fbaOpen += sign * (shipped ? 0 : open) * f; } };
+    if (r.orderNo) add(get(obKeyOf(r.orderNo, sku)), 1);
+    else { const p = pool(sku); p.out += sign * q; if (isFba) { p.fba += sign * q; p.fbaOpen += sign * (shipped ? 0 : open); } }
   });
-  ORD_FG_IX = { src, n: src.length, map };
+  /* THE LOOSE OUTFLOWS. An order can only have sent out what it took in, less what left it by name. */
+  const whole = new Map(); loose.forEach((p, sku) => { if (p.out > 0) whole.set(sku, p.out); });
+  ordShareBySku(whole, lines,
+    r => { const e = map.get(obKeyOf(r.orderNo, r.sku)); return e ? e.in - e.out : 0; },
+    (r, take, f) => { const p = loose.get(r.sku), e = get(obKeyOf(r.orderNo, r.sku));
+      e.out += take; e.fba += p.fba * f; e.fbaOpen += p.fbaOpen * f; e.worked += take; });
+  map.forEach(e => { ['in', 'out', 'fba', 'fbaOpen', 'worked'].forEach(k => { e[k] = Math.round(e[k]); });
+    e.store = Math.max(0, e.in - e.out); });
+  ORD_FG_IX = { src, n: src.length, lines, map };
   return map;
 }
-const ordFgOf = (orderNo, sku) => ordFgIndex().get(obKeyOf(orderNo, sku)) || 0;
+const ordFgAt = (orderNo, sku) => ordFgIndex().get(obKeyOf(orderNo, sku)) || null;
+/** Pieces of this order sitting in the India Store right now. */
+const ordFgOf = (orderNo, sku) => { const e = ordFgAt(orderNo, sku); return e ? e.store : 0; };
 
 function ordFilters() {
   const v = id => ($(id) || {}).value || '';
@@ -16100,8 +16171,10 @@ function renderOrd() {
   const head = '<thead><tr>'
     + (bkPick ? '<th class="frz" style="width:34px"><input type="checkbox" id="spPickAll" style="width:auto;margin:0" title="Tick every line shown"></th>' : '')
     + ['Order No', 'Raised from', 'Date', 'SKU', 'Image', 'Article', 'Subtype', 'Color', 'Size',
-    'Ordered', 'Cut', 'Issued', 'Received', 'QC', 'Pressed', 'In store', 'To cut', 'To make', 'Status'].concat(bkPrint ? ['Printing', 'Printer'] : [])
-    .map((h, i) => `<th${i === 0 && !bkPick ? ' class="frz"' : (i >= 9 && i <= 17 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
+    'Ordered', 'Cut', 'Issued', 'Received', 'QC', 'Pressed', 'In store', 'To FBA', 'To cut', 'To make', 'Status'].concat(bkPrint ? ['Printing', 'Printer'] : [])
+    /* THE NUMERIC RUN ENDS AT "To make". Adding a column inside it and leaving this range alone puts every
+     * heading after it over the wrong cells — which has happened on this table before. */
+    .map((h, i) => `<th${i === 0 && !bkPick ? ' class="frz"' : (i >= 9 && i <= 18 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
 
   const body = rows.slice(0, 600).map(r => {
     const pk = r.orderNo + '|' + r.sku, k = esc(pk);
@@ -16148,8 +16221,18 @@ function renderOrd() {
             : '<span class="muted">—</span>')
           + '</td>')(ordQcOf(r.orderNo, r.sku))
       + `<td class="num" style="color:#166534">${nf(r.pressed)}</td>`
-      + (g => `<td class="num" title="Pieces of this order that reached the India Store — from the Finished Goods register.">`
-          + (g ? `<b>${nf(g)}</b>` : '<span class="muted">—</span>') + '</td>')(ordFgOf(r.orderNo, r.sku))
+      + (g => `<td class="num"${g ? ` title="${esc(nf(g.in) + ' of this order came into the India Store and ' + nf(g.out) + ' have gone out, so ' + nf(g.store) + ' are there now.'
+            + (g.fbaOpen ? ' A further ' + nf(g.fbaOpen) + ' are dispatched to FBA and not yet shipped, so ' + nf(g.store + g.fbaOpen) + ' are still the factory\'s.' : '')
+            + (g.worked ? ' The store keeps stock by SKU, so ' + nf(g.worked) + ' of the outward pieces name no order and are shared out by SKU — oldest order first, never beyond what this order received.' : ''))}"` : ''}>`
+          + (g && g.store ? `<b>${nf(g.store)}</b>` : '<span class="muted">—</span>')
+          + (g && g.fbaOpen ? `<div class="muted" style="font-size:10.5px">+${nf(g.fbaOpen)} held for FBA</div>` : '')
+          + '</td>'
+          /* THE LAST LEG. Pieces that left the store for Amazon, and whether they have actually gone. */
+          + `<td class="num"${g && g.fba ? ` title="${esc(nf(g.fba) + ' dispatched to FBA'
+            + (g.fbaOpen ? ', of which ' + nf(g.fbaOpen) + ' are still waiting to be shipped' : ' and all shipped'))}"` : ''}>`
+          + (g && g.fba ? `<b style="color:#166534">${nf(g.fba)}</b>`
+              + (g.fbaOpen ? `<div class="muted" style="font-size:10.5px">${nf(g.fbaOpen)} waiting</div>` : '')
+            : '<span class="muted">—</span>') + '</td>')(ordFgAt(r.orderNo, r.sku))
       + `<td class="num"${r.pendingCut ? ' style="color:#7f6000;font-weight:700"' : ''}>${r.pendingCut ? nf(r.pendingCut) : '<span class="muted">—</span>'}</td>`
       + `<td class="num"${r.pendingMake ? ' style="color:var(--bad);font-weight:700"' : ''}>${r.pendingMake ? nf(r.pendingMake) : '<span class="muted">—</span>'}</td>`
       + `<td>${status}</td>`
@@ -16236,7 +16319,8 @@ function ordBookCsv(rows) {
     'Cut %', 'Issued', 'Received', 'Pressed', 'To cut', 'To make', 'Status', 'Printer', 'Printed',
     /* What the vendors hold for the line, as the screen shows it — one column each, because a spreadsheet
      * is filtered on "with vendor" and "waiting at", not read a cell at a time. */
-    'Vendor', 'Given to vendor', 'Back from vendor', 'Not given', 'Vendor orders', 'Promised', 'How linked', 'Waiting at'].map(csvCell).join(',')];
+    'Vendor', 'Given to vendor', 'Back from vendor', 'Not given', 'Vendor orders', 'Promised', 'How linked',
+    'Into store', 'In store now', 'To FBA', 'FBA not yet shipped', 'Waiting at'].map(csvCell).join(',')];
   rows.forEach(r => { const v = ordVendorOf(r.orderNo, r.sku);
     lines.push([r.orderNo, r.shopOrderNo || '', r.adjId || '', r.orderDate, r.sku, ordPri(r.sku), r.articleType, r.articleSubtype, r.color, r.size,
     r.qty, r.cutReq ? r.cut : '', r.cutReq ? r.cutPct.toFixed(1) : '', r.issued, r.received, r.pressed,
@@ -16245,7 +16329,8 @@ function ordBookCsv(rows) {
     v ? Math.max(0, r.qty - v.given) : '', v ? [...new Set(v.parts.map(p => p.vpo))].join(' ') : '',
     v ? [...new Set(v.parts.map(p => p.due).filter(Boolean))].join(' ') : '',
     v ? (v.shared ? 'shared by SKU' : (v.parts.every(p => p.stamped) ? 'placed for this order' : 'only order for this SKU')) : '',
-    ordWaitingAt(r)].map(csvCell).join(',')); });
+    (g => g ? [g.in, g.store, g.fba, g.fbaOpen] : ['', '', '', ''])(ordFgAt(r.orderNo, r.sku)),
+    ordWaitingAt(r)].flat().map(csvCell).join(',')); });
   return lines;
 }
 
