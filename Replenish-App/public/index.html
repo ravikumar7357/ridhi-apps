@@ -20750,7 +20750,10 @@ function soOpen(id) {
   const o = (SOX.rows || []).find(x => x._id === id); if (!o) return;
   const s = soSummary(o, soWork());
   const shown = s.groups.slice(0, 400);
+  /* WHO MAY MOVE A QUANTITY: whoever approved the order in the first place. */
+  const mayQty = soCanApprove() && soStatus(o) === 'approved';
   const head = ['SKU', 'Image', 'Qty', 'Cut', 'Made', 'Owed', 'Delivery', 'Priority', 'In order book']
+    .concat(mayQty ? [''] : [])
     .map((h, i) => `<th${i >= 2 && i <= 5 ? ' class="num"' : ''}>${h}</th>`).join('');
   const body = shown.map(g => {
     const owed = Math.max(0, g.qty - g.press);
@@ -20765,10 +20768,16 @@ function soOpen(id) {
       + `<td class="num"${owed ? ' style="color:var(--bad);font-weight:700"' : ''}>${owed ? nf(owed) : '<span class="muted">—</span>'}</td>`
       + `<td>${esc(g.delivery) || '<span class="muted">—</span>'}</td>`
       + `<td>${esc(g.priority) || '<span class="muted">—</span>'}</td>`
-      + `<td style="font-weight:700;color:${g.inBook ? 'var(--accent)' : 'var(--bad)'}">${g.inBook ? 'yes' : 'NO'}</td></tr>`;
+      + `<td style="font-weight:700;color:${g.inBook ? 'var(--accent)' : 'var(--bad)'}">${g.inBook ? 'yes' : 'NO'}</td>`
+      + (mayQty ? `<td><button class="ghost" data-so-qty="${esc(o._id)}|${esc(g.sku)}" style="padding:3px 9px;font-size:12px">Change qty</button></td>` : '')
+      + '</tr>';
   }).join('');
   const removed = (Array.isArray(o.lineRemovals) ? o.lineRemovals : Object.values(o.lineRemovals || {}))
     .filter(Boolean).reduce((n, r) => n + (parseInt(r.count, 10) || soCount(r.lines)), 0);
+  /* EVERY QUANTITY THAT MOVED, newest first. A figure that changed and cannot be explained three
+   * weeks later is the reason this is kept at all. */
+  const adj = Object.values(o.qtyAdjustments || {}).filter(Boolean)
+    .sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
   ptOpenDialog({
     title: 'Sales order ' + o._id,
     subtitle: `${o.channel || ''}${o.buyerName ? '  ·  ' + o.buyerName : ''}${o.buyerEmail ? '  ·  ' + o.buyerEmail : ''}`,
@@ -20779,12 +20788,59 @@ function soOpen(id) {
         : ` Status ${soStatus(o)}, so nothing is in the order book yet.`)
       + (o.approvedBy ? ` Approved by ${String(o.approvedBy).split('@')[0]}.` : '')
       + (removed ? ` ${nf(removed)} line(s) were removed from this order after it was raised.` : '')
+      + (adj.length ? ` ${nf(adj.length)} quantit${adj.length > 1 ? 'ies were' : 'y was'} changed after approval.` : '')
       + (o.saRemarks ? ` Remarks: ${o.saRemarks}` : ''),
     html: `<div class="xlwrap" style="max-height:52vh;border:1px solid var(--line);border-radius:10px">`
       + `<table class="xl" id="sxDlgTable"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`
-      + (s.groups.length > 400 ? `<div class="muted" style="margin-top:8px;font-size:12px">Showing the first 400 of ${nf(s.groups.length)} SKUs. Export gives you all of them.</div>` : ''),
+      + (s.groups.length > 400 ? `<div class="muted" style="margin-top:8px;font-size:12px">Showing the first 400 of ${nf(s.groups.length)} SKUs. Export gives you all of them.</div>` : '')
+      + (adj.length ? '<div style="margin-top:10px;font-weight:600;font-size:13px">Quantities changed after approval</div>'
+        + '<table class="xl" style="margin-top:4px"><thead><tr><th>When</th><th>SKU</th><th class="num">From</th><th class="num">To</th><th>Why</th><th>By</th></tr></thead><tbody>'
+        + adj.slice(0, 40).map(a => `<tr><td style="text-align:left">${esc(ptIsoDate(a.at) || '')}</td>`
+          + `<td style="text-align:left;font-family:ui-monospace,monospace">${esc(a.sku)}</td>`
+          + `<td class="num">${nf(a.from)}</td>`
+          + `<td class="num" style="font-weight:700;color:${a.to > a.from ? '#166534' : 'var(--bad)'}">${nf(a.to)}</td>`
+          + `<td style="text-align:left">${esc(a.why || '')}</td>`
+          + `<td>${esc(String(a.by || '').split('@')[0])}</td></tr>`).join('')
+        + '</tbody></table>' : ''),
   });
   ptImgFill(shown.map(g => g.sku), false, ptImgPatch);
+}
+
+/**
+ * THE DIALOG. Everything the decision needs is on it before the number is typed: what the order says
+ * now, what the factory has already done against it, what the order book carries, and the figure it
+ * cannot go below.
+ */
+function soQtyOpen(id, sku) {
+  const o = (SOX.rows || []).find(x => x._id === id); if (!o) return;
+  const now = soQtyOf(o, sku);
+  const done = soDoneOn(o._id, sku);
+  const book = (PTG.ob || []).find(r => r && r.id === soBookId(o._id, sku));
+  const lines = soLinesOf(o, sku);
+  ptOpenDialog({
+    title: 'Change the quantity — ' + sku,
+    subtitle: 'Sales order ' + o._id + (o.buyerName ? '  ·  ' + o.buyerName : ''),
+    note: `On the order now: ${nf(now)} piece(s)${lines.length > 1 ? ' over ' + nf(lines.length) + ' lines' : ''}. `
+      + `Already cut ${nf(done.cut)}, received ${nf(done.made)}, pressed ${nf(done.pressed)}. `
+      + (done.floor ? `It cannot go below ${nf(done.floor)} — those pieces exist. ` : 'Nothing has been made yet, so it can go to zero. ')
+      + (book ? `The order book carries ${nf(parseFloat(book.qty) || 0)} and moves with it.`
+        : 'This SKU never reached the order book, so only the sales order changes — use "Add the missing" to put it there.')
+      + (lines.length > 1 ? ' Extra goes on the latest delivery date; a cut comes off the latest first.' : ''),
+    fields: [
+      { key: 'qty', label: 'New quantity', type: 'number', step: '1', min: done.floor, value: now },
+      { key: 'why', label: 'Why it is changing', value: '', span: true },
+    ],
+    saveLabel: 'Change it',
+    onSave: async v => {
+      const err = await soQtyRun(o, sku, v.qty, v.why);
+      if (err) return err;
+      renderSox();
+      $('sxMsg').className = 'muted';
+      $('sxMsg').textContent = sku + ' on ' + o._id + ' is now ' + nf(parseFloat(v.qty) || 0)
+        + ' piece(s), and the order book says the same.';
+      return '';
+    },
+  });
 }
 
 $('sxTable').addEventListener('click', e => {
@@ -22558,6 +22614,36 @@ function soGenId(channel, dateISO, ignoreId) {
 }
 
 /** What is on order for a SKU today. A negative line is a correction and needs something to subtract from. */
+/**
+ * WHAT HAS ALREADY BEEN DONE against one order and one SKU, and the number the order may not go
+ * below.
+ *
+ * THE LARGEST OF THE THREE, NOT THE SUM: they are three views of the same pieces walking through
+ * the factory, and adding them would say 300 pieces exist where 100 do.
+ *
+ * Finished goods are deliberately not a fourth. A piece reaches the store by being pressed, so
+ * pressed already covers it — and the finished-goods ledger would have to be loaded on a screen that
+ * does not otherwise need it, to change an answer it cannot change.
+ */
+function soDoneOn(orderNo, sku) {
+  const cut = obCutQty(orderNo, sku);
+  const b = obBaseIndex().get(obKeyOf(orderNo, sku));
+  const made = b ? b.received : 0;
+  const pressed = obPressQty(orderNo, sku);
+  return { cut, made, pressed, floor: Math.max(cut, made, pressed) };
+}
+
+/** The lines of one order that carry one SKU, with where each sits in the stored array. */
+const soLinesOf = (o, sku) => soLines(o)
+  .map((l, i) => ({ l, i }))
+  .filter(x => obUC(x.l.sku) === obUC(sku));
+
+/** What this order says it wants of one SKU today. */
+const soQtyOf = (o, sku) => soLinesOf(o, sku).reduce((a, x) => a + (parseFloat(x.l.qty) || 0), 0);
+
+/** The order-book row an approved sales order writes for one SKU — the id soApproveRun uses. */
+const soBookId = (orderNo, sku) => 'ob_so_' + obUC(orderNo) + '_' + obUC(sku);
+
 function soCurrentNetQty(sku, typeKey) {
   const S = obUC(sku), tk = typeKey === 'newdev' ? 'newdev' : 'regular';
   let net = 0;
@@ -22575,6 +22661,99 @@ function soCurrentNetQty(sku, typeKey) {
 const soMine = o => String(o.buyerEmail || '').toLowerCase() === String(ME.email || '').toLowerCase();
 /** A buyer edits their own order only while it is a draft or has come back to them. */
 const soCanEdit = o => !o || ME.admin || (soMine(o) && (soStatus(o) === 'draft' || soStatus(o) === 'returned'));
+
+/**
+ * MOVE A SKU'S QUANTITY ON AN ORDER THAT IS ALREADY OUT — the sales order and the order book together.
+ *
+ * Returns a plan rather than writing, so the dialog can show exactly what would happen before it
+ * happens: which lines move, what the book row becomes, and why it is refused when it is.
+ */
+function soQtyPlan(o, sku, want) {
+  if (!o) return { err: 'That order is gone.' };
+  if (soStatus(o) !== 'approved') return { err: 'Only an approved order has anything in the order book to change. Edit a draft on the order itself.' };
+  const mine = soLinesOf(o, sku);
+  if (!mine.length) return { err: 'That SKU is not on this order.' };
+  const now = soQtyOf(o, sku);
+  const n = parseFloat(want);
+  if (!isFinite(n) || n < 0) return { err: 'What should the new quantity be?' };
+  if (Math.round(n) !== n) return { err: 'Pieces have to be a whole number.' };
+  if (n === now) return { err: 'That is what it already says.' };
+  const done = soDoneOn(o._id, sku);
+  /* THE FLOOR. Reducing below what is already made does not un-make it — it leaves the registers
+   * describing pieces on the floor as pieces nobody ordered. */
+  if (n < done.floor) {
+    const which = [done.cut === done.floor && 'cut', done.made === done.floor && 'received',
+      done.pressed === done.floor && 'pressed'].filter(Boolean).join(' / ');
+    return { err: nf(done.floor) + ' piece(s) have already been ' + which + ' against this order, so it '
+      + 'cannot go below ' + nf(done.floor) + '. Set it to ' + nf(done.floor) + ' to close it at what was made.' };
+  }
+  /* WHERE IT LANDS. Extra onto the latest promise; a cut off the latest first, so the earliest
+   * delivery date keeps its pieces. */
+  const order = mine.slice().sort((a, b) =>
+    String(a.l.deliveryDate || '').localeCompare(String(b.l.deliveryDate || '')) || a.i - b.i);
+  const moves = [];
+  let delta = n - now;
+  if (delta > 0) {
+    const last = order[order.length - 1];
+    moves.push({ i: last.i, from: parseFloat(last.l.qty) || 0, to: (parseFloat(last.l.qty) || 0) + delta });
+  } else {
+    let cut = -delta;
+    for (let j = order.length - 1; j >= 0 && cut > 0; j--) {
+      const q = parseFloat(order[j].l.qty) || 0;
+      const take = Math.min(q, cut);
+      if (!take) continue;
+      cut -= take;
+      moves.push({ i: order[j].i, from: q, to: q - take });
+    }
+  }
+  const book = (PTG.ob || []).find(r => r && r.id === soBookId(o._id, sku));
+  return { err: '', sku: obUC(sku), from: now, to: n, delta: n - now, done, moves,
+    book: book ? (parseFloat(book.qty) || 0) : null };
+}
+
+async function soQtyRun(o, sku, want, why) {
+  if (!soCanApprove()) return SO_NO_APPROVE;
+  const plan = soQtyPlan(o, sku, want);
+  if (plan.err) return plan.err;
+  const reason = String(why || '').trim();
+  /* A CHANGE WITH NO REASON IS THE ONE NOBODY CAN EXPLAIN LATER. */
+  if (!reason) return 'Say why it is changing — it goes on the order beside the figure.';
+  const now = new Date().toISOString();
+  const patch = {};
+  plan.moves.forEach(m => {
+    patch['pt_salesOrders/' + o._id + '/lines/' + m.i + '/qty'] = m.to;
+    patch['pt_salesOrders/' + o._id + '/lines/' + m.i + '/previousQty'] = m.from;
+  });
+  const logId = 'adj_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+  const log = { id: logId, sku: plan.sku, from: plan.from, to: plan.to, why: reason,
+    by: ME.email, at: now };
+  patch['pt_salesOrders/' + o._id + '/qtyAdjustments/' + logId] = log;
+  patch['pt_salesOrders/' + o._id + '/updatedAt'] = now;
+  /* AND THE ORDER BOOK IN THE SAME WRITE. Two writes could leave the two disagreeing, which is the
+   * whole thing this is here to prevent. A SKU the book never got is left alone and said out loud —
+   * "Add the missing" is the button for that, and it builds the row from these same lines. */
+  if (plan.book != null) patch['pt_orderBook/' + soBookId(o._id, sku) + '/qty'] = plan.to;
+  try { await ptPatch(patch); }
+  catch (e) { return 'Not saved: ' + (e.message || e); }
+  /* THE SCREEN IS BUILT FROM WHAT WAS WRITTEN, not from a second run of the same reasoning. Two
+   * independent builds is exactly how a screen comes to show a change the database never took —
+   * and how a test of the screen passes while the write is missing. */
+  const base = 'pt_salesOrders/' + o._id + '/';
+  const lines = soLines(o).map((l, i) => (patch[base + 'lines/' + i + '/qty'] === undefined ? l
+    : Object.assign({}, l, { qty: patch[base + 'lines/' + i + '/qty'],
+      previousQty: patch[base + 'lines/' + i + '/previousQty'] })));
+  const adj = Object.assign({}, o.qtyAdjustments || {});
+  Object.keys(patch).forEach(k => {
+    const at = k.indexOf(base + 'qtyAdjustments/');
+    if (at === 0) adj[k.slice((base + 'qtyAdjustments/').length)] = patch[k];
+  });
+  const next = Object.assign({}, o, { lines, qtyAdjustments: adj, updatedAt: patch[base + 'updatedAt'] || o.updatedAt });
+  SOX.rows = (SOX.rows || []).map(x => (x._id === o._id ? next : x));
+  const bookPath = 'pt_orderBook/' + soBookId(o._id, sku) + '/qty';
+  if (patch[bookPath] !== undefined) PTG.ob = (PTG.ob || []).map(r =>
+    (r && r.id === soBookId(o._id, sku) ? Object.assign({}, r, { qty: patch[bookPath] }) : r));
+  return '';
+}
 
 /* ---- B2B ---- */
 const soIsB2B = ch => String(ch || '').trim().toUpperCase() === 'B2B';
@@ -22799,6 +22978,10 @@ $('ptDlgBody').addEventListener('change', e => {
   SOF.lines[+el.getAttribute('data-i')][el.getAttribute('data-sof')] = el.value;
 });
 $('ptDlgBody').addEventListener('click', e => {
+  /* The SKU table lives inside the order's own dialog, so this one replaces it with the quantity
+   * dialog and the order is reopened underneath when that is done with. */
+  const q = e.target.closest('[data-so-qty]');
+  if (q) { const [id, sku] = q.getAttribute('data-so-qty').split('|'); return soQtyOpen(id, sku); }
   const del = e.target.closest('[data-sofdel]');
   if (del) {
     SOF.lines.splice(+del.getAttribute('data-sofdel'), 1);
