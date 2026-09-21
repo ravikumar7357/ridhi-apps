@@ -24684,7 +24684,7 @@ function voTemplate(kind) {
 const VO_XLSX_ROWS = 300;
 function voRunningXlsx() {
   const cat = [...voFabricCatalogue().values()];
-  const show = r => r.sku + ' | ' + [r.colour, r.fabric, r.width ? r.dir : ''].filter(Boolean).join(' · ');
+  const show = r => r.sku + ' | ' + [r.colour, r.fabric, r.width ? r.dir : '', r.side || ''].filter(Boolean).join(' · ');
   const fabrics = voMasterList('fabricType', 'fabric'), colours = voMasterList('colour', 'color');
   const dirs = ['Horizontal', 'Vertical'], pris = ['P1', 'P2', 'P3', 'P4'];
   const head = ['Fabric SKU', 'Fabric Type', 'Color', 'Print Direction', 'Quantity (Meters)', 'Delivery Date', 'Priority', 'Notes'];
