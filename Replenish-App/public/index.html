@@ -1273,6 +1273,7 @@
           <input id="rfdD2" type="date" style="flex:0 0 150px" title="Raised to this date">
           <button id="rfdClear" class="ghost">Clear</button>
           <button id="rfdExport" class="ghost">Export</button>
+          <button id="rfdRefuseSel" class="ghost hide" title="Refuse every ticked requirement, with one reason">Refuse ticked</button>
           <button id="rfdGo">Refresh</button>
         </div>
         <div id="rfdMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
@@ -35124,9 +35125,13 @@ const rfdWho = e => String(e || '').split('@')[0];
  * the order covers says by how much, in the same cell.
  */
 function rfdTable(rows) {
+  /* The tick-all box sits in the first header, and only for somebody who can refuse. */
+  const picking = rfdCanApprove() && rows.some(rfdRefusable);
   const head = '<thead><tr>' + ['Raised', 'Printer', 'Order', 'What they need', 'How much',
     'What the order covers', 'Stage', 'Sent', 'Note', '']
-    .map((h, i) => `<th${i === 0 ? ' class="frz"' : ([4, 7].indexOf(i) >= 0 ? ' class="num"' : '')}>${esc(h)}</th>`).join('') + '</tr></thead>';
+    .map((h, i) => `<th${i === 0 ? ' class="frz"' : ([4, 7].indexOf(i) >= 0 ? ' class="num"' : '')}>`
+      + (i === 0 && picking ? '<input type="checkbox" id="rfdPickAll" title="Tick every requirement shown that can still be refused" style="margin-right:6px;vertical-align:middle">' : '')
+      + `${esc(h)}</th>`).join('') + '</tr></thead>';
   return head + '<tbody>' + rows.map(r => {
     const st = RFD_STAGE[r.stage] || { label: r.stage, pill: 'pill-low' };
     /* THE SAME SUM THE STAGE WAS DECIDED BY — what was left when this one was raised. Showing the
@@ -35142,7 +35147,9 @@ function rfdTable(rows) {
     const u = rfdUnit(r);
     const unknown = r._order ? rfdOrderNeed(r._order).unknown.length : 0;
     return '<tr>'
-      + `<td class="frz" style="text-align:left">${esc(ptIsoDate(r.raisedAt) || '')}`
+      + `<td class="frz" style="text-align:left">`
+      + (rfdRefusable(r) ? `<input type="checkbox" data-rfd-pick="${esc(r.id)}"${RFD_PICK.has(r.id) ? ' checked' : ''} style="margin-right:6px;vertical-align:middle">` : '')
+      + `${esc(ptIsoDate(r.raisedAt) || '')}`
       + `<div class="muted" style="font-size:10.5px">${esc(rfdWho(r.raisedBy))}</div></td>`
       + `<td style="text-align:left">${esc(r.vendorName || voName(r.vendorCode))}`
       + `<div class="muted" style="font-size:10.5px">${esc(r.vendorCode)}</div></td>`
@@ -35173,6 +35180,58 @@ function rfdTable(rows) {
   }).join('') + '</tbody>';
 }
 
+/* ---- ticking several ---- */
+
+let RFD_PICK = new Set();
+
+/** The same test the row's own Refuse button uses — a tick box must not offer what the write refuses. */
+const rfdRefusable = r => !!r && rfdCanApprove() && r.stage !== 'rejected' && !(r.sent > 0);
+
+function rfdPickToggle(id, on) { if (on) RFD_PICK.add(id); else RFD_PICK.delete(id); rfdPickShow(); }
+
+/** Tick, or untick, every refusable row on screen — never one a filter is hiding. */
+function rfdPickAll(on) {
+  (RFD.shown || []).filter(rfdRefusable).forEach(r => { if (on) RFD_PICK.add(r.id); else RFD_PICK.delete(r.id); });
+  rfdPickShow();
+}
+
+/** Let go of any tick on a row that is no longer on screen or no longer refusable. */
+function rfdPickPrune() {
+  const ok = new Set((RFD.shown || []).filter(rfdRefusable).map(r => r.id));
+  RFD_PICK = new Set([...RFD_PICK].filter(id => ok.has(id)));
+}
+
+function rfdPickShow() {
+  const b = $('rfdRefuseSel');
+  if (b) {
+    b.classList.toggle('hide', !RFD_PICK.size);
+    b.textContent = 'Refuse ticked (' + nf(RFD_PICK.size) + ')';
+  }
+  const all = $('rfdPickAll');
+  if (all) {
+    const can = (RFD.shown || []).filter(rfdRefusable);
+    all.checked = can.length > 0 && can.every(r => RFD_PICK.has(r.id));
+  }
+}
+
+/**
+ * Refuse several, one at a time, through the same write the single button uses.
+ * Returns { done, failed: [{ id, err }] } or { err } when nothing was tried.
+ */
+async function rfdRefuseMany(ids, note) {
+  if (!rfdCanApprove()) return { err: RFD_NO_APPROVE };
+  const why = String(note || '').trim();
+  if (!why) return { err: 'Give a reason — every printer sees it on their own screen.' };
+  const list = [...new Set(ids || [])];
+  if (!list.length) return { err: 'Nothing is ticked.' };
+  let done = 0; const failed = [];
+  for (const id of list) {
+    const err = await rfdDecide(id, 'rejected', why);
+    if (err) failed.push({ id, err }); else { done++; RFD_PICK.delete(id); }
+  }
+  return { done, failed };
+}
+
 /** Only what this account may actually do, and only what makes sense at this stage. */
 function rfdButtons(r) {
   const b = [];
@@ -35199,6 +35258,7 @@ function renderRfd() {
   ptFillSelect('rfdFab', [...new Set(all.map(r => r.fabric).filter(Boolean))].sort(), 'All fabrics');
   const rows = rfdApply(all, rfdFilters());
   RFD.shown = rows;
+  rfdPickPrune();
 
   const n = st => all.filter(r => r.stage === st).length;
   /* Two figures, never one. Pieces and metres added together would be a number with no unit — the
@@ -35236,6 +35296,7 @@ function renderRfd() {
     : nf(rows.length) + ' of ' + nf(all.length) + ' requirement(s)')
     + ' · what an order covers is worked out from its own lines, never stored'
     + (rfdCanApprove() ? '' : ' · you may look, not answer');
+  rfdPickShow();
 }
 
 /* ---- the buttons ---- */
@@ -35284,6 +35345,41 @@ $('rfdTable').addEventListener('click', async e => {
   }
   if (e.target.closest('[data-rfd-ok],[data-rfd-no],[data-rfd-send]')) say('');
 });
+
+$('rfdTable').addEventListener('change', e => {
+  const t = e.target;
+  if (!t || !t.getAttribute) return;
+  if (t.id === 'rfdPickAll') { rfdPickAll(!!t.checked); renderRfd(); return; }
+  const id = t.getAttribute('data-rfd-pick');
+  if (id) rfdPickToggle(id, !!t.checked);
+});
+
+$('rfdRefuseSel').onclick = () => {
+  rfdPickPrune();
+  const picked = (RFD.shown || []).filter(r => RFD_PICK.has(r.id));
+  if (!picked.length) { rfdPickShow(); return; }
+  const printers = [...new Set(picked.map(r => r.vendorName || r.vendorCode))];
+  ptOpenDialog({
+    title: 'Refuse ' + nf(picked.length) + ' requirement(s)',
+    subtitle: printers.slice(0, 4).join(', ') + (printers.length > 4 ? ' and ' + nf(printers.length - 4) + ' more' : ''),
+    note: 'Every printer sees this reason on their own screen. Say something they can act on.',
+    html: '<div class="muted" style="font-size:12.5px;line-height:1.7">'
+      + picked.slice(0, 12).map(r => esc(r.orderNo + ' · ' + (r.vendorName || r.vendorCode) + ' · ' + r.unitTxt + ' · ' + rfdQtyTxt(r))).join('<br>')
+      + (picked.length > 12 ? '<br>…and ' + nf(picked.length - 12) + ' more.' : '') + '</div>',
+    fields: [{ key: 'note', label: 'Reason', span: true, value: '' }],
+    saveLabel: 'Refuse ' + nf(picked.length),
+    onSave: async v => {
+      const res = await rfdRefuseMany(picked.map(r => r.id), v.note);
+      if (res.err) return res.err;
+      renderRfd();
+      $('rfdMsg').className = res.failed.length ? 'err' : 'muted';
+      $('rfdMsg').textContent = nf(res.done) + ' refused.'
+        + (res.failed.length ? ' ' + nf(res.failed.length) + ' were not: '
+          + res.failed.slice(0, 3).map(x => { const r = rfdFind(x.id); return (r ? r.orderNo : x.id) + ' — ' + x.err; }).join(' · ') : '');
+      return '';
+    },
+  });
+};
 
 function rfdKpiClick(e) {
   const t = e.target.closest('[data-rfdkpi]');
