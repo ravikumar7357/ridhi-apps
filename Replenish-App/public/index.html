@@ -3229,7 +3229,7 @@ function showTab(which) {
   Object.entries(navs).forEach(([k, id]) => $(id).classList.toggle('on', which === k));
   if (SHOP_ONLY() && which === 'ord') { $('pageTitle').textContent = 'Shopify Orders'; }
   const TITLES = { repl: 'Replenishment', article: 'Article Review', target: 'Revenue Target', follow: 'Ongoing Purchase Order', top: 'Top ASIN Status', india: 'India Stock', shopify: 'Shopify Stock', prod: 'In Production', pack: 'Packing List', plan: 'Action Plan',
-    att: 'Attendance', pmdb: 'Master Database', mst: 'Masters', pbase: 'Job Work Register', pcut: 'Cutting Data', ppress: 'Press Inventory', qc: 'Quality Control', ord: 'Order Console', so: 'Sales Orders', vord: 'Vendor Orders', vreq: 'Vendor Order Requests', rfd: 'RFD Requirements \u2014 what each printer needs in cloth', vend: 'Vendor Portal', vlog: 'History — what printers have sent', cx: 'Customer Orders', palloc: 'Printer Allocation', fgi: 'Finished Goods', fba: 'FBA Dispatch', fab: 'Fabric Inventory', acc: 'Accessories', rep: 'Reports', pa: 'Production Analysis', ka: 'Karigar Analysis', hr: 'Finance & HR', shop: 'Shopify Orders', adj: 'Adjustments' };
+    att: 'Attendance', pmdb: 'Master Database', mst: 'Masters', pbase: 'Job Work Register', pcut: 'Cutting Data', ppress: 'Press Inventory', qc: 'Quality Control', ord: 'Order Console', so: 'Sales Orders', vord: 'Vendor Orders', vreq: 'Vendor Order Requests', rfd: 'RFD Requirements', vend: 'Vendor Portal', vlog: 'History — what printers have sent', cx: 'Customer Orders', palloc: 'Printer Allocation', fgi: 'Finished Goods', fba: 'FBA Dispatch', fab: 'Fabric Inventory', acc: 'Accessories', rep: 'Reports', pa: 'Production Analysis', ka: 'Karigar Analysis', hr: 'Finance & HR', shop: 'Shopify Orders', adj: 'Adjustments' };
   $('pageTitle').textContent = TITLES[which] || 'Replenishment';
   VEND_WAS_ON = (which === 'vend');
   TAB_NOW = which;
@@ -35151,7 +35151,10 @@ function rfdRows() {
 const rfdFind = id => rfdRows().find(r => r.id === id) || null;
 
 async function ensureRfd(force) {
-  if (RFD.decisions === null || force) {
+  /* LOADED MEANS THE SCREEN'S OWN LOAD RAN, not that the decisions are here. The sidebar badge reads
+   * the decisions on the way in, and keying this on them left the screen with no orders and no
+   * stock - "0 requirements" until somebody pressed Refresh. */
+  if (!RFD.loaded || force) {
     RFD.busy = true; renderRfd();
     try { RFD.decisions = (await ptGet('pt_rfdDecisions')) || {}; RFD.err = ''; }
     catch (e) { RFD.err = e.message || String(e); RFD.decisions = RFD.decisions || {}; }
@@ -35163,7 +35166,7 @@ async function ensureRfd(force) {
      * those are loaded. */
     if (VO.rows === null || force) { VO.rows = null; try { await ensureVo(); } catch (e) { /* shown as none */ } }
     if (!PTG.mdb) { try { await ptLoadGates(); } catch (e) { /* ceilings show as unknown */ } }
-    RFD.at = ptStamp(); RFD.busy = false;
+    RFD.at = ptStamp(); RFD.busy = false; RFD.loaded = true;
   }
   renderRfd();
 }
