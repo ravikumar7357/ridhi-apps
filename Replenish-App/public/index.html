@@ -616,7 +616,7 @@
     <button class="navgrp" id="grpPlan" type="button" data-grp="plan" data-tabs="repl,article,target,top,prod,pack,follow,india">
       <span class="caret">&#9656;</span> Replenishment &amp; planning</button>
     <div class="navsec" id="secPlan">
-      <button id="tabRepl" class="nav on">Replenishment</button>
+      <button id="tabRepl" class="nav">Replenishment</button>
       <button id="tabArticle" class="nav">Article Review</button>
       <button id="tabTarget" class="nav">Revenue Target</button>
       <button id="tabTop" class="nav">Top ASIN Status</button>
@@ -685,7 +685,7 @@
           <path d="M1 1h16M1 7h16M1 13h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
         </svg>
       </button>
-      <h2 class="pagehead" id="pageTitle">Replenishment</h2>
+      <h2 class="pagehead" id="pageTitle"></h2>
       <!-- THE GUIDE, on every screen: opens /guide/ at the part about the screen you are on. -->
       <button id="guideBtn" class="ghost" type="button" style="margin-left:auto;flex:0 0 auto" title="How this screen works, step by step — English and Hindi">Guide · गाइड</button>
     </div>
@@ -713,7 +713,9 @@
     </div>
 
     <!-- ============ Replenishment ============ -->
-    <div id="paneRepl">
+    <!-- HIDDEN LIKE EVERY OTHER SCREEN until sign-in has decided which one is yours. It used to be the
+         one screen shown by default, so vendors and new staff saw Replenishment first. -->
+    <div id="paneRepl" class="hide">
       <div class="card" style="padding:12px 14px">
         <div class="toolbar">
           <select id="rBrand" style="flex:0 0 140px">
@@ -2893,13 +2895,21 @@ $('resetLink').onclick = async () => {
 };
 $('logoutBtn').onclick = () => signOut(auth);
 
+let AUTH_SEEN = false;
 onAuthStateChanged(auth, async user => {
   $('loginView').classList.toggle('hide', !!user);
   $('appView').classList.toggle('hide', !user);
-  if (!user) { document.body.classList.remove('gating'); return; }
+  /* SIGNING OUT WIPES THE PAGE. Everything the last person loaded is still in memory and in the
+   * hidden screens; the next person to sign in on this tab must start from nothing. */
+  if (!user) { if (AUTH_SEEN) { location.reload(); return; } document.body.classList.remove('gating'); return; }
+  AUTH_SEEN = true;
   /* Raised BEFORE the perms read, lowered by ungate() on every path out of the gating — including
    * the no-access one, and including a throw. A cover that can stick is worse than no cover. */
   document.body.classList.add('gating');
+  /* NO SCREEN IS SHOWN UNTIL THIS ACCOUNT'S OWN FIRST SCREEN IS CHOSEN — showTab() below opens it.
+   * The data loads that come first (config, the Replenishment snapshot) happen behind hidden screens. */
+  document.querySelectorAll('[id^="pane"]').forEach(el => el.classList.add('hide'));
+  $('pageTitle').textContent = 'Loading…';
   ME = { email: (user.email || '').toLowerCase(), admin: false, repl: false, tabs: [], tabsExplicit: false, projEdit: false, prodEdit: false, rateApprove: false, shopAssign: false, b2bAssign: false,
     accEntry: false, accEdit: false, vlogAccept: false, soApprove: false, mdbEdit: false,
     attendMark: false, vreqApprove: false, rfdApprove: false, rfdSend: false, fgiEdit: false, fgiEntry: false, empEdit: false, hrEmpOnly: false };

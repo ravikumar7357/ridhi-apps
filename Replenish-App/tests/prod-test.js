@@ -18639,6 +18639,20 @@ console.log('\n== masters by spreadsheet ==');
 
   A.setPTG(wasPTG); ME.admin = wasAdmin; NET.on = wasNet; NET.store = {}; NET.calls.length = 0;
 }
+console.log('\n== no screen shows before sign-in has chosen one ==');
+{
+  /* 21 Sep 2026: every vendor and new hire saw Replenishment first — it was the one screen visible by
+   * default, and the cover came off before their own screen was chosen. */
+  const src = fs.readFileSync(APP, 'utf8');
+  const panes = [...src.matchAll(/<div id="(pane[A-Za-z]+)"([^>]*)>/g)];
+  const open = panes.filter(m => !/class="[^"]*\bhide\b/.test(m[2])).map(m => m[1]);
+  ok('every screen starts hidden', panes.length > 30 && open.length === 0, open.join(', ') || String(panes.length));
+  ok('no sidebar button starts as the open one', !/class="nav on"/.test(src));
+  ok('the title says nothing until a screen is chosen', /id="pageTitle"><\/h2>/.test(src));
+  ok('sign-in hides every screen before anything loads',
+    /classList\.add\('gating'\);[\s\S]{0,400}querySelectorAll\('\[id\^="pane"\]'\)\.forEach\(el => el\.classList\.add\('hide'\)\)/.test(src));
+  ok('signing out reloads the page, so the next person starts from nothing', /if \(!user\) \{ if \(AUTH_SEEN\) \{ location\.reload\(\);/.test(src));
+}
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
 })();
