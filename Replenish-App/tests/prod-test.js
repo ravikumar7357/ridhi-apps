@@ -58,7 +58,7 @@ const IDS = ('ptmBrand ptmArt ptmSub ptmCol ptmSz ptmCut ptmQ ptmBrandFs ptmDir 
   + 'acView acCat acQ acDLab acD1 acD2 acClear acNewItem acNewTxn acTemplate acImport acFile acExport acGo acMsg acKpis acTable '
   + 'sxStatus sxQ sxD1 sxD2 sxClear sxExport sxGo sxMsg sxKpis sxTable '
   + 'voVendor voStatus voType voQ voExport voGo voMsg voKpis voTable '
-  + 'vpRfdPick vpRfdAll tabRfd rfdBadge paneRfd rfdStage rfdVendor rfdFab rfdQ rfdD1 rfdD2 rfdClear rfdExport rfdRefuseSel rfdGo fbPoNew fbPoSet fbGuide rfdGuide mstTpl mstImp mstFile rfdMsg rfdKpis rfdTable vpTabRfd '
+  + 'vpRfdPick vpRfdAll tabRfd rfdBadge paneRfd rfdStage rfdVendor rfdFab rfdQ rfdD1 rfdD2 rfdClear rfdExport rfdRefuseSel rfdGo fbPoNew fbPoSet fbGuide rfdGuide guideBtn mstTpl mstImp mstFile rfdMsg rfdKpis rfdTable vpTabRfd '
   + 'voView voAttrRow voAt voSub voCol voSz voPri voAttrClear voTableWrap voCards '
   + 'renTmpl renUp renFile renInfo ptDlgAlt sxNew sof_channel sof_date sof_type sof_delivery sof_legacy sof_id sof_table sof_pager '
   + 'sof_add sof_tmpl sof_up sof_file sor_mode sor_date sor_remarks '

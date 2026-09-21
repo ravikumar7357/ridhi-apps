@@ -1,0 +1,93 @@
+<section class="sec" id="fab">
+<h2><span class="en">Fabric Inventory — greige → RFD → cutting</span><span class="sep"> · </span><span class="hi">फैब्रिक इन्वेंटरी — ग्रे → RFD → कटिंग</span></h2>
+<div class="flow"><span>1. Greige PO</span>→<span>2. Mail</span>→<span>3. Greige received</span>→<span>4. Sent for RFD</span>→<span>5. RFD received</span>→<span>6. Issued to cutting</span></div>
+<div class="pair">
+  <div class="en">Every metre is followed <b>lot by lot</b>. A lot is one delivery from the mill. The lot number stays with the cloth at every step, so you can always see how much is still greige, how much is with the processor, how much came back as RFD, and how much was lost.</div>
+  <div class="hi">हर मीटर का हिसाब <b>लॉट के हिसाब से</b> रहता है। मिल से आई एक डिलीवरी = एक लॉट। लॉट नंबर हर स्टेप पर कपड़े के साथ चलता है — जिससे पता रहता है कि कितना अभी ग्रे है, कितना प्रोसेसर के पास है, कितना RFD बनकर वापस आया और कितना कम हुआ।</div>
+</div>
+<div class="note pair">
+  <div class="en"><b>Greige name vs RFD name.</b> Greige is bought wider than the RFD it becomes. The <b>Sheeting 62</b> on the cutting table is bought as <b>Greige Sheeting 67</b>. The PO and the mill see the greige name; when it comes back from the processor, the app records it as Sheeting 62 by itself.</div>
+  <div class="hi"><b>ग्रे का नाम और RFD का नाम अलग है।</b> ग्रे चौड़ा आता है, प्रोसेस के बाद चौड़ाई कम होती है। कटिंग वाला <b>Sheeting 62</b> मिल से <b>Greige Sheeting 67</b> नाम से खरीदा जाता है। PO पर ग्रे का नाम जाता है; प्रोसेसर से वापस आने पर ऐप अपने आप उसे Sheeting 62 लिख देता है।</div>
+</div>
+
+<div class="step" id="setup"><span class="n">A</span><span class="t"><span class="en">One-time setup</span><span class="sep"> · </span><span class="hi">एक बार की सेटिंग</span></span>
+<div class="pair">
+  <div class="en"><ul>
+    <li><span class="where">Masters → Fabric type</span>: type the <b>Greige name</b> next to each RFD fabric (or use <b>Excel template</b> → fill → <b>Excel import</b>). One greige name belongs to one fabric only. Admins only.</li>
+    <li><span class="where">Vendor Orders → Vendors</span>: set <b>Kind = Mill</b> for greige suppliers and <b>Processor</b> for the RFD house. Add each mill's <b>email</b>.</li>
+    <li><span class="where">Fabric Inventory → view "Greige POs" → PO settings</span> (admin): company name, address, GSTIN, phone, email and default terms for the top of every PO.</li></ul></div>
+  <div class="hi"><ul>
+    <li><span class="where">Masters → Fabric type</span>: हर RFD फैब्रिक के सामने <b>Greige name</b> लिखें (या <b>Excel template</b> → भरें → <b>Excel import</b>)। एक ग्रे नाम सिर्फ एक फैब्रिक का। सिर्फ एडमिन।</li>
+    <li><span class="where">Vendor Orders → Vendors</span>: ग्रे देने वाले के लिए <b>Kind = Mill</b>, RFD करने वाले के लिए <b>Processor</b>। मिल का <b>ईमेल</b> ज़रूर भरें।</li>
+    <li><span class="where">Fabric Inventory → "Greige POs" → PO settings</span> (एडमिन): कंपनी का नाम, पता, GSTIN, फोन, ईमेल और शर्तें — ये हर PO के ऊपर छपती हैं।</li></ul></div>
+</div></div>
+
+<div class="step" id="po"><span class="n">1</span><span class="t"><span class="en">Raise the greige PO</span><span class="sep"> · </span><span class="hi">ग्रे का PO बनाएँ</span></span>
+<div class="pair">
+  <div class="en"><span class="where">Fabric Inventory → view "Greige POs" → + Greige PO</span>
+    <ul><li>Pick the <b>mill</b>, PO date and deliver-by date.</li><li>Each line: pick the <b>RFD fabric</b> — the greige name fills in by itself.</li><li>Enter metres, rate per metre and GST % (5 by default).</li><li>Press <b>Raise PO</b>. Number: GPO-YYMMDD-01, -02…</li><li>Edit or cancel only until cloth arrives. Cancelling needs a reason.</li></ul></div>
+  <div class="hi"><span class="where">Fabric Inventory → "Greige POs" → + Greige PO</span>
+    <ul><li><b>मिल</b>, PO तारीख और डिलीवरी की तारीख चुनें।</li><li>हर लाइन में <b>RFD फैब्रिक</b> चुनें — ग्रे नाम अपने आप आ जाएगा।</li><li>मीटर, रेट (प्रति मीटर) और GST % भरें (पहले से 5)।</li><li><b>Raise PO</b> दबाएँ। नंबर अपने आप बनेगा: GPO-YYMMDD-01, -02…</li><li>माल आने से पहले तक ही Edit या Cancel। Cancel में कारण लिखना ज़रूरी है।</li></ul></div>
+</div></div>
+
+<div class="step" id="mail"><span class="n">2</span><span class="t"><span class="en">Print or mail it</span><span class="sep"> · </span><span class="hi">प्रिंट करें या मेल भेजें</span></span>
+<div class="pair">
+  <div class="en"><ul><li><b>Print</b> opens the PO page → <i>Print / Save as PDF</i>.</li><li><b>Mail</b> sends the PO as a <b>PDF attachment</b> from ravi@thefabricrush.com to the mill. Add Cc and a message if needed. The row then shows "mailed 1×".</li></ul>
+    Limits: greige POs only, 5 addresses per mail, 40 a day. Mail works for admins; others use Print → Save as PDF.</div>
+  <div class="hi"><ul><li><b>Print</b> से PO खुलता है → <i>Print / Save as PDF</i>।</li><li><b>Mail</b> से PO की <b>PDF</b> ravi@thefabricrush.com से मिल को चली जाती है। चाहें तो Cc और मैसेज जोड़ें। फिर लाइन में "mailed 1×" दिखेगा।</li></ul>
+    सीमा: सिर्फ ग्रे PO, एक मेल में 5 पते, दिन में 40। मेल एडमिन भेज सकते हैं; बाकी लोग Print → Save as PDF करके भेजें।</div>
+</div></div>
+
+<div class="step" id="receive"><span class="n">3</span><span class="t"><span class="en">Greige arrives</span><span class="sep"> · </span><span class="hi">मिल से ग्रे आया</span></span>
+<div class="pair">
+  <div class="en"><span class="where">Greige POs → Receive</span> on that PO. The form opens filled with the greige name, metres still to come, mill and PO number.
+    <ul><li>Type the metres that <b>actually</b> arrived. Part deliveries are fine — the PO shows "Part received".</li><li><b>Lot</b>: the mill's lot no., or leave blank and one is made. <b>Write it on the bale.</b></li><li>Add bill / challan no. and rate.</li></ul></div>
+  <div class="hi">उसी PO पर <span class="where">Receive</span> दबाएँ। फॉर्म में ग्रे नाम, बाकी मीटर, मिल और PO नंबर पहले से भरे मिलेंगे।
+    <ul><li>जितने मीटर <b>असल में</b> आए वही लिखें। थोड़ा-थोड़ा माल आए तो भी ठीक — PO पर "Part received" दिखेगा।</li><li><b>Lot</b>: मिल का लॉट नंबर लिखें, या खाली छोड़ें — नंबर अपने आप बनेगा। <b>यही नंबर गठ्ठर पर लिखें।</b></li><li>बिल / चालान नंबर और रेट भरें।</li></ul></div>
+</div></div>
+
+<div class="step" id="to-rfd"><span class="n">4</span><span class="t"><span class="en">Send greige for RFD</span><span class="sep"> · </span><span class="hi">ग्रे को RFD के लिए भेजें</span></span>
+<div class="pair">
+  <div class="en"><span class="where">Fabric Inventory → + Fabric entry → "Greige sent for RFD processing"</span>
+    <ul><li>Type the fabric (greige or RFD name, both work), then pick the <b>lot</b> — it shows how much is left.</li><li>Enter metres and <b>who is processing it</b>.</li><li>You cannot send more than the lot holds.</li></ul></div>
+  <div class="hi"><span class="where">Fabric Inventory → + Fabric entry → "Greige sent for RFD processing"</span>
+    <ul><li>फैब्रिक लिखें (ग्रे या RFD कोई भी नाम चलेगा), फिर <b>लॉट</b> चुनें — उसमें कितना बचा है दिखेगा।</li><li>मीटर और <b>प्रोसेसर का नाम</b> भरें।</li><li>लॉट में जितना है उससे ज़्यादा नहीं भेज सकते।</li></ul></div>
+</div></div>
+
+<div class="step" id="rfd-back"><span class="n">5</span><span class="t"><span class="en">RFD comes back</span><span class="sep"> · </span><span class="hi">RFD वापस आया</span></span>
+<div class="pair">
+  <div class="en"><span class="where">+ Fabric entry → "RFD received back"</span>
+    <ul><li>Pick the same <b>lot</b> and enter the metres that came back.</li><li>It is recorded under the <b>RFD name</b> (Greige Sheeting 67 → Sheeting 62).</li><li>Cannot be more than is with the processor.</li><li>The lot's <b>loss %</b> is worked out (600 sent, 570 back = 5%).</li></ul></div>
+  <div class="hi"><span class="where">+ Fabric entry → "RFD received back"</span>
+    <ul><li>वही <b>लॉट</b> चुनें और जितने मीटर वापस आए वो भरें।</li><li>ये <b>RFD नाम</b> से दर्ज होगा (Greige Sheeting 67 → Sheeting 62)।</li><li>प्रोसेसर के पास जितना है उससे ज़्यादा नहीं ले सकते।</li><li>लॉट का <b>लॉस %</b> अपने आप निकलेगा (600 भेजा, 570 आया = 5%)।</li></ul></div>
+</div></div>
+
+<div class="step" id="cutting"><span class="n">6</span><span class="t"><span class="en">Issue RFD to cutting</span><span class="sep"> · </span><span class="hi">RFD कटिंग को दें</span></span>
+<div class="pair">
+  <div class="en"><span class="where">+ Fabric entry → "Issued to cutting"</span>. Type the RFD fabric (Sheeting 62), pick the lot, enter metres. Never more than the lot holds.</div>
+  <div class="hi"><span class="where">+ Fabric entry → "Issued to cutting"</span>। RFD फैब्रिक (Sheeting 62) लिखें, लॉट चुनें, मीटर भरें। लॉट से ज़्यादा नहीं दे सकते।</div>
+</div></div>
+
+<div class="step"><span class="n">7</span><span class="t"><span class="en">Where to see everything</span><span class="sep"> · </span><span class="hi">सब कहाँ देखें</span></span>
+<div class="pair">
+  <div class="en">The first drop-down on Fabric Inventory picks the view:<ul>
+    <li><b>Stock balance</b> — balance per fabric, colour and state (Greige / RFD / Printed).</li>
+    <li><b>Greige → RFD → cutting</b> — per fabric: greige in, with processor, RFD back, issued to cutting.</li>
+    <li><b>Lots — bale by bale</b> — per lot: bill, mill, processor, greige left, RFD left, loss %.</li>
+    <li><b>Every movement</b> — the full ledger.</li>
+    <li><b>Greige POs</b> — every PO: ordered / received / to come, amount, stage.</li></ul>
+    <b>Template</b> and <b>Bulk upload</b> enter many movements at once from a sheet.</div>
+  <div class="hi">Fabric Inventory का पहला ड्रॉप-डाउन व्यू चुनता है:<ul>
+    <li><b>Stock balance</b> — फैब्रिक, रंग और स्टेट (ग्रे / RFD / प्रिंटेड) के हिसाब से बैलेंस।</li>
+    <li><b>Greige → RFD → cutting</b> — हर फैब्रिक: ग्रे आया, प्रोसेसर के पास, RFD वापस, कटिंग को गया।</li>
+    <li><b>Lots — bale by bale</b> — हर लॉट: बिल, मिल, प्रोसेसर, बचा ग्रे, बचा RFD, लॉस %।</li>
+    <li><b>Every movement</b> — पूरी एंट्री लिस्ट।</li>
+    <li><b>Greige POs</b> — हर PO: ऑर्डर / आया / बाकी, रकम, स्टेज।</li></ul>
+    <b>Template</b> और <b>Bulk upload</b> से शीट से एक साथ कई एंट्री कर सकते हैं।</div>
+</div></div>
+
+<div class="note pair">
+  <div class="en"><b>Good to know.</b> The app refuses: a PO for a fabric with no greige name; receiving a different cloth against a PO; a wrong or cancelled PO; sending more than a lot holds; receiving more RFD than is with the processor; cancelling a PO that has cloth against it. Raising, receiving and mailing POs needs the right to edit production entries; Masters and PO settings are admin only.</div>
+  <div class="hi"><b>ध्यान दें।</b> ऐप इन्हें रोकता है: बिना ग्रे नाम वाले फैब्रिक का PO; PO में अलग कपड़ा receive करना; गलत या कैंसल PO; लॉट से ज़्यादा भेजना; प्रोसेसर के पास से ज़्यादा RFD लेना; माल आ चुके PO को कैंसल करना। PO बनाना, receive और मेल करना "production entries edit" वाले अधिकार से होता है; Masters और PO settings सिर्फ एडमिन।</div>
+</div>
+</section>

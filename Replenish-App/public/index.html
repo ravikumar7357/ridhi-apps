@@ -680,6 +680,8 @@
         </svg>
       </button>
       <h2 class="pagehead" id="pageTitle">Replenishment</h2>
+      <!-- THE GUIDE, on every screen: opens /guide/ at the part about the screen you are on. -->
+      <button id="guideBtn" class="ghost" type="button" style="margin-left:auto;flex:0 0 auto" title="How this screen works, step by step — English and Hindi">Guide · गाइड</button>
     </div>
 
     <!-- Signed in, no access -->
@@ -20030,7 +20032,8 @@ function fabEntryLots() {
 
 $('fbEntry').onclick = fabEntryOpen;
 /* THE GUIDE lives beside the app (/guide/), in English and Hindi, opened at the part this screen is about. */
-$('fbGuide').onclick = () => window.open('/guide/#' + ($('fbView').value === 'po' ? 'po' : 'setup'), '_blank');
+$('fbGuide').onclick = () => window.open('/guide/#' + ($('fbView').value === 'po' ? 'po' : 'fab'), '_blank');
+$('guideBtn').onclick = () => window.open('/guide/' + (TAB_NOW ? '#' + TAB_NOW : ''), '_blank');
 
 /* ================= GREIGE PURCHASE ORDERS =================
  *
