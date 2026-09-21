@@ -54,6 +54,17 @@ service cloud.firestore {
     }
     // The FBA Replenishment app is a separate frontend sharing this project. Its own permission flag.
     function canRepl() { return isAdmin() || (hasPerms() && permData().repl == true); }
+    // THE FULL SNAPSHOT — sales, revenue, reorder advice, projections, targets — is for admins and the
+    // PLANNING screens only (Ravi, 2026-09-21). An account whose screens only need what a SKU is and
+    // what FBA holds (Shopify Orders, Adjustments, Shopify Stock, Packing List) reads replslim instead.
+    // repl == true with no replTabs list is the old "everything" grant, and keeps everything.
+    function canReplFull() {
+      return isAdmin() || (hasPerms() && permData().repl == true
+        && (!('replTabs' in permData()) || !(permData().replTabs is list) || permData().replTabs.size() == 0
+            || permData().replTabs.hasAny(['repl', 'article', 'target', 'top', 'prod', 'follow', 'india'])));
+    }
+    // Which repl/{doc} documents are planning data rather than shared lookups.
+    function replPrivate(d) { return d in ['SP', 'CPC', 'projoverride', 'revtarget']; }
     // Changing the MONTHLY PROJECTIONS is a narrower right than using the app: those numbers drive
     // every requirement and lane decision, so they are granted separately (perms.replProj).
     function canProj() { return isAdmin() || (hasPerms() && permData().replProj == true); }
@@ -281,17 +292,27 @@ service cloud.firestore {
     // ⚠️ Matches are OR'd in Firestore, so a narrower rule below can only ADD permission, never remove
     //    it — 'projoverride' therefore has to be carved OUT here for its own rule to be the real gate.
     match /repl/{brand} {
-      allow read: if canRepl();
-      allow write: if canRepl() && brand != 'projoverride';
+      allow read: if replPrivate(brand) ? canReplFull() : canRepl();
+      allow write: if brand != 'projoverride' && (replPrivate(brand) ? canReplFull() : canRepl());
     }
     // Manual monthly projections ("SKU|YYYY-MM" -> units). Readable by anyone who uses the app —
     // everyone needs to SEE the numbers the plan is built on — but writable only with canProj().
     match /repl/projoverride {
-      allow read: if canRepl();
+      allow read: if canReplFull();
       allow write: if canProj();
     }
     match /replrows/{doc} {
-      allow read, write: if canRepl();
+      allow read, write: if canReplFull();
+    }
+    // The SLIM copy: sku, category, subcat, colour, size and the FBA/AWD stock — nothing else. Anyone
+    // who uses the Replenishment app may read it; only somebody who holds the full one writes it.
+    match /replslim/{brand} {
+      allow read: if canRepl();
+      allow write: if canReplFull();
+    }
+    match /replslimrows/{doc} {
+      allow read: if canRepl();
+      allow write: if canReplFull();
     }
     // India Stock + In Production lists — uploaded by the user in their own tabs (CSV import).
     // Metadata lives in repl/indiastock + repl/inproduction (covered by repl/{brand} above); these

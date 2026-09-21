@@ -3483,15 +3483,31 @@ const REPL_CHUNK = 700;
 // Both brands are fetched TOGETHER. Sequentially it was meta(SP) → chunks(SP) → meta(CPC) → chunks(CPC)
 // = four round-trips to Firestore before the first paint; in parallel it is two. Nothing here reads what
 // the other brand wrote (REPL[b] and the ACCESS_ERR `||` guard are both per-brand), so order is free.
+/* ================= WHO SEES THE FULL SNAPSHOT =================
+ *
+ * Ravi, 2026-09-21: the full Replenishment data — sales, revenue, reorder advice, 43 columns a SKU —
+ * was readable by every account holding ANY planning or Shopify screen, because those screens are
+ * built on it. The screens that only need to know what a SKU is and how much FBA holds now read a
+ * SLIM copy (8 columns) written beside the full one; the full one is for admins and the planning
+ * screens. The database rules say the same (firestore.rules → canReplFull), so the app is not the
+ * only thing standing in the way.
+ */
+const REPL_FULL_TABS = ['repl', 'article', 'target', 'top', 'prod', 'follow', 'india'];
+const REPL_SLIM_FIELDS = ['sku', 'category', 'subcat', 'color', 'size', 'totalStock', 'awdAvail', 'awdTransit'];
+const REPL_SLIM_CHUNK = 2500;
+const replFull = () => !!(ME.admin || (ME.tabs || []).some(t => REPL_FULL_TABS.includes(t)));
+const replSlimRow = r => { const o = {}; REPL_SLIM_FIELDS.forEach(k => { if (r && r[k] != null) o[k] = r[k]; }); return o; };
+
 async function loadReplCache() {
+  const full = replFull();
   await Promise.all(['SP', 'CPC'].map(async b => {
     try {
-      const meta = await getDoc(doc(db, 'repl', b));
+      const meta = await getDoc(doc(db, full ? 'repl' : 'replslim', b));
       if (!meta.exists()) return;
       const d = meta.data();
       let rows = [];
       if (d.chunks) {
-        const got = await Promise.all(Array.from({ length: d.chunks }, (_, i) => getDoc(doc(db, 'replrows', `${b}_${i}`))));
+        const got = await Promise.all(Array.from({ length: d.chunks }, (_, i) => getDoc(doc(db, full ? 'replrows' : 'replslimrows', `${b}_${i}`))));
         got.forEach(s => { if (s.exists()) rows = rows.concat(s.data().r || []); });
       } else {
         rows = d.rows || [];                          // docs written before chunking
@@ -3512,6 +3528,16 @@ async function saveReplCache(brand, rows, recCols, catalogSkus) {
     await setDoc(doc(db, 'replrows', `${brand}_${i}`), { r: rows.slice(i * REPL_CHUNK, (i + 1) * REPL_CHUNK) });
   }
   await setDoc(doc(db, 'repl', brand), { chunks, n: rows.length, recCols: recCols || [], catalogSkus: catalogSkus || [], rows: null, at: serverTimestamp() });
+  await saveReplSlim(brand, rows, catalogSkus);
+}
+/** The slim copy, written every time the full one is: what a SKU is and what FBA holds, nothing else. */
+async function saveReplSlim(brand, rows, catalogSkus) {
+  const slim = (rows || []).map(replSlimRow);
+  const chunks = Math.ceil(slim.length / REPL_SLIM_CHUNK) || 1;
+  for (let i = 0; i < chunks; i++) {
+    await setDoc(doc(db, 'replslimrows', `${brand}_${i}`), { r: slim.slice(i * REPL_SLIM_CHUNK, (i + 1) * REPL_SLIM_CHUNK) });
+  }
+  await setDoc(doc(db, 'replslim', brand), { chunks, n: slim.length, catalogSkus: catalogSkus || [], at: serverTimestamp() });
 }
 let REPL_LOADED = false;
 // The snapshot and the three side-lists (India stock · status/projection overrides · In Production) are
