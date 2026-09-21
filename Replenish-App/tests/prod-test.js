@@ -16646,6 +16646,56 @@ console.log('\n== RFD: asking by the piece, and whether the cloth has actually a
       A.rfdStockHere(many, sixty.stockKey) === 30 && A.rfdStockHere(second, sixty.stockKey) === 40,
       JSON.stringify([A.rfdStockHere(many, sixty.stockKey), A.rfdStockHere(second, sixty.stockKey)]));
 
+    /* ---- TYPED ON AN ORDER, COUNTED ON THAT ORDER (21 Sep 2026) ----
+     * VND002 typed 200 of 60X60 on their newer order and the older one took all of it. A count saved
+     * against an order is that order's alone. */
+    {
+      const wasOn = NET.on; NET.on = true; NET.calls.length = 0;
+      /* An old untagged count is there too; saving on an order must replace it, not add to it. */
+      A.setRFD_(Object.assign({}, A.RFD(), { stock: { VND001: { [sixty.stockKey]: { pcs: 7 } } } }));
+      const err = await A.rfdStockSave(second, sixty.stockKey, '25');
+      ok('a count is saved without complaint', err === '', err);
+      const patch = NET.calls.find(c => c.method === 'PATCH');
+      const pk = 'pt_rfdStock/VND001/' + sixty.stockKey;
+      ok('…against the order it was typed on', !!(patch && patch.body && patch.body[pk + '@g2']
+        && patch.body[pk + '@g2'].pcs === 25 && patch.body[pk + '@g2'].orderId === 'g2'),
+        JSON.stringify(patch && patch.body));
+      ok('…and the old untagged count goes in the same write', !!(patch && patch.body && pk in patch.body && patch.body[pk] === null));
+      ok('the order it was typed on counts it', A.rfdStockHere(second, sixty.stockKey) === 25,
+        String(A.rfdStockHere(second, sixty.stockKey)));
+      ok('…and the older order does not take it', A.rfdStockHere(many, sixty.stockKey) === 0,
+        String(A.rfdStockHere(many, sixty.stockKey)));
+      ok('…so what is left to ask for drops on the order it was typed on',
+        A.rfdSizeOf(second, sixty.stockKey).left === 15, String(A.rfdSizeOf(second, sixty.stockKey).left));
+      /* A count bigger than what the order needs is capped, and the rest is not moved to another order. */
+      await A.rfdStockSave(second, sixty.stockKey, '100');
+      ok('a count bigger than the order needs is capped at what it needs', A.rfdStockHere(second, sixty.stockKey) === 40
+        && A.rfdStockHere(many, sixty.stockKey) === 0,
+        JSON.stringify([A.rfdStockHere(second, sixty.stockKey), A.rfdStockHere(many, sixty.stockKey)]));
+      A.setVP(Object.assign({}, A.VP(), { rows: [second, many] }));
+      A.setVP(Object.assign({}, A.VP(), { tab: 'rfd', rfdOrder: 'g2' }));
+      A.renderVp();
+      ok('…and the printer is told the rest is more than this order needs',
+        /60 more than this order still needs/.test(els.vpBody.innerHTML) && !/counted elsewhere/.test(els.vpBody.innerHTML));
+      /* Each order has its own; typing on one does not touch the other's. */
+      await A.rfdStockSave(many, sixty.stockKey, '10');
+      ok('two orders keep two counts', A.rfdStockHere(many, sixty.stockKey) === 10 && A.rfdStockHere(second, sixty.stockKey) === 40,
+        JSON.stringify([A.rfdStockHere(many, sixty.stockKey), A.rfdStockHere(second, sixty.stockKey)]));
+      /* ASKED BEFORE THE COUNT WAS TYPED: the two together can pass what the order needs, and it is said. */
+      await A.rfdSubmitSize(second, sixty.stockKey, 40, '');
+      A.renderVp();
+      ok('an ask plus the count beyond the order is shown as over-asked',
+        /40 pcs more than the order needs/.test(els.vpBody.innerHTML),
+        (els.vpBody.innerHTML.match(/\d+ pcs more than the order needs/) || ['none'])[0]);
+      /* Emptying the box removes this order's count only. */
+      await A.rfdStockSave(second, sixty.stockKey, '');
+      ok('emptying the box removes the count on this order only', A.rfdStockHere(second, sixty.stockKey) === 0
+        && A.rfdStockHere(many, sixty.stockKey) === 10);
+      const oo = A.VP().rows.find(x => x.id === 'g2'); oo.rfdReqs = {};
+      A.setVP(Object.assign({}, A.VP(), { rows: [many, second], rfdOrder: '' }));
+      NET.calls.length = 0; NET.on = wasOn;
+    }
+
     /* ---- THE SCREEN ---- */
     A.setRFD_(Object.assign({}, A.RFD(), { stock: {} }));
     A.setVP(Object.assign({}, A.VP(), { rows: [many] }));

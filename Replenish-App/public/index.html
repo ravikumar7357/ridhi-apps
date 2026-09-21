@@ -26292,15 +26292,23 @@ function vpRfdRender(matched, nag) {
   const sizes = rfdSizeGroups(o);
   const rowsP = sizes.map(g => {
     const got = g.sent;
-    const shortOf = rfdRound(Math.max(0, g.pieces - got - g.stock));
-    const elsewhere = rfdRound(Math.max(0, g.pool - g.stock));
-    const said = rfdStockRow(rfdVendorOf(o), g.stockKey);
+    /* WHAT THEIR OWN COUNT COVERS on this order, whether or not it was typed before the ask. A count
+     * typed after everything was asked for still means that much of the ask is not needed. */
+    const counted = g.own ? Math.min(g.pool, g.pieces) : g.stock;
+    const shortOf = rfdRound(Math.max(0, g.pieces - got - counted));
+    const elsewhere = g.own ? 0 : rfdRound(Math.max(0, g.pool - g.stock));
+    /* ASKED PAST WHAT IS WITH THEM: an ask raised before the count was typed still stands, and the
+     * two together can be more than the order needs. Said, so it can be taken back. */
+    const overAsked = rfdRound(Math.max(0, g.used + counted - g.pieces));
+    const spare = g.own ? rfdRound(Math.max(0, g.pool - g.stock - overAsked)) : 0;
+    const said = rfdStockRow(rfdVendorOf(o), g.stockKey, o);
     return `<tr><td style="text-align:left">${esc(g.size || g.key)}`
       + `<div class="muted" style="font-size:10.5px">${esc(g.what)}${g.colours.length
         ? ' · <span title="' + esc(g.colours.join(', ')) + '">' + nf(g.colours.length) + ' colour'
           + (g.colours.length > 1 ? 's' : '') + '</span>' : ''}${
         g.fabrics.length ? ' · ' + esc(g.fabrics.join(' / ')) : ''}</div>`
       + (g.used ? `<div style="font-size:10.5px;color:#7f6000">${nf(g.used)} pcs asked for</div>` : '')
+      + (overAsked ? `<div style="font-size:10.5px;color:var(--bad)" title="What you asked for and what you said is with you add up to more than this order needs. Take back what you do not need.">${nf(overAsked)} pcs more than the order needs</div>` : '')
       + '</td>'
       + `<td class="num">${nf(g.pieces)} pcs</td>`
       /* WITH YOU IS A BOX NOW. What was sent against this order is said under it, because it is a
@@ -26308,9 +26316,10 @@ function vpRfdRender(matched, nag) {
       + '<td class="num">'
       + `<input data-vprfd-stock="${esc(o.id)}|${esc(g.stockKey)}" type="number" min="0" step="1"`
       + ` value="${g.pool || ''}" placeholder="0" style="width:88px;text-align:right"`
-      + ` title="How many of these you already have. Yours to keep up to date — it comes off what is left to ask for, on this order and the next one.">`
+      + ` title="How many of these you already have for THIS order. It comes off what is left to ask for on this order.">`
       + (got ? `<div style="font-size:10.5px;color:#166534">${nf(got)} pcs sent to you</div>` : '')
       + (elsewhere ? `<div style="font-size:10.5px;color:#7f6000" title="This order can only use what it still needs. The rest of your pile is counted on your other open orders.">${nf(elsewhere)} counted elsewhere</div>` : '')
+      + (spare ? `<div style="font-size:10.5px;color:#7f6000" title="This order only needs so many more. The rest is not counted anywhere.">${nf(spare)} more than this order still needs</div>` : '')
       + (said && said.at ? `<div class="muted" style="font-size:10px">you said, ${esc(ptIsoDate(said.at) || '')}</div>` : '')
       + '</td>'
       /* ONE COLUMN, THREE ANSWERS. There is something left to ask for, or it has all been asked
@@ -26327,9 +26336,11 @@ function vpRfdRender(matched, nag) {
     const key = rfdFabKey(x.fabric);
     const got = rfdSentFor(o, x.fabric);
     const shortOf = rfdRound(Math.max(0, cap.need - got - cap.stock));
-    const pool = rfdStockOf(rfdVendorOf(o), key);
-    const elsewhere = rfdRound(Math.max(0, pool - cap.stock));
-    const said = rfdStockRow(rfdVendorOf(o), key);
+    const pool = rfdStockOf(rfdVendorOf(o), key, o);
+    const own = rfdStockOwn(o, key) > 0;
+    const elsewhere = own ? 0 : rfdRound(Math.max(0, pool - cap.stock));
+    const spare = own ? rfdRound(Math.max(0, pool - cap.stock)) : 0;
+    const said = rfdStockRow(rfdVendorOf(o), key, o);
     return `<tr><td style="text-align:left">${esc(x.fabric)}`
       + (cap.used ? `<div style="font-size:10.5px;color:#7f6000">${nf(cap.used)} m asked for</div>` : '')
       + '</td>'
@@ -26339,9 +26350,10 @@ function vpRfdRender(matched, nag) {
       + '<td class="num">'
       + `<input data-vprfd-stock="${esc(o.id)}|${esc(key)}" type="number" min="0" step="0.1"`
       + ` value="${pool || ''}" placeholder="0" style="width:88px;text-align:right"`
-      + ` title="How many metres of this you already have. Yours to keep up to date — it comes off what is left to ask for, on this order and the next one.">`
+      + ` title="How many metres of this you already have for THIS order. It comes off what is left to ask for on this order.">`
       + (got ? `<div style="font-size:10.5px;color:#166534">${nf(got)} m sent to you</div>` : '')
       + (elsewhere ? `<div style="font-size:10.5px;color:#7f6000" title="This order can only use what it still needs. The rest of your cloth is counted on your other open orders.">${nf(elsewhere)} m counted elsewhere</div>` : '')
+      + (spare ? `<div style="font-size:10.5px;color:#7f6000" title="This order only needs so much more. The rest is not counted anywhere.">${nf(spare)} m more than this order still needs</div>` : '')
       + (said && said.at ? `<div class="muted" style="font-size:10px">you said, ${esc(ptIsoDate(said.at) || '')}</div>` : '')
       + '</td>'
       + `<td class="num"${cap.left > 0 ? ' style="color:var(--bad);font-weight:700"' : ''}>`
@@ -34492,22 +34504,50 @@ function rfdSizeRaw(o) {
 function rfdSizeGroups(o) {
   return rfdSizeRaw(o).map(g => {
     const stock = rfdStockHere(o, g.stockKey);
-    return Object.assign(g, { stock, pool: rfdStockOf(rfdVendorOf(o), g.stockKey),
+    return Object.assign(g, { stock, pool: rfdStockOf(rfdVendorOf(o), g.stockKey, o),
+      own: rfdStockOwn(o, g.stockKey) > 0,
       left: rfdRound(Math.max(0, g.pieces - g.used - stock)) });
   });
 }
 const rfdSizeOf = (o, key) => rfdSizeGroups(o).find(g => g.key === key || g.stockKey === key) || null;
 
 const rfdVendorOf = o => obUC((o && o.vendorCode) || VP.code || '');
-/** What a printer has said is with them, per size. Their own branch in the portal, the lot in the office. */
-const rfdStockOf = (code, stockKey) => {
-  const r = ((RFD.stock || {})[obUC(code)] || {})[stockKey];
+/** One count as a number. Half a tablecloth is not a thing; half a metre of cloth is. */
+const rfdStockNum = (r, stockKey) => {
   const n = r ? parseFloat(r.pcs) : 0;
   if (!(isFinite(n) && n > 0)) return 0;
-  /* Half a tablecloth is not a thing; half a metre of cloth is. */
   return rfdKeyUnit(stockKey) === 'm' ? rfdRound(n) : Math.round(n);
 };
-const rfdStockRow = (code, stockKey) => ((RFD.stock || {})[obUC(code)] || {})[stockKey] || null;
+/**
+ * Every count a printer has given for one size or cloth, with the order it belongs to.
+ *
+ * Saved today and after: key <stockKey>@<orderId>. Saved before: key <stockKey>, with an orderId on
+ * the row once it has been tagged, and none — shared, the old way — until then.
+ */
+const rfdStockEnts = (code, stockKey) => Object.entries((RFD.stock || {})[obUC(code)] || {})
+  .filter(([k, r]) => r && typeof r === 'object' && (k === stockKey || k.indexOf(stockKey + '@') === 0))
+  .map(([k, r]) => ({ k, r, oid: String(r.orderId || (k.indexOf('@') > 0 ? k.slice(k.indexOf('@') + 1) : '')) }));
+const rfdStockOwn = (o, stockKey) => (!o ? 0 : rfdStockEnts(rfdVendorOf(o), stockKey)
+  .filter(e => e.oid === o.id).reduce((a, e) => a + rfdStockNum(e.r, stockKey), 0));
+const rfdStockShared = (code, stockKey) => rfdStockEnts(code, stockKey)
+  .filter(e => !e.oid).reduce((a, e) => a + rfdStockNum(e.r, stockKey), 0);
+/**
+ * What the printer has said is with them. Given an order: that order's own count, or — if it has
+ * none — the old shared one. Given none: everything they have said about it.
+ */
+const rfdStockOf = (code, stockKey, o) => {
+  if (o) {
+    const mine = rfdStockEnts(code, stockKey).filter(e => e.oid === o.id);
+    if (mine.length) return mine.reduce((a, e) => a + rfdStockNum(e.r, stockKey), 0);
+    return rfdStockShared(code, stockKey);
+  }
+  return rfdStockEnts(code, stockKey).reduce((a, e) => a + rfdStockNum(e.r, stockKey), 0);
+};
+const rfdStockRow = (code, stockKey, o) => {
+  const ents = rfdStockEnts(code, stockKey);
+  const e = (o && ents.find(x => x.oid === o.id)) || ents.find(x => !x.oid);
+  return e ? e.r : null;
+};
 
 /** The orders of one printer that can be asked against, oldest first — the order the pile is shared in. */
 const rfdStockOrders = code => {
@@ -34535,16 +34575,21 @@ function rfdRoomFor(o, stockKey) {
 }
 
 function rfdStockHere(o, stockKey) {
+  if (!o) return 0;
   const code = rfdVendorOf(o);
-  let pool = rfdStockOf(code, stockKey);
-  if (!(pool > 0) || !o) return 0;
-  let mine = 0;
-  rfdStockOrders(code).forEach(x => {
-    if (pool <= 0) return;
-    const take = Math.min(pool, rfdRoomFor(x, stockKey));
-    pool -= take;
-    if (x.id === o.id) mine = take;
-  });
+  /* THIS ORDER'S OWN COUNT FIRST, up to what it still needs. */
+  const ownTake = x => Math.min(rfdStockOwn(x, stockKey), rfdRoomFor(x, stockKey));
+  let mine = ownTake(o);
+  /* THEN ANYTHING STILL SHARED THE OLD WAY, oldest order first, into the room each has left. */
+  let pool = rfdStockShared(code, stockKey);
+  if (pool > 0) {
+    rfdStockOrders(code).forEach(x => {
+      if (pool <= 0) return;
+      const take = Math.min(pool, Math.max(0, rfdRoomFor(x, stockKey) - ownTake(x)));
+      pool -= take;
+      if (x.id === o.id) mine += take;
+    });
+  }
   return rfdRound(mine);
 }
 
@@ -34648,15 +34693,21 @@ async function rfdStockSave(o, stockKey, pcs) {
   const val = isFinite(n) ? (unit === 'm' ? rfdRound(n) : Math.round(n)) : 0;
   const row = { pcs: val, unit, what: (g && g.what) || (f ? f.fabric : ''),
     size: (g && g.size) || '', by: ME.email, at: new Date().toISOString() };
-  const path = 'pt_rfdStock/' + code + '/' + stockKey;
+  /* AGAINST THE ORDER IT WAS TYPED ON. An older count for the same size that is shared, or that was
+   * tagged to this order, is replaced — the printer is restating it here, and leaving it would count
+   * the same cloth twice. */
+  row.orderId = o.id;
+  const key = stockKey + '@' + o.id;
   const gone = pcs === '' || !isFinite(n) || val === 0;
-  try {
-    if (gone) await ptDelete(path);
-    else await ptPut(path, row);
-  } catch (e) { return 'Not saved: ' + (e.message || e); }
+  const old = rfdStockEnts(code, stockKey).filter(e => e.k !== key && (!e.oid || e.oid === o.id)).map(e => e.k);
+  const patch = { ['pt_rfdStock/' + code + '/' + key]: gone ? null : row };
+  old.forEach(k => { patch['pt_rfdStock/' + code + '/' + k] = null; });
+  try { await ptPatch(patch); }
+  catch (e) { return 'Not saved: ' + (e.message || e); }
   const all = Object.assign({}, RFD.stock || {});
   const mine = Object.assign({}, all[code] || {});
-  if (gone) delete mine[stockKey]; else mine[stockKey] = row;
+  old.forEach(k => { delete mine[k]; });
+  if (gone) delete mine[key]; else mine[key] = row;
   all[code] = mine;
   RFD.stock = all;
   return '';
