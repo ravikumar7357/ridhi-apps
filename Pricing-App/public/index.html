@@ -662,6 +662,10 @@
     </table>
 
     <div class="sec" style="margin-top:18px">Grant or update</div>
+    <!-- Ravi, 2026-09-21: "jo already access de chuka unka dropdown bana, jiska edit krna ho kar saku".
+         Picking a name loads exactly what the Edit button in the table above loads. -->
+    <div style="margin-bottom:10px"><label>Edit somebody who already has access</label>
+      <select id="accessPick"><option value="">— New person (type the email below) —</option></select></div>
     <div style="margin-bottom:10px"><label>Email <span style="font-weight:400">— exactly as it is in Authentication → Users</span></label>
       <input id="accessEmail" type="email" placeholder="someone@company.com"></div>
     <!-- THE GRANT, BY AREA OF WORK (Ravi, 2026-09-13: "jo m access deta hu wo bahut complicated h, usko
@@ -2734,6 +2738,13 @@ function applyPerms() {
 }
 
 /* ----- admin: grant and revoke ----- */
+let ACCESS_ROWS = [];
+$('accessPick').onchange = e => {
+  const r = ACCESS_ROWS.find(x => x.email === e.target.value);
+  fillAccessForm(r || null);
+  if (r) $('accessEmail').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+};
+
 async function loadAccessList() {
   if (!ME.admin) return;
   const box = $('accessRows');
@@ -2743,7 +2754,13 @@ async function loadAccessList() {
     const rows = [];
     snap.forEach(d => rows.push({ email: d.id, ...d.data() }));
     rows.sort((a, b) => a.email.localeCompare(b.email));
+    ACCESS_ROWS = rows;
     const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+    /* The same people as the table, in a dropdown. What is being edited stays picked across a reload. */
+    const pick = $('accessPick'), was = $('accessEmail').value.trim().toLowerCase();
+    pick.innerHTML = '<option value="">— New person (type the email below) —</option>'
+      + rows.map(r => `<option value="${esc(r.email)}">${esc(r.email)}${r.admin ? ' · Admin' : ''}</option>`).join('');
+    pick.value = rows.some(r => r.email === was) ? was : '';
     box.innerHTML = rows.length ? rows.map(r => `<tr>
         <td>${esc(r.email)}</td>
         <td>${accessSummary(r)}</td>
@@ -2942,6 +2959,8 @@ $('accessAdOnly').onclick = () => {
 
 function fillAccessForm(r) {
   $('accessEmail').value = r?.email || '';
+  /* The dropdown follows whoever is in the form, however they got there (Edit button, Clear, pick). */
+  if ($('accessPick')) $('accessPick').value = r && ACCESS_ROWS.some(x => x.email === r.email) ? r.email : '';
   $('accessAdmin').checked = !!r?.admin;
   $('accessApprove').checked = !!r?.approve;
   $('accessRepl').checked = !!r?.repl;
