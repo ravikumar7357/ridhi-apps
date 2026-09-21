@@ -15969,6 +15969,9 @@ console.log('\n== RFD: what cloth a printer needs against the order they are pri
 
     ME.rfdApprove = false; A.renderRfd();
     ok('a looker gets no tick boxes', !/data-rfd-pick=|rfdPickAll/.test(els.rfdTable.innerHTML));
+    ok('…and no row counts as refusable for them', !A.RFD().shown.some(A.rfdRefusable));
+    A.rfdPickAll(true);
+    ok('…so tick-all picks nothing', A.RFD_PICK().size === 0);
     ok('…and ticking anyway is refused at the write',
       /Can approve RFD requirements/.test((await A.rfdRefuseMany(ids, 'no')).err || ''));
     ME.rfdApprove = true; A.renderRfd();

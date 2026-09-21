@@ -35127,10 +35127,13 @@ const rfdWho = e => String(e || '').split('@')[0];
 function rfdTable(rows) {
   /* The tick-all box sits in the first header, and only for somebody who can refuse. */
   const picking = rfdCanApprove() && rows.some(rfdRefusable);
-  const head = '<thead><tr>' + ['Raised', 'Printer', 'Order', 'What they need', 'How much',
+  const head = '<thead><tr>'
+    /* THE TICK BOX HAS ITS OWN COLUMN. Put inside the frozen Raised cell it pushed the date across
+     * into the Printer column. */
+    + (picking ? '<th style="width:34px;text-align:center"><input type="checkbox" id="rfdPickAll" title="Tick every requirement shown that can still be refused"></th>' : '')
+    + ['Raised', 'Printer', 'Order', 'What they need', 'How much',
     'What the order covers', 'Stage', 'Sent', 'Note', '']
     .map((h, i) => `<th${i === 0 ? ' class="frz"' : ([4, 7].indexOf(i) >= 0 ? ' class="num"' : '')}>`
-      + (i === 0 && picking ? '<input type="checkbox" id="rfdPickAll" title="Tick every requirement shown that can still be refused" style="margin-right:6px;vertical-align:middle">' : '')
       + `${esc(h)}</th>`).join('') + '</tr></thead>';
   return head + '<tbody>' + rows.map(r => {
     const st = RFD_STAGE[r.stage] || { label: r.stage, pill: 'pill-low' };
@@ -35147,9 +35150,8 @@ function rfdTable(rows) {
     const u = rfdUnit(r);
     const unknown = r._order ? rfdOrderNeed(r._order).unknown.length : 0;
     return '<tr>'
-      + `<td class="frz" style="text-align:left">`
-      + (rfdRefusable(r) ? `<input type="checkbox" data-rfd-pick="${esc(r.id)}"${RFD_PICK.has(r.id) ? ' checked' : ''} style="margin-right:6px;vertical-align:middle">` : '')
-      + `${esc(ptIsoDate(r.raisedAt) || '')}`
+      + (picking ? '<td style="text-align:center">' + (rfdRefusable(r) ? `<input type="checkbox" data-rfd-pick="${esc(r.id)}"${RFD_PICK.has(r.id) ? ' checked' : ''}>` : '') + '</td>' : '')
+      + `<td class="frz" style="text-align:left">${esc(ptIsoDate(r.raisedAt) || '')}`
       + `<div class="muted" style="font-size:10.5px">${esc(rfdWho(r.raisedBy))}</div></td>`
       + `<td style="text-align:left">${esc(r.vendorName || voName(r.vendorCode))}`
       + `<div class="muted" style="font-size:10.5px">${esc(r.vendorCode)}</div></td>`
