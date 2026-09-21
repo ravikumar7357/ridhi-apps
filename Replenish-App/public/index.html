@@ -3033,7 +3033,10 @@ onAuthStateChanged(auth, async user => {
    * with its own sign-in, and the three read-only views read the factory's database over REST. An
    * account holding only those would otherwise spend its login on reads the rules must refuse, and
    * land on a red "ask an admin for perms.repl" message about a permission it does not need. */
-  const FACTORY_TABS = ['att', 'pmdb', 'mst', 'pbase', 'pcut', 'ppress', 'qc', 'ord', 'so', 'vord', 'vreq', 'rfd', 'vend', 'palloc', 'fgi', 'fba', 'fab', 'acc', 'rep', 'pa', 'ka', 'hr'];
+  const FACTORY_TABS = ['att', 'pmdb', 'mst', 'pbase', 'pcut', 'ppress', 'qc', 'qcalt', 'qcret', 'ord', 'so', 'vord', 'vreq', 'rfd', 'vend', 'palloc', 'fgi', 'fba', 'fab', 'acc', 'rep', 'pa', 'ka', 'hr',
+    /* History and Customer Orders are factory screens too; missing here, a login holding History loaded
+     * the Replenishment snapshot at sign-in — a vendor's among them. */
+    'vlog', 'cx'];
   const FACTORY_ONLY = ME.tabs.every(t => FACTORY_TABS.includes(t));
 
   if (!FACTORY_ONLY) try {

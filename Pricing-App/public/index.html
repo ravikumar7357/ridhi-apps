@@ -2794,7 +2794,10 @@ async function loadAccessList() {
  * backend key. An outside printer holding only the Vendor Portal must never pick that up on the way
  * past, which is what happened while any ticked section set the flag. */
 const FACTORY_SECTIONS = ['pmdb', 'mst', 'pbase', 'pcut', 'ppress', 'qc', 'qcalt', 'qcret', 'ord', 'so', 'vord', 'vreq', 'rfd', 'att',
-  'vend', 'cx', 'fgi', 'fba', 'fab', 'acc', 'rep', 'pa', 'ka', 'hr'];
+  'vend', 'cx', 'fgi', 'fba', 'fab', 'acc', 'rep', 'pa', 'ka', 'hr',
+  /* History and Printer Allocation were missing, so ticking History alone set perms.repl — and with it
+   * the Amazon backend key and the replenishment snapshot. Found 2026-09-21 on a vendor login. */
+  'vlog', 'palloc'];
 
 const REPL_SECTIONS = [
   ['repl', 'Replenishment'], ['article', 'Article Review'], ['target', 'Revenue Target'],
