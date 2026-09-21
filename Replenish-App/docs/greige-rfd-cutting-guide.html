@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Greige to RFD to Cutting - Step-by-step guide</title>
+<style>
+  @page { size: A4; margin: 16mm 14mm; }
+  body { font-family: "Segoe UI", Arial, sans-serif; color: #1a1a1a; font-size: 11.5pt; line-height: 1.5; }
+  h1 { font-size: 22pt; margin: 0 0 4px; }
+  .sub { color: #555; margin-bottom: 18px; }
+  h2 { font-size: 14pt; margin: 22px 0 6px; padding-bottom: 4px; border-bottom: 2px solid #4f46e5; page-break-after: avoid; }
+  h3 { font-size: 12pt; margin: 14px 0 4px; page-break-after: avoid; }
+  .step { border: 1px solid #ddd; border-left: 4px solid #4f46e5; border-radius: 6px; padding: 10px 14px; margin: 10px 0; page-break-inside: avoid; }
+  .step b.n { display: inline-block; background: #4f46e5; color: #fff; border-radius: 50%; width: 22px; height: 22px; text-align: center; line-height: 22px; font-size: 10pt; margin-right: 6px; }
+  .where { color: #4f46e5; font-weight: 600; }
+  .hi { color: #555; font-style: italic; }
+  .note { background: #fff8e6; border: 1px solid #f0d58a; border-radius: 6px; padding: 8px 12px; margin: 10px 0; page-break-inside: avoid; }
+  .flow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 12px 0 4px; }
+  .flow span { border: 1px solid #4f46e5; border-radius: 6px; padding: 6px 10px; font-weight: 600; font-size: 10.5pt; }
+  .flow i { color: #888; font-style: normal; }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 10.5pt; page-break-inside: avoid; }
+  th, td { border: 1px solid #ccc; padding: 5px 8px; text-align: left; vertical-align: top; }
+  th { background: #f2f2f7; }
+  ul { margin: 4px 0; padding-left: 20px; }
+  .pb { page-break-before: always; }
+</style>
+</head>
+<body>
+
+<h1>Greige &rarr; RFD &rarr; Cutting</h1>
+<div class="sub">Step-by-step guide for the Replenishment app (fabricrush-replenish.web.app) &middot; The Fabric Rush &middot; September 2026</div>
+
+<div class="flow">
+  <span>1. Greige PO</span><i>&rarr;</i><span>2. Mail to mill</span><i>&rarr;</i><span>3. Greige received</span><i>&rarr;</i>
+  <span>4. Sent for RFD</span><i>&rarr;</i><span>5. RFD received</span><i>&rarr;</i><span>6. Issued to cutting</span>
+</div>
+<p>Every metre is followed <b>lot by lot</b>. A lot is one delivery from the mill. The same lot number travels with the cloth
+at every step, so you can always see how much of a delivery is still greige, how much is with the processor,
+how much came back as RFD, and how much was lost in processing.</p>
+
+<div class="note"><b>Greige name vs RFD name.</b> Greige is bought wider than the RFD it becomes. Example: the
+<b>Sheeting 62</b> used on the cutting table is bought as <b>Greige Sheeting 67</b>. The PO and the mill see the
+greige name. When the cloth comes back from the processor, the app records it as <b>Sheeting 62</b> automatically.</div>
+
+<h2>One-time setup (do this once)</h2>
+
+<div class="step"><b class="n">A</b><b>Greige name for each fabric</b><br>
+<span class="where">Masters &rarr; Fabric type</span> &rarr; column <b>Greige name (what the mill is sent)</b>.<br>
+Type the greige name next to each RFD fabric, e.g. Sheeting 62 &rarr; <i>Greige Sheeting 67</i>. It saves the moment you leave the box.
+<ul><li>A fabric with no greige name cannot go on a greige PO.</li>
+<li>One greige name can belong to only one fabric (otherwise the app would not know what it becomes).</li>
+<li>Only an admin can change Masters.</li></ul>
+<span class="hi">Har RFD fabric ke saamne uska greige naam likh do.</span></div>
+
+<div class="step"><b class="n">B</b><b>Mills and processors in the vendor list</b><br>
+<span class="where">Vendor Orders &rarr; Vendors</span>. Set <b>Kind</b> = <b>Mill</b> for greige suppliers, and <b>Processor</b> for the RFD processing house. Add each mill's <b>email</b>, because the PO is mailed there.
+<br><span class="hi">Mill ka email zaroor bharo, PO wahi jayega.</span></div>
+
+<div class="step"><b class="n">C</b><b>Company details on the PO</b><br>
+<span class="where">Fabric Inventory &rarr; view "Greige POs" &rarr; PO settings</span> (admin only).<br>
+Fill in company name, address, GSTIN, phone, email and default terms. These are printed at the top of every PO.</div>
+
+<h2>The daily flow</h2>
+
+<div class="step"><b class="n">1</b><b>Raise the greige PO</b><br>
+<span class="where">Fabric Inventory &rarr; view "Greige POs" &rarr; + Greige PO</span>
+<ul>
+<li>Pick the <b>mill</b>, the <b>PO date</b> and the <b>deliver-by</b> date.</li>
+<li>On each line pick the <b>RFD fabric</b> you need (e.g. Sheeting 62). The <b>greige name</b> fills in by itself.</li>
+<li>Enter <b>metres</b>, <b>rate per metre</b> and <b>GST %</b> (5 is filled in; change it if needed).</li>
+<li>Add terms or remarks if this PO needs something different from the default.</li>
+<li>Press <b>Raise PO</b>. The number is made for you: <b>GPO-YYMMDD-01</b>, then -02 and so on for that day.</li>
+</ul>
+<span class="hi">Tip: a PO can be edited or cancelled until cloth has come in against it. Cancelling asks for a reason.</span></div>
+
+<div class="step"><b class="n">2</b><b>Print or mail it to the mill</b><br>
+On the PO's row:
+<ul>
+<li><b>Print</b> opens the PO as a page. Press <i>Print / Save as PDF</i> to print it or keep a PDF copy.</li>
+<li><b>Mail</b> sends the PO as a <b>PDF attachment</b> from ravi@thefabricrush.com to the mill's email. You can add Cc and a short message. The row then shows "mailed 1&times;". Use <b>Mail again</b> if needed.</li>
+</ul>
+<div class="note">Mail limits: only greige POs can be sent this way, at most 5 addresses per mail and 40 PO mails a day.
+Mail needs access to the app's backend, which admins have. If you cannot mail, use Print &rarr; Save as PDF and send it yourself.</div></div>
+
+<div class="step"><b class="n">3</b><b>Greige arrives from the mill</b><br>
+<span class="where">Greige POs &rarr; Receive</span> on that PO. The entry form opens already filled with the greige name,
+the metres still to come, the mill and the PO number.
+<ul>
+<li>Type the <b>metres that actually arrived</b>. Part deliveries are fine; the PO shows "Part received" and how much is still to come.</li>
+<li><b>Lot</b>: type the mill's lot number, or leave it blank and one is made (e.g. GREIGE-SHEETING-67-260925-01). <b>Write it on the bale.</b></li>
+<li>Add the bill / challan number and the rate.</li>
+</ul>
+<span class="hi">Received wahi maana jayega jo is PO number ke against entry hui hai.</span></div>
+
+<div class="step"><b class="n">4</b><b>Send the greige for RFD processing</b><br>
+<span class="where">Fabric Inventory &rarr; + Fabric entry &rarr; "Greige sent for RFD processing"</span>
+<ul>
+<li>Type the fabric (greige name or RFD name, both work), then pick the <b>lot</b>. The list shows how much greige is left in each lot.</li>
+<li>Enter the metres and <b>who is processing it</b> (the processor).</li>
+<li>You cannot send more than is left in that lot.</li>
+</ul></div>
+
+<div class="step"><b class="n">5</b><b>RFD comes back from the processor</b><br>
+<span class="where">+ Fabric entry &rarr; "RFD received back"</span>
+<ul>
+<li>Pick the same <b>lot</b> and enter the metres that came back.</li>
+<li>The app records it under the <b>RFD fabric name</b> (Greige Sheeting 67 comes back as <b>Sheeting 62</b>), using the greige name set in Masters.</li>
+<li>You cannot receive more than is still with that processor.</li>
+<li>The <b>loss %</b> for the lot is worked out by itself (e.g. 600 m sent, 570 m back = 5% loss).</li>
+</ul></div>
+
+<div class="step"><b class="n">6</b><b>Issue RFD to cutting</b><br>
+<span class="where">+ Fabric entry &rarr; "Issued to cutting"</span>
+<ul>
+<li>Type the RFD fabric (e.g. Sheeting 62), pick the <b>lot</b>, and enter the metres.</li>
+<li>You cannot issue more RFD than the lot holds.</li>
+</ul></div>
+
+<h2 class="pb">Where to see everything</h2>
+<table>
+<tr><th>Fabric Inventory view</th><th>What it shows</th></tr>
+<tr><td><b>Greige POs</b></td><td>Every PO: mill, greige fabric &rarr; RFD fabric, ordered / received / still to come, amount, stage (Not sent yet, Sent to the mill, Part received, Received, Cancelled).</td></tr>
+<tr><td><b>Greige &rarr; RFD &rarr; cutting</b></td><td>Per fabric: greige in, out for processing, with the processor, back as RFD, issued to cutting.</td></tr>
+<tr><td><b>Lots &mdash; bale by bale</b></td><td>Per lot: bill, mill, processor, greige left, with processor, RFD left, loss %.</td></tr>
+<tr><td><b>Stock balance</b></td><td>Balance per fabric, colour and state (Greige / RFD / Printed).</td></tr>
+<tr><td><b>Every movement</b></td><td>The full ledger, each entry with date, lot, who, bill and remarks.</td></tr>
+</table>
+
+<h2>After cutting: cloth for the printers (RFD Requirements)</h2>
+<div class="step"><b class="n">7</b><b>Printers ask for cloth; the office sends it</b>
+<ul>
+<li>Each printer opens <b>their own portal &rarr; RFD</b>, picks an order, and fills <b>With you</b> with what they already have <b>for that order</b>. The number comes off what is left to ask for on that order only.</li>
+<li>They ask size by size, or use <b>Ask for the whole order&hellip;</b>, which asks them to confirm first.</li>
+<li>Anything inside what the order covers is agreed at once. Anything beyond it waits for approval in <span class="where">RFD Requirements</span>.</li>
+<li>In <span class="where">RFD Requirements</span> each row shows <b>asked &minus; with them = to send</b>. Press <b>Mark sent</b> to record what went out; it cannot go over the to-send figure.</li>
+<li>To refuse several at once, tick them and press <b>Refuse ticked</b> with one reason. The printer sees the reason.</li>
+</ul></div>
+
+<h2>Checks the app does for you</h2>
+<table>
+<tr><th>If you try to&hellip;</th><th>The app says</th></tr>
+<tr><td>Put a fabric with no greige name on a PO</td><td>Add its greige name in Masters &rarr; Fabric type first.</td></tr>
+<tr><td>Receive a different cloth against a PO</td><td>"GPO-&hellip; is for Greige Sheeting 67 &mdash; not &hellip;"</td></tr>
+<tr><td>Receive against a PO that does not exist, or was cancelled</td><td>Refused, with the reason.</td></tr>
+<tr><td>Send more greige for RFD than the lot holds</td><td>Only what is left in the lot can go.</td></tr>
+<tr><td>Receive more RFD than is with the processor</td><td>Refused. It is someone else's cloth or a typo.</td></tr>
+<tr><td>Cancel a PO that already has cloth against it</td><td>Not allowed.</td></tr>
+<tr><td>Mail a PO to a wrong address</td><td>Every address is checked before anything is sent.</td></tr>
+</table>
+
+<div class="note"><b>Who can do what.</b> Raising, receiving and mailing POs needs the right to edit production entries.
+Masters and PO settings are admin only. Anyone with the Fabric Inventory tab can see the POs.</div>
+
+</body>
+</html>
