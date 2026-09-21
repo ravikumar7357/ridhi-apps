@@ -26363,7 +26363,7 @@ function vpRfdRender(matched, nag) {
         <span class="muted" style="font-size:12.5px">${esc(o.orderType === 'running' ? 'running — metres' : 'cut — pieces')}</span>
         <span style="flex:1"></span>
         ${leftTxt
-          ? `<button id="vpRfdAll" title="Raises a requirement for everything this order still needs, in one go.">Ask for everything still needed — ${esc(leftTxt)}</button>`
+          ? `<button id="vpRfdAll" class="ghost" title="Raises a requirement for everything this order still needs, in one go. You are asked to confirm first.">Ask for the whole order (${esc(leftTxt)})…</button>`
           : '<span class="muted" style="font-size:12.5px">Everything this order needs has been asked for.</span>'}
       </div>
       <div class="muted" style="font-size:12px;margin-bottom:10px">Up to "still to ask for" is agreed the moment you ask. Anything beyond it goes to The Fabric Rush to approve.</div>
@@ -26404,18 +26404,29 @@ function vpRfdRender(matched, nag) {
 
   if ($('vpPin')) $('vpPin').onclick = pinOpenChange;
   if ($('vpRfdPick')) $('vpRfdPick').onchange = () => { VP.rfdOrder = $('vpRfdPick').value; renderVp(); };
-  if ($('vpRfdAll')) $('vpRfdAll').onclick = async () => {
-    const btn = $('vpRfdAll'); btn.disabled = true;
+  if ($('vpRfdAll')) $('vpRfdAll').onclick = () => ptOpenDialog({
+    title: 'Ask for the whole of ' + (o.orderNo || o.id) + '?',
+    subtitle: leftTxt + ' — every size and fabric this order still needs',
+    note: 'This raises a requirement for EVERYTHING left on the order, in one go. '
+      + 'If you only want to tell us what is already with you, you do not need this — those boxes save by themselves.',
+    fields: [],
+    saveLabel: 'Yes, ask for all of it',
+    onSave: async () => {
+      const r = await vpRfdAllRun(o);
+      return r.err || '';
+    },
+  });
+  async function vpRfdAllRun(o) {
     const r = await rfdSubmitOrder(o, '');
-    btn.disabled = false;
-    if (r.err) { $('vpMsg').className = 'err'; $('vpMsg').textContent = r.err; return; }
+    if (r.err) { $('vpMsg').className = 'err'; $('vpMsg').textContent = r.err; return r; }
     VP.lastNote = `${nf(r.n)} requirement(s) raised on ${o.orderNo || o.id}`
       + ([r.pcs ? nf(r.pcs) + ' pcs' : '', r.mtr ? nf(r.mtr) + ' m' : ''].filter(Boolean).join(' · ')
         ? ' — ' + [r.pcs ? nf(r.pcs) + ' pcs' : '', r.mtr ? nf(r.mtr) + ' m' : ''].filter(Boolean).join(' · ') : '')
       + '. All of it is within what the order covers, so it is already agreed.';
     renderVp();
     $('vpMsg').className = 'muted'; $('vpMsg').textContent = VP.lastNote;
-  };
+    return r;
+  }
   $('vpMsg').className = 'muted';
   $('vpMsg').textContent = `${esc(o.orderNo || o.id)} · ${nf(pcsLines.length + fabLines.length)} line(s) to ask against · `
     + `${nf(rfdReqsOf(o).length)} requirement(s) raised`;
@@ -26432,7 +26443,8 @@ $('vpBody').addEventListener('change', async e => {
   const o = (VP.rows || []).find(x => x && x.id === oid); if (!o) return;
   const err = await rfdStockSave(o, key, String(stock.value).trim());
   $('vpMsg').className = err ? 'err' : 'muted';
-  $('vpMsg').textContent = err || 'Saved. It comes off what is left to ask for, here and on your other orders.';
+  $('vpMsg').textContent = err || 'Saved — nothing else to press. It comes off what is left to ask for, here and on your other orders. '
+    + 'Nothing has been asked for.';
   if (!err) renderVp();
 });
 

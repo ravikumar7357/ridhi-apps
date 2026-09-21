@@ -16437,8 +16437,28 @@ console.log('\n== RFD: asking by the piece, and whether the cloth has actually a
     /* 74 = every size on the order added up (39 + 10 + 5 + 20), not one of them — which is the
      * whole point of the button. */
     ok('…which says what it is about to ask for, across the whole order',
-      /Ask for everything still needed — 74 pcs/.test(html),
-      (html.match(/Ask for everything still needed[^<]*/) || [''])[0]);
+      /Ask for the whole order \(74 pcs\)/.test(html),
+      (html.match(/Ask for the whole order[^<]*/) || [''])[0]);
+    /* 21 SEP 2026: ONE CLICK RAISED 67 REQUIREMENTS a printer never meant to ask for. The button is
+     * plain now, and pressing it only opens a question — nothing is written until they say yes. */
+    ok('…and it is not the blue button a Save would be', /id="vpRfdAll" class="ghost"/.test(html));
+    {
+      const wasOn = NET.on; NET.on = true; NET.calls.length = 0;
+      const before = A.rfdReqsOf(A.VP().rows[0]).length;
+      els.vpRfdAll.onclick();
+      await new Promise(r => setTimeout(r, 30));   // long enough for any write it started to land
+      ok('pressing it only asks — nothing is written', !NET.calls.some(c => c.method !== 'GET')
+        && A.rfdReqsOf(A.VP().rows[0]).length === before && els.ptDlg._hidden === false);
+      ok('…and the question says it is the whole order', /whole of/.test(els.ptDlgTitle.textContent)
+        && /save by themselves/.test(els.ptDlgNote.innerHTML), els.ptDlgTitle.textContent);
+      await els.ptDlgSave.onclick();
+      ok('saying yes raises them', NET.calls.some(c => c.method === 'PATCH')
+        && A.rfdReqsOf(A.VP().rows[0]).length > before, String(A.rfdReqsOf(A.VP().rows[0]).length));
+      /* Put the order back as it was, so the tests below start from nothing asked. */
+      const oo = A.VP().rows[0]; oo.rfdReqs = {};
+      A.setVP(Object.assign(A.VP(), { rows: [oo] }));
+      NET.calls.length = 0; NET.on = wasOn;
+    }
     ok('…and a box to ask for one size on its own', /data-vprfd-askp/.test(html));
     /* AN ALL-TABLECLOTH ORDER HAS NO CLOTH TO ASK FOR. The metre box is not drawn at all rather than
      * offered with an empty list behind it — a box that can only be wrong is worse than no box. */
