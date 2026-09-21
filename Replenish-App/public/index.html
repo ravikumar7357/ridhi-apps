@@ -34875,12 +34875,55 @@ function rfdSentPcsFor(o, sku) {
  * "yadi order ke according h to auto approve". It is worked out fresh every time rather than stamped
  * once, because the order it is measured against can change after the asking.
  */
+/**
+ * How much of one request is already with the printer, by their own count on that order.
+ *
+ * Their count for the size (or the cloth) is shared over that order's requests of it, oldest first,
+ * each taking up to what it asked for. A refused request takes none.
+ */
+function rfdWithPrinter(r, o) {
+  if (!r) return 0;
+  const order = o || r._order || rfdOrderOf(r);
+  if (!order) return 0;
+  const code = rfdVendorOf(order);
+  /* Most printers have said nothing; this runs for every row, so they cost nothing. */
+  if (!Object.keys((RFD.stock || {})[obUC(code)] || {}).length) return 0;
+  let key, same;
+  if (rfdUnit(r) === 'pcs') {
+    const lines = rfdPieceLines(order);
+    const keyOf = sku => { const p = lines.find(x => obUC(x.sku) === obUC(sku)); return p ? rfdStockKey(p) : ''; };
+    key = keyOf(r.sku);
+    if (!key) return 0;
+    same = x => rfdUnit(x) === 'pcs' && keyOf(x.sku) === key;
+  } else {
+    key = rfdFabKey(r.fabric);
+    same = x => rfdUnit(x) === 'm' && rfdFabKey(x.fabric) === key;
+  }
+  let pool = rfdStockOf(code, key, order);
+  if (!(pool > 0)) return 0;
+  const list = rfdReqsOf(order).filter(x => same(x) && !((d => d && d.stage === 'rejected')(rfdDecisionOf(x.id))))
+    .sort((a, b) => (rfdSeq(a) < rfdSeq(b) ? -1 : rfdSeq(a) > rfdSeq(b) ? 1 : 0));
+  for (const x of list) {
+    const take = Math.min(pool, rfdWant(x));
+    if (x.id === r.id) return rfdRound(take);
+    pool -= take;
+  }
+  return 0;
+}
+/** What is still to go out on one request: what was asked, less what is already with them. */
+const rfdToSend = (r, o) => rfdRound(Math.max(0, rfdWant(r) - rfdWithPrinter(r, o)));
+
 function rfdStage(r, o) {
   if (!r) return '';
   const d = rfdDecisionOf(r.id);
   if (d && d.stage === 'rejected') return 'rejected';
   const want = rfdWant(r);
   if (want > 0 && rfdSentQty(r.id) >= want) return 'sent';
+  /* HELD IN FULL, or sent up to what was not held: nothing more is to go out. */
+  if (want > 0 && (d ? d.stage !== 'pending' : true)) {
+    const toSend = rfdToSend(r, o);
+    if (toSend < want && rfdSentQty(r.id) >= toSend) return 'sent';
+  }
   if (d && d.stage === 'approved') return 'approved';
   if (d && d.stage === 'pending') return 'pending';
   return rfdAuto(r, o) ? 'approved' : 'pending';
@@ -35094,9 +35137,11 @@ async function rfdMarkSent(id, qty, dateIso, note) {
   if (st === 'pending') return 'That one is still waiting for approval.';
   const want = rfdWant(r);
   const unit = rfdUnit(r);
-  const left = rfdRound(want - rfdSentQty(id));
+  const held = rfdWithPrinter(r);
+  const left = rfdRound(Math.max(0, want - held - rfdSentQty(id)));
   if (unit === 'pcs' && Math.round(q) !== q) return 'Pieces have to be a whole number.';
-  if (q > left) return 'Only ' + nf(left) + ' ' + unit + ' of this requirement is still to go out.';
+  if (q > left) return 'Only ' + nf(left) + ' ' + unit + ' of this requirement is still to go out'
+    + (held ? ' — ' + nf(held) + ' ' + unit + ' of it is already with them.' : '.');
   // This database keeps dates day-first; writing the input's YYYY-MM-DD would break every reader.
   const m = String(dateIso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
   const date = m ? m[3] + '/' + m[2] + '/' + m[1] : (dateIso || voTodayDMY());
@@ -35233,6 +35278,7 @@ function rfdTable(rows) {
       ? (rfdUnit(r) === 'pcs' ? rfdPcsAllowed(r._order, r.sku, r) : rfdAllowed(r._order, r.fabric, r))
       : null;
     const want = rfdWant(r);
+    const held = r._order ? rfdWithPrinter(r, r._order) : 0;
     const over = cap ? rfdRound(want - cap.left) : 0;
     const u = rfdUnit(r);
     const unknown = r._order ? rfdOrderNeed(r._order).unknown.length : 0;
@@ -35249,7 +35295,12 @@ function rfdTable(rows) {
       + `<td style="text-align:left">${esc(r.unitTxt)}`
       + (r.subTxt ? `<div class="muted" style="font-size:10.5px">${esc(r.subTxt)}</div>` : '')
       + '</td>'
-      + `<td class="num" style="font-weight:700">${esc(rfdQtyTxt(r))}</td>`
+      /* ASKED, WITH THEM, TO SEND. The ask stays as they raised it; the office works from the last. */
+      + (held > 0
+        ? `<td class="num"><div class="muted" style="font-size:11px">${esc(rfdQtyTxt(r))} asked</div>`
+          + `<div style="font-size:11px;color:#7f6000">− ${nf(held)} ${u} with them</div>`
+          + `<div style="font-weight:700">${nf(rfdRound(Math.max(0, want - held)))} ${u} to send</div></td>`
+        : `<td class="num" style="font-weight:700">${esc(rfdQtyTxt(r))}</td>`)
       /* THE WHOLE DECISION, IN ONE CELL. Not a tooltip: the person answering this is deciding
        * whether to give away cloth, and the sum behind the answer belongs on the row. */
       + `<td style="text-align:left;white-space:normal;max-width:260px">${cap
@@ -35329,7 +35380,7 @@ function rfdButtons(r) {
     b.push(`<button data-rfd-ok="${esc(r.id)}" style="${sm}">Approve</button>`);
   if (rfdCanApprove() && r.stage !== 'rejected' && r.sent <= 0)
     b.push(`<button class="ghost" data-rfd-no="${esc(r.id)}" style="${sm}">Refuse</button>`);
-  if (rfdCanSend() && (r.stage === 'approved' || r.stage === 'sent') && r.sent < rfdWant(r))
+  if (rfdCanSend() && (r.stage === 'approved' || r.stage === 'sent') && r.sent < rfdToSend(r, r._order))
     b.push(`<button class="ghost" data-rfd-send="${esc(r.id)}" style="${sm}">Mark sent</button>`);
   return b.join(' ') || '<span class="muted">&mdash;</span>';
 }
@@ -35419,7 +35470,7 @@ $('rfdTable').addEventListener('click', async e => {
   const sd = e.target.closest('[data-rfd-send]');
   if (sd) {
     const r = rfdFind(sd.getAttribute('data-rfd-send')); if (!r) return;
-    const left = rfdRound(rfdWant(r) - r.sent);
+    const left = rfdRound(Math.max(0, rfdToSend(r, r._order) - r.sent));
     const u = rfdUnit(r);
     return ptOpenDialog({
       title: 'Send ' + r.unitTxt + ' to ' + (r.vendorName || r.vendorCode),
