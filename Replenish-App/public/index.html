@@ -156,6 +156,12 @@
     border-left:3px solid var(--accent);line-height:1.5}
   .warn{background:var(--warn-bg);color:var(--warn-ink);padding:11px 14px;border-radius:10px;font-size:13px;
     border-left:3px solid #ca8a04;line-height:1.5}
+  /* A WARNING INSIDE A CELL OR A SENTENCE IS A WORD, NOT A MESSAGE BOX. The same classes mark both;
+     the padded box with a bar belongs to the page-level message only — in a table cell it made
+     "no width" twice the height of the box it was about. */
+  table.xl td .err,table.xl td .ok,table.xl td .warn,span.err,span.ok,.metric .err,.kpi .err{
+    background:none;border:0;padding:0;margin:0;border-radius:0;line-height:1.35}
+  table.xl td .err,table.xl td .ok,table.xl td .warn{font-size:11.5px;font-weight:500;margin-top:2px}
   .hide{display:none!important}   /* utility must win over later rules like .modal{display:flex} */
   .sec{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:18px 0 10px}
   .spin{display:inline-block;width:13px;height:13px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
@@ -36025,8 +36031,9 @@ function rfdTable(rows) {
         : `<td class="num" style="font-weight:700">${esc(rfdQtyTxt(r))}</td>`)
       /* THE WHOLE DECISION, IN ONE CELL. Not a tooltip: the person answering this is deciding
        * whether to give away cloth, and the sum behind the answer belongs on the row. */
-      + `<td style="text-align:left;white-space:normal;max-width:260px">${cap
-        ? `<span class="muted">order needs</span> ${nf(cap.need)} ${u} · <span class="muted">already asked</span> ${nf(cap.used)} ${u}`
+      /* TWO SHORT LINES, NOT FOUR: the figures on one, the verdict under it, both small. */
+      + `<td style="text-align:left;white-space:normal;min-width:190px;max-width:240px;font-size:12.5px;line-height:1.35">${cap
+        ? `<span class="muted">needs</span> <b>${nf(cap.need)}</b> · <span class="muted">asked before</span> <b>${nf(cap.used)}</b> ${u}`
           + `<div${over > 0 ? ' style="color:var(--bad);font-weight:600"' : ' style="color:#166534"'}>`
           + (over > 0 ? nf(over) + ' ' + u + ' beyond what this order covers' : 'inside what this order covers') + '</div>'
           + (unknown ? `<div class="muted" style="font-size:10.5px">${nf(unknown)} line(s) on this order could not be worked out</div>` : '')

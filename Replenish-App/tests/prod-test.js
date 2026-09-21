@@ -15923,8 +15923,8 @@ console.log('\n== RFD: what cloth a printer needs against the order they are pri
       /1<\/div><div class="l">Waiting for approval/.test(els.rfdKpis.innerHTML));
     /* The sum is on the row, not in a tooltip: somebody is deciding whether to give away cloth. */
     ok('every row shows what the order covers',
-      (els.rfdTable.innerHTML.match(/order needs/g) || []).length === 2,
-      String((els.rfdTable.innerHTML.match(/order needs/g) || []).length));
+      (els.rfdTable.innerHTML.match(/muted">needs<.span>/g) || []).length === 2,
+      String((els.rfdTable.innerHTML.match(/muted">needs<.span>/g) || []).length));
     ok('…and says by how much the big one goes beyond it',
       /400 m beyond what this order covers/.test(els.rfdTable.innerHTML));
     ok('…and that the small one does not', /inside what this order covers/.test(els.rfdTable.innerHTML));
