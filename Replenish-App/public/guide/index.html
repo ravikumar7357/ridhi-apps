@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Greige → RFD → Cutting · Guide</title>
+<style>
+  :root { --ink:#1a1a1a; --muted:#5b6170; --line:#dde1e8; --accent:#4f46e5; --soft:#eef0ff; --warn-bg:#fff8e6; --warn-line:#f0d58a; --bg:#f6f7f9; --card:#fff; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.6 "Segoe UI", "Nirmala UI", "Noto Sans Devanagari", Arial, sans-serif; }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 16px; }
+  header { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 12px 0 10px; border-bottom: 1px solid var(--line); }
+  h1 { font-size: 24px; margin: 0; }
+  .sub { color: var(--muted); font-size: 13px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+  .bar button, .bar a { font: inherit; font-size: 13px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); cursor: pointer; text-decoration: none; }
+  .bar button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  nav.toc { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  nav.toc a { font-size: 12.5px; color: var(--accent); text-decoration: none; border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; background: var(--card); }
+  h2 { font-size: 18px; margin: 28px 0 8px; padding-bottom: 4px; border-bottom: 2px solid var(--accent); scroll-margin-top: 150px; }
+  .step { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 8px; padding: 12px 14px; margin: 10px 0; scroll-margin-top: 150px; }
+  .n { display: inline-block; min-width: 24px; height: 24px; line-height: 24px; text-align: center; border-radius: 50%; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; margin-right: 6px; }
+  .t { font-weight: 700; }
+  .where { color: var(--accent); font-weight: 600; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .pair > div { min-width: 0; }
+  .hi { font-family: "Nirmala UI", "Noto Sans Devanagari", "Segoe UI", sans-serif; }
+  body.only-en .hi, body.only-hi .en { display: none; }
+  body.only-en .pair, body.only-hi .pair { grid-template-columns: 1fr; }
+  body.both .pair > .hi { border-left: 1px dashed var(--line); padding-left: 14px; }
+  .note { background: var(--warn-bg); border: 1px solid var(--warn-line); border-radius: 8px; padding: 10px 12px; margin: 10px 0; }
+  .flow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 10px 0; }
+  .flow span { border: 1px solid var(--accent); background: var(--soft); border-radius: 8px; padding: 5px 10px; font-weight: 600; font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; background: var(--card); font-size: 14px; }
+  th, td { border: 1px solid var(--line); padding: 6px 9px; text-align: left; vertical-align: top; }
+  th { background: #f0f1f6; }
+  ul { margin: 4px 0; padding-left: 20px; }
+  @media (max-width: 700px) { header { position: static; } h1 { font-size: 20px; } h2, .step { scroll-margin-top: 10px; } }
+  @media (max-width: 700px) { .pair { grid-template-columns: 1fr; } body.both .pair > .hi { border-left: 0; padding-left: 0; border-top: 1px dashed var(--line); padding-top: 8px; } }
+  @media print { header .bar, nav.toc { display: none; } header { position: static; } .step, .note, table { break-inside: avoid; } h2 { break-after: avoid; } body { background: #fff; } }
+</style>
+</head>
+<body class="both">
+<div class="wrap">
+<header>
+  <h1>Greige → RFD → Cutting <span class="hi" style="font-weight:400;font-size:18px">· ग्रे → RFD → कटिंग</span></h1>
+  <div class="sub">Step-by-step guide · स्टेप-बाय-स्टेप गाइड · The Fabric Rush</div>
+  <div class="bar">
+    <button data-lang="both" class="on">English + हिंदी</button>
+    <button data-lang="en">English</button>
+    <button data-lang="hi">हिंदी</button>
+    <a href="Greige-RFD-Cutting-Guide.pdf" download>PDF</a>
+    <a href="javascript:window.print()">Print</a>
+  </div>
+  <nav class="toc">
+    <a href="#setup">Setup · सेटअप</a><a href="#po">1 PO</a><a href="#mail">2 Mail</a><a href="#receive">3 Receive · माल आया</a>
+    <a href="#to-rfd">4 Sent for RFD</a><a href="#rfd-back">5 RFD back</a><a href="#cutting">6 Cutting · कटिंग</a>
+    <a href="#where">Where to see · कहाँ देखें</a><a href="#rfd">RFD Requirements</a><a href="#checks">Checks · जाँच</a>
+  </nav>
+</header>
+
+<div class="flow">
+  <span>1. Greige PO</span>→<span>2. Mail</span>→<span>3. Greige received</span>→<span>4. Sent for RFD</span>→<span>5. RFD received</span>→<span>6. Issued to cutting</span>
+</div>
+<div class="pair">
+  <div class="en">Every metre is followed <b>lot by lot</b>. A lot is one delivery from the mill. The lot number stays with the cloth at every step, so you can always see how much is still greige, how much is with the processor, how much came back as RFD, and how much was lost.</div>
+  <div class="hi">हर मीटर का हिसाब <b>लॉट के हिसाब से</b> रहता है। मिल से आई एक डिलीवरी = एक लॉट। लॉट नंबर हर स्टेप पर कपड़े के साथ चलता है — जिससे पता रहता है कि कितना अभी ग्रे है, कितना प्रोसेसर के पास है, कितना RFD बनकर वापस आया और कितना कम हुआ।</div>
+</div>
+<div class="note pair">
+  <div class="en"><b>Greige name vs RFD name.</b> Greige is bought wider than the RFD it becomes. The <b>Sheeting 62</b> on the cutting table is bought as <b>Greige Sheeting 67</b>. The PO and the mill see the greige name; when it comes back from the processor, the app records it as Sheeting 62 by itself.</div>
+  <div class="hi"><b>ग्रे का नाम और RFD का नाम अलग है।</b> ग्रे चौड़ा आता है, प्रोसेस के बाद चौड़ाई कम होती है। कटिंग वाला <b>Sheeting 62</b> मिल से <b>Greige Sheeting 67</b> नाम से खरीदा जाता है। PO पर ग्रे का नाम जाता है; प्रोसेसर से वापस आने पर ऐप अपने आप उसे Sheeting 62 लिख देता है।</div>
+</div>
+
+<h2 id="setup">One-time setup · एक बार की सेटिंग</h2>
+
+<div class="step"><span class="n">A</span><span class="t">Greige name for each fabric · हर फैब्रिक का ग्रे नाम</span>
+<div class="pair">
+  <div class="en"><span class="where">Masters → Fabric type</span> → column <b>Greige name</b>. Type the greige name next to each RFD fabric (Sheeting 62 → Greige Sheeting 67). It saves when you leave the box.
+    <ul><li>A fabric with no greige name cannot go on a greige PO.</li><li>One greige name belongs to one fabric only.</li><li>Admins only.</li></ul></div>
+  <div class="hi"><span class="where">Masters → Fabric type</span> → कॉलम <b>Greige name</b>। हर RFD फैब्रिक के सामने उसका ग्रे नाम लिखें (Sheeting 62 → Greige Sheeting 67)। बॉक्स से बाहर आते ही सेव हो जाता है।
+    <ul><li>जिस फैब्रिक का ग्रे नाम नहीं है, उसका PO नहीं बनेगा।</li><li>एक ग्रे नाम सिर्फ एक फैब्रिक का हो सकता है।</li><li>सिर्फ एडमिन बदल सकते हैं।</li></ul></div>
+</div></div>
+
+<div class="step"><span class="n">B</span><span class="t">Mills and processors · मिल और प्रोसेसर</span>
+<div class="pair">
+  <div class="en"><span class="where">Vendor Orders → Vendors</span>. Set <b>Kind = Mill</b> for greige suppliers and <b>Processor</b> for the RFD processing house. Add each mill's <b>email</b> — the PO is mailed there.</div>
+  <div class="hi"><span class="where">Vendor Orders → Vendors</span>। ग्रे देने वाले के लिए <b>Kind = Mill</b> और RFD करने वाले के लिए <b>Processor</b> चुनें। हर मिल का <b>ईमेल</b> ज़रूर भरें — PO उसी पर जाएगा।</div>
+</div></div>
+
+<div class="step"><span class="n">C</span><span class="t">Company details on the PO · PO पर कंपनी की जानकारी</span>
+<div class="pair">
+  <div class="en"><span class="where">Fabric Inventory → view "Greige POs" → PO settings</span> (admin). Company name, address, GSTIN, phone, email and default terms — printed at the top of every PO.</div>
+  <div class="hi"><span class="where">Fabric Inventory → "Greige POs" → PO settings</span> (एडमिन)। कंपनी का नाम, पता, GSTIN, फोन, ईमेल और शर्तें — ये हर PO के ऊपर छपती हैं।</div>
+</div></div>
+
+<h2>Daily flow · रोज़ का काम</h2>
+
+<div class="step" id="po"><span class="n">1</span><span class="t">Raise the greige PO · ग्रे का PO बनाएँ</span>
+<div class="pair">
+  <div class="en"><span class="where">Fabric Inventory → view "Greige POs" → + Greige PO</span>
+    <ul><li>Pick the <b>mill</b>, PO date and deliver-by date.</li><li>Each line: pick the <b>RFD fabric</b> — the greige name fills in by itself.</li><li>Enter metres, rate per metre and GST % (5 by default).</li><li>Press <b>Raise PO</b>. Number: GPO-YYMMDD-01, -02…</li><li>Edit or cancel only until cloth arrives. Cancelling needs a reason.</li></ul></div>
+  <div class="hi"><span class="where">Fabric Inventory → "Greige POs" → + Greige PO</span>
+    <ul><li><b>मिल</b>, PO तारीख और डिलीवरी की तारीख चुनें।</li><li>हर लाइन में <b>RFD फैब्रिक</b> चुनें — ग्रे नाम अपने आप आ जाएगा।</li><li>मीटर, रेट (प्रति मीटर) और GST % भरें (पहले से 5)।</li><li><b>Raise PO</b> दबाएँ। नंबर अपने आप बनेगा: GPO-YYMMDD-01, -02…</li><li>माल आने से पहले तक ही Edit या Cancel कर सकते हैं। Cancel में कारण लिखना ज़रूरी है।</li></ul></div>
+</div></div>
+
+<div class="step" id="mail"><span class="n">2</span><span class="t">Print or mail it · प्रिंट करें या मेल भेजें</span>
+<div class="pair">
+  <div class="en"><ul><li><b>Print</b> opens the PO page → <i>Print / Save as PDF</i>.</li><li><b>Mail</b> sends the PO as a <b>PDF attachment</b> from ravi@thefabricrush.com to the mill. Add Cc and a message if needed. The row then shows "mailed 1×".</li></ul>
+    Limits: greige POs only, 5 addresses per mail, 40 a day. Mail works for admins; others use Print → Save as PDF.</div>
+  <div class="hi"><ul><li><b>Print</b> से PO खुलता है → <i>Print / Save as PDF</i>।</li><li><b>Mail</b> से PO की <b>PDF</b> ravi@thefabricrush.com से मिल को चली जाती है। चाहें तो Cc और मैसेज जोड़ें। फिर लाइन में "mailed 1×" दिखेगा।</li></ul>
+    सीमा: सिर्फ ग्रे PO, एक मेल में 5 पते, दिन में 40। मेल एडमिन भेज सकते हैं; बाकी लोग Print → Save as PDF करके भेजें।</div>
+</div></div>
+
+<div class="step" id="receive"><span class="n">3</span><span class="t">Greige arrives · मिल से ग्रे आया</span>
+<div class="pair">
+  <div class="en"><span class="where">Greige POs → Receive</span> on that PO. The form opens filled with the greige name, metres still to come, mill and PO number.
+    <ul><li>Type the metres that <b>actually</b> arrived. Part deliveries are fine — the PO shows "Part received".</li><li><b>Lot</b>: the mill's lot no., or leave blank and one is made. <b>Write it on the bale.</b></li><li>Add bill / challan no. and rate.</li></ul></div>
+  <div class="hi">उसी PO पर <span class="where">Receive</span> दबाएँ। फॉर्म में ग्रे नाम, बाकी मीटर, मिल और PO नंबर पहले से भरे मिलेंगे।
+    <ul><li>जितने मीटर <b>असल में</b> आए वही लिखें। थोड़ा-थोड़ा माल आए तो भी ठीक — PO पर "Part received" दिखेगा।</li><li><b>Lot</b>: मिल का लॉट नंबर लिखें, या खाली छोड़ें — नंबर अपने आप बनेगा। <b>यही नंबर गठ्ठर पर लिखें।</b></li><li>बिल / चालान नंबर और रेट भरें।</li></ul></div>
+</div></div>
+
+<div class="step" id="to-rfd"><span class="n">4</span><span class="t">Send greige for RFD · ग्रे को RFD के लिए भेजें</span>
+<div class="pair">
+  <div class="en"><span class="where">Fabric Inventory → + Fabric entry → "Greige sent for RFD processing"</span>
+    <ul><li>Type the fabric (greige or RFD name, both work), then pick the <b>lot</b> — it shows how much is left.</li><li>Enter metres and <b>who is processing it</b>.</li><li>You cannot send more than the lot holds.</li></ul></div>
+  <div class="hi"><span class="where">Fabric Inventory → + Fabric entry → "Greige sent for RFD processing"</span>
+    <ul><li>फैब्रिक लिखें (ग्रे या RFD कोई भी नाम चलेगा), फिर <b>लॉट</b> चुनें — उसमें कितना बचा है दिखेगा।</li><li>मीटर और <b>प्रोसेसर का नाम</b> भरें।</li><li>लॉट में जितना है उससे ज़्यादा नहीं भेज सकते।</li></ul></div>
+</div></div>
+
+<div class="step" id="rfd-back"><span class="n">5</span><span class="t">RFD comes back · RFD वापस आया</span>
+<div class="pair">
+  <div class="en"><span class="where">+ Fabric entry → "RFD received back"</span>
+    <ul><li>Pick the same <b>lot</b> and enter the metres that came back.</li><li>It is recorded under the <b>RFD name</b> (Greige Sheeting 67 → Sheeting 62).</li><li>Cannot be more than is with the processor.</li><li>The lot's <b>loss %</b> is worked out (600 sent, 570 back = 5%).</li></ul></div>
+  <div class="hi"><span class="where">+ Fabric entry → "RFD received back"</span>
+    <ul><li>वही <b>लॉट</b> चुनें और जितने मीटर वापस आए वो भरें।</li><li>ये <b>RFD नाम</b> से दर्ज होगा (Greige Sheeting 67 → Sheeting 62)।</li><li>प्रोसेसर के पास जितना है उससे ज़्यादा नहीं ले सकते।</li><li>लॉट का <b>लॉस %</b> अपने आप निकलेगा (600 भेजा, 570 आया = 5%)।</li></ul></div>
+</div></div>
+
+<div class="step" id="cutting"><span class="n">6</span><span class="t">Issue RFD to cutting · RFD कटिंग को दें</span>
+<div class="pair">
+  <div class="en"><span class="where">+ Fabric entry → "Issued to cutting"</span>. Type the RFD fabric (Sheeting 62), pick the lot, enter metres. Never more than the lot holds.</div>
+  <div class="hi"><span class="where">+ Fabric entry → "Issued to cutting"</span>। RFD फैब्रिक (Sheeting 62) लिखें, लॉट चुनें, मीटर भरें। लॉट से ज़्यादा नहीं दे सकते।</div>
+</div></div>
+
+<h2 id="where">Where to see everything · सब कहाँ देखें</h2>
+<table>
+<tr><th>Fabric Inventory view</th><th class="en">What it shows</th><th class="hi">क्या दिखता है</th></tr>
+<tr><td><b>Greige POs</b></td><td class="en">Every PO: mill, fabric, ordered / received / to come, amount, stage.</td><td class="hi">हर PO: मिल, फैब्रिक, ऑर्डर / आया / बाकी, रकम, स्टेज।</td></tr>
+<tr><td><b>Greige → RFD → cutting</b></td><td class="en">Per fabric: greige in, with processor, RFD back, issued to cutting.</td><td class="hi">हर फैब्रिक: ग्रे आया, प्रोसेसर के पास, RFD वापस, कटिंग को गया।</td></tr>
+<tr><td><b>Lots — bale by bale</b></td><td class="en">Per lot: bill, mill, processor, greige left, RFD left, loss %.</td><td class="hi">हर लॉट: बिल, मिल, प्रोसेसर, बचा ग्रे, बचा RFD, लॉस %।</td></tr>
+<tr><td><b>Stock balance</b></td><td class="en">Balance per fabric, colour and state.</td><td class="hi">फैब्रिक, रंग और स्टेट के हिसाब से बैलेंस।</td></tr>
+<tr><td><b>Every movement</b></td><td class="en">The full ledger.</td><td class="hi">पूरी एंट्री की लिस्ट।</td></tr>
+</table>
+
+<h2 id="rfd">RFD Requirements — cloth for the printers · प्रिंटर को कपड़ा</h2>
+<div class="step"><span class="n">7</span><span class="t">Printers ask, the office sends · प्रिंटर माँगता है, ऑफिस भेजता है</span>
+<div class="pair">
+  <div class="en"><ul>
+    <li>The printer opens <b>their portal → RFD</b>, picks an order and fills <b>With you</b> for <b>that order</b>. It comes off what is left to ask for on that order only.</li>
+    <li>They ask size by size, or <b>Ask for the whole order…</b> (asks them to confirm first).</li>
+    <li>Inside what the order covers = agreed at once. Beyond it = waits for approval here.</li>
+    <li>Each row shows <b>asked − with them = to send</b>. Press <b>Mark sent</b> for what went out; it cannot go over "to send".</li>
+    <li>To refuse many at once: tick them → <b>Refuse ticked</b> → one reason. The printer sees it.</li></ul></div>
+  <div class="hi"><ul>
+    <li>प्रिंटर अपने <b>पोर्टल → RFD</b> में ऑर्डर चुनता है और <b>With you</b> में <b>उसी ऑर्डर</b> के लिए अपने पास पड़ा माल भरता है। ये सिर्फ उसी ऑर्डर की माँग में से घटता है।</li>
+    <li>साइज़ के हिसाब से माँगें, या <b>Ask for the whole order…</b> (पहले पूछेगा, फिर भेजेगा)।</li>
+    <li>ऑर्डर की ज़रूरत के अंदर = तुरंत मंज़ूर। उससे ज़्यादा = यहाँ अप्रूवल का इंतज़ार।</li>
+    <li>हर लाइन में <b>माँगा − उसके पास = भेजना है</b>। जो गया उसके लिए <b>Mark sent</b> दबाएँ; "भेजना है" से ज़्यादा नहीं जा सकता।</li>
+    <li>कई एक साथ मना करने हों: टिक करें → <b>Refuse ticked</b> → एक कारण। प्रिंटर को कारण दिखेगा।</li></ul></div>
+</div></div>
+
+<h2 id="checks">Checks the app does · ऐप क्या-क्या रोकता है</h2>
+<table>
+<tr><th class="en">If you try to…</th><th class="hi">अगर आप…</th><th>Result · नतीजा</th></tr>
+<tr><td class="en">PO a fabric with no greige name</td><td class="hi">बिना ग्रे नाम वाले फैब्रिक का PO</td><td>Refused · रुकेगा</td></tr>
+<tr><td class="en">Receive a different cloth against a PO</td><td class="hi">PO में अलग कपड़ा receive करें</td><td>Refused · रुकेगा</td></tr>
+<tr><td class="en">Receive against a wrong or cancelled PO</td><td class="hi">गलत या कैंसल PO पर receive</td><td>Refused · रुकेगा</td></tr>
+<tr><td class="en">Send more greige than the lot holds</td><td class="hi">लॉट से ज़्यादा ग्रे भेजें</td><td>Refused · रुकेगा</td></tr>
+<tr><td class="en">Receive more RFD than is with the processor</td><td class="hi">प्रोसेसर के पास से ज़्यादा RFD लें</td><td>Refused · रुकेगा</td></tr>
+<tr><td class="en">Cancel a PO that has cloth against it</td><td class="hi">माल आ चुके PO को कैंसल करें</td><td>Refused · रुकेगा</td></tr>
+<tr><td class="en">Mail to a wrong address</td><td class="hi">गलत ईमेल पर मेल</td><td>Checked first · पहले जाँचेगा</td></tr>
+</table>
+<div class="note pair">
+  <div class="en"><b>Who can do what.</b> Raising, receiving and mailing POs needs the right to edit production entries. Masters and PO settings are admin only. Anyone with the Fabric Inventory tab can see POs.</div>
+  <div class="hi"><b>कौन क्या कर सकता है।</b> PO बनाना, receive और मेल करना — "production entries edit" वाले अधिकार से। Masters और PO settings सिर्फ एडमिन। Fabric Inventory टैब वाले सब PO देख सकते हैं।</div>
+</div>
+</div>
+<script>
+(function () {
+  var KEY = 'guideLang';
+  function set(l) {
+    document.body.className = l === 'en' ? 'only-en' : l === 'hi' ? 'only-hi' : 'both';
+    document.querySelectorAll('[data-lang]').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-lang') === l); });
+    try { localStorage.setItem(KEY, l); } catch (e) {}
+  }
+  var q = (location.search.match(/[?&]lang=(en|hi|both)/) || [])[1], saved = null;
+  try { saved = localStorage.getItem(KEY); } catch (e) {}
+  set(q || saved || 'both');
+  /* Opened from a screen's Guide button: go to that screen's part once the page has laid itself out. */
+  if (location.hash) addEventListener('load', function () { var el = document.getElementById(location.hash.slice(1)); if (el) el.scrollIntoView(); });
+  document.querySelectorAll('[data-lang]').forEach(function (b) { b.onclick = function () { set(b.getAttribute('data-lang')); }; });
+})();
+</script>
+</body>
+</html>

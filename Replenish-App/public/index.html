@@ -1274,6 +1274,7 @@
           <button id="rfdClear" class="ghost">Clear</button>
           <button id="rfdExport" class="ghost">Export</button>
           <button id="rfdRefuseSel" class="ghost hide" title="Refuse every ticked requirement, with one reason">Refuse ticked</button>
+          <button id="rfdGuide" class="ghost" title="How RFD requirements work — English and Hindi.">Guide · गाइड</button>
           <button id="rfdGo">Refresh</button>
         </div>
         <div id="rfdMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
@@ -1577,6 +1578,7 @@
           <input id="fbFile" type="file" accept=".csv,text/csv" style="display:none">
           <button id="fbClear" class="ghost">Clear</button>
           <button id="fbExport" class="ghost">Export</button>
+          <button id="fbGuide" class="ghost" title="How greige becomes RFD and goes to cutting, step by step — English and Hindi.">Guide · गाइड</button>
           <button id="fbGo">Refresh</button>
         </div>
         <div id="fbMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
@@ -20024,6 +20026,8 @@ function fabEntryLots() {
 }
 
 $('fbEntry').onclick = fabEntryOpen;
+/* THE GUIDE lives beside the app (/guide/), in English and Hindi, opened at the part this screen is about. */
+$('fbGuide').onclick = () => window.open('/guide/#' + ($('fbView').value === 'po' ? 'po' : 'setup'), '_blank');
 
 /* ================= GREIGE PURCHASE ORDERS =================
  *
@@ -36059,6 +36063,7 @@ $('rfdClear').onclick = () => {
   RFD_KPI = ''; renderRfd();
 };
 $('rfdGo').onclick = () => ensureRfd(true);
+$('rfdGuide').onclick = () => window.open('/guide/#rfd', '_blank');
 $('rfdExport').onclick = () => {
   const rows = RFD.shown || []; if (!rows.length) return;
   const out = [['Raised', 'Raised by', 'Printer', 'Printer code', 'Order', 'What they need', 'Unit',
