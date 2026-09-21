@@ -45,6 +45,10 @@
       ".read": "auth != null && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists() && ((auth.token.email.toLowerCase() === 'ravi@thefabricrush.com' || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).child('admin').val() === true) || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).child('t').child('hr').val() === true)",
       ".write": "auth != null && ((auth.token.email.toLowerCase() === 'ravi@thefabricrush.com' || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).child('admin').val() === true))"
     },
+    "pt_poSettings": {
+      ".read": "auth != null && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists() && ((auth.token.email.toLowerCase() === 'ravi@thefabricrush.com' || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).child('admin').val() === true) || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).child('t').child('fab').val() === true)",
+      ".write": "auth != null && ((auth.token.email.toLowerCase() === 'ravi@thefabricrush.com' || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).child('admin').val() === true))"
+    },
     "pt_printerRates": {
       ".read": "auth != null && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists() && ((auth.token.email.toLowerCase() === 'ravi@thefabricrush.com' || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).child('admin').val() === true) || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).child('t').child('hr').val() === true)",
       ".write": "auth != null && ((auth.token.email.toLowerCase() === 'ravi@thefabricrush.com' || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).child('admin').val() === true) || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).child('r').child('rateApprove').val() === true)",
@@ -287,6 +291,10 @@
     },
     "pt_fnskuMap": {
       ".read": "auth != null && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists() && ((auth.token.email.toLowerCase() === 'ravi@thefabricrush.com' || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).child('admin').val() === true) || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).child('t').child('fba').val() === true || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).child('t').child('fgi').val() === true || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).child('t').child('ord').val() === true || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).child('t').child('shopprod').val() === true)",
+      ".write": "auth != null && (auth.token.email.toLowerCase() === 'ravi@thefabricrush.com' || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).exists()) && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()"
+    },
+    "pt_greigePOs": {
+      ".read": "auth != null && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists() && ((auth.token.email.toLowerCase() === 'ravi@thefabricrush.com' || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).child('admin').val() === true) || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).child('t').child('fab').val() === true)",
       ".write": "auth != null && (auth.token.email.toLowerCase() === 'ravi@thefabricrush.com' || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).exists()) && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()"
     },
     "pt_issueRecipients": {

@@ -54,6 +54,8 @@ const rules = {
 
   pt_perms: { '.write': any(ADMIN) },
   pt_payoutFreezes: { '.write': any(ADMIN) },
+  /* What every greige PO says about the company — name, address, GSTIN. One admin decides it. */
+  pt_poSettings: { '.write': any(ADMIN) },
 
   /* PHASE 2 — a rate is a row, and the row's own words decide who may write it. */
   pt_printerRates: {
