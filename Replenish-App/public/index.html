@@ -9355,6 +9355,11 @@ const FS_BRANDS = [
 ];
 const FS_WIDTHS = ['62', '72', '82', '92', '112'];
 const FS_DIRS = [['V', 'Vertical'], ['H', 'Horizontal']];
+/* Voil (quilt cloth) and canvas, by brand. Only the brands listed here have them. */
+const FS_QUILT = { RBP: { voil: 'RQL', canvas: 'RBP-CANVAS-' } };
+/* The only voil widths and directions made, and the quilt size letter each is cut for. */
+const FS_VOIL = [['92', 'Horizontal', 'T'], ['92', 'Vertical', 'Q'], ['112', 'Horizontal', 'K']];
+const FS_SIDES = ['Front', 'Back'];
 
 /** Which brand family a product SKU belongs to — the colour codes are only unique inside one. */
 const fsFamily = prefix => (/^CPC/.test(prefix) ? 'CPC' : (/^R/.test(prefix) ? 'RBP' : ''));
@@ -9400,10 +9405,18 @@ function fsColourCodes() {
 }
 
 /** The SKU for one line of the catalogue, built the way Ravi's sheet builds it. */
-function fsSku(brandKey, code, fabric, dir) {
+function fsSku(brandKey, code, fabric, dir, side) {
   const b = FS_BRANDS.find(x => x.key === brandKey);
   if (!b || !code) return '';
   if (String(fabric).toUpperCase() === 'CAMBRIC') return b.cambric + code;
+  const q = FS_QUILT[brandKey];
+  if (/^CANVAS$/i.test(String(fabric).trim())) return q ? q.canvas + code : '';
+  if (/^VOIL/i.test(String(fabric).trim())) {
+    const w = String(fabric).replace(/[^0-9]/g, '');
+    const v = FS_VOIL.find(x => x[0] === w && x[1] === dir);
+    const sd = FS_SIDES.find(x => x.toLowerCase() === String(side || '').toLowerCase());
+    return q && v && sd ? q.voil + code + '-' + v[2] + '-' + sd : '';
+  }
   const w = String(fabric).replace(/[^0-9]/g, '');
   if (!w) return '';
   return b.sheeting + code + '-' + (dir === 'Horizontal' ? 'H' : 'V') + '-' + w;
@@ -9421,6 +9434,13 @@ function fsLinesFor(brandKey, code, colour) {
   FS_WIDTHS.forEach(w => FS_DIRS.forEach(([, dir]) => {
     out.push({ fabric: 'Sheeting ' + w, width: w, dir, sku: fsSku(brandKey, code, 'Sheeting ' + w, dir) });
   }));
+  /* Voil comes as a Front and a Back for each quilt size; canvas is one line, printed vertically. */
+  if (FS_QUILT[brandKey]) {
+    FS_VOIL.forEach(([w, dir]) => FS_SIDES.forEach(side => {
+      out.push({ fabric: 'Voil ' + w, width: w, dir, side, sku: fsSku(brandKey, code, 'Voil ' + w, dir, side) });
+    }));
+    out.push({ fabric: 'Canvas', width: '', dir: 'Vertical', sku: fsSku(brandKey, code, 'Canvas', 'Vertical') });
+  }
   return out.map(l => Object.assign({ brand: brandKey, code, colour }, l));
 }
 
@@ -9470,7 +9490,7 @@ function fsRows(filter) {
 function fsOf(sku) {
   const want = String(sku || '').trim().toUpperCase();
   if (!want) return null;
-  return fsRows({ q: want.toLowerCase() }).find(r => r.sku === want) || null;
+  return fsRows({ q: want.toLowerCase() }).find(r => r.sku.toUpperCase() === want) || null;
 }
 
 function renderMdbFabric() {
@@ -9500,7 +9520,7 @@ function renderMdbFabric() {
     + `<td style="text-align:left">${esc(r.colour)}${r.alsoCalled.length
         ? ` <span class="pill pill-low" title="Also called ${esc(r.alsoCalled.join(', '))} on other rows">check</span>` : ''}</td>`
     + `<td>${esc(r.brandName)}</td>`
-    + `<td style="text-align:left">${esc(r.fabric)}</td>`
+    + `<td style="text-align:left">${esc(r.fabric)}${r.side ? ` <span class="muted" style="font-size:11.5px">· ${esc(r.side)}</span>` : ''}</td>`
     + `<td>${esc(r.dir)}</td>`
     + `<td style="text-align:left;font-family:ui-monospace,monospace;font-weight:700">${esc(r.sku)}</td>`
     + (r.imageUrl
@@ -9511,7 +9531,7 @@ function renderMdbFabric() {
 
   $('ptmMsg').className = muddled.length ? 'err' : 'muted';
   $('ptmMsg').textContent = `${nf(rows.length)} fabric SKU(s) · ${nf(codes.length)} colour code(s) · `
-    + 'cambric, and five sheeting widths each way up'
+    + 'cambric, five sheeting widths each way up, and for Ridhi voil (front and back) and canvas'
     + (muddled.length ? ` · ${nf(muddled.length)} code(s) are used for more than one colour in the master database — the commonest is shown, marked "check"` : '');
   /* The pictures come from the products, so ask for the ones that are still unknown. */
   ptImgFill(rows.slice(0, 600).map(r => r.imageFrom).filter(Boolean), false, ptImgPatch);
@@ -24280,12 +24300,13 @@ function voSkuInfo() {
  * doing that per keystroke would be felt.
  */
 function voFabricCatalogue() {
-  if (!VOF.fs) VOF.fs = new Map(fsRows({}).map(r => [r.sku, r]));
+  /* Keyed in capitals: every lookup here upper-cases what was typed, and RQL327-T-Front is not. */
+  if (!VOF.fs) VOF.fs = new Map(fsRows({}).map(r => [r.sku.toUpperCase(), r]));
   return VOF.fs;
 }
 function voFabricOptions() {
   return [...voFabricCatalogue().values()].map(r =>
-    `<option value="${esc(r.sku)}">${esc([r.brandName, r.colour, r.fabric, r.width ? r.dir : ''].filter(Boolean).join(' · '))}</option>`).join('');
+    `<option value="${esc(r.sku)}">${esc([r.brandName, r.colour, r.fabric, r.width ? r.dir : '', r.side || ''].filter(Boolean).join(' · '))}</option>`).join('');
 }
 /** A select's option whose text matches, regardless of case — the masters and the catalogue do not always agree on it. */
 function voPickOption(id, text) {

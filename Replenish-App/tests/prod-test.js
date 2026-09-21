@@ -9749,6 +9749,27 @@ console.log('\n== the fabric a printer is sent ==');
   ok('…and each width both ways up',
      A.FS_WIDTHS.every(w => lines.filter(l => l.width === w).length === 2), JSON.stringify(A.FS_WIDTHS));
 
+  /* VOIL AND CANVAS, Ravi's reference for 327 Light Steel Blue, Ridhi, row for row (21 Sep 2026). */
+  {
+    const want = [['Voil 92', 'Horizontal', 'RQL327-T-Front'], ['Voil 92', 'Horizontal', 'RQL327-T-Back'],
+      ['Voil 92', 'Vertical', 'RQL327-Q-Front'], ['Voil 92', 'Vertical', 'RQL327-Q-Back'],
+      ['Voil 112', 'Horizontal', 'RQL327-K-Front'], ['Voil 112', 'Horizontal', 'RQL327-K-Back'],
+      ['Canvas', 'Vertical', 'RBP-CANVAS-327']];
+    const got = A.fsLinesFor('RBP', '327', 'Light Steel Blue').filter(l => /Voil|Canvas/.test(l.fabric))
+      .map(l => [l.fabric, l.dir, l.sku]);
+    ok('Ridhi voil and canvas are exactly the reference', JSON.stringify(got) === JSON.stringify(want), JSON.stringify(got));
+    ok('…and Ridhi still has its cambric and sheeting', A.fsLinesFor('RBP', '327', 'x').length === 18);
+    ok('a voil width or direction nobody makes has no SKU',
+      A.fsSku('RBP', '327', 'Voil 112', 'Vertical', 'Front') === '' && A.fsSku('RBP', '327', 'Voil 92', 'Horizontal', '') === '');
+    ok('CPC has no voil or canvas until it has a prefix', A.fsSku('CPC', '004', 'Canvas', 'Vertical') === ''
+      && !A.fsLinesFor('CPC', '004', 'x').some(l => /Voil|Canvas/.test(l.fabric)));
+    const v = A.fsOf('rql327-k-back');
+    ok('a voil SKU typed in any case is found', v && v.fabric === 'Voil 112' && v.side === 'Back' && v.colour === 'Light Steel Blue',
+      JSON.stringify(v && { f: v.fabric, s: v.side, c: v.colour }));
+    const cv = A.fsOf('RBP-CANVAS-327');
+    ok('…and so is canvas', cv && cv.fabric === 'Canvas' && cv.dir === 'Vertical');
+  }
+
   /* THE CODE IS READ OUT OF THE PRODUCT SKUs, because nowhere else has it. */
   ok('a product SKU gives up its colour code',
      A.fsCodeOf('RTRE327-1690').code === '327' && A.fsCodeOf('RTRE327-1690').family === 'RBP',
@@ -9780,7 +9801,7 @@ console.log('\n== the fabric a printer is sent ==');
   /* AND THE PICTURE COMES FROM A REAL PRODUCT IN THAT COLOUR. */
   const withPic = A.fsRows({ brand: 'RBP', colour: 'Light Steel Blue' });
   ok('every line of a colour carries the same reference picture',
-     withPic.length === 11 && new Set(withPic.map(r => r.imageFrom)).size === 1,
+     withPic.length === 18 && new Set(withPic.map(r => r.imageFrom)).size === 1,
      JSON.stringify({ n: withPic.length, from: withPic[0] && withPic[0].imageFrom }));
   ok('…and it is a real product SKU, not a made-up one',
      !!(A.PTG().mdb || []).find(r => r.sku === withPic[0].imageFrom), withPic[0] && withPic[0].imageFrom);
@@ -11185,7 +11206,7 @@ console.log('\n== running fabric ordered by fabric SKU ==');
   els.vof_col.options = opts(['', 'Emerald Green', 'Olive Green']);
   els.vof_pd.options = opts(['', 'Horizontal', 'Vertical']);
   const cat = A.voFabricCatalogue();
-  ok('the catalogue has the fabric SKUs for each colour code', cat.has('RBP004') && cat.has('RBPSF004-V-82') && cat.has('CPCSF004-H-112') && cat.size === 22, [...cat.keys()].slice(0, 4).join(' '));
+  ok('the catalogue has the fabric SKUs for each colour code', cat.has('RBP004') && cat.has('RBPSF004-V-82') && cat.has('CPCSF004-H-112') && cat.size === 29 && cat.has('RQL004-T-FRONT'), [...cat.keys()].slice(0, 4).join(' '));
 
   /* Typing a SKU fills the line. */
   ['vof_fab', 'vof_col', 'vof_pd', 'vof_qty', 'vof_lnotes', 'vof_deliv', 'vof_pri'].forEach(id => { els[id].value = ''; });
