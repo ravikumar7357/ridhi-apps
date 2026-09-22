@@ -1660,8 +1660,10 @@
     <div id="paneFab" class="hide">
       <div class="card" style="padding:12px 14px">
         <div class="toolbar">
-          <select id="fbView" style="flex:0 0 165px">
-            <option value="stock">Stock balance</option>
+          <select id="fbView" style="flex:0 0 200px">
+            <option value="store">Store Stock Balance</option>
+            <option value="storemov">Store movements &amp; cross-check</option>
+            <option value="stock">Fabric ledger balance</option>
             <option value="rfd">Greige &rarr; RFD &rarr; cutting</option>
             <option value="lots">Lots &mdash; bale by bale</option>
             <option value="ledger">Every movement</option>
@@ -1680,6 +1682,8 @@
           <input id="fbQ" placeholder="Search fabric / colour / remark" style="flex:1 1 180px;min-width:0">
           <input id="fbD1" type="date" style="flex:0 0 150px" title="From">
           <input id="fbD2" type="date" style="flex:0 0 150px" title="To">
+          <button id="fbStoreNew" class="hide">+ Store entry</button>
+          <input id="fbStoreFile" type="file" accept=".csv,.xlsx,text/csv" style="display:none">
           <button id="fbEntry">+ Fabric entry</button>
           <button id="fbPoNew" class="hide">+ Greige PO</button>
           <button id="fbPoSet" class="ghost hide" title="Company name, address, GSTIN and default terms printed on every PO.">PO settings</button>
@@ -20467,11 +20471,24 @@ function renderFabLots(all) {
   $('fbMsg').textContent = `${nf(lots.length)} lot(s) · each one a delivery, followed from the bill it came on to the cutting table`;
 }
 
+/** The store has its own buttons; the fabric ledger keeps its own. */
+function fabTools(view) {
+  const store = view === 'store' || view === 'storemov';
+  [['fbStoreNew', store && ptCanEdit()], ['fbEntry', !store], ['fbPoNew', false], ['fbPoSet', false]].forEach(([id, on]) => {
+    const el = $(id); if (el && id.indexOf('Po') < 0) el.classList.toggle('hide', !on);
+  });
+  if ($('fbTemplate')) $('fbTemplate').textContent = store ? 'Opening stock template' : 'Template';
+  if ($('fbImport')) $('fbImport').textContent = store ? 'Upload opening stock' : 'Bulk upload';
+}
+
 function renderFab() {
   if (FAB.busy) { $('fbMsg').className = 'muted'; $('fbMsg').textContent = 'Reading the fabric ledger…'; ptEmpty('fbTable', 'Loading…'); return; }
   if (FAB.err) { $('fbMsg').className = 'err'; $('fbMsg').textContent = 'Could not read it: ' + FAB.err; ptEmpty('fbTable', 'Nothing to show.'); $('fbKpis').innerHTML = ''; return; }
   /* THE PO VIEW has its own buttons and its own table; the ledger's filters do not apply to it. */
-  const isPo = $('fbView').value === 'po';
+  const view0 = ($('fbView') || {}).value || 'store';
+  fabTools(view0);
+  if (view0 === 'store' || view0 === 'storemov') return renderStore(view0);
+  const isPo = view0 === 'po';
   if ($('fbPoNew')) $('fbPoNew').classList.toggle('hide', !isPo || !ptCanEdit());
   if ($('fbPoSet')) $('fbPoSet').classList.toggle('hide', !isPo || !ME.admin);
   if (isPo) return renderGpo();
@@ -20553,9 +20570,10 @@ function renderFab() {
 ptDebounce('fbQ', renderFab);
 $('fbClear').onclick = () => { ['fbTxn', 'fbFab', 'fbCol', 'fbCp', 'fbQ', 'fbD1', 'fbD2'].forEach(id => $(id).value = ''); renderFab(); };
 $('fbGo').onclick = async () => {
-  FAB.rows = null;
+  FAB.rows = null; PT.cut = null; STORE.rows = null;
   if (typeof RFD !== 'undefined') RFD.decisions = null;
   await ensureFab();
+  await ensureStore(true);
 };
 /* A number in To cutting or To printers opens the entries behind it. */
 $('fbTable').addEventListener('click', e => {
@@ -20569,7 +20587,20 @@ $('fbTable').addEventListener('click', e => {
   renderFab();
 });
 $('fbExport').onclick = () => {
-  const stock = $('fbView').value === 'stock';
+  const v = ($('fbView') || {}).value;
+  if (v === 'store' || v === 'storemov') {
+    const rows = FAB.shown || []; if (!rows.length) return;
+    const head = v === 'store' ? ['Item', 'Kind', 'SKU', 'Fabric', 'Colour', 'In', 'Out', 'Balance', 'Movements', 'Last']
+      : ['Date', 'What', 'Item', 'Kind', 'SKU', 'Fabric', 'Colour', 'In', 'Out', 'Who', 'Cross-checked', 'Remark'];
+    const body = v === 'store'
+      ? rows.map(b => [b.name, ST_UNITS[b.unit], b.sku, b.fabric, b.colour, b.inQty, b.outQty, b.qty, b.n, ptIsoDate(b.last) || ''])
+      : rows.slice().reverse().map(mv => [mv.date, mv.what, stName(mv), ST_UNITS[mv.unit], mv.sku, mv.fabric, mv.colour,
+        mv.qty > 0 ? Math.round(mv.qty * 100) / 100 : '', mv.qty < 0 ? Math.round(-mv.qty * 100) / 100 : '', mv.who,
+        mv.src === 'printer' ? (stChecked(mv.checkKey) ? 'Yes' : 'No') : '', mv.remark]);
+    return ptDownload(v === 'store' ? 'store-stock' : 'store-movements',
+      [head.map(csvCell).join(',')].concat(body.map(r => r.map(csvCell).join(','))));
+  }
+  const stock = v === 'stock';
   const rows = FAB.shown || []; if (!rows.length) return;
   if ($('fbView').value === 'rfd') {
     const cols = [['Fabric', 'fabricType'], ['Greige in', 'greigeIn'], ['Sent for RFD', 'toRfd'], ['Greige left', 'greigeLeft'],
@@ -21445,6 +21476,11 @@ const FAB_CSV_KINDS = {
 };
 
 $('fbTemplate').onclick = () => {
+  if (($('fbView') || {}).value === 'store' || ($('fbView') || {}).value === 'storemov') {
+    return ptDownload('store-opening-template', [ST_COLS,
+      ['Pieces', 'RTC377-6060', '', '', '25', 'On the shelf today'],
+      ['Cloth', '', 'Sheeting 62', 'Sage Green', '120.5', 'Printed cloth on the rack']].map(r => r.map(csvCell).join(',')));
+  }
   const rows = [FAB_CSV_COLS,
     ['Greige received', attToday(), 'CAMBRIC', '', '1000', 'Shree Mills', '', 'BILL-77', '55', 'Opening delivery'],
     ['Greige sent for RFD', attToday(), 'CAMBRIC', 'CAMBRIC-260912-01', '600', 'Shree Processors', '', '', '', ''],
@@ -21505,7 +21541,8 @@ async function fabCsvRun(rows) {
   return { done, stopped: null, err: '' };
 }
 
-$('fbImport').onclick = () => $('fbFile').click();
+$('fbImport').onclick = () => (($('fbView') || {}).value === 'store' || ($('fbView') || {}).value === 'storemov'
+    ? $('fbStoreFile').click() : $('fbFile').click());
 $('fbFile').onchange = async e => {
   const file = e.target.files && e.target.files[0];
   e.target.value = '';
@@ -23099,7 +23136,7 @@ function voLogRows() {
           orderNo: o.orderNo || o.id, id: o.id, run, unit: run ? 'm' : 'pcs',
           sku: l.sku || '',
           /* The fabric a RUNNING line is printed on — a cut line's comes off its master row instead. */
-          fabric: run ? (l.fabricType || '') : '',
+          fabric: run ? (l.fabricType || '') : '', colour: l.color || '',
           what: run ? [l.fabricType, l.color, l.printDirection].filter(Boolean).join(' · ')
                     : [l.articleSubtype || l.articleType, l.color, l.size].filter(Boolean).join(' · '),
           qty, by: d.by || '', at: d.at || '',
@@ -38690,6 +38727,384 @@ $('ptmSkcFile').onchange = async e => {
     });
   } catch (err) { $('ptmMsg').className = 'err'; $('ptmMsg').textContent = 'Could not read the file: ' + (err.message || err); }
 };
+
+/* ================= THE STORE =================
+ *
+ * Ravi, 2026-09-22: "jo goods mujhe received hua printers se wo direct yaha aakar store hona chahiye …
+ * ek cross check ka option … current store me jitna bhi goods pada h (jo ki pcs me aata h) wo me manually
+ * upload kar dunga … store stock balance ka in out job work register se … fabric ka in out cutting data se
+ * … cutting se wastage bachega wo bhi again store me aana chahiye."
+ *
+ * WHAT THE STORE HOLDS: what the factory has BEFORE stitching — printed cloth in metres, and pieces
+ * ready to be given out. Finished Goods stays what it is: what is made, pressed, checked and shipped.
+ *
+ * NOTHING HERE IS TYPED TWICE. Four of the five movements are read off registers the floor already
+ * keeps, and worked out fresh on every draw, so correcting a cutting entry corrects the store:
+ *
+ *   IN   a printer's delivery        — accepted figure if the office has answered it, else what they sent
+ *   IN   pieces cut                  — only where the cloth was printed first (a cut-printed piece comes
+ *                                      back from the printer instead, and counting both would count twice)
+ *   IN   cutting waste               — the strip left on the table, with how wide it is
+ *   OUT  cut cloth                   — metres the cutting table took, where the cloth was printed first
+ *   OUT  pieces issued to a karigar  — the Job Work Register's issue. What comes BACK is not a store
+ *                                      movement: Ravi's rule, because it goes on to press, QC and FG.
+ *
+ * and the fifth is typed: the opening stock, and any correction, in pt_storeLedger.
+ *
+ * FROM WHEN: from the first opening entry. Before that the registers describe a store this screen was
+ * not keeping, and counting them would produce a balance nobody recognises.
+ */
+let STORE = { rows: null, checks: null, err: '', busy: false, at: '' };
+const ST_UNITS = { pcs: 'pcs', m: 'm' };
+const stNum = v => { const n = parseFloat(v); return isFinite(n) ? n : 0; };
+const stKey = r => (r.unit === 'pcs' ? 'P|' + obUC(r.sku) : 'M|' + fabKey(r.fabric) + '|' + fabKey(r.colour));
+const stName = r => (r.unit === 'pcs' ? obUC(r.sku) : [String(r.fabric || '').trim(), String(r.colour || '').trim()].filter(Boolean).join(' · '));
+
+async function ensureStore(force) {
+  if (STORE.rows !== null && !force) { renderFab(); return; }
+  STORE.busy = true; renderFab();
+  const errs = [];
+  try { STORE.rows = ptList(await ptGet('pt_storeLedger')); } catch (e) { errs.push('the store book (' + (e.message || e) + ')'); STORE.rows = STORE.rows || []; }
+  try { STORE.checks = (await ptGet('pt_storeChecks')) || {}; } catch (e) { STORE.checks = STORE.checks || {}; }
+  if (!PTG.mdb) { try { await ptLoadGates(); } catch (e) { errs.push('the master database'); } }
+  if (!PT.base) { try { PT.base = ptList(await ptGet('pt_baseData')); } catch (e) { errs.push('the Job Work Register'); } }
+  if (VO.rows === null) { try { await ensureVo(); } catch (e) { errs.push('the printers\' orders'); } }
+  STORE.err = errs.length ? 'Could not read ' + errs.join(' or ') + '.' : '';
+  STORE.at = ptStamp(); STORE.busy = false;
+  renderFab();
+}
+
+/** The day the store opened: the first opening entry anybody typed. '' while there is none. */
+function stStart() {
+  let first = '';
+  (STORE.rows || []).forEach(r => {
+    if (!r || r.kind !== 'OPENING') return;
+    const t = String(r.at || '');
+    if (t && (!first || t < first)) first = t;
+  });
+  return first;
+}
+
+/** The cloth and the metres one cutting entry took, and the pieces it made. */
+function stCutting(c) {
+  const pcs = stNum(c.pieces);
+  const m = mdbOf(c.sku);
+  /* A piece whose cloth is printed AFTER cutting leaves the store when the printer is given it, and
+   * comes back as the printer's delivery — so the cutting itself moves nothing here. */
+  const running = !!m && ptPrintIssueAs(m) === 'running';
+  const typed = parseFloat(c.fabricUsed);
+  let fabric = String(c.fabricWidth || '').trim(), metres = isFinite(typed) && typed > 0 ? typed : 0;
+  if (!metres || !fabric) {
+    const p = m ? ptConsPlan(m) : { why: 'no master row' };
+    if (!p.why) { fabric = fabric || p.fabric; if (!metres) metres = Math.round(p.metres * pcs * 100) / 100; }
+  }
+  return { running, pcs, fabric, colour: c.color || '', metres: Math.round(metres * 100) / 100, waste: stNum(c.fabricWaste), wasteWidth: stNum(c.fabricWasteWidth) };
+}
+
+/** Every movement of the store, oldest first. Built, never stored. */
+function stMoves() {
+  const start = stStart();
+  const out = [];
+  const day = at => ptIsoDate(at) || String(at || '').slice(0, 10);
+  (STORE.rows || []).forEach(r => {
+    if (!r) return;
+    const q = stNum(r.qty);
+    if (!q) return;
+    out.push({ src: 'typed', id: r.id || r._key, unit: r.unit === 'm' ? 'm' : 'pcs', sku: r.sku || '', fabric: r.fabric || '', colour: r.colour || '',
+      qty: r.kind === 'OUT' ? -Math.abs(q) : (r.kind === 'ADJUST' ? q : Math.abs(q)),
+      what: r.kind === 'OPENING' ? 'Opening stock' : r.kind === 'OUT' ? 'Taken out by hand' : r.kind === 'ADJUST' ? 'Correction' : 'Taken in by hand',
+      date: r.date || day(r.at), at: r.at || '', who: r.by || '', remark: r.remark || '' });
+  });
+  if (!start) return out.sort((a, b) => String(a.at).localeCompare(String(b.at)));
+  /* ---- what the printers sent ---- */
+  voLogRows().forEach(r => {
+    const at = String((r.ok && r.ok.at) || r.at || '');
+    if (!at || at <= start) return;
+    const q = r.ok ? stNum(r.ok.qty) : stNum(r.qty);
+    if (!(q > 0)) return;
+    out.push({ src: 'printer', id: r.key2, checkKey: r.key2, unit: r.unit, sku: r.sku, fabric: r.fabric, colour: r.colour || '',
+      qty: q, what: 'From ' + r.vendor + (r.ok ? ' · accepted' : ' · as sent'), date: r.day || day(at), at, who: (r.ok && r.ok.by) || r.by || '', remark: r.orderNo || '' });
+  });
+  /* ---- the cutting table ---- */
+  (PT.cut || []).forEach(c => {
+    const at = String(c.addedAt || '');
+    if (!at || at <= start) return;
+    const k = stCutting(c);
+    if (k.running && k.metres > 0 && k.fabric) {
+      out.push({ src: 'cut', id: 'cut-' + c.id, unit: 'm', fabric: k.fabric, colour: k.colour, sku: '',
+        qty: -k.metres, what: 'Cut ' + nf(k.pcs) + ' × ' + (c.articleSubtype || c.sku || ''), date: ptIsoDate(c.cutDate) || day(at), at, who: c.addedBy || '', remark: c.orderNo || '' });
+      out.push({ src: 'cut', id: 'cutp-' + c.id, unit: 'pcs', sku: c.sku, fabric: '', colour: '',
+        qty: k.pcs, what: 'Cut from ' + k.fabric, date: ptIsoDate(c.cutDate) || day(at), at, who: c.addedBy || '', remark: c.orderNo || '' });
+    }
+    if (k.waste > 0 && k.fabric) {
+      out.push({ src: 'waste', id: 'waste-' + c.id, unit: 'm', fabric: k.fabric, colour: k.colour, sku: '',
+        qty: k.waste, what: 'Waste back from cutting' + (k.wasteWidth > 0 ? ' · ' + nf(k.wasteWidth) + '" wide' : ''),
+        date: ptIsoDate(c.cutDate) || day(at), at, who: c.addedBy || '', remark: c.orderNo || '' });
+    }
+  });
+  /* ---- pieces given to a karigar ---- */
+  (PT.base || []).forEach(r => {
+    const at = String(r.addedAt || '');
+    if (!at || at <= start) return;
+    const q = stNum(r.issuePieces);
+    if (!(q > 0)) return;
+    out.push({ src: 'jobwork', id: 'jw-' + r.id, unit: 'pcs', sku: r.sku, fabric: '', colour: '',
+      qty: -q, what: 'Issued to ' + (r.empName || 'a karigar'), date: ptIsoDate(r.issueDate) || day(at), at, who: r.addedBy || '', remark: r.orderNo || '' });
+  });
+  return out.sort((a, b) => String(a.at).localeCompare(String(b.at)));
+}
+
+/** One line per thing the store holds. */
+function stBalances(moves) {
+  const by = new Map();
+  (moves || []).forEach(mv => {
+    const k = stKey(mv);
+    let e = by.get(k);
+    if (!e) { e = { key: k, unit: mv.unit, sku: mv.sku, fabric: mv.fabric, colour: mv.colour, name: stName(mv), inQty: 0, outQty: 0, qty: 0, n: 0, last: '' }; by.set(k, e); }
+    e.n++;
+    if (mv.qty >= 0) e.inQty += mv.qty; else e.outQty += -mv.qty;
+    e.qty += mv.qty;
+    if (String(mv.at) > e.last) e.last = String(mv.at);
+    if (!e.sku && mv.sku) e.sku = mv.sku;
+  });
+  return [...by.values()].map(e => Object.assign(e, { qty: Math.round(e.qty * 100) / 100, inQty: Math.round(e.inQty * 100) / 100, outQty: Math.round(e.outQty * 100) / 100 }))
+    .sort((a, b) => a.unit.localeCompare(b.unit) || a.name.localeCompare(b.name));
+}
+
+/** A printer's delivery the store has not put eyes on yet. */
+const stChecked = key => !!((STORE.checks || {})[key]);
+const stToCheck = moves => (moves || []).filter(mv => mv.src === 'printer' && !stChecked(mv.checkKey));
+async function stCheckSet(key, on) {
+  if (!ptCanEdit()) return PT_NO_EDIT;
+  const rec = on ? { by: ME.email, at: new Date().toISOString() } : null;
+  try { await ptPut('pt_storeChecks/' + String(key).replace(/\//g, '__'), rec); }
+  catch (e) { return 'Not saved: ' + (e.message || e); }
+  STORE.checks = Object.assign({}, STORE.checks || {});
+  if (on) STORE.checks[key] = rec; else delete STORE.checks[key];
+  return '';
+}
+
+/* ---- typing one in ---- */
+const ST_KINDS = [['OPENING', 'Opening stock — what is on the shelf today'], ['IN', 'Taken in by hand'],
+  ['OUT', 'Taken out by hand'], ['ADJUST', 'Correction (+ or −)']];
+
+async function stSave(rec) {
+  if (!ptCanEdit()) return PT_NO_EDIT;
+  const kind = String(rec.kind || '').trim();
+  if (!ST_KINDS.some(k => k[0] === kind)) return 'Pick what this entry is.';
+  const unit = rec.unit === 'm' ? 'm' : 'pcs';
+  const qty = parseFloat(rec.qty);
+  if (!isFinite(qty) || (kind !== 'ADJUST' && qty <= 0)) return unit === 'pcs' ? 'How many pieces?' : 'How many metres?';
+  if (kind === 'ADJUST' && qty === 0) return 'A correction of nothing is not a correction.';
+  const row = { id: 'st_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), kind, unit, qty,
+    sku: '', fabric: '', colour: String(rec.colour || '').trim(), date: String(rec.date || '').trim() || attToday(),
+    remark: String(rec.remark || '').trim(), by: ME.email, at: new Date().toISOString() };
+  if (unit === 'pcs') {
+    row.sku = obUC(rec.sku);
+    if (!row.sku) return 'Which SKU?';
+    const m = mdbOf(row.sku);
+    if (!m) return `SKU ${row.sku} is not in the master database.`;
+    if (Math.round(qty) !== qty) return 'Pieces have to be a whole number.';
+    row.colour = m.color || row.colour;
+  } else {
+    row.fabric = String(rec.fabric || '').trim();
+    if (!row.fabric) return 'Which fabric?';
+  }
+  try { await ptPut('pt_storeLedger/' + row.id, row); }
+  catch (e) { return 'Not saved: ' + (e.message || e); }
+  STORE.rows = (STORE.rows || []).concat([Object.assign({ _key: row.id }, row)]);
+  return '';
+}
+
+function stEntryOpen(pre) {
+  if (!ptCanEdit()) { $('fbMsg').className = 'err'; $('fbMsg').textContent = PT_NO_EDIT; return; }
+  pre = pre && typeof pre === 'object' && !pre.target ? pre : {};
+  const fabrics = [...new Set((FAB.rows || []).map(r => String(r.fabricType || '').trim()).concat(cutFabrics()).filter(Boolean))].sort();
+  ptOpenDialog({
+    title: 'Store entry',
+    subtitle: 'What is on the shelf, and anything the registers cannot know',
+    note: 'Pieces go in by SKU, cloth by fabric and colour. What the printers send, what cutting takes and what '
+      + 'is issued to karigars is counted on its own — those are not typed here.',
+    fields: [
+      { key: 'kind', label: 'What this is', type: 'select', value: pre.kind || 'OPENING', options: ST_KINDS },
+      { key: 'unit', label: 'Pieces or cloth', type: 'select', value: pre.unit || 'pcs', options: [['pcs', 'Pieces (by SKU)'], ['m', 'Cloth (metres)']] },
+      { key: 'sku', label: 'SKU (for pieces)', value: pre.sku || '', list: (PTG.mdb || []).slice(0, 4000).map(r => r.sku) },
+      { key: 'fabric', label: 'Fabric (for cloth)', value: pre.fabric || '', list: fabrics },
+      { key: 'colour', label: 'Colour (for cloth)', value: pre.colour || '' },
+      { key: 'qty', label: 'How many', type: 'number', step: '0.01', value: pre.qty == null ? '' : pre.qty },
+      { key: 'date', label: 'Date', type: 'date', value: attToday() },
+      { key: 'remark', label: 'Remark', value: '', span: true },
+    ],
+    saveLabel: 'Save entry',
+    onSave: async v => { const err = await stSave(v); if (!err) renderFab(); return err; },
+  });
+}
+
+/* ---- the opening stock, a sheet at a time ---- */
+const ST_COLS = ['Pieces or cloth', 'SKU', 'Fabric', 'Colour', 'Quantity', 'Remark'];
+function stSheetEntries(grid) {
+  if (!grid || !grid.length) return { err: 'The file is empty.' };
+  const hi = grid.findIndex(r => (r || []).some(c => /^quantity$|^qty$/i.test(String(c || '').trim())));
+  if (hi < 0) return { err: 'The file needs a Quantity column (and SKU for pieces, or Fabric and Colour for cloth).' };
+  const head = grid[hi].map(h => String(h || '').trim().toLowerCase());
+  const ix = n => head.findIndex(h => n.includes(h));
+  const at = { unit: ix(['pieces or cloth', 'unit', 'type']), sku: ix(['sku']), fabric: ix(['fabric']), colour: ix(['colour', 'color']),
+    qty: ix(['quantity', 'qty']), remark: ix(['remark', 'remarks']) };
+  const entries = [], bad = [];
+  grid.slice(hi + 1).forEach((r, k) => {
+    const g = i => (i < 0 ? '' : String((r || [])[i] == null ? '' : r[i]).trim());
+    if (!(r || []).some(c => String(c || '').trim())) return;
+    const line = hi + k + 2;
+    const sku = g(at.sku), fabric = g(at.fabric);
+    const unit = /^(m|metre|meters|metres|cloth|fabric)$/i.test(g(at.unit)) ? 'm' : (g(at.unit) ? 'pcs' : (sku ? 'pcs' : 'm'));
+    const qty = parseFloat(g(at.qty));
+    if (!isFinite(qty) || qty <= 0) { bad.push(`line ${line}: "${g(at.qty)}" is not a quantity`); return; }
+    entries.push({ line, unit, sku, fabric, colour: g(at.colour), qty, remark: g(at.remark) });
+  });
+  return { entries, bad };
+}
+function stSheetPlan(entries) {
+  const ok = [], bad = [];
+  (entries || []).forEach(e => {
+    if (e.unit === 'pcs') {
+      if (!obUC(e.sku)) { bad.push(`line ${e.line}: no SKU`); return; }
+      if (!mdbOf(e.sku)) { bad.push(`line ${e.line}: ${obUC(e.sku)} is not in the master database`); return; }
+      if (Math.round(e.qty) !== e.qty) { bad.push(`line ${e.line}: ${obUC(e.sku)} — pieces have to be whole`); return; }
+    } else if (!String(e.fabric || '').trim()) { bad.push(`line ${e.line}: no fabric`); return; }
+    ok.push(e);
+  });
+  return { ok, bad };
+}
+async function stSheetRun(list) {
+  if (!ptCanEdit()) return PT_NO_EDIT;
+  const now = new Date().toISOString(), t = Date.now().toString(36), patch = {}, added = [];
+  (list || []).forEach((e, i) => {
+    const id = 'st_' + t + '_' + String(i).padStart(4, '0');
+    const row = { id, kind: 'OPENING', unit: e.unit, qty: e.qty, sku: e.unit === 'pcs' ? obUC(e.sku) : '',
+      fabric: e.unit === 'm' ? String(e.fabric).trim() : '', colour: String(e.colour || '').trim(),
+      date: attToday(), remark: e.remark || 'Opening stock', by: ME.email, at: now };
+    patch['pt_storeLedger/' + id] = row;
+    added.push(Object.assign({ _key: id }, row));
+  });
+  if (!added.length) return 'Nothing to write.';
+  try { await ptPatch(patch); } catch (e) { return 'Not saved: ' + (e.message || e); }
+  STORE.rows = (STORE.rows || []).concat(added);
+  return '';
+}
+
+/* ---- the screens ---- */
+function renderStore(view) {
+  if (STORE.rows === null) { ensureStore(); }
+  if (STORE.busy) { $('fbMsg').className = 'muted'; $('fbMsg').textContent = 'Reading the store…'; ptEmpty('fbTable', 'Loading…'); $('fbKpis').innerHTML = ''; return; }
+  const moves = stMoves();
+  const start = stStart();
+  const f = fabFilters();
+  const pick = mv => (!f.q || [stName(mv), mv.what, mv.remark, mv.who].join(' ').toLowerCase().includes(f.q))
+    && (!f.fab || ptCi(mv.fabric, f.fab)) && (!f.col || ptCi(mv.colour, f.col))
+    && (!f.d1 || String(mv.date || '') >= f.d1) && (!f.d2 || String(mv.date || '') <= f.d2);
+  const shown = moves.filter(pick);
+  const bal = stBalances(view === 'store' ? moves.filter(mv => !f.q || pick(mv)) : shown);
+  const toCheck = stToCheck(moves);
+  const pcs = bal.filter(b => b.unit === 'pcs'), met = bal.filter(b => b.unit === 'm');
+  const sum = (list, k) => Math.round(list.reduce((a, b) => a + b[k], 0) * 10) / 10;
+  $('fbKpis').innerHTML = `<div class="kpi" style="flex-basis:100%">
+    <div class="kpihead"><span class="kpiname">Store — what is on the shelf before stitching</span>
+      <span class="kpiwhen">read live${STORE.at ? ' · ' + esc(STORE.at) : ''}</span></div>
+    <div class="metrics">
+      <div class="metric"><div class="v">${nf(sum(pcs, 'qty'))}</div><div class="l">Pieces in store</div></div>
+      <div class="metric"><div class="v">${nf(pcs.length)}</div><div class="l">SKUs</div></div>
+      <div class="metric"><div class="v" style="color:#166534">${nf(sum(met, 'qty'))}</div><div class="l">Cloth (m)</div></div>
+      <div class="metric"><div class="v">${nf(met.length)}</div><div class="l">Fabric &amp; colour</div></div>
+      <div class="metric"><div class="v"${toCheck.length ? ' style="color:#b45309"' : ''}>${nf(toCheck.length)}</div><div class="l">To cross-check</div></div>
+    </div></div>`;
+  if (view === 'storemov') {
+    const head = '<thead><tr>' + ['Date', 'What', 'Item', 'In', 'Out', 'Who', 'Cross-check']
+      .map((h, i) => `<th${i === 0 ? ' class="frz"' : ([3, 4].indexOf(i) >= 0 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
+    const rows = shown.slice().reverse().slice(0, 600);
+    $('fbTable').innerHTML = head + '<tbody>' + rows.map(mv => '<tr>'
+      + `<td class="frz" style="text-align:left">${esc(mv.date || '')}</td>`
+      + `<td style="text-align:left">${esc(mv.what)}${mv.remark ? `<div class="muted" style="font-size:11px">${esc(mv.remark)}</div>` : ''}</td>`
+      + `<td style="text-align:left">${esc(stName(mv))} <span class="muted" style="font-size:11px">${ST_UNITS[mv.unit]}</span></td>`
+      + `<td class="num" style="color:#166534">${mv.qty > 0 ? nf(Math.round(mv.qty * 100) / 100) : ''}</td>`
+      + `<td class="num" style="color:var(--bad)">${mv.qty < 0 ? nf(Math.round(-mv.qty * 100) / 100) : ''}</td>`
+      + `<td style="text-align:left;font-size:12px">${esc(String(mv.who || '').split('@')[0])}</td>`
+      + `<td>${mv.src !== 'printer' ? '<span class="muted">—</span>'
+        : stChecked(mv.checkKey) ? `<span class="pill pill-ok" title="Checked by ${esc(String((STORE.checks[mv.checkKey] || {}).by || '').split('@')[0])}">✓ checked</span>`
+          + (ptCanEdit() ? ` <button class="ghost" data-st-uncheck="${esc(mv.checkKey)}" style="padding:2px 8px;font-size:11px">undo</button>` : '')
+        : ptCanEdit() ? `<button data-st-check="${esc(mv.checkKey)}" style="padding:3px 10px;font-size:12px">Mark checked</button>`
+          : '<span class="pill pill-low">not checked</span>'}</td>`
+      + '</tr>').join('') + '</tbody>';
+    $('fbMsg').className = STORE.err ? 'err' : 'muted';
+    $('fbMsg').innerHTML = esc(`${nf(rows.length)} of ${nf(moves.length)} movement(s)`)
+      + (start ? '' : ' · <b>the store has no opening stock yet</b> — upload it, and the registers start counting from then')
+      + (STORE.err ? ' · ' + esc(STORE.err) : '');
+    FAB.shown = shown;
+    return;
+  }
+  const head = '<thead><tr>' + ['Item', 'Kind', 'In', 'Out', 'Balance', 'Movements', 'Last']
+    .map((h, i) => `<th${i === 0 ? ' class="frz"' : ([2, 3, 4, 5].indexOf(i) >= 0 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
+  $('fbTable').innerHTML = head + '<tbody>' + bal.map(b => '<tr>'
+    + `<td class="frz" style="text-align:left">${b.unit === 'pcs' ? ptImgSpan(b.sku, 28) + ' ' : ''}${esc(b.name)}</td>`
+    + `<td>${b.unit === 'pcs' ? 'Pieces' : 'Cloth'}</td>`
+    + `<td class="num" style="color:#166534">${nf(b.inQty)}</td>`
+    + `<td class="num" style="color:var(--bad)">${nf(b.outQty)}</td>`
+    + `<td class="num" style="font-weight:700${b.qty < 0 ? ';color:var(--bad)' : ''}">${nf(b.qty)}</td>`
+    + `<td class="num muted">${nf(b.n)}</td>`
+    + `<td style="font-size:12px">${esc(ptIsoDate(b.last) || '')}</td></tr>`).join('') + '</tbody>';
+  FAB.shown = bal;
+  $('fbMsg').className = STORE.err ? 'err' : 'muted';
+  $('fbMsg').innerHTML = esc(`${nf(bal.length)} item(s) · the balance is the sum of the movements, never a stored figure`)
+    + (start ? '' : ' · <b>no opening stock yet</b> — upload what is on the shelf and the registers count from then')
+    + (toCheck.length ? ` · <a href="#" id="stToCheck">${nf(toCheck.length)} delivery(ies) to cross-check</a>` : '')
+    + (STORE.err ? ' · ' + esc(STORE.err) : '');
+  ptImgFill(pcs.map(b => b.sku).filter(Boolean), false, renderFab);
+}
+
+$('fbTable').addEventListener('click', async e => {
+  const on = e.target.closest('[data-st-check]'), off = e.target.closest('[data-st-uncheck]');
+  if (!on && !off) return;
+  const key = (on || off).getAttribute(on ? 'data-st-check' : 'data-st-uncheck');
+  const err = await stCheckSet(key, !!on);
+  if (err) { $('fbMsg').className = 'err'; $('fbMsg').textContent = err; return; }
+  renderFab();
+});
+$('fbMsg').addEventListener('click', e => {
+  if (!e.target.closest('#stToCheck')) return;
+  e.preventDefault();
+  $('fbView').value = 'storemov';
+  renderFab();
+});
+$('fbStoreFile').onchange = async e => {
+  const file = e.target.files[0]; e.target.value = ''; if (!file) return;
+  try {
+    const grid = /\.xlsx$/i.test(file.name) ? await pkReadXlsx(new Uint8Array(await file.arrayBuffer())) : parseCsv(await file.text());
+    const read = stSheetEntries(grid);
+    if (read.err) { $('fbMsg').className = 'err'; $('fbMsg').textContent = read.err; return; }
+    const plan = stSheetPlan(read.entries);
+    const bad = (read.bad || []).concat(plan.bad);
+    if (!plan.ok.length) {
+      $('fbMsg').className = 'err';
+      $('fbMsg').textContent = 'Nothing to write. ' + bad.slice(0, 4).join(' · ');
+      return;
+    }
+    const pcsN = plan.ok.filter(x => x.unit === 'pcs').length;
+    ptOpenDialog({
+      title: 'Put this on the shelf?',
+      subtitle: `${nf(pcsN)} piece line(s) · ${nf(plan.ok.length - pcsN)} cloth line(s)${bad.length ? ' · ' + nf(bad.length) + ' refused' : ''}`,
+      note: 'Each line becomes an opening entry. The registers — printers, cutting, job work — start counting from the first one.',
+      html: '<div style="max-height:45vh;overflow:auto;font-size:12.5px">'
+        + plan.ok.slice(0, 300).map(x => `${esc(x.unit === 'pcs' ? obUC(x.sku) : [x.fabric, x.colour].filter(Boolean).join(' · '))}: <b>${nf(x.qty)}</b> ${ST_UNITS[x.unit]}`).join('<br>')
+        + (bad.length ? '<br><span style="color:var(--bad)">' + bad.map(esc).join('<br>') + '</span>' : '') + '</div>',
+      saveLabel: 'Write ' + nf(plan.ok.length),
+      onSave: async () => {
+        const err = await stSheetRun(plan.ok);
+        if (!err) { renderFab(); $('fbMsg').className = 'muted'; $('fbMsg').textContent = `Opening stock written for ${nf(plan.ok.length)} line(s).`; }
+        return err;
+      },
+    });
+  } catch (err) { $('fbMsg').className = 'err'; $('fbMsg').textContent = 'Could not read the file: ' + (err.message || err); }
+};
+$('fbStoreNew').onclick = () => stEntryOpen({});
 
 const RECIPE_FIELDS = [
   /* FIRST, because it is the first thing anybody asks about a product. 'fab' is text picked from the

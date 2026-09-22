@@ -70,6 +70,12 @@ const rules = {
 
   pt_masterDB: { '.write': any(ADMIN, right('mdbEdit'), right('prodEdit')), '.indexOn': ['sku', 'brand', 'articleType', 'color'] },
 
+  /* THE STORE (2026-09-22): what is on the shelf before stitching. The opening stock and corrections are
+   * typed by whoever may enter production; the cross-check ticks the same. Everything else on that screen
+   * is worked out from registers that have their own rules. */
+  pt_storeLedger: { '.write': any(ADMIN, right('prodEdit')) },
+  pt_storeChecks: { '.write': any(ADMIN, right('prodEdit')) },
+
   /* PHASE 2 — the master lists, each by the right the app already asks for before writing it. */
   pt_masters: {
     accessories: { '.write': any(ADMIN, right('accEdit')) },
