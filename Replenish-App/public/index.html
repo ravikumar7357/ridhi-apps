@@ -9018,10 +9018,12 @@ function renderPmdb() {
     </div></div>`;
 
   const yn = v => v ? '<span class="pill pill-ok">Yes</span>' : '<span class="muted">—</span>';
-  const head = '<thead><tr>' + ['SKU', 'Image', 'Brand', 'Article', 'Subtype', 'Color', 'Size', 'Fabric', 'Consumption', 'Pack of', 'Cutting', 'Zip', 'Ruffle', 'Filler', 'Edit']
+  const head = '<thead><tr>' + ['SKU', 'Image', 'Brand', 'Article', 'Subtype', 'Color', 'Size', 'Fabric', 'Consumption', 'Pack of', 'Cutting', 'Zip', 'Ruffle', 'Piping', 'Filler', 'Edit']
     .map((h, i) => `<th${i === 0 ? ' class="frz"' : (i === 8 || i === 9 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
   const zipCell = r => !r.isZip ? '<span class="muted">—</span>'
     : `<span class="pill pill-ok">Yes</span><div class="muted" style="font-size:11px;margin-top:2px">${nf(mdbZipQty(r))} × ${esc(r.chainLength == null ? '?' : r.chainLength)}"</div>`;
+  const pipCell = r => !r.isPiping ? '<span class="muted">—</span>'
+    : `<span class="pill pill-ok">Yes</span><div class="muted" style="font-size:11px;margin-top:2px">${r.pipingMeters == null ? '?' : esc(r.pipingMeters)}m dori</div>`;
   const rufCell = r => !r.isRuffle ? '<span class="muted">—</span>'
     : `<span class="pill pill-ok">Yes</span><div class="muted" style="font-size:11px;margin-top:2px">${r.ruffleMeters == null ? '?' : esc(r.ruffleMeters)}m${r.ruffleFabric ? ' · ' + esc(r.ruffleFabric) : ''}</div>`;
   const body = rows.slice(0, PMDB_MAX).map(r => '<tr>'
@@ -9031,7 +9033,7 @@ function renderPmdb() {
     + `<td>${esc(r.color)}</td><td>${esc(r.size)}</td><td>${esc(r.fabric)}</td>`
     + `<td class="num">${r.consumption == null || r.consumption === '' ? '<span class="muted">—</span>' : esc(r.consumption)}</td>`
     + `<td class="num">${esc(r.packOf)}</td><td>${yn(r.cuttingRequired)}</td><td>${zipCell(r)}</td>`
-    + `<td>${rufCell(r)}</td><td>${yn(r.fillerFabricRequired)}</td>`
+    + `<td>${rufCell(r)}</td><td>${pipCell(r)}</td><td>${yn(r.fillerFabricRequired)}</td>`
     + `<td>${custom ? '<span class="muted">—</span>'
       : `<button class="ghost" data-mdb-edit="${esc(r.sku)}" style="padding:3px 10px;font-size:12px">Edit</button>`}</td></tr>`).join('');
   $('ptmTable').innerHTML = head + '<tbody>' + body + '</tbody>';
@@ -9854,13 +9856,16 @@ $('ptmExport').onclick = () => {
   }
   const rows = PT._pmdbRows || []; if (!rows.length) return;
   const lines = [['SKU', 'Brand', 'Article', 'Subtype', 'Color', 'Size', 'Fabric', 'Consumption', 'Pack of',
-    'Cutting required', 'Zip', 'Zips per piece', 'Zip size', 'Ruffle', 'Ruffle metres', 'Ruffle fabric', 'Filler fabric', 'Image'].map(csvCell).join(',')];
+    'Cutting required', 'Zip', 'Zips per piece', 'Zip size', 'Ruffle', 'Ruffle metres', 'Ruffle fabric', 'Piping dori', 'Piping dori metres',
+    'Filler fabric', 'Filling qty', 'Valuation price', 'Image'].map(csvCell).join(',')];
   const b = v => v ? 'Yes' : 'No';
   rows.forEach(r => lines.push([r.sku, r.brand, r.articleType, r.subtype, r.color, r.size, r.fabric,
     r.consumption, r.packOf, b(r.cuttingRequired),
     b(r.isZip), r.isZip ? mdbZipQty(r) : '', r.isZip ? r.chainLength : '',
     b(r.isRuffle), r.isRuffle ? r.ruffleMeters : '', r.isRuffle ? r.ruffleFabric : '',
-    b(r.fillerFabricRequired), r.imageUrl || MDBIMG.map[obUC(r.sku)] || '']
+    b(r.isPiping), r.isPiping ? r.pipingMeters : '',
+    b(r.fillerFabricRequired), r.fillerFabricRequired && r.standardFillingQty != null ? r.standardFillingQty : '',
+    r.inventoryValuationPrice == null ? '' : r.inventoryValuationPrice, r.imageUrl || MDBIMG.map[obUC(r.sku)] || '']
     .map(csvCell).join(',')));
   ptDownload('master-database', lines);
 };
@@ -13465,6 +13470,9 @@ function mdbRecord(v, isCustom) {
     zipQty: v.isZip === 'yes' ? (mdbNum(v.zipQty) || 1) : null,
     isRuffle: v.isRuffle === 'yes', ruffleMeters: v.isRuffle === 'yes' ? mdbNum(v.ruffleMeters) : null,
     ruffleFabric: v.isRuffle === 'yes' ? String(v.ruffleFabric || '').trim() : '',
+    /* PIPING DORI (Ravi, 2026-09-22: "jisme ruffle nahi h usme piping dori lagti h") — the cord sewn into
+     * a piped edge, in metres per piece. */
+    isPiping: v.isPiping === 'yes', pipingMeters: v.isPiping === 'yes' ? mdbNum(v.pipingMeters) : null,
     fillerFabricRequired: v.fillerFabricRequired === 'yes',
     standardFillingQty: v.fillerFabricRequired === 'yes' ? mdbNum(v.standardFillingQty) : null,
     inventoryValuationPrice: mdbNum(v.inventoryValuationPrice),
@@ -13487,6 +13495,7 @@ function mdbValidate(v, existingSku) {
   if (v.isZip === 'yes' && String(v.zipQty || '').trim() !== '' && !(mdbNum(v.zipQty) > 0))
     return 'Zip quantity must be a number greater than zero.';
   if (v.isRuffle === 'yes' && !(mdbNum(v.ruffleMeters) > 0)) return 'Ruffle metres are required when ruffle is Yes.';
+  if (v.isPiping === 'yes' && !(mdbNum(v.pipingMeters) > 0)) return 'Piping dori metres are required when piping dori is Yes.';
   if (v.fillerFabricRequired === 'yes' && !(mdbNum(v.standardFillingQty) > 0))
     return 'Standard filling quantity is required when filler fabric is Yes.';
   const p = mdbNum(v.inventoryValuationPrice);
@@ -13531,6 +13540,8 @@ function mdbFields(r) {
     /* The ruffle cloth is written onto the fabric ledger as it stands, so it is picked too. */
     { key: 'ruffleFabric', label: 'Ruffle fabric', type: 'select', value: m('ruffleFabric', ''),
       options: [''].concat(fabListOr(m('ruffleFabric', ''))) },
+    { key: 'isPiping', label: 'Piping dori', type: 'select', value: yn(m('isPiping', false)), options: YESNO },
+    { key: 'pipingMeters', label: 'Piping dori per piece (m)', type: 'number', step: '0.01', value: m('pipingMeters', '') },
     { key: 'fillerFabricRequired', label: 'Filler fabric', type: 'select', value: yn(m('fillerFabricRequired', false)), options: YESNO },
     { key: 'standardFillingQty', label: 'Standard filling qty', type: 'number', step: '0.01', value: m('standardFillingQty', '') },
     { key: 'inventoryValuationPrice', label: 'Valuation price', type: 'number', step: '0.01', value: m('inventoryValuationPrice', '') },
@@ -13773,7 +13784,7 @@ $('ptmImgs').onclick = () => mdbImgFill(true);
 
 const MDB_IMPORT_COLS = ['SKU', 'Brand', 'Article', 'Subtype', 'Color', 'Size', 'Fabric', 'Consumption',
   'Pack of', 'Cutting required', 'Zip', 'Zips per piece', 'Zip size', 'Ruffle', 'Ruffle metres',
-  'Ruffle fabric', 'Filler fabric', 'Filling qty', 'Valuation price', 'Image'];
+  'Ruffle fabric', 'Piping dori', 'Piping dori metres', 'Filler fabric', 'Filling qty', 'Valuation price', 'Image'];
 
 /** The recipe template: every combination, its recipe so far, and what its SKUs say. */
 function recipeTemplateDownload() {
@@ -13848,7 +13859,7 @@ $('ptmTemplate').onclick = () => {
   if (($('ptmView') || {}).value === 'skucode') return ptDownload('sku-base-codes-template', [SKC_COLS, ['Tablecloth', 'Square Tablecloth', '60x60', 'RTC-6060'],
     ['Home and Kitchen', 'Apron', 'Free', 'RKA-']].map(r => r.map(csvCell).join(',')));
   const ex = ['RPC123-1818', 'Ridhi', 'Pillow Cover', 'Piping Pillow Cover', 'Indigo Blue', '18X18',
-    'Sheeting 82', '0.28', '2', 'Yes', 'Yes', '1', '18', 'No', '', '', 'No', '', '', ''];
+    'Sheeting 82', '0.28', '2', 'Yes', 'Yes', '1', '18', 'No', '', '', 'Yes', '2.1', 'No', '', '', ''];
   ptDownload('master-database-template', [MDB_IMPORT_COLS.map(csvCell).join(','), ex.map(csvCell).join(',')]);
 };
 
@@ -13864,6 +13875,8 @@ function mdbFromCsv(row, ix) {
     cuttingRequired: g('cutting') === '' ? 'yes' : (mdbYes(g('cutting')) ? 'yes' : 'no'),
     isZip: mdbYes(g('zip')) ? 'yes' : 'no', zipQty: g('zipqty'), chainLength: g('zipsize'),
     isRuffle: mdbYes(g('ruffle')) ? 'yes' : 'no', ruffleMeters: g('rufflem'), ruffleFabric: g('rufflefab'),
+    /* A file made before piping dori existed has no such column: it says nothing, so the SKU keeps what it has. */
+    isPiping: ix.piping >= 0 ? (mdbYes(g('piping')) ? 'yes' : 'no') : undefined, pipingMeters: g('pipingm'),
     fillerFabricRequired: mdbYes(g('filler')) ? 'yes' : 'no', standardFillingQty: g('fillqty'),
     inventoryValuationPrice: g('valprice'), imageUrl: g('image'),
   };
@@ -13896,6 +13909,7 @@ $('ptmFile').onchange = async e => {
       zipsize: colIdx(head, ['zip size', 'chain length', 'chainlength']),
       ruffle: colIdx(head, ['ruffle']), rufflem: colIdx(head, ['ruffle metres', 'ruffle meters', 'ruffle m']),
       rufflefab: colIdx(head, ['ruffle fabric']),
+      piping: colIdx(head, ['piping dori', 'piping']), pipingm: colIdx(head, ['piping dori metres', 'piping metres', 'piping dori per piece (m)']),
       filler: colIdx(head, ['filler fabric', 'filler']), fillqty: colIdx(head, ['filling qty', 'standard filling qty']),
       valprice: colIdx(head, ['valuation price', 'inventory valuation price']),
       image: colIdx(head, ['image', 'image url', 'picture']),
@@ -13958,6 +13972,7 @@ $('ptmImpGo').onclick = async () => {
     for (const { v, existing } of upd) {
       const rec = mdbRecord(v, existing.isCustom === true);
       rec.imageUrl = v.imageUrl || existing.imageUrl || '';
+      if (v.isPiping === undefined) { rec.isPiping = existing.isPiping === true; rec.pipingMeters = existing.pipingMeters == null ? null : existing.pipingMeters; }
       await ptPut('pt_masterDB/' + existing._key, rec);
       PTG.mdb = PTG.mdb.map(x => (x._key === existing._key ? Object.assign({ _key: existing._key }, rec) : x));
       done++;
@@ -38599,6 +38614,8 @@ const RECIPE_FIELDS = [
   ['isRuffle', 'Ruffle', 'yn'],
   ['ruffleMeters', 'Ruffle metres', 'num'],
   ['ruffleFabric', 'Ruffle fabric', 'fab'],
+  ['isPiping', 'Piping dori', 'yn'],
+  ['pipingMeters', 'Piping dori metres', 'num'],
   ['fillerFabricRequired', 'Filler fabric', 'yn'],
   ['standardFillingQty', 'Filling qty', 'num'],
 ];
@@ -38676,6 +38693,7 @@ function recipeFill(rec) {
   if (out.isZip !== true) { out.chainLength = null; out.zipQty = null; }
   else if (!(mdbNum(out.zipQty) > 0)) out.zipQty = 1;
   if (out.isRuffle !== true) { out.ruffleMeters = null; out.ruffleFabric = ''; }
+  if (out.isPiping !== true) out.pipingMeters = null;
   if (out.fillerFabricRequired !== true) out.standardFillingQty = null;
   return { rec: out, from };
 }
@@ -38770,6 +38788,7 @@ async function recipeApplyRun(plan) {
     if (row.isZip !== true) { row.chainLength = null; row.zipQty = null; }
     else if (!(mdbNum(row.zipQty) > 0)) row.zipQty = 1;
     if (row.isRuffle !== true) { row.ruffleMeters = null; row.ruffleFabric = ''; }
+    if (row.isPiping !== true) row.pipingMeters = null;
     if (row.fillerFabricRequired !== true) row.standardFillingQty = null;
     next.push(row);
     const key = m._key || m.sku;
