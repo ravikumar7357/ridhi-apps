@@ -1516,8 +1516,11 @@
             <option value="8" selected>Last 8 weeks</option>
             <option value="12">Last 12 weeks</option>
             <option value="26">Last 26 weeks</option>
+            <option value="custom">Custom dates…</option>
           </select>
           <select id="kaMonth" class="hide" style="flex:0 0 170px" title="Which month"></select>
+          <input id="kaD1" type="date" class="hide" style="flex:0 0 150px" title="From">
+          <input id="kaD2" type="date" class="hide" style="flex:0 0 150px" title="To">
           <button id="kaTgtBtn" class="ghost hide" title="Labour value ₹ a month, per person, and a name's own figure">Set targets</button>
           <span id="kaBands" class="hide" style="flex:0 0 auto">
             <button id="kaLevelsBtn" class="ghost" title="You decide which articles are easy, medium or hard">Set easy / hard</button></span>
@@ -38040,10 +38043,20 @@ function renderKa() {
   $('kaWeeks').classList.toggle('hide', byMonth);
   $('kaMonth').classList.toggle('hide', !byMonth);
   $('kaTgtBtn').classList.toggle('hide', grp !== 'target' || !ME.admin);
-  if (byMonth && !String($('kaMonth').innerHTML || '').trim()) {
-    $('kaMonth').innerHTML = kaMonths().map(m => `<option value="${esc(m.ym)}">${esc(m.label)}</option>`).join('');
+  /* THE MONTH LIST FOLLOWS THE VIEW: Day by day may take any dates; a target is a month, and only a month. */
+  if (byMonth && KA.monthFor !== grp) {
+    const keep = $('kaMonth').value;
+    $('kaMonth').innerHTML = kaMonths().map(m => `<option value="${esc(m.ym)}">${esc(m.label)}</option>`).join('')
+      + (grp === 'daily' ? '<option value="custom">Custom dates…</option>' : '');
+    if (keep && (keep !== 'custom' || grp === 'daily')) $('kaMonth').value = keep;
+    KA.monthFor = grp;
   }
-  if (grp === 'daily') return renderKaDaily();
+  /* CUSTOM DATES: two boxes, filled with this month so far the first time they appear. */
+  const custom = kaCustom();
+  ['kaD1', 'kaD2'].forEach(id => $(id).classList.toggle('hide', !custom));
+  if (custom && !$('kaD1').value) { const n = new Date(); $('kaD1').value = paDayIso(new Date(n.getFullYear(), n.getMonth(), 1).getTime()); }
+  if (custom && !$('kaD2').value) $('kaD2').value = paDayIso(Date.now());
+  if (grp === 'daily' || (grp === 'karigar' && custom)) return renderKaDaily();
   if (grp === 'target') return renderKaTarget();
   if (mix) return renderKaMix();
   const t = kaTable($('kaMetric').value, $('kaGroup').value, parseInt($('kaWeeks').value, 10) || 8, deptSel.value, $('kaQ').value.trim());
@@ -38141,7 +38154,7 @@ $('paTarget').addEventListener('change', () => {
   renderPa();
 });
 $('paGo').onclick = paRefresh;
-['kaMetric', 'kaGroup', 'kaWeeks', 'kaDept', 'kaMonth'].forEach(id => $(id).addEventListener('change', renderKa));
+['kaMetric', 'kaGroup', 'kaWeeks', 'kaDept', 'kaMonth', 'kaD1', 'kaD2'].forEach(id => $(id).addEventListener('change', renderKa));
 $('kaQ').addEventListener('input', renderKa);
 $('kaGo').onclick = paRefresh;
 $('kaTable').addEventListener('click', e => {
@@ -38160,7 +38173,7 @@ $('kaTable').addEventListener('click', e => {
 $('kaLevelsBtn').onclick = () => kaLevelsOpen();
 $('kaTgtBtn').onclick = () => kaTargetsOpen();
 $('kaExport').onclick = () => {
-  if ($('kaGroup').value === 'daily') {
+  if ($('kaGroup').value === 'daily' || kaCustom()) {
     const x = KA.daily; if (!x || !x.rows.length) return;
     const head = ['Karigar', 'Department'].concat(x.d.days.map(ms => paDayIso(ms)), ['Total', 'Days worked']);
     ptDownload('karigar-day-by-day-' + x.d.ym + '-' + x.metric, [head].concat(x.rows.map(r => [r.name, r.dept].concat(r.vals, [r.total, r.worked]))).map(l => l.map(csvCell).join(',')));
@@ -38232,8 +38245,26 @@ const kaWorkDay = ms => new Date(ms).getDay() !== 0;          // Monday to Satur
  * The same people the weekly study shows: everybody with work in the register, and every piece-rate
  * stitcher on the list even with none.
  */
+/** Custom dates are in use: Karigar study with "Custom dates…", or Day by day with "Custom dates…". */
+function kaCustom() {
+  const g = ($('kaGroup') || {}).value;
+  return (g === 'karigar' && ($('kaWeeks') || {}).value === 'custom') || (g === 'daily' && ($('kaMonth') || {}).value === 'custom');
+}
+/** From one day to another, both included, as a list of days. '' when the dates make no range. */
+function kaRange(d1, d2) {
+  const p = s => { const m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? new Date(+m[1], +m[2] - 1, +m[3]).getTime() : 0; };
+  const a = p(d1), b = p(d2);
+  if (!a || !b || b < a) return null;
+  const days = [];
+  for (let t = a; t <= b; t = new Date(new Date(t).getFullYear(), new Date(t).getMonth(), new Date(t).getDate() + 1).getTime()) days.push(t);
+  const last = new Date(b);
+  return { from: a, to: new Date(last.getFullYear(), last.getMonth(), last.getDate() + 1).getTime(), days };
+}
+const KA_MAX_DAYS = 93;
+
 function kaDaily(ym, dept, q) {
-  const { from, to, days } = kaMonthRange(ym);
+  /* A month by its key, or custom dates as { d1, d2 }. */
+  const { from, to, days } = ym && typeof ym === 'object' ? (kaRange(ym.d1, ym.d2) || { from: 0, to: 0, days: [] }) : kaMonthRange(ym);
   const roster = paRoster();
   const rows = new Map();
   const blank = () => days.map(() => ({ received: 0, issued: 0, value: 0 }));
@@ -38358,7 +38389,14 @@ function renderKaDaily() {
   const tbl = $('kaTable');
   const metric = ['recv', 'issued', 'value'].indexOf($('kaMetric').value) >= 0 ? $('kaMetric').value : 'recv';
   const of = c => (metric === 'issued' ? c.issued : metric === 'value' ? Math.round(c.value) : c.received);
-  const d = kaDaily($('kaMonth').value, $('kaDept').value, $('kaQ').value.trim());
+  const custom = kaCustom();
+  if (custom) {
+    const rg = kaRange($('kaD1').value, $('kaD2').value);
+    if (!rg) { $('kaMsg').className = 'err'; $('kaMsg').textContent = 'Pick a From date and a To date on or after it.'; ptEmpty('kaTable', 'Nothing to show.'); return; }
+    if (rg.days.length > KA_MAX_DAYS) { $('kaMsg').className = 'err'; $('kaMsg').textContent = `That is ${nf(rg.days.length)} days — pick ${KA_MAX_DAYS} or fewer, or use the weeks.`; ptEmpty('kaTable', 'Nothing to show.'); return; }
+  }
+  const d = kaDaily(custom ? { d1: $('kaD1').value, d2: $('kaD2').value } : $('kaMonth').value, $('kaDept').value, $('kaQ').value.trim());
+  d.ym = custom ? $('kaD1').value + '_to_' + $('kaD2').value : d.ym;
   const rows = d.rows.map(r => Object.assign(r, { vals: r.cells.map(of), total: r.cells.reduce((a, c) => a + of(c), 0),
     worked: r.cells.filter(c => c.received || c.issued).length })).sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
   KA.daily = { d, rows, metric };
