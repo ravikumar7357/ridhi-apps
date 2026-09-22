@@ -13902,20 +13902,49 @@ $('ptmTemplate').onclick = () => {
 const mdbYes = v => { const s = String(v == null ? '' : v).trim().toLowerCase(); return s === 'yes' || s === 'y' || s === 'true' || s === '1'; };
 
 /** Turn one CSV row into the same shape the dialog produces, so both go through mdbValidate. */
+/**
+ * One row of a file, in the shape the dialog produces.
+ *
+ * A COLUMN THE FILE DOES NOT HAVE SAYS NOTHING — it comes back undefined, not blank (Ravi, 2026-09-22:
+ * "mujhe sara data fill n karna pade"). A file of SKU, Article, Subtype, Colour and Size is then a
+ * perfectly good file: a new SKU takes the rest from its recipe, and one already in the master keeps
+ * every field the file left out instead of having it wiped.
+ */
 function mdbFromCsv(row, ix) {
-  const g = n => (ix[n] >= 0 ? String(row[ix[n]] == null ? '' : row[ix[n]]).trim() : '');
+  const has = n => ix[n] >= 0;
+  const g = n => (has(n) ? String(row[ix[n]] == null ? '' : row[ix[n]]).trim() : undefined);
+  const yn = (n, blank) => (has(n) ? (g(n) === '' ? (blank || 'no') : (mdbYes(g(n)) ? 'yes' : 'no')) : undefined);
   return {
     sku: g('sku'), brand: g('brand'), articleType: g('article'), subtype: g('subtype'),
     color: g('color'), size: g('size'), fabric: g('fabric'), consumption: g('consumption'),
     packOf: g('pack'),
-    cuttingRequired: g('cutting') === '' ? 'yes' : (mdbYes(g('cutting')) ? 'yes' : 'no'),
-    isZip: mdbYes(g('zip')) ? 'yes' : 'no', zipQty: g('zipqty'), chainLength: g('zipsize'),
-    isRuffle: mdbYes(g('ruffle')) ? 'yes' : 'no', ruffleMeters: g('rufflem'), ruffleFabric: g('rufflefab'),
-    /* A file made before piping dori existed has no such column: it says nothing, so the SKU keeps what it has. */
-    isPiping: ix.piping >= 0 ? (mdbYes(g('piping')) ? 'yes' : 'no') : undefined, pipingMeters: g('pipingm'),
-    fillerFabricRequired: mdbYes(g('filler')) ? 'yes' : 'no', standardFillingQty: g('fillqty'),
+    /* Cutting blank has always meant yes: it is the ordinary case, and a file that says nothing about it
+     * on a NEW SKU means "the usual". On one already here, an absent COLUMN still changes nothing. */
+    cuttingRequired: yn('cutting', 'yes'),
+    isZip: yn('zip'), zipQty: g('zipqty'), chainLength: g('zipsize'),
+    isRuffle: yn('ruffle'), ruffleMeters: g('rufflem'), ruffleFabric: g('rufflefab'),
+    isPiping: yn('piping'), pipingMeters: g('pipingm'),
+    fillerFabricRequired: yn('filler'), standardFillingQty: g('fillqty'),
     inventoryValuationPrice: g('valprice'), imageUrl: g('image'),
   };
+}
+
+/** A master row as the form would hold it — the other half of "a column that is not there says nothing". */
+function mdbFormOf(r) {
+  const yn = b => (b ? 'yes' : 'no'), s = v => (v == null ? '' : String(v));
+  return { sku: s(r.sku), brand: s(r.brand), articleType: s(r.articleType), subtype: s(r.subtype), color: s(r.color),
+    size: s(r.size), fabric: s(r.fabric), consumption: s(r.consumption), packOf: s(r.packOf),
+    cuttingRequired: yn(r.cuttingRequired !== false), isZip: yn(r.isZip), zipQty: s(r.zipQty), chainLength: s(r.chainLength),
+    isRuffle: yn(r.isRuffle), ruffleMeters: s(r.ruffleMeters), ruffleFabric: s(r.ruffleFabric),
+    isPiping: yn(r.isPiping), pipingMeters: s(r.pipingMeters),
+    fillerFabricRequired: yn(r.fillerFabricRequired), standardFillingQty: s(r.standardFillingQty),
+    inventoryValuationPrice: s(r.inventoryValuationPrice), imageUrl: s(r.imageUrl) };
+}
+/** What the file says, over what the SKU already says. */
+function mdbMerge(v, existing) {
+  const out = existing ? mdbFormOf(existing) : {};
+  Object.keys(v).forEach(k => { if (v[k] !== undefined) out[k] = v[k]; });
+  return out;
 }
 
 let MDB_IMP = null;      // the checked file, waiting to be applied
@@ -13967,13 +13996,17 @@ $('ptmFile').onchange = async e => {
       if (seen.has(key)) { bad.push(`row ${i + 1}: ${key} appears more than once in this file`); continue; }
       seen.add(key);
       const existing = (PTG.mdb || []).find(r => obUC(r.sku) === key);
-      const err = mdbValidate(v, existing ? existing.sku : '');
+      /* Checked as it would be WRITTEN: what the file says, over what the SKU already says. */
+      const merged = mdbMerge(v, existing);
+      const err = mdbValidate(merged, existing ? existing.sku : '');
       if (err) { bad.push(`row ${i + 1} (${key}): ${err}`); continue; }
-      (existing ? upd : add).push({ v, existing });
+      (existing ? upd : add).push({ v: merged, existing });
     }
 
     MDB_IMP = { add, upd, bad, name: file.name };
     const lines = [`${file.name}: ${nf(add.length)} new SKU(s), ${nf(upd.length)} to update`];
+    if (add.length) lines.push('new SKUs take fabric, consumption, pack, zip, ruffle and piping from the recipe for their article, subtype and size');
+    if (upd.length) lines.push('a column your file does not have is left exactly as it is');
     if (bad.length) lines.push(`${nf(bad.length)} refused`);
     $('ptmImpMsg').innerHTML = esc(lines.join(' · '))
       + (bad.length ? '<div class="muted" style="margin-top:6px;font-size:12px">'
@@ -14008,7 +14041,6 @@ $('ptmImpGo').onclick = async () => {
     for (const { v, existing } of upd) {
       const rec = mdbRecord(v, existing.isCustom === true);
       rec.imageUrl = v.imageUrl || existing.imageUrl || '';
-      if (v.isPiping === undefined) { rec.isPiping = existing.isPiping === true; rec.pipingMeters = existing.pipingMeters == null ? null : existing.pipingMeters; }
       await ptPut('pt_masterDB/' + existing._key, rec);
       PTG.mdb = PTG.mdb.map(x => (x._key === existing._key ? Object.assign({ _key: existing._key }, rec) : x));
       done++;
