@@ -1981,7 +1981,7 @@
           <button id="ptmClear" class="ghost">Clear</button>
           <button id="ptmTemplate" class="ghost" title="A CSV with the right header, and one example row.">Template</button>
           <button id="ptmImport" class="ghost" title="Add or update SKUs in bulk. You are shown what the file would do before anything is written.">Import</button>
-          <input id="ptmFile" type="file" accept=".csv,text/csv" style="display:none">
+          <input id="ptmFile" type="file" accept=".csv,.xlsx,text/csv" style="display:none">
           <input id="ptmRecFile" type="file" accept=".xlsx,.csv,text/csv" style="display:none">
           <input id="ptmSkcFile" type="file" accept=".xlsx,.csv,text/csv" style="display:none">
           <button id="ptmRename" class="ghost" title="Change a SKU code everywhere it appears.">Change SKU</button>
@@ -13593,7 +13593,9 @@ $('ptmImport').onclick = () => {
 $('ptmFile').onchange = async e => {
   const file = e.target.files[0]; e.target.value = ''; if (!file) return;
   try {
-    const rows = parseCsv(await file.text());
+    /* AN EXCEL FILE TOO (Ravi, 2026-09-22, uploading the highlighted copy): read as text, an .xlsx is a
+     * zip, and the screen could only say there was no SKU column. The first sheet is the one read. */
+    const rows = /\.xlsx$/i.test(file.name) ? await pkReadXlsx(new Uint8Array(await file.arrayBuffer())) : parseCsv(await file.text());
     if (rows.length < 2) { $('ptmMsg').className = 'err'; $('ptmMsg').textContent = 'That file has no rows under the header.'; return; }
     const head = rows[0].map(h => String(h).trim().toLowerCase());
     const ix = {
@@ -13614,7 +13616,8 @@ $('ptmFile').onchange = async e => {
     };
     if (ix.sku < 0) {
       $('ptmMsg').className = 'err';
-      $('ptmMsg').textContent = 'No SKU column in that file. The header must carry: ' + MDB_IMPORT_COLS.join(', ');
+      $('ptmMsg').textContent = 'No SKU column in that file (its first row reads: '
+        + (rows[0] || []).slice(0, 6).map(h => String(h).slice(0, 20)).join(' | ') + '). The header must carry: ' + MDB_IMPORT_COLS.join(', ');
       return;
     }
 
