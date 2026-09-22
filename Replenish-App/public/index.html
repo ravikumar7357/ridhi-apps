@@ -2018,9 +2018,13 @@
             <option value="done">Completed</option><option value="pending">Has pending</option>
           </select>
           <input id="pbQ" placeholder="Search SKU / employee" style="flex:1 1 170px;min-width:0">
-          <span class="muted" style="font-size:12.5px;flex:0 0 auto">Issued</span>
-          <input id="pbD1" type="date" style="flex:0 0 150px" title="Issue date from">
-          <input id="pbD2" type="date" style="flex:0 0 150px" title="Issue date to">
+          <!-- WHICH DATE the range is about. Ravi, 2026-09-22: filtering by date showed only what was
+               issued in it, never what came back in it. -->
+          <select id="pbDBy" style="flex:0 0 160px" title="Which date the From–To range looks at">
+            <option value="">Issued or received</option><option value="issue">Issued</option><option value="recv">Received</option>
+          </select>
+          <input id="pbD1" type="date" style="flex:0 0 150px" title="From">
+          <input id="pbD2" type="date" style="flex:0 0 150px" title="To">
           <button id="pbClear" class="ghost">Clear</button>
           <button id="pbApv" class="ghost hide">Deletion requests</button>
           <button id="pbCorr" class="ghost hide" style="color:#b45309;font-weight:600" title="Changes the floor has asked for, waiting for you">Correction requests</button>
@@ -9022,7 +9026,7 @@ function pbaseFilters() {
   const v = id => ($(id) || {}).value || '';
   return { type: v('pbType'), emp: v('pbEmp'), art: v('pbArt'), sub: v('pbSub'), col: v('pbCol'),
     sz: v('pbSz'), status: v('pbStatus'), q: v('pbQ').trim().toLowerCase(), d1: v('pbD1'), d2: v('pbD2'),
-    who: v('pbWho') };
+    dBy: v('pbDBy'), who: v('pbWho') };
 }
 
 function pbaseApply(rows, f, skip) {
@@ -9043,8 +9047,15 @@ function pbaseApply(rows, f, skip) {
     if (skip !== 'status' && f.status === 'open' && r.frozen) return false;
     if (skip !== 'status' && f.status === 'done' && !r.frozen) return false;
     if (skip !== 'status' && f.status === 'pending' && ptNum(r.pendingPieces) < 1) return false;
-    if (skip !== 'date' && f.d1) { const d = ptDate(r.issueDate); if (!d || d < new Date(f.d1 + 'T00:00:00')) return false; }
-    if (skip !== 'date' && f.d2) { const d = ptDate(r.issueDate); if (!d || d > new Date(f.d2 + 'T23:59:59')) return false; }
+    if (skip !== 'date' && (f.d1 || f.d2)) {
+      /* Issued, received, or either: a row is in the range when the date it is asked about is. A row
+       * nothing has come back on yet has no receiving date, and is never "received" in any range. */
+      const lo = f.d1 ? new Date(f.d1 + 'T00:00:00') : null, hi = f.d2 ? new Date(f.d2 + 'T23:59:59') : null;
+      const inR = v => { const d = v ? ptDate(v) : null; return !!d && (!lo || d >= lo) && (!hi || d <= hi); };
+      const recv = ptNum(r.receivedPieces) + ptNum(r.rejectionPieces) > 0 ? r.receivingDate : '';
+      const ok = f.dBy === 'issue' ? inR(r.issueDate) : f.dBy === 'recv' ? inR(recv) : (inR(r.issueDate) || inR(recv));
+      if (!ok) return false;
+    }
     return true;
   });
 }
@@ -9765,7 +9776,7 @@ function renderPcut() {
 /* ---------------- wiring ---------------- */
 
 ['ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut'].forEach(id => $(id).addEventListener('change', renderPmdb));
-['pbType', 'pbEmp', 'pbArt', 'pbSub', 'pbCol', 'pbSz', 'pbStatus', 'pbD1', 'pbD2'].forEach(id => $(id).addEventListener('change', renderPbase));
+['pbType', 'pbEmp', 'pbArt', 'pbSub', 'pbCol', 'pbSz', 'pbStatus', 'pbDBy', 'pbD1', 'pbD2'].forEach(id => $(id).addEventListener('change', renderPbase));
 ['pcArt', 'pcSub', 'pcCol', 'pcSz', 'pcOrd', 'pcD1', 'pcD2'].forEach(id => $(id).addEventListener('change', renderPcut));
 /* The cloth the cut costs follows the pieces and the SKU as they are typed. renderCutFab, NOT
  * renderCutForm: the form rebuilds four dropdowns off the master list, and doing that on every
@@ -9786,7 +9797,7 @@ function ptDebounce(id, fn) {
 ptDebounce('ptmQ', renderPmdb); ptDebounce('pbQ', renderPbase); ptDebounce('pcQ', renderPcut);
 
 $('ptmClear').onclick = () => { ['ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut', 'ptmQ'].forEach(id => $(id).value = ''); renderPmdb(); };
-$('pbClear').onclick = () => { ['pbType', 'pbEmp', 'pbWho', 'pbArt', 'pbSub', 'pbCol', 'pbSz', 'pbStatus', 'pbQ', 'pbD1', 'pbD2'].forEach(id => $(id).value = ''); PT_BD_KPI = ''; renderPbase(); };
+$('pbClear').onclick = () => { ['pbType', 'pbEmp', 'pbWho', 'pbArt', 'pbSub', 'pbCol', 'pbSz', 'pbStatus', 'pbQ', 'pbDBy', 'pbD1', 'pbD2'].forEach(id => $(id).value = ''); PT_BD_KPI = ''; renderPbase(); };
 $('pcClear').onclick = () => { ['pcArt', 'pcSub', 'pcCol', 'pcSz', 'pcOrd', 'pcWho', 'pcQ', 'pcD1', 'pcD2'].forEach(id => $(id).value = ''); renderPcut(); };
 
 $('ptmGo').onclick = () => ptLoad('mdb', 'pt_masterDB', renderPmdb);
