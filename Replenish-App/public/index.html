@@ -9091,10 +9091,11 @@ function renderPbase() {
    * colour and size; the status and the day it came back. Nothing is dropped and nothing moves. */
   /* 2026-09-22, second pass: the receipt boxes sit UNDER the Received figure they add to, and the
    * WhatsApp buttons join Edit in one Actions cell. Export is untouched — it builds its own columns. */
+  /* Third pass (2026-09-22): pending and rejected said twice — once in Status, once in their own
+   * columns — so Status alone carries them; who entered it and the remarks go to the end. */
   const head = '<thead><tr>' + ['Issue Date', 'Karigar', 'Item',
-    'Issued', 'Received', 'Status', 'Entered by', 'Actions',
-    'Rejected', 'Pending', 'Remarks']
-    .map((h, i) => `<th${i === 0 ? ' class="frz"' : ([3, 4, 8, 9].indexOf(i) >= 0 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
+    'Issued', 'Received', 'Status', 'Actions', 'Entered by', 'Remarks']
+    .map((h, i) => `<th${i === 0 ? ' class="frz"' : ([3, 4].indexOf(i) >= 0 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
 
   const body = rows.slice(0, 600).map(r => {
     const pend = ptNum(r.pendingPieces), rej = ptNum(r.rejectionPieces);
@@ -9114,20 +9115,17 @@ function renderPbase() {
         : `<div style="display:flex;gap:4px;justify-content:center;margin-top:4px">`
           + `<input class="pt-recv-in" data-id="${esc(r.id)}" type="number" min="1" max="${pend}" placeholder="+recv" title="Pieces that came back — added to what is already received" style="width:64px;height:28px;font-size:12px;padding:2px 6px">`
           + `<input class="pt-rej-in" data-id="${esc(r.id)}" type="number" min="0" placeholder="rej" title="Total rejected on this row" value="${rej || ''}" style="width:52px;height:28px;font-size:12px;padding:2px 6px"></div>`}</td>`
-      + `<td>${st}${r.receivingDate ? `<div class="muted" style="font-size:10.5px;margin-top:2px" title="Receiving date">${esc(r.receivingDate)}</div>` : ''}</td>`
-      /* WHO ENTERED IT, and whether anybody has changed it since. An edit moves the order balance,
-       * the cutting cap, the weekly report and somebody’s pay at once, and until now left no mark
-       * on this screen at all — 205 of these rows have been edited. */
-      + whoCell(r)
+      + `<td>${st}${rej ? `<div style="font-size:11px;color:var(--bad);font-weight:700;margin-top:2px">${nf(rej)} rejected</div>` : ''}`
+      + `${r.receivingDate ? `<div class="muted" style="font-size:10.5px;margin-top:2px" title="Receiving date">${esc(r.receivingDate)}</div>` : ''}</td>`
       /* ACTIONS: change the row (or ask to), and the WhatsApp notices under it. */
       + `<td style="white-space:nowrap"><div>${jwCorrOfRow(r.id) ? '<span class="pill pill-low" title="A change to this entry is waiting for approval">change asked</span>'
         : ptCanEdit() ? (r.frozen ? '' : `<button class="ghost" data-bd-edit="${esc(r.id)}" style="padding:3px 10px;font-size:12px">Edit</button>`)
         : jwCanAsk() ? `<button class="ghost" data-jw-ask="${esc(r.id)}" style="padding:3px 10px;font-size:12px">Ask to change</button>` : ''}</div>`
       + `<div style="margin-top:4px">${waButtons(r)}</div></td>`
-      /* THE EXCEPTIONS, AT THE END. Rejected and pending are what a few rows have; they were sitting
-       * between the two figures that every row has. */
-      + `<td class="num"${rej ? ' style="color:var(--bad);font-weight:700"' : ''}>${rej ? nf(rej) : '<span class="muted">—</span>'}</td>`
-      + `<td class="num"${pend ? ' style="color:var(--bad);font-weight:700"' : ''}>${pend ? nf(pend) : '<span class="muted">—</span>'}</td>`
+      /* WHO ENTERED IT, and whether anybody has changed it since. An edit moves the order balance,
+       * the cutting cap, the weekly report and somebody’s pay at once, and until now left no mark
+       * on this screen at all — 205 of these rows have been edited. */
+      + whoCell(r)
       + `<td style="text-align:left;white-space:normal;max-width:220px">${esc(r.remarks) || '<span class="muted">—</span>'}</td></tr>`;
   }).join('');
   $('pbTable').innerHTML = head + '<tbody>' + body + '</tbody>';
