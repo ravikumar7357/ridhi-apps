@@ -2804,7 +2804,8 @@ const REPL_SECTIONS = [
   // 'follow' and 'india' were removed from the Replenishment app on 08 Sep 2026. A checkbox for a
   // section that no longer exists grants nothing and only invites the question.
   ['top', 'Top ASIN Status'],
-  ['shopify', 'Shopify Stock (reorder)'], ['prod', 'In Production'],
+  // 'prod' (In Production) was removed on 22 Sep 2026, for the same reason.
+  ['shopify', 'Shopify Stock (reorder)'],
   ['pack', 'Packing List'],
   // Shopify Orders and Adjustments now LIVE in the Replenishment app. Listed here so access to them
   // can still be granted from this screen, which is where all access is granted.
@@ -2856,7 +2857,7 @@ const REPL_SECTIONS = [
  * to grant. */
 const ACCESS_GROUPS = [
   { key: 'shopify', sellora: ['shop', 'adj'], repl: ['shop', 'adj', 'shopify', 'shopprod'] },
-  { key: 'plan', repl: ['repl', 'article', 'target', 'top', 'prod', 'pack'] },
+  { key: 'plan', repl: ['repl', 'article', 'target', 'top', 'pack'] },
   /* The same order as the Replenishment app's sidebar, which is the order work moves through the floor. */
   { key: 'prod', repl: ['so', 'ord', 'pcut', 'pbase', 'ppress', 'qc', 'qcalt', 'qcret', 'fgi', 'fba', 'fab', 'acc', 'pmdb', 'mst', 'cx'] },
   { key: 'vendors', repl: ['vreq', 'vord', 'rfd', 'vend', 'vlog', 'palloc'] },

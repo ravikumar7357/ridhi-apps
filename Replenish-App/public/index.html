@@ -652,7 +652,7 @@
       <button id="tabShopify" class="nav">Shopify Stock</button>
     </div>
 
-    <button class="navgrp" id="grpPlan" type="button" data-grp="plan" data-tabs="repl,article,target,top,prod,pack,follow,india">
+    <button class="navgrp" id="grpPlan" type="button" data-grp="plan" data-tabs="repl,article,target,top,pack,follow,india">
       <span class="caret">&#9656;</span> Replenishment &amp; planning</button>
     <div class="navsec" id="secPlan">
       <button id="tabRepl" class="nav">Replenishment</button>
@@ -2901,7 +2901,10 @@ let ME = { email: '', admin: false, repl: false, tabs: [], tabsExplicit: false, 
  * theirs alone — poQtyMap() and INDIA_STOCK feed the forecast, the lane decision, Article Review,
  * Create-PO, Top ASIN Status and Replenishment's own India Stock column, and all of those load
  * through ensureRepl/ensureProd, never through these two tabs. */
-const REPL_TABS = ['repl', 'article', 'target', 'top', 'shopify', 'prod', 'pack',
+/* 'prod' (In Production) was dropped on 22 Sep 2026 — Ravi: "remove in production bucket, there is no
+ * need now". Its figures still feed Replenishment's In Production column and the forecast, which load
+ * through ensureProd; only the screen is gone. */
+const REPL_TABS = ['repl', 'article', 'target', 'top', 'shopify', 'pack',
   /* 'cx' (Customer Orders) was dropped on 08 Sep 2026 — its adjustment and production routes were
    * never built, and pt_cxOrders was never written to. Its pane stays in the page, unreachable. */
   /* Quality Control is three jobs, not one: 'qc' is the checks, 'qcalt' is sending rejects out for
