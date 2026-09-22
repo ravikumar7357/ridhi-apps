@@ -166,6 +166,21 @@
     background:none;border:0;padding:0;margin:0;border-radius:0;line-height:1.35}
   table.xl td .err,table.xl td .ok,table.xl td .warn{font-size:11.5px;font-weight:500;margin-top:2px}
   .hide{display:none!important}   /* utility must win over later rules like .modal{display:flex} */
+  /* "FILTER BY": one button and a panel instead of a row of drop-downs; the chips say what is on. */
+  .ftwrap{position:relative;flex:0 0 auto;display:inline-flex}
+  .ftbtn{display:inline-flex;align-items:center;gap:6px}
+  .ftbtn.ft-on{border-color:var(--ring-line,#6366f1);color:#3730a3;background:#eef2ff}
+  .ftn{display:inline-block;min-width:18px;padding:0 5px;border-radius:999px;background:#4f46e5;color:#fff;font-size:11px;line-height:18px;text-align:center}
+  .ftpop{position:absolute;top:calc(100% + 6px);left:0;z-index:40;width:min(560px,92vw);background:var(--card);border:1px solid var(--line);
+    border-radius:12px;box-shadow:var(--sh-3,0 18px 40px rgba(15,23,42,.18));padding:12px}
+  .ftgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .ftlab{display:flex;flex-direction:column;gap:4px;font-size:11.5px;font-weight:600;color:var(--muted);margin:0}
+  .ftlab select{height:36px}
+  .ftfoot{display:flex;justify-content:space-between;gap:8px;margin-top:12px}
+  .ftchips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .ftchip{display:inline-flex;align-items:center;gap:6px;background:#eef2ff;color:#312e81;border:1px solid #c7d2fe;border-radius:999px;padding:3px 4px 3px 10px;font-size:12px}
+  .ftchip button{border:0;background:transparent;color:#4338ca;box-shadow:none;padding:0 6px;font-size:12px;line-height:18px;min-height:0;cursor:pointer}
+  @media(max-width:600px){.ftgrid{grid-template-columns:1fr}.ftpop{position:fixed;left:8px;right:8px;top:auto;width:auto}}
   .sec{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:18px 0 10px}
   .spin{display:inline-block;width:13px;height:13px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
   @keyframes sp{to{transform:rotate(360deg)}}
@@ -43626,4 +43641,114 @@ $('soExport').onclick = () => {
     : `${lineCount} line(s) across ${rows.length} order(s)${how} \u2014 one row per line item, order repeated on each.`);
 };
 
+
+/* ================= "FILTER BY" — one button instead of a row of drop-downs =================
+ *
+ * Ravi, 2026-09-22, on the Job Work toolbar: "itne sare option ki jagah filter by then choose kar sakte
+ * h … ye filter option every action par applicable hona chahiye".
+ *
+ * EVERY TOOLBAR WITH THREE OR MORE FILTER DROP-DOWNS — a select whose first option is "All …", "Any …"
+ * or "Every …" with an empty value — gets a "Filters" button. The drop-downs are MOVED into its panel,
+ * not copied: every screen keeps reading the same elements by the same ids, so its filtering, Clear,
+ * Export and the code that refills their options all work exactly as before. What is chosen shows as
+ * chips under the toolbar, each with a ✕.
+ */
+const FT_MIN = 3;
+const ftIsFilter = el => el && el.tagName === 'SELECT' && el.options && el.options.length
+  && el.options[0].value === '' && /^(all|any|every|anyone)\b/i.test(String(el.options[0].text || '').trim());
+/** "All employees" → "Employee", "Anyone's entry" → "Entered by", "Any status" → "Status". */
+function ftLabel(el) {
+  const t = String((el.options[0] || {}).text || '').trim();
+  if (/^anyone'?s entry/i.test(t)) return 'Entered by';
+  let x = t.replace(/^(all|any|every)\s+/i, '').replace(/[—-].*$/, '').trim();
+  if (/ies$/i.test(x)) x = x.replace(/ies$/i, 'y'); else if (/(ss|us)$/i.test(x)) { /* keep */ } else x = x.replace(/s$/i, '');
+  return x ? x.charAt(0).toUpperCase() + x.slice(1) : 'Filter';
+}
+const FT_BARS = [];
+
+function ftEnhance(bar) {
+  if (!bar || bar.dataset.ft) return;
+  const sels = [...bar.children].filter(ftIsFilter);
+  if (sels.length < FT_MIN) return;
+  bar.dataset.ft = '1';
+  const wrap = document.createElement('span');
+  wrap.className = 'ftwrap';
+  const btn = document.createElement('button');
+  btn.type = 'button'; btn.className = 'ghost ftbtn';
+  btn.innerHTML = '<span aria-hidden="true">⚲</span> Filters <b class="ftn hide"></b>';
+  const pop = document.createElement('div');
+  pop.className = 'ftpop hide';
+  const grid = document.createElement('div');
+  grid.className = 'ftgrid';
+  sels.forEach(sel => {
+    const lab = document.createElement('label');
+    lab.className = 'ftlab';
+    const cap = document.createElement('span');
+    cap.textContent = ftLabel(sel);
+    sel.style.flex = ''; sel.style.width = '100%';
+    bar.insertBefore(wrap, bar.children[[...bar.children].indexOf(sel)] || null);
+    lab.appendChild(cap); lab.appendChild(sel);
+    grid.appendChild(lab);
+  });
+  const foot = document.createElement('div');
+  foot.className = 'ftfoot';
+  const clear = document.createElement('button');
+  clear.type = 'button'; clear.className = 'ghost'; clear.textContent = 'Clear these filters';
+  const done = document.createElement('button');
+  done.type = 'button'; done.textContent = 'Done';
+  foot.appendChild(clear); foot.appendChild(done);
+  pop.appendChild(grid); pop.appendChild(foot);
+  wrap.appendChild(btn); wrap.appendChild(pop);
+  const chips = document.createElement('div');
+  chips.className = 'ftchips hide';
+  bar.parentNode.insertBefore(chips, bar.nextSibling);
+  const rec = { bar, sels, btn, pop, chips, sig: '' };
+  FT_BARS.push(rec);
+  const close = () => pop.classList.add('hide');
+  btn.onclick = e => { e.stopPropagation(); const open = pop.classList.contains('hide'); FT_BARS.forEach(r => r.pop.classList.add('hide')); pop.classList.toggle('hide', !open); };
+  done.onclick = close;
+  pop.addEventListener('click', e => e.stopPropagation());
+  /* Clearing sets each one back to "All" and tells the screen, the same way picking it by hand would. */
+  const reset = sel => { if (sel.value !== '') { sel.value = ''; sel.dispatchEvent(new Event('change', { bubbles: true })); } };
+  clear.onclick = () => { sels.forEach(reset); ftSync(rec); };
+  chips.addEventListener('click', e => {
+    const x = e.target.closest('[data-ftx]'); if (!x) return;
+    const sel = sels[+x.getAttribute('data-ftx')]; if (sel) reset(sel);
+    ftSync(rec);
+  });
+  pop.addEventListener('change', () => ftSync(rec));
+  ftSync(rec);
+}
+
+/** Count, chips, and which drop-downs are even offered (a screen may hide one). Cheap: runs on change and on a timer. */
+function ftSync(rec) {
+  const on = rec.sels.map((sel, i) => ({ sel, i })).filter(x => x.sel.value !== '' && !x.sel.classList.contains('hide'));
+  const sig = on.map(x => x.i + '=' + x.sel.value).join('|') + '#' + rec.sels.map(s => s.classList.contains('hide') ? 1 : 0).join('');
+  if (sig === rec.sig) return;
+  rec.sig = sig;
+  rec.sels.forEach(sel => { const lab = sel.parentNode; if (lab && lab.classList.contains('ftlab')) lab.classList.toggle('hide', sel.classList.contains('hide')); });
+  const n = rec.btn.querySelector('.ftn');
+  n.textContent = on.length ? String(on.length) : '';
+  n.classList.toggle('hide', !on.length);
+  rec.btn.classList.toggle('ft-on', on.length > 0);
+  rec.chips.innerHTML = on.map(x => {
+    const opt = x.sel.options[x.sel.selectedIndex];
+    return `<span class="ftchip">${esc(ftLabel(x.sel))}: <b>${esc(opt ? opt.text : x.sel.value)}</b>`
+      + `<button type="button" data-ftx="${x.i}" title="Remove this filter" aria-label="Remove">✕</button></span>`;
+  }).join('');
+  rec.chips.classList.toggle('hide', !on.length);
+}
+
+(() => {
+  try {
+    if (!document.querySelectorAll) return;
+    document.querySelectorAll('[id^="pane"] .toolbar').forEach(ftEnhance);
+    document.addEventListener('click', () => FT_BARS.forEach(r => r.pop.classList.add('hide')));
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') FT_BARS.forEach(r => r.pop.classList.add('hide')); });
+    /* A screen's own Clear, a KPI click or a reload sets the drop-downs in code, with no change event —
+     * the chips catch up here. Only toolbars on screen are looked at. */
+    const ftTick = setInterval(() => FT_BARS.forEach(r => { if (r.bar.offsetParent) ftSync(r); }), 700);
+    if (ftTick && ftTick.unref) ftTick.unref();       // a test run under Node must still be able to finish
+  } catch (e) { console.warn('[filters] not applied:', e); }
+})();
 </script>
