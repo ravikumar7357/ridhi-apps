@@ -76,6 +76,8 @@ const rules = {
     ruffleRule: { '.write': any(ADMIN, right('prodEdit')) },
     printRule: { '.write': any(ADMIN, right('prodEdit')) },
     recipe: { '.write': any(ADMIN, right('mdbEdit')) },
+    /* The SKU base codes (Master database → SKU codes), written by whoever may edit the master. */
+    skuCode: { '.write': any(ADMIN, right('mdbEdit')) },
     $list: { '.write': any(ADMIN) },
   },
 
