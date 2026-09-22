@@ -176,7 +176,41 @@
   table.xl td .err,table.xl td .ok,table.xl td .warn{font-size:11.5px;font-weight:500;margin-top:2px}
   .hide{display:none!important}   /* utility must win over later rules like .modal{display:flex} */
   /* Job Work rows (2026-09-22): one line of small, even buttons; a received figure with a bar. */
-  .jw-acts{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .jw-acts{display:flex;gap:6px;align-items:center}
+  .jw-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:-4px 0 12px}
+  .jw-new{background:#2563eb;border:0;color:#fff;font-weight:700;padding:10px 18px;border-radius:10px;font-size:14px}
+  .jw-new:hover{background:#1d4ed8}
+  .jw-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:12px}
+  .jw-kc.metric{background:var(--card,#fff);border:1px solid var(--line,#e5e7eb);border-radius:14px;padding:14px 16px!important;margin:0!important;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+  .jw-kc .v{font-size:24px;font-weight:800;letter-spacing:-.01em}.jw-kc .l{font-size:13px;color:var(--muted,#64748b);margin-top:2px}
+  .jw-kt{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+  .jw-ks{font-size:11.5px;color:var(--muted,#64748b);margin-top:8px}
+  .jw-ki{width:38px;height:38px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;flex:none}
+  .jw-ki.blue{background:#eff6ff;color:#2563eb}.jw-ki.green{background:#ecfdf5;color:#16a34a}.jw-ki.amber{background:#fff7ed;color:#ea580c}.jw-ki.red{background:#fef2f2;color:#dc2626}
+  .jw-bar-card{padding:12px 14px}
+  .jw-link{background:none;border:0;color:#2563eb;font-weight:600;padding:6px 4px}
+  .jw-table table.xl td{vertical-align:middle;padding-top:10px;padding-bottom:10px}
+  .jw-table tr.jw-on td{background:#eff6ff}
+  .jw-ck{width:34px;text-align:center}.jw-ck input{width:16px;height:16px}
+  .jw-d{font-weight:600}.jw-t,.jw-sub{font-size:11.5px;color:var(--muted,#64748b)}
+  .jw-who,.jw-item{display:flex;align-items:center;gap:10px}
+  .jw-av{width:34px;height:34px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-weight:800;font-size:12.5px;flex:none}
+  .jw-sku{font-family:ui-monospace,monospace;font-size:11px;color:var(--muted,#64748b)}
+  .jw-u{font-size:11.5px;color:var(--muted,#64748b)}
+  .jw-ring{display:flex;align-items:center;gap:8px;justify-content:flex-start}.jw-ring b{font-size:13px}
+  .jw-st{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap}
+  .jw-st svg{width:14px;height:14px}
+  .jw-st.pend{background:#fff7ed;color:#c2410c}.jw-st.prog{background:#eff6ff;color:#1d4ed8}.jw-st.done{background:#ecfdf5;color:#15803d}
+  .jw-mwrap{position:relative;display:inline-block}
+  .jw-more{width:34px;padding:0;font-size:16px;line-height:1}
+  .jw-menu{position:absolute;right:0;top:32px;z-index:30;background:var(--card,#fff);border:1px solid var(--line,#e5e7eb);border-radius:10px;box-shadow:0 10px 30px rgba(15,23,42,.14);padding:6px;min-width:220px;display:flex;flex-direction:column;text-align:left}
+  .jw-menu.hide{display:none}
+  .jw-mi{background:none;border:0;text-align:left;padding:8px 10px;border-radius:7px;font-size:13px;color:inherit;white-space:nowrap}
+  .jw-mi:hover{background:var(--hover,#f1f5f9)}.jw-mi.jw-wa{color:#15803d}
+  .jw-bulk{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:150;display:flex;gap:8px;align-items:center;min-width:min(720px,92vw);
+    background:var(--card,#fff);border:1px solid var(--line,#e5e7eb);border-radius:14px;box-shadow:0 12px 36px rgba(15,23,42,.18);padding:10px 12px}
+  .jw-bulk.hide{display:none}.jw-bn{font-weight:700}
+  .jw-bulk .jw-btn{height:36px;padding:0 14px;font-size:13px}
   .jw-btn{height:28px;padding:0 10px;font-size:12px;border-radius:7px;border:1px solid var(--line,#e2e8f0);background:var(--card,#fff);color:inherit;font-weight:600;cursor:pointer;white-space:nowrap}
   .jw-btn:hover{border-color:#94a3b8}
   .jw-btn.jw-primary{background:#0f172a;border-color:#0f172a;color:#fff}
@@ -2011,40 +2045,16 @@
     </div>
 
     <div id="panePbase" class="hide">
-      <div class="card" style="padding:12px 14px">
-        <div class="toolbar">
-          <select id="pbType" style="flex:0 0 160px"><option value="">All types</option></select>
-          <select id="pbEmp" style="flex:0 0 170px"><option value="">All employees</option></select>
-          <!-- WHO MADE THE ENTRY, not who the entry is about: pbEmp is the worker the pieces were
-               issued to, this is the account that typed it in or changed it afterwards. -->
-          <select id="pbWho" style="flex:0 0 165px" title="Who entered the row, or changed it afterwards"><option value="">Anyone's entry</option></select>
-          <select id="pbArt" style="flex:0 0 150px"><option value="">All articles</option></select>
-          <select id="pbSub" style="flex:0 0 175px"><option value="">All subtypes</option></select>
-          <select id="pbCol" style="flex:0 0 150px"><option value="">All colors</option></select>
-          <select id="pbSz" style="flex:0 0 110px"><option value="">All sizes</option></select>
-          <select id="pbStatus" style="flex:0 0 140px">
-            <option value="">Any status</option><option value="open">Open</option>
-            <option value="done">Completed</option><option value="pending">Has pending</option>
-          </select>
-          <input id="pbQ" placeholder="Search SKU / employee" style="flex:1 1 170px;min-width:0">
-          <!-- WHICH DATE the range is about. Ravi, 2026-09-22: filtering by date showed only what was
-               issued in it, never what came back in it. -->
-          <select id="pbDBy" style="flex:0 0 160px" title="Which date the From–To range looks at">
-            <option value="">Issued or received</option><option value="issue">Issued</option><option value="recv">Received</option>
-          </select>
-          <input id="pbD1" type="date" style="flex:0 0 150px" title="From">
-          <input id="pbD2" type="date" style="flex:0 0 150px" title="To">
-          <button id="pbClear" class="ghost">Clear</button>
-          <button id="pbApv" class="ghost hide">Deletion requests</button>
-          <button id="pbCorr" class="ghost hide" style="color:#b45309;font-weight:600" title="Changes the floor has asked for, waiting for you">Correction requests</button>
-          <button id="pbExport" class="ghost">Export</button>
-          <button id="pbGo">Refresh</button>
-        </div>
-        <div id="pbMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
-        <div style="margin-top:10px">
-          <button id="bwToggle" class="ghost">+ New entry</button>
-        </div>
-        <div id="bwBox" class="hide" style="margin-top:10px;border:1px solid var(--line);border-radius:10px;padding:12px">
+      <!-- THE REGISTER, LAID OUT THE WAY RAVI POINTED AT (2026-09-22: "this interface is very good do like
+           this"): a line to say what the screen is and the one button that starts work; the figures as
+           cards; one search and a Filters button; then the rows. Every id below is the one the code has
+           always used, so filtering, the form, approvals and Export behave exactly as before. -->
+      <div class="jw-head">
+        <div class="muted">Track job work issued to karigars and manage receipts</div>
+        <button id="bwToggle" class="jw-new">+ New Job Work</button>
+      </div>
+      <div class="card" id="bwCard" style="padding:0;border:0;box-shadow:none;background:transparent">
+        <div id="bwBox" class="hide" style="margin-top:12px;border:1px solid var(--line);border-radius:10px;padding:12px">
           <!-- One-off item with no existing SKU: colour and size become free text, no Order ID is
                needed, and a disposable SKU is minted (or an existing match reused). -->
           <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;margin-bottom:10px;
@@ -2099,9 +2109,39 @@
           </div>
           <div id="bwMsg" class="muted" style="margin-top:6px;font-size:12.5px"></div>
         </div>
-        <div id="pbKpis" class="kpis" style="margin-top:10px"></div>
       </div>
-      <div class="card xlwrap" style="margin-top:12px"><table class="xl" id="pbTable"></table></div>
+      <div id="pbKpis" class="jw-kpiwrap"></div>
+      <div class="card jw-bar-card">
+        <div class="toolbar">
+          <input id="pbQ" placeholder="Search karigar, item, SKU, order or remarks…" style="flex:1 1 320px;min-width:0">
+          <select id="pbType" style="flex:0 0 160px"><option value="">All types</option></select>
+          <select id="pbEmp" style="flex:0 0 170px"><option value="">All employees</option></select>
+          <!-- WHO MADE THE ENTRY, not who the entry is about. -->
+          <select id="pbWho" style="flex:0 0 165px" title="Who entered the row, or changed it afterwards"><option value="">Anyone's entry</option></select>
+          <select id="pbArt" style="flex:0 0 150px"><option value="">All articles</option></select>
+          <select id="pbSub" style="flex:0 0 175px"><option value="">All subtypes</option></select>
+          <select id="pbCol" style="flex:0 0 150px"><option value="">All colors</option></select>
+          <select id="pbSz" style="flex:0 0 110px"><option value="">All sizes</option></select>
+          <select id="pbStatus" style="flex:0 0 140px">
+            <option value="">Any status</option><option value="open">Open</option>
+            <option value="done">Completed</option><option value="pending">Has pending</option>
+          </select>
+          <!-- WHICH DATE the range is about: issued, received, or either. -->
+          <select id="pbDBy" style="flex:0 0 160px" title="Which date the From–To range looks at">
+            <option value="">Issued or received</option><option value="issue">Issued</option><option value="recv">Received</option>
+          </select>
+          <input id="pbD1" type="date" style="flex:0 0 150px" title="From">
+          <input id="pbD2" type="date" style="flex:0 0 150px" title="To">
+          <button id="pbClear" class="jw-link">Clear filters</button>
+          <button id="pbApv" class="ghost hide">Deletion requests</button>
+          <button id="pbCorr" class="ghost hide" style="color:#b45309;font-weight:600" title="Changes the floor has asked for, waiting for you">Correction requests</button>
+          <span style="flex:1"></span>
+          <button id="pbExport" class="ghost">&#8615; Export</button>
+          <button id="pbGo" class="ghost">Refresh</button>
+        </div>
+        <div id="pbMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
+      </div>
+      <div class="card xlwrap jw-table" style="margin-top:12px"><table class="xl" id="pbTable"></table></div>
     </div>
 
     <div id="panePcut" class="hide">
@@ -9050,7 +9090,7 @@ function pbaseApply(rows, f, skip) {
     if (skip !== 'col' && f.col && !ptCi(r.color, f.col)) return false;
     if (skip !== 'sz' && f.sz && !ptCi(r.size, f.sz)) return false;
     if (skip !== 'q' && f.q) {
-      const hay = [r.sku, r.articleType, r.articleSubtype, r.color, r.size, r.empName].join(' ').toLowerCase();
+      const hay = [r.sku, r.articleType, r.articleSubtype, r.color, r.size, r.empName, r.empType, r.orderNo, r.remarks].join(' ').toLowerCase();
       if (!hay.includes(f.q)) return false;
     }
     if (skip !== 'status' && f.status === 'open' && r.frozen) return false;
@@ -9113,18 +9153,7 @@ function renderPbase() {
   const sel = k => (PT_BD_KPI === k ? ' pt-kpi-on' : '') + '" role="button" tabindex="0" title="'
     + (PT_BD_KPI === k ? 'Showing only these entries. Click again to show all.'
       : k === '' ? 'Show every entry.' : 'Show only the entries with ' + PT_BD_KPI_LABEL[k].toLowerCase() + '.');
-  $('pbKpis').innerHTML = `<div class="kpi" style="flex-basis:100%">
-    <div class="kpihead"><span class="kpiname">Job Work Register — karigar issue &amp; receipt</span>
-      <span class="kpiwhen">read live${PT.at.base ? ' · ' + esc(PT.at.base) : ''}</span></div>
-    <div class="metrics">
-      <div class="metric pt-kpi${sel('')}" data-kpi=""><div class="v">${nf(base.length)}</div><div class="l">Entries</div></div>
-      <div class="metric pt-kpi${sel('issued')}" data-kpi="issued"><div class="v">${nf(tI)}</div><div class="l">Issued ${PT_BD_KPI === 'issued' ? '✕' : ''}</div></div>
-      <div class="metric pt-kpi${sel('received')}" data-kpi="received"><div class="v" style="color:#166534">${nf(tR)}</div><div class="l">Received ${PT_BD_KPI === 'received' ? '✕' : ''}</div></div>
-      <div class="metric pt-kpi${sel('rejected')}" data-kpi="rejected"><div class="v" style="color:var(--bad)">${nf(tRej)}</div><div class="l">Rejected ${PT_BD_KPI === 'rejected' ? '✕' : ''}</div></div>
-      <div class="metric pt-kpi${sel('pending')}" data-kpi="pending"><div class="v" style="color:var(--bad)">${nf(tP)}</div><div class="l">Pending pieces ${PT_BD_KPI === 'pending' ? '✕' : ''}</div></div>
-      <div class="metric pt-kpi${sel('done')}" data-kpi="done"><div class="v" style="color:#166534">${nf(done)}</div><div class="l">Completed ${PT_BD_KPI === 'done' ? '✕' : ''}</div></div>
-      <div class="metric pt-kpi${sel('open')}" data-kpi="open"><div class="v" style="color:#7f6000">${nf(open)}</div><div class="l">Open ${PT_BD_KPI === 'open' ? '✕' : ''}</div></div>
-    </div></div>`;
+  $('pbKpis').innerHTML = jwKpiCards({ sel, base, tI, tR, tRej, tP, done, open });
 
   rows = [...rows].sort((a, b) => {
     const d = ptDtMs(b.issueDate) - ptDtMs(a.issueDate);
@@ -9139,43 +9168,17 @@ function renderPbase() {
    * WhatsApp buttons join Edit in one Actions cell. Export is untouched — it builds its own columns. */
   /* Third pass (2026-09-22): pending and rejected said twice — once in Status, once in their own
    * columns — so Status alone carries them; who entered it and the remarks go to the end. */
-  const head = '<thead><tr>' + ['Issue Date', 'Karigar', 'Item',
-    'Issued', 'Received', 'Status', 'Actions', 'Entered by']
-    .map((h, i) => `<th${i === 0 ? ' class="frz"' : ([3, 4].indexOf(i) >= 0 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
-
-  const body = rows.slice(0, 600).map(r => {
-    const pend = ptNum(r.pendingPieces), rej = ptNum(r.rejectionPieces);
-    const st = r.frozen ? '<span class="pill pill-ok">Done</span>'
-      : (pend > 0 ? `<span class="pill pill-out">${nf(pend)} pending</span>` : '<span class="pill pill-low">Open</span>');
-    return '<tr>'
-      + `<td class="frz" style="text-align:left">${esc(r.issueDate)}</td>`
-      + `<td style="text-align:left"><div style="font-weight:600">${esc(r.empName)}</div>`
-      + `<div class="muted" style="font-size:11px">${esc(r.empType)}</div></td>`
-      /* Subtype, not article and subtype: "Ruffle Pillow Cover" already contains "Pillow Cover". */
-      + `<td style="text-align:left"><div style="display:flex;align-items:center;gap:8px">${ptImgSpan(r.sku, 34)}`
-      + `<div style="min-width:0"><div style="font-family:ui-monospace,monospace;font-size:12.5px;font-weight:600">${esc(r.sku)}</div>`
-      + `<div class="muted" style="font-size:11px;white-space:nowrap">${[r.articleSubtype, r.color, r.size].filter(Boolean).map(esc).join(' · ')}</div></div></div></td>`
-      + `<td class="num">${nf(ptNum(r.issuePieces))}</td>`
-      /* RECEIVED, OUT OF WHAT WENT OUT, and a bar that says it at a glance (fourth pass, 2026-09-22:
-       * "this is very bad user interface" — two boxes on every row). Taking a receipt is the Receive
-       * button in Actions, which opens a small form. */
-      + jwRecvCell(r)
-      + `<td>${st}${rej ? `<div style="font-size:11px;color:var(--bad);font-weight:700;margin-top:2px">${nf(rej)} rejected</div>` : ''}`
-      + `${r.receivingDate ? `<div class="muted" style="font-size:10.5px;margin-top:2px" title="Receiving date">${esc(r.receivingDate)}</div>` : ''}`
-      + `${r.remarks ? `<div class="muted" style="font-size:10.5px;margin-top:2px;max-width:200px;white-space:normal;font-style:italic" title="Remarks">${esc(r.remarks)}</div>` : ''}</td>`
-      /* ACTIONS, on one line: Receive (while pieces are out), Edit or Ask to change, and only the
-       * WhatsApp notice that can be sent now. */
-      + `<td><div class="jw-acts">${r.frozen ? '' : `<button class="jw-btn jw-primary" data-bd-recv="${esc(r.id)}" title="Take in pieces that came back, and any rejects">Receive</button>`}`
-      + (jwCorrOfRow(r.id) ? '<span class="pill pill-low" title="A change to this entry is waiting for approval">change asked</span>'
-        : ptCanEdit() ? (r.frozen ? '' : `<button class="jw-btn" data-bd-edit="${esc(r.id)}">Edit</button>`)
-        : jwCanAsk() ? `<button class="jw-btn" data-jw-ask="${esc(r.id)}">Ask to change</button>` : '')
-      + jwWaButtons(r) + '</div></td>'
-      /* WHO ENTERED IT, and whether anybody has changed it since. An edit moves the order balance,
-       * the cutting cap, the weekly report and somebody’s pay at once, and until now left no mark
-       * on this screen at all — 205 of these rows have been edited. */
-      + whoCell(r) + '</tr>';
-  }).join('');
+  /* FIFTH PASS (2026-09-22, Ravi's picture): a tick box to pick rows, the karigar with their initials,
+   * the item with its picture, both quantities in pieces, a progress ring, a status that says Pending,
+   * In Progress or Completed, and one action with the rest behind ⋯. Who entered it stays at the end. */
+  const shown = rows.slice(0, 600);
+  const allOn = shown.length > 0 && shown.every(r => JW_PICK.has(r.id));
+  const head = '<thead><tr>' + [`<input type="checkbox" class="jw-pickall" title="Pick every row on screen"${allOn ? ' checked' : ''}>`,
+    'Issue Date', 'Karigar', 'Item', 'Qty Issued', 'Qty Received', 'Progress', 'Status', 'Actions', 'Entered by']
+    .map((h, i) => `<th${i === 0 ? ' class="jw-ck"' : ([4, 5].indexOf(i) >= 0 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
+  const body = shown.map(jwRow).join('');
   $('pbTable').innerHTML = head + '<tbody>' + body + '</tbody>';
+  jwBulkShow();
 
   $('pbMsg').className = 'muted';
   $('pbMsg').textContent = `${nf(rows.length)} of ${nf(all.length)} entr${all.length === 1 ? 'y' : 'ies'}`
@@ -11033,7 +11036,7 @@ $('bwToggle').onclick = async () => {
   const box = $('bwBox');
   const open = box.classList.contains('hide');
   box.classList.toggle('hide', !open);
-  $('bwToggle').textContent = open ? 'Close' : '+ New entry';
+  $('bwToggle').textContent = open ? 'Close' : '+ New Job Work';
   if (open) await ensureBdForm();
 };
 /* Back to how the form opened — Custom Order included. bdClearForm alone does not untick it, and
@@ -11363,6 +11366,202 @@ async function bdSaveRow(next) {
   if (!SP_QUIET) renderPbase();
 }
 
+/* ---- Job Work: the parts of a row, the menu, the picked rows ---- */
+const JW_PICK = new Set();
+const JW_ICON = {
+  doc: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg>',
+  up: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M7 17 17 7M8 7h9v9"/></svg>',
+  ok: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>',
+  clock: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  x: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><path d="m9 9 6 6M15 9l-6 6"/></svg>',
+  tick: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m5 12 5 5 9-10"/></svg>',
+  open: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 7h6l2 2h10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
+};
+const jwPct = (a, b) => (b > 0 ? Math.round((a / b) * 1000) / 10 : 0);
+
+/** The seven figures as cards. The number and its name stay in .v and .l, where every reader looks. */
+function jwKpiCards(k) {
+  /* "All entries" is not a filter, so it never lights up — only a card that narrows the rows does. */
+  const card = (key, v, label, icon, tone, sub) => `<div class="jw-kc metric pt-kpi${key ? k.sel(key) : k.sel(key).replace(' pt-kpi-on', '')}" data-kpi="${key}">`
+    + `<div class="jw-kt"><div><div class="v">${v}</div><div class="l">${label}${key && PT_BD_KPI === key ? ' ✕' : ''}</div></div>`
+    + `<span class="jw-ki ${tone}">${JW_ICON[icon]}</span></div><div class="jw-ks">${sub}</div></div>`;
+  return '<div class="jw-kpis">'
+    + card('', nf(k.base.length), 'Entries', 'doc', 'blue', PT.at.base ? 'read live · ' + esc(PT.at.base) : 'read live')
+    + card('issued', nf(k.tI), 'Issued', 'up', 'blue', 'pieces given out')
+    + card('received', nf(k.tR), 'Received', 'ok', 'green', jwPct(k.tR, k.tI) + '% of issued')
+    + card('pending', nf(k.tP), 'Pending pieces', 'clock', 'amber', jwPct(k.tP, k.tI) + '% of issued')
+    + card('rejected', nf(k.tRej), 'Rejected', 'x', 'red', jwPct(k.tRej, k.tI) + '% of issued')
+    + card('done', nf(k.done), 'Completed', 'tick', 'green', jwPct(k.done, k.base.length) + '% of entries')
+    + card('open', nf(k.open), 'Open', 'open', 'amber', 'entries still out')
+    + '</div>';
+}
+
+/** Initials in a circle, the same colour for the same person every time. */
+function jwAvatar(name) {
+  const n = String(name || '').trim();
+  const ini = (n.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('') || '?').toUpperCase();
+  /* Six colours, picked by the name: the same person is always the same colour, neighbours rarely are. */
+  const PAL = [['#e0ecff', '#1d4ed8'], ['#f3e8ff', '#7e22ce'], ['#dcfce7', '#15803d'], ['#ffe4e6', '#be123c'], ['#fef3c7', '#b45309'], ['#e0f2fe', '#0369a1']];
+  let h = 7; for (const c of n) h = (h * 131 + c.charCodeAt(0)) >>> 0;
+  const [bg, fg] = PAL[h % PAL.length];
+  return `<span class="jw-av" style="background:${bg};color:${fg}">${esc(ini)}</span>`;
+}
+/** A ring that fills as the pieces come back (received and rejected both close the row). */
+function jwRing(r) {
+  const iss = ptNum(r.issuePieces), back = ptNum(r.receivedPieces) + ptNum(r.rejectionPieces);
+  const p = iss > 0 ? Math.max(0, Math.min(100, Math.round((back / iss) * 100))) : 0;
+  const C = 2 * Math.PI * 14, col = p >= 100 ? '#16a34a' : p > 0 ? '#2563eb' : '#cbd5e1';
+  return `<div class="jw-ring"><svg viewBox="0 0 36 36" width="34" height="34"><circle cx="18" cy="18" r="14" fill="none" stroke="#e5e7eb" stroke-width="4"/>`
+    + `<circle cx="18" cy="18" r="14" fill="none" stroke="${col}" stroke-width="4" stroke-linecap="round" stroke-dasharray="${(C * p / 100).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 18 18)"/></svg>`
+    + `<b>${p}%</b></div>`;
+}
+/** Pending (nothing back), In Progress (some back), Completed (all accounted for). */
+function jwStatus(r) {
+  const back = ptNum(r.receivedPieces) + ptNum(r.rejectionPieces), rej = ptNum(r.rejectionPieces), pend = ptNum(r.pendingPieces);
+  const pill = r.frozen ? `<span class="jw-st done">${JW_ICON.tick} Completed</span>`
+    : back > 0 ? `<span class="jw-st prog">↻ In Progress</span>` : `<span class="jw-st pend">${JW_ICON.clock} Pending</span>`;
+  return pill + (jwCorrOfRow(r.id) ? '<div class="jw-sub" style="color:#b45309;font-weight:700" title="A change to this entry is waiting for approval">change asked</div>' : '')
+    + (!r.frozen && pend > 0 ? `<div class="jw-sub">${nf(pend)} pending</div>` : '')
+    + (rej ? `<div class="jw-sub" style="color:var(--bad);font-weight:700">${nf(rej)} rejected</div>` : '')
+    + (r.receivingDate ? `<div class="jw-sub" title="Receiving date">${esc(r.receivingDate)}</div>` : '')
+    + (r.remarks ? `<div class="jw-sub" style="font-style:italic;white-space:normal;max-width:200px" title="Remarks">${esc(r.remarks)}</div>` : '');
+}
+/** One row. The Edit / Ask / WhatsApp buttons live in the ⋯ menu, drawn with the row and shown on a click. */
+function jwRow(r) {
+  const [d, t] = String(r.issueDate || '').split(/,\s*/);
+  const menu = [`<button class="jw-mi" data-jw-view="${esc(r.id)}">View details</button>`,
+    jwCorrOfRow(r.id) ? '<span class="jw-mi muted">A change is waiting for approval</span>'
+      : ptCanEdit() ? (r.frozen ? '' : `<button class="jw-mi" data-bd-edit="${esc(r.id)}">Edit entry</button>`)
+      : jwCanAsk() ? `<button class="jw-mi" data-jw-ask="${esc(r.id)}">Ask to change</button>` : '',
+    jwWaButtons(r)].filter(Boolean).join('');
+  return `<tr${JW_PICK.has(r.id) ? ' class="jw-on"' : ''}>`
+    + `<td class="jw-ck"><input type="checkbox" class="jw-pick" data-id="${esc(r.id)}"${JW_PICK.has(r.id) ? ' checked' : ''}></td>`
+    + `<td style="text-align:left"><div class="jw-d">${esc(d || '')}</div><div class="jw-t">${esc(t || '')}</div></td>`
+    + `<td style="text-align:left"><div class="jw-who">${jwAvatar(r.empName)}<div><div style="font-weight:600">${esc(r.empName)}</div><div class="jw-sub">${esc(r.empType)}</div></div></div></td>`
+    + `<td style="text-align:left"><div class="jw-item">${ptImgSpan(r.sku, 42)}<div style="min-width:0">`
+    + `<div style="font-weight:600">${esc(r.articleSubtype || r.articleType || '')}</div>`
+    + `<div class="jw-sub">${[r.color, r.size].filter(Boolean).map(esc).join(' • ')}</div>`
+    + `<div class="jw-sku">${esc(r.sku)}${r.orderNo ? ' · ' + esc(r.orderNo) : ''}</div></div></div></td>`
+    + `<td class="num">${nf(ptNum(r.issuePieces))} <span class="jw-u">pcs</span></td>`
+    + `<td class="num">${nf(ptNum(r.receivedPieces))} <span class="jw-u">pcs</span></td>`
+    + `<td>${jwRing(r)}</td>`
+    + `<td style="text-align:left">${jwStatus(r)}</td>`
+    + `<td><div class="jw-acts">${r.frozen ? `<button class="jw-btn" data-jw-view="${esc(r.id)}">View</button>`
+      : `<button class="jw-btn jw-primary" data-bd-recv="${esc(r.id)}" title="Take in pieces that came back, and any rejects">Receive</button>`}`
+    + `<span class="jw-mwrap"><button class="jw-btn jw-more" data-jw-more="${esc(r.id)}" title="More">⋯</button><div class="jw-menu hide">${menu}</div></span></div></td>`
+    + whoCell(r) + '</tr>';
+}
+
+/** Everything on one row, read-only. */
+function jwView(id) {
+  const r = (PT.base || []).find(x => x.id === id);
+  if (!r) return;
+  const line = (k, v) => (v === '' || v == null ? '' : `<tr><th style="text-align:left;width:40%">${esc(k)}</th><td style="text-align:left">${esc(v)}</td></tr>`);
+  ptOpenDialog({
+    title: r.articleSubtype || r.sku, subtitle: `${r.sku} · ${r.empName}`,
+    html: '<table class="xl"><tbody>' + [
+      line('Issue date', r.issueDate), line('Karigar', r.empName), line('Type', r.empType), line('Order', r.orderNo),
+      line('SKU', r.sku), line('Item', [r.articleType, r.articleSubtype, r.color, r.size].filter(Boolean).join(' · ')),
+      line('Issued', nf(ptNum(r.issuePieces)) + ' pcs'), line('Received', nf(ptNum(r.receivedPieces)) + ' pcs'),
+      line('Rejected', nf(ptNum(r.rejectionPieces)) + ' pcs'), line('Pending', nf(ptNum(r.pendingPieces)) + ' pcs'),
+      line('Receiving date', r.receivingDate), line('Status', r.frozen ? 'Completed' : 'Open'), line('Remarks', r.remarks),
+      line('Entered by', r.addedBy), line('Last changed by', r.lastEditedBy ? r.lastEditedBy + (r.lastEditedAt ? ' · ' + ptIsoDate(r.lastEditedAt) : '') : ''),
+      line('WhatsApp — issue', r.waIssueSentAt ? 'sent ' + (ptIsoDate(r.waIssueSentAt) || '') : ''),
+      line('WhatsApp — receipt', r.waRecvSentAt ? 'sent ' + (ptIsoDate(r.waRecvSentAt) || '') : ''),
+    ].join('') + '</tbody></table>',
+  });
+}
+
+/** The bar along the bottom while rows are picked. */
+function jwBulkShow() {
+  let bar = document.getElementById && document.getElementById('jwBulk');
+  const pane = $('panePbase');
+  if (!bar && pane && typeof document.createElement === 'function') {
+    bar = document.createElement('div'); bar.id = 'jwBulk'; bar.className = 'jw-bulk hide';
+    bar.innerHTML = '<span class="jw-bn"></span><span style="flex:1"></span>'
+      + '<button type="button" class="jw-btn jw-primary" data-jw-bulk="recv">✓ Receive selected</button>'
+      + '<button type="button" class="jw-btn" data-jw-bulk="export">&#8615; Export selected</button>'
+      + '<button type="button" class="jw-btn" data-jw-bulk="clear" title="Clear the selection">✕</button>';
+    pane.appendChild(bar);
+    bar.addEventListener('click', e => { const b = e.target.closest('[data-jw-bulk]'); if (b) jwBulk(b.getAttribute('data-jw-bulk')); });
+  }
+  const live = new Set((PT.base || []).map(r => r.id));
+  [...JW_PICK].forEach(id => { if (!live.has(id)) JW_PICK.delete(id); });
+  if (!bar) return;
+  bar.classList.toggle('hide', !JW_PICK.size);
+  const n = bar.querySelector && bar.querySelector('.jw-bn');
+  if (n) n.textContent = JW_PICK.size === 1 ? '1 job selected' : nf(JW_PICK.size) + ' jobs selected';
+}
+/** What the picked rows still have out, if all of it came back good. */
+function jwBulkPlan() {
+  const rows = (PT.base || []).filter(r => JW_PICK.has(r.id));
+  const open = rows.filter(r => !r.frozen && ptNum(r.pendingPieces) > 0);
+  return { rows, open, pcs: open.reduce((a, r) => a + ptNum(r.pendingPieces), 0) };
+}
+async function jwBulkReceive() {
+  const plan = jwBulkPlan();
+  let done = 0; const bad = [];
+  SP_QUIET = true;
+  try {
+    for (const r of plan.open) {
+      const a = bdApplyRecv(r, String(ptNum(r.pendingPieces)));
+      if (a.err) { bad.push(r.sku + ': ' + a.err); continue; }
+      try { await bdSaveRow(a.row); done++; } catch (e) { bad.push(r.sku + ': ' + (e.message || e)); }
+    }
+  } finally { SP_QUIET = false; }
+  JW_PICK.clear();
+  renderPbase();
+  return { done, bad };
+}
+function jwBulk(kind) {
+  if (kind === 'clear') { JW_PICK.clear(); renderPbase(); return; }
+  if (kind === 'export') {
+    const keep = PT._pbaseRows;
+    PT._pbaseRows = (PT.base || []).filter(r => JW_PICK.has(r.id));
+    try { $('pbExport').onclick(); } finally { PT._pbaseRows = keep; }
+    return;
+  }
+  const plan = jwBulkPlan();
+  if (!plan.open.length) { $('pbMsg').className = 'err'; $('pbMsg').textContent = 'Nothing is pending on the rows you picked.'; return; }
+  ptOpenDialog({
+    title: `Receive ${nf(plan.pcs)} pieces?`,
+    subtitle: `${nf(plan.open.length)} open row(s) of the ${nf(plan.rows.length)} picked`,
+    note: 'Every piece still out on these rows is taken in as received, good. Rejects are not assumed — use Receive on a row for those.',
+    html: '<div style="max-height:40vh;overflow:auto;font-size:12.5px">' + plan.open.map(r => `${esc(r.empName)} — ${esc(r.sku)}: <b>${nf(ptNum(r.pendingPieces))}</b> pcs`).join('<br>') + '</div>',
+    saveLabel: 'Receive ' + nf(plan.pcs),
+    onSave: async () => {
+      const res = await jwBulkReceive();
+      $('pbMsg').className = res.bad.length ? 'err' : 'muted';
+      $('pbMsg').textContent = `Received on ${nf(res.done)} row(s).` + (res.bad.length ? ' Not done: ' + res.bad.slice(0, 3).join(' · ') : '');
+      return '';
+    },
+  });
+}
+
+$('pbTable').addEventListener('click', e => {
+  const more = e.target.closest('[data-jw-more]');
+  if (more) {
+    e.stopPropagation();
+    const m = more.parentNode.querySelector('.jw-menu');
+    const was = m && !m.classList.contains('hide');
+    document.querySelectorAll('#pbTable .jw-menu').forEach(x => x.classList.add('hide'));
+    if (m && !was) m.classList.remove('hide');
+    return;
+  }
+  const v = e.target.closest('[data-jw-view]');
+  if (v) { jwView(v.getAttribute('data-jw-view')); return; }
+  if (e.target.closest('.jw-menu')) document.querySelectorAll('#pbTable .jw-menu').forEach(x => x.classList.add('hide'));
+});
+$('pbTable').addEventListener('change', e => {
+  const one = e.target.closest('.jw-pick'), all = e.target.closest('.jw-pickall');
+  if (!one && !all) return;
+  if (one) { if (one.checked) JW_PICK.add(one.getAttribute('data-id')); else JW_PICK.delete(one.getAttribute('data-id')); }
+  else (PT._pbaseRows || []).slice(0, 600).forEach(r => { if (all.checked) JW_PICK.add(r.id); else JW_PICK.delete(r.id); });
+  renderPbase();
+});
+(() => { try { if (typeof document.addEventListener === 'function') document.addEventListener('click', e => {
+  if (!e.target.closest || !e.target.closest('.jw-mwrap')) document.querySelectorAll('#pbTable .jw-menu').forEach(x => x.classList.add('hide')); }); } catch (e) { /* a test page */ } })();
+
 /** The Received cell: "12 / 39", and a bar — green for what came back, red for what was rejected. */
 function jwRecvCell(r) {
   const iss = ptNum(r.issuePieces), rec = ptNum(r.receivedPieces), rej = ptNum(r.rejectionPieces);
@@ -11376,8 +11575,8 @@ function jwWaButtons(r) {
   const btn = kind => {
     if (waWhyBlocked(r, kind)) return '';
     const sent = waSent(r, kind);
-    return `<button class="jw-btn jw-wa" data-wa-row="${esc(r.id)}|${kind}" title="${sent ? 'Already sent — this sends it again' : 'Open WhatsApp with the message ready'}">`
-      + `${sent ? '↻' : '💬'} ${kind === 'issue' ? 'Issue msg' : 'Recv msg'}</button>`;
+    return `<button class="jw-mi jw-wa" data-wa-row="${esc(r.id)}|${kind}" title="${sent ? 'Already sent — this sends it again' : 'Open WhatsApp with the message ready'}">`
+      + `${sent ? '↻' : '💬'} WhatsApp — ${kind === 'issue' ? 'issue message' : 'receipt message'}</button>`;
   };
   return btn('issue') + btn('receive');
 }
