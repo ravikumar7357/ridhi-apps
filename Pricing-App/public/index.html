@@ -370,6 +370,10 @@
     background:var(--brand);color:var(--card);font-size:14px}
   button:disabled{opacity:.5;cursor:not-allowed}
   button.ghost{background:var(--card);color:var(--ink);border:1px solid var(--line);font-weight:500}
+  /* A NEW VERSION IS OUT — the same bar the Replenishment app uses. */
+  #updBar{position:fixed;left:auto;right:12px;width:420px;max-width:calc(100vw - 24px);bottom:14px;z-index:200;display:flex;align-items:center;
+    justify-content:space-between;gap:10px;background:#0f172a;color:#fff;border-radius:12px;padding:10px 12px 10px 16px;box-shadow:0 12px 36px rgba(15,23,42,.24)}
+  #updBar button{background:#fff;color:#0f172a;border:0;padding:8px 14px;border-radius:8px;font-weight:700}
   button.ghost:hover{background:var(--hover)}
   input,select{font:inherit;color:var(--ink);background:var(--input);border:1px solid var(--line);
     border-radius:10px;padding:11px 14px;width:100%}
@@ -569,6 +573,9 @@
       </svg>
     </button>
     <h2 class="pagehead" id="pageTitle">By Amazon Link</h2>
+    <!-- THE GUIDE, on every screen: opens /guide/ at the part about the screen you are on. -->
+    <button id="guideBtn" class="ghost" type="button" style="margin-left:auto;flex:0 0 auto"
+            title="How this screen works, step by step — English and Hindi">Guide · गाइड</button>
   </div>
 
   <div id="verifyBox" class="card hide" style="border:1px solid #b45309;background:#fffbeb">
@@ -3009,6 +3016,8 @@ HIDDEN_TABS.forEach(t => $('tab' + capId(t)).classList.add('hide'));
 
 /* ---------- sidebar: collapsible groups + the 3-line menu button ---------- */
 // Read straight off the markup, so adding a group is an HTML edit and nothing here changes.
+$('guideBtn').onclick = () => window.open('/guide/' + (TAB_NOW ? '#' + TAB_NOW : ''), '_blank');
+
 const NAV_GROUPS = [...document.querySelectorAll('.navgrp')].map(h => ({
   key: h.dataset.grp, head: h, sec: $('sec' + capId(h.dataset.grp)), tabs: h.dataset.tabs.split(',') }));
 
@@ -3069,7 +3078,9 @@ showTab(FIRST_TAB);                       // open on the first tab that's actual
 
 // Settings is a PANE of its own, not a card wedged above the content — so nothing ever shifts or
 // overlaps when it opens.
+let TAB_NOW = '';
 function showTab(which) {
+  TAB_NOW = which;
   TABS.forEach(t => {
     $('tab' + capId(t)).classList.toggle('on', which === t);
     $('pane' + capId(t)).classList.toggle('hide', which !== t);
@@ -17523,6 +17534,31 @@ function renderBasketAll() {
 }
 $('mbFilter').addEventListener('input', () => { if (MB) renderBasketAll(); });
 
+
+/* ================= A NEW VERSION IS OUT =================
+ * A tab left open for days still runs the version it opened with, which is how a fix can be live and
+ * the screen still show the old one. Every few minutes, and whenever the tab comes back to the front,
+ * this asks the server for the page's fingerprint (a HEAD request, a few hundred bytes); when it has
+ * changed, a bar offers to reload. */
+(() => {
+  try {
+    if (typeof document.getElementById !== 'function' || typeof fetch !== 'function' || location.protocol !== 'https:') return;
+    let first = null;
+    const tag = () => fetch('/', { method: 'HEAD', cache: 'no-store' }).then(r => r.headers.get('etag') || r.headers.get('last-modified') || '').catch(() => '');
+    const show = () => {
+      if (document.getElementById('updBar')) return;
+      const b = document.createElement('div');
+      b.id = 'updBar';
+      b.innerHTML = '<span>A new version of Sellora is ready.</span><button type="button">Update now</button>';
+      b.querySelector('button').onclick = () => location.reload();
+      document.body.appendChild(b);
+    };
+    const check = async () => { const t = await tag(); if (!t) return; if (first === null) { first = t; return; } if (t !== first) show(); };
+    check();
+    setInterval(check, 3 * 60 * 1000);
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); });
+  } catch (e) { console.warn('[app] update check off:', e); }
+})();
 </script>
 </body>
 </html>

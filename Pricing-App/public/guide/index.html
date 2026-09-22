@@ -1,0 +1,534 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sellora guide · सेलोरा गाइड</title>
+<style>
+  :root { --ink:#1a1a1a; --muted:#5b6170; --line:#dde1e8; --accent:#4f46e5; --soft:#eef0ff; --warn-bg:#fff8e6; --warn-line:#f0d58a; --bg:#f6f7f9; --card:#fff; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.6 "Segoe UI", "Nirmala UI", "Noto Sans Devanagari", Arial, sans-serif; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px; }
+  header { padding: 8px 0 12px; border-bottom: 1px solid var(--line); }
+  h1 { font-size: 26px; margin: 0; }
+  .sub { color: var(--muted); font-size: 13px; }
+  .bar { position: sticky; top: 0; z-index: 5; background: var(--bg); display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 0; }
+  .bar button, .bar a { font: inherit; font-size: 13px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); cursor: pointer; text-decoration: none; }
+  .bar button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .bar input { font: inherit; font-size: 13px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; flex: 1 1 200px; min-width: 0; }
+  .toc { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; margin: 10px 0 6px; }
+  .tg { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
+  .tgh { font-weight: 700; font-size: 13px; margin-bottom: 4px; }
+  .tg a { display: block; font-size: 13px; color: var(--accent); text-decoration: none; padding: 2px 0; }
+  .grph { margin: 34px 0 0; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  h2 { font-size: 20px; margin: 10px 0 8px; padding-bottom: 4px; border-bottom: 2px solid var(--accent); }
+  .sec { scroll-margin-top: 60px; margin-bottom: 26px; }
+  .step { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 8px; padding: 12px 14px; margin: 10px 0; scroll-margin-top: 60px; }
+  .n { display: inline-block; min-width: 24px; height: 24px; line-height: 24px; text-align: center; border-radius: 50%; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; margin-right: 6px; }
+  .t { font-weight: 700; }
+  .where { color: var(--accent); font-weight: 600; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 4px; }
+  .pair > div { min-width: 0; }
+  .hi { font-family: "Nirmala UI", "Noto Sans Devanagari", "Segoe UI", sans-serif; }
+  /* ONE LANGUAGE MEANS ONE LANGUAGE — headings, contents and separators included. */
+  body.only-en .hi, body.only-hi .en, body.only-en .sep, body.only-hi .sep { display: none; }
+  body.only-en .pair, body.only-hi .pair { grid-template-columns: 1fr; }
+  body.both .pair > .hi { border-left: 1px dashed var(--line); padding-left: 14px; }
+  .note { background: var(--warn-bg); border: 1px solid var(--warn-line); border-radius: 8px; padding: 10px 12px; margin: 10px 0; }
+  .flow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 10px 0; }
+  .flow span { border: 1px solid var(--accent); background: var(--soft); border-radius: 8px; padding: 5px 10px; font-weight: 600; font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; background: var(--card); font-size: 14px; }
+  th, td { border: 1px solid var(--line); padding: 6px 9px; text-align: left; vertical-align: top; }
+  ul { margin: 4px 0; padding-left: 20px; }
+  .hidden { display: none !important; }
+  #none { color: var(--muted); padding: 20px 0; }
+  @media (max-width: 700px) { .pair { grid-template-columns: 1fr; } body.both .pair > .hi { border-left: 0; padding-left: 0; border-top: 1px dashed var(--line); padding-top: 8px; } h1 { font-size: 22px; } }
+  @media print { .bar, .toc { display: none; } .step, .note { break-inside: avoid; } h2 { break-after: avoid; } body { background: #fff; } .sec { break-before: page; } }
+</style>
+</head>
+<body class="both">
+<div class="wrap">
+<header>
+  <h1><span class="en">Sellora guide</span><span class="sep"> · </span><span class="hi">सेलोरा गाइड</span></h1>
+  <div class="sub"><span class="en">Every screen, step by step · Sellora</span><span class="sep"> · </span><span class="hi">हर स्क्रीन, स्टेप-बाय-स्टेप</span></div>
+</header>
+<div class="bar">
+  <button data-lang="both" class="on">English + हिंदी</button>
+  <button data-lang="en">English</button>
+  <button data-lang="hi">हिंदी</button>
+  <input id="q" placeholder="Search · खोजें (e.g. profit, PPC, लिस्टिंग)">
+  <a href="Sellora-Guide.pdf" download>PDF</a>
+  <a href="javascript:window.print()">Print</a>
+</div>
+<nav class="toc"><div class="tg"><div class="tgh"><span class="en">Research</span><span class="sep"> · </span><span class="hi">रिसर्च</span></div><a href="#new"><span class="en">New Product</span><span class="sep"> · </span><span class="hi">न्यू प्रोडक्ट</span></a><a href="#pr"><span class="en">Product Research</span><span class="sep"> · </span><span class="hi">प्रोडक्ट रिसर्च</span></a></div><div class="tg"><div class="tgh"><span class="en">Sales</span><span class="sep"> · </span><span class="hi">सेल्स</span></div><a href="#sales"><span class="en">Sales Dashboard</span><span class="sep"> · </span><span class="hi">सेल्स डैशबोर्ड</span></a><a href="#profit"><span class="en">Profit &amp; Margin</span><span class="sep"> · </span><span class="hi">प्रॉफ़िट और मार्जिन</span></a><a href="#sa"><span class="en">Sales Analysis</span><span class="sep"> · </span><span class="hi">सेल्स एनालिसिस</span></a><a href="#plaudit"><span class="en">Parent Listing Review</span><span class="sep"> · </span><span class="hi">पेरेंट लिस्टिंग रिव्यू</span></a></div><div class="tg"><div class="tgh"><span class="en">Listing</span><span class="sep"> · </span><span class="hi">लिस्टिंग</span></div><a href="#opt"><span class="en">Listing Optimiser</span><span class="sep"> · </span><span class="hi">लिस्टिंग ऑप्टिमाइज़र</span></a><a href="#basket"><span class="en">Bought Together</span><span class="sep"> · </span><span class="hi">बॉट टुगेदर</span></a><a href="#health"><span class="en">Listing Health</span><span class="sep"> · </span><span class="hi">लिस्टिंग हेल्थ</span></a><a href="#lrules"><span class="en">Listing Rules</span><span class="sep"> · </span><span class="hi">लिस्टिंग रूल्स</span></a><a href="#audit"><span class="en">Listing Audit</span><span class="sep"> · </span><span class="hi">लिस्टिंग ऑडिट</span></a><a href="#bsr"><span class="en">BSR Audit</span><span class="sep"> · </span><span class="hi">BSR ऑडिट</span></a></div><div class="tg"><div class="tgh"><span class="en">Advertising</span><span class="sep"> · </span><span class="hi">एडवर्टाइजिंग</span></div><a href="#trends"><span class="en">Ad Console</span><span class="sep"> · </span><span class="hi">एड कंसोल</span></a><a href="#weekly"><span class="en">PPC &amp; Organic</span><span class="sep"> · </span><span class="hi">PPC और ऑर्गैनिक</span></a><a href="#st"><span class="en">Search Terms</span><span class="sep"> · </span><span class="hi">सर्च टर्म्स</span></a><a href="#plc"><span class="en">Placement</span><span class="sep"> · </span><span class="hi">प्लेसमेंट</span></a><a href="#deals"><span class="en">Deal Calendar</span><span class="sep"> · </span><span class="hi">डील कैलेंडर</span></a></div><div class="tg"><div class="tgh"><span class="en">Inventory</span><span class="sep"> · </span><span class="hi">इन्वेंटरी</span></div><a href="#age"><span class="en">Inventory Age</span><span class="sep"> · </span><span class="hi">इन्वेंटरी एज</span></a></div><div class="tg"><div class="tgh"><span class="en">Social</span><span class="sep"> · </span><span class="hi">सोशल</span></div><a href="#tiktok"><span class="en">TikTok Toolkit</span><span class="sep"> · </span><span class="hi">टिकटॉक टूलकिट</span></a><a href="#carousel"><span class="en">Carousel Builder</span><span class="sep"> · </span><span class="hi">कैरोसेल बिल्डर</span></a></div></nav>
+<div class="grp" id="grp-research"><div class="grph"><span class="en">Research</span><span class="sep"> · </span><span class="hi">रिसर्च</span></div><section class="sec" id="new">
+<h2><span class="en">New Product — price it before you buy it</span><span class="sep"> · </span><span class="hi">न्यू प्रोडक्ट — खरीदने से पहले कीमत निकालें</span></h2>
+<div class="pair">
+  <div class="en">You say what you want to <b>sell it for</b> and what margin you want; the screen works backwards to the <b>highest price you can pay the factory</b>. Amazon's own fees for a reference ASIN are fetched live, so the FBA fee and referral percent are real, not guessed.</div>
+  <div class="hi">आप बताते हैं कि <b>बेचना किस दाम पर है</b> और कितना मार्जिन चाहिए; स्क्रीन उल्टा हिसाब करके बताती है कि <b>फैक्ट्री को ज़्यादा से ज़्यादा कितना</b> दे सकते हैं। रेफरेंस ASIN से Amazon की असली फीस लाइव आती है, अंदाज़ा नहीं।</div>
+</div>
+<div class="step" id="new-use"><span class="n">1</span><span class="t"><span class="en">How to use it</span><span class="sep"> · </span><span class="hi">कैसे चलाएँ</span></span>
+<div class="pair">
+  <div class="en"><ul>
+    <li>Paste a similar product's ASIN or link in <b>Reference product</b> and press <b>Fetch details</b>.</li>
+    <li>Fill <b>Target selling price</b>, <b>Target profit margin %</b>, <b>Category</b>, weight and package size.</li>
+    <li>Add <b>TACOS</b> (ad spend as % of sales) and freight per unit.</li>
+    <li>Press <b>Calculate</b>. The answer is the most you can pay per piece and still hit that margin.</li></ul></div>
+  <div class="hi"><ul>
+    <li>मिलते-जुलते प्रोडक्ट का ASIN या लिंक <b>Reference product</b> में डालें और <b>Fetch details</b> दबाएँ।</li>
+    <li><b>Target selling price</b>, <b>Target profit margin %</b>, <b>Category</b>, वज़न और डिब्बे का नाप भरें।</li>
+    <li><b>TACOS</b> (सेल का कितना % विज्ञापन पर) और प्रति पीस फ्रेट डालें।</li>
+    <li><b>Calculate</b> दबाएँ — जवाब यही है कि एक पीस का ज़्यादा से ज़्यादा कितना दे सकते हैं।</li></ul></div>
+</div></div>
+<div class="note pair">
+  <div class="en"><b>Watch out.</b> FBA fees change with the price band — a fee fetched for a $20 product is wrong for a $60 one. The referral percent always comes from the <b>category you picked</b>, not from the reference product.</div>
+  <div class="hi"><b>ध्यान दें।</b> FBA फीस दाम की स्लैब से बदलती है — $20 वाले की फीस $60 वाले पर सही नहीं बैठेगी। रेफरल % हमेशा <b>आपकी चुनी हुई कैटेगरी</b> से आता है, रेफरेंस प्रोडक्ट से नहीं।</div>
+</div>
+</section>
+<section class="sec" id="pr">
+<h2><span class="en">Product Research — what else is selling</span><span class="sep"> · </span><span class="hi">प्रोडक्ट रिसर्च — बाज़ार में और क्या बिक रहा है</span></h2>
+<div class="pair">
+  <div class="en">Searches Amazon for a keyword and lists the competing listings with brand, size, material, weight, price and an <b>estimated monthly sale quantity</b>.</div>
+  <div class="hi">किसी कीवर्ड पर Amazon खोजकर मुकाबले की लिस्टिंग दिखाता है — ब्रांड, साइज़, मटीरियल, वज़न, दाम और <b>महीने की अंदाज़न बिक्री</b>।</div>
+</div>
+<div class="step" id="pr-use"><span class="n">1</span><span class="t"><span class="en">How to use it</span><span class="sep"> · </span><span class="hi">कैसे चलाएँ</span></span>
+<div class="pair">
+  <div class="en"><ul>
+    <li>Type what a customer would type in <b>Product name / keywords</b>.</li>
+    <li>Optionally narrow by outer or inner material, and set how many <b>Results</b> you want.</li>
+    <li>Press <b>Search Amazon</b>, then <b>Export CSV</b> to keep the list.</li></ul></div>
+  <div class="hi"><ul>
+    <li>जो शब्द ग्राहक लिखेगा, वही <b>Product name / keywords</b> में लिखें।</li>
+    <li>चाहें तो बाहरी/भीतरी मटीरियल से छाँटें, और <b>Results</b> की संख्या तय करें।</li>
+    <li><b>Search Amazon</b> दबाएँ, फिर सूची रखने के लिए <b>Export CSV</b>।</li></ul></div>
+</div></div>
+<div class="note pair">
+  <div class="en"><b>Watch out.</b> <b>Sale Qty</b> is worked out from each listing's BSR — a ballpark, never a measured figure. Material columns are blank wherever the seller did not fill them.</div>
+  <div class="hi"><b>ध्यान दें।</b> <b>Sale Qty</b> BSR से अंदाज़ा है, नापा हुआ आँकड़ा नहीं। मटीरियल वाले कॉलम वहीं खाली रहते हैं जहाँ सेलर ने भरा ही नहीं।</div>
+</div>
+</section></div>
+<div class="grp" id="grp-sales"><div class="grph"><span class="en">Sales</span><span class="sep"> · </span><span class="hi">सेल्स</span></div><section class="sec" id="sales">
+<h2><span class="en">Sales Dashboard — today, this month, this year</span><span class="sep"> · </span><span class="hi">सेल्स डैशबोर्ड — आज, इस महीने, इस साल</span></h2>
+<div class="pair">
+  <div class="en">Today, yesterday, 7 days, month to date and year to date for <b>Ridhi, CPC and Shopify</b>, with last year beside it. It reads the nightly cache and tops up the recent days live.</div>
+  <div class="hi"><b>रिधि, CPC और शॉपिफाई</b> की आज, कल, 7 दिन, इस महीने और इस साल की बिक्री — साथ में पिछले साल का आँकड़ा। रात की कैश से पढ़ता है और हाल के दिन लाइव अपडेट करता है।</div>
+</div>
+<div class="step" id="sales-use"><span class="n">1</span><span class="t"><span class="en">How to use it</span><span class="sep"> · </span><span class="hi">कैसे चलाएँ</span></span>
+<div class="pair">
+  <div class="en"><ul>
+    <li>Pick the brand chip — <b>Ridhi</b>, <b>CPC</b>, <b>Shopify</b> or <b>All</b>.</li>
+    <li>For your own window, set the two dates and press <b>Apply</b>.</li>
+    <li><b>Refresh today</b> pulls today's orders again.</li></ul></div>
+  <div class="hi"><ul>
+    <li>ब्रांड चुनें — <b>Ridhi</b>, <b>CPC</b>, <b>Shopify</b> या <b>All</b>।</li>
+    <li>अपनी तारीखें चाहिए तो दोनों डेट भरकर <b>Apply</b> दबाएँ।</li>
+    <li><b>Refresh today</b> आज के ऑर्डर दोबारा खींचता है।</li></ul></div>
+</div></div>
+<div class="note pair">
+  <div class="en"><b>Watch out.</b> Today's figure stays hours behind all day, so the month projection leaves today out on purpose. A blank means the nightly run has not produced that day yet — it does not mean zero sales.</div>
+  <div class="hi"><b>ध्यान दें।</b> आज का आँकड़ा दिन भर कुछ घंटे पीछे रहता है, इसलिए महीने का अनुमान आज को जान-बूझकर छोड़ देता है। खाली दिखे तो मतलब रात का काम अभी नहीं चला — बिक्री शून्य नहीं।</div>
+</div>
+</section>
+<section class="sec" id="profit">
+<h2><span class="en">Profit &amp; Margin — what is actually left</span><span class="sep"> · </span><span class="hi">प्रॉफ़िट और मार्जिन — असल में बचता कितना है</span></h2>
+<div class="pair">
+  <div class="en">Per ASIN: units sold in the weeks you choose, <b>real ad spend</b>, Amazon's fees as modelled, and your own landed cost per piece — what is left is the profit and the margin.</div>
+  <div class="hi">हर ASIN के लिए: चुने हुए हफ्तों की बिक्री, <b>असली विज्ञापन खर्च</b>, Amazon की फीस (मॉडल से), और आपकी अपनी प्रति पीस लागत — जो बचा वही प्रॉफ़िट और मार्जिन।</div>
+</div>
+<div class="step" id="profit-use"><span class="n">1</span><span class="t"><span class="en">How to use it</span><span class="sep"> · </span><span class="hi">कैसे चलाएँ</span></span>
+<div class="pair">
+  <div class="en"><ul>
+    <li>Choose the brand, how many weeks, and the view.</li>
+    <li><b>Cost model</b> sets the fee percentages and freight used in the sums.</li>
+    <li><b>Import costs</b> loads the landed cost per SKU from your workbook. <b>Export</b> takes the table out.</li></ul></div>
+  <div class="hi"><ul>
+    <li>ब्रांड, कितने हफ्ते और व्यू चुनें।</li>
+    <li><b>Cost model</b> में फीस के % और फ्रेट सेट होते हैं।</li>
+    <li><b>Import costs</b> से हर SKU की लागत चढ़ती है। <b>Export</b> से टेबल बाहर।</li></ul></div>
+</div></div>
+<div class="note pair">
+  <div class="en"><b>Watch out.</b> An ASIN with <b>no cost</b> shows no profit at all and stays out of the totals — it is not counted as zero. The fee percentages are estimates from the workbook, not Amazon's settled invoice.</div>
+  <div class="hi"><b>ध्यान दें।</b> जिस ASIN की <b>लागत नहीं भरी</b>, उसका प्रॉफ़िट दिखता ही नहीं और वह टोटल से बाहर रहता है — उसे शून्य नहीं माना जाता। फीस के % वर्कबुक के अनुमान हैं, Amazon का पक्का बिल नहीं।</div>
+</div>
+</section>
+<section class="sec" id="sa">
+<h2><span class="en">Sales Analysis — by colour, article or SKU</span><span class="sep"> · </span><span class="hi">सेल्स एनालिसिस — रंग, आर्टिकल या SKU के हिसाब से</span></h2>
+<div class="pair">
+  <div class="en">Monthly sales cut by <b>colour</b>, <b>article</b> or <b>SKU</b>, built from your Orders workbook and its Catalog tab, then kept in a cache so the screen opens fast.</div>
+  <div class="hi">महीने की बिक्री <b>रंग</b>, <b>आर्टिकल</b> या <b>SKU</b> के हिसाब से — आपकी Orders वर्कबुक और उसके Catalog टैब से बनती है, फिर कैश में रहती है ताकि स्क्रीन जल्दी खुले।</div>
+</div>
+<div class="step" id="sa-use"><span class="n">1</span><span class="t"><span class="en">How to use it</span><span class="sep"> · </span><span class="hi">कैसे चलाएँ</span></span>
+<div class="pair">
+  <div class="en"><ul>
+    <li>Pick brand, then the view: <b>Color</b>, <b>Article</b> or <b>SKU study</b>, and the metric.</li>
+    <li>Press <b>Rebuild from orders</b> only when the workbook has changed.</li>
+    <li><b>Export</b> for the spreadsheet.</li></ul></div>
+  <div class="hi"><ul>
+    <li>ब्रांड चुनें, फिर व्यू: <b>Color</b>, <b>Article</b> या <b>SKU study</b>, और मेट्रिक।</li>
+    <li><b>Rebuild from orders</b> सिर्फ तब दबाएँ जब वर्कबुक बदली हो।</li>
+    <li>स्प्रेडशीट के लिए <b>Export</b>।</li></ul></div>
+</div></div>
+<div class="note pair">
+  <div class="en"><b>Watch out.</b> Rebuild walks about 190,000 rows and takes a minute or so — not a button to press casually. MCF orders, cancelled rows and other marketplaces are left out.</div>
+  <div class="hi"><b>ध्यान दें।</b> Rebuild करीब 1,90,000 लाइनें पढ़ता है और एक मिनट लेता है — बार-बार दबाने वाला बटन नहीं। MCF ऑर्डर, कैंसिल लाइनें और दूसरे मार्केटप्लेस इसमें नहीं गिने जाते।</div>
+</div>
+</section>
+<section class="sec" id="plaudit">
+<h2><span class="en">Parent Listing Review — which parent needs you today</span><span class="sep"> · </span><span class="hi">पेरेंट लिस्टिंग रिव्यू — आज किस पेरेंट पर ध्यान दें</span></h2>
+<div class="pair">
+  <div class="en">One row per parent: last week against its own six-week average, how old the listing is, how many days of stock are left, and a suggested action.</div>
+  <div class="hi">हर पेरेंट की एक लाइन: पिछला हफ्ता बनाम उसका छह-हफ्ते का औसत, लिस्टिंग कितनी पुरानी है, कितने दिन का स्टॉक बचा है, और क्या करना चाहिए।</div>
+</div>
+<div class="step" id="plaudit-use"><span class="n">1</span><span class="t"><span class="en">How to use it</span><span class="sep"> · </span><span class="hi">कैसे चलाएँ</span></span>
+<div class="pair">
+  <div class="en"><ul>
+    <li>Set the brand, <b>New / Old</b> and the action filter; type in the ASIN or title box to narrow further.</li>
+    <li><b>Refresh stock &amp; ranks</b> brings today's stock cover and rank in.</li>
+    <li><b>Export</b> when you want it in a sheet.</li></ul></div>
+  <div class="hi"><ul>
+    <li>ब्रांड, <b>New / Old</b> और एक्शन फ़िल्टर लगाएँ; ASIN या टाइटल बॉक्स से और छाँटें।</li>
+    <li><b>Refresh stock &amp; ranks</b> से आज का स्टॉक कवर और रैंक आते हैं।</li>
+    <li>शीट चाहिए तो <b>Export</b>।</li></ul></div>
+</div></div>
+<div class="note pair">
+  <div class="en"><b>Watch out.</b> A red banner means one week's sales failed the nightly cross-check and is being held out of the average. This screen's refresh does <b>not</b> take a new rank snapshot — that is BSR Audit's job.</div>
+  <div class="hi"><b>ध्यान दें।</b> लाल पट्टी का मतलब — किसी हफ्ते की बिक्री रात की जाँच में मेल नहीं खाई, इसलिए औसत से बाहर रखी है। इस स्क्रीन का रिफ्रेश <b>नया रैंक स्नैपशॉट नहीं</b> लेता, वह BSR Audit का काम है।</div>
+</div>
+</section></div>
+<div class="grp" id="grp-listing"><div class="grph"><span class="en">Listing</span><span class="sep"> · </span><span class="hi">लिस्टिंग</span></div><section class="sec" id="opt">
+<h2><span class="en">Listing Optimiser — one ASIN at a time</span><span class="sep"> · </span><span class="hi">लिस्टिंग ऑप्टिमाइज़र — एक ASIN पर पूरा ध्यान</span></h2>
+<div class="pair">
+  <div class="en">Reads one listing from Amazon — images, attributes and title — says what is missing, and suggests a title built only from facts the listing already has.</div>
+  <div class="hi">एक लिस्टिंग Amazon से पढ़ता है — फोटो, एट्रिब्यूट और टाइटल — बताता है क्या कमी है, और वही टाइटल सुझाता है जो लिस्टिंग की अपनी जानकारी से बनता है।</div>
+</div>
+<div class="step" id="opt-use"><span class="n">1</span><span class="t"><span class="en">How to use it</span><span class="sep"> · </span><span class="hi">कैसे चलाएँ</span></span>
+<div class="pair">
+  <div class="en"><ul>
+    <li>Type the ASIN, pick the brand, set how many characters the title should aim for, press <b>Review</b>.</li>
+    <li>Read the findings, then copy the suggested title if it is better than the old one.</li>
+    <li><b>Get Search Query Performance</b> adds what shoppers actually searched and clicked.</li></ul></div>
+  <div class="hi"><ul>
+    <li>ASIN लिखें, ब्रांड चुनें, टाइटल की लंबाई तय करें, <b>Review</b> दबाएँ।</li>
+    <li>जो कमियाँ दिखें उन्हें पढ़ें; सुझाया टाइटल बेहतर लगे तो कॉपी कर लें।</li>
+    <li><b>Get Search Query Performance</b> से पता चलता है ग्राहक ने असल में क्या खोजा और क्या क्लिक किया।</li></ul></div>
+</div></div>
+<div class="note pair">
+  <div class="en"><b>Watch out.</b> Search Query Performance is one report per ASIN, built by Amazon over minutes, and only for periods that have finished — never today's. The suggested title rearranges what is there; it does not invent new claims.</div>
+  <div class="hi"><b>ध्यान दें।</b> Search Query Performance हर ASIN की अलग रिपोर्ट है, Amazon उसे कुछ मिनट में बनाता है, और सिर्फ पूरे हो चुके पीरियड की — आज की नहीं। सुझाया टाइटल मौजूद बातों को ही दोबारा जमाता है, नई बात नहीं जोड़ता।</div>
+</div>
+</section>
+<section class="sec" id="basket">
+<h2><span class="en">Bought Together — what sells with what</span><span class="sep"> · </span><span class="hi">बॉट टुगेदर — किसके साथ क्या बिकता है</span></h2>
+<div class="pair">
+  <div class="en">Amazon's brand-wide Market Basket report, split two ways: products people bought with yours that are <b>not yours</b> (a gap in your range), and pairs where <b>both are yours</b> (a bundle waiting to happen).</div>
+  <div class="hi">Amazon की ब्रांड-स्तर की Market Basket रिपोर्ट, दो हिस्सों में: आपके साथ खरीदे गए <b>दूसरों के</b> प्रोडक्ट (आपकी रेंज में कमी), और वे जोड़े जहाँ <b>दोनों आपके</b> हैं (बंडल बनाने लायक)।</div>
+</div>
+<div class="step" id="basket-use"><span class="n">1</span><span class="t"><span class="en">How to use it</span><span class="sep"> · </span><span class="hi">कैसे चलाएँ</span></span>
+<div class="pair">
+  <div class="en"><ul>
+    <li>Pick the brand and the period, choose the window, press <b>Get report</b>.</li>
+    <li>Switch between <b>Range gaps</b> and <b>Bundle candidates</b>.</li>
+    <li>Filter to a product when you are working on one.</li></ul></div>
+  <div class="hi"><ul>
+    <li>ब्रांड और पीरियड चुनें, विंडो तय करें, <b>Get report</b> दबाएँ।</li>
+    <li><b>Range gaps</b> और <b>Bundle candidates</b> के बीच स्विच करें।</li>
+    <li>किसी एक प्रोडक्ट पर काम कर रहे हों तो उसी पर फ़िल्टर लगाएँ।</li></ul></div>
+</div></div>
+<div class="note pair">
+  <div class="en"><b>Watch out.</b> Amazon builds this per whole period and takes minutes. The app stops asking after a while, so press again rather than assuming it failed. Each pair is listed once, not both ways round.</div>
+  <div class="hi"><b>ध्यान दें।</b> Amazon इसे पूरे पीरियड के लिए बनाता है और कुछ मिनट लेता है। ऐप कुछ देर बाद पूछना बंद कर देता है, इसलिए दोबारा दबाएँ — यह मान न लें कि फेल हो गया। हर जोड़ा एक ही बार दिखता है, उल्टा-सीधा दोनों नहीं।</div>
+</div>
+</section>
+<section class="sec" id="health">
+<h2><span class="en">Listing Health — what is broken right now</span><span class="sep"> · </span><span class="hi">लिस्टिंग हेल्थ — अभी क्या खराब है</span></h2>
+<div class="pair">
+  <div class="en">Every FBA listing is scored on two things: faults that <b>stop sales</b> (inactive, no stock, no price) and gaps in the <b>content</b> (title, images, bullets, A+). The result is a saved snapshot, so the screen opens instantly.</div>
+  <div class="hi">हर FBA लिस्टिंग दो तरह से जाँची जाती है: जो <b>बिक्री रोकती हैं</b> (इनएक्टिव, स्टॉक नहीं, दाम नहीं) और जहाँ <b>कंटेंट अधूरा</b> है (टाइटल, फोटो, बुलेट, A+)। नतीजा सेव रहता है, इसलिए स्क्रीन तुरंत खुलती है।</div>
+</div>
+<div class="step" id="health-use"><span class="n">1</span><span class="t"><span class="en">How to use it</span><span class="sep"> · </span><span class="hi">कैसे चलाएँ</span></span>
+<div class="pair">
+  <div class="en"><ul>
+    <li>Choose <b>Parent</b> or <b>Child</b> view, the brand, and the bucket you want to work on.</li>
+    <li>Press <b>Refresh both brands</b> to take a fresh look at Amazon.</li>
+    <li><b>Raw fields</b> shows exactly what Amazon returned; <b>Title optimiser</b> jumps to that ASIN.</li></ul></div>
+  <div class="hi"><ul>
+    <li><b>Parent</b> या <b>Child</b> व्यू, ब्रांड, और जिस बकेट पर काम करना है वह चुनें।</li>
+    <li>ताज़ा जाँच के लिए <b>Refresh both brands</b> दबाएँ।</li>
+    <li><b>Raw fields</b> दिखाता है Amazon ने असल में क्या भेजा; <b>Title optimiser</b> उसी ASIN पर ले जाता है।</li></ul></div>
+</div></div>
+<div class="note pair">
+  <div class="en"><b>Watch out.</b> Virtual bundles (SKUs starting <b>RB</b>) and merchant-fulfilled listings are left out on purpose. A content sweep covers up to 1,500 ASINs per run, and <b>“Not checked”</b> means nobody looked yet — not that the images are missing.</div>
+  <div class="hi"><b>ध्यान दें।</b> वर्चुअल बंडल (<b>RB</b> से शुरू SKU) और merchant-fulfilled लिस्टिंग जान-बूझकर बाहर हैं। एक बार में 1,500 ASIN तक ही कंटेंट जाँचा जाता है, और <b>“Not checked”</b> का मतलब अभी देखा नहीं — यह नहीं कि फोटो नहीं हैं।</div>
+</div>
+</section>
+<section class="sec" id="lrules">
+<h2><span class="en">Listing Rules — what Listing Health checks</span><span class="sep"> · </span><span class="hi">लिस्टिंग रूल्स — हेल्थ किस हिसाब से जाँचे</span></h2>
+<div class="pair">
+  <div class="en">The list of issues, the title templates and the season calendar that <b>Listing Health</b> scores against. Change them here and the next run follows the new rules.</div>
+  <div class="hi">वे नियम जिनसे <b>लिस्टिंग हेल्थ</b> जाँच करती है — इशू की सूची, टाइटल के टेम्पलेट और सीज़न कैलेंडर। यहाँ बदलिए, अगली जाँच नए नियम से होगी।</div>
+</div>
+<div class="step" id="lrules-use"><span class="n">1</span><span class="t"><span class="en">How to use it</span><span class="sep"> · </span><span class="hi">कैसे चलाएँ</span></span>
+<div class="pair">
+  <div class="en"><ul>
+    <li>Switch between <b>Issues</b>, <b>Title templates</b> and <b>Season calendar</b>.</li>
+    <li><b>+ Add issue</b> to add your own rule; <b>Try a SKU</b> to see what it would say.</li>
+    <li>Press <b>Save rules</b>. <b>Reset to the original lists</b> puts the built-in ones back.</li></ul></div>
+  <div class="hi"><ul>
+    <li><b>Issues</b>, <b>Title templates</b> और <b>Season calendar</b> में से चुनें।</li>
+    <li>अपना नियम जोड़ने के लिए <b>+ Add issue</b>; असर देखने के लिए <b>Try a SKU</b>।</li>
+    <li><b>Save rules</b> दबाएँ। <b>Reset to the original lists</b> से पुरानी सूची वापस आ जाती है।</li></ul></div>
+</div></div>
+<div class="note pair">
+  <div class="en"><b>Watch out.</b> A rule that needs data Amazon was never asked for is saved as <b>manual</b>: it stays on the list and stays visible, but nothing checks it automatically. Until somebody saves once, the built-in lists are what run.</div>
+  <div class="hi"><b>ध्यान दें।</b> जिस नियम के लिए ज़रूरी जानकारी Amazon से माँगी ही नहीं गई, वह <b>manual</b> के तौर पर सेव होता है: सूची में दिखेगा, पर अपने आप जाँचा नहीं जाएगा। जब तक कोई एक बार सेव न करे, बने-बनाए नियम ही चलते हैं।</div>
+</div>
+</section>
+<section class="sec" id="audit">
+<h2><span class="en">Listing Audit — the paperwork behind each parent</span><span class="sep"> · </span><span class="hi">लिस्टिंग ऑडिट — हर पेरेंट का कागज़ी काम</span></h2>
+<div class="pair">
+  <div class="en">Tracks which documents exist for each parent ASIN — spec sheet, template, keyword research and the rest. Only the index lives here; the files stay in Dropbox.</div>
+  <div class="hi">हर पेरेंट ASIN के लिए कौन-कौन से कागज़ तैयार हैं, इसका हिसाब — स्पेक शीट, टेम्पलेट, कीवर्ड रिसर्च वगैरह। यहाँ सिर्फ सूची रहती है; फाइलें Dropbox में ही रहती हैं।</div>
+</div>
+<div class="step" id="audit-use"><span class="n">1</span><span class="t"><span class="en">How to use it</span><span class="sep"> · </span><span class="hi">कैसे चलाएँ</span></span>
+<div class="pair">
+  <div class="en"><ul>
+    <li>Filter by brand and status to see what is still missing.</li>
+    <li><b>+ Parent</b> adds a row; tick off each document as it is done.</li>
+    <li><b>Pull sales</b> and <b>Pull PPC</b> bring the figures in; <b>Import</b> / <b>Export</b> move the index.</li></ul></div>
+  <div class="hi"><ul>
+    <li>ब्रांड और स्टेटस से छाँटकर देखें क्या बाकी है।</li>
+    <li><b>+ Parent</b> से नई लाइन; जो कागज़ बन जाए उस पर निशान लगाएँ।</li>
+    <li><b>Pull sales</b> और <b>Pull PPC</b> आँकड़े लाते हैं; <b>Import</b>/<b>Export</b> सूची ले-जा सकते हैं।</li></ul></div>
+</div></div>
+<div class="note pair">
+  <div class="en"><b>Watch out.</b> <b>Pull PPC</b> waits several minutes while Amazon builds the report; one brand failing does not stop the other. A missing sales figure means nobody has pulled it yet — it is not a zero.</div>
+  <div class="hi"><b>ध्यान दें।</b> <b>Pull PPC</b> में Amazon रिपोर्ट बनाने में कई मिनट लेता है; एक ब्रांड फेल हो तो दूसरा रुकता नहीं। बिक्री का आँकड़ा न दिखे तो मतलब अभी खींचा नहीं गया — शून्य नहीं।</div>
+</div>
+</section>
+<section class="sec" id="bsr">
+<h2><span class="en">BSR Audit — rank, week on week</span><span class="sep"> · </span><span class="hi">BSR ऑडिट — हफ्ते-दर-हफ्ते रैंक</span></h2>
+<div class="pair">
+  <div class="en">Weekly snapshots of sales rank per parent, kept for good, so you can compare any two weeks. A parent takes the <b>best rank among its children</b>.</div>
+  <div class="hi">हर पेरेंट की सेल्स रैंक का हफ्तावार स्नैपशॉट, हमेशा के लिए सुरक्षित — किन्हीं दो हफ्तों की तुलना कर सकते हैं। पेरेंट की रैंक उसके बच्चों में से <b>सबसे अच्छी</b> होती है।</div>
+</div>
+<div class="step" id="bsr-use"><span class="n">1</span><span class="t"><span class="en">How to use it</span><span class="sep"> · </span><span class="hi">कैसे चलाएँ</span></span>
+<div class="pair">
+  <div class="en"><ul>
+    <li>Choose <b>Compare 2 weeks</b> or <b>Full history</b>, pick the weeks and the brand.</li>
+    <li>Press <b>Take snapshot</b> — it files under this week or last week, as you choose.</li>
+    <li><b>Export</b> for the sheet.</li></ul></div>
+  <div class="hi"><ul>
+    <li><b>Compare 2 weeks</b> या <b>Full history</b> चुनें, हफ्ते और ब्रांड तय करें।</li>
+    <li><b>Take snapshot</b> दबाएँ — आपकी पसंद के मुताबिक इस या पिछले हफ्ते में दर्ज होगा।</li>
+    <li>शीट के लिए <b>Export</b>।</li></ul></div>
+</div></div>
+<div class="note pair">
+  <div class="en"><b>Watch out.</b> A <b>lower</b> rank is better everywhere on this screen. The snapshot needs Listing Health loaded first, covers up to 1,200 children per run, and where Amazon has moved a parent to another category it says so instead of reporting a huge swing.</div>
+  <div class="hi"><b>ध्यान दें।</b> यहाँ रैंक जितनी <b>कम</b>, उतनी अच्छी। स्नैपशॉट से पहले लिस्टिंग हेल्थ लोड होनी चाहिए, एक बार में 1,200 बच्चों तक, और जहाँ Amazon ने कैटेगरी बदल दी हो वहाँ बड़ा उछाल दिखाने के बजाय साफ़ लिख देता है।</div>
+</div>
+</section></div>
+<div class="grp" id="grp-ads"><div class="grph"><span class="en">Advertising</span><span class="sep"> · </span><span class="hi">एडवर्टाइजिंग</span></div><section class="sec" id="trends">
+<h2><span class="en">Ad Console — the whole account, day by day</span><span class="sep"> · </span><span class="hi">एड कंसोल — पूरा अकाउंट, दिन-ब-दिन</span></h2>
+<div class="pair">
+  <div class="en">Sales and advertising for the whole account, rolled up to <b>day, week, month or quarter</b>, with the headline numbers and a chart. There is no ASIN breakdown here — that is PPC &amp; Organic.</div>
+  <div class="hi">पूरे अकाउंट की बिक्री और विज्ञापन, <b>दिन, हफ्ता, महीना या तिमाही</b> के हिसाब से, मुख्य आँकड़े और ग्राफ के साथ। यहाँ ASIN-वार ब्योरा नहीं है — वह PPC &amp; Organic में है।</div>
+</div>
+<div class="step" id="trends-use"><span class="n">1</span><span class="t"><span class="en">How to use it</span><span class="sep"> · </span><span class="hi">कैसे चलाएँ</span></span>
+<div class="pair">
+  <div class="en"><ul>
+    <li>Pick the brand, how finely to roll it up, and how far back to go.</li>
+    <li>Press <b>Refresh</b> to pull orders and ad figures again.</li>
+    <li><b>Export</b> for the sheet.</li></ul></div>
+  <div class="hi"><ul>
+    <li>ब्रांड चुनें, कितने बारीक हिसाब से देखना है, और कितने पीछे तक।</li>
+    <li>ऑर्डर और विज्ञापन के आँकड़े दोबारा लाने के लिए <b>Refresh</b>।</li>
+    <li>शीट के लिए <b>Export</b>।</li></ul></div>
+</div></div>
+<div class="note pair">
+  <div class="en"><b>Watch out.</b> Amazon keeps Sponsored Products data for about <b>95 days</b> — older days are genuinely empty, not broken. Ad sales keep being added for up to 30 days after the click, so the last few weeks keep moving.</div>
+  <div class="hi"><b>ध्यान दें।</b> Amazon स्पॉन्सर्ड प्रोडक्ट्स का डेटा करीब <b>95 दिन</b> रखता है — उससे पुराने दिन सच में खाली हैं, खराबी नहीं। क्लिक के 30 दिन बाद तक विज्ञापन की बिक्री जुड़ती रहती है, इसलिए हाल के हफ्ते बदलते रहते हैं।</div>
+</div>
+</section>
+<section class="sec" id="weekly">
+<h2><span class="en">PPC &amp; Organic — per ASIN, per week</span><span class="sep"> · </span><span class="hi">PPC और ऑर्गैनिक — हर ASIN, हर हफ्ता</span></h2>
+<div class="pair">
+  <div class="en">One row per ASIN and one column per week: sales, ad spend, the <b>organic share</b>, TACoS, sessions and conversion — all worked out from three stored figures per week.</div>
+  <div class="hi">हर ASIN की एक लाइन, हर हफ्ते का एक कॉलम: बिक्री, विज्ञापन खर्च, <b>ऑर्गैनिक हिस्सा</b>, TACoS, सेशन और कन्वर्ज़न — सब हर हफ्ते के तीन सेव आँकड़ों से निकलते हैं।</div>
+</div>
+<div class="step" id="weekly-use"><span class="n">1</span><span class="t"><span class="en">How to use it</span><span class="sep"> · </span><span class="hi">कैसे चलाएँ</span></span>
+<div class="pair">
+  <div class="en"><ul>
+    <li>Set brand, view, metric and how many weeks.</li>
+    <li>Choose the fetch scope and press <b>Refresh</b> to bring weeks that are not stored yet.</li>
+    <li><b>Range report</b> totals a window; <b>+ Entry</b> writes what you changed that week; <b>Export</b> for the sheet.</li></ul></div>
+  <div class="hi"><ul>
+    <li>ब्रांड, व्यू, मेट्रिक और कितने हफ्ते — सब तय करें।</li>
+    <li>स्कोप चुनकर <b>Refresh</b> दबाएँ; जो हफ्ते सेव नहीं हैं वही आएँगे।</li>
+    <li><b>Range report</b> पूरी अवधि का जोड़ देता है; <b>+ Entry</b> में लिखें उस हफ्ते क्या बदला; <b>Export</b> शीट के लिए।</li></ul></div>
+</div></div>
+<div class="note pair">
+  <div class="en"><b>Watch out.</b> The red banner means a week's sales did not agree with the account total and is being held back. A week already stored is never fetched again — that is why Refresh is quick.</div>
+  <div class="hi"><b>ध्यान दें।</b> लाल पट्टी का मतलब — उस हफ्ते की बिक्री अकाउंट के टोटल से मेल नहीं खाई, इसलिए रोकी गई है। जो हफ्ता एक बार सेव हो गया, वह दोबारा नहीं खींचा जाता — इसीलिए Refresh तेज़ है।</div>
+</div>
+</section>
+<section class="sec" id="st">
+<h2><span class="en">Search Terms — harvest and waste</span><span class="sep"> · </span><span class="hi">सर्च टर्म्स — कमाई और बर्बादी</span></h2>
+<div class="pair">
+  <div class="en">What shoppers actually typed, set against what you bid on, split into <b>Harvest</b> (worth adding), <b>Waste</b> (worth stopping), <b>Negative</b> and all terms. Fed by the nightly ad caches.</div>
+  <div class="hi">ग्राहक ने असल में क्या लिखा, और आपने किस पर बोली लगाई — दोनों मिलाकर <b>Harvest</b> (जोड़ने लायक), <b>Waste</b> (रोकने लायक), <b>Negative</b> और सभी टर्म में बँटा हुआ। रात की कैश से आता है।</div>
+</div>
+<div class="step" id="st-use"><span class="n">1</span><span class="t"><span class="en">How to use it</span><span class="sep"> · </span><span class="hi">कैसे चलाएँ</span></span>
+<div class="pair">
+  <div class="en"><ul>
+    <li>Pick the brand and the view you want to work through.</li>
+    <li>Set a <b>Min spend</b> so tiny terms do not fill the screen.</li>
+    <li>Filter by term, campaign or ASIN; <b>Export</b> the list you will act on.</li></ul></div>
+  <div class="hi"><ul>
+    <li>ब्रांड और जिस व्यू पर काम करना है वह चुनें।</li>
+    <li><b>Min spend</b> लगाएँ ताकि छोटी-छोटी टर्म स्क्रीन न भर दें।</li>
+    <li>टर्म, कैंपेन या ASIN से छाँटें; जिस पर काम करना है उसे <b>Export</b> कर लें।</li></ul></div>
+</div></div>
+<div class="note pair">
+  <div class="en"><b>Watch out.</b> A search term carries no ASIN of its own — it is tied through the ad group, so a group with several ASINs shows the term against all of them. Terms that got no clicks never arrive at all.</div>
+  <div class="hi"><b>ध्यान दें।</b> सर्च टर्म के साथ ASIN नहीं आता — वह ऐड ग्रुप के ज़रिए जुड़ता है, इसलिए कई ASIN वाले ग्रुप में टर्म सबके सामने दिखती है। जिन टर्म पर क्लिक ही नहीं हुआ, वे आती ही नहीं।</div>
+</div>
+</section>
+<section class="sec" id="plc">
+<h2><span class="en">Placement — where the money went</span><span class="sep"> · </span><span class="hi">प्लेसमेंट — पैसा कहाँ खर्च हुआ</span></h2>
+<div class="pair">
+  <div class="en">Where the ads ran — <b>top of search, rest of search, product pages, off Amazon</b> — with spend and sales for each, and a table of where the wasted spend is.</div>
+  <div class="hi">विज्ञापन कहाँ चले — <b>सर्च के ऊपर, बाकी सर्च, प्रोडक्ट पेज, Amazon के बाहर</b> — हर जगह का खर्च और बिक्री, और साथ में बर्बाद खर्च की टेबल।</div>
+</div>
+<div class="step" id="plc-use"><span class="n">1</span><span class="t"><span class="en">How to use it</span><span class="sep"> · </span><span class="hi">कैसे चलाएँ</span></span>
+<div class="pair">
+  <div class="en"><ul>
+    <li>Pick the brand and <b>Day / Week / Month</b>.</li>
+    <li>Read the headline numbers and the chart, then the <b>Where the wasted spend is</b> table.</li>
+    <li><b>Export</b> when you want to act campaign by campaign.</li></ul></div>
+  <div class="hi"><ul>
+    <li>ब्रांड और <b>Day / Week / Month</b> चुनें।</li>
+    <li>ऊपर के आँकड़े और ग्राफ देखें, फिर <b>Where the wasted spend is</b> टेबल पढ़ें।</li>
+    <li>कैंपेन-वार काम करना हो तो <b>Export</b>।</li></ul></div>
+</div></div>
+<div class="note pair">
+  <div class="en"><b>Watch out.</b> “Wasted spend” is this app's own working, counted per campaign and placement across the <b>whole window</b>, not per day. Blank means the nightly run has not collected placement data yet.</div>
+  <div class="hi"><b>ध्यान दें।</b> “बर्बाद खर्च” इसी ऐप का हिसाब है, जो हर कैंपेन और प्लेसमेंट पर <b>पूरी अवधि</b> के लिए निकाला जाता है, रोज़ का नहीं। खाली दिखे तो रात का डेटा अभी आया नहीं।</div>
+</div>
+</section>
+<section class="sec" id="deals">
+<h2><span class="en">Deal Calendar — what is planned and what is running</span><span class="sep"> · </span><span class="hi">डील कैलेंडर — क्या तय है और क्या चल रहा है</span></h2>
+<div class="pair">
+  <div class="en">A week-by-week grid of parents with the promotions you have planned, plus Amazon's own recommendations, finished deals and heavy discount alerts.</div>
+  <div class="hi">हफ्ते-वार ग्रिड, जिसमें हर पेरेंट पर तय किए गए प्रमोशन दिखते हैं — साथ में Amazon के सुझाव, पूरी हो चुकी डील और भारी छूट की चेतावनी।</div>
+</div>
+<div class="step" id="deals-use"><span class="n">1</span><span class="t"><span class="en">How to use it</span><span class="sep"> · </span><span class="hi">कैसे चलाएँ</span></span>
+<div class="pair">
+  <div class="en"><ul>
+    <li>Switch between <b>Planner</b>, <b>Events</b>, <b>Completed</b> and <b>HDA</b>.</li>
+    <li><b>+ Add ASIN</b> to plan a parent; <b>Import recs</b> brings Amazon's suggestions in.</li>
+    <li><b>Fetch images</b> makes the grid readable; <b>Export</b> for the sheet.</li></ul></div>
+  <div class="hi"><ul>
+    <li><b>Planner</b>, <b>Events</b>, <b>Completed</b> और <b>HDA</b> में से चुनें।</li>
+    <li>किसी पेरेंट की योजना बनाने के लिए <b>+ Add ASIN</b>; Amazon के सुझाव लाने के लिए <b>Import recs</b>।</li>
+    <li><b>Fetch images</b> से ग्रिड पढ़ने लायक बनती है; शीट के लिए <b>Export</b>।</li></ul></div>
+</div></div>
+<div class="note pair">
+  <div class="en"><b>Watch out.</b> Recommendations are only suggestions and are kept visibly separate from what you typed — Amazon gives no way to read what is actually live. Named events arrive with their dates as “NA”; type them once.</div>
+  <div class="hi"><b>ध्यान दें।</b> सुझाव सिर्फ सुझाव हैं और आपकी लिखी लाइनों से अलग दिखते हैं — Amazon यह नहीं बताता कि असल में कौन-सी डील चल रही है। नाम वाले इवेंट की तारीख “NA” आती है; एक बार खुद भर दें।</div>
+</div>
+</section></div>
+<div class="grp" id="grp-inv"><div class="grph"><span class="en">Inventory</span><span class="sep"> · </span><span class="hi">इन्वेंटरी</span></div><section class="sec" id="age">
+<h2><span class="en">Inventory Age — how old the FBA stock is</span><span class="sep"> · </span><span class="hi">इन्वेंटरी एज — FBA का माल कितना पुराना है</span></h2>
+<div class="pair">
+  <div class="en">Amazon's ageing report for both brands, per SKU, parent or child, in buckets — so you can see what is drifting towards a long-term storage fee before it gets there.</div>
+  <div class="hi">दोनों ब्रांड की Amazon ऐजिंग रिपोर्ट — SKU, पेरेंट या चाइल्ड के हिसाब से, उम्र के खानों में। जो माल लॉन्ग-टर्म स्टोरेज फीस की तरफ बढ़ रहा है, वह पहले ही दिख जाता है।</div>
+</div>
+<div class="step" id="age-use"><span class="n">1</span><span class="t"><span class="en">How to use it</span><span class="sep"> · </span><span class="hi">कैसे चलाएँ</span></span>
+<div class="pair">
+  <div class="en"><ul>
+    <li>Choose <b>Parent</b> or <b>Child</b> and the brand.</li>
+    <li>Filter by SKU or ASIN to find one line quickly.</li>
+    <li><b>Refresh both brands</b> asks Amazon for a new report; <b>Export</b> for the sheet.</li></ul></div>
+  <div class="hi"><ul>
+    <li><b>Parent</b> या <b>Child</b> और ब्रांड चुनें।</li>
+    <li>SKU या ASIN से छाँटकर एक लाइन जल्दी ढूँढें।</li>
+    <li><b>Refresh both brands</b> से नई रिपोर्ट आती है; शीट के लिए <b>Export</b>।</li></ul></div>
+</div></div>
+<div class="note pair">
+  <div class="en"><b>Watch out.</b> Amazon's age buckets <b>overlap</b>, so adding them all up double-counts; only the non-overlapping ones are totalled here. “Aged” starts at <b>181 days</b>. Amazon allows roughly one report a minute, so give Refresh a moment.</div>
+  <div class="hi"><b>ध्यान दें।</b> Amazon के उम्र वाले खाने <b>एक-दूसरे में मिलते</b> हैं, इसलिए सबको जोड़ने पर दोहरी गिनती हो जाती है; यहाँ सिर्फ अलग-अलग खाने जोड़े जाते हैं। <b>181 दिन</b> से “पुराना” माना जाता है। Amazon करीब एक मिनट में एक ही रिपोर्ट देता है, इसलिए Refresh को थोड़ा समय दें।</div>
+</div>
+</section></div>
+<div class="grp" id="grp-social"><div class="grph"><span class="en">Social</span><span class="sep"> · </span><span class="hi">सोशल</span></div><section class="sec" id="tiktok">
+<h2><span class="en">TikTok Toolkit</span><span class="sep"> · </span><span class="hi">टिकटॉक टूलकिट</span></h2>
+<div class="pair">
+  <div class="en">The TikTok seller toolkit, opened inside this app. It is a page of its own and works on its own — nothing here talks to Amazon or to the backend.</div>
+  <div class="hi">टिकटॉक सेलर टूलकिट, इसी ऐप के अंदर खुलता है। यह अपने आप में अलग पेज है और अकेले चलता है — यहाँ से न Amazon से बात होती है, न बैकएंड से।</div>
+</div>
+<div class="step" id="tiktok-use"><span class="n">1</span><span class="t"><span class="en">How to use it</span><span class="sep"> · </span><span class="hi">कैसे चलाएँ</span></span>
+<div class="pair">
+  <div class="en"><ul>
+    <li>Open the tab; the toolkit loads the first time you do.</li>
+    <li>Everything happens inside that frame — its own buttons, its own working.</li></ul></div>
+  <div class="hi"><ul>
+    <li>टैब खोलें; पहली बार खोलने पर टूलकिट लोड होता है।</li>
+    <li>सारा काम उसी फ्रेम के अंदर होता है — उसके अपने बटन, अपना हिसाब।</li></ul></div>
+</div></div>
+<div class="note pair">
+  <div class="en"><b>Why it sits in a frame.</b> Its stylesheet uses the same class names this app uses. Merging the two would restyle both screens, so it is kept in a frame of its own on purpose.</div>
+  <div class="hi"><b>फ्रेम में क्यों है।</b> उसकी स्टाइल में वही क्लास नाम हैं जो इस ऐप में भी हैं। दोनों को मिलाने से दोनों स्क्रीन की शक्ल बिगड़ जाती, इसलिए इसे जान-बूझकर अलग फ्रेम में रखा है।</div>
+</div>
+</section>
+<section class="sec" id="carousel">
+<h2><span class="en">Carousel Builder</span><span class="sep"> · </span><span class="hi">कैरोसेल बिल्डर</span></h2>
+<div class="pair">
+  <div class="en">Draws listing slides right in your browser — nothing is uploaded and no server is involved, so it works as fast as your own machine.</div>
+  <div class="hi">लिस्टिंग की स्लाइड आपके ब्राउज़र में ही बनती हैं — कुछ अपलोड नहीं होता, कोई सर्वर नहीं लगता, इसलिए आपकी अपनी मशीन जितनी तेज़।</div>
+</div>
+<div class="step" id="carousel-use"><span class="n">1</span><span class="t"><span class="en">How to use it</span><span class="sep"> · </span><span class="hi">कैसे चलाएँ</span></span>
+<div class="pair">
+  <div class="en"><ul>
+    <li>Open the tab and work inside the builder — there is nothing to fetch or refresh.</li>
+    <li>Save the slides it makes to your own computer.</li></ul></div>
+  <div class="hi"><ul>
+    <li>टैब खोलें और बिल्डर के अंदर ही काम करें — कुछ लाना या रिफ्रेश करना नहीं है।</li>
+    <li>बनी हुई स्लाइड अपने कंप्यूटर पर सेव कर लें।</li></ul></div>
+</div></div>
+<div class="note pair">
+  <div class="en"><b>Watch out.</b> The video builder cannot live here: it needs ffmpeg and a text-to-speech engine installed on a machine, which a web page cannot do.</div>
+  <div class="hi"><b>ध्यान दें।</b> वीडियो बिल्डर यहाँ नहीं आ सकता: उसके लिए मशीन पर ffmpeg और टेक्स्ट-टू-स्पीच चाहिए, जो वेब पेज से नहीं होता।</div>
+</div>
+</section></div>
+
+<div id="none" class="hidden"><span class="en">Nothing matches that search.</span><span class="sep"> · </span><span class="hi">कुछ नहीं मिला।</span></div>
+</div>
+<script>
+(function () {
+  var KEY = 'guideLang';
+  function set(l) {
+    document.body.className = l === 'en' ? 'only-en' : l === 'hi' ? 'only-hi' : 'both';
+    document.querySelectorAll('[data-lang]').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-lang') === l); });
+    try { localStorage.setItem(KEY, l); } catch (e) {}
+  }
+  var q = (location.search.match(/[?&]lang=(en|hi|both)/) || [])[1], saved = null;
+  try { saved = localStorage.getItem(KEY); } catch (e) {}
+  set(q || saved || 'both');
+  document.querySelectorAll('[data-lang]').forEach(function (b) { b.onclick = function () { set(b.getAttribute('data-lang')); }; });
+  /* SEARCH: a screen stays if any of its words match; a group with none left is hidden. */
+  var box = document.getElementById('q');
+  box.addEventListener('input', function () {
+    var t = box.value.trim().toLowerCase(), any = false;
+    document.querySelectorAll('.sec').forEach(function (s) {
+      var hit = !t || s.textContent.toLowerCase().indexOf(t) >= 0;
+      s.classList.toggle('hidden', !hit); if (hit) any = true;
+    });
+    document.querySelectorAll('.grp').forEach(function (g) { g.classList.toggle('hidden', !g.querySelector('.sec:not(.hidden)')); });
+    document.querySelector('.toc').classList.toggle('hidden', !!t);
+    document.getElementById('none').classList.toggle('hidden', any);
+  });
+  /* Opened from a screen's Guide button: go to that screen once the page has laid itself out. */
+  if (location.hash) addEventListener('load', function () { var el = document.getElementById(location.hash.slice(1)); if (el) el.scrollIntoView(); });
+})();
+</script>
+</body>
+</html>
