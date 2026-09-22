@@ -175,6 +175,15 @@
     background:none;border:0;padding:0;margin:0;border-radius:0;line-height:1.35}
   table.xl td .err,table.xl td .ok,table.xl td .warn{font-size:11.5px;font-weight:500;margin-top:2px}
   .hide{display:none!important}   /* utility must win over later rules like .modal{display:flex} */
+  /* Job Work rows (2026-09-22): one line of small, even buttons; a received figure with a bar. */
+  .jw-acts{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .jw-btn{height:28px;padding:0 10px;font-size:12px;border-radius:7px;border:1px solid var(--line,#e2e8f0);background:var(--card,#fff);color:inherit;font-weight:600;cursor:pointer;white-space:nowrap}
+  .jw-btn:hover{border-color:#94a3b8}
+  .jw-btn.jw-primary{background:#0f172a;border-color:#0f172a;color:#fff}
+  .jw-btn.jw-wa{color:#166534;border-color:#bbf7d0;background:#f0fdf4}
+  .jw-rc{font-size:13px}.jw-rc b{font-size:15px}.jw-rc span{color:var(--muted,#64748b)}
+  .jw-bar{position:relative;display:flex;height:5px;border-radius:3px;background:#eef2f7;overflow:hidden;margin:5px auto 0;width:70px}
+  .jw-bar i{display:block;height:100%;background:#16a34a}.jw-bar i.rej{background:#dc2626}
   #updBar{position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:200;display:flex;align-items:center;
     justify-content:space-between;gap:10px;background:#0f172a;color:#fff;border-radius:12px;padding:10px 12px 10px 16px;box-shadow:var(--sh-3)}
   #updBar button{background:#fff;color:#0f172a;border:0;padding:8px 14px;border-radius:8px;font-weight:700}
@@ -9147,19 +9156,20 @@ function renderPbase() {
       + `<div style="min-width:0"><div style="font-family:ui-monospace,monospace;font-size:12.5px;font-weight:600">${esc(r.sku)}</div>`
       + `<div class="muted" style="font-size:11px;white-space:nowrap">${[r.articleSubtype, r.color, r.size].filter(Boolean).map(esc).join(' · ')}</div></div></div></td>`
       + `<td class="num">${nf(ptNum(r.issuePieces))}</td>`
-      /* RECEIVED, AND UNDER IT THE BOXES THAT ADD TO IT. A frozen row has nothing left to take. */
-      + `<td class="num"><div style="font-weight:600">${nf(ptNum(r.receivedPieces))}</div>${r.frozen ? ''
-        : `<div style="display:flex;gap:4px;justify-content:center;margin-top:4px">`
-          + `<input class="pt-recv-in" data-id="${esc(r.id)}" type="number" min="1" max="${pend}" placeholder="+recv" title="Pieces that came back — added to what is already received" style="width:64px;height:28px;font-size:12px;padding:2px 6px">`
-          + `<input class="pt-rej-in" data-id="${esc(r.id)}" type="number" min="0" placeholder="rej" title="Total rejected on this row" value="${rej || ''}" style="width:52px;height:28px;font-size:12px;padding:2px 6px"></div>`}</td>`
+      /* RECEIVED, OUT OF WHAT WENT OUT, and a bar that says it at a glance (fourth pass, 2026-09-22:
+       * "this is very bad user interface" — two boxes on every row). Taking a receipt is the Receive
+       * button in Actions, which opens a small form. */
+      + jwRecvCell(r)
       + `<td>${st}${rej ? `<div style="font-size:11px;color:var(--bad);font-weight:700;margin-top:2px">${nf(rej)} rejected</div>` : ''}`
       + `${r.receivingDate ? `<div class="muted" style="font-size:10.5px;margin-top:2px" title="Receiving date">${esc(r.receivingDate)}</div>` : ''}`
       + `${r.remarks ? `<div class="muted" style="font-size:10.5px;margin-top:2px;max-width:200px;white-space:normal;font-style:italic" title="Remarks">${esc(r.remarks)}</div>` : ''}</td>`
-      /* ACTIONS: change the row (or ask to), and the WhatsApp notices under it. */
-      + `<td style="white-space:nowrap"><div>${jwCorrOfRow(r.id) ? '<span class="pill pill-low" title="A change to this entry is waiting for approval">change asked</span>'
-        : ptCanEdit() ? (r.frozen ? '' : `<button class="ghost" data-bd-edit="${esc(r.id)}" style="padding:3px 10px;font-size:12px">Edit</button>`)
-        : jwCanAsk() ? `<button class="ghost" data-jw-ask="${esc(r.id)}" style="padding:3px 10px;font-size:12px">Ask to change</button>` : ''}</div>`
-      + `<div style="margin-top:4px">${waButtons(r)}</div></td>`
+      /* ACTIONS, on one line: Receive (while pieces are out), Edit or Ask to change, and only the
+       * WhatsApp notice that can be sent now. */
+      + `<td><div class="jw-acts">${r.frozen ? '' : `<button class="jw-btn jw-primary" data-bd-recv="${esc(r.id)}" title="Take in pieces that came back, and any rejects">Receive</button>`}`
+      + (jwCorrOfRow(r.id) ? '<span class="pill pill-low" title="A change to this entry is waiting for approval">change asked</span>'
+        : ptCanEdit() ? (r.frozen ? '' : `<button class="jw-btn" data-bd-edit="${esc(r.id)}">Edit</button>`)
+        : jwCanAsk() ? `<button class="jw-btn" data-jw-ask="${esc(r.id)}">Ask to change</button>` : '')
+      + jwWaButtons(r) + '</div></td>'
       /* WHO ENTERED IT, and whether anybody has changed it since. An edit moves the order balance,
        * the cutting cap, the weekly report and somebody’s pay at once, and until now left no mark
        * on this screen at all — 205 of these rows have been edited. */
@@ -11352,6 +11362,62 @@ async function bdSaveRow(next) {
   PT.base = (PT.base || []).map(r => (r.id === next.id ? Object.assign({ _key: next.id }, clean) : r));
   if (!SP_QUIET) renderPbase();
 }
+
+/** The Received cell: "12 / 39", and a bar — green for what came back, red for what was rejected. */
+function jwRecvCell(r) {
+  const iss = ptNum(r.issuePieces), rec = ptNum(r.receivedPieces), rej = ptNum(r.rejectionPieces);
+  const pct = v => (iss > 0 ? Math.max(0, Math.min(100, Math.round((v / iss) * 100))) : 0);
+  return `<td class="num"><div class="jw-rc"><b>${nf(rec)}</b><span> / ${nf(iss)}</span></div>`
+    + `<div class="jw-bar" title="${nf(rec)} received${rej ? ' · ' + nf(rej) + ' rejected' : ''} of ${nf(iss)} issued">`
+    + `<i style="width:${pct(rec)}%"></i><i class="rej" style="width:${pct(rej)}%"></i></div></td>`;
+}
+/** Only the WhatsApp notice that can go now — the issue one until something comes back, then the receipt one. */
+function jwWaButtons(r) {
+  const btn = kind => {
+    if (waWhyBlocked(r, kind)) return '';
+    const sent = waSent(r, kind);
+    return `<button class="jw-btn jw-wa" data-wa-row="${esc(r.id)}|${kind}" title="${sent ? 'Already sent — this sends it again' : 'Open WhatsApp with the message ready'}">`
+      + `${sent ? '↻' : '💬'} ${kind === 'issue' ? 'Issue msg' : 'Recv msg'}</button>`;
+  };
+  return btn('issue') + btn('receive');
+}
+
+/** The Receive form: pieces back now, and the rejects on the row — the same two rules the boxes had. */
+function jwRecvOpen(id) {
+  const row = (PT.base || []).find(r => r.id === id);
+  if (!row) return;
+  if (row.frozen) { $('pbMsg').className = 'err'; $('pbMsg').textContent = 'That row is already complete.'; return; }
+  const iss = ptNum(row.issuePieces), rec = ptNum(row.receivedPieces), rej = ptNum(row.rejectionPieces), pend = ptNum(row.pendingPieces);
+  ptOpenDialog({
+    title: 'Receive',
+    subtitle: `${obUC(row.sku)} · ${row.empName}`,
+    note: `${nf(iss)} issued · ${nf(rec)} received · ${nf(rej)} rejected · ${nf(pend)} still out`,
+    fields: [
+      { key: 'recv', label: 'Pieces received now (added)', type: 'number', min: 0, value: '' },
+      { key: 'rej', label: 'Rejected on this row (total)', type: 'number', min: 0, value: rej || '' },
+    ],
+    saveLabel: 'Save',
+    onSave: async v => {
+      const addRecv = String(v.recv || '').trim(), newRej = String(v.rej || '').trim();
+      if (!addRecv && (newRej === '' ? 0 : parseInt(newRej, 10)) === rej) return 'Type the pieces that came back, or change the rejects.';
+      let next = row;
+      if (addRecv) { const a = bdApplyRecv(next, addRecv); if (a.err) return a.err; next = a.row; }
+      if (newRej !== '' && parseInt(newRej, 10) !== ptNum(next.rejectionPieces)) {
+        if (next.frozen && !row.frozen && parseInt(newRej, 10) > ptNum(next.rejectionPieces)) return 'Received plus rejected would be more than was issued.';
+        const b = bdApplyRej(Object.assign({}, next, { frozen: false }), newRej); if (b.err) return b.err; next = b.row;
+      }
+      try { await bdSaveRow(next); } catch (e) { return 'Not saved: ' + (e.message || e); }
+      $('pbMsg').className = 'muted';
+      $('pbMsg').textContent = next.frozen ? `${obUC(row.sku)} · ${row.empName}: complete, nothing pending.`
+        : `${obUC(row.sku)} · ${row.empName}: ${nf(next.pendingPieces)} still pending.`;
+      return '';
+    },
+  });
+}
+$('pbTable').addEventListener('click', e => {
+  const b = e.target.closest('[data-bd-recv]');
+  if (b) jwRecvOpen(b.getAttribute('data-bd-recv'));
+});
 
 /* Written with innerHTML, so the handlers are delegated rather than inline — a module's functions
  * are not globals and an onclick attribute would find nothing. */
