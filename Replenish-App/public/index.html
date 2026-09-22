@@ -10408,9 +10408,7 @@ $('cwSave').onclick = async () => {
     $('cwOrd').value = '';
     renderCutPick();
     renderCutForm();
-    const took = fabCutCloth(entry);
-    cutFormMsg(`Saved — ${nf(pcs)} piece(s) of ${obUC(sku)} against ${orderNo}.`
-      + (took.metres ? ` ${nf(took.metres)} m of ${took.fabric} comes off RFD stock.` : took.running ? ' Cut from printed cloth — RFD stock is not touched.' : ''));
+    cutFormMsg(`Saved — ${nf(pcs)} piece(s) of ${obUC(sku)} against ${orderNo}.`);
   } catch (e) {
     cutFormMsg('Not saved: ' + (e.message || e), true);
   }
@@ -19758,16 +19756,16 @@ const FAB_SIGN = {
   /* WORKED OUT, NEVER TYPED (Ravi, 2026-09-22: "auto minus hona chahiye"). A cutting entry takes the
    * cloth its pieces need; an RFD requirement handed over in metres takes those metres. These rows are
    * built fresh from the cutting register and the RFD office every time — see fabAutoRows. */
-  RFD_CUT: -1, RFD_TO_PRINTER: -1,
+  RFD_TO_PRINTER: -1,
 };
 const FAB_LABEL = {
   OPENING: 'Opening', RECEIVE_WHITE: 'Receive white', RECEIVE_PRINTED: 'Receive from printer',
   RECEIVE_FROM_FABRICATOR: 'Receive from fabricator', SEND_TO_PRINTER: 'Send to printer',
-  ISSUE_TO_CUTTING: 'Issue to cutting', ISSUE_TO_STITCHERS: 'Issue to stitchers',
+  ISSUE_TO_CUTTING: 'RFD to cutting', ISSUE_TO_STITCHERS: 'Issue to stitchers',
   SEND_TO_FABRICATOR: 'Send to fabricator', CUT_WHITE: 'Cut white', ADJUST: 'Adjust',
   RECEIVE_GREIGE: 'Greige received', ISSUE_TO_RFD: 'Greige sent for RFD', RECEIVE_RFD: 'RFD received',
   OPENING_RFD: 'RFD opening stock', PURCHASE_RFD: 'RFD bought (received ready)',
-  RFD_CUT: 'Cut (from a cutting entry)', RFD_TO_PRINTER: 'Handed to a printer (RFD requirement)',
+  RFD_TO_PRINTER: 'Handed to a printer (RFD requirement)',
 };
 
 /* ---- what the cloth IS at each point ----
@@ -19778,7 +19776,7 @@ const FAB_STATES = ['GREIGE', 'RFD', 'PRINTED'];
 const FAB_STATE_LABEL = { GREIGE: 'Greige', RFD: 'RFD', PRINTED: 'Printed', WHITE: 'White' };
 /** The state a movement leaves the cloth in — a receipt of RFD makes RFD, whatever the row says. */
 const FAB_TXN_STATE = { RECEIVE_GREIGE: 'GREIGE', ISSUE_TO_RFD: 'GREIGE', RECEIVE_RFD: 'RFD', OPENING_RFD: 'RFD',
-  PURCHASE_RFD: 'RFD', RFD_CUT: 'RFD', RFD_TO_PRINTER: 'RFD' };
+  PURCHASE_RFD: 'RFD', RFD_TO_PRINTER: 'RFD' };
 const fabState = r => String((r && (FAB_TXN_STATE[r.txnType] || r.state)) || 'PRINTED').trim().toUpperCase();
 const fabSign = tt => (FAB_SIGN[tt] === undefined ? 0 : FAB_SIGN[tt]);
 /** An unknown transaction type moves nothing until somebody decides what it means. */
@@ -19805,36 +19803,34 @@ const fabQty = r => { const n = parseFloat(r && r.qty); return isFinite(n) ? n :
  * size ke tablecloth usme se hum nikalenge then uske according auto fabric deduct hona chahiye … jese
  * hi wo kisi vendor ko fabric req accept kare and usko handover kre to auto minus ho".
  *
- * Nobody types a second entry. Two things the floor ALREADY records take the cloth:
+ * TWO WAYS OUT, and nobody types either twice:
  *
- *   CUTTING — every cutting entry. The cloth is what was typed on it (Fabric used), else what its size
- *     needs: the same calculator the Master Database and the cutting form use (size + 2", on the roll
- *     that wastes least, or the one the printing rule names), times the pieces. The fabric is the one
- *     picked on the entry, else the calculator's.
- *     NOT a SKU whose printing rule says RUNNING: that one is cut from PRINTED cloth, and its RFD left
- *     the store when the metres were handed to the printer — counting it again would take it twice.
- *   THE RFD OFFICE — every hand-over in METRES ("Mark sent"). Pieces handed over were cut here, and
- *     their cloth went when they were cut.
+ *   TO CUTTING — the store's own "RFD to cutting" entry: fabric, size, pieces, and the metres they
+ *     consume (worked out from the size on that roll, and the figure can be typed over). Ravi, same
+ *     day: "not need to issued to cutting by hand, i need only RFD to Cutting — Fabric, Size, Pcs, Mtr
+ *     Cons." The cutting REGISTER (cut by SKU and order) does NOT take cloth as well: the store issues
+ *     the cloth, the table records what it made of it, and counting both would take it twice.
+ *   THE RFD OFFICE — every hand-over in METRES ("Mark sent") is worked out here, never typed. Pieces
+ *     handed over were cut from cloth already issued to cutting.
  *
  * FROM WHEN: only what happened after the RFD opening stock was entered — per fabric, and for a fabric
  * with no opening stock, after the first opening stock of any. Before that, the count on the floor
  * already had it out. With no opening stock at all, nothing is taken: there is no count to take from.
  *
- * These rows are built, never stored: edit or delete a cutting entry and the stock follows.
+ * These rows are built, never stored: change a hand-over and the stock follows.
  */
 const fabKey = v => String(v || '').trim().toUpperCase();
-let FAB_AUTO = { err: '', skipped: [], running: 0, start: '' };
+let FAB_AUTO = { err: '', start: '' };
 
 async function fabAutoLoad() {
   const errs = [];
-  if (!PTG.mdb) { try { await ptLoadGates(); } catch (e) { /* named below */ } }
-  if (!PT.cut) { try { PT.cut = ptList(await ptGet('pt_cuttingData')); } catch (e) { errs.push('the cutting register (' + (e.message || e) + ')'); } }
-  if (!PTG.mdb) errs.push('the master database');
+  /* The sizes offered in "RFD to cutting", and the widths the consumption is worked out on. */
+  if (!PTG.mdb) { try { await ptLoadGates(); } catch (e) { /* the dialog says so if it cannot work metres out */ } }
   if (typeof RFD !== 'undefined' && RFD.decisions === null) {
     try { RFD.decisions = (await ptGet('pt_rfdDecisions')) || {}; }
     catch (e) { errs.push('the RFD office (' + (e.message || e) + ')'); }
   }
-  FAB_AUTO.err = errs.length ? 'Could not read ' + errs.join(' or ') + ', so the stock below does not take off what it records.' : '';
+  FAB_AUTO.err = errs.length ? 'Could not read ' + errs.join(' or ') + ', so the stock below does not take off what was handed to printers.' : '';
 }
 
 /** When RFD started being counted: per fabric, and the first of all. ISO times, which sort as text. */
@@ -19851,52 +19847,25 @@ function fabRfdStart(ledger) {
   return { by, first };
 }
 
-/**
- * The cloth one cutting entry took: { fabric, metres, how } — or { why } when it cannot be worked out,
- * or { running: true } when the SKU is cut from printed cloth.
- */
-function fabCutCloth(c) {
-  const pcs = parseFloat(c && c.pieces) || 0;
-  if (!(pcs > 0)) return { why: 'no pieces on the entry' };
-  const m = mdbOf(c.sku);
-  if (m && ptPrintIssueAs(m) === 'running') return { running: true };
-  let fabric = String(c.fabricWidth || '').trim();
-  const typed = parseFloat(c.fabricUsed);
-  if (fabric && Number.isFinite(typed) && typed > 0) return { fabric, metres: Math.round(typed * 100) / 100, how: 'typed on the entry' };
-  if (!m) return { fabric, why: 'SKU ' + (c.sku || '?') + ' is not in the master database' };
-  const p = ptConsPlan(m);
-  if (p.why) return { fabric, why: p.why };
-  /* On the roll that was picked, if the calculator can lay it there; a metre of 92" is not a metre of 62". */
-  const on = fabric ? (p.options || []).find(o => fabKey(o.fabric) === fabKey(fabric)) : null;
-  fabric = fabric || p.fabric;
-  if (Number.isFinite(typed) && typed > 0) return { fabric, metres: Math.round(typed * 100) / 100, how: 'typed on the entry' };
-  const per = on ? on.metres : p.metres;
-  return { fabric, metres: Math.round(per * pcs * 100) / 100,
-    how: nf(pcs) + ' × ' + per + ' m (' + (m.size || '') + ')' + (fabric && !on && fabKey(fabric) !== fabKey(p.fabric) ? ' — worked out on ' + p.fabric : '') };
+/** The metres one piece of a size takes on one roll — size + 2", laid whichever way wastes least. */
+function fabCutPerPiece(fabric, size) {
+  const c = ptCutOf(size);
+  if (c.why) return { why: c.why };
+  const w = voFabWidthM(fabric) / 0.0254;
+  if (!(w > 0)) return { why: 'the width of ' + (fabric || 'this fabric') + ' is not known — set it under Masters → Fabric type' };
+  const on = ptLayOn(c, w, '');
+  if (!on) return { why: size + ' (+2") does not fit on ' + Math.round(w) + '" cloth' };
+  return { metres: Math.round(on.metres * 1000) / 1000, across: on.across, widthIn: Math.round(w) };
 }
 
-/** The ledger-shaped rows that the cutting register and the RFD office add. */
-function fabAutoRows(ledger, cuts, decisions) {
+/** The ledger-shaped rows the RFD office adds. */
+function fabAutoRows(ledger, decisions) {
   const st = fabRfdStart(ledger || FAB.rows || []);
-  const out = [], skipped = [];
-  let running = 0;
+  const out = [];
   FAB_AUTO.start = st.first;
-  if (!st.first) { FAB_AUTO.skipped = skipped; FAB_AUTO.running = 0; return out; }
+  if (!st.first) return out;
   const since = fab => st.by[fabKey(fab)] || st.first;
   const day = at => ptIsoDate(at) || String(at).slice(0, 10);
-  (cuts || PT.cut || []).forEach(c => {
-    if (!c) return;
-    const at = String(c.addedAt || '');
-    if (!at || at <= st.first) return;
-    const w = fabCutCloth(c);
-    if (w.running) { running++; return; }
-    const id = c.id || c._key || '';
-    if (w.why) { if (!w.fabric || at > since(w.fabric)) skipped.push({ id, at, sku: c.sku || '', orderNo: c.orderNo || '', pcs: c.pieces, why: w.why }); return; }
-    if (at <= since(w.fabric)) return;
-    out.push({ _id: 'auto_' + id, id: 'auto_' + id, auto: 'cut', txnType: 'RFD_CUT', date: day(at), createdAt: at,
-      fabricType: w.fabric, colour: '', state: 'RFD', qty: w.metres, orderNo: c.orderNo || '',
-      counterpartyName: 'Cutting', remarks: (c.sku || '') + ' · ' + w.how, createdBy: c.addedBy || '' });
-  });
   const dec = decisions || (typeof RFD !== 'undefined' ? RFD.decisions : null) || {};
   Object.keys(dec).forEach(rid => {
     const d = dec[rid];
@@ -19910,7 +19879,6 @@ function fabAutoRows(ledger, cuts, decisions) {
         remarks: 'RFD requirement handed over' + (x.note ? ' · ' + x.note : ''), createdBy: x.by || '' });
     });
   });
-  FAB_AUTO.skipped = skipped; FAB_AUTO.running = running;
   return out;
 }
 /** The ledger as the stock sees it: what was typed, and what the floor's own records took. */
@@ -19981,14 +19949,13 @@ function fabFlowRows(rows) {
     if (!k) return;
     let g = by.get(k);
     if (!g) { g = { fabricType: r.fabricType || '', greigeIn: 0, toRfd: 0, rfdIn: 0, rfdOpen: 0, rfdBuy: 0, rfdOut: 0, printedOut: 0,
-      cutAuto: 0, toPrinter: 0 }; by.set(k, g); }
+      toPrinter: 0 }; by.set(k, g); }
     const q = fabQty(r);
     if (r.txnType === 'RECEIVE_GREIGE') g.greigeIn += q;
     else if (r.txnType === 'ISSUE_TO_RFD') g.toRfd += q;
     else if (r.txnType === 'RECEIVE_RFD') g.rfdIn += q;
     else if (r.txnType === 'OPENING_RFD') g.rfdOpen += q;
     else if (r.txnType === 'PURCHASE_RFD') g.rfdBuy += q;
-    else if (r.txnType === 'RFD_CUT') g.cutAuto += q;
     else if (r.txnType === 'RFD_TO_PRINTER') g.toPrinter += q;
     else if (r.txnType === 'ISSUE_TO_CUTTING') {
       if (fabState(r) === 'RFD') g.rfdOut += q; else g.printedOut += q;
@@ -20000,7 +19967,7 @@ function fabFlowRows(rows) {
     /* Only counted once the cloth is back: cloth still at the processor has not lost anything yet. */
     loss: Math.max(0, Math.min(g.toRfd, g.toRfd - g.rfdIn) * (g.rfdIn > 0 ? 1 : 0)),
     lossPct: g.rfdIn > 0 && g.toRfd > 0 ? Math.round(((g.toRfd - g.rfdIn) / g.toRfd) * 1000) / 10 : null,
-    rfdLeft: g.rfdOpen + g.rfdBuy + g.rfdIn - g.rfdOut - g.cutAuto - g.toPrinter,
+    rfdLeft: g.rfdOpen + g.rfdBuy + g.rfdIn - g.rfdOut - g.toPrinter,
   })).sort((a, b) => (b.greigeIn + b.rfdIn + b.rfdOpen + b.rfdBuy) - (a.greigeIn + a.rfdIn + a.rfdOpen + a.rfdBuy));
 }
 
@@ -20019,14 +19986,14 @@ function renderFabFlow(all) {
       <div class="metric" title="Greige received from the mill and not yet sent for processing."><div class="v">${nf(Math.round(s('greigeLeft')))}</div><div class="l">Greige in stock</div></div>
       <div class="metric" title="Sent for processing and not yet back. Neither greige stock nor RFD stock."><div class="v"${s('withProcessor') ? ' style="color:#7f6000"' : ''}>${nf(Math.round(s('withProcessor')))}</div><div class="l">With the processor</div></div>
       <div class="metric" title="RFD received and not yet issued to cutting."><div class="v" style="color:#166534">${nf(Math.round(s('rfdLeft')))}</div><div class="l">RFD in stock</div></div>
-      <div class="metric" title="RFD cloth the cutting entries took, plus any issued to cutting by hand."><div class="v">${nf(Math.round(s('rfdOut') + s('cutAuto')))}</div><div class="l">Gone to cutting</div></div>
+      <div class="metric" title="RFD issued to the cutting table (RFD to cutting)."><div class="v">${nf(Math.round(s('rfdOut')))}</div><div class="l">Gone to cutting</div></div>
       <div class="metric" title="RFD handed to printers in metres from the RFD Requirements screen."><div class="v">${nf(Math.round(s('toPrinter')))}</div><div class="l">Given to printers</div></div>
       ${lossPct == null ? '' : `<div class="metric" title="Metres sent for processing, less metres that came back."><div class="v" style="color:var(--bad)">${lossPct}%</div><div class="l">Process loss</div></div>`}
     </div></div>`;
 
   const dash = v => (v ? nf(Math.round(v)) : '<span class="muted">—</span>');
   const head = '<thead><tr>' + ['Fabric', 'Greige in', 'Sent for RFD', 'Greige left', 'With processor',
-    'RFD back', 'Loss', 'RFD opening', 'RFD bought', 'Cut', 'To printers', 'Issued by hand', 'RFD left']
+    'RFD back', 'Loss', 'RFD opening', 'RFD bought', 'To cutting', 'To printers', 'RFD left']
     .map((h, i) => `<th${i === 0 ? ' class="frz"' : ' class="num"'}>${esc(h)}</th>`).join('') + '</tr></thead>';
   $('fbTable').innerHTML = head + '<tbody>' + flow.map(g => '<tr>'
     + `<td class="frz" style="text-align:left">${esc(g.fabricType)}</td>`
@@ -20038,18 +20005,13 @@ function renderFabFlow(all) {
     + `<td class="num">${g.lossPct == null ? '<span class="muted">—</span>' : `<span style="color:var(--bad)">${g.lossPct}%</span>`}</td>`
     + `<td class="num">${dash(g.rfdOpen)}</td>`
     + `<td class="num" style="color:#166534">${dash(g.rfdBuy)}</td>`
-    + `<td class="num">${g.cutAuto ? `<a href="#" data-fbauto="RFD_CUT" data-fbfab="${esc(g.fabricType)}">${nf(Math.round(g.cutAuto))}</a>` : '<span class="muted">—</span>'}</td>`
+    + `<td class="num">${g.rfdOut ? `<a href="#" data-fbauto="ISSUE_TO_CUTTING" data-fbfab="${esc(g.fabricType)}">${nf(Math.round(g.rfdOut))}</a>` : '<span class="muted">—</span>'}</td>`
     + `<td class="num">${g.toPrinter ? `<a href="#" data-fbauto="RFD_TO_PRINTER" data-fbfab="${esc(g.fabricType)}">${nf(Math.round(g.toPrinter))}</a>` : '<span class="muted">—</span>'}</td>`
-    + `<td class="num">${dash(g.rfdOut)}</td>`
     + `<td class="num" style="font-weight:700${g.rfdLeft < 0 ? ';color:var(--bad)' : ''}"${g.rfdLeft < 0 ? ' title="More went out than came in — is its opening stock entered under this name?"' : ''}>${nf(Math.round(g.rfdLeft))}</td></tr>`).join('') + '</tbody>';
-  const sk = FAB_AUTO.skipped || [];
-  $('fbMsg').className = FAB_AUTO.err || sk.length ? 'err' : 'muted';
+  $('fbMsg').className = FAB_AUTO.err ? 'err' : 'muted';
   $('fbMsg').innerHTML = esc(`${nf(flow.length)} fabric(s) · `)
-    + (FAB_AUTO.start ? 'Cut and To printers are taken off on their own, from the cutting entries and the RFD office — click a number to see the entries'
-      : 'Enter the RFD opening stock and cutting entries will start taking cloth off it')
-    + (FAB_AUTO.running ? esc(` · ${nf(FAB_AUTO.running)} cutting entr${FAB_AUTO.running === 1 ? 'y was' : 'ies were'} cut from printed cloth, whose RFD went when it was handed to the printer`) : '')
-    + (FAB_AUTO.err ? ' · ' + esc(FAB_AUTO.err) : '')
-    + (sk.length ? ` · <a href="#" id="fbSkipped">${nf(sk.length)} cutting entr${sk.length === 1 ? 'y' : 'ies'} could not be worked out, so ${sk.length === 1 ? 'it takes' : 'they take'} nothing — see which</a>` : '');
+    + 'To cutting is the store\'s "RFD to cutting" entry; To printers comes off on its own from the RFD office — click a number to see the entries'
+    + (FAB_AUTO.err ? ' · ' + esc(FAB_AUTO.err) : '');
 }
 
 /**
@@ -20167,7 +20129,7 @@ function renderFab() {
         + `${m > 0 ? '+' : ''}${nf(m)}</td>`
         + `<td style="text-align:left">${esc(r.counterpartyName || r.counterparty) || '<span class="muted">—</span>'}</td>`
         + `<td style="text-align:left">${esc(r.orderNo) || '<span class="muted">—</span>'}</td>`
-        + `<td style="text-align:left;white-space:normal;max-width:200px">${esc(r.remarks) || '<span class="muted">—</span>'}</td>`
+        + `<td style="text-align:left;white-space:normal;max-width:200px">${esc([r.size ? r.size + ' × ' + nf(r.pieces || 0) + ' pcs' : '', r.remarks].filter(Boolean).join(' · ')) || '<span class="muted">—</span>'}</td>`
         + `<td style="text-align:left">${esc(String(r.createdBy || '').split('@')[0])}</td></tr>`;
     }).join('') + '</tbody>';
   }
@@ -20183,21 +20145,11 @@ function renderFab() {
 ptDebounce('fbQ', renderFab);
 $('fbClear').onclick = () => { ['fbTxn', 'fbFab', 'fbCol', 'fbCp', 'fbQ', 'fbD1', 'fbD2'].forEach(id => $(id).value = ''); renderFab(); };
 $('fbGo').onclick = async () => {
-  FAB.rows = null; PT.cut = null;
+  FAB.rows = null;
   if (typeof RFD !== 'undefined') RFD.decisions = null;
   await ensureFab();
 };
-/* A number in Cut or To printers opens the entries behind it; the skipped list says why each is out. */
-$('fbMsg').addEventListener('click', e => {
-  if (!e.target.closest('#fbSkipped')) return;
-  e.preventDefault();
-  const sk = FAB_AUTO.skipped || [];
-  ptOpenDialog({ title: 'Cutting entries not taken off RFD', subtitle: nf(sk.length) + ' entr' + (sk.length === 1 ? 'y' : 'ies'),
-    note: 'Their cloth cannot be worked out. Fix the reason (usually the size or the fabric width in Masters) and they count on the next Refresh.',
-    html: '<div class="xlwrap"><table class="xl"><thead><tr><th>When</th><th>Order</th><th>SKU</th><th class="num">Pieces</th><th>Why</th></tr></thead><tbody>'
-      + sk.map(x => `<tr><td>${esc(ptIsoDate(x.at) || x.at)}</td><td>${esc(x.orderNo)}</td><td>${esc(x.sku)}</td><td class="num">${nf(x.pcs)}</td><td style="white-space:normal">${esc(x.why)}</td></tr>`).join('')
-      + '</tbody></table></div>', saveLabel: '' });
-});
+/* A number in To cutting or To printers opens the entries behind it. */
 $('fbTable').addEventListener('click', e => {
   const a = e.target.closest('[data-fbauto]');
   if (!a) return;
@@ -20214,7 +20166,7 @@ $('fbExport').onclick = () => {
   if ($('fbView').value === 'rfd') {
     const cols = [['Fabric', 'fabricType'], ['Greige in', 'greigeIn'], ['Sent for RFD', 'toRfd'], ['Greige left', 'greigeLeft'],
       ['With processor', 'withProcessor'], ['RFD back', 'rfdIn'], ['Loss %', 'lossPct'], ['RFD opening', 'rfdOpen'], ['RFD bought', 'rfdBuy'],
-      ['Cut', 'cutAuto'], ['To printers', 'toPrinter'], ['Issued by hand', 'rfdOut'], ['RFD left', 'rfdLeft']];
+      ['To cutting', 'rfdOut'], ['To printers', 'toPrinter'], ['RFD left', 'rfdLeft']];
     return ptDownload('rfd-stock', [cols.map(c => csvCell(c[0])).join(',')]
       .concat(rows.map(g => cols.map(c => csvCell(typeof g[c[1]] === 'number' ? Math.round(g[c[1]] * 100) / 100 : (g[c[1]] == null ? '' : g[c[1]]))).join(','))));
   }
@@ -20239,7 +20191,7 @@ const FAB_ENTRY_KINDS = [
   ['RECEIVE_RFD', 'RFD received back'],
   ['OPENING_RFD', 'RFD opening stock (already on the floor)'],
   ['PURCHASE_RFD', 'RFD received — bought ready from a vendor'],
-  ['ISSUE_TO_CUTTING', 'Issued to cutting by hand (a cutting entry already takes its own cloth)'],
+  ['ISSUE_TO_CUTTING', 'RFD to cutting'],
   ['ADJUST', 'Correction'],
 ];
 
@@ -20437,6 +20389,11 @@ async function fabSave(rec) {
     if (becomes) fabric = becomes;
   }
 
+  if (kind === 'ISSUE_TO_CUTTING' && !rec.legacy) {
+    if (!String(rec.size || '').trim()) return 'Which size is being cut?';
+    const pc = Number(rec.pieces);
+    if (!(pc > 0) || Math.round(pc) !== pc) return 'How many pieces? A whole number.';
+  }
   if (kind === 'ISSUE_TO_CUTTING') {
     const st = String(rec.state || 'RFD').toUpperCase();
     if (lot) {
@@ -20468,6 +20425,7 @@ async function fabSave(rec) {
     createdBy: ME.email, createdAt: now,
   };
   if (row.rate !== '' && qty) row.amount = Math.round(row.rate * qty * 100) / 100;
+  if (kind === 'ISSUE_TO_CUTTING' && String(rec.size || '').trim()) { row.size = String(rec.size).trim(); row.pieces = Number(rec.pieces) || 0; }
   try { await ptPut('pt_fabInvLedger/' + id, row); }
   catch (e) { return 'Not saved: ' + (e.message || e); }
   FAB.rows = (FAB.rows || []).concat([Object.assign({ _key: id }, row)]);
@@ -20501,20 +20459,27 @@ function fabEntryOpen(pre) {
       <label>Lot <input id="fbeLot" list="fbeLotList" placeholder="Mill's lot no, or leave blank on a delivery">
         <datalist id="fbeLotList"></datalist>
         <div id="fbeLotInfo" class="muted" style="font-size:11.5px;margin-top:3px"></div></label>
-      <label>Metres <input id="fbeQty" type="number" step="0.01" min="0" placeholder="0"></label>
-      <label>Who — mill, processor or department
+      <label data-fbe="cut">Size <input id="fbeSize" list="fbeSizeList" placeholder="e.g. 60x90">
+        <datalist id="fbeSizeList">${fabSizes().map(x => `<option value="${esc(x)}">`).join('')}</datalist></label>
+      <label data-fbe="cut">Pcs <input id="fbePcs" type="number" step="1" min="1" placeholder="0"></label>
+      <label><span id="fbeQtyLab">Metres</span> <input id="fbeQty" type="number" step="0.01" min="0" placeholder="0">
+        <div id="fbeCons" class="muted" style="font-size:11.5px;margin-top:3px"></div></label>
+      <label data-fbe="nocut">Who — mill, processor or department
         <input id="fbeCp" list="fbeCpList" placeholder="Name">
         <datalist id="fbeCpList">${vendors.map(v => `<option value="${esc(v.name || v.code)}">`).join('')}</datalist></label>
-      <label>Colour (RFD and printed only) <input id="fbeCol" placeholder="—"></label>
-      <label>Bill / challan <input id="fbeChallan" placeholder="Optional"></label>
-      <label>Against greige PO <input id="fbeOrd" placeholder="Optional — GPO-…"></label>
-      <label>Rate per metre <input id="fbeRate" type="number" step="0.01" min="0" placeholder="Optional"></label>
+      <label data-fbe="nocut">Colour (RFD and printed only) <input id="fbeCol" placeholder="—"></label>
+      <label data-fbe="nocut">Bill / challan <input id="fbeChallan" placeholder="Optional"></label>
+      <label data-fbe="nocut">Against greige PO <input id="fbeOrd" placeholder="Optional — GPO-…"></label>
+      <label data-fbe="nocut">Rate per metre <input id="fbeRate" type="number" step="0.01" min="0" placeholder="Optional"></label>
       <label style="grid-column:span 2">Remarks <input id="fbeRemarks" placeholder="Optional"></label>
     </div>`,
     saveLabel: 'Save entry',
     onSave: async () => {
-      const v = ptDlgValues();
-      const err = await fabSave({ txnType: v.fbeKind, date: v.fbeDate, fabricType: v.fbeFab, qty: v.fbeQty,
+      const v = {};
+      ['fbeKind', 'fbeDate', 'fbeFab', 'fbeQty', 'fbeLot', 'fbeCp', 'fbeCol', 'fbeChallan', 'fbeRate', 'fbeRemarks', 'fbeOrd', 'fbeSize', 'fbePcs']
+        .forEach(id => { const el = $(id); v[id] = el ? el.value : ''; });
+      const cutting = v.fbeKind === 'ISSUE_TO_CUTTING';
+      const err = await fabSave({ size: cutting ? v.fbeSize : '', pieces: cutting ? v.fbePcs : '', txnType: v.fbeKind, date: v.fbeDate, fabricType: v.fbeFab, qty: v.fbeQty,
         lot: v.fbeLot, counterpartyName: v.fbeCp, colour: v.fbeCol, challan: v.fbeChallan, rate: v.fbeRate,
         remarks: v.fbeRemarks, orderNo: v.fbeOrd, state: v.fbeKind === 'ISSUE_TO_CUTTING' ? 'RFD' : '' });
       if (!err && $('fbView').value === 'po') renderGpo();
@@ -20528,7 +20493,15 @@ function fabEntryOpen(pre) {
     const el = $(id);
     if (el) { el.addEventListener('input', fabEntryLots); el.addEventListener('change', fabEntryLots); }
   });
+  /* RFD TO CUTTING: the metres follow the fabric, size and pieces until somebody types their own. */
+  ['fbeFab', 'fbeKind', 'fbeSize', 'fbePcs'].forEach(id => {
+    const el = $(id);
+    if (el) { el.addEventListener('input', fabEntryCut); el.addEventListener('change', fabEntryCut); }
+  });
+  const q = $('fbeQty');
+  if (q) q.addEventListener('input', () => { q.dataset.typed = q.value ? '1' : ''; fabEntryCut(); });
   fabEntryLots();
+  fabEntryCut();
 }
 
 /**
@@ -20558,9 +20531,43 @@ function fabEntryLots() {
       : `${esc(fab)} already has ${nf(all.length)} lot(s). This delivery opens another.`;
     return;
   }
+  if (kind === 'ISSUE_TO_CUTTING' && fab && !lots.length) {
+    info.textContent = 'Optional — leave it blank and it comes off ' + fab + '\'s RFD stock.';
+    return;
+  }
   info.textContent = !fab ? 'Type the fabric first, and its lots will be offered here.'
     : (lots.length ? `${nf(lots.length)} lot(s) of ${esc(fab)} to choose from.`
       : `No lot of ${esc(fab)} has anything to ${kind === 'RECEIVE_RFD' ? 'come back' : 'give'}.`);
+}
+
+/** Every size in the master database, smallest first, for the RFD-to-cutting box. */
+function fabSizes() {
+  const seen = new Map();
+  (PTG.mdb || []).forEach(m => { const z = String((m && m.size) || '').trim(); if (z && !seen.has(z.toLowerCase())) seen.set(z.toLowerCase(), z); });
+  const n = z => (String(z).match(/\d+(?:\.\d+)?/g) || []).map(Number);
+  return [...seen.values()].sort((a, b) => { const x = n(a), y = n(b); return (x[0] || 0) - (y[0] || 0) || (x[1] || 0) - (y[1] || 0) || a.localeCompare(b); });
+}
+
+/** Show only what "RFD to cutting" asks for, and work its metres out. */
+function fabEntryCut() {
+  const cutting = (($('fbeKind') || {}).value || '') === 'ISSUE_TO_CUTTING';
+  document.querySelectorAll('[data-fbe]').forEach(el => el.classList.toggle('hide', el.getAttribute('data-fbe') === (cutting ? 'nocut' : 'cut')));
+  const lab = $('fbeQtyLab'); if (lab) lab.textContent = cutting ? 'Mtr consumption' : 'Metres';
+  const info = $('fbeCons'); if (!info) return;
+  if (!cutting) { info.textContent = ''; return; }
+  const fab = (($('fbeFab') || {}).value || '').trim(), size = (($('fbeSize') || {}).value || '').trim();
+  const pcs = parseInt(($('fbePcs') || {}).value, 10) || 0;
+  if (!fab || !size) { info.textContent = 'Pick the fabric and the size — the metres are worked out from them.'; return; }
+  const p = fabCutPerPiece(fab, size);
+  if (p.why) { info.className = 'err'; info.textContent = 'Cannot work it out: ' + p.why + '. Type the metres.'; return; }
+  info.className = 'muted';
+  const should = Math.round(p.metres * pcs * 100) / 100;
+  const q = $('fbeQty');
+  if (q && !q.dataset.typed) q.value = pcs > 0 ? should : '';
+  const typed = parseFloat(q && q.value);
+  info.textContent = `${p.metres} m a piece (${size} + 2", ${p.across} across ${p.widthIn}" cloth)`
+    + (pcs > 0 ? ` × ${nf(pcs)} = ${nf(should)} m` : '')
+    + (pcs > 0 && isFinite(typed) && Math.abs(typed - should) > 0.005 ? ` · typed ${nf(typed)} m` : '');
 }
 
 $('fbEntry').onclick = fabEntryOpen;
@@ -21018,14 +21025,14 @@ $('fbPoSet').onclick = async () => { await ensureGpo(); gpoSettingsOpen(); };
  *
  * The columns are the entry form's own fields, in the order somebody would write them down.
  */
-const FAB_CSV_COLS = ['Movement', 'Date', 'Fabric', 'Lot', 'Metres', 'Who', 'Colour', 'Bill', 'Rate', 'Remarks'];
+const FAB_CSV_COLS = ['Movement', 'Date', 'Fabric', 'Lot', 'Metres', 'Who', 'Colour', 'Bill', 'Rate', 'Remarks', 'Size', 'Pcs'];
 const FAB_CSV_KINDS = {
   'GREIGE RECEIVED': 'RECEIVE_GREIGE', 'RECEIVE_GREIGE': 'RECEIVE_GREIGE',
   'GREIGE SENT FOR RFD': 'ISSUE_TO_RFD', 'ISSUE_TO_RFD': 'ISSUE_TO_RFD', 'SENT FOR RFD': 'ISSUE_TO_RFD',
   'RFD RECEIVED': 'RECEIVE_RFD', 'RECEIVE_RFD': 'RECEIVE_RFD',
   'RFD OPENING STOCK': 'OPENING_RFD', 'RFD OPENING': 'OPENING_RFD', 'OPENING RFD': 'OPENING_RFD', 'OPENING_RFD': 'OPENING_RFD',
   'RFD BOUGHT': 'PURCHASE_RFD', 'RFD PURCHASED': 'PURCHASE_RFD', 'RFD RECEIVED FROM VENDOR': 'PURCHASE_RFD', 'PURCHASE_RFD': 'PURCHASE_RFD',
-  'ISSUED TO CUTTING': 'ISSUE_TO_CUTTING', 'ISSUE_TO_CUTTING': 'ISSUE_TO_CUTTING',
+  'RFD TO CUTTING': 'ISSUE_TO_CUTTING', 'ISSUED TO CUTTING': 'ISSUE_TO_CUTTING', 'ISSUE_TO_CUTTING': 'ISSUE_TO_CUTTING',
   'CORRECTION': 'ADJUST', 'ADJUST': 'ADJUST',
 };
 
@@ -21034,7 +21041,7 @@ $('fbTemplate').onclick = () => {
     ['Greige received', attToday(), 'CAMBRIC', '', '1000', 'Shree Mills', '', 'BILL-77', '55', 'Opening delivery'],
     ['Greige sent for RFD', attToday(), 'CAMBRIC', 'CAMBRIC-260912-01', '600', 'Shree Processors', '', '', '', ''],
     ['RFD received', attToday(), 'CAMBRIC', 'CAMBRIC-260912-01', '560', 'Shree Processors', '', '', '', ''],
-    ['Issued to cutting', attToday(), 'CAMBRIC', 'CAMBRIC-260912-01', '200', 'Cutting Dept', '', '', '', ''],
+    ['RFD to cutting', attToday(), 'SHEETING 62', '', '85.5', '', '', '', '', '', '60x90', '50'],
     ['RFD opening stock', attToday(), 'SHEETING 62', '', '850', '', '', '', '', 'On the floor when the app started'],
     ['RFD bought', attToday(), 'SHEETING 62', '', '500', 'Shree Textiles', '', 'BILL-91', '68', 'Bought ready, not processed from our greige'],
   ];
@@ -21067,7 +21074,7 @@ function fabCsvRows(text) {
     if (!isFinite(qty)) { bad.push(`Line ${line}: "${get('Metres')}" is not a number of metres.`); return; }
     rows.push({ line, txnType: kind, date: get('Date'), fabricType: get('Fabric'), lot: get('Lot'),
       qty, counterpartyName: get('Who'), colour: get('Colour'), challan: get('Bill'),
-      rate: get('Rate'), remarks: get('Remarks'),
+      rate: get('Rate'), remarks: get('Remarks'), size: get('Size'), pieces: get('Pcs'),
       state: kind === 'ISSUE_TO_CUTTING' ? 'RFD' : '' });
   });
   return { rows, bad };
@@ -26103,7 +26110,8 @@ function voMoveOpen(key) {
       }</div>` : ''}
     </div>`,
     saveLabel: 'Move it',
-    onSave: async () => voMoveTo(key, ptDlgValues().voMoveTo, ptDlgValues().voMoveWhy),
+    /* Its boxes are its own HTML, not declared fields, so they are read by id. */
+    onSave: async () => voMoveTo(key, ($('voMoveTo') || {}).value || '', ($('voMoveWhy') || {}).value || ''),
   });
 }
 
