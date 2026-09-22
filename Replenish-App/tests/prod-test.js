@@ -19025,6 +19025,17 @@ console.log('\n== New SKU: the recipe says what it will fill in ==');
   ok('a combination with no recipe says so, and points at Recipes', /No recipe for Pillow Cover · Piping Pillow Cover · 99x99/.test(A.mdbRecipeSays()));
   A.setPTG(wasPTG); ME.admin = wasAdmin; NET.on = wasNet; NET.store = {}; NET.calls.length = 0;
 }
+console.log('\n== the SKU template is an Excel sheet ==');
+{
+  /* "i need recipe in excel template" — 2026-09-22: the recipe sheet always was one; the SKU one was a CSV. */
+  const src = fs.readFileSync(APP, 'utf8');
+  ok('Template writes an .xlsx for the master database', src.includes('master-database-template-') && /master-database-template-\$\{dToday\(\)\}\.xlsx/.test(src));
+  ok('…with Yes/No and the cloth as dropdowns',
+     src.includes("cols: { yn: ['Cutting required', 'Zip', 'Ruffle', 'Piping dori', 'Filler fabric'].map(ix), fab: ['Fabric', 'Ruffle fabric'].map(ix) }"));
+  ok('…and its columns are the ones Import reads', src.includes('recipeXlsx([MDB_IMPORT_COLS, ex]'));
+  ok('the recipe sheet still writes its own', /recipes-\$\{dToday\(\)\}\.xlsx/.test(src));
+  ok('one writer serves both, told which columns are which', src.includes('function recipeXlsx(rows, opts)'));
+}
 console.log('\n== job work correction requests ==');
 {
   /* "same correction request jo job work me entry karne wala h uska bhi ho" — 2026-09-22. */

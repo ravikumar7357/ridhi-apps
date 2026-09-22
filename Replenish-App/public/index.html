@@ -13884,8 +13884,19 @@ $('ptmTemplate').onclick = () => {
   if (($('ptmView') || {}).value === 'skucode') return ptDownload('sku-base-codes-template', [SKC_COLS, ['Tablecloth', 'Square Tablecloth', '60x60', 'RTC-6060'],
     ['Home and Kitchen', 'Apron', 'Free', 'RKA-']].map(r => r.map(csvCell).join(',')));
   const ex = ['RPC123-1818', 'Ridhi', 'Pillow Cover', 'Piping Pillow Cover', 'Indigo Blue', '18X18',
-    'Sheeting 82', '0.28', '2', 'Yes', 'Yes', '1', '18', 'No', '', '', 'Yes', '2.1', 'No', '', '', ''];
-  ptDownload('master-database-template', [MDB_IMPORT_COLS.map(csvCell).join(','), ex.map(csvCell).join(',')]);
+    'Sheeting 82', 0.28, '2', 'Yes', 'Yes', 1, 18, 'No', '', '', 'Yes', 2.1, 'No', '', '', ''];
+  /* AN EXCEL SHEET, with Yes/No and the cloth as dropdowns, so a spelling nobody agreed to cannot be
+   * typed into it. Import reads .xlsx and .csv alike. */
+  const ix = h => MDB_IMPORT_COLS.indexOf(h);
+  const bytes = recipeXlsx([MDB_IMPORT_COLS, ex], { name: 'SKUs', freeze: 1,
+    cols: { yn: ['Cutting required', 'Zip', 'Ruffle', 'Piping dori', 'Filler fabric'].map(ix), fab: ['Fabric', 'Ruffle fabric'].map(ix) } });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+  a.download = `master-database-template-${dToday()}.xlsx`;
+  a.click(); URL.revokeObjectURL(a.href);
+  $('ptmMsg').className = 'muted';
+  $('ptmMsg').textContent = 'Template written. Fill a row per SKU and upload it with Import — the columns are the ones Import reads, '
+    + 'and a SKU already in the master is updated rather than added.';
 };
 
 const mdbYes = v => { const s = String(v == null ? '' : v).trim().toLowerCase(); return s === 'yes' || s === 'y' || s === 'true' || s === '1'; };
@@ -38089,7 +38100,10 @@ async function recipeUploadRun(plan) {
 }
 
 /** The recipe sheet as .xlsx, with yes/no as a dropdown on the four fields that take one. */
-function recipeXlsx(rows) {
+function recipeXlsx(rows, opts) {
+  /* Also writes the SKU template (Ravi, 2026-09-22: "i need recipe in excel template") — same dropdowns,
+   * different columns, so opts says which they are. Without opts it is the recipe sheet, as before. */
+  const O = opts || {};
   const last = Math.max(rows.length, 2) + 500;
   const cellX = (v, ref, head) => {
     if (typeof v === 'number' && isFinite(v)) return `<c r="${ref}"><v>${v}</v></c>`;
@@ -38099,23 +38113,23 @@ function recipeXlsx(rows) {
   /* THE FABRICS GO IN THE HIDDEN Lists SHEET beside yes/no, so the cloth columns are a dropdown in
    * Excel rather than a box to mistype into. */
   const fabs = cutFabrics();
-  const dvFor = (kind, name) => RECIPE_FIELDS.filter(f => f[2] === kind).map(f => {
-    const c = soColName(rows[0].indexOf(f[1]));
+  const colsOf = kind => (O.cols ? (O.cols[kind] || []) : RECIPE_FIELDS.filter(f => f[2] === kind).map(f => rows[0].indexOf(f[1]))).filter(i => i >= 0);
+  const dvFor = (kind, name) => colsOf(kind).map(ix => {
+    const c = soColName(ix);
     return `<dataValidation type="list" allowBlank="1" showErrorMessage="0" sqref="${c}2:${c}${last}"><formula1>${name}</formula1></dataValidation>`;
   }).join('');
   const dvs = dvFor('yn', 'YesNo') + (fabs.length ? dvFor('fab', 'Fabrics') : '');
-  const dvN = RECIPE_FIELDS.filter(f => f[2] === 'yn').length
-    + (fabs.length ? RECIPE_FIELDS.filter(f => f[2] === 'fab').length : 0);
+  const dvN = colsOf('yn').length + (fabs.length ? colsOf('fab').length : 0);
   const sheet1 = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
-    + '<sheetViews><sheetView workbookViewId="0"><pane xSplit="3" ySplit="1" topLeftCell="D2" activePane="bottomRight" state="frozen"/></sheetView></sheetViews>'
-    + '<cols>' + rows[0].map((h, i) => `<col min="${i + 1}" max="${i + 1}" width="${i < 3 ? 22 : (i < 4 ? 8 : (i < 4 + RECIPE_FIELDS.length ? 16 : 26))}" customWidth="1"/>`).join('') + '</cols>'
+    + `<sheetViews><sheetView workbookViewId="0"><pane xSplit="${O.freeze == null ? 3 : O.freeze}" ySplit="1" topLeftCell="${soColName(O.freeze == null ? 3 : O.freeze)}2" activePane="bottomRight" state="frozen"/></sheetView></sheetViews>`
+    + '<cols>' + rows[0].map((h, i) => `<col min="${i + 1}" max="${i + 1}" width="${O.cols ? Math.min(30, Math.max(11, String(h).length + 4)) : (i < 3 ? 22 : (i < 4 ? 8 : (i < 4 + RECIPE_FIELDS.length ? 16 : 26)))}" customWidth="1"/>`).join('') + '</cols>'
     + '<sheetData>' + rows.map((r, i) => `<row r="${i + 1}">${r.map((v, j) => cellX(v, soColName(j) + (i + 1), i === 0)).join('')}</row>`).join('') + '</sheetData>'
     + `<dataValidations count="${dvN}">${dvs}</dataValidations></worksheet>`;
   const sheet2 = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>'
     + `<row r="1">${cellX('yes', 'A1')}${cellX(fabs[0], 'B1')}</row><row r="2">${cellX('no', 'A2')}${cellX(fabs[1], 'B2')}</row>`
     + fabs.slice(2).map((f, i) => `<row r="${i + 3}">${cellX(f, 'B' + (i + 3))}</row>`).join('') + '</sheetData></worksheet>';
   const workbook = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
-    + '<sheets><sheet name="Recipes" sheetId="1" r:id="rId1"/><sheet name="Lists" sheetId="2" state="hidden" r:id="rId2"/></sheets>'
+    + `<sheets><sheet name="${soXml(O.name || 'Recipes')}" sheetId="1" r:id="rId1"/><sheet name="Lists" sheetId="2" state="hidden" r:id="rId2"/></sheets>`
     + '<definedNames><definedName name="YesNo">Lists!$A$1:$A$2</definedName>'
     + (fabs.length ? '<definedName name="Fabrics">Lists!$B$1:$B$' + fabs.length + '</definedName>' : '')
     + '</definedNames></workbook>';
