@@ -177,7 +177,8 @@
   .hide{display:none!important}   /* utility must win over later rules like .modal{display:flex} */
   /* Job Work rows (2026-09-22): one line of small, even buttons; a received figure with a bar. */
   .jw-acts{display:flex;gap:6px;align-items:center}
-  .jw-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:-4px 0 12px}
+  .topsub{font-size:13px;align-self:flex-end;margin:0 0 6px 4px}
+  .topacts{margin-left:auto;display:flex;gap:8px;align-items:center}
   .jw-new{background:#2563eb;border:0;color:#fff;font-weight:700;padding:10px 18px;border-radius:10px;font-size:14px}
   .jw-new:hover{background:#1d4ed8}
   .jw-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:12px}
@@ -769,8 +770,12 @@
         </svg>
       </button>
       <h2 class="pagehead" id="pageTitle"></h2>
+      <!-- A SCREEN'S OWN LINE AND MAIN BUTTON sit up here, in the bar beside its title, rather than on a
+           row of their own under it (Ravi, 2026-09-22, on Job Work: "here is very white space"). -->
+      <span id="topSub" class="muted topsub hide"></span>
+      <span id="topActs" class="topacts"><button id="bwToggle" class="jw-new hide">+ New Job Work</button></span>
       <!-- THE GUIDE, on every screen: opens /guide/ at the part about the screen you are on. -->
-      <button id="guideBtn" class="ghost" type="button" style="margin-left:auto;flex:0 0 auto" title="How this screen works, step by step — English and Hindi">Guide · गाइड</button>
+      <button id="guideBtn" class="ghost" type="button" style="flex:0 0 auto" title="How this screen works, step by step — English and Hindi">Guide · गाइड</button>
     </div>
 
     <!-- Signed in, no access -->
@@ -2049,10 +2054,6 @@
            this"): a line to say what the screen is and the one button that starts work; the figures as
            cards; one search and a Filters button; then the rows. Every id below is the one the code has
            always used, so filtering, the form, approvals and Export behave exactly as before. -->
-      <div class="jw-head">
-        <div class="muted">Track job work issued to karigars and manage receipts</div>
-        <button id="bwToggle" class="jw-new">+ New Job Work</button>
-      </div>
       <div class="card" id="bwCard" style="padding:0;border:0;box-shadow:none;background:transparent">
         <div id="bwBox" class="hide" style="margin-top:12px;border:1px solid var(--line);border-radius:10px;padding:12px">
           <!-- One-off item with no existing SKU: colour and size become free text, no Order ID is
@@ -3371,6 +3372,10 @@ function showTab(which) {
   const TITLES = { repl: 'Replenishment', article: 'Article Review', target: 'Revenue Target', follow: 'Ongoing Purchase Order', top: 'Top ASIN Status', india: 'India Stock', shopify: 'Shopify Stock', prod: 'In Production', pack: 'Packing List', plan: 'Action Plan',
     att: 'Attendance', pmdb: 'Master Database', mst: 'Masters', pbase: 'Job Work Register', pcut: 'Cutting Data', ppress: 'Press Inventory', qc: 'Quality Control', ord: 'Order Console', so: 'Sales Orders', vord: 'Vendor Orders', vreq: 'Vendor Order Requests', rfd: 'RFD Requirements', vend: 'Vendor Portal', vlog: 'History — what printers have sent', cx: 'Customer Orders', palloc: 'Printer Allocation', fgi: 'Finished Goods', fba: 'FBA Dispatch', fab: 'Fabric Inventory', acc: 'Accessories', rep: 'Reports', pa: 'Production Analysis', ka: 'Karigar Analysis', hr: 'Finance & HR', shop: 'Shopify Orders', adj: 'Adjustments' };
   $('pageTitle').textContent = TITLES[which] || 'Replenishment';
+  /* The line under a title, and the button that starts work, for the screens that have them. */
+  const SUBS = { pbase: 'Track job work issued to karigars and manage receipts' };
+  if ($('topSub')) { $('topSub').textContent = SUBS[which] || ''; $('topSub').classList.toggle('hide', !SUBS[which]); }
+  if ($('bwToggle')) $('bwToggle').classList.toggle('hide', which !== 'pbase');
   VEND_WAS_ON = (which === 'vend');
   TAB_NOW = which;
   navOpenFor(which);

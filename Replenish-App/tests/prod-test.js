@@ -54,7 +54,7 @@ const IDS = ('ptmBrand ptmArt ptmSub ptmCol ptmSz ptmCut ptmQ ptmBrandFs ptmDir 
   + 'odOrd odArt odSub odCol odSz odStatus odSrc odBrand odQ odD1 odD2 odClear odExport odGo odMsg odKpis odPickBar odTable spBulkBar spBulkOpen spBulkSheet spBulkUp spBulkFile spBulkNote spPrnSheet spPrnUp spPrnFile spBulkWhoList spBulkBox spBulkMsg spBulkDate spPickAll spHandAll spPickClear spAssignAll '
   + 'hrView hrEhStatus hrQ hrEmpAdd hrEmpNew hrRateAdd hrRateNew hrEhAdd hrEhNew hrExport hrGo hrMsg hrKpis hrTable '
   + 'hrMonth hrPeriod hrSlipEmp hrSlipPrint hrSlip hrAuthAll hrPayEmp hrFreeze hrPrAdd hrPrNew hrPrTmpl hrPrUp hrPrFile hrPrStatus hrPrOkAll '
-  + 'ptmSkcFile '
+  + 'ptmSkcFile topSub topActs '
   + 'fbeKind fbeDate fbeFab fbeQty fbeLot fbeCp fbeCol fbeChallan fbeRate fbeRemarks fbeOrd fbeSize fbePcs fbeCons fbeQtyLab fbeLotList fbeLotInfo fbeFabList fbeSizeList '
   + 'fbView fbState fbEntry fbTemplate fbImport fbFile fbTxn fbFab fbCol fbCp fbQ fbD1 fbD2 fbClear fbExport fbGo fbMsg fbKpis fbTable '
   + 'acView acCat acQ acDLab acD1 acD2 acClear acNewItem acNewTxn acTemplate acImport acFile acExport acGo acMsg acKpis acTable '
