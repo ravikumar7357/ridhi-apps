@@ -18907,7 +18907,7 @@ console.log('\n== the same colour given for printing twice ==');
   A.setVOF({ kind: 'running', lines: [{ lineId: 'u', kind: 'running', fabricType: 'Sheeting 62', color: 'Indigo Blue', printDirection: 'Vertical', meters: 10 }], service: 'Block print' });
   els.vof_vendor.value = v || ''; els.vof_filler.value = ''; els.vof_notes.value = '';
   CONFIRM = false;
-  const placed = await A.voPlace();
+  let placed; try { placed = await A.voPlace(); } catch (e) { placed = 'THREW ' + (e.message || e); }
   ok('placing an order with that colour asks first, and Cancel stops it', /Not placed — Indigo Blue is already given/.test(placed || ''), placed);
 
   CONFIRM = wasC; A.setVO(wasVO); A.setVOF(wasVOF);
