@@ -18728,6 +18728,32 @@ console.log('\n== no screen shows before sign-in has chosen one ==');
     /classList\.add\('gating'\);[\s\S]{0,400}querySelectorAll\('\[id\^="pane"\]'\)\.forEach\(el => el\.classList\.add\('hide'\)\)/.test(src));
   ok('signing out reloads the page, so the next person starts from nothing', /if \(!user\) \{ if \(AUTH_SEEN\) \{ location\.reload\(\);/.test(src));
 }
+console.log('\n== RFD opening stock ==');
+{
+  /* "i want to upload my current rfd opening stock" — cloth already on the floor, 2026-09-22. */
+  const wasFAB = A.FAB(), wasNet = NET.on, wasEdit = ME.prodEdit, wasAdmin = ME.admin;
+  ME.admin = true; ME.prodEdit = true; NET.on = true; NET.store = {}; NET.calls.length = 0;
+  A.setFAB({ rows: [], err: '', busy: false, at: '', shown: [] });
+  ok('RFD opening stock is saved', (await A.fabSave({ txnType: 'OPENING_RFD', fabricType: 'SHEETING 62', qty: 850, date: '2026-09-22' })) === '');
+  const r0 = A.FAB().rows.slice(-1)[0];
+  ok('…as RFD, in a lot of its own', r0 && r0.state === 'RFD' && /^SHEETING-62-260922-\d\d$/.test(r0.lot), JSON.stringify(r0 && [r0.state, r0.lot]));
+  ok('…and it is RFD stock', A.fabStockOf('SHEETING 62', 'RFD') === 850);
+  const fl = A.fabFlowRows(A.FAB().rows).find(g => g.fabricType === 'SHEETING 62');
+  ok('the flow shows it as opening, not as cloth back from a processor', fl && fl.rfdOpen === 850 && fl.rfdIn === 0 && fl.rfdLeft === 850 && fl.lossPct === null,
+    JSON.stringify(fl));
+  ok('…so it makes up no processing loss', fl && fl.loss === 0);
+  ok('the lot holds it, ready for cutting', (A.fabLot(r0.lot) || {}).rfdLeft === 850 && A.fabLotsOfFabric('SHEETING 62', 'rfd').some(g => g.lot === r0.lot));
+  ok('cutting is issued from it', (await A.fabSave({ txnType: 'ISSUE_TO_CUTTING', fabricType: 'SHEETING 62', lot: r0.lot, qty: 200, state: 'RFD' })) === ''
+    && (A.fabLot(r0.lot) || {}).rfdLeft === 650);
+  ok('…and never more than is left', /Only 650 m of RFD is left/.test(await A.fabSave({ txnType: 'ISSUE_TO_CUTTING', fabricType: 'SHEETING 62', lot: r0.lot, qty: 700, state: 'RFD' })));
+  ok('a lot number already used is refused', /already has entries/.test(await A.fabSave({ txnType: 'OPENING_RFD', fabricType: 'SHEETING 62', qty: 5, lot: r0.lot })));
+  ok('a typed lot number is kept', (await A.fabSave({ txnType: 'OPENING_RFD', fabricType: 'CAMBRIC', qty: 120, lot: 'old-7' })) === ''
+    && A.fabLot('OLD-7').rfdLeft === 120);
+  const csv = A.fabCsvRows('Movement,Date,Fabric,Lot,Metres,Who,Colour,Bill,Rate,Remarks\nRFD opening stock,2026-09-22,SHEETING 72,,300,,,,,floor');
+  ok('the sheet reads "RFD opening stock"', csv && csv.rows && csv.rows[0] && csv.rows[0].txnType === 'OPENING_RFD' && !(csv.bad || []).length,
+    JSON.stringify(csv).slice(0, 200));
+  A.setFAB(wasFAB); ME.prodEdit = wasEdit; ME.admin = wasAdmin; NET.on = wasNet; NET.store = {}; NET.calls.length = 0;
+}
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
 })();
