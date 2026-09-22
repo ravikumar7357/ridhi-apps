@@ -47,7 +47,10 @@
     text-transform:uppercase;color:var(--muted);margin-top:5px}
   .navgrp{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);padding:16px 12px 8px}
   .nav{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:transparent;color:var(--ink);
-    border:0;border-radius:10px;padding:10px 12px;font-weight:500;font-size:13.5px;cursor:pointer;margin-bottom:2px}
+    border:0;border-radius:8px;padding:7px 12px;font-weight:500;font-size:13.5px;cursor:pointer;margin-bottom:1px;
+    /* FLAT. The shared button style gives every button a shadow; in the sidebar that turned each item
+       into a card with a gap around it, and 35 cards made a column twice the height of the screen. */
+    box-shadow:none;min-height:0;line-height:1.35}
   .nav:hover{background:var(--hover)}
   /* WHERE YOU ARE, said by more than a shade of grey. The same weight of background carried both
      "you are here" and "your pointer is here", so on a still screen neither said anything. */
@@ -63,7 +66,7 @@
      way Seller Central does. Same pattern as the Sellora app, so the two feel like one tool. */
   .navgrp{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:transparent;
     border:0;cursor:pointer;font:inherit;font-size:11px;font-weight:700;text-transform:uppercase;
-    letter-spacing:.07em;color:var(--muted);padding:14px 12px 6px;border-radius:10px}
+    letter-spacing:.07em;color:var(--muted);padding:10px 12px 4px;border-radius:8px;box-shadow:none;min-height:0}
   .navgrp:hover{color:var(--ink)}
   .navgrp .caret{flex:none;font-size:10px;line-height:1;transition:transform .16s ease}
   .navgrp.open .caret{transform:rotate(90deg)}
@@ -550,6 +553,8 @@
       overflow-y:auto;box-shadow:0 10px 30px rgba(0,0,0,.22)}
     .shell:not(.navshut) #navScrim{display:block}
     .brand,.navgrp{display:none}
+    /* No headings on a phone, so no folding either: every screen stays in the drawer. */
+    .navsec:not(.hide){display:block}
     .nav{width:auto}
     .sidefoot{margin-top:0;padding-top:0;border-top:0;margin-left:auto;display:flex;gap:4px}
     .main{padding:14px}
@@ -3106,16 +3111,19 @@ function saveGroups() {
       NAV_GROUPS.filter(g => g.head.classList.contains('open')).map(g => g.key)));
   } catch (e) { /* private mode — the shape just is not remembered */ }
 }
+/* ONE GROUP OPEN AT A TIME (Ravi, 2026-09-22: "grid bahut lamba h — kam se kam show ho"). Opening a
+ * heading folds the others; the group of the screen you are on opens by itself. */
 NAV_GROUPS.forEach(g => g.head.onclick = () => {
-  setGroupOpen(g, !g.head.classList.contains('open'));
+  const opening = !g.head.classList.contains('open');
+  NAV_GROUPS.forEach(x => setGroupOpen(x, x === g ? opening : false));
   saveGroups();
 });
-// Last time's shape; a first visit opens everything so nothing looks missing.
-(() => {
-  let saved = null;
-  try { saved = JSON.parse(localStorage.getItem('replNavGroups2') || 'null'); } catch (e) {}
-  NAV_GROUPS.forEach(g => setGroupOpen(g, Array.isArray(saved) ? saved.includes(g.key) : true));
-})();
+/** Open the group that holds this screen, and fold the rest. */
+function navOpenFor(tab) {
+  const g = NAV_GROUPS.find(x => x.tabs.includes(tab));
+  if (g) NAV_GROUPS.forEach(x => setGroupOpen(x, x === g));
+}
+NAV_GROUPS.forEach(g => setGroupOpen(g, false));
 /** Drop a heading whose whole section this account cannot reach. */
 function syncNavGroups() {
   const may = t => !ME.tabs || !ME.tabs.length || ME.tabs.includes(t);
@@ -3274,6 +3282,7 @@ function showTab(which) {
   $('pageTitle').textContent = TITLES[which] || 'Replenishment';
   VEND_WAS_ON = (which === 'vend');
   TAB_NOW = which;
+  navOpenFor(which);
   // On a phone the drawer covers the page, so picking a tab has to close it — otherwise the thing
   // you just asked for is behind the menu you asked for it with.
   if (NARROW()) setNavOpen(false, false);
