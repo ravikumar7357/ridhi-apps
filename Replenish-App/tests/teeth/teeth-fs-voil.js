@@ -4,8 +4,7 @@ const good = fs.readFileSync(P, 'utf8'); const NL = String.fromCharCode(10);
 const breaks = [
   ['the size letters', "const FS_VOIL = [['92', 'Horizontal', 'T'], ['92', 'Vertical', 'Q'], ['112', 'Horizontal', 'K']];",
    "const FS_VOIL = [['92', 'Horizontal', 'T'], ['92', 'Vertical', 'T'], ['112', 'Horizontal', 'K']];"],
-  ['only Ridhi', "const FS_QUILT = { RBP: { voil: 'RQL', canvas: 'RBP-CANVAS-' } };",
-   "const FS_QUILT = { RBP: { voil: 'RQL', canvas: 'RBP-CANVAS-' }, CPC: { voil: 'CQL', canvas: 'CPC-CANVAS-' } };"],
+  ['CPC has its own prefix', "CPC: { voil: 'CPCQ', canvas: 'CPC-CANVAS-' } };", "CPC: { voil: 'CQL', canvas: 'CPC-CANVAS-' } };"],
   ['no invented voil', "    return q && v && sd ? q.voil + code + '-' + v[2] + '-' + sd : '';",
    "    return q ? q.voil + code + '-' + (v ? v[2] : 'X') + '-' + (sd || 'Front') : '';"],
   ['canvas SKU', "  if (/^CANVAS$/i.test(String(fabric).trim())) return q ? q.canvas + code : '';",

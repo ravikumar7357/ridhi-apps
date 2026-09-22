@@ -9847,10 +9847,10 @@ console.log('\n== the fabric a printer is sent ==');
 
   /* ELEVEN LINES PER COLOUR: cambric, and five widths each way up. */
   const lines = A.fsLinesFor('CPC', '004', 'Emerald Green');
-  ok('a colour makes eleven lines', lines.length === 11, String(lines.length));
+  ok('a colour makes eighteen lines: cambric, ten sheeting, six voil, one canvas', lines.length === 18, String(lines.length));
   ok('…one of them cambric', lines.filter(l => l.fabric === 'Cambric').length === 1);
   ok('…and each width both ways up',
-     A.FS_WIDTHS.every(w => lines.filter(l => l.width === w).length === 2), JSON.stringify(A.FS_WIDTHS));
+     A.FS_WIDTHS.every(w => lines.filter(l => l.width === w && /^Sheeting/.test(l.fabric)).length === 2), JSON.stringify(A.FS_WIDTHS));
 
   /* VOIL AND CANVAS, Ravi's reference for 327 Light Steel Blue, Ridhi, row for row (21 Sep 2026). */
   {
@@ -9864,8 +9864,10 @@ console.log('\n== the fabric a printer is sent ==');
     ok('…and Ridhi still has its cambric and sheeting', A.fsLinesFor('RBP', '327', 'x').length === 18);
     ok('a voil width or direction nobody makes has no SKU',
       A.fsSku('RBP', '327', 'Voil 112', 'Vertical', 'Front') === '' && A.fsSku('RBP', '327', 'Voil 92', 'Horizontal', '') === '');
-    ok('CPC has no voil or canvas until it has a prefix', A.fsSku('CPC', '004', 'Canvas', 'Vertical') === ''
-      && !A.fsLinesFor('CPC', '004', 'x').some(l => /Voil|Canvas/.test(l.fabric)));
+    /* CPC, from its own quilt SKUs (CPCQ005-Q / -T): the same three voil lines and canvas. */
+    ok('CPC voil and canvas follow its quilt SKUs', A.fsSku('CPC', '005', 'Voil 92', 'Horizontal', 'Front') === 'CPCQ005-T-Front'
+      && A.fsSku('CPC', '005', 'Voil 112', 'Horizontal', 'Back') === 'CPCQ005-K-Back' && A.fsSku('CPC', '005', 'Canvas', 'Vertical') === 'CPC-CANVAS-005'
+      && A.fsLinesFor('CPC', '005', 'x').length === 18, A.fsSku('CPC', '005', 'Voil 92', 'Horizontal', 'Front'));
     const v = A.fsOf('rql327-k-back');
     ok('a voil SKU typed in any case is found', v && v.fabric === 'Voil 112' && v.side === 'Back' && v.colour === 'Light Steel Blue',
       JSON.stringify(v && { f: v.fabric, s: v.side, c: v.colour }));
@@ -11334,7 +11336,7 @@ console.log('\n== running fabric ordered by fabric SKU ==');
   els.vof_col.options = opts(['', 'Emerald Green', 'Olive Green']);
   els.vof_pd.options = opts(['', 'Horizontal', 'Vertical']);
   const cat = A.voFabricCatalogue();
-  ok('the catalogue has the fabric SKUs for each colour code', cat.has('RBP004') && cat.has('RBPSF004-V-82') && cat.has('CPCSF004-H-112') && cat.size === 29 && cat.has('RQL004-T-FRONT'), [...cat.keys()].slice(0, 4).join(' '));
+  ok('the catalogue has the fabric SKUs for each colour code', cat.has('RBP004') && cat.has('RBPSF004-V-82') && cat.has('CPCSF004-H-112') && cat.size === 36 && cat.has('RQL004-T-FRONT') && cat.has('CPCQ004-Q-BACK'), [...cat.keys()].slice(0, 4).join(' '));
 
   /* Typing a SKU fills the line. */
   ['vof_fab', 'vof_col', 'vof_pd', 'vof_qty', 'vof_lnotes', 'vof_deliv', 'vof_pri'].forEach(id => { els[id].value = ''; });

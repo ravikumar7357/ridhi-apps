@@ -9452,7 +9452,8 @@ const FS_BRANDS = [
 const FS_WIDTHS = ['62', '72', '82', '92', '112'];
 const FS_DIRS = [['V', 'Vertical'], ['H', 'Horizontal']];
 /* Voil (quilt cloth) and canvas, by brand. Only the brands listed here have them. */
-const FS_QUILT = { RBP: { voil: 'RQL', canvas: 'RBP-CANVAS-' } };
+/* CPC follows its own quilt SKUs (CPCQ005-Q, CPCQ005-T) as Ridhi's fabric follows RQL (2026-09-22). */
+const FS_QUILT = { RBP: { voil: 'RQL', canvas: 'RBP-CANVAS-' }, CPC: { voil: 'CPCQ', canvas: 'CPC-CANVAS-' } };
 /* The only voil widths and directions made, and the quilt size letter each is cut for. */
 const FS_VOIL = [['92', 'Horizontal', 'T'], ['92', 'Vertical', 'Q'], ['112', 'Horizontal', 'K']];
 const FS_SIDES = ['Front', 'Back'];
@@ -9627,7 +9628,7 @@ function renderMdbFabric() {
 
   $('ptmMsg').className = muddled.length ? 'err' : 'muted';
   $('ptmMsg').textContent = `${nf(rows.length)} fabric SKU(s) · ${nf(codes.length)} colour code(s) · `
-    + 'cambric, five sheeting widths each way up, and for Ridhi voil (front and back) and canvas'
+    + 'cambric, five sheeting widths each way up, voil (front and back) and canvas'
     + (muddled.length ? ` · ${nf(muddled.length)} code(s) are used for more than one colour in the master database — the commonest is shown, marked "check"` : '');
   /* The pictures come from the products, so ask for the ones that are still unknown. */
   ptImgFill(rows.slice(0, 600).map(r => r.imageFrom).filter(Boolean), false, ptImgPatch);
