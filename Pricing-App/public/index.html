@@ -3078,7 +3078,8 @@ showTab(FIRST_TAB);                       // open on the first tab that's actual
 
 // Settings is a PANE of its own, not a card wedged above the content — so nothing ever shifts or
 // overlaps when it opens.
-let TAB_NOW = '';
+/* var, not let: showTab runs while the page is still being set up, before a let would exist. */
+var TAB_NOW = '';
 function showTab(which) {
   TAB_NOW = which;
   TABS.forEach(t => {
