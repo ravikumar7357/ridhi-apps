@@ -10446,7 +10446,9 @@ $('cwSave').onclick = async () => {
     $('cwOrd').value = '';
     renderCutPick();
     renderCutForm();
-    cutFormMsg(`Saved — ${nf(pcs)} piece(s) of ${obUC(sku)} against ${orderNo}.`);
+    const took = fabCutCloth(entry);
+    cutFormMsg(`Saved — ${nf(pcs)} piece(s) of ${obUC(sku)} against ${orderNo}.`
+      + (took.metres ? ` ${nf(took.metres)} m of ${took.fabric} comes off RFD stock.` : took.running ? ' Cut from printed cloth — RFD stock is not touched.' : ''));
   } catch (e) {
     cutFormMsg('Not saved: ' + (e.message || e), true);
   }
@@ -19788,6 +19790,13 @@ const FAB_SIGN = {
    * can be issued to cutting like any other, and it is kept apart from "RFD back" so it never looks
    * like cloth that came back from a processor — which would make up a processing loss. */
   OPENING_RFD: 1,
+  /* RFD BOUGHT READY — from a vendor, not processed from our own greige. A lot of its own, like the
+   * opening stock, and never counted as "back from the processor". */
+  PURCHASE_RFD: 1,
+  /* WORKED OUT, NEVER TYPED (Ravi, 2026-09-22: "auto minus hona chahiye"). A cutting entry takes the
+   * cloth its pieces need; an RFD requirement handed over in metres takes those metres. These rows are
+   * built fresh from the cutting register and the RFD office every time — see fabAutoRows. */
+  RFD_CUT: -1, RFD_TO_PRINTER: -1,
 };
 const FAB_LABEL = {
   OPENING: 'Opening', RECEIVE_WHITE: 'Receive white', RECEIVE_PRINTED: 'Receive from printer',
@@ -19795,7 +19804,8 @@ const FAB_LABEL = {
   ISSUE_TO_CUTTING: 'Issue to cutting', ISSUE_TO_STITCHERS: 'Issue to stitchers',
   SEND_TO_FABRICATOR: 'Send to fabricator', CUT_WHITE: 'Cut white', ADJUST: 'Adjust',
   RECEIVE_GREIGE: 'Greige received', ISSUE_TO_RFD: 'Greige sent for RFD', RECEIVE_RFD: 'RFD received',
-  OPENING_RFD: 'RFD opening stock',
+  OPENING_RFD: 'RFD opening stock', PURCHASE_RFD: 'RFD bought (received ready)',
+  RFD_CUT: 'Cut (from a cutting entry)', RFD_TO_PRINTER: 'Handed to a printer (RFD requirement)',
 };
 
 /* ---- what the cloth IS at each point ----
@@ -19805,7 +19815,8 @@ const FAB_LABEL = {
 const FAB_STATES = ['GREIGE', 'RFD', 'PRINTED'];
 const FAB_STATE_LABEL = { GREIGE: 'Greige', RFD: 'RFD', PRINTED: 'Printed', WHITE: 'White' };
 /** The state a movement leaves the cloth in — a receipt of RFD makes RFD, whatever the row says. */
-const FAB_TXN_STATE = { RECEIVE_GREIGE: 'GREIGE', ISSUE_TO_RFD: 'GREIGE', RECEIVE_RFD: 'RFD', OPENING_RFD: 'RFD' };
+const FAB_TXN_STATE = { RECEIVE_GREIGE: 'GREIGE', ISSUE_TO_RFD: 'GREIGE', RECEIVE_RFD: 'RFD', OPENING_RFD: 'RFD',
+  PURCHASE_RFD: 'RFD', RFD_CUT: 'RFD', RFD_TO_PRINTER: 'RFD' };
 const fabState = r => String((r && (FAB_TXN_STATE[r.txnType] || r.state)) || 'PRINTED').trim().toUpperCase();
 const fabSign = tt => (FAB_SIGN[tt] === undefined ? 0 : FAB_SIGN[tt]);
 /** An unknown transaction type moves nothing until somebody decides what it means. */
@@ -19818,12 +19829,130 @@ async function ensureFab() {
     FAB.busy = true; renderFab();
     try { FAB.rows = ptList(await ptGet('pt_fabInvLedger')); FAB.err = ''; }
     catch (e) { FAB.err = e.message || String(e); FAB.rows = FAB.rows || []; }
+    await fabAutoLoad();
     FAB.at = ptStamp(); FAB.busy = false;
   }
   renderFab();
 }
 
 const fabQty = r => { const n = parseFloat(r && r.qty); return isFinite(n) ? n : 0; };
+
+/* ================= RFD STOCK GOES DOWN ON ITS OWN =================
+ *
+ * Ravi, 2026-09-22, after loading the RFD opening stock: "ye rfd fabric kese auto minus hoga … konse
+ * size ke tablecloth usme se hum nikalenge then uske according auto fabric deduct hona chahiye … jese
+ * hi wo kisi vendor ko fabric req accept kare and usko handover kre to auto minus ho".
+ *
+ * Nobody types a second entry. Two things the floor ALREADY records take the cloth:
+ *
+ *   CUTTING — every cutting entry. The cloth is what was typed on it (Fabric used), else what its size
+ *     needs: the same calculator the Master Database and the cutting form use (size + 2", on the roll
+ *     that wastes least, or the one the printing rule names), times the pieces. The fabric is the one
+ *     picked on the entry, else the calculator's.
+ *     NOT a SKU whose printing rule says RUNNING: that one is cut from PRINTED cloth, and its RFD left
+ *     the store when the metres were handed to the printer — counting it again would take it twice.
+ *   THE RFD OFFICE — every hand-over in METRES ("Mark sent"). Pieces handed over were cut here, and
+ *     their cloth went when they were cut.
+ *
+ * FROM WHEN: only what happened after the RFD opening stock was entered — per fabric, and for a fabric
+ * with no opening stock, after the first opening stock of any. Before that, the count on the floor
+ * already had it out. With no opening stock at all, nothing is taken: there is no count to take from.
+ *
+ * These rows are built, never stored: edit or delete a cutting entry and the stock follows.
+ */
+const fabKey = v => String(v || '').trim().toUpperCase();
+let FAB_AUTO = { err: '', skipped: [], running: 0, start: '' };
+
+async function fabAutoLoad() {
+  const errs = [];
+  if (!PTG.mdb) { try { await ptLoadGates(); } catch (e) { /* named below */ } }
+  if (!PT.cut) { try { PT.cut = ptList(await ptGet('pt_cuttingData')); } catch (e) { errs.push('the cutting register (' + (e.message || e) + ')'); } }
+  if (!PTG.mdb) errs.push('the master database');
+  if (typeof RFD !== 'undefined' && RFD.decisions === null) {
+    try { RFD.decisions = (await ptGet('pt_rfdDecisions')) || {}; }
+    catch (e) { errs.push('the RFD office (' + (e.message || e) + ')'); }
+  }
+  FAB_AUTO.err = errs.length ? 'Could not read ' + errs.join(' or ') + ', so the stock below does not take off what it records.' : '';
+}
+
+/** When RFD started being counted: per fabric, and the first of all. ISO times, which sort as text. */
+function fabRfdStart(ledger) {
+  const by = {}; let first = '';
+  (ledger || []).forEach(r => {
+    if (!r || r.txnType !== 'OPENING_RFD') return;
+    const t = String(r.createdAt || '');
+    if (!t) return;
+    const k = fabKey(r.fabricType);
+    if (!by[k] || t < by[k]) by[k] = t;
+    if (!first || t < first) first = t;
+  });
+  return { by, first };
+}
+
+/**
+ * The cloth one cutting entry took: { fabric, metres, how } — or { why } when it cannot be worked out,
+ * or { running: true } when the SKU is cut from printed cloth.
+ */
+function fabCutCloth(c) {
+  const pcs = parseFloat(c && c.pieces) || 0;
+  if (!(pcs > 0)) return { why: 'no pieces on the entry' };
+  const m = mdbOf(c.sku);
+  if (m && ptPrintIssueAs(m) === 'running') return { running: true };
+  let fabric = String(c.fabricWidth || '').trim();
+  const typed = parseFloat(c.fabricUsed);
+  if (fabric && Number.isFinite(typed) && typed > 0) return { fabric, metres: Math.round(typed * 100) / 100, how: 'typed on the entry' };
+  if (!m) return { fabric, why: 'SKU ' + (c.sku || '?') + ' is not in the master database' };
+  const p = ptConsPlan(m);
+  if (p.why) return { fabric, why: p.why };
+  /* On the roll that was picked, if the calculator can lay it there; a metre of 92" is not a metre of 62". */
+  const on = fabric ? (p.options || []).find(o => fabKey(o.fabric) === fabKey(fabric)) : null;
+  fabric = fabric || p.fabric;
+  if (Number.isFinite(typed) && typed > 0) return { fabric, metres: Math.round(typed * 100) / 100, how: 'typed on the entry' };
+  const per = on ? on.metres : p.metres;
+  return { fabric, metres: Math.round(per * pcs * 100) / 100,
+    how: nf(pcs) + ' × ' + per + ' m (' + (m.size || '') + ')' + (fabric && !on && fabKey(fabric) !== fabKey(p.fabric) ? ' — worked out on ' + p.fabric : '') };
+}
+
+/** The ledger-shaped rows that the cutting register and the RFD office add. */
+function fabAutoRows(ledger, cuts, decisions) {
+  const st = fabRfdStart(ledger || FAB.rows || []);
+  const out = [], skipped = [];
+  let running = 0;
+  FAB_AUTO.start = st.first;
+  if (!st.first) { FAB_AUTO.skipped = skipped; FAB_AUTO.running = 0; return out; }
+  const since = fab => st.by[fabKey(fab)] || st.first;
+  const day = at => ptIsoDate(at) || String(at).slice(0, 10);
+  (cuts || PT.cut || []).forEach(c => {
+    if (!c) return;
+    const at = String(c.addedAt || '');
+    if (!at || at <= st.first) return;
+    const w = fabCutCloth(c);
+    if (w.running) { running++; return; }
+    const id = c.id || c._key || '';
+    if (w.why) { if (!w.fabric || at > since(w.fabric)) skipped.push({ id, at, sku: c.sku || '', orderNo: c.orderNo || '', pcs: c.pieces, why: w.why }); return; }
+    if (at <= since(w.fabric)) return;
+    out.push({ _id: 'auto_' + id, id: 'auto_' + id, auto: 'cut', txnType: 'RFD_CUT', date: day(at), createdAt: at,
+      fabricType: w.fabric, colour: '', state: 'RFD', qty: w.metres, orderNo: c.orderNo || '',
+      counterpartyName: 'Cutting', remarks: (c.sku || '') + ' · ' + w.how, createdBy: c.addedBy || '' });
+  });
+  const dec = decisions || (typeof RFD !== 'undefined' ? RFD.decisions : null) || {};
+  Object.keys(dec).forEach(rid => {
+    const d = dec[rid];
+    if (!d || d.unit === 'pcs' || !String(d.fabric || '').trim()) return;
+    rfdSends(d).forEach((x, i) => {
+      const at = String(x.at || ''), q = parseFloat(x.qty) || 0;
+      if (!(q > 0) || !at || at <= since(d.fabric)) return;
+      out.push({ _id: 'auto_' + rid + '_' + i, id: 'auto_' + rid + '_' + i, auto: 'printer', txnType: 'RFD_TO_PRINTER',
+        date: day(at), createdAt: at, fabricType: String(d.fabric).trim(), colour: '', state: 'RFD', qty: q,
+        orderNo: d.orderNo || '', counterpartyName: d.vendorName || d.vendorCode || '',
+        remarks: 'RFD requirement handed over' + (x.note ? ' · ' + x.note : ''), createdBy: x.by || '' });
+    });
+  });
+  FAB_AUTO.skipped = skipped; FAB_AUTO.running = running;
+  return out;
+}
+/** The ledger as the stock sees it: what was typed, and what the floor's own records took. */
+const fabAll = () => (FAB.rows || []).concat(fabAutoRows(FAB.rows || []));
 const fabMove = r => fabQty(r) * fabSign(r && r.txnType);
 
 /** Balance per fabric type + colour, out of the ledger. */
@@ -19889,12 +20018,16 @@ function fabFlowRows(rows) {
     const k = String(r.fabricType || '').trim().toUpperCase();
     if (!k) return;
     let g = by.get(k);
-    if (!g) { g = { fabricType: r.fabricType || '', greigeIn: 0, toRfd: 0, rfdIn: 0, rfdOpen: 0, rfdOut: 0, printedOut: 0 }; by.set(k, g); }
+    if (!g) { g = { fabricType: r.fabricType || '', greigeIn: 0, toRfd: 0, rfdIn: 0, rfdOpen: 0, rfdBuy: 0, rfdOut: 0, printedOut: 0,
+      cutAuto: 0, toPrinter: 0 }; by.set(k, g); }
     const q = fabQty(r);
     if (r.txnType === 'RECEIVE_GREIGE') g.greigeIn += q;
     else if (r.txnType === 'ISSUE_TO_RFD') g.toRfd += q;
     else if (r.txnType === 'RECEIVE_RFD') g.rfdIn += q;
     else if (r.txnType === 'OPENING_RFD') g.rfdOpen += q;
+    else if (r.txnType === 'PURCHASE_RFD') g.rfdBuy += q;
+    else if (r.txnType === 'RFD_CUT') g.cutAuto += q;
+    else if (r.txnType === 'RFD_TO_PRINTER') g.toPrinter += q;
     else if (r.txnType === 'ISSUE_TO_CUTTING') {
       if (fabState(r) === 'RFD') g.rfdOut += q; else g.printedOut += q;
     }
@@ -19905,8 +20038,8 @@ function fabFlowRows(rows) {
     /* Only counted once the cloth is back: cloth still at the processor has not lost anything yet. */
     loss: Math.max(0, Math.min(g.toRfd, g.toRfd - g.rfdIn) * (g.rfdIn > 0 ? 1 : 0)),
     lossPct: g.rfdIn > 0 && g.toRfd > 0 ? Math.round(((g.toRfd - g.rfdIn) / g.toRfd) * 1000) / 10 : null,
-    rfdLeft: g.rfdOpen + g.rfdIn - g.rfdOut,
-  })).sort((a, b) => (b.greigeIn + b.rfdIn + b.rfdOpen) - (a.greigeIn + a.rfdIn + a.rfdOpen));
+    rfdLeft: g.rfdOpen + g.rfdBuy + g.rfdIn - g.rfdOut - g.cutAuto - g.toPrinter,
+  })).sort((a, b) => (b.greigeIn + b.rfdIn + b.rfdOpen + b.rfdBuy) - (a.greigeIn + a.rfdIn + a.rfdOpen + a.rfdBuy));
 }
 
 function renderFabFlow(all) {
@@ -19924,12 +20057,14 @@ function renderFabFlow(all) {
       <div class="metric" title="Greige received from the mill and not yet sent for processing."><div class="v">${nf(Math.round(s('greigeLeft')))}</div><div class="l">Greige in stock</div></div>
       <div class="metric" title="Sent for processing and not yet back. Neither greige stock nor RFD stock."><div class="v"${s('withProcessor') ? ' style="color:#7f6000"' : ''}>${nf(Math.round(s('withProcessor')))}</div><div class="l">With the processor</div></div>
       <div class="metric" title="RFD received and not yet issued to cutting."><div class="v" style="color:#166534">${nf(Math.round(s('rfdLeft')))}</div><div class="l">RFD in stock</div></div>
-      <div class="metric" title="RFD cloth issued to the cutting table."><div class="v">${nf(Math.round(s('rfdOut')))}</div><div class="l">Gone to cutting</div></div>
+      <div class="metric" title="RFD cloth the cutting entries took, plus any issued to cutting by hand."><div class="v">${nf(Math.round(s('rfdOut') + s('cutAuto')))}</div><div class="l">Gone to cutting</div></div>
+      <div class="metric" title="RFD handed to printers in metres from the RFD Requirements screen."><div class="v">${nf(Math.round(s('toPrinter')))}</div><div class="l">Given to printers</div></div>
       ${lossPct == null ? '' : `<div class="metric" title="Metres sent for processing, less metres that came back."><div class="v" style="color:var(--bad)">${lossPct}%</div><div class="l">Process loss</div></div>`}
     </div></div>`;
 
+  const dash = v => (v ? nf(Math.round(v)) : '<span class="muted">—</span>');
   const head = '<thead><tr>' + ['Fabric', 'Greige in', 'Sent for RFD', 'Greige left', 'With processor',
-    'RFD back', 'Loss', 'RFD opening', 'RFD left', 'To cutting']
+    'RFD back', 'Loss', 'RFD opening', 'RFD bought', 'Cut', 'To printers', 'Issued by hand', 'RFD left']
     .map((h, i) => `<th${i === 0 ? ' class="frz"' : ' class="num"'}>${esc(h)}</th>`).join('') + '</tr></thead>';
   $('fbTable').innerHTML = head + '<tbody>' + flow.map(g => '<tr>'
     + `<td class="frz" style="text-align:left">${esc(g.fabricType)}</td>`
@@ -19939,11 +20074,20 @@ function renderFabFlow(all) {
     + `<td class="num"${g.withProcessor ? ' style="color:#7f6000;font-weight:700"' : ''}>${g.withProcessor ? nf(Math.round(g.withProcessor)) : '<span class="muted">—</span>'}</td>`
     + `<td class="num" style="color:#166534">${nf(Math.round(g.rfdIn))}</td>`
     + `<td class="num">${g.lossPct == null ? '<span class="muted">—</span>' : `<span style="color:var(--bad)">${g.lossPct}%</span>`}</td>`
-    + `<td class="num">${g.rfdOpen ? nf(Math.round(g.rfdOpen)) : '<span class="muted">—</span>'}</td>`
-    + `<td class="num" style="font-weight:700${g.rfdLeft < 0 ? ';color:var(--bad)' : ''}">${nf(Math.round(g.rfdLeft))}</td>`
-    + `<td class="num">${nf(Math.round(g.rfdOut))}</td></tr>`).join('') + '</tbody>';
-  $('fbMsg').className = 'muted';
-  $('fbMsg').textContent = `${nf(flow.length)} fabric(s) · greige in, out for processing, back as RFD, and on to the cutting table`;
+    + `<td class="num">${dash(g.rfdOpen)}</td>`
+    + `<td class="num" style="color:#166534">${dash(g.rfdBuy)}</td>`
+    + `<td class="num">${g.cutAuto ? `<a href="#" data-fbauto="RFD_CUT" data-fbfab="${esc(g.fabricType)}">${nf(Math.round(g.cutAuto))}</a>` : '<span class="muted">—</span>'}</td>`
+    + `<td class="num">${g.toPrinter ? `<a href="#" data-fbauto="RFD_TO_PRINTER" data-fbfab="${esc(g.fabricType)}">${nf(Math.round(g.toPrinter))}</a>` : '<span class="muted">—</span>'}</td>`
+    + `<td class="num">${dash(g.rfdOut)}</td>`
+    + `<td class="num" style="font-weight:700${g.rfdLeft < 0 ? ';color:var(--bad)' : ''}"${g.rfdLeft < 0 ? ' title="More went out than came in — is its opening stock entered under this name?"' : ''}>${nf(Math.round(g.rfdLeft))}</td></tr>`).join('') + '</tbody>';
+  const sk = FAB_AUTO.skipped || [];
+  $('fbMsg').className = FAB_AUTO.err || sk.length ? 'err' : 'muted';
+  $('fbMsg').innerHTML = esc(`${nf(flow.length)} fabric(s) · `)
+    + (FAB_AUTO.start ? 'Cut and To printers are taken off on their own, from the cutting entries and the RFD office — click a number to see the entries'
+      : 'Enter the RFD opening stock and cutting entries will start taking cloth off it')
+    + (FAB_AUTO.running ? esc(` · ${nf(FAB_AUTO.running)} cutting entr${FAB_AUTO.running === 1 ? 'y was' : 'ies were'} cut from printed cloth, whose RFD went when it was handed to the printer`) : '')
+    + (FAB_AUTO.err ? ' · ' + esc(FAB_AUTO.err) : '')
+    + (sk.length ? ` · <a href="#" id="fbSkipped">${nf(sk.length)} cutting entr${sk.length === 1 ? 'y' : 'ies'} could not be worked out, so ${sk.length === 1 ? 'it takes' : 'they take'} nothing — see which</a>` : '');
 }
 
 /**
@@ -19999,7 +20143,7 @@ function renderFab() {
   if ($('fbPoNew')) $('fbPoNew').classList.toggle('hide', !isPo || !ptCanEdit());
   if ($('fbPoSet')) $('fbPoSet').classList.toggle('hide', !isPo || !ME.admin);
   if (isPo) return renderGpo();
-  const all = FAB.rows || [];
+  const all = fabAll();
   if (!all.length) { $('fbMsg').className = 'muted'; $('fbMsg').textContent = ''; $('fbKpis').innerHTML = ''; ptEmpty('fbTable', 'The fabric ledger is empty.'); return; }
 
   const f = fabFilters();
@@ -20076,10 +20220,42 @@ function renderFab() {
 ['fbView', 'fbTxn', 'fbFab', 'fbCol', 'fbCp', 'fbD1', 'fbD2'].forEach(id => $(id).addEventListener('change', renderFab));
 ptDebounce('fbQ', renderFab);
 $('fbClear').onclick = () => { ['fbTxn', 'fbFab', 'fbCol', 'fbCp', 'fbQ', 'fbD1', 'fbD2'].forEach(id => $(id).value = ''); renderFab(); };
-$('fbGo').onclick = async () => { FAB.rows = null; await ensureFab(); };
+$('fbGo').onclick = async () => {
+  FAB.rows = null; PT.cut = null;
+  if (typeof RFD !== 'undefined') RFD.decisions = null;
+  await ensureFab();
+};
+/* A number in Cut or To printers opens the entries behind it; the skipped list says why each is out. */
+$('fbMsg').addEventListener('click', e => {
+  if (!e.target.closest('#fbSkipped')) return;
+  e.preventDefault();
+  const sk = FAB_AUTO.skipped || [];
+  ptOpenDialog({ title: 'Cutting entries not taken off RFD', subtitle: nf(sk.length) + ' entr' + (sk.length === 1 ? 'y' : 'ies'),
+    note: 'Their cloth cannot be worked out. Fix the reason (usually the size or the fabric width in Masters) and they count on the next Refresh.',
+    html: '<div class="xlwrap"><table class="xl"><thead><tr><th>When</th><th>Order</th><th>SKU</th><th class="num">Pieces</th><th>Why</th></tr></thead><tbody>'
+      + sk.map(x => `<tr><td>${esc(ptIsoDate(x.at) || x.at)}</td><td>${esc(x.orderNo)}</td><td>${esc(x.sku)}</td><td class="num">${nf(x.pcs)}</td><td style="white-space:normal">${esc(x.why)}</td></tr>`).join('')
+      + '</tbody></table></div>', saveLabel: '' });
+});
+$('fbTable').addEventListener('click', e => {
+  const a = e.target.closest('[data-fbauto]');
+  if (!a) return;
+  e.preventDefault();
+  $('fbView').value = 'ledger';
+  renderFab();
+  $('fbTxn').value = a.getAttribute('data-fbauto');
+  $('fbFab').value = a.getAttribute('data-fbfab');
+  renderFab();
+});
 $('fbExport').onclick = () => {
   const stock = $('fbView').value === 'stock';
   const rows = FAB.shown || []; if (!rows.length) return;
+  if ($('fbView').value === 'rfd') {
+    const cols = [['Fabric', 'fabricType'], ['Greige in', 'greigeIn'], ['Sent for RFD', 'toRfd'], ['Greige left', 'greigeLeft'],
+      ['With processor', 'withProcessor'], ['RFD back', 'rfdIn'], ['Loss %', 'lossPct'], ['RFD opening', 'rfdOpen'], ['RFD bought', 'rfdBuy'],
+      ['Cut', 'cutAuto'], ['To printers', 'toPrinter'], ['Issued by hand', 'rfdOut'], ['RFD left', 'rfdLeft']];
+    return ptDownload('rfd-stock', [cols.map(c => csvCell(c[0])).join(',')]
+      .concat(rows.map(g => cols.map(c => csvCell(typeof g[c[1]] === 'number' ? Math.round(g[c[1]] * 100) / 100 : (g[c[1]] == null ? '' : g[c[1]]))).join(','))));
+  }
   const head = stock ? ['Fabric', 'Colour', 'In', 'Out', 'Balance', 'Movements']
     : ['Date', 'Movement', 'Fabric', 'Colour', 'Qty', 'Effect', 'Counterparty', 'Order', 'Remarks', 'Entered by'];
   const body = stock
@@ -20100,7 +20276,8 @@ const FAB_ENTRY_KINDS = [
   ['ISSUE_TO_RFD', 'Greige sent for RFD processing'],
   ['RECEIVE_RFD', 'RFD received back'],
   ['OPENING_RFD', 'RFD opening stock (already on the floor)'],
-  ['ISSUE_TO_CUTTING', 'Issued to cutting'],
+  ['PURCHASE_RFD', 'RFD received — bought ready from a vendor'],
+  ['ISSUE_TO_CUTTING', 'Issued to cutting by hand (a cutting entry already takes its own cloth)'],
   ['ADJUST', 'Correction'],
 ];
 
@@ -20135,6 +20312,7 @@ function fabNextLot(fabric, day) {
 function fabLots(rows) {
   const by = new Map();
   (rows || FAB.rows || []).forEach(r => {
+    if (r && r.auto) return;          // cut or handed over: taken from the fabric, not from a named bale
     const lot = fabLotOf(r) || FAB_NO_LOT;
     let g = by.get(lot);
     if (!g) {
@@ -20155,7 +20333,8 @@ function fabLots(rows) {
       g.toRfd += q;
       g.processor = String(r.counterpartyName || r.counterparty || '').trim() || g.processor;
     } else if (r.txnType === 'RECEIVE_RFD') { g.rfdIn += q; g.rfdFabric = g.rfdFabric || String(r.fabricType || '').trim(); }
-    else if (r.txnType === 'OPENING_RFD') { g.rfdOpen += q; g.rfdFabric = g.rfdFabric || String(r.fabricType || '').trim(); g.date = g.date || r.date || ''; }
+    else if (r.txnType === 'OPENING_RFD' || r.txnType === 'PURCHASE_RFD') { g.rfdOpen += q; g.rfdFabric = g.rfdFabric || String(r.fabricType || '').trim(); g.date = g.date || r.date || '';
+      if (r.txnType === 'PURCHASE_RFD') { g.bill = g.bill || String(r.vendorChallan || '').trim(); g.mill = g.mill || String(r.counterpartyName || '').trim(); } }
     else if (r.txnType === 'ISSUE_TO_CUTTING') g.rfdOut += q;
   });
   return [...by.values()].map(g => Object.assign(g, {
@@ -20199,7 +20378,7 @@ const fabLotsWithRfd = () => fabLots().filter(g => g.rfdLeft > 1e-9);
 /** What is in stock of one fabric, in one state — the ceiling an issue is measured against. */
 function fabStockOf(fabricType, state) {
   const k = String(fabricType || '').trim().toUpperCase();
-  return (FAB.rows || []).reduce((a, r) => {
+  return fabAll().reduce((a, r) => {
     if (String(r.fabricType || '').trim().toUpperCase() !== k) return a;
     if (fabState(r) !== String(state).toUpperCase()) return a;
     return a + (fabKnown(r.txnType) ? fabMove(r) : 0);
@@ -20249,7 +20428,8 @@ async function fabSave(rec) {
       return `${poNo} is for ${names.join(', ')} — not ${fabric}.`;
   }
 
-  if (kind === 'OPENING_RFD') {
+  if (kind === 'PURCHASE_RFD' && !String(rec.counterpartyName || '').trim()) return 'Who was it bought from?';
+  if (kind === 'OPENING_RFD' || kind === 'PURCHASE_RFD') {
     /* OPENING STOCK OPENS A LOT OF ITS OWN, so cutting can be issued from it by lot like any other. */
     lot = lot || fabNextLot(fabric, rec.date);
     const already = fabLot(lot);
@@ -20406,6 +20586,10 @@ function fabEntryLots() {
       want === 'out' ? g.withProcessor : want === 'rfd' ? g.rfdLeft : g.greigeLeft))} m left</option>`).join('');
   const info = $('fbeLotInfo');
   if (!info) return;
+  if (kind === 'PURCHASE_RFD' || kind === 'OPENING_RFD') {
+    info.textContent = 'This opens a lot of its own. Leave it blank and one will be numbered.';
+    return;
+  }
   if (kind === 'RECEIVE_GREIGE') {
     const all = fabLotsOfFabric(fab, '');
     info.textContent = !fab ? 'A delivery opens a new lot. Leave this blank and one will be numbered.'
@@ -20878,6 +21062,7 @@ const FAB_CSV_KINDS = {
   'GREIGE SENT FOR RFD': 'ISSUE_TO_RFD', 'ISSUE_TO_RFD': 'ISSUE_TO_RFD', 'SENT FOR RFD': 'ISSUE_TO_RFD',
   'RFD RECEIVED': 'RECEIVE_RFD', 'RECEIVE_RFD': 'RECEIVE_RFD',
   'RFD OPENING STOCK': 'OPENING_RFD', 'RFD OPENING': 'OPENING_RFD', 'OPENING RFD': 'OPENING_RFD', 'OPENING_RFD': 'OPENING_RFD',
+  'RFD BOUGHT': 'PURCHASE_RFD', 'RFD PURCHASED': 'PURCHASE_RFD', 'RFD RECEIVED FROM VENDOR': 'PURCHASE_RFD', 'PURCHASE_RFD': 'PURCHASE_RFD',
   'ISSUED TO CUTTING': 'ISSUE_TO_CUTTING', 'ISSUE_TO_CUTTING': 'ISSUE_TO_CUTTING',
   'CORRECTION': 'ADJUST', 'ADJUST': 'ADJUST',
 };
@@ -20889,6 +21074,7 @@ $('fbTemplate').onclick = () => {
     ['RFD received', attToday(), 'CAMBRIC', 'CAMBRIC-260912-01', '560', 'Shree Processors', '', '', '', ''],
     ['Issued to cutting', attToday(), 'CAMBRIC', 'CAMBRIC-260912-01', '200', 'Cutting Dept', '', '', '', ''],
     ['RFD opening stock', attToday(), 'SHEETING 62', '', '850', '', '', '', '', 'On the floor when the app started'],
+    ['RFD bought', attToday(), 'SHEETING 62', '', '500', 'Shree Textiles', '', 'BILL-91', '68', 'Bought ready, not processed from our greige'],
   ];
   ptDownload('fabric-upload-template', rows.map(r => r.map(csvCell).join(',')));
 };
@@ -38129,6 +38315,8 @@ function ptConsPlan(m) {
       metres: Math.round(best.metres * panels * 1000) / 1000 },
     /* And the named fabric it could not lay at all. */
     namedUnfit: !!(named && !onNamed),
+    /* Every roll it can be laid on, so a cut on a fabric somebody picked is costed on that fabric. */
+    options: all.map(x => ({ fabric: x.fabric, metres: Math.round(x.metres * panels * 1000) / 1000 })),
     named,
   };
 }
