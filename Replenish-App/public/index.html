@@ -9065,10 +9065,12 @@ function renderPbase() {
   /* RAVI'S ORDER, IN FEWER COLUMNS (2026-09-22: "attractive, kuch bhi data kam na ho"). Neighbours that
    * describe one thing share a cell — the karigar and their type; the item's picture, SKU, subtype,
    * colour and size; the status and the day it came back. Nothing is dropped and nothing moves. */
+  /* 2026-09-22, second pass: the receipt boxes sit UNDER the Received figure they add to, and the
+   * WhatsApp buttons join Edit in one Actions cell. Export is untouched — it builds its own columns. */
   const head = '<thead><tr>' + ['Issue Date', 'Karigar', 'Item',
-    'Issued', 'Received', 'Receive', 'Status', 'Entered by', 'WhatsApp', 'Edit',
+    'Issued', 'Received', 'Status', 'Entered by', 'Actions',
     'Rejected', 'Pending', 'Remarks']
-    .map((h, i) => `<th${i === 0 ? ' class="frz"' : ([3, 4, 10, 11].indexOf(i) >= 0 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
+    .map((h, i) => `<th${i === 0 ? ' class="frz"' : ([3, 4, 8, 9].indexOf(i) >= 0 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
 
   const body = rows.slice(0, 600).map(r => {
     const pend = ptNum(r.pendingPieces), rej = ptNum(r.rejectionPieces);
@@ -9083,24 +9085,21 @@ function renderPbase() {
       + `<div style="min-width:0"><div style="font-family:ui-monospace,monospace;font-size:12.5px;font-weight:600">${esc(r.sku)}</div>`
       + `<div class="muted" style="font-size:11px;white-space:nowrap">${[r.articleSubtype, r.color, r.size].filter(Boolean).map(esc).join(' · ')}</div></div></div></td>`
       + `<td class="num">${nf(ptNum(r.issuePieces))}</td>`
-      + `<td class="num">${nf(ptNum(r.receivedPieces))}</td>`
-      /* THE BOX IS BESIDE THE FIGURE IT ADDS TO. The receipt is taken where the row is, not in a
-       * dialog: the floor reads down the register and types what came back. A frozen row has nothing
-       * left to take. */
-      + `<td>${r.frozen ? '<span class="muted">—</span>'
-        : `<input class="pt-recv-in" data-id="${esc(r.id)}" type="number" min="1" max="${pend}" placeholder="+recv" title="Pieces that came back — added to what is already received" style="width:74px">`
-          + ` <input class="pt-rej-in" data-id="${esc(r.id)}" type="number" min="0" placeholder="rej" title="Total rejected on this row" value="${rej || ''}" style="width:64px">`}</td>`
+      /* RECEIVED, AND UNDER IT THE BOXES THAT ADD TO IT. A frozen row has nothing left to take. */
+      + `<td class="num"><div style="font-weight:600">${nf(ptNum(r.receivedPieces))}</div>${r.frozen ? ''
+        : `<div style="display:flex;gap:4px;justify-content:center;margin-top:4px">`
+          + `<input class="pt-recv-in" data-id="${esc(r.id)}" type="number" min="1" max="${pend}" placeholder="+recv" title="Pieces that came back — added to what is already received" style="width:64px;height:28px;font-size:12px;padding:2px 6px">`
+          + `<input class="pt-rej-in" data-id="${esc(r.id)}" type="number" min="0" placeholder="rej" title="Total rejected on this row" value="${rej || ''}" style="width:52px;height:28px;font-size:12px;padding:2px 6px"></div>`}</td>`
       + `<td>${st}${r.receivingDate ? `<div class="muted" style="font-size:10.5px;margin-top:2px" title="Receiving date">${esc(r.receivingDate)}</div>` : ''}</td>`
       /* WHO ENTERED IT, and whether anybody has changed it since. An edit moves the order balance,
        * the cutting cap, the weekly report and somebody’s pay at once, and until now left no mark
        * on this screen at all — 205 of these rows have been edited. */
       + whoCell(r)
-      + waCell(r)
-      /* EDIT FOR THOSE WHO MAY, ASK FOR EVERYONE ELSE — and a row with a change waiting says so. */
-      + `<td>${jwCorrOfRow(r.id) ? '<span class="pill pill-low" title="A change to this entry is waiting for approval">change asked</span>'
-        : ptCanEdit() ? (r.frozen ? '<span class="muted">—</span>' : `<button class="ghost" data-bd-edit="${esc(r.id)}" style="padding:3px 10px;font-size:12px">Edit</button>`)
-        : jwCanAsk() ? `<button class="ghost" data-jw-ask="${esc(r.id)}" style="padding:3px 10px;font-size:12px">Ask to change</button>`
-        : '<span class="muted">—</span>'}</td>`
+      /* ACTIONS: change the row (or ask to), and the WhatsApp notices under it. */
+      + `<td style="white-space:nowrap"><div>${jwCorrOfRow(r.id) ? '<span class="pill pill-low" title="A change to this entry is waiting for approval">change asked</span>'
+        : ptCanEdit() ? (r.frozen ? '' : `<button class="ghost" data-bd-edit="${esc(r.id)}" style="padding:3px 10px;font-size:12px">Edit</button>`)
+        : jwCanAsk() ? `<button class="ghost" data-jw-ask="${esc(r.id)}" style="padding:3px 10px;font-size:12px">Ask to change</button>` : ''}</div>`
+      + `<div style="margin-top:4px">${waButtons(r)}</div></td>`
       /* THE EXCEPTIONS, AT THE END. Rejected and pending are what a few rows have; they were sitting
        * between the two figures that every row has. */
       + `<td class="num"${rej ? ' style="color:var(--bad);font-weight:700"' : ''}>${rej ? nf(rej) : '<span class="muted">—</span>'}</td>`
@@ -11169,7 +11168,20 @@ function waCell(r) {
       + ` title="${sent ? 'Already sent — this will send it again' : 'Open WhatsApp with the message ready'}">`
       + `${sent ? '↻' : '💬'} ${esc(label)}</button>`;
   };
-  return '<td style="white-space:nowrap">' + one('issue') + ' ' + one('receive') + '</td>';
+  return '<td style="white-space:nowrap">' + waButtons(r) + '</td>';
+}
+/** The two WhatsApp buttons on their own, for a cell that holds other actions too. */
+function waButtons(r) {
+  const one = kind => {
+    const why = waWhyBlocked(r, kind);
+    const sent = waSent(r, kind);
+    const label = (kind === 'issue' ? 'Issue' : 'Recv');
+    if (why) return `<span class="muted" title="${esc(why)}" style="font-size:11.5px;padding:3px 6px">${esc(label)}</span>`;
+    return `<button class="ghost" data-wa-row="${esc(r.id)}|${kind}" style="padding:3px 8px;font-size:11.5px"`
+      + ` title="${sent ? 'Already sent — this will send it again' : 'Open WhatsApp with the message ready'}">`
+      + `${sent ? '↻' : '💬'} ${esc(label)}</button>`;
+  };
+  return one('issue') + ' ' + one('receive');
 }
 
 /** Open WhatsApp for one row, then mark it — the tracker's waSend, rule for rule. */

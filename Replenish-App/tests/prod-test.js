@@ -10589,7 +10589,7 @@ console.log('\n== the register is in the order it is worked ==');
   /* 2026-09-22: the same sequence in fewer columns — Employee+Type, SKU+Image+Subtype+Color+Size and
    * Receiving Date+Status each share one cell. Nothing dropped, nothing moved. */
   const WANT = ['Issue Date', 'Karigar', 'Item',
-    'Issued', 'Received', 'Receive', 'Status', 'Entered by', 'WhatsApp', 'Edit',
+    'Issued', 'Received', 'Status', 'Entered by', 'Actions',
     'Rejected', 'Pending', 'Remarks'];
   const wasBase = A.PT().base;
   A.setPT(Object.assign(A.PT(), { base: [
@@ -10614,7 +10614,16 @@ console.log('\n== the register is in the order it is worked ==');
   /* The box you type a receipt into sits beside the figure it adds to — that is the whole point of
    * the move. */
   ok('the receive box is next to Received',
-     cells.indexOf('pt-recv-in') > cells.indexOf('>4<') && heads[5] === 'Receive');
+     cells.indexOf('pt-recv-in') > cells.indexOf('>4<') && heads[4] === 'Received');
+  /* THE EXPORT IS RAVI'S PIVOT SOURCE (2026-09-22: "export karu to data pahle jese hi chahiye"). The
+   * screen may merge columns; the file keeps every field in its own column, in this order. */
+  {
+    const src = fs.readFileSync(APP, 'utf8');
+    const m = src.match(/\$\('pbExport'\)\.onclick = \(\) => \{[\s\S]*?const lines = \[\[([^\]]*)\]/);
+    const cols = m ? m[1].split(',').map(x => x.trim().replace(/^'|'$/g, '')).filter(Boolean) : [];
+    ok('Export keeps one column per field, as before', cols.join('|') === ['Issue Date', 'Employee', 'Employment type', 'SKU', 'Article', 'Subtype',
+      'Color', 'Size', 'Issued', 'Received', 'Rejected', 'Pending', 'Receiving Date', 'Status', 'Remarks', 'Entered by'].join('|'), cols.join('|'));
+  }
   /* NOTHING DROPPED IN THE MERGE: every value the old columns showed is still in the rows. */
   {
     const shown = A.PT()._pbaseRows || [];
