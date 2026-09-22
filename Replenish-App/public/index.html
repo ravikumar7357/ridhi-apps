@@ -13549,12 +13549,30 @@ function mdbFields(r) {
   ];
 }
 
+/** What the recipe for the article, subtype and size in the form would fill in, said before saving. */
+function mdbRecipeSays() {
+  const v = k => { const el = $('ptf_' + k); return el ? String(el.value || '').trim() : ''; };
+  const m = { articleType: v('articleType'), subtype: v('subtype'), size: v('size') };
+  if (!m.articleType || !m.subtype || !m.size) return 'Pick the article, subtype and size — the recipe for them fills the rest in.';
+  const r = recipeOf(m);
+  const what = [m.articleType, m.subtype, m.size].join(' · ');
+  if (!r) return 'No recipe for ' + what + ' yet. Type the fields below, and Master database → Recipes can remember them for next time.';
+  /* Only the blanks are filled: what is typed here always wins. */
+  const fills = RECIPE_FIELDS.filter(([f]) => recSaid(r[f]) && !v(f === 'cuttingRequired' || f === 'isZip' || f === 'isRuffle' || f === 'isPiping' || f === 'fillerFabricRequired' ? '' : f))
+    .map(([f, label]) => label + ' ' + String(r[f]).trim());
+  return fills.length ? 'Recipe for ' + what + ' fills in: ' + fills.join(' · ') + '. Anything you type here is kept.'
+    : 'The recipe for ' + what + ' says nothing to fill in.';
+}
+
 function mdbAddNew() {
   if (!mdbCanEdit()) { $('ptmMsg').className = 'err'; $('ptmMsg').textContent = MDB_NO_EDIT; return; }
   ptOpenDialog({
     title: 'New SKU',
-    note: 'Chain length, ruffle metres and filling quantity are each required only when their Yes is picked — '
-      + 'a Yes with no number is what makes a SKU look complete and behave as if it were not.',
+    /* THE RECIPE, SAID BEFORE IT HAPPENS (Ravi, 2026-09-22: "new sku add krna h to ye auto kaise recipe se
+     * feed hoga"). The same three boxes that key a recipe are watched, and the line says what will be
+     * filled in — so nobody saves first to find out. */
+    note: 'Chain length, ruffle metres, piping dori metres and filling quantity are each required only when their '
+      + 'Yes is picked — a Yes with no number is what makes a SKU look complete and behave as if it were not.',
     fields: mdbFields(null),
     onSave: async v => {
       const err = mdbValidate(v, '');
@@ -13579,6 +13597,13 @@ function mdbAddNew() {
       return '';
     },
   });
+  /* The boxes exist only once the dialog is drawn, so the watching starts here. */
+  const show = () => ptDlgMsg(mdbRecipeSays());
+  ['articleType', 'subtype', 'size'].forEach(k => {
+    const el = $('ptf_' + k);
+    if (el) { el.addEventListener('change', show); el.addEventListener('input', show); }
+  });
+  show();
 }
 
 function mdbEdit(sku) {
