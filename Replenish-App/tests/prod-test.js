@@ -50,7 +50,7 @@ const IDS = ('ptmBrand ptmArt ptmSub ptmCol ptmSz ptmCut ptmQ ptmBrandFs ptmDir 
   + 'ptDlg ptDlgTitle ptDlgClose ptDlgWho ptDlgNote ptDlgBody ptDlgMsg ptDlgDelete ptDlgCancel ptDlgSave '
   + 'qcView qcQ qcD1 qcD2 qcClear qcExport qcGo qcMsg qcKpis qcTable qcCheckBox qcwToggle qcwBox qcwSrc qcwSku qcwType qcwBy qcwOrd qcwOrdList qcwChecked qcwAlt qcwRej qcwOk qcwRemarks tabAtt paneAtt attDay attToday attDept attType attState attQ attExport attGo attView attMonth attMsg attKpis attTable qcRetBox qcrToggle qcrBox qcrPick qcrBy qcrPcs qcrOk qcrRej qcrRemarks qcrSave qcrInfo qcrMsg qcwSave qcwInfo qcwMsg '
   + 'qcIssueBox qciToggle qciBox qciSku qciType qciEmp qciEmpList qciPcs qciRemarks qciSave qciInfo qciMsg '
-  + 'ptmView ptmConsApply ptmRecSeed ptmRecApply ptmNew ptmImgs ptmTemplate ptmImport ptmFile ptmRecFile ptmRename ptmImpMsg ptmImpBox ptmImpGo ptmImpCancel '
+  + 'ptmView ptmConsApply ptmRecSeed ptmRecApply ptmNew ptmImgs ptmTemplate ptmTplShort ptmImport ptmFile ptmRecFile ptmRename ptmImpMsg ptmImpBox ptmImpGo ptmImpCancel '
   + 'odOrd odArt odSub odCol odSz odStatus odSrc odBrand odQ odD1 odD2 odClear odExport odGo odMsg odKpis odPickBar odTable spBulkBar spBulkOpen spBulkSheet spBulkUp spBulkFile spBulkNote spPrnSheet spPrnUp spPrnFile spBulkWhoList spBulkBox spBulkMsg spBulkDate spPickAll spHandAll spPickClear spAssignAll '
   + 'hrView hrEhStatus hrQ hrEmpAdd hrEmpNew hrRateAdd hrRateNew hrEhAdd hrEhNew hrExport hrGo hrMsg hrKpis hrTable '
   + 'hrMonth hrPeriod hrSlipEmp hrSlipPrint hrSlip hrAuthAll hrPayEmp hrFreeze hrPrAdd hrPrNew hrPrTmpl hrPrUp hrPrFile hrPrStatus hrPrOkAll '

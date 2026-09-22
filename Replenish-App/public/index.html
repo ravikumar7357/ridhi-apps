@@ -2033,7 +2033,9 @@
           <button id="ptmNew">+ New SKU</button>
           <button id="ptmImgs" class="ghost" title="Ask Amazon again for the SKUs on screen. They are fetched automatically and remembered, so this is only for a picture that has changed.">Refresh pictures</button>
           <button id="ptmClear" class="ghost">Clear</button>
-          <button id="ptmTemplate" class="ghost" title="A CSV with the right header, and one example row.">Template</button>
+          <button id="ptmTemplate" class="ghost" title="Every column Import reads, as an Excel sheet with dropdowns.">Template</button>
+          <!-- THE SHORT ONE (Ravi, 2026-09-22): six columns, because the recipe fills the rest. -->
+          <button id="ptmTplShort" class="ghost" title="Six columns only — SKU, Brand, Article, Subtype, Colour, Size. The recipe for that article, subtype and size fills in the cloth, consumption, pack, zip, ruffle and piping.">Short template</button>
           <button id="ptmImport" class="ghost" title="Add or update SKUs in bulk. You are shown what the file would do before anything is written.">Import</button>
           <input id="ptmFile" type="file" accept=".csv,.xlsx,text/csv" style="display:none">
           <input id="ptmRecFile" type="file" accept=".xlsx,.csv,text/csv" style="display:none">
@@ -8943,11 +8945,11 @@ async function mdbConsApply() {
  */
 const PMDB_TOOLS = {
   master: ['ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut', 'ptmQ',
-    'ptmNew', 'ptmImgs', 'ptmClear', 'ptmTemplate', 'ptmImport', 'ptmRename', 'ptmExport', 'ptmGo'],
+    'ptmNew', 'ptmImgs', 'ptmClear', 'ptmTemplate', 'ptmTplShort', 'ptmImport', 'ptmRename', 'ptmExport', 'ptmGo'],
   /* A one-off item never amends the real catalogue, so Change SKU — which rewrites a code across
    * every register — is not offered from here. */
   custom: ['ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut', 'ptmQ',
-    'ptmNew', 'ptmImgs', 'ptmClear', 'ptmTemplate', 'ptmImport', 'ptmExport', 'ptmGo'],
+    'ptmNew', 'ptmImgs', 'ptmClear', 'ptmTemplate', 'ptmTplShort', 'ptmImport', 'ptmExport', 'ptmGo'],
   /* The printer's cloth is grouped by fabric and colour; article and size say nothing about it. */
   fabric: ['ptmBrandFs', 'ptmDir', 'ptmCol', 'ptmQ', 'ptmClear', 'ptmExport', 'ptmGo'],
   cons: ['ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut', 'ptmQ',
@@ -8963,7 +8965,7 @@ const PMDB_WRITES = ['ptmNew', 'ptmImport', 'ptmRename', 'ptmConsApply', 'ptmRec
 /* NAMED OUTRIGHT, not gathered from the lists above. Derived from them, a control dropped from
  * every view fell out of this set and so was never hidden — it stayed wherever the last view left
  * it, which is the very thing this function exists to stop. */
-const PMDB_ALL = ['ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut', 'ptmQ',
+const PMDB_ALL = ['ptmTplShort', 'ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut', 'ptmQ',
   'ptmBrandFs', 'ptmDir', 'ptmConsApply', 'ptmRecSeed', 'ptmRecApply', 'ptmNew', 'ptmImgs',
   'ptmClear', 'ptmTemplate', 'ptmImport', 'ptmRename', 'ptmExport', 'ptmGo'];
 
@@ -13674,6 +13676,21 @@ function mdbEdit(sku) {
     },
   });
 }
+
+/* SIX COLUMNS, and the recipe does the rest — the file for adding a colour's SKUs in bulk. */
+const MDB_SHORT_COLS = ['SKU', 'Brand', 'Article', 'Subtype', 'Color', 'Size'];
+$('ptmTplShort').onclick = () => {
+  const ex = [['RPC377-1818', 'Ridhi', 'Pillow Cover', 'Piping Flap Pillow Cover', 'Sage Green', '18x18'],
+    ['RTC377-6060', 'Ridhi', 'Tablecloth', 'Square Tablecloth', 'Sage Green', '60x60']];
+  const bytes = recipeXlsx([MDB_SHORT_COLS].concat(ex), { name: 'New SKUs', freeze: 1, cols: {} });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+  a.download = `new-sku-short-template-${dToday()}.xlsx`;
+  a.click(); URL.revokeObjectURL(a.href);
+  $('ptmMsg').className = 'muted';
+  $('ptmMsg').textContent = 'Short template written — six columns. Everything else comes from the recipe for that article, '
+    + 'subtype and size when you Import it. Updating SKUs already here? Keep only the columns you want changed.';
+};
 
 $('ptmNew').onclick = async () => {
   if (!PTG.mdb) { $('ptmMsg').textContent = 'Reading the master database…'; await ptLoadGates(); }
