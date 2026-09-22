@@ -41,7 +41,7 @@ const IDS = ('ptmBrand ptmArt ptmSub ptmCol ptmSz ptmCut ptmQ ptmBrandFs ptmDir 
   + 'pcArt pcSub pcWho pcCol pcSz pcOrd pcQ pcD1 pcD2 pcClear pcExport pcGo pcMsg pcKpis pcTable '
   + ''
   + 'tabPa tabKa panePa paneKa paWk paFabWeeks paTarget paBasis paGo paMsg paBody kaMetric kaGroup kaWeeks kaBands kaLevelsBtn kaDept qcwMode qcwAt qcwSub qcwCol qcwSz qcwSkuList kaQ kaExport kaGo kaMsg kaDetail kaTable '
-  + 'cwToggle cwBox cwAt cwSub cwCol cwSz cwSkuNote cwSku cwSkuList cwOrd cwPcs cwFabric cwUsed cwWaste cwFab cwDate cwRemarks cwSave cwWho cwLeft cwMsg '
+  + 'cwToggle cwBox cwAt cwSub cwCol cwSz cwSkuNote cwSku cwSkuList cwOrd cwPcs cwFabric cwUsed cwWaste cwWasteW cwFab cwDate cwRemarks cwSave cwWho cwLeft cwMsg '
   + 'bwToggle bwBox bwType bwEmp bwEmpList bwSku bwSkuList2 bwOrd bwPcs bwDate bwRemarks bwSave bwWho bwLeft bwMsg '
   + 'bwMat bwZip bwZipWrap bwZipName bwRuf bwRufWrap bwRufFab bwMatNote bwCustom bwOrdWrap bwAt bwSub bwCol bwColTxt bwSz bwSzTxt bwSkuNote bwClear '
   + 'bdModal bdmClose bdmWho bdmFrozen bdmName bdmType bdmIssue bdmRecv bdmRej bdmRemarks bdmAdminSku bdmSku bdmDatesRead bdmDatesTxt bdmAdminDates bdmIssueDate bdmRecvDate bdmMsg bdmDelete bdmAsk pbApv bdmCancel bdmSave '
@@ -19063,6 +19063,29 @@ console.log('\n== Import: a column the file does not have changes nothing ==');
   const src = fs.readFileSync(APP, 'utf8');
   ok('…and the import says so before writing', /a column your file does not have is left exactly as it is/.test(src)
      && /new SKUs take fabric, consumption, pack, zip, ruffle and piping from the recipe/.test(src));
+}
+console.log('\n== Cutting: how wide the leftover is ==');
+{
+  /* "jo waste fabric bach raha h uska width kya h wo bhi add karo" — 2026-09-22. */
+  els.cwUsed.value = '12.5'; els.cwWaste.value = '1.5'; els.cwWasteW.value = '22';
+  const f = A.cutFabFields();
+  ok('the width is kept with the metres', f.fabricUsed === 12.5 && f.fabricWaste === 1.5 && f.fabricWasteWidth === 22, JSON.stringify(f));
+  els.cwWasteW.value = '';
+  ok('…and a box nobody filled writes no field at all — blank is not nought',
+     !('fabricWasteWidth' in A.cutFabFields()) && 'fabricWaste' in A.cutFabFields());
+  els.cwUsed.value = ''; els.cwWaste.value = '';
+  const wasCut = A.PT().cut;
+  A.setPT(Object.assign(A.PT(), { cut: [{ id: 'cw1', _key: 'cw1', sku: 'RX-1', cutDate: '22/09/2026, 10:00', pieces: 10, fabricWidth: 'Sheeting 62',
+    fabricUsed: 12.5, fabricWaste: 1.5, fabricWasteWidth: 22, orderNo: 'SO-1', addedBy: 'a@x' }] }));
+  A.renderPcut();
+  const html = els.pcTable.innerHTML;
+  const heads = [...html.matchAll(/<th(?:\s[^>]*)?>(.*?)<\/th>/g)].map(m => m[1]);
+  ok('the table has a Waste width column, after Waste (m)', heads[12] === 'Waste width (in)' && heads[11] === 'Waste (m)', heads.join(' | '));
+  ok('…and the row shows it in inches', /<td class="num">22"<\/td>/.test(html));
+  const src = fs.readFileSync(APP, 'utf8');
+  ok('the export carries it too', src.includes("'Fabric used (m)', 'Waste (m)', 'Waste width (in)', 'Waste %', 'Remarks', 'Entered by'"));
+  ok('an entry can be corrected with it', src.includes("{ key: 'fabricWasteWidth', label: 'Waste width (in)'"));
+  A.setPT(Object.assign(A.PT(), { cut: wasCut }));
 }
 console.log('\n== job work correction requests ==');
 {

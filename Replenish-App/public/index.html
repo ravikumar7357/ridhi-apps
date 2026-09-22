@@ -2191,6 +2191,10 @@
                    title="Metres taken off the roll for this cut. Worked out from the size — type over it with what was really used.">
             <input id="cwWaste" type="number" min="0" step="0.01" placeholder="Waste (m)" style="flex:0 0 120px"
                    title="Metres that came off the table as waste — the end of a roll, a mis-cut, the strip left over.">
+            <!-- HOW WIDE THE LEFTOVER IS (Ravi, 2026-09-22): a 2 m strip 40" wide can be cut into
+                 something; the same 2 m at 4" is rag. The metres alone cannot tell them apart. -->
+            <input id="cwWasteW" type="number" min="0" step="0.25" placeholder="Waste width (in)" style="flex:0 0 150px"
+                   title="How wide the leftover piece is, in inches. Leave it blank if nobody measured.">
             <input id="cwDate" type="date" style="flex:0 0 160px" title="Cutting date">
             <input id="cwRemarks" placeholder="Remarks (optional)" style="flex:1 1 160px;min-width:0">
             <button id="cwSave" style="flex:0 0 120px">Save entry</button>
@@ -9769,8 +9773,8 @@ function renderPcut() {
       })()}
     </div></div>`;
 
-  const head = '<thead><tr>' + ['Cut Date', 'Order No', 'SKU', 'Image', 'Article', 'Subtype', 'Color', 'Size', 'Fabric', 'Pieces', 'Fabric used (m)', 'Waste (m)', 'Waste %', 'Remarks', 'Entered by', 'Edit']
-    .map((h, i) => `<th${i === 0 ? ' class="frz"' : ([9, 10, 11, 12].indexOf(i) >= 0 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
+  const head = '<thead><tr>' + ['Cut Date', 'Order No', 'SKU', 'Image', 'Article', 'Subtype', 'Color', 'Size', 'Fabric', 'Pieces', 'Fabric used (m)', 'Waste (m)', 'Waste width (in)', 'Waste %', 'Remarks', 'Entered by', 'Edit']
+    .map((h, i) => `<th${i === 0 ? ' class="frz"' : ([9, 10, 11, 12, 13].indexOf(i) >= 0 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
   const body = rows.map(r => '<tr>'
     + `<td class="frz" style="text-align:left">${esc(r.cutDate)}</td>`
     + `<td style="text-align:left">${esc(r.orderNo) || '<span class="muted">—</span>'}</td>`
@@ -9782,6 +9786,8 @@ function renderPcut() {
      * would add up identically and mean opposite things. */
     + (u => `<td class="num">${u > 0 ? nf(u) : '<span class="muted">—</span>'}</td>`)(ptNum(r.fabricUsed))
     + (w => `<td class="num">${w > 0 ? nf(w) : '<span class="muted">—</span>'}</td>`)(ptNum(r.fabricWaste))
+    /* HOW WIDE what is left is: wide enough to cut from, or rag. */
+    + (x => `<td class="num">${x > 0 ? nf(x) + '"' : '<span class="muted">—</span>'}</td>`)(ptNum(r.fabricWasteWidth))
     + ((u, w) => `<td class="num"${u > 0 && w / u > 0.1 ? ' style="color:var(--bad)"' : ''}>${
         u > 0 && w > 0 ? ((w / u) * 100).toFixed(1) + '%' : '<span class="muted">—</span>'}</td>`)(ptNum(r.fabricUsed), ptNum(r.fabricWaste))
     + `<td style="text-align:left;white-space:normal;max-width:220px">${esc(r.remarks) || '<span class="muted">—</span>'}</td>`
@@ -9806,7 +9812,7 @@ function renderPcut() {
 ['cwPcs', 'cwSku'].forEach(id => { const el = $(id); if (el) el.addEventListener('input', renderCutFab); });
 ['cwAt', 'cwSub', 'cwCol', 'cwSz'].forEach(id => { const el = $(id); if (el) el.addEventListener('change', renderCutFab); });
 /* A figure somebody types wins over the one worked out, until the form is cleared. */
-['cwUsed', 'cwWaste'].forEach(id => {
+['cwUsed', 'cwWaste', 'cwWasteW'].forEach(id => {
   const el = $(id); if (!el) return;
   el.addEventListener('input', () => { el.dataset.typed = String(el.value).trim() ? '1' : ''; renderCutFab(); });
 });
@@ -9883,12 +9889,13 @@ $('pbExport').onclick = () => {
 $('pcExport').onclick = () => {
   const rows = PT._pcutRows || []; if (!rows.length) return;
   const lines = [['Cut Date', 'Order No', 'SKU', 'Article', 'Subtype', 'Color', 'Size', 'Fabric', 'Pieces',
-    'Fabric used (m)', 'Waste (m)', 'Waste %', 'Remarks', 'Entered by'].map(csvCell).join(',')];
+    'Fabric used (m)', 'Waste (m)', 'Waste width (in)', 'Waste %', 'Remarks', 'Entered by'].map(csvCell).join(',')];
   rows.forEach(r => {
     /* Blank where nobody measured, so a spreadsheet cannot average a missing figure as a nought. */
     const u = ptNum(r.fabricUsed), w = ptNum(r.fabricWaste);
+    const ww = ptNum(r.fabricWasteWidth);
     lines.push([r.cutDate, r.orderNo, r.sku, r.articleType, r.articleSubtype, r.color, r.size,
-      r.fabricWidth, ptNum(r.pieces), u > 0 ? u : '', w > 0 ? w : '',
+      r.fabricWidth, ptNum(r.pieces), u > 0 ? u : '', w > 0 ? w : '', ww > 0 ? ww : '',
       u > 0 && w > 0 ? ((w / u) * 100).toFixed(1) : '', r.remarks, r.addedBy].map(csvCell).join(','));
   });
   ptDownload('cutting-data', lines);
@@ -10452,7 +10459,7 @@ $('cwSave').onclick = async () => {
     await ptPut('pt_cuttingData/' + entry.id, entry);
     PT.cut = (PT.cut || []).concat(Object.assign({ _key: entry.id }, entry));
     renderPcut();
-    ['cwSku', 'cwPcs', 'cwFabric', 'cwRemarks', 'cwAt', 'cwSub', 'cwCol', 'cwSz', 'cwUsed', 'cwWaste'].forEach(id => { $(id).value = ''; });
+    ['cwSku', 'cwPcs', 'cwFabric', 'cwRemarks', 'cwAt', 'cwSub', 'cwCol', 'cwSz', 'cwUsed', 'cwWaste', 'cwWasteW'].forEach(id => { $(id).value = ''; });
     $('cwSku').dataset.typed = '';
     $('cwUsed').dataset.typed = '';
     $('cwOrd').value = '';
@@ -10474,7 +10481,7 @@ $('cwSave').onclick = async () => {
  */
 function cutFabFields() {
   const out = {};
-  [['cwUsed', 'fabricUsed'], ['cwWaste', 'fabricWaste']].forEach(([id, key]) => {
+  [['cwUsed', 'fabricUsed'], ['cwWaste', 'fabricWaste'], ['cwWasteW', 'fabricWasteWidth']].forEach(([id, key]) => {
     const el = $(id);
     if (!el) return;
     const txt = String(el.value == null ? '' : el.value).trim();
@@ -10532,7 +10539,8 @@ function renderCutFab() {
     bits.push(`typed ${nf(used)} m — ${d > 0 ? nf(d) + ' m MORE' : nf(-d) + ' m less'} than worked out`);
   }
   if (isFinite(waste) && waste > 0 && isFinite(used) && used > 0) {
-    bits.push(`waste ${nf(waste)} m = ${((waste / used) * 100).toFixed(1)}% of what went in`);
+    const ww = parseFloat(($('cwWasteW') || {}).value);
+    bits.push(`waste ${nf(waste)} m${isFinite(ww) && ww > 0 ? ' × ' + nf(ww) + '"' : ''} = ${((waste / used) * 100).toFixed(1)}% of what went in`);
   }
   el.className = (isFinite(used) && used > f.should * 1.15) ? 'err' : 'muted';
   el.textContent = bits.join('  ·  ');
@@ -12703,6 +12711,9 @@ function cutEdit(id) {
       { key: 'sku', label: 'SKU', value: r.sku, readonly: true },
       { key: 'pieces', label: 'Pieces', type: 'number', min: 1, step: 1, value: ptNum(r.pieces) },
       { key: 'fabricWidth', label: 'Fabric', value: r.fabricWidth || '' },
+      { key: 'fabricUsed', label: 'Fabric used (m)', type: 'number', step: '0.01', min: 0, value: r.fabricUsed == null ? '' : r.fabricUsed },
+      { key: 'fabricWaste', label: 'Waste (m)', type: 'number', step: '0.01', min: 0, value: r.fabricWaste == null ? '' : r.fabricWaste },
+      { key: 'fabricWasteWidth', label: 'Waste width (in)', type: 'number', step: '0.25', min: 0, value: r.fabricWasteWidth == null ? '' : r.fabricWasteWidth },
       { key: 'remarks', label: 'Remarks', value: r.remarks || '', span: true },
       { key: 'cutDate', label: 'Cut date', type: 'date', value: ptIsoDate(r.cutDate), admin: true },
     ],
@@ -12724,6 +12735,14 @@ function cutEdit(id) {
         remarks: String(v.remarks || '').trim(),
         cutDate: v.cutDate ? ptStampFrom(r.cutDate, v.cutDate) : r.cutDate,
         editedBy: ME.email, editedAt: new Date().toISOString(),
+      });
+      /* THE CLOTH FIGURES, and a box emptied here empties the field rather than leaving the old number:
+       * a blank and a nought are different, and so are a blank and "what it used to say". */
+      [['fabricUsed', v.fabricUsed], ['fabricWaste', v.fabricWaste], ['fabricWasteWidth', v.fabricWasteWidth]].forEach(([k, raw]) => {
+        const txt = String(raw == null ? '' : raw).trim();
+        if (txt === '') { delete next[k]; return; }
+        const n = mdbNum(txt);
+        if (Number.isFinite(n) && n >= 0) next[k] = n;
       });
       delete next._key;
       await ptPut('pt_cuttingData/' + r.id, next);
