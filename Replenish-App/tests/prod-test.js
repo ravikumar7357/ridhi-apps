@@ -18892,18 +18892,19 @@ console.log('\n== SKU codes: a new colour\'s SKUs ==');
   ok('a code another colour carries is named as theirs', A.skcCodeOwner('327', 'New Mint') === 'Light Steel Blue' && A.skcCodeOwner('327', 'Light Steel Blue') === '');
   const t = A.skcTable('Light Steel Blue', '327');
   ok('the table says which are in the master and which are new', t.filter(x => x.state === 'have').length === 2 && t.filter(x => x.state === 'new').length === 88);
-  ok('creating under a taken code is refused', /already Light Steel Blue's/.test(A.skcPlanNew('New Mint', '327').err));
-  ok('…and a colour not in the Colour master', /not in the Colour master/.test(A.skcPlanNew('Nope', '999').err));
-  const p2 = A.skcPlanNew('New Mint', '777');
+  ok('creating under a taken code is refused', /already Light Steel Blue's/.test(A.skcPlanNew('New Mint', '327', 'Ridhi').err));
+  ok('…and a colour not in the Colour master', /not in the Colour master/.test(A.skcPlanNew('Nope', '999', 'Ridhi').err));
+  ok('the brand has to be typed', /Type the brand/.test(A.skcPlanNew('New Mint', '777', '').err));
+  const p2 = A.skcPlanNew('New Mint', '777', 'Ridhi Home');
   const t6060 = p2.out.find(x => x.rec.sku === 'RTC777-6060');
-  ok('a new colour: each SKU copies its cloth and brand from the same item in another colour', t6060 && t6060.rec.brand === 'Ridhi' && t6060.rec.fabric === 'Sheeting 62'
+  ok('a new colour: each SKU takes the typed brand, and its cloth from the same item in another colour', t6060 && t6060.rec.brand === 'Ridhi Home' && t6060.rec.fabric === 'Sheeting 62'
     && t6060.rec.color === 'New Mint' && t6060.rec.size === '60x60' && !t6060.rec._key, JSON.stringify(t6060));
   ok('…but never its picture', t6060 && t6060.rec.imageUrl === '');
   ok('…the zip goes with a pillow cover', (p2.out.find(x => x.rec.sku === 'RPC777-1818') || { rec: {} }).rec.isZip === true);
   ok('…a base row with no size is not made, and says why', p2.skip.some(x => x.full === 'R-NPHB-777' && /no size/.test(x.why)));
   const n0 = A.PTG().mdb.length;
-  ok('creating writes them all in one go', (await A.skcCreate('New Mint', '777')) === '' && A.PTG().mdb.length === n0 + p2.out.length);
-  ok('…and a second press makes nothing twice', /Nothing to create/.test(await A.skcCreate('New Mint', '777')));
+  ok('creating writes them all in one go', (await A.skcCreate('New Mint', '777', 'Ridhi Home')) === '' && A.PTG().mdb.length === n0 + p2.out.length);
+  ok('…and a second press makes nothing twice', /Nothing to create/.test(await A.skcCreate('New Mint', '777', 'Ridhi Home')));
   ok('a full SKU typed as a base code is caught', /looks like a full SKU/.test(await A.skcSaveRow('', { article: 'Tablecloth', subtype: 'X', size: '1x1', base: 'RTC327-6060' })));
   ok('a base code used twice is refused', /already the base code/.test(await A.skcSaveRow('', { article: 'Tablecloth', subtype: 'X', size: '1x1', base: 'RTC-6060' })));
   A.setPTG(wasPTG); ME.prodEdit = wasEdit; ME.admin = wasAdmin; ME.mdbEdit = wasMdbEdit; NET.on = wasNet; NET.store = {}; NET.calls.length = 0;

@@ -37937,7 +37937,16 @@ function recipeEdit(key) {
  * copied: another colour's picture is the wrong picture.
  */
 const SKC_COLS = ['Article', 'Subtype', 'Size', 'Base Code'];
-let SKC = { col: '', code: '', auto: true };
+/* THE BRAND IS TYPED, not copied (Ravi, same day: "brand name which is manual field"): a new colour
+ * can go out under a different brand from the colours before it. */
+let SKC = { col: '', code: '', brand: '', auto: true };
+
+/** Brands the master already uses — offered, never enforced. */
+function skcBrands() {
+  const seen = new Map();
+  (PTG.mdb || []).forEach(m => { const b = String((m && m.brand) || '').trim(); if (b && !seen.has(b.toLowerCase())) seen.set(b.toLowerCase(), b); });
+  return [...seen.values()].sort((a, b) => a.localeCompare(b));
+}
 
 const skcRows = () => ptList((PTG.masters || {}).skuCode).filter(r => r && String(r.base || '').trim())
   .sort((a, b) => String(a.base).localeCompare(String(b.base)) || String(a.size || '').localeCompare(String(b.size || '')));
@@ -38011,8 +38020,9 @@ function skcSibling(r) {
 }
 
 /** What "Create the new ones" would write, and what it would not, with the reason. */
-function skcPlanNew(colour, code) {
-  const col = String(colour || '').trim(), out = [], skip = [];
+function skcPlanNew(colour, code, brand) {
+  const col = String(colour || '').trim(), brd = String(brand || '').trim(), out = [], skip = [];
+  if (!brd) return { out, skip, err: 'Type the brand.' };
   if (!col) return { out, skip, err: 'Pick the colour.' };
   if (!String(code || '').trim()) return { out, skip, err: 'Type the colour code.' };
   if (!skcColours().some(c => c.toLowerCase() === col.toLowerCase())) return { out, skip, err: `"${col}" is not in the Colour master. Add it under Masters first.` };
@@ -38032,16 +38042,16 @@ function skcPlanNew(colour, code) {
     const base = sib ? Object.assign({}, sib) : { brand: '', cuttingRequired: true };
     delete base._key;
     const rec = Object.assign(base, { sku: full, articleType: String(r.article).trim(), subtype: String(r.subtype).trim(),
-      color: col, size: String(r.size).trim(), imageUrl: '', isCustom: false });
+      color: col, size: String(r.size).trim(), brand: brd, imageUrl: '', isCustom: false });
     const filled = recipeFill(rec);
     out.push({ rec: filled.rec, label, from: sib ? sib.sku : '', recipe: filled.from.length });
   });
   return { out, skip, err: '' };
 }
 
-async function skcCreate(colour, code) {
+async function skcCreate(colour, code, brand) {
   if (!mdbCanEdit()) return MDB_NO_EDIT;
-  const plan = skcPlanNew(colour, code);
+  const plan = skcPlanNew(colour, code, brand);
   if (plan.err) return plan.err;
   if (!plan.out.length) return 'Nothing to create — every SKU of this colour is already in the master.';
   const t = Date.now(), patch = {}, added = [];
@@ -38150,8 +38160,8 @@ async function skcUploadRun(plan) {
 
 /** The export: his sheet's own columns, with the colour and code filled in. */
 function skcSheetRows() {
-  const out = [['Color Code', 'Color', 'Article', 'Subtype', 'Size', 'Base Code', 'Full Code', 'In master']];
-  (SKC.shown || []).forEach(x => out.push([SKC.code, SKC.col, x.r.article || '', x.r.subtype || '', x.r.size || '', x.r.base || '', x.full,
+  const out = [['Brand', 'Color Code', 'Color', 'Article', 'Subtype', 'Size', 'Base Code', 'Full Code', 'In master']];
+  (SKC.shown || []).forEach(x => out.push([skcBrandOf(x), SKC.code, SKC.col, x.r.article || '', x.r.subtype || '', x.r.size || '', x.r.base || '', x.full,
     x.state === 'have' ? 'Yes' : x.state === 'taken' ? 'Taken by ' + (x.m && x.m.color) : x.state === 'new' ? 'New' : '']));
   return out;
 }
@@ -38173,6 +38183,8 @@ function renderSkuCode() {
       <div class="kpihead"><span class="kpiname">SKU codes for a colour</span>
         <span class="kpiwhen">base code + colour code = SKU</span></div>
       <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-top:8px">
+        <label style="flex:0 0 160px">Brand <input id="skcBrand" list="skcBrandList" placeholder="e.g. Ridhi" value="${esc(SKC.brand)}">
+          <datalist id="skcBrandList">${skcBrands().map(b => `<option value="${esc(b)}">`).join('')}</datalist></label>
         <label style="flex:1 1 220px">Colour <input id="skcCol" list="skcColList" placeholder="Pick or type the colour" value="${esc(SKC.col)}">
           <datalist id="skcColList">${skcColours().map(c => `<option value="${esc(c)}">`).join('')}</datalist></label>
         <label style="flex:0 0 140px">Colour code <input id="skcCode" placeholder="e.g. 327" value="${esc(SKC.code)}"></label>
@@ -38189,21 +38201,22 @@ function renderSkuCode() {
     colEl.addEventListener('change', onCol);
     colEl.addEventListener('input', () => { if (skcColours().some(c => c === colEl.value)) onCol(); });
     codeEl.addEventListener('input', () => { SKC.code = codeEl.value.trim(); SKC.auto = !SKC.code; skcDraw(); });
+    $('skcBrand').addEventListener('input', () => { SKC.brand = $('skcBrand').value.trim(); skcDraw(); });
     if ($('skcAdd')) $('skcAdd').onclick = () => skcEditOpen('');
     if ($('skcMake')) $('skcMake').onclick = () => {
-      const plan = skcPlanNew(SKC.col, SKC.code);
+      const plan = skcPlanNew(SKC.col, SKC.code, SKC.brand);
       if (plan.err || !plan.out.length) { $('skcSays').className = 'err'; $('skcSays').textContent = plan.err || 'Nothing to create — every SKU of this colour is already in the master.'; return; }
       ptOpenDialog({
         title: `Create ${nf(plan.out.length)} SKU(s) in ${SKC.col}?`,
-        subtitle: 'Code ' + SKC.code,
-        note: 'Each copies brand, cloth, consumption, pack, zip, ruffle and filling from the same article, subtype and size in another colour; the Recipe fills what is still blank. No picture is copied.',
+        subtitle: 'Brand ' + SKC.brand + ' · code ' + SKC.code,
+        note: 'Each takes the brand typed above, and copies cloth, consumption, pack, zip, ruffle and filling from the same article, subtype and size in another colour; the Recipe fills what is still blank. No picture is copied.',
         html: '<div class="xlwrap" style="max-height:50vh"><table class="xl"><thead><tr><th>SKU</th><th>Item</th><th>Copied from</th></tr></thead><tbody>'
           + plan.out.map(x => `<tr><td><b>${esc(x.rec.sku)}</b></td><td>${esc(x.label)}</td><td>${esc(x.from) || '<span class="muted">nothing — recipe only</span>'}</td></tr>`).join('')
           + plan.skip.map(x => `<tr><td style="color:var(--bad)">${esc(x.full)}</td><td>${esc(x.label)}</td><td style="color:var(--bad);white-space:normal">not made: ${esc(x.why)}</td></tr>`).join('')
           + '</tbody></table></div>',
         saveLabel: 'Create ' + nf(plan.out.length),
         onSave: async () => {
-          const err = await skcCreate(SKC.col, SKC.code);
+          const err = await skcCreate(SKC.col, SKC.code, SKC.brand);
           if (!err) { skcDraw(); $('skcSays').className = 'muted'; $('skcSays').textContent = `Created ${nf(plan.out.length)} SKU(s) in ${SKC.col}.`; }
           return err;
         },
@@ -38212,6 +38225,9 @@ function renderSkuCode() {
   }
   skcDraw();
 }
+
+/** What a row's brand is: the master's own for a SKU it has, the typed one for a SKU still to be made. */
+const skcBrandOf = x => (x && x.state === 'have' && x.m ? String(x.m.brand || '') : SKC.brand);
 
 /** The table and the one line under the picker — the part that changes as the colour and code are typed. */
 function skcDraw() {
@@ -38228,13 +38244,14 @@ function skcDraw() {
     says.textContent = !skcRows().length ? 'No base codes yet — add them with "+ Base code" or "Upload base codes".'
       : !SKC.code ? 'Pick a colour — an existing one brings its code — or type a new code.'
         : owner ? `Code ${SKC.code} is already ${owner}'s. Two colours under one code would be two products under one SKU.`
-          : `${nf(n('have'))} already in the master · ${nf(n('new'))} new` + (n('new') ? ' — "Create the new SKUs" adds them' : '');
+          : `${nf(n('have'))} already in the master · ${nf(n('new'))} new` + (n('new') ? (SKC.brand ? ' — "Create the new SKUs" adds them under ' + SKC.brand : ' — type the brand, then "Create the new SKUs"') : '');
   }
   const edit = mdbCanEdit();
-  const head = '<thead><tr>' + ['Color Code', 'Color', 'Article', 'Subtype', 'Size', 'Base Code', 'Full Code', 'In master'].concat(edit ? [''] : [])
+  const head = '<thead><tr>' + ['Brand', 'Color Code', 'Color', 'Article', 'Subtype', 'Size', 'Base Code', 'Full Code', 'In master'].concat(edit ? [''] : [])
     .map((h, i) => `<th${i === 0 ? ' class="frz"' : ''}>${esc(h)}</th>`).join('') + '</tr></thead>';
   $('ptmTable').innerHTML = head + '<tbody>' + rows.map(({ r, full, m, state }) => '<tr>'
-    + `<td class="frz">${esc(SKC.code) || '<span class="muted">—</span>'}</td><td>${esc(SKC.col) || '<span class="muted">—</span>'}</td>`
+    + `<td class="frz">${esc(skcBrandOf({ m, state })) || '<span class="muted">—</span>'}</td>`
+    + `<td>${esc(SKC.code) || '<span class="muted">—</span>'}</td><td>${esc(SKC.col) || '<span class="muted">—</span>'}</td>`
     + `<td>${esc(r.article)}</td><td>${esc(r.subtype)}</td><td>${esc(r.size) || '<span class="muted">—</span>'}</td>`
     + `<td style="font-family:ui-monospace,monospace">${esc(r.base)}</td>`
     + `<td style="font-family:ui-monospace,monospace;font-weight:700">${esc(full) || '<span class="muted">—</span>'}</td>`
