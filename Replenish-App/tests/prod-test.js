@@ -10586,8 +10586,10 @@ console.log('\n== the register is in the order it is worked ==');
   /* Ravi gave the sequence himself. Written down here because a column order is the one thing a
    * later edit can scramble without breaking anything — the page still renders, the figures are
    * still right, and the person typing receipts all day is the one who finds out. */
-  const WANT = ['Issue Date', 'Employee', 'Type', 'SKU', 'Image', 'Subtype', 'Color', 'Size',
-    'Issued', 'Received', 'Receive', 'Receiving Date', 'Status', 'Entered by', 'WhatsApp', 'Edit',
+  /* 2026-09-22: the same sequence in fewer columns — Employee+Type, SKU+Image+Subtype+Color+Size and
+   * Receiving Date+Status each share one cell. Nothing dropped, nothing moved. */
+  const WANT = ['Issue Date', 'Karigar', 'Item',
+    'Issued', 'Received', 'Receive', 'Status', 'Entered by', 'WhatsApp', 'Edit',
     'Rejected', 'Pending', 'Remarks'];
   const wasBase = A.PT().base;
   A.setPT(Object.assign(A.PT(), { base: [
@@ -10612,7 +10614,17 @@ console.log('\n== the register is in the order it is worked ==');
   /* The box you type a receipt into sits beside the figure it adds to — that is the whole point of
    * the move. */
   ok('the receive box is next to Received',
-     cells.indexOf('pt-recv-in') > cells.indexOf('>4<') && heads[10] === 'Receive');
+     cells.indexOf('pt-recv-in') > cells.indexOf('>4<') && heads[5] === 'Receive');
+  /* NOTHING DROPPED IN THE MERGE: every value the old columns showed is still in the rows. */
+  {
+    const shown = A.PT()._pbaseRows || [];
+    const escd = v => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const lost = [];
+    shown.forEach(r => ['empType', 'articleSubtype', 'color', 'size', 'receivingDate', 'sku', 'empName'].forEach(k => {
+      if (r[k] && cells.indexOf(escd(r[k])) < 0) lost.push(k + '=' + r[k]);
+    }));
+    ok('merging the columns lost nothing', shown.length > 0 && !lost.length, lost.slice(0, 5).join(', '));
+  }
   ok('article is gone from the row, and the subtype still says what it is',
      /Ruffle Pillow Cover/.test(cells) && !/>Pillow Cover</.test(cells));
   /* And the article filter it was dropped in favour of still narrows the register. */

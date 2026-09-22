@@ -9062,10 +9062,13 @@ function renderPbase() {
   });
   PT._pbaseRows = rows;
 
-  const head = '<thead><tr>' + ['Issue Date', 'Employee', 'Type', 'SKU', 'Image', 'Subtype', 'Color', 'Size',
-    'Issued', 'Received', 'Receive', 'Receiving Date', 'Status', 'Entered by', 'WhatsApp', 'Edit',
+  /* RAVI'S ORDER, IN FEWER COLUMNS (2026-09-22: "attractive, kuch bhi data kam na ho"). Neighbours that
+   * describe one thing share a cell — the karigar and their type; the item's picture, SKU, subtype,
+   * colour and size; the status and the day it came back. Nothing is dropped and nothing moves. */
+  const head = '<thead><tr>' + ['Issue Date', 'Karigar', 'Item',
+    'Issued', 'Received', 'Receive', 'Status', 'Entered by', 'WhatsApp', 'Edit',
     'Rejected', 'Pending', 'Remarks']
-    .map((h, i) => `<th${i === 0 ? ' class="frz"' : ([8, 9, 16, 17].indexOf(i) >= 0 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
+    .map((h, i) => `<th${i === 0 ? ' class="frz"' : ([3, 4, 10, 11].indexOf(i) >= 0 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
 
   const body = rows.slice(0, 600).map(r => {
     const pend = ptNum(r.pendingPieces), rej = ptNum(r.rejectionPieces);
@@ -9073,11 +9076,12 @@ function renderPbase() {
       : (pend > 0 ? `<span class="pill pill-out">${nf(pend)} pending</span>` : '<span class="pill pill-low">Open</span>');
     return '<tr>'
       + `<td class="frz" style="text-align:left">${esc(r.issueDate)}</td>`
-      + `<td style="text-align:left">${esc(r.empName)}</td><td>${esc(r.empType)}</td>`
-      + `<td style="font-family:ui-monospace,monospace;text-align:left">${esc(r.sku)}</td>`
-      + ptImgCell(r.sku)
+      + `<td style="text-align:left"><div style="font-weight:600">${esc(r.empName)}</div>`
+      + `<div class="muted" style="font-size:11px">${esc(r.empType)}</div></td>`
       /* Subtype, not article and subtype: "Ruffle Pillow Cover" already contains "Pillow Cover". */
-      + `<td>${esc(r.articleSubtype)}</td><td>${esc(r.color)}</td><td>${esc(r.size)}</td>`
+      + `<td style="text-align:left"><div style="display:flex;align-items:center;gap:8px">${ptImgSpan(r.sku, 34)}`
+      + `<div style="min-width:0"><div style="font-family:ui-monospace,monospace;font-size:12.5px;font-weight:600">${esc(r.sku)}</div>`
+      + `<div class="muted" style="font-size:11px;white-space:nowrap">${[r.articleSubtype, r.color, r.size].filter(Boolean).map(esc).join(' · ')}</div></div></div></td>`
       + `<td class="num">${nf(ptNum(r.issuePieces))}</td>`
       + `<td class="num">${nf(ptNum(r.receivedPieces))}</td>`
       /* THE BOX IS BESIDE THE FIGURE IT ADDS TO. The receipt is taken where the row is, not in a
@@ -9086,8 +9090,7 @@ function renderPbase() {
       + `<td>${r.frozen ? '<span class="muted">—</span>'
         : `<input class="pt-recv-in" data-id="${esc(r.id)}" type="number" min="1" max="${pend}" placeholder="+recv" title="Pieces that came back — added to what is already received" style="width:74px">`
           + ` <input class="pt-rej-in" data-id="${esc(r.id)}" type="number" min="0" placeholder="rej" title="Total rejected on this row" value="${rej || ''}" style="width:64px">`}</td>`
-      + `<td style="text-align:left">${esc(r.receivingDate) || '<span class="muted">—</span>'}</td>`
-      + `<td>${st}</td>`
+      + `<td>${st}${r.receivingDate ? `<div class="muted" style="font-size:10.5px;margin-top:2px" title="Receiving date">${esc(r.receivingDate)}</div>` : ''}</td>`
       /* WHO ENTERED IT, and whether anybody has changed it since. An edit moves the order balance,
        * the cutting cap, the weekly report and somebody’s pay at once, and until now left no mark
        * on this screen at all — 205 of these rows have been edited. */
@@ -13965,6 +13968,10 @@ function ptImgInner(sku, px) {
 }
 /* The cell carries its SKU so a lookup that finishes later can fill THIS cell instead of rebuilding
  * the table around it. Repainting 600 rows fifteen times over is what made the app feel stuck. */
+/** The picture alone, to sit inside a cell that carries other text as well. */
+function ptImgSpan(sku, px) {
+  return `<span data-img="${esc(obUC(sku))}" data-imgpx="${px || 38}" style="flex:0 0 auto;line-height:0">${ptImgInner(sku, px)}</span>`;
+}
 function ptImgCell(sku, px) {
   return `<td data-img="${esc(obUC(sku))}" data-imgpx="${px || 38}">${ptImgInner(sku, px)}</td>`;
 }
@@ -13983,7 +13990,8 @@ function ptImgCellSrc(sku, url, px) {
     + ` style="width:${s}px;height:${s}px;object-fit:cover;border-radius:6px;border:1px solid var(--line)"></td>`;
 }
 function ptImgPatch() {
-  document.querySelectorAll('td[data-img]').forEach(td => {
+  /* A cell of its own, or a picture inside a cell that says more (the Job Work "Item" column). */
+  document.querySelectorAll('[data-img]').forEach(td => {
     const sku = td.getAttribute('data-img');
     if (ptImgOf(sku) === undefined && !MDBIMG.busy) return;   // still unknown and nothing running
     td.innerHTML = ptImgInner(sku, Number(td.getAttribute('data-imgpx')) || 38);
