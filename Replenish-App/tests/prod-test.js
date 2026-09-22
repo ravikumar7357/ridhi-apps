@@ -10590,7 +10590,7 @@ console.log('\n== the register is in the order it is worked ==');
    * Receiving Date+Status each share one cell. Nothing dropped, nothing moved. */
   /* Third pass: pending and rejected live in Status; who entered it and remarks are last. */
   const WANT = ['Issue Date', 'Karigar', 'Item',
-    'Issued', 'Received', 'Status', 'Actions', 'Entered by', 'Remarks'];
+    'Issued', 'Received', 'Status', 'Actions', 'Entered by'];
   const wasBase = A.PT().base;
   A.setPT(Object.assign(A.PT(), { base: [
     { id: 'c1', sku: 'COL-A', empName: 'Ramesh', empType: 'Company Contractor', issuePieces: 10,
@@ -10629,7 +10629,7 @@ console.log('\n== the register is in the order it is worked ==');
     const shown = A.PT()._pbaseRows || [];
     const escd = v => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const lost = [];
-    shown.forEach(r => ['empType', 'articleSubtype', 'color', 'size', 'receivingDate', 'sku', 'empName'].forEach(k => {
+    shown.forEach(r => ['empType', 'articleSubtype', 'color', 'size', 'receivingDate', 'sku', 'empName', 'remarks'].forEach(k => {
       if (r[k] && cells.indexOf(escd(r[k])) < 0) lost.push(k + '=' + r[k]);
     }));
     ok('merging the columns lost nothing', shown.length > 0 && !lost.length, lost.slice(0, 5).join(', '));
