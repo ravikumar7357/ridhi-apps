@@ -3,10 +3,8 @@
      twenty. White rather than transparent on purpose: dark lettering cut out of nothing disappears
      on a dark tab strip. Served from this site; nothing is fetched from outside. -->
 <link rel="icon" href="/logo.png">
-<!-- A PHONE SCREEN, NOT A SHRUNK DESKTOP (2026-09-22). Without this one line every phone drew the
-     desktop layout at a quarter size, and the phone layout below (the drawer, the full-width panels)
-     never switched on at all. -->
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- NO VIEWPORT LINE, ON PURPOSE (Ravi, 2026-09-22: "pahle jese tha besa hi kardo"): a phone draws the
+     desktop layout, scaled to fit, as it always had. -->
 <meta name="theme-color" content="#0f172a">
 <!-- INSTALLABLE: its own icon, full screen, no browser bar. -->
 <link rel="manifest" href="/manifest.webmanifest">
@@ -177,42 +175,6 @@
     background:none;border:0;padding:0;margin:0;border-radius:0;line-height:1.35}
   table.xl td .err,table.xl td .ok,table.xl td .warn{font-size:11.5px;font-weight:500;margin-top:2px}
   .hide{display:none!important}   /* utility must win over later rules like .modal{display:flex} */
-  /* ON A PHONE: 16px in every box so an iPhone does not zoom the page when one is tapped; room for the
-     notch and the home bar when the app is opened from its icon; and no grey flash on every tap. */
-  @media(max-width:860px){
-    input,select,textarea{font-size:16px}
-    button,.nav{-webkit-tap-highlight-color:transparent}
-    .toolbar > input,.toolbar > select,.toolbar > button{min-height:40px}
-  }
-  /* ================= THE PHONE LAYOUT (2026-09-22: "phone app looking too bad") =================
-     Nothing may be wider than the screen — one wide row made the phone zoom the whole page out. Every
-     toolbar becomes a tidy two-column grid; long things take the whole row; rows of chips scroll inside
-     themselves; and the second and later toolbars of a card fold behind "More filters & options". */
-  @media(max-width:860px){
-    html,body{max-width:100%;overflow-x:hidden}
-    .main{min-width:0;width:100%;padding:10px}
-    .card{padding:12px!important;border-radius:12px;max-width:100%}
-    .topbar{gap:8px;margin-bottom:10px}
-    .pagehead{font-size:24px;margin:0}
-    #guideBtn{padding:6px 10px;font-size:12.5px}
-    .toolbar{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;align-items:stretch}
-    .toolbar > *{width:100%!important;max-width:100%;min-width:0!important;flex:none!important;margin:0}
-    .toolbar > input:not([type]),.toolbar > input[type=text],.toolbar > input[type=search],
-    .toolbar > .seg,.toolbar > .leadgrp,.toolbar > span.muted,.toolbar > .ftwrap,.toolbar > label{grid-column:1/-1}
-    .toolbar > span.muted:empty{display:none}
-    .toolbar > span[style*="flex:1"]:empty{display:none}
-    .seg{display:flex;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%}
-    .seg > *{flex:0 0 auto}
-    .leadgrp{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-    .ms{width:100%}
-    .metrics{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-    .metric .l{white-space:normal}
-    .kpihead{flex-wrap:wrap;gap:4px}
-    .xlwrap{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
-    .mobmore{display:block!important;width:100%;margin-top:8px}
-    .card.mob-fold:not(.mob-open) > .toolbar ~ .toolbar{display:none!important}
-  }
-  .mobmore{display:none}
   #updBar{position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:200;display:flex;align-items:center;
     justify-content:space-between;gap:10px;background:#0f172a;color:#fff;border-radius:12px;padding:10px 12px 10px 16px;box-shadow:var(--sh-3)}
   #updBar button{background:#fff;color:#0f172a;border:0;padding:8px 14px;border-radius:8px;font-weight:700}
@@ -44087,26 +44049,6 @@ function ftSync(rec) {
     window.addEventListener('appinstalled', () => { ask = null; if (b) b.classList.add('hide'); });
     if (b) b.onclick = async () => { if (!ask) return; ask.prompt(); try { await ask.userChoice; } catch (e) { /* dismissed */ } ask = null; b.classList.add('hide'); };
   } catch (e) { console.warn('[app] install not offered:', e); }
-})();
-
-/* ================= PHONE: fold the extra toolbars =================
- * A card with more than one toolbar shows only the first on a phone; "More filters & options" opens the
- * rest. The button is drawn everywhere but shown only by the phone styles, so a desktop sees no change. */
-(() => {
-  try {
-    if (typeof document.querySelectorAll !== 'function') return;
-    document.querySelectorAll('[id^="pane"] .card').forEach(card => {
-      const bars = [...card.children].filter(c => c.classList && c.classList.contains('toolbar'));
-      if (bars.length < 2) return;
-      card.classList.add('mob-fold');
-      const b = document.createElement('button');
-      b.type = 'button'; b.className = 'ghost mobmore';
-      const label = () => { b.textContent = card.classList.contains('mob-open') ? 'Fewer options ▴' : 'More filters & options ▾'; };
-      label();
-      b.onclick = () => { card.classList.toggle('mob-open'); label(); };
-      bars[0].after(b);
-    });
-  } catch (e) { console.warn('[phone] toolbars not folded:', e); }
 })();
 
 /* ================= A NEW VERSION IS OUT =================
