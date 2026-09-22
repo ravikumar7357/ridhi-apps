@@ -2,21 +2,61 @@
   "hosting": {
     "site": "fabricrush-replenish",
     "public": "public",
-    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
     "//": "THE PAGE ITSELF IS NEVER SERVED FROM CACHE WITHOUT ASKING FIRST. Hosting's default is max-age=3600, so a deployed fix could sit invisible for an hour and a tab left open kept running yesterday's code — which is how a sync ran this morning with the old rules and wrote order rows without their Shopify photos. no-cache does not mean 'do not cache': the browser keeps the file and revalidates, so an unchanged page still comes back as a 304 and costs nothing. Pictures and the wordmark keep their long cache; they change with a new name, not in place.",
     "headers": [
       {
         "source": "/",
-        "headers": [{ "key": "Cache-Control", "value": "no-cache, max-age=0, must-revalidate" }]
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, max-age=0, must-revalidate"
+          }
+        ]
       },
       {
         "source": "**/*.html",
-        "headers": [{ "key": "Cache-Control", "value": "no-cache, max-age=0, must-revalidate" }]
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, max-age=0, must-revalidate"
+          }
+        ]
       },
       {
         "source": "**/*.@(png|jpg|jpeg|svg|ico|woff2)",
-        "headers": [{ "key": "Cache-Control", "value": "public, max-age=86400" }]
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=86400"
+          }
+        ]
+      },
+      {
+        "source": "/sw.js",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, max-age=0, must-revalidate"
+          }
+        ]
+      },
+      {
+        "source": "/manifest.webmanifest",
+        "headers": [
+          {
+            "key": "Content-Type",
+            "value": "application/manifest+json"
+          },
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, max-age=0"
+          }
+        ]
       }
     ]
   }

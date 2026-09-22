@@ -18914,6 +18914,23 @@ console.log('\n== the same colour given for printing twice ==');
 
   CONFIRM = wasC; A.setVO(wasVO); A.setVOF(wasVOF);
 }
+console.log('\n== the installed app ==');
+{
+  /* "mobile me app install kar liya to wo mobile app ki tarah react kare" — 2026-09-22. */
+  const src = fs.readFileSync(APP, 'utf8');
+  const dir = require('path').dirname(APP);
+  ok('a phone gets a phone screen, not a shrunk desktop', /<meta name="viewport" content="width=device-width, initial-scale=1/.test(src));
+  ok('the manifest is linked', /<link rel="manifest" href="\/manifest\.webmanifest">/.test(src));
+  const man = JSON.parse(fs.readFileSync(dir + '/manifest.webmanifest', 'utf8'));
+  ok('it opens full screen, from its own icon', man.display === 'standalone' && man.start_url && man.icons.some(i => i.sizes === '512x512')
+    && man.icons.some(i => i.purpose === 'maskable'));
+  ok('…and every icon it names is there', man.icons.every(i => fs.existsSync(dir + i.src)) && fs.existsSync(dir + '/apple-touch-icon.png'));
+  const sw = fs.readFileSync(dir + '/sw.js', 'utf8');
+  ok('the service worker is registered', /navigator\.serviceWorker\.register\('\/sw\.js'\)/.test(src));
+  ok('…fetches the page from the network first, so a fix reaches every phone', /fetch\(req\)\.then\(res =>/.test(sw) && /\.catch\(\(\) => caches\.match/.test(sw));
+  ok('…and never stands in for a database or sign-in call', /if \(url\.origin !== self\.location\.origin\) return;/.test(sw) && /if \(req\.method !== 'GET'\) return;/.test(sw));
+  ok('boxes are 16px on a phone, so an iPhone does not zoom on every tap', /@media\(max-width:860px\)\{\s*input,select,textarea\{font-size:16px\}/.test(src));
+}
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
 })();
