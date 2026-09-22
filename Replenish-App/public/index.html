@@ -25174,6 +25174,50 @@ function voFabricFromFields() {
   }
 }
 
+/* ================= THE SAME COLOUR, GIVEN TWICE =================
+ *
+ * Ravi, 2026-09-22: "printer ko running me printing program diya, but same programme pahle de chuka
+ * hu — to same color me yadi again koi program du to mujhe pahle pop up aaye."
+ *
+ * Every OPEN running order (not received, not cancelled) is looked at, across every printer, for a
+ * line in the same colour that still has metres to come. Found, the person is asked before the line
+ * goes on — they may well mean it (a second fabric, a top-up), so it is a question, not a refusal.
+ */
+function voRunningOpenOf(colour) {
+  const k = String(colour || '').trim().toLowerCase();
+  if (!k) return [];
+  const out = [];
+  (VO.rows || []).forEach(o => {
+    if (!o || !voRunning(o) || ['Received', 'Cancelled'].indexOf(o.status || 'Placed') >= 0) return;
+    voLines(o).forEach(l => {
+      if (!l || l.cancelled || String(l.color || '').trim().toLowerCase() !== k) return;
+      const qty = voQty(o, l), left = Math.max(0, qty - (parseFloat(voDone(l)) || 0));
+      if (left > 0) out.push({ orderNo: o.orderNo || o.id, vendor: o.vendorName || voName(o.vendorCode) || o.vendorCode || '',
+        fabric: l.fabricType || '', dir: l.printDirection || '', qty, left, date: o.orderDate || '' });
+    });
+  });
+  return out;
+}
+/** The question, in words: which orders, which printer, how much is still to come. */
+function voDupQuestion(colour, hits, draftHits) {
+  const lines = hits.slice(0, 6).map(h => `• ${h.orderNo} · ${h.vendor} · ${h.fabric}${h.dir ? ' ' + h.dir : ''} · ${nf(h.qty)} m ordered, ${nf(Math.round(h.left))} m still to come${h.date ? ' (placed ' + h.date + ')' : ''}`);
+  if (hits.length > 6) lines.push(`• …and ${nf(hits.length - 6)} more`);
+  if (draftHits) lines.push(`• already ${nf(draftHits)} line(s) of it in this order`);
+  return `${colour} is already given for printing:\n\n${lines.join('\n')}\n\nGive it again?`;
+}
+/** Ask once per colour per order being built; true = go ahead. */
+function voDupAsk(colour, draftLines) {
+  const k = String(colour || '').trim().toLowerCase();
+  VOF.dupOk = VOF.dupOk || {};
+  if (!k || VOF.dupOk[k]) return true;
+  const hits = voRunningOpenOf(colour);
+  const inDraft = (draftLines || []).filter(l => l && voKind(l) === 'running' && String(l.color || '').trim().toLowerCase() === k).length;
+  if (!hits.length && !inDraft) return true;
+  if (!confirm(voDupQuestion(colour, hits, inDraft))) return false;
+  VOF.dupOk[k] = true;
+  return true;
+}
+
 function voAddLine() {
   const qty = parseFloat(($('vof_qty') || {}).value) || 0;
   const deliv = ($('vof_deliv') || {}).value || '';
@@ -25196,6 +25240,9 @@ function voAddLine() {
     if (fr && (String(fr.fabric).toLowerCase() !== String(fab).toLowerCase() || String(fr.colour).toLowerCase() !== String(col).toLowerCase()
       || (fr.width && fr.dir !== pd))) return say(`${fr.sku} is ${fr.colour} · ${fr.fabric}${fr.width ? ' · ' + fr.dir : ''}, but the line says ${col} · ${fab} · ${pd}. Pick the SKU again or clear it.`);
     if (qty <= 0) return say('Enter how many metres.');
+    if (VOF.mode !== 'request' || VO.rows) {
+      if (!voDupAsk(col, VOF.lines)) return say(`Not added — ${col} is already given for printing on an open order.`);
+    }
     VOF.lines.push(Object.assign({ lineId: id, kind: 'running', fabricType: fab, color: col, printDirection: pd,
       meters: qty, deliveryDate: deliv, priority, notes, dispatchedQty: 0 },
       fr ? { sku: fr.sku, img: fr.imageUrl || '', brand: fr.brandName || '' } : {}));
@@ -25658,6 +25705,13 @@ async function voPlace() {
     const bad = voValidateCut(VOF.lines.filter(l => voKind(l) === 'cut').map(l => ({ sku: l.sku, qty: l.qty })));
     if (bad.length) return `Over the cap: ` + bad.slice(0, 3).map(voCapMsg).join(' ')
       + (bad.length > 3 ? ` And ${nf(bad.length - 3)} more SKU(s).` : '');
+  }
+
+  /* THE SAME COLOUR AGAIN — for lines that came in by upload, or were added before this check existed.
+   * A colour already answered while adding lines is not asked about twice. */
+  if (VOF.kind === 'running') {
+    const cols = [...new Set(VOF.lines.filter(l => voKind(l) === 'running').map(l => String(l.color || '').trim()).filter(Boolean))];
+    for (const c of cols) if (!voDupAsk(c, [])) return `Not placed — ${c} is already given for printing on an open order. Remove that line, or place again and answer OK.`;
   }
 
   /* A REQUEST STOPS HERE — checked exactly as an order is, and stored where no vendor can read it. */
