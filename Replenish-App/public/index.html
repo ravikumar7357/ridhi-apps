@@ -204,6 +204,8 @@
   .jw-st.pend{background:#fff7ed;color:#c2410c}.jw-st.prog{background:#eff6ff;color:#1d4ed8}.jw-st.done{background:#ecfdf5;color:#15803d}
   .jw-mwrap{position:relative;display:inline-block}
   .jw-more{width:34px;padding:0;font-size:16px;line-height:1}
+  .jw-btn.jw-fix{color:#b45309;border-color:#fcd34d;background:#fffbeb}
+  .jw-btn[disabled]{opacity:.6;cursor:default}
   .jw-menu{position:absolute;right:0;top:32px;z-index:30;background:var(--card,#fff);border:1px solid var(--line,#e5e7eb);border-radius:10px;box-shadow:0 10px 30px rgba(15,23,42,.14);padding:6px;min-width:220px;display:flex;flex-direction:column;text-align:left}
   .jw-menu.hide{display:none}
   .jw-mi{background:none;border:0;text-align:left;padding:8px 10px;border-radius:7px;font-size:13px;color:inherit;white-space:nowrap}
@@ -11434,11 +11436,14 @@ function jwStatus(r) {
 /** One row. The Edit / Ask / WhatsApp buttons live in the ⋯ menu, drawn with the row and shown on a click. */
 function jwRow(r) {
   const [d, t] = String(r.issueDate || '').split(/,\s*/);
-  const menu = [`<button class="jw-mi" data-jw-view="${esc(r.id)}">View details</button>`,
-    jwCorrOfRow(r.id) ? '<span class="jw-mi muted">A change is waiting for approval</span>'
-      : ptCanEdit() ? (r.frozen ? '' : `<button class="jw-mi" data-bd-edit="${esc(r.id)}">Edit entry</button>`)
-      : jwCanAsk() ? `<button class="jw-mi" data-jw-ask="${esc(r.id)}">Ask to change</button>` : '',
-    jwWaButtons(r)].filter(Boolean).join('');
+  const menu = [`<button class="jw-mi" data-jw-view="${esc(r.id)}">View details</button>`, jwWaButtons(r)].filter(Boolean).join('');
+  /* CORRECTING A ROW IS ON THE ROW, not behind ⋯ (Ravi, 2026-09-22: "entry krne wale se koi mistake ho gya to
+   * wo apna correction add kar sake and admin can correct"). Whoever may edit gets Edit on an open row; an
+   * admin gets it on a completed one too (the dialog re-opens a row if pieces are left pending); whoever
+   * enters rows without that right gets Correction, which goes to an approver. */
+  const fix = jwCorrOfRow(r.id) ? '<button class="jw-btn" disabled title="A change to this entry is waiting for approval">Change asked</button>'
+    : ptCanEdit() ? ((!r.frozen || ME.admin) ? `<button class="jw-btn" data-bd-edit="${esc(r.id)}" title="Correct this entry">Edit</button>` : '')
+    : jwCanAsk() ? `<button class="jw-btn jw-fix" data-jw-ask="${esc(r.id)}" title="Something wrong on this entry? Ask for it to be corrected">Correction</button>` : '';
   return `<tr${JW_PICK.has(r.id) ? ' class="jw-on"' : ''}>`
     + `<td class="jw-ck"><input type="checkbox" class="jw-pick" data-id="${esc(r.id)}"${JW_PICK.has(r.id) ? ' checked' : ''}></td>`
     + `<td style="text-align:left"><div class="jw-d">${esc(d || '')}</div><div class="jw-t">${esc(t || '')}</div></td>`
@@ -11452,7 +11457,7 @@ function jwRow(r) {
     + `<td>${jwRing(r)}</td>`
     + `<td style="text-align:left">${jwStatus(r)}</td>`
     + `<td><div class="jw-acts">${r.frozen ? `<button class="jw-btn" data-jw-view="${esc(r.id)}">View</button>`
-      : `<button class="jw-btn jw-primary" data-bd-recv="${esc(r.id)}" title="Take in pieces that came back, and any rejects">Receive</button>`}`
+      : `<button class="jw-btn jw-primary" data-bd-recv="${esc(r.id)}" title="Take in pieces that came back, and any rejects">Receive</button>`}${fix}`
     + `<span class="jw-mwrap"><button class="jw-btn jw-more" data-jw-more="${esc(r.id)}" title="More">⋯</button><div class="jw-menu hide">${menu}</div></span></div></td>`
     + whoCell(r) + '</tr>';
 }

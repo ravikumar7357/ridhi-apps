@@ -18967,6 +18967,23 @@ console.log('\n== Job Work: picked rows ==');
   ok('status reads Pending, In Progress, Completed', /Pending/.test(A.jwStatus(mk('a', 5, 0, 0))) && /In Progress/.test(A.jwStatus(mk('b', 5, 2, 0))) && /Completed/.test(A.jwStatus(mk('c', 5, 5, 0))));
   A.setPT(wasPT); ME.prodEdit = wasEdit; NET.on = wasNet; NET.store = {}; NET.calls.length = 0;
 }
+console.log('\n== Job Work: correcting a row is on the row ==');
+{
+  /* "entry krne wale se koi mistake ho gya to wo apna correction add kar sake and admin can correct" — 2026-09-22 */
+  const was = { admin: ME.admin, prodEdit: ME.prodEdit, tabs: ME.tabs };
+  const done = { id: 'c1', sku: 'RX-1', empName: 'Asha', empType: 'X', issueDate: '20/09/2026, 10:00', issuePieces: 5, receivedPieces: 5, rejectionPieces: 0, pendingPieces: 0, frozen: true };
+  const open = Object.assign({}, done, { id: 'c2', receivedPieces: 0, pendingPieces: 5, frozen: false });
+  ME.admin = true; ME.prodEdit = true;
+  ok('an admin can correct a completed row', /data-bd-edit="c1"[^>]*>Edit</.test(A.jwRow(done)));
+  ME.admin = false; ME.prodEdit = true;
+  ok('someone who may edit corrects an open row, right on it', /data-bd-edit="c2"[^>]*>Edit</.test(A.jwRow(open)));
+  ok('…but not a completed one (only an admin reopens those)', !/data-bd-edit/.test(A.jwRow(done)));
+  ME.prodEdit = false; ME.tabs = ['pbase'];
+  ok('whoever enters rows gets a Correction button on every row, open or completed',
+     /data-jw-ask="c1"[^>]*>Correction</.test(A.jwRow(done)) && /data-jw-ask="c2"[^>]*>Correction</.test(A.jwRow(open)));
+  ok('…outside the ⋯ menu', !/jw-menu hide">[^]*data-jw-ask/.test(A.jwRow(open)));
+  ME.admin = was.admin; ME.prodEdit = was.prodEdit; ME.tabs = was.tabs;
+}
 console.log('\n== job work correction requests ==');
 {
   /* "same correction request jo job work me entry karne wala h uska bhi ho" — 2026-09-22. */
