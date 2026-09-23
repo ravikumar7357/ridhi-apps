@@ -204,53 +204,6 @@
   .jw-st.pend{background:#fff7ed;color:#c2410c}.jw-st.prog{background:#eff6ff;color:#1d4ed8}.jw-st.done{background:#ecfdf5;color:#15803d}
   .jw-mwrap{position:relative;display:inline-block}
   .jw-more{width:34px;padding:0;font-size:16px;line-height:1}
-  /* ---- the production board ---- */
-  .wb-steps{display:flex;align-items:stretch;gap:0;overflow-x:auto}
-  .wb-step{display:flex;align-items:center;gap:9px;flex:1 1 0;min-width:150px;background:none;border:0;border-radius:10px;padding:9px 11px;cursor:pointer;text-align:left;color:inherit}
-  .wb-step:hover{background:var(--soft,#f8fafc)}
-  .wb-step.on{background:#0f172a;color:#fff}
-  .wb-step .wb-n{flex:0 0 26px;height:26px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;background:var(--soft,#f1f5f9);color:var(--muted,#64748b)}
-  .wb-step.on .wb-n{background:#fff;color:#0f172a}
-  .wb-step .wb-t{display:flex;flex-direction:column;min-width:0;flex:1 1 auto}
-  .wb-step .wb-t b{font-size:13px;white-space:nowrap;display:flex;align-items:center;gap:7px}
-  .wb-step .wb-t span{font-size:11px;opacity:.65;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .wb-step .wb-c{font-size:11.5px;font-weight:800;background:var(--soft,#f1f5f9);color:var(--muted,#64748b);border-radius:999px;padding:1px 8px}
-  .wb-step.on .wb-c{background:rgba(255,255,255,.2);color:#fff}
-  .wb-line{flex:0 0 14px;align-self:center;height:2px;background:var(--line,#e2e8f0)}
-  .wb-wrap{display:flex;gap:12px;align-items:flex-start;margin-top:12px}
-  .wb-rail{flex:0 0 206px;padding:12px 13px;max-height:74vh;overflow:auto}
-  .wb-gh{position:sticky;top:-12px;background:var(--card,#fff);padding-top:2px;z-index:1}
-  .wb-mid .xlwrap{max-height:66vh}
-  .wb-mid{flex:1 1 auto;min-width:0;padding:0;overflow:hidden}
-  .wb-midhead{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line,#e2e8f0)}
-  .wb-midhead input{flex:1 1 auto;min-width:0}
-  .wb-panel{flex:0 0 288px;padding:14px;max-height:74vh;overflow:auto}
-  .wb-railhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
-  .wb-grp{margin-bottom:12px}
-  .wb-gh{font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted,#64748b);margin-bottom:5px}
-  .wb-f{display:flex;align-items:center;gap:7px;padding:3px 2px;cursor:pointer;font-size:12.5px}
-  .wb-f input{width:auto;margin:0;flex:0 0 auto}
-  .wb-f span{flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .wb-f b{font-size:11.5px;color:var(--muted,#64748b);font-weight:700}
-  .wb-dot{display:inline-block;width:10px;height:10px;border-radius:999px;border:1px solid rgba(15,23,42,.18);margin-right:6px;vertical-align:-1px}
-  #wbTable tr.wb-on>td{background:#eff6ff}
-  .wb-pimg{display:flex;justify-content:center;margin-bottom:8px}
-  .wb-pname{font-weight:800;font-size:14px;word-break:break-all}
-  .wb-figs{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;margin:10px 0}
-  .wb-fig{display:flex;align-items:baseline;justify-content:space-between;gap:6px;border-bottom:1px dashed var(--line,#e2e8f0);padding-bottom:3px}
-  .wb-fig span{font-size:11.5px;color:var(--muted,#64748b)}
-  .wb-fig b{font-size:12.5px}
-  .wb-qty{display:flex;align-items:center;gap:6px}
-  .wb-qty input{flex:1 1 auto;min-width:0;text-align:center;font-weight:700}
-  .wb-qty button{flex:0 0 34px;height:34px;padding:0;font-size:18px;line-height:1;background:var(--card,#fff);border:1px solid var(--line,#e2e8f0);color:inherit;border-radius:8px;cursor:pointer}
-  .wb-go{width:100%;margin-top:12px;height:38px;font-weight:700;background:#0f172a;border:1px solid #0f172a;color:#fff;border-radius:9px;cursor:pointer}
-  .wb-go[disabled]{opacity:.55;cursor:default}
-  .wb-note{font-size:12px;color:var(--muted,#64748b);background:var(--soft,#f8fafc);border-radius:8px;padding:8px 10px;margin-top:10px}
-  /* NO REFLOW ON A NARROW SCREEN. The app draws the desktop layout on a phone and scales it to fit
-   * (Ravi, 22 Sep: "pahle jese tha besa hi kardo") — and with no viewport meta a phone reports about
-   * 980px, so a breakpoint here would have rearranged the board on every phone. The three columns
-   * stay three columns; the middle one gives way first. */
-  .wb-mid{flex:1 1 320px}
   .jw-btn.jw-fix{color:#b45309;border-color:#fcd34d;background:#fffbeb}
   .jw-btn[disabled]{opacity:.6;cursor:default}
   .jw-menu{position:absolute;right:0;top:32px;z-index:30;background:var(--card,#fff);border:1px solid var(--line,#e5e7eb);border-radius:10px;box-shadow:0 10px 30px rgba(15,23,42,.14);padding:6px;min-width:220px;display:flex;flex-direction:column;text-align:left}
@@ -1808,8 +1761,7 @@
     <div id="paneOrd" class="hide">
       <div class="card" style="padding:12px 14px">
         <div class="toolbar">
-          <select id="odView" style="flex:0 0 235px" title="The same order book, read four ways.">
-            <option value="board">Production board — step by step</option>
+          <select id="odView" style="flex:0 0 235px" title="The same order book, read three ways.">
             <option value="book">Order book — every order</option>
             <option value="shopsku">Shopify — by SKU, combined</option>
             <option value="shoporder">Shopify — by order</option>
@@ -1836,7 +1788,7 @@
             <option value="">All brands</option>
           </select>
           <input id="odQ" placeholder="Search order / SKU / article" style="flex:1 1 180px;min-width:0">
-          <span id="odDLbl" class="muted" style="font-size:12.5px;flex:0 0 auto">Ordered</span>
+          <span class="muted" style="font-size:12.5px;flex:0 0 auto">Ordered</span>
           <input id="odD1" type="date" style="flex:0 0 150px" title="Order date from">
           <input id="odD2" type="date" style="flex:0 0 150px" title="Order date to">
           <button id="odClear" class="ghost">Clear</button>
@@ -1864,25 +1816,7 @@
         <datalist id="spBulkReasonList"></datalist>
       </div>
       <div id="spBulkBox" class="hide" style="margin-top:12px"></div>
-      <!-- THE SAME ORDER BOOK, LAID OUT AS THE WORK RUNS (Ravi, 2026-09-23, with a picture:
-           "mujhe user interface kuch is tarah chahiye for every step"). The steps across the top,
-           what to narrow by down the left, one line per SKU with the ONE thing to do next, and the
-           line that was picked open on the right with the box to type into. -->
-      <div id="odBoard" class="hide" style="margin-top:12px">
-        <div class="card" style="padding:12px 14px"><div id="wbSteps" class="wb-steps"></div></div>
-        <div class="wb-wrap">
-          <div id="wbRail" class="card wb-rail"></div>
-          <div class="card wb-mid">
-            <div class="wb-midhead">
-              <input id="wbQ" placeholder="Search SKU, order, karigar…">
-              <span id="wbCount" class="muted" style="font-size:12.5px"></span>
-            </div>
-            <div class="xlwrap jw-table" style="border:0"><table class="xl" id="wbTable"></table></div>
-          </div>
-          <div id="wbPanel" class="card wb-panel hide"></div>
-        </div>
-      </div>
-      <div id="odTableCard" class="card xlwrap" style="margin-top:12px"><table class="xl" id="odTable"></table></div>
+      <div class="card xlwrap jw-table" style="margin-top:12px"><table class="xl" id="odTable"></table></div>
     </div>
 
     <!-- ============ QUALITY CONTROL ============ -->
@@ -3196,11 +3130,8 @@ onAuthStateChanged(auth, async user => {
   if (SHOP_ONLY()) {
     const b = $('tabOrd');
     if (b) { b.style.display = ''; b.textContent = 'Shopify Orders'; }
-    /* The board reads the whole book, so it goes the same way the book does. */
-    ['book', 'board'].forEach(v => {
-      const o = $('odView') && $('odView').querySelector('option[value="' + v + '"]');
-      if (o) o.remove();
-    });
+    const bookOpt = $('odView') && $('odView').querySelector('option[value="book"]');
+    if (bookOpt) bookOpt.remove();
     if ($('odView')) $('odView').value = 'shopsku';
   }
   syncNavGroups();
@@ -15927,6 +15858,65 @@ function shppApply(rows, f) {
   });
 }
 
+/* ================= THE ORDER CONSOLE, READ LIKE THE JOB WORK TABLE =================
+ *
+ * Ravi, 2026-09-23: "order book h and other tab h unki them job work ke jese krna h".
+ *
+ * Six columns for one product — SKU, Image, Article, Subtype, Color, Size — and three more for one
+ * order, on a table that is already twenty wide. The first columns slide off the screen and what is
+ * left is a wall of figures. Job Work answers this and he approved that answer, so the identity of
+ * a line is one cell here too: a picture, what the thing is, its colour and size, its code.
+ *
+ * NOTHING IS LOST. Every fact that was in those columns is in the cell, the export still writes one
+ * column each, and the figures to the right are untouched.
+ */
+/** The picture, inline, for a line that came with its own — a Shopify order line. */
+function ptImgSpanSrc(sku, url, px) {
+  const u = String(url || '').trim();
+  if (!u) return ptImgSpan(sku, px);
+  const n = px || 42;
+  return `<img src="${esc(ptImgSrc(u, n))}" alt="" loading="lazy" title="${esc(sku)}"`
+    + ` style="width:${n}px;height:${n}px;object-fit:cover;border-radius:6px;border:1px solid var(--line);flex:0 0 auto">`;
+}
+/** The product: picture, what it is, colour • size, then the code. */
+function ordItemCell(r, img, extra, frz) {
+  const what = [r.color, r.size].filter(Boolean).join(' • ');
+  return '<td' + (frz ? ' class="frz"' : '') + ' style="text-align:left"><div class="jw-item">' + (img == null ? ptImgSpan(r.sku, 42) : img)
+    + '<div style="min-width:0"><div style="font-weight:600">' + (esc(r.articleSubtype || r.articleType) || '<span class="muted">—</span>') + '</div>'
+    + (r.articleSubtype && r.articleType ? '<div class="jw-sub">' + esc(r.articleType) + '</div>' : '')
+    + '<div class="jw-sub">' + (esc(what) || '—') + '</div>'
+    + '<div class="jw-sku">' + esc(r.sku) + '</div>' + (extra || '') + '</div></div></td>';
+}
+/** The order: its number, what raised it, and when. */
+function ordOrderCell(r, frz) {
+  return '<td' + (frz ? ' class="frz"' : '') + ' style="text-align:left">'
+    + '<a href="#" data-ordj="' + esc(r.orderNo) + '" title="This order, start to finish"'
+    + ' style="color:inherit;text-decoration:underline dotted;font-weight:600">' + esc(r.orderNo) + '</a>'
+    + (r.shopOrderNo ? '<div class="jw-sub">' + esc(r.shopOrderNo) + '</div>' : '')
+    + (r.adjId ? '<div class="jw-sku">' + esc(r.adjId) + '</div>' : '')
+    + (r.orderDate ? '<div class="jw-t">' + esc(r.orderDate) + '</div>' : '') + '</td>';
+}
+/**
+ * The head, built from the columns themselves.
+ *
+ * It used to be a list of names and a pair of numbers saying which of them were numeric — "the
+ * numeric run ends at To make" — so adding one column in the middle silently put every heading
+ * after it over the wrong data. Each column now carries its own alignment.
+ */
+function ordHead(cols, tick) {
+  return '<thead><tr>' + (tick ? '<th class="frz" style="width:34px">' + tick + '</th>' : '')
+    + cols.map((c, i) => '<th' + (i === 0 && !tick ? ' class="frz"' : (c[1] ? ' class="' + c[1] + '"' : '')) + '>' + c[0] + '</th>').join('')
+    + '</tr></thead>';
+}
+/** What a line is waiting for, in the Job Work pills. */
+function ordStatePill(r) {
+  if (!r.open) return '<span class="jw-st done">Complete</span>';
+  if (r.pendingCut > 0) return '<span class="jw-st pend">' + nf(r.pendingCut) + ' to cut</span>';
+  if (r.pendingMake > 0) return '<span class="jw-st prog">' + nf(r.pendingMake) + ' to make</span>';
+  /* Saying "0 to make" here would be silence in a louder font. */
+  return '<span class="jw-st prog">' + nf(r.madeToPress) + ' to press</span>';
+}
+
 function renderOrdShopify(bySku) {
   const lines = shppLines();
   if (!lines.length) {
@@ -15963,11 +15953,15 @@ function renderOrdShopify(bySku) {
       ${ordKpiTiles(s)}
     </div></div>`;
 
-  const head = bySku
-    ? ['SKU', 'Image', 'Article', 'Subtype', 'Color', 'Size', 'Orders', 'Pieces', 'Cut', 'Issued', 'Received', 'Pressed', 'To make', 'Shopify orders']
-    /* RECEIVED AND QC were missing from the sequence: "issued 5, pressed 0, to make 5" does not say
-     * whether the karigar ever brought them back. */
-    : ['Order No', 'Shopify', 'Date', 'SKU', 'Image', 'Article', 'Subtype', 'Color', 'Size', 'Pieces', 'Printing', 'Cut', 'Issued', 'Received', 'QC', 'Pressed', 'To make', 'Quilt team', 'Status', 'Entry'];
+  /* ONE CELL FOR THE PRODUCT, AND ONE FOR THE ORDER, as the Job Work table reads them.
+   * RECEIVED AND QC stay in the sequence: "issued 5, pressed 0, to make 5" does not say whether the
+   * karigar ever brought them back. */
+  const cols = bySku
+    ? [['Item', ''], ['Orders', 'num'], ['Pieces', 'num'], ['Cut', 'num'], ['Issued', 'num'],
+      ['Received', 'num'], ['Pressed', 'num'], ['To make', 'num'], ['Shopify orders', '']]
+    : [['Order', ''], ['Item', ''], ['Pieces', 'num'], ['Printing', ''], ['Cut', 'num'], ['Issued', 'num'],
+      ['Received', 'num'], ['QC', 'num'], ['Pressed', 'num'], ['To make', 'num'], ['Quilt team', ''],
+      ['Status', ''], ['', '']];
   /* Somebody allowed only to assign printers ticks lines too — for that, and nothing else.
    *
    * ON BOTH VIEWS NOW. It used to be the by-order one alone, because a combined row is not a line —
@@ -15975,15 +15969,9 @@ function renderOrdShopify(bySku) {
    * line behind the SKU, which is exactly the bulk assign Ravi asked for. Handing over to shipping
    * stays on the by-order view: that is a decision per order, and a row here hides which. */
   const spPick = (ptCanEdit() || spCanAssign()) && (!bySku || spCanAssign());
-  /* THE NUMERIC RUN ENDS AT "To make" ON BOTH. Adding a column inside it and leaving these alone leaves
-   * every heading after it over the wrong cells. */
-  const numFrom = bySku ? 6 : 9, numTo = bySku ? 12 : 16;
-  /* PINNED TO THE LEFT, because this table is wider than any screen and the first column is the
-   * first thing to slide off it — which is how a tick box that is right there stops existing. */
-  const thead = '<thead><tr>'
-    + (spPick ? '<th class="frz" style="width:34px"><input type="checkbox" id="spPickAll" style="width:auto;margin:0" title="Tick every line shown"></th>' : '')
-    + head.map((h, i) =>
-    `<th${i === 0 && !spPick ? ' class="frz"' : (i >= numFrom && i <= numTo ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
+  /* PINNED TO THE LEFT, because the first column is the first thing to slide off a narrow screen —
+   * which is how a tick box that is right there stops existing. */
+  const thead = ordHead(cols, spPick ? '<input type="checkbox" id="spPickAll" style="width:auto;margin:0" title="Tick every line shown">' : '');
 
   const body = rows.slice(0, 600).map(r => bySku ? (() => {
     /* Every order this SKU is made of, so combining never hides who is owed what. */
@@ -16004,14 +15992,11 @@ function renderOrdShopify(bySku) {
             + `${state === 'some' ? ' data-part="1"' : ''} style="width:auto;margin:0"`
             + ` title="${nf(skuKeys.length)} open line(s) behind this SKU${state === 'some' ? ' — some of them are ticked' : ''}">`
           : '<span class="muted" title="Every order for this SKU is finished — there is nothing to give a printer.">&mdash;</span>'}</td>` : '')
-      + `<td${spPick ? '' : ' class="frz"'} style="text-align:left;font-family:ui-monospace,monospace">${esc(r.sku)}`
-        + (r.needsSku ? ' <span class="st st-pending" title="Not in the Master Database yet — it is on the Custom SKUs list, waiting for its article, colour and size.">custom</span>' : '')
+      + ordItemCell(r, ptImgSpanSrc(r.sku, r.shopImg, 42),
+        (r.needsSku ? '<div><span class="st st-pending" title="Not in the Master Database yet — it is on the Custom SKUs list, waiting for its article, colour and size.">custom</span></div>' : '')
         + (skuKeys.length && state !== 'none'
-          ? `<div class="muted" style="font-size:10.5px">${nf(skuKeys.filter(k => (ORD.pick || new Set()).has(k)).length)} of ${nf(skuKeys.length)} line(s) ticked</div>` : '')
-      + '</td>'
-      + ptImgCellSrc(r.sku, r.shopImg)
-      + `<td>${esc(r.articleType) || '<span class="muted">—</span>'}</td><td>${esc(r.articleSubtype)}</td>`
-      + `<td>${esc(r.color)}</td><td>${esc(r.size)}</td>`
+          ? `<div class="jw-sub">${nf(skuKeys.filter(k => (ORD.pick || new Set()).has(k)).length)} of ${nf(skuKeys.length)} line(s) ticked</div>` : ''),
+        !spPick)
       + `<td class="num">${nf(r.orders.length)}</td>`
       + `<td class="num" style="font-weight:700">${nf(r.qty)}</td>`
       + `<td class="num">${nf(r.cut)}</td><td class="num">${nf(r.issued)}</td>`
@@ -16022,30 +16007,21 @@ function renderOrdShopify(bySku) {
   })() : (() => {
     /* HANDED OVER IS THE END OF A SHOPIFY LINE, and it says so by name — "Complete" on its own left
      * you wondering whether the goods had actually gone anywhere. */
-    const status = r.handedAt ? `<span class="pill pill-ok" title="${esc(r.handedBy || '')} · ${esc(ptIsoDate(r.handedAt) || '')}">Handed over</span>`
+    const status = r.handedAt ? `<span class="jw-st done" title="${esc(r.handedBy || '')} · ${esc(ptIsoDate(r.handedAt) || '')}">Handed over</span>`
         + (r.unrecorded ? `<div><span class="pill pill-low" title="${esc(nf(r.unrecorded) + ' of these ' + nf(r.qty)
           + ' piece(s) were sent with nothing in the registers to say they were made. The goods have gone, so they are not work '
           + 'outstanding — but the entry is missing.')}">${nf(r.unrecorded)} never recorded</span></div>` : '')
-      : !r.open ? '<span class="pill pill-ok">Complete</span>'
-      : r.pendingCut > 0 ? `<span class="pill pill-low">${nf(r.pendingCut)} to cut</span>`
-      : r.pendingMake > 0 ? `<span class="pill pill-out">${nf(r.pendingMake)} to make</span>`
-      : r.madeToPress > 0 ? `<span class="pill pill-low">${nf(r.madeToPress)} to press</span>`
-      : '<span class="pill pill-low">ready to hand over</span>';
+      /* Made, pressed, and waiting for the shipping team to take it — the one state the order book
+       * does not have, because only a Shopify line is handed over. */
+      : r.open && !r.pendingCut && !r.pendingMake && !r.madeToPress ? '<span class="jw-st pend">ready to hand over</span>'
+      : ordStatePill(r);
     const pk = r.orderNo + '|' + r.sku;
     return '<tr>'
       + (spPick ? `<td class="frz"><input type="checkbox" data-sppick="${esc(pk)}"${
           (ORD.pick || new Set()).has(pk) ? ' checked' : ''} style="width:auto;margin:0"></td>` : '')
-      + `<td${spPick ? '' : ' class="frz"'} style="text-align:left"><a href="#" data-ordj="${esc(r.orderNo)}" title="This order, start to finish" style="color:inherit;text-decoration:underline dotted">${esc(r.orderNo)}</a></td>`
-      + `<td style="text-align:left">${esc(r.shopOrderNo) || '<span class="muted">—</span>'}`
-        + (r.adjId ? `<div class="muted" style="font-size:11px;font-family:ui-monospace,monospace">${esc(r.adjId)}</div>` : '')
-      + '</td>'
-      + `<td>${esc(r.orderDate)}</td>`
-      + `<td style="text-align:left;font-family:ui-monospace,monospace">${esc(r.sku)}`
-        + (r.needsSku ? ' <span class="st st-pending" title="Not in the Master Database yet — it is on the Custom SKUs list.">custom</span>' : '')
-      + '</td>'
-      + ptImgCellSrc(r.sku, r.shopImg)
-      + `<td>${esc(r.articleType) || '<span class="muted">—</span>'}</td><td>${esc(r.articleSubtype)}</td>`
-      + `<td>${esc(r.color)}</td><td>${esc(r.size)}</td>`
+      + ordOrderCell(r, !spPick)
+      + ordItemCell(r, ptImgSpanSrc(r.sku, r.shopImg, 42),
+        r.needsSku ? '<div><span class="st st-pending" title="Not in the Master Database yet — it is on the Custom SKUs list.">custom</span></div>' : '')
       + `<td class="num" style="font-weight:700">${nf(r.qty)}${r.pcsPer > 1 ? `<div class="muted" style="font-size:10px;font-weight:400">${nf(r.packs)} × ${nf(r.pcsPer)}</div>` : ''}</td>`
       /* WHO IS PRINTING IT, AND HOW MUCH OF IT. A line nobody prints says so plainly rather than
        * showing a nought that reads like work nobody has started. */
@@ -16082,27 +16058,27 @@ function renderOrdShopify(bySku) {
        * refuses when pressed. */
       /* A PRINTER GETS ONE BUTTON AND ONLY ONE. Recording the printing is theirs; the rest of the
        * line is not, and a button that refuses when pressed reads as a broken app. */
-      + `<td style="white-space:nowrap">${(() => {
+      + `<td><div class="jw-acts">${(() => {
         const k = esc(r.orderNo + '|' + r.sku);
         const bits = [];
         if (spCanPrint(r.orderNo, r.sku))
-          bits.push(`<button class="ghost" data-spprint="${k}" style="padding:2px 9px;font-size:12px">Printed</button>`);
+          bits.push(`<button class="jw-btn" data-spprint="${k}">Printed</button>`);
         if (!spIsVendor() && ptCanEdit()) {
-          bits.push(`<button class="ghost" data-sp="${k}" style="padding:2px 9px;font-size:12px">Entry</button>`);
+          bits.push(`<button class="jw-btn jw-primary" data-sp="${k}" title="Record cutting, issue to a karigar, receive, press">Entry</button>`);
           if (spIsQuilt(r)) {
             const q = spOf(r.orderNo, r.sku) || {};
             bits.push(q.quiltAt
-              ? `<button class="ghost" data-spquilt="${k}" data-on="0" style="padding:2px 9px;font-size:12px">Undo quilt</button>`
-              : `<button class="ghost" data-spquilt="${k}" data-on="1" style="padding:2px 9px;font-size:12px;color:#166534">To quilt team</button>`);
+              ? `<button class="jw-btn" data-spquilt="${k}" data-on="0">Undo quilt</button>`
+              : `<button class="jw-btn" data-spquilt="${k}" data-on="1" style="color:#166534">To quilt team</button>`);
           }
           bits.push(r.handedAt
-            ? `<button class="ghost" data-spback="${k}" style="padding:2px 9px;font-size:12px">Undo</button>`
-            : `<button class="ghost" data-sphand="${k}" style="padding:2px 9px;font-size:12px;color:#166534">Handover</button>`);
+            ? `<button class="jw-btn" data-spback="${k}">Undo</button>`
+            : `<button class="jw-btn" data-sphand="${k}" style="color:#166534">Handover</button>`);
         }
         if (spCanAssign())
-          bits.push(`<button class="ghost" data-spassign="${k}" style="padding:2px 9px;font-size:12px">${r.printer ? 'Printer' : 'Assign'}</button>`);
-        return bits.length ? bits.join(' ') : '<span class="muted">—</span>';
-      })()}</td>`
+          bits.push(`<button class="jw-btn" data-spassign="${k}">${r.printer ? 'Printer' : 'Assign'}</button>`);
+        return bits.length ? bits.join('') : '<span class="muted">—</span>';
+      })()}</div></td>`
       + '</tr>';
   })()).join('');
 
@@ -17289,9 +17265,6 @@ $('odTable').addEventListener('click', async e => {
 /** Which view the Order Console is showing. */
 const ordView = () => (($('odView') || {}).value || 'book');
 
-/* What the board puts away while it is up: the toolbar's own filters, and the tiles. */
-const WB_CHROME = ['odOrd', 'odArt', 'odSub', 'odCol', 'odSz', 'odStatus', 'odSrc', 'odBrand',
-  'odQ', 'odDLbl', 'odD1', 'odD2', 'odClear', 'odKpis', 'odPickBar'];
 function renderOrd() {
   /* The brands that appear on the book, so the filter never offers one with nothing behind it. */
   if ($('odBrand')) ptFillSelect('odBrand', [...new Set((PTG.ob || []).map(r => ordBrandOf(r && r.sku)).filter(Boolean))]
@@ -17305,25 +17278,7 @@ function renderOrd() {
   let v = ordView();
   /* A Shopify-only account can never be shown the order book, whatever the picker says — the option
    * is removed above, and this is the second lock, because a stale value would otherwise open it. */
-  if (SHOP_ONLY() && (v === 'book' || v === 'board')) { v = 'shopsku'; if ($('odView')) $('odView').value = v; }
-  /* THE BOARD IS THE SAME SCREEN IN ANOTHER SHAPE. It brings its own filters and its own counts, so
-   * the toolbar's dropdowns and the wide table go away while it is up rather than sit there
-   * filtering something the reader cannot see. */
-  const onBoard = v === 'board';
-  WB_CHROME.forEach(id => { const el = $(id); if (el) el.style.display = onBoard ? 'none' : ''; });
-  try {
-    ['.ftwrap', '.ftchips'].forEach(sel => {
-      const el = document.querySelector('#paneOrd ' + sel);
-      if (el) el.style.display = onBoard ? 'none' : '';
-    });
-  } catch (e) { /* cosmetics only: never let this stop the screen drawing */ }
-  if ($('odTableCard')) $('odTableCard').classList.toggle('hide', onBoard);
-  if ($('odBoard')) $('odBoard').classList.toggle('hide', !onBoard);
-  if (onBoard) {
-    if ($('spBulkBar')) $('spBulkBar').classList.add('hide');
-    if ($('spBulkBox')) $('spBulkBox').classList.add('hide');
-    return renderOrdBoard();
-  }
+  if (SHOP_ONLY() && v === 'book') { v = 'shopsku'; if ($('odView')) $('odView').value = v; }
   const ow = $('odOrd'); if (ow) ow.style.display = v === 'book' ? '' : 'none';
   /* THE BAR IS FOR BOTH JOBS NOW. It used to appear only for somebody who may record production,
    * which hid the printer sheet from the very people whose job is giving the printing out. */
@@ -17378,21 +17333,21 @@ function renderOrd() {
   const bkAssign = bkCanAssign();
   const bkPick = bkAssign || odrCanAsk();
   const bkPrint = rows.some(r => r.printer || ordVendorOf(r.orderNo, r.sku)) || bkAssign;
-  const head = '<thead><tr>'
-    + (bkPick ? '<th class="frz" style="width:34px"><input type="checkbox" id="spPickAll" style="width:auto;margin:0" title="Tick every line shown"></th>' : '')
-    + ['Order No', 'Raised from', 'Date', 'SKU', 'Image', 'Article', 'Subtype', 'Color', 'Size',
-    'Ordered', 'Cut', 'Issued', 'Received', 'QC', 'Pressed', 'In store', 'To FBA', 'To cut', 'To make', 'Status'].concat(bkPrint ? ['Printing', 'Printer'] : [])
-    /* THE NUMERIC RUN ENDS AT "To make". Adding a column inside it and leaving this range alone puts every
-     * heading after it over the wrong cells — which has happened on this table before. */
-    .map((h, i) => `<th${i === 0 && !bkPick ? ' class="frz"' : (i >= 9 && i <= 18 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
+  /* ONE CELL FOR THE ORDER AND ONE FOR THE PRODUCT, as the Job Work table reads them. The nine
+   * columns they replace said the same things in nine narrow strips, and pushed the figures off
+   * the right of the screen. */
+  const head = ordHead([['Order', ''], ['Item', ''], ['Ordered', 'num'], ['Cut', 'num'], ['Issued', 'num'],
+    ['Received', 'num'], ['QC', 'num'], ['Pressed', 'num'], ['In store', 'num'], ['To FBA', 'num'],
+    ['To cut', 'num'], ['To make', 'num'], ['Status', '']]
+    .concat(bkPrint ? [['Printing', '']] : [])
+    /* The actions had no heading at all when nothing on the page was printed, which left every
+     * heading one cell to the left of its data. */
+    .concat([['', '']]),
+    bkPick ? '<input type="checkbox" id="spPickAll" style="width:auto;margin:0" title="Tick every line shown">' : '');
 
   const body = rows.slice(0, 600).map(r => {
     const pk = r.orderNo + '|' + r.sku, k = esc(pk);
-    const status = (!r.open ? '<span class="pill pill-ok">Complete</span>'
-      : r.pendingCut > 0 ? `<span class="pill pill-low">${nf(r.pendingCut)} to cut</span>`
-      : r.pendingMake > 0 ? `<span class="pill pill-out">${nf(r.pendingMake)} to make</span>`
-      /* Saying "0 to make" here would be silence in a louder font. */
-      : `<span class="pill pill-low">${nf(r.madeToPress)} to press</span>`)
+    const status = ordStatePill(r)
       + (r.unrecorded ? `<div><span class="pill pill-low" title="${esc(nf(r.unrecorded) + ' of these ' + nf(r.qty)
         + ' piece(s) were handed to shipping with nothing in the registers to say they were made.')}">${nf(r.unrecorded)} never recorded</span></div>` : '')
       /* THE QUANTITY MOVED, SAID WHERE THE WORK IS DONE. It was written on the sales order, and
@@ -17425,15 +17380,8 @@ function renderOrd() {
     return '<tr>'
       + (bkPick ? `<td class="frz"><input type="checkbox" data-sppick="${k}"${
           (ORD.pick || new Set()).has(pk) ? ' checked' : ''} style="width:auto;margin:0"></td>` : '')
-      + `<td${bkPick ? '' : ' class="frz"'} style="text-align:left"><a href="#" data-ordj="${esc(r.orderNo)}" title="This order, start to finish" style="color:inherit;text-decoration:underline dotted">${esc(r.orderNo)}</a></td>`
-      + `<td style="text-align:left">${r.shopOrderNo || r.adjId
-          ? `<span>${esc(r.shopOrderNo || '')}</span>`
-            + (r.adjId ? `<div class="muted" style="font-size:11px;font-family:ui-monospace,monospace">${esc(r.adjId)}</div>` : '')
-          : '<span class="muted">—</span>'}</td>`
-      + `<td>${esc(r.orderDate)}</td>`
-      + `<td style="font-family:ui-monospace,monospace;text-align:left">${esc(r.sku)}</td>`
-      + ptImgCell(r.sku)
-      + `<td>${esc(r.articleType)}</td><td>${esc(r.articleSubtype)}</td><td>${esc(r.color)}</td><td>${esc(r.size)}</td>`
+      + ordOrderCell(r, !bkPick)
+      + ordItemCell(r)
       + `<td class="num" style="font-weight:700">${nf(r.qty)}</td>`
       + `<td class="num">${cutCell}</td>`
       + `<td class="num">${nf(r.issued)}</td>`
@@ -17485,14 +17433,14 @@ function renderOrd() {
          * The dialog was never Shopify's: it writes the cutting data, the Job Work Register and press
          * inventory, the same registers the factory's own orders use. Only the button was missing here,
          * so a B2B order had to be recorded from three other screens. */
-        + `<td style="white-space:nowrap">${[
-            spCanPrint(r.orderNo, r.sku) ? `<button class="ghost" data-spprint="${k}" style="padding:2px 9px;font-size:12px">Printed</button>` : '',
-            (!spIsVendor() && ptCanEdit()) ? `<button class="ghost" data-sp="${k}" style="padding:2px 9px;font-size:12px">Entry</button>` : '',
+        + `<td><div class="jw-acts">${[
+            spCanPrint(r.orderNo, r.sku) ? `<button class="jw-btn" data-spprint="${k}">Printed</button>` : '',
+            (!spIsVendor() && ptCanEdit()) ? `<button class="jw-btn jw-primary" data-sp="${k}" title="Record cutting, issue to a karigar, receive, press">Entry</button>` : '',
             (!spIsVendor() && ptCanEdit() && spIsQuilt(r)) ? ((q => q.quiltAt
-              ? `<button class="ghost" data-spquilt="${k}" data-on="0" style="padding:2px 9px;font-size:12px">Undo quilt</button>`
-              : `<button class="ghost" data-spquilt="${k}" data-on="1" style="padding:2px 9px;font-size:12px;color:#166534">To quilt team</button>`)(spOf(r.orderNo, r.sku) || {})) : '',
-            bkAssign ? `<button class="ghost" data-spassign="${k}" style="padding:2px 9px;font-size:12px">${r.printer ? 'Printer' : 'Assign'}</button>` : '',
-          ].filter(Boolean).join(' ') || '<span class="muted">—</span>'}</td>`)
+              ? `<button class="jw-btn" data-spquilt="${k}" data-on="0">Undo quilt</button>`
+              : `<button class="jw-btn" data-spquilt="${k}" data-on="1" style="color:#166534">To quilt team</button>`)(spOf(r.orderNo, r.sku) || {})) : '',
+            bkAssign ? `<button class="jw-btn" data-spassign="${k}">${r.printer ? 'Printer' : 'Assign'}</button>` : '',
+          ].filter(Boolean).join('') || '<span class="muted">—</span>'}</div></td>`)
       + '</tr>';
   }).join('');
   $('odTable').innerHTML = head + '<tbody>' + body + '</tbody>';
@@ -17670,8 +17618,7 @@ function ordBookCsv(rows) {
 
 $('odExport').onclick = () => {
   const rows = ORD.rows || []; if (!rows.length) return;
-  /* The board holds order-book lines, so it exports as the order book does. */
-  const v = ordView() === 'board' ? 'book' : ordView();
+  const v = ordView();
   if (v !== 'book') {
     /* Two columns for the two ids, not the one the table stacks — a spreadsheet sorts on them
      * separately. */
@@ -39234,387 +39181,6 @@ $('fbStoreFile').onchange = async e => {
   } catch (err) { $('fbMsg').className = 'err'; $('fbMsg').textContent = 'Could not read the file: ' + (err.message || err); }
 };
 $('fbStoreNew').onclick = () => stEntryOpen({});
-
-/* ================= THE PRODUCTION BOARD =================
- *
- * Ravi, 2026-09-23, with a picture: "MUJHE USER INTERFACE KUCH IS TARAH CHAHIYE FOR EVERY STEP".
- *
- * NOTHING NEW IS STORED HERE, and nothing new is worked out. Every figure on this screen is the one
- * ordLines() already gives the order book, and every button writes through the same spCutReal /
- * spIssueReal / spReceiveReal / spPressReal / spHandover the Entry dialog uses — so the caps, the
- * karigar's pay and every other screen stay exactly as they are. What is new is the shape: the six
- * steps of the work across the top, the line's ONE next action on its own row, and the typing box
- * beside the line rather than on top of it.
- */
-const WB_STEPS = [
-  ['new', 'Select orders', 'Nothing started'],
-  ['cut', 'Cut', 'Cut the cloth'],
-  ['issue', 'Issue to karigar', 'Give pieces out'],
-  ['recv', 'Receive', 'Take pieces back'],
-  ['press', 'Press', 'Press what is made'],
-  ['done', 'Complete', 'Ready to close'],
-];
-const WB_LABEL = { new: 'Not started', cut: 'To cut', issue: 'To issue', recv: 'With karigar', press: 'To press', done: 'Complete' };
-const WB_PILL = { new: 'pend', cut: 'pend', issue: 'prog', recv: 'prog', press: 'prog', done: 'done' };
-const WB_ACT = { cut: 'Record cutting', issue: 'Issue to karigar', recv: 'Mark as received', press: 'Send to press', done: 'Hand to shipping' };
-let WB = { step: '', pick: '', src: {}, stage: {}, art: {}, col: {}, size: '', q: '', more: false,
-  qty: null, kar: '', note: '', date: '', msg: '', bad: false };
-
-/**
- * The ONE thing this line is waiting for.
- *
- * The order of the questions is the order of the floor: nothing is issued before it is cut, and
- * cut cloth lying about is a louder problem than pieces that are properly out with somebody — so a
- * line with both is asking to be issued, not to be received.
- */
-function wbAct(l) {
-  if (!l || l.handedAt) return 'done';
-  if (ptNum(l.pendingCut) > 0) return 'cut';
-  if (ptNum(l.pendingMake) > 0) {
-    return ((l.cutReq ? ptNum(l.cut) : ptNum(l.qty)) - ptNum(l.issued)) > 0 ? 'issue' : 'recv';
-  }
-  if (ptNum(l.madeToPress) > 0) return 'press';
-  return 'done';
-}
-/** Which step it sits at. A line nobody has touched is at the first step, whatever it needs next. */
-function wbStage(l) {
-  const a = wbAct(l);
-  if (a !== 'done' && !ptNum(l.cut) && !ptNum(l.issued) && !ptNum(l.received) && !ptNum(l.pressed)) return 'new';
-  return a;
-}
-/** Who is holding this line's pieces now. */
-function wbHolders(l) {
-  return [...new Set(spBaseRows(l.orderNo, l.sku)
-    .filter(r => !r.frozen && ptNum(r.pendingPieces) > 0)
-    .map(r => String(r.empName || '').trim()).filter(Boolean))];
-}
-/** Where the order came from, in the words the rail offers. */
-function wbSrcOf(l) {
-  if (l.src === 'SHP' || l.shopOrderNo) return 'Shopify';
-  if (l.src === 'B2B' || /^B2B/i.test(String(l.orderNo || ''))) return 'B2B';
-  if (l.src === 'AMZ' || /^SO/i.test(String(l.orderNo || ''))) return 'Sales order';
-  return 'Other';
-}
-/** A quilt is counted, not registered: its entry is its own, on the Shopify view. */
-const wbIsQuilt = l => !!(l.src === 'SHP' && spIsQuilt(l));
-
-function wbRows() {
-  return (ordLines() || []).filter(l => l && l.open).map(l => Object.assign({}, l, {
-    stage: wbStage(l), act: wbAct(l), source: wbSrcOf(l), holders: wbHolders(l),
-  }));
-}
-const wbTick = (g, v) => !Object.keys(WB[g] || {}).length || !!WB[g][v];
-function wbApply(rows) {
-  const q = String(WB.q || '').trim().toLowerCase();
-  return rows.filter(r => (!WB.step || r.stage === WB.step)
-    && wbTick('src', r.source) && wbTick('stage', WB_LABEL[r.stage])
-    && wbTick('art', r.articleType || '—') && wbTick('col', r.color || '—')
-    && (!WB.size || r.size === WB.size)
-    && (!q || [r.sku, r.orderNo, r.articleType, r.articleSubtype, r.color, r.size, r.holders.join(' ')]
-      .join(' ').toLowerCase().includes(q)));
-}
-/**
- * The number beside a filter is what ticking it would leave — so it is counted with every OTHER
- * filter applied but its own group open. A count that ignored its own group would promise rows that
- * ticking it then takes away.
- */
-function wbCounts(rows, group, valueOf) {
-  const out = new Map();
-  rows.forEach(r => {
-    const keep = (!WB.step || r.stage === WB.step)
-      && (group === 'src' || wbTick('src', r.source))
-      && (group === 'stage' || wbTick('stage', WB_LABEL[r.stage]))
-      && (group === 'art' || wbTick('art', r.articleType || '—'))
-      && (group === 'col' || wbTick('col', r.color || '—'))
-      && (group === 'size' || !WB.size || r.size === WB.size);
-    if (!keep) return;
-    const v = valueOf(r);
-    if (!v) return;
-    out.set(v, (out.get(v) || 0) + 1);
-  });
-  return [...out.entries()].sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0])));
-}
-function wbPickRow() {
-  const i = String(WB.pick || '').indexOf('|');
-  if (i < 0) return null;
-  const no = WB.pick.slice(0, i), sku = WB.pick.slice(i + 1);
-  return wbRows().find(r => r.orderNo === no && r.sku === sku) || null;
-}
-/** How many pieces the next step may take. The real cap is the guard inside each spXReal. */
-function wbMax(l, step) {
-  if (step === 'cut') return Math.max(0, ptNum(l.qty) - ptNum(l.cut));
-  if (step === 'issue') return Math.max(0, (l.cutReq ? ptNum(l.cut) : ptNum(l.qty)) - ptNum(l.issued));
-  if (step === 'recv') return Math.max(0, ptNum(l.issued) - ptNum(l.received));
-  if (step === 'press') return Math.max(0, ptNum(l.received) - ptNum(l.pressed));
-  return 0;
-}
-/**
- * How far along the whole line is — the four steps weighed equally, so a line that is only cut
- * reads a quarter done rather than nothing. The tooltip carries the four figures themselves,
- * because a percentage is a feeling and the pieces are the fact.
- */
-function wbRing(l) {
-  const q = ptNum(l.qty) || 1;
-  const p = Math.max(0, Math.min(100, Math.round(
-    ((Math.min(ptNum(l.cut), q) + Math.min(ptNum(l.issued), q) + Math.min(ptNum(l.received), q) + Math.min(ptNum(l.pressed), q)) / (4 * q)) * 100)));
-  const C = 2 * Math.PI * 14, col = p >= 100 ? '#16a34a' : p > 0 ? '#2563eb' : '#cbd5e1';
-  const tip = 'Cut ' + nf(ptNum(l.cut)) + ' · issued ' + nf(ptNum(l.issued)) + ' · received '
-    + nf(ptNum(l.received)) + ' · pressed ' + nf(ptNum(l.pressed)) + ' of ' + nf(ptNum(l.qty));
-  return '<div class="jw-ring" title="' + esc(tip) + '"><svg viewBox="0 0 36 36" width="34" height="34">'
-    + '<circle cx="18" cy="18" r="14" fill="none" stroke="#e5e7eb" stroke-width="4"/>'
-    + '<circle cx="18" cy="18" r="14" fill="none" stroke="' + col + '" stroke-width="4" stroke-linecap="round" '
-    + 'stroke-dasharray="' + (C * p / 100).toFixed(1) + ' ' + C.toFixed(1) + '" transform="rotate(-90 18 18)"/></svg>'
-    + '<b>' + p + '%</b></div>';
-}
-/** How many pieces this step is actually waiting on. */
-function wbLeft(l) {
-  if (l.stage === 'new') return nf(ptNum(l.qty)) + ' to make';
-  if (l.stage === 'cut') return nf(ptNum(l.pendingCut)) + ' to cut';
-  if (l.stage === 'issue') return nf(wbMax(l, 'issue')) + ' ready to issue';
-  if (l.stage === 'recv') return nf(wbMax(l, 'recv')) + ' out with the karigar';
-  if (l.stage === 'press') return nf(ptNum(l.madeToPress)) + ' to press';
-  return '';
-}
-
-/** A colour's own dot, worked out from its name, so the same colour always looks the same. */
-function wbColour(name) {
-  const n = String(name || '').trim().toLowerCase();
-  if (!n) return '#cbd5e1';
-  const NAMED = [['forest', '#166534'], ['sage', '#84a98c'], ['olive', '#6b7f3a'], ['jade', '#2f855a'],
-    ['green', '#22c55e'], ['navy', '#1e3a8a'], ['coastal', '#2563eb'], ['sky', '#38bdf8'], ['blue', '#3b82f6'],
-    ['red', '#dc2626'], ['maroon', '#7f1d1d'], ['rust', '#b45309'], ['pink', '#ec4899'], ['yellow', '#eab308'],
-    ['mustard', '#ca8a04'], ['gold', '#d4af37'], ['orange', '#f97316'], ['beige', '#e7d8c9'], ['ivory', '#f3efe6'],
-    ['cream', '#f5ecd9'], ['white', '#f8fafc'], ['grey', '#94a3b8'], ['gray', '#94a3b8'], ['charcoal', '#334155'],
-    ['black', '#111827'], ['brown', '#8b5e34'], ['purple', '#7c3aed'], ['lilac', '#c4b5fd'], ['teal', '#14b8a6'],
-    ['natural', '#ded3c0'], ['nature', '#ded3c0']];
-  const hit = NAMED.find(w => n.includes(w[0]));
-  if (hit) return hit[1];
-  let h = 7;
-  for (const c of n) h = (h * 131 + c.charCodeAt(0)) >>> 0;
-  return 'hsl(' + (h % 360) + ' 45% 62%)';
-}
-
-/** Do the next thing, through the same function the Entry dialog calls. */
-async function wbDo(l, step, qty, karType, karName, day, note) {
-  if (!ptCanEdit()) return PT_NO_EDIT;
-  if (spIsVendor()) return 'A printer records printing, not cutting or issuing.';
-  const d = String(day || '').trim() || dToday();
-  if (step === 'done') return spHandover(l.orderNo, l.sku, true);
-  const n = parseInt(qty, 10);
-  if (!n || n < 1) return 'How many pieces?';
-  if (step === 'cut') return spCutReal(l.orderNo, l.sku, n, d, '', note || '');
-  if (step === 'issue') return spIssueReal(l.orderNo, l.sku, karType, karName, n, d, note || '');
-  if (step === 'recv') return spReceiveReal(l.orderNo, l.sku, n, d, karName || '');
-  if (step === 'press') return spPressReal(l.orderNo, l.sku, n, d, note || '');
-  return 'There is nothing waiting on this line.';
-}
-
-/* ---- the screen ---- */
-function renderOrdBoard() {
-  if (!PTG.ob) { ptEmpty('wbTable', 'Loading…'); return; }
-  const all = wbRows();
-  const rows = wbApply(all);
-  ORD.rows = rows;
-  $('odMsg').className = 'muted';
-  $('odMsg').textContent = all.length
-    ? 'Every line still to finish, in the order the work runs. Pick a step, then a line.'
-    : 'Nothing is open — every line in the book is finished.';
-
-  /* the six steps */
-  $('wbSteps').innerHTML = WB_STEPS.map((st, i) => {
-    const n = all.filter(r => r.stage === st[0]).length;
-    /* The count belongs BESIDE the name, not at the far end of a wide box — it was floating away
-     * from the step it counts. */
-    return '<button type="button" class="wb-step' + (WB.step === st[0] ? ' on' : '') + '" data-wb-step="' + st[0] + '"'
-      + ' title="Show only the lines waiting here">'
-      + '<span class="wb-n">' + (i + 1) + '</span>'
-      + '<span class="wb-t"><b>' + esc(st[1]) + '<span class="wb-c">' + nf(n) + '</span></b>'
-      + '<span>' + esc(st[2]) + '</span></span></button>';
-  }).join('<span class="wb-line"></span>');
-
-  /* the rail */
-  const grp = (title, key, list, cur) => '<div class="wb-grp"><div class="wb-gh">' + esc(title) + '</div>'
-    + (list.length ? list.map(e => '<label class="wb-f"><input type="checkbox" data-wb-f="' + key + '" value="' + esc(e[0]) + '"'
-      + ((cur || {})[e[0]] ? ' checked' : '') + '><span>' + esc(e[0]) + '</span><b>' + nf(e[1]) + '</b></label>').join('')
-      : '<div class="muted" style="font-size:12px">—</div>') + '</div>';
-  const cols = wbCounts(all, 'col', r => r.color || '—');
-  const sizes = wbCounts(all, 'size', r => r.size || '—');
-  const on = Object.keys(WB.src).length + Object.keys(WB.stage).length + Object.keys(WB.art).length
-    + Object.keys(WB.col).length + (WB.size ? 1 : 0) + (WB.step ? 1 : 0);
-  $('wbRail').innerHTML = '<div class="wb-railhead"><b>Filters</b>'
-    + (on ? '<button type="button" id="wbReset" class="jw-link">Clear ' + on + '</button>' : '') + '</div>'
-    + grp('Order source', 'src', wbCounts(all, 'src', r => r.source), WB.src)
-    + grp('Stage', 'stage', wbCounts(all, 'stage', r => WB_LABEL[r.stage]), WB.stage)
-    + grp('Product type', 'art', wbCounts(all, 'art', r => r.articleType || '—').slice(0, 6), WB.art)
-    + grp('Colour', 'col', cols.slice(0, WB.more ? 40 : 6), WB.col)
-    + (cols.length > 6 ? '<button type="button" id="wbMore" class="jw-link">' + (WB.more ? '− Fewer colours' : '+ ' + (cols.length - 6) + ' more colours') + '</button>' : '')
-    + '<div class="wb-grp"><div class="wb-gh">Size</div><select id="wbSize"><option value="">All sizes</option>'
-    + sizes.map(e => '<option value="' + esc(e[0]) + '"' + (WB.size === e[0] ? ' selected' : '') + '>'
-      + esc(e[0]) + ' (' + nf(e[1]) + ')</option>').join('') + '</select></div>';
-
-  /* the lines */
-  const may = ptCanEdit() && !spIsVendor();
-  const head = '<thead><tr>' + ['Item', 'Ordered', 'Progress', 'Stage', 'Karigar', 'Next action']
-    .map((h, i) => '<th' + (i === 1 ? ' class="num"' : '') + '>' + h + '</th>').join('') + '</tr></thead>';
-  const shown = rows.slice(0, 200);
-  $('wbTable').innerHTML = head + '<tbody>' + (shown.length ? shown.map(r => {
-    const k = esc(r.orderNo + '|' + r.sku);
-    const act = r.act === 'done' && r.src !== 'SHP' ? '' : WB_ACT[r.act];
-    const on = WB.pick === r.orderNo + '|' + r.sku;
-    return '<tr' + (on ? ' class="jw-on"' : '') + '>'
-      /* ONE CELL FOR THE PRODUCT, the way the Job Work table reads: picture, what it is, which
-       * colour and size, then the code and the order underneath. */
-      + '<td style="text-align:left"><div class="jw-item">' + ptImgSpan(r.sku, 42) + '<div style="min-width:0">'
-      + '<div style="font-weight:600">' + esc(r.articleSubtype || r.articleType || '—') + '</div>'
-      + '<div class="jw-sub"><span class="wb-dot" style="background:' + wbColour(r.color) + '"></span>'
-      + esc([r.color, r.size].filter(Boolean).join(' • ') || '—') + '</div>'
-      + '<div class="jw-sku">' + esc(r.sku) + ' · ' + esc(r.orderNo) + '</div></div></div></td>'
-      + '<td class="num">' + nf(ptNum(r.qty)) + ' <span class="jw-u">pcs</span></td>'
-      + '<td>' + wbRing(r) + '</td>'
-      + '<td style="text-align:left"><span class="jw-st ' + WB_PILL[r.stage] + '">' + esc(WB_LABEL[r.stage]) + '</span>'
-      + (wbLeft(r) ? '<div class="jw-sub">' + esc(wbLeft(r)) + '</div>' : '') + '</td>'
-      + '<td style="text-align:left">' + (r.holders.length
-        ? '<div class="jw-who">' + jwAvatar(r.holders[0]) + '<div><div style="font-weight:600">' + esc(r.holders[0]) + '</div>'
-          + (r.holders.length > 1 ? '<div class="jw-sub">and ' + (r.holders.length - 1) + ' more</div>' : '') + '</div></div>'
-        : '<span class="muted">—</span>') + '</td>'
-      + '<td><div class="jw-acts">'
-      + (may && act ? '<button class="jw-btn' + (on ? ' jw-primary' : '') + '" data-wb-go="' + k + '">' + esc(act) + '</button>' : '')
-      + '<button class="jw-btn jw-more" data-wb-more="' + k + '" title="This order, start to finish">⋯</button></div></td></tr>';
-  }).join('') : '<tr><td colspan="6" class="muted" style="padding:18px;text-align:center">Nothing matches these filters.</td></tr>') + '</tbody>';
-
-  $('wbCount').textContent = nf(rows.length) + ' line(s)'
-    + (rows.length > shown.length ? ' · showing the first ' + nf(shown.length) : '');
-  wbPanel();
-  ptImgFill(shown.map(r => r.sku), false, renderOrdBoard);
-}
-
-/** The line that was picked, and the box to type into. */
-function wbPanel() {
-  const el = $('wbPanel');
-  if (!el) return;
-  const l = wbPickRow();
-  if (!l) { el.classList.add('hide'); el.innerHTML = ''; return; }
-  el.classList.remove('hide');
-  const step = l.act, max = wbMax(l, step);
-  const qty = WB.qty == null ? max : WB.qty;
-  const fig = (name, v) => '<div class="wb-fig"><span>' + esc(name) + '</span><b>' + nf(ptNum(v)) + '</b></div>';
-  const emps = (PTE.emp || []).filter(e => e && String(e[1] || '').trim())
-    .map(e => [String(e[0] || '').trim(), String(e[1]).trim()])
-    .sort((a, b) => a[1].localeCompare(b[1]));
-  const holders = l.holders;
-  let box = '';
-  if (wbIsQuilt(l)) {
-    box = '<div class="wb-note">A quilt is counted rather than booked to a karigar, so its entry is its own.</div>'
-      + '<button type="button" id="wbQuilt" class="wb-go">Open quilt entry →</button>';
-  } else if (step === 'done') {
-    box = l.src === 'SHP'
-      ? '<div class="wb-note">Everything on this line is made and pressed. Handing it to shipping takes it off the production list; it can be undone.</div>'
-        + '<button type="button" id="wbGo" class="wb-go">Hand to shipping →</button>'
-      : '<div class="wb-note">Nothing is pending on this line.</div>';
-  } else if (max < 1) {
-    box = '<div class="wb-note">' + esc(WB_ACT[step]) + ' has nothing left to take on this line. '
-      + 'Use ⋯ to read the order start to finish.</div>';
-  } else {
-    box = '<div class="wb-gh" style="margin-top:12px">' + esc(WB_ACT[step]) + ' — how many</div>'
-      + '<div class="wb-qty"><button type="button" id="wbMinus">−</button>'
-      + '<input id="wbQty" type="number" min="1" max="' + max + '" value="' + qty + '">'
-      + '<button type="button" id="wbPlus">+</button></div>'
-      + '<div class="jw-sub" style="margin-top:4px">Up to ' + nf(max) + ' piece(s)</div>'
-      + (step === 'issue' ? '<div class="wb-gh" style="margin-top:12px">Karigar</div>'
-        + '<select id="wbKar"><option value="">Who is it going to?</option>'
-        + emps.map(e => '<option value="' + esc(e[0] + '|' + e[1]) + '"' + (WB.kar === e[0] + '|' + e[1] ? ' selected' : '') + '>'
-          + esc(e[1]) + (e[0] ? ' — ' + esc(e[0]) : '') + '</option>').join('') + '</select>' : '')
-      + (step === 'recv' ? '<div class="wb-gh" style="margin-top:12px">Back from</div>'
-        + '<select id="wbKar"><option value="">Oldest issue first</option>'
-        + holders.map(n => '<option value="|' + esc(n) + '"' + (WB.kar === '|' + n ? ' selected' : '') + '>' + esc(n) + '</option>').join('')
-        + '</select>' : '')
-      + '<div class="wb-gh" style="margin-top:12px">Date</div>'
-      + '<input id="wbDate" type="date" value="' + esc(WB.date || dToday()) + '">'
-      + (step === 'recv' ? '' : '<div class="wb-gh" style="margin-top:12px">Note (optional)</div>'
-        + '<input id="wbNote" placeholder="Anything worth recording" value="' + esc(WB.note || '') + '">')
-      + '<button type="button" id="wbGo" class="wb-go">' + esc(WB_ACT[step]) + ' →</button>';
-  }
-  el.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px">'
-    + '<b>SKU details</b><button type="button" id="wbClose" class="jw-btn jw-more" title="Close">✕</button></div>'
-    + '<div class="wb-pimg">' + ptImgSpan(l.sku, 110) + '</div>'
-    + '<div class="wb-pname">' + esc(l.sku) + '</div>'
-    + '<div class="jw-sub">' + esc([l.articleType, l.articleSubtype].filter(Boolean).join(' · ')) + '</div>'
-    + '<div style="margin-top:8px"><span class="jw-st ' + WB_PILL[l.stage] + '">' + esc(WB_LABEL[l.stage]) + '</span></div>'
-    + '<div class="wb-figs">'
-    + '<div class="wb-fig"><span>Order</span><b>' + esc(l.orderNo) + '</b></div>'
-    + '<div class="wb-fig"><span>Colour</span><b><span class="wb-dot" style="background:' + wbColour(l.color) + '"></span>' + esc(l.color || '—') + '</b></div>'
-    + '<div class="wb-fig"><span>Size</span><b>' + esc(l.size || '—') + '</b></div>'
-    + fig('Ordered', l.qty) + fig('Cut', l.cut) + fig('Issued', l.issued)
-    + fig('Received', l.received) + fig('Pressed', l.pressed)
-    + (holders.length ? '<div class="wb-fig" style="grid-column:1/-1"><span>With</span><b>' + esc(holders.join(', ')) + '</b></div>' : '')
-    + '</div>'
-    + box
-    + '<div id="wbMsg" class="' + (WB.bad ? 'err' : 'muted') + '" style="font-size:12px;margin-top:8px">' + esc(WB.msg || '') + '</div>'
-    + '<button type="button" id="wbJourney" class="jw-btn" style="width:100%;margin-top:8px">View full order</button>';
-}
-
-/* ---- the wiring. The four boxes are always in the page, so one listener each is enough. ---- */
-$('wbSteps').addEventListener('click', e => {
-  const b = e.target.closest('[data-wb-step]');
-  if (!b) return;
-  const k = b.getAttribute('data-wb-step');
-  WB.step = WB.step === k ? '' : k;
-  renderOrdBoard();
-});
-$('wbRail').addEventListener('change', e => {
-  const f = e.target.closest('[data-wb-f]');
-  if (f) {
-    const g = f.getAttribute('data-wb-f');
-    WB[g] = Object.assign({}, WB[g]);
-    if (f.checked) WB[g][f.value] = true; else delete WB[g][f.value];
-    return renderOrdBoard();
-  }
-  if (e.target.id === 'wbSize') { WB.size = e.target.value; renderOrdBoard(); }
-});
-$('wbRail').addEventListener('click', e => {
-  if (e.target.closest('#wbReset')) {
-    WB = Object.assign({}, WB, { step: '', src: {}, stage: {}, art: {}, col: {}, size: '' });
-    return renderOrdBoard();
-  }
-  if (e.target.closest('#wbMore')) { WB.more = !WB.more; renderOrdBoard(); }
-});
-ptDebounce('wbQ', () => { WB.q = $('wbQ').value; renderOrdBoard(); });
-$('wbTable').addEventListener('click', e => {
-  const more = e.target.closest('[data-wb-more]');
-  if (more) return ordJourney(more.getAttribute('data-wb-more').split('|')[0]);
-  const go = e.target.closest('[data-wb-go]');
-  if (!go) return;
-  WB.pick = go.getAttribute('data-wb-go');
-  WB.qty = null; WB.kar = ''; WB.note = ''; WB.date = ''; WB.msg = ''; WB.bad = false;
-  renderOrdBoard();
-});
-$('wbPanel').addEventListener('click', async e => {
-  const l = wbPickRow();
-  if (!l) return;
-  if (e.target.closest('#wbClose')) { WB.pick = ''; WB.msg = ''; return renderOrdBoard(); }
-  if (e.target.closest('#wbJourney')) return ordJourney(l.orderNo);
-  if (e.target.closest('#wbQuilt')) return spOpen(l.orderNo, l.sku);
-  const step = l.act, max = wbMax(l, step), box = $('wbQty');
-  if (e.target.closest('#wbMinus')) { WB.qty = Math.max(1, (parseInt(box.value, 10) || 1) - 1); return renderOrdBoard(); }
-  if (e.target.closest('#wbPlus')) { WB.qty = Math.min(max, (parseInt(box.value, 10) || 0) + 1); return renderOrdBoard(); }
-  const btn = e.target.closest('#wbGo');
-  if (!btn) return;
-  /* What is on screen is what gets written — read it off the boxes, not off the state. */
-  const kar = ($('wbKar') ? $('wbKar').value : '').split('|');
-  WB.qty = box ? box.value : null;
-  WB.kar = $('wbKar') ? $('wbKar').value : '';
-  WB.date = $('wbDate') ? $('wbDate').value : '';
-  WB.note = $('wbNote') ? $('wbNote').value : '';
-  btn.disabled = true;
-  WB.msg = 'Saving…'; WB.bad = false;
-  if ($('wbMsg')) { $('wbMsg').textContent = WB.msg; $('wbMsg').className = 'muted'; }
-  const err = await wbDo(l, step, WB.qty, kar[0] || '', kar.slice(1).join('|'), WB.date, WB.note);
-  btn.disabled = false;
-  WB.msg = err || 'Saved.';
-  WB.bad = !!err;
-  if (!err) { WB.qty = null; WB.note = ''; }
-  renderOrdBoard();
-});
 
 const RECIPE_FIELDS = [
   /* FIRST, because it is the first thing anybody asks about a product. 'fab' is text picked from the
