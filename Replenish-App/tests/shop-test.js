@@ -198,7 +198,7 @@ const EXPORT = '\n;return {'
   + 'setStockLoaded:v=>{SHOP_STOCK_LOADED=v},'
   + 'setIndia:(d,l,e)=>{SHOP_INDIA=d;SHOP_INDIA_LOADED=l;SHOP_INDIA_ERR=e}'
   + ', setCustom:v=>{SHP_CUSTOM=v}'
-  + ', soIndexNames, soPackFit, shpSyncSoon, SHP_BUSY:()=>SHP_BUSY, SHP_AGAIN:()=>SHP_AGAIN, setSyncAll:v=>{shpSyncAll=v}'
+  + ', soIndexNames, soPackFit, shpSkuFromTitle, shpWords, shpSyncSoon, SHP_BUSY:()=>SHP_BUSY, SHP_AGAIN:()=>SHP_AGAIN, setSyncAll:v=>{shpSyncAll=v}'
   + ', soBulkPlan, soBulkApply, soBulkSheet, SO_LOC_OPTIONS, soLine, soLocOf, soBulkXlsx, soBinList, soCrc32'
   + '};';
 const fn = new Function(...Object.keys(ctx), block + EXPORT);
@@ -1377,6 +1377,92 @@ console.log('\n== a line with no SKU is refused OUT LOUD, not dropped ==');
   RT = {}; PTG.ob = []; SOX.rows = [];
 }
 
+console.log('\n== a codeless line is found by its title ==');
+{
+  /* Ravi, 2026-09-23, on CPC #6571: "title me 3 things h subtype color and size but size me yaha "
+   * sign h to iske basis par masterdata me sku mil jayega".
+   *
+   * The real line and the real master row, both verbatim from live:
+   *   Shopify: name "Ruffle Tablecloth - Agate Green" · variant '52" X 70"' · sku ""
+   *   master:  CPCRU005-5270 · Tablecloth · Ruffle Rectangular Tablecloth · Agate Green · 52x70
+   * Note the shop says "Ruffle Tablecloth" and the master says "Ruffle RECTANGULAR Tablecloth", so
+   * the subtype is not what can be matched on. Colour and size are. */
+  const mdb = [
+    { sku: 'CPCRU005-5270', articleType: 'Tablecloth', subtype: 'Ruffle Rectangular Tablecloth', color: 'Agate Green', size: '52x70' },
+    { sku: 'CPCRU005-6', articleType: 'Tablecloth', subtype: 'Ruffle Rectangular Tablecloth', color: 'Agate Green', size: '60x90' },
+    { sku: 'CPCCRU005', articleType: 'Pillow Cover', subtype: 'Ruffle Pillow Cover', color: 'Agate Green', size: '20x20' },
+    { sku: 'CPCRU009-5270', articleType: 'Tablecloth', subtype: 'Ruffle Rectangular Tablecloth', color: 'Sage Green', size: '52x70' },
+  ];
+  const wasPTG = PTG.mdb;
+  PTG.mdb = mdb;
+
+  ok('the inch marks come off and the × becomes an x', A.shpWords('52" X 70"') === '52x70', A.shpWords('52" X 70"'));
+  ok('…and a tissue box keeps its halves', A.shpWords('5x4.5x5') === '5x4.5x5', A.shpWords('5x4.5x5'));
+
+  const hit = A.shpSkuFromTitle('Ruffle Tablecloth - Agate Green', '52" X 70"');
+  ok('the line Ravi showed finds its SKU', !!hit && hit.sku === 'CPCRU005-5270', JSON.stringify(hit && hit.sku));
+
+  /* THE SIZE IS WHAT PINS IT. The same product in another size is a different SKU, and guessing
+   * between them would put the wrong thing on the floor. */
+  ok('another size of the same product is not mistaken for it',
+     (A.shpSkuFromTitle('Ruffle Tablecloth - Agate Green', '60" X 90"') || {}).sku === 'CPCRU005-6');
+  ok('a size nobody makes matches nothing', A.shpSkuFromTitle('Ruffle Tablecloth - Agate Green', '99" X 99"') === null);
+  ok('a colour nobody has matches nothing', A.shpSkuFromTitle('Ruffle Tablecloth - Aubergine', '52" X 70"') === null);
+  /* Colour and size alone are not enough: a pillow cover and a tablecloth can share both. */
+  ok('the product type still has to agree', A.shpSkuFromTitle('Napkin - Agate Green', '52" X 70"') === null);
+  ok('…and a pillow cover in the same colour finds the pillow cover',
+     (A.shpSkuFromTitle('Ruffle Pillow Cover - Agate Green', '20" X 20"') || {}).sku === 'CPCCRU005');
+
+  /* WHAT IT IS HAS TO AGREE IN FULL, and these two are why. Both were matched by the first, looser
+   * rule on live orders, and both were wrong. */
+  PTG.mdb = mdb.concat([
+    { sku: 'WCWRC0001-2036', articleType: 'Pillow Cover', subtype: 'Ruffle Pillow Cover', color: 'White', size: '20x36' },
+    { sku: 'CPCRU008-60120', articleType: 'Tablecloth', subtype: 'Ruffle Rectangular Tablecloth', color: 'Pink Sapphire', size: '60x120' },
+  ]);
+  ok('a bed pillow INSERT is not matched to a ruffle pillow COVER',
+     A.shpSkuFromTitle('White Bed Pillow Insert - Twin/Queen/King', 'King 20x36 in (51 x 91 Cm) / Set of 2') === null);
+  ok('a plain tablecloth is not matched to a RUFFLE one',
+     A.shpSkuFromTitle('Cotton Block Print Tablecloth – Pink Sapphire', '60" x 120"') === null);
+  /* But the shape word the shop leaves out is forgiven — the size already says which it is. */
+  ok('…while "Rectangular", which the shop never writes, is not held against it',
+     (A.shpSkuFromTitle('Cotton Block Print Tablecloth – Agate Green', '52" X 70"') || {}) !== null);
+  /* And one plural, because the shop writes Napkins and the master writes Napkin. */
+  PTG.mdb = mdb.concat([{ sku: 'CPCNE043', articleType: 'Napkin', subtype: 'Embroidery Napkin', color: 'Autumn Vine', size: '18x18' }]);
+  ok('"Napkins" finds "Napkin"',
+     (A.shpSkuFromTitle('Cotton Embroidery Napkins - Autumn Vine', '18 x 18 in / Set of 12') || {}).sku === 'CPCNE043');
+  PTG.mdb = mdb;
+
+  /* TWO ROWS EQUALLY GOOD IS A QUESTION, NOT A MATCH. */
+  PTG.mdb = mdb.concat([{ sku: 'OTHER-5270', articleType: 'Tablecloth', subtype: 'Ruffle Round Tablecloth', color: 'Agate Green', size: '52x70' }]);
+  ok('two products that fit equally well match nothing at all',
+     A.shpSkuFromTitle('Ruffle Tablecloth - Agate Green', '52" X 70"') === null);
+  PTG.mdb = mdb;
+
+  /* AND IT REACHES THE ORDER BOOK — with a mark saying where the code came from. */
+  const order = { id: 'o-title', no: '#6571', at: A.sdShift(A.sdToday(), -16) + 'T10:00:00Z', ff: '',
+    items: [{ sku: '', name: 'Ruffle Tablecloth - Agate Green', variant: '52" X 70"', qty: 1, fq: 1, cq: 1 }],
+    ship: { name: 'A buyer', country: 'US' }, total: 55.99, cur: 'USD' };
+  const want = A.shpNeeds(order, []);
+  ok('the sync now asks production for it', want.length === 1 && want[0].sku === 'CPCRU005-5270', JSON.stringify(want));
+  ok('…and records that the code came from the title', !!want[0].viaTitle && want[0].why.join(' ').indexOf('by its title') >= 0,
+     JSON.stringify(want[0].why));
+  const plan = A.shpPlanOrder(order, true);
+  const row = plan.rows[0];
+  ok('the production row is written under the code that was found',
+     !!row && row.sku === 'CPCRU005-5270' && row.titleMatch === true, JSON.stringify(row && { sku: row.sku, titleMatch: row.titleMatch }));
+  ok('…and it carries the article, colour and size off that master row',
+     !!row && row.articleType === 'Tablecloth' && row.color === 'Agate Green' && row.size === '52x70',
+     JSON.stringify(row && { a: row.articleType, c: row.color, s: row.size }));
+
+  /* The screen says where the code came from, rather than pretending Shopify sent it. */
+  const wasShop = A.SHOP();
+  A.setSHOP({ orders: [order], from: '', to: '', tz: '', at: 'x' });
+  A.renderShop();
+  ok('the row says the SKU was worked out from the title', /SKU from the title: CPCRU005-5270/.test(els.soTable.innerHTML),
+     els.soTable.innerHTML.slice(0, 200));
+  A.setSHOP(wasShop);
+  PTG.mdb = wasPTG;
+}
 console.log('\n== a line with no SKU says so on its own row ==');
 {
   /* CPC #6571, 2026-09-23: "Need from production" on the screen and nothing in the Order Console.

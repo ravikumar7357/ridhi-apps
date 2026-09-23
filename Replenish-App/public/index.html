@@ -41645,12 +41645,25 @@ function soRows() {
        * production row is keyed on one, so such a line can only be named and skipped. Carried here
        * by name so the row can say it, rather than reading "Need from production" and quietly
        * never opening. */
-      noSku: (o.items || []).filter(i => {
-        if (String((i && i.sku) || '').trim()) return false;
-        let live = 0;
-        try { live = Number(soLive(i)) || 0; } catch (e) { live = Number(i && i.qty) || 0; }
-        return live > 0;
-      }).map(i => String((i && i.name) || '').trim() || 'a line with no name'),
+      /* Two lists, because they need different things done about them: one is a code the app
+       * worked out from the title and somebody may want to check, the other is a line nobody can
+       * order until the variant is given a SKU in Shopify. */
+      ...(() => {
+        const bare = (o.items || []).filter(i => {
+          if (String((i && i.sku) || '').trim()) return false;
+          let live = 0;
+          try { live = Number(soLive(i)) || 0; } catch (e) { live = Number(i && i.qty) || 0; }
+          return live > 0;
+        });
+        const named = i => String((i && i.name) || '').trim() || 'a line with no name';
+        const found = [], lost = [];
+        bare.forEach(i => {
+          const m = shpSkuFromTitle(i && i.name, i && i.variant);
+          if (m) found.push({ name: named(i) + (i.variant ? ' · ' + i.variant : ''), sku: String(m.sku) });
+          else lost.push(named(i) + (i.variant ? ' · ' + i.variant : ''));
+        });
+        return { noSku: lost, titleSku: found };
+      })(),
       ...soFlags(o, meta),
     };
   });
@@ -41884,8 +41897,16 @@ function renderShop() {
            * become a production order until somebody goes into Shopify and fixes the variant. */
           + ((r.noSku || []).length
             ? '<div style="font-size:10.5px;font-weight:700;color:var(--bad);white-space:normal;max-width:170px" title="'
-              + esc((r.noSku || []).join(' · ') + ' — a production row is keyed on the SKU, so this line cannot be ordered until the variant has one in Shopify.')
+              + esc((r.noSku || []).join(' · ') + ' — a production row is keyed on the SKU. The title did not match one product in the master database either, so this line cannot be ordered until the variant is given a SKU in Shopify.')
               + '">' + nf((r.noSku || []).length) + ' line(s) have no SKU — cannot open</div>'
+            : '')
+          /* Found by its title rather than sent by Shopify — said out loud, with the code, because
+           * it is worth a glance the first time a product is sold without one. */
+          + ((r.titleSku || []).length
+            ? '<div style="font-size:10.5px;font-weight:700;color:var(--warn-ink);white-space:normal;max-width:170px" title="'
+              + esc((r.titleSku || []).map(x => x.name + ' → ' + x.sku).join(' · ')
+                + ' — the Shopify variant carries no SKU, so the code was worked out from the title: its colour and size matched one product in the master database.')
+              + '">SKU from the title: ' + esc((r.titleSku || []).map(x => x.sku).join(', ')) + '</div>'
             : '')
         : r.route === 'Ship from India'
           ? '<span class="st st-pending">' + esc(r.route) + '</span>'
@@ -42387,9 +42408,63 @@ const shpLineShipped = i => /^ful/i.test(String((i && i.ffl) || ''));
  * variant. They cannot become a production order — there is nothing to make them against — and
  * guessing one would be worse than none. They are collected so the screen can name them.
  */
+/**
+ * Shopify's words and the master's, reduced to the same thing: inch marks and quotes dropped, any
+ * kind of × between two numbers made a plain x, everything else to single spaces. Dots are kept —
+ * a tissue box is 5x4.5x5.
+ */
+const shpWords = v => String(v == null ? '' : v).toLowerCase()
+  .replace(/[\u2032\u2033\u201c\u201d\u2018\u2019"']/g, '')
+  .replace(/(\d)\s*[x×*]\s*(\d)/g, '$1x$2')
+  .replace(/[^a-z0-9.]+/g, ' ')
+  .replace(/\s+/g, ' ')
+  .trim();
+/** Is this whole phrase in that text — as words, so "green" does not match "greengage". */
+const shpHasPhrase = (hay, needle) => !!needle && (' ' + hay + ' ').indexOf(' ' + needle + ' ') >= 0;
+/** The same, forgiving one plural: the shop writes "Napkins", the master writes "Napkin". */
+const shpHasWord = (hay, w) => !!w && (shpHasPhrase(hay, w) || shpHasPhrase(hay, w + 's') || shpHasPhrase(hay, w + 'es')
+  || (/s$/.test(w) && shpHasPhrase(hay, w.slice(0, -1))));
+/* The shop leaves these out because the size already says which it is; nothing else may be missing. */
+const SHP_SHAPE_WORDS = ['rectangular', 'rectangle', 'square', 'round', 'oval'];
+
+/**
+ * The master row a codeless line is for, or null.
+ *
+ * Colour and size must BOTH be there in full; the product type's words then choose between the
+ * rows that share them. Two rows equally good is not a match — it is a question, and the row says
+ * so rather than opening a production order for the wrong thing.
+ */
+function shpSkuFromTitle(name, variant) {
+  const title = shpWords(String(name || '') + ' ' + String(variant || ''));
+  const size = shpWords(variant);
+  if (!title) return null;
+  let best = null, bestScore = 0, tied = false;
+  (PTG.mdb || []).forEach(m => {
+    if (!m || !m.sku || !m.color || !m.size) return;
+    if (!shpHasPhrase(title, shpWords(m.color))) return;
+    const sz = shpWords(m.size);
+    if (!(sz === size || shpHasPhrase(title, sz))) return;
+    /* WHAT IT IS HAS TO AGREE IN FULL. A colour and a size alone would match a bed pillow insert
+     * to a ruffle pillow cover — they did, on live orders, until this was turned round: every word
+     * of the master's subtype must be in the title, shape words excepted. */
+    const words = shpWords(m.subtype || m.articleType).split(' ').filter(Boolean);
+    if (!words.length) return;
+    let score = 0;
+    for (const w of words) {
+      if (shpHasWord(title, w)) { score++; continue; }
+      if (SHP_SHAPE_WORDS.indexOf(w) >= 0) continue;        // the size says which shape it is
+      return;                                                // anything else missing: not this product
+    }
+    if (!score) return;                                      // agreed on nothing but its shape
+    if (score > bestScore) { best = m; bestScore = score; tied = false; }
+    else if (score === bestScore && String(m.sku) !== String(best && best.sku)) tied = true;
+  });
+  return best && !tied ? best : null;
+}
+
 function shpNeeds(r, noSku) {
   const out = new Map();
-  const add = (sku, qty, why, adjId, name, img, pcs, sets) => {
+  const add = (sku, qty, why, adjId, name, img, pcs, sets, viaTitle) => {
     const s = obUC(sku);
     /* TWO DIFFERENT FACTS, and they used to share one silent return. Nothing owed is nothing to do.
      * A product with no code is money taken for something production will never hear about. */
@@ -42401,13 +42476,14 @@ function shpNeeds(r, noSku) {
     }
     if (!(qty > 0)) return;
     let e = out.get(s);
-    if (!e) { e = { sku: s, qty: 0, why: [], adjId: '', name: '', img: '', pcs: 0, shopQty: 0 }; out.set(s, e); }
+    if (!e) { e = { sku: s, qty: 0, why: [], adjId: '', name: '', img: '', pcs: 0, shopQty: 0, viaTitle: false }; out.set(s, e); }
     e.qty += qty;
     /* PIECES, whatever unit `qty` is in: said by the caller where it knows, the pack rule otherwise. */
     e.pcs += pcs > 0 ? pcs : qty * obPcsPerPack(s);
     e.shopQty += sets > 0 ? sets : qty;
     if (why && e.why.indexOf(why) < 0) e.why.push(why);
     if (adjId && !e.adjId) e.adjId = adjId;
+    if (viaTitle) e.viaTitle = true;
     // Carried only so a SKU nobody has catalogued yet arrives on the Custom SKUs list with the
     // product's own name and picture attached, instead of as a bare code.
     if (name && !e.name) e.name = name;
@@ -42422,6 +42498,14 @@ function shpNeeds(r, noSku) {
   /* AND AN ORDER THAT HAS SHIPPED NEEDS NOTHING MADE. The sync has always claimed to close an order
    * "when the stock arrives or the order ships"; it did the first and never the second, which is why
    * orders from July were still sitting in the production queue. */
+  /* A variant with no SKU is not the end of it: the title carries subtype, colour and size, and
+   * the master database can be asked. What is found is marked, never silently pretended. */
+  const codeOf = i => {
+    const s = obUC(i && i.sku);
+    if (s) return { sku: s, via: '' };
+    const m = shpSkuFromTitle(i && i.name, i && i.variant);
+    return m ? { sku: obUC(m.sku), via: 'matched to the master database by its title' } : { sku: '', via: '' };
+  };
   if (r.items && !r.cancelled && !r.handled && !r.shipped) {
     r.items.forEach(i => {
       /* THIS LINE HAS GONE. Whether the order calls itself partial or fulfilled does not matter —
@@ -42432,12 +42516,13 @@ function shpNeeds(r, noSku) {
       if (!st || st.v !== 'make') return;
       /* The send quantity is in AMAZON packs when the SKU is a split (a set of 8 sent as 2 × a pack
        * of 4): pieces are those packs × the Amazon pack. Otherwise it is the customer's own sets. */
+      const code = codeOf(i);
       const send = soSendQty(r.id, i.sku, soLive(i));
-      const fit = soPackFit(i.sku);
+      const fit = soPackFit(code.sku);
       const split = !!(fit && fit.ok);
-      add(i.sku, send, 'neither Amazon nor India can fill it', '',
+      add(code.sku, send, 'neither Amazon nor India can fill it' + (code.via ? ' · ' + code.via : ''), '',
         String(i.name || '') + (i.variant ? ' · ' + i.variant : ''), i.img || i.image || '',
-        split ? send * fit.pack : 0, split ? Math.round(send / fit.factor) : 0);
+        split ? send * fit.pack : 0, split ? Math.round(send / fit.factor) : 0, !!code.via);
     });
   }
 
@@ -42567,6 +42652,9 @@ function shpPlanOrder(o, full, assigned) {
         + (g.why.length ? ' · ' + g.why.join(' + ') : '')
         + (g.needsSku ? ' · SKU not catalogued yet — on the Custom SKUs list' : ''),
       src: 'SHP', needsSku: !!g.needsSku,
+      /* The code was worked out from the title, not sent by Shopify. Kept on the row so anybody
+       * can check it against the product, and so the screens can say so. */
+      titleMatch: !!g.viaTitle,
       // Both ids on the row itself, so the floor can see what it is making and for whom without
       // opening anything else, and without this app being able to reach Shopify again.
       shopOrderNo: String(o.no || ''), shopOrderId: String(o.id || ''), adjId: g.adjId || '',
@@ -42580,7 +42668,7 @@ function shpPlanOrder(o, full, assigned) {
      * make six hundred untouched rows look new. */
     const same = was && was.qty === row.qty && was.adjId === row.adjId && was.remarks === row.remarks
       && (parseInt(was.pcs, 10) || 0) === row.pcs && (parseInt(was.shopQty, 10) || 0) === row.shopQty
-      && !!was.needsSku === !!row.needsSku
+      && !!was.needsSku === !!row.needsSku && !!was.titleMatch === !!row.titleMatch
       && was.shopOrderNo === row.shopOrderNo && was.shopOrderId === row.shopOrderId
       && String(was.shopImg || '') === row.shopImg
       && was.articleType === row.articleType && was.color === row.color
