@@ -14044,11 +14044,20 @@ $('ptmFile').onchange = async e => {
     }
 
     MDB_IMP = { add, upd, bad, name: file.name };
+    /* WHICH NEW ROWS HAVE A RECIPE BEHIND THEM. A file of five columns leans on it entirely, so a
+     * combination with no recipe has to be said here rather than discovered as blank columns later. */
+    const noRec = add.filter(x => !recipeOf(mdbRecord(x.v, false)));
     const lines = [`${file.name}: ${nf(add.length)} new SKU(s), ${nf(upd.length)} to update`];
-    if (add.length) lines.push('new SKUs take fabric, consumption, pack, zip, ruffle and piping from the recipe for their article, subtype and size');
+    if (add.length) lines.push(noRec.length
+      ? `${nf(add.length - noRec.length)} of them take fabric, consumption, zip, ruffle and piping from a recipe — `
+        + `${nf(noRec.length)} have NO recipe for their article, subtype and size and will be added with only what the file says`
+      : 'all of them take fabric, consumption, pack, zip, ruffle and piping from the recipe for their article, subtype and size');
     if (upd.length) lines.push('a column your file does not have is left exactly as it is');
     if (bad.length) lines.push(`${nf(bad.length)} refused`);
     $('ptmImpMsg').innerHTML = esc(lines.join(' · '))
+      + (noRec.length ? '<div class="muted" style="margin-top:6px;font-size:12px">No recipe yet for: '
+          + [...new Set(noRec.map(x => [x.v.articleType, x.v.subtype, x.v.size].filter(Boolean).join(' · ')))].slice(0, 8).map(esc).join('<br>')
+          + '<br>Master Database → Recipes → "Seed from the SKUs", or fill the recipe sheet, then these fill in by themselves.</div>' : '')
       + (bad.length ? '<div class="muted" style="margin-top:6px;font-size:12px">'
           + bad.slice(0, 8).map(esc).join('<br>') + (bad.length > 8 ? `<br>…and ${nf(bad.length - 8)} more` : '') + '</div>' : '');
     $('ptmImpMsg').className = bad.length && !add.length && !upd.length ? 'err' : 'muted';
@@ -14090,7 +14099,9 @@ $('ptmImpGo').onclick = async () => {
     MDB_IMP = null;
     $('ptmImpBox').classList.add('hide');
     $('ptmImpMsg').className = 'muted';
-    $('ptmImpMsg').textContent = `Imported — ${nf(add.length)} added, ${nf(upd.length)} updated.`;
+    const still = PTG.mdb.filter(m => add.some(x => obUC(x.v.sku) === obUC(m.sku)) && !String(m.fabric || '').trim());
+    $('ptmImpMsg').textContent = `Imported — ${nf(add.length)} added, ${nf(upd.length)} updated.`
+      + (still.length ? ` ${nf(still.length)} of the new ones have no cloth on them: there is no recipe for their article, subtype and size yet.` : '');
     renderPmdb();
   } catch (e) {
     $('ptmImpMsg').className = 'err';
@@ -39149,7 +39160,11 @@ const RECIPE_YN = RECIPE_FIELDS.filter(f => f[2] === 'yn').map(f => f[0]);
  * already has — anywhere one can be typed, it is checked against that list first. */
 const RECIPE_FAB = RECIPE_FIELDS.filter(f => f[2] === 'fab').map(f => f[0]);
 
-const recNorm = v => String(v == null ? '' : v).trim().toLowerCase().replace(/\s+/g, ' ');
+/* ONE SPELLING OF A SIZE. "16x16", "16X16", "16 × 16" and "16 x 16" are one size, and a recipe typed
+ * one way has to be found by a SKU written the other (Ravi, 2026-09-23: a short-template import filled
+ * nothing in). The × is what a spreadsheet leaves behind when it tidies up. */
+const recNorm = v => String(v == null ? '' : v).trim().toLowerCase().replace(/\s+/g, ' ')
+  .replace(/\s*[x×]\s*/g, 'x');
 /** The one key. Article, subtype and size — brand was tested and does not help. */
 const recKey = m => [recNorm(m && m.articleType), recNorm(m && m.subtype), recNorm(m && m.size)].join('|');
 const recSaid = v => v !== undefined && v !== null && String(v).trim() !== '';

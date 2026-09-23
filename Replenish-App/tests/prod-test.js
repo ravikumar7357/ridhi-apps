@@ -19027,6 +19027,10 @@ console.log('\n== New SKU: the recipe says what it will fill in ==');
   ok('…and what is typed is left out of that list, because typing wins', !/Fabric Sheeting 82/.test(A.mdbRecipeSays()));
   set('size', '99x99');
   ok('a combination with no recipe says so, and points at Recipes', /No recipe for Pillow Cover · Piping Pillow Cover · 99x99/.test(A.mdbRecipeSays()));
+  /* A spreadsheet leaves 16 × 16 behind; the recipe was typed 16x16. One size, one recipe (2026-09-23). */
+  set('size', '18 × 18');
+  ok('a size written with spaces and a × still finds its recipe', /Recipe for Pillow Cover · Piping Pillow Cover · 18 × 18 fills in/.test(A.mdbRecipeSays())
+     && A.mdbRecipeSays().includes('Consumption (m) 0.28'), A.mdbRecipeSays());
   A.setPTG(wasPTG); ME.admin = wasAdmin; NET.on = wasNet; NET.store = {}; NET.calls.length = 0;
 }
 console.log('\n== the SKU template is an Excel sheet ==');
@@ -19062,7 +19066,8 @@ console.log('\n== Import: a column the file does not have changes nothing ==');
   ok('a brand new SKU in such a file passes the checks', A.mdbValidate(A.mdbMerge(A.mdbFromCsv(['NEW-1', 'Pillow Cover', 'Piping Pillow Cover', 'Red', '18x18'], ix), null), '') === '');
   const src = fs.readFileSync(APP, 'utf8');
   ok('…and the import says so before writing', /a column your file does not have is left exactly as it is/.test(src)
-     && /new SKUs take fabric, consumption, pack, zip, ruffle and piping from the recipe/.test(src));
+     && /take fabric, consumption, zip, ruffle and piping from a recipe/.test(src)
+     && /have NO recipe for their article, subtype and size/.test(src));
 }
 console.log('\n== Cutting: how wide the leftover is ==');
 {
