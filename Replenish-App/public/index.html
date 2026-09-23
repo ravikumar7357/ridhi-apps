@@ -182,6 +182,7 @@
   .jw-new{background:#2563eb;border:0;color:#fff;font-weight:700;padding:10px 18px;border-radius:10px;font-size:14px}
   .jw-new:hover{background:#1d4ed8}
   .jw-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:12px}
+  .jw-kpiname{font-size:11.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted,#64748b);margin:2px 2px 8px}
   .jw-kc.metric{background:var(--card,#fff);border:1px solid var(--line,#e5e7eb);border-radius:14px;padding:14px 16px!important;margin:0!important;box-shadow:0 1px 2px rgba(15,23,42,.04)}
   .jw-kc .v{font-size:24px;font-weight:800;letter-spacing:-.01em}.jw-kc .l{font-size:13px;color:var(--muted,#64748b);margin-top:2px}
   .jw-kt{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
@@ -1759,6 +1760,10 @@
 
     <!-- ============ ORDER CONSOLE ============ -->
     <div id="paneOrd" class="hide">
+      <!-- THE FIGURES AS CARDS, ABOVE THE FILTERS, the way the Job Work screen reads (Ravi,
+           2026-09-23: "kpi tool ko job work ki tarah design karo"). Each one still narrows the
+           table when it is clicked. -->
+      <div id="odKpis" class="jw-kpiwrap"></div>
       <div class="card" style="padding:12px 14px">
         <div class="toolbar">
           <select id="odView" style="flex:0 0 235px" title="The same order book, read three ways.">
@@ -1796,7 +1801,6 @@
           <button id="odGo">Refresh</button>
         </div>
         <div id="odMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
-        <div id="odKpis" class="kpis" style="margin-top:10px"></div>
         <div id="odPickBar" class="toolbar hide" style="margin-top:8px"></div>
         <!-- ONE ENTRY PER SKU, shared across its Shopify orders oldest first. Only on the by-SKU view,
              only for somebody who may make production entries. -->
@@ -11402,6 +11406,14 @@ const JW_ICON = {
   x: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><path d="m9 9 6 6M15 9l-6 6"/></svg>',
   tick: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m5 12 5 5 9-10"/></svg>',
   open: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 7h6l2 2h10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
+  /* The Order Console's own: cutting, a stack of pieces, the press, and the two that mean somebody
+   * has to look at something. */
+  cut: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><path d="M8 7.5 20 18M8 16.5 20 6"/></svg>',
+  box: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></svg>',
+  press: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 14h16v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M7 14V8a3 3 0 0 1 3-3h4"/></svg>',
+  list: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg>',
+  alert: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 4 2.5 20h19z"/><path d="M12 10v4M12 17h.01"/></svg>',
+  edit: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17z"/><path d="M14 6l4 4"/></svg>',
 };
 const jwPct = (a, b) => (b > 0 ? Math.round((a / b) * 1000) / 10 : 0);
 
@@ -15540,40 +15552,62 @@ function ordOrphans() {
  * Kept in memory only — a filter nobody can see having set is worse than one that resets.
  */
 let ORD_KPI = '';
+/* Each figure carries its own card: an icon, a colour, and the one line underneath that says what
+ * the number is a share OF — a figure with nothing to measure it against is just a big number. */
 const ORD_KPI_FIELDS = {
-  cut: { label: 'Cut', of: r => r.cut },
-  issued: { label: 'Issued', of: r => r.issued },
-  received: { label: 'Received', of: r => r.received },
-  overRecv: { label: 'Over-received', of: r => r.overRecv },
-  pressed: { label: 'Pressed', of: r => r.pressed },
-  pendingMake: { label: 'Still to make', of: r => r.pendingMake },
-  madeToPress: { label: 'Made, to press', of: r => r.madeToPress },
+  cut: { label: 'Cut', of: r => r.cut, icon: 'cut', tone: 'blue', sub: (v, t) => ordPct(v, t.ordered) + '% of ordered' },
+  issued: { label: 'Issued', of: r => r.issued, icon: 'up', tone: 'blue', sub: (v, t) => ordPct(v, t.cut) + '% of what is cut' },
+  received: { label: 'Received', of: r => r.received, icon: 'ok', tone: 'green', colour: '#166534', sub: (v, t) => ordPct(v, t.issued) + '% of issued' },
+  overRecv: { label: 'Over-received', of: r => r.overRecv, icon: 'alert', tone: 'amber', colour: '#7f6000', sub: () => 'more than the line ordered' },
+  pressed: { label: 'Pressed', of: r => r.pressed, icon: 'press', tone: 'green', colour: '#166534', sub: (v, t) => ordPct(v, t.received) + '% of received' },
+  pendingMake: { label: 'Still to make', of: r => r.pendingMake, icon: 'clock', tone: 'red', colour: 'var(--bad)', sub: (v, t) => ordPct(v, t.ordered) + '% of ordered' },
+  madeToPress: { label: 'Made, to press', of: r => r.madeToPress, icon: 'box', tone: 'amber', colour: '#7f6000', sub: () => 'made, waiting on the press' },
   /* SENT WITHOUT A RECORD OF BEING MADE. Not outstanding work — the pieces have gone — but a hole in
    * the registers, and the one number that says how big it is. Clicking it shows exactly those lines. */
-  unrecorded: { label: 'Sent, never recorded', of: r => r.unrecorded },
+  unrecorded: { label: 'Sent, never recorded', of: r => r.unrecorded, icon: 'x', tone: 'amber', colour: '#7f6000', sub: () => 'gone, with no entry behind them' },
   /* A QUANTITY SOMEBODY MOVED AND NOBODY HERE HAS READ. Not pieces — changes: one line whose figure
    * moved twice is two things to read, and the number people act on is how many are waiting. */
-  qtyChanged: { label: 'Quantity changed', of: r => ordQtyUnseen(r.orderNo, r.sku).length },
+  qtyChanged: { label: 'Quantity changed', of: r => ordQtyUnseen(r.orderNo, r.sku).length, icon: 'edit', tone: 'amber', colour: '#b45309', sub: () => 'waiting to be read here' },
 };
 function ordKpiApply(rows) {
   const k = ORD_KPI_FIELDS[ORD_KPI];
   return k ? rows.filter(r => (Number(k.of(r)) || 0) > 0) : rows;
 }
-/** The clickable tiles, the same on the order book and on the Shopify view. */
-function ordKpiTiles(s) {
-  const colour = { received: '#166534', overRecv: '#7f6000', pressed: '#166534', pendingMake: 'var(--bad)', madeToPress: '#7f6000', unrecorded: '#7f6000', qtyChanged: '#b45309' };
-  return Object.keys(ORD_KPI_FIELDS).map(key => {
-    const k = ORD_KPI_FIELDS[key], on = ORD_KPI === key;
-    const tip = key === 'overRecv' ? ODK_OVER.replace(/^ title="|"$/g, '') + ' — '
-      : (key === 'unrecorded' ? 'Handed to shipping with no record of being cut, issued or received. The pieces '
-        + 'have gone, so they are not counted as work outstanding — this is what the registers are missing. '
-      : (key === 'qtyChanged' ? 'The quantity on the sales order was changed after it was approved, and nobody '
-        + 'here has said they have seen it. Click to see only those lines. ' : ''));
-    return '<div class="metric pt-kpi' + (on ? ' pt-kpi-on' : '') + '" data-odkpi="' + key + '" role="button" tabindex="0"'
-      + ' title="' + tip + (on ? 'Showing only these lines. Click again to show all.' : 'Show only the lines with ' + k.label.toLowerCase() + '.') + '">'
-      + '<div class="v"' + (colour[key] ? ' style="color:' + colour[key] + '"' : '') + '>' + nf(s(k.of)) + '</div>'
-      + '<div class="l">' + k.label + '</div></div>';
-  }).join('\n      ');
+const ordPct = (a, b) => (b > 0 ? Math.round((a / b) * 1000) / 10 : 0);
+/** One card. The number and its name stay in .v and .l, where every reader looks. */
+function ordKpiCard(v, label, icon, tone, sub, opt) {
+  const o = opt || {};
+  return '<div class="jw-kc metric' + (o.key ? ' pt-kpi' + (ORD_KPI === o.key ? ' pt-kpi-on' : '') : '') + '"'
+    + (o.key ? ' data-odkpi="' + o.key + '" role="button" tabindex="0"' : '')
+    + (o.tip ? ' title="' + esc(o.tip) + '"' : '') + '>'
+    + '<div class="jw-kt"><div><div class="v"' + (o.colour ? ' style="color:' + o.colour + '"' : '') + '>' + v + '</div>'
+    + '<div class="l">' + esc(label) + (o.key && ORD_KPI === o.key ? ' ✕' : '') + '</div></div>'
+    + '<span class="jw-ki ' + tone + '">' + JW_ICON[icon] + '</span></div>'
+    + '<div class="jw-ks">' + sub + '</div></div>';
+}
+/**
+ * The figures as cards, the same on the order book and on the Shopify views.
+ *
+ * Ravi, 2026-09-23: "kpi tool ko job work ki tarah design karo". Eleven numbers in one strip is a
+ * price list; the same eleven as cards, each with its icon and its share, can be read at a glance —
+ * and clicking one still narrows the table to the lines behind it.
+ */
+function ordKpiCards(name, lead, s) {
+  const t = { ordered: s(r => r.qty), cut: s(r => r.cut), issued: s(r => r.issued), received: s(r => r.received) };
+  /* WHICH SET OF FIGURES THESE ARE. One tab holds three views, and the Shopify ones counted as the
+   * factory's whole order book is a mistake worth a day of somebody's time. */
+  return '<div class="jw-kpiname">' + esc(name) + '</div><div class="jw-kpis">'
+    + lead.map(c => ordKpiCard(c[0], c[1], c[2], c[3], c[4])).join('')
+    + Object.keys(ORD_KPI_FIELDS).map(key => {
+      const k = ORD_KPI_FIELDS[key], on = ORD_KPI === key, v = s(k.of);
+      const why = key === 'overRecv' ? ODK_OVER.replace(/^ title="|"$/g, '') + ' — '
+        : (key === 'unrecorded' ? 'Handed to shipping with no record of being cut, issued or received. The pieces '
+          + 'have gone, so they are not counted as work outstanding — this is what the registers are missing. '
+        : (key === 'qtyChanged' ? 'The quantity on the sales order was changed after it was approved, and nobody '
+          + 'here has said they have seen it. ' : ''));
+      return ordKpiCard(nf(v), k.label, k.icon, k.tone, k.sub(v, t), { key, colour: k.colour,
+        tip: why + (on ? 'Showing only these lines. Click again to show all.' : 'Show only the lines with ' + k.label.toLowerCase() + '.') });
+    }).join('') + '</div>';
 }
 function ordKpiNote() {
   const k = ORD_KPI_FIELDS[ORD_KPI];
@@ -15943,15 +15977,11 @@ function renderOrdShopify(bySku) {
   ORD.rows = rows;
   const s = fn => lines.reduce((a, r) => a + fn(r), 0);
 
-  $('odKpis').innerHTML = `<div class="kpi" style="flex-basis:100%">
-    <div class="kpihead"><span class="kpiname">Shopify, waiting on production</span>
-      <span class="kpiwhen">read live${ORD.at ? ' · ' + esc(ORD.at) : ''}</span></div>
-    <div class="metrics">
-      <div class="metric"><div class="v">${nf(new Set(lines.map(r => r.orderNo)).size)}</div><div class="l">Shopify orders</div></div>
-      <div class="metric"><div class="v">${nf(new Set(lines.map(r => r.sku)).size)}</div><div class="l">SKUs</div></div>
-      <div class="metric"><div class="v">${nf(s(r => r.qty))}</div><div class="l">Pieces</div></div>
-      ${ordKpiTiles(s)}
-    </div></div>`;
+  $('odKpis').innerHTML = ordKpiCards('Shopify, waiting on production', [
+    [nf(new Set(lines.map(r => r.orderNo)).size), 'Shopify orders', 'doc', 'blue', 'read live' + (ORD.at ? ' · ' + esc(ORD.at) : '')],
+    [nf(new Set(lines.map(r => r.sku)).size), 'SKUs', 'list', 'blue', 'waiting on production'],
+    [nf(s(r => r.qty)), 'Pieces', 'box', 'blue', 'pieces asked for'],
+  ], s);
 
   /* ONE CELL FOR THE PRODUCT, AND ONE FOR THE ORDER, as the Job Work table reads them.
    * RECEIVED AND QC stay in the sequence: "issued 5, pressed 0, to make 5" does not say whether the
@@ -17313,15 +17343,11 @@ function renderOrd() {
   const s = fn => shown.reduce((a, r) => a + fn(r), 0);
   const orphan = ordOrphans();
   const orphanTotal = orphan.base + orphan.cut + orphan.press;
-  $('odKpis').innerHTML = `<div class="kpi" style="flex-basis:100%">
-    <div class="kpihead"><span class="kpiname">Order Console</span>
-      <span class="kpiwhen">read live${ORD.at ? ' · ' + esc(ORD.at) : ''}</span></div>
-    <div class="metrics">
-      <div class="metric"><div class="v">${nf(new Set(shown.map(r => r.orderNo)).size)}</div><div class="l">Orders</div></div>
-      <div class="metric"><div class="v">${nf(shown.length)}</div><div class="l">Lines</div></div>
-      <div class="metric"><div class="v">${nf(s(r => r.qty))}</div><div class="l">Ordered</div></div>
-      ${ordKpiTiles(s)}
-    </div></div>`;
+  $('odKpis').innerHTML = ordKpiCards('Order Console', [
+    [nf(new Set(shown.map(r => r.orderNo)).size), 'Orders', 'doc', 'blue', 'read live' + (ORD.at ? ' · ' + esc(ORD.at) : '')],
+    [nf(shown.length), 'Lines', 'list', 'blue', 'one order, one SKU'],
+    [nf(s(r => r.qty)), 'Ordered', 'box', 'blue', 'pieces asked for'],
+  ], s);
 
   /* "Raised from" sits next to the order number because that is where somebody looks to ask what an
    * order IS. One column rather than two: the Shopify order number and the adjustment id are read
