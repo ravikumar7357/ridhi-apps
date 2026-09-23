@@ -65,8 +65,10 @@ sec('colour', 'Colours', '<p>Every colour the app uses is one of these, set once
   + 'A colour typed straight into a rule is how a screen ends up with six slightly different greys.</p>'
   + '<div class="d-swatches">' + VARS.map(v => '<div class="d-sw"><span style="background:var(--' + v[0] + ')"></span>'
     + '<b>--' + v[0] + '</b><i>' + esc(v[1]) + '</i></div>').join('') + '</div>'
-  + '<p class="d-note">The status colours below are not variables yet — they are written into the pill rules. '
-  + 'Green #166534 means done, blue #1d4ed8 means in progress, amber #c2410c means waiting, red #991b1b means wrong.</p>');
+  + '<p class="d-note">These are the shop\'s own colours, read off ridhiblockprint.com: its slate blue '
+  + '(#6E90B5, darkened to #4A6A92 so white text on it is legible), its olive #4A5A3C, its maroon #850000 '
+  + 'and its gold. Each one means one thing here — blue leads, olive is done, gold is waiting, maroon is wrong. '
+  + 'Maroon is never a button: red on a control says "danger" on a screen where people book quantities all day.</p>');
 
 /* ---------- text ---------- */
 sec('text', 'Text', demo('<h2 style="margin:0 0 4px">A screen\'s title</h2>\n'

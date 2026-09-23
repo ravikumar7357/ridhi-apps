@@ -9,10 +9,11 @@
      UNMATCHED path to index.html, so a typo in this filename would hand the browser a page of HTML
      labelled as an image and the tab would silently fall back to the blank globe. -->
 <link rel="icon" href="/logo.png">
-<!-- Manrope: the same face as the Replenishment app, so the two read as one tool. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap">
+<!-- THE SHOP'S OWN TWO FACES, the same ones ridhiblockprint.com is set in: Plus Jakarta Sans for
+     everything that is read, Libre Caslon Text for the name over the door. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Libre+Caslon+Text:wght@400;700&display=swap">
 <link rel="apple-touch-icon" href="/logo.png">
 <style>
   /* Listing optimiser: what a rewrite removed and what it added, marked in place. */
@@ -39,23 +40,24 @@
   :root{
     /* Cotton Print Club's ground, read off the live site — a 1% tint against the old #f6f7f9. It is
        what makes the app feel of a piece with the storefront without touching a single control. */
-    --bg:#F4F5F9; --card:#fff; --ink:#1A1D29; --muted:#6C7288; --faint:#A2A7B8; --line:#EEF0F6;
-    --soft:#F7F8FC;
+    --bg:#F3F5F8; --card:#fff; --ink:#14181F; --muted:#5A6472; --faint:#98A1AE; --line:#E8EDF3;
+    --soft:#F7F9FB;
     /* Rounded, and the same rounded everywhere. */
     --r-card:18px; --r-row:16px; --r-ctl:12px; --r-sm:10px; --r-pill:999px;
     --sh-1:0 2px 10px rgba(26,29,41,.05); --sh-2:0 4px 16px rgba(26,29,41,.08);
     /* The storefront's own face: a SYSTEM serif, so nothing is fetched and nothing can fail to load.
        Brand, sign-in and page titles only — never data. Its digits are proportional and would stop a
        column of figures lining up. */
-    --serif:"New York","Iowan Old Style","Apple Garamond",Baskerville,"Times New Roman",Times,serif;
+    --serif:"Libre Caslon Text","New York","Iowan Old Style",Baskerville,"Times New Roman",Times,serif;
     /* The sign-in screen's own tokens. Defined in BOTH themes below: the storefront is a light world,
        but this app has a dark one, and a literal black here would be black text on a dark ground. */
     --si-ink:#000; --si-faint:rgba(0,0,0,.40); --si-rule:rgba(0,0,0,.13);
     --si-btn:#000; --si-btn-ink:#fff;
-    --brand:#4F5BD5; --brand-bg:#EEF0FC; --brand-ink:#3D47B8;
-    --accent:#1F9254; --accent-bg:#E9F8EF; --bad:#D8543F; --bad-bg:#FFF0EE;
-    --warn:#B96C1E; --warn-bg:#FFF4E8; --input:#fff;
-    --hover:#F1F2F7; --chip:#E9F8EF; --chip-ink:#1F9254;   /* filter chip */
+    /* The shop's slate blue, darkened until white text on it is legible. */
+    --brand:#4A6A92; --brand-bg:#E9EFF6; --brand-ink:#3A5573;
+    --accent:#4A5A3C; --accent-bg:#EDF0E7; --bad:#850000; --bad-bg:#FBE9E9;
+    --warn:#8A5A12; --warn-bg:#FFF3D6; --input:#fff;
+    --hover:#EFF2F6; --chip:#EDF0E7; --chip-ink:#4A5A3C;   /* filter chip */
   }
   @media (prefers-color-scheme:dark){
     :root{
@@ -71,7 +73,7 @@
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);
-    font:15px/1.6 Manrope,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+    font:15px/1.6 "Plus Jakarta Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
     -webkit-font-smoothing:antialiased}
   .wrap{max-width:1320px;margin:0 auto;padding:14px 16px}
 

@@ -5,13 +5,13 @@
 <link rel="icon" href="/logo.png">
 <!-- NO VIEWPORT LINE, ON PURPOSE (Ravi, 2026-09-22: "pahle jese tha besa hi kardo"): a phone draws the
      desktop layout, scaled to fit, as it always had. -->
-<meta name="theme-color" content="#F4F5F9">
+<meta name="theme-color" content="#F3F5F8">
 <!-- INSTALLABLE: its own icon, full screen, no browser bar. -->
-<!-- Manrope: the app's own face, rounded and friendly, from design 5. preconnect first so the text
-     is not repainted a second later; the stack falls back to the system face if it cannot be had. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap">
+<!-- THE SHOP'S OWN TWO FACES, the same ones ridhiblockprint.com is set in: Plus Jakarta Sans for
+     everything that is read, Libre Caslon Text for the name over the door. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Libre+Caslon+Text:wght@400;700&display=swap">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -25,31 +25,33 @@
   /* SOFT CARDS. One palette, set here, drawn by every screen: a tinted ground, white surfaces that
      float on it with a soft shadow instead of a border, one indigo that means "this is the thing to
      press", and four pastels that mean waiting / going / done / wrong. */
-  :root{--bg:#F4F5F9;--card:#fff;--ink:#1A1D29;--muted:#6C7288;--faint:#A2A7B8;--line:#EEF0F6;--input:#fff;
-    --soft:#F7F8FC;--chip:#F1F2F7;
-    /* The one colour that leads. */
-    --brand:#4F5BD5;--brand-bg:#EEF0FC;--brand-ink:#3D47B8;
+  :root{--bg:#F3F5F8;--card:#fff;--ink:#14181F;--muted:#5A6472;--faint:#98A1AE;--line:#E8EDF3;--input:#fff;
+    --soft:#F7F9FB;--chip:#EFF2F6;
+    /* The shop's own slate blue (#6E90B5 on ridhiblockprint.com), darkened until white text on it
+       is legible — 5.7:1 against the 3.6:1 the lighter one gives. */
+    --brand:#4A6A92;--brand-bg:#E9EFF6;--brand-ink:#3A5573;
     /* Rounded, and the same rounded everywhere: a card, a row, a control, a chip. */
     --r-card:18px;--r-row:16px;--r-ctl:12px;--r-sm:10px;--r-pill:999px;
-    --serif:"New York","Iowan Old Style","Apple Garamond",Baskerville,"Times New Roman",Times,serif;
+    --serif:"Libre Caslon Text","New York","Iowan Old Style",Baskerville,"Times New Roman",Times,serif;
     --si-ink:#000;--si-faint:rgba(0,0,0,.40);--si-rule:rgba(0,0,0,.13);
-    --accent:#1F9254;--accent-bg:#E9F8EF;--bad:#D8543F;--bad-bg:#FFF0EE;--hover:#F1F2F7;
-    --warn-bg:#FFF4E8;--warn-ink:#B96C1E;
+    /* Done is the shop's olive, wrong is its maroon, waiting is its gold. */
+    --accent:#4A5A3C;--accent-bg:#EDF0E7;--bad:#850000;--bad-bg:#FBE9E9;--hover:#EFF2F6;
+    --warn-bg:#FFF3D6;--warn-ink:#8A5A12;
     /* DEPTH, SET ONCE. Three steps and no more: a card barely off the page, a control that has been
        pressed, and a dialog that is plainly above everything. Shadows invented per rule are how a
        screen ends up with six slightly different greys under six slightly different boxes. */
-    --sh-1:0 2px 10px rgba(26,29,41,.05);
-    --sh-2:0 4px 16px rgba(26,29,41,.08);
-    --sh-3:0 24px 64px rgba(26,29,41,.20);
+    --sh-1:0 2px 10px rgba(20,24,31,.05);
+    --sh-2:0 4px 16px rgba(20,24,31,.08);
+    --sh-3:0 24px 64px rgba(20,24,31,.20);
     /* The ring a keyboard leaves. A one-pixel border change is not one you can see across a room,
        and this is a screen people work at all day. */
-    --ring:0 0 0 3px rgba(79,91,213,.20);
-    --ring-line:#4F5BD5;
+    --ring:0 0 0 3px rgba(110,144,181,.28);
+    --ring-line:#6E90B5;
     /* ONE HEIGHT FOR EVERY CONTROL IN A TOOLBAR. Three different ones is the single thing that makes
        a working screen look unfinished, and this app had three. */
     --ctl:40px}
   *{box-sizing:border-box}
-  body{margin:0;font-family:Manrope,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink);font-size:14px;
+  body{margin:0;font-family:"Plus Jakarta Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink);font-size:14px;
     -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
   /* EVERY FIGURE ON THE PAGE LINES UP. The number columns already had this; the KPI strip did not,
      so a total ticking from 145,539 to 146,002 shifted every tile beside it. Anywhere a number is
@@ -65,7 +67,7 @@
   .brand{padding:4px 12px 16px;display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
   .brandname{font-family:var(--serif);font-size:23px;font-weight:400;line-height:1;
     letter-spacing:.06em;text-transform:uppercase;display:flex;flex-direction:column}
-  .brandsub{font-family:Manrope,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  .brandsub{font-family:"Plus Jakarta Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
     font-size:9px;font-weight:500;letter-spacing:.22em;
     text-transform:uppercase;color:var(--muted);margin-top:5px}
   .navgrp{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);padding:16px 12px 8px}
@@ -81,9 +83,9 @@
   .nav:focus-visible{outline:none;box-shadow:var(--ring)}
   .navbadge{display:inline-block;min-width:18px;padding:0 5px;margin-left:4px;border-radius:999px;background:#dc2626;color:#fff;font-size:11px;font-weight:700;text-align:center;line-height:18px}
   .fu{display:inline-block;padding:1px 9px;border-radius:999px;font-size:11px;font-weight:700}
-  .fu-red{background:#fee2e2;color:#b91c1c}
-  .fu-amber{background:#fde68a;color:#92400e}
-  .fu-ok{background:#dcfce7;color:#166534}
+  .fu-red{background:var(--bad-bg);color:var(--bad)}
+  .fu-amber{background:var(--warn-bg);color:var(--warn-ink)}
+  .fu-ok{background:var(--accent-bg);color:var(--accent)}
   .sidefoot{margin-top:auto;padding-top:12px;border-top:1px solid var(--line)}
   /* Group headings are BUTTONS, not labels: each opens and closes the .navsec right after it, the
      way Seller Central does. Same pattern as the Sellora app, so the two feel like one tool. */
@@ -143,7 +145,7 @@
   input::placeholder,textarea::placeholder{color:var(--faint)}
   /* The one that leads: solid, round, and lifted off the page. */
   button{font:inherit;font-weight:700;cursor:pointer;border:0;border-radius:var(--r-ctl);padding:10px 18px;
-    background:var(--brand);color:#fff;box-shadow:0 4px 12px rgba(79,91,213,.26);transition:background .12s,box-shadow .12s,transform .06s}
+    background:var(--brand);color:#fff;box-shadow:0 4px 12px rgba(74,106,146,.28);transition:background .12s,box-shadow .12s,transform .06s}
   button:hover{background:var(--brand-ink)}
   /* It moves when it is pressed. One pixel, and it is the difference between a picture of a button
      and a button. */
