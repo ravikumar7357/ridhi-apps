@@ -1377,6 +1377,41 @@ console.log('\n== a line with no SKU is refused OUT LOUD, not dropped ==');
   RT = {}; PTG.ob = []; SOX.rows = [];
 }
 
+console.log('\n== a line with no SKU says so on its own row ==');
+{
+  /* CPC #6571, 2026-09-23: "Need from production" on the screen and nothing in the Order Console.
+   * The backend's answer for it was `line: (no sku) · Ruffle Tablecloth - Agate Green · qty 1` —
+   * the Shopify variant has no SKU, and a production row is keyed on one. The sync has always named
+   * such a line and skipped it; it said so only in the summary line for the whole run. */
+  const was = { shop: A.SHOP(), meta: A.SHOP_META() };
+  const order = { id: 'o-nosku', no: '#6571', at: A.sdShift(A.sdToday(), -16) + 'T10:00:00Z', ff: '',
+    items: [{ sku: '', name: 'Ruffle Tablecloth - Agate Green', qty: 1, fq: 1, cq: 1 },
+      { sku: 'RTC52-6090', name: 'has a code', qty: 2, fq: 2, cq: 2 }],
+    ship: { name: 'A buyer', country: 'US' }, total: 40, cur: 'USD' };
+  A.setSHOP({ orders: [order], from: '', to: '', tz: '', at: 'x' });
+  A.setMETA({});
+  const rows = A.soRows();
+  const r = rows.find(x => x.id === 'o-nosku');
+  ok('the row knows which of its lines have no code', !!r && (r.noSku || []).length === 1, JSON.stringify(r && r.noSku));
+  ok('…and it names the product, which is how somebody finds it in Shopify',
+     !!r && r.noSku[0] === 'Ruffle Tablecloth - Agate Green', JSON.stringify(r && r.noSku));
+  A.renderShop();
+  const html = els.soTable.innerHTML;
+  ok('the row says it on screen, where "Need from production" is',
+     /have no SKU — cannot open/.test(html), html.slice(0, 200));
+  /* AND THE SYNC REALLY DOES SKIP IT — the row is not just a warning, it is the truth. */
+  const plan = A.shpPlanOrder(order, true);
+  ok('the sync opens the line that has a code', Object.keys(plan.patch).some(k => k.indexOf('RTC52-6090') >= 0),
+     JSON.stringify(Object.keys(plan.patch)));
+  ok('…and refuses the one that has none, by name',
+     plan.skipped.some(x => /no SKU on its Shopify variant/.test(x.why) && /Agate Green/.test(x.why)),
+     JSON.stringify(plan.skipped));
+  /* A line nobody is waiting for is not worth a warning: only what is still live counts. */
+  A.setSHOP({ orders: [Object.assign({}, order, { items: [{ sku: '', name: 'gone', qty: 1, fq: 0, cq: 0, rq: 1 }] })], from: '', to: '', tz: '', at: 'x' });
+  const r2 = A.soRows().find(x => x.id === 'o-nosku');
+  ok('a codeless line that is refunded or removed raises nothing', !!r2 && (r2.noSku || []).length === 0, JSON.stringify(r2 && r2.noSku));
+  A.setSHOP(was.shop); A.setMETA(was.meta);
+}
 console.log('\n== an ask that arrives mid-sync is kept, not dropped ==');
 {
   /* Ravi, 2026-09-23: a CPC order read "Need from production" and no production order opened.

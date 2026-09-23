@@ -41641,6 +41641,16 @@ function soRows() {
       locTxt: [...new Set(o.items.map(i => soLocOf(i.sku)).filter(Boolean))].sort().join(', '),
       // Pieces this order is still waiting on from production, across all its lines.
       makeQty: Object.values(meta.lines || {}).reduce((s, l) => s + (Number(l && l.adjQty) || 0), 0),
+      /* THE LINES PRODUCTION CANNOT BE ASKED FOR. Shopify allows a variant with no SKU; every
+       * production row is keyed on one, so such a line can only be named and skipped. Carried here
+       * by name so the row can say it, rather than reading "Need from production" and quietly
+       * never opening. */
+      noSku: (o.items || []).filter(i => {
+        if (String((i && i.sku) || '').trim()) return false;
+        let live = 0;
+        try { live = Number(soLive(i)) || 0; } catch (e) { live = Number(i && i.qty) || 0; }
+        return live > 0;
+      }).map(i => String((i && i.name) || '').trim() || 'a line with no name'),
       ...soFlags(o, meta),
     };
   });
@@ -41870,6 +41880,13 @@ function renderShop() {
         : '<span class="st st-draft">' + esc(r.channel) + '</span>') + '</td>'
     + '<td>' + (r.route === 'Need from production'
         ? '<span class="st st-rejected">' + esc(r.route) + '</span>'
+          /* Named on the row, because this is the one case where "Need from production" will never
+           * become a production order until somebody goes into Shopify and fixes the variant. */
+          + ((r.noSku || []).length
+            ? '<div style="font-size:10.5px;font-weight:700;color:var(--bad);white-space:normal;max-width:170px" title="'
+              + esc((r.noSku || []).join(' · ') + ' — a production row is keyed on the SKU, so this line cannot be ordered until the variant has one in Shopify.')
+              + '">' + nf((r.noSku || []).length) + ' line(s) have no SKU — cannot open</div>'
+            : '')
         : r.route === 'Ship from India'
           ? '<span class="st st-pending">' + esc(r.route) + '</span>'
           : '<span class="muted">' + esc(r.route) + '</span>') + '</td>'
