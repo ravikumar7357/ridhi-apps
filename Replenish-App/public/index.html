@@ -4959,11 +4959,16 @@ function renderArticle() {
     || '<tr><td colspan="20" class="muted" style="padding:14px">Nothing matches these filters.</td></tr>') + '</tbody>';
 
   const empties = rows.filter(r => !(r.fulfillable > 0)).length;
+  /* The count, and the one figure that asks for a decision. Everything else is in the tooltip. */
+  $('arMsg').title = `${nf(rows.length)} SKU(s) shown`
+    + (rows.length > CAP ? ` · only the first ${CAP} are drawn — narrow the filters to see the rest` : '')
+    + (US_HIDDEN ? ` · ${nf(US_HIDDEN)} non-US SKU(s) hidden` : '')
+    + (AR_STOPPED ? ` · ${nf(AR_STOPPED)} discontinued SKU(s) left out — there is no decision left to make on them; they are still on the Replenishment grid, tagged Stopped` : '')
+    + ' · remarks and Req. Qty save as you leave the box, and are the same remarks the Top ASIN tab shows';
   $('arMsg').innerHTML = `${nf(rows.length)} SKU(s) · <b>${nf(empties)} with nothing fulfillable</b>`
-    + (rows.length > CAP ? ` · showing the first ${CAP} — narrow the filters to see the rest` : '')
+    + (rows.length > CAP ? ` · first ${CAP}` : '')
     + (usNote() ? ' · ' + usNote() : '')
-    + (AR_STOPPED ? ` · <span title="Discontinued and use-in-mix SKUs are left out of this tab — there is no decision left to make on them. They are still on the Replenishment grid with their remarks and MOM log, tagged Stopped.">${nf(AR_STOPPED)} discontinued SKU(s) not shown</span>` : '')
-    + ' · remarks and Req. Qty save as you leave the box; remarks are the same ones the Top ASIN tab shows';
+;
 }
 
 /* Remark: an always-editable textarea saved on blur. Deliberately no re-render on save — redrawing
@@ -6606,7 +6611,11 @@ async function fetchIndiaStock() {
       r.at || null, false);
     /* Kept for the next visit. Quietly: a failure to write the copy must not look like a failure to
      * read the warehouse, which is the thing that matters. */
-    indiaKeep(INDIA_ROWS, r.at || '').catch(() => {});
+    indiaKeep(INDIA_ROWS, r.at || '').catch(e => {
+      /* Silent to the screen, but not to the console: if this never lands, the next visit waits the
+         full ten seconds again and nothing on the page would ever say why. */
+      console.warn('[india] the copy for next time could not be written:', e && e.message || e);
+    });
   } catch (e) {
     if (painted) {
       // The screen still has last time's figures, and says so rather than emptying itself.
@@ -17662,11 +17671,14 @@ function renderOrd() {
     + esc(`${nf(rows.length)} of ${nf(all.length)} line(s)`
       + (rows.length > 600 ? ' · showing the first 600' : '')
       + ordKpiNote()
-      + (orphanTotal
-        ? ` · ${nf(orphanTotal)} row(s) carry NO Order ID and are counted against nothing here `
-          + `(Job Work Register ${nf(orphan.base)}, cutting ${nf(orphan.cut)}, press ${nf(orphan.press)}) — `
-          + 'those pieces were made, they just cannot be attributed to an order.'
-        : ''));
+      /* The number is news — those pieces are made and belong to nobody — so it stays. What it
+       * means, and where it is split, is in the tooltip. */
+      + (orphanTotal ? ` · ${nf(orphanTotal)} row(s) with no order` : ''));
+  $('odMsg').title = orphanTotal
+    ? `${nf(orphanTotal)} row(s) carry NO Order ID and are counted against nothing here `
+      + `(Job Work Register ${nf(orphan.base)}, cutting ${nf(orphan.cut)}, press ${nf(orphan.press)}) — `
+      + 'those pieces were made, they just cannot be attributed to an order.'
+    : '';
   ptImgFill(rows.slice(0, 600).map(r => r.sku), false, renderOrd);
 }
 
@@ -20817,8 +20829,9 @@ function renderFab() {
   $('fbMsg').className = unknown ? 'err' : 'muted';
   $('fbMsg').textContent = `${nf(rows.length)} of ${nf(all.length)} movement(s)`
     + (view === 'ledger' && rows.length > 600 ? ' · showing the first 600 · Export covers all of them' : '')
-    + (unknown ? ` · ${nf(unknown)} row(s) have a movement type this app does not know, and are counted as moving nothing` : '')
-    + ' · the balance is the sum of the ledger, never a stored figure';
+    + (unknown ? ` · ${nf(unknown)} row(s) of an unknown kind` : '');
+  $('fbMsg').title = 'The balance is the sum of the ledger, never a stored figure.'
+    + (unknown ? ` ${nf(unknown)} row(s) have a movement type this app does not know, and are counted as moving nothing.` : '');
 }
 
 ['fbView', 'fbTxn', 'fbFab', 'fbCol', 'fbCp', 'fbD1', 'fbD2'].forEach(id => $(id).addEventListener('change', renderFab));
@@ -22060,8 +22073,9 @@ function renderAcc() {
 
   $('acMsg').className = 'muted';
   $('acMsg').textContent = `${nf(ACC.shown.length)} row(s)`
-    + ((ACC.items || []).length ? '' : ' · no accessories master yet — add an item to start tracking zipper stock')
-    + ' · the balance is the sum of the ledger, never a stored figure';
+    + ((ACC.items || []).length ? '' : ' · no accessories master yet');
+  $('acMsg').title = 'The balance is the sum of the ledger, never a stored figure.'
+    + ((ACC.items || []).length ? '' : ' Add an item to start tracking zipper stock.');
 }
 
 /**
@@ -22842,8 +22856,9 @@ function renderSox() {
 
   $('sxMsg').className = missing ? 'err' : 'muted';
   $('sxMsg').textContent = `${nf(rows.length)} of ${nf(all.length)} order(s)`
-    + (missing ? ` · ${nf(missing)} approved SKU(s) never reached the order book, so nothing can be cut or pressed against them` : '')
-    + ' · cut and made are counted against this order only, so work booked to another order cannot finish it';
+    + (missing ? ` · ${nf(missing)} approved SKU(s) not in the order book` : '');
+  $('sxMsg').title = 'Cut and made are counted against this order only, so work booked to another order cannot finish it.'
+    + (missing ? ` ${nf(missing)} approved SKU(s) never reached the order book, so nothing can be cut or pressed against them.` : '');
 }
 
 function soOpen(id) {
@@ -26674,8 +26689,9 @@ async function voPlace() {
   renderVo();
   $('voMsg').className = 'muted';
   $('voMsg').textContent = `${order.orderNo} placed with ${order.vendorName} · ${nf(order.lines.length)} line(s)`
-    + (vend.email ? '' : ` · ${vend.name || code} has no email in the vendor master, so they cannot be given portal access until one is added`)
-    + '.';
+    + (vend.email ? '' : ' · no email on file');
+  $('voMsg').title = vend.email ? ''
+    : `${vend.name || code} has no email in the vendor master, so they cannot be given portal access until one is added.`;
   return '';
 }
 
@@ -39293,8 +39309,10 @@ function renderStore(view) {
           : '<span class="pill pill-low">not checked</span>'}</td>`
       + '</tr>').join('') + '</tbody>';
     $('fbMsg').className = STORE.err ? 'err' : 'muted';
+    $('fbMsg').title = start ? ''
+      : 'Every movement is here, but the balance is not the shelf until the opening stock is uploaded.';
     $('fbMsg').innerHTML = esc(`${nf(rows.length)} of ${nf(moves.length)} movement(s)`)
-      + (start ? '' : ' · <b>the store has no opening stock yet</b> — every movement is here, but the balance is not the shelf until it is uploaded')
+      + (start ? '' : ' · <b>no opening stock yet</b>')
       + (STORE.err ? ' · ' + esc(STORE.err) : '');
     FAB.shown = shown;
     return;
@@ -39311,10 +39329,11 @@ function renderStore(view) {
     + `<td style="font-size:12px">${esc(ptIsoDate(b.last) || '')}</td></tr>`).join('') + '</tbody>';
   FAB.shown = bal;
   $('fbMsg').className = STORE.err ? 'err' : 'muted';
-  $('fbMsg').innerHTML = esc(`${nf(bal.length)} item(s) · the balance is the sum of the movements, never a stored figure`)
-    + (start ? ''
-      : ' · <b>no opening stock yet</b> — so this is what has MOVED since the first entry, not what is'
-        + ' on the shelf. Upload the opening stock and it becomes the shelf.')
+  $('fbMsg').title = 'The balance is the sum of the movements, never a stored figure.'
+    + (start ? '' : ' With no opening stock this is what has MOVED since the first entry, not what is on the shelf.'
+      + ' Upload the opening stock and it becomes the shelf.');
+  $('fbMsg').innerHTML = esc(`${nf(bal.length)} item(s)`)
+    + (start ? '' : ' · <b>no opening stock yet</b>')
     + (toCheck.length ? ` · <a href="#" id="stToCheck">${nf(toCheck.length)} delivery(ies) to cross-check</a>` : '')
     + (STORE.err ? ' · ' + esc(STORE.err) : '');
   ptImgFill(pcs.map(b => b.sku).filter(Boolean), false, renderFab);

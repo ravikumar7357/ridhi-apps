@@ -1585,8 +1585,14 @@ console.log('\n== the fabric screen renders ==');
   /* Eleven now: the lot a movement belonged to was added on 12 Sept, and a header without a cell
    * behind it shifts every figure one column left. */
   ok(`ledger view lines up (${c.head}/${c.body})`, c.head === c.body && c.head === 11);
-  ok('the message says the balance is derived, not stored',
-    /the sum of the ledger, never a stored figure/.test(els.fbMsg.textContent), els.fbMsg.textContent);
+  /* IT STILL SAYS IT — in the tooltip, not across the screen (Ravi, 2026-09-23: "mujhe type ki
+   * line is app me kanhi bhi nahi chahiye"). The count is what changes and what is read; the
+   * sentence explaining how a balance is arrived at is true on every visit and belongs where
+   * somebody can ask for it. */
+  ok('the line is the count, and nothing else',
+     /^[\d,]+ of [\d,]+ movement\(s\)$/.test(els.fbMsg.textContent.trim()), els.fbMsg.textContent);
+  ok('…and it still says the balance is derived, not stored, when asked',
+     /the sum of the ledger, never a stored figure/.test(els.fbMsg.title || ''), els.fbMsg.title);
   els.fbView.value = 'stock'; A.renderFab();
 }
 
