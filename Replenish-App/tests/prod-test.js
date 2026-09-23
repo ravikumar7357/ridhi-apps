@@ -19225,6 +19225,15 @@ console.log('\n== the production board ==');
   ok('a line offers exactly the one action it is waiting for',
      body.includes('data-wb-go="B2B-RECV|' + m.sku + '"') && /B2B-RECV[\s\S]*?Mark as received/.test(body), body.slice(0, 300));
   ok('…and the karigar holding the pieces is named on the row', /B2B-RECV[\s\S]*?Asha/.test(body));
+  /* ONE CELL FOR THE PRODUCT. Five narrow columns for one item is what made the board scroll
+   * sideways and cut the SKU in half on Ravi's screen ("THIS LOOKES VERY BAD"); the Job Work table
+   * already answers it, so the board reads the same way. */
+  ok('the product is one cell — picture, name, colour and size, code — not five columns',
+     /class="jw-item"[\s\S]*?jw-sub[\s\S]*?jw-sku/.test(body) && !/<th[^>]*>Colour<\/th>/.test(body), body.slice(0, 400));
+  ok('…so the row carries six columns, which fit without scrolling sideways',
+     (body.match(/<th[ >]/g) || []).length === 6, String((body.match(/<th[ >]/g) || []).length));
+  ok('…and how far the line has come is on it, with the pieces behind the figure',
+     /jw-ring[\s\S]*?Cut 10 · issued 10 · received 0 · pressed 0 of 10/.test(body), body.slice(0, 600));
 
   /* ---- the steps and the rail narrow it ---- */
   A.setWB(Object.assign({}, A.WB(), { step: 'press' }));

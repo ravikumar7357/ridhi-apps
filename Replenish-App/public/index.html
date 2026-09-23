@@ -212,12 +212,15 @@
   .wb-step .wb-n{flex:0 0 26px;height:26px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;background:var(--soft,#f1f5f9);color:var(--muted,#64748b)}
   .wb-step.on .wb-n{background:#fff;color:#0f172a}
   .wb-step .wb-t{display:flex;flex-direction:column;min-width:0;flex:1 1 auto}
-  .wb-step .wb-t b{font-size:13px;white-space:nowrap}
-  .wb-step .wb-t span{font-size:11px;opacity:.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .wb-step .wb-c{font-size:15px;font-weight:800}
+  .wb-step .wb-t b{font-size:13px;white-space:nowrap;display:flex;align-items:center;gap:7px}
+  .wb-step .wb-t span{font-size:11px;opacity:.65;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .wb-step .wb-c{font-size:11.5px;font-weight:800;background:var(--soft,#f1f5f9);color:var(--muted,#64748b);border-radius:999px;padding:1px 8px}
+  .wb-step.on .wb-c{background:rgba(255,255,255,.2);color:#fff}
   .wb-line{flex:0 0 14px;align-self:center;height:2px;background:var(--line,#e2e8f0)}
   .wb-wrap{display:flex;gap:12px;align-items:flex-start;margin-top:12px}
-  .wb-rail{flex:0 0 212px;padding:12px 13px;max-height:74vh;overflow:auto}
+  .wb-rail{flex:0 0 206px;padding:12px 13px;max-height:74vh;overflow:auto}
+  .wb-gh{position:sticky;top:-12px;background:var(--card,#fff);padding-top:2px;z-index:1}
+  .wb-mid .xlwrap{max-height:66vh}
   .wb-mid{flex:1 1 auto;min-width:0;padding:0;overflow:hidden}
   .wb-midhead{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line,#e2e8f0)}
   .wb-midhead input{flex:1 1 auto;min-width:0}
@@ -243,7 +246,11 @@
   .wb-go{width:100%;margin-top:12px;height:38px;font-weight:700;background:#0f172a;border:1px solid #0f172a;color:#fff;border-radius:9px;cursor:pointer}
   .wb-go[disabled]{opacity:.55;cursor:default}
   .wb-note{font-size:12px;color:var(--muted,#64748b);background:var(--soft,#f8fafc);border-radius:8px;padding:8px 10px;margin-top:10px}
-  @media (max-width:1180px){.wb-wrap{flex-wrap:wrap}.wb-rail{flex:1 1 100%;max-height:none}.wb-panel{flex:1 1 100%}}
+  /* NO REFLOW ON A NARROW SCREEN. The app draws the desktop layout on a phone and scales it to fit
+   * (Ravi, 22 Sep: "pahle jese tha besa hi kardo") — and with no viewport meta a phone reports about
+   * 980px, so a breakpoint here would have rearranged the board on every phone. The three columns
+   * stay three columns; the middle one gives way first. */
+  .wb-mid{flex:1 1 320px}
   .jw-btn.jw-fix{color:#b45309;border-color:#fcd34d;background:#fffbeb}
   .jw-btn[disabled]{opacity:.6;cursor:default}
   .jw-menu{position:absolute;right:0;top:32px;z-index:30;background:var(--card,#fff);border:1px solid var(--line,#e5e7eb);border-radius:10px;box-shadow:0 10px 30px rgba(15,23,42,.14);padding:6px;min-width:220px;display:flex;flex-direction:column;text-align:left}
@@ -1870,7 +1877,7 @@
               <input id="wbQ" placeholder="Search SKU, order, karigar…">
               <span id="wbCount" class="muted" style="font-size:12.5px"></span>
             </div>
-            <div class="xlwrap" style="border:0"><table class="xl" id="wbTable"></table></div>
+            <div class="xlwrap jw-table" style="border:0"><table class="xl" id="wbTable"></table></div>
           </div>
           <div id="wbPanel" class="card wb-panel hide"></div>
         </div>
@@ -17304,6 +17311,12 @@ function renderOrd() {
    * filtering something the reader cannot see. */
   const onBoard = v === 'board';
   WB_CHROME.forEach(id => { const el = $(id); if (el) el.style.display = onBoard ? 'none' : ''; });
+  try {
+    ['.ftwrap', '.ftchips'].forEach(sel => {
+      const el = document.querySelector('#paneOrd ' + sel);
+      if (el) el.style.display = onBoard ? 'none' : '';
+    });
+  } catch (e) { /* cosmetics only: never let this stop the screen drawing */ }
   if ($('odTableCard')) $('odTableCard').classList.toggle('hide', onBoard);
   if ($('odBoard')) $('odBoard').classList.toggle('hide', !onBoard);
   if (onBoard) {
@@ -39234,12 +39247,12 @@ $('fbStoreNew').onclick = () => stEntryOpen({});
  * beside the line rather than on top of it.
  */
 const WB_STEPS = [
-  ['new', 'Select orders', 'Nothing started yet'],
-  ['cut', 'Cut', 'Record cut quantity'],
-  ['issue', 'Issue to karigar', 'Give the cut pieces out'],
-  ['recv', 'Receive', 'Take the pieces back'],
-  ['press', 'Press', 'Press what has come back'],
-  ['done', 'Complete', 'Nothing left to make'],
+  ['new', 'Select orders', 'Nothing started'],
+  ['cut', 'Cut', 'Cut the cloth'],
+  ['issue', 'Issue to karigar', 'Give pieces out'],
+  ['recv', 'Receive', 'Take pieces back'],
+  ['press', 'Press', 'Press what is made'],
+  ['done', 'Complete', 'Ready to close'],
 ];
 const WB_LABEL = { new: 'Not started', cut: 'To cut', issue: 'To issue', recv: 'With karigar', press: 'To press', done: 'Complete' };
 const WB_PILL = { new: 'pend', cut: 'pend', issue: 'prog', recv: 'prog', press: 'prog', done: 'done' };
@@ -39335,6 +39348,34 @@ function wbMax(l, step) {
   if (step === 'press') return Math.max(0, ptNum(l.received) - ptNum(l.pressed));
   return 0;
 }
+/**
+ * How far along the whole line is — the four steps weighed equally, so a line that is only cut
+ * reads a quarter done rather than nothing. The tooltip carries the four figures themselves,
+ * because a percentage is a feeling and the pieces are the fact.
+ */
+function wbRing(l) {
+  const q = ptNum(l.qty) || 1;
+  const p = Math.max(0, Math.min(100, Math.round(
+    ((Math.min(ptNum(l.cut), q) + Math.min(ptNum(l.issued), q) + Math.min(ptNum(l.received), q) + Math.min(ptNum(l.pressed), q)) / (4 * q)) * 100)));
+  const C = 2 * Math.PI * 14, col = p >= 100 ? '#16a34a' : p > 0 ? '#2563eb' : '#cbd5e1';
+  const tip = 'Cut ' + nf(ptNum(l.cut)) + ' · issued ' + nf(ptNum(l.issued)) + ' · received '
+    + nf(ptNum(l.received)) + ' · pressed ' + nf(ptNum(l.pressed)) + ' of ' + nf(ptNum(l.qty));
+  return '<div class="jw-ring" title="' + esc(tip) + '"><svg viewBox="0 0 36 36" width="34" height="34">'
+    + '<circle cx="18" cy="18" r="14" fill="none" stroke="#e5e7eb" stroke-width="4"/>'
+    + '<circle cx="18" cy="18" r="14" fill="none" stroke="' + col + '" stroke-width="4" stroke-linecap="round" '
+    + 'stroke-dasharray="' + (C * p / 100).toFixed(1) + ' ' + C.toFixed(1) + '" transform="rotate(-90 18 18)"/></svg>'
+    + '<b>' + p + '%</b></div>';
+}
+/** How many pieces this step is actually waiting on. */
+function wbLeft(l) {
+  if (l.stage === 'new') return nf(ptNum(l.qty)) + ' to make';
+  if (l.stage === 'cut') return nf(ptNum(l.pendingCut)) + ' to cut';
+  if (l.stage === 'issue') return nf(wbMax(l, 'issue')) + ' ready to issue';
+  if (l.stage === 'recv') return nf(wbMax(l, 'recv')) + ' out with the karigar';
+  if (l.stage === 'press') return nf(ptNum(l.madeToPress)) + ' to press';
+  return '';
+}
+
 /** A colour's own dot, worked out from its name, so the same colour always looks the same. */
 function wbColour(name) {
   const n = String(name || '').trim().toLowerCase();
@@ -39382,11 +39423,13 @@ function renderOrdBoard() {
   /* the six steps */
   $('wbSteps').innerHTML = WB_STEPS.map((st, i) => {
     const n = all.filter(r => r.stage === st[0]).length;
+    /* The count belongs BESIDE the name, not at the far end of a wide box — it was floating away
+     * from the step it counts. */
     return '<button type="button" class="wb-step' + (WB.step === st[0] ? ' on' : '') + '" data-wb-step="' + st[0] + '"'
       + ' title="Show only the lines waiting here">'
       + '<span class="wb-n">' + (i + 1) + '</span>'
-      + '<span class="wb-t"><b>' + esc(st[1]) + '</b><span>' + esc(st[2]) + '</span></span>'
-      + '<span class="wb-c">' + nf(n) + '</span></button>';
+      + '<span class="wb-t"><b>' + esc(st[1]) + '<span class="wb-c">' + nf(n) + '</span></b>'
+      + '<span>' + esc(st[2]) + '</span></span></button>';
   }).join('<span class="wb-line"></span>');
 
   /* the rail */
@@ -39402,7 +39445,7 @@ function renderOrdBoard() {
     + (on ? '<button type="button" id="wbReset" class="jw-link">Clear ' + on + '</button>' : '') + '</div>'
     + grp('Order source', 'src', wbCounts(all, 'src', r => r.source), WB.src)
     + grp('Stage', 'stage', wbCounts(all, 'stage', r => WB_LABEL[r.stage]), WB.stage)
-    + grp('Product type', 'art', wbCounts(all, 'art', r => r.articleType || '—').slice(0, 8), WB.art)
+    + grp('Product type', 'art', wbCounts(all, 'art', r => r.articleType || '—').slice(0, 6), WB.art)
     + grp('Colour', 'col', cols.slice(0, WB.more ? 40 : 6), WB.col)
     + (cols.length > 6 ? '<button type="button" id="wbMore" class="jw-link">' + (WB.more ? '− Fewer colours' : '+ ' + (cols.length - 6) + ' more colours') + '</button>' : '')
     + '<div class="wb-grp"><div class="wb-gh">Size</div><select id="wbSize"><option value="">All sizes</option>'
@@ -39411,29 +39454,33 @@ function renderOrdBoard() {
 
   /* the lines */
   const may = ptCanEdit() && !spIsVendor();
-  const head = '<thead><tr>' + ['SKU', 'Image', 'Article', 'Colour', 'Size', 'Ordered', 'Stage', 'Karigar', 'Next action']
-    .map((h, i) => '<th' + (i === 5 ? ' class="num"' : '') + '>' + h + '</th>').join('') + '</tr></thead>';
+  const head = '<thead><tr>' + ['Item', 'Ordered', 'Progress', 'Stage', 'Karigar', 'Next action']
+    .map((h, i) => '<th' + (i === 1 ? ' class="num"' : '') + '>' + h + '</th>').join('') + '</tr></thead>';
   const shown = rows.slice(0, 200);
   $('wbTable').innerHTML = head + '<tbody>' + (shown.length ? shown.map(r => {
     const k = esc(r.orderNo + '|' + r.sku);
     const act = r.act === 'done' && r.src !== 'SHP' ? '' : WB_ACT[r.act];
-    return '<tr class="' + (WB.pick === r.orderNo + '|' + r.sku ? 'wb-on' : '') + '">'
-      + '<td style="text-align:left"><div style="font-weight:600">' + esc(r.sku) + '</div>'
-      + '<div class="jw-sub">' + esc(r.orderNo) + '</div></td>'
-      + ptImgCell(r.sku, 38)
-      + '<td style="text-align:left"><div style="font-weight:600">' + esc(r.articleType || '—') + '</div>'
-      + '<div class="jw-sub">' + esc(r.articleSubtype || '') + '</div></td>'
-      + '<td style="text-align:left"><span class="wb-dot" style="background:' + wbColour(r.color) + '"></span>' + esc(r.color || '—') + '</td>'
-      + '<td>' + esc(r.size || '—') + '</td>'
-      + '<td class="num"><b>' + nf(ptNum(r.qty)) + '</b></td>'
-      + '<td><span class="jw-st ' + WB_PILL[r.stage] + '">' + esc(WB_LABEL[r.stage]) + '</span></td>'
+    const on = WB.pick === r.orderNo + '|' + r.sku;
+    return '<tr' + (on ? ' class="jw-on"' : '') + '>'
+      /* ONE CELL FOR THE PRODUCT, the way the Job Work table reads: picture, what it is, which
+       * colour and size, then the code and the order underneath. */
+      + '<td style="text-align:left"><div class="jw-item">' + ptImgSpan(r.sku, 42) + '<div style="min-width:0">'
+      + '<div style="font-weight:600">' + esc(r.articleSubtype || r.articleType || '—') + '</div>'
+      + '<div class="jw-sub"><span class="wb-dot" style="background:' + wbColour(r.color) + '"></span>'
+      + esc([r.color, r.size].filter(Boolean).join(' • ') || '—') + '</div>'
+      + '<div class="jw-sku">' + esc(r.sku) + ' · ' + esc(r.orderNo) + '</div></div></div></td>'
+      + '<td class="num">' + nf(ptNum(r.qty)) + ' <span class="jw-u">pcs</span></td>'
+      + '<td>' + wbRing(r) + '</td>'
+      + '<td style="text-align:left"><span class="jw-st ' + WB_PILL[r.stage] + '">' + esc(WB_LABEL[r.stage]) + '</span>'
+      + (wbLeft(r) ? '<div class="jw-sub">' + esc(wbLeft(r)) + '</div>' : '') + '</td>'
       + '<td style="text-align:left">' + (r.holders.length
-        ? esc(r.holders[0]) + (r.holders.length > 1 ? ' <span class="jw-sub">+' + (r.holders.length - 1) + '</span>' : '')
+        ? '<div class="jw-who">' + jwAvatar(r.holders[0]) + '<div><div style="font-weight:600">' + esc(r.holders[0]) + '</div>'
+          + (r.holders.length > 1 ? '<div class="jw-sub">and ' + (r.holders.length - 1) + ' more</div>' : '') + '</div></div>'
         : '<span class="muted">—</span>') + '</td>'
-      + '<td style="white-space:nowrap">'
-      + (may && act ? '<button class="jw-btn' + (WB.pick === r.orderNo + '|' + r.sku ? ' jw-primary' : '') + '" data-wb-go="' + k + '">' + esc(act) + '</button> ' : '')
-      + '<button class="jw-btn jw-more" data-wb-more="' + k + '" title="This order, start to finish">⋯</button></td></tr>';
-  }).join('') : '<tr><td colspan="9" class="muted" style="padding:18px;text-align:center">Nothing matches these filters.</td></tr>') + '</tbody>';
+      + '<td><div class="jw-acts">'
+      + (may && act ? '<button class="jw-btn' + (on ? ' jw-primary' : '') + '" data-wb-go="' + k + '">' + esc(act) + '</button>' : '')
+      + '<button class="jw-btn jw-more" data-wb-more="' + k + '" title="This order, start to finish">⋯</button></div></td></tr>';
+  }).join('') : '<tr><td colspan="6" class="muted" style="padding:18px;text-align:center">Nothing matches these filters.</td></tr>') + '</tbody>';
 
   $('wbCount').textContent = nf(rows.length) + ' line(s)'
     + (rows.length > shown.length ? ' · showing the first ' + nf(shown.length) : '');
