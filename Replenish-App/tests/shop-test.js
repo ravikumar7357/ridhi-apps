@@ -198,7 +198,7 @@ const EXPORT = '\n;return {'
   + 'setStockLoaded:v=>{SHOP_STOCK_LOADED=v},'
   + 'setIndia:(d,l,e)=>{SHOP_INDIA=d;SHOP_INDIA_LOADED=l;SHOP_INDIA_ERR=e}'
   + ', setCustom:v=>{SHP_CUSTOM=v}'
-  + ', soIndexNames, soPackFit'
+  + ', soIndexNames, soPackFit, shpSyncSoon, SHP_BUSY:()=>SHP_BUSY, SHP_AGAIN:()=>SHP_AGAIN, setSyncAll:v=>{shpSyncAll=v}'
   + ', soBulkPlan, soBulkApply, soBulkSheet, SO_LOC_OPTIONS, soLine, soLocOf, soBulkXlsx, soBinList, soCrc32'
   + '};';
 const fn = new Function(...Object.keys(ctx), block + EXPORT);
@@ -1377,6 +1377,38 @@ console.log('\n== a line with no SKU is refused OUT LOUD, not dropped ==');
   RT = {}; PTG.ob = []; SOX.rows = [];
 }
 
+console.log('\n== an ask that arrives mid-sync is kept, not dropped ==');
+{
+  /* Ravi, 2026-09-23: a CPC order read "Need from production" and no production order opened.
+   *
+   * Opening the tab starts two things that both call the sync: the India stock read and the order
+   * fetch. Coming back to a tab that already had orders, India lands first, so a sync runs over the
+   * OLD list — and the call carrying the NEWLY fetched orders arrives while that one is still
+   * running. It used to be dropped on the floor, and those orders were never judged. */
+  let runs = 0;
+  const realAll = A.shpSyncAll;
+  const was = { busy: A.SHP_BUSY(), again: A.SHP_AGAIN() };
+  ok('nothing is running to begin with', was.busy === false && was.again === null, JSON.stringify(was));
+
+  /* A sync that takes a moment, so a second ask genuinely lands inside it. */
+  A.setSyncAll(async () => { runs++; await new Promise(r => setTimeout(r, 20)); return { written: 0, removed: 0, kept: [], skipped: [], custom: [], err: '' }; });
+  const first = A.shpSyncSoon();
+  const second = A.shpSyncSoon();          // arrives while the first is still going
+  ok('the second ask is remembered rather than thrown away', A.SHP_AGAIN() !== null, String(A.SHP_AGAIN()));
+  await first; await second;
+  ok('…and it runs once the first finishes, so the new orders are judged', runs === 2, 'runs=' + runs);
+  ok('…and nothing is left queued behind it', A.SHP_AGAIN() === null && A.SHP_BUSY() === false,
+     JSON.stringify({ again: A.SHP_AGAIN(), busy: A.SHP_BUSY() }));
+
+  /* A third ask during the second run queues itself once — it does not stack into a loop. */
+  runs = 0;
+  let inner = null;
+  A.setSyncAll(async () => { runs++; if (runs === 1) { inner = A.shpSyncSoon(); } await new Promise(r => setTimeout(r, 5)); return { written: 0, removed: 0, kept: [], skipped: [], custom: [], err: '' }; });
+  await A.shpSyncSoon();
+  if (inner) await inner;
+  ok('an ask made from inside a run is honoured exactly once', runs === 2, 'runs=' + runs);
+  A.setSyncAll(realAll);
+}
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exitCode = fail ? 1 : 0;
 

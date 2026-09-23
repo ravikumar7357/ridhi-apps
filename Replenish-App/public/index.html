@@ -42973,8 +42973,21 @@ function shpSyncMsg(t) {
  * India stock lands, because those are the two moments the answer can change. */
 let SHP_CUSTOM = null;      // pt_customSkus, read once per session
 let SHP_BUSY = false;
+/* A SECOND ASK WHILE ONE IS RUNNING IS NOT A DUPLICATE — IT IS THE ONE THAT MATTERS.
+ *
+ * Ravi, 2026-09-23: a CPC order said "Need from production" and no production order opened for it.
+ *
+ * Opening the tab starts two things: the India stock read, which calls this when it lands, and the
+ * order fetch, which calls it again when ITS orders arrive. Coming back to a tab that already had
+ * orders on it, India usually lands first — so a sync runs over the OLD list, and the call that
+ * carries the newly fetched orders arrives while that one is still going and was simply dropped.
+ * The new orders were then never judged at all, and sat there needing production with nothing in
+ * the Order Console, until something else happened to trigger a sync.
+ *
+ * So a call that arrives mid-run is remembered and made once the run finishes. */
+let SHP_AGAIN = null;
 async function shpSyncSoon(where) {
-  if (SHP_BUSY) return;
+  if (SHP_BUSY) { SHP_AGAIN = where || SHP_AGAIN || ''; return; }
   if (!SHOP_STOCK_LOADED || !SHOP_INDIA_LOADED || SHOP_INDIA_ERR) return;
   if (!(SO_ALL_ROWS || []).length) return;
   SHP_BUSY = true;
@@ -43001,7 +43014,13 @@ async function shpSyncSoon(where) {
   } catch (e) {
     const el = $(where === 'adj' ? 'ajMsg' : 'soMsg');
     if (el) { el.className = 'err'; el.textContent = 'The Order Console could not be brought up to date: ' + (e.message || e); }
-  } finally { SHP_BUSY = false; }
+  } finally {
+    SHP_BUSY = false;
+    /* The ask that came in mid-run, now that there is nothing in its way. Once, not in a loop: the
+     * flag is taken before the call, so a third ask during THIS one queues itself again rather
+     * than stacking. */
+    if (SHP_AGAIN !== null) { const again = SHP_AGAIN; SHP_AGAIN = null; await shpSyncSoon(again); }
+  }
 }
 
 
