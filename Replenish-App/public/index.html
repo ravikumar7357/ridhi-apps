@@ -3001,6 +3001,7 @@ const db = getFirestore(app);
 // reason, and the user maintains this list themselves now.
 let INDIA_STOCK = {}, INDIA_LOADED = false;   // sku↑ → qty
 let INDIA_ROWS = [], INDIA_AT = null;         // rows + the moment the warehouse workbook was read
+let INDIA_CACHED = false;                     // true while showing the last read rather than a fresh one
 let FBA_STOCK = {};   // sku↑ → Total Stock + AWD Available + AWD Transit, built from the Replenishment snapshot
 // Lead times in days, used to decide whether a month's shortfall can still be reached by sea or must
 // fly. Editable in the Replenishment toolbar. Declared UP HERE because that toolbar wiring runs during
@@ -6558,21 +6559,78 @@ function loadIndiaStock() {   // idempotent: shared promise, INDIA_LOADED set on
  * function moving is the whole change.
  */
 let INDIA_META = {};                       // sku → [sellable, pieces, pack, status]
+/* ONE CALL FOR THE WHOLE SESSION. Replenishment asks for this, and so does Shopify Orders; it is
+ * the same payload, and it cost ten seconds twice. */
+let INDIA_LIVE = null;
+const indiaLive = () => (INDIA_LIVE || (INDIA_LIVE = prGet({ india: 'stock' })));
+/** The workbook's answer, in the shapes the screens read it in. */
+function indiaApply(rows, at, cached) {
+  INDIA_ROWS = rows;
+  INDIA_AT = at || null;
+  INDIA_CACHED = !!cached;
+  INDIA_META = {};
+  rows.forEach(r => {
+    const k = String(r && r.sku || '').trim().toUpperCase();
+    if (k) INDIA_META[k] = [r.qty, r.pieces, r.pack, r.status];
+  });
+  buildIndiaMap();
+}
+/** What was read last time, out of Firestore — half a second, and already on the screen. */
+async function indiaCache() {
+  const meta = await getDoc(doc(db, 'repl', 'indiastock'));
+  if (!meta.exists()) return null;
+  const m = meta.data() || {};
+  const n = Number(m.chunks) || 0;
+  if (!n) return null;
+  const parts = await Promise.all(Array.from({ length: n }, (_, i) => getDoc(doc(db, 'repl_india', String(i)))));
+  const rows = [].concat(...parts.map(p => (p.exists() ? (p.data().r || []) : [])));
+  if (!rows.length) return null;
+  const at = m.at && m.at.toDate ? m.at.toDate() : (m.at || null);
+  return { rows, at: m.readAt || (at ? ptIsoDate(at) || String(at) : '') };
+}
 async function fetchIndiaStock() {
-  INDIA_STOCK = {}; INDIA_ROWS = []; INDIA_AT = null; INDIA_META = {};
+  INDIA_STOCK = {}; INDIA_ROWS = []; INDIA_AT = null; INDIA_META = {}; INDIA_CACHED = false;
+  /* WHAT WAS READ LAST TIME, FIRST. It paints the column while the workbook is still being read,
+   * and it is replaced the moment the real answer lands. */
+  let painted = false;
   try {
-    const r = await prGet({ india: 'stock' });
+    const c = await indiaCache();
+    if (c) {
+      indiaApply(c.rows, c.at, true);
+      painted = true;
+      try { renderIndia(); } catch (e) { /* that tab is not built yet */ }
+      if (REPL_LOADED) { try { renderRepl(); } catch (e) { /* nor is that one */ } }
+    }
+  } catch (e) { /* nothing kept yet, or this account may not read it — the live call is the answer */ }
+  try {
+    const r = await indiaLive();
     const d = r.d || {};
-    INDIA_META = d;
-    INDIA_ROWS = Object.keys(d).map(k => ({ sku: k, qty: d[k][0], pieces: d[k][1], pack: d[k][2], status: d[k][3] }));
-    INDIA_AT = r.at || null;
-    buildIndiaMap();
+    indiaApply(Object.keys(d).map(k => ({ sku: k, qty: d[k][0], pieces: d[k][1], pack: d[k][2], status: d[k][3] })),
+      r.at || null, false);
+    /* Kept for the next visit. Quietly: a failure to write the copy must not look like a failure to
+     * read the warehouse, which is the thing that matters. */
+    indiaKeep(INDIA_ROWS, r.at || '').catch(() => {});
   } catch (e) {
-    // Left EMPTY, never zeroed — "could not read the warehouse" and "there is nothing in India" are
-    // different answers, and the second one starts production runs.
-    INDIA_STOCK = {}; INDIA_ROWS = []; INDIA_META = {};
-    rMsg('India stock could not be read from the warehouse workbook: ' + (e.message || e), true);
+    if (painted) {
+      // The screen still has last time's figures, and says so rather than emptying itself.
+      rMsg('India stock could not be read from the warehouse workbook just now — showing what was read '
+        + (INDIA_AT ? 'on ' + INDIA_AT : 'last time') + '. (' + (e.message || e) + ')', true);
+    } else {
+      // Left EMPTY, never zeroed — "could not read the warehouse" and "there is nothing in India" are
+      // different answers, and the second one starts production runs.
+      INDIA_STOCK = {}; INDIA_ROWS = []; INDIA_META = {};
+      rMsg('India stock could not be read from the warehouse workbook: ' + (e.message || e), true);
+    }
   }
+}
+/** Keep what the workbook said, so the next visit has something to show at once. */
+async function indiaKeep(rows, at) {
+  const chunks = Math.ceil(rows.length / INDIA_CHUNK) || 1;
+  for (let i = 0; i < chunks; i++) {
+    await setDoc(doc(db, 'repl_india', String(i)), { r: rows.slice(i * INDIA_CHUNK, (i + 1) * INDIA_CHUNK) });
+  }
+  await setDoc(doc(db, 'repl', 'indiastock'), { chunks, n: rows.length, rows: null, readAt: String(at || ''),
+    by: ME.email, at: serverTimestamp() });
 }
 function buildIndiaMap() {
   INDIA_STOCK = {};
@@ -7035,7 +7093,7 @@ function renderIndia() {
   IN_LAST = rows;
 
   const nUnknown = base.filter(r => !r.known).length;
-  const when = INDIA_AT ? ('read ' + INDIA_AT) : 'not read yet';
+  const when = INDIA_AT ? ((INDIA_CACHED ? 'last read ' : 'read ') + INDIA_AT) : 'not read yet';
   $('inKpis').innerHTML = `<div class="kpi" style="flex-basis:100%"><div class="kpihead"><span class="kpiname">India Stock</span><span class="kpiwhen">last upload: ${esc(when)}</span></div>
     <div class="metrics">
       <div class="metric"><div class="v">${nf(base.length)}</div><div class="l">SKUs uploaded</div></div>
@@ -7173,7 +7231,7 @@ function renderIndiaProj() {
 
   $('inKpis').innerHTML = `<div class="kpi" style="flex-basis:100%">
     <div class="kpihead"><span class="kpiname">India Stock — projected use through ${esc(horizon)}</span>
-      <span class="kpiwhen">${esc(INDIA_AT ? 'live · read ' + INDIA_AT : 'not read yet')} · sea lane assumed for goods in production</span></div>
+      <span class="kpiwhen">${esc(INDIA_AT ? (INDIA_CACHED ? 'last read ' + INDIA_AT + ' — reading the warehouse now' : 'live · read ' + INDIA_AT) : 'not read yet')} · sea lane assumed for goods in production</span></div>
     <div class="metrics">
       <div class="metric"><div class="v">${nf(totIndia)}</div><div class="l">India stock today</div></div>
       <div class="metric"><div class="v" style="color:#166534">${nf(totUsed)}</div><div class="l">Used by ${esc(horizon)}</div></div>
@@ -40989,7 +41047,20 @@ async function loadShopIndia() {
   if (SHOP_INDIA_LOADED) return;
   SHOP_INDIA_LOADED = true;                 // one attempt per session; a failure must not retry per render
   try {
-    const r = await prGet({ india: 'stock' });
+    /* THE SAME CALL THE REPLENISHMENT TAB MAKES — one payload, one ten-second wait, not two. What
+     * is NOT shared is the cache: this figure decides whether a Shopify line goes to production,
+     * and that decision is never made from what was read yesterday.
+     *
+     * The sharing is opportunistic on purpose. indiaLive lives in the Replenishment part of this
+     * page; this part is also read on its own, by the Shopify tests, where that name does not
+     * exist. Sharing when it can, asking for itself when it cannot, keeps this screen standing on
+     * its own feet. */
+    let r;
+    try { r = await indiaLive(); }
+    catch (e) {
+      if (!(e instanceof ReferenceError)) throw e;
+      r = await prGet({ india: 'stock' });
+    }
     SHOP_INDIA = r.d || {};
     SHOP_INDIA_AT = r.at || '';
   } catch (e) {
