@@ -39070,11 +39070,14 @@ function stMoves() {
       what: r.kind === 'OPENING' ? 'Opening stock' : r.kind === 'OUT' ? 'Taken out by hand' : r.kind === 'ADJUST' ? 'Correction' : 'Taken in by hand',
       date: r.date || day(r.at), at: r.at || '', who: r.by || '', remark: r.remark || '' });
   });
-  if (!start) return out.sort((a, b) => String(a.at).localeCompare(String(b.at)));
+  /* NO OPENING STOCK IS NOT A REASON TO RECORD NOTHING. Without one, the register still holds
+   * everything that has moved — it simply is not the shelf yet, and the screen says so. Movements
+   * before the opening stock ARE dropped, because the opening figure already contains them. */
+  const from = start || '';
   /* ---- what the printers sent ---- */
   voLogRows().forEach(r => {
     const at = String((r.ok && r.ok.at) || r.at || '');
-    if (!at || at <= start) return;
+    if (!at || at <= from) return;
     const q = r.ok ? stNum(r.ok.qty) : stNum(r.qty);
     if (!(q > 0)) return;
     out.push({ src: 'printer', id: r.key2, checkKey: r.key2, unit: r.unit, sku: r.sku, fabric: r.fabric, colour: r.colour || '',
@@ -39083,7 +39086,7 @@ function stMoves() {
   /* ---- the cutting table ---- */
   (PT.cut || []).forEach(c => {
     const at = String(c.addedAt || '');
-    if (!at || at <= start) return;
+    if (!at || at <= from) return;
     const k = stCutting(c);
     if (k.running && k.metres > 0 && k.fabric) {
       out.push({ src: 'cut', id: 'cut-' + c.id, unit: 'm', fabric: k.fabric, colour: k.colour, sku: '',
@@ -39100,7 +39103,7 @@ function stMoves() {
   /* ---- pieces given to a karigar ---- */
   (PT.base || []).forEach(r => {
     const at = String(r.addedAt || '');
-    if (!at || at <= start) return;
+    if (!at || at <= from) return;
     const q = stNum(r.issuePieces);
     if (!(q > 0)) return;
     out.push({ src: 'jobwork', id: 'jw-' + r.id, unit: 'pcs', sku: r.sku, fabric: '', colour: '',
@@ -39291,7 +39294,7 @@ function renderStore(view) {
       + '</tr>').join('') + '</tbody>';
     $('fbMsg').className = STORE.err ? 'err' : 'muted';
     $('fbMsg').innerHTML = esc(`${nf(rows.length)} of ${nf(moves.length)} movement(s)`)
-      + (start ? '' : ' · <b>the store has no opening stock yet</b> — upload it, and the registers start counting from then')
+      + (start ? '' : ' · <b>the store has no opening stock yet</b> — every movement is here, but the balance is not the shelf until it is uploaded')
       + (STORE.err ? ' · ' + esc(STORE.err) : '');
     FAB.shown = shown;
     return;
@@ -39309,7 +39312,9 @@ function renderStore(view) {
   FAB.shown = bal;
   $('fbMsg').className = STORE.err ? 'err' : 'muted';
   $('fbMsg').innerHTML = esc(`${nf(bal.length)} item(s) · the balance is the sum of the movements, never a stored figure`)
-    + (start ? '' : ' · <b>no opening stock yet</b> — upload what is on the shelf and the registers count from then')
+    + (start ? ''
+      : ' · <b>no opening stock yet</b> — so this is what has MOVED since the first entry, not what is'
+        + ' on the shelf. Upload the opening stock and it becomes the shelf.')
     + (toCheck.length ? ` · <a href="#" id="stToCheck">${nf(toCheck.length)} delivery(ies) to cross-check</a>` : '')
     + (STORE.err ? ' · ' + esc(STORE.err) : '');
   ptImgFill(pcs.map(b => b.sku).filter(Boolean), false, renderFab);

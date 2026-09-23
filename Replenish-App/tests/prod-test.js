@@ -19138,6 +19138,26 @@ console.log('\n== The store: what is on the shelf before stitching ==');
   ok('a printer\'s cloth comes in', (x => x && x.qty === 120 && x.unit === 'm' && x.fabric === 'Sheeting 62' && x.colour === 'Sage Green')(find('V1/vo1/0/0')), JSON.stringify(find('V1/vo1/0/0')));
   ok('…the accepted figure wins over what was claimed, and rejects stay out', (x => x && x.qty === 85 && x.unit === 'pcs' && x.sku === 'CUT-1')(find('V1/vo2/0/0')));
   ok('…and a delivery from before the store opened is not counted', !find('V1/vo1/0/1'));
+
+  /* NO OPENING STOCK IS NOT A REASON TO RECORD NOTHING (Ravi, 2026-09-23: "aaj printer se goods
+   * receive hua to ye store stock balance me kyo nahi aaya"). 461 pieces came in from a printer and
+   * the screen said 0 items, because every movement was gated behind the opening stock — which
+   * nobody had uploaded. The register holds them; it simply is not the shelf until the opening
+   * figure is there, and the screen says which of the two it is showing. */
+  {
+    const keep = A.STORE();
+    A.setSTORE(Object.assign({}, keep, { rows: [] }));          // nothing typed, so no opening stock
+    ok('with no opening stock the store has no start', A.stStart() === '');
+    const bare = A.stMoves();
+    ok('…the printer delivery is still recorded', bare.some(x => x.src === 'printer' && x.qty === 85),
+       JSON.stringify(bare.map(x => x.src + ':' + x.qty)));
+    ok('…so is the cutting that took cloth', bare.some(x => x.src === 'cut' && x.unit === 'm' && x.qty < 0));
+    ok('…and the pieces given to a karigar', bare.some(x => x.src === 'jobwork' || (x.qty < 0 && x.unit === 'pcs')));
+    /* And a delivery from BEFORE the opening stock is still dropped once there is one — the opening
+     * figure already contains it. */
+    A.setSTORE(keep);
+    ok('once the opening stock is back, what came before it is dropped again', !A.stMoves().some(x => x.id === 'V1/vo1/0/1'));
+  }
   ok('cutting cloth that was printed first takes metres out', (x => x && x.qty === -16 && x.unit === 'm')(find('cut-c1')));
   ok('…and puts the pieces it made in', (x => x && x.qty === 10 && x.unit === 'pcs' && x.sku === 'RUN-1')(find('cutp-c1')));
   ok('cutting for a piece printed AFTER cutting moves nothing — it comes back from the printer', !find('cut-c2') && !find('cutp-c2'));
