@@ -6,26 +6,34 @@
   /* Cotton Print Club's ground and face, read off the live site. The serif is a SYSTEM stack — nothing
      is fetched, nothing can fail to load — and it is used on the brand, the sign-in and the page title
      ONLY. Never on data: its digits are proportional and would stop a column of figures lining up. */
-  :root{--bg:#F5F4F4;--card:#fff;--ink:#0f172a;--muted:#64748b;--line:#e5e8ee;--input:#fff;
+  /* SOFT CARDS. One palette, set here, drawn by every screen: a tinted ground, white surfaces that
+     float on it with a soft shadow instead of a border, one indigo that means "this is the thing to
+     press", and four pastels that mean waiting / going / done / wrong. */
+  :root{--bg:#F4F5F9;--card:#fff;--ink:#1A1D29;--muted:#6C7288;--faint:#A2A7B8;--line:#EEF0F6;--input:#fff;
+    --soft:#F7F8FC;--chip:#F1F2F7;
+    /* The one colour that leads. */
+    --brand:#4F5BD5;--brand-bg:#EEF0FC;--brand-ink:#3D47B8;
+    /* Rounded, and the same rounded everywhere: a card, a row, a control, a chip. */
+    --r-card:18px;--r-row:16px;--r-ctl:12px;--r-sm:10px;--r-pill:999px;
     --serif:"New York","Iowan Old Style","Apple Garamond",Baskerville,"Times New Roman",Times,serif;
     --si-ink:#000;--si-faint:rgba(0,0,0,.40);--si-rule:rgba(0,0,0,.13);
-    --accent:#166534;--accent-bg:#dcfce7;--bad:#991b1b;--bad-bg:#fee2e2;--hover:#f1f5f9;
-    --warn-bg:#fef9c3;--warn-ink:#854d0e;
+    --accent:#1F9254;--accent-bg:#E9F8EF;--bad:#D8543F;--bad-bg:#FFF0EE;--hover:#F1F2F7;
+    --warn-bg:#FFF4E8;--warn-ink:#B96C1E;
     /* DEPTH, SET ONCE. Three steps and no more: a card barely off the page, a control that has been
        pressed, and a dialog that is plainly above everything. Shadows invented per rule are how a
        screen ends up with six slightly different greys under six slightly different boxes. */
-    --sh-1:0 1px 2px rgba(15,23,42,.05);
-    --sh-2:0 1px 3px rgba(15,23,42,.08),0 1px 2px rgba(15,23,42,.04);
-    --sh-3:0 24px 64px rgba(15,23,42,.22);
+    --sh-1:0 2px 10px rgba(26,29,41,.05);
+    --sh-2:0 4px 16px rgba(26,29,41,.08);
+    --sh-3:0 24px 64px rgba(26,29,41,.20);
     /* The ring a keyboard leaves. A one-pixel border change is not one you can see across a room,
        and this is a screen people work at all day. */
-    --ring:0 0 0 3px rgba(99,102,241,.18);
-    --ring-line:#6366f1;
+    --ring:0 0 0 3px rgba(79,91,213,.20);
+    --ring-line:#4F5BD5;
     /* ONE HEIGHT FOR EVERY CONTROL IN A TOOLBAR. Three different ones is the single thing that makes
        a working screen look unfinished, and this app had three. */
-    --ctl:38px}
+    --ctl:40px}
   *{box-sizing:border-box}
-  body{margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);font-size:14px;
+  body{margin:0;font-family:Manrope,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink);font-size:14px;
     -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
   /* EVERY FIGURE ON THE PAGE LINES UP. The number columns already had this; the KPI strip did not,
      so a total ticking from 145,539 to 146,002 shifted every tile beside it. Anywhere a number is
@@ -33,14 +41,15 @@
   .metric .v,.kpi,.vpbar b,.sumtbl,.sliptab,.pill,.lane,.fu,.navbadge{font-variant-numeric:tabular-nums}
   h1,h2{letter-spacing:-.02em}
   .shell{display:flex;align-items:stretch;min-height:100vh}
-  .side{flex:0 0 246px;position:sticky;top:0;height:100vh;overflow-y:auto;background:var(--card);
-    border-right:1px solid var(--line);padding:18px 12px;display:flex;flex-direction:column}
+  /* The sidebar sits ON the ground, not in a box of its own — the pills carry the shape. */
+  .side{flex:0 0 246px;position:sticky;top:0;height:100vh;overflow-y:auto;background:transparent;
+    border-right:0;padding:18px 12px;display:flex;flex-direction:column}
   /* The mark's own shape, set as type: the name in the serif the app already uses, over a line of
      spaced capitals. No image, so it is sharp at any zoom and costs nothing to load. */
   .brand{padding:4px 12px 16px;display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
   .brandname{font-family:var(--serif);font-size:23px;font-weight:400;line-height:1;
     letter-spacing:.06em;text-transform:uppercase;display:flex;flex-direction:column}
-  .brandsub{font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  .brandsub{font-family:Manrope,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
     font-size:9px;font-weight:500;letter-spacing:.22em;
     text-transform:uppercase;color:var(--muted);margin-top:5px}
   .navgrp{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);padding:16px 12px 8px}
@@ -48,11 +57,11 @@
     border:0;border-radius:8px;padding:7px 12px;font-weight:500;font-size:13.5px;cursor:pointer;margin-bottom:1px;
     /* FLAT. The shared button style gives every button a shadow; in the sidebar that turned each item
        into a card with a gap around it, and 35 cards made a column twice the height of the screen. */
-    box-shadow:none;min-height:0;line-height:1.35}
+    box-shadow:none;min-height:0;line-height:1.35;border-radius:var(--r-ctl)}
   .nav:hover{background:var(--hover)}
   /* WHERE YOU ARE, said by more than a shade of grey. The same weight of background carried both
      "you are here" and "your pointer is here", so on a still screen neither said anything. */
-  .nav.on{background:#eef2ff;font-weight:600;color:#1e1b4b;box-shadow:inset 2px 0 0 var(--ring-line)}
+  .nav.on{background:var(--brand-bg);font-weight:700;color:var(--brand);box-shadow:none}
   .nav:focus-visible{outline:none;box-shadow:var(--ring)}
   .navbadge{display:inline-block;min-width:18px;padding:0 5px;margin-left:4px;border-radius:999px;background:#dc2626;color:#fff;font-size:11px;font-weight:700;text-align:center;line-height:18px}
   .fu{display:inline-block;padding:1px 9px;border-radius:999px;font-size:11px;font-weight:700}
@@ -76,8 +85,8 @@
   .navclose:hover{background:var(--hover);color:var(--ink)}
   .topbar{display:flex;align-items:center;gap:12px;margin:0 0 16px}
   .hamb{flex:none;width:40px;height:40px;padding:0;display:inline-flex;align-items:center;
-    justify-content:center;background:transparent;color:var(--ink);border:1px solid var(--line);
-    border-radius:10px}
+    justify-content:center;background:var(--card);color:var(--ink);border:0;box-shadow:var(--sh-1);
+    border-radius:var(--r-ctl)}
   .hamb:hover{background:var(--hover)}
   .shell.navshut .side{display:none}
   /* The scrim only ever covers the narrow-screen drawer; tapping it closes the menu. */
@@ -86,7 +95,9 @@
   /* ONE SCALE, AND IT STEPS PROPERLY: page heading 32 — brand 19 — nav 13.5 — group label 11.
      The thing naming the page has to read as the biggest on screen; beside a 15px list of links it
      did not, and nothing told you where you were. */
-  .pagehead{font-family:var(--serif);font-weight:400;letter-spacing:-.012em;margin:0 0 16px;font-size:32px;line-height:1.1}
+  /* The page's name, in the app's own face. The serif stays on the brand mark, which is the
+     identity; a heading over a screen of figures reads better in the same face as the figures. */
+  .pagehead{font-weight:800;letter-spacing:-.022em;margin:0 0 16px;font-size:26px;line-height:1.15}
   /* THE SIGN-IN SCREEN, scoped so none of it can reach a control inside the app. */
   #loginView .card{background:transparent;border:0;box-shadow:none;padding:0;max-width:340px}
   #loginView .signin{text-align:center;margin-bottom:30px}
@@ -104,26 +115,30 @@
   #loginView .sibtn{width:100%;padding:11px 28px;border-radius:24px;background:#000;color:#fff;
     border:1px solid #000;font-size:14px;font-weight:500;margin-top:6px}
   #loginView .sifoot{font-size:12px;color:var(--si-faint);margin:20px 0 0;text-align:center}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:14px;
+  /* A CARD IS A SHADOW, NOT A BORDER. Sixty screens of bordered boxes inside bordered boxes is what
+     made this look like a spreadsheet with a menu attached. */
+  .card{background:var(--card);border:0;border-radius:var(--r-card);padding:16px 18px;margin-bottom:14px;
     box-shadow:var(--sh-1)}
   label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:6px}
   input,select,textarea{font:inherit;color:var(--ink);background:var(--input);border:1px solid var(--line);
-    border-radius:10px;padding:10px 12px;width:100%;transition:border-color .12s,box-shadow .12s}
+    border-radius:var(--r-ctl);padding:10px 12px;width:100%;transition:border-color .12s,box-shadow .12s}
   /* A RING YOU CAN SEE. The border alone changed by one shade and told a keyboard user nothing. */
   input:focus,select:focus,textarea:focus{outline:none;border-color:var(--ring-line);box-shadow:var(--ring)}
-  input::placeholder,textarea::placeholder{color:#94a3b8}
-  button{font:inherit;font-weight:600;cursor:pointer;border:1px solid #0f172a;border-radius:10px;padding:10px 16px;
-    background:#0f172a;color:#fff;box-shadow:var(--sh-1);transition:background .12s,box-shadow .12s,transform .06s}
-  button:hover{background:#1e293b;border-color:#1e293b}
+  input::placeholder,textarea::placeholder{color:var(--faint)}
+  /* The one that leads: solid, round, and lifted off the page. */
+  button{font:inherit;font-weight:700;cursor:pointer;border:0;border-radius:var(--r-ctl);padding:10px 18px;
+    background:var(--brand);color:#fff;box-shadow:0 4px 12px rgba(79,91,213,.26);transition:background .12s,box-shadow .12s,transform .06s}
+  button:hover{background:var(--brand-ink)}
   /* It moves when it is pressed. One pixel, and it is the difference between a picture of a button
      and a button. */
   button:active{transform:translateY(1px);box-shadow:none}
   button:focus-visible{outline:none;box-shadow:var(--ring)}
-  button.ghost{background:var(--card);color:var(--ink);border:1px solid var(--line);font-weight:500;box-shadow:none}
-  button.ghost:hover{background:var(--hover);border-color:#cbd5e1}
+  /* Everything else on a bar: white, no outline, resting on the same soft shadow as a card. */
+  button.ghost{background:var(--card);color:var(--muted);border:0;font-weight:600;box-shadow:var(--sh-1)}
+  button.ghost:hover{background:var(--card);color:var(--ink);box-shadow:var(--sh-2)}
   button:disabled{opacity:.5;cursor:default;box-shadow:none}
-  button:disabled:hover{background:#0f172a;border-color:#0f172a}
-  button.ghost:disabled:hover{background:var(--card);border-color:var(--line)}
+  button:disabled:hover{background:var(--brand)}
+  button.ghost:disabled:hover{background:var(--card)}
   .xbtn{background:transparent;color:var(--accent);border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-size:12px;font-weight:600}
   .row{display:flex;gap:10px;flex-wrap:wrap}
   .toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -172,16 +187,16 @@
   .jw-new:hover{background:#1d4ed8}
   .jw-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:12px}
   .jw-kpiname{font-size:11.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted,#64748b);margin:2px 2px 8px}
-  .jw-kc.metric{background:var(--card,#fff);border:1px solid var(--line,#e5e7eb);border-radius:14px;padding:14px 16px!important;margin:0!important;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+  .jw-kc.metric{background:var(--card,#fff);border:0;border-radius:var(--r-card);padding:15px 16px!important;margin:0!important;box-shadow:var(--sh-1)}
   .jw-kc .v{font-size:24px;font-weight:800;letter-spacing:-.01em}.jw-kc .l{font-size:13px;color:var(--muted,#64748b);margin-top:2px}
   .jw-kt{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
   .jw-ks{font-size:11.5px;color:var(--muted,#64748b);margin-top:8px}
-  .jw-ki{width:38px;height:38px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;flex:none}
-  .jw-ki.blue{background:#eff6ff;color:#2563eb}.jw-ki.green{background:#ecfdf5;color:#16a34a}.jw-ki.amber{background:#fff7ed;color:#ea580c}.jw-ki.red{background:#fef2f2;color:#dc2626}
+  .jw-ki{width:36px;height:36px;border-radius:11px;display:inline-flex;align-items:center;justify-content:center;flex:none}
+  .jw-ki.blue{background:var(--brand-bg);color:var(--brand)}.jw-ki.green{background:var(--accent-bg);color:var(--accent)}.jw-ki.amber{background:var(--warn-bg);color:var(--warn-ink)}.jw-ki.red{background:var(--bad-bg);color:var(--bad)}
   .jw-bar-card{padding:12px 14px}
-  .jw-link{background:none;border:0;color:#2563eb;font-weight:600;padding:6px 4px}
+  .jw-link{background:none;border:0;box-shadow:none;color:var(--brand);font-weight:700;padding:6px 4px}
   .jw-table table.xl td{vertical-align:middle;padding-top:10px;padding-bottom:10px}
-  .jw-table tr.jw-on td{background:#eff6ff}
+  .jw-table tr.jw-on td{background:var(--brand-bg)}
   .jw-ck{width:34px;text-align:center}.jw-ck input{width:16px;height:16px}
   .jw-d{font-weight:600}.jw-t,.jw-sub{font-size:11.5px;color:var(--muted,#64748b)}
   .jw-who,.jw-item{display:flex;align-items:center;gap:10px}
@@ -191,10 +206,10 @@
   .jw-ring{display:flex;align-items:center;gap:8px;justify-content:flex-start}.jw-ring b{font-size:13px}
   .jw-st{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap}
   .jw-st svg{width:14px;height:14px}
-  .jw-st.pend{background:#fff7ed;color:#c2410c}.jw-st.prog{background:#eff6ff;color:#1d4ed8}.jw-st.done{background:#ecfdf5;color:#15803d}
+  .jw-st.pend{background:var(--warn-bg);color:var(--warn-ink)}.jw-st.prog{background:var(--brand-bg);color:var(--brand-ink)}.jw-st.done{background:var(--accent-bg);color:var(--accent)}
   .jw-mwrap{position:relative;display:inline-block}
   .jw-more{width:34px;padding:0;font-size:16px;line-height:1}
-  .jw-btn.jw-fix{color:#b45309;border-color:#fcd34d;background:#fffbeb}
+  .jw-btn.jw-fix{color:var(--warn-ink);background:var(--warn-bg)}
   .jw-btn[disabled]{opacity:.6;cursor:default}
   .jw-menu{position:absolute;right:0;top:32px;z-index:30;background:var(--card,#fff);border:1px solid var(--line,#e5e7eb);border-radius:10px;box-shadow:0 10px 30px rgba(15,23,42,.14);padding:6px;min-width:220px;display:flex;flex-direction:column;text-align:left}
   .jw-menu.hide{display:none}
@@ -204,10 +219,12 @@
     background:var(--card,#fff);border:1px solid var(--line,#e5e7eb);border-radius:14px;box-shadow:0 12px 36px rgba(15,23,42,.18);padding:10px 12px}
   .jw-bulk.hide{display:none}.jw-bn{font-weight:700}
   .jw-bulk .jw-btn{height:36px;padding:0 14px;font-size:13px}
-  .jw-btn{height:28px;padding:0 10px;font-size:12px;border-radius:7px;border:1px solid var(--line,#e2e8f0);background:var(--card,#fff);color:inherit;font-weight:600;cursor:pointer;white-space:nowrap}
-  .jw-btn:hover{border-color:#94a3b8}
-  .jw-btn.jw-primary{background:#0f172a;border-color:#0f172a;color:#fff}
-  .jw-btn.jw-wa{color:#166534;border-color:#bbf7d0;background:#f0fdf4}
+  .jw-btn{height:32px;padding:0 13px;font-size:12.5px;border-radius:var(--r-sm);border:0;background:var(--chip);color:var(--muted);font-weight:700;cursor:pointer;white-space:nowrap;box-shadow:none}
+  .jw-btn:hover{background:#E7E9F1;color:var(--ink)}
+  /* The action a row is FOR: the brand colour, softly — a row of solid buttons is a row of shouting. */
+  .jw-btn.jw-primary{background:var(--brand-bg);color:var(--brand);font-weight:700}
+  .jw-btn.jw-primary:hover{background:#E4E7FA;color:var(--brand-ink)}
+  .jw-btn.jw-wa{color:var(--accent);background:var(--accent-bg)}
   .jw-rc{font-size:13px}.jw-rc b{font-size:15px}.jw-rc span{color:var(--muted,#64748b)}
   .jw-bar{position:relative;display:flex;height:5px;border-radius:3px;background:#eef2f7;overflow:hidden;margin:5px auto 0;width:70px}
   .jw-bar i{display:block;height:100%;background:#16a34a}.jw-bar i.rej{background:#dc2626}
@@ -291,7 +308,7 @@
   .resetlink{display:block;width:100%;margin-top:10px;background:none;border:0;color:var(--muted);
     font-size:12.5px;text-decoration:underline;cursor:pointer;padding:4px}
   .resetlink:hover{color:var(--ink)}
-  .kpi{flex:1 1 300px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px;
+  .kpi{flex:1 1 300px;background:var(--card);border:0;border-radius:var(--r-card);padding:13px 16px;
     box-shadow:var(--sh-1)}
   .kpihead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:5px}
   .kpiname{font-size:13px;font-weight:700}
@@ -302,7 +319,7 @@
   /* Base Data: the KPI figure itself is the filter, so it has to look pressable. */
   .metric.pt-kpi{cursor:pointer;border-radius:8px;padding:4px 8px;margin:-4px -8px;transition:background .12s}
   .metric.pt-kpi:hover{background:var(--hover,#f1f5f9)}
-  .metric.pt-kpi-on{background:#eef2ff;box-shadow:inset 0 0 0 1.5px #6366f1}
+  .metric.pt-kpi-on{background:var(--brand-bg);box-shadow:inset 0 0 0 1.5px var(--brand)}
   /* Editable monthly projection */
   .projcell{cursor:pointer;display:inline-block;min-width:34px;border-bottom:1px dashed #cbd5e1}
   .projcell:hover{background:#eef2ff;border-bottom-color:#6366f1}
@@ -342,7 +359,9 @@
   /* Excel-like grid with frozen header + first column */
   .xlwrap{padding:0;overflow:auto;max-height:72vh}
   table.xl{border-collapse:separate;border-spacing:0;width:100%;font-size:14px}
-  table.xl th,table.xl td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:8px 10px;white-space:nowrap;background:var(--card)}
+  /* NO GRID. Vertical rules between every column are what made a table of figures read as graph
+     paper; the columns are held apart by their own space now, and only a hairline separates rows. */
+  table.xl th,table.xl td{border-right:0;border-bottom:1px solid var(--line);padding:10px 11px;white-space:nowrap;background:var(--card)}
   table.xl td{text-align:center;vertical-align:middle}   /* data centered horizontally + vertically */
   /* Remark shown as an Excel-style comment: a small note marker that reveals the text on hover. */
   .note{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:7px;background:#eef2ff;color:#4f46e5;font-size:13px;cursor:help;user-select:none}
@@ -372,13 +391,13 @@
   #prodModal .modal-btns{display:flex;gap:8px;justify-content:flex-end}
   /* THE HEADER IS ABOVE THE DATA, and now looks it. One row of sticky cells, so the shadow costs
      nothing — unlike the frozen columns, where the comment below records why there is none. */
-  table.xl thead th{position:sticky;top:0;z-index:5;background:#f8fafc;font-weight:700;text-align:center;cursor:pointer;vertical-align:top;
-    font-size:12.5px;letter-spacing:.01em;color:#334155;box-shadow:inset 0 -1px 0 #cbd5e1}
+  table.xl thead th{position:sticky;top:0;z-index:5;background:var(--card);font-weight:700;text-align:center;cursor:pointer;vertical-align:top;
+    font-size:11.5px;letter-spacing:.02em;color:var(--faint);box-shadow:inset 0 -1px 0 var(--line)}
   /* No box-shadow on the frozen columns: a shadow on ~400 sticky cells is repainted every horizontal
      scroll frame, which is what made the grid stutter. The cells already carry border-right (table.xl
      th,td above), so the divider looks the same and costs nothing to scroll. */
-  table.xl .frz{position:sticky;left:0;z-index:4;background:var(--card)}
-  table.xl thead th.frz{z-index:6;background:#f8fafc}
+  table.xl .frz{position:sticky;left:0;z-index:4;background:var(--card);border-right:1px solid var(--line)}
+  table.xl thead th.frz{z-index:6;background:var(--card)}
   /* Second frozen column (its `left` = the first frozen column's width, set in JS). */
   table.xl .frz2{position:sticky;z-index:4;background:var(--card)}
   table.xl thead th.frz2{z-index:6;background:#f8fafc}
@@ -393,17 +412,17 @@
   table.xl tbody tr:nth-child(even) td{background:#fbfcfe}
   /* The row under the pointer, and the one it is beside, kept apart — zebra plus hover of the same
      weight makes both disappear. */
-  table.xl tbody tr:hover td{background:#eef2f7}
-  table.xl tbody tr:hover td.frz,table.xl tbody tr:hover td.frz2{background:#eef2f7}
-  table.xl tfoot td{position:sticky;bottom:0;z-index:5;background:#f8fafc;font-weight:700}
+  table.xl tbody tr:hover td{background:var(--soft)}
+  table.xl tbody tr:hover td.frz,table.xl tbody tr:hover td.frz2{background:var(--soft)}
+  table.xl tfoot td{position:sticky;bottom:0;z-index:5;background:var(--soft);font-weight:800}
   table.xl tfoot td.frz{z-index:7}
   /* line-height, so a pill beside a figure does not push its own row taller than its neighbours. */
-  .pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;line-height:17px;vertical-align:1px}
-  .pill-air{background:#dbeafe;color:#1e40af}
-  .pill-sea{background:#e0f2fe;color:#075985}
-  .pill-ok{background:#dcfce7;color:#166534}
-  .pill-low{background:#fef08a;color:#854d0e}
-  .pill-out{background:#fee2e2;color:#991b1b}
+  .pill{display:inline-block;padding:3px 11px;border-radius:var(--r-pill);font-size:11.5px;font-weight:700;line-height:17px;vertical-align:1px}
+  .pill-air{background:#E7EBFC;color:#3D47B8}
+  .pill-sea{background:#E4F1FC;color:#2B7FD4}
+  .pill-ok{background:var(--accent-bg);color:var(--accent)}
+  .pill-low{background:var(--warn-bg);color:var(--warn-ink)}
+  .pill-out{background:var(--bad-bg);color:var(--bad)}
   /* ARTICLE REVIEW IS A READING TABLE, not a picture board. A 210px remark box wrapped a normal
      sentence over six lines and every row grew to match it, so a screen held four SKUs. Widening
      the remark is what SHRINKS the row — the text simply has somewhere to go. */
@@ -442,19 +461,19 @@
   .send-awd{background:#ede9fe;color:#6d28d9}
   .send-ok{background:#dcfce7;color:#166534}
   .send-stop{background:#e2e8f0;color:#475569}
-  .st{display:inline-block;padding:1px 8px;border-radius:6px;font-size:11px;font-weight:700;white-space:nowrap}
-  .st-live{background:#dcfce7;color:#166534}
-  .st-need{background:#fef9c3;color:#854d0e}
-  .st-stop{background:#fee2e2;color:#b91c1c}
-  .st-other{background:#f1f5f9;color:#475569}
+  .st{display:inline-block;padding:2px 10px;border-radius:var(--r-pill);font-size:11px;font-weight:700;white-space:nowrap}
+  .st-live{background:var(--accent-bg);color:var(--accent)}
+  .st-need{background:var(--warn-bg);color:var(--warn-ink)}
+  .st-stop{background:var(--bad-bg);color:var(--bad)}
+  .st-other{background:var(--chip);color:var(--muted)}
   /* Multi-select: a button that opens a checklist. Not a <select multiple>, which needs ctrl-click
      to add a second value and shows six rows of a hundred — neither is usable with 300 options. */
   .ms{position:relative;flex:0 0 auto}
   /* ---- with the Shopify Orders and Adjustments screens, from Sellora ---- */
   .sd-dn{color:#dc2626;font-weight:600}
-  .st-pending{background:#fef08a;color:#854d0e}
-  .st-approved{background:#dcfce7;color:#166534}
-  .st-rejected{background:#fee2e2;color:#991b1b}
+  .st-pending{background:var(--warn-bg);color:var(--warn-ink)}
+  .st-approved{background:var(--accent-bg);color:var(--accent)}
+  .st-rejected{background:var(--bad-bg);color:var(--bad)}
   /* Shopify Orders row states. The strike and the tint are a SECOND signal — every one of these
   also carries a word in the Status column, because colour alone is not readable to everyone and
   does not survive a printout. */
@@ -669,7 +688,7 @@
 <p>Every part the screens are built from, drawn with the app's own stylesheet. Say it once here — this button is too big, that pill is the wrong colour — and it is said on every screen, because every screen uses these same classes.</p>
 <p class="muted" style="font-size:12px">Built from <code>public/index.html</code> on 2026-09-23 · rebuild with <code>node tests/build-design.js</code></p></div>
 <div class="d-wrap"><nav class="d-nav"><a href="#colour">Colours</a><a href="#text">Text</a><a href="#button">Buttons</a><a href="#pill">Status</a><a href="#kpi">The figures</a><a href="#table">A row</a><a href="#form">Filters and forms</a><a href="#icon">Icons</a><a href="#double">Said twice</a></nav>
-<main class="d-main"><section class="d-sec" id="colour"><h2>Colours</h2><p>Every colour the app uses is one of these, set once at the top of the stylesheet. A colour typed straight into a rule is how a screen ends up with six slightly different greys.</p><div class="d-swatches"><div class="d-sw"><span style="background:var(--bg)"></span><b>--bg</b><i>#F5F4F4</i></div><div class="d-sw"><span style="background:var(--card)"></span><b>--card</b><i>#fff</i></div><div class="d-sw"><span style="background:var(--ink)"></span><b>--ink</b><i>#0f172a</i></div><div class="d-sw"><span style="background:var(--muted)"></span><b>--muted</b><i>#64748b</i></div><div class="d-sw"><span style="background:var(--line)"></span><b>--line</b><i>#e5e8ee</i></div><div class="d-sw"><span style="background:var(--input)"></span><b>--input</b><i>#fff</i></div><div class="d-sw"><span style="background:var(--si-ink)"></span><b>--si-ink</b><i>#000</i></div><div class="d-sw"><span style="background:var(--si-faint)"></span><b>--si-faint</b><i>rgba(0,0,0,.40)</i></div><div class="d-sw"><span style="background:var(--si-rule)"></span><b>--si-rule</b><i>rgba(0,0,0,.13)</i></div><div class="d-sw"><span style="background:var(--accent)"></span><b>--accent</b><i>#166534</i></div><div class="d-sw"><span style="background:var(--accent-bg)"></span><b>--accent-bg</b><i>#dcfce7</i></div><div class="d-sw"><span style="background:var(--bad)"></span><b>--bad</b><i>#991b1b</i></div><div class="d-sw"><span style="background:var(--bad-bg)"></span><b>--bad-bg</b><i>#fee2e2</i></div><div class="d-sw"><span style="background:var(--hover)"></span><b>--hover</b><i>#f1f5f9</i></div><div class="d-sw"><span style="background:var(--warn-bg)"></span><b>--warn-bg</b><i>#fef9c3</i></div><div class="d-sw"><span style="background:var(--warn-ink)"></span><b>--warn-ink</b><i>#854d0e</i></div></div><p class="d-note">The status colours below are not variables yet — they are written into the pill rules. Green #166534 means done, blue #1d4ed8 means in progress, amber #c2410c means waiting, red #991b1b means wrong.</p></section>
+<main class="d-main"><section class="d-sec" id="colour"><h2>Colours</h2><p>Every colour the app uses is one of these, set once at the top of the stylesheet. A colour typed straight into a rule is how a screen ends up with six slightly different greys.</p><div class="d-swatches"><div class="d-sw"><span style="background:var(--bg)"></span><b>--bg</b><i>#F4F5F9</i></div><div class="d-sw"><span style="background:var(--card)"></span><b>--card</b><i>#fff</i></div><div class="d-sw"><span style="background:var(--ink)"></span><b>--ink</b><i>#1A1D29</i></div><div class="d-sw"><span style="background:var(--muted)"></span><b>--muted</b><i>#6C7288</i></div><div class="d-sw"><span style="background:var(--faint)"></span><b>--faint</b><i>#A2A7B8</i></div><div class="d-sw"><span style="background:var(--line)"></span><b>--line</b><i>#EEF0F6</i></div><div class="d-sw"><span style="background:var(--input)"></span><b>--input</b><i>#fff</i></div><div class="d-sw"><span style="background:var(--soft)"></span><b>--soft</b><i>#F7F8FC</i></div><div class="d-sw"><span style="background:var(--chip)"></span><b>--chip</b><i>#F1F2F7</i></div><div class="d-sw"><span style="background:var(--brand)"></span><b>--brand</b><i>#4F5BD5</i></div><div class="d-sw"><span style="background:var(--brand-bg)"></span><b>--brand-bg</b><i>#EEF0FC</i></div><div class="d-sw"><span style="background:var(--brand-ink)"></span><b>--brand-ink</b><i>#3D47B8</i></div><div class="d-sw"><span style="background:var(--r-card)"></span><b>--r-card</b><i>18px</i></div><div class="d-sw"><span style="background:var(--r-row)"></span><b>--r-row</b><i>16px</i></div><div class="d-sw"><span style="background:var(--r-ctl)"></span><b>--r-ctl</b><i>12px</i></div><div class="d-sw"><span style="background:var(--r-sm)"></span><b>--r-sm</b><i>10px</i></div><div class="d-sw"><span style="background:var(--r-pill)"></span><b>--r-pill</b><i>999px</i></div><div class="d-sw"><span style="background:var(--si-ink)"></span><b>--si-ink</b><i>#000</i></div><div class="d-sw"><span style="background:var(--si-faint)"></span><b>--si-faint</b><i>rgba(0,0,0,.40)</i></div><div class="d-sw"><span style="background:var(--si-rule)"></span><b>--si-rule</b><i>rgba(0,0,0,.13)</i></div><div class="d-sw"><span style="background:var(--accent)"></span><b>--accent</b><i>#1F9254</i></div><div class="d-sw"><span style="background:var(--accent-bg)"></span><b>--accent-bg</b><i>#E9F8EF</i></div><div class="d-sw"><span style="background:var(--bad)"></span><b>--bad</b><i>#D8543F</i></div><div class="d-sw"><span style="background:var(--bad-bg)"></span><b>--bad-bg</b><i>#FFF0EE</i></div><div class="d-sw"><span style="background:var(--hover)"></span><b>--hover</b><i>#F1F2F7</i></div><div class="d-sw"><span style="background:var(--warn-bg)"></span><b>--warn-bg</b><i>#FFF4E8</i></div><div class="d-sw"><span style="background:var(--warn-ink)"></span><b>--warn-ink</b><i>#B96C1E</i></div></div><p class="d-note">The status colours below are not variables yet — they are written into the pill rules. Green #166534 means done, blue #1d4ed8 means in progress, amber #c2410c means waiting, red #991b1b means wrong.</p></section>
 <section class="d-sec" id="text"><h2>Text</h2><div class="d-demo"><div class="d-live"><h2 style="margin:0 0 4px">A screen's title</h2>
 <div style="font-weight:600">A row's heading — 600, never bold-bold</div>
 <div class="jw-sub">The line under it: colour • size, a date, a count</div>
