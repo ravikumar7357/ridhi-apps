@@ -71,8 +71,9 @@
   .navwrap{position:relative}
   /* The name over the door, small, at the left of the bar. */
   .side .brand{padding:0 14px 0 2px;margin:0;align-items:center}
-  .side .brandname{font-size:17px;flex-direction:row;align-items:baseline;gap:7px}
-  .side .brandsub{margin-top:0;font-size:8px}
+  /* The mark reads as it does on the shop: the name, and the line of spaced capitals UNDER it. */
+  .side .brandname{font-size:16px;flex-direction:column;align-items:flex-start;gap:0;line-height:1}
+  .side .brandsub{margin-top:3px;font-size:7.5px;letter-spacing:.2em}
   .side .navclose{display:none}
   /* Install app and Sign out go to the far end of the bar. */
   .sidefoot{margin:0 0 0 auto;padding:0;border-top:0;display:flex;align-items:center;gap:2px}
@@ -143,7 +144,12 @@
      did not, and nothing told you where you were. */
   /* The page's name, in the app's own face. The serif stays on the brand mark, which is the
      identity; a heading over a screen of figures reads better in the same face as the figures. */
-  .pagehead{font-weight:800;letter-spacing:-.022em;margin:0 0 16px;font-size:26px;line-height:1.15}
+  /* THE SCREEN'S NAME IS IN THE MENU, IN THE BRAND COLOUR, AND ON THE PAGE. Saying it a fourth
+     time in 26px cost a row of every screen. The element stays so the code that sets it keeps
+     working, and so does the browser tab, which now carries the name instead. */
+  .pagehead{display:none}
+  .topbar{display:flex;align-items:center;gap:12px;margin:0 0 10px}
+  .topbar.hide{display:none}
   /* THE SIGN-IN SCREEN, scoped so none of it can reach a control inside the app. */
   #loginView .card{background:transparent;border:0;box-shadow:none;padding:0;max-width:340px}
   #loginView .signin{text-align:center;margin-bottom:30px}
@@ -813,6 +819,9 @@
     </div></div>
 
     <div class="sidefoot">
+      <!-- THE GUIDE, IN ONE PLACE: up here with the rest of the bar, not repeated on every screen.
+           It still opens /guide/ at the part about the screen you are on. -->
+      <button id="guideBtn" class="nav" type="button" title="How this screen works, step by step — English and Hindi">Guide · गाइड</button>
       <button id="installBtn" class="nav hide" title="Put this app on your home screen, full screen, like any other app">Install app</button>
       <button id="logoutBtn" class="nav">Sign out</button>
     </div>
@@ -831,8 +840,6 @@
            row of their own under it (Ravi, 2026-09-22, on Job Work: "here is very white space"). -->
       <span id="topSub" class="muted topsub hide"></span>
       <span id="topActs" class="topacts"><button id="bwToggle" class="jw-new hide">+ New Job Work</button></span>
-      <!-- THE GUIDE, on every screen: opens /guide/ at the part about the screen you are on. -->
-      <button id="guideBtn" class="ghost" type="button" style="flex:0 0 auto" title="How this screen works, step by step — English and Hindi">Guide · गाइड</button>
     </div>
 
     <!-- Signed in, no access -->
@@ -3284,6 +3291,21 @@ NAV_GROUPS.forEach(g => g.head.onclick = () => {
  * round: the panel is in front of the work, so it goes as soon as a screen is picked, and the
  * heading is marked instead.
  */
+/**
+ * The row under the menu, kept only while something is actually in it.
+ *
+ * A flex row with nothing visible inside is still a margin, and on thirty screens that was thirty
+ * empty gaps. Whoever puts something up there — a screen's own line, its own button — gets the row
+ * back by having put something in it.
+ */
+function topbarSync() {
+  const bar = document.querySelector('.topbar');
+  if (!bar) return;
+  const alive = [...bar.children].some(el => el.id !== 'pageTitle' && el.id !== 'hambBtn'
+    && !el.classList.contains('hide') && (el.textContent.trim() || el.querySelector('button:not(.hide)')));
+  bar.classList.toggle('hide', !alive);
+}
+
 function navOpenFor(tab) {
   const g = NAV_GROUPS.find(x => x.tabs.includes(tab));
   NAV_GROUPS.forEach(x => {
@@ -3466,6 +3488,11 @@ function showTab(which) {
   VEND_WAS_ON = (which === 'vend');
   TAB_NOW = which;
   navOpenFor(which);
+  /* Nothing left up there on most screens — so there is no row. The ones that put their own line or
+   * their own button there keep it. */
+  topbarSync();
+  /* The screen's name where a name belongs when it is not on the page: the browser tab. */
+  try { document.title = ($('pageTitle').textContent || '') + ($('pageTitle').textContent ? ' · ' : '') + 'Ridhi Home & Living'; } catch (e) { /* nothing depends on it */ }
   // On a phone the drawer covers the page, so picking a tab has to close it — otherwise the thing
   // you just asked for is behind the menu you asked for it with.
   if (NARROW()) setNavOpen(false, false);
