@@ -923,6 +923,9 @@
             <option value="0">All marketplaces</option>
           </select>
           <button id="rClear" class="ghost">Clear filters</button>
+          <button id="rTopOnly" class="segbtn" style="border:1px solid var(--line);border-radius:9px;flex:0 0 auto"
+                  title="The highest-revenue SKUs that together make up 60% of the brand's sales. Works with the buttons above — pick a horizon and this narrows it to the ones that actually matter.">Top sellers only</button>
+          <span class="muted" id="rTopNote" style="font-size:12.5px;flex:0 0 auto"></span>
         </div>
         <!-- HOW SOON DOES THIS RUN OUT. One click per horizon, with the count on the button, so the
              answer is visible before anything is even clicked. -->
@@ -942,17 +945,11 @@
           </div>
           <span class="muted" id="rCoverNote" style="font-size:12px"></span>
         </div>
-        <!-- KEPT OUT OF THE ROW ABOVE ON PURPOSE. Those buckets partition the catalogue — every SKU
-             in exactly one. "Top seller" cuts across all of them, so putting it in the same row
-             would start double-counting again, which is the thing that made the first version
-             unreadable. It is a separate switch that narrows whatever is already chosen. -->
-        <div class="toolbar" style="margin-top:8px;align-items:center">
-          <button id="rTopOnly" class="segbtn" style="border:1px solid var(--line);border-radius:9px"
-                  title="The highest-revenue SKUs that together make up 60% of the brand's sales. Works with the buttons above — pick a horizon and this narrows it to the ones that actually matter.">Top sellers only</button>
-          <span class="muted" id="rTopNote" style="font-size:12.5px"></span>
-        </div>
+        <!-- IT STILL CUTS ACROSS THE BUCKETS. Those partition the catalogue — every SKU in exactly
+             one — while "Top seller" narrows whatever is already chosen, which is why it is a
+             switch and not another bucket. It sits up beside Clear filters now; what it does has
+             not changed, only where it is. -->
         <div id="rMsg" class="muted"></div>
-        <div id="rUsNote" class="muted" style="font-size:12px"></div>
       </div>
       <div id="rResult">
         <div id="rKpis" class="kpis"></div>
@@ -5423,11 +5420,9 @@ $('rMarket').addEventListener('change', () => {
 
 function renderRepl() {
   const _t0 = performance.now();   // perf probe — see the "[repl] rendered …ms" console line
-  /* Said once, at the top, rather than left for somebody to work out from a column of dots. */
-  if (REPL_LOADED && !INDIA_LOADED) {
-    rMsg('India stock is still being read from the warehouse workbook — the India column and '
-      + '"still to arrange" fill in when it lands. Everything else is ready.');
-  }
+  /* NO STANDING NOTICE. India stock is read on every visit, so a line saying it is being read was
+   * on screen every visit — and a notice that is always there stops being read. The column says it
+   * for itself while it fills, and the figures above it carry the stamp of what was read. */
   const pick = $('rBrand').value;
   const brands = (pick === 'ALL' ? ['SP', 'CPC'] : [pick]).filter(b => REPL[b]);
   if (!brands.length) {
@@ -5465,7 +5460,6 @@ function renderRepl() {
   // top-seller maths, Export and Create-PO all agree without any of them knowing this list exists.
   // Filtering later, per feature, is how a SKU ends up hidden in the table and still in the totals.
   rows = dropOutOfScope(rows);
-  $('rUsNote').innerHTML = usNote();
   markTopSellers(rows);
   R_ALL_ROWS = rows;                // before any filter — the top-seller counts are about all of them
   rows.forEach(r => {
@@ -5508,10 +5502,13 @@ function renderRepl() {
   $('rTopOnly').classList.toggle('on', R_TOP_ONLY);
   $('rTopOnly').style.background = R_TOP_ONLY ? 'var(--ink,#0f172a)' : '';
   $('rTopOnly').style.color = R_TOP_ONLY ? '#fff' : '';
-  $('rTopNote').innerHTML = tops.length
-    ? `${nf(tops.length)} SKUs earn 60% of revenue · `
-      + `<b style="color:var(--bad)">${nf(topOut)} empty</b> · `
-      + `<b>${nf(topSoon)} under 60 days</b> of cover`
+  /* THE NUMBER, AND NOTHING ELSE. How many are empty and how many are short of cover are both a
+   * click away on the buckets above; written out here they were a sentence nobody finished. The
+   * tooltip keeps them for whoever wants them. */
+  $('rTopNote').textContent = tops.length ? nf(tops.length) + ' SKUs' : '';
+  $('rTopNote').title = tops.length
+    ? nf(tops.length) + ' SKUs earn 60% of revenue · ' + nf(topOut) + ' empty · '
+      + nf(topSoon) + ' under 60 days of cover'
     : '';
   if (R_TOP_ONLY) rows = rows.filter(r => r._top);
   const COVER_NOTE = {
