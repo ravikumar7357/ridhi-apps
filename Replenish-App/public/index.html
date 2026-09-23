@@ -34826,12 +34826,25 @@ function palFamily(color) {
   for (const [re, f] of PAL_FAMILIES) if (re.test(c)) return f;
   return '';
 }
-/** The group a design is in: what was decided, else what its name suggests, else nothing. */
+/**
+ * The group a design is in — what was DECIDED, and nothing else.
+ *
+ * Ravi, 2026-09-23: "delete this data i will fill manualy — brand design group, then uske bad tum
+ * auto fill krna data".
+ *
+ * It used to guess from the colour's name: "Agate Green" became "CPC Green", "Light Steel Blue"
+ * became "RBP Blue". Nothing was ever saved — pt_colorGroups was empty — so every group on that
+ * screen was a guess wearing the clothes of a decision, and a guess is the one thing a printer
+ * allocation cannot be built on. Which colours print together is a judgement about blocks and
+ * shades that only somebody who prints them can make.
+ *
+ * So the column starts empty and waits. Everything to the right of it — SKUs, ordered, to make,
+ * share, sold in 90 days, who is printing it now — fills itself from the order book as it always
+ * did, grouped or not.
+ */
 function palGroupOf(brand, color) {
   const saved = ((PAL.groups || {}).map || {})[palKey(brand, color)];
-  if (saved != null && String(saved).trim()) return String(saved).trim();
-  const f = palFamily(color);
-  return f ? `${palBrandOf(brand)} ${f}` : '';
+  return saved != null && String(saved).trim() ? String(saved).trim() : '';
 }
 
 /** Blocks one printer needs to print this design, as fed in. */
@@ -34898,8 +34911,22 @@ function palDesigns() {
 
 /** The designs gathered into the buckets a printer is actually given. */
 /** Every colour group there is, for the printer form to offer. */
+/**
+ * The group names to offer while typing — every one that has been DECIDED, on a design or on a
+ * printer.
+ *
+ * Nothing is guessed from a colour's name any more, so on a fresh start this list is short and the
+ * box simply takes what is typed. A name a printer was given counts: somebody wrote it there, and
+ * having to retype it exactly is how one group becomes two.
+ */
 function palGroupNames() {
-  return [...new Set(palGroups().map(g => g.name))].sort((a, b) => a.localeCompare(b));
+  const names = new Set();
+  palGroups().forEach(g => { if (g.grouped) names.add(g.name); });
+  (PAL.printers || []).forEach(p => (p.groups || []).forEach(n => {
+    const v = String(n || '').trim();
+    if (v && !/ — ungrouped$/.test(v)) names.add(v);
+  }));
+  return [...names].sort((a, b) => a.localeCompare(b));
 }
 
 function palGroups(designs) {
@@ -42272,39 +42299,35 @@ function renderShop() {
   const stale = ($('soFrom').value && $('soFrom').value !== SHOP.from)
     || ($('soTo').value && $('soTo').value !== SHOP.to);
   // The denominator has to be BOTH sources, or a screen full of imported orders reports "12 of 0".
-  soMsg(`${rows.length} of ${SHOP.orders.length + soImpLive().length} orders`
-    + (rows.length > 400 ? ` · showing the first 400 — narrow the dates or a filter to see the rest; Print and Export still use all ${nf(rows.length)}` : '')
-    + (soImpLive().length ? ` (${nf(soImpLive().length)} imported)` : '')
-    + ` · ${SHOP.from} → ${SHOP.to}`
-    + (() => {
-        // Over every loaded order, and split by day, because "still pending from yesterday" is the
-        // question somebody actually walks in with.
-        const pend = SO_ALL_ROWS.filter(soIsPending);
-        if (!pend.length) return '';
-        const y = soStoreDay(-1), t = soStoreDay(0);
-        const yd = pend.filter(r => r.at === y).length, td = pend.filter(r => r.at === t).length;
-        // PLAIN TEXT. soMsg writes with textContent, so markup here prints as markup — which is
-        // exactly what it did: the tab showed a literal <b style=...> in the middle of the summary.
-        return ` · ${pend.length} PENDING`
-          + ` (neither Amazon nor India can fill them${yd ? ` — ${yd} from yesterday` : ''}${td ? `, ${td} from today` : ''})`;
-      })()
-    + (n('sent') ? ` · ${n('sent')} already sent to Amazon` : '')
-    + ` · ${n('yes')} MCF ready, ${n('part')} partly, ${n('no')} not stocked`
-    + (n('unknown') ? `, ${n('unknown')} with SKUs Amazon has never seen` : '')
-    /* PLAIN TEXT ONLY. soMsg sets textContent, so a tag written here appears on screen as a tag —
-     * which is exactly what happened the first time this note was added. */
-    + (nAll('cancelled')
-        ? ` · ${nAll('cancelled')} cancelled`
-          + ($('soOpen').value === '1' && $('soState').value !== 'cancel'
-              ? ' (hidden — pick "Cancelled" in the state box)' : '')
-        : '')
-    + (nAll('chargeback') ? `, ${nAll('chargeback')} chargeback` : '')
-    + (nAll('mcfDone')
-        ? `, ${nAll('mcfDone')} MCF done`
-          + ($('soOpen').value === '1' && $('soState').value !== 'mcfdone'
-              ? ' (hidden — already with Amazon; pick "MCF done" in the state box)' : '')
-        : '')
-    + (SHOP.at ? ` · fetched ${SHOP.at}` : '')
+  /* Over every loaded order, and split by day, because "still pending from yesterday" is the
+   * question somebody actually walks in with. */
+  const pend = SO_ALL_ROWS.filter(soIsPending);
+  const y = soStoreDay(-1), t = soStoreDay(0);
+  const yd = pend.filter(r => r.at === y).length, td = pend.filter(r => r.at === t).length;
+  /* WHAT IS TRUE ON EVERY VISIT IS NOT NEWS. The window, the breakdown and the fetch time are here
+   * for whoever wants them, and out of the way of everybody else. soMsg writes with textContent,
+   * so this is plain text — a tag written here would print as a tag. */
+  $('soMsg').title = [
+    `${rows.length} of ${SHOP.orders.length + soImpLive().length} order(s) shown`
+      + (rows.length > 400 ? ' · only the first 400 are drawn; Print and Export still use all of them' : ''),
+    soImpLive().length ? `${nf(soImpLive().length)} imported` : '',
+    `${SHOP.from} → ${SHOP.to}`,
+    pend.length ? `${pend.length} waiting on production — neither Amazon nor India can fill them`
+      + (yd ? ` · ${yd} from yesterday` : '') + (td ? ` · ${td} from today` : '') : '',
+    n('sent') ? `${n('sent')} already sent to Amazon` : '',
+    `${n('yes')} MCF ready, ${n('part')} partly, ${n('no')} not stocked`
+      + (n('unknown') ? `, ${n('unknown')} with SKUs Amazon has never seen` : ''),
+    nAll('cancelled') ? `${nAll('cancelled')} cancelled`
+      + ($('soOpen').value === '1' && $('soState').value !== 'cancel' ? ' (hidden — pick "Cancelled" in the state box)' : '') : '',
+    nAll('chargeback') ? `${nAll('chargeback')} chargeback` : '',
+    nAll('mcfDone') ? `${nAll('mcfDone')} MCF done`
+      + ($('soOpen').value === '1' && $('soState').value !== 'mcfdone' ? ' (hidden — already with Amazon; pick "MCF done" in the state box)' : '') : '',
+    SHOP.at ? `fetched ${SHOP.at}` : '',
+  ].filter(Boolean).join(' · ');
+  /* On screen: how many, how many are waiting on production, and — only when it is about to
+   * mislead somebody — that the date boxes no longer match what is drawn. */
+  soMsg(`${nf(rows.length)} of ${nf(SHOP.orders.length + soImpLive().length)} orders`
+    + (pend.length ? ` · ${nf(pend.length)} waiting on production` : '')
     + (stale ? ` — the boxes now say ${$('soFrom').value} → ${$('soTo').value}; press Fetch orders` : ''),
     stale);
 
@@ -42459,9 +42482,10 @@ function soPickedMsg() {
   // Counted against what is ON SCREEN. A tick on an order that has since been filtered away is still
   // held, but saying "12 ticked" while showing three of them would be a lie about what Print will do.
   const shown = [...$('soTable').querySelectorAll('.soPick')].filter(cb => cb.checked).length;
+  el.title = 'Print and Export use what is ticked; with nothing ticked they use everything shown.';
   el.textContent = SO_PICKED.size
-    ? `${shown} ticked${SO_PICKED.size !== shown ? ` on screen (${SO_PICKED.size} in total, the rest are filtered out)` : ''} · Print and Export will use these`
-    : 'Nothing ticked · Print and Export will use everything shown.';
+    ? `${shown} ticked${SO_PICKED.size !== shown ? ` on screen (${SO_PICKED.size} in total, the rest are filtered out)` : ''}`
+    : '';
 }
 
 /* Today and yesterday, side by side. Not filtered by anything in the toolbar — "how are we doing

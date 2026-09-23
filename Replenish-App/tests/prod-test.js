@@ -13305,7 +13305,12 @@ console.log('\n== printer allocation by colour ==');
   A.setPTG(Object.assign({}, wasPTG, { mdb: MDB, ob: OB, press: [],
     shopProd: { [A.spKey('AMZ-01', 'T-AG-01')]: { printer: 'Bagru' } } }));
   A.setPT(Object.assign({}, wasPT, { cut: [], base: [] }));
-  A.setPAL({ groups: { map: {} }, need: { map: {} }, have: {},
+  /* THE GROUPS ARE SOMEBODY'S DECISION NOW, never a guess off a colour's name, so the fixture
+   * carries the decisions. Ocean Vine is deliberately left out: a design nobody has grouped yet. */
+  A.setPAL({ groups: { map: {
+    'CPC|Agate Green': 'CPC Green', 'CPC|Emerald Green': 'CPC Green',
+    'CPC|Apatite Blue': 'CPC Blue', 'RBP|Asparagus Green': 'RBP Green',
+  } }, need: { map: {} }, have: {},
     printers: [
       /* WHICH GROUPS EACH TAKES IS RAVI'S CHOICE NOW, so the fixtures carry one — the plan hands a
        * group to nobody who has not been given it. pcsMonth still stands because these printers have
@@ -13322,9 +13327,17 @@ console.log('\n== printer allocation by colour ==');
   /* The guess, and the decision that overrides it. */
   ok('a name that says its colour is guessed', A.palFamily('Agate Green') === 'Green' && A.palFamily('Apatite Blue') === 'Blue');
   ok('…and one that does not is left alone', A.palFamily('Ocean Vine') === '');
-  ok('the guess becomes the group', A.palGroupOf('CPC', 'Emerald Green') === 'CPC Green');
-  ok('Ridhi and RBP are one brand, not two', A.palGroupOf('RIDHI', 'Asparagus Green') === 'RBP Green');
-  ok('a design nobody can name has no group until somebody says', A.palGroupOf('CPC', 'Ocean Vine') === '');
+  /* THE GUESS IS NOT THE GROUP (Ravi, 2026-09-23: "delete this data i will fill manualy — brand
+   * design group, then uske bad tum auto fill krna data"). palFamily still reads a colour's name —
+   * the group picker offers it — but nothing is grouped until somebody says so. Which colours print
+   * together is a judgement about blocks and shades, and a guess wearing the clothes of a decision
+   * is the one thing a printer allocation cannot be built on. */
+  ok('a group that was decided is the group', A.palGroupOf('CPC', 'Emerald Green') === 'CPC Green');
+  ok('…and Ridhi and RBP are still one brand when it is', A.palGroupOf('RIDHI', 'Asparagus Green') === 'RBP Green');
+  ok('a colour nobody has grouped has no group, whatever its name suggests',
+     A.palGroupOf('CPC', 'Ocean Vine') === '' && A.palFamily('Ocean Vine') === '');
+  ok('…and neither does one whose name DOES suggest a family', A.palGroupOf('CPC', 'Sapphire Blue') === ''
+     && A.palFamily('Sapphire Blue') === 'Blue');
 
   /* The work itself comes from the order book, through the Order Console's own figure. */
   const byKey = new Map(A.palDesigns().map(d => [d.key, d]));
@@ -13351,7 +13364,7 @@ console.log('\n== printer allocation by colour ==');
   const g2 = new Map(A.palGroups(A.palDesigns()).map(g => [g.name, g]));
   ok('…so the blue group now carries both', g2.get('CPC Blue').toMake === 400 && !g2.has('CPC — ungrouped'));
   await A.palSetGroup('CPC|Ocean Vine', '   ');
-  ok('clearing it goes back to the guess, not to an empty name', A.palGroupOf('CPC', 'Ocean Vine') === ''
+  ok('clearing it drops the decision rather than writing an empty name', A.palGroupOf('CPC', 'Ocean Vine') === ''
     && A.palGroupOf('CPC', 'Agate Green') === 'CPC Green');
 
   /* The plan: biggest group first, the printer who already prints that colour first. */
