@@ -80,19 +80,34 @@
   /* App shell: fixed sidebar + independently scrolling main column.
      `min-width:0` on .main is what stops wide tables from pushing the layout and overlapping. */
   .shell{display:flex;align-items:stretch;min-height:100vh}
-  .side{flex:0 0 246px;position:sticky;top:0;height:100vh;overflow-y:auto;
-    background:transparent;border-right:0;padding:18px 12px;display:flex;flex-direction:column}
-  .brand{font-family:var(--serif);font-weight:400;font-size:19px;padding:4px 12px 14px;letter-spacing:-.01em;line-height:1.1}
+  /* THE MENU IS A BAR ACROSS THE TOP (design 7) — the same shape as the Replenishment app, so the
+     two read as one tool. It wraps rather than scrolling sideways. */
+  .shell{flex-direction:column;align-items:stretch}
+  .side{flex:0 0 auto;position:sticky;top:0;z-index:60;width:100%;height:auto;overflow:visible;
+    background:var(--card);box-shadow:var(--sh-1);padding:7px 16px;display:flex;flex-direction:row;
+    align-items:center;gap:2px;flex-wrap:wrap}
+  .navwrap{position:relative}
+  .brand{font-family:var(--serif);font-weight:400;font-size:17px;padding:0 14px 0 2px;letter-spacing:-.01em;line-height:1.1;white-space:nowrap}
+  .side .navclose{display:none}
+  .sidefoot{margin:0 0 0 auto;padding:0;border-top:0;display:flex;align-items:center;gap:2px}
+  .sidefoot .nav{width:auto}
+  .topbar .hamb{display:none}
+  .main{padding:16px 22px}
   /* Group headings are buttons, not labels: each one opens and closes the .navsec directly after
      it. Seller Central works this way, and it keeps a thirteen-tab sidebar to one screen. */
-  .navgrp{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:transparent;
-    border:0;cursor:pointer;font:inherit;font-size:11px;font-weight:700;text-transform:uppercase;
-    letter-spacing:.07em;color:var(--muted);padding:10px 12px 4px;border-radius:8px;box-shadow:none;min-height:0}
-  .navgrp:hover{color:var(--ink)}
+  .navgrp{display:flex;align-items:center;gap:6px;width:auto;text-align:left;background:transparent;
+    border:0;cursor:pointer;font:inherit;font-size:12.5px;font-weight:600;text-transform:none;
+    letter-spacing:0;color:var(--muted);padding:8px 11px;border-radius:var(--r-sm);box-shadow:none;min-height:0;
+    white-space:nowrap}
+  .navgrp:hover{color:var(--ink);background:var(--hover)}
+  .navgrp.open{background:var(--brand-bg);color:var(--brand)}
+  .navgrp.here{color:var(--brand);font-weight:800}
   .navgrp .caret{flex:none;font-size:10px;line-height:1;transition:transform .16s ease}
   .navgrp.open .caret{transform:rotate(90deg)}
   .navsec{display:none}
-  .navsec.open{display:block}
+  .navsec.open{display:block;position:absolute;top:calc(100% + 7px);left:0;min-width:250px;
+    background:var(--card);border-radius:var(--r-card);box-shadow:var(--sh-2);padding:7px;z-index:70}
+  .navwrap:nth-last-child(-n+2) .navsec.open{left:auto;right:0}
   .nav{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:transparent;
     color:var(--ink);border:0;border-radius:8px;padding:7px 12px;font-weight:500;font-size:13.5px;
     /* FLAT, and no minimum height: the shared button rule would otherwise make each item a card. */
@@ -513,16 +528,16 @@
     <!-- Each heading names the tabs it owns in data-tabs. That one attribute is what lets a group
          hide itself when every tab under it is hidden or not permitted, so there is no second list
          to keep in step when a tab moves between groups. -->
-    <button class="navgrp" id="grpResearch" type="button" data-grp="research" data-tabs="link,new,pr,kw">
+    <div class="navwrap"><button class="navgrp" id="grpResearch" type="button" data-grp="research" data-tabs="link,new,pr,kw">
       <span class="caret">&#9656;</span> Research</button>
     <div class="navsec" id="secResearch">
       <button id="tabLink" class="nav">By Amazon Link</button>
       <button id="tabNew" class="nav">New Product</button>
       <button id="tabPr" class="nav">Product Research</button>
       <button id="tabKw" class="nav">Keywords</button>
-    </div>
+    </div></div>
 
-    <button class="navgrp" id="grpSales" type="button" data-grp="sales" data-tabs="sales,profit,sa,plaudit,shop,adj,ba">
+    <div class="navwrap"><button class="navgrp" id="grpSales" type="button" data-grp="sales" data-tabs="sales,profit,sa,plaudit,shop,adj,ba">
       <span class="caret">&#9656;</span> Sales</button>
     <div class="navsec" id="secSales">
       <button id="tabSales" class="nav">Sales Dashboard</button>
@@ -535,9 +550,9 @@
       <button id="tabShop" class="nav" style="display:none">Shopify Orders</button>
       <button id="tabAdj" class="nav" style="display:none">Adjustments</button>
       <button id="tabBa" class="nav">Analytics</button>
-    </div>
+    </div></div>
 
-    <button class="navgrp" id="grpListing" type="button" data-grp="listing" data-tabs="opt,basket,health,lrules,audit,bsr">
+    <div class="navwrap"><button class="navgrp" id="grpListing" type="button" data-grp="listing" data-tabs="opt,basket,health,lrules,audit,bsr">
       <span class="caret">&#9656;</span> Listing</button>
     <div class="navsec" id="secListing">
       <button id="tabOpt" class="nav">Listing Optimiser</button>
@@ -546,9 +561,9 @@
       <button id="tabLrules" class="nav">Listing Rules</button>
       <button id="tabAudit" class="nav">Listing Audit</button>
       <button id="tabBsr" class="nav">BSR Audit</button>
-    </div>
+    </div></div>
 
-    <button class="navgrp" id="grpAds" type="button" data-grp="ads" data-tabs="trends,weekly,st,plc,deals">
+    <div class="navwrap"><button class="navgrp" id="grpAds" type="button" data-grp="ads" data-tabs="trends,weekly,st,plc,deals">
       <span class="caret">&#9656;</span> Advertising</button>
     <div class="navsec" id="secAds">
       <button id="tabTrends" class="nav">Ad Console</button>
@@ -556,20 +571,20 @@
       <button id="tabSt" class="nav">Search Terms</button>
       <button id="tabPlc" class="nav">Placement</button>
       <button id="tabDeals" class="nav">Deal Calendar</button>
-    </div>
+    </div></div>
 
-    <button class="navgrp" id="grpInv" type="button" data-grp="inv" data-tabs="age">
+    <div class="navwrap"><button class="navgrp" id="grpInv" type="button" data-grp="inv" data-tabs="age">
       <span class="caret">&#9656;</span> Inventory</button>
     <div class="navsec" id="secInv">
       <button id="tabAge" class="nav">Inventory Age</button>
-    </div>
+    </div></div>
 
-    <button class="navgrp" id="grpSocial" type="button" data-grp="social" data-tabs="tiktok,carousel">
+    <div class="navwrap"><button class="navgrp" id="grpSocial" type="button" data-grp="social" data-tabs="tiktok,carousel">
       <span class="caret">&#9656;</span> Social</button>
     <div class="navsec" id="secSocial">
       <button id="tabTiktok" class="nav">TikTok Toolkit</button>
       <button id="tabCarousel" class="nav">Carousel Builder</button>
-    </div>
+    </div></div>
 
     <div class="sidefoot">
       <button id="toggleSettings" class="nav">Settings</button>
@@ -3047,22 +3062,27 @@ function setGroupOpen(g, open) {
   g.head.setAttribute('aria-expanded', String(open));
   g.sec.classList.toggle('open', open);
 }
-function saveGroups() {
-  try {
-    localStorage.setItem('navGroups', JSON.stringify(
-      NAV_GROUPS.filter(g => g.head.classList.contains('open')).map(g => g.key)));
-  } catch (e) { /* private mode — the groups just won't be remembered */ }
-}
-NAV_GROUPS.forEach(g => g.head.onclick = () => {
-  setGroupOpen(g, !g.head.classList.contains('open'));
-  saveGroups();
+function saveGroups() { /* a menu is not a shape to remember */ }
+/* ONE MENU OPEN AT A TIME, and it closes as soon as something is picked, the page is clicked, or
+ * Escape is pressed. A panel hangs over the work, so it does not linger. */
+NAV_GROUPS.forEach(g => g.head.onclick = e => {
+  e.stopPropagation();
+  const opening = !g.head.classList.contains('open');
+  NAV_GROUPS.forEach(x => setGroupOpen(x, x === g ? opening : false));
 });
-// Restore last time's shape; a first visit opens everything so nothing looks missing.
-(() => {
-  let saved = null;
-  try { saved = JSON.parse(localStorage.getItem('navGroups') || 'null'); } catch (e) {}
-  NAV_GROUPS.forEach(g => setGroupOpen(g, Array.isArray(saved) ? saved.includes(g.key) : true));
-})();
+NAV_GROUPS.forEach(g => g.sec.addEventListener('click', e => {
+  if (e.target.closest('.nav')) NAV_GROUPS.forEach(x => setGroupOpen(x, false));
+}));
+document.addEventListener('click', e => {
+  if (e.target.closest('.navgrp') || e.target.closest('.navsec')) return;
+  NAV_GROUPS.forEach(x => setGroupOpen(x, false));
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') NAV_GROUPS.forEach(x => setGroupOpen(x, false));
+});
+/* NOTHING IS RESTORED ON LOAD. A sidebar's open groups were worth remembering; a dropdown that
+ * opened by itself would be a panel over the work nobody asked for. */
+NAV_GROUPS.forEach(g => setGroupOpen(g, false));
 
 // Drop a heading and its section once nothing inside them can be reached. Called with no argument
 // for the HIDDEN_TABS pass, and again from applyPerms once the account's tabs are known.
@@ -3114,8 +3134,10 @@ function showTab(which) {
   $('pageTitle').textContent = TAB_TITLE[which] || '';
   // Never leave the open tab sitting inside a collapsed group, and on a phone get the drawer out of
   // the way now that a choice has been made.
+  /* The menu that holds this screen is MARKED, not opened: opening it would drop a panel over the
+   * screen somebody has just asked for. */
   const grp = NAV_GROUPS.find(g => g.tabs.includes(which));
-  if (grp && !grp.head.classList.contains('open')) { setGroupOpen(grp, true); saveGroups(); }
+  NAV_GROUPS.forEach(g => { setGroupOpen(g, false); g.head.classList.toggle('here', g === grp); });
   if (NARROW()) setNavOpen(false, false);
   if (which === 'kw') loadNiches();       // lazy-load the niche list the first time
   if (which === 'age') ensureAge();       // show the cached snapshot without hitting Amazon

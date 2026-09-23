@@ -60,8 +60,27 @@
   h1,h2{letter-spacing:-.02em}
   .shell{display:flex;align-items:stretch;min-height:100vh}
   /* The sidebar sits ON the ground, not in a box of its own — the pills carry the shape. */
-  .side{flex:0 0 246px;position:sticky;top:0;height:100vh;overflow-y:auto;background:transparent;
-    border-right:0;padding:18px 12px;display:flex;flex-direction:column}
+  /* THE MENU IS A BAR ACROSS THE TOP (design 7). A sidebar spent 246px of every screen on a list
+     that is read once and then ignored for the rest of the day; up here it costs one row and gives
+     the width back to the data. It wraps to a second row rather than scrolling, because a menu you
+     have to scroll sideways is a menu nobody uses. */
+  .shell{flex-direction:column;align-items:stretch}
+  .side{flex:0 0 auto;position:sticky;top:0;z-index:60;width:100%;height:auto;overflow:visible;
+    background:var(--card);box-shadow:var(--sh-1);padding:7px 16px;display:flex;flex-direction:row;
+    align-items:center;gap:2px;flex-wrap:wrap}
+  .navwrap{position:relative}
+  /* The name over the door, small, at the left of the bar. */
+  .side .brand{padding:0 14px 0 2px;margin:0;align-items:center}
+  .side .brandname{font-size:17px;flex-direction:row;align-items:baseline;gap:7px}
+  .side .brandsub{margin-top:0;font-size:8px}
+  .side .navclose{display:none}
+  /* Install app and Sign out go to the far end of the bar. */
+  .sidefoot{margin:0 0 0 auto;padding:0;border-top:0;display:flex;align-items:center;gap:2px}
+  .sidefoot .nav{width:auto}
+  .main{padding:16px 22px}
+  /* The hamburger had one job — hiding a sidebar that is no longer there. */
+  .topbar .hamb{display:none}
+  @media (max-width:820px){ .side{padding:7px 10px} .side .brandsub{display:none} }
   /* The mark's own shape, set as type: the name in the serif the app already uses, over a line of
      spaced capitals. No image, so it is sharp at any zoom and costs nothing to load. */
   .brand{padding:4px 12px 16px;display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
@@ -89,14 +108,23 @@
   .sidefoot{margin-top:auto;padding-top:12px;border-top:1px solid var(--line)}
   /* Group headings are BUTTONS, not labels: each opens and closes the .navsec right after it, the
      way Seller Central does. Same pattern as the Sellora app, so the two feel like one tool. */
-  .navgrp{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:transparent;
-    border:0;cursor:pointer;font:inherit;font-size:11px;font-weight:700;text-transform:uppercase;
-    letter-spacing:.07em;color:var(--muted);padding:10px 12px 4px;border-radius:8px;box-shadow:none;min-height:0}
-  .navgrp:hover{color:var(--ink)}
+  .navgrp{display:flex;align-items:center;gap:6px;width:auto;text-align:left;background:transparent;
+    border:0;cursor:pointer;font:inherit;font-size:12.5px;font-weight:600;text-transform:none;
+    letter-spacing:0;color:var(--muted);padding:8px 11px;border-radius:var(--r-sm);box-shadow:none;min-height:0;
+    white-space:nowrap}
+  .navgrp:hover{color:var(--ink);background:var(--hover)}
+  /* Open, and where you are, said differently: one is a menu hanging down, the other is the screen
+     you are actually on, and they are not the same thing. */
+  .navgrp.open{background:var(--brand-bg);color:var(--brand)}
+  .navgrp.here{color:var(--brand);font-weight:800}
+  .navgrp .caret{font-size:8px;opacity:.7}
   .navgrp .caret{flex:none;font-size:10px;line-height:1;transition:transform .16s ease}
   .navgrp.open .caret{transform:rotate(90deg)}
   .navsec{display:none}
-  .navsec.open{display:block}
+  .navsec.open{display:block;position:absolute;top:calc(100% + 7px);left:0;min-width:246px;
+    background:var(--card);border-radius:var(--r-card);box-shadow:var(--sh-2);padding:7px;z-index:70}
+  /* The last menus would otherwise hang off the right of the screen. */
+  .navwrap:nth-last-child(-n+2) .navsec.open{left:auto;right:0}
   .navclose{margin-left:auto;flex:none;width:28px;height:28px;padding:0;display:inline-flex;
     align-items:center;justify-content:center;background:transparent;color:var(--muted);
     border:0;border-radius:8px;font-size:17px;line-height:1}
@@ -717,15 +745,15 @@
     <!-- THE SAME GROUPS AS SELLORA → ACCESS, in the same order and under the same names, so the
          section somebody is granted there is found under the same heading here. A group whose tabs
          this account cannot open is hidden by syncNavGroups. -->
-    <button class="navgrp" id="grpShopify" type="button" data-grp="shopify" data-tabs="shop,adj,shopify">
+    <div class="navwrap"><button class="navgrp" id="grpShopify" type="button" data-grp="shopify" data-tabs="shop,adj,shopify">
       <span class="caret">&#9656;</span> Shopify</button>
     <div class="navsec" id="secShopify">
       <button id="tabShop" class="nav">Shopify Orders</button>
       <button id="tabAdj" class="nav">Adjustments</button>
       <button id="tabShopify" class="nav">Shopify Stock</button>
-    </div>
+    </div></div>
 
-    <button class="navgrp" id="grpPlan" type="button" data-grp="plan" data-tabs="repl,article,target,top,pack,follow,india">
+    <div class="navwrap"><button class="navgrp" id="grpPlan" type="button" data-grp="plan" data-tabs="repl,article,target,top,pack,follow,india">
       <span class="caret">&#9656;</span> Replenishment &amp; planning</button>
     <div class="navsec" id="secPlan">
       <button id="tabRepl" class="nav">Replenishment</button>
@@ -736,11 +764,11 @@
       <button id="tabPack" class="nav">Packing List</button>
       <button id="tabFollow" class="nav">Ongoing Purchase Order <span id="followBadge" class="navbadge hide"></span></button>
       <button id="tabIndia" class="nav">India Stock</button>
-    </div>
+    </div></div>
 
     <!-- The shop floor, in the order work moves through it: the order, the cut, the karigar, the
          press, the check, the stock — and the masters everything is keyed on, last. -->
-    <button class="navgrp" id="grpProd" type="button" data-grp="prod" data-tabs="so,ord,pcut,pbase,ppress,qc,fgi,fba,fab,acc,pmdb,mst,cx">
+    <div class="navwrap"><button class="navgrp" id="grpProd" type="button" data-grp="prod" data-tabs="so,ord,pcut,pbase,ppress,qc,fgi,fba,fab,acc,pmdb,mst,cx">
       <span class="caret">&#9656;</span> Production</button>
     <div class="navsec" id="secProd">
       <button id="tabSo" class="nav">Sales Orders <span id="soDelBadge" class="navbadge hide"></span></button>
@@ -756,9 +784,9 @@
       <button id="tabPmdb" class="nav">Master Database</button>
       <button id="tabMst" class="nav">Masters</button>
       <button id="tabCx" class="nav">Customer Orders</button>
-    </div>
+    </div></div>
 
-    <button class="navgrp" id="grpVendors" type="button" data-grp="vendors" data-tabs="vreq,vord,rfd,vend,vlog,palloc">
+    <div class="navwrap"><button class="navgrp" id="grpVendors" type="button" data-grp="vendors" data-tabs="vreq,vord,rfd,vend,vlog,palloc">
       <span class="caret">&#9656;</span> Vendors &amp; printers</button>
     <div class="navsec" id="secVendors">
       <button id="tabVreq" class="nav">Vendor Order Requests <span id="vreqBadge" class="navbadge hide"></span></button>
@@ -767,22 +795,22 @@
       <button id="tabVend" class="nav">Vendor Portal</button>
       <button id="tabVlog" class="nav">History</button>
       <button id="tabPalloc" class="nav">Printer Allocation</button>
-    </div>
+    </div></div>
 
-    <button class="navgrp" id="grpPeople" type="button" data-grp="people" data-tabs="att,hr">
+    <div class="navwrap"><button class="navgrp" id="grpPeople" type="button" data-grp="people" data-tabs="att,hr">
       <span class="caret">&#9656;</span> People &amp; pay</button>
     <div class="navsec" id="secPeople">
       <button id="tabAtt" class="nav">Attendance</button>
       <button id="tabHr" class="nav">Finance &amp; HR</button>
-    </div>
+    </div></div>
 
-    <button class="navgrp" id="grpReports" type="button" data-grp="reports" data-tabs="rep,pa,ka">
+    <div class="navwrap"><button class="navgrp" id="grpReports" type="button" data-grp="reports" data-tabs="rep,pa,ka">
       <span class="caret">&#9656;</span> Reports &amp; analysis</button>
     <div class="navsec" id="secReports">
       <button id="tabRep" class="nav">Reports</button>
       <button id="tabPa" class="nav">Production Analysis</button>
       <button id="tabKa" class="nav">Karigar Analysis</button>
-    </div>
+    </div></div>
 
     <div class="sidefoot">
       <button id="installBtn" class="nav hide" title="Put this app on your home screen, full screen, like any other app">Install app</button>
@@ -3239,12 +3267,9 @@ function setGroupOpen(g, open) {
   g.head.setAttribute('aria-expanded', String(open));
   g.sec.classList.toggle('open', open);
 }
-function saveGroups() {
-  try {
-    localStorage.setItem('replNavGroups2', JSON.stringify(
-      NAV_GROUPS.filter(g => g.head.classList.contains('open')).map(g => g.key)));
-  } catch (e) { /* private mode — the shape just is not remembered */ }
-}
+/* A MENU IS NOT A SHAPE TO REMEMBER. A sidebar's open group was worth keeping between visits; a
+ * dropdown that opened by itself on load would be a panel over the work nobody asked for. */
+function saveGroups() { /* nothing to remember: menus open on a click and close on the next one */ }
 /* ONE GROUP OPEN AT A TIME (Ravi, 2026-09-22: "grid bahut lamba h — kam se kam show ho"). Opening a
  * heading folds the others; the group of the screen you are on opens by itself. */
 NAV_GROUPS.forEach(g => g.head.onclick = () => {
@@ -3252,11 +3277,31 @@ NAV_GROUPS.forEach(g => g.head.onclick = () => {
   NAV_GROUPS.forEach(x => setGroupOpen(x, x === g ? opening : false));
   saveGroups();
 });
-/** Open the group that holds this screen, and fold the rest. */
+/**
+ * Say which menu the screen you are on belongs to — and close every menu.
+ *
+ * On a sidebar this opened the group so its items stayed visible. A menu bar is the other way
+ * round: the panel is in front of the work, so it goes as soon as a screen is picked, and the
+ * heading is marked instead.
+ */
 function navOpenFor(tab) {
   const g = NAV_GROUPS.find(x => x.tabs.includes(tab));
-  if (g) NAV_GROUPS.forEach(x => setGroupOpen(x, x === g));
+  NAV_GROUPS.forEach(x => {
+    setGroupOpen(x, false);
+    x.head.classList.toggle('here', !!g && x === g);
+  });
 }
+/* A menu closes when something is picked from it, when the page is clicked, and on Escape. */
+NAV_GROUPS.forEach(g => g.sec.addEventListener('click', e => {
+  if (e.target.closest('.nav')) NAV_GROUPS.forEach(x => setGroupOpen(x, false));
+}));
+document.addEventListener('click', e => {
+  if (e.target.closest('.navgrp') || e.target.closest('.navsec')) return;
+  NAV_GROUPS.forEach(x => setGroupOpen(x, false));
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') NAV_GROUPS.forEach(x => setGroupOpen(x, false));
+});
 NAV_GROUPS.forEach(g => setGroupOpen(g, false));
 /** Drop a heading whose whole section this account cannot reach. */
 function syncNavGroups() {
