@@ -4303,6 +4303,11 @@ let FC_PLAN = [];
 // so it is cached across renders. Without this, every sort / filter / status edit recomputed
 // 4.7k rows × N months (~140ms of the render). PROJ_VER is bumped whenever an override is written.
 let FC_CACHE = new Map(), FC_CACHE_SIG = '', PROJ_VER = 0;
+/* Bumped by hand wherever something the row walk reads is edited in place — a priority, a Req. Qty.
+ * Counting the keys of those maps would miss a value being CHANGED, which is the common case. */
+let R_VER = 0;
+/* The finished rows, and the signature of everything they were worked out from. */
+let R_ROWS_CACHE = { sig: '', rows: null, usHidden: 0 };
 function fcFor(r) {
   const k = String(r.sku || '').trim().toUpperCase();
   let v = FC_CACHE.get(k);
@@ -4718,6 +4723,7 @@ function renderHideList() {
  */
 async function saveHidden(patch) {
   Object.entries(patch).forEach(([k, v]) => { if (v) HIDDEN[k] = 1; else delete HIDDEN[k]; });
+  R_VER++;
   try {
     await setDoc(doc(db, 'repl', 'prodstatus'), { hidden: patch }, { merge: true });
     renderHideList();
@@ -4989,6 +4995,7 @@ $('arTable').addEventListener('change', async e => {
     }
     const clean = val === 'EXCESS' ? 'Excess' : val;
     if (clean) PRIO_OVR[skuU] = clean; else delete PRIO_OVR[skuU];
+    R_VER++;                                   // priority feeds applyStatus, so the walk must run again
     try { await setDoc(doc(db, 'repl', 'prodstatus'), { prioOverride: { [skuU]: clean || null } }, { merge: true }); renderArticle(); }
     catch (err) { $('arMsg').textContent = 'Could not save priority: ' + (err.message || err); }
     return;
@@ -5006,6 +5013,7 @@ $('arTable').addEventListener('change', async e => {
     }
     const n = raw === '' ? null : Number(raw);
     if (n == null) delete REQ_QTY[skuU]; else REQ_QTY[skuU] = n;
+    R_VER++;                                   // a typed quantity replaces the projection in the walk
     try { await setDoc(doc(db, 'repl', 'prodstatus'), { reqQty: { [skuU]: n } }, { merge: true }); }
     catch (err) { $('arMsg').textContent = 'Could not save Req. Qty: ' + (err.message || err); }
     return;
@@ -5460,22 +5468,45 @@ function renderRepl() {
   LANE_CTX = buildLaneCtx();        // rebuilt each render: the lead-time inputs can change any time
   R_PMAP = inProdMap();             // once per render, not once per row
   SUPPLY_COLS = !!$('rSupply').value;
-  let rows = brands.flatMap(b => (REPL[b].rows || []).map(r => ({ ...r, brand: b })));
-  // HIDDEN SKUs LEAVE HERE, before anything counts them.
-  //
-  // Applied at the one place rows enter the view, so the buckets, the reorder summary, the
-  // top-seller maths, Export and Create-PO all agree without any of them knowing this list exists.
-  // Filtering later, per feature, is how a SKU ends up hidden in the table and still in the totals.
-  rows = dropOutOfScope(rows);
-  markTopSellers(rows);
+  /* EVERYTHING THE WALK BELOW READS, in one string. A filter is not in it — that is the point. */
+  const rowSig = [
+    brands.join(','),
+    brands.map(b => (REPL[b].rows || []).length + '@' + (REPL[b].at ? REPL[b].at.getTime() : 0)).join(','),
+    fcMonths(), PROJ_VER, R_VER,
+    LEAD.prod, LEAD.disp, LEAD.air, LEAD.sea,
+    ($('rMarket') || {}).value, ($('rSupply') || {}).value,
+    Object.keys(HIDDEN).length,
+    INDIA_LOADED ? 'i' + String(INDIA_AT || '') : '-',
+    PROD_LOADED ? 'p' : '-',
+    /* Not just how many batches are in production — how much is in them. A quantity edited on
+       an existing batch changes every supply plan and would not move a count. */
+    INPROD_LOADED ? 'n' + Object.keys(R_PMAP || {}).length + '/' 
+      + Object.values(R_PMAP || {}).reduce((a, x) => a + (Number(x && x.qty) || 0), 0) : '-',
+    US_LOADED ? 'u' + (US_AT ? US_AT.getTime() : 0) : '-',
+  ].join('|');
+  let rows;
+  if (R_ROWS_CACHE.sig === rowSig && R_ROWS_CACHE.rows) {
+    rows = R_ROWS_CACHE.rows;
+    US_HIDDEN = R_ROWS_CACHE.usHidden;
+  } else {
+    rows = brands.flatMap(b => (REPL[b].rows || []).map(r => ({ ...r, brand: b })));
+    // HIDDEN SKUs LEAVE HERE, before anything counts them.
+    //
+    // Applied at the one place rows enter the view, so the buckets, the reorder summary, the
+    // top-seller maths, Export and Create-PO all agree without any of them knowing this list exists.
+    // Filtering later, per feature, is how a SKU ends up hidden in the table and still in the totals.
+    rows = dropOutOfScope(rows);
+    markTopSellers(rows);
+    rows.forEach(r => {
+      applyStatus(r);
+      r._mode = replMode(r); r._state = stockState(r); r._req = replReq(r); r._ind = replIndiaAlloc(r);
+      r._fc = fcFor(r);
+      r._lanes = fcLanes(r, r._fc);   // cheap, and depends on the lead-time settings → never cached
+      r._sup = supplyPlan(r);         // where each month's shortfall is actually going to come from
+    });
+    R_ROWS_CACHE = { sig: rowSig, rows, usHidden: US_HIDDEN };
+  }
   R_ALL_ROWS = rows;                // before any filter — the top-seller counts are about all of them
-  rows.forEach(r => {
-    applyStatus(r);
-    r._mode = replMode(r); r._state = stockState(r); r._req = replReq(r); r._ind = replIndiaAlloc(r);
-    r._fc = fcFor(r);
-    r._lanes = fcLanes(r, r._fc);   // cheap, and depends on the lead-time settings → never cached
-    r._sup = supplyPlan(r);         // where each month's shortfall is actually going to come from
-  });
 
   /* ---------- how soon does it run out ----------
    *
