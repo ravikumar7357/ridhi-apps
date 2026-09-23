@@ -1192,6 +1192,8 @@
           <button id="pkTemplate" class="ghost">Template</button>
           <button id="pkNew">New from file</button>
           <input id="pkFile" type="file" accept=".csv,.xlsx,text/csv" style="display:none">
+          <!-- Amazon box-content template, picked from a saved list row. -->
+          <input id="pkAmzFile" type="file" accept=".xlsx" style="display:none">
         </div>
         <div id="pkMsg" class="muted" style="font-size:12px"></div>
       </div>
@@ -7923,6 +7925,100 @@ async function pkUnzip(bytes, want) {
   }
   return out;
 }
+const PK_TE = new TextEncoder();
+/* Every entry in the file, with its compressed bytes kept as they are — so anything this app does
+ * not change can be written back exactly as Amazon wrote it. */
+async function pkZipEntries(bytes) {
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let end = -1;
+  for (let i = bytes.length - 22; i >= 0 && i > bytes.length - 66000; i--) {
+    if (dv.getUint32(i, true) === 0x06054b50) { end = i; break; }
+  }
+  if (end < 0) throw new Error('That does not look like a .xlsx file (no zip directory in it).');
+  const count = dv.getUint16(end + 10, true);
+  let p = dv.getUint32(end + 16, true);
+  const out = [];
+  for (let n = 0; n < count; n++) {
+    if (dv.getUint32(p, true) !== 0x02014b50) break;
+    const flags = dv.getUint16(p + 8, true), method = dv.getUint16(p + 10, true);
+    const time = dv.getUint16(p + 12, true), date = dv.getUint16(p + 14, true);
+    const crc = dv.getUint32(p + 16, true), csize = dv.getUint32(p + 20, true), usize = dv.getUint32(p + 24, true);
+    const nlen = dv.getUint16(p + 28, true), elen = dv.getUint16(p + 30, true), clen = dv.getUint16(p + 32, true);
+    const attrIn = dv.getUint16(p + 36, true), attrEx = dv.getUint32(p + 38, true);
+    const lho = dv.getUint32(p + 42, true);
+    const name = PK_TD.decode(bytes.subarray(p + 46, p + 46 + nlen));
+    p += 46 + nlen + elen + clen;
+    const start = lho + 30 + dv.getUint16(lho + 26, true) + dv.getUint16(lho + 28, true);
+    out.push({ name, flags, method, time, date, crc, csize, usize, attrIn, attrEx,
+      data: bytes.subarray(start, start + csize) });
+  }
+  return out;
+}
+/* CRC-32, the one thing a zip cannot be written without. */
+let PK_CRC_T = null;
+function pkCrc32(buf) {
+  if (!PK_CRC_T) {
+    PK_CRC_T = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      PK_CRC_T[n] = c >>> 0;
+    }
+  }
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < buf.length; i++) c = PK_CRC_T[(c ^ buf[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+async function pkDeflate(buf) {
+  const cs = new CompressionStream('deflate-raw');
+  return new Uint8Array(await new Response(new Blob([buf]).stream().pipeThrough(cs)).arrayBuffer());
+}
+/** The same file back, with ONE entry's contents replaced and every other byte as it was. */
+async function pkZipReplace(bytes, name, text) {
+  const entries = await pkZipEntries(bytes);
+  const hit = entries.find(e => e.name === name);
+  if (!hit) throw new Error('That template has no ' + name + ' in it.');
+  const raw = PK_TE.encode(text);
+  hit.data = await pkDeflate(raw);
+  hit.method = 8; hit.crc = pkCrc32(raw); hit.csize = hit.data.length; hit.usize = raw.length;
+  /* A data descriptor after the data would contradict the sizes we have just written. */
+  hit.flags &= ~0x08;
+
+  const parts = [], dir = [];
+  let at = 0;
+  entries.forEach(e => {
+    const nameB = PK_TE.encode(e.name);
+    const lh = new Uint8Array(30 + nameB.length);
+    const d = new DataView(lh.buffer);
+    d.setUint32(0, 0x04034b50, true); d.setUint16(4, 20, true); d.setUint16(6, e.flags, true);
+    d.setUint16(8, e.method, true); d.setUint16(10, e.time, true); d.setUint16(12, e.date, true);
+    d.setUint32(14, e.crc, true); d.setUint32(18, e.csize, true); d.setUint32(22, e.usize, true);
+    d.setUint16(26, nameB.length, true); d.setUint16(28, 0, true);
+    lh.set(nameB, 30);
+    parts.push(lh, e.data);
+    const ch = new Uint8Array(46 + nameB.length);
+    const c = new DataView(ch.buffer);
+    c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true);
+    c.setUint16(8, e.flags, true); c.setUint16(10, e.method, true);
+    c.setUint16(12, e.time, true); c.setUint16(14, e.date, true);
+    c.setUint32(16, e.crc, true); c.setUint32(20, e.csize, true); c.setUint32(24, e.usize, true);
+    c.setUint16(28, nameB.length, true); c.setUint16(30, 0, true); c.setUint16(32, 0, true);
+    c.setUint16(34, 0, true); c.setUint16(36, e.attrIn, true); c.setUint32(38, e.attrEx, true);
+    c.setUint32(42, at, true);
+    ch.set(nameB, 46);
+    dir.push(ch);
+    at += lh.length + e.data.length;
+  });
+  const dirAt = at;
+  let dirLen = 0;
+  dir.forEach(b => { parts.push(b); dirLen += b.length; });
+  const eocd = new Uint8Array(22), ed = new DataView(eocd.buffer);
+  ed.setUint32(0, 0x06054b50, true);
+  ed.setUint16(8, entries.length, true); ed.setUint16(10, entries.length, true);
+  ed.setUint32(12, dirLen, true); ed.setUint32(16, dirAt, true);
+  parts.push(eocd);
+  return new Blob(parts, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
 const pkUnesc = s => s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
   .replace(/&apos;/g, "'").replace(/&#(\d+);/g, (_, d) => String.fromCharCode(+d)).replace(/&amp;/g, '&');
 /** Column letters to a 0-based index. AA is 26, which a plain character sum gets wrong. */
@@ -8162,6 +8258,8 @@ function renderPack() {
         <button class="ghost pkOpen"  data-id="${esc(p.id)}" style="width:auto;padding:2px 8px;font-size:11.5px">Open</button>
         <button class="ghost pkPrint" data-id="${esc(p.id)}" style="width:auto;padding:2px 8px;font-size:11.5px">Packing list</button>
         <button class="ghost pkLbl"   data-id="${esc(p.id)}" style="width:auto;padding:2px 8px;font-size:11.5px">Labels</button>
+        <button class="ghost pkAmz"   data-id="${esc(p.id)}" style="width:auto;padding:2px 8px;font-size:11.5px"
+                title="Fill Amazon's box-content template from this list — pick the .xlsx Amazon gave you and it comes back with the quantities, weights and sizes in it">FBA file</button>
         <button class="ghost pkDel"   data-id="${esc(p.id)}" style="width:auto;padding:2px 8px;font-size:11.5px">Delete</button>
       </td></tr>`;
   }).join('') + '</tbody>';
@@ -8181,10 +8279,204 @@ function renderPack() {
   $('pkTable').querySelectorAll('.pkOpen').forEach(b => b.onclick = () => pkOpen(b.dataset.id));
   $('pkTable').querySelectorAll('.pkPrint').forEach(b => b.onclick = () => pkPrintList(PK.find(x => x.id === b.dataset.id)));
   $('pkTable').querySelectorAll('.pkLbl').forEach(b => b.onclick = () => pkLabelsAsk(PK.find(x => x.id === b.dataset.id)));
+  $('pkTable').querySelectorAll('.pkAmz').forEach(b => b.onclick = () => pkAmzAsk(b.dataset.id));
   $('pkTable').querySelectorAll('.pkDel').forEach(b => b.onclick = () => pkDelete(b.dataset.id));
 
   const t = rows.reduce((a, p) => { const x = pkTotals(p); a.b += x.boxes; a.q += x.qty; a.n += x.net; return a; }, { b: 0, q: 0, n: 0 });
   pkMsg(`${rows.length} list(s) of ${PK.length} \u00b7 ${t.b} boxes \u00b7 ${t.q.toLocaleString('en-US')} pcs \u00b7 ${t.n.toFixed(2)} kg net`);
+}
+
+/* ================= AMAZON'S FBA BOX-CONTENT TEMPLATE, FILLED =================
+ *
+ * Ravi, 2026-09-23: "packing list se hi fill amazon fba template wala action bhi ho — check pillow
+ * tracker app". The flow is Pillow's: press the button on a saved list, pick the template Amazon
+ * gave you, and the same file comes back with this list's figures in it.
+ *
+ * ONE COLUMN PER BOX. Amazon's sheet lists every SKU down column A and every box across from M,
+ * and wants a quantity where they meet, plus each box's weight and dimensions in its own rows.
+ * Nothing else on the sheet is touched, and no other part of the workbook is even re-encoded.
+ *
+ * AMAZON'S UNITS, NOT OURS. The template is in pounds and inches; this app keeps kilograms and
+ * centimetres. Converting on the way out is the whole reason a person should not be retyping this.
+ */
+const AMZ_SHEET = 'Box packing information';
+const AMZ_FIRST_BOX_COL = 13;                  // M — the first box's column
+const AMZ_KG_LB = 2.2046226218, AMZ_CM_IN = 1 / 2.54;
+
+/** A cell's value as the sheet holds it: a number, or a shared string resolved. */
+function amzCellVal(xml, shared, ref) {
+  const m = new RegExp('<c r="' + ref + '"([^>]*?)(?:/>|>([\\s\\S]*?)</c>)').exec(xml);
+  if (!m) return undefined;
+  const attrs = m[1] || '', body = m[2] || '';
+  const v = (body.match(/<v>([\s\S]*?)<\/v>/) || [])[1];
+  if (/t="s"/.test(attrs)) return v == null ? undefined : shared[Number(v)];
+  if (/t="inlineStr"/.test(attrs)) { let t = ''; for (const x of body.matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)) t += x[1]; return pkUnesc(t); }
+  return v;
+}
+const amzNumToCol = n => { let out = ''; while (n > 0) { const m = (n - 1) % 26; out = String.fromCharCode(65 + m) + out; n = (n - m - 1) / 26; } return out; };
+const amzNorm = v => String(v == null ? '' : v).trim().toLowerCase();
+
+/**
+ * Put a number in a cell, keeping the cell's own style.
+ *
+ * A cell that is not in the XML at all has to be INSERTED IN COLUMN ORDER — Excel reads a row's
+ * cells in order and a cell out of place makes the file unreadable. Its style is borrowed from the
+ * header cell of the same column so the figure looks like its neighbours.
+ */
+function amzSetCell(xml, col, row, value, headRow) {
+  const ref = amzNumToCol(col) + row;
+  const existing = new RegExp('<c r="' + ref + '"([^>]*?)(?:/>|>[\\s\\S]*?</c>)');
+  const em = existing.exec(xml);
+  if (em) {
+    const attrs = (em[1] || '').replace(/\s*t="[^"]*"/, '');     // a number carries no type
+    return xml.replace(existing, '<c r="' + ref + '"' + attrs + '><v>' + value + '</v></c>');
+  }
+  const head = new RegExp('<c r="' + amzNumToCol(col) + headRow + '"([^>]*?)(?:/>|>)').exec(xml);
+  const st = head && /s="(\d+)"/.exec(head[1]) ? ' s="' + /s="(\d+)"/.exec(head[1])[1] + '"' : '';
+  const cell = '<c r="' + ref + '"' + st + '><v>' + value + '</v></c>';
+  const rowRe = new RegExp('(<row r="' + row + '"[^>]*>)([\\s\\S]*?)(</row>)');
+  const rm = rowRe.exec(xml);
+  if (!rm) return xml.replace('</sheetData>', '<row r="' + row + '">' + cell + '</row></sheetData>');
+  const body = rm[2];
+  let at = body.length;
+  for (const cm of body.matchAll(/<c r="([A-Z]+)\d+"[^>]*?(?:\/>|>[\s\S]*?<\/c>)/g)) {
+    if (pkColIx(cm[1]) + 1 > col) { at = cm.index; break; }
+  }
+  return xml.replace(rowRe, rm[1] + body.slice(0, at) + cell + body.slice(at) + rm[3]);
+}
+
+/** Which worksheet file holds Amazon's box sheet. */
+async function amzSheetPath(bytes) {
+  const f = await pkUnzip(bytes, n => n === 'xl/workbook.xml' || n === 'xl/_rels/workbook.xml.rels');
+  if (!f['xl/workbook.xml']) throw new Error('That is not a workbook — it has no xl/workbook.xml in it.');
+  const wb = PK_TD.decode(f['xl/workbook.xml']);
+  let rid = '';
+  for (const m of wb.matchAll(/<sheet[^>]*name="([^"]*)"[^>]*r:id="([^"]*)"[^>]*\/>/g)) {
+    if (m[1] === AMZ_SHEET) { rid = m[2]; break; }
+  }
+  if (!rid) throw new Error('That file has no "' + AMZ_SHEET + '" sheet — it is not Amazon\'s box-content template.');
+  const rels = PK_TD.decode(f['xl/_rels/workbook.xml.rels'] || new Uint8Array());
+  const rm = new RegExp('<Relationship[^>]*Id="' + rid + '"[^>]*Target="([^"]*)"').exec(rels);
+  if (!rm) throw new Error('The workbook names that sheet but does not say where it is.');
+  let t = rm[1].replace(/^\//, '');
+  return t.startsWith('xl/') ? t : 'xl/' + t;
+}
+
+/** Work out what goes where, and say what could not be placed. Writes nothing. */
+function amzPlan(xml, shared, list) {
+  const val = ref => amzCellVal(xml, shared, ref);
+  let head = -1;
+  for (let r = 1; r <= 20 && head < 0; r++) if (amzNorm(val('A' + r)) === 'sku') head = r;
+  if (head < 0) throw new Error('The template has no SKU column where one is expected (column A, in the first 20 rows).');
+
+  /* How many box columns Amazon has made room for — a list with more boxes than that cannot be
+   * filled, and saying so is better than writing into a column Amazon will not read. */
+  let boxes = null;
+  for (let r = 1; r < head && boxes == null; r++) {
+    for (let c = 1; c <= 28 && boxes == null; c++) {
+      if (amzNorm(val(amzNumToCol(c) + r)).indexOf('total box count') !== 0) continue;
+      for (let cc = c + 1; cc <= c + 8; cc++) {
+        const v = val(amzNumToCol(cc) + r);
+        if (v != null && v !== '' && !isNaN(+v)) { boxes = Math.round(+v); break; }
+      }
+    }
+  }
+  if (boxes == null) throw new Error('The template does not say its "Total box count", so there is no way to know how many box columns it has.');
+
+  const skuRow = {};
+  for (let r = head + 1; r <= head + 400; r++) {
+    const a = val('A' + r);
+    if (a == null) break;
+    if (amzNorm(a) === 'name of box') break;
+    skuRow[amzNorm(a)] = r;
+  }
+  const rows = { weight: -1, width: -1, length: -1, height: -1 };
+  for (let r = head + 1; r <= head + 420; r++) {
+    const a = amzNorm(val('A' + r));
+    if (!a) continue;
+    if (a.indexOf('box weight') === 0) rows.weight = r;
+    else if (a.indexOf('box width') === 0) rows.width = r;
+    else if (a.indexOf('box length') === 0) rows.length = r;
+    else if (a.indexOf('box height') === 0) rows.height = r;
+  }
+
+  const sets = [], missing = {};
+  let used = 0;
+  (list.boxes || []).forEach(b => {
+    const no = pkNum(b.n);
+    used = Math.max(used, no);
+    if (!(no >= 1) || no > boxes) return;
+    const col = AMZ_FIRST_BOX_COL + no - 1;
+    (b.items || []).forEach(it => {
+      const key = amzNorm(it.sku), qty = pkNum(it.qty);
+      if (!key || !qty) return;
+      if (skuRow[key] != null) sets.push({ col, row: skuRow[key], value: qty, what: 'qty' });
+      else missing[it.sku] = (missing[it.sku] || 0) + qty;
+    });
+    const c = pkCalc(b, list.pkgWt, list.volDiv);
+    const kg = v => Math.round(v * AMZ_KG_LB * 10) / 10;
+    const cm = v => Math.round(pkNum(v) * AMZ_CM_IN);
+    if (rows.weight > 0) sets.push({ col, row: rows.weight, value: kg(c.gross), what: 'weight' });
+    if (rows.width > 0) sets.push({ col, row: rows.width, value: cm(b.W), what: 'width' });
+    if (rows.length > 0) sets.push({ col, row: rows.length, value: cm(b.L), what: 'length' });
+    if (rows.height > 0) sets.push({ col, row: rows.height, value: cm(b.H), what: 'height' });
+  });
+  return { head, boxes, used, sets, missing: Object.keys(missing).map(k => ({ sku: k, qty: missing[k] })) };
+}
+
+let PK_AMZ_ID = '';
+function pkAmzAsk(id) {
+  const p = PK.find(x => x.id === id);
+  if (!p) return;
+  if (!(p.boxes || []).length) { pkMsg('That list has no boxes in it yet.', true); return; }
+  PK_AMZ_ID = id;
+  const el = $('pkAmzFile');
+  el.value = '';
+  pkMsg('Pick the box-content template you downloaded from Amazon (.xlsx).');
+  el.click();
+}
+async function pkAmzFill(file) {
+  const p = PK.find(x => x.id === PK_AMZ_ID);
+  if (!p || !file) return;
+  try {
+    pkMsg('Reading the template…');
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const path = await amzSheetPath(bytes);
+    const f = await pkUnzip(bytes, n => n === path || n === 'xl/sharedStrings.xml');
+    const shared = [];
+    if (f['xl/sharedStrings.xml']) {
+      const sx = PK_TD.decode(f['xl/sharedStrings.xml']);
+      sx.split('<si>').slice(1).forEach(si => {
+        let t = '';
+        for (const m of si.matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)) t += m[1];
+        shared.push(pkUnesc(t));
+      });
+    }
+    let xml = PK_TD.decode(f[path]);
+    const plan = amzPlan(xml, shared, p);
+    plan.sets.forEach(x => { xml = amzSetCell(xml, x.col, x.row, x.value, plan.head); });
+    const blob = await pkZipReplace(bytes, path, xml);
+    const name = 'Amazon-FBA-' + String(p.title || 'packing').replace(/[^a-z0-9-]/gi, '_').slice(0, 32)
+      + '-' + (p.date || '') + '.xlsx';
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = name; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    /* WHAT WENT IN, AND WHAT COULD NOT. A SKU the template has never heard of is the whole failure
+     * mode of this job, so it is named rather than counted. */
+    const bits = [nf(plan.sets.filter(x => x.what === 'qty').length) + ' quantity cell(s) filled'];
+    if (plan.used > plan.boxes) {
+      bits.push('your list goes up to box ' + nf(plan.used) + ' but the template only has ' + nf(plan.boxes)
+        + ' — raise its Total box count and fill again');
+    }
+    if (plan.missing.length) {
+      bits.push(nf(plan.missing.length) + ' SKU(s) are not in the template and were left out: '
+        + plan.missing.slice(0, 6).map(x => x.sku + ' (' + nf(x.qty) + ')').join(', ')
+        + (plan.missing.length > 6 ? ' and ' + nf(plan.missing.length - 6) + ' more' : ''));
+    }
+    pkMsg(bits.join(' · '), plan.missing.length > 0 || plan.used > plan.boxes);
+  } catch (e) {
+    pkMsg('That template could not be filled: ' + (e.message || e), true);
+  }
 }
 
 async function pkDelete(id) {
@@ -8211,6 +8503,7 @@ $('pkClear').onclick = () => {
 const PK_DEF = { L: 56, W: 43, H: 28, pkgWt: 1.5, volDiv: 5000, material: '100% COTTON' };
 
 $('pkNew').onclick = () => $('pkFile').click();
+$('pkAmzFile').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) pkAmzFill(f); };
 $('pkFile').onchange = async e => {
   const file = e.target.files[0]; e.target.value = ''; if (!file) return;
   $('pkImpErr').classList.add('hide');
