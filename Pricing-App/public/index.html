@@ -1551,6 +1551,14 @@
         <button id="soGo">Fetch orders</button>
       </div>
       <div id="soMsg" class="muted" style="margin-top:8px;font-size:13px"></div>
+      <!-- A shop this app has no API key for was asked for. One line, and the button that answers it. -->
+      <div id="soNoKey" class="hide" style="margin-top:8px;padding:10px 12px;border-radius:9px;background:#fff7ed;
+           border:1px solid #fed7aa;color:#7c2d12;font-size:13px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <span id="soNoKeyTxt" style="flex:1 1 320px;min-width:0"></span>
+        <a id="soNoKeyGo" href="https://fabricrush-replenish.web.app/" target="_blank" rel="noopener"
+           style="flex:0 0 auto;background:#0f172a;color:#fff;border-radius:8px;padding:7px 12px;font-weight:700;text-decoration:none">
+          Open Shopify Orders in the Replenishment app →</a>
+      </div>
       <div id="soPickMsg" class="muted" style="margin-top:4px;font-size:12px"></div>
       <!-- Today and yesterday, in the STORE's day. Cancelled orders are left out of all of it. -->
       <div id="soToday" style="margin-top:10px;display:flex;gap:22px;flex-wrap:wrap;font-size:13px"></div>
@@ -12760,6 +12768,34 @@ let SHOP_EDIT = null;
 let SHOP_SORT = { k: 'at', dir: -1 };
 
 function soMsg(t, bad) { const m = $('soMsg'); m.textContent = t || ''; m.className = bad ? 'err' : 'muted'; }
+/**
+ * A shop this screen cannot fetch, asked for anyway.
+ *
+ * It said so already, in the middle of the grey line that counts the orders — and it was read past.
+ * The sentence stays, because that line is where somebody looks to ask "why nothing?"; the bar
+ * above carries the same thing with the one thing to press on it, because the answer is not a fact
+ * to absorb, it is another app to open.
+ */
+function soNoKeyNote() {
+  const bar = $('soNoKey'), txt = $('soNoKeyTxt');
+  const picked = (typeof msVals === 'function' ? msVals('soChan') : []) || [];
+  const noApi = picked.filter(c => SO_CHANNELS.indexOf(c) >= 0);
+  const have = noApi.length ? SO_ALL_ROWS.filter(r => noApi.indexOf(r.channel) >= 0).length : 0;
+  const show = !!noApi.length && !have;
+  const many = noApi.length > 1;
+  const line = !show ? '' : `${noApi.join(', ')} ${many ? 'are' : 'is'} not fetched here — this app has no API key for `
+    + `${many ? 'those shops' : 'that shop'}. Bring ${many ? 'them' : 'it'} in with "Import orders", or open Shopify Orders `
+    + 'in the Replenishment app, which is connected to the CPC store.';
+  if (bar) {
+    bar.classList.toggle('hide', !show);
+    if (txt) txt.textContent = line;
+    /* The button is only for CPC. The Etsy shops are not in the other app either — for those the
+     * answer is Import orders, and a button that went somewhere useless would be worse than none. */
+    const go = $('soNoKeyGo');
+    if (go) go.style.display = noApi.some(c => /^CPC/i.test(c)) ? '' : 'none';
+  }
+  return show ? ' · ' + line : '';
+}
 
 async function loadShopMeta() {
   try {
@@ -13895,14 +13931,7 @@ function renderShop() {
      * saw nothing). This app has an API key for one store only; CPC and the Etsy shops arrive through
      * Import orders, and the live CPC store is connected in the Replenishment app. Saying so beats a
      * silent "Nothing matches that filter". */
-    + (() => {
-      const picked = (typeof msVals === 'function' ? msVals('soChan') : []) || [];
-      const noApi = picked.filter(c => SO_CHANNELS.indexOf(c) >= 0);
-      if (!noApi.length) return '';
-      const have = SO_ALL_ROWS.filter(r => noApi.indexOf(r.channel) >= 0).length;
-      return have ? '' : ` · ${noApi.join(', ')} ${noApi.length > 1 ? 'are' : 'is'} not fetched here — this app has no API key for `
-        + `${noApi.length > 1 ? 'those shops' : 'that shop'}. Bring them in with "Import orders", or open Shopify Orders in the Replenishment app, which is connected to the CPC store.`;
-    })()
+    + soNoKeyNote()
     + (stale ? ` — the boxes now say ${$('soFrom').value} → ${$('soTo').value}; press Fetch orders` : ''),
     stale);
 
