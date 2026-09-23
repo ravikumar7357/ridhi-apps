@@ -42733,13 +42733,57 @@ async function shpCloseShipped() {
   const floor = sdShift(sdToday(), -SHP_REACH_MAX_DAYS);
   if (!from || from < floor) from = floor;
 
-  let orders = [];
+  /* ASK FOR THE DAYS THE MISSING ORDERS ARE ACTUALLY ON, BOTH STORES (2026-09-23).
+   *
+   * This used to ask for the whole reach — up to 150 days — in one call. The shop does three thousand
+   * orders in two months, one page does not hold them, and the answer came back truncated: the very
+   * orders being looked for sat at the far end of it, so 82 lines that had shipped weeks ago were
+   * still being asked of production. It also asked the Ridhi store alone, so a CPC order could never
+   * close at all.
+   *
+   * shpUnseen already knows the day each missing order was placed. So the windows are built from
+   * those days — a fortnight each, only where there is something to find — and both stores are asked
+   * for each. An order with no date falls back to walking back from today. */
+  const SPAN = 14, MAX_CALLS = 24;
+  const today1 = sdShift(sdToday(), 1);
+  const days = [...new Set([...want.values()].filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d) && d >= floor))].sort();
+  const windows = [];
+  days.forEach(d => {
+    const last = windows[windows.length - 1];
+    if (last && d <= last.end) return;                    // already covered by the window before it
+    windows.push({ start: d, end: (x => (x > today1 ? today1 : x))(sdShift(d, SPAN)) });
+  });
+  /* Nobody knew when these were placed, so the only honest reach is backwards from today. */
+  if (days.length < want.size) {
+    let end = today1;
+    for (let k = 0; k < 6 && end > from; k++) {
+      const start = (x => (x < from ? from : x))(sdShift(end, -SPAN));
+      windows.push({ start, end });
+      end = sdShift(start, -1);
+    }
+  }
+
+  let orders = [], calls = 0;
+  const found = new Set();
   try {
-    const r = await prGet({ shopify: 'orders', start: from, end: sdShift(sdToday(), 1), open: '0' });
-    orders = r.orders || [];
-    /* A truncated page is not an answer about the orders it did not contain, and they are simply not
-     * judged — which is what already happens to an order nobody fetched. */
-    if (r.more) out.err = 'Shopify had more orders than one page could hold, so some were not checked.';
+    for (const w of windows) {
+      if (calls >= MAX_CALLS || found.size >= want.size) break;
+      const [mine, cpc] = await Promise.all([
+        prGet({ shopify: 'orders', start: w.start, end: w.end, open: '0' }),
+        prGet({ shopify: 'orders', shop: 'CPC', start: w.start, end: w.end, open: '0' }).catch(() => ({ orders: [] })),
+      ]);
+      calls++;
+      (mine.orders || []).concat(cpc.orders || []).forEach(o => {
+        const id = String((o && o.id) || '');
+        if (!id || !want.has(id) || found.has(id)) return;
+        found.add(id);
+        orders.push(o);
+      });
+      /* A window that came back truncated is not an answer about the orders it left out; it is split
+       * and the second half asked on the next pass rather than quietly skipped. */
+      if (mine.more || cpc.more) out.err = 'Some days had more orders than one page could hold; the next run carries on.';
+    }
+    if (found.size < want.size && calls >= MAX_CALLS) out.err = 'Some older orders were not reached this time; the next run carries on.';
   } catch (e) { out.err = 'Could not ask Shopify: ' + (e.message || e); return out; }
 
   const taken = shpTakenNumbers();

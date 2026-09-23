@@ -1023,6 +1023,17 @@ console.log('\n== an order nobody fetched is still judged ==');
   const asked = CALLS.prGet.filter(p => p && p.shopify === 'orders');
   ok('it asks Shopify for the days it was missing, fulfilled orders included',
      asked.some(p => p.start === july && p.open === '0'), JSON.stringify(asked));
+  /* A WINDOW PER MISSING ORDER'S OWN DAYS, AND BOTH STORES (2026-09-23). It used to ask for the whole
+   * reach — up to 150 days — in one call; three thousand orders do not fit one page, the answer came
+   * back truncated, and the old orders it was looking for were exactly the ones cut off. 82 shipped
+   * lines were still being asked of production, and the CPC store was never asked at all. */
+  ok('…each window is a fortnight, not the whole reach', asked.every(p => {
+    const d = (new Date(p.end + 'T00:00:00Z') - new Date(p.start + 'T00:00:00Z')) / 86400000;
+    return d <= 15;
+  }), JSON.stringify(asked.map(p => p.start + ' → ' + p.end)));
+  ok('…and CPC is asked for the same days, so a CPC order can close too',
+     asked.some(p => p.shop === 'CPC' && p.start === july), JSON.stringify(asked));
+  ok('…it stops as soon as every missing order has been found', asked.length === 2, String(asked.length));
   ok('…and the order that has shipped is closed', out.closed === 1, JSON.stringify(out));
   ok('…so the replacement is gone from production', !(row in RT), Object.keys(RT).join(', '));
 
