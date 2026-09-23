@@ -17001,7 +17001,8 @@ function spOpen(orderNo, sku) {
   const types = [...new Set((PTE.emp || []).map(e => String(e[0] || '').trim()).filter(Boolean))].sort();
 
   ptOpenDialog({
-    title: 'Shopify production — ' + (line.shopOrderNo || line.orderNo),
+    /* A B2B order is not a Shopify one; the dialog is the same, and says which it is. */
+    title: (line.src === 'SHP' || line.shopOrderNo ? 'Shopify production — ' : 'Production — ') + (line.shopOrderNo || line.orderNo),
     subtitle: `${line.sku}  ·  ${[line.articleType, line.articleSubtype, line.color, line.size].filter(Boolean).join(' · ')}  ·  ${nf(line.qty)} piece(s)${line.pcsPer > 1 ? ` (${nf(line.packs)} × pack of ${nf(line.pcsPer)})` : ''}`,
     note: 'This writes the SAME registers the factory\u2019s own orders use — cutting data, Job Work Register '
       + 'and press inventory — so the karigar\u2019s pieces count towards their pay, and the caps that '
@@ -17389,8 +17390,17 @@ function renderOrd() {
               + (v.given < r.qty ? ` <span class="muted">· ${nf(r.qty - v.given)} not given</span>` : '')
               + `<div class="muted" style="font-size:11px">${esc([...new Set(v.parts.map(p => voName(p.vendorCode)))].join(', '))}${v.shared ? ' · shared' : (v.parts.every(p => p.stamped) ? ' · for this order' : '')}</div></span>`
             : '<span class="muted">not given to a vendor</span>'))(ordVendorOf(r.orderNo, r.sku))}</td>`
+        /* ENTRY BELONGS ON EVERY ORDER, NOT ONLY SHOPIFY'S (Ravi, 2026-09-23: "jo hum shopify ke orders
+         * ke liye yahi se karigar ko issue rec. karte h to wesa hi system B2B orders ke liye bana do").
+         * The dialog was never Shopify's: it writes the cutting data, the Job Work Register and press
+         * inventory, the same registers the factory's own orders use. Only the button was missing here,
+         * so a B2B order had to be recorded from three other screens. */
         + `<td style="white-space:nowrap">${[
             spCanPrint(r.orderNo, r.sku) ? `<button class="ghost" data-spprint="${k}" style="padding:2px 9px;font-size:12px">Printed</button>` : '',
+            (!spIsVendor() && ptCanEdit()) ? `<button class="ghost" data-sp="${k}" style="padding:2px 9px;font-size:12px">Entry</button>` : '',
+            (!spIsVendor() && ptCanEdit() && spIsQuilt(r)) ? ((q => q.quiltAt
+              ? `<button class="ghost" data-spquilt="${k}" data-on="0" style="padding:2px 9px;font-size:12px">Undo quilt</button>`
+              : `<button class="ghost" data-spquilt="${k}" data-on="1" style="padding:2px 9px;font-size:12px;color:#166534">To quilt team</button>`)(spOf(r.orderNo, r.sku) || {})) : '',
             bkAssign ? `<button class="ghost" data-spassign="${k}" style="padding:2px 9px;font-size:12px">${r.printer ? 'Printer' : 'Assign'}</button>` : '',
           ].filter(Boolean).join(' ') || '<span class="muted">—</span>'}</td>`)
       + '</tr>';
