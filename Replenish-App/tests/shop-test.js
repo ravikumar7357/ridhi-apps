@@ -1047,8 +1047,29 @@ console.log('\n== an order nobody fetched is still judged ==');
     items: [{ sku: 'RTC52-6090', name: 'x', qty: 1, ffl: 'unfulfilled', rq: 0 }],
     ship: { name: 'R', country: 'US' }, total: 20, cur: 'USD' }] };
   const out2 = await A.shpCloseShipped();
-  ok('an order that is still open is left alone, not re-decided', out2.closed === 0, JSON.stringify(out2));
-  ok('…and nothing it owns is touched', Object.keys(RT).sort().join(',') === before);
+  ok('an order that is still open is not CLOSED', out2.closed === 0, JSON.stringify(out2));
+  ok('…and a row it already has is left exactly as it was', Object.keys(RT).sort().join(',') === before);
+
+  /* A PART-SHIPPED ORDER FROM MONTHS AGO STILL NEEDS ITS REST MADE (Ravi, 2026-09-23: "partially order
+   * ship hue jo ki production se required h nahi show ho rhe h"). #3873 was exactly this: seven lines,
+   * three gone, four still to send — and one row in the Order Console, because the order had long
+   * since dropped out of the fetched window and this pass only ever closed. */
+  RT = {}; PTG.ob = []; SOX.rows = []; A.setMETA({});
+  const halfId = 'o-half', halfDay = A.sdShift(A.sdToday(), -40);
+  /* It is not on screen: the only way it can be judged is through this reach. */
+  A.setSHOP({ orders: [liveOne], from: '', to: '', tz: '', at: 'x' });
+  A.setMETA({ [halfId]: { lines: { 'RTC52-6090': { adj: 'ADJ-HALF', adjQty: 1, adjReason: 'Damaged',
+    adjOrder: '#3873', adjOrderDate: halfDay, adjState: 'raised' } } } });
+  A.renderShop();
+  PRGET_REPLY = { orders: [{ id: halfId, no: '#3873', at: halfDay, ff: 'partial',
+    items: [{ sku: 'RTC52-6090', name: 'sent', qty: 1, ffl: 'fulfilled', rq: 0, fq: 0, cq: 1 },
+      { sku: 'RTC52-72140', name: 'still to send', qty: 1, ffl: '', rq: 0, fq: 1, cq: 1 }],
+    ship: { name: 'R', country: 'US' }, total: 40, cur: 'USD' }] };
+  const outHalf = await A.shpCloseShipped();
+  const stillRow = 'pt_orderBook/ob_shp_SHP-3873_RTC52-72140';
+  ok('a part-shipped older order is brought up to date, not skipped', outHalf.opened === 1 && outHalf.closed === 0, JSON.stringify(outHalf));
+  ok('…the line still to send is opened in the Order Console', !!RT[stillRow], Object.keys(RT).join(', '));
+  ok('…and the line that has gone is not asked for', !RT['pt_orderBook/ob_shp_SHP-3873_RTC52-6090'], Object.keys(RT).join(', '));
 
   /* A CANCELLED ORDER CLOSES TOO — but only what the ORDER asked for. A replacement raised against
    * it is a piece somebody deliberately asked for, and cancelling the order it refers to does not

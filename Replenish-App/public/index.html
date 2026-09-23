@@ -42723,8 +42723,8 @@ function shpUnseen() {
  */
 async function shpCloseShipped() {
   const want = shpUnseen();
-  if (!want.size) return { looked: 0, closed: 0, removed: 0, err: '' };
-  const out = { looked: want.size, closed: 0, removed: 0, err: '' };
+  if (!want.size) return { looked: 0, closed: 0, opened: 0, removed: 0, written: 0, err: '' };
+  const out = { looked: want.size, closed: 0, opened: 0, removed: 0, written: 0, err: '' };
 
   let from = '';
   want.forEach(d => { if (d && (!from || d < from)) from = d; });
@@ -42789,15 +42789,28 @@ async function shpCloseShipped() {
   const taken = shpTakenNumbers();
   const patch = {};
   const plans = [];
+  /* AND THE ONES THAT HAVE NOT SHIPPED ARE JUDGED TOO (Ravi, 2026-09-23: "aise order jo ship nahi hue
+   * h or production se required h unko production order me open kardo").
+   *
+   * This pass used to close and nothing else. But an order from August that is half shipped, and
+   * whose remaining lines have since run out of stock, is never in the fetched window again — so the
+   * pieces it needs were never asked for. #3873 was exactly that: four lines still to send, one row
+   * in the Order Console.
+   *
+   * Judging needs the stock maps, and shpSyncSoon has already refused to run without them; the guard
+   * is repeated here because this function is also callable on its own. */
+  const canJudge = SHOP_STOCK_LOADED && SHOP_INDIA_LOADED && !SHOP_INDIA_ERR;
   orders.forEach(o => {
     if (!o || !want.has(String(o.id))) return;
     const f = soFlags(o, SHOP_META[o.id] || {});
-    if (!f.shipped && !f.cancelled) return;               // still open: not this pass's business
+    const done = f.shipped || f.cancelled;
+    if (!done && !canJudge) return;                        // nothing can be decided without the stock
     const p = shpPlanOrder(Object.assign({}, o, f), true, shpAssignNo(o, taken));
     if (p.err || !Object.keys(p.patch).length) return;
     Object.assign(patch, p.patch);
     plans.push(p);
-    out.closed++; out.removed += p.removed;
+    if (done) out.closed++; else out.opened++;
+    out.removed += p.removed; out.written += p.written;
   });
   if (!plans.length) return out;
 
@@ -42874,9 +42887,11 @@ async function shpSyncSoon(where) {
     let reach = null;
     if (!t.err && !t.cancelled) {
       try { reach = await shpCloseShipped(); } catch (e) { reach = { err: e.message || String(e) }; }
-      if (reach && reach.closed) {
-        msg = (msg ? msg + ' · ' : 'Production: ')
-          + `${nf(reach.closed)} older order(s) closed — they have shipped or been cancelled on Shopify`;
+      if (reach && (reach.closed || reach.opened)) {
+        const bits = [];
+        if (reach.closed) bits.push(`${nf(reach.closed)} older order(s) closed — they have shipped or been cancelled on Shopify`);
+        if (reach.opened) bits.push(`${nf(reach.opened)} older order(s) brought up to date — ${nf(reach.written)} line(s) they still need are now in the Order Console`);
+        msg = (msg ? msg + ' · ' : 'Production: ') + bits.join(' · ');
       }
       if (reach && reach.err) msg = (msg ? msg + ' · ' : '') + reach.err;
     }
