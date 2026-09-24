@@ -26393,12 +26393,29 @@ function voFabricOptions() {
   return [...voFabricCatalogue().values()].map(r =>
     `<option value="${esc(r.sku)}">${esc([r.brandName, r.colour, r.fabric, r.width ? r.dir : '', r.side || ''].filter(Boolean).join(' · '))}</option>`).join('');
 }
-/** A select's option whose text matches, regardless of case — the masters and the catalogue do not always agree on it. */
+/**
+ * A select's option whose text matches, regardless of case — and if the masters do not have it yet,
+ * the value is offered anyway, marked.
+ *
+ * Ravi, 2026-09-24: "inko jab tak ke liye custom sku list me add krdo, i will add after — open the
+ * order for this". A fabric SKU that IS in the catalogue was being refused an order because the
+ * colour master had not caught up with it, which is a dropdown holding up a printing programme.
+ * The catalogue is the thing that says this cloth exists; the master is a list somebody maintains,
+ * and it is allowed to be behind.
+ */
 function voPickOption(id, text) {
   const el = $(id); if (!el || !text) return false;
   const want = String(text).trim().toLowerCase();
   const o = [...(el.options || [])].find(x => String(x.value).trim().toLowerCase() === want);
   if (o) { el.value = o.value; return true; }
+  /* Offered, and SAID to be missing — on the option itself, so nobody can pick it later believing
+   * the masters have it. Dropped again on the next fill: it belongs to this line, not to the list. */
+  const add = document.createElement('option');
+  add.value = String(text).trim();
+  add.textContent = add.value + ' — not in Masters yet';
+  add.dataset.adhoc = '1';
+  el.appendChild(add);
+  el.value = add.value;
   return false;
 }
 const voFabricInfo = (t, bad) => { const el = $('vof_info'); if (el) { el.className = bad ? 'err' : 'muted'; el.textContent = t; } };
@@ -26411,10 +26428,12 @@ function voFabricSkuTyped() {
   if (!voPickOption('vof_fab', r.fabric)) missing.push(`fabric type "${r.fabric}"`);
   if (!voPickOption('vof_col', r.colour)) missing.push(`colour "${r.colour}"`);
   voPickOption('vof_pd', r.dir);
-  voFabricInfo(missing.length
-    ? `${sku}: ${missing.join(' and ')} is not in the masters, so it cannot be ordered until it is added under Masters.`
-    : `${sku} · ${r.brandName} · ${r.colour} · ${r.fabric}${r.width ? ' · ' + r.dir : ''}`, missing.length > 0);
-  return missing.length ? null : r;
+  /* NOT A REFUSAL ANY MORE. The line is ordered with what the catalogue says, and the missing
+   * master is named so it can be added afterwards — the printing does not wait on a list. */
+  voFabricInfo(`${sku} · ${r.brandName} · ${r.colour} · ${r.fabric}${r.width ? ' · ' + r.dir : ''}`
+    + (missing.length ? ` — ${missing.join(' and ')} is not in Masters yet; the line can still be ordered, add it under Masters when you can.` : ''),
+    false);
+  return r;
 }
 /** The fields chosen by hand: the one catalogue SKU they describe, if there is exactly one. */
 function voFabricFromFields() {
@@ -42945,6 +42964,27 @@ const shpHasWord = (hay, w) => !!w && (shpHasPhrase(hay, w) || shpHasPhrase(hay,
   || (/s$/.test(w) && shpHasPhrase(hay, w.slice(0, -1))));
 /* The shop leaves these out because the size already says which it is; nothing else may be missing. */
 const SHP_SHAPE_WORDS = ['rectangular', 'rectangle', 'square', 'round', 'oval'];
+/**
+ * Every word the master uses to name a product — learned from the catalogue, never listed here, so
+ * a subtype added next year counts without anybody remembering this line.
+ *
+ * These are the words that DISTINGUISH one product from another: ruffle, piping, scallop, flap,
+ * embroidery, napkin, quilt… A title carrying one of them that a candidate does not have is a
+ * title for a different product.
+ */
+let SHP_KIND_WORDS = null, SHP_KIND_SRC = null;
+function shpKindWords() {
+  const src = PTG.mdb || [];
+  if (SHP_KIND_SRC === src && SHP_KIND_WORDS) return SHP_KIND_WORDS;
+  const out = new Set();
+  src.forEach(m => {
+    shpWords(m && m.subtype).split(' ').forEach(w => {
+      if (w.length > 2 && SHP_SHAPE_WORDS.indexOf(w) < 0) out.add(w);
+    });
+  });
+  SHP_KIND_SRC = src; SHP_KIND_WORDS = out;
+  return out;
+}
 
 /**
  * The master row a codeless line is for, or null.
@@ -42963,9 +43003,14 @@ function shpSkuFromTitle(name, variant) {
     if (!shpHasPhrase(title, shpWords(m.color))) return;
     const sz = shpWords(m.size);
     if (!(sz === size || shpHasPhrase(title, sz))) return;
-    /* WHAT IT IS HAS TO AGREE IN FULL. A colour and a size alone would match a bed pillow insert
-     * to a ruffle pillow cover — they did, on live orders, until this was turned round: every word
-     * of the master's subtype must be in the title, shape words excepted. */
+    /* WHAT IT IS HAS TO AGREE IN FULL, BOTH WAYS.
+     *
+     * Outward: every word of the master's subtype must be in the title, shape words excepted — a
+     * colour and a size alone would match a bed pillow insert to a ruffle pillow cover, and did.
+     *
+     * Inward: the title must not say something about the product that this row does not have.
+     * "Ruffle Tablecloth" matched a plain Square Tablecloth on the word "tablecloth" alone, and
+     * production would have made the wrong thing. */
     const words = shpWords(m.subtype || m.articleType).split(' ').filter(Boolean);
     if (!words.length) return;
     let score = 0;
@@ -42975,6 +43020,14 @@ function shpSkuFromTitle(name, variant) {
       return;                                                // anything else missing: not this product
     }
     if (!score) return;                                      // agreed on nothing but its shape
+    /* The colour's own words are not claims about the product — "Rosette Vine" must not be read as
+     * a kind of thing — so they come out before the title is asked what else it says. */
+    const said = new Set(words);
+    const colWords = new Set(shpWords(m.color).split(' '));
+    for (const w of title.split(' ')) {
+      if (!w || said.has(w) || colWords.has(w)) continue;
+      if (shpKindWords().has(w)) return;                     // the title names a product this is not
+    }
     if (score > bestScore) { best = m; bestScore = score; tied = false; }
     else if (score === bestScore && String(m.sku) !== String(best && best.sku)) tied = true;
   });

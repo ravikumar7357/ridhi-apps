@@ -1432,6 +1432,29 @@ console.log('\n== a codeless line is found by its title ==');
      (A.shpSkuFromTitle('Cotton Embroidery Napkins - Autumn Vine', '18 x 18 in / Set of 12') || {}).sku === 'CPCNE043');
   PTG.mdb = mdb;
 
+  /* THE TITLE SAYS RUFFLE AND THE CANDIDATE IS NOT ONE (Ravi, 2026-09-24, on SHP-6020). The line,
+   * verbatim from the shop: name "Ruffle Tablecloth - Yellow Citrine" · variant "54X54" · sku "".
+   * It was matched to CPC014-5454, a plain Square Tablecloth, because the old rule only checked
+   * that the MASTER's words were in the title and "square" is a shape the shop leaves out. Nothing
+   * asked whether the TITLE said something the candidate does not have. */
+  PTG.mdb = mdb.concat([
+    { sku: 'CPC014-5454', articleType: 'Tablecloth', subtype: 'Square Tablecloth', color: 'Yellow Citrine', size: '54x54' },
+    /* The vocabulary is learned from the catalogue, so "ruffle" only counts as a word about the
+     * product because some subtype somewhere uses it — as these do. */
+    { sku: 'CPCRU014-6060', articleType: 'Tablecloth', subtype: 'Ruffle Square Tablecloth', color: 'Yellow Citrine', size: '60x60' },
+  ]);
+  ok('a RUFFLE title does not match a plain product', A.shpSkuFromTitle('Ruffle Tablecloth - Yellow Citrine', '54X54') === null);
+  ok('…and the plain title still matches the plain product',
+     (A.shpSkuFromTitle('Cotton Block Print Tablecloth - Yellow Citrine', '54X54') || {}).sku === 'CPC014-5454');
+  ok('…while the ruffle in a size that EXISTS is found',
+     (A.shpSkuFromTitle('Ruffle Tablecloth - Yellow Citrine', '60X60') || {}).sku === 'CPCRU014-6060');
+  /* A word in the COLOUR is not a claim about the product. */
+  PTG.mdb = mdb.concat([{ sku: 'CPCX-1818', articleType: 'Pillow Cover', subtype: 'Piping Pillow Cover', color: 'Apricot Rosette Vine', size: '18x18' },
+    { sku: 'CPCV-2020', articleType: 'Tablecloth', subtype: 'Vine Tablecloth', color: 'Blue', size: '20x20' }]);
+  ok('a colour that happens to contain a product word is not read as one',
+     (A.shpSkuFromTitle('Piping Pillow Cover - Apricot Rosette Vine', '18X18') || {}).sku === 'CPCX-1818');
+  PTG.mdb = mdb;
+
   /* TWO ROWS EQUALLY GOOD IS A QUESTION, NOT A MATCH. */
   PTG.mdb = mdb.concat([{ sku: 'OTHER-5270', articleType: 'Tablecloth', subtype: 'Ruffle Round Tablecloth', color: 'Agate Green', size: '52x70' }]);
   ok('two products that fit equally well match nothing at all',
