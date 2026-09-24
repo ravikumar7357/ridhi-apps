@@ -183,7 +183,7 @@ const ctx = {
   /* The production block's pack rule, which this harness does not load: the number after the last dash, else 1. */
   obPcsPerPack: sku => { const m = String(sku || '').match(/-(\d{1,2})$/); return m ? +m[1] : 1; }, ptPatch, ptPut, ptDelete, obCutQty, obPressQty, ptList,
   ORD, ORD_THRESHOLD, ordLines, ordCutReq, ptImgCell, ptImgFill, ptEmpty, ptFill, ptDownload, ptGet,
-  ptCi, ordFilters,
+  ptCi, ordFilters, mdbOf: () => null,
   Set, Map, Date, Number, String, Object, Array, JSON, Math, isFinite, isNaN, parseInt, parseFloat,
   encodeURIComponent, RegExp, Promise, Boolean, Error, Infinity, NaN,
 };
@@ -191,7 +191,7 @@ const EXPORT = '\n;return {'
   + 'SHOP:()=>SHOP, setSHOP:v=>{SHOP=v}, SHOP_META:()=>SHOP_META, setMETA:v=>{SHOP_META=v},'
   + 'SHOP_STOCK:()=>SHOP_STOCK, setSTOCK:v=>{SHOP_STOCK=v}, setSTOCKCASE:v=>{SHOP_STOCK_CASE=v},'
   + 'SHOP_SKU:()=>SHOP_SKU, setSKU:v=>{SHOP_SKU=v}, setINDIA:v=>{SHOP_INDIA=v; SHOP_INDIA_LOADED=true},'
-  + 'loadShopStock, loadShopIndia, soGuessBrand, soMcf, soAmzKey, soAmzCase, soLive, soSendQty, soMcfPlan, soBestBrand, soMcfHas, mcfErr,'
+  + 'loadShopStock, loadShopIndia, soGuessBrand, soMcf, soAmzKey, soAmzCase, soLive, soSendQty, soMcfPlan, soBestBrand, soMcfHas, mcfErr, openShopOrder,'
   + 'apiPost, soMcfPayload, renderShop, soRows, SO_ALL_ROWS:()=>SO_ALL_ROWS, ensureShop, soStamp, sdToday, sdShift, soStoreDay,'
   + 'renderAdj, ajRows, soAdjId, soPackOf, soIndiaOf, soLineState, soFlags,'
   + 'shpSyncAll, shpSyncOrder, shpSyncMsg, shpPlanOrder, shpNeeds, shpLineShipped, shpOldestOpen, shpUnseen, shpCloseShipped, SHP_REACH_MAX_DAYS, shpOrderNo, shpOrderOf, shpWorkDone, adjOpen,'
@@ -1615,6 +1615,31 @@ console.log('\n== MCF: one parcel for what the chosen account holds ==');
   ok('…Amazon\'s own text is kept, under Technical detail', /<details class="mcf-raw"><summary>Technical detail<\/summary>/.test(m) && m.indexOf('SP-API 400') > m.indexOf('<details'));
   ok('…and it does not lead with it', m.indexOf('SP-API') > m.indexOf('Amazon does not recognise'));
   ok('a busy Amazon says so', /Amazon is busy/.test(A.mcfErr(new Error('SP-API 429 QuotaExceeded'), 'Could not send', {})));
+}
+console.log('\n== Order panel, design 1 (wide sheet, tidied) ==');
+{
+  /* Ravi picked design 1 on 2026-09-24: order number and Shopify state in one header, the lines in one
+   * box, Amazon and the order's status side by side, the count and the buttons at the foot. */
+  A.setSTOCK({}); A.setSTOCKCASE({}); A.setMETA({}); A.setSKU({});
+  await A.loadShopStock();
+  const o = { id: 'gid-D1', no: '#D1', at: '2026-09-24 10:12', ship: { name: 'Tracy Hogan', city: 'Austin' }, ff: 'unfulfilled', trk: [], items: [
+    { sku: 'RCNBMIX', name: 'Napkins', qty: 2 },
+    { sku: 'RTC301-6090', name: 'Tablecloth', qty: 1 },
+    { sku: 'RTCPR241-60', name: 'Runner', qty: 1 },
+    { sku: '', name: 'Tablecloth with no code', qty: 1 }] };
+  A.setSHOP({ orders: [o], from: '', to: '', tz: 'America/Los_Angeles', at: '' });
+  A.openShopOrder('gid-D1');
+  ok('the header reads "Order #D1", the date moves to the line under it', els.soTitle.textContent === 'Order #D1' && /2026-09-24 10:12/.test(els.soSub.textContent), els.soTitle.textContent + ' | ' + els.soSub.textContent);
+  ok('…with Shopify\'s state beside it, and no tracking said as a chip', /No tracking yet/.test(els.soFf.innerHTML), els.soFf.innerHTML);
+  ok('the foot counts lines and pieces', els.soFootSum.textContent === '4 lines · 5 pcs', els.soFootSum.textContent);
+  const seg = els.soMcfSeg.innerHTML;
+  ok('the account buttons say how many lines each can ship', /Ridhi · 2 lines/.test(seg) && /CPC · 1 line</.test(seg), seg);
+  ok('…the chosen one is marked', /class="segbtn on" data-acct="SP"/.test(seg), seg);
+  ok('the worked-out column is called Route, so it is not read as Line status twice', /<th[^>]*>Route<\/th>/.test(els.soItems.innerHTML));
+  const html = fs.readFileSync(APP, 'utf8');
+  ok('the × closes like Close does', /\$\('soX'\)\.onclick = \(\) => \$\('soCancel'\)\.onclick\(\);/.test(html));
+  ok('the account select is still there for everything that reads it', /<select id="soMcfBrand" class="hide"/.test(html));
+  A.setMETA({});
 }
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exitCode = fail ? 1 : 0;

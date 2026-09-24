@@ -371,9 +371,31 @@
   .so-ps{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px}
   .so-code{font-family:ui-monospace,monospace;font-size:11.5px;font-weight:700}
   .so-amzw input{width:118px}
+  /* Design 1, "Wide sheet, tidied" (Ravi, 2026-09-24): the order and its Shopify state in one
+   * header, the lines in one box, then what Amazon sends beside the order's own status. */
+  .so-head{display:flex;align-items:flex-start;gap:14px;margin-bottom:14px}
+  .so-hl{flex:1;min-width:0}
+  .so-ht{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .so-tt{font-size:21px;font-weight:800;letter-spacing:-.01em}
+  .so-ff{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px}
+  .so-chip{display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:999px;background:var(--chip);color:var(--muted);font-size:12px;font-weight:700;white-space:nowrap}
+  .so-sub{font-size:12.5px;margin-top:4px}
+  button.so-x{background:transparent;color:var(--muted);box-shadow:none;width:40px;height:40px;padding:0;font-size:22px;line-height:1;flex:0 0 auto}
+  button.so-x:hover{background:var(--chip);color:var(--ink)}
+  .so-box{border:1px solid var(--line);border-radius:14px;overflow:auto;margin-bottom:16px}
+  .so-box table.so-lines{margin:0}
+  .so-box table.so-lines thead th{background:var(--hover,#f7f9fb)}
+  .so-grid{display:grid;grid-template-columns:1.3fr 1fr;gap:16px;align-items:start}
+  .so-card{border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px;min-width:0}
+  .so-lb{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+  .so-mrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .so-foot{display:flex;align-items:center;gap:8px;margin-top:16px}
   .mcf-plan{display:flex;flex-direction:column;gap:4px}
-  .mcf-h{font-weight:700;font-size:13px;margin-bottom:2px}
+  .mcf-h{font-weight:800;font-size:14.5px;margin-bottom:4px}
   .mcf-h.ok{color:var(--accent)} .mcf-h.bad{color:var(--warn-ink)}
+  /* .ok is also the app's green notice box; inside the plan it is only a colour. */
+  .mcf-plan .ok{background:none;padding:0;border-radius:0;margin-bottom:0;font-size:inherit}
+  .mcf-plan .mcf-h.ok{margin-bottom:4px;font-size:14.5px}
   .mcf-alt{font-weight:600;color:var(--brand-ink)}
   .mcf-l{display:flex;align-items:baseline;gap:8px;font-size:12.5px}
   .mcf-l b{width:14px;flex:0 0 auto;color:var(--muted)} .mcf-l.ok b{color:var(--accent)}
@@ -2527,18 +2549,17 @@
   <div id="soModal" class="modal hide">
     <!-- WIDE (Ravi, 2026-09-24: "slide krke all information dekhni hoti h"): a line fits on the row. -->
     <div class="modalbox so-wide" style="width:min(1180px,100%)">
-      <div style="font-weight:700;margin-bottom:2px" id="soTitle">Order</div>
-      <div class="muted" id="soSub" style="font-size:12px;margin-bottom:12px"></div>
-      <div id="soShopNote" class="hide" style="margin-bottom:12px"></div>
-      <div class="sec" style="margin-top:0">Shopify</div>
-      <div id="soFf" style="margin-bottom:12px"></div>
-      <div id="soItems" style="margin-bottom:14px"></div>
-
-      <div class="sec" style="margin-top:0">Status</div>
-      <div class="row" style="gap:8px">
-        <div style="flex:1"><input id="soStatus" list="soStatusList" placeholder="e.g. Packed" maxlength="40"></div>
-        <div style="flex:2"><input id="soNote" placeholder="Note — optional" maxlength="120"></div>
+      <!-- Design 1, "Wide sheet, tidied" (Ravi, 2026-09-24). What Shopify says — fulfilled or not,
+           and the tracking — sits beside the order number: it is the first thing worth knowing. -->
+      <div class="so-head">
+        <div class="so-hl">
+          <div class="so-ht"><span class="so-tt" id="soTitle">Order</span><span id="soFf" class="so-ff"></span></div>
+          <div class="muted so-sub" id="soSub"></div>
+        </div>
+        <button id="soX" class="so-x" type="button" aria-label="Close" title="Close">×</button>
       </div>
+      <div id="soShopNote" class="hide" style="margin-bottom:12px"></div>
+      <div id="soItems" class="so-box"></div>
       <datalist id="soStatusList"></datalist>
       <!-- Shelf bins. Filled from the list below plus anything already in use, so a bin added on
            the floor appears here without a code change. -->
@@ -2623,29 +2644,38 @@
       <div id="soInvTot" class="muted" style="font-size:12px;margin-top:6px"></div>
       </div><!-- /soCustomsBlock -->
 
-      <!-- Ship it out of FBA. Kept at the bottom, behind a preview, because this one spends money. -->
-      <div class="sec">Send to Amazon (MCF)</div>
-      <div id="soMcfBox" style="font-size:12.5px"></div>
-      <div class="row" style="gap:8px;margin-top:8px">
-        <div style="flex:0 0 130px"><label>Account</label>
-          <select id="soMcfBrand">
-            <option value="SP">Ridhi</option>
-            <option value="CPC">CPC</option>
-          </select>
+      <div class="so-grid">
+        <!-- Ship it out of FBA. Behind a preview, because this one spends money. -->
+        <div class="so-card">
+          <div class="so-lb">Send to Amazon (MCF)</div>
+          <div id="soMcfBox" style="font-size:12.5px"></div>
+          <div class="so-mrow">
+            <!-- The account, as two buttons that say how many lines each can ship. The select stays
+                 underneath: everything that sends or checks reads its value, as before. -->
+            <div id="soMcfSeg" class="seg" role="group" aria-label="Amazon account"></div>
+            <select id="soMcfBrand" class="hide" aria-label="Amazon account">
+              <option value="SP">Ridhi</option>
+              <option value="CPC">CPC</option>
+            </select>
+            <div style="flex:1"></div>
+            <button id="soMcfPreview"
+                    title="Asks Amazon what each speed would cost and when it would arrive. Places nothing.">Check speeds &amp; cost</button>
+          </div>
+          <div id="soMcfPrev" class="hide"></div>
+          <div id="soErr" class="err hide"></div>
         </div>
-        <div style="flex:1;display:flex;align-items:flex-end">
-          <button id="soMcfPreview" class="ghost" style="width:100%"
-                  title="Asks Amazon what each speed would cost and when it would arrive. Places nothing.">Check speeds &amp; cost</button>
+        <div class="so-card">
+          <div><label for="soStatus">Order status</label><input id="soStatus" list="soStatusList" placeholder="e.g. Packed" maxlength="40"></div>
+          <div><label for="soNote">Note</label><input id="soNote" placeholder="Note — optional" maxlength="120"></div>
         </div>
       </div>
-      <div id="soMcfPrev" class="hide" style="margin-top:10px"></div>
-
-      <div id="soErr" class="err hide" style="margin-top:10px"></div>
-      <div class="row" style="margin-top:14px;gap:8px">
-        <button id="soSave" style="flex:1">Save</button>
-        <button id="soPrint" class="ghost" style="flex:0 0 130px"
+      <div class="so-foot">
+        <span id="soFootSum" class="muted" style="font-size:12.5px"></span>
+        <div style="flex:1"></div>
+        <button id="soCancel" class="ghost">Close</button>
+        <button id="soPrint" class="ghost"
                 title="A pick sheet for this order, with a photo of every line — the same shape as the Adjustments print.">Print order</button>
-        <button id="soCancel" class="ghost" style="flex:0 0 90px">Close</button>
+        <button id="soSave" style="min-width:120px">Save</button>
       </div>
     </div>
   </div>
@@ -44782,9 +44812,11 @@ function openShopOrder(id) {
   const grams = o.items.reduce((s, i) => s + (i.grams || 0), 0);
   const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
 
-  $('soTitle').textContent = o.no + ' · ' + o.at;
-  $('soSub').textContent = [o.ship.name, o.ship.a1, o.ship.city, o.ship.state, o.ship.zip, o.ship.country]
-    .filter(Boolean).join(', ') + (o.ship.phone ? ' · ' + o.ship.phone : '');
+  $('soTitle').textContent = 'Order ' + o.no;
+  $('soSub').textContent = [o.ship.name, [o.ship.a1, o.ship.city, o.ship.state, o.ship.zip, o.ship.country].filter(Boolean).join(', '),
+    o.at, o.ship.phone].filter(Boolean).join(' · ');
+  const pcs = o.items.reduce((t, i) => t + (+i.qty || 0), 0);
+  $('soFootSum').textContent = o.items.length + ' line' + (o.items.length === 1 ? '' : 's') + ' · ' + nf(pcs) + ' pc' + (pcs === 1 ? '' : 's');
 
   const m = soMcf(o);
   // The customer's own note, first and unmissable. "Please ship with the quilt ordered the same
@@ -44799,20 +44831,20 @@ function openShopOrder(id) {
   // the first thing worth knowing when opening an order is whether it has gone out already.
   const trkList = o.trk || [];
   $('soFf').innerHTML = soFfTag(o.ff)
-    + (o.shippedAt ? ' <span class="muted" style="font-size:12px">shipped ' + esc(o.shippedAt) + '</span>' : '')
+    + (o.shippedAt ? '<span class="muted">shipped ' + esc(o.shippedAt) + '</span>' : '')
     + (trkList.length
-        ? '<div style="margin-top:6px;font-size:12.5px">'
+        ? '<span class="so-chip" title="Tracking on Shopify">'
           + (o.trkUrl ? '<a href="' + esc(o.trkUrl) + '" target="_blank" rel="noopener">' + esc(trkList.join(', ')) + '</a>'
                       : esc(trkList.join(', ')))
-          + (o.trkCo ? ' <span class="muted">· ' + esc(o.trkCo) + '</span>' : '')
-          + '</div>'
-        : '<div class="muted" style="margin-top:6px;font-size:12.5px">No tracking number on Shopify yet.</div>');
+          + (o.trkCo ? '&nbsp;· ' + esc(o.trkCo) : '')
+          + '</span>'
+        : '<span class="so-chip">No tracking yet</span>');
 
   $('soItems').innerHTML = '<table class="xl so-lines" style="font-size:12px">'
     + '<thead><tr><th style="text-align:left" title="The Shopify code, and under it the code Amazon knows this by when it is not the same. Leave the Amazon box blank when they match. The FBA figure and the MCF order both use whatever is there.">Product</th>'
     + '<th class="num">Ordered</th>'
     + '<th class="num" title="Units to actually send to Amazon for THIS order. Blank means send what was ordered. 0 leaves the line out of the MCF order entirely. Stored against this order only, never against the SKU.">Send qty</th>'
-    + '<th class="num" title="Each Amazon account\'s stock of this line.">FBA</th><th title="What happens to THIS line: already sent, cancelled (refunded on Shopify), out of FBA, out of India stock, or made. Same wording as the route on the order itself, so the two cannot disagree.">Status</th>'
+    + '<th class="num" title="Each Amazon account\'s stock of this line.">FBA</th><th title="What happens to THIS line: already sent, cancelled (refunded on Shopify), out of FBA, out of India stock, or made. Same wording as the route on the order itself, so the two cannot disagree.">Route</th>'
     + '<th title="The bin, and how many of the ordered units are actually on that shelf. Every change is logged with the date and time.">Shelf · qty</th>'
     + '<th title="Where THIS line has got to, in your own words — cut, stitched, packed, whatever you use. Typed by you and saved against this order’s line, so it never changes another order carrying the same SKU. Different from the Status column on the left, which the app works out from stock and cannot be edited.">Line status</th>'
     + '<th title="Raised automatically for whatever is short. The id is built from the Shopify order number, so it can never collide and always points back.">Adjustment</th></tr></thead><tbody>'
@@ -45198,6 +45230,25 @@ function soMcfPayload(o) {
   };
 }
 
+/** The account as two buttons, each saying how many of this order's lines it can ship. Clicking one
+ *  sets the hidden select and fires its change, so everything that reads the select is untouched. */
+function soRenderMcfSeg(o, locked) {
+  const cur = $('soMcfBrand').value;
+  $('soMcfSeg').innerHTML = ['SP', 'CPC'].map(b => {
+    const n = soMcfPlan(o, b).send.length;
+    return '<button type="button" class="segbtn' + (b === cur ? ' on' : '') + '" data-acct="' + b + '"'
+      + (locked ? ' disabled' : '') + ' aria-pressed="' + (b === cur) + '">'
+      + soAcctName(b) + (locked ? '' : ' · ' + n + ' line' + (n === 1 ? '' : 's')) + '</button>';
+  }).join('');
+  $('soMcfSeg').querySelectorAll('[data-acct]').forEach(el => {
+    el.onclick = () => {
+      if ($('soMcfBrand').value === el.dataset.acct) return;
+      $('soMcfBrand').value = el.dataset.acct;
+      $('soMcfBrand').onchange && $('soMcfBrand').onchange();
+    };
+  });
+}
+
 /** What is already known about this order's MCF shipment, if anything. */
 function soRenderMcfBox() {
   const o = SHOP.orders.find(x => x.id === SHOP_EDIT);
@@ -45211,6 +45262,7 @@ function soRenderMcfBox() {
       + (meta.mcfTrk ? '<div style="margin-top:4px">Amazon tracking: <b>' + esc(meta.mcfTrk) + '</b></div>' : '')
       + '<div style="margin-top:6px"><button id="soMcfRefresh" class="ghost" style="padding:3px 10px;font-size:12px">Check status</button></div>';
     $('soMcfRefresh').onclick = soMcfStatus;
+    soRenderMcfSeg(o, true);
     /* One parcel per order: the fulfilment id is built from the order number, so a second one would
      * be refused. The button says so rather than inviting it. */
     $('soMcfPreview').disabled = true; $('soMcfPreview').textContent = 'Already sent to Amazon';
@@ -45223,6 +45275,7 @@ function soRenderMcfBox() {
   const other = brand === 'CPC' ? 'SP' : 'CPC';
   const po = soMcfPlan(o, other);
   const all = p.send.length + p.out.length;
+  soRenderMcfSeg(o);
   const btn = $('soMcfPreview');
   btn.disabled = !p.send.length;
   btn.textContent = p.send.length ? 'Check speeds & cost · ' + p.send.length + ' line' + (p.send.length === 1 ? '' : 's') : 'Nothing this account can ship';
@@ -45272,7 +45325,7 @@ $('soMcfPreview').onclick = async () => {
     $('soErr').innerHTML = mcfErr(e, 'Could not check speeds', { acct: pl.acct, skus: pl.send.map(x => x.amz) });
     $('soErr').classList.remove('hide');
   }
-  btn.disabled = false; btn.textContent = 'Check speeds & cost';
+  soRenderMcfBox();
 };
 
 /* A 403 from the MCF endpoints is never a bad payload — it is the app not being allowed to place
@@ -45437,6 +45490,7 @@ async function soMcfStatus() {
 
 $('soSave').onclick = saveShopOrder;
 $('soCancel').onclick = () => { $('soModal').classList.add('hide'); SHOP_EDIT = null; };
+$('soX').onclick = () => $('soCancel').onclick();
 $('soGo').onclick = fetchShopOrders;
 ['soState', 'soFilter', 'soDay'].forEach(id => $(id).addEventListener('input', renderShop));
 $('soDay').addEventListener('change', renderShop);
