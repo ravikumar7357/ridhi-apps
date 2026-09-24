@@ -21322,6 +21322,12 @@ function fabTools(view) {
 }
 
 function renderFab() {
+  /* ONLY WHERE SOMEBODY IS LOOKING. ensureFab ends here, and other screens call ensureFab for the
+   * ledger alone — the Order Console's Demand view does. The Fabric tab opens on the store, so that
+   * one read used to set off the whole store in the background: three more database reads, a
+   * thousand-row table and a minute of picture lookups, on a pane nobody could see. Opening the tab
+   * draws it; that is the moment it is wanted. */
+  if (typeof TAB_NOW !== 'undefined' && TAB_NOW && TAB_NOW !== 'fab') return;
   if (FAB.busy) { $('fbMsg').className = 'muted'; $('fbMsg').textContent = 'Reading the fabric ledger…'; ptEmpty('fbTable', 'Loading…'); return; }
   if (FAB.err) { $('fbMsg').className = 'err'; $('fbMsg').textContent = 'Could not read it: ' + FAB.err; ptEmpty('fbTable', 'Nothing to show.'); $('fbKpis').innerHTML = ''; return; }
   /* THE PO VIEW has its own buttons and its own table; the ledger's filters do not apply to it. */
@@ -23724,8 +23730,16 @@ let VO_PICKED = new Set();
 let VO_LOG = [];
 let VO = { rows: null, map: null, err: '', busy: false, at: '', shown: [], pick: {} };
 
+/* One read of the vendor orders at a time. The store, the Order Console's Demand view and this tab
+ * can all ask in the same second, and each used to read all 657 KB for itself. */
+let VO_LOADING = null;
 async function ensureVo() {
+  if (VO.rows === null && VO_LOADING) { await VO_LOADING; renderVo(); return; }
   if (VO.rows === null) {
+    let done; VO_LOADING = new Promise(r => { done = r; });
+    /* Whatever happens below, the waiters are let go — a promise left hanging would stop every
+     * later call to this from ever returning. */
+    try {
     VO.busy = true; renderVo();
     try {
       const [v, m] = await Promise.all([ptGet('pt_vendorOrders'), ptGet('pt_vendorMap')]);
@@ -23737,6 +23751,7 @@ async function ensureVo() {
       VO.err = '';
     } catch (e) { VO.err = e.message || String(e); VO.rows = VO.rows || []; VO.map = VO.map || {}; }
     VO.at = ptStamp(); VO.busy = false;
+    } finally { VO_LOADING = null; done(); }
   }
   renderVo();
 }
@@ -39676,17 +39691,46 @@ $('ptmSkcFile').onchange = async e => {
  * and the fifth is typed: the opening stock, and any correction, in pt_storeLedger.
  *
  * FROM WHEN: from the first opening entry. Before that the registers describe a store this screen was
- * not keeping, and counting them would produce a balance nobody recognises.
+ * not keeping, and counting them would produce a balance nobody recognises. With no opening stock at
+ * all, from ST_FROM_NO_OPENING — the day the store was set up.
  */
 let STORE = { rows: null, checks: null, err: '', busy: false, at: '' };
+/**
+ * The day the store was set up. With no opening stock, nothing before it is counted.
+ *
+ * Counting from the beginning of time made every karigar issue ever booked an OUT against a store
+ * that never had the IN for it: 1,401 of 1,669 items below zero, -43,122 pieces, and a table that took
+ * the page down with it. From here, a printer's delivery received today still shows — which is what
+ * counting without an opening stock was for — and the years before the store existed do not.
+ */
+const ST_FROM_NO_OPENING = '2026-09-22';
 const ST_UNITS = { pcs: 'pcs', m: 'm' };
+/* Rows drawn in the balance table — the ceiling every other register here uses. */
+const ST_MAX_ROWS = 600;
 const stNum = v => { const n = parseFloat(v); return isFinite(n) ? n : 0; };
 const stKey = r => (r.unit === 'pcs' ? 'P|' + obUC(r.sku) : 'M|' + fabKey(r.fabric) + '|' + fabKey(r.colour));
 const stName = r => (r.unit === 'pcs' ? obUC(r.sku) : [String(r.fabric || '').trim(), String(r.colour || '').trim()].filter(Boolean).join(' · '));
 
+/**
+ * Read the store, ONCE, however many things ask at the same time.
+ *
+ * This was a loop that took the page down. It drew the screen to say "loading" before it had marked
+ * itself as loading, drawing the screen is renderStore, and renderStore — finding the store still
+ * empty — asked for it again. Fifteen hundred levels deep, until the stack ran out, and then every
+ * level started its own reads: 7,594 of them for one open of the tab, the 2.2 MB Job Work register
+ * 1,518 times over. That is the "Failed to fetch" and the frozen machine. Now the load is marked
+ * before anything is drawn, and a second caller waits on the first.
+ */
+let STORE_LOADING = null;
 async function ensureStore(force) {
+  if (STORE_LOADING) return STORE_LOADING;
   if (STORE.rows !== null && !force) { renderFab(); return; }
-  STORE.busy = true; renderFab();
+  STORE_LOADING = ensureStoreRead().finally(() => { STORE_LOADING = null; });
+  return STORE_LOADING;
+}
+async function ensureStoreRead() {
+  STORE.busy = true;                       // BEFORE anything is drawn — see above
+  renderFab();
   const errs = [];
   try { STORE.rows = ptList(await ptGet('pt_storeLedger')); } catch (e) { errs.push('the store book (' + (e.message || e) + ')'); STORE.rows = STORE.rows || []; }
   try { STORE.checks = (await ptGet('pt_storeChecks')) || {}; } catch (e) { STORE.checks = STORE.checks || {}; }
@@ -39742,7 +39786,7 @@ function stMoves() {
   /* NO OPENING STOCK IS NOT A REASON TO RECORD NOTHING. Without one, the register still holds
    * everything that has moved — it simply is not the shelf yet, and the screen says so. Movements
    * before the opening stock ARE dropped, because the opening figure already contains them. */
-  const from = start || '';
+  const from = start || ST_FROM_NO_OPENING;
   /* ---- what the printers sent ---- */
   voLogRows().forEach(r => {
     const at = String((r.ok && r.ok.at) || r.at || '');
@@ -39921,7 +39965,7 @@ async function stSheetRun(list) {
 
 /* ---- the screens ---- */
 function renderStore(view) {
-  if (STORE.rows === null) { ensureStore(); }
+  if (STORE.rows === null && !STORE.busy) { ensureStore(); }
   if (STORE.busy) { $('fbMsg').className = 'muted'; $('fbMsg').textContent = 'Reading the store…'; ptEmpty('fbTable', 'Loading…'); $('fbKpis').innerHTML = ''; return; }
   const moves = stMoves();
   const start = stStart();
@@ -39972,7 +40016,9 @@ function renderStore(view) {
   }
   const head = '<thead><tr>' + ['Item', 'Kind', 'In', 'Out', 'Balance', 'Movements', 'Last']
     .map((h, i) => `<th${i === 0 ? ' class="frz"' : ([2, 3, 4, 5].indexOf(i) >= 0 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
-  $('fbTable').innerHTML = head + '<tbody>' + bal.map(b => '<tr>'
+  /* The same ceiling as every other register. The totals above still count every item. */
+  const drawn = bal.slice(0, ST_MAX_ROWS);
+  $('fbTable').innerHTML = head + '<tbody>' + drawn.map(b => '<tr>'
     + `<td class="frz" style="text-align:left">${b.unit === 'pcs' ? ptImgSpan(b.sku, 28) + ' ' : ''}${esc(b.name)}</td>`
     + `<td>${b.unit === 'pcs' ? 'Pieces' : 'Cloth'}</td>`
     + `<td class="num" style="color:#166534">${nf(b.inQty)}</td>`
@@ -39985,11 +40031,16 @@ function renderStore(view) {
   $('fbMsg').title = 'The balance is the sum of the movements, never a stored figure.'
     + (start ? '' : ' With no opening stock this is what has MOVED since the first entry, not what is on the shelf.'
       + ' Upload the opening stock and it becomes the shelf.');
-  $('fbMsg').innerHTML = esc(`${nf(bal.length)} item(s)`)
-    + (start ? '' : ' · <b>no opening stock yet</b>')
+  $('fbMsg').innerHTML = esc(drawn.length < bal.length
+      ? `${nf(drawn.length)} of ${nf(bal.length)} item(s) shown — search to find the rest`
+      : `${nf(bal.length)} item(s)`)
+    + (start ? '' : ' · <b>no opening stock yet</b> — counting from ' + esc(ST_FROM_NO_OPENING))
     + (toCheck.length ? ` · <a href="#" id="stToCheck">${nf(toCheck.length)} delivery(ies) to cross-check</a>` : '')
     + (STORE.err ? ' · ' + esc(STORE.err) : '');
-  ptImgFill(pcs.map(b => b.sku).filter(Boolean), false, renderFab);
+  /* PICTURES ARE PATCHED IN, NOT A REASON TO REDRAW. The lookup used to end with renderFab, which
+   * worked the whole store out again and asked for the next 120 pictures — fourteen full rebuilds for
+   * 1,576 SKUs. Now it fills the cells already on screen and stops. */
+  ptImgFill(drawn.filter(b => b.unit === 'pcs').map(b => b.sku).filter(Boolean), false, ptIfTab('fab', ptImgPatch));
 }
 
 $('fbTable').addEventListener('click', async e => {
