@@ -9477,11 +9477,11 @@ async function mdbConsApply() {
     saveLabel: 'Write them',
     onSave: async () => {
       const upd = {};
-      change.forEach(x => { if (x.row._key) upd['pt_masterDB/' + x.row._key + '/consumption'] = x.plan.metres; });
+      change.forEach(x => { if (x.row._key) upd['pt_masterDB/' + x.row._key + '/consumption'] = mdbM2(x.plan.metres); });
       const missing = change.filter(x => !x.row._key).length;
       if (!Object.keys(upd).length) return 'None of these rows has a key to write to.';
       try { await ptPatch(upd); } catch (e) { return 'Not written: ' + (e.message || e); }
-      change.forEach(x => { if (x.row._key) x.row.consumption = x.plan.metres; });
+      change.forEach(x => { if (x.row._key) x.row.consumption = mdbM2(x.plan.metres); });
       MDB_IX = { src: null, n: -1, map: null };
       renderPmdb();
       $('ptmMsg').className = 'muted';
@@ -9600,7 +9600,7 @@ function renderPmdb() {
     + ptImgCell(r.sku, 44)
     + `<td>${esc(r.brand)}</td><td>${esc(r.articleType)}</td><td>${esc(r.subtype)}</td>`
     + `<td>${esc(r.color)}</td><td>${esc(r.size)}</td><td>${esc(r.fabric)}</td>`
-    + `<td class="num">${r.consumption == null || r.consumption === '' ? '<span class="muted">—</span>' : esc(r.consumption)}</td>`
+    + `<td class="num">${mdbM2Txt(r.consumption) === '' ? '<span class="muted">—</span>' : esc(mdbM2Txt(r.consumption))}</td>`
     + `<td class="num">${esc(r.packOf)}</td><td>${yn(r.cuttingRequired)}</td><td>${zipCell(r)}</td>`
     + `<td>${rufCell(r)}</td><td>${pipCell(r)}</td><td>${yn(r.fillerFabricRequired)}</td>`
     + `<td>${custom ? '<span class="muted">—</span>'
@@ -10431,7 +10431,7 @@ $('ptmExport').onclick = () => {
     'Filler fabric', 'Filling qty', 'Valuation price', 'Image'].map(csvCell).join(',')];
   const b = v => v ? 'Yes' : 'No';
   rows.forEach(r => lines.push([r.sku, r.brand, r.articleType, r.subtype, r.color, r.size, r.fabric,
-    r.consumption, r.packOf, b(r.cuttingRequired),
+    mdbM2(r.consumption), r.packOf, b(r.cuttingRequired),
     b(r.isZip), r.isZip ? mdbZipQty(r) : '', r.isZip ? r.chainLength : '',
     b(r.isRuffle), r.isRuffle ? r.ruffleMeters : '', r.isRuffle ? r.ruffleFabric : '',
     b(r.isPiping), r.isPiping ? r.pipingMeters : '',
@@ -14065,6 +14065,15 @@ function mdbUsage(sku) {
 }
 
 const mdbNum = v => { const s = String(v == null ? '' : v).trim(); if (s === '') return null; const n = parseFloat(s); return isFinite(n) ? n : null; };
+/**
+ * METRES, TO TWO PLACES. Ravi, 2026-09-24: consumption showed as 1.2953999999999999 — inches turned
+ * into metres and stored as the raw float. The fields that are metres of cloth are rounded on the way
+ * in and shown to two places; nothing else is touched.
+ */
+const MDB_M2 = ['consumption', 'ruffleMeters', 'pipingMeters'];
+const mdbM2 = v => { const n = mdbNum(v); return n == null ? null : Math.round(n * 100) / 100; };
+/** For a table cell: "1.30", or a dash. */
+const mdbM2Txt = v => { const n = mdbM2(v); return n == null ? '' : n.toFixed(2); };
 
 /** The stored shape, built from form values — the same fields and the same nulls as the old tool. */
 /**
@@ -14078,15 +14087,15 @@ function mdbRecord(v, isCustom) {
     brand: String(v.brand || '').trim(), packOf: String(v.packOf || '').trim(),
     fabric: String(v.fabric || '').trim(),
     cuttingRequired: v.cuttingRequired !== 'no',
-    consumption: mdbNum(v.consumption),
+    consumption: mdbM2(v.consumption),
     isZip: v.isZip === 'yes', chainLength: v.isZip === 'yes' ? mdbNum(v.chainLength) : null,
     // How many zips one piece takes. Absent means one — see the note above mdbZipQty.
     zipQty: v.isZip === 'yes' ? (mdbNum(v.zipQty) || 1) : null,
-    isRuffle: v.isRuffle === 'yes', ruffleMeters: v.isRuffle === 'yes' ? mdbNum(v.ruffleMeters) : null,
+    isRuffle: v.isRuffle === 'yes', ruffleMeters: v.isRuffle === 'yes' ? mdbM2(v.ruffleMeters) : null,
     ruffleFabric: v.isRuffle === 'yes' ? String(v.ruffleFabric || '').trim() : '',
     /* PIPING DORI (Ravi, 2026-09-22: "jisme ruffle nahi h usme piping dori lagti h") — the cord sewn into
      * a piped edge, in metres per piece. */
-    isPiping: v.isPiping === 'yes', pipingMeters: v.isPiping === 'yes' ? mdbNum(v.pipingMeters) : null,
+    isPiping: v.isPiping === 'yes', pipingMeters: v.isPiping === 'yes' ? mdbM2(v.pipingMeters) : null,
     fillerFabricRequired: v.fillerFabricRequired === 'yes',
     standardFillingQty: v.fillerFabricRequired === 'yes' ? mdbNum(v.standardFillingQty) : null,
     inventoryValuationPrice: mdbNum(v.inventoryValuationPrice),
@@ -14144,7 +14153,7 @@ function mdbFields(r) {
     { key: 'fabric', label: 'Fabric', type: 'select', value: m('fabric', ''),
       options: [''].concat(fabListOr(m('fabric', ''))) },
     { key: 'packOf', label: 'Pack of', value: m('packOf', '') },
-    { key: 'consumption', label: 'Consumption (m)', type: 'number', step: '0.01', value: m('consumption', '') },
+    { key: 'consumption', label: 'Consumption (m)', type: 'number', step: '0.01', value: mdbM2Txt(m('consumption', '')) },
     { key: 'cuttingRequired', label: 'Cutting required', type: 'select', value: yn(m('cuttingRequired', true)), options: YESNO },
     { key: 'isZip', label: 'Zip', type: 'select', value: yn(m('isZip', false)), options: YESNO },
     { key: 'chainLength', label: 'Zip size / chain length (in)', type: 'number', step: '0.1', value: m('chainLength', '') },
@@ -39509,7 +39518,7 @@ function renderMdbRecipe() {
       + `<td style="text-align:left">${esc(c.size) || '<span class="muted">(none)</span>'}</td>`
       + `<td class="num">${nf(c.n)}</td>`
       + RECIPE_FIELDS.map(([f]) => `<td style="text-align:left">`
-        + (recSaid(r[f]) ? `<b>${esc(r[f])}</b>` : '<span class="muted">not set</span>')
+        + (recSaid(r[f]) ? `<b>${esc(MDB_M2.indexOf(f) >= 0 && mdbM2(r[f]) != null ? mdbM2Txt(r[f]) : r[f])}</b>` : '<span class="muted">not set</span>')
         /* WHAT THE SKUs SAY, under what the recipe says. The disagreement is the reason this screen
          * exists, so it is on the row rather than behind a click. */
         + `<div style="font-size:10.5px">${recSaysCell(c.says[f])}</div></td>`).join('')
@@ -39543,7 +39552,8 @@ function recipeEdit(key) {
         ? { key: f, label: label + '  [' + said + ']', type: 'select', value: recSaid(r[f]) ? recNorm(r[f]) : '',
             options: ['', 'yes', 'no'] }
         : { key: f, label: label + '  [' + said + ']', type: kind === 'num' ? 'number' : 'text',
-            step: kind === 'num' ? '0.01' : undefined, value: recSaid(r[f]) ? r[f] : '' };
+            step: kind === 'num' ? '0.01' : undefined,
+            value: recSaid(r[f]) ? (MDB_M2.indexOf(f) >= 0 && mdbM2(r[f]) != null ? mdbM2Txt(r[f]) : r[f]) : '' };
     }),
     saveLabel: 'Save the recipe',
     onSave: async v => {
@@ -40434,7 +40444,7 @@ function recipeValue(m, field) {
   if (!r || !recSaid(r[field])) return null;
   if (RECIPE_YN.indexOf(field) >= 0) return recNorm(r[field]) === 'yes';
   const spec = RECIPE_FIELDS.find(f => f[0] === field);
-  return spec && spec[2] === 'num' ? mdbNum(r[field]) : String(r[field]).trim();
+  return spec && spec[2] === 'num' ? (MDB_M2.indexOf(field) >= 0 ? mdbM2(r[field]) : mdbNum(r[field])) : String(r[field]).trim();
 }
 
 /**
@@ -40488,7 +40498,7 @@ function recipeSays(rows, field) {
     if (RECIPE_YN.indexOf(field) >= 0) { said++; const k = v === true ? 'yes' : 'no'; by.set(k, (by.get(k) || 0) + 1); return; }
     if (!recSaid(v)) { blank++; return; }
     said++;
-    const k = String(v).trim();
+    const k = MDB_M2.indexOf(field) >= 0 && mdbM2(v) != null ? String(mdbM2(v)) : String(v).trim();
     by.set(k, (by.get(k) || 0) + 1);
   });
   const values = [...by].map(([value, n]) => ({ value, n })).sort((a, b) => b.n - a.n);
@@ -40559,6 +40569,7 @@ async function recipeApplyRun(plan) {
     const ch = bySku.get(m.sku);
     if (!ch) { next.push(m); return; }
     const row = Object.assign({}, m, ch);
+    MDB_M2.forEach(f => { if (f in ch && ch[f] != null && ch[f] !== '') row[f] = mdbM2(ch[f]); });
     /* The same tidying mdbRecord does, so an applied recipe cannot leave a contradiction behind. */
     if (row.isZip !== true) { row.chainLength = null; row.zipQty = null; }
     else if (!(mdbNum(row.zipQty) > 0)) row.zipQty = 1;
@@ -40587,7 +40598,8 @@ async function recipeSave(rec) {
     editedBy: ME.email, editedAt: new Date().toISOString() });
   RECIPE_FIELDS.forEach(([f, , kind]) => {
     if (!recSaid(next[f])) { delete next[f]; return; }
-    next[f] = kind === 'yn' ? (recNorm(next[f]) === 'yes' ? 'yes' : 'no') : String(next[f]).trim();
+    next[f] = kind === 'yn' ? (recNorm(next[f]) === 'yes' ? 'yes' : 'no')
+      : (MDB_M2.indexOf(f) >= 0 && mdbM2(next[f]) != null ? String(mdbM2(next[f])) : String(next[f]).trim());
   });
   try { await ptPut('pt_masters/recipe/' + recPath(k), next); }
   catch (e) { return 'Not saved: ' + (e.message || e); }
@@ -40608,7 +40620,8 @@ async function recipeSeedRun(rows) {
     const next = Object.assign({}, rec, { seededBy: ME.email, seededAt: now });
     RECIPE_FIELDS.forEach(([f, , kind]) => {
       if (!recSaid(next[f])) { delete next[f]; return; }
-      next[f] = kind === 'yn' ? (recNorm(next[f]) === 'yes' ? 'yes' : 'no') : String(next[f]).trim();
+      next[f] = kind === 'yn' ? (recNorm(next[f]) === 'yes' ? 'yes' : 'no')
+        : (MDB_M2.indexOf(f) >= 0 && mdbM2(next[f]) != null ? String(mdbM2(next[f])) : String(next[f]).trim());
     });
     patch['pt_masters/recipe/' + recPath(key)] = next;
     keep[recPath(key)] = next;
