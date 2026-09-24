@@ -191,7 +191,7 @@ const EXPORT = '\n;return {'
   + 'SHOP:()=>SHOP, setSHOP:v=>{SHOP=v}, SHOP_META:()=>SHOP_META, setMETA:v=>{SHOP_META=v},'
   + 'SHOP_STOCK:()=>SHOP_STOCK, setSTOCK:v=>{SHOP_STOCK=v}, setSTOCKCASE:v=>{SHOP_STOCK_CASE=v},'
   + 'SHOP_SKU:()=>SHOP_SKU, setSKU:v=>{SHOP_SKU=v}, setINDIA:v=>{SHOP_INDIA=v; SHOP_INDIA_LOADED=true},'
-  + 'loadShopStock, loadShopIndia, soGuessBrand, soMcf, soAmzKey, soAmzCase, soLive, soSendQty,'
+  + 'loadShopStock, loadShopIndia, soGuessBrand, soMcf, soAmzKey, soAmzCase, soLive, soSendQty, soMcfPlan, soBestBrand, soMcfHas, mcfErr,'
   + 'apiPost, soMcfPayload, renderShop, soRows, SO_ALL_ROWS:()=>SO_ALL_ROWS, ensureShop, soStamp, sdToday, sdShift, soStoreDay,'
   + 'renderAdj, ajRows, soAdjId, soPackOf, soIndiaOf, soLineState, soFlags,'
   + 'shpSyncAll, shpSyncOrder, shpSyncMsg, shpPlanOrder, shpNeeds, shpLineShipped, shpOldestOpen, shpUnseen, shpCloseShipped, SHP_REACH_MAX_DAYS, shpOrderNo, shpOrderOf, shpWorkDone, adjOpen,'
@@ -1566,6 +1566,55 @@ console.log('\n== an ask that arrives mid-sync is kept, not dropped ==');
   if (inner) await inner;
   ok('an ask made from inside a run is honoured exactly once', runs === 2, 'runs=' + runs);
   A.setSyncAll(realAll);
+}
+console.log('\n== MCF: one parcel for what the chosen account holds ==');
+{
+  /* Ravi, 2026-09-24: "4 line item me order h and 1 hi mcf me pada h then m chahta hu wo 1 hi mcf ho
+   * jay, baki mcf me nahi h wo n ho" — and the raw "SellerSKU is invalid" that made the app look fake.
+   * Stock stubs: Ridhi holds RCNBMIX 40 and RTC301-6090 5; CPC holds RCNBmix 12. */
+  A.setSTOCK({}); A.setSTOCKCASE({}); A.setMETA({}); A.setSKU({});
+  await A.loadShopStock();
+  const o = { id: 'gid-M1', no: '#M1', at: '2026-09-24', ship: {}, items: [
+    { sku: 'RCNBMIX', name: 'Napkins', qty: 2 },
+    { sku: 'RTC301-6090', name: 'Tablecloth', qty: 1 },
+    { sku: 'RTCPR241-60', name: 'Runner', qty: 1 },
+    { sku: '', name: 'Tablecloth with no code', qty: 1 }] };
+  const sp = A.soMcfPlan(o, 'SP');
+  ok('Ridhi ships the two lines it holds, and not the other two',
+     sp.send.map(x => x.shop).join(',') === 'RCNBMIX,RTC301-6090' && sp.out.length === 2, JSON.stringify(sp.send.map(x => x.shop)));
+  ok('…and says why each of the others stays out',
+     sp.out.some(x => /not in Ridhi FBA/.test(x.why)) && sp.out.some(x => /no SKU/.test(x.why)), JSON.stringify(sp.out.map(x => x.why)));
+  const cpc = A.soMcfPlan(o, 'CPC');
+  ok('CPC holds only the napkins — a SKU stocked only on Ridhi is not claimed for CPC',
+     cpc.send.map(x => x.shop).join(',') === 'RCNBMIX' && cpc.out.some(x => x.label === 'RTC301-6090' && /not in CPC FBA/.test(x.why)),
+     JSON.stringify({ send: cpc.send.map(x => x.shop), out: cpc.out.map(x => x.label + ':' + x.why) }));
+  ok('the account that can ship the most lines is chosen', A.soBestBrand(o) === 'SP');
+  $('soMcfBrand').value = 'SP';
+  const pay = A.soMcfPayload(o);
+  ok('the parcel carries only those lines', pay.items.length === 2 && pay.items[0].qty === 2, JSON.stringify(pay.items));
+  $('soMcfBrand').value = 'CPC';
+  ok('…in the spelling of the account that ships it', A.soMcfPayload(o).items.map(x => x.sku).join(',') === 'RCNBmix',
+     JSON.stringify(A.soMcfPayload(o).items));
+  const big = Object.assign({}, o, { id: 'gid-M2', items: [{ sku: 'RCNBMIX', name: 'Napkins', qty: 20 }] });
+  ok('a line the account holds too few of is left out, with the count', A.soMcfPlan(big, 'CPC').send.length === 0
+     && /only 12 in CPC FBA, need 20/.test(A.soMcfPlan(big, 'CPC').out[0].why));
+
+  /* After sending: only the lines in the parcel read "MCF done". */
+  A.setMETA({ 'gid-M1': { mcfId: 'SHOP-M1', mcfSkus: ['RCNBMIX', 'RTC301-6090'] } });
+  ok('a line in the parcel reads MCF done', A.soLineState(o, o.items[0]).v === 'sent');
+  ok('…a line left out does not', A.soLineState(o, o.items[2]).v !== 'sent', A.soLineState(o, o.items[2]).v);
+  ok('…and nothing already sent is offered again', A.soMcfPlan(o, 'SP').send.length === 0);
+  A.setMETA({ 'gid-M1': { mcfId: 'OLD-M1' } });
+  ok('an order sent before lines were recorded counts as sent whole', A.soLineState(o, o.items[2]).v === 'sent');
+  A.setMETA({});
+
+  /* The error, in words. */
+  const raw = 'SP-API 400 on /fba/outbound/2020-07-01/fulfillmentOrders/preview :: {"errors":[{"code":"InvalidInput","message":"1 error(s) is/are present: the SellerSKU is invalid.","details":""}]}';
+  const m = A.mcfErr(new Error(raw), 'Could not check speeds', { acct: 'Ridhi', skus: ['RTC354-6060'] });
+  ok('an unknown SKU is said in words, and the SKU is named', /Amazon does not recognise this SKU on the Ridhi account/.test(m) && /RTC354-6060/.test(m), m);
+  ok('…Amazon\'s own text is kept, under Technical detail', /<details class="mcf-raw"><summary>Technical detail<\/summary>/.test(m) && m.indexOf('SP-API 400') > m.indexOf('<details'));
+  ok('…and it does not lead with it', m.indexOf('SP-API') > m.indexOf('Amazon does not recognise'));
+  ok('a busy Amazon says so', /Amazon is busy/.test(A.mcfErr(new Error('SP-API 429 QuotaExceeded'), 'Could not send', {})));
 }
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exitCode = fail ? 1 : 0;
