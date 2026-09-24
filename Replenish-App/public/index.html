@@ -363,10 +363,10 @@
   .ptnote{background:#eef2ff;color:#3730a3;border-radius:9px;padding:10px 12px;font-size:12.5px;margin-bottom:12px}
   /* The Shopify order panel, wide: a line is one row that fits. */
   .so-lines td{vertical-align:middle;padding-top:6px;padding-bottom:6px}
-  .so-prod{min-width:300px;text-align:left}
+  .so-prod{min-width:260px;max-width:330px;text-align:left}
   .so-pi{display:flex;align-items:center;gap:10px}
   .so-img{width:40px;height:40px;border-radius:8px;object-fit:cover;background:var(--chip);flex:0 0 auto;display:block}
-  .so-pt{min-width:0}
+  .so-pt{min-width:0;max-width:270px}
   .so-pn{font-size:13px;font-weight:600;line-height:1.3;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
   /* SHORTER ROWS (Ravi, 2026-09-24: "order bahut lamba fel raha h"): the name on one line (the whole of it
    * is in its tooltip) and the boxes in a row at 30 px instead of the form height. */
@@ -387,6 +387,9 @@
   button.so-x{background:transparent;color:var(--muted);box-shadow:none;width:40px;height:40px;padding:0;font-size:22px;line-height:1;flex:0 0 auto}
   button.so-x:hover{background:var(--chip);color:var(--ink)}
   .so-box{border:1px solid var(--line);border-radius:14px;overflow:auto;margin-bottom:16px}
+  .so-box table.so-lines{width:100%}
+  .so-lines td.so-route{white-space:normal;max-width:240px;min-width:190px}
+  .so-alt{font-size:11px;line-height:1.35;margin-top:4px;color:var(--muted);white-space:normal}
   .so-box table.so-lines{margin:0}
   .so-box table.so-lines thead th{background:var(--hover,#f7f9fb)}
   .so-grid{display:grid;grid-template-columns:1.3fr 1fr;gap:16px;align-items:start}
@@ -405,7 +408,7 @@
   .mcf-l > em{flex:0 0 auto}
   .mcf-l span em{font-family:inherit;font-weight:400}
   .mcf-l b{width:14px;flex:0 0 auto;color:var(--muted)} .mcf-l.ok b{color:var(--accent)}
-  .mcf-l span{font-family:ui-monospace,monospace;font-weight:600}
+  .mcf-l span{font-weight:600}
   .mcf-l em{font-style:normal;color:var(--muted)}
   .mcf-raw{margin-top:6px;font-weight:400;color:var(--muted)}
   .mcf-raw summary{cursor:pointer;font-size:12px}
@@ -44966,18 +44969,22 @@ function openShopOrder(id) {
               : '<span class="muted">—</span>')
         + '</td>'
         + '<td class="num">' + soFbaChips(amzKey, need, soOrdBrand(o)) + '</td>'
-        + '<td title="' + esc(st.why) + '">' + (SO_LINE_TAG[st.v] || esc(st.label))
+        + '<td class="so-route" title="' + esc(st.why) + '">' + (SO_LINE_TAG[st.v] || esc(st.label))
           /* ONLY WHERE IT HELPS: a line that cannot be filled as it stands. The same design in
            * another size is offered with the figures behind it, and an adjustment is the person's
            * to raise — the customer bought this size, not that one. */
-          + (st.v === 'make' ? (alts => alts.length
-              ? '<div class="muted" style="font-size:10.5px;margin-top:3px">'
-                + 'this size is out · '
-                + alts.map(a => esc(a.size || a.sku) + (a.shape ? ' (' + esc(a.shape) + ')' : '') + ' has '
-                    + [a.india ? nf(a.india) + ' India' : '', a.fba ? nf(a.fba) + ' FBA' : ''].filter(Boolean).join(' + ')).join(' · ')
-                + '<div style="font-size:10px">raise an adjustment if the customer will take another size</div>'
-                + '</div>'
-              : '')(soSizeAlternatives(sku, soOrdBrand(o))) : '')
+          /* SHORT, AND IT WRAPS (Ravi, 2026-09-24): one long unbroken line of every other size is what
+           * pushed the panel sideways. Two sizes are named, the rest counted; all of them in the tooltip. */
+          + (st.v === 'make' ? (alts => {
+              if (!alts.length) return '';
+              const one = a => esc(a.size || a.sku) + (a.shape ? ' ' + esc(a.shape) : '') + ' ('
+                + [a.india ? nf(a.india) + ' India' : '', a.fba ? nf(a.fba) + ' FBA' : ''].filter(Boolean).join(', ') + ')';
+              return '<div class="so-alt" title="' + esc('Same design, other sizes in stock: ' + alts.map(a => (a.size || a.sku) + ' — '
+                  + [a.india ? a.india + ' India' : '', a.fba ? a.fba + ' FBA' : ''].filter(Boolean).join(', ')).join('; ')
+                  + '. Raise an adjustment if the customer will take another size.') + '">'
+                + 'In stock: ' + alts.slice(0, 2).map(one).join(', ')
+                + (alts.length > 2 ? ' <b>+' + (alts.length - 2) + ' more</b>' : '') + '</div>';
+            })(soSizeAlternatives(sku, soOrdBrand(o))) : '')
           + '</td>'
         // An INPUT with a datalist, not a plain dropdown: the twelve bins are one keystroke away,
         // and a new one can still be typed. A closed list would mean a shelf that exists but cannot
@@ -45293,6 +45300,7 @@ function soRenderMcfBox() {
     /* One parcel per order: the fulfilment id is built from the order number, so a second one would
      * be refused. The button says so rather than inviting it. */
     $('soMcfPreview').disabled = true; $('soMcfPreview').textContent = 'Already sent to Amazon';
+    $('soMcfPreview').classList.add('hide');   // the box above already says it went
     return;
   }
   /* WHAT GOES, AND WHAT STAYS — before anything is clicked. The lines this account can ship are sent
@@ -45303,14 +45311,15 @@ function soRenderMcfBox() {
   soRenderMcfSeg(o);
   const btn = $('soMcfPreview');
   btn.disabled = !p.send.length;
+  btn.classList.toggle('hide', !p.send.length);
   btn.textContent = p.send.length ? 'Check speeds & cost · ' + p.send.length + ' line' + (p.send.length === 1 ? '' : 's') : 'Nothing this account can ship';
   $('soMcfBox').innerHTML = '<div class="mcf-plan">'
     + '<div class="mcf-h ' + (p.send.length ? 'ok' : 'bad') + '">'
       + (p.send.length ? p.acct + ' FBA can ship ' + p.send.length + ' of ' + all + ' line' + (all === 1 ? '' : 's')
-                       : p.acct + ' FBA holds none of these lines')
+                       : p.acct + ' FBA holds none of these lines — nothing to send to Amazon')
     + '</div>'
     + (p.send.length ? '<div class="mcf-l ok"><b>✓</b><em>Sends</em><span>' + p.send.map(x => esc(x.label) + ' × ' + x.qty).join(', ') + '</span></div>' : '')
-    + (p.out.length ? '<div class="mcf-l"><b>–</b><em>Stays out</em><span>' + p.out.map(x => esc(x.label) + ' <em>(' + esc(x.why) + ')</em>').join(', ') + '</span></div>' : '')
+    + (p.send.length && p.out.length ? '<div class="mcf-l"><b>–</b><em>Stays out</em><span>' + p.out.map(x => '<span title="' + esc(x.why) + '">' + esc(x.label) + '</span>').join(', ') + '</span></div>' : '')
     + '</div>';
 }
 

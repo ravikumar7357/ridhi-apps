@@ -1668,6 +1668,17 @@ console.log('\n== an order sees only its own Amazon account ==');
   ok('the order route is judged on its own account: the CPC order is only part-filled by FBA', A.soMcf(cpc).v === 'part' && A.soMcf(rid).v === 'yes', A.soMcf(cpc).v + ' / ' + A.soMcf(rid).v);
   ok('…and the line CPC lacks is not "FBA ready" there', A.soLineState(cpc, items[1]).v !== 'fba' && A.soLineState(rid, items[1]).v === 'fba');
 
+  /* NOTHING TO SEND is one sentence, and no big disabled button (Ravi, 2026-09-24: keep design 1, less clutter). */
+  const none = { id: 'gid-C2', no: '#C2', at: '2026-09-24', ship: {}, ff: 'unfulfilled', trk: [], shopBrand: 'CPC', items: [items[1]] };
+  A.setSHOP({ orders: [rid, cpc, none], from: '', to: '', tz: 'America/Los_Angeles', at: '' });
+  A.openShopOrder('gid-C2');
+  ok('an order CPC holds none of says so in one line', /CPC FBA holds none of these lines — nothing to send to Amazon/.test(els.soMcfBox.innerHTML) && !/Stays out/.test(els.soMcfBox.innerHTML), els.soMcfBox.innerHTML);
+  ok('…and the Check button is not shown', els.soMcfPreview.classList.contains('hide'));
+  A.openShopOrder('gid-C1');
+  ok('an order that can send shows the button again', !els.soMcfPreview.classList.contains('hide'));
+  const src = fs.readFileSync(APP, 'utf8');
+  ok('other sizes: two named and the rest counted, in a cell that wraps — no long line pushing the panel sideways',
+     !/this size is out · /.test(src) && /alts\.slice\(0, 2\)/.test(src) && /td\.so-route\{white-space:normal/.test(src));
   A.setMETA({ 'gid-C1': { mcfId: 'SHOP-C1', mcfBrand: 'SP' } });
   A.openShopOrder('gid-C1');
   ok('an order already sent keeps the account it went on, so its status is asked there', els.soMcfBrand.value === 'SP');
