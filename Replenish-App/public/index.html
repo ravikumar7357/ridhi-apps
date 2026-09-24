@@ -1994,7 +1994,8 @@
       <div class="card" style="padding:12px 14px">
         <div class="toolbar">
           <select id="odView" style="flex:0 0 235px" title="The same order book, read four ways.">
-            <option value="book">Order book — every order</option>
+            <option value="book">Order book — pending</option>
+            <option value="bookdone">Order book — complete &amp; handed over</option>
             <option value="shopsku">Shopify — by SKU, combined</option>
             <option value="shoporder">Shopify — by order (pending)</option>
             <option value="shopdone">Shopify — complete &amp; handed over</option>
@@ -3377,8 +3378,7 @@ onAuthStateChanged(auth, async user => {
     const b = $('tabOrd');
     /* The name only — setting the whole item's text took its icon and its count with it. */
     if (b) { b.style.display = ''; const t = b.querySelector && b.querySelector('.nav-t'); (t || b).textContent = 'Shopify Orders'; }
-    const bookOpt = $('odView') && $('odView').querySelector('option[value="book"]');
-    if (bookOpt) bookOpt.remove();
+    ['book', 'bookdone'].forEach(k => { const o = $('odView') && $('odView').querySelector('option[value="' + k + '"]'); if (o) o.remove(); });
     if ($('odView')) $('odView').value = 'shopsku';
   }
   syncNavGroups();
@@ -18112,8 +18112,9 @@ function renderOrd() {
   let v = ordView();
   /* A Shopify-only account can never be shown the order book, whatever the picker says — the option
    * is removed above, and this is the second lock, because a stale value would otherwise open it. */
-  if (SHOP_ONLY() && v === 'book') { v = 'shopsku'; if ($('odView')) $('odView').value = v; }
-  const ow = $('odOrd'); if (ow) ow.style.display = v === 'book' ? '' : 'none';
+  if (SHOP_ONLY() && (v === 'book' || v === 'bookdone')) { v = 'shopsku'; if ($('odView')) $('odView').value = v; }
+  const isBook = v === 'book' || v === 'bookdone';
+  const ow = $('odOrd'); if (ow) ow.style.display = isBook ? '' : 'none';
   /* THE BAR IS FOR BOTH JOBS NOW. It used to appear only for somebody who may record production,
    * which hid the printer sheet from the very people whose job is giving the printing out. */
   const bulkOk = v === 'shopsku' && (ptCanEdit() || spCanAssign());
@@ -18130,10 +18131,14 @@ function renderOrd() {
   /* The demand view is neither the book nor a Shopify list: it is the book added up by fabric. */
   if (v === 'demand') return renderOrdDemand();
   if (v === 'democol') return renderOrdDemandCol();
-  if (v !== 'book') { const out = renderOrdShopify(v === 'shopsku', v === 'shopdone'); if (bulkOk) spBulkRender(); return out; }
+  if (!isBook) { const out = renderOrdShopify(v === 'shopsku', v === 'shopdone'); if (bulkOk) spBulkRender(); return out; }
 
-  const all = ordLines();
-  if (!all.length) { $('odMsg').className = 'muted'; $('odMsg').textContent = ''; $('odKpis').innerHTML = ''; ptEmpty('odTable', 'The order book is empty.'); return; }
+  /* PENDING HERE, FINISHED IN THEIR OWN VIEW (Ravi, 2026-09-24): a line that is Complete or handed over is
+   * not work, so it is not on the pending book and it counts in no "to make". */
+  const doneView = v === 'bookdone';
+  const all = ordLines().filter(r => (doneView ? !r.open : r.open));
+  if (!all.length) { $('odMsg').className = 'muted'; $('odMsg').textContent = ''; $('odKpis').innerHTML = '';
+    ptEmpty('odTable', doneView ? 'Nothing is complete or handed over yet.' : 'Nothing is pending — every order line is complete.'); return; }
 
   const f = ordFilters();
   ptFill('odOrd', ordApply(all, f, 'ord').map(r => r.orderNo), 'All orders');
@@ -18150,7 +18155,7 @@ function renderOrd() {
   const s = fn => shown.reduce((a, r) => a + fn(r), 0);
   const orphan = ordOrphans();
   const orphanTotal = orphan.base + orphan.cut + orphan.press;
-  $('odKpis').innerHTML = ordKpiCards('Order Console', [
+  $('odKpis').innerHTML = ordKpiCards(doneView ? 'Order Console — complete & handed over' : 'Order Console — pending', [
     [nf(new Set(shown.map(r => r.orderNo)).size), 'Orders', 'doc', 'blue', 'read live' + (ORD.at ? ' · ' + esc(ORD.at) : '')],
     [nf(shown.length), 'Lines', 'list', 'blue', 'one order, one SKU'],
     [nf(s(r => r.qty)), 'Ordered', 'box', 'blue', 'pieces asked for'],
@@ -18881,7 +18886,7 @@ $('odExport').onclick = () => {
       r2(r.cutPcs), r2(r.cutAtPcs), r2(r.cutGive), r2(r.need), r2(r.give), r2(r.have), r2(r.short)].map(csvCell).join(',')));
     return ptDownload('printing-and-cloth-demand', out);
   }
-  if (v !== 'book') {
+  if (v !== 'book' && v !== 'bookdone') {
     /* Two columns for the two ids, not the one the table stacks — a spreadsheet sorts on them
      * separately. */
     const bySku = v === 'shopsku';

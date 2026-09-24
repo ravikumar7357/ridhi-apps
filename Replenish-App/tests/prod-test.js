@@ -14366,7 +14366,12 @@ console.log('\n== an order line, followed from ordered to on the shelf ==');
          && !/never recorded/.test(els.odTable.innerHTML), bodyRows(els.odTable.innerHTML).length + ' row(s) shown');
       /* And the order book, which shows the same lines, says it too. */
       els.odView.value = 'book'; A.renderOrd();
-      ok('the order book says it as well', /never recorded/.test(els.odTable.innerHTML));
+      /* Ravi, 2026-09-24: "complete or handover ho gya to … is window me show nahi hona chahiye". */
+      ok('the pending order book leaves a handed-over line out', !/data-ordj="SHP-9100"/.test(els.odTable.innerHTML));
+      els.odView.value = 'bookdone'; A.renderOrd();
+      ok('…the complete view has it, and says the hole', /data-ordj="SHP-9100"/.test(els.odTable.innerHTML) && /never recorded/.test(els.odTable.innerHTML));
+      ok('…and nothing in the complete view is still open', !/to make<\/span>|to cut<\/span>/.test(els.odTable.innerHTML));
+      els.odView.value = 'book';
       /* And the journey. */
       A.ptOpenDialog({ title: 'cleared', html: '', note: '' });
       try { A.ordJourney('SHP-9100'); } catch (e) { /* fails below */ }
