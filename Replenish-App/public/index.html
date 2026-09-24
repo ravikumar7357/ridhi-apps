@@ -9746,8 +9746,15 @@ function renderPmdb() {
     : `<span class="pill pill-ok">Yes</span><div class="muted" style="font-size:11px;margin-top:2px">${nf(mdbZipQty(r))} × ${esc(r.chainLength == null ? '?' : r.chainLength)}"</div>`;
   const pipCell = r => !r.isPiping ? '<span class="muted">—</span>'
     : `<span class="pill pill-ok">Yes</span><div class="muted" style="font-size:11px;margin-top:2px">${r.pipingMeters == null ? '?' : esc(r.pipingMeters)}m dori</div>`;
-  const rufCell = r => !r.isRuffle ? '<span class="muted">—</span>'
-    : `<span class="pill pill-ok">Yes</span><div class="muted" style="font-size:11px;margin-top:2px">${r.ruffleMeters == null ? '?' : esc(r.ruffleMeters)}m${r.ruffleFabric ? ' · ' + esc(r.ruffleFabric) : ''}</div>`;
+  /* What the cutting issue and the demand will use — the SKU's own figures, else its recipe — and a word
+   * saying which, so a figure that is not typed on the SKU is not mistaken for one that is. */
+  const rufCell = r => {
+    if (!r.isRuffle) return '<span class="muted">—</span>';
+    const u = ptRuffleOf(r);
+    const txt = u ? mdbM2Txt(u.meters) + 'm · ' + esc(u.fabric) + (u.from === 'sku' ? '' : ' <span title="Not typed on this SKU — taken from its ' + u.from + '">(' + u.from + ')</span>')
+      : (r.ruffleMeters == null ? '?' : esc(r.ruffleMeters)) + 'm' + (r.ruffleFabric ? ' · ' + esc(r.ruffleFabric) : '');
+    return '<span class="pill pill-ok">Yes</span><div class="muted" style="font-size:11px;margin-top:2px">' + txt + '</div>';
+  };
   const body = rows.slice(0, PMDB_MAX).map(r => '<tr>'
     + `<td class="frz" style="font-family:ui-monospace,monospace;text-align:left">${esc(r.sku)}</td>`
     + ptImgCell(r.sku, 44)
@@ -10690,7 +10697,7 @@ async function ptLoadGates(force) {
     ]);
     PTG.shopProd = shopProd || {};
     PTG.masters = masters || {};
-    PTG.mdb = ptList(mdb);
+    PTG.mdb = ptList(mdb).map(mdbYnFix);
     PTG.ob = ptList(ob);
     PTG.press = ptList(press);
     PTG.freeze = freeze || {};
@@ -14270,7 +14277,8 @@ function mdbValidate(v, existingSku) {
   // Blank is allowed and means one; a number that is there must be a real one.
   if (v.isZip === 'yes' && String(v.zipQty || '').trim() !== '' && !(mdbNum(v.zipQty) > 0))
     return 'Zip quantity must be a number greater than zero.';
-  if (v.isRuffle === 'yes' && !(mdbNum(v.ruffleMeters) > 0)) return 'Ruffle metres are required when ruffle is Yes.';
+  if (v.isRuffle === 'yes' && !(mdbNum(v.ruffleMeters) > 0) && !(mdbNum((recipeOf(v) || {}).ruffleMeters) > 0))
+    return 'Ruffle metres are required when ruffle is Yes (or fill them in the recipe for this product and size).';
   if (v.isPiping === 'yes' && !(mdbNum(v.pipingMeters) > 0)) return 'Piping dori metres are required when piping dori is Yes.';
   if (v.fillerFabricRequired === 'yes' && !(mdbNum(v.standardFillingQty) > 0))
     return 'Standard filling quantity is required when filler fabric is Yes.';
@@ -14718,6 +14726,20 @@ function mdbFromCsv(row, ix) {
     fillerFabricRequired: yn('filler'), standardFillingQty: g('fillqty'),
     inventoryValuationPrice: g('valprice'), imageUrl: g('image'),
   };
+}
+
+/**
+ * A yes/no on a master row, as true or false. 1,128 rows (every CPCRU/ruffle row among them) were
+ * written with the TEXT "yes" in isRuffle — true to anything that only asks "is it set", but "no" to
+ * every check that asks === true: the recipe's count of what its SKUs say, the apply plan, the tidy
+ * that clears ruffle metres. Read once here, so no screen has to know there are two spellings.
+ */
+const MDB_YN = ['cuttingRequired', 'isZip', 'isRuffle', 'isPiping', 'fillerFabricRequired', 'isCustom'];
+function mdbYnFix(r) {
+  if (!r || !MDB_YN.some(f => typeof r[f] === 'string')) return r;
+  const o = Object.assign({}, r);
+  MDB_YN.forEach(f => { if (typeof o[f] === 'string') o[f] = mdbYes(o[f]); });
+  return o;
 }
 
 /** A master row as the form would hold it — the other half of "a column that is not there says nothing". */
@@ -23607,7 +23629,7 @@ function bdMaterialsFor(sku, pcs) {
   if (ptIsRuffle(m)) {
     const r = ptRuffleOf(m);
     if (!r) {
-      out.push({ kind: 'ruffle', why: `no ruffle rule for ${m.subtype || '?'} ${m.size || '?'} — set it under Masters → Ruffle fabric` });
+      out.push({ kind: 'ruffle', why: `no ruffle metres for ${m.subtype || '?'} ${m.size || '?'} — fill Ruffle metres and Ruffle fabric in its recipe` });
     } else {
       out.push({ kind: 'ruffle', what: r.fabric, qty: Math.round(n * r.meters * 100) / 100, unit: 'm',
         per: r.meters, have: null });
@@ -23682,13 +23704,22 @@ const ptRufKey = (sub, size) => String(sub || '').trim().toLowerCase() + '|'
   + String(size || '').trim().toLowerCase().replace(/\s+/g, '');
 
 /**
- * What ruffle a SKU takes: its own figures if the master row has them, else the rule for its subtype
- * and size. Null when neither says — which is reported, not guessed.
+ * What ruffle a SKU takes: its own figures if the master row has them, else its RECIPE (article ·
+ * subtype · size), else the older ruffle rule for its subtype and size. Null when none says — which is
+ * reported, not guessed. A SKU that has its own metres but no cloth (or the other way round) takes the
+ * missing half from the recipe: what it did say is still what counts.
  */
 function ptRuffleOf(m) {
   if (!ptIsRuffle(m)) return null;
   const ownFab = String(m.ruffleFabric || '').trim(), ownM = parseFloat(m.ruffleMeters);
   if (ownFab && ownM > 0) return { fabric: ownFab, meters: ownM, from: 'sku' };
+  /* THE RECIPE (Ravi, 2026-09-24): filled once per product and size, it is where the ruffle metres now
+   * live — the SKU rows were imported without them. */
+  const rec = typeof recipeOf === 'function' ? recipeOf(m) : null;
+  if (rec && recNorm(rec.isRuffle) !== 'no') {
+    const rm = ownM > 0 ? ownM : parseFloat(rec.ruffleMeters), rf = ownFab || String(rec.ruffleFabric || '').trim();
+    if (rf && rm > 0) return { fabric: rf, meters: Math.round(rm * 100) / 100, from: 'recipe' };
+  }
   const r = ptRuffleRules().find(x => ptRufKey(x.subtype, x.size) === ptRufKey(m.subtype, m.size));
   const rm = r ? parseFloat(r.meters) : NaN;
   if (r && String(r.fabric || '').trim() && rm > 0) return { fabric: String(r.fabric).trim(), meters: rm, from: 'rule' };
@@ -23714,8 +23745,8 @@ async function ptConsumeRuffle(entry) {
   const r = ptRuffleOf(m);
   if (isFinite(saidM) && saidM <= 0) return '';          // told: nothing went with these pieces
   if (!r && !(isFinite(saidM) && saidM > 0 && saidF))
-    return ` Ruffle fabric was NOT deducted: there is no ruffle rule for ${m.subtype || '?'} ${m.size || '?'}, `
-      + 'and no fabric and metres were entered on the issue. Set the rule under Masters → Ruffle fabric.';
+    return ` Ruffle fabric was NOT deducted: neither the SKU, its recipe nor a ruffle rule gives metres for ${m.subtype || '?'} ${m.size || '?'}, `
+      + 'and no fabric and metres were entered on the issue. Fill Ruffle metres and Ruffle fabric in its recipe.';
   const fab = saidF || r.fabric;
   const qty = isFinite(saidM) && saidM > 0 ? Math.round(saidM * 100) / 100
     : Math.round(pcs * r.meters * 100) / 100;
