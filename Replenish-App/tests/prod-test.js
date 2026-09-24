@@ -48,7 +48,7 @@ const IDS = ('ptmBrand ptmArt ptmSub ptmCol ptmSz ptmCut ptmQ ptmBrandFs ptmDir 
   + 'ppOrd ppArt ppSub ppCol ppSz ppQ ppD1 ppD2 ppClear ppExport ppGo ppMsg ppKpis ppTable '
   + 'pwToggle pwBox pwOrd pwAt pwSub pwCol pwSz pwSku pwPcs pwDate pwRemarks pwSave pwLeft pwMsg '
   + 'spCutPcs spCutDate spCutFab spCutGo spIssType spIssEmp spIssEmpList spIssPcs spIssDate spIssGo spRecPcs spRecDate spRecGo spPrsPcs spPrsDate spPrsGo '
-  + 'ptDlg ptDlgTitle ptDlgClose ptDlgWho ptDlgNote ptDlgBody ptDlgMsg ptDlgDelete ptDlgCancel ptDlgSave '
+  + 'ptDlg ptDlgTitle ptDlgClose ptDlgWho ptDlgNote ptDlgBody ptDlgMsg ptDlgDelete ptDlgCancel ptDlgSave ptDlgBox ptDlgTitleX ptDlgFootL sof_tot '
   + 'qcView qcQ qcD1 qcD2 qcClear qcExport qcGo qcMsg qcKpis qcTable qcCheckBox qcwToggle qcwBox qcwSrc qcwSku qcwType qcwBy qcwOrd qcwOrdList qcwChecked qcwAlt qcwRej qcwOk qcwRemarks tabAtt paneAtt attDay attToday attDept attType attState attQ attExport attGo attView attMonth attMsg attKpis attTable qcRetBox qcrToggle qcrBox qcrPick qcrBy qcrPcs qcrOk qcrRej qcrRemarks qcrSave qcrInfo qcrMsg qcwSave qcwInfo qcwMsg '
   + 'qcIssueBox qciToggle qciBox qciSku qciType qciEmp qciEmpList qciPcs qciRemarks qciSave qciInfo qciMsg '
   + 'ptmView ptmConsApply ptmRecSeed ptmRecApply ptmNew ptmImgs ptmTemplate ptmTplShort ptmImport ptmFile ptmRecFile ptmRename ptmImpMsg ptmImpBox ptmImpGo ptmImpCancel '
@@ -19670,6 +19670,53 @@ console.log('\n== zippers come off whichever screen issues the pieces ==');
 
   A.setPT(wasPT); A.setPTG(wasPTG); A.setPTE(wasPTE); A.setACC(wasACC);
   ME.prodEdit = wasEdit; ME.admin = wasAdmin; NET.on = wasNet; NET.store = {}; NET.calls.length = 0;
+}
+
+console.log('\n== the new sales order is the wide sheet ==');
+{
+  /* Ravi, 2026-09-24: "I NEED REDESIGN FOR THIS" → picked "1 — Wide sheet" from ten on the canvas. */
+  const wasSOF = A.SOF(), wasPTG = A.PTG(), wasEdit = ME.admin;
+  ME.admin = true;
+  A.setPTG(Object.assign({}, wasPTG, { mdb: (wasPTG.mdb || []).concat([
+    { sku: 'AC987-2222', articleType: 'Pillow Cover', subtype: 'Piping Pillow Cover', color: 'Callum', size: '22x22' }]) }));
+  A.soFormOpen(null);
+  const d = A.PTD_();
+  ok('it opens wide', d && d.wide === true);
+  ok('…with Place order as the main button and Save draft beside it',
+     d.altPrimary === true && d.alt && d.alt.label === 'Place order' && els.ptDlgSave.textContent === 'Save draft',
+     els.ptDlgSave.textContent);
+  ok('…the main button last, where the eye ends up', els.ptDlgAlt.style.order === '2' && els.ptDlgSave.style.order === '1');
+  ok('…the order number is a chip beside the title', /id="sof_id"/.test(els.ptDlgTitleX.innerHTML));
+  /* "mujhe type ki line is app me kanhi bhi nahi chahiye" — no standing sentence on a new order. */
+  ok('no standing sentence under the title of a new order', !d.subtitle, d.subtitle);
+  ok('…and no paragraph beside the upload button', !/sof_hint/.test(els.ptDlgBody.innerHTML));
+  ok('order type is two buttons, and the value the save reads is still there',
+     /data-softype="regular"/.test(els.ptDlgBody.innerHTML) && /data-softype="newdev"/.test(els.ptDlgBody.innerHTML)
+     && /id="sof_type" type="hidden"/.test(els.ptDlgBody.innerHTML));
+
+  /* ONE ROW PER LINE, NOTHING OFF THE EDGE: the product is one cell. */
+  A.setSOF(Object.assign({}, A.SOF(), { page: 0, lines: [
+    { sku: 'AC987-2222', qty: 20, deliveryDate: '', orderTypeKey: 'regular', priority: 'P2' },
+    { sku: 'AC987-9999', qty: 5, deliveryDate: '', orderTypeKey: 'regular', priority: '' },
+    { sku: '', qty: '', deliveryDate: '', orderTypeKey: 'regular', priority: '' }] }));
+  els.sof_channel.value = 'ONL';
+  A.soFormLines();
+  const t = els.sof_table.innerHTML;
+  const heads = [...t.matchAll(/<th(?:\s[^>]*)?>(.*?)<\/th>/g)].map(m => m[1]);
+  ok('the columns are #, Product, Type, Priority, Qty, Delivery', heads.slice(0, 6).join('|') === '#|Product|Type|Priority|Qty|Delivery', heads.join('|'));
+  ok('…and every row has exactly as many cells as there are headings',
+     (t.split('<tbody>')[1] || '').split('</tr>').filter(r => /<td/.test(r)).every(r => (r.match(/<td[\s>]/g) || []).length === heads.length));
+  ok('a known SKU says what it is: subtype · colour · size', /Piping Pillow Cover · Callum · 22x22/.test(t));
+  ok('an unknown SKU is marked on its row, and says so', /<tr class="bad">/.test(t) && /not in master/.test(t));
+  ok('the footer counts lines with a SKU and their pieces', /2 lines/.test(els.sof_tot.innerHTML) && /25 pcs/.test(els.sof_tot.innerHTML),
+     els.sof_tot.innerHTML);
+
+  /* The dialog is shared by every screen: what this one asked for must not follow into the next. */
+  A.ptOpenDialog({ title: 'Something else', onSave: () => '' , fields: [] });
+  ok('the next dialog opens at its own size, with its own buttons',
+     A.PTD_().wide !== true && els.ptDlgSave.textContent === 'Save' && els.ptDlgSave.style.order === '' && els.ptDlgTitleX.innerHTML === '' && els.ptDlgFootL.innerHTML === '');
+
+  A.setSOF(wasSOF); A.setPTG(wasPTG); ME.admin = wasEdit;
 }
 
 console.log('\n== the installed app ==');

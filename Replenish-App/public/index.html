@@ -338,6 +338,44 @@
   .ptbox{margin-top:14px;border:1px solid var(--line);border-radius:10px;padding:12px;background:var(--hover,#f8fafc)}
   .ptbox-t{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;margin-bottom:4px}
   .ptnote{background:#eef2ff;color:#3730a3;border-radius:9px;padding:10px 12px;font-size:12.5px;margin-bottom:12px}
+  /* The wide sheet (New sales order). Opt-in per dialog; every other dialog keeps 640 px. */
+  .ptmodal-box.ptmodal-wide{width:1180px;border:0;border-radius:var(--r-card)}
+  .ptmodal-wide .ptmodal-head{font-size:20px;font-weight:800;padding:20px 26px;border-bottom:0}
+  .ptmodal-wide .ptmodal-body{padding:4px 26px 12px}
+  .ptmodal-wide .ptmodal-foot{padding:16px 26px 20px;border-top:1px solid var(--line)}
+  .ptmodal-foot button{order:0}
+  .sof-no{display:inline-flex;align-items:center;height:28px;padding:0 12px;border-radius:999px;background:var(--brand-bg);
+    color:var(--brand-ink);font-family:ui-monospace,monospace;font-size:13px;font-weight:700;white-space:nowrap}
+  .sof-no.none{background:var(--chip);color:var(--muted);font-family:inherit;font-weight:600}
+  .sof-grid{display:grid;grid-template-columns:1.2fr 1fr 1.6fr 1fr 1.2fr;gap:14px;align-items:end;margin-bottom:22px}
+  .sof-grid>label,.sof-grid>.sof-f{display:flex;flex-direction:column;gap:6px;min-width:0;font-size:11px;font-weight:700;
+    letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+  .sof-grid input,.sof-grid select{font-size:14px;text-transform:none;letter-spacing:0;font-weight:500;color:var(--ink);width:100%;box-sizing:border-box}
+  .sof-seg{display:inline-flex;background:var(--chip);border-radius:var(--r-ctl);padding:4px;gap:4px;align-self:flex-start}
+  .sof-seg button{padding:8px 14px;border-radius:9px;background:transparent;color:var(--muted);font-weight:600;font-size:13px;box-shadow:none;text-transform:none;letter-spacing:0}
+  .sof-seg button:hover{background:rgba(255,255,255,.6);color:var(--ink)}
+  .sof-seg button.on{background:var(--card);color:var(--ink);box-shadow:var(--sh-1)}
+  .sof-bar{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+  .sof-bar .sof-h{font-size:16px;font-weight:800;color:var(--ink)}
+  .sof-lines{border:1px solid var(--line);border-radius:14px;overflow:auto;max-height:46vh}
+  .sof-t{width:100%;border-collapse:collapse}
+  .sof-t th{position:sticky;top:0;z-index:1;background:var(--soft);font-size:11px;font-weight:700;letter-spacing:.05em;
+    text-transform:uppercase;color:var(--muted);text-align:left;padding:10px 12px;border-bottom:1px solid var(--line)}
+  .sof-t th.num,.sof-t td.num{text-align:right}
+  .sof-t td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:middle;font-size:14px}
+  .sof-t tr:last-child td{border-bottom:0}
+  .sof-t tr.bad td{background:var(--bad-bg)}
+  .sof-prod{display:flex;align-items:center;gap:12px;min-width:0}
+  .sof-th{width:44px;height:44px;border-radius:10px;background:var(--chip);flex:0 0 auto;object-fit:cover;display:block}
+  .sof-sku{width:170px;font-family:ui-monospace,monospace;font-weight:700;text-transform:uppercase}
+  .sof-meta{font-size:12.5px;color:var(--muted);margin-top:4px}
+  .sof-meta .miss{display:inline-flex;height:22px;align-items:center;padding:0 9px;border-radius:999px;background:var(--bad-bg);color:var(--bad);font-weight:700;font-size:12px}
+  .sof-t select{padding-left:10px;padding-right:26px}
+  .sof-qty{width:92px;text-align:right;font-weight:700;font-size:15px}
+  .sof-del{width:34px;height:34px;padding:0;border-radius:10px;background:transparent;color:var(--muted);box-shadow:none;font-size:20px;font-weight:400}
+  .sof-del:hover{background:var(--bad-bg);color:var(--bad)}
+  .sof-tot{display:inline-flex;gap:8px}
+  .sof-tot span{display:inline-flex;align-items:center;height:28px;padding:0 12px;border-radius:999px;background:var(--chip);font-size:12.5px;font-weight:700;color:var(--ink)}
   /* Salary slip — printed as often as it is read, so it is styled to survive being printed. */
   .slip{max-width:760px;margin:0 auto;color:var(--ink)}
   .sliphead{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #1f3864;padding-bottom:12px}
@@ -2682,9 +2720,10 @@
      Every register's Edit opens here. Written once so the admin-only box, the delete confirmation
      and the save/failure handling cannot drift apart between screens. -->
 <div id="ptDlg" class="hide ptmodal">
-  <div class="ptmodal-box">
+  <div class="ptmodal-box" id="ptDlgBox">
     <div class="ptmodal-head">
       <span id="ptDlgTitle">Edit</span>
+      <span id="ptDlgTitleX"></span>
       <button id="ptDlgClose" class="ptmodal-x" type="button" aria-label="Close">&times;</button>
     </div>
     <div class="ptmodal-body">
@@ -2695,6 +2734,7 @@
     </div>
     <div class="ptmodal-foot">
       <button id="ptDlgDelete" class="ghost hide" style="color:var(--bad)">Delete</button>
+      <span id="ptDlgFootL"></span>
       <span style="flex:1"></span>
       <button id="ptDlgCancel" class="ghost">Cancel</button>
       <button id="ptDlgAlt" class="ghost hide"></button>
@@ -13125,6 +13165,18 @@ function ptOpenDialog(cfg) {
   $('ptDlgAlt').classList.toggle('hide', !cfg.alt);
   $('ptDlgAlt').textContent = cfg.alt ? cfg.alt.label : '';
   $('ptDlgCancel').textContent = (cfg.onSave || cfg.alt) ? 'Cancel' : 'Close';
+  /* OPT-IN, AND RESET ON EVERY OPEN. One dialog serves every screen; a wide one, a chip beside the
+   * title, figures in the footer, or the second button as the main one, are for the dialog that asks
+   * for them and must not linger into the next. */
+  if ($('ptDlgBox')) $('ptDlgBox').classList.toggle('ptmodal-wide', !!cfg.wide);
+  if ($('ptDlgTitleX')) $('ptDlgTitleX').innerHTML = cfg.titleExtra || '';
+  if ($('ptDlgFootL')) $('ptDlgFootL').innerHTML = cfg.footLeft || '';
+  const altMain = !!(cfg.alt && cfg.altPrimary);
+  $('ptDlgSave').classList.toggle('ghost', altMain);
+  $('ptDlgAlt').classList.toggle('ghost', !altMain);
+  /* The main button goes last, where the eye ends up: Cancel · Save draft · Place order. */
+  $('ptDlgSave').style.order = altMain ? '1' : '';
+  $('ptDlgAlt').style.order = altMain ? '2' : '';
   ptDlgMsg(cfg.msg || '');
   $('ptDlg').classList.remove('hide');
 }
@@ -25676,8 +25728,8 @@ function soSkuMeta(sku) {
   if (!s) return { html: '<span class="muted">—</span>', ok: false };
   const m = (PTG.mdb || []).find(r => r && obUC(r.sku) === s);
   return m
-    ? { html: esc([m.articleType, m.color, m.size].filter(Boolean).join(' · ')) || '<span class="muted">in the master DB</span>', ok: true }
-    : { html: '<span style="color:var(--bad);font-weight:700">not in the master database</span>', ok: false };
+    ? { html: esc([m.subtype || m.articleType, m.color, m.size].filter(Boolean).join(' · ')) || '<span class="muted">in the master DB</span>', ok: true }
+    : { html: '<span class="miss">not in master</span>', ok: false };
 }
 
 function soFormOpen(id) {
@@ -25694,45 +25746,52 @@ function soFormOpen(id) {
 
   const ro = canEdit ? '' : ' disabled';
   const chans = soChannels();
-  const head = `<div class="ptgrid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
-    <label>Channel *<select id="sof_channel"${ro}>
+  const nd = o.orderTypeKey === 'newdev';
+  /* ONE ROW: channel, date, type, delivery, reference. Order type is two buttons — there are only two
+   * answers — with the value kept in sof_type, which is what the save reads. A <div>, not a <label>:
+   * a label forwards every click inside it to its first button. */
+  const head = `<div class="sof-grid">
+    <label>Channel<select id="sof_channel"${ro}>
       <option value="">— pick one —</option>
       ${chans.map(c => `<option value="${esc(c.code)}"${o.channel === c.code ? ' selected' : ''}>${esc(c.code)} — ${esc(c.name)}</option>`).join('')}
     </select></label>
-    <label>Order date *<input id="sof_date" type="date" value="${esc(o.orderDate || today)}"${ro}></label>
-    <label>Order type *<select id="sof_type"${ro}>
-      <option value="regular"${o.orderTypeKey !== 'newdev' ? ' selected' : ''}>Regular</option>
-      <option value="newdev"${o.orderTypeKey === 'newdev' ? ' selected' : ''}>New development</option>
-    </select></label>
-    <label>Requested delivery<input id="sof_delivery" type="date" value="${esc(o.deliveryDate || '')}"${ro}></label>
-    <label>Your own reference<input id="sof_legacy" type="text" value="${esc(o.legacyOrderId || '')}" placeholder="optional"${ro}></label>
-  </div>
-  <div id="sof_id" style="font-size:12px;font-weight:700;margin:10px 0 4px"></div>`;
+    <label>Order date<input id="sof_date" type="date" value="${esc(o.orderDate || today)}"${ro}></label>
+    <div class="sof-f">Order type<input id="sof_type" type="hidden" value="${nd ? 'newdev' : 'regular'}">
+      <div class="sof-seg" role="group" aria-label="Order type">
+        <button type="button" data-softype="regular" class="${nd ? '' : 'on'}"${ro}>Regular</button>
+        <button type="button" data-softype="newdev" class="${nd ? 'on' : ''}"${ro}>New development</button>
+      </div></div>
+    <label>Delivery<input id="sof_delivery" type="date" value="${esc(o.deliveryDate || '')}"${ro}></label>
+    <label>Reference<input id="sof_legacy" type="text" value="${esc(o.legacyOrderId || '')}" placeholder="optional"${ro}></label>
+  </div>`;
 
-  const tools = canEdit ? `<div class="toolbar" style="margin:10px 0 8px">
-      <button id="sof_add" class="ghost">+ Add a line</button>
-      <button id="sof_tmpl" class="ghost">Template</button>
-      <button id="sof_up" class="ghost">Upload lines</button>
-      <input id="sof_file" type="file" accept=".csv,.xlsx,text/csv" style="display:none">
-      <span id="sof_hint" class="muted" style="font-size:11.5px;flex:1 1 200px">A file replaces or adds to the lines below.
-        One unknown SKU rejects the whole file. A negative quantity subtracts from what is already on order.</span>
-    </div>` : '';
+  /* What the paragraph beside these buttons used to say is their tooltip now. */
+  const tools = `<div class="sof-bar"><span class="sof-h">Order lines</span><span style="flex:1"></span>${canEdit ? `
+      <button id="sof_add" class="ghost" type="button">+ Add line</button>
+      <button id="sof_tmpl" class="ghost" type="button" title="A file to fill in: SKU, quantity, delivery date.">Template</button>
+      <button id="sof_up" class="ghost" type="button" title="A file replaces or adds to the lines below. One unknown SKU rejects the whole file. A negative quantity subtracts from what is already on order.">Upload</button>
+      <input id="sof_file" type="file" accept=".csv,.xlsx,text/csv" style="display:none">` : ''}
+    </div>`;
 
   ptOpenDialog({
-    title: editing ? (canEdit ? 'Edit ' : 'View ') + editing._id : 'New sales order',
+    title: editing ? (canEdit ? 'Edit order' : 'Order') : 'New sales order',
+    wide: true,
+    titleExtra: '<span id="sof_id" class="sof-no none">—</span>',
+    footLeft: '<span id="sof_tot" class="sof-tot"></span>',
+    altPrimary: true,
+    saveLabel: canEdit ? 'Save draft' : '',
+    /* Only what is true of THIS order. The standing sentence about drafts and approval is gone. */
     subtitle: editing
       ? `${(SO_STATUS[soStatus(editing)] || {}).label || soStatus(editing)}`
         + `${editing.buyerName ? '  ·  raised by ' + editing.buyerName : ''}`
-      : 'A draft until you place it. Placing it sends it for approval — approval is what puts it into production.',
+      : '',
     note: !canEdit
       ? 'This order is not yours to change: a buyer may edit their own order only while it is a draft or has been returned to them.'
       : (editing && soStatus(editing) === 'returned' && editing.saRemarks
         ? 'Returned to you: ' + editing.saRemarks
         : ''),
-    html: head + `<div style="font-size:11px;font-weight:800;text-transform:uppercase;color:var(--muted);margin-top:6px">Order lines</div>`
-      + tools
-      + `<div class="xlwrap" style="max-height:40vh;border:1px solid var(--line);border-radius:10px">
-           <table class="xl" id="sof_table"></table></div>`
+    html: head + tools
+      + `<div class="sof-lines"><table class="sof-t" id="sof_table"></table></div>`
       + `<div id="sof_pager" class="muted" style="margin-top:8px;font-size:12px"></div>`,
     onSave: canEdit ? (() => soFormSave(false)) : null,
     alt: canEdit ? { label: editing && soStatus(editing) === 'draft' ? 'Place order' : (editing ? 'Place order' : 'Place order'),
@@ -25759,16 +25818,16 @@ function soIdPreview() {
   const el = $('sof_id'); if (!el) return;
   const o = (SOX.rows || []).find(x => x._id === SOF.id);
   // Once an order is placed its number is on cutting slips and press entries. It never moves again.
-  if (o && soStatus(o) !== 'draft' && soStatus(o) !== 'returned') {
-    el.innerHTML = `Order number <b>${esc(o._id)}</b> — fixed now that the order has been placed.`; return;
-  }
+  /* A CHIP BESIDE THE TITLE. What each state means is its tooltip, not a sentence on the form. */
+  const put = (txt, tip, none) => { el.textContent = txt; el.title = tip; el.className = 'sof-no' + (none ? ' none' : ''); };
+  if (o && soStatus(o) !== 'draft' && soStatus(o) !== 'returned')
+    return put(o._id, 'Fixed now that the order has been placed.');
   const ch = ($('sof_channel') || {}).value || '', dt = ($('sof_date') || {}).value || '';
-  if (!ch || !dt) { el.innerHTML = '<span class="muted">Order number — pick a channel and an order date.</span>'; return; }
+  if (!ch || !dt) return put('Order no. —', 'Pick a channel and an order date.', true);
   const cur = o ? o._id : '';
   const pfx = ch.toUpperCase() + '-' + soDateTag(dt) + '-';
-  el.innerHTML = (cur && obUC(cur).indexOf(pfx) === 0)
-    ? `Order number <b>${esc(cur)}</b>.`
-    : `Order number <b>${esc(soGenId(ch, dt, cur))}</b> — claimed when you save.`;
+  if (cur && obUC(cur).indexOf(pfx) === 0) return put(cur, 'This order\'s number.');
+  put(soGenId(ch, dt, cur), 'Claimed when you save.');
 }
 
 function soFormLines() {
@@ -25778,9 +25837,10 @@ function soFormLines() {
   const from = SOF.page * SOF_PAGE, slice = SOF.lines.slice(from, from + SOF_PAGE);
   const ro = !soCanEdit((SOX.rows || []).find(x => x._id === SOF.id) || null);
   const d = ro ? ' disabled' : '';
-  if ($('sof_hint')) $('sof_hint').textContent = soIsB2B(($('sof_channel') || {}).value)
+  if ($('sof_up')) $('sof_up').title = soIsB2B(($('sof_channel') || {}).value)
     ? 'B2B: Template gives the buyer columns. A SKU not in the Master Database, or a blank one, goes on the Custom SKUs list with its brand. Any extra column in the file is kept on the line.'
     : 'A file replaces or adds to the lines below. One unknown SKU rejects the whole file. A negative quantity subtracts from what is already on order.';
+  soFormTotals();
   if (soIsB2B(($('sof_channel') || {}).value)) {
     const inp = (i, f, l, w, ph) => `<input data-sof="${f}" data-i="${i}" value="${esc(l[f] == null ? '' : l[f])}" placeholder="${ph || ''}"${d} style="width:${w}px">`;
     $('sof_table').innerHTML = '<thead><tr>'
@@ -25803,38 +25863,52 @@ function soFormLines() {
           + `<td><input data-sof="deliveryDate" data-i="${i}" type="date" value="${esc(l.deliveryDate)}"${d}></td>`
           + `<td>${ro ? '' : `<button class="ghost" data-sofdel="${i}" style="padding:2px 8px;color:var(--bad)">✕</button>`}</td></tr>`;
       }).join('') + '</tbody>';
-    $('sof_pager').innerHTML = `${nf(total)} line(s)`
-      + (pages > 1 ? ` · showing ${nf(from + 1)}–${nf(Math.min(total, from + SOF_PAGE))}
+    $('sof_pager').innerHTML = pages > 1 ? `Showing ${nf(from + 1)}–${nf(Math.min(total, from + SOF_PAGE))} of ${nf(total)}
           <button class="ghost" data-sofpg="-1" style="padding:2px 10px"${SOF.page ? '' : ' disabled'}>Back</button>
-          <button class="ghost" data-sofpg="1" style="padding:2px 10px"${SOF.page >= pages - 1 ? ' disabled' : ''}>Next</button>` : '');
+          <button class="ghost" data-sofpg="1" style="padding:2px 10px"${SOF.page >= pages - 1 ? ' disabled' : ''}>Next</button>` : '';
     return;
   }
+  /* ONE ROW PER LINE THAT FITS: the picture, the SKU and what it is share a cell, so nothing is left
+   * off the right-hand edge — the old table scrolled sideways and hid Qty and Delivery. */
   $('sof_table').innerHTML = '<thead><tr>'
-    + ['#', 'SKU', 'Article · colour · size', 'Type', 'Priority', 'Qty', 'Delivery', ''].map((h, i) =>
-      `<th${i === 5 ? ' class="num"' : ''}>${h}</th>`).join('') + '</tr></thead><tbody>'
+    + ['#', 'Product', 'Type', 'Priority', 'Qty', 'Delivery', ''].map((h, i) =>
+      `<th${i === 4 ? ' class="num"' : ''}${i === 0 ? ' style="width:36px"' : ''}>${h}</th>`).join('') + '</tr></thead><tbody>'
     + slice.map((l, k) => {
       const i = from + k, meta = soSkuMeta(l.sku);
-      return `<tr><td class="muted">${i + 1}</td>`
-        + `<td><input data-sof="sku" data-i="${i}" value="${esc(l.sku)}" placeholder="SKU"${d}`
-        + ` style="width:130px;font-family:ui-monospace,monospace;text-transform:uppercase"></td>`
-        + `<td id="sof_meta_${i}" style="text-align:left;font-size:11.5px">${meta.html}</td>`
+      return `<tr${obUC(l.sku) && !meta.ok ? ' class="bad"' : ''}><td class="muted">${i + 1}</td>`
+        + `<td><div class="sof-prod"><span id="sof_img_${i}">${soThumb(l.sku)}</span><div style="min-width:0">`
+        + `<input class="sof-sku" data-sof="sku" data-i="${i}" value="${esc(l.sku)}" placeholder="SKU"${d}>`
+        + `<div id="sof_meta_${i}" class="sof-meta">${meta.html}</div></div></div></td>`
         + `<td><select data-sof="orderTypeKey" data-i="${i}"${d}>`
         + `<option value="regular"${l.orderTypeKey !== 'newdev' ? ' selected' : ''}>Regular</option>`
         + `<option value="newdev"${l.orderTypeKey === 'newdev' ? ' selected' : ''}>New dev</option></select></td>`
         + `<td><select data-sof="priority" data-i="${i}"${d}><option value="">—</option>`
         + ['P1', 'P2', 'P3', 'P4'].map(p => `<option value="${p}"${l.priority === p ? ' selected' : ''}>${p}</option>`).join('')
         + `</select></td>`
-        + `<td class="num"><input data-sof="qty" data-i="${i}" type="number" step="1" value="${esc(l.qty)}"${d}`
-        + ` title="Positive adds. Negative subtracts from what is already on order." style="width:88px;text-align:right"></td>`
+        + `<td class="num"><input class="sof-qty" data-sof="qty" data-i="${i}" type="number" step="1" value="${esc(l.qty)}"${d}`
+        + ` title="Positive adds. Negative subtracts from what is already on order."></td>`
         + `<td><input data-sof="deliveryDate" data-i="${i}" type="date" value="${esc(l.deliveryDate)}"${d}></td>`
-        + `<td>${ro ? '' : `<button class="ghost" data-sofdel="${i}" style="padding:2px 8px;color:var(--bad)">✕</button>`}</td></tr>`;
+        + `<td>${ro ? '' : `<button class="sof-del" type="button" data-sofdel="${i}" aria-label="Remove line ${i + 1}" title="Remove this line">×</button>`}</td></tr>`;
     }).join('') + '</tbody>';
 
-  $('sof_pager').innerHTML = `${nf(total)} line(s)`
-    + (pages > 1 ? ` · showing ${nf(from + 1)}–${nf(Math.min(total, from + SOF_PAGE))}
+  $('sof_pager').innerHTML = pages > 1 ? `Showing ${nf(from + 1)}–${nf(Math.min(total, from + SOF_PAGE))} of ${nf(total)}
         <button class="ghost" data-sofpg="-1" style="padding:2px 10px"${SOF.page ? '' : ' disabled'}>Back</button>
-        <button class="ghost" data-sofpg="1" style="padding:2px 10px"${SOF.page >= pages - 1 ? ' disabled' : ''}>Next</button>
-        · every line is saved, not just this page` : '');
+        <button class="ghost" data-sofpg="1" style="padding:2px 10px"${SOF.page >= pages - 1 ? ' disabled' : ''}>Next</button>` : '';
+}
+
+/** The product's picture, or an empty tile of the same size — never a word where a picture goes. */
+function soThumb(sku) {
+  const u = obUC(sku) ? ptImgOf(sku) : '';
+  return u ? `<img class="sof-th" src="${esc(ptImgSrc(u, 44))}" alt="" loading="lazy">` : '<span class="sof-th"></span>';
+}
+
+/** Lines and pieces, in the footer, as they are typed. A line counts once anything is on it — a B2B
+ * line may have no SKU yet (it is given one), but it has a quantity or a name. */
+function soFormTotals() {
+  const el = $('sof_tot'); if (!el || !SOF) return;
+  const lines = (SOF.lines || []).filter(l => obUC(l.sku) || String(l.qty == null ? '' : l.qty).trim() || String(l.itemName || '').trim());
+  const pcs = lines.reduce((a, l) => a + (parseFloat(l.qty) || 0), 0);
+  el.innerHTML = `<span>${nf(lines.length)} line${lines.length === 1 ? '' : 's'}</span><span>${nf(pcs)} pcs</span>`;
 }
 
 /* One listener on the dialog body, so re-rendering the table never leaves a dead handler behind. */
@@ -25843,13 +25917,27 @@ $('ptDlgBody').addEventListener('input', e => {
   const i = +el.getAttribute('data-i'), f = el.getAttribute('data-sof');
   SOF.lines[i][f] = el.value;
   // Only this row's meta cell is redrawn — redrawing the table would take the focus out of the box.
-  if (f === 'sku' && $('sof_meta_' + i)) $('sof_meta_' + i).innerHTML = soIsB2B(($('sof_channel') || {}).value) ? soB2BMeta(el.value) : soSkuMeta(el.value).html;
+  if (f === 'sku' && $('sof_meta_' + i)) {
+    const b2b = soIsB2B(($('sof_channel') || {}).value), meta = b2b ? null : soSkuMeta(el.value);
+    $('sof_meta_' + i).innerHTML = b2b ? soB2BMeta(el.value) : meta.html;
+    if (!b2b && $('sof_img_' + i)) $('sof_img_' + i).innerHTML = soThumb(el.value);
+    const tr = el.closest && el.closest('tr');
+    if (tr && !b2b) tr.classList.toggle('bad', !!obUC(el.value) && !meta.ok);
+  }
+  if (f === 'sku' || f === 'qty') soFormTotals();
 });
 $('ptDlgBody').addEventListener('change', e => {
   const el = e.target.closest('[data-sof]'); if (!el) return;
   SOF.lines[+el.getAttribute('data-i')][el.getAttribute('data-sof')] = el.value;
 });
 $('ptDlgBody').addEventListener('click', e => {
+  /* Order type is two buttons; the value the save reads is kept in sof_type. */
+  const ty = e.target.closest('[data-softype]');
+  if (ty && !ty.disabled) {
+    if ($('sof_type')) $('sof_type').value = ty.getAttribute('data-softype');
+    [...ty.parentNode.children].forEach(b => b.classList.toggle('on', b === ty));
+    return;
+  }
   /* The SKU table lives inside the order's own dialog, so this one replaces it with the quantity
    * dialog and the order is reopened underneath when that is done with. */
   const q = e.target.closest('[data-so-qty]');
