@@ -1448,6 +1448,20 @@ console.log('\n== a codeless line is found by its title ==');
      (A.shpSkuFromTitle('Cotton Block Print Tablecloth - Yellow Citrine', '54X54') || {}).sku === 'CPC014-5454');
   ok('…while the ruffle in a size that EXISTS is found',
      (A.shpSkuFromTitle('Ruffle Tablecloth - Yellow Citrine', '60X60') || {}).sku === 'CPCRU014-6060');
+  /* AND A WORD THAT NAMES NO ALTERNATIVE OF THE SAME KIND OBJECTS TO NOTHING. "Set" is in one
+   * subtype somewhere — an oven mitt and pot holder set — and "Set of 12" in a napkin's variant is
+   * a pack size, not a claim about what the product is. Reading it as one stopped three real napkin
+   * orders from opening. */
+  PTG.mdb = mdb.concat([
+    { sku: 'CPCNE043', articleType: 'Napkin', subtype: 'Embroidery Napkin', color: 'Autumn Vine', size: '18x18' },
+    { sku: 'MITT-1', articleType: 'Kitchen', subtype: 'Oven Mitts and Pot Holder Set', color: 'Autumn Vine', size: '7x12' },
+  ]);
+  ok('"Set of 12" is a pack size, not a product',
+     (A.shpSkuFromTitle('Cotton Embroidery Napkins - Autumn Vine', '18 x 18 in / Set of 12') || {}).sku === 'CPCNE043');
+  ok('…and a material the catalogue never names is not one either',
+     (A.shpSkuFromTitle('Cotton Embroidery Napkins - Autumn Vine', '18 x 18 in') || {}).sku === 'CPCNE043');
+  PTG.mdb = mdb;
+
   /* A word in the COLOUR is not a claim about the product. */
   PTG.mdb = mdb.concat([{ sku: 'CPCX-1818', articleType: 'Pillow Cover', subtype: 'Piping Pillow Cover', color: 'Apricot Rosette Vine', size: '18x18' },
     { sku: 'CPCV-2020', articleType: 'Tablecloth', subtype: 'Vine Tablecloth', color: 'Blue', size: '20x20' }]);

@@ -42965,25 +42965,43 @@ const shpHasWord = (hay, w) => !!w && (shpHasPhrase(hay, w) || shpHasPhrase(hay,
 /* The shop leaves these out because the size already says which it is; nothing else may be missing. */
 const SHP_SHAPE_WORDS = ['rectangular', 'rectangle', 'square', 'round', 'oval'];
 /**
- * Every word the master uses to name a product — learned from the catalogue, never listed here, so
- * a subtype added next year counts without anybody remembering this line.
- *
- * These are the words that DISTINGUISH one product from another: ruffle, piping, scallop, flap,
- * embroidery, napkin, quilt… A title carrying one of them that a candidate does not have is a
- * title for a different product.
+ * Every subtype the catalogue has, as a set of its words, indexed by word — learned from the
+ * catalogue, never listed here, so a subtype added next year counts without anybody remembering
+ * this line.
  */
-let SHP_KIND_WORDS = null, SHP_KIND_SRC = null;
-function shpKindWords() {
+let SHP_KIND = null, SHP_KIND_SRC = null;
+function shpKinds() {
   const src = PTG.mdb || [];
-  if (SHP_KIND_SRC === src && SHP_KIND_WORDS) return SHP_KIND_WORDS;
-  const out = new Set();
+  if (SHP_KIND_SRC === src && SHP_KIND) return SHP_KIND;
+  const subs = new Map();
   src.forEach(m => {
-    shpWords(m && m.subtype).split(' ').forEach(w => {
-      if (w.length > 2 && SHP_SHAPE_WORDS.indexOf(w) < 0) out.add(w);
-    });
+    const s = shpWords(m && m.subtype);
+    if (s && !subs.has(s)) subs.set(s, new Set(s.split(' ').filter(Boolean)));
   });
-  SHP_KIND_SRC = src; SHP_KIND_WORDS = out;
-  return out;
+  const byWord = new Map();
+  subs.forEach(set => set.forEach(w => {
+    if (w.length < 3 || SHP_SHAPE_WORDS.indexOf(w) >= 0) return;
+    if (!byWord.has(w)) byWord.set(w, []);
+    byWord.get(w).push(set);
+  }));
+  SHP_KIND_SRC = src; SHP_KIND = byWord;
+  return byWord;
+}
+/**
+ * Does this word in the title name a DIFFERENT product OF THE SAME KIND as the candidate?
+ *
+ * Tied to a real alternative on purpose. "Ruffle" objects to a plain Square Tablecloth because the
+ * catalogue has Ruffle Square Tablecloths — same kind of thing, different product. "Set", which one
+ * subtype somewhere happens to use (an oven mitt and pot holder set), objects to nothing when the
+ * candidate is a napkin: no napkin subtype uses it, so "Set of 12" in a variant is a pack size and
+ * not a claim about what the product is. That distinction is what stopped three real napkin orders
+ * from opening.
+ */
+function shpOtherKind(word, mine) {
+  const subs = shpKinds().get(word);
+  if (!subs) return false;
+  return subs.some(other => [...mine].some(w =>
+    SHP_SHAPE_WORDS.indexOf(w) < 0 && w.length >= 3 && other.has(w)));
 }
 
 /**
@@ -43026,7 +43044,7 @@ function shpSkuFromTitle(name, variant) {
     const colWords = new Set(shpWords(m.color).split(' '));
     for (const w of title.split(' ')) {
       if (!w || said.has(w) || colWords.has(w)) continue;
-      if (shpKindWords().has(w)) return;                     // the title names a product this is not
+      if (shpOtherKind(w, said)) return;                     // the title names a product this is not
     }
     if (score > bestScore) { best = m; bestScore = score; tied = false; }
     else if (score === bestScore && String(m.sku) !== String(best && best.sku)) tied = true;
