@@ -3470,6 +3470,24 @@ const NAV_MAP = { repl: 'tabRepl', article: 'tabArticle', target: 'tabTarget', f
 /** What is on screen right now — so a check that finishes late knows whether to move anybody. */
 let TAB_NOW = '';
 
+/**
+ * The big tables, and the tab each one belongs to — emptied when that tab is left.
+ *
+ * EVERY TAB IN HERE MUST REDRAW WHEN IT IS OPENED. showTab calls an ensure* or a render* for each of
+ * them on the way in; a prod-test rule checks that, because a tab added here without one would open
+ * to a blank table and look broken. The Replenishment screen is deliberately absent: it draws once,
+ * at sign-in, and has nothing to draw it again.
+ */
+const TAB_TABLES = {
+  ord: ['odTable'], pbase: ['pbTable'], pcut: ['pcTable'], ppress: ['ppTable'], qc: ['qcTable'],
+  fgi: ['fgTable'], fba: ['fbaTable'], vlog: ['vlTable'], so: ['soTable'], pmdb: ['pmTable'],
+  acc: ['acTable'], vord: ['voTable'], fab: ['fbTable'], palloc: ['palTable'], mst: ['mstTable'],
+};
+/** Give the page back the megabyte the screen you just left was holding. */
+function tabShed(prev) {
+  (TAB_TABLES[prev] || []).forEach(id => { const el = $(id); if (el && el.innerHTML) el.innerHTML = ''; });
+}
+
 /** Holds the Shopify view of the order book, but not the order book itself. */
 const SHOP_ONLY = () => !!(ME.tabs && ME.tabs.includes('shopprod') && !ME.tabs.includes('ord') && !ME.admin);
 
@@ -3480,6 +3498,8 @@ function showTab(which) {
       && !(which === 'ord' && ME.tabs.includes('shopprod'))) which = ME.tabs[0];
   const panes = { repl: 'paneRepl', article: 'paneArticle', target: 'paneTarget', follow: 'paneFollow', top: 'paneTop', india: 'paneIndia', shopify: 'paneShopify', prod: 'paneProd', pack: 'panePack', att: 'paneAtt', pmdb: 'panePmdb', mst: 'paneMst', pbase: 'panePbase', pcut: 'panePcut', ppress: 'panePpress', qc: 'paneQc', ord: 'paneOrd', so: 'paneSo', vord: 'paneVord', vreq: 'paneVreq', rfd: 'paneRfd', vend: 'paneVend', vlog: 'paneVlog', cx: 'paneCx', palloc: 'panePalloc', fgi: 'paneFgi', fba: 'paneFba', fab: 'paneFab', acc: 'paneAcc', rep: 'paneRep', pa: 'panePa', ka: 'paneKa', hr: 'paneHr', shop: 'paneShop', adj: 'paneAdj' };
   const navs = { repl: 'tabRepl', article: 'tabArticle', target: 'tabTarget', follow: 'tabFollow', top: 'tabTop', india: 'tabIndia', shopify: 'tabShopify', prod: 'tabProd', pack: 'tabPack', att: 'tabAtt', pmdb: 'tabPmdb', mst: 'tabMst', pbase: 'tabPbase', pcut: 'tabPcut', ppress: 'tabPpress', qc: 'tabQc', ord: 'tabOrd', so: 'tabSo', vord: 'tabVord', vreq: 'tabVreq', rfd: 'tabRfd', vend: 'tabVend', vlog: 'tabVlog', cx: 'tabCx', palloc: 'tabPalloc', fgi: 'tabFgi', fba: 'tabFba', fab: 'tabFab', acc: 'tabAcc', rep: 'tabRep', pa: 'tabPa', ka: 'tabKa', hr: 'tabHr', shop: 'tabShop', adj: 'tabAdj' };
+  /* Before anything is shown: hand back what the screen being left was holding. */
+  if (TAB_NOW && TAB_NOW !== which) tabShed(TAB_NOW);
   Object.entries(panes).forEach(([k, id]) => $(id).classList.toggle('hide', which !== k));
   Object.entries(navs).forEach(([k, id]) => $(id).classList.toggle('on', which === k));
   if (SHOP_ONLY() && which === 'ord') { $('pageTitle').textContent = 'Shopify Orders'; }
@@ -9701,7 +9721,7 @@ function renderPbase() {
   $('pbMsg').textContent = `${nf(rows.length)} of ${nf(all.length)} entr${all.length === 1 ? 'y' : 'ies'}`
     + (rows.length > 600 ? ' · showing the first 600 · Export covers all of them' : '')
     + (PT_BD_KPI_LABEL[PT_BD_KPI] ? ' · only entries with ' + PT_BD_KPI_LABEL[PT_BD_KPI] + ' — click the figure again to show all' : '');
-  ptImgFill(rows.slice(0, 600).map(r => r.sku), false, renderPbase);
+  ptImgFill(rows.slice(0, 600).map(r => r.sku), false, ptIfTab('pbase', renderPbase));
 }
 
 /* ================= ATTENDANCE =================
@@ -10302,7 +10322,7 @@ function renderPcut() {
 
   $('pcMsg').className = 'muted';
   $('pcMsg').textContent = `${nf(rows.length)} of ${nf(all.length)} cut entr${all.length === 1 ? 'y' : 'ies'}`;
-  ptImgFill(rows.map(r => r.sku), false, renderPcut);
+  ptImgFill(rows.map(r => r.sku), false, ptIfTab('pcut', renderPcut));
 }
 
 /* ---------------- wiring ---------------- */
@@ -12865,7 +12885,7 @@ function renderPpress() {
   $('ppMsg').className = 'muted';
   $('ppMsg').textContent = `${nf(rows.length)} of ${nf(all.length)} entr${all.length === 1 ? 'y' : 'ies'}`
     + (rows.length > 600 ? ' · showing the first 600 · Export covers all of them' : '');
-  ptImgFill(rows.slice(0, 600).map(r => r.sku), false, renderPpress);
+  ptImgFill(rows.slice(0, 600).map(r => r.sku), false, ptIfTab('ppress', renderPpress));
 }
 
 /* ---- the entry form: Order ID first, same as Base Data ---- */
@@ -13530,7 +13550,7 @@ function renderQc() {
       + (stillOut ? ` · ${nf(stillOut)} piece(s) still with the tailors` : '');
   }
   // Whichever view is showing, its rows are what need pictures.
-  ptImgFill((QC.rows || []).slice(0, 600).map(r => r.sku), false, renderQc);
+  ptImgFill((QC.rows || []).slice(0, 600).map(r => r.sku), false, ptIfTab('qc', renderQc));
 }
 
 /* ---- receiving pieces back from alteration ---- */
@@ -14341,7 +14361,7 @@ async function mdbImgCacheSave() {
 
 /** The master tab's own list, handed to the shared filler. */
 function mdbImgFill(force) {
-  return ptImgFill((PT._pmdbRows || []).slice(0, PMDB_MAX).map(r => r.sku), force, renderPmdb);
+  return ptImgFill((PT._pmdbRows || []).slice(0, PMDB_MAX).map(r => r.sku), force, ptIfTab('pmdb', renderPmdb));
 }
 $('ptmImgs').onclick = () => mdbImgFill(true);
 
@@ -15012,6 +15032,20 @@ function ptImgPatch() {
  * when there is nothing new to ask about, and while it is running the re-render it triggers finds
  * MDBIMG.busy set and does not start a second one.
  */
+/**
+ * Run this only while that screen is still the one on show.
+ *
+ * The picture lookup below takes seconds and asks for a whole re-render when it lands. Landing after
+ * somebody has moved on, it drew a table nobody was looking at — a megabyte of it — and put back
+ * exactly what tabShed had just cleared away.
+ *
+ * TAB_NOW is declared with the navigation, which the test harness does not evaluate, so it is asked
+ * for by typeof the way the Finished Goods listener already does.
+ */
+const ptIfTab = (tab, fn) => () => {
+  if (typeof TAB_NOW === 'undefined' || !TAB_NOW || TAB_NOW === tab) fn();
+};
+
 async function ptImgFill(skus, force, after) {
   if (MDBIMG.busy) return;
   await mdbImgCacheLoad();
@@ -16663,7 +16697,7 @@ function renderOrdShopify(bySku) {
     + (rows.length > 600 ? ' · showing the first 600 · Export covers all of them' : '')
     + ordKpiNote()
     + (short ? ` · ${nf(short)} SKU(s) still on the Custom SKUs list, waiting for article, colour and size` : '');
-  ptImgFill(rows.slice(0, 600).map(r => r.sku), false, renderOrd);
+  ptImgFill(rows.slice(0, 600).map(r => r.sku), false, ptIfTab('ord', renderOrd));
 }
 
 /**
@@ -18023,7 +18057,7 @@ function renderOrd() {
       + `(Job Work Register ${nf(orphan.base)}, cutting ${nf(orphan.cut)}, press ${nf(orphan.press)}) — `
       + 'those pieces were made, they just cannot be attributed to an order.'
     : '';
-  ptImgFill(rows.slice(0, 600).map(r => r.sku), false, renderOrd);
+  ptImgFill(rows.slice(0, 600).map(r => r.sku), false, ptIfTab('ord', renderOrd));
 }
 
 ['odOrd', 'odArt', 'odSub', 'odCol', 'odSz', 'odStatus'].forEach(id => $(id).addEventListener('change', renderOrd));

@@ -19505,6 +19505,48 @@ console.log('\n== a cache that can actually hit ==');
   A.setFGI(wasFgi);
 }
 
+console.log('\n== a screen you have left is not a screen you are paying for ==');
+{
+  /* Ravi, 2026-09-24, after two speed fixes: still hanging, and "poora computer hang hota hai".
+   * showTab hid panes and never emptied one, so every table looked at today stayed in the document —
+   * seven screens is about 50,000 cells and 4.5 MB of HTML nobody is looking at. */
+  const src = fs.readFileSync(APP, 'utf8');
+  const m = src.match(/const TAB_TABLES = \{([\s\S]*?)\};/);
+  ok('the big tables are listed against their tab', !!m);
+  const tabs = [...(m ? m[1] : '').matchAll(/(\w+):\s*\[/g)].map(x => x[1]);
+  ok('…and it covers the heaviest screens',
+    ['ord', 'pbase', 'pcut', 'ppress', 'fgi', 'fba', 'vlog'].every(t => tabs.includes(t)),
+    tabs.join(','));
+  const show = src.slice(src.indexOf('function showTab('), src.indexOf('$(\'tabRepl\').onclick'));
+  /* A TAB EMPTIED ON THE WAY OUT MUST FILL ITSELF ON THE WAY IN, or it opens blank and reads as
+   * broken. This is the rule that lets the list above be extended safely. */
+  const orphan = tabs.filter(t => !new RegExp("which === '" + t + "'").test(show));
+  ok('every tab that is emptied redraws itself when it is opened', orphan.length === 0,
+    'no render on entry for: ' + orphan.join(', '));
+  ok('and the emptying happens BEFORE the panes are shown',
+    show.indexOf('tabShed(TAB_NOW)') > 0 && show.indexOf('tabShed(TAB_NOW)') < show.indexOf('classList.toggle(\'hide\''),
+    String(show.indexOf('tabShed(TAB_NOW)')));
+  /* The Replenishment screen draws once at sign-in and has nothing to draw it again. */
+  ok('the one screen that cannot redraw itself is not emptied', tabs.indexOf('repl') < 0);
+
+  /* A picture lookup takes seconds and asks for a whole re-render when it lands. Landing after
+   * somebody has moved on, it rebuilt a megabyte of hidden table and undid the clearing. */
+  ok('a background picture lookup does not redraw a screen nobody is on',
+    /const ptIfTab = /.test(src) && !/ptImgFill\([^)]*, false, renderOrd\)/.test(src),
+    (src.match(/ptImgFill\([^)]*, (?:false|force), render\w+\)/g) || []).join(' · '));
+
+  /* tabShed lives in the sign-in and navigation block, which this harness does not evaluate, so it
+   * is read rather than run: it must blank the table outright, not merely hide it. */
+  ok('leaving a tab blanks its table outright',
+    /function tabShed\(prev\) \{[\s\S]{0,240}?innerHTML = ''/.test(src),
+    src.slice(src.indexOf('function tabShed('), src.indexOf('function tabShed(') + 240));
+  /* The Order Console really does put a megabyte there — the thing being handed back. */
+  els.odView.value = 'book';
+  A.renderOrd();
+  ok('…and the Order Console really is worth clearing', els.odTable.innerHTML.length > 1000,
+    String(els.odTable.innerHTML.length));
+}
+
 console.log('\n== the installed app ==');
 {
   /* "mobile me app install kar liya to wo mobile app ki tarah react kare" — 2026-09-22. */
