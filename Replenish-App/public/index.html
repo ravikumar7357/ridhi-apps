@@ -16781,6 +16781,10 @@ async function spIssueReal(orderNo, sku, type, name, pcs, date, remarks, extraRe
   const extra = String(extraReason || '').trim();
   const gErr = bdGuard(obUC(orderNo), obUC(sku), q, undefined, !!extra);
   if (gErr) return gErr;
+  /* THE SAME ZIPPER GATE AS THE FORM. This path never had it, and never deducted either: 143 Shopify
+   * issues of zip SKUs since 13 Sep, not one zipper taken off the shelf. */
+  const zErr = ptZipCheck(sku, q, null);
+  if (zErr) return zErr;
 
   const entry = {
     id: 'bd_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
@@ -16800,6 +16804,12 @@ async function spIssueReal(orderNo, sku, type, name, pcs, date, remarks, extraRe
   try { await ptPut('pt_baseData/' + entry.id, entry); }
   catch (e) { return 'Not saved: ' + (e.message || e); }
   PT.base = (PT.base || []).concat([Object.assign({ _key: entry.id }, entry)]);
+  /* WHAT GOES WITH THE PIECES, as the form does it: the zippers, and a ruffle's fabric. Both are keyed
+   * on this row, so they can never be taken twice, and deleting the issue gives them back. The issue
+   * itself is saved by now, so a failure here is reported rather than returned — returning it would
+   * read as "not issued" and invite the same pieces being issued again. */
+  try { await ptConsumeZippers(entry); } catch (e) { console.warn('Zipper deduction did not save for ' + entry.id + ': ' + (e.message || e)); }
+  try { await ptConsumeRuffle(entry); } catch (e) { console.warn('Ruffle deduction did not save for ' + entry.id + ': ' + (e.message || e)); }
   if (!SP_QUIET) renderOrd();
   return '';
 }
@@ -22672,7 +22682,26 @@ const ACC_NO_ENTRY = 'Recording an accessory movement needs permission. Ask an a
 const ACC_NO_EDIT = 'Changing the accessories record needs permission. Ask an admin to switch on '
   + '"Can edit accessories" for your account — you may still record movements.';
 
-const accSaveItems = () => ptPut('pt_masters/accessories', ACC.items);
+/**
+ * Write the accessories list — merged with what the database holds NOW.
+ *
+ * The list is one array, saved whole. Saving whatever this browser held meant a browser holding an
+ * empty or stale copy wrote that copy back: on 22 Sep "New accessory" turned a list of seven into a
+ * list of one, the six zippers vanished from it, and every zipper deduction after that failed. So the
+ * list is read again first, and any item on it that this save did not mean to remove is kept.
+ *
+ * `removed` names the codes this save really does take away — a delete, or a code renamed.
+ */
+async function accSaveItems(removed) {
+  let fresh;
+  try { fresh = ptList(await ptGet('pt_masters/accessories')); }
+  catch (e) { throw new Error('Could not read the accessories list to save it safely: ' + (e.message || e)); }
+  const gone = new Set((removed || []).map(accCode));
+  const mine = new Set((ACC.items || []).map(it => accCode(it && it.code)));
+  const kept = (fresh || []).filter(it => it && it.code != null && !mine.has(accCode(it.code)) && !gone.has(accCode(it.code)));
+  if (kept.length) ACC.items = (ACC.items || []).concat(kept);
+  return ptPut('pt_masters/accessories', ACC.items);
+}
 
 const ACC_CSV_HEAD = ['Code', 'Name', 'Kind', 'Unit', 'Re-order level', 'Movement', 'Qty', 'Date', 'Issued to', 'Reference', 'Remarks'];
 
@@ -22930,7 +22959,7 @@ function accEditItem(code) {
       const code = used ? it.code : String(v.code || '').trim();
       if (!code) return 'Enter the code.';
       ACC.items[i] = accItemRec(v, code);
-      await accSaveItems();
+      await accSaveItems(accCode(code) !== accCode(it.code) ? [it.code] : []);
       PTE.acc = ACC.items;
       if (PTG.masters) PTG.masters.accessories = ACC.items;
       renderAcc();
@@ -22939,7 +22968,7 @@ function accEditItem(code) {
     onDelete: async () => {
       if (used) return `${it.code} cannot be removed — ${nf(used)} movement(s) point at it.`;
       ACC.items = ACC.items.filter((_, j) => j !== i);
-      await accSaveItems();
+      await accSaveItems([it.code]);
       PTE.acc = ACC.items;
       if (PTG.masters) PTG.masters.accessories = ACC.items;
       renderAcc();
