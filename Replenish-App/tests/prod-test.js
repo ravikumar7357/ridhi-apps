@@ -19863,6 +19863,27 @@ console.log('\n== cut pieces are printing demand in pieces, not metres ==');
   A.setORD_DEM({ tried: false, busy: false, fabOk: false, voOk: false });
 }
 
+console.log('\n== the Production menu is a mega menu ==');
+{
+  /* Ravi, 2026-09-24: "2 — Mega menu", and of the red 26 on Finished Goods, "yaha 26 kya indicate kar raha h". */
+  const src = fs.readFileSync(APP, 'utf8');
+  const a = src.indexOf('<div class="navsec navmega" id="secProd">');
+  const sec = a < 0 ? '' : src.slice(a, src.indexOf('</div></div>', a));
+  ok('Production opens as a mega menu', a > 0);
+  const heads = [...sec.matchAll(/<div class="mg-h">([^<]+)<\/div>/g)].map(m => m[1]);
+  ok('…in five columns, in the order work moves', heads.join('|') === 'Orders|Making|Finished &amp; dispatch|Materials|Setup', heads.join('|'));
+  const tabs = ['tabSo', 'tabOrd', 'tabCx', 'tabPcut', 'tabPbase', 'tabPpress', 'tabQc', 'tabFgi', 'tabFba', 'tabFab', 'tabAcc', 'tabPmdb', 'tabMst'];
+  ok('every Production screen is still there, once', tabs.every(t => (src.match(new RegExp('id="' + t + '"', 'g')) || []).length === 1 && sec.indexOf('id="' + t + '"') > 0),
+     tabs.filter(t => sec.indexOf('id="' + t + '"') < 0).join(','));
+  /* "26" alone told nobody what it counted. */
+  const badges = [...sec.matchAll(/<span id="(\w+Badge)"[^>]*>/g)].map(m => m[0]);
+  ok('every count in it carries the words for what it counts', badges.length === 7 && badges.every(b => /data-what="[^"]+"/.test(b)),
+     badges.filter(b => !/data-what=/.test(b)).join(' | '));
+  ok('…"26" reads as SKUs not on Amazon', /id="fgiLstBadge"[^>]*data-what="not on Amazon"/.test(sec));
+  ok('…and the words are shown in the menu', /\.navmega \.navbadge\[data-what\]::after\{content:" " attr\(data-what\)/.test(src));
+  ok('a column with nothing this account may open says nothing', /\.mg-col:not\(:has\(> \.nav:not\(\[style\*="none"\]\)\)\)\{display:none\}/.test(src));
+}
+
 console.log('\n== the installed app ==');
 {
   /* "mobile me app install kar liya to wo mobile app ki tarah react kare" — 2026-09-22. */

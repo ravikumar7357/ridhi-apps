@@ -126,6 +126,26 @@
     background:var(--card);border-radius:var(--r-card);box-shadow:var(--sh-2);padding:7px;z-index:70}
   /* The last menus would otherwise hang off the right of the screen. */
   .navwrap:nth-last-child(-n+2) .navsec.open{left:auto;right:0}
+  /* THE MEGA MENU. Wide, centred under the bar (its top is set when it opens), five columns. */
+  @media (min-width:861px){
+    .navsec.navmega.open{position:fixed;left:50%;transform:translateX(-50%);top:62px;right:auto;
+      width:min(1160px,calc(100vw - 32px));box-sizing:border-box;padding:18px;
+      display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;align-items:start}
+  }
+  .mg-col{display:flex;flex-direction:column;gap:2px;min-width:0}
+  .mg-h{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:2px 10px 8px}
+  /* A column whose every screen this account cannot open says nothing at all. */
+  .mg-col:not(:has(> .nav:not([style*="none"]))){display:none}
+  .navmega .nav{flex-wrap:wrap;row-gap:6px;padding:8px 10px;font-size:14px}
+  .navmega .nav-t{flex:1 1 0;min-width:0}
+  .nav-ic{width:30px;height:30px;border-radius:9px;background:var(--chip);color:var(--brand-ink);display:inline-flex;
+    align-items:center;justify-content:center;flex:0 0 auto}
+  .nav.on .nav-ic{background:var(--card)}
+  /* The counts go on a line of their own, under the name, each with its words. */
+  .navmega .nav-bd{flex:1 0 100%;display:flex;flex-wrap:wrap;gap:4px;padding-left:40px;box-sizing:border-box}
+  .navmega .nav-bd:not(:has(.navbadge:not(.hide))){display:none}
+  .navmega .navbadge{margin-left:0;padding:0 8px;line-height:20px;font-size:11.5px}
+  .navmega .navbadge[data-what]::after{content:" " attr(data-what);font-weight:600}
   .navclose{margin-left:auto;flex:none;width:28px;height:28px;padding:0;display:inline-flex;
     align-items:center;justify-content:center;background:transparent;color:var(--muted);
     border:0;border-radius:8px;font-size:17px;line-height:1}
@@ -814,20 +834,37 @@
          press, the check, the stock — and the masters everything is keyed on, last. -->
     <div class="navwrap"><button class="navgrp" id="grpProd" type="button" data-grp="prod" data-tabs="so,ord,pcut,pbase,ppress,qc,fgi,fba,fab,acc,pmdb,mst,cx">
       <span class="caret">&#9656;</span> Production</button>
-    <div class="navsec" id="secProd">
-      <button id="tabSo" class="nav">Sales Orders <span id="soDelBadge" class="navbadge hide"></span></button>
-      <button id="tabOrd" class="nav">Order Console <span id="ordAdjBadge" class="navbadge hide" title="Quantities changed on an order that nobody here has said they have seen" style="background:#b45309"></span></button>
-      <button id="tabPcut" class="nav">Cutting Data</button>
-      <button id="tabPbase" class="nav">Job Work Register <span id="jwCorrBadge" class="navbadge hide" title="Correction requests waiting for approval" style="background:#b45309"></span></button>
-      <button id="tabPpress" class="nav">Press Inventory</button>
-      <button id="tabQc" class="nav">Quality Control</button>
-      <button id="tabFgi" class="nav">Finished Goods <span id="fgiLstBadge" class="navbadge hide" title="SKUs with stock entered that Amazon does not list"></span><span id="fgiCorrBadge" class="navbadge hide" title="Correction requests waiting for approval" style="background:#b45309"></span><span id="fgiOverBadge" class="navbadge hide" title="Receipts with more pieces than the order — not yet reviewed" style="background:#7c3aed"></span></button>
-      <button id="tabFba" class="nav">FBA Dispatch <span id="fbaBadge" class="navbadge hide"></span></button>
-      <button id="tabFab" class="nav">Fabric Inventory</button>
-      <button id="tabAcc" class="nav">Accessories</button>
-      <button id="tabPmdb" class="nav">Master Database</button>
-      <button id="tabMst" class="nav">Masters</button>
-      <button id="tabCx" class="nav">Customer Orders</button>
+    <!-- A MEGA MENU (Ravi, 2026-09-24: "2 — Mega menu"). Five columns in the order work moves; every
+         count carries the words for what it counts (data-what), because "26" alone told nobody. -->
+    <div class="navsec navmega" id="secProd">
+      <div class="mg-col">
+        <div class="mg-h">Orders</div>
+        <button id="tabSo" class="nav"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg></span><span class="nav-t">Sales Orders</span><span class="nav-bd"><span id="soDelBadge" class="navbadge hide" data-what="to delete" title="Deletion requests waiting for an answer"></span></span></button>
+        <button id="tabOrd" class="nav"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg></span><span class="nav-t">Order Console</span><span class="nav-bd"><span id="ordAdjBadge" class="navbadge hide" data-what="qty changed" title="Quantities changed on an order that nobody here has said they have seen" style="background:#b45309"></span></span></button>
+        <button id="tabCx" class="nav"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span><span class="nav-t">Customer Orders</span></button>
+      </div>
+      <div class="mg-col">
+        <div class="mg-h">Making</div>
+        <button id="tabPcut" class="nav"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.1 15.9M14.5 14.5 20 20M8.1 8.1 12 12"/></svg></span><span class="nav-t">Cutting Data</span></button>
+        <button id="tabPbase" class="nav"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-4-6"/></svg></span><span class="nav-t">Job Work Register</span><span class="nav-bd"><span id="jwCorrBadge" class="navbadge hide" data-what="to approve" title="Correction requests waiting for approval" style="background:#b45309"></span></span></button>
+        <button id="tabPpress" class="nav"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 18h18"/><path d="M5 18l2-8h10l2 8"/><path d="M9 10V6h6v4"/></svg></span><span class="nav-t">Press Inventory</span></button>
+        <button id="tabQc" class="nav"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg></span><span class="nav-t">Quality Control</span></button>
+      </div>
+      <div class="mg-col">
+        <div class="mg-h">Finished &amp; dispatch</div>
+        <button id="tabFgi" class="nav"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg></span><span class="nav-t">Finished Goods</span><span class="nav-bd"><span id="fgiLstBadge" class="navbadge hide" data-what="not on Amazon" title="SKUs received into Finished Goods that Amazon does not list"></span><span id="fgiCorrBadge" class="navbadge hide" data-what="to approve" title="Correction requests waiting for approval" style="background:#b45309"></span><span id="fgiOverBadge" class="navbadge hide" data-what="over order" title="Receipts with more pieces than the order — not yet reviewed" style="background:#7c3aed"></span></span></button>
+        <button id="tabFba" class="nav"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg></span><span class="nav-t">FBA Dispatch</span><span class="nav-bd"><span id="fbaBadge" class="navbadge hide" data-what="to accept" title="Sent to the FBA team, not yet accepted"></span></span></button>
+      </div>
+      <div class="mg-col">
+        <div class="mg-h">Materials</div>
+        <button id="tabFab" class="nav"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3v12c0 1.7-3.6 3-8 3s-8-1.3-8-3z"/><path d="M4 6c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg></span><span class="nav-t">Fabric Inventory</span></button>
+        <button id="tabAcc" class="nav"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 11-8.5 8.5a5 5 0 0 1-7-7L14 4a3.3 3.3 0 0 1 4.7 4.7L10.2 17a1.7 1.7 0 0 1-2.4-2.4L15.5 7"/></svg></span><span class="nav-t">Accessories</span></button>
+      </div>
+      <div class="mg-col">
+        <div class="mg-h">Setup</div>
+        <button id="tabPmdb" class="nav"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg></span><span class="nav-t">Master Database</span></button>
+        <button id="tabMst" class="nav"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg></span><span class="nav-t">Masters</span></button>
+      </div>
     </div></div>
 
     <div class="navwrap"><button class="navgrp" id="grpVendors" type="button" data-grp="vendors" data-tabs="vreq,vord,rfd,vend,vlog,palloc">
@@ -3319,6 +3356,9 @@ function setGroupOpen(g, open) {
   g.head.classList.toggle('open', open);
   g.head.setAttribute('aria-expanded', String(open));
   g.sec.classList.toggle('open', open);
+  /* The mega menu hangs from the bar, not from its heading: the bar can wrap to two rows. */
+  if (open && g.sec.classList.contains('navmega') && g.head.getBoundingClientRect)
+    g.sec.style.top = Math.round(g.head.getBoundingClientRect().bottom + 7) + 'px';
 }
 /* A MENU IS NOT A SHAPE TO REMEMBER. A sidebar's open group was worth keeping between visits; a
  * dropdown that opened by itself on load would be a panel over the work nobody asked for. */
