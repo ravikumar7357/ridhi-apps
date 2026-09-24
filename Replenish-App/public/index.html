@@ -879,6 +879,10 @@
             <option value="sea">Needs Sea</option>
             <option value="any">Needs reorder</option>
             <option value="out">Out of stock</option>
+            <!-- ALREADY IN THE COUNTRY, ON THE WRONG SHELF. The amber ⇄ in the AWD Available
+                 column marks these; now they can be asked for by name (Ravi, 2026-09-24: "jo awd
+                 se transfer kar sakte usko bhi filter me add kardo"). -->
+            <option value="awdmove" title="AWD holds stock, the SKU is selling, and FBA itself (warehouse + inbound receiving) is under 30 days of cover — so moving it from AWD to FBA is quicker and cheaper than sending more from India.">⇄ Move from AWD</option>
             <option value="projman">✎ Manual projection</option>
           </select>
           <input id="rFilter" style="flex:1 1 150px;min-width:0" placeholder="Filter SKU / ASIN / product">
@@ -5565,6 +5569,9 @@ function renderRepl() {
   else if (need === 'sea') rows = rows.filter(r => r._req.sea > 0);
   else if (need === 'any') rows = rows.filter(r => r._req.air > 0 || r._req.sea > 0 || r._req.awd > 0);
   else if (need === 'out') rows = rows.filter(r => r._state === 'out');
+  /* The ones the AWD column already marks amber: stock in AWD, selling, and FBA short of cover.
+   * The rule itself is the backend's — this filter must never invent a second opinion about it. */
+  else if (need === 'awdmove') rows = rows.filter(r => !!r.awdTransfer);
   // Every SKU carrying a manually-typed / uploaded projection in ANY month of the horizon (the yellow cells).
   else if (need === 'projman') rows = rows.filter(r => r._fc.some(f => f.manual));
 

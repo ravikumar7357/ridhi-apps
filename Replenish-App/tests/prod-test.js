@@ -19065,6 +19065,16 @@ console.log('\n== the SKU template is an Excel sheet ==');
 {
   /* "i need recipe in excel template" — 2026-09-22: the recipe sheet always was one; the SKU one was a CSV. */
   const src = fs.readFileSync(APP, 'utf8');
+  /* WHAT IS ALREADY IN THE COUNTRY, ON THE WRONG SHELF (Ravi, 2026-09-24: "jo awd se transfer kar
+   * sakte usko bhi filter me add kardo"). The AWD Available column already marks these amber; the
+   * Need filter can now ask for exactly them, and it reads the SAME flag the column reads rather
+   * than forming a second opinion about which SKUs qualify. */
+  ok('the Need filter offers the AWD ones', /<option value="awdmove"/.test(src));
+  ok('…and it filters on the flag the column marks them with',
+     src.includes("else if (need === 'awdmove') rows = rows.filter(r => !!r.awdTransfer);"));
+  ok('…which is the backend rule, never a second one written here',
+     (src.match(/awdTransfer/g) || []).length >= 4 && !/awdTransfer\s*=[^=]/.test(src));
+
   ok('Template writes an .xlsx for the master database', src.includes('master-database-template-') && /master-database-template-\$\{dToday\(\)\}\.xlsx/.test(src));
   ok('…with Yes/No and the cloth as dropdowns',
      src.includes("cols: { yn: ['Cutting required', 'Zip', 'Ruffle', 'Piping dori', 'Filler fabric'].map(ix), fab: ['Fabric', 'Ruffle fabric'].map(ix) }"));
