@@ -19884,6 +19884,25 @@ console.log('\n== the Production menu is a mega menu ==');
   ok('a column with nothing this account may open says nothing', /\.mg-col:not\(:has\(> \.nav:not\(\[style\*="none"\]\)\)\)\{display:none\}/.test(src));
 }
 
+console.log('\n== every menu item is a link a new tab can open ==');
+{
+  /* Ravi, 2026-09-24: "yaha right click kru to open to new window dikhay". The browser offers "open in
+   * new tab / window" only on a link; the menu items were buttons. */
+  const src = fs.readFileSync(APP, 'utf8');
+  const side = src.slice(src.indexOf('<aside class="side">'), src.indexOf('</aside>'));
+  const links = [...side.matchAll(/<a id="(tab\w+)" class="nav" href="#(\w+)"/g)];
+  ok('all 35 menu items are links with an address', links.length === 35, String(links.length));
+  ok('…and not one of them is still a button', !/<button id="tab\w+" class="nav"/.test(side));
+  const navs = (src.match(/const navs = \{([^}]+)\};/) || [])[1] || '';
+  ok('…each address is the screen its item opens', links.every(([, id, key]) => new RegExp('\\b' + key + ": '" + id + "'").test(navs)),
+     links.filter(([, id, key]) => !new RegExp('\\b' + key + ": '" + id + "'").test(navs)).map(x => x[1]).join(','));
+  ok('showTab writes the screen into the address', /history\.replaceState\(null, '', '#' \+ which\)/.test(src));
+  ok('sign-in opens the screen the address names', /showTab\(navHashTab\(\) \|\| ME\.tabs\[0\]\)/.test(src));
+  ok('a Ctrl or middle click opens the new tab without also switching this one',
+     /e\.ctrlKey \|\| e\.metaKey \|\| e\.shiftKey \|\| e\.button > 0\)\) e\.stopPropagation\(\)/.test(src));
+  ok('the Shopify-only name changes the words, not the icon and the count', /\(t \|\| b\)\.textContent = 'Shopify Orders'/.test(src));
+}
+
 console.log('\n== the installed app ==');
 {
   /* "mobile me app install kar liya to wo mobile app ki tarah react kare" — 2026-09-22. */

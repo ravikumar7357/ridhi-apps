@@ -97,6 +97,9 @@
        into a card with a gap around it, and 35 cards made a column twice the height of the screen. */
     box-shadow:none;min-height:0;line-height:1.35;border-radius:var(--r-ctl)}
   .nav:hover{background:var(--hover)}
+  /* The menu items are links (so right-click can open one in a new tab); they look as they did. */
+  a.nav{text-decoration:none;color:var(--ink)}
+  a.nav.on{color:var(--brand)}
   /* WHERE YOU ARE, said by more than a shade of grey. The same weight of background carried both
      "you are here" and "your pointer is here", so on a still screen neither said anything. */
   .nav.on{background:var(--brand-bg);font-weight:700;color:var(--brand);box-shadow:none}
@@ -812,22 +815,22 @@
     <div class="navwrap"><button class="navgrp" id="grpShopify" type="button" data-grp="shopify" data-tabs="shop,adj,shopify">
       <span class="caret">&#9656;</span> Shopify</button>
     <div class="navsec" id="secShopify">
-      <button id="tabShop" class="nav">Shopify Orders</button>
-      <button id="tabAdj" class="nav">Adjustments</button>
-      <button id="tabShopify" class="nav">Shopify Stock</button>
+      <a id="tabShop" class="nav" href="#shop">Shopify Orders</a>
+      <a id="tabAdj" class="nav" href="#adj">Adjustments</a>
+      <a id="tabShopify" class="nav" href="#shopify">Shopify Stock</a>
     </div></div>
 
     <div class="navwrap"><button class="navgrp" id="grpPlan" type="button" data-grp="plan" data-tabs="repl,article,target,top,pack,follow,india">
       <span class="caret">&#9656;</span> Replenishment &amp; planning</button>
     <div class="navsec" id="secPlan">
-      <button id="tabRepl" class="nav">Replenishment</button>
-      <button id="tabArticle" class="nav">Article Review</button>
-      <button id="tabTarget" class="nav">Revenue Target</button>
-      <button id="tabTop" class="nav">Top ASIN Status</button>
-      <button id="tabProd" class="nav">In Production</button>
-      <button id="tabPack" class="nav">Packing List</button>
-      <button id="tabFollow" class="nav">Ongoing Purchase Order <span id="followBadge" class="navbadge hide"></span></button>
-      <button id="tabIndia" class="nav">India Stock</button>
+      <a id="tabRepl" class="nav" href="#repl">Replenishment</a>
+      <a id="tabArticle" class="nav" href="#article">Article Review</a>
+      <a id="tabTarget" class="nav" href="#target">Revenue Target</a>
+      <a id="tabTop" class="nav" href="#top">Top ASIN Status</a>
+      <a id="tabProd" class="nav" href="#prod">In Production</a>
+      <a id="tabPack" class="nav" href="#pack">Packing List</a>
+      <a id="tabFollow" class="nav" href="#follow">Ongoing Purchase Order <span id="followBadge" class="navbadge hide"></span></a>
+      <a id="tabIndia" class="nav" href="#india">India Stock</a>
     </div></div>
 
     <!-- The shop floor, in the order work moves through it: the order, the cut, the karigar, the
@@ -839,58 +842,58 @@
     <div class="navsec navmega" id="secProd">
       <div class="mg-col">
         <div class="mg-h">Orders</div>
-        <button id="tabSo" class="nav"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg></span><span class="nav-t">Sales Orders</span><span class="nav-bd"><span id="soDelBadge" class="navbadge hide" data-what="to delete" title="Deletion requests waiting for an answer"></span></span></button>
-        <button id="tabOrd" class="nav"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg></span><span class="nav-t">Order Console</span><span class="nav-bd"><span id="ordAdjBadge" class="navbadge hide" data-what="qty changed" title="Quantities changed on an order that nobody here has said they have seen" style="background:#b45309"></span></span></button>
-        <button id="tabCx" class="nav"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span><span class="nav-t">Customer Orders</span></button>
+        <a id="tabSo" class="nav" href="#so"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg></span><span class="nav-t">Sales Orders</span><span class="nav-bd"><span id="soDelBadge" class="navbadge hide" data-what="to delete" title="Deletion requests waiting for an answer"></span></span></a>
+        <a id="tabOrd" class="nav" href="#ord"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg></span><span class="nav-t">Order Console</span><span class="nav-bd"><span id="ordAdjBadge" class="navbadge hide" data-what="qty changed" title="Quantities changed on an order that nobody here has said they have seen" style="background:#b45309"></span></span></a>
+        <a id="tabCx" class="nav" href="#cx"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span><span class="nav-t">Customer Orders</span></a>
       </div>
       <div class="mg-col">
         <div class="mg-h">Making</div>
-        <button id="tabPcut" class="nav"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.1 15.9M14.5 14.5 20 20M8.1 8.1 12 12"/></svg></span><span class="nav-t">Cutting Data</span></button>
-        <button id="tabPbase" class="nav"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-4-6"/></svg></span><span class="nav-t">Job Work Register</span><span class="nav-bd"><span id="jwCorrBadge" class="navbadge hide" data-what="to approve" title="Correction requests waiting for approval" style="background:#b45309"></span></span></button>
-        <button id="tabPpress" class="nav"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 18h18"/><path d="M5 18l2-8h10l2 8"/><path d="M9 10V6h6v4"/></svg></span><span class="nav-t">Press Inventory</span></button>
-        <button id="tabQc" class="nav"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg></span><span class="nav-t">Quality Control</span></button>
+        <a id="tabPcut" class="nav" href="#pcut"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.1 15.9M14.5 14.5 20 20M8.1 8.1 12 12"/></svg></span><span class="nav-t">Cutting Data</span></a>
+        <a id="tabPbase" class="nav" href="#pbase"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-4-6"/></svg></span><span class="nav-t">Job Work Register</span><span class="nav-bd"><span id="jwCorrBadge" class="navbadge hide" data-what="to approve" title="Correction requests waiting for approval" style="background:#b45309"></span></span></a>
+        <a id="tabPpress" class="nav" href="#ppress"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 18h18"/><path d="M5 18l2-8h10l2 8"/><path d="M9 10V6h6v4"/></svg></span><span class="nav-t">Press Inventory</span></a>
+        <a id="tabQc" class="nav" href="#qc"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg></span><span class="nav-t">Quality Control</span></a>
       </div>
       <div class="mg-col">
         <div class="mg-h">Finished &amp; dispatch</div>
-        <button id="tabFgi" class="nav"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg></span><span class="nav-t">Finished Goods</span><span class="nav-bd"><span id="fgiLstBadge" class="navbadge hide" data-what="not on Amazon" title="SKUs received into Finished Goods that Amazon does not list"></span><span id="fgiCorrBadge" class="navbadge hide" data-what="to approve" title="Correction requests waiting for approval" style="background:#b45309"></span><span id="fgiOverBadge" class="navbadge hide" data-what="over order" title="Receipts with more pieces than the order — not yet reviewed" style="background:#7c3aed"></span></span></button>
-        <button id="tabFba" class="nav"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg></span><span class="nav-t">FBA Dispatch</span><span class="nav-bd"><span id="fbaBadge" class="navbadge hide" data-what="to accept" title="Sent to the FBA team, not yet accepted"></span></span></button>
+        <a id="tabFgi" class="nav" href="#fgi"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg></span><span class="nav-t">Finished Goods</span><span class="nav-bd"><span id="fgiLstBadge" class="navbadge hide" data-what="not on Amazon" title="SKUs received into Finished Goods that Amazon does not list"></span><span id="fgiCorrBadge" class="navbadge hide" data-what="to approve" title="Correction requests waiting for approval" style="background:#b45309"></span><span id="fgiOverBadge" class="navbadge hide" data-what="over order" title="Receipts with more pieces than the order — not yet reviewed" style="background:#7c3aed"></span></span></a>
+        <a id="tabFba" class="nav" href="#fba"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg></span><span class="nav-t">FBA Dispatch</span><span class="nav-bd"><span id="fbaBadge" class="navbadge hide" data-what="to accept" title="Sent to the FBA team, not yet accepted"></span></span></a>
       </div>
       <div class="mg-col">
         <div class="mg-h">Materials</div>
-        <button id="tabFab" class="nav"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3v12c0 1.7-3.6 3-8 3s-8-1.3-8-3z"/><path d="M4 6c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg></span><span class="nav-t">Fabric Inventory</span></button>
-        <button id="tabAcc" class="nav"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 11-8.5 8.5a5 5 0 0 1-7-7L14 4a3.3 3.3 0 0 1 4.7 4.7L10.2 17a1.7 1.7 0 0 1-2.4-2.4L15.5 7"/></svg></span><span class="nav-t">Accessories</span></button>
+        <a id="tabFab" class="nav" href="#fab"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3v12c0 1.7-3.6 3-8 3s-8-1.3-8-3z"/><path d="M4 6c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg></span><span class="nav-t">Fabric Inventory</span></a>
+        <a id="tabAcc" class="nav" href="#acc"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 11-8.5 8.5a5 5 0 0 1-7-7L14 4a3.3 3.3 0 0 1 4.7 4.7L10.2 17a1.7 1.7 0 0 1-2.4-2.4L15.5 7"/></svg></span><span class="nav-t">Accessories</span></a>
       </div>
       <div class="mg-col">
         <div class="mg-h">Setup</div>
-        <button id="tabPmdb" class="nav"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg></span><span class="nav-t">Master Database</span></button>
-        <button id="tabMst" class="nav"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg></span><span class="nav-t">Masters</span></button>
+        <a id="tabPmdb" class="nav" href="#pmdb"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg></span><span class="nav-t">Master Database</span></a>
+        <a id="tabMst" class="nav" href="#mst"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg></span><span class="nav-t">Masters</span></a>
       </div>
     </div></div>
 
     <div class="navwrap"><button class="navgrp" id="grpVendors" type="button" data-grp="vendors" data-tabs="vreq,vord,rfd,vend,vlog,palloc">
       <span class="caret">&#9656;</span> Vendors &amp; printers</button>
     <div class="navsec" id="secVendors">
-      <button id="tabVreq" class="nav">Vendor Order Requests <span id="vreqBadge" class="navbadge hide"></span></button>
-      <button id="tabVord" class="nav">Vendor Orders</button>
-      <button id="tabRfd" class="nav">RFD Requirements <span id="rfdBadge" class="navbadge hide"></span></button>
-      <button id="tabVend" class="nav">Vendor Portal</button>
-      <button id="tabVlog" class="nav">History</button>
-      <button id="tabPalloc" class="nav">Printer Allocation</button>
+      <a id="tabVreq" class="nav" href="#vreq">Vendor Order Requests <span id="vreqBadge" class="navbadge hide"></span></a>
+      <a id="tabVord" class="nav" href="#vord">Vendor Orders</a>
+      <a id="tabRfd" class="nav" href="#rfd">RFD Requirements <span id="rfdBadge" class="navbadge hide"></span></a>
+      <a id="tabVend" class="nav" href="#vend">Vendor Portal</a>
+      <a id="tabVlog" class="nav" href="#vlog">History</a>
+      <a id="tabPalloc" class="nav" href="#palloc">Printer Allocation</a>
     </div></div>
 
     <div class="navwrap"><button class="navgrp" id="grpPeople" type="button" data-grp="people" data-tabs="att,hr">
       <span class="caret">&#9656;</span> People &amp; pay</button>
     <div class="navsec" id="secPeople">
-      <button id="tabAtt" class="nav">Attendance</button>
-      <button id="tabHr" class="nav">Finance &amp; HR</button>
+      <a id="tabAtt" class="nav" href="#att">Attendance</a>
+      <a id="tabHr" class="nav" href="#hr">Finance &amp; HR</a>
     </div></div>
 
     <div class="navwrap"><button class="navgrp" id="grpReports" type="button" data-grp="reports" data-tabs="rep,pa,ka">
       <span class="caret">&#9656;</span> Reports &amp; analysis</button>
     <div class="navsec" id="secReports">
-      <button id="tabRep" class="nav">Reports</button>
-      <button id="tabPa" class="nav">Production Analysis</button>
-      <button id="tabKa" class="nav">Karigar Analysis</button>
+      <a id="tabRep" class="nav" href="#rep">Reports</a>
+      <a id="tabPa" class="nav" href="#pa">Production Analysis</a>
+      <a id="tabKa" class="nav" href="#ka">Karigar Analysis</a>
     </div></div>
 
     <div class="sidefoot">
@@ -3277,7 +3280,8 @@ onAuthStateChanged(auth, async user => {
    * difference is what the view picker holds. */
   if (SHOP_ONLY()) {
     const b = $('tabOrd');
-    if (b) { b.style.display = ''; b.textContent = 'Shopify Orders'; }
+    /* The name only — setting the whole item's text took its icon and its count with it. */
+    if (b) { b.style.display = ''; const t = b.querySelector && b.querySelector('.nav-t'); (t || b).textContent = 'Shopify Orders'; }
     const bookOpt = $('odView') && $('odView').querySelector('option[value="book"]');
     if (bookOpt) bookOpt.remove();
     if ($('odView')) $('odView').value = 'shopsku';
@@ -3328,7 +3332,9 @@ onAuthStateChanged(auth, async user => {
 
   // The cached snapshot, which every tab EXCEPT the factory ones is built on.
   if (!FACTORY_ONLY) await ensureRepl();
-  showTab(ME.tabs[0]);
+  /* The screen the address names, when this account may open it — a tab opened from a menu link, or a
+   * reload. showTab itself sends anything else to the first screen this account has. */
+  showTab(navHashTab() || ME.tabs[0]);
   /* Somebody who approves requests is told how many are waiting without having to open the tab. */
   if (ME.tabs.includes('vreq') && vrqCanApprove()) ptGet('pt_vendorOrderReqs')
     .then(v => { if (VRQ.rows === null) VRQ.rows = ptList(v).filter(r => r && r.id); vrqBadge(); }).catch(() => {});
@@ -3391,6 +3397,26 @@ function topbarSync() {
     && !el.classList.contains('hide') && (el.textContent.trim() || el.querySelector('button:not(.hide)')));
   bar.classList.toggle('hide', !alive);
 }
+
+/** The screen named in the address ("#fab"), or '' — only a screen this app has. */
+function navHashTab() {
+  const h = String((typeof location !== 'undefined' && location.hash) || '').replace(/^#\/?/, '').trim();
+  return /^[a-z]+$/.test(h) && (typeof TAB_NAV_IDS === 'undefined' || TAB_NAV_IDS.indexOf(h) >= 0 || h === 'shopprod') ? h : '';
+}
+/* Every screen key with a menu link — the same list showTab keys its table on. */
+const TAB_NAV_IDS = ["repl","article","target","follow","top","india","shopify","prod","pack","att","pmdb","mst","pbase","pcut","ppress","qc","ord","so","vord","vreq","rfd","vend","vlog","cx","palloc","fgi","fba","fab","acc","rep","pa","ka","hr","shop","adj"];
+
+/* A Ctrl/Cmd/Shift click opens the link in a new tab or window; it must not ALSO switch this one. The
+ * item's own click handler is on the link, so it is stopped here, on the way down. */
+document.querySelector('.side') && document.querySelector('.side').addEventListener('click', e => {
+  const a = e.target.closest && e.target.closest('a.nav');
+  if (a && (e.ctrlKey || e.metaKey || e.shiftKey || e.button > 0)) e.stopPropagation();
+}, true);
+/* The address changed by hand, or by Back: follow it, once. */
+window.addEventListener('hashchange', () => {
+  const t = navHashTab();
+  if (t && t !== TAB_NOW && ME && ME.tabs && ME.tabs.length) showTab(t);
+});
 
 function navOpenFor(tab) {
   const g = NAV_GROUPS.find(x => x.tabs.includes(tab));
@@ -3593,6 +3619,9 @@ function showTab(which) {
   if ($('bwToggle')) $('bwToggle').classList.toggle('hide', which !== 'pbase');
   VEND_WAS_ON = (which === 'vend');
   TAB_NOW = which;
+  /* THE ADDRESS SAYS THE SCREEN, so a link to it — a new tab, a reload — opens here again. Replaced,
+   * not pushed: Back is not a list of every tab visited. */
+  try { if (location.hash !== '#' + which) history.replaceState(null, '', '#' + which); } catch (e) { /* only the address */ }
   navOpenFor(which);
   /* Nothing left up there on most screens — so there is no row. The ones that put their own line or
    * their own button there keep it. */
