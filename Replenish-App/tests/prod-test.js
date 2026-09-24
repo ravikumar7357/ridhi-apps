@@ -19482,6 +19482,29 @@ console.log('\n== printing and cloth demand off the order book ==');
   A.renderOrd();
 }
 
+console.log('\n== a cache that can actually hit ==');
+{
+  /* Ravi, 2026-09-24: "system bahut hang ho rha h." Seven indexes are kept until the list they were
+   * built from is replaced, and they tell by identity. Written "FGI.rows || []" the fallback was a
+   * NEW array every call, so while that list was still null the cache could never hit and the index
+   * was rebuilt once per row — 1.4 seconds to redraw the Order Console, on every keystroke. */
+  const src = fs.readFileSync(APP, 'utf8');
+  const bad = (src.match(/const src = [^;\n]*\|\| \[\]/g) || []);
+  ok('no identity-cached index falls back to a fresh empty array', bad.length === 0, bad.join(' · '));
+  ok('they share one frozen empty list instead', /const PT_NONE = Object\.freeze\(\[\]\);/.test(src));
+  /* The one that hurt most, proved rather than read: the index must be the SAME object twice when
+   * Finished Goods has not loaded, which is the ordinary state of the Order Console. */
+  const wasFgi = A.FGI();
+  A.setFGI(Object.assign({}, wasFgi, { rows: null }));
+  const a1 = A.ordFgAt('NO-SUCH-ORDER', 'NO-SUCH-SKU');
+  const t0 = Date.now();
+  for (let i = 0; i < 400; i++) A.ordFgAt('NO-SUCH-ORDER', 'NO-SUCH-SKU');
+  const took = Date.now() - t0;
+  ok('…so 400 lookups with nothing loaded cost almost nothing', took < 150, took + ' ms');
+  ok('…and the answer is still the right one', a1 === null);
+  A.setFGI(wasFgi);
+}
+
 console.log('\n== the installed app ==');
 {
   /* "mobile me app install kar liya to wo mobile app ki tarah react kare" — 2026-09-22. */

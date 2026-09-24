@@ -10584,8 +10584,18 @@ function obBaseIndex() {
  */
 const obIsShop = r => !!r && (String(r.src || '') === 'SHP' || obUC(r.orderNo).indexOf('SHP-') === 0);
 let OB_PACK_IX = { src: null, n: -1, sib: null };
+/**
+ * ONE empty list, shared by every index below that caches on the identity of its source.
+ *
+ * A fresh `[]` each call is a fresh identity each call, so a cache guarded by `src === IX.src` can
+ * never hit while the real list is still null — and it rebuilds instead, once per row. That is what
+ * made the Order Console take a second and a half to redraw before Finished Goods had loaded.
+ * Frozen, so nothing can push into the stand-in for "not read yet".
+ */
+const PT_NONE = Object.freeze([]);
+
 function obPackSiblings() {
-  const src = PTG.mdb || [];
+  const src = PTG.mdb || PT_NONE;
   if (OB_PACK_IX.sib && OB_PACK_IX.src === src && OB_PACK_IX.n === src.length) return OB_PACK_IX.sib;
   /* Same product letters, same last segment (the size) — the other colours of one product. */
   const votes = new Map();
@@ -10655,7 +10665,7 @@ function obShopUnits(r) {
 /* Rebuilt on every call before — 2,019 rows, and obOrderedQty called it once per order line. */
 let OBL_IX = { src: null, n: -1, rows: null, byKey: null };
 function obLines() {
-  const src = PTG.ob || [];
+  const src = PTG.ob || PT_NONE;
   /* The pack size comes from the master, so a master that has only just loaded rebuilds this. */
   const mdbSrc = PTG.mdb || [];
   if (OBL_IX.rows && OBL_IX.src === src && OBL_IX.n === src.length
@@ -15702,7 +15712,7 @@ function ordProdRows() {
  */
 let ORD_ADJ_IX = { src: null, n: -1, map: null };
 function ordQtyAdjIndex() {
-  const src = SOX.rows || [];
+  const src = SOX.rows || PT_NONE;
   if (ORD_ADJ_IX.map && ORD_ADJ_IX.src === src && ORD_ADJ_IX.n === src.length) return ORD_ADJ_IX.map;
   const map = new Map();
   src.forEach(o => {
@@ -16174,7 +16184,7 @@ function ordShareBySku(loose, lines, roomOf, give) {
 }
 
 function ordQcIndex() {
-  const src = QC.checks || [], lines = ordLines();
+  const src = QC.checks || PT_NONE, lines = ordLines();
   if (ORD_QC_IX.map && ORD_QC_IX.src === src && ORD_QC_IX.n === src.length && ORD_QC_IX.lines === lines) return ORD_QC_IX.map;
   const map = new Map(), loose = new Map();
   const add = (k, c, ok, rej, alt, worked) => { const e = map.get(k) || { checked: 0, ok: 0, rej: 0, alt: 0, worked: 0 };
@@ -16213,7 +16223,7 @@ const ordQcOf = (orderNo, sku) => ordQcIndex().get(obKeyOf(orderNo, sku)) || nul
  */
 let ORD_FG_IX = { src: null, n: -1, lines: null, map: null };
 function ordFgIndex() {
-  const src = FGI.rows || [], lines = ordLines();
+  const src = FGI.rows || PT_NONE, lines = ordLines();
   if (ORD_FG_IX.map && ORD_FG_IX.src === src && ORD_FG_IX.n === src.length && ORD_FG_IX.lines === lines) return ORD_FG_IX.map;
   const map = new Map(), loose = new Map();
   const get = k => { let e = map.get(k); if (!e) { e = { in: 0, out: 0, fba: 0, fbaOpen: 0, worked: 0 }; map.set(k, e); } return e; };
@@ -35216,7 +35226,7 @@ function palVendorOf(p) {
 let PAL_DEL_IX = { src: null, n: -1, map: null };
 /** Vendor code → month → pieces delivered. Built once per version of the vendor orders. */
 function palDelivered() {
-  const src = VO.rows || [];
+  const src = VO.rows || PT_NONE;
   if (PAL_DEL_IX.map && PAL_DEL_IX.src === src && PAL_DEL_IX.n === src.length) return PAL_DEL_IX.map;
   const map = new Map();
   src.forEach(o => {
@@ -38752,11 +38762,29 @@ function palNeedWhy(need) {
 const ptPrintKey = (at, sub) => String(at || '').trim().toLowerCase() + '|' + String(sub || '').trim().toLowerCase();
 const ptPrintRules = () => ptList((PTG.masters || {}).printRule).filter(Boolean);
 
+/**
+ * The rules keyed by article and subtype, built once per rule list.
+ *
+ * ptPrintRuleOf used to run ptList + filter + find on every call, and every open order line calls it
+ * — 785 ms of a 1.6 second screen. Rebuilt when the list itself is replaced, which is what saving a
+ * rule does, so an edit is picked up without anything having to remember to clear this.
+ */
+let PRULE_IX = { src: null, map: null };
+function ptPrintRuleMap() {
+  const src = (PTG.masters || {}).printRule;
+  if (PRULE_IX.src === src && PRULE_IX.map) return PRULE_IX.map;
+  const map = new Map();
+  /* The FIRST rule for a key wins, exactly as .find() did — two rules for one subtype is a mistake
+   * in the masters, and changing which one applies while fixing a slow screen would be a second. */
+  ptPrintRules().forEach(r => { const k = ptPrintKey(r.articleType, r.subtype); if (!map.has(k)) map.set(k, r); });
+  PRULE_IX = { src, map };
+  return map;
+}
+
 /** The rule for a master row, or null when nobody has written one. */
 function ptPrintRuleOf(m) {
   if (!m) return null;
-  const k = ptPrintKey(m.articleType, m.subtype);
-  return ptPrintRules().find(r => ptPrintKey(r.articleType, r.subtype) === k) || null;
+  return ptPrintRuleMap().get(ptPrintKey(m.articleType, m.subtype)) || null;
 }
 
 /**
@@ -38798,14 +38826,30 @@ const PRINT_BY_WIDTH = '*';
  * A rule set to "whichever wastes least" hands the question to the calculator, which is how one line
  * covers 60-wide off 62", 70-wide off 72" and 80-wide off 82" without three rules to keep in step.
  */
+/**
+ * The cloth a SKU is printed on, worked out once per kind of SKU rather than once per SKU.
+ *
+ * "Whichever wastes least" means running ptConsPlan, which lays the cut on every roll the factory
+ * buys. That answer depends on the article, the subtype, the size and the row's own fabric and on
+ * nothing else — so 4,973 master rows share a few hundred answers, and the printer forecast stops
+ * doing the same geometry four thousand times.
+ */
+let PFAB_IX = { src: null, map: null };
 function ptPrintFabric(m) {
+  const src = PTG.masters || {};
+  if (PFAB_IX.src !== src || !PFAB_IX.map) PFAB_IX = { src, map: new Map() };
+  const key = ptPrintKey(m && m.articleType, m && m.subtype) + '|'
+    + String((m && m.size) || '').trim().toLowerCase() + '|'
+    + String((m && m.fabric) || '').trim().toLowerCase();
+  const hit = PFAB_IX.map.get(key);
+  if (hit !== undefined) return hit;
   const r = ptPrintRuleOf(m);
   const named = String((r && r.fabric) || '').trim();
-  if (named === PRINT_BY_WIDTH) {
-    const p = ptConsPlan(m);
-    return p.fabric || String((m && m.fabric) || '').trim();
-  }
-  return String(named || (m && m.fabric) || '').trim();
+  const out = named === PRINT_BY_WIDTH
+    ? ((ptConsPlan(m) || {}).fabric || String((m && m.fabric) || '').trim())
+    : String(named || (m && m.fabric) || '').trim();
+  PFAB_IX.map.set(key, out);
+  return out;
 }
 
 /** Running cloth or cut pieces — what the printer is actually handed. '' when nobody has said. */
@@ -40272,11 +40316,19 @@ function ptCutOf(size) {
  * only adds the width and leaves out the ones that have none, because a roll of unknown width cannot
  * be cut from.
  */
+/* Built once per fabric master. It was rebuilt inside ptConsPlan for every SKU the consumption or
+ * the printer forecast asked about — the same dozen rolls, sorted again four thousand times. Nothing
+ * that is handed this list changes it. */
+let PFW_IX = { src: null, rows: null };
 function ptFabricWidths() {
-  return cutFabrics()
+  const src = (PTG.masters || {}).fabricType;
+  if (PFW_IX.src === src && PFW_IX.rows) return PFW_IX.rows;
+  const rows = cutFabrics()
     .map(name => ({ fabric: name, widthIn: Math.round((voFabWidthM(name) / 0.0254) * 100) / 100 }))
     .filter(f => f.widthIn > 0)
     .sort((a, b) => a.widthIn - b.widthIn);
+  PFW_IX = { src, rows };
+  return rows;
 }
 
 /**
@@ -43169,7 +43221,7 @@ const SHP_SHAPE_WORDS = ['rectangular', 'rectangle', 'square', 'round', 'oval'];
  */
 let SHP_KIND = null, SHP_KIND_SRC = null;
 function shpKinds() {
-  const src = PTG.mdb || [];
+  const src = PTG.mdb || PT_NONE;
   if (SHP_KIND_SRC === src && SHP_KIND) return SHP_KIND;
   const subs = new Map();
   src.forEach(m => {
