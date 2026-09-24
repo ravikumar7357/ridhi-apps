@@ -9334,7 +9334,16 @@ console.log('\n== production analysis: where the week went ==');
   const h = els.paBody.innerHTML;
   ok('the screen says what was made against the target', /<b>2,310<\/b><span>of 20,000 pieces made/.test(h) && /17,690 short/.test(h), h.slice(0, 300));
   ok('…and the karigar count in one sentence', /68 more karigar\(s\) needed/.test(h));
-  ok('…shows the sum: pieces per karigar per day, from pieces and karigar-days', /<b>42\.7<\/b><span>pieces per karigar per day<\/span><em>1,110 pcs ÷ 26 karigar-days/.test(h), String(h.match(/pa-eq-i"><b>[^<]*<\/b><span>pieces per karigar per day[^]*?<\/em>/)));
+  ok('…shows the sum: pieces per karigar per day, from pieces and karigar-days', /<b>42\.7<\/b> pieces per karigar per day \(1,110 pcs ÷ 26 karigar-days\)/.test(h), String(h.match(/pa-fx-note">[^]*?<\/div>/)));
+  /* TREND FIRST (Ravi, 2026-09-24): the screen opens on the weeks against the target. */
+  ok('the screen opens on the weeks against the target', h.indexOf('pa-top') >= 0 && h.indexOf('pa-top') < h.indexOf('How many karigars')
+     && /Weeks against 20,000/.test(h) && /class="pa-need" style="bottom:/.test(h), h.slice(0, 200));
+  ok('…one bar a week, the chosen week marked', (h.match(/class="pa-wkb/g) || []).length >= 2 && /class="pa-wkb is-on/.test(h));
+  ok('…beside it the best week of those shown, as a share of the target', /best week of these \d+|this week is the best of these \d+/.test(h) && /% of the target/.test(h));
+  ok('…and the usual week: the average of the full weeks before it, or nothing when there are none',
+     /average of the last \d full week/.test(h) || !/<em>[^<]*·/.test(h));
+  ok('the flow and the four small figures are still on the page', /pa-strip/.test(h) && /Cut<\/span>/.test(h) && /Pressed<\/span>/.test(h) && /company contractors worked/.test(h));
+  ok('…and nothing below the top was lost', /Every karigar, per person per day/.test(h) && /Who made the week/.test(h) && /Look into/.test(h) && /Week on week/.test(h));
   ok('…the external team at its own pace', /Pradeep Contractor: 25 people × 10\.0 × 6/.test(h));
   ok('…and the karigars needed', /<b>73<\/b><span>karigars needed/.test(h) && /\+68/.test(h));
   ok('every karigar is listed per person per day, with a way to set a team', /data-team="chetan"[^>]*>3 people</.test(h) && /<b class="pa-dn">25\.0<\/b>/.test(h) && /<b class="pa-up">100\.0<\/b>/.test(h),
