@@ -189,7 +189,7 @@ const ctx = {
 };
 const EXPORT = '\n;return {'
   + 'SHOP:()=>SHOP, setSHOP:v=>{SHOP=v}, SHOP_META:()=>SHOP_META, setMETA:v=>{SHOP_META=v},'
-  + 'SHOP_STOCK:()=>SHOP_STOCK, setSTOCK:v=>{SHOP_STOCK=v}, setSTOCKCASE:v=>{SHOP_STOCK_CASE=v},'
+  + 'SHOP_STOCK:()=>SHOP_STOCK, setSTOCK:v=>{SHOP_STOCK=v; SHOP_STOCK_BY={SP:{},CPC:{}}}, setSTOCKCASE:v=>{SHOP_STOCK_CASE=v; SHOP_STOCK_CASE_BY={SP:{},CPC:{}}},'
   + 'SHOP_SKU:()=>SHOP_SKU, setSKU:v=>{SHOP_SKU=v}, setINDIA:v=>{SHOP_INDIA=v; SHOP_INDIA_LOADED=true},'
   + 'loadShopStock, loadShopIndia, soGuessBrand, soMcf, soAmzKey, soAmzCase, soLive, soSendQty, soMcfPlan, soBestBrand, soMcfHas, mcfErr, openShopOrder,'
   + 'apiPost, soMcfPayload, renderShop, soRows, SO_ALL_ROWS:()=>SO_ALL_ROWS, ensureShop, soStamp, sdToday, sdShift, soStoreDay,'
@@ -1633,12 +1633,44 @@ console.log('\n== Order panel, design 1 (wide sheet, tidied) ==');
   ok('…with Shopify\'s state beside it, and no tracking said as a chip', /No tracking yet/.test(els.soFf.innerHTML), els.soFf.innerHTML);
   ok('the foot counts lines and pieces', els.soFootSum.textContent === '4 lines · 5 pcs', els.soFootSum.textContent);
   const seg = els.soMcfSeg.innerHTML;
-  ok('the account buttons say how many lines each can ship', /Ridhi · 2 lines/.test(seg) && /CPC · 1 line</.test(seg), seg);
-  ok('…the chosen one is marked', /class="segbtn on" data-acct="SP"/.test(seg), seg);
+  ok('the account is said, not offered: a Ridhi order ships from Ridhi', /From Ridhi FBA/.test(seg) && !/CPC/.test(seg) && !/<button/.test(seg), seg);
   ok('the worked-out column is called Route, so it is not read as Line status twice', /<th[^>]*>Route<\/th>/.test(els.soItems.innerHTML));
   const html = fs.readFileSync(APP, 'utf8');
   ok('the × closes like Close does', /\$\('soX'\)\.onclick = \(\) => \$\('soCancel'\)\.onclick\(\);/.test(html));
   ok('the account select is still there for everything that reads it', /<select id="soMcfBrand" class="hide"/.test(html));
+  A.setMETA({});
+}
+console.log('\n== an order sees only its own Amazon account ==');
+{
+  /* Ravi, 2026-09-24: "ridhi ke order me only ridhi dikhna chahiye and cpc ke cpc — don't show ridhi cpc in
+   * ridhi order". Stock stubs: Ridhi holds RCNBMIX 40 and RTC301-6090 5; CPC holds RCNBmix 12. */
+  A.setSTOCK({}); A.setSTOCKCASE({}); A.setMETA({}); A.setSKU({});
+  await A.loadShopStock();
+  const items = [{ sku: 'RCNBMIX', name: 'Napkins', qty: 2 }, { sku: 'RTC301-6090', name: 'Tablecloth', qty: 1 }];
+  const rid = { id: 'gid-R1', no: '#R1', at: '2026-09-24', ship: {}, ff: 'unfulfilled', trk: [], items };
+  const cpc = { id: 'gid-C1', no: '#C1', at: '2026-09-24', ship: {}, ff: 'unfulfilled', trk: [], shopBrand: 'CPC', items };
+  A.setSHOP({ orders: [rid, cpc], from: '', to: '', tz: 'America/Los_Angeles', at: '' });
+
+  A.openShopOrder('gid-R1');
+  let h = els.soItems.innerHTML;
+  ok('a Ridhi order ships from Ridhi', els.soMcfBrand.value === 'SP');
+  ok('…its FBA column is Ridhi\'s, and CPC is not on it', /Ridhi FBA<\/th>/.test(h) && !/CPC/.test(h), h.match(/<th[^>]*>[^<]*FBA<\/th>/g));
+  ok('…showing Ridhi\'s own figure', /st-approved">40</.test(h));
+
+  A.openShopOrder('gid-C1');
+  h = els.soItems.innerHTML;
+  ok('a CPC order ships from CPC', els.soMcfBrand.value === 'CPC' && /From CPC FBA/.test(els.soMcfSeg.innerHTML));
+  ok('…its FBA column is CPC\'s, and Ridhi is not on it', /CPC FBA<\/th>/.test(h) && !/Ridhi/.test(h));
+  ok('…a SKU only Ridhi holds reads "not in FBA" on a CPC order', (h.match(/<td class="num"><span class="muted">not in FBA<\/span><\/td>/g) || []).length === 1, h.match(/st-[a-z]+">[^<]*<|not in FBA/g));
+  ok('…and its plan ships only what CPC holds', /Sends<\/em><span>RCNBMIX × 2</.test(els.soMcfBox.innerHTML) && /not in CPC FBA/.test(els.soMcfBox.innerHTML), els.soMcfBox.innerHTML);
+  ok('…with no pointer to the other account', !/Ridhi/.test(els.soMcfBox.innerHTML));
+
+  ok('the order route is judged on its own account: the CPC order is only part-filled by FBA', A.soMcf(cpc).v === 'part' && A.soMcf(rid).v === 'yes', A.soMcf(cpc).v + ' / ' + A.soMcf(rid).v);
+  ok('…and the line CPC lacks is not "FBA ready" there', A.soLineState(cpc, items[1]).v !== 'fba' && A.soLineState(rid, items[1]).v === 'fba');
+
+  A.setMETA({ 'gid-C1': { mcfId: 'SHOP-C1', mcfBrand: 'SP' } });
+  A.openShopOrder('gid-C1');
+  ok('an order already sent keeps the account it went on, so its status is asked there', els.soMcfBrand.value === 'SP');
   A.setMETA({});
 }
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
