@@ -1830,10 +1830,11 @@
       <div id="odKpis" class="jw-kpiwrap"></div>
       <div class="card" style="padding:12px 14px">
         <div class="toolbar">
-          <select id="odView" style="flex:0 0 235px" title="The same order book, read three ways.">
+          <select id="odView" style="flex:0 0 235px" title="The same order book, read four ways.">
             <option value="book">Order book — every order</option>
             <option value="shopsku">Shopify — by SKU, combined</option>
             <option value="shoporder">Shopify — by order</option>
+            <option value="demand">Demand — printing &amp; cloth</option>
           </select>
           <select id="odOrd" style="flex:0 0 200px"><option value="">All orders</option></select>
           <select id="odArt" style="flex:0 0 150px"><option value="">All articles</option></select>
@@ -17816,6 +17817,8 @@ function renderOrd() {
     if ($(id)) $(id).classList.toggle('hide', !(v === 'shopsku' && spCanAssign()));
   });
   if (!bulkOk && $('spBulkBox')) $('spBulkBox').classList.add('hide');
+  /* The demand view is neither the book nor a Shopify list: it is the book added up by fabric. */
+  if (v === 'demand') return renderOrdDemand();
   if (v !== 'book') { const out = renderOrdShopify(v === 'shopsku'); if (bulkOk) spBulkRender(); return out; }
 
   const all = ordLines();
@@ -18115,6 +18118,193 @@ $('odView').addEventListener('change', () => { ORD.pick = new Set(); renderOrd()
 /** A SKU's priority tag (P1–P4), '' when it has none. */
 const ordPri = sku => { const v = (PTE.priority || {})[obUC(sku)];
   return String((v && typeof v === 'object' ? v.priority || v.value : v) || '').trim().toUpperCase(); };
+/* ================= DEMAND: PRINTING AND CLOTH, OFF THE OPEN ORDER BOOK ================= */
+
+/**
+ * The two nodes this view adds, read once and only when somebody opens it.
+ *
+ * Neither is required. The read rules are granted by tab, so an account holding the Order Console and
+ * not the Fabric or Vendor Orders tab is REFUSED them — that is not an error to show, it is two
+ * columns that cannot be filled, and the table says which and why.
+ */
+let ORD_DEM = { tried: false, busy: false, fabOk: false, voOk: false };
+async function ordDemandLoad() {
+  if (ORD_DEM.tried || ORD_DEM.busy) return;
+  ORD_DEM.busy = true;
+  /* Side by side: one refusal must not stop the other from arriving. */
+  await Promise.all([
+    (async () => { try { await ensureFab(); ORD_DEM.fabOk = !FAB.err; } catch (e) { ORD_DEM.fabOk = false; } })(),
+    (async () => { try { await ensureVo(); ORD_DEM.voOk = !VO.err; } catch (e) { ORD_DEM.voOk = false; } })(),
+  ]);
+  ORD_DEM.tried = true; ORD_DEM.busy = false;
+  /* Only if the reader is still here. Coming back to a screen somebody has left would redraw the
+   * Order Console underneath whatever they opened instead. */
+  if (ordView() === 'demand') renderOrd();
+}
+
+/** RFD metres on the shelf, fabric name (upper case) → metres. Empty when the ledger was not read. */
+function ordDemandRfd() {
+  if (!ORD_DEM.fabOk || !Array.isArray(FAB.rows)) return null;
+  const out = new Map();
+  fabFlowRows(FAB.rows).forEach(g => out.set(obUC(g.fabricType), g.rfdLeft));
+  return out;
+}
+
+/**
+ * What the printers are holding: pieces still owed on live vendor orders, and the cloth they are.
+ *
+ * THE CLOTH IS COUNTED AS ALREADY GONE. Whether the line left as running cloth or as cut pieces, it
+ * came off RFD stock when it left — so it is subtracted from what still has to be given out, and the
+ * shelf figure beside it does not hold it either. Counting it in both places is the same metre
+ * bought twice.
+ */
+function ordDemandAtPrinters() {
+  if (!ORD_DEM.voOk || !Array.isArray(VO.rows)) return null;
+  const out = new Map();
+  const get = f => { const k = obUC(f); let e = out.get(k); if (!e) out.set(k, e = { pcs: 0, m: 0 }); return e; };
+  VO.rows.forEach(o => {
+    if (!o || o.cancelled || o.status === 'Cancelled' || o.status === 'Draft') return;
+    voLines(o).forEach(l => {
+      if (!l || l.cancelled) return;
+      const owed = voQty(o, l) - (parseFloat(voDone(l)) || 0);
+      if (!(owed > 0)) return;
+      if (voKind(l) === 'running' || o.orderType === 'running') {
+        const fab = String(l.fabricType || '').trim();
+        if (fab) get(fab).m += owed;
+        return;
+      }
+      const m = mdbOf(l.sku);
+      if (!m) return;
+      const fab = ptPrintFabric(m) || String(m.fabric || '').trim();
+      if (!fab) return;
+      const e = get(fab);
+      e.pcs += owed;
+      const cons = parseFloat(m.consumption) || 0;
+      if (cons > 0) e.m += owed * cons;
+    });
+  });
+  return out;
+}
+
+/**
+ * The open book turned into cloth, one row per fabric.
+ *
+ * Counted on pendingMake — the same "still to make" the Order Console shows — so this view and that
+ * table can never disagree about how much work is left.
+ */
+function ordDemandRows() {
+  const f = ordFilters();
+  const byFab = new Map();
+  let pcs = 0, noPrintPcs = 0, unknownPcs = 0;
+  const noPrint = new Map(), unknown = new Map();
+  ordApply(ordLines(), f).forEach(l => {
+    const left = Math.max(0, ptNum(l.pendingMake));
+    if (!left) return;
+    const m = mdbOf(l.sku) || {};
+    /* NOT EVERY OPEN PIECE IS A PRINTING JOB. A pillow insert is filling and a white napkin is never
+     * printed; counting them makes the cloth requirement bigger than the work. */
+    if (!ptPrintNeeded(m)) {
+      noPrintPcs += left;
+      const why = !ptColourPrints(m.color) ? 'colour "' + (m.color || '—') + '" is never printed'
+        : (m.subtype || m.articleType || 'this article') + ' is never printed';
+      const e = noPrint.get(why) || { why, pcs: 0 };
+      e.pcs += left; noPrint.set(why, e);
+      return;
+    }
+    pcs += left;
+    const fab = ptPrintFabric(m) || '';
+    const cons = parseFloat(m.consumption) || 0;
+    if (!fab || !(cons > 0)) {
+      unknownPcs += left;
+      const why = !fab ? 'no fabric on the master row' : 'no consumption on the master row';
+      const k = obUC(l.sku) + '|' + why;
+      const e = unknown.get(k) || { sku: obUC(l.sku), why, pcs: 0 };
+      e.pcs += left; unknown.set(k, e);
+      return;
+    }
+    const k = obUC(fab);
+    let g = byFab.get(k);
+    if (!g) byFab.set(k, g = { fabric: fab, pcs: 0, need: 0, skus: new Set() });
+    g.pcs += left; g.need += left * cons; g.skus.add(obUC(l.sku));
+  });
+
+  const rfd = ordDemandRfd(), at = ordDemandAtPrinters();
+  /* A fabric with nothing outstanding but cloth at a printer still belongs on the table — "kya
+   * printing me chal rha h" is one of the four questions, and a fabric missing from the list reads
+   * as nothing running rather than nothing ordered. */
+  if (at) at.forEach((v, k) => { if (!byFab.has(k) && (v.pcs > 0 || v.m > 0))
+    byFab.set(k, { fabric: k, pcs: 0, need: 0, skus: new Set() }); });
+
+  const rows = [...byFab.entries()].map(([k, g]) => {
+    const a = at ? (at.get(k) || { pcs: 0, m: 0 }) : null;
+    const give = a ? Math.max(0, g.need - a.m) : g.need;
+    const have = rfd ? (rfd.get(k) || 0) : null;
+    return Object.assign(g, {
+      key: k, skus: g.skus.size,
+      atPcs: a ? a.pcs : null, atM: a ? a.m : null,
+      give, have, short: have == null ? null : Math.max(0, give - have),
+    });
+  }).sort((a, b) => (b.short || 0) - (a.short || 0) || b.need - a.need);
+
+  return { rows, pcs, noPrintPcs, unknownPcs,
+    noPrint: [...noPrint.values()].sort((a, b) => b.pcs - a.pcs),
+    unknown: [...unknown.values()].sort((a, b) => b.pcs - a.pcs) };
+}
+
+const ordDemM = v => v == null ? '<span class="muted">—</span>' : nf(Math.round(v));
+
+function renderOrdDemand() {
+  ordDemandLoad();
+  const d = ordDemandRows();
+  ORD.rows = d.rows;
+  const s = k => d.rows.reduce((a, r) => a + (r[k] || 0), 0);
+  const anyAt = d.rows.some(r => r.atM != null), anyRfd = d.rows.some(r => r.have != null);
+
+  $('odKpis').innerHTML = '<div class="jw-kpiname">Demand — printing &amp; cloth</div><div class="jw-kpis">'
+    + ordKpiCard(nf(d.pcs), 'To make', 'box', 'blue', 'pieces the book still owes')
+    + ordKpiCard(nf(Math.round(s('need'))) + ' m', 'Cloth needed', 'cut', 'blue', 'pieces × consumption')
+    + ordKpiCard(anyAt ? nf(Math.round(s('atM'))) + ' m' : '—', 'At printers', 'clock',
+        anyAt ? 'amber' : 'blue', anyAt ? nf(s('atPcs')) + ' piece(s) still owed' : 'vendor orders not read')
+    + ordKpiCard(nf(Math.round(s('give'))) + ' m', 'Still to give', 'up', 'blue', 'needed − already out')
+    + ordKpiCard(anyRfd ? nf(Math.round(s('have'))) + ' m' : '—', 'RFD in stock', 'ok',
+        anyRfd ? 'green' : 'blue', anyRfd ? 'on the shelf today' : 'fabric ledger not read')
+    + ordKpiCard(anyRfd ? nf(Math.round(s('short'))) + ' m' : '—', 'Short by', 'alert',
+        anyRfd && s('short') > 0 ? 'red' : 'green', anyRfd ? 'buy or process this much' : 'needs the fabric ledger')
+    + '</div>';
+
+  const head = ordHead([['Fabric', ''], ['SKUs', 'num'], ['To make', 'num'], ['Cloth needed', 'num'],
+    ['At printers', 'num'], ['Cloth out', 'num'], ['Still to give', 'num'], ['RFD in stock', 'num'],
+    ['Short by', 'num']]);
+  $('odTable').innerHTML = head + '<tbody>' + (d.rows.length ? d.rows.map(r => '<tr>'
+    + '<td class="frz" style="text-align:left"><b>' + esc(r.fabric) + '</b></td>'
+    + '<td class="num">' + (r.skus || '<span class="muted">—</span>') + '</td>'
+    + '<td class="num">' + (r.pcs ? nf(r.pcs) : '<span class="muted">—</span>') + '</td>'
+    + '<td class="num" style="font-weight:700">' + ordDemM(r.need || null) + '</td>'
+    + '<td class="num">' + (r.atPcs == null ? '<span class="muted">—</span>' : (r.atPcs ? nf(r.atPcs) : '<span class="muted">—</span>')) + '</td>'
+    + '<td class="num">' + (r.atM == null ? '<span class="muted">—</span>' : (r.atM ? nf(Math.round(r.atM)) : '<span class="muted">—</span>')) + '</td>'
+    + '<td class="num" style="font-weight:700">' + ordDemM(r.give || null) + '</td>'
+    + '<td class="num"' + (r.have != null && r.have < 0 ? ' style="color:var(--bad)" title="More cloth has gone out under this name than ever came in — is its opening stock entered under a different spelling?"' : '') + '>' + ordDemM(r.have) + '</td>'
+    + '<td class="num" style="font-weight:700' + (r.short ? ';color:var(--bad)' : '') + '">' + ordDemM(r.short) + '</td>'
+    + '</tr>').join('')
+    : '<tr><td colspan="9" class="muted" style="padding:16px">Nothing on the open book needs printing.</td></tr>')
+    + '</tbody>';
+
+  /* WHAT IS NOT IN THE TOTAL, AND WHY. A cloth figure quietly short by the pieces nobody could price
+   * is the one mistake this screen must not make. */
+  const say = [];
+  if (ORD_DEM.busy) say.push('reading the fabric ledger and the vendor orders…');
+  if (ORD_DEM.tried && !ORD_DEM.voOk) say.push('"At printers" is blank — the vendor orders could not be read, so this shows the whole requirement, not what is left to give');
+  if (ORD_DEM.tried && !ORD_DEM.fabOk) say.push('"RFD in stock" is blank — the fabric ledger could not be read');
+  if (d.unknownPcs) say.push(nf(d.unknownPcs) + ' piece(s) are NOT in the cloth figures: '
+    + d.unknown.slice(0, 4).map(u => u.sku + ' (' + u.why + ')').join(', ')
+    + (d.unknown.length > 4 ? ' and ' + nf(d.unknown.length - 4) + ' more SKU(s)' : ''));
+  if (d.noPrintPcs) say.push(nf(d.noPrintPcs) + ' piece(s) are left out because they are never printed — '
+    + d.noPrint.slice(0, 3).map(u => u.why).join('; '));
+  $('odMsg').className = say.length ? 'muted' : 'muted';
+  $('odMsg').textContent = nf(d.rows.length) + ' fabric(s) · ' + nf(d.pcs) + ' piece(s) to make'
+    + (say.length ? ' · ' + say.join(' · ') : '');
+}
+
 /** The order book as CSV lines — a function so that a test can read the file and not only its name. */
 function ordBookCsv(rows) {
   /* Two columns here, not the one the table stacks: a spreadsheet is sorted and filtered on them
@@ -18141,6 +18331,14 @@ function ordBookCsv(rows) {
 $('odExport').onclick = () => {
   const rows = ORD.rows || []; if (!rows.length) return;
   const v = ordView();
+  if (v === 'demand') {
+    const out = [['Fabric', 'SKUs', 'To make', 'Cloth needed (m)', 'At printers (pcs)', 'Cloth out (m)',
+      'Still to give (m)', 'RFD in stock (m)', 'Short by (m)'].map(csvCell).join(',')];
+    const r2 = v2 => v2 == null ? '' : Math.round(v2);
+    rows.forEach(r => out.push([r.fabric, r.skus, r.pcs, r2(r.need), r2(r.atPcs), r2(r.atM),
+      r2(r.give), r2(r.have), r2(r.short)].map(csvCell).join(',')));
+    return ptDownload('printing-and-cloth-demand', out);
+  }
   if (v !== 'book') {
     /* Two columns for the two ids, not the one the table stacks — a spreadsheet sorts on them
      * separately. */
