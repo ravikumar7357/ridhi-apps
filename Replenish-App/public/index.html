@@ -10765,9 +10765,15 @@ async function ptGatesFresh() {
   if (ptGatesStale()) await ptLoadGates(true);
 }
 
-async function ptLoadGates(force) {
-  if (PTG.busy) return;
-  if (PTG.mdb && !force) return;
+/* A READ ALREADY UNDER WAY IS WAITED FOR, not skipped (2026-09-25). Returning at once let the Master Database —
+ * and any screen that awaited this — carry on with nothing loaded yet and say the database was empty. */
+function ptLoadGates(force) {
+  if (PTG.busy && PTG.loading) return PTG.loading;
+  if (PTG.mdb && !force) return Promise.resolve();
+  PTG.loading = ptLoadGatesRun();
+  return PTG.loading;
+}
+async function ptLoadGatesRun() {
   PTG.busy = true; PTG.err = '';
   try {
     /* EIGHT READS, EIGHT NAMES. One short here would hand every later list the value of the one
