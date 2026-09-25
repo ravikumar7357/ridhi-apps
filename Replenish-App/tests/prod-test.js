@@ -59,7 +59,7 @@ const IDS = ('ptmBrand ptmArt ptmSub ptmCol ptmSz ptmCut ptmQ ptmBrandFs ptmDir 
   + 'fbeKind fbeDate fbeFab fbeQty fbeLot fbeCp fbeCol fbeChallan fbeRate fbeRemarks fbeOrd fbeSize fbePcs fbeCons fbeQtyLab fbeLotList fbeLotInfo fbeFabList fbeSizeList '
   + 'fbView fbState fbEntry fbStoreNew fbStoreFile fbTemplate fbImport fbFile fbTxn fbFab fbCol fbCp fbQ fbD1 fbD2 fbClear fbExport fbGo fbMsg fbKpis fbTable '
   + 'acView acCat acQ acDLab acD1 acD2 acClear acNewItem acNewTxn acTemplate acImport acFile acExport acGo acMsg acKpis acTable '
-  + 'sxStatus sxQ sxD1 sxD2 sxClear sxExport sxGo sxMsg sxKpis sxTable '
+  + 'sxStatus sxChan sxQ sxD1 sxD2 sxClear sxExport sxGo sxMsg sxKpis sxTable '
   + 'voVendor voStatus voType voQ voExport voGo voMsg voKpis voTable '
   + 'vpRfdPick vpRfdAll tabRfd rfdBadge paneRfd rfdStage rfdVendor rfdFab rfdQ rfdD1 rfdD2 rfdClear rfdExport rfdRefuseSel rfdGo fbPoNew fbPoSet fbGuide rfdGuide guideBtn kaMonth kaTgtBtn kaD1 kaD2 pbCorr jwCorrBadge mstTpl mstImp mstFile rfdMsg rfdKpis rfdTable vpTabRfd '
   + 'voView voAttrRow voAt voSub voCol voSz voPri voAttrClear voTableWrap voCards '
@@ -1864,6 +1864,12 @@ console.log('\n== sales orders reach the order book, or they do not ==');
   els.sxStatus.value = ''; els.sxQ.value = 'B2B'; A.renderSox();
   ok('searching finds the one B2B order', bodyRows(els.sxTable.innerHTML) === 1);
   els.sxQ.value = ''; A.renderSox();
+  /* Ravi, 2026-09-25: "need sales channel wise filter here". */
+  ok('the channel list names the channels the orders carry, with their counts', /<option value="B2B">B2B[^<]*\(1\)<\/option>/.test(els.sxChan.innerHTML), els.sxChan.innerHTML);
+  els.sxChan.value = 'B2B'; A.renderSox();
+  ok('picking a channel leaves only its orders, and the cards count that channel', bodyRows(els.sxTable.innerHTML) === 1 && metrics(els.sxKpis.innerHTML).Orders === 1 && /Sales orders · B2B/.test(els.sxKpis.innerHTML), JSON.stringify(metrics(els.sxKpis.innerHTML)));
+  els.sxChan.value = ''; A.renderSox();
+  ok('…and All channels brings them all back', bodyRows(els.sxTable.innerHTML) === 7);
 }
 
 (async () => {

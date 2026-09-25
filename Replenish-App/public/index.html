@@ -1460,6 +1460,7 @@
             <option value="returned">Returned to buyer</option>
             <option value="approved">Approved</option>
           </select>
+          <select id="sxChan" style="flex:0 0 175px" title="Which sales channel the order came from"><option value="">All channels</option></select>
           <input id="sxQ" placeholder="Search order / buyer / channel / SKU" style="flex:1 1 220px;min-width:0">
           <span class="muted" style="font-size:12.5px;flex:0 0 auto">Ordered</span>
           <input id="sxD1" type="date" style="flex:0 0 150px" title="Order date from">
@@ -24271,13 +24272,26 @@ function renderSox() {
   if (!all.length) { $('sxMsg').className = 'muted'; $('sxMsg').textContent = ''; $('sxKpis').innerHTML = ''; ptEmpty('sxTable', 'No sales orders.'); return; }
 
   const w = soWork();
+  /* BY CHANNEL (Ravi, 2026-09-25). The list is the channels the orders actually carry, named from the channel
+   * master where it knows them; the choice survives a redraw. The cards count the channel picked. */
+  const chOf = o => String((o && o.channel) || '').trim().toUpperCase();
+  const names = new Map(soChannels().map(c => [c.code, c.name]));
+  const chans = [...new Set(all.map(chOf).filter(Boolean))].sort();
+  const chSel = $('sxChan');
+  if (chSel) {
+    const was = chSel.value;
+    chSel.innerHTML = '<option value="">All channels</option>' + chans.map(c => `<option value="${esc(c)}">${esc(c)}${names.get(c) && names.get(c).toUpperCase() !== c ? ' — ' + esc(names.get(c)) : ''} (${nf(all.filter(o => chOf(o) === c).length)})</option>`).join('');
+    chSel.value = chans.indexOf(was) >= 0 ? was : '';
+  }
+  const ch = (chSel && chSel.value) || '';
+  const base = ch ? all.filter(o => chOf(o) === ch) : all;
   const st = $('sxStatus').value, q = $('sxQ').value.trim().toLowerCase();
   /* ON THE ORDER DATE, not on when the order was last touched — that is the date the row shows and
    * the date anybody asking for "September's orders" means. Sales orders carry it two ways, ISO from
    * the new-order form and day-first from the vendor side, which is why this goes through ptInRange
    * and not through a string compare. */
   const [sxD1, sxD2] = ptRangeOf('sxD1', 'sxD2');
-  const rows = all
+  const rows = base
     .filter(o => !st || soStatus(o) === st)
     .filter(o => ptInRange(o && o.orderDate, sxD1, sxD2))
     .map(o => ({ o, s: soSummary(o, w) }))
@@ -24287,13 +24301,13 @@ function renderSox() {
       || String(b.o._id || '').localeCompare(String(a.o._id || '')));
   SOX.shown = rows;
 
-  const c = s => all.filter(o => soStatus(o) === s).length;
+  const c = s => base.filter(o => soStatus(o) === s).length;
   const missing = rows.reduce((n, x) => n + (soStatus(x.o) === 'approved' ? x.s.missing : 0), 0);
   $('sxKpis').innerHTML = `<div class="kpi" style="flex-basis:100%">
-    <div class="kpihead"><span class="kpiname">Sales orders</span>
+    <div class="kpihead"><span class="kpiname">Sales orders${ch ? ' · ' + esc(ch) + (names.get(ch) && names.get(ch).toUpperCase() !== ch ? ' — ' + esc(names.get(ch)) : '') : ''}</span>
       <span class="kpiwhen">read live${SOX.at ? ' · ' + esc(SOX.at) : ''}</span></div>
     <div class="metrics">
-      <div class="metric"><div class="v">${nf(all.length)}</div><div class="l">Orders</div></div>
+      <div class="metric"><div class="v">${nf(base.length)}</div><div class="l">Orders</div></div>
       <div class="metric"><div class="v" style="color:#7f6000">${nf(c('submitted'))}</div><div class="l">Awaiting approval</div></div>
       <div class="metric"><div class="v" style="color:var(--accent)">${nf(c('approved'))}</div><div class="l">Approved</div></div>
       <div class="metric"><div class="v">${nf(rows.reduce((s, x) => s + x.s.qty, 0))}</div><div class="l">Pieces ordered</div></div>
@@ -24440,10 +24454,12 @@ $('sxTable').addEventListener('click', e => {
   const rv = e.target.closest('[data-so-review]'); if (rv) return soReview(rv.getAttribute('data-so-review'));
 });
 $('sxStatus').addEventListener('change', renderSox);
+if ($('sxChan')) $('sxChan').addEventListener('change', renderSox);
 ['sxD1', 'sxD2'].forEach(id => $(id).addEventListener('change', renderSox));
 $('sxClear').onclick = () => {
   ['sxQ', 'sxD1', 'sxD2'].forEach(id => $(id).value = '');
   $('sxStatus').value = '';
+  if ($('sxChan')) $('sxChan').value = '';
   renderSox();
 };
 ptDebounce('sxQ', renderSox);
