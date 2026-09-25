@@ -37579,7 +37579,8 @@ function palSheetRows() {
 /** Read a filled sheet back, by column name. */
 function palSheetRead(rows) {
   if (!rows || rows.length < 2) return { err: 'That file has no rows.' };
-  const head = rows[0].map(h => String(h == null ? '' : h).trim().toLowerCase());
+  /* A CSV saved back from Excel can start with a byte-order mark, which would hide the Brand column. */
+  const head = rows[0].map(h => String(h == null ? '' : h).replace(/^﻿/, '').trim().toLowerCase());
   const at = names => { for (const n of names) { const i = head.indexOf(n); if (i >= 0) return i; } return -1; };
   const iB = at(['brand']), iD = at(['design', 'colour', 'color']);
   const iG = at(['group', 'colour group', 'color group']);
@@ -37598,7 +37599,7 @@ function palSheetRead(rows) {
     let cont = cell(iC);
     if (iR >= 0) {
       const r = cell(iR);
-      cont = /^(y|yes|true|1|remove|removed)$/i.test(r) ? 'no' : /^(n|no|false|0|keep)$/i.test(r) ? 'yes' : r;
+      cont = /^(y|yes|true|1|remove|removed|delete|deleted|x)$/i.test(r) ? 'no' : /^(n|no|false|0|keep)$/i.test(r) ? 'yes' : r;
     }
     out.push({ row: i + 1, brand, design, group: cell(iG), cont, hasG: iG >= 0, hasC: iC >= 0 || iR >= 0 });
   }
@@ -37623,12 +37624,19 @@ function palSheetPlan(entries) {
     }
     if (e.hasC && e.cont !== '') {
       const yes = /^(y|yes|true|1|continue|on)$/i.test(e.cont);
-      const no = /^(n|no|false|0|stop|stopped|off)$/i.test(e.cont);
+      const no = /^(n|no|false|0|stop|stopped|off|remove|removed|delete|deleted|x)$/i.test(e.cont);
       if (!yes && !no) { skip.push({ row: e.row, key, why: 'Continue / Remove has to be yes or no, not "' + e.cont + '".' }); return; }
       if (yes !== d.live) set.push({ row: e.row, key, d, field: 'live', from: d.live ? 'yes' : 'no', to: yes ? 'yes' : 'no', on: yes });
     }
   });
-  return { set, skip };
+  /* A ROW DELETED FROM THE SHEET (Ravi, 2026-09-25: "excel se delete nahi kar pa rha hu"). A colour on the list
+   * that the file does not hold is offered for removal. `whole` says whether the file is the whole sheet — at
+   * least half of the colours on the list — because a sheet cut down to one brand is not a request to remove
+   * every other brand; the preview then leaves them alone unless the person says otherwise. */
+  const liveAll = [...known.values()].filter(d => d.live);
+  const missing = liveAll.filter(d => !seen.has(d.key));
+  const inFile = liveAll.length - missing.length;
+  return { set, skip, missing, whole: liveAll.length > 0 && inFile >= liveAll.length / 2 };
 }
 
 /**
@@ -37637,9 +37645,10 @@ function palSheetPlan(entries) {
  * Both maps go together: written apart, a group edit landing between them would carry the old stop
  * list back over the new one.
  */
-async function palSheetRun(plan) {
+async function palSheetRun(plan, dropMissing) {
   if (!palCanEdit()) return PAL_NO_EDIT;
-  const rows = (plan && plan.set) || [];
+  const rows = ((plan && plan.set) || []).concat(dropMissing
+    ? ((plan && plan.missing) || []).map(d => ({ key: d.key, d, field: 'live', on: false })) : []);
   if (!rows.length) return 'There is nothing to write.';
   const map = Object.assign({}, (PAL.groups || {}).map || {});
   const live = Object.assign({}, (PAL.groups || {}).live || {});
@@ -37988,7 +37997,8 @@ $('palFile').onchange = async e => {
     const read = palSheetRead(rows);
     if (read.err) { $('palMsg').className = 'err'; $('palMsg').textContent = read.err; return; }
     const plan = palSheetPlan(read.entries);
-    if (!plan.set.length) {
+    const miss = plan.missing || [];
+    if (!plan.set.length && !miss.length) {
       $('palMsg').className = plan.skip.length ? 'err' : 'muted';
       $('palMsg').textContent = plan.skip.length
         ? nf(plan.skip.length) + ' row(s) refused, and nothing written: '
@@ -38011,18 +38021,25 @@ $('palFile').onchange = async e => {
         + 'Only Group and Continue (or Remove) are read; every other column on the sheet is worked out here.',
       html: '<div class="muted" style="font-size:12.5px;line-height:1.7">'
         + (gs.length ? '<b>Group</b><br>' + show(gs) + (gs.length > 12 ? '<br>…and ' + nf(gs.length - 12) + ' more.' : '') + '<br><br>' : '')
+        + (miss.length ? `<b style="color:var(--bad)">${nf(miss.length)} colour(s) on the list are not in this file</b> — deleted rows are removed, if you choose so below${plan.whole ? '' : ' (this file holds less than half the list, so they are left alone unless you choose)'}:<br>`
+          + miss.slice(0, 15).map(d => esc(d.brand + ' · ' + d.color)).join('<br>') + (miss.length > 15 ? '<br>…and ' + nf(miss.length - 15) + ' more.' : '') + '<br><br>' : '')
         + (ls.length ? '<b>Removed / brought back</b><br>' + show(ls) + (ls.length > 12 ? '<br>…and ' + nf(ls.length - 12) + ' more.' : '') + '<br><br>' : '')
         + (plan.skip.length ? '<b style="color:var(--bad)">' + nf(plan.skip.length) + ' row(s) refused, and not written</b><br>'
           + plan.skip.slice(0, 10).map(x => 'row ' + x.row + ': ' + esc(x.why)).join('<br>')
           + (plan.skip.length > 10 ? '<br>…and ' + nf(plan.skip.length - 10) + ' more.' : '') : '')
         + '</div>',
-      saveLabel: 'Write ' + nf(plan.set.length) + ' decision(s)',
-      onSave: async () => {
-        const err = await palSheetRun(plan);
+      fields: miss.length ? [{ key: 'drop', label: 'Colours not in this file', type: 'select', span: true, value: plan.whole ? 'remove' : 'keep',
+        options: [['remove', `Remove these ${nf(miss.length)} from the list`], ['keep', 'Leave them as they are']] }] : [],
+      saveLabel: 'Write the changes',
+      onSave: async v => {
+        const drop = !!miss.length && (v || {}).drop === 'remove';
+        if (!plan.set.length && !drop) return 'Nothing to write — choose "Remove these" to take the missing colours off the list.';
+        const err = await palSheetRun(plan, drop);
         if (err) return err;
         renderPal();
         $('palMsg').className = 'muted';
         $('palMsg').textContent = nf(plan.set.length) + ' decision(s) written.'
+          + (drop ? ' ' + nf(miss.length) + ' colour(s) not in the file removed — they are under Removed colours.' : '')
           + (plan.skip.length ? ' ' + nf(plan.skip.length) + ' row(s) were refused and left alone.' : '');
         return '';
       },

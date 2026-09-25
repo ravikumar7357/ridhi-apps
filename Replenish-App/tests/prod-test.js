@@ -13683,6 +13683,21 @@ console.log('\n== printer allocation by colour ==');
          A.palSheetRead([['Brand', 'Design', 'Remove'], [d0.brand, d0.color, 'Yes'], [d0.brand, 'x', 'no'], [d0.brand, 'y', '']])));
     ok('…so a Remove sheet plans a removal', (p => p.set.length === 1 && p.set[0].field === 'live' && p.set[0].on === false)(
          A.palSheetPlan(A.palSheetRead([['Brand', 'Design', 'Remove'], [d0.brand, d0.color, 'yes']]).entries)));
+    /* Ravi, 2026-09-25: "EXCEL SE DELETE NAHI KAR PA RHA HU" - he deleted the rows. */
+    {
+      const liveD = A.palDesigns().filter(d => d.live), gone = liveD[0];
+      const all = liveD.filter(d => d !== gone).map(d => [d.brand, d.color, d.group || '', 'yes']);
+      const pl = A.palSheetPlan(A.palSheetRead([['Brand', 'Design', 'Group', 'Continue (no = remove)']].concat(all)).entries);
+      ok('a colour whose row was deleted from the whole sheet is found missing', pl.whole && pl.missing.length === 1 && pl.missing[0].key === gone.key, JSON.stringify({ w: pl.whole, m: pl.missing.length }));
+      const part = A.palSheetPlan(A.palSheetRead([['Brand', 'Design', 'Continue']].concat(all.slice(0, 1))).entries);
+      ok('...but a sheet cut down to a few rows is not the whole sheet', !part.whole || liveD.length < 4);
+      ok('remove, delete and x in Continue mean no', ['remove', 'Delete', 'x'].every(w =>
+        (p2 => p2.set.length === 1 && p2.set[0].on === false)(A.palSheetPlan(A.palSheetRead([['Brand', 'Design', 'Continue'], [gone.brand, gone.color, w]]).entries))));
+      ok('a header with the Excel byte-order mark still reads', !A.palSheetRead([['\ufeffBrand', 'Design', 'Continue'], [gone.brand, gone.color, 'no']]).err);
+      const wasNet = NET.on; NET.on = true;
+      ok('writing with remove-these takes the missing colour off the list', (await A.palSheetRun(pl, true)) === '' && A.palLiveOf(gone.key) === false);
+      await A.palSetLive(gone.key, true); NET.on = wasNet;
+    }
     ok('a file without Brand and Design is refused',
        /needs Brand and Design/.test(A.palSheetRead([['a', 'b'], ['1', '2']]).err),
        A.palSheetRead([['a', 'b'], ['1', '2']]).err);
