@@ -2012,6 +2012,7 @@
             <option value="shopdone">Shopify — complete &amp; handed over</option>
             <option value="demand">Demand — printing &amp; cloth</option>
             <option value="democol">Demand — by colour &amp; product</option>
+            <option value="demtot">Demand — fabric &amp; colour totals</option>
           </select>
           <select id="odOrd" style="flex:0 0 200px"><option value="">All orders</option></select>
           <select id="odArt" style="flex:0 0 150px"><option value="">All articles</option></select>
@@ -18142,6 +18143,7 @@ function renderOrd() {
   /* The demand view is neither the book nor a Shopify list: it is the book added up by fabric. */
   if (v === 'demand') return renderOrdDemand();
   if (v === 'democol') return renderOrdDemandCol();
+  if (v === 'demtot') return renderOrdDemandTot();
   if (!isBook) { const out = renderOrdShopify(v === 'shopsku', v === 'shopdone'); if (bulkOk) spBulkRender(); return out; }
 
   /* PENDING HERE, FINISHED IN THEIR OWN VIEW (Ravi, 2026-09-24): a line that is Complete or handed over is
@@ -18792,6 +18794,45 @@ function renderOrdDemandCol() {
     + (say.length ? ' · ' + say.join(' · ') : '');
 }
 
+/**
+ * One line per fabric · colour: how much cloth it needs, how much is already with the printers, and how
+ * much is still to give. The same rows as "by colour & product" (ordDemandColRows), with the products
+ * folded away — so the two views can never disagree, and the same filters narrow both.
+ */
+function renderOrdDemandTot() {
+  ordDemandLoad();
+  if ($('odPickBar')) { $('odPickBar').classList.add('hide'); $('odPickBar').innerHTML = ''; }
+  const d = ordDemandColRows();
+  const rows = d.cols.slice().sort((a, b) => String(a.fabric).localeCompare(String(b.fabric), undefined, { numeric: true })
+    || String(a.colour).localeCompare(String(b.colour)));
+  ORD.rows = rows;
+  const s = k => rows.reduce((a, r) => a + (r[k] || 0), 0);
+  const anyAt = rows.some(r => r.atM != null);
+  $('odKpis').innerHTML = '<div class="jw-kpiname">Demand — fabric &amp; colour totals</div><div class="jw-kpis">'
+    + ordKpiCard(nf(rows.length), 'Fabric · colours', 'list', 'blue', 'that the open book needs')
+    + ordKpiCard(ordDemBoth(s('need'), s('cutPcs')), 'Cloth needed', 'cut', 'blue', 'running in metres, cut pieces in pcs')
+    + ordKpiCard(anyAt ? ordDemBoth(s('atM'), s('cutAtPcs')) : '—', 'With printers', 'clock', anyAt ? 'amber' : 'blue', anyAt ? 'given, not yet back' : 'vendor orders not read')
+    + ordKpiCard(ordDemBoth(s('give'), s('cutGive')), 'Still to give', 'up', 'blue', 'needed − already with printers')
+    + '</div>';
+  const head = ordHead([['Fabric', ''], ['Colour', ''], ['Pieces to make', 'num'], ['Cloth needed', 'num'], ['With printers', 'num'], ['Still to give', 'num']]);
+  const dash = '<span class="muted">—</span>';
+  $('odTable').innerHTML = head + '<tbody>' + (rows.length ? rows.map(r => '<tr>'
+      + '<td class="frz" style="text-align:left"><b>' + esc(r.fabric) + '</b></td>'
+      + '<td style="text-align:left"><b>' + (esc(r.colour) || '<span class="muted">no colour</span>') + '</b></td>'
+      + '<td class="num">' + nf(r.pcs) + '</td>'
+      + '<td class="num" style="font-weight:800">' + ordDemBoth(r.need, r.cutPcs) + '</td>'
+      + '<td class="num">' + (r.atM == null ? dash : ordDemBoth(r.atM, r.cutAtPcs)) + '</td>'
+      + '<td class="num" style="font-weight:800">' + ordDemBoth(r.give, r.cutGive) + '</td></tr>').join('')
+    : '<tr><td colspan="6" class="muted" style="padding:16px">Nothing on the open book needs printing.</td></tr>')
+    + '</tbody>';
+  const say = [];
+  if (ORD_DEM.busy) say.push('reading the vendor orders…');
+  if (d.unknownPcs) say.push(nf(d.unknownPcs) + ' piece(s) have no fabric or consumption and are not counted');
+  $('odMsg').className = 'muted';
+  $('odMsg').textContent = nf(rows.length) + ' fabric · colour(s) · ' + nf(d.pcs) + ' piece(s) to make'
+    + ' · the products behind each line are in "Demand — by colour & product"' + (say.length ? ' · ' + say.join(' · ') : '');
+}
+
 function renderOrdDemand() {
   ordDemandLoad();
   if ($('odPickBar')) { $('odPickBar').classList.add('hide'); $('odPickBar').innerHTML = ''; }
@@ -18876,6 +18917,13 @@ function ordBookCsv(rows) {
 $('odExport').onclick = () => {
   const rows = ORD.rows || []; if (!rows.length) return;
   const v = ordView();
+  if (v === 'demtot') {
+    const r2 = v2 => v2 == null ? '' : Math.round(v2 * 100) / 100;
+    const out = [['Fabric', 'Colour', 'Pieces to make', 'Running cloth needed (m)', 'Running with printers (m)', 'Running still to give (m)',
+      'Cut pieces needed', 'Cut pieces with printers', 'Cut pieces still to give'].map(csvCell).join(',')];
+    rows.forEach(r => out.push([r.fabric, r.colour, r.pcs, r2(r.need), r2(r.atM), r2(r.give), r.cutPcs || '', r2(r.cutAtPcs), r2(r.cutGive)].map(csvCell).join(',')));
+    return ptDownload('cloth-by-fabric-colour', out);
+  }
   if (v === 'democol') {
     const r2 = v2 => v2 == null ? '' : Math.round(v2 * 100) / 100;
     const out = [['Fabric', 'Colour', 'Product', 'Size', 'Printed as', 'SKUs', 'To make', 'Per piece (m)', 'Running cloth (m)',

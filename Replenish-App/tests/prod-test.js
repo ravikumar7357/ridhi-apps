@@ -19971,6 +19971,18 @@ console.log('\n== printing cloth by colour and product ==');
   })());
   ok('no tick bar on a view with nothing to tick', els.odPickBar._hidden === true && els.odPickBar.innerHTML === '');
 
+  /* Ravi, 2026-09-25: "sirf ye hi dikhe ki 62 ki sheeting me yellow citrine me total fabric kitna chahiye or
+   * printer ke pas kitna h". */
+  els.odView.value = 'demtot';
+  A.renderOrd();
+  const t = els.odTable.innerHTML;
+  const trs = (t.split('<tbody>')[1] || '').split('</tr>').filter(r => /<td/.test(r));
+  ok('the totals view has one line per fabric · colour and no product lines', trs.length === d.cols.length && !/Ruffle Tablecloth · 60x60/.test(t), trs.length + ' vs ' + d.cols.length);
+  const ycRow = trs.find(r => /Sheeting 62/.test(r) && /Yellow Citrine/.test(r)) || '';
+  ok('…Sheeting 62 · Yellow Citrine says the cloth it needs, what the printers hold, and what is still to give',
+     ycRow.indexOf(nf(Math.round(yc.need)) + ' m') >= 0 && ycRow.indexOf(nf(Math.round(yc.atM)) + ' m') >= 0 && ycRow.indexOf(nf(Math.round(yc.give)) + ' m') >= 0, ycRow);
+  ok('…every row with as many cells as there are headings', trs.every(r => (r.match(/<td[\s>]/g) || []).length === (t.match(/<th[\s>]/g) || []).length));
+
   els.odView.value = was.view;
   A.setPTG(Object.assign({}, A.PTG(), { ob: was.ob, mdb: was.mdb, masters: was.masters, press: was.press }));
   A.setPT(Object.assign({}, A.PT(), { base: was.base, cut: was.cut }));
