@@ -86,7 +86,7 @@ const IDS = ('ptmBrand ptmArt ptmSub ptmCol ptmSz ptmCut ptmQ ptmBrandFs ptmDir 
   + 'fgiCorrBadge fgcKind fgcType fgcDate fgcSku fgcQty fgcWho fgcOrd fgcReason fgcWhy fgeOrd '
   + 'fgmOrdQty fgmOverWrap fgmOver fgiOverBadge '
   + 'fgmOrdSrc fgmOrdLbl fgmExtFrom fgmExtFromWrap fgmExtFromList fgmExtQty fgmExtQtyWrap fgmExtNew fgmExtNewWrap '
-  + 'fgmFbaAcct fgmReasonLbl fgmHandList '
+  + 'fgmFbaAcct fgmReasonLbl fgmHandList demTotAssign demTotClear demTotAll '
   + 'fgScan fgsType fgsDate fgsPer fgsOrdWrap fgsOrdSrc fgsOrdLbl fgsOrd fgsOrdList fgsExtWrap fgsExtFrom '
   + 'fgsOutWrap fgsWhoWrap fgsWhoLbl fgsWho fgsAcctWrap fgsAcct fgsHandWrap fgsHand fgsCode fgsMsg fgsTable fgsFn fgsAuto fgsMode palView palWeeks palBrand palQ palPrinterAdd palExport palRefresh palSheet palImport palFile palMsg palKpis palTable palFoot palGroupList palBlkTable '
   + 'fnPaste fnUp fnFile fnPull fnMsg '
@@ -19982,6 +19982,31 @@ console.log('\n== printing cloth by colour and product ==');
   ok('…Sheeting 62 · Yellow Citrine says the cloth it needs, what the printers hold, and what is still to give',
      ycRow.indexOf(nf(Math.round(yc.need)) + ' m') >= 0 && ycRow.indexOf(nf(Math.round(yc.atM)) + ' m') >= 0 && ycRow.indexOf(nf(Math.round(yc.give)) + ' m') >= 0, ycRow);
   ok('…every row with as many cells as there are headings', trs.every(r => (r.match(/<td[\s>]/g) || []).length === (t.match(/<th[\s>]/g) || []).length));
+
+  /* Ravi, 2026-09-25: "we can assign printer from here". A colour's tick is its lines with no printer yet. */
+  {
+    const wasAdmin = ME.admin; ME.admin = true;
+    /* A new order-book array, so the lines are built again with the printer on them. */
+    A.setPTG(Object.assign({}, A.PTG(), { ob: A.PTG().ob.slice(), shopProd: { 'AMZ-C2__RTC-YC-6090': { orderNo: 'AMZ-C2', sku: 'RTC-YC-6090', printer: 'V1' } } }));
+    A.setORD({ req: {}, busy: false, at: '', rows: [], pick: new Set() });
+    A.renderOrd();
+    const t2 = els.odTable.innerHTML;
+    const ycKey = 'SHEETING 62|YELLOW CITRINE';
+    ok('each colour has a tick box, standing for its lines that no printer has yet',
+       new RegExp('data-demtot="' + ycKey + '"[^>]*title="1 line\\(s\\) with no printer yet"').test(t2), (t2.match(/data-demtot="[^"]+"[^>]*>/g) || []).join(' | '));
+    ok('…and the Printer column names who already has the rest', /×1/.test(t2) && /1 line\(s\) not given/.test(t2));
+    const ks = A.ORD().demKeys.get(ycKey);
+    ok('…ticking it takes only the unassigned line, never one another printer has', ks.length === 1 && ks[0] === 'AMZ-C1|RTC-YC-6060', JSON.stringify(ks));
+    A.ORD().pick = new Set(ks.concat(['SOMEWHERE-ELSE|X']));
+    A.renderOrd();
+    ok('the bar offers the printer for exactly those lines', /Assign printer to 1 line\(s\)/.test(els.odPickBar.innerHTML) && els.odPickBar._hidden === false, els.odPickBar.innerHTML);
+    els.demTotAssign.onclick();
+    ok('…the same assign dialog every screen uses, and a tick left from another view is not sent along',
+       /Who prints these 1 line\(s\)\?/.test(els.ptDlgTitle.textContent) && !A.ORD().pick.has('SOMEWHERE-ELSE|X'), els.ptDlgTitle.textContent);
+    A.setORD({ req: {}, busy: false, at: '', rows: [], pick: new Set() });
+    A.setPTG(Object.assign({}, A.PTG(), { shopProd: {} }));
+    ME.admin = wasAdmin;
+  }
 
   els.odView.value = was.view;
   A.setPTG(Object.assign({}, A.PTG(), { ob: was.ob, mdb: was.mdb, masters: was.masters, press: was.press }));

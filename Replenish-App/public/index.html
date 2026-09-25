@@ -17986,6 +17986,14 @@ function spOpen(orderNo, sku) {
 }
 
 $('odTable').addEventListener('change', e => {
+  /* A fabric · colour row stands for its lines with no printer yet. */
+  const dc = e.target.closest('[data-demtot]');
+  if (dc) {
+    ORD.pick = ORD.pick || new Set();
+    const ks = ((ORD.demKeys || new Map()).get(dc.getAttribute('data-demtot'))) || [];
+    ks.forEach(k => (dc.checked ? ORD.pick.add(k) : ORD.pick.delete(k)));
+    return renderOrd();
+  }
   /* A SKU row stands for every open line behind it, so its box is answered by spSkuToggle rather
    * than by adding one key. */
   const g = e.target.closest('[data-spskupick]');
@@ -18694,7 +18702,9 @@ function ordDemandColRows() {
     const colour = String(m.color || l.color || '').trim();
     const ck = obUC(fab) + '|' + obUC(colour);
     let g = groups.get(ck);
-    if (!g) groups.set(ck, g = { key: ck, fabric: fab, colour, pcs: 0, need: 0, cutPcs: 0, skus: new Set(), products: new Map() });
+    if (!g) groups.set(ck, g = { key: ck, fabric: fab, colour, pcs: 0, need: 0, cutPcs: 0, skus: new Set(), products: new Map(), lineOf: new Map() });
+    /* The lines behind the colour, so a printer can be given all of them from the totals view. */
+    g.lineOf.set(l.orderNo + '|' + l.sku, String(l.printer || ''));
     const what = String(m.subtype || m.articleType || l.articleSubtype || '').trim(), size = String(m.size || l.size || '').trim();
     const pk = ck + '|' + obUC(what) + '|' + obUC(size);
     let p = g.products.get(pk);
@@ -18716,7 +18726,9 @@ function ordDemandColRows() {
       return Object.assign(p, { skus: p.skus.size, atPcs: atP,
         cutGive: p.asPcs ? (atP == null ? p.pcs : Math.max(0, p.pcs - atP)) : null });
     }).sort((x, y) => (y.need - x.need) || (y.pcs - x.pcs));
-    return Object.assign(g, { skus: g.skus.size, products,
+    const printers = new Map(), open = [];
+    g.lineOf.forEach((pr, k) => { if (pr) printers.set(pr, (printers.get(pr) || 0) + 1); else open.push(k); });
+    return Object.assign(g, { skus: g.skus.size, products, lines: g.lineOf.size, openKeys: open, printers,
       atPcs: a ? a.pcs : null, atM: a ? a.runM : null, cutAtPcs: a ? a.cutPcs : null,
       give: a ? Math.max(0, g.need - a.runM) : g.need,
       cutGive: a ? Math.max(0, g.cutPcs - a.cutPcs) : g.cutPcs,
@@ -18812,7 +18824,6 @@ function renderOrdDemandCol() {
  */
 function renderOrdDemandTot() {
   ordDemandLoad();
-  if ($('odPickBar')) { $('odPickBar').classList.add('hide'); $('odPickBar').innerHTML = ''; }
   const d = ordDemandColRows();
   const rows = d.cols.slice().sort((a, b) => String(a.fabric).localeCompare(String(b.fabric), undefined, { numeric: true })
     || String(a.colour).localeCompare(String(b.colour)));
@@ -18825,17 +18836,57 @@ function renderOrdDemandTot() {
     + ordKpiCard(anyAt ? ordDemBoth(s('atM'), s('cutAtPcs')) : '—', 'With printers', 'clock', anyAt ? 'amber' : 'blue', anyAt ? 'given, not yet back' : 'vendor orders not read')
     + ordKpiCard(ordDemBoth(s('give'), s('cutGive')), 'Still to give', 'up', 'blue', 'needed − already with printers')
     + '</div>';
-  const head = ordHead([['Fabric', ''], ['Colour', ''], ['Pieces to make', 'num'], ['Cloth needed', 'num'], ['With printers', 'num'], ['Still to give', 'num']]);
+  /* GIVE A COLOUR TO A PRINTER (Ravi, 2026-09-25: "we can assign printer from here"). A tick stands for every
+   * pending line of that fabric · colour that has no printer yet; a line somebody already prints stays theirs. */
+  const canPick = bkCanAssign() || spCanAssign();
+  ORD.pick = ORD.pick || new Set();
+  ORD.demKeys = new Map(rows.map(r => [r.key, r.openKeys || []]));
+  const tickOf = r => {
+    const ks = r.openKeys || [];
+    if (!ks.length) return '<span class="muted" title="Every line of this colour already has a printer">—</span>';
+    const on = ks.filter(k => ORD.pick.has(k)).length;
+    return '<input type="checkbox" data-demtot="' + esc(r.key) + '"' + (on === ks.length ? ' checked' : '') + (on && on < ks.length ? ' data-part="1"' : '')
+      + ' style="width:auto;margin:0" title="' + nf(ks.length) + ' line(s) with no printer yet">';
+  };
+  const whoPrints = r => {
+    const bits = [...(r.printers || new Map())].sort((a, b) => b[1] - a[1]).map(([c, n]) => esc(voName(c)) + ' <span class="muted">×' + nf(n) + '</span>');
+    const open = (r.openKeys || []).length;
+    return (bits.join(', ') || '') + (open ? (bits.length ? ' · ' : '') + '<span style="color:#7f6000">' + nf(open) + ' line(s) not given</span>' : '') || '<span class="muted">—</span>';
+  };
+  const head = ordHead([['Fabric', ''], ['Colour', ''], ['Pieces to make', 'num'], ['Cloth needed', 'num'], ['With printers', 'num'], ['Still to give', 'num'], ['Printer', '']],
+    canPick ? '<input type="checkbox" id="demTotAll" style="width:auto;margin:0" title="Tick every colour shown">' : '');
   const dash = '<span class="muted">—</span>';
   $('odTable').innerHTML = head + '<tbody>' + (rows.length ? rows.map(r => '<tr>'
-      + '<td class="frz" style="text-align:left"><b>' + esc(r.fabric) + '</b></td>'
+      + (canPick ? '<td class="frz">' + tickOf(r) + '</td>' : '')
+      + '<td' + (canPick ? '' : ' class="frz"') + ' style="text-align:left"><b>' + esc(r.fabric) + '</b></td>'
       + '<td style="text-align:left"><b>' + (esc(r.colour) || '<span class="muted">no colour</span>') + '</b></td>'
       + '<td class="num">' + nf(r.pcs) + '</td>'
       + '<td class="num" style="font-weight:800">' + ordDemBoth(r.need, r.cutPcs) + '</td>'
       + '<td class="num">' + (r.atM == null ? dash : ordDemBoth(r.atM, r.cutAtPcs)) + '</td>'
-      + '<td class="num" style="font-weight:800">' + ordDemBoth(r.give, r.cutGive) + '</td></tr>').join('')
-    : '<tr><td colspan="6" class="muted" style="padding:16px">Nothing on the open book needs printing.</td></tr>')
+      + '<td class="num" style="font-weight:800">' + ordDemBoth(r.give, r.cutGive) + '</td>'
+      + '<td style="text-align:left;white-space:normal;max-width:300px;font-size:12.5px">' + whoPrints(r) + '</td></tr>').join('')
+    : '<tr><td colspan="' + (canPick ? 8 : 7) + '" class="muted" style="padding:16px">Nothing on the open book needs printing.</td></tr>')
     + '</tbody>';
+  const bar = $('odPickBar');
+  if (bar) {
+    const shownKeys = new Set(rows.flatMap(r => r.openKeys || []));
+    const n = [...ORD.pick].filter(k => shownKeys.has(k)).length;
+    const cols = rows.filter(r => (r.openKeys || []).some(k => ORD.pick.has(k))).length;
+    bar.classList.toggle('hide', !canPick || !n);
+    bar.innerHTML = !canPick || !n ? ''
+      : `<span class="muted" style="font-size:12.5px"><b>${nf(cols)}</b> colour(s) ticked · <b>${nf(n)}</b> line(s) with no printer</span>`
+        + `<button id="demTotAssign" class="ghost">Assign printer to ${nf(n)} line(s)</button><button id="demTotClear" class="ghost">Clear</button>`;
+    if ($('demTotAssign')) $('demTotAssign').onclick = () => {
+      /* Only this view's lines go: a tick left over from another view is not sent along unseen. */
+      ORD.pick = new Set([...ORD.pick].filter(k => shownKeys.has(k)));
+      spAssignPickedOpen();
+    };
+    if ($('demTotClear')) $('demTotClear').onclick = () => { ORD.pick = new Set(); renderOrd(); };
+    if ($('demTotAll')) {
+      $('demTotAll').checked = !!n && n === shownKeys.size;
+      $('demTotAll').onchange = e => { ORD.pick = e.target.checked ? new Set(shownKeys) : new Set(); renderOrd(); };
+    }
+  }
   const say = [];
   if (ORD_DEM.busy) say.push('reading the vendor orders…');
   if (d.unknownPcs) say.push(nf(d.unknownPcs) + ' piece(s) have no fabric or consumption and are not counted');
