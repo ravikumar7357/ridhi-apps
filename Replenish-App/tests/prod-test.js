@@ -20002,6 +20002,30 @@ console.log('\n== printing cloth by colour and product ==');
     ok('"Give" opens the ordinary vendor order form, as running, with only what is still to give',
        A.VOF().kind === 'running' && els.vof_qty.value === String(want) && /still to give/.test(els.ptDlgMsg.textContent), els.vof_qty.value + ' · ' + els.ptDlgMsg.textContent);
     ok('…with the colour already on an open order taken as known, not asked again', A.VOF().dupOk && A.VOF().dupOk['yellow citrine'] === true);
+
+    /* Ravi, 2026-09-25: with Ordered 13–19 Sep the need was that week's, but "with printers" was everything the
+     * printers hold — 300 m against 18 m. Narrowed, the printers' cloth is shared out oldest order first. */
+    {
+      const wasOb = A.PTG().ob;
+      A.setPTG(Object.assign({}, A.PTG(), { ob: wasOb.concat([{ orderNo: 'AMZ-C9', sku: 'RTC-YC-6090', qty: 10, orderDate: '2026-09-15',
+        articleType: 'Tablecloth', articleSubtype: 'Ruffle Tablecloth', color: 'Yellow Citrine', size: '60x90' }]) }));
+      A.renderOrd();
+      const all = A.ORD().demRows.get('SHEETING 62|YELLOW CITRINE');
+      ok('unfiltered, "with printers" is all the running cloth the printers hold — 100 m running + 20 pcs × 1.85 m owed on a cut order', Math.round(all.atM) === 137, String(all.atM));
+      els.odD1.value = '2026-09-10'; els.odD2.value = '2026-09-30';
+      A.renderOrd();
+      const wk = A.ORD().demRows.get('SHEETING 62|YELLOW CITRINE');
+      ok('filtered to a later week, its order gets only its share — the 137 m went to the older orders first',
+         Math.round(wk.need) === 26 && Math.round(wk.atM) === 0 && Math.round(wk.give) === 26, JSON.stringify({ need: wk.need, at: wk.atM, give: wk.give }));
+      ok('…the screen says the figure is the orders\' share', /share of what the printers hold, oldest order first/.test(els.odMsg.textContent));
+      ok('…and the printer is named without the whole-stock metres beside it', /A R Textile Printer<\/td>|A R Textile Printer</.test(els.odTable.innerHTML) && !/A R Textile Printer <span class="muted">100 m/.test(els.odTable.innerHTML));
+      els.odD1.value = ''; els.odD2.value = '2026-09-05';
+      A.renderOrd();
+      const early = A.ORD().demRows.get('SHEETING 62|YELLOW CITRINE');
+      ok('filtered to the older orders, they carry all 137 m the printers hold', Math.round(early.atM) === 137 && Math.round(early.give) === Math.round(early.need - 137), JSON.stringify({ at: early.atM, give: early.give }));
+      els.odD1.value = ''; els.odD2.value = '';
+      A.setPTG(Object.assign({}, A.PTG(), { ob: wasOb }));
+    }
     A.setVO(wasVO);
     A.setORD({ req: {}, busy: false, at: '', rows: [], pick: new Set() });
     ME.admin = wasAdmin;

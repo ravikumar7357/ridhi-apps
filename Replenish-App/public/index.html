@@ -18695,8 +18695,57 @@ function ordDemandAtPrintersCol() {
  * colour row carries its running cloth in metres and its cut pieces in pieces; a product row is one or
  * the other, and says which.
  */
+/** What a line needs printed, in one place: its fabric · colour, its product, running metres or cut pieces. */
+function ordDemLine(l) {
+  const left = Math.max(0, ptNum(l.pendingMake));
+  if (!left) return null;
+  const m = mdbOf(l.sku) || {};
+  if (!ptPrintNeeded(m)) return { left, noPrint: true };
+  const fab = ptPrintFabric(m) || '';
+  const cons = parseFloat(m.consumption) || 0;
+  const asPcs = ordPrintAsPcs(m);
+  if (!fab || (!asPcs && !(cons > 0))) return { left, unknown: true };
+  const colour = String(m.color || l.color || '').trim();
+  const ck = obUC(fab) + '|' + obUC(colour);
+  const what = String(m.subtype || m.articleType || l.articleSubtype || '').trim(), size = String(m.size || l.size || '').trim();
+  return { left, m, fab, colour, ck, pk: ck + '|' + obUC(what) + '|' + obUC(size), what, size, asPcs, cons,
+    runM: asPcs ? 0 : left * cons, key: l.orderNo + '|' + l.sku };
+}
+
+/**
+ * WHAT THE PRINTERS HOLD, SHARED OUT — oldest order first — over every open line, so a narrowed view (a week, a
+ * brand, a search) counts only its own lines' share. Running metres go to a colour's running lines; cut pieces
+ * to that product's cut lines. Map lineKey → { m, pcs }.
+ */
+function ordDemAlloc(at) {
+  const out = new Map();
+  if (!at) return out;
+  const byCol = new Map(), byProd = new Map();
+  ordLines().forEach(l => {
+    const x = ordDemLine(l);
+    if (!x || x.noPrint || x.unknown) return;
+    const row = { key: x.key, date: String(l.orderDate || ''), no: l.orderNo, x };
+    if (x.asPcs) { if (!byProd.has(x.pk)) byProd.set(x.pk, []); byProd.get(x.pk).push(row); }
+    else { if (!byCol.has(x.ck)) byCol.set(x.ck, []); byCol.get(x.ck).push(row); }
+  });
+  const oldest = (a, b) => a.date.localeCompare(b.date) || String(a.no).localeCompare(String(b.no));
+  const put = (k, f, v) => { const e = out.get(k) || { m: 0, pcs: 0 }; e[f] += v; out.set(k, e); };
+  byCol.forEach((rows, ck) => {
+    let left = (at.col.get(ck) || {}).runM || 0;
+    rows.sort(oldest).forEach(r => { const t = Math.min(left, r.x.runM); if (t > 0) { put(r.key, 'm', t); left -= t; } });
+  });
+  byProd.forEach((rows, pk) => {
+    let left = at.prod.get(pk) || 0;
+    rows.sort(oldest).forEach(r => { const t = Math.min(left, r.x.left); if (t > 0) { put(r.key, 'pcs', t); left -= t; } });
+  });
+  return out;
+}
+/** Is anything narrowing the book? Then "with printers" is the lines' share, not the printers' whole stock. */
+const ordDemNarrowed = f => ['ord', 'art', 'sub', 'col', 'sz', 'st', 'src', 'brand', 'q', 'd1', 'd2'].some(k => String((f || {})[k] || '').trim());
+
 function ordDemandColRows() {
   const f = ordFilters();
+  const narrowed = ordDemNarrowed(f);
   const groups = new Map();
   let pcs = 0, noPrintPcs = 0, unknownPcs = 0;
   ordApply(ordLines(), f).forEach(l => {
@@ -18712,7 +18761,8 @@ function ordDemandColRows() {
     const colour = String(m.color || l.color || '').trim();
     const ck = obUC(fab) + '|' + obUC(colour);
     let g = groups.get(ck);
-    if (!g) groups.set(ck, g = { key: ck, fabric: fab, colour, pcs: 0, need: 0, cutPcs: 0, skus: new Set(), products: new Map(), lineOf: new Map() });
+    if (!g) groups.set(ck, g = { key: ck, fabric: fab, colour, pcs: 0, need: 0, cutPcs: 0, skus: new Set(), products: new Map(), lineOf: new Map(), keys: [] });
+    g.keys.push({ key: l.orderNo + '|' + l.sku, pk: ck + '|' + obUC(String(m.subtype || m.articleType || l.articleSubtype || '').trim()) + '|' + obUC(String(m.size || l.size || '').trim()) });
     /* The lines behind the colour, so a printer can be given all of them from the totals view. */
     g.lineOf.set(l.orderNo + '|' + l.sku, String(l.printer || ''));
     const what = String(m.subtype || m.articleType || l.articleSubtype || '').trim(), size = String(m.size || l.size || '').trim();
@@ -18729,23 +18779,31 @@ function ordDemandColRows() {
   });
 
   const at = ordDemandAtPrintersCol();
+  /* NARROWED: each shown line carries only its share of what the printers hold (ordDemAlloc). */
+  const share = narrowed && at ? ordDemAlloc(at) : null;
   const cols = [...groups.values()].map(g => {
-    const a = at ? (at.col.get(g.key) || { runM: 0, cutPcs: 0, pcs: 0 }) : null;
+    let a = at ? (at.col.get(g.key) || { runM: 0, cutPcs: 0, pcs: 0 }) : null;
+    let prodAt = null;
+    if (share) {
+      let m = 0, p = 0; prodAt = new Map();
+      g.keys.forEach(k => { const e = share.get(k.key); if (!e) return; m += e.m; p += e.pcs; prodAt.set(k.pk, (prodAt.get(k.pk) || 0) + e.pcs); });
+      a = { runM: m, cutPcs: p, pcs: p, who: a && a.who };
+    }
     const products = [...g.products.values()].map(p => {
-      const atP = at ? (at.prod.get(p.key) || 0) : null;
+      const atP = at ? (prodAt ? (prodAt.get(p.key) || 0) : (at.prod.get(p.key) || 0)) : null;
       return Object.assign(p, { skus: p.skus.size, atPcs: atP,
         cutGive: p.asPcs ? (atP == null ? p.pcs : Math.max(0, p.pcs - atP)) : null });
     }).sort((x, y) => (y.need - x.need) || (y.pcs - x.pcs));
     const printers = new Map(), open = [];
     g.lineOf.forEach((pr, k) => { if (pr) printers.set(pr, (printers.get(pr) || 0) + 1); else open.push(k); });
-    return Object.assign(g, { skus: g.skus.size, products, lines: g.lineOf.size, openKeys: open, printers, runWho: a && a.who ? a.who : null,
+    return Object.assign(g, { skus: g.skus.size, products, lines: g.lineOf.size, openKeys: open, printers, runWho: a && a.who ? a.who : null, narrowed,
       atPcs: a ? a.pcs : null, atM: a ? a.runM : null, cutAtPcs: a ? a.cutPcs : null,
       give: a ? Math.max(0, g.need - a.runM) : g.need,
       cutGive: a ? Math.max(0, g.cutPcs - a.cutPcs) : g.cutPcs,
       rufM: products.reduce((t, p) => t + p.rufM, 0) });
   }).sort((x, y) => (y.need - x.need) || (y.cutPcs - x.cutPcs));
 
-  return { cols, pcs, noPrintPcs, unknownPcs };
+  return { cols, pcs, noPrintPcs, unknownPcs, narrowed };
 }
 
 /* Metres to two places where it matters: a piece takes 1.85 m, not "2". */
@@ -18855,7 +18913,7 @@ function renderOrdDemandTot() {
   const giveM = r => Math.round(r.give || 0);
   const runWith = r => {
     const w = [...(r.runWho || new Map())].filter(x => Math.round(x[1])).sort((x, y) => y[1] - x[1]);
-    return w.length ? w.map(([n, m]) => esc(n) + ' <span class="muted">' + nf(Math.round(m)) + ' m</span>').join(', ') : '<span class="muted">—</span>';
+    return w.length ? w.map(([n, m]) => esc(n) + (r.narrowed ? '' : ' <span class="muted">' + nf(Math.round(m)) + ' m</span>')).join(', ') : '<span class="muted">—</span>';
   };
   const head = ordHead([['Fabric', ''], ['Colour', ''], ['Pieces to make', 'num'], ['Cloth needed', 'num'], ['With printers', 'num'],
     ['Still to give', 'num'], ['Running is with', '']].concat(canOrder ? [['', '']] : []));
@@ -18878,6 +18936,7 @@ function renderOrdDemandTot() {
   if (d.unknownPcs) say.push(nf(d.unknownPcs) + ' piece(s) have no fabric or consumption and are not counted');
   $('odMsg').className = 'muted';
   $('odMsg').textContent = nf(rows.length) + ' fabric · colour(s) · ' + nf(d.pcs) + ' piece(s) to make'
+    + (d.narrowed ? ' · filtered: "With printers" is these orders\' share of what the printers hold, oldest order first' : '')
     + ' · the products behind each line are in "Demand — by colour & product"' + (say.length ? ' · ' + say.join(' · ') : '');
 }
 
