@@ -2472,7 +2472,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendEmailVerification }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, addDoc, query, orderBy, limit, getDocs, serverTimestamp }
+import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, addDoc, query, orderBy, limit, getDocs, getDocsFromServer, serverTimestamp }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -2793,7 +2793,10 @@ async function loadAccessList() {
   const box = $('accessRows');
   box.innerHTML = '<tr><td colspan="4" class="muted">Loading…</td></tr>';
   try {
-    const snap = await getDocs(collection(db, 'perms'));
+    /* FROM THE SERVER ONLY (2026-09-25). getDocs falls back to the local cache when Firestore cannot be reached, and
+     * an empty cache read as "Nobody has been granted access yet" while 50 people had it. A failed read now lands in
+     * the catch below and says so. */
+    const snap = await getDocsFromServer(collection(db, 'perms'));
     const rows = [];
     snap.forEach(d => rows.push({ email: d.id, ...d.data() }));
     rows.sort((a, b) => a.email.localeCompare(b.email));
@@ -2822,7 +2825,11 @@ async function loadAccessList() {
         + (gone ? ' BUT THEIR COPY IN THE PRODUCTION DATABASE IS STILL THERE — ' + gone + '. Remove them again.' : '');
       loadAccessList();
     });
-  } catch (e) { box.innerHTML = `<tr><td colspan="4" class="err">Could not read the access list: ${e.message || e}</td></tr>`; }
+  } catch (e) {
+    box.innerHTML = `<tr><td colspan="4" class="err">Could not reach the access list, so it is not shown — nobody's access has changed. `
+      + `This usually means Firestore cannot be reached from this network right now; try again in a moment, or from another connection. `
+      + `<span class="muted">(${String(e && (e.code || e.message) || e).replace(/[<>&]/g, '')})</span></td></tr>`;
+  }
 }
 
 /* The FBA Replenishment app's sections. Its own REPL_TABS lives in a DIFFERENT FILE (Replenish-App),
