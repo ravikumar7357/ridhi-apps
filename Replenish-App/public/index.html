@@ -2031,6 +2031,7 @@
           <select id="odView" style="flex:0 0 235px" title="The same order book, read four ways.">
             <option value="book">Order book — pending</option>
             <option value="bookdone">Order book — complete &amp; handed over</option>
+            <option value="track">Tracking — every order, start to finish</option>
             <option value="shopsku">Shopify — by SKU, combined</option>
             <option value="shoporder">Shopify — by order (pending)</option>
             <option value="shopdone">Shopify — complete &amp; handed over</option>
@@ -16326,8 +16327,11 @@ function ordWaitingAt(r) {
    * and all 25 sitting dispatched to FBA. "Complete" leads, so anything reading the first word still
    * reads what it always did. */
   const fin = ordFgAt(r.orderNo, r.sku) || { store: 0, fbaOpen: 0, in: 0 };
+  /* …and past the store, where it went (2026-09-25): shipped to Amazon, or issued out to the buyer. */
   const tail = fin.fbaOpen ? ' · ' + nf(fin.fbaOpen) + ' waiting to ship to FBA'
-    : (fin.store ? ' · ' + nf(fin.store) + ' in store' : '');
+    : (fin.store ? ' · ' + nf(fin.store) + ' in store'
+      : (fin.fbaShip ? ' · ' + nf(fin.fbaShip) + ' shipped to Amazon' + (fin.issued ? ', ' + nf(fin.issued) + ' dispatched' : '')
+        : (fin.issued ? ' · ' + nf(fin.issued) + ' dispatched' : '')));
   /* HANDED OVER IS THE END OF A SHOPIFY LINE, and it says so by name — "Complete" on its own leaves you
    * wondering whether the goods actually went anywhere. */
   if (!r.open) return (r.handedAt ? 'Handed over' + (r.unrecorded ? ' · ' + nf(r.unrecorded) + ' never recorded' : '') : 'Complete') + tail;
@@ -16354,7 +16358,9 @@ function ordJourney(orderNo) {
   const stage = r => { const v = ordVendorOf(r.orderNo, r.sku), q = ordQcOf(r.orderNo, r.sku);
     return { ordered: r.qty, given: r.printer ? r.qty : (v ? v.given : 0), back: r.printer ? r.printed : (v ? v.back : 0),
       cut: r.cutReq ? r.cut : null, issued: r.issued, received: r.received, qc: q ? q.ok : null, pressed: r.pressed,
-      store: (ordFgAt(r.orderNo, r.sku) || {}).store || 0, fba: (ordFgAt(r.orderNo, r.sku) || {}).fba || 0, v }; };
+      store: (ordFgAt(r.orderNo, r.sku) || {}).store || 0, fba: (ordFgAt(r.orderNo, r.sku) || {}).fba || 0,
+      fbaShip: (ordFgAt(r.orderNo, r.sku) || {}).fbaShip || 0, out: (ordFgAt(r.orderNo, r.sku) || {}).issued || 0,
+      docs: (ordFgAt(r.orderNo, r.sku) || {}).docs || [], worked: (ordFgAt(r.orderNo, r.sku) || {}).worked || 0, v }; };
   const S = rows.map(stage), sum = f => S.reduce((t, x) => t + (x[f] || 0), 0);
   /* A SHOPIFY ORDER ENDS AT THE SHIPPING TABLE, not at Amazon, and it does not normally pass through the
    * store — so those two tiles are shown only when they hold something, and the handover takes their
@@ -16363,16 +16369,27 @@ function ordJourney(orderNo) {
   const handed = rows.filter(r => r.handedAt).reduce((t, r) => t + r.qty, 0);
   const tiles = [['Ordered', sum('ordered')], ['With vendor', sum('given')], ['Back from vendor', sum('back')], ['Cut', sum('cut')],
     ['Issued', sum('issued')], ['Received', sum('received')], ['QC passed', sum('qc')], ['Pressed', sum('pressed')]]
-    .concat(shop && !sum('store') && !sum('fba') ? [] : [['In store', sum('store')], ['To FBA', sum('fba')]])
+    .concat(shop && !sum('store') && !sum('fba') && !sum('out') ? [] : [['In store', sum('store')], ['To FBA', sum('fba')]])
+    /* THE LAST LEG (2026-09-25): what Amazon has, and what went out to a buyer. Shown when the order has any. */
+    .concat(sum('fba') ? [['Shipped to Amazon', sum('fbaShip')]] : [])
+    .concat(sum('out') ? [['Dispatched', sum('out')]] : [])
     .concat(shop ? [['Handed over', handed]] : []);
   const strip = '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">' + tiles.map(([l, n], i) =>
     `<div style="flex:1 1 92px;border:1px solid var(--line);border-radius:10px;padding:7px 9px;text-align:center">`
     + `<div style="font-size:17px;font-weight:700${i && n < tiles[0][1] ? ';color:#7f6000' : ';color:var(--accent)'}">${nf(n)}</div>`
     + `<div class="muted" style="font-size:11px">${l}</div></div>`).join('<div style="align-self:center" class="muted">›</div>') + '</div>';
   const num = (n, of) => n == null ? '<span class="muted">n/a</span>' : (n >= of ? `<span style="color:#166534;font-weight:700">${nf(n)}</span>` : nf(n));
-  const head = ['SKU', 'What', 'Ordered', 'With vendor', 'Back', 'Cut', 'Issued', 'Received', 'QC', 'Pressed', 'In store', 'To FBA']
-    .concat(shop ? ['Handed over'] : []).concat(['Waiting at'])
-    .map((h, i) => `<th${i >= 2 && i <= (shop ? 12 : 11) ? ' class="num"' : ''}>${h}</th>`).join('');
+  const head = ['SKU', 'What', 'Ordered', 'With vendor', 'Back', 'Cut', 'Issued', 'Received', 'QC', 'Pressed', 'In store', 'To FBA', 'Dispatched']
+    .concat(shop ? ['Handed over'] : []).concat(['Shipment / papers', 'Waiting at'])
+    .map((h, i) => `<th${i >= 2 && i <= (shop ? 13 : 12) ? ' class="num"' : ''}>${h}</th>`).join('');
+  /* The papers behind a line: each FBA dispatch with its shipment (or where it stands), each issue with its invoice / LR. */
+  const papers = x => {
+    const list = x.docs.map(d => d.type === 'FBA'
+      ? `FBA ${nf(d.qty)} · ${d.shipment ? '<b>' + esc(d.shipment) + '</b>' + (d.shipDate ? ' · ' + esc(d.shipDate) : '') : esc(({ waiting: 'waiting for the FBA team', accepted: 'accepted, not shipped', returned: 'returned' })[d.st] || d.st || '')}`
+      : `Out ${nf(d.qty)} → ${esc(d.to)}${d.invoice ? ' · inv <b>' + esc(d.invoice) + '</b>' : ''}${d.transporter ? ' · ' + esc(d.transporter) : ''}${d.lr ? ' · LR <b>' + esc(d.lr) + '</b>' : ''}${d.date ? ' · ' + esc(d.date) : ''}`);
+    if (x.worked) list.push(`<i>${nf(x.worked)} shared by SKU — sent before dispatches named their order</i>`);
+    return list.length ? list.join('<br>') : '<span class="muted">—</span>';
+  };
   const body = rows.map((r, i) => { const x = S[i];
     const vend = r.printer ? [`${esc(voName(r.printer))} · put on this line from the Order Console · ${nf(r.printed)} of ${nf(r.qty)} back`]
       : (x.v ? x.v.parts.map(p => `${esc(p.vpo)} · ${esc(voName(p.vendorCode))}${p.service ? ' · ' + esc(p.service) : ''} · ${nf(p.qty)} given, ${nf(p.back)} back`
@@ -16387,8 +16404,10 @@ function ordJourney(orderNo) {
       + `<td class="num">${num(x.qc, x.ordered)}</td><td class="num">${num(x.pressed, x.ordered)}</td>`
       + `<td class="num">${x.store ? nf(x.store) : '<span class="muted">—</span>'}</td>`
       + `<td class="num">${x.fba ? `<span style="color:#166534">${nf(x.fba)}</span>` : '<span class="muted">—</span>'}</td>`
+      + `<td class="num">${x.out ? `<span style="color:#166534">${nf(x.out)}</span>` : '<span class="muted">—</span>'}</td>`
       + (!shop ? '' : `<td class="num"${r.handedAt ? ` title="${esc(String(r.handedBy || '').split('@')[0] + ' · ' + (ptIsoDate(r.handedAt) || ''))}"` : ''}>`
           + (r.handedAt ? `<b style="color:#166534">${nf(r.qty)}</b>` : '<span class="muted">—</span>') + '</td>')
+      + `<td style="text-align:left;font-size:11.5px;white-space:normal;min-width:190px">${papers(x)}</td>`
       + `<td style="text-align:left;font-size:12px${r.open ? '' : ';color:#166534'}">${esc(ordWaitingAt(r))}</td></tr>`; }).join('');
   const first = rows[0], openN = rows.filter(r => r.open).length;
   ptOpenDialog({
@@ -16525,14 +16544,15 @@ let ORD_QC_IX = { src: null, n: -1, map: null };
  *   roomOf  (line) → how many that line can still take; 0 or less means skip it
  *   give    (line, taken, fraction) → called for each share, fraction being taken/the SKU's whole
  */
-function ordShareBySku(loose, lines, roomOf, give) {
+function ordShareBySku(loose, lines, roomOf, give, rank) {
   const when = r => ptDtMs(r.orderDate) || 0;
+  const rk = rank || (() => 0);
   const bySku = new Map();
   lines.forEach(r => { if (!bySku.has(r.sku)) bySku.set(r.sku, []); bySku.get(r.sku).push(r); });
   loose.forEach((whole, sku) => {
     let left = whole;
     if (!(left > 0)) return;
-    (bySku.get(sku) || []).slice().sort((a, b) => when(a) - when(b)).forEach(r => {
+    (bySku.get(sku) || []).slice().sort((a, b) => rk(a) - rk(b) || when(a) - when(b)).forEach(r => {
       if (!(left > 0)) return;
       const take = Math.min(left, roomOf(r));
       if (!(take > 0)) return;
@@ -16580,13 +16600,97 @@ const ordQcOf = (orderNo, sku) => ordQcIndex().get(obKeyOf(orderNo, sku)) || nul
  * so still the factory's), store (in − out) and worked (how many of the outward pieces were shared
  * rather than written down).
  */
+/** The orders an outward row names: [{orderNo, qty, sign}]. `orders` (new) wins over a single `orderNo`. */
+function fgiOutParts(r) {
+  if (!r || (r.txnType !== 'ISSUE' && r.txnType !== 'FBA' && r.txnType !== 'FBA_RETURN')) return [];
+  const sign = r.txnType === 'FBA_RETURN' ? -1 : 1;
+  const list = Array.isArray(r.orders) ? r.orders : (r.orders && typeof r.orders === 'object' ? Object.values(r.orders) : []);
+  if (list.length) return list.filter(p => p && p.orderNo && fgiNum(p.qty) > 0).map(p => ({ orderNo: obUC(p.orderNo), qty: fgiNum(p.qty), sign }));
+  if (r.orderNo) return [{ orderNo: obUC(r.orderNo), qty: fgiNum(r.qty), sign }];
+  return [];
+}
+/** Which orders a dispatch takes first: FBA serves Amazon orders first; an issue serves the others first. */
+function fgiOutRank(orderNo, type) {
+  const amz = ordSrcOf(orderNo) === 'AMZ';
+  return type === 'FBA' ? (amz ? 0 : 1) : (amz ? 1 : 0);
+}
+/**
+ * Orders that have pieces of this SKU in the India Store, in the order a dispatch should take them.
+ * Console orders read the console's own "in store"; an external order is what was received against it, less
+ * what left naming it. `taken` (orderNo → pcs) is what earlier rows of the same sheet or scan already took.
+ */
+function fgiOutOrders(sku, type, taken) {
+  const s = obUC(sku), t = taken || new Map(), seen = new Set(), out = [];
+  ordLines().forEach(r => {
+    if (r.sku !== s || seen.has(r.orderNo)) return;
+    seen.add(r.orderNo);
+    const e = ordFgAt(r.orderNo, s), store = (e ? e.store : 0) - (t.get(r.orderNo) || 0);
+    if (store > 0) out.push({ orderNo: r.orderNo, store, ms: ptDtMs(r.orderDate) || 0, rank: fgiOutRank(r.orderNo, type) });
+  });
+  const ext = new Map();
+  (FGI.rows || []).forEach(r => {
+    if (!r || obUC(r.sku) !== s) return;
+    if (r.txnType === 'RECEIVE' && r.orderSource === 'external' && r.orderNo && !seen.has(obUC(r.orderNo))) {
+      const k = obUC(r.orderNo), e = ext.get(k) || { in: 0, out: 0, ms: ptDtMs(r.date) || 0 };
+      e.in += fgiNum(r.qty); ext.set(k, e);
+    }
+  });
+  if (ext.size) (FGI.rows || []).forEach(r => { if (r && obUC(r.sku) === s) fgiOutParts(r).forEach(p => { const e = ext.get(p.orderNo); if (e) e.out += p.sign * p.qty; }); });
+  ext.forEach((e, no) => { const store = e.in - e.out - (t.get(no) || 0); if (store > 0) out.push({ orderNo: no, store, ms: e.ms, rank: 1, ext: true }); });
+  return out.sort((a, b) => a.rank - b.rank || a.ms - b.ms);
+}
+/** Deal `qty` pieces to those orders — the picked one first, then the rest in their turn. What no order holds
+ *  (opening stock, pieces received beyond every order) is `loose`. */
+function fgiOutAlloc(sku, qty, type, first, taken) {
+  const c = fgiOutOrders(sku, type, taken), want = obUC(first || '');
+  if (want) {
+    const i = c.findIndex(x => x.orderNo === want);
+    if (i < 0) return { err: `${want} has no pieces of ${obUC(sku)} in the India Store — pick one of the orders in the list, or leave it on Auto.` };
+    c.unshift(c.splice(i, 1)[0]);
+  }
+  let left = qty; const orders = [];
+  c.forEach(x => { if (left <= 0) return; const q = Math.min(left, x.store); orders.push({ orderNo: x.orderNo, qty: q }); left -= q; });
+  return { orders, loose: Math.max(0, left) };
+}
+/**
+ * THE ORDER SIDE OF A DISPATCH — the form, the Excel issue and the scan all ask here, so they cannot drift.
+ * v: { sku, qty, type, order ('' = auto, '__none' = not for an order, or an order number), why, inv, trans, lr }.
+ * Returns { err } or { fields, alloc } where fields go straight onto the ledger row.
+ */
+function fgiOutOrderCheck(v, taken) {
+  const sku = obUC(v.sku), qty = parseInt(v.qty, 10) || 0, type = v.type;
+  const ord = String(v.order == null ? '' : v.order).trim(), why = String(v.why || '').trim();
+  const none = ord === '__none' || /^(no order|none|not for an order)$/i.test(ord) || (!ord && !!why && v.whyMeansNone !== false);
+  const fields = {};
+  if (type === 'ISSUE') {
+    const inv = String(v.inv || '').trim(), tr = String(v.trans || '').trim(), lr = String(v.lr || '').trim();
+    if (inv) fields.invoiceNo = inv;
+    if (tr) fields.transporter = tr;
+    if (lr) fields.lrNo = lr;
+  }
+  if (none) {
+    if (!why) return { err: 'Say why these pieces are not for an order — a sample, damaged, a photo shoot…' };
+    fields.noOrderWhy = why;
+    return { fields, alloc: { orders: [], loose: qty } };
+  }
+  const alloc = fgiOutAlloc(sku, qty, type, ord, taken);
+  if (alloc.err) return { err: alloc.err };
+  if (alloc.orders.length) fields.orders = alloc.orders;
+  return { fields, alloc };
+}
+/** "AMZ-01 12 · AMZ-02 8", for messages and cells. */
+const fgiOutTxt = orders => (orders || []).map(p => p.orderNo + ' ' + nf(p.qty)).join(' · ');
+
 let ORD_FG_IX = { src: null, n: -1, lines: null, map: null };
 function ordFgIndex() {
   const src = FGI.rows || PT_NONE, lines = ordLines();
   if (ORD_FG_IX.map && ORD_FG_IX.src === src && ORD_FG_IX.n === src.length && ORD_FG_IX.lines === lines) return ORD_FG_IX.map;
-  const map = new Map(), loose = new Map();
-  const get = k => { let e = map.get(k); if (!e) { e = { in: 0, out: 0, fba: 0, fbaOpen: 0, worked: 0 }; map.set(k, e); } return e; };
-  const pool = sku => { let p = loose.get(sku); if (!p) { p = { out: 0, fba: 0, fbaOpen: 0 }; loose.set(sku, p); } return p; };
+  const map = new Map(), looseF = new Map(), looseI = new Map();
+  const get = k => { let e = map.get(k); if (!e) { e = { in: 0, out: 0, fba: 0, fbaOpen: 0, fbaShip: 0, issued: 0, worked: 0, docs: [] }; map.set(k, e); } return e; };
+  /* Unnamed outflows are kept in two pools: what went to Amazon, and what was issued. They are shared out with
+   * different preferences — Amazon orders first for FBA, the others first for an issue. */
+  const pool = (sku, fba) => { const L = fba ? looseF : looseI; let p = L.get(sku); if (!p) { p = { out: 0, fba: 0, fbaOpen: 0, fbaShip: 0 }; L.set(sku, p); } return p; };
+  const byId = new Map(); src.forEach(r => { if (r && r.txnType === 'FBA') byId.set(fgiRowId(r), r); });
   src.forEach(r => {
     if (!r) return;
     const q = fgiNum(r.qty), sku = obUC(r.sku); if (!sku) return;
@@ -16603,17 +16707,36 @@ function ordFgIndex() {
     const st = r.txnType === 'FBA' ? fbaState(r) : null;
     const open = st ? st.open : 0;                       // dispatched and not yet shipped to Amazon
     const shipped = st && st.st === 'shipped';
-    const add = (e, f) => { e.out += sign * q * f; if (isFba) { e.fba += sign * q * f; e.fbaOpen += sign * (shipped ? 0 : open) * f; } };
-    if (r.orderNo) add(get(obKeyOf(r.orderNo, sku)), 1);
-    else { const p = pool(sku); p.out += sign * q; if (isFba) { p.fba += sign * q; p.fbaOpen += sign * (shipped ? 0 : open); } }
+    const add = (e, f) => { e.out += sign * q * f; if (isFba) { e.fba += sign * q * f; e.fbaOpen += sign * (shipped ? 0 : open) * f; e.fbaShip += sign * (shipped ? open : 0) * f; } else e.issued += q * f; };
+    /* NAMED PARTS FIRST (2026-09-25). A return goes back to the orders its dispatch named, in proportion. */
+    let parts = fgiOutParts(r);
+    if (r.txnType === 'FBA_RETURN' && r.linkedFbaId) {
+      const d = byId.get(r.linkedFbaId), dq = d ? fgiNum(d.qty) : 0;
+      parts = dq > 0 ? fgiOutParts(d).map(p => ({ orderNo: p.orderNo, qty: q * p.qty / dq })) : [];
+    }
+    let named = 0;
+    parts.forEach(p => {
+      const e = get(obKeyOf(p.orderNo, sku)), f = p.qty / q;
+      add(e, f); named += p.qty;
+      if (r.txnType !== 'FBA_RETURN') e.docs.push({ id: fgiRowId(r), type: r.txnType, qty: p.qty, date: r.date || '', to: r.issuedFor || '',
+        st: st ? st.st : '', shipment: r.fbaShipment || '', shipDate: r.fbaShipDate || '', invoice: r.invoiceNo || '', transporter: r.transporter || '', lr: r.lrNo || '' });
+    });
+    const rest = q - named;
+    if (rest > 0.0001) {
+      const f = rest / q, p = pool(sku, isFba);
+      p.out += sign * q * f; if (isFba) { p.fba += sign * q * f; p.fbaOpen += sign * (shipped ? 0 : open) * f; p.fbaShip += sign * (shipped ? open : 0) * f; }
+    }
   });
   /* THE LOOSE OUTFLOWS. An order can only have sent out what it took in, less what left it by name. */
-  const whole = new Map(); loose.forEach((p, sku) => { if (p.out > 0) whole.set(sku, p.out); });
-  ordShareBySku(whole, lines,
-    r => { const e = map.get(obKeyOf(r.orderNo, r.sku)); return e ? e.in - e.out : 0; },
-    (r, take, f) => { const p = loose.get(r.sku), e = get(obKeyOf(r.orderNo, r.sku));
-      e.out += take; e.fba += p.fba * f; e.fbaOpen += p.fbaOpen * f; e.worked += take; });
-  map.forEach(e => { ['in', 'out', 'fba', 'fbaOpen', 'worked'].forEach(k => { e[k] = Math.round(e[k]); });
+  [[looseF, true], [looseI, false]].forEach(([loose, fba]) => {
+    const whole = new Map(); loose.forEach((p, sku) => { if (p.out > 0) whole.set(sku, p.out); });
+    ordShareBySku(whole, lines,
+      r => { const e = map.get(obKeyOf(r.orderNo, r.sku)); return e ? e.in - e.out : 0; },
+      (r, take, f) => { const p = loose.get(r.sku), e = get(obKeyOf(r.orderNo, r.sku));
+        e.out += take; e.fba += p.fba * f; e.fbaOpen += p.fbaOpen * f; e.fbaShip += p.fbaShip * f; if (!fba) e.issued += take; e.worked += take; },
+      r => fgiOutRank(r.orderNo, fba ? 'FBA' : 'ISSUE'));
+  });
+  map.forEach(e => { ['in', 'out', 'fba', 'fbaOpen', 'fbaShip', 'issued', 'worked'].forEach(k => { e[k] = Math.round(e[k]); });
     e.store = Math.max(0, e.in - e.out); });
   ORD_FG_IX = { src, n: src.length, lines, map };
   return map;
@@ -18239,6 +18362,7 @@ function renderOrd() {
   if (v === 'demand') return renderOrdDemand();
   if (v === 'democol') return renderOrdDemandCol();
   if (v === 'demtot') return renderOrdDemandTot();
+  if (v === 'track') return renderOrdTrack();
   if (!isBook) { const out = renderOrdShopify(v === 'shopsku', v === 'shopdone'); if (bulkOk) spBulkRender(); return out; }
 
   /* PENDING HERE, FINISHED IN THEIR OWN VIEW (Ravi, 2026-09-24): a line that is Complete or handed over is
@@ -18978,6 +19102,92 @@ function demBasketBar() {
   if (bar.querySelectorAll) bar.querySelectorAll('[data-demclr]').forEach(b => { b.onclick = () => { delete ORD.demBasket[b.getAttribute('data-demclr')]; renderOrd(); }; });
 }
 
+/* ================= TRACKING — EVERY ORDER, START TO FINISH (Ravi, 2026-09-25) =================
+ *
+ * "mujhe fully tracking wala system banana h". One row per order. Each line is placed at ONE stage — the
+ * furthest-back place any of its pieces are — and the order sits at the stage of its most-behind line, because
+ * that is what it is waiting for. Past the press it follows the pieces: into the store, to FBA (waiting for the
+ * FBA team, or shipped with a shipment id), out to a buyer, or handed to Shopify shipping.
+ */
+const ORD_TRACK = [
+  ['vendor', 'With vendor', 'clock', 'amber'],
+  ['cut', 'Cutting', 'cut', 'blue'],
+  ['issue', 'To give a karigar', 'up', 'blue'],
+  ['karigar', 'With karigar', 'clock', 'blue'],
+  ['press', 'Press', 'press', 'blue'],
+  ['ready', 'Ready to hand over', 'box', 'amber'],
+  ['nostore', 'Made, not in store', 'alert', 'amber'],
+  ['store', 'In store', 'box', 'blue'],
+  ['fba', 'Sent to FBA, not shipped', 'clock', 'amber'],
+  ['done', 'Shipped / delivered', 'ok', 'green'],
+];
+/** Where one line is: the index into ORD_TRACK. */
+function ordTrackStage(r) {
+  if (r.open) {
+    const w = ordWaitingAt(r);
+    return /^Vendor/.test(w) ? 0 : /^Cutting/.test(w) ? 1 : /^Issue/.test(w) ? 2 : /^Karigar/.test(w) ? 3 : /^Press/.test(w) ? 4 : 5;
+  }
+  if (r.handedAt) return 9;
+  const g = ordFgAt(r.orderNo, r.sku) || { in: 0, store: 0, fbaOpen: 0, fbaShip: 0, issued: 0, out: 0 };
+  if (g.store > 0) return 7;
+  if (g.fbaOpen > 0) return 8;
+  if (g.out > 0) return 9;
+  /* A Shopify line pressed in full but never handed to shipping is waiting for the handover, not the store. */
+  return r.src === 'SHP' ? 5 : 6;
+}
+function ordTrackRows() {
+  const by = new Map();
+  ordApply(ordLines(), ordFilters()).forEach(r => {
+    let o = by.get(r.orderNo);
+    if (!o) { o = { orderNo: r.orderNo, date: r.orderDate || '', src: ordSrcOf(r.orderNo) || String(r.orderNo).split('-')[0], lines: 0,
+      ordered: 0, pressed: 0, store: 0, fba: 0, fbaOpen: 0, fbaShip: 0, issued: 0, handed: 0, stage: 9, n: new Array(ORD_TRACK.length).fill(0), ships: new Set() };
+      by.set(r.orderNo, o); }
+    const g = ordFgAt(r.orderNo, r.sku) || {};
+    const st = ordTrackStage(r);
+    o.lines++; o.ordered += r.qty; o.pressed += Math.min(r.qty, r.pressed || 0);
+    o.store += g.store || 0; o.fba += g.fba || 0; o.fbaOpen += g.fbaOpen || 0; o.fbaShip += g.fbaShip || 0; o.issued += g.issued || 0;
+    if (r.handedAt) o.handed += r.qty;
+    (g.docs || []).forEach(d => { if (d.shipment) o.ships.add(d.shipment); if (d.lr) o.ships.add('LR ' + d.lr); if (d.invoice) o.ships.add('inv ' + d.invoice); });
+    o.n[st]++; o.stage = Math.min(o.stage, st);
+  });
+  const now = Date.now();
+  return [...by.values()].map(o => Object.assign(o, { days: o.date ? Math.max(0, Math.floor((now - (ptDtMs(o.date) || now)) / 864e5)) : null }))
+    .sort((a, b) => a.stage - b.stage || (ptDtMs(a.date) || 0) - (ptDtMs(b.date) || 0));
+}
+function renderOrdTrack() {
+  const all = ordTrackRows();
+  const pick = /^trk\d+$/.test(ORD_KPI) ? +ORD_KPI.slice(3) : -1;
+  const rows = pick >= 0 ? all.filter(o => o.stage === pick) : all;
+  ORD.rows = rows;
+  $('odKpis').innerHTML = '<div class="jw-kpiname">Tracking — every order, start to finish</div><div class="jw-kpis">'
+    + ordKpiCard(nf(all.length), 'Orders', 'doc', 'blue', 'the filters above decide which')
+    + ORD_TRACK.map(([k, l, icon, tone], i) => { const n = all.filter(o => o.stage === i).length;
+      return ordKpiCard(nf(n), l, icon, tone, 'orders held here', { key: 'trk' + i,
+        tip: (pick === i ? 'Showing only these orders. Click again to show all.' : 'Show only the orders whose furthest-back line is here.') }); }).join('')
+    + '</div>';
+  const head = ordHead([['Order', ''], ['From', ''], ['Date', ''], ['Days', 'num'], ['Lines', 'num'], ['Ordered', 'num'], ['Made', 'num'],
+    ['In store', 'num'], ['To FBA', 'num'], ['Shipped to Amazon', 'num'], ['Dispatched', 'num'], ['Handed over', 'num'], ['Where it is', ''], ['Shipment / papers', '']]);
+  const cell = n => n ? nf(Math.round(n)) : '<span class="muted">—</span>';
+  const body = rows.slice(0, 800).map(o => {
+    const where = ORD_TRACK[o.stage][1] + (o.lines > 1 && o.n[o.stage] < o.lines ? ` <span class="muted">(${nf(o.n[o.stage])} of ${nf(o.lines)} lines)</span>` : '');
+    const tone = o.stage === 9 ? 'done' : (o.stage >= 7 ? 'prog' : 'pend');
+    return '<tr>'
+      + `<td class="frz" style="text-align:left"><a href="#" data-ordj="${esc(o.orderNo)}" title="This order, start to finish" style="font-weight:600">${esc(o.orderNo)}</a></td>`
+      + `<td>${esc(o.src)}</td><td>${esc(o.date)}</td><td class="num">${o.days == null ? '—' : nf(o.days)}</td>`
+      + `<td class="num">${nf(o.lines)}</td><td class="num" style="font-weight:700">${nf(o.ordered)}</td>`
+      + `<td class="num">${cell(o.pressed)}</td><td class="num">${cell(o.store)}</td><td class="num">${cell(o.fba)}</td>`
+      + `<td class="num">${cell(o.fbaShip)}</td><td class="num">${cell(o.issued)}</td><td class="num">${cell(o.handed)}</td>`
+      + `<td style="text-align:left"><span class="jw-st ${tone}">${where}</span></td>`
+      + `<td style="text-align:left;font-size:11.5px">${o.ships.size ? [...o.ships].slice(0, 4).map(esc).join(' · ') + (o.ships.size > 4 ? ' …' : '') : '<span class="muted">—</span>'}</td>`
+      + '</tr>';
+  }).join('');
+  $('odTable').innerHTML = head + '<tbody>' + (body || '<tr><td colspan="14" class="muted" style="padding:16px">No order matches.</td></tr>') + '</tbody>';
+  $('odMsg').className = 'muted';
+  $('odMsg').textContent = `${nf(rows.length)} order(s)${pick >= 0 ? ' held at ' + ORD_TRACK[pick][1].toLowerCase() + ' — click the card again for all' : ''}`
+    + (rows.length > 800 ? ' · showing the first 800' : '')
+    + ' · an order sits where its furthest-back line is · click an order number for every line, start to finish';
+}
+
 function renderOrdDemandTot() {
   ordDemandLoad();
   const d = ordDemandColRows();
@@ -19227,6 +19437,13 @@ function ordBookCsv(rows) {
 $('odExport').onclick = () => {
   const rows = ORD.rows || []; if (!rows.length) return;
   const v = ordView();
+  if (v === 'track') {
+    const out = [['Order No', 'From', 'Date', 'Days open', 'Lines', 'Ordered', 'Made', 'In store', 'To FBA', 'Shipped to Amazon',
+      'Dispatched', 'Handed over', 'Where it is', 'Lines there', 'Shipment / papers'].map(csvCell).join(',')];
+    rows.forEach(o => out.push([o.orderNo, o.src, o.date, o.days == null ? '' : o.days, o.lines, o.ordered, o.pressed, o.store, o.fba,
+      o.fbaShip, o.issued, o.handed, ORD_TRACK[o.stage][1], o.n[o.stage], [...o.ships].join(' · ')].map(csvCell).join(',')));
+    return ptDownload('order-tracking', out);
+  }
   if (v === 'demtot') {
     const r2 = v2 => v2 == null ? '' : Math.round(v2 * 100) / 100;
     const out = [['Fabric', 'Colour', 'Pieces to make', 'Running cloth needed (m)', 'Running with printers (m)', 'Running still to give (m)',
@@ -33173,6 +33390,17 @@ function fgiEntryOpen(type, sku) {
             <button type="button" id="fgmExtNew" class="ghost" style="width:100%" title="For an external order that came with no number of its own">Make a number</button></div>
           <div id="fgmOrdQty" class="hide" style="grid-column:1/-1;padding:8px 10px;border-radius:8px;background:var(--hover,#f1f5f9);font-size:13px;font-weight:400"></div>
         </div>
+        <div id="fgmOutWrap" class="hide" style="grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;
+          padding:10px;border:1px solid var(--line);border-radius:10px">
+          <label style="grid-column:1/-1"><span>For which order <b style="color:var(--bad)">*</b></span><select id="fgmOutOrd"><option value="">Auto — oldest orders first</option></select></label>
+          <label id="fgmOutWhyWrap" class="hide" style="grid-column:1/-1"><span>Why is it for no order? <b style="color:var(--bad)">*</b></span>
+            <input id="fgmOutWhy" type="text" placeholder="e.g. sample, damaged, photo shoot"></label>
+          <label id="fgmInvWrap" class="hide">Invoice no<input id="fgmInv" type="text" placeholder="if billed"></label>
+          <label id="fgmTransWrap" class="hide">Transporter / courier<input id="fgmTrans" type="text" list="fgmTransList" placeholder="who carries it">
+            <datalist id="fgmTransList">${fgiSeen('transporter').map(r => `<option value="${esc(r)}">`).join('')}</datalist></label>
+          <label id="fgmLrWrap" class="hide">LR / AWB / tracking no<input id="fgmLr" type="text" placeholder="the docket number"></label>
+          <div id="fgmOutPlan" style="grid-column:1/-1;padding:8px 10px;border-radius:8px;background:var(--hover,#f1f5f9);font-size:13px;font-weight:400"></div>
+        </div>
         <label><span>Pieces <b style="color:var(--bad)">*</b></span><input id="fgmQty" type="number" min="1" step="1"></label>
         <label id="fgmWhoWrap"><span><span id="fgmWhoLbl">${esc(k.who)}</span> <b style="color:var(--bad)">*</b></span><input id="fgmWho" type="text"
           list="fgmWhoList" placeholder="a name"><datalist id="fgmWhoList">${
@@ -33207,6 +33435,29 @@ function fgiEntryOpen(type, sku) {
       if ($('fgmReason').setAttribute) $('fgmReason').setAttribute('list', fbaT ? 'fgmHandList' : 'fgmReasonList');
     }
     if ($('fgmOrdWrap')) $('fgmOrdWrap').classList.toggle('hide', t !== 'RECEIVE');
+    /* WHICH ORDER THESE PIECES LEAVE FOR (2026-09-25). Auto deals them oldest first — Amazon orders first for FBA. */
+    const outT = t === 'FBA' || t === 'ISSUE';
+    if ($('fgmOutWrap')) $('fgmOutWrap').classList.toggle('hide', !outT);
+    ['fgmInvWrap', 'fgmTransWrap', 'fgmLrWrap'].forEach(i => { if ($(i)) $(i).classList.toggle('hide', t !== 'ISSUE'); });
+    if (outT && $('fgmOutOrd')) {
+      const cand = s ? fgiOutOrders(s, t) : [], was = $('fgmOutOrd').value || '';
+      $('fgmOutOrd').innerHTML = '<option value="">Auto — oldest orders first</option>'
+        + cand.map(x => `<option value="${esc(x.orderNo)}">${esc(x.orderNo)} · ${nf(x.store)} in store${x.ext ? ' · external' : ''}</option>`).join('')
+        + '<option value="__none">Not for an order (sample, damaged…)</option>';
+      $('fgmOutOrd').value = was === '__none' || cand.some(x => x.orderNo === was) ? was : '';
+      const none = $('fgmOutOrd').value === '__none';
+      if ($('fgmOutWhyWrap')) $('fgmOutWhyWrap').classList.toggle('hide', !none);
+      const q = parseInt(($('fgmQty') || {}).value, 10) || 0, box = $('fgmOutPlan');
+      if (box) {
+        if (none) box.innerHTML = 'These pieces will be recorded as for <b>no order</b>, with the reason you give.';
+        else if (!s) box.innerHTML = 'Put in the SKU to see which orders have pieces in the store.';
+        else if (!cand.length) box.innerHTML = '<span style="color:var(--bad)">No order has pieces of this SKU in the store</span> — they will leave as stock that is on no order.';
+        else if (!q) box.innerHTML = nf(cand.length) + ' order(s) have pieces of this SKU in the store. Put in the pieces to see where they go.';
+        else { const a = fgiOutAlloc(s, q, t, $('fgmOutOrd').value);
+          box.innerHTML = a.err ? '<span style="color:var(--bad)">' + esc(a.err) + '</span>'
+            : 'These pieces go to: <b>' + esc(fgiOutTxt(a.orders)) + '</b>' + (a.loose ? ` · ${nf(a.loose)} from stock that is on no order` : ''); }
+      }
+    }
     if (t !== 'RECEIVE' && $('fgmOverWrap')) $('fgmOverWrap').classList.add('hide');
     const ords = t === 'RECEIVE' ? fgiOrdFill(s) : [];
     const src = ($('fgmOrdSrc') || {}).value === 'external' ? 'external' : 'console';
@@ -33248,6 +33499,7 @@ function fgiEntryOpen(type, sku) {
   $('fgmType').addEventListener('change', info);
   if ($('fgmOrd')) $('fgmOrd').addEventListener('input', () => { if ($('fgmOrd').dataset) $('fgmOrd').dataset.auto = ''; info(); });
   if ($('fgmQty')) $('fgmQty').addEventListener('input', info);
+  if ($('fgmOutOrd')) $('fgmOutOrd').addEventListener('change', info);
   if ($('fgmOrdSrc')) $('fgmOrdSrc').addEventListener('change', () => {
     if ($('fgmOrdSrc').dataset) $('fgmOrdSrc').dataset.touched = '1';
     if ($('fgmOrd')) { $('fgmOrd').value = ''; if ($('fgmOrd').dataset) $('fgmOrd').dataset.auto = ''; }
@@ -33356,10 +33608,14 @@ async function fgiEntrySave() {
     }
     ({ orderNo, orderSource, overQty, overReason, overOrdered, extFrom, extQty } = r);
   }
+  let out = null;
   if (k.dir < 0) {
     /* Read again at save: the figure on screen could be minutes old, and the store cannot go short. */
     const short = fgiOutCheck(sku, qty, type);
     if (short) return short;
+    out = fgiOutOrderCheck({ sku, qty, type, order: ($('fgmOutOrd') || {}).value, why: ($('fgmOutWhy') || {}).value,
+      inv: ($('fgmInv') || {}).value, trans: ($('fgmTrans') || {}).value, lr: ($('fgmLr') || {}).value });
+    if (out.err) return out.err;
   }
   // Day-first, like every other date this database keeps.
   const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -33391,6 +33647,7 @@ async function fgiEntrySave() {
     ...(orderNo ? { orderNo, orderSource } : {}),
     ...(orderSource === 'external' ? { extOrderFrom: extFrom, ...(extQty ? { extOrderQty: extQty } : {}) } : {}),
     ...(overQty ? { overQty, overReason, overOrdered, overStatus: 'open' } : {}),
+    ...(out ? out.fields : {}),
     [k.dir < 0 ? 'issuedFor' : 'receivedFrom']: who,
     remarks: String(($('fgmRemarks') || {}).value || '').trim(),
     createdAt: new Date().toISOString(), createdBy: ME.email };
@@ -33400,6 +33657,8 @@ async function fgiEntrySave() {
   $('fgMsg').className = 'muted';
   $('fgMsg').textContent = `${nf(qty)} piece(s) of ${sku} ${type === 'FBA' ? 'sent to FBA' : (type === 'ISSUE' ? 'issued' : 'received')}`
     + (orderNo ? ` against ${orderNo}${orderSource === 'external' ? ` (external order${extFrom ? ' · ' + extFrom : ''})` : ''}` : '')
+    + (out && out.fields.orders ? ' for ' + fgiOutTxt(out.fields.orders) : '')
+    + (out && out.fields.noOrderWhy ? ' — for no order (' + out.fields.noOrderWhy + ')' : '')
     + ` · ${nf(fgiOf(sku).current)} now in stock.`
     + (overQty ? ` ⚠ ${nf(overQty)} piece(s) more than the order — flagged for review.` : '')
     + (type === 'FBA' ? ' It is waiting for the FBA team in FBA Dispatch.' : '');
@@ -33441,6 +33700,11 @@ const FGI_XL_ISS_COLS = [
   ['sku', 'SKU', ['sku']],
   ['qty', 'Pieces', ['pieces', 'pcs', 'qty', 'quantity']],
   ['who', 'Issued to', ['issued to', 'issue to', 'to', 'issued for']],
+  ['order', 'Order No', ['order no', 'order no.', 'order number', 'order', 'for order']],
+  ['noOrderWhy', 'No order — why', ['no order — why', 'no order - why', 'no order why', 'why no order', 'not for an order']],
+  ['inv', 'Invoice no', ['invoice no', 'invoice no.', 'invoice', 'invoice number', 'bill no']],
+  ['trans', 'Transporter', ['transporter', 'courier', 'transporter / courier']],
+  ['lr', 'LR / AWB no', ['lr / awb no', 'lr no', 'lr', 'awb', 'awb no', 'tracking no', 'tracking', 'docket']],
   ['reason', 'Reason', ['reason']],
   ['remarks', 'Note', ['note', 'remarks', 'remark']],
 ];
@@ -33536,6 +33800,7 @@ function fgiRecvXlPlan(list, fileName) {
 function fgiIssXlPlan(list, fileName) {
   const known = new Set((PTG.mdb || []).map(r => r && obUC(r.sku)));
   const took = new Map();                                    // SKU → pieces earlier rows take out
+  const tookOrd = new Map();                                 // SKU → (order → pieces earlier rows take from it)
   const seenDay = [];
   const today = (() => { const d = dToday().split('-'); return d[2] + '/' + d[1] + '/' + d[0]; })();
   const now = new Date().toISOString();
@@ -33551,6 +33816,12 @@ function fgiIssXlPlan(list, fileName) {
     else if (!who) it.err = 'Say who or what these are for — a movement with nobody on it cannot be traced.';
     else it.err = fgiOutCheck(v.sku, qty, 'ISSUE', took.get(v.sku) || 0);
     if (it.err) return it;
+    /* THE FORM'S ORDER CHECK: a blank Order No is Auto; "No order — why" alone means it is for no order. */
+    const tk = tookOrd.get(v.sku) || new Map();
+    const oc = fgiOutOrderCheck({ sku: v.sku, qty, type: 'ISSUE', order: v.order, why: v.noOrderWhy, inv: v.inv, trans: v.trans, lr: v.lr }, tk);
+    if (oc.err) { it.err = oc.err; return it; }
+    (oc.fields.orders || []).forEach(p => tk.set(p.orderNo, (tk.get(p.orderNo) || 0) + p.qty));
+    tookOrd.set(v.sku, tk);
     took.set(v.sku, (took.get(v.sku) || 0) + qty);
     /* The form's two same-day warnings. */
     const twin = (FGI.rows || []).concat(seenDay).find(r => r && r.date === date && obUC(r.sku) === v.sku && r.txnType === 'ISSUE'
@@ -33559,6 +33830,7 @@ function fgiIssXlPlan(list, fileName) {
     if (twin) it.warn = `already issued to "${who}" on ${date} (${nf(fgiNum(twin.qty))} pcs)`;
     else if (otherWay) it.warn = `already received on ${date} (${nf(fgiNum(otherWay.qty))} pcs)`;
     it.rec = { _id: fgiNewId('ISS'), txnType: 'ISSUE', sku: v.sku, qty, date, reason: String(v.reason || '').trim(),
+      ...oc.fields,
       issuedFor: who, remarks: String(v.remarks || '').trim(), source: 'excel: ' + (fileName || 'sheet'),
       createdAt: now, createdBy: ME.email };
     seenDay.push(it.rec);
@@ -34785,7 +35057,9 @@ function renderFba() {
       + `<td class="frz">${esc(r.date || String(r.createdAt || '').slice(0, 10))}</td>`
       + `<td style="font-family:ui-monospace,monospace;text-align:left">${esc(obUC(r.sku))}</td>`
       + ptImgCell(r.sku)
-      + `<td style="text-align:left">${esc([m.subtype || m.articleType, m.color, m.size].filter(Boolean).join(' · ')) || '<span class="muted">not in the master DB</span>'}</td>`
+      + `<td style="text-align:left">${esc([m.subtype || m.articleType, m.color, m.size].filter(Boolean).join(' · ')) || '<span class="muted">not in the master DB</span>'}`
+      + (fgiOutParts(r).length ? `<div class="muted" style="font-size:10.5px">for ${esc(fgiOutTxt(fgiOutParts(r)))}</div>`
+        : (r.noOrderWhy ? `<div class="muted" style="font-size:10.5px">no order · ${esc(r.noOrderWhy)}</div>` : '')) + '</td>'
       + `<td class="num" style="font-weight:700">${nf(s.qty)}${s.returned && s.st !== 'returned' ? `<div class="muted" style="font-size:10.5px;font-weight:400">${nf(s.open)} open</div>` : ''}</td>`
       + `<td style="text-align:left">${esc(r.issuedFor || '')}${(r.handoverTo || r.reason) ? `<div class="muted" style="font-size:10.5px">${r.handoverTo ? 'handed to ' + esc(r.handoverTo) : esc(r.reason)}</div>` : ''}</td>`
       + `<td>${who(r.createdBy)}</td>`
@@ -36371,8 +36645,15 @@ async function fgiScanFlush(sku) {
     }
   }
   const old = r.id ? (FGI.rows || []).find(x => fgiRowId(x) === r.id) : null;
+  /* A SCAN LEAVES FOR ORDERS TOO (2026-09-25), dealt the Auto way; more scans of the same SKU add to the same parts. */
+  const al = h.k.dir < 0 ? fgiOutAlloc(sku, n, h.t, '') : null;
   if (old) {
     const next = { qty: fgiNum(old.qty) + n };
+    if (al && al.orders.length) {
+      const m = new Map(fgiOutParts(old).map(p => [p.orderNo, p.qty]));
+      al.orders.forEach(p => m.set(p.orderNo, (m.get(p.orderNo) || 0) + p.qty));
+      next.orders = [...m].map(([orderNo, qty]) => ({ orderNo, qty }));
+    }
     if (over) {
       next.overQty = fgiNum(old.overQty) + over;
       next.overOrdered = ordered;
@@ -36386,6 +36667,7 @@ async function fgiScanFlush(sku) {
   } else {
     const rec = { _id: fgiNewId(h.t === 'FBA' ? 'FBA' : (h.t === 'ISSUE' ? 'ISS' : 'RCP')),
       txnType: h.t, sku, qty: n, date: h.date, reason: '', scanned: true,
+      ...(al && al.orders.length ? { orders: al.orders } : {}),
       ...(h.t === 'FBA' && h.hand ? { handoverTo: h.hand } : {}),
       ...(h.orderNo ? { orderNo: h.orderNo, orderSource: h.orderSource } : {}),
       ...(h.orderSource === 'external' ? { extOrderFrom: h.extFrom } : {}),
@@ -36526,6 +36808,7 @@ async function fgiScanSave() {
   const updates = {}, recs = [];
   for (const r of rows) {
     if (!(PTG.mdb || []).some(x => x && obUC(x.sku) === r.sku)) return `${r.sku} is not in the master database.`;
+    const al = h.k.dir < 0 ? fgiOutAlloc(r.sku, r.qty, h.t, '') : null;
     let overQty = 0, overOrdered = 0;
     if (h.k.dir < 0) {
       const have = fgiOf(r.sku).current;
@@ -36542,6 +36825,7 @@ async function fgiScanSave() {
     }
     const rec = { _id: fgiNewId(h.t === 'FBA' ? 'FBA' : (h.t === 'ISSUE' ? 'ISS' : 'RCP')),
       txnType: h.t, sku: r.sku, qty: r.qty, date: h.date, reason: '', scanned: true,
+      ...(al && al.orders.length ? { orders: al.orders } : {}),
       ...(h.t === 'FBA' && h.hand ? { handoverTo: h.hand } : {}),
       ...(h.orderNo ? { orderNo: h.orderNo, orderSource: h.orderSource } : {}),
       ...(h.orderSource === 'external' ? { extOrderFrom: h.extFrom } : {}),
