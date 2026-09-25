@@ -2235,8 +2235,16 @@ console.log('\n== the form, and what it refuses ==');
   ok('it carries metres, not a piece count', rl.meters === 250 && rl.qty === undefined && rl.kind === 'running');
   ok('its priority and notes are kept', rl.priority === 'P2' && rl.notes === 'left selvedge');
   ok('nothing has been dispatched against it yet', rl.dispatchedQty === 0);
-  ok('the draft total is in metres', /250/.test(els.vof_tot.textContent) && / m$/.test(els.vof_tot.textContent),
-    els.vof_tot.textContent);
+  ok('the draft total is in metres, at the foot, with the vendor it goes to', /250 m<\/b>/.test(els.vof_tot.innerHTML),
+    els.vof_tot.innerHTML);
+  /* Design 10 (Ravi, 2026-09-25): who and what in the header band; one row to add a line. */
+  ok('the vendor, the work and running-or-cut sit in the header band', A.PTD_().boxClass === 'vo-band'
+     && /id="vof_vendor"/.test(A.PTD_().titleExtra) && /id="vof_service"/.test(A.PTD_().titleExtra) && /id="vof_kr"/.test(A.PTD_().titleExtra)
+     && !/id="vof_vendor"/.test(A.PTD_().html || ''));
+  ok('…the long note that opened the form is gone', !A.PTD_().note);
+  ok('…running or cut is marked in the band by class, not a painted background',
+     /\$\('vof_kr'\)\.classList\.toggle\('on', k === 'running'\)/.test(fs.readFileSync(APP, 'utf8')));
+  ok('…and a line is added from one row', /class="vo-entry"/.test(els.vof_form.innerHTML) && /id="vof_add"/.test(els.vof_form.innerHTML));
 
   /* Switching shape clears the draft — pieces and metres cannot share one order. */
   CONFIRM = false;

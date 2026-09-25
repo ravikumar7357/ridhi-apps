@@ -426,6 +426,26 @@
   .ptmodal-wide .ptmodal-body{padding:4px 26px 12px}
   .ptmodal-wide .ptmodal-foot{padding:16px 26px 20px;border-top:1px solid var(--line)}
   .ptmodal-foot button{order:0}
+  /* THE VENDOR ORDER, design 10 (Ravi, 2026-09-25): who and what in a band across the top. */
+  .vo-band .ptmodal-head{background:var(--brand-ink);color:#fff;padding:18px 26px;align-items:center;gap:14px;flex-wrap:wrap}
+  .vo-band #ptDlgTitle{font-size:12px;font-weight:600;opacity:.8;flex:0 0 100%;margin-bottom:-6px}
+  .vo-band #ptDlgTitleX{flex:1;min-width:0}
+  .vo-band .ptmodal-x{color:#fff;background:transparent}
+  .vo-band .ptmodal-x:hover{background:rgba(255,255,255,.14)}
+  .vo-bandrow{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
+  .vo-bf{display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:rgba(255,255,255,.78);min-width:0}
+  .vo-bf select,.vo-bf input{background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.28);font-size:15px;font-weight:700;text-transform:none;letter-spacing:0;min-width:210px}
+  .vo-bf select option{color:var(--ink)}
+  .vo-band .vo-seg{background:rgba(255,255,255,.14)}
+  .vo-band .vo-seg .segbtn{color:#fff;padding:9px 16px;font-size:13px}
+  .vo-band .vo-seg .segbtn.on{background:#fff;color:var(--brand-ink)}
+  .vo-ask{font-size:12px;color:rgba(255,255,255,.8);flex:0 0 100%}
+  .vo-entry{display:grid;grid-template-columns:1.7fr 1fr 1fr 1fr .8fr 1.1fr .8fr;gap:8px;align-items:end}
+  .vo-entry.cut{grid-template-columns:2.4fr .9fr 1.1fr .8fr}
+  .vo-entry2{display:flex;gap:8px;align-items:flex-end;margin-top:8px}
+  .vo-lineshead{display:flex;align-items:center;gap:8px;margin:16px 0 8px}
+  .vo-lines{border:1px solid var(--line);border-radius:14px;max-height:34vh}
+  .vo-tot{font-size:13px;color:var(--muted)} .vo-tot b{color:var(--ink)}
   .sof-no{display:inline-flex;align-items:center;height:28px;padding:0 12px;border-radius:999px;background:var(--brand-bg);
     color:var(--brand-ink);font-family:ui-monospace,monospace;font-size:13px;font-weight:700;white-space:nowrap}
   .sof-no.none{background:var(--chip);color:var(--muted);font-family:inherit;font-weight:600}
@@ -13309,6 +13329,7 @@ let PTD = null;      // the open dialog's config
 function ptDlgClose() { PTD = null; $('ptDlg').classList.add('hide'); }
 function ptDlgMsg(t, bad) { const m = $('ptDlgMsg'); m.textContent = t || ''; m.className = bad ? 'err' : 'muted'; }
 
+let PTD_BOXCLS = '';
 function ptOpenDialog(cfg) {
   PTD = cfg;
   const admin = !!ME.admin;
@@ -13378,6 +13399,12 @@ function ptOpenDialog(cfg) {
    * title, figures in the footer, or the second button as the main one, are for the dialog that asks
    * for them and must not linger into the next. */
   if ($('ptDlgBox')) $('ptDlgBox').classList.toggle('ptmodal-wide', !!cfg.wide);
+  /* A dialog's own look (the vendor order's header band), opt-in and gone again on the next open. */
+  if ($('ptDlgBox')) {
+    if (PTD_BOXCLS) $('ptDlgBox').classList.remove(PTD_BOXCLS);
+    PTD_BOXCLS = cfg.boxClass || '';
+    if (PTD_BOXCLS) $('ptDlgBox').classList.add(PTD_BOXCLS);
+  }
   if ($('ptDlgTitleX')) $('ptDlgTitleX').innerHTML = cfg.titleExtra || '';
   if ($('ptDlgFootL')) $('ptDlgFootL').innerHTML = cfg.footLeft || '';
   const altMain = !!(cfg.alt && cfg.altPrimary);
@@ -27257,43 +27284,39 @@ async function voFormOpen(mode) {
   /* EVERY vendor. Job work goes out to filling firms and fabricators as much as printing goes to
    * printers, and an order is the only way to tell them what is coming. */
   const vends = voAllVendors();
+  /* DESIGN 10 — the header band (Ravi, 2026-09-25). The vendor, the work and running-or-cut sit in the band;
+   * the long note that opened the form is gone — the cap is said where it bites, on the line. */
   ptOpenDialog({
-    title: asking ? 'Request a vendor order' : 'New vendor order',
-    subtitle: asking ? 'Goes to an approver first. The vendor sees nothing until it is approved.'
-      : 'Work sent out to one of your vendors. The vendor sees only their own orders.',
-    note: vends.length ? 'Printing is measured against the printer cap — how much of a SKU may still be '
-      + 'sent out against approved demand. Job work (filling, cutting, stitching, embroidery) is not: '
-      + 'what you send out is a decision, not an allowance.'
-      : 'There are no active vendors in the vendor master, so there is nobody to order from.',
-    html: `<div class="ptgrid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
-        <label>Vendor *<select id="vof_vendor">
+    title: asking ? 'Request a vendor order — goes to an approver first' : 'New vendor order',
+    wide: true,
+    boxClass: 'vo-band',
+    titleExtra: `<div class="vo-bandrow">
+        <label class="vo-bf">Vendor<select id="vof_vendor">
           <option value="">— pick a vendor —</option>
           ${vends.map(v => `<option value="${esc(v.code)}" data-cat="${esc(v.category || '')}">${esc(v.desc || v.name || v.code)} (${esc(v.category || 'vendor')})</option>`).join('')}
         </select></label>
-        <label>What the work is *<select id="vof_service">
+        <label class="vo-bf">Work<select id="vof_service">
           ${PR_SERVICES.map(s => `<option value="${esc(s.key)}">${esc(s.key)}</option>`).join('')}
         </select></label>
-        <label id="vof_fillerWrap" class="hide">Filler *
-          <span class="muted" style="font-weight:400">— a filling firm prices each filler apart</span>
+        <label id="vof_fillerWrap" class="vo-bf hide">Filler
           <input id="vof_filler" list="vofFillerList" placeholder="e.g. Surgical Cotton" autocomplete="off">
           <datalist id="vofFillerList"></datalist></label>
-      </div>
-      <div class="toolbar" style="margin:10px 0 4px">
-        <button id="vof_kr" class="ghost">Running fabric — metres</button>
-        <button id="vof_kc" class="ghost">Cut fabric — pieces</button>
-        <span style="flex:1"></span>
-        <button id="vof_tmpl" class="ghost">Template</button>
-        <button id="vof_up" class="ghost">Upload lines</button>
-        <input id="vof_file" type="file" accept=".csv,.xlsx,text/csv" style="display:none">
-      </div>
-      <div id="vof_form"></div>
-      <div class="xlwrap" style="max-height:30vh;border:1px solid var(--line);border-radius:10px;margin-top:10px">
-        <table class="xl" id="vof_table"></table></div>
-      <div id="vof_tot" class="muted" style="margin-top:8px;font-size:12.5px"></div>
-      <label style="display:block;margin-top:10px">Order notes for the vendor
+        <div class="seg vo-seg" role="group" aria-label="What is sent">
+          <button type="button" id="vof_kr" class="segbtn">Running · metres</button>
+          <button type="button" id="vof_kc" class="segbtn">Cut · pieces</button></div>
+      </div>`,
+    html: (vends.length ? '' : '<div class="err" style="margin-bottom:10px">There are no active vendors in the vendor master, so there is nobody to order from.</div>')
+      + `<div id="vof_form"></div>
+      <div class="vo-lineshead"><span class="lb" style="flex:1">Lines</span>
+        <button id="vof_tmpl" class="ghost" style="padding:6px 12px;font-size:12.5px">Template</button>
+        <button id="vof_up" class="ghost" style="padding:6px 12px;font-size:12.5px">Upload lines</button>
+        <input id="vof_file" type="file" accept=".csv,.xlsx,text/csv" style="display:none"></div>
+      <div class="xlwrap vo-lines"><table class="xl" id="vof_table"></table></div>
+      <label style="display:block;margin-top:12px">Notes for the vendor
         <input id="vof_notes" type="text" placeholder="optional"></label>
       ${asking ? `<label style="display:block;margin-top:10px">Why this is needed — for the approver
         <input id="vof_why" type="text" placeholder="e.g. Amazon order, 400 pcs due 30 Sep"></label>` : ''}`,
+    footLeft: '<span id="vof_tot" class="vo-tot"></span>',
     onSave: () => voPlace(),
     saveLabel: asking ? 'Send for approval' : 'Place order',
   });
@@ -27343,40 +27366,41 @@ function voSetKind(k) {
       + ' clears the ' + nf(VOF.lines.length) + ' line(s) already added, because one order cannot hold both.\n\nOK clears them.')) return;
   if (VOF.kind !== k) VOF.lines = [];
   VOF.kind = k;
-  $('vof_kr').style.background = k === 'running' ? 'var(--accent-bg)' : '';
-  $('vof_kc').style.background = k === 'cut' ? 'var(--accent-bg)' : '';
+  $('vof_kr').classList.toggle('on', k === 'running');
+  $('vof_kc').classList.toggle('on', k === 'cut');
 
   const pri = `<select id="vof_pri"><option value="">—</option>${['P1', 'P2', 'P3', 'P4'].map(p => `<option value="${p}">${p}</option>`).join('')}</select>`;
+  /* ONE ROW TO ADD A LINE (design 10). The fabric SKU fills fabric, colour and direction, as before. */
   $('vof_form').innerHTML = k === 'running'
-    ? `<div class="ptgrid" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr))">
-        <label style="grid-column:1/-1">Fabric SKU <span class="muted" style="font-weight:400">— type or pick; fabric, colour and direction fill in</span>
-          <input id="vof_fsku" list="vofFskuList" placeholder="e.g. RBPSF004-V-82 or RBP004" autocomplete="off"
-            style="font-family:ui-monospace,monospace;text-transform:uppercase">
+    ? `<div class="vo-entry">
+        <label>Fabric SKU <input id="vof_fsku" list="vofFskuList" placeholder="type or pick" autocomplete="off"
+          style="font-family:ui-monospace,monospace;text-transform:uppercase">
           <datalist id="vofFskuList"></datalist></label>
-        <label>Fabric type *<select id="vof_fab"><option value="">— pick one —</option>
+        <label>Fabric *<select id="vof_fab"><option value="">— pick —</option>
           ${voMasterList('fabricType', 'fabric').map(x => `<option value="${esc(x)}">${esc(x)}</option>`).join('')}</select></label>
-        <label>Colour *<select id="vof_col"><option value="">— pick one —</option>
+        <label>Colour *<select id="vof_col"><option value="">— pick —</option>
           ${voMasterList('colour', 'color').map(x => `<option value="${esc(x)}">${esc(x)}</option>`).join('')}</select></label>
-        <label>Print direction *<select id="vof_pd"><option value="">—</option><option>Horizontal</option><option>Vertical</option></select></label>
-        <label>Quantity in metres *<input id="vof_qty" type="number" min="0" step="0.01"></label>
+        <label>Direction *<select id="vof_pd"><option value="">—</option><option>Horizontal</option><option>Vertical</option></select></label>
+        <label>Metres *<input id="vof_qty" type="number" min="0" step="0.01"></label>
         <label>Delivery<input id="vof_deliv" type="date"></label>
         <label>Priority${pri}</label>
-        <label style="grid-column:1/-1">Line notes<input id="vof_lnotes" type="text" placeholder="optional"></label>
-      </div><div class="toolbar" style="margin-top:8px"><button id="vof_add">Add this line</button>
-        <span id="vof_info" class="muted" style="font-size:12px;flex:1"></span></div>`
-    : `<div class="ptgrid" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr))">
-        <label style="grid-column:span 2">SKU *<input id="vof_sku" list="vofSkuList" placeholder="type or pick" autocomplete="off"
+      </div>
+      <div class="vo-entry2"><label style="flex:1">Line note<input id="vof_lnotes" type="text" placeholder="optional"></label>
+        <button id="vof_add">Add line</button></div>
+      <div id="vof_info" class="muted" style="font-size:12px;margin-top:6px"></div>`
+    : `<div class="vo-entry cut">
+        <label>SKU *<input id="vof_sku" list="vofSkuList" placeholder="type or pick" autocomplete="off"
           style="font-family:ui-monospace,monospace;text-transform:uppercase">
           <datalist id="vofSkuList">${(PTG.mdb || []).filter(r => r && voCutAllowed(r.articleType, r.subtype)).slice(0, 4000)
             .map(r => `<option value="${esc(obUC(r.sku))}">${esc([r.articleType, r.color, r.size].filter(Boolean).join(' · '))}</option>`).join('')}</datalist></label>
-        <label>Quantity in pieces *<input id="vof_qty" type="number" min="1" step="1"></label>
+        <label>Pieces *<input id="vof_qty" type="number" min="1" step="1"></label>
         <label>Delivery<input id="vof_deliv" type="date"></label>
         <label>Priority${pri}</label>
-        <label style="grid-column:1/-1">Line notes<input id="vof_lnotes" type="text" placeholder="optional"></label>
-      </div><div class="toolbar" style="margin-top:8px"><button id="vof_add">Add this line</button>
-        <button id="vof_check" class="ghost">Check quantities</button>
-        <span id="vof_info" class="muted" style="font-size:12px;flex:1 1 200px"></span></div>
-      <div class="muted" style="font-size:11.5px;margin-top:6px">Cut fabric covers rectangular, round and square
+      </div>
+      <div class="vo-entry2"><label style="flex:1">Line note<input id="vof_lnotes" type="text" placeholder="optional"></label>
+        <button id="vof_add">Add line</button><button id="vof_check" class="ghost">Check quantities</button></div>
+      <div id="vof_info" class="muted" style="font-size:12px;margin-top:6px"></div>
+      <div class="muted" style="font-size:11.5px;margin-top:4px">Cut fabric covers rectangular, round and square
         tablecloths and table runners only. Each SKU is capped at what approved sales orders ask for, plus 10%.</div>`;
   $('vof_add').onclick = voAddLine;
   if (k === 'running') {
@@ -28013,7 +28037,8 @@ function voDraft() {
       : '<tr><td colspan="6" class="muted" style="padding:14px">No lines added yet.</td></tr>')
     + '</tbody>';
   const tot = VOF.lines.reduce((s, l) => s + (parseFloat(voKind(l) === 'running' ? l.meters : l.qty) || 0), 0);
-  $('vof_tot').textContent = `${nf(VOF.lines.length)} line(s) · ${nf(tot)} ${unit}`;
+  const to = (($('vof_vendor') || {}).selectedOptions || [])[0];
+  $('vof_tot').innerHTML = `<b>${nf(VOF.lines.length)} line(s) · ${nf(tot)} ${unit}</b>${to && to.value ? ' to ' + esc(String(to.textContent).replace(/\s*\(.*\)\s*$/, '')) : ''}`;
 }
 
 $('ptDlgBody').addEventListener('click', async e => {
