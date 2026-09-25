@@ -37023,6 +37023,29 @@ function palGroupOf(brand, color) {
 
 /** Blocks one printer needs to print this design, as fed in. */
 const palBlocksNeed = key => palNum(((PAL.need || {}).map || {})[key]);
+/** What Ravi feeds per design beside it: { cur: blocks made so far, status, printer: vendor code or name }. */
+const palInfoOf = key => (((PAL.need || {}).info || {})[key]) || {};
+/** The printers a design can be assigned to: the vendor master's printers, then any on this tab's list without one. */
+function palAssignable() {
+  const out = [], seen = new Set();
+  voAllVendors().filter(v => /print/i.test(String(v.category || ''))).forEach(v => {
+    const code = String(v.code || '').toUpperCase(); if (!code || seen.has(code)) return;
+    seen.add(code); out.push([code, (v.desc || v.name || code) + ' · ' + code]);
+  });
+  (PAL.printers || []).forEach(p => { const c = palVendorOf(p); const k = c || String(p.name || '').trim();
+    if (k && !seen.has(k.toUpperCase())) { seen.add(k.toUpperCase()); out.push([k, p.name || k]); } });
+  return out;
+}
+/** A printer as typed on a sheet — a code or a name — to the value the dropdown keeps. '' when nobody matches. */
+function palAssignPick(text) {
+  const t = String(text || '').trim(); if (!t) return '';
+  const norm = x => String(x || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+  const hit = palAssignable().find(([v, l]) => norm(v) === norm(t) || norm(l) === norm(t) || norm(String(l).split(' · ')[0]) === norm(t));
+  return hit ? hit[0] : null;
+}
+const palAssignName = v => { const h = palAssignable().find(x => x[0] === v); return h ? String(h[1]).split(' · ')[0] : (v || ''); };
+/** The status words offered; anything else typed is kept as typed. */
+const PAL_STATUS = ['Blocks ready', 'Blocks to make', 'Blocks with printer', 'Sampling', 'Approved', 'Printing', 'On hold'];
 /** Blocks a printer already holds for one design. */
 const palBlocksHave = (printerKey, designKey) => palNum(((PAL.have || {})[printerKey] || {})[designKey]);
 
@@ -37320,7 +37343,7 @@ async function palLoad() {
       ptGet('pt_colorGroups'), ptGet('pt_printers'), ptGet('pt_blockNeed'), ptGet('pt_blockHave'),
     ]);
     PAL.groups = { map: (g && g.map) || {}, live: (g && g.live) || {}, at: (g && g.at) || '', by: (g && g.by) || '' };
-    PAL.need = { map: (n && n.map) || {}, at: (n && n.at) || '', by: (n && n.by) || '' };
+    PAL.need = { map: (n && n.map) || {}, info: (n && n.info) || {}, at: (n && n.at) || '', by: (n && n.by) || '' };
     PAL.have = h || {};
     PAL.printers = Object.entries(p || {}).map(([key, v]) => Object.assign({ key }, v));
     PAL.err = '';
@@ -37358,7 +37381,7 @@ const palLiveOf = key => ((PAL.groups || {}).live || {})[key] !== false;
 const PAL_CLEAR = [
   ['groups', 'Colour groups', () => Object.keys(((PAL.groups || {}).map) || {}).length],
   ['live', 'Removed colours (they come back on the list)', () => Object.keys(((PAL.groups || {}).live) || {}).length],
-  ['need', 'Blocks per design', () => Object.keys(((PAL.need || {}).map) || {}).length],
+  ['need', 'Blocks, status and printer per design', () => new Set(Object.keys(((PAL.need || {}).map) || {}).concat(Object.keys(((PAL.need || {}).info) || {}))).size],
   ['have', 'Blocks each printer holds', () => Object.values(PAL.have || {}).reduce((t, m) => t + Object.keys(m || {}).length, 0)],
   ['printers', 'Printers and their capacity', () => (PAL.printers || []).length],
 ];
@@ -37436,10 +37459,25 @@ async function palSetBlocks(designKey, blocks) {
   const n = Math.max(0, Math.round(palNum(blocks)));
   const map = Object.assign({}, (PAL.need || {}).map || {});
   if (n) map[designKey] = n; else delete map[designKey];
-  const rec = { at: new Date().toISOString(), by: ME.email, map };
+  return palPutNeed(map, (PAL.need || {}).info || {});
+}
+/** The whole blocks record, both halves together — writing one without the other would wipe it. */
+async function palPutNeed(map, info) {
+  const rec = { at: new Date().toISOString(), by: ME.email, map, info };
   await ptPut('pt_blockNeed', rec);
   PAL.need = rec;
   return '';
+}
+/** Current blocks, status or the printer for one design. An empty value drops it. */
+async function palSetInfo(designKey, field, value) {
+  if (!palCanEdit()) return PAL_NO_EDIT;
+  if (['cur', 'status', 'printer'].indexOf(field) < 0) return 'Unknown field.';
+  const info = Object.assign({}, (PAL.need || {}).info || {});
+  const e = Object.assign({}, info[designKey] || {});
+  const v = field === 'cur' ? Math.max(0, Math.round(palNum(value))) : String(value == null ? '' : value).trim();
+  if (v === '' || v === 0) delete e[field]; else e[field] = v;
+  if (Object.keys(e).length) info[designKey] = e; else delete info[designKey];
+  return palPutNeed(Object.assign({}, (PAL.need || {}).map || {}), info);
 }
 
 async function palSetHave(printerKey, designKey, blocks) {
@@ -37563,14 +37601,17 @@ function palBlocksOpen(key) {
  * worked out from the registers and read back for nothing — it is there to decide WITH.
  */
 const PAL_SHEET_COLS = ['Brand', 'Design', 'Group', 'Continue (no = remove)',
-  'SKUs', 'Ordered', 'Still to make', 'Sold 90d', 'Blocks/design', 'Printing now'];
+  'Current blocks', 'Required blocks', 'Status', 'Assign to printer',
+  'SKUs', 'Ordered', 'Still to make', 'Sold 90d', 'Printing now'];
 
 /** Every design there is, with what the registers say about it. */
 function palSheetRows() {
   const rows = [PAL_SHEET_COLS];
   palDesigns().forEach(d => {
+    const inf = palInfoOf(d.key);
     rows.push([d.brand, d.color, d.group || '', d.live ? 'yes' : 'no',
-      d.skus, Math.round(d.ordered), Math.round(d.open), Math.round(d.l90), d.blocks || '',
+      inf.cur || '', d.blocks || '', inf.status || '', inf.printer ? palAssignName(inf.printer) : '',
+      d.skus, Math.round(d.ordered), Math.round(d.open), Math.round(d.l90),
       [...d.now.keys()].join(' / ')]);
   });
   return rows;
@@ -37580,7 +37621,7 @@ function palSheetRows() {
 function palSheetRead(rows) {
   if (!rows || rows.length < 2) return { err: 'That file has no rows.' };
   /* A CSV saved back from Excel can start with a byte-order mark, which would hide the Brand column. */
-  const head = rows[0].map(h => String(h == null ? '' : h).replace(/^﻿/, '').trim().toLowerCase());
+  const head = rows[0].map(h => String(h == null ? '' : h).replace(/^\uFEFF/, '').trim().toLowerCase());
   const at = names => { for (const n of names) { const i = head.indexOf(n); if (i >= 0) return i; } return -1; };
   const iB = at(['brand']), iD = at(['design', 'colour', 'color']);
   const iG = at(['group', 'colour group', 'color group']);
@@ -37589,8 +37630,10 @@ function palSheetRead(rows) {
   let iC = at(['continue', 'still making', 'active']);
   if (iC < 0) iC = head.findIndex(h => /^continue\b/.test(h));
   const iR = iC >= 0 ? -1 : head.findIndex(h => /^remove\b/.test(h));
+  const iCur = at(['current blocks', 'current block', 'blocks now']), iNeed = at(['required blocks', 'blocks/design', 'blocks per design', 'required block']);
+  const iSt = at(['status']), iPr = at(['assign to printer', 'assigned printer', 'printer']);
   if (iB < 0 || iD < 0) return { err: 'The file needs Brand and Design columns. Download the design sheet to see them.' };
-  if (iG < 0 && iC < 0 && iR < 0) return { err: 'The file has no Group, Continue or Remove column, so there is nothing in it to read.' };
+  if (iG < 0 && iC < 0 && iR < 0 && iCur < 0 && iNeed < 0 && iSt < 0 && iPr < 0) return { err: 'The file has no Group, Continue, blocks, Status or printer column, so there is nothing in it to read.' };
   const out = [];
   for (let i = 1; i < rows.length; i++) {
     const cell = j => (j >= 0 && rows[i][j] != null ? String(rows[i][j]).trim() : '');
@@ -37601,7 +37644,8 @@ function palSheetRead(rows) {
       const r = cell(iR);
       cont = /^(y|yes|true|1|remove|removed|delete|deleted|x)$/i.test(r) ? 'no' : /^(n|no|false|0|keep)$/i.test(r) ? 'yes' : r;
     }
-    out.push({ row: i + 1, brand, design, group: cell(iG), cont, hasG: iG >= 0, hasC: iC >= 0 || iR >= 0 });
+    out.push({ row: i + 1, brand, design, group: cell(iG), cont, hasG: iG >= 0, hasC: iC >= 0 || iR >= 0,
+      cur: cell(iCur), need: cell(iNeed), status: cell(iSt), printer: cell(iPr), hasCur: iCur >= 0, hasNeed: iNeed >= 0, hasSt: iSt >= 0, hasPr: iPr >= 0 });
   }
   return { entries: out };
 }
@@ -37621,6 +37665,17 @@ function palSheetPlan(entries) {
     if (e.hasG) {
       const want = e.group;
       if (want !== (d.group || '')) set.push({ row: e.row, key, d, field: 'group', from: d.group || '', to: want });
+    }
+    /* THE FOUR FED COLUMNS (2026-09-25). A number that is not one, or a printer nobody is called, is refused. */
+    const num = (v, what) => { if (v === '') return 0; const n = Number(String(v).replace(/,/g, '')); return isFinite(n) && n >= 0 && Math.round(n) === n ? n : (skip.push({ row: e.row, key, why: what + ' has to be a whole number, not "' + v + '".' }), null); };
+    const inf = palInfoOf(key);
+    if (e.hasCur) { const n = num(e.cur, 'Current blocks'); if (n === null) return; if (n !== palNum(inf.cur)) set.push({ row: e.row, key, d, field: 'cur', from: inf.cur ? String(inf.cur) : '', to: n ? String(n) : '', val: n }); }
+    if (e.hasNeed) { const n = num(e.need, 'Required blocks'); if (n === null) return; if (n !== palNum(d.blocks)) set.push({ row: e.row, key, d, field: 'need', from: d.blocks ? String(d.blocks) : '', to: n ? String(n) : '', val: n }); }
+    if (e.hasSt && e.status !== String(inf.status || '')) set.push({ row: e.row, key, d, field: 'status', from: inf.status || '', to: e.status, val: e.status });
+    if (e.hasPr) {
+      const code = palAssignPick(e.printer);
+      if (code === null) { skip.push({ row: e.row, key, why: 'no printer is called "' + e.printer + '".' }); return; }
+      if (code !== String(inf.printer || '')) set.push({ row: e.row, key, d, field: 'printer', from: inf.printer ? palAssignName(inf.printer) : '', to: code ? palAssignName(code) : '', val: code });
     }
     if (e.hasC && e.cont !== '') {
       const yes = /^(y|yes|true|1|continue|on)$/i.test(e.cont);
@@ -37652,12 +37707,24 @@ async function palSheetRun(plan, dropMissing) {
   if (!rows.length) return 'There is nothing to write.';
   const map = Object.assign({}, (PAL.groups || {}).map || {});
   const live = Object.assign({}, (PAL.groups || {}).live || {});
+  const need = Object.assign({}, (PAL.need || {}).map || {});
+  const info = JSON.parse(JSON.stringify((PAL.need || {}).info || {}));
+  let g = false, b = false;
   rows.forEach(r => {
-    if (r.field === 'group') { if (r.to) map[r.key] = r.to; else delete map[r.key]; }
-    else if (r.on) delete live[r.key]; else live[r.key] = false;
+    if (r.field === 'group') { g = true; if (r.to) map[r.key] = r.to; else delete map[r.key]; }
+    else if (r.field === 'live') { g = true; if (r.on) delete live[r.key]; else live[r.key] = false; }
+    else if (r.field === 'need') { b = true; if (r.val) need[r.key] = r.val; else delete need[r.key]; }
+    else {
+      b = true;
+      const e = Object.assign({}, info[r.key] || {});
+      if (r.val === '' || r.val === 0) delete e[r.field]; else e[r.field] = r.val;
+      if (Object.keys(e).length) info[r.key] = e; else delete info[r.key];
+    }
   });
-  try { await palPutGroups(map, live); }
-  catch (e) { return 'Not saved: ' + (e.message || e); }
+  try {
+    if (g) await palPutGroups(map, live);
+    if (b) await palPutNeed(need, info);
+  } catch (e) { return 'Not saved: ' + (e.message || e); }
   return '';
 }
 
@@ -37694,6 +37761,11 @@ function renderPal() {
   const short = plan.rows.reduce((s, r) => s + r.short, 0);
   const hit = s => !q || obUC(s).indexOf(q) >= 0;
 
+  if (!$('palStatusList') && document.body && document.createElement) {
+    const dl = document.createElement('datalist'); dl.id = 'palStatusList';
+    dl.innerHTML = PAL_STATUS.map(x => `<option value="${esc(x)}">`).join('');
+    document.body.appendChild(dl);
+  }
   if ($('palGroupList')) {
     $('palGroupList').innerHTML = [...new Set(all.map(d => d.group).filter(Boolean))].sort()
       .map(g => `<option value="${esc(g)}">`).join('');
@@ -37733,7 +37805,8 @@ function renderPal() {
   } else if (view === 'design') {
     const rows = designs.filter(d => hit(d.color) || hit(d.group) || hit(d.brand));
     PAL.shown = rows;
-    head = ['Brand', 'Design', 'Group', 'SKUs', 'Ordered', 'To make', 'Share', 'Sold 90d', 'Blocks/design', 'Printing now'].concat(canEdit ? [''] : []);
+    head = ['Brand', 'Design', 'Group', 'SKUs', 'Ordered', 'To make', 'Share', 'Sold 90d', 'Current blocks', 'Required blocks', 'Status', 'Assign to printer', 'Printing now'].concat(canEdit ? [''] : []);
+    const prnOpts = palAssignable();
     body = rows.map(d => {
       const share = totMake > 0 ? (d.toMake / totMake) * 100 : 0;
       const s90 = tot90 > 0 ? (d.l90 / tot90) * 100 : 0;
@@ -37748,9 +37821,19 @@ function renderPal() {
         + `<td class="num"><b>${nf(Math.round(d.toMake))}</b></td>`
         + `<td class="num">${share >= 0.05 ? share.toFixed(1) + '%' : '—'}</td>`
         + `<td class="num">${d.l90 ? `${nf(Math.round(d.l90))}<div class="muted" style="font-size:10px">${s90.toFixed(1)}% of sales</div>` : '—'}</td>`
+        + ((inf, short) => `<td class="num">${canEdit
+          ? `<input data-palcur="${esc(d.key)}" type="number" min="0" step="1" value="${inf.cur || ''}" style="width:70px${short ? ';border-color:var(--bad)' : ''}"${short ? ` title="${nf(short)} block(s) short of what is required"` : ''}>`
+          : (inf.cur || '—')}</td>`
         + `<td class="num">${canEdit
           ? `<input data-palneed="${esc(d.key)}" type="number" min="0" step="1" value="${d.blocks || ''}" style="width:70px">`
-          : (d.blocks || '—')}</td>`
+          : (d.blocks || '—')}${short ? `<div style="font-size:10px;color:var(--bad)">${nf(short)} short</div>` : ''}</td>`
+        + `<td style="text-align:left">${canEdit
+          ? `<input data-palst="${esc(d.key)}" list="palStatusList" value="${esc(inf.status || '')}" placeholder="—" style="min-width:120px">`
+          : esc(inf.status || '—')}</td>`
+        + `<td style="text-align:left">${canEdit
+          ? `<select data-palasg="${esc(d.key)}" style="min-width:140px"><option value="">— pick —</option>${prnOpts.map(([v, l]) =>
+              `<option value="${esc(v)}"${v === inf.printer ? ' selected' : ''}>${esc(l)}</option>`).join('')}${inf.printer && !prnOpts.some(o => o[0] === inf.printer) ? `<option value="${esc(inf.printer)}" selected>${esc(inf.printer)}</option>` : ''}</select>`
+          : esc(inf.printer ? palAssignName(inf.printer) : '—')}</td>`)(palInfoOf(d.key), d.blocks && palInfoOf(d.key).cur != null ? Math.max(0, d.blocks - palNum(palInfoOf(d.key).cur)) : 0)
         + `<td style="text-align:left;font-size:12px">${d.now.size
           ? [...d.now.entries()].sort((a, b) => b[1] - a[1]).map(([w, n]) => `${esc(w)} <span class="muted">${nf(Math.round(n))}</span>`).join('<br>')
           : '<span class="muted">nobody</span>'}</td>`
@@ -37912,7 +37995,7 @@ function renderPal() {
   }
 
   $('palTable').innerHTML = '<thead><tr>'
-    + head.map((h, i) => `<th${/^(SKUs|Ordered|To make|Share|Sold|Blocks|Capacity|Given|Load|Pieces|Has|Tables|Printers)/.test(h) ? ' class="num"' : ''}>${esc(h)}</th>`).join('')
+    + head.map((h, i) => `<th${/^(SKUs|Ordered|To make|Share|Sold|Blocks|Current blocks|Required blocks|Capacity|Given|Load|Pieces|Has|Tables|Printers)/.test(h) ? ' class="num"' : ''}>${esc(h)}</th>`).join('')
     + '</tr></thead><tbody>' + (body || '<tr><td colspan="10" class="muted" style="padding:16px">Nothing matches.</td></tr>') + '</tbody>';
 
   $('palMsg').className = PAL.err ? 'err' : 'muted';
@@ -38007,10 +38090,10 @@ $('palFile').onchange = async e => {
         : 'Every row in that file already says what the screen says.';
       return;
     }
-    const gs = plan.set.filter(x => x.field === 'group'), ls = plan.set.filter(x => x.field === 'live');
+    const gs = plan.set.filter(x => x.field !== 'live'), ls = plan.set.filter(x => x.field === 'live');
     const show = list => list.slice(0, 12).map(x => esc(x.d.brand + ' · ' + x.d.color) + ': '
       + (x.field === 'live' ? (x.on ? '<b>bring back</b>' : '<b style="color:var(--bad)">remove from the list</b>')
-        : (x.from === '' ? '<i>not set</i>' : esc(x.from)) + ' → <b>' + esc(x.to) + '</b>')).join('<br>');
+        : ({ cur: 'current blocks ', need: 'required blocks ', status: 'status ', printer: 'printer ' }[x.field] || '') + (x.from === '' ? '<i>not set</i>' : esc(x.from)) + ' → <b>' + (x.to === '' ? '<i>cleared</i>' : esc(x.to)) + '</b>')).join('<br>');
     const offN = ls.filter(x => !x.on).length, onN = ls.length - offN;
     ptOpenDialog({
       title: 'Write these decisions?',
@@ -38020,7 +38103,7 @@ $('palFile').onchange = async e => {
         + 'Removed colours and can be brought back. Its orders are not touched. '
         + 'Only Group and Continue (or Remove) are read; every other column on the sheet is worked out here.',
       html: '<div class="muted" style="font-size:12.5px;line-height:1.7">'
-        + (gs.length ? '<b>Group</b><br>' + show(gs) + (gs.length > 12 ? '<br>…and ' + nf(gs.length - 12) + ' more.' : '') + '<br><br>' : '')
+        + (gs.length ? '<b>Group, blocks, status, printer</b><br>' + show(gs) + (gs.length > 12 ? '<br>…and ' + nf(gs.length - 12) + ' more.' : '') + '<br><br>' : '')
         + (miss.length ? `<b style="color:var(--bad)">${nf(miss.length)} colour(s) on the list are not in this file</b> — deleted rows are removed, if you choose so below${plan.whole ? '' : ' (this file holds less than half the list, so they are left alone unless you choose)'}:<br>`
           + miss.slice(0, 15).map(d => esc(d.brand + ' · ' + d.color)).join('<br>') + (miss.length > 15 ? '<br>…and ' + nf(miss.length - 15) + ' more.' : '') + '<br><br>' : '')
         + (ls.length ? '<b>Removed / brought back</b><br>' + show(ls) + (ls.length > 12 ? '<br>…and ' + nf(ls.length - 12) + ' more.' : '') + '<br><br>' : '')
@@ -38054,8 +38137,14 @@ async function palCellSave(el) {
   const grp = el.getAttribute ? el.getAttribute('data-palgrp') : null;
   const need = el.getAttribute ? el.getAttribute('data-palneed') : null;
   const have = el.getAttribute ? el.getAttribute('data-palhave') : null;
+  const cur = el.getAttribute ? el.getAttribute('data-palcur') : null;
+  const st = el.getAttribute ? el.getAttribute('data-palst') : null;
+  const asg = el.getAttribute ? el.getAttribute('data-palasg') : null;
   let why = '';
   if (grp) why = await palSetGroup(grp, el.value);
+  else if (cur) why = await palSetInfo(cur, 'cur', el.value);
+  else if (st) why = await palSetInfo(st, 'status', el.value);
+  else if (asg) why = await palSetInfo(asg, 'printer', el.value);
   else if (need) why = await palSetBlocks(need, el.value);
   else if (have) why = await palSetHave(el.getAttribute('data-palprn'), have, el.value);
   else return '';
@@ -38065,7 +38154,7 @@ async function palCellSave(el) {
   return '';
 }
 $('palTable').addEventListener('change', e => {
-  const el = e.target.closest('[data-palgrp],[data-palneed],[data-palhave]');
+  const el = e.target.closest('[data-palgrp],[data-palneed],[data-palhave],[data-palcur],[data-palst],[data-palasg]');
   if (el) palCellSave(el);
 });
 $('ptDlgBody').addEventListener('change', e => {
