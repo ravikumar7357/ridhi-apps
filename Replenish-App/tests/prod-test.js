@@ -19990,6 +19990,22 @@ console.log('\n== printing cloth by colour and product ==');
   A.setORD_DEM({ tried: false, busy: false, fabOk: false, voOk: false });
 }
 
+console.log('\n== what a SKU is comes from the master, not the copy on the order ==');
+{
+  /* Ravi, 2026-09-25: "master data me sku sahi h but order console me sku wrong aa rha h" — CPCRU006-4 showed
+   * "Square Tablecloth", the name copied onto the order line; the master says Ruffle Square Tablecloth. */
+  const was = { ob: A.PTG().ob, mdb: A.PTG().mdb };
+  A.setPTG(Object.assign({}, A.PTG(), {
+    mdb: [{ sku: 'CPCRU006-4', articleType: 'Tablecloth', subtype: 'Ruffle Square Tablecloth', color: 'Indigo Blue', size: '60x60' }],
+    ob: [{ id: 'x1', orderNo: 'AMZ-24092026-02', sku: 'CPCRU006-4', qty: 30, src: 'SO', articleType: 'Tablecloth', articleSubtype: 'Square Tablecloth', color: 'Indigo Blue', size: '60x60' },
+         { id: 'x2', orderNo: 'AMZ-24092026-02', sku: 'NOT-IN-MASTER', qty: 2, src: 'SO', articleType: 'Napkin', articleSubtype: 'Plain Napkin', color: 'Red', size: '18x18' }] }));
+  const l = A.ordLines().find(x => x.sku === 'CPCRU006-4');
+  ok('the Order Console shows the master\'s subtype for the SKU', l && l.articleSubtype === 'Ruffle Square Tablecloth', l && l.articleSubtype);
+  ok('…and so does every screen reading the order book', (A.obLines().find(x => x.sku === 'CPCRU006-4') || {}).articleSubtype === 'Ruffle Square Tablecloth');
+  ok('a SKU the master does not have keeps the order\'s own copy', (A.ordLines().find(x => x.sku === 'NOT-IN-MASTER') || {}).articleSubtype === 'Plain Napkin');
+  A.setPTG(Object.assign({}, A.PTG(), { ob: was.ob, mdb: was.mdb }));
+}
+
 console.log('\n== metres to two places ==');
 {
   /* Ravi, 2026-09-24: consumption showed as 1.2953999999999999 — "ye auto . ke bad only 2 digit me aay". */

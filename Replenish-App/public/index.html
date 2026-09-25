@@ -10908,17 +10908,29 @@ function obShopUnits(r) {
  *  the CX production/adjustment nodes the old tool also reads have never been written. */
 /* Rebuilt on every call before — 2,019 rows, and obOrderedQty called it once per order line. */
 let OBL_IX = { src: null, n: -1, rows: null, byKey: null };
+/**
+ * What a SKU is — article, subtype, colour, size — from the MASTER, which is where it is kept right.
+ * An order line carries a copy made the day the order was placed; a rename in the master since (Ruffle
+ * Tablecloth → Ruffle Square Tablecloth, and 262 more) left those copies behind, and the Order Console
+ * showed the old name beside the right SKU. The copy is used only for a SKU the master does not have.
+ */
+function obWhat(r) {
+  const m = typeof mdbOf === 'function' ? mdbOf(r && r.sku) : null;
+  const pick = (a, b) => (String(a == null ? '' : a).trim() ? String(a).trim() : (b || ''));
+  return m ? { articleType: pick(m.articleType, r.articleType), articleSubtype: pick(m.subtype, r.articleSubtype),
+    color: pick(m.color, r.color), size: pick(m.size, r.size) }
+    : { articleType: r.articleType || '', articleSubtype: r.articleSubtype || '', color: r.color || '', size: r.size || '' };
+}
+
 function obLines() {
   const src = PTG.ob || PT_NONE;
   /* The pack size comes from the master, so a master that has only just loaded rebuilds this. */
   const mdbSrc = PTG.mdb || [];
   if (OBL_IX.rows && OBL_IX.src === src && OBL_IX.n === src.length
       && OBL_IX.mdb === mdbSrc && OBL_IX.mdbN === mdbSrc.length) return OBL_IX.rows;
-  const rows = src.filter(Boolean).map(r => ({
-    orderNo: obUC(r.orderNo), sku: obUC(r.sku), qty: obPieces(r),
-    articleType: r.articleType, articleSubtype: r.articleSubtype, color: r.color, size: r.size,
-    date: r.orderDate || '',
-  }));
+  const rows = src.filter(Boolean).map(r => Object.assign({
+    orderNo: obUC(r.orderNo), sku: obUC(r.sku), qty: obPieces(r), date: r.orderDate || '',
+  }, obWhat(r)));
   const byKey = new Map();
   rows.forEach(l => { const k = l.orderNo + '|' + l.sku; byKey.set(k, (byKey.get(k) || 0) + l.qty); });
   OBL_IX = { src, n: src.length, rows, byKey, mdb: mdbSrc, mdbN: mdbSrc.length };
@@ -15838,12 +15850,11 @@ function ordLinesBuild() {
     const no = obUC(r.orderNo), sku = obUC(r.sku);
     if (!no || !sku) return;
     const k = no + '|' + sku;
-    const e = byKey[k] || (byKey[k] = { orderNo: no, sku, qty: 0, orderDate: r.orderDate || '',
-      articleType: r.articleType || '', articleSubtype: r.articleSubtype || '',
-      color: r.color || '', size: r.size || '', src: r.src || '',
+    const e = byKey[k] || (byKey[k] = Object.assign({ orderNo: no, sku, qty: 0, orderDate: r.orderDate || '',
+      src: r.src || '' }, obWhat(r), {
       // Where an order line came from, when it came from a Shopify order that had to be made.
       shopOrderNo: r.shopOrderNo || '', shopOrderId: r.shopOrderId || '', adjId: r.adjId || '',
-      shopImg: r.shopImg || '', packs: 0, pcsPer: 1 });
+      shopImg: r.shopImg || '', packs: 0, pcsPer: 1 }));
     /* PIECES, not packs. A Shopify line keeps what the customer ordered alongside, so the screen can
      * say "1 pack of 2" rather than leave somebody wondering where the second piece came from. */
     e.qty += obPieces(r);
