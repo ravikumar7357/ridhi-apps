@@ -1781,7 +1781,7 @@
           <button id="palSheet" class="ghost hide" title="Every design, with its group, whether it is still being made, and what the registers say about it. Fill in Group and Continue; the rest is worked out.">Design sheet</button>
           <button id="palImport" class="ghost hide" title="Read a filled design sheet back. You are shown what it would do before anything is written.">Design import</button>
           <input id="palFile" type="file" accept=".xlsx,.csv,text/csv" style="display:none">
-          <button id="palClear" class="ghost hide" style="color:var(--bad)" title="Empty the groups, blocks or printers to upload them again — a backup file is saved first">Clear…</button>
+          <button id="palClear" class="ghost hide" style="color:var(--bad)" title="Delete the groups, blocks or printers, to upload them again">Delete…</button>
           <button id="palRefresh" class="ghost">Refresh</button>
         </div>
         <div id="palMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
@@ -37080,55 +37080,43 @@ const PAL_CLEAR = [
 function palClearOpen() {
   if (!palCanEdit()) { $('palMsg').className = 'err'; $('palMsg').textContent = PAL_NO_EDIT; return; }
   ptOpenDialog({
-    title: 'Clear printer allocation data',
-    note: 'Tick what to empty, so it can be uploaded again. A backup file of exactly what is ticked downloads first. '
-      + 'Designs, "to make" and who is printing now come from the order book and are not touched.',
+    title: 'Delete printer allocation data',
+    note: 'Everything is ticked — untick what should stay. There is no backup and no undo. '
+      + 'The design rows themselves (ordered, to make, printing now) come from the order book and the master, so they stay.',
     fields: [
-      { key: 'what', label: 'Empty these', type: 'multi', value: [], span: true,
+      { key: 'what', label: 'Delete these', type: 'multi', value: PAL_CLEAR.map(c => c[0]), span: true,
         options: PAL_CLEAR.map(([k, l, n]) => [k, `${l} (${nf(n())})`]) },
-      { key: 'confirm', label: 'Type CLEAR to confirm', value: '', span: true },
     ],
-    onSave: v => palClearRun(v.what || [], v.confirm),
-    saveLabel: 'Back up, then clear',
+    onSave: v => palClearRun(v.what || [], confirm('Delete the ticked printer allocation data? There is no backup and no undo.')),
+    saveLabel: 'Delete',
   });
 }
-async function palClearRun(what, confirmText) {
+/* sure: true once the person has said yes. No backup file (Ravi, 2026-09-25: nothing in it is worth keeping). */
+async function palClearRun(what, sure) {
   if (!palCanEdit()) return PAL_NO_EDIT;
   const pick = (what || []).filter(k => PAL_CLEAR.some(c => c[0] === k));
-  if (!pick.length) return 'Tick what to empty.';
-  if (String(confirmText || '').trim().toUpperCase() !== 'CLEAR') return 'Type CLEAR to confirm.';
-  /* THE BACKUP FIRST — exactly what is about to go, as read from the database, not from the screen. */
-  let snap;
-  try {
-    const [g, p, n, h] = await Promise.all([ptGet('pt_colorGroups'), ptGet('pt_printers'), ptGet('pt_blockNeed'), ptGet('pt_blockHave')]);
-    snap = { takenAt: new Date().toISOString(), by: ME.email, cleared: pick,
-      pt_colorGroups: g || null, pt_printers: p || null, pt_blockNeed: n || null, pt_blockHave: h || null };
-  } catch (e) { return 'Could not read the data to back it up, so nothing was cleared: ' + (e.message || e); }
-  try {
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([JSON.stringify(snap, null, 1)], { type: 'application/json' }));
-    a.download = 'printer-allocation-backup-' + snap.takenAt.replace(/[:.]/g, '-') + '.json';
-    a.click(); URL.revokeObjectURL(a.href);
-  } catch (e) { return 'The backup file could not be saved, so nothing was cleared.'; }
+  if (!pick.length) return 'Tick what to delete.';
+  if (sure !== true) return 'Not deleted.';
   const has = k => pick.indexOf(k) >= 0;
   const patch = {};
   if (has('groups') || has('live')) {
-    const g = snap.pt_colorGroups || {};
+    let g = {};
+    try { g = (await ptGet('pt_colorGroups')) || {}; } catch (e) { return 'Not deleted: ' + (e.message || e); }
     const map = has('groups') ? {} : (g.map || {}), live = has('live') ? {} : (g.live || {});
-    patch.pt_colorGroups = (Object.keys(map).length || Object.keys(live).length) ? { at: snap.takenAt, by: ME.email, map, live } : null;
+    patch.pt_colorGroups = (Object.keys(map).length || Object.keys(live).length) ? { at: new Date().toISOString(), by: ME.email, map, live } : null;
   }
   if (has('need')) patch.pt_blockNeed = null;
   if (has('have')) patch.pt_blockHave = null;
   if (has('printers')) patch.pt_printers = null;
-  try { await ptPatch(patch); } catch (e) { return 'Not cleared: ' + (e.message || e) + ' — nothing changed; the backup file is still yours.'; }
+  try { await ptPatch(patch); } catch (e) { return 'Not deleted: ' + (e.message || e) + ' — nothing changed.'; }
   if ('pt_colorGroups' in patch) PAL.groups = patch.pt_colorGroups || { map: {}, live: {} };
   if (has('need')) PAL.need = { map: {} };
   if (has('have')) PAL.have = {};
   if (has('printers')) PAL.printers = [];
   renderPal();
   $('palMsg').className = 'muted';
-  $('palMsg').textContent = 'Cleared: ' + PAL_CLEAR.filter(c => has(c[0])).map(c => c[1].toLowerCase()).join(', ')
-    + '. A backup file was downloaded first. Upload again with Design import (groups) and + Printer.';
+  $('palMsg').textContent = 'Deleted: ' + PAL_CLEAR.filter(c => has(c[0])).map(c => c[1].toLowerCase()).join(', ')
+    + '. Upload again with Design import (groups) and + Printer.';
   return '';
 }
 

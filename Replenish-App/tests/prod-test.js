@@ -20148,18 +20148,18 @@ console.log('\n== printer allocation: clear what was fed, to upload it again =='
   NET.store['pt_printers'] = { p1: { name: 'RBP-Bagru', pcsMonth: 13280 } };
   A.setPAL(Object.assign({}, wasPAL, { groups: NET.store['pt_colorGroups'], need: NET.store['pt_blockNeed'], have: NET.store['pt_blockHave'],
     printers: [{ key: 'p1', name: 'RBP-Bagru', pcsMonth: 13280 }] }));
-  ok('nothing ticked is refused', /Tick what to empty/.test(await A.palClearRun([], 'CLEAR')));
-  ok('without typing CLEAR nothing happens', /Type CLEAR/.test(await A.palClearRun(['groups'], 'clr')) && !NET.calls.some(c => c.method === 'PATCH'));
+  ok('nothing ticked is refused', /Tick what to delete/.test(await A.palClearRun([], true)));
+  ok('saying no deletes nothing', /Not deleted/.test(await A.palClearRun(['groups'], false)) && !NET.calls.some(c => c.method === 'PATCH'));
   DOWNLOADS.length = 0;
-  ok('ticked and confirmed, it clears', (await A.palClearRun(['groups', 'need'], 'clear')) === '');
-  ok('…a backup file is saved first', DOWNLOADS.some(d => /^printer-allocation-backup-.*\.json$/.test(d)), JSON.stringify(DOWNLOADS));
+  ok('ticked and confirmed, it deletes', (await A.palClearRun(['groups', 'need'], true)) === '');
+  ok('…with no backup file (Ravi: not needed)', !DOWNLOADS.length, JSON.stringify(DOWNLOADS));
   const pt = NET.calls.filter(c => c.method === 'PATCH').pop();
   ok('…only what was ticked goes: groups emptied, stopped designs kept, blocks per design gone, printers and held blocks untouched',
      pt && pt.body.pt_colorGroups && Object.keys(pt.body.pt_colorGroups.map).length === 0 && pt.body.pt_colorGroups.live['CPC|Old Rose'] === false
      && pt.body.pt_blockNeed === null && !('pt_printers' in pt.body) && !('pt_blockHave' in pt.body), pt && JSON.stringify(pt.body));
   ok('…and the screen forgets them', Object.keys(A.PAL().groups.map).length === 0 && Object.keys(A.PAL().need.map).length === 0 && A.PAL().printers.length === 1);
   ME.admin = false; ME.prodEdit = false;
-  ok('without the production edit right it refuses', /need the production edit right/.test(await A.palClearRun(['printers'], 'CLEAR')));
+  ok('without the production edit right it refuses', /need the production edit right/.test(await A.palClearRun(['printers'], true)));
   ME.admin = wasAdmin; NET.on = wasNet; A.setPAL(wasPAL);
   ['pt_colorGroups', 'pt_blockNeed', 'pt_blockHave', 'pt_printers'].forEach(k => { delete NET.store[k]; });
 }
