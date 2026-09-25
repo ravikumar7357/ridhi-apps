@@ -20011,9 +20011,16 @@ console.log('\n== the Production menu is a mega menu ==');
      tabs.filter(t => sec.indexOf('id="' + t + '"') < 0).join(','));
   /* "26" alone told nobody what it counted. */
   const badges = [...sec.matchAll(/<span id="(\w+Badge)"[^>]*>/g)].map(m => m[0]);
-  ok('every count in it carries the words for what it counts', badges.length === 7 && badges.every(b => /data-what="[^"]+"/.test(b)),
-     badges.filter(b => !/data-what=/.test(b)).join(' | '));
-  ok('…"26" reads as SKUs not on Amazon', /id="fgiLstBadge"[^>]*data-what="not on Amazon"/.test(sec));
+  ok('every count in it carries the words for what it counts', badges.length === 4 && badges.every(b => /data-what="[^"]+"/.test(b)),
+     badges.length + ': ' + badges.filter(b => !/data-what=/.test(b)).join(' | '));
+  /* Ravi, 2026-09-25: "26 not amazon, 3 to approve, 11 over order ye listing ke andar aana chahiye". */
+  ok('the three Finished Goods counts are not in the menu', !/fgiLstBadge|fgiCorrBadge|fgiOverBadge/.test(sec));
+  {
+    const fg = src.slice(src.indexOf('<div id="fgAlerts"'), src.indexOf('<div id="fgMsg"'));
+    ok('…they are on the Finished Goods screen, each a button that opens its list',
+       /<button type="button" id="fgiLstBadge"[^>]*data-fgview="alerts"[^>]*data-what="not on Amazon"/.test(fg)
+       && /id="fgiCorrBadge"[^>]*data-fgview="corr"/.test(fg) && /id="fgiOverBadge"[^>]*data-fgview="over"/.test(fg), fg.slice(0, 300));
+  }
   ok('…and the words are shown in the menu', /\.navmega \.navbadge\[data-what\]::after\{content:" " attr\(data-what\)/.test(src));
   ok('a column with nothing this account may open says nothing', /\.mg-col:not\(:has\(> \.nav:not\(\[style\*="none"\]\)\)\)\{display:none\}/.test(src));
 }

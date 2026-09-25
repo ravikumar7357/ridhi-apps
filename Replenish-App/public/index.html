@@ -149,6 +149,13 @@
   .navmega .nav-bd:not(:has(.navbadge:not(.hide))){display:none}
   .navmega .navbadge{margin-left:0;padding:0 8px;line-height:20px;font-size:11.5px}
   .navmega .navbadge[data-what]::after{content:" " attr(data-what);font-weight:600}
+  /* The Finished Goods counts, on its own screen: each one a button to its list. */
+  .fg-alerts{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+  .fg-alerts:not(:has(.navbadge:not(.hide))){display:none}
+  .fg-alerts .navbadge{margin:0;padding:0 14px;line-height:30px;font-size:12.5px;border:0;border-radius:999px;cursor:pointer;box-shadow:none}
+  .fg-alerts .navbadge[data-what]::after{content:" " attr(data-what);font-weight:600}
+  .fg-alerts .navbadge:hover{filter:brightness(.92)}
+  .fg-alerts .navbadge.on{outline:2px solid var(--ink);outline-offset:2px}
   .navclose{margin-left:auto;flex:none;width:28px;height:28px;padding:0;display:inline-flex;
     align-items:center;justify-content:center;background:transparent;color:var(--muted);
     border:0;border-radius:8px;font-size:17px;line-height:1}
@@ -939,7 +946,7 @@
       </div>
       <div class="mg-col">
         <div class="mg-h">Finished &amp; dispatch</div>
-        <a id="tabFgi" class="nav" href="#fgi"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg></span><span class="nav-t">Finished Goods</span><span class="nav-bd"><span id="fgiLstBadge" class="navbadge hide" data-what="not on Amazon" title="SKUs received into Finished Goods that Amazon does not list"></span><span id="fgiCorrBadge" class="navbadge hide" data-what="to approve" title="Correction requests waiting for approval" style="background:#b45309"></span><span id="fgiOverBadge" class="navbadge hide" data-what="over order" title="Receipts with more pieces than the order — not yet reviewed" style="background:#7c3aed"></span></span></a>
+        <a id="tabFgi" class="nav" href="#fgi"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg></span><span class="nav-t">Finished Goods</span></a>
         <a id="tabFba" class="nav" href="#fba"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg></span><span class="nav-t">FBA Dispatch</span><span class="nav-bd"><span id="fbaBadge" class="navbadge hide" data-what="to accept" title="Sent to the FBA team, not yet accepted"></span></span></a>
       </div>
       <div class="mg-col">
@@ -1718,6 +1725,13 @@
           <button id="fgOpening" class="ghost">Opening stock</button>
           <button id="fgExport" class="ghost">Export</button>
           <button id="fgLstRefresh" class="ghost hide" title="Ask Amazon for every listing of both brands — takes several minutes">Refresh Amazon listings</button>
+        </div>
+        <!-- WHAT NEEDS SOMEBODY, on the screen itself (Ravi, 2026-09-25: "ye listing ke andar aana chahiye").
+             Each count opens its own list. Hidden when there is nothing to do. -->
+        <div id="fgAlerts" class="fg-alerts">
+          <button type="button" id="fgiLstBadge" class="navbadge hide" data-fgview="alerts" data-what="not on Amazon" title="SKUs received into Finished Goods that Amazon does not list — open the list"></button>
+          <button type="button" id="fgiCorrBadge" class="navbadge hide" data-fgview="corr" data-what="to approve" title="Correction requests waiting for approval — open them" style="background:#b45309"></button>
+          <button type="button" id="fgiOverBadge" class="navbadge hide" data-fgview="over" data-what="over order" title="Receipts with more pieces than the order, not yet reviewed — open them" style="background:#7c3aed"></button>
         </div>
         <div id="fgMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
         <div id="fgKpis" class="kpis" style="margin-top:10px"></div>
@@ -30159,6 +30173,7 @@ function renderFgi() {
   // that changes shape would otherwise break this silently.
   $('fgZeroWrap').classList.toggle('hide', view !== 'stock');
   $('fgEntry').classList.toggle('hide', !fgiCanEntry());
+  ['fgiLstBadge', 'fgiCorrBadge', 'fgiOverBadge'].forEach(id => { const b = $(id); if (b && b.dataset) b.classList.toggle('on', b.dataset.fgview === $('fgView').value); });
   if ($('fgRecvXl')) $('fgRecvXl').classList.toggle('hide', !fgiCanEntry());
   $('fgScan').classList.toggle('hide', !fgiCanEntry());
   $('fgOpening').classList.toggle('hide', !fgiCanEdit());
@@ -30656,6 +30671,12 @@ $('ptDlgBody').addEventListener('input', e => {
   if (el) { FGT.picked.set(el.getAttribute('data-fgt'), el.value); fgiTransferTotal(); }
 });
 $('fgView').addEventListener('change', renderFgi);
+if ($('fgAlerts')) $('fgAlerts').addEventListener('click', e => {
+  const b = e.target && e.target.closest ? e.target.closest('[data-fgview]') : null;
+  if (!b) return;
+  $('fgView').value = $('fgView').value === b.dataset.fgview ? 'stock' : b.dataset.fgview;   // pressed again: back to the store
+  renderFgi();
+});
 $('fgKpis').addEventListener('click', e => {
   const t = e.target.closest('[data-fgkpi]');
   if (!t) return;
