@@ -9545,6 +9545,16 @@ async function ensurePmdb() {
   }
   PT.mdb = PTG.mdb;      // one array, two names — the gates and this tab must never disagree
   renderPmdb();
+  /* A recipe copy over a minute old is read again, quietly, and the table redrawn if it changed. */
+  if (Date.now() - (PTG.recipeAt || 0) > 60000) {
+    try {
+      const rec = await ptGet('pt_masters/recipe');
+      PTG.recipeAt = Date.now();
+      if (rec && JSON.stringify(rec) !== JSON.stringify((PTG.masters || {}).recipe || null)) {
+        PTG.masters = Object.assign({}, PTG.masters || {}, { recipe: rec }); RECIPE_IX = { src: null, map: null }; renderPmdb();
+      }
+    } catch (e) { /* the copy in hand stays */ }
+  }
   // Pictures come after the table is on screen: they are a nicety, and the SKUs are what people came for.
   mdbImgFill(false);
 }
@@ -10619,7 +10629,7 @@ $('pcClear').onclick = () => { ['pcArt', 'pcSub', 'pcCol', 'pcSz', 'pcOrd', 'pcW
 /* REFRESH READS THE RECIPES TOO (2026-09-25). Ruffle, zip and cloth figures fall back to the recipe; a recipe
  * uploaded after this screen was opened (another tab, another person) was never seen until a full reload. */
 async function pmdbRefresh() {
-  try { const m = await ptGet('pt_masters'); if (m) { PTG.masters = m; RECIPE_IX = { src: null, map: null }; } } catch (e) { /* the SKUs still load */ }
+  try { const m = await ptGet('pt_masters'); if (m) { PTG.masters = m; PTG.recipeAt = Date.now(); RECIPE_IX = { src: null, map: null }; } } catch (e) { /* the SKUs still load */ }
   await ptLoad('mdb', 'pt_masterDB', renderPmdb);
   /* ONE ARRAY, TWO NAMES — as ensurePmdb keeps them. A refresh that set only PT.mdb left every other screen on
    * the old rows, and without mdbYnFix the "yes" text rows read differently here than everywhere else. */
@@ -10769,6 +10779,7 @@ async function ptLoadGates(force) {
     ]);
     PTG.shopProd = shopProd || {};
     PTG.masters = masters || {};
+    PTG.recipeAt = Date.now();
     PTG.mdb = ptList(mdb).map(mdbYnFix);
     PTG.ob = ptList(ob);
     PTG.press = ptList(press);
@@ -14763,8 +14774,9 @@ $('ptmRecFile').onchange = async e => {
         renderPmdb();
         $('ptmMsg').className = 'muted';
         $('ptmMsg').textContent = `${nf(plan.set.length)} field(s) set and ${nf(plan.change.length)} changed `
-          + `across ${nf(new Set(plan.set.concat(plan.change).map(x => x.key)).size)} combination(s). `
-          + 'The SKUs themselves are unchanged — press Apply recipes to write them down.';
+          + `across ${nf(new Set(plan.set.concat(plan.change).map(x => x.key)).size)} combination(s).`
+          + (recipeFilledTxt(RECIPE_FILLED) || ' No SKU of these had a blank to fill.')
+          + ' A figure a SKU already had is left as it was — Apply recipes changes those, after you see them.';
         return '';
       },
     });
@@ -24354,6 +24366,16 @@ function ptRuffleOf(m) {
  * Keyed on the Base Data row, like the zippers: saving the same issue twice cannot deduct twice, and
  * deleting the issue gives the cloth back.
  */
+/** The recipes and this SKU's row, read again from the database, then its ruffle. Null if still none. */
+async function ptRuffleFresh(m) {
+  try {
+    const key = m && (m._key || (m.sku ? 'mdb_' + m.sku : ''));
+    const [rec, row] = await Promise.all([ptGet('pt_masters/recipe'), key ? ptGet('pt_masterDB/' + key) : null]);
+    if (rec) { PTG.masters = Object.assign({}, PTG.masters || {}, { recipe: rec }); RECIPE_IX = { src: null, map: null }; PTG.recipeAt = Date.now(); }
+    if (row && typeof row === 'object') Object.assign(m, mdbYnFix(row));
+  } catch (e) { /* the answer stays what it was */ }
+  return ptRuffleOf(m);
+}
 async function ptConsumeRuffle(entry) {
   const m = cutSkuOf(entry.sku);
   if (!ptIsRuffle(m)) return '';
@@ -24364,7 +24386,9 @@ async function ptConsumeRuffle(entry) {
    * you to Masters, and the register filled up with warnings instead of deductions. */
   const saidM = parseFloat(entry.ruffleMetres);
   const saidF = String(entry.ruffleFabricUsed || '').trim();
-  const r = ptRuffleOf(m);
+  let r = ptRuffleOf(m);
+  /* LOOK AGAIN BEFORE GIVING UP (2026-09-25). This session's recipes and SKU row may be older than somebody's save. */
+  if (!r && !(isFinite(saidM) && saidM > 0 && saidF)) r = await ptRuffleFresh(m);
   if (isFinite(saidM) && saidM <= 0) return '';          // told: nothing went with these pieces
   if (!r && !(isFinite(saidM) && saidM > 0 && saidF))
     return ` Ruffle fabric was NOT deducted: neither the SKU, its recipe nor a ruffle rule gives metres for ${m.subtype || '?'} ${m.size || '?'}, `
@@ -41240,6 +41264,7 @@ async function recipeUploadRun(plan) {
   masters.recipe = Object.assign({}, masters.recipe || {}, keep);
   PTG.masters = masters;
   RECIPE_IX = { src: null, map: null };
+  RECIPE_FILLED = await recipeFillBlanks([...byKey.keys()]);
   return '';
 }
 
@@ -41391,6 +41416,8 @@ function recipeEdit(key) {
       const err = await recipeSave(Object.assign({ articleType: c.articleType, subtype: c.subtype, size: c.size }, v));
       if (err) return err;
       renderPmdb();
+      $('ptmMsg').className = 'muted';
+      $('ptmMsg').textContent = 'Recipe saved.' + recipeFilledTxt(RECIPE_FILLED);
       return '';
     },
   });
@@ -42414,11 +42441,32 @@ async function recipeApplyRun(plan) {
   try { await ptPatch(patch); }
   catch (e) { return 'Not saved: ' + (e.message || e); }
   PTG.mdb = next;
+  if (typeof PT !== 'undefined' && PT) PT.mdb = next;
   return '';
 }
 
 /** The key a recipe is stored under — safe for a database path. */
 const recPath = k => String(k).replace(/[.#$\[\]\/]/g, '_');
+
+/**
+ * FILL THE BLANKS OF THESE COMBINATIONS' SKUs FROM THEIR RECIPES (2026-09-25, the permanent fix). Called by every
+ * recipe save and upload, so a recipe never again sits apart from the SKUs it describes. Only empty fields are
+ * written; a SKU that says something keeps it. Returns { skus, fields } or { err }.
+ */
+async function recipeFillBlanks(keys) {
+  const want = new Set(keys || []);
+  const rows = (PTG.mdb || []).filter(m => m && want.has(recKey(m)));
+  if (!rows.length) return { skus: 0, fields: 0 };
+  const plan = recipeApplyPlan(rows);
+  if (!plan.fill.length) return { skus: 0, fields: 0 };
+  const err = await recipeApplyRun({ fill: plan.fill, change: [] });
+  if (err) return { err };
+  return { skus: new Set(plan.fill.map(x => x.sku)).size, fields: plan.fill.length };
+}
+/** What the last save or upload filled, for the message that follows it. */
+let RECIPE_FILLED = null;
+const recipeFilledTxt = f => !f ? '' : (f.err ? ' The SKUs could not be filled from it: ' + f.err
+  : (f.skus ? ` ${nf(f.skus)} SKU(s) had ${nf(f.fields)} blank field(s) filled from it.` : ''));
 
 async function recipeSave(rec) {
   if (!mdbCanEdit()) return MDB_NO_EDIT;
@@ -42438,6 +42486,7 @@ async function recipeSave(rec) {
   masters.recipe = Object.assign({}, masters.recipe || {}, { [recPath(k)]: next });
   PTG.masters = masters;
   RECIPE_IX = { src: null, map: null };
+  RECIPE_FILLED = await recipeFillBlanks([k]);
   return '';
 }
 

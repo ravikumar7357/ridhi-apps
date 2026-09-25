@@ -14897,6 +14897,29 @@ console.log('\n== what goes to the karigar with the pieces ==');
       delete NET.store['pt_masters']; delete NET.store['pt_masterDB']; NET.on = wasNet;
       A.setPTG(Object.assign({}, A.PTG(), { mdb: before.mdb, masters })); A.setPT(Object.assign({}, A.PT(), { mdb: before.mdb }));
     }
+    /* THE PERMANENT FIX (Ravi, 2026-09-25: "isko permanent fix karo ye pahle bhi hua tha ruffle tablecloth me"). */
+    {
+      const g0 = A.PTG(), wasNet = NET.on, wasAdmin = ME.admin;
+      ME.admin = true; NET.on = true; NET.calls.length = 0;
+      const row = Object.assign({ _key: 'mdb_RUF-NORULE' }, MDB[3], { ruffleMeters: null, ruffleFabric: '' });
+      A.setPTG(Object.assign({}, g0, { mdb: [row], masters: Object.assign({}, g0.masters || {}, { recipe: {} }) }));
+      ok('saving a recipe writes it', (await A.recipeSave({ articleType: 'Tablecloth', subtype: 'Ruffle Tablecloth', size: '99x99', isRuffle: 'yes', ruffleMeters: '3', ruffleFabric: 'Cambric' })) === '');
+      const filled = A.PTG().mdb.find(m => m.sku === 'RUF-NORULE');
+      ok('…and fills the blank ruffle on that SKU, there and then', filled.ruffleFabric === 'Cambric' && Number(filled.ruffleMeters) === 3
+         && NET.calls.some(c => c.method === 'PATCH' && Object.keys(c.body || {}).some(k => k === 'pt_masterDB/mdb_RUF-NORULE/ruffleFabric')), JSON.stringify(filled));
+      /* A SKU's own figure is never overwritten by a save. */
+      A.setPTG(Object.assign({}, A.PTG(), { mdb: [Object.assign({}, row, { ruffleMeters: 2.2, ruffleFabric: 'Voil 92' })] }));
+      await A.recipeSave({ articleType: 'Tablecloth', subtype: 'Ruffle Tablecloth', size: '99x99', isRuffle: 'yes', ruffleMeters: '3.5', ruffleFabric: 'Cambric' });
+      ok('…but a figure the SKU already has stays its own', A.PTG().mdb[0].ruffleMeters === 2.2 && A.PTG().mdb[0].ruffleFabric === 'Voil 92', JSON.stringify(A.PTG().mdb[0]));
+      /* THE ISSUE LOOKS AGAIN: this session has no recipe, the database has one (somebody else saved it). */
+      A.setPTG(Object.assign({}, A.PTG(), { mdb: [Object.assign({}, row)], masters: Object.assign({}, g0.masters || {}, { recipe: {} }) }));
+      NET.store['pt_masters/recipe'] = { 'tablecloth|ruffle tablecloth|99x99': { articleType: 'Tablecloth', subtype: 'Ruffle Tablecloth', size: '99x99', isRuffle: 'yes', ruffleMeters: '3', ruffleFabric: 'Cambric' } };
+      const said = await A.ptConsumeRuffle({ id: 'bd_fresh1', sku: 'RUF-NORULE', issuePieces: 2, issueDate: '2026-09-25', empName: 'Sita' });
+      ok('a karigar issue with no ruffle in this session reads the recipe again and deducts', said === '' && NET.store['pt_fabInvLedger/fab_ruf_bd_fresh1']
+         && NET.store['pt_fabInvLedger/fab_ruf_bd_fresh1'].qty === 6 && NET.store['pt_fabInvLedger/fab_ruf_bd_fresh1'].fabricType === 'Cambric', said);
+      delete NET.store['pt_masters/recipe']; delete NET.store['pt_fabInvLedger/fab_ruf_bd_fresh1'];
+      NET.on = wasNet; ME.admin = wasAdmin; A.setPTG(g0);
+    }
     const half = A.ptRuffleOf(Object.assign({}, MDB[3], { ruffleMeters: 2.5 }));
     ok('…and own metres with no cloth take only the cloth from the recipe', half.meters === 2.5 && half.fabric === 'Cambric', JSON.stringify(half));
     ok('the recipe comes before the older ruffle rule', A.ptRuffleOf(MDB[2]).from === 'recipe' && A.ptRuffleOf(MDB[2]).meters === 3.15, JSON.stringify(A.ptRuffleOf(MDB[2])));
@@ -18985,17 +19008,23 @@ console.log('\n== recipes from a spreadsheet, and a toolbar that fits its view =
     setup();
     const plan = A.recipeUploadPlan([{ articleType: 'Tablecloth', subtype: 'Square Tablecloth',
       size: '60X60', row: 2, vals: { consumption: '1.6', isZip: 'no' } }]);
+    const beforeRows = JSON.parse(JSON.stringify(A.PTG().mdb || []));
     NET.store = {}; NET.calls.length = 0;
     ok('the upload writes', (await A.recipeUploadRun(plan)) === '');
-    ok('…in one go', NET.calls.filter(c => c.method === 'PATCH').length === 1,
-      NET.calls.map(c => c.method).join());
+    const patches = NET.calls.filter(c => c.method === 'PATCH');
+    ok('…the recipes in one go', patches.length >= 1 && Object.keys(patches[0].body || {}).every(k => /^pt_masters\/recipe\//.test(k)),
+      NET.calls.map(c => c.method + ' ' + Object.keys(c.body || {}).join('|')).join(' ; '));
     ok('…and the recipe carries it afterwards',
       (A.recipeOf(SKUS[0]) || {}).consumption === '1.6', JSON.stringify(A.recipeOf(SKUS[0])));
-    /* THE SKUs ARE NOT TOUCHED. Uploading a recipe and writing it onto 4,730 rows are two decisions,
-     * and Apply is the second one. */
-    ok('…and the SKUs themselves are left exactly as they were',
-      !Object.keys(NET.store).some(p => /^pt_masterDB\//.test(p)),
-      Object.keys(NET.store).join(' '));
+    /* THE PERMANENT FIX (Ravi, 2026-09-25: "isko permanent fix karo ye pahle bhi hua tha"). The upload now fills the
+     * BLANKS of its combination's SKUs, so a recipe never again sits apart from them. What a SKU already says is
+     * never overwritten — that stays Apply's decision, after it has been seen. */
+    const skuWrites = patches.slice(1).flatMap(c => Object.keys(c.body || {})).filter(k => /^pt_masterDB\//.test(k));
+    ok('…only blanks of that combination\'s SKUs are filled, nothing that was there is overwritten', skuWrites.every(k => {
+        const [, key, field] = k.split('/'); const was = beforeRows.find(m => (m._key || m.sku) === key) || {};
+        return was[field] == null || String(was[field]).trim() === ''; }),
+      skuWrites.join(' '));
+    ok('…and a SKU of another combination is not touched', !skuWrites.some(k => /PC-/.test(k)), skuWrites.join(' '));
 
     ME.admin = false; ME.mdbEdit = false;
     ok('uploading needs the master-database right',
