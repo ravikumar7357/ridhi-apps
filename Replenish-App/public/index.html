@@ -18033,9 +18033,27 @@ function spOpen(orderNo, sku) {
 
 $('odTable').addEventListener('click', e => {
   const b = e.target && e.target.closest ? e.target.closest('[data-demrun]') : null;
-  if (b) demRunGive(b.getAttribute('data-demrun'));
+  if (!b) return;
+  const key = b.getAttribute('data-demrun'), pk = (ORD.demPick || {})[key] || {};
+  /* A printer picked on the row: give it straight away. None: the full form, as before. */
+  if (!pk.prn) return demRunGive(key);
+  b.disabled = true;
+  demRunQuick(key, pk.prn, pk.dir != null ? pk.dir : ((b.parentNode.querySelector('[data-demdir]') || {}).value || '')).then(err => {
+    b.disabled = false;
+    if (err) { $('odMsg').className = 'err'; $('odMsg').textContent = err; }
+  });
 });
 $('odTable').addEventListener('change', e => {
+  /* The printer and direction picked on a totals row, kept until Give. */
+  const pr = e.target.closest && e.target.closest('[data-demprn],[data-demdir]');
+  if (pr) {
+    ORD.demPick = ORD.demPick || {};
+    const k = pr.getAttribute('data-demprn') || pr.getAttribute('data-demdir');
+    const cur = ORD.demPick[k] || {};
+    if (pr.hasAttribute('data-demprn')) cur.prn = pr.value; else cur.dir = pr.value;
+    ORD.demPick[k] = cur;
+    return;
+  }
   /* A fabric · colour row stands for its lines with no printer yet. */
   const dc = e.target.closest('[data-demtot]');
   if (dc) {
@@ -18957,12 +18975,18 @@ function renderOrdDemandTot() {
    * still to give — so the order is placed, checked and shown exactly as any other running order. */
   const canOrder = !spIsVendor();
   const giveM = r => Math.round(r.give || 0);
+  /* The printers, and each row's picks kept across redraws. A direction nobody has picked yet starts at the one
+   * this colour is already printed on, where an open order says one; otherwise it waits to be chosen. */
+  const printers = voAllVendors().filter(v => /print/i.test(String(v.category || '')));
+  ORD.demPick = ORD.demPick || {};
+  const dirOf = r => { const p = ORD.demPick[r.key] || {}; if (p.dir != null) return p.dir;
+    const h = voRunningOpenOf(r.colour, r.fabric).find(x => x.dir); return h ? h.dir : ''; };
   const runWith = r => {
     const w = [...(r.runWho || new Map())].filter(x => Math.round(x[1])).sort((x, y) => y[1] - x[1]);
     return w.length ? w.map(([n, m]) => esc(n) + (r.narrowed ? '' : ' <span class="muted">' + nf(Math.round(m)) + ' m</span>')).join(', ') : '<span class="muted">—</span>';
   };
   const head = ordHead([['Fabric', ''], ['Colour', ''], ['Pieces to make', 'num'], ['Cloth needed', 'num'], ['With printers', 'num'],
-    ['Still to give', 'num'], ['Running is with', '']].concat(canOrder ? [['', '']] : []));
+    ['Still to give', 'num'], ['Running is with', '']].concat(canOrder ? [['Give to a printer', '']] : []));
   const dash = '<span class="muted">—</span>';
   $('odTable').innerHTML = head + '<tbody>' + (rows.length ? rows.map(r => '<tr>'
       + '<td class="frz" style="text-align:left"><b>' + esc(r.fabric) + '</b></td>'
@@ -18972,8 +18996,14 @@ function renderOrdDemandTot() {
       + '<td class="num">' + (r.atM == null ? dash : ordDemBoth(r.atM, r.cutAtPcs)) + '</td>'
       + '<td class="num" style="font-weight:800">' + ordDemBoth(r.give, r.cutGive) + '</td>'
       + '<td style="text-align:left;white-space:normal;max-width:280px;font-size:12.5px">' + runWith(r) + '</td>'
-      + (canOrder ? '<td>' + (giveM(r) >= 1
-          ? '<button class="jw-btn jw-primary" data-demrun="' + esc(r.key) + '" title="Open a running vendor order for the ' + nf(giveM(r)) + ' m still to give">Give ' + nf(giveM(r)) + ' m</button>'
+      + (canOrder ? '<td style="white-space:nowrap">' + (giveM(r) >= 1
+          ? '<div style="display:flex;gap:6px;align-items:center;justify-content:flex-end">'
+            + '<select data-demprn="' + esc(r.key) + '" aria-label="Printer" style="width:170px;padding:6px 8px;font-size:12.5px">'
+            + '<option value="">— printer —</option>' + printers.map(v => '<option value="' + esc(v.code) + '"' + (v.code === (ORD.demPick[r.key] || {}).prn ? ' selected' : '') + '>' + esc(v.desc || v.name || v.code) + '</option>').join('') + '</select>'
+            + '<select data-demdir="' + esc(r.key) + '" aria-label="Print direction" style="width:118px;padding:6px 8px;font-size:12.5px">'
+            + ['', 'Vertical', 'Horizontal'].map(d => '<option value="' + d + '"' + (d === dirOf(r) ? ' selected' : '') + '>' + (d || '— direction —') + '</option>').join('') + '</select>'
+            + '<button class="jw-btn jw-primary" data-demrun="' + esc(r.key) + '" title="Give the ' + nf(giveM(r)) + ' m still to give to the printer chosen — or, with none chosen, open the full vendor order form">'
+            + (vrqCanApprove() ? 'Give ' : 'Request ') + nf(giveM(r)) + ' m</button></div>'
           : dash) + '</td>' : '') + '</tr>').join('')
     : '<tr><td colspan="' + (canOrder ? 8 : 7) + '" class="muted" style="padding:16px">Nothing on the open book needs printing.</td></tr>')
     + '</tbody>';
@@ -18984,6 +19014,44 @@ function renderOrdDemandTot() {
   $('odMsg').textContent = nf(rows.length) + ' fabric · colour(s) · ' + nf(d.pcs) + ' piece(s) to make'
     + (d.narrowed ? ' · filtered: "With printers" is these orders\' share of what the printers hold, oldest order first' : '')
     + ' · the products behind each line are in "Demand — by colour & product"' + (say.length ? ' · ' + say.join(' · ') : '');
+}
+
+/**
+ * Give straight to the printer picked on the row (Ravi, 2026-09-25): one running line — fabric, colour, direction,
+ * the metres still to give — placed through voPlace, the form's own save. A request where the person may not place.
+ */
+async function demRunQuick(key, code, dir) {
+  const r = (ORD.demRows || new Map()).get(key);
+  if (!r) return '';
+  const m = Math.round(r.give || 0);
+  if (m < 1) return 'Nothing is left to give for this colour.';
+  if (!dir) return `Pick the print direction for ${r.fabric} · ${r.colour} first.`;
+  const v = voMasterRow(code);
+  if (!v) return 'That printer is not in the vendor master.';
+  const name = v.desc || v.name || code;
+  const may = vrqCanApprove();
+  if (!confirm(`${may ? 'Give' : 'Request'} ${nf(m)} m of ${r.fabric} · ${r.colour} · ${dir} to ${name}?\n\n`
+    + `Needed ${nf(Math.round(r.need))} m, ${nf(Math.round(r.atM || 0))} m already with printers.`
+    + (may ? '' : '\n\nThis goes to an approver first.'))) return '';
+  if (VO.rows === null) await ensureVo();
+  const lo = x => String(x || '').trim().toLowerCase();
+  /* The fabric SKU, where exactly one line of the catalogue is this cloth. */
+  const fsHits = [...voFabricCatalogue().values()].filter(x => lo(x.fabric) === lo(r.fabric) && lo(x.colour) === lo(r.colour) && lo(x.dir) === lo(dir));
+  const fr = fsHits.length === 1 ? fsHits[0] : null;
+  VOF = { kind: 'running', service: 'Block print', mode: may ? 'place' : 'request',
+    dupOk: { [lo(r.colour) + '|' + lo(r.fabric) + '|']: true },
+    lines: [Object.assign({ lineId: 'ln_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6), kind: 'running',
+      fabricType: r.fabric, color: r.colour, printDirection: dir, meters: m, deliveryDate: '', priority: '',
+      notes: 'Order Console: needs ' + nf(Math.round(r.need)) + ' m, ' + nf(Math.round(r.atM || 0)) + ' m already with printers', dispatchedQty: 0 },
+      fr ? { sku: fr.sku, img: fr.imageUrl || '', brand: fr.brandName || '' } : {})] };
+  const err = await voPlace({ code, notes: '', why: may ? '' : 'Order Console demand — ' + nf(m) + ' m still to give' });
+  if (err) return err;
+  ORD.demPick[key] = {};
+  renderOrd();
+  $('odMsg').className = 'muted';
+  $('odMsg').textContent = may ? `${nf(m)} m of ${r.fabric} · ${r.colour} · ${dir} given to ${name} — ${($('voMsg') || {}).textContent || 'placed'}.`
+    : `Request for ${nf(m)} m of ${r.fabric} · ${r.colour} · ${dir} to ${name} sent for approval.`;
+  return '';
 }
 
 /** "Give 285 m": the ordinary vendor order form, running, with this colour's cloth still to give filled in. */
@@ -28229,12 +28297,15 @@ async function voBulkFile(file, kind) {
 }
 
 /* ---- placing it ---- */
-async function voPlace() {
-  const code = String(($('vof_vendor') || {}).value || '').trim();
+async function voPlace(given) {
+  /* GIVEN, the quick Give on the Order Console's totals (Ravi, 2026-09-25): the vendor and notes come in the call
+   * rather than from the form; everything after — the checks, request or order, the write — is the same. */
+  const G = given || {};
+  const code = String(G.code != null ? G.code : (($('vof_vendor') || {}).value || '')).trim();
   if (!code) return 'Pick the vendor this order is going to.';
   if (!VOF.lines.length) return 'Add at least one line.';
   const svcRec = prSvc(VOF.service);
-  const filler = String(($('vof_filler') || {}).value || '').trim();
+  const filler = String(G.filler != null ? G.filler : (($('vof_filler') || {}).value || '')).trim();
   if (svcRec && svcRec.fill && !filler) return 'Say which filler this order is for — the firm prices each one apart.';
   /* EVERY ACTIVE VENDOR, not only the printers. This looked in voVendors() — block printers alone —
    * so a filling order could be built line by line and then refused at the last press. */
@@ -28263,7 +28334,8 @@ async function voPlace() {
   if (VOF.mode === 'request') {
     const err = await vrqSubmit({ code, vend, service: String(VOF.service || 'Block print'), kind: VOF.kind,
       filler: svcRec && svcRec.fill ? filler : '',
-      notes: String(($('vof_notes') || {}).value || '').trim(), why: String(($('vof_why') || {}).value || '').trim(),
+      notes: String(G.notes != null ? G.notes : (($('vof_notes') || {}).value || '')).trim(),
+      why: String(G.why != null ? G.why : (($('vof_why') || {}).value || '')).trim(),
       lines: VOF.lines });
     if (!err) VOF = { kind: VOF.kind, lines: [], mode: VOF.mode };
     return err;
@@ -28284,7 +28356,7 @@ async function voPlace() {
     status: 'Placed',
     /* Only a filling order carries one; nothing else is priced on what is inside it. */
     ...(svcRec && svcRec.fill ? { filler } : {}),
-    notes: String(($('vof_notes') || {}).value || '').trim(),
+    notes: String(G.notes != null ? G.notes : (($('vof_notes') || {}).value || '')).trim(),
     lines: VOF.lines.map(l => Object.assign({}, l)),
     createdBy: ME.email, createdAt: now,
   };
