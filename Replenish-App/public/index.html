@@ -2286,6 +2286,7 @@
           <button id="ptmImport" class="ghost" title="Add or update SKUs in bulk. You are shown what the file would do before anything is written.">Import</button>
           <input id="ptmFile" type="file" accept=".csv,.xlsx,text/csv" style="display:none">
           <input id="ptmRecFile" type="file" accept=".xlsx,.csv,text/csv" style="display:none">
+          <input id="ptmFsFile" type="file" accept=".xlsx,.csv,text/csv" style="display:none">
           <input id="ptmSkcFile" type="file" accept=".xlsx,.csv,text/csv" style="display:none">
           <button id="ptmRename" class="ghost" title="Change a SKU code everywhere it appears.">Change SKU</button>
           <button id="ptmExport" class="ghost">Export</button>
@@ -9686,7 +9687,7 @@ const PMDB_TOOLS = {
   custom: ['ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut', 'ptmQ',
     'ptmNew', 'ptmImgs', 'ptmClear', 'ptmTemplate', 'ptmTplShort', 'ptmImport', 'ptmExport', 'ptmGo'],
   /* The printer's cloth is grouped by fabric and colour; article and size say nothing about it. */
-  fabric: ['ptmBrandFs', 'ptmDir', 'ptmCol', 'ptmQ', 'ptmClear', 'ptmExport', 'ptmGo'],
+  fabric: ['ptmBrandFs', 'ptmDir', 'ptmCol', 'ptmQ', 'ptmNew', 'ptmTemplate', 'ptmImport', 'ptmClear', 'ptmExport', 'ptmGo'],
   cons: ['ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut', 'ptmQ',
     'ptmConsApply', 'ptmClear', 'ptmExport', 'ptmGo'],
   /* A recipe has no brand, no colour and no picture. Its key is the three boxes that are left. */
@@ -9706,6 +9707,7 @@ const PMDB_ALL = ['ptmTplShort', 'ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmS
 
 function pmdbTools(view) {
   const on = PMDB_TOOLS[view] || PMDB_TOOLS.master;
+  if ($('ptmNew')) $('ptmNew').textContent = view === 'fabric' ? '+ Fabric SKU' : '+ New SKU';
   PMDB_ALL.forEach(id => {
     const el = $(id); if (!el) return;
     const show = on.indexOf(id) >= 0 && !(PMDB_WRITES.indexOf(id) >= 0 && !mdbCanEdit());
@@ -10391,6 +10393,16 @@ function fsRows(filter) {
         alsoCalled: c.alsoCalled, brandName: (FS_BRANDS.find(b => b.key === c.family) || {}).name || c.family }));
     });
   });
+  /* AND THE ONES ADDED BY HAND (Ravi, 2026-09-25), under the same filters. */
+  const built = new Set(out.map(r => r.sku.toUpperCase()));
+  fsManual().forEach(r => {
+    if (built.has(r.sku)) return;
+    if (f.brand && r.brand !== f.brand) return;
+    if (f.colour && String(r.colour).toLowerCase() !== String(f.colour).toLowerCase()) return;
+    if (f.dir && r.dir !== f.dir) return;
+    if (f.q && [r.sku, r.colour, r.code, r.fabric, r.dir, r.note].join(' ').toLowerCase().indexOf(f.q) < 0) return;
+    out.push(r);
+  });
   return out;
 }
 
@@ -10430,7 +10442,8 @@ function renderMdbFabric() {
     + `<td>${esc(r.brandName)}</td>`
     + `<td style="text-align:left">${esc(r.fabric)}${r.side ? ` <span class="muted" style="font-size:11.5px">· ${esc(r.side)}</span>` : ''}</td>`
     + `<td>${esc(r.dir)}</td>`
-    + `<td style="text-align:left;font-family:ui-monospace,monospace;font-weight:700">${esc(r.sku)}</td>`
+    + `<td style="text-align:left;font-family:ui-monospace,monospace;font-weight:700">${esc(r.sku)}${r.manual
+        ? ` <span class="pill" title="Added by hand${r.note ? ' — ' + esc(r.note) : ''}">added</span>${mdbCanEdit() ? ` <button class="ghost" data-fs-edit="${esc(r.sku)}" style="padding:2px 8px;font-size:11px">Edit</button>` : ''}` : ''}</td>`
     + (r.imageUrl
       ? `<td title="From ${esc(r.imageFrom)}"><img src="${esc(ptImgSrc(r.imageUrl, 38))}" alt="" loading="lazy"
            style="width:38px;height:38px;object-fit:cover;border-radius:6px;border:1px solid var(--line)"></td>`
@@ -14488,9 +14501,12 @@ $('ptmTplShort').onclick = () => {
 
 $('ptmNew').onclick = async () => {
   if (!PTG.mdb) { $('ptmMsg').textContent = 'Reading the master database…'; await ptLoadGates(); }
+  if (($('ptmView') || {}).value === 'fabric') return fsManualEdit('');
   mdbAddNew();
 };
 $('ptmTable').addEventListener('click', e => {
+  const fe = e.target.closest('[data-fs-edit]');
+  if (fe) return fsManualEdit(fe.getAttribute('data-fs-edit'));
   const b = e.target.closest('[data-mdb-edit]'); if (!b) return;
   mdbEdit(b.getAttribute('data-mdb-edit'));
 });
@@ -14715,6 +14731,7 @@ $('ptmRecFile').onchange = async e => {
 $('ptmTemplate').onclick = () => {
   /* Each view's own template. On Recipes the SKU template is the wrong file entirely. */
   if (($('ptmView') || {}).value === 'recipe') return recipeTemplateDownload();
+  if (($('ptmView') || {}).value === 'fabric') return fsManualTemplate();
   if (($('ptmView') || {}).value === 'skucode') return ptDownload('sku-base-codes-template', [SKC_COLS, ['Tablecloth', 'Square Tablecloth', '60x60', 'RTC-6060'],
     ['Home and Kitchen', 'Apron', 'Free', 'RKA-']].map(r => r.map(csvCell).join(',')));
   const ex = ['RPC123-1818', 'Ridhi', 'Pillow Cover', 'Piping Pillow Cover', 'Indigo Blue', '18X18',
@@ -14797,8 +14814,10 @@ function mdbMerge(v, existing) {
 
 let MDB_IMP = null;      // the checked file, waiting to be applied
 
+if ($('ptmFsFile')) $('ptmFsFile').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) fsManualFile(f); };
 $('ptmImport').onclick = () => {
   if (($('ptmView') || {}).value === 'recipe') return $('ptmRecFile').click();
+  if (($('ptmView') || {}).value === 'fabric') return $('ptmFsFile').click();
   if (($('ptmView') || {}).value === 'skucode') return $('ptmSkcFile').click();
   $('ptmFile').click();
 };
@@ -27420,6 +27439,177 @@ function voFabricCatalogue() {
   if (!VOF.fs) VOF.fs = new Map(fsRows({}).map(r => [r.sku.toUpperCase(), r]));
   return VOF.fs;
 }
+/* ---- fabric SKUs added by hand (Ravi, 2026-09-25) ---- */
+/** The columns of the sheet, and the names they may go by. */
+const FS_MAN_COLS = [
+  ['sku', 'SKU', ['sku', 'fabric sku']],
+  ['brand', 'Brand', ['brand']],
+  ['code', 'Colour code', ['colour code', 'color code', 'code']],
+  ['colour', 'Colour', ['colour', 'color']],
+  ['fabric', 'Fabric', ['fabric', 'fabric type']],
+  ['dir', 'Print direction', ['print direction', 'direction', 'dir']],
+  ['side', 'Side', ['side']],
+  ['imageUrl', 'Picture URL', ['picture url', 'picture', 'image url', 'image']],
+  ['note', 'Note', ['note', 'remarks', 'remark']],
+];
+/** Every fabric SKU somebody added by hand, as rows of the catalogue. */
+function fsManual() {
+  return ptList((PTG.masters || {}).fabricSku).filter(r => r && r.sku).map(r => {
+    const brand = String(r.brand || '').trim();
+    return { manual: true, brand, code: String(r.code || '').trim(), colour: String(r.colour || '').trim(),
+      fabric: String(r.fabric || '').trim(), width: String(r.fabric || '').replace(/[^0-9]/g, ''),
+      dir: String(r.dir || '').trim(), side: String(r.side || '').trim(), sku: String(r.sku).trim().toUpperCase(),
+      imageUrl: String(r.imageUrl || '').trim(), imageFrom: 'added by hand', alsoCalled: [], note: String(r.note || ''),
+      brandName: (FS_BRANDS.find(b => b.key === brand) || {}).name || brand || '—' };
+  });
+}
+/** The brand as the catalogue keys it: CPC, RBP (Ridhi), or '' when none is said. */
+const fsBrandKey = v => { const t = String(v || '').trim().toUpperCase(); return !t ? '' : (/^CPC/.test(t) ? 'CPC' : (/^(RBP|RIDHI)/.test(t) ? 'RBP' : '?')); };
+const fsDirOf = v => { const t = String(v || '').trim().toLowerCase(); return !t ? '' : (/^v/.test(t) ? 'Vertical' : (/^h/.test(t) ? 'Horizontal' : '?')); };
+
+/**
+ * One row, checked. `taken` holds the SKUs the worked-out catalogue already makes (never overwritten by hand);
+ * `seen` the ones earlier in the same sheet. Returns { err } or { rec }.
+ */
+function fsManualCheck(v, taken, seen) {
+  const sku = String(v.sku || '').trim().toUpperCase();
+  if (!sku) return { err: 'Put in the fabric SKU.' };
+  if (!/^[A-Z0-9][A-Z0-9_-]*$/.test(sku)) return { err: `${sku}: a fabric SKU is letters, digits and dashes only.` };
+  if (taken && taken.has(sku)) return { err: `${sku} is already in the catalogue — it is built from the master database and cannot be added again.` };
+  if (seen && seen.has(sku)) return { err: `${sku} is in the sheet twice.` };
+  const brand = fsBrandKey(v.brand);
+  if (brand === '?') return { err: `${sku}: brand is CPC or Ridhi (or blank).` };
+  const colour = String(v.colour || '').trim(), fabric = String(v.fabric || '').trim();
+  if (!colour) return { err: `${sku}: put in the colour.` };
+  if (!fabric) return { err: `${sku}: put in the fabric.` };
+  const dir = fsDirOf(v.dir);
+  if (dir === '?') return { err: `${sku}: print direction is Vertical or Horizontal (or blank).` };
+  const side = String(v.side || '').trim();
+  if (side && !/^(front|back)$/i.test(side)) return { err: `${sku}: side is Front or Back (or blank).` };
+  return { rec: { sku, brand, code: String(v.code || '').trim(), colour, fabric, dir,
+    side: side ? side[0].toUpperCase() + side.slice(1).toLowerCase() : '',
+    imageUrl: String(v.imageUrl || '').trim(), note: String(v.note || '').trim() } };
+}
+/** The SKUs the catalogue works out on its own — the ones a hand-added row may not take. */
+const fsBuiltSkus = () => new Set(fsRows({}).filter(r => !r.manual).map(r => r.sku.toUpperCase()));
+const fsManKey = sku => String(sku).trim().toUpperCase().replace(/[.#$\[\]\/]/g, '_');
+
+/** Write rows added or changed by hand, in one go. */
+async function fsManualSave(recs) {
+  if (!mdbCanEdit()) return MDB_NO_EDIT;
+  if (!recs.length) return 'There is nothing to save.';
+  const cur = (PTG.masters || {}).fabricSku || {};
+  const now = new Date().toISOString(), patch = {}, keep = {};
+  recs.forEach(r => {
+    const k = fsManKey(r.sku), was = cur[k];
+    const row = Object.assign({}, was || {}, r, was ? { editedBy: ME.email, editedAt: now } : { addedBy: ME.email, addedAt: now });
+    patch['pt_masters/fabricSku/' + k] = row; keep[k] = row;
+  });
+  try { await ptPatch(patch); } catch (e) { return 'Not saved: ' + (e.message || e); }
+  PTG.masters = Object.assign({}, PTG.masters || {}, { fabricSku: Object.assign({}, cur, keep) });
+  if (typeof VOF !== 'undefined' && VOF) VOF.fs = null;          // the vendor form's list is built again
+  return '';
+}
+
+/** One fabric SKU, typed in — or an added one, changed. */
+function fsManualEdit(sku) {
+  if (!mdbCanEdit()) { $('ptmMsg').className = 'err'; $('ptmMsg').textContent = MDB_NO_EDIT; return; }
+  const k = sku ? fsManKey(sku) : '';
+  const cur = k ? (((PTG.masters || {}).fabricSku || {})[k] || {}) : {};
+  const colours = typeof voMasterList === 'function' ? voMasterList('colour', 'color') : [];
+  ptOpenDialog({
+    title: sku ? 'Fabric SKU ' + sku : 'New fabric SKU',
+    note: 'A fabric SKU the catalogue does not work out on its own. It is listed with the rest and can be ordered from a printer. '
+      + 'A SKU the catalogue already builds from the master database cannot be added again.',
+    fields: [
+      { key: 'sku', label: 'Fabric SKU *', value: cur.sku || '', readonly: !!sku },
+      { key: 'brand', label: 'Brand', type: 'select', value: cur.brand || '', options: [['', '—'], ['CPC', 'CPC'], ['RBP', 'Ridhi']] },
+      { key: 'code', label: 'Colour code', value: cur.code || '' },
+      { key: 'colour', label: 'Colour *', value: cur.colour || '', list: colours },
+      { key: 'fabric', label: 'Fabric *', value: cur.fabric || '', list: fabListOr(cur.fabric) },
+      { key: 'dir', label: 'Print direction', type: 'select', value: cur.dir || '', options: [['', '—'], ['Vertical', 'Vertical'], ['Horizontal', 'Horizontal']] },
+      { key: 'side', label: 'Side', type: 'select', value: cur.side || '', options: [['', '—'], ['Front', 'Front'], ['Back', 'Back']] },
+      { key: 'imageUrl', label: 'Picture URL', value: cur.imageUrl || '', span: true },
+      { key: 'note', label: 'Note', value: cur.note || '', span: true },
+    ],
+    onSave: async v => {
+      const r = fsManualCheck(Object.assign({}, v, sku ? { sku } : {}), fsBuiltSkus(), null);
+      if (r.err) return r.err;
+      if (!sku && ((PTG.masters || {}).fabricSku || {})[fsManKey(r.rec.sku)]) return `${r.rec.sku} is already added — find it in the list and press Edit.`;
+      const err = await fsManualSave([r.rec]);
+      if (err) return err;
+      renderPmdb();
+      $('ptmMsg').className = 'muted'; $('ptmMsg').textContent = `${r.rec.sku} ${sku ? 'saved' : 'added to the fabric catalogue'}.`;
+      return '';
+    },
+    saveLabel: sku ? 'Save' : 'Add',
+  });
+}
+
+function fsManualTemplate() {
+  const head = FS_MAN_COLS.map(c => c[1]);
+  const bytes = recipeXlsx([head, ['CPCSF999-V-62', 'CPC', '999', '[colour]', 'Sheeting 62', 'Vertical', '', '', '']],
+    { name: 'Fabric SKUs', freeze: 1, cols: {}, list: { name: 'Direction', values: ['Vertical', 'Horizontal'], cols: [FS_MAN_COLS.findIndex(c => c[0] === 'dir')] } });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+  a.download = `fabric-skus-${dToday()}.xlsx`;
+  a.click(); URL.revokeObjectURL(a.href);
+  $('ptmMsg').className = 'muted';
+  $('ptmMsg').textContent = 'Fabric SKU sheet written — replace the example row with yours. A SKU already added by hand is updated; one the catalogue builds itself is refused.';
+}
+
+/** The sheet, read and checked. { add, upd, bad, rows } — nothing is written here. */
+function fsManualPlan(rows) {
+  let h = -1;
+  for (let i = 0; i < Math.min(15, (rows || []).length); i++) {
+    const low = (rows[i] || []).map(x => String(x == null ? '' : x).trim().toLowerCase());
+    if ((low.indexOf('sku') >= 0 || low.indexOf('fabric sku') >= 0) && (low.indexOf('fabric') >= 0 || low.indexOf('fabric type') >= 0)) { h = i; break; }
+  }
+  if (h < 0) return { err: 'No header row with SKU and Fabric — download the template and fill that.' };
+  const low = rows[h].map(x => String(x == null ? '' : x).trim().toLowerCase());
+  const ix = {};
+  FS_MAN_COLS.forEach(([k, , names]) => { ix[k] = -1; for (const n of names) { const i = low.indexOf(n); if (i >= 0) { ix[k] = i; break; } } });
+  const taken = fsBuiltSkus(), seen = new Set(), have = (PTG.masters || {}).fabricSku || {};
+  const add = [], upd = [], bad = [];
+  rows.slice(h + 1).forEach((r, i) => {
+    if (!(r || []).some(x => String(x == null ? '' : x).trim())) return;
+    const v = {}; FS_MAN_COLS.forEach(([k]) => { v[k] = ix[k] >= 0 ? String(r[ix[k]] == null ? '' : r[ix[k]]).trim() : ''; });
+    const c = fsManualCheck(v, taken, seen);
+    if (c.err) { bad.push('row ' + (h + 2 + i) + ': ' + c.err); return; }
+    seen.add(c.rec.sku);
+    (have[fsManKey(c.rec.sku)] ? upd : add).push(c.rec);
+  });
+  return { add, upd, bad };
+}
+
+async function fsManualFile(file) {
+  let rows;
+  try { rows = await pkReadFile(file); } catch (e) { $('ptmMsg').className = 'err'; $('ptmMsg').textContent = 'Could not read that file: ' + (e.message || e); return; }
+  const p = fsManualPlan(rows);
+  if (p.err) { $('ptmMsg').className = 'err'; $('ptmMsg').textContent = p.err; return; }
+  /* ALL OR NOTHING, as every other sheet here: one bad row and nothing is written, so fixing and uploading again
+   * cannot leave half the file in twice. */
+  ptOpenDialog({
+    title: 'Fabric SKUs from ' + file.name,
+    note: p.bad.length ? 'Fix these rows in the sheet and choose it again — nothing is written while any row is wrong.'
+      : 'Nothing is written until you press Save.',
+    html: `<div style="font-size:13px"><b>${nf(p.add.length)}</b> new · <b>${nf(p.upd.length)}</b> already added (updated)`
+      + (p.bad.length ? ` · <b style="color:var(--bad)">${nf(p.bad.length)} to fix</b>` : '') + '</div>'
+      + (p.bad.length ? '<div class="err" style="margin-top:8px;white-space:normal">' + p.bad.slice(0, 20).map(esc).join('<br>')
+        + (p.bad.length > 20 ? '<br>… and ' + nf(p.bad.length - 20) + ' more' : '') + '</div>' : ''),
+    onSave: async () => {
+      if (p.bad.length) return nf(p.bad.length) + ' row(s) need fixing — nothing has been saved.';
+      const err = await fsManualSave(p.add.concat(p.upd));
+      if (err) return err;
+      renderPmdb();
+      $('ptmMsg').className = 'muted';
+      $('ptmMsg').textContent = `${nf(p.add.length)} fabric SKU(s) added, ${nf(p.upd.length)} updated.`;
+      return '';
+    },
+    saveLabel: 'Save',
+  });
+}
+
 function voFabricOptions() {
   return [...voFabricCatalogue().values()].map(r =>
     `<option value="${esc(r.sku)}">${esc([r.brandName, r.colour, r.fabric, r.width ? r.dir : '', r.side || ''].filter(Boolean).join(' · '))}</option>`).join('');
