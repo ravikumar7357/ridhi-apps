@@ -1781,6 +1781,7 @@
           <button id="palSheet" class="ghost hide" title="Every design, with its group, whether it is still being made, and what the registers say about it. Fill in Group and Continue; the rest is worked out.">Design sheet</button>
           <button id="palImport" class="ghost hide" title="Read a filled design sheet back. You are shown what it would do before anything is written.">Design import</button>
           <input id="palFile" type="file" accept=".xlsx,.csv,text/csv" style="display:none">
+          <button id="palOff" class="ghost hide" title="Colours taken off this list because they are not being continued — bring any back from here">Removed colours</button>
           <button id="palClear" class="ghost hide" style="color:var(--bad)" title="Delete the groups, blocks or printers, to upload them again">Delete…</button>
           <button id="palRefresh" class="ghost">Refresh</button>
         </div>
@@ -37072,7 +37073,7 @@ const palLiveOf = key => ((PAL.groups || {}).live || {})[key] !== false;
 /* ---- emptying what was fed, to feed it again (Ravi, 2026-09-25) ---- */
 const PAL_CLEAR = [
   ['groups', 'Colour groups', () => Object.keys(((PAL.groups || {}).map) || {}).length],
-  ['live', 'Designs marked "stop"', () => Object.keys(((PAL.groups || {}).live) || {}).length],
+  ['live', 'Removed colours (they come back on the list)', () => Object.keys(((PAL.groups || {}).live) || {}).length],
   ['need', 'Blocks per design', () => Object.keys(((PAL.need || {}).map) || {}).length],
   ['have', 'Blocks each printer holds', () => Object.values(PAL.have || {}).reduce((t, m) => t + Object.keys(m || {}).length, 0)],
   ['printers', 'Printers and their capacity', () => (PAL.printers || []).length],
@@ -37081,10 +37082,10 @@ function palClearOpen() {
   if (!palCanEdit()) { $('palMsg').className = 'err'; $('palMsg').textContent = PAL_NO_EDIT; return; }
   ptOpenDialog({
     title: 'Delete printer allocation data',
-    note: 'Everything is ticked — untick what should stay. There is no backup and no undo. '
+    note: 'Everything but the removed colours is ticked — untick what should stay. There is no backup and no undo. '
       + 'The design rows themselves (ordered, to make, printing now) come from the order book and the master, so they stay.',
     fields: [
-      { key: 'what', label: 'Delete these', type: 'multi', value: PAL_CLEAR.map(c => c[0]), span: true,
+      { key: 'what', label: 'Delete these', type: 'multi', value: PAL_CLEAR.map(c => c[0]).filter(k => k !== 'live'), span: true,
         options: PAL_CLEAR.map(([k, l, n]) => [k, `${l} (${nf(n())})`]) },
     ],
     onSave: v => palClearRun(v.what || [], confirm('Delete the ticked printer allocation data? There is no backup and no undo.')),
@@ -37373,7 +37374,15 @@ function renderPal() {
   }
 
   const all = palDesigns();
-  const designs = all.filter(d => (!brand || d.brand === brand));
+  /* A COLOUR THAT IS NOT BEING CONTINUED LEAVES THE LIST (Ravi, 2026-09-25). It is only counted and shown under
+   * "Removed colours", where it can be brought back. */
+  const designs = all.filter(d => d.live && (!brand || d.brand === brand));
+  const removed = all.filter(d => !d.live && (!brand || d.brand === brand));
+  if (!removed.length) PAL.showOff = false;
+  if ($('palOff')) {
+    $('palOff').classList.toggle('hide', !removed.length && !PAL.showOff);
+    $('palOff').textContent = PAL.showOff ? '← Back to the list' : `Removed colours (${nf(removed.length)})`;
+  }
   const plan = palPlan(designs);
   const groups = palGroups(designs);
   const totMake = designs.reduce((s, d) => s + d.toMake, 0);
@@ -37404,10 +37413,24 @@ function renderPal() {
   /* Each view owns the footer; a sentence left over from another one would explain the wrong table. */
   if ($('palFoot')) { $('palFoot').innerHTML = ''; $('palFoot').classList.add('hide'); }
 
-  if (view === 'design') {
+  if (PAL.showOff) {
+    const rows = removed.filter(d => hit(d.color) || hit(d.group) || hit(d.brand));
+    PAL.shown = rows;
+    head = ['Brand', 'Removed colour', 'Group', 'SKUs', 'Ordered', 'Still open on orders', 'Sold 90d', ''];
+    body = rows.map(d => '<tr>'
+      + `<td>${esc(d.brand)}</td>`
+      + `<td style="text-align:left">${esc(d.color)}</td>`
+      + `<td style="text-align:left">${esc(d.group || '—')}</td>`
+      + `<td class="num">${nf(d.skus)}</td>`
+      + `<td class="num">${nf(Math.round(d.ordered))}</td>`
+      + `<td class="num">${d.open ? nf(Math.round(d.open)) : '—'}</td>`
+      + `<td class="num">${d.l90 ? nf(Math.round(d.l90)) : '—'}</td>`
+      + `<td>${canEdit ? `<button class="ghost" data-palon="${esc(d.key)}">Bring back</button>` : ''}</td>`
+      + '</tr>').join('');
+  } else if (view === 'design') {
     const rows = designs.filter(d => hit(d.color) || hit(d.group) || hit(d.brand));
     PAL.shown = rows;
-    head = ['Brand', 'Design', 'Group', 'SKUs', 'Ordered', 'To make', 'Share', 'Sold 90d', 'Blocks/design', 'Printing now'];
+    head = ['Brand', 'Design', 'Group', 'SKUs', 'Ordered', 'To make', 'Share', 'Sold 90d', 'Blocks/design', 'Printing now'].concat(canEdit ? [''] : []);
     body = rows.map(d => {
       const share = totMake > 0 ? (d.toMake / totMake) * 100 : 0;
       const s90 = tot90 > 0 ? (d.l90 / tot90) * 100 : 0;
@@ -37428,6 +37451,7 @@ function renderPal() {
         + `<td style="text-align:left;font-size:12px">${d.now.size
           ? [...d.now.entries()].sort((a, b) => b[1] - a[1]).map(([w, n]) => `${esc(w)} <span class="muted">${nf(Math.round(n))}</span>`).join('<br>')
           : '<span class="muted">nobody</span>'}</td>`
+        + (canEdit ? `<td><button class="ghost" data-paloff="${esc(d.key)}" title="Not continuing this colour — take it off the list. Its orders are not touched; bring it back from Removed colours." style="color:var(--bad);padding:2px 9px">×</button></td>` : '')
         + '</tr>';
     }).join('');
   } else if (view === 'group') {
@@ -37709,6 +37733,7 @@ $('palFile').onchange = async e => {
     });
   } catch (err) { $('palMsg').className = 'err'; $('palMsg').textContent = 'Could not read it: ' + (err.message || err); }
 };
+if ($('palOff')) $('palOff').onclick = () => { PAL.showOff = !PAL.showOff; renderPal(); };
 $('palRefresh').onclick = async () => { PAL.printers = null; await ensurePal(); };
 
 /** One place saves what is typed into a table, whichever table it is. */
@@ -37734,7 +37759,19 @@ $('ptDlgBody').addEventListener('change', e => {
   const el = e.target.closest('[data-palneed],[data-palhave]');
   if (el) palCellSave(el);
 });
-$('palTable').addEventListener('click', e => {
+$('palTable').addEventListener('click', async e => {
+  const off = e.target.closest('[data-paloff],[data-palon]');
+  if (off) {
+    const key = off.getAttribute('data-paloff') || off.getAttribute('data-palon');
+    const on = off.hasAttribute('data-palon');
+    const d = palDesigns().find(x => x.key === key);
+    off.disabled = true;
+    const why = await palSetLive(key, on);
+    renderPal();
+    $('palMsg').className = why ? 'err' : 'muted';
+    $('palMsg').textContent = why || `${d ? d.brand + ' ' + d.color : key} ${on ? 'is back on the list' : 'removed — it is under Removed colours if it is ever needed again'}.`;
+    return;
+  }
   const ed = e.target.closest('[data-paledit]');
   if (ed) return palPrinterOpen(ed.getAttribute('data-paledit'));
   const bl = e.target.closest('[data-palblk]');

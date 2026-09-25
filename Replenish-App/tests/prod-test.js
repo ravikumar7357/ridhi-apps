@@ -88,7 +88,7 @@ const IDS = ('ptmBrand ptmArt ptmSub ptmCol ptmSz ptmCut ptmQ ptmBrandFs ptmDir 
   + 'fgmOrdSrc fgmOrdLbl fgmExtFrom fgmExtFromWrap fgmExtFromList fgmExtQty fgmExtQtyWrap fgmExtNew fgmExtNewWrap '
   + 'fgmFbaAcct fgmReasonLbl fgmHandList demTotAssign demTotClear demTotAll '
   + 'fgScan fgsType fgsDate fgsPer fgsOrdWrap fgsOrdSrc fgsOrdLbl fgsOrd fgsOrdList fgsExtWrap fgsExtFrom '
-  + 'fgsOutWrap fgsWhoWrap fgsWhoLbl fgsWho fgsAcctWrap fgsAcct fgsHandWrap fgsHand fgsCode fgsMsg fgsTable fgsFn fgsAuto fgsMode palView palWeeks palBrand palQ palPrinterAdd palExport palRefresh palSheet palImport palFile palMsg palKpis palTable palFoot palGroupList palBlkTable '
+  + 'fgsOutWrap fgsWhoWrap fgsWhoLbl fgsWho fgsAcctWrap fgsAcct fgsHandWrap fgsHand fgsCode fgsMsg fgsTable fgsFn fgsAuto fgsMode palView palWeeks palBrand palQ palPrinterAdd palExport palRefresh palSheet palImport palClear palOff palFile palMsg palKpis palTable palFoot palGroupList palBlkTable '
   + 'fnPaste fnUp fnFile fnPull fnMsg '
   + 'ptf_from ptf_to ptf_vlq ptf_vlr ptf_vln ptf_vlroom ptf_txnType ptf_itemCode ptf_qty ptf_date ptf_issuedTo ptf_ref ptf_remarks').split(' ');
 IDS.forEach(i => { const e = mkEl(i); e.classList._el = e; els[i] = e; });
@@ -13750,6 +13750,20 @@ console.log('\n== printer allocation by colour ==');
        (await A.palSetLive(d0.key, true)) === '' && A.palLiveOf(d0.key) === true
        && A.palGroupOf(d0.brand, d0.color) === 'Another Group',
        A.palGroupOf(d0.brand, d0.color));
+    /* ---- A COLOUR NOT BEING CONTINUED LEAVES THE LIST (Ravi, 2026-09-25: "jo color aage continue nahi krne unko yaha se remove") ---- */
+    els.palView.value = 'design'; els.palBrand.value = ''; els.palQ.value = ''; A.PAL().showOff = false;
+    A.renderPal();
+    const offRe = { test: h => h.includes('data-paloff="' + d0.key + '"') };
+    ok('each design row has a remove button', offRe.test(els.palTable.innerHTML));
+    const whyOff = await A.palSetLive(d0.key, false);
+    A.renderPal();
+    ok('…a removed colour is off the list', !offRe.test(els.palTable.innerHTML) && !els.palTable.innerHTML.includes('data-palgrp="' + d0.key + '"'), whyOff + ' live=' + A.palLiveOf(d0.key));
+    ok('…and the Removed colours button counts it', /Removed colours \(1\)/.test(els.palOff.textContent) && !els.palOff.classList.contains('hide'), els.palOff.textContent);
+    A.PAL().showOff = true; A.renderPal();
+    ok('…where it can be brought back', els.palTable.innerHTML.includes('data-palon="' + d0.key + '"') && els.palOff.textContent.includes('Back to the list'));
+    await A.palSetLive(d0.key, true); A.PAL().showOff = false; A.renderPal();
+    ok('…and brought back it is on the list again', offRe.test(els.palTable.innerHTML) && els.palOff.classList.contains('hide'));
+
     await A.palSetGroup(d0.key, '');
     await A.palSetLive(d0.key, true);
     NET.on = wasNetP; NET.store = wasStoreP; NET.calls.length = 0;
