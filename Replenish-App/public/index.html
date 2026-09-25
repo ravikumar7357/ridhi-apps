@@ -9786,6 +9786,7 @@ function renderPmdb() {
       <div class="metric"><div class="v">${nf(cnt(r => r.cuttingRequired))}</div><div class="l">Cutting required</div></div>
       <div class="metric"><div class="v">${nf(cnt(r => r.isZip))}</div><div class="l">With zip</div></div>
       <div class="metric"><div class="v">${nf(cnt(r => r.isRuffle))}</div><div class="l">Ruffle</div></div>
+      ${(n => n ? `<div class="metric" title="Ruffle SKUs whose metres are neither on the SKU nor in its recipe — fill Ruffle metres and fabric in the Recipe for that article · subtype · size"><div class="v" style="color:var(--bad)">${nf(n)}</div><div class="l">Ruffle, no metres</div></div>` : '')(cnt(r => r.isRuffle && !ptRuffleOf(r)))}
       <div class="metric"><div class="v">${nf(cnt(r => r.fillerFabricRequired))}</div><div class="l">Needs filler</div></div>
     </div></div>`;
 
@@ -9802,7 +9803,8 @@ function renderPmdb() {
     if (!r.isRuffle) return '<span class="muted">—</span>';
     const u = ptRuffleOf(r);
     const txt = u ? mdbM2Txt(u.meters) + 'm · ' + esc(u.fabric) + (u.from === 'sku' ? '' : ' <span title="Not typed on this SKU — taken from its ' + u.from + '">(' + u.from + ')</span>')
-      : (r.ruffleMeters == null ? '?' : esc(r.ruffleMeters)) + 'm' + (r.ruffleFabric ? ' · ' + esc(r.ruffleFabric) : '');
+      : '<span style="color:var(--bad)" title="Neither this SKU nor a recipe for ' + esc([r.articleType, r.subtype, r.size].filter(Boolean).join(' · '))
+        + ' gives ruffle metres and fabric. Fill them in Recipe.">' + (recipeOf(r) ? 'recipe has no ruffle' : 'no recipe') + '</span>';
     return '<span class="pill pill-ok">Yes</span><div class="muted" style="font-size:11px;margin-top:2px">' + txt + '</div>';
   };
   const body = rows.slice(0, PMDB_MAX).map(r => '<tr>'
@@ -10614,7 +10616,16 @@ $('ptmClear').onclick = () => { ['ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmS
 $('pbClear').onclick = () => { ['pbType', 'pbEmp', 'pbWho', 'pbArt', 'pbSub', 'pbCol', 'pbSz', 'pbStatus', 'pbQ', 'pbDBy', 'pbD1', 'pbD2'].forEach(id => $(id).value = ''); PT_BD_KPI = ''; renderPbase(); };
 $('pcClear').onclick = () => { ['pcArt', 'pcSub', 'pcCol', 'pcSz', 'pcOrd', 'pcWho', 'pcQ', 'pcD1', 'pcD2'].forEach(id => $(id).value = ''); renderPcut(); };
 
-$('ptmGo').onclick = () => ptLoad('mdb', 'pt_masterDB', renderPmdb);
+/* REFRESH READS THE RECIPES TOO (2026-09-25). Ruffle, zip and cloth figures fall back to the recipe; a recipe
+ * uploaded after this screen was opened (another tab, another person) was never seen until a full reload. */
+async function pmdbRefresh() {
+  try { const m = await ptGet('pt_masters'); if (m) { PTG.masters = m; RECIPE_IX = { src: null, map: null }; } } catch (e) { /* the SKUs still load */ }
+  await ptLoad('mdb', 'pt_masterDB', renderPmdb);
+  /* ONE ARRAY, TWO NAMES — as ensurePmdb keeps them. A refresh that set only PT.mdb left every other screen on
+   * the old rows, and without mdbYnFix the "yes" text rows read differently here than everywhere else. */
+  if (!PT.err.mdb && PT.mdb) { PT.mdb = PT.mdb.map(mdbYnFix); PTG.mdb = PT.mdb; renderPmdb(); }
+}
+$('ptmGo').onclick = () => pmdbRefresh();
 $('pbGo').onclick = () => ptLoad('base', 'pt_baseData', renderPbase);
 $('pcGo').onclick = () => ptLoad('cut', 'pt_cuttingData', renderPcut);
 
