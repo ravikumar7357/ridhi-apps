@@ -18032,16 +18032,19 @@ function spOpen(orderNo, sku) {
 }
 
 $('odTable').addEventListener('click', e => {
+  const rm = e.target && e.target.closest ? e.target.closest('[data-demrm]') : null;
+  if (rm) {
+    const k = rm.getAttribute('data-demrm');
+    Object.keys(ORD.demBasket || {}).forEach(c => { ORD.demBasket[c] = (ORD.demBasket[c] || []).filter(x => x.key !== k); });
+    return renderOrd();
+  }
   const b = e.target && e.target.closest ? e.target.closest('[data-demrun]') : null;
   if (!b) return;
   const key = b.getAttribute('data-demrun'), pk = (ORD.demPick || {})[key] || {};
-  /* A printer picked on the row: give it straight away. None: the full form, as before. */
+  /* A printer picked on the row: add to that printer's order. None: the full form, as before. */
   if (!pk.prn) return demRunGive(key);
-  b.disabled = true;
-  demRunQuick(key, pk.prn, pk.dir != null ? pk.dir : ((b.parentNode.querySelector('[data-demdir]') || {}).value || '')).then(err => {
-    b.disabled = false;
-    if (err) { $('odMsg').className = 'err'; $('odMsg').textContent = err; }
-  });
+  const err = demBasketAdd(key, pk.prn, pk.dir != null ? pk.dir : ((b.parentNode.querySelector('[data-demdir]') || {}).value || ''));
+  if (err) { $('odMsg').className = 'err'; $('odMsg').textContent = err; }
 });
 $('odTable').addEventListener('change', e => {
   /* The printer and direction picked on a totals row, kept until Give. */
@@ -18954,9 +18957,25 @@ function renderOrdDemandCol() {
  * much is still to give. The same rows as "by colour & product" (ordDemandColRows), with the products
  * folded away — so the two views can never disagree, and the same filters narrow both.
  */
+/** The orders being built on the totals view, one per printer, each with its Place order. */
+function demBasketBar() {
+  const bar = $('odPickBar'); if (!bar) return;
+  const B = ORD.demBasket || {};
+  const codes = Object.keys(B).filter(c => (B[c] || []).length);
+  bar.classList.toggle('hide', !codes.length);
+  bar.innerHTML = codes.map(c => {
+    const ls = B[c], m = ls.reduce((t, x) => t + x.m, 0);
+    return '<span style="display:inline-flex;align-items:center;gap:8px;padding:4px 6px 4px 12px;border-radius:12px;background:var(--brand-bg)">'
+      + '<b>' + esc(voName(c)) + '</b><span class="muted" style="font-size:12.5px">' + nf(ls.length) + ' line(s) · ' + nf(m) + ' m</span>'
+      + '<button class="jw-btn jw-primary" data-demplace="' + esc(c) + '">Place order</button>'
+      + '<button class="jw-btn" data-demclr="' + esc(c) + '" aria-label="Empty this order">Clear</button></span>';
+  }).join(' ');
+  if (bar.querySelectorAll) bar.querySelectorAll('[data-demplace]').forEach(b => { b.onclick = () => demBasketPlace(b.getAttribute('data-demplace')); });
+  if (bar.querySelectorAll) bar.querySelectorAll('[data-demclr]').forEach(b => { b.onclick = () => { delete ORD.demBasket[b.getAttribute('data-demclr')]; renderOrd(); }; });
+}
+
 function renderOrdDemandTot() {
   ordDemandLoad();
-  if ($('odPickBar')) { $('odPickBar').classList.add('hide'); $('odPickBar').innerHTML = ''; }
   const d = ordDemandColRows();
   const rows = d.cols.slice().sort((a, b) => String(a.fabric).localeCompare(String(b.fabric), undefined, { numeric: true })
     || String(a.colour).localeCompare(String(b.colour)));
@@ -18979,6 +18998,8 @@ function renderOrdDemandTot() {
    * this colour is already printed on, where an open order says one; otherwise it waits to be chosen. */
   const printers = voAllVendors().filter(v => /print/i.test(String(v.category || '')));
   ORD.demPick = ORD.demPick || {};
+  ORD.demBasket = ORD.demBasket || {};
+  const inBasket = k => Object.keys(ORD.demBasket).find(c => (ORD.demBasket[c] || []).some(x => x.key === k)) || '';
   const dirOf = r => { const p = ORD.demPick[r.key] || {}; if (p.dir != null) return p.dir;
     const h = voRunningOpenOf(r.colour, r.fabric).find(x => x.dir); return h ? h.dir : ''; };
   const runWith = r => {
@@ -19002,14 +19023,18 @@ function renderOrdDemandTot() {
             + '<option value="">— printer —</option>' + printers.map(v => '<option value="' + esc(v.code) + '"' + (v.code === (ORD.demPick[r.key] || {}).prn ? ' selected' : '') + '>' + esc(v.desc || v.name || v.code) + '</option>').join('') + '</select>'
             + '<select data-demdir="' + esc(r.key) + '" aria-label="Print direction" style="width:118px;padding:6px 8px;font-size:12.5px">'
             + ['', 'Vertical', 'Horizontal'].map(d => '<option value="' + d + '"' + (d === dirOf(r) ? ' selected' : '') + '>' + (d || '— direction —') + '</option>').join('') + '</select>'
-            + '<button class="jw-btn jw-primary" data-demrun="' + esc(r.key) + '" title="Give the ' + nf(giveM(r)) + ' m still to give to the printer chosen — or, with none chosen, open the full vendor order form">'
-            + (vrqCanApprove() ? 'Give ' : 'Request ') + nf(giveM(r)) + ' m</button></div>'
+            + (inBasket(r.key)
+              ? '<button class="jw-btn" data-demrm="' + esc(r.key) + '" title="In the order for ' + esc(voName(inBasket(r.key))) + ' — press to take it out">✓ ' + esc(voName(inBasket(r.key))) + ' · remove</button>'
+              : '<button class="jw-btn jw-primary" data-demrun="' + esc(r.key) + '" title="Add the ' + nf(giveM(r)) + ' m still to give to the order for the printer chosen — or, with none chosen, open the full vendor order form">'
+                + 'Add ' + nf(giveM(r)) + ' m</button>') + '</div>'
           : dash) + '</td>' : '') + '</tr>').join('')
     : '<tr><td colspan="' + (canOrder ? 8 : 7) + '" class="muted" style="padding:16px">Nothing on the open book needs printing.</td></tr>')
     + '</tbody>';
+  demBasketBar();
   const say = [];
   if (ORD_DEM.busy) say.push('reading the vendor orders…');
   if (d.unknownPcs) say.push(nf(d.unknownPcs) + ' piece(s) have no fabric or consumption and are not counted');
+  if (ORD.demSaid) { $('odMsg').className = 'muted'; $('odMsg').textContent = ORD.demSaid; ORD.demSaid = ''; return; }
   $('odMsg').className = 'muted';
   $('odMsg').textContent = nf(rows.length) + ' fabric · colour(s) · ' + nf(d.pcs) + ' piece(s) to make'
     + (d.narrowed ? ' · filtered: "With printers" is these orders\' share of what the printers hold, oldest order first' : '')
@@ -19017,41 +19042,74 @@ function renderOrdDemandTot() {
 }
 
 /**
- * Give straight to the printer picked on the row (Ravi, 2026-09-25): one running line — fabric, colour, direction,
- * the metres still to give — placed through voPlace, the form's own save. A request where the person may not place.
+ * Add a row's cloth to the order being built for the printer picked (Ravi, 2026-09-25: one order, not one per row).
+ * Nothing is written here; Place order on the bar writes the whole order.
  */
-async function demRunQuick(key, code, dir) {
+function demBasketAdd(key, code, dir) {
   const r = (ORD.demRows || new Map()).get(key);
   if (!r) return '';
   const m = Math.round(r.give || 0);
   if (m < 1) return 'Nothing is left to give for this colour.';
   if (!dir) return `Pick the print direction for ${r.fabric} · ${r.colour} first.`;
-  const v = voMasterRow(code);
-  if (!v) return 'That printer is not in the vendor master.';
-  const name = v.desc || v.name || code;
-  const may = vrqCanApprove();
-  if (!confirm(`${may ? 'Give' : 'Request'} ${nf(m)} m of ${r.fabric} · ${r.colour} · ${dir} to ${name}?\n\n`
-    + `Needed ${nf(Math.round(r.need))} m, ${nf(Math.round(r.atM || 0))} m already with printers.`
-    + (may ? '' : '\n\nThis goes to an approver first.'))) return '';
-  if (VO.rows === null) await ensureVo();
-  const lo = x => String(x || '').trim().toLowerCase();
-  /* The fabric SKU, where exactly one line of the catalogue is this cloth. */
-  const fsHits = [...voFabricCatalogue().values()].filter(x => lo(x.fabric) === lo(r.fabric) && lo(x.colour) === lo(r.colour) && lo(x.dir) === lo(dir));
-  const fr = fsHits.length === 1 ? fsHits[0] : null;
-  VOF = { kind: 'running', service: 'Block print', mode: may ? 'place' : 'request',
-    dupOk: { [lo(r.colour) + '|' + lo(r.fabric) + '|']: true },
-    lines: [Object.assign({ lineId: 'ln_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6), kind: 'running',
-      fabricType: r.fabric, color: r.colour, printDirection: dir, meters: m, deliveryDate: '', priority: '',
-      notes: 'Order Console: needs ' + nf(Math.round(r.need)) + ' m, ' + nf(Math.round(r.atM || 0)) + ' m already with printers', dispatchedQty: 0 },
-      fr ? { sku: fr.sku, img: fr.imageUrl || '', brand: fr.brandName || '' } : {})] };
-  const err = await voPlace({ code, notes: '', why: may ? '' : 'Order Console demand — ' + nf(m) + ' m still to give' });
-  if (err) return err;
-  ORD.demPick[key] = {};
+  if (!voMasterRow(code)) return 'That printer is not in the vendor master.';
+  ORD.demBasket = ORD.demBasket || {};
+  Object.keys(ORD.demBasket).forEach(c => { ORD.demBasket[c] = (ORD.demBasket[c] || []).filter(x => x.key !== key); });
+  (ORD.demBasket[code] = ORD.demBasket[code] || []).push({ key, fabric: r.fabric, colour: r.colour, dir, m,
+    need: Math.round(r.need || 0), atM: Math.round(r.atM || 0) });
+  ORD.demSaid = `${nf(m)} m of ${r.fabric} · ${r.colour} · ${dir} added to the order for ${voName(code)} — Place order on the bar above when it has everything.`;
   renderOrd();
-  $('odMsg').className = 'muted';
-  $('odMsg').textContent = may ? `${nf(m)} m of ${r.fabric} · ${r.colour} · ${dir} given to ${name} — ${($('voMsg') || {}).textContent || 'placed'}.`
-    : `Request for ${nf(m)} m of ${r.fabric} · ${r.colour} · ${dir} to ${name} sent for approval.`;
   return '';
+}
+
+/**
+ * Place the order built for one printer: every line in it, with the delivery date and priority asked for once.
+ * Written by voPlace, the form's own save — a request for anyone who may not place.
+ */
+function demBasketPlace(code) {
+  const ls = ((ORD.demBasket || {})[code] || []).slice();
+  if (!ls.length) return;
+  const name = voName(code), may = vrqCanApprove(), m = ls.reduce((t, x) => t + x.m, 0);
+  ptOpenDialog({
+    title: (may ? 'Order to ' : 'Request an order to ') + name,
+    subtitle: nf(ls.length) + ' running line(s) · ' + nf(m) + ' m' + (may ? '' : ' · goes to an approver first'),
+    html: '<table class="xl" style="font-size:12.5px;margin-bottom:12px"><thead><tr><th style="text-align:left">Fabric · colour</th><th>Direction</th>'
+      + '<th class="num">Metres</th><th class="num">Needed</th><th class="num">With printers</th></tr></thead><tbody>'
+      + ls.map(x => '<tr><td style="text-align:left"><b>' + esc(x.fabric) + '</b> · ' + esc(x.colour) + '</td><td>' + esc(x.dir) + '</td>'
+        + '<td class="num" style="font-weight:800">' + nf(x.m) + '</td><td class="num">' + nf(x.need) + '</td><td class="num">' + nf(x.atM) + '</td></tr>').join('')
+      + '</tbody></table>',
+    fields: [
+      { key: 'deliv', label: 'Delivery date *', type: 'date', value: (ORD.demLast || {}).deliv || '' },
+      { key: 'pri', label: 'Priority *', type: 'select', value: (ORD.demLast || {}).pri || '', options: [['', '— pick —'], ['P1', 'P1'], ['P2', 'P2'], ['P3', 'P3'], ['P4', 'P4']] },
+      { key: 'notes', label: 'Notes for the printer', value: '', span: true },
+    ],
+    onSave: async v => {
+      if (!v.deliv) return 'Put in the delivery date.';
+      if (!/^P[1-4]$/.test(v.pri || '')) return 'Pick the priority.';
+      if (VO.rows === null) await ensureVo();
+      const lo = x => String(x || '').trim().toLowerCase();
+      const cat = [...voFabricCatalogue().values()];
+      VOF = { kind: 'running', service: 'Block print', mode: may ? 'place' : 'request',
+        dupOk: Object.fromEntries(ls.map(x => [lo(x.colour) + '|' + lo(x.fabric) + '|', true])),
+        lines: ls.map(x => {
+          /* The fabric SKU, where exactly one line of the catalogue is this cloth. */
+          const hits = cat.filter(c => lo(c.fabric) === lo(x.fabric) && lo(c.colour) === lo(x.colour) && lo(c.dir) === lo(x.dir));
+          const fr = hits.length === 1 ? hits[0] : null;
+          return Object.assign({ lineId: 'ln_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6), kind: 'running',
+            fabricType: x.fabric, color: x.colour, printDirection: x.dir, meters: x.m, deliveryDate: v.deliv, priority: v.pri,
+            notes: 'Order Console: needs ' + nf(x.need) + ' m, ' + nf(x.atM) + ' m already with printers', dispatchedQty: 0 },
+            fr ? { sku: fr.sku, img: fr.imageUrl || '', brand: fr.brandName || '' } : {});
+        }) };
+      const err = await voPlace({ code, notes: v.notes || '', why: may ? '' : 'Order Console demand — ' + nf(m) + ' m still to give' });
+      if (err) return err;
+      ORD.demLast = { deliv: v.deliv, pri: v.pri };
+      delete ORD.demBasket[code];
+      ORD.demSaid = may ? `${($('voMsg') || {}).textContent || 'Order placed'} — ${nf(ls.length)} line(s), ${nf(m)} m, delivery ${v.deliv}, ${v.pri}.`
+        : `Request for ${nf(ls.length)} line(s), ${nf(m)} m to ${name} sent for approval.`;
+      renderOrd();
+      return '';
+    },
+    saveLabel: (may ? 'Place order · ' : 'Send for approval · ') + nf(ls.length) + ' line(s)',
+  });
 }
 
 /** "Give 285 m": the ordinary vendor order form, running, with this colour's cloth still to give filled in. */
