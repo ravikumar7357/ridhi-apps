@@ -13660,7 +13660,7 @@ console.log('\n== printer allocation by colour ==');
     ok('the sheet has a row for every design', sheet.length === A.palDesigns().length + 1,
        (sheet.length - 1) + ' vs ' + A.palDesigns().length);
     ok('…and the two columns that are his', A.PAL_SHEET_COLS.indexOf('Group') > 0
-       && A.PAL_SHEET_COLS.indexOf('Continue') > 0, A.PAL_SHEET_COLS.join(' | '));
+       && A.PAL_SHEET_COLS.indexOf('Continue (no = remove)') > 0, A.PAL_SHEET_COLS.join(' | '));
     /* WHAT THE REGISTERS SAY, there to decide WITH and read back for nothing. */
     ok('…and what is worked out beside them', ['SKUs', 'Ordered', 'Still to make', 'Sold 90d']
        .every(c => A.PAL_SHEET_COLS.indexOf(c) > 0), A.PAL_SHEET_COLS.join(' | '));
@@ -13672,6 +13672,14 @@ console.log('\n== printer allocation by colour ==');
        (x => x.entries && x.entries.length === 1 && x.entries[0].design === d0.color)(
          A.palSheetRead([['Design', 'Brand', 'Continue', 'Group'], [d0.color, d0.brand, 'no', 'G1']])),
        JSON.stringify(A.palSheetRead([['Design', 'Brand', 'Continue', 'Group'], [d0.color, d0.brand, 'no', 'G1']])));
+    /* Ravi, 2026-09-25: "ye remove wala option excel me bhi jod do". */
+    ok('the sheet header "Continue (no = remove)" is read', (x => x.entries && x.entries[0].cont === 'no' && x.entries[0].hasC)(
+         A.palSheetRead([['Brand', 'Design', 'Continue (no = remove)'], [d0.brand, d0.color, 'no']])));
+    ok('…and a Remove column works the other way round: yes = remove, no = keep',
+       (x => x.entries[0].cont === 'no' && x.entries[1].cont === 'yes' && x.entries[2].cont === '')(
+         A.palSheetRead([['Brand', 'Design', 'Remove'], [d0.brand, d0.color, 'Yes'], [d0.brand, 'x', 'no'], [d0.brand, 'y', '']])));
+    ok('…so a Remove sheet plans a removal', (p => p.set.length === 1 && p.set[0].field === 'live' && p.set[0].on === false)(
+         A.palSheetPlan(A.palSheetRead([['Brand', 'Design', 'Remove'], [d0.brand, d0.color, 'yes']]).entries)));
     ok('a file without Brand and Design is refused',
        /needs Brand and Design/.test(A.palSheetRead([['a', 'b'], ['1', '2']]).err),
        A.palSheetRead([['a', 'b'], ['1', '2']]).err);

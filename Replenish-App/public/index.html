@@ -1778,7 +1778,7 @@
           <input id="palQ" placeholder="Search design / group / printer" style="flex:1 1 160px;min-width:0">
           <button id="palPrinterAdd">+ Printer</button>
           <button id="palExport" class="ghost">Export</button>
-          <button id="palSheet" class="ghost hide" title="Every design, with its group, whether it is still being made, and what the registers say about it. Fill in Group and Continue; the rest is worked out.">Design sheet</button>
+          <button id="palSheet" class="ghost hide" title="Every design, with its group, whether it is still being made, and what the registers say about it. Fill in Group, and Continue — no takes the colour off the list; the rest is worked out.">Design sheet</button>
           <button id="palImport" class="ghost hide" title="Read a filled design sheet back. You are shown what it would do before anything is written.">Design import</button>
           <input id="palFile" type="file" accept=".xlsx,.csv,text/csv" style="display:none">
           <button id="palOff" class="ghost hide" title="Colours taken off this list because they are not being continued — bring any back from here">Removed colours</button>
@@ -37278,7 +37278,7 @@ function palBlocksOpen(key) {
  * Two columns are Ravi's: the group, and whether it is still being made. Every other column is
  * worked out from the registers and read back for nothing — it is there to decide WITH.
  */
-const PAL_SHEET_COLS = ['Brand', 'Design', 'Group', 'Continue',
+const PAL_SHEET_COLS = ['Brand', 'Design', 'Group', 'Continue (no = remove)',
   'SKUs', 'Ordered', 'Still to make', 'Sold 90d', 'Blocks/design', 'Printing now'];
 
 /** Every design there is, with what the registers say about it. */
@@ -37298,15 +37298,25 @@ function palSheetRead(rows) {
   const head = rows[0].map(h => String(h == null ? '' : h).trim().toLowerCase());
   const at = names => { for (const n of names) { const i = head.indexOf(n); if (i >= 0) return i; } return -1; };
   const iB = at(['brand']), iD = at(['design', 'colour', 'color']);
-  const iG = at(['group', 'colour group', 'color group']), iC = at(['continue', 'still making', 'active']);
+  const iG = at(['group', 'colour group', 'color group']);
+  /* "Continue (no = remove)" is the sheet's own header; a bare "Continue" from an older sheet still reads. A
+   * "Remove" column says the same thing the other way round: yes = take it off the list. */
+  let iC = at(['continue', 'still making', 'active']);
+  if (iC < 0) iC = head.findIndex(h => /^continue\b/.test(h));
+  const iR = iC >= 0 ? -1 : head.findIndex(h => /^remove\b/.test(h));
   if (iB < 0 || iD < 0) return { err: 'The file needs Brand and Design columns. Download the design sheet to see them.' };
-  if (iG < 0 && iC < 0) return { err: 'The file has neither a Group nor a Continue column, so there is nothing in it to read.' };
+  if (iG < 0 && iC < 0 && iR < 0) return { err: 'The file has no Group, Continue or Remove column, so there is nothing in it to read.' };
   const out = [];
   for (let i = 1; i < rows.length; i++) {
     const cell = j => (j >= 0 && rows[i][j] != null ? String(rows[i][j]).trim() : '');
     const brand = cell(iB), design = cell(iD);
     if (!brand && !design) continue;
-    out.push({ row: i + 1, brand, design, group: cell(iG), cont: cell(iC), hasG: iG >= 0, hasC: iC >= 0 });
+    let cont = cell(iC);
+    if (iR >= 0) {
+      const r = cell(iR);
+      cont = /^(y|yes|true|1|remove|removed)$/i.test(r) ? 'no' : /^(n|no|false|0|keep)$/i.test(r) ? 'yes' : r;
+    }
+    out.push({ row: i + 1, brand, design, group: cell(iG), cont, hasG: iG >= 0, hasC: iC >= 0 || iR >= 0 });
   }
   return { entries: out };
 }
@@ -37330,7 +37340,7 @@ function palSheetPlan(entries) {
     if (e.hasC && e.cont !== '') {
       const yes = /^(y|yes|true|1|continue|on)$/i.test(e.cont);
       const no = /^(n|no|false|0|stop|stopped|off)$/i.test(e.cont);
-      if (!yes && !no) { skip.push({ row: e.row, key, why: 'Continue has to be yes or no, not "' + e.cont + '".' }); return; }
+      if (!yes && !no) { skip.push({ row: e.row, key, why: 'Continue / Remove has to be yes or no, not "' + e.cont + '".' }); return; }
       if (yes !== d.live) set.push({ row: e.row, key, d, field: 'live', from: d.live ? 'yes' : 'no', to: yes ? 'yes' : 'no', on: yes });
     }
   });
@@ -37682,7 +37692,7 @@ $('palSheet').onclick = () => {
   }
   ptDownload('designs', rows.map(r => r.map(csvCell).join(',')));
   $('palMsg').className = 'muted';
-  $('palMsg').textContent = nf(rows.length - 1) + ' design(s) written. Fill in Group and Continue; '
+  $('palMsg').textContent = nf(rows.length - 1) + ' design(s) written. Fill in Group, and Continue (no = remove from the list); '
     + 'every other column is worked out from the registers and is read back for nothing.';
 };
 $('palImport').onclick = () => $('palFile').click();
@@ -37705,17 +37715,19 @@ $('palFile').onchange = async e => {
     }
     const gs = plan.set.filter(x => x.field === 'group'), ls = plan.set.filter(x => x.field === 'live');
     const show = list => list.slice(0, 12).map(x => esc(x.d.brand + ' · ' + x.d.color) + ': '
-      + (x.from === '' ? '<i>not set</i>' : esc(x.from)) + ' → <b>' + esc(x.to) + '</b>').join('<br>');
+      + (x.field === 'live' ? (x.on ? '<b>bring back</b>' : '<b style="color:var(--bad)">remove from the list</b>')
+        : (x.from === '' ? '<i>not set</i>' : esc(x.from)) + ' → <b>' + esc(x.to) + '</b>')).join('<br>');
+    const offN = ls.filter(x => !x.on).length, onN = ls.length - offN;
     ptOpenDialog({
       title: 'Write these decisions?',
-      subtitle: nf(gs.length) + ' group(s) · ' + nf(ls.length) + ' started or stopped',
-      /* WHAT STOPPING ONE DOES, said before it is done: the pieces stop being planned, the row stays. */
-      note: 'A design you stop keeps its row and its figures — its outstanding pieces simply stop counting '
-        + 'towards what has to be made, and stop being offered to a printer. Nothing is deleted. '
-        + 'Only Group and Continue are read; every other column on the sheet is worked out here.',
+      subtitle: nf(gs.length) + ' group(s) · ' + nf(offN) + ' removed · ' + nf(onN) + ' brought back',
+      /* WHAT REMOVING ONE DOES, said before it is done. */
+      note: 'A removed colour leaves this list and stops counting towards what has to be made; it waits under '
+        + 'Removed colours and can be brought back. Its orders are not touched. '
+        + 'Only Group and Continue (or Remove) are read; every other column on the sheet is worked out here.',
       html: '<div class="muted" style="font-size:12.5px;line-height:1.7">'
         + (gs.length ? '<b>Group</b><br>' + show(gs) + (gs.length > 12 ? '<br>…and ' + nf(gs.length - 12) + ' more.' : '') + '<br><br>' : '')
-        + (ls.length ? '<b>Continue</b><br>' + show(ls) + (ls.length > 12 ? '<br>…and ' + nf(ls.length - 12) + ' more.' : '') + '<br><br>' : '')
+        + (ls.length ? '<b>Removed / brought back</b><br>' + show(ls) + (ls.length > 12 ? '<br>…and ' + nf(ls.length - 12) + ' more.' : '') + '<br><br>' : '')
         + (plan.skip.length ? '<b style="color:var(--bad)">' + nf(plan.skip.length) + ' row(s) refused, and not written</b><br>'
           + plan.skip.slice(0, 10).map(x => 'row ' + x.row + ': ' + esc(x.why)).join('<br>')
           + (plan.skip.length > 10 ? '<br>…and ' + nf(plan.skip.length - 10) + ' more.' : '') : '')
