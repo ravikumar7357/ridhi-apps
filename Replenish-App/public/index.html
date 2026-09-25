@@ -37737,10 +37737,19 @@ function renderPal() {
   const brand = ($('palBrand') || {}).value || '';
   const q = obUC(($('palQ') || {}).value);
 
-  if ($('palBrand') && !$('palBrand').innerHTML) {
+  /* FILLED WHENEVER THE BRANDS CHANGE, not only the first time (Ravi, 2026-09-25: "brand not showing in filter").
+   * The first draw can come before the master database has loaded, and a list filled then held only "All brands"
+   * for the rest of the session. The pick survives a refill. */
+  if ($('palBrand')) {
     const brands = [...new Set((PTG.mdb || []).map(r => palBrandOf(r.brand)).filter(b => b && b !== '?'))].sort();
-    $('palBrand').innerHTML = '<option value="">All brands</option>'
-      + brands.map(b => `<option value="${esc(b)}">${esc(b)}</option>`).join('');
+    const sig = brands.join('|');
+    if (PAL.brandSig !== sig || !$('palBrand').innerHTML) {
+      const was = $('palBrand').value || '';
+      $('palBrand').innerHTML = '<option value="">All brands</option>'
+        + brands.map(b => `<option value="${esc(b)}">${esc(b)}</option>`).join('');
+      $('palBrand').value = brands.indexOf(was) >= 0 ? was : '';
+      PAL.brandSig = sig;
+    }
   }
 
   const all = palDesigns();

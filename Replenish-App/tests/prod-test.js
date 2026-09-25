@@ -13813,6 +13813,15 @@ console.log('\n== printer allocation by colour ==');
     }
 
     /* ---- A COLOUR NOT BEING CONTINUED LEAVES THE LIST (Ravi, 2026-09-25: "jo color aage continue nahi krne unko yaha se remove") ---- */
+    /* THE BRAND FILTER FILLS WHEN THE MASTER ARRIVES (Ravi, 2026-09-25: "brand not showing in filter"). */
+    {
+      const keepMdb = A.PTG().mdb;
+      els.palBrand.innerHTML = ''; els.palBrand.value = '';
+      A.setPTG(Object.assign(A.PTG(), { mdb: [] })); A.renderPal();
+      const early = els.palBrand.innerHTML;
+      A.setPTG(Object.assign(A.PTG(), { mdb: keepMdb })); A.renderPal();
+      ok('a brand list drawn before the master loaded is filled once it has', !/value="CPC"/.test(early) && /value="CPC"/.test(els.palBrand.innerHTML), els.palBrand.innerHTML.slice(0, 120));
+    }
     els.palView.value = 'design'; els.palBrand.value = ''; els.palQ.value = ''; A.PAL().showOff = false;
     A.renderPal();
     const offRe = { test: h => h.includes('data-paloff="' + d0.key + '"') };
