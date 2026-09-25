@@ -18048,7 +18048,8 @@ async function spAssignPicked(code) {
   ORD_IX = {};
   renderOrd();
   $('odMsg').className = left.length ? 'err' : 'muted';
-  $('odMsg').textContent = `${nf(done.length)} line(s) given to ${voName(want)}.`
+  $('odMsg').textContent = `${nf(done.length)} line(s) given to ${voName(want)}`
+    + (done.length ? ` — on their order ${spShopOrderNo(want)} in Vendor Orders (it sits at the top of the list).` : '.')
     + (same.length ? ` ${nf(same.length)} already had them.` : '')
     + (left.length ? ` ${nf(left.length)} not assigned — ${left.slice(0, 2).join(' · ')}`
       + (left.length > 2 ? ` and ${nf(left.length - 2)} more.` : '.') : '');
@@ -25710,6 +25711,20 @@ $('vlExport').onclick = () => {
   ptDownload('vendor-received-by-day', out);
 };
 
+/** A printer's standing order — the one Order Console assignments go on (VPO-SHOP-<code>). */
+const voIsStanding = o => /^vpo_shop_/.test(String((o && o.id) || ''));
+/**
+ * Where an order sits in the list: when it was raised — or, for a printer's standing order, when lines
+ * were last put on it. It is raised once and filled for weeks; sorted by its first day it sank below every
+ * order raised since, and a line assigned this morning looked as if it had gone nowhere.
+ */
+function voSortMs(o) {
+  const raised = ptDtMs(o && o.orderDate) || 0;
+  if (!voIsStanding(o)) return raised;
+  const t = Date.parse((o && o.staffUpdatedAt) || '');
+  return Math.max(raised, isFinite(t) ? t : 0);
+}
+
 function renderVo() {
   /* The same button, named for what it will do for this account. */
   if ($('voNew')) $('voNew').textContent = vrqCanApprove() ? '+ New vendor order' : '+ Request vendor order';
@@ -25741,7 +25756,7 @@ function renderVo() {
     .map(o => ({ o, s: voSummary(o) }))
     .filter(({ o }) => !q || [o.orderNo, o.id, o.vendorCode, voName(o.vendorCode), o.status].join(' ').toLowerCase().includes(q)
       || voLines(o).some(l => [l.sku, l.color, l.fabricType, l.articleSubtype].join(' ').toLowerCase().includes(q)))
-    .sort((a, b) => ptDtMs(b.o.orderDate) - ptDtMs(a.o.orderDate) || String(a.o.orderNo || '').localeCompare(String(b.o.orderNo || '')));
+    .sort((a, b) => voSortMs(b.o) - voSortMs(a.o) || String(a.o.orderNo || '').localeCompare(String(b.o.orderNo || '')));
   VO.shown = rows;
 
   const tot = run => rows.filter(({ o }) => voRunning(o) === run)
@@ -25791,7 +25806,7 @@ function renderVo() {
       + `<td style="text-align:left">${esc(o.orderNo || o.id)}</td>`
       + `<td>${esc(o.orderType || 'cut')}</td>`
       + `<td><span class="pill ${cls}">${esc(o.status || '—')}</span></td>`
-      + `<td>${esc(o.orderDate) || '<span class="muted">—</span>'}</td>`
+      + `<td>${esc(o.orderDate) || '<span class="muted">—</span>'}${voIsStanding(o) ? `<div><span class="pill" title="The printer's standing order: every line given to them from the Order Console goes on it">assigned lines</span>${o.staffUpdatedAt ? ` <span class="muted" style="font-size:11px">added ${esc(new Date(o.staffUpdatedAt).toLocaleDateString('en-GB'))}</span>` : ''}</div>` : ''}</td>`
       + `<td>${esc(o.lastDispatchDate || o.dispatchDate) || '<span class="muted">not yet</span>'}</td>`
       + `<td class="num">${nf(s.live)}${s.cancelled ? ` <span class="pill pill-out">${nf(s.cancelled)} cancelled</span>` : ''}</td>`
       + `<td class="num" style="font-weight:700">${nf(s.ordered)} ${u}</td>`
