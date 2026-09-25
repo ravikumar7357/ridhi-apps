@@ -18979,7 +18979,7 @@ async function demRunGive(key) {
   if ($('vof_lnotes')) $('vof_lnotes').value = 'Order Console: needs ' + nf(Math.round(r.need)) + ' m, '
     + nf(Math.round(r.atM || 0)) + ' m already with printers';
   /* The colour is on an open order by design — that is the cloth this figure already takes off. */
-  VOF.dupOk = Object.assign({}, VOF.dupOk || {}, { [String(r.colour || '').trim().toLowerCase()]: true });
+  VOF.dupOk = Object.assign({}, VOF.dupOk || {}, { [String(r.colour || '').trim().toLowerCase() + '|' + String(r.fabric || '').trim().toLowerCase() + '|']: true });
   if (okF && okC && typeof voFabricFromFields === 'function') voFabricFromFields();
   ptDlgMsg(`${r.fabric} · ${r.colour}: ${nf(m)} m still to give (${nf(Math.round(r.need))} needed − ${nf(Math.round(r.atM || 0))} m with printers). `
     + (okF && okC ? 'Pick the printer and the print direction, press "Add this line", then place the order.'
@@ -27681,7 +27681,14 @@ function voFabricFromFields() {
  * line in the same colour that still has metres to come. Found, the person is asked before the line
  * goes on — they may well mean it (a second fabric, a top-up), so it is a question, not a refusal.
  */
-function voRunningOpenOf(colour) {
+/** Same cloth: the fabric matches, and so does the print direction wherever both lines say one. */
+const voSameCloth = (l, fabric, dir) => {
+  const lo = v => String(v || '').trim().toLowerCase();
+  if (fabric != null && lo(fabric) && lo(l.fabricType) !== lo(fabric)) return false;
+  if (dir != null && lo(dir) && lo(l.printDirection) && lo(l.printDirection) !== lo(dir)) return false;
+  return true;
+};
+function voRunningOpenOf(colour, fabric, dir) {
   const k = String(colour || '').trim().toLowerCase();
   if (!k) return [];
   const out = [];
@@ -27689,6 +27696,8 @@ function voRunningOpenOf(colour) {
     if (!o || !voRunning(o) || ['Received', 'Cancelled'].indexOf(o.status || 'Placed') >= 0) return;
     voLines(o).forEach(l => {
       if (!l || l.cancelled || String(l.color || '').trim().toLowerCase() !== k) return;
+      /* THE SAME FABRIC SKU ONLY (Ravi, 2026-09-25): Apatite Blue on cambric is not Apatite Blue on sheeting 92. */
+      if (!voSameCloth(l, fabric, dir)) return;
       const qty = voQty(o, l), left = Math.max(0, qty - (parseFloat(voDone(l)) || 0));
       if (left > 0) out.push({ orderNo: o.orderNo || o.id, vendor: o.vendorName || voName(o.vendorCode) || o.vendorCode || '',
         fabric: l.fabricType || '', dir: l.printDirection || '', qty, left, date: o.orderDate || '' });
@@ -27703,16 +27712,24 @@ function voDupQuestion(colour, hits, draftHits) {
   if (draftHits) lines.push(`• already ${nf(draftHits)} line(s) of it in this order`);
   return `${colour} is already given for printing:\n\n${lines.join('\n')}\n\nGive it again?`;
 }
-/** Ask once per colour per order being built; true = go ahead. */
-function voDupAsk(colour, draftLines) {
-  const k = String(colour || '').trim().toLowerCase();
+/** The same question, naming the cloth it is about. */
+const voDupWhat = (colour, fabric, dir) => [colour, fabric, dir].map(x => String(x || '').trim()).filter(Boolean).join(' · ');
+/**
+ * Ask once per fabric SKU per order being built — colour, fabric and print direction; true = go ahead.
+ * A "go ahead" for a colour and fabric with no direction (the Give button, before one is picked) covers both ways.
+ */
+function voDupAsk(colour, draftLines, fabric, dir) {
+  const lo = v => String(v || '').trim().toLowerCase();
+  const k = lo(colour);
   VOF.dupOk = VOF.dupOk || {};
-  if (!k || VOF.dupOk[k]) return true;
-  const hits = voRunningOpenOf(colour);
-  const inDraft = (draftLines || []).filter(l => l && voKind(l) === 'running' && String(l.color || '').trim().toLowerCase() === k).length;
+  if (!k) return true;
+  const k3 = k + '|' + lo(fabric) + '|' + lo(dir), k2 = k + '|' + lo(fabric) + '|';
+  if (VOF.dupOk[k3] || VOF.dupOk[k2] || (!lo(fabric) && VOF.dupOk[k])) return true;
+  const hits = voRunningOpenOf(colour, fabric, dir);
+  const inDraft = (draftLines || []).filter(l => l && voKind(l) === 'running' && lo(l.color) === k && voSameCloth(l, fabric, dir)).length;
   if (!hits.length && !inDraft) return true;
-  if (!confirm(voDupQuestion(colour, hits, inDraft))) return false;
-  VOF.dupOk[k] = true;
+  if (!confirm(voDupQuestion(voDupWhat(colour, fabric, dir), hits, inDraft))) return false;
+  VOF.dupOk[k3] = true;
   return true;
 }
 
@@ -27739,7 +27756,7 @@ function voAddLine() {
       || (fr.width && fr.dir !== pd))) return say(`${fr.sku} is ${fr.colour} · ${fr.fabric}${fr.width ? ' · ' + fr.dir : ''}, but the line says ${col} · ${fab} · ${pd}. Pick the SKU again or clear it.`);
     if (qty <= 0) return say('Enter how many metres.');
     if (VOF.mode !== 'request' || VO.rows) {
-      if (!voDupAsk(col, VOF.lines)) return say(`Not added — ${col} is already given for printing on an open order.`);
+      if (!voDupAsk(col, VOF.lines, fab, pd)) return say(`Not added — ${voDupWhat(col, fab, pd)} is already given for printing on an open order.`);
     }
     VOF.lines.push(Object.assign({ lineId: id, kind: 'running', fabricType: fab, color: col, printDirection: pd,
       meters: qty, deliveryDate: deliv, priority, notes, dispatchedQty: 0 },
@@ -28208,8 +28225,13 @@ async function voPlace() {
   /* THE SAME COLOUR AGAIN — for lines that came in by upload, or were added before this check existed.
    * A colour already answered while adding lines is not asked about twice. */
   if (VOF.kind === 'running') {
-    const cols = [...new Set(VOF.lines.filter(l => voKind(l) === 'running').map(l => String(l.color || '').trim()).filter(Boolean))];
-    for (const c of cols) if (!voDupAsk(c, [])) return `Not placed — ${c} is already given for printing on an open order. Remove that line, or place again and answer OK.`;
+    const seenCloth = new Set();
+    for (const l of VOF.lines.filter(x => voKind(x) === 'running' && String(x.color || '').trim())) {
+      const id = [l.color, l.fabricType, l.printDirection].map(x => String(x || '').trim().toLowerCase()).join('|');
+      if (seenCloth.has(id)) continue; seenCloth.add(id);
+      if (!voDupAsk(l.color, [], l.fabricType, l.printDirection))
+        return `Not placed — ${voDupWhat(l.color, l.fabricType, l.printDirection)} is already given for printing on an open order. Remove that line, or place again and answer OK.`;
+    }
   }
 
   /* A REQUEST STOPS HERE — checked exactly as an order is, and stored where no vendor can read it. */

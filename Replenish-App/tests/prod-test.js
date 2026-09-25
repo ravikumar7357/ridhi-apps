@@ -19616,7 +19616,21 @@ console.log('\n== the same colour given for printing twice ==');
   els.vof_vendor.value = v || ''; els.vof_filler.value = ''; els.vof_notes.value = '';
   CONFIRM = false;
   let placed; try { placed = await A.voPlace(); } catch (e) { placed = 'THREW ' + (e.message || e); }
-  ok('placing an order with that colour asks first, and Cancel stops it', /Not placed — Indigo Blue is already given/.test(placed || ''), placed);
+  ok('placing an order with that colour asks first, and Cancel stops it', /Not placed — Indigo Blue · Sheeting 62 · Vertical is already given/.test(placed || ''), placed);
+
+  /* Ravi, 2026-09-25: "ye pop up yadi us sku me printing already diya hua ho tabhi pop up aay". The same colour on
+   * another cloth, or printed the other way, is a different fabric SKU — nothing is asked. */
+  A.setVOF({ kind: 'running', lines: [], service: 'Block print' });
+  const addAs = (fab, pd) => { els.vof_fab.value = fab; els.vof_col.value = 'Indigo Blue'; els.vof_pd.value = pd; els.vof_qty.value = '50';
+    els.vof_fsku.value = ''; els.vof_deliv.value = ''; els.vof_pri.value = ''; els.vof_lnotes.value = ''; A.voAddLine(); };
+  CONFIRM = false;
+  addAs('Cambric', 'Vertical');
+  ok('the same colour on cambric is not asked about — only sheeting 62 is on order', A.VOF().lines.length === 1, els.vof_info.textContent);
+  addAs('Sheeting 62', 'Horizontal');
+  ok('…nor sheeting 62 printed the other way', A.VOF().lines.length === 2, els.vof_info.textContent);
+  addAs('Sheeting 62', 'Vertical');
+  ok('…but the same fabric SKU — Sheeting 62 · Vertical — is, and Cancel keeps it off', A.VOF().lines.length === 2 && /Indigo Blue · Sheeting 62 · Vertical/.test(els.vof_info.textContent), els.vof_info.textContent);
+  ok('the question names the cloth as well as the colour', A.voRunningOpenOf('Indigo Blue', 'Cambric', 'Vertical').length === 0 && A.voRunningOpenOf('Indigo Blue', 'Sheeting 62', 'Vertical').length === 1);
 
   CONFIRM = wasC; A.setVO(wasVO); A.setVOF(wasVOF);
 }
@@ -20034,7 +20048,7 @@ console.log('\n== printing cloth by colour and product ==');
     await A.demRunGive('SHEETING 62|YELLOW CITRINE');
     ok('"Give" opens the ordinary vendor order form, as running, with only what is still to give',
        A.VOF().kind === 'running' && els.vof_qty.value === String(want) && /still to give/.test(els.ptDlgMsg.textContent), els.vof_qty.value + ' · ' + els.ptDlgMsg.textContent);
-    ok('…with the colour already on an open order taken as known, not asked again', A.VOF().dupOk && A.VOF().dupOk['yellow citrine'] === true);
+    ok('…with that colour on that fabric already on an open order taken as known, not asked again', A.VOF().dupOk && A.VOF().dupOk['yellow citrine|sheeting 62|'] === true, JSON.stringify(A.VOF().dupOk));
 
     /* Ravi, 2026-09-25: with Ordered 13–19 Sep the need was that week's, but "with printers" was everything the
      * printers hold — 300 m against 18 m. Narrowed, the printers' cloth is shared out oldest order first. */
