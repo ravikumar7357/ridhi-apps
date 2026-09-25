@@ -20081,6 +20081,11 @@ console.log('\n== the Production menu is a mega menu ==');
      badges.length + ': ' + badges.filter(b => !/data-what=/.test(b)).join(' | '));
   /* Ravi, 2026-09-25: "26 not amazon, 3 to approve, 11 over order ye listing ke andar aana chahiye". */
   ok('the three Finished Goods counts are not in the menu', !/fgiLstBadge|fgiCorrBadge|fgiOverBadge/.test(sec));
+  /* Ravi, 2026-09-25: on a store account's phone the menu bar was gone, with nothing to bring it back. */
+  ok('the menu bar is never shut: not by a remembered "closed", not by a narrow screen',
+     /localStorage\.removeItem\('replNavShut'\); \} catch \(e\) \{\}\s*setNavOpen\(true, false\);/.test(src) && !/getItem\('replNavShut'\)/.test(src)
+     && !/if \(NARROW\(\)\) setNavOpen\(false/.test(src) && !/\.shell\.navshut \.side\{display:none\}/.test(src)
+     && !/\.side\{position:fixed;top:0;left:0;bottom:0/.test(src));
   {
     const fg = src.slice(src.indexOf('<div id="fgAlerts"'), src.indexOf('<div id="fgMsg"'));
     ok('…they are on the Finished Goods screen, each a button that opens its list',

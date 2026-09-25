@@ -165,7 +165,7 @@
     justify-content:center;background:var(--card);color:var(--ink);border:0;box-shadow:var(--sh-1);
     border-radius:var(--r-ctl)}
   .hamb:hover{background:var(--hover)}
-  .shell.navshut .side{display:none}
+  /* The bar across the top is never hidden (2026-09-25) — nothing on screen could bring it back. */
   /* The scrim only ever covers the narrow-screen drawer; tapping it closes the menu. */
   #navScrim{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:55}
   .main{flex:1;min-width:0;padding:20px 22px}
@@ -837,15 +837,10 @@
   .st-cancelled{background:#fee2e2;color:#991b1b}
   .login{max-width:420px;margin:9vh auto;padding:0 16px}
   @media(max-width:860px){
+    /* THE SAME BAR ACROSS THE TOP, wrapping, on a narrow screen too (2026-09-25). This used to become an
+       off-canvas drawer opened by a hamburger that the top-bar design hides — so on a narrow screen the
+       menu shut and could not be opened again. */
     .shell{flex-direction:column}
-    /* An off-canvas drawer, not a wrapped row of chips — six tabs in two groups no longer fit
-       across the top, and the drawer is what the hamburger is for. */
-    .side{position:fixed;top:0;left:0;bottom:0;z-index:60;flex:none;width:272px;height:100vh;
-      overflow-y:auto;box-shadow:0 10px 30px rgba(0,0,0,.22)}
-    .shell:not(.navshut) #navScrim{display:block}
-    .brand,.navgrp{display:none}
-    /* No headings on a phone, so no folding either: every screen stays in the drawer. */
-    .navsec:not(.hide){display:block}
     .nav{width:auto}
     .sidefoot{margin-top:0;padding-top:0;border-top:0;margin-left:auto;display:flex;gap:4px}
     .main{padding:14px}
@@ -3572,9 +3567,11 @@ $('hambBtn').onclick = () => setNavOpen($('appView').classList.contains('navshut
 $('navClose').onclick = () => setNavOpen(false);
 $('navScrim').onclick = () => setNavOpen(false);
 (() => {
-  let shut = null;
-  try { shut = localStorage.getItem('replNavShut'); } catch (e) {}
-  setNavOpen(NARROW() ? false : shut !== '1', false);
+  /* ALWAYS OPEN (Ravi, 2026-09-25). The menu is the bar across the top and nothing on screen can bring it
+   * back once shut, so it is never shut: not by a "closed" remembered from the old sidebar — which is what
+   * hid it on a store account's phone — and not by a narrow screen. The stale memory is cleared. */
+  try { localStorage.removeItem('replNavShut'); } catch (e) {}
+  setNavOpen(true, false);
 })();
 
 /**
@@ -3739,9 +3736,7 @@ function showTab(which) {
   topbarSync();
   /* The screen's name where a name belongs when it is not on the page: the browser tab. */
   try { document.title = ($('pageTitle').textContent || '') + ($('pageTitle').textContent ? ' · ' : '') + 'Ridhi Home & Living'; } catch (e) { /* nothing depends on it */ }
-  // On a phone the drawer covers the page, so picking a tab has to close it — otherwise the thing
-  // you just asked for is behind the menu you asked for it with.
-  if (NARROW()) setNavOpen(false, false);
+  /* There is no drawer to close any more: the menu is the bar across the top, on every width. */
   if (which === 'article') renderArticle();
   if (which === 'target') ensureTarget();
   if (which === 'follow') ensureFollow();
