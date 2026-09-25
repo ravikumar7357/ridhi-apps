@@ -1722,6 +1722,7 @@
           <button id="fgScan">Scan in / out</button>
           <button id="fgEntry">+ Stock entry</button>
           <button id="fgRecvXl" class="ghost" title="Receive many at once from a sheet — every row is checked exactly as the Stock entry form checks it">Receive from Excel</button>
+          <button id="fgIssXl" class="ghost" title="Issue many at once from a sheet — every row is checked exactly as the Stock entry form checks an issue">Issue from Excel</button>
           <button id="fgOpening" class="ghost">Opening stock</button>
           <button id="fgExport" class="ghost">Export</button>
           <button id="fgLstRefresh" class="ghost hide" title="Ask Amazon for every listing of both brands — takes several minutes">Refresh Amazon listings</button>
@@ -30174,7 +30175,7 @@ function renderFgi() {
   $('fgZeroWrap').classList.toggle('hide', view !== 'stock');
   $('fgEntry').classList.toggle('hide', !fgiCanEntry());
   ['fgiLstBadge', 'fgiCorrBadge', 'fgiOverBadge'].forEach(id => { const b = $(id); if (b && b.dataset) b.classList.toggle('on', b.dataset.fgview === $('fgView').value); });
-  if ($('fgRecvXl')) $('fgRecvXl').classList.toggle('hide', !fgiCanEntry());
+  ['fgRecvXl', 'fgIssXl'].forEach(id => { if ($(id)) $(id).classList.toggle('hide', !fgiCanEntry()); });
   $('fgScan').classList.toggle('hide', !fgiCanEntry());
   $('fgOpening').classList.toggle('hide', !fgiCanEdit());
   fgiPickCount();
@@ -30649,6 +30650,7 @@ $('fgTable').addEventListener('click', e => {
 });
 $('fgEntry').onclick = () => fgiEntryOpen('RECEIVE', '');
 if ($('fgRecvXl')) $('fgRecvXl').onclick = () => fgiRecvXlOpen();
+if ($('fgIssXl')) $('fgIssXl').onclick = () => fgiXlOpen('ISSUE');
 $('fgScan').onclick = () => fgiScanOpen();
 $('fgEditPicked').onclick = () => ($('fgView').value === 'stock' ? fgiSkuBulkEditOpen() : fgiBulkEditOpen());
 $('fgDelPicked').onclick = () => ($('fgView').value === 'stock' ? fgiSkuDeleteAsk([...FGI_PICK.stock]) : fgiBulkDeleteAsk());
@@ -32684,6 +32686,19 @@ function fgiEntryOpen(type, sku) {
 }
 
 /**
+ * Can the store give this many? The form and the Excel issue both ask here (Ravi, 2026-09-25: the same
+ * process). `already` is what earlier rows of the same sheet take out of that SKU, so the store cannot be
+ * emptied twice by two rows that each see the whole shelf.
+ */
+function fgiOutCheck(sku, qty, type, already) {
+  const took = already || 0, have = fgiOf(sku).current - took;
+  if (qty > have) return `You don't have enough stock — ${sku} has ${nf(Math.max(0, have))} piece(s) in the India Store`
+    + (took ? ` after the ${nf(took)} the rows above take` : '')
+    + ` and this ${type === 'FBA' ? 'dispatch' : 'issue'} asks for ${nf(qty)}.`;
+  return '';
+}
+
+/**
  * The order side of a receipt — which order, of which kind, and whether more came than it asked for.
  *
  * Lifted out of fgiEntrySave, word for word, so the Stock entry dialog and the Excel upload run ONE check
@@ -32766,9 +32781,8 @@ async function fgiEntrySave() {
   }
   if (k.dir < 0) {
     /* Read again at save: the figure on screen could be minutes old, and the store cannot go short. */
-    const have = fgiOf(sku).current;
-    if (qty > have) return `You don't have enough stock — ${sku} has ${nf(have)} piece(s) in the India Store`
-      + ` and this ${type === 'FBA' ? 'dispatch' : 'issue'} asks for ${nf(qty)}.`;
+    const short = fgiOutCheck(sku, qty, type);
+    if (short) return short;
   }
   // Day-first, like every other date this database keeps.
   const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -32844,18 +32858,39 @@ const FGI_XL_COLS = [
   ['over', 'Why more than the order', ['why more than the order', 'why more', 'over reason', 'extra reason']],
 ];
 
-function fgiRecvXlTemplate() {
-  const head = FGI_XL_COLS.map(c => c[1]);
-  const bytes = recipeXlsx([head], { name: 'Receive', freeze: 2, cols: {},
-    list: { name: 'OrderFrom', values: ['Order Console', 'External'], cols: [FGI_XL_COLS.findIndex(c => c[0] === 'pick')] } });
+/** The issue sheet: no order, and "Issued to" in place of "Received from" — as the form has it. */
+const FGI_XL_ISS_COLS = [
+  ['date', 'Date', ['date', 'issue date', 'issued on']],
+  ['sku', 'SKU', ['sku']],
+  ['qty', 'Pieces', ['pieces', 'pcs', 'qty', 'quantity']],
+  ['who', 'Issued to', ['issued to', 'issue to', 'to', 'issued for']],
+  ['reason', 'Reason', ['reason']],
+  ['remarks', 'Note', ['note', 'remarks', 'remark']],
+];
+/** Which sheet: its columns, its needed columns, and the words it uses. */
+const FGI_XL_KIND = {
+  RECEIVE: { cols: () => FGI_XL_COLS, need: ['sku', 'orderNo', 'qty', 'who'], title: 'Receive from Excel', file: 'receive', verb: 'receipt',
+    list: () => ({ name: 'OrderFrom', values: ['Order Console', 'External'], cols: [FGI_XL_COLS.findIndex(c => c[0] === 'pick')] }) },
+  ISSUE: { cols: () => FGI_XL_ISS_COLS, need: ['sku', 'qty', 'who'], title: 'Issue from Excel', file: 'issue', verb: 'issue', list: () => null },
+};
+
+function fgiRecvXlTemplate() { return fgiXlTemplate('RECEIVE'); }
+function fgiXlTemplate(kind) {
+  const K = FGI_XL_KIND[kind] || FGI_XL_KIND.RECEIVE;
+  const head = K.cols().map(c => c[1]);
+  const opts = { name: kind === 'ISSUE' ? 'Issue' : 'Receive', freeze: 2, cols: {} };
+  if (K.list()) opts.list = K.list();
+  const bytes = recipeXlsx([head], opts);
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
-  a.download = `receive-${dToday()}.xlsx`;
+  a.download = `${K.file}-${dToday()}.xlsx`;
   a.click(); URL.revokeObjectURL(a.href);
 }
 
 /** The sheet's rows, read into the form's own fields. Null header → { err }. */
-function fgiRecvXlRead(rows) {
+function fgiRecvXlRead(rows) { return fgiXlRead(rows, 'RECEIVE'); }
+function fgiXlRead(rows, kind) {
+  const K = FGI_XL_KIND[kind] || FGI_XL_KIND.RECEIVE, COLS = K.cols();
   let h = -1;
   for (let i = 0; i < Math.min(15, (rows || []).length); i++) {
     const low = (rows[i] || []).map(x => String(x == null ? '' : x).trim().toLowerCase());
@@ -32864,8 +32899,8 @@ function fgiRecvXlRead(rows) {
   if (h < 0) return { err: 'No header row with SKU and Pieces — download the template and fill that.' };
   const low = rows[h].map(x => String(x == null ? '' : x).trim().toLowerCase());
   const ix = {};
-  FGI_XL_COLS.forEach(([k, , names]) => { ix[k] = -1; for (const n of names) { const i = low.indexOf(n); if (i >= 0) { ix[k] = i; break; } } });
-  const missing = ['sku', 'orderNo', 'qty', 'who'].filter(k => ix[k] < 0).map(k => FGI_XL_COLS.find(c => c[0] === k)[1]);
+  COLS.forEach(([k, , names]) => { ix[k] = -1; for (const n of names) { const i = low.indexOf(n); if (i >= 0) { ix[k] = i; break; } } });
+  const missing = K.need.filter(k => ix[k] < 0).map(k => COLS.find(c => c[0] === k)[1]);
   if (missing.length) return { err: 'The sheet has no ' + missing.join(', ') + ' column — download the template and fill that.' };
   const cell = (r, k) => (ix[k] >= 0 ? String(r[ix[k]] == null ? '' : r[ix[k]]).trim() : '');
   const out = [];
@@ -32920,14 +32955,56 @@ function fgiRecvXlPlan(list, fileName) {
   return { items, bad: items.filter(x => x.err), good: items.filter(x => x.rec) };
 }
 
+/** Every issue row checked as the form checks an issue; the shelf goes down as the rows go. */
+function fgiIssXlPlan(list, fileName) {
+  const known = new Set((PTG.mdb || []).map(r => r && obUC(r.sku)));
+  const took = new Map();                                    // SKU → pieces earlier rows take out
+  const seenDay = [];
+  const today = (() => { const d = dToday().split('-'); return d[2] + '/' + d[1] + '/' + d[0]; })();
+  const now = new Date().toISOString();
+  const items = (list || []).map(v => {
+    const it = { v, err: '', warn: '' };
+    const date = v.date ? fgsDate(v.date) : today;
+    const qty = /^\d+$/.test(String(v.qty).replace(/\.0+$/, '')) ? parseInt(v.qty, 10) : NaN;
+    const who = String(v.who || '').trim();
+    if (!v.sku) it.err = 'Put in the SKU.';
+    else if (!known.has(v.sku)) it.err = `${v.sku} is not in the master database.`;
+    else if (!isFinite(qty) || qty < 1) it.err = 'Put in how many pieces — a whole number, 1 or more.';
+    else if (!date) it.err = `"${v.date}" is not a date — write it as DD-MM-YYYY.`;
+    else if (!who) it.err = 'Say who or what these are for — a movement with nobody on it cannot be traced.';
+    else it.err = fgiOutCheck(v.sku, qty, 'ISSUE', took.get(v.sku) || 0);
+    if (it.err) return it;
+    took.set(v.sku, (took.get(v.sku) || 0) + qty);
+    /* The form's two same-day warnings. */
+    const twin = (FGI.rows || []).concat(seenDay).find(r => r && r.date === date && obUC(r.sku) === v.sku && r.txnType === 'ISSUE'
+      && String(r.issuedFor || '').trim().toLowerCase() === who.toLowerCase());
+    const otherWay = (FGI.rows || []).find(r => r && r.date === date && obUC(r.sku) === v.sku && FGI_KINDS[r.txnType] && FGI_KINDS[r.txnType].dir > 0);
+    if (twin) it.warn = `already issued to "${who}" on ${date} (${nf(fgiNum(twin.qty))} pcs)`;
+    else if (otherWay) it.warn = `already received on ${date} (${nf(fgiNum(otherWay.qty))} pcs)`;
+    it.rec = { _id: fgiNewId('ISS'), txnType: 'ISSUE', sku: v.sku, qty, date, reason: String(v.reason || '').trim(),
+      issuedFor: who, remarks: String(v.remarks || '').trim(), source: 'excel: ' + (fileName || 'sheet'),
+      createdAt: now, createdBy: ME.email };
+    seenDay.push(it.rec);
+    return it;
+  });
+  return { kind: 'ISSUE', items, bad: items.filter(x => x.err), good: items.filter(x => x.rec) };
+}
+
 let FGI_XL = null;
-function fgiRecvXlOpen() {
+function fgiRecvXlOpen() { return fgiXlOpen('RECEIVE'); }
+function fgiXlOpen(kind) {
+  const K = FGI_XL_KIND[kind] || FGI_XL_KIND.RECEIVE;
   if (!fgiCanEntry()) { $('fgMsg').className = 'err'; $('fgMsg').textContent = FGI_NO_ENTRY; return; }
   FGI_XL = null;
   ptOpenDialog({
-    title: 'Receive from Excel',
+    title: K.title,
     wide: true,
-    note: 'One row per receipt, the same as "+ Stock entry" — every row is checked exactly as that form checks it: '
+    note: kind === 'ISSUE'
+      ? 'One row per issue, the same as "+ Stock entry" with Issue · out — every row is checked exactly as that form '
+        + 'checks it: the SKU is in the master, somebody is named in "Issued to", and the store has the pieces. Rows of '
+        + 'one SKU come off the shelf one after another, so two rows cannot both take the last piece. '
+        + 'Nothing is written unless every row passes.'
+      : 'One row per receipt, the same as "+ Stock entry" — every row is checked exactly as that form checks it: '
       + 'the SKU is in the master, the order is one of this SKU\'s Order Console orders (or an External order with '
       + 'its customer), and a row that takes an order past what it asked for needs "Why more than the order". '
       + 'Nothing is written unless every row passes.',
@@ -32935,21 +33012,21 @@ function fgiRecvXlOpen() {
         <button type="button" id="fgxTpl" class="ghost">Download template</button>
         <button type="button" id="fgxPick">Choose the filled sheet…</button>
         <input id="fgxFile" type="file" accept=".xlsx,.csv" style="display:none">
-        <span class="muted" style="font-size:12px">Date as DD-MM-YYYY (blank = today) · Order from: Order Console or External (blank = the order number decides)</span>
+        <span class="muted" style="font-size:12px">Date as DD-MM-YYYY (blank = today)${kind === 'ISSUE' ? '' : ' · Order from: Order Console or External (blank = the order number decides)'}</span>
       </div>
       <div id="fgxOut" style="margin-top:12px"></div>`,
     onSave: () => fgiRecvXlSave(),
-    saveLabel: 'Save the entries',
+    saveLabel: kind === 'ISSUE' ? 'Issue them' : 'Save the entries',
   });
-  $('fgxTpl').onclick = () => fgiRecvXlTemplate();
+  $('fgxTpl').onclick = () => fgiXlTemplate(kind);
   $('fgxPick').onclick = () => $('fgxFile').click();
   $('fgxFile').onchange = async e => {
     const file = e.target.files[0]; e.target.value = ''; if (!file) return;
     let rows;
     try { rows = await pkReadFile(file); } catch (err) { ptDlgMsg('Could not read that file: ' + (err.message || err), true); return; }
-    const read = fgiRecvXlRead(rows);
+    const read = fgiXlRead(rows, kind);
     if (read.err) { FGI_XL = null; $('fgxOut').innerHTML = ''; ptDlgMsg(read.err, true); return; }
-    FGI_XL = fgiRecvXlPlan(read.rows, file.name);
+    FGI_XL = kind === 'ISSUE' ? fgiIssXlPlan(read.rows, file.name) : fgiRecvXlPlan(read.rows, file.name);
     ptDlgMsg('');
     fgiRecvXlShow(file.name);
   };
@@ -32962,11 +33039,11 @@ function fgiRecvXlShow(name) {
     + `<span style="color:var(--accent);font-weight:700">${nf(p.good.length)} ready (${nf(pcs)} pcs)</span>`
     + (p.bad.length ? ` · <span style="color:var(--bad);font-weight:700">${nf(p.bad.length)} to fix — nothing is saved until they are</span>` : '')
     + '</div><div class="xlwrap" style="max-height:52vh;overflow:auto"><table class="xl" style="font-size:12px"><thead><tr>'
-    + '<th class="num">Row</th><th>Date</th><th style="text-align:left">SKU</th><th style="text-align:left">Order</th><th class="num">Pieces</th><th style="text-align:left">From</th><th style="text-align:left">Result</th></tr></thead><tbody>'
+    + '<th class="num">Row</th><th>Date</th><th style="text-align:left">SKU</th><th style="text-align:left">Order</th><th class="num">Pieces</th><th style="text-align:left">' + (p.kind === 'ISSUE' ? 'To' : 'From') + '</th><th style="text-align:left">Result</th></tr></thead><tbody>'
     + p.items.map(x => { const r = x.rec, v = x.v;
       return '<tr><td class="num">' + x.v.line + '</td><td>' + esc(r ? r.date : v.date) + '</td>'
         + '<td style="text-align:left;font-family:ui-monospace,monospace">' + esc(v.sku) + '</td>'
-        + '<td style="text-align:left">' + esc(r ? r.orderNo : v.orderNo) + (r && r.orderSource === 'external' ? ' <span class="pill">EXTERNAL</span>' : '') + '</td>'
+        + '<td style="text-align:left">' + (p.kind === 'ISSUE' ? '<span class="muted">—</span>' : esc(r ? r.orderNo : v.orderNo) + (r && r.orderSource === 'external' ? ' <span class="pill">EXTERNAL</span>' : '')) + '</td>'
         + '<td class="num">' + esc(r ? nf(r.qty) : v.qty) + '</td><td style="text-align:left">' + esc(v.who) + '</td>'
         + '<td style="text-align:left;white-space:normal;max-width:420px">' + (x.err ? '<span style="color:var(--bad)">' + esc(x.err) + '</span>'
           : '<span style="color:var(--accent);font-weight:700">ok</span>'
@@ -32980,7 +33057,12 @@ async function fgiRecvXlSave() {
   const p = FGI_XL;
   if (!p) return 'Choose the filled sheet first.';
   if (p.bad.length) return `${nf(p.bad.length)} row(s) need fixing — correct them in the sheet and choose it again. Nothing has been saved.`;
-  if (!p.good.length) return 'The sheet has no rows to receive.';
+  if (!p.good.length) return p.kind === 'ISSUE' ? 'The sheet has no rows to issue.' : 'The sheet has no rows to receive.';
+  /* The shelf is read again at save, as the form does: somebody may have issued from it since the preview. */
+  if (p.kind === 'ISSUE') {
+    const by = new Map(); p.good.forEach(x => by.set(x.rec.sku, (by.get(x.rec.sku) || 0) + x.rec.qty));
+    for (const [sku, q] of by) { const short = fgiOutCheck(sku, q, 'ISSUE'); if (short) return short + ' Nothing has been saved — choose the sheet again.'; }
+  }
   const recs = p.good.map(x => x.rec);
   for (let i = 0; i < recs.length; i += 400) {
     const chunk = {};
@@ -32992,15 +33074,16 @@ async function fgiRecvXlSave() {
   renderFgi();
   const over = recs.filter(r => r.overQty);
   $('fgMsg').className = over.length ? 'err' : 'muted';
-  $('fgMsg').textContent = `${nf(recs.length)} receipt(s) saved from Excel — ${nf(recs.reduce((t, r) => t + r.qty, 0))} piece(s) of `
-    + `${nf(new Set(recs.map(r => r.sku)).size)} SKU(s).`
+  const isIss = p.kind === 'ISSUE';
+  $('fgMsg').textContent = `${nf(recs.length)} ${isIss ? 'issue' : 'receipt'}(s) saved from Excel — ${nf(recs.reduce((t, r) => t + r.qty, 0))} piece(s) of `
+    + `${nf(new Set(recs.map(r => r.sku)).size)} SKU(s)${isIss ? ' taken out of the India Store' : ''}.`
     + (over.length ? ` ⚠ ${nf(over.length)} took an order past what it asked for — flagged for review.` : '');
   fbaBadge();
   fgiOverBadge();
   /* The same listing alert the form raises, once per SKU. */
   const bySku = new Map(); recs.forEach(r => bySku.set(r.sku, (bySku.get(r.sku) || 0) + r.qty));
   for (const [sku, q] of bySku) {
-    const line = await lstAlertFor(sku, 'RECEIVE', q);
+    const line = await lstAlertFor(sku, p.kind === 'ISSUE' ? 'ISSUE' : 'RECEIVE', q);
     if (line) { $('fgMsg').className = 'err'; $('fgMsg').textContent += line; }
   }
   return '';
