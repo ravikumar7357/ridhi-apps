@@ -43376,7 +43376,10 @@ function stMoves() {
   /* NO OPENING STOCK IS NOT A REASON TO RECORD NOTHING. Without one, the register still holds
    * everything that has moved — it simply is not the shelf yet, and the screen says so. Movements
    * before the opening stock ARE dropped, because the opening figure already contains them. */
-  const from = start || ST_FROM_NO_OPENING;
+  /* THE PRINTERS' GOODS ARE COUNTED FROM THEIR FIRST DELIVERY ON RECORD (2026-09-26). The 22 Sep start left 29 pieces
+   * delivered the week before uncounted, and every issue after it read as a hole. With an opening stock typed, what
+   * came before it is still dropped — the opening figure already holds it. */
+  const from = start || '';
   /* ---- what the printers sent ---- */
   voLogRows().forEach(r => {
     const at = String((r.ok && r.ok.at) || r.at || '');
@@ -43422,10 +43425,17 @@ function stBalances(moves) {
     const k = stKey(mv);
     let e = by.get(k);
     if (!e) { e = { key: k, unit: mv.unit, sku: mv.sku, fabric: mv.fabric, colour: mv.colour, name: stName(mv), inQty: 0, outQty: 0, qty: 0, n: 0, last: '',
-      fromPrinter: 0, cutIn: 0, cutOut: 0, issued: 0, typed: 0, printers: new Set() }; by.set(k, e); }
+      fromPrinter: 0, cutIn: 0, cutOut: 0, issued: 0, typed: 0, beyond: 0, printers: new Set() }; by.set(k, e); }
     e.n++;
     if (mv.qty >= 0) e.inQty += mv.qty; else e.outQty += -mv.qty;
-    e.qty += mv.qty;
+    /* AN ISSUE TAKES ONLY WHAT THE PRINTERS' GOODS HOLD. Pieces given to a karigar beyond that came from somewhere
+     * else — older stock, or the same SKU cut and stitched from white in-house — and are counted as "beyond", never
+     * as a shelf below zero. Movements arrive oldest first, so an issue before the first delivery is all beyond. A
+     * figure somebody typed (opening, out by hand, correction) goes exactly where it was typed. */
+    if (mv.qty < 0 && (mv.src === 'jobwork' || mv.src === 'cut')) {
+      const take = Math.min(-mv.qty, Math.max(0, e.qty));
+      e.qty -= take; e.beyond += (-mv.qty - take);
+    } else e.qty += mv.qty;
     if (mv.src === 'printer') { e.fromPrinter += mv.qty; if (mv.printer) e.printers.add(mv.printer); }
     else if (mv.src === 'cut') { if (mv.qty >= 0) e.cutIn += mv.qty; else e.cutOut += -mv.qty; }
     else if (mv.src === 'waste') e.cutIn += mv.qty;
@@ -43436,7 +43446,7 @@ function stBalances(moves) {
   });
   const r2 = v => Math.round(v * 100) / 100;
   return [...by.values()].map(e => Object.assign(e, { qty: r2(e.qty), inQty: r2(e.inQty), outQty: r2(e.outQty),
-      fromPrinter: r2(e.fromPrinter), cutIn: r2(e.cutIn), cutOut: r2(e.cutOut), issued: r2(e.issued), typed: r2(e.typed), printers: [...e.printers] }))
+      fromPrinter: r2(e.fromPrinter), cutIn: r2(e.cutIn), cutOut: r2(e.cutOut), issued: r2(e.issued), typed: r2(e.typed), beyond: r2(e.beyond), printers: [...e.printers] }))
     .sort((a, b) => a.unit.localeCompare(b.unit) || a.name.localeCompare(b.name));
 }
 /**
@@ -43592,7 +43602,7 @@ function renderStore(view) {
       <span class="kpiwhen">read live${STORE.at ? ' · ' + esc(STORE.at) : ''}</span></div>
     <div class="metrics">
       <div class="metric"><div class="v" style="color:#166534">${nf(sum(pcs, 'fromPrinter'))}</div><div class="l">Pieces from printers</div></div>
-      <div class="metric"><div class="v">${nf(sum(pcs, 'issued'))}</div><div class="l">Issued to karigars</div></div>
+      <div class="metric"><div class="v">${nf(sum(pcs, 'issued'))}</div><div class="l">Issued to karigars</div>${sum(pcs, 'beyond') ? `<div class="l muted" title="Pieces issued that the printers' goods did not hold — older stock, or the same SKU stitched from white in-house. Not a hole in the shelf.">${nf(sum(pcs, 'beyond'))} beyond the printers' goods</div>` : ''}</div>
       <div class="metric"><div class="v"${sum(pcs, 'qty') < 0 ? ' style="color:var(--bad)"' : ''}>${nf(sum(pcs, 'qty'))}</div><div class="l">Pieces in store</div><div class="l muted">${nf(pcs.length)} SKU(s)</div></div>
       <div class="metric"><div class="v" style="color:#166534">${nf(sum(met, 'fromPrinter'))}</div><div class="l">Printed cloth from printers (m)</div></div>
       <div class="metric"><div class="v"${sum(met, 'qty') < 0 ? ' style="color:var(--bad)"' : ''}>${nf(sum(met, 'qty'))}</div><div class="l">Cloth in store (m)</div><div class="l muted">${nf(met.length)} fabric &amp; colour</div></div>
@@ -43620,7 +43630,7 @@ function renderStore(view) {
     $('fbMsg').title = start ? ''
       : 'Every movement is here, but the balance is not the shelf until the opening stock is uploaded.';
     $('fbMsg').innerHTML = esc(`${nf(rows.length)} of ${nf(moves.length)} movement(s)`)
-      + (start ? '' : ' · <b>no opening stock yet</b>')
+      + (start ? '' : ' · from the first delivery on record')
       + (STORE.err ? ' · ' + esc(STORE.err) : '');
     FAB.shown = shown;
     return;
@@ -43637,9 +43647,9 @@ function renderStore(view) {
     + `<td>${b.unit === 'pcs' ? 'Pieces' : 'Cloth'}</td>`
     + `<td class="num" style="color:#166534">${z(b.fromPrinter)}</td>`
     + `<td class="num">${z(b.unit === 'pcs' ? b.cutIn : b.cutIn)}</td>`
-    + `<td class="num" style="color:var(--bad)">${z(b.unit === 'pcs' ? b.issued : b.cutOut)}</td>`
+    + `<td class="num" style="color:var(--bad)">${z(b.unit === 'pcs' ? b.issued : b.cutOut)}${b.beyond ? `<div class="muted" style="font-size:10.5px;white-space:nowrap" title="Issued beyond what the printers delivered — older stock, or the same SKU stitched from white in-house.">${nf(b.beyond)} beyond</div>` : ''}</td>`
     + `<td class="num">${b.typed ? nf(b.typed) : '<span class="muted">—</span>'}</td>`
-    + `<td class="num" style="font-weight:700${b.qty < 0 ? ';color:var(--bad)' : ''}"${b.qty < 0 ? ' title="More went out than the printers delivered — older stock was issued, or a delivery is not recorded. Type an opening entry to correct the shelf."' : ''}>${nf(b.qty)}</td>`
+    + `<td class="num" style="font-weight:700${b.qty < 0 ? ';color:var(--bad)' : ''}"${b.qty < 0 ? ' title="Below zero only by a figure somebody typed — check the Out by hand / correction entries."' : ''}>${nf(b.qty)}</td>`
     + `<td style="font-size:12px">${esc(ptIsoDate(b.last) || '')}</td>`
     + `<td><button class="ghost" data-st-track="${esc(b.name)}" style="padding:3px 10px;font-size:12px" title="Every movement of this item — which printer, which order, which karigar, when">Track</button></td></tr>`).join('') + '</tbody>';
   FAB.shown = bal;
@@ -43651,7 +43661,7 @@ function renderStore(view) {
       ? `${nf(drawn.length)} of ${nf(bal.length)} item(s) shown — search to find the rest`
       : `${nf(bal.length)} item(s) from the printers`)
     + (apart.length ? ` · <span title="${esc(apart.slice(0, 12).map(b => b.name + ' ' + nf(b.unit === 'pcs' ? b.issued : b.cutOut) + ' ' + b.unit).join(' · '))}">${nf(apart.length)} item(s) moved that no printer delivered — not counted</span>` : '')
-    + (start ? '' : ' · <b>no opening stock yet</b> — counting from ' + esc(ST_FROM_NO_OPENING))
+    + (start ? '' : ' · counting the printers\' goods from their first delivery on record')
     + (toCheck.length ? ` · <a href="#" id="stToCheck">${nf(toCheck.length)} delivery(ies) to cross-check</a>` : '')
     + (STORE.err ? ' · ' + esc(STORE.err) : '');
   /* PICTURES ARE PATCHED IN, NOT A REASON TO REDRAW. The lookup used to end with renderFab, which

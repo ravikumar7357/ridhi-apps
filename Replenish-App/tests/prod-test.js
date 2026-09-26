@@ -19729,8 +19729,13 @@ console.log('\n== The store: what is on the shelf before stitching ==');
     A.setPT(Object.assign({}, pt0, { base: pt0.base.concat([{ id: 'jold', sku: 'RUN-1', empName: 'Asha', issuePieces: 900,
       issueDate: '15/08/2026, 13:00', addedAt: '2026-08-15T07:30:00.000Z', addedBy: 'jw@x' }]) }));
     const bare2 = A.stMoves();
-    ok('with no opening stock, an issue from before the store existed is NOT counted', !bare2.some(x => x.id === 'jw-jold'),
+    /* CHANGED 2026-09-26 (Ravi: "ye stock minus me kese ja sakta h"): the printers' goods are counted from their first
+     * delivery on record, and an issue can only take what they hold — the 900 from before any delivery is a movement,
+     * but it is "beyond" the printers' goods, never a shelf at −900. */
+    ok('with no opening stock, an issue from before any delivery is a movement…', bare2.some(x => x.id === 'jw-jold'),
        JSON.stringify(bare2.filter(x => x.id === 'jw-jold')));
+    ok('…that the shelf does not go below zero for: it is counted as beyond the printers\' goods',
+       (x => x && x.qty === 0 && x.beyond > 900 && x.beyond === x.outQty - x.inQty)(A.stBalances(bare2).find(x => x.key === 'P|RUN-1')), JSON.stringify(A.stBalances(bare2).find(x => x.key === 'P|RUN-1')));
     ok('…while one from the store\'s first day still is', bare2.some(x => x.id === 'jw-j1'));
     A.setPT(pt0);
     A.setSTORE(keep);
