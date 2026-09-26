@@ -441,6 +441,16 @@
   .vo-band .vo-seg .segbtn{color:#fff;padding:9px 16px;font-size:13px}
   .vo-band .vo-seg .segbtn.on{background:#fff;color:var(--brand-ink)}
   .vo-ask{font-size:12px;color:rgba(255,255,255,.8);flex:0 0 100%}
+  /* VENDOR RFD, design 7 — the spreadsheet (Ravi, 2026-09-26): light rows, figures in their own columns. */
+  .vrs{width:100%;border-collapse:collapse;margin-bottom:12px}
+  .vrs th{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);text-align:right;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap;background:transparent}
+  .vrs th:first-child,.vrs th:nth-child(2){text-align:left}
+  .vrs td{padding:9px 10px;border-bottom:1px solid var(--line);text-align:right;vertical-align:middle;font-variant-numeric:tabular-nums}
+  .vrs td:first-child,.vrs td:nth-child(2){text-align:left}
+  .vrs tr:hover td{background:var(--hover,#f7f9fb)}
+  .vrs input{width:84px;text-align:right;padding:6px 8px}
+  .vrs .sub{display:block;font-size:10.5px;margin-top:2px}
+  .vrs .z{color:var(--muted)}
   /* VENDOR RFD, design 4 — progress bars (Ravi, 2026-09-26). */
   .vrb-legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin:2px 0 12px}
   .vrb-legend span{display:inline-flex;align-items:center;gap:6px}
@@ -1525,7 +1535,7 @@
           <!-- The cloth they need to do the work, asked for against the order that needs it. -->
           <button id="vpTabRfd" class="ghost">RFD fabric I need</button>
         </div>
-        <div class="toolbar">
+        <div class="toolbar" id="vpBar1">
           <select id="vpView" style="flex:0 0 210px" title="One table puts every order's lines together, with nothing to scroll inside. By order gives each one its own card.">
             <option value="lines">Every line &mdash; one table</option>
             <option value="orders">By order &mdash; one card each</option>
@@ -1542,7 +1552,7 @@
           <button id="vpGo">Refresh</button>
         </div>
         <!-- These narrow the LINES inside an order, the way they do on the buyer's own screen. -->
-        <div class="toolbar" style="margin-top:8px">
+        <div class="toolbar" id="vpBar2" style="margin-top:8px">
           <select id="vpAt" style="flex:0 0 165px"><option value="">All article types</option></select>
           <select id="vpSub" style="flex:0 0 175px"><option value="">All subtypes</option></select>
           <select id="vpCol" style="flex:0 0 165px"><option value="">All colours</option></select>
@@ -1552,7 +1562,7 @@
         </div>
         <!-- The two things a vendor actually DOES, once, for everything they have typed into the
              table below — whichever order each line belongs to. -->
-        <div class="toolbar" style="margin-top:8px">
+        <div class="toolbar" id="vpBar3" style="margin-top:8px">
           <label style="flex:0 0 auto;margin:0">Sending on
             <input id="vpSendDate" type="date"></label>
           <button id="vpRecordAll">Record what I am sending</button>
@@ -29311,7 +29321,11 @@ function renderVp() {
     : '';
   /* THEIR OWN HISTORY. A different question from "what am I making" — what went out, and what was
    * kept — so it gets the screen to itself rather than another column on a full table. */
-  if (VP.tab === 'rfd') { vpRfdRender(matched, nag); return; }
+  /* THE RFD TAB SHOWS ONLY WHAT IT USES (Ravi, 2026-09-26: "data too much lag rha h do neet and clean"). */
+  const rfdTab = VP.tab === 'rfd';
+  ['vpBar2', 'vpBar3'].forEach(id => { if ($(id)) $(id).classList.toggle('hide', rfdTab); });
+  ['vpView', 'vpStatus', 'vpType', 'vpQ', 'vpExport'].forEach(id => { if ($(id)) $(id).classList.toggle('hide', rfdTab); });
+  if (rfdTab) { vpRfdRender(matched, nag); return; }
 
   if (VP.tab === 'hist') {
     const q = f.q;
@@ -30231,27 +30245,26 @@ function vpRfdRender(matched, nag) {
     const overAsked = rfdRound(Math.max(0, g.used + counted - g.pieces));
     const spare = g.own ? rfdRound(Math.max(0, g.pool - g.stock - overAsked)) : 0;
     const said = rfdStockRow(rfdVendorOf(o), g.stockKey, o);
-    /* ONE BAR: sent · with you · on the way · still to ask — each a share of what the order needs. */
     const onWay = rfdRound(Math.max(0, shortOf - g.left));
-    const seg = (n, c, t) => n > 0 && g.pieces > 0 ? `<i class="${c}" style="width:${Math.min(100, n / g.pieces * 100)}%" title="${esc(t)}: ${nf(n)} pcs"></i>` : '';
-    return '<div class="vrb-row">'
-      + `<div class="vrb-what"><b>${esc(g.size || g.key)}</b><span class="muted" style="font-size:12px">${esc(g.what)}${g.colours.length
-        ? ' · <span title="' + esc(g.colours.join(', ')) + '">' + nf(g.colours.length) + ' colour' + (g.colours.length > 1 ? 's' : '') + '</span>' : ''}${
-        g.fabrics.length ? ' · ' + esc(g.fabrics.join(' / ')) : ''}</span>`
-      + (g.used ? `<span style="font-size:11px;color:#7f6000">${nf(g.used)} pcs asked for</span>` : '')
-      + (overAsked ? `<span style="font-size:11px;color:var(--bad)" title="What you asked for and what you said is with you add up to more than this order needs. Take back what you do not need.">${nf(overAsked)} pcs more than the order needs</span>` : '')
-      + '</div>'
-      + `<div class="vrb-mid"><div class="vrb-bar">${seg(got, 'vrb-s', 'Sent to you')}${seg(counted, 'vrb-w', 'With you')}${seg(onWay, 'vrb-o', 'On the way')}${seg(g.left, 'vrb-a', 'Still to ask for')}</div>`
-      + `<span style="font-size:12px" class="muted">${nf(g.pieces)} pcs on this order · ${g.left > 0 ? '<b style="color:var(--bad)">' + nf(g.left) + ' pcs to ask for</b>'
-        : (shortOf > 0 ? '<b style="color:#7f6000">' + nf(shortOf) + ' pcs on the way</b>' : '<b style="color:#166534">all here</b>')}${got ? ' · <span style="color:#166534">' + nf(got) + ' sent to you</span>' : ''}</span></div>`
-      + '<div class="vrb-box"><span class="lb">With you</span>'
+    const z = n => n ? nf(n) : '<span class="z">—</span>';
+    return '<tr>'
+      + `<td><b>${esc(g.size || g.key)}</b>`
+      + (g.used ? `<span class="sub" style="color:#7f6000">${nf(g.used)} pcs asked for</span>` : '')
+      + (overAsked ? `<span class="sub" style="color:var(--bad)" title="What you asked for and what you said is with you add up to more than this order needs.">${nf(overAsked)} pcs more than the order needs</span>` : '')
+      + '</td>'
+      + `<td>${esc(g.what)}<span class="sub muted">${g.colours.length ? '<span title="' + esc(g.colours.join(', ')) + '">' + nf(g.colours.length) + ' colour' + (g.colours.length > 1 ? 's' : '') + '</span>' : ''}${g.fabrics.length ? ' · ' + esc(g.fabrics.join(' / ')) : ''}</span></td>`
+      + `<td><b>${nf(g.pieces)}</b></td>`
+      + `<td style="color:#166534">${z(got)}</td>`
+      + `<td style="color:#7f6000">${z(onWay)}</td>`
+      + `<td style="color:var(--bad);font-weight:700">${z(g.left)}</td>`
+      + '<td>'
       + `<input data-vprfd-stock="${esc(o.id)}|${esc(g.stockKey)}" type="number" min="0" step="1" value="${g.pool || ''}" placeholder="0"`
       + ` title="How many of these you already have for THIS order. It comes off what is left to ask for on this order.">`
-      + (elsewhere ? `<span style="font-size:10.5px;color:#7f6000">${nf(elsewhere)} counted elsewhere</span>` : '')
-      + (spare ? `<span style="font-size:10.5px;color:#7f6000">${nf(spare)} more than this order still needs</span>` : '')
-      + (said && said.at ? `<span class="muted" style="font-size:10px">you said, ${esc(ptIsoDate(said.at) || '')}</span>` : '')
-      + '</div>'
-      + vpRfdAskCell(o, g.stockKey, 'pcs', g.left, true) + '</div>';
+      + (elsewhere ? `<span class="sub" style="color:#7f6000">${nf(elsewhere)} counted elsewhere</span>` : '')
+      + (spare ? `<span class="sub" style="color:#7f6000">${nf(spare)} more than this order still needs</span>` : '')
+      + (said && said.at ? `<span class="sub muted">you said, ${esc(ptIsoDate(said.at) || '')}</span>` : '')
+      + '</td>'
+      + vpRfdAskCell(o, g.stockKey, 'pcs', g.left) + '</tr>';
   }).join('');
 
   const rowsF = fabLines.map(x => {
@@ -30264,24 +30277,28 @@ function vpRfdRender(matched, nag) {
     const elsewhere = own ? 0 : rfdRound(Math.max(0, pool - cap.stock));
     const spare = own ? rfdRound(Math.max(0, pool - cap.stock)) : 0;
     const said = rfdStockRow(rfdVendorOf(o), key, o);
-    const onWay = rfdRound(Math.max(0, shortOf - cap.left)), withM = rfdRound(Math.max(0, cap.stock));
-    const seg = (n, c, t) => n > 0 && cap.need > 0 ? `<i class="${c}" style="width:${Math.min(100, n / cap.need * 100)}%" title="${esc(t)}: ${nf(n)} m"></i>` : '';
-    return '<div class="vrb-row">'
-      + `<div class="vrb-what"><b>${esc(x.fabric)}</b><span class="muted" style="font-size:12px">running cloth</span>`
-      + (cap.used ? `<span style="font-size:11px;color:#7f6000">${nf(cap.used)} m asked for</span>` : '') + '</div>'
-      + `<div class="vrb-mid"><div class="vrb-bar">${seg(got, 'vrb-s', 'Sent to you')}${seg(withM, 'vrb-w', 'With you')}${seg(onWay, 'vrb-o', 'On the way')}${seg(cap.left, 'vrb-a', 'Still to ask for')}</div>`
-      + `<span style="font-size:12px" class="muted">${nf(cap.need)} m on this order · ${cap.left > 0 ? '<b style="color:var(--bad)">' + nf(cap.left) + ' m to ask for</b>'
-        : (shortOf > 0 ? '<b style="color:#7f6000">' + nf(shortOf) + ' m on the way</b>' : '<b style="color:#166534">all here</b>')}${got ? ' · <span style="color:#166534">' + nf(got) + ' m sent to you</span>' : ''}</span></div>`
-      + '<div class="vrb-box"><span class="lb">With you</span>'
+    const onWay = rfdRound(Math.max(0, shortOf - cap.left));
+    const z = n => n ? nf(n) : '<span class="z">—</span>';
+    return '<tr>'
+      + `<td><b>${esc(x.fabric)}</b>${cap.used ? `<span class="sub" style="color:#7f6000">${nf(cap.used)} m asked for</span>` : ''}</td>`
+      + '<td>Running cloth<span class="sub muted">metres</span></td>'
+      + `<td><b>${nf(cap.need)}</b></td>`
+      + `<td style="color:#166534">${z(got)}</td>`
+      + `<td style="color:#7f6000">${z(onWay)}</td>`
+      + `<td style="color:var(--bad);font-weight:700">${z(cap.left)}</td>`
+      + '<td>'
       + `<input data-vprfd-stock="${esc(o.id)}|${esc(key)}" type="number" min="0" step="0.1" value="${pool || ''}" placeholder="0"`
       + ` title="How many metres of this you already have for THIS order. It comes off what is left to ask for on this order.">`
-      + (elsewhere ? `<span style="font-size:10.5px;color:#7f6000">${nf(elsewhere)} m counted elsewhere</span>` : '')
-      + (spare ? `<span style="font-size:10.5px;color:#7f6000">${nf(spare)} m more than this order still needs</span>` : '')
-      + (said && said.at ? `<span class="muted" style="font-size:10px">you said, ${esc(ptIsoDate(said.at) || '')}</span>` : '')
-      + '</div>'
-      + vpRfdAskCell(o, key, 'm', cap.left, true) + '</div>';
+      + (elsewhere ? `<span class="sub" style="color:#7f6000">${nf(elsewhere)} m counted elsewhere</span>` : '')
+      + (spare ? `<span class="sub" style="color:#7f6000">${nf(spare)} m more than this order still needs</span>` : '')
+      + (said && said.at ? `<span class="sub muted">you said, ${esc(ptIsoDate(said.at) || '')}</span>` : '')
+      + '</td>'
+      + vpRfdAskCell(o, key, 'm', cap.left) + '</tr>';
   }).join('');
 
+  /* The sheet's header: what, item, on order, sent, on the way, to ask, with you, ask for now. */
+  const vrsHead = (what, cap) => `<div class="xlwrap"><table class="vrs"><caption style="text-align:left;font-size:12px;color:var(--muted);padding:4px 0 6px;caption-side:top">${cap} · up to "Still to ask for" is agreed at once, more goes for approval</caption><thead><tr>
+    <th>${what}</th><th>Item</th><th>On order</th><th>Sent</th><th>On the way</th><th>Still to ask for</th><th title="What you already have for this order — saves by itself">With you</th><th title="What you need now — press Raise requirement">Ask for now</th></tr></thead><tbody>`;
   const head = (what, unit) => `<table class="xl" style="margin-bottom:10px"><thead><tr>
     <th>${what}</th><th class="num">On this order</th>
     <th class="num" title="What you already have. Type it in — it comes off what is left to ask for, here and on your later orders. Sent against this order is shown underneath.">With you</th>
@@ -30320,13 +30337,10 @@ function vpRfdRender(matched, nag) {
           ? `<button id="vpRfdAll" class="ghost" title="Raises a requirement for everything this order still needs, in one go. You are asked to confirm first.">Ask for the whole order (${esc(leftTxt)})…</button>`
           : '<span class="muted" style="font-size:12.5px">Everything this order needs has been asked for.</span>'}
       </div>
-      <div class="vrb-legend"><span><i class="vrb-s"></i>sent to you</span><span><i class="vrb-w"></i>with you</span><span><i class="vrb-o"></i>on the way</span><span><i class="vrb-a"></i>still to ask for</span>
-        <span style="flex:1"></span><span>Up to "still to ask for" is agreed the moment you ask; more goes to The Fabric Rush to approve.</span></div>
-
-      ${rowsP ? '<div class="muted" style="font-size:12px;margin:0 0 6px">Cut here and sent to you as pieces.</div>' + rowsP : ''}
+      ${rowsP ? vrsHead('Size', 'Cut pieces · pcs') + rowsP + '</tbody></table></div>' : ''}
       ${unruled.length ? `<div class="muted" style="font-size:12px;margin-bottom:8px">${nf(unruled.length)} of these have no printing rule set — ${esc(unruled.map(x => x.what || x.sku).filter((v, i, a) => a.indexOf(v) === i).join(', '))}. They are being treated as cut pieces because the order line is in pieces. Ask the office to set the rule.</div>` : ''}
 
-      ${rowsF ? '<div class="muted" style="font-size:12px;margin:10px 0 6px">Sent to you as running cloth.</div>' + rowsF : ''}
+      ${rowsF ? vrsHead('Fabric', 'Running cloth · metres') + rowsF + '</tbody></table></div>' : ''}
       ${need.unknown.length ? `<div class="muted" style="font-size:12px;margin-bottom:8px">${nf(need.unknown.length)} line(s) on this order could not be worked out, so their cloth is not in the figures above. Ask the office.</div>` : ''}
 
       <details style="margin-top:6px">
@@ -30386,8 +30400,7 @@ function vpRfdRender(matched, nag) {
     return r;
   }
   $('vpMsg').className = 'muted';
-  $('vpMsg').textContent = `${esc(o.orderNo || o.id)} · ${nf(pcsLines.length + fabLines.length)} line(s) to ask against · `
-    + `${nf(rfdReqsOf(o).length)} requirement(s) raised`;
+  $('vpMsg').textContent = '';
   ptImgFill([], false, ptImgPatch);
 }
 
@@ -30402,9 +30415,9 @@ function vpRfdAskCell(o, key, unit, left, asBox) {
   const v = vpRfdDraftOf(o)[key] || '';
   const over = parseFloat(v) > left ? rfdRound(parseFloat(v) - Math.max(0, left)) : 0;
   return (asBox ? '<div class="vrb-box"><span class="lb">Ask for now</span>' : '<td class="num">')
-    + `<input data-vprfd-need="${esc(o.id)}|${esc(key)}" type="number" min="0" step="${unit === 'm' ? '0.1' : '1'}" value="${esc(v)}" placeholder="0" style="width:88px;text-align:right"`
+    + `<input data-vprfd-need="${esc(o.id)}|${esc(key)}" type="number" min="0" step="${unit === 'm' ? '0.1' : '1'}" value="${esc(v)}" placeholder="0"${asBox ? ' style="width:88px;text-align:right"' : ''}`
     + ` title="How much you need now. Up to ${nf(Math.max(0, left))} ${unit} is agreed at once; more goes for approval.">`
-    + (over ? `<div style="font-size:10.5px;color:#7f6000">${nf(over)} ${unit} over the order — needs approval</div>` : '')
+    + (over ? `<span class="sub" style="color:#7f6000">${nf(over)} over — needs approval</span>` : '')
     + (asBox ? '</div>' : '</td>');
 }
 /** The raise bar's words: rows, how much, and how much of it goes for approval. */

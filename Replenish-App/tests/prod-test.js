@@ -67,7 +67,7 @@ const IDS = ('ptmBrand ptmArt ptmSub ptmCol ptmSz ptmCut ptmQ ptmBrandFs ptmDir 
   + 'sof_add sof_tmpl sof_up sof_file sor_mode sor_date sor_remarks '
   + 'voNew vof_fsku vofFskuList vof_why vrqStatus vrqWork vrqVendor vrqWho vrqQ vrqNew vrqExport vrqGo vrqMsg vrqKpis vrqTable vreqBadge ptf_filler vof_vendor vof_service vof_fillerWrap vof_filler vofFillerList vof_kr vof_kc vof_tmpl vof_up vof_file vof_form vof_table vof_tot vof_notes '
   + 'vof_fab vof_col vof_pd vof_qty vof_deliv vof_pri vof_lnotes vof_add vof_info vof_sku vof_check '
-  + 'voSync voVendors voReserve vpMsg vpKpis vpBody vpTabs vpTabBulk vpTabShop vpTabHist vpGo vpExport vpPinBtn vpPin vpView vpStatus vpType vpQ vpSendDate vpPromDate vpRecordAll vpSaveProm vpActMsg vpAt vpSub vpCol vpSz vpPri vpClear '
+  + 'voSync voVendors voReserve vpMsg vpKpis vpBody vpTabs vpTabBulk vpTabShop vpTabHist vpGo vpExport vpPinBtn vpPin vpView vpStatus vpType vpQ vpSendDate vpPromDate vpRecordAll vpSaveProm vpActMsg vpAt vpSub vpCol vpSz vpPri vpClear vpBar1 vpBar2 vpBar3 '
   + 'tabVend emailBox pinBox pinErr pinPhone pinPin pinBtn pinToggle pcCur pcNew pcNew2 '
   + 'fgView fgPendBadge fgQ fgZero fgTransfer fgOpening fgExport fgGo fgMsg fgKpis fgTable '
   + 'fgtQ fgtTable fgtTot fgtRemarks fgrGot fgrRemarks fgiQty fgiFor fgiRemarks fgoText fgoRemarks fgoPrev '
@@ -17196,8 +17196,8 @@ console.log('\n== RFD: asking by the piece, and whether the cloth has actually a
     A.setVP({ code: 'VND001', name: 'RBP-Bagru', rows: [o2], err: '', busy: false, at: '', tab: 'rfd' });
     A.renderVp();
     const html2 = els.vpBody.innerHTML;
-    ok('what has reached them is on their own screen', /25 pcs/.test(html2), 'delivered figure missing');
-    ok('…and so is what is still to come', /14 pcs/.test(html2), 'outstanding figure missing');
+    ok('what has reached them is on their own screen', />25</.test(html2), 'delivered figure missing');
+    ok('…and so is what is still to come', />14</.test(html2), 'outstanding figure missing');
     /* It is still ASKABLE. Flagging a gap must not take the size off the screen — the printer still
      * needs those twenty tablecloths, and the rule being unset is the office's problem, not theirs. */
     ok('…and is still a size they can ask for',
@@ -17447,7 +17447,8 @@ console.log('\n== RFD: asking by the piece, and whether the cloth has actually a
     const h = els.vpBody.innerHTML;
     ok('the screen gives the printer a box to say what they have', /data-vprfd-stock=/.test(h), h.slice(0, 400));
     /* Design 4 (Ravi, 2026-09-26): each size a progress row, both boxes on it, the picker says Change order, the raise bar at the foot. */
-    ok('design 4: a bar per size, With you and Ask for now on the row, Change order, the raise bar', /class="vrb-bar"/.test(h) && /data-vprfd-need=/.test(h) && /Change order/.test(h) && /id="vpRfdRaise"/.test(h) && /id="vpRfdRaiseTxt"/.test(h), h.slice(0, 300));
+    ok('design 7: one sheet row per size, With you and Ask for now on the row, Change order, the raise bar', /class="vrs"/.test(h) && /data-vprfd-need=/.test(h) && /Change order/.test(h) && /id="vpRfdRaise"/.test(h) && /id="vpRfdRaiseTxt"/.test(h), h.slice(0, 300));
+    ok('…and the order tab filters, Excel and sending row are hidden on the RFD tab', !!els.vpBar3 && els.vpBar3.classList.contains('hide') && els.vpBar2.classList.contains('hide') && els.vpExport.classList.contains('hide'));
     ok('…on the size, not on each colour',
       (h.match(/data-vprfd-stock=/g) || []).length === 2, String((h.match(/data-vprfd-stock=/g) || []).length));
     ok('…and the size says how many colours it covers', /3 colours/.test(h), h.slice(0, 600));
@@ -18340,9 +18341,9 @@ console.log('\n== RFD: one order, one button, and a receipt when it arrives ==')
     A.setVP(Object.assign(A.VP(), { rfdOrder: 'w5', tab: 'rfd' }));
     ['vpQ', 'vpStatus', 'vpType', 'vpAt', 'vpSub', 'vpCol', 'vpSz', 'vpPri'].forEach(i => { if (els[i]) els[i].value = ''; });
     A.renderVp();
-    ok('the screen shows the order that was picked', /VPO-W5/.test(els.vpMsg.textContent),
+    ok('the screen shows the order that was picked', /value="w5" selected/.test(els.vpBody.innerHTML),
       els.vpMsg.textContent);
-    ok('…and not the other one', !/VPO-W4/.test(els.vpMsg.textContent), els.vpMsg.textContent);
+    ok('…and not the other one', !/value="w4" selected/.test(els.vpBody.innerHTML), els.vpMsg.textContent);
   }
 
   ME.admin = wasME.admin; ME.rfdApprove = wasME.rfdApprove; ME.rfdSend = wasME.rfdSend; ME.tabs = wasME.tabs;
