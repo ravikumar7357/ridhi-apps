@@ -478,6 +478,12 @@
   /* THE DASHBOARD'S CARDS are doors: they lift a little under the mouse. */
   .dash .jw-kc{cursor:pointer;transition:transform .12s,box-shadow .12s}
   .dash .jw-kc:hover{transform:translateY(-1px);box-shadow:0 8px 22px rgba(20,24,31,.10)}
+  /* ONE PAGE (Ravi, 2026-09-26): the Shopify table sits tight — every column on the screen, no sideways scroll. */
+  table.xl.xl-dense th,table.xl.xl-dense td{padding:5px 8px;font-size:12.5px;line-height:1.3}
+  table.xl.xl-dense .st{padding:1px 7px;font-size:11px}
+  table.xl.xl-dense td .sub{display:block;font-size:10.5px;color:var(--muted);font-weight:400;white-space:nowrap}
+  table.xl.xl-dense td.wrap{white-space:normal;max-width:320px;text-align:left;font-size:12px}
+  table.xl.xl-dense td.tl{text-align:left}
   /* SHOPIFY RETURNS (2026-09-26). */
   .sr-lines{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:8px 0}
   .sr-lines table{width:100%}
@@ -2642,6 +2648,7 @@
         <input id="soFilter" style="flex:1 1 150px;min-width:0" placeholder="Filter order / SKU / name">
         <button id="soAdj" class="ghost" title="Every shortfall raised, by the day it was raised. Printable, to hand to production.">Adjustments</button>
         <button id="soBucket" title="Shopify lines that need production and have no production order yet — tick and open them here. Nothing opens by itself.">Production bucket</button>
+        <button id="soDense" class="ghost" title="One page: ten columns that fit the screen, or every column with a sideways scroll.">Full columns</button>
         <button id="soReturns" class="ghost" title="Returns, typed by hand: which order, which lines, the return tracking number, and whether it has reached the USA warehouse.">Returns</button>
         <button id="soDays" class="ghost" title="How many days a parcel from the USA warehouse takes to a zip code — an estimate from distance zones, not a carrier quote.">Delivery days</button>
         <select id="soTmpl" style="flex:0 0 190px" title="Which upload template to write. The column headings and their order match the courier's own workbook exactly.">
@@ -46431,6 +46438,62 @@ function soRows() {
   return rows;
 }
 
+const soDense = () => { try { return localStorage.getItem('soDense') !== '0'; } catch (e) { return true; } };
+/**
+ * THE ONE-PAGE TABLE. Ten columns, each carrying what the wide table spread over two: the date under the order, the
+ * country under the name, the weight under the value, MCF and India under Ship from, the tracking under Shopify's
+ * word, the carrier under the status. Items wrap. Every cell is the same helper the wide table uses, so the two can
+ * never say different things. Sorting goes by the column's first figure.
+ */
+function renderShopDense(rows, COLS, arrow, money, esc) {
+  const T = k => (COLS.find(c => c.k === k) || {}).tip || '';
+  const DC = [
+    { k: 'pick' }, { k: 'no', t: 'Order', frz: 1 }, { k: 'name', t: 'Ship to' }, { k: 'total', t: 'Value', num: 1 },
+    { k: 'locTxt', t: 'Pick · make', tip: (T('locTxt') + ' Below it: pieces waiting on production.').trim() },
+    { k: 'route', t: 'Ship from', tip: T('route') + ' MCF and India stock under it.' },
+    { k: 'ff', t: 'Shopify', tip: T('ff') + ' Tracking under it.' }, { k: 'status', t: 'Status', tip: 'Your own status; the carrier under it.' },
+    { k: 'channel', t: 'Shop', tip: T('channel') }, { k: 'items', t: 'Items' },
+  ];
+  const head = '<thead><tr>' + DC.map(c => c.k === 'pick'
+      ? '<th style="width:28px"><input type="checkbox" id="soAll" title="Tick every order on screen"></th>'
+      : '<th class="' + (c.num ? 'num' : '') + (c.frz ? ' frz' : '') + '" data-so-sort="' + c.k + '" style="cursor:pointer"' + (c.tip ? ' title="' + esc(c.tip) + '"' : '') + '>' + c.t + arrow(c.k) + '</th>').join('') + '</tr></thead>';
+  const sub = t => (t ? '<span class="sub">' + t + '</span>' : '');
+  const SO_DRAW_CAP = 400;
+  const drawn = rows.slice(0, SO_DRAW_CAP);
+  const body = drawn.map(r => '<tr data-so="' + esc(r.id) + '" style="cursor:pointer"'
+    + ' class="' + [r.cancelled ? 'so-cancel' : '', r.chargeback ? 'so-cb' : ''].filter(Boolean).join(' ') + '"'
+    + (r.cancelled ? ' title="Cancelled ' + esc(r.cancelledAt) + (r.cancelReason ? ' — ' + esc(r.cancelReason) : '') + '"' : '') + '>'
+    + '<td><input type="checkbox" class="soPick" data-id="' + esc(r.id) + '"' + (SO_PICKED.has(r.id) ? ' checked' : '') + '></td>'
+    + '<td class="frz tl" style="font-weight:600">' + esc(r.no) + (r.shopNote ? ' <span title="Shopify note: ' + esc(r.shopNote) + '" style="color:#854d0e">&#9998;</span>' : '') + sub(esc(r.at)) + '</td>'
+    + '<td class="tl" title="' + esc([r.ship.a1, r.ship.a2, r.ship.city, r.ship.state, r.ship.zip].filter(Boolean).join(', ')) + '">' + esc(String(r.ship.name || '').slice(0, 24))
+      + sub(esc([r.ship.state, r.ship.country].filter(Boolean).join(', ')) + (r.units ? ' · ' + r.units + ' unit' + (r.units > 1 ? 's' : '') : '')) + '</td>'
+    + '<td class="num">' + money(r.total) + sub(r.kg ? r.kg.toFixed(2) + ' kg' : '') + '</td>'
+    + '<td style="font-weight:600" title="' + esc(r.items.map(i => `${i.sku || i.name}: ${soLocOf(i.sku) || 'no bin set'}`).join(' · ')) + '">'
+      + (r.locTxt ? esc(r.locTxt) : '<span class="muted">—</span>') + (r.makeQty ? sub('<span class="st st-pending">' + r.makeQty + ' to make</span>') : '') + '</td>'
+    + '<td class="tl" title="' + esc(r.mcfWhy + (r.indiaWhy ? ' · ' + r.indiaWhy : '')) + '">' + soProdChip(r)
+      + (r.route === 'Need from production' ? '<span class="st st-rejected">' + esc(r.route) + '</span>'
+          + ((r.noSku || []).length ? '<div style="font-size:10.5px;font-weight:700;color:var(--bad);white-space:normal;max-width:170px">' + nf((r.noSku || []).length) + ' line(s) have no SKU — cannot open</div>' : '')
+          + ((r.titleSku || []).length ? '<div style="font-size:10.5px;font-weight:700;color:var(--warn-ink);white-space:normal;max-width:170px" title="' + esc((r.titleSku || []).map(x => x.name + ' → ' + x.sku).join(' · ')) + '">SKU from the title: ' + esc((r.titleSku || []).map(x => x.sku).join(', ')) + '</div>' : '')
+        : r.route === 'Ship from India' ? '<span class="st st-pending">' + esc(r.route) + '</span>' : '<span class="muted">' + esc(r.route) + '</span>')
+      + '<span class="sub" style="white-space:nowrap">' + soMcfTag(r.mcf) + ' ' + (SO_INDIA_TAG[r.india] || SO_MCF_TAG[r.india] || '') + '</span></td>'
+    + '<td class="tl"' + (r.shippedAt ? ' title="shipped ' + esc(r.shippedAt) + '"' : '') + '>' + soFfTag(r.ff)
+      + '<span class="sub" style="max-width:170px;overflow:hidden;text-overflow:ellipsis">' + soTrkCell(r, esc) + '</span></td>'
+    + '<td class="so-keep tl">'
+      + (r.cancelled ? '<span class="st st-rejected" title="Cancelled in Shopify' + (r.cancelReason ? ': ' + esc(r.cancelReason) : '') + '">Cancelled</span> ' : '')
+      + (r.chargeback ? '<span class="st st-rejected" title="' + esc(r.cbWhy) + '">Chargeback</span> ' : '')
+      + (r.mcfDone ? '<span class="st st-approved" title="“MCF done” is written on this order.">Done</span> ' : '')
+      + (r.status ? esc(r.status) : (r.cancelled || r.chargeback || r.mcfDone ? '' : '<span class="muted">—</span>'))
+      + sub([r.carrier ? esc(r.carrier) : '', r.note ? esc(String(r.note).slice(0, 24)) : ''].filter(Boolean).join(' · ')) + '</td>'
+    + '<td>' + (r.channel === 'Shopify' ? '<span class="muted">Shopify</span>' : '<span class="st st-draft">' + esc(r.channel) + '</span>') + '</td>'
+    + '<td class="wrap" title="' + esc(r.items.map(i => `${i.sku || i.name} × ${i.qty}`).join(' · ')) + '">'
+      + esc(r.items.slice(0, 4).map(i => `${i.sku || i.name} × ${i.qty}`).join(' · ')) + (r.items.length > 4 ? ' <span class="muted">+' + (r.items.length - 4) + ' more</span>' : '') + '</td>'
+    + '</tr>').join('');
+  $('soTable').innerHTML = head + '<tbody>' + (body
+    || '<tr><td colspan="' + DC.length + '" class="muted" style="padding:14px">Nothing matches that filter.</td></tr>') + '</tbody>';
+  if ($('soAll')) $('soAll').checked = drawn.length > 0 && drawn.every(r => SO_PICKED.has(r.id));
+}
+if ($('soDense')) $('soDense').onclick = () => { try { localStorage.setItem('soDense', soDense() ? '0' : '1'); } catch (e) { /* not remembered */ } renderShop(); };
+
 function renderShop() {
   const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
   const money = v => '$' + Math.round(v || 0).toLocaleString('en-US');
@@ -46533,6 +46596,12 @@ function renderShop() {
     { k: 'items', t: 'Items' },
   ];
   const arrow = k => (SHOP_SORT.k === k ? (SHOP_SORT.dir > 0 ? ' ↑' : ' ↓') : '');
+  /* ONE PAGE OR EVERY COLUMN (Ravi, 2026-09-26: "this window looks very long — isko only 1 page par set karo").
+   * The tight table is the default; the wide one is a click away and remembered per browser. */
+  const dense = soDense();
+  if ($('soTable')) $('soTable').classList.toggle('xl-dense', dense);
+  if ($('soDense')) $('soDense').textContent = dense ? 'Full columns' : 'One page';
+  if (dense) return renderShopDense(rows, COLS, arrow, money, esc);
   const head = '<thead><tr>' + COLS.map(c =>
     c.noSort
       ? '<th style="width:28px"><input type="checkbox" id="soAll" title="Tick every order on screen"></th>'
