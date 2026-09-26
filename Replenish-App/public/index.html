@@ -475,6 +475,9 @@
   .vrb-foot{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--hover,#f6f8fa);border-top:1px solid var(--line);
     margin:14px -14px -12px;padding:14px 16px;border-radius:0 0 var(--r-card) var(--r-card)}
   /* THE PRODUCTION BUCKET, design 7 (Ravi, 2026-09-26): the vendor order's band, with the counts in it. */
+  /* THE DASHBOARD'S CARDS are doors: they lift a little under the mouse. */
+  .dash .jw-kc{cursor:pointer;transition:transform .12s,box-shadow .12s}
+  .dash .jw-kc:hover{transform:translateY(-1px);box-shadow:0 8px 22px rgba(20,24,31,.10)}
   /* SHOPIFY RETURNS (2026-09-26). */
   .sr-lines{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:8px 0}
   .sr-lines table{width:100%}
@@ -20025,7 +20028,7 @@ function dashFacts() {
   try {
     const lines = ordLines(), open = lines.filter(l => ptNum(l.pendingMake) > 0);
     const bySrc = {};
-    open.forEach(l => { const k = String(ordSrcOf(l) || '?').toUpperCase(); bySrc[k] = (bySrc[k] || 0) + ptNum(l.pendingMake); });
+    open.forEach(l => { const k = String(l.src || ordSrcOf(l.orderNo) || '?').toUpperCase(); bySrc[k] = (bySrc[k] || 0) + ptNum(l.pendingMake); });
     F.orders = { open: new Set(open.map(l => l.orderNo)).size, lines: open.length,
       toMake: open.reduce((a, l) => a + ptNum(l.pendingMake), 0), bySrc };
   } catch (e) { F.orders = null; }
@@ -20098,48 +20101,54 @@ function dashFacts() {
 function renderDash() {
   const body = $('dashBody'); if (!body) return;
   const F = dashFacts();
-  const tile = (v, l, tab, sub, colour) => `<div class="metric pt-kpi" data-dash-go="${tab}" role="button" tabindex="0" title="Open the screen this comes from">`
-    + `<div class="v"${colour ? ' style="color:' + colour + '"' : ''}>${v}</div><div class="l">${esc(l)}</div>${sub ? '<div class="l muted">' + sub + '</div>' : ''}</div>`;
-  const sec = (name, when, tiles) => `<div class="kpi" style="flex-basis:100%;margin-bottom:12px"><div class="kpihead"><span class="kpiname">${esc(name)}</span><span class="kpiwhen">${esc(when || '')}</span></div><div class="metrics">${tiles}</div></div>`;
+  /* THE JOB WORK REGISTER'S CARDS (Ravi, 2026-09-22: "this interface is very good do like this"; 2026-09-26: "dashboard
+   * thoda professional lagna chahiye"): the same card, icon and tone as every other screen, in the same grid. Each card
+   * is a door into its own screen. */
+  const card = (v, label, icon, tone, tab, sub, colour) => `<div data-dash-go="${tab}" role="button" tabindex="0" title="Open ${esc(tab)}" style="display:contents">`
+    + ordKpiCard(v, label, icon, tone, sub || '', { colour }) + '</div>';
+  const sec = (name, note, cards) => `<div class="jw-kpiname" style="display:flex;align-items:baseline;gap:12px;margin-top:6px">${esc(name)}<span class="muted" style="font-size:12px;font-weight:400;margin-left:auto;text-transform:none;letter-spacing:0">${esc(note || '')}</span></div><div class="jw-kpis">${cards}</div>`;
   const dash = '<span class="muted">—</span>';
   const o = F.orders, s = F.sales, w = F.week, p = F.printers, r = F.rfd, a = F.approvals, g = F.fg, fb = F.fabric, ac = F.acc, pe = F.people;
   const pct = w && w.target ? Math.round(w.received / w.target * 100) : 0;
-  body.innerHTML = '<div class="kpis">'
-    + sec('Orders on the book', 'open lines from the order book', (o
-      ? tile(nf(o.open), 'Open orders', 'ord', nf(o.lines) + ' line(s)')
-        + tile(nf(o.toMake), 'Pieces still to make', 'ord', Object.entries(o.bySrc).sort((x, y) => y[1] - x[1]).map(([k, v]) => esc(k) + ' ' + nf(v)).join(' · '), 'var(--bad)')
-      : tile(dash, 'Open orders', 'ord'))
-      + (s ? tile(nf(s.waiting), 'Sales orders awaiting approval', 'so', nf(s.n) + ' on record' + (s.drafts ? ' · ' + nf(s.drafts) + ' draft / returned' : ''), s.waiting ? '#7f6000' : '') : tile(dash, 'Sales orders', 'so')))
+  const tone = (ok, warn) => (ok ? 'green' : (warn ? 'amber' : 'red'));
+  body.innerHTML = '<div class="dash">' + sec('Orders on the book', 'open lines from the order book', (o
+      ? card(nf(o.open), 'Open orders', 'list', 'blue', 'ord', nf(o.lines) + ' line(s)')
+        + card(nf(o.toMake), 'Pieces still to make', 'cut', 'red', 'ord', Object.entries(o.bySrc).sort((x, y) => y[1] - x[1]).map(([k, v]) => esc(k) + ' ' + nf(v)).join(' · '))
+      : card(dash, 'Open orders', 'list', 'blue', 'ord'))
+      + (s ? card(nf(s.waiting), 'Sales orders awaiting approval', 'doc', s.waiting ? 'amber' : 'green', 'so', nf(s.n) + ' on record' + (s.drafts ? ' · ' + nf(s.drafts) + ' draft / returned' : ''))
+           : card(dash, 'Sales orders', 'doc', 'blue', 'so')))
     + sec('The factory this week', 'Monday to today, from the registers', (w
-      ? tile(nf(w.received), 'Pieces received from karigars', 'pa', nf(pct) + '% of the ' + nf(w.target) + ' target · last week ' + nf(w.last), pct >= 100 ? '#166534' : (pct >= 60 ? '#7f6000' : 'var(--bad)'))
-        + tile(nf(w.issued), 'Issued to karigars', 'pbase', w.rejected ? nf(w.rejected) + ' rejected' : '')
-        + tile(nf(w.cut), 'Cut', 'pcut') + tile(nf(w.pressed), 'Pressed', 'ppress')
-      : tile(dash, 'Pieces received from karigars', 'pa')))
+      ? card(nf(w.received), 'Pieces received from karigars', 'ok', tone(pct >= 100, pct >= 60), 'pa', nf(pct) + '% of the ' + nf(w.target) + ' target · last week ' + nf(w.last))
+        + card(nf(w.issued), 'Issued to karigars', 'open', 'blue', 'pbase', w.rejected ? nf(w.rejected) + ' rejected' : 'nothing rejected')
+        + card(nf(w.cut), 'Cut', 'cut', 'blue', 'pcut', 'pieces cut this week')
+        + card(nf(w.pressed), 'Pressed', 'press', 'blue', 'ppress', 'pieces pressed this week')
+      : card(dash, 'Pieces received from karigars', 'ok', 'blue', 'pa')))
     + sec('Printers', 'vendor orders open now', (p
-      ? tile(nf(p.orders), 'Open vendor orders', 'vord', nf(p.printers) + ' printer(s)')
-        + tile(p.owed, 'Still owed by printers', 'vord')
-        + tile(nf(p.late), 'Late lines', 'vord', p.late ? 'the latest ' + nf(p.lateDays) + ' day(s) over' : 'nothing overdue', p.late ? 'var(--bad)' : '#166534')
-      : tile(dash, 'Open vendor orders', 'vord'))
-      + (r ? tile(r.toSend, 'RFD cloth still to send', 'rfd', nf(r.orders) + ' order(s) from ' + RFD_TRACK_FROM, r.toSend !== '—' ? 'var(--bad)' : '#166534')
-          + tile(r.onWay, 'Sent, not yet confirmed', 'rfd', '', '#7f6000')
-          + tile(r.withPrinters, 'Company cloth with printers', 'rfd')
-          + tile(nf(r.pending), 'RFD asks waiting for approval', 'rfd', '', r.pending ? 'var(--bad)' : '')
-        : tile(dash, 'RFD cloth still to send', 'rfd'))
-      + (a ? tile(nf(a.vreq + a.qty), 'Approvals waiting', 'vreq', [a.vreq ? nf(a.vreq) + ' vendor order request(s)' : '', a.qty ? nf(a.qty) + ' quantity change(s)' : ''].filter(Boolean).join(' · ') || 'nothing waiting', (a.vreq + a.qty) ? '#7f6000' : '') : ''))
+      ? card(nf(p.orders), 'Open vendor orders', 'box', 'blue', 'vord', nf(p.printers) + ' printer(s)')
+        + card(p.owed, 'Still owed by printers', 'clock', 'blue', 'vord', 'ordered, not yet delivered')
+        + card(nf(p.late), 'Late lines', 'alert', p.late ? 'red' : 'green', 'vord', p.late ? 'the latest ' + nf(p.lateDays) + ' day(s) over' : 'nothing overdue')
+      : card(dash, 'Open vendor orders', 'box', 'blue', 'vord'))
+      + (r ? card(r.toSend, 'RFD cloth still to send', 'up', r.toSend !== '—' ? 'red' : 'green', 'rfd', nf(r.orders) + ' order(s) from ' + RFD_TRACK_FROM)
+          + card(r.onWay, 'Sent, not yet confirmed', 'clock', r.onWay !== '—' ? 'amber' : 'blue', 'rfd', 'the printer confirms in their portal')
+          + card(r.withPrinters, 'Company cloth with printers', 'box', 'blue', 'rfd', 'had + received − delivered back')
+          + card(nf(r.pending), 'RFD asks waiting for approval', 'doc', r.pending ? 'red' : 'green', 'rfd', r.pending ? 'beyond what the order covers' : 'nothing waiting')
+        : card(dash, 'RFD cloth still to send', 'up', 'blue', 'rfd'))
+      + (a ? card(nf(a.vreq + a.qty), 'Approvals waiting', 'tick', (a.vreq + a.qty) ? 'amber' : 'green', 'vreq', [a.vreq ? nf(a.vreq) + ' vendor order request(s)' : '', a.qty ? nf(a.qty) + ' quantity change(s)' : ''].filter(Boolean).join(' · ') || 'nothing waiting') : ''))
     + sec('Stock', 'finished goods, FBA queue, cloth, accessories', (g
-      ? tile(nf(g.pcs), 'Finished pieces in the store', 'fgi', nf(g.skus) + ' SKU(s)' + (g.pending ? ' · ' + nf(g.pending) + ' transfer(s) to confirm' : ''))
-        + tile(nf(g.fbaWaiting), 'Waiting for the FBA team', 'fba', nf(g.fbaWaitingN) + ' issue(s)', g.fbaWaiting ? '#7f6000' : '')
-        + tile(nf(g.fbaAccepted), 'Accepted, not yet shipped', 'fba', nf(g.fbaAcceptedN) + ' issue(s)')
-      : tile(dash, 'Finished pieces in the store', 'fgi'))
-      + (fb ? tile(nf(fb.rfd) + ' m', 'RFD cloth in the store', 'fab') + tile(nf(fb.greige) + ' m', 'Greige in the store', 'fab') : tile(dash, 'RFD cloth in the store', 'fab'))
-      + (ac ? tile(nf(ac.low.length), 'Accessories below reorder level', 'acc', ac.low.slice(0, 4).map(esc).join(', ') + (ac.low.length > 4 ? ' …' : ''), ac.low.length ? 'var(--bad)' : '#166534') : tile(dash, 'Accessories below reorder level', 'acc')))
+      ? card(nf(g.pcs), 'Finished pieces in the store', 'box', 'blue', 'fgi', nf(g.skus) + ' SKU(s)' + (g.pending ? ' · ' + nf(g.pending) + ' transfer(s) to confirm' : ''))
+        + card(nf(g.fbaWaiting), 'Waiting for the FBA team', 'up', g.fbaWaiting ? 'amber' : 'green', 'fba', nf(g.fbaWaitingN) + ' issue(s)')
+        + card(nf(g.fbaAccepted), 'Accepted, not yet shipped', 'ok', 'blue', 'fba', nf(g.fbaAcceptedN) + ' issue(s)')
+      : card(dash, 'Finished pieces in the store', 'box', 'blue', 'fgi'))
+      + (fb ? card(nf(fb.rfd) + ' m', 'RFD cloth in the store', 'list', 'blue', 'fab', 'ready for cutting and the printers') + card(nf(fb.greige) + ' m', 'Greige in the store', 'list', 'blue', 'fab', 'not yet sent to RFD')
+            : card(dash, 'RFD cloth in the store', 'list', 'blue', 'fab'))
+      + (ac ? card(nf(ac.low.length), 'Accessories below reorder level', 'alert', ac.low.length ? 'red' : 'green', 'acc', ac.low.slice(0, 4).map(esc).join(', ') + (ac.low.length > 4 ? ' …' : '') || 'all above the line')
+            : card(dash, 'Accessories below reorder level', 'alert', 'blue', 'acc')))
     + sec('People', 'attendance today', (pe
-      ? tile(nf(pe.present), 'Present today', 'att', 'of ' + nf(pe.roster) + ' on the roster', pe.present ? '#166534' : '')
-        + tile(nf(pe.absent), 'Marked absent', 'att', '', pe.absent ? 'var(--bad)' : '')
-      : tile(dash, 'Present today', 'att')))
-    + '</div>';
+      ? card(nf(pe.present), 'Present today', 'ok', pe.present ? 'green' : 'blue', 'att', 'of ' + nf(pe.roster) + ' on the roster')
+        + card(nf(pe.absent), 'Marked absent', 'x', pe.absent ? 'red' : 'blue', 'att', pe.absent ? 'marked by hand' : 'nobody marked absent')
+      : card(dash, 'Present today', 'ok', 'blue', 'att'))) + '</div>';
   $('dashMsg').className = DASH.err.length ? 'err' : 'muted';
-  $('dashMsg').textContent = (DASH.at ? 'Read ' + DASH.at + ' · ' : '') + 'every figure is the same one its own screen shows — click a tile to open that screen'
+  $('dashMsg').textContent = (DASH.at ? 'Read ' + DASH.at + ' · ' : '') + 'every figure is the same one its own screen shows — click a card to open that screen'
     + (DASH.err.length ? ' · could not read: ' + DASH.err.join(' · ') : '');
 }
 $('dashBody').addEventListener('click', e => { const t = e.target.closest('[data-dash-go]'); if (t) showTab(t.getAttribute('data-dash-go')); });
