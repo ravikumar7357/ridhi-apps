@@ -30662,9 +30662,7 @@ function vpRfdRender(matched, nag) {
         <label for="vpRfdPick" class="lb" style="flex:0 0 auto">Change order</label>
         <select id="vpRfdPick" style="flex:0 0 380px">${pick}</select>
         <span class="pill">${esc(o.orderType === 'running' ? 'running — metres' : 'cut — pieces')}</span>
-        ${voAckOf(o)
-          ? `<span class="pill pill-ok" title="You accepted this order on ${esc(ptIsoDate(voAckOf(o).at) || '')}">✓ accepted</span>`
-          : `<button type="button" class="jw-btn jw-primary" data-vprfd-ack="${esc(o.id)}" title="Tell The Fabric Rush you have this order and are starting on it" style="padding:5px 12px;font-size:12.5px">Accept this order</button>`}
+        ${voAckOf(o) ? '' : '<span class="pill pill-low" title="Acknowledge it on your Orders tab, so the store knows you have it">not acknowledged yet</span>'}
         ${receipt}
         <span style="flex:1"></span>
         ${leftTxt
@@ -30833,13 +30831,6 @@ $('vpBody').addEventListener('click', async e => {
     renderVp();
     const box = document.querySelector('[data-vprfd-p="' + id + '"]'); if (box) box.value = '';
     return;
-  }
-  const ack = e.target.closest('[data-vprfd-ack]');
-  if (ack) {
-    const o = (VP.rows || []).find(x => x && x.id === ack.getAttribute('data-vprfd-ack')); if (!o) return;
-    const err = await vpAckOrder(o);
-    if (err) { $('vpMsg').className = 'err'; $('vpMsg').textContent = err; return; }
-    return renderVp();
   }
   const rcv = e.target.closest('[data-vprfd-recv]');
   if (rcv) {
@@ -40649,20 +40640,10 @@ function rfdOrderRows() {
     || (a.unit === b.unit ? 0 : (a.unit === 'pcs' ? -1 : 1)));
 }
 
-/** "vendor ko order mil gya": the printer says they have the order. Their own branch; the worklist shows it. */
-const voAckOf = o => (o && o.ack && o.ack.at ? o.ack : null);
-async function vpAckOrder(o) {
-  if (!o) return 'That order is no longer here.';
-  if (voAckOf(o)) return 'Already accepted.';
-  const code = o.vendorCode || VP.code;
-  if (!code) return 'This sign-in is not linked to a printer.';
-  const ack = { at: new Date().toISOString(), by: ME.email };
-  try { await ptPut('pt_vendorOrders/' + code + '/' + o.id + '/ack', ack); }
-  catch (e) { return 'Not saved: ' + (e.message || e); }
-  o.ack = ack;
-  VP.rows = (VP.rows || []).map(x => (x && x.id === o.id ? o : x));
-  return '';
-}
+/* "vendor ko order mil gya" — Ravi, 2026-09-26: "pahle acknowledge button tha". It still is: the printer's Orders tab
+ * moves the order Placed → Acknowledged → In Production (vpFlow). The worklist reads THAT, not a second button. */
+const voAckOf = o => (o && o.status && ['Placed', 'Draft'].indexOf(o.status) < 0
+  ? { at: o.vendorUpdatedAt || o.staffUpdatedAt || '', status: o.status } : null);
 
 /** The two order-driven readings of the office screen: by order (the worklist) and by printer (the store). */
 function renderRfdLedger(view) {
@@ -40694,7 +40675,7 @@ function renderRfdLedger(view) {
       + `<td class="frz" style="text-align:left"><b>${esc(x.orderNo)}</b></td>`
       + `<td style="text-align:left">${esc(x.vendorName)}<div class="muted" style="font-size:10.5px">${esc(x.vendorCode)}</div></td>`
       + `<td>${x.placed ? esc(new Date(x.placed).toISOString().slice(0, 10)) : '<span class="muted">—</span>'}</td>`
-      + `<td>${(a => a ? '<span class="pill pill-ok" title="' + esc(a.by || '') + '">✓ ' + esc(ptIsoDate(a.at) || '') + '</span>' : '<span class="pill pill-low" title="The printer has not pressed Accept on this order in their portal yet">not yet</span>')(voAckOf(x._order))}</td>`
+      + `<td>${(a => a ? '<span class="pill pill-ok" title="' + esc(a.status) + '">✓ ' + esc(ptIsoDate(a.at) || a.status) + '</span>' : '<span class="pill pill-low" title="The printer has not pressed Acknowledge on this order in their portal yet">not yet</span>')(voAckOf(x._order))}</td>`
       + `<td style="text-align:left"><b>${esc(x.what)}</b></td><td style="text-align:left">${esc(x.item)}</td>`
       + `<td class="num" style="font-weight:700">${nf(x.need)} ${x.unit}</td>`
       + `<td class="num" style="color:#7f6000">${z(x.withYou, x.unit)}</td>`
