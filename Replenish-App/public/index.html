@@ -3889,12 +3889,16 @@ function showTab(which) {
   try { document.title = ($('pageTitle').textContent || '') + ($('pageTitle').textContent ? ' · ' : '') + 'Ridhi Home & Living'; } catch (e) { /* nothing depends on it */ }
   /* There is no drawer to close any more: the menu is the bar across the top, on every width. */
   if (which === 'dash') ensureDash();
-  if (which === 'article') renderArticle();
+  /* THE REPLENISHMENT SCREENS READ THEIR OWN SNAPSHOT (2026-09-26). Sign-in used to read the full copy and draw the
+   * table for them; since it reads only the slim one, a screen that did not ask for its data opened blank — Ravi:
+   * "abhi bhi data blank hi show ho rha h". Each one asks here, and draws when it lands. */
+  if (which === 'repl') ensureRepl();
+  if (which === 'article') ensureReplData().then(renderArticle, renderArticle);
   if (which === 'target') ensureTarget();
   if (which === 'follow') ensureFollow();
-  if (which === 'top') ensureTop();
+  if (which === 'top') ensureReplData().then(ensureTop, ensureTop);
   if (which === 'india') ensureIndia();
-  if (which === 'shopify') ensureShopify();
+  if (which === 'shopify') ensureReplData().then(ensureShopify, ensureShopify);
   if (which === 'prod') ensureProd();
   if (which === 'pack') ensurePack();
   if (which === 'att') ensureAtt();

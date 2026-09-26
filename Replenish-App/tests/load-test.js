@@ -88,6 +88,15 @@ const make = () => new Function('doc', 'getDoc', body + '\n;return { ensureReplS
   ok('asking for the full copy still reads only the slim one, once', !READS.some(r => /^repl\/(SP|CPC)|^replrows/.test(r)) && READS.filter(r => r === 'replslim/SP').length === 1, READS.join(' '));
   ok('a Replenishment-tab account is allowed the full copy', (() => { const B = make(); B.ME().admin = false; B.ME().tabs = ['repl']; return B; })().mode() === '' );
 
+  console.log('== every Replenishment screen asks for its own snapshot when it opens');
+  {
+    const i = src.indexOf('function showTab('), body = src.slice(i, src.indexOf('\n}', i));
+    ok('opening Replenishment reads it (sign-in no longer does) — the blank tab of 26 Sep', /if \(which === 'repl'\) ensureRepl\(\)/.test(body));
+    ok('…and Article Review, Top ASIN and Shopify Stock wait for the full rows before drawing',
+       /which === 'article'\) ensureReplData\(\)/.test(body) && /which === 'top'\) ensureReplData\(\)/.test(body) && /which === 'shopify'\) ensureReplData\(\)/.test(body));
+    ok('nothing at sign-in draws the Replenishment table any more', !/if \(!FACTORY_ONLY\) await ensureRepl\(\)/.test(src));
+  }
+
   console.log('== the slim copy carries what the production screens read');
   const s = A.slim({ sku: 'A', color: 'Red', size: '1', totalStock: 3, last90: 9, last30: 2, asin: 'B0X', parent: 'B0P', rec: { x: 1 }, inflow: {}, monthlyAmt: 5 });
   ok('colour, size, FBA stock, sales and the Amazon ids — not the recommendation or the inflow', s.last90 === 9 && s.last30 === 2 && s.asin === 'B0X' && s.parent === 'B0P' && s.totalStock === 3 && !('rec' in s) && !('inflow' in s) && !('monthlyAmt' in s), JSON.stringify(s));
