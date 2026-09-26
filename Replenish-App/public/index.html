@@ -1665,6 +1665,11 @@
     <div id="paneRfd" class="hide">
       <div class="card" style="padding:12px 14px">
         <div class="toolbar">
+          <select id="rfdView" style="flex:0 0 235px" title="The requirements the printers raised, or the orders themselves — what each needs, what went out, what the printer confirmed, what is still to send.">
+            <option value="req">Requirements raised</option>
+            <option value="order">By order — needs · sent · received</option>
+            <option value="printer">By printer — cloth with them</option>
+          </select>
           <select id="rfdStage" style="flex:0 0 190px">
             <option value="">Every stage</option>
             <option value="pending">Waiting for approval</option>
@@ -30433,7 +30438,7 @@ function vpRfdSends(o) {
   rfdReqsOf(o).forEach(r => {
     const list = (r.shown && Array.isArray(r.shown.sends)) ? r.shown.sends : [];
     list.forEach((x, i) => out.push({
-      qty: parseFloat(x.qty) || 0, date: x.date || '', at: x.at || '', seq: i,
+      qty: parseFloat(x.qty) || 0, date: x.date || '', at: x.at || '', seq: i, reqId: r.id, got: rfdRecvLot(r, x.at),
       unit: rfdUnit(r), what: rfdUnit(r) === 'pcs' ? (r.size || r.sku || 'pieces') : (r.fabric || 'cloth'),
     }));
   });
@@ -30526,10 +30531,14 @@ function vpRfdRender(matched, nag) {
   /* UP TOP, BESIDE THE ORDER (Ravi, 2026-09-26: "sent to you ko upar shift krdo"): a green chip that opens the lots. */
   const sentTxt = [gotTxt('pcs'), gotTxt('m')].filter(Boolean).join(' · ');
   const lotsHtml = sends.length ? `<div class="vr-pop-h">Sent to you — ${sentTxt} on ${nf(sends.length)} lot(s)</div>
-    <table class="xl"><thead><tr><th>Sent on</th><th>What</th><th class="num">How much</th></tr></thead><tbody>${
+    <table class="xl"><thead><tr><th>Sent on</th><th>What</th><th class="num">How much</th><th>Received</th></tr></thead><tbody>${
       sends.slice(0, 12).map(x => `<tr><td style="text-align:left">${esc(x.date) || '<span class="muted">no date</span>'}</td>`
         + `<td style="text-align:left">${esc(x.what)}</td>`
-        + `<td class="num" style="font-weight:700;color:#166534">${nf(rfdRound(x.qty))} ${esc(x.unit)}</td></tr>`).join('')
+        + `<td class="num" style="font-weight:700;color:#166534">${nf(rfdRound(x.qty))} ${esc(x.unit)}</td>`
+        /* CONFIRM IT ARRIVED (2026-09-26): once, per lot; the office reads it from here. */
+        + `<td style="white-space:nowrap">${x.got
+          ? `<span class="pill pill-ok">✓ ${nf(rfdRound(x.got.qty))} ${esc(x.unit)}</span><span class="sub muted">${esc(x.got.date || '')}</span>`
+          : (x.at ? `<button class="ghost" data-vprfd-recv="${esc(o.id)}|${esc(x.reqId)}|${esc(x.at)}" style="padding:3px 10px;font-size:12px">Received</button>` : '<span class="muted">—</span>')}</td></tr>`).join('')
     }</tbody></table>
     ${sends.length > 12 ? `<div class="muted" style="font-size:12px;margin-top:6px">…and ${nf(sends.length - 12)} earlier lot(s).</div>` : ''}` : '';
 
@@ -30633,6 +30642,15 @@ function vpRfdRender(matched, nag) {
         + `<td>${!r.shown ? `<button class="ghost" data-vprfd-del="${esc(o.id)}|${esc(r.id)}" style="padding:3px 10px;font-size:12px">Take back</button>` : '<span class="muted">&mdash;</span>'}</td></tr>`;
     }).join('');
 
+  /* THE COMPANY'S CLOTH ON THEIR FLOOR (2026-09-26), on the orders tracked from RFD_TRACK_FROM: what they said they
+   * had, plus what they confirmed received, less what they delivered back. Drawn only once there is something in it. */
+  const store = rfdStoreOf(rfdVendorOf(o), VP.rows);
+  const storeHtml = store.length ? `<div class="xlwrap" style="margin-bottom:10px"><table class="vrs"><caption style="text-align:left;font-size:12px;color:var(--muted);padding:4px 0 6px;caption-side:top">Company cloth with you — orders from ${esc(RFD_TRACK_FROM)} · what you had + what you confirmed received − what you delivered back</caption>
+    <thead><tr><th>What</th><th>Item</th><th>Orders</th><th>Had</th><th>Received</th><th>On the way</th><th>Delivered back</th><th>With you now</th></tr></thead><tbody>${
+      store.map(x => `<tr><td><b>${esc(x.what)}</b></td><td>${esc(x.item || (x.unit === 'm' ? 'Running cloth' : ''))}</td><td>${nf(x.orders)}</td>`
+        + `<td>${nf(x.had)}</td><td style="color:#166534">${nf(x.recv)}</td><td style="color:#7f6000">${nf(x.onWay)}</td><td>${nf(x.used)}</td>`
+        + `<td style="font-weight:700${x.inHand < 0 ? ';color:var(--bad)' : ''}">${nf(x.inHand)} ${esc(x.unit)}</td></tr>`).join('')
+    }</tbody></table></div>` : '';
   /* ONE DROPDOWN AT THE TOP: what was sent, then everything asked for with its stage and Take back. */
   const nAsk = rfdReqsOf(o).length;
   const receipt = (sends.length || asks) ? `<details id="vpRfdSent" class="vr-sent"${VP.rfdSentOpen ? ' open' : ''}><summary>${sends.length ? 'Sent to you — ' + sentTxt : 'Nothing sent yet'}${nAsk ? ' · ' + nf(nAsk) + ' asked' : ''}</summary>
@@ -30650,6 +30668,7 @@ function vpRfdRender(matched, nag) {
           ? `<button id="vpRfdAll" class="ghost" title="Raises a requirement for everything this order still needs, in one go. You are asked to confirm first.">Ask for the whole order (${esc(leftTxt)})…</button>`
           : '<span class="muted" style="font-size:12.5px">Everything this order needs has been asked for.</span>'}
       </div>
+      ${storeHtml}
       ${rowsP ? vrsHead('Size', 'Cut pieces · pcs') + rowsP + '</tbody></table></div>' : ''}
       ${unruled.length ? `<div class="muted" style="font-size:12px;margin-bottom:8px">${nf(unruled.length)} of these have no printing rule set — ${esc(unruled.map(x => x.what || x.sku).filter((v, i, a) => a.indexOf(v) === i).join(', '))}. They are being treated as cut pieces because the order line is in pieces. Ask the office to set the rule.</div>` : ''}
 
@@ -30811,6 +30830,24 @@ $('vpBody').addEventListener('click', async e => {
     renderVp();
     const box = document.querySelector('[data-vprfd-p="' + id + '"]'); if (box) box.value = '';
     return;
+  }
+  const rcv = e.target.closest('[data-vprfd-recv]');
+  if (rcv) {
+    const [oid, rid, at] = rcv.getAttribute('data-vprfd-recv').split('|');
+    const o = (VP.rows || []).find(x => x && x.id === oid); if (!o) return;
+    const r = (o.rfdReqs || {})[rid];
+    const lot = r && ((r.shown && Array.isArray(r.shown.sends)) ? r.shown.sends : []).find(x => x && x.at === at);
+    if (!lot) return;
+    const u = rfdUnit(r);
+    return ptOpenDialog({
+      title: 'Received ' + (u === 'pcs' ? (r.size || r.sku) : r.fabric),
+      subtitle: nf(rfdRound(lot.qty)) + ' ' + u + ' sent on ' + (lot.date || '—') + ' against ' + (o.orderNo || o.id),
+      note: 'Say what actually arrived. Short of what was sent is fine — the store sees the difference.',
+      fields: [{ key: 'qty', label: (u === 'pcs' ? 'Pieces' : 'Metres') + ' that arrived', type: 'number', min: 0, step: u === 'pcs' ? '1' : '0.1', value: rfdRound(lot.qty) },
+               { key: 'date', label: 'Date it arrived', type: 'date', value: ptIsoDate(new Date().toISOString()) }],
+      saveLabel: 'Confirm',
+      onSave: async v => { const err = await rfdRecvSave(o, rid, at, v.qty, v.date); if (!err) renderVp(); return err; },
+    });
   }
   const del = e.target.closest('[data-vprfd-del]');
   if (del) {
@@ -40155,24 +40192,13 @@ async function vpRfdRaiseRun(o, drafts, reason) {
 
 async function rfdSubmitSize(o, key, pieces, note) {
   if (!o) return 'That order is no longer here.';
-  const g = rfdSizeOf(o, key);
-  if (!g) return 'Pick which size you need.';
+  if (!rfdSizeOf(o, key)) return 'Pick which size you need.';
   const want = parseFloat(pieces) || 0;
   if (!(want > 0)) return 'How many pieces do you need?';
   if (Math.round(want) !== want) return 'Pieces have to be a whole number.';
-  /* SPREAD OVER WHAT EACH COLOUR STILL NEEDS. Asking for more than the size needs is allowed — it
-   * goes to the office to approve — so the room is stretched to fit rather than the ask trimmed. */
-  const rooms = g.skus.map(x => Math.max(0, x.pieces - rfdUsedPcs(o, x.sku) - rfdStockForSku(o, x.sku)));
-  /* SHARED OUT BY WHAT EACH COLOUR STILL NEEDS — or, when none of them needs anything and the
-   * printer is asking beyond the order anyway, by how big each colour is. */
-  const share = rfdSpread(want, rooms.some(x => x > 0) ? rooms : g.skus.map(x => x.pieces));
-  const asks = [];
-  g.skus.forEach((x, i) => {
-    if (!(share[i] > 0)) return;
-    asks.push({ unit: 'pcs', pieces: share[i], sku: x.sku, size: x.size, what: x.what,
-      colour: x.colour, fabric: x.fabric, metres: x.per ? rfdRound(share[i] * x.per) : 0 });
-  });
-  if (!asks.length) return 'There is nothing left to ask for on that size.';
+  const plan = rfdSizePlan(o, key, want);
+  if (plan.err) return plan.err;
+  const asks = plan.asks;
   const recs = asks.map((a, i) => rfdRecord(o, a, note, i + 1));
   const base = 'pt_vendorOrders/' + (VP.code || o.vendorCode) + '/' + o.id + '/rfdReqs/';
   const patch = {};
@@ -40181,6 +40207,25 @@ async function rfdSubmitSize(o, key, pieces, note) {
   catch (e) { return 'Not saved: ' + (e.message || e); }
   rfdKeep(o, recs);
   return '';
+}
+
+/**
+ * A size's pieces shared over its colours — by what each still needs; or, when none needs anything and the ask goes
+ * beyond the order anyway, by how big each colour is. Over-asking is allowed here (it goes to the office), so the room
+ * is stretched to fit rather than the ask trimmed. Used by the printer's ask and by the store's send alike.
+ */
+function rfdSizePlan(o, key, want) {
+  const g = rfdSizeOf(o, key);
+  if (!g) return { err: 'Pick which size you need.', asks: [] };
+  const rooms = g.skus.map(x => Math.max(0, x.pieces - rfdUsedPcs(o, x.sku) - rfdStockForSku(o, x.sku)));
+  const share = rfdSpread(want, rooms.some(x => x > 0) ? rooms : g.skus.map(x => x.pieces));
+  const asks = [];
+  g.skus.forEach((x, i) => {
+    if (!(share[i] > 0)) return;
+    asks.push({ unit: 'pcs', pieces: share[i], sku: x.sku, size: x.size, what: x.what,
+      colour: x.colour, fabric: x.fabric, metres: x.per ? rfdRound(share[i] * x.per) : 0 });
+  });
+  return { err: asks.length ? '' : 'There is nothing left to ask for on that size.', asks };
 }
 
 /**
@@ -40393,7 +40438,9 @@ function rfdSentPcsFor(o, sku) {
  * each taking up to what it asked for. A refused request takes none.
  */
 function rfdWithPrinter(r, o) {
-  if (!r) return 0;
+  /* A store-raised requirement was sized net of the printer's count already (rfdOfficeSend works from the order's
+   * to-send), so the count is never set against it a second time. */
+  if (!r || r.office === true) return 0;
   const order = o || r._order || rfdOrderOf(r);
   if (!order) return 0;
   const code = rfdVendorOf(order);
@@ -40424,6 +40471,241 @@ function rfdWithPrinter(r, o) {
 /** What is still to go out on one request: what was asked, less what is already with them. */
 const rfdToSend = (r, o) => rfdRound(Math.max(0, rfdWant(r) - rfdWithPrinter(r, o)));
 
+/* ===== ORDER-DRIVEN RFD (Ravi, 2026-09-26) =====
+ *
+ * "mene vendor ko order diya … uske basis par rfd department ke pas information pahuch jani chahiye … vendor apna
+ * goods accept kar pay … unke window me unka ek rfd store bhi ban jay … rfd department puri tarah check kar pay ki
+ * usne kitna mal bhej diya or kitna bhejna baki h."
+ *
+ * From RFD_TRACK_FROM the ORDER is the requirement. The store sends against what the order needs, size by size and
+ * cloth by cloth, without waiting to be asked; the printer confirms each lot as it arrives; and what the printer holds
+ * of the company's cloth is worked out — what they said they had, plus what they confirmed, less what they delivered
+ * back (pieces of a size; or, for a piece sent back off running cloth, the recipe's metres a piece). Orders placed
+ * before that date keep the ask-and-answer flow above: Ravi chose a clean start over counting every printer's floor.
+ *
+ * Nothing new is written anywhere new. A store send is an ordinary requirement (marked `office`) plus the same
+ * Mark sent as before; a receipt sits inside the printer's own branch of the order, beside their asks, which is the
+ * one place they may write. The store itself is read, never stored. */
+const RFD_TRACK_FROM = '2026-09-26';
+const rfdTracked = o => !!o && o.rfdTrack !== false
+  && (o.rfdTrack === true || voWhenMs(o) >= Date.parse(RFD_TRACK_FROM + 'T00:00:00'));
+/* A lot is known by the moment it was recorded — the mirror keeps the last ten sends, so an index would move. */
+const rfdRecvKey = at => String(at || '').replace(/[^0-9A-Za-z]/g, '') || 'x';
+const rfdRecvOf = r => Object.values((r && r.recv) || {}).filter(Boolean);
+const rfdRecvQty = r => rfdRound(rfdRecvOf(r).reduce((a, x) => a + (parseFloat(x.qty) || 0), 0));
+const rfdRecvLot = (r, at) => ((r && r.recv) || {})[rfdRecvKey(at)] || null;
+
+/** One order, one row per size (pieces) or cloth (metres): what it needs, and where that stands. */
+function rfdOrderLedger(o) {
+  if (!o) return [];
+  const rejected = r => { const d = rfdDecisionOf(r.id); return !!(d && d.stage === 'rejected'); };
+  const reqs = rfdReqsOf(o).filter(r => !rejected(r));
+  const out = [];
+  rfdSizeRaw(o).forEach(g => out.push(rfdLedgerRow(o, { key: g.stockKey, unit: 'pcs', what: g.size || g.key, item: g.what, need: g.pieces,
+    reqs: reqs.filter(r => rfdUnit(r) === 'pcs' && g.skus.some(x => obUC(x.sku) === obUC(r.sku))) })));
+  rfdFabrics(o).forEach(f => {
+    const key = rfdFabKey(f.fabric);
+    out.push(rfdLedgerRow(o, { key, unit: 'm', what: f.fabric, item: 'Running cloth', need: f.metres,
+      reqs: reqs.filter(r => rfdUnit(r) === 'm' && rfdFabKey(r.fabric) === key) }));
+  });
+  return out;
+}
+function rfdLedgerRow(o, x) {
+  const withYou = rfdRound(rfdStockHere(o, x.key));
+  /* Sent as each side can read it: the decision at the office, the mirror in the portal. */
+  const sent = rfdRound(x.reqs.reduce((a, r) => a + rfdSentSeen(r), 0));
+  const recv = rfdRound(x.reqs.reduce((a, r) => a + rfdRecvQty(r), 0));
+  const asked = rfdRound(x.reqs.reduce((a, r) => a + rfdWant(r), 0));
+  return Object.assign(x, { withYou, sent, recv, asked,
+    toSend: rfdRound(Math.max(0, x.need - withYou - sent)), onWay: rfdRound(Math.max(0, sent - recv)) });
+}
+
+/** Cloth the printer has used up, read off the deliveries accepted back: pieces of a size, or metres of a cloth. */
+function rfdOrderUsed(o) {
+  const m = new Map();
+  const add = (k, q) => { if (k && q > 0) m.set(k, rfdRound((m.get(k) || 0) + q)); };
+  voLines(o || {}).forEach(l => {
+    if (!l || l.cancelled) return;
+    const got = voConfirmed(l);
+    if (!(got > 0)) return;
+    /* A running line: printed metres came back, and that is the cloth gone. */
+    if (voKind(l) === 'running' || o.orderType === 'running') { add(rfdFabKey(String(l.fabricType || '').trim()), got); return; }
+    /* Cut here and sent as pieces: a piece back is a piece used. */
+    if (rfdIssueAs(o, l) === 'cut') { const p = rfdPieceOf(o, l.sku); add(p ? rfdStockKey(p) : '', got); return; }
+    /* Handed running cloth, sends pieces back: the recipe says how much cloth each piece took. */
+    const n = rfdLineNeed(o, l), qty = parseFloat(l.qty) || 0;
+    if (n.fabric && n.metres > 0 && qty > 0) add(rfdFabKey(n.fabric), got * (n.metres / qty));
+  });
+  return m;
+}
+
+/** What one printer holds of the company's cloth on the orders tracked this way: had + received − used, per size or cloth. */
+function rfdStoreOf(code, orders) {
+  const src = orders || ((VP.code && obUC(VP.code) === obUC(code) && VP.rows) ? VP.rows : VO.rows);
+  const list = (src || []).filter(o => o && obUC(o.vendorCode || VP.code) === obUC(code) && rfdTracked(o)
+    && !o.cancelled && ['Cancelled', 'Draft'].indexOf(o.status || 'Placed') < 0);
+  const by = new Map();
+  const row = (key, what, item) => {
+    if (!by.has(key)) by.set(key, { key, unit: rfdKeyUnit(key), what, item, had: 0, recv: 0, sent: 0, used: 0, orders: new Set() });
+    return by.get(key);
+  };
+  list.forEach(o => {
+    rfdOrderLedger(o).forEach(x => { const e = row(x.key, x.what, x.item); e.had += x.withYou; e.recv += x.recv; e.sent += x.sent; e.orders.add(o.id); });
+    rfdOrderUsed(o).forEach((q, key) => { const e = row(key, key.replace(/^[PM]__/, '').replace(/_/g, ' '), ''); e.used += q; e.orders.add(o.id); });
+  });
+  return [...by.values()].map(e => Object.assign(e, { orders: e.orders.size, had: rfdRound(e.had), recv: rfdRound(e.recv),
+    sent: rfdRound(e.sent), used: rfdRound(e.used), onWay: rfdRound(Math.max(0, e.sent - e.recv)), inHand: rfdRound(e.had + e.recv - e.used) }))
+    .sort((a, b) => (a.unit === b.unit ? String(a.what).localeCompare(String(b.what), undefined, { numeric: true }) : (a.unit === 'pcs' ? -1 : 1)));
+}
+
+/**
+ * The store sends against the ORDER: first onto what the printer already asked for and is still owed, then on a
+ * requirement raised here for the rest. Never more than the order still needs — beyond that is the printer's ask
+ * and an approval, as before.
+ */
+async function rfdOfficeSend(o, key, qty, dateIso, note) {
+  if (!rfdCanSend()) return RFD_NO_SEND;
+  if (!o) return 'That order is no longer here.';
+  const row = rfdOrderLedger(o).find(x => x.key === key);
+  if (!row) return 'That size or cloth is not on this order.';
+  const q = parseFloat(qty) || 0;
+  if (!(q > 0)) return row.unit === 'pcs' ? 'How many pieces are going out?' : 'How many metres are going out?';
+  if (row.unit === 'pcs' && Math.round(q) !== q) return 'Pieces have to be a whole number.';
+  if (q > row.toSend) return 'Only ' + nf(row.toSend) + ' ' + row.unit + ' of ' + row.what + ' is still to go out on ' + (o.orderNo || o.id)
+    + (row.withYou ? ' — ' + nf(row.withYou) + ' ' + row.unit + ' is already with them.' : '.');
+  let left = q;
+  const plan = [];
+  row.reqs.filter(r => rfdStage(r, o) !== 'pending')
+    .map(r => ({ id: r.id, room: rfdRound(Math.max(0, rfdToSend(r, o) - rfdSentQty(r.id))) }))
+    .filter(x => x.room > 0)
+    .forEach(x => { if (left <= 0) return; const take = rfdRound(Math.min(left, x.room)); plan.push({ id: x.id, qty: take }); left = rfdRound(left - take); });
+  if (left > 0) {
+    const asks = row.unit === 'pcs' ? rfdSizePlan(o, key, left).asks : [{ unit: 'm', fabric: row.what, metres: left }];
+    if (!asks.length) return 'Could not share ' + nf(left) + ' ' + row.unit + ' over the colours of this size.';
+    const why = String(note || '').trim() || 'Sent by the store against the order';
+    const recs = asks.map((a, i) => Object.assign(rfdRecord(o, a, why, i + 1),
+      { office: true, vendorCode: o.vendorCode || VP.code || '', vendorName: voName(o.vendorCode) || '' }));
+    const base = 'pt_vendorOrders/' + (o.vendorCode || VP.code) + '/' + o.id + '/rfdReqs/';
+    const patch = {};
+    recs.forEach(r => { patch[base + r.id] = r; });
+    try { await ptPatch(patch); } catch (e) { return 'Not saved: ' + (e.message || e); }
+    rfdKeep(o, recs);
+    recs.forEach(r => plan.push({ id: r.id, qty: rfdWant(r) }));
+  }
+  let done = 0;
+  for (const p of plan) {
+    const err = await rfdMarkSent(p.id, p.qty, dateIso, note);
+    if (err) return (done ? nf(done) + ' ' + row.unit + ' recorded, then stopped: ' : '') + err;
+    done = rfdRound(done + p.qty);
+  }
+  return '';
+}
+
+/** The printer confirms a lot arrived. Their own branch of the order; the office reads it from there. */
+async function rfdRecvSave(o, reqId, at, qty, dateIso) {
+  if (!o) return 'That order is no longer here.';
+  const r = (o.rfdReqs || {})[reqId];
+  if (!r) return 'That requirement is gone — press Refresh.';
+  const lot = ((r.shown && Array.isArray(r.shown.sends)) ? r.shown.sends : []).find(x => x && x.at === at)
+    || rfdSends(rfdDecisionOf(reqId)).find(x => x && x.at === at);
+  if (!lot) return 'That lot is not on the list any more — press Refresh.';
+  if (rfdRecvLot(r, at)) return 'That lot is already confirmed.';
+  const u = rfdUnit(r), q = parseFloat(qty) || 0;
+  if (!(q > 0)) return 'How much of it arrived?';
+  if (u === 'pcs' && Math.round(q) !== q) return 'Pieces have to be a whole number.';
+  if (q > (parseFloat(lot.qty) || 0) + 1e-9) return 'That lot was ' + nf(rfdRound(lot.qty)) + ' ' + u + ' — more than was sent cannot have arrived.';
+  const m = String(dateIso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const date = m ? m[3] + '/' + m[2] + '/' + m[1] : (dateIso || voTodayDMY());
+  const rec = { qty: u === 'pcs' ? Math.round(q) : rfdRound(q), sent: rfdRound(lot.qty), date, at: new Date().toISOString(), by: ME.email, lotAt: at };
+  const code = o.vendorCode || VP.code;
+  try { await ptPut('pt_vendorOrders/' + code + '/' + o.id + '/rfdReqs/' + reqId + '/recv/' + rfdRecvKey(at), rec); }
+  catch (e) { return 'Not saved: ' + (e.message || e); }
+  const next = Object.assign({}, r, { recv: Object.assign({}, r.recv || {}, { [rfdRecvKey(at)]: rec }) });
+  o.rfdReqs = Object.assign({}, o.rfdReqs, { [reqId]: next });
+  VP.rows = (VP.rows || []).map(x => (x && x.id === o.id ? o : x));
+  return '';
+}
+
+/** Every tracked, open order of every printer, one row per size or cloth — the store's worklist. */
+function rfdOrderRows() {
+  const out = [];
+  (VO.rows || []).filter(o => o && rfdTracked(o) && !o.cancelled && ['Received', 'Cancelled', 'Draft'].indexOf(o.status || 'Placed') < 0)
+    .forEach(o => rfdOrderLedger(o).forEach(x => out.push(Object.assign(x, { _order: o, orderId: o.id, orderNo: o.orderNo || o.id,
+      vendorCode: o.vendorCode, vendorName: voName(o.vendorCode), placed: voWhenMs(o) }))));
+  return out.sort((a, b) => (b.placed - a.placed) || String(a.orderNo).localeCompare(String(b.orderNo))
+    || (a.unit === b.unit ? 0 : (a.unit === 'pcs' ? -1 : 1)));
+}
+
+/** The two order-driven readings of the office screen: by order (the worklist) and by printer (the store). */
+function renderRfdLedger(view) {
+  const f = rfdFilters(), q = f.q;
+  const vendors = [...new Set((VO.rows || []).filter(o => o && rfdTracked(o)).map(o => o.vendorCode).filter(Boolean))];
+  ptFillSelect('rfdVendor', vendors.map(c => [c, voName(c) || c]), 'All printers');
+  const z = (n, u) => (n ? nf(n) + ' ' + u : '<span class="muted">—</span>');
+  const two = (list, k) => {
+    const p = rfdRound(list.filter(x => x.unit === 'pcs').reduce((a, x) => a + (x[k] || 0), 0));
+    const m = rfdRound(list.filter(x => x.unit === 'm').reduce((a, x) => a + (x[k] || 0), 0));
+    return [p ? nf(p) + ' pcs' : '', m ? nf(m) + ' m' : ''].filter(Boolean).join(' · ') || '—';
+  };
+  const kpi = (name, tiles) => `<div class="kpi" style="flex-basis:100%"><div class="kpihead"><span class="kpiname">${name}</span>
+    <span class="kpiwhen">orders from ${esc(RFD_TRACK_FROM)} · read live${RFD.at ? ' · ' + esc(RFD.at) : ''}</span></div><div class="metrics">${tiles}</div></div>`;
+  const tile = (v, l, c) => `<div class="metric"><div class="v"${c ? ' style="color:' + c + '"' : ''}>${v}</div><div class="l">${l}</div></div>`;
+
+  if (view === 'order') {
+    const all = rfdOrderRows();
+    const rows = all.filter(x => (!f.vend || String(x.vendorCode) === f.vend)
+      && (!q || [x.orderNo, x.vendorName, x.vendorCode, x.what, x.item].join(' ').toLowerCase().indexOf(q) >= 0));
+    RFD.shown = rows;
+    $('rfdKpis').innerHTML = kpi('RFD by order', tile(nf(new Set(all.map(x => x.orderId)).size), 'Orders')
+      + tile(two(all, 'need'), 'The orders need') + tile(two(all, 'withYou'), 'Already with the printers', '#7f6000')
+      + tile(two(all, 'sent'), 'Sent', '#166534') + tile(two(all, 'recv'), 'Confirmed received')
+      + tile(two(all, 'toSend'), 'Still to send', 'var(--bad)'));
+    const head = '<thead><tr>' + ['Order', 'Printer', 'Placed', 'What', 'Item', 'Needs', 'With them', 'Sent', 'Received', 'On the way', 'To send', '']
+      .map((h, i) => `<th${i === 0 ? ' class="frz"' : (i >= 5 && i <= 10 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
+    $('rfdTable').innerHTML = head + '<tbody>' + (rows.length ? rows.map(x => '<tr>'
+      + `<td class="frz" style="text-align:left"><b>${esc(x.orderNo)}</b></td>`
+      + `<td style="text-align:left">${esc(x.vendorName)}<div class="muted" style="font-size:10.5px">${esc(x.vendorCode)}</div></td>`
+      + `<td>${x.placed ? esc(new Date(x.placed).toISOString().slice(0, 10)) : '<span class="muted">—</span>'}</td>`
+      + `<td style="text-align:left"><b>${esc(x.what)}</b></td><td style="text-align:left">${esc(x.item)}</td>`
+      + `<td class="num" style="font-weight:700">${nf(x.need)} ${x.unit}</td>`
+      + `<td class="num" style="color:#7f6000">${z(x.withYou, x.unit)}</td>`
+      + `<td class="num" style="color:#166534">${z(x.sent, x.unit)}</td>`
+      + `<td class="num">${z(x.recv, x.unit)}</td>`
+      + `<td class="num" style="color:#7f6000">${z(x.onWay, x.unit)}</td>`
+      + `<td class="num" style="font-weight:700;color:${x.toSend ? 'var(--bad)' : '#166534'}">${x.toSend ? nf(x.toSend) + ' ' + x.unit : 'done'}</td>`
+      + `<td style="white-space:nowrap">${x.toSend > 0 && rfdCanSend()
+        ? `<button class="jw-btn jw-primary" data-rfd-osend="${esc(x.orderId)}|${esc(x.key)}" style="padding:4px 10px;font-size:12px">Send ${nf(x.toSend)} ${x.unit}</button>` : ''}</td></tr>`).join('')
+      : `<tr><td colspan="12" class="muted" style="padding:16px">${all.length ? 'No order matches.'
+        : 'No vendor order placed on or after ' + RFD_TRACK_FROM + ' yet. Orders from before keep the ask-and-answer flow — see Requirements raised.'}</td></tr>`) + '</tbody>';
+    $('rfdMsg').className = 'muted';
+    $('rfdMsg').textContent = nf(rows.length) + ' line(s) on ' + nf(new Set(rows.map(x => x.orderId)).size) + ' order(s)'
+      + ' · what an order needs comes from its own lines · With them is the printer\'s own count · Received is what the printer confirmed'
+      + (rfdCanSend() ? '' : ' · you may look, not send');
+    return;
+  }
+
+  const store = [];
+  vendors.filter(c => !f.vend || String(c) === f.vend)
+    .forEach(c => rfdStoreOf(c).forEach(x => store.push(Object.assign(x, { vendorCode: c, vendorName: voName(c) || c }))));
+  const rows = store.filter(x => !q || [x.vendorName, x.vendorCode, x.what, x.item].join(' ').toLowerCase().indexOf(q) >= 0);
+  RFD.shown = rows;
+  $('rfdKpis').innerHTML = kpi('Company cloth with the printers', tile(nf(new Set(store.map(x => x.vendorCode)).size), 'Printers')
+    + tile(two(store, 'recv'), 'Confirmed received', '#166534') + tile(two(store, 'onWay'), 'On the way', '#7f6000')
+    + tile(two(store, 'used'), 'Delivered back') + tile(two(store, 'inHand'), 'With them now'));
+  const head = '<thead><tr>' + ['Printer', 'What', 'Item', 'Orders', 'Had', 'Received', 'On the way', 'Delivered back', 'With them now']
+    .map((h, i) => `<th${i === 0 ? ' class="frz"' : (i >= 3 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
+  $('rfdTable').innerHTML = head + '<tbody>' + (rows.length ? rows.map(x => '<tr>'
+    + `<td class="frz" style="text-align:left">${esc(x.vendorName)}<div class="muted" style="font-size:10.5px">${esc(x.vendorCode)}</div></td>`
+    + `<td style="text-align:left"><b>${esc(x.what)}</b></td><td style="text-align:left">${esc(x.item || (x.unit === 'm' ? 'Running cloth' : ''))}</td>`
+    + `<td class="num">${nf(x.orders)}</td><td class="num">${z(x.had, x.unit)}</td>`
+    + `<td class="num" style="color:#166534">${z(x.recv, x.unit)}</td><td class="num" style="color:#7f6000">${z(x.onWay, x.unit)}</td>`
+    + `<td class="num">${z(x.used, x.unit)}</td>`
+    + `<td class="num" style="font-weight:700${x.inHand < 0 ? ';color:var(--bad)' : ''}" title="${x.inHand < 0 ? 'More came back than went out — a send was not recorded, or the count is short' : ''}">${nf(x.inHand)} ${x.unit}</td></tr>`).join('')
+    : '<tr><td colspan="9" class="muted" style="padding:16px">Nothing tracked yet — the store starts with orders placed on or after ' + RFD_TRACK_FROM + '.</td></tr>') + '</tbody>';
+  $('rfdMsg').className = 'muted';
+  $('rfdMsg').textContent = nf(rows.length) + ' line(s) · Had is the printer\'s own count · Received is what they confirmed · Delivered back is read off the deliveries accepted (a piece sent back off running cloth counts the recipe\'s metres a piece)';
+}
+
 function rfdStage(r, o) {
   if (!r) return '';
   const d = rfdDecisionOf(r.id);
@@ -40443,6 +40725,9 @@ function rfdStage(r, o) {
 function rfdAuto(r, o) {
   if (!r) return false;
   const d = rfdDecisionOf(r.id);
+  /* RAISED BY THE STORE ITSELF, against the order, for what it is about to send — nobody has to agree to it, and the
+   * decision record its own Mark sent leaves behind does not make it somebody's answer. */
+  if (r.office === true) return !(d && d.stage === 'rejected');
   if (d && (d.stage === 'approved' || d.stage === 'rejected')) return false;   // a person answered it
   const order = o || rfdOrderOf(r);
   if (!order) return false;                    // no order to measure against is not a yes
@@ -40904,6 +41189,11 @@ function renderRfd() {
   if (!rfdCanSee()) { $('rfdMsg').className = 'err'; $('rfdMsg').textContent = 'This screen is not open to your account.'; ptEmpty('rfdTable', 'Nothing to show.'); $('rfdKpis').innerHTML = ''; return; }
   if (RFD.err) { $('rfdMsg').className = 'err'; $('rfdMsg').textContent = 'Could not read them: ' + RFD.err; ptEmpty('rfdTable', 'Nothing to show.'); $('rfdKpis').innerHTML = ''; return; }
 
+  /* BY ORDER or BY PRINTER (2026-09-26): the stage, cloth and date filters belong to the requirements list alone. */
+  const view = ($('rfdView') || {}).value || 'req';
+  ['rfdStage', 'rfdFab', 'rfdD1', 'rfdD2'].forEach(id => { const el = $(id); if (el) el.classList.toggle('hide', view !== 'req'); });
+  if (view !== 'req') { RFD_PICK.clear(); rfdPickShow(); return renderRfdLedger(view); }
+
   const all = rfdRows();
   ptFillSelect('rfdVendor', [...new Set(all.map(r => r.vendorCode).filter(Boolean))]
     .map(c => [c, voName(c) || c]), 'All printers');
@@ -40955,6 +41245,24 @@ function renderRfd() {
 
 $('rfdTable').addEventListener('click', async e => {
   const say = (t, bad) => { $('rfdMsg').className = bad ? 'err' : 'muted'; $('rfdMsg').textContent = t; };
+  /* SEND AGAINST THE ORDER (2026-09-26): the store's own button on the By-order reading. */
+  const os = e.target.closest('[data-rfd-osend]');
+  if (os) {
+    const [oid, key] = os.getAttribute('data-rfd-osend').split('|');
+    const o = (VO.rows || []).find(x => x && x.id === oid); if (!o) return;
+    const x = rfdOrderLedger(o).find(r => r.key === key); if (!x) return;
+    return ptOpenDialog({
+      title: 'Send ' + x.what + ' to ' + (voName(o.vendorCode) || o.vendorCode),
+      subtitle: nf(x.toSend) + ' ' + x.unit + ' still to go out against ' + (o.orderNo || o.id)
+        + (x.withYou ? ' · ' + nf(x.withYou) + ' ' + x.unit + ' already with them' : ''),
+      note: 'Recorded against the order itself — no ask needed. The printer sees the lot in their portal and confirms it when it arrives.',
+      fields: [{ key: 'qty', label: (x.unit === 'pcs' ? 'Pieces' : 'Metres') + ' going out', type: 'number', min: 0, step: x.unit === 'pcs' ? '1' : '0.1', value: x.toSend },
+               { key: 'date', label: 'Date it goes out', type: 'date', value: ptIsoDate(new Date().toISOString()) },
+               { key: 'note', label: 'Remarks', span: true, value: '' }],
+      saveLabel: 'Record it',
+      onSave: async v => { const err = await rfdOfficeSend(o, key, v.qty, v.date, v.note); if (!err) renderRfd(); return err; },
+    });
+  }
   const ok = e.target.closest('[data-rfd-ok]');
   if (ok) {
     const r = rfdFind(ok.getAttribute('data-rfd-ok')); if (!r) return;
@@ -41044,7 +41352,7 @@ function rfdKpiClick(e) {
 }
 $('rfdKpis').addEventListener('click', rfdKpiClick);
 $('rfdKpis').addEventListener('keydown', rfdKpiClick);
-['rfdStage', 'rfdVendor', 'rfdFab', 'rfdD1', 'rfdD2'].forEach(id => $(id).addEventListener('change', renderRfd));
+['rfdView', 'rfdStage', 'rfdVendor', 'rfdFab', 'rfdD1', 'rfdD2'].forEach(id => $(id).addEventListener('change', renderRfd));
 ptDebounce('rfdQ', renderRfd);
 $('rfdClear').onclick = () => {
   ['rfdStage', 'rfdVendor', 'rfdFab', 'rfdQ', 'rfdD1', 'rfdD2'].forEach(id => { if ($(id)) $(id).value = ''; });
@@ -41054,6 +41362,16 @@ $('rfdGo').onclick = () => ensureRfd(true);
 $('rfdGuide').onclick = () => window.open('/guide/#rfd', '_blank');
 $('rfdExport').onclick = () => {
   const rows = RFD.shown || []; if (!rows.length) return;
+  const view = ($('rfdView') || {}).value || 'req';
+  if (view === 'order') {
+    return ptDownload('rfd-by-order', [['Order', 'Printer', 'Printer code', 'Placed', 'What', 'Item', 'Unit', 'Needs', 'With them', 'Sent', 'Received', 'On the way', 'To send'].map(csvCell).join(',')]
+      .concat(rows.map(x => [x.orderNo, x.vendorName, x.vendorCode, x.placed ? new Date(x.placed).toISOString().slice(0, 10) : '', x.what, x.item, x.unit,
+        x.need, x.withYou, x.sent, x.recv, x.onWay, x.toSend].map(csvCell).join(','))));
+  }
+  if (view === 'printer') {
+    return ptDownload('rfd-with-printers', [['Printer', 'Printer code', 'What', 'Item', 'Unit', 'Orders', 'Had', 'Received', 'On the way', 'Delivered back', 'With them now'].map(csvCell).join(',')]
+      .concat(rows.map(x => [x.vendorName, x.vendorCode, x.what, x.item, x.unit, x.orders, x.had, x.recv, x.onWay, x.used, x.inHand].map(csvCell).join(','))));
+  }
   const out = [['Raised', 'Raised by', 'Printer', 'Printer code', 'Order', 'What they need', 'Unit',
     'How much', 'Fabric', 'Size', 'Metres it takes to cut', 'Order needs', 'Already asked', 'Still covered',
     'Beyond the order', 'Stage', 'Automatic', 'Sent', 'Note', 'Answered by', 'Answer note'].map(csvCell).join(',')];
