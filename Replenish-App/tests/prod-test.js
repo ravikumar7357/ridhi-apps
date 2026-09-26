@@ -17197,7 +17197,260 @@ console.log('\n== RFD: asking by the piece, and whether the cloth has actually a
     A.renderVp();
     const html2 = els.vpBody.innerHTML;
     ok('what has reached them is on their own screen', />25</.test(html2), 'delivered figure missing');
-    ok('…and Sent to you sits up top beside the order, as a chip that opens the lots', (src => /cut — pieces'\)\}<\/span>\s*\$\{receipt\}/.test(src) && /<details class="vr-sent"><summary>Sent to you/.test(src) && !/\+ receipt;/.test(src))(fs.readFileSync(APP, 'utf8')));
+    /* This fixture has no lots sent, so the chip is checked where it is written: beside the order's kind, not at the foot. */
+    ok('…and Sent to you sits up top beside the order, as a chip that opens the lots', (src => src.indexOf("'cut — pieces')}</span>\r\n        ${receipt}") > 0
+       && src.indexOf('<details class="vr-sent"><summary>Sent to you') > 0 && src.indexOf('    + receipt;') < 0)(fs.readFileSync(APP, 'utf8')));
+    ok('…and so is what is still to come', />14</.test(html2), 'outstanding figure missing');
+    /* It is still ASKABLE. Flagging a gap must not take the size off the screen — the printer still
+     * needs those twenty tablecloths, and the rule being unset is the office's problem, not theirs. */
+    ok('…and is still a size they can ask for',
+      A.rfdPieceLines(A.VP().rows[0]).some(x => x.sku === 'RT-110'));
+    ok('the strip counts orders that cannot be started', /Orders still short/.test(els.vpKpis.innerHTML));
+
+    /* PRESSING IT, not just drawing it. The markup was checked and what it does was not, so the
+     * button could have been wired to nothing and every test here would still have passed. */
+    const before = A.rfdReqsOf(A.VP().rows[0]).length;
+    /* A SIZE, NOT A SKU. The box lists sizes now, so this is what a printer actually picks. */
+    QS['[data-vprfd-sku="p1"]'] = { value: 'P__SQUARE_TABLECLOTH_72X72' };
+    QS['[data-vprfd-p="p1"]'] = { value: '10' };
+    QS['[data-vprfd-pn="p1"]'] = { value: 'the whole line' };
+    const fire = attr => (els.vpBody._listeners.click || []).map(fn => fn({
+      target: { closest: sel => (sel === '[' + attr + ']' ? { getAttribute: () => 'p1' } : null) } }));
+    await Promise.all(fire('data-vprfd-askp'));
+    const after = A.rfdReqsOf(A.VP().rows[0]);
+    ok('pressing "Ask by the piece" raises one', after.length === before + 1,
+      before + ' -> ' + after.length);
+    const raised = after[after.length - 1];
+    ok('…for the size that was picked, in the pieces that were typed',
+      raised && raised.sku === 'TC-7272' && raised.pieces === 10, JSON.stringify(raised || {}));
+    ok('…and it is still stored against the SKU, with its colour and its cloth',
+      raised && raised.colour === 'Indigo' && raised.fabric === 'Sheeting 72', JSON.stringify(raised || {}));
+    ok('…converted to the cloth it comes to', raised && raised.metres === 20, raised && String(raised.metres));
+    ok('…and the reason typed beside it is kept', raised && raised.note === 'the whole line', raised && raised.note);
+    delete QS['[data-vprfd-sku="p1"]']; delete QS['[data-vprfd-p="p1"]']; delete QS['[data-vprfd-pn="p1"]'];
+  }
+
+  /* ================= ONE ROW PER SIZE, AND WHAT IS ALREADY WITH THEM =================
+   *
+   * 60X60 Square Tablecloth is on Ravi's screen thirteen times, once per colour, and the printer is
+   * asking for blank cloth — the colour is what they are about to print on it. 1,038 rows across
+   * the live orders become 260. */
+  {
+    const wasVP3 = A.VP(), wasVO3 = A.VO(), wasRFD3 = A.RFD();
+    const many = { id: 'g1', orderNo: 'VPO-G1', vendorCode: 'VND001', orderType: 'cut',
+      service: 'Block print', status: 'In Production', lines: [
+        { lineId: 'a', kind: 'cut', sku: 'TC-6060', qty: 30, size: '60X60', color: 'Taupe', articleSubtype: 'Square Tablecloth' },
+        { lineId: 'b', kind: 'cut', sku: 'TC-5454', qty: 20, size: '60X60', color: 'Indigo', articleSubtype: 'Square Tablecloth' },
+        { lineId: 'c', kind: 'cut', sku: 'TC-82', qty: 10, size: '60X60', color: 'Red', articleSubtype: 'Square Tablecloth' },
+        { lineId: 'd', kind: 'cut', sku: 'TC-7272', qty: 10, size: '72X72', color: 'Indigo', articleSubtype: 'Square Tablecloth' },
+      ] };
+    A.setRFD_({ decisions: {}, err: '', busy: false, at: '', shown: [], stock: {} });
+    A.setVP({ code: 'VND001', name: 'RBP-Bagru', rows: [many], err: '', busy: false, at: '', tab: 'rfd' });
+    A.setVO(Object.assign({}, A.VO(), { rows: [many] }));
+
+    const g = A.rfdSizeGroups(many);
+    ok('four colour rows become two sizes', g.length === 2, g.map(x => x.key).join(' | '));
+    const sixty = g.find(x => x.size === '60X60');
+    ok('…and the size carries every piece of every colour', sixty && sixty.pieces === 60, sixty && String(sixty.pieces));
+    ok('…and says how many colours are behind it', sixty && sixty.colours.length === 3, JSON.stringify(sixty && sixty.colours));
+    /* A GROUP THAT SPANS TWO CLOTHS SAYS SO. 5 of the 260 live groups do, and two of those five are
+     * the "Sheeitng 112" typo — a row that names both is how anybody finds out. */
+    /* TC-6060 and TC-5454 are both Sheeting 62; TC-82 is Sheeting 82. Two cloths, three colours. */
+    ok('…and names every cloth behind it',
+      sixty && sixty.fabrics.slice().sort().join(',') === 'Sheeting 62,Sheeting 82',
+      JSON.stringify(sixty && sixty.fabrics));
+    ok('the key a database will take has nothing in it to choke on',
+      /^[A-Z0-9_]+$/.test(sixty.stockKey), sixty.stockKey);
+
+    /* ---- ASKING ONCE, SPREAD OVER THE COLOURS ---- */
+    let err = await A.rfdSubmitSize(many, sixty.stockKey, 30, 'half of it');
+    ok('asking for a size raises one request per colour', err === '' && A.rfdReqsOf(many).length === 3,
+      err || String(A.rfdReqsOf(many).length));
+    const got = A.rfdReqsOf(many);
+    ok('…adding up to exactly what was asked for',
+      got.reduce((a, r) => a + r.pieces, 0) === 30, JSON.stringify(got.map(r => r.sku + ':' + r.pieces)));
+    /* `|| {}` so writing ONE request instead of three fails loudly instead of crashing. */
+    const pcsOf = sku => (got.find(r => r.sku === sku) || {}).pieces;
+    ok('…shared out in proportion to what each colour needs',
+      pcsOf('TC-6060') === 15 && pcsOf('TC-5454') === 10 && pcsOf('TC-82') === 5,
+      JSON.stringify(got.map(r => r.sku + ':' + r.pieces)));
+    ok('…each one keeping its own colour and cloth',
+      got.every(r => r.colour && r.fabric), JSON.stringify(got.map(r => r.colour + '/' + r.fabric)));
+    ok('…and what is left on the size comes down by what was asked',
+      A.rfdSizeOf(many, sixty.stockKey).left === 30, String(A.rfdSizeOf(many, sixty.stockKey).left));
+    ok('…and the other size is untouched',
+      A.rfdSizeOf(many, '72X72') === null || A.rfdSizeGroups(many).find(x => x.size === '72X72').used === 0);
+
+    /* ---- ASK FOR NOW: a box per row, one button (Ravi, 2026-09-26) ----
+     * "jese hi order qty se upar jay wo pahle approval ke liye aay". */
+    {
+      const two = JSON.parse(JSON.stringify(many)); two.id = 'g2'; two.orderNo = 'VPO-G2'; two.rfdReqs = {};
+      A.setVP(Object.assign({}, A.VP(), { rows: [many, two] })); A.setVO(Object.assign({}, A.VO(), { rows: [many, two] }));
+      const k72 = A.rfdSizeGroups(two).find(x => x.size === '72X72').stockKey;
+      const plan = A.vpRfdRaisePlan(two, [{ key: k72, qty: '14' }, { key: sixty.stockKey, qty: '' }]);
+      ok('a filled box splits into what the order covers and what is over it', plan.length === 1 && plan[0].within === 10 && plan[0].over === 4, JSON.stringify(plan));
+      ok('…half a piece is refused', /whole number/.test((A.vpRfdRaisePlan(two, [{ key: k72, qty: '2.5' }])[0] || {}).err || ''));
+      let r = await A.vpRfdRaiseRun(two, [{ key: k72, qty: '14' }], '');
+      ok('more than the order needs is refused without a reason', /say why/.test(r.err), r.err);
+      r = await A.vpRfdRaiseRun(two, [{ key: k72, qty: '14' }], 'rejects in printing');
+      const reqs = A.rfdReqsOf(two);
+      const agreed = reqs.filter(x => A.rfdAuto(x, two)), waiting = reqs.filter(x => !A.rfdAuto(x, two));
+      ok('…with one, the part inside the order is agreed at once', r.err === '' && agreed.reduce((t2, x) => t2 + x.pieces, 0) === 10, JSON.stringify(reqs.map(x => [x.pieces, A.rfdAuto(x, two)])));
+      ok('…and the part over it waits for approval, carrying the reason', waiting.reduce((t2, x) => t2 + x.pieces, 0) === 4 && waiting.every(x => /rejects in printing/.test(x.note || '')), JSON.stringify(waiting.map(x => x.note)));
+      A.setVP(Object.assign({}, A.VP(), { rows: [many] })); A.setVO(Object.assign({}, A.VO(), { rows: [many] }));
+    }
+
+    /* NOTHING IS LOST TO ROUNDING. Thirteen colours and a number that does not divide is where a
+     * piece goes missing on every row and thirteen pieces go missing altogether. */
+    ok('a split that does not divide still adds up',
+      A.rfdSpread(10, [1, 1, 1]).reduce((a, b) => a + b, 0) === 10, JSON.stringify(A.rfdSpread(10, [1, 1, 1])));
+    ok('…to exactly what was asked for, never to the room available',
+      A.rfdSpread(200, [30, 20, 10]).reduce((a, b) => a + b, 0) === 200,
+      JSON.stringify(A.rfdSpread(200, [30, 20, 10])));
+    ok('…in proportion to the weights it was given',
+      A.rfdSpread(60, [30, 20, 10]).join(',') === '30,20,10', JSON.stringify(A.rfdSpread(60, [30, 20, 10])));
+    ok('…and a split of nothing is nothing',
+      A.rfdSpread(0, [5, 5]).join(',') === '0,0', JSON.stringify(A.rfdSpread(0, [5, 5])));
+    /* NOTHING LEFT ANYWHERE and still asking: the extra is shared, not divided by nothing and lost. */
+    ok('…while asking with no room left anywhere still shares it out',
+      A.rfdSpread(5, [0, 0]).reduce((a, b) => a + b, 0) === 5, JSON.stringify(A.rfdSpread(5, [0, 0])));
+    ok('…and no part is ever given a fraction of a piece',
+      A.rfdSpread(7, [5, 5, 5]).every(x => Math.round(x) === x), JSON.stringify(A.rfdSpread(7, [5, 5, 5])));
+
+    /* ---- WHAT IS ALREADY WITH THEM ---- */
+    A.setRFD_(Object.assign({}, A.RFD(), { stock: { VND001: { [sixty.stockKey]: { pcs: 12 } } } }));
+    ok('what the printer says is with them comes off what is left to ask for',
+      A.rfdSizeOf(many, sixty.stockKey).left === 18, String(A.rfdSizeOf(many, sixty.stockKey).left));
+    ok('…and off the ceiling for a new request too',
+      A.rfdPcsAllowed(many, 'TC-6060').stock > 0, JSON.stringify(A.rfdPcsAllowed(many, 'TC-6060')));
+    ok('…spread over the colours the same way',
+      ['TC-6060', 'TC-5454', 'TC-82'].reduce((a, s) => a + A.rfdStockForSku(many, s), 0) === 12,
+      JSON.stringify(['TC-6060', 'TC-5454', 'TC-82'].map(s => s + ':' + A.rfdStockForSku(many, s))));
+    /* AND IT NEVER REACHES BACK. Asked what was left at the moment an OLD request was raised — the
+     * question that decided whether it was agreed on the spot — the answer must not have moved. */
+    ok('a count typed today cannot un-agree a request raised before it',
+      A.rfdPcsAllowed(many, 'TC-6060', got.find(r => r.sku === 'TC-6060')).stock === 0,
+      JSON.stringify(A.rfdPcsAllowed(many, 'TC-6060', got.find(r => r.sku === 'TC-6060'))));
+
+    /* A DECLARED PILE IS ONE PILE. 39 live size groups sit on two or three open orders of one
+     * printer; counting it against each would be the same cloth counted three times. */
+    const second = Object.assign({}, many, { id: 'g2', orderNo: 'VPO-G2', rfdReqs: {},
+      lines: [{ lineId: 'x', kind: 'cut', sku: 'TC-6060', qty: 40, size: '60X60', color: 'Taupe', articleSubtype: 'Square Tablecloth' }] });
+    A.setVP(Object.assign({}, A.VP(), { rows: [many, second] }));
+    /* A PILE SMALLER THAN THE TWO ORDERS TOGETHER. A bigger one proves nothing: both orders would
+     * get everything they need whether the pile was shared or handed out twice over. g1 still needs
+     * 30 of the 60X60 (30 of its 60 were asked for above) and g2 needs 40 - so a pile of 50 can
+     * cover the first and only 20 of the second. */
+    A.setRFD_(Object.assign({}, A.RFD(), { stock: { VND001: { [sixty.stockKey]: { pcs: 50 } } } }));
+    const here = A.rfdStockHere(many, sixty.stockKey), there = A.rfdStockHere(second, sixty.stockKey);
+    ok('one pile is shared between two open orders, not counted twice',
+      here + there === 50, JSON.stringify({ here, there }));
+    ok('…oldest order first, up to what it still needs',
+      here === 30 && there === 20, JSON.stringify({ here, there }));
+    /* AND WHAT IS LEFT OVER IS NOT INVENTED. A pile bigger than everything outstanding is capped by
+     * what the orders actually need, not by the pile. */
+    A.setRFD_(Object.assign({}, A.RFD(), { stock: { VND001: { [sixty.stockKey]: { pcs: 500 } } } }));
+    ok('…and no order counts more of it than it still needs',
+      A.rfdStockHere(many, sixty.stockKey) === 30 && A.rfdStockHere(second, sixty.stockKey) === 40,
+      JSON.stringify([A.rfdStockHere(many, sixty.stockKey), A.rfdStockHere(second, sixty.stockKey)]));
+
+    /* ---- TYPED ON AN ORDER, COUNTED ON THAT ORDER (21 Sep 2026) ----
+     * VND002 typed 200 of 60X60 on their newer order and the older one took all of it. A count saved
+     * against an order is that order's alone. */
+    {
+      const wasOn = NET.on; NET.on = true; NET.calls.length = 0;
+      /* An old untagged count is there too; saving on an order must replace it, not add to it. */
+      A.setRFD_(Object.assign({}, A.RFD(), { stock: { VND001: { [sixty.stockKey]: { pcs: 7 } } } }));
+      const err = await A.rfdStockSave(second, sixty.stockKey, '25');
+      ok('a count is saved without complaint', err === '', err);
+      const patch = NET.calls.find(c => c.method === 'PATCH');
+      const pk = 'pt_rfdStock/VND001/' + sixty.stockKey;
+      ok('…against the order it was typed on', !!(patch && patch.body && patch.body[pk + '@g2']
+        && patch.body[pk + '@g2'].pcs === 25 && patch.body[pk + '@g2'].orderId === 'g2'),
+        JSON.stringify(patch && patch.body));
+      ok('…and the old untagged count goes in the same write', !!(patch && patch.body && pk in patch.body && patch.body[pk] === null));
+      ok('the order it was typed on counts it', A.rfdStockHere(second, sixty.stockKey) === 25,
+        String(A.rfdStockHere(second, sixty.stockKey)));
+      ok('…and the older order does not take it', A.rfdStockHere(many, sixty.stockKey) === 0,
+        String(A.rfdStockHere(many, sixty.stockKey)));
+      ok('…so what is left to ask for drops on the order it was typed on',
+        A.rfdSizeOf(second, sixty.stockKey).left === 15, String(A.rfdSizeOf(second, sixty.stockKey).left));
+      /* A count bigger than what the order needs is capped, and the rest is not moved to another order. */
+      await A.rfdStockSave(second, sixty.stockKey, '100');
+      ok('a count bigger than the order needs is capped at what it needs', A.rfdStockHere(second, sixty.stockKey) === 40
+        && A.rfdStockHere(many, sixty.stockKey) === 0,
+        JSON.stringify([A.rfdStockHere(second, sixty.stockKey), A.rfdStockHere(many, sixty.stockKey)]));
+      A.setVP(Object.assign({}, A.VP(), { rows: [second, many] }));
+      A.setVP(Object.assign({}, A.VP(), { tab: 'rfd', rfdOrder: 'g2' }));
+      A.renderVp();
+      ok('…and the printer is told the rest is more than this order needs',
+        /60 more than this order still needs/.test(els.vpBody.innerHTML) && !/counted elsewhere/.test(els.vpBody.innerHTML));
+      /* Each order has its own; typing on one does not touch the other's. */
+      await A.rfdStockSave(many, sixty.stockKey, '10');
+      ok('two orders keep two counts', A.rfdStockHere(many, sixty.stockKey) === 10 && A.rfdStockHere(second, sixty.stockKey) === 40,
+        JSON.stringify([A.rfdStockHere(many, sixty.stockKey), A.rfdStockHere(second, sixty.stockKey)]));
+      /* ASKED BEFORE THE COUNT WAS TYPED: the two together can pass what the order needs, and it is said. */
+      await A.rfdSubmitSize(second, sixty.stockKey, 40, '');
+      A.renderVp();
+      ok('an ask plus the count beyond the order is shown as over-asked',
+        /40 pcs more than the order needs/.test(els.vpBody.innerHTML),
+        (els.vpBody.innerHTML.match(/\d+ pcs more than the order needs/) || ['none'])[0]);
+      /* Emptying the box removes this order's count only. */
+      await A.rfdStockSave(second, sixty.stockKey, '');
+      ok('emptying the box removes the count on this order only', A.rfdStockHere(second, sixty.stockKey) === 0
+        && A.rfdStockHere(many, sixty.stockKey) === 10);
+      const oo = A.VP().rows.find(x => x.id === 'g2'); oo.rfdReqs = {};
+      A.setVP(Object.assign({}, A.VP(), { rows: [many, second], rfdOrder: '' }));
+      NET.calls.length = 0; NET.on = wasOn;
+    }
+
+    /* ---- TO SEND = ASKED LESS WHAT IS WITH THEM (21 Sep 2026) ----
+     * "uske pas jo pcs pade h wo minus krke req. qty aani chahiye". */
+    {
+      const keepVP = A.VP(), keepVO = A.VO(), keepRFD = A.RFD();
+      const wasOn = NET.on; NET.on = true; NET.calls.length = 0;
+      ME.rfdApprove = true; ME.rfdSend = true;
+      const o = Object.assign(cutOrder(), { vendorCode: 'VND001' });
+      const rq = (id, n, at) => ({ id, unit: 'pcs', pieces: n, metres: 0, sku: 'TC-6060', size: '60X60',
+        raisedAt: at, raisedBy: 'p@x', orderId: o.id, orderNo: o.orderNo, vendorCode: 'VND001' });
+      o.rfdReqs = { q1: rq('q1', 20, '2026-09-21T01:00:00.000Z'), q2: rq('q2', 15, '2026-09-21T02:00:00.000Z') };
+      A.setRFD_({ decisions: {}, err: '', busy: false, at: '', shown: [], stock: {} });
+      A.setVP({});
+      A.setVO(Object.assign(A.VO(), { rows: [o] }));
+      ok('the fixture has the size to count against', !!A.rfdPieceOf(o, 'TC-6060'));
+      const key = A.rfdStockKey(A.rfdPieceOf(o, 'TC-6060'));
+      A.setRFD_(Object.assign(A.RFD(), { stock: { VND001: { [key + '@' + o.id]: { pcs: 25, orderId: o.id } } } }));
+      const [r1, r2] = A.rfdReqsOf(o).sort((a, b) => (A.rfdSeq(a) < A.rfdSeq(b) ? -1 : 1));
+      ok('what is with them goes to the oldest request first', A.rfdWithPrinter(r1, o) === 20 && A.rfdWithPrinter(r2, o) === 5,
+        JSON.stringify([A.rfdWithPrinter(r1, o), A.rfdWithPrinter(r2, o)]));
+      ok('…so what is to send is what was asked less that', A.rfdToSend(r1, o) === 0 && A.rfdToSend(r2, o) === 10,
+        JSON.stringify([A.rfdToSend(r1, o), A.rfdToSend(r2, o)]));
+      ok('a request they already hold in full is done', A.rfdStage(r1, o) === 'sent', A.rfdStage(r1, o));
+      ok('…and one they hold part of is still to send', A.rfdStage(r2, o) === 'approved', A.rfdStage(r2, o));
+      ['rfdStage', 'rfdVendor', 'rfdFab', 'rfdQ', 'rfdD1', 'rfdD2'].forEach(i => { els[i].value = ''; });
+      A.renderRfd();
+      ok('the office row says asked, with them, and to send',
+        /15 pcs asked/.test(els.rfdTable.innerHTML) && /− 5 pcs with them/.test(els.rfdTable.innerHTML)
+        && /10 pcs to send/.test(els.rfdTable.innerHTML), els.rfdTable.innerHTML.slice(0, 300));
+      ok('sending more than is not with them is refused', /still to go out/.test(await A.rfdMarkSent(r2.id, 11, '2026-09-21', '')));
+      ok('…and sending the rest is recorded', (await A.rfdMarkSent(r2.id, 10, '2026-09-21', '')) === '');
+      ok('…after which it is done too', A.rfdStage(r2, o) === 'sent', A.rfdStage(r2, o));
+      /* A REFUSED REQUEST TAKES NONE, so the count moves on to the next. */
+      A.setRFD_(Object.assign(A.RFD(), { decisions: { [r1.id]: { id: r1.id, stage: 'rejected' } } }));
+      ok('a refused request takes none of it', A.rfdWithPrinter(r1, o) === 0 && A.rfdWithPrinter(r2, o) === 15,
+        JSON.stringify([A.rfdWithPrinter(r1, o), A.rfdWithPrinter(r2, o)]));
+      A.setVP(keepVP); A.setVO(keepVO); A.setRFD_(keepRFD);
+      NET.calls.length = 0; NET.on = wasOn;
+    }
+
+    /* ---- THE SCREEN ---- */
+    A.setRFD_(Object.assign({}, A.RFD(), { stock: {} }));
+    A.setVP(Object.assign({}, A.VP(), { rows: [many] }));
+    A.renderVp();
+    const h = els.vpBody.innerHTML;
+    ok('the screen gives the printer a box to say what they have', /data-vprfd-stock=/.test(h), h.slice(0, 400));
+    /* Design 4 (Ravi, 2026-09-26): each size a progress row, both boxes on it, the picker says Change order, the raise bar at the foot. */
+    ok('what was asked sits in a closed dropdown inside the requirement card', !/What you have asked for/.test(h) || /<details id="vpRfdAsks"[^>]*><summary[^>]*>What you have asked for/.test(h));
     /* THE DRAW-LONG MEMO: the same answer inside one draw, a fresh one once the data is swapped. */
     { const oo = A.VP().rows[0]; const g1 = A.rfdSizeGroups(oo), g2 = A.rfdSizeGroups(oo);
       const keepR = A.RFD(); A.setRFD_(Object.assign({}, keepR)); const g3 = A.rfdSizeGroups(oo); A.setRFD_(keepR);
