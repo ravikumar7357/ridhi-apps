@@ -4,7 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const APP = 'C:/AMAZON/Amazon Inventory/Replenish-App/public/index.html';
+const APP = 'C:/AMAZON/Amazon Inventory/Replenish-App/public/index.html';   // the SOURCE — the slices below find their way by comment markers, which the built dist/ has not got
 const BAK = 'C:/AMAZON/backups/production-tracker_2026-09-04_1259.json';
 
 const html = fs.readFileSync(APP, 'utf8');

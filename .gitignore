@@ -25,3 +25,6 @@ firebase-debug.log
 
 # Office lock files.
 ~$*
+
+# Built copy of Replenish-App/public (node tests/build-dist.js); never edited by hand
+Replenish-App/dist/

@@ -1,7 +1,8 @@
 {
   "hosting": {
     "site": "fabricrush-replenish",
-    "public": "public",
+    "public": "dist",
+    "//build": "dist is BUILT from public by `node tests/build-dist.js` (comments out, nothing renamed) — edit public/index.html, build, then deploy. Deploying public itself works too but ships 0.65 MB of comments.",
     "ignore": [
       "firebase.json",
       "**/.*",
