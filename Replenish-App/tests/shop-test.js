@@ -140,7 +140,7 @@ const ptEmpty = (id, msg) => { els[id] && (els[id].innerHTML = '<tbody><tr><td>'
 const ptFill = () => {};
 const ptDownload = (name, lines) => { DOWNLOADS.push(name); LAST_CSV = lines; };
 let LAST_CSV = [];
-const ptGet = async node => (node === 'pt_customSkus' ? CUSTOMDB : {});
+const ptGet = async node => (node === 'pt_customSkus' ? CUSTOMDB : (String(node).indexOf('pt_orderBook/') === 0 ? (RT[node] || null) : {}));
 const ptCi = (a, b) => String(a == null ? '' : a).trim().toLowerCase() === String(b == null ? '' : b).trim().toLowerCase();
 const ordFilters = () => ({ ord: els.odOrd.value || '', art: els.odArt.value || '', sub: els.odSub.value || '',
   col: els.odCol.value || '', sz: els.odSz.value || '', st: els.odStatus.value || '',
@@ -158,7 +158,7 @@ function ordLines() {
       articleType: r.articleType || '', articleSubtype: r.articleSubtype || '',
       color: r.color || '', size: r.size || '', src: r.src || '',
       shopOrderNo: r.shopOrderNo || '', shopOrderId: r.shopOrderId || '', adjId: r.adjId || '',
-      needsSku: r.needsSku === true });
+      needsSku: r.needsSku === true, shopDoneAt: r.shopDoneAt || '', shopDoneWhy: r.shopDoneWhy || '' });
     e.qty += parseInt(r.qty, 10) || 0;
   });
   return Object.values(byKey).map(l => {
@@ -171,7 +171,7 @@ function ordLines() {
     return Object.assign({}, l, { cut, pressed, issued, received, cutReq: true,
       cutPct: l.qty > 0 ? (cut / l.qty) * 100 : 0, cutDone: cut >= l.qty,
       pendingCut: Math.max(0, l.qty - cut), pendingMake: Math.max(0, l.qty - pressed),
-      open: pressed < l.qty });
+      open: l.shopDoneAt ? false : pressed < l.qty });
   }).sort((a, b) => a.orderNo.localeCompare(b.orderNo) || a.sku.localeCompare(b.sku));
 }
 const ctx = {
@@ -194,7 +194,7 @@ const EXPORT = '\n;return {'
   + 'loadShopStock, loadShopIndia, soGuessBrand, soMcf, soAmzKey, soAmzCase, soLive, soSendQty, soMcfPlan, soBestBrand, soMcfHas, mcfErr, openShopOrder,'
   + 'apiPost, soMcfPayload, renderShop, soRows, SO_ALL_ROWS:()=>SO_ALL_ROWS, ensureShop, soStamp, sdToday, sdShift, soStoreDay,'
   + 'renderAdj, ajRows, soAdjId, soPackOf, soIndiaOf, soLineState, soFlags,'
-  + 'shpSyncAll, shpSyncOrder, shpSyncMsg, shpPlanOrder, shpNeeds, shpLineShipped, shpOldestOpen, shpUnseen, shpCloseShipped, SHP_REACH_MAX_DAYS, shpOrderNo, shpOrderOf, shpWorkDone, adjOpen,'
+  + 'shpSyncAll, shpSyncOrder, shpSyncMsg, shpPlanOrder, shpNeeds, shpLineShipped, shpOldestOpen, shpUnseen, shpCloseShipped, SHP_REACH_MAX_DAYS, shpOrderNo, shpOrderOf, shpWorkDone, adjOpen, shpBucket, shpBucketRun, shpDoneWhy, soProdStatus, soProdChip,'
   + 'setStockLoaded:v=>{SHOP_STOCK_LOADED=v},'
   + 'setIndia:(d,l,e)=>{SHOP_INDIA=d;SHOP_INDIA_LOADED=l;SHOP_INDIA_ERR=e}'
   + ', setCustom:v=>{SHP_CUSTOM=v}'
@@ -1683,6 +1683,74 @@ console.log('\n== an order sees only its own Amazon account ==');
   A.openShopOrder('gid-C1');
   ok('an order already sent keeps the account it went on, so its status is asked there', els.soMcfBrand.value === 'SP');
   A.setMETA({});
+}
+console.log('\n== THE PRODUCTION BUCKET (Ravi, 2026-09-26) ==');
+{
+  /* "jo shopify ke order production se required rahe pahle wo ek bucket me aay then us bucket me se me manually
+   * production order open kar saku … koi duplicate order open n ho". */
+  RT = {}; PTG.ob = []; SOX.rows = []; WORK = {}; PATCHES.length = 0;
+  PTG.mdb = [{ sku: 'RCNBMIX', articleType: 'Napkin', subtype: 'Plain', color: 'Blue', size: '20x20' },
+             { sku: 'RCNBRED', articleType: 'Napkin', subtype: 'Plain', color: 'Red', size: '20x20' }];
+  const mk = (id, no, items, extra) => Object.assign({ id, no, at: '2026-09-20T10:00:00Z',
+    items: items.map(([sku, qty]) => ({ sku, name: sku, qty, ffl: 'unfulfilled', rq: 0 })),
+    ship: { name: 'B', country: 'US' }, total: 10, cur: 'USD', cancelled: false }, extra || {});
+  A.setMETA({}); A.setSKU({}); A.setSTOCK({}); A.setSTOCKCASE({});
+  A.setStockLoaded(true);
+  /* India has 5 red napkins — so the red line reads "covered" even if the shelf is empty. */
+  A.setIndia({ RCNBRED: [5] }, true, '');
+  A.setSHOP({ orders: [mk('b1', '#5001', [['RCNBMIX', 2], ['RCNBRED', 1]])], from: '', to: '', tz: '', at: 'x' });
+  A.renderShop();
+
+  let t = await A.shpSyncAll({ maintain: true });
+  ok('the automatic run opens nothing any more', t.written === 0 && !Object.keys(RT).some(k => /^pt_orderBook\//.test(k)), JSON.stringify(Object.keys(RT)));
+  let b = A.shpBucket();
+  const need = b.find(x => x.sku === 'RCNBMIX'), cov = b.find(x => x.sku === 'RCNBRED');
+  ok('…the line nothing can fill waits in the bucket', need && need.kind === 'make' && need.qty === 2, JSON.stringify(b.map(x => [x.sku, x.kind])));
+  ok('…and the line India says it can fill is offered apart, to open anyway', cov && cov.kind === 'covered');
+  ok('the Shopify tab says so on the order, and counts it on the button', /In the production bucket/.test(els.soTable.innerHTML), '');
+
+  ok('opening a stock-covered line needs a reason', /say why they have to be made anyway/.test(await A.shpBucketRun([cov.key], '')));
+  ok('opening the ticked line writes it', (await A.shpBucketRun([need.key], '')) === '');
+  const row = RT['pt_orderBook/ob_shp_SHP-5001_RCNBMIX'];
+  ok('…under the Shopify order number, marked as opened from the bucket, by whom', row && row.orderNo === 'SHP-5001' && row.openedFrom === 'bucket' && row.openedBy && row.qty === 2, JSON.stringify(row));
+  ok('…and only that line — the red one stays in the bucket', !RT['pt_orderBook/ob_shp_SHP-5001_RCNBRED'] && A.shpBucket().some(x => x.sku === 'RCNBRED') && !A.shpBucket().some(x => x.sku === 'RCNBMIX'));
+  ok('…with its sales order', !!RT['pt_salesOrders/SHP-5001']);
+
+  /* THE DUPLICATE GUARD: this screen has not seen the row (another person opened it), the database has. */
+  const keepOb = PTG.ob; PTG.ob = [];
+  const again = A.shpBucket().find(x => x.sku === 'RCNBMIX');
+  ok('a line another person already opened is skipped from the database, never opened twice',
+     again && /is already open/.test(await A.shpBucketRun([again.key], '')), '');
+  PTG.ob = keepOb;
+
+  ok('the stock-covered line opens with a reason, and says so on the row', (await A.shpBucketRun([cov.key], 'India stock is not really there')) === ''
+     && RT['pt_orderBook/ob_shp_SHP-5001_RCNBRED'] && RT['pt_orderBook/ob_shp_SHP-5001_RCNBRED'].forced === true
+     && /India stock is not really there/.test(RT['pt_orderBook/ob_shp_SHP-5001_RCNBRED'].forcedWhy));
+  ok('…and the sales order carries both lines, the first not dropped', (RT['pt_salesOrders/SHP-5001'].lines || []).map(l => l.sku).sort().join() === 'RCNBMIX,RCNBRED',
+     JSON.stringify(RT['pt_salesOrders/SHP-5001'].lines));
+
+  /* STOCK TURNS UP: a line somebody opened is a decision — the automatic run leaves it. */
+  A.setSTOCK({ RCNBMIX: 40 }); A.setSTOCKCASE({ RCNBMIX: 'RCNBMIX' });
+  A.renderShop();
+  t = await A.shpSyncAll({ maintain: true });
+  ok('stock turning up does not withdraw an opened line', !!RT['pt_orderBook/ob_shp_SHP-5001_RCNBMIX'] && t.removed === 0);
+  A.renderShop();
+  ok('the Shopify team sees the order in production', /In production/.test(els.soTable.innerHTML));
+
+  /* THE SHIPPING TEAM FULFILS IT: the open production lines complete themselves, kept on the book. */
+  A.setSHOP({ orders: [mk('b1', '#5001', [['RCNBMIX', 2], ['RCNBRED', 1]], { ff: 'fulfilled' })], from: '', to: '', tz: '', at: 'x' });
+  A.renderShop();
+  t = await A.shpSyncAll({ maintain: true });
+  ok('an order fulfilled on Shopify completes its open production lines', t.done === 2
+     && RT['pt_orderBook/ob_shp_SHP-5001_RCNBMIX/shopDoneWhy'] === 'fulfilled' && !!RT['pt_orderBook/ob_shp_SHP-5001_RCNBMIX/shopDoneAt'], JSON.stringify(t.done));
+  ok('…kept, not deleted', !!RT['pt_orderBook/ob_shp_SHP-5001_RCNBMIX']);
+  const line = ordLines().find(l => l.orderNo === 'SHP-5001' && l.sku === 'RCNBMIX');
+  ok('…so the line is no longer open — it is in the complete window', line && line.open === false, JSON.stringify(line));
+  ok('…and the Shopify team reads "Fulfilled by shipping team"', /Fulfilled by shipping team/.test((A.soProdStatus({ id: 'b1' }) || {}).txt || ''), JSON.stringify(A.soProdStatus({ id: 'b1' })));
+  t = await A.shpSyncAll({ maintain: true });
+  ok('…and a second run does not complete it again', t.done === 0);
+  ok('a cancelled or refunded line is over too, and says which', A.shpDoneWhy({ cancelled: true }, 'X') === 'cancelled'
+     && A.shpDoneWhy({ items: [{ sku: 'X', qty: 2, rq: 2, ffl: 'unfulfilled' }] }, 'X') === 'refunded');
 }
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exitCode = fail ? 1 : 0;

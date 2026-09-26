@@ -14470,6 +14470,11 @@ console.log('\n== an order line, followed from ordered to on the shelf ==');
       ok('…one Shopify has not keeps its floor stage', s2 && s2.shopState === 'open' && A.ORD_TRACK[s2.stage][0] !== 'done');
       A.setORD_KPI(''); A.renderOrdTrack();
       ok('…and the view shows the carrier and the tracking number as a link', /FedEx <a href="https:\/\/fedex.example\/7712345"/.test(els.odTable.innerHTML), '');
+      /* COMPLETED FROM SHOPIFY (2026-09-26): the shipping team fulfilled it; the floor's line closes, and says so. */
+      A.setPTG(Object.assign(A.PTG(), { ob: keepOb.concat([{ id: 's3', orderNo: 'SHP-9003', sku: 'FG-SKU', qty: 4, orderDate: '2026-09-12', shopOrderId: '333', src: 'SHP', shopDoneAt: '2026-09-20T10:00:00Z', shopDoneWhy: 'fulfilled' }]) }));
+      const s3 = A.ordLines().find(l => l.orderNo === 'SHP-9003');
+      ok('a line Shopify fulfilled is complete, owes nothing, and is no register hole', s3 && s3.open === false && s3.pendingMake === 0 && s3.unrecorded === 0, JSON.stringify(s3 && { o: s3.open, p: s3.pendingMake, u: s3.unrecorded }));
+      ok('…and says who closed it', A.ordWaitingAt(s3) === 'Fulfilled by shipping team' && A.ORD_TRACK[A.ordTrackStage(s3)][0] === 'done', A.ordWaitingAt(s3));
       A.setPTG(Object.assign(A.PTG(), { ob: keepOb })); A.setORD(Object.assign(A.ORD(), { rows: [] }));
       A.ORD().shopTrk = null;
     }

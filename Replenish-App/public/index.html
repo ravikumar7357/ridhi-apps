@@ -2529,6 +2529,7 @@
         </select>
         <input id="soFilter" style="flex:1 1 150px;min-width:0" placeholder="Filter order / SKU / name">
         <button id="soAdj" class="ghost" title="Every shortfall raised, by the day it was raised. Printable, to hand to production.">Adjustments</button>
+        <button id="soBucket" title="Shopify lines that need production and have no production order yet — tick and open them here. Nothing opens by itself.">Production bucket</button>
         <select id="soTmpl" style="flex:0 0 190px" title="Which upload template to write. The column headings and their order match the courier's own workbook exactly.">
           <option value="plain">Plain list — one row per line item</option>
           <option value="plainOrder">Plain list — one row per order</option>
@@ -15936,7 +15937,9 @@ function ordLinesBuild() {
       src: r.src || '' }, obWhat(r), {
       // Where an order line came from, when it came from a Shopify order that had to be made.
       shopOrderNo: r.shopOrderNo || '', shopOrderId: r.shopOrderId || '', adjId: r.adjId || '',
-      shopImg: r.shopImg || '', packs: 0, pcsPer: 1 }));
+      shopImg: r.shopImg || '', packs: 0, pcsPer: 1, shopDoneAt: '', shopDoneWhy: '' }));
+    /* COMPLETED BY THE SHIPPING TEAM (2026-09-26): Shopify says the parcel went (or never will). */
+    if (r.shopDoneAt) { e.shopDoneAt = r.shopDoneAt; e.shopDoneWhy = r.shopDoneWhy || 'fulfilled'; }
     /* PIECES, not packs. A Shopify line keeps what the customer ordered alongside, so the screen can
      * say "1 pack of 2" rather than leave somebody wondering where the second piece came from. */
     e.qty += obPieces(r);
@@ -16007,7 +16010,7 @@ function ordLinesBuild() {
       handedAt: shp0 ? (shp0.handedAt || '') : '',
       handedBy: shp0 ? (shp0.handedBy || '') : '',
       spRemarks: shp0 ? String(shp0.remarks || '') : '',
-      open: shp0 ? !spHanded(shp0) : pressed < l.qty,
+      open: l.shopDoneAt ? false : (shp0 ? !spHanded(shp0) : pressed < l.qty),
     });
   }).map(l => {
     /* HANDED OVER IS THE END. The goods are with a customer, so nothing on this line is outstanding
@@ -16019,7 +16022,8 @@ function ordLinesBuild() {
      * Base Data never recorded the receipt. That hole is still shown — as "never recorded" beside the
      * status, never as work for the floor. */
     if (!l.handedAt && l.open) return Object.assign(l, { unrecorded: 0 });
-    return Object.assign(l, { unrecorded: Math.max(0, l.qty - l.made),
+    /* A line the shipping team fulfilled from stock was never owed by the floor — not a register hole. */
+    return Object.assign(l, { unrecorded: l.shopDoneAt && !l.handedAt ? 0 : Math.max(0, l.qty - l.made),
       pendingCut: 0, pendingMake: 0, madeToPress: 0 });
   }).sort((a, b) => String(a.orderDate).localeCompare(String(b.orderDate)) || a.orderNo.localeCompare(b.orderNo) || a.sku.localeCompare(b.sku));
 }
@@ -16365,7 +16369,8 @@ function ordWaitingAt(r) {
         : (fin.issued ? ' · ' + nf(fin.issued) + ' dispatched' : '')));
   /* HANDED OVER IS THE END OF A SHOPIFY LINE, and it says so by name — "Complete" on its own leaves you
    * wondering whether the goods actually went anywhere. */
-  if (!r.open) return (r.handedAt ? 'Handed over' + (r.unrecorded ? ' · ' + nf(r.unrecorded) + ' never recorded' : '') : 'Complete') + tail;
+  if (!r.open) return (r.shopDoneAt && !r.handedAt ? SHP_DONE_TXT(r.shopDoneWhy)
+    : (r.handedAt ? 'Handed over' + (r.unrecorded ? ' · ' + nf(r.unrecorded) + ' never recorded' : '') : 'Complete')) + tail;
   const v = ordVendorOf(r.orderNo, r.sku);
   const vGiven = r.printer ? r.qty : (v ? v.given : 0), vBack = r.printer ? r.printed : (v ? v.back : 0);
   if (vGiven > vBack && (r.cutReq ? r.cut < vGiven : r.received < vGiven)) return 'Vendor — ' + nf(vGiven - vBack) + ' to come back';
@@ -16961,7 +16966,11 @@ function ordHead(cols, tick) {
     + '</tr></thead>';
 }
 /** What a line is waiting for, in the Job Work pills. */
+/** Completed because of Shopify, in words the floor and the shipping team both read. */
+const SHP_DONE_TXT = why => ({ fulfilled: 'Fulfilled by shipping team', cancelled: 'Cancelled on Shopify', refunded: 'Refunded on Shopify',
+  'marked done': 'Marked done by shipping team' })[why] || 'Fulfilled by shipping team';
 function ordStatePill(r) {
+  if (!r.open && r.shopDoneAt && !r.handedAt) return '<span class="jw-st done" title="Closed from Shopify ' + esc(ptIsoDate(r.shopDoneAt) || '') + '">' + esc(SHP_DONE_TXT(r.shopDoneWhy)) + '</span>';
   if (!r.open) return '<span class="jw-st done">Complete</span>';
   if (r.pendingCut > 0) return '<span class="jw-st pend">' + nf(r.pendingCut) + ' to cut</span>';
   if (r.pendingMake > 0) return '<span class="jw-st prog">' + nf(r.pendingMake) + ' to make</span>';
@@ -19159,7 +19168,7 @@ function ordTrackStage(r) {
     const w = ordWaitingAt(r);
     return /^Vendor/.test(w) ? 0 : /^Cutting/.test(w) ? 1 : /^Issue/.test(w) ? 2 : /^Karigar/.test(w) ? 3 : /^Press/.test(w) ? 4 : 5;
   }
-  if (r.handedAt) return 9;
+  if (r.handedAt || r.shopDoneAt) return 9;
   const g = ordFgAt(r.orderNo, r.sku) || { in: 0, store: 0, fbaOpen: 0, fbaShip: 0, issued: 0, out: 0 };
   if (g.store > 0) return 7;
   if (g.fbaOpen > 0) return 8;
@@ -44649,6 +44658,14 @@ function soRoute(r) {
   return 'Need from production';
 }
 const soIsPending = r => soRoute(r) === 'Need from production';
+/** Orders with a line waiting in the production bucket, from the last draw. */
+let SO_IN_BUCKET = new Set();
+/** Production's status for the shipping team, above the route (2026-09-26). */
+function soProdChip(r) {
+  const p = soProdStatus(r);
+  if (p) return `<div style="margin-bottom:3px"><span class="st ${p.tone === 'done' ? 'st-approved' : 'st-pending'}" title="From the Order Console">${esc(p.txt)}</span></div>`;
+  return SO_IN_BUCKET.has(String(r && r.id)) ? '<div style="margin-bottom:3px"><span class="st st-draft" title="Needs production — open it from the Production bucket">In the production bucket</span></div>' : '';
+}
 
 /** The MCF cell. 'unknown' is drawn differently depending on whether we have Amazon's stock yet. */
 const soMcfTag = v => SO_MCF_TAG[(v === 'unknown' && SHOP_STOCK_LOADED) ? 'notamz' : v] || SO_MCF_TAG.unknown;
@@ -45128,6 +45145,11 @@ function renderShop() {
   /* Over every loaded order, and split by day, because "still pending from yesterday" is the
    * question somebody actually walks in with. */
   const pend = SO_ALL_ROWS.filter(soIsPending);
+  /* THE BUCKET'S COUNT ON ITS BUTTON (2026-09-26). */
+  const bucket = shpBucket(), bucketMake = bucket.filter(x => x.kind === 'make');
+  const inBucket = new Set(bucketMake.map(x => x.id));
+  if ($('soBucket')) $('soBucket').textContent = 'Production bucket' + (bucketMake.length ? ` (${nf(bucketMake.length)})` : '');
+  SO_IN_BUCKET = inBucket;
   const y = soStoreDay(-1), t = soStoreDay(0);
   const yd = pend.filter(r => r.at === y).length, td = pend.filter(r => r.at === t).length;
   /* WHAT IS TRUE ON EVERY VISIT IS NOT NEWS. The window, the breakdown and the fetch time are here
@@ -45228,7 +45250,7 @@ function renderShop() {
     + '<td title="' + esc(r.indiaWhy) + '">' + (SO_INDIA_TAG[r.india] || SO_MCF_TAG[r.india]) + '</td>'
     + '<td>' + (r.channel === 'Shopify' ? '<span class="muted">Shopify</span>'
         : '<span class="st st-draft">' + esc(r.channel) + '</span>') + '</td>'
-    + '<td>' + (r.route === 'Need from production'
+    + '<td>' + soProdChip(r) + (r.route === 'Need from production'
         ? '<span class="st st-rejected">' + esc(r.route) + '</span>'
           /* Named on the row, because this is the one case where "Need from production" will never
            * become a production order until somebody goes into Shopify and fixes the variant. */
@@ -45570,7 +45592,8 @@ async function saveAdj(remove) {
      * with it. It is worked out from the adjustments as they now stand, so this one call covers
      * all three cases and running it twice changes nothing. */
     let prod = null;
-    try { prod = await shpSyncOrder(o); }
+    /* INTO THE BUCKET (2026-09-26): an adjustment no longer opens production by itself; it completes nothing new either. */
+    try { prod = await shpSyncOrder(o, { maintain: true }); }
     catch (e) { prod = { no: shpOrderNo(o && o.no), written: 0, removed: 0, kept: [], skipped: [], err: e.message || String(e) }; }
     // It is already IN the Adjustments tab — both read the same record, so there is nothing to
     // copy across and nothing that can fall out of step. What was missing is anybody being told,
@@ -45581,7 +45604,7 @@ async function saveAdj(remove) {
       soMsg('');
       const m = $('soMsg');
       m.className = prod && prod.err ? 'err' : 'muted';
-      m.innerHTML = lines[sku].adj + ' is on the Adjustments tab · '
+      m.innerHTML = lines[sku].adj + ' is on the Adjustments tab, and in the <b>Production bucket</b> until somebody opens it · '
         + '<a href="#" id="soGoAdj">open it</a>'
         + (pm ? '<br>' + esc(pm) : '');
       const a = $('soGoAdj');
@@ -45953,8 +45976,29 @@ function shpNeeds(r, noSku) {
  * opened without a fetch — nothing is removed, because "I cannot see it" is not "it is no longer
  * needed", and acting on that difference would withdraw work the floor is holding.
  */
-function shpPlanOrder(o, full, assigned) {
-  const out = { no: '', patch: {}, rows: [], drop: '', written: 0, removed: 0, dupes: 0, kept: [], skipped: [], needSku: [], err: '', isNew: false };
+/**
+ * WHY A SHOPIFY ORDER LINE IS OVER, from Shopify's side: '' while it is still owed. (2026-09-26)
+ */
+function shpDoneWhy(o, sku) {
+  if (!o) return '';
+  if (o.cancelled) return 'cancelled';
+  if (o.shipped) return 'fulfilled';
+  if (o.handled) return 'marked done';
+  const s = obUC(sku);
+  const it = (o.items || []).find(i => (obUC(i && i.sku) || obUC((shpSkuFromTitle(i && i.name, i && i.variant) || {}).sku)) === s);
+  if (!it) return '';
+  if (shpLineShipped(it)) return 'fulfilled';
+  if ((Number(it.qty) || 0) > 0 && soLive(it) === 0) return 'refunded';
+  return '';
+}
+
+/* opts (2026-09-26):
+ *   maintain — the automatic run. Opens nothing, withdraws nothing; completes an open line Shopify has closed.
+ *   only     — a Set of SKUs: open just these (from the bucket). Nothing else of the order is touched.
+ *   force    — Map sku → { qty, pcs, shopQty, why, name, img }: open a line the stock says it can fill. */
+function shpPlanOrder(o, full, assigned, opts) {
+  const O = opts || {};
+  const out = { no: '', patch: {}, rows: [], drop: '', written: 0, removed: 0, dupes: 0, kept: [], skipped: [], needSku: [], err: '', isNew: false, done: 0 };
   if (typeof o === 'string') o = shpOrderOf(o);
   if (!o || !o.no) { out.err = 'This order has no Shopify order number, so there is nothing to raise against.'; return out; }
   if (full === undefined) full = !!o.items;
@@ -45964,7 +46008,13 @@ function shpPlanOrder(o, full, assigned) {
 
   const obKey = sku => 'ob_shp_' + no + '_' + sku;
   const noSku = [];
-  const want = shpNeeds(o, noSku);
+  let want = shpNeeds(o, noSku);
+  if (O.only) want = want.filter(w => O.only.has(w.sku));
+  if (O.force) O.force.forEach((f, sku) => {
+    if (want.some(w => w.sku === sku)) return;
+    want.push({ sku, qty: f.qty, pcs: f.pcs || f.qty * obPcsPerPack(sku), shopQty: f.shopQty || f.qty, why: [f.why || 'opened by hand'],
+      adjId: '', name: f.name || '', img: f.img || '', viaTitle: false });
+  });
   /* Named, not counted: "three lines could not be ordered" sends nobody anywhere, and the fix is on
    * one particular variant in Shopify. */
   noSku.forEach(n => out.skipped.push({ sku: '(no code)',
@@ -46019,6 +46069,23 @@ function shpPlanOrder(o, full, assigned) {
   });
   out.isNew = !had.size;
 
+  /* THE AUTOMATIC RUN (2026-09-26): nothing opens, nothing is withdrawn — a line that is open was opened by somebody.
+   * What it does do is close the loop from Shopify: a line the shipping team has fulfilled (or that was cancelled,
+   * refunded or marked done) is COMPLETED, kept on the book with the reason, never deleted. */
+  if (O.maintain) {
+    if (full) had.forEach((x, sk) => {
+      if (x.shopDoneAt) return;
+      const why = shpDoneWhy(o, sk);
+      if (!why) return;
+      const key = x.id || x._key || obKey(sk);
+      out.patch['pt_orderBook/' + key + '/shopDoneAt'] = now;
+      out.patch['pt_orderBook/' + key + '/shopDoneWhy'] = why;
+      out.rows.push(Object.assign({}, x, { shopDoneAt: now, shopDoneWhy: why }));
+      out.done++;
+    });
+    return out;
+  }
+
   if (full) {
     had.forEach((x, s) => {
       if (keep.has(s)) return;
@@ -46054,6 +46121,10 @@ function shpPlanOrder(o, full, assigned) {
       shopImg: String(g.img || ''),
       uploadedBy: ME.email, uploadedAt: was ? (was.uploadedAt || now) : now,
     };
+    /* WHO OPENED IT, AND WHETHER THE STOCK SAID NOT TO (2026-09-26). */
+    if (!was && (O.only || O.force)) { row.openedBy = ME.email; row.openedAt = now; row.openedFrom = 'bucket'; }
+    if (!was && O.force && O.force.has(g.sku)) { row.forced = true; row.forcedWhy = String(O.force.get(g.sku).why || ''); }
+    if (was) ['openedBy', 'openedAt', 'openedFrom', 'forced', 'forcedWhy'].forEach(f => { if (was[f] !== undefined) row[f] = was[f]; });
     /* Unchanged rows are not rewritten — this runs after every fetch, and `uploadedAt` alone would
      * make six hundred untouched rows look new. */
     const same = was && was.qty === row.qty && was.adjId === row.adjId && was.remarks === row.remarks
@@ -46077,7 +46148,9 @@ function shpPlanOrder(o, full, assigned) {
       _id: no, channel: 'SPY', orderDate: date,
       legacyOrderId: String(o.no || ''), shopOrderId: String(o.id || ''),
       orderTypeKey: 'regular', deliveryMode: 'complete', deliveryDate: '',
-      lines: good.map(g => ({ sku: g.sku, qty: g.qty, deliveryDate: '', orderTypeKey: 'regular', priority: '', adjId: g.adjId || '' })),
+      /* Opened from the bucket a few lines at a time: the lines already on the sales order stay on it. */
+      lines: (ln => (O.only || O.force) && prev ? (prev.lines || []).filter(x => x && !ln.some(y => y.sku === obUC(x.sku))).concat(ln) : ln)(
+        good.map(g => ({ sku: g.sku, qty: g.qty, deliveryDate: '', orderTypeKey: 'regular', priority: '', adjId: g.adjId || '' }))),
       buyerEmail: prev ? prev.buyerEmail : ME.email,
       buyerName: prev ? prev.buyerName : (ME.email || '').split('@')[0],
       status: 'approved', src: 'SHP', autoFrom: 'shopify',
@@ -46105,8 +46178,9 @@ function shpPlanOrder(o, full, assigned) {
  * Planned first and written in batches: six hundred orders one at a time is twelve hundred round
  * trips, and when nothing has changed it writes nothing at all.
  */
-async function shpPlanAll() {
-  const tot = { looked: 0, orders: 0, newOrders: 0, written: 0, removed: 0, dupes: 0, pieces: 0,
+async function shpPlanAll(opts) {
+  const M = !!(opts && opts.maintain);
+  const tot = { looked: 0, orders: 0, newOrders: 0, written: 0, removed: 0, dupes: 0, pieces: 0, done: 0,
     kept: [], skipped: [], custom: [], plans: [], patch: {}, err: '' };
   const needing = new Map();
 
@@ -46154,8 +46228,9 @@ async function shpPlanAll() {
     if (!no) { tot.skipped.push({ sku: (o && o.no) || '?', why: 'that order number has no letters or digits in it' }); return; }
     if (planned.has(no)) { tot.skipped.push({ sku: no, why: 'planned twice in one run — the second was ignored' }); return; }
     planned.add(no);
-    const p = shpPlanOrder(o, full, no);
+    const p = shpPlanOrder(o, full, no, M ? { maintain: true } : undefined);
     if (p.err) { tot.skipped.push({ sku: p.no || (o && o.no) || '?', why: p.err }); return; }
+    tot.done += p.done || 0;
     /* Kept and skipped lines are an outcome too. Filtering on "did it write anything" threw away
      * the plan whose only news was that a line was left standing because the floor is holding it. */
     if (!Object.keys(p.patch).length && !p.rows.length && !p.kept.length && !p.skipped.length) return;
@@ -46176,7 +46251,16 @@ async function shpPlanAll() {
   const nowIso = new Date().toISOString();
   needing.forEach((w, sku) => {
     if (have.has(sku)) return;
-    const rec = {
+    const rec = shpCustomRec(w, sku, nowIso);
+    tot.patch['pt_customSkus/' + sku] = rec;
+    tot.custom.push(sku);
+    SHP_CUSTOM.push(rec);
+  });
+  return tot;
+}
+/** A code not in the Master Database, put on the Custom SKUs list with what Shopify knows about it. */
+function shpCustomRec(w, sku, nowIso) {
+    return {
       sku, articleType: '', subtype: '', color: '', size: '',
       brand: '', packOf: '', fabric: '', cuttingRequired: true, consumption: 0,
       isZip: false, chainLength: null, zipQty: null,
@@ -46188,11 +46272,152 @@ async function shpPlanAll() {
       fromShopify: true, shopName: String(w.name || ''),
       addedBy: ME.email, addedAt: nowIso,
     };
-    tot.patch['pt_customSkus/' + sku] = rec;
-    tot.custom.push(sku);
-    SHP_CUSTOM.push(rec);
+}
+
+/* ================= THE PRODUCTION BUCKET (Ravi, 2026-09-26) =================
+ *
+ * Every Shopify line that needs making and has no production order yet — and, apart, every line the stock says it
+ * can fill, for when the stock is not really there. Worked out from the fetched orders and the order book each time;
+ * nothing is stored, so nothing can go stale or be counted twice. "Already open" is by Shopify order id and SKU. */
+function shpBucket() {
+  const out = [];
+  if (!SHOP_STOCK_LOADED || !SHOP_INDIA_LOADED || SHOP_INDIA_ERR) return out;
+  const opened = new Set((PTG.ob || []).filter(x => x && x.shopOrderId).map(x => String(x.shopOrderId) + '|' + obUC(x.sku)));
+  (SO_ALL_ROWS || []).forEach(o => {
+    if (!o || !o.id || o.cancelled || o.shipped || o.handled) return;
+    const id = String(o.id), isOpen = sku => opened.has(id + '|' + sku);
+    const mine = new Set();
+    shpNeeds(o).forEach(w => {
+      mine.add(w.sku);
+      if (!isOpen(w.sku)) out.push({ o, id, key: id + '|' + w.sku, sku: w.sku, qty: w.qty, pcs: w.pcs, shopQty: w.shopQty, kind: 'make',
+        why: (w.why || []).join(' + '), name: w.name || '', img: w.img || '', adj: w.adjId || '' });
+    });
+    (o.items || []).forEach(i => {
+      if (shpLineShipped(i)) return;
+      const sku = obUC(i && i.sku);
+      if (!sku || mine.has(sku) || isOpen(sku)) return;
+      let st; try { st = soLineState(o, i); } catch (e) { return; }
+      if (!st || (st.v !== 'india' && st.v !== 'fba')) return;
+      const qty = soSendQty(o.id, i.sku, soLive(i));
+      if (!(qty > 0)) return;
+      const fit = soPackFit(sku), split = !!(fit && fit.ok);
+      mine.add(sku);
+      out.push({ o, id, key: id + '|' + sku, sku, qty, pcs: split ? qty * fit.pack : qty * obPcsPerPack(sku), shopQty: split ? Math.round(qty / fit.factor) : qty,
+        kind: 'covered', why: st.label + ' — ' + st.why, name: String(i.name || '') + (i.variant ? ' · ' + i.variant : ''), img: i.img || i.image || '' });
+    });
   });
-  return tot;
+  return out.sort((a, b) => String(a.o.at || '').localeCompare(String(b.o.at || '')) || a.key.localeCompare(b.key));
+}
+
+/**
+ * OPEN THE TICKED LINES. Each is checked against the database before it is written — an order and SKU already open
+ * is skipped by name, so two people pressing at once cannot open it twice. keys: ['<shopify id>|<SKU>'].
+ */
+async function shpBucketRun(keys, reason) {
+  if (!SHOP_STOCK_LOADED || !SHOP_INDIA_LOADED || SHOP_INDIA_ERR) return 'Stock has not been read yet — press Fetch orders, then open the bucket again.';
+  const by = new Map(shpBucket().map(x => [x.key, x]));
+  const picks = [...new Set(keys || [])].map(k => by.get(k)).filter(Boolean);
+  if (!picks.length) return 'Tick at least one line.';
+  const why = String(reason || '').trim();
+  if (picks.some(x => x.kind === 'covered') && !why) return 'Some ticked lines are covered by stock — say why they have to be made anyway (e.g. India stock is not really there).';
+  await ptLoadGates();
+  if (PTG.err) return 'Could not read the production database: ' + PTG.err;
+  const taken = shpTakenNumbers(), groups = new Map();
+  picks.forEach(x => { if (!groups.has(x.id)) groups.set(x.id, []); groups.get(x.id).push(x); });
+  const patch = {}, plans = [], skipped = [], nowIso = new Date().toISOString();
+  if (SHP_CUSTOM === null) { try { SHP_CUSTOM = ptList(await ptGet('pt_customSkus')); } catch (e) { SHP_CUSTOM = []; } }
+  const haveSku = new Set((SHP_CUSTOM || []).map(r => obUC(r && r.sku)).concat((PTG.mdb || []).map(r => obUC(r && r.sku))));
+  for (const [, ps] of groups) {
+    const o = ps[0].o, no = shpAssignNo(o, taken);
+    if (!no) { skipped.push(o.no + ': no usable order number'); continue; }
+    /* THE DUPLICATE GUARD, READ FROM THE DATABASE — not from this screen, which may be minutes old. */
+    const fresh = await Promise.all(ps.map(x => ptGet('pt_orderBook/ob_shp_' + no + '_' + x.sku).catch(() => null)));
+    const ok = ps.filter((x, i) => { if (fresh[i]) { skipped.push(x.sku + ' on ' + o.no + ' is already open'); return false; } return true; });
+    if (!ok.length) continue;
+    const only = new Set(ok.filter(x => x.kind === 'make').map(x => x.sku));
+    const force = new Map(ok.filter(x => x.kind === 'covered').map(x => [x.sku, { qty: x.qty, pcs: x.pcs, shopQty: x.shopQty,
+      why: 'opened by hand although stock said it could be filled — ' + why, name: x.name, img: x.img }]));
+    const p = shpPlanOrder(o, false, no, { only, force });
+    if (p.err) { skipped.push(o.no + ': ' + p.err); continue; }
+    Object.assign(patch, p.patch);
+    plans.push(p);
+    p.needSku.forEach(w => { if (haveSku.has(w.sku)) return; haveSku.add(w.sku); const rec = shpCustomRec(w, w.sku, nowIso); patch['pt_customSkus/' + w.sku] = rec; SHP_CUSTOM.push(rec); });
+  }
+  if (!plans.length) return 'Nothing was opened' + (skipped.length ? ': ' + skipped.join(' · ') : '.');
+  try { await ptPatch(patch); } catch (e) { return 'Not opened: ' + (e.message || e) + ' — nothing changed.'; }
+  plans.forEach(p => {
+    p.rows.forEach(row => { const i = (PTG.ob || []).findIndex(x => x && x.id === row.id); if (i >= 0) PTG.ob[i] = row; else PTG.ob.push(row); });
+    if (Array.isArray(SOX.rows)) { SOX.rows = SOX.rows.filter(x => !(x && x._id === p.no)); if (p.rec) SOX.rows.push(p.rec); }
+  });
+  PTG.ob = (PTG.ob || []).slice();
+  SHP_BUCKET_LAST = { orders: plans.length, lines: plans.reduce((t, p) => t + p.rows.length, 0), pcs: plans.reduce((t, p) => t + p.rows.reduce((u, r) => u + (Number(r.qty) || 0), 0), 0), skipped };
+  return '';
+}
+let SHP_BUCKET_LAST = null;
+
+/** The bucket, on screen: tick what to open. */
+function shpBucketOpen() {
+  if (!SHOP_STOCK_LOADED || !SHOP_INDIA_LOADED || SHOP_INDIA_ERR) { soMsg('Stock has not been read yet — press Fetch orders, then open the bucket.', true); return; }
+  const list = shpBucket(), make = list.filter(x => x.kind === 'make'), cov = list.filter(x => x.kind === 'covered');
+  const row = x => `<tr><td><input type="checkbox" data-shb="${esc(x.key)}" data-shbk="${x.kind}"></td>`
+    + `<td style="white-space:nowrap"><b>${esc(x.o.no)}</b><div class="muted" style="font-size:10.5px">${esc(String(x.o.at || '').slice(0, 10))}${x.o.shopBrand === 'CPC' || /cpc/i.test(String(x.o.channel || '')) ? ' · CPC' : ''}</div></td>`
+    + `<td style="font-family:ui-monospace,monospace;text-align:left">${esc(x.sku)}${x.adj ? '<div class="muted" style="font-size:10.5px">' + esc(x.adj) + '</div>' : ''}</td>`
+    + `<td style="text-align:left;white-space:normal;min-width:180px">${esc(x.name)}</td><td class="num"><b>${nf(x.qty)}</b></td>`
+    + `<td style="text-align:left;white-space:normal;font-size:11.5px;min-width:220px">${esc(x.why)}</td></tr>`;
+  const table = (rows, kind, title, sub) => `<div style="margin:10px 0 4px;font-weight:700">${title} <span class="muted" style="font-weight:400">(${nf(rows.length)})</span></div>`
+    + (sub ? `<div class="muted" style="font-size:12px;margin-bottom:4px">${sub}</div>` : '')
+    + (rows.length ? `<div class="xlwrap" style="max-height:34vh;border:1px solid var(--line);border-radius:10px"><table class="xl"><thead><tr>`
+      + `<th><input type="checkbox" data-shball="${kind}" title="Tick all"></th><th>Shopify order</th><th>SKU</th><th>Item</th><th class="num">Qty</th><th>Why</th></tr></thead><tbody>`
+      + rows.map(row).join('') + '</tbody></table></div>' : '<div class="muted" style="padding:6px 2px">Nothing here.</div>');
+  ptOpenDialog({
+    title: 'Production bucket',
+    subtitle: `${nf(make.length)} line(s) need production · ${nf(new Set(make.map(x => x.id)).size)} order(s)`,
+    wide: true,
+    note: 'Nothing opens by itself any more. Tick the lines to make and press Open — each is checked against the order book first, '
+      + 'so a line already open is skipped, never opened twice. An opened order shows its production status on this tab.',
+    html: table(make, 'make', 'Needs production', 'Neither Amazon nor India stock can fill these.')
+      + table(cov, 'covered', 'Stock says it can fill — open anyway', 'Tick only when the stock is not really there. A reason is needed.')
+      + '<label style="display:block;margin-top:10px">Why make the stock-covered ones anyway<input id="shbWhy" type="text" placeholder="e.g. India stock is not really there"></label>',
+    saveLabel: 'Open ticked production orders',
+    onSave: async () => {
+      const box = $('ptDlgBody');
+      const keys = box && box.querySelectorAll ? [...box.querySelectorAll('[data-shb]')].filter(c => c.checked).map(c => c.getAttribute('data-shb')) : [];
+      const err = await shpBucketRun(keys, ($('shbWhy') || {}).value);
+      if (err) return err;
+      const L = SHP_BUCKET_LAST || {};
+      soMsg(`Opened ${nf(L.lines || 0)} production line(s) · ${nf(L.pcs || 0)} piece(s) across ${nf(L.orders || 0)} Shopify order(s) — they are in the Order Console.`
+        + ((L.skipped || []).length ? ' Skipped: ' + L.skipped.join(' · ') : ''));
+      try { renderShop(); } catch (e) { /* not on that tab */ }
+      return '';
+    },
+  });
+  const box = $('ptDlgBody');
+  if (box && box.addEventListener) box.addEventListener('change', e => {
+    const all = e.target && e.target.getAttribute && e.target.getAttribute('data-shball');
+    if (all) box.querySelectorAll('[data-shbk="' + all + '"]').forEach(c => { c.checked = e.target.checked; });
+  });
+}
+
+/** Where each Shopify order's production is, for the Shopify team: one index per version of the order book. */
+let SO_PROD_IX = { lines: null, map: null };
+function soProdStatus(o) {
+  let lines;
+  try { lines = ordLines(); } catch (e) { return null; }
+  if (SO_PROD_IX.lines !== lines) {
+    const m = new Map();
+    lines.forEach(l => { if (!l.shopOrderId) return; const k = String(l.shopOrderId); if (!m.has(k)) m.set(k, []); m.get(k).push(l); });
+    SO_PROD_IX = { lines, map: m };
+  }
+  const ls = SO_PROD_IX.map.get(String(o && o.id)) || [];
+  if (!ls.length) return null;
+  const open = ls.filter(l => l.open).length, n = ls.length;
+  if (!open) {
+    if (ls.every(l => l.shopDoneAt && !l.handedAt)) return { tone: 'done', txt: typeof SHP_DONE_TXT === 'function' ? SHP_DONE_TXT(ls[0].shopDoneWhy) : 'Fulfilled by shipping team' };
+    if (ls.every(l => l.handedAt)) return { tone: 'done', txt: 'Production handed over' };
+    return { tone: 'done', txt: 'Production complete' };
+  }
+  const made = ls.reduce((t, l) => t + Math.min(l.qty, l.pressed || 0), 0), qty = ls.reduce((t, l) => t + l.qty, 0);
+  return { tone: 'prog', txt: `In production · ${nf(n - open)} of ${nf(n)} line(s) done` + (qty ? ` · ${nf(made)} of ${nf(qty)} pcs made` : '') };
 }
 
 /** How many NEW production orders a plan would open before it is allowed to run unattended. */
@@ -46200,7 +46425,7 @@ const SHP_ASK_OVER = 50;
 
 async function shpSyncAll(opts) {
   opts = opts || {};
-  const tot = await shpPlanAll();
+  const tot = await shpPlanAll(opts);
   if (tot.err) return tot;
 
   /* A large first run is confirmed, once. Six hundred orders appearing in the Order Console without
@@ -46250,13 +46475,13 @@ async function shpSyncAll(opts) {
 }
 
 /** Make one Shopify order's production order match it — used when an adjustment is saved. */
-async function shpSyncOrder(o) {
+async function shpSyncOrder(o, opts) {
   if (!SHOP_STOCK_LOADED || !SHOP_INDIA_LOADED || SHOP_INDIA_ERR) {
     return { no: '', written: 0, removed: 0, kept: [], skipped: [], err: 'Stock has not been read yet, so what has to be made cannot be worked out. Press Fetch orders first.' };
   }
   await ptLoadGates();
   if (PTG.err) return { no: '', written: 0, removed: 0, kept: [], skipped: [], err: 'Could not read the production database: ' + PTG.err };
-  const p = shpPlanOrder(o, !!(o && o.items), shpAssignNo(o, shpTakenNumbers()));
+  const p = shpPlanOrder(o, !!(o && o.items), shpAssignNo(o, shpTakenNumbers()), opts);
   if (p.err) return p;
   if (Object.keys(p.patch).length) await ptPatch(p.patch);
   /* Apply the DIFFERENCE to what is on screen: delete exactly what was deleted, upsert exactly
@@ -46316,7 +46541,8 @@ function shpUnseen() {
  * Nothing is destroyed. An adjustment keeps its own state on the Adjustments tab; only the production
  * row goes, and it can be raised again.
  */
-async function shpCloseShipped() {
+async function shpCloseShipped(opts) {
+  const M = !!(opts && opts.maintain);
   const want = shpUnseen();
   if (!want.size) return { looked: 0, closed: 0, opened: 0, removed: 0, written: 0, err: '' };
   const out = { looked: want.size, closed: 0, opened: 0, removed: 0, written: 0, err: '' };
@@ -46400,11 +46626,12 @@ async function shpCloseShipped() {
     const f = soFlags(o, SHOP_META[o.id] || {});
     const done = f.shipped || f.cancelled;
     if (!done && !canJudge) return;                        // nothing can be decided without the stock
-    const p = shpPlanOrder(Object.assign({}, o, f), true, shpAssignNo(o, taken));
+    const p = shpPlanOrder(Object.assign({}, o, f), true, shpAssignNo(o, taken), M ? { maintain: true } : undefined);
     if (p.err || !Object.keys(p.patch).length) return;
     Object.assign(patch, p.patch);
     plans.push(p);
-    if (done) out.closed++; else out.opened++;
+    if (M) { out.closed += p.done ? 1 : 0; out.done = (out.done || 0) + (p.done || 0); }
+    else if (done) out.closed++; else out.opened++;
     out.removed += p.removed; out.written += p.written;
   });
   if (!plans.length) return out;
@@ -46436,6 +46663,7 @@ function shpSyncMsg(t) {
   if (t.cancelled) return 'Nothing was sent to production.';
   if (t.err) return 'The Order Console could not be brought up to date: ' + t.err;
   const bits = [];
+  if (t.done) bits.push(`${nf(t.done)} production line(s) completed — the shipping team fulfilled, cancelled or marked them done on Shopify`);
   if (t.written) bits.push(`${nf(t.written)} line(s) · ${nf(t.pieces)} piece(s) in the Order Console across ${nf(t.orders)} order(s)`);
   if (t.removed) bits.push(`${nf(t.removed)} closed (now fillable, shipped, or marked done on Shopify)`);
   if (t.dupes) bits.push(`${nf(t.dupes)} duplicate row(s) removed — they were doubling a quantity`);
@@ -46487,17 +46715,18 @@ async function shpSyncSoon(where) {
   if (!(SO_ALL_ROWS || []).length) return;
   SHP_BUSY = true;
   try {
-    const t = await shpSyncAll();
+    /* THE AUTOMATIC RUN OPENS NOTHING (Ravi, 2026-09-26) — it completes what Shopify has closed. Opening is the bucket's. */
+    const t = await shpSyncAll({ maintain: true });
     let msg = shpSyncMsg(t);
     /* AND THEN THE ONES THAT WERE NOT IN THE WINDOW. Without this an order that shipped in July is
      * demanded again every time the app is opened, because nobody ever fetched far enough back to
      * find out that it shipped. */
     let reach = null;
     if (!t.err && !t.cancelled) {
-      try { reach = await shpCloseShipped(); } catch (e) { reach = { err: e.message || String(e) }; }
+      try { reach = await shpCloseShipped({ maintain: true }); } catch (e) { reach = { err: e.message || String(e) }; }
       if (reach && (reach.closed || reach.opened)) {
         const bits = [];
-        if (reach.closed) bits.push(`${nf(reach.closed)} older order(s) closed — they have shipped or been cancelled on Shopify`);
+        if (reach.closed) bits.push(`${nf(reach.closed)} older order(s) completed — they have shipped or been cancelled on Shopify`);
         if (reach.opened) bits.push(`${nf(reach.opened)} older order(s) brought up to date — ${nf(reach.written)} line(s) they still need are now in the Order Console`);
         msg = (msg ? msg + ' · ' : 'Production: ') + bits.join(' · ');
       }
@@ -46523,6 +46752,7 @@ function soBindAdjButtons() {
   $('soItems').querySelectorAll('[data-adj]').forEach(b => { b.onclick = () => openAdj(b.dataset.adj); });
 }
 $('adjSave').onclick = () => saveAdj(false);
+if ($('soBucket')) $('soBucket').onclick = () => shpBucketOpen();
 $('adjDelete').onclick = () => saveAdj(true);
 $('adjCancel').onclick = () => { $('adjModal').classList.add('hide'); ADJ_EDIT = null; };
 
