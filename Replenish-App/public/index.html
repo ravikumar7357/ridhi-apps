@@ -4210,6 +4210,10 @@ async function ensureReplData() {
 async function ensureRepl() {
   if (!REPL_LOADED) {
     rMsg('Loading last snapshot…');
+    /* SAID ON THE SCREEN, not only in the small line: since sign-in stopped waiting for the full snapshot (26 Sep) the
+     * table is empty for the seconds it takes to read, and an empty tab reads as a broken one. */
+    if ($('rKpis') && !$('rKpis').innerHTML) $('rKpis').innerHTML = '<div class="kpi"><div class="kpiname"><span class="spin"></span> Reading the full snapshot…</div>'
+      + '<div class="muted" style="margin-top:6px">Images, status, stock and forecasts — a few seconds. The table draws by itself when it lands.</div></div>';
     /* INDIA STOCK IS NOT WAITED FOR. It is a Google Apps Script call — 50 seconds cold, 5 to 7 warm,
      * for 124 KB — while the 8 MB snapshot beside it takes 3. Waiting on it held the whole tab shut
      * for the slowest thing on the list, and it feeds columns rather than the table's existence.
@@ -4218,7 +4222,8 @@ async function ensureRepl() {
     loadIndiaStock().then(() => { if (REPL_LOADED) renderRepl(); }).catch(() => {});
     /* IN PRODUCTION IS NOT LOADED HERE ANY MORE. The figure comes out of the order book; renderRepl, the
      * India projection and the In Production tab each load it themselves when they are opened. */
-    await Promise.all([loadReplCache(true), loadProd(), loadUsSkus()]);
+    /* The US-listing set (2.6 MB) is not waited for: renderRepl reads it lazily and redraws when it lands. */
+    await Promise.all([loadReplCache(true), loadProd()]);
     REPL_LOADED = true; rMsg('');
   }
   renderRepl();
@@ -5913,7 +5918,7 @@ function renderRepl() {
   // Drop the forecast cache only when something it actually depends on changed: the horizon, a manual
   // projection, or the snapshot itself (row count + its timestamp identify a refresh).
   const fcSig = fcMonths() + '|' + PROJ_VER + '|' + brands.map(b =>
-    b + ':' + ((REPL[b].rows || []).length) + ':' + (REPL[b].at ? REPL[b].at.getTime() : 0)).join(',');
+    b + ':' + ((REPL[b].rows || []).length) + ':' + (REPL[b].at ? REPL[b].at.getTime() : 0) + ':' + (REPL[b].mode || 'full')).join(',');
   if (fcSig !== FC_CACHE_SIG) { FC_CACHE = new Map(); FC_CACHE_SIG = fcSig; }
   // Must come AFTER FC_PLAN — its month need-by timestamps are derived from it.
   LANE_CTX = buildLaneCtx();        // rebuilt each render: the lead-time inputs can change any time

@@ -33,7 +33,7 @@ const body = [
   'let REPL = { SP: null, CPC: null }; let ACCESS_ERR = ""; let ME = { admin: true, tabs: [], email: "t@x" };',
   'let PROD = {}, PROD_LOADED = false, PROD_PROMISE = null, US_SKUS = new Set(), US_LOADED = false, US_PROMISE = null, US_AT = null, US_ERR = "";',
   'const skuKey = s => String(s || "").trim().toUpperCase(); const rMsg = () => {}; const renderRepl = () => { RENDERS++; }; let RENDERS = 0;',
-  'const loadIndiaStock = async () => {}; const db = {};',
+  'const loadIndiaStock = async () => {}; const db = {}; const $ = () => null;',
   line(/^const REPL_FULL_TABS = .*$/m), line(/^const REPL_SLIM_FIELDS = .*$/m), line(/^const replFull = .*$/m), line(/^const replSlimRow = .*$/m),
   line(/^let REPL_MODE = .*$/m), cut('loadReplCache'), cut('loadReplCacheRun'), line(/^let REPL_LOADED = .*$/m),
   cut('ensureReplSlim'), cut('ensureReplData'), cut('ensureRepl'), cut('loadProd'), cut('fetchProd'), cut('loadUsSkus'),
@@ -68,7 +68,7 @@ const make = () => new Function('doc', 'getDoc', body + '\n;return { ensureReplS
   console.log('== the Replenishment tab straight after sign-in');
   A = make(); await A.ensureReplSlim(); READS.length = 0;
   await A.ensureRepl();
-  ok('reads the full copy and the health set, then draws once', reads().split(',').sort().join(',') === 'health,healthrows,repl,replrows' && A.renders() === 1 && A.mode() === 'full', READS.join(' '));
+  ok('reads the full copy, then draws once — the health set is left to renderRepl itself', reads().split(',').sort().join(',') === 'repl,replrows' && A.renders() === 1 && A.mode() === 'full', READS.join(' '));
 
   console.log('== two screens ask at once');
   A = make(); READS.length = 0;
