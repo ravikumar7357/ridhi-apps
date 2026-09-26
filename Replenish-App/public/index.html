@@ -475,6 +475,22 @@
   .vrb-foot{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--hover,#f6f8fa);border-top:1px solid var(--line);
     margin:14px -14px -12px;padding:14px 16px;border-radius:0 0 var(--r-card) var(--r-card)}
   /* THE PRODUCTION BUCKET, design 7 (Ravi, 2026-09-26): the vendor order's band, with the counts in it. */
+  /* FABRIC FLOW (2026-09-26): the five stages, and the fabric-by-fabric line under them. */
+  .ff-pipe{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:12px}
+  .ff-stage{border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--card);position:relative;cursor:pointer;min-width:0}
+  .ff-stage:hover{background:var(--hover,#f6f8fa)}
+  .ff-stage.on{border-color:#3b5b8a;box-shadow:0 0 0 2px #e8eef7}
+  .ff-stage .n{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700}
+  .ff-stage .t{font-size:15px;font-weight:800;margin:2px 0 6px}
+  .ff-stage .v{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.1}
+  .ff-stage .s{font-size:12px;color:var(--muted);margin-top:4px;white-space:normal}
+  .ff-stage .b{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+  .ff-stage .b button{padding:5px 10px;font-size:12.5px}
+  .ff-stage .arrow{position:absolute;right:-9px;top:44%;color:var(--muted);font-size:16px}
+  .ff-grid{overflow-x:auto}
+  .ff-grid table{width:100%}
+  .ff-cap{font-size:12px;color:var(--muted);margin:0 0 6px}
+  @media (max-width:900px){.ff-pipe{grid-template-columns:1fr 1fr}.ff-stage .arrow{display:none}}
   .shb-band{display:flex;align-items:center;gap:26px;flex-wrap:wrap;font-size:14px;font-weight:500;line-height:1.2}
   .shb-band .shb-t{font-size:21px;font-weight:800;flex:1;min-width:200px}
   .shb-n{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
@@ -2001,6 +2017,7 @@
       <div class="card" style="padding:12px 14px">
         <div class="toolbar">
           <select id="fbView" style="flex:0 0 200px">
+            <option value="flow">Fabric flow</option>
             <option value="store">Store Stock Balance</option>
             <option value="storemov">Store movements &amp; cross-check</option>
             <option value="stock">Fabric ledger balance</option>
@@ -23036,6 +23053,205 @@ function fabTools(view) {
   if ($('fbImport')) $('fbImport').textContent = store ? 'Upload opening stock' : 'Bulk upload';
 }
 
+/* ================= FABRIC FLOW — the whole journey in one window =================
+ *
+ * Ravi, 2026-09-26: "m pahle greige fabric purchase karta hu, then greige ko RFD par bhejta hu, RFD se receive hota h
+ * then cut pcs / running me printers ko deta hu, then printer us RFD fabric ko print krke dete h … jo mene jaal buna h
+ * usko 1 hi window se karne ka try karo."
+ *
+ * Five stages, each read off the register it has always lived in: greige and RFD off the fabric ledger, the processor
+ * off ISSUE_TO_RFD − RECEIVE_RFD, the printers off the order-driven RFD ledger, what came back off the deliveries.
+ * Nothing is stored here; every button opens the entry it always has. */
+let FFLOW = { stage: 4, loaded: false, busy: false, err: [] };
+
+async function ensureFabFlow() {
+  if (FFLOW.busy) return;
+  FFLOW.busy = true; FFLOW.err = [];
+  const take = async (name, f) => { try { await f(); } catch (e) { FFLOW.err.push(name); } };
+  await Promise.all([
+    take('the master database', () => ptLoadGates()),
+    take('the printers\' orders', async () => { if (VO.rows == null) await ensureVo(); }),
+    take('the greige POs', async () => { if (GPO.rows == null) await ensureGpo(); }),
+    take('the RFD counts', async () => { if (RFD.decisions == null) RFD.decisions = (await ptGet('pt_rfdDecisions')) || {}; if (!RFD.stock || !Object.keys(RFD.stock).length) RFD.stock = (await ptGet('pt_rfdStock')) || {}; }),
+    take('the store', async () => { if (STORE.rows == null) STORE.rows = ptList(await ptGet('pt_storeLedger')); if (!PT.base) PT.base = ptList(await ptGet('pt_baseData')); }),
+  ]);
+  FFLOW.busy = false; FFLOW.loaded = true;
+  renderFab();
+}
+
+/** The figures, fabric by fabric and stage by stage, off what is loaded. */
+function ffFacts() {
+  const all = fabAll();
+  const byFab = new Map();
+  const F = name => { const u = String(name || '').trim(); const k = fabKey(u); if (!k) return null;
+    if (!byFab.has(k)) byFab.set(k, { fabric: u, greige: 0, proc: 0, rfd: 0, need: 0, toSend: 0, onWay: 0, withP: 0, backPcs: 0, backM: 0 });
+    return byFab.get(k); };
+  Object.values(fabBalances(all)).forEach(b => { const e = F(b.fabricType); if (!e) return; if (b.state === 'GREIGE') e.greige += b.qty; else if (b.state === 'RFD') e.rfd += b.qty; });
+  byFab.forEach(e => { e.proc = fabWithProcessor(e.fabric); });
+  let rows = [];
+  try { rows = rfdOrderRows(); } catch (e) { rows = []; }
+  const sumU = (u, k) => rfdRound(rows.filter(x => x.unit === u).reduce((a, x) => a + (x[k] || 0), 0));
+  rows.filter(x => x.unit === 'm').forEach(x => { const e = F(x.what); if (!e) return; e.need += x.need; e.toSend += x.toSend; e.onWay += x.onWay; });
+  let withPcs = 0, withM = 0;
+  try {
+    [...new Set(rows.map(x => x.vendorCode))].forEach(c => rfdStoreOf(c).forEach(x => {
+      if (x.unit === 'm') { withM += x.inHand; const e = F(x.what); if (e) e.withP += x.inHand; } else withPcs += x.inHand; }));
+  } catch (e) { /* the counts are not readable to this account */ }
+  /* what came back printed, last 30 days — running as metres of its cloth, pieces under the cloth their SKU is cut from */
+  const since = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+  let toAccept = 0, back30 = { pcs: 0, m: 0 };
+  try {
+    voLogRows().forEach(r => {
+      if (!r.ok) toAccept++;
+      const day = String(r.day || '').slice(0, 10);
+      if (!day || day < since) return;
+      const q = r.ok ? parseFloat(r.ok.qty) || 0 : r.qty;
+      if (r.run) { back30.m += q; const e = F(r.fabric); if (e) e.backM += q; }
+      else { back30.pcs += q; const m = mdbOf(r.sku); const e = m && m.fabric ? F(m.fabric) : null; if (e) e.backPcs += q; }
+    });
+  } catch (e) { /* no orders loaded */ }
+  let storePcs = null;
+  try { storePcs = Math.round(stBalances(stMoves()).filter(stFromPrinter).filter(b => b.unit === 'pcs').reduce((a, b) => a + b.qty, 0)); } catch (e) { storePcs = null; }
+  const pos = (GPO.rows || []).filter(po => po && ['open', 'sent', 'part'].indexOf(gpoStatus(po)) >= 0);
+  const poPending = Math.round(pos.reduce((a, po) => a + gpoProgress(po).pending, 0));
+  const lots = fabLots(all);
+  const r1 = v => Math.round(v * 10) / 10;
+  const fabrics = [...byFab.values()].map(e => Object.assign(e, { greige: r1(e.greige), proc: r1(e.proc), rfd: r1(e.rfd), need: r1(e.need), toSend: r1(e.toSend),
+      onWay: r1(e.onWay), withP: r1(e.withP), backM: r1(e.backM), short: r1(Math.max(0, e.toSend - e.rfd)) }))
+    .filter(e => e.greige || e.proc || e.rfd || e.need || e.withP || e.backPcs || e.backM)
+    .sort((a, b) => (b.short - a.short) || String(a.fabric).localeCompare(String(b.fabric), undefined, { numeric: true }));
+  return { fabrics, rows, lots,
+    greige: r1(fabrics.reduce((a, e) => a + e.greige, 0)), pos: pos.length, poPending,
+    proc: r1(fabrics.reduce((a, e) => a + e.proc, 0)), procLots: lots.filter(g => g.withProcessor > 0.05).length,
+    rfd: r1(fabrics.reduce((a, e) => a + e.rfd, 0)), needM: sumU('m', 'toSend'),
+    toSend: { pcs: sumU('pcs', 'toSend'), m: sumU('m', 'toSend') }, onWay: { pcs: sumU('pcs', 'onWay'), m: sumU('m', 'onWay') }, withP: { pcs: r1(withPcs), m: r1(withM) },
+    orders: new Set(rows.map(x => x.orderId)).size, toAccept, back30, storePcs };
+}
+
+function renderFabFlowOne() {
+  if (!FFLOW.loaded) { if (!FFLOW.busy) ensureFabFlow(); $('fbMsg').className = 'muted'; $('fbMsg').textContent = 'Reading the registers…'; $('fbKpis').innerHTML = ''; ptEmpty('fbTable', 'Loading…'); return; }
+  const X = ffFacts();
+  const q = (($('fbQ') || {}).value || '').trim().toLowerCase();
+  const two = v => [v.pcs ? nf(v.pcs) + ' pcs' : '', v.m ? nf(v.m) + ' m' : ''].filter(Boolean).join(' · ') || '—';
+  const edit = ptCanEdit();
+  const stage = (n, name, title, v, sub, btns) => `<div class="ff-stage${FFLOW.stage === n ? ' on' : ''}" data-ff-stage="${n}" role="button" tabindex="0">
+    <div class="n">${n} · ${esc(name)}</div><div class="t">${esc(title)}</div><div class="v">${v}</div><div class="s">${sub}</div>
+    <div class="b">${btns}</div>${n < 5 ? '<span class="arrow">›</span>' : ''}</div>`;
+  const btn = (act, label, primary) => `<button type="button" class="${primary ? '' : 'ghost'}" data-ff-act="${act}">${esc(label)}</button>`;
+  $('fbKpis').innerHTML = '<div style="flex-basis:100%">'
+    + '<div class="ff-pipe">'
+    + stage(1, 'Greige', 'Bought', nf(X.greige) + ' m', 'in stock' + (X.pos ? ' · ' + nf(X.pos) + ' PO open (' + nf(X.poPending) + ' m pending)' : ' · no PO open'),
+        (edit ? btn('po', '+ Greige PO', true) + btn('recv-greige', 'Receive') : ''))
+    + stage(2, 'Processor', 'Becoming RFD', nf(X.proc) + ' m', 'with the processor' + (X.procLots ? ' · ' + nf(X.procLots) + ' lot(s)' : ''),
+        (edit ? btn('to-rfd', 'Send to RFD', true) + btn('rfd-in', 'RFD received') : ''))
+    + stage(3, 'RFD store', 'Ready', nf(X.rfd) + ' m', 'RFD on the shelf' + (X.needM ? ' · <span style="color:' + (X.needM > X.rfd ? 'var(--bad)' : '#166534') + '">orders need ' + nf(X.needM) + ' m</span>' : ''),
+        (edit ? btn('cut', 'RFD → cutting', true) + btn('buy', '+ RFD bought') : ''))
+    + stage(4, 'Printers', 'Being printed', two(X.toSend), 'to send · ' + two(X.onWay) + ' on the way · ' + two(X.withP) + ' with them · ' + nf(X.orders) + ' order(s)',
+        btn('send', 'Send to printer', true) + btn('byprinter', 'By printer'))
+    + stage(5, 'Printed', 'Back', nf(X.toAccept), 'deliveries to accept · ' + two(X.back30) + ' back in 30 days' + (X.storePcs != null ? ' · store ' + nf(X.storePcs) + ' pcs' : ''),
+        btn('accept', 'Accept delivery', true) + btn('store', 'Store'))
+    + '</div>'
+    + '<div class="ff-cap">Every fabric, start to finish. Red: the orders need more RFD than the shelf holds.</div>'
+    + '<div class="ff-grid"><table class="xl"><thead><tr>' + ['Fabric', 'Greige stock', 'At processor', 'RFD stock', 'Orders need (RFD)', 'Short', 'With printers', 'Printed back · 30 d', ''].map((h, i) => `<th${i ? ' class="num"' : ''}>${h}</th>`).join('') + '</tr></thead><tbody>'
+    + (X.fabrics.filter(e => !q || e.fabric.toLowerCase().indexOf(q) >= 0).map(e => {
+        const z = v => (v ? nf(v) : '<span class="muted">—</span>');
+        const tag = e.short > 0 ? (e.greige || e.proc ? '<span class="pill pill-low">RFD short — ' + (e.proc ? 'ask the processor' : 'send greige to RFD') + '</span>' : '<span class="pill pill-out">RFD short — no greige either</span>')
+          : (e.need ? '<span class="pill pill-ok">covered</span>' : '');
+        return '<tr>'
+          + `<td style="text-align:left"><b>${esc(e.fabric)}</b></td>`
+          + `<td class="num">${z(e.greige)}</td><td class="num" style="color:#7f6000">${z(e.proc)}</td><td class="num" style="font-weight:700">${z(e.rfd)}</td>`
+          + `<td class="num">${z(e.toSend)}${e.need && e.need !== e.toSend ? '<div class="muted" style="font-size:10.5px">of ' + nf(e.need) + '</div>' : ''}</td>`
+          + `<td class="num" style="color:var(--bad);font-weight:700">${e.short ? nf(e.short) : '<span class="muted">—</span>'}</td>`
+          + `<td class="num">${z(e.withP)}${e.onWay ? '<div class="muted" style="font-size:10.5px">' + nf(e.onWay) + ' on the way</div>' : ''}</td>`
+          + `<td class="num" style="color:#166534">${[e.backPcs ? nf(e.backPcs) + ' pcs' : '', e.backM ? nf(e.backM) + ' m' : ''].filter(Boolean).join(' · ') || '<span class="muted">—</span>'}</td>`
+          + `<td>${tag}</td></tr>`; }).join('') || '<tr><td colspan="9" class="muted" style="padding:12px">Nothing in the fabric ledger yet.</td></tr>')
+    + '</tbody></table></div></div>';
+
+  /* the chosen stage's worklist */
+  const st = FFLOW.stage;
+  let head = [], body = '', cap = '';
+  const th = (list, nums) => '<thead><tr>' + list.map((h, i) => `<th${i === 0 ? ' class="frz"' : (nums.indexOf(i) >= 0 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
+  if (st === 1) {
+    const pos = (GPO.rows || []).filter(po => po && ['open', 'sent', 'part'].indexOf(gpoStatus(po)) >= 0);
+    cap = 'Greige POs still open — what the mill owes.';
+    head = th(['PO', 'Mill', 'Date', 'Ordered', 'Received', 'Pending', 'Status'], [3, 4, 5]);
+    body = pos.map(po => { const p = gpoProgress(po), s = GPO_STATUS[gpoStatus(po)] || ['', '']; return '<tr>'
+      + `<td class="frz" style="text-align:left"><b>${esc(po.poNo || po.id)}</b></td><td style="text-align:left">${esc(po.mill || '')}</td><td>${esc(po.date || '')}</td>`
+      + `<td class="num">${nf(Math.round(p.ordered))} m</td><td class="num" style="color:#166534">${nf(Math.round(p.received))} m</td><td class="num" style="color:var(--bad);font-weight:700">${nf(Math.round(p.pending))} m</td>`
+      + `<td><span class="pill ${s[1]}">${esc(s[0])}</span></td></tr>`; }).join('') || '<tr><td colspan="7" class="muted" style="padding:12px">No greige PO open.</td></tr>';
+  } else if (st === 2) {
+    const lots = X.lots.filter(g => g.withProcessor > 0.05);
+    cap = 'Lots with the processor — sent as greige, not yet back as RFD.';
+    head = th(['Lot', 'Fabric', 'Processor', 'Sent', 'Sent to RFD', 'Back as RFD', 'Still there'], [4, 5, 6]);
+    body = lots.map(g => '<tr>'
+      + `<td class="frz" style="text-align:left"><b>${esc(g.lot)}</b></td><td style="text-align:left">${esc(g.fabricType)}</td><td style="text-align:left">${esc(g.processor || '—')}</td><td>${esc(g.date || '')}</td>`
+      + `<td class="num">${nf(Math.round(g.toRfd * 10) / 10)} m</td><td class="num" style="color:#166534">${nf(Math.round(g.rfdIn * 10) / 10)} m</td><td class="num" style="color:#7f6000;font-weight:700">${nf(Math.round(g.withProcessor * 10) / 10)} m</td></tr>`).join('')
+      || '<tr><td colspan="7" class="muted" style="padding:12px">Nothing with a processor.</td></tr>';
+  } else if (st === 3) {
+    const lots = X.lots.filter(g => g.rfdLeft > 0.05);
+    cap = 'RFD on the shelf, lot by lot — what cutting and the printers draw from.';
+    head = th(['Lot', 'RFD fabric', 'Date', 'RFD in', 'To cutting', 'Left'], [3, 4, 5]);
+    body = lots.map(g => '<tr>'
+      + `<td class="frz" style="text-align:left"><b>${esc(g.lot)}</b></td><td style="text-align:left">${esc(g.rfdFabric || g.fabricType)}</td><td>${esc(g.date || '')}</td>`
+      + `<td class="num">${nf(Math.round((g.rfdIn + g.rfdOpen) * 10) / 10)} m</td><td class="num">${nf(Math.round(g.rfdOut * 10) / 10)} m</td><td class="num" style="font-weight:700">${nf(Math.round(g.rfdLeft * 10) / 10)} m</td></tr>`).join('')
+      || '<tr><td colspan="6" class="muted" style="padding:12px">No RFD on the shelf.</td></tr>';
+  } else if (st === 4) {
+    cap = 'The printers\' orders from ' + RFD_TRACK_FROM + ' — what each needs, what went, what they confirmed, what is still to send. RFD in store is the shelf for that cloth.';
+    head = th(['Order', 'Printer', 'Accepted', 'What', 'Needs', 'With them', 'Sent', 'Received', 'To send', 'RFD in store', ''], [4, 5, 6, 7, 8, 9]);
+    const shelf = name => { const e = X.fabrics.find(f => fabKey(f.fabric) === fabKey(name)); return e ? e.rfd : 0; };
+    const z = (n, u) => (n ? nf(n) + ' ' + u : '<span class="muted">—</span>');
+    body = X.rows.map(x => { const a = voAckOf(x._order), sh = x.unit === 'm' ? shelf(x.what) : null; return '<tr>'
+      + `<td class="frz" style="text-align:left"><b>${esc(x.orderNo)}</b></td><td style="text-align:left">${esc(x.vendorName)}</td>`
+      + `<td>${a ? '<span class="pill pill-ok">✓ ' + esc(ptIsoDate(a.at) || a.status) + '</span>' : '<span class="pill pill-low">not yet</span>'}</td>`
+      + `<td style="text-align:left"><b>${esc(x.what)}</b><div class="muted" style="font-size:10.5px">${esc(x.item)}</div></td>`
+      + `<td class="num" style="font-weight:700">${nf(x.need)} ${x.unit}</td><td class="num" style="color:#7f6000">${z(x.withYou, x.unit)}</td><td class="num" style="color:#166534">${z(x.sent, x.unit)}</td><td class="num">${z(x.recv, x.unit)}</td>`
+      + `<td class="num" style="font-weight:700;color:${x.toSend ? 'var(--bad)' : '#166534'}">${x.toSend ? nf(x.toSend) + ' ' + x.unit : 'done'}</td>`
+      + `<td class="num"${sh != null && sh < x.toSend ? ' style="color:var(--bad);font-weight:700" title="Less RFD on the shelf than this needs"' : ''}>${sh == null ? '<span class="muted">pcs</span>' : nf(sh) + ' m'}</td>`
+      + `<td style="white-space:nowrap">${x.toSend > 0 && rfdCanSend() ? `<button class="jw-btn jw-primary" data-ff-send="${esc(x.orderId)}|${esc(x.key)}" style="padding:4px 10px;font-size:12px">Send ${nf(x.toSend)} ${x.unit}</button>` : ''}</td></tr>`; }).join('')
+      || `<tr><td colspan="11" class="muted" style="padding:12px">No printer order from ${RFD_TRACK_FROM} yet.</td></tr>`;
+  } else {
+    let dels = [];
+    try { dels = voLogRows().filter(r => !r.ok).sort((a, b) => String(b.at || '').localeCompare(String(a.at || ''))); } catch (e) { dels = []; }
+    cap = 'Printed goods the printers say they sent, not yet accepted — accept them in History and they land in the store.';
+    head = th(['Sent on', 'Printer', 'Order', 'What', 'Qty', ''], [4]);
+    body = dels.slice(0, 300).map(r => '<tr>'
+      + `<td class="frz" style="text-align:left">${esc(r.day || r.raw || '')}</td><td style="text-align:left">${esc(r.vendor)}</td><td style="text-align:left">${esc(r.orderNo)}</td><td style="text-align:left">${esc(r.what)}${r.sku ? ' <span class="muted">' + esc(r.sku) + '</span>' : ''}</td>`
+      + `<td class="num" style="font-weight:700">${nf(r.qty)} ${r.unit}</td><td><button type="button" class="ghost" data-ff-act="accept" style="padding:3px 10px;font-size:12px">Accept in History</button></td></tr>`).join('')
+      || '<tr><td colspan="6" class="muted" style="padding:12px">Nothing waiting to be accepted.</td></tr>';
+  }
+  $('fbTable').innerHTML = head + '<tbody>' + body + '</tbody>';
+  FAB.shown = [];
+  $('fbMsg').className = FFLOW.err.length ? 'err' : 'muted';
+  $('fbMsg').textContent = cap + (FFLOW.err.length ? ' · could not read ' + FFLOW.err.join(', ') : '');
+}
+
+/* the stages and their buttons */
+$('fbKpis').addEventListener('click', e => {
+  const act = e.target.closest('[data-ff-act]');
+  if (act) { e.stopPropagation(); return ffAct(act.getAttribute('data-ff-act')); }
+  const st = e.target.closest('[data-ff-stage]');
+  if (st) { FFLOW.stage = parseInt(st.getAttribute('data-ff-stage'), 10) || 4; renderFab(); }
+});
+$('fbTable').addEventListener('click', e => {
+  const sd = e.target.closest('[data-ff-send]');
+  if (sd) { const [oid, key] = sd.getAttribute('data-ff-send').split('|'); return rfdOfficeSendOpen(oid, key, () => { FFLOW.loaded = false; ensureFabFlow(); }); }
+  const act = e.target.closest('[data-ff-act]');
+  if (act) return ffAct(act.getAttribute('data-ff-act'));
+});
+function ffAct(act) {
+  if (act === 'po') { if ($('fbPoNew')) $('fbPoNew').onclick(); return; }
+  if (act === 'recv-greige') return fabEntryOpen({ kind: 'RECEIVE_GREIGE' });
+  if (act === 'to-rfd') return fabEntryOpen({ kind: 'ISSUE_TO_RFD' });
+  if (act === 'rfd-in') return fabEntryOpen({ kind: 'RECEIVE_RFD' });
+  if (act === 'cut') return fabEntryOpen({ kind: 'ISSUE_TO_CUTTING' });
+  if (act === 'buy') return fabEntryOpen({ kind: 'PURCHASE_RFD' });
+  if (act === 'send') { FFLOW.stage = 4; return renderFab(); }
+  if (act === 'byprinter') { showTab('rfd'); if ($('rfdView')) { $('rfdView').value = 'printer'; renderRfd(); } return; }
+  if (act === 'accept') return showTab('vlog');
+  if (act === 'store') { $('fbView').value = 'store'; return renderFab(); }
+}
+$('fbGo').addEventListener('click', () => { FFLOW.loaded = false; });
+
 function renderFab() {
   /* ONLY WHERE SOMEBODY IS LOOKING. ensureFab ends here, and other screens call ensureFab for the
    * ledger alone — the Order Console's Demand view does. The Fabric tab opens on the store, so that
@@ -23046,8 +23262,9 @@ function renderFab() {
   if (FAB.busy) { $('fbMsg').className = 'muted'; $('fbMsg').textContent = 'Reading the fabric ledger…'; ptEmpty('fbTable', 'Loading…'); return; }
   if (FAB.err) { $('fbMsg').className = 'err'; $('fbMsg').textContent = 'Could not read it: ' + FAB.err; ptEmpty('fbTable', 'Nothing to show.'); $('fbKpis').innerHTML = ''; return; }
   /* THE PO VIEW has its own buttons and its own table; the ledger's filters do not apply to it. */
-  const view0 = ($('fbView') || {}).value || 'store';
+  const view0 = ($('fbView') || {}).value || 'flow';
   fabTools(view0);
+  if (view0 === 'flow') return renderFabFlowOne();
   if (view0 === 'store' || view0 === 'storemov') return renderStore(view0);
   const isPo = view0 === 'po';
   if ($('fbPoNew')) $('fbPoNew').classList.toggle('hide', !isPo || !ptCanEdit());
@@ -40790,6 +41007,28 @@ async function rfdOfficeSend(o, key, qty, dateIso, note) {
   return '';
 }
 
+/** The store's Send dialog against an order — the RFD screen and Fabric flow open the same one. */
+function rfdOfficeSendOpen(oid, key, after) {
+  const o = (VO.rows || []).find(x => x && x.id === oid); if (!o) return;
+  const x = rfdOrderLedger(o).find(r => r.key === key); if (!x) return;
+  /* RFD ON THE SHELF, said before the cloth is promised (Fabric flow, 2026-09-26): short is a warning, not a stop. */
+  let shelf = null;
+  try { if (x.unit === 'm' && FAB.rows) shelf = Math.round(Object.values(fabBalances(fabAll())).filter(b => b.state === 'RFD' && fabKey(b.fabricType) === fabKey(x.what)).reduce((a, b) => a + b.qty, 0) * 10) / 10; } catch (e) { shelf = null; }
+  return ptOpenDialog({
+    title: 'Send ' + x.what + ' to ' + (voName(o.vendorCode) || o.vendorCode),
+    subtitle: nf(x.toSend) + ' ' + x.unit + ' still to go out against ' + (o.orderNo || o.id)
+      + (x.withYou ? ' · ' + nf(x.withYou) + ' ' + x.unit + ' already with them' : '')
+      + (shelf != null ? ' · ' + nf(shelf) + ' m of RFD on the shelf' : ''),
+    note: (shelf != null && shelf < x.toSend ? 'ONLY ' + nf(shelf) + ' m OF RFD IS ON THE SHELF against ' + nf(x.toSend) + ' m to send — check the processor or the greige first. ' : '')
+      + 'Recorded against the order itself — no ask needed. The printer sees the lot in their portal and confirms it when it arrives.',
+    fields: [{ key: 'qty', label: (x.unit === 'pcs' ? 'Pieces' : 'Metres') + ' going out', type: 'number', min: 0, step: x.unit === 'pcs' ? '1' : '0.1', value: x.toSend },
+             { key: 'date', label: 'Date it goes out', type: 'date', value: ptIsoDate(new Date().toISOString()) },
+             { key: 'note', label: 'Remarks', span: true, value: '' }],
+    saveLabel: 'Record it',
+    onSave: async v => { const err = await rfdOfficeSend(o, key, v.qty, v.date, v.note); if (!err && after) after(); return err; },
+  });
+}
+
 /** The printer confirms a lot arrived. Their own branch of the order; the office reads it from there. */
 async function rfdRecvSave(o, reqId, at, qty, dateIso) {
   if (!o) return 'That order is no longer here.';
@@ -41445,22 +41684,7 @@ $('rfdTable').addEventListener('click', async e => {
   const say = (t, bad) => { $('rfdMsg').className = bad ? 'err' : 'muted'; $('rfdMsg').textContent = t; };
   /* SEND AGAINST THE ORDER (2026-09-26): the store's own button on the By-order reading. */
   const os = e.target.closest('[data-rfd-osend]');
-  if (os) {
-    const [oid, key] = os.getAttribute('data-rfd-osend').split('|');
-    const o = (VO.rows || []).find(x => x && x.id === oid); if (!o) return;
-    const x = rfdOrderLedger(o).find(r => r.key === key); if (!x) return;
-    return ptOpenDialog({
-      title: 'Send ' + x.what + ' to ' + (voName(o.vendorCode) || o.vendorCode),
-      subtitle: nf(x.toSend) + ' ' + x.unit + ' still to go out against ' + (o.orderNo || o.id)
-        + (x.withYou ? ' · ' + nf(x.withYou) + ' ' + x.unit + ' already with them' : ''),
-      note: 'Recorded against the order itself — no ask needed. The printer sees the lot in their portal and confirms it when it arrives.',
-      fields: [{ key: 'qty', label: (x.unit === 'pcs' ? 'Pieces' : 'Metres') + ' going out', type: 'number', min: 0, step: x.unit === 'pcs' ? '1' : '0.1', value: x.toSend },
-               { key: 'date', label: 'Date it goes out', type: 'date', value: ptIsoDate(new Date().toISOString()) },
-               { key: 'note', label: 'Remarks', span: true, value: '' }],
-      saveLabel: 'Record it',
-      onSave: async v => { const err = await rfdOfficeSend(o, key, v.qty, v.date, v.note); if (!err) renderRfd(); return err; },
-    });
-  }
+  if (os) { const [oid, key] = os.getAttribute('data-rfd-osend').split('|'); return rfdOfficeSendOpen(oid, key, renderRfd); }
   const ok = e.target.closest('[data-rfd-ok]');
   if (ok) {
     const r = rfdFind(ok.getAttribute('data-rfd-ok')); if (!r) return;
