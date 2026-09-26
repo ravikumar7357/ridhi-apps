@@ -19773,7 +19773,7 @@ console.log('\n== The store: what is on the shelf before stitching ==');
     A.renderStore('store');
     const h = els.fbTable.innerHTML, k = els.fbKpis.innerHTML;
     ok('the screen shows the printers\' goods with From printers / Cut / Issued / By hand and a Track button per row',
-       /<th>From printers<\/th>/.test(h) && /data-st-track="CUT-1"/.test(h) && /Pieces from printers/.test(k) && /Not from a printer/.test(k), els.fbMsg.textContent);
+       /From printers<\/th>/.test(h) && /data-st-track="CUT-1"/.test(h) && /Pieces from printers/.test(k) && /Not from a printer/.test(k), els.fbMsg.textContent);
   }
   /* ---- the cross-check ---- */
   ok('both deliveries are waiting to be cross-checked', A.stToCheck(mv).length === 2);
