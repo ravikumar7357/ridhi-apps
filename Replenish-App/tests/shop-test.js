@@ -190,7 +190,7 @@ const ctx = {
 };
 const EXPORT = '\n;return {'
   + 'SHOP:()=>SHOP, setSHOP:v=>{SHOP=v}, SHOP_META:()=>SHOP_META, setMETA:v=>{SHOP_META=v},'
-  + 'srAll, srSave, srSetStatus, srLineRoom, srReturnedQty, srRender, SR:()=>SR, setSR:v=>{SR=v}, zipState, zoneOf, milesBetween, daysEstimate, zipLL, ZONE_DAYS,'
+  + 'soShipFrom, soWord, srAll, srSave, srSetStatus, srLineRoom, srReturnedQty, srRender, SR:()=>SR, setSR:v=>{SR=v}, zipState, zoneOf, milesBetween, daysEstimate, zipLL, ZONE_DAYS,'
   + 'SHOP_STOCK:()=>SHOP_STOCK, setSTOCK:v=>{SHOP_STOCK=v; SHOP_STOCK_BY={SP:{},CPC:{}}}, setSTOCKCASE:v=>{SHOP_STOCK_CASE=v; SHOP_STOCK_CASE_BY={SP:{},CPC:{}}},'
   + 'SHOP_SKU:()=>SHOP_SKU, setSKU:v=>{SHOP_SKU=v}, setINDIA:v=>{SHOP_INDIA=v; SHOP_INDIA_LOADED=true},'
   + 'loadShopStock, loadShopIndia, soGuessBrand, soMcf, soAmzKey, soAmzCase, soLive, soSendQty, soMcfPlan, soBestBrand, soMcfHas, mcfErr, openShopOrder,'
@@ -1809,6 +1809,14 @@ await (async () => {
   A.setSHOP(was.shop); A.setMETA(was.meta);
 })();
 /* The summary sits INSIDE the async block: the returns tests await, and a summary outside printed "0 passed" before they ran. */
+console.log('\n== The Ship-from cell says one thing, then the stock in plain words (Ravi, 2026-09-26: "too messy") ==');
+{
+  const e = x => String(x == null ? '' : x);
+  const c1 = A.soShipFrom({ id: 'z1', route: 'MCF ready', mcf: 'yes', india: 'no' }, e);
+  ok('MCF ready: one pill, MCF not said again, India in words', (c1.match(/class="st /g) || []).length === 1 && /MCF ready/.test(c1) && !/MCF <b/.test(c1) && /India <b[^>]*>No stock<\/b>/.test(c1), c1);
+  const c2 = A.soShipFrom({ id: 'z2', route: 'Need from production', mcf: 'no', india: 'part' }, e);
+  ok('needs production: one red pill, both stock facts in one plain line', (c2.match(/class="st /g) || []).length === 1 && /Needs production/.test(c2) && /MCF <b[^>]*>No stock<\/b> · India <b[^>]*>Partly<\/b>/.test(c2), c2);
+}
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exitCode = fail ? 1 : 0;
 })();

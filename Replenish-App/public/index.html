@@ -3904,11 +3904,11 @@ function showTab(which) {
   if (which === 'att') ensureAtt();
   if (which === 'pmdb') ensurePmdb();
   if (which === 'mst') ensureMst();
-  if (which === 'pbase') ptGatesFresh().then(ensurePbase);
-  if (which === 'pcut') ptGatesFresh().then(ensurePcut);
-  if (which === 'ppress') ptGatesFresh().then(ensurePpress);
+  if (which === 'pbase') ptOpenFresh('pbase', ensurePbase);
+  if (which === 'pcut') ptOpenFresh('pcut', ensurePcut);
+  if (which === 'ppress') ptOpenFresh('ppress', ensurePpress);
   if (which === 'qc') ensureQc();
-  if (which === 'ord') ptGatesFresh().then(ensureOrd);
+  if (which === 'ord') ptOpenFresh('ord', ensureOrd);
   if (which === 'so') ensureSox();
   if (which === 'vord') ensureVo();
   if (which === 'vreq') ensureVrq();
@@ -10959,6 +10959,18 @@ const ptGatesStale = () => !PTG.at || Date.now() - PTG.at > PTG_STALE_MS;
  *  find out what the rest of the floor has done. */
 async function ptGatesFresh() {
   if (ptGatesStale()) await ptLoadGates(true);
+}
+/**
+ * OPEN A SCREEN AT ONCE, REFRESH BEHIND IT (Ravi, 2026-09-26: "system lag ho rha h ek window se dusri window par jane
+ * me"). Waiting for the eight registers — 7 MB — before drawing made every return to a factory screen after two
+ * minutes sit blank for seconds. The screen draws from what is in memory; when the fresh copy lands it redraws, and
+ * only if it is still the screen being looked at. The very first open still waits, because there is nothing to draw.
+ */
+function ptOpenFresh(tab, ensure) {
+  const stale = ptGatesStale();
+  if (!PTG.mdb || !stale) return ensure();
+  ensure();
+  ptLoadGates(true).then(() => { if (TAB_NOW === tab) ensure(); }).catch(() => { /* the screen already shows what it had */ });
 }
 
 /* A READ ALREADY UNDER WAY IS WAITED FOR, not skipped (2026-09-25). Returning at once let the Master Database —
@@ -46461,6 +46473,35 @@ const soDense = () => { try { return localStorage.getItem('soDense') !== '0'; } 
  * word, the carrier under the status. Items wrap. Every cell is the same helper the wide table uses, so the two can
  * never say different things. Sorting goes by the column's first figure.
  */
+/** Tag html → its word, in its colour, without the pill — for the quiet second line. */
+const soWord = html => {
+  const t = String(html || '').replace(/<[^>]+>/g, '').trim();
+  if (!t) return '';
+  const c = /st-approved/.test(html) ? 'var(--accent,#166534)' : /st-pending/.test(html) ? 'var(--warn-ink,#7f6000)' : /st-rejected/.test(html) ? 'var(--bad,#b91c1c)' : 'var(--muted)';
+  return '<b style="color:' + c + ';font-weight:600">' + t + '</b>';
+};
+/**
+ * THE SHIP-FROM CELL, CALM (Ravi, 2026-09-26: "data looking too messy"). ONE pill — what to do with the order — and
+ * one plain line under it with the two stock facts, each only where it adds something: MCF is not repeated under
+ * "MCF ready", India not under "Ship from India". Production's own word, when there is one, is the pill.
+ */
+function soShipFrom(r, esc) {
+  const p = soProdStatus(r);
+  const inBucket = !p && SO_IN_BUCKET.has(String(r && r.id));
+  const route = r.route || '';
+  const pill = p ? `<span class="st ${p.tone === 'done' ? 'st-approved' : 'st-pending'}" title="From the Order Console">${esc(p.txt)}</span>`
+    : route === 'Need from production' ? `<span class="st st-rejected"${inBucket ? ' title="In the production bucket — open it from there"' : ''}>${inBucket ? 'Needs production · in bucket' : 'Needs production'}</span>`
+    : route === 'Ship from India' ? '<span class="st st-pending">Ship from India</span>'
+    : /MCF done/i.test(route) ? '<span class="st st-approved" style="font-weight:700">MCF done</span>'
+    : /MCF ready/i.test(route) ? '<span class="st st-approved">MCF ready</span>'
+    : `<span class="muted">${esc(route || '—')}</span>`;
+  const bits = [];
+  if (!/MCF/i.test(route)) { const w = soWord(soMcfTag(r.mcf)); if (w) bits.push('MCF ' + w); }
+  if (route !== 'Ship from India') { const w = soWord(SO_INDIA_TAG[r.india] || SO_MCF_TAG[r.india]); if (w) bits.push('India ' + w); }
+  const warn = (r.noSku || []).length ? `<span class="sub" style="color:var(--bad);font-weight:700">${nf(r.noSku.length)} line(s) have no SKU — cannot open</span>`
+    : (r.titleSku || []).length ? `<span class="sub" style="color:var(--warn-ink)" title="${esc(r.titleSku.map(x => x.name + ' → ' + x.sku).join(' · '))}">SKU from the title: ${esc(r.titleSku.map(x => x.sku).join(', '))}</span>` : '';
+  return pill + (bits.length ? `<span class="sub">${bits.join(' · ')}</span>` : '') + warn;
+}
 function renderShopDense(rows, COLS, arrow, money, esc) {
   const T = k => (COLS.find(c => c.k === k) || {}).tip || '';
   const DC = [
@@ -46486,12 +46527,7 @@ function renderShopDense(rows, COLS, arrow, money, esc) {
     + '<td class="num">' + money(r.total) + sub(r.kg ? r.kg.toFixed(2) + ' kg' : '') + '</td>'
     + '<td style="font-weight:600" title="' + esc(r.items.map(i => `${i.sku || i.name}: ${soLocOf(i.sku) || 'no bin set'}`).join(' · ')) + '">'
       + (r.locTxt ? esc(r.locTxt) : '<span class="muted">—</span>') + (r.makeQty ? sub('<span class="st st-pending">' + r.makeQty + ' to make</span>') : '') + '</td>'
-    + '<td class="tl" title="' + esc(r.mcfWhy + (r.indiaWhy ? ' · ' + r.indiaWhy : '')) + '">' + soProdChip(r)
-      + (r.route === 'Need from production' ? '<span class="st st-rejected">' + esc(r.route) + '</span>'
-          + ((r.noSku || []).length ? '<div style="font-size:10.5px;font-weight:700;color:var(--bad);white-space:normal;max-width:170px">' + nf((r.noSku || []).length) + ' line(s) have no SKU — cannot open</div>' : '')
-          + ((r.titleSku || []).length ? '<div style="font-size:10.5px;font-weight:700;color:var(--warn-ink);white-space:normal;max-width:170px" title="' + esc((r.titleSku || []).map(x => x.name + ' → ' + x.sku).join(' · ')) + '">SKU from the title: ' + esc((r.titleSku || []).map(x => x.sku).join(', ')) + '</div>' : '')
-        : r.route === 'Ship from India' ? '<span class="st st-pending">' + esc(r.route) + '</span>' : '<span class="muted">' + esc(r.route) + '</span>')
-      + '<span class="sub" style="white-space:nowrap">' + soMcfTag(r.mcf) + ' ' + (SO_INDIA_TAG[r.india] || SO_MCF_TAG[r.india] || '') + '</span></td>'
+    + '<td class="tl" title="' + esc(r.mcfWhy + (r.indiaWhy ? ' · ' + r.indiaWhy : '')) + '">' + soShipFrom(r, esc) + '</td>'
     + '<td class="tl"' + (r.shippedAt ? ' title="shipped ' + esc(r.shippedAt) + '"' : '') + '>' + soFfTag(r.ff)
       + '<span class="sub" style="max-width:170px;overflow:hidden;text-overflow:ellipsis">' + soTrkCell(r, esc) + '</span></td>'
     + '<td class="so-keep tl">'
