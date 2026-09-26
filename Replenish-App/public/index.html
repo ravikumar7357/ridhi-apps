@@ -3531,7 +3531,7 @@ onAuthStateChanged(auth, async user => {
   }
 
   // The cached snapshot, which every tab EXCEPT the factory ones is built on.
-  if (!FACTORY_ONLY) await ensureRepl();
+  if (!FACTORY_ONLY) await ensureReplSlim();
   /* The screen the address names, when this account may open it — a tab opened from a menu link, or a
    * reload. showTab itself sends anything else to the first screen this account has. */
   showTab(navHashTab() || ME.tabs[0]);
@@ -4062,13 +4062,26 @@ const REPL_CHUNK = 700;
  * only thing standing in the way.
  */
 const REPL_FULL_TABS = ['repl', 'article', 'target', 'top', 'prod', 'follow', 'india'];
-const REPL_SLIM_FIELDS = ['sku', 'category', 'subcat', 'color', 'size', 'totalStock', 'awdAvail', 'awdTransit'];
+/* What the production screens read from a row: what a SKU is, what FBA holds, what it sold (Printer Allocation), and its
+ * Amazon ids (Master DB). The full copy is 45 fields and six times the bytes; nothing outside Replenishment needs it. */
+const REPL_SLIM_FIELDS = ['sku', 'category', 'subcat', 'color', 'size', 'totalStock', 'awdAvail', 'awdTransit', 'last90', 'last30', 'asin', 'parent'];
 const REPL_SLIM_CHUNK = 2500;
 const replFull = () => !!(ME.admin || (ME.tabs || []).some(t => REPL_FULL_TABS.includes(t)));
 const replSlimRow = r => { const o = {}; REPL_SLIM_FIELDS.forEach(k => { if (r && r[k] != null) o[k] = r[k]; }); return o; };
 
-async function loadReplCache() {
-  const full = replFull();
+/* WHICH COPY IS IN HAND: '' (none), 'slim' or 'full'. The slim one is read at sign-in by everybody; the full one — 8 MB
+ * against 1.4 (26 Sep) — only when a Replenishment screen opens, and only for an account that may see it. A second call
+ * for the same or a lesser copy costs nothing; a call in flight is shared. */
+let REPL_MODE = '', REPL_LOADING = null;
+async function loadReplCache(wantFull) {
+  const full = !!wantFull && replFull();
+  if (REPL_MODE === 'full' || (REPL_MODE === 'slim' && !full)) return;
+  if (REPL_LOADING && (REPL_LOADING.full || !full)) return REPL_LOADING.p;
+  const p = loadReplCacheRun(full).then(() => { REPL_MODE = full ? 'full' : 'slim'; }).finally(() => { if (REPL_LOADING && REPL_LOADING.p === p) REPL_LOADING = null; });
+  REPL_LOADING = { full, p };
+  return p;
+}
+async function loadReplCacheRun(full) {
   await Promise.all(['SP', 'CPC'].map(async b => {
     try {
       const meta = await getDoc(doc(db, full ? 'repl' : 'replslim', b));
@@ -4115,21 +4128,31 @@ let REPL_LOADED = false;
 // painted the whole thing a second time. The extra wait is nil — they run alongside the snapshot, which
 // is the slowest of the four anyway. (Each loader is idempotent, so the lazy path in renderRepl and the
 // other tabs' ensure* still work unchanged.)
+/* AT SIGN-IN (Ravi, 2026-09-26: "data bahut heavy ho gya h"): the slim snapshot and the production notes, nothing more.
+ * The production screens read a SKU's colour, size and FBA stock from it and assume it is there; the full copy and the
+ * health read used to be awaited here too, 10.8 MB before the first screen for an admin who then opened Cutting. */
+async function ensureReplSlim() {
+  await Promise.all([loadReplCache(false), loadProd()]);
+}
+/* The snapshot as this account may see it — full for those allowed — for the Replenishment screens that read the
+ * full fields (Target, Follow-up, India, In Production). Not the table itself. */
+async function ensureReplData() {
+  if (REPL_LOADED) return;
+  await Promise.all([loadReplCache(true), loadProd()]);
+  REPL_LOADED = true;
+}
 async function ensureRepl() {
   if (!REPL_LOADED) {
     rMsg('Loading last snapshot…');
     /* INDIA STOCK IS NOT WAITED FOR. It is a Google Apps Script call — 50 seconds cold, 5 to 7 warm,
-     * for 124 KB — while the 23 MB snapshot beside it takes 7. Waiting on it held the whole tab shut
+     * for 124 KB — while the 8 MB snapshot beside it takes 3. Waiting on it held the whole tab shut
      * for the slowest thing on the list, and it feeds columns rather than the table's existence.
      *
      * Kicked off here so it is already in flight, and the table is redrawn when it lands. */
     loadIndiaStock().then(() => { if (REPL_LOADED) renderRepl(); }).catch(() => {});
-    /* IN PRODUCTION IS NOT LOADED HERE ANY MORE. ensureRepl runs at sign-in for every non-factory
-     * account, and the figure now comes out of the order book - so loading it here would give
-     * every one of those accounts, the fifteen vendor-portal logins among them, read on
-     * pt_orderBook and pt_salesOrders. renderRepl, the India projection and the In Production tab
-     * each load it themselves when they are opened, and re-render when it lands. */
-    await Promise.all([loadReplCache(), loadProd(), loadUsSkus()]);
+    /* IN PRODUCTION IS NOT LOADED HERE ANY MORE. The figure comes out of the order book; renderRepl, the
+     * India projection and the In Production tab each load it themselves when they are opened. */
+    await Promise.all([loadReplCache(true), loadProd(), loadUsSkus()]);
     REPL_LOADED = true; rMsg('');
   }
   renderRepl();
@@ -4165,7 +4188,7 @@ $('rGo').onclick = async () => {
       await saveReplCache(b, d.rows || [], d.recCols || [], d.catalogSkus || []);
     } catch (e) { failed.push(`${BRAND_NAME[b]}: ${e.message || e}`); }
   }
-  REPL_LOADED = true;
+  REPL_LOADED = true; REPL_MODE = 'full';
   rMsg(failed.length ? failed.join('  ·  ') : `Updated from the sheet. (${statusNote.join(' · ')})`, failed.length > 0);
   btn.disabled = false; btn.textContent = 'Refresh from sheet';
 };
@@ -5533,7 +5556,7 @@ function tgPlan(brands, pick, mk) {
 
 async function ensureTarget() {
   $('tgMsg').textContent = 'Loading…';
-  if (!REPL_LOADED) { await loadReplCache(); REPL_LOADED = true; }
+  await ensureReplData();
   if (!PROD_LOADED) await loadProd();            // status overrides decide which SKUs are stopped
   await loadRevTgt();
   if (!FC_PLAN.length) FC_PLAN = buildFcPlan([...new Set(['SP', 'CPC'].flatMap(b => (REPL[b] && REPL[b].recCols) || []))]);
@@ -6388,7 +6411,7 @@ let PO_LOADED = false;
 // PO tab was removed — after a save/delete, reload and refresh the Ongoing PO view + badge.
 async function ensurePo() {
   if (!PO_LOADED) { await loadPo(); PO_LOADED = true; }
-  if (!REPL_LOADED) { await loadReplCache(); REPL_LOADED = true; }   // FBA stock column needs the Replenishment snapshot
+  await loadReplCache(false);   // FBA stock column needs the Replenishment snapshot
   buildFbaMap(); CATALOG_SET = catalogSet();
   renderFollow(); updateFollowBadge();
   // India Stock column reads the uploaded list — lazy-load once, then re-render to fill it in.
@@ -6611,7 +6634,7 @@ function updateFollowBadge() {
 
 async function ensureFollow() {
   if (!PO_LOADED) { $('fuMsg').textContent = 'Loading…'; await loadPo(); PO_LOADED = true; $('fuMsg').textContent = ''; }
-  if (!REPL_LOADED) { await loadReplCache(); REPL_LOADED = true; }   // FBA stock column needs the Replenishment snapshot
+  await ensureReplData();   // FBA stock column needs the Replenishment snapshot
   buildFbaMap(); CATALOG_SET = catalogSet();
   renderFollow(); updateFollowBadge();
 }
@@ -7451,7 +7474,7 @@ $('shCsv').onclick = () => {
 const IN_COLS = ['SKU', 'India Stock'];
 async function ensureIndia() {
   $('inMsg').textContent = 'Loading…';
-  if (!REPL_LOADED) { await loadReplCache(); REPL_LOADED = true; }
+  await ensureReplData();
   if (!INDIA_LOADED) await loadIndiaStock();
   // The projection needs the same three things the In Production tab needs: the status overrides
   // (which SKUs are stopped), what is being made, and the forecast horizon.
@@ -7805,7 +7828,7 @@ async function loadInProd() {
 }
 async function ensureProd() {
   $('pdMsg').textContent = 'Loading…';
-  if (!REPL_LOADED) { await loadReplCache(); REPL_LOADED = true; }
+  await ensureReplData();
   buildFbaMap(); CATALOG_SET = catalogSet();
   if (!PO_LOADED) { await loadPo(); PO_LOADED = true; }
   if (!INDIA_LOADED) await loadIndiaStock();
@@ -32101,23 +32124,26 @@ function mstNextKey(key) {
 }
 
 /** How many records would keep saying the old text if this row were renamed. */
+/* COUNTED ONCE, not once per row: the colour list walked the master, Base Data, Cutting and Press for each of its
+ * 300 rows — 542 ms a draw (measured 2026-09-26). The index lives until one of the four lists is replaced. */
+let MST_USE_IX = { sig: null, map: null };
+function mstUsageIx() {
+  const sig = [PTG.mdb, PT.base, PT.cut, PTG.press];
+  if (MST_USE_IX.map && sig.every((x, i) => x === MST_USE_IX.sig[i])) return MST_USE_IX.map;
+  const map = new Map();
+  const add = (key, v) => { const t = String(v || '').trim().toLowerCase(); if (!t) return; const k = key + '|' + t; map.set(k, (map.get(k) || 0) + 1); };
+  (PTG.mdb || []).forEach(r => { if (!r) return; add('articleType', r.articleType); add('articleSubtype', r.subtype); add('colour', r.color);
+    add('size', r.size); add('fabricType', r.fabric); add('packOf', r.packOf); });
+  [PT.base, PT.cut, PTG.press].forEach(list => (list || []).forEach(r => { if (!r) return;
+    add('articleType', r.articleType); add('articleSubtype', r.articleSubtype); add('colour', r.color); add('size', r.size); }));
+  (PT.base || []).forEach(r => { if (r) add('employmentType', r.empType); });
+  MST_USE_IX = { sig, map };
+  return map;
+}
 function mstUsage(key, value) {
   const v = String(value || '').trim().toLowerCase();
   if (!v) return 0;
-  const eq = x => String(x || '').trim().toLowerCase() === v;
-  const field = { articleType: 'articleType', articleSubtype: 'subtype', colour: 'color', size: 'size',
-    fabricType: 'fabric', packOf: 'packOf' }[key];
-  let n = 0;
-  if (field) (PTG.mdb || []).forEach(r => { if (eq(r[field])) n++; });
-  const rec = { articleType: 'articleType', articleSubtype: 'articleSubtype', colour: 'color', size: 'size' }[key];
-  if (rec) {
-    (PT.base || []).forEach(r => { if (eq(r[rec])) n++; });
-    (PT.cut || []).forEach(r => { if (eq(r[rec])) n++; });
-    (PTG.press || []).forEach(r => { if (eq(r[rec])) n++; });
-  }
-  if (key === 'employmentType') (PT.base || []).forEach(r => { if (eq(r.empType)) n++; });
-  if (key === 'articleSubtype') mstRows('articleSubtype').forEach(() => {});
-  return n;
+  return mstUsageIx().get(key + '|' + v) || 0;
 }
 
 /**
@@ -37974,6 +38000,11 @@ async function palLoad() {
 }
 async function ensurePal() {
   if (PAL.printers === null) { PAL.busy = true; renderPal(); await palLoad(); }
+  /* What each colour sold comes from the snapshot rows. A slim copy written before 26 Sep has no last90; until the
+   * next snapshot writes one, an account allowed the full copy reads that instead. */
+  if (replFull() && !['SP', 'CPC'].some(b => REPL[b] && (REPL[b].rows || []).some(r => r && r.last90 != null))) {
+    try { await loadReplCache(true); } catch (e) { /* the designs still draw, without sales */ }
+  }
   /* Measured capacity comes from the delivery log; this tab never needed it before. */
   if (!VO.rows) {
     try {
@@ -38860,7 +38891,9 @@ async function ensureCx() {
 /** What Amazon is holding for this SKU, less anything already promised to a line since. */
 function cxAmz(sku) {
   const m = replRowMap()[obUC(sku)];
-  const have = m ? (Number(m.fba) || 0) : null;
+  /* totalStock is what FBA holds; `fba` was read here and no snapshot row has ever carried it, so every SKU read
+   * as "not in the snapshot" (found 2026-09-26). */
+  const have = m ? (Number(m.totalStock != null ? m.totalStock : m.fba) || 0) : null;
   if (have === null) return null;                       // not in the snapshot at all — say so, do not say nil
   const taken = (CX.rows || []).filter(l => l && l.status === 'Fulfilled-Amazon' && obUC(l.sku) === obUC(sku))
     .reduce((s, l) => s + (parseInt(l.qty, 10) || 0), 0);
