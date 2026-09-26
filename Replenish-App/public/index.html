@@ -30240,7 +30240,8 @@ function vpRfdRender(matched, nag) {
       + `<td class="num"${g.left > 0 ? ' style="color:var(--bad);font-weight:700"' : ''}>`
       + `${g.left > 0 ? nf(g.left) + ' pcs to ask for'
         : (shortOf > 0 ? '<span style="color:#7f6000">' + nf(shortOf) + ' pcs on the way</span>'
-        : '<span style="color:#166534">all here</span>')}</td></tr>`;
+        : '<span style="color:#166534">all here</span>')}</td>`
+      + vpRfdAskCell(o, g.stockKey, 'pcs', g.left) + '</tr>';
   }).join('');
 
   const rowsF = fabLines.map(x => {
@@ -30271,13 +30272,15 @@ function vpRfdRender(matched, nag) {
       + `<td class="num"${cap.left > 0 ? ' style="color:var(--bad);font-weight:700"' : ''}>`
       + `${cap.left > 0 ? nf(cap.left) + ' m to ask for'
         : (shortOf > 0 ? '<span style="color:#7f6000">' + nf(shortOf) + ' m on the way</span>'
-        : '<span style="color:#166534">all here</span>')}</td></tr>`;
+        : '<span style="color:#166534">all here</span>')}</td>`
+      + vpRfdAskCell(o, key, 'm', cap.left) + '</tr>';
   }).join('');
 
   const head = (what, unit) => `<table class="xl" style="margin-bottom:10px"><thead><tr>
     <th>${what}</th><th class="num">On this order</th>
     <th class="num" title="What you already have. Type it in — it comes off what is left to ask for, here and on your later orders. Sent against this order is shown underneath.">With you</th>
     <th class="num" title="What is left to ask for, or what has been asked for and is still to arrive.">Still to ask for</th>
+    <th class="num" title="Type how much you need now. Up to what is left is agreed at once; anything more goes to The Fabric Rush to approve. Press Raise requirement to send.">Ask for now</th>
   </tr></thead><tbody>`;
 
   const unruled = pcsLines.filter(x => !x.ruled);
@@ -30307,6 +30310,7 @@ function vpRfdRender(matched, nag) {
         <select id="vpRfdPick" style="flex:0 0 340px">${pick}</select>
         <span class="muted" style="font-size:12.5px">${esc(o.orderType === 'running' ? 'running — metres' : 'cut — pieces')}</span>
         <span style="flex:1"></span>
+        <button id="vpRfdRaise" class="${vpRfdDrafts(o).length ? '' : 'ghost'}" title="Sends every row where you typed in Ask for now">${vpRfdRaiseLabel(o)}</button>
         ${leftTxt
           ? `<button id="vpRfdAll" class="ghost" title="Raises a requirement for everything this order still needs, in one go. You are asked to confirm first.">Ask for the whole order (${esc(leftTxt)})…</button>`
           : '<span class="muted" style="font-size:12.5px">Everything this order needs has been asked for.</span>'}
@@ -30349,6 +30353,7 @@ function vpRfdRender(matched, nag) {
 
   if ($('vpPin')) $('vpPin').onclick = pinOpenChange;
   if ($('vpRfdPick')) $('vpRfdPick').onchange = () => { VP.rfdOrder = $('vpRfdPick').value; renderVp(); };
+  if ($('vpRfdRaise')) $('vpRfdRaise').onclick = () => vpRfdRaiseOpen(o);
   if ($('vpRfdAll')) $('vpRfdAll').onclick = () => ptOpenDialog({
     title: 'Ask for the whole of ' + (o.orderNo || o.id) + '?',
     subtitle: leftTxt + ' — every size and fabric this order still needs',
@@ -30377,6 +30382,56 @@ function vpRfdRender(matched, nag) {
     + `${nf(rfdReqsOf(o).length)} requirement(s) raised`;
   ptImgFill([], false, ptImgPatch);
 }
+
+/* ---- ASK FOR NOW: the boxes hold a draft (not saved) until Raise requirement ---- */
+const vpRfdDraftOf = o => ((VP.rfdDraft = VP.rfdDraft || {})[o.id] = (VP.rfdDraft || {})[o.id] || {});
+const vpRfdDrafts = o => Object.entries(vpRfdDraftOf(o)).filter(([, q]) => parseFloat(q) > 0).map(([key, qty]) => ({ key, qty }));
+function vpRfdRaiseLabel(o) {
+  const d = vpRfdDrafts(o);
+  return d.length ? `Raise requirement (${nf(d.length)})` : 'Raise requirement';
+}
+function vpRfdAskCell(o, key, unit, left) {
+  const v = vpRfdDraftOf(o)[key] || '';
+  const over = parseFloat(v) > left ? rfdRound(parseFloat(v) - Math.max(0, left)) : 0;
+  return '<td class="num">'
+    + `<input data-vprfd-need="${esc(o.id)}|${esc(key)}" type="number" min="0" step="${unit === 'm' ? '0.1' : '1'}" value="${esc(v)}" placeholder="0" style="width:88px;text-align:right"`
+    + ` title="How much you need now. Up to ${nf(Math.max(0, left))} ${unit} is agreed at once; more goes for approval.">`
+    + (over ? `<div style="font-size:10.5px;color:#7f6000">${nf(over)} ${unit} over the order — needs approval</div>` : '')
+    + '</td>';
+}
+function vpRfdRaiseOpen(o) {
+  const rows = vpRfdRaisePlan(o, vpRfdDrafts(o));
+  if (!rows.length) { $('vpMsg').className = 'err'; $('vpMsg').textContent = 'Type how much you need in "Ask for now" on the rows you want, then press Raise requirement.'; return; }
+  const anyOver = rows.some(r => r.over > 0);
+  ptOpenDialog({
+    title: 'Raise requirement on ' + (o.orderNo || o.id),
+    subtitle: `${nf(rows.length)} row(s)`,
+    note: 'What fits inside the order is agreed at once. Anything more than the order needs is sent separately and waits for The Fabric Rush to approve.',
+    html: '<table class="xl"><thead><tr><th>What</th><th class="num">Asked</th><th class="num">Agreed at once</th><th class="num">Needs approval</th></tr></thead><tbody>'
+      + rows.map(r => `<tr><td style="text-align:left">${esc(r.label)}${r.err ? '<div class="err" style="font-size:11px">' + esc(r.err) + '</div>' : ''}</td>`
+        + `<td class="num">${r.err ? '—' : nf(r.want) + ' ' + r.unit}</td><td class="num" style="color:#166534;font-weight:700">${r.within ? nf(r.within) + ' ' + r.unit : '—'}</td>`
+        + `<td class="num" style="color:#7f6000;font-weight:700">${r.over ? nf(r.over) + ' ' + r.unit : '—'}</td></tr>`).join('') + '</tbody></table>'
+      + (anyOver ? '<label style="display:block;margin-top:10px">Why do you need more than the order? <b style="color:var(--bad)">*</b><input id="vpRfdWhy" placeholder="e.g. rejects in printing, extra for shrinkage"></label>' : ''),
+    saveLabel: 'Raise requirement',
+    onSave: async () => {
+      const r = await vpRfdRaiseRun(o, vpRfdDrafts(o), ($('vpRfdWhy') || {}).value);
+      if (r.err) return r.err;
+      VP.rfdDraft[o.id] = {};
+      renderVp();
+      $('vpMsg').className = 'muted';
+      $('vpMsg').textContent = `Raised on ${o.orderNo || o.id}: ${nf(r.agreed)} agreed at once${r.waiting ? ` · ${nf(r.waiting)} waiting for approval` : ''}.`;
+      return '';
+    },
+  });
+}
+$('vpBody').addEventListener('input', e => {
+  const need = e.target.closest && e.target.closest('[data-vprfd-need]');
+  if (!need) return;
+  const [oid, key] = need.getAttribute('data-vprfd-need').split('|');
+  const o = (VP.rows || []).find(x => x && x.id === oid); if (!o) return;
+  vpRfdDraftOf(o)[key] = String(need.value).trim();
+  const b = $('vpRfdRaise'); if (b) { b.textContent = vpRfdRaiseLabel(o); b.classList.toggle('ghost', !vpRfdDrafts(o).length); }
+});
 
 /* WHAT IS ALREADY WITH YOU, saved the moment the printer tabs out of the box. A button beside every
  * size would be another thing to forget to press, and forgetting this one means the factory keeps
@@ -39664,6 +39719,53 @@ function rfdStockForSku(o, sku) {
  * The REQUEST is still one per SKU, with its own colour and its own fabric, because that is what the
  * office approves, sends and counts against. Only the typing is by size.
  */
+/* ================= ASK FOR NOW — a box per row, one button (2026-09-26) ================= */
+/** What the boxes would raise: per row, how much is inside the order (agreed at once) and how much is over it. */
+function vpRfdRaisePlan(o, drafts) {
+  const rows = [];
+  (drafts || []).forEach(d => {
+    const want = parseFloat(d.qty);
+    if (!(want > 0)) return;
+    if (rfdKeyUnit(d.key) === 'm') {
+      const f = rfdFabrics(o).find(x => rfdFabKey(x.fabric) === d.key);
+      if (!f) return;
+      const left = Math.max(0, rfdAllowed(o, f.fabric).left);
+      const w = rfdRound(want), within = rfdRound(Math.min(w, left));
+      rows.push({ key: d.key, unit: 'm', label: f.fabric, fabric: f.fabric, want: w, within, over: rfdRound(w - within) });
+    } else {
+      const g = rfdSizeOf(o, d.key);
+      if (!g) return;
+      if (Math.round(want) !== want) { rows.push({ key: d.key, unit: 'pcs', label: g.size || g.key, err: 'pieces have to be a whole number' }); return; }
+      const within = Math.min(want, Math.max(0, g.left));
+      rows.push({ key: d.key, unit: 'pcs', label: (g.size || g.key) + ' · ' + g.what, want, within, over: want - within });
+    }
+  });
+  return rows;
+}
+/** Raise them: the part inside the order first (agreed at once), then the part over it (waits for approval, with why). */
+async function vpRfdRaiseRun(o, drafts, reason) {
+  const rows = vpRfdRaisePlan(o, drafts);
+  const bad = rows.find(r => r.err);
+  if (bad) return { err: bad.label + ': ' + bad.err + '.' };
+  if (!rows.length) return { err: 'Put how much you need in "Ask for now" on at least one row.' };
+  const why = String(reason || '').trim();
+  if (rows.some(r => r.over > 0) && !why) return { err: 'Some of this is more than the order needs — say why, and it goes to The Fabric Rush to approve.' };
+  let agreed = 0, waiting = 0;
+  for (const r of rows) {
+    if (r.within > 0) {
+      const e = r.unit === 'm' ? await rfdSubmit(o, r.fabric, r.within, '') : await rfdSubmitSize(o, r.key, r.within, '');
+      if (e) return { err: r.label + ': ' + e };
+      agreed++;
+    }
+    if (r.over > 0) {
+      const e = r.unit === 'm' ? await rfdSubmit(o, r.fabric, r.over, 'More than the order needs — ' + why) : await rfdSubmitSize(o, r.key, r.over, 'More than the order needs — ' + why);
+      if (e) return { err: r.label + ': ' + e };
+      waiting++;
+    }
+  }
+  return { err: '', rows, agreed, waiting };
+}
+
 async function rfdSubmitSize(o, key, pieces, note) {
   if (!o) return 'That order is no longer here.';
   const g = rfdSizeOf(o, key);
