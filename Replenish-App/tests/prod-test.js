@@ -17447,6 +17447,12 @@ console.log('\n== RFD: asking by the piece, and whether the cloth has actually a
     const h = els.vpBody.innerHTML;
     ok('the screen gives the printer a box to say what they have', /data-vprfd-stock=/.test(h), h.slice(0, 400));
     /* Design 4 (Ravi, 2026-09-26): each size a progress row, both boxes on it, the picker says Change order, the raise bar at the foot. */
+    ok('what was asked sits in a closed dropdown inside the requirement card', !/What you have asked for/.test(h) || /<details id="vpRfdAsks"[^>]*><summary[^>]*>What you have asked for/.test(h));
+    /* THE DRAW-LONG MEMO: the same answer inside one draw, a fresh one once the data is swapped. */
+    { const oo = A.VP().rows[0]; const g1 = A.rfdSizeGroups(oo), g2 = A.rfdSizeGroups(oo);
+      const keepR = A.RFD(); A.setRFD_(Object.assign({}, keepR)); const g3 = A.rfdSizeGroups(oo); A.setRFD_(keepR);
+      await Promise.resolve(); const g4 = A.rfdSizeGroups(oo);
+      ok('the size grouping is worked out once per draw, and again when the data changes or the draw ends', g1 === g2 && g3 !== g1 && g4 !== g1); }
     ok('design 7: one sheet row per size, With you and Ask for now on the row, Change order, the raise bar', /class="vrs"/.test(h) && /data-vprfd-need=/.test(h) && /Change order/.test(h) && /id="vpRfdRaise"/.test(h) && /id="vpRfdRaiseTxt"/.test(h), h.slice(0, 300));
     ok('…and the order tab filters, Excel and sending row are hidden on the RFD tab', !!els.vpBar3 && els.vpBar3.classList.contains('hide') && els.vpBar2.classList.contains('hide') && els.vpExport.classList.contains('hide'));
     ok('…on the size, not on each colour',

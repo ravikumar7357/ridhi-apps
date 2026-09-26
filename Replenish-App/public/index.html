@@ -30343,6 +30343,10 @@ function vpRfdRender(matched, nag) {
       ${rowsF ? vrsHead('Fabric', 'Running cloth · metres') + rowsF + '</tbody></table></div>' : ''}
       ${need.unknown.length ? `<div class="muted" style="font-size:12px;margin-bottom:8px">${nf(need.unknown.length)} line(s) on this order could not be worked out, so their cloth is not in the figures above. Ask the office.</div>` : ''}
 
+      ${asks ? `<details id="vpRfdAsks" style="margin-top:8px"${VP.rfdAsksOpen ? ' open' : ''}><summary style="cursor:pointer;font-weight:600;font-size:13px">What you have asked for on ${esc(o.orderNo || o.id)} (${nf(rfdReqsOf(o).length)}) — open to see, or take one back</summary>
+        <div class="xlwrap" style="max-height:40vh;margin-top:8px"><table class="xl"><thead><tr>
+          <th>What</th><th class="num">Asked</th><th>Stage</th><th class="num">Sent to you</th><th></th>
+        </tr></thead><tbody>${asks}</tbody></table></div></details>` : ''}
       <details style="margin-top:6px">
         <summary class="muted" style="font-size:12px;cursor:pointer">Ask for one size or one fabric only</summary>
         <div class="muted" style="font-size:11.5px;margin-top:6px">A size is asked for once. It is shared out over that size's colours for you, in proportion to what each still needs.</div>
@@ -30365,16 +30369,13 @@ function vpRfdRender(matched, nag) {
         <button type="button" id="vpRfdClear" class="ghost">Clear</button>
         <button type="button" id="vpRfdRaise" title="Sends every row where you typed in Ask for now">Raise requirement</button></div>
     </div>`
-    + receipt
-    + (asks ? `<div class="card" style="padding:12px 14px;margin-top:12px">
-      <div style="font-weight:600;margin-bottom:6px">What you have asked for on ${esc(o.orderNo || o.id)}</div>
-      <table class="xl"><thead><tr>
-        <th>What</th><th class="num">Asked</th><th>Stage</th><th class="num">Sent to you</th><th></th>
-      </tr></thead><tbody>${asks}</tbody></table></div>` : '');
+    + receipt;
 
   if ($('vpPin')) $('vpPin').onclick = pinOpenChange;
   if ($('vpRfdPick')) $('vpRfdPick').onchange = () => { VP.rfdOrder = $('vpRfdPick').value; renderVp(); };
   if ($('vpRfdRaise')) $('vpRfdRaise').onclick = () => vpRfdRaiseOpen(o);
+  /* The asks list stays open across a redraw (a Take back redraws the screen) once somebody has opened it. */
+  if ($('vpRfdAsks')) $('vpRfdAsks').addEventListener('toggle', () => { VP.rfdAsksOpen = $('vpRfdAsks').open; });
   if ($('vpRfdClear')) $('vpRfdClear').onclick = () => { (VP.rfdDraft || {})[o.id] = {}; renderVp(); };
   if ($('vpRfdAll')) $('vpRfdAll').onclick = () => ptOpenDialog({
     title: 'Ask for the whole of ' + (o.orderNo || o.id) + '?',
@@ -39483,6 +39484,9 @@ function rfdLineNeed(o, l) {
  * screen can say "and 3 lines we could not work out" instead of quietly showing a smaller ceiling.
  */
 function rfdOrderNeed(o) {
+  return o ? rfdMemoOf('need', o, '', () => rfdOrderNeedBuild(o)) : rfdOrderNeedBuild(o);
+}
+function rfdOrderNeedBuild(o) {
   const byFab = new Map(), unknown = [];
   voLines(o || {}).forEach(l => {
     /* Cancelled lines are refused by rfdLineNeed, which says so as its reason, and the line below
@@ -39524,7 +39528,11 @@ const rfdFabrics = o => [...rfdOrderNeed(o).byFab].sort((a, b) => b[1] - a[1])
  * pieces either, and offering it would produce a requirement worth nothing that somebody has to
  * chase down later.
  */
+/* Kept for the draw (2026-09-26): every size, every order walk asked for this again, and each line asked the print rule. */
 function rfdPieceLines(o) {
+  return o ? rfdMemoOf('pieces', o, '', () => rfdPieceLinesBuild(o)) : rfdPieceLinesBuild(o);
+}
+function rfdPieceLinesBuild(o) {
   const by = new Map();
   voLines(o || {}).forEach(l => {
     if (!l) return;
@@ -39589,7 +39597,30 @@ const rfdKeyUnit = k => (String(k || '').indexOf('M__') === 0 ? 'm' : 'pcs');
  * The pile is allocated across orders by looking at what each one still needs, which is worked out
  * from here, so this one has to be answerable without it.
  */
+/* ---- the draw-long memo (2026-09-26) ---- */
+let RFD_MEMO = null;
+function rfdMemo() {
+  const sig = [RFD, RFD && RFD.stock, RFD && RFD.decisions, VO && VO.rows, VP && VP.rows, VP && VP.code];
+  if (RFD_MEMO && RFD_MEMO.sig.every((x, i) => x === sig[i])) return RFD_MEMO.m;
+  RFD_MEMO = { sig, m: new Map() };
+  const mine = RFD_MEMO;
+  Promise.resolve().then(() => { if (RFD_MEMO === mine) RFD_MEMO = null; });
+  return RFD_MEMO.m;
+}
+/** Remember f's answer for this key until the draw is over. Keyed by the order object and its requests' identity. */
+function rfdMemoOf(kind, o, key, f) {
+  const m = rfdMemo();
+  let per = m.get(o);
+  if (!per || per.reqs !== (o && o.rfdReqs)) { per = { reqs: o && o.rfdReqs, v: new Map() }; m.set(o, per); }
+  const k = kind + '|' + (key || '');
+  if (!per.v.has(k)) per.v.set(k, f());
+  return per.v.get(k);
+}
+
 function rfdSizeRaw(o) {
+  return rfdMemoOf('raw', o, '', () => rfdSizeRawBuild(o));
+}
+function rfdSizeRawBuild(o) {
   const by = new Map();
   rfdPieceLines(o).forEach(x => {
     const k = rfdSizeKey(x);
@@ -39610,12 +39641,12 @@ function rfdSizeRaw(o) {
 
 /** The order's sizes with the pile counted in — what the screen shows. */
 function rfdSizeGroups(o) {
-  return rfdSizeRaw(o).map(g => {
+  return rfdMemoOf('groups', o, '', () => rfdSizeRaw(o).map(g => Object.assign({}, g)).map(g => {
     const stock = rfdStockHere(o, g.stockKey);
     return Object.assign(g, { stock, pool: rfdStockOf(rfdVendorOf(o), g.stockKey, o),
       own: rfdStockOwn(o, g.stockKey) > 0,
       left: rfdRound(Math.max(0, g.pieces - g.used - stock)) });
-  });
+  }));
 }
 const rfdSizeOf = (o, key) => rfdSizeGroups(o).find(g => g.key === key || g.stockKey === key) || null;
 
@@ -39675,6 +39706,9 @@ const rfdStockOrders = code => {
  */
 /** What one order still needs of a size or of a cloth — the share of a pile it can take. */
 function rfdRoomFor(o, stockKey) {
+  return rfdMemoOf('room', o, stockKey, () => rfdRoomForBuild(o, stockKey));
+}
+function rfdRoomForBuild(o, stockKey) {
   const g = rfdSizeRaw(o).find(y => y.stockKey === stockKey);
   if (g) return Math.max(0, g.pieces - g.used);
   const f = rfdFabrics(o).find(x => rfdFabKey(x.fabric) === stockKey);
@@ -39684,6 +39718,9 @@ function rfdRoomFor(o, stockKey) {
 
 function rfdStockHere(o, stockKey) {
   if (!o) return 0;
+  return rfdMemoOf('here', o, stockKey, () => rfdStockHereBuild(o, stockKey));
+}
+function rfdStockHereBuild(o, stockKey) {
   const code = rfdVendorOf(o);
   /* THIS ORDER'S OWN COUNT FIRST, up to what it still needs. */
   const ownTake = x => Math.min(rfdStockOwn(x, stockKey), rfdRoomFor(x, stockKey));
