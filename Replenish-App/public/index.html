@@ -18520,8 +18520,10 @@ $('odTable').addEventListener('click', e => {
   if (!b) return;
   const key = b.getAttribute('data-demrun'), pk = (ORD.demPick || {})[key] || {};
   /* A printer picked on the row: add to that printer's order. None: the full form, as before. */
-  if (!pk.prn) return demRunGive(key);
-  const err = demBasketAdd(key, pk.prn, pk.dir != null ? pk.dir : ((b.parentNode.querySelector('[data-demdir]') || {}).value || ''));
+  /* What the row's list SHOWS — a pick kept from before can be a printer the list no longer offers. */
+  const sel = b.parentNode.querySelector('[data-demprn]'), prn = sel ? sel.value : pk.prn;
+  if (!prn) return demRunGive(key);
+  const err = demBasketAdd(key, prn,pk.dir != null ? pk.dir : ((b.parentNode.querySelector('[data-demdir]') || {}).value || ''));
   if (err) { $('odMsg').className = 'err'; $('odMsg').textContent = err; }
 });
 $('odTable').addEventListener('change', e => {
@@ -19201,7 +19203,7 @@ const ordDemN = (v, unit) => v == null || !Math.round(v) ? '<span class="muted">
 function ordDemandAtPrintersCol() {
   if (!ORD_DEM.voOk || !Array.isArray(VO.rows)) return null;
   const col = new Map(), prod = new Map();
-  const get = k => { let e = col.get(k); if (!e) col.set(k, e = { runM: 0, cutPcs: 0, pcs: 0, who: new Map() }); return e; };
+  const get = k => { let e = col.get(k); if (!e) col.set(k, e = { runM: 0, cutPcs: 0, pcs: 0, who: new Map(), codes: new Set() }); return e; };
   VO.rows.forEach(o => {
     if (!o || o.cancelled || o.status === 'Cancelled' || o.status === 'Draft') return;
     voLines(o).forEach(l => {
@@ -19215,6 +19217,7 @@ function ordDemandAtPrintersCol() {
           e.runM += owed;
           const nm = o.vendorName || voName(o.vendorCode) || o.vendorCode || '';
           if (nm) e.who.set(nm, (e.who.get(nm) || 0) + owed);
+          if (o.vendorCode) e.codes.add(obUC(o.vendorCode));
         }
         return;
       }
@@ -19333,7 +19336,7 @@ function ordDemandColRows() {
     if (share) {
       let m = 0, p = 0; prodAt = new Map();
       g.keys.forEach(k => { const e = share.get(k.key); if (!e) return; m += e.m; p += e.pcs; prodAt.set(k.pk, (prodAt.get(k.pk) || 0) + e.pcs); });
-      a = { runM: m, cutPcs: p, pcs: p, who: a && a.who };
+      a = { runM: m, cutPcs: p, pcs: p, who: a && a.who, codes: a && a.codes };
     }
     const products = [...g.products.values()].map(p => {
       const atP = at ? (prodAt ? (prodAt.get(p.key) || 0) : (at.prod.get(p.key) || 0)) : null;
@@ -19342,7 +19345,7 @@ function ordDemandColRows() {
     }).sort((x, y) => (y.need - x.need) || (y.pcs - x.pcs));
     const printers = new Map(), open = [];
     g.lineOf.forEach((pr, k) => { if (pr) printers.set(pr, (printers.get(pr) || 0) + 1); else open.push(k); });
-    return Object.assign(g, { skus: g.skus.size, products, lines: g.lineOf.size, openKeys: open, printers, runWho: a && a.who ? a.who : null, narrowed,
+    return Object.assign(g, { skus: g.skus.size, products, lines: g.lineOf.size, openKeys: open, printers, runWho: a && a.who ? a.who : null, runCodes: a && a.codes ? a.codes : null, narrowed,
       atPcs: a ? a.pcs : null, atM: a ? a.runM : null, cutAtPcs: a ? a.cutPcs : null,
       give: a ? Math.max(0, g.need - a.runM) : g.need,
       cutGive: a ? Math.max(0, g.cutPcs - a.cutPcs) : g.cutPcs,
@@ -19620,6 +19623,12 @@ function renderOrdDemandTot() {
     const w = [...(r.runWho || new Map())].filter(x => Math.round(x[1])).sort((x, y) => y[1] - x[1]);
     return w.length ? w.map(([n, m]) => esc(n) + (r.narrowed ? '' : ' <span class="muted">' + nf(Math.round(m)) + ' m</span>')).join(', ') : '<span class="muted">—</span>';
   };
+  /* A printer already holding this colour's running is not offered again for it. */
+  const heldBy = r => {
+    const names = new Set([...(r.runWho || new Map())].filter(x => Math.round(x[1])).map(x => obUC(x[0])));
+    const codes = r.runCodes || new Set();
+    return v => codes.has(obUC(v.code)) || names.has(obUC(v.desc || v.name || v.code)) || names.has(obUC(voName(v.code)));
+  };
   const head = ordHead([['Fabric', ''], ['Colour', ''], ['Pieces to make', 'num'], ['Cloth needed', 'num'], ['With printers', 'num'],
     ['Still to give', 'num'], ['Running is with', '']].concat(canOrder ? [['Give to a printer', '']] : []));
   const dash = '<span class="muted">—</span>';
@@ -19634,7 +19643,7 @@ function renderOrdDemandTot() {
       + (canOrder ? '<td style="white-space:nowrap">' + (giveM(r) >= 1
           ? '<div style="display:flex;gap:6px;align-items:center;justify-content:flex-end">'
             + '<select data-demprn="' + esc(r.key) + '" aria-label="Printer" style="width:170px;padding:6px 8px;font-size:12.5px">'
-            + '<option value="">— printer —</option>' + printers.map(v => '<option value="' + esc(v.code) + '"' + (v.code === (ORD.demPick[r.key] || {}).prn ? ' selected' : '') + '>' + esc(v.desc || v.name || v.code) + '</option>').join('') + '</select>'
+            + '<option value="">— printer —</option>' + (h => printers.filter(v => !h(v)))(heldBy(r)).map(v => '<option value="' + esc(v.code) + '"' + (v.code === (ORD.demPick[r.key] || {}).prn ? ' selected' : '') + '>' + esc(v.desc || v.name || v.code) + '</option>').join('') + '</select>'
             + '<select data-demdir="' + esc(r.key) + '" aria-label="Print direction" style="width:118px;padding:6px 8px;font-size:12.5px">'
             + ['', 'Vertical', 'Horizontal'].map(d => '<option value="' + d + '"' + (d === dirOf(r) ? ' selected' : '') + '>' + (d || '— direction —') + '</option>').join('') + '</select>'
             + (inBasket(r.key)

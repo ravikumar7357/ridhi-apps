@@ -20358,11 +20358,17 @@ console.log('\n== printing cloth by colour and product ==');
     {
       const wasM = A.PTG().masters, wasNet = NET.on, wasC = CONFIRM, wasVoRows = (A.VO().rows || []).slice();
       A.setPTG(Object.assign({}, A.PTG(), { masters: Object.assign({}, wasM, { vendor: [{ code: 'VNDQ', name: 'RBP-Bagru', desc: 'RBP-Bagru', category: 'Printer', active: true },
+        { code: 'V2', name: 'A R Textile Printer', desc: 'A R Textile Printer', category: 'Printer', active: true },
         { code: 'VNDF', name: 'Filling Co', category: 'Filling', active: true }] }) }));
       A.renderOrd();
       const t3 = els.odTable.innerHTML;
       ok('each row picks a printer by name — printers only — and a print direction, beside Give',
          /data-demprn="SHEETING 62\|YELLOW CITRINE"/.test(t3) && />RBP-Bagru<\/option>/.test(t3) && !/Filling Co/.test(t3) && /data-demdir="SHEETING 62\|YELLOW CITRINE"/.test(t3));
+      /* Ravi, 2026-09-26: "JESE MENE PRINTER ASSIGN KAR DIYA TO DROPDOWN LIST ME SE NAME HAT JANA CHAHIYE". */
+      const selOf = k => (t3.split('data-demprn="' + k + '"')[1] || '').split('</select>')[0];
+      ok('a printer already holding a colour\'s running is not offered again for that colour',
+         !/A R Textile Printer<\/option>/.test(selOf('SHEETING 62|YELLOW CITRINE')) && />RBP-Bagru<\/option>/.test(selOf('SHEETING 62|YELLOW CITRINE')), selOf('SHEETING 62|YELLOW CITRINE'));
+      ok('…but is still offered for a colour it does not hold', />A R Textile Printer<\/option>/.test(selOf('SHEETING 62|APATITE BLUE')), selOf('SHEETING 62|APATITE BLUE'));
       /* Ravi, 2026-09-25: "yaha kya priority h and kya date h missing h, and … alag alag order open ho rhe h". Rows add to
        * one order per printer; Place order asks for the delivery date and priority once. */
       ok('without a direction nothing is added', /Pick the print direction/.test(A.demBasketAdd('SHEETING 62|YELLOW CITRINE', 'VNDQ', '')));
