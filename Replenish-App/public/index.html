@@ -5757,7 +5757,34 @@ $('rMarket').addEventListener('change', () => {
   if (!$('paneArticle').classList.contains('hide')) renderArticle();
 });
 
+/* THE MASTER FILLS WHAT AMAZON LEAVES BLANK (Ravi, 2026-09-26: "replenishment me match nahi ho rha h"). A new listing
+ * comes back from Amazon's catalogue with no colour, size or sub-category, while the Master Database has them. Only a
+ * BLANK is filled — what Amazon says is kept. The master is read once for this tab when nothing else has read it. */
+let REPL_MDB = null, REPL_MDB_BUSY = false;
+const replMaster = () => (typeof PTG !== 'undefined' && PTG.mdb) || REPL_MDB;
+async function replMasterLoad() {
+  if (replMaster() || REPL_MDB_BUSY) return;
+  REPL_MDB_BUSY = true;
+  try { REPL_MDB = ptList(await ptGet('pt_masterDB')).map(mdbYnFix); } catch (e) { REPL_MDB = []; }
+  REPL_MDB_BUSY = false;
+  if (REPL_MDB.length) { try { renderRepl(); } catch (e) { /* not on that tab */ } }
+}
+function replFillFromMaster() {
+  const src = replMaster();
+  if (!src || !src.length) return 0;
+  const by = new Map(src.filter(Boolean).map(m => [String(m.sku || '').trim().toUpperCase(), m]));
+  let n = 0;
+  ['SP', 'CPC'].forEach(b => ((REPL[b] && REPL[b].rows) || []).forEach(r => {
+    const m = r && by.get(String(r.sku || '').trim().toUpperCase()); if (!m) return;
+    const blank = v => !String(v == null ? '' : v).trim();
+    if (blank(r.color) && m.color) { r.color = m.color; r.fromMaster = true; n++; }
+    if (blank(r.size) && m.size) { r.size = m.size; r.fromMaster = true; n++; }
+    if (blank(r.subcat) && (m.subtype || m.articleType)) { r.subcat = m.subtype || m.articleType; r.fromMaster = true; n++; }
+  }));
+  return n;
+}
 function renderRepl() {
+  if (!replMaster()) replMasterLoad(); else replFillFromMaster();
   const _t0 = performance.now();   // perf probe — see the "[repl] rendered …ms" console line
   /* NO STANDING NOTICE. India stock is read on every visit, so a line saying it is being read was
    * on screen every visit — and a notice that is always there stops being read. The column says it
