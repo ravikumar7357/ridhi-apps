@@ -46318,8 +46318,11 @@ async function shpBucketRun(keys, reason) {
   const by = new Map(shpBucket().map(x => [x.key, x]));
   const picks = [...new Set(keys || [])].map(k => by.get(k)).filter(Boolean);
   if (!picks.length) return 'Tick at least one line.';
-  const why = String(reason || '').trim();
-  if (picks.some(x => x.kind === 'covered') && !why) return 'Some ticked lines are covered by stock — say why they have to be made anyway (e.g. India stock is not really there).';
+  /* One reason for all (the dialog), or one per line (the Excel): Map key → reason. */
+  const whyOf = k => String((reason instanceof Map ? reason.get(k) : reason) || '').trim();
+  const noWhy = picks.filter(x => x.kind === 'covered' && !whyOf(x.key));
+  if (noWhy.length) return 'Some ticked lines are covered by stock — say why they have to be made anyway (e.g. India stock is not really there)'
+    + (reason instanceof Map ? ': ' + noWhy.slice(0, 5).map(x => x.o.no + ' ' + x.sku).join(', ') + (noWhy.length > 5 ? ' and ' + nf(noWhy.length - 5) + ' more' : '') : '') + '.';
   await ptLoadGates();
   if (PTG.err) return 'Could not read the production database: ' + PTG.err;
   const taken = shpTakenNumbers(), groups = new Map();
@@ -46336,7 +46339,7 @@ async function shpBucketRun(keys, reason) {
     if (!ok.length) continue;
     const only = new Set(ok.filter(x => x.kind === 'make').map(x => x.sku));
     const force = new Map(ok.filter(x => x.kind === 'covered').map(x => [x.sku, { qty: x.qty, pcs: x.pcs, shopQty: x.shopQty,
-      why: 'opened by hand although stock said it could be filled — ' + why, name: x.name, img: x.img }]));
+      why: 'opened by hand although stock said it could be filled — ' + whyOf(x.key), name: x.name, img: x.img }]));
     const p = shpPlanOrder(o, false, no, { only, force });
     if (p.err) { skipped.push(o.no + ': ' + p.err); continue; }
     Object.assign(patch, p.patch);
@@ -46354,6 +46357,71 @@ async function shpBucketRun(keys, reason) {
   return '';
 }
 let SHP_BUCKET_LAST = null;
+
+/* ================= THE BUCKET IN EXCEL ================= */
+const SHB_XL_COLS = ['Line ID', 'Section', 'Shopify order', 'Order date', 'Store', 'SKU', 'Item', 'Qty', 'Why', 'Open', 'Reason (stock-covered lines)'];
+function shpBucketSheetRows(list) {
+  return [SHB_XL_COLS].concat((list || shpBucket()).map(x => [x.key, x.kind === 'make' ? 'Needs production' : 'Stock says it can fill',
+    x.o.no || '', String(x.o.at || '').slice(0, 10), x.o.shopBrand === 'CPC' || /cpc/i.test(String(x.o.channel || '')) ? 'CPC' : 'Ridhi',
+    x.sku, x.name || '', x.qty, x.why || '', '', '']));
+}
+function shpBucketXlOut() {
+  const rows = shpBucketSheetRows();
+  const bytes = recipeXlsx(rows, { name: 'Bucket', freeze: 2, cols: {}, list: { name: 'OpenYN', values: ['yes', 'no'], cols: [SHB_XL_COLS.indexOf('Open')] } });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+  a.download = 'production-bucket-' + dToday() + '.xlsx';
+  a.click(); URL.revokeObjectURL(a.href);
+}
+/** A filled sheet → { keys, reasons, skipped } — rows marked yes, each with its own reason. */
+function shpBucketXlRead(rows) {
+  if (!rows || rows.length < 2) return { err: 'That file has no rows.' };
+  const H = rows[0].map(h => String(h == null ? '' : h).replace(/^\uFEFF/, '').trim().toLowerCase());
+  const iK = H.indexOf('line id'), iO = H.indexOf('open'), iR = H.findIndex(h => /^reason/.test(h));
+  const iOrd = H.indexOf('shopify order'), iSku = H.indexOf('sku');
+  if (iK < 0 || iO < 0) return { err: 'The file needs the "Line ID" and "Open" columns — download the bucket as Excel and fill that one.' };
+  const inBucket = new Map(shpBucket().map(x => [x.key, x]));
+  const keys = [], reasons = new Map(), skipped = [];
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i] || [], cell = j => (j >= 0 && r[j] != null ? String(r[j]).trim() : '');
+    const key = cell(iK);
+    if (!key || !/^(y|yes|open|1|true)$/i.test(cell(iO))) continue;
+    if (!inBucket.has(key)) { skipped.push('row ' + (i + 1) + ' (' + (cell(iOrd) || '?') + ' ' + (cell(iSku) || '') + ') is not in the bucket any more — already open, shipped or cancelled'); continue; }
+    keys.push(key);
+    if (cell(iR)) reasons.set(key, cell(iR));
+  }
+  return { keys, reasons, skipped, list: keys.map(k => inBucket.get(k)) };
+}
+async function shpBucketXlIn(file) {
+  if (!file) return;
+  try {
+    const rows = /\.xlsx$/i.test(file.name) ? await pkReadXlsx(new Uint8Array(await file.arrayBuffer())) : parseCsv(await file.text());
+    const rd = shpBucketXlRead(rows);
+    if (rd.err) { soMsg(rd.err, true); return; }
+    if (!rd.keys.length) { soMsg('No row in that file says Open = yes' + (rd.skipped.length ? ' · ' + rd.skipped.length + ' row(s) are no longer in the bucket' : '') + '.', true); return; }
+    const cov = rd.list.filter(x => x.kind === 'covered'), miss = cov.filter(x => !rd.reasons.get(x.key));
+    ptOpenDialog({
+      title: 'Open from Excel',
+      subtitle: `${nf(rd.keys.length)} line(s) · ${nf(new Set(rd.list.map(x => x.id)).size)} Shopify order(s) · ${nf(rd.list.reduce((t, x) => t + x.qty, 0))} qty`,
+      note: 'Each line goes through the same check as ticking it: a line already open is skipped, and a stock-covered line needs its reason.',
+      html: '<div class="muted" style="font-size:12.5px;line-height:1.7">'
+        + `<b>${nf(rd.keys.length - cov.length)}</b> need production · <b>${nf(cov.length)}</b> stock says it can fill`
+        + (miss.length ? `<div class="err">${nf(miss.length)} stock-covered line(s) have no reason — fill "Reason" for them, or they will not open: ${esc(miss.slice(0, 6).map(x => x.o.no + ' ' + x.sku).join(', '))}${miss.length > 6 ? ' …' : ''}</div>` : '')
+        + (rd.skipped.length ? `<div style="margin-top:6px">${nf(rd.skipped.length)} row(s) left alone: ${esc(rd.skipped.slice(0, 5).join(' · '))}${rd.skipped.length > 5 ? ' …' : ''}</div>` : '')
+        + '</div>',
+      saveLabel: `Open ${nf(rd.keys.length)} line(s)`,
+      onSave: async () => {
+        const err = await shpBucketRun(rd.keys, rd.reasons);
+        if (err) return err;
+        const L = SHP_BUCKET_LAST || {};
+        soMsg(`Opened ${nf(L.lines || 0)} production line(s) · ${nf(L.pcs || 0)} piece(s) across ${nf(L.orders || 0)} Shopify order(s) from Excel.`
+          + ((L.skipped || []).length ? ' Skipped: ' + L.skipped.join(' · ') : ''));
+        try { renderShop(); } catch (e) { /* not on that tab */ }
+        return '';
+      },
+    });
+  } catch (e) { soMsg('Could not read the file: ' + (e.message || e), true); }
+}
 
 /** The bucket, on screen: tick what to open. */
 function shpBucketOpen() {
@@ -46375,7 +46443,10 @@ function shpBucketOpen() {
     wide: true,
     note: 'Nothing opens by itself any more. Tick the lines to make and press Open — each is checked against the order book first, '
       + 'so a line already open is skipped, never opened twice. An opened order shows its production status on this tab.',
-    html: table(make, 'make', 'Needs production', 'Neither Amazon nor India stock can fill these.')
+    html: '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:6px"><button type="button" id="shbXlOut" class="ghost">Download Excel</button>'
+      + '<button type="button" id="shbXlIn" class="ghost">Upload filled Excel</button><input id="shbXlFile" type="file" accept=".xlsx,.csv" style="display:none">'
+      + '<span class="muted" style="font-size:12px">Download, put <b>yes</b> in "Open" (and a reason for stock-covered lines), upload — no ticking one by one.</span></div>'
+      + table(make, 'make', 'Needs production', 'Neither Amazon nor India stock can fill these.')
       + table(cov, 'covered', 'Stock says it can fill — open anyway', 'Tick only when the stock is not really there. A reason is needed.')
       + '<label style="display:block;margin-top:10px">Why make the stock-covered ones anyway<input id="shbWhy" type="text" placeholder="e.g. India stock is not really there"></label>',
     saveLabel: 'Open ticked production orders',
@@ -46391,6 +46462,9 @@ function shpBucketOpen() {
       return '';
     },
   });
+  if ($('shbXlOut')) $('shbXlOut').onclick = () => shpBucketXlOut();
+  if ($('shbXlIn')) $('shbXlIn').onclick = () => $('shbXlFile').click();
+  if ($('shbXlFile')) $('shbXlFile').onchange = e => { const f = e.target.files[0]; e.target.value = ''; shpBucketXlIn(f); };
   const box = $('ptDlgBody');
   if (box && box.addEventListener) box.addEventListener('change', e => {
     const all = e.target && e.target.getAttribute && e.target.getAttribute('data-shball');

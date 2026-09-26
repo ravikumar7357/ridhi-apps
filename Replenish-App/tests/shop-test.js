@@ -194,7 +194,7 @@ const EXPORT = '\n;return {'
   + 'loadShopStock, loadShopIndia, soGuessBrand, soMcf, soAmzKey, soAmzCase, soLive, soSendQty, soMcfPlan, soBestBrand, soMcfHas, mcfErr, openShopOrder,'
   + 'apiPost, soMcfPayload, renderShop, soRows, SO_ALL_ROWS:()=>SO_ALL_ROWS, ensureShop, soStamp, sdToday, sdShift, soStoreDay,'
   + 'renderAdj, ajRows, soAdjId, soPackOf, soIndiaOf, soLineState, soFlags,'
-  + 'shpSyncAll, shpSyncOrder, shpSyncMsg, shpPlanOrder, shpNeeds, shpLineShipped, shpOldestOpen, shpUnseen, shpCloseShipped, SHP_REACH_MAX_DAYS, shpOrderNo, shpOrderOf, shpWorkDone, adjOpen, shpBucket, shpBucketRun, shpDoneWhy, soProdStatus, soProdChip,'
+  + 'shpSyncAll, shpSyncOrder, shpSyncMsg, shpPlanOrder, shpNeeds, shpLineShipped, shpOldestOpen, shpUnseen, shpCloseShipped, SHP_REACH_MAX_DAYS, shpOrderNo, shpOrderOf, shpWorkDone, adjOpen, shpBucket, shpBucketRun, shpDoneWhy, soProdStatus, soProdChip, shpBucketSheetRows, shpBucketXlRead, SHB_XL_COLS,'
   + 'setStockLoaded:v=>{SHOP_STOCK_LOADED=v},'
   + 'setIndia:(d,l,e)=>{SHOP_INDIA=d;SHOP_INDIA_LOADED=l;SHOP_INDIA_ERR=e}'
   + ', setCustom:v=>{SHP_CUSTOM=v}'
@@ -1749,6 +1749,29 @@ console.log('\n== THE PRODUCTION BUCKET (Ravi, 2026-09-26) ==');
   ok('…and the Shopify team reads "Fulfilled by shipping team"', /Fulfilled by shipping team/.test((A.soProdStatus({ id: 'b1' }) || {}).txt || ''), JSON.stringify(A.soProdStatus({ id: 'b1' })));
   t = await A.shpSyncAll({ maintain: true });
   ok('…and a second run does not complete it again', t.done === 0);
+  /* THE BUCKET IN EXCEL (Ravi: "excel se import export kr ske becuase manually bahut bada task h"). */
+  {
+    RT = {}; PTG.ob = []; SOX.rows = []; PATCHES.length = 0;
+    A.setSTOCK({}); A.setSTOCKCASE({});
+    A.setSHOP({ orders: [mk('b2', '#5002', [['RCNBMIX', 3], ['RCNBRED', 1]]), mk('b3', '#5003', [['RCNBMIX', 1]])], from: '', to: '', tz: '', at: 'x' });
+    A.renderShop();
+    const sheet = A.shpBucketSheetRows(), H = sheet[0];
+    ok('the bucket downloads as a sheet: a Line ID, the section, Open and Reason columns, a row per line',
+       ['Line ID', 'Section', 'Open', 'Reason (stock-covered lines)'].every(c => H.indexOf(c) >= 0) && sheet.length === 4, JSON.stringify(sheet.map(r => r[0])));
+    const fill = sheet.map((r, i) => { if (!i) return r; const x = r.slice(); x[H.indexOf('Open')] = /RCNBMIX/.test(x[0]) ? 'yes' : (/b2\|RCNBRED/.test(x[0]) ? 'Yes' : ''); return x; });
+    let rd = A.shpBucketXlRead(fill);
+    ok('the filled sheet is read: yes rows only', !rd.err && rd.keys.length === 3, JSON.stringify(rd.keys));
+    ok('…a stock-covered yes with no reason is refused, by order and SKU', /#5002 RCNBRED/.test(await A.shpBucketRun(rd.keys, rd.reasons)));
+    fill.forEach((r, i) => { if (i && /b2\|RCNBRED/.test(r[0])) r[H.indexOf('Reason (stock-covered lines)')] = 'shelf is empty'; });
+    rd = A.shpBucketXlRead(fill);
+    ok('with its reason, every yes row opens through the same check', (await A.shpBucketRun(rd.keys, rd.reasons)) === ''
+       && RT['pt_orderBook/ob_shp_SHP-5002_RCNBMIX'] && RT['pt_orderBook/ob_shp_SHP-5003_RCNBMIX']
+       && /shelf is empty/.test((RT['pt_orderBook/ob_shp_SHP-5002_RCNBRED'] || {}).forcedWhy || ''), Object.keys(RT).join(' '));
+    A.renderShop();
+    rd = A.shpBucketXlRead(fill);
+    ok('uploading the same sheet again opens nothing twice — the rows are no longer in the bucket', rd.keys.length === 0 && rd.skipped.length === 3, JSON.stringify(rd.skipped));
+    ok('a sheet without Line ID and Open is refused', /Line ID/.test(A.shpBucketXlRead([['SKU'], ['X']]).err || ''));
+  }
   ok('a cancelled or refunded line is over too, and says which', A.shpDoneWhy({ cancelled: true }, 'X') === 'cancelled'
      && A.shpDoneWhy({ items: [{ sku: 'X', qty: 2, rq: 2, ffl: 'unfulfilled' }] }, 'X') === 'refunded');
 }
