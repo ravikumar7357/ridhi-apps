@@ -44441,7 +44441,9 @@ async function saveStockDoc(brand, map) {
   return n;
 }
 
+let SHOP_STOCK_DENIED = false;
 async function loadShopStock() {
+  SHOP_STOCK_DENIED = false;
   SHOP_STOCK = {}; SHOP_STOCK_CASE = {};
   SHOP_STOCK_BY = { SP: {}, CPC: {} }; SHOP_STOCK_CASE_BY = { SP: {}, CPC: {} };
   for (const b of ['SP', 'CPC']) {
@@ -44455,7 +44457,11 @@ async function loadShopStock() {
         SHOP_STOCK_BY[b][k] = Math.max(SHOP_STOCK_BY[b][k] || 0, Number(q) || 0);
         if (!SHOP_STOCK_CASE_BY[b][k]) SHOP_STOCK_CASE_BY[b][k] = String(sku).trim();
       });
-    } catch (e) { /* no stock doc for that brand */ }
+    } catch (e) {
+      /* NOT ALLOWED IS NOT "NO STOCK" (2026-09-26): an account without the Sellora Shopify tab is refused this read, and
+       * every order then looked unreadable with no word why. Said once, by name. */
+      if (/permission|insufficient/i.test(String((e && (e.code || e.message)) || ''))) SHOP_STOCK_DENIED = true;
+    }
   }
   // Loaded means "we asked and got an answer", which is what lets the column say "not in Amazon"
   // instead of "SKU ?". An empty map is NOT an answer — it means nothing was read.
@@ -45384,8 +45390,9 @@ function renderShop() {
    * mislead somebody — that the date boxes no longer match what is drawn. */
   soMsg(`${nf(rows.length)} of ${nf(SHOP.orders.length + soImpLive().length)} orders`
     + (pend.length ? ` · ${nf(pend.length)} waiting on production` : '')
-    + (stale ? ` — the boxes now say ${$('soFrom').value} → ${$('soTo').value}; press Fetch orders` : ''),
-    stale);
+    + (stale ? ` — the boxes now say ${$('soFrom').value} → ${$('soTo').value}; press Fetch orders` : '')
+    + (SHOP_STOCK_DENIED ? ' · ' + SHOP_STOCK_DENIED_TXT : ''),
+    stale || SHOP_STOCK_DENIED);
 
   const COLS = [
     { k: 'pick', t: '', noSort: 1 },
@@ -46506,6 +46513,7 @@ function shpBucket() {
   SHP_BUCKET_IX = { sig, list };
   return list;
 }
+const SHOP_STOCK_DENIED_TXT = 'This account is not allowed to read the Amazon stock, so nothing can be judged — ask an admin to tick "Shopify" for it in Sellora → Access.';
 /** The "needs production" half only, from the orders already routed to production — cheap enough for every draw. */
 function shpBucketMake() {
   if (!SHOP_STOCK_LOADED || !SHOP_INDIA_LOADED || SHOP_INDIA_ERR) return [];
@@ -46715,7 +46723,8 @@ function shbRender() {
   if ($('ptDlgSave')) { $('ptDlgSave').textContent = picked.length ? `Open ${nf(picked.length)} production line${picked.length === 1 ? '' : 's'}` : 'Open ticked production lines'; $('ptDlgSave').disabled = !picked.length; }
 }
 function shpBucketOpen() {
-  if (!SHOP_STOCK_LOADED || !SHOP_INDIA_LOADED || SHOP_INDIA_ERR) { soMsg('Stock has not been read yet — press Fetch orders, then open the bucket.', true); return; }
+  if (!SHOP_STOCK_LOADED || !SHOP_INDIA_LOADED || SHOP_INDIA_ERR) { soMsg(SHOP_STOCK_DENIED ? SHOP_STOCK_DENIED_TXT : 'Stock has not been read yet — press Fetch orders, then open the bucket.', true); return; }
+
   const list = shpBucket();
   SHB = Object.assign(SHB, { list, picked: new Set([...SHB.picked].filter(k => list.some(x => x.key === k))) });
   const nMake = list.filter(x => x.kind === 'make').length, nCov = list.filter(x => x.kind === 'covered').length;
