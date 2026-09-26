@@ -15991,7 +15991,10 @@ function ordLinesBuild() {
       src: r.src || '' }, obWhat(r), {
       // Where an order line came from, when it came from a Shopify order that had to be made.
       shopOrderNo: r.shopOrderNo || '', shopOrderId: r.shopOrderId || '', adjId: r.adjId || '',
-      shopImg: r.shopImg || '', packs: 0, pcsPer: 1, shopDoneAt: '', shopDoneWhy: '' }));
+      shopImg: r.shopImg || '', packs: 0, pcsPer: 1, shopDoneAt: '', shopDoneWhy: '',
+      /* WHAT THE ORDER CALLED IT (2026-09-26): a B2B custom SKU is in no master, so its article is blank — the name
+       * and material the order came in with are what say what it is. */
+      itemName: r.itemName || ordCustomName(r.sku), material: r.material || '' }));
     /* COMPLETED BY THE SHIPPING TEAM (2026-09-26): Shopify says the parcel went (or never will). */
     if (r.shopDoneAt) { e.shopDoneAt = r.shopDoneAt; e.shopDoneWhy = r.shopDoneWhy || 'fulfilled'; }
     /* PIECES, not packs. A Shopify line keeps what the customer ordered alongside, so the screen can
@@ -16486,7 +16489,7 @@ function ordJourney(orderNo) {
           + (p.due ? ' · promised ' + esc(p.due) : '') + (p.stamped ? ' · <b>placed for this order</b>' : '')) : []);
     return '<tr>'
       + `<td style="font-family:ui-monospace,monospace;text-align:left">${esc(r.sku)}</td>`
-      + `<td style="text-align:left;white-space:normal;min-width:170px">${esc([r.articleSubtype || r.articleType, r.color, r.size].filter(Boolean).join(' · '))}`
+      + `<td style="text-align:left;white-space:normal;min-width:170px">${esc([r.articleSubtype || r.articleType || r.itemName, r.color, r.size].filter(Boolean).join(' · '))}`
       + (vend.length ? `<div class="muted" style="font-size:11px">${vend.join('<br>')}${x.v && x.v.shared ? ' <i>(shared with other orders of this SKU)</i>' : ''}</div>` : '') + '</td>'
       + `<td class="num" style="font-weight:700">${nf(x.ordered)}</td>`
       + `<td class="num">${x.given ? nf(x.given) : '<span class="muted">—</span>'}</td><td class="num">${x.given ? num(x.back, x.given) : '<span class="muted">—</span>'}</td>`
@@ -16607,6 +16610,16 @@ function ordCustomBrands() {
   (src || []).forEach(r => { if (r && r.sku && r.brand) m.set(obUC(r.sku), obUC(r.brand)); });
   ORDBRAND_IX = { src, map: m };
   return m;
+}
+/** A custom SKU's name as Shopify gave it (the Custom SKUs list), for a line no master row describes. */
+let ORDCNAME_IX = { src: null, map: null };
+function ordCustomName(sku) {
+  const src = typeof MDBX !== 'undefined' ? MDBX.custom : null;
+  if (ORDCNAME_IX.src !== src || !ORDCNAME_IX.map) {
+    const m = new Map(); (src || []).forEach(r => { if (r && r.sku && (r.shopName || r.name)) m.set(obUC(r.sku), String(r.shopName || r.name)); });
+    ORDCNAME_IX = { src, map: m };
+  }
+  return ORDCNAME_IX.map.get(obUC(sku)) || '';
 }
 function ordBrandOf(sku) {
   /* The catalogue first — a code that is in both is the catalogue's. */
@@ -16993,7 +17006,8 @@ function ptImgSpanSrc(sku, url, px) {
 function ordItemCell(r, img, extra, frz) {
   const what = [r.color, r.size].filter(Boolean).join(' • ');
   return '<td' + (frz ? ' class="frz"' : '') + ' style="text-align:left"><div class="jw-item">' + (img == null ? ptImgSpan(r.sku, 42) : img)
-    + '<div style="min-width:0"><div style="font-weight:600">' + (esc(r.articleSubtype || r.articleType) || '<span class="muted">—</span>') + '</div>'
+    + '<div style="min-width:0"><div style="font-weight:600">' + (esc(r.articleSubtype || r.articleType || r.itemName) || '<span class="muted">—</span>') + '</div>'
+    + (!r.articleSubtype && !r.articleType && r.itemName && r.material ? '<div class="jw-sub">' + esc(r.material) + '</div>' : '')
     + (r.articleSubtype && r.articleType ? '<div class="jw-sub">' + esc(r.articleType) + '</div>' : '')
     + '<div class="jw-sub">' + (esc(what) || '—') + '</div>'
     + '<div class="jw-sku">' + esc(r.sku) + '</div>' + (extra || '') + '</div></div></td>';
@@ -31419,7 +31433,7 @@ function fgiTransferRows(rows) {
       const left = fgiPressLeft(r), id = r.id || r._key;
       return '<tr>'
         + `<td style="font-family:ui-monospace,monospace;text-align:left">${esc(r.sku)}</td>`
-        + `<td style="text-align:left;font-size:11.5px">${esc([r.articleSubtype || r.articleType, r.color, r.size].filter(Boolean).join(' · '))}</td>`
+        + `<td style="text-align:left;font-size:11.5px">${esc([r.articleSubtype || r.articleType || r.itemName, r.color, r.size].filter(Boolean).join(' · '))}</td>`
         + `<td>${esc(r.orderNo) || '<span class="muted">none</span>'}</td>`
         + `<td class="num">${nf(parseInt(r.pieces, 10) || 0)}</td>`
         + `<td class="num">${fgiNum(r.transferredQty) ? nf(fgiNum(r.transferredQty)) : '<span class="muted">—</span>'}</td>`
@@ -35835,7 +35849,7 @@ function odrListOpen() {
           + `<td><input type="checkbox" data-odr-pick="${esc(r.id)}"${ODR.pick.has(r.id) ? ' checked' : ''} style="width:auto;margin:0"></td>`
           + `<td style="text-align:left">${esc(r.orderNo)}</td>`
           + `<td style="font-family:ui-monospace,monospace;text-align:left">${esc(r.sku)}</td>`
-          + `<td style="text-align:left">${esc([r.articleSubtype || r.articleType, r.color, r.size].filter(Boolean).join(' · '))}</td>`
+          + `<td style="text-align:left">${esc([r.articleSubtype || r.articleType || r.itemName, r.color, r.size].filter(Boolean).join(' · '))}</td>`
           + `<td class="num" style="font-weight:700">${nf(w.qty)}</td>`
           + `<td style="text-align:left${w.any ? ';color:var(--bad)' : ''}">${esc(w.text) || '<span class="muted">none</span>'}${w.live ? '' : '<div class="muted" style="font-size:10.5px">already gone from the order book</div>'}</td>`
           + `<td style="text-align:left;white-space:normal;max-width:220px">${esc(r.why)}</td>`
