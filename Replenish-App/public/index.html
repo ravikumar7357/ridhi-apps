@@ -46466,6 +46466,7 @@ function soRows() {
   return rows;
 }
 
+let SO_DENSE_CAP = 200;
 const soDense = () => { try { return localStorage.getItem('soDense') !== '0'; } catch (e) { return true; } };
 /**
  * THE ONE-PAGE TABLE. Ten columns, each carrying what the wide table spread over two: the date under the order, the
@@ -46515,7 +46516,9 @@ function renderShopDense(rows, COLS, arrow, money, esc) {
       ? '<th style="width:28px"><input type="checkbox" id="soAll" title="Tick every order on screen"></th>'
       : '<th class="' + (c.num ? 'num' : '') + (c.frz ? ' frz' : '') + '" data-so-sort="' + c.k + '" style="cursor:pointer"' + (c.tip ? ' title="' + esc(c.tip) + '"' : '') + '>' + c.t + arrow(c.k) + '</th>').join('') + '</tr></thead>';
   const sub = t => (t ? '<span class="sub">' + t + '</span>' : '');
-  const SO_DRAW_CAP = 400;
+  /* 200, and the rest by search or "Show more" — 400 rows of three lines each was 550 KB of table to lay out on every
+   * draw, and nobody reads past the first screens without searching. */
+  const SO_DRAW_CAP = SO_DENSE_CAP;
   const drawn = rows.slice(0, SO_DRAW_CAP);
   const body = drawn.map(r => '<tr data-so="' + esc(r.id) + '" style="cursor:pointer"'
     + ' class="' + [r.cancelled ? 'so-cancel' : '', r.chargeback ? 'so-cb' : ''].filter(Boolean).join(' ') + '"'
@@ -46540,8 +46543,11 @@ function renderShopDense(rows, COLS, arrow, money, esc) {
     + '<td class="wrap" title="' + esc(r.items.map(i => `${i.sku || i.name} × ${i.qty}`).join(' · ')) + '">'
       + esc(r.items.slice(0, 4).map(i => `${i.sku || i.name} × ${i.qty}`).join(' · ')) + (r.items.length > 4 ? ' <span class="muted">+' + (r.items.length - 4) + ' more</span>' : '') + '</td>'
     + '</tr>').join('');
+  const more = rows.length > drawn.length
+    ? `<tr><td colspan="${DC.length}" style="padding:10px 14px;text-align:left"><span class="muted">Showing ${nf(drawn.length)} of ${nf(rows.length)} — search, or </span><button type="button" class="ghost" id="soMore" style="padding:4px 12px;font-size:12px">show ${nf(Math.min(200, rows.length - drawn.length))} more</button></td></tr>` : '';
   $('soTable').innerHTML = head + '<tbody>' + (body
-    || '<tr><td colspan="' + DC.length + '" class="muted" style="padding:14px">Nothing matches that filter.</td></tr>') + '</tbody>';
+    || '<tr><td colspan="' + DC.length + '" class="muted" style="padding:14px">Nothing matches that filter.</td></tr>') + more + '</tbody>';
+  if ($('soMore')) $('soMore').onclick = e => { e.stopPropagation(); SO_DENSE_CAP += 200; renderShop(); };
   if ($('soAll')) $('soAll').checked = drawn.length > 0 && drawn.every(r => SO_PICKED.has(r.id));
 }
 if ($('soDense')) $('soDense').onclick = () => { try { localStorage.setItem('soDense', soDense() ? '0' : '1'); } catch (e) { /* not remembered */ } renderShop(); };
@@ -47438,6 +47444,26 @@ function shpDoneWhy(o, sku) {
  *   maintain — the automatic run. Opens nothing, withdraws nothing; completes an open line Shopify has closed.
  *   only     — a Set of SKUs: open just these (from the bucket). Nothing else of the order is touched.
  *   force    — Map sku → { qty, pcs, shopQty, why, name, img }: open a line the stock says it can fill. */
+/**
+ * The order book grouped by order number, kept until the book is replaced or grows. It holds POSITIONS, not rows: a
+ * save swaps a row in place (PTG.ob[i] = row), and a row held here would be yesterday's copy of it.
+ */
+let SHP_OB_BY = { src: null, n: -1, map: null };
+function shpObOf(no) {
+  const src = PTG.ob || null;
+  if (SHP_OB_BY.src !== src || SHP_OB_BY.n !== (src ? src.length : -1) || !SHP_OB_BY.map) {
+    const m = new Map();
+    (src || []).forEach((x, i) => { if (!x) return; const k = obUC(x.orderNo); if (!m.has(k)) m.set(k, []); m.get(k).push(i); });
+    SHP_OB_BY = { src, n: src ? src.length : -1, map: m };
+  }
+  return (SHP_OB_BY.map.get(obUC(no)) || []).map(i => src[i]);
+}
+let SHP_MDB_BY = { src: null, map: null };
+function shpMdbBy() {
+  const src = PTG.mdb || null;
+  if (SHP_MDB_BY.src !== src || !SHP_MDB_BY.map) SHP_MDB_BY = { src, map: new Map((src || []).map(x => [obUC(x.sku), x])) };
+  return SHP_MDB_BY.map;
+}
 function shpPlanOrder(o, full, assigned, opts) {
   const O = opts || {};
   const out = { no: '', patch: {}, rows: [], drop: '', written: 0, removed: 0, dupes: 0, kept: [], skipped: [], needSku: [], err: '', isNew: false, done: 0 };
@@ -47475,7 +47501,9 @@ function shpPlanOrder(o, full, assigned, opts) {
    * product's name and picture and blank article/colour/size, which is the work left to do.
    *
    * The only thing still refused is a SKU the database cannot make a key out of. */
-  const mdbBy = new Map((PTG.mdb || []).map(x => [obUC(x.sku), x]));
+  /* ONCE PER MASTER, not once per order (2026-09-26): built fresh here it walked 5,035 rows for each of 2,649 orders
+   * on every sync — 0.3 s of the 0.65 s the sync took. */
+  const mdbBy = shpMdbBy();
   const good = [];
   want.forEach(w => {
     if (!shpKeySafe(w.sku)) { out.skipped.push({ sku: w.sku, why: 'the production database cannot use one of those characters in a key' }); return; }
@@ -47494,7 +47522,8 @@ function shpPlanOrder(o, full, assigned, opts) {
    * canonical key wins and the rest are deleted with the same batch. */
   const had = new Map();
   const strays = [];
-  (PTG.ob || []).forEach(x => {
+  /* THIS ORDER'S ROWS FROM AN INDEX, not a walk of the whole book for each of 2,600 orders (2026-09-26). */
+  shpObOf(no).forEach(x => {
     if (!x || obUC(x.orderNo) !== no) return;
     const s = obUC(x.sku);
     const key = String(x.id || x._key || '');
@@ -49455,7 +49484,10 @@ $('soSave').onclick = saveShopOrder;
 $('soCancel').onclick = () => { $('soModal').classList.add('hide'); SHOP_EDIT = null; };
 $('soX').onclick = () => $('soCancel').onclick();
 $('soGo').onclick = fetchShopOrders;
-['soState', 'soFilter', 'soDay'].forEach(id => $(id).addEventListener('input', renderShop));
+/* THE SEARCH WAITS FOR A PAUSE IN TYPING (2026-09-26: "shopify orders wala hang ho rha h"): every key redrew the whole
+ * 550 KB table. The two lists redraw at once, as they always did. */
+['soState', 'soDay'].forEach(id => $(id).addEventListener('input', renderShop));
+{ let t = null; $('soFilter').addEventListener('input', () => { clearTimeout(t); t = setTimeout(renderShop, 220); }); }
 $('soDay').addEventListener('change', renderShop);
 
 /* The control shows LABELS; the rows carry state codes. Mapped in one place, so nothing downstream

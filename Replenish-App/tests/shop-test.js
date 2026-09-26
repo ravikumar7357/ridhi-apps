@@ -1817,6 +1817,12 @@ console.log('\n== The Ship-from cell says one thing, then the stock in plain wor
   const c2 = A.soShipFrom({ id: 'z2', route: 'Need from production', mcf: 'no', india: 'part' }, e);
   ok('needs production: one red pill, both stock facts in one plain line', (c2.match(/class="st /g) || []).length === 1 && /Needs production/.test(c2) && /MCF <b[^>]*>No stock<\/b> · India <b[^>]*>Partly<\/b>/.test(c2), c2);
 }
+console.log('\n== The Shopify tab stays quick with the real order book (Ravi, 2026-09-26: "shopify orders wala hang ho rha h") ==');
+{
+  const src = require('fs').readFileSync(APP, 'utf8');
+  ok('the search waits for a pause in typing instead of redrawing on every key', /\$\('soFilter'\)\.addEventListener\('input', \(\) => \{ clearTimeout\(t\); t = setTimeout\(renderShop, 220\); \}\)/.test(src) && !/\['soState', 'soFilter', 'soDay'\]\.forEach/.test(src));
+  ok('the sync planner reads the master and the order book through indexes, not a walk per order', /const mdbBy = shpMdbBy\(\);/.test(src) && /shpObOf\(no\)\.forEach/.test(src));
+}
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exitCode = fail ? 1 : 0;
 })();
