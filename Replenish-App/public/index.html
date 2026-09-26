@@ -441,6 +441,23 @@
   .vo-band .vo-seg .segbtn{color:#fff;padding:9px 16px;font-size:13px}
   .vo-band .vo-seg .segbtn.on{background:#fff;color:var(--brand-ink)}
   .vo-ask{font-size:12px;color:rgba(255,255,255,.8);flex:0 0 100%}
+  /* VENDOR RFD, design 4 — progress bars (Ravi, 2026-09-26). */
+  .vrb-legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin:2px 0 12px}
+  .vrb-legend span{display:inline-flex;align-items:center;gap:6px}
+  .vrb-legend i,.vrb-bar i{display:block}
+  .vrb-legend i{width:10px;height:10px;border-radius:3px}
+  .vrb-s{background:#4A5A3C}.vrb-w{background:#8AA36F}.vrb-o{background:#E6B85C}.vrb-a{background:var(--bad)}
+  .vrb-row{display:grid;grid-template-columns:minmax(200px,260px) 1fr 130px 150px;gap:16px;align-items:center;border:1px solid var(--line);
+    border-radius:14px;padding:14px 16px;margin-bottom:10px;background:var(--card)}
+  .vrb-what{display:flex;flex-direction:column;gap:2px;min-width:0}
+  .vrb-what b{font-size:15px}
+  .vrb-mid{display:flex;flex-direction:column;gap:6px;min-width:0}
+  .vrb-bar{display:flex;height:12px;border-radius:6px;overflow:hidden;background:var(--hover,#eef2f6)}
+  .vrb-box{display:flex;flex-direction:column;gap:4px;align-items:stretch}
+  .vrb-box .lb{font-size:10.5px}
+  .vrb-box input{width:100%;text-align:right}
+  .vrb-foot{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--hover,#f6f8fa);border-top:1px solid var(--line);
+    margin:14px -14px -12px;padding:14px 16px;border-radius:0 0 var(--r-card) var(--r-card)}
   /* THE PRODUCTION BUCKET, design 7 (Ravi, 2026-09-26): the vendor order's band, with the counts in it. */
   .shb-band{display:flex;align-items:center;gap:22px;flex-wrap:wrap}
   .shb-band .shb-t{font-size:22px;font-weight:800;flex:1;min-width:200px}
@@ -30214,34 +30231,27 @@ function vpRfdRender(matched, nag) {
     const overAsked = rfdRound(Math.max(0, g.used + counted - g.pieces));
     const spare = g.own ? rfdRound(Math.max(0, g.pool - g.stock - overAsked)) : 0;
     const said = rfdStockRow(rfdVendorOf(o), g.stockKey, o);
-    return `<tr><td style="text-align:left">${esc(g.size || g.key)}`
-      + `<div class="muted" style="font-size:10.5px">${esc(g.what)}${g.colours.length
-        ? ' · <span title="' + esc(g.colours.join(', ')) + '">' + nf(g.colours.length) + ' colour'
-          + (g.colours.length > 1 ? 's' : '') + '</span>' : ''}${
-        g.fabrics.length ? ' · ' + esc(g.fabrics.join(' / ')) : ''}</div>`
-      + (g.used ? `<div style="font-size:10.5px;color:#7f6000">${nf(g.used)} pcs asked for</div>` : '')
-      + (overAsked ? `<div style="font-size:10.5px;color:var(--bad)" title="What you asked for and what you said is with you add up to more than this order needs. Take back what you do not need.">${nf(overAsked)} pcs more than the order needs</div>` : '')
-      + '</td>'
-      + `<td class="num">${nf(g.pieces)} pcs</td>`
-      /* WITH YOU IS A BOX NOW. What was sent against this order is said under it, because it is a
-       * fact and the box is a claim, and the two should not be added up by eye. */
-      + '<td class="num">'
-      + `<input data-vprfd-stock="${esc(o.id)}|${esc(g.stockKey)}" type="number" min="0" step="1"`
-      + ` value="${g.pool || ''}" placeholder="0" style="width:88px;text-align:right"`
+    /* ONE BAR: sent · with you · on the way · still to ask — each a share of what the order needs. */
+    const onWay = rfdRound(Math.max(0, shortOf - g.left));
+    const seg = (n, c, t) => n > 0 && g.pieces > 0 ? `<i class="${c}" style="width:${Math.min(100, n / g.pieces * 100)}%" title="${esc(t)}: ${nf(n)} pcs"></i>` : '';
+    return '<div class="vrb-row">'
+      + `<div class="vrb-what"><b>${esc(g.size || g.key)}</b><span class="muted" style="font-size:12px">${esc(g.what)}${g.colours.length
+        ? ' · <span title="' + esc(g.colours.join(', ')) + '">' + nf(g.colours.length) + ' colour' + (g.colours.length > 1 ? 's' : '') + '</span>' : ''}${
+        g.fabrics.length ? ' · ' + esc(g.fabrics.join(' / ')) : ''}</span>`
+      + (g.used ? `<span style="font-size:11px;color:#7f6000">${nf(g.used)} pcs asked for</span>` : '')
+      + (overAsked ? `<span style="font-size:11px;color:var(--bad)" title="What you asked for and what you said is with you add up to more than this order needs. Take back what you do not need.">${nf(overAsked)} pcs more than the order needs</span>` : '')
+      + '</div>'
+      + `<div class="vrb-mid"><div class="vrb-bar">${seg(got, 'vrb-s', 'Sent to you')}${seg(counted, 'vrb-w', 'With you')}${seg(onWay, 'vrb-o', 'On the way')}${seg(g.left, 'vrb-a', 'Still to ask for')}</div>`
+      + `<span style="font-size:12px" class="muted">${nf(g.pieces)} pcs on this order · ${g.left > 0 ? '<b style="color:var(--bad)">' + nf(g.left) + ' pcs to ask for</b>'
+        : (shortOf > 0 ? '<b style="color:#7f6000">' + nf(shortOf) + ' pcs on the way</b>' : '<b style="color:#166534">all here</b>')}${got ? ' · <span style="color:#166534">' + nf(got) + ' sent to you</span>' : ''}</span></div>`
+      + '<div class="vrb-box"><span class="lb">With you</span>'
+      + `<input data-vprfd-stock="${esc(o.id)}|${esc(g.stockKey)}" type="number" min="0" step="1" value="${g.pool || ''}" placeholder="0"`
       + ` title="How many of these you already have for THIS order. It comes off what is left to ask for on this order.">`
-      + (got ? `<div style="font-size:10.5px;color:#166534">${nf(got)} pcs sent to you</div>` : '')
-      + (elsewhere ? `<div style="font-size:10.5px;color:#7f6000" title="This order can only use what it still needs. The rest of your pile is counted on your other open orders.">${nf(elsewhere)} counted elsewhere</div>` : '')
-      + (spare ? `<div style="font-size:10.5px;color:#7f6000" title="This order only needs so many more. The rest is not counted anywhere.">${nf(spare)} more than this order still needs</div>` : '')
-      + (said && said.at ? `<div class="muted" style="font-size:10px">you said, ${esc(ptIsoDate(said.at) || '')}</div>` : '')
-      + '</td>'
-      /* ONE COLUMN, THREE ANSWERS. There is something left to ask for, or it has all been asked
-       * for and is on its way, or it is on the floor. Three separate columns said the same thing in
-       * a row of dashes. */
-      + `<td class="num"${g.left > 0 ? ' style="color:var(--bad);font-weight:700"' : ''}>`
-      + `${g.left > 0 ? nf(g.left) + ' pcs to ask for'
-        : (shortOf > 0 ? '<span style="color:#7f6000">' + nf(shortOf) + ' pcs on the way</span>'
-        : '<span style="color:#166534">all here</span>')}</td>`
-      + vpRfdAskCell(o, g.stockKey, 'pcs', g.left) + '</tr>';
+      + (elsewhere ? `<span style="font-size:10.5px;color:#7f6000">${nf(elsewhere)} counted elsewhere</span>` : '')
+      + (spare ? `<span style="font-size:10.5px;color:#7f6000">${nf(spare)} more than this order still needs</span>` : '')
+      + (said && said.at ? `<span class="muted" style="font-size:10px">you said, ${esc(ptIsoDate(said.at) || '')}</span>` : '')
+      + '</div>'
+      + vpRfdAskCell(o, g.stockKey, 'pcs', g.left, true) + '</div>';
   }).join('');
 
   const rowsF = fabLines.map(x => {
@@ -30254,26 +30264,22 @@ function vpRfdRender(matched, nag) {
     const elsewhere = own ? 0 : rfdRound(Math.max(0, pool - cap.stock));
     const spare = own ? rfdRound(Math.max(0, pool - cap.stock)) : 0;
     const said = rfdStockRow(rfdVendorOf(o), key, o);
-    return `<tr><td style="text-align:left">${esc(x.fabric)}`
-      + (cap.used ? `<div style="font-size:10.5px;color:#7f6000">${nf(cap.used)} m asked for</div>` : '')
-      + '</td>'
-      + `<td class="num">${nf(cap.need)} m</td>`
-      /* THE SAME BOX AS THE SIZES HAVE. What was sent against this order is a fact and is said under
-       * it; the box is the printer's own count and they keep it up to date. */
-      + '<td class="num">'
-      + `<input data-vprfd-stock="${esc(o.id)}|${esc(key)}" type="number" min="0" step="0.1"`
-      + ` value="${pool || ''}" placeholder="0" style="width:88px;text-align:right"`
+    const onWay = rfdRound(Math.max(0, shortOf - cap.left)), withM = rfdRound(Math.max(0, cap.stock));
+    const seg = (n, c, t) => n > 0 && cap.need > 0 ? `<i class="${c}" style="width:${Math.min(100, n / cap.need * 100)}%" title="${esc(t)}: ${nf(n)} m"></i>` : '';
+    return '<div class="vrb-row">'
+      + `<div class="vrb-what"><b>${esc(x.fabric)}</b><span class="muted" style="font-size:12px">running cloth</span>`
+      + (cap.used ? `<span style="font-size:11px;color:#7f6000">${nf(cap.used)} m asked for</span>` : '') + '</div>'
+      + `<div class="vrb-mid"><div class="vrb-bar">${seg(got, 'vrb-s', 'Sent to you')}${seg(withM, 'vrb-w', 'With you')}${seg(onWay, 'vrb-o', 'On the way')}${seg(cap.left, 'vrb-a', 'Still to ask for')}</div>`
+      + `<span style="font-size:12px" class="muted">${nf(cap.need)} m on this order · ${cap.left > 0 ? '<b style="color:var(--bad)">' + nf(cap.left) + ' m to ask for</b>'
+        : (shortOf > 0 ? '<b style="color:#7f6000">' + nf(shortOf) + ' m on the way</b>' : '<b style="color:#166534">all here</b>')}${got ? ' · <span style="color:#166534">' + nf(got) + ' m sent to you</span>' : ''}</span></div>`
+      + '<div class="vrb-box"><span class="lb">With you</span>'
+      + `<input data-vprfd-stock="${esc(o.id)}|${esc(key)}" type="number" min="0" step="0.1" value="${pool || ''}" placeholder="0"`
       + ` title="How many metres of this you already have for THIS order. It comes off what is left to ask for on this order.">`
-      + (got ? `<div style="font-size:10.5px;color:#166534">${nf(got)} m sent to you</div>` : '')
-      + (elsewhere ? `<div style="font-size:10.5px;color:#7f6000" title="This order can only use what it still needs. The rest of your cloth is counted on your other open orders.">${nf(elsewhere)} m counted elsewhere</div>` : '')
-      + (spare ? `<div style="font-size:10.5px;color:#7f6000" title="This order only needs so much more. The rest is not counted anywhere.">${nf(spare)} m more than this order still needs</div>` : '')
-      + (said && said.at ? `<div class="muted" style="font-size:10px">you said, ${esc(ptIsoDate(said.at) || '')}</div>` : '')
-      + '</td>'
-      + `<td class="num"${cap.left > 0 ? ' style="color:var(--bad);font-weight:700"' : ''}>`
-      + `${cap.left > 0 ? nf(cap.left) + ' m to ask for'
-        : (shortOf > 0 ? '<span style="color:#7f6000">' + nf(shortOf) + ' m on the way</span>'
-        : '<span style="color:#166534">all here</span>')}</td>`
-      + vpRfdAskCell(o, key, 'm', cap.left) + '</tr>';
+      + (elsewhere ? `<span style="font-size:10.5px;color:#7f6000">${nf(elsewhere)} m counted elsewhere</span>` : '')
+      + (spare ? `<span style="font-size:10.5px;color:#7f6000">${nf(spare)} m more than this order still needs</span>` : '')
+      + (said && said.at ? `<span class="muted" style="font-size:10px">you said, ${esc(ptIsoDate(said.at) || '')}</span>` : '')
+      + '</div>'
+      + vpRfdAskCell(o, key, 'm', cap.left, true) + '</div>';
   }).join('');
 
   const head = (what, unit) => `<table class="xl" style="margin-bottom:10px"><thead><tr>
@@ -30306,23 +30312,21 @@ function vpRfdRender(matched, nag) {
   body.innerHTML = nag
     + `<div class="card" style="padding:12px 14px;margin-top:12px">
       <div class="toolbar" style="margin-bottom:10px">
-        <span class="muted" style="font-size:12.5px;flex:0 0 auto">Order</span>
-        <select id="vpRfdPick" style="flex:0 0 340px">${pick}</select>
-        <span class="muted" style="font-size:12.5px">${esc(o.orderType === 'running' ? 'running — metres' : 'cut — pieces')}</span>
+        <label for="vpRfdPick" class="lb" style="flex:0 0 auto">Change order</label>
+        <select id="vpRfdPick" style="flex:0 0 380px">${pick}</select>
+        <span class="pill">${esc(o.orderType === 'running' ? 'running — metres' : 'cut — pieces')}</span>
         <span style="flex:1"></span>
-        <button id="vpRfdRaise" class="${vpRfdDrafts(o).length ? '' : 'ghost'}" title="Sends every row where you typed in Ask for now">${vpRfdRaiseLabel(o)}</button>
         ${leftTxt
           ? `<button id="vpRfdAll" class="ghost" title="Raises a requirement for everything this order still needs, in one go. You are asked to confirm first.">Ask for the whole order (${esc(leftTxt)})…</button>`
           : '<span class="muted" style="font-size:12.5px">Everything this order needs has been asked for.</span>'}
       </div>
-      <div class="muted" style="font-size:12px;margin-bottom:10px">Up to "still to ask for" is agreed the moment you ask. Anything beyond it goes to The Fabric Rush to approve.</div>
+      <div class="vrb-legend"><span><i class="vrb-s"></i>sent to you</span><span><i class="vrb-w"></i>with you</span><span><i class="vrb-o"></i>on the way</span><span><i class="vrb-a"></i>still to ask for</span>
+        <span style="flex:1"></span><span>Up to "still to ask for" is agreed the moment you ask; more goes to The Fabric Rush to approve.</span></div>
 
-      ${rowsP ? '<div class="muted" style="font-size:12px;margin:0 0 4px">Cut here and sent to you as pieces.</div>'
-        + head('Size', 'pcs') + rowsP + '</tbody></table>' : ''}
+      ${rowsP ? '<div class="muted" style="font-size:12px;margin:0 0 6px">Cut here and sent to you as pieces.</div>' + rowsP : ''}
       ${unruled.length ? `<div class="muted" style="font-size:12px;margin-bottom:8px">${nf(unruled.length)} of these have no printing rule set — ${esc(unruled.map(x => x.what || x.sku).filter((v, i, a) => a.indexOf(v) === i).join(', '))}. They are being treated as cut pieces because the order line is in pieces. Ask the office to set the rule.</div>` : ''}
 
-      ${rowsF ? '<div class="muted" style="font-size:12px;margin:10px 0 4px">Sent to you as running cloth.</div>'
-        + head('Fabric', 'm') + rowsF + '</tbody></table>' : ''}
+      ${rowsF ? '<div class="muted" style="font-size:12px;margin:10px 0 6px">Sent to you as running cloth.</div>' + rowsF : ''}
       ${need.unknown.length ? `<div class="muted" style="font-size:12px;margin-bottom:8px">${nf(need.unknown.length)} line(s) on this order could not be worked out, so their cloth is not in the figures above. Ask the office.</div>` : ''}
 
       <details style="margin-top:6px">
@@ -30343,6 +30347,9 @@ function vpRfdRender(matched, nag) {
           </div>` : ''}
         </div>
       </details>
+      <div class="vrb-foot"><span id="vpRfdRaiseTxt" style="font-size:14px">${vpRfdRaiseTxt(o)}</span><span style="flex:1"></span>
+        <button type="button" id="vpRfdClear" class="ghost">Clear</button>
+        <button type="button" id="vpRfdRaise" title="Sends every row where you typed in Ask for now">Raise requirement</button></div>
     </div>`
     + receipt
     + (asks ? `<div class="card" style="padding:12px 14px;margin-top:12px">
@@ -30354,6 +30361,7 @@ function vpRfdRender(matched, nag) {
   if ($('vpPin')) $('vpPin').onclick = pinOpenChange;
   if ($('vpRfdPick')) $('vpRfdPick').onchange = () => { VP.rfdOrder = $('vpRfdPick').value; renderVp(); };
   if ($('vpRfdRaise')) $('vpRfdRaise').onclick = () => vpRfdRaiseOpen(o);
+  if ($('vpRfdClear')) $('vpRfdClear').onclick = () => { (VP.rfdDraft || {})[o.id] = {}; renderVp(); };
   if ($('vpRfdAll')) $('vpRfdAll').onclick = () => ptOpenDialog({
     title: 'Ask for the whole of ' + (o.orderNo || o.id) + '?',
     subtitle: leftTxt + ' — every size and fabric this order still needs',
@@ -30390,14 +30398,24 @@ function vpRfdRaiseLabel(o) {
   const d = vpRfdDrafts(o);
   return d.length ? `Raise requirement (${nf(d.length)})` : 'Raise requirement';
 }
-function vpRfdAskCell(o, key, unit, left) {
+function vpRfdAskCell(o, key, unit, left, asBox) {
   const v = vpRfdDraftOf(o)[key] || '';
   const over = parseFloat(v) > left ? rfdRound(parseFloat(v) - Math.max(0, left)) : 0;
-  return '<td class="num">'
+  return (asBox ? '<div class="vrb-box"><span class="lb">Ask for now</span>' : '<td class="num">')
     + `<input data-vprfd-need="${esc(o.id)}|${esc(key)}" type="number" min="0" step="${unit === 'm' ? '0.1' : '1'}" value="${esc(v)}" placeholder="0" style="width:88px;text-align:right"`
     + ` title="How much you need now. Up to ${nf(Math.max(0, left))} ${unit} is agreed at once; more goes for approval.">`
     + (over ? `<div style="font-size:10.5px;color:#7f6000">${nf(over)} ${unit} over the order — needs approval</div>` : '')
-    + '</td>';
+    + (asBox ? '</div>' : '</td>');
+}
+/** The raise bar's words: rows, how much, and how much of it goes for approval. */
+function vpRfdRaiseTxt(o) {
+  const rows = vpRfdRaisePlan(o, vpRfdDrafts(o)).filter(r => !r.err);
+  if (!rows.length) return '<span class="muted">Type how much you need in Ask for now, then raise it here.</span>';
+  const sum = u => rfdRound(rows.filter(r => r.unit === u).reduce((t, r) => t + r.want, 0));
+  const over = u => rfdRound(rows.filter(r => r.unit === u).reduce((t, r) => t + r.over, 0));
+  const both = f => [f('pcs') ? nf(f('pcs')) + ' pcs' : '', f('m') ? nf(f('m')) + ' m' : ''].filter(Boolean).join(' · ');
+  return `<b>${nf(rows.length)} row${rows.length === 1 ? '' : 's'} to ask</b> <span class="muted">· ${both(sum)}`
+    + (both(over) ? ` · <span style="color:#7f6000;font-weight:700">${both(over)} over the order go for approval</span>` : '') + '</span>';
 }
 function vpRfdRaiseOpen(o) {
   const rows = vpRfdRaisePlan(o, vpRfdDrafts(o));
@@ -30430,7 +30448,7 @@ $('vpBody').addEventListener('input', e => {
   const [oid, key] = need.getAttribute('data-vprfd-need').split('|');
   const o = (VP.rows || []).find(x => x && x.id === oid); if (!o) return;
   vpRfdDraftOf(o)[key] = String(need.value).trim();
-  const b = $('vpRfdRaise'); if (b) { b.textContent = vpRfdRaiseLabel(o); b.classList.toggle('ghost', !vpRfdDrafts(o).length); }
+  if ($('vpRfdRaiseTxt')) $('vpRfdRaiseTxt').innerHTML = vpRfdRaiseTxt(o);
 });
 
 /* WHAT IS ALREADY WITH YOU, saved the moment the printer tabs out of the box. A button beside every

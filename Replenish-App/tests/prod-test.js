@@ -17446,6 +17446,8 @@ console.log('\n== RFD: asking by the piece, and whether the cloth has actually a
     A.renderVp();
     const h = els.vpBody.innerHTML;
     ok('the screen gives the printer a box to say what they have', /data-vprfd-stock=/.test(h), h.slice(0, 400));
+    /* Design 4 (Ravi, 2026-09-26): each size a progress row, both boxes on it, the picker says Change order, the raise bar at the foot. */
+    ok('design 4: a bar per size, With you and Ask for now on the row, Change order, the raise bar', /class="vrb-bar"/.test(h) && /data-vprfd-need=/.test(h) && /Change order/.test(h) && /id="vpRfdRaise"/.test(h) && /id="vpRfdRaiseTxt"/.test(h), h.slice(0, 300));
     ok('…on the size, not on each colour',
       (h.match(/data-vprfd-stock=/g) || []).length === 2, String((h.match(/data-vprfd-stock=/g) || []).length));
     ok('…and the size says how many colours it covers', /3 colours/.test(h), h.slice(0, 600));
