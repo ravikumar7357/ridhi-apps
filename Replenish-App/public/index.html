@@ -441,6 +441,11 @@
   .vo-band .vo-seg .segbtn{color:#fff;padding:9px 16px;font-size:13px}
   .vo-band .vo-seg .segbtn.on{background:#fff;color:var(--brand-ink)}
   .vo-ask{font-size:12px;color:rgba(255,255,255,.8);flex:0 0 100%}
+  .vr-sent{position:relative}
+  .vr-sent summary{cursor:pointer;list-style:none;display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:999px;background:#E8F2EA;color:#166534;font-weight:700;font-size:13px}
+  .vr-sent summary::-webkit-details-marker{display:none}
+  .vr-sent summary::after{content:'▾';margin-left:6px;font-size:11px}
+  .vr-sent-pop{position:absolute;top:calc(100% + 6px);left:0;z-index:30;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 30px rgba(20,24,31,.16);padding:10px 12px;min-width:420px;max-height:50vh;overflow:auto}
   /* VENDOR RFD, design 7 — the spreadsheet (Ravi, 2026-09-26): light rows, figures in their own columns. */
   .vrs{width:100%;border-collapse:collapse;margin-bottom:12px}
   .vrs th{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);text-align:right;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap;background:transparent}
@@ -30215,16 +30220,15 @@ function vpRfdRender(matched, nag) {
   const sends = vpRfdSends(o);
   const gotTxt = u => { const t = rfdRound(sends.filter(x => x.unit === u).reduce((a, x) => a + x.qty, 0));
     return t ? nf(t) + ' ' + u : ''; };
-  const receipt = sends.length ? `<div class="card" style="padding:12px 14px;margin-top:12px;border-left:4px solid #166534">
-    <div style="font-weight:700;color:#166534;margin-bottom:6px">
-      Sent to you — ${[gotTxt('pcs'), gotTxt('m')].filter(Boolean).join(' · ')} on ${nf(sends.length)} lot(s)</div>
-    <table class="xl"><thead><tr><th>Sent on</th><th>What</th><th class="num">How much</th></tr></thead><tbody>${
+  /* UP TOP, BESIDE THE ORDER (Ravi, 2026-09-26: "sent to you ko upar shift krdo"): a green chip that opens the lots. */
+  const receipt = sends.length ? `<details class="vr-sent"><summary>Sent to you — ${[gotTxt('pcs'), gotTxt('m')].filter(Boolean).join(' · ')} on ${nf(sends.length)} lot(s)</summary>
+    <div class="vr-sent-pop"><table class="xl"><thead><tr><th>Sent on</th><th>What</th><th class="num">How much</th></tr></thead><tbody>${
       sends.slice(0, 12).map(x => `<tr><td style="text-align:left">${esc(x.date) || '<span class="muted">no date</span>'}</td>`
         + `<td style="text-align:left">${esc(x.what)}</td>`
         + `<td class="num" style="font-weight:700;color:#166534">${nf(rfdRound(x.qty))} ${esc(x.unit)}</td></tr>`).join('')
     }</tbody></table>
     ${sends.length > 12 ? `<div class="muted" style="font-size:12px;margin-top:6px">…and ${nf(sends.length - 12)} earlier lot(s).</div>` : ''}
-  </div>` : '';
+  </div></details>` : '';
 
   /* ---- THE SIZES ----
    *
@@ -30332,6 +30336,7 @@ function vpRfdRender(matched, nag) {
         <label for="vpRfdPick" class="lb" style="flex:0 0 auto">Change order</label>
         <select id="vpRfdPick" style="flex:0 0 380px">${pick}</select>
         <span class="pill">${esc(o.orderType === 'running' ? 'running — metres' : 'cut — pieces')}</span>
+        ${receipt}
         <span style="flex:1"></span>
         ${leftTxt
           ? `<button id="vpRfdAll" class="ghost" title="Raises a requirement for everything this order still needs, in one go. You are asked to confirm first.">Ask for the whole order (${esc(leftTxt)})…</button>`
@@ -30369,7 +30374,7 @@ function vpRfdRender(matched, nag) {
         <button type="button" id="vpRfdClear" class="ghost">Clear</button>
         <button type="button" id="vpRfdRaise" title="Sends every row where you typed in Ask for now">Raise requirement</button></div>
     </div>`
-    + receipt;
+    ;
 
   if ($('vpPin')) $('vpPin').onclick = pinOpenChange;
   if ($('vpRfdPick')) $('vpRfdPick').onchange = () => { VP.rfdOrder = $('vpRfdPick').value; renderVp(); };

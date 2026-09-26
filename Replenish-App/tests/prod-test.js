@@ -17197,6 +17197,7 @@ console.log('\n== RFD: asking by the piece, and whether the cloth has actually a
     A.renderVp();
     const html2 = els.vpBody.innerHTML;
     ok('what has reached them is on their own screen', />25</.test(html2), 'delivered figure missing');
+    ok('…and Sent to you sits up top beside the order, as a chip that opens the lots', /<details class="vr-sent"><summary>Sent to you — 25 pcs/.test(html2) && html2.indexOf('vr-sent') < html2.indexOf('class="vrs"'));
     ok('…and so is what is still to come', />14</.test(html2), 'outstanding figure missing');
     /* It is still ASKABLE. Flagging a gap must not take the size off the screen — the printer still
      * needs those twenty tablecloths, and the rule being unset is the office's problem, not theirs. */
