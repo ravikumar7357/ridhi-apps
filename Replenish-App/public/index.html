@@ -972,6 +972,13 @@
     <!-- THE SAME GROUPS AS SELLORA → ACCESS, in the same order and under the same names, so the
          section somebody is granted there is found under the same heading here. A group whose tabs
          this account cannot open is hidden by syncNavGroups. -->
+    <!-- THE DASHBOARD (2026-09-26): one screen of figures for management, each a door into its own screen. -->
+    <div class="navwrap"><button class="navgrp" id="grpDash" type="button" data-grp="dash" data-tabs="dash">
+      <span class="caret">&#9656;</span> Dashboard</button>
+    <div class="navsec" id="secDash">
+      <a id="tabDash" class="nav" href="#dash">Management dashboard</a>
+    </div></div>
+
     <div class="navwrap"><button class="navgrp" id="grpShopify" type="button" data-grp="shopify" data-tabs="shop,adj,shopify">
       <span class="caret">&#9656;</span> Shopify</button>
     <div class="navsec" id="secShopify">
@@ -1943,6 +1950,16 @@
       </div>
       <div id="kaDetail" class="card kpi hide" style="margin-top:12px;padding:12px 14px"></div>
       <div class="card xlwrap" style="margin-top:12px"><table class="xl" id="kaTable"></table></div>
+    </div>
+
+    <div id="paneDash" class="hide">
+      <div class="card" style="padding:12px 14px">
+        <div class="toolbar">
+          <span id="dashMsg" class="muted" style="font-size:12.5px;flex:1 1 auto"></span>
+          <button id="dashGo">Refresh</button>
+        </div>
+      </div>
+      <div id="dashBody" style="margin-top:12px"></div>
     </div>
 
     <div id="paneRep" class="hide">
@@ -3333,7 +3350,7 @@ const REPL_TABS = ['repl', 'article', 'target', 'top', 'shopify', 'pack',
   /* Quality Control is three jobs, not one: 'qc' is the checks, 'qcalt' is sending rejects out for
    * alteration, 'qcret' is taking them back. One tab, three grants. */
   'pmdb', 'mst', 'att', 'pbase', 'pcut', 'ppress', 'qc', 'qcalt', 'qcret', 'ord', 'so', 'vord', 'vreq', 'rfd', 'vend', 'vlog', 'palloc', 'fgi', 'fba', 'fab', 'acc', 'rep', 'pa', 'ka', 'hr',
-  'shop', 'adj', 'shopprod'];   // section keys, gated per-user via perms.replTabs
+  'shop', 'adj', 'shopprod', 'dash'];   // section keys, gated per-user via perms.replTabs — 'dash' is the admins' dashboard
 let REPL = { SP: null, CPC: null };   // brand → { rows, at }
 let PO = [];                  // purchase orders
 
@@ -3509,7 +3526,7 @@ onAuthStateChanged(auth, async user => {
    * with its own sign-in, and the three read-only views read the factory's database over REST. An
    * account holding only those would otherwise spend its login on reads the rules must refuse, and
    * land on a red "ask an admin for perms.repl" message about a permission it does not need. */
-  const FACTORY_TABS = ['att', 'pmdb', 'mst', 'pbase', 'pcut', 'ppress', 'qc', 'qcalt', 'qcret', 'ord', 'so', 'vord', 'vreq', 'rfd', 'vend', 'palloc', 'fgi', 'fba', 'fab', 'acc', 'rep', 'pa', 'ka', 'hr',
+  const FACTORY_TABS = ['dash', 'att', 'pmdb', 'mst', 'pbase', 'pcut', 'ppress', 'qc', 'qcalt', 'qcret', 'ord', 'so', 'vord', 'vreq', 'rfd', 'vend', 'palloc', 'fgi', 'fba', 'fab', 'acc', 'rep', 'pa', 'ka', 'hr',
     /* History and Customer Orders are factory screens too; missing here, a login holding History loaded
      * the Replenishment snapshot at sign-in — a vendor's among them. */
     'vlog', 'cx'];
@@ -3810,14 +3827,14 @@ function showTab(which) {
   if (which === 'shopprod') which = 'ord';
   if (ME.tabs && ME.tabs.length && !ME.tabs.includes(which)
       && !(which === 'ord' && ME.tabs.includes('shopprod'))) which = ME.tabs[0];
-  const panes = { repl: 'paneRepl', article: 'paneArticle', target: 'paneTarget', follow: 'paneFollow', top: 'paneTop', india: 'paneIndia', shopify: 'paneShopify', prod: 'paneProd', pack: 'panePack', att: 'paneAtt', pmdb: 'panePmdb', mst: 'paneMst', pbase: 'panePbase', pcut: 'panePcut', ppress: 'panePpress', qc: 'paneQc', ord: 'paneOrd', so: 'paneSo', vord: 'paneVord', vreq: 'paneVreq', rfd: 'paneRfd', vend: 'paneVend', vlog: 'paneVlog', cx: 'paneCx', palloc: 'panePalloc', fgi: 'paneFgi', fba: 'paneFba', fab: 'paneFab', acc: 'paneAcc', rep: 'paneRep', pa: 'panePa', ka: 'paneKa', hr: 'paneHr', shop: 'paneShop', adj: 'paneAdj' };
-  const navs = { repl: 'tabRepl', article: 'tabArticle', target: 'tabTarget', follow: 'tabFollow', top: 'tabTop', india: 'tabIndia', shopify: 'tabShopify', prod: 'tabProd', pack: 'tabPack', att: 'tabAtt', pmdb: 'tabPmdb', mst: 'tabMst', pbase: 'tabPbase', pcut: 'tabPcut', ppress: 'tabPpress', qc: 'tabQc', ord: 'tabOrd', so: 'tabSo', vord: 'tabVord', vreq: 'tabVreq', rfd: 'tabRfd', vend: 'tabVend', vlog: 'tabVlog', cx: 'tabCx', palloc: 'tabPalloc', fgi: 'tabFgi', fba: 'tabFba', fab: 'tabFab', acc: 'tabAcc', rep: 'tabRep', pa: 'tabPa', ka: 'tabKa', hr: 'tabHr', shop: 'tabShop', adj: 'tabAdj' };
+  const panes = { dash: 'paneDash', repl: 'paneRepl', article: 'paneArticle', target: 'paneTarget', follow: 'paneFollow', top: 'paneTop', india: 'paneIndia', shopify: 'paneShopify', prod: 'paneProd', pack: 'panePack', att: 'paneAtt', pmdb: 'panePmdb', mst: 'paneMst', pbase: 'panePbase', pcut: 'panePcut', ppress: 'panePpress', qc: 'paneQc', ord: 'paneOrd', so: 'paneSo', vord: 'paneVord', vreq: 'paneVreq', rfd: 'paneRfd', vend: 'paneVend', vlog: 'paneVlog', cx: 'paneCx', palloc: 'panePalloc', fgi: 'paneFgi', fba: 'paneFba', fab: 'paneFab', acc: 'paneAcc', rep: 'paneRep', pa: 'panePa', ka: 'paneKa', hr: 'paneHr', shop: 'paneShop', adj: 'paneAdj' };
+  const navs = { dash: 'tabDash', repl: 'tabRepl', article: 'tabArticle', target: 'tabTarget', follow: 'tabFollow', top: 'tabTop', india: 'tabIndia', shopify: 'tabShopify', prod: 'tabProd', pack: 'tabPack', att: 'tabAtt', pmdb: 'tabPmdb', mst: 'tabMst', pbase: 'tabPbase', pcut: 'tabPcut', ppress: 'tabPpress', qc: 'tabQc', ord: 'tabOrd', so: 'tabSo', vord: 'tabVord', vreq: 'tabVreq', rfd: 'tabRfd', vend: 'tabVend', vlog: 'tabVlog', cx: 'tabCx', palloc: 'tabPalloc', fgi: 'tabFgi', fba: 'tabFba', fab: 'tabFab', acc: 'tabAcc', rep: 'tabRep', pa: 'tabPa', ka: 'tabKa', hr: 'tabHr', shop: 'tabShop', adj: 'tabAdj' };
   /* Before anything is shown: hand back what the screen being left was holding. */
   if (TAB_NOW && TAB_NOW !== which) tabShed(TAB_NOW);
   Object.entries(panes).forEach(([k, id]) => $(id).classList.toggle('hide', which !== k));
   Object.entries(navs).forEach(([k, id]) => $(id).classList.toggle('on', which === k));
   if (SHOP_ONLY() && which === 'ord') { $('pageTitle').textContent = 'Shopify Orders'; }
-  const TITLES = { repl: 'Replenishment', article: 'Article Review', target: 'Revenue Target', follow: 'Ongoing Purchase Order', top: 'Top ASIN Status', india: 'India Stock', shopify: 'Shopify Stock', prod: 'In Production', pack: 'Packing List', plan: 'Action Plan',
+  const TITLES = { dash: 'Dashboard', repl: 'Replenishment', article: 'Article Review', target: 'Revenue Target', follow: 'Ongoing Purchase Order', top: 'Top ASIN Status', india: 'India Stock', shopify: 'Shopify Stock', prod: 'In Production', pack: 'Packing List', plan: 'Action Plan',
     att: 'Attendance', pmdb: 'Master Database', mst: 'Masters', pbase: 'Job Work Register', pcut: 'Cutting Data', ppress: 'Press Inventory', qc: 'Quality Control', ord: 'Order Console', so: 'Sales Orders', vord: 'Vendor Orders', vreq: 'Vendor Order Requests', rfd: 'RFD Requirements', vend: 'Vendor Portal', vlog: 'History — what printers have sent', cx: 'Customer Orders', palloc: 'Printer Allocation', fgi: 'Finished Goods', fba: 'FBA Dispatch', fab: 'Fabric Inventory', acc: 'Accessories', rep: 'Reports', pa: 'Production Analysis', ka: 'Karigar Analysis', hr: 'Finance & HR', shop: 'Shopify Orders', adj: 'Adjustments' };
   $('pageTitle').textContent = TITLES[which] || 'Replenishment';
   /* The line under a title, and the button that starts work, for the screens that have them. */
@@ -3836,6 +3853,7 @@ function showTab(which) {
   /* The screen's name where a name belongs when it is not on the page: the browser tab. */
   try { document.title = ($('pageTitle').textContent || '') + ($('pageTitle').textContent ? ' · ' : '') + 'Ridhi Home & Living'; } catch (e) { /* nothing depends on it */ }
   /* There is no drawer to close any more: the menu is the bar across the top, on every width. */
+  if (which === 'dash') ensureDash();
   if (which === 'article') renderArticle();
   if (which === 'target') ensureTarget();
   if (which === 'follow') ensureFollow();
@@ -3872,6 +3890,7 @@ function showTab(which) {
   if (which === 'shop') ensureShop();
   if (which === 'adj') ensureAdj();
 }
+$('tabDash').onclick = () => showTab('dash');
 $('tabRepl').onclick = () => showTab('repl');
 $('tabArticle').onclick = () => showTab('article');
 $('tabTarget').onclick = () => showTab('target');
@@ -19935,6 +19954,175 @@ $('odExport').onclick = () => {
     return;
   }
   ptDownload('order-console', ordBookCsv(rows));
+};
+
+/* ================= MANAGEMENT DASHBOARD =================
+ *
+ * Ravi, 2026-09-26: "ek jagah KPI dashboard nahi — make this."
+ *
+ * One screen of the figures management asks for first: what is on the book, what the factory made this week against
+ * the 20,000 target, what the printers owe and hold, what is on the shelf and waiting for FBA, who came in today.
+ * NOTHING HERE IS STORED OR RECOUNTED: every number comes from the same function its own screen draws from
+ * (ordLines, paWeekFacts, rfdOrderRows, fgiStock, fabBalances…), so the dashboard and the screen can never disagree.
+ * Each tile is a door into that screen. Admins only — the reads behind it span every register, and that is what the
+ * database rules let an admin read. */
+let DASH = { busy: false, at: '', err: [] };
+
+async function ensureDash() {
+  if (!$('dashBody')) return;
+  if (!ME.admin) { $('dashMsg').textContent = 'The dashboard is for admins — it reads every register at once.'; $('dashBody').innerHTML = ''; return; }
+  if (DASH.busy) return;
+  DASH.busy = true; DASH.err = [];
+  $('dashMsg').textContent = 'Reading the registers…';
+  /* Every register at once; one that cannot be read leaves its tiles blank and is named, not fatal. */
+  const take = async (name, f) => { try { await f(); } catch (e) { DASH.err.push(name + ': ' + (e.message || e)); } };
+  await Promise.all([
+    take('order book', () => ptLoadGates()),
+    take('vendor orders', async () => { if (VO.rows == null) await ensureVo(); }),
+    take('finished goods', async () => { if (FGI.rows == null) await fgiLoad(); }),
+    take('sales orders', async () => { if (SOX.rows == null) SOX.rows = ptList(await ptGet('pt_salesOrders')); }),
+    take('attendance', async () => { if (ATT.rows == null) ATT.rows = ptList(await ptGet('pt_attend')); }),
+    take('accessories', async () => { await ptLoadGates(); if (ACC.ledger == null) { ACC.items = ptList((PTG.masters || {}).accessories); ACC.ledger = ptList(await ptGet('pt_accLedger')); } }),
+    take('fabric', async () => { if (FAB.rows == null) FAB.rows = ptList(await ptGet('pt_fabInvLedger')); }),
+    take('RFD', async () => { if (!RFD.decisions) { const [d, st] = await Promise.all([ptGet('pt_rfdDecisions'), ptGet('pt_rfdStock')]); RFD.decisions = d || {}; RFD.stock = st || {}; } }),
+    take('vendor requests', async () => { if (VRQ.rows == null) VRQ.rows = ptList(await ptGet('pt_vendorOrderReqs')).filter(r => r && r.id); }),
+    take('employees', async () => { if (!PTE.emp) await ptLoadEmp(); }),     // the roster the attendance tile counts against
+  ]);
+  DASH.busy = false; DASH.at = ptStamp();
+  renderDash();
+}
+
+/** The figures, worked out from what is loaded — a register that is not there shows a dash, never a zero. */
+function dashFacts() {
+  const two = (p, m) => [p ? nf(p) + ' pcs' : '', m ? nf(m) + ' m' : ''].filter(Boolean).join(' · ') || '—';
+  const F = {};
+  /* orders on the book */
+  try {
+    const lines = ordLines(), open = lines.filter(l => ptNum(l.pendingMake) > 0);
+    const bySrc = {};
+    open.forEach(l => { const k = String(ordSrcOf(l) || '?').toUpperCase(); bySrc[k] = (bySrc[k] || 0) + ptNum(l.pendingMake); });
+    F.orders = { open: new Set(open.map(l => l.orderNo)).size, lines: open.length,
+      toMake: open.reduce((a, l) => a + ptNum(l.pendingMake), 0), bySrc };
+  } catch (e) { F.orders = null; }
+  try {
+    const so = (SOX.rows || []).filter(o => o && !o.deleted);
+    F.sales = { n: so.length, waiting: so.filter(o => soStatus(o) === 'submitted').length, drafts: so.filter(o => soStatus(o) === 'draft' || soStatus(o) === 'returned').length };
+  } catch (e) { F.sales = null; }
+  /* the factory this week, against the target */
+  try {
+    const wk = paWeekStart(Date.now()).getTime();
+    const f = paWeekFacts(paDayIso(wk)), g = paWeekFacts(paDayIso(wk - 7 * 86400000));
+    F.week = { received: f.received || 0, issued: f.issued || 0, cut: f.cut || 0, pressed: f.pressed || 0, rejected: f.rejected || 0,
+      last: g.received || 0, target: paTarget() };
+  } catch (e) { F.week = null; }
+  /* the printers */
+  try {
+    const vo = (VO.rows || []).filter(o => o && !o.cancelled && ['Received', 'Cancelled', 'Draft'].indexOf(o.status || 'Placed') < 0);
+    let pcs = 0, m = 0, late = 0, lateDays = 0;
+    vo.forEach(o => voLines(o).forEach(l => {
+      if (!l || l.cancelled) return;
+      const owed = Math.max(0, voQty(o, l) - (parseFloat(voDone(l)) || 0));
+      if (voUnit(o) === 'm') m += owed; else pcs += owed;
+      const d = voLateBy(o, l); if (d != null) { late++; lateDays = Math.max(lateDays, d); }
+    }));
+    F.printers = { orders: vo.length, printers: new Set(vo.map(o => o.vendorCode)).size, owed: two(Math.round(pcs), Math.round(m)), late, lateDays };
+  } catch (e) { F.printers = null; }
+  try {
+    const rr = rfdOrderRows();
+    const sum = (u, k) => rfdRound(rr.filter(x => x.unit === u).reduce((a, x) => a + (x[k] || 0), 0));
+    const codes = [...new Set(rr.map(x => x.vendorCode))];
+    let hp = 0, hm = 0;
+    codes.forEach(c => rfdStoreOf(c).forEach(x => { if (x.unit === 'm') hm += x.inHand; else hp += x.inHand; }));
+    F.rfd = { toSend: two(sum('pcs', 'toSend'), sum('m', 'toSend')), onWay: two(sum('pcs', 'onWay'), sum('m', 'onWay')),
+      withPrinters: two(rfdRound(hp), rfdRound(hm)), orders: new Set(rr.map(x => x.orderId)).size,
+      pending: rfdRows().filter(r => r.stage === 'pending').length };
+  } catch (e) { F.rfd = null; }
+  try {
+    F.approvals = { vreq: (VRQ.rows || []).filter(r => r && r.status === 'pending').length,
+      qty: (typeof ordQtyUnseenAll === 'function' ? ordQtyUnseenAll().length : 0) };
+  } catch (e) { F.approvals = null; }
+  /* stock */
+  try {
+    let pcs = 0, skus = 0;
+    fgiStock().forEach(b => { if (b.current > 0) { pcs += b.current; skus++; } });
+    const fba = fbaAll().map(fbaState);
+    const waiting = fba.filter(x => x.st === 'waiting'), accepted = fba.filter(x => x.st === 'accepted');
+    F.fg = { pcs, skus, pending: fgiPending().length,
+      fbaWaiting: waiting.reduce((a, x) => a + (x.open || 0), 0), fbaWaitingN: waiting.length,
+      fbaAccepted: accepted.reduce((a, x) => a + (x.open || 0), 0), fbaAcceptedN: accepted.length };
+  } catch (e) { F.fg = null; }
+  try {
+    const st = {};
+    Object.values(fabBalances(fabAll())).forEach(b => { st[b.state] = (st[b.state] || 0) + b.qty; });
+    F.fabric = { rfd: Math.round(st.RFD || 0), greige: Math.round(st.GREIGE || 0), states: st };
+  } catch (e) { F.fabric = null; }
+  try {
+    const ab = Object.values(accBalances());
+    F.acc = { items: ab.length, low: ab.filter(x => x.qty < accLow(x)).map(x => x.name || x.code) };
+  } catch (e) { F.acc = null; }
+  /* people */
+  try {
+    const att = attOfDay(dToday());
+    let present = 0, absent = 0;
+    att.forEach(r => { const s = attState(r); if (s === 'in' || s === 'out') present++; else if (s === 'absent') absent++; });
+    F.people = { present, absent, roster: attPeople().length };
+  } catch (e) { F.people = null; }
+  return F;
+}
+
+function renderDash() {
+  const body = $('dashBody'); if (!body) return;
+  const F = dashFacts();
+  const tile = (v, l, tab, sub, colour) => `<div class="metric pt-kpi" data-dash-go="${tab}" role="button" tabindex="0" title="Open the screen this comes from">`
+    + `<div class="v"${colour ? ' style="color:' + colour + '"' : ''}>${v}</div><div class="l">${esc(l)}</div>${sub ? '<div class="l muted">' + sub + '</div>' : ''}</div>`;
+  const sec = (name, when, tiles) => `<div class="kpi" style="flex-basis:100%;margin-bottom:12px"><div class="kpihead"><span class="kpiname">${esc(name)}</span><span class="kpiwhen">${esc(when || '')}</span></div><div class="metrics">${tiles}</div></div>`;
+  const dash = '<span class="muted">—</span>';
+  const o = F.orders, s = F.sales, w = F.week, p = F.printers, r = F.rfd, a = F.approvals, g = F.fg, fb = F.fabric, ac = F.acc, pe = F.people;
+  const pct = w && w.target ? Math.round(w.received / w.target * 100) : 0;
+  body.innerHTML = '<div class="kpis">'
+    + sec('Orders on the book', 'open lines from the order book', (o
+      ? tile(nf(o.open), 'Open orders', 'ord', nf(o.lines) + ' line(s)')
+        + tile(nf(o.toMake), 'Pieces still to make', 'ord', Object.entries(o.bySrc).sort((x, y) => y[1] - x[1]).map(([k, v]) => esc(k) + ' ' + nf(v)).join(' · '), 'var(--bad)')
+      : tile(dash, 'Open orders', 'ord'))
+      + (s ? tile(nf(s.waiting), 'Sales orders awaiting approval', 'so', nf(s.n) + ' on record' + (s.drafts ? ' · ' + nf(s.drafts) + ' draft / returned' : ''), s.waiting ? '#7f6000' : '') : tile(dash, 'Sales orders', 'so')))
+    + sec('The factory this week', 'Monday to today, from the registers', (w
+      ? tile(nf(w.received), 'Pieces received from karigars', 'pa', nf(pct) + '% of the ' + nf(w.target) + ' target · last week ' + nf(w.last), pct >= 100 ? '#166534' : (pct >= 60 ? '#7f6000' : 'var(--bad)'))
+        + tile(nf(w.issued), 'Issued to karigars', 'pbase', w.rejected ? nf(w.rejected) + ' rejected' : '')
+        + tile(nf(w.cut), 'Cut', 'pcut') + tile(nf(w.pressed), 'Pressed', 'ppress')
+      : tile(dash, 'Pieces received from karigars', 'pa')))
+    + sec('Printers', 'vendor orders open now', (p
+      ? tile(nf(p.orders), 'Open vendor orders', 'vord', nf(p.printers) + ' printer(s)')
+        + tile(p.owed, 'Still owed by printers', 'vord')
+        + tile(nf(p.late), 'Late lines', 'vord', p.late ? 'the latest ' + nf(p.lateDays) + ' day(s) over' : 'nothing overdue', p.late ? 'var(--bad)' : '#166534')
+      : tile(dash, 'Open vendor orders', 'vord'))
+      + (r ? tile(r.toSend, 'RFD cloth still to send', 'rfd', nf(r.orders) + ' order(s) from ' + RFD_TRACK_FROM, r.toSend !== '—' ? 'var(--bad)' : '#166534')
+          + tile(r.onWay, 'Sent, not yet confirmed', 'rfd', '', '#7f6000')
+          + tile(r.withPrinters, 'Company cloth with printers', 'rfd')
+          + tile(nf(r.pending), 'RFD asks waiting for approval', 'rfd', '', r.pending ? 'var(--bad)' : '')
+        : tile(dash, 'RFD cloth still to send', 'rfd'))
+      + (a ? tile(nf(a.vreq + a.qty), 'Approvals waiting', 'vreq', [a.vreq ? nf(a.vreq) + ' vendor order request(s)' : '', a.qty ? nf(a.qty) + ' quantity change(s)' : ''].filter(Boolean).join(' · ') || 'nothing waiting', (a.vreq + a.qty) ? '#7f6000' : '') : ''))
+    + sec('Stock', 'finished goods, FBA queue, cloth, accessories', (g
+      ? tile(nf(g.pcs), 'Finished pieces in the store', 'fgi', nf(g.skus) + ' SKU(s)' + (g.pending ? ' · ' + nf(g.pending) + ' transfer(s) to confirm' : ''))
+        + tile(nf(g.fbaWaiting), 'Waiting for the FBA team', 'fba', nf(g.fbaWaitingN) + ' issue(s)', g.fbaWaiting ? '#7f6000' : '')
+        + tile(nf(g.fbaAccepted), 'Accepted, not yet shipped', 'fba', nf(g.fbaAcceptedN) + ' issue(s)')
+      : tile(dash, 'Finished pieces in the store', 'fgi'))
+      + (fb ? tile(nf(fb.rfd) + ' m', 'RFD cloth in the store', 'fab') + tile(nf(fb.greige) + ' m', 'Greige in the store', 'fab') : tile(dash, 'RFD cloth in the store', 'fab'))
+      + (ac ? tile(nf(ac.low.length), 'Accessories below reorder level', 'acc', ac.low.slice(0, 4).map(esc).join(', ') + (ac.low.length > 4 ? ' …' : ''), ac.low.length ? 'var(--bad)' : '#166534') : tile(dash, 'Accessories below reorder level', 'acc')))
+    + sec('People', 'attendance today', (pe
+      ? tile(nf(pe.present), 'Present today', 'att', 'of ' + nf(pe.roster) + ' on the roster', pe.present ? '#166534' : '')
+        + tile(nf(pe.absent), 'Marked absent', 'att', '', pe.absent ? 'var(--bad)' : '')
+      : tile(dash, 'Present today', 'att')))
+    + '</div>';
+  $('dashMsg').className = DASH.err.length ? 'err' : 'muted';
+  $('dashMsg').textContent = (DASH.at ? 'Read ' + DASH.at + ' · ' : '') + 'every figure is the same one its own screen shows — click a tile to open that screen'
+    + (DASH.err.length ? ' · could not read: ' + DASH.err.join(' · ') : '');
+}
+$('dashBody').addEventListener('click', e => { const t = e.target.closest('[data-dash-go]'); if (t) showTab(t.getAttribute('data-dash-go')); });
+$('dashBody').addEventListener('keydown', e => { const t = e.target.closest('[data-dash-go]'); if (t && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); showTab(t.getAttribute('data-dash-go')); } });
+$('dashGo').onclick = () => {
+  /* Read again, every register — the tiles are only as fresh as the registers behind them. */
+  VO.rows = null; FGI.rows = null; SOX.rows = null; ATT.rows = null; FAB.rows = null; RFD.decisions = null; VRQ.rows = null; ACC.ledger = null;
+  ptGatesFresh().then(ensureDash);
 };
 
 /* ================= FINANCE & HR =================
