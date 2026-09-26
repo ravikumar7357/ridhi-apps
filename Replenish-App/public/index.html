@@ -475,15 +475,21 @@
   .vrb-foot{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--hover,#f6f8fa);border-top:1px solid var(--line);
     margin:14px -14px -12px;padding:14px 16px;border-radius:0 0 var(--r-card) var(--r-card)}
   /* THE PRODUCTION BUCKET, design 7 (Ravi, 2026-09-26): the vendor order's band, with the counts in it. */
-  .shb-band{display:flex;align-items:center;gap:22px;flex-wrap:wrap}
-  .shb-band .shb-t{font-size:22px;font-weight:800;flex:1;min-width:200px}
-  .shb-n{display:flex;flex-direction:column;align-items:flex-end;line-height:1.15}
-  .shb-n b{font-size:22px;font-weight:800} .shb-n span{font-size:12px;opacity:.8}
-  .shb-band button{background:rgba(255,255,255,.14);border-color:transparent;color:#fff}
-  .shb-band button:hover{background:rgba(255,255,255,.24)}
-  .shb-tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:14px 0 12px}
-  .shb-tools input{flex:0 1 340px;min-width:0} .shb-tools select{flex:0 0 160px}
-  .shb-wrap{border:1px solid var(--line);border-radius:14px;max-height:48vh}
+  .shb-band{display:flex;align-items:center;gap:26px;flex-wrap:wrap;font-size:14px;font-weight:500;line-height:1.2}
+  .shb-band .shb-t{font-size:21px;font-weight:800;flex:1;min-width:200px}
+  .shb-n{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+  .shb-n b{font-size:20px;font-weight:800} .shb-n span{font-size:11.5px;font-weight:500;opacity:.82}
+  .shb-band button{background:rgba(255,255,255,.14);border:0;color:#fff;font-size:13px;font-weight:600;padding:9px 14px;border-radius:10px;line-height:1}
+  .shb-band button:hover{background:rgba(255,255,255,.26)}
+  .shb-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:14px 0 10px}
+  .shb-bar .seg{margin-right:auto}
+  .shb-bar > input{flex:0 1 300px;min-width:0;height:38px}
+  .shb-bar > select{flex:0 0 150px;height:38px}
+  .shb-why{display:flex;align-items:center;gap:10px;margin:0 0 10px;padding:10px 12px;border-radius:12px;background:var(--hover,#f6f8fa);font-size:12.5px}
+  .shb-why span{white-space:nowrap;font-weight:600}
+  .shb-why input{flex:1;min-width:0;height:36px}
+  .shb-wrap{border:1px solid var(--line);border-radius:14px;max-height:52vh}
+  .shb-wrap th{position:sticky;top:0;z-index:1;background:var(--card)}
   .shb-wrap tr.on td{background:var(--brand-bg)}
   .shb-item{display:flex;gap:10px;align-items:center;text-align:left;white-space:normal;min-width:220px}
   .shb-item img,.shb-item .ph{width:34px;height:34px;border-radius:9px;object-fit:cover;flex:0 0 auto;background:var(--chip,#eef2f6)}
@@ -45346,7 +45352,9 @@ function renderShop() {
    * question somebody actually walks in with. */
   const pend = SO_ALL_ROWS.filter(soIsPending);
   /* THE BUCKET'S COUNT ON ITS BUTTON (2026-09-26). */
-  const bucket = shpBucket(), bucketMake = bucket.filter(x => x.kind === 'make');
+  /* ONLY THE ORDERS WAITING ON PRODUCTION are looked at here — the stock-covered half of the bucket is worked out when
+   * the bucket is opened, not on every draw of this tab (Ravi, 2026-09-26: "ye lagg ho rha h"). */
+  const bucketMake = shpBucketMake();
   const inBucket = new Set(bucketMake.map(x => x.id));
   if ($('soBucket')) $('soBucket').textContent = 'Production bucket' + (bucketMake.length ? ` (${nf(bucketMake.length)})` : '');
   SO_IN_BUCKET = inBucket;
@@ -46490,7 +46498,26 @@ function shpStockOf(o, sku) {
   } catch (e) { /* not known */ }
   return { fba, india };
 }
+let SHP_BUCKET_IX = { sig: null, list: null };
 function shpBucket() {
+  const sig = [SO_ALL_ROWS, (SO_ALL_ROWS || []).length, PTG.ob, (PTG.ob || []).length, SHOP_STOCK_LOADED, SHOP_INDIA_LOADED, SHOP_INDIA_ERR, SO_INDIA_TAKEN, SHOP_META];
+  if (SHP_BUCKET_IX.list && SHP_BUCKET_IX.sig.every((x, i) => x === sig[i])) return SHP_BUCKET_IX.list;
+  const list = shpBucketBuild();
+  SHP_BUCKET_IX = { sig, list };
+  return list;
+}
+/** The "needs production" half only, from the orders already routed to production — cheap enough for every draw. */
+function shpBucketMake() {
+  if (!SHOP_STOCK_LOADED || !SHOP_INDIA_LOADED || SHOP_INDIA_ERR) return [];
+  const opened = new Set((PTG.ob || []).filter(x => x && x.shopOrderId).map(x => String(x.shopOrderId) + '|' + obUC(x.sku)));
+  const out = [];
+  (SO_ALL_ROWS || []).forEach(o => {
+    if (!o || !o.id || o.cancelled || o.shipped || o.handled || !soIsPending(o)) return;
+    shpNeeds(o).forEach(w => { if (!opened.has(String(o.id) + '|' + w.sku)) out.push({ id: String(o.id), sku: w.sku, kind: 'make' }); });
+  });
+  return out;
+}
+function shpBucketBuild() {
   const out = [];
   if (!SHOP_STOCK_LOADED || !SHOP_INDIA_LOADED || SHOP_INDIA_ERR) return out;
   const opened = new Set((PTG.ob || []).filter(x => x && x.shopOrderId).map(x => String(x.shopOrderId) + '|' + obUC(x.sku)));
@@ -46673,13 +46700,13 @@ function shbRender() {
     const allOn = rows.length && rows.every(x => SHB.picked.has(x.key));
     head = `<th><input type="checkbox" data-shball="1"${allOn ? ' checked' : ''} title="Tick every line shown" style="width:auto"></th>`
       + '<th>Shopify order</th><th>SKU</th><th>Item</th><th class="num">Qty</th><th class="num">In FBA</th><th class="num">In India</th><th>Why</th>';
-    body = rows.slice(0, 600).map(x => `<tr${SHB.picked.has(x.key) ? ' class="on"' : ''}><td><input type="checkbox" data-shb="${esc(x.key)}"${SHB.picked.has(x.key) ? ' checked' : ''} style="width:auto"></td>`
+    body = rows.slice(0, 300).map(x => `<tr${SHB.picked.has(x.key) ? ' class="on"' : ''}><td><input type="checkbox" data-shb="${esc(x.key)}"${SHB.picked.has(x.key) ? ' checked' : ''} style="width:auto"></td>`
       + `<td style="text-align:left;white-space:nowrap"><b>${esc(x.o.no)}</b><div class="muted" style="font-size:11px">${esc(String(x.o.at || '').slice(0, 10))} · ${shbStore(x.o)}</div></td>`
       + `<td style="font-family:ui-monospace,monospace">${esc(x.sku)}${x.adj ? '<div class="muted" style="font-size:10.5px">' + esc(x.adj) + '</div>' : ''}</td>`
       + `<td>${itemCell(x.name, x.img, '')}</td><td class="num"><b>${nf(x.qty)}</b></td>`
       + `<td class="num shb-stock">${stockCell(x.fba, x.qty)}</td><td class="num shb-stock">${stockCell(x.india, x.qty)}</td>`
       + `<td style="text-align:left;white-space:normal;font-size:12px;min-width:200px" class="muted">${esc(x.why)}</td></tr>`).join('')
-      + (rows.length > 600 ? `<tr><td colspan="8" class="muted" style="padding:10px">Showing the first 600 of ${nf(rows.length)} — narrow it with the search, store or date, or use Excel.</td></tr>` : '');
+      + (rows.length > 300 ? `<tr><td colspan="8" class="muted" style="padding:10px">Showing the first 300 of ${nf(rows.length)} — narrow it with the search, store or date, or use Excel. Tick all ticks every line that matches, not only these.</td></tr>` : '');
   }
   $('shbTable').innerHTML = `<thead><tr>${head}</tr></thead><tbody>${body || `<tr><td colspan="8" class="muted" style="padding:16px">${SHB.tab === 'done' ? 'Nothing opened from the bucket today.' : 'Nothing here.'}</td></tr>`}</tbody>`;
   const picked = list.filter(x => SHB.picked.has(x.key));
@@ -46702,13 +46729,14 @@ function shpBucketOpen() {
         <div class="shb-n"><b>${nf(shbOpenedToday().length)}</b><span>opened today</span></div>
         <button type="button" id="shbXlOut">Download Excel</button><button type="button" id="shbXlIn">Upload filled Excel</button>
         <input id="shbXlFile" type="file" accept=".xlsx,.csv" style="display:none"></div>`,
-    html: `<div class="seg" role="tablist" style="display:flex;width:max-content;max-width:100%">
+    html: `<div class="shb-bar"><div class="seg" role="tablist">
         <button type="button" class="segbtn" data-shbtab="make"></button><button type="button" class="segbtn" data-shbtab="covered"></button><button type="button" class="segbtn" data-shbtab="done"></button></div>
-      <div class="shb-tools"><input id="shbQ" placeholder="Search order / SKU / item" value="${esc(SHB.q)}">
+        <input id="shbQ" placeholder="Search order / SKU / item" value="${esc(SHB.q)}">
         <select id="shbStore"><option value="">All stores</option><option value="Ridhi">Ridhi</option><option value="CPC">CPC</option></select>
         <select id="shbDate"><option value="">Any date</option><option value="today">Today</option><option value="d7">Last 7 days</option><option value="d30">Last 30 days</option><option value="older7">Older than 7 days</option></select>
-        <label id="shbWhyWrap" class="hide" style="flex:1 1 260px;display:flex;flex-direction:column;gap:4px;font-size:12px">Why make the stock-covered ones anyway
-          <input id="shbWhy" placeholder="e.g. India stock is not really there"></label></div>
+      </div>
+      <label id="shbWhyWrap" class="shb-why hide"><span>Why make these anyway</span>
+        <input id="shbWhy" placeholder="e.g. India stock is not really there — needed for every stock-covered line you tick"></label>
       <div class="xlwrap shb-wrap"><table class="xl" id="shbTable"></table></div>`,
     saveLabel: 'Open ticked production lines',
     onSave: async () => {
@@ -46728,7 +46756,8 @@ function shpBucketOpen() {
   if ($('shbXlOut')) $('shbXlOut').onclick = () => shpBucketXlOut();
   if ($('shbXlIn')) $('shbXlIn').onclick = () => $('shbXlFile').click();
   if ($('shbXlFile')) $('shbXlFile').onchange = e => { const f = e.target.files[0]; e.target.value = ''; shpBucketXlIn(f); };
-  if ($('shbQ')) $('shbQ').oninput = () => { SHB.q = $('shbQ').value; shbRender(); };
+  let shbT = null;
+  if ($('shbQ')) $('shbQ').oninput = () => { clearTimeout(shbT); shbT = setTimeout(() => { SHB.q = $('shbQ').value; shbRender(); }, 180); };
   if ($('shbStore')) $('shbStore').onchange = () => { SHB.store = $('shbStore').value; shbRender(); };
   if ($('shbDate')) $('shbDate').onchange = () => { SHB.date = $('shbDate').value; shbRender(); };
   document.querySelectorAll('[data-shbtab]').forEach(b => { b.onclick = () => { SHB.tab = b.getAttribute('data-shbtab'); shbRender(); }; });
