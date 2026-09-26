@@ -1707,6 +1707,7 @@ console.log('\n== THE PRODUCTION BUCKET (Ravi, 2026-09-26) ==');
   const need = b.find(x => x.sku === 'RCNBMIX'), cov = b.find(x => x.sku === 'RCNBRED');
   ok('…the line nothing can fill waits in the bucket', need && need.kind === 'make' && need.qty === 2, JSON.stringify(b.map(x => [x.sku, x.kind])));
   ok('…and the line India says it can fill is offered apart, to open anyway', cov && cov.kind === 'covered');
+  ok('…each line says what FBA and India hold for it', cov && cov.india === 5 && need && (need.fba === null || need.fba === 0), JSON.stringify(cov && { f: cov.fba, i: cov.india }));
   ok('the Shopify tab says so on the order, and counts it on the button', /In the production bucket/.test(els.soTable.innerHTML), '');
 
   ok('opening a stock-covered line needs a reason', /say why they have to be made anyway/.test(await A.shpBucketRun([cov.key], '')));

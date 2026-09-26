@@ -441,6 +441,20 @@
   .vo-band .vo-seg .segbtn{color:#fff;padding:9px 16px;font-size:13px}
   .vo-band .vo-seg .segbtn.on{background:#fff;color:var(--brand-ink)}
   .vo-ask{font-size:12px;color:rgba(255,255,255,.8);flex:0 0 100%}
+  /* THE PRODUCTION BUCKET, design 7 (Ravi, 2026-09-26): the vendor order's band, with the counts in it. */
+  .shb-band{display:flex;align-items:center;gap:22px;flex-wrap:wrap}
+  .shb-band .shb-t{font-size:22px;font-weight:800;flex:1;min-width:200px}
+  .shb-n{display:flex;flex-direction:column;align-items:flex-end;line-height:1.15}
+  .shb-n b{font-size:22px;font-weight:800} .shb-n span{font-size:12px;opacity:.8}
+  .shb-band button{background:rgba(255,255,255,.14);border-color:transparent;color:#fff}
+  .shb-band button:hover{background:rgba(255,255,255,.24)}
+  .shb-tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:14px 0 12px}
+  .shb-tools input{flex:0 1 340px;min-width:0} .shb-tools select{flex:0 0 160px}
+  .shb-wrap{border:1px solid var(--line);border-radius:14px;max-height:48vh}
+  .shb-wrap tr.on td{background:var(--brand-bg)}
+  .shb-item{display:flex;gap:10px;align-items:center;text-align:left;white-space:normal;min-width:220px}
+  .shb-item img,.shb-item .ph{width:34px;height:34px;border-radius:9px;object-fit:cover;flex:0 0 auto;background:var(--chip,#eef2f6)}
+  .shb-stock b{font-weight:800} .shb-stock .ok{color:#166534} .shb-stock .no{color:var(--bad)}
   .vo-entry{display:grid;grid-template-columns:1.7fr 1fr 1fr 1fr .8fr 1.1fr .8fr;gap:8px;align-items:end}
   .vo-entry.cut{grid-template-columns:2.4fr .9fr 1.1fr .8fr}
   .vo-entry2{display:flex;gap:8px;align-items:flex-end;margin-top:8px}
@@ -13426,6 +13440,7 @@ function ptOpenDialog(cfg) {
   // A report has nothing to save; offering the button would only invite a pointless click.
   $('ptDlgSave').classList.toggle('hide', !cfg.onSave);
   $('ptDlgSave').textContent = cfg.saveLabel || 'Save';
+  $('ptDlgSave').disabled = false;          // a screen that disabled it (the bucket, nothing ticked) must not leave it so
   /* Some screens have two ways forward, not one — save a draft or place it, approve it or send it
    * back. The second button behaves exactly like Save: a returned string refuses and is shown. */
   $('ptDlgAlt').classList.toggle('hide', !cfg.alt);
@@ -46279,6 +46294,17 @@ function shpCustomRec(w, sku, nowIso) {
  * Every Shopify line that needs making and has no production order yet — and, apart, every line the stock says it
  * can fill, for when the stock is not really there. Worked out from the fetched orders and the order book each time;
  * nothing is stored, so nothing can go stale or be counted twice. "Already open" is by Shopify order id and SKU. */
+/** What the stock holds for one line of one order: FBA (the account the order ships from) and India (on the shelf). */
+function shpStockOf(o, sku) {
+  let fba = null, india = null;
+  try { const k = String(soAmzSku(sku) || '').toUpperCase(); if (k) fba = soOrdFba(o, k); } catch (e) { /* not known */ }
+  try {
+    /* WHAT IS ON THE SHELF, not this order's share of it — "kitne h". The share is in the Why text. */
+    const ind = soIndiaOf(sku);
+    india = ind ? Number(ind[0]) || 0 : null;
+  } catch (e) { /* not known */ }
+  return { fba, india };
+}
 function shpBucket() {
   const out = [];
   if (!SHOP_STOCK_LOADED || !SHOP_INDIA_LOADED || SHOP_INDIA_ERR) return out;
@@ -46289,8 +46315,8 @@ function shpBucket() {
     const mine = new Set();
     shpNeeds(o).forEach(w => {
       mine.add(w.sku);
-      if (!isOpen(w.sku)) out.push({ o, id, key: id + '|' + w.sku, sku: w.sku, qty: w.qty, pcs: w.pcs, shopQty: w.shopQty, kind: 'make',
-        why: (w.why || []).join(' + '), name: w.name || '', img: w.img || '', adj: w.adjId || '' });
+      if (!isOpen(w.sku)) out.push(Object.assign({ o, id, key: id + '|' + w.sku, sku: w.sku, qty: w.qty, pcs: w.pcs, shopQty: w.shopQty, kind: 'make',
+        why: (w.why || []).join(' + '), name: w.name || '', img: w.img || '', adj: w.adjId || '' }, shpStockOf(o, w.sku)));
     });
     (o.items || []).forEach(i => {
       if (shpLineShipped(i)) return;
@@ -46302,8 +46328,8 @@ function shpBucket() {
       if (!(qty > 0)) return;
       const fit = soPackFit(sku), split = !!(fit && fit.ok);
       mine.add(sku);
-      out.push({ o, id, key: id + '|' + sku, sku, qty, pcs: split ? qty * fit.pack : qty * obPcsPerPack(sku), shopQty: split ? Math.round(qty / fit.factor) : qty,
-        kind: 'covered', why: st.label + ' — ' + st.why, name: String(i.name || '') + (i.variant ? ' · ' + i.variant : ''), img: i.img || i.image || '' });
+      out.push(Object.assign({ o, id, key: id + '|' + sku, sku, qty, pcs: split ? qty * fit.pack : qty * obPcsPerPack(sku), shopQty: split ? Math.round(qty / fit.factor) : qty,
+        kind: 'covered', why: st.label + ' — ' + st.why, name: String(i.name || '') + (i.variant ? ' · ' + i.variant : ''), img: i.img || i.image || '' }, shpStockOf(o, sku)));
     });
   });
   return out.sort((a, b) => String(a.o.at || '').localeCompare(String(b.o.at || '')) || a.key.localeCompare(b.key));
@@ -46359,11 +46385,11 @@ async function shpBucketRun(keys, reason) {
 let SHP_BUCKET_LAST = null;
 
 /* ================= THE BUCKET IN EXCEL ================= */
-const SHB_XL_COLS = ['Line ID', 'Section', 'Shopify order', 'Order date', 'Store', 'SKU', 'Item', 'Qty', 'Why', 'Open', 'Reason (stock-covered lines)'];
+const SHB_XL_COLS = ['Line ID', 'Section', 'Shopify order', 'Order date', 'Store', 'SKU', 'Item', 'Qty', 'In FBA', 'In India', 'Why', 'Open', 'Reason (stock-covered lines)'];
 function shpBucketSheetRows(list) {
   return [SHB_XL_COLS].concat((list || shpBucket()).map(x => [x.key, x.kind === 'make' ? 'Needs production' : 'Stock says it can fill',
     x.o.no || '', String(x.o.at || '').slice(0, 10), x.o.shopBrand === 'CPC' || /cpc/i.test(String(x.o.channel || '')) ? 'CPC' : 'Ridhi',
-    x.sku, x.name || '', x.qty, x.why || '', '', '']));
+    x.sku, x.name || '', x.qty, x.fba == null ? '' : x.fba, x.india == null ? '' : x.india, x.why || '', '', '']));
 }
 function shpBucketXlOut() {
   const rows = shpBucketSheetRows();
@@ -46423,38 +46449,88 @@ async function shpBucketXlIn(file) {
   } catch (e) { soMsg('Could not read the file: ' + (e.message || e), true); }
 }
 
-/** The bucket, on screen: tick what to open. */
+/** The bucket, on screen — design 7, the header band. SHB holds the tab, the filters and what is ticked. */
+let SHB = { tab: 'make', q: '', store: '', date: '', picked: new Set() };
+const shbStore = o => (o.shopBrand === 'CPC' || /cpc/i.test(String(o.channel || '')) ? 'CPC' : 'Ridhi');
+/** Lines opened from the bucket today, for the third tab. */
+function shbOpenedToday() {
+  const today = dToday();
+  const seen = new Set();
+  return (PTG.ob || []).filter(r => r && r.openedFrom === 'bucket' && ptIsoDate(r.openedAt) === today && !seen.has(r.id) && seen.add(r.id));
+}
+function shbRows(list) {
+  const q = SHB.q.trim().toLowerCase(), now = Date.now();
+  const days = { today: 1, d7: 7, d30: 30 }[SHB.date], older = SHB.date === 'older7';
+  return list.filter(x => (x.kind === SHB.tab)
+    && (!SHB.store || shbStore(x.o) === SHB.store)
+    && (!q || [x.o.no, x.sku, x.name, x.why].join(' ').toLowerCase().includes(q))
+    && (!SHB.date || (ms => !ms ? true : older ? now - ms > 7 * 864e5 : now - ms <= days * 864e5)(ptDtMs(x.o.at))));
+}
+function shbRender() {
+  const list = SHB.list || [];
+  const nMake = list.filter(x => x.kind === 'make').length, nCov = list.filter(x => x.kind === 'covered').length, done = shbOpenedToday();
+  document.querySelectorAll('[data-shbtab]').forEach(b => b.classList.toggle('on', b.getAttribute('data-shbtab') === SHB.tab));
+  const lab = { make: `Needs production · ${nf(nMake)}`, covered: `Stock says it can fill · ${nf(nCov)}`, done: `Opened today · ${nf(done.length)}` };
+  document.querySelectorAll('[data-shbtab]').forEach(b => { b.textContent = lab[b.getAttribute('data-shbtab')]; });
+  if ($('shbWhyWrap')) $('shbWhyWrap').classList.toggle('hide', SHB.tab !== 'covered');
+  const stockCell = (n, need) => n == null ? '<span class="muted">—</span>' : `<b class="${n >= need ? 'ok' : 'no'}">${nf(n)}</b>`;
+  const itemCell = (name, img, sub) => `<div class="shb-item">${img ? `<img src="${esc(img)}" alt="" loading="lazy">` : '<span class="ph"></span>'}<div><b>${esc(name || '—')}</b>${sub ? `<div class="muted" style="font-size:11px">${esc(sub)}</div>` : ''}</div></div>`;
+  let head, body;
+  if (SHB.tab === 'done') {
+    head = '<th>Shopify order</th><th>SKU</th><th>Item</th><th class="num">Qty</th><th>Opened by</th><th>Note</th>';
+    body = done.map(r => `<tr><td style="text-align:left"><b>${esc(r.shopOrderNo || r.orderNo)}</b><div class="muted" style="font-size:11px">${esc(r.orderNo)}</div></td>`
+      + `<td style="font-family:ui-monospace,monospace">${esc(r.sku)}</td><td>${itemCell([r.articleSubtype || r.articleType, r.color, r.size].filter(Boolean).join(' · '), r.shopImg, '')}</td>`
+      + `<td class="num"><b>${nf(r.qty)}</b></td><td>${esc(String(r.openedBy || '').split('@')[0])} <span class="muted">${esc(String(r.openedAt || '').slice(11, 16))}</span></td>`
+      + `<td style="text-align:left;font-size:12px;white-space:normal">${r.forced ? '<span class="pill pill-low">opened anyway</span> ' + esc(r.forcedWhy || '') : ''}</td></tr>`).join('');
+  } else {
+    const rows = shbRows(list);
+    SHB.shown = rows;
+    const allOn = rows.length && rows.every(x => SHB.picked.has(x.key));
+    head = `<th><input type="checkbox" data-shball="1"${allOn ? ' checked' : ''} title="Tick every line shown" style="width:auto"></th>`
+      + '<th>Shopify order</th><th>SKU</th><th>Item</th><th class="num">Qty</th><th class="num">In FBA</th><th class="num">In India</th><th>Why</th>';
+    body = rows.slice(0, 600).map(x => `<tr${SHB.picked.has(x.key) ? ' class="on"' : ''}><td><input type="checkbox" data-shb="${esc(x.key)}"${SHB.picked.has(x.key) ? ' checked' : ''} style="width:auto"></td>`
+      + `<td style="text-align:left;white-space:nowrap"><b>${esc(x.o.no)}</b><div class="muted" style="font-size:11px">${esc(String(x.o.at || '').slice(0, 10))} · ${shbStore(x.o)}</div></td>`
+      + `<td style="font-family:ui-monospace,monospace">${esc(x.sku)}${x.adj ? '<div class="muted" style="font-size:10.5px">' + esc(x.adj) + '</div>' : ''}</td>`
+      + `<td>${itemCell(x.name, x.img, '')}</td><td class="num"><b>${nf(x.qty)}</b></td>`
+      + `<td class="num shb-stock">${stockCell(x.fba, x.qty)}</td><td class="num shb-stock">${stockCell(x.india, x.qty)}</td>`
+      + `<td style="text-align:left;white-space:normal;font-size:12px;min-width:200px" class="muted">${esc(x.why)}</td></tr>`).join('')
+      + (rows.length > 600 ? `<tr><td colspan="8" class="muted" style="padding:10px">Showing the first 600 of ${nf(rows.length)} — narrow it with the search, store or date, or use Excel.</td></tr>` : '');
+  }
+  $('shbTable').innerHTML = `<thead><tr>${head}</tr></thead><tbody>${body || `<tr><td colspan="8" class="muted" style="padding:16px">${SHB.tab === 'done' ? 'Nothing opened from the bucket today.' : 'Nothing here.'}</td></tr>`}</tbody>`;
+  const picked = list.filter(x => SHB.picked.has(x.key));
+  const pcs = picked.reduce((t, x) => t + (Number(x.qty) || 0), 0), cov = picked.filter(x => x.kind === 'covered').length;
+  if ($('ptDlgFootL')) $('ptDlgFootL').innerHTML = `<span class="vo-tot"><b>${nf(picked.length)} ticked</b> · ${nf(pcs)} pcs${cov ? ` · ${nf(cov)} stock-covered (reason needed)` : ''} · a line already open is skipped, never opened twice</span>`;
+  if ($('ptDlgSave')) { $('ptDlgSave').textContent = picked.length ? `Open ${nf(picked.length)} production line${picked.length === 1 ? '' : 's'}` : 'Open ticked production lines'; $('ptDlgSave').disabled = !picked.length; }
+}
 function shpBucketOpen() {
   if (!SHOP_STOCK_LOADED || !SHOP_INDIA_LOADED || SHOP_INDIA_ERR) { soMsg('Stock has not been read yet — press Fetch orders, then open the bucket.', true); return; }
-  const list = shpBucket(), make = list.filter(x => x.kind === 'make'), cov = list.filter(x => x.kind === 'covered');
-  const row = x => `<tr><td><input type="checkbox" data-shb="${esc(x.key)}" data-shbk="${x.kind}"></td>`
-    + `<td style="white-space:nowrap"><b>${esc(x.o.no)}</b><div class="muted" style="font-size:10.5px">${esc(String(x.o.at || '').slice(0, 10))}${x.o.shopBrand === 'CPC' || /cpc/i.test(String(x.o.channel || '')) ? ' · CPC' : ''}</div></td>`
-    + `<td style="font-family:ui-monospace,monospace;text-align:left">${esc(x.sku)}${x.adj ? '<div class="muted" style="font-size:10.5px">' + esc(x.adj) + '</div>' : ''}</td>`
-    + `<td style="text-align:left;white-space:normal;min-width:180px">${esc(x.name)}</td><td class="num"><b>${nf(x.qty)}</b></td>`
-    + `<td style="text-align:left;white-space:normal;font-size:11.5px;min-width:220px">${esc(x.why)}</td></tr>`;
-  const table = (rows, kind, title, sub) => `<div style="margin:10px 0 4px;font-weight:700">${title} <span class="muted" style="font-weight:400">(${nf(rows.length)})</span></div>`
-    + (sub ? `<div class="muted" style="font-size:12px;margin-bottom:4px">${sub}</div>` : '')
-    + (rows.length ? `<div class="xlwrap" style="max-height:34vh;border:1px solid var(--line);border-radius:10px"><table class="xl"><thead><tr>`
-      + `<th><input type="checkbox" data-shball="${kind}" title="Tick all"></th><th>Shopify order</th><th>SKU</th><th>Item</th><th class="num">Qty</th><th>Why</th></tr></thead><tbody>`
-      + rows.map(row).join('') + '</tbody></table></div>' : '<div class="muted" style="padding:6px 2px">Nothing here.</div>');
+  const list = shpBucket();
+  SHB = Object.assign(SHB, { list, picked: new Set([...SHB.picked].filter(k => list.some(x => x.key === k))) });
+  const nMake = list.filter(x => x.kind === 'make').length, nCov = list.filter(x => x.kind === 'covered').length;
   ptOpenDialog({
-    title: 'Production bucket',
-    subtitle: `${nf(make.length)} line(s) need production · ${nf(new Set(make.map(x => x.id)).size)} order(s)`,
+    title: 'Shopify → production',
     wide: true,
-    note: 'Nothing opens by itself any more. Tick the lines to make and press Open — each is checked against the order book first, '
-      + 'so a line already open is skipped, never opened twice. An opened order shows its production status on this tab.',
-    html: '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:6px"><button type="button" id="shbXlOut" class="ghost">Download Excel</button>'
-      + '<button type="button" id="shbXlIn" class="ghost">Upload filled Excel</button><input id="shbXlFile" type="file" accept=".xlsx,.csv" style="display:none">'
-      + '<span class="muted" style="font-size:12px">Download, put <b>yes</b> in "Open" (and a reason for stock-covered lines), upload — no ticking one by one.</span></div>'
-      + table(make, 'make', 'Needs production', 'Neither Amazon nor India stock can fill these.')
-      + table(cov, 'covered', 'Stock says it can fill — open anyway', 'Tick only when the stock is not really there. A reason is needed.')
-      + '<label style="display:block;margin-top:10px">Why make the stock-covered ones anyway<input id="shbWhy" type="text" placeholder="e.g. India stock is not really there"></label>',
-    saveLabel: 'Open ticked production orders',
+    boxClass: 'vo-band',
+    titleExtra: `<div class="shb-band"><span class="shb-t">Production bucket</span>
+        <div class="shb-n"><b>${nf(nMake)}</b><span>need production</span></div>
+        <div class="shb-n"><b>${nf(nCov)}</b><span>stock says it can fill</span></div>
+        <div class="shb-n"><b>${nf(shbOpenedToday().length)}</b><span>opened today</span></div>
+        <button type="button" id="shbXlOut">Download Excel</button><button type="button" id="shbXlIn">Upload filled Excel</button>
+        <input id="shbXlFile" type="file" accept=".xlsx,.csv" style="display:none"></div>`,
+    html: `<div class="seg" role="tablist" style="display:flex;width:max-content;max-width:100%">
+        <button type="button" class="segbtn" data-shbtab="make"></button><button type="button" class="segbtn" data-shbtab="covered"></button><button type="button" class="segbtn" data-shbtab="done"></button></div>
+      <div class="shb-tools"><input id="shbQ" placeholder="Search order / SKU / item" value="${esc(SHB.q)}">
+        <select id="shbStore"><option value="">All stores</option><option value="Ridhi">Ridhi</option><option value="CPC">CPC</option></select>
+        <select id="shbDate"><option value="">Any date</option><option value="today">Today</option><option value="d7">Last 7 days</option><option value="d30">Last 30 days</option><option value="older7">Older than 7 days</option></select>
+        <label id="shbWhyWrap" class="hide" style="flex:1 1 260px;display:flex;flex-direction:column;gap:4px;font-size:12px">Why make the stock-covered ones anyway
+          <input id="shbWhy" placeholder="e.g. India stock is not really there"></label></div>
+      <div class="xlwrap shb-wrap"><table class="xl" id="shbTable"></table></div>`,
+    saveLabel: 'Open ticked production lines',
     onSave: async () => {
-      const box = $('ptDlgBody');
-      const keys = box && box.querySelectorAll ? [...box.querySelectorAll('[data-shb]')].filter(c => c.checked).map(c => c.getAttribute('data-shb')) : [];
+      const keys = [...SHB.picked];
       const err = await shpBucketRun(keys, ($('shbWhy') || {}).value);
       if (err) return err;
+      SHB.picked = new Set();
       const L = SHP_BUCKET_LAST || {};
       soMsg(`Opened ${nf(L.lines || 0)} production line(s) · ${nf(L.pcs || 0)} piece(s) across ${nf(L.orders || 0)} Shopify order(s) — they are in the Order Console.`
         + ((L.skipped || []).length ? ' Skipped: ' + L.skipped.join(' · ') : ''));
@@ -46462,14 +46538,22 @@ function shpBucketOpen() {
       return '';
     },
   });
+  if ($('shbStore')) $('shbStore').value = SHB.store;
+  if ($('shbDate')) $('shbDate').value = SHB.date;
   if ($('shbXlOut')) $('shbXlOut').onclick = () => shpBucketXlOut();
   if ($('shbXlIn')) $('shbXlIn').onclick = () => $('shbXlFile').click();
   if ($('shbXlFile')) $('shbXlFile').onchange = e => { const f = e.target.files[0]; e.target.value = ''; shpBucketXlIn(f); };
-  const box = $('ptDlgBody');
-  if (box && box.addEventListener) box.addEventListener('change', e => {
-    const all = e.target && e.target.getAttribute && e.target.getAttribute('data-shball');
-    if (all) box.querySelectorAll('[data-shbk="' + all + '"]').forEach(c => { c.checked = e.target.checked; });
-  });
+  if ($('shbQ')) $('shbQ').oninput = () => { SHB.q = $('shbQ').value; shbRender(); };
+  if ($('shbStore')) $('shbStore').onchange = () => { SHB.store = $('shbStore').value; shbRender(); };
+  if ($('shbDate')) $('shbDate').onchange = () => { SHB.date = $('shbDate').value; shbRender(); };
+  document.querySelectorAll('[data-shbtab]').forEach(b => { b.onclick = () => { SHB.tab = b.getAttribute('data-shbtab'); shbRender(); }; });
+  $('shbTable').onchange = e => {
+    const t = e.target;
+    if (t.getAttribute('data-shball')) { (SHB.shown || []).forEach(x => { if (t.checked) SHB.picked.add(x.key); else SHB.picked.delete(x.key); }); }
+    else if (t.getAttribute('data-shb')) { const k = t.getAttribute('data-shb'); if (t.checked) SHB.picked.add(k); else SHB.picked.delete(k); }
+    shbRender();
+  };
+  shbRender();
 }
 
 /** Where each Shopify order's production is, for the Shopify team: one index per version of the order book. */
