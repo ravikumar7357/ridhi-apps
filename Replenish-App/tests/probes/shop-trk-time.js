@@ -23,6 +23,7 @@ const getJson = (url, headers) => new Promise((res, rej) => { const go = (u, n) 
     u.searchParams.set('start', start); u.searchParams.set('end', new Date().toISOString().slice(0, 10)); u.searchParams.set('open', '0');
     const t0 = Date.now(); const d = await getJson(u.toString(), {});
     const os = d.orders || []; n += os.length; found += os.filter(o => ids.has(String(o.id))).length;
+    const mine = os.filter(o => ids.has(String(o.id))); console.log('  book orders here by Shopify state:', JSON.stringify(mine.reduce((m, o) => { const k = o.cancelledAt ? 'cancelled' : o.ff; m[k] = (m[k] || 0) + 1; return m; }, {})), 'with tracking', mine.filter(o => (o.trk || []).length).length);
     console.log((shop || 'Ridhi') + ': ' + os.length + ' orders in ' + ((Date.now() - t0) / 1000).toFixed(1) + ' s, more=' + d.more + (d.error ? ' ERR ' + d.error : ''),
       'fulfilled', os.filter(o => o.ff === 'fulfilled').length, 'with tracking', os.filter(o => (o.trk || []).length).length);
   }
