@@ -126,6 +126,8 @@ function doGet(e) {
     if (p.daily === 'recent')  return json_(dailyRecent_(p.days));
     // Product photos for the deal planner, 20 ASINs a call.
     if (p.imgs)                { setBrand_(p.brand); return json_(lhImages_(p.imgs)); }
+    // Parent ASIN per child ASIN, 20 a call — the Master Database fills its Parent ASIN column from this.
+    if (p.parents)             { setBrand_(p.brand); return json_(catParents_(p.parents)); }
     // Shopify daily totals on demand (the dashboard's own refresh; the nightly run does this too).
     if (p.shopify === 'daily') return json_(shopifyDaily_(p.start, p.end));
     // Individual Shopify orders, for the tab that decides what ships and how.
@@ -6775,6 +6777,38 @@ function lhImages_(asinsCsv) {
     noImage: asins.filter(function (x) { return returned[x] && !out[x]; }),
     notFound: asins.filter(function (x) { return !returned[x]; }),
     missing: asins.filter(function (x) { return !out[x]; }),
+  };
+}
+
+/**
+ * PARENT ASIN per ASIN, up to 20 at a time, straight from Amazon's catalogue (relationships only, so the answer is small).
+ * Three answers kept apart, because they mean different things to whoever fills the master:
+ *   parents[asin]  = the variation parent;
+ *   single         = Amazon knows the ASIN and it has no parent (a stand-alone listing, or itself a parent);
+ *   notFound       = Amazon returned nothing for it under these credentials.
+ */
+function catParents_(asinsCsv) {
+  var asins = String(asinsCsv || '').split(',').map(function (s) { return s.trim().toUpperCase(); })
+    .filter(function (s) { return /^[A-Z0-9]{10}$/.test(s); }).slice(0, 20);
+  if (!asins.length) return { ok: false, error: 'no valid ASINs in the request' };
+  var r;
+  try {
+    r = spRetry_('/catalog/2022-04-01/items?marketplaceIds=' + marketplaceId_() +
+      '&identifiers=' + asins.join(',') + '&identifiersType=ASIN&includedData=relationships', 'get');
+  } catch (e) { return { ok: false, error: String(e.message || e).slice(0, 300) }; }
+  var parents = {}, seen = {};
+  (r.items || []).forEach(function (it) {
+    seen[it.asin] = 1;
+    (it.relationships || []).forEach(function (block) {
+      (block.relationships || []).forEach(function (rel) {
+        if (!parents[it.asin] && rel && rel.parentAsins && rel.parentAsins.length) parents[it.asin] = rel.parentAsins[0];
+      });
+    });
+  });
+  return {
+    ok: true, parents: parents,
+    single: asins.filter(function (x) { return seen[x] && !parents[x]; }),
+    notFound: asins.filter(function (x) { return !seen[x]; }),
   };
 }
 

@@ -2358,6 +2358,7 @@
           <button id="ptmRecSeed" class="hide ghost" title="Fill the recipes in from what the SKUs already say — only where every SKU that has said anything agrees. You are shown what would be written first.">Seed from the SKUs</button>
           <button id="ptmRecApply" class="hide" title="Write the recipes onto the SKUs. You are shown what would change first.">Apply recipes</button>
           <button id="ptmNew">+ New SKU</button>
+          <button id="ptmAsin" class="ghost" title="Fill blank ASIN and Parent ASIN from Amazon — its listings report, then its catalogue for the parents. You are shown what would be written first.">ASIN from Amazon</button>
           <button id="ptmImgs" class="ghost" title="Ask Amazon again for the SKUs on screen. They are fetched automatically and remembered, so this is only for a picture that has changed.">Refresh pictures</button>
           <button id="ptmClear" class="ghost">Clear</button>
           <button id="ptmTemplate" class="ghost" title="Every column Import reads, as an Excel sheet with dropdowns.">Template</button>
@@ -2379,6 +2380,16 @@
         <div id="ptmImpBox" class="hide" style="margin-top:8px">
           <button id="ptmImpGo">Apply the import</button>
           <button id="ptmImpCancel" class="ghost">Cancel</button>
+        </div>
+        <!-- ASIN FROM AMAZON: what it found and what it would write, before it writes. -->
+        <div id="ptmAsinBox" class="hide card" style="margin-top:10px;padding:12px 14px;font-size:12.5px">
+          <div id="ptmAsinSum"></div>
+          <label id="ptmAsinFixWrap" class="hide" style="display:flex;gap:8px;align-items:center;margin-top:8px"><input type="checkbox" id="ptmAsinFix"><span id="ptmAsinFixTxt"></span></label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+            <button id="ptmAsinGo">Write to the master</button>
+            <button id="ptmAsinNot" class="ghost">Download: not on Amazon</button>
+            <button id="ptmAsinCancel" class="ghost">Cancel</button>
+          </div>
         </div>
         <div id="ptmKpis" class="kpis" style="margin-top:10px"></div>
       </div>
@@ -9659,7 +9670,7 @@ function pmdbApply(rows, f, skip) {
     if (skip !== 'cut' && f.cut === 'y' && !r.cuttingRequired) return false;
     if (skip !== 'cut' && f.cut === 'n' && r.cuttingRequired) return false;
     if (skip !== 'q' && f.q) {
-      const hay = [r.sku, r.articleType, r.subtype, r.color, r.size, r.fabric, r.brand].join(' ').toLowerCase();
+      const hay = [r.sku, r.articleType, r.subtype, r.color, r.size, r.fabric, r.brand, r.asin, r.parentAsin].join(' ').toLowerCase();
       if (!hay.includes(f.q)) return false;
     }
     return true;
@@ -9799,7 +9810,7 @@ async function mdbConsApply() {
  */
 const PMDB_TOOLS = {
   master: ['ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut', 'ptmQ',
-    'ptmNew', 'ptmImgs', 'ptmClear', 'ptmTemplate', 'ptmTplShort', 'ptmImport', 'ptmRename', 'ptmExport', 'ptmGo'],
+    'ptmNew', 'ptmAsin', 'ptmImgs', 'ptmClear', 'ptmTemplate', 'ptmTplShort', 'ptmImport', 'ptmRename', 'ptmExport', 'ptmGo'],
   /* A one-off item never amends the real catalogue, so Change SKU — which rewrites a code across
    * every register — is not offered from here. */
   custom: ['ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut', 'ptmQ',
@@ -9815,12 +9826,12 @@ const PMDB_TOOLS = {
   skucode: ['ptmArt', 'ptmSub', 'ptmSz', 'ptmQ', 'ptmClear', 'ptmTemplate', 'ptmImport', 'ptmExport', 'ptmGo'],
 };
 /** The ones that write, so they are shown only to somebody who may. */
-const PMDB_WRITES = ['ptmNew', 'ptmImport', 'ptmRename', 'ptmConsApply', 'ptmRecSeed', 'ptmRecApply'];
+const PMDB_WRITES = ['ptmNew', 'ptmAsin', 'ptmImport', 'ptmRename', 'ptmConsApply', 'ptmRecSeed', 'ptmRecApply'];
 /* NAMED OUTRIGHT, not gathered from the lists above. Derived from them, a control dropped from
  * every view fell out of this set and so was never hidden — it stayed wherever the last view left
  * it, which is the very thing this function exists to stop. */
 const PMDB_ALL = ['ptmTplShort', 'ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut', 'ptmQ',
-  'ptmBrandFs', 'ptmDir', 'ptmConsApply', 'ptmRecSeed', 'ptmRecApply', 'ptmNew', 'ptmImgs',
+  'ptmBrandFs', 'ptmDir', 'ptmConsApply', 'ptmRecSeed', 'ptmRecApply', 'ptmNew', 'ptmAsin', 'ptmImgs',
   'ptmClear', 'ptmTemplate', 'ptmImport', 'ptmRename', 'ptmExport', 'ptmGo'];
 
 function pmdbTools(view) {
@@ -9881,11 +9892,13 @@ function renderPmdb() {
       <div class="metric"><div class="v">${nf(cnt(r => r.isRuffle))}</div><div class="l">Ruffle</div></div>
       ${(n => n ? `<div class="metric" title="Ruffle SKUs whose metres are neither on the SKU nor in its recipe — fill Ruffle metres and fabric in the Recipe for that article · subtype · size"><div class="v" style="color:var(--bad)">${nf(n)}</div><div class="l">Ruffle, no metres</div></div>` : '')(cnt(r => r.isRuffle && !ptRuffleOf(r)))}
       <div class="metric"><div class="v">${nf(cnt(r => r.fillerFabricRequired))}</div><div class="l">Needs filler</div></div>
+      ${(n => `<div class="metric" title="SKUs with no ASIN yet. ASIN from Amazon fills the ones Amazon lists; the rest are not on Amazon."><div class="v"${n ? ' style="color:var(--bad)"' : ''}>${nf(n)}</div><div class="l">No ASIN</div></div>`)(cnt(r => !String(r.asin || '').trim()))}
     </div></div>`;
 
   const yn = v => v ? '<span class="pill pill-ok">Yes</span>' : '<span class="muted">—</span>';
-  const head = '<thead><tr>' + ['SKU', 'Image', 'Brand', 'Article', 'Subtype', 'Color', 'Size', 'Fabric', 'Consumption', 'Pack of', 'Cutting', 'Zip', 'Ruffle', 'Piping', 'Filler', 'Edit']
-    .map((h, i) => `<th${i === 0 ? ' class="frz"' : (i === 8 || i === 9 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
+  const head = '<thead><tr>' + ['SKU', 'Image', 'ASIN', 'Parent ASIN', 'Brand', 'Article', 'Subtype', 'Color', 'Size', 'Fabric', 'Consumption', 'Pack of', 'Cutting', 'Zip', 'Ruffle', 'Piping', 'Filler', 'Edit']
+    .map((h, i) => `<th${i === 0 ? ' class="frz"' : (i === 10 || i === 11 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
+  const asinCell = v => String(v || '').trim() ? `<td style="font-family:ui-monospace,monospace">${esc(v)}</td>` : '<td><span class="muted">—</span></td>';
   const zipCell = r => !r.isZip ? '<span class="muted">—</span>'
     : `<span class="pill pill-ok">Yes</span><div class="muted" style="font-size:11px;margin-top:2px">${nf(mdbZipQty(r))} × ${esc(r.chainLength == null ? '?' : r.chainLength)}"</div>`;
   const pipCell = r => !r.isPiping ? '<span class="muted">—</span>'
@@ -9903,6 +9916,7 @@ function renderPmdb() {
   const body = rows.slice(0, PMDB_MAX).map(r => '<tr>'
     + `<td class="frz" style="font-family:ui-monospace,monospace;text-align:left">${esc(r.sku)}</td>`
     + ptImgCell(r.sku, 44)
+    + asinCell(r.asin) + asinCell(r.parentAsin)
     + `<td>${esc(r.brand)}</td><td>${esc(r.articleType)}</td><td>${esc(r.subtype)}</td>`
     + `<td>${esc(r.color)}</td><td>${esc(r.size)}</td><td>${esc(r.fabric)}</td>`
     + `<td class="num">${mdbM2Txt(r.consumption) === '' ? '<span class="muted">—</span>' : esc(mdbM2Txt(r.consumption))}</td>`
@@ -10753,7 +10767,7 @@ $('ptmExport').onclick = () => {
   const rows = PT._pmdbRows || []; if (!rows.length) return;
   const lines = [['SKU', 'Brand', 'Article', 'Subtype', 'Color', 'Size', 'Fabric', 'Consumption', 'Pack of',
     'Cutting required', 'Zip', 'Zips per piece', 'Zip size', 'Ruffle', 'Ruffle metres', 'Ruffle fabric', 'Piping dori', 'Piping dori metres',
-    'Filler fabric', 'Filling qty', 'Valuation price', 'Image'].map(csvCell).join(',')];
+    'Filler fabric', 'Filling qty', 'Valuation price', 'Image', 'ASIN', 'Parent ASIN'].map(csvCell).join(',')];
   const b = v => v ? 'Yes' : 'No';
   rows.forEach(r => lines.push([r.sku, r.brand, r.articleType, r.subtype, r.color, r.size, r.fabric,
     mdbM2(r.consumption), r.packOf, b(r.cuttingRequired),
@@ -10761,7 +10775,8 @@ $('ptmExport').onclick = () => {
     b(r.isRuffle), r.isRuffle ? r.ruffleMeters : '', r.isRuffle ? r.ruffleFabric : '',
     b(r.isPiping), r.isPiping ? r.pipingMeters : '',
     b(r.fillerFabricRequired), r.fillerFabricRequired && r.standardFillingQty != null ? r.standardFillingQty : '',
-    r.inventoryValuationPrice == null ? '' : r.inventoryValuationPrice, r.imageUrl || MDBIMG.map[obUC(r.sku)] || '']
+    r.inventoryValuationPrice == null ? '' : r.inventoryValuationPrice, r.imageUrl || MDBIMG.map[obUC(r.sku)] || '',
+    r.asin || '', r.parentAsin || '']
     .map(csvCell).join(',')));
   ptDownload('master-database', lines);
 };
@@ -14452,6 +14467,9 @@ function mdbRecord(v, isCustom) {
     standardFillingQty: v.fillerFabricRequired === 'yes' ? mdbNum(v.standardFillingQty) : null,
     inventoryValuationPrice: mdbNum(v.inventoryValuationPrice),
     imageUrl: String(v.imageUrl || '').trim(),
+    /* AMAZON'S IDS (Ravi, 2026-09-26). An edit and an import both write the WHOLE record, so a field left out of
+     * here is a field every edit wipes. */
+    asin: obUC(v.asin), parentAsin: obUC(v.parentAsin),
     isCustom: !!isCustom,
   };
 }
@@ -14463,6 +14481,8 @@ function mdbValidate(v, existingSku) {
   if (!String(v.subtype || '').trim()) return 'Article subtype is required.';
   if (!String(v.color || '').trim()) return 'Colour is required.';
   if (!String(v.size || '').trim()) return 'Size is required.';
+  if (String(v.asin || '').trim() && !MDB_ASIN_RE.test(obUC(v.asin))) return `ASIN "${String(v.asin).trim()}" is not an ASIN — ten letters and digits, like B0CHW5KTPB.`;
+  if (String(v.parentAsin || '').trim() && !MDB_ASIN_RE.test(obUC(v.parentAsin))) return `Parent ASIN "${String(v.parentAsin).trim()}" is not an ASIN — ten letters and digits.`;
   if (obUC(v.sku) !== obUC(existingSku || '') && (PTG.mdb || []).some(r => obUC(r.sku) === obUC(v.sku)))
     return `SKU "${obUC(v.sku)}" is already in the master database.`;
   if (v.isZip === 'yes' && !(mdbNum(v.chainLength) > 0)) return 'Zip size (chain length) is required when zip is Yes.';
@@ -14492,6 +14512,8 @@ function mdbFields(r) {
   return [
     { key: 'sku', label: 'SKU', value: m('sku', '') },
     { key: 'brand', label: 'Brand', value: m('brand', '') },
+    { key: 'asin', label: 'ASIN', value: m('asin', '') },
+    { key: 'parentAsin', label: 'Parent ASIN', value: m('parentAsin', '') },
     { key: 'articleType', label: 'Article type', type: 'select', value: m('articleType', ''),
       options: [''].concat(listOr('articleType', m('articleType', ''))) },
     { key: 'subtype', label: 'Article subtype', type: 'select', value: m('subtype', ''),
@@ -14803,7 +14825,7 @@ $('ptmImgs').onclick = () => mdbImgFill(true);
 
 const MDB_IMPORT_COLS = ['SKU', 'Brand', 'Article', 'Subtype', 'Color', 'Size', 'Fabric', 'Consumption',
   'Pack of', 'Cutting required', 'Zip', 'Zips per piece', 'Zip size', 'Ruffle', 'Ruffle metres',
-  'Ruffle fabric', 'Piping dori', 'Piping dori metres', 'Filler fabric', 'Filling qty', 'Valuation price', 'Image'];
+  'Ruffle fabric', 'Piping dori', 'Piping dori metres', 'Filler fabric', 'Filling qty', 'Valuation price', 'Image', 'ASIN', 'Parent ASIN'];
 
 /** The recipe template: every combination, its recipe so far, and what its SKUs say. */
 function recipeTemplateDownload() {
@@ -14880,7 +14902,7 @@ $('ptmTemplate').onclick = () => {
   if (($('ptmView') || {}).value === 'skucode') return ptDownload('sku-base-codes-template', [SKC_COLS, ['Tablecloth', 'Square Tablecloth', '60x60', 'RTC-6060'],
     ['Home and Kitchen', 'Apron', 'Free', 'RKA-']].map(r => r.map(csvCell).join(',')));
   const ex = ['RPC123-1818', 'Ridhi', 'Pillow Cover', 'Piping Pillow Cover', 'Indigo Blue', '18X18',
-    'Sheeting 82', 0.28, '2', 'Yes', 'Yes', 1, 18, 'No', '', '', 'Yes', 2.1, 'No', '', '', ''];
+    'Sheeting 82', 0.28, '2', 'Yes', 'Yes', 1, 18, 'No', '', '', 'Yes', 2.1, 'No', '', '', '', '', ''];
   /* AN EXCEL SHEET, with Yes/No and the cloth as dropdowns, so a spelling nobody agreed to cannot be
    * typed into it. Import reads .xlsx and .csv alike. */
   const ix = h => MDB_IMPORT_COLS.indexOf(h);
@@ -14893,6 +14915,196 @@ $('ptmTemplate').onclick = () => {
   $('ptmMsg').className = 'muted';
   $('ptmMsg').textContent = 'Template written. Fill a row per SKU and upload it with Import — the columns are the ones Import reads, '
     + 'and a SKU already in the master is updated rather than added.';
+};
+
+/* ============ ASIN FROM AMAZON ============
+ * Where each id comes from, in order of trust:
+ *   ASIN   — Amazon's full listings report (pt_amzListings: both brands, every status, one ASIN per SKU, rebuilt daily);
+ *            else the Replenishment snapshot (older — on 26 Sep 57 SKUs there still carried a replaced ASIN).
+ *   Parent — the snapshot's parent, but ONLY when the snapshot's ASIN is the same one; otherwise Amazon's catalogue is
+ *            asked (Pricing-API ?parents=, 20 ASINs a call). Amazon answering "no parent" means a stand-alone listing.
+ * Blanks are filled. An id that is already there and differs from Amazon is only changed when the box is ticked. */
+const MDB_ASIN_RE = /^[A-Z0-9]{10}$/;
+let MDB_ASIN = null;     // the plan on screen, waiting for Write
+
+/** SKU → { asin, parent } from the saved Replenishment snapshot (the full one carries both). */
+async function mdbAsinRepl() {
+  const m = new Map(); let err = '';
+  const take = rows => (rows || []).forEach(r => {
+    const k = obUC(r && r.sku); if (!k) return;
+    const e = m.get(k) || {};
+    const a = obUC(r.asin), p = obUC(r.parent);
+    if (MDB_ASIN_RE.test(a) && !e.asin) e.asin = a;
+    if (MDB_ASIN_RE.test(p) && !e.parent) e.parent = p;
+    m.set(k, e);
+  });
+  if (['SP', 'CPC'].some(b => REPL[b] && (REPL[b].rows || []).some(r => r && r.asin))) {
+    ['SP', 'CPC'].forEach(b => take((REPL[b] || {}).rows));
+    return { m, err };
+  }
+  await Promise.all(['SP', 'CPC'].map(async b => {
+    try {
+      const meta = await getDoc(doc(db, 'repl', b));
+      if (!meta.exists()) return;
+      const d = meta.data();
+      if (d.chunks) {
+        const got = await Promise.all(Array.from({ length: d.chunks }, (_, i) => getDoc(doc(db, 'replrows', `${b}_${i}`))));
+        got.forEach(x => { if (x.exists()) take(x.data().r); });
+      } else take(d.rows);
+    } catch (e) { err = e.message || String(e); }
+  }));
+  return { m, err };
+}
+
+/** Parent ASIN per ASIN from Amazon's catalogue. { parents: Map, single: Set, notFound: Set, err }. */
+async function mdbAsinAskParents(asins, progress) {
+  const out = { parents: new Map(), single: new Set(), notFound: new Set(), err: '' };
+  if (!asins.length) return out;
+  if (!PRAPI || !PRAPI.url) { out.err = 'this account cannot reach the Amazon backend'; return out; }
+  const chunks = [];
+  for (let i = 0; i < asins.length; i += 20) chunks.push(asins.slice(i, i + 20));
+  let next = 0, done = 0;
+  const worker = async () => {
+    while (next < chunks.length && !out.err) {
+      const c = chunks[next++];
+      try {
+        const d = await prGet({ parents: c.join(',') });
+        if (!d.parents) throw new Error('the backend does not know this request yet (it needs the latest Pricing-API)');
+        Object.entries(d.parents).forEach(([a, p]) => { if (MDB_ASIN_RE.test(obUC(p))) out.parents.set(obUC(a), obUC(p)); });
+        (d.single || []).forEach(a => out.single.add(obUC(a)));
+        (d.notFound || []).forEach(a => out.notFound.add(obUC(a)));
+      } catch (e) { out.err = e.message || String(e); }
+      done++;
+      if (progress) progress(done, chunks.length);
+    }
+  };
+  await Promise.all([worker(), worker(), worker(), worker()]);
+  return out;
+}
+
+async function mdbAsinCheck() {
+  if (!mdbCanEdit()) { $('ptmMsg').className = 'err'; $('ptmMsg').textContent = MDB_NO_EDIT; return; }
+  const btn = $('ptmAsin'); btn.disabled = true;
+  const say = t => { $('ptmMsg').className = 'muted'; $('ptmMsg').textContent = t; };
+  try {
+    say('Reading Amazon\'s listings report and the Replenishment snapshot…');
+    const [, R] = await Promise.all([lstLoad(), mdbAsinRepl()]);
+    const L = LST.map || new Map();
+    if (!L.size && !R.m.size) throw new Error('neither Amazon\'s listings report nor the Replenishment snapshot could be read'
+      + (LST.err ? ' (' + LST.err + ')' : '') + (R.err ? ' (' + R.err + ')' : ''));
+
+    /* The snapshot's parent belongs to the snapshot's ASIN — never carried over to a different one. */
+    const replParent = new Map();
+    R.m.forEach(e => { if (e.asin && e.parent && !replParent.has(e.asin)) replParent.set(e.asin, e.parent); });
+
+    const rows = (PTG.mdb || []).filter(r => r && obUC(r.sku));
+    const plan = [];
+    rows.forEach(r => {
+      const k = obUC(r.sku);
+      const la = obUC((L.get(k) || {}).asin), ra = obUC((R.m.get(k) || {}).asin);
+      const amz = MDB_ASIN_RE.test(la) ? la : MDB_ASIN_RE.test(ra) ? ra : '';
+      plan.push({ r, cur: obUC(r.asin), curP: obUC(r.parentAsin), amz, src: amz ? (amz === la ? 'lst' : 'repl') : '' });
+    });
+
+    /* Which ASINs still need a parent from Amazon: every one this could end up writing, whose snapshot has none. */
+    const need = new Set();
+    plan.forEach(x => {
+      [x.amz, x.cur].forEach(a => { if (MDB_ASIN_RE.test(a) && !replParent.has(a)) need.add(a); });
+    });
+    say(`Asking Amazon's catalogue for the parent of ${nf(need.size)} ASIN(s)…`);
+    const A = await mdbAsinAskParents([...need], (d, n) => say(`Asking Amazon's catalogue for parents… ${nf(d)} of ${nf(n)} batches`));
+    const parentOf = a => replParent.get(a) || A.parents.get(a) || '';
+
+    MDB_ASIN = { plan, parentOf, replParent, A, at: LST.at };
+    mdbAsinShow();
+    say('');
+  } catch (e) {
+    $('ptmMsg').className = 'err'; $('ptmMsg').textContent = 'ASIN from Amazon stopped: ' + (e.message || e);
+  }
+  btn.disabled = false;
+}
+
+/** What Write would do, with the box ticked or not. */
+function mdbAsinWrites(fix) {
+  const P = MDB_ASIN, w = [];
+  P.plan.forEach(x => {
+    let asin = x.cur, why = '';
+    if (x.amz && !x.cur) { asin = x.amz; why = 'fill'; }
+    else if (x.amz && x.cur !== x.amz && fix) { asin = x.amz; why = 'fix'; }
+    const par = MDB_ASIN_RE.test(asin) ? P.parentOf(asin) : '';
+    const o = {};
+    if (asin !== x.cur) o.asin = asin;
+    if (par && (!x.curP || (fix && x.curP !== par) || o.asin)) { if (par !== x.curP) o.parentAsin = par; }
+    /* A corrected ASIN that Amazon says stands alone takes the old parent with it. */
+    if (!par && o.asin && x.curP && P.A.single.has(asin)) o.parentAsin = '';
+    if (Object.keys(o).length) w.push({ r: x.r, o, why, src: x.src });
+  });
+  return w;
+}
+
+function mdbAsinShow() {
+  const P = MDB_ASIN; if (!P) return;
+  const fix = !!($('ptmAsinFix') || {}).checked;
+  const w = mdbAsinWrites(fix);
+  const nA = w.filter(x => 'asin' in x.o).length, nP = w.filter(x => 'parentAsin' in x.o).length;
+  const aLst = w.filter(x => 'asin' in x.o && x.src === 'lst').length;
+  const pAmz = w.filter(x => 'parentAsin' in x.o && !P.replParent.has(x.o.asin || obUC(x.r.asin))).length;
+  const notOn = P.plan.filter(x => !x.amz && !x.cur);
+  const differ = P.plan.filter(x => x.amz && x.cur && x.cur !== x.amz);
+  const finalAsins = P.plan.map(x => ((!x.cur || (fix && differ.includes(x))) ? x.amz : x.cur)).filter(a => MDB_ASIN_RE.test(a));
+  const single = new Set(finalAsins.filter(a => P.A.single.has(a))), unknown = new Set(finalAsins.filter(a => P.A.notFound.has(a)));
+  const stillNoParent = new Set(finalAsins.filter(a => !P.parentOf(a) && !P.A.single.has(a) && !P.A.notFound.has(a)));
+  const when = P.at ? ' (built ' + new Date(P.at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) + ')' : '';
+  const li = [];
+  li.push(`<b>ASIN:</b> ${nf(nA)} to write — ${nf(aLst)} from Amazon's listings report${esc(when)}, ${nf(nA - aLst)} from the Replenishment snapshot.`);
+  li.push(`<b>Parent ASIN:</b> ${nf(nP)} to write — ${nf(nP - pAmz)} from the Replenishment snapshot, ${nf(pAmz)} asked from Amazon's catalogue just now.`);
+  if (single.size) li.push(`${nf(single.size)} ASIN(s) have no parent on Amazon — stand-alone listings, so Parent ASIN stays blank.`);
+  if (unknown.size) li.push(`${nf(unknown.size)} ASIN(s) Amazon's catalogue did not return — left without a parent.`);
+  if (P.A.err) li.push(`<span style="color:var(--bad)">Amazon's catalogue did not answer: ${esc(P.A.err)}. ${nf(stillNoParent.size)} ASIN(s) keep a blank parent until it does — run this again then.</span>`);
+  li.push(`<b>${nf(notOn.length)}</b> SKU(s) have no listing on Amazon in either brand, so Amazon has no ASIN to give — Download lists them.`);
+  $('ptmAsinSum').innerHTML = li.map(t => `<div style="margin-top:4px">${t}</div>`).join('');
+  $('ptmAsinFixWrap').classList.toggle('hide', !differ.length);
+  if (differ.length) $('ptmAsinFixTxt').textContent = `Also correct ${nf(differ.length)} ASIN(s) already in the master that differ from Amazon's listing — e.g. `
+    + differ.slice(0, 2).map(x => `${x.r.sku}: ${x.cur} → ${x.amz}`).join(', ');
+  $('ptmAsinGo').disabled = !w.length;
+  $('ptmAsinGo').textContent = w.length ? `Write ${nf(w.length)} SKU(s) to the master` : 'Nothing to write';
+  $('ptmAsinNot').classList.toggle('hide', !notOn.length);
+  $('ptmAsinBox').classList.remove('hide');
+}
+
+async function mdbAsinWrite() {
+  const P = MDB_ASIN; if (!P) return;
+  if (!mdbCanEdit()) { $('ptmMsg').className = 'err'; $('ptmMsg').textContent = MDB_NO_EDIT; return; }
+  const w = mdbAsinWrites(!!$('ptmAsinFix').checked);
+  if (!w.length) return;
+  const patch = {};
+  w.forEach(x => Object.entries(x.o).forEach(([f, v]) => { patch['pt_masterDB/' + x.r._key + '/' + f] = v; }));
+  $('ptmAsinGo').disabled = true;
+  try {
+    await ptPatch(patch);        // one write: every row changes, or none does
+    const byKey = new Map(w.map(x => [x.r._key, x.o]));
+    PTG.mdb = (PTG.mdb || []).map(r => (byKey.has(r._key) ? Object.assign({}, r, byKey.get(r._key)) : r));
+    PT.mdb = PTG.mdb;
+    MDB_ASIN = null;
+    $('ptmAsinBox').classList.add('hide');
+    renderPmdb();
+    $('ptmMsg').className = 'muted';
+    $('ptmMsg').textContent = `Written: ${nf(w.filter(x => 'asin' in x.o).length)} ASIN(s) and ${nf(w.filter(x => 'parentAsin' in x.o).length)} Parent ASIN(s), from Amazon.`;
+  } catch (e) {
+    $('ptmAsinGo').disabled = false;
+    $('ptmMsg').className = 'err'; $('ptmMsg').textContent = 'Nothing was written: ' + (e.message || e);
+  }
+}
+
+$('ptmAsin').onclick = () => mdbAsinCheck();
+$('ptmAsinFix').onchange = () => mdbAsinShow();
+$('ptmAsinGo').onclick = () => mdbAsinWrite();
+$('ptmAsinCancel').onclick = () => { MDB_ASIN = null; $('ptmAsinBox').classList.add('hide'); };
+$('ptmAsinNot').onclick = () => {
+  const P = MDB_ASIN; if (!P) return;
+  const rows = P.plan.filter(x => !x.amz && !x.cur).map(x => x.r);
+  ptDownload('skus-not-on-amazon', [['SKU', 'Brand', 'Article', 'Subtype', 'Color', 'Size'].map(csvCell).join(',')]
+    .concat(rows.map(r => [r.sku, r.brand, r.articleType, r.subtype, r.color, r.size].map(csvCell).join(','))));
 };
 
 const mdbYes = v => { const s = String(v == null ? '' : v).trim().toLowerCase(); return s === 'yes' || s === 'y' || s === 'true' || s === '1'; };
@@ -14922,6 +15134,7 @@ function mdbFromCsv(row, ix) {
     isPiping: yn('piping'), pipingMeters: g('pipingm'),
     fillerFabricRequired: yn('filler'), standardFillingQty: g('fillqty'),
     inventoryValuationPrice: g('valprice'), imageUrl: g('image'),
+    asin: g('asin'), parentAsin: g('parent'),
   };
 }
 
@@ -14948,7 +15161,8 @@ function mdbFormOf(r) {
     isRuffle: yn(r.isRuffle), ruffleMeters: s(r.ruffleMeters), ruffleFabric: s(r.ruffleFabric),
     isPiping: yn(r.isPiping), pipingMeters: s(r.pipingMeters),
     fillerFabricRequired: yn(r.fillerFabricRequired), standardFillingQty: s(r.standardFillingQty),
-    inventoryValuationPrice: s(r.inventoryValuationPrice), imageUrl: s(r.imageUrl) };
+    inventoryValuationPrice: s(r.inventoryValuationPrice), imageUrl: s(r.imageUrl),
+    asin: s(r.asin), parentAsin: s(r.parentAsin) };
 }
 /** What the file says, over what the SKU already says. */
 function mdbMerge(v, existing) {
@@ -14990,6 +15204,7 @@ $('ptmFile').onchange = async e => {
       filler: colIdx(head, ['filler fabric', 'filler']), fillqty: colIdx(head, ['filling qty', 'standard filling qty']),
       valprice: colIdx(head, ['valuation price', 'inventory valuation price']),
       image: colIdx(head, ['image', 'image url', 'picture']),
+      asin: colIdx(head, ['asin', 'child asin']), parent: colIdx(head, ['parent asin', 'parentasin', 'parent']),
     };
     if (ix.sku < 0) {
       $('ptmMsg').className = 'err';
@@ -42003,7 +42218,7 @@ function skcPlanNew(colour, code, brand) {
     if (bad.length) { skip.push({ full, label, why: bad[0] }); return; }
     const sib = skcSibling(r);
     const base = sib ? Object.assign({}, sib) : { brand: '', cuttingRequired: true };
-    delete base._key;
+    delete base._key; delete base.asin; delete base.parentAsin;     // the sibling's listing is not this SKU's
     const rec = Object.assign(base, { sku: full, articleType: String(r.article).trim(), subtype: String(r.subtype).trim(),
       color: col, size: String(r.size).trim(), brand: brd, imageUrl: '', isCustom: false });
     const filled = recipeFill(rec);
