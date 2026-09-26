@@ -23067,15 +23067,25 @@ let FFLOW = { stage: 4, loaded: false, busy: false, err: [] };
 async function ensureFabFlow() {
   if (FFLOW.busy) return;
   FFLOW.busy = true; FFLOW.err = [];
-  const take = async (name, f) => { try { await f(); } catch (e) { FFLOW.err.push(name); } };
+  /* DRAWN AS EACH REGISTER LANDS (Ravi, 2026-09-26: "iska lag issue dekho"). Measured: a draw is 40 ms and one open is
+   * 17 reads with no storm — the wait was the 8 MB of registers, and the screen sat on "Reading…" until the last of
+   * them. Now the fabric ledger's stages show at once and the rest fill in; a register that fails is named. */
+  FFLOW.loaded = true; FFLOW.waiting = [];
+  const take = async (name, f) => {
+    FFLOW.waiting.push(name);
+    try { await f(); } catch (e) { FFLOW.err.push(name); }
+    FFLOW.waiting = FFLOW.waiting.filter(x => x !== name);
+    renderFab();
+  };
   await Promise.all([
     take('the master database', () => ptLoadGates()),
     take('the printers\' orders', async () => { if (VO.rows == null) await ensureVo(); }),
     take('the greige POs', async () => { if (GPO.rows == null) await ensureGpo(); }),
     take('the RFD counts', async () => { if (RFD.decisions == null) RFD.decisions = (await ptGet('pt_rfdDecisions')) || {}; if (!RFD.stock || !Object.keys(RFD.stock).length) RFD.stock = (await ptGet('pt_rfdStock')) || {}; }),
-    take('the store', async () => { if (STORE.rows == null) STORE.rows = ptList(await ptGet('pt_storeLedger')); if (!PT.base) PT.base = ptList(await ptGet('pt_baseData')); }),
+    /* The Job Work Register comes with the gates; asking for it here as well read 2.4 MB twice. */
+    take('the store', async () => { if (STORE.rows == null) STORE.rows = ptList(await ptGet('pt_storeLedger')); await ptLoadGates(); if (!PT.base) PT.base = ptList(await ptGet('pt_baseData')); }),
   ]);
-  FFLOW.busy = false; FFLOW.loaded = true;
+  FFLOW.busy = false;
   renderFab();
 }
 
@@ -23222,7 +23232,8 @@ function renderFabFlowOne() {
   $('fbTable').innerHTML = head + '<tbody>' + body + '</tbody>';
   FAB.shown = [];
   $('fbMsg').className = FFLOW.err.length ? 'err' : 'muted';
-  $('fbMsg').textContent = cap + (FFLOW.err.length ? ' · could not read ' + FFLOW.err.join(', ') : '');
+  $('fbMsg').textContent = cap + ((FFLOW.waiting || []).length ? ' · still reading ' + FFLOW.waiting.join(', ') + '…' : '')
+    + (FFLOW.err.length ? ' · could not read ' + FFLOW.err.join(', ') : '');
 }
 
 /* the stages and their buttons */
