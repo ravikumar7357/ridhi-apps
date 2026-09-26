@@ -1813,6 +1813,8 @@
           <input id="fbaD2" type="date" style="flex:0 0 140px" title="Sent to">
           <button id="fbaAccept" disabled>Accept ticked</button>
           <button id="fbaShip" class="ghost" disabled>Ship ticked</button>
+          <button id="fbaShipXl" class="ghost hide" title="Upload the shipment's contents from Seller Central (or our template) — each SKU is matched to its open dispatches and marked shipped with the shipment id">Ship from Excel</button>
+          <input id="fbaShipFile" type="file" accept=".xlsx,.csv,.tsv,.txt" style="display:none">
           <button id="fbaReturn" class="ghost" disabled style="color:var(--bad)">Return ticked</button>
           <button id="fbaExport" class="ghost">Export</button>
           <button id="fbaGo" class="ghost">Refresh</button>
@@ -16442,7 +16444,8 @@ function ordJourney(orderNo) {
   ptOpenDialog({
     title: 'Order ' + no + ' — start to finish',
     subtitle: `${first.orderDate || '—'}${first.shopOrderNo ? '  ·  Shopify ' + first.shopOrderNo : ''}  ·  ${nf(rows.length)} line(s), ${nf(openN)} still open`
-      + (shop ? `  ·  ${nf(rows.filter(r => r.handedAt).length)} of ${nf(rows.length)} handed to shipping` : ''),
+      + (shop ? `  ·  ${nf(rows.filter(r => r.handedAt).length)} of ${nf(rows.length)} handed to shipping` : '')
+      + ((x => x ? `  ·  Shopify: ${x.cancelledAt ? 'cancelled' : x.ff}${x.trk.length ? ' · ' + x.via + ' ' + x.trk.join(', ') : ''}` : '')(ordShopTrkOf(first.shopOrderId))),
     note: 'Each figure is the same one its own register shows — cutting, Base Data, QC, press, finished goods and the vendor orders. '
       + 'A vendor order names a SKU and not a sales order, so where several orders want the same SKU the vendor\'s pieces are shared '
       + 'out once between them: open orders first, oldest first.',
@@ -19164,6 +19167,32 @@ function ordTrackStage(r) {
   /* A Shopify line pressed in full but never handed to shipping is waiting for the handover, not the store. */
   return r.src === 'SHP' ? 5 : 6;
 }
+/**
+ * Shopify's own record of every Shopify order in the book: orderId → { no, ff, trk[], trkCo, trkUrl, shippedAt,
+ * cancelledAt, via }. Read once per quarter of an hour, both stores, from the oldest Shopify order in the book.
+ */
+async function ordTrackShopLoad(force) {
+  if (ORD.shopTrkBusy) return;
+  if (ORD.shopTrk && !force && Date.now() - (ORD.shopTrkAt || 0) < 15 * 60e3) return;
+  const lines = ordLines().filter(r => r.shopOrderId);
+  const days = lines.map(r => ptIsoDate(r.orderDate)).filter(Boolean).sort();
+  if (!days.length) { ORD.shopTrk = new Map(); ORD.shopTrkAt = Date.now(); return; }
+  ORD.shopTrkBusy = true; ORD.shopTrkErr = '';
+  try {
+    if (typeof SHOP_META !== 'undefined' && !Object.keys(SHOP_META).length && typeof loadShopMeta === 'function') { try { await loadShopMeta(); } catch (e) { /* carrier falls back to Shopify's */ } }
+    const r = await repShopFetch({ start: days[0], end: new Date().toISOString().slice(0, 10), open: '0' });
+    const m = new Map();
+    r.orders.forEach(o => m.set(String(o.id), { no: o.no || '', ff: String(o.ff || 'unfulfilled').toLowerCase(), trk: o.trk || [], trkCo: o.trkCo || '',
+      trkUrl: o.trkUrl || '', shippedAt: o.shippedAt || '', cancelledAt: o.cancelledAt || '',
+      via: repShipVia(o, typeof SHOP_META !== 'undefined' ? SHOP_META[o.id] : null) }));
+    ORD.shopTrk = m; ORD.shopTrkErr = r.errs.join(' · '); ORD.shopTrkMore = !!r.more;
+  } catch (e) { ORD.shopTrkErr = e.message || String(e); ORD.shopTrk = ORD.shopTrk || new Map(); }
+  ORD.shopTrkBusy = false; ORD.shopTrkAt = Date.now();
+  if (ordView() === 'track') renderOrd();
+}
+/** Shopify's word on one order, or null when it has not been read or does not know the order. */
+const ordShopTrkOf = id => (id && ORD.shopTrk ? ORD.shopTrk.get(String(id)) || null : null);
+
 function ordTrackRows() {
   const by = new Map();
   ordApply(ordLines(), ordFilters()).forEach(r => {
@@ -19176,14 +19205,26 @@ function ordTrackRows() {
     o.lines++; o.ordered += r.qty; o.pressed += Math.min(r.qty, r.pressed || 0);
     o.store += g.store || 0; o.fba += g.fba || 0; o.fbaOpen += g.fbaOpen || 0; o.fbaShip += g.fbaShip || 0; o.issued += g.issued || 0;
     if (r.handedAt) o.handed += r.qty;
+    if (r.shopOrderId) (o.shopIds || (o.shopIds = new Set())).add(String(r.shopOrderId));
     (g.docs || []).forEach(d => { if (d.shipment) o.ships.add(d.shipment); if (d.lr) o.ships.add('LR ' + d.lr); if (d.invoice) o.ships.add('inv ' + d.invoice); });
     o.n[st]++; o.stage = Math.min(o.stage, st);
+  });
+  /* SHOPIFY'S WORD ON ITS OWN ORDERS. Fulfilled (or cancelled) in Shopify is the end of the order — the parcel has
+   * gone, or never will — whatever the floor registers still say; part-fulfilled keeps its stage and shows its parcels. */
+  by.forEach(o => {
+    const sh = [...(o.shopIds || [])].map(ordShopTrkOf).filter(Boolean);
+    o.shop = sh;
+    if (!sh.length) return;
+    o.shopState = sh.every(x => x.cancelledAt) ? 'cancelled' : sh.every(x => x.ff === 'fulfilled' || x.cancelledAt) ? 'shipped'
+      : sh.some(x => x.ff === 'partial' || x.ff === 'fulfilled') ? 'partial' : 'open';
+    if (o.shopState === 'shipped' || o.shopState === 'cancelled') o.stage = 9;
   });
   const now = Date.now();
   return [...by.values()].map(o => Object.assign(o, { days: o.date ? Math.max(0, Math.floor((now - (ptDtMs(o.date) || now)) / 864e5)) : null }))
     .sort((a, b) => a.stage - b.stage || (ptDtMs(a.date) || 0) - (ptDtMs(b.date) || 0));
 }
 function renderOrdTrack() {
+  if (!ORD.shopTrk && !ORD.shopTrkBusy) ordTrackShopLoad();
   const all = ordTrackRows();
   const pick = /^trk\d+$/.test(ORD_KPI) ? +ORD_KPI.slice(3) : -1;
   const rows = pick >= 0 ? all.filter(o => o.stage === pick) : all;
@@ -19195,7 +19236,15 @@ function renderOrdTrack() {
         tip: (pick === i ? 'Showing only these orders. Click again to show all.' : 'Show only the orders whose furthest-back line is here.') }); }).join('')
     + '</div>';
   const head = ordHead([['Order', ''], ['From', ''], ['Date', ''], ['Days', 'num'], ['Lines', 'num'], ['Ordered', 'num'], ['Made', 'num'],
-    ['In store', 'num'], ['To FBA', 'num'], ['Shipped to Amazon', 'num'], ['Dispatched', 'num'], ['Handed over', 'num'], ['Where it is', ''], ['Shipment / papers', '']]);
+    ['In store', 'num'], ['To FBA', 'num'], ['Shipped to Amazon', 'num'], ['Dispatched', 'num'], ['Handed over', 'num'], ['Where it is', ''], ['Shopify', ''], ['Shipment / papers', '']]);
+  /* A Shopify parcel: carrier, and each tracking number — a link when Shopify gives one. */
+  const shopCell = o => {
+    if (!o.shop || !o.shop.length) return (o.shopIds && o.shopIds.size) ? `<span class="muted">${ORD.shopTrkBusy ? 'reading…' : 'not found'}</span>` : '<span class="muted">—</span>';
+    const st = { shipped: ['done', 'Shipped'], partial: ['prog', 'Part shipped'], open: ['pend', 'Not shipped'], cancelled: ['pend', 'Cancelled'] }[o.shopState] || ['pend', o.shopState];
+    const parcels = o.shop.filter(x => x.trk.length).map(x => esc(x.via) + ' ' + x.trk.map(t => x.trkUrl && x.trk.length === 1
+      ? `<a href="${esc(x.trkUrl)}" target="_blank" rel="noopener">${esc(t)}</a>` : esc(t)).join(', ') + (x.shippedAt ? ' <span class="muted">' + esc(String(x.shippedAt).slice(0, 10)) + '</span>' : ''));
+    return `<span class="jw-st ${st[0]}">${st[1]}</span>` + (parcels.length ? '<div style="font-size:11px;margin-top:2px">' + parcels.join('<br>') + '</div>' : '');
+  };
   const cell = n => n ? nf(Math.round(n)) : '<span class="muted">—</span>';
   const body = rows.slice(0, 800).map(o => {
     const where = ORD_TRACK[o.stage][1] + (o.lines > 1 && o.n[o.stage] < o.lines ? ` <span class="muted">(${nf(o.n[o.stage])} of ${nf(o.lines)} lines)</span>` : '');
@@ -19206,14 +19255,17 @@ function renderOrdTrack() {
       + `<td class="num">${nf(o.lines)}</td><td class="num" style="font-weight:700">${nf(o.ordered)}</td>`
       + `<td class="num">${cell(o.pressed)}</td><td class="num">${cell(o.store)}</td><td class="num">${cell(o.fba)}</td>`
       + `<td class="num">${cell(o.fbaShip)}</td><td class="num">${cell(o.issued)}</td><td class="num">${cell(o.handed)}</td>`
-      + `<td style="text-align:left"><span class="jw-st ${tone}">${where}</span></td>`
+      + `<td style="text-align:left"><span class="jw-st ${tone}">${where}</span>${o.shopState === 'shipped' && o.n[9] < o.lines ? '<div class="muted" style="font-size:10.5px">Shopify says shipped</div>' : ''}</td>`
+      + `<td style="text-align:left">${shopCell(o)}</td>`
       + `<td style="text-align:left;font-size:11.5px">${o.ships.size ? [...o.ships].slice(0, 4).map(esc).join(' · ') + (o.ships.size > 4 ? ' …' : '') : '<span class="muted">—</span>'}</td>`
       + '</tr>';
   }).join('');
-  $('odTable').innerHTML = head + '<tbody>' + (body || '<tr><td colspan="14" class="muted" style="padding:16px">No order matches.</td></tr>') + '</tbody>';
-  $('odMsg').className = 'muted';
+  $('odTable').innerHTML = head + '<tbody>' + (body || '<tr><td colspan="15" class="muted" style="padding:16px">No order matches.</td></tr>') + '</tbody>';
+  $('odMsg').className = ORD.shopTrkErr ? 'err' : 'muted';
   $('odMsg').textContent = `${nf(rows.length)} order(s)${pick >= 0 ? ' held at ' + ORD_TRACK[pick][1].toLowerCase() + ' — click the card again for all' : ''}`
     + (rows.length > 800 ? ' · showing the first 800' : '')
+    + (ORD.shopTrkBusy ? ' · reading Shopify for tracking…' : (ORD.shopTrkErr ? ' · Shopify could not be read: ' + ORD.shopTrkErr : (ORD.shopTrk ? ' · Shopify read ' + new Date(ORD.shopTrkAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '')))
+    + (ORD.shopTrkMore ? ' · Shopify had more orders than one read holds' : '')
     + ' · an order sits where its furthest-back line is · click an order number for every line, start to finish';
 }
 
@@ -19468,9 +19520,10 @@ $('odExport').onclick = () => {
   const v = ordView();
   if (v === 'track') {
     const out = [['Order No', 'From', 'Date', 'Days open', 'Lines', 'Ordered', 'Made', 'In store', 'To FBA', 'Shipped to Amazon',
-      'Dispatched', 'Handed over', 'Where it is', 'Lines there', 'Shipment / papers'].map(csvCell).join(',')];
+      'Dispatched', 'Handed over', 'Where it is', 'Lines there', 'Shopify', 'Shopify carrier', 'Shopify tracking', 'Shipment / papers'].map(csvCell).join(',')];
     rows.forEach(o => out.push([o.orderNo, o.src, o.date, o.days == null ? '' : o.days, o.lines, o.ordered, o.pressed, o.store, o.fba,
-      o.fbaShip, o.issued, o.handed, ORD_TRACK[o.stage][1], o.n[o.stage], [...o.ships].join(' · ')].map(csvCell).join(',')));
+      o.fbaShip, o.issued, o.handed, ORD_TRACK[o.stage][1], o.n[o.stage], o.shopState || '',
+      [...new Set((o.shop || []).map(x => x.via))].join(' '), (o.shop || []).flatMap(x => x.trk).join(' '), [...o.ships].join(' · ')].map(csvCell).join(',')));
     return ptDownload('order-tracking', out);
   }
   if (v === 'demtot') {
@@ -35073,6 +35126,7 @@ function renderFba() {
     <div class="metrics">
       <div class="metric"><div class="v"${cnt('waiting') ? ' style="color:#7f6000"' : ''}>${nf(sum('waiting', s => s.open))}</div><div class="l">Pieces waiting · ${nf(cnt('waiting'))} dispatch(es)</div></div>
       <div class="metric"><div class="v">${nf(sum('accepted', s => s.open))}</div><div class="l">Accepted, not shipped · ${nf(cnt('accepted'))}</div></div>
+      ${(st => st.length ? `<div class="metric" title="Accepted ${FBA_STALE_DAYS} or more days ago and still not marked shipped — press Ship with the shipment id, or Ship from Excel with the shipment's file"><div class="v" style="color:var(--bad)">${nf(st.length)}</div><div class="l">Accepted ${FBA_STALE_DAYS}+ days ago, not shipped</div></div>` : '')(fbaAll().filter(r => fbaStale(r) >= FBA_STALE_DAYS))}
       <div class="metric"><div class="v" style="color:var(--accent)">${nf(sum('shipped', s => s.open))}</div><div class="l">Shipped · ${nf(cnt('shipped'))}</div></div>
       <div class="metric"><div class="v">${nf(all.filter(s => s.st !== 'sheet').reduce((t, s) => t + s.returned, 0))}</div><div class="l">Returned to the store</div></div>
     </div></div>`;
@@ -35104,7 +35158,7 @@ function renderFba() {
       + `<td class="num" style="font-weight:700">${nf(s.qty)}${s.returned && s.st !== 'returned' ? `<div class="muted" style="font-size:10.5px;font-weight:400">${nf(s.open)} open</div>` : ''}</td>`
       + `<td style="text-align:left">${esc(r.issuedFor || '')}${(r.handoverTo || r.reason) ? `<div class="muted" style="font-size:10.5px">${r.handoverTo ? 'handed to ' + esc(r.handoverTo) : esc(r.reason)}</div>` : ''}</td>`
       + `<td>${who(r.createdBy)}</td>`
-      + `<td><span class="pill ${cls}">${txt}</span></td>`
+      + `<td><span class="pill ${cls}">${txt}</span>${fbaStale(r) >= FBA_STALE_DAYS ? `<div style="font-size:10.5px;color:var(--bad)">${nf(fbaStale(r))} days, not shipped</div>` : ''}</td>`
       + `<td style="font-size:12px">${r.fbaAcceptedAt ? `${who(r.fbaAcceptedBy)}<div class="muted" style="font-size:10.5px">${esc(String(r.fbaAcceptedAt).slice(0, 10))}</div>` : '<span class="muted">—</span>'}</td>`
       + `<td style="font-size:12px;text-align:left">${r.fbaShippedAt ? `<b>${esc(r.fbaShipment || '')}</b><div class="muted" style="font-size:10.5px">${esc(r.fbaShipDate || String(r.fbaShippedAt).slice(0, 10))} · ${who(r.fbaShippedBy)}</div>` : '<span class="muted">—</span>'}</td>`
       + `<td class="num">${s.returned ? `<span style="font-weight:700;color:var(--bad)">${nf(s.returned)}</span>` : '<span class="muted">—</span>'}</td>`
@@ -35119,6 +35173,7 @@ function renderFba() {
 
   const n = FBA_PICK.size;
   ['fbaAccept', 'fbaShip', 'fbaReturn'].forEach(b => { $(b).classList.toggle('hide', !can); $(b).disabled = !n; });
+  if ($('fbaShipXl')) $('fbaShipXl').classList.toggle('hide', !can);
   $('fbaAccept').textContent = n ? `Accept ${nf(n)}` : 'Accept ticked';
   $('fbaShip').textContent = n ? `Ship ${nf(n)}` : 'Ship ticked';
   $('fbaReturn').textContent = n ? `Return ${nf(n)}` : 'Return ticked';
@@ -35179,6 +35234,129 @@ async function fbaAccept(ids) {
   $('fbaMsg').textContent = `${nf(done.length)} dispatch(es) accepted · ${nf(done.reduce((t, r) => t + fbaState(r).open, 0))} piece(s)`
     + fbaSkipText(skipped) + '.';
   return done.length ? '' : 'Nothing was accepted' + fbaSkipText(skipped) + '.';
+}
+
+/* ================= SHIP FROM EXCEL ================= */
+const FBA_STALE_DAYS = 3;
+/** Accepted this many days ago or more and still not shipped. */
+const fbaStale = r => { const s = fbaState(r); if (s.st !== 'accepted') return 0;
+  const ms = Date.parse(r.fbaAcceptedAt || ''); return ms ? Math.floor((Date.now() - ms) / 864e5) : 0; };
+
+/**
+ * The rows of a shipment file, read into { row, shipment, sku, qty, date }. Two shapes:
+ *   Seller Central's shipment contents — "Shipment ID" beside its value somewhere above a table that has
+ *   "Merchant SKU" and "Shipped" (or "Units expected");
+ *   our template — Shipment ID, SKU, Pieces, Ship date as columns.
+ */
+function fbaShipXlRead(rows) {
+  const cells = r => (r || []).map(c => String(c == null ? '' : c).replace(/^\uFEFF/, '').trim());
+  const R = (rows || []).map(cells);
+  const hi = R.findIndex(r => r.some(c => /^(merchant sku|sku|seller sku)$/i.test(c)));
+  if (hi < 0) return { err: 'No SKU column was found — the file needs a "SKU" or "Merchant SKU" column.' };
+  const H = R[hi].map(c => c.toLowerCase());
+  const col = names => { for (const n of names) { const i = H.indexOf(n); if (i >= 0) return i; } return -1; };
+  const iSku = col(['merchant sku', 'sku', 'seller sku']);
+  const iQty = col(['shipped', 'units shipped', 'pieces', 'pcs', 'qty', 'quantity', 'units expected', 'units', 'boxed quantity']);
+  const iShp = col(['shipment id', 'shipment', 'fba shipment id']);
+  const iDate = col(['ship date', 'date', 'shipped on']);
+  if (iQty < 0) return { err: 'No pieces column was found — the file needs "Shipped", "Units expected" or "Pieces".' };
+  /* A Seller Central file names its shipment once, above the table. */
+  let fileShp = '';
+  for (let i = 0; i < hi; i++) { const r = R[i]; const k = r.findIndex(c => /^shipment id$/i.test(c)); if (k >= 0 && r[k + 1]) { fileShp = r[k + 1]; break; } }
+  if (iShp < 0 && !fileShp) return { err: 'No shipment id was found — put a "Shipment ID" column, or use the file Seller Central gives for the shipment.' };
+  const out = [];
+  for (let i = hi + 1; i < R.length; i++) {
+    const r = R[i], sku = obUC(r[iSku] || '');
+    if (!sku) continue;
+    out.push({ row: i + 1, sku, qty: r[iQty] || '', shipment: String((iShp >= 0 ? r[iShp] : '') || fileShp).trim(), date: iDate >= 0 ? r[iDate] || '' : '' });
+  }
+  if (!out.length) return { err: 'The file has no rows under its headings.' };
+  return { entries: out };
+}
+
+/** What the file would ship: each row matched to its SKU's open dispatches, oldest first, whole dispatches only. */
+function fbaShipXlPlan(entries) {
+  const taken = new Set();
+  const open = sku => fbaAll().filter(r => obUC(r.sku) === sku && ['waiting', 'accepted'].indexOf(fbaState(r).st) >= 0 && !taken.has(fgiRowId(r)))
+    .sort((a, b) => (ptDtMs(a.date) || Date.parse(a.createdAt || '') || 0) - (ptDtMs(b.date) || Date.parse(b.createdAt || '') || 0)
+      || String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
+  const items = (entries || []).map(e => {
+    const it = { e, picks: [], pcs: 0, left: 0, err: '', note: '' };
+    const qty = Number(String(e.qty).replace(/,/g, ''));
+    if (!e.shipment) { it.err = 'no shipment id'; return it; }
+    if (!(qty > 0) || Math.round(qty) !== qty) { it.err = `pieces "${e.qty}" is not a whole number`; return it; }
+    let left = qty;
+    const list = open(e.sku);
+    for (const r of list) {
+      const o = fbaState(r).open;
+      if (o > left) { if (left > 0) it.note = `the next dispatch of ${e.sku} has ${nf(o)} open — more than the ${nf(left)} left, so it is not split; ship it on its row`; break; }
+      it.picks.push(r); taken.add(fgiRowId(r)); it.pcs += o; left -= o;
+      if (!left) break;
+    }
+    it.left = left;
+    if (!list.length) it.err = `no open dispatch of ${e.sku} — nothing the store sent is waiting to ship`;
+    return it;
+  });
+  return { items, ids: items.flatMap(it => it.picks.map(fgiRowId)) };
+}
+
+/** Write it: every matched dispatch shipped under its row's shipment id, in one patch, each re-read first. */
+async function fbaShipXlRun(plan) {
+  if (!fbaCan()) return 'Only the FBA team (the FBA Dispatch tab) can ship a dispatch.';
+  const pairs = plan.items.flatMap(it => it.picks.map(r => [fgiRowId(r), it.e]));
+  if (!pairs.length) return 'Nothing in the file matches an open dispatch.';
+  const fresh = await fbaFresh(pairs.map(p => p[0]));
+  const now = new Date().toISOString(), updates = {}, done = [], skipped = [];
+  fresh.forEach(({ id, row }, i) => {
+    const e = pairs[i][1];
+    if (!row) return skipped.push({ id, why: 'deleted from the store' });
+    const st = fbaState(row).st;
+    if (st !== 'waiting' && st !== 'accepted') return skipped.push({ id, why: 'already ' + FBA_PILL[st][1] });
+    const iso = e.date ? (ptIsoDate(e.date) || '') : '';
+    const set = { fbaShippedAt: now, fbaShippedBy: ME.email, fbaShipment: e.shipment, fbaShipDate: fgiDmy(iso || dToday()) || fgiDmy(dToday()), fbaShipVia: 'excel' };
+    if (!row.fbaAcceptedAt) { set.fbaAcceptedAt = now; set.fbaAcceptedBy = ME.email; }
+    Object.keys(set).forEach(f => { updates['pt_fgiLedger/' + id + '/' + f] = set[f]; });
+    done.push([row, set]);
+  });
+  fbaForget(fresh);
+  if (!done.length) { renderFba(); return 'Nothing was shipped' + fbaSkipText(skipped) + '.'; }
+  await ptPatch(updates);
+  done.forEach(([r, set]) => Object.assign(r, set));
+  renderFba();
+  const shp = [...new Set(done.map(([, set]) => set.fbaShipment))];
+  $('fbaMsg').className = 'muted';
+  $('fbaMsg').textContent = `${nf(done.length)} dispatch(es) · ${nf(done.reduce((t, [r]) => t + fbaState(r).open, 0))} piece(s) shipped as ${shp.join(', ')}` + fbaSkipText(skipped) + '.';
+  return '';
+}
+
+async function fbaShipXlFile(file) {
+  if (!file) return;
+  try {
+    const rows = /\.xlsx$/i.test(file.name) ? await pkReadXlsx(new Uint8Array(await file.arrayBuffer()))
+      : ((t => parseCsv(t, /\t/.test(t.split('\n').slice(0, 12).join('\n')) ? '\t' : undefined))(await file.text()));
+    const read = fbaShipXlRead(rows);
+    if (read.err) { $('fbaMsg').className = 'err'; $('fbaMsg').textContent = read.err; return; }
+    const plan = fbaShipXlPlan(read.entries);
+    const ok = plan.items.filter(it => it.picks.length), bad = plan.items.filter(it => !it.picks.length || it.left);
+    const pcs = ok.reduce((t, it) => t + it.pcs, 0);
+    ptOpenDialog({
+      title: 'Ship from Excel',
+      subtitle: `${nf(plan.ids.length)} dispatch(es) · ${nf(pcs)} piece(s) · shipment ${[...new Set(ok.map(it => it.e.shipment))].join(', ') || '—'}`,
+      wide: true,
+      note: 'Each SKU in the file is matched to the dispatches the store sent of it and are still open, oldest first — whole dispatches only. '
+        + 'Nothing is split and nothing goes back to the store from here; what does not match is listed below, to ship on its own row.',
+      html: '<div class="xlwrap" style="max-height:48vh;border:1px solid var(--line);border-radius:10px"><table class="xl"><thead><tr>'
+        + '<th>Row</th><th>Shipment</th><th>SKU</th><th class="num">In file</th><th class="num">Matched</th><th class="num">Dispatches</th><th>Left over</th></tr></thead><tbody>'
+        + plan.items.map(it => `<tr><td>${it.e.row}</td><td style="font-family:ui-monospace,monospace">${esc(it.e.shipment)}</td>`
+          + `<td style="font-family:ui-monospace,monospace;text-align:left">${esc(it.e.sku)}</td><td class="num">${esc(String(it.e.qty))}</td>`
+          + `<td class="num">${it.pcs ? '<b>' + nf(it.pcs) + '</b>' : '—'}</td><td class="num">${nf(it.picks.length)}</td>`
+          + `<td style="text-align:left;font-size:12px${it.err || it.left ? ';color:var(--bad)' : ''}">${it.err ? esc(it.err) : (it.left ? nf(it.left) + ' not matched' + (it.note ? ' — ' + esc(it.note) : '') : '<span class="muted">—</span>')}</td></tr>`).join('')
+        + '</tbody></table></div>'
+        + (bad.length ? `<div class="err" style="margin-top:8px;font-size:12.5px">${nf(bad.length)} row(s) not fully matched — the matched part still ships.</div>` : ''),
+      saveLabel: plan.ids.length ? `Ship ${nf(plan.ids.length)} dispatch(es)` : 'Nothing to ship',
+      onSave: () => fbaShipXlRun(plan),
+    });
+  } catch (e) { $('fbaMsg').className = 'err'; $('fbaMsg').textContent = 'Could not read the file: ' + (e.message || e); }
 }
 
 function fbaShipOpen(ids) {
@@ -35358,6 +35536,8 @@ $('fbaTable').addEventListener('click', e => {
 });
 $('fbaAccept').onclick = () => fbaAccept([...FBA_PICK]);
 $('fbaShip').onclick = () => fbaShipOpen([...FBA_PICK]);
+if ($('fbaShipXl')) $('fbaShipXl').onclick = () => $('fbaShipFile').click();
+if ($('fbaShipFile')) $('fbaShipFile').onchange = e => { const f = e.target.files[0]; e.target.value = ''; fbaShipXlFile(f); };
 $('fbaReturn').onclick = () => fbaReturnOpen([...FBA_PICK]);
 $('fbaGo').onclick = () => { FGI.rows = null; ensureFba(); };
 ['fbaStatus', 'fbaD1', 'fbaD2'].forEach(id => $(id).addEventListener('change', renderFba));
