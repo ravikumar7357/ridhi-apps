@@ -63,13 +63,6 @@ service cloud.firestore {
         && (!('replTabs' in permData()) || !(permData().replTabs is list) || permData().replTabs.size() == 0
             || permData().replTabs.hasAny(['repl', 'article', 'target', 'top', 'prod', 'follow', 'india'])));
     }
-    // A Replenishment account that holds one of its Shopify screens (Shopify Orders, Adjustments, Shopify Production),
-    // or the old everything grant (repl == true with no replTabs list).
-    function canReplShop() {
-      return isAdmin() || (hasPerms() && permData().repl == true
-        && (!('replTabs' in permData()) || !(permData().replTabs is list) || permData().replTabs.size() == 0
-            || permData().replTabs.hasAny(['shop', 'adj', 'shopify'])));
-    }
     // Which repl/{doc} documents are planning data rather than shared lookups.
     function replPrivate(d) { return d in ['SP', 'CPC', 'projoverride', 'revtarget']; }
     // Changing the MONTHLY PROJECTIONS is a narrower right than using the app: those numbers drive
@@ -134,10 +127,8 @@ service cloud.firestore {
     // sku -> FBA quantity, one doc per brand. Used by both the health and age views.
     // Shopify Orders READS it to answer "could Amazon ship this order", but never writes it — the
     // quantities are Amazon's, maintained by the Listing Health pull.
-    // AND the Replenishment app's Shopify screens (Ravi, 2026-09-26): a team member given only the Replenishment
-    // Shopify tab could not read this, so every order read "SKU ?" and nothing could be judged or sent to production.
     match /stock/{brand} {
-      allow read: if can('health') || can('age') || can('shop') || canReplShop();
+      allow read: if can('health') || can('age') || can('shop');
       allow write: if can('health') || can('age');
     }
 
