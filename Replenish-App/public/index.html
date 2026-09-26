@@ -23087,7 +23087,13 @@ function fabEntryCut() {
 $('fbEntry').onclick = fabEntryOpen;
 /* THE GUIDE lives beside the app (/guide/), in English and Hindi, opened at the part this screen is about. */
 $('fbGuide').onclick = () => window.open('/guide/#' + ($('fbView').value === 'po' ? 'po' : 'fab'), '_blank');
-$('guideBtn').onclick = () => window.open('/guide/' + (TAB_NOW ? '#' + TAB_NOW : ''), '_blank');
+/* A VENDOR GETS THE VENDOR GUIDE (Ravi, 2026-09-26: "vendor ko bhi guide me sare action dikh rahe h"). The browser is
+ * marked either way, so the full guide sends a vendor on to theirs and lets staff stay. */
+$('guideBtn').onclick = () => {
+  const v = spIsVendor();
+  try { localStorage.setItem('guideRole', v ? 'vendor' : 'staff'); } catch (e) { /* the guide still opens */ }
+  window.open(v ? '/guide/vendor/' : '/guide/' + (TAB_NOW ? '#' + TAB_NOW : ''), '_blank');
+};
 
 /* ================= GREIGE PURCHASE ORDERS =================
  *
@@ -29328,6 +29334,8 @@ function renderVp() {
   /* THEIR OWN HISTORY. A different question from "what am I making" — what went out, and what was
    * kept — so it gets the screen to itself rather than another column on a full table. */
   /* THE RFD TAB SHOWS ONLY WHAT IT USES (Ravi, 2026-09-26: "data too much lag rha h do neet and clean"). */
+  /* A vendor's browser is marked, so the full guide at /guide/ sends them to theirs. */
+  if (spIsVendor()) { try { localStorage.setItem('guideRole', 'vendor'); } catch (e) { /* nothing to mark */ } }
   const rfdTab = VP.tab === 'rfd';
   ['vpBar2', 'vpBar3'].forEach(id => { if ($(id)) $(id).classList.toggle('hide', rfdTab); });
   ['vpView', 'vpStatus', 'vpType', 'vpQ', 'vpExport'].forEach(id => { if ($(id)) $(id).classList.toggle('hide', rfdTab); });

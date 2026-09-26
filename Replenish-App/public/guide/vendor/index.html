@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vendor guide · वेंडर गाइड</title>
+<style>
+  :root { --ink:#1a1a1a; --muted:#5b6170; --line:#dde1e8; --accent:#4f46e5; --soft:#eef0ff; --warn-bg:#fff8e6; --warn-line:#f0d58a; --bg:#f6f7f9; --card:#fff; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.6 "Segoe UI", "Nirmala UI", "Noto Sans Devanagari", Arial, sans-serif; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px; }
+  header { padding: 8px 0 12px; border-bottom: 1px solid var(--line); }
+  h1 { font-size: 26px; margin: 0; }
+  .sub { color: var(--muted); font-size: 13px; }
+  .bar { position: sticky; top: 0; z-index: 5; background: var(--bg); display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 0; }
+  .bar button, .bar a { font: inherit; font-size: 13px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); cursor: pointer; text-decoration: none; }
+  .bar button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .bar input { font: inherit; font-size: 13px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; flex: 1 1 200px; min-width: 0; }
+  .toc { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; margin: 10px 0 6px; }
+  .tg { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
+  .tgh { font-weight: 700; font-size: 13px; margin-bottom: 4px; }
+  .tg a { display: block; font-size: 13px; color: var(--accent); text-decoration: none; padding: 2px 0; }
+  .grph { margin: 34px 0 0; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  h2 { font-size: 20px; margin: 10px 0 8px; padding-bottom: 4px; border-bottom: 2px solid var(--accent); }
+  .sec { scroll-margin-top: 60px; margin-bottom: 26px; }
+  .step { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 8px; padding: 12px 14px; margin: 10px 0; scroll-margin-top: 60px; }
+  .n { display: inline-block; min-width: 24px; height: 24px; line-height: 24px; text-align: center; border-radius: 50%; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; margin-right: 6px; }
+  .t { font-weight: 700; }
+  .where { color: var(--accent); font-weight: 600; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 4px; }
+  .pair > div { min-width: 0; }
+  .hi { font-family: "Nirmala UI", "Noto Sans Devanagari", "Segoe UI", sans-serif; }
+  /* ONE LANGUAGE MEANS ONE LANGUAGE — headings, contents and separators included. */
+  body.only-en .hi, body.only-hi .en, body.only-en .sep, body.only-hi .sep { display: none; }
+  body.only-en .pair, body.only-hi .pair { grid-template-columns: 1fr; }
+  body.both .pair > .hi { border-left: 1px dashed var(--line); padding-left: 14px; }
+  .note { background: var(--warn-bg); border: 1px solid var(--warn-line); border-radius: 8px; padding: 10px 12px; margin: 10px 0; }
+  .flow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 10px 0; }
+  .flow span { border: 1px solid var(--accent); background: var(--soft); border-radius: 8px; padding: 5px 10px; font-weight: 600; font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; background: var(--card); font-size: 14px; }
+  th, td { border: 1px solid var(--line); padding: 6px 9px; text-align: left; vertical-align: top; }
+  ul { margin: 4px 0; padding-left: 20px; }
+  .hidden { display: none !important; }
+  #none { color: var(--muted); padding: 20px 0; }
+  @media (max-width: 700px) { .pair { grid-template-columns: 1fr; } body.both .pair > .hi { border-left: 0; padding-left: 0; border-top: 1px dashed var(--line); padding-top: 8px; } h1 { font-size: 22px; } }
+  @media print { .bar, .toc { display: none; } .step, .note { break-inside: avoid; } h2 { break-after: avoid; } body { background: #fff; } .sec { break-before: page; } }
+</style>
+</head>
+<body class="both">
+<div class="wrap">
+<header>
+  <h1><span class="en">Vendor guide</span><span class="sep"> · </span><span class="hi">वेंडर गाइड</span></h1>
+  <div class="sub"><span class="en">Your orders, what you send, and the RFD fabric you need · The Fabric Rush</span><span class="sep"> · </span><span class="hi">आपके ऑर्डर, भेजा गया माल, और RFD कपड़ा</span></div>
+</header>
+<div class="bar">
+  <button data-lang="both" class="on">English + हिंदी</button>
+  <button data-lang="en">English</button>
+  <button data-lang="hi">हिंदी</button>
+  <input id="q" placeholder="Search · खोजें (e.g. receive, PO, कटिंग)">
+  
+  <a href="javascript:window.print()">Print</a>
+</div>
+
+<section class="sec" id="vend">
+<h2><span class="en">Vendor Portal</span><span class="sep"> · </span><span class="hi">वेंडर पोर्टल</span></h2>
+<div class="pair"><div class="en">This is what a vendor (printer or job-work firm) sees after signing in. They see only their own orders, record what they send, give their delivery dates, and ask for RFD fabric. </div><div class="hi">यह वह स्क्रीन है जो वेंडर (प्रिंटर या job-work फ़र्म) login के बाद देखता है। उन्हें सिर्फ़ अपने ऑर्डर दिखते हैं; वे भेजा हुआ माल दर्ज करते हैं, अपनी delivery तारीख देते हैं और RFD कपड़ा माँगते हैं। </div></div>
+<div class="step"><span class="n">1</span><span class="t"><span class="en">Sign in and the tabs</span><span class="sep"> · </span><span class="hi">Login और टैब</span></span>
+<div class="pair"><div class="en">The vendor signs in with email and password, or with cellphone and PIN. The tabs are <b>Bulk orders</b>, <b>Custom orders</b> (only when there are some), <b>What I have sent</b> and <b>RFD fabric I need</b>. A PIN user sees <b>Change my PIN</b> and should change the PIN they were given to one only they know.</div><div class="hi">वेंडर email-password से या मोबाइल-PIN से login करता है। टैब हैं: <b>Bulk orders</b>, <b>Custom orders</b> (सिर्फ़ जब हों), <b>What I have sent</b> और <b>RFD fabric I need</b>। PIN वाले को <b>Change my PIN</b> दिखता है — दिया गया PIN बदलकर ऐसा PIN रखें जो सिर्फ़ उन्हें पता हो।</div></div></div>
+<div class="step"><span class="n">2</span><span class="t"><span class="en">Accept the order and start</span><span class="sep"> · </span><span class="hi">ऑर्डर मानें और काम शुरू करें</span></span>
+<div class="pair"><div class="en">A new order shows <b>Acknowledge this order</b>. After that it shows <b>Start production</b>. Quantities can be sent only after the order is acknowledged. The view can be <b>Every line — one table</b> or <b>By order — one card each</b>, with filters for status, type, article, colour, size and priority.</div><div class="hi">नए ऑर्डर पर <b>Acknowledge this order</b> दिखता है। उसके बाद <b>Start production</b> दिखता है। ऑर्डर acknowledge होने के बाद ही माल भेजना दर्ज होता है। View <b>Every line — one table</b> या <b>By order — one card each</b> रख सकते हैं, और status, type, article, colour, size, priority के फ़िल्टर हैं।</div></div></div>
+<div class="step"><span class="n">3</span><span class="t"><span class="en">Record what is being sent</span><span class="sep"> · </span><span class="hi">भेजा जा रहा माल दर्ज करें</span></span>
+<div class="pair"><div class="en">Type quantities in the <b>Sending now</b> column on any lines, set <b>Sending on</b> (today by default) and press <b>Record what I am sending</b>. All typed lines, across orders, are saved together. A quantity above the balance is trimmed to the balance.</div><div class="hi">जिन लाइनों का माल जा रहा है, उनके <b>Sending now</b> कॉलम में मात्रा लिखें, <b>Sending on</b> तारीख रखें (पहले से आज की होती है) और <b>Record what I am sending</b> दबाएँ। सभी ऑर्डर की लिखी लाइनें एक साथ save होती हैं। Balance से ज़्यादा लिखी मात्रा balance तक घटा दी जाती है।</div></div></div>
+<div class="step"><span class="n">4</span><span class="t"><span class="en">Give delivery dates (promises)</span><span class="sep"> · </span><span class="hi">Delivery तारीख दें</span></span>
+<div class="pair"><div class="en">Pick a date in <b>Your date</b> on each line, or one date in <b>My delivery date for all</b>, then press <b>Save my delivery dates</b>. The buyer plans on these dates. The first date given is always kept; if a date is moved later, the line shows "first said".</div><div class="hi">हर लाइन के <b>Your date</b> में तारीख चुनें, या सबके लिए एक तारीख <b>My delivery date for all</b> में, फिर <b>Save my delivery dates</b> दबाएँ। खरीदार इन्हीं तारीखों पर प्लान करता है। पहली बार दी गई तारीख हमेशा रिकॉर्ड में रहती है; बाद में बदलने पर लाइन पर "first said" दिखता है।</div></div></div>
+<div class="step"><span class="n">5</span><span class="t"><span class="en">RFD fabric I need: the sheet</span><span class="sep"> · </span><span class="hi">RFD fabric I need: शीट</span></span>
+<div class="pair"><div class="en">Open <b>RFD fabric I need</b> and pick the order in <b>Change order</b>. Each size (cut pieces) and each fabric (running cloth) is one row: <b>On order</b>, <b>Sent</b>, <b>On the way</b>, <b>Still to ask for</b>, then two boxes — <b>With you</b> and <b>Ask for now</b>. Type what you already have for this order in <b>With you</b>; it saves by itself when you leave the box and comes off what is left to ask for. It does not ask for anything.</div><div class="hi"><b>RFD fabric I need</b> खोलें और <b>Change order</b> में ऑर्डर चुनें। हर साइज़ (cut pieces) और हर fabric (running कपड़ा) की एक लाइन है: <b>On order</b>, <b>Sent</b>, <b>On the way</b>, <b>Still to ask for</b>, फिर दो box — <b>With you</b> और <b>Ask for now</b>। इस ऑर्डर के लिए जो माल पहले से आपके पास है, वह <b>With you</b> में लिखें; box से बाहर आते ही अपने-आप save होता है और माँगने वाली मात्रा से घट जाता है। इससे कोई माँग नहीं जाती।</div></div></div>
+<div class="step"><span class="n">6</span><span class="t"><span class="en">Ask for fabric: Ask for now, then Raise requirement</span><span class="sep"> · </span><span class="hi">कपड़ा माँगें: Ask for now, फिर Raise requirement</span></span>
+<div class="pair"><div class="en">
+<ul><li>Type how much you need now in <b>Ask for now</b> on each row you want. Nothing is sent while you type.</li>
+<li>Press <b>Raise requirement</b> at the bottom. A window shows, row by row, what is <b>agreed at once</b> (up to "Still to ask for") and what <b>needs approval</b> (more than the order). For anything over the order, write why — it goes to The Fabric Rush to approve.</li>
+<li><b>Clear</b> empties the Ask for now boxes.</li>
+<li>For one item only, open <b>Ask for one size or one fabric only</b>. <b>Ask for the whole order (…)…</b> asks for everything left, after you confirm.</li></ul></div><div class="hi">
+<ul><li>जिन लाइनों का कपड़ा अभी चाहिए, उनके <b>Ask for now</b> box में मात्रा लिखें। लिखते समय कुछ नहीं जाता।</li>
+<li>नीचे <b>Raise requirement</b> दबाएँ। एक window हर लाइन का हिसाब दिखाती है — कितना <b>तुरंत मंज़ूर</b> ("Still to ask for" तक) और कितना <b>approval</b> में जाएगा (ऑर्डर से ज़्यादा)। ऑर्डर से ज़्यादा के लिए कारण लिखें — वह The Fabric Rush के approval में जाता है।</li>
+<li><b>Clear</b> सारे Ask for now box खाली करता है।</li>
+<li>सिर्फ़ एक चीज़ के लिए <b>Ask for one size or one fabric only</b> खोलें। <b>Ask for the whole order (…)…</b> पक्का करने के बाद बाकी सब एक साथ माँगता है।</li></ul></div></div></div>
+<div class="step"><span class="n">7</span><span class="t"><span class="en">What was sent, and what you asked for</span><span class="sep"> · </span><span class="hi">क्या भेजा गया, और आपने क्या माँगा</span></span>
+<div class="pair"><div class="en">The green chip beside the order — <b>Sent to you — … · N asked</b> — opens a list: every lot sent to you with its date, then every ask with its stage (Approved, Waiting for approval, Refused, Fabric sent). <b>Take back</b> removes an ask the office has not answered yet.</div><div class="hi">ऑर्डर के पास की हरी chip — <b>Sent to you — … · N asked</b> — खोलने पर लिस्ट दिखती है: आपको भेजा गया हर lot उसकी तारीख के साथ, फिर आपकी हर माँग और उसका stage (Approved, Waiting for approval, Refused, Fabric sent)। जिस माँग का office ने अभी जवाब नहीं दिया, उसे <b>Take back</b> से वापस ले सकते हैं।</div></div></div>
+<div class="note pair"><div class="en"><b>Good to know.</b> Sending can be recorded only on orders that are Acknowledged, In Production or Partially Dispatched. Pieces must be whole numbers. <b>What I have sent</b> shows each delivery and how much the factory accepted, found short, or has not checked yet. <b>Download Excel</b> exports the lines on screen.</div><div class="hi"><b>ध्यान दें।</b> माल भेजना सिर्फ़ Acknowledged, In Production या Partially Dispatched ऑर्डर पर दर्ज होता है। पीस पूरे अंक में हों। <b>What I have sent</b> में हर delivery और फ़ैक्ट्री ने कितना accept किया, कितना कम निकला या अभी जाँचा नहीं, दिखता है। <b>Download Excel</b> स्क्रीन की लाइनें export करता है।</div></div>
+</section>
+<div id="none" class="hidden"><span class="en">Nothing matches that search.</span><span class="sep"> · </span><span class="hi">कुछ नहीं मिला।</span></div>
+</div>
+<script>
+(function () {
+  var KEY = 'guideLang';
+  function set(l) {
+    document.body.className = l === 'en' ? 'only-en' : l === 'hi' ? 'only-hi' : 'both';
+    document.querySelectorAll('[data-lang]').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-lang') === l); });
+    try { localStorage.setItem(KEY, l); } catch (e) {}
+  }
+  var q = (location.search.match(/[?&]lang=(en|hi|both)/) || [])[1], saved = null;
+  try { saved = localStorage.getItem(KEY); } catch (e) {}
+  set(q || saved || 'both');
+  document.querySelectorAll('[data-lang]').forEach(function (b) { b.onclick = function () { set(b.getAttribute('data-lang')); }; });
+  /* SEARCH: a screen stays if any of its words match; a group with none left is hidden. */
+  var box = document.getElementById('q');
+  box.addEventListener('input', function () {
+    var t = box.value.trim().toLowerCase(), any = false;
+    document.querySelectorAll('.sec').forEach(function (s) {
+      var hit = !t || s.textContent.toLowerCase().indexOf(t) >= 0;
+      s.classList.toggle('hidden', !hit); if (hit) any = true;
+    });
+    document.querySelectorAll('.grp').forEach(function (g) { g.classList.toggle('hidden', !g.querySelector('.sec:not(.hidden)')); });
+    document.querySelector('.toc').classList.toggle('hidden', !!t);
+    document.getElementById('none').classList.toggle('hidden', any);
+  });
+  /* Opened from a screen's Guide button: go to that screen once the page has laid itself out. */
+  if (location.hash) addEventListener('load', function () { var el = document.getElementById(location.hash.slice(1)); if (el) el.scrollIntoView(); });
+})();
+</script>
+</body>
+</html>

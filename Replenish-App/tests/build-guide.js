@@ -62,12 +62,16 @@ GROUPS.forEach(([key, en, hi, tabs]) => {
     + have.map(t => secs.get(t)).join('\n') + '</div>\n';
 });
 
-const page = `<!doctype html>
+/* THE VENDOR GUIDE (2026-09-26): a vendor sees the Vendor Portal and nothing else. */
+const VENDOR_OUT = pathm.join(__dirname, '..', 'public', 'guide', 'vendor', 'index.html');
+const stripStaff = h => h.replace(/<div class="note pair staffonly">[\s\S]*?<\/div><\/div>\n?/g, '').replace(/<span class="staffonly">[\s\S]*?<\/span>/g, '');
+function pageOf(o) {
+  return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>App guide · ऐप गाइड</title>
+<title>${o.title}</title>
 <style>
   :root { --ink:#1a1a1a; --muted:#5b6170; --line:#dde1e8; --accent:#4f46e5; --soft:#eef0ff; --warn-bg:#fff8e6; --warn-line:#f0d58a; --bg:#f6f7f9; --card:#fff; }
   * { box-sizing: border-box; }
@@ -110,22 +114,22 @@ const page = `<!doctype html>
   @media print { .bar, .toc { display: none; } .step, .note { break-inside: avoid; } h2 { break-after: avoid; } body { background: #fff; } .sec { break-before: page; } }
 </style>
 </head>
-<body class="both">
+<body class="both">${o.guard || ''}
 <div class="wrap">
 <header>
-  <h1><span class="en">App guide</span><span class="sep"> · </span><span class="hi">ऐप गाइड</span></h1>
-  <div class="sub"><span class="en">Every screen, step by step · The Fabric Rush</span><span class="sep"> · </span><span class="hi">हर स्क्रीन, स्टेप-बाय-स्टेप</span></div>
+  <h1>${o.h1}</h1>
+  <div class="sub">${o.sub}</div>
 </header>
 <div class="bar">
   <button data-lang="both" class="on">English + हिंदी</button>
   <button data-lang="en">English</button>
   <button data-lang="hi">हिंदी</button>
   <input id="q" placeholder="Search · खोजें (e.g. receive, PO, कटिंग)">
-  <a href="App-Guide.pdf" download>PDF</a>
+  ${o.pdf ? '<a href="App-Guide.pdf" download>PDF</a>' : ''}
   <a href="javascript:window.print()">Print</a>
 </div>
-<nav class="toc">${toc}</nav>
-${body}
+${o.toc ? '<nav class="toc">' + o.toc + '</nav>' : ''}
+${o.body}
 <div id="none" class="hidden"><span class="en">Nothing matches that search.</span><span class="sep"> · </span><span class="hi">कुछ नहीं मिला।</span></div>
 </div>
 <script>
@@ -159,7 +163,18 @@ ${body}
 </body>
 </html>
 `;
-fs.writeFileSync(OUT, page);
-console.log(`written ${OUT} — ${secs.size} section(s)`
+}
+/* A browser the app has marked as a vendor's is sent to the vendor guide (the app sets guideRole on a vendor sign-in). */
+const guard = `<script>try { if (localStorage.getItem('guideRole') === 'vendor') location.replace('vendor/'); } catch (e) {}</script>`;
+fs.writeFileSync(OUT, pageOf({ title: 'App guide · ऐप गाइड', guard, pdf: true, toc, body,
+  h1: '<span class="en">App guide</span><span class="sep"> · </span><span class="hi">ऐप गाइड</span>',
+  sub: '<span class="en">Every screen, step by step · The Fabric Rush</span><span class="sep"> · </span><span class="hi">हर स्क्रीन, स्टेप-बाय-स्टेप</span>' }));
+if (secs.has('vend')) {
+  fs.mkdirSync(pathm.dirname(VENDOR_OUT), { recursive: true });
+  fs.writeFileSync(VENDOR_OUT, pageOf({ title: 'Vendor guide · वेंडर गाइड', pdf: false, toc: '', body: stripStaff(secs.get('vend')),
+    h1: '<span class="en">Vendor guide</span><span class="sep"> · </span><span class="hi">वेंडर गाइड</span>',
+    sub: '<span class="en">Your orders, what you send, and the RFD fabric you need · The Fabric Rush</span><span class="sep"> · </span><span class="hi">आपके ऑर्डर, भेजा गया माल, और RFD कपड़ा</span>' }));
+}
+console.log(`written ${OUT} and ${VENDOR_OUT} — ${secs.size} section(s)`
   + (missing.length ? `\nNO SECTION YET: ${missing.join(', ')}` : '')
   + (extra.length ? `\nnot in any group (left out): ${extra.join(', ')}` : ''));
