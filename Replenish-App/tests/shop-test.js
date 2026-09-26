@@ -174,8 +174,9 @@ function ordLines() {
       open: l.shopDoneAt ? false : pressed < l.qty });
   }).sort((a, b) => a.orderNo.localeCompare(b.orderNo) || a.sku.localeCompare(b.sku));
 }
+const dToday = () => new Date().toISOString().slice(0, 10);   // the page's own helper, outside this slice
 const ctx = {
-  $, esc, nf, csvCell, parseCsv, colIdx, doc, getDoc, setDoc, serverTimestamp, db: dbx,
+  $, esc, nf, csvCell, parseCsv, colIdx, doc, getDoc, setDoc, serverTimestamp, db: dbx, dToday,
   PRAPI, API, prGet, apiGet, REPL, ME, INDIA_LOADED, INDIA_ROWS, confirm, alert,
   MS, msInit, msFill, msVals, msHas, msSet, msClearAll, msPaint, msToggle, msChanged,
   fetch, Blob, URL, document, window, open, console, setTimeout, clearTimeout,
@@ -189,6 +190,7 @@ const ctx = {
 };
 const EXPORT = '\n;return {'
   + 'SHOP:()=>SHOP, setSHOP:v=>{SHOP=v}, SHOP_META:()=>SHOP_META, setMETA:v=>{SHOP_META=v},'
+  + 'srAll, srSave, srSetStatus, srLineRoom, srReturnedQty, srRender, SR:()=>SR, setSR:v=>{SR=v}, zipState, zoneOf, milesBetween, daysEstimate, zipLL, ZONE_DAYS,'
   + 'SHOP_STOCK:()=>SHOP_STOCK, setSTOCK:v=>{SHOP_STOCK=v; SHOP_STOCK_BY={SP:{},CPC:{}}}, setSTOCKCASE:v=>{SHOP_STOCK_CASE=v; SHOP_STOCK_CASE_BY={SP:{},CPC:{}}},'
   + 'SHOP_SKU:()=>SHOP_SKU, setSKU:v=>{SHOP_SKU=v}, setINDIA:v=>{SHOP_INDIA=v; SHOP_INDIA_LOADED=true},'
   + 'loadShopStock, loadShopIndia, soGuessBrand, soMcf, soAmzKey, soAmzCase, soLive, soSendQty, soMcfPlan, soBestBrand, soMcfHas, mcfErr, openShopOrder,'
@@ -1776,7 +1778,38 @@ console.log('\n== THE PRODUCTION BUCKET (Ravi, 2026-09-26) ==');
   ok('a cancelled or refunded line is over too, and says which', A.shpDoneWhy({ cancelled: true }, 'X') === 'cancelled'
      && A.shpDoneWhy({ items: [{ sku: 'X', qty: 2, rq: 2, ffl: 'unfulfilled' }] }, 'X') === 'refunded');
 }
+console.log('\n== Shopify returns, typed by hand, tracked to the USA warehouse (Ravi, 2026-09-26) ==');
+await (async () => {
+  const was = { shop: A.SHOP(), meta: A.SHOP_META() };
+  A.setSHOP(Object.assign({}, was.shop, { orders: [{ id: '9001', no: '#R1', at: '2026-09-20', shopBrand: 'SP', ship: { name: 'Jane Doe', zip: '90210', state: 'CA' },
+    items: [{ lid: 'L1', sku: 'A1', name: 'Napkins', qty: 4, rq: 0 }, { lid: 'L2', sku: 'B2', name: 'Runner', qty: 1, rq: 0 }] }] }));
+  A.setMETA({});
+  SETS.length = 0;
+  ok('nothing ticked is refused', /Tick at least one line/.test(await A.srSave('9001', { items: [] })));
+  ok('more than the order held is refused', /only 4 of 4/.test(await A.srSave('9001', { items: [{ lid: 'L1', qty: 5 }] })), await A.srSave('9001', { items: [{ lid: 'L1', qty: 5 }] }));
+  ok('an order not loaded is refused', /Pick an order/.test(await A.srSave('nope', { items: [{ lid: 'L1', qty: 1 }] })));
+  const first = await A.srSave('9001', { items: [{ lid: 'L1', qty: 2 }, { lid: 'L2', qty: 0 }], trk: '9400 1111', carrier: 'USPS', reason: 'Damaged', date: '2026-09-25' });
+  ok('2 of the 4 napkins come back, with the return tracking — written to the order\'s own entry', first === '' && SETS.length === 1 && SETS[0].path === 'audit/shoporders', first + ' ' + JSON.stringify(SETS.map(x => x.path)));
+  const r = A.srAll()[0];
+  ok('…recorded with the order, the customer, the lines and the stage', r && r.orderNo === '#R1' && r.customer === 'Jane Doe' && r.items.length === 1 && r.items[0].sku === 'A1' && r.items[0].qty === 2 && r.trk === '9400 1111' && r.status === 'started', JSON.stringify(r));
+  ok('a second return may bring back only the 2 that are left', /only 2 of 4/.test(await A.srSave('9001', { items: [{ lid: 'L1', qty: 3 }] })) && (await A.srSave('9001', { items: [{ lid: 'L1', qty: 2 }] })) === '');
+  ok('…and then nothing', /only 0 of 4/.test(await A.srSave('9001', { items: [{ lid: 'L1', qty: 1 }] })));
+  ok('the return moves along: on its way → received (dated, with the condition) → closed',
+     (await A.srSetStatus('9001', r.id, 'transit', '')) === '' && (await A.srSetStatus('9001', r.id, 'received', 'one napkin torn')) === ''
+     && !!A.srAll().find(x => x.id === r.id).receivedAt && /torn/.test(A.srAll().find(x => x.id === r.id).note) && (await A.srSetStatus('9001', r.id, 'closed', 'refunded')) === '',
+     JSON.stringify(A.srAll().find(x => x.id === r.id)));
+  A.setSR({ tab: 'all', q: '' }); A.srRender();
+  ok('the window lists them', /#R1/.test(els.srTable.innerHTML) && /9400 1111/.test(els.srTable.innerHTML), els.srTable.innerHTML.slice(0, 200));
+  /* the delivery-days tool */
+  ok('a zip is placed by its first three digits when the lookup is silent', A.zipState('90210') === 'CA' && A.zipState('07001') === 'NJ' && A.zipState('99501') === 'AK' && A.zipState('00000') === '');
+  ok('distance makes the zone, the zone makes the days', A.zoneOf(40, 'NJ') === 1 && A.zoneOf(500, 'NJ') === 4 && A.zoneOf(2500, 'CA') === 8 && A.zoneOf(100, 'HI') === 9 && A.ZONE_DAYS[8][0] === '4–5');
+  const d = await A.daysEstimate('07001', '90210');
+  ok('New Jersey to Beverly Hills: zone 8, 4–5 days by ground', !d.err && d.zone === 8 && d.days[0] === '4–5' && d.miles > 2000, JSON.stringify(d));
+  ok('a zip nobody can place is said, not guessed', /not one I can place/.test((await A.daysEstimate('07001', '00000')).err || ''));
+  A.setSHOP(was.shop); A.setMETA(was.meta);
+})();
+/* The summary sits INSIDE the async block: the returns tests await, and a summary outside printed "0 passed" before they ran. */
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exitCode = fail ? 1 : 0;
-
 })();
+
