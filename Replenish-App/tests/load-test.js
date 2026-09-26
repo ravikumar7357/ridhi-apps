@@ -25,7 +25,8 @@ const DOCS = {
   'repl/prodstatus': { prodlog: {} },
   'health/SP': { chunks: 1 }, 'healthrows/SP_0': { r: [{ s: 'A1' }] }, 'health/CPC': { chunks: 0, rows: [] },
 };
-const getDoc = async d => { READS.push(d.col + '/' + d.id); const v = DOCS[d.col + '/' + d.id]; return { exists: () => !!v, data: () => v }; };
+/* The slim rows answer SLOWER than the full ones here — the race that put slim rows on screen on 26 Sep. */
+const getDoc = async d => { READS.push(d.col + '/' + d.id); if (d.col === 'replslimrows') await new Promise(r => setTimeout(r, 25)); const v = DOCS[d.col + '/' + d.id]; return { exists: () => !!v, data: () => v }; };
 const reads = () => READS.map(r => r.split('/')[0]).filter((v, i, a) => a.indexOf(v) === i).join(',');
 
 const body = [
@@ -73,6 +74,13 @@ const make = () => new Function('doc', 'getDoc', body + '\n;return { ensureReplS
   A = make(); READS.length = 0;
   await Promise.all([A.loadReplCache(true), A.loadReplCache(true), A.ensureReplSlim()]);
   ok('one read of the full copy serves them all', READS.filter(r => r === 'repl/SP').length === 1 && A.mode() === 'full', READS.join(' '));
+
+  console.log('== the Replenishment tab is opened while the sign-in slim read is still in flight');
+  A = make(); READS.length = 0;
+  const slimP = A.ensureReplSlim();                 // sign-in, not awaited
+  await A.ensureRepl();                             // the tab, straight away
+  await slimP;
+  ok('the full rows are what is on screen — the slower slim read did not land on top of them', A.mode() === 'full' && A.REPL().SP.rows[0].last90 === 5 && A.REPL().SP.mode === 'full', A.mode() + ' ' + JSON.stringify(A.REPL().SP.rows[0]));
 
   console.log('== a team member who may not see the full copy');
   A = make(); A.ME().admin = false; A.ME().tabs = ['cut', 'fgi']; READS.length = 0;

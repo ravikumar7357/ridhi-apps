@@ -4136,6 +4136,11 @@ async function loadReplCache(wantFull) {
   const full = !!wantFull && replFull();
   if (REPL_MODE === 'full' || (REPL_MODE === 'slim' && !full)) return;
   if (REPL_LOADING && (REPL_LOADING.full || !full)) return REPL_LOADING.p;
+  /* A SLIM READ STILL IN FLIGHT FINISHES FIRST. Starting the full read beside it let the slim rows land last and
+   * overwrite the full ones (Ravi, 2026-09-26: "replenish tab ka sara data kharab ho gya — image bhi nahi, status
+   * bhi nahi") — the table then drew a snapshot with no image, status or warehouse figures. */
+  if (REPL_LOADING) { try { await REPL_LOADING.p; } catch (e) { /* the full read below stands on its own */ } }
+  if (REPL_MODE === 'full') return;
   const p = loadReplCacheRun(full).then(() => { REPL_MODE = full ? 'full' : 'slim'; }).finally(() => { if (REPL_LOADING && REPL_LOADING.p === p) REPL_LOADING = null; });
   REPL_LOADING = { full, p };
   return p;
@@ -4153,7 +4158,9 @@ async function loadReplCacheRun(full) {
       } else {
         rows = d.rows || [];                          // docs written before chunking
       }
-      REPL[b] = { at: d.at && d.at.toDate ? d.at.toDate() : null, rows, recCols: d.recCols || [], catalogSkus: d.catalogSkus || [] };
+      /* WHICH COPY THESE ROWS ARE. The rows cache keys on count and time, and the slim and full copies share both —
+       * a table built from slim rows stayed on screen after the full ones arrived. */
+      REPL[b] = { at: d.at && d.at.toDate ? d.at.toDate() : null, rows, recCols: d.recCols || [], catalogSkus: d.catalogSkus || [], mode: full ? 'full' : 'slim' };
     } catch (e) {
       // A DENIED read must not look like "there is simply no snapshot" — that sent us hunting in the
       // wrong place. Record it so renderRepl can say what actually happened.
@@ -5915,7 +5922,7 @@ function renderRepl() {
   /* EVERYTHING THE WALK BELOW READS, in one string. A filter is not in it — that is the point. */
   const rowSig = [
     brands.join(','),
-    brands.map(b => (REPL[b].rows || []).length + '@' + (REPL[b].at ? REPL[b].at.getTime() : 0)).join(','),
+    brands.map(b => (REPL[b].rows || []).length + '@' + (REPL[b].at ? REPL[b].at.getTime() : 0) + '@' + (REPL[b].mode || 'full')).join(','),
     fcMonths(), PROJ_VER, R_VER,
     LEAD.prod, LEAD.disp, LEAD.air, LEAD.sea,
     ($('rMarket') || {}).value, ($('rSupply') || {}).value,
