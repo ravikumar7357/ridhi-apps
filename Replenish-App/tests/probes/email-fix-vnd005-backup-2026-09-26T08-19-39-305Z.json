@@ -1,0 +1,35 @@
+{
+ "pt_masters/vendor/r4": {
+  "active": true,
+  "address": "Jaipur",
+  "category": "Printer",
+  "code": "VND005",
+  "createdAt": "2026-08-25T06:07:44.144Z",
+  "createdBy": "vimal@thefabricrush.com",
+  "email": "thecrownandloon@gmail.com",
+  "gstin": "",
+  "modifiedAt": "2026-09-26T08:08:49.625Z",
+  "modifiedBy": "ravi@thefabricrush.com",
+  "name": "Friends Creations",
+  "phone": "9414046837",
+  "poc": "Rauf",
+  "state": "Rajasthan",
+  "stateCode": "08"
+ },
+ "pt_vendorMap/VND005": {
+  "email": "thecrownandloon@gmail.com",
+  "name": "Friends Creations",
+  "phone": "9414046837"
+ },
+ "pt_vendorByEmail/thecrownandloon@gmail,com": {
+  "code": "VND005",
+  "name": "Friends Creations",
+  "phone": "9414046837"
+ },
+ "pt_vendorByEmail/thecrownandloom@gmail,com": null,
+ "pt_loginDir/9414046837": {
+  "email": "thecrownandloon@gmail.com",
+  "name": "Friends Creations",
+  "updatedAt": "2026-09-26T08:17:25.697Z"
+ }
+}
