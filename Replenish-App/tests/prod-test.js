@@ -17199,7 +17199,10 @@ console.log('\n== RFD: asking by the piece, and whether the cloth has actually a
     ok('what has reached them is on their own screen', />25</.test(html2), 'delivered figure missing');
     /* This fixture has no lots sent, so the chip is checked where it is written: beside the order's kind, not at the foot. */
     ok('…and Sent to you sits up top beside the order, as a chip that opens the lots', (src => src.indexOf("'cut — pieces')}</span>\r\n        ${receipt}") > 0
-       && src.indexOf('<details class="vr-sent"><summary>Sent to you') > 0 && src.indexOf('    + receipt;') < 0)(fs.readFileSync(APP, 'utf8')));
+       && src.indexOf('<details id="vpRfdSent" class="vr-sent"') > 0 && src.indexOf('    + receipt;') < 0)(fs.readFileSync(APP, 'utf8')));
+    /* Ravi, 2026-09-26: "ye sara data sent to you me aay" — the asks list lives in the same top dropdown. */
+    ok('…and what was asked, with Take back, is in that same dropdown', /<details id="vpRfdSent" class="vr-sent"[^>]*><summary>Nothing sent yet · \d+ asked<\/summary>[\s\S]*What you have asked for[\s\S]*data-vprfd-del=/.test(html2)
+       && !/id="vpRfdAsks"/.test(html2), (html2.match(/vr-sent[\s\S]{0,200}/) || ['no chip'])[0]);
     ok('…and so is what is still to come', />14</.test(html2), 'outstanding figure missing');
     /* It is still ASKABLE. Flagging a gap must not take the size off the screen — the printer still
      * needs those twenty tablecloths, and the rule being unset is the office's problem, not theirs. */
@@ -17450,7 +17453,7 @@ console.log('\n== RFD: asking by the piece, and whether the cloth has actually a
     const h = els.vpBody.innerHTML;
     ok('the screen gives the printer a box to say what they have', /data-vprfd-stock=/.test(h), h.slice(0, 400));
     /* Design 4 (Ravi, 2026-09-26): each size a progress row, both boxes on it, the picker says Change order, the raise bar at the foot. */
-    ok('what was asked sits in a closed dropdown inside the requirement card', !/What you have asked for/.test(h) || /<details id="vpRfdAsks"[^>]*><summary[^>]*>What you have asked for/.test(h));
+    ok('what was asked sits in the closed Sent to you dropdown at the top', !/What you have asked for/.test(h) || /<details id="vpRfdSent" class="vr-sent"><summary>[\s\S]*What you have asked for/.test(h));
     /* THE DRAW-LONG MEMO: the same answer inside one draw, a fresh one once the data is swapped. */
     { const oo = A.VP().rows[0]; const g1 = A.rfdSizeGroups(oo), g2 = A.rfdSizeGroups(oo);
       const keepR = A.RFD(); A.setRFD_(Object.assign({}, keepR)); const g3 = A.rfdSizeGroups(oo); A.setRFD_(keepR);

@@ -445,7 +445,8 @@
   .vr-sent summary{cursor:pointer;list-style:none;display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:999px;background:#E8F2EA;color:#166534;font-weight:700;font-size:13px}
   .vr-sent summary::-webkit-details-marker{display:none}
   .vr-sent summary::after{content:'▾';margin-left:6px;font-size:11px}
-  .vr-sent-pop{position:absolute;top:calc(100% + 6px);left:0;z-index:30;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 30px rgba(20,24,31,.16);padding:10px 12px;min-width:420px;max-height:50vh;overflow:auto}
+  .vr-sent-pop{position:absolute;top:calc(100% + 6px);left:0;z-index:30;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 30px rgba(20,24,31,.16);padding:10px 12px;min-width:560px;max-width:min(860px,90vw);max-height:60vh;overflow:auto}
+  .vr-pop-h{font-weight:700;color:#166534;font-size:13px;margin-bottom:6px}
   /* VENDOR RFD, design 7 — the spreadsheet (Ravi, 2026-09-26): light rows, figures in their own columns. */
   .vrs{width:100%;border-collapse:collapse;margin-bottom:12px}
   .vrs th{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);text-align:right;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap;background:transparent}
@@ -30221,14 +30222,14 @@ function vpRfdRender(matched, nag) {
   const gotTxt = u => { const t = rfdRound(sends.filter(x => x.unit === u).reduce((a, x) => a + x.qty, 0));
     return t ? nf(t) + ' ' + u : ''; };
   /* UP TOP, BESIDE THE ORDER (Ravi, 2026-09-26: "sent to you ko upar shift krdo"): a green chip that opens the lots. */
-  const receipt = sends.length ? `<details class="vr-sent"><summary>Sent to you — ${[gotTxt('pcs'), gotTxt('m')].filter(Boolean).join(' · ')} on ${nf(sends.length)} lot(s)</summary>
-    <div class="vr-sent-pop"><table class="xl"><thead><tr><th>Sent on</th><th>What</th><th class="num">How much</th></tr></thead><tbody>${
+  const sentTxt = [gotTxt('pcs'), gotTxt('m')].filter(Boolean).join(' · ');
+  const lotsHtml = sends.length ? `<div class="vr-pop-h">Sent to you — ${sentTxt} on ${nf(sends.length)} lot(s)</div>
+    <table class="xl"><thead><tr><th>Sent on</th><th>What</th><th class="num">How much</th></tr></thead><tbody>${
       sends.slice(0, 12).map(x => `<tr><td style="text-align:left">${esc(x.date) || '<span class="muted">no date</span>'}</td>`
         + `<td style="text-align:left">${esc(x.what)}</td>`
         + `<td class="num" style="font-weight:700;color:#166534">${nf(rfdRound(x.qty))} ${esc(x.unit)}</td></tr>`).join('')
     }</tbody></table>
-    ${sends.length > 12 ? `<div class="muted" style="font-size:12px;margin-top:6px">…and ${nf(sends.length - 12)} earlier lot(s).</div>` : ''}
-  </div></details>` : '';
+    ${sends.length > 12 ? `<div class="muted" style="font-size:12px;margin-top:6px">…and ${nf(sends.length - 12)} earlier lot(s).</div>` : ''}` : '';
 
   /* ---- THE SIZES ----
    *
@@ -30330,6 +30331,11 @@ function vpRfdRender(matched, nag) {
         + `<td>${!r.shown ? `<button class="ghost" data-vprfd-del="${esc(o.id)}|${esc(r.id)}" style="padding:3px 10px;font-size:12px">Take back</button>` : '<span class="muted">&mdash;</span>'}</td></tr>`;
     }).join('');
 
+  /* ONE DROPDOWN AT THE TOP: what was sent, then everything asked for with its stage and Take back. */
+  const nAsk = rfdReqsOf(o).length;
+  const receipt = (sends.length || asks) ? `<details id="vpRfdSent" class="vr-sent"${VP.rfdSentOpen ? ' open' : ''}><summary>${sends.length ? 'Sent to you — ' + sentTxt : 'Nothing sent yet'}${nAsk ? ' · ' + nf(nAsk) + ' asked' : ''}</summary>
+    <div class="vr-sent-pop">${lotsHtml}${asks ? `<div class="vr-pop-h" style="margin-top:${sends.length ? 12 : 0}px">What you have asked for on ${esc(o.orderNo || o.id)} (${nf(nAsk)})</div>
+      <table class="xl"><thead><tr><th>What</th><th class="num">Asked</th><th>Stage</th><th class="num">Sent to you</th><th></th></tr></thead><tbody>${asks}</tbody></table>` : ''}</div></details>` : '';
   body.innerHTML = nag
     + `<div class="card" style="padding:12px 14px;margin-top:12px">
       <div class="toolbar" style="margin-bottom:10px">
@@ -30348,10 +30354,6 @@ function vpRfdRender(matched, nag) {
       ${rowsF ? vrsHead('Fabric', 'Running cloth · metres') + rowsF + '</tbody></table></div>' : ''}
       ${need.unknown.length ? `<div class="muted" style="font-size:12px;margin-bottom:8px">${nf(need.unknown.length)} line(s) on this order could not be worked out, so their cloth is not in the figures above. Ask the office.</div>` : ''}
 
-      ${asks ? `<details id="vpRfdAsks" style="margin-top:8px"${VP.rfdAsksOpen ? ' open' : ''}><summary style="cursor:pointer;font-weight:600;font-size:13px">What you have asked for on ${esc(o.orderNo || o.id)} (${nf(rfdReqsOf(o).length)}) — open to see, or take one back</summary>
-        <div class="xlwrap" style="max-height:40vh;margin-top:8px"><table class="xl"><thead><tr>
-          <th>What</th><th class="num">Asked</th><th>Stage</th><th class="num">Sent to you</th><th></th>
-        </tr></thead><tbody>${asks}</tbody></table></div></details>` : ''}
       <details style="margin-top:6px">
         <summary class="muted" style="font-size:12px;cursor:pointer">Ask for one size or one fabric only</summary>
         <div class="muted" style="font-size:11.5px;margin-top:6px">A size is asked for once. It is shared out over that size's colours for you, in proportion to what each still needs.</div>
@@ -30380,7 +30382,7 @@ function vpRfdRender(matched, nag) {
   if ($('vpRfdPick')) $('vpRfdPick').onchange = () => { VP.rfdOrder = $('vpRfdPick').value; renderVp(); };
   if ($('vpRfdRaise')) $('vpRfdRaise').onclick = () => vpRfdRaiseOpen(o);
   /* The asks list stays open across a redraw (a Take back redraws the screen) once somebody has opened it. */
-  if ($('vpRfdAsks')) $('vpRfdAsks').addEventListener('toggle', () => { VP.rfdAsksOpen = $('vpRfdAsks').open; });
+  if ($('vpRfdSent')) $('vpRfdSent').addEventListener('toggle', () => { VP.rfdSentOpen = $('vpRfdSent').open; });
   if ($('vpRfdClear')) $('vpRfdClear').onclick = () => { (VP.rfdDraft || {})[o.id] = {}; renderVp(); };
   if ($('vpRfdAll')) $('vpRfdAll').onclick = () => ptOpenDialog({
     title: 'Ask for the whole of ' + (o.orderNo || o.id) + '?',
