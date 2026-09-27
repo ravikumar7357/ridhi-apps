@@ -190,7 +190,7 @@ const ctx = {
 };
 const EXPORT = '\n;return {'
   + 'SHOP:()=>SHOP, setSHOP:v=>{SHOP=v}, SHOP_META:()=>SHOP_META, setMETA:v=>{SHOP_META=v},'
-  + 'soShipFrom, soWord, srAll, srSave, srSetStatus, srLineRoom, srReturnedQty, srRender, SR:()=>SR, setSR:v=>{SR=v}, zipState, zoneOf, milesBetween, daysEstimate, zipLL, ZONE_DAYS,'
+  + 'soShipFrom, soWord, srAll, srSave, srSetStatus, srLineRoom, srReturnedQty, srRender, SR:()=>SR, setSR:v=>{SR=v}, zipState, zoneOf, milesBetween, daysEstimate, zipLL, ZONE_DAYS, indiaDaysEstimate, addBizDays, inBandOf,'
   + 'SHOP_STOCK:()=>SHOP_STOCK, setSTOCK:v=>{SHOP_STOCK=v; SHOP_STOCK_BY={SP:{},CPC:{}}}, setSTOCKCASE:v=>{SHOP_STOCK_CASE=v; SHOP_STOCK_CASE_BY={SP:{},CPC:{}}},'
   + 'SHOP_SKU:()=>SHOP_SKU, setSKU:v=>{SHOP_SKU=v}, setINDIA:v=>{SHOP_INDIA=v; SHOP_INDIA_LOADED=true},'
   + 'loadShopStock, loadShopIndia, soGuessBrand, soMcf, soAmzKey, soAmzCase, soLive, soSendQty, soMcfPlan, soBestBrand, soMcfHas, mcfErr, openShopOrder,'
@@ -1823,6 +1823,14 @@ console.log('\n== The Shopify tab stays quick with the real order book (Ravi, 20
   ok('the search waits for a pause in typing instead of redrawing on every key', /\$\('soFilter'\)\.addEventListener\('input', \(\) => \{ clearTimeout\(t\); t = setTimeout\(renderShop, 220\); \}\)/.test(src) && !/\['soState', 'soFilter', 'soDay'\]\.forEach/.test(src));
   ok('the sync planner reads the master and the order book through indexes, not a walk per order', /const mdbBy = shpMdbBy\(\);/.test(src) && /shpObOf\(no\)\.forEach/.test(src));
 }
+console.log('\n== India → USA by DHL Express / FedEx International Priority (Ravi, 2026-09-27) ==');
+await (async () => {
+  ok('business days skip the weekend', A.addBizDays('2026-09-25', 1) === '2026-09-28' && A.addBizDays('2026-09-28', 4) === '2026-10-02');
+  ok('a metro state, the rest of the lower 48, and the far ones are three bands', A.inBandOf('NY') === 'metro' && A.inBandOf('MT') === 'lower48' && A.inBandOf('HI') === 'remote');
+  const r = await A.indiaDaysEstimate('10001', '2026-09-28');
+  ok('India → New York, picked up Monday: 3–4 days, landing Thu–Fri, both services', !r.err && r.dhl.days.join('-') === '3-4' && r.dhl.from === '2026-10-01' && r.dhl.to === '2026-10-02' && r.fedex.to === '2026-10-02', JSON.stringify(r));
+  ok('a zip nobody can place is said, not guessed', /not one I can place/.test((await A.indiaDaysEstimate('00000', '2026-09-28')).err || ''));
+})();
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exitCode = fail ? 1 : 0;
 })();
