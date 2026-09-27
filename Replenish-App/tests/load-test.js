@@ -97,6 +97,15 @@ const make = () => new Function('doc', 'getDoc', body + '\n;return { ensureReplS
     ok('nothing at sign-in draws the Replenishment table any more', !/if \(!FACTORY_ONLY\) await ensureRepl\(\)/.test(src));
   }
 
+  console.log('== the Replenishment table is not redrawn while another tab is open (27 Sep: Page Unresponsive)');
+  {
+    const i = src.indexOf('function renderRepl() {'), head = src.slice(i, i + 300);
+    ok('a hidden Replenishment table is only marked to redraw — the six background loads no longer walk 4,700 SKUs each',
+       /if \(\$\('paneRepl'\) && \$\('paneRepl'\)\.classList\.contains\('hide'\)\) \{ REPL_DIRTY = true; return; \}/.test(head), head.slice(0, 160));
+    const t = src.indexOf('function showTab('), body = src.slice(t, src.indexOf('\n}', t));
+    ok('…and opening the tab draws it, after the pane is shown', body.indexOf("toggle('hide', which !== k)") >= 0 && body.indexOf("toggle('hide', which !== k)") < body.indexOf("if (which === 'repl') ensureRepl()"));
+  }
+
   console.log('== the slim copy carries what the production screens read');
   const s = A.slim({ sku: 'A', color: 'Red', size: '1', totalStock: 3, last90: 9, last30: 2, asin: 'B0X', parent: 'B0P', rec: { x: 1 }, inflow: {}, monthlyAmt: 5 });
   ok('colour, size, FBA stock, sales and the Amazon ids — not the recommendation or the inflow', s.last90 === 9 && s.last30 === 2 && s.asin === 'B0X' && s.parent === 'B0P' && s.totalStock === 3 && !('rec' in s) && !('inflow' in s) && !('monthlyAmt' in s), JSON.stringify(s));

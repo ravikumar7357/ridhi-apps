@@ -33,7 +33,14 @@ const PR = pathm.join(__dirname, '..');
   A.setSHOP(Object.assign({}, A.SHOP(), { orders, from, to, at: 'now' }));
   A.setMETA(M);
   H.PTG.ob = Object.entries(ob.j || {}).map(([k, v]) => Object.assign({ _key: k }, v)).filter(r => r && r.orderNo);
-  A.setStockLoaded(true); A.setIndia({}, true, '');
+  /* THE REAL STOCK: Amazon's per SKU (Firestore stock/SP, stock/CPC) and India's (the backend's india=stock). */
+  const stk = {};
+  for (const b of ['SP', 'CPC']) { const d = (await req(FS + 'stock/' + b)).j; Object.entries(val((d.fields || {}).m) || {}).forEach(([k, q]) => { const u = String(k).trim().toUpperCase(); stk[u] = Math.max(stk[u] || 0, Number(q) || 0); }); }
+  A.setSTOCK(stk); A.setSTOCKCASE(Object.fromEntries(Object.keys(stk).map(k => [k, k])));
+  A.setStockLoaded(true);
+  const ind = await req(url + '?key=' + encodeURIComponent(key) + '&india=stock', false);
+  A.setIndia((ind.j && ind.j.d) || {}, true, '');
+  console.log('   Amazon stock SKUs ' + Object.keys(stk).length + ' · India stock SKUs ' + Object.keys((ind.j && ind.j.d) || {}).length + ' (' + ind.ms + ' ms)');
   console.log('   order book rows in the harness', H.PTG.ob.length);
   const time = (label, f, n) => { const t = Date.now(); let r; for (let i = 0; i < (n || 1); i++) r = f(); const ms = (Date.now() - t) / (n || 1); console.log('   ' + label.padEnd(30) + String(Math.round(ms)).padStart(6) + ' ms' + (ms > 250 ? '   <- slow' : '')); return r; };
   console.log('\n=== one draw of the Shopify tab, ' + orders.length + ' orders');

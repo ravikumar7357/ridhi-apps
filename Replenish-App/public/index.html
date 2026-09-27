@@ -5892,7 +5892,15 @@ function replFillFromMaster() {
   }));
   return n;
 }
+/* NOT DRAWN WHILE NOBODY IS LOOKING (Ravi, 2026-09-27: "Page Unresponsive" moving from Replenishment to Shopify
+ * Orders). Six background loads — India stock (cache, then live), the master, the US-listing set, production notes —
+ * each ended by redrawing this 4,700-SKU table whether or not it was on screen, and each changed the rows signature,
+ * so each was a full walk of the snapshot: seconds apiece, landing one after another on whatever tab was open. Now a
+ * hidden table is only marked to redraw, and opening the tab draws it once with everything that has landed. */
+let REPL_DIRTY = false;
 function renderRepl() {
+  if ($('paneRepl') && $('paneRepl').classList.contains('hide')) { REPL_DIRTY = true; return; }
+  REPL_DIRTY = false;
   if (!replMaster()) replMasterLoad(); else replFillFromMaster();
   const _t0 = performance.now();   // perf probe — see the "[repl] rendered …ms" console line
   /* NO STANDING NOTICE. India stock is read on every visit, so a line saying it is being read was
