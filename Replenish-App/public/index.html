@@ -30888,7 +30888,10 @@ const vpRfdOrders = () => (VP.rows || []).filter(o => o
   && ['Received', 'Cancelled'].indexOf(o.status || 'Placed') < 0
   /* Either kind counts. An order that is entirely Tablecloths has no cloth to ask for at all and is
    * still an order whose pieces have to be asked for. */
-  && (rfdFabrics(o).length > 0 || rfdPieceLines(o).length > 0));
+  && (rfdFabrics(o).length > 0 || rfdPieceLines(o).length > 0))
+  /* THE ORDERS THE STORE SENDS COME FIRST, NEWEST FIRST (2026-09-27): the tab opens on the first one, and it used to be
+   * the oldest — the new way of working sat at the bottom of the list and "nothing changed" on screen. */
+  .sort((a, b) => (rfdTracked(b) - rfdTracked(a)) || (voWhenMs(b) - voWhenMs(a)));
 
 /** Every ask this printer has made, newest first, with where it stands. */
 function vpRfdRows() {
@@ -30952,7 +30955,8 @@ function vpRfdRender(matched, nag) {
   $('vpKpis').innerHTML = `<div class="vpbar">
     <span><b>${esc(VP.name)}</b> <span class="muted">· RFD</span></span>
     <span class="sep"></span>
-    <span><b>${nf(orders.length)}</b> order(s) you can ask against</span>
+    <span><b>${nf(orders.length)}</b> order(s)${(n => n ? ` · <b>${nf(n)}</b> sent by the store` : '')(orders.filter(rfdTracked).length)}</span>
+    ${(n => n ? `<span class="sep"></span><span class="muted">Lots to confirm</span> <span style="font-weight:700;color:#166534">${nf(n)}</span>` : '')(orders.filter(rfdTracked).reduce((a, x) => a + vpRfdSends(x).filter(l => !l.got && l.at).length, 0))}
     <span class="sep"></span>
     <span class="muted">Waiting for approval</span> <span style="color:#7f6000;font-weight:700">${nf(waiting.length)}${m(waiting) ? ' · ' + m(waiting) : ''}</span>
     <span class="sep"></span>
@@ -38819,7 +38823,9 @@ const PAL_SHEET_COLS = ['Brand', 'Design', 'Group', 'Continue (no = remove)',
 /** Every design there is, with what the registers say about it. */
 function palSheetRows() {
   const rows = [PAL_SHEET_COLS];
-  palDesigns().forEach(d => {
+  /* THE BRAND PICKED IS THE BRAND WRITTEN (Ravi, 2026-09-27: "CPC par filter lagaya but isne sara data export kar diya"). */
+  const brand = ($('palBrand') || {}).value || '';
+  palDesigns().filter(d => !brand || d.brand === brand).forEach(d => {
     const inf = palInfoOf(d.key);
     rows.push([d.brand, d.color, d.group || '', d.live ? 'yes' : 'no',
       inf.cur || '', d.blocks || '', inf.status || '', inf.printer ? palAssignName(inf.printer) : '',
@@ -38900,7 +38906,9 @@ function palSheetPlan(entries) {
    * that the file does not hold is offered for removal. `whole` says whether the file is the whole sheet — at
    * least half of the colours on the list — because a sheet cut down to one brand is not a request to remove
    * every other brand; the preview then leaves them alone unless the person says otherwise. */
-  const liveAll = [...known.values()].filter(d => d.live);
+  /* ONLY THE BRANDS THE FILE HOLDS: a CPC sheet says nothing about Ridhi's colours. */
+  const fileBrands = new Set([...seen.keys()].map(k => (known.get(k) || {}).brand).filter(Boolean));
+  const liveAll = [...known.values()].filter(d => d.live && (!fileBrands.size || fileBrands.has(d.brand)));
   const missing = liveAll.filter(d => !seen.has(d.key));
   const inFile = liveAll.length - missing.length;
   return { set, skip, missing, whole: liveAll.length > 0 && inFile >= liveAll.length / 2 };

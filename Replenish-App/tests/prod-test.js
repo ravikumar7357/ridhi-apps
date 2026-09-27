@@ -13801,6 +13801,19 @@ console.log('\n== printer allocation by colour ==');
       const sh = A.palSheetRows(), H = sh[0], mine = sh.find(r => r[0] === d0.brand && r[1] === d0.color);
       ok('the design sheet carries the four', ['Current blocks', 'Required blocks', 'Status', 'Assign to printer'].every(c => H.indexOf(c) > 0)
          && mine[H.indexOf('Current blocks')] === 4 && mine[H.indexOf('Assign to printer')] === 'Choudhary Hand Block', JSON.stringify(mine));
+      /* 27 Sep: "CPC par filter lagaya but isne sara data export kar diya". */
+      {
+        const brands = [...new Set(A.palDesigns().map(d => d.brand))];
+        const other = brands.find(b => b !== d0.brand);
+        els.palBrand.value = d0.brand;
+        const one = A.palSheetRows();
+        ok('the design sheet writes only the brand picked', one.length > 1 && one.slice(1).every(r => r[0] === d0.brand) && (!other || one.length - 1 < A.palDesigns().length), String(one.length));
+        if (other) {
+          const plan1 = A.palSheetPlan(A.palSheetRead(one).entries);
+          ok('…and reading it back offers to remove nothing of the other brands', plan1.missing.every(d => d.brand === d0.brand) && plan1.whole === true, JSON.stringify(plan1.missing.map(d => d.brand)));
+        }
+        els.palBrand.value = '';
+      }
       const ed = mine.slice(); ed[H.indexOf('Current blocks')] = '5'; ed[H.indexOf('Status')] = 'Blocks ready'; ed[H.indexOf('Assign to printer')] = 'VND001';
       let pl = A.palSheetPlan(A.palSheetRead([H, ed]).entries);
       ok('a sheet that changes them plans exactly those', pl.set.map(x => x.field).sort().join(',') === 'cur,status', JSON.stringify(pl.set.map(x => x.field)));
@@ -20919,6 +20932,12 @@ await (async () => {
     ok('…shows on order / sent / confirmed / on the way / still to come, and keeps their own count', /<th>Still to come<\/th>/.test(hv) && /data-vprfd-stock="o9\|M__SHEETING_62"/.test(hv) && /Sheeting 62/.test(hv));
     ok('…and extra beyond the order can still be asked, for approval', /Need MORE than this order\? Ask for extra/.test(hv));
     ok('…and the order list names it as sent by the store', /sent by the store/.test(hv));
+    /* 27 Sep: "abhi bhi vendor portal par koi change nahi dikha" — the tab opened on the oldest order. */
+    const old = Object.assign(order(), { id: 'o0', orderNo: 'VPO-0', createdAt: '2026-09-01T06:00:00Z' });
+    A.setVP({ code: 'VND001', name: 'RBP-Bagru', rows: [old, o], err: '', busy: false, at: '', tab: 'rfd' });
+    ok('the orders the store sends come first, so the tab opens on one', A.vpRfdOrders()[0].id === 'o9' && A.vpRfdOrders()[1].id === 'o0', A.vpRfdOrders().map(x => x.id).join());
+    A.renderVp();
+    ok('…the band counts the lots waiting for Received', /Lots to confirm<\/span> <span[^>]*>1</.test(els.vpKpis.innerHTML) && /sent by the store/.test(els.vpKpis.innerHTML), els.vpKpis.innerHTML.slice(0, 300));
   }
   ok('more than was sent cannot be received', /more than was sent/.test(await A.rfdRecvSave(o, offReq.id, lot.at, 61, '2026-09-27')));
   ok('the printer confirms 58 m arrived', (await A.rfdRecvSave(o, offReq.id, lot.at, 58, '2026-09-27')) === ''
