@@ -39069,10 +39069,16 @@ function renderPal() {
       const g = cur.g, sp = palGroupSplit(g);
       const who = new Set(g.designs.map(d => palInfoOf(d.key).printer || ''));
       const oneP = who.size === 1 ? [...who][0] : '__mixed';
-      const tiles = sp.parts.map(x => { const t = toneOf(x.printer); return `<div class="pal2-t" style="background:${t[1]};color:${t[0]}"><b>${esc(palAssignName(x.printer))}</b>`
+      /* A TILE IS A FILTER (Ravi, 2026-09-27: "AR par click karu to AR ka data show ho"): click a printer, see only its
+       * colours; click it again, or pick another group, and every colour is back. "Not given" shows the ones nobody has. */
+      if (PAL.tileG !== g.name) { PAL.tileG = g.name; PAL.tileF = ''; }
+      const tf = PAL.tileF || '';
+      const ring = on => (on ? ';box-shadow:0 0 0 2px currentColor' : '') + (tf && !on ? ';opacity:.55' : '');
+      const tiles = sp.parts.map(x => { const t = toneOf(x.printer); return `<div class="pal2-t" data-paltile="${esc(x.printer)}" role="button" tabindex="0" title="${tf === x.printer ? 'Show every colour again' : 'Show only the colours given to ' + esc(palAssignName(x.printer))}" style="cursor:pointer;background:${t[1]};color:${t[0]}${ring(tf === x.printer)}"><b>${esc(palAssignName(x.printer))}</b>`
           + `<div class="v">${nf(Math.round(x.pcs))} pcs</div><div style="font-size:12px">${nf(x.colours)} colour${x.colours === 1 ? '' : 's'} · ${g.toMake ? Math.round(x.pcs / g.toMake * 100) : 0}%</div></div>`; }).join('')
-        + `<div class="pal2-t" style="background:${sp.noneN ? 'var(--bad-bg,#fde7e4)' : 'var(--hover,#f3f5f8)'};color:${sp.noneN ? 'var(--bad,#c2362b)' : 'var(--muted)'}"><b>Not given</b><div class="v">${nf(Math.round(sp.none))}</div><div style="font-size:12px">${sp.noneN ? nf(sp.noneN) + ' colour(s) have no printer' : 'every colour has a printer'}</div></div>`;
-      const rows = cur.cols.map(d => { const inf = palInfoOf(d.key); const short = d.blocks && inf.cur != null ? Math.max(0, d.blocks - palNum(inf.cur)) : 0;
+        + `<div class="pal2-t" data-paltile="__none" role="button" tabindex="0" style="cursor:pointer;background:${sp.noneN ? 'var(--bad-bg,#fde7e4)' : 'var(--hover,#f3f5f8)'};color:${sp.noneN ? 'var(--bad,#c2362b)' : 'var(--muted)'}${ring(tf === '__none')}"><b>Not given</b><div class="v">${nf(Math.round(sp.none))}</div><div style="font-size:12px">${sp.noneN ? nf(sp.noneN) + ' colour(s) have no printer' : 'every colour has a printer'}</div></div>`;
+      const shownCols = !tf ? cur.cols : cur.cols.filter(d => (palInfoOf(d.key).printer || '') === (tf === '__none' ? '' : tf));
+      const rows = shownCols.map(d => { const inf = palInfoOf(d.key); const short = d.blocks && inf.cur != null ? Math.max(0, d.blocks - palNum(inf.cur)) : 0;
         return '<tr>'
           + `<td style="text-align:left">${inf.printer ? dot(inf.printer) : ''}<b>${esc(d.color)}</b><div class="muted" style="font-size:11px">${nf(d.skus)} SKUs · ${d.l90 ? nf(Math.round(d.l90)) + ' sold 90d' : 'no sales read'}</div></td>`
           + `<td class="num"><b>${nf(Math.round(d.toMake))}</b><div class="muted" style="font-size:11px">of ${nf(Math.round(d.ordered))}</div></td>`
@@ -39090,6 +39096,7 @@ function renderPal() {
           + `${oneP === '__mixed' ? `<option value="__mixed" selected>Split · ${nf(sp.parts.length)} printer(s)</option>` : ''}<option value=""${oneP === '' ? ' selected' : ''}>— whole group to… —</option>`
           + prnOpts.map(([v, l]) => `<option value="${esc(v)}"${v === oneP ? ' selected' : ''}>${esc(l)}</option>`).join('') + '</select>' : '') + '</div>'
         + `<div class="pal2-tiles">${tiles}</div>`
+        + (tf ? `<div class="muted" style="font-size:12.5px;margin:-4px 0 8px">Showing ${nf(shownCols.length)} of ${nf(cur.cols.length)} colours — ${tf === '__none' ? 'not given to anybody' : 'given to ' + esc(palAssignName(tf))} · <a href="#" data-paltile="${esc(tf)}">show all</a></div>` : '')
         + `<div class="xlwrap" style="max-height:52vh"><table class="xl"><thead><tr><th style="text-align:left">Colour</th><th class="num">To make</th><th class="num">Blocks now / needed</th><th>Status</th><th>Printer</th><th>Printing now</th>${canEdit ? '<th>Move to group</th><th></th>' : ''}</tr></thead><tbody>${rows}</tbody></table></div>`;
     }
     head = []; body = `<tr><td style="padding:0;text-align:left;white-space:normal"><div class="pal2"><div class="pal2-l">${left}</div><div class="pal2-d">${right}</div></div></td></tr>`;
@@ -39441,6 +39448,8 @@ $('palTable').addEventListener('click', async e => {
   /* A group on the left opens on the right. */
   const pk = e.target.closest('[data-palpick]');
   if (pk) { PAL.pick = pk.getAttribute('data-palpick'); return renderPal(); }
+  const tl = e.target.closest('[data-paltile]');
+  if (tl) { e.preventDefault(); const v = tl.getAttribute('data-paltile'); PAL.tileF = PAL.tileF === v ? '' : v; return renderPal(); }
   const ed = e.target.closest('[data-paledit]');
   if (ed) return palPrinterOpen(ed.getAttribute('data-paledit'));
   const bl = e.target.closest('[data-palblk]');

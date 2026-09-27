@@ -13847,6 +13847,14 @@ console.log('\n== printer allocation by colour ==');
           ok('…the right says how it is split, printer by printer, and offers the whole-group picker', /Split · 2 printer\(s\)/.test(hg) && /class="pal2-t"/.test(hg) && /Not given/.test(hg));
           ok('…and lists only the colours of that group', keys.every(k => hg.indexOf('data-palasg="' + k + '"') >= 0)
              && A.palDesigns().filter(d => d.live && keys.indexOf(d.key) < 0).every(d => hg.indexOf('data-palasg="' + d.key + '"') < 0));
+          /* 27 Sep: "AR par click karu to AR ka data show ho". keys[0] went to VND777, the rest to VND001. */
+          A.PAL().tileF = 'VND777'; A.renderPal();
+          { const ht = els.palTable.innerHTML;
+            ok('clicking a printer tile shows only the colours given to it', ht.indexOf('data-palasg="' + keys[0] + '"') >= 0 && keys.slice(1).every(k => ht.indexOf('data-palasg="' + k + '"') < 0) && /Showing 1 of/.test(ht), ht.slice(0, 200)); }
+          A.PAL().tileF = 'VND001'; A.renderPal();
+          ok('…and the other printer\'s tile shows the rest', keys.slice(1).every(k => els.palTable.innerHTML.indexOf('data-palasg="' + k + '"') >= 0) && els.palTable.innerHTML.indexOf('data-palasg="' + keys[0] + '"') < 0);
+          A.PAL().tileF = ''; A.renderPal();
+          ok('…and with no tile picked every colour is back', keys.every(k => els.palTable.innerHTML.indexOf('data-palasg="' + k + '"') >= 0));
           const other = A.palGroups(live).find(x => x.name !== g.name);
           if (other) { A.PAL().pick = other.name; A.renderPal();
             ok('picking another group on the left opens it on the right', els.palTable.innerHTML.indexOf('data-palgasg="' + other.name + '"') >= 0 && els.palTable.innerHTML.indexOf('data-palasg="' + keys[0] + '"') < 0); }
