@@ -38643,6 +38643,30 @@ async function palSetInfo(designKey, field, value) {
   return palPutNeed(Object.assign({}, (PAL.need || {}).map || {}), info);
 }
 
+/** Give every colour of a group to one printer — one write. '' clears them all. */
+async function palSetGroupPrinter(keys, printer) {
+  if (!palCanEdit()) return PAL_NO_EDIT;
+  const v = String(printer == null ? '' : printer).trim();
+  const info = Object.assign({}, (PAL.need || {}).info || {});
+  (keys || []).forEach(k => {
+    const e = Object.assign({}, info[k] || {});
+    if (v) e.printer = v; else delete e.printer;
+    if (Object.keys(e).length) info[k] = e; else delete info[k];
+  });
+  return palPutNeed(Object.assign({}, (PAL.need || {}).map || {}), info);
+}
+/** How a group is split: printer → { colours, pieces }, and what is not given to anybody yet. */
+function palGroupSplit(g) {
+  const by = new Map(); let none = 0, noneN = 0;
+  g.designs.forEach(d => {
+    const pr = palInfoOf(d.key).printer || '';
+    if (!pr) { none += d.toMake; noneN++; return; }
+    const e = by.get(pr) || { printer: pr, colours: 0, pcs: 0 };
+    e.colours++; e.pcs += d.toMake; by.set(pr, e);
+  });
+  return { parts: [...by.values()].sort((a, b) => b.pcs - a.pcs), none, noneN };
+}
+
 async function palSetHave(printerKey, designKey, blocks) {
   if (!palCanEdit()) return PAL_NO_EDIT;
   if (!palPrinterOf(printerKey)) return 'That printer is not on the list.';
@@ -38975,19 +38999,22 @@ function renderPal() {
       + `<td>${canEdit ? `<button class="ghost" data-palon="${esc(d.key)}">Bring back</button>` : ''}</td>`
       + '</tr>').join('');
   } else if (view === 'design') {
-    const rows = designs.filter(d => hit(d.color) || hit(d.group) || hit(d.brand));
-    PAL.shown = rows;
-    head = ['Brand', 'Design', 'Group', 'SKUs', 'Ordered', 'To make', 'Share', 'Sold 90d', 'Current blocks', 'Required blocks', 'Status', 'Assign to printer', 'Printing now'].concat(canEdit ? [''] : []);
+    /* GROUP FIRST, ITS COLOURS UNDER IT (Ravi, 2026-09-27: "group pahle hona chahiye and us group me kitne color h wo 1
+     * sath dikhna chahiye; group bada h to multiple printers ko de saku"). The header row counts the group's colours
+     * and adds them up, says how it is split across printers, and gives the whole group to one printer in one go;
+     * each colour keeps its own printer, which is how one group is shared between several. */
+    const gl = groups.map(g => ({ g, cols: (hit(g.name) || hit(g.brand)) ? g.designs : g.designs.filter(d => hit(d.color) || hit(d.brand)) }))
+      .filter(x => x.cols.length);
+    PAL.shown = gl.flatMap(x => x.cols);
+    head = ['Group · colour', 'Brand', 'SKUs', 'Ordered', 'To make', 'Share', 'Sold 90d', 'Current blocks', 'Required blocks', 'Status', 'Assign to printer', 'Printing now'].concat(canEdit ? ['Move to group', ''] : []);
     const prnOpts = palAssignable();
-    body = rows.map(d => {
+    const ncol = head.length;
+    const colRow = d => {
       const share = totMake > 0 ? (d.toMake / totMake) * 100 : 0;
       const s90 = tot90 > 0 ? (d.l90 / tot90) * 100 : 0;
       return '<tr>'
+        + `<td style="text-align:left;padding-left:26px">${esc(d.color)}</td>`
         + `<td>${esc(d.brand)}</td>`
-        + `<td style="text-align:left">${esc(d.color)}</td>`
-        + `<td style="text-align:left">${canEdit
-          ? `<input data-palgrp="${esc(d.key)}" list="palGroupList" value="${esc(d.group)}" placeholder="${esc(palFamily(d.color) ? palBrandOf(d.brand) + ' ' + palFamily(d.color) : 'no guess — name it')}" style="min-width:150px">`
-          : esc(d.group || '—')}</td>`
         + `<td class="num">${nf(d.skus)}</td>`
         + `<td class="num">${nf(Math.round(d.ordered))}</td>`
         + `<td class="num"><b>${nf(Math.round(d.toMake))}</b></td>`
@@ -39009,9 +39036,42 @@ function renderPal() {
         + `<td style="text-align:left;font-size:12px">${d.now.size
           ? [...d.now.entries()].sort((a, b) => b[1] - a[1]).map(([w, n]) => `${esc(w)} <span class="muted">${nf(Math.round(n))}</span>`).join('<br>')
           : '<span class="muted">nobody</span>'}</td>`
-        + (canEdit ? `<td><button class="ghost" data-paloff="${esc(d.key)}" title="Not continuing this colour — take it off the list. Its orders are not touched; bring it back from Removed colours." style="color:var(--bad);padding:2px 9px">×</button></td>` : '')
+        + (canEdit ? `<td style="text-align:left"><input data-palgrp="${esc(d.key)}" list="palGroupList" value="${esc(d.group)}" placeholder="${esc(palFamily(d.color) ? palBrandOf(d.brand) + ' ' + palFamily(d.color) : 'name a group')}" style="min-width:140px"></td>`
+          + `<td><button class="ghost" data-paloff="${esc(d.key)}" title="Not continuing this colour — take it off the list. Its orders are not touched; bring it back from Removed colours." style="color:var(--bad);padding:2px 9px">×</button></td>` : '')
         + '</tr>';
-    }).join('');
+    };
+    const grpRow = ({ g, cols }) => {
+      const share = totMake > 0 ? (g.toMake / totMake) * 100 : 0;
+      const sp = palGroupSplit(g);
+      const who = new Set(g.designs.map(d => palInfoOf(d.key).printer || ''));
+      const one = who.size === 1 ? [...who][0] : '__mixed';
+      const folded = !!(PAL.fold || {})[g.name];
+      const cur = g.designs.reduce((a, d) => a + palNum(palInfoOf(d.key).cur), 0);
+      const splitTxt = sp.parts.map(x => `<b>${esc(palAssignName(x.printer))}</b> ${nf(x.colours)} col · ${nf(Math.round(x.pcs))} pcs`).join('<br>')
+        + (sp.noneN ? `${sp.parts.length ? '<br>' : ''}<span style="color:var(--bad)">${nf(sp.noneN)} col not given · ${nf(Math.round(sp.none))} pcs</span>` : '');
+      return `<tr class="pal-grp" data-palfold="${esc(g.name)}" style="cursor:pointer;background:var(--brand-bg,#eef3fb)">`
+        + `<td style="text-align:left;background:var(--brand-bg,#eef3fb)"><span class="muted" style="display:inline-block;width:14px">${folded ? '▸' : '▾'}</span><b>${esc(g.name)}</b>${g.grouped ? '' : ' <span class="muted" style="font-size:10.5px">(guessed)</span>'}`
+        + `<div class="muted" style="font-size:11px;padding-left:14px">${nf(g.designs.length)} colour${g.designs.length === 1 ? '' : 's'}${cols.length < g.designs.length ? ' · ' + nf(cols.length) + ' match the search' : ''}</div></td>`
+        + `<td style="background:var(--brand-bg,#eef3fb)">${esc(g.brand)}</td>`
+        + `<td class="num" style="background:var(--brand-bg,#eef3fb)"><b>${nf(g.skus)}</b></td>`
+        + `<td class="num" style="background:var(--brand-bg,#eef3fb)"><b>${nf(Math.round(g.ordered))}</b></td>`
+        + `<td class="num" style="background:var(--brand-bg,#eef3fb)"><b>${nf(Math.round(g.toMake))}</b></td>`
+        + `<td class="num" style="background:var(--brand-bg,#eef3fb)"><b>${share >= 0.05 ? share.toFixed(1) + '%' : '—'}</b></td>`
+        + `<td class="num" style="background:var(--brand-bg,#eef3fb)"><b>${g.l90 ? nf(Math.round(g.l90)) : '—'}</b></td>`
+        + `<td class="num" style="background:var(--brand-bg,#eef3fb)"><b>${cur ? nf(cur) : '—'}</b></td>`
+        + `<td class="num" style="background:var(--brand-bg,#eef3fb)"><b>${g.blocks ? nf(g.blocks) : '—'}</b></td>`
+        + `<td style="text-align:left;font-size:12px;background:var(--brand-bg,#eef3fb)" colspan="1">${splitTxt || '<span class="muted">—</span>'}</td>`
+        + `<td style="text-align:left;background:var(--brand-bg,#eef3fb)">${canEdit
+          ? `<select data-palgasg="${esc(g.name)}" style="min-width:150px;font-weight:600" title="Give every colour of this group to one printer. To split the group, change a colour's own printer below.">`
+            + `${one === '__mixed' ? `<option value="__mixed" selected>Split · ${nf(sp.parts.length)} printer(s)</option>` : ''}<option value=""${one === '' ? ' selected' : ''}>— whole group to… —</option>`
+            + prnOpts.map(([v, l]) => `<option value="${esc(v)}"${v === one ? ' selected' : ''}>${esc(l)}</option>`).join('') + '</select>'
+          : (sp.parts.length ? sp.parts.map(x => esc(palAssignName(x.printer))).join(', ') : '—')}</td>`
+        + `<td style="text-align:left;font-size:12px;background:var(--brand-bg,#eef3fb)">${g.now.size ? [...g.now.keys()].map(esc).join(', ') : '<span class="muted">nobody</span>'}</td>`
+        + (canEdit ? '<td style="background:var(--brand-bg,#eef3fb)"></td><td style="background:var(--brand-bg,#eef3fb)"></td>' : '')
+        + '</tr>';
+    };
+    body = gl.map(x => grpRow(x) + (((PAL.fold || {})[x.g.name] && !q) ? '' : x.cols.map(colRow).join(''))).join('')
+      || `<tr><td colspan="${ncol}" class="muted" style="padding:14px">No colour matches.</td></tr>`;
   } else if (view === 'group') {
     const rows = groups.filter(g => hit(g.name));
     PAL.shown = rows;
@@ -39312,7 +39372,18 @@ async function palCellSave(el) {
   const cur = el.getAttribute ? el.getAttribute('data-palcur') : null;
   const st = el.getAttribute ? el.getAttribute('data-palst') : null;
   const asg = el.getAttribute ? el.getAttribute('data-palasg') : null;
+  const gasg = el.getAttribute ? el.getAttribute('data-palgasg') : null;
   let why = '';
+  if (gasg) {
+    if (el.value === '__mixed') return '';
+    const g = palGroups(palDesigns().filter(d => d.live)).find(x => x.name === gasg);
+    why = g ? await palSetGroupPrinter(g.designs.map(d => d.key), el.value) : 'That group is gone — refresh.';
+    $('palMsg').className = why ? 'err' : 'muted';
+    if (why) { $('palMsg').textContent = why; return why; }
+    renderPal();
+    $('palMsg').textContent = g ? `${g.name}: all ${nf(g.designs.length)} colour(s) ${el.value ? 'given to ' + palAssignName(el.value) : 'cleared'}. To split it, change a colour's own printer.` : '';
+    return '';
+  }
   if (grp) why = await palSetGroup(grp, el.value);
   else if (cur) why = await palSetInfo(cur, 'cur', el.value);
   else if (st) why = await palSetInfo(st, 'status', el.value);
@@ -39326,7 +39397,7 @@ async function palCellSave(el) {
   return '';
 }
 $('palTable').addEventListener('change', e => {
-  const el = e.target.closest('[data-palgrp],[data-palneed],[data-palhave],[data-palcur],[data-palst],[data-palasg]');
+  const el = e.target.closest('[data-palgrp],[data-palneed],[data-palhave],[data-palcur],[data-palst],[data-palasg],[data-palgasg]');
   if (el) palCellSave(el);
 });
 $('ptDlgBody').addEventListener('change', e => {
@@ -39345,6 +39416,12 @@ $('palTable').addEventListener('click', async e => {
     $('palMsg').className = why ? 'err' : 'muted';
     $('palMsg').textContent = why || `${d ? d.brand + ' ' + d.color : key} ${on ? 'is back on the list' : 'removed — it is under Removed colours if it is ever needed again'}.`;
     return;
+  }
+  /* A group header folds its colours away, and back. */
+  const fold = e.target.closest('[data-palfold]');
+  if (fold && !e.target.closest('select,input,button:not([data-palfold])')) {
+    const n = fold.getAttribute('data-palfold'); PAL.fold = PAL.fold || {};
+    PAL.fold[n] = !PAL.fold[n]; return renderPal();
   }
   const ed = e.target.closest('[data-paledit]');
   if (ed) return palPrinterOpen(ed.getAttribute('data-paledit'));
