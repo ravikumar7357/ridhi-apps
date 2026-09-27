@@ -1710,6 +1710,13 @@ console.log('\n== THE PRODUCTION BUCKET (Ravi, 2026-09-26) ==');
   ok('…the line nothing can fill waits in the bucket', need && need.kind === 'make' && need.qty === 2, JSON.stringify(b.map(x => [x.sku, x.kind])));
   ok('…and the line India says it can fill is offered apart, to open anyway', cov && cov.kind === 'covered');
   ok('…each line says what FBA and India hold for it', cov && cov.india === 5 && need && (need.fba === null || need.fba === 0), JSON.stringify(cov && { f: cov.fba, i: cov.india }));
+  /* Ravi, 2026-09-27: "jo order FBA se fulfill kar rahe uska filter". */
+  ok('a stock-covered line says which stock can fill it', cov && cov.from === 'india', JSON.stringify(cov && cov.from));
+  {
+    const src = require('fs').readFileSync(APP, 'utf8');
+    ok('the bucket offers "FBA can fill" / "India can fill" on the stock-covered tab', /<select id="shbFrom"[^>]*><option value="">FBA or India<\/option><option value="fba">FBA can fill \(MCF\)<\/option><option value="india">India can fill<\/option>/.test(src)
+       && /\(SHB\.tab !== 'covered' \|\| !SHB\.from \|\| x\.from === SHB\.from\)/.test(src));
+  }
   ok('the Shopify tab says so on the order, and counts it on the button', /In the production bucket/.test(els.soTable.innerHTML), '');
 
   ok('opening a stock-covered line needs a reason', /say why they have to be made anyway/.test(await A.shpBucketRun([cov.key], '')));

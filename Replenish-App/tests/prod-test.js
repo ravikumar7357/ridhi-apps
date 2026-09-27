@@ -13792,9 +13792,11 @@ console.log('\n== printer allocation by colour ==');
          && (await A.palSetInfo(d0.key, 'printer', 'VND001')) === '' && A.palInfoOf(d0.key).cur === 4 && A.palInfoOf(d0.key).printer === 'VND001');
       await A.palSetBlocks(d0.key, 5);
       ok('…and changing the required blocks does not wipe them', A.palInfoOf(d0.key).status === 'Blocks to make' && A.palInfoOf(d0.key).cur === 4);
-      els.palView.value = 'design'; A.PAL().showOff = false; A.renderPal();
+      els.palView.value = 'design'; A.PAL().showOff = false;
+      A.PAL().pick = (A.palGroups(A.palDesigns().filter(d => d.live)).find(g => g.designs.some(d => d.key === d0.key)) || {}).name;
+      A.renderPal();
       const h = els.palTable.innerHTML;
-      ok('the list has the four columns', ['Current blocks', 'Required blocks', 'Status', 'Assign to printer'].every(c => h.indexOf('>' + c + '<') >= 0)
+      ok('the picked group lists its colours with blocks now / needed, status and printer', ['Blocks now / needed', 'Status', 'Printer'].every(c => h.indexOf('>' + c + '<') >= 0)
          && h.indexOf('data-palcur="' + d0.key + '"') >= 0 && h.indexOf('data-palasg="' + d0.key + '"') >= 0 && /<option value="VND001" selected>/.test(h));
       ok('…and says how many blocks are short', /1 short/.test(h));
       /* THE SHEET CARRIES THEM, BOTH WAYS. */
@@ -13838,14 +13840,16 @@ console.log('\n== printer allocation by colour ==');
           await A.palSetInfo(keys[0], 'printer', 'VND777');
           sp = A.palGroupSplit(g);
           ok('changing one colour\'s printer splits the group between two', sp.parts.length === 2 && sp.parts.reduce((a, x) => a + x.colours, 0) === keys.length, JSON.stringify(sp));
-          els.palView.value = 'design'; A.renderPal();
+          els.palView.value = 'design'; A.PAL().pick = g.name; A.renderPal();
           const hg = els.palTable.innerHTML;
-          ok('the list opens on the group: its header, its colour count, the split, and the group picker', /class="pal-grp"/.test(hg) && hg.indexOf('data-palgasg="' + g.name + '"') >= 0
-             && new RegExp(g.designs.length + ' colours').test(hg) && /Split · 2 printer\(s\)/.test(hg) && hg.indexOf('>Group · colour<') >= 0, hg.slice(0, 300));
-          ok('…with its colours right under it', hg.indexOf('data-palgasg="' + g.name + '"') < hg.indexOf('data-palasg="' + keys[0] + '"'));
-          A.PAL().fold = { [g.name]: true }; A.renderPal();
-          ok('a folded group hides its colours but keeps its header', els.palTable.innerHTML.indexOf('data-palasg="' + keys[0] + '"') < 0 && els.palTable.innerHTML.indexOf('data-palgasg="' + g.name + '"') >= 0);
-          A.PAL().fold = {};
+          ok('two panes: every group on the left with its colour count, the picked one on the right', /class="pal2"/.test(hg) && hg.indexOf('data-palpick="' + g.name + '"') >= 0
+             && new RegExp(g.designs.length + ' colours').test(hg) && hg.indexOf('data-palgasg="' + g.name + '"') >= 0, hg.slice(0, 300));
+          ok('…the right says how it is split, printer by printer, and offers the whole-group picker', /Split · 2 printer\(s\)/.test(hg) && /class="pal2-t"/.test(hg) && /Not given/.test(hg));
+          ok('…and lists only the colours of that group', keys.every(k => hg.indexOf('data-palasg="' + k + '"') >= 0)
+             && A.palDesigns().filter(d => d.live && keys.indexOf(d.key) < 0).every(d => hg.indexOf('data-palasg="' + d.key + '"') < 0));
+          const other = A.palGroups(live).find(x => x.name !== g.name);
+          if (other) { A.PAL().pick = other.name; A.renderPal();
+            ok('picking another group on the left opens it on the right', els.palTable.innerHTML.indexOf('data-palgasg="' + other.name + '"') >= 0 && els.palTable.innerHTML.indexOf('data-palasg="' + keys[0] + '"') < 0); }
           ok('cleared, the group is given to nobody', (await A.palSetGroupPrinter(keys, '')) === '' && keys.every(k => !A.palInfoOf(k).printer) && A.palGroupSplit(g).noneN === keys.length);
         }
       }
@@ -13863,6 +13867,9 @@ console.log('\n== printer allocation by colour ==');
       ok('a brand list drawn before the master loaded is filled once it has', !/value="CPC"/.test(early) && /value="CPC"/.test(els.palBrand.innerHTML), els.palBrand.innerHTML.slice(0, 120));
     }
     els.palView.value = 'design'; els.palBrand.value = ''; els.palQ.value = ''; A.PAL().showOff = false;
+    /* Two panes (27 Sep): the right shows ONE group's colours — the one picked on the left. */
+    const groupOfD0 = () => (A.palGroups(A.palDesigns().filter(d => d.live)).find(g => g.designs.some(d => d.key === d0.key)) || {}).name;
+    A.PAL().pick = groupOfD0();
     A.renderPal();
     const offRe = { test: h => h.includes('data-paloff="' + d0.key + '"') };
     ok('each design row has a remove button', offRe.test(els.palTable.innerHTML));
@@ -13872,7 +13879,7 @@ console.log('\n== printer allocation by colour ==');
     ok('…and the Removed colours button counts it', /Removed colours \(1\)/.test(els.palOff.textContent) && !els.palOff.classList.contains('hide'), els.palOff.textContent);
     A.PAL().showOff = true; A.renderPal();
     ok('…where it can be brought back', els.palTable.innerHTML.includes('data-palon="' + d0.key + '"') && els.palOff.textContent.includes('Back to the list'));
-    await A.palSetLive(d0.key, true); A.PAL().showOff = false; A.renderPal();
+    await A.palSetLive(d0.key, true); A.PAL().showOff = false; A.PAL().pick = groupOfD0(); A.renderPal();
     ok('…and brought back it is on the list again', offRe.test(els.palTable.innerHTML) && els.palOff.classList.contains('hide'));
 
     await A.palSetGroup(d0.key, '');

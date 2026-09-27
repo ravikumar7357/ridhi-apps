@@ -484,6 +484,20 @@
   table.xl.xl-dense td .sub{display:block;font-size:10.5px;color:var(--muted);font-weight:400;white-space:nowrap}
   table.xl.xl-dense td.wrap{white-space:normal;max-width:320px;text-align:left;font-size:12px}
   table.xl.xl-dense td.tl{text-align:left}
+  /* PRINTER ALLOCATION, TWO PANES (2026-09-27). */
+  .pal2{display:grid;grid-template-columns:300px minmax(0,1fr);gap:14px;padding:12px}
+  .pal2-l{border:1px solid var(--line);border-radius:14px;overflow:auto;max-height:70vh}
+  .pal2-g{padding:11px 14px;border-bottom:1px solid var(--line);cursor:pointer;text-align:left}
+  .pal2-g:hover{background:var(--hover,#f6f8fa)}
+  .pal2-g.on{background:var(--brand-bg,#eaf0f8);box-shadow:inset 3px 0 0 var(--brand,#3b5b8a)}
+  .pal2-g .r{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+  .pal2-bar{display:flex;height:6px;border-radius:4px;overflow:hidden;background:var(--line);margin-top:6px}
+  .pal2-bar i{display:block;height:100%}
+  .pal2-d{border:1px solid var(--line);border-radius:14px;padding:14px 16px;min-width:0}
+  .pal2-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:12px 0}
+  .pal2-t{border-radius:12px;padding:10px 12px;text-align:left}
+  .pal2-t .v{font-size:19px;font-weight:800;font-variant-numeric:tabular-nums}
+  @media (max-width:900px){.pal2{grid-template-columns:1fr}.pal2-l{max-height:260px}}
   /* SHOPIFY RETURNS (2026-09-26). */
   .sr-lines{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:8px 0}
   .sr-lines table{width:100%}
@@ -39032,79 +39046,53 @@ function renderPal() {
       + `<td>${canEdit ? `<button class="ghost" data-palon="${esc(d.key)}">Bring back</button>` : ''}</td>`
       + '</tr>').join('');
   } else if (view === 'design') {
-    /* GROUP FIRST, ITS COLOURS UNDER IT (Ravi, 2026-09-27: "group pahle hona chahiye and us group me kitne color h wo 1
-     * sath dikhna chahiye; group bada h to multiple printers ko de saku"). The header row counts the group's colours
-     * and adds them up, says how it is split across printers, and gives the whole group to one printer in one go;
-     * each colour keeps its own printer, which is how one group is shared between several. */
+    /* TWO PANES (Ravi, 2026-09-27: layout 2, "system hang na ho"). Groups on the left; the chosen one on the right with
+     * its printer split and ONLY its colours — one group's rows at a time, not every colour of every group. */
     const gl = groups.map(g => ({ g, cols: (hit(g.name) || hit(g.brand)) ? g.designs : g.designs.filter(d => hit(d.color) || hit(d.brand)) }))
       .filter(x => x.cols.length);
-    PAL.shown = gl.flatMap(x => x.cols);
-    head = ['Group · colour', 'Brand', 'SKUs', 'Ordered', 'To make', 'Share', 'Sold 90d', 'Current blocks', 'Required blocks', 'Status', 'Assign to printer', 'Printing now'].concat(canEdit ? ['Move to group', ''] : []);
+    if (!gl.some(x => x.g.name === PAL.pick)) PAL.pick = gl.length ? gl[0].g.name : '';
+    const cur = gl.find(x => x.g.name === PAL.pick);
+    PAL.shown = cur ? cur.cols : [];
     const prnOpts = palAssignable();
-    const ncol = head.length;
-    const colRow = d => {
-      const share = totMake > 0 ? (d.toMake / totMake) * 100 : 0;
-      const s90 = tot90 > 0 ? (d.l90 / tot90) * 100 : 0;
-      return '<tr>'
-        + `<td style="text-align:left;padding-left:26px">${esc(d.color)}</td>`
-        + `<td>${esc(d.brand)}</td>`
-        + `<td class="num">${nf(d.skus)}</td>`
-        + `<td class="num">${nf(Math.round(d.ordered))}</td>`
-        + `<td class="num"><b>${nf(Math.round(d.toMake))}</b></td>`
-        + `<td class="num">${share >= 0.05 ? share.toFixed(1) + '%' : '—'}</td>`
-        + `<td class="num">${d.l90 ? `${nf(Math.round(d.l90))}<div class="muted" style="font-size:10px">${s90.toFixed(1)}% of sales</div>` : '—'}</td>`
-        + ((inf, short) => `<td class="num">${canEdit
-          ? `<input data-palcur="${esc(d.key)}" type="number" min="0" step="1" value="${inf.cur || ''}" style="width:70px${short ? ';border-color:var(--bad)' : ''}"${short ? ` title="${nf(short)} block(s) short of what is required"` : ''}>`
-          : (inf.cur || '—')}</td>`
-        + `<td class="num">${canEdit
-          ? `<input data-palneed="${esc(d.key)}" type="number" min="0" step="1" value="${d.blocks || ''}" style="width:70px">`
-          : (d.blocks || '—')}${short ? `<div style="font-size:10px;color:var(--bad)">${nf(short)} short</div>` : ''}</td>`
-        + `<td style="text-align:left">${canEdit
-          ? `<input data-palst="${esc(d.key)}" list="palStatusList" value="${esc(inf.status || '')}" placeholder="—" style="min-width:120px">`
-          : esc(inf.status || '—')}</td>`
-        + `<td style="text-align:left">${canEdit
-          ? `<select data-palasg="${esc(d.key)}" style="min-width:140px"><option value="">— pick —</option>${prnOpts.map(([v, l]) =>
-              `<option value="${esc(v)}"${v === inf.printer ? ' selected' : ''}>${esc(l)}</option>`).join('')}${inf.printer && !prnOpts.some(o => o[0] === inf.printer) ? `<option value="${esc(inf.printer)}" selected>${esc(inf.printer)}</option>` : ''}</select>`
-          : esc(inf.printer ? palAssignName(inf.printer) : '—')}</td>`)(palInfoOf(d.key), d.blocks && palInfoOf(d.key).cur != null ? Math.max(0, d.blocks - palNum(palInfoOf(d.key).cur)) : 0)
-        + `<td style="text-align:left;font-size:12px">${d.now.size
-          ? [...d.now.entries()].sort((a, b) => b[1] - a[1]).map(([w, n]) => `${esc(w)} <span class="muted">${nf(Math.round(n))}</span>`).join('<br>')
-          : '<span class="muted">nobody</span>'}</td>`
-        + (canEdit ? `<td style="text-align:left"><input data-palgrp="${esc(d.key)}" list="palGroupList" value="${esc(d.group)}" placeholder="${esc(palFamily(d.color) ? palBrandOf(d.brand) + ' ' + palFamily(d.color) : 'name a group')}" style="min-width:140px"></td>`
-          + `<td><button class="ghost" data-paloff="${esc(d.key)}" title="Not continuing this colour — take it off the list. Its orders are not touched; bring it back from Removed colours." style="color:var(--bad);padding:2px 9px">×</button></td>` : '')
-        + '</tr>';
-    };
-    const grpRow = ({ g, cols }) => {
-      const share = totMake > 0 ? (g.toMake / totMake) * 100 : 0;
-      const sp = palGroupSplit(g);
+    /* One colour per printer, the same on the bar, the tiles and the rows. */
+    const PAL_TONES = [['#3b6fd4', '#e3ecfb'], ['#d98a1c', '#fbefdc'], ['#1f9d62', '#dff4ea'], ['#8a4fd1', '#efe6fb'], ['#c2362b', '#fde7e4'], ['#0e8a96', '#dcf3f5']];
+    const toneOf = (() => { const m = new Map(); prnOpts.forEach(([v], i) => m.set(v, PAL_TONES[i % PAL_TONES.length])); return v => m.get(v) || ['#667085', '#eef1f5']; })();
+    const dot = v => `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${toneOf(v)[0]};margin-right:5px"></span>`;
+    const barOf = g => { const sp = palGroupSplit(g), tot = g.toMake || 1;
+      return '<div class="pal2-bar">' + sp.parts.map(x => `<i style="width:${(x.pcs / tot * 100).toFixed(1)}%;background:${toneOf(x.printer)[0]}"></i>`).join('') + '</div>'; };
+    const left = gl.map(({ g }) => `<div class="pal2-g${g.name === PAL.pick ? ' on' : ''}" data-palpick="${esc(g.name)}" role="button" tabindex="0">`
+      + `<div class="r"><b>${esc(g.name)}</b><b style="font-variant-numeric:tabular-nums">${nf(Math.round(g.toMake))}</b></div>`
+      + `<div class="r muted" style="font-size:12px"><span>${nf(g.designs.length)} colour${g.designs.length === 1 ? '' : 's'}${g.grouped ? '' : ' · guessed'}</span><span>${totMake > 0 ? (g.toMake / totMake * 100).toFixed(1) + '%' : '—'}</span></div>`
+      + barOf(g) + '</div>').join('') || '<div class="muted" style="padding:14px">No group matches.</div>';
+    let right = '<div class="muted" style="padding:14px">Pick a group on the left.</div>';
+    if (cur) {
+      const g = cur.g, sp = palGroupSplit(g);
       const who = new Set(g.designs.map(d => palInfoOf(d.key).printer || ''));
-      const one = who.size === 1 ? [...who][0] : '__mixed';
-      const folded = !!(PAL.fold || {})[g.name];
-      const cur = g.designs.reduce((a, d) => a + palNum(palInfoOf(d.key).cur), 0);
-      const splitTxt = sp.parts.map(x => `<b>${esc(palAssignName(x.printer))}</b> ${nf(x.colours)} col · ${nf(Math.round(x.pcs))} pcs`).join('<br>')
-        + (sp.noneN ? `${sp.parts.length ? '<br>' : ''}<span style="color:var(--bad)">${nf(sp.noneN)} col not given · ${nf(Math.round(sp.none))} pcs</span>` : '');
-      return `<tr class="pal-grp" data-palfold="${esc(g.name)}" style="cursor:pointer;background:var(--brand-bg,#eef3fb)">`
-        + `<td style="text-align:left;background:var(--brand-bg,#eef3fb)"><span class="muted" style="display:inline-block;width:14px">${folded ? '▸' : '▾'}</span><b>${esc(g.name)}</b>${g.grouped ? '' : ' <span class="muted" style="font-size:10.5px">(guessed)</span>'}`
-        + `<div class="muted" style="font-size:11px;padding-left:14px">${nf(g.designs.length)} colour${g.designs.length === 1 ? '' : 's'}${cols.length < g.designs.length ? ' · ' + nf(cols.length) + ' match the search' : ''}</div></td>`
-        + `<td style="background:var(--brand-bg,#eef3fb)">${esc(g.brand)}</td>`
-        + `<td class="num" style="background:var(--brand-bg,#eef3fb)"><b>${nf(g.skus)}</b></td>`
-        + `<td class="num" style="background:var(--brand-bg,#eef3fb)"><b>${nf(Math.round(g.ordered))}</b></td>`
-        + `<td class="num" style="background:var(--brand-bg,#eef3fb)"><b>${nf(Math.round(g.toMake))}</b></td>`
-        + `<td class="num" style="background:var(--brand-bg,#eef3fb)"><b>${share >= 0.05 ? share.toFixed(1) + '%' : '—'}</b></td>`
-        + `<td class="num" style="background:var(--brand-bg,#eef3fb)"><b>${g.l90 ? nf(Math.round(g.l90)) : '—'}</b></td>`
-        + `<td class="num" style="background:var(--brand-bg,#eef3fb)"><b>${cur ? nf(cur) : '—'}</b></td>`
-        + `<td class="num" style="background:var(--brand-bg,#eef3fb)"><b>${g.blocks ? nf(g.blocks) : '—'}</b></td>`
-        + `<td style="text-align:left;font-size:12px;background:var(--brand-bg,#eef3fb)" colspan="1">${splitTxt || '<span class="muted">—</span>'}</td>`
-        + `<td style="text-align:left;background:var(--brand-bg,#eef3fb)">${canEdit
-          ? `<select data-palgasg="${esc(g.name)}" style="min-width:150px;font-weight:600" title="Give every colour of this group to one printer. To split the group, change a colour's own printer below.">`
-            + `${one === '__mixed' ? `<option value="__mixed" selected>Split · ${nf(sp.parts.length)} printer(s)</option>` : ''}<option value=""${one === '' ? ' selected' : ''}>— whole group to… —</option>`
-            + prnOpts.map(([v, l]) => `<option value="${esc(v)}"${v === one ? ' selected' : ''}>${esc(l)}</option>`).join('') + '</select>'
-          : (sp.parts.length ? sp.parts.map(x => esc(palAssignName(x.printer))).join(', ') : '—')}</td>`
-        + `<td style="text-align:left;font-size:12px;background:var(--brand-bg,#eef3fb)">${g.now.size ? [...g.now.keys()].map(esc).join(', ') : '<span class="muted">nobody</span>'}</td>`
-        + (canEdit ? '<td style="background:var(--brand-bg,#eef3fb)"></td><td style="background:var(--brand-bg,#eef3fb)"></td>' : '')
-        + '</tr>';
-    };
-    body = gl.map(x => grpRow(x) + (((PAL.fold || {})[x.g.name] && !q) ? '' : x.cols.map(colRow).join(''))).join('')
-      || `<tr><td colspan="${ncol}" class="muted" style="padding:14px">No colour matches.</td></tr>`;
+      const oneP = who.size === 1 ? [...who][0] : '__mixed';
+      const tiles = sp.parts.map(x => { const t = toneOf(x.printer); return `<div class="pal2-t" style="background:${t[1]};color:${t[0]}"><b>${esc(palAssignName(x.printer))}</b>`
+          + `<div class="v">${nf(Math.round(x.pcs))} pcs</div><div style="font-size:12px">${nf(x.colours)} colour${x.colours === 1 ? '' : 's'} · ${g.toMake ? Math.round(x.pcs / g.toMake * 100) : 0}%</div></div>`; }).join('')
+        + `<div class="pal2-t" style="background:${sp.noneN ? 'var(--bad-bg,#fde7e4)' : 'var(--hover,#f3f5f8)'};color:${sp.noneN ? 'var(--bad,#c2362b)' : 'var(--muted)'}"><b>Not given</b><div class="v">${nf(Math.round(sp.none))}</div><div style="font-size:12px">${sp.noneN ? nf(sp.noneN) + ' colour(s) have no printer' : 'every colour has a printer'}</div></div>`;
+      const rows = cur.cols.map(d => { const inf = palInfoOf(d.key); const short = d.blocks && inf.cur != null ? Math.max(0, d.blocks - palNum(inf.cur)) : 0;
+        return '<tr>'
+          + `<td style="text-align:left">${inf.printer ? dot(inf.printer) : ''}<b>${esc(d.color)}</b><div class="muted" style="font-size:11px">${nf(d.skus)} SKUs · ${d.l90 ? nf(Math.round(d.l90)) + ' sold 90d' : 'no sales read'}</div></td>`
+          + `<td class="num"><b>${nf(Math.round(d.toMake))}</b><div class="muted" style="font-size:11px">of ${nf(Math.round(d.ordered))}</div></td>`
+          + `<td class="num">${canEdit ? `<input data-palcur="${esc(d.key)}" type="number" min="0" step="1" value="${inf.cur || ''}" style="width:62px${short ? ';border-color:var(--bad)' : ''}">` : (inf.cur || '—')}`
+          + ` / ${canEdit ? `<input data-palneed="${esc(d.key)}" type="number" min="0" step="1" value="${d.blocks || ''}" style="width:62px">` : (d.blocks || '—')}${short ? `<div style="font-size:10px;color:var(--bad)">${nf(short)} short</div>` : ''}</td>`
+          + `<td style="text-align:left">${canEdit ? `<input data-palst="${esc(d.key)}" list="palStatusList" value="${esc(inf.status || '')}" placeholder="—" style="min-width:120px">` : esc(inf.status || '—')}</td>`
+          + `<td style="text-align:left">${canEdit ? `<select data-palasg="${esc(d.key)}" style="min-width:150px"><option value="">— pick —</option>${prnOpts.map(([v, l]) => `<option value="${esc(v)}"${v === inf.printer ? ' selected' : ''}>${esc(l)}</option>`).join('')}${inf.printer && !prnOpts.some(o => o[0] === inf.printer) ? `<option value="${esc(inf.printer)}" selected>${esc(inf.printer)}</option>` : ''}</select>` : esc(inf.printer ? palAssignName(inf.printer) : '—')}</td>`
+          + `<td style="text-align:left;font-size:12px">${d.now.size ? [...d.now.entries()].sort((a, b) => b[1] - a[1]).map(([w, n]) => `${esc(w)} <span class="muted">${nf(Math.round(n))}</span>`).join('<br>') : '<span class="muted">nobody</span>'}</td>`
+          + (canEdit ? `<td style="text-align:left"><input data-palgrp="${esc(d.key)}" list="palGroupList" value="${esc(d.group)}" placeholder="${esc(palFamily(d.color) ? palBrandOf(d.brand) + ' ' + palFamily(d.color) : 'name a group')}" style="min-width:130px"></td>`
+            + `<td><button class="ghost" data-paloff="${esc(d.key)}" title="Not continuing this colour — take it off the list. Its orders are not touched." style="color:var(--bad);padding:2px 9px">×</button></td>` : '')
+          + '</tr>'; }).join('');
+      right = `<div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap"><div style="text-align:left"><div style="font-size:20px;font-weight:800">${esc(g.name)}</div>`
+        + `<div class="muted">${nf(g.designs.length)} colour${g.designs.length === 1 ? '' : 's'} · ${nf(g.skus)} SKUs · ${nf(Math.round(g.toMake))} to make of ${nf(Math.round(g.ordered))} · ${g.l90 ? nf(Math.round(g.l90)) + ' sold 90d' : 'no sales read'}${g.blocks ? ' · ' + nf(g.blocks) + ' blocks' : ''}</div></div><span style="flex:1"></span>`
+        + (canEdit ? `<select data-palgasg="${esc(g.name)}" style="min-width:190px;font-weight:600" title="Give every colour of this group to one printer. To split it, change a colour's printer below.">`
+          + `${oneP === '__mixed' ? `<option value="__mixed" selected>Split · ${nf(sp.parts.length)} printer(s)</option>` : ''}<option value=""${oneP === '' ? ' selected' : ''}>— whole group to… —</option>`
+          + prnOpts.map(([v, l]) => `<option value="${esc(v)}"${v === oneP ? ' selected' : ''}>${esc(l)}</option>`).join('') + '</select>' : '') + '</div>'
+        + `<div class="pal2-tiles">${tiles}</div>`
+        + `<div class="xlwrap" style="max-height:52vh"><table class="xl"><thead><tr><th style="text-align:left">Colour</th><th class="num">To make</th><th class="num">Blocks now / needed</th><th>Status</th><th>Printer</th><th>Printing now</th>${canEdit ? '<th>Move to group</th><th></th>' : ''}</tr></thead><tbody>${rows}</tbody></table></div>`;
+    }
+    head = []; body = `<tr><td style="padding:0;text-align:left;white-space:normal"><div class="pal2"><div class="pal2-l">${left}</div><div class="pal2-d">${right}</div></div></td></tr>`;
   } else if (view === 'group') {
     const rows = groups.filter(g => hit(g.name));
     PAL.shown = rows;
@@ -39259,9 +39247,9 @@ function renderPal() {
     }).join('') : '<tr><td colspan="8" class="muted" style="padding:16px">Nothing to allocate — either no open order lines, or no printer with capacity.</td></tr>';
   }
 
-  $('palTable').innerHTML = '<thead><tr>'
+  $('palTable').innerHTML = (head.length ? '<thead><tr>'
     + head.map((h, i) => `<th${/^(SKUs|Ordered|To make|Share|Sold|Blocks|Current blocks|Required blocks|Capacity|Given|Load|Pieces|Has|Tables|Printers)/.test(h) ? ' class="num"' : ''}>${esc(h)}</th>`).join('')
-    + '</tr></thead><tbody>' + (body || '<tr><td colspan="10" class="muted" style="padding:16px">Nothing matches.</td></tr>') + '</tbody>';
+    + '</tr></thead>' : '') + '<tbody>' + (body || '<tr><td colspan="10" class="muted" style="padding:16px">Nothing matches.</td></tr>') + '</tbody>';
 
   $('palMsg').className = PAL.err ? 'err' : 'muted';
   $('palMsg').textContent = PAL.err ? PAL.err
@@ -39450,12 +39438,9 @@ $('palTable').addEventListener('click', async e => {
     $('palMsg').textContent = why || `${d ? d.brand + ' ' + d.color : key} ${on ? 'is back on the list' : 'removed — it is under Removed colours if it is ever needed again'}.`;
     return;
   }
-  /* A group header folds its colours away, and back. */
-  const fold = e.target.closest('[data-palfold]');
-  if (fold && !e.target.closest('select,input,button:not([data-palfold])')) {
-    const n = fold.getAttribute('data-palfold'); PAL.fold = PAL.fold || {};
-    PAL.fold[n] = !PAL.fold[n]; return renderPal();
-  }
+  /* A group on the left opens on the right. */
+  const pk = e.target.closest('[data-palpick]');
+  if (pk) { PAL.pick = pk.getAttribute('data-palpick'); return renderPal(); }
   const ed = e.target.closest('[data-paledit]');
   if (ed) return palPrinterOpen(ed.getAttribute('data-paledit'));
   const bl = e.target.closest('[data-palblk]');
@@ -47923,7 +47908,7 @@ function shpBucketBuild() {
       const fit = soPackFit(sku), split = !!(fit && fit.ok);
       mine.add(sku);
       out.push(Object.assign({ o, id, key: id + '|' + sku, sku, qty, pcs: split ? qty * fit.pack : qty * obPcsPerPack(sku), shopQty: split ? Math.round(qty / fit.factor) : qty,
-        kind: 'covered', why: st.label + ' — ' + st.why, name: String(i.name || '') + (i.variant ? ' · ' + i.variant : ''), img: i.img || i.image || '' }, shpStockOf(o, sku)));
+        kind: 'covered', from: st.v, why: st.label + ' — ' + st.why, name: String(i.name || '') + (i.variant ? ' · ' + i.variant : ''), img: i.img || i.image || '' }, shpStockOf(o, sku)));
     });
   });
   return out.sort((a, b) => String(a.o.at || '').localeCompare(String(b.o.at || '')) || a.key.localeCompare(b.key));
@@ -48044,7 +48029,7 @@ async function shpBucketXlIn(file) {
 }
 
 /** The bucket, on screen — design 7, the header band. SHB holds the tab, the filters and what is ticked. */
-let SHB = { tab: 'make', q: '', store: '', date: '', picked: new Set() };
+let SHB = { tab: 'make', q: '', store: '', date: '', from: '', picked: new Set() };
 const shbStore = o => (o.shopBrand === 'CPC' || /cpc/i.test(String(o.channel || '')) ? 'CPC' : 'Ridhi');
 /** Lines opened from the bucket today, for the third tab. */
 function shbOpenedToday() {
@@ -48057,6 +48042,9 @@ function shbRows(list) {
   const days = { today: 1, d7: 7, d30: 30 }[SHB.date], older = SHB.date === 'older7';
   return list.filter(x => (x.kind === SHB.tab)
     && (!SHB.store || shbStore(x.o) === SHB.store)
+    /* WHERE THE STOCK IS (Ravi, 2026-09-27: "jo order FBA se fulfill kar rahe uska filter"). Only the stock-covered tab
+     * has an answer; on the others the filter is hidden and ignored. */
+    && (SHB.tab !== 'covered' || !SHB.from || x.from === SHB.from)
     && (!q || [x.o.no, x.sku, x.name, x.why].join(' ').toLowerCase().includes(q))
     && (!SHB.date || (ms => !ms ? true : older ? now - ms > 7 * 864e5 : now - ms <= days * 864e5)(ptDtMs(x.o.at))));
 }
@@ -48067,6 +48055,7 @@ function shbRender() {
   const lab = { make: `Needs production · ${nf(nMake)}`, covered: `Stock says it can fill · ${nf(nCov)}`, done: `Opened today · ${nf(done.length)}` };
   document.querySelectorAll('[data-shbtab]').forEach(b => { b.textContent = lab[b.getAttribute('data-shbtab')]; });
   if ($('shbWhyWrap')) $('shbWhyWrap').classList.toggle('hide', SHB.tab !== 'covered');
+  if ($('shbFrom')) $('shbFrom').classList.toggle('hide', SHB.tab !== 'covered');
   const stockCell = (n, need) => n == null ? '<span class="muted">—</span>' : `<b class="${n >= need ? 'ok' : 'no'}">${nf(n)}</b>`;
   const itemCell = (name, img, sub) => `<div class="shb-item">${img ? `<img src="${esc(img)}" alt="" loading="lazy">` : '<span class="ph"></span>'}<div><b>${esc(name || '—')}</b>${sub ? `<div class="muted" style="font-size:11px">${esc(sub)}</div>` : ''}</div></div>`;
   let head, body;
@@ -48116,6 +48105,7 @@ function shpBucketOpen() {
         <button type="button" class="segbtn" data-shbtab="make"></button><button type="button" class="segbtn" data-shbtab="covered"></button><button type="button" class="segbtn" data-shbtab="done"></button></div>
         <input id="shbQ" placeholder="Search order / SKU / item" value="${esc(SHB.q)}">
         <select id="shbStore"><option value="">All stores</option><option value="Ridhi">Ridhi</option><option value="CPC">CPC</option></select>
+        <select id="shbFrom" title="Where the stock that can fill it is"><option value="">FBA or India</option><option value="fba">FBA can fill (MCF)</option><option value="india">India can fill</option></select>
         <select id="shbDate"><option value="">Any date</option><option value="today">Today</option><option value="d7">Last 7 days</option><option value="d30">Last 30 days</option><option value="older7">Older than 7 days</option></select>
       </div>
       <label id="shbWhyWrap" class="shb-why hide"><span>Why make these anyway</span>
@@ -48135,6 +48125,7 @@ function shpBucketOpen() {
     },
   });
   if ($('shbStore')) $('shbStore').value = SHB.store;
+  if ($('shbFrom')) $('shbFrom').value = SHB.from;
   if ($('shbDate')) $('shbDate').value = SHB.date;
   if ($('shbXlOut')) $('shbXlOut').onclick = () => shpBucketXlOut();
   if ($('shbXlIn')) $('shbXlIn').onclick = () => $('shbXlFile').click();
@@ -48142,6 +48133,7 @@ function shpBucketOpen() {
   let shbT = null;
   if ($('shbQ')) $('shbQ').oninput = () => { clearTimeout(shbT); shbT = setTimeout(() => { SHB.q = $('shbQ').value; shbRender(); }, 180); };
   if ($('shbStore')) $('shbStore').onchange = () => { SHB.store = $('shbStore').value; shbRender(); };
+  if ($('shbFrom')) $('shbFrom').onchange = () => { SHB.from = $('shbFrom').value; shbRender(); };
   if ($('shbDate')) $('shbDate').onchange = () => { SHB.date = $('shbDate').value; shbRender(); };
   document.querySelectorAll('[data-shbtab]').forEach(b => { b.onclick = () => { SHB.tab = b.getAttribute('data-shbtab'); shbRender(); }; });
   $('shbTable').onchange = e => {
