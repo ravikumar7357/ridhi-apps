@@ -31148,7 +31148,10 @@ function vpRfdRender(matched, nag) {
 
   /* THE COMPANY'S CLOTH ON THEIR FLOOR (2026-09-26), on the orders tracked from RFD_TRACK_FROM: what they said they
    * had, plus what they confirmed received, less what they delivered back. Drawn only once there is something in it. */
-  const store = rfdStoreOf(rfdVendorOf(o), VP.rows);
+  /* ONLY WHAT HAS MOVED (Ravi, 2026-09-27, crossing out a table of zeros): nothing sent yet is not a stock to show —
+   * the order's own table below already says what is coming. A row appears once cloth has been had, received, is on
+   * the way or has come back printed. */
+  const store = rfdStoreOf(rfdVendorOf(o), VP.rows).filter(x => x.had || x.recv || x.onWay || x.used || x.inHand);
   const storeHtml = store.length ? `<div class="xlwrap" style="margin-bottom:10px"><table class="vrs"><caption style="text-align:left;font-size:12px;color:var(--muted);padding:4px 0 6px;caption-side:top">Company cloth with you — orders from ${esc(RFD_TRACK_FROM)} · what you had + what you confirmed received − what you delivered back</caption>
     <thead><tr><th>What</th><th>Item</th><th>Orders</th><th>Had</th><th>Received</th><th>On the way</th><th>Delivered back</th><th>With you now</th></tr></thead><tbody>${
       store.map(x => `<tr><td><b>${esc(x.what)}</b></td><td>${esc(x.item || (x.unit === 'm' ? 'Running cloth' : ''))}</td><td>${nf(x.orders)}</td>`

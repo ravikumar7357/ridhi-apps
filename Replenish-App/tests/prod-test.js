@@ -20923,10 +20923,18 @@ await (async () => {
   const lot = A.vpRfdSends(o).find(x => x.reqId === offReq.id);
   ok('the portal lists the lot with its request, not yet received', !!lot && lot.qty === 60 && !lot.got, JSON.stringify(lot));
   /* THE PRINTER'S CARD ON A NEW-FLOW ORDER (Ravi, 2026-09-27: "vendor ke page par kaise reflect hoga"). */
+  {
+    /* 27 Sep: a table of zeros crossed out — before anything is sent, "Company cloth with you" is not shown. */
+    const fresh = Object.assign(order(), { id: 'o8', orderNo: 'VPO-8' });
+    A.setVP({ code: 'VND001', name: 'RBP-Bagru', rows: [fresh], err: '', busy: false, at: '', tab: 'rfd', rfdOrder: 'o8' });
+    A.renderVp();
+    ok('nothing sent yet: no "Company cloth with you" table of zeros', !/Company cloth with you/.test(els.vpBody.innerHTML) && /The store sends this order/.test(els.vpBody.innerHTML));
+  }
   A.setVP({ code: 'VND001', name: 'RBP-Bagru', rows: [o], err: '', busy: false, at: '', tab: 'rfd', rfdOrder: 'o9' });
   A.renderVp();
   {
     const hv = els.vpBody.innerHTML;
+    ok('once cloth has gone out, the table is there with that cloth', /Company cloth with you/.test(hv) && /Sheeting 62/.test(hv));
     ok('a new-flow order says the store sends it, and asks for nothing', /The store sends this order/.test(hv) && !/id="vpRfdRaise"/.test(hv) && !/id="vpRfdAll"/.test(hv), hv.slice(0, 200));
     ok('…lists the lot waiting for their Received, with the button', /Lots to confirm/.test(hv) && hv.indexOf('data-vprfd-recv="o9|' + offReq.id + '|') >= 0);
     ok('…shows on order / sent / confirmed / on the way / still to come, and keeps their own count', /<th>Still to come<\/th>/.test(hv) && /data-vprfd-stock="o9\|M__SHEETING_62"/.test(hv) && /Sheeting 62/.test(hv));
