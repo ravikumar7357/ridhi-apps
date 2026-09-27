@@ -20909,6 +20909,17 @@ await (async () => {
   A.setVP({ code: 'VND001', name: 'RBP-Bagru', rows: [o], err: '', busy: false, at: '' });
   const lot = A.vpRfdSends(o).find(x => x.reqId === offReq.id);
   ok('the portal lists the lot with its request, not yet received', !!lot && lot.qty === 60 && !lot.got, JSON.stringify(lot));
+  /* THE PRINTER'S CARD ON A NEW-FLOW ORDER (Ravi, 2026-09-27: "vendor ke page par kaise reflect hoga"). */
+  A.setVP({ code: 'VND001', name: 'RBP-Bagru', rows: [o], err: '', busy: false, at: '', tab: 'rfd', rfdOrder: 'o9' });
+  A.renderVp();
+  {
+    const hv = els.vpBody.innerHTML;
+    ok('a new-flow order says the store sends it, and asks for nothing', /The store sends this order/.test(hv) && !/id="vpRfdRaise"/.test(hv) && !/id="vpRfdAll"/.test(hv), hv.slice(0, 200));
+    ok('…lists the lot waiting for their Received, with the button', /Lots to confirm/.test(hv) && hv.indexOf('data-vprfd-recv="o9|' + offReq.id + '|') >= 0);
+    ok('…shows on order / sent / confirmed / on the way / still to come, and keeps their own count', /<th>Still to come<\/th>/.test(hv) && /data-vprfd-stock="o9\|M__SHEETING_62"/.test(hv) && /Sheeting 62/.test(hv));
+    ok('…and extra beyond the order can still be asked, for approval', /Need MORE than this order\? Ask for extra/.test(hv));
+    ok('…and the order list names it as sent by the store', /sent by the store/.test(hv));
+  }
   ok('more than was sent cannot be received', /more than was sent/.test(await A.rfdRecvSave(o, offReq.id, lot.at, 61, '2026-09-27')));
   ok('the printer confirms 58 m arrived', (await A.rfdRecvSave(o, offReq.id, lot.at, 58, '2026-09-27')) === ''
      && Object.keys(NET.store).some(p => p.startsWith('pt_vendorOrders/VND001/o9/rfdReqs/' + offReq.id + '/recv/')), Object.keys(NET.store).filter(p => /recv/.test(p)).join(' '));

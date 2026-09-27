@@ -30984,12 +30984,36 @@ function vpRfdRender(matched, nag) {
     const short = rfdPieceLines(x).some(p => rfdSentPcsFor(x, p.sku) < p.pieces)
       || rfdFabrics(x).some(f => rfdSentFor(x, f.fabric) < rfdAllowed(x, f.fabric).need);
     return `<option value="${esc(x.id)}"${x.id === o.id ? ' selected' : ''}>`
-      + `${esc(x.orderNo || x.id)} — ${esc(x.status || 'Placed')}${short ? ' · short of goods' : ' · all here'}</option>`;
+      + `${esc(x.orderNo || x.id)} — ${esc(x.status || 'Placed')}${rfdTracked(x) ? ' · sent by the store' : ''}${short ? ' · short of goods' : ' · all here'}</option>`;
   }).join('');
 
   const pcsLines = rfdPieceLines(o);
   const fabLines = rfdFabrics(o);
   const need = rfdOrderNeed(o);
+
+  /* THE NEW FLOW, AS THE PRINTER SEES IT (Ravi, 2026-09-27: "vendor ke page par kaise reflect hoga"). An order placed
+   * from RFD_TRACK_FROM is sent by the store as it is needed — the printer asks for nothing. Their card says what is
+   * coming, what reached them, what is on the way, and lists every lot waiting for their Received; their own count
+   * stays. Asking is kept only for MORE than the order needs, below, and goes for approval as before. */
+  const tracked = rfdTracked(o);
+  let trackHtml = '';
+  if (tracked) {
+    const led = rfdOrderLedger(o);
+    const toConfirm = vpRfdSends(o).filter(x => !x.got && x.at);
+    const z = (n, u) => (n ? nf(n) + ' ' + u : '<span class="z">—</span>');
+    trackHtml = (toConfirm.length ? `<div class="vr-pop-h" style="margin:4px 0 6px">Lots to confirm — press Received when they reach you</div>
+      <div class="xlwrap" style="margin-bottom:12px"><table class="vrs"><thead><tr><th>Sent on</th><th>What</th><th>How much</th><th></th></tr></thead><tbody>${
+        toConfirm.map(x => `<tr><td>${esc(x.date || '—')}</td><td><b>${esc(x.what)}</b></td><td style="font-weight:700;color:#166534">${nf(rfdRound(x.qty))} ${esc(x.unit)}</td>`
+          + `<td><button type="button" class="jw-btn jw-primary" data-vprfd-recv="${esc(o.id)}|${esc(x.reqId)}|${esc(x.at)}" style="padding:4px 12px;font-size:12.5px">Received</button></td></tr>`).join('')
+      }</tbody></table></div>` : '')
+      + `<div class="xlwrap"><table class="vrs"><caption style="text-align:left;font-size:12px;color:var(--muted);padding:4px 0 6px;caption-side:top">The store sends this order as it is needed — nothing to ask for. Confirm each lot when it arrives.</caption>
+        <thead><tr><th>Size / cloth</th><th>Item</th><th>On order</th><th>Sent to you</th><th>You confirmed</th><th>On the way</th><th>Still to come</th><th title="What you already have for this order — saves by itself">With you</th></tr></thead><tbody>${
+        led.map(x => `<tr><td><b>${esc(x.what)}</b></td><td>${esc(x.item)}<span class="sub muted">${x.unit === 'pcs' ? 'cut pieces' : 'metres'}</span></td>`
+          + `<td><b>${nf(x.need)}</b></td><td style="color:#166534">${z(x.sent, x.unit)}</td><td>${z(x.recv, x.unit)}</td>`
+          + `<td style="color:#7f6000">${z(x.onWay, x.unit)}</td><td style="color:var(--bad);font-weight:700">${z(x.toSend, x.unit)}</td>`
+          + `<td><input data-vprfd-stock="${esc(o.id)}|${esc(x.key)}" type="number" min="0" step="${x.unit === 'pcs' ? '1' : '0.1'}" value="${x.withYou || ''}" placeholder="0" title="What you already have for THIS order — the store sends that much less."></td></tr>`).join('')
+      }</tbody></table></div>`;
+  }
 
   /* What one press of the button would ask for, worked out before it is offered — a button that
    * says what it will do is a button somebody can trust. */
@@ -31141,19 +31165,20 @@ function vpRfdRender(matched, nag) {
         ${voAckOf(o) ? '' : '<span class="pill pill-low" title="Acknowledge it on your Orders tab, so the store knows you have it">not acknowledged yet</span>'}
         ${receipt}
         <span style="flex:1"></span>
-        ${leftTxt
+        ${tracked ? '<span class="pill pill-ok" title="Placed from ' + esc(RFD_TRACK_FROM) + ': the store sends what this order needs by itself.">The store sends this order</span>'
+          : leftTxt
           ? `<button id="vpRfdAll" class="ghost" title="Raises a requirement for everything this order still needs, in one go. You are asked to confirm first.">Ask for the whole order (${esc(leftTxt)})…</button>`
           : '<span class="muted" style="font-size:12.5px">Everything this order needs has been asked for.</span>'}
       </div>
       ${storeHtml}
-      ${rowsP ? vrsHead('Size', 'Cut pieces · pcs') + rowsP + '</tbody></table></div>' : ''}
+      ${tracked ? trackHtml : (rowsP ? vrsHead('Size', 'Cut pieces · pcs') + rowsP + '</tbody></table></div>' : '')}
       ${unruled.length ? `<div class="muted" style="font-size:12px;margin-bottom:8px">${nf(unruled.length)} of these have no printing rule set — ${esc(unruled.map(x => x.what || x.sku).filter((v, i, a) => a.indexOf(v) === i).join(', '))}. They are being treated as cut pieces because the order line is in pieces. Ask the office to set the rule.</div>` : ''}
 
-      ${rowsF ? vrsHead('Fabric', 'Running cloth · metres') + rowsF + '</tbody></table></div>' : ''}
+      ${!tracked && rowsF ? vrsHead('Fabric', 'Running cloth · metres') + rowsF + '</tbody></table></div>' : ''}
       ${need.unknown.length ? `<div class="muted" style="font-size:12px;margin-bottom:8px">${nf(need.unknown.length)} line(s) on this order could not be worked out, so their cloth is not in the figures above. Ask the office.</div>` : ''}
 
       <details style="margin-top:6px">
-        <summary class="muted" style="font-size:12px;cursor:pointer">Ask for one size or one fabric only</summary>
+        <summary class="muted" style="font-size:12px;cursor:pointer">${tracked ? 'Need MORE than this order? Ask for extra — it goes for approval' : 'Ask for one size or one fabric only'}</summary>
         <div class="muted" style="font-size:11.5px;margin-top:6px">A size is asked for once. It is shared out over that size's colours for you, in proportion to what each still needs.</div>
         <div style="margin-top:8px">
           ${pcsOpts ? `<div class="toolbar" style="margin-bottom:6px">
@@ -31170,9 +31195,9 @@ function vpRfdRender(matched, nag) {
           </div>` : ''}
         </div>
       </details>
-      <div class="vrb-foot"><span id="vpRfdRaiseTxt" style="font-size:14px">${vpRfdRaiseTxt(o)}</span><span style="flex:1"></span>
+      ${tracked ? '' : `<div class="vrb-foot"><span id="vpRfdRaiseTxt" style="font-size:14px">${vpRfdRaiseTxt(o)}</span><span style="flex:1"></span>
         <button type="button" id="vpRfdClear" class="ghost">Clear</button>
-        <button type="button" id="vpRfdRaise" title="Sends every row where you typed in Ask for now">Raise requirement</button></div>
+        <button type="button" id="vpRfdRaise" title="Sends every row where you typed in Ask for now">Raise requirement</button></div>`}
     </div>`
     ;
 
