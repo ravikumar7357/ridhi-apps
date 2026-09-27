@@ -10974,13 +10974,18 @@ async function ptPut(path, value) {
 let PTG = { masters: null, mdb: null, ob: null, press: null, freeze: null, err: '', busy: false, at: 0 };
 
 /** How long a read of somebody else's work stays worth trusting on a screen you have just opened. */
-const PTG_STALE_MS = 2 * 60 * 1000;
+/* TEN MINUTES, NOT TWO (2026-09-27). The project is on the free Spark plan — 10 GB a month of database downloads — and
+ * the month had already used 19.4 GB, 1.5 to 3.4 GB a day, most of it these eight registers (7.1 MB) read again every
+ * time somebody came back to a factory screen after two minutes. The master database and the masters (2.2 MB of it)
+ * change rarely and are re-read on a background refresh only every half hour; Master DB's own Refresh reads them at once. */
+const PTG_STALE_MS = 10 * 60 * 1000;
+const PTG_MDB_STALE_MS = 30 * 60 * 1000;
 const ptGatesStale = () => !PTG.at || Date.now() - PTG.at > PTG_STALE_MS;
 
 /** Re-read the order book, master and registers if they are old. Opening a screen is the moment to
  *  find out what the rest of the floor has done. */
 async function ptGatesFresh() {
-  if (ptGatesStale()) await ptLoadGates(true);
+  if (ptGatesStale()) await ptLoadGates(true, true);
 }
 /**
  * OPEN A SCREEN AT ONCE, REFRESH BEHIND IT (Ravi, 2026-09-26: "system lag ho rha h ek window se dusri window par jane
@@ -10992,31 +10997,36 @@ function ptOpenFresh(tab, ensure) {
   const stale = ptGatesStale();
   if (!PTG.mdb || !stale) return ensure();
   ensure();
-  ptLoadGates(true).then(() => { if (TAB_NOW === tab) ensure(); }).catch(() => { /* the screen already shows what it had */ });
+  ptLoadGates(true, true).then(() => { if (TAB_NOW === tab) ensure(); }).catch(() => { /* the screen already shows what it had */ });
 }
 
 /* A READ ALREADY UNDER WAY IS WAITED FOR, not skipped (2026-09-25). Returning at once let the Master Database —
  * and any screen that awaited this — carry on with nothing loaded yet and say the database was empty. */
-function ptLoadGates(force) {
+function ptLoadGates(force, light) {
   if (PTG.busy && PTG.loading) return PTG.loading;
   if (PTG.mdb && !force) return Promise.resolve();
-  PTG.loading = ptLoadGatesRun();
+  PTG.loading = ptLoadGatesRun(light);
   return PTG.loading;
 }
-async function ptLoadGatesRun() {
+async function ptLoadGatesRun(light) {
   PTG.busy = true; PTG.err = '';
+  /* A BACKGROUND REFRESH keeps the master and the masters it already has while they are under half an hour old. */
+  const keepMdb = !!light && !!PTG.mdb && !!PTG.masters && Date.now() - (PTG.mdbAt || 0) < PTG_MDB_STALE_MS;
   try {
     /* EIGHT READS, EIGHT NAMES. One short here would hand every later list the value of the one
      * before it, and nothing on screen would look wrong until a figure did. */
     const [masters, mdb, ob, press, freeze, cut, base, shopProd] = await Promise.all([
-      ptGet('pt_masters'), ptGet('pt_masterDB'), ptGet('pt_orderBook'),
+      keepMdb ? Promise.resolve(PTG.masters) : ptGet('pt_masters'), keepMdb ? Promise.resolve(null) : ptGet('pt_masterDB'), ptGet('pt_orderBook'),
       ptGet('pt_pressInventory'), ptGet('pt_cuttingFreezes'), ptGet('pt_cuttingData'), ptGet('pt_baseData'),
       ptGet('pt_shopProd'),
     ]);
     PTG.shopProd = shopProd || {};
-    PTG.masters = masters || {};
-    PTG.recipeAt = Date.now();
-    PTG.mdb = ptList(mdb).map(mdbYnFix);
+    if (!keepMdb) {
+      PTG.masters = masters || {};
+      PTG.recipeAt = Date.now();
+      PTG.mdb = ptList(mdb).map(mdbYnFix);
+      PTG.mdbAt = Date.now();
+    }
     PTG.ob = ptList(ob);
     PTG.press = ptList(press);
     PTG.freeze = freeze || {};
@@ -45262,7 +45272,16 @@ function renderKaMix() {
 /* ---- helpers this block calls, brought over from Sellora ---- */
 /* Amazon reports and the Shopify store both run on Pacific time, so "today" here is the STORE's
  * today, not this browser's. A day-boundary bug is a whole day of orders missing or doubled. */
-const sdPT = ms => new Date(new Date(ms).toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+/* ONE FORMATTER, REUSED (2026-09-27): toLocaleString built a new one on every call, and it was called for every order on
+ * every draw of the Shopify tab — a tenth of a second of 0.3. Same wall-clock answer. */
+const SD_FMT = {};
+function sdWall(ms, tz) {
+  const f = SD_FMT[tz] || (SD_FMT[tz] = new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23',
+    year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' }));
+  const p = {}; f.formatToParts(new Date(ms)).forEach(x => { p[x.type] = x.value; });
+  return new Date(+p.year, +p.month - 1, +p.day, +p.hour % 24, +p.minute, +p.second);
+}
+const sdPT = ms => sdWall(ms, 'America/Los_Angeles');
 function sdToday() { const d = sdPT(Date.now()); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
 const sdShift = (iso, days) => new Date(new Date(iso + 'T00:00:00Z').getTime() + days * 86400000).toISOString().slice(0, 10);
 /**
@@ -46249,7 +46268,7 @@ function soTrkCell(r, esc) {
  * previous day in any US store — but it can be a day out, so the strip says when it is guessing. */
 function soStoreDay(offsetDays) {
   const tz = SHOP.tz;
-  const now = tz ? new Date(new Date().toLocaleString('en-US', { timeZone: tz })) : sdPT(Date.now());
+  const now = tz ? sdWall(Date.now(), tz) : sdPT(Date.now());
   const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + (offsetDays || 0));
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
@@ -46406,6 +46425,7 @@ async function fetchShopOrders() {
 }
 
 let SO_ALL_ROWS = [];      // every order mapped, before any filter — see the note below
+let SO_ROWS_C = { sig: [], meta: '', rows: null };
 function soRows() {
   soIndexNames();
   const q = $('soFilter').value.trim().toLowerCase();
@@ -46415,11 +46435,21 @@ function soRows() {
    * Everything past this line — the columns, the MCF decision, the pick sheet, the export — treats
    * them the same, which is the whole point of importing them rather than keeping a second screen.
    * The only difference is where they came from, and that is a column, not a code path. */
+  /* BUILT ONCE, FILTERED MANY TIMES (Ravi, 2026-09-27: "shopify wala order tab bahut lag ho rha h"). With two months
+   * loaded (4,622 orders) every draw re-worked every order's stock, India and MCF verdict — 0.3 s in Node, a second
+   * in the browser, on every search. The worked rows are kept until the orders, their notes, the stock, India or the
+   * bins change; the search, the pickers and the sort only filter them. */
+  const soSig = [SHOP.orders, SHOP.orders.length, SHOP.at, soImpLive(), SHOP_STOCK, SHOP_STOCK_LOADED, SHOP_INDIA, SHOP_INDIA_ERR, SHOP_SKU];
+  const soMetaStr = JSON.stringify(SHOP_META) + '|' + JSON.stringify(SHOP_SKU);
+  let rows;
+  if (SO_ROWS_C.rows && SO_ROWS_C.sig.length === soSig.length && SO_ROWS_C.sig.every((x, i) => x === soSig[i]) && SO_ROWS_C.meta === soMetaStr) {
+    rows = SO_ROWS_C.rows;
+  } else {
   const ALL = SHOP.orders.concat(soImpLive());
   // Before a single verdict: one pile, shared out oldest-first. Doing this inside the map would put
   // every order in front of the full shelf again, which is the bug this replaces.
   soAllocIndia(ALL);
-  let rows = ALL.map(o => {
+  rows = ALL.map(o => {
     const m = soMcf(o);
     const meta = SHOP_META[o.id] || {};
     const units = o.items.reduce((s, i) => s + i.qty, 0);
@@ -46513,7 +46543,10 @@ function soRows() {
    * Everything below narrows what is DRAWN. filter() returns a new array each time, so none of it
    * touches the set kept here. */
   rows.forEach(r => { r.route = soRoute(r); });
+  SO_ROWS_C = { sig: soSig, meta: soMetaStr, rows };
+  }
   SO_ALL_ROWS = rows;
+  rows = rows.slice();          // the filters and the sort below work on a copy; the kept rows stay as built
 
   const chanSel = msVals('soChan');
   if (chanSel.length) rows = rows.filter(r => chanSel.includes(r.channel));

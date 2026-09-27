@@ -21078,12 +21078,19 @@ await (async () => {
   /* Ravi, 2026-09-26: "system lag ho rha h ek window se dusri window par jane me". */
   const wasPTG = A.PTG(), wasNet = NET.on;
   let draws = 0; const drawn = () => { draws++; };
-  A.setPTG(Object.assign({}, wasPTG, { at: Date.now() - 10 * 60 * 1000 }));   // registers ten minutes old
+  /* 27 Sep: stale after TEN minutes (Spark's 10 GB a month was already at 19 GB); the master kept for half an hour. */
+  A.setPTG(Object.assign({}, wasPTG, { at: Date.now() - 20 * 60 * 1000, mdbAt: Date.now() - 5 * 60 * 1000 }));   // registers 20 min old, master 5
   NET.on = true; NET.calls.length = 0;
   A.ptOpenFresh('pbase', drawn);
   ok('a stale screen draws at once, before any register is read', draws === 1 && NET.calls.length <= 8, draws + ' draws, ' + NET.calls.length + ' reads so far');
   for (let i = 0; i < 20; i++) await new Promise(r => setTimeout(r, 10));
-  ok('…and the registers are read behind it, once', NET.calls.filter(c => /pt_masterDB/.test(c.url)).length === 1, String(NET.calls.filter(c => /pt_masterDB/.test(c.url)).length));
+  const nRead = re => NET.calls.filter(c => re.test(c.url)).length;
+  ok('…and the registers are read behind it, once', nRead(/pt_orderBook/) === 1 && nRead(/pt_baseData/) === 1, nRead(/pt_orderBook/) + '/' + nRead(/pt_baseData/));
+  ok('…but a master under half an hour old is not downloaded again (2 MB saved each time)', nRead(/pt_masterDB/) === 0 && nRead(/pt_masters/) === 0, String(nRead(/pt_masterDB/)));
+  A.setPTG(Object.assign({}, A.PTG(), { at: Date.now() - 5 * 60 * 1000 })); NET.calls.length = 0; draws = 0;
+  A.ptOpenFresh('pbase', drawn);
+  for (let i = 0; i < 10; i++) await new Promise(r => setTimeout(r, 10));
+  ok('registers five minutes old are not read again at all', draws === 1 && NET.calls.length === 0, NET.calls.length + ' reads');
   A.setPTG(Object.assign({}, A.PTG(), { at: Date.now() })); draws = 0; NET.calls.length = 0;
   A.ptOpenFresh('pbase', drawn);
   ok('a fresh screen draws once and reads nothing', draws === 1 && NET.calls.length === 0);

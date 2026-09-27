@@ -14,7 +14,7 @@ const PR = pathm.join(__dirname, '..');
   const val = v => v == null ? null : ('stringValue' in v ? v.stringValue : 'integerValue' in v ? +v.integerValue : 'doubleValue' in v ? v.doubleValue : 'booleanValue' in v ? v.booleanValue : 'nullValue' in v ? null : 'mapValue' in v ? Object.fromEntries(Object.entries(v.mapValue.fields || {}).map(([k, x]) => [k, val(x)])) : 'arrayValue' in v ? (v.arrayValue.values || []).map(val) : null);
   const api = (await req(FS + 'config/api')).j; const url = api.fields.url.stringValue, key = api.fields.key.stringValue;
   const meta = (await req(FS + 'audit/shoporders')).j; const M = val((meta.fields || {}).m) || {};
-  const from = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10), to = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
+  const from = process.env.START || new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10), to = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
   console.log('=== what the tab reads');
   const [sp, cpc, ob] = await Promise.all([
     req(url + '?key=' + encodeURIComponent(key) + '&shopify=orders&start=' + from + '&end=' + to + '&open=0', false),
@@ -38,7 +38,7 @@ const PR = pathm.join(__dirname, '..');
   for (const b of ['SP', 'CPC']) { const d = (await req(FS + 'stock/' + b)).j; Object.entries(val((d.fields || {}).m) || {}).forEach(([k, q]) => { const u = String(k).trim().toUpperCase(); stk[u] = Math.max(stk[u] || 0, Number(q) || 0); }); }
   A.setSTOCK(stk); A.setSTOCKCASE(Object.fromEntries(Object.keys(stk).map(k => [k, k])));
   A.setStockLoaded(true);
-  const ind = await req(url + '?key=' + encodeURIComponent(key) + '&india=stock', false);
+  const ind = process.env.NOINDIA ? { j: { d: {} }, ms: 0 } : await req(url + '?key=' + encodeURIComponent(key) + '&india=stock', false);
   A.setIndia((ind.j && ind.j.d) || {}, true, '');
   console.log('   Amazon stock SKUs ' + Object.keys(stk).length + ' · India stock SKUs ' + Object.keys((ind.j && ind.j.d) || {}).length + ' (' + ind.ms + ' ms)');
   console.log('   order book rows in the harness', H.PTG.ob.length);
