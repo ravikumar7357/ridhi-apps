@@ -23204,23 +23204,20 @@ function renderFabFlowOne() {
   const q = (($('fbQ') || {}).value || '').trim().toLowerCase();
   const two = v => [v.pcs ? nf(v.pcs) + ' pcs' : '', v.m ? nf(v.m) + ' m' : ''].filter(Boolean).join(' · ') || '—';
   const edit = ptCanEdit();
-  const stage = (n, name, title, v, sub, btns) => `<div class="ff-stage${FFLOW.stage === n ? ' on' : ''}" data-ff-stage="${n}" role="button" tabindex="0">
-    <div class="n">${n} · ${esc(name)}</div><div class="t">${esc(title)}</div><div class="v">${v}</div><div class="s">${sub}</div>
-    <div class="b">${btns}</div>${n < 5 ? '<span class="arrow">›</span>' : ''}</div>`;
-  const btn = (act, label, primary) => `<button type="button" class="${primary ? '' : 'ghost'}" data-ff-act="${act}">${esc(label)}</button>`;
+  /* ONE SLIM ROW, NOT A BANNER (Ravi, 2026-09-27: "remove this banner"). The five stages are tabs with their figure
+   * in them; the chosen stage's buttons sit at the right; its list is below the fabric table, as before. */
+  const tab = (n, label, v) => `<button type="button" class="segbtn${FFLOW.stage === n ? ' on' : ''}" data-ff-stage="${n}">${esc(label)} <b style="font-weight:700">${v}</b></button>`;
+  const btn = (act, label, primary) => `<button type="button" class="${primary ? '' : 'ghost'}" data-ff-act="${act}" style="padding:6px 12px;font-size:12.5px">${esc(label)}</button>`;
+  const acts = { 1: edit ? btn('po', '+ Greige PO', true) + btn('recv-greige', 'Receive greige') : '',
+    2: edit ? btn('to-rfd', 'Send to RFD', true) + btn('rfd-in', 'RFD received') : '',
+    3: edit ? btn('cut', 'RFD → cutting', true) + btn('buy', '+ RFD bought') : '',
+    4: btn('byprinter', 'By printer'),
+    5: btn('accept', 'Accept delivery', true) + btn('store', 'Store') }[FFLOW.stage] || '';
   $('fbKpis').innerHTML = '<div style="flex-basis:100%">'
-    + '<div class="ff-pipe">'
-    + stage(1, 'Greige', 'Bought', nf(X.greige) + ' m', 'in stock' + (X.pos ? ' · ' + nf(X.pos) + ' PO open (' + nf(X.poPending) + ' m pending)' : ' · no PO open'),
-        (edit ? btn('po', '+ Greige PO', true) + btn('recv-greige', 'Receive') : ''))
-    + stage(2, 'Processor', 'Becoming RFD', nf(X.proc) + ' m', 'with the processor' + (X.procLots ? ' · ' + nf(X.procLots) + ' lot(s)' : ''),
-        (edit ? btn('to-rfd', 'Send to RFD', true) + btn('rfd-in', 'RFD received') : ''))
-    + stage(3, 'RFD store', 'Ready', nf(X.rfd) + ' m', 'RFD on the shelf' + (X.needM ? ' · <span style="color:' + (X.needM > X.rfd ? 'var(--bad)' : '#166534') + '">orders need ' + nf(X.needM) + ' m</span>' : ''),
-        (edit ? btn('cut', 'RFD → cutting', true) + btn('buy', '+ RFD bought') : ''))
-    + stage(4, 'Printers', 'Being printed', two(X.toSend), 'to send · ' + two(X.onWay) + ' on the way · ' + two(X.withP) + ' with them · ' + nf(X.orders) + ' order(s)',
-        btn('send', 'Send to printer', true) + btn('byprinter', 'By printer'))
-    + stage(5, 'Printed', 'Back', nf(X.toAccept), 'deliveries to accept · ' + two(X.back30) + ' back in 30 days' + (X.storePcs != null ? ' · store ' + nf(X.storePcs) + ' pcs' : ''),
-        btn('accept', 'Accept delivery', true) + btn('store', 'Store'))
-    + '</div>'
+    + `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px"><div class="seg" role="tablist">`
+    + tab(1, 'Greige', nf(X.greige) + ' m') + tab(2, 'At processor', nf(X.proc) + ' m') + tab(3, 'RFD', nf(X.rfd) + ' m')
+    + tab(4, 'Printers', two(X.toSend) + ' to send') + tab(5, 'To accept', nf(X.toAccept))
+    + `</div><span style="flex:1"></span>${acts}</div>`
     + '<div class="ff-cap">Every fabric, start to finish. Red: the orders need more RFD than the shelf holds.</div>'
     + '<div class="ff-grid"><table class="xl"><thead><tr>' + ['Fabric', 'Greige stock', 'At processor', 'RFD stock', 'Orders need (RFD)', 'Short', 'With printers', 'Printed back · 30 d', ''].map((h, i) => `<th${i ? ' class="num"' : ''}>${h}</th>`).join('') + '</tr></thead><tbody>'
     + (X.fabrics.filter(e => !q || e.fabric.toLowerCase().indexOf(q) >= 0).map(e => {

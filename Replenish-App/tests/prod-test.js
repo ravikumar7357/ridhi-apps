@@ -21040,7 +21040,13 @@ await (async () => {
   els.fbView.value = 'flow'; els.fbQ.value = '';
   A.renderFab();
   const k = els.fbKpis.innerHTML, t = els.fbTable.innerHTML;
-  ok('five stages across the top, each with its buttons', ['data-ff-stage="1"', 'data-ff-stage="5"', 'data-ff-act="po"', 'data-ff-act="to-rfd"', 'data-ff-act="cut"', 'data-ff-act="send"', 'data-ff-act="accept"'].every(x => k.indexOf(x) >= 0));
+  /* 27 Sep, "remove this banner": the five stages are a slim row of tabs; only the chosen stage's buttons show. */
+  ok('five stages as one slim row of tabs, no banner of cards', ['data-ff-stage="1"', 'data-ff-stage="2"', 'data-ff-stage="3"', 'data-ff-stage="4"', 'data-ff-stage="5"'].every(x => k.indexOf(x) >= 0)
+     && !/class="ff-stage/.test(k) && /class="seg"/.test(k));
+  ok('…with the chosen stage\'s own buttons only', /data-ff-act="byprinter"/.test(k) && !/data-ff-act="po"/.test(k));
+  A.setFFLOW({ stage: 1, loaded: true, busy: false, err: [] }); A.renderFab();
+  ok('…and the greige tab brings the PO buttons', /data-ff-act="po"/.test(els.fbKpis.innerHTML) && /data-ff-act="recv-greige"/.test(els.fbKpis.innerHTML));
+  A.setFFLOW({ stage: 4, loaded: true, busy: false, err: [] }); A.renderFab();
   ok('the fabric line says covered, and the stage-4 worklist offers Send with the shelf beside it', /Sheeting 62/.test(k) && /covered/.test(k) && /data-ff-send="f1\|M__SHEETING_62"/.test(t) && /150 m/.test(t), els.fbMsg.textContent);
   A.setFFLOW({ stage: 2, loaded: true, busy: false, err: [] }); A.renderFab();
   ok('stage 2 lists the lot with the processor and what is still there', /Jaipur Processors/.test(els.fbTable.innerHTML) && /100 m/.test(els.fbTable.innerHTML), els.fbTable.innerHTML.slice(0, 300));
