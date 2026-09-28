@@ -1703,6 +1703,8 @@
           <input id="vrqQ" placeholder="Search request / order / vendor / SKU / fabric" style="flex:1 1 200px;min-width:0">
           <button id="vrqNew">+ New request</button>
           <button id="vrqExport" class="ghost">Export</button>
+          <button id="vrqSkuTot" class="ghost" title="One row per SKU: how much was given to vendors, how much came back, and the balance still with them. Follows the filters above.">SKU totals ⤓</button>
+          <button id="vrqSkuLines" class="ghost" title="One row per SKU on every request, with its request, vendor and status. Follows the filters above.">SKU lines ⤓</button>
           <button id="vrqGo">Refresh</button>
         </div>
         <div id="vrqMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
@@ -40250,6 +40252,58 @@ function vrqAnswerOpen(id) {
   });
 }
 
+/* ---- SKU-WISE ----
+ * Ravi, 2026-09-28: "sku wise data download nahi kar sakta ki kis sku me mene kitna mal de diya printing par".
+ * Every request line, read against the order it became: the quantity is the ORDER's (an approver may have changed
+ * it), what came back is the vendor's deliveries on that line (voDone — the same figure as "Sent" in View), and a
+ * cancelled line or a closed order (Cancelled / Received) has nothing left to come. */
+function vrqSkuLines(rows) {
+  const out = [];
+  (rows || []).forEach(r => {
+    const o = vrqOrder(r), st = vrqStage(r), unit = vrqUnit(r);
+    const closed = !!(o && (o.status === 'Cancelled' || o.status === 'Received'));
+    voLines(r).forEach(l => {
+      const x = o ? voLines(o).find(y => y && y.lineId === l.lineId) || null : null;
+      const cancelled = !!(l.cancelled || (x && x.cancelled) || (o && o.status === 'Cancelled'));
+      const qty = x ? voQty(o, x) : voQty(r, l), sent = x ? voDone(x) : 0;
+      out.push({ r, l, o, st, unit, cancelled, qty, sent,
+        bal: cancelled || closed ? 0 : Math.max(0, qty - sent),
+        sku: voKind(l) === 'running' ? '' : String(l.sku || '').trim(), item: vrqItem(l),
+        work: voServiceOf(r), vendor: r.sentToName || r.vendorName || voName(r.sentTo || r.vendorCode),
+        vendorDate: x ? voProm(x) : '' });
+    });
+  });
+  return out;
+}
+/** One row per work + SKU (running cloth: per work + fabric/colour). Refused and cancelled lines count nowhere;
+ * a request still waiting for approval is counted apart — nothing has gone to the vendor yet. */
+function vrqSkuTotals(lines) {
+  const m = new Map();
+  (lines || []).forEach(x => {
+    if (x.cancelled || x.st === 'rejected') return;
+    const key = x.work + '|' + (x.sku ? 'S|' + obUC(x.sku) : 'R|' + x.item) + '|' + x.unit;
+    let t = m.get(key);
+    if (!t) m.set(key, t = { work: x.work, sku: x.sku, item: x.item, unit: x.unit, l: x.l,
+      given: 0, sent: 0, bal: 0, asked: 0, reqs: new Set(), vend: new Set() });
+    if (x.st === 'pending') t.asked += x.qty;
+    else { t.given += x.qty; t.sent += x.sent; t.bal += x.bal; }
+    t.reqs.add(x.r.reqNo || x.r.id); if (x.vendor) t.vend.add(x.vendor);
+  });
+  return [...m.values()].sort((a, b) => a.work.localeCompare(b.work) || b.given - a.given || a.item.localeCompare(b.item));
+}
+const VRQ_SKU_TOT_COLS = ['Work', 'SKU', 'Item', 'Article', 'Subtype', 'Colour', 'Size', 'Unit', 'Given to vendors',
+  'Came back', 'Balance with vendors', 'Waiting for approval', 'Requests', 'Vendors'];
+const vrqSkuTotRows = lines => vrqSkuTotals(lines).map(t => [t.work, t.sku, t.item, t.l.articleType || t.l.fabricType || '',
+  t.l.articleSubtype || '', t.l.color || '', t.l.size || '', t.unit, t.given, t.sent, t.bal, t.asked,
+  [...t.reqs].join(' '), [...t.vend].join(', ')]);
+const VRQ_SKU_LINE_COLS = ['Request', 'Raised', 'Raised by', 'Vendor', 'Work', 'Status', 'Vendor order', 'SKU', 'Item',
+  'Article', 'Subtype', 'Colour', 'Size', 'Qty', 'Unit', 'Came back', 'Balance', 'Wanted by', 'Vendor’s date', 'Line'];
+const vrqSkuLineRows = lines => lines.map(x => [x.r.reqNo || x.r.id, ptIsoDate(x.r.requestedAt) || '', x.r.requestedBy || '',
+  x.vendor, x.work, x.r.status === 'withdrawn' ? 'Withdrawn' : (VRQ_STAGE[x.st] || {}).label || x.r.status,
+  (x.o && x.o.orderNo) || x.r.vendorOrderNo || '', x.sku, x.item, x.l.articleType || x.l.fabricType || '',
+  x.l.articleSubtype || '', x.l.color || '', x.l.size || '', x.qty, x.unit, x.sent, x.bal, voWant(x.l), x.vendorDate,
+  x.cancelled ? 'Cancelled' : '']);
+
 /* ---- the screen ---- */
 
 function vrqFiltered() {
@@ -40394,6 +40448,14 @@ $('vrqExport').onclick = () => {
   });
   ptDownload('vendor-order-requests', out);
 };
+[['vrqSkuTot', 'vendor-requests-sku-totals', VRQ_SKU_TOT_COLS, vrqSkuTotRows],
+ ['vrqSkuLines', 'vendor-requests-sku-lines', VRQ_SKU_LINE_COLS, vrqSkuLineRows]].forEach(([id, name, cols, rowsOf]) => {
+  $(id).onclick = () => {
+    const rows = rowsOf(vrqSkuLines(VRQ.shown || []));
+    if (!rows.length) { $('vrqMsg').className = 'err'; $('vrqMsg').textContent = 'Nothing to download — no request lines match the filters.'; return; }
+    ptDownload(name, [cols.map(csvCell).join(',')].concat(rows.map(r => r.map(csvCell).join(','))));
+  };
+});
 
 /* ================= RFD FABRIC A PRINTER NEEDS =================
  *
