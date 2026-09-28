@@ -2432,6 +2432,7 @@
           <button id="ptmRecSeed" class="hide ghost" title="Fill the recipes in from what the SKUs already say — only where every SKU that has said anything agrees. You are shown what would be written first.">Seed from the SKUs</button>
           <button id="ptmRecApply" class="hide" title="Write the recipes onto the SKUs. You are shown what would change first.">Apply recipes</button>
           <button id="ptmNew">+ New SKU</button>
+          <button id="ptmLookalike" class="ghost" title="SKUs not in the master database: fill their article, colour and size from the master SKUs they look like, on the Custom SKUs list and on the lines printers see">Fill from look-alikes</button>
           <button id="ptmAsin" class="ghost" title="Fill blank ASIN and Parent ASIN from Amazon — its listings report, then its catalogue for the parents. You are shown what would be written first.">ASIN from Amazon</button>
           <button id="ptmImgs" class="ghost" title="Ask Amazon again for the SKUs on screen. They are fetched automatically and remembered, so this is only for a picture that has changed.">Refresh pictures</button>
           <button id="ptmClear" class="ghost">Clear</button>
@@ -10014,7 +10015,7 @@ const PMDB_TOOLS = {
   /* A one-off item never amends the real catalogue, so Change SKU — which rewrites a code across
    * every register — is not offered from here. */
   custom: ['ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut', 'ptmQ',
-    'ptmNew', 'ptmImgs', 'ptmClear', 'ptmTemplate', 'ptmTplShort', 'ptmImport', 'ptmExport', 'ptmGo'],
+    'ptmNew', 'ptmLookalike', 'ptmImgs', 'ptmClear', 'ptmTemplate', 'ptmTplShort', 'ptmImport', 'ptmExport', 'ptmGo'],
   /* The printer's cloth is grouped by fabric and colour; article and size say nothing about it. */
   fabric: ['ptmBrandFs', 'ptmDir', 'ptmCol', 'ptmQ', 'ptmNew', 'ptmTemplate', 'ptmImport', 'ptmClear', 'ptmExport', 'ptmGo'],
   cons: ['ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut', 'ptmQ',
@@ -10026,12 +10027,12 @@ const PMDB_TOOLS = {
   skucode: ['ptmArt', 'ptmSub', 'ptmSz', 'ptmQ', 'ptmClear', 'ptmTemplate', 'ptmImport', 'ptmExport', 'ptmGo'],
 };
 /** The ones that write, so they are shown only to somebody who may. */
-const PMDB_WRITES = ['ptmNew', 'ptmAsin', 'ptmImport', 'ptmRename', 'ptmConsApply', 'ptmRecSeed', 'ptmRecApply'];
+const PMDB_WRITES = ['ptmNew', 'ptmLookalike', 'ptmAsin', 'ptmImport', 'ptmRename', 'ptmConsApply', 'ptmRecSeed', 'ptmRecApply'];
 /* NAMED OUTRIGHT, not gathered from the lists above. Derived from them, a control dropped from
  * every view fell out of this set and so was never hidden — it stayed wherever the last view left
  * it, which is the very thing this function exists to stop. */
 const PMDB_ALL = ['ptmTplShort', 'ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut', 'ptmQ',
-  'ptmBrandFs', 'ptmDir', 'ptmConsApply', 'ptmRecSeed', 'ptmRecApply', 'ptmNew', 'ptmAsin', 'ptmImgs',
+  'ptmBrandFs', 'ptmDir', 'ptmConsApply', 'ptmRecSeed', 'ptmRecApply', 'ptmNew', 'ptmLookalike', 'ptmAsin', 'ptmImgs',
   'ptmClear', 'ptmTemplate', 'ptmImport', 'ptmRename', 'ptmExport', 'ptmGo'];
 
 function pmdbTools(view) {
@@ -11302,12 +11303,146 @@ let OBL_IX = { src: null, n: -1, rows: null, byKey: null };
  * Tablecloth → Ruffle Square Tablecloth, and 262 more) left those copies behind, and the Order Console
  * showed the old name beside the right SKU. The copy is used only for a SKU the master does not have.
  */
+/**
+ * WHAT "Fill from look-alikes" WOULD WRITE — only into empty boxes, never over a value somebody typed.
+ *   custom  — pt_customSkus/<key>/{articleType, subtype, color, size}
+ *   lines   — pt_vendorOrders/<vendor>/<order>/lines/<k>/{articleType, articleSubtype, color, size}: a printer reads
+ *             only their own orders, never the master, so the line has to carry it
+ * Each written line also gets lookalikeFrom, so where the words came from stays on record.
+ */
+function skuFillPlan(custom, orders) {
+  const out = { custom: [], lines: [], noGuess: new Set() };
+  const fill = (have, g, map) => { const w = {}; Object.keys(map).forEach(f => { const v = g[map[f]]; if (!String(have[f] == null ? '' : have[f]).trim() && v) w[f] = v; }); return w; };
+  (custom || []).forEach(r => {
+    if (!r || !r.sku || (r.articleType && r.color && r.size)) return;
+    const g = skuLookalike(r.sku);
+    if (!g) { out.noGuess.add(obUC(r.sku)); return; }
+    const w = fill(r, g, { articleType: 'articleType', subtype: 'subtype', color: 'color', size: 'size' });
+    if (Object.keys(w).length) out.custom.push({ key: r._key || obUC(r.sku), sku: obUC(r.sku), w, from: g.basis });
+  });
+  (orders || []).forEach(o => {
+    if (!o || !o.vendorCode || !o.id || voRunning(o)) return;
+    const raw = o.lines;
+    const ents = Array.isArray(raw) ? raw.map((l, i) => [i, l]) : Object.entries(raw || {});
+    ents.forEach(([k, l]) => {
+      if (!l || !l.sku || l.kind === 'running' || (l.articleType && l.color && l.size) || mdbOf(l.sku)) return;
+      const g = skuLookalike(l.sku);
+      if (!g) { out.noGuess.add(obUC(l.sku)); return; }
+      const w = fill(l, g, { articleType: 'articleType', articleSubtype: 'subtype', color: 'color', size: 'size' });
+      if (Object.keys(w).length) out.lines.push({ path: 'pt_vendorOrders/' + o.vendorCode + '/' + o.id + '/lines/' + k, o, l, sku: obUC(l.sku), w, from: g.basis });
+    });
+  });
+  return out;
+}
+function skuFillPatch(plan) {
+  const upd = {};
+  plan.custom.forEach(x => Object.keys(x.w).forEach(f => { upd['pt_customSkus/' + x.key + '/' + f] = x.w[f]; }));
+  plan.lines.forEach(x => { Object.keys(x.w).forEach(f => { upd[x.path + '/' + f] = x.w[f]; }); upd[x.path + '/lookalikeFrom'] = x.from; });
+  return upd;
+}
+async function skuFillOpen() {
+  if (!mdbCanEdit()) { $('ptmMsg').className = 'err'; $('ptmMsg').textContent = MDB_NO_EDIT; return; }
+  $('ptmMsg').className = 'muted'; $('ptmMsg').textContent = 'Reading the Custom SKUs and the vendor orders…';
+  try {
+    if (!PTG.mdb) await ptLoadGates();
+    MDBX.custom = ptList(await ptGet('pt_customSkus'));
+    VO.rows = null; await ensureVo();
+  } catch (e) { $('ptmMsg').className = 'err'; $('ptmMsg').textContent = 'Could not read them: ' + (e.message || e); return; }
+  $('ptmMsg').textContent = '';
+  const plan = skuFillPlan(MDBX.custom, VO.rows);
+  const n = plan.custom.length + plan.lines.length;
+  const row = (sku, w, from, where) => `<tr><td style="text-align:left;font-family:ui-monospace,monospace;font-size:12px">${esc(sku)}</td>`
+    + `<td style="text-align:left">${esc([w.articleType, w.subtype || w.articleSubtype, w.color, w.size].filter(Boolean).join(' · '))}</td>`
+    + `<td style="text-align:left" class="muted">${esc(where)}</td><td style="text-align:left;font-size:11.5px" class="muted">${esc(from)}</td></tr>`;
+  const shown = plan.lines.slice(0, 150).map(x => row(x.sku, x.w, x.from, voName(x.o.vendorCode) + ' · ' + (x.o.orderNo || x.o.id)))
+    .concat(plan.custom.slice(0, 150).map(x => row(x.sku, x.w, x.from, 'Custom SKUs list')));
+  ptOpenDialog({
+    title: n ? 'Fill these from their look-alikes?' : 'Nothing to fill',
+    subtitle: `${nf(plan.lines.length)} vendor-order line(s) · ${nf(plan.custom.length)} Custom SKU(s)`
+      + (plan.noGuess.size ? ` · ${nf(plan.noGuess.size)} SKU(s) look like nothing in the master and stay as they are` : ''),
+    note: 'Only empty boxes are filled — a value somebody typed is never replaced. Article and size come from the same code in '
+      + 'other colours, the colour from the same colour code in other sizes, and only where four in five of them agree. '
+      + 'Printers then see the article, size and colour, and the line joins its colour group.',
+    html: n ? `<div class="xlwrap" style="max-height:46vh;border:1px solid var(--line);border-radius:10px"><table class="xl" style="font-size:12.5px">
+      <thead><tr><th style="text-align:left">SKU</th><th style="text-align:left">Filled with</th><th style="text-align:left">Where</th><th style="text-align:left">Read from</th></tr></thead>
+      <tbody>${shown.join('')}</tbody></table></div>` + (n > shown.length ? `<div class="muted" style="margin-top:6px;font-size:12px">…and ${nf(n - shown.length)} more.</div>` : '') : '',
+    fields: [],
+    saveLabel: n ? 'Fill ' + nf(n) : '',
+    onSave: n ? async () => {
+      const upd = skuFillPatch(plan);
+      try { await ptPatch(upd); } catch (e) { return 'Not written: ' + (e.message || e) + ' — nothing changed.'; }
+      plan.custom.forEach(x => { const r = (MDBX.custom || []).find(c => c && (c._key || obUC(c.sku)) === x.key); if (r) Object.assign(r, x.w); });
+      plan.lines.forEach(x => { Object.assign(x.l, x.w, { lookalikeFrom: x.from }); });
+      renderPmdb();
+      $('ptmMsg').className = 'muted';
+      $('ptmMsg').textContent = `Filled ${nf(plan.lines.length)} vendor-order line(s) and ${nf(plan.custom.length)} Custom SKU(s) from their look-alikes.`;
+      return '';
+    } : null,
+  });
+}
+if ($('ptmLookalike')) $('ptmLookalike').onclick = () => skuFillOpen();
+
+/* ==== LOOK-ALIKE SKUs (Ravi, 2026-09-28) ====
+ * A SKU the master does not hold is read from the ones it does. A code is letters + colour code + the rest:
+ * RTC150-60120 is RTC + 150 + -60120.
+ *   article · subtype · size  ← master SKUs of the same letters and the same rest, any colour (RTC23-60120 …);
+ *                               failing that, the same letters alone (every RCNB napkin is a 20x20 Border Napkin)
+ *   colour                    ← master SKUs of the same letters and the same colour code (RTC150-60102 …);
+ *                               failing that, the same colour code under any letters of the same family
+ * A value is taken only when at least four in five of the SKUs asked agree, so a code two colours share gives no
+ * colour rather than a wrong one. Custom SKUs never vote. */
+const skuParts = s => { const m = obUC(s).match(/^([A-Z]+)(\d+)(.*)$/); return m ? { pre: m[1], code: m[2], rest: m[3] } : null; };
+let SKU_LA_IX = { src: null, n: -1, ix: null };
+function skuLaIndex() {
+  const src = PTG.mdb || PT_NONE;
+  if (SKU_LA_IX.ix && SKU_LA_IX.src === src && SKU_LA_IX.n === src.length) return SKU_LA_IX.ix;
+  const ix = { shape: new Map(), pre: new Map(), preCode: new Map(), code: new Map() };
+  const add = (map, k, v, sku) => {
+    if (!v) return;
+    let t = map.get(k); if (!t) map.set(k, t = new Map());
+    const e = t.get(v) || { n: 0, eg: sku }; e.n++; t.set(v, e);
+  };
+  src.forEach(r => {
+    if (!r || !r.sku || r.isCustom) return;
+    const p = skuParts(r.sku); if (!p) return;
+    const art = [r.articleType, r.subtype, r.size].map(x => String(x == null ? '' : x).trim());
+    if (art[0] && art[2]) { add(ix.shape, p.pre + '#' + p.rest, JSON.stringify(art), obUC(r.sku)); add(ix.pre, p.pre, JSON.stringify(art), obUC(r.sku)); }
+    const col = String(r.color || '').trim();
+    add(ix.preCode, p.pre + '#' + p.code, col, obUC(r.sku));
+    add(ix.code, p.pre[0] + '#' + p.code, col, obUC(r.sku));
+  });
+  SKU_LA_IX = { src, n: src.length, ix };
+  return ix;
+}
+function skuLaWin(t) {
+  if (!t || !t.size) return null;
+  let tot = 0, best = null;
+  t.forEach((e, v) => { tot += e.n; if (!best || e.n > best.e.n) best = { v, e }; });
+  return best.e.n / tot >= 0.8 ? { v: best.v, eg: best.e.eg } : null;
+}
+/** { articleType, subtype, color, size, basis: 'RTC23-60120, RTC150-60102' } — blanks where nothing agrees; null when
+ * nothing in the master looks like it. */
+function skuLookalike(sku) {
+  const p = skuParts(sku);
+  if (!p) return null;
+  const ix = skuLaIndex(), out = { articleType: '', subtype: '', color: '', size: '', basis: '' }, eg = [];
+  const a = skuLaWin(ix.shape.get(p.pre + '#' + p.rest)) || skuLaWin(ix.pre.get(p.pre));
+  if (a) { const v = JSON.parse(a.v); out.articleType = v[0]; out.subtype = v[1]; out.size = v[2]; eg.push(a.eg); }
+  const c = skuLaWin(ix.preCode.get(p.pre + '#' + p.code)) || skuLaWin(ix.code.get(p.pre[0] + '#' + p.code));
+  if (c) { out.color = c.v; if (eg.indexOf(c.eg) < 0) eg.push(c.eg); }
+  out.basis = eg.join(', ');
+  return eg.length ? out : null;
+}
+
 function obWhat(r) {
   const m = typeof mdbOf === 'function' ? mdbOf(r && r.sku) : null;
   const pick = (a, b) => (String(a == null ? '' : a).trim() ? String(a).trim() : (b || ''));
-  return m ? { articleType: pick(m.articleType, r.articleType), articleSubtype: pick(m.subtype, r.articleSubtype),
-    color: pick(m.color, r.color), size: pick(m.size, r.size) }
-    : { articleType: r.articleType || '', articleSubtype: r.articleSubtype || '', color: r.color || '', size: r.size || '' };
+  if (m) return { articleType: pick(m.articleType, r.articleType), articleSubtype: pick(m.subtype, r.articleSubtype),
+    color: pick(m.color, r.color), size: pick(m.size, r.size) };
+  /* Not in the master: what the row carries, and its look-alikes for whatever it does not. */
+  const g = (!r.articleType || !r.color || !r.size) ? skuLookalike(r && r.sku) : null;
+  return { articleType: r.articleType || (g && g.articleType) || '', articleSubtype: r.articleSubtype || (g && g.subtype) || '',
+    color: r.color || (g && g.color) || '', size: r.size || (g && g.size) || '' };
 }
 
 function obLines() {
@@ -16269,7 +16404,8 @@ async function spMirror(orderNo, sku, code, add) {
 
   const lines = (order && Array.isArray(order.lines) ? order.lines : []).filter(l => l && l.shopKey !== key);
   if (add) {
-    const m = (PTG.mdb || []).find(x => x && obUC(x.sku) === obUC(sku)) || {};
+    /* NOT IN THE MASTER: its look-alike's article, colour and size, so the printer sees what it is (2026-09-28). */
+    const m = (PTG.mdb || []).find(x => x && obUC(x.sku) === obUC(sku)) || skuLookalike(sku) || {};
     const ob = spObRow(orderNo, sku) || {};
     lines.push({
       lineId: spLineId(orderNo, sku),
