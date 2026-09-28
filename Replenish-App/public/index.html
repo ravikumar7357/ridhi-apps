@@ -29404,12 +29404,20 @@ function voSkuInfo() {
   const s = obUC(($('vof_sku') || {}).value || ''), el = $('vof_info');
   if (!el) return null;
   if (!s) { el.textContent = ''; el.className = 'muted'; return null; }
-  const m = (PTG.mdb || []).find(r => r && obUC(r.sku) === s);
-  if (!m) { el.className = 'err'; el.textContent = s + ' is not in the master database.'; return null; }
+  const m0 = (PTG.mdb || []).find(r => r && obUC(r.sku) === s);
+  if (!m0 && voForShopify()) {
+    const g = voCustomLine(s);
+    el.className = 'muted';
+    el.textContent = s + ' is not in the master — ' + ([g.articleType, g.subtype, g.color, g.size].filter(Boolean).join(' · ') || 'nothing like it either')
+      + ' · it goes on the Custom SKUs list when the order is sent.';
+    return g;
+  }
+  const m = m0;
+  if (!m) { el.className = 'err'; el.textContent = s + ' is not in the master database. For a Shopify order, pick Shopify in "For" first.'; return null; }
   /* THE PRINTERS' LIMIT, not everybody's. A quilt cannot be sent to a block printer as cut fabric;
    * sending it to be filled is the entire point of a filling order. */
   const printing = voDraftPrinting();
-  if (printing && !voCutAllowed(m.articleType, m.subtype)) {
+  if (printing && !voForShopify() && !voCutAllowed(m.articleType, m.subtype)) {
     el.className = 'err';
     el.textContent = `${m.subtype || m.articleType || s} is not a cut-fabric item. Only rectangular, round and square tablecloths and table runners can be ordered cut from a printer.`;
     return null;
@@ -29778,14 +29786,15 @@ function voAddLine() {
     /* The cap is checked as the line is added, counting the lines already in this draft — otherwise
      * three lines of 40 could each look fine and only the placed order would be over. */
       /* The cap is printing's. A filling or stitching line is not measured against it. */
-    if (voDraftPrinting()) {
+    if (voDraftPrinting() && !voForShopify()) {
       const bad = voValidateCut(VOF.lines.filter(l => voKind(l) === 'cut').map(l => ({ sku: l.sku, qty: l.qty }))
         .concat([{ sku, qty }]));
       const mine = bad.find(v => v.sku === sku);
       if (mine) return say(voCapMsg(mine));
     }
-    VOF.lines.push({ lineId: id, kind: 'cut', sku, articleType: m.articleType || '', articleSubtype: m.subtype || '',
-      color: m.color || '', size: m.size || '', brand: m.brand || '', qty, deliveryDate: deliv, priority, notes, dispatchedQty: 0 });
+    VOF.lines.push(Object.assign({ lineId: id, kind: 'cut', sku, articleType: m.articleType || '', articleSubtype: m.subtype || '',
+      color: m.color || '', size: m.size || '', brand: m.brand || '', qty, deliveryDate: deliv, priority, notes, dispatchedQty: 0 },
+      m.isCustomNew ? { customNew: true } : {}));
     ['vof_sku', 'vof_qty', 'vof_lnotes'].forEach(i => { $(i).value = ''; });
     $('vof_info').className = 'muted'; $('vof_info').textContent = '';
   }
@@ -30141,6 +30150,35 @@ function voRunningXlsx() {
   ]);
 }
 
+/* A SHOPIFY ORDER GOES THROUGH (2026-09-28). For "For: Shopify / CPC Shopify" a SKU the master lacks is taken with its
+ * look-alike's article, colour and size and put on the Custom SKUs list when the order is placed; a non-cut item (a
+ * napkin, a quilt) may go to a printer; and the printer cap — measured against the order book — is not applied, because a
+ * Shopify order's pieces are not on the book until production opens them. */
+const voForShopify = () => /Shopify/.test(String(($('vof_channel') || {}).value || ''));
+function voCustomLine(sku) {
+  const g = skuLookalike(sku) || {};
+  return { sku: obUC(sku), articleType: g.articleType || '', subtype: g.subtype || '', color: g.color || '', size: g.size || '',
+    brand: /^CPC/.test(obUC(sku)) ? 'CPC' : 'Ridhi', isCustomNew: true };
+}
+/** The Custom SKUs records a placed order still needs: one per new SKU nobody has catalogued yet. */
+function voCustomRecs(lines) {
+  const have = new Set((PTG.mdb || []).map(r => obUC(r && r.sku)).concat(((typeof MDBX !== 'undefined' && MDBX.custom) || []).map(r => obUC(r && r.sku))));
+  const out = {}, now = new Date().toISOString();
+  (lines || []).forEach(l => {
+    const k = obUC(l && l.sku);
+    if (!l || !l.customNew || !k || have.has(k) || out['pt_customSkus/' + k]) return;
+    out['pt_customSkus/' + k] = { sku: k, articleType: l.articleType || '', subtype: l.articleSubtype || '', color: l.color || '', size: l.size || '',
+      brand: l.brand || '', cuttingRequired: true, isCustom: true, fromVendorOrder: true, addedBy: ME.email, addedAt: now,
+      lookalikeFrom: (skuLookalike(k) || {}).basis || '' };
+  });
+  return out;
+}
+/** The check file: every row of the upload, right or wrong, and why. */
+function voCheckFileRows(report) {
+  return [['Row', 'SKU / fabric', 'Quantity', 'Result', 'Why']].concat((report || []).map(x => [x.row, x.what, x.qty, x.ok ? 'Right' : 'Wrong', x.why || '']));
+}
+let VO_UP = { report: [], good: [], name: '' };
+
 async function voBulkFile(file, kind) {
   ptDlgMsg('Reading ' + file.name + '…');
   let rows;
@@ -30158,17 +30196,26 @@ async function voBulkFile(file, kind) {
     ptDlgMsg('That file does not have the columns this order needs. Download the template to see the shape.', true); return;
   }
 
-  const out = [], errors = [];
+  const out = [], errors = [], report = [];
+  const shop = voForShopify();
   rows.slice(1).forEach((r, n) => {
     const at = i => (i >= 0 ? String(r[i] == null ? '' : r[i]).trim() : '');
     const row = 'Row ' + (n + 2) + ': ';
+    /* EVERY ROW IS REPORTED, right or wrong (2026-09-28). */
+    const e0 = errors.length, o0 = out.length;
+    const what = kind === 'running' ? [at(c.fsku), at(c.fab), at(c.col)].filter(Boolean).join(' · ') : obUC(at(c.sku));
+    const note = () => {
+      if (errors.length > e0) report.push({ row: n + 2, what, qty: at(c.qty), ok: false, why: errors[errors.length - 1].replace(row, '') });
+      else if (out.length > o0) report.push({ row: n + 2, what, qty: at(c.qty), ok: true, why: out[out.length - 1].customNew ? 'new SKU — goes on the Custom SKUs list' : '', line: out[out.length - 1] });
+    };
     const qty = parseFloat(at(c.qty)) || 0;
     const ddRaw = at(c.dd);
     /* Excel stores a typed date as a day number (46290 = 25 Sep 2026); the sheet it gave us is read raw. */
     const dd = ddRaw ? (/^\d{5}(\.\d+)?$/.test(ddRaw) ? spBulkDate(ddRaw) : soParseDMY(ddRaw)) : '';
-    if (at(c.dd) && !dd) { errors.push(row + 'the delivery date must be DD-MM-YYYY, not "' + at(c.dd) + '".'); return; }
+    if (at(c.dd) && !dd) { errors.push(row + 'the delivery date must be DD-MM-YYYY, not "' + at(c.dd) + '".'); note(); return; }
     const prRaw = at(c.pr).toUpperCase(), priority = /^P[1-4]$/.test(prRaw) ? prRaw : '';
     const id = 'ln_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6) + n;
+    (() => {
     if (kind === 'running') {
       const fsku = at(c.fsku).split('|')[0].trim().toUpperCase();
       const fr = fsku ? voFabricCatalogue().get(fsku) : null;
@@ -30187,28 +30234,55 @@ async function voBulkFile(file, kind) {
       const sku = obUC(at(c.sku));
       if (!sku && !qty) return;
       if (!sku) { errors.push(row + 'no SKU.'); return; }
-      const m = (PTG.mdb || []).find(x => x && obUC(x.sku) === sku);
-      if (!m) { errors.push(row + sku + ' is not in the master database.'); return; }
+      let m = (PTG.mdb || []).find(x => x && obUC(x.sku) === sku);
+      if (!m && shop) m = voCustomLine(sku);
+      if (!m) { errors.push(row + sku + ' is not in the master database. (For a Shopify order, pick Shopify in "For" first — it will go on the Custom SKUs list.)'); return; }
       /* The cut-fabric list is the PRINTERS' limit. A quilt cannot be sent to a block printer as cut
-       * fabric; sending it to be filled is the entire point of a filling order. */
-      if (voDraftPrinting() && !voCutAllowed(m.articleType, m.subtype)) {
+       * fabric; sending it to be filled is the entire point of a filling order. A Shopify order is exempt. */
+      if (!shop && voDraftPrinting() && !voCutAllowed(m.articleType, m.subtype)) {
         errors.push(row + sku + ' is not a cut-fabric item, and this is a printing order.'); return; }
       if (qty < 1) { errors.push(row + 'the quantity in pieces must be at least one for ' + sku + '.'); return; }
-      out.push({ lineId: id, kind: 'cut', sku, articleType: m.articleType || '', articleSubtype: m.subtype || '',
-        color: m.color || '', size: m.size || '', brand: m.brand || '', qty, deliveryDate: dd, priority, notes: at(c.nt), dispatchedQty: 0 });
+      out.push(Object.assign({ lineId: id, kind: 'cut', sku, articleType: m.articleType || '', articleSubtype: m.subtype || '',
+        color: m.color || '', size: m.size || '', brand: m.brand || '', qty, deliveryDate: dd, priority, notes: at(c.nt), dispatchedQty: 0 },
+        m.isCustomNew ? { customNew: true } : {}));
     }
+    })();
+    note();
   });
   /* The cap is checked across the whole file at once, so a 500-row file reports every SKU that is
    * over rather than one per re-upload. */
-  if (kind === 'cut' && !errors.length && voDraftPrinting()) {
-    voValidateCut(out.map(l => ({ sku: l.sku, qty: l.qty }))).forEach(v => errors.push(voCapMsg(v)));
+  if (kind === 'cut' && !shop && voDraftPrinting()) {
+    /* Over the cap is a fact about a SKU; every row of that SKU is marked with it. */
+    voValidateCut(out.map(l => ({ sku: l.sku, qty: l.qty }))).forEach(v => {
+      errors.push(voCapMsg(v));
+      report.forEach(x => { if (x.ok && x.line && obUC(x.line.sku) === obUC(v.sku)) { x.ok = false; x.why = voCapMsg(v); } });
+    });
   }
-  if (errors.length) { ptDlgMsg('Nothing was loaded. ' + errors.slice(0, 5).join(' ')
-    + (errors.length > 5 ? ' …and ' + nf(errors.length - 5) + ' more problem(s).' : ''), true); return; }
+  VO_UP = { report, good: report.filter(x => x.ok).map(x => x.line), name: file.name };
+  if (errors.length) {
+    const right = VO_UP.good.length, wrong = report.filter(x => !x.ok).length;
+    ptDlgMsg(`${nf(right)} line(s) right, ${nf(wrong)} wrong — nothing loaded yet. ` + errors.slice(0, 2).join(' ')
+      + (errors.length > 2 ? ' …' : ''), true);
+    /* TWO WAYS ON: the check file, to fix the wrong rows; or take the right ones now. */
+    const m = $('ptDlgMsg');
+    if (m) {
+      m.innerHTML += ` <button type="button" data-vochk="1" style="padding:3px 10px;font-size:12px;margin-left:6px">Download the check file</button>`
+        + (right ? ` <button type="button" data-voload="1" class="ghost" style="padding:3px 10px;font-size:12px">Load the ${nf(right)} right line(s)</button>` : '');
+      m.onclick = e => {
+        const t = e.target && e.target.closest ? e.target.closest('[data-vochk],[data-voload]') : null;
+        if (!t) return;
+        if (t.hasAttribute('data-vochk')) return ptDownload('vendor-lines-check', voCheckFileRows(VO_UP.report).map(r => r.map(csvCell).join(',')));
+        VOF.lines = VOF.lines.concat(VO_UP.good); voDraft();
+        ptDlgMsg(`Loaded the ${nf(VO_UP.good.length)} right line(s) from ${VO_UP.name}. The wrong ones are in the check file.`);
+      };
+    }
+    return;
+  }
   if (!out.length) { ptDlgMsg('That file has no usable rows.', true); return; }
   VOF.lines = VOF.lines.concat(out);
   voDraft();
-  ptDlgMsg(`Loaded ${nf(out.length)} line(s) from ${file.name}.`);
+  const fresh = out.filter(l => l.customNew).length;
+  ptDlgMsg(`Loaded ${nf(out.length)} line(s) from ${file.name}.` + (fresh ? ` ${nf(fresh)} new SKU(s) will go on the Custom SKUs list when it is sent.` : ''));
 }
 
 /* ---- placing it ---- */
@@ -30245,7 +30319,7 @@ async function voPlace(given) {
   const channel = String(G.channel != null ? G.channel : ((chEl || {}).value || '')).trim();
   if (G.code == null && chEl && !channel) return 'Pick who this order is for — Shopify, CPC Shopify, Amazon or B2B.';
 
-  if (VOF.kind === 'cut' && voDraftPrinting()) {
+  if (VOF.kind === 'cut' && voDraftPrinting() && !/Shopify/.test(channel)) {
     const bad = voValidateCut(VOF.lines.filter(l => voKind(l) === 'cut').map(l => ({ sku: l.sku, qty: l.qty })));
     if (bad.length) return `Over the cap: ` + bad.slice(0, 3).map(voCapMsg).join(' ')
       + (bad.length > 3 ? ` And ${nf(bad.length - 3)} more SKU(s).` : '');
@@ -30263,6 +30337,10 @@ async function voPlace(given) {
     }
   }
 
+  /* NEW SKUs FOR A SHOPIFY ORDER JOIN THE CUSTOM SKUs LIST (2026-09-28), request or order alike. A refused write does
+   * not stop the order: the SKU can still be added by hand. */
+  { const recs = voCustomRecs(VOF.lines);
+    if (Object.keys(recs).length) { try { await ptPatch(recs); if (typeof MDBX !== 'undefined' && Array.isArray(MDBX.custom)) Object.values(recs).forEach(r => MDBX.custom.push(r)); } catch (e) { /* added by hand later */ } } }
   /* A REQUEST STOPS HERE — checked exactly as an order is, and stored where no vendor can read it. */
   if (VOF.mode === 'request') {
     const err = await vrqSubmit({ code, vend, service: String(VOF.service || 'Block print'), kind: VOF.kind, channel,
