@@ -1593,6 +1593,8 @@
         <div class="toolbar" id="vpTabs" style="margin-bottom:8px">
           <button id="vpTabBulk" class="ghost">Bulk orders</button>
           <button id="vpTabShop" class="ghost">Custom orders</button>
+          <!-- Every line already sent in full, closed or cancelled — out of the way of the work still to do. -->
+          <button id="vpTabDone" class="ghost">Completed</button>
           <!-- What they have sent, and what was kept. Built from their own branch, so it can only
                ever be theirs. -->
           <button id="vpTabHist" class="ghost">What I have sent</button>
@@ -11328,8 +11330,10 @@ function skuFillPlan(custom, orders) {
     const raw = o.lines;
     const ents = Array.isArray(raw) ? raw.map((l, i) => [i, l]) : Object.entries(raw || {});
     ents.forEach(([k, l]) => {
-      if (!l || !l.sku || l.kind === 'running' || (l.articleType && l.color && l.size) || mdbOf(l.sku)) return;
-      const g = skuLookalike(l.sku);
+      if (!l || !l.sku || l.kind === 'running' || (l.articleType && l.color && l.size)) return;
+      /* In the master: its own words (a line placed before the SKU was added carries none). Else its look-alikes. */
+      const m = mdbOf(l.sku);
+      const g = m ? { articleType: m.articleType || '', subtype: m.subtype || '', color: m.color || '', size: m.size || '', basis: 'master database' } : skuLookalike(l.sku);
       if (!g) { out.noGuess.add(obUC(l.sku)); return; }
       const w = fill(l, g, { articleType: 'articleType', articleSubtype: 'subtype', color: 'color', size: 'size' });
       if (Object.keys(w).length) out.lines.push({ path: 'pt_vendorOrders/' + o.vendorCode + '/' + o.id + '/lines/' + k, o, l, sku: obUC(l.sku), w, from: g.basis });
@@ -30344,6 +30348,13 @@ function vpHistRows() {
 
 /** Shopify work, which the buyer's side writes as one standing order per printer. */
 const vpIsShop = o => String((o && o.demandSource) || '') === 'shopify';
+/* COMPLETED (Ravi, 2026-09-28): a line sent in full, or cancelled, or on an order closed as Received or Cancelled, is
+ * done. The Bulk and Custom tabs draw only the lines still to do; the Completed tab draws the rest. VP_PART is set by
+ * renderVp for the tab on screen and read by every table and the export, so they always agree. */
+let VP_PART = '';
+const vpLineIsDone = (o, l) => !!(l && (l.cancelled || ['Received', 'Cancelled'].indexOf((o && o.status) || '') >= 0
+  || (vpQty(o, l) > 0 && vpQty(o, l) - vpDone(l) <= 0)));
+const vpPartOk = (o, l) => !VP_PART || (VP_PART === 'done') === vpLineIsDone(o, l);
 /** True when this account signs in with a cellphone and a PIN rather than a real email address. */
 const vpOnPin = () => String(ME.email || '').toLowerCase().indexOf('@vendors-tfr.app') >= 0;
 
@@ -30573,11 +30584,17 @@ function renderVp() {
   const matched = all.filter(o => vpOrderMatches(o, f));
   /* THE TABS ARE COUNTED BEFORE THE SPLIT, so a printer can see there is Shopify work waiting even
    * while they are looking at the bulk orders. A tab with nothing behind it is not drawn at all. */
-  const shopN = matched.filter(vpIsShop).length, bulkN = matched.length - shopN;
+  const hasOpen = o => voLines(o).some(l => l && !vpLineIsDone(o, l));
+  const hasDone = o => voLines(o).some(l => l && vpLineIsDone(o, l));
+  const openOrders = matched.filter(hasOpen);
+  const shopN = openOrders.filter(vpIsShop).length, bulkN = openOrders.length - shopN;
+  const doneN = matched.reduce((t, o) => t + voLines(o).filter(l => l && vpLineIsDone(o, l)).length, 0);
   const tabs = $('vpTabs');
   if (tabs) {
     tabs.classList.toggle('hide', false);
     if (!shopN && VP.tab === 'shop') VP.tab = 'bulk';
+    $('vpTabDone').classList.toggle('hide', !doneN);
+    if (!doneN && VP.tab === 'done') VP.tab = 'bulk';
     $('vpTabShop').classList.toggle('hide', !shopN);
     const paint = (id, on, label, n) => {
       const b = $(id); if (!b) return;
@@ -30586,13 +30603,16 @@ function renderVp() {
     };
     paint('vpTabBulk', VP.tab === 'bulk', 'Bulk orders', bulkN);
     paint('vpTabShop', VP.tab === 'shop', 'Custom orders', shopN);
+    paint('vpTabDone', VP.tab === 'done', 'Completed', doneN);
     paint('vpTabHist', VP.tab === 'hist', 'What I have sent', vpHistRows().length);
     /* Counted as things still to hear about, not as things ever asked — a printer wants to know what
      * is outstanding, and a number that only goes up stops being read after a fortnight. */
     paint('vpTabRfd', VP.tab === 'rfd', 'RFD fabric I need',
       vpRfdRows().filter(r => r.stage === 'pending' || r.stage === 'approved').length);
   }
-  const rows = matched.filter(o => (VP.tab === 'shop') === vpIsShop(o));
+  const doneTab = VP.tab === 'done';
+  VP_PART = doneTab ? 'done' : 'open';
+  const rows = doneTab ? matched.filter(hasDone) : openOrders.filter(o => (VP.tab === 'shop') === vpIsShop(o));
   VP.shown = rows;
   const open = rows.filter(o => ['Received', 'Dispatched'].indexOf(o.status || 'Placed') < 0).length;
   /* Over the live lines of the orders on screen, in one pass: what is still owed, and — the thing
@@ -30601,7 +30621,7 @@ function renderVp() {
   const tot = { owedPcs: 0, owedM: 0, sentPcs: 0, sentM: 0, late: 0, noDate: 0 };
   rows.forEach(o => {
     const run = o.orderType === 'running';
-    voLines(o).filter(l => !l.cancelled).forEach(l => {
+    voLines(o).filter(l => !l.cancelled && vpPartOk(o, l)).forEach(l => {
       const left = Math.max(0, vpQty(o, l) - vpDone(l));
       if (run) { tot.owedM += left; tot.sentM += vpDone(l); }
       else { tot.owedPcs += left; tot.sentPcs += vpDone(l); }
@@ -30683,7 +30703,8 @@ function renderVp() {
   const empty = `<div class="card" style="padding:34px;text-align:center;color:var(--muted)">${
     all.length ? 'No order matches those filters.' : 'No orders yet.'}</div>`;
   body.innerHTML = nag + (rows.length
-    ? (VP.tab === 'shop' ? vpShopTable(rows, f)
+    ? doneTab ? (rows.some(o => !vpIsShop(o)) ? vpTable(rows.filter(o => !vpIsShop(o)), f) : '') + (rows.some(vpIsShop) ? vpShopTable(rows.filter(vpIsShop), f) : '')
+    : (VP.tab === 'shop' ? vpShopTable(rows, f)
       : (($('vpView') || {}).value === 'orders' ? rows.map(o => vpCard(o, f)).join('') : vpTable(rows, f)))
     : empty);
   if ($('vpPin')) $('vpPin').onclick = pinOpenChange;
@@ -30779,7 +30800,7 @@ function vpShopTable(rows, f) {
     const st = o.status || 'Placed';
     const can = VP_CAN_DELIVER.indexOf(st) >= 0;
     const on = !!(f && vpLineOn(f));
-    const keep = voLines(o).map((l, i) => ({ l, i })).filter(({ l }) => !on || voLineMatches(l, f));
+    const keep = voLines(o).map((l, i) => ({ l, i })).filter(({ l }) => (!on || voLineMatches(l, f)) && vpPartOk(o, l));
     if (!keep.length) return '';
     const flow = VP_FLOW[st];
     const cls = st === 'Cancelled' ? 'pill-out' : (st === 'Dispatched' || st === 'Received' ? 'pill-ok' : 'pill-low');
@@ -30840,7 +30861,7 @@ function vpShopTable(rows, f) {
         }).join(' ')
           /* WHERE THE ORDERS CAME FROM, under them (2026-09-28). */
           + (p => p ? `<div class="muted" style="font-size:11px;line-height:1.3">${esc(p)}</div>` : '')(
-            [...new Set(items.map(({ l }) => vpPlatformOf(l)).filter(Boolean))].join(' / '));
+            [...new Set(items.map(({ l }) => vpPlatformOf(l) + (vpBuyerOf(l) ? ' · for ' + vpBuyerOf(l) : '')).filter(Boolean))].join(' / '));
         const l0 = g.items[0].l;
         /* One date for the product: every customer order for the same cloth is printed together, so
          * they are finished together too. */
@@ -30875,9 +30896,14 @@ function vpPlatformOf(l) {
   const src = /^SHP-/.test(no) || /shopify/i.test(String((l && l.notes) || '')) ? 'Shopify'
     : /^AMZ-/.test(no) ? 'Amazon' : /^B2B-/.test(no) ? 'B2B' : /^ONL-/.test(no) ? 'Online' : /^SPY-/.test(no) ? 'Shopify' : '';
   const sku = obUC(l && l.sku);
-  const brand = String((l && l.brand) || '').trim() || (/^CPC/.test(sku) ? 'CPC' : /^R/.test(sku) ? 'Ridhi' : '');
+  /* Only a real brand counts: on a B2B line the brand box holds the BUYER ("Daina"), and RBP is Ridhi's code. */
+  const own = VP_BRANDS[obUC(l && l.brand)] || '';
+  const brand = own || (/^CPC/.test(sku) ? 'CPC' : /^R/.test(sku) ? 'Ridhi' : '');
   return [src, brand].filter(Boolean).join(' · ');
 }
+const VP_BRANDS = { RIDHI: 'Ridhi', RBP: 'Ridhi', CPC: 'CPC' };
+/** The buyer of a B2B line, when its brand box holds one. */
+const vpBuyerOf = l => (/^B2B-/.test(obUC(l && l.shopOrderNo)) && String((l && l.brand) || '').trim() && !VP_BRANDS[obUC(l.brand)]) ? String(l.brand).trim() : '';
 
 function vpTable(rows, f) {
   /* Ten columns, not thirteen. The colour and the priority moved up into the group heading, and the
@@ -30894,7 +30920,7 @@ function vpTable(rows, f) {
     const unit = run ? 'm' : 'pcs';
     const all = voLines(o);
     const on = !!(f && vpLineOn(f));
-    const keep = all.map((l, i) => ({ l, i })).filter(({ l }) => !on || voLineMatches(l, f));
+    const keep = all.map((l, i) => ({ l, i })).filter(({ l }) => (!on || voLineMatches(l, f)) && vpPartOk(o, l));
     if (!keep.length) return '';
     const flow = VP_FLOW[st];
     const cls = st === 'Cancelled' ? 'pill-out' : (st === 'Dispatched' || st === 'Received' ? 'pill-ok' : 'pill-low');
@@ -30976,7 +31002,7 @@ function vpCard(o, f) {
   /* The filters narrow the LINES, so a printer looking for one colour sees that colour — but the row
    * index has to stay the real one, or what they type lands on a different line. */
   const on = !!(f && vpLineOn(f));
-  const keep = all.map((l, i) => ({ l, i })).filter(({ l }) => !on || voLineMatches(l, f));
+  const keep = all.map((l, i) => ({ l, i })).filter(({ l }) => (!on || voLineMatches(l, f)) && vpPartOk(o, l));
   const lines = all;
   /* WANTED BY was not on this screen at all — the vendor was being asked to hit a date nobody had
    * shown them. It is here now, next to the box where they answer it. */
@@ -31283,6 +31309,7 @@ $('vpClear').onclick = () => {
 };
 $('vpTabBulk').onclick = () => { VP.tab = 'bulk'; renderVp(); };
 $('vpTabShop').onclick = () => { VP.tab = 'shop'; renderVp(); };
+$('vpTabDone').onclick = () => { VP.tab = 'done'; renderVp(); };
 $('vpTabHist').onclick = () => { VP.tab = 'hist'; renderVp(); };
 $('vpTabRfd').onclick = () => { VP.tab = 'rfd'; renderVp(); };
 $('vpGo').onclick = async () => { VP.rows = null; await ensureVp(); };
@@ -31304,7 +31331,7 @@ function vpExportRows(rows, f) {
   const on = !!(f && vpLineOn(f));
   rows.forEach(o => {
     const run = o.orderType === 'running';
-    const keep = voLines(o).map((l, i) => ({ l, i })).filter(({ l }) => !on || voLineMatches(l, f));
+    const keep = voLines(o).map((l, i) => ({ l, i })).filter(({ l }) => (!on || voLineMatches(l, f)) && vpPartOk(o, l));
     vpGroups(keep).forEach(g => g.items.forEach(({ l }) => {
       const ord = vpQty(o, l), done = vpDone(l);
       const dels = (Array.isArray(l.deliveries) ? l.deliveries : Object.values(l.deliveries || {})).filter(Boolean);
