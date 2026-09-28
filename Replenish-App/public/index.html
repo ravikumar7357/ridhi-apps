@@ -2169,6 +2169,10 @@
           <select id="odSub" style="flex:0 0 180px"><option value="">All subtypes</option></select>
           <select id="odCol" style="flex:0 0 155px"><option value="">All colors</option></select>
           <select id="odSz" style="flex:0 0 110px"><option value="">All sizes</option></select>
+          <select id="odSort" style="flex:0 0 170px" title="Which lines come first. Only 600 are drawn at a time — Show more adds the next 600.">
+            <option value="">Newest added first</option>
+            <option value="old">Oldest order first</option>
+          </select>
           <select id="odStatus" style="flex:0 0 160px">
             <option value="">Any status</option>
             <option value="open">Still open</option>
@@ -15997,6 +16001,16 @@ async function ptImgFill(skus, force, after) {
 /* pick: the Shopify lines ticked for handover, as "ORDER|SKU". Held here and not on the checkboxes
  * because every write redraws the table, and a checkbox would lose its state the moment one did. */
 let ORD = { req: null, busy: false, at: '', rows: [], pick: new Set() };
+/* HOW MANY LINES ARE DRAWN — 600 at a time, "Show more" adds 600. Newest first (ordNewest), so what was just opened
+ * is on the first screen: 61 of the 92 lines opened from the bucket on 28 Sep were past the old fixed 600. */
+let ORD_CAP = 600;
+/* "Oldest order first" is the order the book always had (ordLinesBuild sorts by order date), kept one pick away. */
+const ordNewest = rows => (($('odSort') || {}).value === 'old' ? rows
+  : rows.slice().sort((a, b) => ((b.addedMs || 0) - (a.addedMs || 0)) || (ptDtMs(b.orderDate) - ptDtMs(a.orderDate))));
+function ordMoreBtn(n) {
+  if (!(n > ORD_CAP) || !$('odMsg')) return;
+  $('odMsg').innerHTML += (` <button type="button" data-ordmore style="padding:3px 10px;font-size:12px;margin-left:6px">Show ${nf(Math.min(600, n - ORD_CAP))} more</button>`);
+}
 
 async function ensureOrd() {
   if (!PTG.mdb) { ORD.busy = true; renderOrd(); await ptLoadGates(); }
@@ -16454,7 +16468,7 @@ function ordLinesBuild() {
     if (!no || !sku) return;
     const k = no + '|' + sku;
     const e = byKey[k] || (byKey[k] = Object.assign({ orderNo: no, sku, qty: 0, orderDate: r.orderDate || '',
-      src: r.src || '' }, obWhat(r), {
+      src: r.src || '', addedMs: 0 }, obWhat(r), {
       // Where an order line came from, when it came from a Shopify order that had to be made.
       shopOrderNo: r.shopOrderNo || '', shopOrderId: r.shopOrderId || '', adjId: r.adjId || '',
       shopImg: r.shopImg || '', packs: 0, pcsPer: 1, shopDoneAt: '', shopDoneWhy: '',
@@ -16463,6 +16477,8 @@ function ordLinesBuild() {
       itemName: r.itemName || ordCustomName(r.sku), material: r.material || '' }));
     /* COMPLETED BY THE SHIPPING TEAM (2026-09-26): Shopify says the parcel went (or never will). */
     if (r.shopDoneAt) { e.shopDoneAt = r.shopDoneAt; e.shopDoneWhy = r.shopDoneWhy || 'fulfilled'; }
+    /* WHEN IT WAS PUT ON THE BOOK — the newest first on screen. */
+    { const ms = ptDtMs(r.openedAt || r.uploadedAt); if (ms > e.addedMs) e.addedMs = ms; }
     /* PIECES, not packs. A Shopify line keeps what the customer ordered alongside, so the screen can
      * say "1 pack of 2" rather than leave somebody wondering where the second piece came from. */
     e.qty += obPieces(r);
@@ -17407,7 +17423,7 @@ function shppBySku() {
     if (!e) {
       e = { sku: l.sku, articleType: l.articleType, articleSubtype: l.articleSubtype,
         color: l.color, size: l.size, qty: 0, cut: 0, issued: 0, received: 0, pressed: 0, made: 0,
-        pendingCut: 0, pendingMake: 0, madeToPress: 0, overRecv: 0, cutReq: l.cutReq, orders: [], needsSku: false, open: false };
+        pendingCut: 0, pendingMake: 0, madeToPress: 0, overRecv: 0, cutReq: l.cutReq, orders: [], needsSku: false, open: false, addedMs: 0 };
       by.set(l.sku, e);
     }
     e.qty += l.qty; e.cut += l.cut; e.issued += l.issued; e.received += l.received;
@@ -17415,6 +17431,7 @@ function shppBySku() {
     e.pendingCut += l.pendingCut; e.pendingMake += l.pendingMake; e.madeToPress += l.madeToPress;
     e.overRecv += l.overRecv;
     if (l.open) e.open = true;
+    if ((l.addedMs || 0) > e.addedMs) e.addedMs = l.addedMs;
     /* Article details come from whichever line has them. A SKU still on the Custom SKUs list has
      * none, and that is worth showing rather than hiding behind a blank cell. */
     if (!e.articleType && l.articleType) { e.articleType = l.articleType; e.articleSubtype = l.articleSubtype; e.color = l.color; e.size = l.size; }
@@ -17538,7 +17555,7 @@ function renderOrdShopify(bySku, done) {
   ptFill('odCol', shppApply(src, Object.assign({}, f, { col: '' })).map(r => r.color), 'All colors');
   ptFill('odSz', shppApply(src, Object.assign({}, f, { sz: '' })).map(r => r.size), 'All sizes');
 
-  const rows = ordKpiApply(shppApply(src, f));
+  const rows = ordNewest(ordKpiApply(shppApply(src, f)));
   ORD.rows = rows;
   const s = fn => lines.reduce((a, r) => a + fn(r), 0);
 
@@ -17568,7 +17585,7 @@ function renderOrdShopify(bySku, done) {
    * which is how a tick box that is right there stops existing. */
   const thead = ordHead(cols, spPick ? '<input type="checkbox" id="spPickAll" style="width:auto;margin:0" title="Tick every line shown">' : '');
 
-  const body = rows.slice(0, 600).map(r => bySku ? (() => {
+  const body = rows.slice(0, ORD_CAP).map(r => bySku ? (() => {
     /* Every order this SKU is made of, so combining never hides who is owed what. */
     /* THE FIRST SIX ORDERS, and how many more. Twenty-eight written out made one row a screen tall;
      * the rest are in the tooltip and in the by-order view. */
@@ -17713,7 +17730,7 @@ function renderOrdShopify(bySku, done) {
       if (!e.target.checked) ORD.pick = new Set();
       /* WHAT IS SHOWN, not every line in the book: a filtered table of four out of six hundred must
        * not quietly tick the other five hundred and ninety-six. */
-      else rows.slice(0, 600).forEach(x => (bySku ? spSkuKeys(x) : [x.orderNo + '|' + x.sku])
+      else rows.slice(0, ORD_CAP).forEach(x => (bySku ? spSkuKeys(x) : [x.orderNo + '|' + x.sku])
         .forEach(k => ORD.pick.add(k)));
       renderOrd();
     };
@@ -17721,10 +17738,11 @@ function renderOrdShopify(bySku, done) {
   const short = rows.filter(r => r.needsSku).length;
   $('odMsg').className = 'muted';
   $('odMsg').textContent = `${nf(rows.length)} ${bySku ? 'SKU' : 'line'}(s) of ${nf(src.length)}`
-    + (rows.length > 600 ? ' · showing the first 600 · Export covers all of them' : '')
+    + (rows.length > ORD_CAP ? ` · showing the newest ${nf(ORD_CAP)} · Export covers all of them` : '')
     + ordKpiNote()
     + (short ? ` · ${nf(short)} SKU(s) still on the Custom SKUs list, waiting for article, colour and size` : '');
-  ptImgFill(rows.slice(0, 600).map(r => r.sku), false, ptIfTab('ord', renderOrd));
+  ordMoreBtn(rows.length);
+  ptImgFill(rows.slice(0, ORD_CAP).map(r => r.sku), false, ptIfTab('ord', renderOrd));
 }
 
 /**
@@ -18958,7 +18976,7 @@ function renderOrd() {
 
   /* The tiles count what the dropdowns let through; the tile somebody picked then narrows the table. */
   const shown = ordApply(all, f);
-  const rows = ordKpiApply(shown);
+  const rows = ordNewest(ordKpiApply(shown));
   ORD.rows = rows;
 
   const s = fn => shown.reduce((a, r) => a + fn(r), 0);
@@ -18992,7 +19010,7 @@ function renderOrd() {
     .concat([['', '']]),
     bkPick ? '<input type="checkbox" id="spPickAll" style="width:auto;margin:0" title="Tick every line shown">' : '');
 
-  const body = rows.slice(0, 600).map(r => {
+  const body = rows.slice(0, ORD_CAP).map(r => {
     const pk = r.orderNo + '|' + r.sku, k = esc(pk);
     const status = ordStatePill(r)
       + (r.unrecorded ? `<div><span class="pill pill-low" title="${esc(nf(r.unrecorded) + ' of these ' + nf(r.qty)
@@ -19107,7 +19125,7 @@ function renderOrd() {
     if ($('spPickAll')) $('spPickAll').onchange = e => {
       ORD.pick = ORD.pick || new Set();
       if (!e.target.checked) ORD.pick = new Set();
-      else rows.slice(0, 600).forEach(x => ORD.pick.add(x.orderNo + '|' + x.sku));
+      else rows.slice(0, ORD_CAP).forEach(x => ORD.pick.add(x.orderNo + '|' + x.sku));
       renderOrd();
     };
   }
@@ -19127,7 +19145,7 @@ function renderOrd() {
       + nf(unseen.length) + ' quantity change' + (unseen.length > 1 ? 's' : '') + ' to approve</button>' : '')
     + (ORD.adjErr ? esc('The quantity changes could not be read (' + ORD.adjErr + '). · ') : '')
     + esc(`${nf(rows.length)} of ${nf(all.length)} line(s)`
-      + (rows.length > 600 ? ' · showing the first 600' : '')
+      + (rows.length > ORD_CAP ? ` · showing the newest ${nf(ORD_CAP)}` : '')
       + ordKpiNote()
       /* The number is news — those pieces are made and belong to nobody — so it stays. What it
        * means, and where it is split, is in the tooltip. */
@@ -19137,10 +19155,12 @@ function renderOrd() {
       + `(Job Work Register ${nf(orphan.base)}, cutting ${nf(orphan.cut)}, press ${nf(orphan.press)}) — `
       + 'those pieces were made, they just cannot be attributed to an order.'
     : '';
-  ptImgFill(rows.slice(0, 600).map(r => r.sku), false, ptIfTab('ord', renderOrd));
+  ordMoreBtn(rows.length);
+  ptImgFill(rows.slice(0, ORD_CAP).map(r => r.sku), false, ptIfTab('ord', renderOrd));
 }
 
 ['odOrd', 'odArt', 'odSub', 'odCol', 'odSz', 'odStatus'].forEach(id => $(id).addEventListener('change', renderOrd));
+if ($('odSort')) $('odSort').addEventListener('change', () => { ORD_CAP = 600; renderOrd(); });
 ptDebounce('odQ', renderOrd);
 /* Clear means clear. Source and brand were added later and never joined this list, so Clear left two
  * of its own filters set and the screen kept hiding rows somebody had just asked to see. */
@@ -19232,6 +19252,7 @@ function ordQtyOpenClick(e) {
   ordQtyListOpen();
 }
 $('odMsg').addEventListener('click', ordQtyOpenClick);
+$('odMsg').addEventListener('click', e => { if (!e.target.closest('[data-ordmore]')) return; ORD_CAP += 600; renderOrd(); });
 $('odTable').addEventListener('click', ordQtyOpenClick);
 
 $('odKpis').addEventListener('click', ordKpiClick);

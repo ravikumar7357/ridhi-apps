@@ -52,7 +52,7 @@ const IDS = ('ptmBrand ptmArt ptmSub ptmCol ptmSz ptmCut ptmQ ptmBrandFs ptmDir 
   + 'qcView qcQ qcD1 qcD2 qcClear qcExport qcGo qcMsg qcKpis qcTable qcCheckBox qcwToggle qcwBox qcwSrc qcwSku qcwType qcwBy qcwOrd qcwOrdList qcwChecked qcwAlt qcwRej qcwOk qcwRemarks tabAtt paneAtt attDay attToday attDept attType attState attQ attExport attGo attView attMonth attMsg attKpis attTable qcRetBox qcrToggle qcrBox qcrPick qcrBy qcrPcs qcrOk qcrRej qcrRemarks qcrSave qcrInfo qcrMsg qcwSave qcwInfo qcwMsg '
   + 'qcIssueBox qciToggle qciBox qciSku qciType qciEmp qciEmpList qciPcs qciRemarks qciSave qciInfo qciMsg '
   + 'ptmView ptmConsApply ptmRecSeed ptmRecApply ptmNew ptmImgs ptmTemplate ptmTplShort ptmImport ptmFile ptmRecFile ptmRename ptmImpMsg ptmImpBox ptmImpGo ptmImpCancel ptmAsin ptmAsinBox ptmAsinSum ptmAsinFixWrap ptmAsinFix ptmAsinFixTxt ptmAsinGo ptmAsinNot ptmAsinCancel '
-  + 'odOrd odArt odSub odCol odSz odStatus odSrc odBrand odQ odD1 odD2 odClear odExport odGo odMsg odKpis odPickBar odTable spBulkBar spBulkOpen spBulkSheet spBulkUp spBulkFile spBulkNote spPrnSheet spPrnUp spPrnFile spBulkWhoList spBulkBox spBulkMsg spBulkDate spPickAll spHandAll spPickClear spAssignAll '
+  + 'odOrd odArt odSub odCol odSz odStatus odSort odSrc odBrand odQ odD1 odD2 odClear odExport odGo odMsg odKpis odPickBar odTable spBulkBar spBulkOpen spBulkSheet spBulkUp spBulkFile spBulkNote spPrnSheet spPrnUp spPrnFile spBulkWhoList spBulkBox spBulkMsg spBulkDate spPickAll spHandAll spPickClear spAssignAll '
   + 'hrView hrEhStatus hrQ hrEmpAdd hrEmpNew hrRateAdd hrRateNew hrEhAdd hrEhNew hrExport hrGo hrMsg hrKpis hrTable '
   + 'hrMonth hrPeriod hrSlipEmp hrSlipPrint hrSlip hrAuthAll hrPayEmp hrFreeze hrPrAdd hrPrNew hrPrTmpl hrPrUp hrPrFile hrPrStatus hrPrOkAll '
   + 'ptmSkcFile topSub topActs '
@@ -21123,6 +21123,30 @@ console.log('\n== vendor order requests, SKU-wise (Ravi, 28 Sep: "kis sku me men
   const row = A.vrqSkuTotRows(lines).find(r => r[1] && A.obUC(r[1]) === 'AAA');
   ok('the totals row reads in the column order it is headed', row && A.VRQ_SKU_TOT_COLS.length === row.length && row[8] === 160 && row[9] === 65 && row[10] === 90 && row[11] === 25 && /AR Prints/.test(row[13]) && /Choudhary/.test(row[13]), JSON.stringify(row));
   A.setVO(wasVO); A.setVRQ(wasVRQ);
+}
+console.log('\n== the Order Console: newest first, and the rest a click away (Ravi, 28 Sep: "these orders not showing in order console")');
+{
+  const wasPTG = A.PTG(), wasView = els.odView ? els.odView.value : '';
+  const ob = [];
+  for (let i = 0; i < 650; i++) ob.push({ id: 'o' + i, orderNo: 'AMZ-OLD' + i, sku: 'ZZOLD' + i, qty: 5, orderDate: '2026-08-01', uploadedAt: '2026-08-01T10:00:00Z' });
+  /* A Shopify order of yesterday, opened from the bucket today. The book is sorted oldest order first, so it came last. */
+  ob.push({ id: 'onew', orderNo: 'SHP-NEW1', sku: 'ZZNEW', qty: 1, orderDate: '2026-09-27', uploadedAt: '2026-09-28T06:54:00Z', openedAt: '2026-09-28T06:54:00Z', openedFrom: 'bucket', src: 'SHP' });
+  A.setPTG(Object.assign({}, wasPTG, { ob }));
+  A.setORD({ busy: false, rows: [], at: '' });
+  if (els.odView) els.odView.value = 'book';
+  ['odOrd', 'odArt', 'odSub', 'odCol', 'odSz', 'odStatus', 'odQ', 'odSrc', 'odBrand', 'odD1', 'odD2'].forEach(id => { if (els[id]) els[id].value = ''; });
+  A.renderOrd();
+  const h = els.odTable.innerHTML;
+  ok('a line opened today is on the first screen, before 650 older ones', h.indexOf('SHP-NEW1') >= 0 && h.indexOf('SHP-NEW1') < h.indexOf('AMZ-OLD'),
+     'at ' + h.indexOf('SHP-NEW1'));
+  ok('…600 are drawn, and the message offers the other 51', (h.match(/AMZ-OLD\d+/g) || []).length > 0 && /data-ordmore/.test(els.odMsg.innerHTML) && /Show 51 more/.test(els.odMsg.innerHTML),
+     String(els.odMsg.innerHTML).slice(-220));
+  if (els.odSort) {
+    els.odSort.value = 'old'; A.renderOrd();
+    ok('"Oldest order first" still gives the order the book always had', els.odTable.innerHTML.indexOf('SHP-NEW1') < 0);
+    els.odSort.value = '';
+  }
+  A.setPTG(wasPTG); if (els.odView) els.odView.value = wasView;
 }
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
