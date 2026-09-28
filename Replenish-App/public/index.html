@@ -15696,10 +15696,11 @@ const custFixSheet = rows => [CUST_FIX_COLS].concat(rows.map(e => [e.sku, e.arti
 /** What a filled sheet would do: merges, renames, and every row that cannot be done, with why. */
 function custFixPlan(rows) {
   const h = (rows[0] || []).map(x => String(x == null ? '' : x).trim().toLowerCase());
-  const ci = { from: h.indexOf('custom sku'), to: h.indexOf('new sku') };
+  const ci = { from: h.indexOf('custom sku'), to: h.indexOf('new sku'), brand: h.indexOf('brand') };
   if (ci.from < 0 || ci.to < 0) return { err: 'That sheet has no "Custom SKU" and "New SKU" columns. Download the sheet to see the shape.' };
   const master = new Set((PTG.mdb || []).map(m => obUC(m && m.sku)));
-  const out = { merge: [], rename: [], errs: [] }, seenTo = new Map();
+  const out = { merge: [], rename: [], create: [], errs: [] }, seenTo = new Map();
+  const info = new Map(custFixRows().map(e => [e.sku, e]));
   rows.slice(1).forEach((r, i) => {
     const from = obUC(r[ci.from]), to = obUC(r[ci.to]), at = 'Row ' + (i + 2) + ': ';
     if (!from || !to) return;
@@ -15709,8 +15710,16 @@ function custFixPlan(rows) {
     if (master.has(to)) { out.merge.push({ from, to }); return; }
     /* A NEW real code takes over the custom master row — once. Two custom codes onto one new code is a merge into a
      * code that does not exist yet: rename the first, and the rest merge into it. */
-    if (!master.has(from)) { out.errs.push(at + to + ' is not in the master database, and ' + from + ' has no master row to become it. Add ' + to + ' to the master first.'); return; }
     if (seenTo.has(to)) { out.merge.push({ from, to, after: true }); return; }
+    /* No master row to rename: the new SKU is ADDED to the master from what was made on the custom code, and the register
+     * rows move onto it. */
+    if (!master.has(from)) {
+      const e = info.get(from) || {};
+      if (!e.articleType || !e.subtype || !e.size) { out.errs.push(at + from + ' has no article, subtype and size to build ' + to + ' from.'); return; }
+      seenTo.set(to, from);
+      out.create.push({ from, to, articleType: e.articleType, subtype: e.subtype, color: e.color, size: e.size, brand: String(r[ci.brand] || e.brand || '').trim() });
+      return;
+    }
     seenTo.set(to, from); out.rename.push({ from, to });
   });
   return out;
@@ -15736,9 +15745,24 @@ function custMergePaths(from, to, upd) {
   }
   return Object.keys(upd).length - before;
 }
+/** A master row for a new SKU: the other fields from a master SKU of the same article, subtype and size (never its
+ * picture or Amazon ids), this product's colour and brand. */
+function custNewMasterRec(c) {
+  const sib = (PTG.mdb || []).find(m => m && m.sku && !CUST_RE.test(m.sku) && ptNorm(m.articleType) === ptNorm(c.articleType)
+    && ptNorm(m.subtype) === ptNorm(c.subtype) && ptNorm(m.size) === ptNorm(c.size));
+  const rec = sib ? Object.assign({}, sib) : { cuttingRequired: true };
+  delete rec._key; delete rec.asin; delete rec.parentAsin; delete rec.renamedFrom; delete rec.mergedInto;
+  return Object.assign(rec, { sku: c.to, articleType: c.articleType, subtype: c.subtype, color: c.color, size: c.size,
+    brand: c.brand || rec.brand || '', imageUrl: '', isCustom: false, createdFrom: c.from, createdAt: new Date().toISOString(), createdBy: ME.email });
+}
 async function custFixRun(plan) {
   if (!mdbCanEdit()) return MDB_NO_EDIT;
-  const upd = {};
+  const upd = {}, t = Date.now().toString(36), added = [];
+  (plan.create || []).forEach((c, i) => {
+    const key = 'mdb_' + t + '_c' + String(i).padStart(3, '0'), rec = custNewMasterRec(c);
+    upd['pt_masterDB/' + key] = rec; added.push(Object.assign({ _key: key }, rec));
+    custMergePaths(c.from, c.to, upd);
+  });
   plan.rename.forEach(p => mdbRenamePaths(p.from, p.to, upd));
   plan.merge.forEach(p => custMergePaths(p.from, p.to, upd));
   await ptPatch(upd);
@@ -15746,7 +15770,11 @@ async function custFixRun(plan) {
   const fix = list => (list || []).map(r => { const pm = r && plan.merge.find(p => p.from === obUC(r.sku)); return pm ? Object.assign({}, r, { sku: pm.to, skuWas: pm.from }) : r; });
   PT.base = fix(PT.base); PT.cut = fix(PT.cut); PTG.press = fix(PTG.press); PTG.ob = fix(PTG.ob);
   QC.checks = fix(QC.checks); QC.issue = fix(QC.issue); FGI.rows = fix(FGI.rows); ACC.ledger = fix(ACC.ledger);
-  PTG.mdb = (PTG.mdb || []).map(r => { const pm = r && plan.merge.find(p => p.from === obUC(r.sku)); return pm ? Object.assign({}, r, { mergedInto: pm.to }) : r; });
+  PTG.mdb = (PTG.mdb || []).map(r => { const pm = r && plan.merge.find(p => p.from === obUC(r.sku)); return pm ? Object.assign({}, r, { mergedInto: pm.to }) : r; }).concat(added);
+  if ((plan.create || []).length) {
+    const fixC = list => (list || []).map(r => { const pc = r && plan.create.find(p => p.from === obUC(r.sku)); return pc ? Object.assign({}, r, { sku: pc.to, skuWas: pc.from }) : r; });
+    PT.base = fixC(PT.base); PT.cut = fixC(PT.cut); PTG.press = fixC(PTG.press); PTG.ob = fixC(PTG.ob);
+  }
   return '';
 }
 let CUSTFIX = { plan: null };
@@ -15771,12 +15799,12 @@ async function custFixOpen() {
     saveLabel: 'Change them',
     onSave: async () => {
       const pl = CUSTFIX.plan;
-      if (!pl || !(pl.merge.length + pl.rename.length)) return 'Upload the filled sheet first.';
+      if (!pl || !(pl.merge.length + pl.rename.length + (pl.create || []).length)) return 'Upload the filled sheet first.';
       if (pl.errs.length) return 'Fix the rows the check found, and upload again.';
       try { await custFixRun(pl); } catch (e) { return 'Not changed: ' + (e.message || e) + ' — nothing was written.'; }
       renderPmdb();
       $('ptmMsg').className = 'muted';
-      $('ptmMsg').textContent = `${nf(pl.merge.length)} custom code(s) moved onto existing SKUs and ${nf(pl.rename.length)} renamed. Their orders now track on the real SKUs.`;
+      $('ptmMsg').textContent = `${nf(pl.merge.length)} custom code(s) moved onto existing SKUs, ${nf(pl.rename.length)} renamed, ${nf((pl.create || []).length)} added to the master as new SKUs. Their orders now track on the real SKUs.`;
       return '';
     },
   });
@@ -15792,8 +15820,9 @@ async function custFixOpen() {
     const upd = {}; let refs = 0;
     pl.merge.forEach(p => { refs += custMergePaths(p.from, p.to, {}); });
     pl.rename.forEach(p => { refs += mdbRenamePaths(p.from, p.to, upd); });
+    (pl.create || []).forEach(p => { refs += custMergePaths(p.from, p.to, {}); });
     $('cfxOut').className = pl.errs.length ? 'err' : 'muted';
-    $('cfxOut').innerHTML = `<b>${nf(pl.merge.length)}</b> onto an existing SKU · <b>${nf(pl.rename.length)}</b> renamed to a new code · about ${nf(refs)} register rows move.`
+    $('cfxOut').innerHTML = `<b>${nf(pl.merge.length)}</b> onto an existing SKU · <b>${nf(pl.rename.length)}</b> renamed to a new code · <b>${nf((pl.create || []).length)}</b> new SKU(s) added to the master · about ${nf(refs)} register rows move.`
       + (pl.errs.length ? '<br>' + pl.errs.slice(0, 8).map(esc).join('<br>') + (pl.errs.length > 8 ? `<br>…and ${nf(pl.errs.length - 8)} more.` : '') : '<br>Press "Change them" to write it.');
   };
 }
