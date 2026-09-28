@@ -14719,7 +14719,14 @@ console.log('\n== an order line, followed from ordered to on the shelf ==');
       ok('…and its rows are as wide as its headings too',
          heads.length === (firstRow.match(/<td/g) || []).length, heads.length + ' vs ' + (firstRow.match(/<td/g) || []).length);
     }
-    ok('…and each order chip opens that order', /data-ordj="SHP-9100"/.test(hs) && /data-ordj="SHP-9200"/.test(hs));
+    /* 28 Sep (Ravi: "jitne order complete ho jay wo auto complete me move ho jay remove n ho"): the handed-over order is under Completed. */
+    ok('…and each order chip opens that order — the pending one here', /data-ordj="SHP-9200"/.test(hs) && !/data-ordj="SHP-9100"/.test(hs));
+    ok('the combined view has a Pending / Completed switch', /data-skudone="0"/.test(els.odKpis.innerHTML) && /data-skudone="1"/.test(els.odKpis.innerHTML));
+    A.ORD().skuDone = true; A.renderOrd();
+    ok('…and the handed-over order moved to Completed, not removed', /data-ordj="SHP-9100"/.test(els.odTable.innerHTML) && !/data-ordj="SHP-9200"/.test(els.odTable.innerHTML));
+    ok('…with no tick boxes there', !/data-spskupick/.test(els.odTable.innerHTML));
+    A.ORD().skuDone = false; A.renderOrd();
+    ok('the combined view has an In store column', /<th[^>]*>In store<\/th>/.test(els.odTable.innerHTML));
 
     /* ---- the journey ---- */
     A.ptOpenDialog({ title: 'cleared', html: '', note: '' });

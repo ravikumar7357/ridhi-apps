@@ -17761,9 +17761,9 @@ function spSkuPicked(r, pick) {
   return on === 0 ? 'none' : (on === keys.length ? 'all' : 'some');
 }
 
-function shppBySku() {
+function shppBySku(only) {
   const by = new Map();
-  shppLines().forEach(l => {
+  (only || shppLines()).forEach(l => {
     let e = by.get(l.sku);
     if (!e) {
       e = { sku: l.sku, articleType: l.articleType, articleSubtype: l.articleSubtype,
@@ -17773,6 +17773,8 @@ function shppBySku() {
     }
     e.qty += l.qty; e.cut += l.cut; e.issued += l.issued; e.received += l.received;
     e.pressed += l.pressed; e.made += l.made;
+    /* IN STORE (2026-09-28): what of these orders came into the India store and is still there. */
+    e.store = (e.store || 0) + ((typeof ordFgAt === 'function' ? ordFgAt(l.orderNo, l.sku) : null) || {}).store || 0;
     e.pendingCut += l.pendingCut; e.pendingMake += l.pendingMake; e.madeToPress += l.madeToPress;
     e.overRecv += l.overRecv;
     if (l.open) e.open = true;
@@ -17883,7 +17885,10 @@ function renderOrdShopify(bySku, done) {
   /* BY ORDER IS SPLIT IN TWO (Ravi, 2026-09-24): the pending lines here, and every line that is complete
    * or handed over in its own window — "yaha sirf pending order hi show hone chahiye". By SKU keeps all
    * of them, as it always has: it is the floor's total, and its tick only ever takes the open lines. */
-  const lines = bySku ? shppLines() : shppLines().filter(l => (done ? !l.open : l.open));
+  /* PENDING OR COMPLETED, on the combined view too (Ravi, 2026-09-28: "jitne order complete ho jay wo auto complete me move
+   * ho jay remove n ho"): a line that is finished — handed over, or closed by Shopify — leaves Pending by itself and is kept
+   * under Completed. */
+  const lines = shppLines().filter(l => (done ? !l.open : l.open));
   if (!lines.length) {
     $('odMsg').className = 'muted';
     $('odMsg').textContent = done ? 'No Shopify line is complete or handed over yet.'
@@ -17897,7 +17902,7 @@ function renderOrdShopify(bySku, done) {
   const f = ordFilters();
   /* Grouped ONCE. This was six separate calls — the table and one per filter list — and each of them
    * rebuilt the whole order book from scratch. */
-  const src = bySku ? shppBySku() : lines;
+  const src = bySku ? shppBySku(lines) : lines;
   /* The order dropdown is meaningless once rows are combined, and misleading when they are not —
    * it lists every order number in the book, including the six hundred that are not Shopify. */
   ptFill('odArt', shppApply(src, Object.assign({}, f, { art: '' })).map(r => r.articleType), 'All articles');
@@ -17909,7 +17914,14 @@ function renderOrdShopify(bySku, done) {
   ORD.rows = rows;
   const s = fn => lines.reduce((a, r) => a + fn(r), 0);
 
-  $('odKpis').innerHTML = ordSrcChips() + ordKpiCards(done ? 'Shopify, complete & handed over' : 'Shopify, waiting on production', [
+  const allL = bySku ? shppLines() : [];
+  const sw = !bySku ? '' : (() => {
+    const nOpen = new Set(allL.filter(l => l.open).map(l => l.sku)).size, nDone = new Set(allL.filter(l => !l.open).map(l => l.sku)).size;
+    const b = (on, v, t) => `<button type="button" data-skudone="${v}" style="height:38px;padding:0 16px;border-radius:999px;font:inherit;font-weight:700;cursor:pointer;box-shadow:none;transform:none;`
+      + (on ? 'background:#15803D;color:#fff;border:1px solid #15803D' : 'background:#fff;color:#17202B;border:1px solid #D5DCE5') + `">${t}</button>`;
+    return `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;width:100%">${b(!done, '0', 'Pending · ' + nf(nOpen) + ' SKU(s)')}${b(done, '1', 'Completed · ' + nf(nDone) + ' SKU(s)')}</div>`;
+  })();
+  $('odKpis').innerHTML = ordSrcChips() + sw + ordKpiCards(done ? 'Shopify, complete & handed over' : 'Shopify, waiting on production', [
     [nf(new Set(lines.map(r => r.orderNo)).size), 'Shopify orders', 'doc', 'blue', 'read live' + (ORD.at ? ' · ' + esc(ORD.at) : '')],
     [nf(new Set(lines.map(r => r.sku)).size), 'SKUs', 'list', 'blue', done ? 'finished' : 'waiting on production'],
     [nf(s(r => r.qty)), 'Pieces', 'box', 'blue', 'pieces asked for'],
@@ -17920,7 +17932,7 @@ function renderOrdShopify(bySku, done) {
    * karigar ever brought them back. */
   const cols = bySku
     ? [['Item', ''], ['Orders', 'num'], ['Pieces', 'num'], ['With printer', ''], ['Cut', 'num'], ['Issued', 'num'],
-      ['Received', 'num'], ['Pressed', 'num'], ['To make', 'num'], ['Shopify orders', '']]
+      ['Received', 'num'], ['Pressed', 'num'], ['In store', 'num'], ['To make', 'num'], ['Shopify orders', '']]
     : [['Order', ''], ['Item', ''], ['Pieces', 'num'], ['Printing', ''], ['Cut', 'num'], ['Issued', 'num'],
       ['Received', 'num'], ['QC', 'num'], ['Pressed', 'num'], ['To make', 'num'], ['Quilt team', ''],
       ['Status', ''], ['', '']];
@@ -17968,6 +17980,7 @@ function renderOrdShopify(bySku, done) {
       + `<td class="num">${nf(r.cut)}</td><td class="num">${nf(r.issued)}</td>`
       + `<td class="num"${r.overRecv ? ' style="color:#7f6000;font-weight:700"' : ''}>${nf(r.received)}</td>`
       + `<td class="num" style="color:#166534">${nf(r.pressed)}</td>`
+      + `<td class="num">${r.store ? `<b>${nf(r.store)}</b>` : '<span class="muted">—</span>'}</td>`
       + `<td class="num"${r.pendingMake ? ' style="color:var(--bad);font-weight:700"' : ''}>${r.pendingMake ? nf(r.pendingMake) : '<span class="muted">—</span>'}</td>`
       + `<td style="text-align:left;white-space:normal;max-width:320px;font-size:12px">${chips}</td></tr>`;
   })() : (() => {
@@ -19328,7 +19341,7 @@ function renderOrd() {
   if (v === 'shppipe') return renderOrdPipe();
   if (v === 'team') return renderOrdTeam();
   if (v === 'prnplat') return renderOrdPrnPlat();
-  if (!isBook) { const out = renderOrdShopify(v === 'shopsku', v === 'shopdone'); if (bulkOk) spBulkRender(); return out; }
+  if (!isBook) { const out = renderOrdShopify(v === 'shopsku', v === 'shopdone' || (v === 'shopsku' && !!ORD.skuDone)); if (bulkOk) spBulkRender(); return out; }
 
   /* PENDING HERE, FINISHED IN THEIR OWN VIEW (Ravi, 2026-09-24): a line that is Complete or handed over is
    * not work, so it is not on the pending book and it counts in no "to make". */
@@ -20534,6 +20547,10 @@ function renderOrdSheet() {
     + ' · click an order to open it · the other views are under More in the list on the left';
   ordMoreBtn(rows.length);
 }
+if ($('odKpis')) $('odKpis').addEventListener('click', e => {
+  const d = e.target.closest('[data-skudone]');
+  if (d && ['0', '1'].indexOf(d.getAttribute('data-skudone')) >= 0) { ORD.skuDone = d.getAttribute('data-skudone') === '1'; ORD.pick = new Set(); ORD_KPI = ''; return renderOrd(); }
+});
 if ($('odKpis')) $('odKpis').addEventListener('click', e => {
   const t = e.target.closest('[data-ordsrc]'); if (!t) return;
   /* Shopify is worked on the combined view; every other choice is the order book of that platform. */
