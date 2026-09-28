@@ -2156,22 +2156,12 @@
       <div id="odKpis" class="jw-kpiwrap"></div>
       <div class="card" style="padding:12px 14px">
         <div class="toolbar">
-          <select id="odView" style="flex:0 0 235px" title="Orders — one line per order. Everything else is under More.">
-            <option value="orders">Orders — one line per order</option>
-            <optgroup label="More">
-            <option value="book">Order book — pending</option>
-            <option value="bookdone">Order book — complete &amp; handed over</option>
-            <option value="track">Tracking — every order, start to finish</option>
-            <option value="shppipe">Shopify — production pipeline</option>
-            <option value="team">Team work — who did what</option>
-            <option value="prnplat">Printers — which platform each order is for</option>
+          <select id="odView" style="flex:0 0 235px" title="Shopify combined is where the work is done; the order book shows every platform; the three Demand reports are for printing and cloth.">
             <option value="shopsku">Shopify — by SKU, combined</option>
-            <option value="shoporder">Shopify — by order (pending)</option>
-            <option value="shopdone">Shopify — complete &amp; handed over</option>
+            <option value="book">Order book — pending</option>
             <option value="demand">Demand — printing &amp; cloth</option>
             <option value="democol">Demand — by colour &amp; product</option>
             <option value="demtot">Demand — fabric &amp; colour totals</option>
-            </optgroup>
           </select>
           <select id="odOrd" style="flex:0 0 200px"><option value="">All orders</option></select>
           <select id="odArt" style="flex:0 0 150px"><option value="">All articles</option></select>
@@ -3571,7 +3561,7 @@ onAuthStateChanged(auth, async user => {
     /* The name only — setting the whole item's text took its icon and its count with it. */
     if (b) { b.style.display = ''; const t = b.querySelector && b.querySelector('.nav-t'); (t || b).textContent = 'Shopify Orders'; }
     ['book', 'bookdone'].forEach(k => { const o = $('odView') && $('odView').querySelector('option[value="' + k + '"]'); if (o) o.remove(); });
-    if ($('odView')) $('odView').value = 'orders';
+    if ($('odView')) $('odView').value = 'shopsku';
   }
   syncNavGroups();
   /* The sidebar is now telling the truth, so it can be seen. The data loads below take their own
@@ -17016,7 +17006,7 @@ function ordVendorAlloc() {
  * order wants are left unstamped — they are still real, and the sharing rule accounts for them.
  * Returns the lines with forOrders added; a line that already carries one is left exactly as it is.
  */
-function voStampOrders(lines) {
+function voStampOrders(lines, channel) {
   const taken = new Map();                                  // order line → pieces this very order has already given it
   const when = r => ptDtMs(r.orderDate) || 0;
   return (lines || []).map(l => {
@@ -17024,7 +17014,7 @@ function voStampOrders(lines) {
     const sku = obUC(l.sku); let left = parseFloat(l.qty) || 0;
     if (!sku || !(left > 0)) return l;
     const forOrders = [];
-    ordLines().filter(r => r.sku === sku && r.open).sort((a, b) => when(a) - when(b)).forEach(r => {
+    ordLines().filter(r => r.sku === sku && r.open && (!channel || voChannelWants(channel, r))).sort((a, b) => when(a) - when(b)).forEach(r => {
       if (!(left > 0)) return;
       const k = r.orderNo + '|' + r.sku, v = ordVendorOf(r.orderNo, r.sku);
       const need = r.qty - (r.printer ? r.qty : (v ? v.given : 0)) - (taken.get(k) || 0);
@@ -17579,6 +17569,11 @@ function shppBySku() {
     e.overRecv += l.overRecv;
     if (l.open) e.open = true;
     if ((l.addedMs || 0) > e.addedMs) e.addedMs = l.addedMs;
+    /* WHO IS PRINTING IT — read from the vendor orders, shared out by ordVendorAlloc (2026-09-28). */
+    { const v = ordVendorOf(l.orderNo, l.sku);
+      if (!e.prn) e.prn = new Map();
+      if (l.printer) { const k = voName(l.printer), x = e.prn.get(k) || { given: 0, back: 0 }; x.given += l.qty; x.back += Math.min(l.qty, Number(l.printed) || 0); e.prn.set(k, x); }
+      else if (v) v.parts.forEach(pp => { const k = voName(pp.vendorCode), x = e.prn.get(k) || { given: 0, back: 0 }; x.given += pp.qty; x.back += pp.back; e.prn.set(k, x); }); }
     /* Article details come from whichever line has them. A SKU still on the Custom SKUs list has
      * none, and that is worth showing rather than hiding behind a blank cell. */
     if (!e.articleType && l.articleType) { e.articleType = l.articleType; e.articleSubtype = l.articleSubtype; e.color = l.color; e.size = l.size; }
@@ -17706,7 +17701,7 @@ function renderOrdShopify(bySku, done) {
   ORD.rows = rows;
   const s = fn => lines.reduce((a, r) => a + fn(r), 0);
 
-  $('odKpis').innerHTML = ordKpiCards(done ? 'Shopify, complete & handed over' : 'Shopify, waiting on production', [
+  $('odKpis').innerHTML = ordSrcChips() + ordKpiCards(done ? 'Shopify, complete & handed over' : 'Shopify, waiting on production', [
     [nf(new Set(lines.map(r => r.orderNo)).size), 'Shopify orders', 'doc', 'blue', 'read live' + (ORD.at ? ' · ' + esc(ORD.at) : '')],
     [nf(new Set(lines.map(r => r.sku)).size), 'SKUs', 'list', 'blue', done ? 'finished' : 'waiting on production'],
     [nf(s(r => r.qty)), 'Pieces', 'box', 'blue', 'pieces asked for'],
@@ -17716,7 +17711,7 @@ function renderOrdShopify(bySku, done) {
    * RECEIVED AND QC stay in the sequence: "issued 5, pressed 0, to make 5" does not say whether the
    * karigar ever brought them back. */
   const cols = bySku
-    ? [['Item', ''], ['Orders', 'num'], ['Pieces', 'num'], ['Cut', 'num'], ['Issued', 'num'],
+    ? [['Item', ''], ['Orders', 'num'], ['Pieces', 'num'], ['With printer', ''], ['Cut', 'num'], ['Issued', 'num'],
       ['Received', 'num'], ['Pressed', 'num'], ['To make', 'num'], ['Shopify orders', '']]
     : [['Order', ''], ['Item', ''], ['Pieces', 'num'], ['Printing', ''], ['Cut', 'num'], ['Issued', 'num'],
       ['Received', 'num'], ['QC', 'num'], ['Pressed', 'num'], ['To make', 'num'], ['Quilt team', ''],
@@ -17727,7 +17722,8 @@ function renderOrdShopify(bySku, done) {
    * but that decides what a tick MEANS, not whether there is one. Here a tick stands for every open
    * line behind the SKU, which is exactly the bulk assign Ravi asked for. Handing over to shipping
    * stays on the by-order view: that is a decision per order, and a row here hides which. */
-  const spPick = (ptCanEdit() || spCanAssign()) && (!bySku || spCanAssign());
+  /* A tick is for Completed — handing the lines to the shipping team — and nothing else (2026-09-28). */
+  const spPick = ptCanEdit() && !done;
   /* PINNED TO THE LEFT, because the first column is the first thing to slide off a narrow screen —
    * which is how a tick box that is right there stops existing. */
   const thead = ordHead(cols, spPick ? '<input type="checkbox" id="spPickAll" style="width:auto;margin:0" title="Tick every line shown">' : '');
@@ -17758,6 +17754,9 @@ function renderOrdShopify(bySku, done) {
         !spPick)
       + `<td class="num">${nf(r.orders.length)}</td>`
       + `<td class="num" style="font-weight:700">${nf(r.qty)}</td>`
+      + `<td style="text-align:left;font-size:12px;white-space:normal;max-width:200px">${r.prn && r.prn.size
+          ? [...r.prn.entries()].map(([k, x]) => `<b>${esc(k)}</b> <span class="muted">${nf(x.back)} of ${nf(x.given)} back</span>`).join('<br>')
+          : '<span class="muted">not given</span>'}</td>`
       + `<td class="num">${nf(r.cut)}</td><td class="num">${nf(r.issued)}</td>`
       + `<td class="num"${r.overRecv ? ' style="color:#7f6000;font-weight:700"' : ''}>${nf(r.received)}</td>`
       + `<td class="num" style="color:#166534">${nf(r.pressed)}</td>`
@@ -17852,18 +17851,17 @@ function renderOrdShopify(bySku, done) {
   const bar = $('odPickBar');
   if (bar) {
     const n = (ORD.pick || new Set()).size;
-    /* Shown once something is ticked. Before that it was a standing sentence about ticking. */
-    bar.classList.toggle('hide', !spPick || !n);
+    /* COMPLETED, always in sight on the combined view (Ravi, 2026-09-28): tick, then press it. */
+    bar.classList.toggle('hide', !spPick);
     bar.innerHTML = !spPick ? '' : (n
       /* THE COUNT IS LINES, and on this view it says how many SKUs those lines came from — ticking
        * one row and being told "1" while thirty-three orders move is how a bulk button loses
        * anybody's trust. */
       ? `<span class="muted" style="font-size:12.5px"><b>${nf(n)}</b> line(s) ticked${
           bySku ? ' across ' + nf(new Set([...(ORD.pick || new Set())].map(k => k.slice(k.indexOf('|') + 1))).size) + ' SKU(s)' : ''}</span>`
-        + (spCanAssign() ? `<button id="spAssignAll" class="ghost">Assign printer to ${nf(n)} line(s)</button>` : '')
-        + (!bySku && ptCanEdit() ? `<button id="spHandAll">Hand ${nf(n)} over to shipping</button>` : '')
+        + (ptCanEdit() ? `<button id="spHandAll" style="background:#15803D">Completed — hand ${nf(n)} over to shipping</button>` : '')
         + '<button id="spPickClear" class="ghost">Clear</button>'
-      : '');
+      : `<span class="muted" style="font-size:12.5px">Tick the finished SKUs or orders below, then press</span> <button id="spHandAll" disabled style="background:#15803D;opacity:.55">Completed</button>`);
     if ($('spAssignAll')) $('spAssignAll').onclick = () => spAssignPickedOpen();
     if ($('spHandAll')) $('spHandAll').onclick = async () => {
       $('spHandAll').disabled = true;
@@ -19069,7 +19067,7 @@ $('odTable').addEventListener('click', async e => {
 });
 
 /** Which view the Order Console is showing. */
-const ordView = () => (($('odView') || {}).value || 'orders');
+const ordView = () => (($('odView') || {}).value || 'shopsku');
 
 function renderOrd() {
   /* The brands that appear on the book, so the filter never offers one with nothing behind it. */
@@ -19089,7 +19087,9 @@ function renderOrd() {
   const ow = $('odOrd'); if (ow) ow.style.display = isBook ? '' : 'none';
   /* THE BAR IS FOR BOTH JOBS NOW. It used to appear only for somebody who may record production,
    * which hid the printer sheet from the very people whose job is giving the printing out. */
-  const bulkOk = v === 'shopsku' && (ptCanEdit() || spCanAssign());
+  /* ENTRIES ARE MADE WHERE THEY BELONG (Ravi, 2026-09-28): cutting, issue, receive and press in the Job Work register;
+   * printing given out by a vendor order or a vendor order request. The bulk-entry and printer sheets are not offered here. */
+  const bulkOk = false;
   if ($('spBulkBar')) $('spBulkBar').classList.toggle('hide', !bulkOk);
   /* Each half of the bar answers its own right: the entry buttons to whoever records production,
    * the printer buttons to whoever gives the printing out. */
@@ -19133,7 +19133,7 @@ function renderOrd() {
   const s = fn => shown.reduce((a, r) => a + fn(r), 0);
   const orphan = ordOrphans();
   const orphanTotal = orphan.base + orphan.cut + orphan.press;
-  $('odKpis').innerHTML = ordKpiCards(doneView ? 'Order Console — complete & handed over' : 'Order Console — pending', [
+  $('odKpis').innerHTML = ordSrcChips() + ordKpiCards(doneView ? 'Order Console — complete & handed over' : 'Order Console — pending', [
     [nf(new Set(shown.map(r => r.orderNo)).size), 'Orders', 'doc', 'blue', 'read live' + (ORD.at ? ' · ' + esc(ORD.at) : '')],
     [nf(shown.length), 'Lines', 'list', 'blue', 'one order, one SKU'],
     [nf(s(r => r.qty)), 'Ordered', 'box', 'blue', 'pieces asked for'],
@@ -19146,7 +19146,7 @@ function renderOrd() {
    * it over the wrong data, which has happened on this table before. */
   /* "Like Shopify orders, I can assign a printer" — on every order in the book. Ticking is only for
    * somebody who may give work to a printer; the handover is Shopify's and is not offered here. */
-  const bkAssign = bkCanAssign();
+  const bkAssign = false;   // printers are given work by vendor orders only (2026-09-28)
   const bkPick = bkAssign || odrCanAsk();
   const bkPrint = rows.some(r => r.printer || ordVendorOf(r.orderNo, r.sku)) || bkAssign;
   /* ONE CELL FOR THE ORDER AND ONE FOR THE PRODUCT, as the Job Work table reads them. The nine
@@ -19243,7 +19243,8 @@ function renderOrd() {
               + `<b>${nf(v.back)}</b> <span class="muted">back of ${nf(v.given)} given</span>`
               + (v.given < r.qty ? ` <span class="muted">· ${nf(r.qty - v.given)} not given</span>` : '')
               + `<div class="muted" style="font-size:11px">${esc([...new Set(v.parts.map(p => voName(p.vendorCode)))].join(', '))}${v.shared ? ' · shared' : (v.parts.every(p => p.stamped) ? ' · for this order' : '')}</div></span>`
-            : '<span class="muted">not given to a vendor</span>'))(ordVendorOf(r.orderNo, r.sku))}</td>`
+            : '<span class="muted">not given to a vendor</span>'))(ordVendorOf(r.orderNo, r.sku))}</td>`)
+        /* THE ACTIONS CELL IS ALWAYS THERE, whether or not the Printing column is — its heading always is (2026-09-28). */
         /* ENTRY BELONGS ON EVERY ORDER, NOT ONLY SHOPIFY'S (Ravi, 2026-09-23: "jo hum shopify ke orders
          * ke liye yahi se karigar ko issue rec. karte h to wesa hi system B2B orders ke liye bana do").
          * The dialog was never Shopify's: it writes the cutting data, the Job Work Register and press
@@ -19251,12 +19252,12 @@ function renderOrd() {
          * so a B2B order had to be recorded from three other screens. */
         + `<td><div class="jw-acts">${[
             spCanPrint(r.orderNo, r.sku) ? `<button class="jw-btn" data-spprint="${k}">Printed</button>` : '',
-            (!spIsVendor() && ptCanEdit()) ? `<button class="jw-btn jw-primary" data-sp="${k}" title="Record cutting, issue to a karigar, receive, press">Entry</button>` : '',
+            /* No Entry button: the Job Work register is where production is recorded (2026-09-28). */
             (!spIsVendor() && ptCanEdit() && spIsQuilt(r)) ? ((q => q.quiltAt
               ? `<button class="jw-btn" data-spquilt="${k}" data-on="0">Undo quilt</button>`
               : `<button class="jw-btn" data-spquilt="${k}" data-on="1" style="color:#166534">To quilt team</button>`)(spOf(r.orderNo, r.sku) || {})) : '',
             bkAssign ? `<button class="jw-btn" data-spassign="${k}">${r.printer ? 'Printer' : 'Assign'}</button>` : '',
-          ].filter(Boolean).join('') || '<span class="muted">—</span>'}</div></td>`)
+          ].filter(Boolean).join('') || '<span class="muted">—</span>'}</div></td>`
       + '</tr>';
   }).join('');
   $('odTable').innerHTML = head + '<tbody>' + body + '</tbody>';
@@ -20316,9 +20317,22 @@ function renderOrdSheet() {
 }
 if ($('odKpis')) $('odKpis').addEventListener('click', e => {
   const t = e.target.closest('[data-ordsrc]'); if (!t) return;
-  if ($('odSrc')) $('odSrc').value = t.getAttribute('data-ordsrc');
+  /* Shopify is worked on the combined view; every other choice is the order book of that platform. */
+  const v = t.getAttribute('data-ordsrc');
+  if (['', 'SHP', 'AMZ', 'B2B'].indexOf(v) < 0) return;
+  if ($('odView')) $('odView').value = v === 'SHP' ? 'shopsku' : 'book';
+  if ($('odSrc')) $('odSrc').value = v === 'SHP' ? '' : v;
+  ORD_KPI = ''; ORD.pick = new Set();
   renderOrd();
 });
+/** The four platform buttons (Ravi liked them on the Orders sheet): which one is lit follows the view on screen. */
+function ordSrcChips() {
+  if (SHOP_ONLY()) return '';
+  const on = ordView() === 'shopsku' ? 'SHP' : ((($('odSrc') || {}).value) || '');
+  const chip = (v, l) => `<button type="button" data-ordsrc="${v}" style="height:38px;padding:0 16px;border-radius:999px;font:inherit;font-weight:700;cursor:pointer;box-shadow:none;transform:none;`
+    + (on === v ? 'background:#17202B;color:#fff;border:1px solid #17202B' : 'background:#fff;color:#17202B;border:1px solid #D5DCE5') + `">${l}</button>`;
+  return `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;width:100%">${chip('', 'All')}${chip('SHP', 'Shopify')}${chip('AMZ', 'Amazon')}${chip('B2B', 'B2B')}</div>`;
+}
 
 function renderOrdTrack() {
   if (!ORD.shopTrk && !ORD.shopTrkBusy) ordTrackShopLoad();
@@ -27104,7 +27118,7 @@ function renderVoCards(rows) {
       .join('');
     return `<div class="card" style="padding:12px 14px;margin-bottom:12px">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <b style="font-size:15px">${esc(o.orderNo || o.id)}</b>
+        <b style="font-size:15px">${esc(o.orderNo || o.id)}</b>${o.channel ? ` <span class="pill" style="background:#E9EFF6;color:#3A5573">For ${esc(o.channel)}</span>` : ''}
         <span class="pill">${esc(run ? 'Running fabric' : 'Cut fabric')}</span>
         ${pri ? voPriBadge(pri) : ''}
         <span class="muted" style="font-size:12.5px">${esc(voName(o.vendorCode))}</span>
@@ -29260,6 +29274,10 @@ async function voFormOpen(mode) {
           <option value="">— pick a vendor —</option>
           ${vends.map(v => `<option value="${esc(v.code)}" data-cat="${esc(v.category || '')}">${esc(v.desc || v.name || v.code)} (${esc(v.category || 'vendor')})</option>`).join('')}
         </select></label>
+        <label class="vo-bf">For<select id="vof_channel" title="Which sales channel this order is for — its lines go to that channel's orders first">
+          <option value="">— sales channel —</option>
+          ${VO_CHANNELS.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('')}
+        </select></label>
         <label class="vo-bf">Work<select id="vof_service">
           ${PR_SERVICES.map(s => `<option value="${esc(s.key)}">${esc(s.key)}</option>`).join('')}
         </select></label>
@@ -30194,6 +30212,20 @@ async function voBulkFile(file, kind) {
 }
 
 /* ---- placing it ---- */
+/* THE SALES CHANNEL AN ORDER IS FOR (Ravi, 2026-09-28: "jab hum vendor order de to sales channel add kare ki kiske liye
+ * chahiye"). Asked on the form, kept on the order (and on a request, and so on the order it becomes), shown to the printer,
+ * and it decides whose orders the lines are stamped against: Shopify → Ridhi's Shopify orders, CPC Shopify → CPC's,
+ * Amazon → the sales orders, B2B → the wholesale ones. */
+const VO_CHANNELS = ['Shopify', 'CPC Shopify', 'Amazon', 'B2B'];
+const VO_CHANNEL_SRC = { 'Shopify': 'SHP', 'CPC Shopify': 'SHP', 'Amazon': 'AMZ', 'B2B': 'B2B' };
+const voSkuIsCpc = sku => /CPC/i.test(String(((typeof mdbOf === 'function' ? mdbOf(sku) : null) || {}).brand || '')) || /^CPC/.test(obUC(sku));
+const voChannelWants = (channel, r) => {
+  const src = VO_CHANNEL_SRC[channel];
+  if (!src) return true;
+  if (ordSrcOf(r.orderNo) !== src) return false;
+  return channel === 'CPC Shopify' ? voSkuIsCpc(r.sku) : channel === 'Shopify' ? !voSkuIsCpc(r.sku) : true;
+};
+
 async function voPlace(given) {
   /* GIVEN, the quick Give on the Order Console's totals (Ravi, 2026-09-25): the vendor and notes come in the call
    * rather than from the form; everything after — the checks, request or order, the write — is the same. */
@@ -30208,6 +30240,10 @@ async function voPlace(given) {
    * so a filling order could be built line by line and then refused at the last press. */
   const vend = voAllVendors().find(v => String(v.code) === code);
   if (!vend) return 'That vendor is not active in the vendor master any more.';
+  /* Asked on the form; a quick Give from the Demand totals passes its own (or none). */
+  const chEl = $('vof_channel');
+  const channel = String(G.channel != null ? G.channel : ((chEl || {}).value || '')).trim();
+  if (G.code == null && chEl && !channel) return 'Pick who this order is for — Shopify, CPC Shopify, Amazon or B2B.';
 
   if (VOF.kind === 'cut' && voDraftPrinting()) {
     const bad = voValidateCut(VOF.lines.filter(l => voKind(l) === 'cut').map(l => ({ sku: l.sku, qty: l.qty })));
@@ -30229,7 +30265,7 @@ async function voPlace(given) {
 
   /* A REQUEST STOPS HERE — checked exactly as an order is, and stored where no vendor can read it. */
   if (VOF.mode === 'request') {
-    const err = await vrqSubmit({ code, vend, service: String(VOF.service || 'Block print'), kind: VOF.kind,
+    const err = await vrqSubmit({ code, vend, service: String(VOF.service || 'Block print'), kind: VOF.kind, channel,
       filler: svcRec && svcRec.fill ? filler : '',
       notes: String(G.notes != null ? G.notes : (($('vof_notes') || {}).value || '')).trim(),
       why: String(G.why != null ? G.why : (($('vof_why') || {}).value || '')).trim(),
@@ -30248,6 +30284,7 @@ async function voPlace(given) {
     /* WHAT THIS ORDER IS FOR. Everything raised before this existed is block printing, and reads as
      * that — voServiceOf says so, so the printer cap keeps counting the orders it always counted. */
     service: String(VOF.service || 'Block print'),
+    ...(channel ? { channel } : {}),
     orderType: VOF.kind,
     orderDate: voTodayDMY(),
     status: 'Placed',
@@ -30261,7 +30298,7 @@ async function voPlace(given) {
   /* EVERY LINE SAYS WHICH SALES ORDERS IT IS FOR. The order book is needed to say it; if it cannot be
    * read the order is still placed — an unstamped line is shared out by rule, as every older one is —
    * because refusing to order cloth over a missing annotation would be the wrong way round. */
-  try { if (!PTG.ob) await ptLoadGates(); order.lines = voStampOrders(order.lines); } catch (e) { /* placed unstamped */ }
+  try { if (!PTG.ob) await ptLoadGates(); order.lines = voStampOrders(order.lines, channel); } catch (e) { /* placed unstamped */ }
 
   await ptPut('pt_vendorOrders/' + code + '/' + order.id, order);
   /* The vendor list the portal reads is a separate node, and it only gets written when the master
@@ -30957,7 +30994,7 @@ function vpShopTable(rows, f) {
     const bar = `<tr data-vporder="${esc(o.id)}" style="background:var(--hover,#f1f5f9)">
       <td colspan="${COLS.length}" style="text-align:left;padding:7px 10px">
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-          <b style="font-size:14px">${esc(o.orderNo || o.id)}</b>
+          <b style="font-size:14px">${esc(o.orderNo || o.id)}</b>${o.channel ? ` <span class="pill" style="background:#E9EFF6;color:#3A5573">For ${esc(o.channel)}</span>` : ''}
           <span class="pill">Customer orders${(m => m.size ? ' — ' + esc([...m].map(([k, n]) => k + ' ' + nf(n)).join(' · ')) : '')(
             keep.reduce((m, { l }) => { const k = vpPlatformOf(l) || 'not known'; m.set(k, (m.get(k) || 0) + 1); return m; }, new Map()))}</span>
           <span class="muted" style="font-size:12px">${nf(bySku.size)} product(s) · ${nf(keep.length)} customer order line(s)</span>
@@ -31067,7 +31104,7 @@ function vpTable(rows, f) {
     const bar = `<tr data-vporder="${esc(o.id)}" style="background:var(--hover,#f1f5f9)">
       <td colspan="${COLS.length}" style="text-align:left;padding:7px 10px">
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-          <b style="font-size:14px">${esc(o.orderNo || o.id)}</b>
+          <b style="font-size:14px">${esc(o.orderNo || o.id)}</b>${o.channel ? ` <span class="pill" style="background:#E9EFF6;color:#3A5573">For ${esc(o.channel)}</span>` : ''}
           <span class="pill">${esc(run ? 'Running fabric — metres' : 'Cut fabric — pieces')}</span>
           <span class="muted" style="font-size:12px">raised ${esc(o.orderDate) || '—'}${
             o.lastDispatchDate ? ' · last sent ' + esc(o.lastDispatchDate) : ''}${
@@ -40654,6 +40691,7 @@ async function vrqSubmit(d) {
     id, reqNo: vrqNewNo(), status: 'pending',
     vendorCode: d.code, vendorName: d.vend.desc || d.vend.name || d.code, category: String(d.vend.category || ''),
     service: d.service, orderType: d.kind,
+    ...(d.channel ? { channel: String(d.channel) } : {}),
     ...(d.filler ? { filler: String(d.filler) } : {}),
     notes: d.notes, why: d.why,
     lines: d.lines.map(l => Object.assign({}, l)),
@@ -40713,12 +40751,13 @@ async function vrqApprove(id, opts) {
     orderNo: voNewOrderNo(),
     vendorCode: code, vendorName: vname,
     service: voServiceOf(r),
+    ...(r.channel ? { channel: String(r.channel) } : {}),
     orderType: r.orderType === 'running' ? 'running' : 'cut',
     ...(r.filler ? { filler: String(r.filler) } : {}),
     orderDate: voTodayDMY(),
     status: 'Placed',
     notes: String(r.notes || ''),
-    lines: (() => { try { return voStampOrders(lines.map(l => Object.assign({}, l))); } catch (e) { return lines.map(l => Object.assign({}, l)); } })(),
+    lines: (() => { try { return voStampOrders(lines.map(l => Object.assign({}, l)), r.channel || ''); } catch (e) { return lines.map(l => Object.assign({}, l)); } })(),
     /* Raised by the person who asked; the approval is recorded beside it, not over it. */
     createdBy: r.requestedBy || ME.email, createdAt: now,
     approvedBy: ME.email, approvedAt: now,
@@ -40799,6 +40838,7 @@ async function vrqCopy(id) {
   await voFormOpen('request');
   if ($('vof_vendor')) $('vof_vendor').value = r.vendorCode || '';
   if ($('vof_service')) { $('vof_service').value = voServiceOf(r); voOnServicePick(); }
+  if ($('vof_channel')) $('vof_channel').value = String(r.channel || '');
   VOF.service = voServiceOf(r);
   if ($('vof_filler')) $('vof_filler').value = String(r.filler || '');
   voSetKind(r.orderType === 'running' ? 'running' : 'cut');
