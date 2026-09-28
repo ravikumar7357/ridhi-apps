@@ -2195,6 +2195,7 @@
           <button id="odClear" class="ghost">Clear</button>
           <button id="odExport" class="ghost">Export</button>
           <button id="odGo">Refresh</button>
+          <button id="odDone" class="hide" disabled title="Tick the finished SKUs or orders below, then press — they are handed to the shipping team" style="background:#15803D;opacity:.55">Completed</button>
         </div>
         <div id="odMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
         <div id="odPickBar" class="toolbar hide" style="margin-top:8px"></div>
@@ -2444,6 +2445,7 @@
           <input id="ptmFsFile" type="file" accept=".xlsx,.csv,text/csv" style="display:none">
           <input id="ptmSkcFile" type="file" accept=".xlsx,.csv,text/csv" style="display:none">
           <button id="ptmRename" class="ghost" title="Change a SKU code everywhere it appears.">Change SKU</button>
+          <button id="ptmCustFix" class="ghost" title="The codes Custom Order made (…-CUST-…): put each on its real SKU, in every register, so its orders can be tracked">Custom-order SKUs</button>
           <button id="ptmExport" class="ghost">Export</button>
           <button id="ptmGo">Refresh</button>
         </div>
@@ -2479,9 +2481,11 @@
         <div id="bwBox" class="hide" style="margin-top:12px;border:1px solid var(--line);border-radius:10px;padding:12px">
           <!-- One-off item with no existing SKU: colour and size become free text, no Order ID is
                needed, and a disposable SKU is minted (or an existing match reused). -->
-          <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;margin-bottom:10px;
+          <!-- Taken off the form on 2026-09-28 (Ravi: "remove the custom order"). The box stays in the page, hidden and
+               never ticked, so the code that reads it keeps working; every entry needs a real SKU now. -->
+          <label class="hide" style="display:none;align-items:center;gap:8px;font-size:12.5px;margin-bottom:10px;
                         background:var(--hover,#f1f5f9);padding:8px 10px;border-radius:8px">
-            <input type="checkbox" id="bwCustom" style="width:auto">
+            <input type="checkbox" id="bwCustom" style="width:auto" disabled>
             <span><b>Custom Order</b> — one-off item with no existing SKU (colour &amp; size become free text, a disposable SKU is generated)</span>
           </label>
           <div class="toolbar">
@@ -10010,7 +10014,7 @@ async function mdbConsApply() {
  */
 const PMDB_TOOLS = {
   master: ['ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut', 'ptmQ',
-    'ptmNew', 'ptmAsin', 'ptmImgs', 'ptmClear', 'ptmTemplate', 'ptmTplShort', 'ptmImport', 'ptmRename', 'ptmExport', 'ptmGo'],
+    'ptmNew', 'ptmAsin', 'ptmImgs', 'ptmClear', 'ptmTemplate', 'ptmTplShort', 'ptmImport', 'ptmRename', 'ptmCustFix', 'ptmExport', 'ptmGo'],
   /* A one-off item never amends the real catalogue, so Change SKU — which rewrites a code across
    * every register — is not offered from here. */
   custom: ['ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut', 'ptmQ',
@@ -10026,12 +10030,12 @@ const PMDB_TOOLS = {
   skucode: ['ptmArt', 'ptmSub', 'ptmSz', 'ptmQ', 'ptmClear', 'ptmTemplate', 'ptmImport', 'ptmExport', 'ptmGo'],
 };
 /** The ones that write, so they are shown only to somebody who may. */
-const PMDB_WRITES = ['ptmNew', 'ptmLookalike', 'ptmAsin', 'ptmImport', 'ptmRename', 'ptmConsApply', 'ptmRecSeed', 'ptmRecApply'];
+const PMDB_WRITES = ['ptmNew', 'ptmLookalike', 'ptmAsin', 'ptmImport', 'ptmRename', 'ptmCustFix', 'ptmConsApply', 'ptmRecSeed', 'ptmRecApply'];
 /* NAMED OUTRIGHT, not gathered from the lists above. Derived from them, a control dropped from
  * every view fell out of this set and so was never hidden — it stayed wherever the last view left
  * it, which is the very thing this function exists to stop. */
 const PMDB_ALL = ['ptmTplShort', 'ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut', 'ptmQ',
-  'ptmBrandFs', 'ptmDir', 'ptmConsApply', 'ptmRecSeed', 'ptmRecApply', 'ptmNew', 'ptmLookalike', 'ptmAsin', 'ptmImgs',
+  'ptmBrandFs', 'ptmDir', 'ptmConsApply', 'ptmRecSeed', 'ptmRecApply', 'ptmNew', 'ptmLookalike', 'ptmCustFix', 'ptmAsin', 'ptmImgs',
   'ptmClear', 'ptmTemplate', 'ptmImport', 'ptmRename', 'ptmExport', 'ptmGo'];
 
 function pmdbTools(view) {
@@ -15660,6 +15664,141 @@ $('ptmImpGo').onclick = async () => {
   $('ptmImpGo').disabled = false;
 };
 
+/* ==== CUSTOM-ORDER SKUs ONTO REAL ONES (Ravi, 2026-09-28) ====
+ * "abhi tak custom order me jo mal bana h m uska sku change krna chahta hu to track our orders". Custom Order made a code
+ * per entry (TC-CUST-260820-09); 312 of them sit in the master and more in the registers. Each is put on the real SKU:
+ *   the real SKU exists  → MERGE: every register row moves to it; the custom master row stays, marked mergedInto
+ *   it does not exist    → RENAME, the ordinary Change SKU: the custom master row becomes the new code
+ * The sheet suggests the real SKU where one master SKU has the same article, subtype, colour and size. */
+const CUST_RE = /-CUST-/i;
+function custFixSuggest(r) {
+  const key = [r.articleType, r.subtype, r.color, r.size].map(ptNorm).join('|');
+  if (!r || key.split('|').some(x => !x)) return '';
+  const hits = (PTG.mdb || []).filter(m => m && m.sku && !CUST_RE.test(m.sku) && [m.articleType, m.subtype, m.color, m.size].map(ptNorm).join('|') === key);
+  return hits.length === 1 ? obUC(hits[0].sku) : '';
+}
+/** Every custom-order code in use: the master's and the registers', with what was made on it. */
+function custFixRows() {
+  const by = new Map();
+  const get = sku => { const k = obUC(sku); let e = by.get(k); if (!e) by.set(k, e = { sku: k, m: null, issued: 0, pressed: 0, orders: new Set() }); return e; };
+  (PTG.mdb || []).forEach(m => { if (m && CUST_RE.test(m.sku || '')) get(m.sku).m = m; });
+  (PT.base || []).forEach(r => { if (r && CUST_RE.test(r.sku || '')) { const e = get(r.sku); e.issued += Number(r.issuePieces) || 0; if (r.orderNo) e.orders.add(obUC(r.orderNo)); } });
+  (PTG.press || []).forEach(r => { if (r && CUST_RE.test(r.sku || '')) { const e = get(r.sku); e.pressed += Number(r.pieces) || 0; if (r.orderNo) e.orders.add(obUC(r.orderNo)); } });
+  (PTG.ob || []).forEach(r => { if (r && CUST_RE.test(r.sku || '')) get(r.sku).orders.add(obUC(r.orderNo)); });
+  return [...by.values()].filter(e => !(e.m && e.m.mergedInto)).map(e => {
+    const x = e.m || (PT.base || []).find(r => obUC(r && r.sku) === e.sku) || {};
+    const r = { articleType: x.articleType || '', subtype: x.subtype || x.articleSubtype || '', color: x.color || '', size: x.size || '' };
+    return Object.assign(e, r, { brand: (e.m && e.m.brand) || '', suggest: custFixSuggest(r) });
+  }).sort((a, b) => b.issued - a.issued || a.sku.localeCompare(b.sku));
+}
+const CUST_FIX_COLS = ['Custom SKU', 'Article', 'Subtype', 'Colour', 'Size', 'Brand', 'Pcs issued', 'Pcs pressed', 'Orders', 'Suggested SKU', 'New SKU'];
+const custFixSheet = rows => [CUST_FIX_COLS].concat(rows.map(e => [e.sku, e.articleType, e.subtype, e.color, e.size, e.brand, e.issued, e.pressed, [...e.orders].join(' '), e.suggest, e.suggest]));
+/** What a filled sheet would do: merges, renames, and every row that cannot be done, with why. */
+function custFixPlan(rows) {
+  const h = (rows[0] || []).map(x => String(x == null ? '' : x).trim().toLowerCase());
+  const ci = { from: h.indexOf('custom sku'), to: h.indexOf('new sku') };
+  if (ci.from < 0 || ci.to < 0) return { err: 'That sheet has no "Custom SKU" and "New SKU" columns. Download the sheet to see the shape.' };
+  const master = new Set((PTG.mdb || []).map(m => obUC(m && m.sku)));
+  const out = { merge: [], rename: [], errs: [] }, seenTo = new Map();
+  rows.slice(1).forEach((r, i) => {
+    const from = obUC(r[ci.from]), to = obUC(r[ci.to]), at = 'Row ' + (i + 2) + ': ';
+    if (!from || !to) return;
+    if (!CUST_RE.test(from)) { out.errs.push(at + from + ' is not a custom-order code.'); return; }
+    if (CUST_RE.test(to)) { out.errs.push(at + to + ' is itself a custom-order code — give the real SKU.'); return; }
+    if (from === to) return;
+    if (master.has(to)) { out.merge.push({ from, to }); return; }
+    /* A NEW real code takes over the custom master row — once. Two custom codes onto one new code is a merge into a
+     * code that does not exist yet: rename the first, and the rest merge into it. */
+    if (!master.has(from)) { out.errs.push(at + to + ' is not in the master database, and ' + from + ' has no master row to become it. Add ' + to + ' to the master first.'); return; }
+    if (seenTo.has(to)) { out.merge.push({ from, to, after: true }); return; }
+    seenTo.set(to, from); out.rename.push({ from, to });
+  });
+  return out;
+}
+/** Every register row of `from` moves to `to`; the custom master row is marked, never removed. */
+function custMergePaths(from, to, upd) {
+  const before = Object.keys(upd).length;
+  const touch = (node, list) => (list || []).filter(r => r && obUC(r.sku) === from)
+    .forEach(r => { const k = r.id || r._key || r._id; if (k) { upd[`${node}/${k}/sku`] = to; upd[`${node}/${k}/skuWas`] = from; } });
+  touch('pt_baseData', PT.base || []); touch('pt_cuttingData', PT.cut || []); touch('pt_pressInventory', PTG.press || []);
+  touch('pt_qcChecks', QC.checks || []); touch('pt_qcIssuance', QC.issue || []); touch('pt_fgiLedger', FGI.rows || []);
+  touch('pt_accLedger', ACC.ledger || []);
+  (PTG.ob || []).filter(r => r && obUC(r.sku) === from).forEach(r => { upd[`pt_orderBook/${r.id || r._key}/sku`] = to; upd[`pt_orderBook/${r.id || r._key}/skuWas`] = from; });
+  (SOX.rows || []).forEach(o => (Array.isArray(o.lines) ? o.lines : Object.values(o.lines || {}))
+    .forEach((l, i) => { if (l && obUC(l.sku) === from) upd[`pt_salesOrders/${o._id}/lines/${i}/sku`] = to; }));
+  (VO.rows || []).forEach(o => (Array.isArray(o.lines) ? o.lines : Object.values(o.lines || {}))
+    .forEach((l, i) => { if (l && obUC(l.sku) === from) upd[`pt_vendorOrders/${o.vendorCode}/${o.id}/lines/${i}/sku`] = to; }));
+  const row = (PTG.mdb || []).find(r => obUC(r && r.sku) === from);
+  if (row && row._key) {
+    upd[`pt_masterDB/${row._key}/mergedInto`] = to;
+    upd[`pt_masterDB/${row._key}/mergedAt`] = new Date().toISOString();
+    upd[`pt_masterDB/${row._key}/mergedBy`] = ME.email;
+  }
+  return Object.keys(upd).length - before;
+}
+async function custFixRun(plan) {
+  if (!mdbCanEdit()) return MDB_NO_EDIT;
+  const upd = {};
+  plan.rename.forEach(p => mdbRenamePaths(p.from, p.to, upd));
+  plan.merge.forEach(p => custMergePaths(p.from, p.to, upd));
+  await ptPatch(upd);
+  plan.rename.forEach(p => mdbRenameLocal(p.from, p.to));
+  const fix = list => (list || []).map(r => { const pm = r && plan.merge.find(p => p.from === obUC(r.sku)); return pm ? Object.assign({}, r, { sku: pm.to, skuWas: pm.from }) : r; });
+  PT.base = fix(PT.base); PT.cut = fix(PT.cut); PTG.press = fix(PTG.press); PTG.ob = fix(PTG.ob);
+  QC.checks = fix(QC.checks); QC.issue = fix(QC.issue); FGI.rows = fix(FGI.rows); ACC.ledger = fix(ACC.ledger);
+  PTG.mdb = (PTG.mdb || []).map(r => { const pm = r && plan.merge.find(p => p.from === obUC(r.sku)); return pm ? Object.assign({}, r, { mergedInto: pm.to }) : r; });
+  return '';
+}
+let CUSTFIX = { plan: null };
+async function custFixOpen() {
+  if (!mdbCanEdit()) { $('ptmMsg').className = 'err'; $('ptmMsg').textContent = MDB_NO_EDIT; return; }
+  $('ptmMsg').className = 'muted'; $('ptmMsg').textContent = 'Reading every register…';
+  try { await ptLoadGates(); if (typeof mdbRenameLoadAll === 'function') await mdbRenameLoadAll(); } catch (e) { /* read what can be read */ }
+  $('ptmMsg').textContent = '';
+  const rows = custFixRows();
+  const sugg = rows.filter(r => r.suggest).length, pcs = rows.reduce((a, r) => a + r.issued, 0);
+  CUSTFIX = { plan: null };
+  ptOpenDialog({
+    title: 'Custom-order SKUs → real SKUs',
+    subtitle: `${nf(rows.length)} custom-order code(s) in use · ${nf(pcs)} pcs issued on them · a real SKU suggested for ${nf(sugg)}`,
+    note: '1 · Download the sheet. "New SKU" is filled where one master SKU has the same article, subtype, colour and size — check it, '
+      + 'and type the rest (leave it blank to skip a row). 2 · Upload it: you see what it would do before anything is written. '
+      + 'Onto a SKU that exists, every register row moves to it and the custom code is marked merged, not deleted. Onto a new code, the custom master row becomes it.',
+    html: '<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" id="cfxDl">Download the sheet</button>'
+      + '<button type="button" id="cfxUp" class="ghost">Upload the filled sheet</button><input id="cfxFile" type="file" accept=".xlsx,.csv,text/csv" style="display:none"></div>'
+      + '<div id="cfxOut" class="muted" style="margin-top:10px;font-size:13px;line-height:1.6"></div>',
+    fields: [],
+    saveLabel: 'Change them',
+    onSave: async () => {
+      const pl = CUSTFIX.plan;
+      if (!pl || !(pl.merge.length + pl.rename.length)) return 'Upload the filled sheet first.';
+      if (pl.errs.length) return 'Fix the rows the check found, and upload again.';
+      try { await custFixRun(pl); } catch (e) { return 'Not changed: ' + (e.message || e) + ' — nothing was written.'; }
+      renderPmdb();
+      $('ptmMsg').className = 'muted';
+      $('ptmMsg').textContent = `${nf(pl.merge.length)} custom code(s) moved onto existing SKUs and ${nf(pl.rename.length)} renamed. Their orders now track on the real SKUs.`;
+      return '';
+    },
+  });
+  if ($('cfxDl')) $('cfxDl').onclick = () => ptDownload('custom-order-skus', custFixSheet(rows).map(r => r.map(csvCell).join(',')));
+  if ($('cfxUp')) $('cfxUp').onclick = () => $('cfxFile').click();
+  if ($('cfxFile')) $('cfxFile').onchange = async e => {
+    const f = e.target.files && e.target.files[0]; if (!f) return;
+    let rs; try { rs = await pkReadFile(f); } catch (er) { $('cfxOut').textContent = 'Could not read that file: ' + (er.message || er); return; }
+    const pl = custFixPlan(rs);
+    e.target.value = '';
+    if (pl.err) { $('cfxOut').className = 'err'; $('cfxOut').textContent = pl.err; return; }
+    CUSTFIX.plan = pl;
+    const upd = {}; let refs = 0;
+    pl.merge.forEach(p => { refs += custMergePaths(p.from, p.to, {}); });
+    pl.rename.forEach(p => { refs += mdbRenamePaths(p.from, p.to, upd); });
+    $('cfxOut').className = pl.errs.length ? 'err' : 'muted';
+    $('cfxOut').innerHTML = `<b>${nf(pl.merge.length)}</b> onto an existing SKU · <b>${nf(pl.rename.length)}</b> renamed to a new code · about ${nf(refs)} register rows move.`
+      + (pl.errs.length ? '<br>' + pl.errs.slice(0, 8).map(esc).join('<br>') + (pl.errs.length > 8 ? `<br>…and ${nf(pl.errs.length - 8)} more.` : '') : '<br>Press "Change them" to write it.');
+  };
+}
+if ($('ptmCustFix')) $('ptmCustFix').onclick = () => custFixOpen();
+
 /* ---- renaming a SKU, references and all ---- */
 
 /**
@@ -17851,17 +17990,27 @@ function renderOrdShopify(bySku, done) {
   const bar = $('odPickBar');
   if (bar) {
     const n = (ORD.pick || new Set()).size;
-    /* COMPLETED, always in sight on the combined view (Ravi, 2026-09-28): tick, then press it. */
-    bar.classList.toggle('hide', !spPick);
+    /* COMPLETED lives beside Refresh (Ravi, 2026-09-28: "looking too odd here"); this bar only counts the ticks. */
+    bar.classList.toggle('hide', !spPick || !n);
+    const db = $('odDone');
+    if (db) {
+      db.classList.toggle('hide', !spPick);
+      db.disabled = !n; db.style.opacity = n ? '1' : '.55';
+      db.textContent = n ? `Completed (${nf(n)})` : 'Completed';
+      db.onclick = async () => {
+        db.disabled = true;
+        const err = await spHandoverPicked();
+        if (err) { $('odMsg').className = 'err'; $('odMsg').textContent = err; }
+      };
+    }
     bar.innerHTML = !spPick ? '' : (n
       /* THE COUNT IS LINES, and on this view it says how many SKUs those lines came from — ticking
        * one row and being told "1" while thirty-three orders move is how a bulk button loses
        * anybody's trust. */
       ? `<span class="muted" style="font-size:12.5px"><b>${nf(n)}</b> line(s) ticked${
           bySku ? ' across ' + nf(new Set([...(ORD.pick || new Set())].map(k => k.slice(k.indexOf('|') + 1))).size) + ' SKU(s)' : ''}</span>`
-        + (ptCanEdit() ? `<button id="spHandAll" style="background:#15803D">Completed — hand ${nf(n)} over to shipping</button>` : '')
         + '<button id="spPickClear" class="ghost">Clear</button>'
-      : `<span class="muted" style="font-size:12.5px">Tick the finished SKUs or orders below, then press</span> <button id="spHandAll" disabled style="background:#15803D;opacity:.55">Completed</button>`);
+      : '');
     if ($('spAssignAll')) $('spAssignAll').onclick = () => spAssignPickedOpen();
     if ($('spHandAll')) $('spHandAll').onclick = async () => {
       $('spHandAll').disabled = true;
@@ -19084,6 +19233,7 @@ function renderOrd() {
    * is removed above, and this is the second lock, because a stale value would otherwise open it. */
   if (SHOP_ONLY() && (v === 'book' || v === 'bookdone')) { v = 'shopsku'; if ($('odView')) $('odView').value = v; }
   const isBook = v === 'book' || v === 'bookdone';
+  if ($('odDone') && v !== 'shopsku' && v !== 'shoporder') $('odDone').classList.add('hide');
   const ow = $('odOrd'); if (ow) ow.style.display = isBook ? '' : 'none';
   /* THE BAR IS FOR BOTH JOBS NOW. It used to appear only for somebody who may record production,
    * which hid the printer sheet from the very people whose job is giving the printing out. */
