@@ -46946,7 +46946,9 @@ function renderShop() {
   const dense = soDense();
   if ($('soTable')) $('soTable').classList.toggle('xl-dense', dense);
   if ($('soDense')) $('soDense').textContent = dense ? 'Full columns' : 'One page';
-  if (dense) return renderShopDense(rows, COLS, arrow, money, esc);
+  /* The one-page table is wired exactly like the wide one — it used to return before the wiring, so clicking an
+   * order opened nothing, the headings did not sort and a tick was never counted (Ravi, 2026-09-28). */
+  if (dense) { renderShopDense(rows, COLS, arrow, money, esc); soWireTable(); return; }
   const head = '<thead><tr>' + COLS.map(c =>
     c.noSort
       ? '<th style="width:28px"><input type="checkbox" id="soAll" title="Tick every order on screen"></th>'
@@ -47026,7 +47028,11 @@ function renderShop() {
   $('soTable').innerHTML = head + '<tbody>' + (body
     || '<tr><td colspan="' + COLS.length + '" class="muted" style="padding:14px">Nothing matches that filter.</td></tr>')
     + '</tbody>';
+  soWireTable();
+}
 
+/** Sort headings, a click on an order opens it, the ticks — for whichever table is on screen. */
+function soWireTable() {
   $('soTable').querySelectorAll('[data-so-sort]').forEach(th => th.onclick = () => {
     const k = th.dataset.soSort;
     const text = !['units', 'kg', 'total', 'makeQty'].includes(k);

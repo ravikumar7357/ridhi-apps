@@ -480,6 +480,19 @@ console.log('\n== the orders table: as many cells as it has headers ==');
   ok('the table rendered at all', heads > 0 && cells > 0, 'th=' + heads + ' td=' + cells);
   ok('every header has a cell under it — a mismatch puts every column after it over the wrong data',
     heads === cells, heads + ' headers vs ' + cells + ' cells');
+  {
+    /* Ravi, 2026-09-28: "pahle me order par click krta tha to order ... sab dikhta tha" — the one-page table returned
+     * before its wiring, so a click on an order, a heading or a tick did nothing. */
+    const fake = { rows: [{ dataset: { so: 'gid1' } }], sorts: [{ dataset: { soSort: 'no' } }], picks: [{ dataset: { id: 'gid1' }, checked: false }] };
+    const was = els.soTable.querySelectorAll;
+    els.soTable.querySelectorAll = sel => (sel === '[data-so]' ? fake.rows : sel === '[data-so-sort]' ? fake.sorts : sel === '.soPick' ? fake.picks : []);
+    A.renderShop();
+    els.soTable.querySelectorAll = was;
+    ok('this is the one-page table', /Pick · make/.test(els.soTable.innerHTML));
+    ok('…a click on an order opens it', typeof fake.rows[0].onclick === 'function');
+    ok('…its headings sort', typeof fake.sorts[0].onclick === 'function');
+    ok('…and a tick is counted', typeof fake.picks[0].onchange === 'function');
+  }
   ok('both orders are on screen', (h.match(/data-so="/g) || []).length === 2);
   /* A cancelled order is struck through AND says the word — colour alone does not print. */
   ok('a cancelled order is marked as such', /so-cancel/.test(h) && /Cancelled/.test(h));
