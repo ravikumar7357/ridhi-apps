@@ -13,7 +13,7 @@ const block = src.slice(a, z).replace("if ($('ptmLookalike')) $('ptmLookalike').
   const obUC = s => String(s == null ? '' : s).trim().toUpperCase();
   const PTG = { mdb: Object.values(mdbRaw || {}).filter(Boolean) }, PT_NONE = [];
   const mIx = new Map(PTG.mdb.map(r => [obUC(r.sku), r]));
-  const f = new Function('PTG', 'PT_NONE', 'obUC', 'mdbOf', 'voRunning', block + '\nreturn { skuFillPlan, skuLookalike };');
+  const f = new Function('PTG', 'PT_NONE', 'obUC', 'mdbOf', 'voRunning', block + '\nreturn { skuFillPlan, skuLookalike, skuFillPatch };');
   const A = f(PTG, PT_NONE, obUC, s => mIx.get(obUC(s)), o => o.orderType === 'running');
   const orders = []; Object.entries(vo || {}).forEach(([code, os]) => Object.entries(os || {}).forEach(([id, o]) => { if (o) orders.push(Object.assign({ vendorCode: code, id }, o)); }));
   const custom = Object.entries(cus || {}).map(([k, v]) => Object.assign({ _key: k }, v));
@@ -24,4 +24,17 @@ const block = src.slice(a, z).replace("if ($('ptmLookalike')) $('ptmLookalike').
   plan.lines.slice(0, 14).forEach(x => console.log('  ', x.sku.padEnd(16), JSON.stringify(x.w), '←', x.from));
   console.log('  …custom:'); plan.custom.slice(0, 10).forEach(x => console.log('  ', x.sku.padEnd(16), JSON.stringify(x.w), '←', x.from));
   console.log('  nothing:', [...plan.noGuess].slice(0, 20).join(' '));
+  if (process.env.WRITE === '1') {
+    /* THE SAME WRITE AS THE BUTTON. Only empty boxes; the undo file sets every written path back to what it was. */
+    const upd = A.skuFillPatch(plan);
+    const before = {};
+    plan.custom.forEach(x => Object.keys(x.w).forEach(k => { const r = custom.find(c => c._key === x.key) || {}; before['pt_customSkus/' + x.key + '/' + k] = r[k] === undefined ? null : r[k]; }));
+    plan.lines.forEach(x => { Object.keys(x.w).forEach(k => { before[x.path + '/' + k] = x.l[k] === undefined ? null : x.l[k]; }); before[x.path + '/lookalikeFrom'] = null; });
+    const undo = pathm.join(__dirname, 'lookalike-undo-' + new Date().toISOString().replace(/[:.]/g, '-') + '.json');
+    fs.writeFileSync(undo, JSON.stringify(before, null, 1));
+    const keys = Object.keys(upd);
+    const patch = body => new Promise((res, rej) => { const rq = https.request(DB + '/.json', { method: 'PATCH', headers: { Authorization: 'Bearer ' + at, 'Content-Type': 'application/json' } }, r => { let d = ''; r.on('data', c => d += c); r.on('end', () => r.statusCode === 200 ? res() : rej(new Error(r.statusCode + ' ' + d.slice(0, 200)))); }); rq.on('error', rej); rq.end(JSON.stringify(body)); });
+    for (let i = 0; i < keys.length; i += 400) { const b = {}; keys.slice(i, i + 400).forEach(k => { b[k] = upd[k]; }); await patch(b); }
+    console.log('WRITTEN', keys.length, 'paths · undo:', undo);
+  }
 })().catch(e => { console.error('FAILED', e.stack || e); process.exit(1); });

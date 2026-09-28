@@ -30714,7 +30714,8 @@ function vpShopTable(rows, f) {
       <td colspan="${COLS.length}" style="text-align:left;padding:7px 10px">
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
           <b style="font-size:14px">${esc(o.orderNo || o.id)}</b>
-          <span class="pill">Custom — one customer order per piece</span>
+          <span class="pill">Customer orders${(m => m.size ? ' — ' + esc([...m].map(([k, n]) => k + ' ' + nf(n)).join(' · ')) : '')(
+            keep.reduce((m, { l }) => { const k = vpPlatformOf(l) || 'not known'; m.set(k, (m.get(k) || 0) + 1); return m; }, new Map()))}</span>
           <span class="muted" style="font-size:12px">${nf(bySku.size)} product(s) · ${nf(keep.length)} customer order line(s)</span>
           <span style="flex:1"></span>
           <span class="pill ${cls}">${esc(st)}</span>
@@ -30746,10 +30747,14 @@ function vpShopTable(rows, f) {
           const left = Math.max(0, vpQty(o, l) - vpDone(l));
           const no = String(l.shopOrderNo || '').trim() || '?';
           const ref = String(l.shopRef || '').trim();
-          return `<span class="pill${left ? '' : ' pill-ok'}" title="${esc(no)}${ref ? ' · ' + esc(ref) : ''} — ${
+          const plat = vpPlatformOf(l);
+          return `<span class="pill${left ? '' : ' pill-ok'}" title="${plat ? esc(plat) + ' order ' : ''}${esc(no)}${ref ? ' · ' + esc(ref) : ''} — ${
             left ? nf(left) + ' still to send' : 'done'}" style="font-size:11px">${esc(ref || no)}`
             + `<span class="muted">&times;${nf(vpQty(o, l))}</span></span>`;
-        }).join(' ');
+        }).join(' ')
+          /* WHERE THE ORDERS CAME FROM, under them (2026-09-28). */
+          + (p => p ? `<div class="muted" style="font-size:11px;line-height:1.3">${esc(p)}</div>` : '')(
+            [...new Set(items.map(({ l }) => vpPlatformOf(l)).filter(Boolean))].join(' / '));
         const l0 = g.items[0].l;
         /* One date for the product: every customer order for the same cloth is printed together, so
          * they are finished together too. */
@@ -30776,6 +30781,16 @@ function vpShopTable(rows, f) {
   }).join('');
 
   return `<div class="xlwrap"><table class="xl"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+}
+
+/** Where a customer order came from, for a printer who cannot read the order book: "Shopify · Ridhi". */
+function vpPlatformOf(l) {
+  const no = obUC(l && l.shopOrderNo);
+  const src = /^SHP-/.test(no) || /shopify/i.test(String((l && l.notes) || '')) ? 'Shopify'
+    : /^AMZ-/.test(no) ? 'Amazon' : /^B2B-/.test(no) ? 'B2B' : /^ONL-/.test(no) ? 'Online' : /^SPY-/.test(no) ? 'Shopify' : '';
+  const sku = obUC(l && l.sku);
+  const brand = String((l && l.brand) || '').trim() || (/^CPC/.test(sku) ? 'CPC' : /^R/.test(sku) ? 'Ridhi' : '');
+  return [src, brand].filter(Boolean).join(' · ');
 }
 
 function vpTable(rows, f) {
