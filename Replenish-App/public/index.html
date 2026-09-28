@@ -2156,7 +2156,9 @@
       <div id="odKpis" class="jw-kpiwrap"></div>
       <div class="card" style="padding:12px 14px">
         <div class="toolbar">
-          <select id="odView" style="flex:0 0 235px" title="The same order book, read four ways.">
+          <select id="odView" style="flex:0 0 235px" title="Orders — one line per order. Everything else is under More.">
+            <option value="orders">Orders — one line per order</option>
+            <optgroup label="More">
             <option value="book">Order book — pending</option>
             <option value="bookdone">Order book — complete &amp; handed over</option>
             <option value="track">Tracking — every order, start to finish</option>
@@ -2169,6 +2171,7 @@
             <option value="demand">Demand — printing &amp; cloth</option>
             <option value="democol">Demand — by colour &amp; product</option>
             <option value="demtot">Demand — fabric &amp; colour totals</option>
+            </optgroup>
           </select>
           <select id="odOrd" style="flex:0 0 200px"><option value="">All orders</option></select>
           <select id="odArt" style="flex:0 0 150px"><option value="">All articles</option></select>
@@ -3568,7 +3571,7 @@ onAuthStateChanged(auth, async user => {
     /* The name only — setting the whole item's text took its icon and its count with it. */
     if (b) { b.style.display = ''; const t = b.querySelector && b.querySelector('.nav-t'); (t || b).textContent = 'Shopify Orders'; }
     ['book', 'bookdone'].forEach(k => { const o = $('odView') && $('odView').querySelector('option[value="' + k + '"]'); if (o) o.remove(); });
-    if ($('odView')) $('odView').value = 'shopsku';
+    if ($('odView')) $('odView').value = 'orders';
   }
   syncNavGroups();
   /* The sidebar is now telling the truth, so it can be seen. The data loads below take their own
@@ -19066,7 +19069,7 @@ $('odTable').addEventListener('click', async e => {
 });
 
 /** Which view the Order Console is showing. */
-const ordView = () => (($('odView') || {}).value || 'book');
+const ordView = () => (($('odView') || {}).value || 'orders');
 
 function renderOrd() {
   /* The brands that appear on the book, so the filter never offers one with nothing behind it. */
@@ -19101,6 +19104,7 @@ function renderOrd() {
   if (v === 'demand') return renderOrdDemand();
   if (v === 'democol') return renderOrdDemandCol();
   if (v === 'demtot') return renderOrdDemandTot();
+  if (v === 'orders') return renderOrdSheet();
   if (v === 'track') return renderOrdTrack();
   if (v === 'shppipe') return renderOrdPipe();
   if (v === 'team') return renderOrdTeam();
@@ -20126,11 +20130,12 @@ $('odTable').addEventListener('click', e => { const t = e.target.closest('[data-
  *   line is shared among the orders wanting its SKU, oldest first, exactly as ordVendorAlloc deals it everywhere else.
  * The platform is the order number's: SHP / SPY Shopify, AMZ Amazon, B2B wholesale, ONL online; and whose, from the
  * master's brand for the SKU (else CPC… is CPC, R… is Ridhi). */
-const ORD_PLAT_SRC = { SHP: 'Shopify', SPY: 'Shopify', AMZ: 'Amazon', B2B: 'B2B', ONL: 'Online' };
+const ORD_PLAT_SRC = { SHP: 'Shopify', SPY: 'Shopify', ADJ: 'Shopify', AMZ: 'Amazon', B2B: 'B2B', ONL: 'Online' };
 function ordPlatOf(orderNo, sku) {
   const src = ORD_PLAT_SRC[String(obUC(orderNo)).split('-')[0]] || 'Other';
   const m = typeof mdbOf === 'function' ? mdbOf(sku) : null, k = obUC(sku);
-  const brand = String((m && m.brand) || '').trim() || (/^CPC/.test(k) ? 'CPC' : /^R/.test(k) ? 'Ridhi' : '');
+  const mb = String((m && m.brand) || '').trim();
+  const brand = VP_BRANDS[obUC(mb)] || mb || (/^CPC/.test(k) ? 'CPC' : /^R/.test(k) ? 'Ridhi' : '');
   return src + (brand ? ' · ' + brand : '');
 }
 const ORD_PLAT_STOCK = 'Stock — no customer order';
@@ -20202,6 +20207,117 @@ function renderOrdPrnPlat() {
     + (rows.length > ORD_CAP ? ` · showing ${nf(ORD_CAP)}` : '') + ' · Source and the search box narrow it · click a customer order for its whole journey';
   ordMoreBtn(rows.length);
 }
+
+/* ==== ORDERS — ONE LINE PER ORDER (Ravi, 2026-09-28: picked design 8, "Clean sheet") ====
+ * "ek anpad insan bhi samjh jay … order by order … sara order ek hi window me". Every order the book holds, whatever the
+ * platform, one line: platform, pieces, the step it is at (the furthest-back of its lines), who has it, how far that step
+ * has got, and days. Six steps only — the fine distinctions of the Tracking view fold into them. Clicking the order
+ * opens its whole journey (ordJourney). Nothing here is new data: ordLines, ordTrackStage and the registers. */
+const ORD_SHEET_STEPS = [
+  ['printer', 'At printer', '#6D4BD8', '#EFEAFD'], ['cut', 'Cutting', '#2F6FE0', '#E6EEFD'], ['karigar', 'With karigar', '#0B8C8C', '#DFF4F2'],
+  ['press', 'Press', '#B45309', '#FEF1DE'], ['ready', 'Ready to ship', '#15803D', '#DFF6E7'], ['done', 'Done', '#4A5A3C', '#EDF0E7']];
+const ORD_SHEET_LATE = ['late', 'Late — no work 5+ days', '#B91C1C', '#FDE8E7'];
+const ordSheetStepOf = r => {
+  if (r.handedAt || r.shopDoneAt) return 'done';
+  const i = ordTrackStage(r);
+  return i === 0 ? 'printer' : i === 1 ? 'cut' : (i === 2 || i === 3) ? 'karigar' : i === 4 ? 'press' : i === 9 ? 'done' : 'ready';
+};
+/** Who holds each order's pieces with a karigar now: orderNo → Map(karigar → pieces not back). */
+let ORD_KAR_IX = { src: null, n: -1, map: null };
+function ordKarigarsOf(orderNo) {
+  const base = PT.base || PT_NONE;
+  if (ORD_KAR_IX.src !== base || ORD_KAR_IX.n !== base.length || !ORD_KAR_IX.map) {
+    const m = new Map();
+    base.forEach(r => {
+      if (!r || !r.orderNo) return;
+      const left = (Number(r.issuePieces) || 0) - (Number(r.receivedPieces) || 0) - (Number(r.rejectionPieces) || 0);
+      if (!(left > 0)) return;
+      const k = obUC(r.orderNo), who = String(r.empName || '').trim() || 'karigar';
+      if (!m.has(k)) m.set(k, new Map());
+      m.get(k).set(who, (m.get(k).get(who) || 0) + left);
+    });
+    ORD_KAR_IX = { src: base, n: base.length, map: m };
+  }
+  return ORD_KAR_IX.map.get(obUC(orderNo)) || new Map();
+}
+function ordSheetRows() {
+  const idx = s => ORD_SHEET_STEPS.findIndex(x => x[0] === s);
+  const ev = ordEvents(), now = Date.now(), by = new Map();
+  let lines = ordApply(ordLines(), ordFilters());
+  if (SHOP_ONLY()) lines = lines.filter(r => ordSrcOf(r.orderNo) === 'SHP');
+  lines.forEach(r => {
+    let o = by.get(r.orderNo);
+    if (!o) { o = { orderNo: r.orderNo, ref: r.shopOrderNo || '', date: r.orderDate || '', sku: r.sku, lines: 0, pcs: 0, step: 'done',
+      given: 0, back: 0, cut: 0, cutOf: 0, issued: 0, received: 0, pressed: 0, printers: new Set(), addedMs: 0 }; by.set(r.orderNo, o); }
+    const v = ordVendorOf(r.orderNo, r.sku), cap = x => Math.min(r.qty, Number(x) || 0);
+    o.lines++; o.pcs += r.qty; o.addedMs = Math.max(o.addedMs, r.addedMs || 0);
+    o.given += cap(r.printer ? r.qty : (v ? v.given : 0)); o.back += cap(r.printer ? r.printed : (v ? v.back : 0));
+    if (r.printer) o.printers.add(voName(r.printer)); else if (v) v.parts.forEach(pp => o.printers.add(voName(pp.vendorCode)));
+    if (r.cutReq) { o.cut += cap(r.cut); o.cutOf += r.qty; }
+    o.issued += cap(r.issued); o.received += cap(r.received); o.pressed += cap(r.pressed);
+    const st = ordSheetStepOf(r);
+    if (idx(st) < idx(o.step)) o.step = st;
+  });
+  return [...by.values()].map(o => {
+    const last = ev.last.get(o.orderNo) || null, placed = ptDtMs(o.date) || 0;
+    const idle = Math.floor((now - (last ? last.ms : placed || now)) / 864e5);
+    const kar = ordKarigarsOf(o.orderNo);
+    const lastOf = kind => ev.list.find(e => e.orderNo === o.orderNo && e.kind === kind) || null;
+    const who = o.step === 'printer' ? [...o.printers].join(', ')
+      : o.step === 'karigar' ? [...kar.entries()].sort((a, b) => b[1] - a[1]).map(([k, n]) => k + ' ' + nf(n)).join(' · ')
+      : o.step === 'cut' ? ((lastOf('cut') || {}).by || '')
+      : o.step === 'press' ? ((lastOf('press') || {}).by || '')
+      : (last && last.by) || '';
+    const done = o.step === 'printer' ? `${nf(o.back)} of ${nf(o.given || o.pcs)} back`
+      : o.step === 'cut' ? `${nf(o.cut)} of ${nf(o.cutOf || o.pcs)} cut`
+      : o.step === 'karigar' ? `${nf(o.received)} of ${nf(o.pcs)} back`
+      : o.step === 'press' ? `${nf(o.pressed)} of ${nf(o.pcs)} pressed`
+      : o.step === 'ready' ? `${nf(o.pcs)} made` : 'handed over';
+    return Object.assign(o, { last, who, done, days: placed ? Math.max(0, Math.floor((now - placed) / 864e5)) : null, idle,
+      late: o.step !== 'done' && idle >= ORD_PIPE_STALE_DAYS });
+  });
+}
+function renderOrdSheet() {
+  if (!ORD.shopTrk && !ORD.shopTrkBusy && typeof ordTrackShopLoad === 'function') ordTrackShopLoad();
+  const all = ordSheetRows();
+  const key = /^os:/.test(ORD_KPI) ? ORD_KPI.slice(3) : '';
+  const rows = ordNewest(key === 'late' ? all.filter(o => o.late) : key ? all.filter(o => o.step === key) : all.filter(o => o.step !== 'done'));
+  ORD.rows = rows;
+  const src = (($('odSrc') || {}).value || '');
+  const count = k => all.filter(o => (k === 'late' ? o.late : o.step === k)).length;
+  const tile = ([k, l, c, bg]) => { const on = key === k;
+    return `<button type="button" data-odkpi="os:${k}" style="display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:12px 14px;border-radius:16px;cursor:pointer;text-align:left;`
+      + `background:${bg};color:${c};border:2px solid ${on ? c : 'transparent'};font:inherit;min-width:0">`
+      + `<b style="font-size:24px;line-height:1.1">${nf(count(k))}</b><span style="font-weight:700;font-size:13px">${esc(l)}</span></button>`; };
+  const chip = (v, l) => `<button type="button" data-ordsrc="${v}" style="height:38px;padding:0 14px;border-radius:999px;font:inherit;font-weight:700;cursor:pointer;`
+    + (src === v ? 'background:#17202B;color:#fff;border:1px solid #17202B' : 'background:var(--card,#fff);border:1px solid var(--line,#E6E9EF)') + `">${l}</button>`;
+  $('odKpis').innerHTML = `<div style="display:flex;flex-direction:column;gap:10px;width:100%">
+    <div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px">${ORD_SHEET_STEPS.map(tile).join('') + tile(ORD_SHEET_LATE)}</div>
+    ${SHOP_ONLY() ? '' : `<div style="display:flex;gap:8px;flex-wrap:wrap">${chip('', 'All')}${chip('SHP', 'Shopify')}${chip('AMZ', 'Amazon')}${chip('B2B', 'B2B')}</div>`}</div>`;
+  const pill = st => { const x = ORD_SHEET_STEPS.find(y => y[0] === st) || ORD_SHEET_STEPS[0];
+    return `<span style="display:inline-block;padding:3px 10px;border-radius:999px;font-weight:700;font-size:12.5px;background:${x[3]};color:${x[2]}">${esc(x[1])}</span>`; };
+  const head = ordHead([['Order', ''], ['Platform', ''], ['Pcs', 'num'], ['Step', ''], ['With', ''], ['Done', ''], ['Days', 'num']]);
+  const body = rows.slice(0, ORD_CAP).map(o => '<tr>'
+    + `<td class="frz" style="text-align:left"><a href="#" data-ordj="${esc(o.orderNo)}" title="Open this order — every item, start to finish" style="font-weight:800">${esc(o.ref || o.orderNo)}</a>`
+      + (o.ref ? `<div class="muted" style="font-size:11px">${esc(o.orderNo)}</div>` : '') + '</td>'
+    + `<td style="text-align:left">${esc(ordPlatOf(o.orderNo, o.sku))}</td>`
+    + `<td class="num" style="font-weight:700">${nf(o.pcs)}</td>`
+    + `<td style="text-align:left">${pill(o.step)}</td>`
+    + `<td style="text-align:left">${o.who ? esc(o.who) : '<span class="muted">—</span>'}</td>`
+    + `<td style="text-align:left">${esc(o.done)}</td>`
+    + `<td class="num" style="font-weight:800${o.late ? ';color:#B91C1C' : ''}" title="${o.late ? 'Nothing entered against it for ' + nf(o.idle) + ' days' : 'Days since it was placed'}">${o.days == null ? '—' : nf(o.days)}${o.late ? ' ⚠' : ''}</td>`
+    + '</tr>').join('');
+  $('odTable').innerHTML = head + '<tbody>' + (body || '<tr><td colspan="7" class="muted" style="padding:16px;text-align:left">No order here.</td></tr>') + '</tbody>';
+  $('odMsg').className = 'muted';
+  $('odMsg').textContent = `${nf(rows.length)} order(s)` + (key ? '' : ' in the factory') + (rows.length > ORD_CAP ? ` · showing ${nf(ORD_CAP)}` : '')
+    + ' · click an order to open it · the other views are under More in the list on the left';
+  ordMoreBtn(rows.length);
+}
+if ($('odKpis')) $('odKpis').addEventListener('click', e => {
+  const t = e.target.closest('[data-ordsrc]'); if (!t) return;
+  if ($('odSrc')) $('odSrc').value = t.getAttribute('data-ordsrc');
+  renderOrd();
+});
 
 function renderOrdTrack() {
   if (!ORD.shopTrk && !ORD.shopTrkBusy) ordTrackShopLoad();
