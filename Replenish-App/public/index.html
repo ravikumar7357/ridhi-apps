@@ -27198,8 +27198,17 @@ async function vlAcceptWrite(rows, qtyFor, note, rejFor) {
       const l = lines[r.li]; if (!l) return;
       const dels = voDels(l).map(x => Object.assign({}, x));
       const d = dels[r.di]; if (!d) return;
-      const q = qtyFor(r, d);
-      if (!(q >= 0)) return;
+      const asked = qtyFor(r, d);
+      if (!(asked >= 0)) return;
+      /* NEVER MORE THAN THE ORDER (Ravi, 2026-09-28: "accept sirf order ke equal hi ho"). What the other deliveries on
+       * the line are worth comes off first; anything past the order stays on this delivery as `beyond` — seen by
+       * everybody, credited to nobody. Bulk accepts are capped the same way, row after row on the same line. */
+      const lineOrd = voQty(found.o, l);
+      /* Earlier deliveries fill the order first: they count at what they are worth; a LATER one counts only once it is
+       * accepted, so of two challans past the order it is the later one that is cut, whatever order they are ticked in. */
+      const others = dels.reduce((a, x, i) => a + (i === r.di ? 0 : i < r.di ? vlQtyOf(x) : (vlOk(x) ? vlQtyOf(x) : 0)), 0);
+      const q = lineOrd > 0 ? Math.min(asked, Math.max(0, lineOrd - others)) : asked;
+      const beyond = Math.max(0, asked - q);
       /* WHAT WAS SAID BEFORE IS KEPT. This figure decides what a printer is owed and paid for, so a
        * correction has to leave a trail — otherwise there is nothing to settle an argument with.
        * Capped at ten, oldest dropped: a trail, not an archive. */
@@ -27211,6 +27220,7 @@ async function vlAcceptWrite(rows, qtyFor, note, rejFor) {
         while (was.length > 10) was.shift();
       }
       d.ok = { qty: q, by: ME.email, at: now };
+      if (beyond > 0) d.ok.beyond = Math.round(beyond * 100) / 100;
       if (was.length) d.ok.was = was;
       /* Pieces looked at and sent back. Stored beside the good figure, never inside it — the printer
        * is credited with ok.qty alone, so a returned piece stays owed and has to be made again. */
@@ -27258,8 +27268,9 @@ function vlAcceptOne(rowKey) {
    * will still be paid for. The other deliveries on this line are counted at what they are worth —
    * accepted where accepted, claimed where not — so the figure matches what the order screen shows. */
   const lineOrdered = voQty(f.o, f.l);
-  const otherDone = f.dels.reduce((a, x, i) => a + (i === r.di ? 0 : vlQtyOf(x)), 0);
+  const otherDone = f.dels.reduce((a, x, i) => a + (i === r.di ? 0 : i < r.di ? vlQtyOf(x) : (vlOk(x) ? vlQtyOf(x) : 0)), 0);
   const roomOnOrder = Math.max(0, lineOrdered - otherDone);
+  const proposed = prev ? wasQty : Math.min(claimed, roomOnOrder);
   ptOpenDialog({
     title: prev ? 'Change what was received' : 'Goods received?',
     subtitle: `${r.vendor}  ·  ${r.orderNo}  ·  ${r.sku || r.what}`,
@@ -27268,12 +27279,14 @@ function vlAcceptOne(rowKey) {
       + 'short means the pieces never arrived, returned means they did and were rejected. The printer '
       + 'is credited with what you kept, so anything returned stays owed and has to be made again.'
       + ` If MORE arrived than the ${nf(claimed)} on the challan, put in what you actually took — say why `
-      + 'in the note, because the printer is paid for it.'
+      + 'in the note. Nothing past the order is ever accepted: '
+      + (claimed > roomOnOrder ? `the printer sent ${nf(claimed)} ${r.unit} and the order has room for ${nf(roomOnOrder)}, so `
+        + `${nf(claimed - roomOnOrder)} ${r.unit} are recorded as delivered beyond the order and not credited.` : 'anything beyond it is recorded as delivered, not credited.')
       + (prev ? ` This was accepted as ${nf(wasQty)} kept${wasRej ? ' and ' + nf(wasRej) + ' returned' : ''} `
         + `by ${String(prev.by || '').split('@')[0] || 'somebody'}. Change it if pieces were rejected `
         + 'afterwards — what it said before is kept on the record.' : ''),
     fields: [
-      { key: 'vlq', label: `Received — kept (${r.unit})`, type: 'number', min: 0, value: wasQty },
+      { key: 'vlq', label: `Received — kept (${r.unit})`, type: 'number', min: 0, value: proposed },
       { key: 'vlroom', label: 'This line still has room for', type: 'text', readonly: true,
         value: nf(roomOnOrder) + ' ' + r.unit + ' of the ' + nf(lineOrdered) + ' ordered' },
       { key: 'vlr', label: `Returned — sent back (${r.unit})`, type: 'number', min: 0, value: wasRej || '' },
@@ -27298,13 +27311,15 @@ function vlAcceptOne(rowKey) {
       const err = await vlAcceptWrite([r], () => q, note, () => rj);
       if (err) return err;
       renderVlog();
+      const beyondN = Math.max(0, q - roomOnOrder);
       const shortBy = claimed - q - rj;
       /* SAID OUT LOUD AFTERWARDS TOO, and the harder fact with it: whether this pushes the line past
        * what was ever ordered. A gate that took in two extra pieces has done nothing wrong; an order
        * that is now being paid for more than it asked for is somebody's decision to make. */
       const overOrder = Math.max(0, otherDone + q - lineOrdered);
       $('vlMsg').className = overOrder > 0 ? 'err' : 'muted';
-      $('vlMsg').textContent = `${nf(q)} ${r.unit} kept against ${r.orderNo}`
+      $('vlMsg').textContent = `${nf(Math.min(q, roomOnOrder))} ${r.unit} kept against ${r.orderNo}`
+        + (beyondN > 0 ? ` (the order had room for no more — ${nf(beyondN)} ${r.unit} recorded as delivered beyond it, not credited)` : '')
         + (rj ? `, ${nf(rj)} returned` : '')
         + (over > 0 ? `, ${nf(over)} MORE than the ${nf(claimed)} the printer recorded — ${r.vendor} is credited for it.`
           : shortBy > 0 ? `, ${nf(shortBy)} short of the ${nf(claimed)} the printer recorded.` : '.')
@@ -27546,7 +27561,8 @@ function renderVlog() {
       const rej = r.ok ? (parseFloat(r.ok.rej) || 0) : 0;
       /* THREE different numbers, and none of them stands in for another: what the printer said, what
        * was kept, what was sent back — and whatever is left over never arrived at all. */
-      const shortBy = r.ok ? Math.max(0, r.qty - okQty - rej) : 0;
+      const beyond = r.ok ? (parseFloat(r.ok.beyond) || 0) : 0;
+      const shortBy = r.ok ? Math.max(0, r.qty - okQty - rej - beyond) : 0;
       const over = vlOver(r.del);
       const never = r.del && r.del.no && !r.ok;
       const acc = never
@@ -27559,6 +27575,7 @@ function renderVlog() {
          * is the one that costs money and it should not look identical to a clean receipt. */
         ? `<span style="font-weight:700;color:${over > 0 ? '#7f6000' : (okQty + rej < r.qty ? 'var(--bad)' : '#166534')}">${nf(okQty)}</span>`
           + (over > 0 ? `<div style="font-size:10.5px;color:#7f6000;font-weight:600" title="The printer's challan said ${nf(r.qty)} ${esc(r.unit)}. More was taken in, and they are credited for it.">+${nf(over)} over the challan</div>` : '')
+          + (beyond > 0 ? `<div style="font-size:10.5px;color:#7f6000;font-weight:600" title="The printer delivered ${nf(r.qty)} ${esc(r.unit)}; the order had room for ${nf(okQty + rej)}. The rest is recorded, not credited.">${nf(beyond)} beyond the order — not accepted</div>` : '')
           + `<div class="muted" style="font-size:10.5px">${esc(String(r.ok.by || '').split('@')[0])}`
           + `${shortBy ? ' · ' + nf(shortBy) + ' short' : ''}</div>`
           + (r.ok.note ? `<div class="muted" style="font-size:10.5px">${esc(r.ok.note)}</div>` : '')
@@ -30328,14 +30345,15 @@ function vpHistRows() {
         if (!sent) return;
         const ok = vlOk(d), no = vlNo(d);
         const kept = no ? 0 : (ok ? (parseFloat(ok.qty) || 0) : null);   // null = nobody has answered
+        const beyond = ok ? (parseFloat(ok.beyond) || 0) : 0;            // sent past the order: recorded, not credited
         out.push({
           date: String((d && d.date) || ''), day: voDayOf(d && d.date),
           orderNo: o.orderNo || o.id, run, unit: run ? 'm' : 'pcs',
           sku: run ? (l.fabricType || '') : (l.sku || ''),
           what: run ? [l.fabricType, l.color, l.printDirection].filter(Boolean).join(' · ')
                     : [l.articleSubtype || l.articleType, l.color, l.size].filter(Boolean).join(' · '),
-          sent, kept, no: !!no, ok: !!ok,
-          short: kept === null ? 0 : Math.max(0, sent - kept),
+          sent, kept, no: !!no, ok: !!ok, beyond,
+          short: kept === null ? 0 : Math.max(0, sent - kept - beyond),
           note: String((ok && ok.note) || (no && no.note) || ''),
           at: String((ok && ok.at) || (no && no.at) || (d && d.at) || ''),
         });
@@ -30773,6 +30791,7 @@ function vpHistTable(rows) {
   const head = COLS.map(h => `<th${['Sent', 'Accepted', 'Short'].indexOf(h) >= 0 ? ' class="num"' : ''}>${esc(h)}</th>`).join('');
   const body = rows.map(r => {
     const status = r.no ? '<span class="pill pill-out">did not arrive</span>'
+      : r.ok && r.beyond > 0 ? `<span class="pill pill-low" title="Only what the order asked for is accepted.">${nf(r.beyond)} more than the order — not accepted</span>`
       : r.ok ? (r.short > 0 ? `<span class="pill pill-low">${nf(r.short)} short</span>`
                             : '<span class="pill pill-ok">accepted in full</span>')
       : '<span class="pill">waiting to be checked</span>';

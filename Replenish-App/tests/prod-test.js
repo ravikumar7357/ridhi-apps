@@ -21302,6 +21302,36 @@ console.log('\n== the vendor portal: a Completed tab (Ravi, 28 Sep: "jo vendor c
   ok('the Completed tab draws the finished line and not the open one', /ZZDONE-6060/.test(els.vpBody.innerHTML) && !/ZZOPEN-6060/.test(els.vpBody.innerHTML));
   A.setVP(wasVP); ME.admin = wasAdmin;
 }
+console.log('\n== never more accepted than the order (Ravi, 28 Sep: "accept sirf order ke equal hi ho … dikhay ki usne delivery itne ka diya")');
+await (async () => {
+  const wasVO = A.VO(), wasAdmin = ME.admin, wasNet = NET.on;
+  A.setVO({ rows: [
+    { vendorCode: 'VND009', id: 'cap1', orderNo: 'VPO-CAP1', orderType: 'cut', orderDate: '25/09/2026',
+      lines: [{ sku: 'CPC005-13', articleSubtype: 'Rectangular Tablecloth', color: 'Agate Green', size: '72X160', qty: 30, deliveries: [
+        { qty: 33, date: '28/09/2026', by: 'p1@vendors-tfr.app', at: '2026-09-28T05:00:00Z' }] }] },
+    { vendorCode: 'VND009', id: 'cap2', orderNo: 'VPO-CAP2', orderType: 'running', orderDate: '25/09/2026',
+      lines: [{ fabricType: 'Cambric', color: 'Agate Green', printDirection: 'Vertical', meters: 500, deliveries: [
+        { qty: 300, date: '27/09/2026', by: 'p1@vendors-tfr.app', at: '2026-09-27T05:00:00Z' },
+        { qty: 300, date: '28/09/2026', by: 'p1@vendors-tfr.app', at: '2026-09-28T05:00:00Z' }] }] },
+  ], busy: false, err: '', at: '', shown: [] });
+  ['vlVendor', 'vlType', 'vlFrom', 'vlTo', 'vlQ', 'vlState'].forEach(i => { els[i].value = ''; });
+  ME.admin = true; NET.on = true; A.VL_PICKED().clear(); A.renderVlog();
+  const r1 = A.VLOG().rows.find(r => r.orderNo === 'VPO-CAP1');
+  ok('33 delivered on an order of 30: 30 are accepted', (await A.vlAcceptWrite([r1], (r, d) => parseFloat(d.qty) || 0, '')) === ''
+     && A.voLines(A.VO().rows.find(o => o.id === 'cap1'))[0].deliveries[0].ok.qty === 30);
+  const d1 = A.voLines(A.VO().rows.find(o => o.id === 'cap1'))[0].deliveries[0];
+  ok('…the 3 extra are kept on the delivery as beyond the order', d1.ok.beyond === 3 && d1.qty === 33, JSON.stringify(d1));
+  ok('…and the line counts 30 done, not 33', A.voDone(A.voLines(A.VO().rows.find(o => o.id === 'cap1'))[0]) === 30);
+  A.renderVlog();
+  ok('the staff row says it', /3 beyond the order — not accepted/.test(els.vlTable.innerHTML));
+  /* Bulk: two deliveries of 300 m on 500 m ordered — the second is cut to the 200 m left. */
+  const two = A.VLOG().rows.filter(r => r.orderNo === 'VPO-CAP2');
+  ok('a bulk accept of 300 + 300 m on 500 m ordered takes 300 and 200', two.length === 2 && (await A.vlAcceptWrite(two, (r, d) => parseFloat(d.qty) || 0, '')) === ''
+     && A.voLines(A.VO().rows.find(o => o.id === 'cap2'))[0].deliveries.map(d => d.ok.qty).join('+') === '300+200'
+     && A.voLines(A.VO().rows.find(o => o.id === 'cap2'))[0].deliveries[1].ok.beyond === 100,
+     JSON.stringify(A.voLines(A.VO().rows.find(o => o.id === 'cap2'))[0].deliveries.map(d => d.ok)));
+  A.setVO(wasVO); ME.admin = wasAdmin; NET.on = wasNet;
+})();
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
 })();
