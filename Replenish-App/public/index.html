@@ -20286,12 +20286,13 @@ function renderOrdSheet() {
   const src = (($('odSrc') || {}).value || '');
   const count = k => all.filter(o => (k === 'late' ? o.late : o.step === k)).length;
   const tile = ([k, l, c, bg]) => { const on = key === k;
-    return `<button type="button" data-odkpi="os:${k}" style="display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:12px 14px;border-radius:16px;cursor:pointer;text-align:left;`
+    return `<button type="button" data-odkpi="os:${k}" style="display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:12px 14px;border-radius:16px;cursor:pointer;text-align:left;box-shadow:none;transform:none;`
       + `background:${bg};color:${c};border:2px solid ${on ? c : 'transparent'};font:inherit;min-width:0">`
       + `<b style="font-size:24px;line-height:1.1">${nf(count(k))}</b><span style="font-weight:700;font-size:13px">${esc(l)}</span></button>`; };
-  const chip = (v, l) => `<button type="button" data-ordsrc="${v}" style="height:38px;padding:0 14px;border-radius:999px;font:inherit;font-weight:700;cursor:pointer;`
-    + (src === v ? 'background:#17202B;color:#fff;border:1px solid #17202B' : 'background:var(--card,#fff);border:1px solid var(--line,#E6E9EF)') + `">${l}</button>`;
-  $('odKpis').innerHTML = `<div style="display:flex;flex-direction:column;gap:10px;width:100%">
+  /* The app's own button style is white text on blue with a shadow; each of these sets its own colours and none. */
+  const chip = (v, l) => `<button type="button" data-ordsrc="${v}" style="height:38px;padding:0 16px;border-radius:999px;font:inherit;font-weight:700;cursor:pointer;box-shadow:none;transform:none;`
+    + (src === v ? 'background:#17202B;color:#fff;border:1px solid #17202B' : 'background:#fff;color:#17202B;border:1px solid #D5DCE5') + `">${l}</button>`;
+  $('odKpis').innerHTML = `<div style="display:flex;flex-direction:column;gap:10px;width:100%;margin-bottom:14px">
     <div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px">${ORD_SHEET_STEPS.map(tile).join('') + tile(ORD_SHEET_LATE)}</div>
     ${SHOP_ONLY() ? '' : `<div style="display:flex;gap:8px;flex-wrap:wrap">${chip('', 'All')}${chip('SHP', 'Shopify')}${chip('AMZ', 'Amazon')}${chip('B2B', 'B2B')}</div>`}</div>`;
   const pill = st => { const x = ORD_SHEET_STEPS.find(y => y[0] === st) || ORD_SHEET_STEPS[0];
