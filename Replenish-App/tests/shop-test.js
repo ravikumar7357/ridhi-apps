@@ -1795,6 +1795,35 @@ console.log('\n== THE PRODUCTION BUCKET (Ravi, 2026-09-26) ==');
     ok('uploading the same sheet again opens nothing twice — the rows are no longer in the bucket', rd.keys.length === 0 && rd.skipped.length === 3, JSON.stringify(rd.skipped));
     ok('a sheet without Line ID and Open is refused', /Line ID/.test(A.shpBucketXlRead([['SKU'], ['X']]).err || ''));
   }
+  /* #3873, 2026-09-28: a "READY TO SHIP" note hid three pieces nobody had made — out of the bucket, and its one
+   * production line closed as "marked done". */
+  {
+    const wasShop = A.SHOP();
+    PTG.mdb = PTG.mdb.concat([{ sku: 'RCNBGRN', articleType: 'Napkin', subtype: 'Plain', color: 'Green', size: '20x20' }]);
+    A.setSHOP({ orders: [mk('b9', '#5009', [['RCNBGRN', 1], ['RCNBRED', 1]], { note: 'READY TO SHIP' })], from: '', to: '', tz: '', at: 'x' });
+    A.renderShop();
+    const o = A.soRows().find(r => r.no === '#5009');
+    ok('a READY TO SHIP order still reads as marked done', o && o.handled === true);
+    const g = A.shpBucket().find(x => x.id === 'b9' && x.sku === 'RCNBGRN');
+    ok('…but its line nothing can fill waits in the bucket, the note shown', g && g.kind === 'make' && /READY TO SHIP/.test(g.why),
+       JSON.stringify(A.shpBucket().filter(x => x.id === 'b9').map(x => [x.sku, x.kind, x.why])));
+    ok('…its stock-covered line does not — that one is the shipping team\'s', !A.shpBucket().some(x => x.id === 'b9' && x.sku === 'RCNBRED'));
+    /* The note still closes production lines in general — most such orders had the piece made, and "READY TO SHIP"
+     * is written when it is (48 orders on 28 Sep, most with their line already on the book). */
+    ok('…the note still means "marked done" for a line opened the usual way', A.shpDoneWhy(o, 'RCNBGRN') === 'marked done', A.shpDoneWhy(o, 'RCNBGRN'));
+    ok('…opening it from the bucket writes it', (await A.shpBucketRun([g.key], '')) === '' && !!RT['pt_orderBook/ob_shp_SHP-5009_RCNBGRN'],
+       Object.keys(RT).filter(k => /5009/.test(k)).join(' '));
+    ok('…and records that it was opened with the note already there', /READY TO SHIP/.test((RT['pt_orderBook/ob_shp_SHP-5009_RCNBGRN'] || {}).openedPastNote || ''),
+       JSON.stringify(RT['pt_orderBook/ob_shp_SHP-5009_RCNBGRN']));
+    A.renderShop();
+    await A.shpSyncAll({ maintain: true });
+    /* The patch lands as separate paths ("…/shopDoneAt"), and the screen's own copy is PTG.ob — both are looked at. */
+    const closed = Object.keys(RT).some(k => /ob_shp_SHP-5009_RCNBGRN\/shopDoneAt$/.test(k) && RT[k])
+      || (PTG.ob || []).some(x => x && /SHP-5009_RCNBGRN$/.test(x.id || '') && x.shopDoneAt);
+    ok('…and the automatic run does not close it again as "marked done"', !!RT['pt_orderBook/ob_shp_SHP-5009_RCNBGRN'] && !closed,
+       Object.keys(RT).filter(k => /5009/.test(k)).join(' '));
+    A.setSHOP(wasShop); A.renderShop();
+  }
   ok('a cancelled or refunded line is over too, and says which', A.shpDoneWhy({ cancelled: true }, 'X') === 'cancelled'
      && A.shpDoneWhy({ items: [{ sku: 'X', qty: 2, rq: 2, ffl: 'unfulfilled' }] }, 'X') === 'refunded');
 }

@@ -47616,7 +47616,7 @@ function shpSkuFromTitle(name, variant) {
   return best && !tied ? best : null;
 }
 
-function shpNeeds(r, noSku) {
+function shpNeeds(r, noSku, opts) {
   const out = new Map();
   const add = (sku, qty, why, adjId, name, img, pcs, sets, viaTitle) => {
     const s = obUC(sku);
@@ -47660,7 +47660,9 @@ function shpNeeds(r, noSku) {
     const m = shpSkuFromTitle(i && i.name, i && i.variant);
     return m ? { sku: obUC(m.sku), via: 'matched to the master database by its title' } : { sku: '', via: '' };
   };
-  if (r.items && !r.cancelled && !r.handled && !r.shipped) {
+  /* evenHandled (2026-09-28): the bucket and an opening from it look past a "done / ready" note — a person decides
+   * there, with the note in front of them. #3873 said "READY TO SHIP" with three pieces never made. */
+  if (r.items && !r.cancelled && (!r.handled || (opts && opts.evenHandled)) && !r.shipped) {
     r.items.forEach(i => {
       /* THIS LINE HAS GONE. Whether the order calls itself partial or fulfilled does not matter —
        * what is in transit is not waiting to be made. */
@@ -47769,7 +47771,7 @@ function shpPlanOrder(o, full, assigned, opts) {
 
   const obKey = sku => 'ob_shp_' + no + '_' + sku;
   const noSku = [];
-  let want = shpNeeds(o, noSku);
+  let want = shpNeeds(o, noSku, O.only ? { evenHandled: true } : undefined);
   if (O.only) want = want.filter(w => O.only.has(w.sku));
   if (O.force) O.force.forEach((f, sku) => {
     if (want.some(w => w.sku === sku)) return;
@@ -47841,6 +47843,9 @@ function shpPlanOrder(o, full, assigned, opts) {
       if (x.shopDoneAt) return;
       const why = shpDoneWhy(o, sk);
       if (!why) return;
+      /* Opened by hand from the bucket with the "done / ready" note already in front of that person: the note
+       * cannot close it again — only Shopify shipping it, a cancel or a refund can (#3873, 2026-09-28). */
+      if (why === 'marked done' && x.openedPastNote) return;
       const key = x.id || x._key || obKey(sk);
       out.patch['pt_orderBook/' + key + '/shopDoneAt'] = now;
       out.patch['pt_orderBook/' + key + '/shopDoneWhy'] = why;
@@ -47886,9 +47891,12 @@ function shpPlanOrder(o, full, assigned, opts) {
       uploadedBy: ME.email, uploadedAt: was ? (was.uploadedAt || now) : now,
     };
     /* WHO OPENED IT, AND WHETHER THE STOCK SAID NOT TO (2026-09-26). */
-    if (!was && (O.only || O.force)) { row.openedBy = ME.email; row.openedAt = now; row.openedFrom = 'bucket'; }
+    if (!was && (O.only || O.force)) {
+      row.openedBy = ME.email; row.openedAt = now; row.openedFrom = 'bucket';
+      if (o.handled) row.openedPastNote = String(o.handledWhy || 'marked done');
+    }
     if (!was && O.force && O.force.has(g.sku)) { row.forced = true; row.forcedWhy = String(O.force.get(g.sku).why || ''); }
-    if (was) ['openedBy', 'openedAt', 'openedFrom', 'forced', 'forcedWhy'].forEach(f => { if (was[f] !== undefined) row[f] = was[f]; });
+    if (was) ['openedBy', 'openedAt', 'openedFrom', 'forced', 'forcedWhy', 'openedPastNote'].forEach(f => { if (was[f] !== undefined) row[f] = was[f]; });
     /* Unchanged rows are not rewritten — this runs after every fetch, and `uploadedAt` alone would
      * make six hundred untouched rows look new. */
     const same = was && was.qty === row.qty && was.adjId === row.adjId && was.remarks === row.remarks
@@ -48069,8 +48077,8 @@ function shpBucketMake() {
   const opened = new Set((PTG.ob || []).filter(x => x && x.shopOrderId).map(x => String(x.shopOrderId) + '|' + obUC(x.sku)));
   const out = [];
   (SO_ALL_ROWS || []).forEach(o => {
-    if (!o || !o.id || o.cancelled || o.shipped || o.handled || !soIsPending(o)) return;
-    shpNeeds(o).forEach(w => { if (!opened.has(String(o.id) + '|' + w.sku)) out.push({ id: String(o.id), sku: w.sku, kind: 'make' }); });
+    if (!o || !o.id || o.cancelled || o.shipped || !(o.handled || soIsPending(o))) return;
+    shpNeeds(o, undefined, { evenHandled: true }).forEach(w => { if (!opened.has(String(o.id) + '|' + w.sku)) out.push({ id: String(o.id), sku: w.sku, kind: 'make' }); });
   });
   return out;
 }
@@ -48079,14 +48087,17 @@ function shpBucketBuild() {
   if (!SHOP_STOCK_LOADED || !SHOP_INDIA_LOADED || SHOP_INDIA_ERR) return out;
   const opened = new Set((PTG.ob || []).filter(x => x && x.shopOrderId).map(x => String(x.shopOrderId) + '|' + obUC(x.sku)));
   (SO_ALL_ROWS || []).forEach(o => {
-    if (!o || !o.id || o.cancelled || o.shipped || o.handled) return;
+    if (!o || !o.id || o.cancelled || o.shipped) return;
     const id = String(o.id), isOpen = sku => opened.has(id + '|' + sku);
     const mine = new Set();
-    shpNeeds(o).forEach(w => {
+    const noted = o.handled ? ' · the order is marked done (' + (o.handledWhy || 'a note says so') + ') — check it is not already made before opening' : '';
+    shpNeeds(o, undefined, { evenHandled: true }).forEach(w => {
       mine.add(w.sku);
       if (!isOpen(w.sku)) out.push(Object.assign({ o, id, key: id + '|' + w.sku, sku: w.sku, qty: w.qty, pcs: w.pcs, shopQty: w.shopQty, kind: 'make',
-        why: (w.why || []).join(' + '), name: w.name || '', img: w.img || '', adj: w.adjId || '' }, shpStockOf(o, w.sku)));
+        why: (w.why || []).join(' + ') + noted, noted: !!noted, name: w.name || '', img: w.img || '', adj: w.adjId || '' }, shpStockOf(o, w.sku)));
     });
+    /* A marked-done order's stock-covered lines are the shipping team's business, not production's. */
+    if (o.handled) return;
     (o.items || []).forEach(i => {
       if (shpLineShipped(i)) return;
       const sku = obUC(i && i.sku);
