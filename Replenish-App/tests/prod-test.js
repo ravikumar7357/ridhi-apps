@@ -14893,8 +14893,8 @@ console.log('\n== cloth the printers owe, and what they actually deliver ==');
     JSON.stringify(need.byFab));
 
   /* Deliveries: one printer running two weeks, another one week, and one delivery that cannot be priced. */
-  const wkNow = A.repWkIso(A.paWeekStart(Date.now()));
-  const d0 = A.repWkRange ? wkNow : wkNow;                     // this week's Monday
+  /* 28 Sep: the production week, Sunday to Saturday, as the Reports screen reads it. */
+  const wkNow = A.repWkIso(A.repWeekStart(Date.now()));
   const dmy = iso => { const p = String(iso).split('-'); return p[2] + '/' + p[1] + '/' + p[0]; };
   const lastWk = A.repWkShift(wkNow, -1);
   A.setVO(Object.assign({}, wasVO, { rows: [
@@ -14911,6 +14911,8 @@ console.log('\n== cloth the printers owe, and what they actually deliver ==');
 
   const h = A.pafHistory(4);
   ok('the window is the last four weeks, this week last', h.keys.length === 4 && h.keys[3] === wkNow);
+  { const p = h.keys[0].split('-').map(Number);
+    ok('…and every week starts on a Sunday, the production week', h.keys.every(k => { const q = k.split('-').map(Number); return new Date(q[0], q[1] - 1, q[2]).getDay() === 0; }), h.keys.join()); }
   const v1 = h.vendors.find(v => v.code === 'VND001');
   ok('a printer\'s week is the cloth they delivered that week',
     Math.abs((v1.weeks.get(wkNow) || 0) - 100 * 2 * W) < 0.001);

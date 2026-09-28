@@ -40260,7 +40260,7 @@ function renderPal() {
       </div>` : ''}
     </div>`;
 
-    head = ['Printer'].concat(h.keys.map(k => String(k).slice(5)),
+    head = ['Printer'].concat(h.keys.map(k => repWkRange(k)),
       ['Average', 'Best', 'Weeks worked', 'Share of the need', 'Weeks at this rate', 'Unpriced', 'Fed capacity']);
     body = vend.length ? vend.map(v => {
       /* The typed figure, for the same printer, so the two can be read off one row. Pieces a month
@@ -43543,9 +43543,11 @@ function paVerdict(f, need, target) {
  */
 
 /** Monday-based ISO week key for a day, so history lines up with the rest of the analysis. */
+/* THE PRODUCTION WEEK (Ravi, 2026-09-28: "week days ko production ki tarah karo"): Sunday to Saturday, as the Reports
+ * screen reads it and labels it — "20 Sep – 26 Sep". */
 function pafWeekOf(ms) {
   if (!ms) return '';
-  return repWkIso(paWeekStart(ms));
+  return repWkIso(repWeekStart(ms));
 }
 
 /**
@@ -43618,7 +43620,7 @@ function pafNeed() {
 function pafHistory(weeks) {
   const n = Math.max(1, parseInt(weeks, 10) || 8);
   const keys = [];
-  const thisWk = repWkIso(paWeekStart(Date.now()));
+  const thisWk = repWkIso(repWeekStart(Date.now()));
   for (let i = n - 1; i >= 0; i--) keys.push(repWkShift(thisWk, -i));
   const keySet = new Set(keys);
 
