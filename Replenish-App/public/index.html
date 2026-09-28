@@ -1889,6 +1889,7 @@
             <option value="26">last 26 weeks</option>
           </select>
           <select id="palBrand" style="flex:0 0 130px"></select>
+          <select id="palPrn" style="flex:0 0 200px" title="Only the colours given to one printer — how many designs, groups and pieces they have"></select>
           <input id="palQ" placeholder="Search design / group / printer" style="flex:1 1 160px;min-width:0">
           <button id="palPrinterAdd">+ Printer</button>
           <button id="palExport" class="ghost">Export</button>
@@ -39549,17 +39550,35 @@ function renderPal() {
     }
   }
 
+  /* ONE PRINTER'S SHARE (Ravi, 2026-09-28: "1 vendor ke pas total kitni design h"). The designs, groups and pieces
+   * shown are that printer's; the plan — capacity and what is not covered — is still worked out over everybody. */
+  const prnOpts0 = palAssignable();
+  if ($('palPrn')) {
+    const sig = prnOpts0.map(x => x.join('=')).join('|');
+    if (PAL.prnSig !== sig || !$('palPrn').innerHTML) {
+      const was = $('palPrn').value || '';
+      $('palPrn').innerHTML = '<option value="">All printers</option>'
+        + prnOpts0.map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join('')
+        + '<option value="__none">Not given to anybody</option>';
+      $('palPrn').value = was === '__none' || prnOpts0.some(x => x[0] === was) ? was : '';
+      PAL.prnSig = sig;
+    }
+  }
+  const prn = ($('palPrn') || {}).value || '';
+  const prnName = prn === '__none' ? 'not given to anybody' : ((prnOpts0.find(x => x[0] === prn) || [])[1] || prn);
+
   const all = palDesigns();
   /* A COLOUR THAT IS NOT BEING CONTINUED LEAVES THE LIST (Ravi, 2026-09-25). It is only counted and shown under
    * "Removed colours", where it can be brought back. */
-  const designs = all.filter(d => d.live && (!brand || d.brand === brand));
+  const designsAll = all.filter(d => d.live && (!brand || d.brand === brand));
+  const designs = !prn ? designsAll : designsAll.filter(d => (palInfoOf(d.key).printer || '__none') === prn);
   const removed = all.filter(d => !d.live && (!brand || d.brand === brand));
   if (!removed.length) PAL.showOff = false;
   if ($('palOff')) {
     $('palOff').classList.toggle('hide', !removed.length && !PAL.showOff);
     $('palOff').textContent = PAL.showOff ? '← Back to the list' : `Removed colours (${nf(removed.length)})`;
   }
-  const plan = palPlan(designs);
+  const plan = palPlan(designsAll);
   const groups = palGroups(designs);
   const totMake = designs.reduce((s, d) => s + d.toMake, 0);
   const tot90 = designs.reduce((s, d) => s + d.l90, 0);
@@ -39578,7 +39597,7 @@ function renderPal() {
   }
 
   $('palKpis').innerHTML = `<div class="kpi" style="flex-basis:100%">
-    <div class="kpihead"><span class="kpiname">Printer allocation${brand ? ' · ' + esc(brand) : ''}</span>
+    <div class="kpihead"><span class="kpiname">Printer allocation${brand ? ' · ' + esc(brand) : ''}${prn ? ' · <b>' + esc(prnName) + '</b>' : ''}</span>
       <span class="kpiwhen">order book live${PAL.at ? ' · ' + esc(PAL.at) : ''}</span></div>
     <div class="metrics">
       <div class="metric"><div class="v">${nf(designs.length)}</div><div class="l">Designs</div></div>
@@ -39878,6 +39897,7 @@ function palExport() {
 $('palView').addEventListener('change', () => renderPal());
 $('palWeeks').addEventListener('change', () => renderPal());
 $('palBrand').addEventListener('change', () => renderPal());
+if ($('palPrn')) $('palPrn').addEventListener('change', () => renderPal());
 $('palQ').addEventListener('input', () => renderPal());
 $('palPrinterAdd').onclick = () => palPrinterOpen('');
 $('palExport').onclick = () => palExport();

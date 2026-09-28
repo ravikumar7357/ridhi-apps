@@ -88,7 +88,7 @@ const IDS = ('ptmBrand ptmArt ptmSub ptmCol ptmSz ptmCut ptmQ ptmBrandFs ptmDir 
   + 'fgmOrdSrc fgmOrdLbl fgmExtFrom fgmExtFromWrap fgmExtFromList fgmExtQty fgmExtQtyWrap fgmExtNew fgmExtNewWrap '
   + 'fgmFbaAcct fgmReasonLbl fgmHandList demTotAssign demTotClear demTotAll '
   + 'fgScan fgsType fgsDate fgsPer fgsOrdWrap fgsOrdSrc fgsOrdLbl fgsOrd fgsOrdList fgsExtWrap fgsExtFrom '
-  + 'fgsOutWrap fgsWhoWrap fgsWhoLbl fgsWho fgsAcctWrap fgsAcct fgsHandWrap fgsHand fgsCode fgsMsg fgsTable fgsFn fgsAuto fgsMode palView palWeeks palBrand palQ palPrinterAdd palExport palRefresh palSheet palImport palClear palOff palFile palMsg palKpis palTable palFoot palGroupList palBlkTable '
+  + 'fgsOutWrap fgsWhoWrap fgsWhoLbl fgsWho fgsAcctWrap fgsAcct fgsHandWrap fgsHand fgsCode fgsMsg fgsTable fgsFn fgsAuto fgsMode palView palWeeks palBrand palPrn palQ palPrinterAdd palExport palRefresh palSheet palImport palClear palOff palFile palMsg palKpis palTable palFoot palGroupList palBlkTable '
   + 'fnPaste fnUp fnFile fnPull fnMsg '
   + 'ptf_from ptf_to ptf_vlq ptf_vlr ptf_vln ptf_vlroom ptf_txnType ptf_itemCode ptf_qty ptf_date ptf_issuedTo ptf_ref ptf_remarks').split(' ');
 IDS.forEach(i => { const e = mkEl(i); e.classList._el = e; els[i] = e; });
@@ -13855,6 +13855,14 @@ console.log('\n== printer allocation by colour ==');
           ok('…and the other printer\'s tile shows the rest', keys.slice(1).every(k => els.palTable.innerHTML.indexOf('data-palasg="' + k + '"') >= 0) && els.palTable.innerHTML.indexOf('data-palasg="' + keys[0] + '"') < 0);
           A.PAL().tileF = ''; A.renderPal();
           ok('…and with no tile picked every colour is back', keys.every(k => els.palTable.innerHTML.indexOf('data-palasg="' + k + '"') >= 0));
+          /* 28 Sep: "vendor par filter … 1 vendor ke pas total kitni design h". */
+          if (els.palPrn) {
+            els.palPrn.value = 'VND001'; A.renderPal();
+            const mine = A.palDesigns().filter(d => d.live && A.palInfoOf(d.key).printer === 'VND001').length;
+            ok('the printer filter counts that printer’s designs at the top', els.palPrn.value === 'VND001' && new RegExp('>' + mine + '</div><div class="l">Designs').test(els.palKpis.innerHTML), els.palKpis.innerHTML.slice(0, 400));
+            ok('…and draws only its colours — the one given to VND777 is gone', els.palTable.innerHTML.indexOf('data-palasg="' + keys[0] + '"') < 0 && keys.slice(1).every(k => els.palTable.innerHTML.indexOf('data-palasg="' + k + '"') >= 0));
+            els.palPrn.value = ''; A.renderPal();
+          }
           const other = A.palGroups(live).find(x => x.name !== g.name);
           if (other) { A.PAL().pick = other.name; A.renderPal();
             ok('picking another group on the left opens it on the right', els.palTable.innerHTML.indexOf('data-palgasg="' + other.name + '"') >= 0 && els.palTable.innerHTML.indexOf('data-palasg="' + keys[0] + '"') < 0); }
