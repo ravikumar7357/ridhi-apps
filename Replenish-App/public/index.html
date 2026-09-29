@@ -7437,6 +7437,9 @@ function shMsg(t, bad) { const m = $('shMsg'); m.innerHTML = t || ''; m.classNam
 async function ensureShopify() {
   if (!SH.loaded) await loadShopify();
   renderShopify();
+  /* The master list names the SKUs (Ravi, 2026-09-29: "i have updated my masterdata please check and fill the blank
+   * data"); when it is not in hand yet the table is drawn again once it is. */
+  if (!PTG.mdb && typeof ptLoadGates === 'function') { try { await ptLoadGates(); renderShopify(); } catch (e) { /* the snapshot names stay */ } }
 }
 async function loadShopify() {
   shMsg('Loading…');
@@ -7459,12 +7462,22 @@ $('shGo').onclick = async () => {
   renderShopify();
 };
 
-/** SKU → the article details the Amazon snapshot already knows, so a row is readable. */
+/** SKU → its article, colour and size, so a row is readable: the MASTER DATABASE first, then what the Amazon snapshot
+ * knows, then — for a SKU in neither — its look-alikes in the master. */
 function shDetails() {
   const m = {};
   ['SP', 'CPC'].forEach(b => ((REPL[b] && REPL[b].rows) || []).forEach(r => {
     const k = skuKey(r.sku); if (k && !m[k]) m[k] = { subcat: r.subcat || '', color: r.color || '', size: r.size || '' };
   }));
+  const pick = (a, b) => (String(a == null ? '' : a).trim() || b || '');
+  const skus = new Set(Object.keys(SH.d || {}).concat(Object.keys(SH.stock || {})).map(skuKey));
+  skus.forEach(k => {
+    const r = typeof mdbOf === 'function' ? mdbOf(k) : null, s = m[k] || {};
+    if (r) { m[k] = { subcat: pick(r.subtype, pick(r.articleType, s.subcat)), color: pick(r.color, s.color), size: pick(r.size, s.size) }; return; }
+    if (s.subcat && s.color && s.size) return;
+    const g = PTG.mdb && typeof skuLookalike === 'function' ? skuLookalike(k) : null;
+    if (g) m[k] = { subcat: s.subcat || g.subtype || g.articleType || '', color: s.color || g.color || '', size: s.size || g.size || '', guess: true };
+  });
   return m;
 }
 
@@ -7487,7 +7500,7 @@ function shRows() {
     const need = rate > 0 && stock != null ? Math.max(0, Math.round(rate * target - stock)) : null;
     const d = det[k] || {};
     rows.push({ sku, sold, rev, stock, rate, cover, need,
-      subcat: d.subcat || '', color: d.color || '', size: d.size || '' });
+      subcat: d.subcat || '', color: d.color || '', size: d.size || '', guess: !!d.guess });
   };
   Object.entries(SH.d).forEach(([sku, v]) => push(sku, v[0] || 0, v[1] || 0));
   // Stocked but nothing sold in the window — still worth seeing; it is money sitting still.
@@ -7527,11 +7540,14 @@ function renderShopify() {
     + `<th class="num" title="Units to bring the cover up to ${target} days.">Send</th></tr></thead>`;
 
   const CAP = 400;
+  /* Not in the master: filled from its look-alikes, and shown as such. */
+  const cell = (v, g) => !v ? '<span class="muted">—</span>'
+    : (g ? `<span style="font-style:italic;color:var(--muted)" title="Not in the master database — read from SKUs that look like it">${esc(v)}</span>` : esc(v));
   const body = rows.slice(0, CAP).map(r => '<tr>'
     + `<td class="frz" style="font-weight:600">${esc(r.sku)}</td>`
-    + `<td>${esc(r.subcat) || '<span class="muted">—</span>'}</td>`
-    + `<td>${esc(r.color) || '<span class="muted">—</span>'}</td>`
-    + `<td>${esc(r.size) || '<span class="muted">—</span>'}</td>`
+    + `<td>${cell(r.subcat, r.guess)}</td>`
+    + `<td>${cell(r.color, r.guess)}</td>`
+    + `<td>${cell(r.size, r.guess)}</td>`
     + `<td class="num">${nf(r.sold)}</td><td class="num">${money(r.rev)}</td>`
     + `<td class="num">${r.rate > 0 ? r.rate.toFixed(2) : '<span class="muted">—</span>'}</td>`
     + `<td class="num">${r.stock == null

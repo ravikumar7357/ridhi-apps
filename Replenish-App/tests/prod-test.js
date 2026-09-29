@@ -21542,6 +21542,22 @@ console.log('\n== manpower in the production report, pillow insert apart (Ravi, 
   ok('…and left out of the production report', !wk['Pillow Insert'] && wk['Pillow Cover'] && wk['Pillow Cover'].prod === 310, JSON.stringify(wk));
   A.setREP_HEADS(null); A.setPTG(wasPTG); A.setPT_(wasPT);
 }
+console.log('\n== Shopify table names its SKUs from the master (Ravi, 29 Sep: "i have updated my masterdata please check and fill the blank data")');
+{
+  const src = fs.readFileSync(APP, 'utf8').replace(/\r\n/g, '\n');
+  const i = src.indexOf('function shDetails('), end = src.indexOf('\n}', i);
+  const PTGx = { mdb: [{ sku: 'RTME-521-4', articleType: 'Placemat', subtype: 'Round Embroidery Placemat', color: 'Powder Blue', size: '15 Round' }] };
+  const SHx = { d: { 'RTME-521-4': [1, 34], 'RTC1-6060': [2, 80], 'ZZZ9': [1, 5] }, stock: {} };
+  const REPLx = { SP: { rows: [{ sku: 'RTC1-6060', subcat: 'Square Tablecloth', color: 'Red', size: '60x60' }] } };
+  const det = new Function('PTG', 'SH', 'REPL', 'skuKey', 'mdbOf', 'skuLookalike', src.slice(i, end + 2) + '\n;return shDetails();')(
+    PTGx, SHx, REPLx, v => String(v == null ? '' : v).trim().toUpperCase(),
+    k => PTGx.mdb.find(r => r.sku.toUpperCase() === String(k).toUpperCase()),
+    k => (k === 'ZZZ9' ? { articleType: 'Napkin', subtype: 'Plain Napkin', color: 'Blue', size: '18x18' } : null));
+  ok('a SKU in the master gets its subtype, colour and size from there', det['RTME-521-4'] && det['RTME-521-4'].subcat === 'Round Embroidery Placemat'
+    && det['RTME-521-4'].color === 'Powder Blue' && det['RTME-521-4'].size === '15 Round' && !det['RTME-521-4'].guess, JSON.stringify(det));
+  ok('…one only the Amazon snapshot knows keeps those', det['RTC1-6060'] && det['RTC1-6060'].subcat === 'Square Tablecloth');
+  ok('…and one in neither is read from its look-alikes, marked as a guess', det.ZZZ9 && det.ZZZ9.subcat === 'Plain Napkin' && det.ZZZ9.guess === true);
+}
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
 })();
