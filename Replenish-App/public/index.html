@@ -1419,6 +1419,8 @@
     <div id="paneShopify" class="hide">
       <div class="card">
         <div class="toolbar">
+          <select id="shStore" style="flex:0 0 170px;font-weight:700" title="Which Shopify store's sales and stock">
+            <option value="SP">Ridhi Shopify</option><option value="CPC">CPC Shopify</option></select>
           <div class="seg" id="shSeg">
             <button class="segbtn on" data-v="reorder">Needs reorder</button>
             <button class="segbtn" data-v="out">Out of stock</button>
@@ -7432,6 +7434,9 @@ function fillSel(id, vals, label) {
  */
 let SH = { at: '', from: '', to: '', days: 90, orders: 0, d: {}, stock: null, stockAt: '', loaded: false };
 let SH_VIEW = 'reorder', SH_LAST = [];
+/* One figure set per store; SH is the one on screen. */
+const SH_BY = { SP: SH, CPC: { at: '', from: '', to: '', days: 90, orders: 0, d: {}, stock: null, stockAt: '', loaded: false } };
+const shStore = () => (($('shStore') || {}).value === 'CPC' ? 'CPC' : 'SP');
 function shMsg(t, bad) { const m = $('shMsg'); m.innerHTML = t || ''; m.className = bad ? 'err' : 'muted'; }
 
 async function ensureShopify() {
@@ -7442,19 +7447,27 @@ async function ensureShopify() {
   if (!PTG.mdb && typeof ptLoadGates === 'function') { try { await ptLoadGates(); renderShopify(); } catch (e) { /* the snapshot names stay */ } }
 }
 async function loadShopify() {
+  const store = shStore();
   shMsg('Loading…');
   try {
-    const r = await prGet({ cache: 'shopSku' });
+    const r = await prGet({ cache: store === 'CPC' ? 'shopSkuCPC' : 'shopSku' });
     const d = r.data || {};
-    SH = { at: d.at || '', from: d.from || '', to: d.to || '', days: d.days || 90,
+    SH = SH_BY[store] = { at: d.at || '', from: d.from || '', to: d.to || '', days: d.days || 90,
       orders: d.orders || 0, d: d.d || {}, stock: d.stock || null, stockAt: d.stockAt || '',
       loaded: true };
     shMsg('');
   } catch (e) {
-    SH.loaded = true;
-    shMsg('Could not load the Shopify figures: ' + (e.message || e), true);
+    SH = SH_BY[store] = Object.assign({}, SH_BY[store], { d: {}, stock: null, loaded: true });
+    shMsg(store === 'CPC' && /nothing cached/i.test(String(e.message || e))
+      ? 'CPC Shopify figures are not built yet — the nightly run makes them from tonight.'
+      : 'Could not load the Shopify figures: ' + (e.message || e), true);
   }
 }
+if ($('shStore')) $('shStore').addEventListener('change', async () => {
+  SH = SH_BY[shStore()];
+  if (!SH.loaded) await loadShopify();
+  renderShopify();
+});
 $('shGo').onclick = async () => {
   const b = $('shGo'); b.disabled = true; b.textContent = '…';
   SH.loaded = false; await loadShopify();
@@ -7562,7 +7575,7 @@ function renderShopify() {
     || '<tr><td colspan="10" class="muted" style="padding:14px">Nothing matches.</td></tr>') + '</tbody>';
 
   const send = rows.reduce((s, r) => s + (r.need || 0), 0);
-  shMsg(`${nf(rows.length)} SKU(s) · <b>${nf(send)}</b> units to reach ${target} days of cover`
+  shMsg(`<b>${shStore() === 'CPC' ? 'CPC Shopify' : 'Ridhi Shopify'}</b> · ${nf(rows.length)} SKU(s) · <b>${nf(send)}</b> units to reach ${target} days of cover`
     + (rows.length > CAP ? ` · showing the first ${CAP}` : '')
     + ` · ${SH.days} days to ${esc(SH.to)}, ${nf(SH.orders)} order(s)`
     + (SH.at ? ` · built ${esc(SH.at)}` : '')
@@ -7583,7 +7596,7 @@ let SH_FT = null;
 
 $('shCsv').onclick = () => {
   if (!SH_LAST.length) { shMsg('Nothing to export.', true); return; }
-  csvDownload('shopify-' + (SH.to || 'now'),
+  csvDownload('shopify-' + (shStore() === 'CPC' ? 'cpc-' : 'ridhi-') + (SH.to || 'now'),
     ['SKU', 'Article', 'Colour', 'Size', SH.days + 'd units', 'Revenue', 'Per day', 'Stock', 'Cover (d)', 'Send'],
     SH_LAST.map(r => [r.sku, r.subcat, r.color, r.size, r.sold, r.rev,
       r.rate > 0 ? r.rate.toFixed(2) : '', r.stock == null ? '' : r.stock,
