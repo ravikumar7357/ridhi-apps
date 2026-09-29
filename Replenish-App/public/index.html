@@ -29563,6 +29563,7 @@ async function voFormOpen(mode) {
     html: (vends.length ? '' : '<div class="err" style="margin-bottom:10px">There are no active vendors in the vendor master, so there is nobody to order from.</div>')
       + `<div id="vof_form"></div>
       <div class="vo-lineshead"><span class="lb" style="flex:1">Lines</span>
+        <button id="vof_fetch" class="hide" style="padding:6px 12px;font-size:12.5px" title="Bring in this channel's open orders, SKU by SKU — what they still need that no vendor holds">Fetch orders</button>
         <button id="vof_tmpl" class="ghost" style="padding:6px 12px;font-size:12.5px">Template</button>
         <button id="vof_up" class="ghost" style="padding:6px 12px;font-size:12.5px">Upload lines</button>
         <input id="vof_file" type="file" accept=".csv,.xlsx,text/csv" style="display:none"></div>
@@ -29584,7 +29585,10 @@ async function voFormOpen(mode) {
    * metres are even on offer — only printing is bought by the metre. */
   $('vof_vendor').addEventListener('change', voOnVendorPick);
   $('vof_service').addEventListener('change', voOnServicePick);
+  if ($('vof_channel')) $('vof_channel').addEventListener('change', voFetchLabel);
+  if ($('vof_fetch')) $('vof_fetch').onclick = () => voFetchRun();
   voOnServicePick();
+  voFetchLabel();
 }
 
 /* Picking a vendor guesses the work from what kind of firm they are — an opening guess, changeable. */
@@ -30071,6 +30075,104 @@ function voAddLine() {
     $('vof_info').className = 'muted'; $('vof_info').textContent = '';
   }
   voDraft();
+}
+
+/* ---- a channel's open orders into the lines (Ravi, 2026-09-29) ----
+ * Every OPEN order line of the channel, less what is already made and less what a vendor already holds for it
+ * (ordVendorOf — stamped or shared — or a printer assigned on the line itself), added up per SKU. Printed items
+ * that go as running fabric are added up per fabric and colour instead, in metres (pieces × consumption).
+ * Nothing is stored here: the lines are added to the draft, and placing the order stamps them onto these same
+ * orders (voStampOrders), oldest first. */
+function voChannelFetch(channel, printing) {
+  const cut = new Map(), run = new Map(), skipped = new Map();
+  const shop = /Shopify/.test(String(channel || ''));
+  const when = r => ptDtMs(r.orderDate) || 0;
+  ordLines().filter(r => r && r.open && voChannelWants(channel, r)).sort((a, b) => when(a) - when(b)).forEach(r => {
+    const v = ordVendorOf(r.orderNo, r.sku);
+    const held = r.printer ? r.qty : (v ? v.given : 0);
+    const left = Math.min(Math.max(0, ptNum(r.pendingMake)), Math.max(0, r.qty - held));
+    if (!(left > 0)) return;
+    const sku = obUC(r.sku), m = mdbOf(sku) || null;
+    const skip = why => { const e = skipped.get(why) || { why, pcs: 0, skus: new Set() }; e.pcs += left; e.skus.add(sku); skipped.set(why, e); };
+    if (printing && m && !ptPrintNeeded(m)) return skip((m.subtype || m.articleType || 'this item') + ' is never printed');
+    if (!printing || shop || (m && voCutAllowed(m.articleType, m.subtype)) || (!m && shop)) {
+      if (!m && !shop) return skip('not in the master database');
+      const e = cut.get(sku) || { sku, m, pcs: 0, orders: [] };
+      e.pcs += left; e.orders.push(r.orderNo); cut.set(sku, e);
+      return;
+    }
+    if (!m) return skip('not in the master database');
+    const fab = ptPrintFabric(m) || String(m.fabric || '').trim(), cons = parseFloat(m.consumption) || 0;
+    if (!fab || !(cons > 0)) return skip(!fab ? 'no fabric on the master row' : 'no consumption on the master row');
+    const k = obUC(fab) + '|' + obUC(m.color);
+    const e = run.get(k) || { fabric: fab, color: m.color || '', m: 0, pcs: 0, skus: new Set(), orders: new Set() };
+    e.m += left * cons; e.pcs += left; e.skus.add(sku); e.orders.add(r.orderNo); run.set(k, e);
+  });
+  return { cut: [...cut.values()].sort((a, b) => b.pcs - a.pcs), run: [...run.values()].sort((a, b) => b.m - a.m),
+    skipped: [...skipped.values()].sort((a, b) => b.pcs - a.pcs) };
+}
+function voFetchLabel() {
+  const el = $('vof_fetch'); if (!el) return;
+  const ch = String(($('vof_channel') || {}).value || '');
+  el.classList.toggle('hide', !ch);
+  el.textContent = 'Fetch ' + (ch || '') + ' orders';
+}
+function voFetchRun() {
+  const ch = String(($('vof_channel') || {}).value || ''), info = $('vof_info');
+  if (!ch || !info) return;
+  const printing = voDraftPrinting(), f = voChannelFetch(ch, printing);
+  const skipTxt = f.skipped.length ? ' Left out: ' + f.skipped.slice(0, 4).map(x => `${nf(Math.ceil(x.pcs))} pcs — ${x.why}`).join('; ') + '.' : '';
+  if (VOF.kind === 'running') {
+    /* Running cloth is ordered by fabric, colour and print direction; the direction is the office's to pick,
+     * so each row fills the entry line and waits for it. */
+    info.className = 'muted';
+    info.innerHTML = !f.run.length
+      ? `${esc(ch)}'s open orders need no running fabric that is not already with a vendor.` + esc(skipTxt)
+      : `<b>${esc(ch)}'s open orders need, as running fabric</b> — press Use, pick the direction, then Add line:`
+        + `<div style="margin-top:6px;max-height:190px;overflow:auto">` + f.run.map((e, i) => `<div style="display:flex;gap:10px;align-items:center;padding:4px 0;border-top:1px dashed var(--line)">
+            <span style="flex:1"><b>${esc(e.fabric)} · ${esc(e.color || '—')}</b> <span class="muted">${nf(e.pcs)} pcs · ${nf(e.skus.size)} SKU(s) · ${nf(e.orders.size)} order(s)</span></span>
+            <b>${nf(Math.ceil(e.m))} m</b><button type="button" class="ghost" data-vofuse="${i}" style="padding:3px 10px;font-size:12px">Use</button></div>`).join('') + '</div>'
+        + (f.cut.length ? `<div style="margin-top:4px">${nf(f.cut.length)} SKU(s) go as cut pieces — switch to Cut · pieces to fetch them.</div>` : '')
+        + esc(skipTxt);
+    info.querySelectorAll('[data-vofuse]').forEach(bt => bt.onclick = () => {
+      const e = f.run[+bt.getAttribute('data-vofuse')];
+      const setSel = (id, v) => { const el = $(id); if (!el) return; const o = [...el.options].find(x => String(x.value).toLowerCase() === String(v).toLowerCase()); if (o) el.value = o.value; };
+      setSel('vof_fab', e.fabric); setSel('vof_col', e.color);
+      if ($('vof_fsku')) $('vof_fsku').value = '';
+      if ($('vof_qty')) $('vof_qty').value = Math.ceil(e.m);
+      if ($('vof_lnotes')) $('vof_lnotes').value = `${ch} · ${nf(e.orders.size)} order(s)`;
+      if ($('vof_pd')) $('vof_pd').focus();
+    });
+    return;
+  }
+  const inDraft = new Set(VOF.lines.filter(l => voKind(l) === 'cut').map(l => obUC(l.sku)));
+  const capped = printing && !/Shopify/.test(ch);
+  const demand = capped ? voDemandMap() : null, existing = capped ? voExistingMap() : null;
+  let added = 0, pcs = 0, trimmed = 0, dup = 0;
+  f.cut.forEach(e => {
+    if (inDraft.has(e.sku)) { dup++; return; }
+    let qty = Math.ceil(e.pcs);
+    if (capped) {
+      const room = Math.floor((demand.get(e.sku) || 0) * 1.1) - (existing.get(e.sku) || 0);
+      if (room < qty) { trimmed++; qty = Math.max(0, room); }
+    }
+    if (!(qty > 0)) return;
+    const m = e.m || (voForShopify() ? voCustomLine(e.sku) : null) || {};
+    VOF.lines.push(Object.assign({ lineId: 'ln_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6), kind: 'cut', sku: e.sku,
+      articleType: m.articleType || '', articleSubtype: m.subtype || '', color: m.color || '', size: m.size || '', brand: m.brand || '',
+      qty, deliveryDate: '', priority: '', notes: `${ch} · ${nf(new Set(e.orders).size)} order(s)`, dispatchedQty: 0 },
+      !e.m ? { customNew: true } : {}));
+    added++; pcs += qty;
+  });
+  voDraft();
+  info.className = added ? 'muted' : 'err';
+  info.textContent = (added
+    ? `${nf(added)} SKU(s), ${nf(pcs)} pcs brought in from ${ch}'s open orders — check the quantities, pick the vendor, then place.`
+    : `Nothing to bring in — ${ch}'s open orders need no cut pieces that are not already with a vendor.`)
+    + (dup ? ` ${nf(dup)} SKU(s) already in the lines were left as they are.` : '')
+    + (trimmed ? ` ${nf(trimmed)} SKU(s) cut down to the printer cap (approved orders + 10%).` : '')
+    + (f.run.length ? ` ${nf(f.run.length)} fabric/colour(s) go as running fabric — switch to Running · metres to fetch those.` : '')
+    + skipTxt;
 }
 
 function voCheckDraft() {
