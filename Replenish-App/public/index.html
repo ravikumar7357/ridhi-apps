@@ -7509,8 +7509,13 @@ function shRows() {
     // and the row says which it is.
     const stock = haveStock ? (SH.stock[sku] != null ? SH.stock[sku] : (SH.stock[k] != null ? SH.stock[k] : null)) : null;
     const rate = sold / days;                       // units a day
-    const cover = rate > 0 ? (stock == null ? null : stock / rate) : null;
-    const need = rate > 0 && stock != null ? Math.max(0, Math.round(rate * target - stock)) : null;
+    /* STOCK BELOW ZERO IS NOT DEMAND (Ravi, 2026-09-29: "yadi 90 days me 1 unit sale hua h then 18 unit kese project kar
+     * sakte h"). RTME-521-4 sold 1 in 90 days and Shopify holds it at -17: the old sum sent 1 + 17 = 18. A count below
+     * zero is Shopify's record gone wrong (sold past what it held, or never corrected), not seventeen customers
+     * waiting — open orders are the production bucket's job. So it counts as empty: cover 0, send what the rate asks. */
+    const have = stock == null ? null : Math.max(0, stock);
+    const cover = rate > 0 ? (have == null ? null : have / rate) : null;
+    const need = rate > 0 && have != null ? Math.max(0, Math.round(rate * target - have)) : null;
     const d = det[k] || {};
     rows.push({ sku, sold, rev, stock, rate, cover, need,
       subcat: d.subcat || '', color: d.color || '', size: d.size || '', guess: !!d.guess });
@@ -7521,7 +7526,7 @@ function shRows() {
 
   let out = rows;
   if (SH_VIEW === 'reorder') out = out.filter(r => r.need > 0);
-  else if (SH_VIEW === 'out') out = out.filter(r => r.stock === 0 && r.sold > 0);
+  else if (SH_VIEW === 'out') out = out.filter(r => r.stock != null && r.stock <= 0 && r.sold > 0);
   else if (SH_VIEW === 'nostock') out = out.filter(r => r.stock == null && r.sold > 0);
   const q = $('shFilter').value.trim().toLowerCase();
   if (q) out = out.filter(r => (r.sku + ' ' + r.subcat + ' ' + r.color + ' ' + r.size).toLowerCase().includes(q));
@@ -7565,7 +7570,8 @@ function renderShopify() {
     + `<td class="num">${r.rate > 0 ? r.rate.toFixed(2) : '<span class="muted">—</span>'}</td>`
     + `<td class="num">${r.stock == null
         ? '<span class="muted" title="Not found in Shopify.">—</span>'
-        : (r.stock === 0 ? '<span style="color:var(--bad);font-weight:700">0</span>' : nf(r.stock))}</td>`
+        : (r.stock < 0 ? `<span style="color:var(--bad);font-weight:700" title="Shopify shows this below zero — its count needs correcting. Treated as 0; the minus is not added to Send.">${nf(r.stock)} ⚠</span>`
+        : (r.stock === 0 ? '<span style="color:var(--bad);font-weight:700">0</span>' : nf(r.stock)))}</td>`
     + `<td class="num">${r.cover == null ? '<span class="muted">—</span>'
         : (r.cover < 30 ? `<span style="color:var(--bad);font-weight:700">${Math.round(r.cover)}</span>` : Math.round(r.cover))}</td>`
     + `<td class="num" style="font-weight:700">${r.need > 0 ? nf(r.need) : '<span class="muted">—</span>'}</td>`
@@ -7575,10 +7581,12 @@ function renderShopify() {
     || '<tr><td colspan="10" class="muted" style="padding:14px">Nothing matches.</td></tr>') + '</tbody>';
 
   const send = rows.reduce((s, r) => s + (r.need || 0), 0);
+  const neg = rows.filter(r => r.stock != null && r.stock < 0).length;
   shMsg(`<b>${shStore() === 'CPC' ? 'CPC Shopify' : 'Ridhi Shopify'}</b> · ${nf(rows.length)} SKU(s) · <b>${nf(send)}</b> units to reach ${target} days of cover`
     + (rows.length > CAP ? ` · showing the first ${CAP}` : '')
     + ` · ${SH.days} days to ${esc(SH.to)}, ${nf(SH.orders)} order(s)`
     + (SH.at ? ` · built ${esc(SH.at)}` : '')
+    + (neg ? ` · <span class="err">${nf(neg)} SKU(s) below zero in Shopify ⚠ — counted as 0, correct them in Shopify</span>` : '')
     // Said out loud, because a stock column silently full of dashes reads as "nothing in stock".
     + (SH.stock ? (SH.stockAt ? ` · stock read ${esc(SH.stockAt)}` : '')
         : ' · <span class="err">stock could not be read this run — the Stock and Send columns are blank, not zero</span>'));

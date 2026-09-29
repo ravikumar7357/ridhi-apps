@@ -21558,6 +21558,19 @@ console.log('\n== Shopify table names its SKUs from the master (Ravi, 29 Sep: "i
   ok('…one only the Amazon snapshot knows keeps those', det['RTC1-6060'] && det['RTC1-6060'].subcat === 'Square Tablecloth');
   ok('…and one in neither is read from its look-alikes, marked as a guess', det.ZZZ9 && det.ZZZ9.subcat === 'Plain Napkin' && det.ZZZ9.guess === true);
 }
+console.log('\n== Shopify reorder: stock below zero is not demand (Ravi, 29 Sep: "90 days me 1 unit sale hua h then 18 unit kese project kar sakte h")');
+{
+  const src = fs.readFileSync(APP, 'utf8').replace(/\r\n/g, '\n');
+  const i = src.indexOf('function shRows('), end = src.indexOf('\n}', i);
+  const $x = id => ({ shTarget: { value: '90' }, shFilter: { value: '' } })[id];
+  const run = view => new Function('SH', 'SH_VIEW', '$', 'skuKey', 'shDetails', src.slice(i, end + 2) + '\n;return shRows();')(
+    { days: 90, d: { 'RTME-521-4': [1, 34], 'FAST-1': [90, 900] }, stock: { 'RTME-521-4': -17, 'FAST-1': 10 } }, view, $x,
+    v => String(v == null ? '' : v).trim().toUpperCase(), () => ({}));
+  const r = run('all'), a = r.find(x => x.sku === 'RTME-521-4'), b = r.find(x => x.sku === 'FAST-1');
+  ok('1 sold in 90 days with Shopify at -17 sends 1, not 18', a && a.need === 1 && a.cover === 0 && a.stock === -17, JSON.stringify(a));
+  ok('…a SKU above zero is worked out as before (90 a day-ish: 90 needed, 10 held → 80)', b && b.need === 80, JSON.stringify(b));
+  ok('…and a SKU below zero is listed under Out of stock', run('out').some(x => x.sku === 'RTME-521-4'));
+}
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
 })();
