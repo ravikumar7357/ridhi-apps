@@ -21607,6 +21607,21 @@ await (async () => {
   delete els.vof_channel;
   A.setPTG(wasPTG); A.setPT_(wasPT); A.setVOF(wasVOF);
 })();
+console.log('\n== Fabric m² for tablecloths in the delivery log (Ravi, 29 Sep: "tablecloth ki sizes ke liye bhi Fabric m² lagao")');
+{
+  const wasPTG = A.PTG();
+  const M = (sku, st, z, x) => Object.assign({ sku, articleType: 'Tablecloth', subtype: st, color: 'Green', size: z }, x || {});
+  A.setPTG(Object.assign({}, wasPTG, { mdb: [M('CPC010-06', 'Rectangular Tablecloth', '60x90', { fabric: 'Sheeting 62', consumption: 2.35 }),
+    M('TC-NOCONS', 'Rectangular Tablecloth', '60x90'), M('TC-RND', 'Round Tablecloth', '110 Round'),
+    { sku: 'PC-1', articleType: 'Pillow Cover', subtype: 'Pillow Cover', size: '18x18' }] }));
+  const v = A.voSqm({ sku: 'CPC010-06' }, 33);
+  ok('a tablecloth with consumption and fabric: pieces × consumption × width (33 × 2.35 × 62" ≈ 122 m²)', v != null && Math.abs(v - 33 * 2.35 * 62 * 0.0254) < 1e-6, String(v));
+  const n = A.voSqm({ sku: 'TC-NOCONS' }, 10), r = A.voSqm({ sku: 'TC-RND' }, 2);
+  ok('…with neither, from its size: 60 × 90 in = 3.48 m² a piece', n != null && Math.abs(n - 10 * 60 * 90 * 0.00064516) < 1e-6, String(n));
+  ok('…a round one from its square: 110 × 110 in', r != null && Math.abs(r - 2 * 110 * 110 * 0.00064516) < 1e-6, String(r));
+  ok('…and nothing is guessed for another article', A.voSqm({ sku: 'PC-1' }, 5) == null);
+  A.setPTG(wasPTG);
+}
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
 })();

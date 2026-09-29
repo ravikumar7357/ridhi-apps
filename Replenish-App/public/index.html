@@ -26974,8 +26974,20 @@ function voSqm(r, qty) {
   if (!m) return null;
   const cons = parseFloat(m.consumption) || 0;
   const w = voFabWidthM(m.fabric);
-  if (!cons || !w) return null;
+  if (!cons || !w) { const a = voSizeSqm(m); return a ? q * a : null; }
   return q * cons * w;
+}
+/**
+ * A tablecloth's or runner's own size as square metres, for a row with no consumption or no fabric width:
+ * "60x90" is 60 × 90 inches, "110 Round" is cut from a 110 × 110 square. Other articles have no such rule — null.
+ */
+function voSizeSqm(m) {
+  if (!m || !/tablecloth|runner/i.test(String(m.articleType || '') + ' ' + String(m.subtype || ''))) return null;
+  const z = String(m.size || '').trim();
+  const r = z.match(/^(\d+(?:\.\d+)?)\s*[x×*]\s*(\d+(?:\.\d+)?)/i);
+  if (r) return (+r[1]) * (+r[2]) * 0.00064516;
+  const d = z.match(/^(\d+(?:\.\d+)?)\s*(?:"|in)?\s*(?:round)?$/i);
+  return d && (/round/i.test(z) || /round/i.test(String(m.subtype || ''))) ? (+d[1]) * (+d[1]) * 0.00064516 : null;
 }
 const voSqmTxt = v => v == null ? '<span class="muted">—</span>' : nf(Math.round(v * 100) / 100);
 
@@ -28052,6 +28064,10 @@ $('vlAccept').onclick = vlAcceptPicked;
 async function ensureVlog() {
   if (VO.rows === null) await ensureVo();
   renderVlog();
+  /* THE MASTER NAMES THE CLOTH (Ravi, 2026-09-29: "tablecloth ki sizes ke liye bhi Fabric m² lagao"). A cut line's
+   * square metres come from its SKU's master row, and this screen never loaded the master — so every tablecloth
+   * showed a dash while running cloth, which needs no master, showed its figure. Read it, then draw again. */
+  if (!PTG.mdb) { try { await ptLoadGates(); renderVlog(); } catch (e) { /* the dashes stay */ } }
 }
 ['vlVendor', 'vlType', 'vlFrom', 'vlTo', 'vlState'].forEach(id => $(id).addEventListener('change', renderVlog));
 ptDebounce('vlQ', renderVlog);
