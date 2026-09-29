@@ -1852,8 +1852,7 @@
           <button id="fgDelPicked" class="ghost hide" style="color:var(--bad)">Delete ticked</button>
           <button id="fgScan">Scan in / out</button>
           <button id="fgEntry">+ Stock entry</button>
-          <button id="fgRecvXl" class="ghost" title="Receive many at once from a sheet — every row is checked exactly as the Stock entry form checks it">Receive from Excel</button>
-          <button id="fgIssXl" class="ghost" title="Issue many at once from a sheet — every row is checked exactly as the Stock entry form checks an issue">Issue from Excel</button>
+          <!-- Receive / Issue from Excel taken off (Ravi, 2026-09-29: "excel se remove kro bas excel me export kar pay"). -->
           <button id="fgOpening" class="ghost">Opening stock</button>
           <button id="fgExport" class="ghost">Export</button>
           <button id="fgLstRefresh" class="ghost hide" title="Ask Amazon for every listing of both brands — takes several minutes">Refresh Amazon listings</button>
@@ -34589,6 +34588,20 @@ function repByWeek(brand, inhouseOnly) {
 }
 /** Pieces that came back but carry no date yet, so no week can hold them. */
 let REP_UNDATED = 0;
+/** The Job Work rows behind REP_UNDATED: part-received (some pieces back, some still pending), so the receiving date —
+ * stamped when a row is FULLY received — is not there yet. Pillow insert is apart, as in the report. */
+function repUndatedRows(brand) {
+  return (PT.base || []).filter(r => r && ptNum(r.receivedPieces) > 0 && !(r.receivingDate && ptDtMs(r.receivingDate))
+    && !repIsInsert(r) && (!brand || repBrand(r.sku) === brand));
+}
+function repUndatedCsv() {
+  const brand = $('repBrand') ? $('repBrand').value : '';
+  const head = ['Issue date', 'Karigar', 'SKU', 'Article', 'Order', 'Issued', 'Received', 'Rejected', 'Pending', 'Row id'];
+  const out = [head].concat(repUndatedRows(brand).map(r => [r.issueDate || '', r.empName || '', r.sku || '', repAt(r.sku, r.articleType),
+    (r.orders && r.orders.join ? r.orders.join(' ') : r.orderNo) || '', ptNum(r.issuePieces), ptNum(r.receivedPieces),
+    ptNum(r.rejectionPieces), ptNum(r.pendingPieces), r.id || '']));
+  ptDownload('part-received-no-date', out.map(r => r.map(csvCell).join(',')));
+}
 
 /**
  * What came back inside a window [from, to), per article type. Same rule as repByWeek — received
@@ -34884,6 +34897,7 @@ function repManpowerCard(week, brand) {
       <div class="metric"><div class="v" style="color:#7f6000">${nf(m.insert)}</div><div class="l">Pillow insert, apart${p.insert ? ` <span class="muted">(${nf(p.insert)} the week before)</span>` : ''}</div></div>
     </div></div>`;
 }
+if ($('repMsg')) $('repMsg').addEventListener('click', e => { if (e.target.closest && e.target.closest('[data-repundated]')) repUndatedCsv(); });
 if ($('repKpis')) $('repKpis').addEventListener('change', async e => {
   const t = e.target.closest && e.target.closest('[data-rephead]'); if (!t) return;
   const [week, name] = String(t.getAttribute('data-rephead')).split('|');
@@ -34976,18 +34990,16 @@ function repRenderWow() {
   /* When the earlier weeks are all empty, say WHY rather than leaving a wall of zeroes to be read as
    * a collapse in production. */
   const emptyBefore = prevProd === 0 && rows.every(r => r.hist.slice(0, -1).every(v => !v));
-  $('repMsg').className = emptyBefore || REP_UNDATED ? 'err' : 'muted';
-  $('repMsg').textContent = (emptyBefore
-    ? `Nothing came back in the ${nf(weeks.length - 1)} weeks before this one, so there is nothing to `
-      + `compare against yet and every article reads as "new". `
+  /* Short (Ravi struck the long explanation through, 29 Sep): only what needs him, and a way to find those rows. */
+  const nUnd = REP_UNDATED ? repUndatedRows(brand).length : 0;
+  $('repMsg').className = emptyBefore ? 'err' : 'muted';
+  $('repMsg').innerHTML = (emptyBefore
+    ? `Nothing came back in the ${nf(weeks.length - 1)} weeks before this one, so there is nothing to compare against yet. `
     : '')
     + (REP_UNDATED
-      ? `${nf(REP_UNDATED)} piece(s) have come back but carry no receiving date, so no week can hold `
-        + `them — that date is stamped when a row is fully received. `
-      : '')
-    + `Sunday to Saturday, counted on the day the pieces were received back. Customer-facing divides `
-    + `by the pack size. Rejected pieces are a separate column in Job Work Register and are not counted here. `
-    + `An article with nothing the week before is shown as "new" rather than as a percentage of zero.`;
+      ? `<b>${nf(REP_UNDATED)} piece(s) have come back but carry no receiving date</b> — ${nf(nUnd)} Job Work row(s) only part-received, `
+        + `so they are in no week yet. <button type="button" class="ghost" data-repundated="1" style="height:28px;padding:0 12px;margin-left:6px">Download these rows</button>`
+      : '');
 }
 
 /** The weeks the picker offers: the last twelve that have finished, newest first. */
@@ -49398,8 +49410,7 @@ function shpBucketOpen() {
         <div class="shb-n"><b>${nf(nMake)}</b><span>need production</span></div>
         <div class="shb-n"><b>${nf(nCov)}</b><span>stock says it can fill</span></div>
         <div class="shb-n"><b>${nf(shbOpenedToday().length)}</b><span>opened today</span></div>
-        <button type="button" id="shbXlOut">Download Excel</button><button type="button" id="shbXlIn">Upload filled Excel</button>
-        <input id="shbXlFile" type="file" accept=".xlsx,.csv" style="display:none"></div>`,
+        <button type="button" id="shbXlOut">Download Excel</button></div>`,
     html: `<div class="shb-bar"><div class="seg" role="tablist">
         <button type="button" class="segbtn" data-shbtab="make"></button><button type="button" class="segbtn" data-shbtab="covered"></button><button type="button" class="segbtn" data-shbtab="done"></button><button type="button" class="segbtn" data-shbtab="recv" title="What production has made and pressed — fill in what arrived and accept"></button></div>
         <input id="shbQ" placeholder="Search order / SKU / item" value="${esc(SHB.q)}">
