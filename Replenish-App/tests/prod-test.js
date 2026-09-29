@@ -21526,11 +21526,15 @@ console.log('\n== manpower in the production report, pillow insert apart (Ravi, 
   const R = (emp, sku, pcs, day) => ({ id: emp + sku + day, empName: emp, sku, receivedPieces: pcs, issuePieces: pcs, receivingDate: day });
   A.setPT_(Object.assign({}, wasPT, { base: [R('Ramesh', 'PC-1', 10, '21/09/2026, 10:00'), R('Salim', 'TC-1', 20, '20/09/2026, 00:30'), R('Pradeep', 'PC-1', 300, '23/09/2026, 12:00'),
     R('Ramesh', 'PI-1', 40, '22/09/2026, 11:00'), R('Salim', 'TC-1', 99, '27/09/2026, 09:00')], cut: [] }));
-  A.setREP_HEADS({ '2026-09-20': { pradeep: 20 } });
+  A.setREP_HEADS({ '2026-09-20': { pradeep: 120 } });
   const m = A.repManpower('2026-09-20', '');
   ok('in-house karigars who brought work back, pillow insert not counted', m.people === 2 && m.inPcs === 30 && m.avg === 15, JSON.stringify(m));
   ok('…a delivery just after midnight on the Sunday is in the week (local time)', m.karigars.some(([n, p]) => n === 'Salim' && p === 20));
-  ok('the contractor is apart, and per person is his pieces over the headcount given', m.contractors.length === 1 && m.contractors[0].pcs === 300 && m.contractors[0].heads === 20 && m.contractors[0].per === 15, JSON.stringify(m.contractors));
+  ok('the contractor is apart; his week attendance (120) over 6 working days is 20 people a day, and 300 pcs over them is 15 a person in the week', m.contractors.length === 1 && m.contractors[0].pcs === 300 && m.contractors[0].heads === 120
+     && m.days === 6 && m.contractors[0].perDayPeople === 20 && m.contractors[0].per === 15 && m.contractors[0].perDay === 2.5, JSON.stringify(m.contractors));
+  A.setREP_HEADS({ '2026-09-20': { pradeep: 120, _days: 5 } });
+  const m5 = A.repManpower('2026-09-20', '');
+  ok('…the working days typed for the week are used (120 over 5 days = 24 a day, 12.5 pcs a person in the week)', m5.days === 5 && m5.contractors[0].perDayPeople === 24 && m5.contractors[0].per === 12.5 && m5.avgDay === 3, JSON.stringify(m5.contractors));
   ok('pillow insert is counted on its own', m.insert === 40);
   const wk = A.repByWeek('', false)['2026-09-20'] || {};
   ok('…and left out of the production report', !wk['Pillow Insert'] && wk['Pillow Cover'] && wk['Pillow Cover'].prod === 310, JSON.stringify(wk));

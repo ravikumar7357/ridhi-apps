@@ -34453,6 +34453,7 @@ const repIsInsert = r => /pillow insert/i.test(repAt(r && r.sku, r && r.articleT
  * headcount Ravi gives at the end of the week (pt_contractorHeads/<week>/<name>). */
 const REP_CONTRACTOR_RE = /pradeep/i;
 let REP_HEADS = null;
+const REP_DAYS = 6;
 const repHeadKey = n => String(n || '').trim().toLowerCase().replace(/[.#$\[\]\/]/g, '').replace(/\s+/g, '_');
 /** One week of work, pillow insert apart: in-house karigars and what each brought back, and each contractor. */
 function repManpower(week, brand) {
@@ -34474,9 +34475,17 @@ function repManpower(week, brand) {
   });
   const inPcs = [...kar.values()].reduce((a, b) => a + b, 0);
   const heads = (REP_HEADS || {})[week] || {};
-  return { week, insert, people: kar.size, inPcs, avg: kar.size ? inPcs / kar.size : 0,
+  /* The contractor's number is the WEEK'S ATTENDANCE — each day's people added up (20 a day for 6 days = 120). Over the
+   * working days it is the people a day; his pieces over that is what one person made in the week, and over the
+   * attendance, in a day. The working days are 6 (Monday to Saturday) unless typed for the week. */
+  const days = Number(heads._days) || REP_DAYS;
+  const avg = kar.size ? inPcs / kar.size : 0;
+  return { week, insert, days, people: kar.size, inPcs, avg, avgDay: avg / days,
     karigars: [...kar.entries()].sort((a, b) => b[1] - a[1]),
-    contractors: [...con.entries()].map(([name, pcs]) => { const h = Number(heads[repHeadKey(name)]) || 0; return { name, pcs, heads: h, per: h ? pcs / h : null }; }) };
+    contractors: [...con.entries()].map(([name, pcs]) => {
+      const h = Number(heads[repHeadKey(name)]) || 0;
+      return { name, pcs, heads: h, perDayPeople: h ? h / days : null, per: h ? pcs * days / h : null, perDay: h ? pcs / h : null };
+    }) };
 }
 
 /** A SKU the factory makes itself, as the tool defines it. An unknown SKU counts in. */
@@ -34853,18 +34862,24 @@ function repRenderLive() {
 function repManpowerCard(week, brand) {
   const m = repManpower(week, brand), p = repManpower(repWkShift(week, -1), brand);
   const canEdit = !!(ME.admin || ptCanEdit());
+  const box = (key, val, ph) => canEdit
+    ? `<input type="number" min="0" step="1" data-rephead="${esc(week)}|${esc(key)}" value="${val || ''}" placeholder="${ph}" style="width:90px;font-size:18px;font-weight:700;text-align:right">`
+    : (val ? nf(val) : '—');
+  const green = v => `style="color:${v == null ? 'var(--muted)' : '#166534'}"`;
   const con = m.contractors.map(c => `<div class="metric"><div class="v">${nf(c.pcs)}</div><div class="l">${esc(c.name)} — pieces</div></div>`
-    + `<div class="metric"><div class="v">${canEdit
-        ? `<input type="number" min="0" step="1" data-rephead="${esc(week)}|${esc(c.name)}" value="${c.heads || ''}" placeholder="people" style="width:90px;font-size:18px;font-weight:700;text-align:right">`
-        : (c.heads ? nf(c.heads) : '—')}</div><div class="l">${esc(c.name)}'s people present this week</div></div>`
-    + `<div class="metric"><div class="v" style="color:${c.per == null ? 'var(--muted)' : '#166534'}">${c.per == null ? '—' : nf(Math.round(c.per))}</div><div class="l">per ${esc(c.name)} person${c.per == null ? ' — enter the headcount' : ''}</div></div>`).join('');
+    + `<div class="metric"><div class="v">${box(c.name, c.heads, 'total')}</div><div class="l">${esc(c.name)} — attendance this week<br><span class="muted">each day's people added up (20 a day × 6 days = 120)</span></div></div>`
+    + `<div class="metric"><div class="v">${c.perDayPeople == null ? '—' : nf(Math.round(c.perDayPeople * 10) / 10)}</div><div class="l">people a day, average (attendance ÷ ${nf(m.days)} days)</div></div>`
+    + `<div class="metric"><div class="v" ${green(c.per)}>${c.per == null ? '—' : nf(Math.round(c.per))}</div><div class="l">per ${esc(c.name)} person, in the week${c.per == null ? ' — enter the attendance' : ''}</div></div>`
+    + `<div class="metric"><div class="v" ${green(c.perDay)}>${c.perDay == null ? '—' : nf(Math.round(c.perDay))}</div><div class="l">per person, a day</div></div>`).join('');
   return `<div class="kpi" style="flex-basis:100%;margin-top:10px">
     <div class="kpihead"><span class="kpiname">Manpower — week of ${esc(repWkRange(week))}</span>
       <span class="kpiwhen">karigars who brought work back · pillow insert not counted</span></div>
     <div class="metrics">
       <div class="metric"><div class="v">${nf(m.people)}</div><div class="l">In-house karigars${p.people ? ` <span class="muted">(${nf(p.people)} the week before)</span>` : ''}</div></div>
       <div class="metric"><div class="v">${nf(m.inPcs)}</div><div class="l">Pieces they made</div></div>
-      <div class="metric"><div class="v" style="color:#166534">${m.people ? nf(Math.round(m.avg)) : '—'}</div><div class="l">Per karigar, average${p.people ? ` <span class="muted">(${nf(Math.round(p.avg))} the week before)</span>` : ''}</div></div>
+      <div class="metric"><div class="v" style="color:#166534">${m.people ? nf(Math.round(m.avg)) : '—'}</div><div class="l">Per karigar, in the week${p.people ? ` <span class="muted">(${nf(Math.round(p.avg))} the week before)</span>` : ''}</div></div>
+      <div class="metric"><div class="v" style="color:#166534">${m.people ? nf(Math.round(m.avgDay)) : '—'}</div><div class="l">Per karigar, a day</div></div>
+      <div class="metric"><div class="v">${box('_days', m.days, '6')}</div><div class="l">Working days this week</div></div>
       ${con}
       <div class="metric"><div class="v" style="color:#7f6000">${nf(m.insert)}</div><div class="l">Pillow insert, apart${p.insert ? ` <span class="muted">(${nf(p.insert)} the week before)</span>` : ''}</div></div>
     </div></div>`;
@@ -34872,7 +34887,8 @@ function repManpowerCard(week, brand) {
 if ($('repKpis')) $('repKpis').addEventListener('change', async e => {
   const t = e.target.closest && e.target.closest('[data-rephead]'); if (!t) return;
   const [week, name] = String(t.getAttribute('data-rephead')).split('|');
-  const n = Math.max(0, Math.round(Number(t.value) || 0));
+  let n = Math.max(0, Math.round(Number(t.value) || 0));
+  if (name === '_days') n = Math.min(7, n) || REP_DAYS;
   try { await ptPut('pt_contractorHeads/' + week + '/' + repHeadKey(name), n); }
   catch (er) { $('repMsg').className = 'err'; $('repMsg').textContent = 'Headcount not saved: ' + (er.message || er); return; }
   REP_HEADS = REP_HEADS || {}; REP_HEADS[week] = Object.assign({}, REP_HEADS[week], { [repHeadKey(name)]: n });
