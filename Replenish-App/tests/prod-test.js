@@ -14911,7 +14911,15 @@ console.log('\n== cloth the printers owe, and what they actually deliver ==');
     ] },
   ] }));
 
+  /* 29 Sep: printers only — a filling house's quilts are not printing capacity ("friends rui mattress printer nahi h"). */
+  A.setPTG(Object.assign({}, A.PTG(), { masters: Object.assign({}, A.PTG().masters || {}, { vendor: [
+    { code: 'VND001', desc: 'RBP-Bagru', category: 'Printer', active: true }, { code: 'VND002', desc: 'Choudhary Hand Block', category: 'Printer', active: true },
+    { code: 'VND003', desc: 'SS Hand Block', category: 'Printer', active: true }, { code: 'VND009', desc: 'Friends Rui Mattress', category: 'Filling', active: true }] }) }));
+  A.VO().rows.push({ vendorCode: 'VND009', id: 'o9', orderNo: 'VPO-9', lines: [{ sku: 'RTC327-6060', deliveries: [{ date: dmy(wkNow), qty: 30 }] }] });
+  A.VO().rows.push({ vendorCode: 'VND002', id: 'o8', orderNo: 'VPO-8', service: 'Filling', lines: [{ sku: 'RTC327-6060', deliveries: [{ date: dmy(wkNow), qty: 30 }] }] });
   const h = A.pafHistory(4);
+  ok('a filling firm is not in the printers capacity, and a filling order to a printer is not either', !h.vendors.some(v => v.code === 'VND009')
+     && Math.abs((h.vendors.find(v => v.code === 'VND002').weeks.get(wkNow) || 0) - A.voSqm({ sku: 'RTC327-6090' }, 10)) < 0.001, JSON.stringify(h.vendors.map(v => v.code)));
   ok('the window is the last four weeks, this week last', h.keys.length === 4 && h.keys[3] === wkNow);
   { const p = h.keys[0].split('-').map(Number);
     ok('…and every week starts on a Sunday, the production week', h.keys.every(k => { const q = k.split('-').map(Number); return new Date(q[0], q[1] - 1, q[2]).getDay() === 0; }), h.keys.join()); }

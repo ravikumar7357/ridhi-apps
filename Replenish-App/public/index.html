@@ -27008,6 +27008,9 @@ function voLogRows() {
           key2: o.vendorCode + '/' + o.id + '/' + li + '/' + di,
           vendorCode: o.vendorCode, vendor: voName(o.vendorCode),
           orderNo: o.orderNo || o.id, id: o.id, run, unit: run ? 'm' : 'pcs',
+          /* PRINTING WORK, from a printer: the firm's kind in the vendor master says printer, and the order — when it
+           * names its work — names printing. A filling house's quilts are not printing capacity. */
+          printing: /print/i.test(String(voCatOf(o.vendorCode) || '')) && (!o.service || voIsPrinting(o)),
           sku: l.sku || '',
           /* The fabric a RUNNING line is printed on — a cut line's comes off its master row instead. */
           fabric: run ? (l.fabricType || '') : '', colour: l.color || '',
@@ -43918,6 +43921,8 @@ function pafHistory(weeks) {
   const byVendor = new Map();
   let unpriced = 0;
   voLogRows().forEach(r => {
+    /* Printers only (Ravi, 2026-09-29: "friends rui mattress printer nahi h" — it is a Filling firm). */
+    if (!r.printing) return;
     const wk = pafWeekOf(ptDtMs(r.day) || ptDtMs(r.raw));
     if (!wk || !keySet.has(wk)) return;
     const s = voSqm({ run: r.run, fabric: r.fabric, sku: r.sku }, r.qty);
