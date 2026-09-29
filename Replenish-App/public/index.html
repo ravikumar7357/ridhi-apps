@@ -35261,6 +35261,13 @@ function repManpowerCard(week, brand) {
   const cutShort = required - cutTot;
   const total = g.made + conPcs, totalWas = gp.made + p.contractors.reduce((t, c) => t + c.pcs, 0);
 
+  /* A tile that is a little sheet: the figure on top, then label | value rows, like Excel. */
+  const sheet = (label, v, col, rows) => `<div style="border:1px solid var(--line);border-radius:12px;padding:10px 12px;min-width:0">
+      <div style="font-size:12px;color:var(--muted);font-weight:600">${label}</div>
+      <div style="font-size:22px;font-weight:800;line-height:1.25;color:${col};font-variant-numeric:tabular-nums">${v}</div>
+      <table style="width:100%;border-collapse:collapse;margin-top:6px;font-size:12px">${rows.map(([k, x]) =>
+        `<tr><td style="text-align:left;color:var(--muted);padding:4px 6px 4px 0;border-top:1px solid var(--line);white-space:nowrap">${k}</td>`
+        + `<td style="text-align:right;font-weight:700;padding:4px 0;border-top:1px solid var(--line);font-variant-numeric:tabular-nums">${x}</td></tr>`).join('')}</table></div>`;
   const row = (title, tiles) => `<div style="font-size:12px;font-weight:800;letter-spacing:.04em;color:var(--muted);margin:12px 0 6px">${title}</div>
     <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px">${tiles}</div>`;
 
@@ -35272,25 +35279,24 @@ function repManpowerCard(week, brand) {
         <label style="display:flex;align-items:center;gap:6px;margin:0">One person can make ${box('perDay', T, '50', 60, '_settings')} a day</label>
       </div></div>
     ${row('MADE', tile('Total pcs made', nf(total), `ours ${nf(g.made)} + Pradeep ${nf(conPcs)} · ${vs(total, totalWas)}`)
-      + tile('Our karigars made', nf(g.made), `${nf(g.karigars)} karigars brought work back`)
-      + tile('Pradeep made', nf(conPcs), con ? 'outside contractor' : 'nothing received')
+      + sheet('Our karigars made', nf(g.made), '#1D4ED8', [
+          ['People in the week', nf(g.karigars) + (gp.karigars ? ` <span class="muted">(${nf(gp.karigars)} before)</span>` : '')],
+          ['People a day, average', g.days ? (Math.round(g.perDayPeople * 10) / 10) + `<div class="muted" style="font-size:10.5px;font-weight:400">${days}</div>` : '—'],
+          ['One person a day', g.personDays ? `<span style="color:${aim(g.perPersonDay)}">${r0(g.perPersonDay)}</span> <span class="muted">/ ${nf(T)}</span>` : '—'],
+          ['One person in the week', g.karigars ? r0(g.made / g.karigars) : '—'],
+          ['Short of ' + nf(T) + ' a day', g.short ? `<span style="color:var(--bad)">${nf(g.short)}</span>` : '<span style="color:#15803D">none</span>']])
+      + (con ? sheet('Pradeep made', nf(con.pcs), '#7C3AED', [
+          ['Attendance in the week', box(con.name, con.heads, 'total', 64)],
+          ['People a day, average', con.perDayPeople == null ? '—' : (Math.round(con.perDayPeople * 10) / 10) + ` <span class="muted">(÷ ${nf(m.days)} days)</span>`],
+          ['One person a day', con.perDay == null ? '<span class="muted">enter the attendance</span>' : `<span style="color:${aim(con.perDay)}">${r0(con.perDay)}</span> <span class="muted">/ ${nf(T)}</span>`],
+          ['One person in the week', con.per == null ? '—' : r0(con.per)]])
+        : tile('Pradeep made', '—', 'nothing received this week'))
       + tile('Pillow insert (apart)', nf(m.insert), `not in any figure here${p.insert ? ' · ' + nf(p.insert) + ' the week before' : ''}`, '#B45309'))}
-    ${row('OUR KARIGARS — MANPOWER AND ONE PERSON\'S DAY', tile('People a day, average', g.days ? (Math.round(g.perDayPeople * 10) / 10) : '—', days || 'no working day yet', '#1D4ED8', '#EEF5FF')
-      + tile('One person made a day', g.personDays ? r0(g.perPersonDay) : '—', `${nf(g.made)} ÷ ${nf(g.personDays)} person-days · aim ${nf(T)} · ${vs(g.perPersonDay, gp.perPersonDay)}`, aim(g.perPersonDay))
-      + tile('Days without work', nf(g.emptyDays), `karigar-days with nothing in hand — about ${nf(g.noWork)} pcs lost`, g.emptyDays ? 'var(--bad)' : '#15803D')
-      + tile('Short of ' + nf(T) + ' a day', nf(g.short), `could make ${nf(g.possible)} = ${nf(g.karigars)} × ${nf(T)} × ${nf(g.days)} days`, g.short ? 'var(--bad)' : '#15803D'))}
-    ${row('PRADEEP — OUTSIDE CONTRACTOR', con
-      ? tile('People a day, average', con.perDayPeople == null ? '—' : (Math.round(con.perDayPeople * 10) / 10), `attendance ${box(con.name, con.heads, 'total', 64)} ÷ ${nf(m.days)} days`, '#7C3AED', '#F4EFFE')
-        + tile('One person made a day', con.perDay == null ? '—' : r0(con.perDay), con.perDay == null ? 'enter the week\'s attendance' : `${nf(con.pcs)} ÷ ${nf(con.heads)} attendance · aim ${nf(T)}`, con.perDay == null ? 'var(--muted)' : aim(con.perDay))
-        + tile('One person made in the week', con.per == null ? '—' : r0(con.per), `${nf(m.days)} working days`)
-        + tile('Pcs made', nf(con.pcs), '')
-      : tile('Pradeep', '—', 'nothing received this week') + '<div></div><div></div><div></div>')}
     ${row('CUTTING THIS WEEK', tile('Cutting — total', nf(cutTot), pcut == null ? 'reading the vendor deliveries…' : `ours ${nf(g.cut)} + cut from printers ${nf(pcut)}`, '#1D4ED8', '#EEF5FF')
       + tile('Our cutting', nf(g.cut), 'Cutting Data · ruffle & piping-scallop tablecloths are cut here')
       + tile('Came cut from printers', pcut == null ? '…' : nf(pcut), 'tablecloth, border napkin, table runner delivered this week')
       + tile('Required', nf(required), `${nf(g.karigars)} × ${nf(T)} × ${nf(g.days)} days − ${nf(g.held)} already in hand · `
         + (cutShort > 0 ? `<b style="color:var(--bad)">${nf(cutShort)} short</b>` : `<b style="color:#15803D">enough</b>`), cutShort > 0 ? 'var(--bad)' : '#15803D'))}
-    ${g.empty.length ? `<div style="font-size:12px;margin-top:10px"><b style="color:var(--bad)">Sat without work:</b> ${g.empty.slice(0, 12).map(e => `${esc(e.name)} <b>${nf(e.days)}d</b>`).join(' · ')}${g.empty.length > 12 ? ` · and ${nf(g.empty.length - 12)} more` : ''}</div>` : ''}
   </div>`;
 }
 if ($('repMsg')) $('repMsg').addEventListener('click', e => { if (e.target.closest && e.target.closest('[data-repundated]')) repUndatedCsv(); });

@@ -21681,8 +21681,12 @@ console.log('\n== where is the gap: no work, or speed (Ravi, 29 Sep: "meri kami 
     A.setPTG(Object.assign({}, A.PTG(), { mdb: A.PTG().mdb.concat([{ sku: 'TC-R', articleType: 'Tablecloth', subtype: 'Rectangular Tablecloth' }]) }));
     ok('cut from printers this week: the plain tablecloth delivered in the week (25), not a pillow cover, not next week', A.repPrinterCut('2026-09-20', '') === 25, String(A.repPrinterCut('2026-09-20', '')));
     const card = A.repManpowerCard('2026-09-20', '');
-    ok('the tiles: made, manpower a day, one person a day, Pradeep, cutting total and required', /Total pcs made/.test(card) && /People a day, average/.test(card)
-       && /One person made a day/.test(card) && /PRADEEP/.test(card) && /Cutting — total/.test(card) && />225</.test(card) && /Required/.test(card), card.slice(0, 400));
+    /* 29 Sep, second pass (Ravi: "our karigar made wali tail me hi uska sara data ... just like excel ... remove other tails"). */
+    ok('the tiles: made; our karigars and Pradeep each one sheet (people in the week, a day, one person a day); cutting total and required',
+       /Total pcs made/.test(card) && /Our karigars made/.test(card) && /People in the week/.test(card) && /People a day, average/.test(card)
+       && /One person a day/.test(card) && /Pradeep made/.test(card) && /Attendance in the week/.test(card)
+       && /Cutting — total/.test(card) && />225</.test(card) && /Required/.test(card), card.slice(0, 400));
+    ok('…and the separate manpower tiles are gone', !/Days without work/.test(card) && !/OUR KARIGARS —/.test(card) && !/PRADEEP —/.test(card) && !/Sat without work/.test(card));
     A.setVO(wasVO); }
   A.setPTG(Object.assign({}, A.PTG(), { mdb: A.PTG().mdb.concat([
     { sku: 'TC-R', articleType: 'Tablecloth', subtype: 'Rectangular Tablecloth' }, { sku: 'TC-RUF', articleType: 'Tablecloth', subtype: 'Ruffle Tablecloth' },
