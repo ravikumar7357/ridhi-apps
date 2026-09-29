@@ -1427,6 +1427,10 @@
             <button class="segbtn" data-v="nostock">Not on Shopify</button>
             <button class="segbtn" data-v="all">All</button>
           </div>
+          <select id="shWin" style="flex:0 0 140px" title="Which sales the rate is read from">
+            <option value="90">Last 90 days</option><option value="30">Last 30 days</option></select>
+          <label style="flex:0 0 auto;display:flex;align-items:center;gap:6px;margin:0;font-size:12.5px;font-weight:600"
+            title="Only the best sellers that together make 80% of the units sold in the window"><input id="shTop" type="checkbox" style="width:auto"> Top 80%</label>
           <span class="muted" style="font-size:12.5px;flex:0 0 auto">Cover target</span>
           <input id="shTarget" type="number" min="1" max="365" step="1" value="60"
                  style="flex:0 0 90px" title="How many days of cover a reorder should top up to.">
@@ -1434,6 +1438,7 @@
           <input id="shMult" type="number" min="0.5" max="20" step="0.5" value="1"
                  style="flex:0 0 80px" title="Plan for this many times the sales rate — 3 means: sold 100 in 90 days, plan for 300.">
           <input id="shFilter" style="flex:1 1 150px;min-width:0" placeholder="Filter SKU / article">
+          <button id="shOpen" class="hide" title="Open a sales order for the ticked SKUs, each for its Send quantity">Open sales order</button>
           <button id="shCsv" class="ghost">Export</button>
           <button id="shGo">Refresh</button>
         </div>
@@ -7436,7 +7441,9 @@ function fillSel(id, vals, label) {
  * Shopify connection lives only there.
  */
 let SH = { at: '', from: '', to: '', days: 90, orders: 0, d: {}, stock: null, stockAt: '', loaded: false };
-let SH_VIEW = 'reorder', SH_LAST = [];
+let SH_VIEW = 'reorder', SH_LAST = [], SH_TOPN = 0;
+/* Ticked SKUs, for a sales order opened from here. Cleared when the store changes. */
+const SH_PICK = new Set();
 /* One figure set per store; SH is the one on screen. */
 const SH_BY = { SP: SH, CPC: { at: '', from: '', to: '', days: 90, orders: 0, d: {}, stock: null, stockAt: '', loaded: false } };
 const shStore = () => (($('shStore') || {}).value === 'CPC' ? 'CPC' : 'SP');
@@ -7457,6 +7464,7 @@ async function loadShopify() {
     const d = r.data || {};
     SH = SH_BY[store] = { at: d.at || '', from: d.from || '', to: d.to || '', days: d.days || 90,
       orders: d.orders || 0, d: d.d || {}, stock: d.stock || null, stockAt: d.stockAt || '',
+      d30: d.d30 || null, orders30: d.orders30 || 0, from30: d.from30 || '',
       loaded: true };
     shMsg('');
   } catch (e) {
@@ -7468,6 +7476,7 @@ async function loadShopify() {
 }
 if ($('shStore')) $('shStore').addEventListener('change', async () => {
   SH = SH_BY[shStore()];
+  SH_PICK.clear();
   if (!SH.loaded) await loadShopify();
   renderShopify();
 });
@@ -7504,7 +7513,10 @@ function shRows() {
   /* SALES × (Ravi, 2026-09-29: "last 90 days me 100 pcs sale hue h to future ke liye kitne x krke le lu like 3x"):
    * the plan is the sales rate times this, over the cover target — 100 sold in 90 days at ×3 and 90 days is 300. */
   const mult = shMultOf();
-  const days = SH.days || 90;
+  /* THE WINDOW: the last 90 days, or the last 30 (built in the same nightly walk, since 29 Sep). */
+  const win30 = Number(($('shWin') || {}).value) === 30;
+  const sales = win30 ? (SH.d30 || {}) : (SH.d || {});
+  const days = win30 ? 30 : (SH.days || 90);
   const haveStock = SH.stock && typeof SH.stock === 'object';
   const rows = [];
   const seen = new Set();
@@ -7528,11 +7540,19 @@ function shRows() {
     rows.push({ sku, sold, rev, stock, rate, cover, need, plan,
       subcat: d.subcat || '', color: d.color || '', size: d.size || '', guess: !!d.guess });
   };
-  Object.entries(SH.d).forEach(([sku, v]) => push(sku, v[0] || 0, v[1] || 0));
+  Object.entries(sales).forEach(([sku, v]) => push(sku, v[0] || 0, v[1] || 0));
   // Stocked but nothing sold in the window — still worth seeing; it is money sitting still.
   if (haveStock) Object.keys(SH.stock).forEach(sku => push(sku, 0, 0));
 
+  /* TOP 80%: the best sellers, most first, until together they hold 80% of the units sold in the window — the one that
+   * crosses the line is in. Worked out on every SKU that sold, before any other filter, so it does not move with them. */
+  const sold = rows.filter(r => r.sold > 0).sort((a, b) => b.sold - a.sold);
+  const allUnits = sold.reduce((t, r) => t + r.sold, 0);
+  let cum = 0;
+  sold.forEach(r => { r.top = allUnits > 0 && cum < allUnits * 0.8; cum += r.sold; r.cumPct = allUnits ? cum / allUnits * 100 : 0; });
+  SH_TOPN = sold.filter(r => r.top).length;
   let out = rows;
+  if (($('shTop') || {}).checked) out = out.filter(r => r.top);
   if (SH_VIEW === 'reorder') out = out.filter(r => r.need > 0);
   else if (SH_VIEW === 'out') out = out.filter(r => r.stock != null && r.stock <= 0 && r.sold > 0);
   else if (SH_VIEW === 'nostock') out = out.filter(r => r.stock == null && r.sold > 0);
@@ -7557,8 +7577,10 @@ function renderShopify() {
   const target = Math.max(1, Number($('shTarget').value) || 60);
   const money = v => '$' + Math.round(v || 0).toLocaleString('en-US');
 
-  const head = '<thead><tr><th class="frz">SKU</th><th>Article</th><th>Colour</th><th>Size</th>'
-    + `<th class="num" title="Units sold on Shopify in the ${SH.days} days to ${esc(SH.to)}.">${SH.days}d units</th>`
+  const win30 = Number(($('shWin') || {}).value) === 30, wDays = win30 ? 30 : SH.days;
+  const shown = rows.slice(0, 400), allOn = shown.length && shown.every(r => SH_PICK.has(r.sku));
+  const head = `<thead><tr><th style="width:30px"><input type="checkbox" data-shall="1" style="width:auto" title="Tick every row on screen"${allOn ? ' checked' : ''}></th><th class="frz">SKU</th><th>Article</th><th>Colour</th><th>Size</th>`
+    + `<th class="num" title="Units sold on Shopify in the ${wDays} days to ${esc(SH.to)}.">${wDays}d units</th>`
     + '<th class="num">Revenue</th>'
     + '<th class="num" title="Units a day, over the whole window.">Per day</th>'
     + '<th class="num" title="On hand across every Shopify location. A dash means Shopify has no record of this SKU at all — which is not the same as zero.">Stock</th>'
@@ -7571,7 +7593,8 @@ function renderShopify() {
   const cell = (v, g) => !v ? '<span class="muted">—</span>'
     : (g ? `<span style="font-style:italic;color:var(--muted)" title="Not in the master database — read from SKUs that look like it">${esc(v)}</span>` : esc(v));
   const body = rows.slice(0, CAP).map(r => '<tr>'
-    + `<td class="frz" style="font-weight:600">${esc(r.sku)}</td>`
+    + `<td><input type="checkbox" data-shpick="${esc(r.sku)}" style="width:auto"${SH_PICK.has(r.sku) ? ' checked' : ''}></td>`
+    + `<td class="frz" style="font-weight:600">${esc(r.sku)}${r.top ? ' <span title="In the top 80% of units sold" style="font-size:10.5px;font-weight:700;color:#1D4ED8;background:#EEF5FF;border-radius:6px;padding:1px 5px">TOP</span>' : ''}</td>`
     + `<td>${cell(r.subcat, r.guess)}</td>`
     + `<td>${cell(r.color, r.guess)}</td>`
     + `<td>${cell(r.size, r.guess)}</td>`
@@ -7588,13 +7611,16 @@ function renderShopify() {
     + '</tr>').join('');
 
   $('shTable').innerHTML = head + '<tbody>' + (body
-    || '<tr><td colspan="11" class="muted" style="padding:14px">Nothing matches.</td></tr>') + '</tbody>';
+    || '<tr><td colspan="12" class="muted" style="padding:14px">Nothing matches.</td></tr>') + '</tbody>';
+  shPickBtn();
 
   const send = rows.reduce((s, r) => s + (r.need || 0), 0);
   const neg = rows.filter(r => r.stock != null && r.stock < 0).length;
   shMsg(`<b>${shStore() === 'CPC' ? 'CPC Shopify' : 'Ridhi Shopify'}</b> · ${nf(rows.length)} SKU(s) · <b>${nf(send)}</b> units to reach ${target} days of cover${shMultOf() !== 1 ? ` at <b>${shMultOf()}×</b> the sales` : ''}`
     + (rows.length > CAP ? ` · showing the first ${CAP}` : '')
-    + ` · ${SH.days} days to ${esc(SH.to)}, ${nf(SH.orders)} order(s)`
+    + (win30 ? (SH.d30 ? ` · last 30 days to ${esc(SH.to)}, ${nf(SH.orders30)} order(s)` : ' · <span class="err">the last-30-day figures come with the next nightly run</span>')
+      : ` · ${SH.days} days to ${esc(SH.to)}, ${nf(SH.orders)} order(s)`)
+    + (SH_TOPN ? ` · <b>${nf(SH_TOPN)}</b> SKU(s) make 80% of the units` : '')
     + (SH.at ? ` · built ${esc(SH.at)}` : '')
     + (neg ? ` · <span class="err">${nf(neg)} SKU(s) below zero in Shopify ⚠ — counted as 0, correct them in Shopify</span>` : '')
     // Said out loud, because a stock column silently full of dashes reads as "nothing in stock".
@@ -7612,11 +7638,47 @@ let SH_FT = null;
 ['shFilter', 'shTarget', 'shMult'].forEach(id =>
   $(id).addEventListener('input', () => { clearTimeout(SH_FT); SH_FT = setTimeout(renderShopify, 250); }));
 
+/* ---- a sales order from the ticked rows (Ravi, 2026-09-29: "top me order open krna chahu to kar pau") ----
+ * The ordinary sales-order form opens with the ticked SKUs, each for its Send quantity, and the store's Shopify channel
+ * picked; it is saved or placed from there like any other order — nothing new is written from this screen. */
+function shPickBtn() {
+  const b = $('shOpen'); if (!b) return;
+  b.classList.toggle('hide', !SH_PICK.size);
+  b.textContent = `Open sales order (${nf(SH_PICK.size)})`;
+}
+if ($('shTable')) $('shTable').addEventListener('change', e => {
+  const t = e.target;
+  if (t.hasAttribute && t.hasAttribute('data-shall')) { SH_LAST.slice(0, 400).forEach(r => { if (t.checked) SH_PICK.add(r.sku); else SH_PICK.delete(r.sku); }); renderShopify(); return; }
+  const k = t.getAttribute && t.getAttribute('data-shpick'); if (!k) return;
+  if (t.checked) SH_PICK.add(k); else SH_PICK.delete(k);
+  shPickBtn();
+});
+async function shOpenSo() {
+  const all = new Map(SH_LAST.map(r => [r.sku, r]));
+  const picked = [...SH_PICK].map(k => all.get(k)).filter(Boolean);
+  const lines = picked.filter(r => r.need > 0).map(r => ({ sku: obUC(r.sku), qty: r.need, deliveryDate: '', orderTypeKey: 'regular', priority: '' }));
+  const skipped = picked.length - lines.length;
+  if (!lines.length) return shMsg('None of the ticked SKUs has anything to send.', true);
+  if (!PTG.masters || !PTG.mdb) await ptLoadGates();
+  if (SOX.rows === null) { try { SOX.rows = ptList(await ptGet('pt_salesOrders')); } catch (e) { SOX.rows = SOX.rows || []; } }
+  soFormOpen();
+  const cpc = shStore() === 'CPC', chans = soChannels();
+  const ch = chans.find(c => cpc ? /cpc/i.test(c.name + ' ' + c.code) && /shop/i.test(c.name + ' ' + c.code) : false)
+    || chans.find(c => /shopify/i.test(c.name) && (cpc || !/cpc/i.test(c.name))) || chans.find(c => c.code === 'SPY');
+  if (ch && $('sof_channel')) $('sof_channel').value = ch.code;
+  SOF.lines = lines;
+  soFormLines(); soIdPreview();
+  ptDlgMsg(`${nf(lines.length)} SKU(s) brought over from ${cpc ? 'CPC' : 'Ridhi'} Shopify, each for its Send quantity`
+    + (skipped ? ` · ${nf(skipped)} ticked SKU(s) had nothing to send and were left out` : '') + ' — check the channel and quantities, then save or place it.');
+}
+if ($('shOpen')) $('shOpen').onclick = () => shOpenSo();
+['shWin', 'shTop'].forEach(id => { if ($(id)) $(id).addEventListener('change', () => renderShopify()); });
+
 $('shCsv').onclick = () => {
   if (!SH_LAST.length) { shMsg('Nothing to export.', true); return; }
   csvDownload('shopify-' + (shStore() === 'CPC' ? 'cpc-' : 'ridhi-') + (SH.to || 'now'),
-    ['SKU', 'Article', 'Colour', 'Size', SH.days + 'd units', 'Revenue', 'Per day', 'Stock', 'Cover (d)', 'Plan (×' + shMultOf() + ')', 'Send'],
-    SH_LAST.map(r => [r.sku, r.subcat, r.color, r.size, r.sold, r.rev,
+    ['SKU', 'Top 80%', 'Article', 'Colour', 'Size', (Number(($('shWin') || {}).value) === 30 ? 30 : SH.days) + 'd units', 'Revenue', 'Per day', 'Stock', 'Cover (d)', 'Plan (×' + shMultOf() + ')', 'Send'],
+    SH_LAST.map(r => [r.sku, r.top ? 'yes' : '', r.subcat, r.color, r.size, r.sold, r.rev,
       r.rate > 0 ? r.rate.toFixed(2) : '', r.stock == null ? '' : r.stock,
       r.cover == null ? '' : Math.round(r.cover), r.plan || 0, r.need || 0]));
 };

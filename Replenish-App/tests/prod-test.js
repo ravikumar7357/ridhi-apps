@@ -21591,6 +21591,16 @@ console.log('\n== Shopify reorder: stock below zero is not demand (Ravi, 29 Sep:
   /* 29 Sep (Ravi: "last 90 days me 100 pcs sale hue h to future ke liye kitne x krke le lu like 3x"). */
   const f3 = run('all', 3).find(x => x.sku === 'FAST-1');
   ok('Sales ×3: 90 sold in 90 days, 90-day cover, ×3 → plan 270, send 260 with 10 in stock', f3 && f3.plan === 270 && f3.need === 260, JSON.stringify(f3));
+  /* 29 Sep (Ravi: "30 days ya 90 days filter krke ... top 80% sku konse h"). */
+  const run2 = (win, top, view) => new Function('SH', 'SH_VIEW', '$', 'skuKey', 'shDetails', 'shMultOf', src.slice(i, end + 2) + '\n;return shRows();')(
+    { days: 90, d: { A: [70, 0], B: [20, 0], C: [10, 0] }, d30: { A: [3, 0], B: [30, 0] }, stock: { A: 0, B: 0, C: 0 } }, view || 'all',
+    id => ({ shTarget: { value: '30' }, shFilter: { value: '' }, shWin: { value: String(win) }, shTop: { checked: !!top } })[id],
+    v => String(v == null ? '' : v).trim().toUpperCase(), () => ({}), () => 1);
+  const w30 = run2(30, false).find(x => x.sku === 'B');
+  ok('Last 30 days: the rate is the 30-day sales over 30 days (30 sold → 1 a day, 30 to plan for 30 days)', w30 && w30.sold === 30 && w30.rate === 1 && w30.plan === 30, JSON.stringify(w30));
+  const t90 = run2(90, true).map(x => x.sku).join();
+  ok('Top 80% (90 days: A 70, B 20, C 10): A and B, the one crossing 80% included', t90 === 'A,B', t90);
+  ok('…and on 30 days the top follows that window (B 30 of 33)', run2(30, true).map(x => x.sku).join() === 'B', run2(30, true).map(x => x.sku).join());
 }
 console.log('\n== a vendor order fetches its channel\'s open orders, SKU by SKU (Ravi, 29 Sep: "chennal wise du to wo auto ... orders me fatch kare sku wise")');
 await (async () => {

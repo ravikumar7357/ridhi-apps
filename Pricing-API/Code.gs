@@ -2825,7 +2825,9 @@ var SHOP_SKU_DAYS = 90;
 function shopifySkuSales_(fromIso, toIso, deadlineMs) {
   var fields = 'id,created_at,cancelled_at,financial_status,line_items';
   var base = '/orders.json?status=any&limit=250&fields=' + fields + shopWindow_(fromIso, toIso);
-  var out = {}, pageInfo = null, guard = 0, orders = 0;
+  var out = {}, out30 = {}, pageInfo = null, guard = 0, orders = 0, orders30 = 0;
+  /* THE LAST 30 DAYS TOO (Ravi, 2026-09-29), out of the same walk: an order on or after this day counts in both. */
+  var from30 = Utilities.formatDate(new Date(Date.parse(toIso + 'T00:00:00Z') - 29 * 86400000), 'UTC', 'yyyy-MM-dd');
   do {
     var r = shopifyGet_(pageInfo
       ? '/orders.json?limit=250&fields=' + fields + '&page_info=' + encodeURIComponent(pageInfo)
@@ -2835,12 +2837,15 @@ function shopifySkuSales_(fromIso, toIso, deadlineMs) {
       if (o.cancelled_at) return;
       if (String(o.financial_status || '').toLowerCase() === 'voided') return;
       orders++;
+      var recent = shopDayOf_(o) >= from30;
+      if (recent) orders30++;
       (o.line_items || []).forEach(function (li) {
         var sku = String(li.sku || '').trim(); if (!sku) return;
         var q = Number(li.quantity) || 0;
         var e = out[sku] || (out[sku] = [0, 0]);          // units, revenue
         e[0] += q;
         e[1] += (Number(li.price) || 0) * q;
+        if (recent) { var e3 = out30[sku] || (out30[sku] = [0, 0]); e3[0] += q; e3[1] += (Number(li.price) || 0) * q; }
       });
     });
     pageInfo = shopifyNextPageInfo_(r.link);
@@ -2849,7 +2854,8 @@ function shopifySkuSales_(fromIso, toIso, deadlineMs) {
     }
   } while (pageInfo && ++guard < 80);
   Object.keys(out).forEach(function (k) { out[k][1] = Math.round(out[k][1] * 100) / 100; });
-  return { ok: true, more: false, n: orders, d: out };
+  Object.keys(out30).forEach(function (k) { out30[k][1] = Math.round(out30[k][1] * 100) / 100; });
+  return { ok: true, more: false, n: orders, d: out, n30: orders30, d30: out30, from30: from30 };
 }
 
 /**
@@ -5278,6 +5284,7 @@ function shopSkuBuild_(shop, deadlineMs) {
     cacheWrite_(shopSkuCacheName_(shop), {
       at: nowStamp_(), from: iso(from), to: iso(to), days: SHOP_SKU_DAYS,
       orders: s.n, d: s.d, shop: String(shop || '').toUpperCase() === 'CPC' ? 'CPC' : 'SP',
+      d30: s.d30, orders30: s.n30, from30: s.from30,
       // Absent rather than empty when the stock walk did not finish — see the note in the app: no
       // stock figure and zero stock are different answers.
       stock: stock.more ? null : stock.stock,
