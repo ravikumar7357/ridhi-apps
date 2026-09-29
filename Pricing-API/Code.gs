@@ -129,6 +129,13 @@ function doGet(e) {
     // Parent ASIN per child ASIN, 20 a call — the Master Database fills its Parent ASIN column from this.
     if (p.parents)             { setBrand_(p.brand); return json_(catParents_(p.parents)); }
     // Shopify daily totals on demand (the dashboard's own refresh; the nightly run does this too).
+    /* Every product and variant with its SKU — what the SKU audit reads. One page of 250 products
+     * per call: the whole catalogue in one answer is exactly the kind of big, slow response Google
+     * loses on the way back. */
+    if (p.shopify === 'skus') {
+      setShopBrand_(p.shop);
+      return json_(shopifySkuList_(p.page));
+    }
     if (p.shopify === 'daily') return json_(shopifyDaily_(p.start, p.end));
     // Individual Shopify orders, for the tab that decides what ships and how.
     if (p.shopify === 'orders') {
@@ -139,6 +146,8 @@ function doGet(e) {
       ords.shopBrand = String(p.shop || '').toUpperCase() === 'CPC' ? 'CPC' : 'SP';
       return json_(ords);
     }
+    /* One store's per-SKU sales + stock built now, rather than waiting for the night. */
+    if (p.shopSkuBuild) return json_(shopSkuBuild_(String(p.shop || ''), Date.now() + 300000));
     // Whatever the nightly run has already worked out. One fast read instead of the whole grind.
     if (p.cache) {
       var c = cacheRead_(String(p.cache));
@@ -2872,6 +2881,30 @@ function shopifyStock_(deadlineMs) {
   return { ok: true, more: false, stock: out };
 }
 
+/**
+ * One page of products, with every variant's SKU.
+ *
+ * A VARIANT WITH NO SKU IS RETURNED, not skipped — "this product has no code" is the thing the audit
+ * is looking for, and a reader that drops it cannot find it. Nothing here guesses a code.
+ */
+function shopifySkuList_(pageInfo) {
+  var fields = 'id,title,status,handle,product_type,variants';
+  var path = pageInfo
+    ? '/products.json?limit=250&fields=' + fields + '&page_info=' + encodeURIComponent(String(pageInfo))
+    : '/products.json?limit=250&fields=' + fields;
+  var r = shopifyGet_(path);
+  var rows = [];
+  (r.json.products || []).forEach(function (p) {
+    (p.variants || []).forEach(function (v) {
+      rows.push([String(p.id), String(p.title || ''), String(p.status || ''), String(p.handle || ''),
+        String(p.product_type || ''), String(v.id), String(v.title || ''), String(v.sku == null ? '' : v.sku),
+        Number(v.inventory_quantity) || 0, String(v.price == null ? '' : v.price)]);
+    });
+  });
+  return { ok: true, cols: ['productId', 'product', 'status', 'handle', 'type', 'variantId', 'variant', 'sku', 'stock', 'price'],
+    n: rows.length, rows: rows, next: shopifyNextPageInfo_(r.link) || '' };
+}
+
 /** Editor check: does the Shopify side give per-SKU sales and stock at all, and do the SKUs match? */
 function shopSkuTest() {
   var to = new Date(), from = new Date(to.getTime() - 14 * 86400000);
@@ -4787,7 +4820,7 @@ function nightlyStatus() {
     Logger.log('   run weeklyAudit(0) / weeklyAudit(1) to see which ASINs are behind it');
   } else Logger.log('weekly check  OK - ' + (wc.checked || 0) + ' week(s) match the daily cache  (' + (wc.at || '?') + ')');
   ['daily', 'weekly', 'dailyAsin', 'ads', 'adsAsin', 'adsAsinDay',
-   'srchTerm', 'targeting', 'adGroup', 'placement', 'shopSku', 'sessions'].forEach(function (n) {
+   'srchTerm', 'targeting', 'adGroup', 'placement', 'shopSku', 'shopSkuCPC', 'sessions'].forEach(function (n) {
     var c = cacheRead_(n);
     Logger.log('cache ' + n + ': ' + (c ? ('ok Â· updated ' + (c.at || '?')
       + (c.from ? ' Â· from ' + c.from : '')) : 'empty'));
@@ -5225,27 +5258,48 @@ function nPhaseShop_(st, left) {
  * Sales first and stock LAST, in that order. Stock is an instant, not a window, so it is taken as
  * close as possible to the moment the cache is published.
  */
-function nPhaseShopSku_(st, left) {
+/* BOTH STORES (Ravi, 2026-09-29: "shopify stock CPC ke liye bhi add karo"): Ridhi's figures go to the cache
+ * 'shopSku' as before, CPC's to 'shopSkuCPC', in the same shape. */
+var SHOP_SKU_STORES = ['', 'CPC'];
+function shopSkuCacheName_(shop) { return String(shop || '').toUpperCase() === 'CPC' ? 'shopSkuCPC' : 'shopSku'; }
+
+/** One store's 90 days of sales per SKU and its stock now, written to its cache. {ok, more, skipped}. */
+function shopSkuBuild_(shop, deadlineMs) {
   var iso = function (d) { return Utilities.formatDate(d, ORDERS_PT, 'yyyy-MM-dd'); };
-  var done = function () { st.phase = 'weekly'; st.book = 0; st.row = 2; return true; };
-  if (!prop_('SHOPIFY_STORE') || !prop_('SHOPIFY_TOKEN')) return done();
-  var to = new Date(), from = new Date(to.getTime() - SHOP_SKU_DAYS * 86400000);
+  setShopBrand_(shop);
   try {
-    var s = shopifySkuSales_(iso(from), iso(to), Date.now() + Math.max(20000, left() - 30000));
+    if (!prop_(SHOP_PREFIX + 'SHOPIFY_STORE') || !prop_(SHOP_PREFIX + 'SHOPIFY_TOKEN')) return { ok: false, skipped: true };
+    var to = new Date(), from = new Date(to.getTime() - SHOP_SKU_DAYS * 86400000);
+    var s = shopifySkuSales_(iso(from), iso(to), deadlineMs - 30000);
     // A part-walked window is NOT written. Half the orders would read as a real 90-day figure and
     // every reorder built on it would be short, with nothing on screen to say why.
-    if (s.more) return false;
-    var stock = shopifyStock_(Date.now() + Math.max(15000, left() - 15000));
-    cacheWrite_('shopSku', {
+    if (s.more) return { ok: false, more: true };
+    var stock = shopifyStock_(deadlineMs - 5000);
+    cacheWrite_(shopSkuCacheName_(shop), {
       at: nowStamp_(), from: iso(from), to: iso(to), days: SHOP_SKU_DAYS,
-      orders: s.n, d: s.d,
+      orders: s.n, d: s.d, shop: String(shop || '').toUpperCase() === 'CPC' ? 'CPC' : 'SP',
       // Absent rather than empty when the stock walk did not finish — see the note in the app: no
       // stock figure and zero stock are different answers.
       stock: stock.more ? null : stock.stock,
       stockAt: stock.more ? '' : nowStamp_(),
     });
-  } catch (e) {
-    st.lastErrorAt = nowStamp_(); st.lastError = 'shopSku: ' + String(e.message || e).slice(0, 200);
+    return { ok: true, more: false, orders: s.n, skus: Object.keys(s.d).length, stockSkus: stock.more ? 0 : Object.keys(stock.stock).length };
+  } finally { setShopBrand_(''); }
+}
+
+function nPhaseShopSku_(st, left) {
+  var done = function () { st.phase = 'weekly'; st.book = 0; st.row = 2; st.shopSkuI = 0; return true; };
+  st.shopSkuI = st.shopSkuI || 0;
+  while (st.shopSkuI < SHOP_SKU_STORES.length) {
+    var r;
+    try { r = shopSkuBuild_(SHOP_SKU_STORES[st.shopSkuI], Date.now() + Math.max(20000, left())); }
+    catch (e) {
+      st.lastErrorAt = nowStamp_(); st.lastError = 'shopSku' + (SHOP_SKU_STORES[st.shopSkuI] || '') + ': ' + String(e.message || e).slice(0, 200);
+      r = { ok: false };
+    }
+    if (r.more) return false;                  // the same store again on the next wake-up
+    st.shopSkuI++;
+    if (st.shopSkuI < SHOP_SKU_STORES.length && left() < 90000) return false;
   }
   return done();
 }
