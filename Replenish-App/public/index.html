@@ -34880,7 +34880,7 @@ function repManpowerCard(week, brand) {
     ? `<input type="number" min="0" step="1" data-rephead="${esc(week)}|${esc(key)}" value="${val || ''}" placeholder="${ph}" style="width:${w || 84}px;height:36px;font-size:17px;font-weight:700;text-align:center;border:2px solid #6E90B5;border-radius:10px;background:#fff">`
     : `<b>${val ? nf(val) : '—'}</b>`;
   /* the week before, as an arrow and a number */
-  const vs = (now, was) => !was ? '' : `<span style="font-size:12px;font-weight:600;color:${now >= was ? '#15803D' : 'var(--bad)'}">${now >= was ? '▲' : '▼'} ${r0(was)} the week before</span>`;
+  const vs = (now, was) => !was ? '' : `<span style="font-size:12px;font-weight:600;color:${now >= was ? '#15803D' : 'var(--bad)'}">${now >= was ? '▲' : '▼'} ${r0(was)} a day the week before</span>`;
   const line = (label, val) => `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:7px 0;border-top:1px dashed var(--line);font-size:13px">
       <span style="color:var(--muted)">${label}</span><span style="font-weight:600;text-align:right">${val}</span></div>`;
   const sum = t => `<div style="margin-top:8px;padding:8px 10px;border-radius:10px;background:var(--soft);font-size:12.5px;color:var(--muted)">${t}</div>`;
@@ -34891,8 +34891,8 @@ function repManpowerCard(week, brand) {
       <div style="margin:6px 0 4px">${small}</div>${body}</div>`;
 
   const inhouse = panel('#2563EB', '#EFF5FF', 'Our karigars', 'in-house · everyone who brought work back this week',
-    m.people ? r0(m.avg) : '—', 'pcs per karigar in the week',
-    `<b style="font-size:15px">${m.people ? r0(m.avgDay) : '—'}</b> <span style="font-size:13px;color:var(--muted)">pcs per karigar a day</span> &nbsp; ${vs(m.avg, p.avg)}`,
+    m.people ? r0(m.avgDay) : '—', 'pcs per karigar <u>a day</u>',
+    `<b style="font-size:15px">${m.people ? r0(m.avg) : '—'}</b> <span style="font-size:13px;color:var(--muted)">pcs per karigar in the whole week (${nf(m.days)} days)</span> &nbsp; ${vs(m.avgDay, p.avgDay)}`,
     line('Karigars who worked', `${nf(m.people)}${p.people ? ` <span class="muted" style="font-weight:400">(${nf(p.people)} before)</span>` : ''}`)
     + line('Pieces they made', nf(m.inPcs))
     + sum(`${nf(m.inPcs)} pcs ÷ ${nf(m.people)} karigars = <b style="color:var(--ink)">${m.people ? r0(m.avg) : '—'}</b> each in the week · ÷ ${nf(m.days)} days = <b style="color:var(--ink)">${m.people ? r0(m.avgDay) : '—'}</b> a day`)
@@ -34902,10 +34902,10 @@ function repManpowerCard(week, brand) {
           <b style="flex:0 0 44px;text-align:right">${nf(pcs)}</b></div>`).join('') : ''));
 
   const cons = m.contractors.map(c => {
-    const was = (p.contractors.find(x => x.name === c.name) || {}).per;
+    const wasDay = (p.contractors.find(x => x.name === c.name) || {}).perDay;
     return panel('#7C3AED', '#F4EFFE', esc(c.name), 'outside contractor · his people counted from the attendance you give',
-      c.per == null ? '—' : r0(c.per), c.per == null ? 'enter the attendance below' : 'pcs per person in the week',
-      c.per == null ? '' : `<b style="font-size:15px">${r0(c.perDay)}</b> <span style="font-size:13px;color:var(--muted)">pcs per person a day</span> &nbsp; ${vs(c.per, was)}`,
+      c.perDay == null ? '—' : r0(c.perDay), c.perDay == null ? 'enter the attendance below' : 'pcs per person <u>a day</u>',
+      c.per == null ? '' : `<b style="font-size:15px">${r0(c.per)}</b> <span style="font-size:13px;color:var(--muted)">pcs per person in the whole week (${nf(m.days)} days)</span> &nbsp; ${vs(c.perDay, wasDay)}`,
       line('Pieces he brought back', nf(c.pcs))
       + line(`Attendance this week<br><span style="font-size:11.5px">each day's people added up — 20 a day × 6 days = 120</span>`, box(c.name, c.heads, 'total'))
       + line('People a day, average', c.perDayPeople == null ? '—' : `${nf(c.heads)} ÷ ${nf(m.days)} days = <b>${nf(Math.round(c.perDayPeople * 10) / 10)}</b>`)
@@ -34914,7 +34914,7 @@ function repManpowerCard(week, brand) {
   }).join('');
 
   const insert = panel('#B45309', '#FFF6E5', 'Pillow insert', 'kept apart — not in production, not in any per-person figure',
-    nf(m.insert), 'pcs this week', vs(m.insert, p.insert), '');
+    nf(m.insert), 'pcs this week', !p.insert ? '' : `<span style="font-size:12px;font-weight:600;color:var(--muted)">${nf(p.insert)} the week before</span>`, '');
 
   /* one person's day, side by side */
   const bars = [['Our karigar', m.people ? m.avgDay : 0, '#2563EB']].concat(m.contractors.filter(c => c.perDay != null).map(c => [esc(c.name) + ' person', c.perDay, '#7C3AED']));
