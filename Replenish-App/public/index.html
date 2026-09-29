@@ -7583,10 +7583,10 @@ function renderShopify() {
     + `<th class="num" title="Units sold on Shopify in the ${wDays} days to ${esc(SH.to)}.">${wDays}d units</th>`
     + '<th class="num">Revenue</th>'
     + '<th class="num" title="Units a day, over the whole window.">Per day</th>'
-    + '<th class="num" title="On hand across every Shopify location. A dash means Shopify has no record of this SKU at all — which is not the same as zero.">Stock</th>'
-    + '<th class="num" title="Days the stock lasts at this rate.">Cover (d)</th>'
+    /* NO STOCK OR COVER COLUMNS (Ravi, 2026-09-29: "not need here stock and cover here"). Send still takes off what Shopify
+     * holds above zero, and says so on its heading. */
     + `<th class="num" title="Per day × ${target} days × ${shMultOf()} — what to hold.">Plan${shMultOf() !== 1 ? ' (×' + shMultOf() + ')' : ''}</th>`
-    + `<th class="num" title="Plan less the stock on hand (below zero counts as 0).">Send</th></tr></thead>`;
+    + `<th class="num" title="Plan less what Shopify holds above zero (a count below zero is taken as 0).">Send</th></tr></thead>`;
 
   const CAP = 400;
   /* Not in the master: filled from its look-alikes, and shown as such. */
@@ -7600,29 +7600,21 @@ function renderShopify() {
     + `<td>${cell(r.size, r.guess)}</td>`
     + `<td class="num">${nf(r.sold)}</td><td class="num">${money(r.rev)}</td>`
     + `<td class="num">${r.rate > 0 ? r.rate.toFixed(2) : '<span class="muted">—</span>'}</td>`
-    + `<td class="num">${r.stock == null
-        ? '<span class="muted" title="Not found in Shopify.">—</span>'
-        : (r.stock < 0 ? `<span style="color:var(--bad);font-weight:700" title="Shopify shows this below zero — its count needs correcting. Treated as 0; the minus is not added to Send.">${nf(r.stock)} ⚠</span>`
-        : (r.stock === 0 ? '<span style="color:var(--bad);font-weight:700">0</span>' : nf(r.stock)))}</td>`
-    + `<td class="num">${r.cover == null ? '<span class="muted">—</span>'
-        : (r.cover < 30 ? `<span style="color:var(--bad);font-weight:700">${Math.round(r.cover)}</span>` : Math.round(r.cover))}</td>`
     + `<td class="num">${r.plan > 0 ? nf(r.plan) : '<span class="muted">—</span>'}</td>`
     + `<td class="num" style="font-weight:700">${r.need > 0 ? nf(r.need) : '<span class="muted">—</span>'}</td>`
     + '</tr>').join('');
 
   $('shTable').innerHTML = head + '<tbody>' + (body
-    || '<tr><td colspan="12" class="muted" style="padding:14px">Nothing matches.</td></tr>') + '</tbody>';
+    || '<tr><td colspan="10" class="muted" style="padding:14px">Nothing matches.</td></tr>') + '</tbody>';
   shPickBtn();
 
   const send = rows.reduce((s, r) => s + (r.need || 0), 0);
-  const neg = rows.filter(r => r.stock != null && r.stock < 0).length;
   shMsg(`<b>${shStore() === 'CPC' ? 'CPC Shopify' : 'Ridhi Shopify'}</b> · ${nf(rows.length)} SKU(s) · <b>${nf(send)}</b> units to reach ${target} days of cover${shMultOf() !== 1 ? ` at <b>${shMultOf()}×</b> the sales` : ''}`
     + (rows.length > CAP ? ` · showing the first ${CAP}` : '')
     + (win30 ? (SH.d30 ? ` · last 30 days to ${esc(SH.to)}, ${nf(SH.orders30)} order(s)` : ' · <span class="err">the last-30-day figures come with the next nightly run</span>')
       : ` · ${SH.days} days to ${esc(SH.to)}, ${nf(SH.orders)} order(s)`)
     + (SH_TOPN ? ` · <b>${nf(SH_TOPN)}</b> SKU(s) make 80% of the units` : '')
     + (SH.at ? ` · built ${esc(SH.at)}` : '')
-    + (neg ? ` · <span class="err">${nf(neg)} SKU(s) below zero in Shopify ⚠ — counted as 0, correct them in Shopify</span>` : '')
     // Said out loud, because a stock column silently full of dashes reads as "nothing in stock".
     + (SH.stock ? (SH.stockAt ? ` · stock read ${esc(SH.stockAt)}` : '')
         : ' · <span class="err">stock could not be read this run — the Stock and Send columns are blank, not zero</span>'));
@@ -7677,10 +7669,9 @@ if ($('shOpen')) $('shOpen').onclick = () => shOpenSo();
 $('shCsv').onclick = () => {
   if (!SH_LAST.length) { shMsg('Nothing to export.', true); return; }
   csvDownload('shopify-' + (shStore() === 'CPC' ? 'cpc-' : 'ridhi-') + (SH.to || 'now'),
-    ['SKU', 'Top 80%', 'Article', 'Colour', 'Size', (Number(($('shWin') || {}).value) === 30 ? 30 : SH.days) + 'd units', 'Revenue', 'Per day', 'Stock', 'Cover (d)', 'Plan (×' + shMultOf() + ')', 'Send'],
+    ['SKU', 'Top 80%', 'Article', 'Colour', 'Size', (Number(($('shWin') || {}).value) === 30 ? 30 : SH.days) + 'd units', 'Revenue', 'Per day', 'Plan (×' + shMultOf() + ')', 'Send'],
     SH_LAST.map(r => [r.sku, r.top ? 'yes' : '', r.subcat, r.color, r.size, r.sold, r.rev,
-      r.rate > 0 ? r.rate.toFixed(2) : '', r.stock == null ? '' : r.stock,
-      r.cover == null ? '' : Math.round(r.cover), r.plan || 0, r.need || 0]));
+      r.rate > 0 ? r.rate.toFixed(2) : '', r.plan || 0, r.need || 0]));
 };
 
 /* ================= INDIA STOCK (uploaded) ================= */
