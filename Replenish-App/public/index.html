@@ -26963,7 +26963,7 @@ const fabWidthIn = fabric => fabWidthMap().get(String(fabric || '').trim().toLow
  * A CUT line: consumption is the running metres one piece takes, so pieces × consumption × width.
  * A RUNNING line: the quantity is already metres of cloth, so metres × width.
  */
-function voSqm(r, qty, cloth) {
+function voSqm(r, qty) {
   const q = parseFloat(qty) || 0;
   if (!(q > 0)) return null;
   if (r.run) {
@@ -26974,14 +26974,13 @@ function voSqm(r, qty, cloth) {
   if (!m) return null;
   /* A TABLECLOTH OR RUNNER IS ITS OWN SIZE (Ravi, 2026-09-29: "square meter looks wrong" — 33 of a 60x90 read
    * 122.13 m², the cloth consumed with its hems and the bolt's spare width, where the piece is 33 × 3.48 = 114.97).
-   * Everything else is still the cloth a piece takes: consumption × the fabric's width.
-   * CLOTH (true) asks for the cloth consumed instead — the printers' capacity, which is set against the printing
-   * need, and that need is worked out in cloth. */
+   * Everything else is still the cloth a piece takes: consumption × the fabric's width. The printers' capacity
+   * (pafHistory) and the printing need (pafNeed) are read the same way, so the two still measure alike. */
   const a = voSizeSqm(m);
-  if (a && !cloth) return q * a;
+  if (a) return q * a;
   const cons = parseFloat(m.consumption) || 0;
   const w = voFabWidthM(m.fabric);
-  if (!cons || !w) return a ? q * a : null;
+  if (!cons || !w) return null;
   return q * cons * w;
 }
 /**
@@ -43889,7 +43888,10 @@ function pafNeed() {
     const fab = ptPrintFabric(m) || '—';
     const cons = parseFloat(m.consumption) || 0;
     const w = voFabWidthM(fab);
-    if (!cons || !w) {
+    /* A tablecloth or runner by its own size, as the delivery log reads it (Ravi, 2026-09-29) — capacity is
+     * measured on the same footing, so the weeks in hand compare like with like. */
+    const area = voSizeSqm(m);
+    if (!area && (!cons || !w)) {
       unknownPcs += left;
       const why = !cons ? 'no consumption on the master row' : `fabric "${fab || '—'}" has no width in its name`;
       const e = unknown.get(obUC(l.sku)) || { sku: obUC(l.sku), pcs: 0, why };
@@ -43897,7 +43899,7 @@ function pafNeed() {
       unknown.set(obUC(l.sku), e);
       return;
     }
-    const s = left * cons * w;
+    const s = area ? left * area : left * cons * w;
     sqm += s;
     const e = byFab.get(fab) || { fabric: fab, sqm: 0, pcs: 0 };
     e.sqm += s; e.pcs += left;
@@ -43932,7 +43934,7 @@ function pafHistory(weeks) {
     if (!r.printing) return;
     const wk = pafWeekOf(ptDtMs(r.day) || ptDtMs(r.raw));
     if (!wk || !keySet.has(wk)) return;
-    const s = voSqm({ run: r.run, fabric: r.fabric, sku: r.sku }, r.qty, true);
+    const s = voSqm({ run: r.run, fabric: r.fabric, sku: r.sku }, r.qty);
     const v = byVendor.get(r.vendorCode) || { code: r.vendorCode, name: r.vendor, weeks: new Map(), total: 0, unpriced: 0 };
     if (s == null) { v.unpriced += r.qty; unpriced += r.qty; }
     else { v.weeks.set(wk, (v.weeks.get(wk) || 0) + s); v.total += s; }

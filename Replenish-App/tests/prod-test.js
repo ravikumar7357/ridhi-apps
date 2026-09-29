@@ -6199,8 +6199,6 @@ console.log('\n== how much fabric was in those pieces ==');
      Math.abs(A.voSqm(cut, 10) - 10 * 80 * 120 * 0.00064516) < 1e-9, String(A.voSqm(cut, 10)));
   ok('…which for these ten comes to about 61.9 m²', Math.round(A.voSqm(cut, 10) * 10) / 10 === 61.9,
      String(A.voSqm(cut, 10)));
-  ok('…and as cloth consumed (for printer capacity) it is pieces x consumption x width, 64.6 m²',
-     Math.abs(A.voSqm(cut, 10, true) - 10 * 3.1 * 82 * 0.0254) < 1e-9, String(A.voSqm(cut, 10, true)));
   /* A running order is already metres of cloth — no consumption figure involved. */
   ok('a running delivery is metres x width',
      Math.abs(A.voSqm({ run: true, fabric: 'Voil 112' }, 100) - 100 * 112 * 0.0254) < 1e-9,
@@ -14886,8 +14884,10 @@ console.log('\n== cloth the printers owe, and what they actually deliver ==');
 
   const W = 58 * 0.0254;
   const need = A.pafNeed();
-  ok('cloth is pieces × consumption × width',
-    Math.abs(need.sqm - (10 * 2 * W + 5 * 3 * W)) < 0.001, need.sqm);
+  /* 29 Sep: tablecloths by their own size — 60x60 and 60x90 inches — as the delivery log reads them. */
+  const K = 0.00064516;
+  ok('a tablecloth to make is pieces × its size (10 of 60x60 + 5 of 60x90)',
+    Math.abs(need.sqm - (10 * 60 * 60 * K + 5 * 60 * 90 * K)) < 0.001, need.sqm);
   ok('…and every piece still to make is counted', need.pieces === 25);
   ok('a SKU with no consumption is NOT in the figure', need.unknownPcs === 10);
   ok('…and is named, with the reason', need.unknown.some(u => u.sku === 'NO-CONS' && /consumption/.test(u.why))
@@ -14922,15 +14922,15 @@ console.log('\n== cloth the printers owe, and what they actually deliver ==');
   A.VO().rows.push({ vendorCode: 'VND002', id: 'o8', orderNo: 'VPO-8', service: 'Filling', lines: [{ sku: 'RTC327-6060', deliveries: [{ date: dmy(wkNow), qty: 30 }] }] });
   const h = A.pafHistory(4);
   ok('a filling firm is not in the printers capacity, and a filling order to a printer is not either', !h.vendors.some(v => v.code === 'VND009')
-     && Math.abs((h.vendors.find(v => v.code === 'VND002').weeks.get(wkNow) || 0) - A.voSqm({ sku: 'RTC327-6090' }, 10, true)) < 0.001, JSON.stringify(h.vendors.map(v => v.code)));
+     && Math.abs((h.vendors.find(v => v.code === 'VND002').weeks.get(wkNow) || 0) - A.voSqm({ sku: 'RTC327-6090' }, 10)) < 0.001, JSON.stringify(h.vendors.map(v => v.code)));
   ok('the window is the last four weeks, this week last', h.keys.length === 4 && h.keys[3] === wkNow);
   { const p = h.keys[0].split('-').map(Number);
     ok('…and every week starts on a Sunday, the production week', h.keys.every(k => { const q = k.split('-').map(Number); return new Date(q[0], q[1] - 1, q[2]).getDay() === 0; }), h.keys.join()); }
   const v1 = h.vendors.find(v => v.code === 'VND001');
-  ok('a printer\'s week is the cloth they delivered that week',
-    Math.abs((v1.weeks.get(wkNow) || 0) - 100 * 2 * W) < 0.001);
+  ok('a printer\'s week is the m² they delivered that week — 100 of a 60x60 tablecloth',
+    Math.abs((v1.weeks.get(wkNow) || 0) - 100 * 60 * 60 * K) < 0.001);
   ok('…and the average is over the weeks they actually worked, not the window',
-    v1.ranWeeks === 2 && Math.abs(v1.avg - ((100 * 2 * W) + (50 * 2 * W)) / 2) < 0.001);
+    v1.ranWeeks === 2 && Math.abs(v1.avg - ((100 * 60 * 60 * K) + (50 * 60 * 60 * K)) / 2) < 0.001);
   const v3 = h.vendors.find(v => v.code === 'VND003');
   ok('a delivery nobody can price is kept apart, not counted as cloth', v3.total === 0 && v3.unpriced === 40);
   ok('the all-printer figure is the sum of their averages',
