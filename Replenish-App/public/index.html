@@ -26963,7 +26963,7 @@ const fabWidthIn = fabric => fabWidthMap().get(String(fabric || '').trim().toLow
  * A CUT line: consumption is the running metres one piece takes, so pieces × consumption × width.
  * A RUNNING line: the quantity is already metres of cloth, so metres × width.
  */
-function voSqm(r, qty) {
+function voSqm(r, qty, cloth) {
   const q = parseFloat(qty) || 0;
   if (!(q > 0)) return null;
   if (r.run) {
@@ -26972,9 +26972,16 @@ function voSqm(r, qty) {
   }
   const m = mdbOf(r.sku);
   if (!m) return null;
+  /* A TABLECLOTH OR RUNNER IS ITS OWN SIZE (Ravi, 2026-09-29: "square meter looks wrong" — 33 of a 60x90 read
+   * 122.13 m², the cloth consumed with its hems and the bolt's spare width, where the piece is 33 × 3.48 = 114.97).
+   * Everything else is still the cloth a piece takes: consumption × the fabric's width.
+   * CLOTH (true) asks for the cloth consumed instead — the printers' capacity, which is set against the printing
+   * need, and that need is worked out in cloth. */
+  const a = voSizeSqm(m);
+  if (a && !cloth) return q * a;
   const cons = parseFloat(m.consumption) || 0;
   const w = voFabWidthM(m.fabric);
-  if (!cons || !w) { const a = voSizeSqm(m); return a ? q * a : null; }
+  if (!cons || !w) return a ? q * a : null;
   return q * cons * w;
 }
 /**
@@ -27952,7 +27959,7 @@ function renderVlog() {
   const head = '<thead><tr>'
     + (canOk ? '<th style="width:30px"><input type="checkbox" data-vl-all title="Tick every delivery on screen"></th>' : '')
     + cols.map((h, i) => `<th${i === 0 ? ' class="frz"' : (i >= 5 && i <= 8 ? ' class="num"' : '')}`
-        + `${h.indexOf('Fabric') === 0 ? ' title="Cloth in the pieces actually in hand — what was kept once accepted, what the printer says until then. Pieces x consumption x the fabric width, which is read out of the fabric name."' : ''}>${h}</th>`).join('')
+        + `${h.indexOf('Fabric') === 0 ? ' title="Cloth in the pieces actually in hand — what was kept once accepted, what the printer says until then. A tablecloth or runner by its own size (60x90 in = 3.48 m² a piece); anything else pieces x consumption x the fabric width."' : ''}>${h}</th>`).join('')
     + (canOk ? '<th></th>' : '') + '</tr></thead>';
 
   const body = days.map(k => {
@@ -43925,7 +43932,7 @@ function pafHistory(weeks) {
     if (!r.printing) return;
     const wk = pafWeekOf(ptDtMs(r.day) || ptDtMs(r.raw));
     if (!wk || !keySet.has(wk)) return;
-    const s = voSqm({ run: r.run, fabric: r.fabric, sku: r.sku }, r.qty);
+    const s = voSqm({ run: r.run, fabric: r.fabric, sku: r.sku }, r.qty, true);
     const v = byVendor.get(r.vendorCode) || { code: r.vendorCode, name: r.vendor, weeks: new Map(), total: 0, unpriced: 0 };
     if (s == null) { v.unpriced += r.qty; unpriced += r.qty; }
     else { v.weeks.set(wk, (v.weeks.get(wk) || 0) + s); v.total += s; }

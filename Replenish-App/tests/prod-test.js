@@ -6194,10 +6194,13 @@ console.log('\n== how much fabric was in those pieces ==');
   ok('…and neither does nothing at all', A.voFabWidthM('') === 0 && A.voFabWidthM(null) === 0);
 
   const cut = { run: false, sku: 'RTC95-80120', qty: 10 };
-  ok('a cut delivery is pieces x consumption x width',
-     Math.abs(A.voSqm(cut, 10) - 10 * 3.1 * 82 * 0.0254) < 1e-9, String(A.voSqm(cut, 10)));
-  ok('…which for these ten comes to about 64.6 m²', Math.round(A.voSqm(cut, 10) * 10) / 10 === 64.6,
+  /* 29 Sep (Ravi: "square meter looks wrong"): a tablecloth is its own size, 80 x 120 in = 6.19 m² a piece. */
+  ok('a cut tablecloth is pieces x its size',
+     Math.abs(A.voSqm(cut, 10) - 10 * 80 * 120 * 0.00064516) < 1e-9, String(A.voSqm(cut, 10)));
+  ok('…which for these ten comes to about 61.9 m²', Math.round(A.voSqm(cut, 10) * 10) / 10 === 61.9,
      String(A.voSqm(cut, 10)));
+  ok('…and as cloth consumed (for printer capacity) it is pieces x consumption x width, 64.6 m²',
+     Math.abs(A.voSqm(cut, 10, true) - 10 * 3.1 * 82 * 0.0254) < 1e-9, String(A.voSqm(cut, 10, true)));
   /* A running order is already metres of cloth — no consumption figure involved. */
   ok('a running delivery is metres x width',
      Math.abs(A.voSqm({ run: true, fabric: 'Voil 112' }, 100) - 100 * 112 * 0.0254) < 1e-9,
@@ -6233,7 +6236,7 @@ console.log('\n== how much fabric was in those pieces ==');
   A.renderVlog();
   const h = els.vlTable.innerHTML;
   ok('the log has a Fabric m² column', /Fabric m/.test(h), h.slice(0, 500));
-  ok('…with the figure on the row it can work out', /64\.57/.test(h), h.slice(0, 600));
+  ok('…with the figure on the row it can work out', /61\.94/.test(h), h.slice(0, 600));
   ok('…and a dash on the one it cannot', /—/.test(h));
   ok('the panel totals the cloth', /Fabric received/.test(els.vlKpis.innerHTML), els.vlKpis.innerHTML);
   /* One of the two rows could not be worked out, and the panel says so rather than quietly
@@ -6247,7 +6250,7 @@ console.log('\n== how much fabric was in those pieces ==');
   /* Six kept of ten: 6 × 3.1 m of 82-inch cloth = 38.74 m². The cloth follows the pieces in hand,
    * not what the printer claimed — so the 64.57 that was there a moment ago must be gone. */
   ok('accepting fewer pieces lowers the cloth with them',
-     /38\.74/.test(els.vlTable.innerHTML) && !/64\.57/.test(els.vlTable.innerHTML),
+     /37\.16/.test(els.vlTable.innerHTML) && !/61\.94/.test(els.vlTable.innerHTML),
      els.vlTable.innerHTML.slice(0, 600));
   NET.on = false;
 
@@ -14919,7 +14922,7 @@ console.log('\n== cloth the printers owe, and what they actually deliver ==');
   A.VO().rows.push({ vendorCode: 'VND002', id: 'o8', orderNo: 'VPO-8', service: 'Filling', lines: [{ sku: 'RTC327-6060', deliveries: [{ date: dmy(wkNow), qty: 30 }] }] });
   const h = A.pafHistory(4);
   ok('a filling firm is not in the printers capacity, and a filling order to a printer is not either', !h.vendors.some(v => v.code === 'VND009')
-     && Math.abs((h.vendors.find(v => v.code === 'VND002').weeks.get(wkNow) || 0) - A.voSqm({ sku: 'RTC327-6090' }, 10)) < 0.001, JSON.stringify(h.vendors.map(v => v.code)));
+     && Math.abs((h.vendors.find(v => v.code === 'VND002').weeks.get(wkNow) || 0) - A.voSqm({ sku: 'RTC327-6090' }, 10, true)) < 0.001, JSON.stringify(h.vendors.map(v => v.code)));
   ok('the window is the last four weeks, this week last', h.keys.length === 4 && h.keys[3] === wkNow);
   { const p = h.keys[0].split('-').map(Number);
     ok('…and every week starts on a Sunday, the production week', h.keys.every(k => { const q = k.split('-').map(Number); return new Date(q[0], q[1] - 1, q[2]).getDay() === 0; }), h.keys.join()); }
@@ -21623,7 +21626,7 @@ console.log('\n== Fabric m² for tablecloths in the delivery log (Ravi, 29 Sep: 
     M('TC-NOCONS', 'Rectangular Tablecloth', '60x90'), M('TC-RND', 'Round Tablecloth', '110 Round'),
     { sku: 'PC-1', articleType: 'Pillow Cover', subtype: 'Pillow Cover', size: '18x18' }] }));
   const v = A.voSqm({ sku: 'CPC010-06' }, 33);
-  ok('a tablecloth with consumption and fabric: pieces × consumption × width (33 × 2.35 × 62" ≈ 122 m²)', v != null && Math.abs(v - 33 * 2.35 * 62 * 0.0254) < 1e-6, String(v));
+  ok('33 of a 60x90 tablecloth are 33 × 3.48 = 114.97 m², not the 122.13 of cloth consumed', v != null && Math.abs(v - 33 * 60 * 90 * 0.00064516) < 1e-6 && Math.round(v * 100) / 100 === 114.97, String(v));
   const n = A.voSqm({ sku: 'TC-NOCONS' }, 10), r = A.voSqm({ sku: 'TC-RND' }, 2);
   ok('…with neither, from its size: 60 × 90 in = 3.48 m² a piece', n != null && Math.abs(n - 10 * 60 * 90 * 0.00064516) < 1e-6, String(n));
   ok('…a round one from its square: 110 × 110 in', r != null && Math.abs(r - 2 * 110 * 110 * 0.00064516) < 1e-6, String(r));
