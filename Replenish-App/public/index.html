@@ -35311,6 +35311,8 @@ function repManpowerCard(week, brand) {
       <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;font-weight:600;align-items:center">
         <label style="display:flex;align-items:center;gap:6px;margin:0">Working days ${box('_days', m.days, '6', 56)}</label>
         <label style="display:flex;align-items:center;gap:6px;margin:0">One person can make ${box('perDay', T, '50', 60, '_settings')} a day</label>
+        <!-- CLOSE sits on this line (Ravi, 2026-09-29: "close button line ki jagah hona chahiye"). -->
+        <button type="button" class="ghost" data-reptoggle="1" style="height:30px;padding:0 12px;font-size:12.5px">Close ▲</button>
       </div></div>
     ${row('MADE', tile('Total pcs made', nf(total), `ours ${nf(g.made)} + Pradeep ${nf(conPcs)} · ${vs(total, totalWas)}`)
       + sheet('Our karigars made', nf(g.made), '#1D4ED8', [
@@ -35415,7 +35417,6 @@ function repRenderWow() {
       <span style="flex:1"></span><button type="button" class="ghost" data-reptoggle="1" style="height:32px;padding:0 14px">Open ▼</button></div>`;
   } else
   $('repKpis').innerHTML = `<div class="kpi" style="flex-basis:100%">
-    <div style="display:flex;justify-content:flex-end;margin-bottom:-6px"><button type="button" class="ghost" data-reptoggle="1" style="height:28px;padding:0 12px;font-size:12px">Close ▲</button></div>
     <div class="kpihead"><span class="kpiname">Week of ${esc(repWkRange(week))}</span>
       <span class="kpiwhen">${nf(weeks.length)} weeks shown · against ${esc(repWkRange(prevWeek))} · what came back, from Job Work Register</span></div>
     <div class="metrics">
