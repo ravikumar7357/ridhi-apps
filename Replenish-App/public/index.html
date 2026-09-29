@@ -34670,6 +34670,8 @@ async function ensureRep() {
   if (FGI.rows === null && $('repView').value === 'fgval') { try { FGI.rows = ptList(await ptGet('pt_fgiLedger')); } catch (e) { FGI.rows = []; } }
   if (REP_HEADS === null) { try { REP_HEADS = (await ptGet('pt_contractorHeads')) || {}; } catch (e) { REP_HEADS = {}; } }
   renderRep();
+  /* The cut pieces that came from printers are vendor deliveries: read after the report is on screen. */
+  if (VO.rows === null && ($('repView') || {}).value === 'wow') { try { await ensureVo(); renderRep(); } catch (e) { /* the tile says it is not read */ } }
 }
 
 const repPack = sku => { const m = mdbOf(sku);
@@ -34764,10 +34766,14 @@ function repGap(week, brand) {
   const days = [];
   for (let i = 0; i < 7 && days.length < nDays; i++) { const d = new Date(wp[0], wp[1] - 1, wp[2] + i); if (d.getDay() !== 0 && d.getTime() <= Date.now()) days.push(d.getTime()); }
   const K = made.size, madeTot = [...made.values()].reduce((a, b) => a + b, 0);
-  const empty = [];
+  const empty = [], dayCounts = days.map(() => 0);
   made.forEach((_, k) => {
     const rs = byWho.get(k) || [];
-    const n = days.filter(d => !rs.some(r => { const im = ptDtMs(r.issueDate), rm = r.receivingDate ? ptDtMs(r.receivingDate) : 0; return im && im < d + DAY && (!rm || rm >= d); })).length;
+    let n = 0;
+    days.forEach((d, i) => {
+      const busy = rs.some(r => { const im = ptDtMs(r.issueDate), rm = r.receivingDate ? ptDtMs(r.receivingDate) : 0; return im && im < d + DAY && (!rm || rm >= d); });
+      if (busy) dayCounts[i]++; else n++;
+    });
     if (n) empty.push({ name: k, days: n, made: made.get(k) || 0 });
   });
   const emptyDays = empty.reduce((a, e) => a + e.days, 0);
@@ -34775,7 +34781,10 @@ function repGap(week, brand) {
   (PT.cut || []).forEach(r => { const ms = r && ptDtMs(r.cutDate); if (ms && ms >= from && ms < to && !repIsInsert(r) && repNeedsCutting(r) && (!brand || repBrand(r.sku) === brand)) cut += ptNum(r.pieces); });
   const possible = K * T * days.length, short = Math.max(0, possible - madeTot);
   const noWork = Math.min(short, emptyDays * T), speed = Math.max(0, short - noWork);
+  /* MANPOWER A DAY: on each working day, the karigars who had work in hand — 48 one day, 50 the next, 49 on average. */
+  const personDays = dayCounts.reduce((a, b) => a + b, 0);
   return { week, perDay: T, days: days.length, karigars: K, made: madeTot, possible, short, noWork, speed,
+    dayCounts, dayMs: days, personDays, perDayPeople: days.length ? personDays / days.length : 0, perPersonDay: personDays ? madeTot / personDays : 0,
     emptyDays, karigarDays: K * days.length, held, issued, issuedCut, issuedReady: issued - issuedCut, cut, available: held + issued,
     empty: empty.sort((a, b) => b.days - a.days || a.made - b.made) };
 }
@@ -35164,6 +35173,22 @@ function repRenderLive() {
   REP.live = L;
 }
 
+/** Tablecloths, border napkins and table runners that came CUT from printers this week — accepted, or as the printer
+ * says until then. null while the vendor orders are not read. */
+function repPrinterCut(week, brand) {
+  if (!Array.isArray(VO.rows)) return null;
+  const wp = String(week).split('-').map(Number), from = new Date(wp[0], wp[1] - 1, wp[2]).getTime(), to = from + 7 * 864e5;
+  let pcs = 0;
+  voLogRows().forEach(r => {
+    if (r.run || !r.sku) return;
+    const ms = ptDtMs(r.day) || ptDtMs(r.raw);
+    if (!ms || ms < from || ms >= to) return;
+    if (repNeedsCutting({ sku: r.sku }) || (brand && repBrand(r.sku) !== brand)) return;
+    pcs += vlInHand(r) || 0;
+  });
+  return pcs;
+}
+
 /** The gap panel: what could have been made, what was, and why the rest was not — no work, or speed. */
 function repGapPanel(week, brand, box) {
   const g = repGap(week, brand);
@@ -35219,70 +35244,63 @@ function repGapPanel(week, brand, box) {
 /** MANPOWER, the week's: who made it and what one person makes — pillow insert apart, each contractor on his own. */
 function repManpowerCard(week, brand) {
   const m = repManpower(week, brand), p = repManpower(repWkShift(week, -1), brand);
+  const g = repGap(week, brand), gp = repGap(repWkShift(week, -1), brand);
   const canEdit = !!(ME.admin || ptCanEdit());
   const r0 = v => nf(Math.round(v));
-  const box = (key, val, ph, w) => canEdit
-    ? `<input type="number" min="0" step="1" data-rephead="${esc(week)}|${esc(key)}" value="${val || ''}" placeholder="${ph}" style="width:${w || 84}px;height:36px;font-size:17px;font-weight:700;text-align:center;border:2px solid #6E90B5;border-radius:10px;background:#fff">`
+  const box = (key, val, ph, w, wk) => canEdit
+    ? `<input type="number" min="0" step="1" data-rephead="${esc(wk || week)}|${esc(key)}" value="${val || ''}" placeholder="${ph}" style="width:${w || 70}px;height:30px;font-size:14px;font-weight:700;text-align:center;border:1.5px solid #6E90B5;border-radius:8px;background:#fff">`
     : `<b>${val ? nf(val) : '—'}</b>`;
-  /* the week before, as an arrow and a number */
-  const vs = (now, was) => !was ? '' : `<span style="font-size:12px;font-weight:600;color:${now >= was ? '#15803D' : 'var(--bad)'}">${now >= was ? '▲' : '▼'} ${r0(was)} a day the week before</span>`;
-  const line = (label, val) => `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:7px 0;border-top:1px dashed var(--line);font-size:13px">
-      <span style="color:var(--muted)">${label}</span><span style="font-weight:600;text-align:right">${val}</span></div>`;
-  const sum = t => `<div style="margin-top:8px;padding:8px 10px;border-radius:10px;background:var(--soft);font-size:12.5px;color:var(--muted)">${t}</div>`;
-  const panel = (tone, bg, title, sub, big, bigLabel, small, body) => `<div style="flex:1 1 280px;min-width:0;background:#fff;border:1px solid var(--line);border-top:5px solid ${tone};border-radius:16px;padding:14px 16px">
-      <div style="font-weight:800;font-size:15px">${title}</div><div style="font-size:12px;color:var(--muted);margin-bottom:10px">${sub}</div>
-      <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;background:${bg};border-radius:12px;padding:10px 12px">
-        <span style="font-size:34px;font-weight:800;color:${tone};line-height:1">${big}</span><span style="font-size:13px;font-weight:600">${bigLabel}</span></div>
-      <div style="margin:6px 0 4px">${small}</div>${body}</div>`;
+  const T = g.perDay;
+  /* One tile: a label, the figure, a line under it. The figure is 22px — Ravi: "font bahut bade h". */
+  const tile = (label, v, sub, col, bg) => `<div style="border:1px solid var(--line);border-radius:12px;padding:10px 12px;min-width:0;background:${bg || '#fff'}">
+      <div style="font-size:12px;color:var(--muted);font-weight:600">${label}</div>
+      <div style="font-size:22px;font-weight:800;line-height:1.25;color:${col || 'var(--ink)'};font-variant-numeric:tabular-nums">${v}</div>
+      <div style="font-size:11.5px;color:var(--muted);line-height:1.35">${sub}</div></div>`;
+  const vs = (now, was, unit) => !was ? '' : `<span style="font-weight:700;color:${now >= was ? '#15803D' : 'var(--bad)'}">${now >= was ? '▲' : '▼'} ${r0(was)}${unit || ''} the week before</span>`;
+  const aim = v => v >= T ? '#15803D' : (v >= T * 0.8 ? '#B45309' : 'var(--bad)');
+  const days = g.dayMs.map((d, i) => `${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][new Date(d).getDay()]} ${g.dayCounts[i]}`).join(' · ');
 
-  const inhouse = panel('#2563EB', '#EFF5FF', 'Our karigars', 'in-house · everyone who brought work back this week',
-    m.people ? r0(m.avgDay) : '—', 'pcs per karigar <u>a day</u>',
-    `<b style="font-size:15px">${m.people ? r0(m.avg) : '—'}</b> <span style="font-size:13px;color:var(--muted)">pcs per karigar in the whole week (${nf(m.days)} days)</span> &nbsp; ${vs(m.avgDay, p.avgDay)}`,
-    line('Karigars who worked', `${nf(m.people)}${p.people ? ` <span class="muted" style="font-weight:400">(${nf(p.people)} before)</span>` : ''}`)
-    + line('Pieces they made', nf(m.inPcs))
-    + sum(`${nf(m.inPcs)} pcs ÷ ${nf(m.people)} karigars = <b style="color:var(--ink)">${m.people ? r0(m.avg) : '—'}</b> each in the week · ÷ ${nf(m.days)} days = <b style="color:var(--ink)">${m.people ? r0(m.avgDay) : '—'}</b> a day`)
-    + (m.karigars.length ? `<div style="margin-top:10px;font-size:12px;font-weight:700;color:var(--muted)">TOP 5 THIS WEEK</div>` + m.karigars.slice(0, 5).map(([n, pcs]) =>
-        `<div style="display:flex;align-items:center;gap:8px;font-size:12.5px;margin-top:4px"><span style="flex:0 0 120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(n)}</span>
-          <span style="flex:1;height:8px;background:var(--chip);border-radius:6px"><span style="display:block;height:8px;border-radius:6px;background:#2563EB;width:${Math.round(pcs / m.karigars[0][1] * 100)}%"></span></span>
-          <b style="flex:0 0 44px;text-align:right">${nf(pcs)}</b></div>`).join('') : ''));
-
-  const cons = m.contractors.map(c => {
-    const wasDay = (p.contractors.find(x => x.name === c.name) || {}).perDay;
-    return panel('#7C3AED', '#F4EFFE', esc(c.name), 'outside contractor · his people counted from the attendance you give',
-      c.perDay == null ? '—' : r0(c.perDay), c.perDay == null ? 'enter the attendance below' : 'pcs per person <u>a day</u>',
-      c.per == null ? '' : `<b style="font-size:15px">${r0(c.per)}</b> <span style="font-size:13px;color:var(--muted)">pcs per person in the whole week (${nf(m.days)} days)</span> &nbsp; ${vs(c.perDay, wasDay)}`,
-      line('Pieces he brought back', nf(c.pcs))
-      + line(`Attendance this week<br><span style="font-size:11.5px">each day's people added up — 20 a day × 6 days = 120</span>`, box(c.name, c.heads, 'total'))
-      + line('People a day, average', c.perDayPeople == null ? '—' : `${nf(c.heads)} ÷ ${nf(m.days)} days = <b>${nf(Math.round(c.perDayPeople * 10) / 10)}</b>`)
-      + sum(c.per == null ? 'Fill the attendance at the end of the week; the per-person figures appear by themselves.'
-        : `${nf(c.pcs)} pcs ÷ ${nf(Math.round(c.perDayPeople * 10) / 10)} people = <b style="color:var(--ink)">${r0(c.per)}</b> each in the week · ÷ ${nf(m.days)} days = <b style="color:var(--ink)">${r0(c.perDay)}</b> a day`));
-  }).join('');
-
-  const insert = panel('#B45309', '#FFF6E5', 'Pillow insert', 'kept apart — not in production, not in any per-person figure',
-    nf(m.insert), 'pcs this week', !p.insert ? '' : `<span style="font-size:12px;font-weight:600;color:var(--muted)">${nf(p.insert)} the week before</span>`, '');
-
-  /* one person's day, side by side */
-  const bars = [['Our karigar', m.people ? m.avgDay : 0, '#2563EB']].concat(m.contractors.filter(c => c.perDay != null).map(c => [esc(c.name) + ' person', c.perDay, '#7C3AED']));
-  const top = Math.max(1, ...bars.map(x => x[1]));
-  const compare = bars.length < 2 ? '' : `<div style="margin-top:12px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:12px 16px">
-      <div style="font-weight:800;font-size:14px;margin-bottom:6px">One person's day, side by side <span style="font-weight:400;color:var(--muted);font-size:12px">pcs a day</span></div>`
-    + bars.map(([n, v, col]) => `<div style="display:flex;align-items:center;gap:10px;margin-top:6px;font-size:13px"><span style="flex:0 0 190px">${n}</span>
-        <span style="flex:1;height:14px;background:var(--chip);border-radius:8px"><span style="display:block;height:14px;border-radius:8px;background:${col};width:${Math.round(v / top * 100)}%"></span></span>
-        <b style="flex:0 0 48px;text-align:right;font-size:15px">${r0(v)}</b></div>`).join('') + `</div>`;
-
+  const con = m.contractors[0] || null;
   const conPcs = m.contractors.reduce((t, c) => t + c.pcs, 0);
-  const conPeople = m.contractors.reduce((t, c) => t + (c.perDayPeople || 0), 0);
-  const gap = repGapPanel(week, brand, box);
+  const pcut = repPrinterCut(week, brand);
+  const cutTot = g.cut + (pcut || 0);
+  /* REQUIRED: what the cutting had to give this week to keep every karigar who worked at T a day, less what they
+   * already held when it began. */
+  const required = Math.max(0, g.karigars * T * g.days - g.held);
+  const cutShort = required - cutTot;
+  const total = g.made + conPcs, totalWas = gp.made + p.contractors.reduce((t, c) => t + c.pcs, 0);
+
+  const row = (title, tiles) => `<div style="font-size:12px;font-weight:800;letter-spacing:.04em;color:var(--muted);margin:12px 0 6px">${title}</div>
+    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px">${tiles}</div>`;
+
   return `<div class="kpi" style="flex-basis:100%;margin-top:10px">
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px">
-      <div><div class="kpiname" style="font-size:17px">Manpower — ${esc(repWkRange(week))}</div>
-        <div style="font-size:13px;color:var(--muted);margin-top:2px"><b style="color:var(--ink)">${nf(m.inPcs + conPcs)} pcs</b> made by about
-          <b style="color:var(--ink)">${nf(Math.round(m.people + conPeople))} people</b> (${nf(m.people)} our karigars${m.contractors.length ? ` + ${nf(Math.round(conPeople))} contractor people a day` : ''})</div></div>
-      <label style="display:flex;align-items:center;gap:8px;margin:0;font-size:13px;font-weight:600">Working days this week ${box('_days', m.days, '6', 64)}</label>
-    </div>
-    ${gap}
-    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:stretch">${inhouse}${cons}${insert}</div>
-    ${compare}</div>`;
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+      <div class="kpiname" style="font-size:15px">Production — ${esc(repWkRange(week))}</div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;font-weight:600;align-items:center">
+        <label style="display:flex;align-items:center;gap:6px;margin:0">Working days ${box('_days', m.days, '6', 56)}</label>
+        <label style="display:flex;align-items:center;gap:6px;margin:0">One person can make ${box('perDay', T, '50', 60, '_settings')} a day</label>
+      </div></div>
+    ${row('MADE', tile('Total pcs made', nf(total), `ours ${nf(g.made)} + Pradeep ${nf(conPcs)} · ${vs(total, totalWas)}`)
+      + tile('Our karigars made', nf(g.made), `${nf(g.karigars)} karigars brought work back`)
+      + tile('Pradeep made', nf(conPcs), con ? 'outside contractor' : 'nothing received')
+      + tile('Pillow insert (apart)', nf(m.insert), `not in any figure here${p.insert ? ' · ' + nf(p.insert) + ' the week before' : ''}`, '#B45309'))}
+    ${row('OUR KARIGARS — MANPOWER AND ONE PERSON\'S DAY', tile('People a day, average', g.days ? (Math.round(g.perDayPeople * 10) / 10) : '—', days || 'no working day yet', '#1D4ED8', '#EEF5FF')
+      + tile('One person made a day', g.personDays ? r0(g.perPersonDay) : '—', `${nf(g.made)} ÷ ${nf(g.personDays)} person-days · aim ${nf(T)} · ${vs(g.perPersonDay, gp.perPersonDay)}`, aim(g.perPersonDay))
+      + tile('Days without work', nf(g.emptyDays), `karigar-days with nothing in hand — about ${nf(g.noWork)} pcs lost`, g.emptyDays ? 'var(--bad)' : '#15803D')
+      + tile('Short of ' + nf(T) + ' a day', nf(g.short), `could make ${nf(g.possible)} = ${nf(g.karigars)} × ${nf(T)} × ${nf(g.days)} days`, g.short ? 'var(--bad)' : '#15803D'))}
+    ${row('PRADEEP — OUTSIDE CONTRACTOR', con
+      ? tile('People a day, average', con.perDayPeople == null ? '—' : (Math.round(con.perDayPeople * 10) / 10), `attendance ${box(con.name, con.heads, 'total', 64)} ÷ ${nf(m.days)} days`, '#7C3AED', '#F4EFFE')
+        + tile('One person made a day', con.perDay == null ? '—' : r0(con.perDay), con.perDay == null ? 'enter the week\'s attendance' : `${nf(con.pcs)} ÷ ${nf(con.heads)} attendance · aim ${nf(T)}`, con.perDay == null ? 'var(--muted)' : aim(con.perDay))
+        + tile('One person made in the week', con.per == null ? '—' : r0(con.per), `${nf(m.days)} working days`)
+        + tile('Pcs made', nf(con.pcs), '')
+      : tile('Pradeep', '—', 'nothing received this week') + '<div></div><div></div><div></div>')}
+    ${row('CUTTING THIS WEEK', tile('Cutting — total', nf(cutTot), pcut == null ? 'reading the vendor deliveries…' : `ours ${nf(g.cut)} + cut from printers ${nf(pcut)}`, '#1D4ED8', '#EEF5FF')
+      + tile('Our cutting', nf(g.cut), 'Cutting Data · ruffle & piping-scallop tablecloths are cut here')
+      + tile('Came cut from printers', pcut == null ? '…' : nf(pcut), 'tablecloth, border napkin, table runner delivered this week')
+      + tile('Required', nf(required), `${nf(g.karigars)} × ${nf(T)} × ${nf(g.days)} days − ${nf(g.held)} already in hand · `
+        + (cutShort > 0 ? `<b style="color:var(--bad)">${nf(cutShort)} short</b>` : `<b style="color:#15803D">enough</b>`), cutShort > 0 ? 'var(--bad)' : '#15803D'))}
+    ${g.empty.length ? `<div style="font-size:12px;margin-top:10px"><b style="color:var(--bad)">Sat without work:</b> ${g.empty.slice(0, 12).map(e => `${esc(e.name)} <b>${nf(e.days)}d</b>`).join(' · ')}${g.empty.length > 12 ? ` · and ${nf(g.empty.length - 12)} more` : ''}</div>` : ''}
+  </div>`;
 }
 if ($('repMsg')) $('repMsg').addEventListener('click', e => { if (e.target.closest && e.target.closest('[data-repundated]')) repUndatedCsv(); });
 if ($('repKpis')) $('repKpis').addEventListener('change', async e => {
