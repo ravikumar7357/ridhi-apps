@@ -34875,27 +34875,67 @@ function repRenderLive() {
 function repManpowerCard(week, brand) {
   const m = repManpower(week, brand), p = repManpower(repWkShift(week, -1), brand);
   const canEdit = !!(ME.admin || ptCanEdit());
-  const box = (key, val, ph) => canEdit
-    ? `<input type="number" min="0" step="1" data-rephead="${esc(week)}|${esc(key)}" value="${val || ''}" placeholder="${ph}" style="width:90px;font-size:18px;font-weight:700;text-align:right">`
-    : (val ? nf(val) : '—');
-  const green = v => `style="color:${v == null ? 'var(--muted)' : '#166534'}"`;
-  const con = m.contractors.map(c => `<div class="metric"><div class="v">${nf(c.pcs)}</div><div class="l">${esc(c.name)} — pieces</div></div>`
-    + `<div class="metric"><div class="v">${box(c.name, c.heads, 'total')}</div><div class="l">${esc(c.name)} — attendance this week<br><span class="muted">each day's people added up (20 a day × 6 days = 120)</span></div></div>`
-    + `<div class="metric"><div class="v">${c.perDayPeople == null ? '—' : nf(Math.round(c.perDayPeople * 10) / 10)}</div><div class="l">people a day, average (attendance ÷ ${nf(m.days)} days)</div></div>`
-    + `<div class="metric"><div class="v" ${green(c.per)}>${c.per == null ? '—' : nf(Math.round(c.per))}</div><div class="l">per ${esc(c.name)} person, in the week${c.per == null ? ' — enter the attendance' : ''}</div></div>`
-    + `<div class="metric"><div class="v" ${green(c.perDay)}>${c.perDay == null ? '—' : nf(Math.round(c.perDay))}</div><div class="l">per person, a day</div></div>`).join('');
+  const r0 = v => nf(Math.round(v));
+  const box = (key, val, ph, w) => canEdit
+    ? `<input type="number" min="0" step="1" data-rephead="${esc(week)}|${esc(key)}" value="${val || ''}" placeholder="${ph}" style="width:${w || 84}px;height:36px;font-size:17px;font-weight:700;text-align:center;border:2px solid #6E90B5;border-radius:10px;background:#fff">`
+    : `<b>${val ? nf(val) : '—'}</b>`;
+  /* the week before, as an arrow and a number */
+  const vs = (now, was) => !was ? '' : `<span style="font-size:12px;font-weight:600;color:${now >= was ? '#15803D' : 'var(--bad)'}">${now >= was ? '▲' : '▼'} ${r0(was)} the week before</span>`;
+  const line = (label, val) => `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:7px 0;border-top:1px dashed var(--line);font-size:13px">
+      <span style="color:var(--muted)">${label}</span><span style="font-weight:600;text-align:right">${val}</span></div>`;
+  const sum = t => `<div style="margin-top:8px;padding:8px 10px;border-radius:10px;background:var(--soft);font-size:12.5px;color:var(--muted)">${t}</div>`;
+  const panel = (tone, bg, title, sub, big, bigLabel, small, body) => `<div style="flex:1 1 280px;min-width:0;background:#fff;border:1px solid var(--line);border-top:5px solid ${tone};border-radius:16px;padding:14px 16px">
+      <div style="font-weight:800;font-size:15px">${title}</div><div style="font-size:12px;color:var(--muted);margin-bottom:10px">${sub}</div>
+      <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;background:${bg};border-radius:12px;padding:10px 12px">
+        <span style="font-size:34px;font-weight:800;color:${tone};line-height:1">${big}</span><span style="font-size:13px;font-weight:600">${bigLabel}</span></div>
+      <div style="margin:6px 0 4px">${small}</div>${body}</div>`;
+
+  const inhouse = panel('#2563EB', '#EFF5FF', 'Our karigars', 'in-house · everyone who brought work back this week',
+    m.people ? r0(m.avg) : '—', 'pcs per karigar in the week',
+    `<b style="font-size:15px">${m.people ? r0(m.avgDay) : '—'}</b> <span style="font-size:13px;color:var(--muted)">pcs per karigar a day</span> &nbsp; ${vs(m.avg, p.avg)}`,
+    line('Karigars who worked', `${nf(m.people)}${p.people ? ` <span class="muted" style="font-weight:400">(${nf(p.people)} before)</span>` : ''}`)
+    + line('Pieces they made', nf(m.inPcs))
+    + sum(`${nf(m.inPcs)} pcs ÷ ${nf(m.people)} karigars = <b style="color:var(--ink)">${m.people ? r0(m.avg) : '—'}</b> each in the week · ÷ ${nf(m.days)} days = <b style="color:var(--ink)">${m.people ? r0(m.avgDay) : '—'}</b> a day`)
+    + (m.karigars.length ? `<div style="margin-top:10px;font-size:12px;font-weight:700;color:var(--muted)">TOP 5 THIS WEEK</div>` + m.karigars.slice(0, 5).map(([n, pcs]) =>
+        `<div style="display:flex;align-items:center;gap:8px;font-size:12.5px;margin-top:4px"><span style="flex:0 0 120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(n)}</span>
+          <span style="flex:1;height:8px;background:var(--chip);border-radius:6px"><span style="display:block;height:8px;border-radius:6px;background:#2563EB;width:${Math.round(pcs / m.karigars[0][1] * 100)}%"></span></span>
+          <b style="flex:0 0 44px;text-align:right">${nf(pcs)}</b></div>`).join('') : ''));
+
+  const cons = m.contractors.map(c => {
+    const was = (p.contractors.find(x => x.name === c.name) || {}).per;
+    return panel('#7C3AED', '#F4EFFE', esc(c.name), 'outside contractor · his people counted from the attendance you give',
+      c.per == null ? '—' : r0(c.per), c.per == null ? 'enter the attendance below' : 'pcs per person in the week',
+      c.per == null ? '' : `<b style="font-size:15px">${r0(c.perDay)}</b> <span style="font-size:13px;color:var(--muted)">pcs per person a day</span> &nbsp; ${vs(c.per, was)}`,
+      line('Pieces he brought back', nf(c.pcs))
+      + line(`Attendance this week<br><span style="font-size:11.5px">each day's people added up — 20 a day × 6 days = 120</span>`, box(c.name, c.heads, 'total'))
+      + line('People a day, average', c.perDayPeople == null ? '—' : `${nf(c.heads)} ÷ ${nf(m.days)} days = <b>${nf(Math.round(c.perDayPeople * 10) / 10)}</b>`)
+      + sum(c.per == null ? 'Fill the attendance at the end of the week; the per-person figures appear by themselves.'
+        : `${nf(c.pcs)} pcs ÷ ${nf(Math.round(c.perDayPeople * 10) / 10)} people = <b style="color:var(--ink)">${r0(c.per)}</b> each in the week · ÷ ${nf(m.days)} days = <b style="color:var(--ink)">${r0(c.perDay)}</b> a day`));
+  }).join('');
+
+  const insert = panel('#B45309', '#FFF6E5', 'Pillow insert', 'kept apart — not in production, not in any per-person figure',
+    nf(m.insert), 'pcs this week', vs(m.insert, p.insert), '');
+
+  /* one person's day, side by side */
+  const bars = [['Our karigar', m.people ? m.avgDay : 0, '#2563EB']].concat(m.contractors.filter(c => c.perDay != null).map(c => [esc(c.name) + ' person', c.perDay, '#7C3AED']));
+  const top = Math.max(1, ...bars.map(x => x[1]));
+  const compare = bars.length < 2 ? '' : `<div style="margin-top:12px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:12px 16px">
+      <div style="font-weight:800;font-size:14px;margin-bottom:6px">One person's day, side by side <span style="font-weight:400;color:var(--muted);font-size:12px">pcs a day</span></div>`
+    + bars.map(([n, v, col]) => `<div style="display:flex;align-items:center;gap:10px;margin-top:6px;font-size:13px"><span style="flex:0 0 190px">${n}</span>
+        <span style="flex:1;height:14px;background:var(--chip);border-radius:8px"><span style="display:block;height:14px;border-radius:8px;background:${col};width:${Math.round(v / top * 100)}%"></span></span>
+        <b style="flex:0 0 48px;text-align:right;font-size:15px">${r0(v)}</b></div>`).join('') + `</div>`;
+
+  const conPcs = m.contractors.reduce((t, c) => t + c.pcs, 0);
+  const conPeople = m.contractors.reduce((t, c) => t + (c.perDayPeople || 0), 0);
   return `<div class="kpi" style="flex-basis:100%;margin-top:10px">
-    <div class="kpihead"><span class="kpiname">Manpower — week of ${esc(repWkRange(week))}</span>
-      <span class="kpiwhen">karigars who brought work back · pillow insert not counted</span></div>
-    <div class="metrics">
-      <div class="metric"><div class="v">${nf(m.people)}</div><div class="l">In-house karigars${p.people ? ` <span class="muted">(${nf(p.people)} the week before)</span>` : ''}</div></div>
-      <div class="metric"><div class="v">${nf(m.inPcs)}</div><div class="l">Pieces they made</div></div>
-      <div class="metric"><div class="v" style="color:#166534">${m.people ? nf(Math.round(m.avg)) : '—'}</div><div class="l">Per karigar, in the week${p.people ? ` <span class="muted">(${nf(Math.round(p.avg))} the week before)</span>` : ''}</div></div>
-      <div class="metric"><div class="v" style="color:#166534">${m.people ? nf(Math.round(m.avgDay)) : '—'}</div><div class="l">Per karigar, a day</div></div>
-      <div class="metric"><div class="v">${box('_days', m.days, '6')}</div><div class="l">Working days this week</div></div>
-      ${con}
-      <div class="metric"><div class="v" style="color:#7f6000">${nf(m.insert)}</div><div class="l">Pillow insert, apart${p.insert ? ` <span class="muted">(${nf(p.insert)} the week before)</span>` : ''}</div></div>
-    </div></div>`;
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px">
+      <div><div class="kpiname" style="font-size:17px">Manpower — ${esc(repWkRange(week))}</div>
+        <div style="font-size:13px;color:var(--muted);margin-top:2px"><b style="color:var(--ink)">${nf(m.inPcs + conPcs)} pcs</b> made by about
+          <b style="color:var(--ink)">${nf(Math.round(m.people + conPeople))} people</b> (${nf(m.people)} our karigars${m.contractors.length ? ` + ${nf(Math.round(conPeople))} contractor people a day` : ''})</div></div>
+      <label style="display:flex;align-items:center;gap:8px;margin:0;font-size:13px;font-weight:600">Working days this week ${box('_days', m.days, '6', 64)}</label>
+    </div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:stretch">${inhouse}${cons}${insert}</div>
+    ${compare}</div>`;
 }
 if ($('repMsg')) $('repMsg').addEventListener('click', e => { if (e.target.closest && e.target.closest('[data-repundated]')) repUndatedCsv(); });
 if ($('repKpis')) $('repKpis').addEventListener('change', async e => {
