@@ -34651,6 +34651,51 @@ function repManpower(week, brand) {
     }) };
 }
 
+/* WHERE THE GAP IS (Ravi, 2026-09-29): "meri kami kaha h — cutting kam ho rhi h ya karigar". A karigar can make
+ * REP_PER_DAY pieces a day (50 unless typed); the week's in-house karigars could have made karigars × that × working
+ * days. What they did not make is split two ways:
+ *   NO WORK   — karigar-days on which a karigar who worked this week had nothing in hand and was given nothing
+ *               (from the issue date until the row closed), × the pieces a day;
+ *   SPEED     — the rest: they had work and made less than the day's figure.
+ * The supply beside it — what they held at the start, what they were given, what was cut — says whether the
+ * cutting and issuing kept up. Pillow insert and the outside contractor are left out, as in the rest of the card. */
+const REP_PER_DAY = 50;
+const repPerDay = () => Number(((REP_HEADS || {})._settings || {}).perday) || REP_PER_DAY;   // saved under repHeadKey('perDay')
+function repGap(week, brand) {
+  const wp = String(week).split('-').map(Number), from = new Date(wp[0], wp[1] - 1, wp[2]).getTime(), DAY = 864e5, to = from + 7 * DAY;
+  const heads = (REP_HEADS || {})[week] || {}, nDays = Number(heads._days) || REP_DAYS, T = repPerDay();
+  const mine = r => r && !repIsInsert(r) && !REP_CONTRACTOR_RE.test(String(r.empName || '')) && (!brand || repBrand(r.sku) === brand);
+  const rows = (PT.base || []).filter(mine);
+  const byWho = new Map(), made = new Map();
+  let issued = 0, held = 0;
+  rows.forEach(r => {
+    const k = String(r.empName || '').trim() || '(no name)';
+    (byWho.get(k) || byWho.set(k, []).get(k)).push(r);
+    const im = ptDtMs(r.issueDate), rm = r.receivingDate ? ptDtMs(r.receivingDate) : 0;
+    if (rm && rm >= from && rm < to && ptNum(r.receivedPieces) > 0) made.set(k, (made.get(k) || 0) + ptNum(r.receivedPieces));
+    if (im && im >= from && im < to) issued += ptNum(r.issuePieces);
+    if (im && im < from && (!rm || rm >= from)) held += ptNum(r.issuePieces);         // still out when the week began
+  });
+  /* The working days: Monday to Saturday of this week, as many as the week's working days, and none still to come. */
+  const days = [];
+  for (let i = 0; i < 7 && days.length < nDays; i++) { const d = new Date(wp[0], wp[1] - 1, wp[2] + i); if (d.getDay() !== 0 && d.getTime() <= Date.now()) days.push(d.getTime()); }
+  const K = made.size, madeTot = [...made.values()].reduce((a, b) => a + b, 0);
+  const empty = [];
+  made.forEach((_, k) => {
+    const rs = byWho.get(k) || [];
+    const n = days.filter(d => !rs.some(r => { const im = ptDtMs(r.issueDate), rm = r.receivingDate ? ptDtMs(r.receivingDate) : 0; return im && im < d + DAY && (!rm || rm >= d); })).length;
+    if (n) empty.push({ name: k, days: n, made: made.get(k) || 0 });
+  });
+  const emptyDays = empty.reduce((a, e) => a + e.days, 0);
+  let cut = 0;
+  (PT.cut || []).forEach(r => { const ms = r && ptDtMs(r.cutDate); if (ms && ms >= from && ms < to && !repIsInsert(r) && (!brand || repBrand(r.sku) === brand)) cut += ptNum(r.pieces); });
+  const possible = K * T * days.length, short = Math.max(0, possible - madeTot);
+  const noWork = Math.min(short, emptyDays * T), speed = Math.max(0, short - noWork);
+  return { week, perDay: T, days: days.length, karigars: K, made: madeTot, possible, short, noWork, speed,
+    emptyDays, karigarDays: K * days.length, held, issued, cut, available: held + issued,
+    empty: empty.sort((a, b) => b.days - a.days || a.made - b.made) };
+}
+
 /** A SKU the factory makes itself, as the tool defines it. An unknown SKU counts in. */
 function repInhouse(sku) {
   const m = mdbOf(sku);
@@ -35035,6 +35080,53 @@ function repRenderLive() {
   REP.live = L;
 }
 
+/** The gap panel: what could have been made, what was, and why the rest was not — no work, or speed. */
+function repGapPanel(week, brand, box) {
+  const g = repGap(week, brand);
+  if (!g.karigars) return '';
+  const pct = v => g.possible ? Math.max(0, Math.min(100, v / g.possible * 100)) : 0;
+  const madeP = pct(g.made), noP = pct(g.noWork), spP = pct(g.speed);
+  const main = !g.short ? 'none' : (g.noWork >= g.speed ? 'work' : 'speed');
+  const verdict = main === 'none'
+    ? `<b style="color:#15803D">No gap</b> — the karigars made ${nf(g.made)}, at or above ${nf(g.perDay)} a day.`
+    : main === 'work'
+      ? `<b style="color:var(--bad)">The gap is WORK, not the karigars.</b> ${nf(g.emptyDays)} of ${nf(g.karigarDays)} karigar-days had no work in hand — about <b>${nf(g.noWork)} pcs</b> never had the chance to be made. Cut and give out more.`
+      : `<b style="color:#B45309">The gap is SPEED.</b> The karigars had work most days, and still made <b>${nf(g.speed)} pcs</b> less than ${nf(g.perDay)} a day. Check attendance and who is slow.`;
+  const supplyShort = g.available < g.possible;
+  const step = (v, l, sub, col) => `<div style="flex:1 1 130px;min-width:0;padding:10px 12px;border-radius:12px;background:var(--soft)">
+      <div style="font-size:22px;font-weight:800;color:${col || 'var(--ink)'}">${nf(v)}</div><div style="font-size:12.5px;font-weight:600">${l}</div>
+      <div style="font-size:11.5px;color:var(--muted)">${sub}</div></div>`;
+  const arrow = '<div style="align-self:center;color:var(--muted);font-size:18px">→</div>';
+  return `<div style="margin-bottom:12px;background:#fff;border:1px solid var(--line);border-left:6px solid ${main === 'work' ? 'var(--bad)' : main === 'speed' ? '#B45309' : '#15803D'};border-radius:16px;padding:14px 16px">
+    <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center">
+      <div style="font-weight:800;font-size:16px">Where is the gap?</div>
+      <label style="display:flex;align-items:center;gap:8px;margin:0;font-size:13px;font-weight:600">One karigar can make ${box('perDay', g.perDay, '50', 64).replace('data-rephead="' + esc(week) + '|perDay"', 'data-rephead="_settings|perDay"')} pcs a day</label>
+    </div>
+    <div style="font-size:14px;margin:6px 0 10px">${verdict}</div>
+    <div style="display:flex;height:26px;border-radius:8px;overflow:hidden;background:var(--chip)">
+      <div title="Made" style="width:${madeP}%;background:#15803D"></div>
+      <div title="Lost — no work in hand" style="width:${noP}%;background:#DC2626"></div>
+      <div title="Lost — slower than ${nf(g.perDay)} a day" style="width:${spP}%;background:#F59E0B"></div></div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;margin-top:6px">
+      <span><b style="color:#15803D">■</b> Made <b>${nf(g.made)}</b></span>
+      <span><b style="color:#DC2626">■</b> Lost — no work in hand <b>${nf(g.noWork)}</b></span>
+      <span><b style="color:#F59E0B">■</b> Lost — slower than ${nf(g.perDay)}/day <b>${nf(g.speed)}</b></span>
+      <span style="color:var(--muted)">could have made <b style="color:var(--ink)">${nf(g.possible)}</b> = ${nf(g.karigars)} karigars × ${nf(g.perDay)} × ${nf(g.days)} days</span></div>
+    <div style="font-weight:700;font-size:13px;margin:14px 0 6px">Did the work reach them?</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:stretch">
+      ${step(g.cut, 'Cut this week', 'Cutting Data, pillow insert apart')}${arrow}
+      ${step(g.held, 'In hand at the start', 'issued before, not back yet')}
+      <div style="align-self:center;color:var(--muted);font-size:18px">+</div>
+      ${step(g.issued, 'Given to karigars', 'issued this week')}
+      <div style="align-self:center;color:var(--muted);font-size:18px">=</div>
+      ${step(g.available, 'Work they had', supplyShort ? `<span style="color:var(--bad);font-weight:700">${nf(g.possible - g.available)} short of ${nf(g.possible)}</span>` : `enough for ${nf(g.possible)}`, supplyShort ? 'var(--bad)' : '#15803D')}${arrow}
+      ${step(g.made, 'Made', Math.round(g.made / Math.max(1, g.karigars * g.days)) + ' a karigar a day')}
+    </div>
+    ${g.empty.length ? `<div style="font-weight:700;font-size:13px;margin:14px 0 6px">Karigars who sat without work <span style="font-weight:400;color:var(--muted)">— days this week with nothing in hand</span></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">${g.empty.slice(0, 14).map(e => `<span style="border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-size:12.5px">${esc(e.name)} · <b style="color:var(--bad)">${nf(e.days)} day${e.days > 1 ? 's' : ''}</b></span>`).join('')}${g.empty.length > 14 ? `<span style="font-size:12.5px;color:var(--muted);padding:3px 4px">and ${nf(g.empty.length - 14)} more</span>` : ''}</div>` : ''}
+  </div>`;
+}
+
 /** MANPOWER, the week's: who made it and what one person makes — pillow insert apart, each contractor on his own. */
 function repManpowerCard(week, brand) {
   const m = repManpower(week, brand), p = repManpower(repWkShift(week, -1), brand);
@@ -35091,6 +35183,7 @@ function repManpowerCard(week, brand) {
 
   const conPcs = m.contractors.reduce((t, c) => t + c.pcs, 0);
   const conPeople = m.contractors.reduce((t, c) => t + (c.perDayPeople || 0), 0);
+  const gap = repGapPanel(week, brand, box);
   return `<div class="kpi" style="flex-basis:100%;margin-top:10px">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px">
       <div><div class="kpiname" style="font-size:17px">Manpower — ${esc(repWkRange(week))}</div>
@@ -35098,6 +35191,7 @@ function repManpowerCard(week, brand) {
           <b style="color:var(--ink)">${nf(Math.round(m.people + conPeople))} people</b> (${nf(m.people)} our karigars${m.contractors.length ? ` + ${nf(Math.round(conPeople))} contractor people a day` : ''})</div></div>
       <label style="display:flex;align-items:center;gap:8px;margin:0;font-size:13px;font-weight:600">Working days this week ${box('_days', m.days, '6', 64)}</label>
     </div>
+    ${gap}
     <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:stretch">${inhouse}${cons}${insert}</div>
     ${compare}</div>`;
 }
@@ -35107,6 +35201,7 @@ if ($('repKpis')) $('repKpis').addEventListener('change', async e => {
   const [week, name] = String(t.getAttribute('data-rephead')).split('|');
   let n = Math.max(0, Math.round(Number(t.value) || 0));
   if (name === '_days') n = Math.min(7, n) || REP_DAYS;
+  if (week === '_settings' && name === 'perDay') n = n || REP_PER_DAY;
   try { await ptPut('pt_contractorHeads/' + week + '/' + repHeadKey(name), n); }
   catch (er) { $('repMsg').className = 'err'; $('repMsg').textContent = 'Headcount not saved: ' + (er.message || er); return; }
   REP_HEADS = REP_HEADS || {}; REP_HEADS[week] = Object.assign({}, REP_HEADS[week], { [repHeadKey(name)]: n });
