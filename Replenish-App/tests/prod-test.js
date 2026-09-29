@@ -14933,6 +14933,13 @@ console.log('\n== cloth the printers owe, and what they actually deliver ==');
     v1.ranWeeks === 2 && Math.abs(v1.avg - ((100 * 60 * 60 * K) + (50 * 60 * 60 * K)) / 2) < 0.001);
   const v3 = h.vendors.find(v => v.code === 'VND003');
   ok('a delivery nobody can price is kept apart, not counted as cloth', v3.total === 0 && v3.unpriced === 40);
+  /* 29 Sep (Ravi: "ye number square mtr me show hona chahiye ki last week me total per vendor uski kya capacity rahi h"). */
+  { const wasView = els.palView.value, wasWeeks = els.palWeeks.value;
+    els.palView.value = 'hist'; els.palWeeks.value = '4'; els.palQ.value = ''; A.renderPal();
+    const t = els.palTable.innerHTML, lastLabel = A.repWkRange(lastWk);
+    ok('the capacity table has a Last week column in m², for the last finished week', t.indexOf('Last week · ' + lastLabel + ' · m²') >= 0 && /\(so far\) · m²/.test(t), t.slice(0, 700));
+    ok('…with each printer\'s m² that week in it (VND001: 50 of a 60x60 = 116 m²)', new RegExp('>' + Math.round(50 * 60 * 60 * K) + '</b> <span class="muted" style="font-size:10.5px">m²').test(t), t.slice(0, 1500));
+    els.palView.value = wasView; els.palWeeks.value = wasWeeks; }
   ok('the all-printer figure is the sum of their averages',
     Math.abs(h.perWeek - h.vendors.reduce((s, v) => s + v.avg, 0)) < 0.001);
 

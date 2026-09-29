@@ -40546,7 +40546,8 @@ function renderPal() {
       <div class="metrics">
         <div class="metric"><div class="v" style="color:var(--accent)">${sq(need.sqm)}</div><div class="l">m² needed</div></div>
         <div class="metric"><div class="v">${nf(need.pieces)}</div><div class="l">pieces to make</div></div>
-        <div class="metric"><div class="v">${sq(h.perWeek)}</div><div class="l">m² a week, all printers</div></div>
+        <div class="metric"><div class="v" style="color:#1D4ED8">${sq(h.vendors.reduce((t, v) => t + (v.weeks.get(h.keys.length > 1 ? h.keys[h.keys.length - 2] : h.keys[0]) || 0), 0))}</div><div class="l">m² printed last week (${esc(repWkRange(h.keys.length > 1 ? h.keys[h.keys.length - 2] : h.keys[0]))}), all printers</div></div>
+        <div class="metric"><div class="v">${sq(h.perWeek)}</div><div class="l">m² a week, all printers — average</div></div>
         <div class="metric"><div class="v"${weeksInHand != null && weeksInHand > 4 ? ' style="color:var(--bad)"' : ''}>${
           weeksInHand == null ? '—' : (Math.round(weeksInHand * 10) / 10)}</div><div class="l">weeks of printing in hand</div></div>
         <div class="metric"><div class="v">${nf(h.vendors.length)}</div><div class="l">printers delivering</div></div>
@@ -40560,8 +40561,14 @@ function renderPal() {
       </div>` : ''}
     </div>`;
 
-    head = ['Printer'].concat(h.keys.map(k => repWkRange(k)),
-      ['Average', 'Best', 'Weeks worked', 'Share of the need', 'Weeks at this rate', 'Unpriced', 'Fed capacity']);
+    /* LAST WEEK, IN m², ON ITS OWN (Ravi, 2026-09-29): the last FINISHED week — the one running now is only part
+     * of a week — is each printer's capacity as it stands, and every figure here says its unit. */
+    const lastWk = h.keys.length > 1 ? h.keys[h.keys.length - 2] : h.keys[0];
+    const thisWk = h.keys[h.keys.length - 1];
+    const m2 = v => `${sq(v)} <span class="muted" style="font-size:10.5px;font-weight:400">m²</span>`;
+    const lastTot = h.vendors.reduce((t, v) => t + (v.weeks.get(lastWk) || 0), 0);
+    head = ['Printer', 'Last week · ' + repWkRange(lastWk) + ' · m²'].concat(h.keys.map(k => repWkRange(k) + (k === thisWk ? ' (so far)' : '') + ' · m²'),
+      ['Average · m² a week', 'Best week · m²', 'Weeks worked', 'Share of the need', 'Weeks at this rate', 'Unpriced', 'Fed capacity']);
     body = vend.length ? vend.map(v => {
       /* The typed figure, for the same printer, so the two can be read off one row. Pieces a month
        * against square metres a week are different units on purpose — they are different promises. */
@@ -40569,9 +40576,10 @@ function renderPal() {
       const n = split.map.get(v.code) || {};
       return '<tr>'
         + `<td style="text-align:left"><b>${esc(v.name || v.code)}</b></td>`
-        + h.keys.map(k => `<td class="num">${v.weeks.get(k) ? sq(v.weeks.get(k)) : '<span class="muted">—</span>'}</td>`).join('')
-        + `<td class="num"><b>${sq(v.avg)}</b></td>`
-        + `<td class="num">${sq(v.best)}</td>`
+        + `<td class="num" style="background:#EEF5FF">${v.weeks.get(lastWk) ? `<b style="font-size:15px;color:#1D4ED8">${sq(v.weeks.get(lastWk))}</b> <span class="muted" style="font-size:10.5px">m²</span>` : '<span class="muted">nothing delivered</span>'}</td>`
+        + h.keys.map(k => `<td class="num">${v.weeks.get(k) ? m2(v.weeks.get(k)) : '<span class="muted">—</span>'}</td>`).join('')
+        + `<td class="num"><b>${m2(v.avg)}</b></td>`
+        + `<td class="num">${m2(v.best)}</td>`
         + `<td class="num">${nf(v.ranWeeks)}</td>`
         + `<td class="num">${n.sqm ? `<b>${sq(n.sqm)}</b> m²<div class="muted" style="font-size:10.5px">${(n.share * 100).toFixed(0)}% of the need</div>`
           : '<span class="muted">—</span>'}</td>`
@@ -40583,12 +40591,13 @@ function renderPal() {
     }).join('')
       + '<tr style="font-weight:700;border-top:2px solid var(--line)">'
       + '<td style="text-align:left">All printers</td>'
-      + h.keys.map(k => `<td class="num">${sq(h.vendors.reduce((t, v) => t + (v.weeks.get(k) || 0), 0))}</td>`).join('')
-      + `<td class="num">${sq(h.perWeek)}</td><td class="num">—</td><td class="num">—</td>`
+      + `<td class="num" style="background:#EEF5FF;color:#1D4ED8">${m2(lastTot)}</td>`
+      + h.keys.map(k => `<td class="num">${m2(h.vendors.reduce((t, v) => t + (v.weeks.get(k) || 0), 0))}</td>`).join('')
+      + `<td class="num">${m2(h.perWeek)}</td><td class="num">—</td><td class="num">—</td>`
       + `<td class="num">${sq(need.sqm)} m²</td>`
       + `<td class="num">${weeksInHand == null ? '—' : (Math.round(weeksInHand * 10) / 10)}</td>`
       + '<td class="num">—</td><td class="num">—</td></tr>'
-      : `<tr><td colspan="${h.keys.length + 8}" class="muted" style="padding:16px">No deliveries recorded in this window — nothing has been logged in Vendor Orders → History.</td></tr>`;
+      : `<tr><td colspan="${h.keys.length + 9}" class="muted" style="padding:16px">No deliveries recorded in this window — nothing has been logged in Vendor Orders → History.</td></tr>`;
 
     /* AND WHAT THE SPLIT IS NOT. A share worked out from delivery rates reads exactly like an
      * allocation unless somebody says it is not one. */
