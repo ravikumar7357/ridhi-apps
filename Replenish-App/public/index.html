@@ -35164,6 +35164,40 @@ function repRenderLive() {
   REP.live = L;
 }
 
+/* THE WEEKLY TARGET (Ravi, 2026-09-29: "target mera 20000 pcs ka h"), saved at pt_contractorHeads/_settings/target. */
+const REP_TARGET = 20000;
+const repTarget = () => Number(((REP_HEADS || {})._settings || {}).target) || REP_TARGET;
+/** Square metres of printed cloth in one piece made this week, on average over everything made (pillow insert apart) —
+ * what turns a piece target into a printing target. Pieces whose m² cannot be worked out are left out of the average. */
+function repM2PerPiece(week, brand) {
+  const wp = String(week).split('-').map(Number), from = new Date(wp[0], wp[1] - 1, wp[2]).getTime(), to = from + 7 * 864e5;
+  let m2 = 0, pcs = 0, unknown = 0;
+  (PT.base || []).forEach(r => {
+    if (!r || repIsInsert(r) || (brand && repBrand(r.sku) !== brand)) return;
+    const got = ptNum(r.receivedPieces), ms = r.receivingDate ? ptDtMs(r.receivingDate) : 0;
+    if (!(got > 0) || !ms || ms < from || ms >= to) return;
+    const m = mdbOf(r.sku);
+    if (m && !ptPrintNeeded(m)) { pcs += got; return; }      // made, and never printed
+    const a = voSqm({ sku: r.sku }, got);
+    if (a == null) { unknown += got; return; }
+    m2 += a; pcs += got;
+  });
+  return { m2, pcs, unknown, per: pcs ? m2 / pcs : 0 };
+}
+/** What the printers delivered this week, in m² — null while the vendor orders are not read. */
+function repPrinterM2(week) {
+  if (!Array.isArray(VO.rows)) return null;
+  const wp = String(week).split('-').map(Number), from = new Date(wp[0], wp[1] - 1, wp[2]).getTime(), to = from + 7 * 864e5;
+  let m2 = 0;
+  voLogRows().forEach(r => {
+    if (!r.printing) return;
+    const ms = ptDtMs(r.day) || ptDtMs(r.raw);
+    if (!ms || ms < from || ms >= to) return;
+    m2 += voSqm({ run: r.run, fabric: r.fabric, sku: r.sku }, vlInHand(r)) || 0;
+  });
+  return m2;
+}
+
 /** Tablecloths, border napkins and table runners that came CUT from printers this week — accepted, or as the printer
  * says until then. null while the vendor orders are not read. */
 function repPrinterCut(week, brand) {
@@ -35266,8 +35300,8 @@ function repManpowerCard(week, brand) {
       <div style="font-size:12px;color:var(--muted);font-weight:600">${label}</div>
       <div style="font-size:22px;font-weight:800;line-height:1.25;color:${col};font-variant-numeric:tabular-nums">${v}</div>
       <table style="width:100%;border-collapse:collapse;margin-top:6px;font-size:12px">${rows.map(([k, x]) =>
-        `<tr><td style="text-align:left;color:var(--muted);padding:4px 6px 4px 0;border-top:1px solid var(--line);white-space:nowrap">${k}</td>`
-        + `<td style="text-align:right;font-weight:700;padding:4px 0;border-top:1px solid var(--line);font-variant-numeric:tabular-nums">${x}</td></tr>`).join('')}</table></div>`;
+        `<tr><td style="text-align:left;color:var(--muted);padding:4px 6px 4px 0;border-top:1px solid var(--line)">${k}</td>`
+        + `<td style="text-align:right;font-weight:700;padding:4px 0;border-top:1px solid var(--line);font-variant-numeric:tabular-nums;white-space:nowrap">${x}</td></tr>`).join('')}</table></div>`;
   const row = (title, tiles) => `<div style="font-size:12px;font-weight:800;letter-spacing:.04em;color:var(--muted);margin:12px 0 6px">${title}</div>
     <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px">${tiles}</div>`;
 
@@ -35281,7 +35315,7 @@ function repManpowerCard(week, brand) {
     ${row('MADE', tile('Total pcs made', nf(total), `ours ${nf(g.made)} + Pradeep ${nf(conPcs)} · ${vs(total, totalWas)}`)
       + sheet('Our karigars made', nf(g.made), '#1D4ED8', [
           ['People in the week', nf(g.karigars) + (gp.karigars ? ` <span class="muted">(${nf(gp.karigars)} before)</span>` : '')],
-          ['People a day, average', g.days ? (Math.round(g.perDayPeople * 10) / 10) + `<div class="muted" style="font-size:10.5px;font-weight:400">${days}</div>` : '—'],
+          ['People a day, average', g.days ? (Math.round(g.perDayPeople * 10) / 10) : '—'],
           ['One person a day', g.personDays ? `<span style="color:${aim(g.perPersonDay)}">${r0(g.perPersonDay)}</span> <span class="muted">/ ${nf(T)}</span>` : '—'],
           ['One person in the week', g.karigars ? r0(g.made / g.karigars) : '—'],
           ['Short of ' + nf(T) + ' a day', g.short ? `<span style="color:var(--bad)">${nf(g.short)}</span>` : '<span style="color:#15803D">none</span>']])
@@ -35292,6 +35326,39 @@ function repManpowerCard(week, brand) {
           ['One person in the week', con.per == null ? '—' : r0(con.per)]])
         : tile('Pradeep made', '—', 'nothing received this week'))
       + tile('Pillow insert (apart)', nf(m.insert), `not in any figure here${p.insert ? ' · ' + nf(p.insert) + ' the week before' : ''}`, '#B45309'))}
+    ${(() => {
+      /* TO REACH THE TARGET: Pradeep is taken to make what he made; the rest is ours. Cutting and cut pieces from
+       * printers are split as this week's work was given out; printing is the target × the m² in a piece this week. */
+      const tgt = repTarget(), short = Math.max(0, tgt - total);
+      const ours = Math.max(0, tgt - conPcs);
+      const needPeople = g.days ? ours / (T * g.days) : 0, morePeople = Math.max(0, Math.ceil(needPeople - g.perDayPeople));
+      const eachNow = g.perDayPeople && g.days ? ours / (g.perDayPeople * g.days) : 0;
+      const share = g.issued ? g.issuedCut / g.issued : 0;
+      const cutNeed = Math.round(tgt * share), prnNeed = tgt - cutNeed;
+      const mp = repM2PerPiece(week, brand), m2Need = tgt * mp.per, m2Got = repPrinterM2(week);
+      const gap = (need, have) => have == null ? '<span class="muted">…</span>' : (need > have ? `<span style="color:var(--bad)">${nf(Math.round(need - have))} short</span>` : '<span style="color:#15803D">enough</span>');
+      return row('TO REACH ' + nf(tgt) + ' A WEEK',
+        sheet('Short of the target', nf(short), short ? 'var(--bad)' : '#15803D', [
+          ['Target a week', box('target', tgt, '20000', 84, '_settings')],
+          ['Made this week', nf(total)],
+          ['Pradeep made (kept as is)', nf(conPcs)],
+          ['Our karigars must make', nf(ours)]])
+        + sheet('Karigars needed a day', g.days ? nf(Math.ceil(needPeople)) : '—', '#1D4ED8', [
+          ['Must make a day', g.days ? nf(Math.round(ours / g.days)) : '—'],
+          ['Working a day now', Math.round(g.perDayPeople * 10) / 10],
+          ['More people a day', morePeople ? `<span style="color:var(--bad)">+${nf(morePeople)}</span>` : '<span style="color:#15803D">none</span>'],
+          ['Or each makes a day, same people', eachNow ? r0(eachNow) : '—']])
+        + sheet('Cutting needed a week', nf(tgt), '#1D4ED8', [
+          ['Our cutting', nf(cutNeed)],
+          ['…this week ' + nf(g.cut), gap(cutNeed, g.cut)],
+          ['Cut pieces from printers', nf(prnNeed)],
+          ['…this week ' + (pcut == null ? '…' : nf(pcut)), gap(prnNeed, pcut)],
+          ['Split, as given out this week', g.issued ? Math.round(share * 100) + '% / ' + (100 - Math.round(share * 100)) + '%' : '—']])
+        + sheet('Printing fabric a week', mp.per ? nf(Math.round(m2Need)) + ' m²' : '—', '#7C3AED', [
+          ['m² in one piece this week', mp.per ? (Math.round(mp.per * 100) / 100) + ' m²' : '—'],
+          ['Printers delivered this week', m2Got == null ? '…' : nf(Math.round(m2Got)) + ' m²'],
+          ['Against the need', mp.per ? gap(m2Need, m2Got) : '—']]));
+    })()}
     ${row('CUTTING THIS WEEK', tile('Cutting — total', nf(cutTot), pcut == null ? 'reading the vendor deliveries…' : `ours ${nf(g.cut)} + cut from printers ${nf(pcut)}`, '#1D4ED8', '#EEF5FF')
       + tile('Our cutting', nf(g.cut), 'Cutting Data · ruffle & piping-scallop tablecloths are cut here')
       + tile('Came cut from printers', pcut == null ? '…' : nf(pcut), 'tablecloth, border napkin, table runner delivered this week')
@@ -35300,12 +35367,18 @@ function repManpowerCard(week, brand) {
   </div>`;
 }
 if ($('repMsg')) $('repMsg').addEventListener('click', e => { if (e.target.closest && e.target.closest('[data-repundated]')) repUndatedCsv(); });
+if ($('repKpis')) $('repKpis').addEventListener('click', e => {
+  if (!(e.target.closest && e.target.closest('[data-reptoggle]'))) return;
+  try { localStorage.setItem('repTopOpen', localStorage.getItem('repTopOpen') === '0' ? '1' : '0'); } catch (er) { /* stays as it is */ }
+  renderRep();
+});
 if ($('repKpis')) $('repKpis').addEventListener('change', async e => {
   const t = e.target.closest && e.target.closest('[data-rephead]'); if (!t) return;
   const [week, name] = String(t.getAttribute('data-rephead')).split('|');
   let n = Math.max(0, Math.round(Number(t.value) || 0));
   if (name === '_days') n = Math.min(7, n) || REP_DAYS;
   if (week === '_settings' && name === 'perDay') n = n || REP_PER_DAY;
+  if (week === '_settings' && name === 'target') n = n || REP_TARGET;
   try { await ptPut('pt_contractorHeads/' + week + '/' + repHeadKey(name), n); }
   catch (er) { $('repMsg').className = 'err'; $('repMsg').textContent = 'Headcount not saved: ' + (er.message || er); return; }
   REP_HEADS = REP_HEADS || {}; REP_HEADS[week] = Object.assign({}, REP_HEADS[week], { [repHeadKey(name)]: n });
@@ -35331,7 +35404,18 @@ function repRenderWow() {
   const pct = prevProd > 0 ? ((prod - prevProd) / prevProd) * 100 : null;
   const up = rows.filter(r => r.delta > 0).length, down = rows.filter(r => r.delta < 0).length;
 
+  /* OPEN OR CLOSED (Ravi, 2026-09-29: "ek open close ka option de dena"): closed, the week's figures and the production
+   * tiles fold to one line. Remembered in this browser. */
+  const repOpen = (() => { try { return localStorage.getItem('repTopOpen') !== '0'; } catch (e) { return true; } })();
+  if (!repOpen) {
+    $('repKpis').innerHTML = `<div class="kpi" style="flex-basis:100%;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <span class="kpiname">Week of ${esc(repWkRange(week))}</span>
+      <span style="font-weight:700">${nf(Math.round(prod))} pcs</span>
+      <span style="font-weight:700;color:${pct === null ? 'var(--muted)' : (pct >= 0 ? '#166534' : 'var(--bad)')}">${pct === null ? '' : (pct >= 0 ? '▲ ' : '▼ ') + Math.abs(pct).toFixed(1) + '%'}</span>
+      <span style="flex:1"></span><button type="button" class="ghost" data-reptoggle="1" style="height:32px;padding:0 14px">Open ▼</button></div>`;
+  } else
   $('repKpis').innerHTML = `<div class="kpi" style="flex-basis:100%">
+    <div style="display:flex;justify-content:flex-end;margin-bottom:-6px"><button type="button" class="ghost" data-reptoggle="1" style="height:28px;padding:0 12px;font-size:12px">Close ▲</button></div>
     <div class="kpihead"><span class="kpiname">Week of ${esc(repWkRange(week))}</span>
       <span class="kpiwhen">${nf(weeks.length)} weeks shown · against ${esc(repWkRange(prevWeek))} · what came back, from Job Work Register</span></div>
     <div class="metrics">

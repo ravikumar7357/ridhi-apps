@@ -21687,6 +21687,12 @@ console.log('\n== where is the gap: no work, or speed (Ravi, 29 Sep: "meri kami 
        && /One person a day/.test(card) && /Pradeep made/.test(card) && /Attendance in the week/.test(card)
        && /Cutting — total/.test(card) && />225</.test(card) && /Required/.test(card), card.slice(0, 400));
     ok('…and the separate manpower tiles are gone', !/Days without work/.test(card) && !/OUR KARIGARS —/.test(card) && !/PRADEEP —/.test(card) && !/Sat without work/.test(card));
+    /* 29 Sep (Ravi: "target mera 20000 pcs ka h then us basis par shortage batana ... karigar ... cutting ... printing"). */
+    ok('the target row: 20,000 by default, with karigars, cutting and printing fabric needed', /TO REACH 20,000 A WEEK/.test(card) && /Karigars needed a day/.test(card)
+       && /Cutting needed a week/.test(card) && /Printing fabric a week/.test(card) && /data-rephead="_settings\|target"/.test(card), card.slice(0, 300));
+    A.setREP_HEADS({ _settings: { target: 1000 } });
+    ok('…and it follows the target typed in', /TO REACH 1,000 A WEEK/.test(A.repManpowerCard('2026-09-20', '')));
+    A.setREP_HEADS({});
     A.setVO(wasVO); }
   A.setPTG(Object.assign({}, A.PTG(), { mdb: A.PTG().mdb.concat([
     { sku: 'TC-R', articleType: 'Tablecloth', subtype: 'Rectangular Tablecloth' }, { sku: 'TC-RUF', articleType: 'Tablecloth', subtype: 'Ruffle Tablecloth' },
