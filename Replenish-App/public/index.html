@@ -1430,6 +1430,9 @@
           <span class="muted" style="font-size:12.5px;flex:0 0 auto">Cover target</span>
           <input id="shTarget" type="number" min="1" max="365" step="1" value="60"
                  style="flex:0 0 90px" title="How many days of cover a reorder should top up to.">
+          <span class="muted" style="font-size:12.5px;flex:0 0 auto">Sales ×</span>
+          <input id="shMult" type="number" min="0.5" max="20" step="0.5" value="1"
+                 style="flex:0 0 80px" title="Plan for this many times the sales rate — 3 means: sold 100 in 90 days, plan for 300.">
           <input id="shFilter" style="flex:1 1 150px;min-width:0" placeholder="Filter SKU / article">
           <button id="shCsv" class="ghost">Export</button>
           <button id="shGo">Refresh</button>
@@ -7494,9 +7497,13 @@ function shDetails() {
   return m;
 }
 
+const shMultOf = () => Math.min(20, Math.max(0.5, Number(($('shMult') || {}).value) || 1));
 function shRows() {
   const det = shDetails();
   const target = Math.max(1, Number($('shTarget').value) || 60);
+  /* SALES × (Ravi, 2026-09-29: "last 90 days me 100 pcs sale hue h to future ke liye kitne x krke le lu like 3x"):
+   * the plan is the sales rate times this, over the cover target — 100 sold in 90 days at ×3 and 90 days is 300. */
+  const mult = shMultOf();
   const days = SH.days || 90;
   const haveStock = SH.stock && typeof SH.stock === 'object';
   const rows = [];
@@ -7515,9 +7522,10 @@ function shRows() {
      * waiting — open orders are the production bucket's job. So it counts as empty: cover 0, send what the rate asks. */
     const have = stock == null ? null : Math.max(0, stock);
     const cover = rate > 0 ? (have == null ? null : have / rate) : null;
-    const need = rate > 0 && have != null ? Math.max(0, Math.round(rate * target - have)) : null;
+    const plan = rate > 0 ? Math.round(rate * target * mult) : 0;
+    const need = rate > 0 && have != null ? Math.max(0, plan - have) : null;
     const d = det[k] || {};
-    rows.push({ sku, sold, rev, stock, rate, cover, need,
+    rows.push({ sku, sold, rev, stock, rate, cover, need, plan,
       subcat: d.subcat || '', color: d.color || '', size: d.size || '', guess: !!d.guess });
   };
   Object.entries(SH.d).forEach(([sku, v]) => push(sku, v[0] || 0, v[1] || 0));
@@ -7555,7 +7563,8 @@ function renderShopify() {
     + '<th class="num" title="Units a day, over the whole window.">Per day</th>'
     + '<th class="num" title="On hand across every Shopify location. A dash means Shopify has no record of this SKU at all — which is not the same as zero.">Stock</th>'
     + '<th class="num" title="Days the stock lasts at this rate.">Cover (d)</th>'
-    + `<th class="num" title="Units to bring the cover up to ${target} days.">Send</th></tr></thead>`;
+    + `<th class="num" title="Per day × ${target} days × ${shMultOf()} — what to hold.">Plan${shMultOf() !== 1 ? ' (×' + shMultOf() + ')' : ''}</th>`
+    + `<th class="num" title="Plan less the stock on hand (below zero counts as 0).">Send</th></tr></thead>`;
 
   const CAP = 400;
   /* Not in the master: filled from its look-alikes, and shown as such. */
@@ -7574,15 +7583,16 @@ function renderShopify() {
         : (r.stock === 0 ? '<span style="color:var(--bad);font-weight:700">0</span>' : nf(r.stock)))}</td>`
     + `<td class="num">${r.cover == null ? '<span class="muted">—</span>'
         : (r.cover < 30 ? `<span style="color:var(--bad);font-weight:700">${Math.round(r.cover)}</span>` : Math.round(r.cover))}</td>`
+    + `<td class="num">${r.plan > 0 ? nf(r.plan) : '<span class="muted">—</span>'}</td>`
     + `<td class="num" style="font-weight:700">${r.need > 0 ? nf(r.need) : '<span class="muted">—</span>'}</td>`
     + '</tr>').join('');
 
   $('shTable').innerHTML = head + '<tbody>' + (body
-    || '<tr><td colspan="10" class="muted" style="padding:14px">Nothing matches.</td></tr>') + '</tbody>';
+    || '<tr><td colspan="11" class="muted" style="padding:14px">Nothing matches.</td></tr>') + '</tbody>';
 
   const send = rows.reduce((s, r) => s + (r.need || 0), 0);
   const neg = rows.filter(r => r.stock != null && r.stock < 0).length;
-  shMsg(`<b>${shStore() === 'CPC' ? 'CPC Shopify' : 'Ridhi Shopify'}</b> · ${nf(rows.length)} SKU(s) · <b>${nf(send)}</b> units to reach ${target} days of cover`
+  shMsg(`<b>${shStore() === 'CPC' ? 'CPC Shopify' : 'Ridhi Shopify'}</b> · ${nf(rows.length)} SKU(s) · <b>${nf(send)}</b> units to reach ${target} days of cover${shMultOf() !== 1 ? ` at <b>${shMultOf()}×</b> the sales` : ''}`
     + (rows.length > CAP ? ` · showing the first ${CAP}` : '')
     + ` · ${SH.days} days to ${esc(SH.to)}, ${nf(SH.orders)} order(s)`
     + (SH.at ? ` · built ${esc(SH.at)}` : '')
@@ -7599,16 +7609,16 @@ $('shSeg').addEventListener('click', e => {
   renderShopify();
 });
 let SH_FT = null;
-['shFilter', 'shTarget'].forEach(id =>
+['shFilter', 'shTarget', 'shMult'].forEach(id =>
   $(id).addEventListener('input', () => { clearTimeout(SH_FT); SH_FT = setTimeout(renderShopify, 250); }));
 
 $('shCsv').onclick = () => {
   if (!SH_LAST.length) { shMsg('Nothing to export.', true); return; }
   csvDownload('shopify-' + (shStore() === 'CPC' ? 'cpc-' : 'ridhi-') + (SH.to || 'now'),
-    ['SKU', 'Article', 'Colour', 'Size', SH.days + 'd units', 'Revenue', 'Per day', 'Stock', 'Cover (d)', 'Send'],
+    ['SKU', 'Article', 'Colour', 'Size', SH.days + 'd units', 'Revenue', 'Per day', 'Stock', 'Cover (d)', 'Plan (×' + shMultOf() + ')', 'Send'],
     SH_LAST.map(r => [r.sku, r.subcat, r.color, r.size, r.sold, r.rev,
       r.rate > 0 ? r.rate.toFixed(2) : '', r.stock == null ? '' : r.stock,
-      r.cover == null ? '' : Math.round(r.cover), r.need || 0]));
+      r.cover == null ? '' : Math.round(r.cover), r.plan || 0, r.need || 0]));
 };
 
 /* ================= INDIA STOCK (uploaded) ================= */
@@ -34660,6 +34670,18 @@ function repManpower(week, brand) {
  * The supply beside it — what they held at the start, what they were given, what was cut — says whether the
  * cutting and issuing kept up. Pillow insert and the outside contractor are left out, as in the rest of the card. */
 const REP_PER_DAY = 50;
+/* WHAT IS CUT IN-HOUSE (Ravi, 2026-09-29: "cutting me jo article nahi aate h wo ye h — tablecloth, in ko chhodkar ruffle
+ * tablecloth, piping scallop tablecloth; border napkin; table runner"). Those come already cut from the printer; everything
+ * else goes through our cutting first. */
+function repNeedsCutting(r) {
+  const m = typeof mdbOf === 'function' ? mdbOf(r && r.sku) : null;
+  const at = String((m && m.articleType) || (r && r.articleType) || ''), st = String((m && m.subtype) || (r && r.articleSubtype) || '');
+  const t = at + ' ' + st;
+  if (/table\s*runner/i.test(t)) return false;
+  if (/border\s*napkin/i.test(t)) return false;
+  if (/tablecloth/i.test(t)) return /ruffle|piping|scallop/i.test(st);
+  return true;
+}
 const repPerDay = () => Number(((REP_HEADS || {})._settings || {}).perday) || REP_PER_DAY;   // saved under repHeadKey('perDay')
 function repGap(week, brand) {
   const wp = String(week).split('-').map(Number), from = new Date(wp[0], wp[1] - 1, wp[2]).getTime(), DAY = 864e5, to = from + 7 * DAY;
@@ -34667,13 +34689,13 @@ function repGap(week, brand) {
   const mine = r => r && !repIsInsert(r) && !REP_CONTRACTOR_RE.test(String(r.empName || '')) && (!brand || repBrand(r.sku) === brand);
   const rows = (PT.base || []).filter(mine);
   const byWho = new Map(), made = new Map();
-  let issued = 0, held = 0;
+  let issued = 0, held = 0, issuedCut = 0;
   rows.forEach(r => {
     const k = String(r.empName || '').trim() || '(no name)';
     (byWho.get(k) || byWho.set(k, []).get(k)).push(r);
     const im = ptDtMs(r.issueDate), rm = r.receivingDate ? ptDtMs(r.receivingDate) : 0;
     if (rm && rm >= from && rm < to && ptNum(r.receivedPieces) > 0) made.set(k, (made.get(k) || 0) + ptNum(r.receivedPieces));
-    if (im && im >= from && im < to) issued += ptNum(r.issuePieces);
+    if (im && im >= from && im < to) { issued += ptNum(r.issuePieces); if (repNeedsCutting(r)) issuedCut += ptNum(r.issuePieces); }
     if (im && im < from && (!rm || rm >= from)) held += ptNum(r.issuePieces);         // still out when the week began
   });
   /* The working days: Monday to Saturday of this week, as many as the week's working days, and none still to come. */
@@ -34688,11 +34710,11 @@ function repGap(week, brand) {
   });
   const emptyDays = empty.reduce((a, e) => a + e.days, 0);
   let cut = 0;
-  (PT.cut || []).forEach(r => { const ms = r && ptDtMs(r.cutDate); if (ms && ms >= from && ms < to && !repIsInsert(r) && (!brand || repBrand(r.sku) === brand)) cut += ptNum(r.pieces); });
+  (PT.cut || []).forEach(r => { const ms = r && ptDtMs(r.cutDate); if (ms && ms >= from && ms < to && !repIsInsert(r) && repNeedsCutting(r) && (!brand || repBrand(r.sku) === brand)) cut += ptNum(r.pieces); });
   const possible = K * T * days.length, short = Math.max(0, possible - madeTot);
   const noWork = Math.min(short, emptyDays * T), speed = Math.max(0, short - noWork);
   return { week, perDay: T, days: days.length, karigars: K, made: madeTot, possible, short, noWork, speed,
-    emptyDays, karigarDays: K * days.length, held, issued, cut, available: held + issued,
+    emptyDays, karigarDays: K * days.length, held, issued, issuedCut, issuedReady: issued - issuedCut, cut, available: held + issued,
     empty: empty.sort((a, b) => b.days - a.days || a.made - b.made) };
 }
 
@@ -35114,14 +35136,19 @@ function repGapPanel(week, brand, box) {
       <span style="color:var(--muted)">could have made <b style="color:var(--ink)">${nf(g.possible)}</b> = ${nf(g.karigars)} karigars × ${nf(g.perDay)} × ${nf(g.days)} days</span></div>
     <div style="font-weight:700;font-size:13px;margin:14px 0 6px">Did the work reach them?</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:stretch">
-      ${step(g.cut, 'Cut this week', 'Cutting Data, pillow insert apart')}${arrow}
       ${step(g.held, 'In hand at the start', 'issued before, not back yet')}
       <div style="align-self:center;color:var(--muted);font-size:18px">+</div>
-      ${step(g.issued, 'Given to karigars', 'issued this week')}
+      ${step(g.issuedCut, 'Given — from our cutting', `cut this week: <b style="color:${g.cut < g.issuedCut ? 'var(--bad)' : 'var(--ink)'}">${nf(g.cut)}</b>`)}
+      <div style="align-self:center;color:var(--muted);font-size:18px">+</div>
+      ${step(g.issuedReady, 'Given — came cut from printers', 'tablecloth, border napkin, runner')}
       <div style="align-self:center;color:var(--muted);font-size:18px">=</div>
       ${step(g.available, 'Work they had', supplyShort ? `<span style="color:var(--bad);font-weight:700">${nf(g.possible - g.available)} short of ${nf(g.possible)}</span>` : `enough for ${nf(g.possible)}`, supplyShort ? 'var(--bad)' : '#15803D')}${arrow}
       ${step(g.made, 'Made', Math.round(g.made / Math.max(1, g.karigars * g.days)) + ' a karigar a day')}
     </div>
+    <div style="font-size:12.5px;color:var(--muted);margin-top:8px">${g.available < g.possible
+      ? `To keep every karigar busy at ${nf(g.perDay)} a day they needed <b style="color:var(--ink)">${nf(g.possible)}</b>; they had ${nf(g.available)} — <b style="color:var(--bad)">${nf(g.possible - g.available)} pcs more</b> had to come from our cutting or cut pieces from the printers.`
+      : `There was work enough for every karigar at ${nf(g.perDay)} a day.`}
+      Ruffle and piping-scallop tablecloths go through our cutting; plain tablecloths, border napkins and table runners come cut from the printer.</div>
     ${g.empty.length ? `<div style="font-weight:700;font-size:13px;margin:14px 0 6px">Karigars who sat without work <span style="font-weight:400;color:var(--muted)">— days this week with nothing in hand</span></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">${g.empty.slice(0, 14).map(e => `<span style="border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-size:12.5px">${esc(e.name)} · <b style="color:var(--bad)">${nf(e.days)} day${e.days > 1 ? 's' : ''}</b></span>`).join('')}${g.empty.length > 14 ? `<span style="font-size:12.5px;color:var(--muted);padding:3px 4px">and ${nf(g.empty.length - 14)} more</span>` : ''}</div>` : ''}
   </div>`;
