@@ -34433,6 +34433,7 @@ async function ensureRep() {
    * tab straight onto it would otherwise show an empty report rather than a loading one. */
   if (!PTG.mdb || !PTG.press || !PT.base) { REP.busy = true; renderRep(); await ptLoadGates(); REP.busy = false; REP.at = ptStamp(); }
   if (FGI.rows === null && $('repView').value === 'fgval') { try { FGI.rows = ptList(await ptGet('pt_fgiLedger')); } catch (e) { FGI.rows = []; } }
+  if (REP_HEADS === null) { try { REP_HEADS = (await ptGet('pt_contractorHeads')) || {}; } catch (e) { REP_HEADS = {}; } }
   renderRep();
 }
 
@@ -34443,6 +34444,40 @@ const repAt = (sku, fallback) => { const m = mdbOf(sku);
 const repBrand = sku => { const m = mdbOf(sku);
   return m ? String(m.brand || '').trim() : ''; };
 const repBrands = () => [...new Set((PTG.mdb || []).map(r => String((r && r.brand) || '').trim()).filter(Boolean))].sort();
+
+/* PILLOW INSERT IS TRACKED APART (Ravi, 2026-09-29: "pillow insert ko alag se track krna h is production report me add
+ * nahi krna h"). It is filling, not stitching: the production report and its capacity figures leave it out, and it has a
+ * line of its own. */
+const repIsInsert = r => /pillow insert/i.test(repAt(r && r.sku, r && r.articleType));
+/* An external contractor's pieces come back under one name for a whole team; their people are counted apart, from the
+ * headcount Ravi gives at the end of the week (pt_contractorHeads/<week>/<name>). */
+const REP_CONTRACTOR_RE = /pradeep/i;
+let REP_HEADS = null;
+const repHeadKey = n => String(n || '').trim().toLowerCase().replace(/[.#$\[\]\/]/g, '').replace(/\s+/g, '_');
+/** One week of work, pillow insert apart: in-house karigars and what each brought back, and each contractor. */
+function repManpower(week, brand) {
+  /* The week read in local time: "2026-09-20" on its own parses as UTC midnight, five and a half hours off. */
+  const wp = String(week).split('-').map(Number), from = new Date(wp[0], wp[1] - 1, wp[2]).getTime(), to = new Date(wp[0], wp[1] - 1, wp[2] + 7).getTime();
+  const kar = new Map(), con = new Map();
+  let insert = 0;
+  (PT.base || []).forEach(r => {
+    if (!r) return;
+    const pcs = ptNum(r.receivedPieces);
+    if (!(pcs > 0)) return;
+    if (brand && repBrand(r.sku) !== brand) return;
+    const ms = r.receivingDate ? ptDtMs(r.receivingDate) : 0;
+    if (!ms || ms < from || ms >= to) return;
+    if (repIsInsert(r)) { insert += pcs; return; }
+    const who = String(r.empName || '').trim() || '(no name)';
+    const m = REP_CONTRACTOR_RE.test(who) ? con : kar;
+    m.set(who, (m.get(who) || 0) + pcs);
+  });
+  const inPcs = [...kar.values()].reduce((a, b) => a + b, 0);
+  const heads = (REP_HEADS || {})[week] || {};
+  return { week, insert, people: kar.size, inPcs, avg: kar.size ? inPcs / kar.size : 0,
+    karigars: [...kar.entries()].sort((a, b) => b[1] - a[1]),
+    contractors: [...con.entries()].map(([name, pcs]) => { const h = Number(heads[repHeadKey(name)]) || 0; return { name, pcs, heads: h, per: h ? pcs / h : null }; }) };
+}
 
 /** A SKU the factory makes itself, as the tool defines it. An unknown SKU counts in. */
 function repInhouse(sku) {
@@ -34460,6 +34495,7 @@ function repWeekly(yr, mo, brand, inhouseOnly) {
     const ms = ptDtMs(r.entryDate); if (!ms) return;
     if (brand && repBrand(r.sku) !== brand) return;
     if (inhouseOnly && !repInhouse(r.sku)) return;
+    if (repIsInsert(r)) return;                                // tracked apart (2026-09-29)
     const d = new Date(ms);
     const ws = new Date(d); ws.setDate(d.getDate() - d.getDay());       // the Sunday this week starts on
     if (ws.getFullYear() !== yr || ws.getMonth() + 1 !== mo) return;
@@ -34528,6 +34564,7 @@ function repByWeek(brand, inhouseOnly) {
     if (pcs <= 0) return;                                     // issued, not back yet
     if (brand && repBrand(r.sku) !== brand) return;
     if (inhouseOnly && !repInhouse(r.sku)) return;
+    if (repIsInsert(r)) return;                                // tracked apart (2026-09-29)
     if (!r.receivingDate) { undated += pcs; return; }
     const ms = ptDtMs(r.receivingDate);
     if (!ms) { undated += pcs; return; }
@@ -34563,6 +34600,7 @@ function repByWindow(brand, inhouseOnly, from, to) {
     if (inhouseOnly && !repInhouse(r.sku)) return;
     const ms = r.receivingDate ? ptDtMs(r.receivingDate) : 0;
     if (!ms || ms < from || ms >= to) return;
+    if (repIsInsert(r)) return;                                // tracked apart (2026-09-29)
     const at = repAt(r.sku, r.articleType);
     out[at] = out[at] || { cust: 0, prod: 0 };
     out[at].prod += pcs;
@@ -34811,6 +34849,36 @@ function repRenderLive() {
   REP.live = L;
 }
 
+/** MANPOWER, the week's: who made it and what one person makes — pillow insert apart, each contractor on his own. */
+function repManpowerCard(week, brand) {
+  const m = repManpower(week, brand), p = repManpower(repWkShift(week, -1), brand);
+  const canEdit = !!(ME.admin || ptCanEdit());
+  const con = m.contractors.map(c => `<div class="metric"><div class="v">${nf(c.pcs)}</div><div class="l">${esc(c.name)} — pieces</div></div>`
+    + `<div class="metric"><div class="v">${canEdit
+        ? `<input type="number" min="0" step="1" data-rephead="${esc(week)}|${esc(c.name)}" value="${c.heads || ''}" placeholder="people" style="width:90px;font-size:18px;font-weight:700;text-align:right">`
+        : (c.heads ? nf(c.heads) : '—')}</div><div class="l">${esc(c.name)}'s people present this week</div></div>`
+    + `<div class="metric"><div class="v" style="color:${c.per == null ? 'var(--muted)' : '#166534'}">${c.per == null ? '—' : nf(Math.round(c.per))}</div><div class="l">per ${esc(c.name)} person${c.per == null ? ' — enter the headcount' : ''}</div></div>`).join('');
+  return `<div class="kpi" style="flex-basis:100%;margin-top:10px">
+    <div class="kpihead"><span class="kpiname">Manpower — week of ${esc(repWkRange(week))}</span>
+      <span class="kpiwhen">karigars who brought work back · pillow insert not counted</span></div>
+    <div class="metrics">
+      <div class="metric"><div class="v">${nf(m.people)}</div><div class="l">In-house karigars${p.people ? ` <span class="muted">(${nf(p.people)} the week before)</span>` : ''}</div></div>
+      <div class="metric"><div class="v">${nf(m.inPcs)}</div><div class="l">Pieces they made</div></div>
+      <div class="metric"><div class="v" style="color:#166534">${m.people ? nf(Math.round(m.avg)) : '—'}</div><div class="l">Per karigar, average${p.people ? ` <span class="muted">(${nf(Math.round(p.avg))} the week before)</span>` : ''}</div></div>
+      ${con}
+      <div class="metric"><div class="v" style="color:#7f6000">${nf(m.insert)}</div><div class="l">Pillow insert, apart${p.insert ? ` <span class="muted">(${nf(p.insert)} the week before)</span>` : ''}</div></div>
+    </div></div>`;
+}
+if ($('repKpis')) $('repKpis').addEventListener('change', async e => {
+  const t = e.target.closest && e.target.closest('[data-rephead]'); if (!t) return;
+  const [week, name] = String(t.getAttribute('data-rephead')).split('|');
+  const n = Math.max(0, Math.round(Number(t.value) || 0));
+  try { await ptPut('pt_contractorHeads/' + week + '/' + repHeadKey(name), n); }
+  catch (er) { $('repMsg').className = 'err'; $('repMsg').textContent = 'Headcount not saved: ' + (er.message || er); return; }
+  REP_HEADS = REP_HEADS || {}; REP_HEADS[week] = Object.assign({}, REP_HEADS[week], { [repHeadKey(name)]: n });
+  renderRep();
+});
+
 function repRenderWow() {
   const week = ($('repWk') || {}).value || repLastFullWeek();
   const brand = $('repBrand').value;
@@ -34841,7 +34909,7 @@ function repRenderWow() {
         + `${pct === null ? '—' : (pct >= 0 ? '▲ ' : '▼ ') + Math.abs(pct).toFixed(1) + '%'}</div><div class="l">Week on week</div></div>
       <div class="metric"><div class="v">${nf(rows.length)}</div><div class="l">Article types</div></div>
       <div class="metric"><div class="v"><span style="color:#166534">${nf(up)}</span> / <span style="color:var(--bad)">${nf(down)}</span></div><div class="l">Up / down</div></div>
-    </div></div>`;
+    </div></div>` + repManpowerCard(week, brand);
 
   /* ---- THE CHARTS. Every figure on them is in the table below, so nothing is only a picture. ---- */
   const wkLabel = w => repWkRange(w).split(' – ')[0];
