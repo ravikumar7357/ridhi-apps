@@ -21770,6 +21770,29 @@ console.log('\n== quilt voil split Front and Back in the export (Ravi, 30 Sep: "
   ok('each side with its own SKUs', sd.size === 2 && [...sd.get('Front')].join() === 'RQL351-Q-Front,RQL350-Q-Front' && [...sd.get('Back')].join() === 'RQL351-Q-Back', JSON.stringify([...sd].map(([k, v]) => [k, [...v]])));
   A.setVOF(wasVOF);
 }
+console.log('\n== one colour name, two colour codes: kept apart for the fabric SKU (Ravi, 30 Sep: "abhi bhi data kuch mix hokar aa rha h")');
+{
+  const was = { ob: A.PTG().ob, mdb: A.PTG().mdb, masters: A.PTG().masters, press: A.PTG().press, base: A.PT().base, cut: A.PT().cut, vo: A.VO(), vof: A.VOF() };
+  const Q = sku => ({ sku, articleType: 'Quilt', subtype: 'Queen Quilt', color: 'Dark Salmon Pink', size: '90x96', fabric: 'Voil 92', consumption: 5 });
+  A.setPTG(Object.assign({}, A.PTG(), { mdb: [Q('RQL350-Q'), Q('RQL351-Q')], press: [], masters: Object.assign({}, A.PTG().masters || {}, { printRule: [] }),
+    ob: [{ orderNo: 'AMZ-D1', sku: 'RQL351-Q', qty: 12, orderDate: '2026-09-01' }, { orderNo: 'AMZ-D2', sku: 'RQL350-Q', qty: 4, orderDate: '2026-09-01' }] }));
+  A.setPT(Object.assign({}, A.PT(), { base: [], cut: [] }));
+  A.setVO({ rows: [], map: {}, err: '', busy: false, at: '', shown: [] });
+  A.setORD_DEM({ tried: true, busy: false, fabOk: false, voOk: true });
+  const r = A.ordDemandColRows().cols.find(c => c.colour === 'Dark Salmon Pink');
+  const c351 = r && r.codes.get('351'), c350 = r && r.codes.get('350');
+  ok('the colour row keeps each code apart: 351 12 pcs 60 m, 350 4 pcs 20 m', c351 && c351.pcs === 12 && c351.need === 60 && c350 && c350.pcs === 4 && c350.need === 20, JSON.stringify(r && [...r.codes.values()].map(x => [x.code, x.pcs, x.need])));
+  A.setVOF({ kind: 'running', lines: [], fs: new Map([
+    ['A', { sku: 'RQL350-Q-Front', fabric: 'Voil 92', colour: 'Dark Salmon Pink', dir: 'Vertical', width: '92', side: 'Front' }],
+    ['B', { sku: 'RQL351-Q-Front', fabric: 'Voil 92', colour: 'Dark Salmon Pink', dir: 'Vertical', width: '92', side: 'Front' }],
+    ['C', { sku: 'RQL351-Q-Back', fabric: 'Voil 92', colour: 'Dark Salmon Pink', dir: 'Vertical', width: '92', side: 'Back' }],
+    ['D', { sku: 'RQL0009-Q-Front', fabric: 'Voil 92', colour: 'Indigo Floral', dir: 'Vertical', width: '92', side: 'Front' }]]) });
+  const s351 = A.ordFabSides('Voil 92', 'Dark Salmon Pink', 'Vertical', '351');
+  ok('…and code 351 names only the 351 fabric SKUs', [...s351.get('Front')].join() === 'RQL351-Q-Front' && [...s351.get('Back')].join() === 'RQL351-Q-Back');
+  ok('…009 finds 0009 when there is no exact one', A.ordFabSkuOf('Voil 92', 'Indigo Floral', 'Vertical', '009') === 'RQL0009-Q-Front');
+  A.setPTG(Object.assign({}, A.PTG(), { ob: was.ob, mdb: was.mdb, masters: was.masters, press: was.press }));
+  A.setPT(Object.assign({}, A.PT(), { base: was.base, cut: was.cut })); A.setVO(was.vo); A.setVOF(was.vof);
+}
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
 })();

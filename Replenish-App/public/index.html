@@ -20094,7 +20094,16 @@ function ordDemandColRows() {
     const dir = asPcs ? '' : ptPrintDir(m, fab);
     const gk = ck + (dir ? '|' + dir : '');
     let g = groups.get(gk);
-    if (!g) groups.set(gk, g = { key: gk, colKey: ck, dir, fabric: fab, colour, pcs: 0, need: 0, cutPcs: 0, skus: new Set(), products: new Map(), lineOf: new Map(), keys: [] });
+    if (!g) groups.set(gk, g = { key: gk, colKey: ck, dir, fabric: fab, colour, pcs: 0, need: 0, cutPcs: 0, skus: new Set(), products: new Map(), lineOf: new Map(), keys: [], codes: new Map() });
+    /* THE COLOUR CODE the ordered SKU carries (RQL351-Q → 351): one colour name can be two codes, and each is its own
+     * printed cloth with its own fabric SKU. */
+    if (!asPcs) {
+      const cc = ordColCodeOf(l.sku), e = g.codes.get(cc) || { code: cc, pcs: 0, need: 0, products: new Map() };
+      e.pcs += left; e.need += left * cons;
+      const pw = [String(m.subtype || m.articleType || '').trim(), String(m.size || l.size || '').trim()].filter(Boolean).join(' ');
+      e.products.set(pw, (e.products.get(pw) || 0) + left);
+      g.codes.set(cc, e);
+    }
     g.keys.push({ key: l.orderNo + '|' + l.sku, pk: ck + '|' + obUC(String(m.subtype || m.articleType || l.articleSubtype || '').trim()) + '|' + obUC(String(m.size || l.size || '').trim()) });
     /* The lines behind the colour, so a printer can be given all of them from the totals view. */
     g.lineOf.set(l.orderNo + '|' + l.sku, String(l.printer || ''));
@@ -21031,23 +21040,29 @@ function ordBookCsv(rows) {
   return lines;
 }
 
-/** The catalogue lines for a fabric, colour and — when given — print direction. */
-function ordFabHits(fabric, colour, dir) {
+/** The colour code in a SKU: the digits after the leading letters — RQL351-Q → "351", RQL0009-Q-Front → "0009". */
+const ordColCodeOf = sku => (String(sku || '').toUpperCase().match(/^[A-Z]+(\d{1,5})/) || ['', ''])[1];
+/** The catalogue lines for a fabric, colour, print direction (when given) and colour code (when given — the exact code,
+ * else the same number: 009 and 0009). */
+function ordFabHits(fabric, colour, dir, code) {
   const lo = x => String(x || '').trim().toLowerCase();
   let cat;
   try { cat = [...voFabricCatalogue().values()]; } catch (e) { return []; }
-  return cat.filter(c => lo(c.fabric) === lo(fabric) && lo(c.colour) === lo(colour) && (!lo(dir) || !c.width || lo(c.dir) === lo(dir)));
+  const hits = cat.filter(c => lo(c.fabric) === lo(fabric) && lo(c.colour) === lo(colour) && (!lo(dir) || !c.width || lo(c.dir) === lo(dir)));
+  if (!code) return hits;
+  const exact = hits.filter(c => ordColCodeOf(c.sku) === code);
+  return exact.length ? exact : hits.filter(c => Number(ordColCodeOf(c.sku)) === Number(code));
 }
 /** The fabric SKU(s) of the catalogue for a fabric, colour and — when given — print direction. */
-function ordFabSkuOf(fabric, colour, dir) {
-  return [...new Set(ordFabHits(fabric, colour, dir).map(c => c.sku))].join(' ');
+function ordFabSkuOf(fabric, colour, dir, code) {
+  return [...new Set(ordFabHits(fabric, colour, dir, code).map(c => c.sku))].join(' ');
 }
 /* FRONT AND BACK (Ravi, 2026-09-30: "back and front ke sku ka fabric alag alag dikhay — 90x96 ka cons 5 h to 2.5 front
  * ke liye 2.5 back ke liye"). A quilt's voil comes as a Front SKU and a Back SKU; the cloth is split evenly between the
  * sides the catalogue has. Map side → SKUs; empty when the catalogue has no sides for it. */
-function ordFabSides(fabric, colour, dir) {
+function ordFabSides(fabric, colour, dir, code) {
   const out = new Map();
-  ordFabHits(fabric, colour, dir).forEach(c => { const sd = String(c.side || '').trim(); if (!sd) return;
+  ordFabHits(fabric, colour, dir, code).forEach(c => { const sd = String(c.side || '').trim(); if (!sd) return;
     if (!out.has(sd)) out.set(sd, new Set()); out.get(sd).add(c.sku); });
   return out;
 }
@@ -21073,15 +21088,28 @@ $('odExport').onclick = () => {
     const out = [['Fabric', 'Fabric SKU', 'Side', 'Colour', 'Print direction', 'For', 'Pieces to make', 'Running cloth needed (m)', 'Running with printers (m)', 'Running still to give (m)',
       'Cut pieces needed', 'Cut pieces with printers', 'Cut pieces still to give'].map(csvCell).join(',')];
     rows.forEach(r => {
-      const sides = r.need ? ordFabSides(r.fabric, r.colour, dirOf(r)) : new Map();
-      if (sides.size > 1) {
-        /* One line per side, each with its share of the running cloth; every piece needs every side. */
-        const n = sides.size, h = v => v == null ? '' : r2(v / n);
-        [...sides.entries()].sort((a, b) => a[0].localeCompare(b[0]) * -1).forEach(([sd, skus]) =>
-          out.push([r.fabric, [...skus].join(' '), sd, r.colour, dirOf(r), forWhat(r), r.pcs, h(r.need), h(r.atM), h(r.give), '', '', ''].map(csvCell).join(',')));
-        return;
-      }
-      out.push([r.fabric, ordFabSkuOf(r.fabric, r.colour, dirOf(r)), '', r.colour, dirOf(r), forWhat(r), r.pcs, r2(r.need), r2(r.atM), r2(r.give), r.cutPcs || '', r2(r.cutAtPcs), r2(r.cutGive)].map(csvCell).join(','));
+      const codes = [...(r.codes || new Map()).values()].filter(c => c.need > 0);
+      /* ONE LINE PER COLOUR CODE (each its own share of the cloth, and with printers / to give shared the same way),
+       * then one per side. A row with no running cloth, or no code to read, is one line as before. */
+      const parts = codes.length ? codes : [null];
+      parts.forEach(c => {
+        const f = c && r.need ? c.need / r.need : 1, code = c ? c.code : '';
+        const pcs = c ? c.pcs : r.pcs;
+        const what = c ? [...c.products].map(([w, n]) => w + ' (' + n + ')').join(', ') : forWhat(r);
+        const sides = r.need ? ordFabSides(r.fabric, r.colour, dirOf(r), code) : new Map();
+        if (sides.size > 1) {
+          /* One line per side, each with its share of the running cloth; every piece needs every side. */
+          const n = sides.size, h = v => v == null ? '' : r2(v * f / n);
+          [...sides.entries()].sort((a, b) => a[0].localeCompare(b[0]) * -1).forEach(([sd, skus]) =>
+            out.push([r.fabric, [...skus].join(' '), sd, r.colour, dirOf(r), what, pcs, h(r.need), h(r.atM), h(r.give), '', '', ''].map(csvCell).join(',')));
+          return;
+        }
+        const h = v => v == null ? '' : r2(v * f);
+        out.push([r.fabric, ordFabSkuOf(r.fabric, r.colour, dirOf(r), code), '', r.colour, dirOf(r), what, pcs, h(r.need), h(r.atM), h(r.give),
+          c ? '' : (r.cutPcs || ''), c ? '' : r2(r.cutAtPcs), c ? '' : r2(r.cutGive)].map(csvCell).join(','));
+      });
+      /* Cut pieces of the same colour, when the row also has running cloth split above, on a line of their own. */
+      if (codes.length && r.cutPcs) out.push([r.fabric, ordFabSkuOf(r.fabric, r.colour, dirOf(r)), '', r.colour, dirOf(r), 'cut pieces', r.cutPcs, '', '', '', r.cutPcs, r2(r.cutAtPcs), r2(r.cutGive)].map(csvCell).join(','));
     });
     return ptDownload('cloth-by-fabric-colour', out);
   }
