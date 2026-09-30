@@ -19941,11 +19941,15 @@ function ordDemandAtPrintersCol() {
       if (voKind(l) === 'running' || o.orderType === 'running') {
         const fab = String(l.fabricType || '').trim();
         if (fab) {
-          const e = get(obUC(fab) + '|' + obUC(l.color));
-          e.runM += owed;
           const nm = o.vendorName || voName(o.vendorCode) || o.vendorCode || '';
-          if (nm) e.who.set(nm, (e.who.get(nm) || 0) + owed);
-          if (o.vendorCode) e.codes.add(obUC(o.vendorCode));
+          const dn = /^h/i.test(String(l.printDirection || '')) ? 'Horizontal' : (/^v/i.test(String(l.printDirection || '')) ? 'Vertical' : '');
+          /* Under the colour, and under the colour AND direction for the quilt rows that are split that way. */
+          [obUC(fab) + '|' + obUC(l.color)].concat(dn ? [obUC(fab) + '|' + obUC(l.color) + '|' + dn] : []).forEach(k => {
+            const e = get(k);
+            e.runM += owed;
+            if (nm) e.who.set(nm, (e.who.get(nm) || 0) + owed);
+            if (o.vendorCode) e.codes.add(obUC(o.vendorCode));
+          });
         }
         return;
       }
@@ -20037,8 +20041,11 @@ function ordDemandColRows() {
     if (!fab || (!asPcs && !(cons > 0))) { unknownPcs += left; return; }
     const colour = String(m.color || l.color || '').trim();
     const ck = obUC(fab) + '|' + obUC(colour);
-    let g = groups.get(ck);
-    if (!g) groups.set(ck, g = { key: ck, fabric: fab, colour, pcs: 0, need: 0, cutPcs: 0, skus: new Set(), products: new Map(), lineOf: new Map(), keys: [] });
+    /* A quilt colour splits by the way it is printed: 60x90 and 90x96 on Voil 92 are two different running orders. */
+    const dir = asPcs ? '' : ptPrintDir(m, fab);
+    const gk = ck + (dir ? '|' + dir : '');
+    let g = groups.get(gk);
+    if (!g) groups.set(gk, g = { key: gk, colKey: ck, dir, fabric: fab, colour, pcs: 0, need: 0, cutPcs: 0, skus: new Set(), products: new Map(), lineOf: new Map(), keys: [] });
     g.keys.push({ key: l.orderNo + '|' + l.sku, pk: ck + '|' + obUC(String(m.subtype || m.articleType || l.articleSubtype || '').trim()) + '|' + obUC(String(m.size || l.size || '').trim()) });
     /* The lines behind the colour, so a printer can be given all of them from the totals view. */
     g.lineOf.set(l.orderNo + '|' + l.sku, String(l.printer || ''));
@@ -20128,7 +20135,7 @@ function renderOrdDemandCol() {
   const drawn = flat.slice(0, ORD_DEMCOL_MAX);
   $('odTable').innerHTML = head + '<tbody>' + (drawn.length ? drawn.map(r => r.kind === 'col'
     ? '<tr style="background:var(--soft)">'
-      + '<td class="frz" style="text-align:left;background:var(--soft)"><b>' + esc(r.fabric) + '</b> · <b>' + (esc(r.colour) || '<span class="muted">no colour</span>') + '</b></td>'
+      + '<td class="frz" style="text-align:left;background:var(--soft)"><b>' + esc(r.fabric) + '</b> · <b>' + (esc(r.colour) || '<span class="muted">no colour</span>') + '</b>' + (r.dir ? ' · <b style="color:#7C3AED">' + esc(r.dir) + '</b>' : '') + '</td>'
       + '<td style="text-align:left" class="muted">' + nf(r.products.length) + ' product(s)</td>'
       + '<td style="text-align:left">' + (r.need && r.cutPcs ? ordDemAs(false) + ' ' + ordDemAs(true) : ordDemAs(!r.need && !!r.cutPcs)) + '</td>'
       + '<td class="num">' + nf(r.skus) + '</td>'
@@ -20742,7 +20749,11 @@ function renderOrdDemandTot() {
   ORD.demBasket = ORD.demBasket || {};
   const inBasket = k => Object.keys(ORD.demBasket).find(c => (ORD.demBasket[c] || []).some(x => x.key === k)) || '';
   const dirOf = r => { const p = ORD.demPick[r.key] || {}; if (p.dir != null) return p.dir;
+    if (r.dir) return r.dir;                                   // a quilt row knows its own
     const h = voRunningOpenOf(r.colour, r.fabric).find(x => x.dir); return h ? h.dir : ''; };
+  /* WHICH SIZES THIS CLOTH IS FOR, under the colour (Ravi, 2026-09-30: "pata nahi laga pa rha hu ki kis size ke liye"). */
+  const forWhat = r => (r.products || []).filter(p => !p.asPcs && p.pcs > 0).slice(0, 6)
+    .map(p => esc([p.what, p.size].filter(Boolean).join(' ')) + ' <span class="muted">(' + nf(p.pcs) + ')</span>').join(', ');
   const runWith = r => {
     const w = [...(r.runWho || new Map())].filter(x => Math.round(x[1])).sort((x, y) => y[1] - x[1]);
     return w.length ? w.map(([n, m]) => esc(n) + (r.narrowed ? '' : ' <span class="muted">' + nf(Math.round(m)) + ' m</span>')).join(', ') : '<span class="muted">—</span>';
@@ -20758,7 +20769,9 @@ function renderOrdDemandTot() {
   const dash = '<span class="muted">—</span>';
   $('odTable').innerHTML = head + '<tbody>' + (rows.length ? rows.map(r => '<tr>'
       + '<td class="frz" style="text-align:left"><b>' + esc(r.fabric) + '</b></td>'
-      + '<td style="text-align:left"><b>' + (esc(r.colour) || '<span class="muted">no colour</span>') + '</b></td>'
+      + '<td style="text-align:left;white-space:normal;max-width:320px"><b>' + (esc(r.colour) || '<span class="muted">no colour</span>') + '</b>'
+        + (r.dir ? ' <span style="font-size:11px;font-weight:700;color:#7C3AED;background:#F4EFFE;border-radius:6px;padding:1px 6px">' + esc(r.dir) + '</span>' : '')
+        + (forWhat(r) ? '<div style="font-size:11.5px;margin-top:2px">for ' + forWhat(r) + '</div>' : '') + '</td>'
       + '<td class="num">' + nf(r.pcs) + '</td>'
       + '<td class="num" style="font-weight:800">' + ordDemBoth(r.need, r.cutPcs) + '</td>'
       + '<td class="num">' + (r.atM == null ? dash : ordDemBoth(r.atM, r.cutAtPcs)) + '</td>'
@@ -20802,7 +20815,9 @@ function demBasketAdd(key, code, dir) {
   ORD.demBasket = ORD.demBasket || {};
   Object.keys(ORD.demBasket).forEach(c => { ORD.demBasket[c] = (ORD.demBasket[c] || []).filter(x => x.key !== key); });
   (ORD.demBasket[code] = ORD.demBasket[code] || []).push({ key, fabric: r.fabric, colour: r.colour, dir, m,
-    need: Math.round(r.need || 0), atM: Math.round(r.atM || 0) });
+    need: Math.round(r.need || 0), atM: Math.round(r.atM || 0),
+    /* The sizes it is for travel with the line, so the printer and the office both read "for Queen Quilt 90x96". */
+    forWhat: (r.products || []).filter(p => !p.asPcs && p.pcs > 0).map(p => [p.what, p.size].filter(Boolean).join(' ') + ' (' + p.pcs + ')').join(', ') });
   ORD.demSaid = `${nf(m)} m of ${r.fabric} · ${r.colour} · ${dir} added to the order for ${voName(code)} — Place order on the bar above when it has everything.`;
   renderOrd();
   return '';
@@ -20843,7 +20858,7 @@ function demBasketPlace(code) {
           const fr = hits.length === 1 ? hits[0] : null;
           return Object.assign({ lineId: 'ln_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6), kind: 'running',
             fabricType: x.fabric, color: x.colour, printDirection: x.dir, meters: x.m, deliveryDate: v.deliv, priority: v.pri,
-            notes: 'Order Console: needs ' + nf(x.need) + ' m, ' + nf(x.atM) + ' m already with printers', dispatchedQty: 0 },
+            notes: (x.forWhat ? 'For ' + x.forWhat + ' · ' : '') + 'Order Console: needs ' + nf(x.need) + ' m, ' + nf(x.atM) + ' m already with printers', dispatchedQty: 0 },
             fr ? { sku: fr.sku, img: fr.imageUrl || '', brand: fr.brandName || '' } : {});
         }) };
       const err = await voPlace({ code, notes: v.notes || '', why: may ? '' : 'Order Console demand — ' + nf(m) + ' m still to give' });
@@ -46011,6 +46026,24 @@ function ptLayOn(cut, widthIn, lay) {
    * piece that is not turned — the product's width lies across the cloth's width, which is how it is
    * cut on the table. */
   return tries.sort((a, b) => a.metres - b.metres || (a.turned ? 1 : 0) - (b.turned ? 1 : 0))[0];
+}
+
+/* WHICH WAY A QUILT IS PRINTED (Ravi, 2026-09-30). The quilt is laid on the roll the way that takes least cloth; when
+ * its LONG side runs across the cloth the design is printed Horizontal, when the short side does, Vertical:
+ *   60x90  on Voil 92  → the 92" cut (90 + 2) across the 92" roll → Horizontal
+ *   90x96  on Voil 92  → only the 92" side fits across → Vertical
+ *   96x106 on Voil 112 → the 108" side across the 112" roll → Horizontal
+ * Only quilts, which is what Ravi described; everything else keeps the direction the office picks. */
+const ptIsQuilt = m => /quilt/i.test(String((m && m.articleType) || '') + ' ' + String((m && m.subtype) || ''));
+function ptPrintDir(m, fab) {
+  if (!ptIsQuilt(m)) return '';
+  const cut = ptCutOf(m && m.size);
+  if (cut.why || cut.round) return '';
+  const w = voFabWidthM(fab) / 0.0254;
+  if (!(w > 0)) return '';
+  const on = ptLayOn(cut, w, ptLayOf(m));
+  if (!on) return '';
+  return on.cutAcross >= on.cutAlong ? 'Horizontal' : 'Vertical';
 }
 
 /**
