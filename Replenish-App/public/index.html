@@ -20982,6 +20982,14 @@ function ordBookCsv(rows) {
   return lines;
 }
 
+/** The fabric SKU(s) of the catalogue for a fabric, colour and — when given — print direction. */
+function ordFabSkuOf(fabric, colour, dir) {
+  const lo = x => String(x || '').trim().toLowerCase();
+  let cat;
+  try { cat = [...voFabricCatalogue().values()]; } catch (e) { return ''; }
+  const hits = cat.filter(c => lo(c.fabric) === lo(fabric) && lo(c.colour) === lo(colour) && (!lo(dir) || !c.width || lo(c.dir) === lo(dir)));
+  return [...new Set(hits.map(c => c.sku))].join(' ');
+}
 $('odExport').onclick = () => {
   const rows = ORD.rows || []; if (!rows.length) return;
   const v = ordView();
@@ -20999,18 +21007,20 @@ $('odExport').onclick = () => {
      * horizontal ya vertical me print hona h"). */
     const dirOf = r => r.dir || ((ORD.demPick || {})[r.key] || {}).dir || '';
     const forWhat = r => (r.products || []).filter(p => !p.asPcs && p.pcs > 0).map(p => [p.what, p.size].filter(Boolean).join(' ') + ' (' + p.pcs + ')').join(', ');
-    const out = [['Fabric', 'Colour', 'Print direction', 'For', 'Pieces to make', 'Running cloth needed (m)', 'Running with printers (m)', 'Running still to give (m)',
+    /* THE FABRIC SKU, in the file only (Ravi, 2026-09-30: "fabric ka sku bhi aa jay but sirf export file me") — the
+     * catalogue line that is this fabric, colour and direction; every match when more than one, none guessed. */
+    const out = [['Fabric', 'Fabric SKU', 'Colour', 'Print direction', 'For', 'Pieces to make', 'Running cloth needed (m)', 'Running with printers (m)', 'Running still to give (m)',
       'Cut pieces needed', 'Cut pieces with printers', 'Cut pieces still to give'].map(csvCell).join(',')];
-    rows.forEach(r => out.push([r.fabric, r.colour, dirOf(r), forWhat(r), r.pcs, r2(r.need), r2(r.atM), r2(r.give), r.cutPcs || '', r2(r.cutAtPcs), r2(r.cutGive)].map(csvCell).join(',')));
+    rows.forEach(r => out.push([r.fabric, ordFabSkuOf(r.fabric, r.colour, dirOf(r)), r.colour, dirOf(r), forWhat(r), r.pcs, r2(r.need), r2(r.atM), r2(r.give), r.cutPcs || '', r2(r.cutAtPcs), r2(r.cutGive)].map(csvCell).join(',')));
     return ptDownload('cloth-by-fabric-colour', out);
   }
   if (v === 'democol') {
     const r2 = v2 => v2 == null ? '' : Math.round(v2 * 100) / 100;
-    const out = [['Fabric', 'Colour', 'Print direction', 'Product', 'Size', 'Printed as', 'SKUs', 'To make', 'Per piece (m)', 'Running cloth (m)',
+    const out = [['Fabric', 'Fabric SKU', 'Colour', 'Print direction', 'Product', 'Size', 'Printed as', 'SKUs', 'To make', 'Per piece (m)', 'Running cloth (m)',
       'Cut pieces', 'At printers (pcs)', 'Running at printers (m)', 'Running to give (m)', 'Pieces to give', 'Ruffle fabric', 'Ruffle cloth (m)'].map(csvCell).join(',')];
     rows.forEach(r => out.push((r.kind === 'col'
-      ? [r.fabric, r.colour, r.dir || '', '(all)', '', '', r.skus, r.pcs, '', r2(r.need), r.cutPcs, r2(r.atPcs), r2(r.atM), r2(r.give), r2(r.cutGive), '', r2(r.rufM)]
-      : [r.fabric, r.colour, r.dir || '', r.what, r.size, r.asPcs ? 'Cut pieces' : 'Running', r.skus, r.pcs,
+      ? [r.fabric, ordFabSkuOf(r.fabric, r.colour, r.dir), r.colour, r.dir || '', '(all)', '', '', r.skus, r.pcs, '', r2(r.need), r.cutPcs, r2(r.atPcs), r2(r.atM), r2(r.give), r2(r.cutGive), '', r2(r.rufM)]
+      : [r.fabric, ordFabSkuOf(r.fabric, r.colour, r.dir), r.colour, r.dir || '', r.what, r.size, r.asPcs ? 'Cut pieces' : 'Running', r.skus, r.pcs,
         !r.asPcs && isFinite(r.perMin) ? r2(r.perMin) : '', r.asPcs ? '' : r2(r.need), r.asPcs ? r.pcs : '',
         r2(r.atPcs), '', '', r.asPcs ? r2(r.cutGive) : '', r.rufFab, r2(r.rufM)])
       .map(csvCell).join(',')));
