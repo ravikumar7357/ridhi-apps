@@ -21833,6 +21833,19 @@ await (async () => {
   ok('an Amazon order with the same SKU is still refused', /Not in the master database: ONLNEW-2020/.test(await A.soFormSave(false)));
   A.setSOF(wasSOF); NET.on = wasNet; NET.calls = []; NET.store = {};
 })();
+console.log('\n== an Online order uploaded from a file takes SKUs the master lacks (Ravi, 30 Sep: "still it\'s showing not")');
+await (async () => {
+  const wasSOF = A.SOF();
+  A.soFormOpen(null);
+  PKROWS = [['SKU', 'Qty', 'Order Type', 'Order Date', 'Delivery Date'], ['RTC523-6045', '2', 'Regular', '30-09-2026', '10-10-2026'], ['RTC523-9090', '1', 'Regular', '30-09-2026', '10-10-2026']];
+  els.sof_channel.value = 'ONL'; A.setSOF({ id: null, page: 0, lines: [] });
+  await A.soBulkFile({ name: 'online.xlsx' });
+  ok('ONL: the file loads, with the new SKUs named for the Custom SKUs list', A.SOF().lines.length === 2 && /2 SKU\(s\) are not in the master/.test(els.ptDlgMsg.textContent), els.ptDlgMsg.textContent);
+  els.sof_channel.value = 'AMZ'; A.setSOF({ id: null, page: 0, lines: [] });
+  await A.soBulkFile({ name: 'amazon.xlsx' });
+  ok('…while the same file on Amazon is still refused', A.SOF().lines.length === 0 && /RTC523-6045 is not in the master database/.test(els.ptDlgMsg.textContent), els.ptDlgMsg.textContent);
+  PKROWS = []; A.setSOF(wasSOF);
+})();
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
 })();

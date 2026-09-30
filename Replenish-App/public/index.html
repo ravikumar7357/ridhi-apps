@@ -29211,6 +29211,7 @@ async function soBulkFile(file) {
   if (ix.sku < 0 || ix.qty < 0) { ptDlgMsg('That file has no SKU and Qty columns. Download the template to see the shape.', true); return; }
 
   const known = new Set((PTG.mdb || []).map(r => obUC(r.sku)));
+  const onl = soIsOnl(($('sof_channel') || {}).value), newSkus = new Set();
   const parsed = [], errors = [], dates = new Set();
   let legacy = '';
   rows.slice(1).forEach((r, n) => {
@@ -29228,7 +29229,9 @@ async function soBulkFile(file) {
     if (!od) { errors.push(row + 'the order date must be DD-MM-YYYY for ' + sku + (odRaw ? ', not "' + odRaw + '".' : ', and it is blank.')); return; }
     const dd = soParseDMY(ddRaw);
     if (!dd) { errors.push(row + 'the delivery date must be DD-MM-YYYY for ' + sku + (ddRaw ? ', not "' + ddRaw + '".' : ', and it is blank.')); return; }
-    if (!known.has(sku)) { errors.push(row + sku + ' is not in the master database.'); return; }
+    /* ONLINE takes a SKU the master lacks — it goes on the Custom SKUs list when the order is saved (2026-09-30). */
+    if (!known.has(sku) && !onl) { errors.push(row + sku + ' is not in the master database.'); return; }
+    if (!known.has(sku)) newSkus.add(sku);
     if (qty < 0 && soCurrentNetQty(sku, ot) <= 0) { errors.push(row + sku + ' has nothing on order to subtract from.'); return; }
     dates.add(od);
     const pr = at(ix.pr).toUpperCase();
@@ -29248,7 +29251,8 @@ async function soBulkFile(file) {
     : parsed;
   SOF.page = 0;
   soFormLines(); soIdPreview();
-  ptDlgMsg(`Loaded ${nf(parsed.length)} line(s) from ${file.name}.`);
+  ptDlgMsg(`Loaded ${nf(parsed.length)} line(s) from ${file.name}.`
+    + (newSkus.size ? ` ${nf(newSkus.size)} SKU(s) are not in the master — they go on the Custom SKUs list when the order is saved.` : ''));
 }
 
 /**
