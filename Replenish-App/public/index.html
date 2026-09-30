@@ -28859,6 +28859,15 @@ async function soQtyRun(o, sku, want, why) {
 
 /* ---- B2B ---- */
 const soIsB2B = ch => String(ch || '').trim().toUpperCase() === 'B2B';
+/* ONLINE takes a SKU the master does not have: it goes on the Custom SKUs list when the order is saved (2026-09-30). */
+const soIsOnl = ch => String(ch || '').trim().toUpperCase() === 'ONL';
+/** What a SKU the master lacks probably is, from the master SKUs it looks like: { articleType, subtype, color, size }. */
+function soGuessOf(sku) {
+  const g = (typeof skuLookalike === 'function' ? skuLookalike(sku) : null) || {};
+  const pa = !g.articleType && typeof ptCustomPrefixArt === 'function' ? ptCustomPrefixArt(sku) : null;
+  return { articleType: g.articleType || (pa && pa.articleType) || '', subtype: g.subtype || (pa && pa.subtype) || '',
+    color: g.color || '', size: g.size || '' };
+}
 /** What a B2B line carries beyond SKU and quantity. */
 const SO_B2B_KEYS = ['brand', 'img', 'itemName', 'label', 'material', 'size', 'customization', 'extra'];
 /** Ravi's sheet, column by column, with the names people actually type. */
@@ -28905,6 +28914,10 @@ function soSkuMeta(sku) {
   const s = obUC(sku);
   if (!s) return { html: '<span class="muted">—</span>', ok: false };
   const m = (PTG.mdb || []).find(r => r && obUC(r.sku) === s);
+  if (!m && soIsOnl(($('sof_channel') || {}).value)) {
+    const g = soGuessOf(s), what = [g.subtype || g.articleType, g.color, g.size].filter(Boolean).join(' · ');
+    return { html: '<span style="color:#7f6000;font-weight:600">new — goes on the Custom SKUs list</span>' + (what ? ' · ' + esc(what) : ''), ok: true };
+  }
   return m
     ? { html: esc([m.subtype || m.articleType, m.color, m.size].filter(Boolean).join(' · ')) || '<span class="muted">in the master DB</span>', ok: true }
     : { html: '<span class="miss">not in master</span>', ok: false };
@@ -29321,7 +29334,8 @@ async function soFormSave(place) {
   if (b2b && lines.some(l => l.qty < 0)) return 'A B2B line is a quantity to make — it cannot be negative.';
 
   /* B2B: a code the master does not know is a new item for the Custom SKUs list, not a mistake. */
-  const bad = b2b ? [] : [...new Set(lines.filter(l => !known.has(l.sku)).map(l => l.sku))];
+  const onl = soIsOnl(channel);
+  const bad = (b2b || onl) ? [] : [...new Set(lines.filter(l => !known.has(l.sku)).map(l => l.sku))];
   if (bad.length) return `Not in the master database: ${bad.slice(0, 8).join(', ')}${bad.length > 8 ? ` and ${bad.length - 8} more` : ''}. Fix or remove those lines.`;
   /* A key with a dot or a slash in it cannot be written to this database at all. Better said here
    * than as a failed write halfway through the order book. */
@@ -29403,12 +29417,34 @@ async function soFormSave(place) {
       }
     }
   }
+  /* NEW ONLINE ITEMS go on the Custom SKUs list the same way, described by their look-alikes. */
+  if (onl) {
+    const fresh = [...new Set(lines.filter(l => !known.has(l.sku)).map(l => l.sku))];
+    const patch = {}, nowIso = new Date().toISOString();
+    for (const sku of fresh) {
+      let was = null;
+      try { was = await ptGet('pt_customSkus/' + sku); } catch (e) { was = null; }
+      if (was && typeof was === 'object' && Object.keys(was).length) continue;
+      const g = soGuessOf(sku);
+      patch['pt_customSkus/' + sku] = {
+        sku, articleType: g.articleType, subtype: g.subtype, color: g.color, size: g.size,
+        brand: '', packOf: '', fabric: '', cuttingRequired: true, consumption: 0,
+        isZip: false, chainLength: null, zipQty: null, isRuffle: false, ruffleMeters: null, ruffleFabric: '',
+        fillerFabricRequired: false, standardFillingQty: null, inventoryValuationPrice: 0, imageUrl: '', isCustom: true,
+        fromOnline: true, onlineOrder: rec._id, addedBy: ME.email, addedAt: nowIso,
+      };
+    }
+    if (Object.keys(patch).length) {
+      try { await ptPatch(patch); customAdded = Object.keys(patch).length; }
+      catch (e) { customAdded = -1; }
+    }
+  }
   renderSox();
   $('sxMsg').className = 'muted';
   $('sxMsg').textContent = place
     ? `${rec._id} placed — it is now waiting for approval, and nothing is in the order book until then.`
     : `${rec._id} saved as a draft. It is not in production until it is placed and approved.`;
-  if (customAdded > 0) $('sxMsg').textContent += ` ${nf(customAdded)} new item(s) went on the Custom SKUs list with their brand — complete them in Master Database → Custom SKUs.`;
+  if (customAdded > 0) $('sxMsg').textContent += ` ${nf(customAdded)} new item(s) went on the Custom SKUs list${onl ? '' : ' with their brand'} — complete them in Master Database → Custom SKUs.`;
   if (customAdded < 0) { $('sxMsg').className = 'err'; $('sxMsg').textContent += ' The new items could NOT be put on the Custom SKUs list — save again to retry.'; }
   return '';
 }

@@ -20385,7 +20385,7 @@ console.log('\n== the new sales order is the wide sheet ==');
     { sku: 'AC987-2222', qty: 20, deliveryDate: '', orderTypeKey: 'regular', priority: 'P2' },
     { sku: 'AC987-9999', qty: 5, deliveryDate: '', orderTypeKey: 'regular', priority: '' },
     { sku: '', qty: '', deliveryDate: '', orderTypeKey: 'regular', priority: '' }] }));
-  els.sof_channel.value = 'ONL';
+  els.sof_channel.value = 'AMZ';
   A.soFormLines();
   const t = els.sof_table.innerHTML;
   const heads = [...t.matchAll(/<th(?:\s[^>]*)?>(.*?)<\/th>/g)].map(m => m[1]);
@@ -20394,6 +20394,11 @@ console.log('\n== the new sales order is the wide sheet ==');
      (t.split('<tbody>')[1] || '').split('</tr>').filter(r => /<td/.test(r)).every(r => (r.match(/<td[\s>]/g) || []).length === heads.length));
   ok('a known SKU says what it is: subtype · colour · size', /Piping Pillow Cover · Callum · 22x22/.test(t));
   ok('an unknown SKU is marked on its row, and says so', /<tr class="bad">/.test(t) && /not in master/.test(t));
+  /* 30 Sep (Ravi: "online ke liye order open karu and sku masterdata me available na ho to wo auto custom sku me feed ho jay"). */
+  els.sof_channel.value = 'ONL'; A.soFormLines();
+  const tOnl = els.sof_table.innerHTML;
+  ok('on an Online order the same unknown SKU is not an error: it says it goes on the Custom SKUs list', !/<tr class="bad">/.test(tOnl) && /goes on the Custom SKUs list/.test(tOnl), tOnl.slice(0, 300));
+  els.sof_channel.value = 'AMZ';
   ok('the footer counts lines with a SKU and their pieces', /2 lines/.test(els.sof_tot.innerHTML) && /25 pcs/.test(els.sof_tot.innerHTML),
      els.sof_tot.innerHTML);
 
@@ -21810,6 +21815,24 @@ console.log('\n== one colour name, two colour codes: kept apart for the fabric S
   A.setPTG(Object.assign({}, A.PTG(), { ob: was.ob, mdb: was.mdb, masters: was.masters, press: was.press }));
   A.setPT(Object.assign({}, A.PT(), { base: was.base, cut: was.cut })); A.setVO(was.vo); A.setVOF(was.vof);
 }
+console.log('\n== an Online order with a SKU the master lacks is placed, and the SKU goes on the Custom SKUs list (Ravi, 30 Sep)');
+await (async () => {
+  const wasSOF = A.SOF(), wasNet = NET.on;
+  A.soFormOpen(null);
+  els.sof_channel.value = 'ONL'; els.sof_date.value = '2026-10-02'; els.sof_type.value = 'regular'; els.sof_delivery.value = ''; els.sof_legacy.value = '';
+  A.setSOF({ id: null, page: 0, lines: [{ sku: 'ONLNEW-2020', qty: 3, orderTypeKey: 'regular', priority: '' }] });
+  NET.on = true; NET.calls = []; NET.store = {};
+  const err = await A.soFormSave(true);
+  ok('it is placed, not refused', err === '', err);
+  const put = NET.calls.find(c => c.method === 'PUT' && /pt_salesOrders\/ONL-02102026-01/.test(c.url));
+  ok('…as an ONL order waiting for approval', put && put.body.status === 'submitted' && put.body.lines[0].sku === 'ONLNEW-2020', put && JSON.stringify(put.body.lines));
+  const patch = NET.calls.find(c => c.method === 'PATCH' && c.body && c.body['pt_customSkus/ONLNEW-2020']);
+  const rec = patch && patch.body['pt_customSkus/ONLNEW-2020'];
+  ok('…and the SKU is written to the Custom SKUs list, marked Online, with its order', rec && rec.fromOnline === true && rec.onlineOrder === 'ONL-02102026-01' && rec.isCustom === true, JSON.stringify(rec));
+  els.sof_channel.value = 'AMZ'; A.setSOF({ id: null, page: 0, lines: [{ sku: 'ONLNEW-2020', qty: 3, orderTypeKey: 'regular', priority: '' }] });
+  ok('an Amazon order with the same SKU is still refused', /Not in the master database: ONLNEW-2020/.test(await A.soFormSave(false)));
+  A.setSOF(wasSOF); NET.on = wasNet; NET.calls = []; NET.store = {};
+})();
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
 })();
