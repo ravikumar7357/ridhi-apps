@@ -11636,7 +11636,50 @@ function validateAgainstMasters(at, sub, col, sz) {
 
 function cutFormMsg(t, bad) { const m = $('cwMsg'); m.textContent = t || ''; m.className = bad ? 'err' : 'muted'; }
 
-const cutSkuOf = sku => mdbOf(sku) || null;
+/* A SKU ON THE CUSTOM SKUs LIST counts for the entry forms too (Ravi, 2026-09-30) — a B2B item is put there when its
+ * order is saved and is not in the master. What the list leaves blank (a wholesale file often has no article type) is
+ * read from the master SKUs it looks like. The record says _custom, so the forms skip the master-list checks for it. */
+let CUST_IX = { src: null, map: null };
+function ptCustomOf(sku) {
+  const list = (typeof MDBX !== 'undefined' && MDBX.custom) || (typeof PTE !== 'undefined' && PTE.custom) || null;
+  if (!list || !sku) return null;
+  if (CUST_IX.src !== list || !CUST_IX.map) CUST_IX = { src: list, map: new Map(list.filter(r => r && r.sku).map(r => [obUC(r.sku), r])) };
+  const r = CUST_IX.map.get(obUC(sku));
+  if (!r) return null;
+  const g = (!r.articleType || !r.subtype || !r.color) && typeof skuLookalike === 'function' ? skuLookalike(sku) : null;
+  /* The look-alikes agree on a whole article-and-size; a B2B size ("40*40 cm") often matches none, so the article and
+   * subtype alone are also read from the master SKUs with the same letters in front (RPCRU → Ruffle Pillow Cover). */
+  const pa = (!r.articleType || !r.subtype) && !(g && g.articleType) ? ptCustomPrefixArt(sku) : null;
+  const pick = (a, b) => String(a == null ? '' : a).trim() || (b || '');
+  return Object.assign({}, r, { _custom: true,
+    articleType: pick(r.articleType, (g && g.articleType) || (pa && pa.articleType)), subtype: pick(r.subtype, (g && g.subtype) || (pa && pa.subtype)),
+    color: pick(r.color, g && g.color), size: pick(r.size, g && g.size) });
+}
+/** { articleType, subtype } that 80% or more of the master SKUs with the same letters in front agree on, else null. */
+let CUST_PRE = { src: null, map: null };
+function ptCustomPrefixArt(sku) {
+  const src = PTG.mdb || PT_NONE;
+  const preOf = x => (String(x || '').toUpperCase().match(/^[A-Z]+/) || [''])[0];
+  if (CUST_PRE.src !== src || !CUST_PRE.map) {
+    const map = new Map();
+    src.forEach(m => { if (!m || !m.sku || !m.articleType) return; const k = preOf(m.sku); if (!k) return;
+      const t = map.get(k) || new Map(), v = m.articleType + '|' + (m.subtype || ''); t.set(v, (t.get(v) || 0) + 1); map.set(k, t); });
+    CUST_PRE = { src, map };
+  }
+  const t = CUST_PRE.map.get(preOf(sku));
+  if (!t) return null;
+  let tot = 0, best = null;
+  t.forEach((n, v) => { tot += n; if (!best || n > best[1]) best = [v, n]; });
+  if (!best || best[1] / tot < 0.8) return null;
+  const [articleType, subtype] = best[0].split('|');
+  return { articleType, subtype };
+}
+/** Read the Custom SKUs list once, for the entry forms. */
+async function ptEnsureCustom() {
+  if (MDBX.custom !== null) return;
+  try { MDBX.custom = ptList(await ptGet('pt_customSkus')); } catch (e) { /* the master alone, as before */ }
+}
+const cutSkuOf = sku => mdbOf(sku) || ptCustomOf(sku) || null;
 
 /** Orders that actually have a line for this SKU, with what is left on each. */
 function cutOrdersFor(sku) {
@@ -11776,6 +11819,7 @@ function cutFillFabrics() {
 
 async function ensureCutForm() {
   if (!PTG.mdb) { cutFormMsg('Reading the master database and the order book…'); await ptLoadGates(); }
+  await ptEnsureCustom();
   if (PTG.err) { cutFormMsg('Could not read what the checks need: ' + PTG.err, true); return; }
   cutFormMsg('');
   cutFillFabrics();
@@ -11828,7 +11872,7 @@ $('cwSave').onclick = async () => {
   if (!date) return cutFormMsg('Enter the cutting date.', true);
 
   const at = m.articleType || '', sub = m.subtype || '', col = m.color || '', sz = m.size || '';
-  const mErr = validateAgainstMasters(at, sub, col, sz);
+  const mErr = m._custom ? [] : validateAgainstMasters(at, sub, col, sz);
   if (mErr.length) return cutFormMsg(mErr[0], true);
 
   if (!orderNo) return cutFormMsg('Select an Order ID — every cutting entry is recorded against an order.', true);
@@ -12443,6 +12487,7 @@ function bdClearForm() {
 
 async function ensureBdForm() {
   if (!PTG.mdb) { bdFormMsg('Reading the master database and the order book…'); await ptLoadGates(); }
+  await ptEnsureCustom();
   if (!PTE.emp) await ptLoadEmp();
   if (PTG.err) { bdFormMsg('Could not read what the checks need: ' + PTG.err, true); return; }
   if (!$('bwDate').value) $('bwDate').value = dToday();
@@ -12498,9 +12543,12 @@ $('bwSave').onclick = async () => {
   const orderNo = custom ? '' : $('bwOrd').value.trim();
   const pcs = parseInt($('bwPcs').value, 10);
   const date = $('bwDate').value;
-  const at = $('bwAt').value, sub = $('bwSub').value;
-  const col = custom ? $('bwColTxt').value.trim() : $('bwCol').value;
-  const sz = custom ? $('bwSzTxt').value.trim() : $('bwSz').value;
+  /* On the Custom SKUs list and not in the master: what it is comes off the list (its selects cannot hold a size like
+   * "40*40 cm" that no master row has). */
+  const cm = !custom && sku && !mdbOf(sku) ? ptCustomOf(sku) : null;
+  const at = $('bwAt').value || (cm ? cm.articleType : ''), sub = $('bwSub').value || (cm ? cm.subtype : '');
+  const col = custom ? $('bwColTxt').value.trim() : ($('bwCol').value || (cm ? cm.color : ''));
+  const sz = custom ? $('bwSzTxt').value.trim() : ($('bwSz').value || (cm ? cm.size : ''));
 
   if (!type) return bdFormMsg('Select the employment type.', true);
   if (!name) return bdFormMsg('Enter the employee.', true);
@@ -12516,8 +12564,8 @@ $('bwSave').onclick = async () => {
 
   if (!custom) {
     const m = cutSkuOf(sku);
-    if (!m) return bdFormMsg(`SKU ${sku} is not in the master database. Tick Custom Order for a one-off item.`, true);
-    const mErr = validateAgainstMasters(at, sub, col, sz);
+    if (!m) return bdFormMsg(`SKU ${sku} is not in the master database, nor on the Custom SKUs list.`, true);
+    const mErr = m._custom ? [] : validateAgainstMasters(at, sub, col, sz);
     if (mErr.length) return bdFormMsg(mErr[0], true);
     if (!orderNo) return bdFormMsg('Select an Order ID — every issue is recorded against an order.', true);
     /* When editing, this row's own pieces must not count against itself. */
@@ -12541,7 +12589,7 @@ $('bwSave').onclick = async () => {
      * is how every issue made before these boxes existed still reads correctly. */
     ...bdMatEntry(),
     frozen: false,
-    isCustom: custom || undefined,
+    isCustom: custom || (cm ? true : undefined),
     addedBy: ME.email, addedAt: new Date().toISOString(),
   };
 
@@ -13833,6 +13881,7 @@ $('pwToggle').onclick = async () => {
   $('pwToggle').textContent = open ? 'Close' : '+ New press entry';
   if (open) {
     if (!PTG.mdb) { pressFormMsg('Reading the master database and the order book…'); await ptLoadGates(); }
+    await ptEnsureCustom();
     if (!$('pwDate').value) $('pwDate').value = dToday();
     pressFormMsg('');
     renderPressForm();
@@ -13852,10 +13901,10 @@ $('pwSave').onclick = async () => {
   const date = $('pwDate').value;
   const at = $('pwAt').value, sub = $('pwSub').value, col = $('pwCol').value, sz = $('pwSz').value;
 
-  if (!m) return pressFormMsg(sku ? `SKU ${sku} is not in the master database.` : 'Pick the item, or type the SKU.', true);
+  if (!m) return pressFormMsg(sku ? `SKU ${sku} is not in the master database, nor on the Custom SKUs list.` : 'Pick the item, or type the SKU.', true);
   if (!pcs || pcs < 1) return pressFormMsg('Enter how many pieces were pressed.', true);
   if (!date) return pressFormMsg('Enter the entry date.', true);
-  const mErr = validateAgainstMasters(at || m.articleType, sub || m.subtype, col || m.color, sz || m.size);
+  const mErr = m._custom ? [] : validateAgainstMasters(at || m.articleType, sub || m.subtype, col || m.color, sz || m.size);
   if (mErr.length) return pressFormMsg(mErr[0], true);
   if (!orderNo) return pressFormMsg('Select an Order ID — every press entry is recorded against an order.', true);
   const gErr = pressGuard(orderNo, sku, pcs);
