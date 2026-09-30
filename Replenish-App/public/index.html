@@ -21031,13 +21031,25 @@ function ordBookCsv(rows) {
   return lines;
 }
 
-/** The fabric SKU(s) of the catalogue for a fabric, colour and — when given — print direction. */
-function ordFabSkuOf(fabric, colour, dir) {
+/** The catalogue lines for a fabric, colour and — when given — print direction. */
+function ordFabHits(fabric, colour, dir) {
   const lo = x => String(x || '').trim().toLowerCase();
   let cat;
-  try { cat = [...voFabricCatalogue().values()]; } catch (e) { return ''; }
-  const hits = cat.filter(c => lo(c.fabric) === lo(fabric) && lo(c.colour) === lo(colour) && (!lo(dir) || !c.width || lo(c.dir) === lo(dir)));
-  return [...new Set(hits.map(c => c.sku))].join(' ');
+  try { cat = [...voFabricCatalogue().values()]; } catch (e) { return []; }
+  return cat.filter(c => lo(c.fabric) === lo(fabric) && lo(c.colour) === lo(colour) && (!lo(dir) || !c.width || lo(c.dir) === lo(dir)));
+}
+/** The fabric SKU(s) of the catalogue for a fabric, colour and — when given — print direction. */
+function ordFabSkuOf(fabric, colour, dir) {
+  return [...new Set(ordFabHits(fabric, colour, dir).map(c => c.sku))].join(' ');
+}
+/* FRONT AND BACK (Ravi, 2026-09-30: "back and front ke sku ka fabric alag alag dikhay — 90x96 ka cons 5 h to 2.5 front
+ * ke liye 2.5 back ke liye"). A quilt's voil comes as a Front SKU and a Back SKU; the cloth is split evenly between the
+ * sides the catalogue has. Map side → SKUs; empty when the catalogue has no sides for it. */
+function ordFabSides(fabric, colour, dir) {
+  const out = new Map();
+  ordFabHits(fabric, colour, dir).forEach(c => { const sd = String(c.side || '').trim(); if (!sd) return;
+    if (!out.has(sd)) out.set(sd, new Set()); out.get(sd).add(c.sku); });
+  return out;
 }
 $('odExport').onclick = () => {
   const rows = ORD.rows || []; if (!rows.length) return;
@@ -21058,9 +21070,19 @@ $('odExport').onclick = () => {
     const forWhat = r => (r.products || []).filter(p => !p.asPcs && p.pcs > 0).map(p => [p.what, p.size].filter(Boolean).join(' ') + ' (' + p.pcs + ')').join(', ');
     /* THE FABRIC SKU, in the file only (Ravi, 2026-09-30: "fabric ka sku bhi aa jay but sirf export file me") — the
      * catalogue line that is this fabric, colour and direction; every match when more than one, none guessed. */
-    const out = [['Fabric', 'Fabric SKU', 'Colour', 'Print direction', 'For', 'Pieces to make', 'Running cloth needed (m)', 'Running with printers (m)', 'Running still to give (m)',
+    const out = [['Fabric', 'Fabric SKU', 'Side', 'Colour', 'Print direction', 'For', 'Pieces to make', 'Running cloth needed (m)', 'Running with printers (m)', 'Running still to give (m)',
       'Cut pieces needed', 'Cut pieces with printers', 'Cut pieces still to give'].map(csvCell).join(',')];
-    rows.forEach(r => out.push([r.fabric, ordFabSkuOf(r.fabric, r.colour, dirOf(r)), r.colour, dirOf(r), forWhat(r), r.pcs, r2(r.need), r2(r.atM), r2(r.give), r.cutPcs || '', r2(r.cutAtPcs), r2(r.cutGive)].map(csvCell).join(',')));
+    rows.forEach(r => {
+      const sides = r.need ? ordFabSides(r.fabric, r.colour, dirOf(r)) : new Map();
+      if (sides.size > 1) {
+        /* One line per side, each with its share of the running cloth; every piece needs every side. */
+        const n = sides.size, h = v => v == null ? '' : r2(v / n);
+        [...sides.entries()].sort((a, b) => a[0].localeCompare(b[0]) * -1).forEach(([sd, skus]) =>
+          out.push([r.fabric, [...skus].join(' '), sd, r.colour, dirOf(r), forWhat(r), r.pcs, h(r.need), h(r.atM), h(r.give), '', '', ''].map(csvCell).join(',')));
+        return;
+      }
+      out.push([r.fabric, ordFabSkuOf(r.fabric, r.colour, dirOf(r)), '', r.colour, dirOf(r), forWhat(r), r.pcs, r2(r.need), r2(r.atM), r2(r.give), r.cutPcs || '', r2(r.cutAtPcs), r2(r.cutGive)].map(csvCell).join(','));
+    });
     return ptDownload('cloth-by-fabric-colour', out);
   }
   if (v === 'democol') {
