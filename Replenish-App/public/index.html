@@ -12907,9 +12907,12 @@ function jwRow(r) {
    * wo apna correction add kar sake and admin can correct"). Whoever may edit gets Edit on an open row; an
    * admin gets it on a completed one too (the dialog re-opens a row if pieces are left pending); whoever
    * enters rows without that right gets Correction, which goes to an approver. */
+  const ask = `<button class="jw-btn jw-fix" data-jw-ask="${esc(r.id)}" title="Wrong SKU, size, karigar, pieces or date? Ask for it to be corrected — an admin approves a SKU or date change">Correction</button>`;
   const fix = jwCorrOfRow(r.id) ? '<button class="jw-btn" disabled title="A change to this entry is waiting for approval">Change asked</button>'
-    : ptCanEdit() ? ((!r.frozen || ME.admin) ? `<button class="jw-btn" data-bd-edit="${esc(r.id)}" title="Correct this entry">Edit</button>` : '')
-    : jwCanAsk() ? `<button class="jw-btn jw-fix" data-jw-ask="${esc(r.id)}" title="Something wrong on this entry? Ask for it to be corrected">Correction</button>` : '';
+    : ME.admin ? `<button class="jw-btn" data-bd-edit="${esc(r.id)}" title="Correct this entry">Edit</button>`
+    /* An editor: Edit on an open row, and Correction always — the SKU and dates are only changed that way. */
+    : ptCanEdit() ? (!r.frozen ? `<button class="jw-btn" data-bd-edit="${esc(r.id)}" title="Correct this entry">Edit</button>` : '') + (jwCanAsk() ? ask : '')
+    : jwCanAsk() ? ask : '';
   return `<tr${JW_PICK.has(r.id) ? ' class="jw-on"' : ''}>`
     + `<td class="jw-ck"><input type="checkbox" class="jw-pick" data-id="${esc(r.id)}"${JW_PICK.has(r.id) ? ' checked' : ''}></td>`
     + `<td style="text-align:left"><div class="jw-d">${esc(d || '')}</div><div class="jw-t">${esc(t || '')}</div></td>`
@@ -13172,7 +13175,8 @@ function bdEdit(id) {
    * received row looking as though it had no date at all. */
   $('bdmDatesRead').classList.toggle('hide', admin);
   $('bdmDatesTxt').textContent = `Issued ${r.issueDate || '—'} · received ${r.receivingDate || 'not yet'}`
-    + (r.receivingDate ? ' — once a row is received, only an admin can change that date.' : '');
+    + (r.receivingDate ? ' — once a row is received, only an admin can change that date.' : '')
+    + ' Wrong SKU or size? Close this and press Correction on the row — an admin approves it.';
   $('bdmDelete').classList.toggle('hide', !admin);
   /* One or the other, never both: an admin deletes, everybody else asks. */
   $('bdmAsk').classList.toggle('hide', admin);
@@ -13266,7 +13270,9 @@ async function jwCorrLoad() {
 }
 const jwCorrPending = () => Object.values(JWC.rows || {}).filter(q => q && q.status === 'pending');
 const jwCorrOfRow = rowId => jwCorrPending().find(q => q.rowId === rowId) || null;
-const jwCanAsk = () => (ME.tabs || []).includes('pbase') && !ptCanEdit();
+/* Everybody on the Job Work Register except an admin may ASK — an editor too, for what the Edit box does not let them
+ * change (a SKU, a date, a completed row). An admin just edits. */
+const jwCanAsk = () => (ME.tabs || []).includes('pbase') && !ME.admin;
 
 /** What a row would become with these changes, checked the way the Edit box checks it. { err } or { next }. */
 function jwCorrPlan(r, change) {
@@ -13348,6 +13354,8 @@ async function jwCorrApprove(id) {
   if (!ptCanEdit()) return PT_NO_EDIT;
   const q = (JWC.rows || {})[id];
   if (!q || q.status !== 'pending') return 'That request has already been answered.';
+  /* Nobody approves their own request, or asking would be a way round the Edit box's limits. */
+  if (q.by === ME.email && !ME.admin) return 'You asked for this change — somebody else has to approve it.';
   if (Object.keys(q.change || {}).some(k => JWC_ADMIN_ONLY.indexOf(k) >= 0) && !ME.admin)
     return 'It changes the SKU or a date, which only an admin may change — an admin has to approve it.';
   const r = (PT.base || []).find(x => x && x.id === q.rowId);
@@ -13391,8 +13399,8 @@ function jwCorrAskOpen(rowId) {
   ptOpenDialog({
     title: 'Ask to change this entry',
     subtitle: `${r.empName || ''} · ${r.sku || ''} · issued ${r.issueDate || ''}`,
-    note: 'Change only what is wrong and say why. Somebody who may edit production entries approves it; '
-      + 'a change of SKU or date needs an admin.',
+    note: 'Change only what is wrong and say why. Wrong size or colour? Type the SKU of the right item — the article, colour '
+      + 'and size come from it. Somebody who may edit production entries approves it; a change of SKU or date needs an admin.',
     fields: [
       { key: 'empName', label: 'Karigar', value: r.empName || '' },
       { key: 'issuePieces', label: 'Issued', type: 'number', value: ptNum(r.issuePieces) },
@@ -13426,7 +13434,7 @@ function jwCorrListOpen() {
       + `<td style="text-align:left;font-size:12px;white-space:normal">${diff.length ? diff.map(([k, a, b]) => `${esc(label(k))}: ${esc(a || '—')} → <b>${esc(b || '—')}</b>`).join('<br>') : '<span class="muted">already as asked</span>'}`
       + (adminOnly ? '<div class="muted" style="font-size:11px">needs an admin</div>' : '') + (live ? '' : '<div class="err" style="font-size:11px">entry deleted</div>') + '</td>'
       + `<td style="text-align:left;font-size:12px;white-space:normal;max-width:220px">${esc(q.why || '')}</td>`
-      + `<td style="white-space:nowrap"><button data-jwy="${esc(q.id)}" style="padding:2px 9px;font-size:12px"${adminOnly && !ME.admin ? ' disabled' : ''}>Approve</button> `
+      + `<td style="white-space:nowrap"><button data-jwy="${esc(q.id)}" style="padding:2px 9px;font-size:12px"${(adminOnly || q.by === ME.email) && !ME.admin ? ' disabled' : ''}>Approve</button> `
       + `<button class="ghost" data-jwn="${esc(q.id)}" style="padding:2px 9px;font-size:12px">Reject</button></td></tr>`;
   }).join('');
   ptOpenDialog({

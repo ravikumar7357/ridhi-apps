@@ -19938,7 +19938,9 @@ console.log('\n== B2B orders record production the same way Shopify ones do ==')
 console.log('\n== job work correction requests ==');
 {
   /* "same correction request jo job work me entry karne wala h uska bhi ho" — 2026-09-22. */
-  const wasPT = A.PT(), wasNet = NET.on, was = { admin: ME.admin, prodEdit: ME.prodEdit, tabs: ME.tabs };
+  const wasPT = A.PT(), wasNet = NET.on, was = { admin: ME.admin, prodEdit: ME.prodEdit, tabs: ME.tabs, email: ME.email };
+  /* 30 Sep: nobody approves their own request, so the floor and the approver are two people here. */
+  const FLOOR = 'floor@thefabricrush.com', BOSS = 'boss@thefabricrush.com';
   const mdb = (A.PTG().mdb || []).filter(m => m && m.sku);
   const sku1 = mdb[0].sku, sku2 = (mdb.find(m => m.sku !== sku1 && m.size !== mdb[0].size) || mdb[1]).sku;
   const row = { id: 'jw1', _key: 'jw1', empName: 'Asha', empType: 'Company Contractor', sku: sku1, issuePieces: 20, receivedPieces: 5,
@@ -19949,7 +19951,7 @@ console.log('\n== job work correction requests ==');
   NET.on = true; NET.calls.length = 0; NET.store = {};
 
   /* THE FLOOR ASKS. */
-  ME.admin = false; ME.prodEdit = false; ME.tabs = ['pbase'];
+  ME.admin = false; ME.prodEdit = false; ME.tabs = ['pbase']; ME.email = FLOOR;
   ok('somebody who may enter but not edit can ask', A.jwCanAsk());
   ok('…but has to say why', /Say what is wrong/.test(await A.jwCorrAsk('jw1', { receivedPieces: 8 }, '')));
   ok('…and has to change something', /Nothing is different/.test(await A.jwCorrAsk('jw1', { receivedPieces: 5 }, 'x')));
@@ -19967,7 +19969,7 @@ console.log('\n== job work correction requests ==');
   ok('the row says a change is waiting', /change asked/.test(els.pbTable.innerHTML));
 
   /* SOMEBODY WHO MAY EDIT ANSWERS. */
-  ME.prodEdit = true;
+  ME.prodEdit = true; ME.email = BOSS;
   A.jwCorrBadge();
   ok('the badge counts it for them', els.jwCorrBadge.textContent === '1' && !els.pbCorr.classList.contains('hide'));
   NET.calls.length = 0;
@@ -19980,26 +19982,41 @@ console.log('\n== job work correction requests ==');
   ok('an answered request cannot be answered again', /already been answered/.test(await safe(() => A.jwCorrApprove(qid))));
 
   /* A SKU OR A DATE IS AN ADMIN'S. */
-  ME.prodEdit = false;
+  ME.prodEdit = false; ME.email = FLOOR;
   ok('a SKU change can be asked for', (await A.jwCorrAsk('jw1', { sku: sku2 }, 'size mistake')) === '');
   const q2 = (A.JWC().rows && Object.values(A.JWC().rows).find(q => q.status === 'pending')) || { id: 'none' };
-  ME.prodEdit = true;
+  ME.prodEdit = true; ME.email = BOSS;
   ok('…but somebody who is not an admin cannot approve it', /only an admin/.test(await safe(() => A.jwCorrApprove(q2.id))));
   ME.admin = true;
   ok('…an admin can, and the item follows the new SKU', (await safe(() => A.jwCorrApprove(q2.id))) === '' && A.PT().base[0].sku === A.obUC(sku2)
     && A.PT().base[0].size === (mdb.find(m => m.sku === sku2) || {}).size, JSON.stringify([A.PT().base[0].sku, A.PT().base[0].size]));
 
   /* REJECTING NEEDS A REASON; APPROVAL RE-CHECKS THE ROW AS IT IS NOW. */
-  ME.admin = false; ME.prodEdit = false;
+  ME.admin = false; ME.prodEdit = false; ME.email = FLOOR;
   await A.jwCorrAsk('jw1', { rejectionPieces: 10 }, 'ten were bad');
   const q3 = Object.values(A.JWC().rows || {}).find(q => q.status === 'pending') || { id: 'none' };
-  ME.prodEdit = true;
+  ME.prodEdit = true; ME.email = BOSS;
   ok('refusing needs a reason', /Say why/.test(await A.jwCorrReject(q3.id, '')));
   A.PT().base[0].receivedPieces = 15;              // somebody received more in the meantime: 15 + 10 > 20
   ok('approval checks the entry as it is now', /Cannot be applied as it stands now/.test(await safe(() => A.jwCorrApprove(q3.id))));
   ok('…and it can then be refused', (await A.jwCorrReject(q3.id, 'already received 15')) === '' && (A.JWC().rows[q3.id] || {}).status === 'rejected');
 
-  A.setPT(wasPT); A.setJWC({ rows: null }); ME.admin = was.admin; ME.prodEdit = was.prodEdit; ME.tabs = was.tabs;
+  /* 30 Sep (Ravi: "jo banda issue receive ki entry krta h and koi mistake ho jay to wo correction ki entry dal sake like usase
+   * size galat dal gya ya sku galat dal gya"). An editor who is not an admin had no button on a completed row. */
+  A.PT().base[0] = Object.assign({}, A.PT().base[0], { receivedPieces: 20, rejectionPieces: 0, pendingPieces: 0, frozen: true, receivingDate: '12/09/2026, 10:00' });
+  ME.admin = false; ME.prodEdit = true; ME.tabs = ['pbase']; ME.email = BOSS;
+  A.setJWC({ rows: {} }); els.pbStatus.value = ''; A.renderPbase();
+  ok('an editor who is not an admin gets Correction on a completed row (no Edit there)', /data-jw-ask="jw1"/.test(els.pbTable.innerHTML) && !/data-bd-edit="jw1"/.test(els.pbTable.innerHTML));
+  ok('…and can ask to change its SKU (a wrong size)', (await A.jwCorrAsk('jw1', { sku: A.PT().base[0].sku === A.obUC(sku1) ? sku2 : sku1 }, 'wrong size typed')) === '');
+  const q4 = Object.values(A.JWC().rows || {}).find(q => q.status === 'pending') || { id: 'none' };
+  ok('…but cannot approve their own request', /somebody else has to approve/.test(await safe(() => A.jwCorrApprove(q4.id))));
+  A.PT().base[0] = Object.assign({}, A.PT().base[0], { frozen: false, pendingPieces: 5, receivedPieces: 15 });
+  A.setJWC({ rows: {} }); A.renderPbase();
+  ok('on an open row the editor gets Edit and Correction both', /data-bd-edit="jw1"/.test(els.pbTable.innerHTML) && /data-jw-ask="jw1"/.test(els.pbTable.innerHTML));
+  ME.admin = true; A.renderPbase();
+  ok('…and an admin just gets Edit', /data-bd-edit="jw1"/.test(els.pbTable.innerHTML) && !/data-jw-ask="jw1"/.test(els.pbTable.innerHTML));
+
+  A.setPT(wasPT); A.setJWC({ rows: null }); ME.admin = was.admin; ME.prodEdit = was.prodEdit; ME.tabs = was.tabs; ME.email = was.email;
   NET.on = wasNet; NET.calls.length = 0; NET.store = {};
 }
 console.log('\n== the same colour given for printing twice ==');
