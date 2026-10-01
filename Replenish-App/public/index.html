@@ -53456,6 +53456,10 @@ function ftSync(rec) {
 (() => {
   try {
     if (typeof document.getElementById !== 'function' || typeof fetch !== 'function' || location.protocol !== 'https:') return;
+    /* ONE CHECKER, NOT TWO (2026-10-01). The APP VERSION script at the top of the page asks the same question every
+     * 5 minutes and on return to the tab, and shows #appvBar; with both running a tab polled twice and could show
+     * two bars. This one now stands down whenever that one is there, and stays as the fallback if it ever is not. */
+    if (window.__APPV) return;
     let first = null;
     const tag = () => fetch('/', { method: 'HEAD', cache: 'no-store' }).then(r => r.headers.get('etag') || r.headers.get('last-modified') || '').catch(() => '');
     const show = () => {
