@@ -355,6 +355,25 @@ if ($('audGo')) {
     $('audMsg').className = 'muted'; $('audMsg').textContent = 'Restored. The screen it belongs to shows it after its next refresh.';
   });
 }
+/* MOVE COMPLETED ENTRIES (admins; core/job-work-split.js). Nothing leaves any screen: the register is still read as one. */
+if ($('pbArchive')) $('pbArchive').onclick = async () => {
+  const plan = baseArchivePlan(PT.base || []);
+  if (!plan.rows.length) { $('pbMsg').className = 'muted'; $('pbMsg').textContent = 'Nothing to move: no complete entry came back more than ' + BASE_MOVE_AFTER_DAYS + ' days ago.'; return; }
+  const per = Object.entries(plan.byMonth).map(([m, l]) => m + ': ' + nf(l.length)).join(', ');
+  if (!confirm(`Move ${nf(plan.rows.length)} complete entries to the completed section (${per})?\n\n`
+    + 'They stay on every screen, in every total, payout and report. Only where they are kept changes, so they are no '
+    + 'longer downloaded on every page load. Their orders are not touched.')) return;
+  $('pbArchive').disabled = true;
+  try {
+    const res = await baseArchiveRun((n, all) => { $('pbMsg').className = 'muted'; $('pbMsg').textContent = `Moving… ${nf(n)} of ${nf(all)}`; });
+    if (res.err) { $('pbMsg').className = 'err'; $('pbMsg').textContent = res.err; return; }
+    await ptLoad('base', 'pt_baseData', renderPbase);
+    $('pbMsg').className = 'muted';
+    $('pbMsg').textContent = `${nf(res.moved)} complete entries moved to the completed section (${res.months.join(', ')}). Every screen still shows them.`;
+  } catch (e) {
+    $('pbMsg').className = 'err'; $('pbMsg').textContent = 'Stopped: ' + (e.message || e) + ' — whatever moved before this is safe in the completed section; press again to carry on.';
+  } finally { $('pbArchive').disabled = false; }
+};
 $('pbMore').addEventListener('click', e => { if (!e.target.closest('[data-pbmore]')) return; PB_CAP += PT_CAP_STEP; renderPbase(); });
 $('pcMore').addEventListener('click', e => { if (!e.target.closest('[data-pcmore]')) return; PC_CAP += PT_CAP_STEP; renderPcut(); });
 $('pbClear').onclick = () => { ['pbType', 'pbEmp', 'pbWho', 'pbArt', 'pbSub', 'pbCol', 'pbSz', 'pbStatus', 'pbQ', 'pbDBy', 'pbD1', 'pbD2'].forEach(id => $(id).value = ''); PT_BD_KPI = ''; renderPbase(); };

@@ -25,6 +25,7 @@ replenishment/fba-box-template.js
 core/database.js
 core/live-copies.js
 core/database-read.js
+core/job-work-split.js
 masters/master-database.js
 production/job-work.js
 production/attendance.js

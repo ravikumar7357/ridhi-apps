@@ -86,6 +86,7 @@ function renderPbase() {
   if (JWC.rows === null) { JWC.rows = {}; jwCorrLoad().then(() => { if (PT.base) renderPbase(); }).catch(() => {}); }
   jwCorrBadge();
   $('pbMore').innerHTML = '';
+  if ($('pbArchive')) $('pbArchive').classList.toggle('hide', !(ME.admin && BASE.on));
   if (PT.busy.base) { $('pbMsg').className = 'muted'; $('pbMsg').textContent = 'Reading the production database…'; ptEmpty('pbTable', 'Loading…'); return; }
   if (PT.err.base) {
     $('pbMsg').className = 'err'; $('pbMsg').textContent = 'Could not read it: ' + PT.err.base;

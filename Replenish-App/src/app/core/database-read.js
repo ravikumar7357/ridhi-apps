@@ -1,7 +1,14 @@
 
 /* A failed read and an empty node look identical if the error is swallowed, and only one of them is
  * something anyone can act on. So: a real timeout, one retry, and the reason kept and shown. */
-async function ptGet(node) {
+async function ptGet(node, raw) {
+  /* JOB WORK IS READ AS ONE REGISTER (core/job-work-split.js): its completed entries live apart, and one entry's own
+   * path is sent to where it is. raw = this exact path, nothing joined (used by that file itself). */
+  if (!raw && BASE.on) {
+    if (node === BASE_NODE) return baseReadAll();
+    const rt = baseRoutePath(node);
+    if (rt) node = rt.path;
+  }
   if (ptLiveable(node)) {
     try { const v = await ptLiveRead(node); if (v !== PT_LIVE_NO) return v; } catch (e) { /* the plain read below */ }
   }

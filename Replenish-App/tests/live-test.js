@@ -5,7 +5,8 @@ const fs = require('fs'), path = require('path');
 const src = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8').replace(/\r\n/g, '\n');
 const a = src.indexOf('/* ==== LIVE COPIES OF THE REGISTERS ===='), z = src.indexOf('/* ==== END LIVE COPIES ==== */');
 if (a < 0 || z < 0) throw new Error('the live-copy block is not in the page');
-const gi = src.indexOf('async function ptGet(node) {'), ge = src.indexOf('\n}', gi) + 2;
+const gi = src.indexOf('async function ptGet(node'), ge = src.indexOf('\n}', gi) + 2;
+if (gi < 0) throw new Error('ptGet is not in the page where the test expects');
 const cut = name => { const i = src.indexOf('async function ' + name + '('); return src.slice(i, src.indexOf('\n}', i) + 2); };
 const URL_ = "import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js')";
 if (src.slice(a, z).indexOf(URL_) < 0) throw new Error('the database library is not loaded where the test expects');
@@ -25,7 +26,10 @@ const fetch = async (u, o) => { NET.push(((o && o.method) || 'GET') + ' ' + u); 
   return { ok: true, status: 200, json: async () => (m && STORE[m[1]] !== undefined ? JSON.parse(JSON.stringify(STORE[m[1]])) : null) }; };
 const code = src.slice(a, z).replace(URL_, 'Promise.resolve(FAKE)') + '\n' + src.slice(gi, ge) + '\n' + cut('ptPut') + '\n' + cut('ptPatch')
   /* the history / recycle bin (2026-10-01) has its own tests in prod-test; here it does nothing */
-  + '\nconst auditLog = () => {}; const auditTrash = async () => 0;';
+  + '\nconst auditLog = () => {}; const auditTrash = async () => 0;'
+  /* Job Work's completed section (2026-10-01) is off here; prod-test covers it. */
+  + '\nconst BASE = { on: false }; const BASE_NODE = "pt_baseData"; const baseRoutePath = () => null; const baseReadAll = async () => ({});'
+  + '\nconst baseEnsureWhere = async () => {}; const baseRouteUpdates = u => ({ updates: u, months: [] }); const baseForget = async () => {};';
 const mk = new Function('FAKE', 'fetch', 'app', 'auth', 'spIsVendor', 'PT_URL', 'ptPath', 'ptAuthQuery', 'setTimeout',
   code + '\nreturn { ptGet, ptPut, ptPatch, ptLiveWrote, PT_LIVE, up: v => { PT_LIVE_UP = v; } };');
 const tick = () => new Promise(r => setImmediate(r));

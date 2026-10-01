@@ -175,7 +175,7 @@ function ordLines() {
   }).sort((a, b) => a.orderNo.localeCompare(b.orderNo) || a.sku.localeCompare(b.sku));
 }
 const dToday = () => new Date().toISOString().slice(0, 10);   // the page's own helper, outside this slice
-const ctx = { AUDIT_OFF: true,
+const ctx = { AUDIT_OFF: true, BASE_SPLIT_OFF: true,
   $, esc, nf, csvCell, parseCsv, colIdx, doc, getDoc, setDoc, serverTimestamp, db: dbx, dToday,
   PRAPI, API, prGet, apiGet, REPL, ME, INDIA_LOADED, INDIA_ROWS, confirm, alert,
   MS, msInit, msFill, msVals, msHas, msSet, msClearAll, msPaint, msToggle, msChanged,

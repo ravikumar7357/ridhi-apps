@@ -158,6 +158,11 @@ function audRender() {
 }
 
 async function ptPut(path, value) {
+  /* A completed Job Work entry is written where it now lives — through ptPatch, which also moves that month's _ver. */
+  if (BASE.on && /^pt_baseData\//.test(String(path))) {
+    await baseEnsureWhere([path]);
+    if (baseRoutePath(path)) return ptPatch({ [path]: value });
+  }
   ptLiveWrote([path]);
   const r = await fetch(`${PT_URL}/${ptPath(path)}.json` + await ptAuthQuery(), {
     method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(value),
@@ -173,10 +178,20 @@ async function ptPut(path, value) {
 }
 
 /** A single update touching many paths at once. RTDB applies it all or not at all. */
-async function ptPatch(updates) {
-  /* A path set to null is a delete: a whole record (pt_x/<id>) or more is copied to the recycle bin first. A single
-   * field cleared deeper down is only a history line. */
-  const gone = Object.keys(updates || {}).filter(k => updates[k] === null && k.split('/').filter(Boolean).length <= 2);
+async function ptPatch(updates, opts) {
+  opts = opts || {};
+  /* Completed Job Work entries are written where they now live, and their month's _ver moves (core/job-work-split.js). */
+  let baseMonths = [];
+  if (BASE.on && !opts.noRoute) {
+    await baseEnsureWhere(Object.keys(updates || {}));
+    const rt = baseRouteUpdates(updates);
+    updates = rt.updates; baseMonths = rt.months;
+  }
+  /* A path set to null is a delete: a whole record (pt_x/<id>, or a completed entry pt_baseDone/<month>/<id>) or more is
+   * copied to the recycle bin first. A single field cleared deeper down is only a history line. A move (noTrash) is not
+   * a delete. */
+  const gone = opts.noTrash ? [] : Object.keys(updates || {}).filter(k => updates[k] === null
+    && (k.split('/').filter(Boolean).length <= 2 || /^pt_baseDone\/\d{4}-\d{2}\/[^/]+$/.test(k)));
   if (gone.length) await auditTrash(gone, 'patch');
   ptLiveWrote(Object.keys(updates || {}));
   const r = await fetch(`${PT_URL}/.json` + await ptAuthQuery(), {
@@ -189,11 +204,17 @@ async function ptPatch(updates) {
   if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
   const out = await r.json();
   auditLog('patch', updates || {});
+  if (baseMonths.length) await baseForget(baseMonths);
   return out;
 }
 
 /** One path removed. The record is copied to the recycle bin first (see auditTrash). */
 async function ptDelete(path) {
+  /* A completed Job Work entry is removed where it lives — through ptPatch, which copies it to the recycle bin first. */
+  if (BASE.on && /^pt_baseData\//.test(String(path))) {
+    await baseEnsureWhere([path]);
+    if (baseRoutePath(path)) { await ptPatch({ [path]: null }); return true; }
+  }
   await auditTrash([path], 'delete');
   ptLiveWrote([path]);
   const r = await fetch(`${PT_URL}/${ptPath(path)}.json` + await ptAuthQuery(), { method: 'DELETE' });
