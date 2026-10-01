@@ -21856,6 +21856,15 @@ await (async () => {
   ok('…and the SKU is written to the Custom SKUs list, marked Online, with its order', rec && rec.fromOnline === true && rec.onlineOrder === 'ONL-02102026-01' && rec.isCustom === true, JSON.stringify(rec));
   els.sof_channel.value = 'AMZ'; A.setSOF({ id: null, page: 0, lines: [{ sku: 'ONLNEW-2020', qty: 3, orderTypeKey: 'regular', priority: '' }] });
   ok('an Amazon order with the same SKU is still refused', /Not in the master database: ONLNEW-2020/.test(await A.soFormSave(false)));
+  /* 2026-10-01: when the Custom SKUs entry cannot be READ, nothing is written over it blind — the order still saves. */
+  els.sof_channel.value = 'ONL'; A.setSOF({ id: null, page: 0, lines: [{ sku: 'ONLNEW-3030', qty: 1, orderTypeKey: 'regular', priority: '' }] });
+  NET.calls = []; NET.fail = new Error('offline'); NET.failOn = 'GET';
+  const err2 = await A.soFormSave(false);
+  NET.fail = null; NET.failOn = null;
+  ok('a Custom SKUs entry that cannot be read is not written over blind', err2 === ''
+    && !NET.calls.some(c => c.method === 'PATCH' && c.body && c.body['pt_customSkus/ONLNEW-3030']), err2);
+  ok('…the order is saved all the same, and the message says to save again', NET.calls.some(c => c.method === 'PUT' && /pt_salesOrders\/ONL-/.test(c.url))
+    && /could NOT be put on the Custom SKUs list/.test(els.sxMsg.textContent), els.sxMsg.textContent);
   A.setSOF(wasSOF); NET.on = wasNet; NET.calls = []; NET.store = {};
 })();
 console.log('\n== an Online order uploaded from a file takes SKUs the master lacks (Ravi, 30 Sep: "still it\'s showing not")');

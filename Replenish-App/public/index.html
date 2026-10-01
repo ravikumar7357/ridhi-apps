@@ -29447,7 +29447,9 @@ async function soFormSave(place) {
   SOF.id = rec._id;
   /* NEW B2B ITEMS go on the Custom SKUs list, once each, with what the buyer said about them. One
    * already on the list is left as it is — somebody may have completed it. */
-  let customAdded = 0;
+  /* customUnread (2026-10-01): a SKU whose Custom SKUs entry could not be READ is not written — writing blind put
+   * blank fields over an entry somebody else had just completed. The order still saves; the message says to retry. */
+  let customAdded = 0, customUnread = 0;
   if (b2b) {
     const fresh = new Map();
     lines.forEach(l => { if (!known.has(l.sku) && !fresh.has(l.sku)) fresh.set(l.sku, l); });
@@ -29456,7 +29458,7 @@ async function soFormSave(place) {
       const nowIso = new Date().toISOString();
       for (const [sku, l] of fresh) {
         let was = null;
-        try { was = await ptGet('pt_customSkus/' + sku); } catch (e) { was = null; }
+        try { was = await ptGet('pt_customSkus/' + sku); } catch (e) { customUnread++; continue; }
         if (was && typeof was === 'object' && Object.keys(was).length) continue;
         patch['pt_customSkus/' + sku] = {
           sku, articleType: '', subtype: '', color: '', size: l.size || '',
@@ -29481,7 +29483,7 @@ async function soFormSave(place) {
     const patch = {}, nowIso = new Date().toISOString();
     for (const sku of fresh) {
       let was = null;
-      try { was = await ptGet('pt_customSkus/' + sku); } catch (e) { was = null; }
+      try { was = await ptGet('pt_customSkus/' + sku); } catch (e) { customUnread++; continue; }
       if (was && typeof was === 'object' && Object.keys(was).length) continue;
       const g = soGuessOf(sku);
       patch['pt_customSkus/' + sku] = {
@@ -29503,7 +29505,7 @@ async function soFormSave(place) {
     ? `${rec._id} placed — it is now waiting for approval, and nothing is in the order book until then.`
     : `${rec._id} saved as a draft. It is not in production until it is placed and approved.`;
   if (customAdded > 0) $('sxMsg').textContent += ` ${nf(customAdded)} new item(s) went on the Custom SKUs list${onl ? '' : ' with their brand'} — complete them in Master Database → Custom SKUs.`;
-  if (customAdded < 0) { $('sxMsg').className = 'err'; $('sxMsg').textContent += ' The new items could NOT be put on the Custom SKUs list — save again to retry.'; }
+  if (customAdded < 0 || customUnread) { $('sxMsg').className = 'err'; $('sxMsg').textContent += ' The new items could NOT be put on the Custom SKUs list — save again to retry.'; }
   return '';
 }
 
