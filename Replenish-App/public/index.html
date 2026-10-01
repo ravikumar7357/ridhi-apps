@@ -4155,6 +4155,26 @@ async function prGet(params) {
   return d;
 }
 
+/* ================= CORE HELPERS: DATES AND CSV =================
+ * Gathered here from the Follow-ups and Replenishment files (2026-10-01, step 3 of the module plan), where they had
+ * been written first and every other screen had come to use them. Unchanged; only where they live moved. */
+
+const dToday = () => new Date().toLocaleDateString('en-CA');           // local 'YYYY-MM-DD'
+const dAdd = (ds, n) => { const d = new Date(ds + 'T00:00:00'); d.setDate(d.getDate() + n); return d.toLocaleDateString('en-CA'); };
+const dDiff = (a, b) => Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000);   // b − a in days
+const dValid = ds => !!ds && !isNaN(new Date(String(ds) + 'T00:00:00').getTime());   // guards NaN from a non-ISO date
+
+function csvCell(v) { const s = String(v == null ? '' : v); return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
+function csvDownload(name, cols, rows) {
+  const lines = [cols.map(csvCell).join(',')].concat(rows.map(r => r.map(csvCell).join(',')));
+  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = `${name}-${new Date().toISOString().slice(0, 10)}.csv`; a.click(); URL.revokeObjectURL(a.href);
+}
+// Header lookup for CSV import: first matching column name wins, -1 when absent.
+const colIdx = (head, names) => { for (const n of names) { const i = head.indexOf(n); if (i >= 0) return i; } return -1; };
+const cellAt = (row, i) => (i >= 0 && row[i] != null ? String(row[i]).trim() : '');
+
 /* ================= REPLENISHMENT ================= */
 function rMsg(t, bad) { const m = $('rMsg'); m.textContent = t || ''; m.className = bad ? 'err' : 'muted'; }
 
@@ -6740,10 +6760,6 @@ $('pmDelete').onclick = async () => {
 
 /* ================= FOLLOW-UPS (ongoing POs, auto-scheduled every 7 days) ================= */
 const FU_EVERY = 7;                                    // days between follow-ups
-const dToday = () => new Date().toLocaleDateString('en-CA');           // local 'YYYY-MM-DD'
-const dAdd = (ds, n) => { const d = new Date(ds + 'T00:00:00'); d.setDate(d.getDate() + n); return d.toLocaleDateString('en-CA'); };
-const dDiff = (a, b) => Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000);   // b − a in days
-const dValid = ds => !!ds && !isNaN(new Date(String(ds) + 'T00:00:00').getTime());   // guards NaN from a non-ISO date
 
 // A PO is "ongoing" while ordered / in transit. Follow-up is due FU_EVERY days after the order (or the
 // last follow-up); it becomes overdue (red) once the delivery date (ETA) has passed and it's not received.
@@ -6925,7 +6941,6 @@ $('fuSaveBtn').onclick = async () => {
 
 /* ----- CSV import / export (Excel-friendly) ----- */
 const PO_COLS = ['PO ID', 'Supplier', 'Brand', 'SKU', 'Sub-Category', 'Color', 'Size', 'Air Qty', 'Sea Qty', 'Total Qty', 'Total FBA Stock', 'India Stock', 'Pending Qty', 'Mode', 'Order Date', 'Delivery Date', 'Priority', 'Status', 'Listing'];
-function csvCell(v) { const s = String(v == null ? '' : v); return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
 /**
  * Which character actually separates the fields.
  *
@@ -7433,15 +7448,6 @@ function poQtyMap() {
   }));
   return m;
 }
-function csvDownload(name, cols, rows) {
-  const lines = [cols.map(csvCell).join(',')].concat(rows.map(r => r.map(csvCell).join(',')));
-  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-  a.download = `${name}-${new Date().toISOString().slice(0, 10)}.csv`; a.click(); URL.revokeObjectURL(a.href);
-}
-// Header lookup for CSV import: first matching column name wins, -1 when absent.
-const colIdx = (head, names) => { for (const n of names) { const i = head.indexOf(n); if (i >= 0) return i; } return -1; };
-const cellAt = (row, i) => (i >= 0 && row[i] != null ? String(row[i]).trim() : '');
 function fillSel(id, vals, label) {
   const sel = $(id), cur = sel.value;
   const opts = [...new Set(vals.map(v => (v == null ? '' : String(v).trim())).filter(Boolean))].sort((a, b) => a.localeCompare(b));
@@ -11365,6 +11371,37 @@ async function ptPut(path, value) {
   return out;
 }
 
+/** A single update touching many paths at once. RTDB applies it all or not at all. */
+async function ptPatch(updates) {
+  /* A path set to null is a delete: a whole record (pt_x/<id>) or more is copied to the recycle bin first. A single
+   * field cleared deeper down is only a history line. */
+  const gone = Object.keys(updates || {}).filter(k => updates[k] === null && k.split('/').filter(Boolean).length <= 2);
+  if (gone.length) await auditTrash(gone, 'patch');
+  ptLiveWrote(Object.keys(updates || {}));
+  const r = await fetch(`${PT_URL}/.json` + await ptAuthQuery(), {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates),
+  });
+  ptLiveWrote(Object.keys(updates || {}));
+  if (r.status === 401 || r.status === 403)
+    throw new Error('The production database refused the change — this account does not hold the right '
+      + 'it needs. If the right was only just given, sign out and in again; otherwise ask an admin.');
+  if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
+  const out = await r.json();
+  auditLog('patch', updates || {});
+  return out;
+}
+
+/** One path removed. The record is copied to the recycle bin first (see auditTrash). */
+async function ptDelete(path) {
+  await auditTrash([path], 'delete');
+  ptLiveWrote([path]);
+  const r = await fetch(`${PT_URL}/${ptPath(path)}.json` + await ptAuthQuery(), { method: 'DELETE' });
+  ptLiveWrote([path]);
+  if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
+  auditLog('delete', { [path]: null });
+  return true;
+}
+
 /* ---- the data the gates are measured against ---- */
 let PTG = { masters: null, mdb: null, ob: null, press: null, freeze: null, err: '', busy: false, at: 0 };
 
@@ -13940,16 +13977,6 @@ $('bdmDelete').onclick = async () => {
   $('bdmDelete').disabled = false;
 };
 
-async function ptDelete(path) {
-  await auditTrash([path], 'delete');
-  ptLiveWrote([path]);
-  const r = await fetch(`${PT_URL}/${ptPath(path)}.json` + await ptAuthQuery(), { method: 'DELETE' });
-  ptLiveWrote([path]);
-  if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
-  auditLog('delete', { [path]: null });
-  return true;
-}
-
 /* ================= PRESS INVENTORY =================
  *
  * Finished pieces coming off the press, against an order. One gate rather than Base Data's three —
@@ -16504,26 +16531,6 @@ $('ptmRename').onclick = async () => {
     ptDlgMsg(`${nf(got.rows.length)} rename(s) ready — press Save to apply them as one write.`);
   };
 };
-
-/** A single update touching many paths at once. RTDB applies it all or not at all. */
-async function ptPatch(updates) {
-  /* A path set to null is a delete: a whole record (pt_x/<id>) or more is copied to the recycle bin first. A single
-   * field cleared deeper down is only a history line. */
-  const gone = Object.keys(updates || {}).filter(k => updates[k] === null && k.split('/').filter(Boolean).length <= 2);
-  if (gone.length) await auditTrash(gone, 'patch');
-  ptLiveWrote(Object.keys(updates || {}));
-  const r = await fetch(`${PT_URL}/.json` + await ptAuthQuery(), {
-    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates),
-  });
-  ptLiveWrote(Object.keys(updates || {}));
-  if (r.status === 401 || r.status === 403)
-    throw new Error('The production database refused the change — this account does not hold the right '
-      + 'it needs. If the right was only just given, sign out and in again; otherwise ask an admin.');
-  if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
-  const out = await r.json();
-  auditLog('patch', updates || {});
-  return out;
-}
 
 /* ---- The picture, available to every register ----
  *

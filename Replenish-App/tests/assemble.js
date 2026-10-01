@@ -11,7 +11,9 @@
  * public/index.html is generated. An edit made there by hand would be lost the next time this runs, so this refuses to
  * overwrite a public/index.html that is neither what src/ makes nor what it last wrote (--force to overwrite anyway). */
 const fs = require('fs'), path = require('path'), crypto = require('crypto');
-const ROOT = path.join(__dirname, '..'), SRC = path.join(ROOT, 'src'), PUB = path.join(ROOT, 'public', 'index.html');
+/* Either app: `--root ../Pricing-App` (or any app folder with src/ and public/) — the Replenish app by default. */
+const rootArg = process.argv.indexOf('--root');
+const ROOT = rootArg > 0 ? path.resolve(process.argv[rootArg + 1]) : path.join(__dirname, '..'), SRC = path.join(ROOT, 'src'), PUB = path.join(ROOT, 'public', 'index.html');
 const STAMP = path.join(SRC, '.last-assembled.sha256');
 const sha = t => crypto.createHash('sha256').update(t, 'utf8').digest('hex');
 
@@ -50,7 +52,9 @@ function assemble() {
     seen++;
     return parts[name]();
   });
-  if (seen !== 3) throw new Error(`src/index.html should have 3 include lines, it has ${seen}`);
+  /* styles.css and app/ always; appv.js where the app has that small classic script (Replenish does, Sellora not). */
+  const want = fs.existsSync(path.join(SRC, 'appv.js')) ? 3 : 2;
+  if (seen !== want) throw new Error(`src/index.html should have ${want} include lines, it has ${seen}`);
   return out;
 }
 

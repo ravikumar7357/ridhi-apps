@@ -11,8 +11,6 @@
  *   node tests/src-regroup.js        (refuses if src/app/ORDER already exists)
  */
 const fs = require('fs'), path = require('path');
-const APP = path.join(__dirname, '..', 'src', 'app');
-if (fs.existsSync(path.join(APP, 'ORDER'))) throw new Error('src/app/ORDER exists — the regroup is done once');
 
 /* file prefix → [ [first line, destination], … ] in order. Line numbers are 1-based in the file as it is now. */
 const PLAN = {
@@ -95,6 +93,9 @@ const PLAN = {
   '0760': [[1, 'core/filter-by.js'], [134, 'core/installed-app.js'], [151, 'core/version-check.js']],
 };
 
+/** Cut src/app/NNNN-*.js by PLAN into group folders and write src/app/ORDER. Used for Sellora too (src-regroup-sellora.js). */
+function regroup(APP, PLAN) {
+if (fs.existsSync(path.join(APP, 'ORDER'))) throw new Error('src/app/ORDER exists — the regroup is done once');
 const files = fs.readdirSync(APP).filter(f => /^\d{4}-.*\.js$/.test(f)).sort();
 const order = [], written = new Set();
 for (const f of files) {
@@ -122,3 +123,6 @@ fs.writeFileSync(path.join(APP, 'ORDER'), [
 const by = {};
 order.forEach(p => { const g = p.split('/').slice(0, -1).join('/'); by[g] = (by[g] || 0) + 1; });
 console.log(order.length + ' files in ' + Object.keys(by).length + ' folders:', JSON.stringify(by));
+}
+module.exports = { regroup };
+if (require.main === module) regroup(path.join(__dirname, '..', 'src', 'app'), PLAN);

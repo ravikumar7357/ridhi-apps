@@ -1,0 +1,470 @@
+  /* Listing optimiser: what a rewrite removed and what it added, marked in place. */
+  .lo-gone{text-decoration:line-through;opacity:.45}
+  .lo-new{color:#166534;font-weight:700;background:#dcfce7;border-radius:3px;padding:0 2px}
+  /* THE SIGN-IN SCREEN. Every rule is scoped under #loginView so none of it can reach a control
+     inside the app — which is the whole point of stopping at this screen. */
+  #loginView .card{background:transparent;border:0;box-shadow:none;padding:0;max-width:340px}
+  #loginView .signin{text-align:center;margin-bottom:30px}
+  #loginView .signin h1{font-family:var(--serif);font-weight:400;font-size:33px;letter-spacing:-.01em;
+    margin:20px 0 6px;color:var(--si-ink)}
+  #loginView .kicker{font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--si-faint);margin:0}
+  #loginView .sifield{margin-bottom:18px}
+  #loginView .sifield label{display:block;font-size:11px;letter-spacing:.11em;text-transform:uppercase;
+    color:var(--si-faint);margin:0 0 7px;font-weight:400}
+  /* A rule, not a box. The storefront frames almost nothing, and a boxed field inside a boxed card is
+     the first thing that would read as a different site. */
+  #loginView .sifield input{width:100%;padding:7px 0 9px;border:0;border-bottom:1px solid var(--si-rule);
+    border-radius:0;background:transparent;font-size:15px;color:var(--si-ink)}
+  #loginView .sifield input:focus{outline:0;border-bottom-color:var(--si-ink);box-shadow:none}
+  #loginView .sibtn{width:100%;padding:11px 28px;border-radius:24px;background:var(--si-btn);
+    color:var(--si-btn-ink);border:1px solid var(--si-btn);font-size:14px;font-weight:500;margin-top:6px}
+  #loginView .sifoot{font-size:12px;color:var(--si-faint);margin:20px 0 0;text-align:center}
+  :root{
+    /* Cotton Print Club's ground, read off the live site — a 1% tint against the old #f6f7f9. It is
+       what makes the app feel of a piece with the storefront without touching a single control. */
+    --bg:#F3F5F8; --card:#fff; --ink:#14181F; --muted:#5A6472; --faint:#98A1AE; --line:#E8EDF3;
+    --soft:#F7F9FB;
+    /* Rounded, and the same rounded everywhere. */
+    --r-card:18px; --r-row:16px; --r-ctl:12px; --r-sm:10px; --r-pill:999px;
+    --sh-1:0 2px 10px rgba(26,29,41,.05); --sh-2:0 4px 16px rgba(26,29,41,.08);
+    /* The storefront's own face: a SYSTEM serif, so nothing is fetched and nothing can fail to load.
+       Brand, sign-in and page titles only — never data. Its digits are proportional and would stop a
+       column of figures lining up. */
+    --serif:"Libre Caslon Text","New York","Iowan Old Style",Baskerville,"Times New Roman",Times,serif;
+    /* The sign-in screen's own tokens. Defined in BOTH themes below: the storefront is a light world,
+       but this app has a dark one, and a literal black here would be black text on a dark ground. */
+    --si-ink:#000; --si-faint:rgba(0,0,0,.40); --si-rule:rgba(0,0,0,.13);
+    --si-btn:#000; --si-btn-ink:#fff;
+    /* The shop's slate blue, darkened until white text on it is legible. */
+    --brand:#4A6A92; --brand-bg:#E9EFF6; --brand-ink:#3A5573;
+    --accent:#4A5A3C; --accent-bg:#EDF0E7; --bad:#850000; --bad-bg:#FBE9E9;
+    --warn:#8A5A12; --warn-bg:#FFF3D6; --input:#fff;
+    --hover:#EFF2F6; --chip:#EDF0E7; --chip-ink:#4A5A3C;   /* filter chip */
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#0b1120; --card:#111827; --ink:#e5e7eb; --muted:#94a3b8; --line:#1f2937;
+      --brand:#e5e7eb; --accent:#4ade80; --accent-bg:#052e16; --bad:#fca5a5; --bad-bg:#450a0a;
+      --warn:#fde68a; --warn-bg:#422006; --input:#0f172a;
+      --hover:#1e293b; --chip:#14301a; --chip-ink:#a3e635;
+      /* Same sign-in, legible on the dark ground. The shape stays — rules not boxes, serif, pill
+         button — only the ink and the rule move. */
+      --si-ink:#e5e7eb; --si-faint:rgba(229,231,235,.45); --si-rule:rgba(229,231,235,.20);
+      --si-btn:#e5e7eb; --si-btn-ink:#0b1120;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.6 "Plus Jakarta Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+    -webkit-font-smoothing:antialiased}
+  .wrap{max-width:1320px;margin:0 auto;padding:14px 16px}
+
+  /* App shell: fixed sidebar + independently scrolling main column.
+     `min-width:0` on .main is what stops wide tables from pushing the layout and overlapping. */
+  .shell{display:flex;align-items:stretch;min-height:100vh}
+  /* THE MENU IS A BAR ACROSS THE TOP (design 7) — the same shape as the Replenishment app, so the
+     two read as one tool. It wraps rather than scrolling sideways. */
+  .shell{flex-direction:column;align-items:stretch}
+  .side{flex:0 0 auto;position:sticky;top:0;z-index:60;width:100%;height:auto;overflow:visible;
+    background:var(--card);box-shadow:var(--sh-1);padding:7px 16px;display:flex;flex-direction:row;
+    align-items:center;gap:2px;flex-wrap:wrap}
+  .navwrap{position:relative}
+  .brand{font-family:var(--serif);font-weight:400;font-size:17px;padding:0 14px 0 2px;letter-spacing:-.01em;line-height:1.1;white-space:nowrap}
+  .side .navclose{display:none}
+  .sidefoot{margin:0 0 0 auto;padding:0;border-top:0;display:flex;align-items:center;gap:2px}
+  .sidefoot .nav{width:auto}
+  .topbar .hamb{display:none}
+  .main{padding:16px 22px}
+  /* Group headings are buttons, not labels: each one opens and closes the .navsec directly after
+     it. Seller Central works this way, and it keeps a thirteen-tab sidebar to one screen. */
+  .navgrp{display:flex;align-items:center;gap:6px;width:auto;text-align:left;background:transparent;
+    border:0;cursor:pointer;font:inherit;font-size:12.5px;font-weight:600;text-transform:none;
+    letter-spacing:0;color:var(--muted);padding:8px 11px;border-radius:var(--r-sm);box-shadow:none;min-height:0;
+    white-space:nowrap}
+  .navgrp:hover{color:var(--ink);background:var(--hover)}
+  .navgrp.open{background:var(--brand-bg);color:var(--brand)}
+  .navgrp.here{color:var(--brand);font-weight:800}
+  .navgrp .caret{flex:none;font-size:10px;line-height:1;transition:transform .16s ease}
+  .navgrp.open .caret{transform:rotate(90deg)}
+  .navsec{display:none}
+  .navsec.open{display:block;position:absolute;top:calc(100% + 7px);left:0;min-width:250px;
+    background:var(--card);border-radius:var(--r-card);box-shadow:var(--sh-2);padding:7px;z-index:70}
+  .navwrap:nth-last-child(-n+2) .navsec.open{left:auto;right:0}
+  .nav{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:transparent;
+    color:var(--ink);border:0;border-radius:8px;padding:7px 12px;font-weight:500;font-size:13.5px;
+    /* FLAT, and no minimum height: the shared button rule would otherwise make each item a card. */
+    box-shadow:none;min-height:0;line-height:1.35;margin-bottom:1px;border-radius:var(--r-ctl)}
+  .nav:hover{background:var(--hover)}
+  .nav.on{background:var(--brand-bg);color:var(--brand);font-weight:700}
+  .sidefoot{margin-top:auto;padding-top:10px;border-top:1px solid var(--line)}
+  .navclose{margin-left:auto;flex:none;width:28px;height:28px;padding:0;display:inline-flex;
+    align-items:center;justify-content:center;background:transparent;color:var(--muted);
+    border:0;border-radius:8px;font-size:17px;line-height:1}
+  .navclose:hover{background:var(--hover);color:var(--ink)}
+  .main{flex:1;min-width:0;padding:26px 30px}
+  /* The 3-line button sits beside the page title and hides the sidebar entirely. */
+  .topbar{display:flex;align-items:center;gap:12px;margin:0 0 20px}
+  .hamb{flex:none;width:40px;height:40px;padding:0;display:inline-flex;align-items:center;
+    justify-content:center;background:transparent;color:var(--ink);border:1px solid var(--line);
+    border-radius:10px}
+  .hamb:hover{background:var(--hover)}
+  .shell.navshut .side{display:none}
+  /* Scrim only ever appears over the narrow-screen drawer; tapping it closes the menu. */
+  #navScrim{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:55}
+  /* ONE SCALE, AND IT STEPS PROPERLY: page heading 32 — brand 19 — nav 13.5 — group label 11.
+     They were 23 / 20 / 15 / 11, which is barely a step at all: the thing naming the page read the
+     same weight as the list of links beside it, so nothing told you where you were. */
+  .pagehead{font-size:26px;font-weight:800;letter-spacing:-.022em;margin:0;line-height:1.15}
+  /* Euka-style filter chip + metric block */
+  .chip{display:inline-flex;align-items:center;gap:8px;background:var(--chip);color:var(--chip-ink);
+    border-radius:999px;padding:8px 15px;font-size:13px;font-weight:600}
+  /* One-line control bar. Buttons keep their natural width; only the filter flexes, so nothing
+     wraps onto a second line and the card stays short. */
+  .toolbar{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .toolbar>button{flex:0 0 auto;white-space:nowrap}
+  .toolbar .seg{flex:0 0 auto}
+  #ageMsg:empty{display:none}          /* no empty gap under the bar when there's nothing to say */
+  #ageMsg{margin-top:10px}
+
+  /* Segmented toggle (Parent ASINs | Child ASINs) */
+  .seg{display:inline-flex;background:var(--hover);border-radius:10px;padding:3px;gap:2px}
+  .segbtn{background:transparent;color:var(--muted);border:0;border-radius:8px;padding:8px 18px;
+    font-weight:600;font-size:14px}
+  .segbtn.on{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.10)}
+
+  /* Excel-style grid: ruled cells, frozen header row + frozen first column, own scroll box. */
+  /* Two classes so this beats `.card`'s padding. A sticky `top:0`/`left:0` anchors to the PADDING
+     box, so any padding here becomes a see-through gap that scrolling rows show through — which is
+     exactly what made rows appear above the header and beside the frozen column. */
+  .card.xlwrap{padding:0}
+  .xlwrap{overflow:auto;max-height:72vh}
+  table.xl{border-collapse:separate;border-spacing:0;width:100%;font-size:13px}
+  /* No vertical rules: the columns are held apart by their own space. */
+  table.xl th,table.xl td{border-right:0;border-bottom:1px solid var(--line);
+    padding:9px 12px;white-space:nowrap;text-align:left}
+  /* Header stays put; z-index must beat the frozen first column or rows paint over it. */
+  table.xl thead th{position:sticky;top:0;z-index:5;background:var(--card);color:var(--faint);box-shadow:inset 0 -1px 0 var(--line);
+    font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;cursor:pointer;
+    user-select:none}
+  table.xl thead th:hover{color:var(--ink)}
+  table.xl tbody tr:hover td{background:var(--soft)}
+  table.xl .num{text-align:right;font-variant-numeric:tabular-nums}
+  /* No box-shadow here: a shadow on every sticky cell is repainted on each horizontal scroll frame,
+     and these grids are wide enough that it dominates. The cell's own border-right (above) already
+     draws the divider, so this looks identical and scrolls at full speed. */
+  table.xl .frz{position:sticky;left:0;z-index:2;background:var(--card);font-family:ui-monospace,monospace}
+  /* TOTAL row: a second header row, so it stays put while the body scrolls under it. `top` is set
+     in JS from the title row's measured height — hard-coding it breaks the moment a header wraps. */
+  table.xl thead tr.subtot th{background:#eef2ff;color:#334155;font-weight:700;text-transform:none;
+    font-size:13px;letter-spacing:0;cursor:default;border-bottom:2px solid #c7d2fe}
+  table.xl thead tr.subtot th.frz{background:#eef2ff;z-index:6}
+  /* The planner freezes its whole left block — parent, product, image, BSR and the Start/End
+     labels — because a week column is meaningless without the row it belongs to. `left` is measured
+     and set in JS: the columns size themselves to their content, so it cannot be hard-coded. */
+  #dPlanTable .pfz{position:sticky;z-index:3;background:var(--card)}
+  #dPlanTable tbody tr:nth-child(even) .pfz{background:var(--bg)}
+  /* A frozen HEADER cell is sticky in both directions at once, so it has to outrank both the
+     header row (which is sticky vertically) and the frozen column (sticky horizontally). */
+  #dPlanTable thead .pfz{z-index:9}
+  #dPlanTable thead th{position:sticky;z-index:6}
+  /* One line down the right edge of the frozen block, so the split is obvious while scrolling. */
+  #dPlanTable .pfz-last{border-right:2px solid #cbd5e1}
+  table.xl tbody tr:nth-child(even) .frz{background:var(--bg)}
+  table.xl thead .frz{z-index:6;background:var(--hover)}
+  /* TOTAL stays pinned to the bottom of the scroll box. Safe now that the wrapper has no padding —
+     the earlier bleed was that padding gap, not the stickiness. Needs a z-index above the body's
+     frozen column (2), and the bottom-left corner cell must beat the whole footer row. */
+  table.xl tfoot td{position:sticky;bottom:0;z-index:5;background:var(--card);font-weight:700;
+    border-top:2px solid var(--line);box-shadow:0 -1px 0 var(--line)}
+  table.xl tfoot .frz{z-index:7;background:var(--card)}
+
+  /* KPI cards — one per brand. Fixed basis (never grow) so two cards stay compact instead of each
+     stretching to half the screen; they wrap on narrow windows. */
+  /* Cards GROW to share the row (all four metrics sit on one line) rather than growing taller and
+     leaving the right-hand side empty. */
+  /* ---- Sales dashboard. Written out by hand rather than pulled in with Tailwind: this app loads
+     no external scripts, and the whole design is these few components. Colours and sizes are the
+     Tailwind values the original used, so it looks identical. ---- */
+  .sd-toggle{display:inline-flex;border:1px solid #cbd5e1;border-radius:6px;overflow:hidden}
+  .sd-toggle button{border:0;background:#fff;color:#475569;font-size:14px;font-weight:600;
+    padding:6px 12px;cursor:pointer}
+  .sd-toggle button:hover{background:#f8fafc}
+  .sd-toggle button.on{background:#0891b2;color:#fff}
+  .sd-kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:16px;margin-bottom:24px}
+  @media (max-width:1400px){ .sd-kpis{grid-template-columns:repeat(3,minmax(0,1fr))} }
+  @media (max-width:900px){ .sd-kpis{grid-template-columns:repeat(2,minmax(0,1fr))} }
+  .sd-card{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.1),0 1px 2px rgba(0,0,0,.06);
+    border-left:4px solid #94a3b8;padding:16px}
+  .sd-card .lbl{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:#64748b;font-weight:600}
+  .sd-card .val{font-size:24px;font-weight:700;color:#0f172a;margin-top:4px;line-height:1.2}
+  .sd-card .sub{font-size:12px;color:#64748b;margin-top:4px}
+  .sd-b-cyan{border-left-color:#06b6d4} .sd-b-teal{border-left-color:#14b8a6}
+  .sd-b-orange{border-left-color:#f97316} .sd-b-purple{border-left-color:#a855f7}
+  .sd-b-pink{border-left-color:#ec4899} .sd-b-indigo{border-left-color:#6366f1}
+  .sd-panel{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.1),0 1px 2px rgba(0,0,0,.06);
+    padding:16px;margin-bottom:24px}
+  .sd-h2{font-size:14px;font-weight:600;color:#334155;margin:0 0 12px}
+  .sd-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+  @media (max-width:900px){ .sd-stats{grid-template-columns:repeat(2,minmax(0,1fr))} }
+  .sd-stat{background:#f8fafc;border-radius:8px;padding:12px}
+  .sd-stat .lbl{font-size:12px;color:#64748b;font-weight:600}
+  .sd-stat .val{font-size:18px;font-weight:700;color:#0f172a}
+  .sd-charts{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
+  @media (max-width:1100px){ .sd-charts{grid-template-columns:1fr} }
+  .sd-tbl{width:100%;border-collapse:collapse;font-size:14px;white-space:nowrap}
+  .sd-tbl thead th{background:#f8fafc;color:#475569;text-transform:uppercase;font-size:12px;
+    font-weight:600;padding:8px 12px;text-align:right}
+  .sd-tbl thead th:first-child{text-align:left}
+  .sd-tbl td{padding:8px 12px;text-align:right;border-top:1px solid #f1f5f9}
+  .sd-tbl td:first-child{text-align:left;font-weight:600;color:#0f172a}
+  .sd-ly{color:#94a3b8}
+  .sd-up{color:#0d9488;font-weight:600} .sd-dn{color:#dc2626;font-weight:600}
+  .kpis{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:18px}
+  .kpi{flex:1 1 380px;background:var(--card);border:0;border-radius:var(--r-card);padding:15px 17px;box-shadow:var(--sh-1)}
+  .kpi .kpihead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:10px}
+  .kpi .kpiname{font-size:13px;font-weight:700;letter-spacing:-.01em}
+  .kpi .kpiwhen{font-size:10px;color:var(--muted)}
+  .kpi .metrics{gap:18px;justify-content:space-between}
+  .kpi .metric .v{font-size:18px}
+  .kpi .metric .l{font-size:11px;white-space:nowrap}
+  /* Listing-health grade pill. Colour is a shorthand for the grade, never the only signal — the
+     word itself is in the cell, so it still reads correctly in a colour-blind or greyscale view. */
+  /* Week-over-week direction, painted on the CELL rather than the number — the whole column reads as
+     a run of ups and downs at a glance, which is the point of looking across thirteen weeks. */
+  #wTable td.wow-up{background:#dcfce7}
+  #wTable td.wow-dn{background:#ffedd5}
+  #wTable td.wow-up,#wTable td.wow-dn{box-shadow:inset 0 0 0 1px rgba(0,0,0,.04)}
+  /* The second line inside a week cell (sales → TACoS). Smaller and quieter: it explains the number
+     above it and must not compete with it. */
+  #wTable .wsub{margin-top:3px}
+  #wTable .wsub .gd{padding:1px 6px;font-size:9.5px;font-weight:600}
+  .gd{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap}
+  .gd-good{background:#dcfce7;color:#166534}
+  .gd-warn{background:#fef08a;color:#854d0e}
+  .gd-bad{background:#fee2e2;color:#991b1b}
+  /* Listing Health — a child's checks. The mark is the answer; the small line under it is the figure. */
+  .hk-c{text-align:center;white-space:nowrap;font-weight:700}
+  .hk-c .hk-say{font-size:10px;font-weight:400;color:var(--muted);margin-top:1px}
+  td.hk-ok{color:#166534;background:#f0fdf4}
+  td.hk-bad{color:#991b1b;background:#fef2f2}
+  td.hk-info{color:#854d0e;background:#fefce8}
+  td.hk-na{color:var(--muted)}
+  [data-hkid]{color:var(--accent);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+  /* Attachment editor overlay. */
+  .modal{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;
+    justify-content:center;z-index:50;padding:16px}
+  /* Scrolls when it has to. Without the max-height a dialog with a long list — twenty line items on
+     one order — grew past the viewport, and everything under the list, including Save, was simply
+     unreachable. The page behind does not scroll a fixed overlay, so there was no way down. */
+  .modalbox{background:var(--card);border-radius:14px;padding:20px;width:min(460px,100%);
+    max-height:calc(100vh - 32px);overflow-y:auto;box-shadow:0 20px 50px rgba(0,0,0,.25)}
+  /* Attachment cells: a filled slot is a link, an empty one is a quiet "add" affordance. */
+  .doc{display:inline-block;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    vertical-align:bottom;color:var(--accent);cursor:pointer;text-decoration:underline}
+  .docadd{color:var(--muted);cursor:pointer;opacity:.75}
+  .docadd:hover{opacity:1;text-decoration:underline}
+  /* Approval status. The WORD is always present — colour is a second signal, never the only one. */
+  .st{display:inline-block;padding:1px 7px;border-radius:999px;font-size:10px;font-weight:700;white-space:nowrap}
+  .st-draft{background:#e2e8f0;color:#475569}
+  .st-pending{background:#fef08a;color:#854d0e}
+  .st-approved{background:#dcfce7;color:#166534}
+  .st-rejected{background:#fee2e2;color:#991b1b}
+  /* Shopify Orders row states. The strike and the tint are a SECOND signal — every one of these
+     also carries a word in the Status column, because colour alone is not readable to everyone and
+     does not survive a printout. */
+  #soTable tr.so-cancel td{text-decoration:line-through;opacity:.55}
+  #soTable tr.so-cancel td.so-keep{text-decoration:none;opacity:1}
+  #soTable tr.so-cb td{background:var(--bad-bg)}
+  #soTable tr.so-cb td.frz{box-shadow:inset 3px 0 0 var(--bad)}
+  .vrow{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
+  .vrow:last-child{border-bottom:0}
+  /* Transit-day inputs beside the audit grid — small, inline, out of the way. */
+  .leadgrp{display:inline-flex;align-items:center;gap:8px;font-size:11px;color:var(--muted);white-space:nowrap}
+  .leadgrp label{display:inline-flex;align-items:center;gap:3px}
+  .leadgrp input{width:52px;font-size:11px;padding:3px 4px;border-radius:5px;text-align:right}
+  /* Launch dialog: a tick-box reads as a statement, so the label sits beside it, not above. */
+  .lrow{display:flex;align-items:center;gap:8px;margin-top:9px;font-size:13px}
+  .lrow input[type=checkbox]{width:auto;margin:0}
+  /* A metric's SUB-LINE: the ratio that only means anything against the number above it. TACoS is
+     spend over sales, so reading it two tiles away from sales is reading it out of context. */
+  .metric .sub{font-size:11.5px;color:var(--muted);margin-top:5px;white-space:nowrap}
+  .metric .sub b{font-weight:700;color:var(--ink)}
+  .metric .up{color:var(--accent)}
+  .metric .dn{color:var(--bad)}
+  /* Freeze the PRODUCT column too, not just the ASIN. Thirteen week columns scroll a long way and an
+     ASIN alone does not tell you which row you are reading. The widths are FIXED and the second
+     column's `left` equals the first one's width — a sticky offset cannot be derived from content. */
+  #wTable .frz{min-width:116px;width:116px}
+  #wTable .frz2{position:sticky;left:116px;z-index:2;background:var(--card);
+    min-width:200px;width:200px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #wTable thead .frz2{z-index:6;background:var(--hover)}
+  #wTable tbody tr:nth-child(even) .frz2{background:var(--bg)}
+  /* Parent Listing Review: FOUR frozen columns — ASIN, child ASIN, picture, title. Those four are
+     what a row is identified BY; the twenty numeric columns scroll under them. Same rule as above,
+     the widths are fixed because a sticky `left` has to be a number and a measured one would need
+     recomputing on every render and every resize. */
+  #plTable .frz{min-width:116px;width:116px}
+  #plTable .frz2{position:sticky;left:116px;z-index:2;background:var(--card);
+    min-width:116px;width:116px;font-family:ui-monospace,monospace}
+  #plTable .frz3{position:sticky;left:232px;z-index:2;background:var(--card);min-width:94px;width:94px}
+  #plTable .frz4{position:sticky;left:326px;z-index:2;background:var(--card);
+    min-width:230px;width:230px;max-width:230px}
+  #plTable thead .frz2,#plTable thead .frz3,#plTable thead .frz4{z-index:6;background:var(--hover)}
+  #plTable thead tr.subtot th.frz2,#plTable thead tr.subtot th.frz3,
+  #plTable thead tr.subtot th.frz4{background:#eef2ff;z-index:6}
+  #plTable tbody tr:nth-child(even) .frz2,#plTable tbody tr:nth-child(even) .frz3,
+  #plTable tbody tr:nth-child(even) .frz4{background:var(--bg)}
+  /* 556px of frozen column is most of a laptop and all of a phone. Below this only the ASIN holds
+     still — four pinned columns on a narrow screen leaves nothing to actually read. */
+  @media (max-width:1180px){
+    #plTable .frz2,#plTable .frz3,#plTable .frz4{position:static;width:auto;min-width:0;max-width:none}
+  }
+  /* the parent card */
+  .pl-head{display:flex;gap:16px;align-items:flex-start}
+  .pl-img{width:92px;height:92px;object-fit:contain;border-radius:8px;background:var(--bg);flex:none}
+  .pl-noimg{display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--muted)}
+  .pl-title{font-weight:700;font-size:16px;line-height:1.3}
+  .pl-ids{font-family:ui-monospace,monospace;font-size:12px;color:var(--muted);margin-top:3px}
+  .pl-why{margin-top:8px;font-size:12.5px;color:var(--muted);line-height:1.45}
+  .pl-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:1px;
+    background:var(--line);border:1px solid var(--line);border-radius:9px;overflow:hidden;margin-top:18px}
+  .pl-tile{background:var(--card);padding:10px 12px}
+  .pl-tv{font-size:17px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.2}
+  .pl-tl{font-size:11px;color:var(--muted);margin-top:2px}
+  .pl-sec{margin:20px 0 8px;font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  .pl-cmp{width:100%;border-collapse:collapse;font-size:13.5px}
+  .pl-cmp th,.pl-cmp td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left}
+  .pl-cmp th{font-size:11.5px;color:var(--muted);font-weight:600}
+  .pl-cmp .num{text-align:right;font-variant-numeric:tabular-nums}
+  .pl-cmp .pl-up{color:var(--accent)} .pl-cmp .pl-dn{color:var(--bad)}
+  .pl-note{margin-top:10px;font-size:12px;color:var(--muted);line-height:1.5}
+  /* Sales Analysis heatmap. Three steps only: a row's month is mild, warm or hot against that
+     row's OWN average, so a small colour and a big one are both readable on their own terms. */
+  #saTable .sa-mild{background:var(--warn-bg);color:var(--warn)}
+  #saTable .sa-warm{background:#f6b26b;color:#3b2400}
+  #saTable .sa-hot{background:var(--bad);color:#fff;font-weight:600}
+  #plTable .pl-open{cursor:pointer;border-bottom:1px dashed var(--muted)}
+  #plTable .pl-open:hover,#plTable .pl-open:focus{color:var(--accent);border-bottom-style:solid;outline:none}
+  /* Multi-select, lifted verbatim from the Replenishment app so the same control behaves the same
+     in both. A second implementation of one control is how two apps start feeling like two products. */
+  .ms{position:relative;flex:0 0 auto}
+  .ms-btn{width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:9px;
+    padding:8px 26px 8px 11px;font:inherit;font-size:13px;color:var(--ink);cursor:pointer;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ms-btn:after{content:'▾';position:absolute;right:9px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:11px}
+  .ms-btn.on{border-color:var(--ink);font-weight:600}
+  .ms-panel{position:absolute;z-index:60;top:calc(100% + 4px);left:0;min-width:230px;max-width:340px;
+    background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 30px rgba(0,0,0,.18);padding:8px}
+  .ms-search{width:100%;margin-bottom:6px}
+  .ms-acts{display:flex;gap:6px;margin-bottom:6px}
+  .ms-acts button{flex:1;padding:3px 6px;font-size:11.5px}
+  .ms-list{max-height:280px;overflow:auto}
+  .ms-opt{display:flex;align-items:center;gap:7px;padding:4px 5px;border-radius:6px;cursor:pointer;font-size:13px}
+  .ms-opt:hover{background:var(--hover,#f1f5f9)}
+  .ms-opt input{margin:0}
+  .metrics{display:flex;gap:34px;flex-wrap:wrap}
+  .metric .v{font-size:21px;font-weight:700;letter-spacing:-.02em;line-height:1.2}
+  .metric .l{font-size:12px;color:var(--muted);margin-top:3px}
+  @media(max-width:860px){
+    /* Off-canvas drawer rather than a wrapped row of chips: thirteen tabs in five groups no longer
+       fit across the top, and the drawer is what the hamburger is for. */
+    .side{position:fixed;top:0;left:0;bottom:0;z-index:60;flex:none;width:272px;height:100vh;
+      overflow-y:auto;box-shadow:0 10px 30px rgba(0,0,0,.22)}
+    .shell:not(.navshut) #navScrim{display:block}
+    .main{padding:14px}
+  }
+  h1{font-size:20px;margin:0;letter-spacing:-.02em}
+  .card{background:var(--card);border:0;border-radius:var(--r-card);padding:20px;margin-bottom:16px;box-shadow:var(--sh-1)}
+  button{font:inherit;font-weight:700;border:0;border-radius:var(--r-ctl);padding:11px 18px;cursor:pointer;
+    background:var(--brand);color:#fff;font-size:14px;box-shadow:0 4px 12px rgba(79,91,213,.26)}
+  button:hover{background:var(--brand-ink)}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  button.ghost{background:var(--card);color:var(--muted);border:0;font-weight:600;box-shadow:var(--sh-1)}
+  /* A NEW VERSION IS OUT — the same bar the Replenishment app uses. */
+  #updBar{position:fixed;left:auto;right:12px;width:420px;max-width:calc(100vw - 24px);bottom:14px;z-index:200;display:flex;align-items:center;
+    justify-content:space-between;gap:10px;background:#0f172a;color:#fff;border-radius:12px;padding:10px 12px 10px 16px;box-shadow:0 12px 36px rgba(15,23,42,.24)}
+  #updBar button{background:#fff;color:#0f172a;border:0;padding:8px 14px;border-radius:8px;font-weight:700}
+  button.ghost:hover{background:var(--card);color:var(--ink);box-shadow:var(--sh-2)}
+  input,select{font:inherit;color:var(--ink);background:var(--input);border:1px solid var(--line);
+    border-radius:var(--r-ctl);padding:11px 14px;width:100%}
+  input:focus,select:focus{outline:none;border-color:var(--muted)}
+  label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:7px}
+  .row{display:flex;gap:10px;flex-wrap:wrap}
+  .row>*{flex:1;min-width:140px}
+  .muted{color:var(--muted);font-size:13px}
+  table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+  td{padding:10px 0;border-bottom:1px solid var(--line)}
+  td:last-child{text-align:right;font-weight:600}
+  tr.sub td{color:var(--muted);font-weight:400;font-size:13px}
+  tr.total td{border-top:2px solid var(--line);border-bottom:0;font-weight:700;padding-top:11px}
+  .hero{background:var(--accent-bg);border:1px solid var(--accent);border-radius:14px;padding:26px 22px;
+    text-align:center;margin-bottom:18px}
+  .hero.bad{background:var(--bad-bg);border-color:var(--bad)}
+  .hero .big{font-size:38px;font-weight:800;letter-spacing:-.03em;color:var(--accent);line-height:1.1}
+  .hero.bad .big{color:var(--bad)}
+  .hero .lbl{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:760px){.grid{grid-template-columns:1fr}}
+  .settings-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:16px}
+  .hide{display:none}
+  .err{background:var(--bad-bg);color:var(--bad);padding:13px 16px;border-radius:10px;font-size:14px;margin-bottom:14px}
+  .ok{background:var(--accent-bg);color:var(--accent);padding:13px 16px;border-radius:10px;font-size:14px;margin-bottom:14px}
+  .sec{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);
+    margin:22px 0 10px;grid-column:1/-1}
+  /* New product is one long form, so the section gaps compounded: .sec's 22px margin sat on TOP of
+     the grid's own 16px row gap, giving ~38px between every block. Tightened here only — Settings
+     uses the same classes and is short enough that the roomier spacing suits it. */
+  #paneNew .settings-grid{gap:11px 14px}
+  #paneNew .sec{margin:14px 0 2px}
+  #paneNew .sec:first-child{margin-top:0}
+  #paneNew label{margin-bottom:4px}
+  #paneNew input,#paneNew select{padding:9px 12px}
+  #paneNew .card{padding:16px 18px}
+  .hist{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);
+    cursor:pointer;font-size:13px}
+  .hist:hover{opacity:.7}
+  .hist b{color:var(--accent)}
+  .spin{display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,.3);
+    border-top-color:#fff;border-radius:50%;animation:s .7s linear infinite;vertical-align:-2px;margin-right:6px}
+  @keyframes s{to{transform:rotate(360deg)}}
+  .login{max-width:340px;margin:14vh auto}
+  .thumb{width:56px;height:56px;object-fit:contain;border-radius:6px;background:#fff;flex:none}
+  .tabs{display:flex;gap:6px;margin-bottom:16px;border-bottom:1px solid var(--line)}
+  .tabs .tab{background:transparent;color:var(--muted);border:0;border-bottom:2px solid transparent;
+    border-radius:0;padding:9px 14px}
+  .tabs .tab.on{color:var(--ink);border-bottom-color:var(--ink)}
+  .warn{background:var(--warn-bg);color:var(--warn);padding:13px 16px;border-radius:10px;font-size:13px;margin-bottom:14px}
+  .tbl{width:100%;font-size:13.5px}
+  .tbl th{text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
+    color:var(--muted);padding:0 10px 10px 0;white-space:nowrap}
+  .tbl td{padding:9px 10px 9px 0;border:0;border-bottom:1px solid var(--line);text-align:left;font-weight:400}
+  .tbl tbody tr:hover{background:var(--hover)}
+  .tbl input{padding:7px 10px;font-size:13px}
+  .tbl td:last-child{text-align:left}
+  /* Access, grouped by area of work. */
+  .accg-top{display:flex;flex-wrap:wrap;gap:8px 22px;margin:4px 0 12px}
+  .accg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px}
+  .accg{border:1px solid var(--line);border-radius:12px;padding:10px 12px 12px;background:var(--card)}
+  .accg.has-on{border-color:#16a34a;box-shadow:inset 3px 0 0 #16a34a}
+  .accg header{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+  .accg h4{margin:0;font-size:14px;white-space:nowrap}
+  .accg-n{font-size:11.5px;color:#166534;font-weight:700}
+  .accg-app{margin-left:auto;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+  .accg header button{width:auto;padding:2px 8px;font-size:11.5px}
+  .accg-boxes{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:2px 10px}
+  .accg-box{display:flex;align-items:flex-start;gap:6px;font-size:13px;font-weight:500;color:var(--ink);cursor:pointer;padding:3px 0;line-height:1.3}
+  .accg-box input,.accg-brands input{width:auto;margin:2px 0 0}
+  .accg-right input{width:auto;margin:0 6px 0 0;vertical-align:-2px}
+  .accg-rights{margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);display:grid;gap:6px}
+  .accg-right{display:block;font-size:12.5px;color:var(--ink);cursor:pointer;line-height:1.4}
+  .accg-right .muted{font-weight:400}
+  .accg-note{font-size:11.5px;color:var(--muted);line-height:1.45}
+  .accg-brands{font-size:12.5px;display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center}
+  .accg-brands label{display:inline-flex;gap:5px;align-items:center;cursor:pointer}
+  .accg-preset{width:auto;justify-self:start;padding:3px 10px;font-size:12px}
+  .accg-warn{padding:10px 12px;border:1px solid #b45309;border-radius:8px;background:#fffbeb;color:#7c2d12;font-size:12.5px;line-height:1.5}
+  .accsum{font-size:12.5px;line-height:1.6}
+  .accsum b{font-weight:600}
+  .xbtn{background:var(--card);color:var(--ink);border:1px solid var(--line);padding:8px 14px;
+    font-size:13px;font-weight:500;border-radius:999px}
+  .xbtn:hover{background:var(--hover)}

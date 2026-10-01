@@ -1,7 +1,7 @@
 """Exact-text edits to the page's source in src/ (2026-10-01, step 1 of the module plan).
 
     from src_patch import Src            # run from Replenish-App/tests, or put that folder on sys.path
-    p = Src()
+    p = Src()                            # Src('../Pricing-App') edits Sellora's src/ instead
     p.one('old text', 'new text', 'what this is')   # the old text must appear exactly once across ALL of src/
     p.save()                              # writes the changed files (CRLF kept) and runs tests/assemble.js
 
@@ -10,13 +10,15 @@ names the code, not the file. Text that appears in no file, or in more than one 
 import os, subprocess, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SRC = os.path.join(HERE, '..', 'src')
+APP_DEFAULT = os.path.join(HERE, '..')
 
 
 class Src:
-    def __init__(self):
+    def __init__(self, root=None):
+        self.root = os.path.abspath(root or APP_DEFAULT)
+        self.src = os.path.join(self.root, 'src')
         self.files = {}
-        for d, _, names in os.walk(SRC):
+        for d, _, names in os.walk(self.src):
             for n in names:
                 if n.endswith(('.js', '.css', '.html')):
                     p = os.path.join(d, n)
@@ -31,12 +33,12 @@ class Src:
         p = hits[0][0]
         self.files[p] = self.files[p].replace(old, new)
         self.changed.add(p)
-        print('ok', name, '->', os.path.relpath(p, SRC))
+        print('ok', name, '->', os.path.relpath(p, self.src))
 
     def save(self):
         for p in self.changed:
             open(p, 'wb').write(self.files[p].replace('\n', '\r\n').encode('utf8'))
-        r = subprocess.run(['node', os.path.join(HERE, 'assemble.js')], capture_output=True, text=True)
+        r = subprocess.run(['node', os.path.join(HERE, 'assemble.js'), '--root', self.root], capture_output=True, text=True)
         print(r.stdout.strip() or r.stderr.strip())
         if r.returncode:
             sys.exit(r.returncode)

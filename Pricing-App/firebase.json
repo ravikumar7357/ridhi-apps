@@ -1,5 +1,7 @@
 {
   "hosting": {
+    "//predeploy": "Since 2026-10-01 the page is built from src/ (module plan step 3): a deploy is refused when public/index.html is not what src/ makes.",
+    "predeploy": ["node ../Replenish-App/tests/assemble.js --root . --check"],
     "public": "public",
     "ignore": [
       "firebase.json",

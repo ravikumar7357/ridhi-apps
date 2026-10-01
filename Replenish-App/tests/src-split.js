@@ -10,7 +10,8 @@
  *   src/app/NNN-name.js   the module script, cut at its own section headings, in page order
  */
 const fs = require('fs'), path = require('path');
-const ROOT = path.join(__dirname, '..'), PUB = path.join(ROOT, 'public', 'index.html'), SRC = path.join(ROOT, 'src');
+/* Either app: no argument splits the Replenish app; `node tests/src-split.js ../Pricing-App` splits Sellora. */
+const ROOT = process.argv[2] ? path.resolve(process.argv[2]) : path.join(__dirname, '..'), PUB = path.join(ROOT, 'public', 'index.html'), SRC = path.join(ROOT, 'src');
 if (fs.existsSync(SRC)) throw new Error('src/ already exists — this split is done once');
 const s = fs.readFileSync(PUB, 'utf8');
 const NL = '\r\n';
@@ -18,14 +19,22 @@ const at = (needle, from = 0) => { const i = s.indexOf(needle, from); if (i < 0)
 
 /* The three blocks, by the exact text around them. Each include line replaces the block's inside. */
 const styleOpen = at('<style>' + NL) + ('<style>' + NL).length, styleClose = at(NL + '</style>' + NL, styleOpen) + NL.length;
-const appvOpen = at('<script>' + NL, styleClose) + ('<script>' + NL).length, appvClose = at('</script>' + NL, appvOpen);
 const modTag = '<script type="module">' + NL;
-const modOpen = at(modTag, appvClose) + modTag.length, modClose = s.lastIndexOf('</script>');
-if (s.indexOf('<script', modOpen) >= 0) throw new Error('a script after the module — the split expects none');
+const modTagAt = at(modTag, styleClose);
+/* The small classic script (Replenish's app-version check) is optional — Sellora has none. */
+const classicAt = s.indexOf('<script>' + NL, styleClose);
+const hasAppv = classicAt >= 0 && classicAt < modTagAt;
+const appvOpen = hasAppv ? classicAt + ('<script>' + NL).length : -1, appvClose = hasAppv ? at('</script>' + NL, appvOpen) : -1;
+const modOpen = modTagAt + modTag.length, modClose = s.lastIndexOf('</script>');
+/* Only real tags after the module count; the word <script> inside the app's own comments does not. */
+if (s.indexOf('<script', modClose) >= 0) throw new Error('a script after the module — the split expects none');
 
-const css = s.slice(styleOpen, styleClose), appv = s.slice(appvOpen, appvClose), mod = s.slice(modOpen, modClose);
-const shell = s.slice(0, styleOpen) + '<!--@include styles.css-->' + NL + s.slice(styleClose, appvOpen)
-  + '<!--@include appv.js-->' + NL + s.slice(appvClose, modOpen) + '<!--@include app/-->' + NL + s.slice(modClose);
+const css = s.slice(styleOpen, styleClose), mod = s.slice(modOpen, modClose);
+const appv = hasAppv ? s.slice(appvOpen, appvClose) : null;
+const shell = hasAppv
+  ? s.slice(0, styleOpen) + '<!--@include styles.css-->' + NL + s.slice(styleClose, appvOpen)
+    + '<!--@include appv.js-->' + NL + s.slice(appvClose, modOpen) + '<!--@include app/-->' + NL + s.slice(modClose)
+  : s.slice(0, styleOpen) + '<!--@include styles.css-->' + NL + s.slice(styleClose, modOpen) + '<!--@include app/-->' + NL + s.slice(modClose);
 
 /* The module, cut where a section heading starts a line. Short sections ride with the one before, so a file is
  * at least MIN lines; the cut is always at the start of a line, so joining the files gives the text back. */
@@ -50,5 +59,5 @@ cuts.forEach((c, k) => {
 });
 fs.writeFileSync(path.join(SRC, 'index.html'), shell);
 fs.writeFileSync(path.join(SRC, 'styles.css'), css);
-fs.writeFileSync(path.join(SRC, 'appv.js'), appv);
+if (hasAppv) fs.writeFileSync(path.join(SRC, 'appv.js'), appv);
 console.log(names.length + ' module files:\n  ' + names.join('\n  '));
