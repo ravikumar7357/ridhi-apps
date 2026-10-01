@@ -11259,6 +11259,36 @@ function mdbIndex() {
 }
 /** The master row for a SKU, or undefined. Replaces (PTG.mdb||[]).find(…) in the hot paths. */
 const mdbOf = sku => mdbIndex().get(obUC(sku));
+/**
+ * A SKU this page's copy of the master does not have, asked of the database itself (2026-10-01). The copy is re-read
+ * only every 30 minutes (PTG_MDB_STALE_MS), so a SKU added to the master a minute ago was refused as "not in the master
+ * database" — Ravi added RCN148 and could not move a Job Work row onto it. pt_masterDB is indexed on sku, so this reads
+ * one row, not 2 MB. A row found is added to the copy, so every screen knows it from then on. A failed read is null.
+ */
+async function mdbFetchSku(sku) {
+  const want = String(sku || '').trim();
+  if (!want) return null;
+  const q = await ptAuthQuery();
+  for (const v of [...new Set([want, obUC(want)])]) {
+    let got = null;
+    try {
+      const r = await fetch(`${PT_URL}/pt_masterDB.json?orderBy=%22sku%22&equalTo=${encodeURIComponent(JSON.stringify(v))}` + (q ? '&' + q.slice(1) : ''));
+      if (!r.ok) continue;
+      got = await r.json();
+    } catch (e) { continue; }
+    const rows = Object.entries(got || {}).map(([k, x]) => (x && typeof x === 'object' ? Object.assign({ _key: k }, x) : null))
+      .filter(x => x && x.sku && !x.mergedInto && obUC(x.sku) === obUC(want));
+    if (!rows.length) continue;
+    const rec = typeof mdbYnFix === 'function' ? mdbYnFix(rows[0]) : rows[0];
+    if (!mdbOf(rec.sku)) {
+      /* ONE ARRAY, TWO NAMES, as ensurePmdb and pmdbRefresh keep them. */
+      const next = (PTG.mdb || []).concat([rec]);
+      PTG.mdb = next; if (PT && PT.mdb) PT.mdb = next;
+    }
+    return mdbOf(rec.sku) || rec;
+  }
+  return null;
+}
 
 /* ---- the production registers, keyed by order and SKU ---- */
 const obKeyOf = (orderNo, sku) => obUC(orderNo) + '|' + obUC(sku);
@@ -13502,7 +13532,9 @@ $('bdmSave').onclick = async () => {
    * A custom SKU that is not in the master database is left alone — it never was in there. */
   let at = r.articleType, sub = r.articleSubtype, col = r.color, sz = r.size;
   if (admin && obUC(sku) !== obUC(r.sku)) {
-    const m = cutSkuOf(sku);
+    let m = cutSkuOf(sku);
+    /* Not in this page's copy: ask the database before refusing — it may have been added since the copy was read. */
+    if (!m) { bdModalMsg('Checking the master database…'); m = await mdbFetchSku(sku); }
     if (!m) return bdModalMsg(`SKU ${sku} is not in the master database — it cannot be changed to one that does not exist.`, true);
     at = m.articleType || ''; sub = m.subtype || ''; col = m.color || ''; sz = m.size || '';
   }
