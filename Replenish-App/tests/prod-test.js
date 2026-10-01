@@ -14375,6 +14375,27 @@ console.log('\n== only an admin moves a receiving date ==');
   const body2 = saved2 ? (saved2.body['pt_baseData/bd_rd'] || saved2.body) : {};
   ok('an admin moves the receiving date', body2.receivingDate === '12/09/2026, 14:56');
 
+  /* 1 Oct 2026 (Ravi: "this is available in the masterdatabase but it's showing not in masterdata base"). RCN148 was
+   * added to the master minutes before; the page's copy is re-read only every 30 minutes, so Change SKU refused it. */
+  {
+    const wasMdb = A.PTG().mdb;
+    A.setPTG(Object.assign(A.PTG(), { mdb: (wasMdb || []).filter(m => m.sku !== 'RCN148') }));
+    NET.store['pt_masterDB'] = { mdb_new: { sku: 'RCN148', articleType: 'Napkin', subtype: 'Plain Napkin', color: 'Persian Blue', size: '18X18' } };
+    A.bdEdit('bd_rd'); els.bdmSku.value = 'RCN148'; NET.calls = [];
+    await els.bdmSave.onclick();
+    const s3 = NET.calls.filter(c => c.method === 'PUT' || c.method === 'PATCH').pop();
+    const b3 = s3 ? (s3.body['pt_baseData/bd_rd'] || s3.body) : {};
+    ok('a SKU added to the master after this page read it is found, not refused', b3.sku === 'RCN148' && b3.articleSubtype === 'Plain Napkin' && b3.size === '18X18',
+      els.bdmMsg.textContent + ' ' + JSON.stringify({ sku: b3.sku, s: b3.articleSubtype }));
+    ok('…by asking the database for that one SKU, not re-reading the whole master',
+      NET.calls.some(c => /pt_masterDB\.json\?orderBy=%22sku%22&equalTo=%22RCN148%22/.test(c.url)), NET.calls.map(c => c.url).join(' | '));
+    ok('…and the page now knows it everywhere', !!(A.PTG().mdb || []).find(m => m.sku === 'RCN148'));
+    A.bdEdit('bd_rd'); els.bdmSku.value = 'NOPE-9'; NET.calls = [];
+    await els.bdmSave.onclick();
+    ok('a SKU that really is not in the master is still refused', /NOPE-9 is not in the master database/.test(els.bdmMsg.textContent), els.bdmMsg.textContent);
+    delete NET.store['pt_masterDB']; A.setPTG(Object.assign(A.PTG(), { mdb: wasMdb }));
+  }
+
   NET.on = false;
   A.setPT(wasPT);
   ME.admin = was.admin; ME.prodEdit = was.prodEdit;
