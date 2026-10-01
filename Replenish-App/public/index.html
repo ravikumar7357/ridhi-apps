@@ -6651,7 +6651,7 @@ function openPoEditor(existing, seed) {
   $('pmBrand').value = p.brand || 'SP';
   $('pmSupplier').value = p.supplier || '';
   $('pmMode').value = p.mode || 'sea';
-  $('pmOrderDate').value = p.orderDate || new Date().toISOString().slice(0, 10);
+  $('pmOrderDate').value = p.orderDate || dToday();   // local day: toISOString() is UTC, yesterday until 05:30 IST
   $('pmEta').value = p.eta || '';
   $('pmPriority').value = p.priority || 'medium';
   $('pmStatus').value = p.status || 'draft';
@@ -21550,7 +21550,7 @@ function renderHr() {
   $('hrSlipPrint').classList.toggle('hide', view !== 'slip');
   $('hrEhStatus').classList.toggle('hide', view !== 'eh');
   $('hrSlip').classList.toggle('hide', view !== 'slip');
-  if (money && !$('hrMonth').value) $('hrMonth').value = new Date().toISOString().slice(0, 7);
+  if (money && !$('hrMonth').value) $('hrMonth').value = dToday().slice(0, 7);   // local month, not UTC (last month until 05:30 IST on the 1st)
 
   if (HR.busy) { $('hrMsg').className = 'muted'; $('hrMsg').textContent = 'Reading the production database…'; ptEmpty('hrTable', 'Loading…'); return; }
   if (HR.err) { $('hrMsg').className = 'err'; $('hrMsg').textContent = 'Could not read it: ' + HR.err; ptEmpty('hrTable', 'Nothing to show.'); $('hrKpis').innerHTML = ''; return; }
@@ -23125,7 +23125,7 @@ const payAdvanceTotal = ym => (HR.adv || []).filter(a => a.ym === ym)
   .reduce((s, a) => s + (parseFloat(a.amount) || 0), 0);
 
 const rs = v => 'Rs.' + (Number(v) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const payYM = () => $('hrMonth').value || new Date().toISOString().slice(0, 7);
+const payYM = () => $('hrMonth').value || dToday().slice(0, 7);
 const payPeriod = () => parseInt($('hrPeriod').value, 10) || 3;
 const payParts = () => { const [y, m] = payYM().split('-').map(Number); return { yr: y, mo: m }; };
 const PER_LBL = { 1: '1st–15th', 2: '16th–end', 3: 'full month' };
