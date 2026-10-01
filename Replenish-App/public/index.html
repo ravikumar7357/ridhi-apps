@@ -2575,6 +2575,7 @@
           <button id="pbGo" class="ghost">Refresh</button>
         </div>
         <div id="pbMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
+        <div id="pbMore"></div>
       </div>
       <div class="card xlwrap jw-table" style="margin-top:12px"><table class="xl" id="pbTable"></table></div>
     </div>
@@ -2597,6 +2598,7 @@
           <button id="pcGo">Refresh</button>
         </div>
         <div id="pcMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
+        <div id="pcMore"></div>
         <div style="margin-top:10px">
           <button id="cwToggle" class="ghost">+ New cutting entry</button>
         </div>
@@ -10309,6 +10311,13 @@ function pbaseApply(rows, f, skip) {
   });
 }
 
+/* HOW MANY ROWS JOB WORK AND CUTTING DRAW (2026-10-01). Cutting drew every entry — 17,238 cells on 30 Sep and
+ * more each day — and Job Work 600 rows, 1.2 MB of HTML. 300 first; "Show more" adds 300. Export, the KPI cards and
+ * the totals still count every filtered row. */
+const PT_CAP_STEP = 300;
+let PB_CAP = PT_CAP_STEP, PC_CAP = PT_CAP_STEP;
+const ptMoreBtn = (attr, n, cap) => n > cap
+  ? ` <button type="button" ${attr} style="padding:3px 10px;font-size:12px;margin-left:6px">Show ${nf(Math.min(PT_CAP_STEP, n - cap))} more</button>` : '';
 function renderPbase() {
   /* Read once, then painted on every draw. The read is not awaited: the register is what this screen
    * is for, and it must not wait on a queue that is usually empty. */
@@ -10316,6 +10325,7 @@ function renderPbase() {
   apvPaint();
   if (JWC.rows === null) { JWC.rows = {}; jwCorrLoad().then(() => { if (PT.base) renderPbase(); }).catch(() => {}); }
   jwCorrBadge();
+  $('pbMore').innerHTML = '';
   if (PT.busy.base) { $('pbMsg').className = 'muted'; $('pbMsg').textContent = 'Reading the production database…'; ptEmpty('pbTable', 'Loading…'); return; }
   if (PT.err.base) {
     $('pbMsg').className = 'err'; $('pbMsg').textContent = 'Could not read it: ' + PT.err.base;
@@ -10371,7 +10381,7 @@ function renderPbase() {
   /* FIFTH PASS (2026-09-22, Ravi's picture): a tick box to pick rows, the karigar with their initials,
    * the item with its picture, both quantities in pieces, a progress ring, a status that says Pending,
    * In Progress or Completed, and one action with the rest behind ⋯. Who entered it stays at the end. */
-  const shown = rows.slice(0, 600);
+  const shown = rows.slice(0, PB_CAP);
   const allOn = shown.length > 0 && shown.every(r => JW_PICK.has(r.id));
   const head = '<thead><tr>' + [`<input type="checkbox" class="jw-pickall" title="Pick every row on screen"${allOn ? ' checked' : ''}>`,
     'Issue Date', 'Karigar', 'Item', 'Qty Issued', 'Qty Received', 'Progress', 'Status', 'Actions', 'Entered by']
@@ -10382,9 +10392,10 @@ function renderPbase() {
 
   $('pbMsg').className = 'muted';
   $('pbMsg').textContent = `${nf(rows.length)} of ${nf(all.length)} entr${all.length === 1 ? 'y' : 'ies'}`
-    + (rows.length > 600 ? ' · showing the first 600 · Export covers all of them' : '')
+    + (rows.length > PB_CAP ? ` · showing the first ${nf(PB_CAP)} · Export covers all of them` : '')
     + (PT_BD_KPI_LABEL[PT_BD_KPI] ? ' · only entries with ' + PT_BD_KPI_LABEL[PT_BD_KPI] + ' — click the figure again to show all' : '');
-  ptImgFill(rows.slice(0, 600).map(r => r.sku), false, ptIfTab('pbase', renderPbase));
+  $('pbMore').innerHTML = ptMoreBtn('data-pbmore', rows.length, PB_CAP);
+  ptImgFill(shown.map(r => r.sku), false, ptIfTab('pbase', renderPbase));
 }
 
 /* ================= ATTENDANCE =================
@@ -10925,6 +10936,7 @@ function pcutApply(rows, f, skip) {
 }
 
 function renderPcut() {
+  $('pcMore').innerHTML = '';
   if (PT.busy.cut) { $('pcMsg').className = 'muted'; $('pcMsg').textContent = 'Reading the production database…'; ptEmpty('pcTable', 'Loading…'); return; }
   if (PT.err.cut) {
     $('pcMsg').className = 'err'; $('pcMsg').textContent = 'Could not read it: ' + PT.err.cut;
@@ -10973,7 +10985,8 @@ function renderPcut() {
 
   const head = '<thead><tr>' + ['Cut Date', 'Order No', 'SKU', 'Image', 'Article', 'Subtype', 'Color', 'Size', 'Fabric', 'Pieces', 'Fabric used (m)', 'Waste (m)', 'Waste width (in)', 'Waste %', 'Remarks', 'Entered by', 'Edit']
     .map((h, i) => `<th${i === 0 ? ' class="frz"' : ([9, 10, 11, 12, 13].indexOf(i) >= 0 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
-  const body = rows.map(r => '<tr>'
+  const shown = rows.slice(0, PC_CAP);
+  const body = shown.map(r => '<tr>'
     + `<td class="frz" style="text-align:left">${esc(r.cutDate)}</td>`
     + `<td style="text-align:left">${esc(r.orderNo) || '<span class="muted">—</span>'}</td>`
     + `<td style="font-family:ui-monospace,monospace;text-align:left">${esc(r.sku)}</td>`
@@ -10995,8 +11008,10 @@ function renderPcut() {
   $('pcTable').innerHTML = head + '<tbody>' + body + '</tbody>';
 
   $('pcMsg').className = 'muted';
-  $('pcMsg').textContent = `${nf(rows.length)} of ${nf(all.length)} cut entr${all.length === 1 ? 'y' : 'ies'}`;
-  ptImgFill(rows.map(r => r.sku), false, ptIfTab('pcut', renderPcut));
+  $('pcMsg').textContent = `${nf(rows.length)} of ${nf(all.length)} cut entr${all.length === 1 ? 'y' : 'ies'}`
+    + (rows.length > PC_CAP ? ` · showing the newest ${nf(PC_CAP)} · Export covers all of them` : '');
+  $('pcMore').innerHTML = ptMoreBtn('data-pcmore', rows.length, PC_CAP);
+  ptImgFill(shown.map(r => r.sku), false, ptIfTab('pcut', renderPcut));
 }
 
 /* ---------------- wiring ---------------- */
@@ -11023,6 +11038,8 @@ function ptDebounce(id, fn) {
 ptDebounce('ptmQ', renderPmdb); ptDebounce('pbQ', renderPbase); ptDebounce('pcQ', renderPcut);
 
 $('ptmClear').onclick = () => { ['ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut', 'ptmQ'].forEach(id => $(id).value = ''); renderPmdb(); };
+$('pbMore').addEventListener('click', e => { if (!e.target.closest('[data-pbmore]')) return; PB_CAP += PT_CAP_STEP; renderPbase(); });
+$('pcMore').addEventListener('click', e => { if (!e.target.closest('[data-pcmore]')) return; PC_CAP += PT_CAP_STEP; renderPcut(); });
 $('pbClear').onclick = () => { ['pbType', 'pbEmp', 'pbWho', 'pbArt', 'pbSub', 'pbCol', 'pbSz', 'pbStatus', 'pbQ', 'pbDBy', 'pbD1', 'pbD2'].forEach(id => $(id).value = ''); PT_BD_KPI = ''; renderPbase(); };
 $('pcClear').onclick = () => { ['pcArt', 'pcSub', 'pcCol', 'pcSz', 'pcOrd', 'pcWho', 'pcQ', 'pcD1', 'pcD2'].forEach(id => $(id).value = ''); renderPcut(); };
 
@@ -13035,7 +13052,7 @@ $('pbTable').addEventListener('change', e => {
   const one = e.target.closest('.jw-pick'), all = e.target.closest('.jw-pickall');
   if (!one && !all) return;
   if (one) { if (one.checked) JW_PICK.add(one.getAttribute('data-id')); else JW_PICK.delete(one.getAttribute('data-id')); }
-  else (PT._pbaseRows || []).slice(0, 600).forEach(r => { if (all.checked) JW_PICK.add(r.id); else JW_PICK.delete(r.id); });
+  else (PT._pbaseRows || []).slice(0, PB_CAP).forEach(r => { if (all.checked) JW_PICK.add(r.id); else JW_PICK.delete(r.id); });
   renderPbase();
 });
 (() => { try { if (typeof document.addEventListener === 'function') document.addEventListener('click', e => {
