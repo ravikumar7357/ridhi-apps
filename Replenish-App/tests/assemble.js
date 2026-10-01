@@ -15,13 +15,34 @@ const ROOT = path.join(__dirname, '..'), SRC = path.join(ROOT, 'src'), PUB = pat
 const STAMP = path.join(SRC, '.last-assembled.sha256');
 const sha = t => crypto.createHash('sha256').update(t, 'utf8').digest('hex');
 
+/* The app files in join order. Since step 2 (2026-10-01) the files sit in group folders and src/app/ORDER says the
+ * order; every .js file under src/app/ must be listed exactly once, so a new file cannot be left out by accident and
+ * a listed file cannot be missing. Before ORDER existed: the top-level files by name. */
+function walk(dir, rel = '') {
+  return fs.readdirSync(path.join(dir, rel), { withFileTypes: true }).flatMap(d =>
+    d.isDirectory() ? walk(dir, path.posix.join(rel, d.name)) : (d.name.endsWith('.js') ? [path.posix.join(rel, d.name)] : []));
+}
+function appFiles() {
+  const APP = path.join(SRC, 'app'), ORDER = path.join(APP, 'ORDER');
+  if (!fs.existsSync(ORDER)) return fs.readdirSync(APP).filter(f => /^\d{4}-[a-z0-9-]+\.js$/.test(f)).sort();
+  const listed = fs.readFileSync(ORDER, 'utf8').split(/\r?\n/).map(l => l.trim()).filter(l => l && !l.startsWith('#'));
+  const there = new Set(walk(APP));
+  const dup = listed.filter((f, i) => listed.indexOf(f) !== i);
+  const missing = listed.filter(f => !there.has(f));
+  const unlisted = [...there].filter(f => !listed.includes(f));
+  if (dup.length || missing.length || unlisted.length)
+    throw new Error('src/app/ORDER does not match the files: '
+      + [dup.length && 'listed twice ' + dup.join(', '), missing.length && 'listed but missing ' + missing.join(', '),
+         unlisted.length && 'not listed ' + unlisted.join(', ')].filter(Boolean).join('; '));
+  return listed;
+}
+
 function assemble() {
   const shell = fs.readFileSync(path.join(SRC, 'index.html'), 'utf8');
   const parts = {
     'styles.css': () => fs.readFileSync(path.join(SRC, 'styles.css'), 'utf8'),
     'appv.js': () => fs.readFileSync(path.join(SRC, 'appv.js'), 'utf8'),
-    'app/': () => fs.readdirSync(path.join(SRC, 'app')).filter(f => /^\d{4}-[a-z0-9-]+\.js$/.test(f)).sort()
-      .map(f => fs.readFileSync(path.join(SRC, 'app', f), 'utf8')).join(''),
+    'app/': () => appFiles().map(f => fs.readFileSync(path.join(SRC, 'app', f), 'utf8')).join(''),
   };
   let seen = 0;
   const out = shell.replace(/^<!--@include ([^>]+?)-->\r?\n/gm, (m, name) => {

@@ -8,7 +8,22 @@ src/
   index.html      the page: head, screen markup, and three include lines
   styles.css      the stylesheet (inside <style>)
   appv.js         the small classic script: "is this tab still on the live build?"
-  app/NNNN-*.js   the app itself, one ES module cut into files, joined in file-name order
+  app/ORDER       the order the app files are joined in (every .js file under app/ listed exactly once)
+  app/<group>/    the app itself, one ES module cut into files and filed by group:
+    core/           setup, sign-in, navigation, backend calls, database layer (read, write, live copies, history),
+                    gates, lookups, look-alike SKUs, edit dialog, filters, installed app, version check
+    replenishment/  Replenishment, article review, priority, revenue target, POs, follow-ups, Top ASIN, India stock,
+                    In Production, packing list + labels, FBA box template, India -> USA express
+    shopify/        Shopify orders, bulk entry, orders to make, production bucket, returns, delivery days
+    orders/         sales orders, Order Console and its views, demand, tracking, reserve, delete requests
+    production/     Job Work, attendance, press, QC, WhatsApp, Job Work corrections
+    vendors/        orders/ portal/ rfd/ printing/ greige/
+    inventory/      finished goods (all parts), FBA dispatch, store, fabric, accessories, Amazon listing status
+    masters/        master database, masters, ASIN, recipes, SKU codes, cloth per piece
+    people-pay/     Finance & HR, printer rates, payouts, vendor payout
+    reports/        reports, last week, charts, analysis, day-by-day target, Shopify dispatch
+    dashboard/      management dashboard
+    shared/         adjustments, courier templates, imported orders (also copied in Sellora today)
 ```
 
 ## Workflow
@@ -27,4 +42,6 @@ matters: top-level `const`/`let` and statements run in file order, so code is mo
 green after each move. Turning groups into real imported modules that load when their tab opens is a later step of the
 module plan (https://claude.ai/artifact/QhwqZHFWWDCeMspHrsNHvd).
 
-The `NNNN` prefixes go up in tens so a file can be inserted between two others without renaming.
+A group's files are not next to each other in ORDER yet: they sit where the code always was, because moving a piece
+past code that uses it at load time would break the page. A new file goes into its group folder and onto the line of
+ORDER where its code has to run.
