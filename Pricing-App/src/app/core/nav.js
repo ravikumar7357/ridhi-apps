@@ -115,8 +115,6 @@ function showTab(which) {
   if (which === 'profit') ensureProfit();
   if (which === 'sa') ensureSa();
   if (which === 'plaudit') ensurePlaudit();
-  if (which === 'shop') ensureShop();
-  if (which === 'adj') ensureAdj();
   if (which === 'opt') ensureOpt();
   if (which === 'basket') ensureBasket();
   if (which === 'tiktok') ensureTiktok();

@@ -18,9 +18,11 @@ src/
                     Listing Optimiser, Bought Together
     ads/            Deal Calendar, Planner, completed deals, HDA, account trends, Search Terms, Placement, PPC & Organic
     inventory/      Inventory Age
-    shared/         adjustments, courier templates, imported orders (the Replenish app carries its own copies today)
-    hidden/         Shopify Orders + Adjustments code: their tabs are hidden here since they moved to Replenish, but the
-                    code still loads and runs. Kept, not removed.
+    (core/stock-doc.js: saveStockDoc — Listing Health's and Parent Listing Review's refresh write the Amazon stock to
+     Firestore stock/{brand}, which the Replenish app's Shopify screen reads)
+
+Removed 1 Oct 2026 at Ravi's word: the hidden Shopify Orders + Adjustments code and the shared blocks only it used
+(Adjustments, Courier & MCF templates, Imported orders) — those screens live in the Replenish app. Git has them.
 ```
 
 ## Workflow

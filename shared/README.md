@@ -1,6 +1,7 @@
 # Shared by both apps
 
-One copy of code that the Replenish app and Sellora used to carry separately (module plan step 4, 1 Oct 2026).
+One copy of code that the Replenish app and Sellora used to carry separately (module plan step 4, 1 Oct 2026).
+Since Sellora dropped its hidden Shopify Orders + Adjustments code the same night, only the Replenish app joins these.
 Both apps list these files in their `src/app/ORDER` as `@shared/<file>`; `Replenish-App/tests/assemble.js` joins them in.
 **After editing a file here, assemble BOTH apps** (`tests/src_patch.py` does that when a shared file changed).
 
