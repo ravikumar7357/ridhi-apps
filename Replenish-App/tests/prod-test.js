@@ -9248,6 +9248,28 @@ console.log('\n== a Shopify order is worked by a karigar who gets paid for it ==
   ok('…and the pieces are the ones pay is worked out from',
      row.issuePieces === 12 && row.pendingPieces === 12 && row.receivedPieces === 0);
 
+  /* 1 Oct 2026: A SKU ONLY ON THE CUSTOM SKUs LIST came through with no article, subtype or size (the line fills
+   * them from the master, and this SKU has no master row). No rate, so karigar pay could not be worked out. */
+  {
+    const wasMdbx = A.MDBX();
+    A.setMDBX(Object.assign({}, wasMdbx, { custom: [{ sku: 'KAR-C', articleType: 'Tablecloth', subtype: 'Round Tablecloth',
+      color: 'Turquoise Moss Green', size: '120', isCustom: true }] }));
+    A.setPTG(Object.assign(A.PTG(), { ob: A.PTG().ob.concat([{ id: 'ob3', orderNo: 'SHP-9503', sku: 'KAR-C', qty: 4, src: 'SHP',
+      orderDate: '2026-09-27', shopOrderNo: '#9503', articleType: '', articleSubtype: '', color: '', size: '' }]) }));
+    ok('(the custom line is cut)', (await A.spCutReal('SHP-9503', 'KAR-C', 4, '2026-09-27', 'CAMBRIC', '')) === '');
+    const before = new Set(Object.keys(NET.store));
+    ok('a Shopify line for a Custom-SKUs-only item can be issued',
+      (await A.spIssueReal('SHP-9503', 'KAR-C', 'Company Contractor', 'Ramesh Kumar', 2, '2026-09-27')) === '');
+    const k3 = Object.keys(NET.store).find(k => /^pt_baseData\//.test(k) && !before.has(k));
+    const r3 = NET.store[k3] || {};
+    ok('…and its row takes article, subtype, size and colour from the Custom SKUs list, so it has a rate',
+      r3.articleType === 'Tablecloth' && r3.articleSubtype === 'Round Tablecloth' && r3.size === '120' && r3.color === 'Turquoise Moss Green',
+      JSON.stringify({ a: r3.articleType, s: r3.articleSubtype, z: r3.size, c: r3.color }));
+    A.setMDBX(wasMdbx);
+    A.setPTG(Object.assign(A.PTG(), { ob: A.PTG().ob.filter(l => l.orderNo !== 'SHP-9503') }));
+    Object.keys(NET.store).forEach(k => { if (!before.has(k)) delete NET.store[k]; });
+  }
+
   /* THE ORDER'S OWN CAP STILL HOLDS. */
   const over = await A.spIssueReal('SHP-9501', 'KAR-A', 'Company Contractor', 'Ramesh Kumar', 15, '2026-09-12');
   ok('more than the order asked for is refused', /at most 8 more allowed/.test(over), over);

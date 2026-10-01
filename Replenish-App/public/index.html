@@ -18398,11 +18398,21 @@ async function spIssueReal(orderNo, sku, type, name, pcs, date, remarks, extraRe
   const zErr = ptZipCheck(sku, q, null);
   if (zErr) return zErr;
 
+  /* THE ITEM'S DETAILS FROM THE CUSTOM SKUs LIST WHEN THE ORDER LINE HAS NONE (2026-10-01). The line takes them from
+   * the master (obWhat, since 25 Sep), but a SKU that is only on the Custom SKUs list came through blank: Job Work
+   * rows with no article, subtype or size have no rate, so karigar pay could not be worked out (104 rows, 13-28 Sep).
+   * What that list's own record says fills what the line leaves empty — never a guess, so a wrong rate cannot
+   * slip in quietly; what the line does say is kept. */
+  let meta = {};
+  if (!mdbOf(obUC(sku)) && typeof MDBX !== 'undefined') {
+    try { await ptEnsureCustom(); } catch (e) { /* the line alone, as before */ }
+    meta = (MDBX.custom || []).find(r => r && obUC(r.sku) === obUC(sku)) || {};
+  }
   const entry = {
     id: 'bd_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
     empType: t, empName: emp[1], sku: obUC(sku),
-    articleType: line.articleType || '', articleSubtype: line.articleSubtype || '',
-    color: line.color || '', size: line.size || '',
+    articleType: line.articleType || meta.articleType || '', articleSubtype: line.articleSubtype || meta.subtype || '',
+    color: line.color || meta.color || '', size: line.size || meta.size || '',
     orderNo: obUC(orderNo),
     issuePieces: q, issueDate: ptStampDate(d),
     receivedPieces: 0, rejectionPieces: 0, receivingDate: '', pendingPieces: q,
