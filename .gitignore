@@ -29,3 +29,6 @@ firebase-debug.log
 # Built copy of Replenish-App/public (node tests/build-dist.js); never edited by hand
 Replenish-App/dist/
 !/Backup-Script/
+# Lighter local builds (node Replenish-App/tests/build-dist-opt.js [app folder]); for trying out, never deployed
+Replenish-App/dist-opt/
+Pricing-App/dist-opt/
