@@ -12841,8 +12841,26 @@ function ptNow() {
   return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}, ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
+/* WHAT TWO PEOPLE CAN BOTH CHANGE ON ONE JOB WORK ROW (2026-10-01). A receipt adds to receivedPieces as this screen
+ * last read it and writes the whole row back, so two people receiving on the same issue at once lost one receipt —
+ * and receipts are what piece-rate pay is counted from. */
+const BD_COUNTED = ['issuePieces', 'receivedPieces', 'rejectionPieces', 'pendingPieces', 'frozen'];
+class BdChangedError extends Error {}
 async function bdSaveRow(next) {
   const clean = Object.assign({}, next); delete clean._key;
+  /* THE ROW IS READ AGAIN JUST BEFORE IT IS WRITTEN. If somebody else's save changed its pieces since this screen
+   * read it, nothing is written: the screen takes their version and says so, and the entry is made again on top
+   * of it. A read that fails (or finds nothing) keeps the old behaviour — it never blocks a save on its own. */
+  const was = (PT.base || []).find(r => r && r.id === next.id);
+  let now = null;
+  try { now = await ptGet('pt_baseData/' + next.id); } catch (e) { now = null; }
+  if (was && now && typeof now === 'object' && Object.keys(now).length
+      && BD_COUNTED.some(k => String(now[k] == null ? '' : now[k]) !== String(was[k] == null ? '' : was[k]))) {
+    PT.base = (PT.base || []).map(r => (r.id === next.id ? Object.assign({ _key: next.id }, now) : r));
+    if (!SP_QUIET) renderPbase();
+    throw new BdChangedError(`somebody else saved this row a moment ago (received is now ${nf(ptNum(now.receivedPieces))}, `
+      + `pending ${nf(ptNum(now.pendingPieces))}). The screen shows their figures — enter yours again on top of them.`);
+  }
   await ptPut('pt_baseData/' + next.id, clean);
   PT.base = (PT.base || []).map(r => (r.id === next.id ? Object.assign({ _key: next.id }, clean) : r));
   if (!SP_QUIET) renderPbase();
