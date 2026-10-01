@@ -9,6 +9,9 @@ async function ensurePbase() {
    * with. Kicked off here, not awaited: the register must not wait on a nicety. */
   waLoad().catch(() => {});
   if (PT.base === null) await ptLoad('base', 'pt_baseData', renderPbase); else renderPbase();
+  /* Entries completed before today move to the completed section on their own (core/job-work-split.js) — a few seconds
+   * after the screen has drawn, at most every 6 hours across everybody, never in the way. */
+  setTimeout(() => { baseAutoMove().then(r => { if (r && r.moved) console.info('[job work] moved', r.moved, 'completed entries'); }).catch(() => {}); }, 4000);
 }
 
 /**

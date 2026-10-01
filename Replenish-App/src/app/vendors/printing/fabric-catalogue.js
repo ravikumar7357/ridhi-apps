@@ -358,8 +358,9 @@ if ($('audGo')) {
 /* MOVE COMPLETED ENTRIES (admins; core/job-work-split.js). Nothing leaves any screen: the register is still read as one. */
 if ($('pbArchive')) $('pbArchive').onclick = async () => {
   const plan = baseArchivePlan(PT.base || []);
-  if (!plan.rows.length) { $('pbMsg').className = 'muted'; $('pbMsg').textContent = 'Nothing to move: no complete entry came back more than ' + BASE_MOVE_AFTER_DAYS + ' days ago.'; return; }
-  const per = Object.entries(plan.byMonth).map(([m, l]) => m + ': ' + nf(l.length)).join(', ');
+  if (!plan.rows.length) { $('pbMsg').className = 'muted'; $('pbMsg').textContent = 'Nothing to move: every complete entry that came back before today is already in the completed section.'; return; }
+  const days = Object.keys(plan.byDay).sort();
+  const per = days.length > 3 ? `${days.length} days, ${days[0]} to ${days[days.length - 1]}` : days.map(d => d + ': ' + nf(plan.byDay[d].length)).join(', ');
   if (!confirm(`Move ${nf(plan.rows.length)} complete entries to the completed section (${per})?\n\n`
     + 'They stay on every screen, in every total, payout and report. Only where they are kept changes, so they are no '
     + 'longer downloaded on every page load. Their orders are not touched.')) return;
@@ -369,7 +370,7 @@ if ($('pbArchive')) $('pbArchive').onclick = async () => {
     if (res.err) { $('pbMsg').className = 'err'; $('pbMsg').textContent = res.err; return; }
     await ptLoad('base', 'pt_baseData', renderPbase);
     $('pbMsg').className = 'muted';
-    $('pbMsg').textContent = `${nf(res.moved)} complete entries moved to the completed section (${res.months.join(', ')}). Every screen still shows them.`;
+    $('pbMsg').textContent = `${nf(res.moved)} complete entries moved to the completed section (${res.days.length} day(s)). Every screen still shows them.`;
   } catch (e) {
     $('pbMsg').className = 'err'; $('pbMsg').textContent = 'Stopped: ' + (e.message || e) + ' — whatever moved before this is safe in the completed section; press again to carry on.';
   } finally { $('pbArchive').disabled = false; }

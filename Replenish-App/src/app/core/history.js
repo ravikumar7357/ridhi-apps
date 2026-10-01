@@ -189,9 +189,9 @@ async function ptPatch(updates, opts) {
   }
   /* A path set to null is a delete: a whole record (pt_x/<id>, or a completed entry pt_baseDone/<month>/<id>) or more is
    * copied to the recycle bin first. A single field cleared deeper down is only a history line. A move (noTrash) is not
-   * a delete. */
+   * a delete. (A completed entry's path is pt_baseDone/<day>/<id>.) */
   const gone = opts.noTrash ? [] : Object.keys(updates || {}).filter(k => updates[k] === null
-    && (k.split('/').filter(Boolean).length <= 2 || /^pt_baseDone\/\d{4}-\d{2}\/[^/]+$/.test(k)));
+    && (k.split('/').filter(Boolean).length <= 2 || /^pt_baseDone\/\d{4}-\d{2}-\d{2}\/[^/]+$/.test(k)));
   if (gone.length) await auditTrash(gone, 'patch');
   ptLiveWrote(Object.keys(updates || {}));
   const r = await fetch(`${PT_URL}/.json` + await ptAuthQuery(), {
