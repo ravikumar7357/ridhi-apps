@@ -40230,16 +40230,22 @@ function palDelivered() {
  *
  * Tables are today's tables applied to past months — a printer who has just added ten of them will
  * read low until a month has run on the new number. That is the safe direction: it under-promises.
+ *
+ * NOT IN THE FIRST WEEK (2026-10-01): on the 1st, one day's deliveries were stretched x31 — 100 pcs read
+ * as 3,100 a month, above every month the printer has really done. Until PAL_STRETCH_FROM days of the
+ * month have run, the month counts as what it has delivered so far, unstretched.
  */
+const PAL_STRETCH_FROM = 7;
 function palRateOf(p) {
   const tables = palNum(p && p.tables);
   const code = palVendorOf(p);
   const months = code ? palDelivered().get(code) : null;
   if (!tables || !months || !months.size) return null;
   let best = 0, bestMonth = '', part = false;
+  const early = new Date().getDate() < PAL_STRETCH_FROM;
   months.forEach((pcs, ym) => {
     const share = palMonthPart(ym);
-    const full = pcs / share;
+    const full = share < 1 && early ? pcs : pcs / share;
     if (full > best) { best = full; bestMonth = ym; part = share < 1; }
   });
   if (!(best > 0)) return null;
