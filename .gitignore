@@ -8,6 +8,7 @@
 !/Pricing-API/
 !/Repl-API/
 !/Repl-API-CPC/
+!/shared/
 
 # Firebase's local deploy cache, and anything installed.
 .firebase/

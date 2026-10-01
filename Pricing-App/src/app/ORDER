@@ -44,10 +44,11 @@ hidden/adjustment-dialog.js
 hidden/mcf.js
 sales/profit-margin.js
 sales/sales-analysis.js
-shared/adjustments.js
-shared/courier-templates.js
+@shared/adjustments.js
+@shared/courier-templates.js
 hidden/production-to-make.js
-shared/imported-orders.js
+@shared/imported-orders.js
+@shared/imported-orders-export.js
 listing/listing-optimiser.js
 listing/bought-together.js
 core/version-check.js

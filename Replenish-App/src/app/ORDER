@@ -120,9 +120,12 @@ shopify/bucket-excel.js
 shopify/returns.js
 shopify/delivery-days.js
 replenishment/india-usa-express.js
-shared/adjustments.js
-shared/courier-templates.js
-shared/imported-orders.js
+@shared/adjustments.js
+@shared/courier-templates.js
+shopify/production-to-make.js
+@shared/imported-orders.js
+shopify/imported-orders-bulk.js
+@shared/imported-orders-export.js
 core/filter-by.js
 core/installed-app.js
 core/version-check.js

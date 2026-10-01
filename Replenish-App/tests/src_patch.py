@@ -18,7 +18,8 @@ class Src:
         self.root = os.path.abspath(root or APP_DEFAULT)
         self.src = os.path.join(self.root, 'src')
         self.files = {}
-        for d, _, names in os.walk(self.src):
+        self.shared = os.path.abspath(os.path.join(self.root, '..', 'shared'))
+        for d, _, names in list(os.walk(self.src)) + list(os.walk(self.shared)):
             for n in names:
                 if n.endswith(('.js', '.css', '.html')):
                     p = os.path.join(d, n)
@@ -38,7 +39,12 @@ class Src:
     def save(self):
         for p in self.changed:
             open(p, 'wb').write(self.files[p].replace('\n', '\r\n').encode('utf8'))
-        r = subprocess.run(['node', os.path.join(HERE, 'assemble.js'), '--root', self.root], capture_output=True, text=True)
-        print(r.stdout.strip() or r.stderr.strip())
-        if r.returncode:
-            sys.exit(r.returncode)
+        # A file in shared/ is joined into BOTH apps, so both are assembled when one changed.
+        roots = [self.root]
+        if any(p.startswith(self.shared) for p in self.changed):
+            roots = [os.path.abspath(os.path.join(self.shared, '..', a)) for a in ('Replenish-App', 'Pricing-App')]
+        for root in roots:
+            r = subprocess.run(['node', os.path.join(HERE, 'assemble.js'), '--root', root], capture_output=True, text=True)
+            print(os.path.basename(root) + ': ' + (r.stdout.strip() or r.stderr.strip()))
+            if r.returncode:
+                sys.exit(r.returncode)

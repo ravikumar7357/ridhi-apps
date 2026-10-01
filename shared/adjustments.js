@@ -35,7 +35,7 @@ async function ensureAdj() {
    * saved. This is what reaches the ones raised before any of this existed, and the ones raised on
    * somebody else's screen. It writes nothing when there is nothing to do, so opening this tab
    * twice costs one read. Reported here rather than thrown: the tab itself is fine either way. */
-  await shpSyncSoon('adj');
+  if (typeof shpSyncSoon === 'function') await shpSyncSoon('adj');   // the Replenish app's Order Console; Sellora has none
 }
 
 /** Every adjustment ever raised, flattened out of the per-order records. */
@@ -264,5 +264,3 @@ $('ajExport').onclick = () => {
   a.click(); URL.revokeObjectURL(a.href);
 };
 
-
-/* ---- from Sellora: Courier & MCF templates ---- */

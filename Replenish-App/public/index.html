@@ -52067,7 +52067,7 @@ async function ensureAdj() {
    * saved. This is what reaches the ones raised before any of this existed, and the ones raised on
    * somebody else's screen. It writes nothing when there is nothing to do, so opening this tab
    * twice costs one read. Reported here rather than thrown: the tab itself is fine either way. */
-  await shpSyncSoon('adj');
+  if (typeof shpSyncSoon === 'function') await shpSyncSoon('adj');   // the Replenish app's Order Console; Sellora has none
 }
 
 /** Every adjustment ever raised, flattened out of the per-order records. */
@@ -52296,8 +52296,6 @@ $('ajExport').onclick = () => {
   a.click(); URL.revokeObjectURL(a.href);
 };
 
-
-/* ---- from Sellora: Courier & MCF templates ---- */
 /* ================= Courier & MCF upload templates =================
  *
  * The four column lists below are transcribed from the workbooks in `templates/`, in their exact
@@ -53072,7 +53070,7 @@ $('soImpSave').onclick = async () => {
       btn.textContent = 'Finding pictures…';
       for (let i = 0; i < want.length; i += 40) {
         try {
-          const r = await prGet({ imgsku: want.slice(i, i + 40).join(',') });
+          const r = await (typeof prGet === 'function' ? prGet : baCall)({ imgsku: want.slice(i, i + 40).join(',') });
           const got = r.d || {};
           if (!picWhy && r.why) picWhy = r.why;
           list.forEach(o => o.items.forEach(it => {
@@ -53526,7 +53524,8 @@ $('soExport').onclick = () => {
       const send = soSendQty(r.id, i.sku, soLive(i));
       const ind = soIndiaOf(i.sku);
       const fbaK = String(amz || '').toUpperCase();
-      const fba = fbaK ? (soOrdFba(r, fbaK) ?? '') : '';
+      const fba = typeof soOrdFba === 'function' ? (fbaK ? (soOrdFba(r, fbaK) ?? '') : '')   // Replenish: by the order's brand
+        : ((fbaK && fbaK in SHOP_STOCK) ? SHOP_STOCK[fbaK] : '');                        // Sellora
       const st = soLineState(r, i);
       lines.push(shipCells(st.label).concat([
         shop, amz && amz !== shop ? amz : '', i.name || '', i.variant || '',

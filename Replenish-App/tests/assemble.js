@@ -24,13 +24,16 @@ function walk(dir, rel = '') {
   return fs.readdirSync(path.join(dir, rel), { withFileTypes: true }).flatMap(d =>
     d.isDirectory() ? walk(dir, path.posix.join(rel, d.name)) : (d.name.endsWith('.js') ? [path.posix.join(rel, d.name)] : []));
 }
+/* "@shared/x.js" in ORDER is Amazon Inventory/shared/x.js — one copy both apps join in (step 4, 2026-10-01). */
+const SHARED = path.join(ROOT, '..', 'shared');
+const appPath = f => (f.startsWith('@shared/') ? path.join(SHARED, f.slice(8)) : path.join(SRC, 'app', f));
 function appFiles() {
   const APP = path.join(SRC, 'app'), ORDER = path.join(APP, 'ORDER');
   if (!fs.existsSync(ORDER)) return fs.readdirSync(APP).filter(f => /^\d{4}-[a-z0-9-]+\.js$/.test(f)).sort();
   const listed = fs.readFileSync(ORDER, 'utf8').split(/\r?\n/).map(l => l.trim()).filter(l => l && !l.startsWith('#'));
   const there = new Set(walk(APP));
   const dup = listed.filter((f, i) => listed.indexOf(f) !== i);
-  const missing = listed.filter(f => !there.has(f));
+  const missing = listed.filter(f => (f.startsWith('@shared/') ? !fs.existsSync(appPath(f)) : !there.has(f)));
   const unlisted = [...there].filter(f => !listed.includes(f));
   if (dup.length || missing.length || unlisted.length)
     throw new Error('src/app/ORDER does not match the files: '
@@ -44,7 +47,7 @@ function assemble() {
   const parts = {
     'styles.css': () => fs.readFileSync(path.join(SRC, 'styles.css'), 'utf8'),
     'appv.js': () => fs.readFileSync(path.join(SRC, 'appv.js'), 'utf8'),
-    'app/': () => appFiles().map(f => fs.readFileSync(path.join(SRC, 'app', f), 'utf8')).join(''),
+    'app/': () => appFiles().map(f => fs.readFileSync(appPath(f), 'utf8')).join(''),
   };
   let seen = 0;
   const out = shell.replace(/^<!--@include ([^>]+?)-->\r?\n/gm, (m, name) => {
