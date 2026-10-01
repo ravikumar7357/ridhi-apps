@@ -18363,11 +18363,16 @@ async function spIssueReal(orderNo, sku, type, name, pcs, date, remarks, extraRe
   const zErr = ptZipCheck(sku, q, null);
   if (zErr) return zErr;
 
+  /* THE ITEM'S DETAILS FROM THE MASTER WHEN THE ORDER LINE HAS NONE (2026-10-01). A Shopify line opened before its
+   * SKU was catalogued carries no article, subtype or size, and the row copied those blanks: 104 Job Work rows
+   * (13-28 Sep) with no rate, so karigar pay could not be worked out. The master (or the Custom SKUs list) fills
+   * whatever the line leaves empty; what the line does say is kept. */
+  const meta = (typeof cutSkuOf === 'function' && cutSkuOf(obUC(sku))) || {};
   const entry = {
     id: 'bd_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
     empType: t, empName: emp[1], sku: obUC(sku),
-    articleType: line.articleType || '', articleSubtype: line.articleSubtype || '',
-    color: line.color || '', size: line.size || '',
+    articleType: line.articleType || meta.articleType || '', articleSubtype: line.articleSubtype || meta.subtype || '',
+    color: line.color || meta.color || '', size: line.size || meta.size || '',
     orderNo: obUC(orderNo),
     issuePieces: q, issueDate: ptStampDate(d),
     receivedPieces: 0, rejectionPieces: 0, receivingDate: '', pendingPieces: q,

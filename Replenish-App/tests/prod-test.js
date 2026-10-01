@@ -9227,6 +9227,27 @@ console.log('\n== a Shopify order is worked by a karigar who gets paid for it ==
   ok('…and the pieces are the ones pay is worked out from',
      row.issuePieces === 12 && row.pendingPieces === 12 && row.receivedPieces === 0);
 
+  /* 1 Oct 2026: A LINE OPENED BEFORE ITS SKU WAS CATALOGUED has no article, subtype or size. The row copied those
+   * blanks — 104 rows with no rate, so karigar pay could not be worked out. The master now fills them. */
+  {
+    const wasMdb = A.PTG().mdb;
+    A.setPTG(Object.assign(A.PTG(), { mdb: (wasMdb || []).concat([{ sku: 'KAR-B', articleType: 'Tablecloth',
+      subtype: 'Rectangular Tablecloth', color: 'Columbia Blue', size: '60x108' }]),
+      ob: A.PTG().ob.concat([{ id: 'ob2', orderNo: 'SHP-9502', sku: 'KAR-B', qty: 4, src: 'SHP', orderDate: '2026-09-22',
+        shopOrderNo: '#9502', articleType: '', articleSubtype: '', color: '', size: '' }]) }));
+    ok('(the bare line is cut)', (await A.spCutReal('SHP-9502', 'KAR-B', 4, '2026-09-22', 'CAMBRIC', '')) === '');
+    const before = new Set(Object.keys(NET.store));
+    ok('a Shopify line with no details can still be issued',
+      (await A.spIssueReal('SHP-9502', 'KAR-B', 'Company Contractor', 'Ramesh Kumar', 2, '2026-09-22')) === '');
+    const k2 = Object.keys(NET.store).find(k => /^pt_baseData\//.test(k) && !before.has(k));
+    const r2 = NET.store[k2] || {};
+    ok('…and its row takes article, subtype, size and colour from the master, so it has a rate',
+      r2.articleType === 'Tablecloth' && r2.articleSubtype === 'Rectangular Tablecloth' && r2.size === '60x108' && r2.color === 'Columbia Blue',
+      JSON.stringify({ a: r2.articleType, s: r2.articleSubtype, z: r2.size, c: r2.color }));
+    A.setPTG(Object.assign(A.PTG(), { mdb: wasMdb, ob: A.PTG().ob.filter(l => l.orderNo !== 'SHP-9502') }));
+    Object.keys(NET.store).filter(k => !before.has(k) || /SHP-9502/.test(JSON.stringify(NET.store[k]))).forEach(k => { if (!before.has(k)) delete NET.store[k]; });
+  }
+
   /* THE ORDER'S OWN CAP STILL HOLDS. */
   const over = await A.spIssueReal('SHP-9501', 'KAR-A', 'Company Contractor', 'Ramesh Kumar', 15, '2026-09-12');
   ok('more than the order asked for is refused', /at most 8 more allowed/.test(over), over);
