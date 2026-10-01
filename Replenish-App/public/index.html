@@ -28728,6 +28728,24 @@ function soGenId(channel, dateISO, ignoreId) {
   return id;
 }
 
+/**
+ * THE NUMBER, CHECKED AGAINST THE DATABASE AND NOT ONLY THIS SCREEN'S COPY (2026-10-01). soGenId counts the orders
+ * this page read when it opened, so two people raising the same channel on the same day both got "-01", and the
+ * second save replaced the first order without a word. One fresh read of that number moves to the next free one.
+ * A failed read keeps the number, as before — it never blocks a save.
+ */
+async function soFreeId(id, channel, orderDate, ignoreId) {
+  for (let i = 0; i < 20 && id; i++) {
+    let there = null;
+    try { there = await ptGet('pt_salesOrders/' + id); } catch (e) { return id; }
+    if (!there || typeof there !== 'object' || !Object.keys(there).length) return id;
+    SOX.rows = SOX.rows || [];
+    if (!SOX.rows.some(o => o && o._id === id)) SOX.rows.push(Object.assign({}, there, { _id: id }));
+    id = soGenId(channel, orderDate, ignoreId);
+  }
+  return id;
+}
+
 /** What is on order for a SKU today. A negative line is a correction and needs something to subtract from. */
 /**
  * WHAT HAS ALREADY BEEN DONE against one order and one SKU, and the number the order may not go
@@ -29376,6 +29394,7 @@ async function soFormSave(place) {
   if (!existing) rec._id = soGenId(channel, orderDate);
   else if (mayRenumber && obUC(oldId).indexOf(wantPfx) !== 0) rec._id = soGenId(channel, orderDate, oldId);
   if (!rec._id) return 'Could not work out the order number — check the channel and the order date.';
+  if (rec._id !== oldId) rec._id = await soFreeId(rec._id, channel, orderDate, oldId);
 
   rec.channel = channel;
   rec.orderDate = orderDate;
