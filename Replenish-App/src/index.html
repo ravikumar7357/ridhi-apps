@@ -1,0 +1,2397 @@
+<title>Ridhi Home &amp; Living</title>
+<!-- The Ridhi Home & Living wordmark on a white square, so the tab is recognisable in a strip of
+     twenty. White rather than transparent on purpose: dark lettering cut out of nothing disappears
+     on a dark tab strip. Served from this site; nothing is fetched from outside. -->
+<link rel="icon" href="/logo.png">
+<!-- NO VIEWPORT LINE, ON PURPOSE (Ravi, 2026-09-22: "pahle jese tha besa hi kardo"): a phone draws the
+     desktop layout, scaled to fit, as it always had. -->
+<meta name="theme-color" content="#F3F5F8">
+<!-- INSTALLABLE: its own icon, full screen, no browser bar. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- THE SHOP'S OWN TWO FACES, the same ones ridhiblockprint.com is set in: Plus Jakarta Sans for
+     everything that is read, Libre Caslon Text for the name over the door. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Libre+Caslon+Text:wght@400;700&display=swap">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Ridhi">
+<style>
+<!--@include styles.css-->
+</style>
+
+<!-- ============ LOGIN ============ -->
+<div id="loginView" class="login">
+  <div class="card">
+    <div class="signin">
+      <img src="/wordmark.png" alt="Ridhi Home &amp; Living" width="230" height="94"
+        style="width:230px;height:auto;margin:0 auto 4px">
+    </div>
+    <div id="loginErr" class="err hide"></div>
+    <div id="emailBox">
+      <div class="sifield"><label for="email">Email</label><input id="email" type="email" autocomplete="username"></div>
+      <div class="sifield"><label for="pass">Password</label><input id="pass" type="password" autocomplete="current-password"></div>
+      <button id="loginBtn" class="sibtn">Sign in</button>
+      <button id="resetLink" type="button" class="resetlink">Forgot password?</button>
+      <p id="resetMsg" class="sifoot hide"></p>
+    </div>
+    <!-- For a printer with no email address of their own. Same accounts, a different way in. -->
+    <div id="pinBox" class="hide">
+      <div id="pinErr" class="err hide"></div>
+      <div class="sifield"><label for="pinPhone">Cellphone</label>
+        <input id="pinPhone" type="tel" inputmode="numeric" autocomplete="username" placeholder="10 digits"></div>
+      <div class="sifield"><label for="pinPin">PIN</label>
+        <input id="pinPin" type="password" inputmode="numeric" autocomplete="current-password"></div>
+      <button id="pinBtn" class="sibtn">Sign in</button>
+      <p class="sifoot">For printers and factory staff. Your PIN is your password — change it once you are in.</p>
+    </div>
+    <button id="pinToggle" type="button" class="resetlink">Sign in with cellphone and PIN</button>
+  </div>
+</div>
+
+<!-- ============ APP ============ -->
+<!-- A NEWER BUILD IS LIVE. Outside appView so it shows on the sign-in screen too; see the script just
+     before the module for why it exists and why it never reloads the page itself. -->
+<div id="appvBar" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:#7f1d1d;color:#fff;
+  padding:9px 14px;font-size:13.5px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.25)">
+  <b>A newer version of this app is live.</b> This tab is still running the old one, so some figures may be
+  wrong or missing. Finish what you are typing, then
+  <button id="appvReload" style="margin-left:8px;padding:3px 12px;border-radius:7px;border:0;background:#fff;color:#7f1d1d;font-weight:700;cursor:pointer">Reload</button>
+</div>
+<div id="appView" class="shell hide">
+  <!-- Shown only while the perms read is in flight. Every account sees this, briefly; nobody sees a
+       sidebar full of sections they do not have. -->
+  <div id="gateWait">Checking your access…</div>
+  <aside class="side">
+    <div class="brand">
+      <span class="brandname">Ridhi<span class="brandsub">Home &amp; Living</span></span>
+      <button id="navClose" class="navclose" type="button" aria-label="Hide menu">&#8249;</button>
+    </div>
+
+    <!-- THE SAME GROUPS AS SELLORA → ACCESS, in the same order and under the same names, so the
+         section somebody is granted there is found under the same heading here. A group whose tabs
+         this account cannot open is hidden by syncNavGroups. -->
+    <!-- THE DASHBOARD (2026-09-26): one screen of figures for management, each a door into its own screen. -->
+    <div class="navwrap"><button class="navgrp" id="grpDash" type="button" data-grp="dash" data-tabs="dash">
+      <span class="caret">&#9656;</span> Dashboard</button>
+    <div class="navsec" id="secDash">
+      <a id="tabDash" class="nav" href="#dash">Management dashboard</a>
+    </div></div>
+
+    <div class="navwrap"><button class="navgrp" id="grpShopify" type="button" data-grp="shopify" data-tabs="shop,adj,shopify">
+      <span class="caret">&#9656;</span> Shopify</button>
+    <div class="navsec" id="secShopify">
+      <a id="tabShop" class="nav" href="#shop">Shopify Orders</a>
+      <a id="tabAdj" class="nav" href="#adj">Adjustments</a>
+      <a id="tabShopify" class="nav" href="#shopify">Shopify Stock</a>
+    </div></div>
+
+    <div class="navwrap"><button class="navgrp" id="grpPlan" type="button" data-grp="plan" data-tabs="repl,article,target,top,pack,follow,india">
+      <span class="caret">&#9656;</span> Replenishment &amp; planning</button>
+    <div class="navsec" id="secPlan">
+      <a id="tabRepl" class="nav" href="#repl">Replenishment</a>
+      <a id="tabArticle" class="nav" href="#article">Article Review</a>
+      <a id="tabTarget" class="nav" href="#target">Revenue Target</a>
+      <a id="tabTop" class="nav" href="#top">Top ASIN Status</a>
+      <a id="tabProd" class="nav" href="#prod">In Production</a>
+      <a id="tabPack" class="nav" href="#pack">Packing List</a>
+      <a id="tabFollow" class="nav" href="#follow">Ongoing Purchase Order <span id="followBadge" class="navbadge hide"></span></a>
+      <a id="tabIndia" class="nav" href="#india">India Stock</a>
+    </div></div>
+
+    <!-- The shop floor, in the order work moves through it: the order, the cut, the karigar, the
+         press, the check, the stock — and the masters everything is keyed on, last. -->
+    <div class="navwrap"><button class="navgrp" id="grpProd" type="button" data-grp="prod" data-tabs="so,ord,pcut,pbase,ppress,qc,fgi,fba,fab,acc,pmdb,mst,cx">
+      <span class="caret">&#9656;</span> Production</button>
+    <!-- A MEGA MENU (Ravi, 2026-09-24: "2 — Mega menu"). Five columns in the order work moves; every
+         count carries the words for what it counts (data-what), because "26" alone told nobody. -->
+    <div class="navsec navmega" id="secProd">
+      <div class="mg-col">
+        <div class="mg-h">Orders</div>
+        <a id="tabSo" class="nav" href="#so"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg></span><span class="nav-t">Sales Orders</span><span class="nav-bd"><span id="soDelBadge" class="navbadge hide" data-what="to delete" title="Deletion requests waiting for an answer"></span></span></a>
+        <a id="tabOrd" class="nav" href="#ord"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg></span><span class="nav-t">Order Console</span><span class="nav-bd"><span id="ordAdjBadge" class="navbadge hide" data-what="qty changed" title="Quantities changed on an order that nobody here has said they have seen" style="background:#b45309"></span></span></a>
+        <a id="tabCx" class="nav" href="#cx"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span><span class="nav-t">Customer Orders</span></a>
+      </div>
+      <div class="mg-col">
+        <div class="mg-h">Making</div>
+        <a id="tabPcut" class="nav" href="#pcut"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.1 15.9M14.5 14.5 20 20M8.1 8.1 12 12"/></svg></span><span class="nav-t">Cutting Data</span></a>
+        <a id="tabPbase" class="nav" href="#pbase"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-4-6"/></svg></span><span class="nav-t">Job Work Register</span><span class="nav-bd"><span id="jwCorrBadge" class="navbadge hide" data-what="to approve" title="Correction requests waiting for approval" style="background:#b45309"></span></span></a>
+        <a id="tabPpress" class="nav" href="#ppress"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 18h18"/><path d="M5 18l2-8h10l2 8"/><path d="M9 10V6h6v4"/></svg></span><span class="nav-t">Press Inventory</span></a>
+        <a id="tabQc" class="nav" href="#qc"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg></span><span class="nav-t">Quality Control</span></a>
+      </div>
+      <div class="mg-col">
+        <div class="mg-h">Finished &amp; dispatch</div>
+        <a id="tabFgi" class="nav" href="#fgi"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg></span><span class="nav-t">Finished Goods</span></a>
+        <a id="tabFba" class="nav" href="#fba"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg></span><span class="nav-t">FBA Dispatch</span><span class="nav-bd"><span id="fbaBadge" class="navbadge hide" data-what="to accept" title="Sent to the FBA team, not yet accepted"></span></span></a>
+      </div>
+      <div class="mg-col">
+        <div class="mg-h">Materials</div>
+        <a id="tabFab" class="nav" href="#fab"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3v12c0 1.7-3.6 3-8 3s-8-1.3-8-3z"/><path d="M4 6c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg></span><span class="nav-t">Fabric Inventory</span></a>
+        <a id="tabAcc" class="nav" href="#acc"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 11-8.5 8.5a5 5 0 0 1-7-7L14 4a3.3 3.3 0 0 1 4.7 4.7L10.2 17a1.7 1.7 0 0 1-2.4-2.4L15.5 7"/></svg></span><span class="nav-t">Accessories</span></a>
+      </div>
+      <div class="mg-col">
+        <div class="mg-h">Setup</div>
+        <a id="tabPmdb" class="nav" href="#pmdb"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg></span><span class="nav-t">Master Database</span></a>
+        <a id="tabMst" class="nav" href="#mst"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg></span><span class="nav-t">Masters</span></a>
+      </div>
+    </div></div>
+
+    <div class="navwrap"><button class="navgrp" id="grpVendors" type="button" data-grp="vendors" data-tabs="vreq,vord,rfd,vend,vlog,palloc">
+      <span class="caret">&#9656;</span> Vendors &amp; printers</button>
+    <div class="navsec" id="secVendors">
+      <a id="tabVreq" class="nav" href="#vreq">Vendor Order Requests <span id="vreqBadge" class="navbadge hide"></span></a>
+      <a id="tabVord" class="nav" href="#vord">Vendor Orders</a>
+      <a id="tabRfd" class="nav" href="#rfd">RFD Requirements <span id="rfdBadge" class="navbadge hide"></span></a>
+      <a id="tabVend" class="nav" href="#vend">Vendor Portal</a>
+      <a id="tabVlog" class="nav" href="#vlog">History</a>
+      <a id="tabPalloc" class="nav" href="#palloc">Printer Allocation</a>
+    </div></div>
+
+    <div class="navwrap"><button class="navgrp" id="grpPeople" type="button" data-grp="people" data-tabs="att,hr">
+      <span class="caret">&#9656;</span> People &amp; pay</button>
+    <div class="navsec" id="secPeople">
+      <a id="tabAtt" class="nav" href="#att">Attendance</a>
+      <a id="tabHr" class="nav" href="#hr">Finance &amp; HR</a>
+    </div></div>
+
+    <div class="navwrap"><button class="navgrp" id="grpReports" type="button" data-grp="reports" data-tabs="rep,pa,ka">
+      <span class="caret">&#9656;</span> Reports &amp; analysis</button>
+    <div class="navsec" id="secReports">
+      <a id="tabRep" class="nav" href="#rep">Reports</a>
+      <a id="tabPa" class="nav" href="#pa">Production Analysis</a>
+      <a id="tabKa" class="nav" href="#ka">Karigar Analysis</a>
+    </div></div>
+
+    <div class="sidefoot">
+      <!-- THE GUIDE, IN ONE PLACE: up here with the rest of the bar, not repeated on every screen.
+           It still opens /guide/ at the part about the screen you are on. -->
+      <button id="guideBtn" class="nav" type="button" title="How this screen works, step by step — English and Hindi">Guide · गाइड</button>
+      <button id="installBtn" class="nav hide" title="Put this app on your home screen, full screen, like any other app">Install app</button>
+      <button id="logoutBtn" class="nav">Sign out</button>
+    </div>
+  </aside>
+  <div id="navScrim"></div>
+
+  <main class="main">
+    <div class="topbar">
+      <button id="hambBtn" class="hamb" type="button" aria-label="Menu" aria-expanded="true">
+        <svg width="18" height="14" viewBox="0 0 18 14" aria-hidden="true">
+          <path d="M1 1h16M1 7h16M1 13h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <h2 class="pagehead" id="pageTitle"></h2>
+      <!-- A SCREEN'S OWN LINE AND MAIN BUTTON sit up here, in the bar beside its title, rather than on a
+           row of their own under it (Ravi, 2026-09-22, on Job Work: "here is very white space"). -->
+      <span id="topSub" class="muted topsub hide"></span>
+      <span id="topActs" class="topacts"><button id="bwToggle" class="jw-new hide">+ New Job Work</button></span>
+    </div>
+
+    <!-- Signed in, no access -->
+    <div id="verifyBox" class="card hide" style="border:1px solid #b45309;background:#fffbeb">
+      <div style="font-weight:700;margin-bottom:6px;color:#7c2d12" id="verifyHead">Confirm your email address</div>
+      <p class="muted" style="margin:0 0 10px">
+        You are signed in as <b id="verifyWho"></b>, and that address has not been confirmed yet.
+        Access is granted by typing an address, so until somebody answers it, it only proves that
+        somebody typed it. Open the link we send and this page lets you straight in.
+      </p>
+      <div class="toolbar" style="margin:0">
+        <button id="verifySend">Send me the link</button>
+        <button id="verifyAgain" class="ghost">I have confirmed it — check again</button>
+        <span style="flex:1"></span>
+        <button id="verifyOut" class="ghost">Sign out</button>
+      </div>
+      <div id="verifyMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
+    </div>
+
+    <div id="noAccess" class="card hide">
+      <div style="font-weight:700;margin-bottom:6px">No access yet</div>
+      <p class="muted" style="margin:0">You're signed in as <b id="noAccessWho"></b>, but this account has not been given access to the Replenishment app. Ask the owner to grant it (Sellora → Settings → Access → “Replenishment”).</p>
+    </div>
+
+    <!-- ============ Replenishment ============ -->
+    <!-- HIDDEN LIKE EVERY OTHER SCREEN until sign-in has decided which one is yours. It used to be the
+         one screen shown by default, so vendors and new staff saw Replenishment first. -->
+    <div id="paneRepl" class="hide">
+      <div class="card" style="padding:12px 14px">
+        <div class="toolbar">
+          <select id="rBrand" data-ftf="Brand" style="flex:0 0 140px">
+            <option value="ALL">Both brands</option><option value="SP">Ridhi</option><option value="CPC">CPC</option>
+          </select>
+          <select id="rNeed" data-ftf="Need" style="flex:0 0 180px">
+            <option value="ALL">All SKUs</option>
+            <option value="air">Needs Air</option>
+            <option value="sea">Needs Sea</option>
+            <option value="any">Needs reorder</option>
+            <option value="out">Out of stock</option>
+            <!-- ALREADY IN THE COUNTRY, ON THE WRONG SHELF. The amber ⇄ in the AWD Available
+                 column marks these; now they can be asked for by name (Ravi, 2026-09-24: "jo awd
+                 se transfer kar sakte usko bhi filter me add kardo"). -->
+            <option value="awdmove" title="AWD holds stock, the SKU is selling, and FBA itself (warehouse + inbound receiving) is under 30 days of cover — so moving it from AWD to FBA is quicker and cheaper than sending more from India.">⇄ Move from AWD</option>
+            <option value="projman">✎ Manual projection</option>
+          </select>
+          <input id="rFilter" style="flex:1 1 150px;min-width:0" placeholder="Filter SKU / ASIN / product">
+          <button id="rProj" class="ghost" title="Upload a month's projection from Excel (SKU + QTY)">Projection</button>
+          <button id="rCsv" class="ghost">Export</button>
+          <button id="rPo" class="ghost">Create PO from view</button>
+          <button id="rHide" class="ghost" title="SKUs kept out of this tool entirely — parents, placeholders, dead codes. They survive a Refresh from sheet.">Hidden SKUs</button>
+          <button id="rGo">Refresh from sheet</button>
+        </div>
+        <div class="toolbar" style="margin-top:8px">
+          <div class="ms" id="rCat" style="flex:0 0 130px"></div>
+          <div class="ms" id="rSubcat" style="flex:0 0 190px"></div>
+          <div class="ms" id="rColor" style="flex:0 0 170px"></div>
+          <div class="ms" id="rStatus" style="flex:0 0 160px"></div>
+          <span class="leadgrp" title="Lead times used to decide whether a month's shortfall can still be covered by sea, or has to fly. Remembered in this browser.">Lead&nbsp;days
+            <label title="Days a fresh production run takes, for a SKU that is neither in India stock nor already being made">prod<input id="rLeadProd" type="number" min="0" max="365"></label>
+            <label title="Days to get READY goods out of India (booking, pickup, gate-in) — applies to India stock on hand and to a production run once it finishes">disp<input id="rLeadDisp" type="number" min="0" max="365"></label>
+            <label title="Days from leaving India to sellable at FBA, by air">air<input id="rLeadAir" type="number" min="0" max="365"></label>
+            <label title="Days from leaving India to sellable at FBA, by sea">sea<input id="rLeadSea" type="number" min="0" max="365"></label>
+          </span>
+          <select id="rHorizon" style="flex:0 0 165px" title="How many months of forecast columns to show, starting with the current month">
+            <option value="1">Forecast 1 month</option>
+            <option value="2">Forecast 2 months</option>
+            <option value="3">Forecast 3 months</option>
+            <option value="4">Forecast 4 months</option>
+            <option value="5">Forecast 5 months</option>
+            <option value="6">Forecast 6 months</option>
+            <option value="7">Forecast 7 months</option>
+            <option value="8">Forecast 8 months</option>
+            <option value="9" selected>Forecast 9 months</option>
+            <option value="10">Forecast 10 months</option>
+            <option value="11">Forecast 11 months</option>
+            <option value="12">Forecast 12 months</option>
+          </select>
+          <select id="rSupply" style="flex:0 0 190px" title="Show, inside every forecast month, where that month's shortfall comes from: India stock, a batch already in production, or fresh production. Adds three columns per month.">
+            <option value="1" selected>Supply columns: on</option>
+            <option value="">Supply columns: off</option>
+          </select>
+          <div class="ms" id="rSend" style="flex:0 0 150px"></div>
+          <select id="rMarket" data-ftf="Marketplace" style="flex:0 0 210px" title="Canada and Mexico SKUs sit in the same sheet as the US ones. Which is which comes from Amazon's US listings report, never from the SKU name — and a SKU with US stock or US sales is never hidden, whatever the report says.">
+            <option value="1">US marketplace only</option>
+            <option value="0">All marketplaces</option>
+          </select>
+          <button id="rClear" class="ghost">Clear filters</button>
+          <button id="rTopOnly" class="segbtn" style="border:1px solid var(--line);border-radius:9px;flex:0 0 auto"
+                  title="The highest-revenue SKUs that together make up 60% of the brand's sales. Works with the buttons above — pick a horizon and this narrows it to the ones that actually matter.">Top sellers only</button>
+          <span class="muted" id="rTopNote" style="font-size:12.5px;flex:0 0 auto"></span>
+        </div>
+        <!-- HOW SOON DOES THIS RUN OUT. One click per horizon, with the count on the button, so the
+             answer is visible before anything is even clicked. -->
+        <div class="toolbar" style="margin-top:10px;align-items:center">
+          <span class="muted" style="font-size:12.5px;flex:0 0 auto">Runs out in</span>
+          <div class="seg" id="rCoverSeg">
+            <button class="segbtn on" data-cover="">All</button>
+            <!-- Out of stock is TWO different problems wearing one label. One is losing money right
+                 now; the other has not sold in three months and is a decision, not an emergency. -->
+            <button class="segbtn" data-cover="outsell" title="Empty, and it sold in the last 90 days. Every day it stays empty is a sale not made.">Out · sold in 90d</button>
+            <button class="segbtn" data-cover="outdead" title="Empty, and nothing sold in the last 90 days. Not urgent — decide whether it is coming back at all before spending on it.">Out · no sale 90d</button>
+            <button class="segbtn" data-cover="15" title="Still has stock, but runs out within 15 days.">1–15 d</button>
+            <button class="segbtn" data-cover="30" title="Runs out between 16 and 30 days from now.">16–30 d</button>
+            <button class="segbtn" data-cover="45" title="Runs out between 31 and 45 days from now.">31–45 d</button>
+            <button class="segbtn" data-cover="60" title="Runs out between 46 and 60 days from now.">46–60 d</button>
+            <button class="segbtn" data-cover="ok" title="More than 60 days of cover, or no cover figure. Nothing to do.">60 d+</button>
+          </div>
+          <span class="muted" id="rCoverNote" style="font-size:12px"></span>
+        </div>
+        <!-- IT STILL CUTS ACROSS THE BUCKETS. Those partition the catalogue — every SKU in exactly
+             one — while "Top seller" narrows whatever is already chosen, which is why it is a
+             switch and not another bucket. It sits up beside Clear filters now; what it does has
+             not changed, only where it is. -->
+        <div id="rMsg" class="muted"></div>
+      </div>
+      <div id="rResult">
+        <div id="rKpis" class="kpis"></div>
+        <div class="card xlwrap"><table class="xl" id="rTable"></table></div>
+      </div>
+      <div id="rmkTip" class="rmktip"></div>
+    </div>
+
+    <!-- ============ Follow-ups (ongoing POs) ============ -->
+    <!-- ====== Article Review: one row per SKU, article by article, with a Remark you can write ====== -->
+    <div id="paneArticle" class="hide">
+      <div class="card">
+        <div class="toolbar">
+          <select id="arBrand" style="flex:0 0 150px">
+            <option value="ALL">Both brands</option><option value="SP">Ridhi</option><option value="CPC">CPC</option>
+          </select>
+          <div class="ms" id="arSub" style="flex:0 0 220px"></div>
+          <input id="arFilter" style="flex:1 1 150px;min-width:0" placeholder="Filter SKU / ASIN / colour / size">
+          <button id="arCsv" class="ghost">Export</button>
+        </div>
+        <div class="toolbar" style="margin-top:10px;align-items:center">
+          <span class="muted" style="font-size:12.5px;flex:0 0 auto">Runs out in</span>
+          <div class="seg" id="arCoverSeg">
+            <button class="segbtn on" data-cover="">All</button>
+            <button class="segbtn" data-cover="outsell">Out · sold in 90d</button>
+            <button class="segbtn" data-cover="outdead">Out · no sale 90d</button>
+            <button class="segbtn" data-cover="15">1–15 d</button>
+            <button class="segbtn" data-cover="30">16–30 d</button>
+            <button class="segbtn" data-cover="45">31–45 d</button>
+            <button class="segbtn" data-cover="60">46–60 d</button>
+            <button class="segbtn" data-cover="ok">60 d+</button>
+          </div>
+        </div>
+        <div class="toolbar" style="margin-top:8px;align-items:center">
+          <span class="muted" style="font-size:12.5px;flex:0 0 auto">Priority</span>
+          <div class="seg" id="arPrioSeg">
+            <button class="segbtn on" data-prio="">All</button>
+            <button class="segbtn" data-prio="P1">P1</button>
+            <button class="segbtn" data-prio="P2">P2</button>
+            <button class="segbtn" data-prio="P3">P3</button>
+            <button class="segbtn" data-prio="P4">P4</button>
+            <button class="segbtn" data-prio="Excess">Excess</button>
+            <button class="segbtn" data-prio="—" title="Discontinued, or no run rate to work a priority out from.">None</button>
+          </div>
+        </div>
+        <div id="arMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
+      </div>
+      <datalist id="arPrList"><option value="P1"><option value="P2"><option value="P3"><option value="P4"><option value="Excess"></datalist>
+      <div class="card xlwrap" style="margin-top:12px"><table class="xl" id="arTable"></table></div>
+    </div>
+
+    <!-- ====== Revenue Target: type a month's revenue target per article, get the units it needs ======
+         Deliberately its OWN section and its own Firestore document. It answers a different question
+         from the Replenishment projection ("what will we sell?" vs "what do I intend to sell?"), and
+         it must never quietly become the number that drives ordering — see the note in the toolbar. -->
+    <div id="paneTarget" class="hide">
+      <div class="card">
+        <div class="toolbar">
+          <select id="tgBrand" style="flex:0 0 150px">
+            <option value="ALL">Both brands</option><option value="SP">Ridhi</option><option value="CPC">CPC</option>
+          </select>
+          <select id="tgMonth" style="flex:0 0 150px"></select>
+          <input id="tgFilter" style="flex:1 1 150px;min-width:0" placeholder="Filter article">
+          <select id="tgScope" style="flex:0 0 210px" title="What the Export button writes. “Every planned month” covers each month that has a month target or an article override — not just the one on screen.">
+            <option value="one">Export: this month</option>
+            <option value="all">Export: every planned month</option>
+            <option value="wide">Export: months side by side</option>
+          </select>
+          <button id="tgCsv" class="ghost">Export</button>
+          <button id="tgClear" class="ghost" title="Remove the month target and every article override for this month.">Clear month</button>
+        </div>
+        <div class="toolbar" style="margin-top:10px;align-items:center">
+          <span class="muted" style="font-size:12.5px;flex:0 0 auto">Month target&nbsp;$</span>
+          <input id="tgTotal" type="number" min="0" step="1" inputmode="numeric" style="flex:0 0 150px"
+                 placeholder="whole month">
+          <span id="tgTotSum" class="muted" style="font-size:12.5px"></span>
+        </div>
+        <div id="tgMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
+        <div class="muted" style="margin-top:6px;font-size:12px">
+          Planning only — this does not touch the Replenishment projection, the air/sea/AWD requirement,
+          Req.&nbsp;Qty or Create&nbsp;PO. Those still run off the calculated forecast.
+        </div>
+      </div>
+      <div class="card xlwrap" style="margin-top:12px"><table class="xl" id="tgTable"></table></div>
+    </div>
+
+    <div id="paneFollow" class="hide">
+      <div class="card" style="padding:12px 14px">
+        <div class="toolbar">
+          <select id="fuBrand" style="flex:0 0 120px">
+            <option value="ALL">Both brands</option><option value="SP">Ridhi</option><option value="CPC">CPC</option>
+          </select>
+          <select id="fuSupplier" style="flex:0 0 150px"><option value="">All suppliers</option></select>
+          <select id="fuPoId" style="flex:0 0 140px"><option value="">All PO IDs</option></select>
+          <select id="fuSubcat" style="flex:0 0 160px"><option value="">All sub-categories</option></select>
+          <select id="fuColor" style="flex:0 0 130px"><option value="">All colors</option></select>
+          <select id="fuListed" style="flex:0 0 140px" title="Listed = found on Amazon (in the Replenishment snapshot)"><option value="">All listings</option><option value="no">Not listed only</option><option value="yes">Listed only</option></select>
+          <input id="fuSku" placeholder="Filter SKU" style="flex:0 0 120px">
+          <span style="flex:1"></span>
+          <button id="fuExport" class="ghost">Export</button>
+          <button id="fuImport" class="ghost">Import</button>
+          <input id="fuFile" type="file" accept=".csv,text/csv" style="display:none">
+          <button id="fuNew">+ New PO</button>
+        </div>
+        <div id="fuMsg" class="muted"></div>
+      </div>
+      <div id="fuKpis" class="kpis"></div>
+      <div class="card xlwrap"><table class="xl" id="fuTable"></table></div>
+    </div>
+
+    <!-- ============ Top ASIN Status ============ -->
+    <div id="paneTop" class="hide">
+      <div class="card" style="padding:12px 14px">
+        <div class="toolbar">
+          <select id="topBrand" style="flex:0 0 120px">
+            <option value="ALL">Both brands</option><option value="SP">Ridhi</option><option value="CPC">CPC</option>
+          </select>
+          <select id="topSubcat" style="flex:0 0 160px"><option value="">All sub-categories</option></select>
+          <select id="topColor" style="flex:0 0 140px"><option value="">All colors</option></select>
+          <select id="topProd" style="flex:0 0 190px" title="Filter by the latest Production Status note"><option value="">All production status</option></select>
+          <select id="topShow" style="flex:0 0 170px">
+            <option value="attn">Needs attention</option>
+            <option value="out">Out of stock</option>
+            <option value="low">Under 1 month</option>
+            <option value="ok">Healthy (≥1 month)</option>
+            <option value="all">All top-60%</option>
+          </select>
+          <button id="topExport" class="ghost" style="flex:0 0 110px">Export CSV</button>
+          <span id="topMsg" class="muted" style="font-size:12px;align-self:center"></span>
+        </div>
+        <div id="topKpis" class="kpis" style="margin-top:10px"></div>
+      </div>
+      <div class="card xlwrap"><table class="xl" id="topTable"></table></div>
+    </div>
+
+    <!-- ============ India Stock (uploaded by the user) ============ -->
+    <div id="paneIndia" class="hide">
+      <div class="card" style="padding:12px 14px">
+        <div class="toolbar">
+          <div class="seg">
+            <button id="inModeList" class="segbtn on">Stock list</button>
+            <button id="inModeProj" class="segbtn">Projection</button>
+          </div>
+          <select id="inBrand" style="flex:0 0 120px">
+            <option value="ALL">Both brands</option><option value="SP">Ridhi</option><option value="CPC">CPC</option>
+          </select>
+          <select id="inSubcat" style="flex:0 0 160px"><option value="">All sub-categories</option></select>
+          <select id="inColor" style="flex:0 0 140px"><option value="">All colors</option></select>
+          <select id="inShow" style="flex:0 0 170px">
+            <option value="all">All uploaded</option>
+            <option value="unknown">⚠ Not on Amazon</option>
+            <option value="known">✓ On Amazon (matched)</option>
+            <option value="zero">Zero stock</option>
+            <option value="pos">Has stock</option>
+          </select>
+          <input id="inSku" placeholder="Filter SKU" style="flex:0 0 120px">
+          <span style="flex:1"></span>
+          <button id="inTemplate" class="ghost">Template</button>
+          <button id="inExport" class="ghost">Export</button>
+          <button id="inImport" class="ghost">Import</button>
+          <input id="inFile" type="file" accept=".csv,text/csv" style="display:none">
+        </div>
+        <div id="inMsg" class="muted" style="font-size:12px"></div>
+        <div id="inKpis" class="kpis" style="margin-top:10px"></div>
+      </div>
+      <div class="card xlwrap" id="inListCard"><table class="xl" id="inTable"></table></div>
+      <div class="card xlwrap hide" id="inProjCard"><table class="xl" id="inProjTable"></table></div>
+    </div>
+
+    <!-- ====== Shopify: its own stock, its own 90-day rate, its own reorder ======
+         Separate from the Amazon side on purpose. Same SKU, different warehouse and different
+         demand — merging them would hide a SKU that is fine on Amazon and empty on Shopify. -->
+    <div id="paneShopify" class="hide">
+      <div class="card">
+        <div class="toolbar">
+          <select id="shStore" style="flex:0 0 170px;font-weight:700" title="Which Shopify store's sales and stock">
+            <option value="SP">Ridhi Shopify</option><option value="CPC">CPC Shopify</option></select>
+          <div class="seg" id="shSeg">
+            <button class="segbtn on" data-v="reorder">Needs reorder</button>
+            <button class="segbtn" data-v="out">Out of stock</button>
+            <button class="segbtn" data-v="nostock">Not on Shopify</button>
+            <button class="segbtn" data-v="all">All</button>
+          </div>
+          <select id="shWin" style="flex:0 0 140px" title="Which sales the rate is read from">
+            <option value="90">Last 90 days</option><option value="30">Last 30 days</option></select>
+          <label style="flex:0 0 auto;display:flex;align-items:center;gap:6px;margin:0;font-size:12.5px;font-weight:600"
+            title="Only the best sellers that together make 80% of the units sold in the window"><input id="shTop" type="checkbox" style="width:auto"> Top 80%</label>
+          <span class="muted" style="font-size:12.5px;flex:0 0 auto">Cover target</span>
+          <input id="shTarget" type="number" min="1" max="365" step="1" value="60"
+                 style="flex:0 0 90px" title="How many days of cover a reorder should top up to.">
+          <span class="muted" style="font-size:12.5px;flex:0 0 auto">Sales ×</span>
+          <input id="shMult" type="number" min="0.5" max="20" step="0.5" value="1"
+                 style="flex:0 0 80px" title="Plan for this many times the sales rate — 3 means: sold 100 in 90 days, plan for 300.">
+          <input id="shFilter" style="flex:1 1 150px;min-width:0" placeholder="Filter SKU / article">
+          <button id="shOpen" class="hide" title="Open a sales order for the ticked SKUs, each for its Send quantity">Open sales order</button>
+          <button id="shCsv" class="ghost">Export</button>
+          <button id="shGo">Refresh</button>
+        </div>
+        <div id="shMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
+      </div>
+      <div class="card xlwrap" style="margin-top:12px"><table class="xl" id="shTable"></table></div>
+    </div>
+
+    <!-- ============ In Production (uploaded by the user) ============ -->
+    <div id="paneProd" class="hide">
+      <div class="card" style="padding:12px 14px">
+        <div class="toolbar">
+          <select id="pdBrand" style="flex:0 0 120px">
+            <option value="ALL">Both brands</option><option value="SP">Ridhi</option><option value="CPC">CPC</option>
+          </select>
+          <select id="pdSupplier" style="flex:0 0 150px" title="The order a SKU is being made against."><option value="">All orders</option></select>
+          <select id="pdSubcat" style="flex:0 0 160px"><option value="">All sub-categories</option></select>
+          <select id="pdBasis" style="flex:0 0 250px" title="Which number counts as 'my requirement'. Pick how far ahead production should cover. AWD Req is excluded — it moves stock you already own inside the US, it is not fresh production."></select>
+          <select id="pdShow" style="flex:0 0 215px">
+            <option value="action">Needs action</option>
+            <option value="short">🔴 Short — arrange more</option>
+            <option value="wrong">⚠ Wrong production</option>
+            <option value="surplus">⚠ Surplus production</option>
+            <option value="new">🆕 New — no forecast</option>
+            <option value="nofba">Listed · no FBA stock</option>
+            <option value="india">📦 Ship from India</option>
+            <option value="ok">✓ Covered</option>
+            <option value="unknown">⚠ Not on Amazon</option>
+            <option value="all">Everything</option>
+          </select>
+          <input id="pdSku" placeholder="Filter SKU" style="flex:0 0 120px">
+          <span style="flex:1"></span>
+          <button id="pdExport" class="ghost">Export</button>
+        </div>
+        <div id="pdMsg" class="muted" style="font-size:12px"></div>
+        <div id="pdKpis" class="kpis" style="margin-top:10px"></div>
+      </div>
+      <div class="card xlwrap"><table class="xl" id="pdTable"></table></div>
+    </div>
+
+    <div id="panePack" class="hide">
+      <div class="card" style="padding:12px 14px">
+        <div class="toolbar">
+          <input id="pkSearch" placeholder="Search title / invoice" style="flex:0 0 190px">
+          <select id="pkAccount" style="flex:0 0 180px"><option value="">All FBA accounts</option></select>
+          <input id="pkFrom" type="date" style="flex:0 0 145px" title="Shipment date from">
+          <input id="pkTo" type="date" style="flex:0 0 145px" title="Shipment date to">
+          <select id="pkStatus" style="flex:0 0 135px">
+            <option value="open">Active</option>
+            <option value="done">Completed</option>
+            <option value="">All</option>
+          </select>
+          <button id="pkClear" class="ghost" style="flex:0 0 70px">Clear</button>
+          <span style="flex:1"></span>
+          <button id="pkTemplate" class="ghost">Template</button>
+          <button id="pkNew">New from file</button>
+          <input id="pkFile" type="file" accept=".csv,.xlsx,text/csv" style="display:none">
+          <!-- Amazon box-content template, picked from a saved list row. -->
+          <input id="pkAmzFile" type="file" accept=".xlsx" style="display:none">
+        </div>
+        <div id="pkMsg" class="muted" style="font-size:12px"></div>
+      </div>
+      <div class="card xlwrap"><table class="xl" id="pkTable"></table></div>
+    </div>
+
+
+
+
+
+
+
+
+
+    <!-- ============ ACCESSORIES ============ -->
+    <div id="paneAcc" class="hide">
+      <div class="card" style="padding:12px 14px">
+        <div class="toolbar">
+          <select id="acView" style="flex:0 0 205px">
+            <option value="stock">Stock balance</option>
+            <option value="ledger">Every movement</option>
+            <option value="who">Who has what</option>
+          </select>
+          <select id="acCat" style="flex:0 0 140px"><option value="">All kinds</option></select>
+          <input id="acQ" placeholder="Search code / name / reference" style="flex:1 1 200px;min-width:0">
+          <!-- Only on the movement register. A balance is the sum of EVERY movement ever; showing one
+               under a date range would put a number on screen that looks like stock and is not. -->
+          <span id="acDLab" class="muted" style="font-size:12.5px;flex:0 0 auto">Moved</span>
+          <input id="acD1" type="date" style="flex:0 0 150px" title="Movements from this date">
+          <input id="acD2" type="date" style="flex:0 0 150px" title="Movements to this date">
+          <button id="acClear" class="ghost">Clear</button>
+          <button id="acNewItem">+ New item</button>
+          <button id="acNewTxn" class="ghost">+ New movement</button>
+          <button id="acTemplate" class="ghost" title="A CSV with the right header and an example row.">Template</button>
+          <button id="acImport" class="ghost" title="Add items and movements in bulk. You are shown what the file would do before anything is written.">Import</button>
+          <input id="acFile" type="file" accept=".csv,text/csv" style="display:none">
+          <button id="acExport" class="ghost">Export</button>
+          <button id="acGo">Refresh</button>
+        </div>
+        <div id="acMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
+        <div id="acKpis" class="kpis" style="margin-top:10px"></div>
+      </div>
+      <div class="card xlwrap" style="margin-top:12px"><table class="xl" id="acTable"></table></div>
+    </div>
+
+    <!-- ============ MASTERS ============ -->
+    <div id="paneMst" class="hide">
+      <div class="card" style="padding:12px 14px">
+        <div class="toolbar">
+          <select id="mstPick" style="flex:0 0 230px"></select>
+          <input id="mstQ" placeholder="Search code or name" style="flex:1 1 180px;min-width:0">
+          <label id="mstOffWrap" style="flex:0 0 auto;display:flex;align-items:center;gap:6px;margin:0;font-size:12.5px">
+            <input id="mstOff" type="checkbox" style="width:auto"> show retired</label>
+          <button id="mstNew">+ Add</button>
+          <button id="mstTpl" class="ghost hide" title="The list as it stands, as a sheet to fill in Excel.">Excel template</button>
+          <button id="mstImp" class="ghost hide" title="Read a filled sheet back. You see what it would change before anything is written.">Excel import</button>
+          <input id="mstFile" type="file" accept=".xlsx,.csv,text/csv" style="display:none">
+          <button id="mstExport" class="ghost">Export</button>
+          <button id="mstGo">Refresh</button>
+        </div>
+        <div id="mstMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
+        <div id="mstKpis" class="kpis" style="margin-top:10px"></div>
+      </div>
+      <div class="card xlwrap" style="margin-top:12px"><table class="xl" id="mstTable"></table></div>
+    </div>
+
+    <!-- ============ SALES ORDERS ============ -->
+    <div id="paneSo" class="hide">
+      <div class="card" style="padding:12px 14px">
+        <div class="toolbar">
+          <select id="sxStatus" style="flex:0 0 175px">
+            <option value="">Any status</option>
+            <option value="draft">Draft</option>
+            <option value="submitted">Awaiting approval</option>
+            <option value="returned">Returned to buyer</option>
+            <option value="approved">Approved</option>
+          </select>
+          <select id="sxChan" style="flex:0 0 175px" title="Which sales channel the order came from"><option value="">All channels</option></select>
+          <input id="sxQ" placeholder="Search order / buyer / channel / SKU" style="flex:1 1 220px;min-width:0">
+          <span class="muted" style="font-size:12.5px;flex:0 0 auto">Ordered</span>
+          <input id="sxD1" type="date" style="flex:0 0 150px" title="Order date from">
+          <input id="sxD2" type="date" style="flex:0 0 150px" title="Order date to">
+          <button id="sxClear" class="ghost">Clear</button>
+          <button id="sxNew">+ New sales order</button>
+          <button id="sxDelReqs" class="ghost hide">Deletion requests</button>
+          <button id="sxExport" class="ghost">Export</button>
+          <button id="sxQtyTpl" class="ghost hide" title="Every approved line on the screen, with what has been made against it, ready to edit.">Qty sheet</button>
+          <button id="sxQtyImp" class="ghost hide" title="Read a filled quantity sheet back. You are shown what it would do before anything is written.">Qty import</button>
+          <input id="sxQtyFile" type="file" accept=".xlsx,.csv,text/csv" style="display:none">
+          <button id="sxGo">Refresh</button>
+        </div>
+        <div id="sxMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
+        <div id="sxKpis" class="kpis" style="margin-top:10px"></div>
+      </div>
+      <div class="card xlwrap" style="margin-top:12px"><table class="xl" id="sxTable"></table></div>
+    </div>
+
+    <!-- ============ VENDOR PORTAL ============ -->
+    <div id="paneVend" class="hide">
+      <div class="card" style="padding:12px 14px">
+        <!-- Two kinds of work, and they are not read the same way: a bulk order is one number for a
+             hundred pieces, Shopify is fifty orders of one. -->
+        <div class="toolbar" id="vpTabs" style="margin-bottom:8px">
+          <button id="vpTabBulk" class="ghost">Bulk orders</button>
+          <button id="vpTabShop" class="ghost">Custom orders</button>
+          <!-- Every line already sent in full, closed or cancelled — out of the way of the work still to do. -->
+          <button id="vpTabDone" class="ghost">Completed</button>
+          <!-- What they have sent, and what was kept. Built from their own branch, so it can only
+               ever be theirs. -->
+          <button id="vpTabHist" class="ghost">What I have sent</button>
+          <!-- The cloth they need to do the work, asked for against the order that needs it. -->
+          <button id="vpTabRfd" class="ghost">RFD fabric I need</button>
+        </div>
+        <div class="toolbar" id="vpBar1">
+          <select id="vpView" style="flex:0 0 210px" title="One table puts every order's lines together, with nothing to scroll inside. By order gives each one its own card.">
+            <option value="lines">Every line &mdash; one table</option>
+            <option value="orders">By order &mdash; one card each</option>
+          </select>
+          <select id="vpStatus" style="flex:0 0 165px"><option value="">All statuses</option></select>
+          <select id="vpType" style="flex:0 0 160px">
+            <option value="">Cut and running</option>
+            <option value="cut">Cut &mdash; pieces</option>
+            <option value="running">Running &mdash; metres</option>
+          </select>
+          <input id="vpQ" placeholder="Search order no, SKU, fabric…" style="flex:1 1 220px;min-width:0">
+          <button id="vpPinBtn" class="ghost">Change my PIN</button>
+          <button id="vpExport" class="ghost">Download Excel</button>
+          <button id="vpGo">Refresh</button>
+        </div>
+        <!-- These narrow the LINES inside an order, the way they do on the buyer's own screen. -->
+        <div class="toolbar" id="vpBar2" style="margin-top:8px">
+          <select id="vpAt" style="flex:0 0 165px"><option value="">All article types</option></select>
+          <select id="vpSub" style="flex:0 0 175px"><option value="">All subtypes</option></select>
+          <select id="vpCol" style="flex:0 0 165px"><option value="">All colours</option></select>
+          <select id="vpSz" style="flex:0 0 130px"><option value="">All sizes</option></select>
+          <select id="vpPri" style="flex:0 0 140px"><option value="">All priorities</option></select>
+          <button id="vpClear" class="ghost">Clear filters</button>
+        </div>
+        <!-- The two things a vendor actually DOES, once, for everything they have typed into the
+             table below — whichever order each line belongs to. -->
+        <div class="toolbar" id="vpBar3" style="margin-top:8px">
+          <label style="flex:0 0 auto;margin:0">Sending on
+            <input id="vpSendDate" type="date"></label>
+          <button id="vpRecordAll">Record what I am sending</button>
+          <span style="width:14px"></span>
+          <label style="flex:0 0 auto;margin:0">My delivery date for all
+            <input id="vpPromDate" type="date"></label>
+          <button id="vpSaveProm">Save my delivery dates</button>
+          <span style="flex:1"></span>
+          <span id="vpActMsg" class="muted" style="font-size:12.5px"></span>
+        </div>
+        <div id="vpMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
+        <div id="vpKpis" class="kpis" style="margin-top:10px"></div>
+      </div>
+      <div id="vpBody" style="margin-top:12px"></div>
+    </div>
+
+    <!-- ============ VENDOR ORDERS ============ -->
+    <div id="paneVord" class="hide">
+      <div class="card" style="padding:12px 14px">
+        <div class="toolbar">
+          <select id="voVendor" style="flex:0 0 190px"><option value="">All vendors</option></select>
+          <select id="voStatus" style="flex:0 0 165px"><option value="">Any status</option></select>
+          <select id="voType" style="flex:0 0 150px">
+            <option value="">Cut and running</option>
+            <option value="cut">Cut &mdash; pieces</option>
+            <option value="running">Running &mdash; metres</option>
+          </select>
+          <select id="voView" style="flex:0 0 175px" title="The list is one row per order, with the tick boxes and the bulk delete. Current orders lays every order out with its lines, the way the production tracker does.">
+            <option value="list">Orders &mdash; one row each</option>
+            <option value="cards">Current orders &mdash; with lines</option>
+          </select>
+          <input id="voQ" placeholder="Search order / vendor / SKU / fabric" style="flex:1 1 200px;min-width:0">
+          <button id="voNew">+ New vendor order</button>
+          <button id="voReserve" class="ghost" title="SKUs the approved sales orders need that no printer has been given yet">Reserve</button>
+          <button id="voVendors" class="ghost">Printers</button>
+          <button id="voSync" class="ghost">Vendor access</button>
+          <button id="voDelPicked" class="ghost" style="color:var(--bad)" disabled>Delete</button>
+          <button id="voExport" class="ghost">Export</button>
+          <button id="voGo">Refresh</button>
+        </div>
+        <!-- The tracker's second filter row: these narrow the LINES inside the cards, not the orders. -->
+        <div id="voAttrRow" class="toolbar hide" style="margin-top:8px">
+          <select id="voAt" style="flex:0 0 165px"><option value="">All article types</option></select>
+          <select id="voSub" style="flex:0 0 175px"><option value="">All subtypes</option></select>
+          <select id="voCol" style="flex:0 0 165px"><option value="">All colours</option></select>
+          <select id="voSz" style="flex:0 0 130px"><option value="">All sizes</option></select>
+          <select id="voPri" style="flex:0 0 140px"><option value="">All priorities</option></select>
+          <button id="voAttrClear" class="ghost">Clear filters</button>
+        </div>
+        <div id="voMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
+        <div id="voKpis" class="kpis" style="margin-top:10px"></div>
+      </div>
+      <div class="card xlwrap" id="voTableWrap" style="margin-top:12px"><table class="xl" id="voTable"></table></div>
+      <div id="voCards" class="hide" style="margin-top:12px"></div>
+    </div>
+
+    <!-- ============ VENDOR ORDER REQUESTS: raised by the team, approved, then sent ============ -->
+    <div id="paneVreq" class="hide">
+      <div class="card" style="padding:12px 14px">
+        <div class="toolbar">
+          <select id="vrqStatus" style="flex:0 0 190px">
+            <option value="">Every status</option>
+            <option value="pending">Waiting for approval</option>
+            <option value="open">With the vendor</option>
+            <option value="done">Completed</option>
+            <option value="rejected">Rejected / withdrawn</option>
+          </select>
+          <select id="vrqWork" style="flex:0 0 150px"><option value="">All work</option></select>
+          <select id="vrqVendor" style="flex:0 0 190px"><option value="">All vendors</option></select>
+          <select id="vrqWho" style="flex:0 0 150px">
+            <option value="">Raised by anyone</option>
+            <option value="me">Raised by me</option>
+          </select>
+          <input id="vrqQ" placeholder="Search request / order / vendor / SKU / fabric" style="flex:1 1 200px;min-width:0">
+          <button id="vrqNew">+ New request</button>
+          <button id="vrqExport" class="ghost">Export</button>
+          <button id="vrqSkuTot" class="ghost" title="One row per SKU: how much was given to vendors, how much came back, and the balance still with them. Follows the filters above.">SKU totals ⤓</button>
+          <button id="vrqSkuLines" class="ghost" title="One row per SKU on every request, with its request, vendor and status. Follows the filters above.">SKU lines ⤓</button>
+          <button id="vrqGo">Refresh</button>
+        </div>
+        <div id="vrqMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
+        <div id="vrqKpis" class="kpis" style="margin-top:10px"></div>
+      </div>
+      <div class="card xlwrap" style="margin-top:12px"><table class="xl" id="vrqTable"></table></div>
+    </div>
+
+    <!-- ============ RFD REQUIREMENTS ============
+         What each printer says they need in cloth against the order they are printing. Anything
+         inside what that order covers is already agreed; the rest is a queue. ================== -->
+    <div id="paneRfd" class="hide">
+      <div class="card" style="padding:12px 14px">
+        <div class="toolbar">
+          <select id="rfdView" style="flex:0 0 235px" title="The requirements the printers raised, or the orders themselves — what each needs, what went out, what the printer confirmed, what is still to send.">
+            <option value="req">Requirements raised</option>
+            <option value="order">By order — needs · sent · received</option>
+            <option value="printer">By printer — cloth with them</option>
+          </select>
+          <select id="rfdStage" style="flex:0 0 190px">
+            <option value="">Every stage</option>
+            <option value="pending">Waiting for approval</option>
+            <option value="approved">Approved, not yet sent</option>
+            <option value="sent">Fabric sent</option>
+            <option value="rejected">Refused</option>
+          </select>
+          <select id="rfdVendor" style="flex:0 0 190px"><option value="">All printers</option></select>
+          <select id="rfdFab" style="flex:0 0 170px"><option value="">All fabrics</option></select>
+          <input id="rfdQ" placeholder="Search order / printer / fabric / note" style="flex:1 1 200px;min-width:0">
+          <span class="muted" style="font-size:12.5px;flex:0 0 auto">Raised</span>
+          <input id="rfdD1" type="date" style="flex:0 0 150px" title="Raised from this date">
+          <input id="rfdD2" type="date" style="flex:0 0 150px" title="Raised to this date">
+          <button id="rfdClear" class="ghost">Clear</button>
+          <button id="rfdExport" class="ghost">Export</button>
+          <button id="rfdRefuseSel" class="ghost hide" title="Refuse every ticked requirement, with one reason">Refuse ticked</button>
+          <button id="rfdGuide" class="ghost" title="How RFD requirements work — English and Hindi.">Guide · गाइड</button>
+          <button id="rfdGo">Refresh</button>
+        </div>
+        <div id="rfdMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
+        <div id="rfdKpis" class="kpis" style="margin-top:10px"></div>
+      </div>
+      <div class="card xlwrap" style="margin-top:12px"><table class="xl" id="rfdTable"></table></div>
+    </div>
+
+    <!-- ============ CUSTOMER ORDERS ============ -->
+    <!-- ============ History: every delivery a printer has recorded, by the day it arrived. The
+         orders themselves are next door; this is what came back off them. ====================== -->
+    <div id="paneVlog" class="hide">
+      <div class="card" style="padding:12px 14px">
+        <div class="toolbar">
+          <select id="vlVendor" style="flex:0 0 200px"><option value="">All printers</option></select>
+          <select id="vlType" style="flex:0 0 165px">
+            <option value="">Cut and running</option>
+            <option value="cut">Cut &mdash; pieces</option>
+            <option value="running">Running &mdash; metres</option>
+          </select>
+          <input id="vlFrom" type="date" style="flex:0 0 150px" title="Received on or after">
+          <span class="muted" style="font-size:13px">to</span>
+          <input id="vlTo" type="date" style="flex:0 0 150px" title="Received on or before">
+          <select id="vlState" style="flex:0 0 195px" title="Whether somebody at this end has confirmed the goods arrived.">
+            <option value="">Accepted and waiting</option>
+            <option value="pending">Waiting to be accepted</option>
+            <option value="accepted">Accepted</option>
+            <option value="short">Accepted short</option>
+            <option value="returned">Something returned</option>
+            <option value="never">Never arrived</option>
+          </select>
+          <input id="vlQ" placeholder="Search printer / order / SKU" style="flex:1 1 180px;min-width:0">
+          <button id="vlAccept" disabled>Accept ticked</button>
+          <button id="vlClear" class="ghost">Clear</button>
+          <button id="vlExport" class="ghost">Export</button>
+          <button id="vlGo">Refresh</button>
+        </div>
+        <div id="vlMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
+      </div>
+      <div id="vlKpis" class="kpis" style="margin-top:12px"></div>
+      <div class="card xlwrap" style="margin-top:12px"><table class="xl" id="vlTable"></table></div>
+    </div>
+
+    <div id="paneCx" class="hide">
+      <div class="card" style="padding:12px 14px">
+        <div class="toolbar">
+          <select id="cxStat" style="flex:0 0 165px">
+            <option value="">Any status</option>
+            <option value="Open">Open</option>
+            <option value="Fulfilled-Amazon">Fulfilled from Amazon</option>
+            <option value="Fulfilled-India">Fulfilled from India</option>
+            <option value="Adjustment Raised">Adjustment raised</option>
+            <option value="Cancelled">Cancelled</option>
+          </select>
+          <select id="cxChan" style="flex:0 0 140px"></select>
+          <input id="cxQ" placeholder="Search order / SKU / colour" style="flex:1 1 180px;min-width:0">
+          <button id="cxUpload">Upload orders</button>
+          <button id="cxExport" class="ghost">Export</button>
+          <button id="cxGo">Refresh</button>
+        </div>
+        <div id="cxMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
+        <div id="cxKpis" class="kpis" style="margin-top:10px"></div>
+      </div>
+      <div class="card xlwrap" style="margin-top:12px"><table class="xl" id="cxTable"></table></div>
+    </div>
+
+    <!-- ============ FINISHED GOODS ============ -->
+    <div id="paneFgi" class="hide">
+      <div class="card" style="padding:12px 14px">
+        <div class="toolbar">
+          <select id="fgView" style="flex:0 0 210px">
+            <option value="stock">India Store</option>
+            <option value="pending">Waiting to be counted in</option>
+            <option value="alerts">Needs listing on Amazon</option>
+            <option value="corr">Correction requests</option>
+            <option value="over">Received more than ordered</option>
+            <option value="ledger">Every movement</option>
+          </select>
+          <span id="fgPendBadge" class="pill pill-low hide"></span>
+          <select id="fgBrand" style="flex:0 0 130px"></select>
+          <select id="fgStat" style="flex:0 0 120px">
+            <option value="">Any status</option>
+            <option value="ok">In stock</option>
+            <option value="low">Low</option>
+            <option value="out">Out</option>
+          </select>
+          <select id="fgTag" style="flex:0 0 140px">
+            <option value="">Any tag</option>
+            <option value="Listed">Listed</option>
+            <option value="Need listing">Need listing</option>
+            <option value="Discontinue">Discontinue</option>
+            <option value="Etsy">Etsy</option>
+            <option value="_none">No tag</option>
+          </select>
+          <select id="fgAmz" style="flex:0 0 160px" title="From Amazon's own listings report">
+            <option value="">Any Amazon status</option>
+            <option value="listed">Listed</option>
+            <option value="inactive">Listed · inactive</option>
+            <option value="not">Not listed</option>
+          </select>
+          <input id="fgQ" placeholder="Search SKU / colour / size / tag" style="flex:1 1 160px;min-width:0">
+          <input id="fgD1" type="date" class="hide" style="flex:0 0 140px" title="Movements from">
+          <input id="fgD2" type="date" class="hide" style="flex:0 0 140px" title="Movements to">
+          <label id="fgZeroWrap" style="flex:0 0 auto;display:flex;align-items:center;gap:6px;margin:0;font-size:12.5px">
+            <input id="fgZero" type="checkbox" style="width:auto" title="Leave it off to see every SKU that has ever moved"> only what is in stock now</label>
+          <button id="fgEditPicked" class="ghost hide">Edit ticked</button>
+          <button id="fgDelPicked" class="ghost hide" style="color:var(--bad)">Delete ticked</button>
+          <button id="fgScan">Scan in / out</button>
+          <button id="fgEntry">+ Stock entry</button>
+          <!-- Receive / Issue from Excel taken off (Ravi, 2026-09-29: "excel se remove kro bas excel me export kar pay"). -->
+          <button id="fgOpening" class="ghost">Opening stock</button>
+          <button id="fgExport" class="ghost">Export</button>
+          <button id="fgLstRefresh" class="ghost hide" title="Ask Amazon for every listing of both brands — takes several minutes">Refresh Amazon listings</button>
+        </div>
+        <!-- WHAT NEEDS SOMEBODY, on the screen itself (Ravi, 2026-09-25: "ye listing ke andar aana chahiye").
+             Each count opens its own list. Hidden when there is nothing to do. -->
+        <div id="fgAlerts" class="fg-alerts">
+          <button type="button" id="fgiLstBadge" class="navbadge hide" data-fgview="alerts" data-what="not on Amazon" title="SKUs received into Finished Goods that Amazon does not list — open the list"></button>
+          <button type="button" id="fgiCorrBadge" class="navbadge hide" data-fgview="corr" data-what="to approve" title="Correction requests waiting for approval — open them" style="background:#b45309"></button>
+          <button type="button" id="fgiOverBadge" class="navbadge hide" data-fgview="over" data-what="over order" title="Receipts with more pieces than the order, not yet reviewed — open them" style="background:#7c3aed"></button>
+        </div>
+        <div id="fgMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
+        <div id="fgKpis" class="kpis" style="margin-top:10px"></div>
+      </div>
+      <div class="card xlwrap" style="margin-top:12px"><table class="xl" id="fgTable"></table></div>
+    </div>
+
+    <!-- ============ PRINTER ALLOCATION ============ -->
+    <div id="panePalloc" class="hide">
+      <div class="card" style="padding:12px 14px">
+        <div class="toolbar">
+          <select id="palView" style="flex:0 0 250px">
+            <option value="design">Designs — colour by colour</option>
+            <option value="group">Colour groups</option>
+            <option value="printer">Printers — capacity and load</option>
+            <option value="plan">Allocation plan</option>
+            <option value="hist">Capacity from history — m² a week</option>
+          </select>
+          <select id="palWeeks" style="flex:0 0 150px" title="How far back the delivered figures are read">
+            <option value="4">last 4 weeks</option>
+            <option value="8" selected>last 8 weeks</option>
+            <option value="12">last 12 weeks</option>
+            <option value="26">last 26 weeks</option>
+          </select>
+          <select id="palBrand" style="flex:0 0 130px"></select>
+          <select id="palPrn" style="flex:0 0 200px" title="Only the colours given to one printer — how many designs, groups and pieces they have"></select>
+          <input id="palQ" placeholder="Search design / group / printer" style="flex:1 1 160px;min-width:0">
+          <button id="palPrinterAdd">+ Printer</button>
+          <button id="palExport" class="ghost">Export</button>
+          <button id="palSheet" class="ghost hide" title="Every design, with its group, whether it is still being made, and what the registers say about it. Fill in Group, and Continue — no takes the colour off the list; the rest is worked out.">Design sheet</button>
+          <button id="palImport" class="ghost hide" title="Read a filled design sheet back. You are shown what it would do before anything is written.">Design import</button>
+          <input id="palFile" type="file" accept=".xlsx,.csv,text/csv" style="display:none">
+          <button id="palOff" class="ghost hide" title="Colours taken off this list because they are not being continued — bring any back from here">Removed colours</button>
+          <button id="palClear" class="ghost hide" style="color:var(--bad)" title="Delete the groups, blocks or printers, to upload them again">Delete…</button>
+          <button id="palRefresh" class="ghost">Refresh</button>
+        </div>
+        <div id="palMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
+        <div id="palKpis" class="kpis" style="margin-top:10px"></div>
+      </div>
+      <div class="card xlwrap" style="margin-top:12px"><table class="xl" id="palTable"></table></div>
+      <!-- Said under the table it belongs to, not in a tooltip: where a figure comes from is part of
+           the figure. -->
+      <div id="palFoot" class="muted hide" style="margin-top:8px;font-size:12px;line-height:1.55"></div>
+      <datalist id="palGroupList"></datalist>
+    </div>
+
+    <!-- ============ FBA DISPATCH ============ -->
+    <div id="paneFba" class="hide">
+      <div class="card" style="padding:12px 14px">
+        <div class="toolbar">
+          <select id="fbaStatus" style="flex:0 0 230px">
+            <option value="todo">To do — waiting or accepted</option>
+            <option value="waiting">Waiting to be accepted</option>
+            <option value="accepted">Accepted, not shipped</option>
+            <option value="shipped">Shipped</option>
+            <option value="returned">Returned to the store</option>
+            <option value="sheet">From the Ready Goods sheet</option>
+            <option value="">Everything sent to FBA</option>
+          </select>
+          <input id="fbaQ" placeholder="Search SKU / shipment / colour / size" style="flex:1 1 180px;min-width:0">
+          <input id="fbaD1" type="date" style="flex:0 0 140px" title="Sent from">
+          <input id="fbaD2" type="date" style="flex:0 0 140px" title="Sent to">
+          <button id="fbaAccept" disabled>Accept ticked</button>
+          <button id="fbaShip" class="ghost" disabled>Ship ticked</button>
+          <button id="fbaShipXl" class="ghost hide" title="Upload the shipment's contents from Seller Central (or our template) — each SKU is matched to its open dispatches and marked shipped with the shipment id">Ship from Excel</button>
+          <input id="fbaShipFile" type="file" accept=".xlsx,.csv,.tsv,.txt" style="display:none">
+          <button id="fbaReturn" class="ghost" disabled style="color:var(--bad)">Return ticked</button>
+          <button id="fbaExport" class="ghost">Export</button>
+          <button id="fbaGo" class="ghost">Refresh</button>
+        </div>
+        <div id="fbaMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
+        <div id="fbaKpis" class="kpis" style="margin-top:10px"></div>
+      </div>
+      <div class="card xlwrap" style="margin-top:12px"><table class="xl" id="fbaTable"></table></div>
+    </div>
+
+    <!-- ============ REPORTS ============ -->
+    <div id="panePa" class="hide">
+      <div class="card" style="padding:12px 14px">
+        <div class="toolbar">
+          <select id="paWk" style="flex:0 0 240px" title="Sunday to Saturday"></select>
+          <span class="muted" style="font-size:12.5px;flex:0 0 auto">Weekly target</span>
+          <input id="paTarget" type="number" min="1" step="500" style="flex:0 0 120px" title="Kept in this browser">
+          <select id="paBasis" style="flex:0 0 250px" title="Which weeks the pieces-per-karigar-per-day average is taken from">
+            <option value="week">Per-day average from this week</option>
+            <option value="4w">Per-day average from the last 4 weeks</option>
+          </select>
+          <span style="flex:1"></span>
+          <button id="paGo">Refresh</button>
+        </div>
+        <div id="paMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
+      </div>
+      <div id="paBody"></div>
+    </div>
+
+    <div id="paneKa" class="hide">
+      <div class="card" style="padding:12px 14px">
+        <div class="toolbar">
+          <select id="kaMetric" style="flex:0 0 190px">
+            <option value="recv">Pieces made</option>
+            <option value="issued">Pieces issued</option>
+            <option value="value">Labour value ₹</option>
+            <option value="perDay">Pieces per person per day</option>
+            <option value="days">Days with work</option>
+            <option value="rej">Rejection %</option>
+          </select>
+          <select id="kaGroup" style="flex:0 0 150px">
+            <option value="karigar">Karigar study</option>
+            <option value="article">Article study</option>
+            <option value="mix">Article mix — easy / hard</option>
+            <option value="dept">Department study</option>
+            <option value="daily">Day by day</option>
+            <option value="target">Monthly target</option>
+          </select>
+          <select id="kaWeeks" style="flex:0 0 130px">
+            <option value="4">Last 4 weeks</option>
+            <option value="8" selected>Last 8 weeks</option>
+            <option value="12">Last 12 weeks</option>
+            <option value="26">Last 26 weeks</option>
+            <option value="custom">Custom dates…</option>
+          </select>
+          <select id="kaMonth" class="hide" style="flex:0 0 170px" title="Which month"></select>
+          <input id="kaD1" type="date" class="hide" style="flex:0 0 150px" title="From">
+          <input id="kaD2" type="date" class="hide" style="flex:0 0 150px" title="To">
+          <button id="kaTgtBtn" class="ghost hide" title="Labour value ₹ a month, per person, and a name's own figure">Set targets</button>
+          <span id="kaBands" class="hide" style="flex:0 0 auto">
+            <button id="kaLevelsBtn" class="ghost" title="You decide which articles are easy, medium or hard">Set easy / hard</button></span>
+          <select id="kaDept" style="flex:0 0 180px"><option value="">Stitching karigars</option></select>
+          <input id="kaQ" placeholder="Search karigar / department" style="flex:1 1 160px;min-width:0">
+          <button id="kaExport" class="ghost">Export</button>
+          <button id="kaGo">Refresh</button>
+        </div>
+        <div id="kaMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
+      </div>
+      <div id="kaDetail" class="card kpi hide" style="margin-top:12px;padding:12px 14px"></div>
+      <div class="card xlwrap" style="margin-top:12px"><table class="xl" id="kaTable"></table></div>
+    </div>
+
+    <div id="paneDash" class="hide">
+      <div class="card" style="padding:12px 14px">
+        <div class="toolbar">
+          <span id="dashMsg" class="muted" style="font-size:12.5px;flex:1 1 auto"></span>
+          <button id="dashGo">Refresh</button>
+        </div>
+      </div>
+      <div id="dashBody" style="margin-top:12px"></div>
+      <!-- WHO CHANGED WHAT + RECYCLE BIN (2026-10-01): read only when Show is pressed, never at sign-in. -->
+      <div class="card" style="margin-top:12px;padding:12px 14px">
+        <div class="toolbar">
+          <b style="flex:0 0 auto">Change history</b>
+          <select id="audView" style="flex:0 0 190px">
+            <option value="log">Who changed what</option>
+            <option value="bin">Recycle bin (deleted records)</option>
+          </select>
+          <input id="audMonth" type="month" style="flex:0 0 150px" title="Which month's changes">
+          <input id="audQ" type="search" placeholder="Search person, register, SKU, order…" style="flex:1 1 200px">
+          <button id="audGo">Show</button>
+        </div>
+        <div id="audMsg" class="muted" style="margin-top:8px;font-size:12.5px">Every save and delete from 1 Oct 2026 is kept here. Press Show to read it.</div>
+        <div id="audBody" style="margin-top:8px;overflow-x:auto"></div>
+      </div>
+    </div>
+
+    <div id="paneRep" class="hide">
+      <div class="card" style="padding:12px 14px">
+        <div class="toolbar">
+          <select id="repView" style="flex:0 0 220px">
+            <option value="wow">Last week &middot; received, week on week</option>
+            <option value="live">This week so far &middot; against the same days last week</option>
+            <option value="wpr">Weekly production</option>
+            <option value="ihp">Inhouse production</option>
+            <option value="fgval">Finished goods valuation</option>
+            <option value="srpl">Surplus</option>
+            <option value="qa">Quality</option>
+            <option value="shpd">Shopify dispatch</option>
+          </select>
+          <select id="repWk" class="hide" style="flex:0 0 175px" title="Sunday to Saturday. The week we are in is still being worked, so it is not offered."></select>
+          <input id="repMonth" type="month" style="flex:0 0 150px">
+          <select id="repWeeks" class="hide" style="flex:0 0 130px">
+            <option value="8">Last 8 weeks</option>
+            <option value="12" selected>Last 12 weeks</option>
+            <option value="26">Last 26 weeks</option>
+          </select>
+          <select id="repBrand" style="flex:0 0 150px"></select>
+          <input id="repQ" class="hide" placeholder="Search SKU / colour / who checked" style="flex:1 1 180px;min-width:0">
+          <span style="flex:1"></span>
+          <button id="repExport" class="ghost">Export</button>
+          <button id="repGo">Refresh</button>
+        </div>
+        <div id="repMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
+        <div id="repKpis" class="kpis" style="margin-top:10px"></div>
+      </div>
+      <div id="repCharts" class="repcharts hide">
+      </div>
+      <div class="card xlwrap" style="margin-top:12px"><table class="xl" id="repTable"></table></div>
+    </div>
+
+    <!-- ============ FABRIC INVENTORY ============ -->
+    <div id="paneFab" class="hide">
+      <div class="card" style="padding:12px 14px">
+        <div class="toolbar">
+          <select id="fbView" style="flex:0 0 200px">
+            <option value="flow">Fabric flow</option>
+            <option value="store">Store Stock Balance</option>
+            <option value="storemov">Store movements &amp; cross-check</option>
+            <option value="stock">Fabric ledger balance</option>
+            <option value="rfd">Greige &rarr; RFD &rarr; cutting</option>
+            <option value="lots">Lots &mdash; bale by bale</option>
+            <option value="ledger">Every movement</option>
+            <option value="po">Greige POs</option>
+          </select>
+          <select id="fbState" style="flex:0 0 150px">
+            <option value="">Any state</option>
+            <option value="GREIGE">Greige</option>
+            <option value="RFD">RFD</option>
+            <option value="PRINTED">Printed</option>
+          </select>
+          <select id="fbTxn" style="flex:0 0 190px"><option value="">All movements</option></select>
+          <select id="fbFab" style="flex:0 0 160px"><option value="">All fabrics</option></select>
+          <select id="fbCol" style="flex:0 0 170px"><option value="">All colours</option></select>
+          <select id="fbCp" style="flex:0 0 190px"><option value="">All counterparties</option></select>
+          <input id="fbQ" placeholder="Search fabric / colour / remark" style="flex:1 1 180px;min-width:0">
+          <input id="fbD1" type="date" style="flex:0 0 150px" title="From">
+          <input id="fbD2" type="date" style="flex:0 0 150px" title="To">
+          <button id="fbStoreNew" class="hide">+ Store entry</button>
+          <input id="fbStoreFile" type="file" accept=".csv,.xlsx,text/csv" style="display:none">
+          <button id="fbEntry">+ Fabric entry</button>
+          <button id="fbPoNew" class="hide">+ Greige PO</button>
+          <button id="fbPoSet" class="ghost hide" title="Company name, address, GSTIN and default terms printed on every PO.">PO settings</button>
+          <button id="fbTemplate" class="ghost" title="A CSV with the right header and one example row of each kind.">Template</button>
+          <button id="fbImport" class="ghost" title="Upload many movements at once. You are shown what the file would do before anything is written.">Bulk upload</button>
+          <input id="fbFile" type="file" accept=".csv,text/csv" style="display:none">
+          <button id="fbClear" class="ghost">Clear</button>
+          <button id="fbExport" class="ghost">Export</button>
+          <button id="fbGuide" class="ghost" title="How greige becomes RFD and goes to cutting, step by step — English and Hindi.">Guide · गाइड</button>
+          <button id="fbGo">Refresh</button>
+        </div>
+        <div id="fbMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
+        <div id="fbKpis" class="kpis" style="margin-top:10px"></div>
+      </div>
+      <div class="card xlwrap" style="margin-top:12px"><table class="xl" id="fbTable"></table></div>
+    </div>
+
+    <!-- ============ FINANCE & HR ============ -->
+    <div id="paneHr" class="hide">
+      <div class="card" style="padding:12px 14px">
+        <div class="toolbar">
+          <select id="hrView" style="flex:0 0 180px">
+            <option value="cc">CC payout</option>
+            <option value="ec">EC payout</option>
+            <option value="adv">Advance payout</option>
+            <option value="vpay">Vendor payout</option>
+            <option value="slip">Salary slip</option>
+            <option value="emp">Employee list</option>
+            <option value="rate">Rate list</option>
+            <option value="prate">Vendor rate list</option>
+            <option value="eh">Extra hours</option>
+          </select>
+          <input id="hrMonth" type="month" style="flex:0 0 155px" title="Which month the payout is for.">
+          <select id="hrPeriod" style="flex:0 0 150px" title="A fortnight, or the whole month. Advances only ever come off the whole month.">
+            <option value="3">Full month</option>
+            <option value="1">1st – 15th</option>
+            <option value="2">16th – end</option>
+          </select>
+          <select id="hrPayEmp" class="hide" style="flex:0 0 200px"><option value="">All employees</option></select>
+          <select id="hrSlipEmp" class="hide" style="flex:0 0 200px"><option value="">— Select an employee —</option></select>
+          <button id="hrFreeze" class="ghost hide">Freeze</button>
+          <button id="hrSlipPrint" class="ghost hide">Print slip</button>
+          <select id="hrEhStatus" style="flex:0 0 190px" title="Extra hours only.">
+            <option value="">Any authorisation</option>
+            <option value="pending">Awaiting authorisation</option>
+            <option value="authorized">Authorised</option>
+          </select>
+          <input id="hrQ" placeholder="Search name / article / department" style="flex:1 1 200px;min-width:0">
+          <span id="hrEmpAdd"><button id="hrEmpNew">+ New employee</button></span>
+          <span id="hrRateAdd" class="hide"><button id="hrRateNew">+ New rate</button></span>
+          <select id="hrPrStatus" class="hide" style="flex:0 0 200px" title="Vendor rates only. A rate prices an order line only once it is approved.">
+            <option value="">Any approval</option>
+            <option value="Pending">Waiting for approval</option>
+            <option value="Approved">Approved</option>
+            <option value="Refused">Refused</option>
+          </select>
+          <span id="hrPrAdd" class="hide"><button id="hrPrNew">+ New rate</button>
+            <button id="hrPrTmpl" class="ghost" title="A CSV with the right header and one example of each kind.">Template</button>
+            <button id="hrPrUp" class="ghost" title="Add rates in bulk. One bad row refuses the whole file.">Upload rates</button>
+            <button id="hrPrOkAll" class="ghost hide" title="Approve every rate waiting for approval in this view.">Approve all shown</button>
+            <input id="hrPrFile" type="file" accept=".csv,.xlsx,text/csv" style="display:none"></span>
+          <span id="hrEhAdd" class="hide"><button id="hrEhNew">+ Log extra hours</button>
+            <button id="hrAuthAll" class="ghost" title="Authorise every pending entry currently shown. Frozen months are left alone.">Authorise all shown</button></span>
+          <button id="hrExport" class="ghost">Export</button>
+          <button id="hrGo">Refresh</button>
+        </div>
+        <div id="hrMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
+        <div id="hrKpis" class="kpis" style="margin-top:10px"></div>
+      </div>
+      <div id="hrSlip" class="card hide" style="margin-top:12px;padding:20px">      </div>
+      <div class="card xlwrap" style="margin-top:12px"><table class="xl" id="hrTable"></table></div>
+    </div>
+
+    <!-- ============ ORDER CONSOLE ============ -->
+    <div id="paneOrd" class="hide">
+      <!-- THE FIGURES AS CARDS, ABOVE THE FILTERS, the way the Job Work screen reads (Ravi,
+           2026-09-23: "kpi tool ko job work ki tarah design karo"). Each one still narrows the
+           table when it is clicked. -->
+      <div id="odKpis" class="jw-kpiwrap"></div>
+      <div class="card" style="padding:12px 14px">
+        <div class="toolbar">
+          <select id="odView" style="flex:0 0 235px" title="Shopify combined is where the work is done; the order book shows every platform; the three Demand reports are for printing and cloth.">
+            <option value="shopsku">Shopify — by SKU, combined</option>
+            <option value="book">Order book — pending</option>
+            <option value="demand">Demand — printing &amp; cloth</option>
+            <option value="democol">Demand — by colour &amp; product</option>
+            <option value="demtot">Demand — fabric &amp; colour totals</option>
+          </select>
+          <select id="odOrd" style="flex:0 0 200px"><option value="">All orders</option></select>
+          <select id="odArt" style="flex:0 0 150px"><option value="">All articles</option></select>
+          <select id="odSub" style="flex:0 0 180px"><option value="">All subtypes</option></select>
+          <select id="odCol" style="flex:0 0 155px"><option value="">All colors</option></select>
+          <select id="odSz" style="flex:0 0 110px"><option value="">All sizes</option></select>
+          <select id="odSort" style="flex:0 0 170px" title="Which lines come first. Only 600 are drawn at a time — Show more adds the next 600.">
+            <option value="">Newest added first</option>
+            <option value="old">Oldest order first</option>
+          </select>
+          <select id="odStatus" style="flex:0 0 160px">
+            <option value="">Any status</option>
+            <option value="open">Still open</option>
+            <option value="done">Complete</option>
+            <option value="tocut">Still to cut</option>
+            <option value="cutdone">Cutting done</option>
+          </select>
+          <select id="odSrc" style="flex:0 0 150px" title="Where the order came from">
+            <option value="">Any source</option>
+            <option value="AMZ">Amazon — sales order</option>
+            <option value="SHP">Shopify</option>
+            <option value="B2B">B2B</option>
+          </select>
+          <select id="odBrand" style="flex:0 0 130px" title="The brand the SKU belongs to, from the master database">
+            <option value="">All brands</option>
+          </select>
+          <input id="odQ" placeholder="Search order / SKU / article" style="flex:1 1 180px;min-width:0">
+          <span class="muted" style="font-size:12.5px;flex:0 0 auto">Ordered</span>
+          <input id="odD1" type="date" style="flex:0 0 150px" title="Order date from">
+          <input id="odD2" type="date" style="flex:0 0 150px" title="Order date to">
+          <button id="odClear" class="ghost">Clear</button>
+          <button id="odExport" class="ghost">Export</button>
+          <button id="odGo">Refresh</button>
+          <button id="odDone" class="hide" disabled title="Tick the finished SKUs or orders below, then press — they are handed to the shipping team" style="background:#15803D;opacity:.55">Completed</button>
+        </div>
+        <div id="odMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
+        <div id="odPickBar" class="toolbar hide" style="margin-top:8px"></div>
+        <!-- ONE ENTRY PER SKU, shared across its Shopify orders oldest first. Only on the by-SKU view,
+             only for somebody who may make production entries. -->
+        <div id="spBulkBar" class="toolbar hide" style="margin-top:8px">
+          <button id="spBulkOpen" style="flex:0 0 auto">Bulk entry</button>
+          <button id="spBulkSheet" class="ghost" style="flex:0 0 auto" title="An Excel sheet of the SKUs shown, with Fabric and karigars as dropdowns">Entry sheet</button>
+          <button id="spBulkUp" class="ghost" style="flex:0 0 auto">Upload entry sheet</button>
+          <input id="spBulkFile" type="file" accept=".xlsx,.csv,text/csv" class="hide">
+          <span id="spBulkNote" class="muted" style="font-size:12.5px">Cut, issue, receive and press a whole SKU at once — the app puts it on the orders, oldest first.</span>
+          <!-- Giving the printing out is a different job from recording it, done by different people
+               and gated on a different right, so it is its own pair of buttons. -->
+          <button id="spPrnSheet" class="ghost hide" style="flex:0 0 auto" title="An Excel sheet of the SKUs shown, with every printer in a dropdown">Printer sheet</button>
+          <button id="spPrnUp" class="ghost hide" style="flex:0 0 auto">Upload printer sheet</button>
+          <input id="spPrnFile" type="file" accept=".xlsx,.csv,text/csv" class="hide">
+        </div>
+        <datalist id="spBulkWhoList"></datalist>
+        <datalist id="spBulkReasonList"></datalist>
+      </div>
+      <div id="spBulkBox" class="hide" style="margin-top:12px"></div>
+      <div class="card xlwrap jw-table" style="margin-top:12px"><table class="xl" id="odTable"></table></div>
+    </div>
+
+    <!-- ============ QUALITY CONTROL ============ -->
+    <div id="paneQc" class="hide">
+      <div class="card" style="padding:12px 14px">
+        <div class="toolbar">
+          <div class="seg">
+            <select id="qcView" style="flex:0 0 190px">
+              <option value="checks">Checks</option>
+              <option value="issue">Issued for alteration</option>
+              <option value="ret">Received back from alteration</option>
+            </select>
+          </div>
+          <input id="qcQ" placeholder="Search SKU / article / person" style="flex:1 1 200px;min-width:0">
+          <span class="muted" style="font-size:12.5px;flex:0 0 auto">Dated</span>
+          <input id="qcD1" type="date" style="flex:0 0 150px" title="From this date">
+          <input id="qcD2" type="date" style="flex:0 0 150px" title="To this date">
+          <button id="qcClear" class="ghost">Clear</button>
+          <button id="qcExport" class="ghost">Export</button>
+          <button id="qcGo">Refresh</button>
+        </div>
+        <div id="qcMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
+
+        <div id="qcCheckBox" style="margin-top:10px">
+          <button id="qcwToggle" class="ghost">+ Record a check</button>
+          <div id="qcwBox" class="hide" style="margin-top:10px;border:1px solid var(--line);border-radius:10px;padding:12px">
+            <div class="toolbar">
+              <select id="qcwSrc" style="flex:0 0 210px" title="Normally only pieces received back in Job Work Register may be inspected. “Any SKU” records an inspection that never went out on an issue.">
+                <option value="received">Received in Job Work</option>
+                <option value="any">Any SKU (free inspection)</option>
+              </select>
+              <!-- The Job Work Register's way in: the item from four pickers, or the SKU typed or picked —
+                   either one fills the other. -->
+              <select id="qcwAt" style="flex:0 0 150px"><option value="">-- Article type --</option></select>
+              <select id="qcwSub" style="flex:0 0 175px"><option value="">-- Subtype --</option></select>
+              <select id="qcwCol" style="flex:0 0 150px"><option value="">-- Colour --</option></select>
+              <select id="qcwSz" style="flex:0 0 120px"><option value="">-- Size --</option></select>
+              <input id="qcwSku" list="qcwSkuList" placeholder="SKU (type or pick)" autocomplete="off"
+                     style="flex:0 0 185px;font-family:ui-monospace,monospace;text-transform:uppercase"
+                     title="Type or pick the SKU — the item fields fill in. Or choose the item above and the SKU fills in.">
+              <datalist id="qcwSkuList"></datalist>
+              <select id="qcwType" style="flex:0 0 160px"><option value="">All types</option></select>
+              <select id="qcwBy" style="flex:0 0 180px"><option value="">— Checked by —</option></select>
+              <input id="qcwOrd" list="qcwOrdList" placeholder="Order No (optional)" autocomplete="off"
+                     style="flex:0 0 190px;font-family:ui-monospace,monospace;text-transform:uppercase"
+                     title="Which order was checked. Offered from the order book for this SKU — with it, the Order Console can show how much of the order passed QC.">
+              <datalist id="qcwOrdList"></datalist>
+              <input id="qcwChecked" type="number" min="1" step="1" placeholder="Checked" style="flex:0 0 110px">
+              <input id="qcwAlt" type="number" min="0" step="1" placeholder="For alteration" style="flex:0 0 135px">
+              <input id="qcwRej" type="number" min="0" step="1" placeholder="Rejected" style="flex:0 0 110px">
+              <input id="qcwOk" placeholder="OK" readonly title="Checked minus alteration and rejected"
+                     style="flex:0 0 90px;background:var(--hover,#f1f5f9);color:var(--muted)">
+              <input id="qcwRemarks" placeholder="Remarks (optional)" style="flex:1 1 140px;min-width:0">
+              <button id="qcwSave" style="flex:0 0 120px">Save check</button>
+            </div>
+            <!-- Both ceilings, while typing — a refusal at the end of a filled form is the thing the floor hates. -->
+            <div id="qcwInfo" class="muted" style="margin-top:8px;font-size:12.5px"></div>
+            <div id="qcwMsg" class="muted" style="margin-top:4px;font-size:12.5px"></div>
+          </div>
+        </div>
+
+        <div id="qcIssueBox" class="hide" style="margin-top:10px">
+          <button id="qciToggle" class="ghost">+ Issue for alteration</button>
+          <div id="qciBox" class="hide" style="margin-top:10px;border:1px solid var(--line);border-radius:10px;padding:12px">
+            <div class="toolbar">
+              <select id="qciSku" style="flex:0 0 280px"><option value="">— Select a flagged article —</option></select>
+              <select id="qciType" style="flex:0 0 170px"><option value="">Employment type…</option></select>
+              <input id="qciEmp" list="qciEmpList" placeholder="Employee" style="flex:0 0 180px">
+              <datalist id="qciEmpList"></datalist>
+              <input id="qciPcs" type="number" min="1" step="1" placeholder="Pieces" style="flex:0 0 110px">
+              <input id="qciRemarks" placeholder="Remarks (optional)" style="flex:1 1 140px;min-width:0">
+              <button id="qciSave" style="flex:0 0 130px">Issue</button>
+            </div>
+            <div id="qciInfo" class="muted" style="margin-top:8px;font-size:12.5px"></div>
+            <div id="qciMsg" class="muted" style="margin-top:4px;font-size:12.5px"></div>
+          </div>
+        </div>
+
+        <!-- THE WAY BACK. Pieces issued for alteration come back mended or still wrong, and until
+             now there was nowhere to say which. -->
+        <div id="qcRetBox" class="hide" style="margin-top:10px">
+          <button id="qcrToggle" class="ghost">+ Receive from alteration</button>
+          <div id="qcrBox" class="hide" style="margin-top:10px;border:1px solid var(--line);border-radius:10px;padding:12px">
+            <div class="toolbar">
+              <select id="qcrPick" style="flex:0 0 340px"><option value="">— What is coming back —</option></select>
+              <select id="qcrBy" style="flex:0 0 180px"><option value="">— Received by —</option></select>
+              <input id="qcrPcs" type="number" min="1" step="1" placeholder="Received" style="flex:0 0 110px">
+              <input id="qcrOk" type="number" min="0" step="1" placeholder="Mended" title="Pieces that pass now" style="flex:0 0 110px">
+              <input id="qcrRej" type="number" min="0" step="1" placeholder="Still wrong" style="flex:0 0 120px">
+              <input id="qcrRemarks" placeholder="Remarks (optional)" style="flex:1 1 140px;min-width:0">
+              <button id="qcrSave" style="flex:0 0 130px">Receive</button>
+            </div>
+            <div id="qcrInfo" class="muted" style="margin-top:8px;font-size:12.5px"></div>
+            <div id="qcrMsg" class="muted" style="margin-top:4px;font-size:12.5px"></div>
+          </div>
+        </div>
+
+        <div id="qcKpis" class="kpis" style="margin-top:10px"></div>
+      </div>
+      <div class="card xlwrap" style="margin-top:12px"><table class="xl" id="qcTable"></table></div>
+    </div>
+
+    <!-- ============ ATTENDANCE ============
+         One day at a time, one line per person, punched in and punched out. The list is the employee
+         master, so nobody is typed in twice and a leaver disappears from both at once. -->
+    <div id="paneAtt" class="hide">
+      <div class="card" style="padding:12px 14px">
+        <div class="toolbar">
+          <input id="attDay" type="date" style="flex:0 0 160px" title="The day being marked">
+          <button id="attToday" class="ghost">Today</button>
+          <select id="attDept" style="flex:0 0 180px"><option value="">All departments</option></select>
+          <select id="attType" style="flex:0 0 180px"><option value="">All types</option></select>
+          <select id="attState" style="flex:0 0 170px">
+            <option value="">Everyone</option>
+            <option value="in">Punched in</option>
+            <option value="out">Punched out</option>
+            <option value="none">Not marked</option>
+            <option value="absent">Absent</option>
+          </select>
+          <input id="attQ" placeholder="Search name" style="flex:1 1 160px;min-width:0">
+          <button id="attExport" class="ghost">Export</button>
+          <button id="attGo">Refresh</button>
+        </div>
+        <div class="toolbar" style="margin-top:8px">
+          <select id="attView" style="flex:0 0 210px">
+            <option value="day">The day &mdash; punch in and out</option>
+            <option value="month">The month &mdash; days and hours</option>
+          </select>
+          <input id="attMonth" type="month" style="flex:0 0 170px" title="Which month to total up">
+          <span style="flex:1"></span>
+          <span id="attMsg" class="muted" style="font-size:12.5px"></span>
+        </div>
+        <div id="attKpis" class="kpis" style="margin-top:10px"></div>
+      </div>
+      <div class="card xlwrap" style="margin-top:12px"><table class="xl" id="attTable"></table></div>
+    </div>
+
+    <!-- ============ PRESS INVENTORY ============ -->
+    <div id="panePpress" class="hide">
+      <div class="card" style="padding:12px 14px">
+        <div class="toolbar">
+          <select id="ppOrd" style="flex:0 0 190px"><option value="">All orders</option></select>
+          <select id="ppArt" style="flex:0 0 150px"><option value="">All articles</option></select>
+          <select id="ppSub" style="flex:0 0 180px"><option value="">All subtypes</option></select>
+          <select id="ppCol" style="flex:0 0 155px"><option value="">All colors</option></select>
+          <select id="ppSz" style="flex:0 0 110px"><option value="">All sizes</option></select>
+          <input id="ppQ" placeholder="Search SKU / order" style="flex:1 1 170px;min-width:0">
+          <span class="muted" style="font-size:12.5px;flex:0 0 auto">Entered</span>
+          <input id="ppD1" type="date" style="flex:0 0 150px" title="Entry date from">
+          <input id="ppD2" type="date" style="flex:0 0 150px" title="Entry date to">
+          <button id="ppClear" class="ghost">Clear</button>
+          <button id="ppExport" class="ghost">Export</button>
+          <button id="ppGo">Refresh</button>
+        </div>
+        <div id="ppMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
+        <div style="margin-top:10px">
+          <button id="pwToggle" class="ghost">+ New press entry</button>
+        </div>
+        <div id="pwBox" class="hide" style="margin-top:10px;border:1px solid var(--line);border-radius:10px;padding:12px">
+          <div class="toolbar">
+            <select id="pwOrd" style="flex:0 0 240px"><option value="">— Select Order ID —</option></select>
+            <select id="pwAt" style="flex:0 0 150px"><option value="">-- Article type --</option></select>
+            <select id="pwSub" style="flex:0 0 175px"><option value="">-- Subtype --</option></select>
+            <select id="pwCol" style="flex:0 0 150px"><option value="">-- Colour --</option></select>
+            <select id="pwSz" style="flex:0 0 120px"><option value="">-- Size --</option></select>
+            <input id="pwSku" placeholder="SKU (auto-matched)" style="flex:0 0 185px;font-family:ui-monospace,monospace"
+                   title="Filled in from the item above. Typing a SKU here works too and fills the item fields back.">
+            <input id="pwPcs" type="number" min="1" step="1" placeholder="Pieces" style="flex:0 0 110px">
+            <input id="pwDate" type="date" style="flex:0 0 155px" title="Entry date">
+            <input id="pwRemarks" placeholder="Remarks (optional)" style="flex:1 1 150px;min-width:0">
+            <button id="pwSave" style="flex:0 0 120px">Save entry</button>
+          </div>
+          <div id="pwLeft" class="muted" style="margin-top:8px;font-size:12.5px"></div>
+          <div id="pwMsg" class="muted" style="margin-top:4px;font-size:12.5px"></div>
+        </div>
+        <div id="ppKpis" class="kpis" style="margin-top:10px"></div>
+      </div>
+      <div class="card xlwrap" style="margin-top:12px"><table class="xl" id="ppTable"></table></div>
+    </div>
+
+    <!-- ============ PRODUCTION TRACKER (read live from the factory's own database) ============
+         Master Database · Job Work Register · Cutting Data. Read-only on purpose: the old production tool
+         still writes these records, and two writers with two halves of the validation rules is how
+         a second version of the truth gets made. See the PT_URL comment in the script. -->
+    <div id="panePmdb" class="hide">
+      <div class="card" style="padding:12px 14px">
+        <div class="toolbar">
+          <select id="ptmBrand" style="flex:0 0 130px"><option value="">All brands</option></select>
+          <select id="ptmArt" style="flex:0 0 160px"><option value="">All articles</option></select>
+          <select id="ptmSub" style="flex:0 0 180px"><option value="">All subtypes</option></select>
+          <select id="ptmCol" style="flex:0 0 160px"><option value="">All colors</option></select>
+          <select id="ptmSz" style="flex:0 0 130px"><option value="">All sizes</option></select>
+          <select id="ptmCut" style="flex:0 0 150px" title="Whether the SKU needs cutting before stitching">
+            <option value="">Cutting: any</option><option value="y">Cutting required</option><option value="n">No cutting</option>
+          </select>
+          <input id="ptmQ" placeholder="Search SKU / article / fabric" style="flex:1 1 180px;min-width:0">
+          <select id="ptmBrandFs" class="hide" style="flex:0 0 130px">
+            <option value="">Both brands</option><option value="CPC">CPC</option><option value="RBP">Ridhi</option>
+          </select>
+          <select id="ptmDir" class="hide" style="flex:0 0 150px">
+            <option value="">Both ways up</option><option value="Vertical">Vertical</option><option value="Horizontal">Horizontal</option>
+          </select>
+          <select id="ptmView" style="flex:0 0 165px" title="Custom SKUs are a separate list on purpose — one-off items never amend the real catalogue.">
+            <option value="master">Master database</option>
+            <option value="custom">Custom SKUs</option>
+            <option value="fabric">Fabric for printing</option>
+            <option value="cons">Cloth per piece (worked out)</option>
+            <option value="recipe">Recipes &mdash; one per article, subtype and size</option>
+            <option value="skucode">SKU codes &mdash; a new colour's SKUs</option>
+          </select>
+          <button id="ptmConsApply" class="hide" title="Write the worked-out figure onto the SKUs on screen. You are shown what would change first.">Apply consumption</button>
+          <button id="ptmRecSeed" class="hide ghost" title="Fill the recipes in from what the SKUs already say — only where every SKU that has said anything agrees. You are shown what would be written first.">Seed from the SKUs</button>
+          <button id="ptmRecApply" class="hide" title="Write the recipes onto the SKUs. You are shown what would change first.">Apply recipes</button>
+          <button id="ptmNew">+ New SKU</button>
+          <button id="ptmLookalike" class="ghost" title="SKUs not in the master database: fill their article, colour and size from the master SKUs they look like, on the Custom SKUs list and on the lines printers see">Fill from look-alikes</button>
+          <button id="ptmAsin" class="ghost" title="Fill blank ASIN and Parent ASIN from Amazon — its listings report, then its catalogue for the parents. You are shown what would be written first.">ASIN from Amazon</button>
+          <button id="ptmImgs" class="ghost" title="Ask Amazon again for the SKUs on screen. They are fetched automatically and remembered, so this is only for a picture that has changed.">Refresh pictures</button>
+          <button id="ptmClear" class="ghost">Clear</button>
+          <button id="ptmTemplate" class="ghost" title="Every column Import reads, as an Excel sheet with dropdowns.">Template</button>
+          <!-- THE SHORT ONE (Ravi, 2026-09-22): six columns, because the recipe fills the rest. -->
+          <button id="ptmTplShort" class="ghost" title="Six columns only — SKU, Brand, Article, Subtype, Colour, Size. The recipe for that article, subtype and size fills in the cloth, consumption, pack, zip, ruffle and piping.">Short template</button>
+          <button id="ptmImport" class="ghost" title="Add or update SKUs in bulk. You are shown what the file would do before anything is written.">Import</button>
+          <input id="ptmFile" type="file" accept=".csv,.xlsx,text/csv" style="display:none">
+          <input id="ptmRecFile" type="file" accept=".xlsx,.csv,text/csv" style="display:none">
+          <input id="ptmFsFile" type="file" accept=".xlsx,.csv,text/csv" style="display:none">
+          <input id="ptmSkcFile" type="file" accept=".xlsx,.csv,text/csv" style="display:none">
+          <button id="ptmRename" class="ghost" title="Change a SKU code everywhere it appears.">Change SKU</button>
+          <button id="ptmCustFix" class="ghost" title="The codes Custom Order made (…-CUST-…): put each on its real SKU, in every register, so its orders can be tracked">Custom-order SKUs</button>
+          <button id="ptmExport" class="ghost">Export</button>
+          <button id="ptmGo">Refresh</button>
+        </div>
+        <div id="ptmMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
+        <!-- What the file WOULD do, before it does it. A bulk write to the table every other screen
+             is measured against is not something to find out about afterwards. -->
+        <div id="ptmImpMsg" class="muted" style="margin-top:6px;font-size:12.5px"></div>
+        <div id="ptmImpBox" class="hide" style="margin-top:8px">
+          <button id="ptmImpGo">Apply the import</button>
+          <button id="ptmImpCancel" class="ghost">Cancel</button>
+        </div>
+        <!-- ASIN FROM AMAZON: what it found and what it would write, before it writes. -->
+        <div id="ptmAsinBox" class="hide card" style="margin-top:10px;padding:12px 14px;font-size:12.5px">
+          <div id="ptmAsinSum"></div>
+          <label id="ptmAsinFixWrap" class="hide" style="display:flex;gap:8px;align-items:center;margin-top:8px"><input type="checkbox" id="ptmAsinFix"><span id="ptmAsinFixTxt"></span></label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+            <button id="ptmAsinGo">Write to the master</button>
+            <button id="ptmAsinNot" class="ghost">Download: not on Amazon</button>
+            <button id="ptmAsinCancel" class="ghost">Cancel</button>
+          </div>
+        </div>
+        <div id="ptmKpis" class="kpis" style="margin-top:10px"></div>
+      </div>
+      <div class="card xlwrap" style="margin-top:12px"><table class="xl" id="ptmTable"></table></div>
+    </div>
+
+    <div id="panePbase" class="hide">
+      <!-- THE REGISTER, LAID OUT THE WAY RAVI POINTED AT (2026-09-22: "this interface is very good do like
+           this"): a line to say what the screen is and the one button that starts work; the figures as
+           cards; one search and a Filters button; then the rows. Every id below is the one the code has
+           always used, so filtering, the form, approvals and Export behave exactly as before. -->
+      <div class="card" id="bwCard" style="padding:0;border:0;box-shadow:none;background:transparent">
+        <div id="bwBox" class="hide" style="margin-top:12px;border:1px solid var(--line);border-radius:10px;padding:12px">
+          <!-- One-off item with no existing SKU: colour and size become free text, no Order ID is
+               needed, and a disposable SKU is minted (or an existing match reused). -->
+          <!-- Taken off the form on 2026-09-28 (Ravi: "remove the custom order"). The box stays in the page, hidden and
+               never ticked, so the code that reads it keeps working; every entry needs a real SKU now. -->
+          <label class="hide" style="display:none;align-items:center;gap:8px;font-size:12.5px;margin-bottom:10px;
+                        background:var(--hover,#f1f5f9);padding:8px 10px;border-radius:8px">
+            <input type="checkbox" id="bwCustom" style="width:auto" disabled>
+            <span><b>Custom Order</b> — one-off item with no existing SKU (colour &amp; size become free text, a disposable SKU is generated)</span>
+          </label>
+          <div class="toolbar">
+            <span id="bwOrdWrap" style="flex:0 0 240px">
+              <select id="bwOrd" style="width:100%"><option value="">— Select Order ID —</option></select>
+            </span>
+            <select id="bwType" style="flex:0 0 160px"><option value="">Employment type…</option></select>
+            <input id="bwEmp" list="bwEmpList" placeholder="Employee name" style="flex:0 0 170px">
+            <datalist id="bwEmpList"></datalist>
+            <select id="bwAt" style="flex:0 0 150px"><option value="">-- Article type --</option></select>
+            <select id="bwSub" style="flex:0 0 175px"><option value="">-- Subtype --</option></select>
+            <select id="bwCol" style="flex:0 0 150px"><option value="">-- Colour --</option></select>
+            <input id="bwColTxt" class="hide" placeholder="Colour (free text)" style="flex:0 0 150px">
+            <select id="bwSz" style="flex:0 0 120px"><option value="">-- Size --</option></select>
+            <input id="bwSzTxt" class="hide" placeholder="Size (free text)" style="flex:0 0 120px">
+            <input id="bwSku" list="bwSkuList2" placeholder="SKU (auto-matched)" style="flex:0 0 185px;font-family:ui-monospace,monospace"
+                   title="Filled in from the item above. Typing a SKU here works too and fills the item fields back.">
+            <datalist id="bwSkuList2"></datalist>
+            <input id="bwPcs" type="number" min="1" step="1" placeholder="Issue pieces" style="flex:0 0 115px">
+            <input id="bwDate" type="date" style="flex:0 0 155px" title="Issue date">
+            <input id="bwRemarks" placeholder="Remarks (optional)" style="flex:1 1 140px;min-width:0">
+            <button id="bwSave" style="flex:0 0 120px">Issue</button>
+            <button id="bwClear" class="ghost" style="flex:0 0 90px" title="Empty every field and start again">Clear</button>
+          </div>
+          <div id="bwSkuNote" class="muted" style="margin-top:6px;font-size:12.5px"></div>
+          <!-- What the SKU is, and how much may actually be issued — and WHICH limit is binding,
+               because "0 issuable" with no reason sends people to the wrong fix. -->
+          <div id="bwWho" class="muted" style="margin-top:8px;font-size:12.5px"></div>
+          <div id="bwLeft" class="muted" style="margin-top:4px;font-size:12.5px"></div>
+          <!-- WHAT LEAVES THE STORE WITH THE PIECES: zippers, ruffle cloth. The figures are worked
+               out from the master row and filled in, and they can be typed over — the store hands
+               over what it hands over, and the master is only its best guess. Deducted on save:
+               zippers off the accessories ledger, ruffle cloth off the fabric ledger. -->
+          <div id="bwMat" class="hide" style="margin-top:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <span class="muted" style="font-size:12.5px">Also issued with these pieces:</span>
+            <span id="bwZipWrap" class="hide" style="display:flex;gap:6px;align-items:center">
+              <span id="bwZipName" class="muted" style="font-size:12.5px"></span>
+              <input id="bwZip" type="number" min="0" step="1" style="flex:0 0 95px"
+                     title="How many zippers go with this issue. Worked out from the master row — type over it if a different number went. 0 means none were given out.">
+            </span>
+            <span id="bwRufWrap" class="hide" style="display:flex;gap:6px;align-items:center">
+              <select id="bwRufFab" style="flex:0 0 170px" title="Which fabric the ruffle is cut from."></select>
+              <input id="bwRuf" type="number" min="0" step="0.01" placeholder="metres" style="flex:0 0 95px"
+                     title="How many metres of ruffle cloth go with this issue. 0 means none were given out.">
+            </span>
+            <span id="bwMatNote" class="muted" style="font-size:12px"></span>
+          </div>
+          <div id="bwMsg" class="muted" style="margin-top:6px;font-size:12.5px"></div>
+        </div>
+      </div>
+      <div id="pbKpis" class="jw-kpiwrap"></div>
+      <div class="card jw-bar-card">
+        <div class="toolbar">
+          <input id="pbQ" placeholder="Search karigar, item, SKU, order or remarks…" style="flex:1 1 320px;min-width:0">
+          <select id="pbType" style="flex:0 0 160px"><option value="">All types</option></select>
+          <select id="pbEmp" style="flex:0 0 170px"><option value="">All employees</option></select>
+          <!-- WHO MADE THE ENTRY, not who the entry is about. -->
+          <select id="pbWho" style="flex:0 0 165px" title="Who entered the row, or changed it afterwards"><option value="">Anyone's entry</option></select>
+          <select id="pbArt" style="flex:0 0 150px"><option value="">All articles</option></select>
+          <select id="pbSub" style="flex:0 0 175px"><option value="">All subtypes</option></select>
+          <select id="pbCol" style="flex:0 0 150px"><option value="">All colors</option></select>
+          <select id="pbSz" style="flex:0 0 110px"><option value="">All sizes</option></select>
+          <select id="pbStatus" style="flex:0 0 140px">
+            <option value="">Any status</option><option value="open">Open</option>
+            <option value="done">Completed</option><option value="pending">Has pending</option>
+          </select>
+          <!-- WHICH DATE the range is about: issued, received, or either. -->
+          <select id="pbDBy" style="flex:0 0 160px" title="Which date the From–To range looks at">
+            <option value="">Issued or received</option><option value="issue">Issued</option><option value="recv">Received</option>
+          </select>
+          <input id="pbD1" type="date" style="flex:0 0 150px" title="From">
+          <input id="pbD2" type="date" style="flex:0 0 150px" title="To">
+          <button id="pbClear" class="jw-link">Clear filters</button>
+          <button id="pbApv" class="ghost hide">Deletion requests</button>
+          <button id="pbCorr" class="ghost hide" style="color:#b45309;font-weight:600" title="Changes the floor has asked for, waiting for you">Correction requests</button>
+          <span style="flex:1"></span>
+          <button id="pbExport" class="ghost">&#8615; Export</button>
+          <button id="pbGo" class="ghost">Refresh</button>
+        </div>
+        <div id="pbMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
+        <div id="pbMore"></div>
+      </div>
+      <div class="card xlwrap jw-table" style="margin-top:12px"><table class="xl" id="pbTable"></table></div>
+    </div>
+
+    <div id="panePcut" class="hide">
+      <div class="card" style="padding:12px 14px">
+        <div class="toolbar">
+          <select id="pcOrd" style="flex:0 0 190px"><option value="">All orders</option></select>
+          <select id="pcArt" style="flex:0 0 150px"><option value="">All articles</option></select>
+          <select id="pcSub" style="flex:0 0 180px"><option value="">All subtypes</option></select>
+          <select id="pcCol" style="flex:0 0 155px"><option value="">All colors</option></select>
+          <select id="pcSz" style="flex:0 0 110px"><option value="">All sizes</option></select>
+          <select id="pcWho" style="flex:0 0 165px" title="Who entered the row, or changed it afterwards"><option value="">Anyone's entry</option></select>
+          <input id="pcQ" placeholder="Search SKU / order / fabric" style="flex:1 1 180px;min-width:0">
+          <span class="muted" style="font-size:12.5px;flex:0 0 auto">Cut</span>
+          <input id="pcD1" type="date" style="flex:0 0 150px" title="Cut date from">
+          <input id="pcD2" type="date" style="flex:0 0 150px" title="Cut date to">
+          <button id="pcClear" class="ghost">Clear</button>
+          <button id="pcExport" class="ghost">Export</button>
+          <button id="pcGo">Refresh</button>
+        </div>
+        <div id="pcMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
+        <div id="pcMore"></div>
+        <div style="margin-top:10px">
+          <button id="cwToggle" class="ghost">+ New cutting entry</button>
+        </div>
+        <div id="cwBox" class="hide" style="margin-top:10px;border:1px solid var(--line);border-radius:10px;padding:12px">
+          <div class="toolbar">
+            <!-- Picked the way the Job Work Register picks: the four together name one SKU, so nobody
+                 has to know the code. Typing the SKU still works and fills these back. -->
+            <select id="cwAt" style="flex:0 0 150px"><option value="">-- Article type --</option></select>
+            <select id="cwSub" style="flex:0 0 175px"><option value="">-- Subtype --</option></select>
+            <select id="cwCol" style="flex:0 0 150px"><option value="">-- Colour --</option></select>
+            <select id="cwSz" style="flex:0 0 120px"><option value="">-- Size --</option></select>
+            <input id="cwSku" list="cwSkuList" placeholder="SKU (auto-matched)" style="flex:0 0 190px;font-family:ui-monospace,monospace"
+                   title="Filled in from the item on the left. Typing a SKU here works too and fills the item back.">
+            <datalist id="cwSkuList"></datalist>
+            <select id="cwOrd" style="flex:0 0 260px"><option value="">Select an Order ID…</option></select>
+            <input id="cwPcs" type="number" min="1" step="1" placeholder="Pieces" style="flex:0 0 110px">
+            <!-- Picked from the Fabric Type master, the way the production tracker did it: a typed fabric
+                 is how one cloth ends up on the register under three spellings. -->
+            <select id="cwFabric" style="flex:0 0 180px"><option value="">— Fabric —</option></select>
+            <!-- WHAT THE CLOTH ACTUALLY COST. The first is filled in from the size and the roll, and
+                 is meant to be typed over with what the table really took; the second is what came
+                 off it as waste. Both in metres, both optional — a blank is a blank, not a zero. -->
+            <input id="cwUsed" type="number" min="0" step="0.01" placeholder="Fabric used (m)" style="flex:0 0 150px"
+                   title="Metres taken off the roll for this cut. Worked out from the size — type over it with what was really used.">
+            <input id="cwWaste" type="number" min="0" step="0.01" placeholder="Waste (m)" style="flex:0 0 120px"
+                   title="Metres that came off the table as waste — the end of a roll, a mis-cut, the strip left over.">
+            <!-- HOW WIDE THE LEFTOVER IS (Ravi, 2026-09-22): a 2 m strip 40" wide can be cut into
+                 something; the same 2 m at 4" is rag. The metres alone cannot tell them apart. -->
+            <input id="cwWasteW" type="number" min="0" step="0.25" placeholder="Waste width (in)" style="flex:0 0 150px"
+                   title="How wide the leftover piece is, in inches. Leave it blank if nobody measured.">
+            <input id="cwDate" type="date" style="flex:0 0 160px" title="Cutting date">
+            <input id="cwRemarks" placeholder="Remarks (optional)" style="flex:1 1 160px;min-width:0">
+            <button id="cwSave" style="flex:0 0 120px">Save entry</button>
+          </div>
+          <!-- What the SKU is, and what the order still allows — shown BEFORE the save, because a
+               refusal after typing everything in is the thing the floor hates most. -->
+          <div id="cwSkuNote" class="muted" style="margin-top:6px;font-size:12.5px"></div>
+          <div id="cwWho" class="muted" style="margin-top:8px;font-size:12.5px"></div>
+          <div id="cwLeft" class="muted" style="margin-top:4px;font-size:12.5px"></div>
+          <!-- What the cut should take, and how far what was typed is from it. -->
+          <div id="cwFab" class="muted hide" style="margin-top:4px;font-size:12.5px"></div>
+          <div id="cwMsg" class="muted" style="margin-top:6px;font-size:12.5px"></div>
+        </div>
+        <div id="pcKpis" class="kpis" style="margin-top:10px"></div>
+      </div>
+      <div class="card xlwrap" style="margin-top:12px"><table class="xl" id="pcTable"></table></div>
+    </div>
+  <!-- ============ Shopify Orders: what has to ship, whether Amazon can ship it, and where it
+       stands. One row per order, because a courier label is made from one order at a time. ====== -->
+  <div id="paneShop" class="hide">
+    <div class="card" style="padding:12px 14px">
+      <div class="toolbar">
+        <input id="soFrom" type="date" style="flex:0 0 150px">
+        <span class="muted" style="font-size:13px">to</span>
+        <input id="soTo" type="date" style="flex:0 0 150px">
+        <!-- EVERY ORDER by default. The sync closes a production row when its order ships, and it
+             can only see what the fetch returns — so filtering the shipped ones out is the one
+             setting that guarantees nothing ever closes. That is what it was set to. -->
+        <select id="soOpen" style="flex:0 0 180px">
+          <option value="0">Every order</option>
+          <option value="1">Not yet shipped</option>
+        </select>
+        <div class="ms" id="soChan" style="flex:0 0 170px"
+             title="Which shop the order came from. Nothing ticked means all of them."></div>
+        <div class="ms" id="soMcf" style="flex:0 0 215px"
+             title="Where this order can ship from. Tick as many as you like; nothing ticked means all of them."></div>
+        <select id="soState" style="flex:0 0 190px" title="Cancelled comes from Shopify. Chargeback and MCF done are read from the order's tags, its notes, or the status typed here.">
+          <option value="ALL">Any state</option>
+          <option value="live">Live only</option>
+          <option value="cancel">Cancelled</option>
+          <option value="cb">Chargeback</option>
+          <option value="mcfdone">MCF done</option>
+          <option value="handled">Marked done / ready</option>
+        </select>
+        <select id="soDay" style="flex:0 0 150px"
+                title="Which day the order was PLACED, in the store's own day. Filters what is already loaded — it does not re-fetch.">
+          <option value="">Any day</option>
+          <option value="0">Placed today</option>
+          <option value="-1">Placed yesterday</option>
+          <option value="-7">Last 7 days</option>
+        </select>
+        <input id="soFilter" style="flex:1 1 150px;min-width:0" placeholder="Filter order / SKU / name">
+        <button id="soAdj" class="ghost" title="Every shortfall raised, by the day it was raised. Printable, to hand to production.">Adjustments</button>
+        <button id="soBucket" title="Shopify lines that need production and have no production order yet — tick and open them here. Nothing opens by itself.">Production bucket</button>
+        <button id="soDense" class="ghost" title="One page: ten columns that fit the screen, or every column with a sideways scroll.">Full columns</button>
+        <button id="soReturns" class="ghost" title="Returns, typed by hand: which order, which lines, the return tracking number, and whether it has reached the USA warehouse.">Returns</button>
+        <button id="soDays" class="ghost" title="How many days a parcel from the USA warehouse takes to a zip code — an estimate from distance zones, not a carrier quote.">Delivery days</button>
+        <select id="soTmpl" style="flex:0 0 190px" title="Which upload template to write. The column headings and their order match the courier's own workbook exactly.">
+          <option value="plain">Plain list — one row per line item</option>
+          <option value="plainOrder">Plain list — one row per order</option>
+          <option value="mcf">Amazon MCF</option>
+          <option value="dhlh">DHL Hybrid</option>
+          <option value="dhlc">DHL CSV</option>
+          <option value="fedex">FedEx</option>
+        </select>
+        <button id="soExport" class="ghost">Export</button>
+        <button id="soPrintMany" class="ghost"
+                title="Pick sheets, with photos, for the ticked orders — or for everything shown if nothing is ticked.">Print orders</button>
+        <button id="soImp" class="ghost"
+                title="Bring in orders from a shop this app has no API key for — CPC Shopify and the Etsy stores.">Import orders</button>
+        <button id="soBulkSheet" class="ghost"
+                title="A sheet of every line of the orders shown (or ticked), with the Location, At location and Line status recorded today. Change what you need and bring it back with Bulk update.">Update sheet</button>
+        <button id="soBulkPick" class="ghost"
+                title="Read an update sheet back: Location, At location and Line status for many lines at once. A blank cell is left as it is; a - clears it.">Bulk update</button>
+        <input id="soBulkFile" type="file" accept=".xlsx,.csv,text/csv" class="hide">
+        <button id="soGo">Fetch orders</button>
+      </div>
+      <div id="soMsg" class="muted" style="margin-top:8px;font-size:13px"></div>
+      <div id="soPickMsg" class="muted" style="margin-top:4px;font-size:12px"></div>
+      <!-- Today and yesterday, in the STORE's day. Cancelled orders are left out of all of it. -->
+      <div id="soToday" style="margin-top:10px;display:flex;gap:22px;flex-wrap:wrap;font-size:13px"></div>
+    </div>
+
+    <div class="card" style="padding:0;overflow:auto;max-height:70vh;margin-top:12px">
+      <table id="soTable" class="xl"></table>
+    </div>
+  </div><!-- /paneShop -->
+
+  <!-- ============ Adjustments: what production owes, from raised to received back ============ -->
+  <div id="paneAdj" class="hide">
+    <div class="card" style="padding:12px 14px">
+      <div class="toolbar">
+        <select id="ajState" style="flex:0 0 190px">
+          <option value="OPEN">Open — not yet back</option>
+          <option value="ALL">Every adjustment</option>
+          <option value="raised">Raised</option>
+          <option value="sent">Sent to production</option>
+          <option value="accepted">Accepted</option>
+          <option value="received">Received back</option>
+          <option value="LATE">Past the promised date</option>
+        </select>
+        <input id="ajFrom" type="date" style="flex:0 0 150px" title="Raised on or after">
+        <span class="muted" style="font-size:13px">to</span>
+        <input id="ajTo" type="date" style="flex:0 0 150px" title="Raised on or before">
+        <input id="ajFilter" style="flex:1 1 150px;min-width:0" placeholder="Filter id / order / SKU / product">
+        <button id="ajSent" class="ghost" title="Mark the ticked jobs as handed to production.">Mark sent</button>
+        <button id="ajAccept" class="ghost" title="Production has taken the ticked jobs on, and said when they will be back.">Accept…</button>
+        <button id="ajRecv" class="ghost" title="Shipping has the pieces back from production.">Received…</button>
+        <button id="ajPrint">Print selected</button>
+        <button id="ajExport" class="ghost">Export</button>
+      </div>
+      <div id="ajMsg" class="muted" style="margin-top:8px;font-size:13px"></div>
+    </div>
+
+    <div id="ajKpis" class="kpis" style="margin-top:12px"></div>
+
+    <div class="card" style="padding:0;overflow:auto;max-height:70vh;margin-top:12px">
+      <table id="ajTable" class="xl"></table>
+    </div>
+  </div><!-- /paneAdj -->
+  </main>
+</div>
+
+<!-- The two dialogs the Adjustments screen opens. After </main> with this app's other
+     dialogs, not among the panes: they are overlays, not sections. -->
+  <!-- One order: where it stands, and everything a courier label needs. -->
+  <div id="soModal" class="modal hide">
+    <!-- WIDE (Ravi, 2026-09-24: "slide krke all information dekhni hoti h"): a line fits on the row. -->
+    <div class="modalbox so-wide" style="width:min(1180px,100%)">
+      <!-- Design 1, "Wide sheet, tidied" (Ravi, 2026-09-24). What Shopify says — fulfilled or not,
+           and the tracking — sits beside the order number: it is the first thing worth knowing. -->
+      <div class="so-head">
+        <div class="so-hl">
+          <div class="so-ht"><span class="so-tt" id="soTitle">Order</span><span id="soFf" class="so-ff"></span></div>
+          <div class="muted so-sub" id="soSub"></div>
+        </div>
+        <button id="soX" class="so-x" type="button" aria-label="Close" title="Close">×</button>
+      </div>
+      <div id="soShopNote" class="hide" style="margin-bottom:12px"></div>
+      <div id="soItems" class="so-box"></div>
+      <datalist id="soStatusList"></datalist>
+      <!-- Shelf bins. Filled from the list below plus anything already in use, so a bin added on
+           the floor appears here without a code change. -->
+      <datalist id="soLocList"></datalist>
+      <!-- Suggestions only. Anything can still be typed — see the cell's comment for why. -->
+      <datalist id="soLnStList">
+        <option value="In cutting"><option value="In stitching"><option value="In printing">
+        <option value="In washing"><option value="Ready"><option value="Packed">
+        <option value="Short"><option value="On hold"><option value="OOS">
+      </datalist>
+
+      <!-- ── SHIPMENT: PARKED, NOT DELETED (Ravi, 2026-09-02: "remove for now, we will look at this
+           later"). HIDDEN rather than removed on purpose — every field in here is read and written by
+           name when an order opens and when it saves (`$('soDesc').value`, soWt, soVal, soCarrier,
+           soPieces, soBoxL/W/H). Take the elements out and those lines throw on a null, which does
+           not break this section, it breaks the whole order panel. Hidden, they keep answering, and
+           whatever is already stored against past orders is left exactly as it was.
+           To bring it back: delete the `hide` class on the wrapper below. Nothing else. -->
+      <div id="soShipBlock" class="hide">
+      <div class="sec">Shipment</div>
+      <div class="row" style="gap:8px">
+        <div style="flex:2"><label>Contents</label><input id="soDesc" placeholder="e.g. Cotton tablecloth x2" maxlength="90"></div>
+        <div style="flex:1"><label>Weight (kg)</label><input id="soWt" type="number" step="0.01" min="0"></div>
+      </div>
+      <div class="row" style="gap:8px;margin-top:10px">
+        <div style="flex:1"><label>Declared value</label><input id="soVal" type="number" step="0.01" min="0"></div>
+        <div style="flex:1"><label>Ship via</label>
+          <select id="soCarrier">
+            <option value="">— not chosen —</option>
+            <option value="DHL">DHL</option>
+            <option value="FEDEX">FedEx</option>
+            <option value="MCF">Amazon MCF</option>
+          </select></div>
+      </div>
+      <div class="muted" style="font-size:11.5px;margin-top:6px">Weight and value are pre-filled from Shopify — the line-item grams and the order total. Change them if the parcel says otherwise.</div>
+
+      <div class="row" style="gap:8px;margin-top:10px">
+        <div style="flex:0 0 90px"><label>Pieces</label><input id="soPieces" type="number" min="1" step="1" value="1"></div>
+        <div style="flex:1"><label>Length (cm)</label><input id="soBoxL" type="number" min="0" step="0.1"></div>
+        <div style="flex:1"><label>Width (cm)</label><input id="soBoxW" type="number" min="0" step="0.1"></div>
+        <div style="flex:1"><label>Height (cm)</label><input id="soBoxH" type="number" min="0" step="0.1"></div>
+      </div>
+
+      </div><!-- /soShipBlock -->
+
+      <!-- ── INVOICE & CUSTOMS: PARKED, NOT DELETED (Ravi, 2026-09-03), for the same reason as the
+           Shipment block above: soCur, soGstInv, soGstInvDate, soNgstInv, soNgstInvDate, soCustoms
+           and soInvTot are all read and written by name when an order opens and saves, and the
+           per-SKU HS code / GST rate / invoice rate are stored against the SKU. Removing the
+           elements would throw on a null and take the whole order panel down with it; hiding them
+           keeps every one of them answering and leaves what is already saved untouched.
+           To bring it back: delete the `hide` class on the wrapper below. Nothing else. -->
+      <div id="soCustomsBlock" class="hide">
+      <!-- Every field DHL and FedEx call mandatory that Shopify cannot supply. -->
+      <div class="sec">Invoice &amp; customs</div>
+      <div class="row" style="gap:8px">
+        <div style="flex:0 0 130px"><label>Invoice currency</label>
+          <select id="soCur">
+            <option value="INR">INR</option>
+            <option value="USD">USD</option>
+          </select></div>
+        <div style="flex:1"><label>GST invoice no</label><input id="soGstInv" maxlength="30"></div>
+        <div style="flex:0 0 150px"><label>GST invoice date</label><input id="soGstInvDate" type="date"></div>
+      </div>
+      <div class="row" style="gap:8px;margin-top:10px">
+        <div style="flex:0 0 130px"></div>
+        <div style="flex:1"><label>Non-GST invoice no</label><input id="soNgstInv" maxlength="30"></div>
+        <div style="flex:0 0 150px"><label>Non-GST invoice date</label><input id="soNgstInvDate" type="date"></div>
+      </div>
+      <div class="muted" style="font-size:11.5px;margin-top:6px">
+        DHL needs ONE complete pair — either both GST fields or both non-GST. The export says so
+        before it writes a file the uploader would reject.
+      </div>
+
+      <div style="margin-top:12px">
+        <div class="muted" style="font-size:12px;margin-bottom:6px">
+          Per SKU, and saved against the SKU — the HS code, its GST rate and its invoice rate belong
+          to the product, so the next order carrying it arrives already filled in.
+        </div>
+        <table id="soCustoms" class="xl" style="font-size:12px"></table>
+      </div>
+      <div id="soInvTot" class="muted" style="font-size:12px;margin-top:6px"></div>
+      </div><!-- /soCustomsBlock -->
+
+      <div class="so-grid">
+        <!-- Ship it out of FBA. Behind a preview, because this one spends money. -->
+        <div class="so-card">
+          <div class="so-lb">Send to Amazon (MCF)</div>
+          <div id="soMcfBox" style="font-size:12.5px"></div>
+          <div class="so-mrow">
+            <!-- The order's own account, said. The select stays underneath: everything that sends or
+                 checks reads its value, as before. -->
+            <div id="soMcfSeg"></div>
+            <select id="soMcfBrand" class="hide" aria-label="Amazon account">
+              <option value="SP">Ridhi</option>
+              <option value="CPC">CPC</option>
+            </select>
+            <div style="flex:1"></div>
+            <button id="soMcfPreview"
+                    title="Asks Amazon what each speed would cost and when it would arrive. Places nothing.">Check speeds &amp; cost</button>
+          </div>
+          <div id="soMcfPrev" class="hide"></div>
+          <div id="soErr" class="err hide"></div>
+        </div>
+        <div class="so-card">
+          <div><label for="soStatus">Order status</label><input id="soStatus" list="soStatusList" placeholder="e.g. Packed" maxlength="40"></div>
+          <div><label for="soNote">Note</label><input id="soNote" placeholder="Note — optional" maxlength="120"></div>
+        </div>
+      </div>
+      <div class="so-foot">
+        <span id="soFootSum" class="muted" style="font-size:12.5px"></span>
+        <div style="flex:1"></div>
+        <button id="soCancel" class="ghost">Close</button>
+        <button id="soPrint" class="ghost"
+                title="A pick sheet for this order, with a photo of every line — the same shape as the Adjustments print.">Print order</button>
+        <button id="soSave" style="min-width:120px">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Orders from a shop with no API key: CPC Shopify and the Etsy stores. Once in, they behave
+       exactly like a fetched order — same columns, same MCF, same pick sheet. -->
+  <div id="soImpModal" class="modal hide">
+    <div class="modalbox" style="width:min(720px,100%)">
+      <div style="font-weight:700;margin-bottom:2px">Import orders</div>
+      <div class="muted" style="font-size:12px;margin-bottom:12px">
+        For shops this app cannot reach by API. An import REPLACES everything previously imported for
+        the chosen channel, so each file is a full picture of that shop — never half of one.
+      </div>
+
+      <label>Channel</label>
+      <select id="soImpChan" style="width:100%"></select>
+
+      <div class="row" style="gap:8px;margin-top:12px">
+        <button id="soImpTemplate" class="ghost" style="flex:1">Download template</button>
+        <button id="soImpPick" class="ghost" style="flex:1">Choose CSV…</button>
+        <input id="soImpFile" type="file" accept=".csv,text/csv" style="display:none">
+      </div>
+
+      <div id="soImpPrev" class="hide" style="margin-top:12px"></div>
+      <div id="soImpErr" class="err hide" style="margin-top:10px"></div>
+
+      <div class="row" style="margin-top:14px;gap:8px">
+        <button id="soImpSave" style="flex:1" disabled>Import</button>
+        <button id="soImpClear" class="ghost" style="flex:0 0 150px"
+                title="Remove every order previously imported for this channel.">Clear channel</button>
+        <button id="soImpCancel" class="ghost" style="flex:0 0 90px">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Accepting a job, or booking it back in. One box, because the two are the same shape: who,
+       when, and how many — and asking them differently would be two things to learn, not one. -->
+  <div id="ajwModal" class="modal hide" style="z-index:60">
+    <div class="modalbox" style="width:min(460px,100%)">
+      <div style="font-weight:700;margin-bottom:2px" id="ajwTitle">Accept</div>
+      <div class="muted" id="ajwSub" style="font-size:12px;margin-bottom:12px"></div>
+      <div class="row" style="gap:8px">
+        <div style="flex:1"><label id="ajwDateLbl">Will be ready by</label><input id="ajwDate" type="date"></div>
+        <div style="flex:0 0 110px" id="ajwQtyWrap"><label>Quantity</label><input id="ajwQty" type="number" min="0" step="1"></div>
+      </div>
+      <label style="margin-top:10px">Who</label>
+      <input id="ajwWho" list="ajwWhoList" placeholder="e.g. Production — Imran" maxlength="40">
+      <datalist id="ajwWhoList"></datalist>
+      <label style="margin-top:10px">Note</label>
+      <input id="ajwNote" placeholder="optional" maxlength="120">
+      <div id="ajwErr" class="err hide" style="margin-top:8px"></div>
+      <div class="row" style="margin-top:14px;gap:8px">
+        <button id="ajwSave" style="flex:1">Save</button>
+        <button id="ajwCancel" class="ghost" style="flex:0 0 90px">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- One adjustment: what is going to production, and what has to come back. Sits ABOVE the order
+       dialog (z-index 60) rather than replacing it, so the line it belongs to stays in view. -->
+  <div id="adjModal" class="modal hide" style="z-index:60">
+    <div class="modalbox" style="width:min(620px,100%)">
+      <div style="font-weight:700;margin-bottom:2px" id="adjTitle">Adjustment</div>
+      <div class="muted" id="adjSub" style="font-size:12px;margin-bottom:12px"></div>
+
+      <div class="row" style="gap:14px;align-items:flex-start">
+        <div style="flex:0 0 150px"><img id="adjImg" alt=""
+             style="width:150px;height:150px;object-fit:contain;border-radius:10px;background:#f8fafc;border:1px solid var(--line)"></div>
+        <div style="flex:1">
+          <label>Reason</label>
+          <select id="adjReason">
+            <option value="Wrong size">Wrong size — I have it, but not in this size</option>
+            <option value="Short">Short — not enough stock</option>
+            <option value="Damaged">Damaged / rejected</option>
+            <option value="Other">Other</option>
+          </select>
+          <div class="row" style="gap:8px;margin-top:10px">
+            <div style="flex:1"><label>Sending to production</label>
+              <input id="adjSend" list="adjSizeList" placeholder="e.g. 60x120" maxlength="40"></div>
+            <div style="flex:1"><label>Wanted back</label>
+              <input id="adjWant" list="adjSizeList" placeholder="e.g. 60x104" maxlength="40"></div>
+          </div>
+          <datalist id="adjSizeList"></datalist>
+          <div class="row" style="gap:8px;margin-top:10px">
+            <div style="flex:0 0 110px"><label>Quantity</label>
+              <input id="adjQty" type="number" min="1" step="1" value="1"></div>
+            <div style="flex:1"><label>Note for production</label>
+              <input id="adjNote" placeholder="optional" maxlength="120"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="muted" style="font-size:11.5px;margin-top:10px">
+        The adjustment id and the picture are fixed when this is first saved, so the printed sheet
+        cannot change under a job already on the floor.
+      </div>
+      <div id="adjErr" class="err hide" style="margin-top:8px"></div>
+      <div class="row" style="margin-top:14px;gap:8px">
+        <button id="adjDelete" class="ghost" style="flex:0 0 90px;color:var(--bad)">Remove</button>
+        <button id="adjSave" style="flex:1">Save adjustment</button>
+        <button id="adjCancel" class="ghost" style="flex:0 0 90px">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+
+<!-- ============ Edit Entry (Base Data) ============
+     In front of the row, not in the "new entry" form at the top — one form for both is what stopped
+     a custom entry being editable at all: its SKU is not in the master database, so the add-form
+     called it unknown and emptied every dropdown. -->
+<div id="bdModal" class="hide ptmodal">
+  <div class="ptmodal-box">
+    <div class="ptmodal-head">
+      <span>Edit Entry</span>
+      <button id="bdmClose" class="ptmodal-x" type="button" aria-label="Close">&times;</button>
+    </div>
+    <div class="ptmodal-body">
+      <div id="bdmWho" class="ptmodal-who"></div>
+      <div id="bdmFrozen" class="ok hide" style="margin:0 0 10px">This row is complete. Changing the quantities will re-open it if anything is left pending.</div>
+      <div class="ptgrid">
+        <label>Employee name<input id="bdmName"></label>
+        <label>Employment type<select id="bdmType"></select></label>
+        <label>Issue pieces<input id="bdmIssue" type="number" min="1" step="1"></label>
+        <label>Received pieces (total so far)<input id="bdmRecv" type="number" min="0" step="1"></label>
+        <label>Rejection pieces<input id="bdmRej" type="number" min="0" step="1"></label>
+        <label style="grid-column:1/-1">Remarks<input id="bdmRemarks"></label>
+      </div>
+
+      <div id="bdmAdminSku" class="ptbox hide">
+        <div class="ptbox-t">Change SKU <span class="muted">(admin only)</span></div>
+        <div class="muted" style="font-size:12px;margin-bottom:6px">The SKU must exist in the Master
+          Database. Article type, subtype, colour and size are re-derived from it automatically.</div>
+        <input id="bdmSku" style="font-family:ui-monospace,monospace">
+      </div>
+
+      <div id="bdmDatesRead" class="ptbox hide">
+        <div class="ptbox-t">Dates</div>
+        <div class="muted" style="font-size:12px" id="bdmDatesTxt"></div>
+      </div>
+
+      <div id="bdmAdminDates" class="ptbox hide">
+        <div class="ptbox-t">Date override <span class="muted">(admin only)</span></div>
+        <div class="muted" style="font-size:12px;margin-bottom:6px">Changing a date can move this row's
+          pieces into a different payout period. Only the day changes — the time on the record is kept.</div>
+        <div class="ptgrid">
+          <label>Issue date<input id="bdmIssueDate" type="date"></label>
+          <label>Receiving date<input id="bdmRecvDate" type="date"></label>
+        </div>
+      </div>
+
+      <div id="bdmMsg" class="muted" style="margin-top:10px;font-size:12.5px"></div>
+    </div>
+    <div class="ptmodal-foot">
+      <button id="bdmDelete" class="ghost hide" style="color:var(--bad)">Delete</button>
+      <!-- For somebody who may correct a row but not delete one. Deleting moves the order balance,
+           the cutting cap, the weekly report and a worker's pay at once, so it stays admin-only —
+           but asking should not, and until now there was no way to. -->
+      <button id="bdmAsk" class="ghost hide">Ask to delete</button>
+      <span style="flex:1"></span>
+      <button id="bdmCancel" class="ghost">Cancel</button>
+      <button id="bdmSave">Save changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ The shared edit dialog ============
+     Every register's Edit opens here. Written once so the admin-only box, the delete confirmation
+     and the save/failure handling cannot drift apart between screens. -->
+<div id="ptDlg" class="hide ptmodal">
+  <div class="ptmodal-box" id="ptDlgBox">
+    <div class="ptmodal-head">
+      <span id="ptDlgTitle">Edit</span>
+      <span id="ptDlgTitleX"></span>
+      <button id="ptDlgClose" class="ptmodal-x" type="button" aria-label="Close">&times;</button>
+    </div>
+    <div class="ptmodal-body">
+      <div id="ptDlgWho" class="ptmodal-who hide"></div>
+      <div id="ptDlgNote" class="ptnote hide"></div>
+      <div id="ptDlgBody"></div>
+      <div id="ptDlgMsg" class="muted" style="margin-top:10px;font-size:12.5px"></div>
+    </div>
+    <div class="ptmodal-foot">
+      <button id="ptDlgDelete" class="ghost hide" style="color:var(--bad)">Delete</button>
+      <span id="ptDlgFootL"></span>
+      <span style="flex:1"></span>
+      <button id="ptDlgCancel" class="ghost">Cancel</button>
+      <button id="ptDlgAlt" class="ghost hide"></button>
+      <button id="ptDlgSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- PO editor -->
+<!-- SKUs this tool should pretend do not exist: parent placeholders, dead codes, junk rows the
+     sheet keeps producing. Kept as a LIST rather than deleted, because the snapshot is rebuilt from
+     the sheet on every refresh — anything deleted from the data would simply come back tonight. -->
+<!-- Editing a saved list. The header fields and the per-box dimensions/weights, which are what the
+     print and the labels are built from — the line items come from the file. -->
+<div id="pkEditModal" class="modal hide">
+  <div class="modalbox" style="width:min(1000px,100%)">
+    <div style="font-weight:700;margin-bottom:2px" id="pkEdTitle">Packing list</div>
+    <div class="muted" style="font-size:12px;margin-bottom:12px">
+      Weights are worked out, not typed: <b>net</b> is qty × per-piece weight added up, <b>gross</b> is net plus
+      the packing weight, <b>volume weight</b> is L×W×H ÷ the divisor. Type a gross weight only where you
+      have actually put the box on a scale.
+    </div>
+    <div id="pkEdErr" class="err hide" style="margin-bottom:10px"></div>
+    <div class="row" style="gap:10px;flex-wrap:wrap">
+      <div style="flex:1 1 220px"><label>Title</label><input id="pkEdTitleIn"></div>
+      <div style="flex:0 0 150px"><label>Invoice #</label><input id="pkEdInv"></div>
+      <div style="flex:0 0 190px"><label>FBA account</label><input id="pkEdAcc"></div>
+      <div style="flex:0 0 140px"><label>Date</label><input id="pkEdDate" type="date"></div>
+      <div style="flex:0 0 130px"><label>Status</label>
+        <select id="pkEdStatus">
+          <option value="draft">Draft</option>
+          <option value="progress">In progress</option>
+          <option value="done">Completed</option>
+        </select></div>
+    </div>
+    <div class="row" style="gap:10px;flex-wrap:wrap;margin-top:6px">
+      <div style="flex:0 0 130px"><label>Packing wt (kg)</label><input id="pkEdPkg" type="number" step="0.01" min="0"></div>
+      <div style="flex:0 0 130px"><label>Volume divisor</label><input id="pkEdVdiv" type="number" step="1" min="1"></div>
+      <div style="flex:0 0 240px"><label>Apply L × W × H (cm) to every box</label>
+        <div class="row" style="gap:6px">
+          <input id="pkEdL" type="number" step="0.1" min="0" placeholder="L" style="flex:1">
+          <input id="pkEdW" type="number" step="0.1" min="0" placeholder="W" style="flex:1">
+          <input id="pkEdH" type="number" step="0.1" min="0" placeholder="H" style="flex:1">
+          <button id="pkEdApplyDim" class="ghost" style="flex:0 0 62px">Apply</button>
+        </div>
+      </div>
+    </div>
+    <div class="xlwrap" style="max-height:260px;margin-top:12px"><table class="xl" id="pkEdBoxes"></table></div>
+    <div class="sec" style="margin:14px 0 4px">Per SKU — description, size, weight</div>
+    <div class="muted" style="font-size:11.5px;margin-bottom:6px">
+      Everything here is a fact about the PRODUCT, not about the box, so it is edited once per SKU and
+      applies to every box it appears in — and is remembered for every packing list after this one.
+      Description and size fill in from the catalogue; a SKU the catalogue has never heard of falls back
+      to its own code (shown yellow) and that code is what would print on the label. Weight nothing can
+      look up at all: type the per-piece figure, or the line's weight off the scale, and the other follows.
+    </div>
+    <div class="xlwrap" style="max-height:220px"><table class="xl" id="pkEdWt"></table></div>
+    <div class="row" style="margin-top:12px">
+      <button id="pkEdSave" style="flex:none">Save</button>
+      <button id="pkEdPrint" class="ghost" style="flex:none">Packing list</button>
+      <button id="pkEdLabels" class="ghost" style="flex:none">Box labels</button>
+      <button id="pkEdClose" class="ghost" style="flex:none">Close</button>
+      <span id="pkEdMsg" class="muted" style="align-self:center"></span>
+    </div>
+  </div>
+</div>
+
+<!-- The five things a label carries that are NOT in the packing list. Remembered between shipments,
+     because they are the same on every box of every consignment and retyping them is where a wrong
+     consignee comes from. -->
+<div id="pkLblModal" class="modal hide">
+  <div class="modalbox" style="width:min(560px,100%)">
+    <div style="font-weight:700;margin-bottom:2px">Box labels</div>
+    <div class="muted" style="font-size:12px;margin-bottom:12px">4 × 6 inch, one page per box.</div>
+    <div id="pkLblErr" class="err hide" style="margin-bottom:10px"></div>
+    <div style="margin-bottom:8px"><label>Invoice number</label><input id="pkLblInv"></div>
+    <div style="margin-bottom:8px"><label>Consignee / warehouse</label><input id="pkLblCons" placeholder="HGR6  Amazon"></div>
+    <div class="row" style="gap:10px">
+      <div style="flex:1"><label>Port of discharge</label><input id="pkLblPort" placeholder="USA"></div>
+      <div style="flex:1"><label>Made in</label><input id="pkLblMade" placeholder="INDIA"></div>
+      <div style="flex:1"><label>Exporter</label><input id="pkLblExp" placeholder="Ridhi"></div>
+    </div>
+    <div style="margin-top:8px"><label>Content <span style="font-weight:400">— blank uses each box's own items</span></label>
+      <input id="pkLblContent" placeholder=""></div>
+    <label style="display:inline-flex;align-items:center;gap:6px;margin-top:10px;font-size:13px">
+      <input id="pkLblBar" type="checkbox" style="width:auto"> Also print a Code 128 barcode (off by default — the label is otherwise exactly the one the Pillow app prints)
+    </label>
+    <div class="row" style="margin-top:12px">
+      <button id="pkLblGo" style="flex:none">Print labels</button>
+      <button id="pkLblCancel" class="ghost" style="flex:none">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Packing list: what the file turned into, BEFORE it is saved.
+     A file is read against column NAMES, and a name that did not match is the whole failure mode —
+     it does not error, it just produces a list with a column missing. So the preview names every
+     column it matched, every one it could not, and every row it had to drop. -->
+<div id="pkModal" class="modal hide">
+  <div class="modalbox" style="width:min(960px,100%)">
+    <div style="font-weight:700;margin-bottom:2px">New packing list</div>
+    <div class="muted" style="font-size:12px;margin-bottom:12px" id="pkFileName"></div>
+    <div id="pkImpErr" class="err hide" style="margin-bottom:10px"></div>
+    <div class="row" style="gap:10px;flex-wrap:wrap">
+      <div style="flex:1 1 240px"><label>Title</label><input id="pkTitle" placeholder="CPC FBA SHIPMENT"></div>
+      <div style="flex:0 0 170px"><label>Invoice #</label><input id="pkInvoice" placeholder="optional"></div>
+      <div style="flex:0 0 200px"><label>FBA account</label><input id="pkAcc" placeholder="Vishwa FBA (Air)"></div>
+      <div style="flex:0 0 150px"><label>Shipment date</label><input id="pkDate" type="date"></div>
+    </div>
+    <div id="pkMatch" style="font-size:12px;margin-top:12px"></div>
+    <div class="xlwrap" style="max-height:320px;margin-top:10px"><table class="xl" id="pkPreview"></table></div>
+    <div class="row" style="margin-top:12px">
+      <button id="pkSave" style="flex:none">Save packing list</button>
+      <button id="pkCancel" class="ghost" style="flex:none">Cancel</button>
+      <span id="pkImpMsg" class="muted" style="align-self:center"></span>
+    </div>
+  </div>
+</div>
+
+<div id="hideModal" class="modal hide">
+  <div class="modalbox" style="width:min(720px,100%)">
+    <div style="font-weight:700;margin-bottom:2px">Hidden SKUs</div>
+    <div class="muted" style="font-size:12px;margin-bottom:12px">
+      Removed from every count, every filter, every export and every PO in this tool. Nothing is
+      deleted — the sheet is untouched, and taking a SKU off this list brings it straight back.
+    </div>
+    <label style="font-size:12px">Paste SKUs to hide — one per line, or comma separated</label>
+    <textarea id="hidePaste" rows="6" style="width:100%;font-family:ui-monospace,Consolas,monospace;font-size:12px"
+              placeholder="RBD101&#10;RB10&#10;TOTEBAG"></textarea>
+    <div class="row" style="gap:8px;margin-top:8px">
+      <button id="hideAdd" style="flex:0 0 170px">Add to hidden</button>
+      <span class="muted" id="hideMsg" style="font-size:12.5px;align-self:center"></span>
+    </div>
+    <div class="sec" style="margin-top:14px">Currently hidden <span id="hideCount" class="muted"></span></div>
+    <div id="hideList" style="max-height:34vh;overflow:auto;font-size:12.5px"></div>
+    <div class="row" style="margin-top:14px;gap:8px">
+      <button id="hideClear" class="ghost" style="flex:0 0 130px;color:var(--bad)">Unhide all</button>
+      <button id="hideClose" class="ghost" style="flex:1">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="poModal" class="modal hide">
+  <div class="modalbox">
+    <div style="font-weight:700;margin-bottom:12px" id="poModalTitle">New purchase order</div>
+    <div class="row">
+      <div style="flex:0 0 130px"><label>Brand</label><select id="pmBrand"><option value="SP">Ridhi</option><option value="CPC">CPC</option></select></div>
+      <div style="flex:1"><label>Supplier</label><input id="pmSupplier" placeholder="Supplier name"></div>
+      <div style="flex:0 0 120px"><label>Mode</label><select id="pmMode"><option value="sea">Sea</option><option value="air">Air</option></select></div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <div style="flex:1"><label>Order date</label><input id="pmOrderDate" type="date"></div>
+      <div style="flex:1"><label>Delivery date</label><input id="pmEta" type="date"></div>
+      <div style="flex:0 0 120px"><label>Priority</label><select id="pmPriority">
+        <option value="high">High</option><option value="medium" selected>Medium</option><option value="low">Low</option></select></div>
+      <div style="flex:0 0 140px"><label>Status</label><select id="pmStatus">
+        <option value="draft">Draft</option><option value="ordered">Ordered</option>
+        <option value="transit">In transit</option><option value="received">Received</option>
+        <option value="cancelled">Cancelled</option></select></div>
+    </div>
+    <div class="sec">Lines <span class="muted" style="font-weight:400;font-size:12px">— Sub-category / Color / Size auto-fill from the SKU (after a Replenishment refresh)</span></div>
+    <table class="tbl"><thead><tr><th>SKU</th><th>Sub-cat</th><th>Color</th><th>Size</th><th style="width:60px">Air</th><th style="width:60px">Sea</th><th style="width:60px">Total</th><th style="width:60px">India</th><th></th></tr></thead>
+      <tbody id="pmLines"></tbody></table>
+    <div class="row" style="gap:8px;margin-top:6px">
+      <input id="pmAddSku" placeholder="Add SKU" style="flex:2">
+      <input id="pmAddAir" type="number" placeholder="Air qty" style="flex:0 0 90px">
+      <input id="pmAddSea" type="number" placeholder="Sea qty" style="flex:0 0 90px">
+      <button id="pmAddLine" class="ghost" style="flex:0 0 80px">Add</button>
+    </div>
+    <label style="margin-top:12px">Note</label>
+    <textarea id="pmNote" rows="2" placeholder="Optional"></textarea>
+    <div id="pmErr" class="err hide" style="margin-top:10px"></div>
+    <div class="row" style="margin-top:14px;gap:8px">
+      <button id="pmSave" style="flex:1">Save PO</button>
+      <button id="pmDelete" class="ghost hide" style="flex:0 0 110px">Delete</button>
+      <button id="pmCancel" class="ghost" style="flex:0 0 100px">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Follow-up logger -->
+<div id="fuModal" class="modal hide">
+  <div class="modalbox" style="width:min(460px,100%)">
+    <div style="font-weight:700;margin-bottom:6px">Log a follow-up</div>
+    <div id="fuPoName" class="muted" style="margin-bottom:12px;font-size:13px"></div>
+    <div class="row" style="gap:10px">
+      <div style="flex:0 0 160px"><label>Follow-up date</label><input id="fuDate" type="date"></div>
+      <div style="flex:1"><label>Next follow-up</label><input id="fuNext" type="text" disabled></div>
+    </div>
+    <label style="margin-top:10px">Note (what did the supplier say?)</label>
+    <textarea id="fuNote" rows="3" placeholder="Optional — e.g. dispatched, ETA revised to …"></textarea>
+    <div id="fuErr" class="err hide" style="margin-top:10px"></div>
+    <div id="fuHist"></div>
+    <div class="row" style="justify-content:flex-end;gap:8px;margin-top:14px">
+      <button id="fuCancel" class="ghost" style="flex:0 0 100px">Cancel</button>
+      <button id="fuSaveBtn" style="flex:0 0 150px">Save follow-up</button>
+    </div>
+  </div>
+</div>
+
+<!-- Monthly projection upload -->
+<div id="projModal" class="modal hide">
+  <div class="modalbox" style="width:min(480px,100%)">
+    <div style="font-weight:700;margin-bottom:4px">Upload a month's projection</div>
+    <div class="muted" style="font-size:12px;margin-bottom:12px">
+      Excel/CSV with two columns — <b>SKU</b> and <b>QTY</b>. The QTY becomes that SKU's projection for
+      the month you pick, exactly as if you had typed it in the cell (yellow = manual). It stays until
+      you change it; “Refresh from sheet” never overwrites it.
+    </div>
+    <div class="sec">Month</div>
+    <select id="pjMonth" style="width:100%;margin-bottom:4px"></select>
+    <div id="pjHave" class="muted" style="font-size:12px;margin-bottom:12px"></div>
+    <div id="pjErr" class="err hide" style="font-size:12px;margin-bottom:8px"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button id="pjTemplate" class="ghost" style="flex:0 0 auto">Template</button>
+      <button id="pjImport" style="flex:0 0 auto">Import file…</button>
+      <input id="pjFile" type="file" accept=".csv,text/csv" style="display:none">
+      <span style="flex:1"></span>
+      <button id="pjClear" class="ghost" style="flex:0 0 auto;color:#b91c1c">Clear this month</button>
+      <button id="pjCancel" class="ghost" style="flex:0 0 auto">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Production Status log modal -->
+<div id="momModal" class="hide">
+  <div class="modal-box">
+    <div class="modal-title">Minutes of meeting — <span id="momModalSku" style="font-family:ui-monospace,monospace;color:#6366f1"></span></div>
+    <div class="log-list" id="momLogList"></div>
+    <textarea id="momInput" placeholder="What was decided? (e.g. 'Hold till Diwali', 'Move to sea, air too costly', 'Ask factory for 2 more colours')…" rows="3"></textarea>
+    <div class="modal-btns">
+      <button id="momCancel" class="ghost">Close</button>
+      <button id="momSave">+ Add note</button>
+    </div>
+  </div>
+</div>
+
+<div id="prodModal" class="hide">
+  <div class="modal-box">
+    <div class="modal-title">Production Status — <span id="prodModalSku" style="font-family:ui-monospace,monospace;color:#6366f1"></span></div>
+    <div class="log-list" id="prodLogList"></div>
+    <textarea id="prodLogInput" placeholder="Add a note (e.g. 'Fabric ordered', 'Production started', 'Ready to ship')…" rows="3"></textarea>
+    <div class="modal-btns">
+      <button id="prodLogCancel" class="ghost">Close</button>
+      <button id="prodLogSave">+ Add note</button>
+    </div>
+  </div>
+</div>
+
+<script>
+<!--@include appv.js-->
+</script>
+<script type="module">
+<!--@include app/-->
+</script>

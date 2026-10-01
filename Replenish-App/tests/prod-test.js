@@ -218,6 +218,11 @@ const cut = A.ptList(db.pt_cuttingData);
 const ptNumT = v => Number(v) || 0;
 let pass = 0, fail = 0;
 const ok = (name, cond, detail) => { if (cond) { pass++; console.log('  PASS ' + name); } else { fail++; console.log('  FAIL ' + name + (detail ? ' — ' + detail : '')); } };
+/* 2026-10-01: the page is built from src/ (tests/assemble.js). These tests read public/index.html, so it must be what
+ * src/ makes — otherwise they would pass against code that will never be deployed. */
+if (fs.existsSync(path.join(__dirname, '..', 'src', 'index.html')))
+  ok('public/index.html is what src/ makes (run node tests/assemble.js after editing src/)',
+     require('./assemble.js').assemble() === fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8'));
 const num = s => Number(String(s).replace(/,/g, ''));
 /** pull the Nth .metric value out of the KPI html the app just wrote */
 const metrics = html => [...html.matchAll(/<div class="v"[^>]*>([\d,]+)<\/div><div class="l">([^<]*?)\s*(?:✕)?\s*<\/div>/g)]

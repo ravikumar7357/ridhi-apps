@@ -13,6 +13,14 @@ const esbuild = require('esbuild');
 const ROOT = path.join(__dirname, '..');
 const PUB = path.join(ROOT, 'public'), DIST = path.join(ROOT, 'dist');
 
+/* SINCE 2026-10-01 THE SOURCE IS src/ (step 1 of the module plan): public/index.html is joined from it by
+ * tests/assemble.js. A build is refused when the two disagree, so what is deployed is always what src/ says. */
+if (fs.existsSync(path.join(ROOT, 'src', 'index.html'))) {
+  const made = require('./assemble.js').assemble();
+  if (made !== fs.readFileSync(path.join(PUB, 'index.html'), 'utf8'))
+    throw new Error('public/index.html is not what src/ makes — edit src/ and run node tests/assemble.js before building');
+}
+
 const src = fs.readFileSync(path.join(PUB, 'index.html'), 'utf8');
 const stripMarkup = s => s.replace(/<!--[\s\S]*?-->/g, '');
 /* A script's own text must not be able to close the tag it sits in. */

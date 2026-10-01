@@ -32,3 +32,4 @@ Replenish-App/dist/
 # Lighter local builds (node Replenish-App/tests/build-dist-opt.js [app folder]); for trying out, never deployed
 Replenish-App/dist-opt/
 Pricing-App/dist-opt/
+Replenish-App/src/.last-assembled.sha256
