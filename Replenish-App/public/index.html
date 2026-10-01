@@ -10107,6 +10107,10 @@ function baseArchivePlan(rows, now) {
 async function baseArchiveRun(onStep) {
   if (!(ME && ME.admin)) return { err: 'Only an admin can move completed entries.' };
   if (!BASE.on) return { err: 'The completed section is switched off.' };
+  /* ONLY FROM THE LIVE APP. A preview link (its address has "--") runs code the live app may not have yet: entries moved
+   * from there would vanish from every screen of an older live app, which reads pt_baseData alone. */
+  if (typeof location !== 'undefined' && /--/.test(String(location.hostname || '')))
+    return { err: 'Entries are moved only from the live app (fabricrush-replenish.web.app), once it reads the completed section.' };
   const plan = baseArchivePlan(PT.base || []);
   let moved = 0;
   for (const [m, list] of Object.entries(plan.byMonth)) {
