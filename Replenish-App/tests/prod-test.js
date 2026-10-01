@@ -13964,8 +13964,12 @@ console.log('\n== printer allocation by colour ==');
       lines: [{ kind: 'cut', sku: 'X', qty: 500, deliveries: [{ qty: 100, at: dmy(thisYm, '01') }] }] }] }));
     const pr = A.palRateOf(Object.assign({}, A.PAL().printers.find(p => p.name === 'Bagru'),
       { vendorCode: 'VND001', tables: 4 }));
-    ok('…and a part month is stretched to the month it is on course for',
-       pr && Math.round(pr.pcs) === Math.round(100 / part) && (part === 1 || pr.pcs > 100),
+    /* …but not in its first week (2026-10-01: on the 1st, 100 pcs read as 3,100 a month). */
+    const early = now.getDate() < 7;
+    ok(early ? '…and in the first week of a month it is NOT stretched (one day read x31 was the 1 Oct bug)'
+             : '…and a part month is stretched to the month it is on course for',
+       pr && (early ? Math.round(pr.pcs) === 100
+                    : Math.round(pr.pcs) === Math.round(100 / part) && (part === 1 || pr.pcs > 100)),
        JSON.stringify(pr) + ' part=' + part);
     ok('…and it is marked as a part month', part === 1 || (pr && pr.partMonth === true),
        JSON.stringify(pr));
