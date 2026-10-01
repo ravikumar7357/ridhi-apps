@@ -335,7 +335,18 @@ A.renderPbase();
   click('issued'); click('');
   ok('clicking Entries shows every entry', A.bdKpi() === '' && A.PT()._pbaseRows.length === base.length);
   A.setBdKpi('rejected'); els.pbClear.onclick();
-  ok('Clear lets the figure go', A.bdKpi() === '');
+  /* 1 Oct 2026 (Ravi: "default me sirf open entries dikhao"): Clear goes back to the register's own view, open entries. */
+  ok('Clear lets the figure go, back to open entries only', A.bdKpi() === 'open'
+    && A.PT()._pbaseRows.length === base.filter(r => !r.frozen).length, A.bdKpi() + ' ' + A.PT()._pbaseRows.length);
+  els.pbQ.value = String((base.find(r => r.frozen) || {}).sku || 'zz');
+  A.renderPbase();
+  ok('…and a search in that view looks through every entry, completed ones too',
+    A.PT()._pbaseRows.some(r => r.frozen) && /searching every entry/.test(els.pbMsg.textContent), els.pbMsg.textContent);
+  els.pbQ.value = ''; A.renderPbase();
+  ok('…which says so under the filters', /open entries only/.test(els.pbMsg.textContent), els.pbMsg.textContent);
+  click('open');
+  ok('clicking Open then shows every entry', A.bdKpi() === '' && A.PT()._pbaseRows.length === base.length);
+  A.setBdKpi('');
 }
 { // date window, day-first
   const withDates = base.map(r => A.ptDtMs(r.issueDate)).filter(Boolean).sort((a, b) => a - b);

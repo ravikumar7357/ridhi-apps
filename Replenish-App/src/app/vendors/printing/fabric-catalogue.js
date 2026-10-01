@@ -377,7 +377,7 @@ if ($('pbArchive')) $('pbArchive').onclick = async () => {
 };
 $('pbMore').addEventListener('click', e => { if (!e.target.closest('[data-pbmore]')) return; PB_CAP += PT_CAP_STEP; renderPbase(); });
 $('pcMore').addEventListener('click', e => { if (!e.target.closest('[data-pcmore]')) return; PC_CAP += PT_CAP_STEP; renderPcut(); });
-$('pbClear').onclick = () => { ['pbType', 'pbEmp', 'pbWho', 'pbArt', 'pbSub', 'pbCol', 'pbSz', 'pbStatus', 'pbQ', 'pbDBy', 'pbD1', 'pbD2'].forEach(id => $(id).value = ''); PT_BD_KPI = ''; renderPbase(); };
+$('pbClear').onclick = () => { ['pbType', 'pbEmp', 'pbWho', 'pbArt', 'pbSub', 'pbCol', 'pbSz', 'pbStatus', 'pbQ', 'pbDBy', 'pbD1', 'pbD2'].forEach(id => $(id).value = ''); PT_BD_KPI = 'open'; PT_BD_KPI_DEFAULT = true; renderPbase(); };
 $('pcClear').onclick = () => { ['pcArt', 'pcSub', 'pcCol', 'pcSz', 'pcOrd', 'pcWho', 'pcQ', 'pcD1', 'pcD2'].forEach(id => $(id).value = ''); renderPcut(); };
 
 /* REFRESH READS THE RECIPES TOO (2026-09-25). Ruffle, zip and cloth figures fall back to the recipe; a recipe
@@ -401,6 +401,7 @@ function pbKpiClick(e) {
   if (e.type === 'keydown') e.preventDefault();
   const k = el.getAttribute('data-kpi') || '';
   PT_BD_KPI = (PT_BD_KPI === k) ? '' : k;
+  PT_BD_KPI_DEFAULT = false;
   renderPbase();
 }
 $('pbKpis').addEventListener('click', pbKpiClick);

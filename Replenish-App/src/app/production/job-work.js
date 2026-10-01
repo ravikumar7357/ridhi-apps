@@ -1,6 +1,10 @@
 /* ---------------- Base Data (issue → receive register) ---------------- */
 
-let PT_BD_KPI = '';     // '' | 'issued' | 'received' | 'rejected' | 'pending' | 'done' | 'open'
+let PT_BD_KPI = 'open'; // '' | 'issued' | 'received' | 'rejected' | 'pending' | 'done' | 'open'
+/* OPEN ENTRIES FIRST (Ravi, 2026-10-01: "default me sirf open entries dikhao"). The register opens on the entries still
+ * out; Completed and Entries are one click away on the cards. PT_BD_KPI_DEFAULT is true while that is the view nobody
+ * chose — then a search looks through EVERY entry, so finding a completed one to correct needs no extra click. */
+let PT_BD_KPI_DEFAULT = true;
 const PT_BD_KPI_LABEL = { issued: 'Issued', received: 'Received', rejected: 'Rejected',
   pending: 'Pending pieces', done: 'Completed', open: 'Open' };
 
@@ -112,7 +116,8 @@ function renderPbase() {
    * your hand. Only the table narrows. */
   const base = pbaseApply(all, f);
   let rows = base;
-  if (PT_BD_KPI === 'open') rows = base.filter(r => !r.frozen);
+  const searchAll = PT_BD_KPI_DEFAULT && PT_BD_KPI === 'open' && !!String(($('pbQ') || {}).value || '').trim();
+  if (PT_BD_KPI === 'open' && !searchAll) rows = base.filter(r => !r.frozen);
   else if (PT_BD_KPI === 'done') rows = base.filter(r => r.frozen);
   else if (PT_BD_KPI === 'pending') rows = base.filter(r => ptNum(r.pendingPieces) > 0);
   else if (PT_BD_KPI === 'issued') rows = base.filter(r => ptNum(r.issuePieces) > 0);
@@ -157,7 +162,9 @@ function renderPbase() {
   $('pbMsg').className = 'muted';
   $('pbMsg').textContent = `${nf(rows.length)} of ${nf(all.length)} entr${all.length === 1 ? 'y' : 'ies'}`
     + (rows.length > PB_CAP ? ` · showing the first ${nf(PB_CAP)} · Export covers all of them` : '')
-    + (PT_BD_KPI_LABEL[PT_BD_KPI] ? ' · only entries with ' + PT_BD_KPI_LABEL[PT_BD_KPI] + ' — click the figure again to show all' : '');
+    + (searchAll ? ' · searching every entry, completed ones too'
+      : PT_BD_KPI === 'open' && PT_BD_KPI_DEFAULT ? ' · open entries only — click Completed or Entries above for the rest'
+      : PT_BD_KPI_LABEL[PT_BD_KPI] ? ' · only entries with ' + PT_BD_KPI_LABEL[PT_BD_KPI] + ' — click the figure again to show all' : '');
   $('pbMore').innerHTML = ptMoreBtn('data-pbmore', rows.length, PB_CAP);
   ptImgFill(shown.map(r => r.sku), false, ptIfTab('pbase', renderPbase));
 }
