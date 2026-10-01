@@ -435,13 +435,3 @@ $('bdmDelete').onclick = async () => {
   $('bdmDelete').disabled = false;
 };
 
-async function ptDelete(path) {
-  await auditTrash([path], 'delete');
-  ptLiveWrote([path]);
-  const r = await fetch(`${PT_URL}/${ptPath(path)}.json` + await ptAuthQuery(), { method: 'DELETE' });
-  ptLiveWrote([path]);
-  if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
-  auditLog('delete', { [path]: null });
-  return true;
-}
-

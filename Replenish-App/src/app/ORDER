@@ -5,6 +5,7 @@ core/setup.js
 core/auth.js
 core/nav.js
 core/backend.js
+core/helpers.js
 replenishment/replenishment.js
 core/multi-select-filter.js
 replenishment/minutes-of-meeting.js

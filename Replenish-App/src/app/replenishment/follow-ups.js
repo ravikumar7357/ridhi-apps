@@ -1,9 +1,5 @@
 /* ================= FOLLOW-UPS (ongoing POs, auto-scheduled every 7 days) ================= */
 const FU_EVERY = 7;                                    // days between follow-ups
-const dToday = () => new Date().toLocaleDateString('en-CA');           // local 'YYYY-MM-DD'
-const dAdd = (ds, n) => { const d = new Date(ds + 'T00:00:00'); d.setDate(d.getDate() + n); return d.toLocaleDateString('en-CA'); };
-const dDiff = (a, b) => Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000);   // b − a in days
-const dValid = ds => !!ds && !isNaN(new Date(String(ds) + 'T00:00:00').getTime());   // guards NaN from a non-ISO date
 
 // A PO is "ongoing" while ordered / in transit. Follow-up is due FU_EVERY days after the order (or the
 // last follow-up); it becomes overdue (red) once the delivery date (ETA) has passed and it's not received.
@@ -185,7 +181,6 @@ $('fuSaveBtn').onclick = async () => {
 
 /* ----- CSV import / export (Excel-friendly) ----- */
 const PO_COLS = ['PO ID', 'Supplier', 'Brand', 'SKU', 'Sub-Category', 'Color', 'Size', 'Air Qty', 'Sea Qty', 'Total Qty', 'Total FBA Stock', 'India Stock', 'Pending Qty', 'Mode', 'Order Date', 'Delivery Date', 'Priority', 'Status', 'Listing'];
-function csvCell(v) { const s = String(v == null ? '' : v); return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
 /**
  * Which character actually separates the fields.
  *

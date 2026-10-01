@@ -421,26 +421,6 @@ $('ptmRename').onclick = async () => {
   };
 };
 
-/** A single update touching many paths at once. RTDB applies it all or not at all. */
-async function ptPatch(updates) {
-  /* A path set to null is a delete: a whole record (pt_x/<id>) or more is copied to the recycle bin first. A single
-   * field cleared deeper down is only a history line. */
-  const gone = Object.keys(updates || {}).filter(k => updates[k] === null && k.split('/').filter(Boolean).length <= 2);
-  if (gone.length) await auditTrash(gone, 'patch');
-  ptLiveWrote(Object.keys(updates || {}));
-  const r = await fetch(`${PT_URL}/.json` + await ptAuthQuery(), {
-    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates),
-  });
-  ptLiveWrote(Object.keys(updates || {}));
-  if (r.status === 401 || r.status === 403)
-    throw new Error('The production database refused the change — this account does not hold the right '
-      + 'it needs. If the right was only just given, sign out and in again; otherwise ask an admin.');
-  if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
-  const out = await r.json();
-  auditLog('patch', updates || {});
-  return out;
-}
-
 /* ---- The picture, available to every register ----
  *
  * One cell, used by Master Database, Base Data, Cutting, Press and Quality Control — and by whatever
