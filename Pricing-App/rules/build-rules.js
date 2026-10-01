@@ -105,6 +105,8 @@ const rules = {
   pt_rfdStock: { '.write': STAFF, $code: { '.read': OWN_BRANCH, '.write': OWN_BRANCH } },
 
   pt_baseData: staffIndexed(['sku', 'empName', 'issueDate', 'frozen']),
+  /* Job Work's completed entries, by month (2026-10-01): the same staff write as pt_baseData; the read mirrors it (read-model.js). */
+  pt_baseDone: { '.write': STAFF },
   pt_cuttingData: staffIndexed(['sku', 'orderNo', 'cutDate']),
   pt_pressInventory: staffIndexed(['sku', 'orderNo', 'entryDate']),
   pt_orderBook: staffIndexed(['sku', 'orderNo', 'orderDate']),

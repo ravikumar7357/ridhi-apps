@@ -37,13 +37,16 @@ const EMP_ONLY_NEVER = ['pt_rateList', 'pt_printerRates', 'pt_ehFreezes', 'pt_pa
 
 /** { tabs: [...], rights: [...] } for one node — empty lists mean admins only. */
 function readersOf(node) {
+  /* JOB WORK'S COMPLETED ENTRIES (2026-10-01) are the same register kept in two places: whoever may read
+   * pt_baseData may read pt_baseDone, and nobody else. The app reads it through a variable, so the call graph cannot see it. */
+  if (node === 'pt_baseDone') return readersOf('pt_baseData');
   const a = (MAP.nodes[node] || {}).tabs || [], h = BY_HAND[node] || {};
   const rights = (h.rights || []).slice();
   if (a.indexOf('hr') >= 0 && EMP_ONLY_NEVER.indexOf(node) < 0) rights.push('empEdit');
   return { tabs: [...new Set(a.concat(h.tabs || []))].sort(), rights: [...new Set(rights)].sort() };
 }
 /** Every node the app reads, plus the ones named only in the rules. */
-const NODES = [...new Set(Object.keys(MAP.nodes).concat(Object.keys(BY_HAND)))].sort();
+const NODES = [...new Set(Object.keys(MAP.nodes).concat(Object.keys(BY_HAND), ['pt_baseDone']))].sort();
 
 /** May this person (as Firestore describes them) read this node? Vendors and strangers never do here. */
 function mayRead(p, node) {
