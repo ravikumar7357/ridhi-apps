@@ -99,7 +99,7 @@ const from = html.indexOf('let PK = [], PK_LOADED');
 const to = html.indexOf('async function pkDelete(id) {');
 if (from < 0 || to < 0) throw new Error('the packing block is not where it was');
 const block = html.slice(from, to);
-const ctx = {
+const ctx = { AUDIT_OFF: true,
   $: () => ({ value: '', click() {}, onchange: null, classList: { add() {}, remove() {}, toggle() {} },
     querySelectorAll: () => [], style: {}, textContent: '', innerHTML: '' }),
   document: { createElement: () => ({ click() {}, style: {} }), querySelectorAll: () => [] },

@@ -23,7 +23,9 @@ const refuse = p => (L[p] || []).forEach(x => x.bad(new Error('permission_denied
 const STORE = { pt_orderBook: { a: { sku: 'A', qty: 1 } }, pt_masterDB: { m: { sku: 'M' } } };
 const fetch = async (u, o) => { NET.push(((o && o.method) || 'GET') + ' ' + u); const m = u.match(/\.app\/([^?]*)\.json/);
   return { ok: true, status: 200, json: async () => (m && STORE[m[1]] !== undefined ? JSON.parse(JSON.stringify(STORE[m[1]])) : null) }; };
-const code = src.slice(a, z).replace(URL_, 'Promise.resolve(FAKE)') + '\n' + src.slice(gi, ge) + '\n' + cut('ptPut') + '\n' + cut('ptPatch');
+const code = src.slice(a, z).replace(URL_, 'Promise.resolve(FAKE)') + '\n' + src.slice(gi, ge) + '\n' + cut('ptPut') + '\n' + cut('ptPatch')
+  /* the history / recycle bin (2026-10-01) has its own tests in prod-test; here it does nothing */
+  + '\nconst auditLog = () => {}; const auditTrash = async () => 0;';
 const mk = new Function('FAKE', 'fetch', 'app', 'auth', 'spIsVendor', 'PT_URL', 'ptPath', 'ptAuthQuery', 'setTimeout',
   code + '\nreturn { ptGet, ptPut, ptPatch, ptLiveWrote, PT_LIVE, up: v => { PT_LIVE_UP = v; } };');
 const tick = () => new Promise(r => setImmediate(r));
