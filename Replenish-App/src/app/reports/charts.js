@@ -146,6 +146,18 @@ function repRenderLive() {
     ${REP_UNDATED ? '<br>A receiving date is stamped when a row is FULLY received, so work part-received today '
       + 'is not in this figure yet. Every week lags that way; this one carries all of it at once.' : ''}`;
 
+  /* OPEN OR CLOSED HERE TOO (Ravi, 2026-10-02: "this week me bhi open close add karo"): the same switch as Last week
+   * (remembered in this browser, one for both views); open, the production tiles are THIS week's, so far. */
+  const repOpen = (() => { try { return localStorage.getItem('repTopOpen') !== '0'; } catch (e) { return true; } })();
+  const thisWeek = repWkIso(repWeekStart(Date.now()));
+  if (!repOpen) {
+    $('repKpis').innerHTML = `<div class="kpi" style="flex-basis:100%;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <span class="kpiname">This week so far — ${esc(span)}</span>
+      <span style="font-weight:700">${nf(Math.round(prod))} pcs</span>
+      <span style="font-weight:700;color:${pct === null ? 'var(--muted)' : (pct >= 0 ? '#166534' : 'var(--bad)')}">${pct === null ? '' : (pct >= 0 ? '▲ ' : '▼ ') + Math.abs(pct).toFixed(1) + '%'}</span>
+      <span class="muted" style="font-size:12px">against the same ${nf(days)} ${dayWord} last week</span>
+      <span style="flex:1"></span><button type="button" class="ghost" data-reptoggle="1" style="height:32px;padding:0 14px">Open ▼</button></div>`;
+  } else
   $('repKpis').innerHTML = `<div class="kpi" style="flex-basis:100%">
     <div class="kpihead"><span class="kpiname">This week so far — ${esc(span)}</span>
       <span class="kpiwhen">${nf(days)} ${dayWord} in · against the same ${nf(days)} ${dayWord} last week · what came back, from Job Work Register</span></div>
@@ -157,7 +169,7 @@ function repRenderLive() {
         + `${pct === null ? '—' : (pct >= 0 ? '▲ ' : '▼ ') + Math.abs(pct).toFixed(1) + '%'}</div><div class="l">Same days, week on week</div></div>
       <div class="metric"><div class="v" style="color:var(--muted)">${nf(Math.round(L.fullPrevProd))}</div><div class="l">All of last week</div></div>
       <div class="metric"><div class="v"><span style="color:#166534">${nf(up)}</span> / <span style="color:var(--bad)">${nf(down)}</span></div><div class="l">Up / down</div></div>
-    </div></div>`;
+    </div></div>` + repManpowerCard(thisWeek, brand);
 
   if (!L.rows.length) { ptEmpty('repTable', 'Nothing has come back yet this week.'); REP.live = L; return; }
 

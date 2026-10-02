@@ -5623,6 +5623,21 @@ console.log('\n== the week we are in ==');
   const td = (els.repTable.innerHTML.match(/<td[ >]/g) || []).length;
   ok('…and every row has as many cells as the header has columns', th === 6 && td === 6,
      th + ' headings vs ' + td + ' cells');
+  /* 2 Oct 2026 (Ravi: "this week me bhi open close add karo"): the same open/close as Last week, and THIS week's tiles. */
+  {
+    const wasStore = global.__kaStore;
+    global.__kaStore = Object.assign({}, wasStore || {}, { repTopOpen: '1' });
+    A.repRenderLive();
+    const k = els.repKpis.innerHTML;
+    ok('This week, open: the production tiles of this week, with Close', /data-reptoggle/.test(k) && /Close ▲/.test(k)
+      && /TO REACH [\d,]+ A WEEK/.test(k), k.slice(0, 200));
+    global.__kaStore = Object.assign({}, wasStore || {}, { repTopOpen: '0' });
+    A.repRenderLive();
+    const c = els.repKpis.innerHTML;
+    ok('…closed: one line with the week so far and Open', /Open ▼/.test(c) && /This week so far/.test(c) && !/TO REACH/.test(c), c.slice(0, 200));
+    global.__kaStore = wasStore;
+    A.repRenderLive();
+  }
 
   A.setPT(Object.assign(A.PT(), { base: wasBase }));
 }
