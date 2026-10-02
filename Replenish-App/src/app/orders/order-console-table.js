@@ -449,7 +449,7 @@ async function spReceiveReal(orderNo, sku, pcs, date, fromName) {
   for (const row of open) {
     if (left <= 0) break;
     const take = Math.min(left, ptNum(row.pendingPieces));
-    const res = bdApplyRecv(row, take);
+    const res = bdApplyRecv(row, take, ptStampDate(d));      // the receipt is dated the day the goods came in
     if (res.err) return res.err;
     /* THE ROW IS CLOSED THE WAY THE BASE DATA SCREEN CLOSES IT. Payroll pays a row once it carries a
      * receiving date, and Base Data stamps that date only when the last piece is back. Stamping it on

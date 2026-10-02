@@ -56,12 +56,13 @@ function repManpower(week, brand) {
     const pcs = ptNum(r.receivedPieces);
     if (!(pcs > 0)) return;
     if (brand && repBrand(r.sku) !== brand) return;
-    const ms = r.receivingDate ? ptDtMs(r.receivingDate) : 0;
-    if (!ms || ms < from || ms >= to) return;
-    if (repIsInsert(r)) { insert += pcs; return; }
+    /* What came back THIS week, receipt by receipt (2026-10-02). */
+    const inWeek = repRecvParts(r).filter(x => x.ms && x.ms >= from && x.ms < to).reduce((a, x) => a + x.pcs, 0);
+    if (!(inWeek > 0)) return;
+    if (repIsInsert(r)) { insert += inWeek; return; }
     const who = String(r.empName || '').trim() || '(no name)';
     const m = REP_CONTRACTOR_RE.test(who) ? con : kar;
-    m.set(who, (m.get(who) || 0) + pcs);
+    m.set(who, (m.get(who) || 0) + inWeek);
   });
   const inPcs = [...kar.values()].reduce((a, b) => a + b, 0);
   const heads = (REP_HEADS || {})[week] || {};

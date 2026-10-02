@@ -162,14 +162,19 @@ $('pcTable').addEventListener('click', e => {
 /* ---- receiving, in the register itself ---- */
 
 /** Add received pieces. Received + rejected can never exceed what was issued. */
-function bdApplyRecv(row, addAmt) {
+function bdApplyRecv(row, addAmt, at) {
   const issued = ptNum(row.issuePieces), rej = ptNum(row.rejectionPieces);
   const add = parseInt(addAmt, 10) || 0;
   if (add <= 0) return { err: 'Enter how many pieces came back.' };
   const newRecv = ptNum(row.receivedPieces) + add;
   if (newRecv + rej > issued)
     return { err: `Cannot add ${add} — received ${newRecv} plus rejected ${rej} would be more than the ${issued} issued.` };
-  const next = Object.assign({}, row, { receivedPieces: newRecv, pendingPieces: issued - newRecv - rej });
+  /* EVERY RECEIPT KEEPS ITS OWN DATE (Ravi, 2026-10-02: "har adhoori receipt par uski apni tareekh lagegi"). The
+   * receiving date below is still stamped only when the row completes, and payout still reads that; receipts[] is what
+   * the Reports count, so 180 back on Tuesday of 240 issued are in Tuesday's week, the other 60 in theirs. */
+  const receipts = (Array.isArray(row.receipts) ? row.receipts : Object.values(row.receipts || {})).filter(Boolean)
+    .concat([{ at: at || ptNow(), qty: add }]);
+  const next = Object.assign({}, row, { receivedPieces: newRecv, pendingPieces: issued - newRecv - rej, receipts });
   /* THE FIRST RECEIVING DATE STANDS. Re-stamping it here let anybody move a finished row into another
    * payout period just by touching its pieces — which is the one thing only an admin may do, through
    * the date override below. */

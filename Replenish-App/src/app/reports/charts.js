@@ -198,8 +198,8 @@ function repM2PerPiece(week, brand) {
   let m2 = 0, pcs = 0, unknown = 0;
   (PT.base || []).forEach(r => {
     if (!r || repIsInsert(r) || (brand && repBrand(r.sku) !== brand)) return;
-    const got = ptNum(r.receivedPieces), ms = r.receivingDate ? ptDtMs(r.receivingDate) : 0;
-    if (!(got > 0) || !ms || ms < from || ms >= to) return;
+    const got = repRecvParts(r).filter(x => x.ms && x.ms >= from && x.ms < to).reduce((a, x) => a + x.pcs, 0);   // this week's receipts (2026-10-02)
+    if (!(got > 0)) return;
     const m = mdbOf(r.sku);
     if (m && !ptPrintNeeded(m)) { pcs += got; return; }      // made, and never printed
     const a = voSqm({ sku: r.sku }, got);

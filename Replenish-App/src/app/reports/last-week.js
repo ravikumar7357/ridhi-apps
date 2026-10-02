@@ -38,6 +38,25 @@ function repLastFullWeek() { return repWkShift(repWkIso(repWeekStart(Date.now())
  * Dated by receivingDate. That date is stamped when a row COMPLETES, so a part-received row has none
  * yet and cannot be put in any week; those are counted and reported rather than dropped in silence.
  */
+/**
+ * WHEN THE PIECES OF ONE ROW CAME BACK: [{ ms, pcs }] (2026-10-02). Each receipt in receipts[] is counted on its own date;
+ * whatever part of receivedPieces no receipt accounts for (rows received before receipts were kept) is dated by
+ * receivingDate as before — ms 0 when that is not there yet (part-received, undated). If a correction lowered
+ * receivedPieces below what the receipts add up to, the latest receipts are trimmed to fit.
+ */
+function repRecvParts(r) {
+  const got = ptNum(r && r.receivedPieces);
+  if (!(got > 0)) return [];
+  const list = (Array.isArray(r.receipts) ? r.receipts : Object.values(r.receipts || {}))
+    .map(x => ({ ms: x && x.at ? ptDtMs(x.at) : 0, pcs: ptNum(x && x.qty) })).filter(x => x.ms && x.pcs > 0)
+    .sort((a, b) => a.ms - b.ms);
+  const out = [];
+  let left = got;
+  for (const x of list) { if (left <= 0) break; const p = Math.min(x.pcs, left); out.push({ ms: x.ms, pcs: p }); left -= p; }
+  if (left > 0) out.push({ ms: r.receivingDate ? ptDtMs(r.receivingDate) : 0, pcs: left });
+  return out;
+}
+
 function repByWeek(brand, inhouseOnly) {
   const byWeek = {};
   let undated = 0;
@@ -48,15 +67,15 @@ function repByWeek(brand, inhouseOnly) {
     if (brand && repBrand(r.sku) !== brand) return;
     if (inhouseOnly && !repInhouse(r.sku)) return;
     if (repIsInsert(r)) return;                                // tracked apart (2026-09-29)
-    if (!r.receivingDate) { undated += pcs; return; }
-    const ms = ptDtMs(r.receivingDate);
-    if (!ms) { undated += pcs; return; }
-    const wk = repWkIso(repWeekStart(ms));
     const at = repAt(r.sku, r.articleType);
-    byWeek[wk] = byWeek[wk] || {};
-    byWeek[wk][at] = byWeek[wk][at] || { cust: 0, prod: 0 };
-    byWeek[wk][at].prod += pcs;
-    byWeek[wk][at].cust += pcs / repPack(r.sku);
+    repRecvParts(r).forEach(({ ms, pcs: p }) => {             // each receipt in its own week (2026-10-02)
+      if (!ms) { undated += p; return; }
+      const wk = repWkIso(repWeekStart(ms));
+      byWeek[wk] = byWeek[wk] || {};
+      byWeek[wk][at] = byWeek[wk][at] || { cust: 0, prod: 0 };
+      byWeek[wk][at].prod += p;
+      byWeek[wk][at].cust += p / repPack(r.sku);
+    });
   });
   REP_UNDATED = undated;
   return byWeek;
@@ -66,7 +85,7 @@ let REP_UNDATED = 0;
 /** The Job Work rows behind REP_UNDATED: part-received (some pieces back, some still pending), so the receiving date —
  * stamped when a row is FULLY received — is not there yet. Pillow insert is apart, as in the report. */
 function repUndatedRows(brand) {
-  return (PT.base || []).filter(r => r && ptNum(r.receivedPieces) > 0 && !(r.receivingDate && ptDtMs(r.receivingDate))
+  return (PT.base || []).filter(r => r && repRecvParts(r).some(x => !x.ms)
     && !repIsInsert(r) && (!brand || repBrand(r.sku) === brand));
 }
 function repUndatedCsv() {
@@ -95,13 +114,14 @@ function repByWindow(brand, inhouseOnly, from, to) {
     if (pcs <= 0) return;
     if (brand && repBrand(r.sku) !== brand) return;
     if (inhouseOnly && !repInhouse(r.sku)) return;
-    const ms = r.receivingDate ? ptDtMs(r.receivingDate) : 0;
-    if (!ms || ms < from || ms >= to) return;
     if (repIsInsert(r)) return;                                // tracked apart (2026-09-29)
     const at = repAt(r.sku, r.articleType);
-    out[at] = out[at] || { cust: 0, prod: 0 };
-    out[at].prod += pcs;
-    out[at].cust += pcs / repPack(r.sku);
+    repRecvParts(r).forEach(({ ms, pcs: p }) => {             // each receipt on its own date (2026-10-02)
+      if (!ms || ms < from || ms >= to) return;
+      out[at] = out[at] || { cust: 0, prod: 0 };
+      out[at].prod += p;
+      out[at].cust += p / repPack(r.sku);
+    });
   });
   return out;
 }
