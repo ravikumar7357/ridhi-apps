@@ -13011,17 +13011,22 @@ function bdClearForm() {
   /* And the materials boxes — a number left behind from the last issue would go out with the next. */
   ['bwZip', 'bwRuf', 'bwRufFab'].forEach(id => { $(id).value = ''; $(id).dataset.typed = ''; });
   BD_MAT_SKU = '';
-  $('bwDate').value = dToday();
+  $('bwDate').value = dToday(); $('bwDate').dataset.auto = '1';
   renderBdForm();
   bdFormMsg('');
 }
+/* A DATE THE APP FILLED IN IS TODAY'S, WHENEVER THE ENTRY IS SAVED (2026-10-02). The box was set to today after each save
+ * and then left alone: a page left open overnight issued the next morning's work on the evening before — Rustam's first
+ * issue, entered 1 Oct 09:38, went in as 30 Sep 09:38. A date somebody picked themselves stays as picked. */
+const bdIssueDay = () => { const el = $('bwDate'); if (el.dataset.auto === '1' || !el.value) { el.value = dToday(); el.dataset.auto = '1'; } return el.value; };
+if ($('bwDate')) $('bwDate').addEventListener('change', () => { $('bwDate').dataset.auto = ''; });
 
 async function ensureBdForm() {
   if (!PTG.mdb) { bdFormMsg('Reading the master database and the order book…'); await ptLoadGates(); }
   await ptEnsureCustom();
   if (!PTE.emp) await ptLoadEmp();
   if (PTG.err) { bdFormMsg('Could not read what the checks need: ' + PTG.err, true); return; }
-  if (!$('bwDate').value) $('bwDate').value = dToday();
+  bdIssueDay();
   renderBdForm();
 }
 
@@ -13073,7 +13078,7 @@ $('bwSave').onclick = async () => {
   const sku = $('bwSku').value.trim();
   const orderNo = custom ? '' : $('bwOrd').value.trim();
   const pcs = parseInt($('bwPcs').value, 10);
-  const date = $('bwDate').value;
+  const date = bdIssueDay();
   /* On the Custom SKUs list and not in the master: what it is comes off the list (its selects cannot hold a size like
    * "40*40 cm" that no master row has). */
   const cm = !custom && sku && !mdbOf(sku) ? ptCustomOf(sku) : null;
