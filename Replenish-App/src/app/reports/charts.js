@@ -313,10 +313,17 @@ function repManpowerCard(week, brand) {
   const conPcs = m.contractors.reduce((t, c) => t + c.pcs, 0);
   const pcut = repPrinterCut(week, brand);
   const cutTot = g.cut + (pcut || 0);
-  /* REQUIRED: what the cutting had to give this week to keep every karigar who worked at T a day, less what they
-   * already held when it began. */
-  const required = Math.max(0, g.karigars * T * g.days - g.held);
-  const cutShort = required - cutTot;
+  /* AGAINST THE TARGET (Ravi, 2026-10-03: "ye cutting mujhe target ke according dekhni h kam h ya jyada, same printing
+   * fabric bhi"). The weekly target, split between our cutting and cut pieces from printers as this week's work was
+   * given out; printing fabric is the target × the m² in a piece this week. Each figure says how far over or short. */
+  const tgtAll = repTarget(), shareAll = g.issued ? g.issuedCut / g.issued : 0;
+  const cutNeedT = Math.round(tgtAll * shareAll), prnNeedT = tgtAll - cutNeedT;
+  const mpT = repM2PerPiece(week, brand), m2NeedT = tgtAll * mpT.per, m2GotT = repPrinterM2(week);
+  const vsT = (have, need, unit) => have == null ? '<span class="muted">…</span>'
+    : have >= need ? `<b style="color:#15803D">${nf(Math.round(have - need))}${unit || ''} over</b>`
+    : `<b style="color:var(--bad)">${nf(Math.round(need - have))}${unit || ''} short</b>`;
+  const okCol = (have, need) => have == null ? 'var(--muted)' : (have >= need ? '#15803D' : 'var(--bad)');
+  const pctCut = Math.round(shareAll * 100);
   const total = g.made + conPcs, totalWas = gp.made + p.contractors.reduce((t, c) => t + c.pcs, 0);
 
   /* A tile that is a little sheet: the figure on top, then label | value rows, like Excel. */
@@ -385,11 +392,17 @@ function repManpowerCard(week, brand) {
           ['Printers delivered this week', m2Got == null ? '…' : nf(Math.round(m2Got)) + ' m²'],
           ['Against the need', mp.per ? gap(m2Need, m2Got) : '—']]));
     })()}
-    ${row('CUTTING THIS WEEK', tile('Cutting — total', nf(cutTot), pcut == null ? 'reading the vendor deliveries…' : `ours ${nf(g.cut)} + cut from printers ${nf(pcut)}`, '#1D4ED8', '#EEF5FF')
-      + tile('Our cutting', nf(g.cut), 'Cutting Data · ruffle & piping-scallop tablecloths are cut here')
-      + tile('Came cut from printers', pcut == null ? '…' : nf(pcut), 'tablecloth, border napkin, table runner delivered this week')
-      + tile('Required', nf(required), `${nf(g.karigars)} × ${nf(T)} × ${nf(g.days)} days − ${nf(g.held)} already in hand · `
-        + (cutShort > 0 ? `<b style="color:var(--bad)">${nf(cutShort)} short</b>` : `<b style="color:#15803D">enough</b>`), cutShort > 0 ? 'var(--bad)' : '#15803D'))}
+    ${row('CUTTING & PRINTING THIS WEEK — AGAINST THE ' + nf(tgtAll) + ' TARGET',
+      tile('Cutting — total', nf(cutTot), pcut == null ? 'reading the vendor deliveries…'
+        : `target ${nf(tgtAll)} · ${vsT(cutTot, tgtAll)}<br>ours ${nf(g.cut)} + cut from printers ${nf(pcut)} · ${nf(g.held)} cut pieces were already with karigars when the week began`,
+        okCol(pcut == null ? null : cutTot, tgtAll), '#EEF5FF')
+      + tile('Our cutting', nf(g.cut), `target ${nf(cutNeedT)} (${pctCut}% of the work) · ${vsT(g.cut, cutNeedT)}<br>Cutting Data · ruffle & piping-scallop tablecloths are cut here`,
+        okCol(g.cut, cutNeedT))
+      + tile('Came cut from printers', pcut == null ? '…' : nf(pcut), `target ${nf(prnNeedT)} (${100 - pctCut}% of the work) · ${vsT(pcut, prnNeedT)}<br>tablecloth, border napkin, table runner delivered this week`,
+        okCol(pcut, prnNeedT))
+      + tile('Printing fabric delivered', m2GotT == null ? '…' : nf(Math.round(m2GotT)) + ' m²', mpT.per
+        ? `target ${nf(Math.round(m2NeedT))} m² (${Math.round(mpT.per * 100) / 100} m² a piece × ${nf(tgtAll)}) · ${vsT(m2GotT, m2NeedT, ' m²')}<br>what the printers delivered this week`
+        : 'no m² is known yet for this week\'s pieces', mpT.per ? okCol(m2GotT, m2NeedT) : 'var(--muted)', '#F5F3FF'))}
   </div>`;
 }
 if ($('repMsg')) $('repMsg').addEventListener('click', e => { if (e.target.closest && e.target.closest('[data-repundated]')) repUndatedCsv(); });

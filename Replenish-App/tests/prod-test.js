@@ -21815,7 +21815,11 @@ console.log('\n== where is the gap: no work, or speed (Ravi, 29 Sep: "meri kami 
     ok('the tiles: made; our karigars and Pradeep each one sheet (people in the week, a day, one person a day); cutting total and required',
        /Total pcs made/.test(card) && /Our karigars made/.test(card) && /People in the week/.test(card) && /People a day, average/.test(card)
        && /One person a day/.test(card) && /Pradeep made/.test(card) && /Attendance in the week/.test(card)
-       && /Cutting — total/.test(card) && />225</.test(card) && /Required/.test(card), card.slice(0, 400));
+       && /Cutting — total/.test(card) && />225</.test(card) && /AGAINST THE 20,000 TARGET/.test(card), card.slice(0, 400));
+    /* 3 Oct (Ravi: "ye cutting mujhe target ke according dekhni h kam h ya jyada, same printing fabric bhi"). */
+    ok('the cutting row is read against the target: total, ours and from printers each over or short, and printing fabric delivered',
+       /target 20,000 · <b style="color:var\(--bad\)">19,775 short<\/b>/.test(card) && /Our cutting/.test(card) && /Came cut from printers/.test(card)
+       && /Printing fabric delivered/.test(card) && !/>Required</.test(card), card.slice(card.indexOf('CUTTING &amp;') > 0 ? card.indexOf('CUTTING &amp;') : card.indexOf('CUTTING'), card.indexOf('CUTTING') + 1500));
     ok('…and the separate manpower tiles are gone', !/Days without work/.test(card) && !/OUR KARIGARS —/.test(card) && !/PRADEEP —/.test(card) && !/Sat without work/.test(card));
     /* 29 Sep (Ravi: "target mera 20000 pcs ka h then us basis par shortage batana ... karigar ... cutting ... printing"). */
     ok('the target row: 20,000 by default, with karigars, cutting and printing fabric needed', /TO REACH 20,000 A WEEK/.test(card) && /Karigars needed a day/.test(card)
