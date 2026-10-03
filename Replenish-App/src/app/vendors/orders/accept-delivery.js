@@ -56,6 +56,50 @@ const vlQtyOf = d => {
   return k ? (parseFloat(k.qty) || 0) : (parseFloat(d && d.qty) || 0);
 };
 
+/**
+ * WHICH ORDERS A DELIVERY CAME FOR (2026-10-03, Ravi: "printer delivery chadhate waqt order bhi dikhe/chune").
+ * A Shopify line was placed for one order. Otherwise the orders this vendor line is for — what it was stamped with,
+ * or the Order Console's share of it — each as far as it is still owed from this line; anything over stays unnamed.
+ * Cloth (running metres) names no order. Returns [{ orderNo, qty, need }].
+ */
+function vlOrderPlan(o, l, q) {
+  if (!o || !l || voKind(l) !== 'cut' || !(q > 0)) return [];
+  if (l.shopOrderNo || l.shopKey) return [{ orderNo: obUC(l.shopOrderNo || String(l.shopKey).split('__')[0]), qty: q, need: q }];
+  const vpo = o.orderNo || o.id, sku = obUC(l.sku), cand = [];
+  (typeof ordVendorAlloc === 'function' ? ordVendorAlloc() : new Map()).forEach((v, k) => {
+    if (k.slice(k.lastIndexOf('|') + 1) !== sku) return;
+    const part = (v.parts || []).filter(p => p.vpo === vpo);
+    if (!part.length) return;
+    cand.push({ orderNo: k.slice(0, k.lastIndexOf('|')), need: part.reduce((a, p) => a + Math.max(0, p.qty - p.back), 0) });
+  });
+  /* The oldest order is filled first — the same order the Order Console deals in. */
+  const when = new Map((typeof ordLines === 'function' ? ordLines() : []).filter(r => r.sku === sku).map(r => [r.orderNo, ptDtMs(r.orderDate) || 0]));
+  cand.sort((a, b) => ((when.get(a.orderNo) || 0) - (when.get(b.orderNo) || 0)) || a.orderNo.localeCompare(b.orderNo));
+  let left = q;
+  return cand.map(c => { const take = Math.min(left, c.need); left -= take; return { orderNo: c.orderNo, qty: take, need: c.need }; })
+    .filter(c => c.qty > 0 || c.need > 0);
+}
+/** "AMZ-1:40, SHP-9:10" → [{orderNo, qty}] for this line, or { err }. One order with no number takes all of it. */
+function vlOrdersParse(text, o, l, q) {
+  const t = String(text || '').trim();
+  if (!t) return { orders: vlOrderPlan(o, l, q).filter(x => x.qty > 0).map(x => ({ orderNo: x.orderNo, qty: x.qty })) };
+  const known = new Set((typeof ordLines === 'function' ? ordLines() : []).filter(r => r.sku === obUC(l.sku)).map(r => r.orderNo));
+  const parts = t.split(/[,;\n]+/).map(s => s.trim()).filter(Boolean);
+  const orders = [];
+  for (const p of parts) {
+    const m = p.match(/^([^:=\s]+)\s*[:=]?\s*([\d.]*)$/);
+    if (!m) return { err: `"${p}" — write it as ORDER:pieces, for example AMZ-25082026-01:40.` };
+    const no = obUC(m[1]);
+    if (known.size && !known.has(no)) return { err: `${no} has no line for ${obUC(l.sku)} in the order book.` };
+    const qty = m[2] === '' ? (parts.length === 1 ? q : NaN) : parseFloat(m[2]);
+    if (!(qty > 0)) return { err: `Say how many pieces for ${no} — with more than one order each needs its number.` };
+    orders.push({ orderNo: no, qty });
+  }
+  const sum = orders.reduce((a, x) => a + x.qty, 0);
+  if (sum > q + 1e-9) return { err: `The orders add up to ${nf(sum)}, more than the ${nf(q)} kept.` };
+  return { orders };
+}
+
 /** Find one delivery again from the row the screen is showing. */
 function vlFind(r) {
   const o = (VO.rows || []).find(x => x && x.vendorCode === r.vendorCode && x.id === r.id);
@@ -76,7 +120,7 @@ function vlFind(r) {
  * inside its lines, and a targeted write into an array that may be stored as an object is the kind
  * of path that works until the day it does not.
  */
-async function vlAcceptWrite(rows, qtyFor, note, rejFor) {
+async function vlAcceptWrite(rows, qtyFor, note, rejFor, ordersFor) {
   if (!vlCanAccept()) return VLOG_NO_ACCEPT;
   if (!rows.length) return '';
   const now = new Date().toISOString();
@@ -128,6 +172,15 @@ async function vlAcceptWrite(rows, qtyFor, note, rejFor) {
       const over = (q + rj) - (parseFloat(d.qty) || 0);
       if (over > 0) d.ok.over = over;
       if (note) d.ok.note = String(note).slice(0, 200);
+      /* FOR WHICH ORDERS (2026-10-03). Typed in the dialog, or worked out the way the Order Console shares it. Never
+       * more than was kept. */
+      if (voKind(l) === 'cut') {
+        let ords = ordersFor ? ordersFor(r, d, q) : null;
+        if (!Array.isArray(ords)) ords = vlOrderPlan(found.o, found.l, q).filter(o2 => o2.qty > 0).map(o2 => ({ orderNo: o2.orderNo, qty: o2.qty }));
+        let room = q;
+        ords = ords.map(o2 => { const t = Math.min(room, parseFloat(o2.qty) || 0); room -= t; return { orderNo: obUC(o2.orderNo), qty: t }; }).filter(o2 => o2.orderNo && o2.qty > 0);
+        if (ords.length) d.ok.orders = ords;
+      }
       l.deliveries = dels;
       /* The two cached totals the staff screens read are rewritten from the deliveries, never added
        * to — the same rule the portal follows when it records one. */
@@ -185,6 +238,16 @@ function vlAcceptOne(rowKey) {
       { key: 'vlroom', label: 'This line still has room for', type: 'text', readonly: true,
         value: nf(roomOnOrder) + ' ' + r.unit + ' of the ' + nf(lineOrdered) + ' ordered' },
       { key: 'vlr', label: `Returned — sent back (${r.unit})`, type: 'number', min: 0, value: wasRej || '' },
+      ...(voKind(f.l) === 'cut' ? (() => {
+        const plan = vlOrderPlan(f.o, f.l, proposed);
+        const said = prev && Array.isArray(prev.orders) && prev.orders.length ? prev.orders : plan.filter(p => p.qty > 0);
+        return [
+          { key: 'vlwho', label: 'This line is for', type: 'text', readonly: true, span: true,
+            value: plan.length ? plan.map(p => `${p.orderNo} (still owed ${nf(p.need)})`).join(' · ') : 'no order in the book is waiting for it' },
+          { key: 'vlord', label: 'For order(s) — ORDER:pieces, comma between; blank = share as above', span: true,
+            value: said.map(p => `${p.orderNo}:${nf(p.qty)}`).join(', ') },
+        ];
+      })() : []),
       { key: 'vln', label: 'Note — challan number, or why it differs', value: (prev && prev.note) || '', span: true },
     ],
     saveLabel: prev ? 'Save the change' : 'Accept',
@@ -203,7 +266,13 @@ function vlAcceptOne(rowKey) {
       if (over > 0 && !note) return `${nf(q + rj)} ${r.unit} is ${nf(over)} more than the ${nf(claimed)} `
         + `the printer recorded. That is allowed — ${r.vendor} gets credited for it — but write the `
         + 'challan number or the reason in the note first.';
-      const err = await vlAcceptWrite([r], () => q, note, () => rj);
+      let ords = null;
+      if (voKind(f.l) === 'cut') {
+        const pr = vlOrdersParse(($('ptf_vlord') || {}).value, f.o, f.l, Math.min(q, roomOnOrder || q));
+        if (pr.err) return pr.err;
+        ords = pr.orders;
+      }
+      const err = await vlAcceptWrite([r], () => q, note, () => rj, ords ? () => ords : null);
       if (err) return err;
       renderVlog();
       const beyondN = Math.max(0, q - roomOnOrder);
@@ -474,6 +543,7 @@ function renderVlog() {
           + `<div class="muted" style="font-size:10.5px">${esc(String(r.ok.by || '').split('@')[0])}`
           + `${shortBy ? ' · ' + nf(shortBy) + ' short' : ''}</div>`
           + (r.ok.note ? `<div class="muted" style="font-size:10.5px">${esc(r.ok.note)}</div>` : '')
+          + (Array.isArray(r.ok.orders) && r.ok.orders.length ? `<div style="font-size:10.5px;color:#1d4ed8" title="The orders these pieces came for">for ${esc(r.ok.orders.map(o2 => o2.orderNo + ' ' + nf(o2.qty)).join(', '))}</div>` : '')
           /* Somebody changed their mind about this delivery, and that is worth seeing. */
           + ((r.ok.was && r.ok.was.length)
             ? `<div class="muted" style="font-size:10.5px" title="${esc(r.ok.was.map(w =>

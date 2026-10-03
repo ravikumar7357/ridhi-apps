@@ -27,8 +27,15 @@ function ordVendorAlloc() {
       if (!sku || !(qty > 0)) return;
       const back = voDels(l).reduce((t, d) => { const ok = vlOk(d); return t + (ok ? (parseFloat(ok.qty) || 0) : 0); }, 0);
       if (!pile.has(sku)) pile.set(sku, []);
+      /* A DELIVERY THAT NAMES ITS ORDERS (2026-10-03, Ravi: "order number base banao"): the office says, as it accepts,
+       * which orders the pieces came for. That part of what came back belongs to those orders and is not shared out. */
+      const named = new Map(); let namedLeft = Math.min(back, qty);
+      voDels(l).forEach(d => { const ok = vlOk(d); if (!ok || !Array.isArray(ok.orders)) return;
+        ok.orders.forEach(f => { const no = obUC(f && f.orderNo), q = Math.min(parseFloat(f && f.qty) || 0, namedLeft);
+          if (no && q > 0) { named.set(no, (named.get(no) || 0) + q); namedLeft -= q; } }); });
+      const namedTot = [...named.values()].reduce((a, b) => a + b, 0);
       pile.get(sku).push({ vendorCode: o.vendorCode, vpo: o.orderNo || o.id, service: prLineServices(o.vendorCode, o)[0] || '',
-        left: qty, backLeft: Math.min(back, qty), at: ptDtMs(o.orderDate) || Date.parse(o.createdAt || '') || 0,
+        left: qty, backLeft: Math.min(back, qty) - namedTot, named, at: ptDtMs(o.orderDate) || Date.parse(o.createdAt || '') || 0,
         forOrders: Array.isArray(l.forOrders) ? l.forOrders : [],
         due: voDayOf(l.vendorDate) || voDayOf(l.deliveryDate) || '' });
     });
@@ -41,16 +48,32 @@ function ordVendorAlloc() {
   want.forEach((rows, sku) => {
     const open = rows.filter(r => r.open).sort((a, b) => when(a) - when(b));
     const shut = rows.filter(r => !r.open).sort((a, b) => when(b) - when(a));
-    const chunks = pile.get(sku), partsOf = new Map();
-    const give = (r, c, take, stamped) => { const back = Math.min(take, c.backLeft);
-      c.left -= take; c.backLeft -= back;
+    const chunks = pile.get(sku), partsOf = new Map(), gave = new Map();
+    const give = (r, c, take, stamped) => {
+      /* What came back NAMED for this order is its own first; then its share of what came back unnamed. */
+      const nb = Math.min(take, c.named.get(r.orderNo) || 0);
+      if (nb) c.named.set(r.orderNo, c.named.get(r.orderNo) - nb);
+      const ub = Math.min(take - nb, c.backLeft), back = nb + ub;
+      c.left -= take; c.backLeft -= ub;
+      if (!gave.has(c)) gave.set(c, new Map());
+      gave.get(c).set(r, (gave.get(c).get(r) || 0) + take);
       if (!partsOf.has(r)) partsOf.set(r, []);
       partsOf.get(r).push({ vendorCode: c.vendorCode, vpo: c.vpo, service: c.service, qty: take, back, due: c.due, stamped }); };
+    const gaveFrom = (r, c) => (gave.get(c) && gave.get(c).get(r)) || 0;
+    /* A delivery that named an order is a fact, like a stamp — honoured first. Named for an order no longer in the book,
+     * the pieces go back to the pile rather than vanishing. */
+    chunks.forEach(c => c.named.forEach((q, no) => {
+      const r = rows.find(x => x.orderNo === no);
+      if (!r) { c.backLeft += q; c.named.delete(no); return; }
+      const take = Math.min(q, c.left);
+      if (take > 0) give(r, c, take, true);
+    }));
     /* WHAT WAS WRITTEN DOWN COMES FIRST. A line placed since 2026-09-19 names the orders it is for, and
      * that is a fact, not a share: it is honoured before anything is dealt, and no rule can move it. A
      * stamp for an order that has since left the book goes back into the pile rather than vanishing. */
     chunks.forEach(c => (c.forOrders || []).forEach(f => {
-      const r = rows.find(x => x.orderNo === obUC(f.orderNo)), take = Math.min(parseFloat(f.qty) || 0, c.left);
+      const r = rows.find(x => x.orderNo === obUC(f.orderNo));
+      const take = r ? Math.min((parseFloat(f.qty) || 0) - gaveFrom(r, c), c.left) : 0;
       if (r && take > 0) give(r, c, take, true);
     }));
     const held = r => (partsOf.get(r) || []).reduce((t, p) => t + p.qty, 0);

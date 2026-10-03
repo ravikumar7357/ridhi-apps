@@ -73,6 +73,12 @@ async function ensureStoreRead() {
   renderFab();
 }
 
+/** Is this SKU made by a printer (any live cut line for it)? Unknown — false — while the printers' orders are not read. */
+const stPrinterSku = sku => {
+  const s = obUC(sku);
+  return !!s && (VO.rows || []).some(o => o && o.status !== 'Cancelled' && voLines(o).some(l => l && !l.cancelled && voKind(l) === 'cut' && obUC(l.sku) === s));
+};
+
 /** The day the store opened: the first opening entry anybody typed. '' while there is none. */
 function stStart() {
   let first = '';
