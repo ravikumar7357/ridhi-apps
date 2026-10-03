@@ -6701,13 +6701,16 @@ function lhPoll_(id) {
  * Image count = distinct VARIANTS (MAIN, PT01â€¦, SWCH), not the raw images array â€” Amazon returns the
  * same photo at several resolutions, so counting the array would report ~5x the real number.
  */
+/* pageSize=20 on every multi-ASIN catalog call (2026-10-03): Amazon's searchCatalogItems returns TEN items per page by
+ * default, so of every 20 ASINs asked, ten came back as "missing" and kept whatever was stored before — which is how
+ * Listing Health showed "no image" on listings that had images (RTME-S-001-1420). */
 function lhContent_(asinsCsv) {
   var asins = String(asinsCsv || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean).slice(0, 20);
   if (!asins.length) return { ok: false, error: 'no asins' };
   var r;
   try {
     r = spRetry_('/catalog/2022-04-01/items?marketplaceIds=' + marketplaceId_() +
-      '&identifiers=' + asins.join(',') + '&identifiersType=ASIN' +
+      '&identifiers=' + asins.join(',') + '&identifiersType=ASIN&pageSize=20' +
       '&includedData=summaries,attributes,images', 'get');
   } catch (e) { return { ok: false, error: String(e.message || e).slice(0, 300) }; }
 
@@ -6767,7 +6770,7 @@ function lhBsr_(asinsCsv) {
   var r;
   try {
     r = spRetry_('/catalog/2022-04-01/items?marketplaceIds=' + marketplaceId_() +
-      '&identifiers=' + asins.join(',') + '&identifiersType=ASIN' +
+      '&identifiers=' + asins.join(',') + '&identifiersType=ASIN&pageSize=20' +
       '&includedData=salesRanks,summaries', 'get');
   } catch (e) { return { ok: false, error: String(e.message || e).slice(0, 300) }; }
 
@@ -6910,7 +6913,7 @@ function lhImages_(asinsCsv) {
     // place to get them. Guessing from a stale snapshot is how 65 parents ended up with no picture
     // and nothing to fall back to.
     r = spRetry_('/catalog/2022-04-01/items?marketplaceIds=' + marketplaceId_() +
-      '&identifiers=' + asins.join(',') + '&identifiersType=ASIN' +
+      '&identifiers=' + asins.join(',') + '&identifiersType=ASIN&pageSize=20' +
       '&includedData=images,relationships', 'get');
   } catch (e) { return { ok: false, error: String(e.message || e).slice(0, 300) }; }
 
@@ -6968,7 +6971,7 @@ function catParents_(asinsCsv) {
   var r;
   try {
     r = spRetry_('/catalog/2022-04-01/items?marketplaceIds=' + marketplaceId_() +
-      '&identifiers=' + asins.join(',') + '&identifiersType=ASIN&includedData=relationships', 'get');
+      '&identifiers=' + asins.join(',') + '&identifiersType=ASIN&pageSize=20&includedData=relationships', 'get');
   } catch (e) { return { ok: false, error: String(e.message || e).slice(0, 300) }; }
   var parents = {}, seen = {};
   (r.items || []).forEach(function (it) {
@@ -7034,7 +7037,7 @@ function childAttrs_(asins) {
     var r;
     try {
       r = spRetry_('/catalog/2022-04-01/items?marketplaceIds=' + marketplaceId_() +
-        '&identifiers=' + batch.join(',') + '&identifiersType=ASIN' +
+        '&identifiers=' + batch.join(',') + '&identifiersType=ASIN&pageSize=20' +
         '&includedData=summaries,attributes,salesRanks', 'get');
     } catch (e) { Logger.log('childAttrs: ' + e); r = {}; }
     (r.items || []).forEach(function (it) {
@@ -7503,7 +7506,7 @@ function parentChildCounts_(asins) {
     var batch = asins.slice(i, i + 20), r;
     try {
       r = spRetry_('/catalog/2022-04-01/items?marketplaceIds=' + marketplaceId_() +
-        '&identifiers=' + batch.join(',') + '&identifiersType=ASIN&includedData=relationships', 'get');
+        '&identifiers=' + batch.join(',') + '&identifiersType=ASIN&pageSize=20&includedData=relationships', 'get');
     } catch (e) { Logger.log('parentKids: ' + e); r = {}; }
     (r.items || []).forEach(function (it) {
       var kids = 0;
