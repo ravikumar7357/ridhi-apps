@@ -219,6 +219,8 @@ function doGet(e) {
     if (p.lh === 'create') { setBrand_(p.brand); return json_(lhCreate_()); }
     if (p.lh === 'poll') { setBrand_(p.brand); return json_(lhPoll_(p.id)); }
     if (p.lh === 'content') { setBrand_(p.brand); return json_(lhContent_(p.asins)); }
+    if (p.agNow === 'ask') { setBrand_(p.brand); return json_(agNowAsk_()); }
+    if (p.agNow === 'get') { setBrand_(p.brand); return json_(agNowGet_(p.id)); }
     // A+ content. `aplusasin` is the authoritative one (publish records per ASIN); `aplus` is the
     // older document-first sweep, kept for diagnosis.
     if (p.lh === 'aplusasin') { setBrand_(p.brand); return json_(lhAplusAsins_(p.asins)); }
@@ -3130,6 +3132,27 @@ function adsWideFoldTgt_(rows) {
  * SKU → parent map the catalogue tabs use, resolved here rather than in the browser so there is one
  * answer to "what is this ASIN's parent" instead of two that can disagree.
  */
+/**
+ * The campaign × product figures NOW, without waiting for the nightly pass (2026-10-03). Asks for the same 30 days the
+ * nightly run would (to yesterday, PT) — Amazon answers a repeat ask with the report it already has — and, once it is
+ * ready, folds it and puts it in the adGroup cache for this brand only. The nightly pass overwrites it as usual.
+ */
+function agNowAsk_() {
+  var iso = function (d) { return Utilities.formatDate(d, ORDERS_PT, 'yyyy-MM-dd'); };
+  var we = new Date(Date.now() - 86400000), ws = new Date(we.getTime() - 29 * 86400000);
+  return adsWideCreate_('ag', iso(ws), iso(we));
+}
+function agNowGet_(id) {
+  var s = ppcStatus_(id);
+  if (!s.ok || !s.ready) return { ok: true, ready: false, status: s.status || '', error: s.error || '' };
+  var fold = adsWideFoldAg_(adsWideRows_(id));
+  var c = cacheRead_('adGroup') || {};
+  var d = c.d || {};
+  d[ACTIVE_PREFIX] = fold;
+  cacheWrite_('adGroup', { at: nowStamp_(), d: d });
+  return { ok: true, ready: true, brand: ACTIVE_PREFIX, rows: fold.rows.length, groups: Object.keys(fold.groups).length };
+}
+
 function adsWideFoldAg_(rows) {
   var parents = {};
   try { parents = catalogParents_() || {}; } catch (e) { parents = {}; }   // no Sheets access → blank
