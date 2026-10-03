@@ -349,6 +349,8 @@ function cpBase() {
       const r = { brand: b, cn: names[x.cid] || '', agn: names[x.ag] || '', asin: x.a, sku: x.sku || '', parent: pmap[x.a] || '',
         title: wTitle(x.a), st: x.st || '',
         i: x.i || 0, c: x.c || 0, sp: x.sp || 0, o: x.o || 0, s: x.s || 0,
+        // OWN sales (this SKU only). Absent on caches built before 2026-10-03 — then unknown, never zero.
+        os: x.os != null ? x.os : null, oo: x.oo != null ? x.oo : null,
         stock: st, cover: st != null && pace && pace.perDay > 0 ? st / pace.perDay : null,
         tacos: pace ? pace.tacos : null, be: cpBreakEven(x.a, pace && pace.price) };
       r.hay = [r.cn, r.agn, r.asin, r.sku, r.parent, r.title, (CP_STATE[r.st] || {}).t || ''].join(' ').toLowerCase();
@@ -401,7 +403,9 @@ function renderCp() {
     + '<th class="frz">Campaign</th><th>Ad group</th><th>ASIN</th><th>SKU</th>'
     + '<th title="Is this product\'s ad running today? Ad, ad group and campaign must all be enabled.">Ad status</th>'
     + '<th class="num">Clicks</th><th class="num">Spend</th><th class="num">Orders</th><th class="num">Sales</th>'
-    + '<th class="num" title="This ad\'s spend ÷ this ad\'s sales, 30 days.">ACoS</th>'
+    + '<th class="num" title="This ad\'s spend ÷ ALL the sales Amazon gives it, 30 days — as in Campaign Manager. Includes other products the shopper bought after the click.">ACoS</th>'
+    + '<th class="num" title="Sales of THIS SKU only that came from this ad, 30 days.">Own sales</th>'
+    + '<th class="num" title="This ad\'s spend ÷ sales of THIS SKU only. Far above the ACoS means the ad mostly sells other products, not the one it advertises.">ACoS (own)</th>'
     + '<th class="num" title="The ASIN\'s TOTAL ad spend ÷ its TOTAL sales (ads + organic), last four finished weeks — the same for every campaign it is in. It can sit far above the ACoS: Amazon counts in an ad sale what the shopper bought of OTHER products after the click, so an ad can look cheap while the product it advertises sells little itself.">TACoS (ASIN)</th>'
     + '<th class="num" title="Orders ÷ clicks.">Conv.</th>'
     + '<th class="num" title="The ACoS at which an ad sale makes nothing: price less unit cost and fees, as a % of the price. Blank when the unit cost is not in Profit &amp; Margin.">Break-even</th>'
@@ -425,6 +429,8 @@ function renderCp() {
     + `<td class="num"${r.o ? ' style="font-weight:700"' : ''}>${r.o}</td>`
     + `<td class="num">${money(r.s)}</td>`
     + `<td class="num">${r.s > 0 ? Math.round(r.sp * 100 / r.s) + '%' : dash}</td>`
+    + `<td class="num">${r.os != null ? money(r.os) : dash}</td>`
+    + `<td class="num">${r.os == null ? dash : r.os > 0 ? Math.round(r.sp * 100 / r.os) + '%' : (r.sp > 0 ? '<span class="muted" title="Spent, and not one of this SKU sold from it">no own sale</span>' : dash)}</td>`
     + `<td class="num">${r.tacos != null ? Math.round(r.tacos) + '%' : dash}</td>`
     + `<td class="num">${r.c > 0 ? (r.o / r.c * 100).toFixed(1) + '%' : dash}</td>`
     + `<td class="num">${r.be != null ? Math.round(r.be) + '%' : dash}</td>`
@@ -434,7 +440,7 @@ function renderCp() {
     + `<td style="min-width:260px;white-space:normal">${esc(r.why)}</td>`
     + '</tr>').join('');
   $('stTable').innerHTML = head + '<tbody>' + (body
-    || '<tr><td colspan="17" class="muted" style="padding:14px">Nothing matches.</td></tr>') + '</tbody>';
+    || '<tr><td colspan="19" class="muted" style="padding:14px">Nothing matches.</td></tr>') + '</tbody>';
 
   const sum = v => rows.filter(r => r.v === v).reduce((a, r) => { a.n++; a.sp += r.sp; a.s += r.s; return a; }, { n: 0, sp: 0, s: 0 });
   const bad = sum('bad'), watch = sum('watch'), good = sum('good');
@@ -458,10 +464,10 @@ function cpCsv() {
   if (!CP_LAST.length) { stMsg('Nothing to export.', true); return; }
   const cell = v => { const s = String(v == null ? '' : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
   const cols = ['Brand', 'Campaign', 'Ad group', 'ASIN', 'SKU', 'Parent', 'Ad status', 'Impressions', 'Clicks', 'Spend', 'Orders', 'Sales',
-    'ACoS %', 'TACoS (ASIN) %', 'Break-even ACoS %', 'FBA stock', 'Days of cover', 'Verdict', 'What to do'];
+    'ACoS %', 'Own sales', 'ACoS own %', 'TACoS (ASIN) %', 'Break-even ACoS %', 'FBA stock', 'Days of cover', 'Verdict', 'What to do'];
   const lines = [cols.map(cell).join(',')];
   CP_LAST.forEach(r => lines.push([r.brand, r.cn, r.agn, r.asin, r.sku, r.parent, (CP_STATE[r.st] || {}).t || '', r.i, r.c, r.sp, r.o, r.s,
-    r.s > 0 ? Math.round(r.sp * 100 / r.s) : '', r.tacos != null ? Math.round(r.tacos) : '', r.be != null ? Math.round(r.be) : '', r.stock,
+    r.s > 0 ? Math.round(r.sp * 100 / r.s) : '', r.os != null ? r.os : '', r.os > 0 ? Math.round(r.sp * 100 / r.os) : '', r.tacos != null ? Math.round(r.tacos) : '', r.be != null ? Math.round(r.be) : '', r.stock,
     r.cover != null ? Math.round(r.cover) : '', r.act, r.why].map(cell).join(',')));
   const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);

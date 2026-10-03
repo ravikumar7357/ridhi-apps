@@ -2966,7 +2966,8 @@ var ADS_WIDE_CFG = {
   ag: {
     reportTypeId: 'spAdvertisedProduct', groupBy: ['advertiser'],
     columns: ['advertisedAsin', 'advertisedSku', 'campaignId', 'campaignName',
-      'adGroupId', 'adGroupName', 'impressions', 'clicks', 'cost', 'purchases30d', 'sales30d'],
+      'adGroupId', 'adGroupName', 'impressions', 'clicks', 'cost', 'purchases30d', 'sales30d',
+      'purchasesSameSku30d', 'attributedSalesSameSku30d'],
   },
   // Where the ad was shown: top of search, rest of search, product page, off Amazon. DAILY, because
   // the whole point of a placement view is watching the mix move — a single summary row cannot show
@@ -3240,15 +3241,17 @@ function adsWideFoldAg_(rows) {
     if (!names[ag]) names[ag] = wStr_(x.adGroupName);
     if (cid && !names[cid]) names[cid] = wStr_(x.campaignName);
     var k = ag + '|' + a + '|' + sku;
-    var b = out[k] || (out[k] = { ag: ag, cid: cid, a: a, sku: sku, i: 0, c: 0, sp: 0, o: 0, s: 0 });
+    var b = out[k] || (out[k] = { ag: ag, cid: cid, a: a, sku: sku, i: 0, c: 0, sp: 0, o: 0, s: 0, oo: 0, os: 0 });
     b.i += wNum_(x.impressions); b.c += wNum_(x.clicks); b.sp += wNum_(x.cost);
     b.o += wNum_(x.purchases30d); b.s += wNum_(x.sales30d);
+    // OWN sales: what was bought of THIS SKU after the click. sales30d also counts other products bought after it (2026-10-03).
+    b.oo += wNum_(x.purchasesSameSku30d); b.os += wNum_(x.attributedSalesSameSku30d);
   }
   var list = [];
   Object.keys(out).forEach(function (k) {
     var b = out[k];
     if (!(b.i > 0) && !(b.sp > 0)) return;          // never shown in the window: nothing to say about it
-    b.sp = wMoney_(b.sp); b.s = wMoney_(b.s); list.push(b);
+    b.sp = wMoney_(b.sp); b.s = wMoney_(b.s); b.os = wMoney_(b.os); list.push(b);
   });
   return { groups: groups, parent: parentOf, rows: list, names: names };
 }
