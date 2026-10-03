@@ -18,13 +18,14 @@ function stMsg(t, bad) { const m = $('stMsg'); m.innerHTML = t || ''; m.classNam
 async function ensureSt() {
   if (!ST.loaded) {
     stMsg('Loading…');
-    const grab = async name => { try { const r = await baCall({ cache: name }); return (r.data && r.data.d) || {}; } catch (e) { return {}; } };
-    let at = '';
-    try { const r = await baCall({ cache: 'srchTerm' }); at = (r.data && r.data.at) || ''; } catch (e) {}
-    ST.terms = await grab('srchTerm');
-    ST.tgts = await grab('targeting');
-    ST.ag = await grab('adGroup');
-    ST.at = at;
+    /* Each cache ONCE, and the three at the same time (2026-10-03: "ye bahut hang ho rha h"). The search-term cache is
+     * 3.8 MB and was fetched twice — once only to read its date — and the three came one after another. */
+    const grab = async name => { try { const r = await baCall({ cache: name }); return (r && r.data) || {}; } catch (e) { return {}; } };
+    const [t, g, a] = await Promise.all([grab('srchTerm'), grab('targeting'), grab('adGroup')]);
+    ST.terms = t.d || {};
+    ST.tgts = g.d || {};
+    ST.ag = a.d || {};
+    ST.at = t.at || '';
     ST.loaded = true;
     stMsg('');
   }
@@ -217,54 +218,74 @@ $('stCsv').onclick = () => {
 /* ================= CAMPAIGN × PRODUCT =================
  *
  * Ravi, 2026-10-03: "mujhe ek aisa view chahiye jisme me pata laga saku ki mera kis campaign me kis product me mera
- * achcha ya bura chal rha h and uska action kya and uske against me stock h ya nahi".
+ * achcha ya bura chal rha h and uska action kya and uske against me stock h ya nahi" — then "add indivisual tacos and
+ * add kro ki wo particular asin active h or pause h us campaign me".
  *
  * One row per (campaign, ad group, SKU) over the same 30-day window as the search terms, from the advertised-product
- * report the nightly run already asks for. Beside it: the FBA stock of that SKU (stock/{brand}, saved by Listing Health
- * and Parent Listing Review), days of cover at the last four finished weeks' sales of the ASIN (PPC & Organic's store),
- * and the break-even ACoS where the unit cost is known (Profit & Margin's costs and model).
+ * report the nightly run asks for. Beside it: whether that ad is running today (one letter per row, from Amazon's
+ * product-ad / ad-group / campaign lists, read nightly), the FBA stock of that SKU (stock/{brand}), days of cover and the
+ * ASIN's own TACoS over the last four finished weeks (PPC & Organic's store), and the break-even ACoS where the unit
+ * cost is known (Profit & Margin).
  *
- * The verdict asks STOCK FIRST, as Parent Listing Review does: there is no sense tuning a bid on something that cannot
- * ship. Then evidence: under CP_MIN_CLICKS clicks with no order nothing can be said yet, and the row says so rather
- * than calling it bad. Then the money, against the product's break-even ACoS, or the target typed in when the cost is
- * not known. Sellora only ADVISES — nothing here changes a bid or a campaign at Amazon.
+ * The verdict asks: is it running at all, then STOCK, then evidence (under CP_MIN_CLICKS clicks with no order nothing
+ * can be said yet), then the money against the break-even ACoS or the typed target. Sellora only ADVISES — nothing
+ * here changes a bid, a state or a campaign at Amazon.
+ *
+ * SPEED: everything that does not depend on the target ACoS is worked out ONCE per load (cpBase); a keystroke in the
+ * filter or the target only re-runs the verdict and the filter over that list.
  */
 const CP_MIN_CLICKS = 10;       // clicks before "no order" is evidence rather than chance
 const CP_LOW_COVER = 14;        // days of stock below which the ad is slowed so the product does not run out
 const CP_SCALE_COVER = 45;      // days of stock needed before "spend more" is advice anyone can follow
 const CP_TARGET_DEFAULT = 30;   // ACoS % used when the unit cost is not known and nothing is typed in
-let CP = { loaded: false, stock: {}, stockAt: {} };
+const CP_STATE = {
+  E: { t: 'Active', tip: 'Ad, ad group and campaign are all enabled.' },
+  a: { t: 'Paused — ad', tip: 'This product is paused inside the ad group.' },
+  g: { t: 'Paused — ad group', tip: 'The ad group holding this product is paused.' },
+  c: { t: 'Paused — campaign', tip: 'The whole campaign is paused.' },
+  A: { t: 'Archived', tip: 'The ad, its ad group or its campaign is archived.' },
+  '?': { t: 'Not found', tip: "Not in Amazon's lists when they were last read." },
+};
+let CP = { loaded: false, stock: {}, stockAt: {}, base: null };
 let CP_LAST = [];
 
 async function ensureCp() {
   if (CP.loaded) return;
   stMsg('Loading the FBA stock, weekly sales and unit costs…');
-  for (const b of ['SP', 'CPC']) {
+  const stockOf = async b => {
     try {
       const snap = await getDoc(doc(db, 'stock', b));
-      if (snap.exists()) {
-        const d = snap.data();
-        CP.stock[b] = d.m || {};
-        CP.stockAt[b] = d.at && d.at.toDate ? d.at.toDate() : null;
-      }
+      if (!snap.exists()) return;
+      const d = snap.data();
+      CP.stock[b] = d.m || {};
+      CP.stockAt[b] = d.at && d.at.toDate ? d.at.toDate() : null;
     } catch (e) { /* no read access, or never saved — stock shows as unknown */ }
-  }
-  try { if (!H_LOADED) await loadHealthCache(); } catch (e) { /* titles stay blank */ }
-  try { if (!WEEKLY.weeks.length && !Object.keys(WEEKLY.rows).length) await loadWeekly(); } catch (e) { /* cover unknown */ }
-  try { await loadCosts(); } catch (e) { /* break-even unknown */ }
+  };
+  await Promise.all([
+    stockOf('SP'), stockOf('CPC'),
+    (async () => { try { if (!H_LOADED) await loadHealthCache(); } catch (e) { /* titles stay blank */ } })(),
+    (async () => { try { if (!WEEKLY.weeks.length && !Object.keys(WEEKLY.rows).length) await loadWeekly(); } catch (e) { /* cover unknown */ } })(),
+    (async () => { try { await loadCosts(); } catch (e) { /* break-even unknown */ } })(),
+  ]);
   CP.loaded = true;
+  CP.base = null;
   stMsg('');
 }
 
-/** Units a day and price, from the last four FINISHED weeks of this ASIN's sales. Null when there are none. */
+/** Units a day, price and the ASIN's TACoS, from the last four FINISHED weeks of its sales. Null when there are none. */
 function cpPace(asin) {
   const r = WEEKLY.rows[asin];
   if (!r || !r.weeks) return null;
   const wks = Object.keys(r.weeks).filter(wWeekDone).sort().slice(-4);
   if (!wks.length) return null;
-  const u = wks.reduce((a, k) => a + (r.weeks[k].u || 0), 0);
-  const rev = wks.reduce((a, k) => a + (r.weeks[k].rev || 0), 0);
-  return { perDay: u / (wks.length * 7), price: u > 0 ? rev / u : null };
+  let u = 0, rev = 0, spend = 0, spendKnown = false;
+  wks.forEach(k => {
+    const c = r.weeks[k];
+    u += c.u || 0; rev += c.rev || 0;
+    if (c.spend != null) { spend += c.spend; spendKnown = true; }
+  });
+  return { perDay: u / (wks.length * 7), price: u > 0 ? rev / u : null,
+    tacos: spendKnown && rev > 0 ? spend / rev * 100 : null };
 }
 
 /** The ACoS at which an ad sale makes nothing — what is left of the price after cost and fees, as a % of it. */
@@ -275,12 +296,20 @@ function cpBreakEven(asin, price) {
   return (price * (1 - pctOfPrice) - cost * (1 + PF_MODEL.ret / 100)) / price * 100;
 }
 
-/** { v: 'bad' | 'watch' | 'good' | '', act, why } — stock first, then evidence, then money. */
+/** { v: 'bad' | 'watch' | 'good' | '', act, why } — running?, then stock, then evidence, then money. */
 function cpVerdict(r) {
   const money = v => '$' + Math.round(v).toLocaleString('en-US');
   const acos = r.s > 0 ? r.sp / r.s * 100 : null;
   const tgt = r.be != null ? r.be : r.tgt;
   const tgtTxt = r.be != null ? `break-even ${Math.round(r.be)}%` : `target ${Math.round(r.tgt)}%`;
+  /* Not running today: nothing to cut. Only worth a word when it was working and the stock is there to sell. */
+  if (r.st && r.st !== 'E' && r.st !== '?') {
+    const where = (CP_STATE[r.st] || {}).t || 'Stopped';
+    if (r.st !== 'A' && r.o >= 3 && acos != null && tgt > 0 && acos <= tgt && r.stock > 0 && (r.cover == null || r.cover >= CP_LOW_COVER)) {
+      return { v: 'watch', act: 'Paused but was working', why: `${where}. In the 30 days it made ${r.o} orders at ACoS ${Math.round(acos)}% (within the ${tgtTxt}) and ${r.stock.toLocaleString('en-US')} are in stock — worth turning back on.` };
+    }
+    return { v: '', act: 'Not running', why: `${where} — nothing to change. It spent ${money(r.sp)} in the 30 days.` };
+  }
   if (r.stock === 0 && r.sp > 0) {
     return { v: 'bad', act: 'Pause — no stock', why: `FBA stock is 0 and this ad spent ${money(r.sp)} in 30 days. Pause it until stock lands.` };
   }
@@ -307,33 +336,46 @@ function cpVerdict(r) {
       : r.cover < CP_SCALE_COVER ? ` Only ${Math.round(r.cover)} days of stock — hold here.` : '') };
 }
 
+/** Everything that does not change with the target ACoS, worked out once per load. */
+function cpBase() {
+  if (CP.base) return CP.base;
+  const out = [], paceOf = {};
+  ['SP', 'CPC'].forEach(b => {
+    const pack = ST.ag[b] || {};
+    const pmap = pack.parent || {}, names = pack.names || {}, stock = CP.stock[b];
+    (pack.rows || []).forEach(x => {
+      const pace = x.a in paceOf ? paceOf[x.a] : (paceOf[x.a] = cpPace(x.a));
+      const st = stock && x.sku && Object.prototype.hasOwnProperty.call(stock, x.sku) ? Number(stock[x.sku]) || 0 : null;
+      const r = { brand: b, cn: names[x.cid] || '', agn: names[x.ag] || '', asin: x.a, sku: x.sku || '', parent: pmap[x.a] || '',
+        title: wTitle(x.a), st: x.st || '',
+        i: x.i || 0, c: x.c || 0, sp: x.sp || 0, o: x.o || 0, s: x.s || 0,
+        stock: st, cover: st != null && pace && pace.perDay > 0 ? st / pace.perDay : null,
+        tacos: pace ? pace.tacos : null, be: cpBreakEven(x.a, pace && pace.price) };
+      r.hay = [r.cn, r.agn, r.asin, r.sku, r.parent, r.title, (CP_STATE[r.st] || {}).t || ''].join(' ').toLowerCase();
+      out.push(r);
+    });
+  });
+  CP.base = out;
+  return out;
+}
+
 function cpRows() {
   const pick = $('stBrand').value;
-  const brands = (pick === 'ALL' ? ['SP', 'CPC'] : [pick]);
   const q = $('stFilter').value.trim().toLowerCase();
   const minSp = Number($('stMinSpend').value) || 0;
   const typed = Number($('stCpTarget').value);
   const tgt = typed > 0 ? typed : CP_TARGET_DEFAULT;
   const show = $('stCpShow').value;
-  let rows = [];
-  brands.forEach(b => {
-    const pack = ST.ag[b] || {};
-    const pmap = pack.parent || {}, names = pack.names || {}, stock = CP.stock[b];
-    (pack.rows || []).forEach(x => {
-      const pace = cpPace(x.a);
-      const st = stock && x.sku && Object.prototype.hasOwnProperty.call(stock, x.sku) ? Number(stock[x.sku]) || 0 : null;
-      const r = { brand: b, cn: names[x.cid] || '', agn: names[x.ag] || '', asin: x.a, sku: x.sku || '', parent: pmap[x.a] || '',
-        title: wTitle(x.a),
-        i: x.i || 0, c: x.c || 0, sp: x.sp || 0, o: x.o || 0, s: x.s || 0,
-        stock: st, cover: st != null && pace && pace.perDay > 0 ? st / pace.perDay : null,
-        be: cpBreakEven(x.a, pace && pace.price), tgt };
-      Object.assign(r, cpVerdict(r));
-      rows.push(r);
-    });
+  const rows = [];
+  cpBase().forEach(b => {
+    if (pick !== 'ALL' && b.brand !== pick) return;
+    if (minSp > 0 && b.sp < minSp) return;
+    b.tgt = tgt;
+    Object.assign(b, cpVerdict(b));
+    if (show === 'running' ? b.st !== 'E' : show === 'stopped' ? (b.st === 'E' || !b.st) : show && b.v !== show) return;
+    if (q && !(b.hay + ' ' + b.act.toLowerCase()).includes(q)) return;
+    rows.push(b);
   });
-  if (minSp > 0) rows = rows.filter(r => r.sp >= minSp);
-  if (show) rows = rows.filter(r => r.v === show);
-  if (q) rows = rows.filter(r => [r.cn, r.agn, r.asin, r.sku, r.parent, r.title, r.act].join(' ').toLowerCase().includes(q));
   // Bad first, and the biggest spend first inside each — the money leaving is what gets read first.
   const rank = { bad: 0, watch: 1, good: 2, '': 3 };
   rows.sort((x, y) => (rank[x.v] - rank[y.v]) || (y.sp - x.sp));
@@ -342,41 +384,48 @@ function cpRows() {
 
 function renderCp() {
   const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
-  const money = v => '$' + (Math.round((v || 0) * 100) / 100).toLocaleString('en-US');
+  const money = v => '$' + Math.round(v || 0).toLocaleString('en-US');
   const haveRows = ['SP', 'CPC'].some(b => ((ST.ag[b] || {}).rows || []).length);
   if (!haveRows) {
     $('stTable').innerHTML = '';
-    stMsg('No campaign × product figures yet. The nightly run keeps them from tonight on, so they appear here the '
-      + 'morning after, for the same 30 days as the search terms.', true);
+    stMsg('No campaign × product figures yet. The nightly run keeps them, so they appear here the morning after, for the '
+      + 'same 30 days as the search terms.', true);
     return;
   }
   const rows = cpRows();
   CP_LAST = rows;
-  const CAP = 500, shown = rows.slice(0, CAP);
+  const CAP = 300, shown = rows.slice(0, CAP);
   const TAG = { bad: 'st-rejected', watch: 'st-pending', good: 'st-approved' };
   const dash = '<span class="muted">—</span>';
   const head = '<thead><tr>'
-    + '<th class="frz">Campaign</th><th>Ad group</th><th>ASIN</th><th>SKU</th><th>Parent</th>'
-    + '<th class="num">Impr</th><th class="num">Clicks</th><th class="num">Spend</th><th class="num">Orders</th><th class="num">Sales</th>'
-    + '<th class="num" title="Spend ÷ sales.">ACoS</th>'
+    + '<th class="frz">Campaign</th><th>Ad group</th><th>ASIN</th><th>SKU</th>'
+    + '<th title="Is this product\'s ad running today? Ad, ad group and campaign must all be enabled.">Ad status</th>'
+    + '<th class="num">Clicks</th><th class="num">Spend</th><th class="num">Orders</th><th class="num">Sales</th>'
+    + '<th class="num" title="This ad\'s spend ÷ this ad\'s sales, 30 days.">ACoS</th>'
+    + '<th class="num" title="The ASIN\'s TOTAL ad spend ÷ its TOTAL sales (ads + organic), last four finished weeks — the same for every campaign it is in. It can sit far above the ACoS: Amazon counts in an ad sale what the shopper bought of OTHER products after the click, so an ad can look cheap while the product it advertises sells little itself.">TACoS (ASIN)</th>'
     + '<th class="num" title="Orders ÷ clicks.">Conv.</th>'
     + '<th class="num" title="The ACoS at which an ad sale makes nothing: price less unit cost and fees, as a % of the price. Blank when the unit cost is not in Profit &amp; Margin.">Break-even</th>'
     + '<th class="num" title="FBA stock of this SKU that Amazon can sell now.">FBA stock</th>'
     + '<th class="num" title="FBA stock ÷ units a day over the last four finished weeks of this ASIN.">Days of cover</th>'
     + '<th>Verdict</th><th>What to do</th>'
     + '</tr></thead>';
+  const stCell = r => {
+    if (!r.st) return dash;
+    const x = CP_STATE[r.st] || CP_STATE['?'];
+    return `<span class="st ${r.st === 'E' ? 'st-approved' : r.st === '?' ? 'st-draft' : 'st-pending'}" title="${esc(x.tip)}">${esc(x.t)}</span>`;
+  };
   const body = shown.map(r => '<tr>'
     + `<td class="frz" style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600" title="${esc(r.cn)}">${esc(r.cn) || dash}</td>`
-    + `<td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.agn)}">${esc(r.agn) || dash}</td>`
+    + `<td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.agn)}">${esc(r.agn) || dash}</td>`
     + `<td style="font-family:ui-monospace,monospace" title="${esc(r.title)}">${esc(r.asin)}</td>`
     + `<td style="font-family:ui-monospace,monospace">${esc(r.sku) || dash}</td>`
-    + `<td style="font-family:ui-monospace,monospace">${esc(r.parent) || dash}</td>`
-    + `<td class="num">${r.i.toLocaleString('en-US')}</td>`
+    + `<td style="white-space:nowrap">${stCell(r)}</td>`
     + `<td class="num">${r.c}</td>`
     + `<td class="num">${money(r.sp)}</td>`
     + `<td class="num"${r.o ? ' style="font-weight:700"' : ''}>${r.o}</td>`
     + `<td class="num">${money(r.s)}</td>`
     + `<td class="num">${r.s > 0 ? Math.round(r.sp * 100 / r.s) + '%' : dash}</td>`
+    + `<td class="num">${r.tacos != null ? Math.round(r.tacos) + '%' : dash}</td>`
     + `<td class="num">${r.c > 0 ? (r.o / r.c * 100).toFixed(1) + '%' : dash}</td>`
     + `<td class="num">${r.be != null ? Math.round(r.be) + '%' : dash}</td>`
     + `<td class="num"${r.stock === 0 ? ' style="color:var(--bad,#b91c1c);font-weight:700"' : ''}>${r.stock != null ? r.stock.toLocaleString('en-US') : dash}</td>`
@@ -389,14 +438,18 @@ function renderCp() {
 
   const sum = v => rows.filter(r => r.v === v).reduce((a, r) => { a.n++; a.sp += r.sp; a.s += r.s; return a; }, { n: 0, sp: 0, s: 0 });
   const bad = sum('bad'), watch = sum('watch'), good = sum('good');
+  const running = rows.filter(r => r.st === 'E').length, stopped = rows.filter(r => r.st && r.st !== 'E' && r.st !== '?').length;
   const stockAt = Object.entries(CP.stockAt).filter(([, d]) => d)
     .map(([b, d]) => `${BRAND_NAME[b] || b} ${d.toLocaleDateString('en-GB')}`).join(', ');
+  const stAt = ['SP', 'CPC'].map(b => (ST.ag[b] || {}).stAt).filter(Boolean)[0];
   stMsg(`<b>${rows.length.toLocaleString('en-US')}</b> campaign × product rows`
+    + ` (${running.toLocaleString('en-US')} running, ${stopped.toLocaleString('en-US')} paused or archived)`
     + ` · <b style="color:var(--bad,#b91c1c)">${bad.n} bad</b> (${money(bad.sp)} spent, ${money(bad.s)} back)`
     + ` · <b>${watch.n} watch</b> (${money(watch.sp)} spent)`
     + ` · <b style="color:#15803D">${good.n} good</b> (${money(good.sp)} spent, ${money(good.s)} back)`
-    + (rows.length > CAP ? ` · showing the first ${CAP} — narrow it to see the rest` : '')
+    + (rows.length > CAP ? ` · showing the first ${CAP} — narrow it, or Export for all` : '')
     + (ST.at ? ` · built ${esc(ST.at)}` : '') + ' · a 30-day window'
+    + (stAt ? ` · ad status read ${esc(stAt)}` : '')
     + (stockAt ? ` · FBA stock as saved ${esc(stockAt)}` : ' · <b>no FBA stock saved yet</b> — refresh Listing Health once to fill it')
     + ' · advice only: nothing here changes a bid at Amazon');
 }
@@ -404,11 +457,11 @@ function renderCp() {
 function cpCsv() {
   if (!CP_LAST.length) { stMsg('Nothing to export.', true); return; }
   const cell = v => { const s = String(v == null ? '' : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
-  const cols = ['Brand', 'Campaign', 'Ad group', 'ASIN', 'SKU', 'Parent', 'Impressions', 'Clicks', 'Spend', 'Orders', 'Sales',
-    'ACoS %', 'Break-even ACoS %', 'FBA stock', 'Days of cover', 'Verdict', 'What to do'];
+  const cols = ['Brand', 'Campaign', 'Ad group', 'ASIN', 'SKU', 'Parent', 'Ad status', 'Impressions', 'Clicks', 'Spend', 'Orders', 'Sales',
+    'ACoS %', 'TACoS (ASIN) %', 'Break-even ACoS %', 'FBA stock', 'Days of cover', 'Verdict', 'What to do'];
   const lines = [cols.map(cell).join(',')];
-  CP_LAST.forEach(r => lines.push([r.brand, r.cn, r.agn, r.asin, r.sku, r.parent, r.i, r.c, r.sp, r.o, r.s,
-    r.s > 0 ? Math.round(r.sp * 100 / r.s) : '', r.be != null ? Math.round(r.be) : '', r.stock,
+  CP_LAST.forEach(r => lines.push([r.brand, r.cn, r.agn, r.asin, r.sku, r.parent, (CP_STATE[r.st] || {}).t || '', r.i, r.c, r.sp, r.o, r.s,
+    r.s > 0 ? Math.round(r.sp * 100 / r.s) : '', r.tacos != null ? Math.round(r.tacos) : '', r.be != null ? Math.round(r.be) : '', r.stock,
     r.cover != null ? Math.round(r.cover) : '', r.act, r.why].map(cell).join(',')));
   const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);

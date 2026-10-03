@@ -221,6 +221,7 @@ function doGet(e) {
     if (p.lh === 'content') { setBrand_(p.brand); return json_(lhContent_(p.asins)); }
     if (p.agNow === 'ask') { setBrand_(p.brand); return json_(agNowAsk_()); }
     if (p.agNow === 'get') { setBrand_(p.brand); return json_(agNowGet_(p.id)); }
+    if (p.adState === 'build') return json_(adStateAll_());
     // A+ content. `aplusasin` is the authoritative one (publish records per ASIN); `aplus` is the
     // older document-first sweep, kept for diagnosis.
     if (p.lh === 'aplusasin') { setBrand_(p.brand); return json_(lhAplusAsins_(p.asins)); }
@@ -3137,6 +3138,71 @@ function adsWideFoldTgt_(rows) {
  * nightly run would (to yesterday, PT) — Amazon answers a repeat ask with the report it already has — and, once it is
  * ready, folds it and puts it in the adGroup cache for this brand only. The nightly pass overwrites it as usual.
  */
+/**
+ * IS THIS PRODUCT'S AD RUNNING? (2026-10-03, Ravi: "add kro ki wo particular asin active h or pause h us campaign me").
+ * The reports carry no state, so the Sponsored Products lists are read — product ads, ad groups and campaigns, each
+ * ENABLED / PAUSED / ARCHIVED — and kept per brand in the adState cache:
+ *   { ad: { 'adGroupId|sku': 'E'|'P'|'A' }, ag: { adGroupId: … }, cp: { campaignId: … }, at }
+ * An ad runs only when all three are enabled; the app says which one stopped it. READ ONLY: no state is changed.
+ *
+ * Stored as ONE letter on each adGroup-cache row (`st`), not as a cache of its own: the full lists came to 1.2 MB of
+ * ads the view never shows, on top of the 1.8 MB it already downloads. E running · a ad paused · g ad group paused ·
+ * c campaign paused · A archived (any of the three) · ? not in Amazon's lists.
+ */
+function adsListAll_(path, mime, key) {
+  var out = [], token = null, guard = 0;
+  do {
+    var body = { maxResults: 1000, stateFilter: { include: ['ENABLED', 'PAUSED', 'ARCHIVED'] } };
+    if (token) body.nextToken = token;
+    var r = adsCall_(path, 'post', body, adsProfileId_(), mime);
+    out = out.concat(r[key] || []);
+    token = r.nextToken || null;
+  } while (token && ++guard < 200);
+  return out;
+}
+function adStateOf_() {
+  var S = function (v) { v = String(v || '').toUpperCase(); return v === 'ENABLED' ? 'E' : v === 'PAUSED' ? 'P' : v === 'ARCHIVED' ? 'A' : '?'; };
+  var ad = {}, ag = {}, cp = {};
+  adsListAll_('/sp/productAds/list', 'application/vnd.spProductAd.v3+json', 'productAds').forEach(function (x) {
+    var k = wStr_(x.adGroupId) + '|' + wStr_(x.sku);
+    // The same SKU twice in one ad group: running if either copy runs.
+    if (ad[k] !== 'E') ad[k] = S(x.state);
+  });
+  adsListAll_('/sp/adGroups/list', 'application/vnd.spAdGroup.v3+json', 'adGroups').forEach(function (x) { ag[wStr_(x.adGroupId)] = S(x.state); });
+  adsListAll_('/sp/campaigns/list', 'application/vnd.spCampaign.v3+json', 'campaigns').forEach(function (x) { cp[wStr_(x.campaignId)] = S(x.state); });
+  return { ad: ad, ag: ag, cp: cp, at: nowStamp_() };
+}
+function adStateAll_() {
+  var saved = ACTIVE_PREFIX, d = {}, out = {};
+  try {
+    ['SP', 'CPC'].forEach(function (b) {
+      setBrand_(b);
+      try { d[b] = adStateOf_(); out[b] = { ads: Object.keys(d[b].ad).length, adGroups: Object.keys(d[b].ag).length, campaigns: Object.keys(d[b].cp).length }; }
+      catch (e) { out[b] = { error: String(e.message || e).slice(0, 300) }; }
+    });
+  } finally { setBrand_(saved); }
+  var c = cacheRead_('adGroup');
+  if (!c || !c.d) return { ok: false, error: 'no adGroup cache to mark', brands: out };
+  Object.keys(d).forEach(function (b) {                          // a brand that failed keeps the letters it had
+    var pack = c.d[b]; if (!pack || !pack.rows) return;
+    var n = { E: 0, a: 0, g: 0, c: 0, A: 0, '?': 0 };
+    pack.rows.forEach(function (r) { r.st = adStateLetter_(d[b], r); n[r.st]++; });
+    pack.stAt = d[b].at;
+    out[b].marked = n;
+  });
+  cacheWrite_('adGroup', c);
+  return { ok: true, brands: out };
+}
+function adStateLetter_(s, r) {
+  var ad = s.ad[r.ag + '|' + r.sku], ag = s.ag[r.ag], cp = s.cp[r.cid];
+  if (!ad || !ag || !cp) return '?';
+  if (ad === 'A' || ag === 'A' || cp === 'A') return 'A';
+  if (cp === 'P') return 'c';
+  if (ag === 'P') return 'g';
+  if (ad === 'P') return 'a';
+  return ad === 'E' && ag === 'E' && cp === 'E' ? 'E' : '?';
+}
+
 function agNowAsk_() {
   var iso = function (d) { return Utilities.formatDate(d, ORDERS_PT, 'yyyy-MM-dd'); };
   var we = new Date(Date.now() - 86400000), ws = new Date(we.getTime() - 29 * 86400000);
@@ -3150,7 +3216,9 @@ function agNowGet_(id) {
   var d = c.d || {};
   d[ACTIVE_PREFIX] = fold;
   cacheWrite_('adGroup', { at: nowStamp_(), d: d });
-  return { ok: true, ready: true, brand: ACTIVE_PREFIX, rows: fold.rows.length, groups: Object.keys(fold.groups).length };
+  var mark = null;
+  try { mark = adStateAll_(); } catch (e) { mark = { ok: false, error: String(e.message || e).slice(0, 200) }; }
+  return { ok: true, ready: true, brand: ACTIVE_PREFIX, rows: fold.rows.length, groups: Object.keys(fold.groups).length, state: mark };
 }
 
 function adsWideFoldAg_(rows) {
@@ -5414,6 +5482,8 @@ function nPhaseAdsGet_(st, left) {
     cacheWrite_('targeting', { at: nowStamp_(), d: nMergeWide_('targeting') });
     cacheWrite_('adGroup', { at: nowStamp_(), d: nMergeWide_('adGroup') });
     cacheWrite_('placement', { at: nowStamp_(), d: nMergeWide_('placement') });
+    // Whether each product ad is running today — read, never written (2026-10-03).
+    try { adStateAll_(); } catch (err) { st.lastErrorAt = nowStamp_(); st.lastError = 'ad state: ' + String(err.message || err).slice(0, 160); }
     accClear_('ads'); accClear_('adsAsin'); accClear_('adsAsinDay');
     accClear_('srchTerm'); accClear_('targeting'); accClear_('adGroup'); accClear_('placement');
     st.phase = 'sess';
