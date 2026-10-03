@@ -12,6 +12,7 @@ const unpackRow = r => ({
   opened: r.od || '', tried: !!r.t, titleFull: r.nf === 1,
   aplus: r.ap === 1 ? true : (r.ap === 0 ? false : undefined),   // undefined = never checked, and
   content: r.c ? { titleLen: r.c[0], images: r.c[1], bullets: r.c[2], descLen: r.c[3], title: r.c[4] || '' } : null,
+  checked: r.ca || 0,                                            // when the content was last read (ms); 0 = before this was kept
 });                                                              // that is NOT the same as "missing"
 const packRow = r => ({
   s: r.sku, i: r.asin || '', p: r.parent || '', n: (r.title || '').slice(0, 200), nf: 1,
@@ -20,6 +21,7 @@ const packRow = r => ({
   ap: r.aplus === true ? 1 : (r.aplus === false ? 0 : null),
   c: r.content ? [r.content.titleLen || 0, r.content.images || 0, r.content.bullets || 0, r.content.descLen || 0,
     String(r.content.title || '').slice(0, 200)] : null,
+  ca: r.checked || 0,
 });
 
 async function loadHealthCache() {
@@ -178,9 +180,10 @@ $('hGo').onclick = async () => {
 
       // Keep any content we already have for these ASINs — the sweep below refreshes it, but if the
       // sweep is interrupted the old content is better than none.
-      const prev = {};
-      (HEALTH[brand]?.rows || []).forEach(r => { if (r.content) prev[r.asin] = r.content; });
-      rows = rows.map(r => ({ ...r, content: prev[r.asin] || null }));
+      // The date it was read comes with it, or every refresh would forget which listings it had just re-read.
+      const prev = {}, prevAt = {};
+      (HEALTH[brand]?.rows || []).forEach(r => { if (r.content) { prev[r.asin] = r.content; prevAt[r.asin] = r.checked || 0; } });
+      rows = rows.map(r => ({ ...r, content: prev[r.asin] || null, checked: prevAt[r.asin] || 0 }));
 
       HEALTH[brand] = { rows, at: new Date(), contentAt: HEALTH[brand]?.contentAt || null,
         parentNames: pNames,                    // must survive this reassignment
@@ -209,12 +212,21 @@ $('hGo').onclick = async () => {
     // Three priority bands: never attempted → attempted but Amazon returned nothing → already has
     // content. Without the middle band, ASINs the catalog has no data for would sit at the front
     // forever and block the genuinely unchecked ones from ever being reached.
-    const seen = new Set(), fresh = { SP: [], CPC: [] }, empty = { SP: [], CPC: [] }, stale = { SP: [], CPC: [] };
+    /* STALE CONTENT WAS NEVER READ AGAIN (2026-10-03, Ravi: "jisme image h usme me show kar rha h ki image nahi h").
+     * With every ASIN already holding content, the queue was the same first 1,500 in row order on every refresh, so a
+     * listing read while it was new — no images uploaded yet, an older title — kept that snapshot for good: 170 rows
+     * said "no image" while Amazon showed 9 (RTC327-60102). Now a listing whose content says 0 images is read again
+     * first (a buyable listing with none is far more likely a stale read than a real one), and the rest go oldest
+     * read first, so every refresh moves on to the ones not looked at longest. */
+    const seen = new Set(), fresh = { SP: [], CPC: [] }, empty = { SP: [], CPC: [] }, suspect = { SP: [], CPC: [] }, stale = { SP: [], CPC: [] };
+    const readAt = {};
     ['SP', 'CPC'].forEach(b => (HEALTH[b]?.rows || []).forEach(r => {
       if (!r.asin || seen.has(r.asin)) return;
       seen.add(r.asin);
-      (r.content ? stale : (r.tried ? empty : fresh))[b].push(r.asin);
+      readAt[r.asin] = r.checked || 0;
+      (r.content ? (r.content.images ? stale : suspect) : (r.tried ? empty : fresh))[b].push(r.asin);
     }));
+    ['SP', 'CPC'].forEach(b => stale[b].sort((x, y) => readAt[x] - readAt[y]));
     // Interleave the brands within each priority band so a cap costs both the same proportion.
     const weave = src => {
       const out = [];
@@ -224,7 +236,7 @@ $('hGo').onclick = async () => {
       }
       return out;
     };
-    const queue = [...weave(fresh), ...weave(empty), ...weave(stale)];
+    const queue = [...weave(fresh), ...weave(empty), ...weave(suspect), ...weave(stale)];
     const capped = queue.length > H_CONTENT_MAX;
     const work = queue.slice(0, H_CONTENT_MAX);
     const neverChecked = fresh.SP.length + fresh.CPC.length;
@@ -259,7 +271,7 @@ $('hGo').onclick = async () => {
       // reporting hundreds as unchecked.
       const asked = new Set(grp.flatMap(b => b.asins));
       ['SP', 'CPC'].forEach(b => (HEALTH[b]?.rows || []).forEach(r => {
-        if (got[r.asin]) r.content = got[r.asin];
+        if (got[r.asin]) { r.content = got[r.asin]; r.checked = Date.now(); }
         if (asked.has(r.asin)) r.tried = true;
       }));
       if (i % (H_SWEEP_PAR * 5) === 0) renderHealth();           // periodic repaint, not every group
