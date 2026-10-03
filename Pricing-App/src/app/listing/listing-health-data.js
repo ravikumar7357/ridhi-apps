@@ -13,6 +13,7 @@ const unpackRow = r => ({
   aplus: r.ap === 1 ? true : (r.ap === 0 ? false : undefined),   // undefined = never checked, and
   content: r.c ? { titleLen: r.c[0], images: r.c[1], bullets: r.c[2], descLen: r.c[3], title: r.c[4] || '' } : null,
   checked: r.ca || 0,                                            // when the content was last read (ms); 0 = before this was kept
+  aplusAt: r.apa || 0,                                           // when A+ was last asked (ms)
 });                                                              // that is NOT the same as "missing"
 const packRow = r => ({
   s: r.sku, i: r.asin || '', p: r.parent || '', n: (r.title || '').slice(0, 200), nf: 1,
@@ -22,6 +23,7 @@ const packRow = r => ({
   c: r.content ? [r.content.titleLen || 0, r.content.images || 0, r.content.bullets || 0, r.content.descLen || 0,
     String(r.content.title || '').slice(0, 200)] : null,
   ca: r.checked || 0,
+  apa: r.aplusAt || 0,
 });
 
 async function loadHealthCache() {
@@ -181,9 +183,15 @@ $('hGo').onclick = async () => {
       // Keep any content we already have for these ASINs — the sweep below refreshes it, but if the
       // sweep is interrupted the old content is better than none.
       // The date it was read comes with it, or every refresh would forget which listings it had just re-read.
-      const prev = {}, prevAt = {};
-      (HEALTH[brand]?.rows || []).forEach(r => { if (r.content) { prev[r.asin] = r.content; prevAt[r.asin] = r.checked || 0; } });
-      rows = rows.map(r => ({ ...r, content: prev[r.asin] || null, checked: prevAt[r.asin] || 0 }));
+      // A+ comes along too (2026-10-03): it used to be dropped here, so every refresh started A+ from nothing and the
+      // listings past the first 1,500 were left "unknown" after each one.
+      const prev = {}, prevAt = {}, prevAp = {};
+      (HEALTH[brand]?.rows || []).forEach(r => {
+        if (r.content) { prev[r.asin] = r.content; prevAt[r.asin] = r.checked || 0; }
+        if (r.aplus !== undefined) prevAp[r.asin] = { v: r.aplus, at: r.aplusAt || 0 };
+      });
+      rows = rows.map(r => ({ ...r, content: prev[r.asin] || null, checked: prevAt[r.asin] || 0,
+        aplus: prevAp[r.asin] ? prevAp[r.asin].v : undefined, aplusAt: prevAp[r.asin] ? prevAp[r.asin].at : 0 }));
 
       HEALTH[brand] = { rows, at: new Date(), contentAt: HEALTH[brand]?.contentAt || null,
         parentNames: pNames,                    // must survive this reassignment
@@ -262,8 +270,15 @@ $('hGo').onclick = async () => {
       const grp = batches.slice(i, i + H_SWEEP_PAR);
       swept += grp.reduce((s, b) => s + b.asins.length, 0);
       hMsg(`Checking listing content… ${swept} / ${work.length} ASINs`);
-      const results = await Promise.all(grp.map(b =>
-        baCall({ lh: 'content', brand: b.brand, asins: b.asins.join(',') }).catch(() => null)));
+      /* A batch that fails (Amazon's 429 under three calls at once) is tried ONCE more on its own (2026-10-03): it was
+       * simply skipped, which is how RTME-S-001-1420 kept "no image" through a refresh while Amazon had one. */
+      const ask = b => baCall({ lh: 'content', brand: b.brand, asins: b.asins.join(',') }).catch(() => null);
+      const results = await Promise.all(grp.map(ask));
+      for (let k = 0; k < grp.length; k++) {
+        if (results[k] && results[k].ok !== false) continue;
+        await new Promise(res => setTimeout(res, 1500));
+        results[k] = await ask(grp[k]);
+      }
       const got = Object.assign({}, ...results.filter(Boolean).map(d => d.content || {}));
       // Mark everything in this group as ATTEMPTED, whether or not Amazon had data for it. An ASIN
       // the catalog knows nothing about is a different thing from one that was never looked at, and
@@ -302,11 +317,20 @@ $('hGo').onclick = async () => {
     try {
       for (const brand of ['SP', 'CPC']) {
         if (!HEALTH[brand]?.rows?.length) continue;
-        // Ask per ASIN, resumable exactly like the content sweep: only rows whose A+ state is still
-        // unknown are queued, so each refresh continues rather than redoing the same head of the list.
-        const todo = HEALTH[brand].rows.filter(r => r.asin && r.aplus === undefined).map(r => r.asin);
-        const uniq = [...new Set(todo)];
-        if (!uniq.length) { notes.push(`${BRAND_NAME[brand]}: A+ already known for every listing`); continue; }
+        /* A+ IS ASKED AGAIN (2026-10-03, Ravi: "A+ wala bhi theek kar do"). An answer used to be final: once a listing
+         * read "A+ missing" it stayed missing after the A+ went live. Now: never asked first, then the ones that read
+         * MISSING (oldest answer first — those are the ones on a fix-it list), then the ones that have it, oldest first.
+         * A lookup that fails keeps the last answer instead of going back to unknown. */
+        const seenA = new Set(), never = [], missing = [], present = [], askedAt = {};
+        HEALTH[brand].rows.forEach(r => {
+          if (!r.asin || seenA.has(r.asin)) return;
+          seenA.add(r.asin);
+          askedAt[r.asin] = r.aplusAt || 0;
+          (r.aplus === undefined ? never : r.aplus === false ? missing : present).push(r.asin);
+        });
+        const byAge = (x, y) => askedAt[x] - askedAt[y];
+        const uniq = [...never, ...missing.sort(byAge), ...present.sort(byAge)];
+        if (!uniq.length) continue;
 
         const work = uniq.slice(0, H_APLUS_MAX);
         // Index once. Scanning every row per answered ASIN would be ~3M comparisons on this catalogue.
@@ -325,7 +349,7 @@ $('hGo').onclick = async () => {
             (d.errors || []).forEach(e => { if (errs.length < 3) errs.push(e); });
             Object.entries(d.map || {}).forEach(([asin, has]) => {
               answered++;
-              (byAsin[asin] || []).forEach(r => { r.aplus = has; });
+              (byAsin[asin] || []).forEach(r => { r.aplus = has; r.aplusAt = Date.now(); });
             });
           });
           done += grp.reduce((s, b) => s + b.length, 0);
@@ -341,7 +365,7 @@ $('hGo').onclick = async () => {
         } else {
           HEALTH[brand].aplusChecked = true;
           notes.push(`${BRAND_NAME[brand]}: A+ present on ${withA}, missing on ${without}, unknown ${unknown}`
-            + (uniq.length > work.length ? ` — ${uniq.length - work.length} still to check, refresh again` : '')
+            + (uniq.length > work.length ? ` — ${uniq.length - work.length} not re-asked this time; the next refresh starts with them` : '')
             + (errs.length ? ` · errors: ${errs.join(' | ')}` : ''));
         }
       }
@@ -502,15 +526,39 @@ function renderHealth() {
     if (multiBrand) defs.push({ k: 'brand', t: 'Brand', map: r => BRAND_NAME[r.brand] });
     defs.push({ k: 'children', t: 'Children', num: 1,
       tip: 'Child listings under this parent. Critical + Needs Action + Needs Review + Healthy = the children that were checked; the rest are "not checked yet".' });
-    defs.push({ k: 'critical', t: 'Critical', num: 1, bold: 1,
+    /* IN COLOUR (2026-10-03, Ravi: "parent wale data ko bhi colorful kar dena"): each count carries its bucket's dot,
+     * a zero stays grey, Health is green / amber / red, and the same five areas as the child table show the worst
+     * colour among the children with how many children it hits. */
+    const cnt = cls => r => {
+      const v = r[cls.k];
+      return v ? `<span class="sev ${cls.c}"></span><b>${Number(v).toLocaleString('en-US')}</b>` : '<span class="muted">0</span>';
+    };
+    defs.push({ k: 'critical', t: 'Critical', num: 1, cell: cnt({ k: 'critical', c: 'sev-c' }),
       tip: 'Cannot be bought or is fundamentally wrong: stock at Amazon but Inactive, no price, or no main image.' });
-    defs.push({ k: 'action', t: 'Needs Action', num: 1, bold: 1,
+    defs.push({ k: 'action', t: 'Needs Action', num: 1, cell: cnt({ k: 'action', c: 'sev-a' }),
       tip: 'A+ missing, under 6 images, under 5 bullets, or a size in the title not written "14 x 36 Inch" / written larger-first.' });
-    defs.push({ k: 'review', t: 'Needs Review', num: 1, bold: 1,
+    defs.push({ k: 'review', t: 'Needs Review', num: 1, cell: cnt({ k: 'review', c: 'sev-r' }),
       tip: '6–7 images when 8 is ideal, a thin or missing description, or a title outside 80–200 characters.' });
-    defs.push({ k: 'healthy', t: 'Healthy', num: 1, bold: 1, tip: 'Checked, and none of the checks found anything.' });
+    defs.push({ k: 'healthy', t: 'Healthy', num: 1, cell: cnt({ k: 'healthy', c: 'sev-g' }), tip: 'Checked, and none of the checks found anything.' });
+    ['Title', 'Size', 'Variation', 'Images', 'Content'].forEach(a => defs.push({ k: 'parea' + a, t: a, noTotal: 1,
+      map: r => r.kids.reduce((m, x) => { const f = hAreaSev(x._h, a); return Math.max(m, f ? LR_SEV[f.sev].rank : 0); }, 0),
+      cell: r => {
+        let worst = null, hit = 0;
+        r.kids.forEach(x => {
+          const f = hAreaSev(x._h, a);
+          if (!f) return;
+          hit++;
+          if (!worst || LR_SEV[f.sev].rank > LR_SEV[worst].rank) worst = f.sev;
+        });
+        if (!worst) return r.kids.some(x => x._h.bucket !== 'unchecked') ? '<span class="sev-ok">✓</span>' : '<span class="muted">—</span>';
+        return `<span class="sev ${LR_SEV[worst].cls}" title="${hit} of ${r.kids.length} children have a ${a.toLowerCase()} issue; the worst is ${LR_SEV[worst].label}"></span>`
+          + `<span class="muted" style="font-size:12px">${hit}</span>`;
+      },
+      tip: `The worst ${a.toLowerCase()} issue among the children, and how many children have one. ✓ = none of the checked children has one.` }));
     defs.push({ k: 'score', t: 'Health', num: 1, noTotal: 1,
-      tip: 'Average health of the checked children: 100 − 40 per critical issue − 10 per action − 3 per review.' });
+      cell: r => r.score == null ? '<span class="muted">—</span>'
+        : `<b style="color:${r.score >= 80 ? '#15803D' : r.score >= 50 ? '#B45309' : 'var(--bad,#b91c1c)'}">${r.score}</b>`,
+      tip: 'Average health of the checked children: 100 − 40 per critical issue − 10 per action − 3 per review. Green 80+, amber 50–79, red under 50.' });
     defs.push({ k: 'parent', t: 'Parent ASIN', mono: 1, noTotal: 1,
       cell: r => `<span data-hkid="${String(r.brand).replace(/"/g, '')}|${String(r.parent).replace(/[<>&"]/g, '')}" style="font-family:ui-monospace,monospace;cursor:pointer;text-decoration:underline dotted" title="Open this parent's children">${String(r.parent).replace(/[<>&"]/g, '')}</span>`,
       tip: 'Click a Parent ASIN to open all of its child listings — what each one fails and passes.' });
