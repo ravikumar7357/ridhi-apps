@@ -262,7 +262,7 @@ function renderFabLots(all) {
 
 /** The store has its own buttons; the fabric ledger keeps its own. */
 function fabTools(view) {
-  const store = view === 'store' || view === 'storemov';
+  const store = view === 'store' || view === 'storemov' || view === 'storeord';
   [['fbStoreNew', store && ptCanEdit()], ['fbEntry', !store], ['fbPoNew', false], ['fbPoSet', false]].forEach(([id, on]) => {
     const el = $(id); if (el && id.indexOf('Po') < 0) el.classList.toggle('hide', !on);
   });

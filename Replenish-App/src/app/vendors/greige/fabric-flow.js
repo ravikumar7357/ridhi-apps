@@ -218,7 +218,7 @@ function renderFab() {
   const view0 = ($('fbView') || {}).value || 'flow';
   fabTools(view0);
   if (view0 === 'flow') return renderFabFlowOne();
-  if (view0 === 'store' || view0 === 'storemov') return renderStore(view0);
+  if (view0 === 'store' || view0 === 'storemov' || view0 === 'storeord') return renderStore(view0);
   const isPo = view0 === 'po';
   if ($('fbPoNew')) $('fbPoNew').classList.toggle('hide', !isPo || !ptCanEdit());
   if ($('fbPoSet')) $('fbPoSet').classList.toggle('hide', !isPo || !ME.admin);
@@ -320,6 +320,12 @@ $('fbTable').addEventListener('click', e => {
 });
 $('fbExport').onclick = () => {
   const v = ($('fbView') || {}).value;
+  if (v === 'storeord') {
+    const rows = FAB.shown || []; if (!rows.length) return;
+    const head = ['Order', 'SKU', 'Ordered', 'Given to printer', 'Still at printer', 'Back from printer', 'Cut', 'Issued', 'In store', 'Issued beyond', 'Why', 'Printer orders'];
+    return ptDownload('store-by-order', [head.map(csvCell).join(',')].concat(rows.map(e => [e.orderNo || 'no order', e.sku,
+      e.ordered == null ? '' : e.ordered, e.given, e.atPrinter, e.back, e.cut, e.issued, e.left, e.beyond, e.why, e.vpos.join(' ')].map(csvCell).join(','))));
+  }
   if (v === 'store' || v === 'storemov') {
     const rows = FAB.shown || []; if (!rows.length) return;
     const head = v === 'store' ? ['Item', 'Kind', 'SKU', 'Fabric', 'Colour', 'In', 'Out', 'Balance', 'Movements', 'Last']

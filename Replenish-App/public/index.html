@@ -2078,6 +2078,7 @@
             <option value="flow">Fabric flow</option>
             <option value="store">Store Stock Balance</option>
             <option value="storemov">Store movements &amp; cross-check</option>
+            <option value="storeord">Store by order number</option>
             <option value="stock">Fabric ledger balance</option>
             <option value="rfd">Greige &rarr; RFD &rarr; cutting</option>
             <option value="lots">Lots &mdash; bale by bale</option>
@@ -24796,7 +24797,7 @@ function renderFabLots(all) {
 
 /** The store has its own buttons; the fabric ledger keeps its own. */
 function fabTools(view) {
-  const store = view === 'store' || view === 'storemov';
+  const store = view === 'store' || view === 'storemov' || view === 'storeord';
   [['fbStoreNew', store && ptCanEdit()], ['fbEntry', !store], ['fbPoNew', false], ['fbPoSet', false]].forEach(([id, on]) => {
     const el = $(id); if (el && id.indexOf('Po') < 0) el.classList.toggle('hide', !on);
   });
@@ -25024,7 +25025,7 @@ function renderFab() {
   const view0 = ($('fbView') || {}).value || 'flow';
   fabTools(view0);
   if (view0 === 'flow') return renderFabFlowOne();
-  if (view0 === 'store' || view0 === 'storemov') return renderStore(view0);
+  if (view0 === 'store' || view0 === 'storemov' || view0 === 'storeord') return renderStore(view0);
   const isPo = view0 === 'po';
   if ($('fbPoNew')) $('fbPoNew').classList.toggle('hide', !isPo || !ptCanEdit());
   if ($('fbPoSet')) $('fbPoSet').classList.toggle('hide', !isPo || !ME.admin);
@@ -25126,6 +25127,12 @@ $('fbTable').addEventListener('click', e => {
 });
 $('fbExport').onclick = () => {
   const v = ($('fbView') || {}).value;
+  if (v === 'storeord') {
+    const rows = FAB.shown || []; if (!rows.length) return;
+    const head = ['Order', 'SKU', 'Ordered', 'Given to printer', 'Still at printer', 'Back from printer', 'Cut', 'Issued', 'In store', 'Issued beyond', 'Why', 'Printer orders'];
+    return ptDownload('store-by-order', [head.map(csvCell).join(',')].concat(rows.map(e => [e.orderNo || 'no order', e.sku,
+      e.ordered == null ? '' : e.ordered, e.given, e.atPrinter, e.back, e.cut, e.issued, e.left, e.beyond, e.why, e.vpos.join(' ')].map(csvCell).join(','))));
+  }
   if (v === 'store' || v === 'storemov') {
     const rows = FAB.shown || []; if (!rows.length) return;
     const head = v === 'store' ? ['Item', 'Kind', 'SKU', 'Fabric', 'Colour', 'In', 'Out', 'Balance', 'Movements', 'Last']
@@ -46289,6 +46296,7 @@ async function stSheetRun(list) {
 function renderStore(view) {
   if (STORE.rows === null && !STORE.busy) { ensureStore(); }
   if (STORE.busy) { $('fbMsg').className = 'muted'; $('fbMsg').textContent = 'Reading the store…'; ptEmpty('fbTable', 'Loading…'); $('fbKpis').innerHTML = ''; return; }
+  if (view === 'storeord') return renderStoreOrd();
   const moves = stMoves();
   const start = stStart();
   const f = fabFilters();
@@ -46376,7 +46384,167 @@ function renderStore(view) {
   ptImgFill(drawn.filter(b => b.unit === 'pcs').map(b => b.sku).filter(Boolean), false, ptIfTab('fab', ptImgPatch));
 }
 
+/* ================= THE STORE BY ORDER NUMBER =================
+ *
+ * Ravi, 2026-10-03: "is system ko order number base banao yadi hamare pas base rahega ki ye mal kis order number ke
+ * against me aaya h apan easily track kar payenge … har koi bhi order banta h to uska ek order number banta h usi se
+ * track karo".
+ *
+ * The SKU-wide shelf said 11,066 pieces went to karigars "beyond" what the printers delivered, and could not say why.
+ * Read order by order, most of it has a name: the printer still holds pieces for that very order (the delivery is
+ * not entered yet — 142 issued on 1 Oct for AMZ-25082026-01, the 162 entered on 3 Oct), no printer order was ever
+ * placed for it, or the issue named no order at all. Totals per order, not a running balance through time, so a
+ * delivery entered late settles itself the moment it is entered.
+ *
+ * Per (order, SKU) of every printer-made SKU:
+ *   Given / Back — the printers' lines for that order: a Shopify line names its order; the rest are the Order
+ *                  Console's own share (ordVendorAlloc — stamped orders first, then open orders oldest first).
+ *                  Back that no order in the book wants is kept on a "no order" row, never dropped.
+ *   Cut          — cutting entries naming the order.
+ *   Issued       — Job Work issues naming the order; issues naming none sit on the "no order" row.
+ *   Available    — what the store got for the order: the printer's pieces, or — for an SKU printed as running cloth
+ *                  and cut here — what was cut.
+ */
+function stOrderRows() {
+  const lines = typeof ordLines === 'function' ? ordLines() : [];
+  const book = new Map(lines.map(r => [r.orderNo + '|' + r.sku, r]));
+  const g = new Map();
+  const at = (orderNo, sku) => {
+    const k = (orderNo || '') + '|' + sku;
+    let e = g.get(k);
+    if (!e) {
+      const l = orderNo ? book.get(k) : null;
+      e = { orderNo: orderNo || '', sku, ordered: l ? l.qty : null, open: l ? !!l.open : null, inBook: !!l,
+        given: 0, back: 0, cut: 0, issued: 0, issues: 0, vpos: new Set() };
+      g.set(k, e);
+    }
+    return e;
+  };
+  /* ---- the printers ---- */
+  const printerSku = new Set(), pileBack = new Map();
+  (VO.rows || []).forEach(o => {
+    if (!o || o.status === 'Cancelled') return;
+    voLines(o).forEach(l => {
+      if (!l || l.cancelled || voKind(l) !== 'cut') return;
+      const sku = obUC(l.sku), qty = parseFloat(l.qty) || 0;
+      if (!sku || !(qty > 0)) return;
+      printerSku.add(sku);
+      const back = voDels(l).reduce((t, d) => { const ok = vlOk(d); return t + (ok ? (parseFloat(ok.qty) || 0) : 0); }, 0);
+      if (l.shopKey || l.shopOrderNo) {
+        /* A Shopify line was placed FOR one order and says which. */
+        const e = at(obUC(l.shopOrderNo || String(l.shopKey).split('__')[0]), sku);
+        e.given += qty; e.back += Math.min(back, qty); e.vpos.add(o.orderNo || o.id);
+      } else {
+        pileBack.set(sku, (pileBack.get(sku) || 0) + Math.min(back, qty));
+      }
+    });
+  });
+  const dealtBack = new Map();
+  (typeof ordVendorAlloc === 'function' ? ordVendorAlloc() : new Map()).forEach((v, k) => {
+    const i = k.lastIndexOf('|'), orderNo = k.slice(0, i), sku = k.slice(i + 1);
+    if (!printerSku.has(sku)) return;
+    const e = at(orderNo, sku);
+    e.given += v.given; e.back += v.back;
+    (v.parts || []).forEach(p => e.vpos.add(p.vpo));
+    dealtBack.set(sku, (dealtBack.get(sku) || 0) + v.back);
+  });
+  /* What came back that no order in the book is waiting for — real pieces, kept on the no-order row. */
+  pileBack.forEach((back, sku) => {
+    const left = Math.round((back - (dealtBack.get(sku) || 0)) * 100) / 100;
+    if (left > 0) at('', sku).back += left;
+  });
+  /* ---- the floor ---- */
+  (PT.cut || []).forEach(c => {
+    const sku = obUC(c && c.sku);
+    if (!sku || !printerSku.has(sku)) return;
+    at(obUC(c.orderNo), sku).cut += stNum(c.pieces);
+  });
+  (PT.base || []).forEach(r => {
+    const sku = obUC(r && r.sku);
+    if (!sku || !printerSku.has(sku)) return;
+    const q = stNum(r.issuePieces);
+    if (!(q > 0)) return;
+    const e = at(obUC(r.orderNo), sku);
+    e.issued += q; e.issues++;
+  });
+  /* ---- per row: what the store got for it, what is left, how far beyond, and why ---- */
+  const running = new Map();
+  return [...g.values()].map(e => {
+    if (!running.has(e.sku)) { const m = mdbOf(e.sku); running.set(e.sku, !!m && ptPrintIssueAs(m) === 'running'); }
+    e.running = running.get(e.sku);
+    e.avail = e.running ? e.cut : e.back;
+    e.left = Math.max(0, e.avail - e.issued);
+    e.beyond = Math.max(0, e.issued - e.avail);
+    e.atPrinter = Math.max(0, e.given - e.back);
+    e.vpos = [...e.vpos].filter(Boolean);
+    e.why = !e.beyond ? (e.left ? 'In store' : (e.issued || e.avail ? 'Balanced' : 'Nothing moved yet'))
+      : !e.orderNo ? 'Issued with no order number'
+      : e.running ? 'Issued more than was cut for this order'
+      : e.atPrinter >= e.beyond ? 'Printer delivery not entered yet'
+      : e.atPrinter > 0 ? 'Part not entered yet, part never given to a printer'
+      : e.given ? 'Issued more than the printer was given for this order'
+      : 'No printer order for this order';
+    return e;
+  }).filter(e => e.given || e.back || e.cut || e.issued);
+}
+
+function renderStoreOrd() {
+  const f = fabFilters();
+  const all = stOrderRows();
+  const rows = all.filter(e => !f.q || [e.orderNo || 'no order', e.sku, e.why, e.vpos.join(' ')].join(' ').toLowerCase().includes(f.q));
+  /* Worst first: the most pieces issued beyond, then the most waiting in store. */
+  rows.sort((a, b) => (b.beyond - a.beyond) || (b.left - a.left) || String(a.orderNo).localeCompare(String(b.orderNo)));
+  const sum = (list, k) => list.reduce((t, e) => t + (e[k] || 0), 0);
+  const bad = rows.filter(e => e.beyond > 0);
+  const byWhy = w => sum(bad.filter(e => e.why === w), 'beyond');
+  const late = byWhy('Printer delivery not entered yet') + byWhy('Part not entered yet, part never given to a printer');
+  const noOrder = byWhy('Issued with no order number');
+  const noPrinter = byWhy('No printer order for this order') + byWhy('Issued more than the printer was given for this order');
+  const orders = new Set(rows.filter(e => e.orderNo).map(e => e.orderNo));
+  $('fbKpis').innerHTML = `<div class="kpi" style="flex-basis:100%">
+    <div class="kpihead"><span class="kpiname">Store by order number — the printers' goods, order by order</span>
+      <span class="kpiwhen">read live${STORE.at ? ' · ' + esc(STORE.at) : ''}</span></div>
+    <div class="metrics">
+      <div class="metric"><div class="v">${nf(orders.size)}</div><div class="l">Orders</div></div>
+      <div class="metric"><div class="v" style="color:#166534">${nf(sum(rows, 'avail'))}</div><div class="l">Came in for them</div><div class="l muted">from printers, or cut here</div></div>
+      <div class="metric"><div class="v">${nf(sum(rows, 'issued'))}</div><div class="l">Issued to karigars</div></div>
+      <div class="metric"><div class="v">${nf(sum(rows, 'left'))}</div><div class="l">In store, by order</div></div>
+      <div class="metric"><div class="v"${sum(bad, 'beyond') ? ' style="color:var(--bad)"' : ''}>${nf(sum(bad, 'beyond'))}</div><div class="l">Issued beyond their order</div><div class="l muted">${nf(bad.length)} order line(s)</div></div>
+      <div class="metric" title="The printer still holds pieces for that very order — the delivery has not been entered in the app yet."><div class="v" style="color:#b45309">${nf(late)}</div><div class="l">Delivery not entered yet</div></div>
+      <div class="metric" title="No printer order was placed for that order, or less than was issued."><div class="v">${nf(noPrinter)}</div><div class="l">No printer order for it</div></div>
+      <div class="metric" title="The Job Work issue named no order — it cannot be matched to anything."><div class="v">${nf(noOrder)}</div><div class="l">Issued with no order number</div></div>
+    </div></div>`;
+  const head = '<thead><tr>' + ['Order', 'SKU', 'Ordered', 'Given to printer', 'Back from printer', 'Cut', 'Issued', 'In store', 'Issued beyond', 'Why', '']
+    .map((h, i) => `<th${i === 0 ? ' class="frz"' : ([2, 3, 4, 5, 6, 7, 8].indexOf(i) >= 0 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
+  const z = v => (v ? nf(v) : '<span class="muted">—</span>');
+  const drawn = rows.slice(0, 300);                 // 600 rows came to 643 KB of table — half that, search for the rest
+  $('fbTable').innerHTML = head + '<tbody>' + drawn.map(e => '<tr>'
+    + `<td class="frz" style="text-align:left">${e.orderNo ? `<a href="#" data-ordj="${esc(e.orderNo)}">${esc(e.orderNo)}</a>` : '<span class="muted">no order</span>'}`
+      + `${e.vpos.length ? `<div class="muted" style="font-size:11px" title="${esc(e.vpos.join(', '))}">${esc(e.vpos.slice(0, 2).join(', '))}${e.vpos.length > 2 ? ' +' + (e.vpos.length - 2) : ''}</div>` : ''}</td>`
+    + `<td style="text-align:left">${ptImgSpan(e.sku, 24)} ${esc(e.sku)}</td>`
+    + `<td class="num">${e.ordered == null ? '<span class="muted" title="Not in the order book">—</span>' : nf(e.ordered)}</td>`
+    + `<td class="num">${z(e.given)}${e.atPrinter ? `<div class="muted" style="font-size:10.5px">${nf(e.atPrinter)} still there</div>` : ''}</td>`
+    + `<td class="num" style="color:#166534">${z(e.back)}</td>`
+    + `<td class="num">${z(e.cut)}</td>`
+    + `<td class="num" style="color:var(--bad)">${z(e.issued)}</td>`
+    + `<td class="num" style="font-weight:700">${z(e.left)}</td>`
+    + `<td class="num"${e.beyond ? ' style="font-weight:700;color:var(--bad)"' : ''}>${z(e.beyond)}</td>`
+    + `<td style="text-align:left;font-size:12.5px${e.beyond ? ';color:var(--bad)' : ''}">${esc(e.why)}</td>`
+    + `<td><button class="ghost" data-st-track="${esc(e.sku)}" style="padding:3px 10px;font-size:12px" title="Every movement of this SKU — printer, order, karigar, date">Track</button></td></tr>`).join('') + '</tbody>';
+  FAB.shown = rows;
+  $('fbMsg').className = STORE.err ? 'err' : 'muted';
+  $('fbMsg').title = 'Totals per order, not a running balance — a delivery entered late settles the moment it is entered.';
+  $('fbMsg').innerHTML = esc(drawn.length < rows.length ? `${nf(drawn.length)} of ${nf(rows.length)} order line(s) shown — search an order or SKU to find the rest`
+      : `${nf(rows.length)} order line(s)`)
+    + ' · printer pieces are shared to orders the same way as on the Order Console (named orders first, then open orders, oldest first)'
+    + (STORE.err ? ' · ' + esc(STORE.err) : '');
+  ptImgFill(drawn.map(e => e.sku), false, ptIfTab('fab', ptImgPatch));
+}
+
 $('fbTable').addEventListener('click', async e => {
+  /* An order number opens that order's whole journey (2026-10-03, the by-order view). */
+  const oj = e.target.closest('[data-ordj]');
+  if (oj) { e.preventDefault(); try { ordJourney(oj.getAttribute('data-ordj')); } catch (err) { /* the order book is not readable here */ } return; }
   /* TRACK: the item's own movements, newest first — printer, order, date, karigar. */
   const tr = e.target.closest('[data-st-track]');
   if (tr) { if ($('fbQ')) $('fbQ').value = tr.getAttribute('data-st-track'); $('fbView').value = 'storemov'; renderFab(); return; }
