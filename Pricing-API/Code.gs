@@ -3133,7 +3133,7 @@ function adsWideFoldTgt_(rows) {
 function adsWideFoldAg_(rows) {
   var parents = {};
   try { parents = catalogParents_() || {}; } catch (e) { parents = {}; }   // no Sheets access → blank
-  var groups = {}, parentOf = {};
+  var groups = {}, parentOf = {}, out = {}, names = {};
   for (var i = 0; i < rows.length; i++) {
     var x = rows[i], ag = wStr_(x.adGroupId), a = wStr_(x.advertisedAsin).toUpperCase();
     if (!ag || !a) continue;
@@ -3141,8 +3141,25 @@ function adsWideFoldAg_(rows) {
     if (e.a.indexOf(a) < 0) e.a.push(a);
     var sku = wStr_(x.advertisedSku);
     if (sku && parents[sku] && !parentOf[a]) parentOf[a] = parents[sku];
+    /* CAMPAIGN × PRODUCT (2026-10-03, Ravi: "kis campaign me kis product me mera achcha ya bura chal rha h
+     * and uska action kya and uske against me stock h ya nahi"). The figures were in this report all along
+     * and were dropped here; now one row per (ad group, SKU) keeps them, with the SKU so the app can put
+     * the FBA stock beside it. Names once per id, as in the search-term fold. */
+    var cid = wStr_(x.campaignId);
+    if (!names[ag]) names[ag] = wStr_(x.adGroupName);
+    if (cid && !names[cid]) names[cid] = wStr_(x.campaignName);
+    var k = ag + '|' + a + '|' + sku;
+    var b = out[k] || (out[k] = { ag: ag, cid: cid, a: a, sku: sku, i: 0, c: 0, sp: 0, o: 0, s: 0 });
+    b.i += wNum_(x.impressions); b.c += wNum_(x.clicks); b.sp += wNum_(x.cost);
+    b.o += wNum_(x.purchases30d); b.s += wNum_(x.sales30d);
   }
-  return { groups: groups, parent: parentOf };
+  var list = [];
+  Object.keys(out).forEach(function (k) {
+    var b = out[k];
+    if (!(b.i > 0) && !(b.sp > 0)) return;          // never shown in the window: nothing to say about it
+    b.sp = wMoney_(b.sp); b.s = wMoney_(b.s); list.push(b);
+  });
+  return { groups: groups, parent: parentOf, rows: list, names: names };
 }
 
 /**
@@ -3244,7 +3261,7 @@ function stTestCollect() {
   var NEED = {
     st: ['searchTerm', 'keyword', 'matchType', 'adGroupId', 'campaignName', 'clicks', 'cost', 'purchases30d', 'sales30d'],
     tgt: ['keyword', 'targeting', 'matchType', 'adGroupId', 'campaignName', 'clicks', 'cost', 'purchases30d', 'sales30d'],
-    ag: ['advertisedAsin', 'advertisedSku', 'adGroupId', 'adGroupName', 'campaignName'],
+    ag: ['advertisedAsin', 'advertisedSku', 'adGroupId', 'adGroupName', 'campaignId', 'campaignName', 'impressions', 'clicks', 'cost', 'purchases30d', 'sales30d'],
     plc: ['date', 'campaignId', 'campaignName', 'placementClassification', 'impressions', 'clicks', 'cost', 'purchases30d', 'sales30d'],
   };
   asked.forEach(function (j) {

@@ -862,7 +862,13 @@
           <button class="segbtn" data-v="waste" title="Targets you added that spent money and produced no order.">Waste</button>
           <button class="segbtn" data-v="neg" title="Search terms that spent money and produced no order.">Negative</button>
           <button class="segbtn" data-v="all" title="Every search term with the target that caught it. Nothing filtered out.">All terms</button>
+          <button class="segbtn" data-v="cp" title="Every campaign × product: how it did over 30 days, what to do about it, and the FBA stock behind it.">Campaign × Product</button>
         </div>
+        <select id="stCpShow" class="hide" style="flex:0 0 150px" title="Show only one kind of verdict">
+          <option value="">Every verdict</option><option value="bad">Bad only</option><option value="good">Good only</option><option value="watch">Watch only</option>
+        </select>
+        <input id="stCpTarget" class="hide" type="number" min="1" max="100" step="1" style="flex:0 0 120px" placeholder="Target ACoS %"
+          title="The ACoS a product is judged against when its unit cost is not known. Where the cost is known, its own break-even ACoS is used instead.">
         <input id="stFilter" style="flex:1 1 150px;min-width:0" placeholder="Filter term / campaign / ASIN">
         <input id="stMinSpend" type="number" min="0" step="1" style="flex:0 0 130px" placeholder="Min spend $">
         <button id="stCsv" class="ghost">Export</button>

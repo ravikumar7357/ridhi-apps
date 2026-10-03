@@ -91,6 +91,7 @@ function stRows() {
 }
 
 function renderSt() {
+  if (ST_VIEW === 'cp') { renderCp(); return; }
   const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
   const money = v => '$' + (Math.round((v || 0) * 100) / 100).toLocaleString('en-US');
   const haveAny = Object.keys(ST.terms).length || Object.keys(ST.tgts).length;
@@ -177,14 +178,24 @@ $('stViewSeg').addEventListener('click', e => {
   const b = e.target.closest('[data-v]'); if (!b) return;
   ST_VIEW = b.dataset.v;
   $('stViewSeg').querySelectorAll('[data-v]').forEach(x => x.classList.toggle('on', x === b));
+  $('stCpShow').classList.toggle('hide', ST_VIEW !== 'cp');
+  $('stCpTarget').classList.toggle('hide', ST_VIEW !== 'cp');
+  if (ST_VIEW === 'cp' && !CP.loaded) { ensureCp().then(renderSt); return; }
   renderSt();
 });
 $('stBrand').addEventListener('change', renderSt);
+$('stCpShow').addEventListener('change', renderSt);
+try { const t = localStorage.getItem('stCpTarget'); if (t) $('stCpTarget').value = t; } catch (e) { /* no storage */ }
+$('stCpTarget').addEventListener('input', () => {
+  try { localStorage.setItem('stCpTarget', $('stCpTarget').value); } catch (e) { /* no storage */ }
+  clearTimeout(ST_FT); ST_FT = setTimeout(renderSt, 250);
+});
 let ST_FT = null;
 ['stFilter', 'stMinSpend'].forEach(id =>
   $(id).addEventListener('input', () => { clearTimeout(ST_FT); ST_FT = setTimeout(renderSt, 250); }));
 
 $('stCsv').onclick = () => {
+  if (ST_VIEW === 'cp') { cpCsv(); return; }
   if (!ST_LAST.length) { stMsg('Nothing to export.', true); return; }
   const cell = v => { const s = String(v == null ? '' : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
   const cols = ['Brand', 'View', ST_VIEW === 'waste' ? 'Target' : 'Search term', 'Matched target',
@@ -202,3 +213,205 @@ $('stCsv').onclick = () => {
   a.click(); URL.revokeObjectURL(a.href);
 };
 
+
+/* ================= CAMPAIGN × PRODUCT =================
+ *
+ * Ravi, 2026-10-03: "mujhe ek aisa view chahiye jisme me pata laga saku ki mera kis campaign me kis product me mera
+ * achcha ya bura chal rha h and uska action kya and uske against me stock h ya nahi".
+ *
+ * One row per (campaign, ad group, SKU) over the same 30-day window as the search terms, from the advertised-product
+ * report the nightly run already asks for. Beside it: the FBA stock of that SKU (stock/{brand}, saved by Listing Health
+ * and Parent Listing Review), days of cover at the last four finished weeks' sales of the ASIN (PPC & Organic's store),
+ * and the break-even ACoS where the unit cost is known (Profit & Margin's costs and model).
+ *
+ * The verdict asks STOCK FIRST, as Parent Listing Review does: there is no sense tuning a bid on something that cannot
+ * ship. Then evidence: under CP_MIN_CLICKS clicks with no order nothing can be said yet, and the row says so rather
+ * than calling it bad. Then the money, against the product's break-even ACoS, or the target typed in when the cost is
+ * not known. Sellora only ADVISES — nothing here changes a bid or a campaign at Amazon.
+ */
+const CP_MIN_CLICKS = 10;       // clicks before "no order" is evidence rather than chance
+const CP_LOW_COVER = 14;        // days of stock below which the ad is slowed so the product does not run out
+const CP_SCALE_COVER = 45;      // days of stock needed before "spend more" is advice anyone can follow
+const CP_TARGET_DEFAULT = 30;   // ACoS % used when the unit cost is not known and nothing is typed in
+let CP = { loaded: false, stock: {}, stockAt: {} };
+let CP_LAST = [];
+
+async function ensureCp() {
+  if (CP.loaded) return;
+  stMsg('Loading the FBA stock, weekly sales and unit costs…');
+  for (const b of ['SP', 'CPC']) {
+    try {
+      const snap = await getDoc(doc(db, 'stock', b));
+      if (snap.exists()) {
+        const d = snap.data();
+        CP.stock[b] = d.m || {};
+        CP.stockAt[b] = d.at && d.at.toDate ? d.at.toDate() : null;
+      }
+    } catch (e) { /* no read access, or never saved — stock shows as unknown */ }
+  }
+  try { if (!H_LOADED) await loadHealthCache(); } catch (e) { /* titles stay blank */ }
+  try { if (!WEEKLY.weeks.length && !Object.keys(WEEKLY.rows).length) await loadWeekly(); } catch (e) { /* cover unknown */ }
+  try { await loadCosts(); } catch (e) { /* break-even unknown */ }
+  CP.loaded = true;
+  stMsg('');
+}
+
+/** Units a day and price, from the last four FINISHED weeks of this ASIN's sales. Null when there are none. */
+function cpPace(asin) {
+  const r = WEEKLY.rows[asin];
+  if (!r || !r.weeks) return null;
+  const wks = Object.keys(r.weeks).filter(wWeekDone).sort().slice(-4);
+  if (!wks.length) return null;
+  const u = wks.reduce((a, k) => a + (r.weeks[k].u || 0), 0);
+  const rev = wks.reduce((a, k) => a + (r.weeks[k].rev || 0), 0);
+  return { perDay: u / (wks.length * 7), price: u > 0 ? rev / u : null };
+}
+
+/** The ACoS at which an ad sale makes nothing — what is left of the price after cost and fees, as a % of it. */
+function cpBreakEven(asin, price) {
+  const cost = pfCostOf(asin);
+  if (!(cost > 0) || !(price > 0)) return null;
+  const pctOfPrice = (PF_MODEL.ref + PF_MODEL.fba + PF_MODEL.oh + PF_MODEL.sal) / 100;
+  return (price * (1 - pctOfPrice) - cost * (1 + PF_MODEL.ret / 100)) / price * 100;
+}
+
+/** { v: 'bad' | 'watch' | 'good' | '', act, why } — stock first, then evidence, then money. */
+function cpVerdict(r) {
+  const money = v => '$' + Math.round(v).toLocaleString('en-US');
+  const acos = r.s > 0 ? r.sp / r.s * 100 : null;
+  const tgt = r.be != null ? r.be : r.tgt;
+  const tgtTxt = r.be != null ? `break-even ${Math.round(r.be)}%` : `target ${Math.round(r.tgt)}%`;
+  if (r.stock === 0 && r.sp > 0) {
+    return { v: 'bad', act: 'Pause — no stock', why: `FBA stock is 0 and this ad spent ${money(r.sp)} in 30 days. Pause it until stock lands.` };
+  }
+  if (r.cover != null && r.cover < CP_LOW_COVER && r.o > 0) {
+    return { v: 'watch', act: 'Slow down — low stock', why: `About ${Math.round(r.cover)} days of stock left. Lower the bids so it does not run out before the next shipment.` };
+  }
+  if (!(r.o > 0) && r.c < CP_MIN_CLICKS) {
+    return { v: '', act: 'Too early', why: `${r.c} click${r.c === 1 ? '' : 's'} and no order yet — not enough to judge. Leave it running.` };
+  }
+  if (!(r.o > 0)) {
+    return { v: 'bad', act: 'Pause / cut bids', why: `${money(r.sp)} on ${r.c} clicks and not one order.` };
+  }
+  if (tgt <= 0) {
+    return { v: 'bad', act: 'Loses money', why: 'At this price and unit cost the product loses money before any ad, so every ad sale adds to the loss. Fix the price or the cost first.' };
+  }
+  if (acos > tgt) {
+    return { v: 'bad', act: 'Lower bids', why: `ACoS ${Math.round(acos)}% is over the ${tgtTxt} — each ad sale costs more than it should.` };
+  }
+  if (acos <= tgt * 0.7 && r.o >= 3 && r.cover != null && r.cover >= CP_SCALE_COVER) {
+    return { v: 'good', act: 'Scale up', why: `ACoS ${Math.round(acos)}% is well under the ${tgtTxt}, ${r.o} orders, ${Math.round(r.cover)} days of stock. Raise the budget or bids.` };
+  }
+  return { v: 'good', act: 'Keep', why: `ACoS ${Math.round(acos)}% is within the ${tgtTxt}.`
+    + (r.cover == null ? ' Stock cover is not known, so no advice to spend more.'
+      : r.cover < CP_SCALE_COVER ? ` Only ${Math.round(r.cover)} days of stock — hold here.` : '') };
+}
+
+function cpRows() {
+  const pick = $('stBrand').value;
+  const brands = (pick === 'ALL' ? ['SP', 'CPC'] : [pick]);
+  const q = $('stFilter').value.trim().toLowerCase();
+  const minSp = Number($('stMinSpend').value) || 0;
+  const typed = Number($('stCpTarget').value);
+  const tgt = typed > 0 ? typed : CP_TARGET_DEFAULT;
+  const show = $('stCpShow').value;
+  let rows = [];
+  brands.forEach(b => {
+    const pack = ST.ag[b] || {};
+    const pmap = pack.parent || {}, names = pack.names || {}, stock = CP.stock[b];
+    (pack.rows || []).forEach(x => {
+      const pace = cpPace(x.a);
+      const st = stock && x.sku && Object.prototype.hasOwnProperty.call(stock, x.sku) ? Number(stock[x.sku]) || 0 : null;
+      const r = { brand: b, cn: names[x.cid] || '', agn: names[x.ag] || '', asin: x.a, sku: x.sku || '', parent: pmap[x.a] || '',
+        title: wTitle(x.a),
+        i: x.i || 0, c: x.c || 0, sp: x.sp || 0, o: x.o || 0, s: x.s || 0,
+        stock: st, cover: st != null && pace && pace.perDay > 0 ? st / pace.perDay : null,
+        be: cpBreakEven(x.a, pace && pace.price), tgt };
+      Object.assign(r, cpVerdict(r));
+      rows.push(r);
+    });
+  });
+  if (minSp > 0) rows = rows.filter(r => r.sp >= minSp);
+  if (show) rows = rows.filter(r => r.v === show);
+  if (q) rows = rows.filter(r => [r.cn, r.agn, r.asin, r.sku, r.parent, r.title, r.act].join(' ').toLowerCase().includes(q));
+  // Bad first, and the biggest spend first inside each — the money leaving is what gets read first.
+  const rank = { bad: 0, watch: 1, good: 2, '': 3 };
+  rows.sort((x, y) => (rank[x.v] - rank[y.v]) || (y.sp - x.sp));
+  return rows;
+}
+
+function renderCp() {
+  const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+  const money = v => '$' + (Math.round((v || 0) * 100) / 100).toLocaleString('en-US');
+  const haveRows = ['SP', 'CPC'].some(b => ((ST.ag[b] || {}).rows || []).length);
+  if (!haveRows) {
+    $('stTable').innerHTML = '';
+    stMsg('No campaign × product figures yet. The nightly run keeps them from tonight on, so they appear here the '
+      + 'morning after, for the same 30 days as the search terms.', true);
+    return;
+  }
+  const rows = cpRows();
+  CP_LAST = rows;
+  const CAP = 500, shown = rows.slice(0, CAP);
+  const TAG = { bad: 'st-rejected', watch: 'st-pending', good: 'st-approved' };
+  const dash = '<span class="muted">—</span>';
+  const head = '<thead><tr>'
+    + '<th class="frz">Campaign</th><th>Ad group</th><th>ASIN</th><th>SKU</th><th>Parent</th>'
+    + '<th class="num">Impr</th><th class="num">Clicks</th><th class="num">Spend</th><th class="num">Orders</th><th class="num">Sales</th>'
+    + '<th class="num" title="Spend ÷ sales.">ACoS</th>'
+    + '<th class="num" title="Orders ÷ clicks.">Conv.</th>'
+    + '<th class="num" title="The ACoS at which an ad sale makes nothing: price less unit cost and fees, as a % of the price. Blank when the unit cost is not in Profit &amp; Margin.">Break-even</th>'
+    + '<th class="num" title="FBA stock of this SKU that Amazon can sell now.">FBA stock</th>'
+    + '<th class="num" title="FBA stock ÷ units a day over the last four finished weeks of this ASIN.">Days of cover</th>'
+    + '<th>Verdict</th><th>What to do</th>'
+    + '</tr></thead>';
+  const body = shown.map(r => '<tr>'
+    + `<td class="frz" style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600" title="${esc(r.cn)}">${esc(r.cn) || dash}</td>`
+    + `<td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.agn)}">${esc(r.agn) || dash}</td>`
+    + `<td style="font-family:ui-monospace,monospace" title="${esc(r.title)}">${esc(r.asin)}</td>`
+    + `<td style="font-family:ui-monospace,monospace">${esc(r.sku) || dash}</td>`
+    + `<td style="font-family:ui-monospace,monospace">${esc(r.parent) || dash}</td>`
+    + `<td class="num">${r.i.toLocaleString('en-US')}</td>`
+    + `<td class="num">${r.c}</td>`
+    + `<td class="num">${money(r.sp)}</td>`
+    + `<td class="num"${r.o ? ' style="font-weight:700"' : ''}>${r.o}</td>`
+    + `<td class="num">${money(r.s)}</td>`
+    + `<td class="num">${r.s > 0 ? Math.round(r.sp * 100 / r.s) + '%' : dash}</td>`
+    + `<td class="num">${r.c > 0 ? (r.o / r.c * 100).toFixed(1) + '%' : dash}</td>`
+    + `<td class="num">${r.be != null ? Math.round(r.be) + '%' : dash}</td>`
+    + `<td class="num"${r.stock === 0 ? ' style="color:var(--bad,#b91c1c);font-weight:700"' : ''}>${r.stock != null ? r.stock.toLocaleString('en-US') : dash}</td>`
+    + `<td class="num">${r.cover != null ? Math.round(r.cover) : dash}</td>`
+    + `<td style="white-space:nowrap">${r.v ? `<span class="st ${TAG[r.v]}">${esc(r.act)}</span>` : `<span class="muted">${esc(r.act)}</span>`}</td>`
+    + `<td style="min-width:260px;white-space:normal">${esc(r.why)}</td>`
+    + '</tr>').join('');
+  $('stTable').innerHTML = head + '<tbody>' + (body
+    || '<tr><td colspan="17" class="muted" style="padding:14px">Nothing matches.</td></tr>') + '</tbody>';
+
+  const sum = v => rows.filter(r => r.v === v).reduce((a, r) => { a.n++; a.sp += r.sp; a.s += r.s; return a; }, { n: 0, sp: 0, s: 0 });
+  const bad = sum('bad'), watch = sum('watch'), good = sum('good');
+  const stockAt = Object.entries(CP.stockAt).filter(([, d]) => d)
+    .map(([b, d]) => `${BRAND_NAME[b] || b} ${d.toLocaleDateString('en-GB')}`).join(', ');
+  stMsg(`<b>${rows.length.toLocaleString('en-US')}</b> campaign × product rows`
+    + ` · <b style="color:var(--bad,#b91c1c)">${bad.n} bad</b> (${money(bad.sp)} spent, ${money(bad.s)} back)`
+    + ` · <b>${watch.n} watch</b> (${money(watch.sp)} spent)`
+    + ` · <b style="color:#15803D">${good.n} good</b> (${money(good.sp)} spent, ${money(good.s)} back)`
+    + (rows.length > CAP ? ` · showing the first ${CAP} — narrow it to see the rest` : '')
+    + (ST.at ? ` · built ${esc(ST.at)}` : '') + ' · a 30-day window'
+    + (stockAt ? ` · FBA stock as saved ${esc(stockAt)}` : ' · <b>no FBA stock saved yet</b> — refresh Listing Health once to fill it')
+    + ' · advice only: nothing here changes a bid at Amazon');
+}
+
+function cpCsv() {
+  if (!CP_LAST.length) { stMsg('Nothing to export.', true); return; }
+  const cell = v => { const s = String(v == null ? '' : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  const cols = ['Brand', 'Campaign', 'Ad group', 'ASIN', 'SKU', 'Parent', 'Impressions', 'Clicks', 'Spend', 'Orders', 'Sales',
+    'ACoS %', 'Break-even ACoS %', 'FBA stock', 'Days of cover', 'Verdict', 'What to do'];
+  const lines = [cols.map(cell).join(',')];
+  CP_LAST.forEach(r => lines.push([r.brand, r.cn, r.agn, r.asin, r.sku, r.parent, r.i, r.c, r.sp, r.o, r.s,
+    r.s > 0 ? Math.round(r.sp * 100 / r.s) : '', r.be != null ? Math.round(r.be) : '', r.stock,
+    r.cover != null ? Math.round(r.cover) : '', r.act, r.why].map(cell).join(',')));
+  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'campaign-product-' + new Date().toISOString().slice(0, 10) + '.csv';
+  a.click(); URL.revokeObjectURL(a.href);
+}
