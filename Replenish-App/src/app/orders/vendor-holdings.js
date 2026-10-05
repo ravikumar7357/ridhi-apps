@@ -150,7 +150,7 @@ function ordWaitingAt(r) {
   if (r.pendingCut > 0) return 'Cutting — ' + nf(r.pendingCut) + ' to cut';
   if (r.issued < r.qty) return 'Issue — ' + nf(r.qty - r.issued) + ' not given to a karigar';
   if (r.received < r.issued) return 'Karigar — ' + nf(r.issued - r.received) + ' out';
-  if (r.pressed < r.received) return 'Press — ' + nf(r.received - r.pressed) + ' to press';
+  if (r.pressed < r.received) return 'QC — ' + nf(r.received - r.pressed) + ' to check';
   /* ONLY A SHOPIFY LINE CAN BE HERE. Every other kind is open only while pressed < ordered, so getting
    * past the press check means it is not open and this function returned at the top. A Shopify line
    * stays open until the shipping team takes it, which is exactly what it is waiting for. */
@@ -177,7 +177,7 @@ function ordJourney(orderNo) {
   const shop = rows.some(r => r.src === 'SHP');
   const handed = rows.filter(r => r.handedAt).reduce((t, r) => t + r.qty, 0);
   const tiles = [['Ordered', sum('ordered')], ['With vendor', sum('given')], ['Back from vendor', sum('back')], ['Cut', sum('cut')],
-    ['Issued', sum('issued')], ['Received', sum('received')], ['QC passed', sum('qc')], ['Pressed', sum('pressed')]]
+    ['Issued', sum('issued')], ['Received', sum('received')], ['QC passed', sum('qc')], ['Made', sum('pressed')]]
     .concat(shop && !sum('store') && !sum('fba') && !sum('out') ? [] : [['In store', sum('store')], ['To FBA', sum('fba')]])
     /* THE LAST LEG (2026-09-25): what Amazon has, and what went out to a buyer. Shown when the order has any. */
     .concat(sum('fba') ? [['Shipped to Amazon', sum('fbaShip')]] : [])
@@ -188,7 +188,7 @@ function ordJourney(orderNo) {
     + `<div style="font-size:17px;font-weight:700${i && n < tiles[0][1] ? ';color:#7f6000' : ';color:var(--accent)'}">${nf(n)}</div>`
     + `<div class="muted" style="font-size:11px">${l}</div></div>`).join('<div style="align-self:center" class="muted">›</div>') + '</div>';
   const num = (n, of) => n == null ? '<span class="muted">n/a</span>' : (n >= of ? `<span style="color:#166534;font-weight:700">${nf(n)}</span>` : nf(n));
-  const head = ['SKU', 'What', 'Ordered', 'With vendor', 'Back', 'Cut', 'Issued', 'Received', 'QC', 'Pressed', 'In store', 'To FBA', 'Dispatched']
+  const head = ['SKU', 'What', 'Ordered', 'With vendor', 'Back', 'Cut', 'Issued', 'Received', 'QC', 'Made', 'In store', 'To FBA', 'Dispatched']
     .concat(shop ? ['Handed over'] : []).concat(['Shipment / papers', 'Waiting at'])
     .map((h, i) => `<th${i >= 2 && i <= (shop ? 13 : 12) ? ' class="num"' : ''}>${h}</th>`).join('');
   /* The papers behind a line: each FBA dispatch with its shipment (or where it stands), each issue with its invoice / LR. */
@@ -251,7 +251,7 @@ const ORD_KPI_FIELDS = {
   issued: { label: 'Issued', of: r => r.issued, icon: 'up', tone: 'blue', sub: (v, t) => ordPct(v, t.cut) + '% of what is cut' },
   received: { label: 'Received', of: r => r.received, icon: 'ok', tone: 'green', colour: '#166534', sub: (v, t) => ordPct(v, t.issued) + '% of issued' },
   overRecv: { label: 'Over-received', of: r => r.overRecv, icon: 'alert', tone: 'amber', colour: '#7f6000', sub: () => 'more than the line ordered' },
-  pressed: { label: 'Pressed', of: r => r.pressed, icon: 'press', tone: 'green', colour: '#166534', sub: (v, t) => ordPct(v, t.received) + '% of received' },
+  pressed: { label: 'Made', of: r => r.pressed, icon: 'press', tone: 'green', colour: '#166534', sub: (v, t) => ordPct(v, t.received) + '% of received · QC passed' },
   pendingMake: { label: 'Still to make', of: r => r.pendingMake, icon: 'clock', tone: 'red', colour: 'var(--bad)', sub: (v, t) => ordPct(v, t.ordered) + '% of ordered' },
   madeToPress: { label: 'Made, to press', of: r => r.madeToPress, icon: 'box', tone: 'amber', colour: '#7f6000', sub: () => 'made, waiting on the press' },
   /* SENT WITHOUT A RECORD OF BEING MADE. Not outstanding work — the pieces have gone — but a hole in

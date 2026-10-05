@@ -1054,7 +1054,7 @@ function renderOrd() {
    * columns they replace said the same things in nine narrow strips, and pushed the figures off
    * the right of the screen. */
   const head = ordHead([['Order', ''], ['Item', ''], ['Ordered', 'num'], ['Cut', 'num'], ['Issued', 'num'],
-    ['Received', 'num'], ['QC', 'num'], ['Pressed', 'num'], ['In store', 'num'], ['To FBA', 'num'],
+    ['Received', 'num'], ['QC', 'num'], ['Made', 'num'], ['In store', 'num'], ['To FBA', 'num'],
     ['To cut', 'num'], ['To make', 'num'], ['Status', '']]
     .concat(bkPrint ? [['Printing', '']] : [])
     /* The actions had no heading at all when nothing on the page was printed, which left every

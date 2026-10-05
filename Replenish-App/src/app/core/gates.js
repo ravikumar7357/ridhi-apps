@@ -44,12 +44,15 @@ async function ptLoadGatesRun(light) {
   try {
     /* EIGHT READS, EIGHT NAMES. One short here would hand every later list the value of the one
      * before it, and nothing on screen would look wrong until a figure did. */
-    const [masters, mdb, ob, press, freeze, cut, base, shopProd] = await Promise.all([
+    /* NINE: the QC checks joined on 2026-10-05 — a QC pass is what "made" means now. Its own catch: an account that may
+     * not read them still gets the other eight, and made falls back to the old press entries. */
+    const [masters, mdb, ob, press, freeze, cut, base, shopProd, qcChecks] = await Promise.all([
       keepMdb ? Promise.resolve(PTG.masters) : ptGet('pt_masters'), keepMdb ? Promise.resolve(null) : ptGet('pt_masterDB'), ptGet('pt_orderBook'),
       ptGet('pt_pressInventory'), ptGet('pt_cuttingFreezes'), ptGet('pt_cuttingData'), ptGet('pt_baseData'),
-      ptGet('pt_shopProd'),
+      ptGet('pt_shopProd'), ptGet('pt_qcChecks').catch(() => null),
     ]);
     PTG.shopProd = shopProd || {};
+    PTG.qc = qcChecks ? ptList(qcChecks) : (PTG.qc || []);
     if (!keepMdb) {
       PTG.masters = masters || {};
       PTG.recipeAt = Date.now();

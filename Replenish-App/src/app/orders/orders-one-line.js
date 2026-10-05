@@ -415,7 +415,7 @@ function ordBookCsv(rows) {
   /* Two columns here, not the one the table stacks: a spreadsheet is sorted and filtered on them
    * separately. */
   const lines = [['Order No', 'Shopify Order', 'Adjustment', 'Date', 'SKU', 'Priority', 'Article', 'Subtype', 'Color', 'Size', 'Ordered', 'Cut',
-    'Cut %', 'Issued', 'Received', 'Pressed', 'To cut', 'To make', 'Status', 'Printer', 'Printed',
+    'Cut %', 'Issued', 'Received', 'Made', 'To cut', 'To make', 'Status', 'Printer', 'Printed',
     /* What the vendors hold for the line, as the screen shows it — one column each, because a spreadsheet
      * is filtered on "with vendor" and "waiting at", not read a cell at a time. */
     'Vendor', 'Given to vendor', 'Back from vendor', 'Not given', 'Vendor orders', 'Promised', 'How linked',
@@ -532,10 +532,10 @@ $('odExport').onclick = () => {
      * separately. */
     const bySku = v === 'shopsku';
     const out = bySku
-      ? [['SKU', 'Priority', 'Article', 'Subtype', 'Color', 'Size', 'Orders', 'Pieces', 'Cut', 'Issued', 'Received', 'Pressed',
+      ? [['SKU', 'Priority', 'Article', 'Subtype', 'Color', 'Size', 'Orders', 'Pieces', 'Cut', 'Issued', 'Received', 'Made',
           'To make', 'Shopify orders', 'Needs master row'].map(csvCell).join(',')]
       : [['Order No', 'Shopify Order', 'Adjustment', 'Date', 'SKU', 'Priority', 'Article', 'Subtype', 'Color',
-          'Size', 'Pieces', 'Cut', 'Issued', 'Received', 'QC passed', 'Pressed', 'To make', 'Status', 'Printer', 'Printed',
+          'Size', 'Pieces', 'Cut', 'Issued', 'Received', 'QC passed', 'Made', 'To make', 'Status', 'Printer', 'Printed',
           'With vendor', 'Back from vendor', 'Handed over', 'Sent never recorded', 'Waiting at'].map(csvCell).join(',')];
     rows.forEach(r => out.push(bySku
       ? [r.sku, ordPri(r.sku), r.articleType, r.articleSubtype, r.color, r.size, r.orders.length, r.qty, r.cut,

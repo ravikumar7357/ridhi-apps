@@ -135,7 +135,7 @@ function renderDash() {
       ? card(nf(w.received), 'Pieces received from karigars', 'ok', tone(pct >= 100, pct >= 60), 'pa', nf(pct) + '% of the ' + nf(w.target) + ' target · last week ' + nf(w.last))
         + card(nf(w.issued), 'Issued to karigars', 'open', 'blue', 'pbase', w.rejected ? nf(w.rejected) + ' rejected' : 'nothing rejected')
         + card(nf(w.cut), 'Cut', 'cut', 'blue', 'pcut', 'pieces cut this week')
-        + card(nf(w.pressed), 'Pressed', 'press', 'blue', 'ppress', 'pieces pressed this week')
+
       : card(dash, 'Pieces received from karigars', 'ok', 'blue', 'pa')))
     + sec('Printers', 'vendor orders open now', (p
       ? card(nf(p.orders), 'Open vendor orders', 'box', 'blue', 'vord', nf(p.printers) + ' printer(s)')

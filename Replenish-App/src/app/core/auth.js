@@ -133,6 +133,8 @@ onAuthStateChanged(auth, async user => {
   // which quietly sends you to your first allowed tab. A button that does nothing reads as a broken
   // app, not as a permission you were never given.
   Object.entries(NAV_MAP).forEach(([t, id]) => { const el = $(id); if (el) el.style.display = ME.tabs.includes(t) ? '' : 'none'; });
+  /* The press is gone from the floor (2026-10-05): its screen stays reachable by link for the old entries, never in the menu. */
+  if ($('tabPpress')) $('tabPpress').style.display = 'none';
   /* One button, three grants — any of them opens it, and the picker inside decides what it holds. */
   if ($('tabQc')) $('tabQc').style.display = qcViewsAllowed().length ? '' : 'none';
 

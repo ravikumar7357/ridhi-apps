@@ -113,9 +113,9 @@ function renderOrdShopify(bySku, done) {
    * karigar ever brought them back. */
   const cols = bySku
     ? [['Item', ''], ['Orders', 'num'], ['Pieces', 'num'], ['With printer', ''], ['Cut', 'num'], ['Issued', 'num'],
-      ['Received', 'num'], ['Pressed', 'num'], ['In store', 'num'], ['To make', 'num'], ['Shopify orders', '']]
+      ['Received', 'num'], ['Made', 'num'], ['In store', 'num'], ['To make', 'num'], ['Shopify orders', '']]
     : [['Order', ''], ['Item', ''], ['Pieces', 'num'], ['Printing', ''], ['Cut', 'num'], ['Issued', 'num'],
-      ['Received', 'num'], ['QC', 'num'], ['Pressed', 'num'], ['To make', 'num'], ['Quilt team', ''],
+      ['Received', 'num'], ['QC', 'num'], ['Made', 'num'], ['To make', 'num'], ['Quilt team', ''],
       ['Status', ''], ['', '']];
   /* Somebody allowed only to assign printers ticks lines too — for that, and nothing else.
    *
@@ -495,7 +495,7 @@ async function spCutReal(orderNo, sku, pcs, date, fabric, remarks, extraReason) 
 }
 
 async function spPressReal(orderNo, sku, pcs, date, remarks, extraReason) {
-  if (!ptCanEdit()) return PT_NO_EDIT;
+  return 'Pressing is no longer recorded (since 5 Oct 2026) — a piece counts as made once QC passes it. Record it in Quality Control.';
   const line = (ordLines() || []).find(l => obUC(l.orderNo) === obUC(orderNo) && obUC(l.sku) === obUC(sku));
   if (!line) return 'That line is no longer on the order.';
   const q = parseInt(pcs, 10);

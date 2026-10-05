@@ -55,7 +55,7 @@ async function spHandover(orderNo, sku, on) {
       return 'Nothing has been received against this line yet, so there is nothing to hand over.';
     }
     if (pressed < recv) {
-      return `${nf(recv - pressed)} piece(s) have not been pressed yet. Record the press first, or say how many really are going.`;
+      return `${nf(recv - pressed)} piece(s) have not passed QC yet. Record the QC first, or say how many really are going.`;
     }
   }
   const rec = Object.assign({}, was || { orderNo: obUC(orderNo), sku: obUC(sku) }, on
@@ -73,14 +73,17 @@ async function spHandover(orderNo, sku, on) {
 function ordLines() {
   const ob = PTG.ob || [], base = PT.base || [], cut = PT.cut || [], press = PTG.press || [];
   const mdbSrc = PTG.mdb || [];
+  /* The QC checks too (2026-10-05): a QC pass is made now, so a check saved must move the line. */
+  const qcSrc = (typeof QC !== 'undefined' && QC.checks) || PTG.qc || [];
   if (ORD_IX.rows && ORD_IX.ob === ob && ORD_IX.obN === ob.length
       && ORD_IX.mdb === mdbSrc && ORD_IX.mdbN === mdbSrc.length
       && ORD_IX.base === base && ORD_IX.baseN === base.length
       && ORD_IX.cut === cut && ORD_IX.cutN === cut.length
-      && ORD_IX.press === press && ORD_IX.pressN === press.length) return ORD_IX.rows;
+      && ORD_IX.press === press && ORD_IX.pressN === press.length
+      && ORD_IX.qc === qcSrc && ORD_IX.qcN === qcSrc.length) return ORD_IX.rows;
   const out = ordLinesBuild();
   ORD_IX = { ob, obN: ob.length, base, baseN: base.length, cut, cutN: cut.length,
-    press, pressN: press.length, mdb: mdbSrc, mdbN: mdbSrc.length, rows: out };
+    press, pressN: press.length, mdb: mdbSrc, mdbN: mdbSrc.length, qc: qcSrc, qcN: qcSrc.length, rows: out };
   return out;
 }
 function ordLinesBuild() {

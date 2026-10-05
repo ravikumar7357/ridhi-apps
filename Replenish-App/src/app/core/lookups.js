@@ -77,17 +77,29 @@ function obCutIndex() {
   return m;
 }
 
-let PRESS_IX = { src: null, n: -1, map: null };
+/* MADE, per order and SKU (2026-10-05, Ravi: "sab jagah se press wale work ko remove karna h" — QC pass is made now).
+ * Pressing stopped in October; QC pass is the step that says a piece is finished. What was pressed before stays
+ * counted, so nothing already complete reopens: made = the LARGER of the old press entries and the pieces QC
+ * passed against that order (never the sum — a pressed piece was QC'd first). Every caller of obPressQty — the
+ * Order Console's made / complete / ready for shipping, the Job Work issue cap, Sales Orders — reads this. */
+let PRESS_IX = { src: null, n: -1, qc: null, qn: -1, map: null };
 function obPressIndex() {
   const rows = PTG.press || [];
-  if (PRESS_IX.src === rows && PRESS_IX.n === rows.length) return PRESS_IX.map;
-  const m = new Map();
+  const qc = (typeof QC !== 'undefined' && QC.checks) || PTG.qc || [];
+  if (PRESS_IX.src === rows && PRESS_IX.n === rows.length && PRESS_IX.qc === qc && PRESS_IX.qn === qc.length) return PRESS_IX.map;
+  const m = new Map(), ok = new Map();
   rows.forEach(r => {
     if (!r) return;
     const k = obKeyOf(r.orderNo, r.sku);
     m.set(k, (m.get(k) || 0) + (parseInt(r.pieces, 10) || 0));
   });
-  PRESS_IX = { src: rows, n: rows.length, map: m };
+  qc.forEach(r => {
+    if (!r || !r.orderNo) return;               // a check that named no order is shared out on the QC column, not here
+    const k = obKeyOf(r.orderNo, r.sku);
+    ok.set(k, (ok.get(k) || 0) + ptNum(r.ok));
+  });
+  ok.forEach((v, k) => { if (v > (m.get(k) || 0)) m.set(k, v); });
+  PRESS_IX = { src: rows, n: rows.length, qc, qn: qc.length, map: m };
   return m;
 }
 

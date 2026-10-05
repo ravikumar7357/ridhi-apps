@@ -6402,7 +6402,7 @@ console.log('\n== Order Console: what the vendors hold, order by order ==');
   try { A.ordJourney('O-1'); } catch (e) { /* the empty dialog fails the lines below */ }
   const d = A.PTD_() || {};
   ok('an order opens start to finish', /O-1/.test(d.title || '') && /start to finish/.test(d.title || ''), d.title);
-  ok('…with every stage across the top', ['Ordered', 'With vendor', 'Back from vendor', 'Cut', 'Issued', 'Received', 'QC passed', 'Pressed', 'In store']
+  ok('…with every stage across the top', ['Ordered', 'With vendor', 'Back from vendor', 'Cut', 'Issued', 'Received', 'QC passed', 'Made', 'In store']
      .every(x => (d.html || '').indexOf(x) >= 0), String(d.html).slice(0, 300));
   ok('…and the vendor order behind each line, with its promise', /VPO-1/.test(d.html || '') && /promised 22\/09\/2026/.test(d.html || ''), String(d.html).slice(0, 1200));
   ok('…and where the line is waiting', /Vendor —/.test(d.html || ''));
@@ -8229,8 +8229,8 @@ console.log('\n== Shopify keeps its own production record ==');
   ok('a line with nothing received cannot be handed over',
      /nothing to hand over/.test(await A.spHandover('SHP-9001', 'TEST-SKU', true)));
   await A.spSave('SHP-9001', 'TEST-SKU', { cut: 10, issued: 10, received: 10, pressed: 4 });
-  ok('…nor one with pieces still unpressed, without saying so',
-     /have not been pressed yet/.test(await A.spHandover('SHP-9001', 'TEST-SKU', true)));
+  ok('…nor one with pieces QC has not passed, without saying so',
+     /have not passed QC yet/.test(await A.spHandover('SHP-9001', 'TEST-SKU', true)));
 
   /* It is addressed by order and SKU — the pair a line is keyed by anyway. The order-book row id is
    * rewritten every time the Shopify sync re-plans an order, and keying on that would throw the
@@ -8315,14 +8315,14 @@ console.log('\n== Shopify keeps its own production record ==');
       ok('…the one still being pressed did not', !ln('SHP-9003').handedAt);
       ok('…and the screen says how many were left behind and why',
          /1 line\(s\) handed/.test(els.odMsg.textContent) && /1 left behind/.test(els.odMsg.textContent)
-         && /pressed/.test(els.odMsg.textContent), els.odMsg.textContent);
+         && /passed QC/.test(els.odMsg.textContent), els.odMsg.textContent);
       ok('…and the one left behind is still ticked, so it is not forgotten',
          A.ORD().pick.has('SHP-9003|SKU-C') && !A.ORD().pick.has('SHP-9001|TEST-SKU'));
 
       /* When not one of them can go, that is a refusal rather than a report of nothing happening. */
       A.ORD().pick = new Set(['SHP-9003|SKU-C']);
       ok('a selection where nothing is ready is refused outright',
-         /pressed/.test(await A.spHandoverPicked()));
+         /passed QC/.test(await A.spHandoverPicked()));
 
       A.ORD().pick = new Set();
       A.renderOrdShopify(false);
@@ -9324,9 +9324,10 @@ console.log('\n== a Shopify order is worked by a karigar who gets paid for it ==
   ok('…leaving three still with him',
      A.spBaseRows('SHP-9501', 'KAR-A').reduce((a, r) => a + A.ptNum(r.pendingPieces), 0) === 3);
 
-  /* PRESSING, in the press register. */
-  ok('pressing is recorded', (await A.spPressReal('SHP-9501', 'KAR-A', 9, '2026-09-14', '')) === '');
-  ok('…in the press inventory', Object.keys(NET.store).some(k => /^pt_pressInventory\//.test(k)));
+  /* PRESSING IS NOT RECORDED ANY MORE (2026-10-05, Ravi: "sab jagah se press wale work ko remove karna h") — QC pass is made. */
+  const pressRefused = await A.spPressReal('SHP-9501', 'KAR-A', 9, '2026-09-14', '');
+  ok('pressing is refused, and says QC pass is what counts now', /no longer recorded/.test(pressRefused) && /QC/.test(pressRefused), pressRefused);
+  ok('…and nothing goes into the press inventory', !Object.keys(NET.store).some(k => /^pt_pressInventory\//.test(k)));
 
   /* And every one of them is an entry, so it needs the right to make one. */
   ME.prodEdit = false; ME.admin = false;
@@ -9954,10 +9955,11 @@ console.log('\n== a quilt stays a counter, and goes to the quilt team ==');
 
   /* A TABLECLOTH GOES TO SHIPPING TOO. Its figures are in Base Data and the press register, not on
    * its record — and its handover is on its record, and must be read, or it comes back as open. */
-  ok('a karigar-made line is checked against its real press figure',
-     /have not been pressed yet/.test(await A.spHandover('SHP-3366', 'TC-9', true)));
-  await A.spPressReal('SHP-3366', 'TC-9', 6, '2026-09-14', '');
-  ok('…and once pressed it can be handed over', (await A.spHandover('SHP-3366', 'TC-9', true)) === '');
+  ok('a karigar-made line is checked against what QC passed',
+     /have not passed QC yet/.test(await A.spHandover('SHP-3366', 'TC-9', true)));
+  /* 2026-10-05: QC pass is made — six passed against the order, and the line can go to shipping. */
+  { const q = A.QC(); A.setQC(Object.assign({}, q, { checks: (q.checks || []).concat([{ id: 'qc_tc9', orderNo: 'SHP-3366', sku: 'TC-9', checked: 6, ok: 6, rejected: 0, forAlteration: 0 }]) })); }
+  ok('…and once QC passes it, it can be handed over', (await A.spHandover('SHP-3366', 'TC-9', true)) === '');
   const tcDone = A.ordLines().find(l => l.sku === 'TC-9');
   ok('…which closes it, although it is not a quilt', tcDone.open === false && !!tcDone.handedAt,
      JSON.stringify({ open: tcDone.open, at: tcDone.handedAt }));
@@ -14808,8 +14810,8 @@ console.log('\n== an order line, followed from ordered to on the shelf ==');
       ok('…and every row has exactly as many cells as there are headings',
          heads.length === (firstRow.match(/<td/g) || []).length, heads.length + ' vs ' + (firstRow.match(/<td/g) || []).length);
       const numOf = name => (heads.find(x => x.indexOf('>' + name + '<') >= 0) || '').indexOf('class="num"') >= 0;
-      ok('…and the numeric run reaches the last figure', ['Pieces', 'Received', 'QC', 'Pressed', 'To make'].every(numOf),
-         ['Pieces', 'Received', 'QC', 'Pressed', 'To make'].map(n => n + ':' + numOf(n)).join(' '));
+      ok('…and the numeric run reaches the last figure', ['Pieces', 'Received', 'QC', 'Made', 'To make'].every(numOf),
+         ['Pieces', 'Received', 'QC', 'Made', 'To make'].map(n => n + ':' + numOf(n)).join(' '));
     }
     /* THE SAME FAULT THE ORDER BOOK HAD. */
     ok('the Printing cell knows what a vendor holds, instead of saying "not printed"',
@@ -14910,7 +14912,7 @@ console.log('\n== an order line, followed from ordered to on the shelf ==');
         A.setPT(Object.assign(A.PT(), { base: [{ id: 'hb2', orderNo: 'SHP-9100', sku: 'SH-A', issuePieces: 4, receivedPieces: 4 }] }));
         A.setORD({ req: {}, busy: false, at: '', rows: [], pick: new Set() });
         try { said = String(await A.spHandover('SHP-9100', 'SH-A', true) || ''); } catch (e) { said = 'threw: ' + (e.message || e); }
-        ok('…nor one whose pieces have not been pressed', /have not been pressed/.test(said), said);
+        ok('…nor one whose pieces have not passed QC', /have not passed QC/.test(said), said);
         ok('…so nothing on this screen can declare a line done without the entries',
            !A.ordLines().find(x => x.orderNo === 'SHP-9100').handedAt);
         NET.on = keepNet; ME.prodEdit = wasEdit; ME.admin = wasAdmin2;
@@ -20008,6 +20010,27 @@ console.log('\n== The store: what is on the shelf before stitching ==');
      && A.stBalances(A.stMoves()).find(x => x.key === 'P|RUN-1').qty === 38 + 25 - 3);
   A.setPT(wasPT); A.setPTG(wasPTG); A.setVO(wasVO); A.setSTORE(wasStore);
   ME.prodEdit = wasEdit; ME.admin = wasAdmin; NET.on = wasNet; NET.store = {}; NET.calls.length = 0;
+}
+console.log('\n== made = QC passed, or what was pressed before (2026-10-05) ==');
+{
+  /* Ravi: "sab jagah se press wale work ko remove karna h" — QC pass is made; old press entries stay counted. */
+  const wasPTG = A.PTG(), wasQC = A.QC();
+  A.setPTG(Object.assign({}, wasPTG, { press: [{ id: 'p1', orderNo: 'M-1', sku: 'S-1', pieces: 5 }], qc: [] }));
+  A.setQC(Object.assign({}, wasQC, { checks: [
+    { id: 'q1', orderNo: 'M-1', sku: 'S-1', checked: 3, ok: 3 },
+    { id: 'q2', orderNo: 'M-2', sku: 'S-1', checked: 8, ok: 7, rejected: 1 },
+    { id: 'q3', orderNo: '', sku: 'S-1', checked: 4, ok: 4 }] }));
+  ok('an old press figure is kept when QC passed fewer — nothing complete reopens', A.obPressQty('M-1', 'S-1') === 5, String(A.obPressQty('M-1', 'S-1')));
+  ok('…QC passed is made where nothing was pressed', A.obPressQty('M-2', 'S-1') === 7, String(A.obPressQty('M-2', 'S-1')));
+  ok('…the two are never added together', A.obPressQty('M-1', 'S-1') !== 8);
+  ok('…and a check that named no order makes no order made', A.obPressQty('', 'S-1') === 0, String(A.obPressQty('', 'S-1')));
+  A.setQC(Object.assign({}, wasQC, { checks: null }));
+  A.setPTG(Object.assign({}, A.PTG(), { qc: [{ id: 'q9', orderNo: 'M-3', sku: 'S-1', checked: 2, ok: 2 }] }));
+  ok('…read from the gates when the QC screen has not loaded', A.obPressQty('M-3', 'S-1') === 2, String(A.obPressQty('M-3', 'S-1')));
+  const src = fs.readFileSync(APP, 'utf8');
+  ok('the Press button is kept out of the menu', src.includes("if ($('tabPpress')) $('tabPpress').style.display = 'none';"));
+  ok('…and the press form refuses a new entry', src.includes("return pressFormMsg('Pressing is no longer recorded"));
+  A.setPTG(wasPTG); A.setQC(wasQC);
 }
 console.log('\n== the store by order number ==');
 {

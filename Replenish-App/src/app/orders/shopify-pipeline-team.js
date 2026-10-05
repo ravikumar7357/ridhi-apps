@@ -80,7 +80,7 @@ function renderOrdPipe() {
   const cell = (n, of) => !of ? '<span class="muted">—</span>'
     : `<span${n >= of ? ' style="color:var(--accent);font-weight:700"' : n > 0 ? ' style="color:#7f6000;font-weight:700"' : ''}>${nf(n)}</span><span class="muted" style="font-size:11px"> / ${nf(of)}</span>`;
   const head = ordHead([['Order', ''], ['Placed', ''], ['Days', 'num'], ['Pcs', 'num'], ['Printer back', 'num'], ['Cut', 'num'], ['Given to karigar', 'num'],
-    ['Back from karigar', 'num'], ['QC', 'num'], ['Pressed', 'num'], ['Handed over', 'num'], ['Now', ''], ['Last work', ''], ['Shopify', '']]);
+    ['Back from karigar', 'num'], ['QC', 'num'], ['Made', 'num'], ['Handed over', 'num'], ['Now', ''], ['Last work', ''], ['Shopify', '']]);
   const body = rows.slice(0, ORD_CAP).map(o => {
     const now = o.stage === 9 ? '<span class="jw-st done">Done</span>'
       : `<span class="jw-st ${o.stuck ? 'pend' : 'prog'}">${esc((ORD_PIPE.find(x => x[0] === o.stage) || [0, ''])[1])}</span>`

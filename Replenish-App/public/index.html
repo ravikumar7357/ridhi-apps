@@ -3576,6 +3576,8 @@ onAuthStateChanged(auth, async user => {
   // which quietly sends you to your first allowed tab. A button that does nothing reads as a broken
   // app, not as a permission you were never given.
   Object.entries(NAV_MAP).forEach(([t, id]) => { const el = $(id); if (el) el.style.display = ME.tabs.includes(t) ? '' : 'none'; });
+  /* The press is gone from the floor (2026-10-05): its screen stays reachable by link for the old entries, never in the menu. */
+  if ($('tabPpress')) $('tabPpress').style.display = 'none';
   /* One button, three grants — any of them opens it, and the picker inside decides what it holds. */
   if ($('tabQc')) $('tabQc').style.display = qcViewsAllowed().length ? '' : 'none';
 
@@ -11702,12 +11704,15 @@ async function ptLoadGatesRun(light) {
   try {
     /* EIGHT READS, EIGHT NAMES. One short here would hand every later list the value of the one
      * before it, and nothing on screen would look wrong until a figure did. */
-    const [masters, mdb, ob, press, freeze, cut, base, shopProd] = await Promise.all([
+    /* NINE: the QC checks joined on 2026-10-05 — a QC pass is what "made" means now. Its own catch: an account that may
+     * not read them still gets the other eight, and made falls back to the old press entries. */
+    const [masters, mdb, ob, press, freeze, cut, base, shopProd, qcChecks] = await Promise.all([
       keepMdb ? Promise.resolve(PTG.masters) : ptGet('pt_masters'), keepMdb ? Promise.resolve(null) : ptGet('pt_masterDB'), ptGet('pt_orderBook'),
       ptGet('pt_pressInventory'), ptGet('pt_cuttingFreezes'), ptGet('pt_cuttingData'), ptGet('pt_baseData'),
-      ptGet('pt_shopProd'),
+      ptGet('pt_shopProd'), ptGet('pt_qcChecks').catch(() => null),
     ]);
     PTG.shopProd = shopProd || {};
+    PTG.qc = qcChecks ? ptList(qcChecks) : (PTG.qc || []);
     if (!keepMdb) {
       PTG.masters = masters || {};
       PTG.recipeAt = Date.now();
@@ -11811,17 +11816,29 @@ function obCutIndex() {
   return m;
 }
 
-let PRESS_IX = { src: null, n: -1, map: null };
+/* MADE, per order and SKU (2026-10-05, Ravi: "sab jagah se press wale work ko remove karna h" — QC pass is made now).
+ * Pressing stopped in October; QC pass is the step that says a piece is finished. What was pressed before stays
+ * counted, so nothing already complete reopens: made = the LARGER of the old press entries and the pieces QC
+ * passed against that order (never the sum — a pressed piece was QC'd first). Every caller of obPressQty — the
+ * Order Console's made / complete / ready for shipping, the Job Work issue cap, Sales Orders — reads this. */
+let PRESS_IX = { src: null, n: -1, qc: null, qn: -1, map: null };
 function obPressIndex() {
   const rows = PTG.press || [];
-  if (PRESS_IX.src === rows && PRESS_IX.n === rows.length) return PRESS_IX.map;
-  const m = new Map();
+  const qc = (typeof QC !== 'undefined' && QC.checks) || PTG.qc || [];
+  if (PRESS_IX.src === rows && PRESS_IX.n === rows.length && PRESS_IX.qc === qc && PRESS_IX.qn === qc.length) return PRESS_IX.map;
+  const m = new Map(), ok = new Map();
   rows.forEach(r => {
     if (!r) return;
     const k = obKeyOf(r.orderNo, r.sku);
     m.set(k, (m.get(k) || 0) + (parseInt(r.pieces, 10) || 0));
   });
-  PRESS_IX = { src: rows, n: rows.length, map: m };
+  qc.forEach(r => {
+    if (!r || !r.orderNo) return;               // a check that named no order is shared out on the QC column, not here
+    const k = obKeyOf(r.orderNo, r.sku);
+    ok.set(k, (ok.get(k) || 0) + ptNum(r.ok));
+  });
+  ok.forEach((v, k) => { if (v > (m.get(k) || 0)) m.set(k, v); });
+  PRESS_IX = { src: rows, n: rows.length, qc, qn: qc.length, map: m };
   return m;
 }
 
@@ -14459,6 +14476,7 @@ $('pwToggle').onclick = async () => {
 $('pwSku').addEventListener('input', pressSkuTyped);
 
 $('pwSave').onclick = async () => {
+  return pressFormMsg('Pressing is no longer recorded (since 5 Oct 2026) — a piece counts as made once QC passes it. Record it in Quality Control.', true);
   const sku = $('pwSku').value.trim();
   const m = cutSkuOf(sku);
   const orderNo = $('pwOrd').value.trim();
@@ -17477,7 +17495,7 @@ async function spHandover(orderNo, sku, on) {
       return 'Nothing has been received against this line yet, so there is nothing to hand over.';
     }
     if (pressed < recv) {
-      return `${nf(recv - pressed)} piece(s) have not been pressed yet. Record the press first, or say how many really are going.`;
+      return `${nf(recv - pressed)} piece(s) have not passed QC yet. Record the QC first, or say how many really are going.`;
     }
   }
   const rec = Object.assign({}, was || { orderNo: obUC(orderNo), sku: obUC(sku) }, on
@@ -17495,14 +17513,17 @@ async function spHandover(orderNo, sku, on) {
 function ordLines() {
   const ob = PTG.ob || [], base = PT.base || [], cut = PT.cut || [], press = PTG.press || [];
   const mdbSrc = PTG.mdb || [];
+  /* The QC checks too (2026-10-05): a QC pass is made now, so a check saved must move the line. */
+  const qcSrc = (typeof QC !== 'undefined' && QC.checks) || PTG.qc || [];
   if (ORD_IX.rows && ORD_IX.ob === ob && ORD_IX.obN === ob.length
       && ORD_IX.mdb === mdbSrc && ORD_IX.mdbN === mdbSrc.length
       && ORD_IX.base === base && ORD_IX.baseN === base.length
       && ORD_IX.cut === cut && ORD_IX.cutN === cut.length
-      && ORD_IX.press === press && ORD_IX.pressN === press.length) return ORD_IX.rows;
+      && ORD_IX.press === press && ORD_IX.pressN === press.length
+      && ORD_IX.qc === qcSrc && ORD_IX.qcN === qcSrc.length) return ORD_IX.rows;
   const out = ordLinesBuild();
   ORD_IX = { ob, obN: ob.length, base, baseN: base.length, cut, cutN: cut.length,
-    press, pressN: press.length, mdb: mdbSrc, mdbN: mdbSrc.length, rows: out };
+    press, pressN: press.length, mdb: mdbSrc, mdbN: mdbSrc.length, qc: qcSrc, qcN: qcSrc.length, rows: out };
   return out;
 }
 function ordLinesBuild() {
@@ -17983,7 +18004,7 @@ function ordWaitingAt(r) {
   if (r.pendingCut > 0) return 'Cutting — ' + nf(r.pendingCut) + ' to cut';
   if (r.issued < r.qty) return 'Issue — ' + nf(r.qty - r.issued) + ' not given to a karigar';
   if (r.received < r.issued) return 'Karigar — ' + nf(r.issued - r.received) + ' out';
-  if (r.pressed < r.received) return 'Press — ' + nf(r.received - r.pressed) + ' to press';
+  if (r.pressed < r.received) return 'QC — ' + nf(r.received - r.pressed) + ' to check';
   /* ONLY A SHOPIFY LINE CAN BE HERE. Every other kind is open only while pressed < ordered, so getting
    * past the press check means it is not open and this function returned at the top. A Shopify line
    * stays open until the shipping team takes it, which is exactly what it is waiting for. */
@@ -18010,7 +18031,7 @@ function ordJourney(orderNo) {
   const shop = rows.some(r => r.src === 'SHP');
   const handed = rows.filter(r => r.handedAt).reduce((t, r) => t + r.qty, 0);
   const tiles = [['Ordered', sum('ordered')], ['With vendor', sum('given')], ['Back from vendor', sum('back')], ['Cut', sum('cut')],
-    ['Issued', sum('issued')], ['Received', sum('received')], ['QC passed', sum('qc')], ['Pressed', sum('pressed')]]
+    ['Issued', sum('issued')], ['Received', sum('received')], ['QC passed', sum('qc')], ['Made', sum('pressed')]]
     .concat(shop && !sum('store') && !sum('fba') && !sum('out') ? [] : [['In store', sum('store')], ['To FBA', sum('fba')]])
     /* THE LAST LEG (2026-09-25): what Amazon has, and what went out to a buyer. Shown when the order has any. */
     .concat(sum('fba') ? [['Shipped to Amazon', sum('fbaShip')]] : [])
@@ -18021,7 +18042,7 @@ function ordJourney(orderNo) {
     + `<div style="font-size:17px;font-weight:700${i && n < tiles[0][1] ? ';color:#7f6000' : ';color:var(--accent)'}">${nf(n)}</div>`
     + `<div class="muted" style="font-size:11px">${l}</div></div>`).join('<div style="align-self:center" class="muted">›</div>') + '</div>';
   const num = (n, of) => n == null ? '<span class="muted">n/a</span>' : (n >= of ? `<span style="color:#166534;font-weight:700">${nf(n)}</span>` : nf(n));
-  const head = ['SKU', 'What', 'Ordered', 'With vendor', 'Back', 'Cut', 'Issued', 'Received', 'QC', 'Pressed', 'In store', 'To FBA', 'Dispatched']
+  const head = ['SKU', 'What', 'Ordered', 'With vendor', 'Back', 'Cut', 'Issued', 'Received', 'QC', 'Made', 'In store', 'To FBA', 'Dispatched']
     .concat(shop ? ['Handed over'] : []).concat(['Shipment / papers', 'Waiting at'])
     .map((h, i) => `<th${i >= 2 && i <= (shop ? 13 : 12) ? ' class="num"' : ''}>${h}</th>`).join('');
   /* The papers behind a line: each FBA dispatch with its shipment (or where it stands), each issue with its invoice / LR. */
@@ -18084,7 +18105,7 @@ const ORD_KPI_FIELDS = {
   issued: { label: 'Issued', of: r => r.issued, icon: 'up', tone: 'blue', sub: (v, t) => ordPct(v, t.cut) + '% of what is cut' },
   received: { label: 'Received', of: r => r.received, icon: 'ok', tone: 'green', colour: '#166534', sub: (v, t) => ordPct(v, t.issued) + '% of issued' },
   overRecv: { label: 'Over-received', of: r => r.overRecv, icon: 'alert', tone: 'amber', colour: '#7f6000', sub: () => 'more than the line ordered' },
-  pressed: { label: 'Pressed', of: r => r.pressed, icon: 'press', tone: 'green', colour: '#166534', sub: (v, t) => ordPct(v, t.received) + '% of received' },
+  pressed: { label: 'Made', of: r => r.pressed, icon: 'press', tone: 'green', colour: '#166534', sub: (v, t) => ordPct(v, t.received) + '% of received · QC passed' },
   pendingMake: { label: 'Still to make', of: r => r.pendingMake, icon: 'clock', tone: 'red', colour: 'var(--bad)', sub: (v, t) => ordPct(v, t.ordered) + '% of ordered' },
   madeToPress: { label: 'Made, to press', of: r => r.madeToPress, icon: 'box', tone: 'amber', colour: '#7f6000', sub: () => 'made, waiting on the press' },
   /* SENT WITHOUT A RECORD OF BEING MADE. Not outstanding work — the pieces have gone — but a hole in
@@ -18654,9 +18675,9 @@ function renderOrdShopify(bySku, done) {
    * karigar ever brought them back. */
   const cols = bySku
     ? [['Item', ''], ['Orders', 'num'], ['Pieces', 'num'], ['With printer', ''], ['Cut', 'num'], ['Issued', 'num'],
-      ['Received', 'num'], ['Pressed', 'num'], ['In store', 'num'], ['To make', 'num'], ['Shopify orders', '']]
+      ['Received', 'num'], ['Made', 'num'], ['In store', 'num'], ['To make', 'num'], ['Shopify orders', '']]
     : [['Order', ''], ['Item', ''], ['Pieces', 'num'], ['Printing', ''], ['Cut', 'num'], ['Issued', 'num'],
-      ['Received', 'num'], ['QC', 'num'], ['Pressed', 'num'], ['To make', 'num'], ['Quilt team', ''],
+      ['Received', 'num'], ['QC', 'num'], ['Made', 'num'], ['To make', 'num'], ['Quilt team', ''],
       ['Status', ''], ['', '']];
   /* Somebody allowed only to assign printers ticks lines too — for that, and nothing else.
    *
@@ -19036,7 +19057,7 @@ async function spCutReal(orderNo, sku, pcs, date, fabric, remarks, extraReason) 
 }
 
 async function spPressReal(orderNo, sku, pcs, date, remarks, extraReason) {
-  if (!ptCanEdit()) return PT_NO_EDIT;
+  return 'Pressing is no longer recorded (since 5 Oct 2026) — a piece counts as made once QC passes it. Record it in Quality Control.';
   const line = (ordLines() || []).find(l => obUC(l.orderNo) === obUC(orderNo) && obUC(l.sku) === obUC(sku));
   if (!line) return 'That line is no longer on the order.';
   const q = parseInt(pcs, 10);
@@ -20117,7 +20138,7 @@ function renderOrd() {
    * columns they replace said the same things in nine narrow strips, and pushed the figures off
    * the right of the screen. */
   const head = ordHead([['Order', ''], ['Item', ''], ['Ordered', 'num'], ['Cut', 'num'], ['Issued', 'num'],
-    ['Received', 'num'], ['QC', 'num'], ['Pressed', 'num'], ['In store', 'num'], ['To FBA', 'num'],
+    ['Received', 'num'], ['QC', 'num'], ['Made', 'num'], ['In store', 'num'], ['To FBA', 'num'],
     ['To cut', 'num'], ['To make', 'num'], ['Status', '']]
     .concat(bkPrint ? [['Printing', '']] : [])
     /* The actions had no heading at all when nothing on the page was printed, which left every
@@ -21004,7 +21025,7 @@ function renderOrdPipe() {
   const cell = (n, of) => !of ? '<span class="muted">—</span>'
     : `<span${n >= of ? ' style="color:var(--accent);font-weight:700"' : n > 0 ? ' style="color:#7f6000;font-weight:700"' : ''}>${nf(n)}</span><span class="muted" style="font-size:11px"> / ${nf(of)}</span>`;
   const head = ordHead([['Order', ''], ['Placed', ''], ['Days', 'num'], ['Pcs', 'num'], ['Printer back', 'num'], ['Cut', 'num'], ['Given to karigar', 'num'],
-    ['Back from karigar', 'num'], ['QC', 'num'], ['Pressed', 'num'], ['Handed over', 'num'], ['Now', ''], ['Last work', ''], ['Shopify', '']]);
+    ['Back from karigar', 'num'], ['QC', 'num'], ['Made', 'num'], ['Handed over', 'num'], ['Now', ''], ['Last work', ''], ['Shopify', '']]);
   const body = rows.slice(0, ORD_CAP).map(o => {
     const now = o.stage === 9 ? '<span class="jw-st done">Done</span>'
       : `<span class="jw-st ${o.stuck ? 'pend' : 'prog'}">${esc((ORD_PIPE.find(x => x[0] === o.stage) || [0, ''])[1])}</span>`
@@ -21606,7 +21627,7 @@ function ordBookCsv(rows) {
   /* Two columns here, not the one the table stacks: a spreadsheet is sorted and filtered on them
    * separately. */
   const lines = [['Order No', 'Shopify Order', 'Adjustment', 'Date', 'SKU', 'Priority', 'Article', 'Subtype', 'Color', 'Size', 'Ordered', 'Cut',
-    'Cut %', 'Issued', 'Received', 'Pressed', 'To cut', 'To make', 'Status', 'Printer', 'Printed',
+    'Cut %', 'Issued', 'Received', 'Made', 'To cut', 'To make', 'Status', 'Printer', 'Printed',
     /* What the vendors hold for the line, as the screen shows it — one column each, because a spreadsheet
      * is filtered on "with vendor" and "waiting at", not read a cell at a time. */
     'Vendor', 'Given to vendor', 'Back from vendor', 'Not given', 'Vendor orders', 'Promised', 'How linked',
@@ -21723,10 +21744,10 @@ $('odExport').onclick = () => {
      * separately. */
     const bySku = v === 'shopsku';
     const out = bySku
-      ? [['SKU', 'Priority', 'Article', 'Subtype', 'Color', 'Size', 'Orders', 'Pieces', 'Cut', 'Issued', 'Received', 'Pressed',
+      ? [['SKU', 'Priority', 'Article', 'Subtype', 'Color', 'Size', 'Orders', 'Pieces', 'Cut', 'Issued', 'Received', 'Made',
           'To make', 'Shopify orders', 'Needs master row'].map(csvCell).join(',')]
       : [['Order No', 'Shopify Order', 'Adjustment', 'Date', 'SKU', 'Priority', 'Article', 'Subtype', 'Color',
-          'Size', 'Pieces', 'Cut', 'Issued', 'Received', 'QC passed', 'Pressed', 'To make', 'Status', 'Printer', 'Printed',
+          'Size', 'Pieces', 'Cut', 'Issued', 'Received', 'QC passed', 'Made', 'To make', 'Status', 'Printer', 'Printed',
           'With vendor', 'Back from vendor', 'Handed over', 'Sent never recorded', 'Waiting at'].map(csvCell).join(',')];
     rows.forEach(r => out.push(bySku
       ? [r.sku, ordPri(r.sku), r.articleType, r.articleSubtype, r.color, r.size, r.orders.length, r.qty, r.cut,
@@ -21882,7 +21903,7 @@ function renderDash() {
       ? card(nf(w.received), 'Pieces received from karigars', 'ok', tone(pct >= 100, pct >= 60), 'pa', nf(pct) + '% of the ' + nf(w.target) + ' target · last week ' + nf(w.last))
         + card(nf(w.issued), 'Issued to karigars', 'open', 'blue', 'pbase', w.rejected ? nf(w.rejected) + ' rejected' : 'nothing rejected')
         + card(nf(w.cut), 'Cut', 'cut', 'blue', 'pcut', 'pieces cut this week')
-        + card(nf(w.pressed), 'Pressed', 'press', 'blue', 'ppress', 'pieces pressed this week')
+
       : card(dash, 'Pieces received from karigars', 'ok', 'blue', 'pa')))
     + sec('Printers', 'vendor orders open now', (p
       ? card(nf(p.orders), 'Open vendor orders', 'box', 'blue', 'vord', nf(p.printers) + ' printer(s)')

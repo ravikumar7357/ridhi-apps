@@ -212,6 +212,7 @@ $('pwToggle').onclick = async () => {
 $('pwSku').addEventListener('input', pressSkuTyped);
 
 $('pwSave').onclick = async () => {
+  return pressFormMsg('Pressing is no longer recorded (since 5 Oct 2026) — a piece counts as made once QC passes it. Record it in Quality Control.', true);
   const sku = $('pwSku').value.trim();
   const m = cutSkuOf(sku);
   const orderNo = $('pwOrd').value.trim();
