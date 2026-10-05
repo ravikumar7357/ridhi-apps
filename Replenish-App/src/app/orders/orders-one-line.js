@@ -112,19 +112,22 @@ if ($('odKpis')) $('odKpis').addEventListener('click', e => {
   const t = e.target.closest('[data-ordsrc]'); if (!t) return;
   /* Shopify is worked on the combined view; every other choice is the order book of that platform. */
   const v = t.getAttribute('data-ordsrc');
-  if (['', 'SHP', 'AMZ', 'B2B'].indexOf(v) < 0) return;
-  if ($('odView')) $('odView').value = v === 'SHP' ? 'shopsku' : 'book';
-  if ($('odSrc')) $('odSrc').value = v === 'SHP' ? '' : v;
+  if (['', 'SHP', 'ONL', 'AMZ', 'B2B'].indexOf(v) < 0) return;
+  /* Shopify and Online are both made to order and worked on the same combined view (2026-10-05). */
+  const mto = v === 'SHP' || v === 'ONL';
+  if (mto) ORD.mtoSrc = v;
+  if ($('odView')) $('odView').value = mto ? 'shopsku' : 'book';
+  if ($('odSrc')) $('odSrc').value = mto ? '' : v;
   ORD_KPI = ''; ORD.pick = new Set();
   renderOrd();
 });
 /** The four platform buttons (Ravi liked them on the Orders sheet): which one is lit follows the view on screen. */
 function ordSrcChips() {
   if (SHOP_ONLY()) return '';
-  const on = ordView() === 'shopsku' ? 'SHP' : ((($('odSrc') || {}).value) || '');
+  const on = ordView() === 'shopsku' ? (ORD.mtoSrc === 'ONL' ? 'ONL' : 'SHP') : ((($('odSrc') || {}).value) || '');
   const chip = (v, l) => `<button type="button" data-ordsrc="${v}" style="height:38px;padding:0 16px;border-radius:999px;font:inherit;font-weight:700;cursor:pointer;box-shadow:none;transform:none;`
     + (on === v ? 'background:#17202B;color:#fff;border:1px solid #17202B' : 'background:#fff;color:#17202B;border:1px solid #D5DCE5') + `">${l}</button>`;
-  return `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;width:100%">${chip('', 'All')}${chip('SHP', 'Shopify')}${chip('AMZ', 'Amazon')}${chip('B2B', 'B2B')}</div>`;
+  return `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;width:100%">${chip('', 'All')}${chip('SHP', 'Shopify')}${chip('ONL', 'Online')}${chip('AMZ', 'Amazon')}${chip('B2B', 'B2B')}</div>`;
 }
 
 function renderOrdTrack() {

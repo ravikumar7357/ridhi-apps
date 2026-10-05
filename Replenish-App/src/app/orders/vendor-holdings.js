@@ -146,7 +146,7 @@ function ordWaitingAt(r) {
     : (r.handedAt ? 'Handed over' + (r.unrecorded ? ' · ' + nf(r.unrecorded) + ' never recorded' : '') : 'Complete')) + tail;
   /* MADE IN FULL, NOT HANDED OVER (2026-10-05): a Shopify line now stays open until shipping takes it, and some were
    * made (an old press entry, or QC) with no Job Work issue behind them. That is waiting for shipping, not for a karigar. */
-  if (r.src === 'SHP' && r.qty > 0 && r.pressed >= r.qty) return 'Ready to hand over to shipping'
+  if (ordIsMto(r.orderNo) && r.qty > 0 && r.pressed >= r.qty) return 'Ready to hand over to shipping'
     + (r.issued < r.qty ? ' · Job Work issue never recorded' : '') + tail;
   const v = ordVendorOf(r.orderNo, r.sku);
   const vGiven = r.printer ? r.qty : (v ? v.given : 0), vBack = r.printer ? r.printed : (v ? v.back : 0);
@@ -628,9 +628,11 @@ function ordApply(rows, f, skip) {
  */
 
 /** Every order-book line that came from a Shopify order. */
-function shppLines() {
+function shppLines(pfx) {
+  /* pfx 'ONL-' gives the Online orders — made to order the same way (2026-10-05). */
+  const want = pfx || 'SHP-';
   return ordLines()
-    .filter(l => String(l.orderNo || '').indexOf('SHP-') === 0)
+    .filter(l => String(l.orderNo || '').indexOf(want) === 0)
     /* A PRINTER SEES THEIR OWN LINES AND NO OTHERS. Everybody else sees all of them. Said plainly in
      * spCanSee: this is the app behaving, not isolation — the database still has no rules on it. */
     .filter(l => spCanSee(l.orderNo, l.sku));
@@ -661,7 +663,8 @@ function shppBySku(only) {
     if (!e) {
       e = { sku: l.sku, articleType: l.articleType, articleSubtype: l.articleSubtype,
         color: l.color, size: l.size, qty: 0, cut: 0, issued: 0, received: 0, pressed: 0, made: 0,
-        pendingCut: 0, pendingMake: 0, madeToPress: 0, overRecv: 0, cutReq: l.cutReq, orders: [], needsSku: false, open: false, addedMs: 0 };
+        pendingCut: 0, pendingMake: 0, madeToPress: 0, overRecv: 0, cutReq: l.cutReq, orders: [], needsSku: false, open: false, addedMs: 0,
+        cutOf: 0, handed: 0, ready: 0, late: 0, maxLate: 0 };
       by.set(l.sku, e);
     }
     e.qty += l.qty; e.cut += l.cut; e.issued += l.issued; e.received += l.received;
@@ -670,6 +673,14 @@ function shppBySku(only) {
     e.store = (e.store || 0) + ((typeof ordFgAt === 'function' ? ordFgAt(l.orderNo, l.sku) : null) || {}).store || 0;
     e.pendingCut += l.pendingCut; e.pendingMake += l.pendingMake; e.madeToPress += l.madeToPress;
     e.overRecv += l.overRecv;
+    /* MAKE-TO-ORDER COLUMNS (2026-10-05): cut only where the article is cut; what QC passed and shipping has not taken;
+     * what shipping has taken; how late against 5 working days. */
+    if (l.cutReq) e.cutOf += l.qty;
+    { const sp = (typeof spOf === 'function' ? spOf(l.orderNo, l.sku) : null) || {};
+      const taken = l.handedAt ? l.qty : Math.min(l.qty, Number(sp.handedQty) || 0);
+      e.handed += taken;
+      if (l.open) e.ready += Math.max(0, Math.min(l.qty, Number(l.pressed) || 0) - taken); }
+    if (l.mtoLate > 0) { e.late++; if (l.mtoLate > e.maxLate) e.maxLate = l.mtoLate; }
     if (l.open) e.open = true;
     if ((l.addedMs || 0) > e.addedMs) e.addedMs = l.addedMs;
     /* WHO IS PRINTING IT — read from the vendor orders, shared out by ordVendorAlloc (2026-09-28). */
@@ -682,7 +693,7 @@ function shppBySku(only) {
     if (!e.articleType && l.articleType) { e.articleType = l.articleType; e.articleSubtype = l.articleSubtype; e.color = l.color; e.size = l.size; }
     if (l.needsSku) e.needsSku = true;
     e.orders.push({ no: l.orderNo, shop: l.shopOrderNo || '', adj: l.adjId || '', qty: l.qty,
-      pressed: l.pressed, date: l.orderDate, open: l.open });
+      pressed: l.pressed, date: l.orderDate, open: l.open, opened: l.mtoOpen || '', due: l.mtoDue || '', late: l.mtoLate || 0 });
   });
   return [...by.values()].sort((a, b) => b.pendingMake - a.pendingMake || a.sku.localeCompare(b.sku));
 }

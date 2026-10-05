@@ -3,9 +3,34 @@
  * taken is ready, and it shows in the Production bucket under "From production" by itself. The shipping team fills in
  * how many actually arrived and accepts: that is kept on the line (handedQty, and a log of every receipt), and once the
  * whole line is in it is handed over — the same handedAt the Order Console has always read. */
+/* ==== MAKE TO ORDER (Ravi, 2026-10-05) ====
+ * "PRODUCTION KE LIYE SHOPIFY KE ORDERS MAKE TO ORDER HOTE H … PRODUCTION OPEN DATE SE 5 WORKING DAY ME ORDER FULFILL KRKE
+ * DENA PRODUCTION KA KAM H". Shopify (SHP-) and Online (ONL-) orders are made to order: a line is open until production
+ * hands it to shipping, and it is due 5 working days (Monday–Saturday; Sunday off) after it was opened in production. */
+const MTO_DAYS = 5;
+const ordIsMto = no => /^(SHP|ONL)-/.test(String(no || ''));
+const mtoDate = iso => { const q = String(iso || '').split('-').map(Number); return new Date(q[0], q[1] - 1, q[2]); };
+const mtoIso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+const mtoShow = iso => { if (!iso) return ''; const d = mtoDate(iso); return d.getDate() + ' ' + ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()]; };
+/** The day n working days after iso — Sundays are not counted. */
+function mtoAddWorkDays(iso, n) {
+  const d = mtoDate(iso);
+  for (let k = 0; k < n;) { d.setDate(d.getDate() + 1); if (d.getDay() !== 0) k++; }
+  return mtoIso(d);
+}
+/** Working days after fromIso up to and including toIso; 0 when toIso is not later. */
+function mtoWorkDaysAfter(fromIso, toIso) {
+  if (!fromIso || !toIso || !(toIso > fromIso)) return 0;
+  const d = mtoDate(fromIso);
+  let k = 0;
+  for (let guard = 0; mtoIso(d) < toIso && guard < 4000; guard++) { d.setDate(d.getDate() + 1); if (d.getDay() !== 0) k++; }
+  return k;
+}
+const mtoLateDays = due => mtoWorkDaysAfter(due, dToday());
+
 function shpReadyLines() {
   let lines; try { lines = ordLines(); } catch (e) { return []; }
-  return lines.filter(l => /^SHP-/.test(l.orderNo) && !l.handedAt && !l.shopDoneAt).map(l => {
+  return lines.filter(l => ordIsMto(l.orderNo) && !l.handedAt && !l.shopDoneAt).map(l => {
     const sp = (typeof spOf === 'function' ? spOf(l.orderNo, l.sku) : null) || {};
     const got = Number(sp.handedQty) || 0, made = Math.min(l.qty, Number(l.pressed) || 0);
     return { key: l.orderNo + '|' + l.sku, l, orderNo: l.orderNo, sku: l.sku, shop: l.shopOrderNo || l.orderNo, qty: l.qty, made, got, ready: Math.max(0, made - got) };
@@ -48,7 +73,7 @@ function shpHandRegister() {
   let lines; try { lines = ordLines(); } catch (e) { return []; }
   const out = [];
   lines.forEach(l => {
-    if (!/^SHP-/.test(l.orderNo)) return;
+    if (!ordIsMto(l.orderNo)) return;
     const sp = (typeof spOf === 'function' ? spOf(l.orderNo, l.sku) : null) || {};
     const log = (Array.isArray(sp.handLog) ? sp.handLog : []).filter(e => e && Number(e.qty) > 0);
     const row = (at, pcs, by, acc, how, i) => out.push({ key: l.orderNo + '|' + l.sku + '|' + i, at: at || '', day: ptIsoDate(at) || '', ms: ptDtMs(at) || 0,
@@ -181,6 +206,8 @@ function ordLinesBuild() {
     if (r.shopSays) { e.shopSays = r.shopSays; e.shopSaysAt = r.shopSaysAt || ''; }
     /* WHEN IT WAS PUT ON THE BOOK — the newest first on screen. */
     { const ms = ptDtMs(r.openedAt || r.uploadedAt); if (ms > e.addedMs) e.addedMs = ms; }
+    /* OPENED IN PRODUCTION — the first time any row of the line was put on the book; the 5 working days run from here. */
+    { const d = ptIsoDate(r.openedAt || r.uploadedAt) || pdIso(r.orderDate); if (d && (!e.openIso || d < e.openIso)) e.openIso = d; }
     /* PIECES, not packs. A Shopify line keeps what the customer ordered alongside, so the screen can
      * say "1 pack of 2" rather than leave somebody wondering where the second piece came from. */
     e.qty += obPieces(r);
@@ -198,8 +225,10 @@ function ordLinesBuild() {
     /* A PRINTER CAN BE PUT ON ANY LINE — a sales order or a B2B order is block printed the same way
      * a Shopify one is. The handover to shipping and a quilt's own counters stay Shopify's. */
     const sp0 = spOf(l.orderNo, l.sku);
-    const shp0 = l.src === 'SHP' ? sp0 : null;
-    const sp = shp0 && spIsQuilt(l) ? shp0 : null;
+    /* MADE TO ORDER (Shopify and Online, 2026-10-05): the hand-over to shipping is theirs. A quilt's own counters stay Shopify's. */
+    const mto = ordIsMto(l.orderNo);
+    const shp0 = mto ? sp0 : null;
+    const sp = l.src === 'SHP' && shp0 && spIsQuilt(l) ? shp0 : null;
     const cut = sp ? spNum(sp.cut) : obCutQty(l.orderNo, l.sku);
     const pressed = sp ? spNum(sp.pressed) : obPressQty(l.orderNo, l.sku);
     // Issued is the gross that went out, not the allowance figure — this screen reports work done,
@@ -253,7 +282,8 @@ function ordLinesBuild() {
       spRemarks: shp0 ? String(shp0.remarks || '') : '',
       /* A SHOPIFY LINE IS OPEN UNTIL PRODUCTION HANDS IT OVER (2026-10-05) — with or without its own record. It used to
        * close on "made in full" when nobody had written a record for it (20 lines), skipping the hand-over. */
-      open: l.shopDoneAt ? false : (l.src === 'SHP' ? !spHanded(shp0) : pressed < l.qty),
+      open: l.shopDoneAt ? false : (mto ? !spHanded(shp0) : pressed < l.qty),
+      mto, mtoOpen: mto ? (l.openIso || '') : '', mtoDue: mto && l.openIso ? mtoAddWorkDays(l.openIso, MTO_DAYS) : '',
     });
   }).map(l => {
     /* HANDED OVER IS THE END. The goods are with a customer, so nothing on this line is outstanding
@@ -268,7 +298,8 @@ function ordLinesBuild() {
     /* A line the shipping team fulfilled from stock was never owed by the floor — not a register hole. */
     return Object.assign(l, { unrecorded: l.shopDoneAt && !l.handedAt ? 0 : Math.max(0, l.qty - l.made),
       pendingCut: 0, pendingMake: 0, madeToPress: 0 });
-  }).sort((a, b) => String(a.orderDate).localeCompare(String(b.orderDate)) || a.orderNo.localeCompare(b.orderNo) || a.sku.localeCompare(b.sku));
+  }).map(l => Object.assign(l, { mtoLate: l.mto && l.open && l.mtoDue ? mtoLateDays(l.mtoDue) : 0 }))
+    .sort((a, b) => String(a.orderDate).localeCompare(String(b.orderDate)) || a.orderNo.localeCompare(b.orderNo) || a.sku.localeCompare(b.sku));
 }
 
 /**

@@ -76,14 +76,15 @@ function renderOrdShopify(bySku, done) {
   /* PENDING OR COMPLETED, on the combined view too (Ravi, 2026-09-28: "jitne order complete ho jay wo auto complete me move
    * ho jay remove n ho"): a line that is finished — handed over, or closed by Shopify — leaves Pending by itself and is kept
    * under Completed. */
-  const lines = shppLines().filter(l => (done ? !l.open : l.open));
+  /* SHOPIFY OR ONLINE — both made to order, one view (2026-10-05). */
+  const NM = ORD.mtoSrc === 'ONL' ? 'Online' : 'Shopify', PFX = ORD.mtoSrc === 'ONL' ? 'ONL-' : 'SHP-';
+  const lines = shppLines(PFX).filter(l => (done ? !l.open : l.open));
   if (!lines.length) {
     $('odMsg').className = 'muted';
-    $('odMsg').textContent = done ? 'No Shopify line is complete or handed over yet.'
-      : 'Nothing from Shopify is waiting on production. Orders appear here by '
-      + 'themselves once the Shopify Orders tab has been fetched.';
-    $('odKpis').innerHTML = ''; ORD.rows = [];
-    ptEmpty('odTable', done ? 'Nothing finished yet.' : 'No Shopify orders in production.');
+    $('odMsg').textContent = done ? 'No ' + NM + ' line is complete or handed over yet.'
+      : 'Nothing from ' + NM + ' is waiting on production.' + (NM === 'Shopify' ? ' Orders appear here once they are opened from the Production bucket.' : '');
+    $('odKpis').innerHTML = ordSrcChips(); ORD.rows = [];
+    ptEmpty('odTable', done ? 'Nothing finished yet.' : 'No ' + NM + ' orders in production.');
     return;
   }
 
@@ -98,19 +99,26 @@ function renderOrdShopify(bySku, done) {
   ptFill('odCol', shppApply(src, Object.assign({}, f, { col: '' })).map(r => r.color), 'All colors');
   ptFill('odSz', shppApply(src, Object.assign({}, f, { sz: '' })).map(r => r.size), 'All sizes');
 
-  const rows = ordNewest(ordKpiApply(shppApply(src, f)));
+  /* THE LATEST FIRST — the most working days past due at the top; otherwise as the sort picker says. */
+  const rows0 = ordNewest(ordKpiApply(shppApply(src, f)));
+  const rows = bySku && !done ? rows0.slice().sort((a, b) => (b.maxLate || 0) - (a.maxLate || 0)) : rows0;
   ORD.rows = rows;
   const s = fn => lines.reduce((a, r) => a + fn(r), 0);
 
-  const allL = bySku ? shppLines() : [];
+  const allL = bySku ? shppLines(PFX) : [];
   const sw = !bySku ? '' : (() => {
     const nOpen = new Set(allL.filter(l => l.open).map(l => l.sku)).size, nDone = new Set(allL.filter(l => !l.open).map(l => l.sku)).size;
     const b = (on, v, t) => `<button type="button" data-skudone="${v}" style="height:38px;padding:0 16px;border-radius:999px;font:inherit;font-weight:700;cursor:pointer;box-shadow:none;transform:none;`
       + (on ? 'background:#15803D;color:#fff;border:1px solid #15803D' : 'background:#fff;color:#17202B;border:1px solid #D5DCE5') + `">${t}</button>`;
     return `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;width:100%">${b(!done, '0', 'Pending · ' + nf(nOpen) + ' SKU(s)')}${b(done, '1', 'Completed · ' + nf(nDone) + ' SKU(s)')}</div>`;
   })();
-  $('odKpis').innerHTML = ordSrcChips() + sw + ordKpiCards(done ? 'Shopify, complete & handed over' : 'Shopify, waiting on production', [
-    [nf(new Set(lines.map(r => r.orderNo)).size), 'Shopify orders', 'doc', 'blue', 'read live' + (ORD.at ? ' · ' + esc(ORD.at) : '')],
+  const lateN = lines.filter(l => l.mtoLate > 0).length;
+  const readyN = lines.reduce((t, l) => { const sp = (typeof spOf === 'function' ? spOf(l.orderNo, l.sku) : null) || {};
+    return t + (l.open ? Math.max(0, Math.min(l.qty, Number(l.pressed) || 0) - Math.min(l.qty, Number(sp.handedQty) || 0)) : 0); }, 0);
+  $('odKpis').innerHTML = ordSrcChips() + sw + ordKpiCards(done ? NM + ', complete & handed over' : NM + ', made to order — due 5 working days after opening', [
+    [nf(new Set(lines.map(r => r.orderNo)).size), NM + ' orders', 'doc', 'blue', 'read live' + (ORD.at ? ' · ' + esc(ORD.at) : '')],
+    ...(done ? [] : [[nf(lateN), 'Late lines', 'alert', 'amber', 'past 5 working days, not handed over'],
+      [nf(readyN), 'Ready for shipping', 'box', 'green', 'QC passed — in From production']]),
     [nf(new Set(lines.map(r => r.sku)).size), 'SKUs', 'list', 'blue', done ? 'finished' : 'waiting on production'],
     [nf(s(r => r.qty)), 'Pieces', 'box', 'blue', 'pieces asked for'],
   ], s);
@@ -119,8 +127,10 @@ function renderOrdShopify(bySku, done) {
    * RECEIVED AND QC stay in the sequence: "issued 5, pressed 0, to make 5" does not say whether the
    * karigar ever brought them back. */
   const cols = bySku
-    ? [['Item', ''], ['Orders', 'num'], ['Pieces', 'num'], ['With printer', ''], ['Cut', 'num'], ['Issued', 'num'],
-      ['Received', 'num'], ['Made', 'num'], ['In store', 'num'], ['To make', 'num'], ['Shopify orders', '']]
+    /* RAVI'S LAYOUT (2026-10-05): order IDs first, then the item, and the stages in the order they happen up to the
+     * hand-over to shipping. */
+    ? [['Order ID', ''], ['Item', ''], ['Orders', 'num'], ['Pieces', 'num'], ['Cut', 'num'], ['Issued', 'num'],
+      ['Received', 'num'], ['QC passed', 'num'], ['Handed to shipping', '']]
     : [['Order', ''], ['Item', ''], ['Pieces', 'num'], ['Printing', ''], ['Cut', 'num'], ['Issued', 'num'],
       ['Received', 'num'], ['QC', 'num'], ['Made', 'num'], ['To make', 'num'], ['Quilt team', ''],
       ['Status', ''], ['', '']];
@@ -140,11 +150,17 @@ function renderOrdShopify(bySku, done) {
     /* Every order this SKU is made of, so combining never hides who is owed what. */
     /* THE FIRST SIX ORDERS, and how many more. Twenty-eight written out made one row a screen tall;
      * the rest are in the tooltip and in the by-order view. */
-    const sortedOrders = r.orders.slice().sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    /* Most late first, then the soonest due. Each order says when it is due, and how many working days late. */
+    const today = dToday();
+    const sortedOrders = r.orders.slice().sort((a, b) => (b.late || 0) - (a.late || 0) || String(a.due || a.date).localeCompare(String(b.due || b.date)));
     const chips = sortedOrders.slice(0, 6)
-      .map(o => `<a href="#" data-ordj="${esc(o.no)}" style="color:inherit;text-decoration:underline dotted" title="${esc(o.no)}${o.adj ? ' · ' + esc(o.adj) : ''} — ${nf(o.qty)} piece(s)${o.open ? '' : ', done'} — click for this order start to finish">`
-        + `${esc(o.shop || o.no)}<span class="muted">&times;${nf(o.qty)}</span></a>`).join(', ')
-      + (sortedOrders.length > 6 ? ` <span class="muted" title="${esc(sortedOrders.slice(6).map(o => (o.shop || o.no) + ' ×' + o.qty).join(', '))}">+${nf(sortedOrders.length - 6)} more</span>` : '');
+      .map(o => `<div style="white-space:nowrap"><a href="#" data-ordj="${esc(o.no)}" style="color:inherit;text-decoration:underline dotted;font-weight:700" title="${esc(o.no)}${o.adj ? ' · ' + esc(o.adj) : ''} — ${nf(o.qty)} piece(s)${o.open ? '' : ', done'}${o.opened ? ' · opened in production ' + esc(mtoShow(o.opened)) : ''}${o.due ? ' · due ' + esc(mtoShow(o.due)) + ' (5 working days)' : ''} — click for this order start to finish">`
+        + `${esc(o.shop || o.no)}</a><span class="muted">&times;${nf(o.qty)}</span>`
+        + (!o.open ? ' <span class="muted" style="font-size:11px">done</span>'
+          : o.late > 0 ? ` <span style="color:var(--bad);font-weight:700;font-size:11px">${nf(o.late)}d late</span>`
+          : o.due ? ` <span style="font-size:11px;${o.due === today ? 'color:#7f6000;font-weight:700' : 'color:var(--muted,#6b7280)'}">${o.due === today ? 'due today' : 'due ' + esc(mtoShow(o.due))}</span>` : '')
+        + '</div>').join('')
+      + (sortedOrders.length > 6 ? `<div class="muted" title="${esc(sortedOrders.slice(6).map(o => (o.shop || o.no) + ' ×' + o.qty).join(', '))}">+${nf(sortedOrders.length - 6)} more</div>` : '');
     /* One tick, every open line behind it. A SKU whose orders are all finished has nothing to give
      * anybody, so it has no box rather than a box that does nothing. */
     const skuKeys = spSkuKeys(r);
@@ -155,22 +171,25 @@ function renderOrdShopify(bySku, done) {
             + `${state === 'some' ? ' data-part="1"' : ''} style="width:auto;margin:0"`
             + ` title="${nf(skuKeys.length)} open line(s) behind this SKU${state === 'some' ? ' — some of them are ticked' : ''}">`
           : '<span class="muted" title="Every order for this SKU is finished — there is nothing to give a printer.">&mdash;</span>'}</td>` : '')
+      + `<td${!spPick ? ' class="frz"' : ''} style="text-align:left;font-size:12.5px;min-width:170px">${chips}</td>`
       + ordItemCell(r, ptImgSpanSrc(r.sku, r.shopImg, 42),
         (r.needsSku ? '<div><span class="st st-pending" title="Not in the Master Database yet — it is on the Custom SKUs list, waiting for its article, colour and size.">custom</span></div>' : '')
+        + (r.prn && r.prn.size ? `<div class="jw-sub">Printer: ${[...r.prn.entries()].map(([k, x]) => esc(k) + ' ' + nf(x.back) + '/' + nf(x.given)).join(', ')}</div>` : '')
         + (skuKeys.length && state !== 'none'
           ? `<div class="jw-sub">${nf(skuKeys.filter(k => (ORD.pick || new Set()).has(k)).length)} of ${nf(skuKeys.length)} line(s) ticked</div>` : ''),
-        !spPick)
+        false)
       + `<td class="num">${nf(r.orders.length)}</td>`
       + `<td class="num" style="font-weight:700">${nf(r.qty)}</td>`
-      + `<td style="text-align:left;font-size:12px;white-space:normal;max-width:200px">${r.prn && r.prn.size
-          ? [...r.prn.entries()].map(([k, x]) => `<b>${esc(k)}</b> <span class="muted">${nf(x.back)} of ${nf(x.given)} back</span>`).join('<br>')
-          : '<span class="muted">not given</span>'}</td>`
-      + `<td class="num">${nf(r.cut)}</td><td class="num">${nf(r.issued)}</td>`
+      /* CUT ONLY WHERE THE ARTICLE IS CUT. */
+      + `<td class="num">${r.cutOf ? nf(r.cut) : '<span class="muted" style="font-size:11.5px" title="This article is not cut — nothing to record">not needed</span>'}</td>`
+      + `<td class="num">${nf(r.issued)}</td>`
       + `<td class="num"${r.overRecv ? ' style="color:#7f6000;font-weight:700"' : ''}>${nf(r.received)}</td>`
-      + `<td class="num" style="color:#166534">${nf(r.pressed)}</td>`
-      + `<td class="num">${r.store ? `<b>${nf(r.store)}</b>` : '<span class="muted">—</span>'}</td>`
-      + `<td class="num"${r.pendingMake ? ' style="color:var(--bad);font-weight:700"' : ''}>${r.pendingMake ? nf(r.pendingMake) : '<span class="muted">—</span>'}</td>`
-      + `<td style="text-align:left;white-space:normal;max-width:320px;font-size:12px">${chips}</td></tr>`;
+      /* QC PASSED, AND WHAT OF IT IS WAITING FOR SHIPPING — it is in the shipping team's From production list already. */
+      + `<td class="num"><b style="color:#166534">${nf(r.pressed)}</b>${r.ready ? `<div style="color:#166534;font-weight:700;font-size:11px;white-space:nowrap">${nf(r.ready)} ready for shipping</div>` : ''}</td>`
+      /* HANDED TO SHIPPING: once shipping accepts all of a line, that line is complete by itself. */
+      + `<td style="text-align:left;white-space:nowrap">${r.handed >= r.qty ? '<span class="jw-st done">Complete</span>'
+          : `<b>${nf(r.handed)}</b> <span class="muted">of ${nf(r.qty)}</span>`
+            + (r.ready ? `<div style="font-size:11px;color:#7f6000;font-weight:700">${nf(r.ready)} in From production</div>` : '')}</td></tr>`;
   })() : (() => {
     /* HANDED OVER IS THE END OF A SHOPIFY LINE, and it says so by name — "Complete" on its own left
      * you wondering whether the goods had actually gone anywhere. */

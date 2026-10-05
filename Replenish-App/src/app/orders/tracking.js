@@ -29,7 +29,7 @@ function ordTrackStage(r) {
   if (g.fbaOpen > 0) return 8;
   if (g.out > 0) return 9;
   /* A Shopify line pressed in full but never handed to shipping is waiting for the handover, not the store. */
-  return r.src === 'SHP' ? 5 : 6;
+  return ordIsMto(r.orderNo) ? 5 : 6;
 }
 /**
  * Shopify's own record of every Shopify order in the book: orderId → { no, ff, trk[], trkCo, trkUrl, shippedAt,

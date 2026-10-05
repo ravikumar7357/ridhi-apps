@@ -19,7 +19,7 @@ const DB = 'https://price-research-48ff3-default-rtdb.asia-southeast1.firebaseda
   app.setPT(Object.assign(app.PT(), { base: L(base), cut: L(cut) }));
   app.setQC(Object.assign({}, app.QC(), { checks: L(qc), issue: [], ret: [] }));
   app.setORD({ req: {}, busy: false, at: '', rows: [] });
-  const lines = app.ordLines().filter(l => l.src === 'SHP' || /^SHP-/.test(l.orderNo)).map(l => ({
+  const lines = app.ordLines().filter(l => process.env.PFX ? l.orderNo.indexOf(process.env.PFX) === 0 : (l.src === 'SHP' || /^SHP-/.test(l.orderNo))).map(l => ({ mtoDue: l.mtoDue, mtoLate: l.mtoLate, mtoOpen: l.mtoOpen,
     orderNo: l.orderNo, shop: String(l.shopOrderNo || '').replace(/\s+/g, ''), sku: l.sku, qty: l.qty, open: !!l.open, made: Math.min(l.qty, l.pressed || 0),
     handedAt: l.handedAt || '', shopDoneAt: l.shopDoneAt || '', shopDoneWhy: l.shopDoneWhy || '', orderDate: l.orderDate || '',
     item: [l.articleSubtype || l.articleType || l.itemName, l.color, l.size].filter(Boolean).join(' · '), waiting: l.open ? app.ordWaitingAt(l) : '' }));
