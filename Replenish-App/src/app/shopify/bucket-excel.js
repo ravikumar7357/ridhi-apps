@@ -64,7 +64,7 @@ async function shpBucketXlIn(file) {
 }
 
 /** The bucket, on screen — design 7, the header band. SHB holds the tab, the filters and what is ticked. */
-let SHB = { tab: 'make', q: '', store: '', date: '', from: '', picked: new Set(), rpicked: new Set(), rqty: {} };
+let SHB = { tab: 'make', q: '', store: '', date: '', from: '', ship: '', picked: new Set(), rpicked: new Set(), rqty: {} };
 const shbStore = o => (o.shopBrand === 'CPC' || /cpc/i.test(String(o.channel || '')) ? 'CPC' : 'Ridhi');
 /** Lines opened from the bucket today, for the third tab. */
 function shbOpenedToday() {
@@ -87,16 +87,53 @@ function shbRender() {
   const list = SHB.list || [];
   const nMake = list.filter(x => x.kind === 'make').length, nCov = list.filter(x => x.kind === 'covered').length, done = shbOpenedToday();
   const ready = typeof shpReadyLines === 'function' ? shpReadyLines() : [];
+  const hand = typeof shpHandRegister === 'function' ? shpHandRegister() : [];
   document.querySelectorAll('[data-shbtab]').forEach(b => b.classList.toggle('on', b.getAttribute('data-shbtab') === SHB.tab));
   const lab = { make: `Needs production · ${nf(nMake)}`, covered: `Stock says it can fill · ${nf(nCov)}`, done: `Opened today · ${nf(done.length)}`,
-    recv: `From production · ${nf(ready.length)}` };
+    recv: `From production · ${nf(ready.length)}`, hand: `Handed over · ${nf(hand.length)}` };
   document.querySelectorAll('[data-shbtab]').forEach(b => { b.textContent = lab[b.getAttribute('data-shbtab')]; });
   if ($('shbWhyWrap')) $('shbWhyWrap').classList.toggle('hide', SHB.tab !== 'covered');
   if ($('shbFrom')) $('shbFrom').classList.toggle('hide', SHB.tab !== 'covered');
+  if ($('shbShip')) $('shbShip').classList.toggle('hide', SHB.tab !== 'hand');
+  if ($('shbHandTot')) $('shbHandTot').classList.toggle('hide', SHB.tab !== 'hand');
+  if ($('ptDlgSave')) $('ptDlgSave').classList.toggle('hide', SHB.tab === 'hand');
   const stockCell = (n, need) => n == null ? '<span class="muted">—</span>' : `<b class="${n >= need ? 'ok' : 'no'}">${nf(n)}</b>`;
   const itemCell = (name, img, sub) => `<div class="shb-item">${img ? `<img src="${esc(img)}" alt="" loading="lazy">` : '<span class="ph"></span>'}<div><b>${esc(name || '—')}</b>${sub ? `<div class="muted" style="font-size:11px">${esc(sub)}</div>` : ''}</div></div>`;
   let head, body;
-  if (SHB.tab === 'recv') {
+  if (SHB.tab === 'hand') {
+    /* THE HANDED-OVER REGISTER: every hand-over to shipping, the day it happened, and whether the parcel has left. */
+    if (typeof ORD !== 'undefined' && !ORD.shopTrk && !ORD.shopTrkBusy && typeof ordTrackShopLoad === 'function') {
+      ordTrackShopLoad().then(() => { if (SHB.tab === 'hand' && $('shbTable')) shbRender(); }).catch(() => {});
+    }
+    const q = String(SHB.q || '').trim().toLowerCase(), now = Date.now();
+    const days = { today: 1, d7: 7, d30: 30 }[SHB.date], older = SHB.date === 'older7', today = dToday();
+    const rows = hand.filter(h => (!SHB.store || h.store === SHB.store)
+      && (!q || [h.shop, h.orderNo, h.sku, h.item, h.by, h.acceptedBy].join(' ').toLowerCase().includes(q))
+      && (!SHB.date || (SHB.date === 'today' ? h.day === today : !h.ms ? true : older ? now - h.ms > 7 * 864e5 : now - h.ms <= days * 864e5))
+      && (!SHB.ship || (s => SHB.ship === 'waiting' ? s === 'waiting' || s === 'unknown' : s === SHB.ship)(shpHandShip(h).state)));
+    SHB.hshown = rows;
+    const t = shpHandTotals(hand), ts = shpHandTotals(rows);
+    if ($('shbHandTot')) $('shbHandTot').innerHTML = `<div class="shb-n"><b>${nf(t.todayPcs)}</b><span>pcs today · ${nf(t.todayN)} hand-over(s)</span></div>`
+      + `<div class="shb-n"><b>${nf(t.weekPcs)}</b><span>pcs this week (from ${esc(typeof dShow === 'function' ? dShow(t.weekFrom) : t.weekFrom)})</span></div>`
+      + `<div class="shb-n"><b style="color:${t.waitPcs ? '#9a3412' : 'inherit'}">${nf(t.waitPcs)}</b><span>pcs handed over, not shipped · ${nf(t.waitLines)} line(s)</span></div>`
+      + (t.unknown ? `<div class="shb-n"><b class="muted">${nf(t.unknown)}</b><span>line(s) Shopify has not answered for yet</span></div>` : '')
+      + `<span class="muted" style="font-size:12px">${nf(rows.length)} shown · ${nf(ts.weekPcs)} pcs of them this week</span>`
+      + '<button type="button" id="shbHandXl">Download Excel</button>';
+    if ($('shbHandXl')) $('shbHandXl').onclick = () => shpHandXlOut(SHB.hshown || rows);
+    const tone = { shipped: '#166534', cancelled: '#991b1b', waiting: '#9a3412', unknown: '#6b7280' };
+    head = '<th>Handed over</th><th>Shopify order</th><th>Store</th><th>SKU</th><th>Item</th><th class="num">Pcs</th><th>By</th><th>Accepted by</th><th>Shopify</th><th>Tracking</th>';
+    body = rows.slice(0, 400).map(h => {
+      const s = shpHandShip(h);
+      return `<tr><td style="white-space:nowrap">${esc(h.day ? (typeof dShow === 'function' ? dShow(h.day) : h.day) : '—')} <span class="muted">${esc(String(h.at || '').slice(11, 16))}</span></td>`
+        + `<td style="text-align:left;white-space:nowrap"><b>${esc(h.shop)}</b><div class="muted" style="font-size:11px">${esc(h.orderNo)}</div></td>`
+        + `<td>${esc(h.store)}</td><td style="font-family:ui-monospace,monospace">${esc(h.sku)}</td>`
+        + `<td>${itemCell(h.item, h.img, h.lineDone ? '' : 'part — ' + nf(h.qty) + ' ordered')}</td><td class="num"><b>${nf(h.pcs)}</b></td>`
+        + `<td>${h.by ? esc(ordWho(h.by)) + '<div class="muted" style="font-size:10.5px">Completed in Order Console</div>' : '<span class="muted">—</span>'}</td>`
+        + `<td>${h.acceptedBy ? esc(ordWho(h.acceptedBy)) : '<span class="muted">—</span>'}</td>`
+        + `<td style="color:${tone[s.state]};font-weight:600;white-space:nowrap">${esc(s.word)}</td>`
+        + `<td style="text-align:left;font-size:12px">${s.w && typeof soTrkCell === 'function' ? soTrkCell(s.w, esc) : '<span class="muted">—</span>'}</td></tr>`;
+    }).join('') + (rows.length > 400 ? `<tr><td colspan="10" class="muted" style="padding:10px">Showing the newest 400 of ${nf(rows.length)} — narrow it with the date or search, or download Excel (it has all of them).</td></tr>` : '');
+  } else if (SHB.tab === 'recv') {
     /* WHAT PRODUCTION HAS READY, for the shipping team to take. */
     const q = String(SHB.q || '').trim().toLowerCase();
     const rows = ready.filter(x => !q || [x.shop, x.orderNo, x.sku, x.l.articleSubtype, x.l.color].join(' ').toLowerCase().includes(q));
@@ -132,7 +169,11 @@ function shbRender() {
       + `<td style="text-align:left;white-space:normal;font-size:12px;min-width:200px" class="muted">${esc(x.why)}</td></tr>`).join('')
       + (rows.length > 300 ? `<tr><td colspan="8" class="muted" style="padding:10px">Showing the first 300 of ${nf(rows.length)} — narrow it with the search, store or date, or use Excel. Tick all ticks every line that matches, not only these.</td></tr>` : '');
   }
-  $('shbTable').innerHTML = `<thead><tr>${head}</tr></thead><tbody>${body || `<tr><td colspan="8" class="muted" style="padding:16px">${SHB.tab === 'done' ? 'Nothing opened from the bucket today.' : 'Nothing here.'}</td></tr>`}</tbody>`;
+  $('shbTable').innerHTML = `<thead><tr>${head}</tr></thead><tbody>${body || `<tr><td colspan="10" class="muted" style="padding:16px">${SHB.tab === 'done' ? 'Nothing opened from the bucket today.' : SHB.tab === 'hand' ? 'Nothing handed over that matches.' : 'Nothing here.'}</td></tr>`}</tbody>`;
+  if (SHB.tab === 'hand') {
+    if ($('ptDlgFootL')) $('ptDlgFootL').innerHTML = '<span class="vo-tot">A record of what shipping has taken — nothing to save here. Partial receipts each show on their own day.</span>';
+    return;
+  }
   if ($('shbWhyWrap') && SHB.tab === 'recv') $('shbWhyWrap').classList.add('hide');
   if (SHB.tab === 'recv') {
     const rp = (SHB.rshown || []).filter(x => SHB.rpicked.has(x.key));
@@ -146,12 +187,21 @@ function shbRender() {
   if ($('ptDlgFootL')) $('ptDlgFootL').innerHTML = `<span class="vo-tot"><b>${nf(picked.length)} ticked</b> · ${nf(pcs)} pcs${cov ? ` · ${nf(cov)} stock-covered (reason needed)` : ''} · a line already open is skipped, never opened twice</span>`;
   if ($('ptDlgSave')) { $('ptDlgSave').textContent = picked.length ? `Open ${nf(picked.length)} production line${picked.length === 1 ? '' : 's'}` : 'Open ticked production lines'; $('ptDlgSave').disabled = !picked.length; }
 }
+function shpHandXlOut(rows) {
+  const bytes = recipeXlsx(shpHandSheetRows(rows), { name: 'Handed over', freeze: 2, cols: {} });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+  a.download = 'handed-over-' + dToday() + '.xlsx';
+  a.click(); URL.revokeObjectURL(a.href);
+}
 function shpBucketOpen() {
   /* TAKING GOODS FROM PRODUCTION NEEDS NO STOCK (2026-09-28): without the stock read, the bucket still opens on its
    * From production tab; only the two tabs that judge stock wait for it. */
   const stockOk = SHOP_STOCK_LOADED && SHOP_INDIA_LOADED && !SHOP_INDIA_ERR;
-  if (!stockOk && !(typeof shpReadyLines === 'function' && shpReadyLines().length)) { soMsg(SHOP_STOCK_DENIED ? SHOP_STOCK_DENIED_TXT : 'Stock has not been read yet — press Fetch orders, then open the bucket.', true); return; }
-  if (!stockOk) SHB.tab = 'recv';
+  const nReady = typeof shpReadyLines === 'function' ? shpReadyLines().length : 0;
+  const nHand = typeof shpHandRegister === 'function' ? shpHandRegister().length : 0;
+  if (!stockOk && !nReady && !nHand) { soMsg(SHOP_STOCK_DENIED ? SHOP_STOCK_DENIED_TXT : 'Stock has not been read yet — press Fetch orders, then open the bucket.', true); return; }
+  if (!stockOk && SHB.tab !== 'hand') SHB.tab = nReady ? 'recv' : 'hand';
 
   const list = stockOk ? shpBucket() : [];
   SHB = Object.assign(SHB, { list, picked: new Set([...SHB.picked].filter(k => list.some(x => x.key === k))) });
@@ -166,14 +216,16 @@ function shpBucketOpen() {
         <div class="shb-n"><b>${nf(shbOpenedToday().length)}</b><span>opened today</span></div>
         <button type="button" id="shbXlOut">Download Excel</button></div>`,
     html: `<div class="shb-bar"><div class="seg" role="tablist">
-        <button type="button" class="segbtn" data-shbtab="make"></button><button type="button" class="segbtn" data-shbtab="covered"></button><button type="button" class="segbtn" data-shbtab="done"></button><button type="button" class="segbtn" data-shbtab="recv" title="What production has made and pressed — fill in what arrived and accept"></button></div>
+        <button type="button" class="segbtn" data-shbtab="make"></button><button type="button" class="segbtn" data-shbtab="covered"></button><button type="button" class="segbtn" data-shbtab="done"></button><button type="button" class="segbtn" data-shbtab="recv" title="What production has made and pressed — fill in what arrived and accept"></button><button type="button" class="segbtn" data-shbtab="hand" title="Every hand-over to shipping: the day, the pieces, who took them, and whether Shopify has shipped it"></button></div>
         <input id="shbQ" placeholder="Search order / SKU / item" value="${esc(SHB.q)}">
         <select id="shbStore"><option value="">All stores</option><option value="Ridhi">Ridhi</option><option value="CPC">CPC</option></select>
         <select id="shbFrom" title="Where the stock that can fill it is"><option value="">FBA or India</option><option value="fba">FBA can fill (MCF)</option><option value="india">India can fill</option></select>
+        <select id="shbShip" class="hide" title="Has the parcel left?"><option value="">Shipped or not</option><option value="waiting">Handed over, not shipped</option><option value="shipped">Shipped</option><option value="cancelled">Cancelled</option></select>
         <select id="shbDate"><option value="">Any date</option><option value="today">Today</option><option value="d7">Last 7 days</option><option value="d30">Last 30 days</option><option value="older7">Older than 7 days</option></select>
       </div>
       <label id="shbWhyWrap" class="shb-why hide"><span>Why make these anyway</span>
         <input id="shbWhy" placeholder="e.g. India stock is not really there — needed for every stock-covered line you tick"></label>
+      <div id="shbHandTot" class="shb-band shb-handtot hide"></div>
       <div class="xlwrap shb-wrap"><table class="xl" id="shbTable"></table></div>`,
     saveLabel: 'Open ticked production lines',
     onSave: async () => {
@@ -208,6 +260,7 @@ function shpBucketOpen() {
   if ($('shbQ')) $('shbQ').oninput = () => { clearTimeout(shbT); shbT = setTimeout(() => { SHB.q = $('shbQ').value; shbRender(); }, 180); };
   if ($('shbStore')) $('shbStore').onchange = () => { SHB.store = $('shbStore').value; shbRender(); };
   if ($('shbFrom')) $('shbFrom').onchange = () => { SHB.from = $('shbFrom').value; shbRender(); };
+  if ($('shbShip')) { $('shbShip').value = SHB.ship || ''; $('shbShip').onchange = () => { SHB.ship = $('shbShip').value; shbRender(); }; }
   if ($('shbDate')) $('shbDate').onchange = () => { SHB.date = $('shbDate').value; shbRender(); };
   document.querySelectorAll('[data-shbtab]').forEach(b => { b.onclick = () => { SHB.tab = b.getAttribute('data-shbtab'); shbRender(); }; });
   $('shbTable').oninput = e => { const t = e.target; if (t.getAttribute && t.getAttribute('data-shbq')) { SHB.rqty = SHB.rqty || {}; SHB.rqty[t.getAttribute('data-shbq')] = t.value; } };

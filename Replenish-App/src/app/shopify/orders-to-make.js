@@ -478,9 +478,11 @@ function shpPlanOrder(o, full, assigned, opts) {
       if (x.shopDoneAt) return;
       const why = shpDoneWhy(o, sk);
       if (!why) return;
-      /* Opened by hand from the bucket with the "done / ready" note already in front of that person: the note
-       * cannot close it again — only Shopify shipping it, a cancel or a refund can (#3873, 2026-09-28). */
-      if (why === 'marked done' && x.openedPastNote) return;
+      /* A DONE / READY NOTE NEVER CLOSES A LINE PRODUCTION HAS OPEN (Ravi, 2026-10-05). It used to: 372 lines were closed
+       * by a note, and 23 of them Shopify still had to ship — pieces that dropped off the floor's list unmade or
+       * unhanded. The line now closes the way every other one does: shipping takes it, or Shopify ships, cancels or
+       * refunds it. (Before, only a line opened from the bucket past the note was spared — #3873, 2026-09-28.) */
+      if (why === 'marked done') return;
       const key = x.id || x._key || obKey(sk);
       out.patch['pt_orderBook/' + key + '/shopDoneAt'] = now;
       out.patch['pt_orderBook/' + key + '/shopDoneWhy'] = why;

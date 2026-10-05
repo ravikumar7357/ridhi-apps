@@ -38,6 +38,81 @@ async function shpReceive(items) {
   return '';
 }
 
+/* ==== HANDED OVER — THE REGISTER (agreed with Ravi, 2026-10-03: "kis din shipping ko kya diya") ====
+ * One row per hand-over, newest first. Nothing new is typed: a receipt the shipping team accepted in the bucket is
+ * already on the line's handLog ({ qty, at, by }), and the Order Console's Completed button hands the whole line over
+ * at once (handedAt · handedBy) with no log — whatever the log does not account for went then.
+ * "By" is the Order Console's (production pressing Completed); "Accepted by" is the shipping team's own receipt. */
+const shpStoreOfSku = sku => ((typeof ordBrandOf === 'function' ? ordBrandOf(sku) : '') === 'CPC' || /^CPC/i.test(String(sku || '')) ? 'CPC' : 'Ridhi');
+function shpHandRegister() {
+  let lines; try { lines = ordLines(); } catch (e) { return []; }
+  const out = [];
+  lines.forEach(l => {
+    if (!/^SHP-/.test(l.orderNo)) return;
+    const sp = (typeof spOf === 'function' ? spOf(l.orderNo, l.sku) : null) || {};
+    const log = (Array.isArray(sp.handLog) ? sp.handLog : []).filter(e => e && Number(e.qty) > 0);
+    const row = (at, pcs, by, acc, how, i) => out.push({ key: l.orderNo + '|' + l.sku + '|' + i, at: at || '', day: ptIsoDate(at) || '', ms: ptDtMs(at) || 0,
+      orderNo: l.orderNo, sku: l.sku, shop: l.shopOrderNo || l.orderNo, shopOrderId: String(l.shopOrderId || ''), store: shpStoreOfSku(l.sku),
+      item: [l.articleSubtype || l.articleType || l.itemName, l.color, l.size].filter(Boolean).join(' · '), img: l.shopImg || '',
+      pcs, by: String(by || ''), acceptedBy: String(acc || ''), how, qty: l.qty, lineDone: !!l.handedAt, shopDoneAt: l.shopDoneAt || '', shopDoneWhy: l.shopDoneWhy || '' });
+    let logged = 0;
+    log.forEach((e, i) => { const q = Math.round(Number(e.qty)); logged += q; row(e.at, q, '', e.by, 'accepted', i); });
+    /* The log keeps the last 20 receipts; a line handed over through the bucket that is short of its log is an older
+     * receipt that fell off, still the shipping team's. With no log at all it was the Completed button. */
+    if (l.handedAt && logged < l.qty) {
+      if (log.length) row(l.handedAt, l.qty - logged, '', l.handedBy, 'accepted', 'old');
+      else row(l.handedAt, l.qty - logged, l.handedBy, '', 'console', 'all');
+    }
+  });
+  return out.sort((a, b) => b.ms - a.ms || a.key.localeCompare(b.key));
+}
+/** Shopify's word on an order: the Order Console's read of both stores, else the Shopify tab's own fetch. */
+function shpShopWord(id) {
+  id = String(id || '');
+  if (!id) return null;
+  const t = typeof ordShopTrkOf === 'function' ? ordShopTrkOf(id) : null;
+  if (t) return t;
+  const r = (typeof SO_ALL_ROWS !== 'undefined' && Array.isArray(SO_ALL_ROWS) ? SO_ALL_ROWS : []).find(x => x && String(x.id) === id);
+  return r ? { ff: String(r.ff || 'unfulfilled').toLowerCase(), trk: r.trk || [], trkCo: r.trkCo || '', trkUrl: r.trkUrl || '', cancelledAt: r.cancelledAt || '' } : null;
+}
+/** Shipped, cancelled, still with shipping, or not known yet — for one register row. */
+function shpHandShip(h) {
+  const w = shpShopWord(h.shopOrderId);
+  const trk = w ? (w.trk || []) : [];
+  if (h.shopDoneAt) {
+    const gone = /^(cancelled|refunded)$/.test(h.shopDoneWhy);
+    return { state: gone ? 'cancelled' : 'shipped', word: typeof SHP_DONE_TXT === 'function' ? SHP_DONE_TXT(h.shopDoneWhy) : 'Fulfilled by shipping team', trk, w };
+  }
+  if (!w) return { state: 'unknown', word: 'Shopify not read yet', trk, w };
+  if (w.cancelledAt) return { state: 'cancelled', word: 'Cancelled on Shopify', trk, w };
+  if (/^ful/.test(w.ff)) return { state: 'shipped', word: 'Shipped', trk, w };
+  return { state: 'waiting', word: /^partial/.test(w.ff) ? 'Part shipped' : 'Not shipped', trk, w };
+}
+/** Today, this week (Sunday on, as the reports count it) and what is handed over but has not left. */
+function shpHandTotals(rows) {
+  const today = dToday();
+  const wk = typeof repWeekStart === 'function' ? (d => repWkIso(repWeekStart(new Date(d[0], d[1] - 1, d[2]).getTime())))(today.split('-').map(Number)) : today;
+  const t = { todayPcs: 0, todayN: 0, weekPcs: 0, weekN: 0, waitPcs: 0, waitLines: 0, unknown: 0 };
+  const lines = new Set(), unk = new Set();
+  (rows || []).forEach(h => {
+    if (h.day === today) { t.todayPcs += h.pcs; t.todayN++; }
+    if (h.day && h.day >= wk) { t.weekPcs += h.pcs; t.weekN++; }
+    const s = shpHandShip(h).state;
+    if (s === 'waiting') { t.waitPcs += h.pcs; lines.add(h.orderNo + '|' + h.sku); }
+    if (s === 'unknown') unk.add(h.orderNo + '|' + h.sku);
+  });
+  t.waitLines = lines.size; t.unknown = unk.size; t.weekFrom = wk;
+  return t;
+}
+const SHP_HAND_COLS = ['Date', 'Time', 'Shopify order', 'Order no', 'Store', 'SKU', 'Item', 'Pcs', 'By (Order Console)', 'Accepted by (shipping)', 'How', 'Line complete', 'Shopify status', 'Tracking'];
+function shpHandSheetRows(rows) {
+  return [SHP_HAND_COLS].concat((rows || shpHandRegister()).map(h => {
+    const s = shpHandShip(h);
+    return [h.day, String(h.at || '').slice(11, 16), h.shop, h.orderNo, h.store, h.sku, h.item, h.pcs, ordWho(h.by), ordWho(h.acceptedBy),
+      h.how === 'console' ? 'Completed in Order Console' : 'Accepted from the bucket', h.lineDone ? 'yes' : 'no', s.word, (s.trk || []).join(', ')];
+  }));
+}
+
 async function spHandover(orderNo, sku, on) {
   if (!ptCanEdit()) return PT_NO_EDIT;
   const key = spKey(orderNo, sku);

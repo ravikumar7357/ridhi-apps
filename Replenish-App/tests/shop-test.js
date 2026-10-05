@@ -1822,6 +1822,19 @@ console.log('\n== THE PRODUCTION BUCKET (Ravi, 2026-09-26) ==');
       || (PTG.ob || []).some(x => x && /SHP-5009_RCNBGRN$/.test(x.id || '') && x.shopDoneAt);
     ok('…and the automatic run does not close it again as "marked done"', !!RT['pt_orderBook/ob_shp_SHP-5009_RCNBGRN'] && !closed,
        Object.keys(RT).filter(k => /5009/.test(k)).join(' '));
+    /* 5 Oct: a line opened the usual way is not closed by a note written afterwards either — 23 such lines were still
+     * to ship on Shopify. Only shipping, a cancel or a refund closes it. */
+    A.setSHOP({ orders: [mk('b10', '#5010', [['RCNBGRN', 1]])], from: '', to: '', tz: '', at: 'x' });
+    A.renderShop();
+    await A.shpSyncAll({ force: true });
+    ok('(a line opened the usual way)', !!RT['pt_orderBook/ob_shp_SHP-5010_RCNBGRN'], Object.keys(RT).filter(k => /5010/.test(k)).join(' '));
+    A.setSHOP({ orders: [mk('b10', '#5010', [['RCNBGRN', 1]], { note: 'READY TO SHIP' })], from: '', to: '', tz: '', at: 'x' });
+    A.renderShop();
+    await A.shpSyncAll({ maintain: true });
+    const closed10 = Object.keys(RT).some(k => /ob_shp_SHP-5010_RCNBGRN\/shopDoneAt$/.test(k) && RT[k])
+      || (PTG.ob || []).some(x => x && /SHP-5010_RCNBGRN$/.test(x.id || '') && x.shopDoneAt);
+    ok('a READY TO SHIP note written later does not close a line production has open', !!RT['pt_orderBook/ob_shp_SHP-5010_RCNBGRN'] && !closed10,
+       Object.keys(RT).filter(k => /5010/.test(k)).join(' '));
     A.setSHOP(wasShop); A.renderShop();
   }
   ok('a cancelled or refunded line is over too, and says which', A.shpDoneWhy({ cancelled: true }, 'X') === 'cancelled'

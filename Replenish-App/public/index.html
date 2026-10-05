@@ -526,6 +526,10 @@
   .shb-n b{font-size:20px;font-weight:800} .shb-n span{font-size:11.5px;font-weight:500;opacity:.82}
   .shb-band button{background:rgba(255,255,255,.14);border:0;color:#fff;font-size:13px;font-weight:600;padding:9px 14px;border-radius:10px;line-height:1}
   .shb-band button:hover{background:rgba(255,255,255,.26)}
+  .shb-band.shb-handtot{gap:22px;margin:0 0 10px;padding:10px 14px;border:1px solid var(--line,#e5e7eb);border-radius:12px;background:var(--panel2,#fafaf9)}
+  .shb-handtot .shb-n{align-items:flex-start} .shb-handtot .shb-n b{font-size:18px}
+  .shb-band.shb-handtot button{background:#111827;color:#fff;margin-left:auto}
+  .shb-band.shb-handtot button:hover{background:#374151}
   .shb-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:14px 0 10px}
   .shb-bar .seg{margin-right:auto}
   .shb-bar > input{flex:0 1 300px;min-width:0;height:38px}
@@ -17741,6 +17745,81 @@ async function shpReceive(items) {
   return '';
 }
 
+/* ==== HANDED OVER — THE REGISTER (agreed with Ravi, 2026-10-03: "kis din shipping ko kya diya") ====
+ * One row per hand-over, newest first. Nothing new is typed: a receipt the shipping team accepted in the bucket is
+ * already on the line's handLog ({ qty, at, by }), and the Order Console's Completed button hands the whole line over
+ * at once (handedAt · handedBy) with no log — whatever the log does not account for went then.
+ * "By" is the Order Console's (production pressing Completed); "Accepted by" is the shipping team's own receipt. */
+const shpStoreOfSku = sku => ((typeof ordBrandOf === 'function' ? ordBrandOf(sku) : '') === 'CPC' || /^CPC/i.test(String(sku || '')) ? 'CPC' : 'Ridhi');
+function shpHandRegister() {
+  let lines; try { lines = ordLines(); } catch (e) { return []; }
+  const out = [];
+  lines.forEach(l => {
+    if (!/^SHP-/.test(l.orderNo)) return;
+    const sp = (typeof spOf === 'function' ? spOf(l.orderNo, l.sku) : null) || {};
+    const log = (Array.isArray(sp.handLog) ? sp.handLog : []).filter(e => e && Number(e.qty) > 0);
+    const row = (at, pcs, by, acc, how, i) => out.push({ key: l.orderNo + '|' + l.sku + '|' + i, at: at || '', day: ptIsoDate(at) || '', ms: ptDtMs(at) || 0,
+      orderNo: l.orderNo, sku: l.sku, shop: l.shopOrderNo || l.orderNo, shopOrderId: String(l.shopOrderId || ''), store: shpStoreOfSku(l.sku),
+      item: [l.articleSubtype || l.articleType || l.itemName, l.color, l.size].filter(Boolean).join(' · '), img: l.shopImg || '',
+      pcs, by: String(by || ''), acceptedBy: String(acc || ''), how, qty: l.qty, lineDone: !!l.handedAt, shopDoneAt: l.shopDoneAt || '', shopDoneWhy: l.shopDoneWhy || '' });
+    let logged = 0;
+    log.forEach((e, i) => { const q = Math.round(Number(e.qty)); logged += q; row(e.at, q, '', e.by, 'accepted', i); });
+    /* The log keeps the last 20 receipts; a line handed over through the bucket that is short of its log is an older
+     * receipt that fell off, still the shipping team's. With no log at all it was the Completed button. */
+    if (l.handedAt && logged < l.qty) {
+      if (log.length) row(l.handedAt, l.qty - logged, '', l.handedBy, 'accepted', 'old');
+      else row(l.handedAt, l.qty - logged, l.handedBy, '', 'console', 'all');
+    }
+  });
+  return out.sort((a, b) => b.ms - a.ms || a.key.localeCompare(b.key));
+}
+/** Shopify's word on an order: the Order Console's read of both stores, else the Shopify tab's own fetch. */
+function shpShopWord(id) {
+  id = String(id || '');
+  if (!id) return null;
+  const t = typeof ordShopTrkOf === 'function' ? ordShopTrkOf(id) : null;
+  if (t) return t;
+  const r = (typeof SO_ALL_ROWS !== 'undefined' && Array.isArray(SO_ALL_ROWS) ? SO_ALL_ROWS : []).find(x => x && String(x.id) === id);
+  return r ? { ff: String(r.ff || 'unfulfilled').toLowerCase(), trk: r.trk || [], trkCo: r.trkCo || '', trkUrl: r.trkUrl || '', cancelledAt: r.cancelledAt || '' } : null;
+}
+/** Shipped, cancelled, still with shipping, or not known yet — for one register row. */
+function shpHandShip(h) {
+  const w = shpShopWord(h.shopOrderId);
+  const trk = w ? (w.trk || []) : [];
+  if (h.shopDoneAt) {
+    const gone = /^(cancelled|refunded)$/.test(h.shopDoneWhy);
+    return { state: gone ? 'cancelled' : 'shipped', word: typeof SHP_DONE_TXT === 'function' ? SHP_DONE_TXT(h.shopDoneWhy) : 'Fulfilled by shipping team', trk, w };
+  }
+  if (!w) return { state: 'unknown', word: 'Shopify not read yet', trk, w };
+  if (w.cancelledAt) return { state: 'cancelled', word: 'Cancelled on Shopify', trk, w };
+  if (/^ful/.test(w.ff)) return { state: 'shipped', word: 'Shipped', trk, w };
+  return { state: 'waiting', word: /^partial/.test(w.ff) ? 'Part shipped' : 'Not shipped', trk, w };
+}
+/** Today, this week (Sunday on, as the reports count it) and what is handed over but has not left. */
+function shpHandTotals(rows) {
+  const today = dToday();
+  const wk = typeof repWeekStart === 'function' ? (d => repWkIso(repWeekStart(new Date(d[0], d[1] - 1, d[2]).getTime())))(today.split('-').map(Number)) : today;
+  const t = { todayPcs: 0, todayN: 0, weekPcs: 0, weekN: 0, waitPcs: 0, waitLines: 0, unknown: 0 };
+  const lines = new Set(), unk = new Set();
+  (rows || []).forEach(h => {
+    if (h.day === today) { t.todayPcs += h.pcs; t.todayN++; }
+    if (h.day && h.day >= wk) { t.weekPcs += h.pcs; t.weekN++; }
+    const s = shpHandShip(h).state;
+    if (s === 'waiting') { t.waitPcs += h.pcs; lines.add(h.orderNo + '|' + h.sku); }
+    if (s === 'unknown') unk.add(h.orderNo + '|' + h.sku);
+  });
+  t.waitLines = lines.size; t.unknown = unk.size; t.weekFrom = wk;
+  return t;
+}
+const SHP_HAND_COLS = ['Date', 'Time', 'Shopify order', 'Order no', 'Store', 'SKU', 'Item', 'Pcs', 'By (Order Console)', 'Accepted by (shipping)', 'How', 'Line complete', 'Shopify status', 'Tracking'];
+function shpHandSheetRows(rows) {
+  return [SHP_HAND_COLS].concat((rows || shpHandRegister()).map(h => {
+    const s = shpHandShip(h);
+    return [h.day, String(h.at || '').slice(11, 16), h.shop, h.orderNo, h.store, h.sku, h.item, h.pcs, ordWho(h.by), ordWho(h.acceptedBy),
+      h.how === 'console' ? 'Completed in Order Console' : 'Accepted from the bucket', h.lineDone ? 'yes' : 'no', s.word, (s.trk || []).join(', ')];
+  }));
+}
+
 async function spHandover(orderNo, sku, on) {
   if (!ptCanEdit()) return PT_NO_EDIT;
   const key = spKey(orderNo, sku);
@@ -21217,8 +21296,10 @@ let ORD_EV_IX = { cut: null, base: null, press: null, ob: null, n: -1, list: nul
 /** Every production entry, newest first: { kind, ms, day, orderNo, sku, pcs, by, karigar }. */
 function ordEvents() {
   const cut = PT.cut || PT_NONE, base = PT.base || PT_NONE, press = PTG.press || PT_NONE, ob = PTG.ob || PT_NONE;
+  /* The hand-overs are on pt_shopProd, and a receipt replaces that object — so it is part of the key. */
+  const sp = PTG.shopProd || PT_NONE;
   const n = cut.length + base.length + press.length + ob.length;
-  if (ORD_EV_IX.list && ORD_EV_IX.cut === cut && ORD_EV_IX.base === base && ORD_EV_IX.press === press && ORD_EV_IX.ob === ob && ORD_EV_IX.n === n) return ORD_EV_IX;
+  if (ORD_EV_IX.list && ORD_EV_IX.cut === cut && ORD_EV_IX.base === base && ORD_EV_IX.press === press && ORD_EV_IX.ob === ob && ORD_EV_IX.sp === sp && ORD_EV_IX.n === n) return ORD_EV_IX;
   const list = [];
   const push = (kind, r, day, pcs, by, karigar) => {
     const q = Number(pcs) || 0;
@@ -21234,11 +21315,13 @@ function ordEvents() {
     if (r.receivingDate) push('receive', r, r.receivingDate, r.receivedPieces, r.recvBy || r.lastEditedBy || '', r.empName);
   });
   press.forEach(r => r && push('press', r, r.entryDate, r.pieces, r.addedBy));
-  ordLines().forEach(l => { if (l.handedAt) push('handover', l, l.handedAt, l.qty, l.handedBy); });
+  /* EVERY RECEIPT, not one event per finished line (2026-10-05): a line taken in three goes is three hand-overs, each on
+   * its own day, and a part-taken line is work done too. */
+  shpHandRegister().forEach(h => push('handover', h, h.at, h.pcs, h.acceptedBy || h.by));
   list.sort((a, b) => b.ms - a.ms);
   const last = new Map();
   list.forEach(e => { if (e.orderNo && !last.has(e.orderNo)) last.set(e.orderNo, e); });
-  ORD_EV_IX = { cut, base, press, ob, n, list, last };
+  ORD_EV_IX = { cut, base, press, ob, sp, n, list, last };
   return ORD_EV_IX;
 }
 
@@ -50795,9 +50878,11 @@ function shpPlanOrder(o, full, assigned, opts) {
       if (x.shopDoneAt) return;
       const why = shpDoneWhy(o, sk);
       if (!why) return;
-      /* Opened by hand from the bucket with the "done / ready" note already in front of that person: the note
-       * cannot close it again — only Shopify shipping it, a cancel or a refund can (#3873, 2026-09-28). */
-      if (why === 'marked done' && x.openedPastNote) return;
+      /* A DONE / READY NOTE NEVER CLOSES A LINE PRODUCTION HAS OPEN (Ravi, 2026-10-05). It used to: 372 lines were closed
+       * by a note, and 23 of them Shopify still had to ship — pieces that dropped off the floor's list unmade or
+       * unhanded. The line now closes the way every other one does: shipping takes it, or Shopify ships, cancels or
+       * refunds it. (Before, only a line opened from the bucket past the note was spared — #3873, 2026-09-28.) */
+      if (why === 'marked done') return;
       const key = x.id || x._key || obKey(sk);
       out.patch['pt_orderBook/' + key + '/shopDoneAt'] = now;
       out.patch['pt_orderBook/' + key + '/shopDoneWhy'] = why;
@@ -51182,7 +51267,7 @@ async function shpBucketXlIn(file) {
 }
 
 /** The bucket, on screen — design 7, the header band. SHB holds the tab, the filters and what is ticked. */
-let SHB = { tab: 'make', q: '', store: '', date: '', from: '', picked: new Set(), rpicked: new Set(), rqty: {} };
+let SHB = { tab: 'make', q: '', store: '', date: '', from: '', ship: '', picked: new Set(), rpicked: new Set(), rqty: {} };
 const shbStore = o => (o.shopBrand === 'CPC' || /cpc/i.test(String(o.channel || '')) ? 'CPC' : 'Ridhi');
 /** Lines opened from the bucket today, for the third tab. */
 function shbOpenedToday() {
@@ -51205,16 +51290,53 @@ function shbRender() {
   const list = SHB.list || [];
   const nMake = list.filter(x => x.kind === 'make').length, nCov = list.filter(x => x.kind === 'covered').length, done = shbOpenedToday();
   const ready = typeof shpReadyLines === 'function' ? shpReadyLines() : [];
+  const hand = typeof shpHandRegister === 'function' ? shpHandRegister() : [];
   document.querySelectorAll('[data-shbtab]').forEach(b => b.classList.toggle('on', b.getAttribute('data-shbtab') === SHB.tab));
   const lab = { make: `Needs production · ${nf(nMake)}`, covered: `Stock says it can fill · ${nf(nCov)}`, done: `Opened today · ${nf(done.length)}`,
-    recv: `From production · ${nf(ready.length)}` };
+    recv: `From production · ${nf(ready.length)}`, hand: `Handed over · ${nf(hand.length)}` };
   document.querySelectorAll('[data-shbtab]').forEach(b => { b.textContent = lab[b.getAttribute('data-shbtab')]; });
   if ($('shbWhyWrap')) $('shbWhyWrap').classList.toggle('hide', SHB.tab !== 'covered');
   if ($('shbFrom')) $('shbFrom').classList.toggle('hide', SHB.tab !== 'covered');
+  if ($('shbShip')) $('shbShip').classList.toggle('hide', SHB.tab !== 'hand');
+  if ($('shbHandTot')) $('shbHandTot').classList.toggle('hide', SHB.tab !== 'hand');
+  if ($('ptDlgSave')) $('ptDlgSave').classList.toggle('hide', SHB.tab === 'hand');
   const stockCell = (n, need) => n == null ? '<span class="muted">—</span>' : `<b class="${n >= need ? 'ok' : 'no'}">${nf(n)}</b>`;
   const itemCell = (name, img, sub) => `<div class="shb-item">${img ? `<img src="${esc(img)}" alt="" loading="lazy">` : '<span class="ph"></span>'}<div><b>${esc(name || '—')}</b>${sub ? `<div class="muted" style="font-size:11px">${esc(sub)}</div>` : ''}</div></div>`;
   let head, body;
-  if (SHB.tab === 'recv') {
+  if (SHB.tab === 'hand') {
+    /* THE HANDED-OVER REGISTER: every hand-over to shipping, the day it happened, and whether the parcel has left. */
+    if (typeof ORD !== 'undefined' && !ORD.shopTrk && !ORD.shopTrkBusy && typeof ordTrackShopLoad === 'function') {
+      ordTrackShopLoad().then(() => { if (SHB.tab === 'hand' && $('shbTable')) shbRender(); }).catch(() => {});
+    }
+    const q = String(SHB.q || '').trim().toLowerCase(), now = Date.now();
+    const days = { today: 1, d7: 7, d30: 30 }[SHB.date], older = SHB.date === 'older7', today = dToday();
+    const rows = hand.filter(h => (!SHB.store || h.store === SHB.store)
+      && (!q || [h.shop, h.orderNo, h.sku, h.item, h.by, h.acceptedBy].join(' ').toLowerCase().includes(q))
+      && (!SHB.date || (SHB.date === 'today' ? h.day === today : !h.ms ? true : older ? now - h.ms > 7 * 864e5 : now - h.ms <= days * 864e5))
+      && (!SHB.ship || (s => SHB.ship === 'waiting' ? s === 'waiting' || s === 'unknown' : s === SHB.ship)(shpHandShip(h).state)));
+    SHB.hshown = rows;
+    const t = shpHandTotals(hand), ts = shpHandTotals(rows);
+    if ($('shbHandTot')) $('shbHandTot').innerHTML = `<div class="shb-n"><b>${nf(t.todayPcs)}</b><span>pcs today · ${nf(t.todayN)} hand-over(s)</span></div>`
+      + `<div class="shb-n"><b>${nf(t.weekPcs)}</b><span>pcs this week (from ${esc(typeof dShow === 'function' ? dShow(t.weekFrom) : t.weekFrom)})</span></div>`
+      + `<div class="shb-n"><b style="color:${t.waitPcs ? '#9a3412' : 'inherit'}">${nf(t.waitPcs)}</b><span>pcs handed over, not shipped · ${nf(t.waitLines)} line(s)</span></div>`
+      + (t.unknown ? `<div class="shb-n"><b class="muted">${nf(t.unknown)}</b><span>line(s) Shopify has not answered for yet</span></div>` : '')
+      + `<span class="muted" style="font-size:12px">${nf(rows.length)} shown · ${nf(ts.weekPcs)} pcs of them this week</span>`
+      + '<button type="button" id="shbHandXl">Download Excel</button>';
+    if ($('shbHandXl')) $('shbHandXl').onclick = () => shpHandXlOut(SHB.hshown || rows);
+    const tone = { shipped: '#166534', cancelled: '#991b1b', waiting: '#9a3412', unknown: '#6b7280' };
+    head = '<th>Handed over</th><th>Shopify order</th><th>Store</th><th>SKU</th><th>Item</th><th class="num">Pcs</th><th>By</th><th>Accepted by</th><th>Shopify</th><th>Tracking</th>';
+    body = rows.slice(0, 400).map(h => {
+      const s = shpHandShip(h);
+      return `<tr><td style="white-space:nowrap">${esc(h.day ? (typeof dShow === 'function' ? dShow(h.day) : h.day) : '—')} <span class="muted">${esc(String(h.at || '').slice(11, 16))}</span></td>`
+        + `<td style="text-align:left;white-space:nowrap"><b>${esc(h.shop)}</b><div class="muted" style="font-size:11px">${esc(h.orderNo)}</div></td>`
+        + `<td>${esc(h.store)}</td><td style="font-family:ui-monospace,monospace">${esc(h.sku)}</td>`
+        + `<td>${itemCell(h.item, h.img, h.lineDone ? '' : 'part — ' + nf(h.qty) + ' ordered')}</td><td class="num"><b>${nf(h.pcs)}</b></td>`
+        + `<td>${h.by ? esc(ordWho(h.by)) + '<div class="muted" style="font-size:10.5px">Completed in Order Console</div>' : '<span class="muted">—</span>'}</td>`
+        + `<td>${h.acceptedBy ? esc(ordWho(h.acceptedBy)) : '<span class="muted">—</span>'}</td>`
+        + `<td style="color:${tone[s.state]};font-weight:600;white-space:nowrap">${esc(s.word)}</td>`
+        + `<td style="text-align:left;font-size:12px">${s.w && typeof soTrkCell === 'function' ? soTrkCell(s.w, esc) : '<span class="muted">—</span>'}</td></tr>`;
+    }).join('') + (rows.length > 400 ? `<tr><td colspan="10" class="muted" style="padding:10px">Showing the newest 400 of ${nf(rows.length)} — narrow it with the date or search, or download Excel (it has all of them).</td></tr>` : '');
+  } else if (SHB.tab === 'recv') {
     /* WHAT PRODUCTION HAS READY, for the shipping team to take. */
     const q = String(SHB.q || '').trim().toLowerCase();
     const rows = ready.filter(x => !q || [x.shop, x.orderNo, x.sku, x.l.articleSubtype, x.l.color].join(' ').toLowerCase().includes(q));
@@ -51250,7 +51372,11 @@ function shbRender() {
       + `<td style="text-align:left;white-space:normal;font-size:12px;min-width:200px" class="muted">${esc(x.why)}</td></tr>`).join('')
       + (rows.length > 300 ? `<tr><td colspan="8" class="muted" style="padding:10px">Showing the first 300 of ${nf(rows.length)} — narrow it with the search, store or date, or use Excel. Tick all ticks every line that matches, not only these.</td></tr>` : '');
   }
-  $('shbTable').innerHTML = `<thead><tr>${head}</tr></thead><tbody>${body || `<tr><td colspan="8" class="muted" style="padding:16px">${SHB.tab === 'done' ? 'Nothing opened from the bucket today.' : 'Nothing here.'}</td></tr>`}</tbody>`;
+  $('shbTable').innerHTML = `<thead><tr>${head}</tr></thead><tbody>${body || `<tr><td colspan="10" class="muted" style="padding:16px">${SHB.tab === 'done' ? 'Nothing opened from the bucket today.' : SHB.tab === 'hand' ? 'Nothing handed over that matches.' : 'Nothing here.'}</td></tr>`}</tbody>`;
+  if (SHB.tab === 'hand') {
+    if ($('ptDlgFootL')) $('ptDlgFootL').innerHTML = '<span class="vo-tot">A record of what shipping has taken — nothing to save here. Partial receipts each show on their own day.</span>';
+    return;
+  }
   if ($('shbWhyWrap') && SHB.tab === 'recv') $('shbWhyWrap').classList.add('hide');
   if (SHB.tab === 'recv') {
     const rp = (SHB.rshown || []).filter(x => SHB.rpicked.has(x.key));
@@ -51264,12 +51390,21 @@ function shbRender() {
   if ($('ptDlgFootL')) $('ptDlgFootL').innerHTML = `<span class="vo-tot"><b>${nf(picked.length)} ticked</b> · ${nf(pcs)} pcs${cov ? ` · ${nf(cov)} stock-covered (reason needed)` : ''} · a line already open is skipped, never opened twice</span>`;
   if ($('ptDlgSave')) { $('ptDlgSave').textContent = picked.length ? `Open ${nf(picked.length)} production line${picked.length === 1 ? '' : 's'}` : 'Open ticked production lines'; $('ptDlgSave').disabled = !picked.length; }
 }
+function shpHandXlOut(rows) {
+  const bytes = recipeXlsx(shpHandSheetRows(rows), { name: 'Handed over', freeze: 2, cols: {} });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+  a.download = 'handed-over-' + dToday() + '.xlsx';
+  a.click(); URL.revokeObjectURL(a.href);
+}
 function shpBucketOpen() {
   /* TAKING GOODS FROM PRODUCTION NEEDS NO STOCK (2026-09-28): without the stock read, the bucket still opens on its
    * From production tab; only the two tabs that judge stock wait for it. */
   const stockOk = SHOP_STOCK_LOADED && SHOP_INDIA_LOADED && !SHOP_INDIA_ERR;
-  if (!stockOk && !(typeof shpReadyLines === 'function' && shpReadyLines().length)) { soMsg(SHOP_STOCK_DENIED ? SHOP_STOCK_DENIED_TXT : 'Stock has not been read yet — press Fetch orders, then open the bucket.', true); return; }
-  if (!stockOk) SHB.tab = 'recv';
+  const nReady = typeof shpReadyLines === 'function' ? shpReadyLines().length : 0;
+  const nHand = typeof shpHandRegister === 'function' ? shpHandRegister().length : 0;
+  if (!stockOk && !nReady && !nHand) { soMsg(SHOP_STOCK_DENIED ? SHOP_STOCK_DENIED_TXT : 'Stock has not been read yet — press Fetch orders, then open the bucket.', true); return; }
+  if (!stockOk && SHB.tab !== 'hand') SHB.tab = nReady ? 'recv' : 'hand';
 
   const list = stockOk ? shpBucket() : [];
   SHB = Object.assign(SHB, { list, picked: new Set([...SHB.picked].filter(k => list.some(x => x.key === k))) });
@@ -51284,14 +51419,16 @@ function shpBucketOpen() {
         <div class="shb-n"><b>${nf(shbOpenedToday().length)}</b><span>opened today</span></div>
         <button type="button" id="shbXlOut">Download Excel</button></div>`,
     html: `<div class="shb-bar"><div class="seg" role="tablist">
-        <button type="button" class="segbtn" data-shbtab="make"></button><button type="button" class="segbtn" data-shbtab="covered"></button><button type="button" class="segbtn" data-shbtab="done"></button><button type="button" class="segbtn" data-shbtab="recv" title="What production has made and pressed — fill in what arrived and accept"></button></div>
+        <button type="button" class="segbtn" data-shbtab="make"></button><button type="button" class="segbtn" data-shbtab="covered"></button><button type="button" class="segbtn" data-shbtab="done"></button><button type="button" class="segbtn" data-shbtab="recv" title="What production has made and pressed — fill in what arrived and accept"></button><button type="button" class="segbtn" data-shbtab="hand" title="Every hand-over to shipping: the day, the pieces, who took them, and whether Shopify has shipped it"></button></div>
         <input id="shbQ" placeholder="Search order / SKU / item" value="${esc(SHB.q)}">
         <select id="shbStore"><option value="">All stores</option><option value="Ridhi">Ridhi</option><option value="CPC">CPC</option></select>
         <select id="shbFrom" title="Where the stock that can fill it is"><option value="">FBA or India</option><option value="fba">FBA can fill (MCF)</option><option value="india">India can fill</option></select>
+        <select id="shbShip" class="hide" title="Has the parcel left?"><option value="">Shipped or not</option><option value="waiting">Handed over, not shipped</option><option value="shipped">Shipped</option><option value="cancelled">Cancelled</option></select>
         <select id="shbDate"><option value="">Any date</option><option value="today">Today</option><option value="d7">Last 7 days</option><option value="d30">Last 30 days</option><option value="older7">Older than 7 days</option></select>
       </div>
       <label id="shbWhyWrap" class="shb-why hide"><span>Why make these anyway</span>
         <input id="shbWhy" placeholder="e.g. India stock is not really there — needed for every stock-covered line you tick"></label>
+      <div id="shbHandTot" class="shb-band shb-handtot hide"></div>
       <div class="xlwrap shb-wrap"><table class="xl" id="shbTable"></table></div>`,
     saveLabel: 'Open ticked production lines',
     onSave: async () => {
@@ -51326,6 +51463,7 @@ function shpBucketOpen() {
   if ($('shbQ')) $('shbQ').oninput = () => { clearTimeout(shbT); shbT = setTimeout(() => { SHB.q = $('shbQ').value; shbRender(); }, 180); };
   if ($('shbStore')) $('shbStore').onchange = () => { SHB.store = $('shbStore').value; shbRender(); };
   if ($('shbFrom')) $('shbFrom').onchange = () => { SHB.from = $('shbFrom').value; shbRender(); };
+  if ($('shbShip')) { $('shbShip').value = SHB.ship || ''; $('shbShip').onchange = () => { SHB.ship = $('shbShip').value; shbRender(); }; }
   if ($('shbDate')) $('shbDate').onchange = () => { SHB.date = $('shbDate').value; shbRender(); };
   document.querySelectorAll('[data-shbtab]').forEach(b => { b.onclick = () => { SHB.tab = b.getAttribute('data-shbtab'); shbRender(); }; });
   $('shbTable').oninput = e => { const t = e.target; if (t.getAttribute && t.getAttribute('data-shbq')) { SHB.rqty = SHB.rqty || {}; SHB.rqty[t.getAttribute('data-shbq')] = t.value; } };

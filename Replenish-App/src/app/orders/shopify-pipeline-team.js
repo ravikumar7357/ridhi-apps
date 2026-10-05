@@ -9,8 +9,10 @@ let ORD_EV_IX = { cut: null, base: null, press: null, ob: null, n: -1, list: nul
 /** Every production entry, newest first: { kind, ms, day, orderNo, sku, pcs, by, karigar }. */
 function ordEvents() {
   const cut = PT.cut || PT_NONE, base = PT.base || PT_NONE, press = PTG.press || PT_NONE, ob = PTG.ob || PT_NONE;
+  /* The hand-overs are on pt_shopProd, and a receipt replaces that object — so it is part of the key. */
+  const sp = PTG.shopProd || PT_NONE;
   const n = cut.length + base.length + press.length + ob.length;
-  if (ORD_EV_IX.list && ORD_EV_IX.cut === cut && ORD_EV_IX.base === base && ORD_EV_IX.press === press && ORD_EV_IX.ob === ob && ORD_EV_IX.n === n) return ORD_EV_IX;
+  if (ORD_EV_IX.list && ORD_EV_IX.cut === cut && ORD_EV_IX.base === base && ORD_EV_IX.press === press && ORD_EV_IX.ob === ob && ORD_EV_IX.sp === sp && ORD_EV_IX.n === n) return ORD_EV_IX;
   const list = [];
   const push = (kind, r, day, pcs, by, karigar) => {
     const q = Number(pcs) || 0;
@@ -26,11 +28,13 @@ function ordEvents() {
     if (r.receivingDate) push('receive', r, r.receivingDate, r.receivedPieces, r.recvBy || r.lastEditedBy || '', r.empName);
   });
   press.forEach(r => r && push('press', r, r.entryDate, r.pieces, r.addedBy));
-  ordLines().forEach(l => { if (l.handedAt) push('handover', l, l.handedAt, l.qty, l.handedBy); });
+  /* EVERY RECEIPT, not one event per finished line (2026-10-05): a line taken in three goes is three hand-overs, each on
+   * its own day, and a part-taken line is work done too. */
+  shpHandRegister().forEach(h => push('handover', h, h.at, h.pcs, h.acceptedBy || h.by));
   list.sort((a, b) => b.ms - a.ms);
   const last = new Map();
   list.forEach(e => { if (e.orderNo && !last.has(e.orderNo)) last.set(e.orderNo, e); });
-  ORD_EV_IX = { cut, base, press, ob, n, list, last };
+  ORD_EV_IX = { cut, base, press, ob, sp, n, list, last };
   return ORD_EV_IX;
 }
 
