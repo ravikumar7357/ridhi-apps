@@ -352,12 +352,13 @@ function healthOf(r, ctx) {
     const det = LR_DET[rule.detector]; if (!det) return;
     let d = '';
     try { d = det(r, ctx, rule.params || {}) || ''; } catch (e) { d = ''; }
-    if (d) found.push({ id: rule.id, name: rule.name, sev: rule.sev, area: rule.area, detail: d });
+    if (d) found.push({ id: rule.id, name: rule.name, sev: rule.sev, area: rule.area, detail: d, detector: rule.detector });
   });
   /* NOTHING IN STOCK IS NEVER CRITICAL (Ravi, 15 Sept). A listing with 0 units is not losing sales today,
    * so what would be critical waits one step down, as Attention, and says why. Unknown stock (null) is
    * not zero and changes nothing. */
-  if (r.qty === 0) found.forEach(f => { if (f.sev === 'critical') { f.sev = 'action'; f.detail += ' (0 in stock, so not critical)'; } });
+  /* EXCEPT NO IMAGE AT ALL (Ravi, 5 Oct 2026: "OOS me bhi no image ko laal dikhao") — that stays Critical with no stock too. */
+  if (r.qty === 0) found.forEach(f => { if (f.sev === 'critical' && f.detector !== 'no_main_image') { f.sev = 'action'; f.detail += ' (0 in stock, so not critical)'; } });
   const list = s => found.filter(f => f.sev === s).map(f => f.name + ' — ' + f.detail);
   const critical = list('critical'), action = list('action'), review = list('review');
   const notSelling = r.qty === 0 || /inactive/i.test(r.status || '');
