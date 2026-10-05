@@ -501,8 +501,9 @@ console.log('\n== the issue gate ==');
   A.setPTG({ masters: db.pt_masters || {}, mdb, ob, press: A.ptList(db.pt_pressInventory), freeze: {}, err: '', busy: false });
   A.setPT(Object.assign(A.PT(), { cut, base }));
 
-  /* "Consumed" is open-with-contractors + pressed, NOT issued-so-far. A received piece must not be
-   * counted twice — that is the rule most easily got wrong, and it under-issues every order. */
+  /* CHANGED 2026-10-05 (Ravi: "nahi, ek piece dobara issue nahi hota"): "consumed" is EVERY piece issued, back or not.
+   * The old "open + pressed" let pieces that came back be issued again — 70 lines went past their cut that way. Made
+   * counts only where it is larger than what was issued (an old order made with no issue on record). */
   {
     const sku = 'ZZBD', no = 'ZZORD';
     A.setPTG(Object.assign(A.PTG(), { ob: [{ orderNo: no, sku, qty: 100 }], press: [] }));
@@ -510,17 +511,20 @@ console.log('\n== the issue gate ==');
       base: [{ orderNo: no, sku, issuePieces: 50, receivedPieces: 50 }],   // all came back
       cut: [{ orderNo: no, sku, pieces: 100 }],
     }));
-    ok('50 issued and 50 received consumes nothing — 100 still issuable',
-      A.bdGuard(no, sku, 100) === '', A.bdGuard(no, sku, 100));
+    ok('50 issued and 50 received still consumes 50 — a piece is never issued twice',
+      A.bdGuard(no, sku, 50) === '' && A.bdGuard(no, sku, 51) !== '', A.bdGuard(no, sku, 51));
 
     A.setPT(Object.assign(A.PT(), { base: [{ orderNo: no, sku, issuePieces: 50, receivedPieces: 0 }] }));
     ok('50 still out with the contractor consumes 50', A.bdGuard(no, sku, 50) === '' && A.bdGuard(no, sku, 51) !== '');
 
     A.setPTG(Object.assign(A.PTG(), { press: [{ orderNo: no, sku, pieces: 30 }] }));
-    ok('pressed pieces consume too — 50 open + 30 pressed leaves 20',
-      A.bdGuard(no, sku, 20) === '' && A.bdGuard(no, sku, 21) !== '');
-    const msg = A.bdGuard(no, sku, 21);
-    ok('…and the refusal shows the numbers', /ordered 100/.test(msg) && /already issued 80/.test(msg), msg);
+    ok('made pieces are not added on top of what was issued — 50 issued + 30 made leaves 50',
+      A.bdGuard(no, sku, 50) === '' && A.bdGuard(no, sku, 51) !== '');
+    const msg = A.bdGuard(no, sku, 51);
+    ok('…and the refusal shows the numbers', /ordered 100/.test(msg) && /already issued 50/.test(msg), msg);
+    A.setPT(Object.assign(A.PT(), { base: [] }));
+    A.setPTG(Object.assign(A.PTG(), { press: [{ orderNo: no, sku, pieces: 30 }] }));
+    ok('…but made with nothing issued on record still counts — 30 made leaves 70', A.bdGuard(no, sku, 70) === '' && A.bdGuard(no, sku, 71) !== '');
   }
 
   /* A piece must be cut before it can be issued. */
@@ -5207,13 +5211,13 @@ console.log('\n== the order-book lookups must not go stale either ==');
   A.setPT(Object.assign(A.PT(), { base: [{ id: 'b1', orderNo: 'AMZ-9', sku: 'SK1', issuePieces: 40, receivedPieces: 0 }] }));
   ok('an issue is seen straight away', A.obIssueUsed('AMZ-9', 'SK1') === 40,
     String(A.obIssueUsed('AMZ-9', 'SK1')));
-  /* What came back is no longer "used" — it is on the shelf. */
+  /* 2026-10-05: what came back still counts — a piece is never issued twice. */
   A.setPT(Object.assign(A.PT(), { base: [{ id: 'b1', orderNo: 'AMZ-9', sku: 'SK1', issuePieces: 40, receivedPieces: 15 }] }));
-  ok('what came back stops counting as out', A.obIssueUsed('AMZ-9', 'SK1') === 25,
+  ok('what came back still counts as issued', A.obIssueUsed('AMZ-9', 'SK1') === 40,
     String(A.obIssueUsed('AMZ-9', 'SK1')));
-  /* Pressed pieces count as used too — that rule is unchanged. */
+  /* Made is not added on top of it. */
   A.setPTG(Object.assign(A.PTG(), { press: [{ id: 'p1', orderNo: 'AMZ-9', sku: 'SK1', pieces: 10 }] }));
-  ok('pressed pieces still count as used', A.obIssueUsed('AMZ-9', 'SK1') === 35,
+  ok('made is not added on top of what was issued', A.obIssueUsed('AMZ-9', 'SK1') === 40,
     String(A.obIssueUsed('AMZ-9', 'SK1')));
   /* And the excluding form — the row being edited — still agrees. */
   ok('excluding the row being edited gives the same answer as before',
@@ -5222,11 +5226,11 @@ console.log('\n== the order-book lookups must not go stale either ==');
   /* The open-orders list is what the dropdown is built from. */
   const open = A.bdOpenOrders();
   ok('the order shows as open with the right balance',
-    open.length === 1 && open[0].orderNo === 'AMZ-9' && open[0].bal === 115,
+    open.length === 1 && open[0].orderNo === 'AMZ-9' && open[0].bal === 110,
     JSON.stringify(open.map(o => o.orderNo + ':' + o.bal)));
 
   /* Fill it completely and it must drop off the list, not linger. */
-  A.setPT(Object.assign(A.PT(), { base: [{ id: 'b1', orderNo: 'AMZ-9', sku: 'SK1', issuePieces: 140, receivedPieces: 0 }] }));
+  A.setPT(Object.assign(A.PT(), { base: [{ id: 'b1', orderNo: 'AMZ-9', sku: 'SK1', issuePieces: 150, receivedPieces: 0 }] }));
   A.setPTG(Object.assign(A.PTG(), { press: [{ id: 'p1', orderNo: 'AMZ-9', sku: 'SK1', pieces: 10 }] }));
   ok('an order with nothing left open drops off the list', A.bdOpenOrders().length === 0,
     JSON.stringify(A.bdOpenOrders().map(o => o.orderNo + ':' + o.bal)));

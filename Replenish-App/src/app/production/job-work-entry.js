@@ -49,23 +49,29 @@ function obPressQty(orderNo, sku, exclId) {
     .reduce((a, r) => a + (parseInt(r.pieces, 10) || 0), 0);
 }
 
-/** What an order line has already consumed of its issue allowance: open with contractors + pressed. */
+/**
+ * What an order line has already consumed of its issue allowance: EVERY piece ever issued against it, back or not.
+ *
+ * A PIECE IS NEVER ISSUED TWICE (Ravi, 2026-10-05: "nahi, ek piece dobara issue nahi hota"). This used to be
+ * "out with karigars + made", so the moment pieces came back and before they were made (pressed, now QC passed) they
+ * dropped out of it and the same room opened again — 70 order lines were issued 2,361 pieces past their cut that
+ * way. Made is still counted where it is larger: an old order made with no Job Work issue on record keeps its cap.
+ */
 function obIssueUsed(orderNo, sku, exclId) {
   /* The ordinary case comes off the index. The excluding case — one row being edited — keeps the
    * walk, so that rule lives in exactly one place. */
   if (!exclId) {
     const b = obBaseIndex().get(obKeyOf(orderNo, sku));
-    return Math.max(0, (b ? b.issued : 0) - (b ? b.received : 0)) + obPressQty(orderNo, sku);
+    return Math.max(b ? b.issued : 0, obPressQty(orderNo, sku));
   }
   const o = obUC(orderNo), s = obUC(sku);
-  let iss = 0, recv = 0;
+  let iss = 0;
   (PT.base || []).forEach(r => {
     if (!r || obUC(r.orderNo) !== o || obUC(r.sku) !== s) return;
     if (exclId && r.id === exclId) return;      // the row being edited does not count against itself
     iss += parseInt(r.issuePieces, 10) || 0;
-    recv += parseInt(r.receivedPieces, 10) || 0;
   });
-  return Math.max(0, iss - recv) + obPressQty(orderNo, sku);
+  return Math.max(iss, obPressQty(orderNo, sku));
 }
 
 /**
