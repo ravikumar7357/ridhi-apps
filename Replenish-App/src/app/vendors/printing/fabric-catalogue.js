@@ -258,6 +258,7 @@ function renderPcut() {
     return d || String(b.id || '').localeCompare(String(a.id || ''));
   });
   PT._pcutRows = rows;
+  if (($('pcView') || {}).value === 'wait') return renderPcutWait(rows);
 
   const pieces = rows.reduce((s, r) => s + ptNum(r.pieces), 0);
   $('pcKpis').innerHTML = `<div class="kpi" style="flex-basis:100%">
@@ -314,11 +315,92 @@ function renderPcut() {
   ptImgFill(shown.map(r => r.sku), false, ptIfTab('pcut', renderPcut));
 }
 
+/* ================= CUT, NOT YET ISSUED =================
+ *
+ * Ravi, 2026-10-05: "mujhe is cutting data ka hisab check karna h … ye bhi check kar saku ki mere pas cutting abhi bachi
+ * kon c h jo ki karigar ko issue nahi hua h".
+ *
+ * One line per order and SKU that the filters pick (the filters, dates included, choose WHICH lines; the figures are the
+ * whole of that line): cut (less cut rejected — the same net the Job Work issue cap uses), given to karigars against
+ * that order, and what is still waiting to go. A cut-then-printed SKU goes to the printer first, so what a printer still
+ * holds for the order is shown beside it — those pieces are not on the shelf. Issued past the cut is said, never hidden:
+ * it means pieces went out that this order's cutting does not account for.
+ */
+function pcutWaitRows(rows) {
+  const by = new Map();
+  rows.forEach(r => {
+    const o = obUC(r.orderNo), s = obUC(r.sku);
+    if (!s) return;
+    const k = o + '|' + s;
+    let e = by.get(k);
+    if (!e) { e = { orderNo: o, sku: s, at: r.articleType || '', sub: r.articleSubtype || '', col: r.color || '', size: r.size || '', last: 0, lastTxt: '' }; by.set(k, e); }
+    const ms = ptDtMs(r.cutDate);
+    if (ms > e.last) { e.last = ms; e.lastTxt = r.cutDate || ''; }
+  });
+  const now = Date.now();
+  return [...by.values()].map(e => {
+    const cut = obCutQty(e.orderNo, e.sku);
+    const b = obBaseIndex().get(obKeyOf(e.orderNo, e.sku));
+    const issued = b ? b.issued : 0;
+    let atPrinter = 0;
+    try { const v = typeof ordVendorOf === 'function' && VO.rows ? ordVendorOf(e.orderNo, e.sku) : null; if (v) atPrinter = Math.max(0, v.given - v.back); } catch (err) { /* printers' orders not read */ }
+    return Object.assign(e, { cut, issued, wait: Math.max(0, cut - issued), over: Math.max(0, issued - cut), atPrinter,
+      days: e.last ? Math.floor((now - e.last) / 86400000) : null });
+  });
+}
+
+function renderPcutWait(cutRows) {
+  if (PT.base === null) { ptLoad('base', 'pt_baseData', renderPcut); }
+  if (PT.busy.base) { $('pcMsg').className = 'muted'; $('pcMsg').textContent = 'Reading the Job Work Register…'; ptEmpty('pcTable', 'Loading…'); $('pcKpis').innerHTML = ''; return; }
+  if (PT.err.base) { $('pcMsg').className = 'err'; $('pcMsg').textContent = 'Could not read the Job Work Register: ' + PT.err.base; ptEmpty('pcTable', 'Nothing to show.'); $('pcKpis').innerHTML = ''; return; }
+  const all = pcutWaitRows(cutRows);
+  const rows = all.filter(e => e.wait > 0 || e.over > 0)
+    .sort((a, b) => (b.wait - a.wait) || ((b.days || 0) - (a.days || 0)));
+  PT._pcutWait = rows;
+  const sum = k => rows.reduce((a, e) => a + (e[k] || 0), 0);
+  const waiting = rows.filter(e => e.wait > 0), over = rows.filter(e => e.over > 0);
+  const old = waiting.filter(e => (e.days || 0) >= 7);
+  $('pcKpis').innerHTML = `<div class="kpi" style="flex-basis:100%">
+    <div class="kpihead"><span class="kpiname">Cut, not yet issued to a karigar</span>
+      <span class="kpiwhen">read live${PT.at.cut ? ' · ' + esc(PT.at.cut) : ''}</span></div>
+    <div class="metrics">
+      <div class="metric"><div class="v" style="color:#b45309">${nf(sum('wait'))}</div><div class="l">Pieces waiting to issue</div></div>
+      <div class="metric"><div class="v">${nf(waiting.length)}</div><div class="l">Order lines</div></div>
+      <div class="metric"><div class="v">${nf(new Set(waiting.map(e => e.orderNo)).size)}</div><div class="l">Orders</div></div>
+      <div class="metric"><div class="v"${old.length ? ' style="color:var(--bad)"' : ''}>${nf(old.reduce((a, e) => a + e.wait, 0))}</div><div class="l">Waiting 7+ days</div><div class="l muted">${nf(old.length)} line(s)</div></div>
+      <div class="metric" title="Cut pieces of a cut-then-printed SKU that the printer still holds for the order — not on the shelf."><div class="v">${nf(waiting.reduce((a, e) => a + Math.min(e.wait, e.atPrinter), 0))}</div><div class="l">Of them with a printer</div></div>
+      <div class="metric" title="More was issued to karigars than this order's cutting accounts for."><div class="v"${over.length ? ' style="color:var(--bad)"' : ''}>${nf(sum('over'))}</div><div class="l">Issued beyond the cut</div><div class="l muted">${nf(over.length)} line(s)</div></div>
+    </div></div>`;
+  const head = '<thead><tr>' + ['Order No', 'SKU', 'Image', 'Article', 'Subtype', 'Color', 'Size', 'Cut', 'Issued', 'Waiting to issue', 'With printer', 'Last cut', 'Days']
+    .map((h, i) => `<th${i === 0 ? ' class="frz"' : ([7, 8, 9, 10, 12].indexOf(i) >= 0 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
+  const shown = rows.slice(0, PC_CAP);
+  const z = v => (v ? nf(v) : '<span class="muted">—</span>');
+  const body = shown.map(e => '<tr>'
+    + `<td class="frz" style="text-align:left">${esc(e.orderNo) || '<span class="muted">no order</span>'}</td>`
+    + `<td style="font-family:ui-monospace,monospace;text-align:left">${esc(e.sku)}</td>`
+    + ptImgCell(e.sku)
+    + `<td>${esc(e.at)}</td><td>${esc(e.sub)}</td><td>${esc(e.col)}</td><td>${esc(e.size)}</td>`
+    + `<td class="num">${z(e.cut)}</td><td class="num">${z(e.issued)}</td>`
+    + `<td class="num" style="font-weight:700;color:${e.wait ? '#b45309' : 'inherit'}">${e.wait ? nf(e.wait)
+      : `<span style="color:var(--bad)" title="${nf(e.over)} more issued than cut for this order">${nf(e.over)} over</span>`}</td>`
+    + `<td class="num">${z(Math.min(e.wait, e.atPrinter))}</td>`
+    + `<td style="text-align:left">${esc(e.lastTxt)}</td>`
+    + `<td class="num"${(e.days || 0) >= 7 && e.wait ? ' style="color:var(--bad);font-weight:700"' : ''}>${e.days == null ? '—' : nf(e.days)}</td></tr>`).join('');
+  $('pcTable').innerHTML = head + '<tbody>' + (body || '<tr><td colspan="13" class="muted" style="padding:14px">Everything cut has gone to a karigar.</td></tr>') + '</tbody>';
+  $('pcMsg').className = 'muted';
+  $('pcMsg').textContent = `${nf(waiting.length)} order line(s) with cut pieces still to issue`
+    + (over.length ? ` · ${nf(over.length)} line(s) issued beyond their cut` : '')
+    + ' · cut = cut less cut rejected; the filters pick the lines, the figures are each line\'s whole'
+    + (rows.length > PC_CAP ? ` · showing ${nf(PC_CAP)} · Export covers all` : '');
+  $('pcMore').innerHTML = ptMoreBtn('data-pcmore', rows.length, PC_CAP);
+  ptImgFill(shown.map(e => e.sku), false, ptIfTab('pcut', renderPcut));
+}
+
 /* ---------------- wiring ---------------- */
 
 ['ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut'].forEach(id => $(id).addEventListener('change', renderPmdb));
 ['pbType', 'pbEmp', 'pbArt', 'pbSub', 'pbCol', 'pbSz', 'pbStatus', 'pbDBy', 'pbD1', 'pbD2'].forEach(id => $(id).addEventListener('change', renderPbase));
-['pcArt', 'pcSub', 'pcCol', 'pcSz', 'pcOrd', 'pcD1', 'pcD2'].forEach(id => $(id).addEventListener('change', renderPcut));
+['pcView', 'pcArt', 'pcSub', 'pcCol', 'pcSz', 'pcOrd', 'pcD1', 'pcD2'].forEach(id => $(id).addEventListener('change', renderPcut));
 /* The cloth the cut costs follows the pieces and the SKU as they are typed. renderCutFab, NOT
  * renderCutForm: the form rebuilds four dropdowns off the master list, and doing that on every
  * keystroke of a piece count is what made the Job Work form lag. */
@@ -450,6 +532,12 @@ $('pbExport').onclick = () => {
 };
 
 $('pcExport').onclick = () => {
+  if (($('pcView') || {}).value === 'wait') {
+    const w = PT._pcutWait || []; if (!w.length) return;
+    return ptDownload('cut-not-yet-issued', [['Order No', 'SKU', 'Article', 'Subtype', 'Color', 'Size', 'Cut', 'Issued', 'Waiting to issue', 'Issued beyond cut', 'With printer', 'Last cut', 'Days']
+      .map(csvCell).join(',')].concat(w.map(e => [e.orderNo, e.sku, e.at, e.sub, e.col, e.size, e.cut, e.issued, e.wait, e.over,
+        Math.min(e.wait, e.atPrinter), e.lastTxt, e.days == null ? '' : e.days].map(csvCell).join(','))));
+  }
   const rows = PT._pcutRows || []; if (!rows.length) return;
   const lines = [['Cut Date', 'Order No', 'SKU', 'Article', 'Subtype', 'Color', 'Size', 'Fabric', 'Pieces',
     'Fabric used (m)', 'Waste (m)', 'Waste width (in)', 'Waste %', 'Remarks', 'Entered by'].map(csvCell).join(',')];
