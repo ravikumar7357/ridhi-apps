@@ -4831,7 +4831,8 @@ function renderHealth() {
       tip: 'A+ missing, under 6 images, under 5 bullets, or a size in the title not written "14 x 36 Inch" / written larger-first.' });
     defs.push({ k: 'review', t: 'Needs Review', num: 1, cell: cnt({ k: 'review', c: 'sev-r' }),
       tip: '6–7 images when 8 is ideal, a thin or missing description, or a title outside 80–200 characters.' });
-    defs.push({ k: 'healthy', t: 'Healthy', num: 1, cell: cnt({ k: 'healthy', c: 'sev-g' }), tip: 'Checked, and none of the checks found anything.' });
+    /* ONE COLUMN, NOT TWO (2026-10-05, Ravi: "healthy or health only 1 column rakho"): the Health score stays; the count
+     * of clean children is on the brand card above. */
     ['Title', 'Size', 'Variation', 'Images', 'Content'].forEach(a => defs.push({ k: 'parea' + a, t: a, noTotal: 1,
       map: r => r.kids.reduce((m, x) => { const f = hAreaSev(x._h, a); return Math.max(m, f ? LR_SEV[f.sev].rank : 0); }, 0),
       cell: r => {
