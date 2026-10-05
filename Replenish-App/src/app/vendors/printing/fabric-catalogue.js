@@ -266,12 +266,17 @@ function renderPcut() {
   PT._pcutRows = rows;
 
   const pieces = rows.reduce((s, r) => s + ptNum(r.pieces), 0);
+  /* ISSUED AND STILL TO ISSUE, over the entries on screen (2026-10-05, Ravi: "partially used me dikhe ki itna pending h and
+   * itna complete ho chuke subtotal me"). */
+  const useTot = useMap ? rows.reduce((a, r) => { const u = pcutUseOf(r); if (u) { a.used += u.used; a.left += Math.max(0, u.net - u.used); } return a; }, { used: 0, left: 0 }) : null;
   $('pcKpis').innerHTML = `<div class="kpi" style="flex-basis:100%">
     <div class="kpihead"><span class="kpiname">Cutting Data</span>
       <span class="kpiwhen">read live${PT.at.cut ? ' · ' + esc(PT.at.cut) : ''}</span></div>
     <div class="metrics">
       <div class="metric"><div class="v">${nf(rows.length)}</div><div class="l">Cut entries</div></div>
       <div class="metric"><div class="v">${nf(pieces)}</div><div class="l">Pieces cut</div></div>
+      ${useTot ? `<div class="metric"><div class="v" style="color:#166534">${nf(useTot.used)}</div><div class="l">Issued to karigars</div></div>
+      <div class="metric"><div class="v" style="color:#b45309">${nf(useTot.left)}</div><div class="l">Still to issue</div></div>` : ''}
       <div class="metric"><div class="v">${nf(new Set(rows.map(r => String(r.sku || '').trim().toUpperCase()).filter(Boolean)).size)}</div><div class="l">SKUs</div></div>
       <div class="metric"><div class="v">${nf(new Set(rows.map(r => String(r.orderNo || '').trim()).filter(Boolean)).size)}</div><div class="l">Orders</div></div>
       <div class="metric"><div class="v">${nf(new Set(rows.map(r => String(r.fabricWidth || '').trim()).filter(Boolean)).size)}</div><div class="l">Fabrics</div></div>

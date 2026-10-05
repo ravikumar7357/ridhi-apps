@@ -61,6 +61,7 @@ const qcPendingOf = r => Math.max(0, ptNum(r && r.pieces) - qcRetOf(r && r.id));
 /** Every issuance with pieces still out, oldest first — the oldest is the one to chase. */
 /** The three jobs on this screen, in the order the work moves. */
 const QC_VIEWS = [
+  ['inbox', 'Waiting for QC', 'qc'],
   ['checks', 'Checks', 'qc'],
   ['issue', 'Issued for alteration', 'qcalt'],
   ['ret', 'Received back from alteration', 'qcret'],
@@ -126,6 +127,7 @@ function renderQc() {
 
   if (QC.busy) { $('qcMsg').className = 'muted'; $('qcMsg').textContent = 'Reading the production database…'; ptEmpty('qcTable', 'Loading…'); return; }
   if (QC.err) { $('qcMsg').className = 'err'; $('qcMsg').textContent = 'Could not read it: ' + QC.err; ptEmpty('qcTable', 'Nothing to show.'); $('qcKpis').innerHTML = ''; return; }
+  if (view === 'inbox') return renderQcInbox();
 
   const q = $('qcQ').value.trim().toLowerCase();
   /* ONE WINDOW ACROSS ALL THREE VIEWS. A check, the alteration it went out on and the return it came
@@ -640,6 +642,111 @@ function qcEditIssue(id) {
   });
 }
 
+/* ================= WAITING FOR QC =================
+ *
+ * Ravi, 2026-10-05: "jese hi jobwork wala banda receive kare wo auto move hona chahiye Q.C department me and Q.C wala banda
+ * usko accept kare … accept partially bhi ho sakta h" — and no Return: "return hata do, partially ya not receive".
+ *
+ * Every Job Work row's pieces received back from QC_INBOX_FROM on (each receipt carries its own date since 2 Oct) are
+ * waiting here, row by row, until QC accepts them. Accepting writes a QC check against that row (baseId), the order
+ * and the SKU — checked = passed = the pieces accepted — so a QC pass is "made" on the Order Console the moment it is
+ * saved. Accepting fewer leaves the rest waiting on the same row; nothing accepted is nothing written. The old Checks
+ * form, alteration and rejection are untouched.
+ */
+const QC_INBOX_FROM = '2026-10-05';
+const qcInboxFromMs = () => new Date(QC_INBOX_FROM + 'T00:00:00').getTime();
+function qcInboxRows() {
+  const from = qcInboxFromMs();
+  const took = new Map();
+  (QC.checks || []).forEach(c => { if (c && c.baseId) took.set(c.baseId, (took.get(c.baseId) || 0) + ptNum(c.checked)); });
+  const out = [];
+  (PT.base || []).forEach(r => {
+    if (!r || !r.id) return;
+    const rec = (Array.isArray(r.receipts) ? r.receipts : Object.values(r.receipts || {})).filter(Boolean);
+    let since = 0, last = 0;
+    rec.forEach(x => { const ms = ptDtMs(x.at); if (ms >= from) { since += ptNum(x.qty); if (ms > last) last = ms; } });
+    /* Never more than the row says came back — a correction may have lowered it after the receipt was logged. */
+    since = Math.min(since, ptNum(r.receivedPieces));
+    const accepted = took.get(r.id) || 0, wait = since - accepted;
+    if (!(wait > 0)) return;
+    out.push({ r, since, accepted, wait, last });
+  });
+  return out.sort((a, b) => a.last - b.last);
+}
+function renderQcInbox() {
+  const q = $('qcQ').value.trim().toLowerCase();
+  const all = qcInboxRows();
+  const rows = all.filter(x => !q || [x.r.sku, x.r.articleType, x.r.articleSubtype, x.r.color, x.r.size, x.r.empName, x.r.orderNo]
+    .join(' ').toLowerCase().includes(q));
+  QC.rows = rows.map(x => x.r); QC.inbox = rows;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const acceptedToday = (QC.checks || []).filter(c => c && c.baseId && ptDtMs(c.date) >= today.getTime()).reduce((a, c) => a + ptNum(c.checked), 0);
+  const oldest = rows.length ? Math.floor((Date.now() - rows[0].last) / 3600000) : 0;
+  $('qcKpis').innerHTML = `<div class="kpi" style="flex-basis:100%">
+    <div class="kpihead"><span class="kpiname">Waiting for QC — received from karigars since ${esc(QC_INBOX_FROM.split('-').reverse().join('/'))}</span>
+      <span class="kpiwhen">read live${QC.at ? ' · ' + esc(QC.at) : ''}</span></div>
+    <div class="metrics">
+      <div class="metric"><div class="v" style="color:#b45309">${nf(rows.reduce((a, x) => a + x.wait, 0))}</div><div class="l">Pieces waiting</div></div>
+      <div class="metric"><div class="v">${nf(rows.length)}</div><div class="l">Job Work entries</div></div>
+      <div class="metric"><div class="v">${nf(new Set(rows.map(x => x.r.empName)).size)}</div><div class="l">Karigars</div></div>
+      <div class="metric"><div class="v"${oldest >= 24 ? ' style="color:var(--bad)"' : ''}>${rows.length ? (oldest >= 24 ? nf(Math.floor(oldest / 24)) + ' day(s)' : nf(oldest) + ' h') : '—'}</div><div class="l">Oldest waiting</div></div>
+      <div class="metric"><div class="v" style="color:#166534">${nf(acceptedToday)}</div><div class="l">Accepted today</div></div>
+    </div></div>`;
+  const head = '<thead><tr>' + ['Received', 'Karigar', 'SKU', 'Image', 'Item', 'Order', 'Received', 'Accepted', 'Waiting', 'Accept now', '']
+    .map((h, i) => `<th${i === 0 ? ' class="frz"' : ([6, 7, 8].indexOf(i) >= 0 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
+  const can = ptCanEdit() || ME.admin || (ME.tabs || []).includes('qc');
+  $('qcTable').innerHTML = head + '<tbody>' + (rows.slice(0, 600).map(x => '<tr>'
+    + (d => `<td class="frz" style="text-align:left">${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}<div class="muted" style="font-size:11px">${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}</div></td>`)(new Date(x.last))
+    + `<td style="text-align:left">${esc(x.r.empName || '')}<div class="muted" style="font-size:11px">${esc(x.r.empType || '')}</div></td>`
+    + `<td style="font-family:ui-monospace,monospace;text-align:left">${esc(x.r.sku)}</td>`
+    + ptImgCell(x.r.sku)
+    + `<td style="text-align:left">${esc([x.r.articleSubtype || x.r.articleType, x.r.color, x.r.size].filter(Boolean).join(' · '))}</td>`
+    + `<td style="text-align:left">${esc(x.r.orderNo || '') || '<span class="muted">—</span>'}</td>`
+    + `<td class="num">${nf(x.since)}</td><td class="num" style="color:#166534">${x.accepted ? nf(x.accepted) : '<span class="muted">—</span>'}</td>`
+    + `<td class="num" style="font-weight:700;color:#b45309">${nf(x.wait)}</td>`
+    + `<td>${can ? `<input type="number" min="1" max="${x.wait}" value="${x.wait}" data-qcin-qty="${esc(x.r.id)}" style="width:80px">` : ''}</td>`
+    + `<td>${can ? `<button data-qcin-go="${esc(x.r.id)}" style="padding:3px 12px;font-size:12px">Accept</button>` : '<span class="muted">—</span>'}</td>`
+    + '</tr>').join('') || '<tr><td colspan="11" class="muted" style="padding:14px">Nothing waiting — everything received from karigars has been accepted.</td></tr>') + '</tbody>';
+  $('qcMsg').className = 'muted';
+  $('qcMsg').textContent = `${nf(rows.length)} entr${rows.length === 1 ? 'y' : 'ies'} waiting, oldest first · type fewer to accept part — the rest stays waiting · an accepted piece is a QC pass: made on the Order Console, ready for shipping on a Shopify order`;
+}
+/** Accept `qty` of one Job Work row's pieces into QC. '' or why not. */
+async function qcInboxAccept(baseId, qty) {
+  const x = qcInboxRows().find(e => e.r.id === baseId);
+  if (!x) return 'That entry is no longer waiting — press Refresh.';
+  const q = parseInt(qty, 10);
+  if (!(q > 0)) return 'Type how many pieces QC is accepting.';
+  if (q > x.wait) return `Only ${nf(x.wait)} piece(s) of this entry are waiting.`;
+  const r = x.r, p = qcParts(r.sku);
+  const rec = {
+    id: 'qc_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    date: ptNow(), checkedBy: String(ME.email || '').split('@')[0], brand: p.brand,
+    articleType: p.at || r.articleType || '', subtype: p.sub || r.articleSubtype || '', color: p.col || r.color || '', size: p.size || r.size || '',
+    sku: qcNorm(r.sku), checked: q, ok: q, forAlteration: 0, rejected: 0,
+    ...(r.orderNo ? { orderNo: obUC(r.orderNo) } : {}),
+    baseId: r.id, karigar: r.empName || '', from: 'waiting',
+    remarks: 'Accepted from Waiting for QC', addedBy: ME.email, addedAt: new Date().toISOString(),
+  };
+  await ptPut('pt_qcChecks/' + rec.id, rec);
+  QC.checks = (QC.checks || []).concat(Object.assign({ _key: rec.id }, rec));
+  return '';
+}
+
+$('qcTable').addEventListener('click', async e => {
+  const go = e.target.closest('[data-qcin-go]');
+  if (go) {
+    const id = go.getAttribute('data-qcin-go');
+    const box = document.querySelector(`[data-qcin-qty="${CSS.escape(id)}"]`);
+    go.disabled = true;
+    let err = '';
+    try { err = await qcInboxAccept(id, box ? box.value : ''); } catch (er) { err = 'Not saved: ' + (er.message || er); }
+    go.disabled = false;
+    renderQc();
+    $('qcMsg').className = err ? 'err' : 'muted';
+    if (err) $('qcMsg').textContent = err; else $('qcMsg').textContent = 'Accepted into QC. ' + $('qcMsg').textContent;
+    return;
+  }
+});
 $('qcTable').addEventListener('click', e => {
   const a = e.target.closest('[data-qc-edit]'); if (a) return qcEditCheck(a.getAttribute('data-qc-edit'));
   const b = e.target.closest('[data-qci-edit]'); if (b) return qcEditIssue(b.getAttribute('data-qci-edit'));
