@@ -470,24 +470,22 @@ function shpPlanOrder(o, full, assigned, opts) {
   });
   out.isNew = !had.size;
 
-  /* THE AUTOMATIC RUN (2026-09-26): nothing opens, nothing is withdrawn — a line that is open was opened by somebody.
-   * What it does do is close the loop from Shopify: a line the shipping team has fulfilled (or that was cancelled,
-   * refunded or marked done) is COMPLETED, kept on the book with the reason, never deleted. */
+  /* THE AUTOMATIC RUN: nothing opens, nothing is withdrawn — and NOTHING CLOSES (Ravi, 2026-10-05: "ek bar jo order
+   * production me open ho jay wo jab tak production se close nahi ho wo kabhi bhi close nahi hona chahiye").
+   * A line ends only when production hands it to shipping. What Shopify says — fulfilled, cancelled, refunded, a
+   * DONE / READY note — is written on the line as shopSays, so the floor sees it and decides; it closes nothing.
+   * (Until today it closed the line: 26 Sep for fulfilled/cancelled/refunded, and a note until earlier today.)
+   * Lines Shopify closed before this stay closed (shopDoneAt) — Ravi: "jaisi hain waisi rehne do". */
   if (O.maintain) {
     if (full) had.forEach((x, sk) => {
       if (x.shopDoneAt) return;
-      const why = shpDoneWhy(o, sk);
-      if (!why) return;
-      /* A DONE / READY NOTE NEVER CLOSES A LINE PRODUCTION HAS OPEN (Ravi, 2026-10-05). It used to: 372 lines were closed
-       * by a note, and 23 of them Shopify still had to ship — pieces that dropped off the floor's list unmade or
-       * unhanded. The line now closes the way every other one does: shipping takes it, or Shopify ships, cancels or
-       * refunds it. (Before, only a line opened from the bucket past the note was spared — #3873, 2026-09-28.) */
-      if (why === 'marked done') return;
+      const why = shpDoneWhy(o, sk) || '';
+      if (String(x.shopSays || '') === why) return;
       const key = x.id || x._key || obKey(sk);
-      out.patch['pt_orderBook/' + key + '/shopDoneAt'] = now;
-      out.patch['pt_orderBook/' + key + '/shopDoneWhy'] = why;
-      out.rows.push(Object.assign({}, x, { shopDoneAt: now, shopDoneWhy: why }));
-      out.done++;
+      out.patch['pt_orderBook/' + key + '/shopSays'] = why || null;
+      out.patch['pt_orderBook/' + key + '/shopSaysAt'] = why ? now : null;
+      out.rows.push(Object.assign({}, x, { shopSays: why, shopSaysAt: why ? now : '' }));
+      if (why) out.done++;
     });
     return out;
   }

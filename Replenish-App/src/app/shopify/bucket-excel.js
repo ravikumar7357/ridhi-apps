@@ -296,8 +296,10 @@ function soProdStatus(o) {
   }
   const made = ls.reduce((t, l) => t + Math.min(l.qty, l.pressed || 0), 0), qty = ls.reduce((t, l) => t + l.qty, 0);
   const taken = ls.reduce((t, l) => t + Math.min(l.qty, Number(((typeof spOf === 'function' ? spOf(l.orderNo, l.sku) : null) || {}).handedQty) || 0), 0);
+  const says = ls.filter(l => l.open && l.shopSays).length;
   return { tone: 'prog', txt: `In production · ${nf(n - open)} of ${nf(n)} line(s) done` + (qty ? ` · ${nf(made)} of ${nf(qty)} pcs made` : '')
-    + (made > taken ? ` · ${nf(made - taken)} ready to take` : '') };
+    + (made > taken ? ` · ${nf(made - taken)} ready to take` : '')
+    + (says ? ` · Shopify already closed ${nf(says)} line(s) — still open until production hands them over` : '') };
 }
 
 /** How many NEW production orders a plan would open before it is allowed to run unattended. */
@@ -543,7 +545,7 @@ function shpSyncMsg(t) {
   if (t.cancelled) return 'Nothing was sent to production.';
   if (t.err) return 'The Order Console could not be brought up to date: ' + t.err;
   const bits = [];
-  if (t.done) bits.push(`${nf(t.done)} production line(s) completed — the shipping team fulfilled, cancelled or marked them done on Shopify`);
+  if (t.done) bits.push(`${nf(t.done)} open production line(s) are fulfilled, cancelled or marked done on Shopify — they stay open until production hands them over`);
   if (t.written) bits.push(`${nf(t.written)} line(s) · ${nf(t.pieces)} piece(s) in the Order Console across ${nf(t.orders)} order(s)`);
   if (t.removed) bits.push(`${nf(t.removed)} closed (now fillable, shipped, or marked done on Shopify)`);
   if (t.dupes) bits.push(`${nf(t.dupes)} duplicate row(s) removed — they were doubling a quantity`);
@@ -606,7 +608,7 @@ async function shpSyncSoon(where) {
       try { reach = await shpCloseShipped({ maintain: true }); } catch (e) { reach = { err: e.message || String(e) }; }
       if (reach && (reach.closed || reach.opened)) {
         const bits = [];
-        if (reach.closed) bits.push(`${nf(reach.closed)} older order(s) completed — they have shipped or been cancelled on Shopify`);
+        if (reach.closed) bits.push(`${nf(reach.closed)} older order(s) have shipped or been cancelled on Shopify — their production lines stay open until handed over`);
         if (reach.opened) bits.push(`${nf(reach.opened)} older order(s) brought up to date — ${nf(reach.written)} line(s) they still need are now in the Order Console`);
         msg = (msg ? msg + ' · ' : 'Production: ') + bits.join(' · ');
       }

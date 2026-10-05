@@ -1760,18 +1760,19 @@ console.log('\n== THE PRODUCTION BUCKET (Ravi, 2026-09-26) ==');
   A.renderShop();
   ok('the Shopify team sees the order in production', /In production/.test(els.soTable.innerHTML));
 
-  /* THE SHIPPING TEAM FULFILS IT: the open production lines complete themselves, kept on the book. */
+  /* THE SHIPPING TEAM FULFILS IT ON SHOPIFY: the line stays open (Ravi, 5 Oct: "jab tak production se close nahi ho wo
+   * kabhi bhi close nahi hona chahiye"). What Shopify says is written on it; only a hand-over closes it. */
   A.setSHOP({ orders: [mk('b1', '#5001', [['RCNBMIX', 2], ['RCNBRED', 1]], { ff: 'fulfilled' })], from: '', to: '', tz: '', at: 'x' });
   A.renderShop();
   t = await A.shpSyncAll({ maintain: true });
-  ok('an order fulfilled on Shopify completes its open production lines', t.done === 2
-     && RT['pt_orderBook/ob_shp_SHP-5001_RCNBMIX/shopDoneWhy'] === 'fulfilled' && !!RT['pt_orderBook/ob_shp_SHP-5001_RCNBMIX/shopDoneAt'], JSON.stringify(t.done));
+  ok('an order fulfilled on Shopify does NOT close its open production lines — it notes it on them', t.done === 2
+     && RT['pt_orderBook/ob_shp_SHP-5001_RCNBMIX/shopSays'] === 'fulfilled' && !RT['pt_orderBook/ob_shp_SHP-5001_RCNBMIX/shopDoneAt'], JSON.stringify(t.done));
   ok('…kept, not deleted', !!RT['pt_orderBook/ob_shp_SHP-5001_RCNBMIX']);
   const line = ordLines().find(l => l.orderNo === 'SHP-5001' && l.sku === 'RCNBMIX');
-  ok('…so the line is no longer open — it is in the complete window', line && line.open === false, JSON.stringify(line));
-  ok('…and the Shopify team reads "Fulfilled by shipping team"', /Fulfilled by shipping team/.test((A.soProdStatus({ id: 'b1' }) || {}).txt || ''), JSON.stringify(A.soProdStatus({ id: 'b1' })));
+  ok('…so the line is still open', line && line.open === true, JSON.stringify(line));
+  ok('…and the Shopify team does not read it as done', !/Fulfilled by shipping team|Production complete/.test((A.soProdStatus({ id: 'b1' }) || {}).txt || ''), JSON.stringify(A.soProdStatus({ id: 'b1' })));
   t = await A.shpSyncAll({ maintain: true });
-  ok('…and a second run does not complete it again', t.done === 0);
+  ok('…and a second run does not write it again', t.done === 0);
   /* THE BUCKET IN EXCEL (Ravi: "excel se import export kr ske becuase manually bahut bada task h"). */
   {
     RT = {}; PTG.ob = []; SOX.rows = []; PATCHES.length = 0;

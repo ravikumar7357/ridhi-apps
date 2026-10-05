@@ -17878,12 +17878,14 @@ function ordLinesBuild() {
       src: r.src || '', addedMs: 0 }, obWhat(r), {
       // Where an order line came from, when it came from a Shopify order that had to be made.
       shopOrderNo: r.shopOrderNo || '', shopOrderId: r.shopOrderId || '', adjId: r.adjId || '',
-      shopImg: r.shopImg || '', packs: 0, pcsPer: 1, shopDoneAt: '', shopDoneWhy: '',
+      shopImg: r.shopImg || '', packs: 0, pcsPer: 1, shopDoneAt: '', shopDoneWhy: '', shopSays: '', shopSaysAt: '',
       /* WHAT THE ORDER CALLED IT (2026-09-26): a B2B custom SKU is in no master, so its article is blank — the name
        * and material the order came in with are what say what it is. */
       itemName: r.itemName || ordCustomName(r.sku), material: r.material || '' }));
     /* COMPLETED BY THE SHIPPING TEAM (2026-09-26): Shopify says the parcel went (or never will). */
     if (r.shopDoneAt) { e.shopDoneAt = r.shopDoneAt; e.shopDoneWhy = r.shopDoneWhy || 'fulfilled'; }
+    /* WHAT SHOPIFY SAYS about a line still open — told, never acted on. */
+    if (r.shopSays) { e.shopSays = r.shopSays; e.shopSaysAt = r.shopSaysAt || ''; }
     /* WHEN IT WAS PUT ON THE BOOK — the newest first on screen. */
     { const ms = ptDtMs(r.openedAt || r.uploadedAt); if (ms > e.addedMs) e.addedMs = ms; }
     /* PIECES, not packs. A Shopify line keeps what the customer ordered alongside, so the screen can
@@ -17956,7 +17958,9 @@ function ordLinesBuild() {
       handedAt: shp0 ? (shp0.handedAt || '') : '',
       handedBy: shp0 ? (shp0.handedBy || '') : '',
       spRemarks: shp0 ? String(shp0.remarks || '') : '',
-      open: l.shopDoneAt ? false : (shp0 ? !spHanded(shp0) : pressed < l.qty),
+      /* A SHOPIFY LINE IS OPEN UNTIL PRODUCTION HANDS IT OVER (2026-10-05) — with or without its own record. It used to
+       * close on "made in full" when nobody had written a record for it (20 lines), skipping the hand-over. */
+      open: l.shopDoneAt ? false : (l.src === 'SHP' ? !spHanded(shp0) : pressed < l.qty),
     });
   }).map(l => {
     /* HANDED OVER IS THE END. The goods are with a customer, so nothing on this line is outstanding
@@ -18340,6 +18344,10 @@ function ordWaitingAt(r) {
    * wondering whether the goods actually went anywhere. */
   if (!r.open) return (r.shopDoneAt && !r.handedAt ? SHP_DONE_TXT(r.shopDoneWhy)
     : (r.handedAt ? 'Handed over' + (r.unrecorded ? ' · ' + nf(r.unrecorded) + ' never recorded' : '') : 'Complete')) + tail;
+  /* MADE IN FULL, NOT HANDED OVER (2026-10-05): a Shopify line now stays open until shipping takes it, and some were
+   * made (an old press entry, or QC) with no Job Work issue behind them. That is waiting for shipping, not for a karigar. */
+  if (r.src === 'SHP' && r.qty > 0 && r.pressed >= r.qty) return 'Ready to hand over to shipping'
+    + (r.issued < r.qty ? ' · Job Work issue never recorded' : '') + tail;
   const v = ordVendorOf(r.orderNo, r.sku);
   const vGiven = r.printer ? r.qty : (v ? v.given : 0), vBack = r.printer ? r.printed : (v ? v.back : 0);
   if (vGiven > vBack && (r.cutReq ? r.cut < vGiven : r.received < vGiven)) return 'Vendor — ' + nf(vGiven - vBack) + ' to come back';
@@ -18957,7 +18965,14 @@ function ordHead(cols, tick) {
 /** Completed because of Shopify, in words the floor and the shipping team both read. */
 const SHP_DONE_TXT = why => ({ fulfilled: 'Fulfilled by shipping team', cancelled: 'Cancelled on Shopify', refunded: 'Refunded on Shopify',
   'marked done': 'Marked done by shipping team' })[why] || 'Fulfilled by shipping team';
+/** Shopify's word on a line production still has open: it changes nothing, so it says what to do. */
+const SHP_SAYS_TXT = why => ({ fulfilled: 'Shopify: shipped — not handed over by production', cancelled: 'Shopify: cancelled — production to decide',
+  refunded: 'Shopify: refunded — production to decide', 'marked done': 'Shopify note says DONE / READY — not handed over' })[why] || '';
 function ordStatePill(r) {
+  if (r.open && r.shopSays && SHP_SAYS_TXT(r.shopSays)) return '<span class="jw-st pend" title="Still open: only a hand-over to shipping closes it">' + esc(SHP_SAYS_TXT(r.shopSays)) + '</span> ' + ordStatePillWork(r);
+  return ordStatePillWork(r);
+}
+function ordStatePillWork(r) {
   if (!r.open && r.shopDoneAt && !r.handedAt) return '<span class="jw-st done" title="Closed from Shopify ' + esc(ptIsoDate(r.shopDoneAt) || '') + '">' + esc(SHP_DONE_TXT(r.shopDoneWhy)) + '</span>';
   if (!r.open) return '<span class="jw-st done">Complete</span>';
   if (r.pendingCut > 0) return '<span class="jw-st pend">' + nf(r.pendingCut) + ' to cut</span>';
@@ -50870,24 +50885,22 @@ function shpPlanOrder(o, full, assigned, opts) {
   });
   out.isNew = !had.size;
 
-  /* THE AUTOMATIC RUN (2026-09-26): nothing opens, nothing is withdrawn — a line that is open was opened by somebody.
-   * What it does do is close the loop from Shopify: a line the shipping team has fulfilled (or that was cancelled,
-   * refunded or marked done) is COMPLETED, kept on the book with the reason, never deleted. */
+  /* THE AUTOMATIC RUN: nothing opens, nothing is withdrawn — and NOTHING CLOSES (Ravi, 2026-10-05: "ek bar jo order
+   * production me open ho jay wo jab tak production se close nahi ho wo kabhi bhi close nahi hona chahiye").
+   * A line ends only when production hands it to shipping. What Shopify says — fulfilled, cancelled, refunded, a
+   * DONE / READY note — is written on the line as shopSays, so the floor sees it and decides; it closes nothing.
+   * (Until today it closed the line: 26 Sep for fulfilled/cancelled/refunded, and a note until earlier today.)
+   * Lines Shopify closed before this stay closed (shopDoneAt) — Ravi: "jaisi hain waisi rehne do". */
   if (O.maintain) {
     if (full) had.forEach((x, sk) => {
       if (x.shopDoneAt) return;
-      const why = shpDoneWhy(o, sk);
-      if (!why) return;
-      /* A DONE / READY NOTE NEVER CLOSES A LINE PRODUCTION HAS OPEN (Ravi, 2026-10-05). It used to: 372 lines were closed
-       * by a note, and 23 of them Shopify still had to ship — pieces that dropped off the floor's list unmade or
-       * unhanded. The line now closes the way every other one does: shipping takes it, or Shopify ships, cancels or
-       * refunds it. (Before, only a line opened from the bucket past the note was spared — #3873, 2026-09-28.) */
-      if (why === 'marked done') return;
+      const why = shpDoneWhy(o, sk) || '';
+      if (String(x.shopSays || '') === why) return;
       const key = x.id || x._key || obKey(sk);
-      out.patch['pt_orderBook/' + key + '/shopDoneAt'] = now;
-      out.patch['pt_orderBook/' + key + '/shopDoneWhy'] = why;
-      out.rows.push(Object.assign({}, x, { shopDoneAt: now, shopDoneWhy: why }));
-      out.done++;
+      out.patch['pt_orderBook/' + key + '/shopSays'] = why || null;
+      out.patch['pt_orderBook/' + key + '/shopSaysAt'] = why ? now : null;
+      out.rows.push(Object.assign({}, x, { shopSays: why, shopSaysAt: why ? now : '' }));
+      if (why) out.done++;
     });
     return out;
   }
@@ -51499,8 +51512,10 @@ function soProdStatus(o) {
   }
   const made = ls.reduce((t, l) => t + Math.min(l.qty, l.pressed || 0), 0), qty = ls.reduce((t, l) => t + l.qty, 0);
   const taken = ls.reduce((t, l) => t + Math.min(l.qty, Number(((typeof spOf === 'function' ? spOf(l.orderNo, l.sku) : null) || {}).handedQty) || 0), 0);
+  const says = ls.filter(l => l.open && l.shopSays).length;
   return { tone: 'prog', txt: `In production · ${nf(n - open)} of ${nf(n)} line(s) done` + (qty ? ` · ${nf(made)} of ${nf(qty)} pcs made` : '')
-    + (made > taken ? ` · ${nf(made - taken)} ready to take` : '') };
+    + (made > taken ? ` · ${nf(made - taken)} ready to take` : '')
+    + (says ? ` · Shopify already closed ${nf(says)} line(s) — still open until production hands them over` : '') };
 }
 
 /** How many NEW production orders a plan would open before it is allowed to run unattended. */
@@ -51746,7 +51761,7 @@ function shpSyncMsg(t) {
   if (t.cancelled) return 'Nothing was sent to production.';
   if (t.err) return 'The Order Console could not be brought up to date: ' + t.err;
   const bits = [];
-  if (t.done) bits.push(`${nf(t.done)} production line(s) completed — the shipping team fulfilled, cancelled or marked them done on Shopify`);
+  if (t.done) bits.push(`${nf(t.done)} open production line(s) are fulfilled, cancelled or marked done on Shopify — they stay open until production hands them over`);
   if (t.written) bits.push(`${nf(t.written)} line(s) · ${nf(t.pieces)} piece(s) in the Order Console across ${nf(t.orders)} order(s)`);
   if (t.removed) bits.push(`${nf(t.removed)} closed (now fillable, shipped, or marked done on Shopify)`);
   if (t.dupes) bits.push(`${nf(t.dupes)} duplicate row(s) removed — they were doubling a quantity`);
@@ -51809,7 +51824,7 @@ async function shpSyncSoon(where) {
       try { reach = await shpCloseShipped({ maintain: true }); } catch (e) { reach = { err: e.message || String(e) }; }
       if (reach && (reach.closed || reach.opened)) {
         const bits = [];
-        if (reach.closed) bits.push(`${nf(reach.closed)} older order(s) completed — they have shipped or been cancelled on Shopify`);
+        if (reach.closed) bits.push(`${nf(reach.closed)} older order(s) have shipped or been cancelled on Shopify — their production lines stay open until handed over`);
         if (reach.opened) bits.push(`${nf(reach.opened)} older order(s) brought up to date — ${nf(reach.written)} line(s) they still need are now in the Order Console`);
         msg = (msg ? msg + ' · ' : 'Production: ') + bits.join(' · ');
       }

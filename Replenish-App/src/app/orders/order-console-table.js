@@ -53,7 +53,14 @@ function ordHead(cols, tick) {
 /** Completed because of Shopify, in words the floor and the shipping team both read. */
 const SHP_DONE_TXT = why => ({ fulfilled: 'Fulfilled by shipping team', cancelled: 'Cancelled on Shopify', refunded: 'Refunded on Shopify',
   'marked done': 'Marked done by shipping team' })[why] || 'Fulfilled by shipping team';
+/** Shopify's word on a line production still has open: it changes nothing, so it says what to do. */
+const SHP_SAYS_TXT = why => ({ fulfilled: 'Shopify: shipped — not handed over by production', cancelled: 'Shopify: cancelled — production to decide',
+  refunded: 'Shopify: refunded — production to decide', 'marked done': 'Shopify note says DONE / READY — not handed over' })[why] || '';
 function ordStatePill(r) {
+  if (r.open && r.shopSays && SHP_SAYS_TXT(r.shopSays)) return '<span class="jw-st pend" title="Still open: only a hand-over to shipping closes it">' + esc(SHP_SAYS_TXT(r.shopSays)) + '</span> ' + ordStatePillWork(r);
+  return ordStatePillWork(r);
+}
+function ordStatePillWork(r) {
   if (!r.open && r.shopDoneAt && !r.handedAt) return '<span class="jw-st done" title="Closed from Shopify ' + esc(ptIsoDate(r.shopDoneAt) || '') + '">' + esc(SHP_DONE_TXT(r.shopDoneWhy)) + '</span>';
   if (!r.open) return '<span class="jw-st done">Complete</span>';
   if (r.pendingCut > 0) return '<span class="jw-st pend">' + nf(r.pendingCut) + ' to cut</span>';

@@ -144,6 +144,10 @@ function ordWaitingAt(r) {
    * wondering whether the goods actually went anywhere. */
   if (!r.open) return (r.shopDoneAt && !r.handedAt ? SHP_DONE_TXT(r.shopDoneWhy)
     : (r.handedAt ? 'Handed over' + (r.unrecorded ? ' · ' + nf(r.unrecorded) + ' never recorded' : '') : 'Complete')) + tail;
+  /* MADE IN FULL, NOT HANDED OVER (2026-10-05): a Shopify line now stays open until shipping takes it, and some were
+   * made (an old press entry, or QC) with no Job Work issue behind them. That is waiting for shipping, not for a karigar. */
+  if (r.src === 'SHP' && r.qty > 0 && r.pressed >= r.qty) return 'Ready to hand over to shipping'
+    + (r.issued < r.qty ? ' · Job Work issue never recorded' : '') + tail;
   const v = ordVendorOf(r.orderNo, r.sku);
   const vGiven = r.printer ? r.qty : (v ? v.given : 0), vBack = r.printer ? r.printed : (v ? v.back : 0);
   if (vGiven > vBack && (r.cutReq ? r.cut < vGiven : r.received < vGiven)) return 'Vendor — ' + nf(vGiven - vBack) + ' to come back';

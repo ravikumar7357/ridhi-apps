@@ -171,12 +171,14 @@ function ordLinesBuild() {
       src: r.src || '', addedMs: 0 }, obWhat(r), {
       // Where an order line came from, when it came from a Shopify order that had to be made.
       shopOrderNo: r.shopOrderNo || '', shopOrderId: r.shopOrderId || '', adjId: r.adjId || '',
-      shopImg: r.shopImg || '', packs: 0, pcsPer: 1, shopDoneAt: '', shopDoneWhy: '',
+      shopImg: r.shopImg || '', packs: 0, pcsPer: 1, shopDoneAt: '', shopDoneWhy: '', shopSays: '', shopSaysAt: '',
       /* WHAT THE ORDER CALLED IT (2026-09-26): a B2B custom SKU is in no master, so its article is blank — the name
        * and material the order came in with are what say what it is. */
       itemName: r.itemName || ordCustomName(r.sku), material: r.material || '' }));
     /* COMPLETED BY THE SHIPPING TEAM (2026-09-26): Shopify says the parcel went (or never will). */
     if (r.shopDoneAt) { e.shopDoneAt = r.shopDoneAt; e.shopDoneWhy = r.shopDoneWhy || 'fulfilled'; }
+    /* WHAT SHOPIFY SAYS about a line still open — told, never acted on. */
+    if (r.shopSays) { e.shopSays = r.shopSays; e.shopSaysAt = r.shopSaysAt || ''; }
     /* WHEN IT WAS PUT ON THE BOOK — the newest first on screen. */
     { const ms = ptDtMs(r.openedAt || r.uploadedAt); if (ms > e.addedMs) e.addedMs = ms; }
     /* PIECES, not packs. A Shopify line keeps what the customer ordered alongside, so the screen can
@@ -249,7 +251,9 @@ function ordLinesBuild() {
       handedAt: shp0 ? (shp0.handedAt || '') : '',
       handedBy: shp0 ? (shp0.handedBy || '') : '',
       spRemarks: shp0 ? String(shp0.remarks || '') : '',
-      open: l.shopDoneAt ? false : (shp0 ? !spHanded(shp0) : pressed < l.qty),
+      /* A SHOPIFY LINE IS OPEN UNTIL PRODUCTION HANDS IT OVER (2026-10-05) — with or without its own record. It used to
+       * close on "made in full" when nobody had written a record for it (20 lines), skipping the hand-over. */
+      open: l.shopDoneAt ? false : (l.src === 'SHP' ? !spHanded(shp0) : pressed < l.qty),
     });
   }).map(l => {
     /* HANDED OVER IS THE END. The goods are with a customer, so nothing on this line is outstanding

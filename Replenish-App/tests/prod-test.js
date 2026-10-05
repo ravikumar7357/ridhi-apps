@@ -21903,6 +21903,17 @@ await (async () => {
   ok('Team work counts every partial hand-over, each with its own pieces', hev.length === 3 && hev.reduce((t, e) => t + e.pcs, 0) === 7
      && hev.filter(e => e.orderNo === 'SHP-9901').length === 2, JSON.stringify(hev));
   A.setORD(wasORD);
+  /* 5 Oct: ONCE OPEN, ONLY PRODUCTION CLOSES IT. A Shopify line with no record of its own, made in full, waits for the
+   * hand-over; and what Shopify says is shown on it, never acted on. */
+  A.setPTG(Object.assign({}, A.PTG(), {
+    ob: A.PTG().ob.concat([{ id: 'r3', orderNo: 'SHP-9903', sku: 'RTC7-6060', qty: 1, orderDate: '2026-09-22', src: 'SHP', shopOrderNo: '#9903', shopOrderId: '97', shopSays: 'fulfilled', shopSaysAt: '2026-10-05T10:00:00Z' }]),
+    press: A.PTG().press.concat([{ id: 'pp3', orderNo: 'SHP-9903', sku: 'RTC7-6060', pieces: 1, entryDate: '2026-09-28' }]) }));
+  const l3 = A.ordLines().find(l => l.orderNo === 'SHP-9903');
+  ok('a Shopify line made in full but never handed over stays open — no record of its own does not skip the hand-over', l3 && l3.open === true && l3.pressed === 1, JSON.stringify(l3));
+  ok('…Shopify saying it shipped is carried on the line, and does not close it', l3 && l3.shopSays === 'fulfilled' && !l3.shopDoneAt);
+  ok('…and it is ready for shipping to take', A.shpReadyLines().some(x => x.orderNo === 'SHP-9903' && x.ready === 1));
+  ok('…and it says it is waiting for shipping, not for a karigar', /^Ready to hand over to shipping · Job Work issue never recorded/.test(A.ordWaitingAt(l3)), A.ordWaitingAt(l3));
+  ok('…once shipping takes it, it closes', (await A.shpReceive([{ orderNo: 'SHP-9903', sku: 'RTC7-6060', qty: 1 }])) === '' && A.ordLines().find(l => l.orderNo === 'SHP-9903').open === false);
   A.setPTG(wasPTG); A.setPT_(wasPT); NET.on = wasNet;
 })();
 console.log('\n== manpower in the production report, pillow insert apart (Ravi, 29 Sep)');
