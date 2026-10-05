@@ -148,9 +148,9 @@ async function spHandover(orderNo, sku, on) {
      * also be the way to make work disappear without doing it. */
     /* The LINE's figures, not the record's counters: a karigar-issued line keeps its received and
      * pressed in Base Data and the press register, and only a quilt keeps them on the record. */
-    const own = !line || spIsQuilt(line);
-    const recv = own ? spNum(was && was.received) : spNum(line.received);
-    const pressed = own ? spNum(was && was.pressed) : spNum(line.pressed);
+    /* The line's figures — registers, plus a quilt's old counters (ordLinesBuild takes the larger). */
+    const recv = line ? spNum(line.received) : spNum(was && was.received);
+    const pressed = line ? spNum(line.pressed) : spNum(was && was.pressed);
     if (!(recv > 0)) {
       return 'Nothing has been received against this line yet, so there is nothing to hand over.';
     }
@@ -180,10 +180,12 @@ function ordLines() {
       && ORD_IX.base === base && ORD_IX.baseN === base.length
       && ORD_IX.cut === cut && ORD_IX.cutN === cut.length
       && ORD_IX.press === press && ORD_IX.pressN === press.length
-      && ORD_IX.qc === qcSrc && ORD_IX.qcN === qcSrc.length) return ORD_IX.rows;
+      && ORD_IX.qc === qcSrc && ORD_IX.qcN === qcSrc.length
+      /* The hand-overs and a quilt's old counters live on pt_shopProd — a changed record must move the line. */
+      && ORD_IX.sp === (PTG.shopProd || null)) return ORD_IX.rows;
   const out = ordLinesBuild();
   ORD_IX = { ob, obN: ob.length, base, baseN: base.length, cut, cutN: cut.length,
-    press, pressN: press.length, mdb: mdbSrc, mdbN: mdbSrc.length, qc: qcSrc, qcN: qcSrc.length, rows: out };
+    press, pressN: press.length, mdb: mdbSrc, mdbN: mdbSrc.length, qc: qcSrc, qcN: qcSrc.length, sp: PTG.shopProd || null, rows: out };
   return out;
 }
 function ordLinesBuild() {
@@ -228,15 +230,20 @@ function ordLinesBuild() {
     /* MADE TO ORDER (Shopify and Online, 2026-10-05): the hand-over to shipping is theirs. A quilt's own counters stay Shopify's. */
     const mto = ordIsMto(l.orderNo);
     const shp0 = mto ? sp0 : null;
+    /* QUILTS FLOW FROM THE REGISTERS TOO (Ravi, 2026-10-05: "Q.C, ISSUE, RECEIVED YE JOB WORK SE FLOW HONA CHAHIYE").
+     * Cutting Data, Job Work and QC are read for every line. A quilt's old counters (the quilt form, 18 Sep – 5 Oct:
+     * 269 cut, 268 issued, 249 received, none of it in the registers) still count — the larger of the two per
+     * stage, never the sum — so that work does not vanish; the form is closed and new quilt work goes in Job Work. */
     const sp = l.src === 'SHP' && shp0 && spIsQuilt(l) ? shp0 : null;
-    const cut = sp ? spNum(sp.cut) : obCutQty(l.orderNo, l.sku);
-    const pressed = sp ? spNum(sp.pressed) : obPressQty(l.orderNo, l.sku);
+    const own = k => (sp ? spNum(sp[k]) : 0);
+    const cut = Math.max(own('cut'), obCutQty(l.orderNo, l.sku));
+    const pressed = Math.max(own('pressed'), obPressQty(l.orderNo, l.sku));
     // Issued is the gross that went out, not the allowance figure — this screen reports work done,
     // it does not re-derive the cap.
     /* Was a full pass over Base Data for every order line — 1,669 rows × 1,300 lines. */
-    const b = sp ? null : obBaseIndex().get(obKeyOf(l.orderNo, l.sku));
-    const issued = sp ? spNum(sp.issued) : (b ? b.issued : 0);
-    const received = sp ? spNum(sp.received) : (b ? b.received : 0);
+    const b = obBaseIndex().get(obKeyOf(l.orderNo, l.sku));
+    const issued = Math.max(own('issued'), b ? b.issued : 0);
+    const received = Math.max(own('received'), b ? b.received : 0);
     const cutReq = ordCutReq(l.sku);
     const cutPct = l.qty > 0 ? (cut / l.qty) * 100 : 0;
     const cutDone = !cutReq || cutPct >= ORD_THRESHOLD(l.qty);

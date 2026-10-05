@@ -9834,7 +9834,8 @@ console.log('\n== Shopify bulk entry: one figure per SKU, shared across its orde
     { sku: 'NOPE', cut: '1' }, { sku: 'BLK-PC', issue: '1', karigar: 'Suresh' }, { sku: 'BLK-PC', issue: '1' }], '2026-09-15');
   ok('a word is not a number', /"two" is not a whole number of pieces to cut/.test(bad.problems.join('|')));
   ok('a fabric the master does not have is refused', /fabric "Silk" is not in the Fabric Type master/.test(bad.problems.join('|')));
-  ok('a quilt is left to its own entry', /BLK-Q: no open Shopify order is waiting for it/.test(bad.problems.join('|')));
+  /* Since 5 Oct quilts are entered like everything else (Ravi: "Q.C, ISSUE, RECEIVED YE JOB WORK SE FLOW HONA CHAHIYE"). */
+  ok('a quilt is entered like everything else now — not refused', !/BLK-Q/.test(bad.problems.join('|')) && bad.ops.some(o => o.sku === 'BLK-Q'), JSON.stringify(bad.problems));
   ok('a SKU no Shopify order carries is named', /NOPE: no Shopify order carries this SKU/.test(bad.problems.join('|')));
   ok('a name on the list twice needs its type', /"Suresh" is on the list more than once/.test(bad.problems.join('|')));
   ok('an issue with no karigar asks who', /which karigar are the 1 going to\?/.test(bad.problems.join('|')));
@@ -21926,6 +21927,16 @@ await (async () => {
   ok('…opened 25 Aug (when it was put on the book), due 31 Aug, and late on 4 Sep by 4 working days', l4.mtoOpen === '2026-08-25' && l4.mtoDue === '2026-08-31' && l4.mtoLate === 4, JSON.stringify([l4.mtoOpen, l4.mtoDue, l4.mtoLate]));
   ok('…it shows in shipping\'s From production list', A.shpReadyLines().some(x => x.orderNo === 'ONL-01092026-01' && x.ready === 6));
   ok('…and shipping taking it closes it', (await A.shpReceive([{ orderNo: 'ONL-01092026-01', sku: 'RCNB129', qty: 6 }])) === '' && A.ordLines().find(l => l.orderNo === 'ONL-01092026-01').open === false);
+  /* QUILTS FROM THE REGISTERS (5 Oct): the old quilt counters still count, the larger of the two per stage. */
+  A.setPTG(Object.assign({}, A.PTG(), {
+    mdb: (A.PTG().mdb || []).concat([{ sku: 'RQL99-K', articleType: 'Quilt', subtype: 'King Quilt', color: 'X', size: '96x106', cuttingRequired: true }]),
+    ob: A.PTG().ob.concat([{ id: 'r5', orderNo: 'SHP-9905', sku: 'RQL99-K', qty: 3, orderDate: '2026-09-22', src: 'SHP', shopOrderNo: '#9905', shopOrderId: '95', articleType: 'Quilt', articleSubtype: 'King Quilt' }]),
+    shopProd: Object.assign({}, A.PTG().shopProd, { 'SHP-9905__RQL99-K': { orderNo: 'SHP-9905', sku: 'RQL99-K', cut: 1, issued: 1, received: 1, pressed: 0 } }) }));
+  A.setPT_(Object.assign({}, A.PT(), { cut: (A.PT().cut || []).concat([{ id: 'cq', orderNo: 'SHP-9905', sku: 'RQL99-K', pieces: 3 }]),
+    base: (A.PT().base || []).concat([{ id: 'bq', orderNo: 'SHP-9905', sku: 'RQL99-K', issuePieces: 2, receivedPieces: 0, empName: 'Vikram Mahawar' }]) }));
+  const q5 = A.ordLines().find(l => l.orderNo === 'SHP-9905');
+  ok('a quilt reads the registers — cut 3 and issued 2 from Cutting Data and Job Work — and its old counter still counts where it is larger (received 1)',
+     q5 && q5.cut === 3 && q5.issued === 2 && q5.received === 1, JSON.stringify(q5 && [q5.cut, q5.issued, q5.received]));
   ok('an Amazon / B2B line is not made to order — it still closes when made', !A.ordIsMto('AMZ-01092026-01') && !A.ordIsMto('B2B-1') && A.ordIsMto('SHP-1') && A.ordIsMto('ONL-1'));
   A.setPTG(wasPTG); A.setPT_(wasPT); NET.on = wasNet;
 })();

@@ -15,7 +15,7 @@ let SP_BULK_VALS = {};                    // what has been typed into the grid, 
 
 /** The lines a bulk entry for one SKU is shared across: open Shopify lines, not quilts, oldest first. */
 function spBulkLines(sku) {
-  return (shppLines() || []).filter(l => obUC(l.sku) === obUC(sku) && l.open && !spIsQuilt(l))
+  return (shppLines() || []).filter(l => obUC(l.sku) === obUC(sku) && l.open)
     .sort((a, b) => String(a.orderDate || '').localeCompare(String(b.orderDate || '')) || a.orderNo.localeCompare(b.orderNo));
 }
 
@@ -706,8 +706,8 @@ function spOpenQuilt(orderNo, sku, line) {
 function spOpen(orderNo, sku) {
   const line = (ordLines() || []).find(l => obUC(l.orderNo) === obUC(orderNo) && obUC(l.sku) === obUC(sku));
   if (!line) return;
-  /* QUILTS STAY AS THEY WERE: three counters, no karigar. */
-  if (spIsQuilt(line)) return spOpenQuilt(orderNo, sku, line);
+  /* QUILTS ARE ENTERED LIKE EVERYTHING ELSE since 2026-10-05 — cutting in Cutting Data, issue / receive in Job Work, QC in
+   * QC. spOpenQuilt (the three counters) is no longer opened; what it recorded still counts. */
   const rows = spBaseRows(orderNo, sku);
   const issued = spIssuedReal(orderNo, sku), back = spRecvReal(orderNo, sku);
   const out = rows.filter(r => !r.frozen && ptNum(r.pendingPieces) > 0);
