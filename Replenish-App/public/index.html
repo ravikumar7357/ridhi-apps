@@ -2602,6 +2602,8 @@
         <div class="toolbar">
           <select id="pcView" style="flex:0 0 200px" title="Every cutting entry, or what has been cut and is still waiting to go to a karigar">
             <option value="">Cutting entries</option><option value="wait">Cut, not yet issued</option></select>
+          <select id="pcUse" style="flex:0 0 170px" title="Has this cutting gone to a karigar? The order's issues fill its cutting oldest first.">
+            <option value="">Used or not</option><option value="unused">Unused</option><option value="part">Partly used</option><option value="used">Used</option></select>
           <select id="pcOrd" style="flex:0 0 190px"><option value="">All orders</option></select>
           <select id="pcArt" style="flex:0 0 150px"><option value="">All articles</option></select>
           <select id="pcSub" style="flex:0 0 180px"><option value="">All subtypes</option></select>
@@ -11191,12 +11193,17 @@ function renderPcut() {
   ptFill('pcOrd', pcutApply(all, f, 'ord').map(r => r.orderNo), 'All orders');
   ptFill('pcWho', whoList(pcutApply(all, f, 'who')), "Anyone's entry");
 
-  const rows = pcutApply(all, f).sort((a, b) => {
+  let rows = pcutApply(all, f).sort((a, b) => {
     const d = ptDtMs(b.cutDate) - ptDtMs(a.cutDate);
     return d || String(b.id || '').localeCompare(String(a.id || ''));
   });
+  if (($('pcView') || {}).value === 'wait') { PT._pcutRows = rows; return renderPcutWait(rows); }
+  /* Used / partly / unused needs the Job Work Register; read it once if this tab has not. */
+  if (PT.base === null && !PT.busy.base) ptLoad('base', 'pt_baseData', renderPcut);
+  const useSel = ($('pcUse') || {}).value || '';
+  const useMap = pcutUseMap();
+  if (useSel && useMap) rows = rows.filter(r => pcutUseKind(pcutUseOf(r)) === useSel);
   PT._pcutRows = rows;
-  if (($('pcView') || {}).value === 'wait') return renderPcutWait(rows);
 
   const pieces = rows.reduce((s, r) => s + ptNum(r.pieces), 0);
   $('pcKpis').innerHTML = `<div class="kpi" style="flex-basis:100%">
@@ -11222,8 +11229,16 @@ function renderPcut() {
       })()}
     </div></div>`;
 
-  const head = '<thead><tr>' + ['Cut Date', 'Order No', 'SKU', 'Image', 'Article', 'Subtype', 'Color', 'Size', 'Fabric', 'Pieces', 'Fabric used (m)', 'Waste (m)', 'Waste width (in)', 'Waste %', 'Remarks', 'Entered by', 'Edit']
-    .map((h, i) => `<th${i === 0 ? ' class="frz"' : ([9, 10, 11, 12, 13].indexOf(i) >= 0 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
+  const head = '<thead><tr>' + ['Cut Date', 'Order No', 'SKU', 'Image', 'Article', 'Subtype', 'Color', 'Size', 'Fabric', 'Pieces', 'Issued?', 'Fabric used (m)', 'Waste (m)', 'Waste width (in)', 'Waste %', 'Remarks', 'Entered by', 'Edit']
+    .map((h, i) => `<th${i === 0 ? ' class="frz"' : ([9, 11, 12, 13, 14].indexOf(i) >= 0 ? ' class="num"' : '')}${i === 10 ? ' title="Has this cutting gone to a karigar? The order\'s issues fill its cutting oldest first."' : ''}>${h}</th>`).join('') + '</tr></thead>';
+  const useCell = r => {
+    const u = pcutUseOf(r);
+    if (!u) return `<td class="muted">${PT.busy.base ? '…' : '—'}</td>`;
+    const k = pcutUseKind(u);
+    return k === 'used' ? '<td><span class="pill pill-ok">Used</span></td>'
+      : k === 'part' ? `<td><span class="pill pill-low" title="${nf(u.used)} of ${nf(u.net)} issued">Partly · ${nf(u.used)} of ${nf(u.net)}</span></td>`
+      : `<td><span class="pill pill-out" title="none of these ${nf(u.net)} has gone to a karigar">Unused</span></td>`;
+  };
   const shown = rows.slice(0, PC_CAP);
   const body = shown.map(r => '<tr>'
     + `<td class="frz" style="text-align:left">${esc(r.cutDate)}</td>`
@@ -11232,6 +11247,7 @@ function renderPcut() {
     + ptImgCell(r.sku)
     + `<td>${esc(r.articleType)}</td><td>${esc(r.articleSubtype)}</td><td>${esc(r.color)}</td><td>${esc(r.size)}</td>`
     + `<td>${esc(r.fabricWidth)}</td><td class="num" style="font-weight:700">${nf(ptNum(r.pieces))}</td>`
+    + useCell(r)
     /* MEASURED OR NOT MEASURED. An entry nobody measured shows a dash, never a nought — the two
      * would add up identically and mean opposite things. */
     + (u => `<td class="num">${u > 0 ? nf(u) : '<span class="muted">—</span>'}</td>`)(ptNum(r.fabricUsed))
@@ -11247,7 +11263,9 @@ function renderPcut() {
   $('pcTable').innerHTML = head + '<tbody>' + body + '</tbody>';
 
   $('pcMsg').className = 'muted';
+  const useN = k => useMap ? rows.filter(r => pcutUseKind(pcutUseOf(r)) === k).length : 0;
   $('pcMsg').textContent = `${nf(rows.length)} of ${nf(all.length)} cut entr${all.length === 1 ? 'y' : 'ies'}`
+    + (useMap ? ` · ${nf(useN('unused'))} unused, ${nf(useN('part'))} partly used, ${nf(useN('used'))} used` : '')
     + (rows.length > PC_CAP ? ` · showing the newest ${nf(PC_CAP)} · Export covers all of them` : '');
   $('pcMore').innerHTML = ptMoreBtn('data-pcmore', rows.length, PC_CAP);
   ptImgFill(shown.map(r => r.sku), false, ptIfTab('pcut', renderPcut));
@@ -11264,6 +11282,41 @@ function renderPcut() {
  * holds for the order is shown beside it — those pieces are not on the shelf. Issued past the cut is said, never hidden:
  * it means pieces went out that this order's cutting does not account for.
  */
+/**
+ * HAS THIS CUTTING GONE TO A KARIGAR? (2026-10-05, Ravi: "yaha bhi check kar saku ki ye cutting used h ya partially used h
+ * and unused h"). Per order and SKU, every piece issued against it fills that order's cutting entries OLDEST FIRST — a
+ * piece is never issued twice, so the total issued is how much of the cutting has gone. Cut rejected comes off an
+ * entry first, the same net the issue cap uses. Map id → { net, used }; null while the Job Work Register is unread.
+ */
+let PC_USE = { cut: null, cn: -1, base: null, bn: -1, map: null };
+function pcutUseMap() {
+  const cut = PT.cut || [], base = PT.base;
+  if (!base) return null;
+  if (PC_USE.map && PC_USE.cut === cut && PC_USE.cn === cut.length && PC_USE.base === base && PC_USE.bn === base.length) return PC_USE.map;
+  const groups = new Map();
+  cut.forEach(r => {
+    if (!r) return;
+    const k = obKeyOf(r.orderNo, r.sku);
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(r);
+  });
+  const m = new Map();
+  groups.forEach((list, k) => {
+    const b = obBaseIndex().get(k);
+    let left = b ? b.issued : 0;
+    list.slice().sort((a, c) => (ptDtMs(a.cutDate) - ptDtMs(c.cutDate)) || String(a.id || '').localeCompare(String(c.id || ''))).forEach(r => {
+      const net = Math.max(0, ptNum(r.pieces) - (r.rejected === true ? ptNum(r.rejPieces) : 0));
+      const used = Math.min(net, Math.max(0, left));
+      left -= used;
+      m.set(r.id || r._key, { net, used });
+    });
+  });
+  PC_USE = { cut, cn: cut.length, base, bn: base.length, map: m };
+  return m;
+}
+const pcutUseOf = r => { const m = pcutUseMap(); return m ? m.get(r.id || r._key) || null : null; };
+const pcutUseKind = u => (!u ? '' : u.net <= 0 ? 'used' : u.used >= u.net ? 'used' : u.used > 0 ? 'part' : 'unused');
+
 function pcutWaitRows(rows) {
   const by = new Map();
   rows.forEach(r => {
@@ -11338,7 +11391,7 @@ function renderPcutWait(cutRows) {
 
 ['ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut'].forEach(id => $(id).addEventListener('change', renderPmdb));
 ['pbType', 'pbEmp', 'pbArt', 'pbSub', 'pbCol', 'pbSz', 'pbStatus', 'pbDBy', 'pbD1', 'pbD2'].forEach(id => $(id).addEventListener('change', renderPbase));
-['pcView', 'pcArt', 'pcSub', 'pcCol', 'pcSz', 'pcOrd', 'pcD1', 'pcD2'].forEach(id => $(id).addEventListener('change', renderPcut));
+['pcView', 'pcUse', 'pcArt', 'pcSub', 'pcCol', 'pcSz', 'pcOrd', 'pcD1', 'pcD2'].forEach(id => $(id).addEventListener('change', renderPcut));
 /* The cloth the cut costs follows the pieces and the SKU as they are typed. renderCutFab, NOT
  * renderCutForm: the form rebuilds four dropdowns off the master list, and doing that on every
  * keystroke of a piece count is what made the Job Work form lag. */
@@ -11477,14 +11530,15 @@ $('pcExport').onclick = () => {
         Math.min(e.wait, e.atPrinter), e.lastTxt, e.days == null ? '' : e.days].map(csvCell).join(','))));
   }
   const rows = PT._pcutRows || []; if (!rows.length) return;
-  const lines = [['Cut Date', 'Order No', 'SKU', 'Article', 'Subtype', 'Color', 'Size', 'Fabric', 'Pieces',
+  const lines = [['Cut Date', 'Order No', 'SKU', 'Article', 'Subtype', 'Color', 'Size', 'Fabric', 'Pieces', 'Issued?', 'Issued pcs',
     'Fabric used (m)', 'Waste (m)', 'Waste width (in)', 'Waste %', 'Remarks', 'Entered by'].map(csvCell).join(',')];
   rows.forEach(r => {
     /* Blank where nobody measured, so a spreadsheet cannot average a missing figure as a nought. */
     const u = ptNum(r.fabricUsed), w = ptNum(r.fabricWaste);
     const ww = ptNum(r.fabricWasteWidth);
+    const us = pcutUseOf(r), uk = pcutUseKind(us);
     lines.push([r.cutDate, r.orderNo, r.sku, r.articleType, r.articleSubtype, r.color, r.size,
-      r.fabricWidth, ptNum(r.pieces), u > 0 ? u : '', w > 0 ? w : '', ww > 0 ? ww : '',
+      r.fabricWidth, ptNum(r.pieces), uk === 'used' ? 'Used' : uk === 'part' ? 'Partly used' : uk === 'unused' ? 'Unused' : '', us ? us.used : '', u > 0 ? u : '', w > 0 ? w : '', ww > 0 ? ww : '',
       u > 0 && w > 0 ? ((w / u) * 100).toFixed(1) : '', r.remarks, r.addedBy].map(csvCell).join(','));
   });
   ptDownload('cutting-data', lines);
