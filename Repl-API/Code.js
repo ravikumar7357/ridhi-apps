@@ -4701,8 +4701,8 @@ function primeSetup_(hook) {
   if (!prop_('TEAMS_WEBHOOK')) return { ok: false, error: 'No Teams webhook stored yet — pass hook=<URL>.' };
   primeStop_();
   /* One hourly job does both: the dashboard's data and the Teams message. */
-  ScriptApp.newTrigger('primeHourly').timeBased().everyHours(1).nearMinute(8).create();
-  return { ok: true, trigger: 'primeHourly every hour (dashboard data + Teams)', days: Object.keys(PRIME_DAYS) };
+  ScriptApp.newTrigger('primeHourly').timeBased().everyMinutes(15).create();
+  return { ok: true, trigger: 'primeHourly every 15 minutes (dashboard data; Teams hourly)', days: Object.keys(PRIME_DAYS) };
 }
 function primeTest_() {
   var hook = prop_('TEAMS_WEBHOOK');
@@ -4762,13 +4762,17 @@ function primeHourly() {
   var day = Utilities.formatDate(new Date(), PRIME_TZ, 'yyyy-MM-dd');
   if (day > '2026-10-09') { primeStop_(); return; }
   try { primeWrite_(primeBuildData_()); } catch (e) { console.error('prime data: ' + (e.message || e)); }
-  try { primeHourlyPost(); } catch (e) { console.error('prime teams: ' + (e.message || e)); }
+  /* Data every 15 minutes (Ravi, 6 Oct); Teams once an hour — the first run in each Pacific hour posts. */
+  var hk = Utilities.formatDate(new Date(), PRIME_TZ, 'yyyy-MM-dd HH');
+  if (prop_('PRIME_TEAMS_HOUR') !== hk) {
+    try { primeHourlyPost(); PropertiesService.getScriptProperties().setProperty('PRIME_TEAMS_HOUR', hk); } catch (e) { console.error('prime teams: ' + (e.message || e)); }
+  }
 }
 function primeLiveSetup_() {
   primeStop_();
-  ScriptApp.newTrigger('primeHourly').timeBased().everyHours(1).nearMinute(8).create();
+  ScriptApp.newTrigger('primeHourly').timeBased().everyMinutes(15).create();
   var w = primeWrite_(primeBuildData_());
-  return { ok: true, sheet: w.id, parts: w.parts, chars: w.chars, trigger: 'primeHourly every hour', teams: !!prop_('TEAMS_WEBHOOK') };
+  return { ok: true, sheet: w.id, parts: w.parts, chars: w.chars, trigger: 'primeHourly every 15 minutes', teams: !!prop_('TEAMS_WEBHOOK') };
 }
 
 function doGet(e) {
