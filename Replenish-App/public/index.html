@@ -2879,6 +2879,8 @@
       <div id="soInvTot" class="muted" style="font-size:12px;margin-top:6px"></div>
       </div><!-- /soCustomsBlock -->
 
+      <!-- Production for THIS order, from the order itself (2026-10-06, Ravi: "m yaha se bhi production order open kar saku"). -->
+      <div id="soProdBox" class="so-card hide" style="margin-bottom:12px"></div>
       <div class="so-grid">
         <!-- Ship it out of FBA. Behind a preview, because this one spends money. -->
         <div class="so-card">
@@ -11346,7 +11348,7 @@ function pcutWaitRows(rows) {
     let atPrinter = 0;
     try { const v = typeof ordVendorOf === 'function' && VO.rows ? ordVendorOf(e.orderNo, e.sku) : null; if (v) atPrinter = Math.max(0, v.given - v.back); } catch (err) { /* printers' orders not read */ }
     return Object.assign(e, { cut, issued, wait: Math.max(0, cut - issued), over: Math.max(0, issued - cut), atPrinter,
-      days: e.last ? Math.floor((now - e.last) / 86400000) : null });
+      days: e.last ? Math.max(0, Math.floor((now - e.last) / 86400000)) : null });
   });
 }
 
@@ -51285,6 +51287,56 @@ async function shpBucketRun(keys, reason) {
 }
 let SHP_BUCKET_LAST = null;
 
+/* ================= OPEN PRODUCTION FROM THE ORDER ITSELF =================
+ *
+ * Ravi, 2026-10-06: "m yaha se bhi production order open kar saku". The order's own lines that are in the Production
+ * bucket — to make, and covered by stock — with a tick each, and the same shpBucketRun the bucket uses: the duplicate
+ * guard read from the database, a reason for a stock-covered line, nothing else of the order touched. What is already
+ * in production is said, from the same status the Shopify table shows.
+ */
+function soRenderProdBox(o) {
+  const box = $('soProdBox'); if (!box) return;
+  const esc2 = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+  const st = typeof soProdStatus === 'function' ? soProdStatus(o) : null;
+  const stockOk = SHOP_STOCK_LOADED && SHOP_INDIA_LOADED && !SHOP_INDIA_ERR;
+  const mine = stockOk ? shpBucket().filter(b => b.id === String(o && o.id)) : [];
+  if (!st && !mine.length) {
+    box.innerHTML = stockOk ? '' : '<div class="so-lb">Production</div><div class="muted" style="font-size:12.5px">Stock has not been read yet — press Fetch orders to open production from here.</div>';
+    box.classList.toggle('hide', stockOk);
+    return;
+  }
+  box.classList.remove('hide');
+  const cov = mine.some(b => b.kind === 'covered');
+  box.innerHTML = '<div class="so-lb">Production</div>'
+    + (st ? `<div style="font-size:12.5px;margin-bottom:${mine.length ? 8 : 0}px"><b>${esc2(st.txt)}</b></div>` : '')
+    + (mine.length ? '<table class="xl" style="font-size:12.5px;margin-bottom:8px"><thead><tr><th></th><th>SKU</th><th>Item</th><th class="num">Qty</th><th class="num">In FBA</th><th class="num">In India</th><th>Why</th></tr></thead><tbody>'
+      + mine.map(b => `<tr><td><input type="checkbox" data-sopk="${esc2(b.key)}"${b.kind === 'make' ? ' checked' : ''}></td>`
+        + `<td style="font-family:ui-monospace,monospace">${esc2(b.sku)}</td><td style="text-align:left">${esc2(b.name || '')}</td>`
+        + `<td class="num">${nf(b.qty)}</td><td class="num">${b.fba == null ? '—' : nf(b.fba)}</td><td class="num">${b.india == null ? '—' : nf(b.india)}</td>`
+        + `<td style="text-align:left;white-space:normal;max-width:280px">${b.kind === 'make' ? '<span class="pill pill-out">To make</span> ' : '<span class="pill pill-low">Stock says it can be filled</span> '}${esc2(b.why || '')}</td></tr>`).join('')
+      + '</tbody></table>'
+      + (cov ? '<input id="soProdWhy" placeholder="Why make a stock-covered line anyway — needed only when you tick one" style="width:100%;margin-bottom:8px">' : '')
+      + '<div style="display:flex;gap:8px;align-items:center"><button id="soProdGo">Open production</button><span id="soProdMsg" class="muted" style="font-size:12.5px"></span></div>' : '');
+  const go = $('soProdGo');
+  if (!go) return;
+  go.onclick = async () => {
+    const keys = [...box.querySelectorAll('[data-sopk]')].filter(c => c.checked).map(c => c.getAttribute('data-sopk'));
+    const msg = $('soProdMsg');
+    if (!keys.length) { msg.className = 'err'; msg.textContent = 'Tick at least one line.'; return; }
+    go.disabled = true; msg.className = 'muted'; msg.textContent = 'Opening…';
+    let err = '';
+    try { err = await shpBucketRun(keys, ($('soProdWhy') || {}).value); } catch (e) { err = 'Not opened: ' + (e.message || e); }
+    go.disabled = false;
+    if (err) { msg.className = 'err'; msg.textContent = err; return; }
+    const L = SHP_BUCKET_LAST || {};
+    soRenderProdBox(o);
+    const m2 = $('soProdMsg');
+    const said = `Opened ${nf(L.lines || 0)} line(s) · ${nf(L.pcs || 0)} pc(s) — they are in the Order Console.` + ((L.skipped || []).length ? ' Skipped: ' + L.skipped.join(' · ') : '');
+    if (m2) { m2.className = 'muted'; m2.textContent = said; } else { box.insertAdjacentHTML('beforeend', `<div class="muted" style="font-size:12.5px">${esc2(said)}</div>`); }
+    try { renderShop(); } catch (e) { /* not on that tab */ }
+  };
+}
+
 /* ================= THE BUCKET IN EXCEL ================= */
 const SHB_XL_COLS = ['Line ID', 'Section', 'Shopify order', 'Order date', 'Store', 'SKU', 'Item', 'Qty', 'In FBA', 'In India', 'Why', 'Open', 'Reason (stock-covered lines)'];
 function shpBucketSheetRows(list) {
@@ -52711,6 +52763,7 @@ function openShopOrder(id) {
   $('soMcfPrev').classList.add('hide');
   $('soMcfPrev').innerHTML = '';
   soRenderMcfBox();
+  try { soRenderProdBox(o); } catch (e) { /* the production box is a nicety on this dialog, never a blocker */ }
 
   $('soErr').classList.add('hide');
   $('soModal').classList.remove('hide');

@@ -1732,6 +1732,21 @@ console.log('\n== THE PRODUCTION BUCKET (Ravi, 2026-09-26) ==');
   }
   ok('the Shopify tab says so on the order, and counts it on the button', /In the production bucket/.test(els.soTable.innerHTML), '');
 
+  /* 2026-10-06, Ravi: "m yaha se bhi production order open kar saku" — the order's own dialog opens its production. */
+  {
+    A.openShopOrder('b1');
+    const h = els.soProdBox.innerHTML;
+    ok('the order dialog lists its lines waiting for production, the one to make ticked', !els.soProdBox.classList.contains('hide')
+       && /data-sopk="b1\|RCNBMIX" checked/.test(h) && /data-sopk="b1\|RCNBRED"(?! checked)/.test(h) && /Open production/.test(h) && /soProdWhy/.test(h), h.slice(0, 400));
+    /* Pressing it, with a stock-covered line ticked and no reason: refused, nothing written. */
+    const wasQ = els.soProdBox.querySelectorAll;
+    const ticks = [{ checked: true, getAttribute: () => 'b1|RCNBRED' }];
+    els.soProdBox.querySelectorAll = () => ticks;
+    els.soProdWhy.value = '';
+    await els.soProdGo.onclick();
+    ok('…a stock-covered line needs a reason there too', /say why/.test(els.soProdMsg.textContent) && !RT['pt_orderBook/ob_shp_SHP-5001_RCNBRED'], els.soProdMsg.textContent);
+    els.soProdBox.querySelectorAll = wasQ;
+  }
   ok('opening a stock-covered line needs a reason', /say why they have to be made anyway/.test(await A.shpBucketRun([cov.key], '')));
   ok('opening the ticked line writes it', (await A.shpBucketRun([need.key], '')) === '');
   const row = RT['pt_orderBook/ob_shp_SHP-5001_RCNBMIX'];

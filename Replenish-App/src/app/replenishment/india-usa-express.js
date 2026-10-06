@@ -531,6 +531,7 @@ function openShopOrder(id) {
   $('soMcfPrev').classList.add('hide');
   $('soMcfPrev').innerHTML = '';
   soRenderMcfBox();
+  try { soRenderProdBox(o); } catch (e) { /* the production box is a nicety on this dialog, never a blocker */ }
 
   $('soErr').classList.add('hide');
   $('soModal').classList.remove('hide');

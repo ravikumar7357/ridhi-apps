@@ -20044,7 +20044,7 @@ console.log('\n== cutting: cut, not yet issued to a karigar (2026-10-05) ==');
   /* Ravi: "ye bhi check kar saku ki mere pas cutting abhi bachi kon c h jo ki karigar ko issue nahi hua h". */
   const wasPT = A.PT();
   const now = new Date(), p = n => String(n).padStart(2, '0');
-  const dmy = d => `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}, 10:00`;
+  const dmy = d => `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}, 00:01`;
   const old = new Date(Date.now() - 10 * 86400000);
   A.setPT(Object.assign({}, wasPT, {
     cut: [{ id: 'c1', orderNo: 'W-1', sku: 'S-1', pieces: 10, cutDate: dmy(old), articleType: 'Pillow Cover' },

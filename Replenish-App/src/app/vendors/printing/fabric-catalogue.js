@@ -401,7 +401,7 @@ function pcutWaitRows(rows) {
     let atPrinter = 0;
     try { const v = typeof ordVendorOf === 'function' && VO.rows ? ordVendorOf(e.orderNo, e.sku) : null; if (v) atPrinter = Math.max(0, v.given - v.back); } catch (err) { /* printers' orders not read */ }
     return Object.assign(e, { cut, issued, wait: Math.max(0, cut - issued), over: Math.max(0, issued - cut), atPrinter,
-      days: e.last ? Math.floor((now - e.last) / 86400000) : null });
+      days: e.last ? Math.max(0, Math.floor((now - e.last) / 86400000)) : null });
   });
 }
 
