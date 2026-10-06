@@ -2256,6 +2256,8 @@
           <div class="seg">
             <select id="qcView" style="flex:0 0 190px">
               <option value="inbox">Waiting for QC</option>
+              <option value="dept">Spotting &amp; touching</option>
+              <option value="ledger">QC ledger (day-wise)</option>
               <option value="checks">Checks</option>
               <option value="issue">Issued for alteration</option>
               <option value="ret">Received back from alteration</option>
@@ -15048,6 +15050,8 @@ const qcPendingOf = r => Math.max(0, ptNum(r && r.pieces) - qcRetOf(r && r.id));
 /** The three jobs on this screen, in the order the work moves. */
 const QC_VIEWS = [
   ['inbox', 'Waiting for QC', 'qc'],
+  ['dept', 'Spotting & touching', 'qc'],
+  ['ledger', 'QC ledger (day-wise)', 'qc'],
   ['checks', 'Checks', 'qc'],
   ['issue', 'Issued for alteration', 'qcalt'],
   ['ret', 'Received back from alteration', 'qcret'],
@@ -15114,6 +15118,8 @@ function renderQc() {
   if (QC.busy) { $('qcMsg').className = 'muted'; $('qcMsg').textContent = 'Reading the production database…'; ptEmpty('qcTable', 'Loading…'); return; }
   if (QC.err) { $('qcMsg').className = 'err'; $('qcMsg').textContent = 'Could not read it: ' + QC.err; ptEmpty('qcTable', 'Nothing to show.'); $('qcKpis').innerHTML = ''; return; }
   if (view === 'inbox') return renderQcInbox();
+  if (view === 'dept') return renderQcDept();
+  if (view === 'ledger') return renderQcLedger();
 
   const q = $('qcQ').value.trim().toLowerCase();
   /* ONE WINDOW ACROSS ALL THREE VIEWS. A check, the alteration it went out on and the return it came
@@ -15530,6 +15536,9 @@ function qcEditCheck(id) {
    * do — and changing one of those has needed perms.prodEdit all along. This was open. */
   if (!ptCanEdit()) { $('qcMsg').className = 'err'; $('qcMsg').textContent = PT_NO_EDIT; return; }
   const r = (QC.checks || []).find(x => x.id === id); if (!r) return;
+  /* A send to spotting / touching, or a lot back from there, is one half of a pair — editing one half alone would
+   * break the count of what is still out. */
+  if (r.dept || r.refId) { $('qcMsg').className = 'err'; $('qcMsg').textContent = 'This one belongs to Spotting & touching — it cannot be edited here.'; return; }
   ptOpenDialog({
     title: 'Edit QC Check',
     subtitle: `SKU: ${r.sku || '—'}  ·  checked by ${r.checkedBy || '—'}`,
@@ -15666,7 +15675,7 @@ function renderQcInbox() {
     .join(' ').toLowerCase().includes(q));
   QC.rows = rows.map(x => x.r); QC.inbox = rows;
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  const acceptedToday = (QC.checks || []).filter(c => c && c.baseId && ptDtMs(c.date) >= today.getTime()).reduce((a, c) => a + ptNum(c.checked), 0);
+  const acceptedToday = (QC.checks || []).filter(c => c && c.baseId && ptDtMs(c.date) >= today.getTime()).reduce((a, c) => a + ptNum(c.ok), 0);
   const oldest = rows.length ? Math.floor((Date.now() - rows[0].last) / 3600000) : 0;
   $('qcKpis').innerHTML = `<div class="kpi" style="flex-basis:100%">
     <div class="kpihead"><span class="kpiname">Waiting for QC — received from karigars since ${esc(QC_INBOX_FROM.split('-').reverse().join('/'))}</span>
@@ -15676,9 +15685,9 @@ function renderQcInbox() {
       <div class="metric"><div class="v">${nf(rows.length)}</div><div class="l">Job Work entries</div></div>
       <div class="metric"><div class="v">${nf(new Set(rows.map(x => x.r.empName)).size)}</div><div class="l">Karigars</div></div>
       <div class="metric"><div class="v"${oldest >= 24 ? ' style="color:var(--bad)"' : ''}>${rows.length ? (oldest >= 24 ? nf(Math.floor(oldest / 24)) + ' day(s)' : nf(oldest) + ' h') : '—'}</div><div class="l">Oldest waiting</div></div>
-      <div class="metric"><div class="v" style="color:#166534">${nf(acceptedToday)}</div><div class="l">Accepted today</div></div>
+      <div class="metric"><div class="v" style="color:#166534">${nf(acceptedToday)}</div><div class="l">Passed today</div></div>
     </div></div>`;
-  const head = '<thead><tr>' + ['Received', 'Karigar', 'SKU', 'Image', 'Item', 'Order', 'Received', 'Accepted', 'Waiting', 'Accept now', '']
+  const head = '<thead><tr>' + ['Received', 'Karigar', 'SKU', 'Image', 'Item', 'Order', 'Received', 'Taken by QC', 'Waiting', 'Pieces', '']
     .map((h, i) => `<th${i === 0 ? ' class="frz"' : ([6, 7, 8].indexOf(i) >= 0 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
   const can = ptCanEdit() || ME.admin || (ME.tabs || []).includes('qc');
   $('qcTable').innerHTML = head + '<tbody>' + (rows.slice(0, 600).map(x => '<tr>'
@@ -15691,31 +15700,160 @@ function renderQcInbox() {
     + `<td class="num">${nf(x.since)}</td><td class="num" style="color:#166534">${x.accepted ? nf(x.accepted) : '<span class="muted">—</span>'}</td>`
     + `<td class="num" style="font-weight:700;color:#b45309">${nf(x.wait)}</td>`
     + `<td>${can ? `<input type="number" min="1" max="${x.wait}" value="${x.wait}" data-qcin-qty="${esc(x.r.id)}" style="width:80px">` : ''}</td>`
-    + `<td>${can ? `<button data-qcin-go="${esc(x.r.id)}" style="padding:3px 12px;font-size:12px">Accept</button>` : '<span class="muted">—</span>'}</td>`
+    + `<td style="white-space:nowrap">${can ? ['', 'spotting', 'touching'].map(to => `<button data-qcin-go="${esc(x.r.id)}" data-to="${to}" class="${to ? 'ghost' : ''}" style="padding:3px 10px;font-size:12px;margin-right:4px" title="${to ? 'Send these pieces to ' + to + ' — they come back as a QC pass from the Spotting & touching tab' : 'Passed by QC'}">${to ? to[0].toUpperCase() + to.slice(1) : 'QC pass'}</button>`).join('') : '<span class="muted">—</span>'}</td>`
     + '</tr>').join('') || '<tr><td colspan="11" class="muted" style="padding:14px">Nothing waiting — everything received from karigars has been accepted.</td></tr>') + '</tbody>';
   $('qcMsg').className = 'muted';
-  $('qcMsg').textContent = `${nf(rows.length)} entr${rows.length === 1 ? 'y' : 'ies'} waiting, oldest first · type fewer to accept part — the rest stays waiting · an accepted piece is a QC pass: made on the Order Console, ready for shipping on a Shopify order`;
+  $('qcMsg').textContent = `${nf(rows.length)} entr${rows.length === 1 ? 'y' : 'ies'} waiting, oldest first · type the pieces, then QC pass, Spotting (a stain) or Touching (a missed print) — the rest stays waiting · a QC pass is made on the Order Console, ready for shipping on a Shopify order`;
 }
-/** Accept `qty` of one Job Work row's pieces into QC. '' or why not. */
-async function qcInboxAccept(baseId, qty) {
+/**
+ * Take `qty` of one Job Work row's pieces out of Waiting for QC. '' or why not.
+ * `to` = '' — passed by QC; 'spotting' — a stain, to be cleaned; 'touching' — a printed piece with a missed or broken print
+ * (2026-10-06, Ravi). Sent pieces are taken (checked) but not passed (ok 0); they pass when they come back.
+ */
+const QC_DEPTS = { spotting: 'Spotting', touching: 'Touching' };
+async function qcInboxAccept(baseId, qty, to) {
   const x = qcInboxRows().find(e => e.r.id === baseId);
   if (!x) return 'That entry is no longer waiting — press Refresh.';
   const q = parseInt(qty, 10);
-  if (!(q > 0)) return 'Type how many pieces QC is accepting.';
+  const dept = QC_DEPTS[to] ? to : '';
+  if (!(q > 0)) return dept ? `Type how many pieces go to ${QC_DEPTS[dept].toLowerCase()}.` : 'Type how many pieces QC is accepting.';
   if (q > x.wait) return `Only ${nf(x.wait)} piece(s) of this entry are waiting.`;
   const r = x.r, p = qcParts(r.sku);
   const rec = {
     id: 'qc_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
     date: ptNow(), checkedBy: String(ME.email || '').split('@')[0], brand: p.brand,
     articleType: p.at || r.articleType || '', subtype: p.sub || r.articleSubtype || '', color: p.col || r.color || '', size: p.size || r.size || '',
-    sku: qcNorm(r.sku), checked: q, ok: q, forAlteration: 0, rejected: 0,
+    sku: qcNorm(r.sku), checked: q, ok: dept ? 0 : q, forAlteration: 0, rejected: 0,
+    ...(dept ? { dept, [dept]: q } : {}),
     ...(r.orderNo ? { orderNo: obUC(r.orderNo) } : {}),
     baseId: r.id, karigar: r.empName || '', from: 'waiting',
-    remarks: 'Accepted from Waiting for QC', addedBy: ME.email, addedAt: new Date().toISOString(),
+    remarks: dept ? 'Sent to ' + QC_DEPTS[dept].toLowerCase() + ' from Waiting for QC' : 'Accepted from Waiting for QC',
+    addedBy: ME.email, addedAt: new Date().toISOString(),
   };
   await ptPut('pt_qcChecks/' + rec.id, rec);
   QC.checks = (QC.checks || []).concat(Object.assign({ _key: rec.id }, rec));
   return '';
+}
+
+/* ================= SPOTTING & TOUCHING =================
+ * What QC sent out of Waiting for QC to be cleaned (spotting) or to have a print finished (touching), and what is still
+ * there. Coming back is a QC pass against the same order and SKU (refId = the send), part or all.
+ */
+function qcDeptRows() {
+  const back = new Map();
+  (QC.checks || []).forEach(c => { if (c && c.refId) back.set(c.refId, (back.get(c.refId) || 0) + ptNum(c.ok)); });
+  return (QC.checks || []).filter(c => c && QC_DEPTS[c.dept] && ptNum(c[c.dept]) > 0).map(c => {
+    const sent = ptNum(c[c.dept]), got = Math.min(sent, back.get(c.id) || 0);
+    return { c, dept: c.dept, sent, back: got, left: sent - got, ms: ptDtMs(c.date) };
+  });
+}
+async function qcDeptBack(sendId, qty) {
+  const x = qcDeptRows().find(e => e.c.id === sendId);
+  if (!x) return 'That entry is not there any more — press Refresh.';
+  const q = parseInt(qty, 10);
+  if (!(q > 0)) return 'Type how many pieces came back.';
+  if (q > x.left) return `Only ${nf(x.left)} piece(s) of this are still in ${x.dept}.`;
+  const c = x.c;
+  const rec = {
+    id: 'qc_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    date: ptNow(), checkedBy: String(ME.email || '').split('@')[0], brand: c.brand || '',
+    articleType: c.articleType || '', subtype: c.subtype || '', color: c.color || '', size: c.size || '',
+    sku: c.sku, checked: 0, ok: q, forAlteration: 0, rejected: 0,
+    ...(c.orderNo ? { orderNo: c.orderNo } : {}),
+    refId: c.id, dept: x.dept, from: x.dept, baseId: c.baseId || '', karigar: c.karigar || '',
+    remarks: 'Back from ' + x.dept + ' — passed by QC', addedBy: ME.email, addedAt: new Date().toISOString(),
+  };
+  await ptPut('pt_qcChecks/' + rec.id, rec);
+  QC.checks = (QC.checks || []).concat(Object.assign({ _key: rec.id }, rec));
+  return '';
+}
+function renderQcDept() {
+  const q = $('qcQ').value.trim().toLowerCase();
+  const all = qcDeptRows();
+  const open = all.filter(x => x.left > 0 && (!q || [x.c.sku, x.c.subtype, x.c.color, x.c.size, x.c.karigar, x.c.orderNo, x.dept].join(' ').toLowerCase().includes(q)))
+    .sort((a, b) => a.ms - b.ms);
+  QC.rows = open.map(x => x.c); QC.dept = open;
+  const sum = (l, f) => l.reduce((a, x) => a + f(x), 0);
+  const inD = d => sum(all.filter(x => x.dept === d), x => x.left);
+  $('qcKpis').innerHTML = `<div class="kpi" style="flex-basis:100%">
+    <div class="kpihead"><span class="kpiname">Spotting &amp; touching — sent from QC, not back yet</span>
+      <span class="kpiwhen">read live${QC.at ? ' · ' + esc(QC.at) : ''}</span></div>
+    <div class="metrics">
+      <div class="metric"><div class="v" style="color:#b45309">${nf(inD('spotting'))}</div><div class="l">In spotting</div></div>
+      <div class="metric"><div class="v" style="color:#b45309">${nf(inD('touching'))}</div><div class="l">In touching</div></div>
+      <div class="metric"><div class="v" style="color:#166534">${nf(sum(all, x => x.back))}</div><div class="l">Back and passed</div></div>
+      <div class="metric"><div class="v">${nf(sum(all, x => x.sent))}</div><div class="l">Sent in all</div></div>
+    </div></div>`;
+  const can = ptCanEdit() || ME.admin || (ME.tabs || []).includes('qc');
+  const head = '<thead><tr>' + ['Sent', 'To', 'Karigar', 'SKU', 'Image', 'Item', 'Order', 'Sent', 'Back', 'Still there', 'Pieces', '']
+    .map((h, i) => `<th${i === 0 ? ' class="frz"' : ([7, 8, 9].indexOf(i) >= 0 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
+  $('qcTable').innerHTML = head + '<tbody>' + (open.slice(0, 600).map(x => '<tr>'
+    + `<td class="frz" style="text-align:left">${esc(x.c.date || '')}</td>`
+    + `<td><span class="pill ${x.dept === 'spotting' ? 'pill-low' : 'pill-out'}">${esc(QC_DEPTS[x.dept])}</span></td>`
+    + `<td style="text-align:left">${esc(x.c.karigar || '')}</td>`
+    + `<td style="font-family:ui-monospace,monospace;text-align:left">${esc(x.c.sku)}</td>`
+    + ptImgCell(x.c.sku)
+    + `<td style="text-align:left">${esc([x.c.subtype || x.c.articleType, x.c.color, x.c.size].filter(Boolean).join(' · '))}</td>`
+    + `<td style="text-align:left">${esc(x.c.orderNo || '') || '<span class="muted">—</span>'}</td>`
+    + `<td class="num">${nf(x.sent)}</td><td class="num" style="color:#166534">${x.back ? nf(x.back) : '<span class="muted">—</span>'}</td>`
+    + `<td class="num" style="font-weight:700;color:#b45309">${nf(x.left)}</td>`
+    + `<td>${can ? `<input type="number" min="1" max="${x.left}" value="${x.left}" data-qcd-qty="${esc(x.c.id)}" style="width:80px">` : ''}</td>`
+    + `<td>${can ? `<button data-qcd-go="${esc(x.c.id)}" style="padding:3px 10px;font-size:12px">Back — QC pass</button>` : '<span class="muted">—</span>'}</td>`
+    + '</tr>').join('') || '<tr><td colspan="12" class="muted" style="padding:14px">Nothing in spotting or touching.</td></tr>') + '</tbody>';
+  $('qcMsg').className = 'muted';
+  $('qcMsg').textContent = `${nf(open.length)} lot(s) still out, oldest first · type fewer for a part — the rest stays there · back is a QC pass for the order`;
+}
+
+/* ================= QC LEDGER, DAY BY DAY =================
+ * Ravi, 2026-10-06: "mujhe Q.C ka ladger banana h ki kya qc hua mera day wise". One row a day inside the date filter
+ * (the last 30 days when none is set): what came back from karigars, what QC passed straight, what went to spotting
+ * and touching and what came back from them passed, all passed, sent for alteration and rejected (the Checks form).
+ */
+function qcLedgerRows() {
+  const [d1, d2] = ptRangeOf('qcD1', 'qcD2');
+  const dayKey = ms => { const d = new Date(ms); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+  const lo = d1 ? new Date(d1 + 'T00:00:00').getTime() : Date.now() - 30 * 86400000;
+  const hi = d2 ? new Date(d2 + 'T23:59:59').getTime() : Date.now();
+  const days = new Map();
+  const at = ms => { if (!ms || ms < lo || ms > hi) return null; const k = dayKey(ms); if (!days.has(k)) days.set(k, { day: k, recv: 0, pass: 0, toSpot: 0, toTouch: 0, spotBack: 0, touchBack: 0, alt: 0, rej: 0 }); return days.get(k); };
+  (PT.base || []).forEach(r => {
+    (Array.isArray(r && r.receipts) ? r.receipts : Object.values((r && r.receipts) || {})).forEach(x => { const e = x && at(ptDtMs(x.at)); if (e) e.recv += ptNum(x.qty); });
+  });
+  (QC.checks || []).forEach(c => {
+    const e = c && at(ptDtMs(c.date)); if (!e) return;
+    if (c.refId) { if (c.dept === 'spotting') e.spotBack += ptNum(c.ok); else e.touchBack += ptNum(c.ok); return; }
+    e.pass += ptNum(c.ok);
+    e.toSpot += ptNum(c.spotting); e.toTouch += ptNum(c.touching);
+    e.alt += ptNum(c.forAlteration); e.rej += ptNum(c.rejected);
+  });
+  return [...days.values()].map(e => Object.assign(e, { allPass: e.pass + e.spotBack + e.touchBack })).sort((a, b) => b.day.localeCompare(a.day));
+}
+function renderQcLedger() {
+  const rows = qcLedgerRows();
+  QC.rows = []; QC.ledger = rows;
+  const t = rows.reduce((a, e) => { Object.keys(e).forEach(k => { if (k !== 'day') a[k] = (a[k] || 0) + e[k]; }); return a; }, {});
+  const waiting = qcInboxRows().reduce((a, x) => a + x.wait, 0), out = qcDeptRows();
+  $('qcKpis').innerHTML = `<div class="kpi" style="flex-basis:100%">
+    <div class="kpihead"><span class="kpiname">QC ledger — day by day</span>
+      <span class="kpiwhen">${($('qcD1').value || $('qcD2').value) ? 'the dates picked' : 'the last 30 days'} · read live${QC.at ? ' · ' + esc(QC.at) : ''}</span></div>
+    <div class="metrics">
+      <div class="metric"><div class="v">${nf(t.recv || 0)}</div><div class="l">Back from karigars</div></div>
+      <div class="metric"><div class="v" style="color:#166534">${nf(t.allPass || 0)}</div><div class="l">Passed by QC</div></div>
+      <div class="metric"><div class="v">${nf(t.toSpot || 0)} / ${nf(t.toTouch || 0)}</div><div class="l">To spotting / touching</div></div>
+      <div class="metric"><div class="v" style="color:#b45309">${nf(waiting)}</div><div class="l">Waiting for QC now</div></div>
+      <div class="metric"><div class="v" style="color:#b45309">${nf(out.reduce((a, x) => a + x.left, 0))}</div><div class="l">In spotting / touching now</div></div>
+    </div></div>`;
+  const cols = [['Day', 'day'], ['Back from karigars', 'recv'], ['QC pass', 'pass'], ['To spotting', 'toSpot'], ['To touching', 'toTouch'],
+    ['Back from spotting (pass)', 'spotBack'], ['Back from touching (pass)', 'touchBack'], ['All passed', 'allPass'], ['For alteration', 'alt'], ['Rejected', 'rej']];
+  const z = v => (v ? nf(v) : '<span class="muted">—</span>');
+  const head = '<thead><tr>' + cols.map((c, i) => `<th${i === 0 ? ' class="frz"' : ' class="num"'}>${c[0]}</th>`).join('') + '</tr></thead>';
+  $('qcTable').innerHTML = head + '<tbody>' + (rows.map(e => '<tr>'
+    + `<td class="frz" style="text-align:left">${esc(e.day.split('-').reverse().join('/'))}</td>`
+    + cols.slice(1).map(([, k]) => `<td class="num"${k === 'allPass' ? ' style="font-weight:700;color:#166534"' : ''}>${z(e[k])}</td>`).join('') + '</tr>').join('')
+    || `<tr><td colspan="${cols.length}" class="muted" style="padding:14px">Nothing in these days.</td></tr>`) + '</tbody>'
+    + (rows.length ? '<tfoot><tr><td class="frz">TOTAL</td>' + cols.slice(1).map(([, k]) => `<td class="num">${nf(t[k] || 0)}</td>`).join('') + '</tr></tfoot>' : '');
+  $('qcMsg').className = 'muted';
+  $('qcMsg').textContent = `${nf(rows.length)} day(s), newest first · "All passed" = QC pass + back from spotting and touching · use the dates above for another window`;
 }
 
 $('qcTable').addEventListener('click', async e => {
@@ -15725,11 +15863,25 @@ $('qcTable').addEventListener('click', async e => {
     const box = document.querySelector(`[data-qcin-qty="${CSS.escape(id)}"]`);
     go.disabled = true;
     let err = '';
-    try { err = await qcInboxAccept(id, box ? box.value : ''); } catch (er) { err = 'Not saved: ' + (er.message || er); }
+    const to = go.getAttribute('data-to') || '';
+    try { err = await qcInboxAccept(id, box ? box.value : '', to); } catch (er) { err = 'Not saved: ' + (er.message || er); }
     go.disabled = false;
     renderQc();
     $('qcMsg').className = err ? 'err' : 'muted';
-    if (err) $('qcMsg').textContent = err; else $('qcMsg').textContent = 'Accepted into QC. ' + $('qcMsg').textContent;
+    if (err) $('qcMsg').textContent = err; else $('qcMsg').textContent = (to ? 'Sent to ' + to + '. ' : 'Accepted into QC. ') + $('qcMsg').textContent;
+    return;
+  }
+  const back = e.target.closest('[data-qcd-go]');
+  if (back) {
+    const id = back.getAttribute('data-qcd-go');
+    const box = document.querySelector(`[data-qcd-qty="${CSS.escape(id)}"]`);
+    back.disabled = true;
+    let err = '';
+    try { err = await qcDeptBack(id, box ? box.value : ''); } catch (er) { err = 'Not saved: ' + (er.message || er); }
+    back.disabled = false;
+    renderQc();
+    $('qcMsg').className = err ? 'err' : 'muted';
+    if (err) $('qcMsg').textContent = err; else $('qcMsg').textContent = 'Back and passed by QC. ' + $('qcMsg').textContent;
     return;
   }
 });
@@ -15755,6 +15907,22 @@ $('qciToggle').onclick = () => {
   if (open) renderQcIssueForm();
 };
 $('qcExport').onclick = () => {
+  const v = qcView();
+  if (v === 'ledger') {
+    const L = QC.ledger || []; if (!L.length) return;
+    return ptDownload('qc-ledger', [['Day', 'Back from karigars', 'QC pass', 'To spotting', 'To touching', 'Back from spotting (pass)', 'Back from touching (pass)', 'All passed', 'For alteration', 'Rejected'].map(csvCell).join(',')]
+      .concat(L.map(e => [e.day.split('-').reverse().join('/'), e.recv, e.pass, e.toSpot, e.toTouch, e.spotBack, e.touchBack, e.allPass, e.alt, e.rej].map(csvCell).join(','))));
+  }
+  if (v === 'dept') {
+    const D = QC.dept || []; if (!D.length) return;
+    return ptDownload('qc-spotting-touching', [['Sent', 'To', 'Karigar', 'SKU', 'Item', 'Order', 'Sent', 'Back', 'Still there'].map(csvCell).join(',')]
+      .concat(D.map(x2 => [x2.c.date, QC_DEPTS[x2.dept], x2.c.karigar, x2.c.sku, [x2.c.subtype, x2.c.color, x2.c.size].filter(Boolean).join(' · '), x2.c.orderNo, x2.sent, x2.back, x2.left].map(csvCell).join(','))));
+  }
+  if (v === 'inbox') {
+    const I = QC.inbox || []; if (!I.length) return;
+    return ptDownload('waiting-for-qc', [['Received', 'Karigar', 'SKU', 'Item', 'Order', 'Received', 'Taken by QC', 'Waiting'].map(csvCell).join(',')]
+      .concat(I.map(x2 => [new Date(x2.last).toLocaleString('en-GB'), x2.r.empName, x2.r.sku, [x2.r.articleSubtype, x2.r.color, x2.r.size].filter(Boolean).join(' · '), x2.r.orderNo, x2.since, x2.accepted, x2.wait].map(csvCell).join(','))));
+  }
   const rows = QC.rows || []; if (!rows.length) return;
   const checks = qcView() === 'checks';
   const head = checks
@@ -18394,7 +18562,11 @@ function ordWaitingAt(r) {
   if (r.pendingCut > 0) return 'Cutting — ' + nf(r.pendingCut) + ' to cut';
   if (r.issued < r.qty) return 'Issue — ' + nf(r.qty - r.issued) + ' not given to a karigar';
   if (r.received < r.issued) return 'Karigar — ' + nf(r.issued - r.received) + ' out';
-  if (r.pressed < r.received) return 'QC — ' + nf(r.received - r.pressed) + ' to check';
+  if (r.pressed < r.received) {
+    const q = ordQcOf(r.orderNo, r.sku), d = q && q.dept > 0 ? Math.min(q.dept, r.received - r.pressed) : 0;
+    if (!d) return 'QC — ' + nf(r.received - r.pressed) + ' to check';
+    return 'Spotting / touching — ' + nf(d) + (r.received - r.pressed > d ? ' · QC — ' + nf(r.received - r.pressed - d) + ' to check' : '');
+  }
   /* ONLY A SHOPIFY LINE CAN BE HERE. Every other kind is open only while pressed < ordered, so getting
    * past the press check means it is not open and this function returned at the top. A Shopify line
    * stays open until the shipping team takes it, which is exactly what it is waiting for. */
@@ -18634,7 +18806,14 @@ function ordQcIndex() {
     e.checked += c; e.ok += ok; e.rej += rej; e.alt += alt; if (worked) e.worked += c; map.set(k, e); };
   src.forEach(r => {
     if (!r) return;
-    if (r.orderNo) return add(obKeyOf(r.orderNo, r.sku), ptNum(r.checked), ptNum(r.ok), ptNum(r.rejected), ptNum(r.forAlteration), false);
+    if (r.orderNo) {
+      const k = obKeyOf(r.orderNo, r.sku);
+      add(k, ptNum(r.checked), ptNum(r.ok), ptNum(r.rejected), ptNum(r.forAlteration), false);
+      /* Sent to spotting or touching from QC (2026-10-06) and not back yet — checked, not passed. */
+      const e = map.get(k);
+      e.dept = (e.dept || 0) + (r.refId ? -ptNum(r.ok) : (r.dept === 'spotting' || r.dept === 'touching') ? ptNum(r[r.dept]) : 0);
+      return;
+    }
     /* A CHECK THAT NAMED NO ORDER — every one made before the form asked. Kept by SKU, to be shared out. */
     const sku = obUC(r.sku); if (!sku) return;
     const p = loose.get(sku) || { checked: 0, ok: 0, rej: 0, alt: 0 };

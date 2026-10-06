@@ -154,7 +154,11 @@ function ordWaitingAt(r) {
   if (r.pendingCut > 0) return 'Cutting — ' + nf(r.pendingCut) + ' to cut';
   if (r.issued < r.qty) return 'Issue — ' + nf(r.qty - r.issued) + ' not given to a karigar';
   if (r.received < r.issued) return 'Karigar — ' + nf(r.issued - r.received) + ' out';
-  if (r.pressed < r.received) return 'QC — ' + nf(r.received - r.pressed) + ' to check';
+  if (r.pressed < r.received) {
+    const q = ordQcOf(r.orderNo, r.sku), d = q && q.dept > 0 ? Math.min(q.dept, r.received - r.pressed) : 0;
+    if (!d) return 'QC — ' + nf(r.received - r.pressed) + ' to check';
+    return 'Spotting / touching — ' + nf(d) + (r.received - r.pressed > d ? ' · QC — ' + nf(r.received - r.pressed - d) + ' to check' : '');
+  }
   /* ONLY A SHOPIFY LINE CAN BE HERE. Every other kind is open only while pressed < ordered, so getting
    * past the press check means it is not open and this function returned at the top. A Shopify line
    * stays open until the shipping team takes it, which is exactly what it is waiting for. */
@@ -394,7 +398,14 @@ function ordQcIndex() {
     e.checked += c; e.ok += ok; e.rej += rej; e.alt += alt; if (worked) e.worked += c; map.set(k, e); };
   src.forEach(r => {
     if (!r) return;
-    if (r.orderNo) return add(obKeyOf(r.orderNo, r.sku), ptNum(r.checked), ptNum(r.ok), ptNum(r.rejected), ptNum(r.forAlteration), false);
+    if (r.orderNo) {
+      const k = obKeyOf(r.orderNo, r.sku);
+      add(k, ptNum(r.checked), ptNum(r.ok), ptNum(r.rejected), ptNum(r.forAlteration), false);
+      /* Sent to spotting or touching from QC (2026-10-06) and not back yet — checked, not passed. */
+      const e = map.get(k);
+      e.dept = (e.dept || 0) + (r.refId ? -ptNum(r.ok) : (r.dept === 'spotting' || r.dept === 'touching') ? ptNum(r[r.dept]) : 0);
+      return;
+    }
     /* A CHECK THAT NAMED NO ORDER — every one made before the form asked. Kept by SKU, to be shared out. */
     const sku = obUC(r.sku); if (!sku) return;
     const p = loose.get(sku) || { checked: 0, ok: 0, rej: 0, alt: 0 };
