@@ -289,6 +289,10 @@ function openShopOrder(id) {
         + '<div class="so-pt"><div class="so-pn" title="' + esc(i.name + (i.variant ? ' · ' + i.variant : '')) + '">'
           + esc(i.name) + (i.variant ? ' <span class="muted">· ' + esc(i.variant) + '</span>' : '') + '</div>'
         + '<div class="so-ps"><span class="so-code">' + (i.sku ? esc(i.sku) : '<span class="muted">no SKU on Shopify</span>') + '</span>'
+        + (i.sku ? '' : ((t, g) => '<input class="soMk" data-k="' + esc(shpNoSkuKey(i)) + '" maxlength="40" value="' + esc(t) + '"'
+            + ' placeholder="' + esc(g || 'SKU to make') + '" title="Shopify sent this line without a SKU. Type the SKU production should make — saved on this order only. '
+            + (g ? 'Blank uses ' + g + ', matched from the title.' : 'Nothing in the master matched the title.') + '"'
+            + ' style="width:130px;margin-left:6px;text-align:center;font-family:ui-monospace,monospace;font-size:11.5px">')(shpTypedCode(o.id, i), (shpSkuFromTitle(i.name, i.variant) || {}).sku || ''))
         // Editable, and PLACEHOLDERED with the Shopify code — so a blank box still shows what will
         // be sent, and a filled one is visibly a decision. Same pattern as Remark and Req. Qty.
         + '<span class="so-amzw">'
@@ -477,6 +481,21 @@ function openShopOrder(id) {
   });
   $('soItems').querySelectorAll('.soLnSt').forEach(el => {
     el.onchange = () => soSaveLineStatus(el.dataset.sku, el.value);
+  });
+  $('soItems').querySelectorAll('.soMk').forEach(el => {
+    el.onchange = async () => {
+      const id = SHOP_EDIT; if (!id) return;
+      const v = obUC(el.value).replace(/\s+/g, '');
+      const meta = SHOP_META[id] || (SHOP_META[id] = {});
+      const mk = meta.mk || (meta.mk = {});
+      if (v) mk[el.dataset.k] = v; else delete mk[el.dataset.k];
+      if (!Object.keys(mk).length) delete meta.mk;
+      SHP_BUCKET_IX = { sig: null, list: null };          // the bucket is cached on SHOP_META's identity
+      try { await saveShopMeta(); }
+      catch (err) { $('soErr').textContent = 'Could not save the SKU: ' + (err.message || err); $('soErr').classList.remove('hide'); return; }
+      openShopOrder(id);
+      try { renderShop(); } catch (e) { /* not on that tab */ }
+    };
   });
   soBindAdjButtons();
 

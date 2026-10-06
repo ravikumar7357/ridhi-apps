@@ -1761,6 +1761,26 @@ console.log('\n== THE PRODUCTION BUCKET (Ravi, 2026-09-26) ==');
   A.openShopOrder(need.id);
   ok('…and the order dialog then says that line is already open, with no tick', /Already open · SHP-/.test(els.soItems.innerHTML)
      && !els.soItems.innerHTML.includes('data-sopk="' + need.key + '"'), (els.soItems.innerHTML.match(/<td[^>]*white-space:nowrap[^>]*>.*?<\/td>/g) || []).join(' | '));
+  /* 2026-10-06, Ravi on #7568: "i am unable to open order as such orders" — Shopify sent the line with no SKU and the
+   * title matched nothing. A SKU typed on that order's line puts it in the bucket, with its tick. */
+  {
+    const wasShop = A.SHOP ? A.SHOP() : null;
+    A.setSHOP({ orders: [mk('b1', '#5001', [['RCNBMIX', 2], ['RCNBRED', 1]]),
+      mk('b2', '#5002', [['', 2]], { items: [{ sku: '', name: 'Fall Green Runner', variant: '60x12', qty: 2, ffl: 'unfulfilled', rq: 0 }] })], from: '', to: '', tz: '', at: 'x' });
+    A.renderShop();
+    A.openShopOrder('b2');
+    ok('a line with no SKU gets a box to type one, and says so in Production', /class="soMk" data-k="Fall_Green_Runner_60x12"/.test(els.soItems.innerHTML)
+       && /type the SKU/.test(els.soItems.innerHTML) && !A.shpBucket().some(x => x.id === 'b2'), els.soItems.innerHTML.slice(0, 600));
+    A.setMETA({ b2: { mk: { Fall_Green_Runner_60x12: 'RCNBMIX' } } });
+    A.renderShop();
+    const nb = A.shpBucket().find(x => x.id === 'b2');
+    ok('…typed, the line waits in the bucket as that SKU', nb && nb.key === 'b2|RCNBMIX' && nb.kind === 'make' && nb.qty === 2 && /typed on the order/.test(nb.why), JSON.stringify(nb && [nb.key, nb.kind, nb.qty, nb.why]));
+    A.openShopOrder('b2');
+    ok('…and its Production cell is ticked', /data-sopk="b2\|RCNBMIX" checked/.test(els.soItems.innerHTML), els.soItems.innerHTML.slice(-500));
+    A.setMETA({});
+    if (wasShop) A.setSHOP(wasShop);
+    A.renderShop();
+  }
   const row = RT['pt_orderBook/ob_shp_SHP-5001_RCNBMIX'];
   ok('…under the Shopify order number, marked as opened from the bucket, by whom', row && row.orderNo === 'SHP-5001' && row.openedFrom === 'bucket' && row.openedBy && row.qty === 2, JSON.stringify(row));
   ok('…and only that line — the red one stays in the bucket', !RT['pt_orderBook/ob_shp_SHP-5001_RCNBRED'] && A.shpBucket().some(x => x.sku === 'RCNBRED') && !A.shpBucket().some(x => x.sku === 'RCNBMIX'));

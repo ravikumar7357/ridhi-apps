@@ -50873,6 +50873,25 @@ function shpSkuFromTitle(name, variant) {
   return best && !tied ? best : null;
 }
 
+/*
+ * A LINE SHOPIFY SENT WITHOUT A SKU, made as a SKU somebody typed on the order (2026-10-06, Ravi on #7568: "i am unable to
+ * open order as such orders"). Kept on the order, per line by its title — SHOP_META[id].mk[key] — never on a product, and
+ * read before the title match: a person's answer beats a guess.
+ */
+const shpNoSkuKey = i => (String((i && i.name) || '') + ' · ' + String((i && i.variant) || '')).replace(/[^A-Za-z0-9]+/g, '_').slice(0, 90);
+function shpTypedCode(orderId, i) {
+  const mk = ((typeof SHOP_META === 'object' && SHOP_META && SHOP_META[orderId]) || {}).mk || {};
+  return obUC(mk[shpNoSkuKey(i)] || '');
+}
+/** The code a line is made as: Shopify's, else the one typed on the order, else the title's match. */
+function shpLineCode(orderId, i) {
+  const s = obUC(i && i.sku);
+  if (s) return { sku: s, via: '' };
+  const t = shpTypedCode(orderId, i);
+  if (t) return { sku: t, via: 'SKU typed on the order' };
+  const m = shpSkuFromTitle(i && i.name, i && i.variant);
+  return m ? { sku: obUC(m.sku), via: 'matched to the master database by its title' } : { sku: '', via: '' };
+}
 function shpNeeds(r, noSku, opts) {
   const out = new Map();
   const add = (sku, qty, why, adjId, name, img, pcs, sets, viaTitle) => {
@@ -50911,12 +50930,7 @@ function shpNeeds(r, noSku, opts) {
    * orders from July were still sitting in the production queue. */
   /* A variant with no SKU is not the end of it: the title carries subtype, colour and size, and
    * the master database can be asked. What is found is marked, never silently pretended. */
-  const codeOf = i => {
-    const s = obUC(i && i.sku);
-    if (s) return { sku: s, via: '' };
-    const m = shpSkuFromTitle(i && i.name, i && i.variant);
-    return m ? { sku: obUC(m.sku), via: 'matched to the master database by its title' } : { sku: '', via: '' };
-  };
+  const codeOf = i => shpLineCode(r.id, i);
   /* evenHandled (2026-09-28): the bucket and an opening from it look past a "done / ready" note — a person decides
    * there, with the note in front of them. #3873 said "READY TO SHIP" with three pieces never made. */
   if (r.items && !r.cancelled && (!r.handled || (opts && opts.evenHandled)) && !r.shipped) {
@@ -51441,7 +51455,7 @@ function soProdBucketOf(o) {
 }
 /** The line's bucket entry or open production row, by the Shopify code or the Amazon one. */
 function soProdLineOf(o, i, mine) {
-  const sku = obUC(i && i.sku);
+  const sku = shpLineCode(o.id, i).sku;
   let amz = ''; try { amz = obUC(soAmzSku(sku)); } catch (e) { /* no mapping */ }
   const ks = [sku, amz].filter(Boolean);
   const b = (mine || []).find(x => ks.includes(x.sku)) || null;
@@ -51452,7 +51466,7 @@ function soProdCellFor(o) {
   const esc2 = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
   const mine = soProdBucketOf(o);
   return i => {
-    if (!obUC(i && i.sku)) return '<span class="muted">—</span>';
+    if (!shpLineCode(o.id, i).sku) return '<span class="muted" title="Shopify sent no SKU and the title matched nothing — type the SKU to make in the Product box">type the SKU ←</span>';
     const { b, open } = soProdLineOf(o, i, mine);
     if (open) return `<span class="pill pill-ok" title="Production is already open for this line">Already open · ${esc2(open.orderNo || open.id || '')}</span>`;
     if (mine === null) return '<span class="muted" title="Stock has not been read yet — press Fetch orders">after Fetch</span>';
@@ -52689,6 +52703,10 @@ function openShopOrder(id) {
         + '<div class="so-pt"><div class="so-pn" title="' + esc(i.name + (i.variant ? ' · ' + i.variant : '')) + '">'
           + esc(i.name) + (i.variant ? ' <span class="muted">· ' + esc(i.variant) + '</span>' : '') + '</div>'
         + '<div class="so-ps"><span class="so-code">' + (i.sku ? esc(i.sku) : '<span class="muted">no SKU on Shopify</span>') + '</span>'
+        + (i.sku ? '' : ((t, g) => '<input class="soMk" data-k="' + esc(shpNoSkuKey(i)) + '" maxlength="40" value="' + esc(t) + '"'
+            + ' placeholder="' + esc(g || 'SKU to make') + '" title="Shopify sent this line without a SKU. Type the SKU production should make — saved on this order only. '
+            + (g ? 'Blank uses ' + g + ', matched from the title.' : 'Nothing in the master matched the title.') + '"'
+            + ' style="width:130px;margin-left:6px;text-align:center;font-family:ui-monospace,monospace;font-size:11.5px">')(shpTypedCode(o.id, i), (shpSkuFromTitle(i.name, i.variant) || {}).sku || ''))
         // Editable, and PLACEHOLDERED with the Shopify code — so a blank box still shows what will
         // be sent, and a filled one is visibly a decision. Same pattern as Remark and Req. Qty.
         + '<span class="so-amzw">'
@@ -52877,6 +52895,21 @@ function openShopOrder(id) {
   });
   $('soItems').querySelectorAll('.soLnSt').forEach(el => {
     el.onchange = () => soSaveLineStatus(el.dataset.sku, el.value);
+  });
+  $('soItems').querySelectorAll('.soMk').forEach(el => {
+    el.onchange = async () => {
+      const id = SHOP_EDIT; if (!id) return;
+      const v = obUC(el.value).replace(/\s+/g, '');
+      const meta = SHOP_META[id] || (SHOP_META[id] = {});
+      const mk = meta.mk || (meta.mk = {});
+      if (v) mk[el.dataset.k] = v; else delete mk[el.dataset.k];
+      if (!Object.keys(mk).length) delete meta.mk;
+      SHP_BUCKET_IX = { sig: null, list: null };          // the bucket is cached on SHOP_META's identity
+      try { await saveShopMeta(); }
+      catch (err) { $('soErr').textContent = 'Could not save the SKU: ' + (err.message || err); $('soErr').classList.remove('hide'); return; }
+      openShopOrder(id);
+      try { renderShop(); } catch (e) { /* not on that tab */ }
+    };
   });
   soBindAdjButtons();
 

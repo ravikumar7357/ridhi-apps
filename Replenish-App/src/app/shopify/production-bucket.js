@@ -136,7 +136,7 @@ function soProdBucketOf(o) {
 }
 /** The line's bucket entry or open production row, by the Shopify code or the Amazon one. */
 function soProdLineOf(o, i, mine) {
-  const sku = obUC(i && i.sku);
+  const sku = shpLineCode(o.id, i).sku;
   let amz = ''; try { amz = obUC(soAmzSku(sku)); } catch (e) { /* no mapping */ }
   const ks = [sku, amz].filter(Boolean);
   const b = (mine || []).find(x => ks.includes(x.sku)) || null;
@@ -147,7 +147,7 @@ function soProdCellFor(o) {
   const esc2 = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
   const mine = soProdBucketOf(o);
   return i => {
-    if (!obUC(i && i.sku)) return '<span class="muted">—</span>';
+    if (!shpLineCode(o.id, i).sku) return '<span class="muted" title="Shopify sent no SKU and the title matched nothing — type the SKU to make in the Product box">type the SKU ←</span>';
     const { b, open } = soProdLineOf(o, i, mine);
     if (open) return `<span class="pill pill-ok" title="Production is already open for this line">Already open · ${esc2(open.orderNo || open.id || '')}</span>`;
     if (mine === null) return '<span class="muted" title="Stock has not been read yet — press Fetch orders">after Fetch</span>';

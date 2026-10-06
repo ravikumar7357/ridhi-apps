@@ -251,6 +251,25 @@ function shpSkuFromTitle(name, variant) {
   return best && !tied ? best : null;
 }
 
+/*
+ * A LINE SHOPIFY SENT WITHOUT A SKU, made as a SKU somebody typed on the order (2026-10-06, Ravi on #7568: "i am unable to
+ * open order as such orders"). Kept on the order, per line by its title — SHOP_META[id].mk[key] — never on a product, and
+ * read before the title match: a person's answer beats a guess.
+ */
+const shpNoSkuKey = i => (String((i && i.name) || '') + ' · ' + String((i && i.variant) || '')).replace(/[^A-Za-z0-9]+/g, '_').slice(0, 90);
+function shpTypedCode(orderId, i) {
+  const mk = ((typeof SHOP_META === 'object' && SHOP_META && SHOP_META[orderId]) || {}).mk || {};
+  return obUC(mk[shpNoSkuKey(i)] || '');
+}
+/** The code a line is made as: Shopify's, else the one typed on the order, else the title's match. */
+function shpLineCode(orderId, i) {
+  const s = obUC(i && i.sku);
+  if (s) return { sku: s, via: '' };
+  const t = shpTypedCode(orderId, i);
+  if (t) return { sku: t, via: 'SKU typed on the order' };
+  const m = shpSkuFromTitle(i && i.name, i && i.variant);
+  return m ? { sku: obUC(m.sku), via: 'matched to the master database by its title' } : { sku: '', via: '' };
+}
 function shpNeeds(r, noSku, opts) {
   const out = new Map();
   const add = (sku, qty, why, adjId, name, img, pcs, sets, viaTitle) => {
@@ -289,12 +308,7 @@ function shpNeeds(r, noSku, opts) {
    * orders from July were still sitting in the production queue. */
   /* A variant with no SKU is not the end of it: the title carries subtype, colour and size, and
    * the master database can be asked. What is found is marked, never silently pretended. */
-  const codeOf = i => {
-    const s = obUC(i && i.sku);
-    if (s) return { sku: s, via: '' };
-    const m = shpSkuFromTitle(i && i.name, i && i.variant);
-    return m ? { sku: obUC(m.sku), via: 'matched to the master database by its title' } : { sku: '', via: '' };
-  };
+  const codeOf = i => shpLineCode(r.id, i);
   /* evenHandled (2026-09-28): the bucket and an opening from it look past a "done / ready" note — a person decides
    * there, with the note in front of them. #3873 said "READY TO SHIP" with three pieces never made. */
   if (r.items && !r.cancelled && (!r.handled || (opts && opts.evenHandled)) && !r.shipped) {
