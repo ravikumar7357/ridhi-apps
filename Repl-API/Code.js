@@ -4605,6 +4605,172 @@ function syncSalesAnalysis_(pfx, brandKey, label) {
  * it does NOT re-pull Amazon synchronously (that would be slow and hang-prone).
  * ==========================================================================*/
 
+/* ===================== PRIME DAY — HOURLY SALES + TEAMS (Ravi, 2026-10-06) =====================
+ * "last year ke prime day and abhi jo prime day chal rha h … comparison chart (hourly and day wise) and live hourly teams me
+ * message bhejna h". Amazon's Sales API (getOrderMetrics) answers per hour for any window — this year live, last year from
+ * history — for each brand with its own credentials. Nothing is stored; every call asks Amazon.
+ *   ?repl=metrics&brand=SP|CPC&start=<ISO>&end=<ISO>&gran=Hour|Day   → { ok, rows:[{t, orders, units, items, sales}] }
+ *   ?repl=primeSetup&hook=<Teams Workflows webhook URL>              → stores the hook, installs the hourly trigger
+ *   ?repl=primeTest                                                  → posts one message now
+ *   ?repl=primeStop                                                  → removes the hourly trigger
+ * The hourly post runs only on the event days in PRIME_DAYS; after the sale it does nothing until it is stopped. */
+var PRIME_DAYS = { '2026-10-06': { ly: '2025-10-07', label: 'Day 1' }, '2026-10-07': { ly: '2025-10-08', label: 'Day 2' } };
+var PRIME_TZ = 'America/Los_Angeles';
+
+function orderMetrics_(brand, startIso, endIso, gran) {
+  ACTIVE_PREFIX = replBrandKey_(brand);
+  var path = '/sales/v1/orderMetrics?marketplaceIds=' + marketplaceId_()
+    + '&interval=' + encodeURIComponent(startIso + '--' + endIso)
+    + '&granularity=' + encodeURIComponent(gran || 'Hour')
+    + '&granularityTimeZone=' + encodeURIComponent('US/Pacific');
+  var res = spGet_(path);
+  return (res.payload || []).map(function (x) {
+    return { t: String(x.interval || '').split('--')[0], orders: x.orderCount || 0, units: x.unitCount || 0,
+      items: x.orderItemCount || 0, sales: x.totalSales ? Number(x.totalSales.amount) || 0 : 0 };
+  });
+}
+
+/** "2026-10-06" at hh:00 Pacific, as an ISO string with the right offset for that day. */
+function primeIso_(day, hh) {
+  var off = Utilities.formatDate(new Date(day + 'T12:00:00Z'), PRIME_TZ, 'Z');
+  return day + 'T' + (hh < 10 ? '0' : '') + hh + ':00:00' + off.slice(0, 3) + ':' + off.slice(3);
+}
+
+/** One brand: this year's day so far by hour, and last year's matching day by hour. */
+function primeBrand_(brand, day, ly, hourNow) {
+  var d0 = new Date(primeIso_(day, 0)).getTime(), l0 = new Date(primeIso_(ly, 0)).getTime();
+  var now = orderMetrics_(brand, primeIso_(day, 0), new Date(Math.min(Date.now(), d0 + 864e5)).toISOString(), 'Hour');
+  var last = orderMetrics_(brand, primeIso_(ly, 0), new Date(l0 + 864e5).toISOString(), 'Hour');
+  var sum = function (rows, upto) { var o = { orders: 0, units: 0, sales: 0 }; rows.forEach(function (r, i) { if (upto == null || i <= upto) { o.orders += r.orders; o.units += r.units; o.sales += r.sales; } }); return o; };
+  return { now: now, last: last, todayTot: sum(now, hourNow), lySame: sum(last, hourNow), lyDay: sum(last), lastHour: now[hourNow] || null, lyHour: last[hourNow] || null };
+}
+
+function primeMoney_(v) { return '$' + Math.round(v).toLocaleString('en-US'); }
+function primePct_(a, b) { if (!b) return '—'; var p = Math.round((a / b - 1) * 100); return (p >= 0 ? '+' : '') + p + '%'; }
+
+function primeMessage_(force) {
+  var nowD = new Date();
+  var day = Utilities.formatDate(nowD, PRIME_TZ, 'yyyy-MM-dd');
+  var ev = PRIME_DAYS[day];
+  if (!ev && !force) return null;
+  if (!ev) { var k = Object.keys(PRIME_DAYS)[0]; ev = PRIME_DAYS[k]; day = k; }
+  /* The hour that just finished — a message at 10:05 reports through 9:59. */
+  var hourNow = Math.max(0, Number(Utilities.formatDate(nowD, PRIME_TZ, 'H')) - 1);
+  var facts = [], tot = { t: 0, ly: 0, lyDay: 0, o: 0, lyo: 0 };
+  ['SP', 'CPC'].forEach(function (b) {
+    try {
+      var r = primeBrand_(b, day, ev.ly, hourNow), name = b === 'CPC' ? 'CPC' : 'Ridhi';
+      tot.t += r.todayTot.sales; tot.ly += r.lySame.sales; tot.lyDay += r.lyDay.sales; tot.o += r.todayTot.orders; tot.lyo += r.lySame.orders;
+      facts.push({ title: name + ' — so far', value: primeMoney_(r.todayTot.sales) + ' · ' + r.todayTot.orders + ' orders  (' + primePct_(r.todayTot.sales, r.lySame.sales) + ' vs last year same time)' });
+      if (r.lastHour) facts.push({ title: name + ' — ' + hourNow + ':00 hour', value: primeMoney_(r.lastHour.sales) + ' · ' + r.lastHour.orders + ' orders  (last year ' + primeMoney_(r.lyHour ? r.lyHour.sales : 0) + ')' });
+    } catch (e) { facts.push({ title: (b === 'CPC' ? 'CPC' : 'Ridhi'), value: 'could not read: ' + String(e.message || e).slice(0, 120) }); }
+  });
+  var head = 'Prime Big Deal Days ' + ev.label + ' — through ' + ((hourNow % 12) || 12) + ':59 ' + (hourNow < 12 ? 'AM' : 'PM') + ' PT';
+  var card = {
+    type: 'AdaptiveCard', $schema: 'http://adaptivecards.io/schemas/adaptive-card.json', version: '1.4',
+    body: [
+      { type: 'TextBlock', size: 'Medium', weight: 'Bolder', text: head, wrap: true },
+      { type: 'TextBlock', text: 'Both brands: **' + primeMoney_(tot.t) + '** · ' + tot.o + ' orders — ' + primePct_(tot.t, tot.ly)
+        + ' vs ' + ev.ly + ' at the same hour (' + primeMoney_(tot.ly) + '). Last year\'s whole ' + ev.label + ': ' + primeMoney_(tot.lyDay) + '.', wrap: true },
+      { type: 'FactSet', facts: facts },
+      { type: 'TextBlock', isSubtle: true, size: 'Small', wrap: true, text: 'Amazon.com, Pacific time, from Amazon\'s Sales API. Sent every hour by the Replenishment backend.' },
+    ],
+  };
+  return { type: 'message', attachments: [{ contentType: 'application/vnd.microsoft.card.adaptive', contentUrl: null, content: card }] };
+}
+
+/** The hourly trigger's job. */
+function primeHourlyPost() {
+  var hook = prop_('TEAMS_WEBHOOK');
+  if (!hook) return;
+  var msg = primeMessage_(false);
+  if (!msg) return;
+  UrlFetchApp.fetch(hook, { method: 'post', contentType: 'application/json', payload: JSON.stringify(msg), muteHttpExceptions: true });
+}
+
+function primeStop_() {
+  var n = 0;
+  ScriptApp.getProjectTriggers().forEach(function (t) { var f = t.getHandlerFunction(); if (f === 'primeHourlyPost' || f === 'primeHourly') { ScriptApp.deleteTrigger(t); n++; } });
+  return n;
+}
+function primeSetup_(hook) {
+  if (hook) {
+    if (!/^https:\/\/[^\s]+$/.test(hook)) return { ok: false, error: 'That does not look like a webhook URL.' };
+    PropertiesService.getScriptProperties().setProperty('TEAMS_WEBHOOK', hook);
+  }
+  if (!prop_('TEAMS_WEBHOOK')) return { ok: false, error: 'No Teams webhook stored yet — pass hook=<URL>.' };
+  primeStop_();
+  /* One hourly job does both: the dashboard's data and the Teams message. */
+  ScriptApp.newTrigger('primeHourly').timeBased().everyHours(1).nearMinute(8).create();
+  return { ok: true, trigger: 'primeHourly every hour (dashboard data + Teams)', days: Object.keys(PRIME_DAYS) };
+}
+function primeTest_() {
+  var hook = prop_('TEAMS_WEBHOOK');
+  var msg = primeMessage_(true);
+  if (!hook) return { ok: true, posted: false, message: msg };
+  var r = UrlFetchApp.fetch(hook, { method: 'post', contentType: 'application/json', payload: JSON.stringify(msg), muteHttpExceptions: true });
+  return { ok: r.getResponseCode() < 300, status: r.getResponseCode(), body: r.getContentText().slice(0, 300), message: msg };
+}
+
+/* ---- THE DASHBOARD'S DATA, IN THE CLOUD (Ravi, 2026-10-06: "mera system abhi band ho jayega … hourly update hota rhe") ----
+ * Every hour this trigger asks Amazon for both brands (today by hour, last year's two sale days, an ordinary week, day totals)
+ * and writes the whole set as JSON into one Google Sheet. The Prime Day dashboard reads that sheet through the viewer's Google
+ * Drive connector, so nothing depends on anybody's computer being on. The same run posts to Teams when a webhook is stored. */
+function primeBuildData_() {
+  var nowIso = new Date().toISOString();
+  var day = Utilities.formatDate(new Date(), PRIME_TZ, 'yyyy-MM-dd');
+  var brands = {};
+  ['SP', 'CPC'].forEach(function (b) {
+    var x = {};
+    try { x.now = orderMetrics_(b, primeIso_(day, 0), nowIso, 'Hour'); } catch (e) { x.now = []; x.err = String(e.message || e).slice(0, 200); }
+    var cache = CacheService.getScriptCache(), ck = 'prime_static_v1_' + b, hit = cache.get(ck);
+    var st = hit ? JSON.parse(hit) : null;
+    if (!st) {
+      st = {
+        ly: orderMetrics_(b, '2025-10-07T00:00:00-07:00', '2025-10-09T00:00:00-07:00', 'Hour'),
+        base: orderMetrics_(b, '2026-09-29T00:00:00-07:00', '2026-10-04T00:00:00-07:00', 'Hour'),
+        d25: orderMetrics_(b, '2025-09-30T00:00:00-07:00', '2025-10-13T00:00:00-07:00', 'Day'),
+      };
+      try { cache.put(ck, JSON.stringify(st), 6 * 3600); } catch (e) { /* over 100 KB: just asked again next hour */ }
+    }
+    x.ly = st.ly; x.base = st.base; x.d25 = st.d25;
+    try { x.d26 = orderMetrics_(b, '2026-09-29T00:00:00-07:00', nowIso, 'Day'); } catch (e) { x.d26 = []; }
+    brands[b] = x;
+  });
+  return { asOf: nowIso, brands: brands };
+}
+function primeSheet_() {
+  var id = prop_('PRIME_SHEET_ID');
+  if (id) { try { return SpreadsheetApp.openById(id); } catch (e) { /* made again below */ } }
+  var ss = SpreadsheetApp.create('Prime Day live data (dashboard)');
+  PropertiesService.getScriptProperties().setProperty('PRIME_SHEET_ID', ss.getId());
+  return ss;
+}
+/** The JSON goes in column A, 40,000 characters a cell (a cell holds 50,000). Row 1 says when. */
+function primeWrite_(data) {
+  var ss = primeSheet_(), sh = ss.getSheets()[0];
+  var s = JSON.stringify(data), parts = [];
+  for (var i = 0; i < s.length; i += 40000) parts.push([s.slice(i, i + 40000)]);
+  sh.clear();
+  sh.getRange(1, 1).setValue('asOf ' + data.asOf + ' · parts ' + parts.length);
+  if (parts.length) sh.getRange(2, 1, parts.length, 1).setValues(parts);
+  SpreadsheetApp.flush();
+  return { id: ss.getId(), parts: parts.length, chars: s.length };
+}
+/** The hourly trigger: the dashboard's data, then the Teams message. Stops itself once the sale is two days gone. */
+function primeHourly() {
+  var day = Utilities.formatDate(new Date(), PRIME_TZ, 'yyyy-MM-dd');
+  if (day > '2026-10-09') { primeStop_(); return; }
+  try { primeWrite_(primeBuildData_()); } catch (e) { console.error('prime data: ' + (e.message || e)); }
+  try { primeHourlyPost(); } catch (e) { console.error('prime teams: ' + (e.message || e)); }
+}
+function primeLiveSetup_() {
+  primeStop_();
+  ScriptApp.newTrigger('primeHourly').timeBased().everyHours(1).nearMinute(8).create();
+  var w = primeWrite_(primeBuildData_());
+  return { ok: true, sheet: w.id, parts: w.parts, chars: w.chars, trigger: 'primeHourly every hour', teams: !!prop_('TEAMS_WEBHOOK') };
+}
+
 function doGet(e) {
   var p = (e && e.parameter) || {};
   try {
@@ -4621,6 +4787,11 @@ function doGet(e) {
     if (p.repl === 'meta') return replJson_(replPagedMeta_(p.brand, p.fresh));
     if (p.repl === 'page') return replPagedRead_(p.brand, p.token, p.kind, p.from, p.to);
     if (p.repl === 'list') return replJson_(replReadInv_(p.brand));
+    if (p.repl === 'metrics') return replJson_({ ok: true, rows: orderMetrics_(p.brand, p.start, p.end, p.gran) });
+    if (p.repl === 'primeSetup') return replJson_(primeSetup_(p.hook));
+    if (p.repl === 'primeTest') return replJson_(primeTest_());
+    if (p.repl === 'primeStop') return replJson_({ ok: true, removed: primeStop_() });
+    if (p.repl === 'primeLiveSetup') return replJson_(primeLiveSetup_());
     return replJson_({ ok: false, error: 'Unknown request.' });
   } catch (err) {
     return replJson_({ ok: false, error: String(err && err.message || err).slice(0, 300) });
