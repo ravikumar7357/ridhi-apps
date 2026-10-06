@@ -403,7 +403,7 @@ function ordQcIndex() {
       add(k, ptNum(r.checked), ptNum(r.ok), ptNum(r.rejected), ptNum(r.forAlteration), false);
       /* Sent to spotting or touching from QC (2026-10-06) and not back yet — checked, not passed. */
       const e = map.get(k);
-      e.dept = (e.dept || 0) + (r.refId ? -ptNum(r.ok) : (r.dept === 'spotting' || r.dept === 'touching') ? ptNum(r[r.dept]) : 0);
+      e.dept = (e.dept || 0) + (r.refId ? -(ptNum(r.ok) + ptNum(r.rejected)) : (r.dept === 'spotting' || r.dept === 'touching') ? ptNum(r[r.dept]) : 0);
       return;
     }
     /* A CHECK THAT NAMED NO ORDER — every one made before the form asked. Kept by SKU, to be shared out. */

@@ -752,28 +752,30 @@ async function qcInboxAccept(baseId, qty, to) {
  * there. Coming back is a QC pass against the same order and SKU (refId = the send), part or all.
  */
 function qcDeptRows() {
-  const back = new Map();
-  (QC.checks || []).forEach(c => { if (c && c.refId) back.set(c.refId, (back.get(c.refId) || 0) + ptNum(c.ok)); });
+  const ok = new Map(), rej = new Map();
+  (QC.checks || []).forEach(c => { if (c && c.refId) {
+    ok.set(c.refId, (ok.get(c.refId) || 0) + ptNum(c.ok)); rej.set(c.refId, (rej.get(c.refId) || 0) + ptNum(c.rejected)); } });
   return (QC.checks || []).filter(c => c && QC_DEPTS[c.dept] && ptNum(c[c.dept]) > 0).map(c => {
-    const sent = ptNum(c[c.dept]), got = Math.min(sent, back.get(c.id) || 0);
-    return { c, dept: c.dept, sent, back: got, left: sent - got, ms: ptDtMs(c.date) };
+    const sent = ptNum(c[c.dept]), pass = ok.get(c.id) || 0, bad = rej.get(c.id) || 0, got = Math.min(sent, pass + bad);
+    return { c, dept: c.dept, sent, back: got, pass, rej: bad, left: sent - got, ms: ptDtMs(c.date) };
   });
 }
-async function qcDeptBack(sendId, qty) {
+/** `reject` (2026-10-06, Ravi: "spotting touching se reject bhi ho sakta h") — the pieces come back rejected, not passed. */
+async function qcDeptBack(sendId, qty, reject) {
   const x = qcDeptRows().find(e => e.c.id === sendId);
   if (!x) return 'That entry is not there any more — press Refresh.';
   const q = parseInt(qty, 10);
-  if (!(q > 0)) return 'Type how many pieces came back.';
+  if (!(q > 0)) return reject ? 'Type how many pieces are rejected.' : 'Type how many pieces came back.';
   if (q > x.left) return `Only ${nf(x.left)} piece(s) of this are still in ${x.dept}.`;
   const c = x.c;
   const rec = {
     id: 'qc_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
     date: ptNow(), checkedBy: String(ME.email || '').split('@')[0], brand: c.brand || '',
     articleType: c.articleType || '', subtype: c.subtype || '', color: c.color || '', size: c.size || '',
-    sku: c.sku, checked: 0, ok: q, forAlteration: 0, rejected: 0,
+    sku: c.sku, checked: 0, ok: reject ? 0 : q, forAlteration: 0, rejected: reject ? q : 0,
     ...(c.orderNo ? { orderNo: c.orderNo } : {}),
     refId: c.id, dept: x.dept, from: x.dept, baseId: c.baseId || '', karigar: c.karigar || '',
-    remarks: 'Back from ' + x.dept + ' — passed by QC', addedBy: ME.email, addedAt: new Date().toISOString(),
+    remarks: reject ? 'Rejected after ' + x.dept : 'Back from ' + x.dept + ' — passed by QC', addedBy: ME.email, addedAt: new Date().toISOString(),
   };
   await ptPut('pt_qcChecks/' + rec.id, rec);
   QC.checks = (QC.checks || []).concat(Object.assign({ _key: rec.id }, rec));
@@ -793,12 +795,13 @@ function renderQcDept() {
     <div class="metrics">
       <div class="metric"><div class="v" style="color:#b45309">${nf(inD('spotting'))}</div><div class="l">In spotting</div></div>
       <div class="metric"><div class="v" style="color:#b45309">${nf(inD('touching'))}</div><div class="l">In touching</div></div>
-      <div class="metric"><div class="v" style="color:#166534">${nf(sum(all, x => x.back))}</div><div class="l">Back and passed</div></div>
+      <div class="metric"><div class="v" style="color:#166534">${nf(sum(all, x => x.pass))}</div><div class="l">Back and passed</div></div>
+      <div class="metric"><div class="v" style="color:var(--bad)">${nf(sum(all, x => x.rej))}</div><div class="l">Rejected</div></div>
       <div class="metric"><div class="v">${nf(sum(all, x => x.sent))}</div><div class="l">Sent in all</div></div>
     </div></div>`;
   const can = ptCanEdit() || ME.admin || (ME.tabs || []).includes('qc');
-  const head = '<thead><tr>' + ['Sent', 'To', 'Karigar', 'SKU', 'Image', 'Item', 'Order', 'Sent', 'Back', 'Still there', 'Pieces', '']
-    .map((h, i) => `<th${i === 0 ? ' class="frz"' : ([7, 8, 9].indexOf(i) >= 0 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
+  const head = '<thead><tr>' + ['Sent', 'To', 'Karigar', 'SKU', 'Image', 'Item', 'Order', 'Sent', 'Passed', 'Rejected', 'Still there', 'Pieces', '']
+    .map((h, i) => `<th${i === 0 ? ' class="frz"' : ([7, 8, 9, 10].indexOf(i) >= 0 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
   $('qcTable').innerHTML = head + '<tbody>' + (open.slice(0, 600).map(x => '<tr>'
     + `<td class="frz" style="text-align:left">${esc(x.c.date || '')}</td>`
     + `<td><span class="pill ${x.dept === 'spotting' ? 'pill-low' : 'pill-out'}">${esc(QC_DEPTS[x.dept])}</span></td>`
@@ -807,13 +810,15 @@ function renderQcDept() {
     + ptImgCell(x.c.sku)
     + `<td style="text-align:left">${esc([x.c.subtype || x.c.articleType, x.c.color, x.c.size].filter(Boolean).join(' · '))}</td>`
     + `<td style="text-align:left">${esc(x.c.orderNo || '') || '<span class="muted">—</span>'}</td>`
-    + `<td class="num">${nf(x.sent)}</td><td class="num" style="color:#166534">${x.back ? nf(x.back) : '<span class="muted">—</span>'}</td>`
+    + `<td class="num">${nf(x.sent)}</td><td class="num" style="color:#166534">${x.pass ? nf(x.pass) : '<span class="muted">—</span>'}</td>`
+    + `<td class="num" style="color:var(--bad)">${x.rej ? nf(x.rej) : '<span class="muted">—</span>'}</td>`
     + `<td class="num" style="font-weight:700;color:#b45309">${nf(x.left)}</td>`
     + `<td>${can ? `<input type="number" min="1" max="${x.left}" value="${x.left}" data-qcd-qty="${esc(x.c.id)}" style="width:80px">` : ''}</td>`
-    + `<td>${can ? `<button data-qcd-go="${esc(x.c.id)}" style="padding:3px 10px;font-size:12px">Back — QC pass</button>` : '<span class="muted">—</span>'}</td>`
-    + '</tr>').join('') || '<tr><td colspan="12" class="muted" style="padding:14px">Nothing in spotting or touching.</td></tr>') + '</tbody>';
+    + `<td style="white-space:nowrap">${can ? `<button data-qcd-go="${esc(x.c.id)}" style="padding:3px 10px;font-size:12px;margin-right:4px">Back — QC pass</button>`
+      + `<button data-qcd-go="${esc(x.c.id)}" data-rej="1" class="ghost" style="padding:3px 10px;font-size:12px;color:var(--bad)">Reject</button>` : '<span class="muted">—</span>'}</td>`
+    + '</tr>').join('') || '<tr><td colspan="13" class="muted" style="padding:14px">Nothing in spotting or touching.</td></tr>') + '</tbody>';
   $('qcMsg').className = 'muted';
-  $('qcMsg').textContent = `${nf(open.length)} lot(s) still out, oldest first · type fewer for a part — the rest stays there · back is a QC pass for the order`;
+  $('qcMsg').textContent = `${nf(open.length)} lot(s) still out, oldest first · type fewer for a part — the rest stays there · back is a QC pass for the order, or Reject`;
 }
 
 /* ================= QC LEDGER, DAY BY DAY =================
@@ -827,13 +832,13 @@ function qcLedgerRows() {
   const lo = d1 ? new Date(d1 + 'T00:00:00').getTime() : Date.now() - 30 * 86400000;
   const hi = d2 ? new Date(d2 + 'T23:59:59').getTime() : Date.now();
   const days = new Map();
-  const at = ms => { if (!ms || ms < lo || ms > hi) return null; const k = dayKey(ms); if (!days.has(k)) days.set(k, { day: k, recv: 0, pass: 0, toSpot: 0, toTouch: 0, spotBack: 0, touchBack: 0, alt: 0, rej: 0 }); return days.get(k); };
+  const at = ms => { if (!ms || ms < lo || ms > hi) return null; const k = dayKey(ms); if (!days.has(k)) days.set(k, { day: k, recv: 0, pass: 0, toSpot: 0, toTouch: 0, spotBack: 0, touchBack: 0, deptRej: 0, alt: 0, rej: 0 }); return days.get(k); };
   (PT.base || []).forEach(r => {
     (Array.isArray(r && r.receipts) ? r.receipts : Object.values((r && r.receipts) || {})).forEach(x => { const e = x && at(ptDtMs(x.at)); if (e) e.recv += ptNum(x.qty); });
   });
   (QC.checks || []).forEach(c => {
     const e = c && at(ptDtMs(c.date)); if (!e) return;
-    if (c.refId) { if (c.dept === 'spotting') e.spotBack += ptNum(c.ok); else e.touchBack += ptNum(c.ok); return; }
+    if (c.refId) { if (c.dept === 'spotting') e.spotBack += ptNum(c.ok); else e.touchBack += ptNum(c.ok); e.deptRej += ptNum(c.rejected); return; }
     e.pass += ptNum(c.ok);
     e.toSpot += ptNum(c.spotting); e.toTouch += ptNum(c.touching);
     e.alt += ptNum(c.forAlteration); e.rej += ptNum(c.rejected);
@@ -856,7 +861,7 @@ function renderQcLedger() {
       <div class="metric"><div class="v" style="color:#b45309">${nf(out.reduce((a, x) => a + x.left, 0))}</div><div class="l">In spotting / touching now</div></div>
     </div></div>`;
   const cols = [['Day', 'day'], ['Back from karigars', 'recv'], ['QC pass', 'pass'], ['To spotting', 'toSpot'], ['To touching', 'toTouch'],
-    ['Back from spotting (pass)', 'spotBack'], ['Back from touching (pass)', 'touchBack'], ['All passed', 'allPass'], ['For alteration', 'alt'], ['Rejected', 'rej']];
+    ['Back from spotting (pass)', 'spotBack'], ['Back from touching (pass)', 'touchBack'], ['Rejected after spotting / touching', 'deptRej'], ['All passed', 'allPass'], ['For alteration', 'alt'], ['Rejected at QC', 'rej']];
   const z = v => (v ? nf(v) : '<span class="muted">—</span>');
   const head = '<thead><tr>' + cols.map((c, i) => `<th${i === 0 ? ' class="frz"' : ' class="num"'}>${c[0]}</th>`).join('') + '</tr></thead>';
   $('qcTable').innerHTML = head + '<tbody>' + (rows.map(e => '<tr>'
@@ -889,11 +894,12 @@ $('qcTable').addEventListener('click', async e => {
     const box = document.querySelector(`[data-qcd-qty="${CSS.escape(id)}"]`);
     back.disabled = true;
     let err = '';
-    try { err = await qcDeptBack(id, box ? box.value : ''); } catch (er) { err = 'Not saved: ' + (er.message || er); }
+    const rej = back.getAttribute('data-rej') === '1';
+    try { err = await qcDeptBack(id, box ? box.value : '', rej); } catch (er) { err = 'Not saved: ' + (er.message || er); }
     back.disabled = false;
     renderQc();
     $('qcMsg').className = err ? 'err' : 'muted';
-    if (err) $('qcMsg').textContent = err; else $('qcMsg').textContent = 'Back and passed by QC. ' + $('qcMsg').textContent;
+    if (err) $('qcMsg').textContent = err; else $('qcMsg').textContent = (rej ? 'Rejected. ' : 'Back and passed by QC. ') + $('qcMsg').textContent;
     return;
   }
 });
@@ -922,13 +928,13 @@ $('qcExport').onclick = () => {
   const v = qcView();
   if (v === 'ledger') {
     const L = QC.ledger || []; if (!L.length) return;
-    return ptDownload('qc-ledger', [['Day', 'Back from karigars', 'QC pass', 'To spotting', 'To touching', 'Back from spotting (pass)', 'Back from touching (pass)', 'All passed', 'For alteration', 'Rejected'].map(csvCell).join(',')]
-      .concat(L.map(e => [e.day.split('-').reverse().join('/'), e.recv, e.pass, e.toSpot, e.toTouch, e.spotBack, e.touchBack, e.allPass, e.alt, e.rej].map(csvCell).join(','))));
+    return ptDownload('qc-ledger', [['Day', 'Back from karigars', 'QC pass', 'To spotting', 'To touching', 'Back from spotting (pass)', 'Back from touching (pass)', 'Rejected after spotting / touching', 'All passed', 'For alteration', 'Rejected at QC'].map(csvCell).join(',')]
+      .concat(L.map(e => [e.day.split('-').reverse().join('/'), e.recv, e.pass, e.toSpot, e.toTouch, e.spotBack, e.touchBack, e.deptRej, e.allPass, e.alt, e.rej].map(csvCell).join(','))));
   }
   if (v === 'dept') {
     const D = QC.dept || []; if (!D.length) return;
-    return ptDownload('qc-spotting-touching', [['Sent', 'To', 'Karigar', 'SKU', 'Item', 'Order', 'Sent', 'Back', 'Still there'].map(csvCell).join(',')]
-      .concat(D.map(x2 => [x2.c.date, QC_DEPTS[x2.dept], x2.c.karigar, x2.c.sku, [x2.c.subtype, x2.c.color, x2.c.size].filter(Boolean).join(' · '), x2.c.orderNo, x2.sent, x2.back, x2.left].map(csvCell).join(','))));
+    return ptDownload('qc-spotting-touching', [['Sent', 'To', 'Karigar', 'SKU', 'Item', 'Order', 'Sent', 'Passed', 'Rejected', 'Still there'].map(csvCell).join(',')]
+      .concat(D.map(x2 => [x2.c.date, QC_DEPTS[x2.dept], x2.c.karigar, x2.c.sku, [x2.c.subtype, x2.c.color, x2.c.size].filter(Boolean).join(' · '), x2.c.orderNo, x2.sent, x2.pass, x2.rej, x2.left].map(csvCell).join(','))));
   }
   if (v === 'inbox') {
     const I = QC.inbox || []; if (!I.length) return;

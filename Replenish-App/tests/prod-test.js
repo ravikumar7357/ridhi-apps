@@ -20144,11 +20144,17 @@ console.log('\n== QC: spotting, touching and the day-wise ledger (2026-10-06) ==
   dr = A.qcDeptRows();
   ok('…the rest stays in spotting', dr.find(x => x.dept === 'spotting').left === 1 && dr.find(x => x.dept === 'spotting').back === 2);
   ok('…and nothing comes back into Waiting for QC', A.qcInboxRows().length === 0);
+  /* "spotting touching se reject bhi ho sakta h" — the last spotting piece comes back rejected. */
+  ok('a piece can come back rejected from spotting', (await A.qcDeptBack(sp.id, 1, true)) === '');
+  dr = A.qcDeptRows();
+  const spr = dr.find(x => x.dept === 'spotting');
+  ok('…it leaves spotting, counted as rejected, not passed', spr.left === 0 && spr.rej === 1 && spr.pass === 2, JSON.stringify(spr && [spr.left, spr.rej, spr.pass]));
+  ok('…and is not made', A.obPressQty('DO-1', 'D-1') === 7, String(A.obPressQty('DO-1', 'D-1')));
   els.qcD1.value = ''; els.qcD2.value = '';
   const L = A.qcLedgerRows();
   const e = L[0] || {};
-  ok('the ledger has today: 10 back from the karigar, 5 passed, 3 spotting, 2 touching, 2 back from spotting, 7 passed in all',
-     L.length === 1 && e.recv === 10 && e.pass === 5 && e.toSpot === 3 && e.toTouch === 2 && e.spotBack === 2 && e.touchBack === 0 && e.allPass === 7, JSON.stringify(L));
+  ok('the ledger has today: 10 back from the karigar, 5 passed, 3 spotting, 2 touching, 2 back from spotting, 1 rejected there, 7 passed in all',
+     L.length === 1 && e.recv === 10 && e.pass === 5 && e.toSpot === 3 && e.toTouch === 2 && e.spotBack === 2 && e.touchBack === 0 && e.allPass === 7 && e.deptRej === 1, JSON.stringify(L));
   A.qcEditCheck(sp.id);
   ok('a spotting lot cannot be edited from Checks', /Spotting & touching/.test(els.qcMsg.textContent), els.qcMsg.textContent);
   els.qcView.value = 'dept'; A.renderQc();
