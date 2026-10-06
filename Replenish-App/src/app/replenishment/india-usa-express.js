@@ -440,7 +440,7 @@ function openShopOrder(id) {
       const k = el.dataset.sku;                      // the AMAZON code, not the Shopify one
       const raw = el.value.trim();
       if (raw !== '' && !/^\d+$/.test(raw)) {
-        $('soErr').textContent = '"' + el.value + '" is not a pack size — whole units only, or blank to use the warehouse workbook.';
+        $('soErr').textContent = '"' + el.value + '" is not a pack size — whole units only, or blank to use the production master.';
         $('soErr').classList.remove('hide');
         // Through soSku, which upper-cases: `k` is now spelled the way AMAZON spells it, and
         // SHOP_SKU is keyed in upper case. Indexing it directly would silently blank the box.

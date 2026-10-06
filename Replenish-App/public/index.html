@@ -7120,38 +7120,27 @@ async function ensureTop() {
   renderTop();
 }
 
-// India stock now comes from what the user uploads in the India Stock tab (Firestore repl/indiastock,
-// chunked into repl_india/{i} the same way the Replenishment snapshot is). Every tab's "India Stock"
-// column reads INDIA_STOCK, so nothing else had to change when the source moved.
-const INDIA_CHUNK = 900;
+/*
+ * INDIA STOCK = THIS APP'S FINISHED GOODS (2026-10-06, Ravi: "india stock ko apne app ke finish goods se dikhao sheet ka
+ * data hata do"). The Ready Goods workbook is no longer read, nor the Firestore copy of it: one source, the same figure the
+ * Finished Goods tab shows — what each SKU holds today (opening + received − issued − to FBA), in PIECES. Ravi chose the
+ * switch with no opening entry from the sheet, so a SKU that was only on the sheet now reads 0.
+ *
+ * Counted in SELLABLE units for the screens, as before: pieces ÷ the pack (the master's packOf, else the app's own pack
+ * rule, obPcsPerPack), rounded down. Pieces and the RECORDED pack ride along; nothing downstream has to know.
+ * INDIA_STOCK is read by the forecast, the lane decision, Article Review, Create-PO and the Shopify India column.
+ */
 let INDIA_PROMISE = null;
-function loadIndiaStock() {   // idempotent: shared promise, INDIA_LOADED set only AFTER the fetch
+function loadIndiaStock() {   // idempotent: shared promise, INDIA_LOADED set only AFTER the read
   if (INDIA_LOADED) return Promise.resolve();
   if (!INDIA_PROMISE) INDIA_PROMISE = fetchIndiaStock().finally(() => { INDIA_LOADED = true; });
   return INDIA_PROMISE;
 }
-/**
- * India stock, LIVE from the warehouse workbook — no longer the uploaded CSV.
- *
- * The CSV in Firestore was a copy somebody had to remember to refresh, and it had gone stale: the
- * numbers on this tab disagreed with the warehouse, and every reorder built on them was wrong in the
- * same direction. Read from the source instead, through the Price Research backend (the Shopify
- * connection and the sheet access both live there — see PRAPI).
- *
- * Counted in SELLABLE units, matching the FBA requirement it is set against. The workbook holds
- * PIECES and a pack of 2 is one sellable set, so comparing an Amazon requirement against pieces
- * would say a set-of-two is covered by a single loose piece. Pieces and pack ride along for the
- * tooltip; nothing downstream has to know.
- *
- * INDIA_STOCK is read by the forecast, the lane decision, Article Review and Create-PO, so this one
- * function moving is the whole change.
- */
-let INDIA_META = {};                       // sku → [sellable, pieces, pack, status]
-/* ONE CALL FOR THE WHOLE SESSION. Replenishment asks for this, and so does Shopify Orders; it is
- * the same payload, and it cost ten seconds twice. */
+let INDIA_META = {};                       // sku → [sellable, pieces, recorded pack, status]
+/* ONE READ FOR THE SESSION — Replenishment and Shopify Orders ask for the same thing. A failure is not kept. */
 let INDIA_LIVE = null;
-const indiaLive = () => (INDIA_LIVE || (INDIA_LIVE = prGet({ india: 'stock' })));
-/** The workbook's answer, in the shapes the screens read it in. */
+const indiaLive = () => (INDIA_LIVE || (INDIA_LIVE = indiaFromFg().catch(e => { INDIA_LIVE = null; throw e; })));
+/** The rows in the shapes the screens read them in. */
 function indiaApply(rows, at, cached) {
   INDIA_ROWS = rows;
   INDIA_AT = at || null;
@@ -7163,66 +7152,18 @@ function indiaApply(rows, at, cached) {
   });
   buildIndiaMap();
 }
-/** What was read last time, out of Firestore — half a second, and already on the screen. */
-async function indiaCache() {
-  const meta = await getDoc(doc(db, 'repl', 'indiastock'));
-  if (!meta.exists()) return null;
-  const m = meta.data() || {};
-  const n = Number(m.chunks) || 0;
-  if (!n) return null;
-  const parts = await Promise.all(Array.from({ length: n }, (_, i) => getDoc(doc(db, 'repl_india', String(i)))));
-  const rows = [].concat(...parts.map(p => (p.exists() ? (p.data().r || []) : [])));
-  if (!rows.length) return null;
-  const at = m.at && m.at.toDate ? m.at.toDate() : (m.at || null);
-  return { rows, at: m.readAt || (at ? ptIsoDate(at) || String(at) : '') };
-}
 async function fetchIndiaStock() {
   INDIA_STOCK = {}; INDIA_ROWS = []; INDIA_AT = null; INDIA_META = {}; INDIA_CACHED = false;
-  /* WHAT WAS READ LAST TIME, FIRST. It paints the column while the workbook is still being read,
-   * and it is replaced the moment the real answer lands. */
-  let painted = false;
-  try {
-    const c = await indiaCache();
-    if (c) {
-      indiaApply(c.rows, c.at, true);
-      painted = true;
-      try { renderIndia(); } catch (e) { /* that tab is not built yet */ }
-      if (REPL_LOADED) { try { renderRepl(); } catch (e) { /* nor is that one */ } }
-    }
-  } catch (e) { /* nothing kept yet, or this account may not read it — the live call is the answer */ }
   try {
     const r = await indiaLive();
     const d = r.d || {};
-    indiaApply(Object.keys(d).map(k => ({ sku: k, qty: d[k][0], pieces: d[k][1], pack: d[k][2], status: d[k][3] })),
-      r.at || null, false);
-    /* Kept for the next visit. Quietly: a failure to write the copy must not look like a failure to
-     * read the warehouse, which is the thing that matters. */
-    indiaKeep(INDIA_ROWS, r.at || '').catch(e => {
-      /* Silent to the screen, but not to the console: if this never lands, the next visit waits the
-         full ten seconds again and nothing on the page would ever say why. */
-      console.warn('[india] the copy for next time could not be written:', e && e.message || e);
-    });
+    indiaApply(Object.keys(d).map(k => ({ sku: k, qty: d[k][0], pieces: d[k][1], pack: d[k][2], status: d[k][3] })), r.at || null, false);
   } catch (e) {
-    if (painted) {
-      // The screen still has last time's figures, and says so rather than emptying itself.
-      rMsg('India stock could not be read from the warehouse workbook just now — showing what was read '
-        + (INDIA_AT ? 'on ' + INDIA_AT : 'last time') + '. (' + (e.message || e) + ')', true);
-    } else {
-      // Left EMPTY, never zeroed — "could not read the warehouse" and "there is nothing in India" are
-      // different answers, and the second one starts production runs.
-      INDIA_STOCK = {}; INDIA_ROWS = []; INDIA_META = {};
-      rMsg('India stock could not be read from the warehouse workbook: ' + (e.message || e), true);
-    }
+    // Left EMPTY, never zeroed — "could not read" and "there is nothing in India" are different answers, and the
+    // second one starts production runs.
+    INDIA_STOCK = {}; INDIA_ROWS = []; INDIA_META = {};
+    rMsg('India stock could not be read from Finished Goods: ' + (e.message || e), true);
   }
-}
-/** Keep what the workbook said, so the next visit has something to show at once. */
-async function indiaKeep(rows, at) {
-  const chunks = Math.ceil(rows.length / INDIA_CHUNK) || 1;
-  for (let i = 0; i < chunks; i++) {
-    await setDoc(doc(db, 'repl_india', String(i)), { r: rows.slice(i * INDIA_CHUNK, (i + 1) * INDIA_CHUNK) });
-  }
-  await setDoc(doc(db, 'repl', 'indiastock'), { chunks, n: rows.length, rows: null, readAt: String(at || ''),
-    by: ME.email, at: serverTimestamp() });
 }
 function buildIndiaMap() {
   INDIA_STOCK = {};
@@ -7767,9 +7708,9 @@ function renderIndia() {
 
   const nUnknown = base.filter(r => !r.known).length;
   const when = INDIA_AT ? ((INDIA_CACHED ? 'last read ' : 'read ') + INDIA_AT) : 'not read yet';
-  $('inKpis').innerHTML = `<div class="kpi" style="flex-basis:100%"><div class="kpihead"><span class="kpiname">India Stock</span><span class="kpiwhen">last upload: ${esc(when)}</span></div>
+  $('inKpis').innerHTML = `<div class="kpi" style="flex-basis:100%"><div class="kpihead"><span class="kpiname">India Stock — from Finished Goods</span><span class="kpiwhen">${esc(when)}</span></div>
     <div class="metrics">
-      <div class="metric"><div class="v">${nf(base.length)}</div><div class="l">SKUs uploaded</div></div>
+      <div class="metric"><div class="v">${nf(base.length)}</div><div class="l">SKUs in Finished Goods</div></div>
       <div class="metric"><div class="v">${nf(base.reduce((s, r) => s + r.qty, 0))}</div><div class="l">Total units in India</div></div>
       <div class="metric"><div class="v" style="color:var(--bad)">${nf(base.filter(r => r.qty <= 0).length)}</div><div class="l">Zero stock</div></div>
       <div class="metric kpiclick" data-show="unknown" title="Click to see only these"><div class="v" style="color:#92400e">${nf(nUnknown)}</div><div class="l">⚠ Not on Amazon</div></div>
@@ -7794,7 +7735,7 @@ function renderIndia() {
         ? (r.noFba ? '<span class="fu" style="background:#e0e7ff;color:#3730a3" title="Listed on Amazon, but Amazon&#39;s FBA inventory report carries no record for it — normal when it has sat at zero FBA stock. Nothing is wrong with the SKU.">Listed · no FBA stock</span>' : '')
         : '<span class="fu fu-amber" title="Not in the Amazon snapshot AND not in the Catalog — check the SKU spelling, or it really is not listed">Not on Amazon</span>'}</td>
     </tr>`).join('');
-  $('inTable').innerHTML = head + '<tbody>' + (sub + body || `<tr><td colspan="${cols.length}" class="muted">Nothing uploaded yet. Hit “Template” for the CSV format, fill it, then “Import”.</td></tr>`) + '</tbody>';
+  $('inTable').innerHTML = head + '<tbody>' + (sub + body || `<tr><td colspan="${cols.length}" class="muted">Nothing in Finished Goods yet — India stock is what the Finished Goods tab holds.</td></tr>`) + '</tbody>';
 }
 /* ================= INDIA STOCK — PROJECTION =================
  * The stock list answers "what have we got". This answers the question that actually decides a
@@ -7904,7 +7845,7 @@ function renderIndiaProj() {
 
   $('inKpis').innerHTML = `<div class="kpi" style="flex-basis:100%">
     <div class="kpihead"><span class="kpiname">India Stock — projected use through ${esc(horizon)}</span>
-      <span class="kpiwhen">${esc(INDIA_AT ? (INDIA_CACHED ? 'last read ' + INDIA_AT + ' — reading the warehouse now' : 'live · read ' + INDIA_AT) : 'not read yet')} · sea lane assumed for goods in production</span></div>
+      <span class="kpiwhen">${esc(INDIA_AT ? 'Finished Goods · read ' + INDIA_AT : 'not read yet')} · sea lane assumed for goods in production</span></div>
     <div class="metrics">
       <div class="metric"><div class="v">${nf(totIndia)}</div><div class="l">India stock today</div></div>
       <div class="metric"><div class="v" style="color:#166534">${nf(totUsed)}</div><div class="l">Used by ${esc(horizon)}</div></div>
@@ -7959,7 +7900,7 @@ function renderIndiaProj() {
   }).join('');
 
   $('inProjTable').innerHTML = head + '<tbody>' + (sub + body
-    || `<tr><td colspan="${cols.length}" class="muted" style="padding:14px">Nothing to project — upload India stock, or run “Refresh from sheet” on Replenishment.</td></tr>`)
+    || `<tr><td colspan="${cols.length}" class="muted" style="padding:14px">Nothing to project — nothing in Finished Goods, or run “Refresh from sheet” on Replenishment.</td></tr>`)
     + '</tbody>';
   $('inMsg').textContent = rows.length > 300
     ? `showing first 300 of ${nf(rows.length)} — filter to narrow (subtotal and KPIs cover all ${nf(rows.length)})`
@@ -8009,11 +7950,10 @@ $('inExport').onclick = () => {
  * the button visible and explaining why is better than removing it and leaving somebody hunting for
  * where the upload went. Export still works: exporting what is on screen is still useful. */
 $('inImport').disabled = true;
-$('inImport').title = 'India stock is now read live from the Ready Goods workbook, so there is nothing to upload. '
-  + 'Change the numbers there and press Refresh here.';
+$('inImport').title = 'India stock is what Finished Goods holds, so there is nothing to upload. Enter stock in the Finished Goods tab.';
 $('inImport').onclick = () => {
-  $('inMsg').textContent = 'India stock comes straight from the Ready Goods workbook now — edit it there, '
-    + 'then hit Refresh. An upload here would be stored and never read.';
+  $('inMsg').textContent = 'India stock comes from the Finished Goods tab now — receive, issue and send to FBA there. '
+    + 'An upload here would be stored and never read.';
 };
 const _inImportDisabled = () => $('inFile').click();
 $('inFile').onchange = async e => {
@@ -34755,6 +34695,22 @@ function fgiStock() {
 }
 
 const fgiOf = sku => fgiStock().get(obUC(sku)) || { current: 0, pending: 0, opening: 0, received: 0, issued: 0, fba: 0 };
+/**
+ * India stock, from Finished Goods (2026-10-06): { d: sku → [sellable, pieces, recorded pack, ''], at }. Throws when the
+ * ledger cannot be read, so the caller says so instead of showing nothing in India.
+ */
+async function indiaFromFg() {
+  if (!PTG.mdb) { try { await ptLoadGates(); } catch (e) { /* no master: the pack rule still answers */ } }
+  if (FGI.rows === null || FGI.rows === undefined) FGI.rows = ptList(await ptGet('pt_fgiLedger'));
+  const d = {};
+  fgiStock().forEach((b, sku) => {
+    const pieces = Math.max(0, Math.round(b.current));
+    const m = mdbOf(sku), rec = m ? parseInt(String(m.packOf || '').replace(/[^0-9]/g, ''), 10) || 0 : 0;
+    const pack = rec > 0 ? rec : (obPcsPerPack(sku) || 1);
+    d[sku] = [Math.floor(pieces / pack), pieces, rec, ''];
+  });
+  return { d, at: ptStamp() };
+}
 const fgiMaster = sku => mdbOf(sku) || {};
 /** What is left on a press row after whatever has already gone to the store. */
 const fgiPressLeft = r => Math.max(0, (parseInt(r.pieces, 10) || 0) - fgiNum(r.transferredQty));
@@ -38281,12 +38237,9 @@ function fgiDeleteAsk(id) {
 /* ---- seeding the store with what is actually on the shelf ---- */
 async function fgiSeedOpen() {
   if (!ME.admin) return;
-  if (!INDIA_LOADED) { try { await loadIndiaStock(); } catch (e) { /* shown below as nothing found */ } }
   const known = new Set((PTG.mdb || []).map(r => obUC(r.sku)));
-  /* India Stock counts SELLABLE SETS in `qty` and PIECES in `pieces`. This store counts pieces, so
-   * pieces is the one to take — `qty` would understate a pack of four by four times. */
-  const india = (INDIA_ROWS || []).map(r => ({ sku: obUC(r.sku), qty: Math.round(Number(r.pieces) || 0) }))
-    .filter(r => r.sku && r.qty > 0);
+  /* India stock IS this store since 2026-10-06, so it cannot start it off — that option is gone. */
+  const india = [];
   const press = [];
   const byPress = new Map();
   (PTG.press || []).forEach(r => { const left = fgiPressLeft(r); if (left > 0) byPress.set(obUC(r.sku), (byPress.get(obUC(r.sku)) || 0) + left); });
@@ -38307,14 +38260,12 @@ async function fgiSeedOpen() {
     html: `<div class="ptgrid" style="grid-template-columns:1fr">
         <label>Where to take the figures from<select id="fgsSrc">
           <option value="sheet">A file — the Ready Goods sheet's "Main" tab, saved as CSV</option>
-          <option value="india">India stock — what you upload in the India Stock tab</option>
           <option value="press">Press inventory — everything pressed and not yet sent to the store</option>
         </select></label>
         <label>Remarks<input id="fgsRemarks" type="text" value="Opening stock, ${esc(dToday())}"></label>
       </div>
       <div class="ptbox" style="margin-top:10px"><div class="ptbox-t">What each one would bring in</div>
         <div style="font-size:12.5px;line-height:1.7">
-          <b>India stock</b> — ${india.length ? esc(say(india)) : 'nothing was read; open the India Stock tab first'}<br>
           <b>Press inventory</b> — ${press.length ? esc(say(press)) : 'nothing left to send'}
         </div>
         <div class="muted" style="font-size:11.5px;margin-top:8px">Press inventory is everything ever
@@ -48896,7 +48847,7 @@ function soPackOf(amzSku, shopSku) {
   if (typed > 1) return { n: typed, src: 'typed on this line' };
   const ind = SHOP_INDIA[k];
   const p = ind ? Number(ind[2]) : 0;
-  if (p > 1) return { n: p, src: 'the warehouse workbook' };
+  if (p > 1) return { n: p, src: 'the production master' };
   // The article's own set size. Last, so anything recorded about THIS SKU beats the general rule,
   // and first in practice, because it is the one that needs nobody to have filled anything in.
   const cat = soArticlePack(shopSku || amzSku);
@@ -49094,11 +49045,7 @@ async function soSetSku(sku, field, value) {
   await saveShopSku();
 }
 
-/* India stock, LIVE from the warehouse workbook.
- *
- * Not the Replenishment app's copy — that one is a CSV somebody uploads and it had gone stale, which
- * is what started this. One source, read on demand, so a figure here and a figure in the warehouse
- * cannot drift apart.
+/* India stock, from this app's Finished Goods (since 2026-10-06 — the Ready Goods workbook is no longer read).
  *
  * Two quantities come back and they are not interchangeable: PIECES on the shelf, and how many
  * SELLABLE units that is once the pack size is applied. A Shopify customer buys a set, so an order
@@ -49121,7 +49068,7 @@ async function loadShopIndia() {
     try { r = await indiaLive(); }
     catch (e) {
       if (!(e instanceof ReferenceError)) throw e;
-      r = await prGet({ india: 'stock' });
+      r = await indiaFromFg();
     }
     SHOP_INDIA = r.d || {};
     SHOP_INDIA_AT = r.at || '';
@@ -49387,7 +49334,7 @@ function soIndia(order) {
   if (!SHOP_INDIA_LOADED || SHOP_INDIA_ERR) {
     return { v: 'unknown', why: SHOP_INDIA_ERR
       ? 'India stock could not be read: ' + SHOP_INDIA_ERR
-      : 'Still reading India stock from the warehouse workbook…' };
+      : 'Still reading India stock from Finished Goods…' };
   }
   const lines = order.items.filter(i => soSendQty(order.id, i.sku, soLive(i)) > 0);
   if (!lines.length) return { v: 'none', why: 'Nothing left to send — every line is refunded or set to 0.' };
@@ -50236,7 +50183,7 @@ function renderShop() {
      * column than the one you were pointing at. Found 2026-08-25 from an order reading "SKU ?" and
      * "MCF ready" side by side. Change one of these two lists and you must change the other. */
     { k: 'mcf', t: 'MCF', tip: 'Whether Amazon FBA holds enough stock for every line. Hover a cell for the per-SKU numbers.' },
-    { k: 'india', t: 'India', tip: 'Whether the India warehouse holds enough for every line — read live from the Ready Goods workbook, in SELLABLE units (pieces ÷ pack), because that is what an order line is counted in. Hover a cell for the per-SKU numbers.' },
+    { k: 'india', t: 'India', tip: 'Whether the India warehouse holds enough for every line — read from Finished Goods in this app, in SELLABLE units (pieces ÷ pack), because that is what an order line is counted in. Hover a cell for the per-SKU numbers.' },
     { k: 'channel', t: 'Shop', tip: 'Which shop the order came from. "Shopify" is fetched live; the rest are imported, because this app has no API key for them.' },
     { k: 'route', t: 'Ship from', tip: 'One answer instead of two columns: MCF done · MCF ready · Ship from India · Need from production. "Need from production" means neither Amazon nor India can fill it — those are the pending ones.' },
     /* The Production column went with the production view — it was written by the other app,
@@ -52857,7 +52804,7 @@ function openShopOrder(id) {
       const k = el.dataset.sku;                      // the AMAZON code, not the Shopify one
       const raw = el.value.trim();
       if (raw !== '' && !/^\d+$/.test(raw)) {
-        $('soErr').textContent = '"' + el.value + '" is not a pack size — whole units only, or blank to use the warehouse workbook.';
+        $('soErr').textContent = '"' + el.value + '" is not a pack size — whole units only, or blank to use the production master.';
         $('soErr').classList.remove('hide');
         // Through soSku, which upper-cases: `k` is now spelled the way AMAZON spells it, and
         // SHOP_SKU is keyed in upper case. Indexing it directly would silently blank the box.

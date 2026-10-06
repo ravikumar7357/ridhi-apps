@@ -93,6 +93,22 @@ function fgiStock() {
 }
 
 const fgiOf = sku => fgiStock().get(obUC(sku)) || { current: 0, pending: 0, opening: 0, received: 0, issued: 0, fba: 0 };
+/**
+ * India stock, from Finished Goods (2026-10-06): { d: sku → [sellable, pieces, recorded pack, ''], at }. Throws when the
+ * ledger cannot be read, so the caller says so instead of showing nothing in India.
+ */
+async function indiaFromFg() {
+  if (!PTG.mdb) { try { await ptLoadGates(); } catch (e) { /* no master: the pack rule still answers */ } }
+  if (FGI.rows === null || FGI.rows === undefined) FGI.rows = ptList(await ptGet('pt_fgiLedger'));
+  const d = {};
+  fgiStock().forEach((b, sku) => {
+    const pieces = Math.max(0, Math.round(b.current));
+    const m = mdbOf(sku), rec = m ? parseInt(String(m.packOf || '').replace(/[^0-9]/g, ''), 10) || 0 : 0;
+    const pack = rec > 0 ? rec : (obPcsPerPack(sku) || 1);
+    d[sku] = [Math.floor(pieces / pack), pieces, rec, ''];
+  });
+  return { d, at: ptStamp() };
+}
 const fgiMaster = sku => mdbOf(sku) || {};
 /** What is left on a press row after whatever has already gone to the store. */
 const fgiPressLeft = r => Math.max(0, (parseInt(r.pieces, 10) || 0) - fgiNum(r.transferredQty));

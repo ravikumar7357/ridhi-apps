@@ -51,9 +51,9 @@ function renderIndia() {
 
   const nUnknown = base.filter(r => !r.known).length;
   const when = INDIA_AT ? ((INDIA_CACHED ? 'last read ' : 'read ') + INDIA_AT) : 'not read yet';
-  $('inKpis').innerHTML = `<div class="kpi" style="flex-basis:100%"><div class="kpihead"><span class="kpiname">India Stock</span><span class="kpiwhen">last upload: ${esc(when)}</span></div>
+  $('inKpis').innerHTML = `<div class="kpi" style="flex-basis:100%"><div class="kpihead"><span class="kpiname">India Stock — from Finished Goods</span><span class="kpiwhen">${esc(when)}</span></div>
     <div class="metrics">
-      <div class="metric"><div class="v">${nf(base.length)}</div><div class="l">SKUs uploaded</div></div>
+      <div class="metric"><div class="v">${nf(base.length)}</div><div class="l">SKUs in Finished Goods</div></div>
       <div class="metric"><div class="v">${nf(base.reduce((s, r) => s + r.qty, 0))}</div><div class="l">Total units in India</div></div>
       <div class="metric"><div class="v" style="color:var(--bad)">${nf(base.filter(r => r.qty <= 0).length)}</div><div class="l">Zero stock</div></div>
       <div class="metric kpiclick" data-show="unknown" title="Click to see only these"><div class="v" style="color:#92400e">${nf(nUnknown)}</div><div class="l">⚠ Not on Amazon</div></div>
@@ -78,5 +78,5 @@ function renderIndia() {
         ? (r.noFba ? '<span class="fu" style="background:#e0e7ff;color:#3730a3" title="Listed on Amazon, but Amazon&#39;s FBA inventory report carries no record for it — normal when it has sat at zero FBA stock. Nothing is wrong with the SKU.">Listed · no FBA stock</span>' : '')
         : '<span class="fu fu-amber" title="Not in the Amazon snapshot AND not in the Catalog — check the SKU spelling, or it really is not listed">Not on Amazon</span>'}</td>
     </tr>`).join('');
-  $('inTable').innerHTML = head + '<tbody>' + (sub + body || `<tr><td colspan="${cols.length}" class="muted">Nothing uploaded yet. Hit “Template” for the CSV format, fill it, then “Import”.</td></tr>`) + '</tbody>';
+  $('inTable').innerHTML = head + '<tbody>' + (sub + body || `<tr><td colspan="${cols.length}" class="muted">Nothing in Finished Goods yet — India stock is what the Finished Goods tab holds.</td></tr>`) + '</tbody>';
 }

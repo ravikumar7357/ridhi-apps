@@ -365,12 +365,9 @@ function fgiDeleteAsk(id) {
 /* ---- seeding the store with what is actually on the shelf ---- */
 async function fgiSeedOpen() {
   if (!ME.admin) return;
-  if (!INDIA_LOADED) { try { await loadIndiaStock(); } catch (e) { /* shown below as nothing found */ } }
   const known = new Set((PTG.mdb || []).map(r => obUC(r.sku)));
-  /* India Stock counts SELLABLE SETS in `qty` and PIECES in `pieces`. This store counts pieces, so
-   * pieces is the one to take — `qty` would understate a pack of four by four times. */
-  const india = (INDIA_ROWS || []).map(r => ({ sku: obUC(r.sku), qty: Math.round(Number(r.pieces) || 0) }))
-    .filter(r => r.sku && r.qty > 0);
+  /* India stock IS this store since 2026-10-06, so it cannot start it off — that option is gone. */
+  const india = [];
   const press = [];
   const byPress = new Map();
   (PTG.press || []).forEach(r => { const left = fgiPressLeft(r); if (left > 0) byPress.set(obUC(r.sku), (byPress.get(obUC(r.sku)) || 0) + left); });
@@ -391,14 +388,12 @@ async function fgiSeedOpen() {
     html: `<div class="ptgrid" style="grid-template-columns:1fr">
         <label>Where to take the figures from<select id="fgsSrc">
           <option value="sheet">A file — the Ready Goods sheet's "Main" tab, saved as CSV</option>
-          <option value="india">India stock — what you upload in the India Stock tab</option>
           <option value="press">Press inventory — everything pressed and not yet sent to the store</option>
         </select></label>
         <label>Remarks<input id="fgsRemarks" type="text" value="Opening stock, ${esc(dToday())}"></label>
       </div>
       <div class="ptbox" style="margin-top:10px"><div class="ptbox-t">What each one would bring in</div>
         <div style="font-size:12.5px;line-height:1.7">
-          <b>India stock</b> — ${india.length ? esc(say(india)) : 'nothing was read; open the India Stock tab first'}<br>
           <b>Press inventory</b> — ${press.length ? esc(say(press)) : 'nothing left to send'}
         </div>
         <div class="muted" style="font-size:11.5px;margin-top:8px">Press inventory is everything ever

@@ -182,7 +182,7 @@ function soPackOf(amzSku, shopSku) {
   if (typed > 1) return { n: typed, src: 'typed on this line' };
   const ind = SHOP_INDIA[k];
   const p = ind ? Number(ind[2]) : 0;
-  if (p > 1) return { n: p, src: 'the warehouse workbook' };
+  if (p > 1) return { n: p, src: 'the production master' };
   // The article's own set size. Last, so anything recorded about THIS SKU beats the general rule,
   // and first in practice, because it is the one that needs nobody to have filled anything in.
   const cat = soArticlePack(shopSku || amzSku);
@@ -380,11 +380,7 @@ async function soSetSku(sku, field, value) {
   await saveShopSku();
 }
 
-/* India stock, LIVE from the warehouse workbook.
- *
- * Not the Replenishment app's copy — that one is a CSV somebody uploads and it had gone stale, which
- * is what started this. One source, read on demand, so a figure here and a figure in the warehouse
- * cannot drift apart.
+/* India stock, from this app's Finished Goods (since 2026-10-06 — the Ready Goods workbook is no longer read).
  *
  * Two quantities come back and they are not interchangeable: PIECES on the shelf, and how many
  * SELLABLE units that is once the pack size is applied. A Shopify customer buys a set, so an order
@@ -407,7 +403,7 @@ async function loadShopIndia() {
     try { r = await indiaLive(); }
     catch (e) {
       if (!(e instanceof ReferenceError)) throw e;
-      r = await prGet({ india: 'stock' });
+      r = await indiaFromFg();
     }
     SHOP_INDIA = r.d || {};
     SHOP_INDIA_AT = r.at || '';
@@ -673,7 +669,7 @@ function soIndia(order) {
   if (!SHOP_INDIA_LOADED || SHOP_INDIA_ERR) {
     return { v: 'unknown', why: SHOP_INDIA_ERR
       ? 'India stock could not be read: ' + SHOP_INDIA_ERR
-      : 'Still reading India stock from the warehouse workbook…' };
+      : 'Still reading India stock from Finished Goods…' };
   }
   const lines = order.items.filter(i => soSendQty(order.id, i.sku, soLive(i)) > 0);
   if (!lines.length) return { v: 'none', why: 'Nothing left to send — every line is refunded or set to 0.' };
@@ -1522,7 +1518,7 @@ function renderShop() {
      * column than the one you were pointing at. Found 2026-08-25 from an order reading "SKU ?" and
      * "MCF ready" side by side. Change one of these two lists and you must change the other. */
     { k: 'mcf', t: 'MCF', tip: 'Whether Amazon FBA holds enough stock for every line. Hover a cell for the per-SKU numbers.' },
-    { k: 'india', t: 'India', tip: 'Whether the India warehouse holds enough for every line — read live from the Ready Goods workbook, in SELLABLE units (pieces ÷ pack), because that is what an order line is counted in. Hover a cell for the per-SKU numbers.' },
+    { k: 'india', t: 'India', tip: 'Whether the India warehouse holds enough for every line — read from Finished Goods in this app, in SELLABLE units (pieces ÷ pack), because that is what an order line is counted in. Hover a cell for the per-SKU numbers.' },
     { k: 'channel', t: 'Shop', tip: 'Which shop the order came from. "Shopify" is fetched live; the rest are imported, because this app has no API key for them.' },
     { k: 'route', t: 'Ship from', tip: 'One answer instead of two columns: MCF done · MCF ready · Ship from India · Need from production. "Need from production" means neither Amazon nor India can fill it — those are the pending ones.' },
     /* The Production column went with the production view — it was written by the other app,

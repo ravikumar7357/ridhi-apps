@@ -56,6 +56,9 @@ const CALLS = { prGet: [], apiPost: [], apiGet: [] };
 let PRAPI = { url: 'https://script.google.com/PRICE-RESEARCH/exec', key: 'pr-key' };
 let API = { url: 'https://script.google.com/REPLENISH/exec', key: 'repl-key' };
 let PRGET_REPLY = { ok: true };
+/* India stock comes from Finished Goods since 2026-10-06 — the page's builder lives in a part this harness does not load. */
+let FG_INDIA_CALLS = 0;
+const indiaFromFg = async () => { FG_INDIA_CALLS++; return { d: { RCNBMIX: [3, 12, 4, ''] }, at: 'now' }; };
 const prGet = async params => { CALLS.prGet.push(params); return PRGET_REPLY; };
 const apiGet = async params => { CALLS.apiGet.push(params); return { ok: true }; };
 
@@ -178,6 +181,7 @@ const dToday = () => new Date().toISOString().slice(0, 10);   // the page's own 
 const ctx = { AUDIT_OFF: true, BASE_SPLIT_OFF: true,
   $, esc, nf, csvCell, parseCsv, colIdx, doc, getDoc, setDoc, serverTimestamp, db: dbx, dToday,
   PRAPI, API, prGet, apiGet, REPL, ME, INDIA_LOADED, INDIA_ROWS, confirm, alert,
+  indiaFromFg,
   MS, msInit, msFill, msVals, msHas, msSet, msClearAll, msPaint, msToggle, msChanged,
   fetch, Blob, URL, document, window, open, console, setTimeout, clearTimeout,
   PTG, PT, SOX, ptLoadGates, ptNum, obUC,
@@ -223,10 +227,11 @@ console.log('\n== the backend the move had to repoint ==');
   DOCS['stock/CPC'] = { m: { 'RCNBmix': 12 } };
 
   await A.loadShopIndia();
-  ok('India stock goes through the PRICE RESEARCH backend, not this app\'s own',
-    CALLS.prGet.length === 1 && CALLS.apiGet.length === 0, JSON.stringify(CALLS.prGet));
-  ok('…and it asks for the India stock', JSON.stringify(CALLS.prGet[0]) === JSON.stringify({ india: 'stock' }),
-    JSON.stringify(CALLS.prGet[0]));
+  /* 2026-10-06, Ravi: "india stock ko apne app ke finish goods se dikhao sheet ka data hata do". */
+  ok('India stock comes from Finished Goods — the workbook is not asked', FG_INDIA_CALLS === 1
+    && !CALLS.prGet.some(p => p && p.india) && CALLS.apiGet.length === 0, JSON.stringify(CALLS.prGet));
+  ok('…in sellable sets, with the pieces beside them', JSON.stringify(A.soIndiaOf('RCNBMIX')) === JSON.stringify([3, 12, 4, '']),
+    JSON.stringify(A.soIndiaOf('RCNBMIX')));
 
   /* MCF places real parcels. It must post to the Price Research script — the one that has MCF in
    * it — and never to the replenishment script. */

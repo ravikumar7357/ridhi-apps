@@ -106,7 +106,7 @@ function renderIndiaProj() {
 
   $('inKpis').innerHTML = `<div class="kpi" style="flex-basis:100%">
     <div class="kpihead"><span class="kpiname">India Stock — projected use through ${esc(horizon)}</span>
-      <span class="kpiwhen">${esc(INDIA_AT ? (INDIA_CACHED ? 'last read ' + INDIA_AT + ' — reading the warehouse now' : 'live · read ' + INDIA_AT) : 'not read yet')} · sea lane assumed for goods in production</span></div>
+      <span class="kpiwhen">${esc(INDIA_AT ? 'Finished Goods · read ' + INDIA_AT : 'not read yet')} · sea lane assumed for goods in production</span></div>
     <div class="metrics">
       <div class="metric"><div class="v">${nf(totIndia)}</div><div class="l">India stock today</div></div>
       <div class="metric"><div class="v" style="color:#166534">${nf(totUsed)}</div><div class="l">Used by ${esc(horizon)}</div></div>
@@ -161,7 +161,7 @@ function renderIndiaProj() {
   }).join('');
 
   $('inProjTable').innerHTML = head + '<tbody>' + (sub + body
-    || `<tr><td colspan="${cols.length}" class="muted" style="padding:14px">Nothing to project — upload India stock, or run “Refresh from sheet” on Replenishment.</td></tr>`)
+    || `<tr><td colspan="${cols.length}" class="muted" style="padding:14px">Nothing to project — nothing in Finished Goods, or run “Refresh from sheet” on Replenishment.</td></tr>`)
     + '</tbody>';
   $('inMsg').textContent = rows.length > 300
     ? `showing first 300 of ${nf(rows.length)} — filter to narrow (subtotal and KPIs cover all ${nf(rows.length)})`
@@ -211,11 +211,10 @@ $('inExport').onclick = () => {
  * the button visible and explaining why is better than removing it and leaving somebody hunting for
  * where the upload went. Export still works: exporting what is on screen is still useful. */
 $('inImport').disabled = true;
-$('inImport').title = 'India stock is now read live from the Ready Goods workbook, so there is nothing to upload. '
-  + 'Change the numbers there and press Refresh here.';
+$('inImport').title = 'India stock is what Finished Goods holds, so there is nothing to upload. Enter stock in the Finished Goods tab.';
 $('inImport').onclick = () => {
-  $('inMsg').textContent = 'India stock comes straight from the Ready Goods workbook now — edit it there, '
-    + 'then hit Refresh. An upload here would be stored and never read.';
+  $('inMsg').textContent = 'India stock comes from the Finished Goods tab now — receive, issue and send to FBA there. '
+    + 'An upload here would be stored and never read.';
 };
 const _inImportDisabled = () => $('inFile').click();
 $('inFile').onchange = async e => {

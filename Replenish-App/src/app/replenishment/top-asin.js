@@ -53,38 +53,27 @@ async function ensureTop() {
   renderTop();
 }
 
-// India stock now comes from what the user uploads in the India Stock tab (Firestore repl/indiastock,
-// chunked into repl_india/{i} the same way the Replenishment snapshot is). Every tab's "India Stock"
-// column reads INDIA_STOCK, so nothing else had to change when the source moved.
-const INDIA_CHUNK = 900;
+/*
+ * INDIA STOCK = THIS APP'S FINISHED GOODS (2026-10-06, Ravi: "india stock ko apne app ke finish goods se dikhao sheet ka
+ * data hata do"). The Ready Goods workbook is no longer read, nor the Firestore copy of it: one source, the same figure the
+ * Finished Goods tab shows — what each SKU holds today (opening + received − issued − to FBA), in PIECES. Ravi chose the
+ * switch with no opening entry from the sheet, so a SKU that was only on the sheet now reads 0.
+ *
+ * Counted in SELLABLE units for the screens, as before: pieces ÷ the pack (the master's packOf, else the app's own pack
+ * rule, obPcsPerPack), rounded down. Pieces and the RECORDED pack ride along; nothing downstream has to know.
+ * INDIA_STOCK is read by the forecast, the lane decision, Article Review, Create-PO and the Shopify India column.
+ */
 let INDIA_PROMISE = null;
-function loadIndiaStock() {   // idempotent: shared promise, INDIA_LOADED set only AFTER the fetch
+function loadIndiaStock() {   // idempotent: shared promise, INDIA_LOADED set only AFTER the read
   if (INDIA_LOADED) return Promise.resolve();
   if (!INDIA_PROMISE) INDIA_PROMISE = fetchIndiaStock().finally(() => { INDIA_LOADED = true; });
   return INDIA_PROMISE;
 }
-/**
- * India stock, LIVE from the warehouse workbook — no longer the uploaded CSV.
- *
- * The CSV in Firestore was a copy somebody had to remember to refresh, and it had gone stale: the
- * numbers on this tab disagreed with the warehouse, and every reorder built on them was wrong in the
- * same direction. Read from the source instead, through the Price Research backend (the Shopify
- * connection and the sheet access both live there — see PRAPI).
- *
- * Counted in SELLABLE units, matching the FBA requirement it is set against. The workbook holds
- * PIECES and a pack of 2 is one sellable set, so comparing an Amazon requirement against pieces
- * would say a set-of-two is covered by a single loose piece. Pieces and pack ride along for the
- * tooltip; nothing downstream has to know.
- *
- * INDIA_STOCK is read by the forecast, the lane decision, Article Review and Create-PO, so this one
- * function moving is the whole change.
- */
-let INDIA_META = {};                       // sku → [sellable, pieces, pack, status]
-/* ONE CALL FOR THE WHOLE SESSION. Replenishment asks for this, and so does Shopify Orders; it is
- * the same payload, and it cost ten seconds twice. */
+let INDIA_META = {};                       // sku → [sellable, pieces, recorded pack, status]
+/* ONE READ FOR THE SESSION — Replenishment and Shopify Orders ask for the same thing. A failure is not kept. */
 let INDIA_LIVE = null;
-const indiaLive = () => (INDIA_LIVE || (INDIA_LIVE = prGet({ india: 'stock' })));
-/** The workbook's answer, in the shapes the screens read it in. */
+const indiaLive = () => (INDIA_LIVE || (INDIA_LIVE = indiaFromFg().catch(e => { INDIA_LIVE = null; throw e; })));
+/** The rows in the shapes the screens read them in. */
 function indiaApply(rows, at, cached) {
   INDIA_ROWS = rows;
   INDIA_AT = at || null;
@@ -96,66 +85,18 @@ function indiaApply(rows, at, cached) {
   });
   buildIndiaMap();
 }
-/** What was read last time, out of Firestore — half a second, and already on the screen. */
-async function indiaCache() {
-  const meta = await getDoc(doc(db, 'repl', 'indiastock'));
-  if (!meta.exists()) return null;
-  const m = meta.data() || {};
-  const n = Number(m.chunks) || 0;
-  if (!n) return null;
-  const parts = await Promise.all(Array.from({ length: n }, (_, i) => getDoc(doc(db, 'repl_india', String(i)))));
-  const rows = [].concat(...parts.map(p => (p.exists() ? (p.data().r || []) : [])));
-  if (!rows.length) return null;
-  const at = m.at && m.at.toDate ? m.at.toDate() : (m.at || null);
-  return { rows, at: m.readAt || (at ? ptIsoDate(at) || String(at) : '') };
-}
 async function fetchIndiaStock() {
   INDIA_STOCK = {}; INDIA_ROWS = []; INDIA_AT = null; INDIA_META = {}; INDIA_CACHED = false;
-  /* WHAT WAS READ LAST TIME, FIRST. It paints the column while the workbook is still being read,
-   * and it is replaced the moment the real answer lands. */
-  let painted = false;
-  try {
-    const c = await indiaCache();
-    if (c) {
-      indiaApply(c.rows, c.at, true);
-      painted = true;
-      try { renderIndia(); } catch (e) { /* that tab is not built yet */ }
-      if (REPL_LOADED) { try { renderRepl(); } catch (e) { /* nor is that one */ } }
-    }
-  } catch (e) { /* nothing kept yet, or this account may not read it — the live call is the answer */ }
   try {
     const r = await indiaLive();
     const d = r.d || {};
-    indiaApply(Object.keys(d).map(k => ({ sku: k, qty: d[k][0], pieces: d[k][1], pack: d[k][2], status: d[k][3] })),
-      r.at || null, false);
-    /* Kept for the next visit. Quietly: a failure to write the copy must not look like a failure to
-     * read the warehouse, which is the thing that matters. */
-    indiaKeep(INDIA_ROWS, r.at || '').catch(e => {
-      /* Silent to the screen, but not to the console: if this never lands, the next visit waits the
-         full ten seconds again and nothing on the page would ever say why. */
-      console.warn('[india] the copy for next time could not be written:', e && e.message || e);
-    });
+    indiaApply(Object.keys(d).map(k => ({ sku: k, qty: d[k][0], pieces: d[k][1], pack: d[k][2], status: d[k][3] })), r.at || null, false);
   } catch (e) {
-    if (painted) {
-      // The screen still has last time's figures, and says so rather than emptying itself.
-      rMsg('India stock could not be read from the warehouse workbook just now — showing what was read '
-        + (INDIA_AT ? 'on ' + INDIA_AT : 'last time') + '. (' + (e.message || e) + ')', true);
-    } else {
-      // Left EMPTY, never zeroed — "could not read the warehouse" and "there is nothing in India" are
-      // different answers, and the second one starts production runs.
-      INDIA_STOCK = {}; INDIA_ROWS = []; INDIA_META = {};
-      rMsg('India stock could not be read from the warehouse workbook: ' + (e.message || e), true);
-    }
+    // Left EMPTY, never zeroed — "could not read" and "there is nothing in India" are different answers, and the
+    // second one starts production runs.
+    INDIA_STOCK = {}; INDIA_ROWS = []; INDIA_META = {};
+    rMsg('India stock could not be read from Finished Goods: ' + (e.message || e), true);
   }
-}
-/** Keep what the workbook said, so the next visit has something to show at once. */
-async function indiaKeep(rows, at) {
-  const chunks = Math.ceil(rows.length / INDIA_CHUNK) || 1;
-  for (let i = 0; i < chunks; i++) {
-    await setDoc(doc(db, 'repl_india', String(i)), { r: rows.slice(i * INDIA_CHUNK, (i + 1) * INDIA_CHUNK) });
-  }
-  await setDoc(doc(db, 'repl', 'indiastock'), { chunks, n: rows.length, rows: null, readAt: String(at || ''),
-    by: ME.email, at: serverTimestamp() });
 }
 function buildIndiaMap() {
   INDIA_STOCK = {};
