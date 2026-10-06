@@ -123,33 +123,67 @@ let SHP_BUCKET_LAST = null;
  * guard read from the database, a reason for a stock-covered line, nothing else of the order touched. What is already
  * in production is said, from the same status the Shopify table shows.
  */
+/*
+ * THE TICK IS ON THE LINE (2026-10-06, Ravi: "production open wala tick adjustment ki side me chahiye and chah mcf ho chah
+ * india stock chah production se required ho sab me production me order krna ka option ho and jiska already order open ho
+ * wo dikhay ki already open"). Every line of the order that the bucket holds — to make, or one MCF / India stock could
+ * fill — gets a tick in its own row; one already open names its production order. The box under the lines keeps the
+ * status, the reason a stock-covered line needs, and the button.
+ */
+function soProdBucketOf(o) {
+  const stockOk = SHOP_STOCK_LOADED && SHOP_INDIA_LOADED && !SHOP_INDIA_ERR;
+  return stockOk ? shpBucket().filter(b => b.id === String(o && o.id)) : null;
+}
+/** The line's bucket entry or open production row, by the Shopify code or the Amazon one. */
+function soProdLineOf(o, i, mine) {
+  const sku = obUC(i && i.sku);
+  let amz = ''; try { amz = obUC(soAmzSku(sku)); } catch (e) { /* no mapping */ }
+  const ks = [sku, amz].filter(Boolean);
+  const b = (mine || []).find(x => ks.includes(x.sku)) || null;
+  const open = (PTG.ob || []).find(r => r && String(r.shopOrderId || '') === String(o.id) && ks.includes(obUC(r.sku))) || null;
+  return { b, open };
+}
+function soProdCellFor(o) {
+  const esc2 = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+  const mine = soProdBucketOf(o);
+  return i => {
+    if (!obUC(i && i.sku)) return '<span class="muted">—</span>';
+    const { b, open } = soProdLineOf(o, i, mine);
+    if (open) return `<span class="pill pill-ok" title="Production is already open for this line">Already open · ${esc2(open.orderNo || open.id || '')}</span>`;
+    if (mine === null) return '<span class="muted" title="Stock has not been read yet — press Fetch orders">after Fetch</span>';
+    if (!b) return '<span class="muted" title="Nothing left to make on this line — sent, shipped, refunded or set to 0">—</span>';
+    const from = b.kind === 'make' ? 'To make' : (b.from === 'fba' ? 'MCF can fill' : 'India can fill');
+    return `<label style="display:inline-flex;gap:5px;align-items:center;cursor:pointer" title="${esc2(b.why || '')}">`
+      + `<input type="checkbox" data-sopk="${esc2(b.key)}"${b.kind === 'make' ? ' checked' : ''}>`
+      + `<span class="pill ${b.kind === 'make' ? 'pill-out' : 'pill-low'}">${from}</span></label>`;
+  };
+}
 function soRenderProdBox(o) {
   const box = $('soProdBox'); if (!box) return;
   const esc2 = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
   const st = typeof soProdStatus === 'function' ? soProdStatus(o) : null;
-  const stockOk = SHOP_STOCK_LOADED && SHOP_INDIA_LOADED && !SHOP_INDIA_ERR;
-  const mine = stockOk ? shpBucket().filter(b => b.id === String(o && o.id)) : [];
-  if (!st && !mine.length) {
-    box.innerHTML = stockOk ? '' : '<div class="so-lb">Production</div><div class="muted" style="font-size:12.5px">Stock has not been read yet — press Fetch orders to open production from here.</div>';
-    box.classList.toggle('hide', stockOk);
+  const mine = soProdBucketOf(o);
+  if (!st && !(mine && mine.length)) {
+    box.innerHTML = mine ? '' : '<div class="so-lb">Production</div><div class="muted" style="font-size:12.5px">Stock has not been read yet — press Fetch orders to open production from here.</div>';
+    box.classList.toggle('hide', !!mine);
     return;
   }
   box.classList.remove('hide');
-  const cov = mine.some(b => b.kind === 'covered');
+  /* A bucket line no row of the order matches (a code changed under it) is still offered, here. */
+  const onLines = new Set((o.items || []).map(i => (soProdLineOf(o, i, mine).b || {}).key).filter(Boolean));
+  const loose = (mine || []).filter(b => !onLines.has(b.key));
+  const cov = (mine || []).some(b => b.kind === 'covered');
   box.innerHTML = '<div class="so-lb">Production</div>'
-    + (st ? `<div style="font-size:12.5px;margin-bottom:${mine.length ? 8 : 0}px"><b>${esc2(st.txt)}</b></div>` : '')
-    + (mine.length ? '<table class="xl" style="font-size:12.5px;margin-bottom:8px"><thead><tr><th></th><th>SKU</th><th>Item</th><th class="num">Qty</th><th class="num">In FBA</th><th class="num">In India</th><th>Why</th></tr></thead><tbody>'
-      + mine.map(b => `<tr><td><input type="checkbox" data-sopk="${esc2(b.key)}"${b.kind === 'make' ? ' checked' : ''}></td>`
-        + `<td style="font-family:ui-monospace,monospace">${esc2(b.sku)}</td><td style="text-align:left">${esc2(b.name || '')}</td>`
-        + `<td class="num">${nf(b.qty)}</td><td class="num">${b.fba == null ? '—' : nf(b.fba)}</td><td class="num">${b.india == null ? '—' : nf(b.india)}</td>`
-        + `<td style="text-align:left;white-space:normal;max-width:280px">${b.kind === 'make' ? '<span class="pill pill-out">To make</span> ' : '<span class="pill pill-low">Stock says it can be filled</span> '}${esc2(b.why || '')}</td></tr>`).join('')
-      + '</tbody></table>'
-      + (cov ? '<input id="soProdWhy" placeholder="Why make a stock-covered line anyway — needed only when you tick one" style="width:100%;margin-bottom:8px">' : '')
+    + (st ? `<div style="font-size:12.5px;margin-bottom:${(mine && mine.length) ? 8 : 0}px"><b>${esc2(st.txt)}</b></div>` : '')
+    + (loose.length ? '<div style="font-size:12.5px;margin-bottom:8px">' + loose.map(b => `<label style="margin-right:12px"><input type="checkbox" data-sopk="${esc2(b.key)}"${b.kind === 'make' ? ' checked' : ''}> ${esc2(b.sku)} × ${nf(b.qty)}</label>`).join('') + '</div>' : '')
+    + ((mine && mine.length) ? '<div class="muted" style="font-size:12px;margin-bottom:6px">Tick the lines above (Production column), then press Open production.</div>'
+      + (cov ? '<input id="soProdWhy" placeholder="Why make a line MCF or India could fill — needed only when you tick one" style="width:100%;margin-bottom:8px">' : '')
       + '<div style="display:flex;gap:8px;align-items:center"><button id="soProdGo">Open production</button><span id="soProdMsg" class="muted" style="font-size:12.5px"></span></div>' : '');
   const go = $('soProdGo');
   if (!go) return;
   go.onclick = async () => {
-    const keys = [...box.querySelectorAll('[data-sopk]')].filter(c => c.checked).map(c => c.getAttribute('data-sopk'));
+    const keys = [...new Set([...($('soItems') ? $('soItems').querySelectorAll('[data-sopk]') : []), ...box.querySelectorAll('[data-sopk]')]
+      .filter(c => c.checked).map(c => c.getAttribute('data-sopk')))];
     const msg = $('soProdMsg');
     if (!keys.length) { msg.className = 'err'; msg.textContent = 'Tick at least one line.'; return; }
     go.disabled = true; msg.className = 'muted'; msg.textContent = 'Opening…';
@@ -158,7 +192,7 @@ function soRenderProdBox(o) {
     go.disabled = false;
     if (err) { msg.className = 'err'; msg.textContent = err; return; }
     const L = SHP_BUCKET_LAST || {};
-    soRenderProdBox(o);
+    try { if (SHOP_EDIT === String(o.id) || SHOP_EDIT === o.id) openShopOrder(o.id); else soRenderProdBox(o); } catch (e) { soRenderProdBox(o); }
     const m2 = $('soProdMsg');
     const said = `Opened ${nf(L.lines || 0)} line(s) · ${nf(L.pcs || 0)} pc(s) — they are in the Order Console.` + ((L.skipped || []).length ? ' Skipped: ' + L.skipped.join(' · ') : '');
     if (m2) { m2.className = 'muted'; m2.textContent = said; } else { box.insertAdjacentHTML('beforeend', `<div class="muted" style="font-size:12.5px">${esc2(said)}</div>`); }

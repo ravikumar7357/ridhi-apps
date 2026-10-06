@@ -33,7 +33,8 @@ async function ptGet(node, raw) {
       lastErr = (e && e.name === 'AbortError')
         ? new Error('The production database did not answer within 45 seconds.')
         : e;
-      if (attempt === 0) continue;
+      /* "Failed to fetch" is the network, not the database — give it a moment before the one retry (2026-10-06). */
+      if (attempt === 0) { await new Promise(r => setTimeout(r, 1500)); continue; }
     }
   }
   throw lastErr || new Error('Could not read the production database.');

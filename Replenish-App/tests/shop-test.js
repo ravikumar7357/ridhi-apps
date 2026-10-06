@@ -232,6 +232,8 @@ console.log('\n== the backend the move had to repoint ==');
     && !CALLS.prGet.some(p => p && p.india) && CALLS.apiGet.length === 0, JSON.stringify(CALLS.prGet));
   ok('…in sellable sets, with the pieces beside them', JSON.stringify(A.soIndiaOf('RCNBMIX')) === JSON.stringify([3, 12, 4, '']),
     JSON.stringify(A.soIndiaOf('RCNBMIX')));
+  ok('…and a SKU Finished Goods never held has none, not "SKU ?"', JSON.stringify(A.soIndiaOf('RQL212-K')) === JSON.stringify([0, 0, 0, '']),
+    JSON.stringify(A.soIndiaOf('RQL212-K')));
 
   /* MCF places real parcels. It must post to the Price Research script — the one that has MCF in
    * it — and never to the replenishment script. */
@@ -1740,9 +1742,11 @@ console.log('\n== THE PRODUCTION BUCKET (Ravi, 2026-09-26) ==');
   /* 2026-10-06, Ravi: "m yaha se bhi production order open kar saku" — the order's own dialog opens its production. */
   {
     A.openShopOrder('b1');
-    const h = els.soProdBox.innerHTML;
-    ok('the order dialog lists its lines waiting for production, the one to make ticked', !els.soProdBox.classList.contains('hide')
-       && /data-sopk="b1\|RCNBMIX" checked/.test(h) && /data-sopk="b1\|RCNBRED"(?! checked)/.test(h) && /Open production/.test(h) && /soProdWhy/.test(h), h.slice(0, 400));
+    const h = els.soProdBox.innerHTML, li = els.soItems.innerHTML;
+    /* The ticks sit on the lines, in a Production column after Adjustment ("tick adjustment ki side me chahiye"). */
+    ok('the order dialog ticks each line in its own row, the one to make ticked, the stock-covered one offered', !els.soProdBox.classList.contains('hide')
+       && />Production<\/th>/.test(li) && /data-sopk="b1\|RCNBMIX" checked/.test(li) && /data-sopk="b1\|RCNBRED"(?! checked)/.test(li)
+       && /India can fill|MCF can fill/.test(li) && /Open production/.test(h) && /soProdWhy/.test(h), li.slice(-900));
     /* Pressing it, with a stock-covered line ticked and no reason: refused, nothing written. */
     const wasQ = els.soProdBox.querySelectorAll;
     const ticks = [{ checked: true, getAttribute: () => 'b1|RCNBRED' }];
@@ -1754,6 +1758,9 @@ console.log('\n== THE PRODUCTION BUCKET (Ravi, 2026-09-26) ==');
   }
   ok('opening a stock-covered line needs a reason', /say why they have to be made anyway/.test(await A.shpBucketRun([cov.key], '')));
   ok('opening the ticked line writes it', (await A.shpBucketRun([need.key], '')) === '');
+  A.openShopOrder(need.id);
+  ok('…and the order dialog then says that line is already open, with no tick', /Already open · SHP-/.test(els.soItems.innerHTML)
+     && !els.soItems.innerHTML.includes('data-sopk="' + need.key + '"'), (els.soItems.innerHTML.match(/<td[^>]*white-space:nowrap[^>]*>.*?<\/td>/g) || []).join(' | '));
   const row = RT['pt_orderBook/ob_shp_SHP-5001_RCNBMIX'];
   ok('…under the Shopify order number, marked as opened from the bucket, by whom', row && row.orderNo === 'SHP-5001' && row.openedFrom === 'bucket' && row.openedBy && row.qty === 2, JSON.stringify(row));
   ok('…and only that line — the red one stays in the bucket', !RT['pt_orderBook/ob_shp_SHP-5001_RCNBRED'] && A.shpBucket().some(x => x.sku === 'RCNBRED') && !A.shpBucket().some(x => x.sku === 'RCNBMIX'));

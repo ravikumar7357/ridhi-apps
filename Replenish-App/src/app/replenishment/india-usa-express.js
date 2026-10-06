@@ -260,8 +260,9 @@ function openShopOrder(id) {
     + '<th class="num" title="Stock of this line in this order\'s own Amazon account.">' + soAcctName(soOrdBrand(o)) + ' FBA</th><th title="What happens to THIS line: already sent, cancelled (refunded on Shopify), out of FBA, out of India stock, or made. Same wording as the route on the order itself, so the two cannot disagree.">Route</th>'
     + '<th title="The bin, and how many of the ordered units are actually on that shelf. Every change is logged with the date and time.">Shelf · qty</th>'
     + '<th title="Where THIS line has got to, in your own words — cut, stitched, packed, whatever you use. Typed by you and saved against this order’s line, so it never changes another order carrying the same SKU. Different from the Status column on the left, which the app works out from stock and cannot be edited.">Line status</th>'
-    + '<th title="Raised automatically for whatever is short. The id is built from the Shopify order number, so it can never collide and always points back.">Adjustment</th></tr></thead><tbody>'
-    + o.items.map(i => {
+    + '<th title="Raised automatically for whatever is short. The id is built from the Shopify order number, so it can never collide and always points back.">Adjustment</th>'
+    + '<th title="Tick a line to open production for it — whether MCF, India stock or production was going to fill it. A line already open says so, with its production order.">Production</th></tr></thead><tbody>'
+    + ((prodCell) => o.items.map(i => {
       const sku = String(i.sku || '').trim().toUpperCase();
       const amz = soAmzSku(sku);
       const amzKey = String(amz || '').toUpperCase();
@@ -389,8 +390,9 @@ function openShopOrder(id) {
               : '<span class="muted">—</span>')
         + '</td>'
         + '<td class="soAdjCell" data-sku="' + esc(sku) + '" style="padding:3px 6px;width:150px">'
-          + soAdjHtml(ln, i, esc) + '</td></tr>';
-    }).join('') + '</tbody></table>';
+          + soAdjHtml(ln, i, esc) + '</td>'
+        + '<td style="padding:3px 6px;white-space:nowrap">' + prodCell(i) + '</td></tr>';
+    }).join(''))(soProdCellFor(o)) + '</tbody></table>';
 
   // Saved against the SKU the moment it is typed, so the next order carrying it is already filled
   // in. Deliberately not waiting for Save — this is a fact about the shelf, not about this order.

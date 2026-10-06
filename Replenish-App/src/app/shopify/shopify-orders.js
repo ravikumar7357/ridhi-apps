@@ -418,7 +418,8 @@ async function loadShopIndia() {
 function soIndiaOf(sku) {
   const shop = String(sku || '').trim().toUpperCase();
   const amz = soAmzKey(sku);
-  return SHOP_INDIA[shop] || SHOP_INDIA[amz] || null;
+  /* Finished Goods is the India stock since 2026-10-06: a SKU it has never held has none — read, and 0. */
+  return SHOP_INDIA[shop] || SHOP_INDIA[amz] || (SHOP_INDIA_LOADED && !SHOP_INDIA_ERR && Object.keys(SHOP_INDIA).length ? [0, 0, 0, ''] : null);
 }
 
 /**
