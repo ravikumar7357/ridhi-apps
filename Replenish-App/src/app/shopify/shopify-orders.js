@@ -1171,6 +1171,7 @@ function soRows() {
    * loaded (4,622 orders) every draw re-worked every order's stock, India and MCF verdict — 0.3 s in Node, a second
    * in the browser, on every search. The worked rows are kept until the orders, their notes, the stock, India or the
    * bins change; the search, the pickers and the sort only filter them. */
+  soApplyTypedSkus(SHOP.orders); soApplyTypedSkus(soImpLive());
   const soSig = [SHOP.orders, SHOP.orders.length, SHOP.at, soImpLive(), SHOP_STOCK, SHOP_STOCK_LOADED, SHOP_INDIA, SHOP_INDIA_ERR, SHOP_SKU];
   const soMetaStr = JSON.stringify(SHOP_META) + '|' + JSON.stringify(SHOP_SKU);
   let rows;

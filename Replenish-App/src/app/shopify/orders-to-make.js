@@ -261,10 +261,23 @@ function shpTypedCode(orderId, i) {
   const mk = ((typeof SHOP_META === 'object' && SHOP_META && SHOP_META[orderId]) || {}).mk || {};
   return obUC(mk[shpNoSkuKey(i)] || '');
 }
+/**
+ * THE TYPED CODE IS THE LINE'S CODE, everywhere (2026-10-06, Ravi: "SKU ADD KRKE HUM CHECK KAR PAY KI KYA MCF HO SAKTA H
+ * OF YES USKO KAR SAKE"). Put on the item itself — i.sku, marked skuTyped — so FBA, MCF, India, the route and the MCF order
+ * read it exactly as they read a code Shopify sent. Cleared, the line goes back to having none.
+ */
+function soApplyTypedSkus(orders) {
+  (orders || []).forEach(o => (o && o.items || []).forEach(i => {
+    if (!i || (!i.skuTyped && obUC(i.sku))) return;          // Shopify's own code: never touched
+    const t = shpTypedCode(o.id, i);
+    if (t) { i.sku = t; i.skuTyped = true; }
+    else if (i.skuTyped) { i.sku = ''; i.skuTyped = false; }
+  }));
+}
 /** The code a line is made as: Shopify's, else the one typed on the order, else the title's match. */
 function shpLineCode(orderId, i) {
   const s = obUC(i && i.sku);
-  if (s) return { sku: s, via: '' };
+  if (s) return { sku: s, via: i.skuTyped ? 'SKU typed on the order' : '' };
   const t = shpTypedCode(orderId, i);
   if (t) return { sku: t, via: 'SKU typed on the order' };
   const m = shpSkuFromTitle(i && i.name, i && i.variant);

@@ -219,6 +219,7 @@ async function soSaveLineQty(sku, raw, ordered, esc) {
 function openShopOrder(id) {
   const o = SHOP.orders.find(x => x.id === id);
   if (!o) return;
+  soApplyTypedSkus([o]);
   soIndexNames();          // the pack rule reads product names, and this panel can be drawn on its own
   SHOP_EDIT = id;
   const meta = SHOP_META[id] || {};
@@ -288,15 +289,15 @@ function openShopOrder(id) {
             : '<span class="so-img"></span>')
         + '<div class="so-pt"><div class="so-pn" title="' + esc(i.name + (i.variant ? ' · ' + i.variant : '')) + '">'
           + esc(i.name) + (i.variant ? ' <span class="muted">· ' + esc(i.variant) + '</span>' : '') + '</div>'
-        + '<div class="so-ps"><span class="so-code">' + (i.sku ? esc(i.sku) : '<span class="muted">no SKU on Shopify</span>') + '</span>'
-        + (i.sku ? '' : ((t, g) => '<input class="soMk" data-k="' + esc(shpNoSkuKey(i)) + '" maxlength="40" value="' + esc(t) + '"'
-            + ' placeholder="' + esc(g || 'SKU to make') + '" title="Shopify sent this line without a SKU. Type the SKU production should make — saved on this order only. '
+        + '<div class="so-ps"><span class="so-code">' + (i.sku && !i.skuTyped ? esc(i.sku) : '<span class="muted">no SKU on Shopify</span>') + '</span>'
+        + (i.sku && !i.skuTyped ? '' : ((t, g) => '<input class="soMk" data-k="' + esc(shpNoSkuKey(i)) + '" maxlength="40" value="' + esc(t) + '"'
+            + ' placeholder="' + esc(g || 'type the SKU') + '" title="Shopify sent this line without a SKU. Type its SKU — FBA, MCF, India stock and production then all read this line as that SKU. Saved on this order only. '
             + (g ? 'Blank uses ' + g + ', matched from the title.' : 'Nothing in the master matched the title.') + '"'
             + ' style="width:130px;margin-left:6px;text-align:center;font-family:ui-monospace,monospace;font-size:11.5px">')(shpTypedCode(o.id, i), (shpSkuFromTitle(i.name, i.variant) || {}).sku || ''))
         // Editable, and PLACEHOLDERED with the Shopify code — so a blank box still shows what will
         // be sent, and a filled one is visibly a decision. Same pattern as Remark and Req. Qty.
         + '<span class="so-amzw">'
-          + (sku
+          + (sku && !i.skuTyped
               ? '<input class="soAmz" data-sku="' + esc(sku) + '" maxlength="40"'
                 + ' placeholder="' + esc(amz) + '" value="' + esc(soSku(sku).amz || autoAmz) + '"'
                 + ' style="width:118px;text-align:center;font-family:ui-monospace,monospace;font-size:11.5px'

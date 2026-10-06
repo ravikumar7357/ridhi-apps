@@ -49837,6 +49837,7 @@ function soRows() {
    * loaded (4,622 orders) every draw re-worked every order's stock, India and MCF verdict — 0.3 s in Node, a second
    * in the browser, on every search. The worked rows are kept until the orders, their notes, the stock, India or the
    * bins change; the search, the pickers and the sort only filter them. */
+  soApplyTypedSkus(SHOP.orders); soApplyTypedSkus(soImpLive());
   const soSig = [SHOP.orders, SHOP.orders.length, SHOP.at, soImpLive(), SHOP_STOCK, SHOP_STOCK_LOADED, SHOP_INDIA, SHOP_INDIA_ERR, SHOP_SKU];
   const soMetaStr = JSON.stringify(SHOP_META) + '|' + JSON.stringify(SHOP_SKU);
   let rows;
@@ -50883,10 +50884,23 @@ function shpTypedCode(orderId, i) {
   const mk = ((typeof SHOP_META === 'object' && SHOP_META && SHOP_META[orderId]) || {}).mk || {};
   return obUC(mk[shpNoSkuKey(i)] || '');
 }
+/**
+ * THE TYPED CODE IS THE LINE'S CODE, everywhere (2026-10-06, Ravi: "SKU ADD KRKE HUM CHECK KAR PAY KI KYA MCF HO SAKTA H
+ * OF YES USKO KAR SAKE"). Put on the item itself — i.sku, marked skuTyped — so FBA, MCF, India, the route and the MCF order
+ * read it exactly as they read a code Shopify sent. Cleared, the line goes back to having none.
+ */
+function soApplyTypedSkus(orders) {
+  (orders || []).forEach(o => (o && o.items || []).forEach(i => {
+    if (!i || (!i.skuTyped && obUC(i.sku))) return;          // Shopify's own code: never touched
+    const t = shpTypedCode(o.id, i);
+    if (t) { i.sku = t; i.skuTyped = true; }
+    else if (i.skuTyped) { i.sku = ''; i.skuTyped = false; }
+  }));
+}
 /** The code a line is made as: Shopify's, else the one typed on the order, else the title's match. */
 function shpLineCode(orderId, i) {
   const s = obUC(i && i.sku);
-  if (s) return { sku: s, via: '' };
+  if (s) return { sku: s, via: i.skuTyped ? 'SKU typed on the order' : '' };
   const t = shpTypedCode(orderId, i);
   if (t) return { sku: t, via: 'SKU typed on the order' };
   const m = shpSkuFromTitle(i && i.name, i && i.variant);
@@ -52633,6 +52647,7 @@ async function soSaveLineQty(sku, raw, ordered, esc) {
 function openShopOrder(id) {
   const o = SHOP.orders.find(x => x.id === id);
   if (!o) return;
+  soApplyTypedSkus([o]);
   soIndexNames();          // the pack rule reads product names, and this panel can be drawn on its own
   SHOP_EDIT = id;
   const meta = SHOP_META[id] || {};
@@ -52702,15 +52717,15 @@ function openShopOrder(id) {
             : '<span class="so-img"></span>')
         + '<div class="so-pt"><div class="so-pn" title="' + esc(i.name + (i.variant ? ' · ' + i.variant : '')) + '">'
           + esc(i.name) + (i.variant ? ' <span class="muted">· ' + esc(i.variant) + '</span>' : '') + '</div>'
-        + '<div class="so-ps"><span class="so-code">' + (i.sku ? esc(i.sku) : '<span class="muted">no SKU on Shopify</span>') + '</span>'
-        + (i.sku ? '' : ((t, g) => '<input class="soMk" data-k="' + esc(shpNoSkuKey(i)) + '" maxlength="40" value="' + esc(t) + '"'
-            + ' placeholder="' + esc(g || 'SKU to make') + '" title="Shopify sent this line without a SKU. Type the SKU production should make — saved on this order only. '
+        + '<div class="so-ps"><span class="so-code">' + (i.sku && !i.skuTyped ? esc(i.sku) : '<span class="muted">no SKU on Shopify</span>') + '</span>'
+        + (i.sku && !i.skuTyped ? '' : ((t, g) => '<input class="soMk" data-k="' + esc(shpNoSkuKey(i)) + '" maxlength="40" value="' + esc(t) + '"'
+            + ' placeholder="' + esc(g || 'type the SKU') + '" title="Shopify sent this line without a SKU. Type its SKU — FBA, MCF, India stock and production then all read this line as that SKU. Saved on this order only. '
             + (g ? 'Blank uses ' + g + ', matched from the title.' : 'Nothing in the master matched the title.') + '"'
             + ' style="width:130px;margin-left:6px;text-align:center;font-family:ui-monospace,monospace;font-size:11.5px">')(shpTypedCode(o.id, i), (shpSkuFromTitle(i.name, i.variant) || {}).sku || ''))
         // Editable, and PLACEHOLDERED with the Shopify code — so a blank box still shows what will
         // be sent, and a filled one is visibly a decision. Same pattern as Remark and Req. Qty.
         + '<span class="so-amzw">'
-          + (sku
+          + (sku && !i.skuTyped
               ? '<input class="soAmz" data-sku="' + esc(sku) + '" maxlength="40"'
                 + ' placeholder="' + esc(amz) + '" value="' + esc(soSku(sku).amz || autoAmz) + '"'
                 + ' style="width:118px;text-align:center;font-family:ui-monospace,monospace;font-size:11.5px'

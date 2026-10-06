@@ -1777,7 +1777,15 @@ console.log('\n== THE PRODUCTION BUCKET (Ravi, 2026-09-26) ==');
     ok('…typed, the line waits in the bucket as that SKU', nb && nb.key === 'b2|RCNBMIX' && nb.kind === 'make' && nb.qty === 2 && /typed on the order/.test(nb.why), JSON.stringify(nb && [nb.key, nb.kind, nb.qty, nb.why]));
     A.openShopOrder('b2');
     ok('…and its Production cell is ticked', /data-sopk="b2\|RCNBMIX" checked/.test(els.soItems.innerHTML), els.soItems.innerHTML.slice(-500));
+    /* "SKU ADD KRKE HUM CHECK KAR PAY KI KYA MCF HO SAKTA H" — the typed code is checked against the stock like any other. */
+    A.setMETA({ b2: { mk: { Fall_Green_Runner_60x12: 'RCNBRED' } } });
+    A.renderShop();
+    const o2 = A.SHOP().orders.find(x => x.id === 'b2'), it2 = o2.items[0];
+    const st2 = A.soLineState(o2, it2);
+    ok('…typed as a SKU India holds, the line reads India, not production', it2.sku === 'RCNBRED' && it2.skuTyped === true && st2.v === 'india', JSON.stringify([it2.sku, st2.v, st2.label]));
     A.setMETA({});
+    A.renderShop();
+    ok('…and cleared, it has no SKU again', it2.sku === '' && it2.skuTyped === false, JSON.stringify([it2.sku, it2.skuTyped]));
     if (wasShop) A.setSHOP(wasShop);
     A.renderShop();
   }
