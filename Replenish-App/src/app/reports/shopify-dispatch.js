@@ -141,7 +141,7 @@ function renderRep() {
   $('repMonth').classList.toggle('hide', v !== 'wpr' && v !== 'ihp' && v !== 'shpd');
   $('repBrand').classList.toggle('hide', v === 'shpd');     // both shops are shown side by side there
   $('repWeeks').classList.toggle('hide', v !== 'srpl');
-  $('repWk').classList.toggle('hide', v !== 'wow');
+  $('repWk').classList.toggle('hide', v !== 'wow' && v !== 'mtg');
   $('repQ').classList.toggle('hide', v !== 'qa');
   if ($('repQaWk')) $('repQaWk').classList.toggle('hide', v !== 'qa');
   /* CLEARED BEFORE ANY OF THEM DRAWS. Only the week-on-week report has charts, and one view's charts
@@ -149,6 +149,7 @@ function renderRep() {
    * they belonged to the table under them. The view that has them fills them back in. */
   repChartsOff();
   if (v === 'wow') { repFillWeeks(); return repRenderWow(); }
+  if (v === 'mtg') return renderMtg();
   if (v === 'live') return repRenderLive();
   if (v === 'wpr' || v === 'ihp') return repRenderWeekly(v === 'ihp');
   if (v === 'fgval') return repRenderFgVal();
@@ -172,11 +173,14 @@ $('repView').addEventListener('change', async () => {
 });
 ['repMonth', 'repBrand', 'repWeeks', 'repWk', 'repQaWk'].forEach(id => $(id).addEventListener('change', renderRep));
 ptDebounce('repQ', renderRep);
-$('repGo').onclick = async () => { PTG.mdb = null; FGI.rows = null; REP.qc = null; REP.shd = null; await ptLoadGates(); REP.at = ptStamp();
+$('repGo').onclick = async () => { PTG.mdb = null; FGI.rows = null; REP.qc = null; REP.shd = null;
+  if ($('repView').value === 'mtg') { VO.rows = null; SOX.rows = null; ACC.ledger = null; ORD_DEM.tried = false; MTG.meet = null; renderRep(); await mtgLoad(true); return renderRep(); }
+  await ptLoadGates(); REP.at = ptStamp();
   if ($('repView').value === 'qa') { try { REP.qc = ptList(await ptGet('pt_qcChecks')); } catch (e) { REP.qc = []; } }
   if ($('repView').value === 'fgval') { try { FGI.rows = ptList(await ptGet('pt_fgiLedger')); } catch (e) { FGI.rows = []; } }
   renderRep(); };
 $('repExport').onclick = () => {
+  if ($('repView').value === 'mtg') return mtgExport();
   if ($('repView').value === 'shpd') {
     const d = REP.shd && REP.shd.sum; if (!d) return;
     const out = [['Report', 'What', 'Ridhi', 'CPC', 'Total'].map(csvCell).join(',')];
