@@ -143,6 +143,7 @@ function renderRep() {
   $('repWeeks').classList.toggle('hide', v !== 'srpl');
   $('repWk').classList.toggle('hide', v !== 'wow');
   $('repQ').classList.toggle('hide', v !== 'qa');
+  if ($('repQaWk')) $('repQaWk').classList.toggle('hide', v !== 'qa');
   /* CLEARED BEFORE ANY OF THEM DRAWS. Only the week-on-week report has charts, and one view's charts
    * sitting above another view's table is worse than no charts at all — the figures would look like
    * they belonged to the table under them. The view that has them fills them back in. */
@@ -169,7 +170,7 @@ $('repView').addEventListener('change', async () => {
   }
   renderRep();
 });
-['repMonth', 'repBrand', 'repWeeks', 'repWk'].forEach(id => $(id).addEventListener('change', renderRep));
+['repMonth', 'repBrand', 'repWeeks', 'repWk', 'repQaWk'].forEach(id => $(id).addEventListener('change', renderRep));
 ptDebounce('repQ', renderRep);
 $('repGo').onclick = async () => { PTG.mdb = null; FGI.rows = null; REP.qc = null; REP.shd = null; await ptLoadGates(); REP.at = ptStamp();
   if ($('repView').value === 'qa') { try { REP.qc = ptList(await ptGet('pt_qcChecks')); } catch (e) { REP.qc = []; } }
@@ -235,6 +236,14 @@ $('repExport').onclick = () => {
           Math.round(s.overPress), Math.round(s.madeCut), Math.round(s.overCut)].map(csvCell).join(','))));
   }
   const rows = REP.shown || []; if (!rows.length) return;
+  const W = REP.qaWeek;
+  if (W) return ptDownload('qc-passed-production-' + W.wk,
+    [['QC passed (production)', 'Week', qaRange(W.wk)].map(csvCell).join(','), ['Passed', W.okp, 'Last week', W.prev, 'Checked', W.chk, 'Rejected', W.rej, 'For alteration', W.alt].map(csvCell).join(','), '',
+      ['Day', 'Passed'].map(csvCell).join(',')].concat(W.days.map(d2 => [d2.label, d2.ok].map(csvCell).join(',')), [''],
+      [['Article', 'This week', 'Last week'].map(csvCell).join(',')], W.arts.map(a2 => [a2.k, a2.now, a2.prev].map(csvCell).join(',')), [''],
+      W.kar.length ? [['Karigar', 'Passed'].map(csvCell).join(',')].concat(W.kar.map(k => k.map(csvCell).join(','))).concat(['']) : [],
+      [['SKU', 'Article', 'Colour', 'Size', 'Checked', 'Passed', 'Rejected', 'For alteration'].map(csvCell).join(',')],
+      rows.map(o => [o.sku, o.articleType, o.color, o.size, o.chk, o.ok, o.rej, o.alt].map(csvCell).join(','))));
   ptDownload('quality',
     [['SKU', 'Article', 'Colour', 'Size', 'Checked', 'Passed', 'Rejected', 'For alteration'].map(csvCell).join(',')]
       .concat(rows.map(o => [o.sku, o.articleType, o.color, o.size, o.chk, o.ok, o.rej, o.alt].map(csvCell).join(','))));

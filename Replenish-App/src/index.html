@@ -1102,7 +1102,7 @@
             <option value="ihp">Inhouse production</option>
             <option value="fgval">Finished goods valuation</option>
             <option value="srpl">Surplus</option>
-            <option value="qa">Quality</option>
+            <option value="qa">Quality · QC passed = production</option>
             <option value="shpd">Shopify dispatch</option>
           </select>
           <select id="repWk" class="hide" style="flex:0 0 175px" title="Sunday to Saturday. The week we are in is still being worked, so it is not offered."></select>
@@ -1113,7 +1113,8 @@
             <option value="26">Last 26 weeks</option>
           </select>
           <select id="repBrand" style="flex:0 0 150px"></select>
-          <input id="repQ" class="hide" placeholder="Search SKU / colour / who checked" style="flex:1 1 180px;min-width:0">
+          <select id="repQaWk" class="hide" style="flex:0 0 210px" title="The factory week, Monday to Sunday"></select>
+          <input id="repQ" class="hide" placeholder="Search SKU / colour / who checked / karigar" style="flex:1 1 180px;min-width:0">
           <span style="flex:1"></span>
           <button id="repExport" class="ghost">Export</button>
           <button id="repGo">Refresh</button>

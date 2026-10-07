@@ -746,26 +746,97 @@ function repRenderSurplus() {
     : 'Nothing has been made beyond what its order line asked for. That is what the caps are there to ensure.';
 }
 
-/* ---- quality ---- */
+/* ---- quality: the week's QC-passed pieces ARE the week's production ----
+ *
+ * Ravi, 2026-10-07: "weekly production review meeting qc passed pcs par hoga … weekly q.c se jitne pcs pass hokar jayenge
+ * wo hi real production count hoga". A week is the factory week, Monday to Sunday (Ravi, 2026-09-13). A check counts on
+ * the day it was recorded; "passed" is every piece QC let through that day — straight passes and pieces back from
+ * spotting or touching alike. "All time" keeps the old view: every check, worst SKU first.
+ */
+const qaWeekStart = ms => { const d = new Date(ms); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d; };
+const qaIso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+const qaShift = (iso, days) => { const p = iso.split('-').map(Number); const d = new Date(p[0], p[1] - 1, p[2]); d.setDate(d.getDate() + days); return qaIso(d); };
+const qaRange = iso => { const f = d => new Date(d.split('-').map(Number)[0], d.split('-').map(Number)[1] - 1, d.split('-').map(Number)[2])
+  .toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }); return f(iso) + ' – ' + f(qaShift(iso, 6)); };
+function qaFillWeeks() {
+  const el = $('repQaWk'); if (!el) return '';
+  const now = qaIso(qaWeekStart(Date.now()));
+  const want = [['', 'All time'], [now, 'This week so far · ' + qaRange(now)]];
+  for (let i = 1; i <= 12; i++) { const w = qaShift(now, -7 * i); want.push([w, qaRange(w)]); }
+  const sig = want.map(w => w[0]).join(',');
+  if (el.dataset.sig !== sig) {
+    const keep = el.dataset.sig ? el.value : qaShift(now, -7);          // first time: last full week
+    el.innerHTML = want.map(([v, t]) => `<option value="${v}">${esc(t)}</option>`).join('');
+    el.value = want.some(w => w[0] === keep) ? keep : qaShift(now, -7);
+    el.dataset.sig = sig;
+  }
+  return el.value;
+}
 function repRenderQa() {
   const brand = $('repBrand').value, q = $('repQ').value.trim().toLowerCase();
   /* The Quality Control tab may already have them loaded; if not, this tab fetched its own copy. */
   const rows = (QC && QC.checks && QC.checks.length) ? QC.checks : (REP.qc || []);
-  const checks = rows.filter(r => r && (!brand || String(r.brand || '').trim() === brand)
-    && (!q || [r.sku, r.articleType, r.color, r.size, r.checkedBy].join(' ').toLowerCase().includes(q)));
-  const n = f => checks.reduce((s, r) => s + (Number(r[f]) || 0), 0);
-  const chk = n('checked'), okp = n('ok'), rej = n('rejected'), alt = n('forAlteration');
+  const all = rows.filter(r => r && (!brand || String(r.brand || '').trim() === brand)
+    && (!q || [r.sku, r.articleType, r.color, r.size, r.checkedBy, r.karigar].join(' ').toLowerCase().includes(q)));
+  const wk = qaFillWeeks();
+  const wkOf = r => { const ms = ptDtMs(r.date); return ms ? qaIso(qaWeekStart(ms)) : ''; };
+  const checks = wk ? all.filter(r => wkOf(r) === wk) : all;
+  const sum = (list, f) => list.reduce((s, r) => s + (Number(r[f]) || 0), 0);
+  const chk = sum(checks, 'checked'), okp = sum(checks, 'ok'), rej = sum(checks, 'rejected'), alt = sum(checks, 'forAlteration');
   const pct = (v, b) => (b > 0 ? (Math.round(v / b * 1000) / 10) + '%' : '—');
 
-  $('repKpis').innerHTML = `<div class="kpi" style="flex-basis:100%">
-    <div class="kpihead"><span class="kpiname">Quality${brand ? ' · ' + esc(brand) : ''}</span>
-      <span class="kpiwhen">${nf(checks.length)} check(s) recorded</span></div>
-    <div class="metrics">
-      <div class="metric"><div class="v">${nf(chk)}</div><div class="l">Pieces checked</div></div>
-      <div class="metric"><div class="v" style="color:var(--accent)">${nf(okp)}</div><div class="l">Passed · ${pct(okp, chk)}</div></div>
-      <div class="metric"><div class="v" style="color:var(--bad)">${nf(rej)}</div><div class="l">Rejected · ${pct(rej, chk)}</div></div>
-      <div class="metric"><div class="v" style="color:#7f6000">${nf(alt)}</div><div class="l">For alteration · ${pct(alt, chk)}</div></div>
-    </div></div>`;
+  let head = '';
+  if (wk) {
+    const prevWk = qaShift(wk, -7), prev = sum(all.filter(r => wkOf(r) === prevWk), 'ok'), d = okp - prev;
+    const target = typeof paTarget === 'function' ? paTarget() : 20000;
+    const thisWeek = wk === qaIso(qaWeekStart(Date.now()));
+    const days = [...Array(7)].map((_, i) => { const iso = qaShift(wk, i);
+      return { iso, label: new Date(iso.split('-').map(Number)[0], iso.split('-').map(Number)[1] - 1, iso.split('-').map(Number)[2]).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric' }),
+        ok: checks.filter(r => { const ms = ptDtMs(r.date); return ms && qaIso(new Date(ms)) === iso; }).reduce((s, r) => s + (Number(r.ok) || 0), 0) }; });
+    const trend = [...Array(8)].map((_, i) => { const w = qaShift(wk, -7 * (7 - i)); return { w, ok: sum(all.filter(r => wkOf(r) === w), 'ok') }; });
+    const maxT = Math.max(1, ...trend.map(t => t.ok));
+    const group = (f, list) => { const m = new Map(); list.forEach(r => { const k = f(r) || '—'; m.set(k, (m.get(k) || 0) + (Number(r.ok) || 0)); }); return m; };
+    const artOf = r => String(r.articleType || (mdbOf(r.sku) || {}).articleType || '').trim();
+    const artNow = group(artOf, checks), artPrev = group(artOf, all.filter(r => wkOf(r) === prevWk));
+    const arts = [...new Set([...artNow.keys(), ...artPrev.keys()])].map(k => ({ k, now: artNow.get(k) || 0, prev: artPrev.get(k) || 0 }))
+      .filter(x2 => x2.now || x2.prev).sort((p, n) => n.now - p.now || n.prev - p.prev);
+    const kar = [...group(r => String(r.karigar || '').trim(), checks.filter(r => r.karigar)).entries()].sort((p, n) => n[1] - p[1]);
+    const delta = v => v === 0 ? '<span class="muted">±0</span>' : `<span style="color:${v > 0 ? '#166534' : 'var(--bad)'}">${v > 0 ? '+' : '−'}${nf(Math.abs(v))}</span>`;
+    const box = (title, html) => `<div class="kpi" style="flex:1 1 280px;min-width:0"><div class="kpihead"><span class="kpiname">${title}</span></div>${html}</div>`;
+    const mini = (cols, body) => `<table class="xl" style="font-size:12.5px;width:100%"><thead><tr>${cols.map((c, i) => `<th${i ? ' class="num"' : ''}>${c}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>`;
+    REP.qaWeek = { wk, days, trend, arts, kar, okp, prev, chk, rej, alt };
+    head = `<div class="kpi" style="flex-basis:100%">
+      <div class="kpihead"><span class="kpiname">Production = pieces passed by QC · ${esc(qaRange(wk))}${thisWeek ? ' (so far)' : ''}${brand ? ' · ' + esc(brand) : ''}</span>
+        <span class="kpiwhen">Monday to Sunday · ${nf(checks.length)} check(s)</span></div>
+      <div class="metrics">
+        <div class="metric"><div class="v" style="color:#166534;font-size:28px">${nf(okp)}</div><div class="l">QC passed — this week's production</div></div>
+        <div class="metric"><div class="v">${delta(d)}</div><div class="l">vs last week (${nf(prev)})${prev ? ' · ' + (d >= 0 ? '+' : '') + Math.round(d / prev * 100) + '%' : ''}</div></div>
+        <div class="metric"><div class="v">${Math.round(okp / target * 100)}%</div><div class="l">of the ${nf(target)} weekly target</div></div>
+        <div class="metric"><div class="v">${nf(chk)}</div><div class="l">Pieces checked</div></div>
+        <div class="metric"><div class="v" style="color:var(--bad)">${nf(rej)}</div><div class="l">Rejected · ${pct(rej, chk)}</div></div>
+        <div class="metric"><div class="v" style="color:#7f6000">${nf(alt)}</div><div class="l">For alteration · ${pct(alt, chk)}</div></div>
+      </div></div>`
+      + box('Day by day — QC passed', mini(['Day', 'Passed'], days.map(x2 => `<tr><td>${esc(x2.label)}</td><td class="num"${x2.ok ? ' style="font-weight:700"' : ''}>${x2.ok ? nf(x2.ok) : '<span class="muted">—</span>'}</td></tr>`).join('')
+        + `<tr style="font-weight:700"><td>Week</td><td class="num">${nf(okp)}</td></tr>`))
+      + box('Last 8 weeks — QC passed', mini(['Week', 'Passed', ''], trend.map(t => `<tr${t.w === wk ? ' style="font-weight:700"' : ''}><td>${esc(qaRange(t.w))}</td><td class="num">${nf(t.ok)}</td>`
+        + `<td style="width:40%"><div style="height:8px;background:var(--line);border-radius:4px"><div style="height:8px;width:${Math.round(t.ok / maxT * 100)}%;background:#166534;border-radius:4px"></div></div></td></tr>`).join('')))
+      + box('By article — this week vs last', mini(['Article', 'This week', 'Last week', 'Change'], arts.map(x2 => `<tr><td>${esc(x2.k)}</td><td class="num" style="font-weight:700">${nf(x2.now)}</td><td class="num">${nf(x2.prev)}</td><td class="num">${delta(x2.now - x2.prev)}</td></tr>`).join('')
+        || '<tr><td colspan="4" class="muted">Nothing passed this week.</td></tr>'))
+      + (kar.length ? box('By karigar — QC passed', mini(['Karigar', 'Passed'], kar.slice(0, 25).map(([k, v]) => `<tr><td>${esc(k)}</td><td class="num">${nf(v)}</td></tr>`).join(''))
+        + `<div class="muted" style="font-size:11px;margin-top:4px">Only checks taken from "Waiting for QC" (since 5 Oct) name the karigar · ${nf(sum(checks.filter(r => !r.karigar), 'ok'))} passed piece(s) carry no name</div>`) : '');
+  } else {
+    REP.qaWeek = null;
+    head = `<div class="kpi" style="flex-basis:100%">
+      <div class="kpihead"><span class="kpiname">Quality · all time${brand ? ' · ' + esc(brand) : ''}</span>
+        <span class="kpiwhen">${nf(checks.length)} check(s) recorded</span></div>
+      <div class="metrics">
+        <div class="metric"><div class="v">${nf(chk)}</div><div class="l">Pieces checked</div></div>
+        <div class="metric"><div class="v" style="color:var(--accent)">${nf(okp)}</div><div class="l">Passed · ${pct(okp, chk)}</div></div>
+        <div class="metric"><div class="v" style="color:var(--bad)">${nf(rej)}</div><div class="l">Rejected · ${pct(rej, chk)}</div></div>
+        <div class="metric"><div class="v" style="color:#7f6000">${nf(alt)}</div><div class="l">For alteration · ${pct(alt, chk)}</div></div>
+      </div></div>`;
+  }
+  $('repKpis').innerHTML = head;
 
   const by = new Map();
   checks.forEach(r => {
@@ -775,21 +846,22 @@ function repRenderQa() {
     o.rej += Number(r.rejected) || 0; o.alt += Number(r.forAlteration) || 0;
     by.set(k, o);
   });
-  /* Worst first — the point of the report is to find what keeps coming back, not to list everything. */
-  const list = [...by.values()].sort((a, b) =>
-    ((b.rej + b.alt) / (b.chk || 1)) - ((a.rej + a.alt) / (a.chk || 1)) || b.chk - a.chk);
+  /* A week is read for what it MADE — most passed first. All time is read for what keeps coming back — worst first. */
+  const list = [...by.values()].sort(wk
+    ? (a2, b2) => b2.ok - a2.ok || b2.chk - a2.chk
+    : (a2, b2) => ((b2.rej + b2.alt) / (b2.chk || 1)) - ((a2.rej + a2.alt) / (a2.chk || 1)) || b2.chk - a2.chk);
   REP.shown = list;
 
   $('repTable').innerHTML = '<thead><tr>' + ['SKU', 'Image', 'Article', 'Colour', 'Size', 'Checked', 'Passed', 'Rejected', 'For alteration', 'Bad']
     .map((h, i) => `<th${i === 0 ? ' class="frz"' : (i >= 5 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead><tbody>'
-    + (list.length ? list.map(o => {
+    + (list.length ? list.slice(0, 600).map(o => {
       const bad = o.chk ? (o.rej + o.alt) / o.chk : 0;
       return '<tr>'
         + `<td class="frz" style="font-family:ui-monospace,monospace;text-align:left">${esc(o.sku)}</td>`
         + ptImgCell(o.sku)
         + `<td>${esc(o.articleType)}</td><td>${esc(o.color)}</td><td>${esc(o.size)}</td>`
-        + `<td class="num" style="font-weight:700">${nf(o.chk)}</td>`
-        + `<td class="num" style="color:var(--accent)">${nf(o.ok)} <span class="muted" style="font-size:11px">${pct(o.ok, o.chk)}</span></td>`
+        + `<td class="num">${nf(o.chk)}</td>`
+        + `<td class="num" style="color:var(--accent);font-weight:${wk ? 700 : 400}">${nf(o.ok)} <span class="muted" style="font-size:11px">${pct(o.ok, o.chk)}</span></td>`
         + `<td class="num" style="color:var(--bad)">${o.rej ? nf(o.rej) : '<span class="muted">—</span>'} <span class="muted" style="font-size:11px">${o.rej ? pct(o.rej, o.chk) : ''}</span></td>`
         + `<td class="num" style="color:#7f6000">${o.alt ? nf(o.alt) : '<span class="muted">—</span>'} <span class="muted" style="font-size:11px">${o.alt ? pct(o.alt, o.chk) : ''}</span></td>`
         + `<td class="num"><div style="font-weight:700;color:${bad > 0.1 ? 'var(--bad)' : 'var(--muted)'}">${pct(o.rej + o.alt, o.chk)}</div>`
@@ -799,8 +871,9 @@ function repRenderQa() {
     + '</tbody>';
 
   $('repMsg').className = 'muted';
-  $('repMsg').textContent = `${nf(list.length)} SKU(s), worst first · "Bad" is rejected plus for-alteration, `
-    + 'as a share of what was checked · a check records what one person looked at on one day, not a whole batch';
+  $('repMsg').textContent = wk
+    ? `${nf(list.length)} SKU(s) passed QC in ${qaRange(wk)}, most first · passed = straight passes and pieces back from spotting or touching · "Bad" is rejected plus for-alteration, as a share of what was checked`
+    : `${nf(list.length)} SKU(s), worst first · "Bad" is rejected plus for-alteration, as a share of what was checked · a check records what one person looked at on one day, not a whole batch`;
   ptImgFill(list.slice(0, 400).map(o => o.sku), false, ptImgPatch);
 }
 

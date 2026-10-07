@@ -73,7 +73,7 @@ const IDS = ('ptmBrand ptmArt ptmSub ptmCol ptmSz ptmCut ptmQ ptmBrandFs ptmDir 
   + 'fgtQ fgtTable fgtTot fgtRemarks fgrGot fgrRemarks fgiQty fgiFor fgiRemarks fgoText fgoRemarks fgoPrev '
   + 'vmnCode vmnName vmnPhone vmnEmail vmnAdd '
   + 'mstPick mstOffWrap mstQ mstOff mstNew mstExport mstGo mstMsg mstKpis mstTable '
-  + 'repView repMonth repWeeks repBrand repQ repExport repGo repMsg repKpis repTable repWk repCharts '
+  + 'repView repMonth repWeeks repBrand repQ repQaWk repExport repGo repMsg repKpis repTable repWk repCharts '
   + 'fgEntry fgSeed fgBrand fgStat fgTag fgD1 fgD2 fgZeroWrap fgmType fgmSku fgmQty fgmDate fgmWho fgmWhoLbl '
   + 'fgmReason fgmRemarks fgmInfo fgmOutOrd fgmOutWhy fgmInv fgmTrans fgmLr fgmOutWrap fgmOutPlan fgmOutWhyWrap fgmInvWrap fgmTransWrap fgmLrWrap fgsSrc fgsRemarks fgsInfo fgsPick fgsBrowse fgsInput fgsFile fgsAdd fgWipe fgwOk cxStat cxChan cxQ cxUpload cxExport cxGo cxMsg cxKpis cxTable cxwAmz cxwInd cxwAdj cxwCxl cxwMsg cxuTmpl cxuPick cxuFile cxuInfo '
   + 'odView voDelPicked vlVendor vlType vlFrom vlTo vlQ vlClear vlExport vlGo vlMsg vlKpis vlTable vlState vlAccept '
@@ -3483,6 +3483,9 @@ console.log('\n== reports: surplus, valuation and quality ==');
   A.setREP(Object.assign(A.REP(), { qc: A.ptList(db.pt_qcChecks) }));
   els.repView.value = 'qa'; els.repQ.value = ''; els.repBrand.value = '';
   A.renderRep();
+  /* 2026-10-07: the report opens on last week's QC-passed production; "All time" is the old quality view. */
+  ok('the quality report opens on a week, not on all time', !!els.repQaWk.value && /Production = pieces passed by QC/.test(els.repKpis.innerHTML), els.repQaWk.value);
+  els.repQaWk.value = ''; A.renderRep();
   const kq = metrics(els.repKpis.innerHTML);
   const checks = A.ptList(db.pt_qcChecks);
   const tot = f => checks.reduce((a, r) => a + (Number(r[f]) || 0), 0);
@@ -3503,6 +3506,32 @@ console.log('\n== reports: surplus, valuation and quality ==');
   ok('a search that matches nothing empties it', A.REP().shown.length === 0);
   els.repQ.value = '';
   A.renderRep();
+  /* THE WEEK'S PRODUCTION = what QC passed in it, Monday to Sunday (Ravi, 2026-10-07). */
+  {
+    const mon = d => { const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; };
+    const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    const at = (d, h) => String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear() + ', ' + h;
+    const w0 = mon(Date.now()); const lw = new Date(w0); lw.setDate(w0.getDate() - 7); const pw = new Date(w0); pw.setDate(w0.getDate() - 14);
+    const lwTue = new Date(lw); lwTue.setDate(lw.getDate() + 1); const lwSun = new Date(lw); lwSun.setDate(lw.getDate() + 6);
+    const wasREP = A.REP(), wasQC = A.QC();
+    A.setQC(Object.assign({}, wasQC, { checks: [] }));
+    A.setREP(Object.assign({}, wasREP, { qc: [
+      { sku: 'QW-1', articleType: 'Tablecloth', date: at(lw, '10:00'), checked: 10, ok: 10, rejected: 0, forAlteration: 0, karigar: 'Asha' },
+      { sku: 'QW-2', articleType: 'Pillow Cover', date: at(lwSun, '23:30'), checked: 6, ok: 4, rejected: 1, forAlteration: 1 },
+      { sku: 'QW-1', articleType: 'Tablecloth', date: at(lwTue, '09:00'), checked: 0, ok: 3, rejected: 0, forAlteration: 0, refId: 'x', dept: 'spotting', karigar: 'Asha' },
+      { sku: 'QW-1', articleType: 'Tablecloth', date: at(pw, '12:00'), checked: 8, ok: 8, rejected: 0, forAlteration: 0 },
+      { sku: 'QW-3', articleType: 'Quilt', date: at(w0, '08:00'), checked: 2, ok: 2, rejected: 0, forAlteration: 0 },
+    ] }));
+    els.repQaWk.value = iso(lw); A.renderRep();
+    const h = els.repKpis.innerHTML, W = A.REP().qaWeek;
+    ok('the week counts every QC pass in it, back-from-spotting too: 10 + 4 + 3', W && W.okp === 17, JSON.stringify(W && W.okp));
+    ok('…against the week before (8), a Sunday-night check still in its own week', W.prev === 8 && W.days[6].ok === 4 && W.days[0].ok === 10 && W.days[1].ok === 3, JSON.stringify(W.days));
+    ok('…by article, this week against last', JSON.stringify(W.arts.map(a => [a.k, a.now, a.prev])) === JSON.stringify([['Tablecloth', 13, 8], ['Pillow Cover', 4, 0]]), JSON.stringify(W.arts));
+    ok('…by karigar where the check names one', JSON.stringify(W.kar) === JSON.stringify([['Asha', 13]]), JSON.stringify(W.kar));
+    ok('…the screen says production is what QC passed, and the SKUs come most-passed first', /Production = pieces passed by QC/.test(h) && /QC passed — this week/.test(h)
+       && A.REP().shown[0].sku === 'QW-1' && A.REP().shown.length === 2 && !A.REP().shown.some(o => o.sku === 'QW-3'), JSON.stringify(A.REP().shown.map(o => o.sku)));
+    A.setQC(wasQC); A.setREP(wasREP); els.repQaWk.value = ''; A.renderRep();
+  }
 }
 
 
