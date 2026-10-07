@@ -3506,9 +3506,9 @@ console.log('\n== reports: surplus, valuation and quality ==');
   ok('a search that matches nothing empties it', A.REP().shown.length === 0);
   els.repQ.value = '';
   A.renderRep();
-  /* THE WEEK'S PRODUCTION = what QC passed in it, Monday to Sunday (Ravi, 2026-10-07). */
+  /* THE WEEK'S PRODUCTION = what QC passed in it, Sunday to Saturday like "Last week" (Ravi, 2026-10-07). */
   {
-    const mon = d => { const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; };
+    const mon = d => { const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() - x.getDay()); return x; };
     const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
     const at = (d, h) => String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear() + ', ' + h;
     const w0 = mon(Date.now()); const lw = new Date(w0); lw.setDate(w0.getDate() - 7); const pw = new Date(w0); pw.setDate(w0.getDate() - 14);
@@ -3521,15 +3521,23 @@ console.log('\n== reports: surplus, valuation and quality ==');
       { sku: 'QW-1', articleType: 'Tablecloth', date: at(lwTue, '09:00'), checked: 0, ok: 3, rejected: 0, forAlteration: 0, refId: 'x', dept: 'spotting', karigar: 'Asha' },
       { sku: 'QW-1', articleType: 'Tablecloth', date: at(pw, '12:00'), checked: 8, ok: 8, rejected: 0, forAlteration: 0 },
       { sku: 'QW-3', articleType: 'Quilt', date: at(w0, '08:00'), checked: 2, ok: 2, rejected: 0, forAlteration: 0 },
+      /* Kept apart: "pillow insert embroidery napkin ka data apart rkhna h". */
+      { sku: 'QW-PI', articleType: 'Pillow Insert', date: at(lwTue, '11:00'), checked: 50, ok: 50, rejected: 0, forAlteration: 0, karigar: 'Asha' },
+      { sku: 'QW-EN', articleType: 'Napkin', subtype: 'Embroidery Napkin', date: at(lw, '11:00'), checked: 20, ok: 18, rejected: 2, forAlteration: 0 },
+      { sku: 'QW-PI', articleType: 'Pillow Insert', date: at(pw, '11:00'), checked: 30, ok: 30, rejected: 0, forAlteration: 0 },
     ] }));
     els.repQaWk.value = iso(lw); A.renderRep();
     const h = els.repKpis.innerHTML, W = A.REP().qaWeek;
     ok('the week counts every QC pass in it, back-from-spotting too: 10 + 4 + 3', W && W.okp === 17, JSON.stringify(W && W.okp));
-    ok('…against the week before (8), a Sunday-night check still in its own week', W.prev === 8 && W.days[6].ok === 4 && W.days[0].ok === 10 && W.days[1].ok === 3, JSON.stringify(W.days));
+    ok('…against the week before (8), a Saturday-night check still in its own week', W.prev === 8 && W.days[6].ok === 4 && W.days[0].ok === 10 && W.days[1].ok === 3, JSON.stringify(W.days));
     ok('…by article, this week against last', JSON.stringify(W.arts.map(a => [a.k, a.now, a.prev])) === JSON.stringify([['Tablecloth', 13, 8], ['Pillow Cover', 4, 0]]), JSON.stringify(W.arts));
     ok('…by karigar where the check names one', JSON.stringify(W.kar) === JSON.stringify([['Asha', 13]]), JSON.stringify(W.kar));
     ok('…the screen says production is what QC passed, and the SKUs come most-passed first', /Production = pieces passed by QC/.test(h) && /QC passed — this week/.test(h)
        && A.REP().shown[0].sku === 'QW-1' && A.REP().shown.length === 2 && !A.REP().shown.some(o => o.sku === 'QW-3'), JSON.stringify(A.REP().shown.map(o => o.sku)));
+    ok('pillow insert and embroidery napkin are kept apart, this week against last', JSON.stringify(W.apart.map(a => [a.k, a.now, a.prev]))
+       === JSON.stringify([['Pillow insert', 50, 30], ['Embroidery napkin', 18, 0]]) && /Kept apart/.test(h), JSON.stringify(W.apart));
+    ok('…and nowhere in the production, the articles, the karigars or the SKU table', W.okp === 17 && !W.arts.some(a => /insert|napkin/i.test(a.k))
+       && JSON.stringify(W.kar) === JSON.stringify([['Asha', 13]]) && !A.REP().shown.some(o => /QW-PI|QW-EN/.test(o.sku)));
     A.setQC(wasQC); A.setREP(wasREP); els.repQaWk.value = ''; A.renderRep();
   }
 }

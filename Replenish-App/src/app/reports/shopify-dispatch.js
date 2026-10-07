@@ -241,6 +241,7 @@ $('repExport').onclick = () => {
     [['QC passed (production)', 'Week', qaRange(W.wk)].map(csvCell).join(','), ['Passed', W.okp, 'Last week', W.prev, 'Checked', W.chk, 'Rejected', W.rej, 'For alteration', W.alt].map(csvCell).join(','), '',
       ['Day', 'Passed'].map(csvCell).join(',')].concat(W.days.map(d2 => [d2.label, d2.ok].map(csvCell).join(',')), [''],
       [['Article', 'This week', 'Last week'].map(csvCell).join(',')], W.arts.map(a2 => [a2.k, a2.now, a2.prev].map(csvCell).join(',')), [''],
+      [['Kept apart (not in production)', 'This week', 'Last week'].map(csvCell).join(',')], (W.apart || []).map(a2 => [a2.k, a2.now, a2.prev].map(csvCell).join(',')), [''],
       W.kar.length ? [['Karigar', 'Passed'].map(csvCell).join(',')].concat(W.kar.map(k => k.map(csvCell).join(','))).concat(['']) : [],
       [['SKU', 'Article', 'Colour', 'Size', 'Checked', 'Passed', 'Rejected', 'For alteration'].map(csvCell).join(',')],
       rows.map(o => [o.sku, o.articleType, o.color, o.size, o.chk, o.ok, o.rej, o.alt].map(csvCell).join(','))));

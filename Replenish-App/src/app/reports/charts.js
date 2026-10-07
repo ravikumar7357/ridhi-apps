@@ -749,11 +749,22 @@ function repRenderSurplus() {
 /* ---- quality: the week's QC-passed pieces ARE the week's production ----
  *
  * Ravi, 2026-10-07: "weekly production review meeting qc passed pcs par hoga … weekly q.c se jitne pcs pass hokar jayenge
- * wo hi real production count hoga". A week is the factory week, Monday to Sunday (Ravi, 2026-09-13). A check counts on
- * the day it was recorded; "passed" is every piece QC let through that day — straight passes and pieces back from
- * spotting or touching alike. "All time" keeps the old view: every check, worst SKU first.
+ * wo hi real production count hoga". A week is Sunday to Saturday, the same weeks as "Last week · received" (Ravi,
+ * 2026-10-07: "week days ye hi rakho"). A check counts on the day it was recorded; "passed" is every piece QC let through
+ * that day — straight passes and pieces back from spotting or touching alike. "All time" keeps the old view: every check,
+ * worst SKU first.
+ *
+ * KEPT APART (Ravi, 2026-10-07: "Q.C pass me pillow insert embroidery napkin ka data apart rkhna h"): pillow inserts —
+ * the same rule the production report uses (repIsInsert) — and embroidery napkins are shown in their own box and are not
+ * in the week's production, its trend, its articles, its karigars or its SKU table.
  */
-const qaWeekStart = ms => { const d = new Date(ms); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d; };
+const qaWeekStart = ms => { const d = new Date(ms); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - d.getDay()); return d; };
+function qaApart(r) {
+  const m = mdbOf(r && r.sku) || {};
+  if (repIsInsert(r)) return 'Pillow insert';
+  const t = [r && r.articleType, r && r.subtype, m.articleType, m.subtype].join(' ');
+  return /embroider/i.test(t) && /napkin/i.test(t) ? 'Embroidery napkin' : '';
+}
 const qaIso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 const qaShift = (iso, days) => { const p = iso.split('-').map(Number); const d = new Date(p[0], p[1] - 1, p[2]); d.setDate(d.getDate() + days); return qaIso(d); };
 const qaRange = iso => { const f = d => new Date(d.split('-').map(Number)[0], d.split('-').map(Number)[1] - 1, d.split('-').map(Number)[2])
@@ -780,34 +791,39 @@ function repRenderQa() {
     && (!q || [r.sku, r.articleType, r.color, r.size, r.checkedBy, r.karigar].join(' ').toLowerCase().includes(q)));
   const wk = qaFillWeeks();
   const wkOf = r => { const ms = ptDtMs(r.date); return ms ? qaIso(qaWeekStart(ms)) : ''; };
-  const checks = wk ? all.filter(r => wkOf(r) === wk) : all;
+  const base = wk ? all.filter(r => !qaApart(r)) : all, apartAll = wk ? all.filter(r => qaApart(r)) : [];
+  const checks = wk ? base.filter(r => wkOf(r) === wk) : all;
   const sum = (list, f) => list.reduce((s, r) => s + (Number(r[f]) || 0), 0);
   const chk = sum(checks, 'checked'), okp = sum(checks, 'ok'), rej = sum(checks, 'rejected'), alt = sum(checks, 'forAlteration');
   const pct = (v, b) => (b > 0 ? (Math.round(v / b * 1000) / 10) + '%' : '—');
 
   let head = '';
   if (wk) {
-    const prevWk = qaShift(wk, -7), prev = sum(all.filter(r => wkOf(r) === prevWk), 'ok'), d = okp - prev;
+    const prevWk = qaShift(wk, -7), prev = sum(base.filter(r => wkOf(r) === prevWk), 'ok'), d = okp - prev;
     const target = typeof paTarget === 'function' ? paTarget() : 20000;
     const thisWeek = wk === qaIso(qaWeekStart(Date.now()));
     const days = [...Array(7)].map((_, i) => { const iso = qaShift(wk, i);
       return { iso, label: new Date(iso.split('-').map(Number)[0], iso.split('-').map(Number)[1] - 1, iso.split('-').map(Number)[2]).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric' }),
         ok: checks.filter(r => { const ms = ptDtMs(r.date); return ms && qaIso(new Date(ms)) === iso; }).reduce((s, r) => s + (Number(r.ok) || 0), 0) }; });
-    const trend = [...Array(8)].map((_, i) => { const w = qaShift(wk, -7 * (7 - i)); return { w, ok: sum(all.filter(r => wkOf(r) === w), 'ok') }; });
+    const trend = [...Array(8)].map((_, i) => { const w = qaShift(wk, -7 * (7 - i)); return { w, ok: sum(base.filter(r => wkOf(r) === w), 'ok') }; });
     const maxT = Math.max(1, ...trend.map(t => t.ok));
     const group = (f, list) => { const m = new Map(); list.forEach(r => { const k = f(r) || '—'; m.set(k, (m.get(k) || 0) + (Number(r.ok) || 0)); }); return m; };
     const artOf = r => String(r.articleType || (mdbOf(r.sku) || {}).articleType || '').trim();
-    const artNow = group(artOf, checks), artPrev = group(artOf, all.filter(r => wkOf(r) === prevWk));
+    const artNow = group(artOf, checks), artPrev = group(artOf, base.filter(r => wkOf(r) === prevWk));
     const arts = [...new Set([...artNow.keys(), ...artPrev.keys()])].map(k => ({ k, now: artNow.get(k) || 0, prev: artPrev.get(k) || 0 }))
       .filter(x2 => x2.now || x2.prev).sort((p, n) => n.now - p.now || n.prev - p.prev);
     const kar = [...group(r => String(r.karigar || '').trim(), checks.filter(r => r.karigar)).entries()].sort((p, n) => n[1] - p[1]);
     const delta = v => v === 0 ? '<span class="muted">±0</span>' : `<span style="color:${v > 0 ? '#166534' : 'var(--bad)'}">${v > 0 ? '+' : '−'}${nf(Math.abs(v))}</span>`;
     const box = (title, html) => `<div class="kpi" style="flex:1 1 280px;min-width:0"><div class="kpihead"><span class="kpiname">${title}</span></div>${html}</div>`;
     const mini = (cols, body) => `<table class="xl" style="font-size:12.5px;width:100%"><thead><tr>${cols.map((c, i) => `<th${i ? ' class="num"' : ''}>${c}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>`;
-    REP.qaWeek = { wk, days, trend, arts, kar, okp, prev, chk, rej, alt };
+    const apart = ['Pillow insert', 'Embroidery napkin'].map(k => {
+      const mine = apartAll.filter(r => qaApart(r) === k), now = mine.filter(r => wkOf(r) === wk);
+      return { k, now: sum(now, 'ok'), prev: sum(mine.filter(r => wkOf(r) === prevWk), 'ok'), chk: sum(now, 'checked'), bad: sum(now, 'rejected') + sum(now, 'forAlteration') };
+    });
+    REP.qaWeek = { wk, days, trend, arts, kar, okp, prev, chk, rej, alt, apart };
     head = `<div class="kpi" style="flex-basis:100%">
       <div class="kpihead"><span class="kpiname">Production = pieces passed by QC · ${esc(qaRange(wk))}${thisWeek ? ' (so far)' : ''}${brand ? ' · ' + esc(brand) : ''}</span>
-        <span class="kpiwhen">Monday to Sunday · ${nf(checks.length)} check(s)</span></div>
+        <span class="kpiwhen">Sunday to Saturday · ${nf(checks.length)} check(s) · pillow insert and embroidery napkin apart</span></div>
       <div class="metrics">
         <div class="metric"><div class="v" style="color:#166534;font-size:28px">${nf(okp)}</div><div class="l">QC passed — this week's production</div></div>
         <div class="metric"><div class="v">${delta(d)}</div><div class="l">vs last week (${nf(prev)})${prev ? ' · ' + (d >= 0 ? '+' : '') + Math.round(d / prev * 100) + '%' : ''}</div></div>
@@ -816,6 +832,9 @@ function repRenderQa() {
         <div class="metric"><div class="v" style="color:var(--bad)">${nf(rej)}</div><div class="l">Rejected · ${pct(rej, chk)}</div></div>
         <div class="metric"><div class="v" style="color:#7f6000">${nf(alt)}</div><div class="l">For alteration · ${pct(alt, chk)}</div></div>
       </div></div>`
+      + box('Kept apart — not in the production above', mini(['', 'This week', 'Last week', 'Change'], apart.map(a2 => `<tr><td>${esc(a2.k)}</td><td class="num" style="font-weight:700">${nf(a2.now)}</td><td class="num">${nf(a2.prev)}</td><td class="num">${delta(a2.now - a2.prev)}</td></tr>`).join('')
+        + `<tr style="font-weight:700"><td>Together</td><td class="num">${nf(apart.reduce((t, a2) => t + a2.now, 0))}</td><td class="num">${nf(apart.reduce((t, a2) => t + a2.prev, 0))}</td><td></td></tr>`)
+        + `<div class="muted" style="font-size:11px;margin-top:4px">QC passed pieces. With them, the week would read ${nf(okp + apart.reduce((t, a2) => t + a2.now, 0))}.</div>`)
       + box('Day by day — QC passed', mini(['Day', 'Passed'], days.map(x2 => `<tr><td>${esc(x2.label)}</td><td class="num"${x2.ok ? ' style="font-weight:700"' : ''}>${x2.ok ? nf(x2.ok) : '<span class="muted">—</span>'}</td></tr>`).join('')
         + `<tr style="font-weight:700"><td>Week</td><td class="num">${nf(okp)}</td></tr>`))
       + box('Last 8 weeks — QC passed', mini(['Week', 'Passed', ''], trend.map(t => `<tr${t.w === wk ? ' style="font-weight:700"' : ''}><td>${esc(qaRange(t.w))}</td><td class="num">${nf(t.ok)}</td>`
