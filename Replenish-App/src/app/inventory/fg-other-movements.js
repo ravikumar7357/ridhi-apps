@@ -165,13 +165,23 @@ function fgiEntryOpen(type, sku) {
       const o = src === 'external' ? fgiExtOrder(typed, s, ($('fgmExtQty') || {}).value) : ords.find(x => x.orderNo === typed);
       const q = parseInt(($('fgmQty') || {}).value, 10) || 0;
       const box = $('fgmOrdQty'), over = o && o.qty ? Math.max(0, o.got + q - o.qty) : 0;
+      /* EVERY ORDER FOR THE SKU, ONE CLICK EACH (2026-10-07, Ravi: "is SKU m order add h but … only 1 order hi show ho rha
+       * h"). The list under the box is a datalist, and a browser shows only the options that match what the box already
+       * holds — so with the first order filled in, the other orders could not be seen at all. */
+      const pick = src === 'console' && ords.length > 1
+        ? `<div style="margin-top:${o ? 6 : 0}px">${nf(ords.length)} orders have this SKU — pick one: `
+          + ords.map(x2 => `<button type="button" class="${x2.orderNo === typed ? '' : 'ghost'}" data-fgord="${esc(x2.orderNo)}" style="padding:2px 8px;font-size:12px;margin:2px 4px 2px 0"`
+            + ` title="${esc((x2.date ? x2.date + ' · ' : '') + 'ordered ' + x2.qty + ' · ' + x2.got + ' received')}">${esc(x2.orderNo)} · ${x2.left ? nf(x2.left) + ' to come' : 'complete'}</button>`).join('') + '</div>'
+        : '';
       if (box) {
-        box.classList.toggle('hide', !(o || (src === 'external' && typed)));
+        box.classList.toggle('hide', !(o || pick || (src === 'external' && typed)));
         if (o && !o.qty) box.innerHTML = `<span class="pill">EXTERNAL</span> <b>${esc(typed)}</b> — no order quantity given`
           + (o.got ? ` · ${nf(o.got)} already received against it` : '') + ' · put in the order qty to check for extra pieces';
         else if (o) box.innerHTML = (src === 'external' ? '<span class="pill">EXTERNAL</span> ' : '') + `<b>${esc(o.orderNo)}</b> — order: <b>${nf(o.qty)}</b> pcs · already received: <b>${nf(o.got)}</b> · `
           + (o.left ? `you can receive <b>${nf(o.left)}</b> more` : '<b style="color:var(--bad)">nothing left to receive on this order</b>')
           + (over ? `<div style="color:var(--bad);margin-top:3px">${nf(Math.min(q, over))} of these ${nf(q)} are MORE than the order — give the reason below; it will be flagged.</div>` : '');
+        else box.innerHTML = '';
+        if (pick) box.innerHTML += pick;
       }
       if ($('fgmOverWrap')) $('fgmOverWrap').classList.toggle('hide', !over);
       if (src === 'console') el.textContent += typed && !o
@@ -186,6 +196,25 @@ function fgiEntryOpen(type, sku) {
   $('fgmSku').addEventListener('input', info);
   $('fgmType').addEventListener('change', info);
   if ($('fgmOrd')) $('fgmOrd').addEventListener('input', () => { if ($('fgmOrd').dataset) $('fgmOrd').dataset.auto = ''; info(); });
+  if ($('fgmOrdQty')) $('fgmOrdQty').addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('[data-fgord]'); if (!b) return;
+    $('fgmOrd').value = b.getAttribute('data-fgord'); if ($('fgmOrd').dataset) $('fgmOrd').dataset.auto = '';
+    info();
+  });
+  /* Opening the box shows the WHOLE list: what it holds moves to the placeholder while it has the focus, and comes back if
+   * nothing else is picked. */
+  if ($('fgmOrd')) $('fgmOrd').addEventListener('focus', () => {
+    const b = $('fgmOrd');
+    if (($('fgmOrdSrc') || {}).value === 'external' || !String(b.value || '').trim()) return;
+    b.dataset.prev = b.value; b.dataset.ph = b.placeholder; b.placeholder = b.value; b.value = '';
+  });
+  if ($('fgmOrd')) $('fgmOrd').addEventListener('blur', () => {
+    const b = $('fgmOrd');
+    if (b.dataset.prev && !String(b.value || '').trim()) b.value = b.dataset.prev;
+    if (b.dataset.ph != null) b.placeholder = b.dataset.ph;
+    b.dataset.prev = ''; b.dataset.ph = '';
+    info();
+  });
   if ($('fgmQty')) $('fgmQty').addEventListener('input', info);
   if ($('fgmOutOrd')) $('fgmOutOrd').addEventListener('change', info);
   if ($('fgmOrdSrc')) $('fgmOrdSrc').addEventListener('change', () => {

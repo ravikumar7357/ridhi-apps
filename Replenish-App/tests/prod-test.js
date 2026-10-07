@@ -13025,6 +13025,21 @@ console.log('\n== entry-only access, and the order every receive belongs to ==')
   ok('the order box is shown on a receive', els.fgmOrdQty._hidden === false);
   ok('receiving shows the order quantity and what is left', /order: <b>30<\/b> pcs · already received: <b>20<\/b> · you can receive <b>10<\/b> more/.test(els.fgmOrdQty.innerHTML), els.fgmOrdQty.innerHTML);
   ok('…says 5 of the 15 are more than the order', /5 of these 15 are MORE than the order/.test(els.fgmOrdQty.innerHTML));
+  /* 2026-10-07, Ravi: "is SKU m order add h but … only 1 order hi show ho rha h" — the datalist hides what does not
+   * match the filled-in order, so every order is also a button under the box. */
+  ok('every order for the SKU is offered as a button, the chosen one lit', /2 orders have this SKU/.test(els.fgmOrdQty.innerHTML)
+     && /class="" data-fgord="AMZ-10092026-01"/.test(els.fgmOrdQty.innerHTML) && /class="ghost" data-fgord="AMZ-09092026-01"|class="ghost" data-fgord="[^"]+"/.test(els.fgmOrdQty.innerHTML), els.fgmOrdQty.innerHTML);
+  {
+    const other = (A.fgiOrdersFor(SKU).find(o => o.orderNo !== 'AMZ-10092026-01') || {}).orderNo;
+    els.fgmOrdQty._listeners.click.forEach(f => f({ target: { closest: () => ({ getAttribute: () => other }) } }));
+    ok('…and pressing one puts it in the box', els.fgmOrd.value === other, els.fgmOrd.value);
+    els.fgmOrd.value = 'AMZ-10092026-01'; els.fgmOrd.dataset.auto = '';
+    els.fgmOrd._listeners.focus.forEach(f => f());
+    ok('opening the box empties it so the browser lists every order', els.fgmOrd.value === '' && els.fgmOrd.placeholder === 'AMZ-10092026-01');
+    els.fgmOrd._listeners.blur.forEach(f => f());
+    ok('…and leaving it without a pick puts the order back', els.fgmOrd.value === 'AMZ-10092026-01');
+    els.fgmSku._listeners.input.forEach(f => f());
+  }
   ok('…and asks for the reason', els.fgmOverWrap._hidden === false);
   els.fgmQty.value = '10'; els.fgmQty._listeners.input.forEach(f => f());
   ok('within the order, no reason is asked', els.fgmOverWrap._hidden === true);
