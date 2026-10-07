@@ -680,11 +680,17 @@ function qcInboxRows() {
   });
   return out.sort((a, b) => a.last - b.last);
 }
+/* The Dated range, as [from, to] in ms, or nulls (2026-10-07, Ravi: "filter range not working here"). */
+function qcRangeMs() {
+  const [d1, d2] = ptRangeOf('qcD1', 'qcD2');
+  return [d1 ? new Date(d1 + 'T00:00:00').getTime() : null, d2 ? new Date(d2 + 'T23:59:59').getTime() : null];
+}
+const qcInRangeMs = (ms, r) => (r[0] == null || ms >= r[0]) && (r[1] == null || ms <= r[1]);
 function renderQcInbox() {
-  const q = $('qcQ').value.trim().toLowerCase();
+  const q = $('qcQ').value.trim().toLowerCase(), rng = qcRangeMs();
   const all = qcInboxRows();
-  const rows = all.filter(x => !q || [x.r.sku, x.r.articleType, x.r.articleSubtype, x.r.color, x.r.size, x.r.empName, x.r.orderNo]
-    .join(' ').toLowerCase().includes(q));
+  const rows = all.filter(x => qcInRangeMs(x.last, rng) && (!q || [x.r.sku, x.r.articleType, x.r.articleSubtype, x.r.color, x.r.size, x.r.empName, x.r.orderNo]
+    .join(' ').toLowerCase().includes(q)));
   QC.rows = rows.map(x => x.r); QC.inbox = rows;
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const acceptedToday = (QC.checks || []).filter(c => c && c.baseId && ptDtMs(c.date) >= today.getTime()).reduce((a, c) => a + ptNum(c.ok), 0);
@@ -784,7 +790,8 @@ async function qcDeptBack(sendId, qty, reject) {
 function renderQcDept() {
   const q = $('qcQ').value.trim().toLowerCase();
   const all = qcDeptRows();
-  const open = all.filter(x => x.left > 0 && (!q || [x.c.sku, x.c.subtype, x.c.color, x.c.size, x.c.karigar, x.c.orderNo, x.dept].join(' ').toLowerCase().includes(q)))
+  const rng = qcRangeMs();
+  const open = all.filter(x => x.left > 0 && qcInRangeMs(x.ms, rng) && (!q || [x.c.sku, x.c.subtype, x.c.color, x.c.size, x.c.karigar, x.c.orderNo, x.dept].join(' ').toLowerCase().includes(q)))
     .sort((a, b) => a.ms - b.ms);
   QC.rows = open.map(x => x.c); QC.dept = open;
   const sum = (l, f) => l.reduce((a, x) => a + f(x), 0);

@@ -15610,11 +15610,17 @@ function qcInboxRows() {
   });
   return out.sort((a, b) => a.last - b.last);
 }
+/* The Dated range, as [from, to] in ms, or nulls (2026-10-07, Ravi: "filter range not working here"). */
+function qcRangeMs() {
+  const [d1, d2] = ptRangeOf('qcD1', 'qcD2');
+  return [d1 ? new Date(d1 + 'T00:00:00').getTime() : null, d2 ? new Date(d2 + 'T23:59:59').getTime() : null];
+}
+const qcInRangeMs = (ms, r) => (r[0] == null || ms >= r[0]) && (r[1] == null || ms <= r[1]);
 function renderQcInbox() {
-  const q = $('qcQ').value.trim().toLowerCase();
+  const q = $('qcQ').value.trim().toLowerCase(), rng = qcRangeMs();
   const all = qcInboxRows();
-  const rows = all.filter(x => !q || [x.r.sku, x.r.articleType, x.r.articleSubtype, x.r.color, x.r.size, x.r.empName, x.r.orderNo]
-    .join(' ').toLowerCase().includes(q));
+  const rows = all.filter(x => qcInRangeMs(x.last, rng) && (!q || [x.r.sku, x.r.articleType, x.r.articleSubtype, x.r.color, x.r.size, x.r.empName, x.r.orderNo]
+    .join(' ').toLowerCase().includes(q)));
   QC.rows = rows.map(x => x.r); QC.inbox = rows;
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const acceptedToday = (QC.checks || []).filter(c => c && c.baseId && ptDtMs(c.date) >= today.getTime()).reduce((a, c) => a + ptNum(c.ok), 0);
@@ -15714,7 +15720,8 @@ async function qcDeptBack(sendId, qty, reject) {
 function renderQcDept() {
   const q = $('qcQ').value.trim().toLowerCase();
   const all = qcDeptRows();
-  const open = all.filter(x => x.left > 0 && (!q || [x.c.sku, x.c.subtype, x.c.color, x.c.size, x.c.karigar, x.c.orderNo, x.dept].join(' ').toLowerCase().includes(q)))
+  const rng = qcRangeMs();
+  const open = all.filter(x => x.left > 0 && qcInRangeMs(x.ms, rng) && (!q || [x.c.sku, x.c.subtype, x.c.color, x.c.size, x.c.karigar, x.c.orderNo, x.dept].join(' ').toLowerCase().includes(q)))
     .sort((a, b) => a.ms - b.ms);
   QC.rows = open.map(x => x.c); QC.dept = open;
   const sum = (l, f) => l.reduce((a, x) => a + f(x), 0);
@@ -36392,6 +36399,29 @@ function repByWindow(brand, inhouseOnly, from, to) {
   return out;
 }
 
+/**
+ * WHAT QC PASSED inside a window [from, to), per article type — beside what came back, so the week reads "made, and of
+ * that, really good" (Ravi, 2026-10-07: "isi data me Q.C pass data la dete h … production report to Q.C pass pcs par hi
+ * hoga"). A check counts on the day it was recorded. Pillow insert and embroidery napkin are kept apart, as in the QC
+ * report (qaApart).
+ */
+const repQcRows = () => ((QC && QC.checks && QC.checks.length) ? QC.checks : ((PTG.qc && PTG.qc.length) ? PTG.qc : (REP.qc || [])));
+function repQcByWindow(brand, from, to) {
+  const out = { byArt: {}, ok: 0, chk: 0, rej: 0, alt: 0, apart: { 'Pillow insert': 0, 'Embroidery napkin': 0 } };
+  repQcRows().forEach(r => {
+    if (!r) return;
+    const ms = ptDtMs(r.date);
+    if (!ms || ms < from || ms >= to) return;
+    if (brand && repBrand(r.sku) !== brand) return;
+    const ap = qaApart(r);
+    if (ap) { out.apart[ap] += ptNum(r.ok); return; }
+    const at = repAt(r.sku, r.articleType);
+    out.byArt[at] = (out.byArt[at] || 0) + ptNum(r.ok);
+    out.ok += ptNum(r.ok); out.chk += ptNum(r.checked); out.rej += ptNum(r.rejected); out.alt += ptNum(r.forAlteration);
+  });
+  return out;
+}
+
 /** Midnight on the Sunday the running week began. */
 const repLiveStart = () => repWeekStart(Date.now()).getTime();
 /** How far into it we are, in whole days — Sunday is day 1. */
@@ -36408,18 +36438,19 @@ function repLive(brand, inhouseOnly) {
   const prevStart = start - 7 * 86400000;
   const cur = repByWindow(brand, inhouseOnly, start, Date.now());
   const prev = repByWindow(brand, inhouseOnly, prevStart, prevStart + elapsed);
-  const arts = [...new Set(Object.keys(cur).concat(Object.keys(prev)))]
-    .filter(a => (cur[a] && cur[a].prod) || (prev[a] && prev[a].prod));
+  const qc = repQcByWindow(brand, start, Date.now()), qcPrev = repQcByWindow(brand, prevStart, prevStart + elapsed);
+  const arts = [...new Set(Object.keys(cur).concat(Object.keys(prev), Object.keys(qc.byArt), Object.keys(qcPrev.byArt)))]
+    .filter(a => (cur[a] && cur[a].prod) || (prev[a] && prev[a].prod) || qc.byArt[a] || qcPrev.byArt[a]);
   const rows = arts.map(a => {
     const c = cur[a] || { cust: 0, prod: 0 }, p = prev[a] || { cust: 0, prod: 0 };
     const delta = c.prod - p.prod;
     return { art: a, cust: c.cust, prod: c.prod, prevProd: p.prod, prevCust: p.cust, delta,
-      pct: p.prod > 0 ? (delta / p.prod) * 100 : null };
-  }).sort((x, y) => y.prod - x.prod || x.art.localeCompare(y.art));
+      pct: p.prod > 0 ? (delta / p.prod) * 100 : null, qc: qc.byArt[a] || 0, prevQc: qcPrev.byArt[a] || 0 };
+  }).sort((x, y) => y.prod - x.prod || y.qc - x.qc || x.art.localeCompare(y.art));
   /* The whole of last week, for context only — never as the thing the percentage is against. */
   const fullPrev = repByWindow(brand, inhouseOnly, prevStart, start);
   const fullPrevProd = Object.values(fullPrev).reduce((s, d) => s + d.prod, 0);
-  return { start, prevStart, days: repDaysIn(), rows, fullPrevProd };
+  return { start, prevStart, days: repDaysIn(), rows, fullPrevProd, qc, qcPrev };
 }
 
 /**
@@ -36631,16 +36662,24 @@ function repRenderLive() {
 
   const head = '<thead><tr><th class="frz">Article type</th>'
     + `<th class="num">This week so far</th><th class="num">Customer</th>`
-    + `<th class="num">Same days last week</th><th class="num">Change</th><th>Week on week</th></tr></thead>`;
+    + `<th class="num" title="Pieces QC passed this week so far — the real production">QC passed</th>`
+    + `<th class="num" title="Made this week but not passed by QC yet (waiting, in spotting/touching, rejected or for alteration)">Made − QC passed</th>`
+    + `<th class="num">Same days last week</th><th class="num">QC passed, same days last week</th><th class="num">Change</th><th>Week on week</th></tr></thead>`;
   const body = L.rows.map(r => '<tr>'
     + `<td class="frz" style="text-align:left;font-weight:600">${esc(r.art)}</td>`
     + `<td class="num" style="font-weight:700">${nf(Math.round(r.prod))}</td>`
     + `<td class="num">${nf(Math.round(r.cust))}</td>`
+    + `<td class="num" style="font-weight:700;color:#166534">${r.qc ? nf(r.qc) : '<span class="muted">—</span>'}</td>`
+    + `<td class="num"${r.prod - r.qc > 0 ? ' style="color:#B45309"' : ''}>${nf(Math.round(r.prod - r.qc))}</td>`
     + `<td class="num muted">${r.prevProd ? nf(Math.round(r.prevProd)) : '<span class="muted">·</span>'}</td>`
+    + `<td class="num muted">${r.prevQc ? nf(r.prevQc) : '<span class="muted">·</span>'}</td>`
     + `<td class="num" style="color:${r.delta > 0 ? '#166534' : (r.delta < 0 ? 'var(--bad)' : 'var(--muted)')};font-weight:600">`
       + `${r.delta > 0 ? '+' : ''}${nf(Math.round(r.delta))}</td>`
     + `<td>${repPctCell(r)}</td></tr>`).join('');
-  $('repTable').innerHTML = head + '<tbody>' + body + '</tbody>';
+  const tq = L.rows.reduce((t, r) => t + r.qc, 0), tpq = L.rows.reduce((t, r) => t + r.prevQc, 0);
+  const foot = `<tfoot><tr><td class="frz">TOTAL</td><td class="num">${nf(Math.round(prod))}</td><td class="num">${nf(Math.round(cust))}</td>`
+    + `<td class="num" style="color:#166534">${nf(tq)}</td><td class="num">${nf(Math.round(prod - tq))}</td><td class="num">${nf(Math.round(prevProd))}</td><td class="num">${nf(tpq)}</td><td></td><td></td></tr></tfoot>`;
+  $('repTable').innerHTML = head + '<tbody>' + body + '</tbody>' + foot;
   REP.live = L;
 }
 
@@ -36815,6 +36854,24 @@ function repManpowerCard(week, brand) {
           ['One person in the week', con.per == null ? '—' : r0(con.per)]])
         : tile('Pradeep made', '—', 'nothing received this week'))
       + tile('Pillow insert (apart)', nf(m.insert), `not in any figure here${p.insert ? ' · ' + nf(p.insert) + ' the week before' : ''}`, '#B45309'))}
+    ${(() => {
+      /* QC PASSED, THE SAME WEEK (Ravi, 2026-10-07): the production meeting counts what QC passed, so it sits right under
+       * what was made. Same week, Sunday to Saturday; pillow insert and embroidery napkin apart. */
+      const wp = String(week).split('-').map(Number), from = new Date(wp[0], wp[1] - 1, wp[2]).getTime();
+      const Q = repQcByWindow(brand, from, from + 7 * 864e5), Qp = repQcByWindow(brand, from - 7 * 864e5, from);
+      const pc = (v, b) => b > 0 ? Math.round(v / b * 1000) / 10 + '%' : '—';
+      return row('QC PASSED — THE REAL PRODUCTION', tile('QC passed', nf(Q.ok), vs(Q.ok, Qp.ok), '#166534', '#F0FDF4')
+        + sheet('Made against QC passed', nf(total - Q.ok), (total - Q.ok) > 0 ? '#B45309' : '#15803D', [
+            ['Made (received)', nf(total)], ['QC passed', nf(Q.ok)],
+            ['Passed, as a share of made', pc(Q.ok, total)],
+            ['Not passed yet', (total - Q.ok) > 0 ? `<span style="color:#B45309">${nf(total - Q.ok)}</span>` : '<span style="color:#15803D">none</span>']])
+        + sheet('QC checks this week', nf(Q.chk), 'var(--ink)', [
+            ['Passed', `${nf(Q.ok)} <span class="muted">${pc(Q.ok, Q.chk)}</span>`],
+            ['Rejected', `<span style="color:var(--bad)">${nf(Q.rej)}</span> <span class="muted">${pc(Q.rej, Q.chk)}</span>`],
+            ['For alteration', `<span style="color:#7f6000">${nf(Q.alt)}</span> <span class="muted">${pc(Q.alt, Q.chk)}</span>`]])
+        + sheet('QC passed, kept apart', nf(Q.apart['Pillow insert'] + Q.apart['Embroidery napkin']), '#B45309', [
+            ['Pillow insert', nf(Q.apart['Pillow insert'])], ['Embroidery napkin', nf(Q.apart['Embroidery napkin'])]]));
+    })()}
     ${(() => {
       /* TO REACH THE TARGET: Pradeep is taken to make what he made; the rest is ours. Cutting and cut pieces from
        * printers are split as this week's work was given out; printing is the target × the m² in a piece this week. */

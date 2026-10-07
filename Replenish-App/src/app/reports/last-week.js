@@ -126,6 +126,29 @@ function repByWindow(brand, inhouseOnly, from, to) {
   return out;
 }
 
+/**
+ * WHAT QC PASSED inside a window [from, to), per article type — beside what came back, so the week reads "made, and of
+ * that, really good" (Ravi, 2026-10-07: "isi data me Q.C pass data la dete h … production report to Q.C pass pcs par hi
+ * hoga"). A check counts on the day it was recorded. Pillow insert and embroidery napkin are kept apart, as in the QC
+ * report (qaApart).
+ */
+const repQcRows = () => ((QC && QC.checks && QC.checks.length) ? QC.checks : ((PTG.qc && PTG.qc.length) ? PTG.qc : (REP.qc || [])));
+function repQcByWindow(brand, from, to) {
+  const out = { byArt: {}, ok: 0, chk: 0, rej: 0, alt: 0, apart: { 'Pillow insert': 0, 'Embroidery napkin': 0 } };
+  repQcRows().forEach(r => {
+    if (!r) return;
+    const ms = ptDtMs(r.date);
+    if (!ms || ms < from || ms >= to) return;
+    if (brand && repBrand(r.sku) !== brand) return;
+    const ap = qaApart(r);
+    if (ap) { out.apart[ap] += ptNum(r.ok); return; }
+    const at = repAt(r.sku, r.articleType);
+    out.byArt[at] = (out.byArt[at] || 0) + ptNum(r.ok);
+    out.ok += ptNum(r.ok); out.chk += ptNum(r.checked); out.rej += ptNum(r.rejected); out.alt += ptNum(r.forAlteration);
+  });
+  return out;
+}
+
 /** Midnight on the Sunday the running week began. */
 const repLiveStart = () => repWeekStart(Date.now()).getTime();
 /** How far into it we are, in whole days — Sunday is day 1. */
@@ -142,18 +165,19 @@ function repLive(brand, inhouseOnly) {
   const prevStart = start - 7 * 86400000;
   const cur = repByWindow(brand, inhouseOnly, start, Date.now());
   const prev = repByWindow(brand, inhouseOnly, prevStart, prevStart + elapsed);
-  const arts = [...new Set(Object.keys(cur).concat(Object.keys(prev)))]
-    .filter(a => (cur[a] && cur[a].prod) || (prev[a] && prev[a].prod));
+  const qc = repQcByWindow(brand, start, Date.now()), qcPrev = repQcByWindow(brand, prevStart, prevStart + elapsed);
+  const arts = [...new Set(Object.keys(cur).concat(Object.keys(prev), Object.keys(qc.byArt), Object.keys(qcPrev.byArt)))]
+    .filter(a => (cur[a] && cur[a].prod) || (prev[a] && prev[a].prod) || qc.byArt[a] || qcPrev.byArt[a]);
   const rows = arts.map(a => {
     const c = cur[a] || { cust: 0, prod: 0 }, p = prev[a] || { cust: 0, prod: 0 };
     const delta = c.prod - p.prod;
     return { art: a, cust: c.cust, prod: c.prod, prevProd: p.prod, prevCust: p.cust, delta,
-      pct: p.prod > 0 ? (delta / p.prod) * 100 : null };
-  }).sort((x, y) => y.prod - x.prod || x.art.localeCompare(y.art));
+      pct: p.prod > 0 ? (delta / p.prod) * 100 : null, qc: qc.byArt[a] || 0, prevQc: qcPrev.byArt[a] || 0 };
+  }).sort((x, y) => y.prod - x.prod || y.qc - x.qc || x.art.localeCompare(y.art));
   /* The whole of last week, for context only — never as the thing the percentage is against. */
   const fullPrev = repByWindow(brand, inhouseOnly, prevStart, start);
   const fullPrevProd = Object.values(fullPrev).reduce((s, d) => s + d.prod, 0);
-  return { start, prevStart, days: repDaysIn(), rows, fullPrevProd };
+  return { start, prevStart, days: repDaysIn(), rows, fullPrevProd, qc, qcPrev };
 }
 
 /**

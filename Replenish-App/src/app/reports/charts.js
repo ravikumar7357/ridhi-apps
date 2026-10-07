@@ -175,16 +175,24 @@ function repRenderLive() {
 
   const head = '<thead><tr><th class="frz">Article type</th>'
     + `<th class="num">This week so far</th><th class="num">Customer</th>`
-    + `<th class="num">Same days last week</th><th class="num">Change</th><th>Week on week</th></tr></thead>`;
+    + `<th class="num" title="Pieces QC passed this week so far — the real production">QC passed</th>`
+    + `<th class="num" title="Made this week but not passed by QC yet (waiting, in spotting/touching, rejected or for alteration)">Made − QC passed</th>`
+    + `<th class="num">Same days last week</th><th class="num">QC passed, same days last week</th><th class="num">Change</th><th>Week on week</th></tr></thead>`;
   const body = L.rows.map(r => '<tr>'
     + `<td class="frz" style="text-align:left;font-weight:600">${esc(r.art)}</td>`
     + `<td class="num" style="font-weight:700">${nf(Math.round(r.prod))}</td>`
     + `<td class="num">${nf(Math.round(r.cust))}</td>`
+    + `<td class="num" style="font-weight:700;color:#166534">${r.qc ? nf(r.qc) : '<span class="muted">—</span>'}</td>`
+    + `<td class="num"${r.prod - r.qc > 0 ? ' style="color:#B45309"' : ''}>${nf(Math.round(r.prod - r.qc))}</td>`
     + `<td class="num muted">${r.prevProd ? nf(Math.round(r.prevProd)) : '<span class="muted">·</span>'}</td>`
+    + `<td class="num muted">${r.prevQc ? nf(r.prevQc) : '<span class="muted">·</span>'}</td>`
     + `<td class="num" style="color:${r.delta > 0 ? '#166534' : (r.delta < 0 ? 'var(--bad)' : 'var(--muted)')};font-weight:600">`
       + `${r.delta > 0 ? '+' : ''}${nf(Math.round(r.delta))}</td>`
     + `<td>${repPctCell(r)}</td></tr>`).join('');
-  $('repTable').innerHTML = head + '<tbody>' + body + '</tbody>';
+  const tq = L.rows.reduce((t, r) => t + r.qc, 0), tpq = L.rows.reduce((t, r) => t + r.prevQc, 0);
+  const foot = `<tfoot><tr><td class="frz">TOTAL</td><td class="num">${nf(Math.round(prod))}</td><td class="num">${nf(Math.round(cust))}</td>`
+    + `<td class="num" style="color:#166534">${nf(tq)}</td><td class="num">${nf(Math.round(prod - tq))}</td><td class="num">${nf(Math.round(prevProd))}</td><td class="num">${nf(tpq)}</td><td></td><td></td></tr></tfoot>`;
+  $('repTable').innerHTML = head + '<tbody>' + body + '</tbody>' + foot;
   REP.live = L;
 }
 
@@ -359,6 +367,24 @@ function repManpowerCard(week, brand) {
           ['One person in the week', con.per == null ? '—' : r0(con.per)]])
         : tile('Pradeep made', '—', 'nothing received this week'))
       + tile('Pillow insert (apart)', nf(m.insert), `not in any figure here${p.insert ? ' · ' + nf(p.insert) + ' the week before' : ''}`, '#B45309'))}
+    ${(() => {
+      /* QC PASSED, THE SAME WEEK (Ravi, 2026-10-07): the production meeting counts what QC passed, so it sits right under
+       * what was made. Same week, Sunday to Saturday; pillow insert and embroidery napkin apart. */
+      const wp = String(week).split('-').map(Number), from = new Date(wp[0], wp[1] - 1, wp[2]).getTime();
+      const Q = repQcByWindow(brand, from, from + 7 * 864e5), Qp = repQcByWindow(brand, from - 7 * 864e5, from);
+      const pc = (v, b) => b > 0 ? Math.round(v / b * 1000) / 10 + '%' : '—';
+      return row('QC PASSED — THE REAL PRODUCTION', tile('QC passed', nf(Q.ok), vs(Q.ok, Qp.ok), '#166534', '#F0FDF4')
+        + sheet('Made against QC passed', nf(total - Q.ok), (total - Q.ok) > 0 ? '#B45309' : '#15803D', [
+            ['Made (received)', nf(total)], ['QC passed', nf(Q.ok)],
+            ['Passed, as a share of made', pc(Q.ok, total)],
+            ['Not passed yet', (total - Q.ok) > 0 ? `<span style="color:#B45309">${nf(total - Q.ok)}</span>` : '<span style="color:#15803D">none</span>']])
+        + sheet('QC checks this week', nf(Q.chk), 'var(--ink)', [
+            ['Passed', `${nf(Q.ok)} <span class="muted">${pc(Q.ok, Q.chk)}</span>`],
+            ['Rejected', `<span style="color:var(--bad)">${nf(Q.rej)}</span> <span class="muted">${pc(Q.rej, Q.chk)}</span>`],
+            ['For alteration', `<span style="color:#7f6000">${nf(Q.alt)}</span> <span class="muted">${pc(Q.alt, Q.chk)}</span>`]])
+        + sheet('QC passed, kept apart', nf(Q.apart['Pillow insert'] + Q.apart['Embroidery napkin']), '#B45309', [
+            ['Pillow insert', nf(Q.apart['Pillow insert'])], ['Embroidery napkin', nf(Q.apart['Embroidery napkin'])]]));
+    })()}
     ${(() => {
       /* TO REACH THE TARGET: Pradeep is taken to make what he made; the rest is ours. Cutting and cut pieces from
        * printers are split as this week's work was given out; printing is the target × the m² in a piece this week. */
