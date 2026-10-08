@@ -669,16 +669,27 @@ function qcInboxRows() {
   const out = [];
   (PT.base || []).forEach(r => {
     if (!r || !r.id) return;
-    const rec = (Array.isArray(r.receipts) ? r.receipts : Object.values(r.receipts || {})).filter(Boolean);
+    /* EVERY RECEIVED PIECE, dated the way the Reports date it (repRecvParts): each receipt on its own day, and what the
+     * receipts do not cover on the receiving date. Pieces received through Edit carried no receipt and never showed
+     * here (2026-10-08, Ravi: "5 OCT KE BAD WALI ENTRY ABHI DIRECT WAITING FOR QC ME SHOW NAHI HO RHA H") — 70 entries. */
     let since = 0, last = 0;
-    rec.forEach(x => { const ms = ptDtMs(x.at); if (ms >= from) { since += ptNum(x.qty); if (ms > last) last = ms; } });
+    repRecvParts(r).forEach(p => { if (p.ms >= from) { since += p.pcs; if (p.ms > last) last = p.ms; } });
     /* Never more than the row says came back — a correction may have lowered it after the receipt was logged. */
     since = Math.min(since, ptNum(r.receivedPieces));
     const accepted = took.get(r.id) || 0, wait = since - accepted;
     if (!(wait > 0)) return;
     out.push({ r, since, accepted, wait, last });
   });
-  return out.sort((a, b) => a.last - b.last);
+  out.sort((a, b) => a.last - b.last);
+  /* CHECKED ON THE OLD FORM: a check that names the order and SKU but no Job Work entry (the Checks form) has already
+   * looked at pieces of that order — from QC_INBOX_FROM on, they come off its waiting entries, oldest first. Without this
+   * the 661 pieces checked that way on 5–8 Oct would have waited a second time. */
+  const free = new Map();
+  (QC.checks || []).forEach(c => { if (!c || c.baseId || !c.orderNo || ptDtMs(c.date) < from) return;
+    const k = obUC(c.orderNo) + '|' + qcNorm(c.sku); free.set(k, (free.get(k) || 0) + ptNum(c.checked)); });
+  if (free.size) out.forEach(x => { const k = obUC(x.r.orderNo) + '|' + qcNorm(x.r.sku), f = free.get(k) || 0; if (!f) return;
+    const take = Math.min(f, x.wait); x.wait -= take; x.accepted += take; free.set(k, f - take); });
+  return out.filter(x => x.wait > 0);
 }
 /* The Dated range, as [from, to] in ms, or nulls (2026-10-07, Ravi: "filter range not working here"). */
 function qcRangeMs() {

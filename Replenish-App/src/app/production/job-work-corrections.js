@@ -270,8 +270,15 @@ $('bdmSave').onclick = async () => {
   }
 
   const pending = Math.max(0, issued - recv - rej);
+  /* MORE RECEIVED THROUGH EDIT IS A RECEIPT TOO (2026-10-08): dated now, so Waiting for QC and the weekly reports see it
+   * on the day it came back, exactly as if Receive had been pressed. A lower figure logs nothing — the reports cap the
+   * receipts at what the row says came back. */
+  const recvAdd = recv - ptNum(r.receivedPieces);
+  const receipts = recvAdd > 0
+    ? (Array.isArray(r.receipts) ? r.receipts : Object.values(r.receipts || {})).filter(Boolean).concat([{ at: ptNow(), qty: recvAdd, via: 'edit' }])
+    : r.receipts;
   const next = Object.assign({}, r, {
-    empName: name, empType: type, sku: obUC(sku),
+    empName: name, empType: type, sku: obUC(sku), ...(receipts ? { receipts } : {}),
     articleType: at, articleSubtype: sub, color: col, size: sz,
     issuePieces: issued, receivedPieces: recv, rejectionPieces: rej,
     pendingPieces: pending, frozen: pending <= 0,

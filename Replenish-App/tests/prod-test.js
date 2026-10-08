@@ -14485,6 +14485,16 @@ console.log('\n== only an admin moves a receiving date ==');
   const saved2 = NET.calls.filter(c => c.method === 'PUT' || c.method === 'PATCH').pop();
   const body2 = saved2 ? (saved2.body['pt_baseData/bd_rd'] || saved2.body) : {};
   ok('an admin moves the receiving date', body2.receivingDate === '12/09/2026, 14:56');
+  /* 8 Oct 2026: more received through Edit is logged as a receipt, so Waiting for QC and the weekly reports see it. */
+  A.setPT(Object.assign(A.PT(), { base: [Object.assign({}, row, { id: 'bd_ed', receivedPieces: 2, pendingPieces: 6, frozen: false, receivingDate: '', receipts: [{ at: '05/10/2026, 10:00', qty: 2 }] })], cut: [] }));
+  A.bdEdit('bd_ed');
+  els.bdmRecv.value = '8'; els.bdmRecvDate.value = ''; NET.calls = [];
+  await els.bdmSave.onclick();
+  const saved3 = NET.calls.filter(c => c.method === 'PUT' || c.method === 'PATCH').pop();
+  const body3 = saved3 ? (saved3.body['pt_baseData/bd_ed'] || saved3.body) : {};
+  ok('receiving 6 more through Edit logs them as a receipt, dated now', Array.isArray(body3.receipts) && body3.receipts.length === 2
+     && body3.receipts[1].qty === 6 && body3.receipts[1].via === 'edit' && body3.receivedPieces === 8, JSON.stringify(body3.receipts));
+  A.setPT(Object.assign(A.PT(), { base: [row], cut: [] }));
 
   /* 1 Oct 2026 (Ravi: "this is available in the masterdatabase but it's showing not in masterdata base"). RCN148 was
    * added to the master minutes before; the page's copy is re-read only every 30 minutes, so Change SKU refused it. */
@@ -20177,6 +20187,23 @@ console.log('\n== Waiting for QC: received pieces go to QC, which accepts all or
   els.qcD1.value = '2026-10-05'; els.qcD2.value = '2026-10-05'; A.renderQc();
   ok('…the day it came back shows it', (A.QC().inbox || []).length === 1);
   els.qcD1.value = ''; els.qcD2.value = '';
+  /* 8 Oct (Ravi: "5 OCT KE BAD WALI ENTRY ABHI DIRECT WAITING FOR QC ME SHOW NAHI HO RHA H"): pieces received through Edit
+   * carry no receipt — they wait on their receiving date, as the Reports count them. */
+  {
+    const keep = A.PT();
+    A.setPT(Object.assign({}, keep, { base: keep.base.concat([
+      { id: 'jq3', sku: 'Q-3', orderNo: 'QO-3', empName: 'Punam', issuePieces: 10, receivedPieces: 10, receivingDate: '08/10/2026, 15:18' },
+      { id: 'jq4', sku: 'Q-4', orderNo: 'QO-4', empName: 'Punam', issuePieces: 5, receivedPieces: 5, receivingDate: '04/10/2026, 15:18' }]) }));
+    const w = A.qcInboxRows();
+    ok('a row received through Edit (no receipt) waits for QC on its receiving date', w.some(x => x.r.id === 'jq3' && x.wait === 10), JSON.stringify(w.map(x => [x.r.id, x.wait])));
+    ok('…one received before 5 Oct does not', !w.some(x => x.r.id === 'jq4'));
+    const keepQC = A.QC();
+    A.setQC(Object.assign({}, keepQC, { checks: (keepQC.checks || []).concat([{ id: 'qf', orderNo: 'QO-3', sku: 'Q-3', date: '08/10/2026, 16:00', checked: 7, ok: 7, rejected: 0, forAlteration: 0 }]) }));
+    const w2 = A.qcInboxRows().find(x => x.r.id === 'jq3');
+    ok('…and pieces of that order already checked on the old Checks form come off it: 10 − 7 = 3 still waiting', w2 && w2.wait === 3 && w2.accepted === 7, JSON.stringify(w2 && [w2.wait, w2.accepted]));
+    A.setQC(keepQC);
+    A.setPT(keep);
+  }
   ok('…more than is waiting is refused', /Only 6 piece/.test(await A.qcInboxAccept('jq1', 7)));
   ok('QC accepts part', (await A.qcInboxAccept('jq1', 4)) === '');
   rows = A.qcInboxRows();
