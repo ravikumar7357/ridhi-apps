@@ -49,6 +49,7 @@ orders/production-to-shipping.js
 orders/quantity-changes.js
 orders/vendor-holdings.js
 orders/order-console-table.js
+orders/close-lines.js
 shopify/bulk-entry.js
 orders/demand.js
 orders/tracking.js

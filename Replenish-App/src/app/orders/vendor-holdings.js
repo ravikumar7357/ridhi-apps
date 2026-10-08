@@ -704,7 +704,8 @@ function shppBySku(only) {
     if (!e.articleType && l.articleType) { e.articleType = l.articleType; e.articleSubtype = l.articleSubtype; e.color = l.color; e.size = l.size; }
     if (l.needsSku) e.needsSku = true;
     e.orders.push({ no: l.orderNo, shop: l.shopOrderNo || '', adj: l.adjId || '', qty: l.qty,
-      pressed: l.pressed, date: l.orderDate, open: l.open, opened: l.mtoOpen || '', due: l.mtoDue || '', late: l.mtoLate || 0 });
+      pressed: l.pressed, date: l.orderDate, open: l.open, opened: l.mtoOpen || '', due: l.mtoDue || '', late: l.mtoLate || 0,
+      says: l.shopSays || '', byShop: !!(l.shopDoneAt && !l.handedAt), sku: l.sku });
   });
   return [...by.values()].sort((a, b) => b.pendingMake - a.pendingMake || a.sku.localeCompare(b.sku));
 }

@@ -149,7 +149,8 @@ function soProdCellFor(o) {
   return i => {
     if (!shpLineCode(o.id, i).sku) return '<span class="muted" title="Shopify sent no SKU and the title matched nothing — type the SKU to make in the Product box">type the SKU ←</span>';
     const { b, open } = soProdLineOf(o, i, mine);
-    if (open) return `<span class="pill pill-ok" title="Production is already open for this line">Already open · ${esc2(open.orderNo || open.id || '')}</span>`;
+    if (open) return `<span class="pill pill-ok" title="Production is already open for this line">Already open · ${esc2(open.orderNo || open.id || '')}</span>`
+      + (typeof ordCanClose === 'function' && ordCanClose() && open.orderNo ? ` <a href="#" data-ordclose="${esc2(obUC(open.orderNo) + '|' + obUC(open.sku))}" style="font-size:11.5px" title="Close this production line with a reason — shipped from stock, cancelled…">close</a>` : '');
     if (mine === null) return '<span class="muted" title="Stock has not been read yet — press Fetch orders">after Fetch</span>';
     if (!b) return '<span class="muted" title="Nothing left to make on this line — sent, shipped, refunded or set to 0">—</span>';
     const from = b.kind === 'make' ? 'To make' : (b.from === 'fba' ? 'MCF can fill' : 'India can fill');

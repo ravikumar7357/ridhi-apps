@@ -142,13 +142,14 @@ function shbRender() {
     SHB.rqty = SHB.rqty || {};
     const allOn = rows.length && rows.every(x => SHB.rpicked.has(x.key));
     head = `<th><input type="checkbox" data-shbrall="1"${allOn ? ' checked' : ''} title="Tick every line shown" style="width:auto"></th>`
-      + '<th>Shopify order</th><th>SKU</th><th>Item</th><th class="num">Ordered</th><th class="num">Made</th><th class="num">Taken so far</th><th class="num">Arrived now</th>';
+      + '<th>Shopify order</th><th>SKU</th><th>Item</th><th class="num">Ordered</th><th class="num">Made</th><th class="num">Taken so far</th><th class="num">Arrived now</th><th></th>';
     body = rows.slice(0, 300).map(x => `<tr${SHB.rpicked.has(x.key) ? ' class="on"' : ''}><td><input type="checkbox" data-shbr="${esc(x.key)}"${SHB.rpicked.has(x.key) ? ' checked' : ''} style="width:auto"></td>`
       + `<td style="text-align:left;white-space:nowrap"><b>${esc(x.shop)}</b><div class="muted" style="font-size:11px">${esc(x.orderNo)}</div></td>`
       + `<td style="font-family:ui-monospace,monospace">${esc(x.sku)}</td>`
       + `<td>${itemCell([x.l.articleSubtype || x.l.articleType || x.l.itemName, x.l.color, x.l.size].filter(Boolean).join(' · '), x.l.shopImg, '')}</td>`
       + `<td class="num">${nf(x.qty)}</td><td class="num" style="color:#166534;font-weight:700">${nf(x.made)}</td><td class="num">${x.got ? nf(x.got) : '<span class="muted">—</span>'}</td>`
-      + `<td class="num"><input type="number" min="0" max="${x.qty - x.got}" step="1" data-shbq="${esc(x.key)}" value="${esc(SHB.rqty[x.key] != null ? SHB.rqty[x.key] : x.ready)}" style="width:72px;text-align:right"></td></tr>`).join('');
+      + `<td class="num"><input type="number" min="0" max="${x.qty - x.got}" step="1" data-shbq="${esc(x.key)}" value="${esc(SHB.rqty[x.key] != null ? SHB.rqty[x.key] : x.ready)}" style="width:72px;text-align:right"></td>`
+      + `<td>${typeof ordCanClose === 'function' && ordCanClose() ? `<a href="#" data-ordclose="${esc(obUC(x.orderNo) + '|' + obUC(x.sku))}" style="font-size:12px" title="Sent to the customer from stock, or not needed — close the production line">close</a>` : ''}</td></tr>`).join('');
   } else if (SHB.tab === 'done') {
     head = '<th>Shopify order</th><th>SKU</th><th>Item</th><th class="num">Qty</th><th>Opened by</th><th>Note</th>';
     body = done.map(r => `<tr><td style="text-align:left"><b>${esc(r.shopOrderNo || r.orderNo)}</b><div class="muted" style="font-size:11px">${esc(r.orderNo)}</div></td>`

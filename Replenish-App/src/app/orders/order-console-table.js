@@ -52,12 +52,18 @@ function ordHead(cols, tick) {
 /** What a line is waiting for, in the Job Work pills. */
 /** Completed because of Shopify, in words the floor and the shipping team both read. */
 const SHP_DONE_TXT = why => ({ fulfilled: 'Fulfilled by shipping team', cancelled: 'Cancelled on Shopify', refunded: 'Refunded on Shopify',
-  'marked done': 'Marked done by shipping team' })[why] || 'Fulfilled by shipping team';
+  'marked done': 'Marked done by shipping team', stock: 'Shipped from stock', partial: 'Closed at what was handed over',
+  outside: 'Made outside', duplicate: 'Duplicate — closed', other: 'Closed by hand' })[why] || 'Fulfilled by shipping team';
 /** Shopify's word on a line production still has open: it changes nothing, so it says what to do. */
 const SHP_SAYS_TXT = why => ({ fulfilled: 'Shopify: shipped — not handed over by production', cancelled: 'Shopify: cancelled — production to decide',
   refunded: 'Shopify: refunded — production to decide', 'marked done': 'Shopify note says DONE / READY — not handed over' })[why] || '';
 function ordStatePill(r) {
-  if (r.open && r.shopSays && SHP_SAYS_TXT(r.shopSays)) return '<span class="jw-st pend" title="Still open: only a hand-over to shipping closes it">' + esc(SHP_SAYS_TXT(r.shopSays)) + '</span> ' + ordStatePillWork(r);
+  const canC = typeof ordCanClose === 'function' && ordCanClose() && ordIsMto(r.orderNo);
+  const key = esc(r.orderNo + '|' + r.sku);
+  if (r.open && r.shopSays && SHP_SAYS_TXT(r.shopSays)) return '<span class="jw-st pend" title="Still open: only a hand-over to shipping closes it">' + esc(SHP_SAYS_TXT(r.shopSays)) + '</span> '
+    + (canC ? `<a href="#" data-ordclose="${key}" class="pill pill-ok" style="text-decoration:none" title="Shopify is done with it — close the line">Ready to close · Close</a> ` : '') + ordStatePillWork(r);
+  if (canC && r.open) return ordStatePillWork(r) + ` <a href="#" data-ordclose="${key}" style="font-size:11.5px" title="Close this line with a reason">close</a>`;
+  if (canC && !r.open && r.shopDoneAt && !r.handedAt) return ordStatePillWork(r) + ` <a href="#" data-ordreopen="${key}" style="font-size:11.5px" title="${esc((r.shopDoneBy ? 'Closed by ' + r.shopDoneBy : '') + (r.shopDoneNote ? ' — ' + r.shopDoneNote : ''))}">reopen</a>`;
   return ordStatePillWork(r);
 }
 function ordStatePillWork(r) {
@@ -153,9 +159,12 @@ function renderOrdShopify(bySku, done) {
     /* Most late first, then the soonest due. Each order says when it is due, and how many working days late. */
     const today = dToday();
     const sortedOrders = r.orders.slice().sort((a, b) => (b.late || 0) - (a.late || 0) || String(a.due || a.date).localeCompare(String(b.due || b.date)));
+    const canClose = typeof ordCanClose === 'function' && ordCanClose();
     const chips = sortedOrders.slice(0, 6)
       .map(o => `<div style="white-space:nowrap"><a href="#" data-ordj="${esc(o.no)}" style="color:inherit;text-decoration:underline dotted;font-weight:700" title="${esc(o.no)}${o.adj ? ' · ' + esc(o.adj) : ''} — ${nf(o.qty)} piece(s)${o.open ? '' : ', done'}${o.opened ? ' · opened in production ' + esc(mtoShow(o.opened)) : ''}${o.due ? ' · due ' + esc(mtoShow(o.due)) + ' (5 working days)' : ''} — click for this order start to finish">`
         + `${esc(o.shop || o.no)}</a><span class="muted">&times;${nf(o.qty)}</span>`
+        + (canClose && o.open ? ` <a href="#" data-ordclose="${esc(o.no + '|' + (o.sku || r.sku))}" style="font-size:11px${o.says ? ';color:#166534;font-weight:700' : ''}" title="${o.says ? 'Shopify is done with it — ' : ''}close this order's line">${o.says ? 'ready · close' : 'close'}</a>` : '')
+        + (canClose && !o.open && o.byShop ? ` <a href="#" data-ordreopen="${esc(o.no + '|' + (o.sku || r.sku))}" style="font-size:11px" title="Closed by hand or by Shopify — reopen it">reopen</a>` : '')
         + (!o.open ? ' <span class="muted" style="font-size:11px">done</span>'
           : o.late > 0 ? ` <span style="color:var(--bad);font-weight:700;font-size:11px">${nf(o.late)}d late</span>`
           : o.due ? ` <span style="font-size:11px;${o.due === today ? 'color:#7f6000;font-weight:700' : 'color:var(--muted,#6b7280)'}">${o.due === today ? 'due today' : 'due ' + esc(mtoShow(o.due))}</span>` : '')
