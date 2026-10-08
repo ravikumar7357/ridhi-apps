@@ -160,7 +160,8 @@ function renderOrdShopify(bySku, done) {
     const today = dToday();
     const sortedOrders = r.orders.slice().sort((a, b) => (b.late || 0) - (a.late || 0) || String(a.due || a.date).localeCompare(String(b.due || b.date)));
     const canClose = typeof ordCanClose === 'function' && ordCanClose();
-    const chips = sortedOrders.slice(0, 6)
+    const allChips = (ORD.chipOpen || new Set()).has(r.sku);
+    const chips = sortedOrders.slice(0, allChips ? sortedOrders.length : 6)
       .map(o => `<div style="white-space:nowrap"><a href="#" data-ordj="${esc(o.no)}" style="color:inherit;text-decoration:underline dotted;font-weight:700" title="${esc(o.no)}${o.adj ? ' · ' + esc(o.adj) : ''} — ${nf(o.qty)} piece(s)${o.open ? '' : ', done'}${o.opened ? ' · opened in production ' + esc(mtoShow(o.opened)) : ''}${o.due ? ' · due ' + esc(mtoShow(o.due)) + ' (5 working days)' : ''} — click for this order start to finish">`
         + `${esc(o.shop || o.no)}</a><span class="muted">&times;${nf(o.qty)}</span>`
         + (canClose && o.open ? ` <a href="#" data-ordclose="${esc(o.no + '|' + (o.sku || r.sku))}" style="font-size:11px${o.says ? ';color:#166534;font-weight:700' : ''}" title="${o.says ? 'Shopify is done with it — ' : ''}close this order's line">${o.says ? 'ready · close' : 'close'}</a>` : '')
@@ -169,7 +170,9 @@ function renderOrdShopify(bySku, done) {
           : o.late > 0 ? ` <span style="color:var(--bad);font-weight:700;font-size:11px">${nf(o.late)}d late</span>`
           : o.due ? ` <span style="font-size:11px;${o.due === today ? 'color:#7f6000;font-weight:700' : 'color:var(--muted,#6b7280)'}">${o.due === today ? 'due today' : 'due ' + esc(mtoShow(o.due))}</span>` : '')
         + '</div>').join('')
-      + (sortedOrders.length > 6 ? `<div class="muted" title="${esc(sortedOrders.slice(6).map(o => (o.shop || o.no) + ' ×' + o.qty).join(', '))}">+${nf(sortedOrders.length - 6)} more</div>` : '');
+      + (sortedOrders.length > 6 ? (allChips
+          ? `<a href="#" data-chipmore="${esc(r.sku)}" class="muted" style="font-size:12px">show fewer</a>`
+          : `<a href="#" data-chipmore="${esc(r.sku)}" class="muted" style="font-size:12px;text-decoration:underline" title="Show every order for this SKU">+${nf(sortedOrders.length - 6)} more</a>`) : '');
     /* One tick, every open line behind it. A SKU whose orders are all finished has nothing to give
      * anybody, so it has no box rather than a box that does nothing. */
     const skuKeys = spSkuKeys(r);
@@ -194,11 +197,11 @@ function renderOrdShopify(bySku, done) {
       + `<td class="num">${nf(r.issued)}</td>`
       + `<td class="num"${r.overRecv ? ' style="color:#7f6000;font-weight:700"' : ''}>${nf(r.received)}</td>`
       /* QC PASSED, AND WHAT OF IT IS WAITING FOR SHIPPING — it is in the shipping team's From production list already. */
-      + `<td class="num"><b style="color:#166534">${nf(r.pressed)}</b>${r.ready ? `<div style="color:#166534;font-weight:700;font-size:11px;white-space:nowrap">${nf(r.ready)} ready for shipping</div>` : ''}</td>`
+      + `<td class="num"><b style="color:#166534">${nf(r.pressed)}</b>${r.forQc ? `<div style="color:#B45309;font-weight:700;font-size:11px;white-space:nowrap" title="Received from the karigar, not checked by QC yet">${nf(r.forQc)} available for QC</div>` : ''}</td>`
       /* HANDED TO SHIPPING: once shipping accepts all of a line, that line is complete by itself. */
       + `<td style="text-align:left;white-space:nowrap">${r.handed >= r.qty ? '<span class="jw-st done">Complete</span>'
           : `<b>${nf(r.handed)}</b> <span class="muted">of ${nf(r.qty)}</span>`
-            + (r.ready ? `<div style="font-size:11px;color:#7f6000;font-weight:700">${nf(r.ready)} in From production</div>` : '')}</td></tr>`;
+            + (r.ready ? `<div style="font-size:11px;color:#166534;font-weight:700" title="Passed by QC, not handed over yet — the shipping team takes it in From production">${nf(r.ready)} available for handover</div>` : '')}</td></tr>`;
   })() : (() => {
     /* HANDED OVER IS THE END OF A SHOPIFY LINE, and it says so by name — "Complete" on its own left
      * you wondering whether the goods had actually gone anywhere. */

@@ -690,7 +690,11 @@ function shppBySku(only) {
     { const sp = (typeof spOf === 'function' ? spOf(l.orderNo, l.sku) : null) || {};
       const taken = l.handedAt ? l.qty : Math.min(l.qty, Number(sp.handedQty) || 0);
       e.handed += taken;
-      if (l.open) e.ready += Math.max(0, Math.min(l.qty, Number(l.pressed) || 0) - taken); }
+      if (l.open) e.ready += Math.max(0, Math.min(l.qty, Number(l.pressed) || 0) - taken);
+      /* AVAILABLE FOR QC (2026-10-08, Ravi: "jese hi pcs rec ho auto dikhne chahiye available for Q.C"): back from the
+       * karigar and not yet looked at by QC — what QC passed, sent to spotting / touching or turned back already counts. */
+      if (l.open) { const q = (typeof ordQcOf === 'function' ? ordQcOf(l.orderNo, l.sku) : null) || {};
+        e.forQc = (e.forQc || 0) + Math.max(0, Math.min(l.qty, l.received) - Math.max(Number(l.pressed) || 0, Number(q.checked) || 0)); } }
     if (l.mtoLate > 0) { e.late++; if (l.mtoLate > e.maxLate) e.maxLate = l.mtoLate; }
     if (l.open) e.open = true;
     if ((l.addedMs || 0) > e.addedMs) e.addedMs = l.addedMs;

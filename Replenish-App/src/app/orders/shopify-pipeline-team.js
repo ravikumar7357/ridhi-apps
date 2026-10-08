@@ -183,6 +183,15 @@ function ordTeamOpen(which) {
   });
 }
 $('odTable').addEventListener('click', e => { const t = e.target.closest('[data-teamwho]'); if (t) ordTeamOpen(t.getAttribute('data-teamwho')); });
+/* "+16 more" opens every order of that SKU; "show fewer" puts it back (2026-10-08, Ravi). */
+$('odTable').addEventListener('click', e => {
+  const m = e.target.closest && e.target.closest('[data-chipmore]'); if (!m) return;
+  e.preventDefault();
+  ORD.chipOpen = ORD.chipOpen || new Set();
+  const k = m.getAttribute('data-chipmore');
+  if (ORD.chipOpen.has(k)) ORD.chipOpen.delete(k); else ORD.chipOpen.add(k);
+  renderOrd();
+});
 
 /* ---- Printers — which platform each order is for (Ravi, 2026-09-28) ----
  * A printer is given work two ways, and both are read here:

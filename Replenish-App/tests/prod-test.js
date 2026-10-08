@@ -22156,6 +22156,26 @@ await (async () => {
        && A.ordLines().find(l => l.orderNo === 'SHP-9906').open === true, JSON.stringify(r));
     ME.admin = wasME.admin; ME.tabs = wasME.tabs; A.setVP(wasVP);
   }
+  /* BY SKU, 8 Oct (Ravi): "jese hi pcs rec ho auto dikhne chahiye available for Q.C and jese hi Q.c pass ho dikhna chahiye
+   * avialble for handover … column nahi badhana" — and "+16 more" shows every order. */
+  {
+    const wasQC = A.QC();
+    const many = [...Array(7)].map((_, i) => ({ id: 'rm' + i, orderNo: 'SHP-97' + i, sku: 'RTC13-6060', qty: 1, orderDate: '2026-09-2' + i, src: 'SHP', shopOrderNo: '#97' + i, shopOrderId: '7' + i }));
+    A.setPTG(Object.assign({}, A.PTG(), { ob: A.PTG().ob.concat([{ id: 'r10', orderNo: 'SHP-9910', sku: 'RTC12-6060', qty: 3, orderDate: '2026-09-22', src: 'SHP', shopOrderNo: '#9910', shopOrderId: '91' }], many) }));
+    A.setPT_(Object.assign({}, A.PT(), { base: (A.PT().base || []).concat([{ id: 'b10', orderNo: 'SHP-9910', sku: 'RTC12-6060', issuePieces: 3, receivedPieces: 3, empName: 'Asha' }]) }));
+    A.setQC(Object.assign({}, wasQC, { checks: [{ id: 'q10', orderNo: 'SHP-9910', sku: 'RTC12-6060', date: '06/10/2026, 10:00', checked: 1, ok: 1, rejected: 0, forAlteration: 0 }] }));
+    const row = A.shppBySku().find(x => x.sku === 'RTC12-6060');
+    ok('received 3, QC passed 1: 2 are available for QC and 1 for handover', row && row.forQc === 2 && row.ready === 1 && row.pressed === 1, JSON.stringify(row && [row.received, row.pressed, row.forQc, row.ready]));
+    A.renderOrdShopify(true, false);
+    const html = els.odTable.innerHTML;
+    ok('…the QC passed cell says "2 available for QC" and the handed cell "1 available for handover", no new column', /2 available for QC/.test(html) && /1 available for handover/.test(html) && !/ready for shipping/.test(html));
+    ok('a SKU with 7 orders shows 6 and "+1 more" to open the rest', /data-chipmore="RTC13-6060"[^>]*>\+1 more</.test(html) && !/#976</.test(html), (html.match(/data-chipmore[^<]*</g) || []).join(' | '));
+    A.ORD().chipOpen = new Set(['RTC13-6060']);
+    A.renderOrdShopify(true, false);
+    ok('…opened, every order shows, with "show fewer"', /#976</.test(els.odTable.innerHTML) && /show fewer/.test(els.odTable.innerHTML));
+    A.ORD().chipOpen = new Set();
+    A.setQC(wasQC);
+  }
   A.setPTG(wasPTG); A.setPT_(wasPT); NET.on = wasNet;
 })();
 console.log('\n== manpower in the production report, pillow insert apart (Ravi, 29 Sep)');
