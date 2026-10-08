@@ -580,10 +580,12 @@ $('ptmExport').onclick = () => {
 $('pbExport').onclick = () => {
   const rows = PT._pbaseRows || []; if (!rows.length) return;
   const lines = [['Issue Date', 'Employee', 'Employment type', 'SKU', 'Article', 'Subtype', 'Color', 'Size',
-    'Issued', 'Received', 'Rejected', 'Pending', 'Receiving Date', 'Status', 'Remarks', 'Entered by'].map(csvCell).join(',')];
+    'Issued', 'Received', 'Rejected', 'Pending', 'Receiving Date', 'Status', 'Remarks', 'Entered by', 'Order ID'].map(csvCell).join(',')];
+  /* ORDER ID LAST (2026-10-08, Ravi: "data download karu to order id bhi dikhe") — at the end, so the pivot built on the
+   * old columns keeps every column where it was. */
   rows.forEach(r => lines.push([r.issueDate, r.empName, r.empType, r.sku, r.articleType, r.articleSubtype,
     r.color, r.size, ptNum(r.issuePieces), ptNum(r.receivedPieces), ptNum(r.rejectionPieces), ptNum(r.pendingPieces),
-    r.receivingDate, r.frozen ? 'Done' : 'Open', r.remarks, r.addedBy].map(csvCell).join(',')));
+    r.receivingDate, r.frozen ? 'Done' : 'Open', r.remarks, r.addedBy, r.orderNo || ''].map(csvCell).join(',')));
   ptDownload('base-data', lines);
 };
 

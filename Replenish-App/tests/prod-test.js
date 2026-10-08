@@ -10857,7 +10857,9 @@ console.log('\n== the register is in the order it is worked ==');
     const m = src.match(/\$\('pbExport'\)\.onclick = \(\) => \{[\s\S]*?const lines = \[\[([^\]]*)\]/);
     const cols = m ? m[1].split(',').map(x => x.trim().replace(/^'|'$/g, '')).filter(Boolean) : [];
     ok('Export keeps one column per field, as before', cols.join('|') === ['Issue Date', 'Employee', 'Employment type', 'SKU', 'Article', 'Subtype',
-      'Color', 'Size', 'Issued', 'Received', 'Rejected', 'Pending', 'Receiving Date', 'Status', 'Remarks', 'Entered by'].join('|'), cols.join('|'));
+      'Color', 'Size', 'Issued', 'Received', 'Rejected', 'Pending', 'Receiving Date', 'Status', 'Remarks', 'Entered by', 'Order ID'].join('|'), cols.join('|'));
+    /* 2026-10-08: the Order ID is the last column, so the old ones keep their places. */
+    ok('…and the Order ID is in the file, last', /r\.addedBy, r\.orderNo \|\| ''\]/.test(src));
   }
   /* NOTHING DROPPED IN THE MERGE: every value the old columns showed is still in the rows. */
   {
