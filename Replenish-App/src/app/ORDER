@@ -33,6 +33,7 @@ vendors/printing/fabric-catalogue.js
 core/database-auth.js
 core/history.js
 core/gates.js
+core/delta-sync.js
 core/lookups.js
 core/look-alike-skus.js
 production/job-work-entry.js

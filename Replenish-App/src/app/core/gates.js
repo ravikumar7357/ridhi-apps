@@ -73,6 +73,8 @@ async function ptLoadGatesRun(light) {
   PTG.busy = false;
   /* When this data was true. Screens opened later decide from it whether to read again. */
   PTG.at = Date.now();
+  /* Delta sync, phase 2: once a page session, the background comparison (core/delta-sync.js). Changes nothing here. */
+  if (!PTG.err && typeof deltaShadowSoon === 'function') deltaShadowSoon();
 }
 
 const obUC = s => String(s == null ? '' : s).trim().toUpperCase();
