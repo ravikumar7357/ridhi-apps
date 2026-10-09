@@ -49,7 +49,8 @@ async function ptLiveRead(node) {
     PT_LIVE.clear(); PT_LIVE_UID = uid;
   }
   let L = PT_LIVE.get(node);
-  if (!L) { L = ptLiveOpen(node); PT_LIVE.set(node, L); }
+  /* A gate register may be built from the browser's copy instead (core/delta-sync.js, phase 3) — null means not. */
+  if (!L) { L = (typeof deltaLiveOpen === 'function' && deltaLiveOpen(node)) || ptLiveOpen(node); PT_LIVE.set(node, L); }
   if (L.dead) return PT_LIVE_NO;
   if (!L.snap) {
     await ptLiveDb();

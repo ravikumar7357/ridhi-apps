@@ -9829,7 +9829,8 @@ async function ptLiveRead(node) {
     PT_LIVE.clear(); PT_LIVE_UID = uid;
   }
   let L = PT_LIVE.get(node);
-  if (!L) { L = ptLiveOpen(node); PT_LIVE.set(node, L); }
+  /* A gate register may be built from the browser's copy instead (core/delta-sync.js, phase 3) — null means not. */
+  if (!L) { L = (typeof deltaLiveOpen === 'function' && deltaLiveOpen(node)) || ptLiveOpen(node); PT_LIVE.set(node, L); }
   if (L.dead) return PT_LIVE_NO;
   if (!L.snap) {
     await ptLiveDb();
@@ -11975,12 +11976,14 @@ const obUC = s => String(s == null ? '' : s).trim().toUpperCase();
  * Then the copy is replaced with today's. Everything is caught; nothing here can stop or slow a save or a screen.
  * Off with localStorage deltaShadowOff = '1'. Never in the test harnesses (AUDIT_OFF) or for a vendor. */
 /* OFF until probes/sync-coverage.js shows every save since phase 1 noted (Ravi agreed: deploy after that check). */
-const DELTA = { on: false, delayMs: 20000, maxRows: 300, marginMs: 2 * 60 * 1000, done: false, running: false, offset: null };
+const DELTA = { on: false, delayMs: 20000, maxRows: 300, marginMs: 2 * 60 * 1000, done: false, running: false, offset: null,
+  /* phase 3 (below): OFF as shipped; one device can try it first with localStorage deltaUse = '1' */
+  use: false, maxAgeMs: 24 * 3600 * 1000, keyCheckMs: 24 * 3600 * 1000 };
 const DELTA_DB = 'ridhi-delta', DELTA_STORE = 'copies';
 
 function deltaShadowSoon() {
   try {
-    if (DELTA.done || DELTA.running || !DELTA.on || !AUDIT.on) return;
+    if (DELTA.done || DELTA.running || !DELTA.on || !AUDIT.on || deltaUseOn()) return;   // nothing to shadow once the copy IS used
     try { if (localStorage.getItem('deltaShadowOff') === '1') return; } catch (e) { /* no storage: carry on */ }
     if (typeof indexedDB === 'undefined' || !auth || !auth.currentUser || spIsVendor()) return;
     DELTA.done = true;              // once a page session: the open that phase 3 would make cheaper
@@ -12050,7 +12053,7 @@ function deltaLiveNow(node) {
 }
 
 /** Last time's copy + the rows changed since = what phase 3 would hand the screens. */
-async function deltaRebuild(node, copy) {
+async function deltaRebuild(node, copy, keyCheck) {
   const info = { mode: 'delta', bytes: 0 };
   const reset = await deltaRead('pt_sync/_reset/' + node);
   info.bytes += reset.bytes;
@@ -12069,13 +12072,15 @@ async function deltaRebuild(node, copy) {
       if (x.v === null) delete R[k]; else R[k] = x.v;
     });
   }
-  /* A row added or removed by something that wrote no pt_sync line shows here. */
+  /* A row added or removed by something that wrote no pt_sync line shows here. Phase 3 asks once a day (it is most
+   * of the bytes); the shadow always asks. */
+  if (keyCheck === false) { info.addedOutside = 0; info.removedOutside = 0; return { info, R, synced: s.v || {} }; }
   const sh = await deltaRead(node, 'shallow=true');
   info.bytes += sh.bytes;
   const there = new Set(Object.keys(sh.v || {}));
   info.addedOutside = [...there].filter(k => !(k in R)).length;
   info.removedOutside = Object.keys(R).filter(k => !there.has(k)).length;
-  return { info, R };
+  return { info, R, synced: s.v || {} };
 }
 
 /** Row by row against the live copy. A row saved WHILE this ran is a race, not a fault, and is counted apart. */
@@ -12137,6 +12142,111 @@ function deltaLog(rec) {
   } catch (e) { return Promise.resolve(); }
 }
 /* ==== END DELTA SYNC SHADOW ==== */
+
+/* ==== DELTA SYNC, PHASE 3: USE THE COPY ====
+ * When it is switched on (DELTA.use for everyone, or localStorage deltaUse = '1' on one device; deltaUse = '0' turns
+ * it off on that device whatever the switch says), a gate register's live copy (core/live-copies.js) is built from
+ * the browser's copy + the rows pt_sync says changed, instead of downloading the whole register:
+ *   - kept fresh by listening to pt_sync/<register> from the copy's mark: each changed row is read on its own;
+ *   - the key check (?shallow) once a day, because it is most of the bytes;
+ *   - FALLS BACK TO TODAY'S WAY — the whole register, live — on anything doubtful: no copy, a copy older than a day,
+ *     another account's copy, a whole-register write, a row added or removed outside the app, any error at all.
+ * The screens cannot tell the difference: they get a fresh object on every read, as before. */
+function deltaUseOn() {
+  try {
+    const d = localStorage.getItem('deltaUse');
+    if (d === '0') return false;
+    if (d === '1') return true;
+  } catch (e) { /* no storage: the global switch decides */ }
+  return !!DELTA.use;
+}
+const deltaClone = v => (typeof structuredClone === 'function' ? structuredClone(v) : JSON.parse(JSON.stringify(v)));
+
+/** A live copy for a gate register built from the copy, or null to let core/live-copies.js do it the full way. */
+function deltaLiveOpen(node) {
+  try {
+    if (!PT_SYNC_NODES.has(node) || !AUDIT.on || !deltaUseOn()) return null;
+    if (typeof indexedDB === 'undefined' || !auth || !auth.currentUser || spIsVendor()) return null;
+  } catch (e) { return null; }
+  const L = { snap: null, dead: false, wroteAt: 0, wroteSeq: 0, evSeq: 0, off: null, offs: [], closed: false, delta: 'opening' };
+  L.off = () => { L.closed = true; L.offs.forEach(f => { try { f(); } catch (e) { /* gone */ } }); L.offs = []; };
+  L.first = deltaLiveStart(L, node).catch(e => deltaToFull(L, node, 'error: ' + deltaErr(e)));
+  return L;
+}
+
+async function deltaLiveStart(L, node) {
+  const uid = auth.currentUser.uid;
+  const { m, db } = await ptLiveDb();
+  const idb = await deltaIdb();
+  const copy = await deltaCopyGet(idb, node);
+  const now = await deltaServerNow();
+  if (L.closed) return false;
+  let why = '';
+  if (!copy || copy.uid !== uid || typeof copy.mark !== 'number') why = 'no copy';
+  else if (now - copy.mark > DELTA.maxAgeMs) why = 'copy older than a day';
+  if (why) return deltaLiveFull(L, node, why, idb);
+  const keyCheck = now - (copy.keysAt || 0) > DELTA.keyCheckMs;
+  const res = await deltaRebuild(node, copy, keyCheck);
+  if (L.closed) return false;
+  if (!res.R) return deltaLiveFull(L, node, res.info.mode, idb);
+  if (res.info.addedOutside || res.info.removedOutside) return deltaLiveFull(L, node, 'rows added or removed outside the app', idb);
+  const val = res.R, seen = Object.assign({}, res.synced), want = {};
+  L.snap = { val: () => deltaClone(val) };
+  L.evSeq = ++PT_LIVE_SEQ;
+  L.delta = 'delta';
+  deltaCopyPut(idb, node, { uid, mark: now - DELTA.marginMs, v: val, at: Date.now(), keysAt: keyCheck ? now : (copy.keysAt || 0) }).catch(() => {});
+  /* Every later save anywhere: its pt_sync line arrives here, and that one row is read. */
+  const onKey = sn => {
+    const k = sn.key, ts = Number(sn.val()) || 0;
+    if (L.closed || L.delta !== 'delta' || (seen[k] && seen[k] >= ts)) return;
+    seen[k] = ts;
+    const my = (want[k] || 0) + 1; want[k] = my;
+    deltaRead(node + '/' + k).then(x => {
+      if (want[k] !== my || L.delta !== 'delta' || L.closed) return;     // a newer read of this row is on its way
+      if (x.v === null) delete val[k]; else val[k] = x.v;
+      L.evSeq = ++PT_LIVE_SEQ;
+    }).catch(() => deltaToFull(L, node, 'a changed row could not be read'));
+  };
+  const q = m.query(m.ref(db, 'pt_sync/' + node), m.orderByValue(), m.startAt(copy.mark));
+  L.offs.push(m.onChildAdded(q, onKey), m.onChildChanged(q, onKey));
+  L.offs.push(m.onValue(m.ref(db, 'pt_sync/_reset/' + node), sn => {
+    const v = Number(sn.val()) || 0;
+    if (v && v >= copy.mark && L.delta === 'delta') deltaToFull(L, node, 'whole register written');
+  }));
+  deltaLog({ at: new Date().toISOString(), by: deltaWho(), use: node, mode: 'delta', changed: res.info.changed || 0, bytes: res.info.bytes, keyCheck });
+  return true;
+}
+
+/** Midway (a reset, a row that could not be read): drop the copy and wait for the full register before answering. */
+function deltaToFull(L, node, why) {
+  if (L.closed || L.delta === 'full') return L.first;
+  L.snap = null;
+  L.first = deltaLiveFull(L, node, why).catch(() => { L.dead = true; return false; });
+  return L.first;
+}
+
+/** Today's way — the whole register, live — and keep it as the copy for next time. */
+async function deltaLiveFull(L, node, why, idb) {
+  L.offs.forEach(f => { try { f(); } catch (e) { /* gone */ } }); L.offs = [];
+  L.delta = 'full';
+  if (L.closed) return false;
+  const uid = auth.currentUser.uid;
+  const { m, db } = await ptLiveDb();
+  const mark = (await deltaServerNow()) - DELTA.marginMs;     // taken BEFORE the read, so nothing after it is missed
+  return new Promise(res => {
+    let first = true;
+    L.offs.push(m.onValue(m.ref(db, node), sn => {
+      L.snap = sn; L.evSeq = ++PT_LIVE_SEQ;
+      if (!first) return;
+      first = false; res(true);
+      (idb ? Promise.resolve(idb) : deltaIdb())
+        .then(d => deltaCopyPut(d, node, { uid, mark, v: sn.val() || {}, at: Date.now(), keysAt: mark + DELTA.marginMs }))
+        .catch(() => {});
+      deltaLog({ at: new Date().toISOString(), by: deltaWho(), use: node, mode: 'full', why });
+    }, () => { L.dead = true; L.snap = null; res(false); }));
+  });
+}
+/* ==== END DELTA SYNC PHASE 3 ==== */
 /* ============================== FILE: src/app/core/lookups.js ============================== */
 /* ================= LOOKUPS THAT DO NOT WALK THE WHOLE LIST =================
  *
