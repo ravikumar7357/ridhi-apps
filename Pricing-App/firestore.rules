@@ -49,7 +49,7 @@ service cloud.firestore {
         // here, so without this line its users are told "Backend not configured".
         'sa',
         // The listing optimiser reads the catalogue and the ad caches through the backend.
-        'opt', 'basket'
+        'opt', 'img', 'basket'
       ]));
     }
     // The FBA Replenishment app is a separate frontend sharing this project. Its own permission flag.

@@ -160,6 +160,9 @@ function doGet(e) {
     // Pictures for imported orders, resolved from the SKU. Asked for once, at import.
     if (p.imgsku) return json_(skuImages_(p.imgsku));
     // What a listing currently IS — title, bullets, description, image slots — for the optimiser.
+    // Image stack of one listing (ListingImages.gs): catalogue + our listing, and the change log.
+    if (p.limg === 'get') return json_(limgGet_(p));
+    if (p.limg === 'history') return json_(limgHistory_(p.sku));
     if (p.listing === 'audit') { setBrand_(p.brand); return json_(listingAudit_(p.asin)); }
     // The keyword evidence: what shoppers searched on the way to this ASIN, and which of those words
     // the listing never says.
@@ -280,6 +283,8 @@ function doPost(e) {
     if (String(p.key || '').trim() !== key) return json_({ ok: false, error: 'Unauthorized.' });
 
     if (p.mail === 'po') return json_(mailPo_(p));
+    if (p.limg === 'patch') return json_(limgPatch_(p));
+    if (p.limg === 'upload') return json_(limgUpload_(p));
     if (p.mcf === 'preview') return json_(mcfPreview_(p.order || {}));
     if (p.mcf === 'create')  return json_(mcfCreate_(p.order || {}));
     if (p.mcf === 'status')  return json_(mcfStatus_(p.mcfId, p.brand));

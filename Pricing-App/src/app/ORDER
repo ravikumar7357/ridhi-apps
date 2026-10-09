@@ -39,5 +39,6 @@ sales/parent-listing-review.js
 sales/profit-margin.js
 sales/sales-analysis.js
 listing/listing-optimiser.js
+listing/image-manager.js
 listing/bought-together.js
 core/version-check.js

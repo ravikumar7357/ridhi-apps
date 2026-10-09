@@ -132,7 +132,7 @@ const ACCESS_GROUPS = [
   { key: 'people', repl: ['att', 'hr'] },
   { key: 'reports', repl: ['rep', 'pa', 'ka'] },
   { key: 'sales', sellora: ['sales', 'profit', 'sa', 'plaudit'] },
-  { key: 'listing', sellora: ['opt', 'basket', 'health', 'lrules', 'audit', 'bsr'] },
+  { key: 'listing', sellora: ['opt', 'img', 'basket', 'health', 'lrules', 'audit', 'bsr'] },
   { key: 'ads', sellora: ['trends', 'weekly', 'st', 'plc', 'deals'] },
   { key: 'research', sellora: ['new', 'pr', 'link', 'kw'] },
   { key: 'stock', sellora: ['age', 'tiktok', 'carousel', 'ba'] },

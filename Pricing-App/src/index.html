@@ -83,10 +83,11 @@
       <button id="tabBa" class="nav">Analytics</button>
     </div></div>
 
-    <div class="navwrap"><button class="navgrp" id="grpListing" type="button" data-grp="listing" data-tabs="opt,basket,health,lrules,audit,bsr">
+    <div class="navwrap"><button class="navgrp" id="grpListing" type="button" data-grp="listing" data-tabs="opt,img,basket,health,lrules,audit,bsr">
       <span class="caret">&#9656;</span> Listing</button>
     <div class="navsec" id="secListing">
       <button id="tabOpt" class="nav">Listing Optimiser</button>
+      <button id="tabImg" class="nav">Image Manager</button>
       <button id="tabBasket" class="nav">Bought Together</button>
       <button id="tabHealth" class="nav">Listing Health</button>
       <button id="tabLrules" class="nav">Listing Rules</button>
@@ -1654,6 +1655,21 @@
       </div>
     </div>
     <div id="loBody"></div>
+  </div>
+
+  <div id="paneImg" class="hide">
+    <div class="card" style="padding:12px 14px;margin-bottom:12px">
+      <div class="toolbar">
+        <input id="imQ" placeholder="SKU or ASIN" style="flex:0 0 220px;font-family:ui-monospace,monospace">
+        <select id="imBrand" style="flex:0 0 120px">
+          <option value="SP">Ridhi</option><option value="CPC">CPC</option>
+        </select>
+        <button id="imGo" style="flex:0 0 110px">Load</button>
+        <span style="flex:1"></span>
+        <span id="imMsg" class="muted" style="align-self:center;font-size:12px"></span>
+      </div>
+    </div>
+    <div id="imBody"></div>
   </div>
 
   <div id="paneBasket" class="hide">
