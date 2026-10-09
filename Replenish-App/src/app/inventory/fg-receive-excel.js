@@ -167,6 +167,21 @@ function fgiIssXlPlan(list, fileName) {
   return { kind: 'ISSUE', items, bad: items.filter(x => x.err), good: items.filter(x => x.rec) };
 }
 
+/** Excel keeps a date as days since 1899-12-30; a sheet saved as CSV may keep the text instead. */
+function fgsDate(v) {
+  const s = String(v == null ? '' : v).trim();
+  if (!s) return '';
+  const n = parseFloat(s);
+  if (isFinite(n) && n > 20000 && n < 80000 && !/[/-]/.test(s)) {
+    const d = new Date(Math.round((n - 25569) * 86400000)), p = x => String(x).padStart(2, '0');
+    return p(d.getUTCDate()) + '/' + p(d.getUTCMonth() + 1) + '/' + d.getUTCFullYear();
+  }
+  const m = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
+  if (m) return String(+m[1]).padStart(2, '0') + '/' + String(+m[2]).padStart(2, '0') + '/' + m[3];
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return iso ? iso[3] + '/' + iso[2] + '/' + iso[1] : '';
+}
+
 let FGI_XL = null;
 function fgiRecvXlOpen() { return fgiXlOpen('RECEIVE'); }
 function fgiXlOpen(kind) {
@@ -387,7 +402,6 @@ async function fgiSeedOpen() {
       + 'is almost certainly not what you want.',
     html: `<div class="ptgrid" style="grid-template-columns:1fr">
         <label>Where to take the figures from<select id="fgsSrc">
-          <option value="sheet">A file — the Ready Goods sheet's "Main" tab, saved as CSV</option>
           <option value="press">Press inventory — everything pressed and not yet sent to the store</option>
         </select></label>
         <label>Remarks<input id="fgsRemarks" type="text" value="Opening stock, ${esc(dToday())}"></label>
@@ -400,38 +414,18 @@ async function fgiSeedOpen() {
           pressed less what has already been sent to this store. If pieces have left the factory without
           ever being recorded here, that figure is production to date, not what is on the shelf.</div>
       </div>
-      <div id="fgsPick" class="toolbar" style="margin-top:10px">
-        <button id="fgsBrowse" class="ghost">Add a file</button>
-        <input id="fgsInput" type="file" accept=".csv,.xlsx,text/csv" multiple style="display:none">
-        <span class="muted" style="font-size:11.5px;flex:1 1 200px">Three tabs, saved one at a time as
-          CSV (File &rsaquo; Download &rsaquo; Comma-separated values, which saves the tab you are on):
-          <b>Main</b>, <b>Movements</b> and <b>FBA</b>. Each is recognised by its own header, so the
-          order does not matter. Main is the only one that must be there.</span>
-      </div>
-      <div id="fgsFile" class="muted" style="margin-top:8px;font-size:12.5px"></div>
       <div id="fgsInfo" class="muted" style="margin-top:8px;font-size:12.5px">
         ${(FGI.rows || []).length ? `<span class="err" style="display:block">The store already has ${nf((FGI.rows || []).length)} movement(s) in it.</span>` : ''}
       </div>`,
     onSave: () => fgiSeedSave(india, press, known),
     saveLabel: 'Write the opening stock',
   });
-  FGF = { main: null, mov: null, fba: null, mainName: '', movName: '', fbaName: '', mainDup: [] };
-  const showPick = () => $('fgsPick').classList.toggle('hide', $('fgsSrc').value !== 'sheet');
-  $('fgsSrc').addEventListener('change', showPick);
-  $('fgsBrowse').onclick = () => $('fgsInput').click();
-  $('fgsInput').onchange = async e => {
-    const fl = [...(e.target.files || [])];
-    e.target.value = '';
-    for (const f of fl) await fgiSheetRead(f);       // one at a time, so each one's message is readable
-  };
-  showPick();
 }
 
 async function fgiSeedSave(india, press, known) {
   const src = $('fgsSrc').value;
-  /* The sheet brings its movements with it, so it has its own writer rather than being squeezed
-   * into the one-opening-per-SKU shape the other two sources use. */
-  if (src === 'sheet') return fgiSheetImport();
+  /* The Ready Goods sheet import was removed on 2026-10-09 (Ravi: Ready Goods will never be part of this
+   * app). The 712 FBA dispatches it once brought in stay in the ledger as history — see fba-dispatch.js. */
   const added = 0;
   const list = (src === 'press' ? press : india).filter(r => known.has(r.sku));
   if (!list.length) return 'There is nothing to bring in from there.';
@@ -468,256 +462,6 @@ async function fgiSeedSave(india, press, known) {
   return '';
 }
 
-
-/* ---- bringing the WHOLE sheet in: the movements, not just the balance ----
- *
- * Three tabs, in any order, each recognised by its own header:
- *   Main       one row per SKU — the balance
- *   Movements  Date | Time | SKU | Type | Qty | Reason From/Issued | Remark
- *   FBA        Date | Time | SKU | account | Sent | Shipped | …
- *
- * THE OPENING IS WORKED BACKWARDS, and that is the whole trick. Every movement is imported exactly
- * as the sheet has it, and then one opening row per SKU is written for whatever is left over:
- *     opening = India Stock − (received − issued − sent to FBA)
- * So the history is real AND the closing balance lands exactly on the sheet, without having to trust
- * that the movement tabs reproduce the sheet's own Received and Issued columns. They nearly do —
- * 3,865 of 3,924 SKUs — and the opening quietly carries the rest, which is what an opening balance
- * IS: everything that happened before the log starts.
- *
- * The SKU column on the Movements tab is a formula that does not survive an export, so the literal
- * in the last column is used when it is empty. Without that, four rows in five are lost.
- */
-let FGF = { main: null, mov: null, fba: null, mainName: '', movName: '', fbaName: '', mainDup: [] };
-
-const FGS_SHAPES = {
-  main: r => r.indexOf('sku') >= 0 && (r.indexOf('india stock') >= 0 || r.indexOf('current stock') >= 0),
-  mov: r => r.indexOf('type') >= 0 && r.indexOf('qty') >= 0 && r.indexOf('date') >= 0,
-  fba: r => r.indexOf('sent') >= 0 && r.indexOf('date') >= 0,
-};
-
-/** Excel keeps a date as days since 1899-12-30; a sheet saved as CSV may keep the text instead. */
-function fgsDate(v) {
-  const s = String(v == null ? '' : v).trim();
-  if (!s) return '';
-  const n = parseFloat(s);
-  if (isFinite(n) && n > 20000 && n < 80000 && !/[/-]/.test(s)) {
-    const d = new Date(Math.round((n - 25569) * 86400000)), p = x => String(x).padStart(2, '0');
-    return p(d.getUTCDate()) + '/' + p(d.getUTCMonth() + 1) + '/' + d.getUTCFullYear();
-  }
-  const m = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
-  if (m) return String(+m[1]).padStart(2, '0') + '/' + String(+m[2]).padStart(2, '0') + '/' + m[3];
-  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  return iso ? iso[3] + '/' + iso[2] + '/' + iso[1] : '';
-}
-
-async function fgiSheetRead(file) {
-  ptDlgMsg('Reading ' + file.name + '…');
-  let rows;
-  try { rows = await pkReadFile(file); }
-  catch (e) { ptDlgMsg('Could not read that file: ' + (e.message || e), true); return; }
-  /* A real sheet opens with a title or a totals row, so the header is found, not assumed. */
-  let h = -1, kind = '';
-  for (let i = 0; i < Math.min(15, rows.length) && !kind; i++) {
-    const low = (rows[i] || []).map(x => String(x || '').trim().toLowerCase());
-    for (const k of ['main', 'mov', 'fba']) if (FGS_SHAPES[k](low)) { h = i; kind = k; break; }
-  }
-  if (!kind) { ptDlgMsg('That file is none of the three: a Main tab (SKU and India Stock), a Movements '
-    + 'tab (Date, Type, Qty) or an FBA tab (Date, SKU, Sent).', true); return; }
-  const low = rows[h].map(x => String(x || '').trim().toLowerCase());
-  const at = names => { for (const n of names) { const i = low.indexOf(n); if (i >= 0) return i; } return -1; };
-  const N = v => { const n = parseFloat(String(v == null ? '' : v).replace(/[, ]/g, '')); return isFinite(n) ? n : 0; };
-  const body = rows.slice(h + 1);
-
-  if (kind === 'main') {
-    const c = { sku: at(['sku']), qty: at(['india stock', 'current stock']), brand: at(['brand']),
-      art: at(['article', 'sub acticle', 'sub article']), col: at(['color', 'colour']),
-      size: at(['size']), pack: at(['pack']),
-      open: at(['opening (wh+fba)', 'oppning stock', 'opening stock']), rec: at(['received', 'receive qty']) };
-    const by = new Map();
-    body.forEach(r => {
-      const sku = obUC(r[c.sku]); if (!sku) return;
-      const qty = Math.round(N(r[c.qty]));
-      const g = by.get(sku);
-      /* A SKU listed twice with the SAME figure is one shelf written down twice, not two lots.
-       * Different figures really are two figures, so those are added. */
-      if (!g) by.set(sku, { sku, qty, brand: String(r[c.brand] || '').trim(), article: String(r[c.art] || '').trim(),
-        color: String(r[c.col] || '').trim(), size: String(r[c.size] || '').trim(),
-        pack: String(r[c.pack] || '').trim(), ever: N(r[c.open]) + N(r[c.rec]), n: 1 });
-      else { g.n++; if (g.qty !== qty) g.qty += qty; }
-    });
-    FGF.main = [...by.values()];
-    FGF.mainDup = FGF.main.filter(r => r.n > 1);
-    FGF.mainName = file.name;
-  } else if (kind === 'mov') {
-    const c = { date: at(['date']), sku: at(['sku']), type: at(['type']), qty: at(['qty']),
-      who: at(['reason from/issued', 'issue to', 'receive from', 'from/issued to']),
-      remark: at(['remark']) };
-    FGF.mov = body.map(r => {
-      /* The SKU column is a formula on this tab; the literal sits in the last column. */
-      const sku = obUC(r[c.sku]) || obUC(r[r.length - 1]);
-      const qty = N(r[c.qty]);
-      if (!sku || !qty) return null;
-      const t = String(r[c.type] || '').trim().toUpperCase();
-      const type = /RECEIVE/.test(t) ? 'RECEIVE' : (/ISSUE/.test(t) ? 'ISSUE' : '');
-      if (!type) return null;
-      return { sku, qty, type, date: fgsDate(r[c.date]), who: String(r[c.who] || '').trim(),
-        remark: String(r[c.remark] || '').trim() };
-    }).filter(Boolean);
-    FGF.movName = file.name;
-  } else {
-    const c = { date: at(['date']), sku: at(['sku']), sent: at(['sent']), by: at(['issued to']) };
-    FGF.fba = body.map(r => {
-      const sku = obUC(r[c.sku]), qty = N(r[c.sent]);
-      if (!sku || !qty) return null;
-      return { sku, qty, date: fgsDate(r[c.date]),
-        who: String(r[c.sku + 1] || '').trim() || 'FBA', by: String(r[c.by] || '').trim() };
-    }).filter(Boolean);
-    FGF.fbaName = file.name;
-  }
-  fgiSheetShow();
-}
-
-/** Everything the three files would produce, worked out before a single row is written. */
-function fgiSheetPlan() {
-  const known = new Set((PTG.mdb || []).map(r => obUC(r.sku)));
-  const sum = list => { const m = new Map(); (list || []).forEach(r => m.set(r.sku, (m.get(r.sku) || 0) + r.qty)); return m; };
-  const rec = sum((FGF.mov || []).filter(r => r.type === 'RECEIVE'));
-  const iss = sum((FGF.mov || []).filter(r => r.type === 'ISSUE'));
-  const fba = sum(FGF.fba);
-
-  /* One opening per SKU for whatever the movements do not account for. */
-  const open = [];
-  (FGF.main || []).forEach(r => {
-    const q = r.qty - ((rec.get(r.sku) || 0) - (iss.get(r.sku) || 0) - (fba.get(r.sku) || 0));
-    if (q) open.push({ sku: r.sku, qty: Math.round(q), brand: r.brand, article: r.article,
-      color: r.color, size: r.size, pack: r.pack });
-  });
-  /* A SKU that only ever appears in a movement still needs a home. */
-  const mainSkus = new Set((FGF.main || []).map(r => r.sku));
-  const strays = [...new Set((FGF.mov || []).concat(FGF.fba || []).map(r => r.sku))].filter(s => !mainSkus.has(s));
-
-  const all = [...new Set(open.map(r => r.sku).concat((FGF.mov || []).map(r => r.sku), (FGF.fba || []).map(r => r.sku)))];
-  const unknown = all.filter(s => !known.has(s));
-  const negOpen = open.filter(r => r.qty < 0);
-  /* A single movement bigger than everything that SKU ever had — its own opening plus everything
-   * ever received, as the sheet itself records them — is a typo, not a movement. */
-  const byMain = new Map((FGF.main || []).map(r => [r.sku, r]));
-  const wild = (FGF.mov || []).filter(r => { const m = byMain.get(r.sku);
-    return m && isFinite(m.ever) && r.qty > m.ever + 1; });
-  /* Main's own total, PLUS the SKUs that only appear in a movement — they have no opening to work
-   * back from, so whatever their movements come to is what lands in the store. Promising Main's
-   * figure and delivering more is the kind of small lie that costs a whole reconciliation. */
-  const strayNet = strays.reduce((s, k) => s + (rec.get(k) || 0) - (iss.get(k) || 0) - (fba.get(k) || 0), 0);
-  const final = (FGF.main || []).reduce((s, r) => s + r.qty, 0) + strayNet;
-  return { open, rec, iss, fba, unknown, negOpen, wild, strays, known, final };
-}
-
-function fgiSheetShow() {
-  const el = $('fgsFile'); if (!el) return;
-  const p = fgiSheetPlan();
-  const t = a => (a || []).reduce((s, r) => s + r.qty, 0);
-  const line = (name, n, extra) => n ? `<div><b>${esc(name)}</b> · ${nf(n)} ${extra}</div>` : '';
-  el.className = 'muted';
-  el.innerHTML = (!FGF.main && !FGF.mov && !FGF.fba) ? ''
-    : line(FGF.mainName || 'Main', (FGF.main || []).length, 'SKU(s), ' + nf(t(FGF.main)) + ' piece(s) — the balance')
-      + line(FGF.movName || 'Movements', (FGF.mov || []).length,
-        'movement(s) — ' + nf((FGF.mov || []).filter(r => r.type === 'RECEIVE').length) + ' receive, '
-        + nf((FGF.mov || []).filter(r => r.type === 'ISSUE').length) + ' issue')
-      + line(FGF.fbaName || 'FBA', (FGF.fba || []).length, 'dispatch(es), ' + nf(t(FGF.fba)) + ' piece(s)')
-      + (!FGF.main ? '<div class="err" style="margin-top:6px">The Main tab is needed — it is what the '
-        + 'opening balance is worked back from.</div>' : `<div style="margin-top:8px">This writes
-        <b>${nf(p.open.length + (FGF.mov || []).length + (FGF.fba || []).length)}</b> row(s) and leaves the store
-        at <b>${nf(p.final)}</b> piece(s), which is what the Main tab says.</div>`)
-      + (FGF.mainDup && FGF.mainDup.length ? `<div class="err" style="margin-top:6px">${nf(FGF.mainDup.length)}
-        SKU(s) are listed more than once on Main; where the figure repeats it is counted once.</div>` : '')
-      + (p.unknown.length ? `<div class="err" style="margin-top:6px">${nf(p.unknown.length)} SKU(s) are not in the
-        production master database and would be left out.
-        <label style="display:flex;align-items:center;gap:6px;margin-top:4px">
-        <input id="fgsAdd" type="checkbox" style="width:auto"> add them first, from the sheet's own columns</label></div>` : '')
-      + (p.negOpen.length ? `<div class="err" style="margin-top:6px">${nf(p.negOpen.length)} SKU(s) work out to a
-        NEGATIVE opening (${nf(t(p.negOpen))} piece(s)) — the movements record more going out than the balance
-        allows for. They are written as they are; hiding them would leave a store nobody can reconcile.</div>` : '')
-      + (p.wild.length ? `<div class="err" style="margin-top:6px">${nf(p.wild.length)} movement(s) are larger than
-        everything that SKU ever had: ${esc(p.wild.slice(0, 3).map(r => r.sku + ' ' + r.type.toLowerCase() + ' ' + nf(r.qty) + ' on ' + r.date).join('; '))}.
-        They are imported as the sheet has them — delete them here afterwards and the stock moves back.</div>` : '')
-      + (p.strays.length ? `<div style="margin-top:6px" class="muted">${nf(p.strays.length)} SKU(s) appear in a
-        movement but not on Main; they get their movements and no opening.</div>` : '');
-}
-
-/** The rows to add to the master database, built from whichever file carries the details. */
-function fgiSheetNewMasters() {
-  const p = fgiSheetPlan();
-  const detail = new Map((FGF.main || []).map(r => [r.sku, r]));
-  const now = new Date().toISOString();
-  return p.unknown.map(sku => {
-    const d = detail.get(sku) || {};
-    return { sku, articleType: d.article || '', subtype: d.article || '', color: d.color || '',
-      size: d.size || '', brand: d.brand || '', packOf: d.pack || '1', fabric: '',
-      /* Nothing on the sheet says whether these need cutting, and guessing wrong would change what
-       * the gates allow — so they get the app's own default. */
-      cuttingRequired: true, consumption: 0, isZip: false, isRuffle: false, fillerFabricRequired: false,
-      addedFrom: 'Ready Goods sheet', addedAt: now, addedBy: ME.email };
-  });
-}
-
-/** Movements, FBA dispatches and the opening balance, written in chunks. */
-async function fgiSheetImport() {
-  if (!ME.admin) return 'Only an admin can bring stock in.';
-  if (!FGF.main) return 'The Main tab is needed — it is what the opening balance is worked back from.';
-  let p = fgiSheetPlan();
-  const remarks = String(($('fgsRemarks') || {}).value || '').trim();
-  const now = new Date().toISOString();
-
-  let added = 0;
-  if ($('fgsAdd') && $('fgsAdd').checked && p.unknown.length) {
-    const news = fgiSheetNewMasters();
-    const upd = {}; news.forEach(r => { upd['pt_masterDB/mdb_' + r.sku] = r; });
-    await ptPatch(upd);
-    PTG.mdb = (PTG.mdb || []).concat(news.map(r => Object.assign({ _key: 'mdb_' + r.sku }, r)));
-    PT.mdb = PTG.mdb; added = news.length;
-    p = fgiSheetPlan();
-  }
-  const known = p.known;
-
-  const recs = [];
-  /* The movements first, in the order the sheet has them, each keeping its own date and who. */
-  (FGF.mov || []).filter(r => known.has(r.sku)).forEach(r => recs.push({
-    _id: fgiNewId(r.type === 'RECEIVE' ? 'RCP' : 'ISS'), txnType: r.type, sku: r.sku, qty: r.qty,
-    date: r.date, [r.type === 'RECEIVE' ? 'receivedFrom' : 'issuedFor']: r.who || '(not recorded)',
-    reason: r.remark || '', remarks, source: 'sheet: ' + (FGF.movName || 'Movements'),
-    createdAt: now, createdBy: ME.email }));
-  (FGF.fba || []).filter(r => known.has(r.sku)).forEach(r => recs.push({
-    _id: fgiNewId('FBA'), txnType: 'FBA', sku: r.sku, qty: r.qty, date: r.date,
-    issuedFor: r.who || 'FBA', reason: r.by || '', remarks, source: 'sheet: ' + (FGF.fbaName || 'FBA'),
-    createdAt: now, createdBy: ME.email }));
-  /* Then the opening: whatever the movements do not account for. */
-  p.open.filter(r => known.has(r.sku)).forEach(r => recs.push({
-    _id: fgiNewId('OPN'), txnType: 'OPENING', sku: r.sku, qty: r.qty,
-    remarks: remarks || 'everything before the movement log starts',
-    source: 'sheet: ' + (FGF.mainName || 'Main'), createdAt: now, createdBy: ME.email }));
-
-  if (!recs.length) return 'There is nothing to bring in.';
-  let done = 0;
-  for (let i = 0; i < recs.length; i += 400) {
-    const chunk = {};
-    recs.slice(i, i + 400).forEach(r => { chunk['pt_fgiLedger/' + r._id] = r; });
-    await ptPatch(chunk);
-    done += Object.keys(chunk).length;
-    ptDlgMsg(`Writing… ${nf(done)} of ${nf(recs.length)} row(s).`);
-  }
-  FGI.rows = (FGI.rows || []).concat(recs);
-  renderFgi();
-  const total = [...fgiStock().values()].reduce((s, b) => s + b.current, 0);
-  $('fgMsg').className = 'muted';
-  $('fgMsg').textContent = `${nf(recs.length)} row(s) written — `
-    + `${nf(recs.filter(r => r.txnType === 'RECEIVE').length)} receive, `
-    + `${nf(recs.filter(r => r.txnType === 'ISSUE').length)} issue, `
-    + `${nf(recs.filter(r => r.txnType === 'FBA').length)} to FBA, `
-    + `${nf(recs.filter(r => r.txnType === 'OPENING').length)} opening. `
-    + (added ? `${nf(added)} SKU(s) were added to the master database first. ` : '')
-    + `The store is at ${nf(total)} piece(s). Every movement is in "Every movement", with its own date.`;
-  return '';
-}
 
 /* ---- emptying the store and starting again ----
  *
