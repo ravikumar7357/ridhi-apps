@@ -49,7 +49,7 @@ service cloud.firestore {
         // here, so without this line its users are told "Backend not configured".
         'sa',
         // The listing optimiser reads the catalogue and the ad caches through the backend.
-        'opt', 'img', 'basket'
+        'opt', 'img', 'lerr', 'basket'
       ]));
     }
     // The FBA Replenishment app is a separate frontend sharing this project. Its own permission flag.
@@ -128,10 +128,10 @@ service cloud.firestore {
     }
     // Image Manager: every listing's live image stack, one meta doc per brand plus row chunks.
     match /imgsnap/{brand} {
-      allow read, write: if can('img');
+      allow read, write: if can('img') || can('lerr');
     }
     match /imgrows/{doc} {
-      allow read, write: if can('img');
+      allow read, write: if can('img') || can('lerr');
     }
     match /healthrows/{doc} {
       allow read: if can('health') || canRepl();

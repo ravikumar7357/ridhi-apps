@@ -83,11 +83,12 @@
       <button id="tabBa" class="nav">Analytics</button>
     </div></div>
 
-    <div class="navwrap"><button class="navgrp" id="grpListing" type="button" data-grp="listing" data-tabs="opt,img,basket,health,lrules,audit,bsr">
+    <div class="navwrap"><button class="navgrp" id="grpListing" type="button" data-grp="listing" data-tabs="opt,img,lerr,basket,health,lrules,audit,bsr">
       <span class="caret">&#9656;</span> Listing</button>
     <div class="navsec" id="secListing">
       <button id="tabOpt" class="nav">Listing Optimiser</button>
       <button id="tabImg" class="nav">Image Manager</button>
+      <button id="tabLerr" class="nav">Listing Errors</button>
       <button id="tabBasket" class="nav">Bought Together</button>
       <button id="tabHealth" class="nav">Listing Health</button>
       <button id="tabLrules" class="nav">Listing Rules</button>
@@ -1690,6 +1691,30 @@
       <div id="imBody"></div>
     </div>
     <div id="imListWrap"><div id="imList"></div></div>
+  </div>
+
+  <div id="paneLerr" class="hide">
+    <div class="card" style="padding:12px 14px;margin-bottom:12px">
+      <div class="toolbar">
+        <select id="leBrand" style="flex:0 0 110px"><option value="SP">Ridhi</option><option value="CPC">CPC</option></select>
+        <select id="leKind" style="flex:0 0 200px">
+          <option value="all">Every kind of error</option>
+          <option value="image">Image</option><option value="title">Title too long</option>
+          <option value="value">Wrong / old value</option><option value="catalog">Differs from catalogue</option>
+          <option value="variation">Variation</option><option value="other">Other</option>
+        </select>
+        <select id="leSev" style="flex:0 0 170px"><option value="err">Errors only</option><option value="all">Errors and warnings</option></select>
+        <input id="leQ" placeholder="Search SKU, ASIN, colour, message" style="flex:0 0 240px">
+        <button id="leRefresh" class="ghost" style="flex:0 0 170px">Refresh from Amazon</button>
+        <span style="flex:1"></span>
+        <span id="leMsg" class="muted" style="align-self:center;font-size:12px"></span>
+      </div>
+    </div>
+    <div id="leFixWrap" class="hide">
+      <div style="margin-bottom:8px"><button id="leBack" class="ghost" style="width:auto;padding:5px 14px">&larr; All errors</button></div>
+      <div id="leFix"></div>
+    </div>
+    <div id="leListWrap"><div id="leList"></div></div>
   </div>
 
   <div id="paneBasket" class="hide">

@@ -12,6 +12,7 @@
  *   ListingOptimiser.gs  Listing Optimiser: audit, keywords, SQP, title / bullet rules, suggestions
  *   MarketBasket.gs      Bought Together (Market Basket Analysis)
  *   ListingImages.gs     Image Manager: image stack read / patch, catalogue walk, Drive uploads
+ *   ListingFix.gs        Listing Errors: a listing's issues, allowed values, attribute fixes
  *   ShopifySkuSales.gs   Shopify per-SKU sales and stock
  *   SearchTerms.gs       search terms and targeting
  *   Shopify.gs           Shopify: store tokens, REST calls, orders, daily totals
@@ -194,6 +195,10 @@ function doGet(e) {
     // What a listing currently IS — title, bullets, description, image slots — for the optimiser.
     // Image stack of one listing (ListingImages.gs): catalogue + our listing, and the change log.
     if (p.limg === 'get') return json_(limgGet_(p));
+    // Listing Errors (ListingFix.gs): a listing's issues and attributes, and what Amazon allows for them.
+    if (p.lfix === 'get') return json_(lfixGet_(p));
+    if (p.lfix === 'schema') return json_(lfixSchema_(p));
+    if (p.lfix === 'history') return json_(lfixHistory_(p.sku));
     if (p.limg === 'history') return json_(limgHistory_(p.sku));
     if (p.limg === 'page') return json_(limgPage_(p));
     if (p.listing === 'audit') { setBrand_(p.brand); return json_(listingAudit_(p.asin)); }
@@ -317,6 +322,7 @@ function doPost(e) {
 
     if (p.mail === 'po') return json_(mailPo_(p));
     if (p.limg === 'patch') return json_(limgPatch_(p));
+    if (p.lfix === 'patch') return json_(lfixPatch_(p));
     if (p.limg === 'upload') return json_(limgUpload_(p));
     if (p.mcf === 'preview') return json_(mcfPreview_(p.order || {}));
     if (p.mcf === 'create')  return json_(mcfCreate_(p.order || {}));

@@ -10,6 +10,7 @@
     "ListingOptimiser.gs",
     "MarketBasket.gs",
     "ListingImages.gs",
+    "ListingFix.gs",
     "ShopifySkuSales.gs",
     "SearchTerms.gs",
     "Shopify.gs",

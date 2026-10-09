@@ -262,6 +262,8 @@ function limgShape_(it) {
     lvl: one('parentage_level'), psku: rel ? (rel.parent_sku || '') : '',
     c: one('color'), z: one('size'), img: img,
     ie: ie, iw: iw, im: im,
+    /* Every issue (up to 8), for the Listing Errors screen: severity, code, Amazon's words, the attributes it names. */
+    iss: iss.slice(0, 8).map(function (i) { return { s: String(i.severity || '').charAt(0), c: String(i.code || ''), m: String(i.message || '').slice(0, 220), a: (i.attributeNames || []).slice(0, 4) }; }),
   };
 }
 

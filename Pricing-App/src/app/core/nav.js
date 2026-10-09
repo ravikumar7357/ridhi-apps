@@ -1,10 +1,10 @@
 /* ---------- tabs ---------- */
-const TABS = ['link', 'new', 'pr', 'sales', 'profit', 'sa', 'plaudit', 'shop', 'adj', 'kw', 'ba', 'age', 'health', 'lrules', 'audit', 'bsr', 'weekly', 'trends', 'st', 'plc', 'deals', 'tiktok', 'carousel', 'opt', 'img', 'basket'];
+const TABS = ['link', 'new', 'pr', 'sales', 'profit', 'sa', 'plaudit', 'shop', 'adj', 'kw', 'ba', 'age', 'health', 'lrules', 'audit', 'bsr', 'weekly', 'trends', 'st', 'plc', 'deals', 'tiktok', 'carousel', 'opt', 'img', 'lerr', 'basket'];
 const capId = t => t[0].toUpperCase() + t.slice(1);
 const TAB_TITLE = { link: 'By Amazon Link', new: 'New Product', pr: 'Product Research', kw: 'Keywords', ba: 'Analytics',
   age: 'Inventory Age', health: 'Listing Health', lrules: 'Listing Rules', audit: 'Listing Audit', bsr: 'BSR Audit', weekly: 'PPC & Organic',
   trends: 'Ad Console', st: 'Search Terms', plc: 'Placement', deals: 'Deal Calendar', sales: 'Sales Dashboard',
-  profit: 'Profit & Margin', sa: 'Sales Analysis', plaudit: 'Parent Listing Review', shop: 'Shopify Orders', adj: 'Adjustments', tiktok: 'TikTok Toolkit', carousel: 'Carousel Builder', opt: 'Listing Optimiser', img: 'Image Manager', basket: 'Bought Together' };
+  profit: 'Profit & Margin', sa: 'Sales Analysis', plaudit: 'Parent Listing Review', shop: 'Shopify Orders', adj: 'Adjustments', tiktok: 'TikTok Toolkit', carousel: 'Carousel Builder', opt: 'Listing Optimiser', img: 'Image Manager', lerr: 'Listing Errors', basket: 'Bought Together' };
 
 // Tabs hidden from the sidebar. Everything (panes, JS, backend) stays wired up — take a name out of
 // this list and that tab is back, no other change needed.
@@ -117,6 +117,7 @@ function showTab(which) {
   if (which === 'plaudit') ensurePlaudit();
   if (which === 'opt') ensureOpt();
   if (which === 'img') ensureImg();
+  if (which === 'lerr') ensureLerr();
   if (which === 'basket') ensureBasket();
   if (which === 'tiktok') ensureTiktok();
   if (which === 'carousel') ensureCarousel();
