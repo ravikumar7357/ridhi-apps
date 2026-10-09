@@ -147,7 +147,9 @@ async function seed() {
 const NODES = ['pt_perms', 'pt_payoutFreezes', 'pt_printerRates', 'pt_rateList', 'pt_advances', 'pt_empList',
   'pt_masterDB', 'pt_masters/accessories', 'pt_masters/vendor', 'pt_masters/colour', 'pt_masters/printRule',
   'pt_masters/ruffleRule', 'pt_masters/recipe', 'pt_masters/zz_someOtherList', 'pt_vendorByEmail', 'pt_loginDir',
-  'pt_vendorMap', 'pt_vendorPin', 'pt_baseData', 'pt_orderBook', 'pt_salesOrders', 'pt_accLedger', 'zz_unnamedNode'];
+  'pt_vendorMap', 'pt_vendorPin', 'pt_baseData', 'pt_orderBook', 'pt_salesOrders', 'pt_accLedger', 'zz_unnamedNode',
+  /* delta sync (2026-10-09): staff write the change register, like the registers themselves */
+  'pt_sync/pt_orderBook', 'pt_sync/pt_masterDB', 'pt_sync/_reset'];
 /* Filled in by check(): the path of a rate that is APPROVED today, so that "may somebody without the
  * right touch an approved rate" is asked of a real one. */
 let APPROVED_ROW = '';

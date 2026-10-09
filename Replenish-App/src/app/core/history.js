@@ -66,6 +66,40 @@ async function ptAuditWrite(updates) {
   if (!r.ok) throw new Error('audit ' + r.status);
   return true;
 }
+/* ---- DELTA SYNC, phase 1 (2026-10-09): which rows of the gate registers changed, and when ----
+ * Ravi: "data wala heavy part kam karo, mere kaam par impact nahi aana chahiye". Opening a factory screen downloads the
+ * gate registers whole (7.2 MB, uncompressed — the database offers no compression). The aim is for a browser to keep
+ * its copy and fetch only the rows changed since. That needs a record of WHICH rows changed, and this is it:
+ *   pt_sync/<register>/<row key> = server time     after any save that touches that row (delete included)
+ *   pt_sync/_reset/<register>    = server time     after a save that writes the whole register
+ * The rows themselves are not touched: no field is added to them, so no screen, export or rule sees a difference.
+ * Written after the save, exactly like the history line: never awaited, and a failure is swallowed — a save must never
+ * fail because of this. Phase 1 only writes it; nothing reads it yet. Same list as SYNC_NODES in Pricing-App/rules. */
+const PT_SYNC_NODES = new Set(['pt_orderBook', 'pt_masterDB', 'pt_cuttingData', 'pt_pressInventory', 'pt_shopProd',
+  'pt_masters', 'pt_cuttingFreezes', 'pt_qcChecks']);
+/** The change-register lines for these written paths. `fromUrl`: the path went into a URL (ptPut / ptDelete), where
+ *  ptPath decodes a %xx segment — so the row key is that decoded form; a ptPatch key is the database key as it is. */
+function ptSyncPaths(paths, fromUrl) {
+  const out = {};
+  (paths || []).forEach(p => {
+    const seg = String(p == null ? '' : p).split('/').filter(s => s !== '');
+    if (!seg.length || !PT_SYNC_NODES.has(seg[0])) return;
+    if (seg.length === 1) { out['pt_sync/_reset/' + seg[0]] = { '.sv': 'timestamp' }; return; }
+    let key = seg[1];
+    if (fromUrl && /%[0-9A-Fa-f]{2}/.test(key)) { try { key = decodeURIComponent(key); } catch (e) { /* as it is */ } }
+    if (!key || /[.#$[\]/]/.test(key)) return;           // not a key the database could hold — nothing was written there
+    out['pt_sync/' + seg[0] + '/' + key] = { '.sv': 'timestamp' };
+  });
+  return out;
+}
+/** Note the change after a save. Never throws, never awaited. */
+function ptSyncNote(paths, fromUrl) {
+  if (!AUDIT.on) return;
+  const u = ptSyncPaths(paths, fromUrl);
+  if (!Object.keys(u).length) return;
+  ptAuditWrite(u).catch(() => {});
+}
+
 /** Put a record from the recycle bin back where it was — only if nothing has been written there since. Admins. */
 async function auditRestore(trashId) {
   if (!(ME && ME.admin)) return 'Only an admin can restore a deleted record.';
@@ -174,6 +208,7 @@ async function ptPut(path, value) {
   if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
   const out = await r.json();
   auditLog('put', { [path]: value });
+  ptSyncNote([path], true);
   return out;
 }
 
@@ -204,6 +239,7 @@ async function ptPatch(updates, opts) {
   if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
   const out = await r.json();
   auditLog('patch', updates || {});
+  ptSyncNote(Object.keys(updates || {}), false);
   if (baseMonths.length) await baseForget(baseMonths);
   return out;
 }
@@ -221,5 +257,6 @@ async function ptDelete(path) {
   ptLiveWrote([path]);
   if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
   auditLog('delete', { [path]: null });
+  ptSyncNote([path], true);
   return true;
 }

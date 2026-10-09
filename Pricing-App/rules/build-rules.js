@@ -36,6 +36,10 @@ const OWN_ROW = `auth != null && $emailKey === ${VKEY}`;
 const PENDING = "(!data.exists() || data.child('status').val() === 'Pending') && (!newData.exists() || newData.child('status').val() === 'Pending')";
 
 const staffIndexed = ix => ({ '.write': STAFF, '.indexOn': ix });
+/* The registers a factory screen reads together (core/gates.js), less pt_baseData, whose completed entries live
+ * apart (core/job-work-split.js). The same list is PT_SYNC_NODES in core/history.js. */
+const SYNC_NODES = ['pt_orderBook', 'pt_masterDB', 'pt_cuttingData', 'pt_pressInventory', 'pt_shopProd',
+  'pt_masters', 'pt_cuttingFreezes', 'pt_qcChecks'];
 
 /* PHASE 4 — READING IS GRANTED NODE BY NODE, BY THE TABS SOMEBODY HOLDS.
  *
@@ -116,6 +120,14 @@ const rules = {
   pt_qcIssuance: staffIndexed(['sku', 'date', 'employee']),
   pt_extraHours: staffIndexed(['date', 'empName', 'status']),
   pt_salesOrders: staffIndexed(['orderNo', 'orderDate', 'channel']),
+
+  /* DELTA SYNC, phase 1 (2026-10-09): which rows of the gate registers changed, and when. The app writes
+   * `pt_sync/<register>/<row key> = server time` after every save (core/history.js ptSyncNote), and
+   * `pt_sync/_reset/<register>` when a whole register is written. Nothing in a register itself changes.
+   * Read by whoever may read that register; indexed on the time so "changed since T" is one small query. */
+  pt_sync: Object.assign(
+    Object.fromEntries(SYNC_NODES.map(n => [n, { '.read': readExpr(n), '.write': STAFF, '.indexOn': ['.value'] }])),
+    { _reset: { '.read': STAFF, '.write': STAFF } }),
 
   $other: { '.read': any(ADMIN), '.write': STAFF },
 };
