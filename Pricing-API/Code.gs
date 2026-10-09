@@ -163,6 +163,7 @@ function doGet(e) {
     // Image stack of one listing (ListingImages.gs): catalogue + our listing, and the change log.
     if (p.limg === 'get') return json_(limgGet_(p));
     if (p.limg === 'history') return json_(limgHistory_(p.sku));
+    if (p.limg === 'page') return json_(limgPage_(p));
     if (p.listing === 'audit') { setBrand_(p.brand); return json_(listingAudit_(p.asin)); }
     // The keyword evidence: what shoppers searched on the way to this ASIN, and which of those words
     // the listing never says.

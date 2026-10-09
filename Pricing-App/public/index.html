@@ -497,6 +497,18 @@
   .im-over{outline:2px dashed var(--accent)}
   .im-sep{flex:0 0 1px;align-self:stretch;background:var(--line);margin:0 6px}
   .im-b{width:auto;padding:2px 6px;font-size:11px;min-height:0}
+  .im-grp{margin-bottom:12px;padding:10px 14px}
+  .im-grp-h{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:13px;margin-bottom:6px}
+  .im-kid{display:flex;gap:10px;align-items:center;padding:6px 0;border-top:1px solid var(--line)}
+  .im-kid-info{flex:0 0 210px;font-size:12px;line-height:1.35;min-width:0}
+  .im-strip{display:flex;gap:4px;flex-wrap:wrap;align-items:center;flex:1}
+  .im-th{width:58px;height:58px;border:1px solid var(--line);border-radius:4px;background:#fff;
+    display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;flex:none}
+  .im-th img{width:100%;height:100%;object-fit:contain}
+  .im-th i{position:absolute;left:0;bottom:0;font-style:normal;font-size:8.5px;background:rgba(0,0,0,.55);color:#fff;padding:0 3px;border-top-right-radius:3px}
+  .im-th.im-empty{background:var(--bg);color:var(--faint);font-size:9px}
+  .im-th.im-diff{outline:2px solid #d97706;outline-offset:-2px}
+  .im-th.im-sw{width:40px;height:40px;border-radius:50%}
 </style>
 </head>
 <body>
@@ -2140,16 +2152,28 @@
   <div id="paneImg" class="hide">
     <div class="card" style="padding:12px 14px;margin-bottom:12px">
       <div class="toolbar">
-        <input id="imQ" placeholder="SKU or ASIN" style="flex:0 0 220px;font-family:ui-monospace,monospace">
-        <select id="imBrand" style="flex:0 0 120px">
+        <select id="imBrand" style="flex:0 0 110px">
           <option value="SP">Ridhi</option><option value="CPC">CPC</option>
         </select>
-        <button id="imGo" style="flex:0 0 110px">Load</button>
+        <input id="imQ" placeholder="Search SKU, ASIN, title, colour" style="flex:0 0 260px">
+        <select id="imFilter" style="flex:0 0 220px">
+          <option value="all">All listings</option>
+          <option value="diff">Live image differs from yours</option>
+          <option value="few">Fewer than 7 images</option>
+          <option value="noswatch">No swatch</option>
+          <option value="nobuy">Not buyable</option>
+        </select>
+        <button id="imGo" class="ghost" style="flex:0 0 120px" title="Open the editor for exactly this SKU or ASIN">Open editor</button>
+        <button id="imRefresh" class="ghost" style="flex:0 0 170px">Refresh from Amazon</button>
         <span style="flex:1"></span>
         <span id="imMsg" class="muted" style="align-self:center;font-size:12px"></span>
       </div>
     </div>
-    <div id="imBody"></div>
+    <div id="imEditWrap" class="hide">
+      <div style="margin-bottom:8px"><button id="imBack" class="ghost" style="width:auto;padding:5px 14px">&larr; All listings</button></div>
+      <div id="imBody"></div>
+    </div>
+    <div id="imListWrap"><div id="imList"></div></div>
   </div>
 
   <div id="paneBasket" class="hide">
@@ -14198,7 +14222,7 @@ let IM_RESULT = '';     // the last answer from Amazon, kept across redraws
 function imMsg(t, bad) { const el = $('imMsg'); if (el) { el.textContent = t || ''; el.className = bad ? 'err' : 'muted'; } }
 const imEsc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
 
-function ensureImg() { /* nothing to load until a listing is asked for */ }
+function ensureImg() { imListEnsure(); }
 
 async function imPost(body) {
   if (!API || !API.url) throw new Error('Backend not configured — ' + (API_ERR || 'config/api was not read'));
@@ -14213,6 +14237,7 @@ async function imLoad(skuPick) {
   const q = ($('imQ').value || '').trim();
   if (!q) { imMsg('Type a SKU or an ASIN.', true); return; }
   const isAsin = /^B0[A-Z0-9]{8}$/i.test(q) && !skuPick;
+  imShowEditor(true);
   $('imGo').disabled = true;
   imMsg('Reading the listing from Amazon…');
   try {
@@ -14241,7 +14266,11 @@ async function imLoad(skuPick) {
 let IM_SKU_CHOICES = null;
 
 $('imGo').onclick = () => { IM_SKU_CHOICES = null; imLoad(); };
-$('imQ').addEventListener('keydown', e => { if (e.key === 'Enter') $('imGo').click(); });
+function imShowEditor(on) {
+  $('imEditWrap').classList.toggle('hide', !on);
+  $('imListWrap').classList.toggle('hide', on);
+}
+$('imBack').onclick = () => { imShowEditor(false); if (IML_DIRTY) { IML_DIRTY = false; imListRender(); } };
 
 /** Slots whose address differs from where the stack started. '' = removed. */
 function imChanges() {
@@ -14441,6 +14470,7 @@ async function imSend(apply) {
   $('imSendMsg').textContent = '';
   if (r.ok && !r.previewOnly) {
     IM_START = Object.assign({}, IM_NOW);     // what we sent is now the baseline
+    IML_DIRTY = true;
     imRender();
     imHistory();
   } else {
@@ -14457,6 +14487,224 @@ async function imHistory() {
       : 'None sent from Sellora yet.';
   } catch (e) { el.textContent = 'Could not read the log: ' + (e.message || e); }
 }
+
+/* ================= THE WHOLE CATALOGUE, PARENT → CHILD =================
+ *
+ * Every listing of the brand with its LIVE images (the catalogue, what shoppers see) and its swatch
+ * (only the listing carries it — the catalogue never returns SWCH). Built by walking the Listings
+ * API 20 at a time through the backend (`limg=page`), then saved to Firestore (`imgsnap/{brand}` +
+ * `imgrows/{brand}_{i}`) so opening the tab is a read, not a two-minute walk.
+ *
+ * A thumbnail with an orange ring is a slot where the LIVE picture differs from the one this
+ * listing submitted — another contributor won it, or a change is still processing. On the first
+ * walk that was 77 of 800 Ridhi listings, so it is a filter of its own.
+ */
+const IML = {};                 // brand -> {at, items}
+let IML_DIRTY = false, IML_PAGE = 0, IML_BUSY = false;
+const IML_PER = 40;             // listings per screen
+const IML_CHUNK = 500;
+const IM_PFX = 'https://m.media-amazon.com/images/I/';
+const imPackUrl = u => !u ? '' : (u.startsWith(IM_PFX) ? u.slice(IM_PFX.length) : u);
+const imUnUrl = u => !u ? '' : (/^https?:/.test(u) ? u : IM_PFX + u);
+const imPackMap = m => { const o = {}; Object.keys(m || {}).forEach(k => { o[k] = imPackUrl(m[k]); }); return o; };
+const imUnMap = m => { const o = {}; Object.keys(m || {}).forEach(k => { o[k] = imUnUrl(m[k]); }); return o; };
+/* Amazon serves any size of its own pictures from the same name: `._SL120_` asks for 120px, which is
+ * what a 58px tile needs — the full 2,000px file for thousands of tiles would stall the page. */
+const imThumb = u => /m\.media-amazon\.com\/images\/I\/[^/]+\.(jpg|png)$/i.test(u) ? u.replace(/\.(jpg|png)$/i, '._SL120_.$1') : u;
+
+async function imListEnsure() {
+  const b = $('imBrand').value;
+  if (!(b in IML)) await imListLoad(b);
+  if (!IML[b] || !IML[b].items.length) { imListRender(); if (!IML_BUSY) imListBuild(b); return; }
+  imListRender();
+  const age = IML[b].at ? Date.now() - IML[b].at.getTime() : Infinity;
+  if (age > 24 * 3600e3 && !IML_BUSY) imListBuild(b);
+}
+
+async function imListLoad(b) {
+  try {
+    const m = await getDoc(doc(db, 'imgsnap', b));
+    if (!m.exists()) { IML[b] = null; return; }
+    const d = m.data(), n = d.chunks || 0;
+    const got = await Promise.all(Array.from({ length: n }, (_, i) => getDoc(doc(db, 'imgrows', b + '_' + i))));
+    let items = [];
+    got.forEach(g => { if (g.exists()) items = items.concat(g.data().r || []); });
+    IML[b] = { at: d.at && d.at.toDate ? d.at.toDate() : null,
+      items: items.map(x => Object.assign({}, x, { live: imUnMap(x.live), img: imUnMap(x.img) })) };
+  } catch (e) {
+    IML[b] = null;
+    imMsg('Could not read the saved snapshot: ' + (e.message || e), true);
+  }
+}
+
+async function imListBuild(b) {
+  if (IML_BUSY) return;
+  IML_BUSY = true; $('imRefresh').disabled = true;
+  const name = b === 'CPC' ? 'CPC' : 'Ridhi';
+  let items = [];
+  try {
+    /* AMAZON STOPS ONE SEARCH AT 1,000 LISTINGS (both brands came back as exactly 1,000 on 9 Oct).
+     * So the catalogue is read in created-date windows, halved until each holds fewer. */
+    const iso = t => new Date(t).toISOString();
+    const wins = [], todo = [[Date.parse('2010-01-01T00:00:00Z'), Date.now() + 864e5]];
+    imMsg('Counting ' + name + ' listings…');
+    while (todo.length) {
+      const [a, z] = todo.shift();
+      const n = (await baCall({ limg: 'page', brand: b, count: 1, after: iso(a), before: iso(z) })).total || 0;
+      if (!n) continue;
+      if (n > 990 && z - a > 60e3) { const m = Math.floor((a + z) / 2); todo.unshift([a, m], [m, z]); continue; }
+      wins.push([a, z]);
+    }
+    for (const [a, z] of wins) {
+      let token = '';
+      do {
+        imMsg('Reading ' + name + ' listings from Amazon… ' + items.length);
+        const r = await baCall({ limg: 'page', brand: b, token, pages: 40, after: iso(a), before: iso(z) });
+        items = items.concat(r.items || []);
+        token = r.next || '';
+      } while (token);
+    }
+    const seen = new Set();
+    items = items.filter(x => !seen.has(x.sku) && seen.add(x.sku));
+    const packed = items.map(x => {
+      const o = Object.assign({}, x, { live: imPackMap(x.live), img: imPackMap(x.img) });
+      delete o.main;
+      Object.keys(o).forEach(k => { if (o[k] === undefined || o[k] === '') delete o[k]; });
+      return o;
+    });
+    const chunks = Math.ceil(packed.length / IML_CHUNK) || 1;
+    for (let i = 0; i < chunks; i++) await setDoc(doc(db, 'imgrows', b + '_' + i), { r: packed.slice(i * IML_CHUNK, (i + 1) * IML_CHUNK) });
+    await setDoc(doc(db, 'imgsnap', b), { chunks, n: packed.length, at: serverTimestamp(), by: ME.email });
+    IML[b] = { at: new Date(), items };
+    imMsg('');
+  } catch (e) {
+    imMsg('Reading from Amazon stopped after ' + items.length + ' listings: ' + (e.message || e), true);
+    if (items.length && !IML[b]) IML[b] = { at: new Date(), items };
+  }
+  IML_BUSY = false; $('imRefresh').disabled = false;
+  if ($('imBrand').value === b) imListRender();
+}
+
+/** Parents with their children; a listing with no parent is a group of its own. */
+function imListGroups(items) {
+  const bySku = new Map(items.map(x => [x.sku, x]));
+  const groups = new Map();
+  items.forEach(x => {
+    if (x.lvl === 'parent') {
+      if (!groups.has(x.sku)) groups.set(x.sku, { parent: x, kids: [], psku: x.sku });
+      else groups.get(x.sku).parent = x;
+      return;
+    }
+    const key = x.psku || ('solo:' + x.sku);
+    if (!groups.has(key)) groups.set(key, { parent: x.psku ? (bySku.get(x.psku) || null) : null, kids: [], psku: x.psku || '' });
+    groups.get(key).kids.push(x);
+  });
+  return [...groups.values()];
+}
+
+function imKidMatch(x, f, q) {
+  const live = x.live || {}, img = x.img || {};
+  if (q) {
+    const hay = [x.sku, x.asin, x.pa, x.psku, x.t, x.c, x.z].join(' ').toLowerCase();
+    if (!q.split(/\s+/).every(w => hay.includes(w))) return false;
+  }
+  if (f === 'diff') return IM_SLOTS.some(s => img[s] && live[s] && img[s] !== live[s]);
+  if (f === 'few') return IM_SLOTS.filter(s => live[s] || img[s]).length < 7;
+  if (f === 'noswatch') return !img.SWCH && !live.SWCH;
+  if (f === 'nobuy') return !/BUYABLE/.test(x.st || '');
+  return true;
+}
+
+function imTile(slot, liveUrl, mineUrl, sw) {
+  const u = liveUrl || mineUrl;
+  const diff = !!(liveUrl && mineUrl && liveUrl !== mineUrl);
+  const lab = slot === 'SWCH' ? 'SW' : slot === 'MAIN' ? 'M' : slot.slice(2);
+  if (!u) return `<div class="im-th im-empty${sw ? ' im-sw' : ''}" title="${slot}: empty">${lab}</div>`;
+  const tip = slot + (diff ? ' — the live picture differs from what this listing submitted' : '')
+    + (!liveUrl && mineUrl ? ' — from your listing' : '');
+  return `<a class="im-th${diff ? ' im-diff' : ''}${sw ? ' im-sw' : ''}" href="${imEsc(u)}" target="_blank" rel="noopener" title="${imEsc(tip)}"><img src="${imEsc(imThumb(u))}" loading="lazy" decoding="async" alt="${slot}">${sw ? '' : `<i>${lab}</i>`}</a>`;
+}
+
+function imKidRow(x) {
+  const live = x.live || {}, img = x.img || {};
+  const tiles = IM_SLOTS.map(s => imTile(s, live[s], img[s])).join('')
+    + '<span style="width:8px"></span>' + imTile('SWCH', live.SWCH, img.SWCH, true);
+  const buy = /BUYABLE/.test(x.st || '');
+  return `<div class="im-kid">
+    <div class="im-kid-info">
+      <div><b style="font-family:ui-monospace,monospace">${imEsc(x.sku)}</b> <span class="muted">${imEsc(x.asin)}</span></div>
+      <div class="muted">${imEsc([x.c, x.z].filter(Boolean).join(' · ') || String(x.t || '').slice(0, 60))}</div>
+      <div style="margin-top:3px;display:flex;gap:6px;align-items:center">
+        <span class="st ${buy ? 'st-approved' : 'st-draft'}" style="font-size:10px">${buy ? 'Buyable' : imEsc(x.st || 'Not buyable')}</span>
+        <button class="ghost im-b" data-edit="${imEsc(x.sku)}">Edit</button></div>
+    </div>
+    <div class="im-strip">${tiles}</div>
+  </div>`;
+}
+
+function imListRender() {
+  const el = $('imList'); if (!el) return;
+  const b = $('imBrand').value, data = IML[b];
+  if (!data) {
+    el.innerHTML = `<div class="card" style="padding:14px"><span class="muted">${IML_BUSY ? 'Reading every listing from Amazon for the first time — about two minutes.' : 'No snapshot yet. Press Refresh from Amazon.'}</span></div>`;
+    return;
+  }
+  const f = $('imFilter').value, q = ($('imQ').value || '').trim().toLowerCase();
+  const groups = [];
+  imListGroups(data.items).forEach(g => {
+    let show = g.kids.filter(k => imKidMatch(k, f, q));
+    // A search that names the PARENT shows the whole family.
+    if (!show.length && q && g.parent && imKidMatch(g.parent, 'all', q)) show = g.kids.filter(k => imKidMatch(k, f, ''));
+    if (show.length) groups.push(Object.assign({}, g, { show }));
+  });
+  groups.sort((a, b) => (b.kids.length - a.kids.length)
+    || String((a.parent || a.kids[0]).t || '').localeCompare(String((b.parent || b.kids[0]).t || '')));
+  const nKids = groups.reduce((n, g) => n + g.show.length, 0);
+  /* PAGED BY LISTING, not by parent: one Ridhi parent holds 455 children, and twenty groups a page
+   * drew 6 MB of tiles. A family longer than a page carries on, its header repeated as "continued". */
+  const pages = Math.max(1, Math.ceil(nKids / IML_PER));
+  if (IML_PAGE >= pages) IML_PAGE = 0;
+  const from = IML_PAGE * IML_PER, to = from + IML_PER;
+  const slice = [];
+  let at = 0;
+  groups.forEach(g => {
+    const a = Math.max(from, at), b = Math.min(to, at + g.show.length);
+    if (a < b) slice.push(Object.assign({}, g, { show: g.show.slice(a - at, b - at), cont: a > at }));
+    at += g.show.length;
+  });
+  const pager = pages > 1 ? `<div style="display:flex;gap:6px;align-items:center;justify-content:flex-end;margin:6px 0">
+      <button class="ghost im-b" data-pg="-1" ${IML_PAGE ? '' : 'disabled'}>◀ Prev</button>
+      <span class="muted" style="font-size:12px">Page ${IML_PAGE + 1} of ${pages}</span>
+      <button class="ghost im-b" data-pg="1" ${IML_PAGE < pages - 1 ? '' : 'disabled'}>Next ▶</button></div>` : '';
+  el.innerHTML = `<div class="muted" style="font-size:12px;margin-bottom:6px">${groups.length} group(s), ${nKids} listing(s) of ${data.items.length}
+      · snapshot ${data.at ? data.at.toLocaleString() : '—'}${IML_BUSY ? ' · refreshing…' : ''}
+      · <span style="color:#d97706">orange ring</span> = the live picture differs from what the listing submitted</div>
+    ${pager}
+    ${slice.map(g => {
+      const p = g.parent;
+      const head = p
+        ? `<div class="im-grp-h">${imTile('MAIN', (p.live || {}).MAIN, (p.img || {}).MAIN)}
+            <div style="min-width:0;flex:1"><div style="font-weight:600">${imEsc(p.t)}</div>
+            <div class="muted" style="font-size:12px">Parent ${imEsc(p.sku)} · ${imEsc(p.asin)} · ${g.kids.length} child listing(s)${g.show.length < g.kids.length ? ', ' + g.show.length + ' on this page' : ''}${g.cont ? ' · continued' : ''}</div></div></div>`
+        : g.psku
+          ? `<div class="im-grp-h"><div style="font-weight:600">Parent ${imEsc(g.psku)}</div><span class="muted" style="font-size:12px">${imEsc(g.kids[0].pa || '')} · ${g.kids.length} child listing(s) · the parent listing itself was not found${g.cont ? ' · continued' : ''}</span></div>`
+          : `<div class="im-grp-h"><div style="font-weight:600">${imEsc(g.kids[0].t)}</div><span class="muted" style="font-size:12px">No variation parent</span></div>`;
+      return `<div class="card im-grp">${head}${g.show.map(imKidRow).join('')}</div>`;
+    }).join('')}
+    ${pager}`;
+  el.querySelectorAll('[data-edit]').forEach(btn => btn.onclick = () => {
+    $('imQ').value = btn.dataset.edit; IM_SKU_CHOICES = null; imLoad(btn.dataset.edit); window.scrollTo(0, 0);
+  });
+  el.querySelectorAll('[data-pg]').forEach(btn => btn.onclick = () => { IML_PAGE += Number(btn.dataset.pg); imListRender(); window.scrollTo(0, 0); });
+}
+
+let IML_T = 0;
+const imListAgain = () => { IML_PAGE = 0; imShowEditor(false); imListRender(); };
+$('imQ').addEventListener('input', () => { clearTimeout(IML_T); IML_T = setTimeout(imListAgain, 250); });
+$('imQ').addEventListener('keydown', e => { if (e.key === 'Enter') { clearTimeout(IML_T); imListAgain(); } });
+$('imFilter').onchange = imListAgain;
+$('imBrand').onchange = () => { IML_PAGE = 0; imShowEditor(false); imListEnsure(); };
+$('imRefresh').onclick = () => imListBuild($('imBrand').value);
 /* ================= BOUGHT TOGETHER =================
  *
  * Amazon's Market Basket report, across the whole catalogue. It is brand-wide — one report answers

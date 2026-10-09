@@ -22,5 +22,5 @@ const FS = 'https://firestore.googleapis.com/v1/projects/price-research-48ff3/da
     const body = Object.assign(JSON.parse(a.startsWith('@') ? fs.readFileSync(a.slice(1), 'utf8') : a), { key });
     out = await new Promise((res, rej) => { const r = https.request(url, { method: 'POST', headers: { 'Content-Type': 'text/plain' } }, x => { let d = ''; x.on('data', c => d += c); x.on('end', () => { if (x.headers.location) return req(x.headers.location, 'GET', null, false).then(res, rej); res(d); }); }); r.on('error', rej); r.write(JSON.stringify(body)); r.end(); });
   }
-  console.log(JSON.stringify(out, null, 1).slice(0, 6000));
+  console.log(JSON.stringify(out, null, 1).slice(0, +(process.env.LIM || 6000)));
 })().catch(e => { console.error(e.message); process.exit(1); });

@@ -126,6 +126,13 @@ service cloud.firestore {
       allow read: if can('health') || can('lrules');
       allow write: if can('health') || can('lrules');
     }
+    // Image Manager: every listing's live image stack, one meta doc per brand plus row chunks.
+    match /imgsnap/{brand} {
+      allow read, write: if can('img');
+    }
+    match /imgrows/{doc} {
+      allow read, write: if can('img');
+    }
     match /healthrows/{doc} {
       allow read: if can('health') || canRepl();
       allow write: if can('health');

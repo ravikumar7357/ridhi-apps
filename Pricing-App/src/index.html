@@ -1660,16 +1660,28 @@
   <div id="paneImg" class="hide">
     <div class="card" style="padding:12px 14px;margin-bottom:12px">
       <div class="toolbar">
-        <input id="imQ" placeholder="SKU or ASIN" style="flex:0 0 220px;font-family:ui-monospace,monospace">
-        <select id="imBrand" style="flex:0 0 120px">
+        <select id="imBrand" style="flex:0 0 110px">
           <option value="SP">Ridhi</option><option value="CPC">CPC</option>
         </select>
-        <button id="imGo" style="flex:0 0 110px">Load</button>
+        <input id="imQ" placeholder="Search SKU, ASIN, title, colour" style="flex:0 0 260px">
+        <select id="imFilter" style="flex:0 0 220px">
+          <option value="all">All listings</option>
+          <option value="diff">Live image differs from yours</option>
+          <option value="few">Fewer than 7 images</option>
+          <option value="noswatch">No swatch</option>
+          <option value="nobuy">Not buyable</option>
+        </select>
+        <button id="imGo" class="ghost" style="flex:0 0 120px" title="Open the editor for exactly this SKU or ASIN">Open editor</button>
+        <button id="imRefresh" class="ghost" style="flex:0 0 170px">Refresh from Amazon</button>
         <span style="flex:1"></span>
         <span id="imMsg" class="muted" style="align-self:center;font-size:12px"></span>
       </div>
     </div>
-    <div id="imBody"></div>
+    <div id="imEditWrap" class="hide">
+      <div style="margin-bottom:8px"><button id="imBack" class="ghost" style="width:auto;padding:5px 14px">&larr; All listings</button></div>
+      <div id="imBody"></div>
+    </div>
+    <div id="imListWrap"><div id="imList"></div></div>
   </div>
 
   <div id="paneBasket" class="hide">

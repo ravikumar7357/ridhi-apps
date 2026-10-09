@@ -294,3 +294,93 @@ function limgTest() {
     Logger.log(b + ': ' + JSON.stringify(r).slice(0, 1500));
   });
 }
+
+/**
+ * GET ?limg=page&brand=&token=&pages=N  — the whole catalogue of this seller, 20 listings a page,
+ * with each one's image slots, parent and variation facts. Walks up to `pages` pages per call (time
+ * bounded) and hands back the next token, so the browser can drive the full walk.
+ */
+function limgPage_(p) {
+  setBrand_(p.brand);
+  var seller;
+  try { seller = limgSeller_(''); } catch (e) { return { ok: false, error: String(e.message || e) }; }
+  var token = String(p.token || ''), maxPages = Math.min(Number(p.pages) || 10, 40);
+  /* AMAZON STOPS A SEARCH AT 1,000 RESULTS (found 9 Oct: both brands came back as exactly 1,000 of
+   * 2,677 and 1,715). So the caller walks CREATED-DATE WINDOWS small enough to stay under it;
+   * `count=1` asks only how many a window holds. Sorted by SKU so a listing edited mid-walk cannot
+   * move between pages. */
+  var win = (p.after ? '&createdAfter=' + encodeURIComponent(p.after) : '') +
+    (p.before ? '&createdBefore=' + encodeURIComponent(p.before) : '');
+  if (p.count) {
+    var c = limgSp_('/listings/2021-08-01/items/' + seller + '?marketplaceIds=' + marketplaceId_() +
+      '&includedData=summaries&pageSize=1' + win, 'get');
+    if (c.code >= 300) return limgErr_(c, 'Counting listings');
+    return { ok: true, total: c.body.numberOfResults };
+  }
+  var t0 = Date.now(), items = [], pages = 0, total = null;
+  while (pages < maxPages && Date.now() - t0 < 40000) {
+    var path = '/listings/2021-08-01/items/' + seller + '?marketplaceIds=' + marketplaceId_() +
+      '&includedData=summaries,attributes&pageSize=20&sortBy=sku&sortOrder=ASC' + win +
+      (token ? '&pageToken=' + encodeURIComponent(token) : '');
+    var r = limgSp_(path, 'get');
+    if (r.code >= 300) { var bad = limgErr_(r, 'Listing page'); bad.items = items; bad.next = token; return bad; }
+    if (total == null) total = r.body.numberOfResults;
+    var got = (r.body.items || []).map(limgShape_);
+    limgLiveAdd_(got);
+    items = items.concat(got);
+    pages++;
+    token = (r.body.pagination && r.body.pagination.nextToken) || '';
+    if (!token) break;
+  }
+  return { ok: true, items: items, next: token, total: total, pages: pages };
+}
+
+function limgShape_(it) {
+  var s = (it.summaries && it.summaries[0]) || {}, at = it.attributes || {};
+  var one = function (k, f) { var v = at[k]; return v && v[0] ? (f ? v[0][f] : v[0].value) : ''; };
+  var img = {};
+  LIMG_SLOTS.forEach(function (slot) {
+    var v = at[LIMG_ATTR[slot]];
+    if (v && v[0] && v[0].media_location) img[slot] = v[0].media_location;
+  });
+  var rel = at.child_parent_sku_relationship && at.child_parent_sku_relationship[0];
+  return {
+    sku: it.sku, asin: s.asin || '', st: (s.status || []).join(','), pt: s.productType || '',
+    t: String(s.itemName || '').slice(0, 160), main: s.mainImage ? s.mainImage.link : '',
+    lvl: one('parentage_level'), psku: rel ? (rel.parent_sku || '') : '',
+    c: one('color'), z: one('size'), img: img,
+  };
+}
+
+/**
+ * What shoppers actually see, added to each shaped listing as `live` (slot -> url) and `pa` (parent
+ * ASIN). The listing's own attributes are what WE submitted; the catalogue can differ (another
+ * contributor, a change still processing), and on 9 Oct it did: R-CP-351 submitted one MAIN while
+ * Amazon showed a picture shared with another colour. Only the catalogue answers "what is live".
+ */
+function limgLiveAdd_(list) {
+  var asins = [];
+  list.forEach(function (x) { if (/^[A-Z0-9]{10}$/.test(x.asin) && asins.indexOf(x.asin) < 0) asins.push(x.asin); });
+  if (!asins.length) return;
+  var r = limgSp_('/catalog/2022-04-01/items?marketplaceIds=' + marketplaceId_() + '&identifiers=' + asins.join(',') +
+    '&identifiersType=ASIN&pageSize=20&includedData=images,relationships', 'get');
+  if (r.code >= 300) { list.forEach(function (x) { x.liveErr = 'catalogue ' + r.code; }); return; }
+  var by = {};
+  (r.body.items || []).forEach(function (it) {
+    var slots = {}, best = {};
+    ((it.images && it.images[0] && it.images[0].images) || []).forEach(function (im) {
+      if (!im || !im.variant || !im.link) return;
+      var w = Number(im.width) || 0;
+      if (!best[im.variant] || w > best[im.variant]) { best[im.variant] = w; slots[im.variant] = im.link; }
+    });
+    var pa = '';
+    ((it.relationships && it.relationships[0] && it.relationships[0].relationships) || []).forEach(function (rel) {
+      if (rel.parentAsins && rel.parentAsins.length) pa = rel.parentAsins[0];
+    });
+    by[it.asin] = { live: slots, pa: pa };
+  });
+  list.forEach(function (x) {
+    var b = by[x.asin];
+    if (b) { x.live = b.live; x.pa = b.pa; } else if (x.asin) x.liveErr = 'not in catalogue';
+  });
+}
