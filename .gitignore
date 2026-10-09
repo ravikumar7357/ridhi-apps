@@ -3,6 +3,7 @@
 /*
 !/.gitignore
 !/.gitattributes
+!/README.md
 !/Replenish-App/
 !/Pricing-App/
 !/Pricing-API/
@@ -37,3 +38,8 @@ Replenish-App/src/.last-assembled.sha256
 Pricing-App/src/.last-assembled.sha256
 Replenish-App/src/deps.json
 Pricing-App/src/deps.json
+
+# Data pulled for one-off audits (9 Oct 2026): master database, order book and Amazon exports. Not code.
+/Replenish-App/tests/sku-audit/
+/Replenish-App/tests/probes/store-beyond.json
+/Pricing-App/tests/image-audit/*.csv

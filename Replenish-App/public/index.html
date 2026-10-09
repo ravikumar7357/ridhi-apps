@@ -1,4 +1,11 @@
-<title>Ridhi Home &amp; Living</title>
+<!-- ================================================================================================
+     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 131 files of src/ joined into one page.
+     The real, grouped source: Replenish-App/src/   (map and workflow: src/README.md)
+       src/index.html   page markup        src/styles.css   stylesheet        src/app/ORDER   join order
+       src/app/<group>/ the code, by group: core, replenishment, masters, production, vendors, orders, shopify, dashboard, people-pay, inventory, reports, shared
+     Rebuild after editing src/:  node Replenish-App/tests/assemble.js
+     Inside the script below, every source file starts with a "FILE: src/app/..." comment, every group with "GROUP:".
+     ================================================================================================ --><title>Ridhi Home &amp; Living</title>
 <!-- The Ridhi Home & Living wordmark on a white square, so the tab is recognisable in a strip of
      twenty. White rather than transparent on purpose: dark lettering cut out of nothing disappears
      on a dark tab strip. Served from this site; nothing is fetched from outside. -->
@@ -3383,6 +3390,11 @@
 /* ==== END APP VERSION ==== */
 </script>
 <script type="module">
+
+/* ####################################################################################################
+ * GROUP: src/app/core/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/core/setup.js ============================== */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail,
   sendEmailVerification }
@@ -3457,6 +3469,7 @@ const REPL_TABS = ['repl', 'article', 'target', 'top', 'shopify', 'pack',
 let REPL = { SP: null, CPC: null };   // brand → { rows, at }
 let PO = [];                  // purchase orders
 
+/* ============================== FILE: src/app/core/auth.js ============================== */
 /* ---------- auth + access ---------- */
 $('loginBtn').onclick = async () => {
   $('loginErr').classList.add('hide'); $('loginBtn').disabled = true;
@@ -3678,6 +3691,7 @@ onAuthStateChanged(auth, async user => {
   if (!FACTORY_ONLY) loadPo().then(() => { PO_LOADED = true; updateFollowBadge(); }).catch(() => {});
 });
 
+/* ============================== FILE: src/app/core/nav.js ============================== */
 /* ---------- the sidebar: collapsible groups + a hamburger ---------- */
 const NAV_GROUPS = [...document.querySelectorAll('.navgrp')].map(head => ({
   key: head.dataset.grp,
@@ -4036,6 +4050,7 @@ $('tabHr').onclick = () => showTab('hr');
 $('tabShop').onclick = () => showTab('shop');
 $('tabAdj').onclick = () => showTab('adj');
 
+/* ============================== FILE: src/app/core/backend.js ============================== */
 /* ---------- backend call ---------- */
 /**
  * A read from the Replenishment backend, asked again when Google answers with a web page instead of
@@ -4175,6 +4190,7 @@ async function prGet(params) {
   return d;
 }
 
+/* ============================== FILE: src/app/core/helpers.js ============================== */
 /* ================= CORE HELPERS: DATES AND CSV =================
  * Gathered here from the Follow-ups and Replenishment files (2026-10-01, step 3 of the module plan), where they had
  * been written first and every other screen had come to use them. Unchanged; only where they live moved. */
@@ -4195,6 +4211,11 @@ function csvDownload(name, cols, rows) {
 const colIdx = (head, names) => { for (const n of names) { const i = head.indexOf(n); if (i >= 0) return i; } return -1; };
 const cellAt = (row, i) => (i >= 0 && row[i] != null ? String(row[i]).trim() : '');
 
+
+/* ####################################################################################################
+ * GROUP: src/app/replenishment/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/replenishment/replenishment.js ============================== */
 /* ================= REPLENISHMENT ================= */
 function rMsg(t, bad) { const m = $('rMsg'); m.textContent = t || ''; m.className = bad ? 'err' : 'muted'; }
 
@@ -4681,6 +4702,11 @@ function replRemark(r) {
 // Populate the Sub-Category / Color / Status dropdowns from the loaded rows of the picked brands,
 // keeping the user's current pick if it still exists. Cat/Send are fixed sets, so they live in the HTML.
 let FILTERS_SIG = '';
+
+/* ####################################################################################################
+ * GROUP: src/app/core/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/core/multi-select-filter.js ============================== */
 /* ================= MULTI-SELECT FILTER =================
  *
  * Excel-style: a button that opens a searchable checklist. Several values at once, and "none ticked"
@@ -4965,6 +4991,11 @@ function supplyPlan(r) {
   return { m, indiaLeft: india, prodLeft: prod, prodQty: p.qty, ready: p.ready, arrival };
 }
 
+
+/* ####################################################################################################
+ * GROUP: src/app/replenishment/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/replenishment/minutes-of-meeting.js ============================== */
 /* ================= MOM — minutes of meeting =================
  *
  * A running note per SKU, added to during a meeting and never overwritten. Same shape and the same
@@ -5031,6 +5062,7 @@ $('arTable').addEventListener('click', e => {
   openMomModal(btn.dataset.sku);
 });
 
+/* ============================== FILE: src/app/replenishment/priority.js ============================== */
 /* ================= PRIORITY =================
  *
  * How soon this SKU needs attention, from its days of cover — and then softened by whatever is
@@ -5332,6 +5364,7 @@ function coverBucket(r, sold90) {
   return 'ok';
 }
 
+/* ============================== FILE: src/app/replenishment/article-review.js ============================== */
 /* ================= ARTICLE REVIEW =================
  *
  * One row per SKU, laid out like the sheet this replaces, so a listing can be reviewed article by
@@ -5601,6 +5634,7 @@ $('arCsv').onclick = () => {
   a.click(); URL.revokeObjectURL(a.href);
 };
 
+/* ============================== FILE: src/app/replenishment/revenue-target.js ============================== */
 /* ================= REVENUE TARGET (planning only) =================
  * "I intend to do $8,000 from this article next month — how many units is that?"
  *
@@ -6578,6 +6612,7 @@ $('rPo').onclick = () => {
     + (dropped ? ', and ' + dropped + ' SKU(s) needed nothing at all' : '') + '.');
 };
 
+/* ============================== FILE: src/app/replenishment/purchase-orders.js ============================== */
 /* ================= PURCHASE ORDERS ================= */
 function poMsg(t, bad) { const m = $('poMsg'); if (!m) return; m.textContent = t || ''; m.className = bad ? 'err' : 'muted'; }
 let PO_LOADED = false;
@@ -6778,6 +6813,7 @@ $('pmDelete').onclick = async () => {
   } catch (e) { $('pmErr').textContent = 'Could not delete: ' + (e.message || e); $('pmErr').classList.remove('hide'); }
 };
 
+/* ============================== FILE: src/app/replenishment/follow-ups.js ============================== */
 /* ================= FOLLOW-UPS (ongoing POs, auto-scheduled every 7 days) ================= */
 const FU_EVERY = 7;                                    // days between follow-ups
 
@@ -7068,6 +7104,7 @@ $('fuFile').onchange = async e => {
   } catch (err) { $('fuMsg').textContent = 'Import failed: ' + (err.message || err); }
 };
 
+/* ============================== FILE: src/app/replenishment/top-asin.js ============================== */
 /* ================= TOP ASIN STATUS ================= */
 // The SKUs that make up the top 60% of sales (revenue). Product columns auto-fetch from the loaded
 // Replenishment rows; Production Status is editable (stored in repl/prodstatus — writable by canRepl);
@@ -7377,6 +7414,7 @@ $('topTable').addEventListener('click', e => {
   openProdModal(btn.dataset.sku);
 });
 
+/* ============================== FILE: src/app/replenishment/shared-lookups.js ============================== */
 /* ================= SHARED LOOKUPS (India Stock + In Production tabs) ================= */
 // Product details (brand / sub-cat / colour / size) + the backend's Air/Sea/AWD requirement for a SKU,
 // taken from the Replenishment snapshot. Built on demand — the snapshot is already loaded by then.
@@ -7416,6 +7454,7 @@ function fillSel(id, vals, label) {
   sel.value = opts.includes(cur) ? cur : '';
 }
 
+/* ============================== FILE: src/app/replenishment/shopify-stock.js ============================== */
 /* ================= SHOPIFY =================
  * Shopify's own stock against Shopify's own 90-day rate. Nothing here is shared with the Amazon
  * maths on purpose: the same SKU can be comfortable at FBA and empty on Shopify, and one blended
@@ -7658,6 +7697,7 @@ $('shCsv').onclick = () => {
       r.rate > 0 ? r.rate.toFixed(2) : '', r.plan || 0, r.need || 0]));
 };
 
+/* ============================== FILE: src/app/replenishment/india-stock.js ============================== */
 /* ================= INDIA STOCK (uploaded) ================= */
 // The user maintains this list themselves (CSV in/out). It is the ONLY source of the India Stock
 // column across every tab — the old pillow-tracker read was removed.
@@ -7740,6 +7780,7 @@ function renderIndia() {
     </tr>`).join('');
   $('inTable').innerHTML = head + '<tbody>' + (sub + body || `<tr><td colspan="${cols.length}" class="muted">Nothing in Finished Goods yet — India stock is what the Finished Goods tab holds.</td></tr>`) + '</tbody>';
 }
+/* ============================== FILE: src/app/replenishment/india-projection.js ============================== */
 /* ================= INDIA STOCK — PROJECTION =================
  * The stock list answers "what have we got". This answers the question that actually decides a
  * purchase order: month by month, how much of the India stock gets eaten, when it runs out, and
@@ -7987,6 +8028,7 @@ $('inFile').onchange = async e => {
   } catch (err) { $('inMsg').textContent = 'Import failed: ' + (err.message || err); }
 };
 
+/* ============================== FILE: src/app/replenishment/in-production.js ============================== */
 /* ================= IN PRODUCTION (from the Order Console) ================= */
 // What the factories are currently making. Cross-checked against the ongoing POs and the backend's
 // Air/Sea/AWD requirement so a SKU being made for NO reason is caught before the money is spent.
@@ -8400,6 +8442,7 @@ $('pdExport').onclick = () => csvDownload('in-production',
     return [r.sku, pill, why, BRAND_NAME[r.brand] || '', r.subcat, r.color, r.size,
       r.air, r.sea, r.need, r.india, r.po, r.prod, r.start, r.ready, r.supplier, r.cover, r.gap, r.fba]; }));
 
+/* ============================== FILE: src/app/replenishment/packing-list-labels.js ============================== */
 /* ============================================================================
    PACKING LIST + BOX LABELS
 
@@ -8894,6 +8937,7 @@ function renderPack() {
   pkMsg(`${rows.length} list(s) of ${PK.length} \u00b7 ${t.b} boxes \u00b7 ${t.q.toLocaleString('en-US')} pcs \u00b7 ${t.n.toFixed(2)} kg net`);
 }
 
+/* ============================== FILE: src/app/replenishment/fba-box-template.js ============================== */
 /* ================= AMAZON'S FBA BOX-CONTENT TEMPLATE, FILLED =================
  *
  * Ravi, 2026-09-23: "packing list se hi fill amazon fba template wala action bhi ho — check pillow
@@ -9658,6 +9702,11 @@ $('pkLblGo').onclick = () => {
 };
 
 
+
+/* ####################################################################################################
+ * GROUP: src/app/core/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/core/database.js ============================== */
 /* ================= PRODUCTION TRACKER (Master DB · Base Data · Cutting) =================
  *
  * The factory's own data — what a SKU is made of, what has been issued to which worker and how much
@@ -9728,6 +9777,7 @@ const ptPath = node => String(node == null ? '' : node).split('/')
   .map(s => encodeURIComponent(/%[0-9A-Fa-f]{2}/.test(s) ? decodeURIComponent(s) : s))
   .join('/');
 
+/* ============================== FILE: src/app/core/live-copies.js ============================== */
 /* ==== LIVE COPIES OF THE REGISTERS ====
  * (2026-09-27, Ravi: "storage ka problem sahi kro".) What was running out was not storage — the data is 11 MB of the
  * free 1 GB — but DOWNLOAD: the free plan allows 10 GB a month and September had used 19.4 GB by the 27th. Every read
@@ -9798,6 +9848,7 @@ function ptLiveWrote(paths) {
   (paths || []).forEach(p => { const L = PT_LIVE.get(String(p || '').split('/').filter(Boolean)[0]); if (L) { L.wroteAt = t; L.wroteSeq = ++PT_LIVE_SEQ; } });
 }
 /* ==== END LIVE COPIES ==== */
+/* ============================== FILE: src/app/core/database-read.js ============================== */
 
 /* A failed read and an empty node look identical if the error is swallowed, and only one of them is
  * something anyone can act on. So: a real timeout, one retry, and the reason kept and shown. */
@@ -9923,6 +9974,7 @@ function ptEmpty(tableId, msg) {
   $(tableId).innerHTML = `<tbody><tr><td class="muted" style="padding:14px;text-align:left">${msg}</td></tr></tbody>`;
 }
 
+/* ============================== FILE: src/app/core/job-work-split.js ============================== */
 /* ================= JOB WORK: COMPLETED ENTRIES KEPT APART (2026-10-01) =================
  *
  * Ravi: "job work ki entry jo complete ho chuki h hum unko complete section me add kr sakte h jisase wo again and again
@@ -10116,6 +10168,11 @@ async function baseAutoMove(now) {
     return { err: String((e && e.message) || e) };
   } finally { BASE.autoBusy = false; }
 }
+
+/* ####################################################################################################
+ * GROUP: src/app/masters/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/masters/master-database.js ============================== */
 /* ---------------- Master Database ---------------- */
 
 async function ensurePmdb() {
@@ -10420,6 +10477,11 @@ function renderPmdb() {
     + (MDBIMG.msg ? ' · ' + MDBIMG.msg : '');
 }
 
+
+/* ####################################################################################################
+ * GROUP: src/app/production/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/production/job-work.js ============================== */
 /* ---------------- Base Data (issue → receive register) ---------------- */
 
 let PT_BD_KPI = 'open'; // '' | 'issued' | 'received' | 'rejected' | 'pending' | 'done' | 'open'
@@ -10591,6 +10653,7 @@ function renderPbase() {
   ptImgFill(shown.map(r => r.sku), false, ptIfTab('pbase', renderPbase));
 }
 
+/* ============================== FILE: src/app/production/attendance.js ============================== */
 /* ================= ATTENDANCE =================
  *
  * "jitne bhi tailor h mujhe unka attendance register banana h and usme me 1 bande ko assign kar dunga
@@ -10891,6 +10954,11 @@ $('attExport').onclick = () => {
   ptDownload('attendance-' + ATT.day, out.map(r => r.map(csvCell).join(',')));
 };
 
+
+/* ####################################################################################################
+ * GROUP: src/app/vendors/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/vendors/printing/fabric-catalogue.js ============================== */
 /* ================= THE PRINTER'S FABRIC CATALOGUE =================
  *
  * One line per colour, base fabric, width and print direction — the cloth a printer is actually sent,
@@ -11504,6 +11572,11 @@ $('pcExport').onclick = () => {
   ptDownload('cutting-data', lines);
 };
 
+
+/* ####################################################################################################
+ * GROUP: src/app/core/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/core/database-auth.js ============================== */
 /* ================= PRODUCTION: WRITING, NOT JUST READING =================
  *
  * The first action moved out of the old tool and into this app: recording a cutting entry.
@@ -11537,6 +11610,7 @@ async function ptAuthQuery() {
   } catch (e) { return ''; }
 }
 
+/* ============================== FILE: src/app/core/history.js ============================== */
 /* ================= WHO CHANGED WHAT, AND A RECYCLE BIN (2026-10-01) =================
  *
  * Ravi: "industry-level ERP ... kuch mitaye bina". Every write to the production database already goes through
@@ -11762,6 +11836,7 @@ async function ptDelete(path) {
   auditLog('delete', { [path]: null });
   return true;
 }
+/* ============================== FILE: src/app/core/gates.js ============================== */
 
 /* ---- the data the gates are measured against ---- */
 let PTG = { masters: null, mdb: null, ob: null, press: null, freeze: null, err: '', busy: false, at: 0 };
@@ -11841,6 +11916,7 @@ async function ptLoadGatesRun(light) {
 
 const obUC = s => String(s == null ? '' : s).trim().toUpperCase();
 
+/* ============================== FILE: src/app/core/lookups.js ============================== */
 /* ================= LOOKUPS THAT DO NOT WALK THE WHOLE LIST =================
  *
  * The app was scanning a 4,706-row master database once per row rendered, and the three production
@@ -12139,6 +12215,7 @@ async function skuFillOpen() {
 }
 if ($('ptmLookalike')) $('ptmLookalike').onclick = () => skuFillOpen();
 
+/* ============================== FILE: src/app/core/look-alike-skus.js ============================== */
 /* ==== LOOK-ALIKE SKUs (Ravi, 2026-09-28) ====
  * A SKU the master does not hold is read from the ones it does. A code is letters + colour code + the rest:
  * RTC150-60120 is RTC + 150 + -60120.
@@ -12651,6 +12728,11 @@ function ptStampDate(yyyymmdd) {
   return `${p(dt.getDate())}/${p(dt.getMonth() + 1)}/${dt.getFullYear()}, ${p(dt.getHours())}:${p(dt.getMinutes())}`;
 }
 
+
+/* ####################################################################################################
+ * GROUP: src/app/production/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/production/job-work-entry.js ============================== */
 /* ================= PRODUCTION: BASE DATA — ISSUE AND RECEIVE =================
  *
  * The factory's main loop: pieces go out to a worker, and later come back — some good, some
@@ -13291,6 +13373,7 @@ This would be a SECOND, identical issue — and a second payment. OK saves it an
   $('bwSave').disabled = false;
 };
 
+/* ============================== FILE: src/app/production/whatsapp.js ============================== */
 /* ================= WHATSAPP TO THE WORKER =================
  *
  * The production tracker's flow, reproduced. Its own comment describes the channel: "Path C —
@@ -13935,6 +14018,7 @@ async function apvOpenDialog() {
 $('pbApv').onclick = apvOpenDialog;
 $('pbTable').addEventListener('click', e => { const b = e.target.closest('[data-jw-ask]'); if (b) jwCorrAskOpen(b.getAttribute('data-jw-ask')); });
 
+/* ============================== FILE: src/app/production/job-work-corrections.js ============================== */
 /* ================= JOB WORK CORRECTION REQUESTS =================
  *
  * Ravi, 2026-09-22: "same correction request jo job work me entry karne wala h uska bhi ho" — the
@@ -14379,6 +14463,7 @@ $('bdmDelete').onclick = async () => {
   $('bdmDelete').disabled = false;
 };
 
+/* ============================== FILE: src/app/production/press.js ============================== */
 /* ================= PRESS INVENTORY =================
  *
  * Finished pieces coming off the press, against an order. One gate rather than Base Data's three —
@@ -14653,6 +14738,11 @@ $('ppExport').onclick = () => {
   ptDownload('press-inventory', lines);
 };
 
+
+/* ####################################################################################################
+ * GROUP: src/app/core/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/core/edit-dialog.js ============================== */
 /* ================= ONE EDIT DIALOG, USED BY EVERY SCREEN =================
  *
  * Editing always opens in front of the row, never in the "new entry" panel at the top. That is not a
@@ -14939,6 +15029,11 @@ function cutEdit(id) {
   });
 }
 
+
+/* ####################################################################################################
+ * GROUP: src/app/production/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/production/quality-control.js ============================== */
 /* ================= QUALITY CONTROL =================
  *
  * Two registers that only make sense together:
@@ -15913,6 +16008,11 @@ $('qcExport').onclick = () => {
   ptDownload(checks ? 'qc-checks' : 'qc-alteration-issuance', lines);
 };
 
+
+/* ####################################################################################################
+ * GROUP: src/app/masters/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/masters/master-database-edit.js ============================== */
 /* ================= MASTER DATABASE: ADDING, EDITING, DELETING =================
  *
  * This is the table every other screen is measured against — what an article is, whether it needs
@@ -16428,6 +16528,7 @@ $('ptmTemplate').onclick = () => {
     + 'and a SKU already in the master is updated rather than added.';
 };
 
+/* ============================== FILE: src/app/masters/asin-from-amazon.js ============================== */
 /* ============ ASIN FROM AMAZON ============
  * Where each id comes from, in order of trust:
  *   ASIN   — Amazon's full listings report (pt_amzListings: both brands, every status, one ASIN per SKU, rebuilt daily);
@@ -16809,6 +16910,11 @@ $('ptmImpGo').onclick = async () => {
   $('ptmImpGo').disabled = false;
 };
 
+
+/* ####################################################################################################
+ * GROUP: src/app/orders/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/orders/custom-order-skus.js ============================== */
 /* ==== CUSTOM-ORDER SKUs ONTO REAL ONES (Ravi, 2026-09-28) ====
  * "abhi tak custom order me jo mal bana h m uska sku change krna chahta hu to track our orders". Custom Order made a code
  * per entry (TC-CUST-260820-09); 312 of them sit in the master and more in the registers. Each is put on the real SKU:
@@ -17416,6 +17522,7 @@ async function ptImgFill(skus, force, after) {
   mdbImgCacheSave();
 }
 
+/* ============================== FILE: src/app/orders/order-console.js ============================== */
 /* ================= ORDER CONSOLE =================
  *
  * The order book, with what has actually happened against each line: cut, issued, pressed, and what
@@ -17852,6 +17959,7 @@ async function spPrint(orderNo, sku, qty) {
  * not out of the building, and the moment somebody takes it is the moment this screen is done with
  * it.
  */
+/* ============================== FILE: src/app/orders/production-to-shipping.js ============================== */
 /* ==== FROM PRODUCTION TO SHIPPING (Ravi, 2026-09-28) ====
  * Nobody presses "hand over" any more. What production has PRESSED on a Shopify line and the shipping team has not yet
  * taken is ready, and it shows in the Production bucket under "From production" by itself. The shipping team fills in
@@ -18234,6 +18342,7 @@ function ordProdRows() {
   return out;
 }
 
+/* ============================== FILE: src/app/orders/quantity-changes.js ============================== */
 /* ================= A QUANTITY THAT MOVED, CARRIED TO THE PEOPLE MAKING IT =================
  *
  * The record lives on the sales order because that is where the decision was taken. Nobody on the
@@ -18383,6 +18492,7 @@ function ordQtyBadge() {
 /** How one change reads on a line: "was 100, now 150". */
 const ordQtyPill = a => nf(a.from) + ' → ' + nf(a.to);
 
+/* ============================== FILE: src/app/orders/vendor-holdings.js ============================== */
 /* ================= WHAT THE VENDORS HOLD, ORDER BY ORDER =================
  *
  * A vendor order line names a SKU and a quantity; it has never named the sales order it was raised
@@ -19122,6 +19232,7 @@ function shppApply(rows, f) {
   });
 }
 
+/* ============================== FILE: src/app/orders/order-console-table.js ============================== */
 /* ================= THE ORDER CONSOLE, READ LIKE THE JOB WORK TABLE =================
  *
  * Ravi, 2026-09-23: "order book h and other tab h unki them job work ke jese krna h".
@@ -19682,6 +19793,7 @@ async function spPressReal(orderNo, sku, pcs, date, remarks, extraReason) {
   return '';
 }
 
+/* ============================== FILE: src/app/orders/close-lines.js ============================== */
 /* ================= CLOSING SHOPIFY / ONLINE PRODUCTION LINES =================
  *
  * Ravi, 2026-10-08: "need more way to close these order" → "Saare 10 tareeke banao", and the shipping team may close too.
@@ -19926,6 +20038,11 @@ if (typeof document !== 'undefined' && document.addEventListener) document.addEv
 }, true);
 
 if ($('odClose')) $('odClose').onclick = () => ordCloseOpen();
+
+/* ####################################################################################################
+ * GROUP: src/app/shopify/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/shopify/bulk-entry.js ============================== */
 /* ================= SHOPIFY BULK ENTRY =================
  *
  * Ravi: "jab me single single entry kar raha hu to bahut jyada time lag rha h. Aisa set up krna
@@ -21244,6 +21361,11 @@ $('odView').addEventListener('change', () => { ORD.pick = new Set(); renderOrd()
 /** A SKU's priority tag (P1–P4), '' when it has none. */
 const ordPri = sku => { const v = (PTE.priority || {})[obUC(sku)];
   return String((v && typeof v === 'object' ? v.priority || v.value : v) || '').trim().toUpperCase(); };
+
+/* ####################################################################################################
+ * GROUP: src/app/orders/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/orders/demand.js ============================== */
 /* ================= DEMAND: PRINTING AND CLOTH, OFF THE OPEN ORDER BOOK ================= */
 
 /**
@@ -21698,6 +21820,7 @@ function demBasketBar() {
   if (bar.querySelectorAll) bar.querySelectorAll('[data-demclr]').forEach(b => { b.onclick = () => { delete ORD.demBasket[b.getAttribute('data-demclr')]; renderOrd(); }; });
 }
 
+/* ============================== FILE: src/app/orders/tracking.js ============================== */
 /* ================= TRACKING — EVERY ORDER, START TO FINISH (Ravi, 2026-09-25) =================
  *
  * "mujhe fully tracking wala system banana h". One row per order. Each line is placed at ONE stage — the
@@ -21787,6 +21910,7 @@ function ordTrackRows() {
   return [...by.values()].map(o => Object.assign(o, { days: o.date ? Math.max(0, Math.floor((now - (ptDtMs(o.date) || now)) / 864e5)) : null }))
     .sort((a, b) => a.stage - b.stage || (ptDtMs(a.date) || 0) - (ptDtMs(b.date) || 0));
 }
+/* ============================== FILE: src/app/orders/shopify-pipeline-team.js ============================== */
 /* ==== SHOPIFY PIPELINE AND TEAM WORK (Ravi, 2026-09-28) ====
  * "shopify ka mera pas kya order aaya h and abhi kis stage par hai — cut, issue, receive, printing, press … meri team ka
  * work check nahi kar pa rha hu ki usne kya kam kiya". Both views read the registers the floor already fills: every
@@ -22067,6 +22191,7 @@ function renderOrdPrnPlat() {
   ordMoreBtn(rows.length);
 }
 
+/* ============================== FILE: src/app/orders/orders-one-line.js ============================== */
 /* ==== ORDERS — ONE LINE PER ORDER (Ravi, 2026-09-28: picked design 8, "Clean sheet") ====
  * "ek anpad insan bhi samjh jay … order by order … sara order ek hi window me". Every order the book holds, whatever the
  * platform, one line: platform, pieces, the step it is at (the furthest-back of its lines), who has it, how far that step
@@ -22626,6 +22751,11 @@ $('odExport').onclick = () => {
   ptDownload('order-console', ordBookCsv(rows));
 };
 
+
+/* ####################################################################################################
+ * GROUP: src/app/dashboard/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/dashboard/management-dashboard.js ============================== */
 /* ================= MANAGEMENT DASHBOARD =================
  *
  * Ravi, 2026-09-26: "ek jagah KPI dashboard nahi — make this."
@@ -22801,6 +22931,11 @@ $('dashGo').onclick = () => {
   ptGatesFresh().then(ensureDash);
 };
 
+
+/* ####################################################################################################
+ * GROUP: src/app/people-pay/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/people-pay/finance-hr.js ============================== */
 /* ================= FINANCE & HR =================
  *
  * Three lists that payroll is built out of, so the checks here are about not corrupting a payout:
@@ -23152,6 +23287,7 @@ function renderHr() {
 const hrSaveEmp = () => hrPutList('pt_empList', HR.emp);
 const hrSaveRate = () => hrPutList('pt_rateList', HR.rate);
 
+/* ============================== FILE: src/app/people-pay/printer-rates.js ============================== */
 /* ================= WHAT EACH PRINTER CHARGES =================
  *
  * One rate per printer and per thing they do. Running work is priced by the metre and varies by
@@ -24448,6 +24584,7 @@ $('hrExport').onclick = () => {
     [head.map(csvCell).join(',')].concat(body.map(b => b.map(csvCell).join(','))));
 };
 
+/* ============================== FILE: src/app/people-pay/payouts.js ============================== */
 /* ================= PAYOUTS: CC, EC, ADVANCE, SALARY SLIP =================
  *
  * This is the money. Four rules carry it, and every one of them exists because getting it wrong pays
@@ -24633,6 +24770,7 @@ function renderPayout(kind) {
     + (noRate ? ` · ${nf(noRate)} line(s) have no rate in the rate list and are paying nothing` : '');
 }
 
+/* ============================== FILE: src/app/people-pay/vendor-payout.js ============================== */
 /* ================= WHAT EACH VENDOR IS OWED =================
  *
  * The contractor payout on the other side of the gate. A contractor is paid for pieces received
@@ -25362,6 +25500,11 @@ async function vpaySetFreeze(on) {
   } catch (e) { $('hrFreeze').disabled = false; say('Not saved: ' + (e.message || e), true); }
 }
 
+
+/* ####################################################################################################
+ * GROUP: src/app/inventory/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/inventory/fabric.js ============================== */
 /* ================= FABRIC INVENTORY =================
  *
  * A ledger, and the balance that falls out of it. Every movement is a row; the stock is never stored
@@ -25440,6 +25583,11 @@ async function ensureFab() {
 
 const fabQty = r => { const n = parseFloat(r && r.qty); return isFinite(n) ? n : 0; };
 
+
+/* ####################################################################################################
+ * GROUP: src/app/vendors/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/vendors/rfd/rfd-stock-auto.js ============================== */
 /* ================= RFD STOCK GOES DOWN ON ITS OWN =================
  *
  * Ravi, 2026-09-22, after loading the RFD opening stock: "ye rfd fabric kese auto minus hoga … konse
@@ -25712,6 +25860,7 @@ function fabTools(view) {
   if ($('fbImport')) $('fbImport').textContent = store ? 'Upload opening stock' : 'Bulk upload';
 }
 
+/* ============================== FILE: src/app/vendors/greige/fabric-flow.js ============================== */
 /* ================= FABRIC FLOW — the whole journey in one window =================
  *
  * Ravi, 2026-09-26: "m pahle greige fabric purchase karta hu, then greige ko RFD par bhejta hu, RFD se receive hota h
@@ -26472,6 +26621,7 @@ $('guideBtn').onclick = () => {
   window.open(v ? '/guide/vendor/' : '/guide/' + (TAB_NOW ? '#' + TAB_NOW : ''), '_blank');
 };
 
+/* ============================== FILE: src/app/vendors/greige/greige-po.js ============================== */
 /* ================= GREIGE PURCHASE ORDERS =================
  *
  * Ravi, 2026-09-21: "greige fabric po generation meaning uska challan bane and m mail kar saku yahi se".
@@ -27046,6 +27196,11 @@ $('fbFile').onchange = async e => {
 };
 if ($('fbState')) $('fbState').addEventListener('change', renderFab);
 
+
+/* ####################################################################################################
+ * GROUP: src/app/inventory/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/inventory/accessories.js ============================== */
 /* ================= ACCESSORIES, AND THE ZIPPERS THEY PAY FOR =================
  *
  * Two parts: a master of items (a zipper's code IS its chain length — that is how the master
@@ -27925,6 +28080,11 @@ async function ptUnconsumeZippers(entryId) {
 }
 
 
+
+/* ####################################################################################################
+ * GROUP: src/app/orders/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/orders/sales-orders.js ============================== */
 /* ================= SALES ORDERS =================
  *
  * A customer's order and its life: draft → submitted → approved, or returned to the buyer.
@@ -28217,6 +28377,7 @@ $('sxClear').onclick = () => {
 };
 ptDebounce('sxQ', renderSox);
 $('sxGo').onclick = async () => { SOX.rows = null; await ensureSox(); };
+/* ============================== FILE: src/app/orders/quantity-sheet.js ============================== */
 /* ================= A SHEET OF QUANTITY CHANGES =================
  *
  * The columns, in the order they are written. Everything before "New qty" is there to decide with
@@ -28363,6 +28524,11 @@ $('sxExport').onclick = () => {
   ptDownload('sales-orders', lines);
 };
 
+
+/* ####################################################################################################
+ * GROUP: src/app/vendors/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/vendors/orders/vendor-orders.js ============================== */
 /* ================= VENDOR ORDERS =================
  *
  * Not a customer's order — an order placed WITH a printer. Different shape, different questions:
@@ -28545,6 +28711,7 @@ function voSummary(o) {
     pct: ordered ? Math.round(done / ordered * 100) : 0 };
 }
 
+/* ============================== FILE: src/app/vendors/orders/day-by-day.js ============================== */
 /* ================= WHAT CAME IN, DAY BY DAY =================
  *
  * Every delivery a printer has recorded, laid out by the day it arrived. Ravi, 2026-09-07: "jab
@@ -28705,6 +28872,7 @@ function voLogFiltered() {
 /* renderVoLog is gone: the day-by-day log has its own tab, with its own filters and its own
  * date window. voLogRows(), which reads the deliveries, is shared by both and stays. */
 
+/* ============================== FILE: src/app/vendors/orders/change-remove.js ============================== */
 /* ================= CHANGING AND REMOVING A VENDOR ORDER =================
  *
  * Ravi, 2026-09-07: "me vendor ka order update kar saku or delete kar bulk me bhi or manually bhi".
@@ -29174,6 +29342,7 @@ async function voDeletePicked() {
       + held.map(o => o.orderNo || o.id).join(', ') + '.' : '');
 }
 
+/* ============================== FILE: src/app/vendors/orders/history.js ============================== */
 /* ================= HISTORY — WHAT PRINTERS HAVE SENT =================
  *
  * The day-by-day receiving log, on its own tab. It began as a view inside Vendor Orders and Ravi
@@ -29189,6 +29358,7 @@ async function voDeletePicked() {
  * "total received" across both would be a number with no unit.
  */
 
+/* ============================== FILE: src/app/vendors/orders/accept-delivery.js ============================== */
 /* ================= ACCEPTING A DELIVERY =================
  *
  * A printer recording "I sent 19" and 19 pieces actually arriving are two different facts, and until
@@ -30193,6 +30363,11 @@ $('voExport').onclick = () => {
   ptDownload('vendor-orders', out);
 };
 
+
+/* ####################################################################################################
+ * GROUP: src/app/orders/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/orders/raise-sales-order.js ============================== */
 /* ================= RAISING A SALES ORDER =================
  *
  * The whole life of an order, run from here: raise it, place it, have it reviewed, and — on
@@ -31158,6 +31333,11 @@ async function soApproveRun(id) {
 /* ---- the way in ---- */
 $('sxNew').onclick = async () => { if (SOX.rows === null) await ensureSox(); soFormOpen(null); };
 
+
+/* ####################################################################################################
+ * GROUP: src/app/vendors/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/vendors/orders/place-vendor-order.js ============================== */
 /* ================= PLACING A VENDOR ORDER =================
  *
  * An order to a printer. Two shapes, and they never mix in one order: RUNNING FABRIC is metres of
@@ -31781,6 +31961,7 @@ function voFabricFromFields() {
   }
 }
 
+/* ============================== FILE: src/app/vendors/orders/same-colour-twice.js ============================== */
 /* ================= THE SAME COLOUR, GIVEN TWICE =================
  *
  * Ravi, 2026-09-22: "printer ko running me printing program diya, but same programme pahle de chuka
@@ -32009,6 +32190,11 @@ function voCheckDraft() {
     : `All ${nf(cut.length)} cut line(s) are within the cap.`;
 }
 
+
+/* ####################################################################################################
+ * GROUP: src/app/orders/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/orders/reserve.js ============================== */
 /* ================= RESERVE =================
  *
  * What the approved sales orders need, that no printer has been given. Computed, never stored — a
@@ -32728,6 +32914,11 @@ function voMoveOpen(key) {
 /* ---- the way in ---- */
 $('voNew').onclick = () => voFormOpen();
 
+
+/* ####################################################################################################
+ * GROUP: src/app/vendors/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/vendors/portal/vendor-portal.js ============================== */
 /* ================= THE VENDOR'S OWN PORTAL =================
  *
  * What a printer sees when they sign in: their own orders, and nothing else. They acknowledge an
@@ -34387,6 +34578,7 @@ $('vpBody').addEventListener('click', async e => {
   }
 });
 
+/* ============================== FILE: src/app/vendors/portal/vendor-master.js ============================== */
 /* ================= THE VENDOR MASTER =================
  *
  * Only the two fields that decide whether a printer can be given a login: their email and their
@@ -34594,6 +34786,7 @@ async function vmSave() {
 
 $('voVendors').onclick = () => vmOpen();
 
+/* ============================== FILE: src/app/vendors/portal/phone-pin.js ============================== */
 /* ================= PHONE + PIN, FOR PRINTERS =================
  *
  * A printer with no email address of their own signs in with their cellphone and a PIN, exactly as
@@ -34901,6 +35094,11 @@ async function vmAddPrinter() {
   return '';
 }
 
+
+/* ####################################################################################################
+ * GROUP: src/app/inventory/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/inventory/finished-goods.js ============================== */
 /* ================= FINISHED GOODS =================
  *
  * Ready stock: what has come off the press, been counted into the store, and not yet gone out.
@@ -35607,6 +35805,11 @@ $('fgExport').onclick = () => {
       (r.edits && r.edits.length) ? r.edits.length : ''].map(csvCell).join(','))));
 };
 
+
+/* ####################################################################################################
+ * GROUP: src/app/masters/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/masters/masters.js ============================== */
 /* ================= MASTERS =================
  *
  * The lists every entry form is checked against: article types, subtypes, colours, sizes, fabrics.
@@ -36184,6 +36387,7 @@ ptDebounce('mstQ', renderMst);
 $('mstNew').onclick = () => mstEdit(null);
 $('mstGo').onclick = async () => { PTG.masters = null; PTG.mdb = null; await ptLoadGates(); MST.at = ptStamp(); renderMst(); };
 
+/* ============================== FILE: src/app/masters/masters-spreadsheet.js ============================== */
 /* ================= MASTERS BY SPREADSHEET =================
  *
  * Ravi, 2026-09-21, looking at 37 fabric types with a width box and a greige box each: "i need excel
@@ -36382,6 +36586,11 @@ $('mstExport').onclick = () => {
       .concat([mstUsage(key, r.desc || r.code), r.active === false ? 'retired' : 'in use']).map(csvCell).join(','))));
 };
 
+
+/* ####################################################################################################
+ * GROUP: src/app/reports/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/reports/reports.js ============================== */
 /* ================= REPORTS =================
  *
  * Five readings of data that already exists. Nothing here writes anything.
@@ -36563,6 +36772,7 @@ function repWeekly(yr, mo, brand, inhouseOnly) {
 const repWeekLabel = iso => { const p = iso.split('-').map(Number); const d = new Date(p[0], p[1] - 1, p[2]);
   return String(d.getDate()).padStart(2, '0') + ' ' + ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()]; };
 
+/* ============================== FILE: src/app/reports/last-week.js ============================== */
 /* ================= LAST WEEK, AND HOW IT COMPARES =================
  *
  * Ravi, 2026-09-07: "mera last week kya production h article wise and WoW % changes bhi".
@@ -36777,6 +36987,7 @@ function repWow(week, brand, inhouseOnly, span) {
   return { week, prevWeek, weeks, rows, byWeek };
 }
 
+/* ============================== FILE: src/app/reports/charts.js ============================== */
 /* ================= THE CHARTS =================
  *
  * Three forms, one hue and a grey. Every number that appears on a chart also appears in the table
@@ -37704,6 +37915,7 @@ function repRenderQa() {
 const REP_VIEWS = { wpr: 'Weekly production', ihp: 'Inhouse production', fgval: 'Finished goods valuation',
   srpl: 'Surplus', qa: 'Quality' };
 
+/* ============================== FILE: src/app/reports/shopify-dispatch.js ============================== */
 /* ================= SHOPIFY DISPATCH =================
  *
  * Ravi, 2026-09-24: "kitne order dispatch hue via mcf, via fedex, dhl and pending order as well and konse
@@ -37967,6 +38179,7 @@ $('repMonth').value = (() => {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
 })();
 
+/* ============================== FILE: src/app/reports/meeting.js ============================== */
 /* ================= THE WEEKLY PRODUCTION MEETING (Reports → Production meeting) =================
  *
  * Ravi, 2026-10-07: "these are my production meeting point jo ki mujhe share krne h isme se kitna kam automate kar sakte
@@ -38427,6 +38640,11 @@ function mtgExport() {
   mtgActions(wk).forEach(a => lines.push([a.what, a.who, a.by, a.status || 'open'].map(csvCell).join(',')));
   ptDownload('production-meeting-' + wk, lines);
 }
+
+/* ####################################################################################################
+ * GROUP: src/app/inventory/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/inventory/fg-other-movements.js ============================== */
 /* ================= FINISHED GOODS: THE OTHER MOVEMENTS =================
  *
  * Press is not the only way stock arrives, and a shipment is not the same thing as an issue. Three
@@ -38816,6 +39034,7 @@ async function fgiEntrySave() {
   return '';
 }
 
+/* ============================== FILE: src/app/inventory/fg-receive-excel.js ============================== */
 /* ================= RECEIVE FROM EXCEL =================
  *
  * The Stock entry form, one row at a time. Every row is checked exactly as the form checks it — the SKU
@@ -38983,6 +39202,21 @@ function fgiIssXlPlan(list, fileName) {
     return it;
   });
   return { kind: 'ISSUE', items, bad: items.filter(x => x.err), good: items.filter(x => x.rec) };
+}
+
+/** Excel keeps a date as days since 1899-12-30; a sheet saved as CSV may keep the text instead. */
+function fgsDate(v) {
+  const s = String(v == null ? '' : v).trim();
+  if (!s) return '';
+  const n = parseFloat(s);
+  if (isFinite(n) && n > 20000 && n < 80000 && !/[/-]/.test(s)) {
+    const d = new Date(Math.round((n - 25569) * 86400000)), p = x => String(x).padStart(2, '0');
+    return p(d.getUTCDate()) + '/' + p(d.getUTCMonth() + 1) + '/' + d.getUTCFullYear();
+  }
+  const m = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
+  if (m) return String(+m[1]).padStart(2, '0') + '/' + String(+m[2]).padStart(2, '0') + '/' + m[3];
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return iso ? iso[3] + '/' + iso[2] + '/' + iso[1] : '';
 }
 
 let FGI_XL = null;
@@ -39205,7 +39439,6 @@ async function fgiSeedOpen() {
       + 'is almost certainly not what you want.',
     html: `<div class="ptgrid" style="grid-template-columns:1fr">
         <label>Where to take the figures from<select id="fgsSrc">
-          <option value="sheet">A file — the Ready Goods sheet's "Main" tab, saved as CSV</option>
           <option value="press">Press inventory — everything pressed and not yet sent to the store</option>
         </select></label>
         <label>Remarks<input id="fgsRemarks" type="text" value="Opening stock, ${esc(dToday())}"></label>
@@ -39218,38 +39451,18 @@ async function fgiSeedOpen() {
           pressed less what has already been sent to this store. If pieces have left the factory without
           ever being recorded here, that figure is production to date, not what is on the shelf.</div>
       </div>
-      <div id="fgsPick" class="toolbar" style="margin-top:10px">
-        <button id="fgsBrowse" class="ghost">Add a file</button>
-        <input id="fgsInput" type="file" accept=".csv,.xlsx,text/csv" multiple style="display:none">
-        <span class="muted" style="font-size:11.5px;flex:1 1 200px">Three tabs, saved one at a time as
-          CSV (File &rsaquo; Download &rsaquo; Comma-separated values, which saves the tab you are on):
-          <b>Main</b>, <b>Movements</b> and <b>FBA</b>. Each is recognised by its own header, so the
-          order does not matter. Main is the only one that must be there.</span>
-      </div>
-      <div id="fgsFile" class="muted" style="margin-top:8px;font-size:12.5px"></div>
       <div id="fgsInfo" class="muted" style="margin-top:8px;font-size:12.5px">
         ${(FGI.rows || []).length ? `<span class="err" style="display:block">The store already has ${nf((FGI.rows || []).length)} movement(s) in it.</span>` : ''}
       </div>`,
     onSave: () => fgiSeedSave(india, press, known),
     saveLabel: 'Write the opening stock',
   });
-  FGF = { main: null, mov: null, fba: null, mainName: '', movName: '', fbaName: '', mainDup: [] };
-  const showPick = () => $('fgsPick').classList.toggle('hide', $('fgsSrc').value !== 'sheet');
-  $('fgsSrc').addEventListener('change', showPick);
-  $('fgsBrowse').onclick = () => $('fgsInput').click();
-  $('fgsInput').onchange = async e => {
-    const fl = [...(e.target.files || [])];
-    e.target.value = '';
-    for (const f of fl) await fgiSheetRead(f);       // one at a time, so each one's message is readable
-  };
-  showPick();
 }
 
 async function fgiSeedSave(india, press, known) {
   const src = $('fgsSrc').value;
-  /* The sheet brings its movements with it, so it has its own writer rather than being squeezed
-   * into the one-opening-per-SKU shape the other two sources use. */
-  if (src === 'sheet') return fgiSheetImport();
+  /* The Ready Goods sheet import was removed on 2026-10-09 (Ravi: Ready Goods will never be part of this
+   * app). The 712 FBA dispatches it once brought in stay in the ledger as history — see fba-dispatch.js. */
   const added = 0;
   const list = (src === 'press' ? press : india).filter(r => known.has(r.sku));
   if (!list.length) return 'There is nothing to bring in from there.';
@@ -39286,256 +39499,6 @@ async function fgiSeedSave(india, press, known) {
   return '';
 }
 
-
-/* ---- bringing the WHOLE sheet in: the movements, not just the balance ----
- *
- * Three tabs, in any order, each recognised by its own header:
- *   Main       one row per SKU — the balance
- *   Movements  Date | Time | SKU | Type | Qty | Reason From/Issued | Remark
- *   FBA        Date | Time | SKU | account | Sent | Shipped | …
- *
- * THE OPENING IS WORKED BACKWARDS, and that is the whole trick. Every movement is imported exactly
- * as the sheet has it, and then one opening row per SKU is written for whatever is left over:
- *     opening = India Stock − (received − issued − sent to FBA)
- * So the history is real AND the closing balance lands exactly on the sheet, without having to trust
- * that the movement tabs reproduce the sheet's own Received and Issued columns. They nearly do —
- * 3,865 of 3,924 SKUs — and the opening quietly carries the rest, which is what an opening balance
- * IS: everything that happened before the log starts.
- *
- * The SKU column on the Movements tab is a formula that does not survive an export, so the literal
- * in the last column is used when it is empty. Without that, four rows in five are lost.
- */
-let FGF = { main: null, mov: null, fba: null, mainName: '', movName: '', fbaName: '', mainDup: [] };
-
-const FGS_SHAPES = {
-  main: r => r.indexOf('sku') >= 0 && (r.indexOf('india stock') >= 0 || r.indexOf('current stock') >= 0),
-  mov: r => r.indexOf('type') >= 0 && r.indexOf('qty') >= 0 && r.indexOf('date') >= 0,
-  fba: r => r.indexOf('sent') >= 0 && r.indexOf('date') >= 0,
-};
-
-/** Excel keeps a date as days since 1899-12-30; a sheet saved as CSV may keep the text instead. */
-function fgsDate(v) {
-  const s = String(v == null ? '' : v).trim();
-  if (!s) return '';
-  const n = parseFloat(s);
-  if (isFinite(n) && n > 20000 && n < 80000 && !/[/-]/.test(s)) {
-    const d = new Date(Math.round((n - 25569) * 86400000)), p = x => String(x).padStart(2, '0');
-    return p(d.getUTCDate()) + '/' + p(d.getUTCMonth() + 1) + '/' + d.getUTCFullYear();
-  }
-  const m = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
-  if (m) return String(+m[1]).padStart(2, '0') + '/' + String(+m[2]).padStart(2, '0') + '/' + m[3];
-  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  return iso ? iso[3] + '/' + iso[2] + '/' + iso[1] : '';
-}
-
-async function fgiSheetRead(file) {
-  ptDlgMsg('Reading ' + file.name + '…');
-  let rows;
-  try { rows = await pkReadFile(file); }
-  catch (e) { ptDlgMsg('Could not read that file: ' + (e.message || e), true); return; }
-  /* A real sheet opens with a title or a totals row, so the header is found, not assumed. */
-  let h = -1, kind = '';
-  for (let i = 0; i < Math.min(15, rows.length) && !kind; i++) {
-    const low = (rows[i] || []).map(x => String(x || '').trim().toLowerCase());
-    for (const k of ['main', 'mov', 'fba']) if (FGS_SHAPES[k](low)) { h = i; kind = k; break; }
-  }
-  if (!kind) { ptDlgMsg('That file is none of the three: a Main tab (SKU and India Stock), a Movements '
-    + 'tab (Date, Type, Qty) or an FBA tab (Date, SKU, Sent).', true); return; }
-  const low = rows[h].map(x => String(x || '').trim().toLowerCase());
-  const at = names => { for (const n of names) { const i = low.indexOf(n); if (i >= 0) return i; } return -1; };
-  const N = v => { const n = parseFloat(String(v == null ? '' : v).replace(/[, ]/g, '')); return isFinite(n) ? n : 0; };
-  const body = rows.slice(h + 1);
-
-  if (kind === 'main') {
-    const c = { sku: at(['sku']), qty: at(['india stock', 'current stock']), brand: at(['brand']),
-      art: at(['article', 'sub acticle', 'sub article']), col: at(['color', 'colour']),
-      size: at(['size']), pack: at(['pack']),
-      open: at(['opening (wh+fba)', 'oppning stock', 'opening stock']), rec: at(['received', 'receive qty']) };
-    const by = new Map();
-    body.forEach(r => {
-      const sku = obUC(r[c.sku]); if (!sku) return;
-      const qty = Math.round(N(r[c.qty]));
-      const g = by.get(sku);
-      /* A SKU listed twice with the SAME figure is one shelf written down twice, not two lots.
-       * Different figures really are two figures, so those are added. */
-      if (!g) by.set(sku, { sku, qty, brand: String(r[c.brand] || '').trim(), article: String(r[c.art] || '').trim(),
-        color: String(r[c.col] || '').trim(), size: String(r[c.size] || '').trim(),
-        pack: String(r[c.pack] || '').trim(), ever: N(r[c.open]) + N(r[c.rec]), n: 1 });
-      else { g.n++; if (g.qty !== qty) g.qty += qty; }
-    });
-    FGF.main = [...by.values()];
-    FGF.mainDup = FGF.main.filter(r => r.n > 1);
-    FGF.mainName = file.name;
-  } else if (kind === 'mov') {
-    const c = { date: at(['date']), sku: at(['sku']), type: at(['type']), qty: at(['qty']),
-      who: at(['reason from/issued', 'issue to', 'receive from', 'from/issued to']),
-      remark: at(['remark']) };
-    FGF.mov = body.map(r => {
-      /* The SKU column is a formula on this tab; the literal sits in the last column. */
-      const sku = obUC(r[c.sku]) || obUC(r[r.length - 1]);
-      const qty = N(r[c.qty]);
-      if (!sku || !qty) return null;
-      const t = String(r[c.type] || '').trim().toUpperCase();
-      const type = /RECEIVE/.test(t) ? 'RECEIVE' : (/ISSUE/.test(t) ? 'ISSUE' : '');
-      if (!type) return null;
-      return { sku, qty, type, date: fgsDate(r[c.date]), who: String(r[c.who] || '').trim(),
-        remark: String(r[c.remark] || '').trim() };
-    }).filter(Boolean);
-    FGF.movName = file.name;
-  } else {
-    const c = { date: at(['date']), sku: at(['sku']), sent: at(['sent']), by: at(['issued to']) };
-    FGF.fba = body.map(r => {
-      const sku = obUC(r[c.sku]), qty = N(r[c.sent]);
-      if (!sku || !qty) return null;
-      return { sku, qty, date: fgsDate(r[c.date]),
-        who: String(r[c.sku + 1] || '').trim() || 'FBA', by: String(r[c.by] || '').trim() };
-    }).filter(Boolean);
-    FGF.fbaName = file.name;
-  }
-  fgiSheetShow();
-}
-
-/** Everything the three files would produce, worked out before a single row is written. */
-function fgiSheetPlan() {
-  const known = new Set((PTG.mdb || []).map(r => obUC(r.sku)));
-  const sum = list => { const m = new Map(); (list || []).forEach(r => m.set(r.sku, (m.get(r.sku) || 0) + r.qty)); return m; };
-  const rec = sum((FGF.mov || []).filter(r => r.type === 'RECEIVE'));
-  const iss = sum((FGF.mov || []).filter(r => r.type === 'ISSUE'));
-  const fba = sum(FGF.fba);
-
-  /* One opening per SKU for whatever the movements do not account for. */
-  const open = [];
-  (FGF.main || []).forEach(r => {
-    const q = r.qty - ((rec.get(r.sku) || 0) - (iss.get(r.sku) || 0) - (fba.get(r.sku) || 0));
-    if (q) open.push({ sku: r.sku, qty: Math.round(q), brand: r.brand, article: r.article,
-      color: r.color, size: r.size, pack: r.pack });
-  });
-  /* A SKU that only ever appears in a movement still needs a home. */
-  const mainSkus = new Set((FGF.main || []).map(r => r.sku));
-  const strays = [...new Set((FGF.mov || []).concat(FGF.fba || []).map(r => r.sku))].filter(s => !mainSkus.has(s));
-
-  const all = [...new Set(open.map(r => r.sku).concat((FGF.mov || []).map(r => r.sku), (FGF.fba || []).map(r => r.sku)))];
-  const unknown = all.filter(s => !known.has(s));
-  const negOpen = open.filter(r => r.qty < 0);
-  /* A single movement bigger than everything that SKU ever had — its own opening plus everything
-   * ever received, as the sheet itself records them — is a typo, not a movement. */
-  const byMain = new Map((FGF.main || []).map(r => [r.sku, r]));
-  const wild = (FGF.mov || []).filter(r => { const m = byMain.get(r.sku);
-    return m && isFinite(m.ever) && r.qty > m.ever + 1; });
-  /* Main's own total, PLUS the SKUs that only appear in a movement — they have no opening to work
-   * back from, so whatever their movements come to is what lands in the store. Promising Main's
-   * figure and delivering more is the kind of small lie that costs a whole reconciliation. */
-  const strayNet = strays.reduce((s, k) => s + (rec.get(k) || 0) - (iss.get(k) || 0) - (fba.get(k) || 0), 0);
-  const final = (FGF.main || []).reduce((s, r) => s + r.qty, 0) + strayNet;
-  return { open, rec, iss, fba, unknown, negOpen, wild, strays, known, final };
-}
-
-function fgiSheetShow() {
-  const el = $('fgsFile'); if (!el) return;
-  const p = fgiSheetPlan();
-  const t = a => (a || []).reduce((s, r) => s + r.qty, 0);
-  const line = (name, n, extra) => n ? `<div><b>${esc(name)}</b> · ${nf(n)} ${extra}</div>` : '';
-  el.className = 'muted';
-  el.innerHTML = (!FGF.main && !FGF.mov && !FGF.fba) ? ''
-    : line(FGF.mainName || 'Main', (FGF.main || []).length, 'SKU(s), ' + nf(t(FGF.main)) + ' piece(s) — the balance')
-      + line(FGF.movName || 'Movements', (FGF.mov || []).length,
-        'movement(s) — ' + nf((FGF.mov || []).filter(r => r.type === 'RECEIVE').length) + ' receive, '
-        + nf((FGF.mov || []).filter(r => r.type === 'ISSUE').length) + ' issue')
-      + line(FGF.fbaName || 'FBA', (FGF.fba || []).length, 'dispatch(es), ' + nf(t(FGF.fba)) + ' piece(s)')
-      + (!FGF.main ? '<div class="err" style="margin-top:6px">The Main tab is needed — it is what the '
-        + 'opening balance is worked back from.</div>' : `<div style="margin-top:8px">This writes
-        <b>${nf(p.open.length + (FGF.mov || []).length + (FGF.fba || []).length)}</b> row(s) and leaves the store
-        at <b>${nf(p.final)}</b> piece(s), which is what the Main tab says.</div>`)
-      + (FGF.mainDup && FGF.mainDup.length ? `<div class="err" style="margin-top:6px">${nf(FGF.mainDup.length)}
-        SKU(s) are listed more than once on Main; where the figure repeats it is counted once.</div>` : '')
-      + (p.unknown.length ? `<div class="err" style="margin-top:6px">${nf(p.unknown.length)} SKU(s) are not in the
-        production master database and would be left out.
-        <label style="display:flex;align-items:center;gap:6px;margin-top:4px">
-        <input id="fgsAdd" type="checkbox" style="width:auto"> add them first, from the sheet's own columns</label></div>` : '')
-      + (p.negOpen.length ? `<div class="err" style="margin-top:6px">${nf(p.negOpen.length)} SKU(s) work out to a
-        NEGATIVE opening (${nf(t(p.negOpen))} piece(s)) — the movements record more going out than the balance
-        allows for. They are written as they are; hiding them would leave a store nobody can reconcile.</div>` : '')
-      + (p.wild.length ? `<div class="err" style="margin-top:6px">${nf(p.wild.length)} movement(s) are larger than
-        everything that SKU ever had: ${esc(p.wild.slice(0, 3).map(r => r.sku + ' ' + r.type.toLowerCase() + ' ' + nf(r.qty) + ' on ' + r.date).join('; '))}.
-        They are imported as the sheet has them — delete them here afterwards and the stock moves back.</div>` : '')
-      + (p.strays.length ? `<div style="margin-top:6px" class="muted">${nf(p.strays.length)} SKU(s) appear in a
-        movement but not on Main; they get their movements and no opening.</div>` : '');
-}
-
-/** The rows to add to the master database, built from whichever file carries the details. */
-function fgiSheetNewMasters() {
-  const p = fgiSheetPlan();
-  const detail = new Map((FGF.main || []).map(r => [r.sku, r]));
-  const now = new Date().toISOString();
-  return p.unknown.map(sku => {
-    const d = detail.get(sku) || {};
-    return { sku, articleType: d.article || '', subtype: d.article || '', color: d.color || '',
-      size: d.size || '', brand: d.brand || '', packOf: d.pack || '1', fabric: '',
-      /* Nothing on the sheet says whether these need cutting, and guessing wrong would change what
-       * the gates allow — so they get the app's own default. */
-      cuttingRequired: true, consumption: 0, isZip: false, isRuffle: false, fillerFabricRequired: false,
-      addedFrom: 'Ready Goods sheet', addedAt: now, addedBy: ME.email };
-  });
-}
-
-/** Movements, FBA dispatches and the opening balance, written in chunks. */
-async function fgiSheetImport() {
-  if (!ME.admin) return 'Only an admin can bring stock in.';
-  if (!FGF.main) return 'The Main tab is needed — it is what the opening balance is worked back from.';
-  let p = fgiSheetPlan();
-  const remarks = String(($('fgsRemarks') || {}).value || '').trim();
-  const now = new Date().toISOString();
-
-  let added = 0;
-  if ($('fgsAdd') && $('fgsAdd').checked && p.unknown.length) {
-    const news = fgiSheetNewMasters();
-    const upd = {}; news.forEach(r => { upd['pt_masterDB/mdb_' + r.sku] = r; });
-    await ptPatch(upd);
-    PTG.mdb = (PTG.mdb || []).concat(news.map(r => Object.assign({ _key: 'mdb_' + r.sku }, r)));
-    PT.mdb = PTG.mdb; added = news.length;
-    p = fgiSheetPlan();
-  }
-  const known = p.known;
-
-  const recs = [];
-  /* The movements first, in the order the sheet has them, each keeping its own date and who. */
-  (FGF.mov || []).filter(r => known.has(r.sku)).forEach(r => recs.push({
-    _id: fgiNewId(r.type === 'RECEIVE' ? 'RCP' : 'ISS'), txnType: r.type, sku: r.sku, qty: r.qty,
-    date: r.date, [r.type === 'RECEIVE' ? 'receivedFrom' : 'issuedFor']: r.who || '(not recorded)',
-    reason: r.remark || '', remarks, source: 'sheet: ' + (FGF.movName || 'Movements'),
-    createdAt: now, createdBy: ME.email }));
-  (FGF.fba || []).filter(r => known.has(r.sku)).forEach(r => recs.push({
-    _id: fgiNewId('FBA'), txnType: 'FBA', sku: r.sku, qty: r.qty, date: r.date,
-    issuedFor: r.who || 'FBA', reason: r.by || '', remarks, source: 'sheet: ' + (FGF.fbaName || 'FBA'),
-    createdAt: now, createdBy: ME.email }));
-  /* Then the opening: whatever the movements do not account for. */
-  p.open.filter(r => known.has(r.sku)).forEach(r => recs.push({
-    _id: fgiNewId('OPN'), txnType: 'OPENING', sku: r.sku, qty: r.qty,
-    remarks: remarks || 'everything before the movement log starts',
-    source: 'sheet: ' + (FGF.mainName || 'Main'), createdAt: now, createdBy: ME.email }));
-
-  if (!recs.length) return 'There is nothing to bring in.';
-  let done = 0;
-  for (let i = 0; i < recs.length; i += 400) {
-    const chunk = {};
-    recs.slice(i, i + 400).forEach(r => { chunk['pt_fgiLedger/' + r._id] = r; });
-    await ptPatch(chunk);
-    done += Object.keys(chunk).length;
-    ptDlgMsg(`Writing… ${nf(done)} of ${nf(recs.length)} row(s).`);
-  }
-  FGI.rows = (FGI.rows || []).concat(recs);
-  renderFgi();
-  const total = [...fgiStock().values()].reduce((s, b) => s + b.current, 0);
-  $('fgMsg').className = 'muted';
-  $('fgMsg').textContent = `${nf(recs.length)} row(s) written — `
-    + `${nf(recs.filter(r => r.txnType === 'RECEIVE').length)} receive, `
-    + `${nf(recs.filter(r => r.txnType === 'ISSUE').length)} issue, `
-    + `${nf(recs.filter(r => r.txnType === 'FBA').length)} to FBA, `
-    + `${nf(recs.filter(r => r.txnType === 'OPENING').length)} opening. `
-    + (added ? `${nf(added)} SKU(s) were added to the master database first. ` : '')
-    + `The store is at ${nf(total)} piece(s). Every movement is in "Every movement", with its own date.`;
-  return '';
-}
 
 /* ---- emptying the store and starting again ----
  *
@@ -39622,6 +39585,7 @@ async function fgiWipeRun() {
   return '';
 }
 
+/* ============================== FILE: src/app/inventory/fg-change-remove.js ============================== */
 /* ================= FINISHED GOODS: CHANGING AND REMOVING, ONE OR MANY =================
  *
  * Ravi: "finish goods ko me edit kr pau or delete kar pau bulk me bhi single bhi and team ko access
@@ -40078,6 +40042,7 @@ function fgiSkuDeleteAsk(skus) {
   fgiDeleteConfirm(plan, want.size === 1 ? `Delete ${[...want][0]} from the store` : `Delete ${nf(want.size)} SKU(s) from the store`);
 }
 
+/* ============================== FILE: src/app/inventory/fba-dispatch.js ============================== */
 /* ================= FBA DISPATCH =================
  *
  * Ravi: "FBA ke liye ek section banana jaha fba team ko issue wali inventory dikhe or team accept kar
@@ -40283,6 +40248,7 @@ async function fbaAccept(ids) {
   return done.length ? '' : 'Nothing was accepted' + fbaSkipText(skipped) + '.';
 }
 
+/* ============================== FILE: src/app/inventory/fba-ship-excel.js ============================== */
 /* ================= SHIP FROM EXCEL ================= */
 const FBA_STALE_DAYS = 3;
 /** Accepted this many days ago or more and still not shipped. */
@@ -40601,6 +40567,11 @@ $('fbaExport').onclick = () => {
     })));
 };
 
+
+/* ####################################################################################################
+ * GROUP: src/app/orders/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/orders/delete-requests.js ============================== */
 /* ================= ASKING SALES TO DELETE AN ORDER LINE =================
  *
  * Ravi: "ye mujhe system se delete krna h but I don't have option so give an option to send back to
@@ -40931,6 +40902,11 @@ $('sxQtyFile').onchange = async e => {
   } catch (err) { $('sxMsg').className = 'err'; $('sxMsg').textContent = 'Could not read it: ' + (err.message || err); }
 };
 
+
+/* ####################################################################################################
+ * GROUP: src/app/inventory/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/inventory/amazon-listing-status.js ============================== */
 /* ================= IS IT LISTED ON AMAZON? =================
  *
  * Ravi: "listing status like listed or not listed … amazon data se check hokr … jese hi entry kre koi
@@ -41176,6 +41152,7 @@ function lstCloseOpen(k) {
   });
 }
 
+/* ============================== FILE: src/app/inventory/fg-entry-access.js ============================== */
 /* ================= FINISHED GOODS: ENTRY-ONLY ACCESS, AND THE ORDER A RECEIPT BELONGS TO =================
  *
  * Ravi: "meri team member ko only stock add (issue, receive, fba sent) — 3 action perform kar sake wo
@@ -41249,6 +41226,7 @@ function fgiOrdFill(sku) {
   return ords;
 }
 
+/* ============================== FILE: src/app/inventory/fg-corrections.js ============================== */
 /* ================= FINISHED GOODS: ASKING FOR A CORRECTION =================
  *
  * Ravi: "jo team stock issue rec. entry kre uske pas ek access hona chahiye ki is entry me mujhse entry
@@ -41579,6 +41557,7 @@ async function fgiCorrReject(id, note) {
   return '';
 }
 
+/* ============================== FILE: src/app/inventory/fg-over-order.js ============================== */
 /* ================= FINISHED GOODS: MORE CAME IN THAN THE ORDER ASKED FOR =================
  *
  * A receipt against an Order Console order that takes the order past what it asked for is saved with
@@ -41637,6 +41616,7 @@ async function fgiOverReview(id) {
   return '';
 }
 
+/* ============================== FILE: src/app/inventory/fg-external-orders.js ============================== */
 /* ================= FINISHED GOODS: EXTERNAL ORDERS =================
  *
  * Ravi: "abhi bhi external order ke liye koi identifier nahi h". A receive now says where its order came
@@ -41668,6 +41648,7 @@ function fgiExtNewNo(iso) {
   return base + p(i);
 }
 
+/* ============================== FILE: src/app/inventory/fg-scanning.js ============================== */
 /* ================= FINISHED GOODS: SCANNING =================
  *
  * Ravi: "mujhe inventory in out ke liye scanner use krna h … FNSKU".
@@ -42209,6 +42190,11 @@ $('ptDlgBody').addEventListener('change', e => {
   FGS.q = Promise.resolve(FGS.q).then(() => fgiScanFlush(r.sku)).then(() => fgiScanRender());
 });
 
+
+/* ####################################################################################################
+ * GROUP: src/app/vendors/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/vendors/printing/printer-allocation.js ============================== */
 /* ================= PRINTER ALLOCATION BY COLOUR =================
  *
  * Ravi, 16 Sep 2026: "printer allocation by color … brand wise color lene h all and unka sale volume
@@ -42418,6 +42404,7 @@ function palGroupBlocks(printerKey, group) {
 }
 
 /** A printer already printing the colour, or already holding its blocks, is the cheapest to load. */
+/* ============================== FILE: src/app/vendors/printing/printer-capacity.js ============================== */
 /* ================= WHAT A PRINTER CAN DO IN A MONTH, FROM WHAT THEY HAVE DONE =================
  *
  * The typed figures were badly wrong — one printer was down as 280 a month against 1,745 delivered
@@ -42898,6 +42885,7 @@ function palBlocksOpen(key) {
   });
 }
 
+/* ============================== FILE: src/app/vendors/printing/design-sheet.js ============================== */
 /* ================= THE DESIGN SHEET =================
  *
  * Two columns are Ravi's: the group, and whether it is still being made. Every other column is
@@ -43558,6 +43546,11 @@ $('palTable').addEventListener('click', async e => {
 });
 
 
+
+/* ####################################################################################################
+ * GROUP: src/app/orders/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/orders/customer-orders.js ============================== */
 /* ================= CUSTOMER ORDERS =================
  *
  * Shopify and Amazon orders, and the one decision each line needs: where is it coming from.
@@ -43918,6 +43911,11 @@ $('cxExport').onclick = () => {
       r.qty, cxAmz(r.sku), cxIndia(r.sku), r.status || 'Open', r.routeRef, r.actedBy].map(csvCell).join(','))));
 };
 
+
+/* ####################################################################################################
+ * GROUP: src/app/vendors/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/vendors/orders/vendor-order-requests.js ============================== */
 /* ================= VENDOR ORDER REQUESTS =================
  *
  * Ravi, 2026-09-14: "meri team ko ek sales order jesa printing ke liye tab ... jisko printing order
@@ -44469,6 +44467,7 @@ $('vrqExport').onclick = () => {
   };
 });
 
+/* ============================== FILE: src/app/vendors/rfd/rfd-requirements.js ============================== */
 /* ================= RFD FABRIC A PRINTER NEEDS =================
  *
  * Ravi, 2026-09-18: "printer vendor ko me printing order dalta hu to uske RFD fabric ka requirement
@@ -44676,6 +44675,7 @@ function rfdPieceLinesBuild(o) {
 }
 const rfdPieceOf = (o, sku) => rfdPieceLines(o).find(x => obUC(x.sku) === obUC(sku)) || null;
 
+/* ============================== FILE: src/app/vendors/rfd/rfd-sizes.js ============================== */
 /* ================= A SIZE, NOT A SIZE PER COLOUR =================
  *
  * A printer asks for blank cloth cut to a size; the colour is what they are about to print on it.
@@ -44888,6 +44888,7 @@ function rfdStockForSku(o, sku) {
  * The REQUEST is still one per SKU, with its own colour and its own fabric, because that is what the
  * office approves, sends and counts against. Only the typing is by size.
  */
+/* ============================== FILE: src/app/vendors/rfd/ask-for-now.js ============================== */
 /* ================= ASK FOR NOW — a box per row, one button (2026-09-26) ================= */
 /** What the boxes would raise: per row, how much is inside the order (agreed at once) and how much is over it. */
 function vpRfdRaisePlan(o, drafts) {
@@ -45216,6 +45217,7 @@ function rfdWithPrinter(r, o) {
 /** What is still to go out on one request: what was asked, less what is already with them. */
 const rfdToSend = (r, o) => rfdRound(Math.max(0, rfdWant(r) - rfdWithPrinter(r, o)));
 
+/* ============================== FILE: src/app/vendors/rfd/order-driven-rfd.js ============================== */
 /* ===== ORDER-DRIVEN RFD (Ravi, 2026-09-26) =====
  *
  * "mene vendor ko order diya … uske basis par rfd department ke pas information pahuch jani chahiye … vendor apna
@@ -46152,6 +46154,11 @@ $('rfdExport').onclick = () => {
   ptDownload('rfd-requirements', out);
 };
 
+
+/* ####################################################################################################
+ * GROUP: src/app/reports/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/reports/production-karigar-analysis.js ============================== */
 /* ================= PRODUCTION ANALYSIS & KARIGAR ANALYSIS =================
  *
  * Ravi: "mujhe mera production 20000 per week par lekr jana h and is week me jo production hua h wo
@@ -46550,6 +46557,11 @@ function paVerdict(f, need, target) {
     why: `${nf(need.have)} worked and ${nf(need.need)} are enough at ${avg} a day, but this week fell short. To reach ${nf(target)} with them, each needs ${need.perDayToHit.toFixed(1)} a day.` };
 }
 
+
+/* ####################################################################################################
+ * GROUP: src/app/vendors/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/vendors/printing/fabric-m2.js ============================== */
 /* ================= FABRIC FROM THE PRINTERS, IN SQUARE METRES =================
  *
  * Ravi, 17 Sep: "printing fabric in (square meter) requirement nikalni h … printer requ. according
@@ -46725,6 +46737,7 @@ function palNeedWhy(need) {
   return why;
 }
 
+/* ============================== FILE: src/app/vendors/printing/printed-on-what.js ============================== */
 /* ================= WHAT IS PRINTED, AND ON WHAT =================
  *
  * Not every open piece is a printing job. Some articles are never printed (a pillow insert is
@@ -47208,6 +47221,11 @@ function recipeEdit(key) {
   });
 }
 
+
+/* ####################################################################################################
+ * GROUP: src/app/masters/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/masters/recipe-bucket.js ============================== */
 /* ================= THE RECIPE BUCKET =================
  *
  * One row per article + subtype + size, holding everything about a product that its colour does not
@@ -47218,6 +47236,7 @@ function recipeEdit(key) {
  * data feed krna padta h". Existing SKUs are left exactly as they are until somebody presses Apply
  * and is shown what would change, because quietly rewriting 4,730 rows is not a feature.
  */
+/* ============================== FILE: src/app/masters/sku-codes.js ============================== */
 /* ================= SKU CODES — A NEW COLOUR'S SKUS =================
  *
  * Ravi, 2026-09-22: "mujhe ek SKU recipe bhi banani h" — with the sheet his team keeps by hand:
@@ -47603,6 +47622,11 @@ $('ptmSkcFile').onchange = async e => {
   } catch (err) { $('ptmMsg').className = 'err'; $('ptmMsg').textContent = 'Could not read the file: ' + (err.message || err); }
 };
 
+
+/* ####################################################################################################
+ * GROUP: src/app/inventory/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/inventory/store.js ============================== */
 /* ================= THE STORE =================
  *
  * Ravi, 2026-09-22: "jo goods mujhe received hua printers se wo direct yaha aakar store hona chahiye …
@@ -48537,6 +48561,11 @@ function recipeApplyPlan(rows) {
   return { fill, change };
 }
 
+
+/* ####################################################################################################
+ * GROUP: src/app/masters/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/masters/cloth-per-piece.js ============================== */
 /* ================= HOW MUCH CLOTH ONE PIECE TAKES =================
  *
  * Ravi's method, exactly: two inches of stitching margin each way, then find the roll the cut
@@ -49154,6 +49183,11 @@ $('kaExport').onclick = () => {
 
 
 
+
+/* ####################################################################################################
+ * GROUP: src/app/reports/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/reports/day-by-day-target.js ============================== */
 /* ================= DAY BY DAY, AND THE MONTHLY TARGET =================
  *
  * Ravi, 2026-09-22: "date wise also, and kis karigar ka work kam hua — like monthly 1 karigar 30000 ka
@@ -49609,6 +49643,11 @@ function renderKaMix() {
   kaRenderDetail();
 }
 
+
+/* ####################################################################################################
+ * GROUP: src/app/shopify/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/shopify/shopify-orders.js ============================== */
 /* ================= SHOPIFY ORDERS & ADJUSTMENTS =================
  * Moved here from Sellora, where these screens used to live. Verbatim, apart from what the move
  * itself forced: the backend calls now go through prGet/PRAPI (config/api — the Price Research
@@ -51566,6 +51605,7 @@ async function saveAdj(remove) {
   }
 }
 
+/* ============================== FILE: src/app/shopify/orders-to-make.js ============================== */
 /* ================= SHOPIFY ORDERS THAT HAVE TO BE MADE =================
  *
  * A Shopify order neither Amazon nor India can fill has to be MADE, and until now that fact lived
@@ -52276,6 +52316,7 @@ function shpCustomRec(w, sku, nowIso) {
     };
 }
 
+/* ============================== FILE: src/app/shopify/production-bucket.js ============================== */
 /* ================= THE PRODUCTION BUCKET (Ravi, 2026-09-26) =================
  *
  * Every Shopify line that needs making and has no production order yet — and, apart, every line the stock says it
@@ -52479,6 +52520,7 @@ function soRenderProdBox(o) {
   };
 }
 
+/* ============================== FILE: src/app/shopify/bucket-excel.js ============================== */
 /* ================= THE BUCKET IN EXCEL ================= */
 const SHB_XL_COLS = ['Line ID', 'Section', 'Shopify order', 'Order date', 'Store', 'SKU', 'Item', 'Qty', 'In FBA', 'In India', 'Why', 'Open', 'Reason (stock-covered lines)'];
 function shpBucketSheetRows(list) {
@@ -53118,6 +53160,7 @@ function soBindAdjButtons() {
 $('adjSave').onclick = () => saveAdj(false);
 if ($('soBucket')) $('soBucket').onclick = () => shpBucketOpen();
 
+/* ============================== FILE: src/app/shopify/returns.js ============================== */
 /* ================= SHOPIFY RETURNS — typed by hand, tracked to the USA warehouse =================
  *
  * Ravi, 2026-09-26: "koi ek order h jisme 4 line item me order aaya tha but buyer ne usme se 2 return kar diye to
@@ -53316,6 +53359,7 @@ function srNewOpen(orderId, id) {
 }
 if ($('soReturns')) $('soReturns').onclick = () => srOpen();
 
+/* ============================== FILE: src/app/shopify/delivery-days.js ============================== */
 /* ================= DELIVERY DAYS FROM THE USA WAREHOUSE =================
  *
  * Ravi, 2026-09-26: "sirf me usa zip code dalu or baha kitne din me delivery ho jayegi wo check kar saku."
@@ -53373,6 +53417,11 @@ async function daysEstimate(fromZip, toZip) {
   const zone = zoneOf(miles, b.state);
   return { from: a, to: b, miles, zone, days: ZONE_DAYS[zone], rough: a.src === 'state' || b.src === 'state' };
 }
+
+/* ####################################################################################################
+ * GROUP: src/app/replenishment/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/replenishment/india-usa-express.js ============================== */
 /* ================= INDIA → USA BY EXPRESS (Ravi, 2026-09-27) =================
  *
  * "delivery days me kya hum india se check kar sakte h — mere pas DHL Express service h, FedEx Priority service h".
@@ -54336,6 +54385,11 @@ MS['soChan'].onChange = () => renderShop();
 
 
 /* ---- from Sellora: Adjustments ---- */
+
+/* ####################################################################################################
+ * GROUP: Amazon Inventory/shared/  (joined into both apps)
+ * #################################################################################################### */
+/* ============================== FILE: shared/adjustments.js ============================== */
 /* ================= ADJUSTMENTS TAB =================
  *
  * The same records the order dialog writes, read straight out of SHOP_META rather than copied into
@@ -54602,6 +54656,7 @@ $('ajExport').onclick = () => {
   a.click(); URL.revokeObjectURL(a.href);
 };
 
+/* ============================== FILE: shared/courier-templates.js ============================== */
 /* ================= Courier & MCF upload templates =================
  *
  * The four column lists below are transcribed from the workbooks in `templates/`, in their exact
@@ -54872,6 +54927,11 @@ const SO_TMPL = {
   },
 };
 
+
+/* ####################################################################################################
+ * GROUP: src/app/shopify/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/shopify/production-to-make.js ============================== */
 /* ---------- what production has to make ----------
  *
  * ONE print builder, driven by the Adjustments tab. The Shopify tab's button now walks over there
@@ -55135,6 +55195,11 @@ $('soPrintMany').onclick = () => {
 
 
 /* ---- from Sellora: Imported orders ---- */
+
+/* ####################################################################################################
+ * GROUP: Amazon Inventory/shared/  (joined into both apps)
+ * #################################################################################################### */
+/* ============================== FILE: shared/imported-orders.js ============================== */
 /* ================= IMPORTED ORDERS =================
  * Shops this app has no API key for: CPC's Shopify store and the four Etsy shops. Their orders are
  * brought in from a CSV and then behave EXACTLY like a fetched one — same columns, same MCF, the same
@@ -55423,6 +55488,11 @@ $('soImpClear').onclick = async () => {
 };
 
 
+
+/* ####################################################################################################
+ * GROUP: src/app/shopify/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/shopify/imported-orders-bulk.js ============================== */
 /* ---------- bulk update: Location, At location, Line status ---------- */
 const SO_BULK_COLS = [
   { k: 'chan', t: 'Channel', alias: ['channel', 'shop', 'store'] },
@@ -55678,6 +55748,11 @@ $('soBulkFile').onchange = async e => {
   } catch (err) { soMsg('Could not update: ' + (err.message || err), true); }
 };
 
+
+/* ####################################################################################################
+ * GROUP: Amazon Inventory/shared/  (joined into both apps)
+ * #################################################################################################### */
+/* ============================== FILE: shared/imported-orders-export.js ============================== */
 $('soExport').onclick = () => {
   /* TICKED FIRST, EVERYTHING SHOWN OTHERWISE — the same rule as Print orders, deliberately.
    *
@@ -55853,6 +55928,11 @@ $('soExport').onclick = () => {
 };
 
 
+
+/* ####################################################################################################
+ * GROUP: src/app/core/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/core/filter-by.js ============================== */
 /* ================= "FILTER BY" — one button instead of a row of drop-downs =================
  *
  * Ravi, 2026-09-22, on the Job Work toolbar: "itne sare option ki jagah filter by then choose kar sakte
@@ -55986,6 +56066,7 @@ function ftSync(rec) {
   } catch (e) { console.warn('[filters] not applied:', e); }
 })();
 
+/* ============================== FILE: src/app/core/installed-app.js ============================== */
 /* ================= THE INSTALLED APP =================
  * The service worker only makes the app installable and gives it an offline page; it always fetches
  * the page from the network first (see /sw.js). "Install app" appears only when the browser says the
@@ -56003,6 +56084,7 @@ function ftSync(rec) {
   } catch (e) { console.warn('[app] install not offered:', e); }
 })();
 
+/* ============================== FILE: src/app/core/version-check.js ============================== */
 /* ================= A NEW VERSION IS OUT =================
  * An installed app on a phone stays open for days, still running the version it opened with — which is
  * how a fix could be live and the phone still show the old screen. Every few minutes, and whenever the

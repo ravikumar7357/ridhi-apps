@@ -1,0 +1,10 @@
+const fs=require('fs'),https=require('https'),pathm=require('path');
+const FTL='C:/Users/ravik/AppData/Roaming/npm/node_modules/firebase-tools/lib/';
+const FS='https://firestore.googleapis.com/v1/projects/price-research-48ff3/databases/(default)/documents/';
+(async()=>{const cfg=JSON.parse(fs.readFileSync(pathm.join(process.env.USERPROFILE,'.config/configstore/firebase-tools.json'),'utf8'));
+const tok=await require(FTL+'auth').getAccessToken(cfg.tokens.refresh_token,[]);const at=tok.access_token||tok;
+const req=u=>new Promise((res,rej)=>{https.get(u,{headers:{Authorization:'Bearer '+at},timeout:120000},x=>{let d='';x.on('data',c=>d+=c);x.on('end',()=>{try{res(JSON.parse(d))}catch(e){rej(new Error(d.slice(0,200)))}})}).on('error',rej)});
+const r=await req(FS+process.argv[2]);
+const s=JSON.stringify(r);
+console.log(s.length>+(process.env.LIM||1500)?s.slice(0,+(process.env.LIM||1500))+'…':s);
+})().catch(e=>{console.error(e.message);process.exit(1)});

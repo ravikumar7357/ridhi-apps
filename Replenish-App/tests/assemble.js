@@ -42,12 +42,42 @@ function appFiles() {
   return listed;
 }
 
+/* SIGNPOSTS IN THE JOINED FILE (2026-10-09). The IT team opened public/index.html — 56,000 lines with nothing to
+ * say where one source file ends and the next begins, or that the real source is src/ at all. Every app file now
+ * starts with a comment naming it, a new group folder starts with a group heading, and the page opens with a
+ * banner. Comments only: each file parses on its own and ends in a newline (checked), so a comment between two
+ * files cannot change what the code does; build-dist.js strips every comment, so the deployed page is unchanged. */
+const fileMark = f => `/* ${'='.repeat(30)} FILE: ${f.startsWith('@shared/') ? 'shared/' + f.slice(8) : 'src/app/' + f} ${'='.repeat(30)} */\n`;
+const groupOf = f => (f.startsWith('@shared/') ? 'shared' : f.split('/')[0]);
+const groupMark = g => `\n/* ${'#'.repeat(100)}\n * GROUP: ${g === 'shared' ? 'Amazon Inventory/shared/  (joined into both apps)' : 'src/app/' + g + '/'}\n * ${'#'.repeat(100)} */\n`;
+function joinApp(files) {
+  let last = '', out = '';
+  for (const f of files) {
+    const g = groupOf(f);
+    if (g !== last) { out += groupMark(g); last = g; }
+    out += fileMark(f) + fs.readFileSync(appPath(f), 'utf8');
+  }
+  return out;
+}
+function banner(files) {
+  const groups = [...new Set(files.map(groupOf))];
+  return `<!-- ${'='.repeat(96)}
+     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the ${files.length} files of src/ joined into one page.
+     The real, grouped source: ${path.basename(ROOT)}/src/   (map and workflow: src/README.md)
+       src/index.html   page markup        src/styles.css   stylesheet        src/app/ORDER   join order
+       src/app/<group>/ the code, by group: ${groups.join(', ')}
+     Rebuild after editing src/:  node Replenish-App/tests/assemble.js${path.basename(ROOT) === 'Replenish-App' ? '' : ' --root ' + path.basename(ROOT)}
+     Inside the script below, every source file starts with a "FILE: src/app/..." comment, every group with "GROUP:".
+     ${'='.repeat(96)} -->`;   // no newline after it: build-dist strips the comment, and the page must come out unchanged
+}
+
 function assemble() {
   const shell = fs.readFileSync(path.join(SRC, 'index.html'), 'utf8');
+  const files = appFiles();
   const parts = {
     'styles.css': () => fs.readFileSync(path.join(SRC, 'styles.css'), 'utf8'),
     'appv.js': () => fs.readFileSync(path.join(SRC, 'appv.js'), 'utf8'),
-    'app/': () => appFiles().map(f => fs.readFileSync(appPath(f), 'utf8')).join(''),
+    'app/': () => joinApp(files),
   };
   let seen = 0;
   const out = shell.replace(/^<!--@include ([^>]+?)-->\r?\n/gm, (m, name) => {
@@ -58,7 +88,10 @@ function assemble() {
   /* styles.css and app/ always; appv.js where the app has that small classic script (Replenish does, Sellora not). */
   const want = fs.existsSync(path.join(SRC, 'appv.js')) ? 3 : 2;
   if (seen !== want) throw new Error(`src/index.html should have ${want} include lines, it has ${seen}`);
-  return out;
+  /* The banner goes just before <title>: after a doctype if there is one, and at the very top otherwise. */
+  const at = out.indexOf('<title');
+  if (at < 0) throw new Error('src/index.html has no <title> to put the banner before');
+  return out.slice(0, at) + banner(files) + out.slice(at);
 }
 
 if (require.main === module) {
