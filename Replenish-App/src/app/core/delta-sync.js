@@ -16,7 +16,8 @@
  *      full size, and every mismatch. Phase 3 happens only after days of zero mismatches.
  * Then the copy is replaced with today's. Everything is caught; nothing here can stop or slow a save or a screen.
  * Off with localStorage deltaShadowOff = '1'. Never in the test harnesses (AUDIT_OFF) or for a vendor. */
-const DELTA = { on: true, delayMs: 20000, maxRows: 300, marginMs: 2 * 60 * 1000, done: false, running: false, offset: null };
+/* OFF until probes/sync-coverage.js shows every save since phase 1 noted (Ravi agreed: deploy after that check). */
+const DELTA = { on: false, delayMs: 20000, maxRows: 300, marginMs: 2 * 60 * 1000, done: false, running: false, offset: null };
 const DELTA_DB = 'ridhi-delta', DELTA_STORE = 'copies';
 
 function deltaShadowSoon() {

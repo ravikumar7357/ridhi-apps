@@ -54,6 +54,7 @@ function world(opts) {
   const fn = new Function(...Object.keys(ctx), SRC + '\n;return { DELTA, deltaShadowRun, deltaShadowSoon };');
   const api = fn(...Object.values(ctx));
   api.DELTA.delayMs = 0;
+  if (!opts.keepSwitch) api.DELTA.on = true;   // the shipped switch is tested apart, below
   const lastLog = () => { const l = logs[logs.length - 1]; return l ? Object.values(l)[0] : null; };
   return Object.assign(api, { S, calls, logs, store, lastLog, sync: (node, k) => { S.pt_sync[node][k] = Date.now(); } });
 }
@@ -137,6 +138,8 @@ const wait = ms => new Promise(r => setTimeout(r, ms || 20));
   console.log('== when it runs at all ==');
   W = world(); W.deltaShadowSoon(); W.deltaShadowSoon(); await wait(400);
   ok('once a page session, however often the registers load', W.logs.length === 1, String(W.logs.length));
+  W = world({ keepSwitch: true }); W.deltaShadowSoon(); await wait(40);
+  ok('while the switch is off (as shipped until the coverage check), it never runs', W.DELTA.on === true || W.logs.length === 0);
   W = world({ auditOff: true }); W.deltaShadowSoon(); await wait(40);
   ok('never in the test harnesses (AUDIT_OFF)', W.logs.length === 0);
   W = world({ vendor: true }); W.deltaShadowSoon(); await wait(40);
