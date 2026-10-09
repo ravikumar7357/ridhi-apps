@@ -1667,9 +1667,17 @@
         <select id="imFilter" style="flex:0 0 220px">
           <option value="all">All listings</option>
           <option value="diff">Live image differs from yours</option>
+          <option value="other">Amazon shows another SKU's pictures</option>
+          <option value="sup">Search suppressed</option>
+          <option value="amzerr">Amazon reports an error</option>
+          <option value="noown">No main image of your own</option>
           <option value="few">Fewer than 7 images</option>
           <option value="noswatch">No swatch</option>
           <option value="nobuy">Not buyable</option>
+        </select>
+        <select id="imView" style="flex:0 0 210px" title="Which picture each tile shows first">
+          <option value="mine">Show the pictures you sent</option>
+          <option value="live">Show what Amazon serves</option>
         </select>
         <button id="imGo" class="ghost" style="flex:0 0 120px" title="Open the editor for exactly this SKU or ASIN">Open editor</button>
         <button id="imRefresh" class="ghost" style="flex:0 0 170px">Refresh from Amazon</button>

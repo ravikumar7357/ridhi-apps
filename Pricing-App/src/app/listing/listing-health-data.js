@@ -78,6 +78,9 @@ async function ensureHealth() {
   if (!LR) await lrLoad();
   /* The catalogue is slow to read the first time; the table draws without it and again once it lands. */
   if (!LR_CAT.SP || !LR_CAT.CPC) lrLoadCatalog().then(() => { H_CTX = null; if (!$('paneHealth').classList.contains('hide')) renderHealth(); });
+  /* Amazon's own status and errors, from the Image Manager snapshot. Loaded beside the catalog so the
+   * two Amazon rules can run; until it arrives they find nothing rather than guessing. */
+  if (!AMZ.map) amzEnsure().then(() => { if (!$('paneHealth').classList.contains('hide')) renderHealth(); });
   if (H_LOADED) return renderHealth();
   hMsg('Loading the last snapshot…');
   await loadHealthCache();
@@ -541,7 +544,7 @@ function renderHealth() {
       tip: '6–7 images when 8 is ideal, a thin or missing description, or a title outside 80–200 characters.' });
     /* ONE COLUMN, NOT TWO (2026-10-05, Ravi: "healthy or health only 1 column rakho"): the Health score stays; the count
      * of clean children is on the brand card above. */
-    ['Title', 'Size', 'Variation', 'Images', 'Content'].forEach(a => defs.push({ k: 'parea' + a, t: a, noTotal: 1,
+    ['Amazon', 'Title', 'Size', 'Variation', 'Images', 'Content'].forEach(a => defs.push({ k: 'parea' + a, t: a, noTotal: 1,
       map: r => r.kids.reduce((m, x) => { const f = hAreaSev(x._h, a); return Math.max(m, f ? LR_SEV[f.sev].rank : 0); }, 0),
       cell: r => {
         let worst = null, hit = 0;
@@ -581,7 +584,7 @@ function renderHealth() {
       map: r => ({ critical: 5, action: 4, review: 3, unchecked: 2, monitor: 1, healthy: 0 })[r._h.bucket], cell: r => hSevCell(r._h.bucket) });
     defs.push({ k: 'issueCount', t: 'Issues', num: 1, map: r => r._h.found.length });
     defs.push({ k: 'qty', t: 'Inventory', num: 1 });
-    ['Title', 'Size', 'Variation', 'Images', 'Content'].forEach(a => defs.push({ k: 'area' + a, t: a, noTotal: 1,
+    ['Amazon', 'Title', 'Size', 'Variation', 'Images', 'Content'].forEach(a => defs.push({ k: 'area' + a, t: a, noTotal: 1,
       map: r => { const f = hAreaSev(r._h, a); return f ? LR_SEV[f.sev].rank : 0; }, cell: r => hAreaCell(r, a) }));
     defs.push({ k: 'score', t: 'Health', num: 1, bold: 1, noTotal: 1 });
     defs.push({ k: 'title', t: 'Title text', trunc: 38 });

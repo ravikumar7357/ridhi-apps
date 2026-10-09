@@ -23,7 +23,7 @@
  */
 const H_BUCKETS = { critical: 'Critical', action: 'Attention', review: 'Review', monitor: 'Monitor', healthy: 'Healthy', unchecked: 'Not checked' };
 const LR_SEV = { critical: { label: 'Critical', cls: 'sev-c', rank: 3 }, action: { label: 'Attention', cls: 'sev-a', rank: 2 }, review: { label: 'Review', cls: 'sev-r', rank: 1 } };
-const LR_AREAS = ['Title', 'Size', 'Variation', 'Images', 'Content', 'Inventory', 'Price'];
+const LR_AREAS = ['Amazon', 'Title', 'Size', 'Variation', 'Images', 'Content', 'Inventory', 'Price'];
 
 /** What each detector means, and the settings it takes. */
 const LR_DETECTORS = {
@@ -45,10 +45,17 @@ const LR_DETECTORS = {
   title_keyword: { label: 'Title missing a required word (comma-separated: any one is enough)', params: ['words'] },
   title_contains: { label: 'Title contains a word (comma-separated)', params: ['words'] },
   seasonal_keyword: { label: 'Title names an occasion that is out of season (see the calendar)', params: [] },
+  amazon_suppressed: { label: 'Amazon has taken the listing out of search (buyable but not discoverable)', params: [] },
+  amazon_error: { label: 'Amazon itself reports an error on the listing', params: [] },
 };
 
 const LR_DEFAULT = {
   issues: [
+    /* AMAZON'S OWN VERDICT COMES FIRST (9 Oct 2026). RTC203-6060 was suppressed from search with
+     * ERROR 18320 "The main image is missing or incorrect" and this screen said nothing: the catalogue
+     * had images, because the family supplies them, and no rule had ever asked Amazon what IT thought. */
+    { id: 'amz_suppressed', name: 'Suppressed from search by Amazon', sev: 'critical', area: 'Amazon', detector: 'amazon_suppressed', desc: 'Buyable from a direct link but removed from search results' },
+    { id: 'amz_error', name: 'Amazon reports an error', sev: 'critical', area: 'Amazon', detector: 'amazon_error', desc: "Amazon's own issue list for this listing holds at least one ERROR" },
     /* Critical — the rows Ravi's screenshot showed, and a listing with no image at all. */
     { id: 'inv_mismatch', name: 'Inventory/content mismatch', sev: 'critical', area: 'Inventory', detector: 'inactive_with_stock', desc: 'Inventory has arrived and listing is fundamentally incomplete/unbuyable' },
     { id: 'price_error', name: 'Major price error', sev: 'critical', area: 'Price', detector: 'no_price', desc: 'Price substantially outside approved/master range — only "no price" can be checked today' },
@@ -253,6 +260,15 @@ function lrSuggest(r, cfg, today) {
 const LR_DET = {
   inactive_with_stock: r => (/inactive/i.test(r.status || '') && r.qty > 0) ? `${r.qty} in stock but the listing is Inactive` : '',
   no_price: r => r.price === 0 ? 'no price' : '',
+  amazon_suppressed: (r, c) => {
+    const a = c.amz && c.amz.get(r.brand + '|' + r.sku); if (!a || !a.st) return '';
+    const st = String(a.st).toUpperCase();
+    return st.includes('BUYABLE') && !st.includes('DISCOVERABLE') ? 'buyable by direct link, not in search' : '';
+  },
+  amazon_error: (r, c) => {
+    const a = c.amz && c.amz.get(r.brand + '|' + r.sku);
+    return a && a.ie ? (a.im || a.ie + ' error(s) reported by Amazon') : '';
+  },
   no_main_image: r => (r.content && !r.content.images) ? 'no image' : '',
   aplus_missing: r => r.aplus === false ? 'no A+ published' : '',
   images_below: (r, c, p) => (r.content && r.content.images && r.content.images < (+p.n || 6)) ? `${r.content.images} of ${+p.n || 6}` : '',
@@ -320,11 +336,42 @@ const LR_DET = {
 
 /** What every listing is judged against at once: the rules, today, and what each parent's children look like. */
 let H_CTX = null;
+
+/* WHAT AMAZON SAYS ABOUT EACH LISTING, read from the Image Manager's snapshot (imgsnap + imgrows).
+ * Status and Amazon's own issue list come back free on a call that walk already makes, so Listing
+ * Health reads that snapshot rather than asking Amazon about 3,653 listings a second time.
+ * Key is "<brand>|<sku>". Without a snapshot the two Amazon rules simply find nothing. */
+const AMZ = { map: null, at: 0, busy: false };
+async function amzEnsure() {
+  if (AMZ.busy || AMZ.map) return;
+  AMZ.busy = true;
+  const map = new Map();
+  try {
+    for (const b of ['SP', 'CPC']) {
+      const head = await getDoc(doc(db, 'imgsnap', b));
+      if (!head.exists()) continue;
+      const n = head.data().chunks || 0;
+      const got = await Promise.all(Array.from({ length: n }, (_, i) => getDoc(doc(db, 'imgrows', b + '_' + i))));
+      got.forEach(g => {
+        if (!g.exists()) return;
+        (g.data().r || []).forEach(x => {
+          if (x && x.sku) map.set(b + '|' + x.sku, { st: x.st || '', ie: x.ie || 0, iw: x.iw || 0, im: x.im || '' });
+        });
+      });
+    }
+    AMZ.map = map.size ? map : null;
+    AMZ.at = Date.now();
+    H_CTX = null;
+  } catch (e) {
+    AMZ.map = null;
+  }
+  AMZ.busy = false;
+}
 function hCtx(rowsAll) {
   const cfg = LR || LR_DEFAULT;
   const rows = rowsAll || ['SP', 'CPC'].flatMap(b => ((HEALTH[b] && HEALTH[b].rows) || []).map(r => (r.brand ? r : Object.assign({ brand: b }, r))));
   const withContent = rows.reduce((n, r) => n + (r.content ? 1 : 0), 0);
-  const key = [rows.length, withContent, LR_CAT.SP ? 1 : 0, LR_CAT.CPC ? 1 : 0].join('|');
+  const key = [rows.length, withContent, LR_CAT.SP ? 1 : 0, LR_CAT.CPC ? 1 : 0, AMZ.at].join('|');
   if (H_CTX && H_CTX.cfg === cfg && H_CTX.sp === HEALTH.SP && H_CTX.cpc === HEALTH.CPC && H_CTX.key === key
       && H_CTX.day === new Date().toDateString()) return H_CTX;
   const parents = new Map();
@@ -340,7 +387,7 @@ function hCtx(rowsAll) {
     const top = [...g.shapes.entries()].sort((a, b) => b[1] - a[1])[0];
     g.common = top ? top[0] : ''; g.commonExample = top ? g.examples.get(top[0]) : '';
   });
-  H_CTX = { cfg, today: new Date(), parents, sp: HEALTH.SP, cpc: HEALTH.CPC, key, day: new Date().toDateString() };
+  H_CTX = { cfg, today: new Date(), parents, amz: AMZ.map, sp: HEALTH.SP, cpc: HEALTH.CPC, key, day: new Date().toDateString() };
   return H_CTX;
 }
 
@@ -358,7 +405,10 @@ function healthOf(r, ctx) {
    * so what would be critical waits one step down, as Attention, and says why. Unknown stock (null) is
    * not zero and changes nothing. */
   /* EXCEPT NO IMAGE AT ALL (Ravi, 5 Oct 2026: "OOS me bhi no image ko laal dikhao") — that stays Critical with no stock too. */
-  if (r.qty === 0) found.forEach(f => { if (f.sev === 'critical' && f.detector !== 'no_main_image') { f.sev = 'action'; f.detail += ' (0 in stock, so not critical)'; } });
+  /* AND NOT WHAT AMAZON ITSELF REPORTS (9 Oct 2026): a suppression or an Amazon ERROR is a fault in
+   * the listing, not a sale being missed today — it survives the restock, so it stays red. */
+  const HARD = ['no_main_image', 'amazon_suppressed', 'amazon_error'];
+  if (r.qty === 0) found.forEach(f => { if (f.sev === 'critical' && HARD.indexOf(f.detector) < 0) { f.sev = 'action'; f.detail += ' (0 in stock, so not critical)'; } });
   const list = s => found.filter(f => f.sev === s).map(f => f.name + ' — ' + f.detail);
   const critical = list('critical'), action = list('action'), review = list('review');
   const notSelling = r.qty === 0 || /inactive/i.test(r.status || '');
@@ -376,7 +426,12 @@ async function lrLoad() {
     const s = await getDoc(doc(db, 'listingrules', 'config'));
     if (s.exists()) {
       const d = s.data();
-      LR = { issues: d.issues || LR_DEFAULT.issues, templates: d.templates || LR_DEFAULT.templates, events: d.events || LR_DEFAULT.events };
+      /* A RULE ADDED AFTER THE LAST SAVE MUST STILL RUN. The saved document holds the whole list, so a
+       * new default would otherwise stay invisible until somebody pressed Save in the Rules tab. */
+      const saved = d.issues || LR_DEFAULT.issues;
+      const have = new Set(saved.map(i => i.id));
+      const added = LR_DEFAULT.issues.filter(i => !have.has(i.id));
+      LR = { issues: added.concat(saved), templates: d.templates || LR_DEFAULT.templates, events: d.events || LR_DEFAULT.events };
       LR_SAVED_AT = d.at && d.at.toDate ? d.at.toDate() : null;
     } else LR = JSON.parse(JSON.stringify(LR_DEFAULT));
   } catch (e) { LR = LR || JSON.parse(JSON.stringify(LR_DEFAULT)); }
