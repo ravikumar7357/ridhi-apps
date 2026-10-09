@@ -18,6 +18,20 @@
  *
  * Images Amazon does not have yet are uploaded to a public Google Drive folder, because Amazon takes
  * a URL and fetches the picture itself; it does not accept a file.
+ *
+ * HOW THIS FILE IS LAID OUT:
+ *   1. Slots            — the ten image slots and their Amazon attribute names
+ *   2. Amazon plumbing  — the raw call, error wording, the seller id
+ *   3. Read one listing — ?limg=get (catalogue + our listing + issues)
+ *   4. Whole catalogue  — ?limg=page (every listing, 20 a page, in created-date windows)
+ *   5. Change a listing — POST limg=patch (preview, then real), the change log, ?limg=history
+ *   6. Uploads          — POST limg=upload into a public Drive folder
+ *   7. Editor checks    — functions to Run by hand in the Apps Script editor
+ * Routes live in Code.gs doGet / doPost (search for `p.limg`).
+ */
+
+/* ============================================================================================
+ * 1. SLOTS
  */
 
 var LIMG_SLOTS = ['MAIN', 'PT01', 'PT02', 'PT03', 'PT04', 'PT05', 'PT06', 'PT07', 'PT08', 'SWCH'];
@@ -29,6 +43,10 @@ var LIMG_ATTR = {
   PT07: 'other_product_image_locator_7', PT08: 'other_product_image_locator_8',
   SWCH: 'swatch_product_image_locator',
 };
+
+/* ============================================================================================
+ * 2. AMAZON PLUMBING — the raw call, error wording, the seller id
+ */
 
 /** Raw SP-API call that hands back status + body instead of throwing, so a 403 can be named. */
 function limgSp_(path, method, payload) {
@@ -85,6 +103,10 @@ function limgSeller_(asinHint) {
   PropertiesService.getScriptProperties().setProperty(key, id);
   return id;
 }
+
+/* ============================================================================================
+ * 3. READ ONE LISTING — ?limg=get
+ */
 
 /** Which of OUR SKUs sit on an ASIN. One ASIN can carry several (FBA + MFN, old + new). */
 function limgSkusForAsin_(seller, asin) {
@@ -169,6 +191,117 @@ function limgGet_(p) {
   };
 }
 
+/* ============================================================================================
+ * 4. WHOLE CATALOGUE — ?limg=page
+ */
+
+/**
+ * GET ?limg=page&brand=&token=&pages=N  — the whole catalogue of this seller, 20 listings a page,
+ * with each one's image slots, parent and variation facts. Walks up to `pages` pages per call (time
+ * bounded) and hands back the next token, so the browser can drive the full walk.
+ */
+function limgPage_(p) {
+  setBrand_(p.brand);
+  var seller;
+  try { seller = limgSeller_(''); } catch (e) { return { ok: false, error: String(e.message || e) }; }
+  var token = String(p.token || ''), maxPages = Math.min(Number(p.pages) || 10, 40);
+  /* AMAZON STOPS A SEARCH AT 1,000 RESULTS (found 9 Oct: both brands came back as exactly 1,000 of
+   * 2,677 and 1,715). So the caller walks CREATED-DATE WINDOWS small enough to stay under it;
+   * `count=1` asks only how many a window holds. Sorted by SKU so a listing edited mid-walk cannot
+   * move between pages. */
+  var win = (p.after ? '&createdAfter=' + encodeURIComponent(p.after) : '') +
+    (p.before ? '&createdBefore=' + encodeURIComponent(p.before) : '');
+  if (p.count) {
+    var c = limgSp_('/listings/2021-08-01/items/' + seller + '?marketplaceIds=' + marketplaceId_() +
+      '&includedData=summaries&pageSize=1' + win, 'get');
+    if (c.code >= 300) return limgErr_(c, 'Counting listings');
+    return { ok: true, total: c.body.numberOfResults };
+  }
+  var t0 = Date.now(), items = [], pages = 0, total = null;
+  while (pages < maxPages && Date.now() - t0 < 40000) {
+    var path = '/listings/2021-08-01/items/' + seller + '?marketplaceIds=' + marketplaceId_() +
+      '&includedData=summaries,attributes,issues&pageSize=20&sortBy=sku&sortOrder=ASC' + win +
+      (token ? '&pageToken=' + encodeURIComponent(token) : '');
+    var r = limgSp_(path, 'get');
+    if (r.code >= 300) { var bad = limgErr_(r, 'Listing page'); bad.items = items; bad.next = token; return bad; }
+    if (total == null) total = r.body.numberOfResults;
+    var got = (r.body.items || []).map(limgShape_);
+    limgLiveAdd_(got);
+    items = items.concat(got);
+    pages++;
+    token = (r.body.pagination && r.body.pagination.nextToken) || '';
+    if (!token) break;
+  }
+  return { ok: true, items: items, next: token, total: total, pages: pages };
+}
+
+/* AMAZON'S OWN VERDICT TRAVELS WITH THE LISTING (added 9 Oct, after RTC203-6060).
+ * That SKU was suppressed from search — Seller Central said "Fix listing suppression" and Amazon's
+ * issues held ERROR 18320 "The main image is missing or incorrect" — while the app showed a green
+ * "Buyable" chip, because the CATALOGUE had images (the family supplies them) and nothing read the
+ * status properly. `issues` costs nothing on a call already being made, so every row now carries:
+ *   ie = how many ERRORs, iw = how many WARNINGs, im = the first error in Amazon's own words.
+ * Status is the other half: BUYABLE without DISCOVERABLE *is* suppressed from search. */
+function limgShape_(it) {
+  var s = (it.summaries && it.summaries[0]) || {}, at = it.attributes || {};
+  var iss = it.issues || [], ie = 0, iw = 0, im = '';
+  iss.forEach(function (i) {
+    if (i.severity === 'ERROR') { ie++; if (!im) im = String(i.message || '').slice(0, 140); }
+    else if (i.severity === 'WARNING') iw++;
+  });
+  var one = function (k, f) { var v = at[k]; return v && v[0] ? (f ? v[0][f] : v[0].value) : ''; };
+  var img = {};
+  LIMG_SLOTS.forEach(function (slot) {
+    var v = at[LIMG_ATTR[slot]];
+    if (v && v[0] && v[0].media_location) img[slot] = v[0].media_location;
+  });
+  var rel = at.child_parent_sku_relationship && at.child_parent_sku_relationship[0];
+  return {
+    sku: it.sku, asin: s.asin || '', st: (s.status || []).join(','), pt: s.productType || '',
+    t: String(s.itemName || '').slice(0, 160), main: s.mainImage ? s.mainImage.link : '',
+    lvl: one('parentage_level'), psku: rel ? (rel.parent_sku || '') : '',
+    c: one('color'), z: one('size'), img: img,
+    ie: ie, iw: iw, im: im,
+  };
+}
+
+/**
+ * What shoppers actually see, added to each shaped listing as `live` (slot -> url) and `pa` (parent
+ * ASIN). The listing's own attributes are what WE submitted; the catalogue can differ (another
+ * contributor, a change still processing), and on 9 Oct it did: R-CP-351 submitted one MAIN while
+ * Amazon showed a picture shared with another colour. Only the catalogue answers "what is live".
+ */
+function limgLiveAdd_(list) {
+  var asins = [];
+  list.forEach(function (x) { if (/^[A-Z0-9]{10}$/.test(x.asin) && asins.indexOf(x.asin) < 0) asins.push(x.asin); });
+  if (!asins.length) return;
+  var r = limgSp_('/catalog/2022-04-01/items?marketplaceIds=' + marketplaceId_() + '&identifiers=' + asins.join(',') +
+    '&identifiersType=ASIN&pageSize=20&includedData=images,relationships', 'get');
+  if (r.code >= 300) { list.forEach(function (x) { x.liveErr = 'catalogue ' + r.code; }); return; }
+  var by = {};
+  (r.body.items || []).forEach(function (it) {
+    var slots = {}, best = {};
+    ((it.images && it.images[0] && it.images[0].images) || []).forEach(function (im) {
+      if (!im || !im.variant || !im.link) return;
+      var w = Number(im.width) || 0;
+      if (!best[im.variant] || w > best[im.variant]) { best[im.variant] = w; slots[im.variant] = im.link; }
+    });
+    var pa = '';
+    ((it.relationships && it.relationships[0] && it.relationships[0].relationships) || []).forEach(function (rel) {
+      if (rel.parentAsins && rel.parentAsins.length) pa = rel.parentAsins[0];
+    });
+    by[it.asin] = { live: slots, pa: pa };
+  });
+  list.forEach(function (x) {
+    var b = by[x.asin];
+    if (b) { x.live = b.live; x.pa = b.pa; } else if (x.asin) x.liveErr = 'not in catalogue';
+  });
+}
+
+/* ============================================================================================
+ * 5. CHANGE A LISTING — POST limg=patch, the log, ?limg=history
+ */
+
 /**
  * POST {limg:'patch', brand, sku, productType, set:{SLOT:url|''}, apply:true|false}
  * `set` holds ONLY the slots that change; '' removes a slot. Preview first, always.
@@ -238,6 +371,7 @@ function limgLog_(row) {
   while (s.length > 8500 && list.length > 1) { list.pop(); s = JSON.stringify(list); }
   props.setProperty('LIMG_LOG', s);
 }
+
 function limgHistory_(sku) {
   var list = [];
   try { list = JSON.parse(prop_('LIMG_LOG') || '[]'); } catch (e) { list = []; }
@@ -245,7 +379,9 @@ function limgHistory_(sku) {
   return { ok: true, rows: list };
 }
 
-/* ---------- uploads: a public Drive folder Amazon can fetch from ---------- */
+/* ============================================================================================
+ * 6. UPLOADS — a public Drive folder Amazon can fetch from
+ */
 
 function limgFolder_() {
   var id = prop_('LIMG_FOLDER_ID');
@@ -276,7 +412,9 @@ function limgUpload_(p) {
   return { ok: true, id: file.getId(), url: limgDriveUrl_(file.getId()), bytes: bytes.length };
 }
 
-/* ---------- editor checks ---------- */
+/* ============================================================================================
+ * 7. EDITOR CHECKS — Run by hand in the Apps Script editor
+ */
 
 /** Run once in the editor so Google grants Drive access to the web app. */
 function authorizeDrive() {
@@ -292,95 +430,5 @@ function limgTest() {
     var ks = Object.keys(m);
     var r = ks.length ? limgGet_({ brand: b, asin: m[ks[0]] }) : { ok: false, error: 'no SKU in the Catalog tab' };
     Logger.log(b + ': ' + JSON.stringify(r).slice(0, 1500));
-  });
-}
-
-/**
- * GET ?limg=page&brand=&token=&pages=N  — the whole catalogue of this seller, 20 listings a page,
- * with each one's image slots, parent and variation facts. Walks up to `pages` pages per call (time
- * bounded) and hands back the next token, so the browser can drive the full walk.
- */
-function limgPage_(p) {
-  setBrand_(p.brand);
-  var seller;
-  try { seller = limgSeller_(''); } catch (e) { return { ok: false, error: String(e.message || e) }; }
-  var token = String(p.token || ''), maxPages = Math.min(Number(p.pages) || 10, 40);
-  /* AMAZON STOPS A SEARCH AT 1,000 RESULTS (found 9 Oct: both brands came back as exactly 1,000 of
-   * 2,677 and 1,715). So the caller walks CREATED-DATE WINDOWS small enough to stay under it;
-   * `count=1` asks only how many a window holds. Sorted by SKU so a listing edited mid-walk cannot
-   * move between pages. */
-  var win = (p.after ? '&createdAfter=' + encodeURIComponent(p.after) : '') +
-    (p.before ? '&createdBefore=' + encodeURIComponent(p.before) : '');
-  if (p.count) {
-    var c = limgSp_('/listings/2021-08-01/items/' + seller + '?marketplaceIds=' + marketplaceId_() +
-      '&includedData=summaries&pageSize=1' + win, 'get');
-    if (c.code >= 300) return limgErr_(c, 'Counting listings');
-    return { ok: true, total: c.body.numberOfResults };
-  }
-  var t0 = Date.now(), items = [], pages = 0, total = null;
-  while (pages < maxPages && Date.now() - t0 < 40000) {
-    var path = '/listings/2021-08-01/items/' + seller + '?marketplaceIds=' + marketplaceId_() +
-      '&includedData=summaries,attributes&pageSize=20&sortBy=sku&sortOrder=ASC' + win +
-      (token ? '&pageToken=' + encodeURIComponent(token) : '');
-    var r = limgSp_(path, 'get');
-    if (r.code >= 300) { var bad = limgErr_(r, 'Listing page'); bad.items = items; bad.next = token; return bad; }
-    if (total == null) total = r.body.numberOfResults;
-    var got = (r.body.items || []).map(limgShape_);
-    limgLiveAdd_(got);
-    items = items.concat(got);
-    pages++;
-    token = (r.body.pagination && r.body.pagination.nextToken) || '';
-    if (!token) break;
-  }
-  return { ok: true, items: items, next: token, total: total, pages: pages };
-}
-
-function limgShape_(it) {
-  var s = (it.summaries && it.summaries[0]) || {}, at = it.attributes || {};
-  var one = function (k, f) { var v = at[k]; return v && v[0] ? (f ? v[0][f] : v[0].value) : ''; };
-  var img = {};
-  LIMG_SLOTS.forEach(function (slot) {
-    var v = at[LIMG_ATTR[slot]];
-    if (v && v[0] && v[0].media_location) img[slot] = v[0].media_location;
-  });
-  var rel = at.child_parent_sku_relationship && at.child_parent_sku_relationship[0];
-  return {
-    sku: it.sku, asin: s.asin || '', st: (s.status || []).join(','), pt: s.productType || '',
-    t: String(s.itemName || '').slice(0, 160), main: s.mainImage ? s.mainImage.link : '',
-    lvl: one('parentage_level'), psku: rel ? (rel.parent_sku || '') : '',
-    c: one('color'), z: one('size'), img: img,
-  };
-}
-
-/**
- * What shoppers actually see, added to each shaped listing as `live` (slot -> url) and `pa` (parent
- * ASIN). The listing's own attributes are what WE submitted; the catalogue can differ (another
- * contributor, a change still processing), and on 9 Oct it did: R-CP-351 submitted one MAIN while
- * Amazon showed a picture shared with another colour. Only the catalogue answers "what is live".
- */
-function limgLiveAdd_(list) {
-  var asins = [];
-  list.forEach(function (x) { if (/^[A-Z0-9]{10}$/.test(x.asin) && asins.indexOf(x.asin) < 0) asins.push(x.asin); });
-  if (!asins.length) return;
-  var r = limgSp_('/catalog/2022-04-01/items?marketplaceIds=' + marketplaceId_() + '&identifiers=' + asins.join(',') +
-    '&identifiersType=ASIN&pageSize=20&includedData=images,relationships', 'get');
-  if (r.code >= 300) { list.forEach(function (x) { x.liveErr = 'catalogue ' + r.code; }); return; }
-  var by = {};
-  (r.body.items || []).forEach(function (it) {
-    var slots = {}, best = {};
-    ((it.images && it.images[0] && it.images[0].images) || []).forEach(function (im) {
-      if (!im || !im.variant || !im.link) return;
-      var w = Number(im.width) || 0;
-      if (!best[im.variant] || w > best[im.variant]) { best[im.variant] = w; slots[im.variant] = im.link; }
-    });
-    var pa = '';
-    ((it.relationships && it.relationships[0] && it.relationships[0].relationships) || []).forEach(function (rel) {
-      if (rel.parentAsins && rel.parentAsins.length) pa = rel.parentAsins[0];
-    });
-    by[it.asin] = { live: slots, pa: pa };
-  });
-  list.forEach(function (x) {
-    var b = by[x.asin];
-    if (b) { x.live = b.live; x.pa = b.pa; } else if (x.asin) x.liveErr = 'not in catalogue';
   });
 }

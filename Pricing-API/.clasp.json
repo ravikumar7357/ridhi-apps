@@ -1,4 +1,29 @@
 {
   "scriptId": "12_r0g4MCgNd5fAIRM01KusVQUgkS8w6D2dOEkuF14ef8Rp9dx4fdPQ2A",
-  "rootDir": "C:\\AMAZON\\Amazon Inventory\\Pricing-API"
+  "rootDir": "C:\\AMAZON\\Amazon Inventory\\Pricing-API",
+  "filePushOrder": [
+    "Code.gs",
+    "MailPo.gs",
+    "SpApi.gs",
+    "AdsApi.gs",
+    "SkuPictures.gs",
+    "ListingOptimiser.gs",
+    "MarketBasket.gs",
+    "ListingImages.gs",
+    "ShopifySkuSales.gs",
+    "SearchTerms.gs",
+    "Shopify.gs",
+    "Mcf.gs",
+    "OrderAudits.gs",
+    "Nightly.gs",
+    "WeeklyPpc.gs",
+    "Lookups.gs",
+    "BrandAnalytics.gs",
+    "InventoryAge.gs",
+    "Notifications.gs",
+    "SalesAnalysis.gs",
+    "ListingHealth.gs",
+    "Research.gs",
+    "Setup.gs"
+  ]
 }
