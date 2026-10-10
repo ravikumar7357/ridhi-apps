@@ -40,6 +40,7 @@ const FLOW_BUCKETS = [
    * accessories. A line stays in Demand until both have answered, and shows in each list only for its own part. */
   ['drfd', 'Demand · RFD fabric', 'fldem', 'Planned; the fabric is not ready yet. RFD in stock against what each line needs — red where it falls short.'],
   ['dacc', 'Demand · Accessories', 'flacc', 'Planned; the accessories are not reserved yet. Free on the shelf against what each line needs.'],
+  ['dhist', 'Demand history', 'flchl', 'Every RFD challan. Open until the printed fabric comes back against it — receive it here and the lines move to the store.'],
   ['out', 'Outsourced', 'flout', 'Made outside, finished: waiting to be received into Finished Goods.'],
   ['vendor', 'Vendor allocation', 'flven', 'Printed lines not yet given to a printer in full.'],
   ['fabric', 'Printed fabric in', 'flfab', 'Given to a printer, not all back and accepted.'],
@@ -99,6 +100,11 @@ function flowState(r) {
     cut: r.cutReq ? cap(r.cut) : 0, issued: cap(r.issued), received: cap(r.received), qc: q ? cap(q.ok) : 0,
     made: Math.max(cap(r.pressed), q ? cap(q.ok) : 0), india: (r.handedAt || r.shopDoneAt) ? qty : cap(g.in),
   };
+  /* ON A CHALLAN: given to that printer by the challan itself; back in the share received of what was sent, and all of
+   * it once the challan is closed (flow-receive.js). */
+  const cx = flowChIndex()[k];
+  if (cx) { s.challan = cx; s.given = qty;
+    s.back = cx.closed ? qty : Math.max(s.back, cap(Math.floor(qty * Math.min(1, cx.sent ? cx.recv / cx.sent : 0) + 1e-9))); }
   const accNeed = !!p && route !== 'outsource' && (p.acc || []).some(a => a.code && +a.qty > 0);
   s.needFab = isNew && !!p && route !== 'outsource' && !(d && d.fabricReady);
   s.needAcc = isNew && accNeed && !res;
@@ -121,7 +127,7 @@ function flowState(r) {
 let FLOW_C = { src: null, test: null, ppc: null, dem: null, res: null, rows: null };
 function flowRows() {
   const real = ordLines(), test = flowTestLines();
-  if (FLOW_C.rows && FLOW_C.src === real && FLOW_C.test === test && FLOW_C.ppc === FLOW.ppc && FLOW_C.dem === FLOW.dem && FLOW_C.res === FLOW.res) return FLOW_C.rows;
+  if (FLOW_C.rows && FLOW_C.src === real && FLOW_C.test === test && FLOW_C.ppc === FLOW.ppc && FLOW_C.dem === FLOW.dem && FLOW_C.res === FLOW.res && FLOW_C.ch === FLOW.ch) return FLOW_C.rows;
   const lines = test.length ? real.concat(test) : real;
   const since = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10);
   const rows = [];
@@ -131,6 +137,6 @@ function flowRows() {
     if (s.bucket === 'done' && !recent) return;
     rows.push({ r, s, recent });
   });
-  FLOW_C = { src: real, test, ppc: FLOW.ppc, dem: FLOW.dem, res: FLOW.res, rows };
+  FLOW_C = { src: real, test, ppc: FLOW.ppc, dem: FLOW.dem, res: FLOW.res, ch: FLOW.ch, rows };
   return rows;
 }

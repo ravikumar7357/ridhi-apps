@@ -62,6 +62,7 @@ flow/flow-ppc.js
 flow/flow-demand.js
 flow/flow-challan.js
 flow/flow-test-order.js
+flow/flow-receive.js
 flow/flow-view.js
 dashboard/management-dashboard.js
 people-pay/finance-hr.js

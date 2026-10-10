@@ -27,6 +27,8 @@ function flowChallanOpen(orderNo) {
   const rows = flowRows().filter(x => x.r.orderNo === orderNo && flowInView('drfd', x.s));
   if (!rows.length) return;
   const vens = flowChVendors();
+  /* The printer PPC planned for these lines comes ready picked. */
+  const planned = (rows.map(x => x.s.plan && x.s.plan.printer && x.s.plan.printer.code).find(Boolean)) || '';
   const lineHtml = rows.map((x, i) => { const p = x.s.plan || {}, c = cv.line[x.s.key] || {};
     return `<tr><td><input type="checkbox" data-chk="${i}" checked style="width:auto"></td>
       <td style="text-align:left"><b style="font-family:ui-monospace,monospace">${esc(obUC(x.r.sku))}</b><div class="muted" style="font-size:10.5px">${esc(flowChItem(x.r))}</div></td>
@@ -38,7 +40,7 @@ function flowChallanOpen(orderNo) {
     title: `RFD challan — ${orderNo}`,
     subtitle: 'The fabric of this order, to one vendor. Saving numbers the challan, opens it to print, and marks these lines\' fabric as given — they leave Demand by themselves.',
     html: `<div class="ptgrid" style="grid-template-columns:2fr 1fr">
-        <label>Vendor<select id="flcVen"><option value="">— pick the vendor —</option>${vens.map(v => `<option value="${esc(v.code)}">${esc((v.desc || v.name || v.code) + (v.category ? ' · ' + v.category : ''))}</option>`).join('')}</select></label>
+        <label>Vendor<select id="flcVen"><option value="">— pick the vendor —</option>${vens.map(v => `<option value="${esc(v.code)}"${String(v.code) === String(planned) ? ' selected' : ''}>${esc((v.desc || v.name || v.code) + (v.category ? ' · ' + v.category : ''))}</option>`).join('')}</select></label>
         <label>Date<input id="flcDate" type="date" value="${esc(dToday())}"></label></div>
       <table class="xl" style="margin-top:10px;width:100%"><thead><tr><th></th><th style="text-align:left">SKU</th><th style="text-align:left">Fabric</th><th>Pcs</th><th>Metres</th><th>RFD</th></tr></thead><tbody>${lineHtml}</tbody></table>
       <label style="display:block;margin-top:8px">Note (vehicle, who carried it…)<input id="flcNote"></label>`,
@@ -107,14 +109,4 @@ function flowChallanPrint(no) {
     + '<style>@media print{.noprint{display:none}}</style></body>'));
   w.document.close();
   return '';
-}
-/** The challans for the lines on screen, newest first — to print again. */
-function flowChallanList(orderNos) {
-  const want = new Set(orderNos);
-  const list = Object.values(FLOW.ch || {}).filter(c => !orderNos || want.has(c.orderNo)).sort((a, b) => String(b.no).localeCompare(String(a.no)));
-  if (!list.length) return '';
-  return `<div style="font-weight:600;margin:12px 0 6px">Challans made</div><table class="xl" style="width:auto"><thead><tr><th style="text-align:left">Challan</th><th>Date</th><th style="text-align:left">Order</th><th style="text-align:left">Vendor</th><th>Lines</th><th>Metres</th><th></th></tr></thead><tbody>`
-    + list.slice(0, 50).map(c => `<tr><td style="text-align:left"><b>${esc(c.no)}</b></td><td>${esc(String(c.date || '').slice(5))}</td><td style="text-align:left">${esc(c.orderNo)}</td><td style="text-align:left">${esc(c.vendor && c.vendor.name)}</td>
-      <td class="num">${nf((c.lines || []).length)}</td><td class="num">${nf(flowR2((c.lines || []).reduce((a, l) => a + (+l.metres || 0), 0)))}</td>
-      <td><button class="ghost" data-flchp="${esc(c.no)}" style="width:auto;padding:2px 9px;font-size:11.5px">Print</button></td></tr>`).join('') + '</tbody></table>';
 }

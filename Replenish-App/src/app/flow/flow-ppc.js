@@ -41,10 +41,17 @@ function flowSuggest(r) {
   let need = true, as = '';
   try { need = !!ptPrintNeeded(m); as = ptPrintIssueAs(m) || ''; } catch (e) { /* no print rules loaded: printed, as the rules default */ }
   const t = dToday();
-  return { orderNo: r.orderNo, sku: obUC(r.sku), qty, route: need ? 'inhouse' : 'stitch', outVendor: '', fabric, acc, extra, print: { need, as },
+  let printer = { code: '', name: '', why: '' };
+  if (need) try { printer = flowPrinterFor(r); } catch (e) { /* no planning read yet */ }
+  return { orderNo: r.orderNo, sku: obUC(r.sku), qty, route: need ? 'inhouse' : 'stitch', outVendor: '', printer, fabric, acc, extra, print: { need, as },
     dates: { cut: flowAddDays(t, 3), qc: flowAddDays(t, 7), ready: ptIsoDate(r.mtoDue) || flowAddDays(t, 10) }, note: '', gaps };
 }
 
+/** The printers to pick from, the chosen one selected. */
+function flowPrinterOpts(code) {
+  let vens = []; try { vens = flowChVendors(); } catch (e) { vens = []; }
+  return vens.filter(v => /print/i.test(String(v.category || ''))).map(v => `<option value="${esc(v.code)}"${String(v.code) === String(code || '') ? ' selected' : ''}>${esc(v.desc || v.name || v.code)}</option>`).join('');
+}
 /** PPC's form for every line of one PO that is still in PPC (or one line). */
 function flowPpcOpen(orderNo, onlySku) {
   const rows = flowRows().filter(x => x.r.orderNo === orderNo && (onlySku ? obUC(x.r.sku) === obUC(onlySku) : x.s.bucket === 'ppc'));
@@ -63,6 +70,8 @@ function flowPpcOpen(orderNo, onlySku) {
           <span class="muted" style="font-size:11px">${esc(p.fabric.how || 'not known — type it')}</span></span>
         <span class="muted">How it is made</span><span><select data-fp="${i}" data-k="route" style="width:auto;padding:3px 6px;font-size:12px">${FLOW_ROUTES.map(([k, l]) => `<option value="${k}"${flowRouteOf(p) === k ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>
           ${p.print.as ? `<span class="muted" style="font-size:11px"> · print rule: given as ${esc(p.print.as)}</span>` : ''}</span>
+        <span class="muted">Printer</span><span><select data-fp="${i}" data-k="printer.code" style="width:auto;padding:3px 6px;font-size:12px"><option value="">— PPC decides —</option>${flowPrinterOpts((p.printer || {}).code)}</select>
+          <span class="muted" style="font-size:11px">${esc((p.printer || {}).why || '')} · only for a printed line</span></span>
         <span class="muted">Outsource vendor</span><span>${f(i, 'outVendor', p.outVendor || '')} <span class="muted" style="font-size:11px">only for an outsourced line — no fabric or accessories are raised for it</span></span>
         <span class="muted">Accessories</span><span>${(p.acc || []).length ? p.acc.map((a, j) => `${esc(a.what)} (code ${esc(a.code)}) × ${f(i, 'acc.' + j + '.qty', a.qty, 'number')}`).join('<br>') : '<span class="muted">none from the accessories shelf</span>'}</span>
         <span class="muted">Other materials</span><span>${(p.extra || []).length ? p.extra.map(x => `${esc(x.what)}: <b>${nf(x.qty)}</b> ${esc(x.unit)}`).join(' · ') : '<span class="muted">none</span>'}</span>
@@ -84,7 +93,10 @@ function flowPpcOpen(orderNo, onlySku) {
         set(p, k, inp.type === 'checkbox' ? inp.checked : inp.type === 'number' ? (+inp.value || 0) : inp.value.trim());
       });
       /* The route decides printing; an outsourced line raises no cloth and no accessories, and must name who makes it. */
-      plans.forEach(p => { p.route = p.route || 'inhouse'; p.print = Object.assign({}, p.print, { need: p.route === 'inhouse' }); });
+      plans.forEach(p => { p.route = p.route || 'inhouse'; p.print = Object.assign({}, p.print, { need: p.route === 'inhouse' });
+        /* The printer is kept by code and name; a line not printed has none. */
+        const v = p.route === 'inhouse' && p.printer && p.printer.code ? flowChVendors().find(x => String(x.code) === String(p.printer.code)) : null;
+        p.printer = v ? { code: v.code, name: v.desc || v.name || v.code, why: p.printer.why || '' } : null; });
       const noVen = plans.filter(p => p.route === 'outsource' && !String(p.outVendor || '').trim()).map(p => p.sku);
       if (noVen.length) return `Who makes it? Type the outsource vendor for ${noVen.join(', ')}.`;
       const patch = {}, now = new Date().toISOString();

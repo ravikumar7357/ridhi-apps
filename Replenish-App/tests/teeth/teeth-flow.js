@@ -2,7 +2,7 @@
  *   node tests/teeth/teeth-flow.js */
 const fs = require('fs'), path = require('path'), os = require('os'), { spawnSync } = require('child_process');
 const DIR = path.join(__dirname, '..', '..', 'src', 'app', 'flow');
-const FILES = ['flow-core.js', 'flow-ppc.js', 'flow-demand.js', 'flow-challan.js', 'flow-test-order.js', 'flow-view.js'];
+const FILES = ['flow-core.js', 'flow-ppc.js', 'flow-demand.js', 'flow-challan.js', 'flow-test-order.js', 'flow-receive.js', 'flow-view.js'];
 const read = f => fs.readFileSync(path.join(DIR, f), 'utf8').replace(/\r\n/g, '\n');
 const breaks = {
   'flow-core.js': {
@@ -11,6 +11,8 @@ const breaks = {
     'old orders go into PPC too': s => s.replace("const isNew = String(ptIsoDate(r.orderDate) || '') >= flowFrom();", 'const isNew = true;'),
     'Demand ignores the accessories': s => s.replace('s.needAcc = isNew && accNeed && !res;', 's.needAcc = false;'),
     'an outsourced line still waits in Demand': s => s.replace("const accNeed = !!p && route !== 'outsource' &&", 'const accNeed = !!p &&').replace("s.needFab = isNew && !!p && route !== 'outsource' &&", 's.needFab = isNew && !!p &&').replace("    : (route === 'outsource') ? (s.india < qty ? 'out' : 'done')", '    : false ? 0'),
+    'a challan line is not given': s => s.replace('if (cx) { s.challan = cx; s.given = qty;', 'if (cx) { s.challan = cx;'),
+    'a closed challan does not send the line on': s => s.replace('s.back = cx.closed ? qty :', 's.back = false ? qty :'),
     'stitching only goes to the printer': s => s.replace("const printed = p ? route === 'inhouse' :", "const printed = p ? !!(p.print && p.print.need) :"),
     'the two Demand lists are one': s => s.replace("const flowInView = (view, s) => view === 'drfd' ? s.bucket === 'demand' && s.needFab", "const flowInView = (view, s) => view === 'drfd' ? s.bucket === 'demand'"),
     'cut figures not capped at the order': s => s.replace('const cap = n => Math.max(0, Math.min(qty, +n || 0));', 'const cap = n => Math.max(0, +n || 0);'),
@@ -20,6 +22,7 @@ const breaks = {
   },
   'flow-ppc.js': {
     'a plan with no fabric is saved': s => s.replace('if (noFab.length) return', 'if (false) return'),
+    'a stitching line keeps a printer': s => s.replace("p.printer = v ? {", "p.printer = (v || p.printer.code) ? {").replace("p.route === 'inhouse' && p.printer && p.printer.code ? flowChVendors()", "p.printer && p.printer.code ? flowChVendors()"),
     'the gaps are saved': s => s.replace('delete rec.gaps;', ''),
     'no recipe fallback': s => s.replace("const per = +(recipeValue(m, 'consumption') || 0)", 'const per = 0'),
     'an outsourced line needs no vendor': s => s.replace('if (noVen.length) return', 'if (false) return'),
@@ -37,6 +40,7 @@ const breaks = {
   },
   'flow-challan.js': {
     'a challan with no vendor': s => s.replace("if (!v) return 'Which vendor", "if (false) return 'Which vendor"),
+    'the challan ignores the PPC printer': s => s.replace("String(v.code) === String(planned) ? ' selected' : ''", "''"),
     'unticked lines go on it too': s => s.replace('.filter(y => y.on);', '.filter(y => true);'),
     'test challans use real numbers': s => s.replace("(test ? 'TRFD-' : 'RFD-')", "'RFD-'"),
     'challan number never moves on': s => s.replace('(used.length ? Math.max(...used) : 0) + 1', '1'),
@@ -49,10 +53,21 @@ const breaks = {
     'delete leaves the plan behind': s => s.replace("patch['pt_ppc/' + k] = null; ", ''),
     'test lines never re-read': s => s.replace('if (FLOW_TC.src === FLOW.test) return FLOW_TC.rows;', 'if (FLOW_TC.rows.length) return FLOW_TC.rows;'),
   },
+  'flow-receive.js': {
+    'a receipt never closes the challan': s => s.replace('if (allBack) patch[', 'if (false) patch['),
+    'receipts not added up': s => s.replace('out[k] = flowR2((out[k] || 0) + (+m || 0));', 'out[k] = flowR2(+m || 0);'),
+    'any metres accepted': s => s.replace('if (over.length) return', 'if (false) return'),
+    'close short with no reason': s => s.replace("if (!why) return 'Say why", "if (false) return 'Say why"),
+    'no printer from the allocation': s => s.replace('if (v) return as(v, `Printer Allocation', 'if (false) return as(v, `Printer Allocation'),
+    'no printer from history': s => s.replace('const v = best && find(best.code);', 'const v = null;'),
+    'challan index never re-read': s => s.replace('if (FLOW_CHX.src === FLOW.ch) return FLOW_CHX.map;', 'if (FLOW_CHX.src) return FLOW_CHX.map;'),
+  },
   'flow-view.js': {
     'buttons for buckets not held': s => s.replace('$(\'flBuckets\').innerHTML = allowed.map(', '$(\'flBuckets\').innerHTML = FLOW_BUCKETS.map('),
     'no RFD stock panel': s => s.replace("if (fs.length) FLOW.panel =", "if (false) FLOW.panel ="),
     'no red flag on a short line': s => s.replace('⚑ SHORT ${nf(c.short)} m', 'covered'),
+    'challans still shown in Demand RFD': s => s.replace("$('flPanel').innerHTML = FLOW.panel;", "$('flPanel').innerHTML = FLOW.panel + (FLOW_VIEW === 'drfd' ? flowHistTable('') : '');"),
+    'no Receive button on the fabric bucket': s => s.replace("x && x.s.challan && view === 'fabric' && !x.s.challan.closed", 'false'),
     'no "test view" warning': s => s.replace(' · TEST VIEW, not on the live app', ''),
   },
 };

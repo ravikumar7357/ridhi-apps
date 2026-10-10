@@ -6,7 +6,8 @@ let FLOW_VIEW = '';
 
 async function ensureFlow() {
   if (!PTG.mdb) { $('flMsg').textContent = 'Reading the order book…'; await ptLoadGates(); }
-  await Promise.all([flowLoad(), flowFabLoad(), (typeof ensureVo === 'function' ? ensureVo().catch(() => {}) : null),
+  /* Printer Allocation too: PPC's printer is suggested from it. */
+  await Promise.all([flowLoad(), flowFabLoad(), (PAL.printers === null ? palLoad().catch(() => {}) : null), (typeof ensureVo === 'function' ? ensureVo().catch(() => {}) : null),
     (typeof ensureAcc === 'function' ? ensureAcc().catch(() => {}) : null)]);
   renderFlow();
 }
@@ -19,6 +20,7 @@ async function flowFabLoad() {
 function flowCounts(rows) {
   const n = {}; FLOW_BUCKETS.forEach(b => { n[b[0]] = 0; });
   rows.forEach(({ s, recent }) => { FLOW_BUCKETS.forEach(([k]) => { if (k !== 'new' && flowInView(k, s)) n[k]++; }); if (recent) n.new++; });
+  n.dhist = Object.values(FLOW.ch || {}).filter(c => !c.closed).length;   // open challans
   return n;
 }
 const flowDays = iso => { const d = ptIsoDate(iso); if (!d) return null; return Math.max(0, Math.round((Date.now() - new Date(d + 'T00:00:00').getTime()) / 864e5)); };
@@ -45,7 +47,7 @@ function renderFlow() {
   const b = FLOW_BUCKETS.find(x => x[0] === FLOW_VIEW);
   $('flMsg').className = FLOW.err ? 'err' : 'muted';
   $('flMsg').textContent = (FLOW.err ? 'Could not read the plans: ' + FLOW.err + ' · ' : '')
-    + `${b[1]}: ${nf(rows.length)} line(s) — ${b[3]}` + (rows.length > 800 ? ' · showing the oldest 800' : '')
+    + `${b[1]}: ${FLOW_VIEW === 'dhist' ? nf(n.dhist) + ' open challan(s)' : nf(rows.length) + ' line(s)'} — ${b[3]}` + (rows.length > 800 ? ' · showing the oldest 800' : '')
     + ` · PPC and Demand apply to orders from ${flowFrom()} · TEST VIEW, not on the live app`;
 }
 
@@ -64,11 +66,14 @@ function flowTable(view, rows) {
       <div class="muted" style="font-size:10.5px">${esc([x.r.articleSubtype || x.r.articleType, x.r.color, x.r.size].filter(Boolean).join(' · '))}</div></td>
     <td class="num"><b>${nf(x.r.qty)}</b></td>`;
   /* A test line has no register entry to make: its button stands in for that entry. */
-  const go = (view, x) => x && x.r.__t && FLOW_SIM[view] ? `<button data-flsim="${esc(x.r.orderNo)}|${esc(x.r.sku)}|${view}" title="Stands in for: ${esc(FLOW_SIM[view][1])}" style="width:auto;padding:3px 10px;font-size:12px;background:#7c3aed;border-color:#7c3aed">${esc(FLOW_SIM[view][0])}</button>`
+  const go = (view, x) => x && x.s.challan && view === 'fabric' && !x.s.challan.closed
+      ? `<button data-flchr="${esc(x.s.challan.no)}" style="width:auto;padding:3px 10px;font-size:12px">Receive on ${esc(x.s.challan.no)}</button>`
+    : x && x.r.__t && FLOW_SIM[view] ? `<button data-flsim="${esc(x.r.orderNo)}|${esc(x.r.sku)}|${view}" title="Stands in for: ${esc(FLOW_SIM[view][1])}" style="width:auto;padding:3px 10px;font-size:12px;background:#7c3aed;border-color:#7c3aed">${esc(FLOW_SIM[view][0])}</button>`
     : FLOW_GO[view] ? `<button class="ghost" data-flgo="${FLOW_GO[view][0]}" style="width:auto;padding:2px 9px;font-size:11.5px">${FLOW_GO[view][1]} →</button>` : '';
   const prog = (d, of) => `<span class="jw-st ${d >= of ? 'done' : d > 0 ? 'prog' : 'pend'}">${nf(d)} / ${nf(of)}</span>`;
   const due = (iso, label) => iso ? `<div class="muted" style="font-size:10.5px${flowLate(iso) ? ';color:#b91c1c;font-weight:600' : ''}">${label} ${esc(iso.slice(5))}${flowLate(iso) ? ' · late' : ''}</div>` : '';
   let head = '', body = '';
+  if (view === 'dhist') return flowHistTable(String($('flQ').value || '').trim().toLowerCase());
   if (view === 'new') {
     head = ['PO', 'SKU', 'Qty', 'Now in'];
     const now = s => s.bucket === 'done' ? 'Done' : s.bucket === 'demand' ? [s.needFab && 'Demand · RFD fabric', s.needAcc && 'Demand · Accessories'].filter(Boolean).join(' + ')
@@ -81,7 +86,7 @@ function flowTable(view, rows) {
     const seen = new Set();
     body = rows.map(x => { const sg = flowSuggest(x.r), first = !seen.has(x.r.orderNo); seen.add(x.r.orderNo);
       return `<tr>${base(x)}<td style="text-align:left;font-size:12px">${esc(sg.fabric.name || '?')} ${sg.fabric.metres ? nf(sg.fabric.metres) + ' m' : '<b style="color:#b91c1c">metres not known</b>'}
-        · ${sg.print.need ? 'printed in-house' : 'stitching only, no printing'}${sg.acc.length ? ' · ' + sg.acc.map(a => esc(a.code) + '×' + nf(a.qty)).join(', ') : ''}
+        · ${sg.print.need ? `print: <b>${esc(sg.printer.name || 'printer not chosen')}</b>${sg.printer.why ? ` <span class="muted" style="font-size:10.5px">(${esc(sg.printer.why)})</span>` : ''}` : 'stitching only, no printing'}${sg.acc.length ? ' · ' + sg.acc.map(a => esc(a.code) + '×' + nf(a.qty)).join(', ') : ''}
         ${sg.gaps.length ? `<div style="font-size:10.5px;color:#92400e">${esc(sg.gaps[0])}${sg.gaps.length > 1 ? ' (+' + (sg.gaps.length - 1) + ')' : ''}</div>` : ''}</td>
         <td style="white-space:nowrap">${first ? `<button data-flppc="${esc(x.r.orderNo)}" style="width:auto;padding:3px 10px;font-size:12px">Plan this PO</button>` : ''}
           <button class="ghost" data-flppc="${esc(x.r.orderNo)}" data-sku="${esc(x.r.sku)}" style="width:auto;padding:2px 8px;font-size:11.5px">This line</button></td></tr>`; }).join('');
@@ -91,7 +96,7 @@ function flowTable(view, rows) {
     body = rows.map(x => { const p = x.s.plan || {}, c = cv.line[x.s.key] || { need: 0, avail: 0, short: 0 };
       const first = !seen.has(x.r.orderNo); seen.add(x.r.orderNo);
       return `<tr${c.short ? ' style="background:#fef2f2"' : ''}>${base(x)}
-        <td style="text-align:left;font-size:12px">${x.s.route === 'stitch' ? 'Stitching only' : 'Printed in-house'}</td>
+        <td style="text-align:left;font-size:12px">${x.s.route === 'stitch' ? 'Stitching only' : `Print: <b>${esc((p.printer && p.printer.name) || '—')}</b>`}</td>
         <td style="text-align:left;font-size:12px">${p.fabric ? `<b>${esc(p.fabric.name)}</b> · ${nf(c.need)} m` : '—'}</td>
         <td style="text-align:left;font-size:12px">${c.short ? `<span class="jw-st" style="background:#fee2e2;color:#b91c1c;font-weight:700">⚑ SHORT ${nf(c.short)} m</span> <span class="muted">${nf(c.avail)} m left</span>`
           : `<span class="jw-st done">covered</span> <span class="muted">${nf(c.avail)} m left</span>`}</td>
@@ -100,7 +105,6 @@ function flowTable(view, rows) {
     if (fs.length) FLOW.panel = `<div style="font-weight:600;margin:2px 0 6px">RFD in stock against these orders</div><table class="xl" style="width:auto"><thead><tr><th style="text-align:left">Fabric</th><th>RFD in stock</th><th>Kept for lines already ready</th><th>These lines need</th><th>Short</th></tr></thead><tbody>`
       + fs.map(f => `<tr${f.short ? ' style="background:#fef2f2"' : ''}><td style="text-align:left"><b>${esc(f.name)}</b></td><td class="num">${nf(flowR2(f.stock))} m</td><td class="num">${nf(flowR2(f.held))} m</td><td class="num">${nf(f.need)} m · ${nf(f.lines)} line(s)</td>
         <td class="num">${f.short ? `<b style="color:#b91c1c">⚑ ${nf(f.short)} m</b>` : '<span style="color:#166534">—</span>'}</td></tr>`).join('') + '</tbody></table>';
-    FLOW.panel = (FLOW.panel || '') + flowChallanList();
   } else if (view === 'dacc') {
     head = ['PO', 'SKU', 'Qty', 'Accessories this line uses', ''];
     const free = flowAccFree();
@@ -160,6 +164,8 @@ $('flTable').addEventListener('click', async e => {
   const oj = e.target.closest('[data-ordj]');
   if (oj) { e.preventDefault(); try { ordJourney(oj.getAttribute('data-ordj')); } catch (err) { /* the order book is not read yet */ } return; }
   const g = e.target.closest('[data-flgo]'); if (g) { showTab(g.dataset.flgo); return; }
+  const rv = e.target.closest('[data-flchr]'); if (rv) { flowReceiveOpen(rv.dataset.flchr); return; }
+  const cs = e.target.closest('[data-flchc]'); if (cs) { flowCloseShortOpen(cs.dataset.flchc); return; }
   const ch = e.target.closest('[data-flch]'); if (ch) { flowChallanOpen(ch.dataset.flch); return; }
   const cp = e.target.closest('[data-flchp]'); if (cp) { e.preventDefault(); const er = flowChallanPrint(cp.dataset.flchp); if (er) { $('flMsg').className = 'err'; $('flMsg').textContent = er; } return; }
   const pp = e.target.closest('[data-flppc]'); if (pp) { flowPpcOpen(pp.dataset.flppc, pp.dataset.sku || ''); return; }

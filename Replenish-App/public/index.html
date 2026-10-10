@@ -1,5 +1,5 @@
 <!-- ================================================================================================
-     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 139 files of src/ joined into one page.
+     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 140 files of src/ joined into one page.
      The real, grouped source: Replenish-App/src/   (map and workflow: src/README.md)
        src/index.html   page markup        src/styles.css   stylesheet        src/app/ORDER   join order
        src/app/<group>/ the code, by group: core, replenishment, masters, production, vendors, orders, shopify, flow, dashboard, people-pay, inventory, reports, shared
@@ -1105,7 +1105,7 @@
 
     <!-- The shop floor, in the order work moves through it: the order, the cut, the karigar, the
          press, the check, the stock — and the masters everything is keyed on, last. -->
-    <div class="navwrap"><button class="navgrp" id="grpProd" type="button" data-grp="prod" data-tabs="so,ord,pcut,pbase,ppress,qc,fgi,fba,fab,acc,pmdb,mst,cx,flow,flnew,flppc,fldem,flacc,flout,flven,flfab,flcut,flraw,flwip,flrdy">
+    <div class="navwrap"><button class="navgrp" id="grpProd" type="button" data-grp="prod" data-tabs="so,ord,pcut,pbase,ppress,qc,fgi,fba,fab,acc,pmdb,mst,cx,flow,flnew,flppc,fldem,flacc,flchl,flout,flven,flfab,flcut,flraw,flwip,flrdy">
       <span class="caret">&#9656;</span> Production</button>
     <!-- A MEGA MENU (Ravi, 2026-09-24: "2 — Mega menu"). Five columns in the order work moves; every
          count carries the words for what it counts (data-what), because "26" alone told nobody. -->
@@ -3533,7 +3533,7 @@ const REPL_TABS = ['repl', 'article', 'target', 'top', 'shopify', 'pack',
   'pmdb', 'mst', 'att', 'pbase', 'pcut', 'ppress', 'qc', 'qcalt', 'qcret', 'ord', 'so', 'vord', 'vreq', 'rfd', 'vend', 'vlog', 'palloc', 'fgi', 'fba', 'fab', 'acc', 'rep', 'pa', 'ka', 'hr',
   'shop', 'adj', 'shopprod', 'dash',
   /* Production flow (test, 2026-10-10): one right per bucket — the same keys as FLOW_BUCKETS in flow/flow-core.js. */
-  'flnew', 'flppc', 'fldem', 'flacc', 'flout', 'flven', 'flfab', 'flcut', 'flraw', 'flwip', 'flrdy'];   // section keys, gated per-user via perms.replTabs — 'dash' is the admins' dashboard
+  'flnew', 'flppc', 'fldem', 'flacc', 'flchl', 'flout', 'flven', 'flfab', 'flcut', 'flraw', 'flwip', 'flrdy'];   // section keys, gated per-user via perms.replTabs — 'dash' is the admins' dashboard
 let REPL = { SP: null, CPC: null };   // brand → { rows, at }
 let PO = [];                  // purchase orders
 
@@ -23527,6 +23527,7 @@ const FLOW_BUCKETS = [
    * accessories. A line stays in Demand until both have answered, and shows in each list only for its own part. */
   ['drfd', 'Demand · RFD fabric', 'fldem', 'Planned; the fabric is not ready yet. RFD in stock against what each line needs — red where it falls short.'],
   ['dacc', 'Demand · Accessories', 'flacc', 'Planned; the accessories are not reserved yet. Free on the shelf against what each line needs.'],
+  ['dhist', 'Demand history', 'flchl', 'Every RFD challan. Open until the printed fabric comes back against it — receive it here and the lines move to the store.'],
   ['out', 'Outsourced', 'flout', 'Made outside, finished: waiting to be received into Finished Goods.'],
   ['vendor', 'Vendor allocation', 'flven', 'Printed lines not yet given to a printer in full.'],
   ['fabric', 'Printed fabric in', 'flfab', 'Given to a printer, not all back and accepted.'],
@@ -23586,6 +23587,11 @@ function flowState(r) {
     cut: r.cutReq ? cap(r.cut) : 0, issued: cap(r.issued), received: cap(r.received), qc: q ? cap(q.ok) : 0,
     made: Math.max(cap(r.pressed), q ? cap(q.ok) : 0), india: (r.handedAt || r.shopDoneAt) ? qty : cap(g.in),
   };
+  /* ON A CHALLAN: given to that printer by the challan itself; back in the share received of what was sent, and all of
+   * it once the challan is closed (flow-receive.js). */
+  const cx = flowChIndex()[k];
+  if (cx) { s.challan = cx; s.given = qty;
+    s.back = cx.closed ? qty : Math.max(s.back, cap(Math.floor(qty * Math.min(1, cx.sent ? cx.recv / cx.sent : 0) + 1e-9))); }
   const accNeed = !!p && route !== 'outsource' && (p.acc || []).some(a => a.code && +a.qty > 0);
   s.needFab = isNew && !!p && route !== 'outsource' && !(d && d.fabricReady);
   s.needAcc = isNew && accNeed && !res;
@@ -23608,7 +23614,7 @@ function flowState(r) {
 let FLOW_C = { src: null, test: null, ppc: null, dem: null, res: null, rows: null };
 function flowRows() {
   const real = ordLines(), test = flowTestLines();
-  if (FLOW_C.rows && FLOW_C.src === real && FLOW_C.test === test && FLOW_C.ppc === FLOW.ppc && FLOW_C.dem === FLOW.dem && FLOW_C.res === FLOW.res) return FLOW_C.rows;
+  if (FLOW_C.rows && FLOW_C.src === real && FLOW_C.test === test && FLOW_C.ppc === FLOW.ppc && FLOW_C.dem === FLOW.dem && FLOW_C.res === FLOW.res && FLOW_C.ch === FLOW.ch) return FLOW_C.rows;
   const lines = test.length ? real.concat(test) : real;
   const since = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10);
   const rows = [];
@@ -23618,7 +23624,7 @@ function flowRows() {
     if (s.bucket === 'done' && !recent) return;
     rows.push({ r, s, recent });
   });
-  FLOW_C = { src: real, test, ppc: FLOW.ppc, dem: FLOW.dem, res: FLOW.res, rows };
+  FLOW_C = { src: real, test, ppc: FLOW.ppc, dem: FLOW.dem, res: FLOW.res, ch: FLOW.ch, rows };
   return rows;
 }
 /* ============================== FILE: src/app/flow/flow-ppc.js ============================== */
@@ -23665,10 +23671,17 @@ function flowSuggest(r) {
   let need = true, as = '';
   try { need = !!ptPrintNeeded(m); as = ptPrintIssueAs(m) || ''; } catch (e) { /* no print rules loaded: printed, as the rules default */ }
   const t = dToday();
-  return { orderNo: r.orderNo, sku: obUC(r.sku), qty, route: need ? 'inhouse' : 'stitch', outVendor: '', fabric, acc, extra, print: { need, as },
+  let printer = { code: '', name: '', why: '' };
+  if (need) try { printer = flowPrinterFor(r); } catch (e) { /* no planning read yet */ }
+  return { orderNo: r.orderNo, sku: obUC(r.sku), qty, route: need ? 'inhouse' : 'stitch', outVendor: '', printer, fabric, acc, extra, print: { need, as },
     dates: { cut: flowAddDays(t, 3), qc: flowAddDays(t, 7), ready: ptIsoDate(r.mtoDue) || flowAddDays(t, 10) }, note: '', gaps };
 }
 
+/** The printers to pick from, the chosen one selected. */
+function flowPrinterOpts(code) {
+  let vens = []; try { vens = flowChVendors(); } catch (e) { vens = []; }
+  return vens.filter(v => /print/i.test(String(v.category || ''))).map(v => `<option value="${esc(v.code)}"${String(v.code) === String(code || '') ? ' selected' : ''}>${esc(v.desc || v.name || v.code)}</option>`).join('');
+}
 /** PPC's form for every line of one PO that is still in PPC (or one line). */
 function flowPpcOpen(orderNo, onlySku) {
   const rows = flowRows().filter(x => x.r.orderNo === orderNo && (onlySku ? obUC(x.r.sku) === obUC(onlySku) : x.s.bucket === 'ppc'));
@@ -23687,6 +23700,8 @@ function flowPpcOpen(orderNo, onlySku) {
           <span class="muted" style="font-size:11px">${esc(p.fabric.how || 'not known — type it')}</span></span>
         <span class="muted">How it is made</span><span><select data-fp="${i}" data-k="route" style="width:auto;padding:3px 6px;font-size:12px">${FLOW_ROUTES.map(([k, l]) => `<option value="${k}"${flowRouteOf(p) === k ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>
           ${p.print.as ? `<span class="muted" style="font-size:11px"> · print rule: given as ${esc(p.print.as)}</span>` : ''}</span>
+        <span class="muted">Printer</span><span><select data-fp="${i}" data-k="printer.code" style="width:auto;padding:3px 6px;font-size:12px"><option value="">— PPC decides —</option>${flowPrinterOpts((p.printer || {}).code)}</select>
+          <span class="muted" style="font-size:11px">${esc((p.printer || {}).why || '')} · only for a printed line</span></span>
         <span class="muted">Outsource vendor</span><span>${f(i, 'outVendor', p.outVendor || '')} <span class="muted" style="font-size:11px">only for an outsourced line — no fabric or accessories are raised for it</span></span>
         <span class="muted">Accessories</span><span>${(p.acc || []).length ? p.acc.map((a, j) => `${esc(a.what)} (code ${esc(a.code)}) × ${f(i, 'acc.' + j + '.qty', a.qty, 'number')}`).join('<br>') : '<span class="muted">none from the accessories shelf</span>'}</span>
         <span class="muted">Other materials</span><span>${(p.extra || []).length ? p.extra.map(x => `${esc(x.what)}: <b>${nf(x.qty)}</b> ${esc(x.unit)}`).join(' · ') : '<span class="muted">none</span>'}</span>
@@ -23708,7 +23723,10 @@ function flowPpcOpen(orderNo, onlySku) {
         set(p, k, inp.type === 'checkbox' ? inp.checked : inp.type === 'number' ? (+inp.value || 0) : inp.value.trim());
       });
       /* The route decides printing; an outsourced line raises no cloth and no accessories, and must name who makes it. */
-      plans.forEach(p => { p.route = p.route || 'inhouse'; p.print = Object.assign({}, p.print, { need: p.route === 'inhouse' }); });
+      plans.forEach(p => { p.route = p.route || 'inhouse'; p.print = Object.assign({}, p.print, { need: p.route === 'inhouse' });
+        /* The printer is kept by code and name; a line not printed has none. */
+        const v = p.route === 'inhouse' && p.printer && p.printer.code ? flowChVendors().find(x => String(x.code) === String(p.printer.code)) : null;
+        p.printer = v ? { code: v.code, name: v.desc || v.name || v.code, why: p.printer.why || '' } : null; });
       const noVen = plans.filter(p => p.route === 'outsource' && !String(p.outVendor || '').trim()).map(p => p.sku);
       if (noVen.length) return `Who makes it? Type the outsource vendor for ${noVen.join(', ')}.`;
       const patch = {}, now = new Date().toISOString();
@@ -23877,6 +23895,8 @@ function flowChallanOpen(orderNo) {
   const rows = flowRows().filter(x => x.r.orderNo === orderNo && flowInView('drfd', x.s));
   if (!rows.length) return;
   const vens = flowChVendors();
+  /* The printer PPC planned for these lines comes ready picked. */
+  const planned = (rows.map(x => x.s.plan && x.s.plan.printer && x.s.plan.printer.code).find(Boolean)) || '';
   const lineHtml = rows.map((x, i) => { const p = x.s.plan || {}, c = cv.line[x.s.key] || {};
     return `<tr><td><input type="checkbox" data-chk="${i}" checked style="width:auto"></td>
       <td style="text-align:left"><b style="font-family:ui-monospace,monospace">${esc(obUC(x.r.sku))}</b><div class="muted" style="font-size:10.5px">${esc(flowChItem(x.r))}</div></td>
@@ -23888,7 +23908,7 @@ function flowChallanOpen(orderNo) {
     title: `RFD challan — ${orderNo}`,
     subtitle: 'The fabric of this order, to one vendor. Saving numbers the challan, opens it to print, and marks these lines\' fabric as given — they leave Demand by themselves.',
     html: `<div class="ptgrid" style="grid-template-columns:2fr 1fr">
-        <label>Vendor<select id="flcVen"><option value="">— pick the vendor —</option>${vens.map(v => `<option value="${esc(v.code)}">${esc((v.desc || v.name || v.code) + (v.category ? ' · ' + v.category : ''))}</option>`).join('')}</select></label>
+        <label>Vendor<select id="flcVen"><option value="">— pick the vendor —</option>${vens.map(v => `<option value="${esc(v.code)}"${String(v.code) === String(planned) ? ' selected' : ''}>${esc((v.desc || v.name || v.code) + (v.category ? ' · ' + v.category : ''))}</option>`).join('')}</select></label>
         <label>Date<input id="flcDate" type="date" value="${esc(dToday())}"></label></div>
       <table class="xl" style="margin-top:10px;width:100%"><thead><tr><th></th><th style="text-align:left">SKU</th><th style="text-align:left">Fabric</th><th>Pcs</th><th>Metres</th><th>RFD</th></tr></thead><tbody>${lineHtml}</tbody></table>
       <label style="display:block;margin-top:8px">Note (vehicle, who carried it…)<input id="flcNote"></label>`,
@@ -23957,16 +23977,6 @@ function flowChallanPrint(no) {
     + '<style>@media print{.noprint{display:none}}</style></body>'));
   w.document.close();
   return '';
-}
-/** The challans for the lines on screen, newest first — to print again. */
-function flowChallanList(orderNos) {
-  const want = new Set(orderNos);
-  const list = Object.values(FLOW.ch || {}).filter(c => !orderNos || want.has(c.orderNo)).sort((a, b) => String(b.no).localeCompare(String(a.no)));
-  if (!list.length) return '';
-  return `<div style="font-weight:600;margin:12px 0 6px">Challans made</div><table class="xl" style="width:auto"><thead><tr><th style="text-align:left">Challan</th><th>Date</th><th style="text-align:left">Order</th><th style="text-align:left">Vendor</th><th>Lines</th><th>Metres</th><th></th></tr></thead><tbody>`
-    + list.slice(0, 50).map(c => `<tr><td style="text-align:left"><b>${esc(c.no)}</b></td><td>${esc(String(c.date || '').slice(5))}</td><td style="text-align:left">${esc(c.orderNo)}</td><td style="text-align:left">${esc(c.vendor && c.vendor.name)}</td>
-      <td class="num">${nf((c.lines || []).length)}</td><td class="num">${nf(flowR2((c.lines || []).reduce((a, l) => a + (+l.metres || 0), 0)))}</td>
-      <td><button class="ghost" data-flchp="${esc(c.no)}" style="width:auto;padding:2px 9px;font-size:11.5px">Print</button></td></tr>`).join('') + '</tbody></table>';
 }
 /* ============================== FILE: src/app/flow/flow-test-order.js ============================== */
 /* ================= PRODUCTION FLOW · TEST ORDER — walk one order end to end without touching the registers =================
@@ -24065,6 +24075,132 @@ async function flowTestDelete(orderNo) {
   FLOW.res = drop(FLOW.res, 'pt_accReserve/'); FLOW.ch = drop(FLOW.ch, 'pt_flowChallans/');
   return '';
 }
+/* ============================== FILE: src/app/flow/flow-receive.js ============================== */
+/* ================= PRODUCTION FLOW · DEMAND HISTORY — challans, and the printed fabric received against them =================
+ * Ravi, 10 Oct: the challans do not belong in Demand; they go to a Demand history tab, and "jab mal aay to yahin se
+ * challan guy entry kare ki ye mal aaya h ya nahi, then move ho store me, or yahan se open challan close ho jay".
+ *   pt_flowChallans/<no>/receipts/<id> = { date, items: { LINEKEY: metres }, note, at, by }
+ *   pt_flowChallans/<no>/closed = { at, by, why }   — set by itself when every line is back, or by hand ("close short")
+ * A line on a challan IS given to that printer (Vendor allocation is done by the challan). Its printed fabric is back
+ * in the share received of what was sent; a closed challan sends its lines on to the store (cutting) whatever came. */
+
+/** Every challan's lines, by line key: { no, vendor, sent, recv, closed } — cached on FLOW.ch. */
+let FLOW_CHX = { src: null, map: {} };
+function flowChIndex() {
+  if (FLOW_CHX.src === FLOW.ch) return FLOW_CHX.map;
+  const map = {};
+  Object.values(FLOW.ch || {}).forEach(c => {
+    const recv = flowChRecv(c);
+    (c.lines || []).forEach(l => { const e = map[l.key] || (map[l.key] = { no: c.no, vendor: c.vendor && c.vendor.name, sent: 0, recv: 0, closed: true });
+      e.no = c.no; e.vendor = c.vendor && c.vendor.name; e.sent += +l.metres || 0; e.recv += recv[l.key] || 0; e.closed = e.closed && !!c.closed; });
+  });
+  FLOW_CHX = { src: FLOW.ch, map };
+  return map;
+}
+/** Metres received so far, per line key, on one challan. */
+function flowChRecv(c) {
+  const out = {};
+  Object.values(c.receipts || {}).forEach(rc => Object.entries(rc.items || {}).forEach(([k, m]) => { out[k] = flowR2((out[k] || 0) + (+m || 0)); }));
+  return out;
+}
+function flowChState(c) {
+  if (c.closed) return 'closed';
+  const recv = flowChRecv(c), any = Object.values(recv).some(m => m > 0);
+  return any ? 'part' : 'open';
+}
+
+/** The Demand history list: open challans first, then the closed ones. */
+function flowHistTable(q) {
+  const list = Object.values(FLOW.ch || {})
+    .filter(c => !q || [c.no, c.orderNo, c.vendor && c.vendor.name].concat((c.lines || []).map(l => l.sku)).join(' ').toLowerCase().includes(q))
+    .sort((a, b) => (flowChState(a) === 'closed') - (flowChState(b) === 'closed') || String(b.no).localeCompare(String(a.no)));
+  const pill = st => st === 'closed' ? '<span class="jw-st done">closed</span>' : st === 'part' ? '<span class="jw-st prog">part received</span>' : '<span class="jw-st pend">open</span>';
+  const body = list.map(c => { const recv = flowChRecv(c), st = flowChState(c);
+    const sent = flowR2((c.lines || []).reduce((a, l) => a + (+l.metres || 0), 0)), got = flowR2(Object.values(recv).reduce((a, m) => a + m, 0));
+    return `<tr><td class="frz" style="text-align:left"><b>${esc(c.no)}</b>${flowIsTest(c.orderNo) ? ' <span class="navbadge" style="background:#7c3aed;position:static">TEST</span>' : ''}<div class="muted" style="font-size:10.5px">${esc(c.date || '')}</div></td>
+      <td style="text-align:left">${esc(c.orderNo)}</td><td style="text-align:left"><b>${esc(c.vendor && c.vendor.name)}</b></td>
+      <td style="text-align:left;font-size:11.5px">${(c.lines || []).map(l => `${esc(l.sku)} · ${nf(l.metres)} m${recv[l.key] ? ` <span style="color:#166534">(${nf(recv[l.key])} back)</span>` : ''}`).join('<br>')}</td>
+      <td class="num">${nf(sent)} m</td><td class="num">${nf(got)} m</td>
+      <td>${pill(st)}${c.closed && c.closed.why ? `<div class="muted" style="font-size:10.5px">${esc(c.closed.why)}</div>` : ''}</td>
+      <td style="white-space:nowrap">${st !== 'closed' ? `<button data-flchr="${esc(c.no)}" style="width:auto;padding:3px 10px;font-size:12px">Receive</button> <button class="ghost" data-flchc="${esc(c.no)}" style="width:auto;padding:2px 8px;font-size:11.5px">Close short</button> ` : ''}<button class="ghost" data-flchp="${esc(c.no)}" style="width:auto;padding:2px 8px;font-size:11.5px">Print</button></td></tr>`; }).join('');
+  return `<thead><tr><th class="frz" style="text-align:left">Challan</th><th style="text-align:left">Order</th><th style="text-align:left">Vendor</th><th style="text-align:left">Lines · sent</th><th>Sent</th><th>Received</th><th>Status</th><th></th></tr></thead><tbody>`
+    + (body || '<tr><td colspan="8" class="muted" style="padding:16px">No challan yet — they are made in Demand · RFD fabric.</td></tr>') + '</tbody>';
+}
+
+/** Printed fabric back from the printer against a challan: metres per line. Closes by itself when all of it is back. */
+function flowReceiveOpen(no) {
+  const c = (FLOW.ch || {})[no]; if (!c) return;
+  const recv = flowChRecv(c);
+  ptOpenDialog({
+    title: `Receive against ${no}`,
+    subtitle: `${c.orderNo} · ${c.vendor && c.vendor.name}. Type the printed metres that came back now. When every line is back the challan closes and the lines move to the store (Cutting) by themselves.`,
+    html: `<label>Date<input id="flrDate" type="date" value="${esc(dToday())}"></label>
+      <table class="xl" style="margin-top:8px;width:100%"><thead><tr><th style="text-align:left">SKU</th><th>Sent</th><th>Back so far</th><th>Received now (m)</th></tr></thead><tbody>
+      ${(c.lines || []).map((l, i) => { const left = flowR2(Math.max(0, (+l.metres || 0) - (recv[l.key] || 0)));
+        return `<tr><td style="text-align:left"><b>${esc(l.sku)}</b><div class="muted" style="font-size:10.5px">${esc(l.item || '')}</div></td><td class="num">${nf(l.metres)}</td><td class="num">${nf(recv[l.key] || 0)}</td>
+          <td class="num"><input data-flrm="${i}" type="number" step="0.01" min="0" value="${left > 0 ? esc(left) : ''}" ${left > 0 ? '' : 'disabled'} style="width:95px;padding:3px 6px;font-size:12px"></td></tr>`; }).join('')}
+      </tbody></table><label style="display:block;margin-top:8px">Note (lot, vehicle, quality…)<input id="flrNote"></label>`,
+    saveLabel: 'Received',
+    onSave: async () => {
+      const items = {};
+      (c.lines || []).forEach((l, i) => { const m = +((document.querySelector(`[data-flrm="${i}"]`) || {}).value || 0); if (m > 0) items[l.key] = flowR2(m); });
+      if (!Object.keys(items).length) return 'Type the metres that came back for at least one line.';
+      const over = (c.lines || []).filter(l => (recv[l.key] || 0) + (items[l.key] || 0) > (+l.metres || 0) * 1.1).map(l => l.sku);
+      if (over.length) return `More than 10% over what was sent for ${over.join(', ')} — check the metres.`;
+      const now = new Date().toISOString(), id = 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      const rc = { date: $('flrDate').value || dToday(), items, note: $('flrNote').value.trim(), at: now, by: ME.email || '' };
+      const allBack = (c.lines || []).every(l => (recv[l.key] || 0) + (items[l.key] || 0) >= (+l.metres || 0) - 0.01);
+      const patch = { [`pt_flowChallans/${no}/receipts/${id}`]: rc };
+      if (allBack) patch[`pt_flowChallans/${no}/closed`] = { at: now, by: ME.email || '', why: 'all received' };
+      try { await ptPatch(patch); } catch (e) { return 'Could not save: ' + (e.message || e); }
+      const nc = Object.assign({}, c, { receipts: Object.assign({}, c.receipts, { [id]: rc }) });
+      if (allBack) nc.closed = patch[`pt_flowChallans/${no}/closed`];
+      FLOW.ch = Object.assign({}, FLOW.ch, { [no]: nc });
+      renderFlow();
+      return '';
+    },
+  });
+}
+/** Close a challan that will not come back in full — the reason is kept, and its lines move on with what came. */
+function flowCloseShortOpen(no) {
+  const c = (FLOW.ch || {})[no]; if (!c) return;
+  ptOpenDialog({
+    title: `Close ${no} short`,
+    subtitle: 'What has not come back will not come. The lines move on to the store with what was received.',
+    html: '<label>Why (shortage, damage, the printer kept it…)<input id="flcWhy"></label>',
+    saveLabel: 'Close the challan',
+    onSave: async () => {
+      const why = $('flcWhy').value.trim(); if (!why) return 'Say why it is closed short.';
+      const val = { at: new Date().toISOString(), by: ME.email || '', why, short: true };
+      try { await ptPatch({ [`pt_flowChallans/${no}/closed`]: val }); } catch (e) { return 'Could not save: ' + (e.message || e); }
+      FLOW.ch = Object.assign({}, FLOW.ch, { [no]: Object.assign({}, c, { closed: val }) });
+      renderFlow();
+      return '';
+    },
+  });
+}
+
+/* ---- the printer PPC gives a printed line to — suggested from the current planning ----
+ * 1. Printer Allocation: the printer fed against that brand + colour (the colour IS the design)
+ * 2. else the printer this colour was last given to — a vendor order with one of its SKUs, or an earlier challan
+ * Nothing found → blank, and PPC picks. */
+function flowPrinterFor(r) {
+  const m = cutSkuOf(r.sku) || {}, color = String(m.color || r.color || '').trim(), brand = m.brand || '';
+  let vens = []; try { vens = flowChVendors(); } catch (e) { vens = []; }
+  const find = x => { const k = String(x || '').trim().toLowerCase(); if (!k) return null;
+    return vens.find(v => [v.code, v.desc, v.name].some(y => String(y || '').trim().toLowerCase() === k)) || null; };
+  const as = (v, why) => ({ code: v.code, name: v.desc || v.name || v.code, why });
+  if (color) {
+    try { const info = palInfoOf(palKey(brand, color)); const v = find(info && info.printer); if (v) return as(v, `Printer Allocation: ${color} is allocated to this printer`); } catch (e) { /* allocation not read */ }
+    let best = null;
+    try { (VO.rows || []).forEach(o => voLines(o).forEach(l => { const lm = l.sku && cutSkuOf(l.sku);
+      if (lm && String(lm.color || '').trim() === color && (!best || String(o.orderDate || '') > String(best.date))) best = { code: o.vendorCode, date: String(o.orderDate || '') }; })); } catch (e) { /* vendor orders not read */ }
+    Object.values(FLOW.ch || {}).forEach(c => (c.lines || []).forEach(l => { const lm = cutSkuOf(l.sku);
+      if (lm && String(lm.color || '').trim() === color && (!best || String(c.date || '') > best.date)) best = { code: c.vendor && c.vendor.code, date: String(c.date || '') }; }));
+    const v = best && find(best.code); if (v) return as(v, `last given ${color} (${best.date.slice(0, 10)})`);
+  }
+  return { code: '', name: '', why: color ? `no printer allocated to ${color} yet` : 'no colour on the master' };
+}
 /* ============================== FILE: src/app/flow/flow-view.js ============================== */
 /* ================= PRODUCTION FLOW · THE SCREEN =================
  * The bucket buttons across the top (each with how many lines are in it; only the buckets this account may open), and
@@ -24074,7 +24210,8 @@ let FLOW_VIEW = '';
 
 async function ensureFlow() {
   if (!PTG.mdb) { $('flMsg').textContent = 'Reading the order book…'; await ptLoadGates(); }
-  await Promise.all([flowLoad(), flowFabLoad(), (typeof ensureVo === 'function' ? ensureVo().catch(() => {}) : null),
+  /* Printer Allocation too: PPC's printer is suggested from it. */
+  await Promise.all([flowLoad(), flowFabLoad(), (PAL.printers === null ? palLoad().catch(() => {}) : null), (typeof ensureVo === 'function' ? ensureVo().catch(() => {}) : null),
     (typeof ensureAcc === 'function' ? ensureAcc().catch(() => {}) : null)]);
   renderFlow();
 }
@@ -24087,6 +24224,7 @@ async function flowFabLoad() {
 function flowCounts(rows) {
   const n = {}; FLOW_BUCKETS.forEach(b => { n[b[0]] = 0; });
   rows.forEach(({ s, recent }) => { FLOW_BUCKETS.forEach(([k]) => { if (k !== 'new' && flowInView(k, s)) n[k]++; }); if (recent) n.new++; });
+  n.dhist = Object.values(FLOW.ch || {}).filter(c => !c.closed).length;   // open challans
   return n;
 }
 const flowDays = iso => { const d = ptIsoDate(iso); if (!d) return null; return Math.max(0, Math.round((Date.now() - new Date(d + 'T00:00:00').getTime()) / 864e5)); };
@@ -24113,7 +24251,7 @@ function renderFlow() {
   const b = FLOW_BUCKETS.find(x => x[0] === FLOW_VIEW);
   $('flMsg').className = FLOW.err ? 'err' : 'muted';
   $('flMsg').textContent = (FLOW.err ? 'Could not read the plans: ' + FLOW.err + ' · ' : '')
-    + `${b[1]}: ${nf(rows.length)} line(s) — ${b[3]}` + (rows.length > 800 ? ' · showing the oldest 800' : '')
+    + `${b[1]}: ${FLOW_VIEW === 'dhist' ? nf(n.dhist) + ' open challan(s)' : nf(rows.length) + ' line(s)'} — ${b[3]}` + (rows.length > 800 ? ' · showing the oldest 800' : '')
     + ` · PPC and Demand apply to orders from ${flowFrom()} · TEST VIEW, not on the live app`;
 }
 
@@ -24132,11 +24270,14 @@ function flowTable(view, rows) {
       <div class="muted" style="font-size:10.5px">${esc([x.r.articleSubtype || x.r.articleType, x.r.color, x.r.size].filter(Boolean).join(' · '))}</div></td>
     <td class="num"><b>${nf(x.r.qty)}</b></td>`;
   /* A test line has no register entry to make: its button stands in for that entry. */
-  const go = (view, x) => x && x.r.__t && FLOW_SIM[view] ? `<button data-flsim="${esc(x.r.orderNo)}|${esc(x.r.sku)}|${view}" title="Stands in for: ${esc(FLOW_SIM[view][1])}" style="width:auto;padding:3px 10px;font-size:12px;background:#7c3aed;border-color:#7c3aed">${esc(FLOW_SIM[view][0])}</button>`
+  const go = (view, x) => x && x.s.challan && view === 'fabric' && !x.s.challan.closed
+      ? `<button data-flchr="${esc(x.s.challan.no)}" style="width:auto;padding:3px 10px;font-size:12px">Receive on ${esc(x.s.challan.no)}</button>`
+    : x && x.r.__t && FLOW_SIM[view] ? `<button data-flsim="${esc(x.r.orderNo)}|${esc(x.r.sku)}|${view}" title="Stands in for: ${esc(FLOW_SIM[view][1])}" style="width:auto;padding:3px 10px;font-size:12px;background:#7c3aed;border-color:#7c3aed">${esc(FLOW_SIM[view][0])}</button>`
     : FLOW_GO[view] ? `<button class="ghost" data-flgo="${FLOW_GO[view][0]}" style="width:auto;padding:2px 9px;font-size:11.5px">${FLOW_GO[view][1]} →</button>` : '';
   const prog = (d, of) => `<span class="jw-st ${d >= of ? 'done' : d > 0 ? 'prog' : 'pend'}">${nf(d)} / ${nf(of)}</span>`;
   const due = (iso, label) => iso ? `<div class="muted" style="font-size:10.5px${flowLate(iso) ? ';color:#b91c1c;font-weight:600' : ''}">${label} ${esc(iso.slice(5))}${flowLate(iso) ? ' · late' : ''}</div>` : '';
   let head = '', body = '';
+  if (view === 'dhist') return flowHistTable(String($('flQ').value || '').trim().toLowerCase());
   if (view === 'new') {
     head = ['PO', 'SKU', 'Qty', 'Now in'];
     const now = s => s.bucket === 'done' ? 'Done' : s.bucket === 'demand' ? [s.needFab && 'Demand · RFD fabric', s.needAcc && 'Demand · Accessories'].filter(Boolean).join(' + ')
@@ -24149,7 +24290,7 @@ function flowTable(view, rows) {
     const seen = new Set();
     body = rows.map(x => { const sg = flowSuggest(x.r), first = !seen.has(x.r.orderNo); seen.add(x.r.orderNo);
       return `<tr>${base(x)}<td style="text-align:left;font-size:12px">${esc(sg.fabric.name || '?')} ${sg.fabric.metres ? nf(sg.fabric.metres) + ' m' : '<b style="color:#b91c1c">metres not known</b>'}
-        · ${sg.print.need ? 'printed in-house' : 'stitching only, no printing'}${sg.acc.length ? ' · ' + sg.acc.map(a => esc(a.code) + '×' + nf(a.qty)).join(', ') : ''}
+        · ${sg.print.need ? `print: <b>${esc(sg.printer.name || 'printer not chosen')}</b>${sg.printer.why ? ` <span class="muted" style="font-size:10.5px">(${esc(sg.printer.why)})</span>` : ''}` : 'stitching only, no printing'}${sg.acc.length ? ' · ' + sg.acc.map(a => esc(a.code) + '×' + nf(a.qty)).join(', ') : ''}
         ${sg.gaps.length ? `<div style="font-size:10.5px;color:#92400e">${esc(sg.gaps[0])}${sg.gaps.length > 1 ? ' (+' + (sg.gaps.length - 1) + ')' : ''}</div>` : ''}</td>
         <td style="white-space:nowrap">${first ? `<button data-flppc="${esc(x.r.orderNo)}" style="width:auto;padding:3px 10px;font-size:12px">Plan this PO</button>` : ''}
           <button class="ghost" data-flppc="${esc(x.r.orderNo)}" data-sku="${esc(x.r.sku)}" style="width:auto;padding:2px 8px;font-size:11.5px">This line</button></td></tr>`; }).join('');
@@ -24159,7 +24300,7 @@ function flowTable(view, rows) {
     body = rows.map(x => { const p = x.s.plan || {}, c = cv.line[x.s.key] || { need: 0, avail: 0, short: 0 };
       const first = !seen.has(x.r.orderNo); seen.add(x.r.orderNo);
       return `<tr${c.short ? ' style="background:#fef2f2"' : ''}>${base(x)}
-        <td style="text-align:left;font-size:12px">${x.s.route === 'stitch' ? 'Stitching only' : 'Printed in-house'}</td>
+        <td style="text-align:left;font-size:12px">${x.s.route === 'stitch' ? 'Stitching only' : `Print: <b>${esc((p.printer && p.printer.name) || '—')}</b>`}</td>
         <td style="text-align:left;font-size:12px">${p.fabric ? `<b>${esc(p.fabric.name)}</b> · ${nf(c.need)} m` : '—'}</td>
         <td style="text-align:left;font-size:12px">${c.short ? `<span class="jw-st" style="background:#fee2e2;color:#b91c1c;font-weight:700">⚑ SHORT ${nf(c.short)} m</span> <span class="muted">${nf(c.avail)} m left</span>`
           : `<span class="jw-st done">covered</span> <span class="muted">${nf(c.avail)} m left</span>`}</td>
@@ -24168,7 +24309,6 @@ function flowTable(view, rows) {
     if (fs.length) FLOW.panel = `<div style="font-weight:600;margin:2px 0 6px">RFD in stock against these orders</div><table class="xl" style="width:auto"><thead><tr><th style="text-align:left">Fabric</th><th>RFD in stock</th><th>Kept for lines already ready</th><th>These lines need</th><th>Short</th></tr></thead><tbody>`
       + fs.map(f => `<tr${f.short ? ' style="background:#fef2f2"' : ''}><td style="text-align:left"><b>${esc(f.name)}</b></td><td class="num">${nf(flowR2(f.stock))} m</td><td class="num">${nf(flowR2(f.held))} m</td><td class="num">${nf(f.need)} m · ${nf(f.lines)} line(s)</td>
         <td class="num">${f.short ? `<b style="color:#b91c1c">⚑ ${nf(f.short)} m</b>` : '<span style="color:#166534">—</span>'}</td></tr>`).join('') + '</tbody></table>';
-    FLOW.panel = (FLOW.panel || '') + flowChallanList();
   } else if (view === 'dacc') {
     head = ['PO', 'SKU', 'Qty', 'Accessories this line uses', ''];
     const free = flowAccFree();
@@ -24228,6 +24368,8 @@ $('flTable').addEventListener('click', async e => {
   const oj = e.target.closest('[data-ordj]');
   if (oj) { e.preventDefault(); try { ordJourney(oj.getAttribute('data-ordj')); } catch (err) { /* the order book is not read yet */ } return; }
   const g = e.target.closest('[data-flgo]'); if (g) { showTab(g.dataset.flgo); return; }
+  const rv = e.target.closest('[data-flchr]'); if (rv) { flowReceiveOpen(rv.dataset.flchr); return; }
+  const cs = e.target.closest('[data-flchc]'); if (cs) { flowCloseShortOpen(cs.dataset.flchc); return; }
   const ch = e.target.closest('[data-flch]'); if (ch) { flowChallanOpen(ch.dataset.flch); return; }
   const cp = e.target.closest('[data-flchp]'); if (cp) { e.preventDefault(); const er = flowChallanPrint(cp.dataset.flchp); if (er) { $('flMsg').className = 'err'; $('flMsg').textContent = er; } return; }
   const pp = e.target.closest('[data-flppc]'); if (pp) { flowPpcOpen(pp.dataset.flppc, pp.dataset.sku || ''); return; }
