@@ -22,6 +22,7 @@ replenishment/india-projection.js
 replenishment/in-production.js
 replenishment/packing-list-labels.js
 replenishment/fba-box-template.js
+replenishment/pack-scan.js
 core/database.js
 core/live-copies.js
 core/database-read.js
