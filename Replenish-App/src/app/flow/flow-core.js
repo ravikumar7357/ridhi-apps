@@ -101,6 +101,8 @@ function flowState(r) {
     key: k, isNew, plan: p, demand: d, res, printed, route,
     given: r.printer ? qty : (v ? cap(v.given) : 0), back: r.printer ? cap(r.printed) : (v ? cap(v.back) : 0),
     cut: r.cutReq ? cap(r.cut) : 0, issued: cap(r.issued), received: cap(r.received), qc: q ? cap(q.ok) : 0,
+    /* Uncapped: a piece rejected at QC is issued again, so a line can issue and receive more than it orders. */
+    issuedAll: Math.max(0, +r.issued || 0), receivedAll: Math.max(0, +r.received || 0),
     made: Math.max(cap(r.pressed), q ? cap(q.ok) : 0), india: (r.handedAt || r.shopDoneAt) ? qty : cap(g.in),
   };
   /* ON A CHALLAN: given to that printer by the challan itself; back in the share received of what was sent, and all of
@@ -126,6 +128,8 @@ function flowState(r) {
       s.back = allBack ? qty : Math.max(s.back, cap(Math.floor(qty * Math.min(1, total > 0 ? have / total : 0) + 1e-9)));
     }
   }
+  s.qcRej = p ? (t ? Math.max(0, +t.qcRej || 0) : flowQcLine(r).rej) : 0;
+  s.issuedNet = p ? Math.max(0, s.issuedAll - s.qcRej) : s.issued;
   const accNeed = !!p && route !== 'outsource' && (p.acc || []).some(a => a.code && +a.qty > 0);
   const handReady = !!(d && d.fabricReady && !d.fabricReady.challan);
   s.needFab = isNew && !!p && route !== 'outsource' && !handReady
@@ -139,7 +143,9 @@ function flowState(r) {
     : (printed && s.given < qty) ? 'vendor'
     : (printed && s.back < qty) ? 'fabric'
     : (r.cutReq && s.cut < qty) ? 'cut'
-    : (s.issued < qty) ? 'raw'
+    /* REJECTED AT QC → BACK IN RAW CUTTING IN STORE (Ravi, 10 Oct: "rejected pcs raw cutting in store me hona chahiye").
+     * For a planned line the pieces QC rejected are not "issued" any more: they wait in the store to be issued again. */
+    : (s.issuedNet < qty && !(p && (flowQcWaiting(r, s) > 0 || flowQcAltOpen(r) > 0))) ? 'raw'   // QC work still open comes first
     /* QC (flow-qcfg.js), for a planned line: back from the karigar and not checked, or out for alteration → QC. */
     : (s.made < qty) ? (p && (flowQcWaiting(r, s) > 0 || flowQcAltOpen(r) > 0) ? 'qcb' : 'wip')
     /* …then Ready = passed and not yet sent to Finished Goods; FG · accept = sent and waiting for them. A line with no plan

@@ -205,7 +205,7 @@ function flowTable(view, rows) {
   } else if (view === 'raw') {
     head = ['PO', 'SKU', 'Qty', 'In store, to issue', 'Issued', ''];
     body = rows.map(x => { const sp = flowStorePcs(x.r.sku);
-      return `<tr>${base(x)}<td class="num"><b>${nf(flowIssuable(x.r, x.s))}</b>${sp == null ? '' : `<div class="muted" style="font-size:10.5px">store balance ${nf(sp)} pcs of this SKU</div>`}</td><td class="num">${prog(x.s.issued, +x.r.qty)}</td><td>${go(view, x)}</td></tr>`; }).join('');
+      return `<tr>${base(x)}<td class="num"><b>${nf(flowIssuable(x.r, x.s))}</b>${x.s.qcRej ? `<div style="font-size:10.5px;color:#b45309">${nf(x.s.qcRej)} rejected at QC — back in store, issue again</div>` : ''}${sp == null ? '' : `<div class="muted" style="font-size:10.5px">store balance ${nf(sp)} pcs of this SKU</div>`}</td><td class="num">${prog(x.s.issued, +x.r.qty)}</td><td>${go(view, x)}</td></tr>`; }).join('');
   } else if (view === 'wip') {
     head = ['PO', 'SKU', 'Qty', 'Issued', 'Received', 'QC passed', ''];
     body = rows.map(x => `<tr>${base(x)}<td class="num">${nf(x.s.issued)}</td><td class="num">${nf(x.s.received)}</td>
@@ -214,9 +214,10 @@ function flowTable(view, rows) {
     head = ['PO', 'SKU', 'Qty', 'Back from karigar', 'Waiting for QC', 'Passed', ''];
     const qb = (what, x, label, main) => `<button data-flqb="${what}|${esc(x.s.key)}" style="width:auto;padding:${main ? '3px 10px;font-size:12px' : '2px 9px;font-size:11.5px'};margin:1px"${main ? '' : ' class="ghost"'}>${label}</button>`;
     body = rows.map(x => { const w = flowQcWaiting(x.r, x.s), alt = flowQcAltOpen(x.r);
-      return `<tr>${base(x)}<td class="num">${nf(x.s.received)} / ${nf(x.s.issued)}</td><td class="num"><b>${nf(w)}</b>${alt ? `<div style="font-size:10.5px;color:#b45309">${nf(alt)} out for alteration</div>` : ''}</td>
+      return `<tr>${base(x)}<td class="num">${nf(x.s.receivedAll)} / ${nf(x.s.issuedAll)}</td><td class="num"><b>${nf(w)}</b>${alt ? `<div style="font-size:10.5px;color:#b45309">${nf(alt)} out for alteration</div>` : ''}${x.s.qcRej ? `<div style="font-size:10.5px;color:#b45309">${nf(x.s.qcRej)} rejected — back in store</div>` : ''}</td>
       <td class="num">${prog(x.s.made, +x.r.qty)}</td>
-      <td style="white-space:nowrap">${w ? qb('check', x, 'QC check →', true) : ''}${alt ? qb('alt', x, 'Alteration back →', !w) : ''}${x.s.issued > x.s.received ? (x.r.__t ? `<button data-flte="recv|${esc(x.r.orderNo)}|${esc(obUC(x.r.sku))}" class="ghost" style="width:auto;padding:2px 9px;font-size:11.5px;margin:1px">Receive (test) →</button>` : qb('recv', x, 'Receive →')) : ''}
+      <td style="white-space:nowrap">${w ? qb('check', x, 'QC check →', true) : ''}${alt ? qb('alt', x, 'Alteration back →', !w) : ''}${x.s.issuedNet < +x.r.qty && flowIssuable(x.r, x.s) > 0
+          ? (x.r.__t ? `<button data-flte="issue|${esc(x.r.orderNo)}|${esc(obUC(x.r.sku))}" class="ghost" style="width:auto;padding:2px 9px;font-size:11.5px;margin:1px">Issue again (test) →</button>` : qb('issue', x, 'Issue again →')) : ''}${x.s.issued > x.s.received ? (x.r.__t ? `<button data-flte="recv|${esc(x.r.orderNo)}|${esc(obUC(x.r.sku))}" class="ghost" style="width:auto;padding:2px 9px;font-size:11.5px;margin:1px">Receive (test) →</button>` : qb('recv', x, 'Receive →')) : ''}
         ${flowQcHistory(x.r)}</td></tr>`; }).join('');
   } else if (view === 'fgin') {
     head = ['PO', 'SKU', 'Qty', 'Sent from QC', 'In India stock', ''];
@@ -266,7 +267,7 @@ $('flTable').addEventListener('click', async e => {
   const ch = e.target.closest('[data-flch]'); if (ch) { flowChallanOpen(ch.dataset.flch, ch.dataset.pc); return; }
   const qb = e.target.closest('[data-flqb]');
   if (qb) { const [what, key] = qb.dataset.flqb.split('|'), x = flowRows().find(y => y.s.key === key); if (!x) return;
-    if (what === 'check') flowQcCheckOpen(x); else if (what === 'alt') flowAltBackOpen(x); else if (what === 'send') flowFgSendOpen(x); else if (what === 'recv') flowRecvEntry(x.r);
+    if (what === 'check') flowQcCheckOpen(x); else if (what === 'alt') flowAltBackOpen(x); else if (what === 'send') flowFgSendOpen(x); else if (what === 'recv') flowRecvEntry(x.r); else if (what === 'issue') flowIssueEntry(x.r, x.s);
     return; }
   const fa = e.target.closest('[data-flfga]'); if (fa) { flowFgAccept(fa.dataset.flfga); return; }
   const fr = e.target.closest('[data-flfgr]'); if (fr) { flowFgRejectOpen(fr.dataset.flfgr); return; }

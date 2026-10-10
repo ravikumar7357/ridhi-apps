@@ -26,7 +26,7 @@ function flowQcLine(r) {
   return out;
 }
 /** Pieces back from the karigar and not yet checked, for a line. */
-const flowQcWaiting = (r, s) => Math.max(0, (s.received || 0) - (r.__t ? (+r.__t.qcChecked || 0) : flowQcLine(r).checked));
+const flowQcWaiting = (r, s) => Math.max(0, (s.receivedAll != null ? s.receivedAll : (s.received || 0)) - (r.__t ? (+r.__t.qcChecked || 0) : flowQcLine(r).checked));
 const flowQcAltOpen = r => (r.__t ? Math.max(0, (+r.__t.qcAlt || 0) - (+r.__t.qcAltBack || 0)) : flowQcLine(r).altOpen);
 const flowMayQc = () => !!(ME.admin || ['qc', 'flqc'].some(t => (ME.tabs || []).includes(t)));
 const flowMayFg = () => !!(ME.admin || ['fgi', 'flfg'].some(t => (ME.tabs || []).includes(t)));
@@ -75,8 +75,8 @@ async function flowQcCheckOpen(x) {
       if (!by) return 'Who checked them?';
       const t = x.r.__t || {};
       return flowQcWrite(x, { checked: c, ok, forAlteration: alt, rejected: rej, checkedBy: by, remarks: $('flqM').value.trim() },
-        { qc: (+t.qc || 0) + ok, qcChecked: (+t.qcChecked || 0) + c, qcAlt: (+t.qcAlt || 0) + alt },
-        `${nf(c)} checked: ${nf(ok)} passed${alt ? `, ${nf(alt)} to alteration` : ''}${rej ? `, ${nf(rej)} rejected` : ''} — in Quality Control.`);
+        { qc: (+t.qc || 0) + ok, qcChecked: (+t.qcChecked || 0) + c, qcAlt: (+t.qcAlt || 0) + alt, qcRej: (+t.qcRej || 0) + rej },
+        `${nf(c)} checked: ${nf(ok)} passed${alt ? `, ${nf(alt)} to alteration` : ''}${rej ? `, ${nf(rej)} rejected — back in Raw cutting in store to issue again` : ''} — in Quality Control.`);
     },
   });
 }
@@ -98,7 +98,7 @@ function flowAltBackOpen(x) {
       if (!by) return 'Who checked them?';
       const t = x.r.__t || {};
       return flowQcWrite(x, { checked: 0, ok, rejected: rej, altBack: ok + rej, checkedBy: by, remarks: 'Back from alteration' },
-        { qc: (+t.qc || 0) + ok, qcAltBack: (+t.qcAltBack || 0) + ok + rej }, `${nf(ok)} back from alteration and passed${rej ? `, ${nf(rej)} rejected` : ''}.`);
+        { qc: (+t.qc || 0) + ok, qcAltBack: (+t.qcAltBack || 0) + ok + rej, qcRej: (+t.qcRej || 0) + rej }, `${nf(ok)} back from alteration and passed${rej ? `, ${nf(rej)} rejected — back in Raw cutting in store` : ''}.`);
     },
   });
 }

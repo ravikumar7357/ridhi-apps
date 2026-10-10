@@ -43,7 +43,7 @@ async function flowIssueEntry(r, s) {
   } catch (e) { flowSay('The Job Work Register is open — the issue could not be filled in by itself (' + (e.message || e) + '); type it in.', true); }
 }
 /** What can go to a karigar now: what is cut (or back from the printer as pieces) less what is issued. */
-const flowIssuable = (r, s) => Math.max(0, (r.cutReq ? s.cut : (s.printed ? s.back : +r.qty || 0)) - (s.issued || 0));
+const flowIssuable = (r, s) => Math.max(0, (r.cutReq ? s.cut : (s.printed ? s.back : +r.qty || 0)) - (s.issuedNet != null ? s.issuedNet : (s.issued || 0)));
 /** The Job Work rows of this line still out with a karigar. */
 const flowOpenIssues = r => (PT.base || []).filter(b => b && obUC(b.sku) === obUC(r.sku) && obUC(b.orderNo) === obUC(r.orderNo) && !b.frozen
   && (+b.issuePieces || 0) - (+b.receivedPieces || 0) - (+b.rejectionPieces || 0) > 0);

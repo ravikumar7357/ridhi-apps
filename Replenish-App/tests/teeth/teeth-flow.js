@@ -15,6 +15,8 @@ const breaks = {
     'one challan clears the line whatever it sent': s => s.replace("(route === 'inhouse' ? (s.fabNeed - s.fabSent > 0.01 ||", "(route === 'inhouse' ? (!cx ||"),
     'the print order does not give the work': s => s.replace('else if (po || cx) {', 'else if (cx) {'),
     'an all-printed line waits for the printer': s => s.replace('if (s.fromStock) { s.given = qty; s.back = qty; }', ''),
+    'QC rejections stay counted as issued': s => s.replace('s.issuedNet = p ? Math.max(0, s.issuedAll - s.qcRej) : s.issued;', 's.issuedNet = s.issued;'),
+    'rejected pieces jump the open QC work': s => s.replace(" && !(p && (flowQcWaiting(r, s) > 0 || flowQcAltOpen(r) > 0))) ? 'raw'", ") ? 'raw'"),
     'stitching only goes to the printer': s => s.replace("const printed = p ? route === 'inhouse' :", "const printed = p ? !!(p.print && p.print.need) :"),
     'the two Demand lists are one': s => s.replace("const flowInView = (view, s) => view === 'drfd' ? s.bucket === 'demand' && s.needFab", "const flowInView = (view, s) => view === 'drfd' ? s.bucket === 'demand'"),
     'cut figures not capped at the order': s => s.replace('const cap = n => Math.max(0, Math.min(qty, +n || 0));', 'const cap = n => Math.max(0, +n || 0);'),
@@ -155,7 +157,8 @@ const breaks = {
   },
   'flow-entries.js': {
     'cutting entry not filled with the pieces left': s => s.replace("$('cwPcs').value = Math.max(0, (+r.qty || 0) - (s.cut || 0));", "$('cwPcs').value = +r.qty || 0;"),
-    'issue offers more than is cut': s => s.replace("const flowIssuable = (r, s) => Math.max(0, (r.cutReq ? s.cut : (s.printed ? s.back : +r.qty || 0)) - (s.issued || 0));", "const flowIssuable = (r, s) => +r.qty || 0;"),
+    'issue offers more than is cut': s => s.replace("const flowIssuable = (r, s) => Math.max(0, (r.cutReq ? s.cut : (s.printed ? s.back : +r.qty || 0)) - (s.issuedNet != null ? s.issuedNet : (s.issued || 0)));", "const flowIssuable = (r, s) => +r.qty || 0;"),
+    'QC rejections not offered to issue again': s => s.replace("- (s.issuedNet != null ? s.issuedNet : (s.issued || 0)));", "- (s.issued || 0));"),
     'receive opens the wrong row': s => s.replace("obUC(b.orderNo) === obUC(r.orderNo) &&", ''),
     'no right needed for the entry': s => s.replace("const flowMay = tab => !!(ME.admin || (ME.tabs || []).includes(tab));", 'const flowMay = tab => true;'),
   },
