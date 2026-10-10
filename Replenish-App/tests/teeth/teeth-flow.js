@@ -24,6 +24,7 @@ const breaks = {
     'a locked fabric can be changed': s => s.replace("if (locked) ['fabric', 'route', 'printer', 'print'].forEach(k => { nu[k] = x.s.plan[k]; });", ''),
     'stray keys in the plan list': s => s.replace(".filter(([path]) => path.startsWith('pt_ppc/'))", ''),
     'width calculator beats the master row': s => s.replace('if (mFab && mCons > 0) fabric =', 'if (false) fabric ='),
+    'direction asked for a SKU printed on itself': s => s.replace("if (m.cuttingRequired === false) return { dirs: [], cur: '' };", ''),
     'a sheeting line saved with no direction': s => s.replace('if (noDir.length) return', 'if (false) return'),
     'an old plan hides the master data': s => s.replace('return nameOff || perOff ? {', 'return false ? {'),
     'master m/pc not compared': s => s.replace('perOff = mc > 0 &&', 'perOff = false &&'),

@@ -366,6 +366,13 @@ const K = 'AMZ-1__S1';
     A = load({ mdb, fsku, lines: [L({ sku: 'RPC327-1818' })] });
     A.flowPpcOpen('AMZ-1');
     ok('Canvas offers no direction box (one way only)', !/data-k="print.dir"/.test(A.ctx.__dlg.html));
+    { const md3 = { 'CPC-02': { color: 'Agate Green', fabric: 'Sheeting 62', consumption: 2.35, cuttingRequired: false } };
+      const B = load({ mdb: md3, fsku: { 'Sheeting 62|Agate Green|Vertical|': 'CPCSF002-V-62', 'Sheeting 62|Agate Green|Horizontal|': 'CPCSF002-H-62' }, lines: [L({ sku: 'CPC-02', qty: 45 })] });
+      B.flowPpcOpen('AMZ-1');
+      ok('cutting not required (CPC-02 tablecloth): no direction box, and it saves without one', !/data-k="print.dir"/.test(B.ctx.__dlg.html));
+      B.ctx.document.querySelectorAll = () => [];
+      const e2 = await B.ctx.__dlg.onSave();
+      ok('…saved, printed on the SKU itself', !e2 && B.flowPrintWhat(L({ sku: 'CPC-02' }), B.writes[0]['pt_ppc/AMZ-1__CPC-02']).kind === 'sku', e2); }
     { const pg = { innerHTML: '' }; A.ctx.document.querySelector = q => (q === '[data-pget="0"]' ? pg : null); A.flowPpcOpen('AMZ-1');
       ok('…and the printer gets RBP-CANVAS-327', /Printer gets: Running fabric — <b>RBP-CANVAS-327/.test(pg.innerHTML), pg.innerHTML); }
     const pr = { code: 'P1', name: 'Sanganer Prints' };

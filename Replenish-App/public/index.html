@@ -23695,6 +23695,8 @@ const flowMasterDiffTxt = d => d ? `<div style="font-size:11px;color:#b91c1c;fon
 /** The print direction offered for a line: the directions its fabric is made in (none for Canvas / Cambric). */
 function flowDirOpts(r, p) {
   const m = cutSkuOf(r.sku) || {}, fab = String((p.fabric && p.fabric.name) || m.fabric || '').trim();
+  /* Cutting required: no → the SKU itself is printed; no printed cloth, so no direction to ask (Ravi, 10 Oct). */
+  if (m.cuttingRequired === false) return { dirs: [], cur: '' };
   const dirs = flowFabDirs(fab, String(m.color || r.color || '').trim(), ordColCodeOf(r.sku));
   const cur = (p.print && p.print.dir) || flowDirDefault(m, fab) || (dirs.length === 1 ? dirs[0] : '');
   return { dirs, cur };
