@@ -200,7 +200,7 @@ const K = 'AMZ-1__S1';
     A.flowReceiveOpen('RFD-202610-001'); A.els.flrDate = { value: '2026-10-12' }; A.els.flrNote = { value: 'lot 7' };
     ok('nothing typed → refused', /at least one line/.test(await A.ctx.__dlg.onSave()) && !A.writes.length);
     QS['[data-flrm="0"]'].value = '130';
-    ok('far more than was sent → refused', /over what was sent/.test(await A.ctx.__dlg.onSave()) && !A.writes.length);
+    ok('far more than was sent → refused', /More came back than was given/.test(await A.ctx.__dlg.onSave()) && !A.writes.length);
     QS['[data-flrm="0"]'].value = '40';
     ok('part received is saved as a receipt', !(await A.ctx.__dlg.onSave()) && Object.keys(A.writes[0]).some(k => /receipts\//.test(k)) && !Object.keys(A.writes[0]).some(k => /closed/.test(k)));
     ok('40 of 100 m back → 40 of 100 pieces of fabric in; the line stays in Printed fabric in', A.flowState(L()).back === 40 && A.flowState(L()).bucket === 'fabric');
@@ -220,6 +220,37 @@ const K = 'AMZ-1__S1';
     ok('close short needs a reason', /Say why/.test(await A.ctx.__dlg.onSave()) && !A.writes.length);
     A.els.flcWhy.value = 'printer damaged 10 m';
     ok('closed short → the lines move on with what came', !(await A.ctx.__dlg.onSave()) && A.writes[0]['pt_flowChallans/RFD-202610-001/closed'].short && A.flowState(L()).bucket === 'raw');
+  }
+
+  console.log('== received in the form it was given: pieces back as pieces (CPC-02 tablecloth) ==');
+  {
+    const K2 = 'TEST-AMZ-10102026-02__CPC-02';
+    const ch = { 'TRFD-202610-001': { no: 'TRFD-202610-001', date: '2026-10-10', orderNo: 'TEST-AMZ-10102026-02', vendor: { code: 'P1', name: 'SS Hand Block' },
+      lines: [{ key: K2, sku: 'CPC-02', item: 'Tablecloth · Agate Green · 60x90', pcs: 45, metres: 105.75, print: { kind: 'sku', code: 'CPC-02', mode: 'Cut pieces' } },
+        { key: 'TEST-AMZ-10102026-02__RPC1', sku: 'RPC1', pcs: 10, metres: 5.3, print: { kind: 'fabric', code: 'RBP-CANVAS-327' } }] } };
+    const fr = { at: 'x', challan: 'TRFD-202610-001' };
+    A = load({ me: { admin: true }, lines: [L({ orderNo: 'TEST-AMZ-10102026-02', sku: 'CPC-02', qty: 45 }), L({ orderNo: 'TEST-AMZ-10102026-02', sku: 'RPC1', qty: 10 })],
+      ppc: { [K2]: plan({ sku: 'CPC-02', qty: 45 }), 'TEST-AMZ-10102026-02__RPC1': plan({ sku: 'RPC1', qty: 10 }) },
+      dem: { [K2]: { fabricReady: fr }, 'TEST-AMZ-10102026-02__RPC1': { fabricReady: fr } } });
+    A.setFLOW(Object.assign(A.FLOW(), { ch: JSON.parse(JSON.stringify(ch)) }));
+    A.flowReceiveOpen('TRFD-202610-001');
+    const h = A.ctx.__dlg.html;
+    ok('the form says how each line was given: CPC-02 cut pieces, 45 pcs (105.75 m cloth shown beside)', /Cut pieces/.test(h) && /<b>45 pcs<\/b>/.test(h) && /105\.75 m cloth/.test(h));
+    ok('…the cloth line in metres', /Printed cloth/.test(h) && /<b>5\.3 m<\/b>/.test(h));
+    ok('…and the box is prefilled with what is still out: 45 (pcs) and 5.3 (m)', /data-flrm="0" type="number" step="1" min="0" value="45"/.test(h) && /data-flrm="1" type="number" step="0.01" min="0" value="5.3"/.test(h));
+    let q = { '[data-flrm="0"]': { value: '10.5' }, '[data-flrm="1"]': { value: '' } };
+    A.ctx.document.querySelector = s => q[s] || null; A.els.flrDate = { value: '2026-10-12' }; A.els.flrNote = { value: '' };
+    ok('pieces are whole', /Pieces are whole: CPC-02/.test(await A.ctx.__dlg.onSave()) && !A.writes.length);
+    q['[data-flrm="0"]'].value = '46';
+    ok('more pieces back than given → refused (no 10% for pieces)', /More came back than was given for CPC-02/.test(await A.ctx.__dlg.onSave()) && !A.writes.length);
+    q['[data-flrm="0"]'].value = '10';
+    ok('10 of 45 pieces back → 10 pieces of the line are in', !(await A.ctx.__dlg.onSave()) && A.flowState(L({ orderNo: 'TEST-AMZ-10102026-02', sku: 'CPC-02', qty: 45 })).back === 10);
+    A.setView('dhist'); A.renderFlow();
+    ok('Demand history says it in both units: sent 5.3 m · 45 pcs, received 10 pcs', /5\.3 m · 45 pcs/.test(A.els.flTable.innerHTML) && /CPC-02 · 45 pcs <span style="color:#166534">\(10 pcs back\)/.test(A.els.flTable.innerHTML));
+    A.flowReceiveOpen('TRFD-202610-001');
+    q = { '[data-flrm="0"]': { value: '35' }, '[data-flrm="1"]': { value: '5.3' } };
+    A.ctx.document.querySelector = s => q[s] || null;
+    ok('the other 35 pcs and the 5.3 m → the challan closes', !(await A.ctx.__dlg.onSave()) && A.FLOW().ch['TRFD-202610-001'].closed && A.flowState(L({ orderNo: 'TEST-AMZ-10102026-02', sku: 'CPC-02', qty: 45 })).bucket !== 'fabric');
   }
 
   console.log('== PPC decides the printer — suggested from the planning ==');

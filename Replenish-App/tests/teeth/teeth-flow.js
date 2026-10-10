@@ -90,6 +90,9 @@ const breaks = {
     'test lines never re-read': s => s.replace('if (FLOW_TC.src === FLOW.test) return FLOW_TC.rows;', 'if (FLOW_TC.rows.length) return FLOW_TC.rows;'),
   },
   'flow-receive.js': {
+    'pieces received as metres': s => s.replace("const flowChUnit = l => (l && l.print && l.print.kind === 'sku' ? 'pcs' : 'm');", "const flowChUnit = l => 'm';"),
+    'pieces get the 10% too': s => s.replace("flowChSent(l) * (flowChUnit(l) === 'pcs' ? 1 : 1.1)", 'flowChSent(l) * 1.1'),
+    'half pieces accepted': s => s.replace("if (frac.length) return", 'if (false) return'),
     'Demand history challans not filtered': s => s.replace('.filter(c => !testOnly || flowIsTest(c.orderNo))', ''),
     'a receipt never closes the challan': s => s.replace('if (allBack) patch[', 'if (false) patch['),
     'receipts not added up': s => s.replace('out[k] = flowR2((out[k] || 0) + (+m || 0));', 'out[k] = flowR2(+m || 0);'),

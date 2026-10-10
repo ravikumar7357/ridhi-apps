@@ -111,7 +111,7 @@ function flowChallanCancelOpen(no) {
 async function flowUndoReceipt(no) {
   const c = (FLOW.ch || {})[no]; if (!c || !flowChHasRecv(c)) return 'Nothing received on it to undo.';
   const [id, rc] = Object.entries(c.receipts).sort((a, b) => String(b[1].at).localeCompare(String(a[1].at)))[0];
-  if (!confirm(`Undo the receipt of ${Object.values(rc.items || {}).reduce((a, m) => a + (+m || 0), 0)} m on ${rc.date} against ${no}?`)) return '';
+  if (!confirm(`Undo the receipt of ${flowMixTxt(Object.entries(rc.items || {}).map(([k, q]) => [q, flowChUnit((c.lines || []).find(l => l.key === k))]))} on ${rc.date} against ${no}?`)) return '';
   const patch = { [`pt_flowChallans/${no}/receipts/${id}`]: null };
   if (c.closed && !c.closed.short) patch[`pt_flowChallans/${no}/closed`] = null;
   try { await ptPatch(patch); } catch (e) { return 'Could not save: ' + (e.message || e); }
