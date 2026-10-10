@@ -57,6 +57,7 @@ orders/demand.js
 orders/tracking.js
 orders/shopify-pipeline-team.js
 orders/orders-one-line.js
+orders/po-steps.js
 dashboard/management-dashboard.js
 people-pay/finance-hr.js
 people-pay/printer-rates.js
