@@ -325,7 +325,7 @@ const K = 'AMZ-1__S1';
     ok('RPC327-1818: RFD Canvas needs 10.6 m, balance 6,400 m', /RFD · <b>Canvas<\/b>/.test(pm) && /10\.6 m/.test(pm) && /<b>6400 m<\/b>/.test(pm), pm);
     ok('…and the printed stock beside it: RBP-CANVAS-327 in store 37.5 m', /Printed in store · <b>RBP-CANVAS-327<\/b>/.test(pm) && /<b>37\.5 m<\/b>/.test(pm));
     ok('a SKU printed as pieces: its printed pieces in the store (RTC327-6060: 4 pcs)', /Printed in store · <b>RTC327-6060<\/b>/.test(pk) && /<b>4 pcs<\/b>/.test(pk), pk);
-    ok('"Printer gets" sits under the printer, worked out from what is typed', /<span class="fpc-mode">Running fabric<\/span> <b>RBP-CANVAS-327/.test(spans['[data-pget="0"]'].innerHTML));
+    ok('all 10.6 m already printed in the store (37.5 m) → nothing to the printer', /All already printed, in the store — nothing goes to the printer/.test(spans['[data-pget="0"]'].innerHTML) && /RBP-CANVAS-327/.test(spans['[data-pget="0"]'].innerHTML));
   }
 
   console.log('== one challan per printer — the printer PPC planned ==');
@@ -459,24 +459,32 @@ const K = 'AMZ-1__S1';
     const mdb = { 'RTC327-6060': { color: 'Light Steel Blue', fabric: 'Sheeting 92', consumption: 0.6, cuttingRequired: true, subtype: 'Ruffle Tablecloth' } };
     const fsCat = [{ sku: 'RBPSF327-V-92', fabric: 'Sheeting 92', colour: 'Light Steel Blue', dir: 'Vertical', code: '327' },
       { sku: 'LSB', fabric: 'Cambric', colour: 'Light Steel Blue', dir: 'Vertical', code: '327', manual: true }];
-    const mk = store => { const B = load({ mdb, fsCat, rfd: { 'SHEETING 92': 2461, CAMBRIC: 0 }, fabRows: [{ fabricType: 'Sheeting 92' }, { fabricType: 'Cambric' }], store,
+    const mk = store => { const B = load({ me: { admin: true }, mdb, fsCat, rfd: { 'SHEETING 92': 2461, CAMBRIC: 0 }, fabRows: [{ fabricType: 'Sheeting 92' }, { fabricType: 'Cambric' }], store,
       lines: [L({ sku: 'RTC327-6060', qty: 10 })], ppc: { [ 'AMZ-1__RTC327-6060']: plan({ sku: 'RTC327-6060', qty: 10, route: 'inhouse', fabric: { name: 'Sheeting 92', perPc: 0.6, metres: 6 }, print: { need: true, dir: 'Vertical' }, extra: [{ what: 'Ruffle — Cambric', qty: 23.5, unit: 'm' }] }) } });
       Object.keys(spans).forEach(k => delete spans[k]); B.ctx.document.querySelector = q => (/data-mat=|data-fm=|data-pget=|data-chips=/.test(q) ? span(q) : null); return B; };
     /* Ravi's screen: 100 m printed RBPSF327-V-92 and 1,500 m printed LSB in the store; Cambric RFD 0. */
     A = mk([{ key: 'M|SHEETING 92|LIGHT STEEL BLUE', qty: 100 }, { key: 'M|CAMBRIC|LIGHT STEEL BLUE', qty: 1500 }]);
     A.flowPpcOpen('AMZ-1', 'RTC327-6060');
     const mt = spans['[data-mat="0"]'].innerHTML;
-    ok('the ruffle Cambric is NOT taken from the store’s printed LSB (ruffle use never leaves the store, so that figure is too high)', /not counted — ruffle use is not taken off the store/.test(mt) && !/✓ covers 23\.5 m/.test(mt), mt);
-    ok('…so RFD Cambric is asked for all 23.5 m (0 in RFD → short 23.5 m)', /⚑ short 23\.5 m/.test(mt));
+    ok('the ruffle Cambric (23.5 m) is covered by the 1,500 m printed LSB', /Printed in store · <b>LSB<\/b>/.test(mt) && /✓ covers 23\.5 m/.test(mt), mt);
     ok('the body: 100 m printed RBPSF327-V-92 covers the 6 m', /Printed in store · <b>RBPSF327-V-92<\/b>/.test(mt) && /✓ covers 6 m/.test(mt));
-    ok('…RFD Sheeting 92 needs 0 m and says "not needed", never "short 0"', /<td class="num">0 m<\/td>/.test(mt) && /not needed/.test(mt) && !/short 0/.test(mt));
-    ok('the printer box says: 6 m from printed stock — print 0 m', /6 m from printed stock — <b>print 0 m<\/b>/.test(spans['[data-pget="0"]'].innerHTML));
-    ok('the chip says something is short (the ruffle Cambric)', /something is short/.test(spans['[data-chips="0"]'].innerHTML));
-    A.ctx.document.querySelectorAll = () => [{ addEventListener() {}, dataset: { fp: '0', k: 'printer.code' }, type: 'select-one', value: 'P1' }]; A.els.flpUndo = { checked: false };
-    let er = await A.ctx.__dlg.onSave(); let pw = (A.writes[0] || {})['pt_ppc/AMZ-1__RTC327-6060'] || {};
-    ok('saved on the plan: 6 m body from printed stock, 0 m ruffle from it', !er && pw.fabric.fromPrinted === 6 && pw.extra[0].fromPrinted === 0, er || JSON.stringify(pw.fabric));
-    ok('…so the body is not printed again, RFD is not asked for it — the ruffle 23.5 m is', A.flowToPrint(L({ sku: 'RTC327-6060', qty: 10 }), pw).metres === 0
-      && A.flowPrintExtras(L({ sku: 'RTC327-6060', qty: 10 }), pw)[0].metres === 23.5 && A.flowRfdCover().line['AMZ-1__RTC327-6060'].need === 0);
+    ok('…RFD needs 0 m of either — "not needed", never "short 0"', /not needed/.test(mt) && !/short/.test(mt));
+    ok('the printer box: all already printed — nothing goes to the printer, straight to Cutting', /All already printed, in the store — nothing goes to the printer/.test(spans['[data-pget="0"]'].innerHTML));
+    ok('the chip says all in stock', /✓ all in stock/.test(spans['[data-chips="0"]'].innerHTML));
+    A.ctx.document.querySelectorAll = () => []; A.els.flpUndo = { checked: false };
+    let er = await A.ctx.__dlg.onSave(); let w0 = A.writes[0] || {}, pw = w0['pt_ppc/AMZ-1__RTC327-6060'] || {};
+    ok('it saves with no printer picked — no printer is needed', !er && pw.fabric, er);
+    ok('saved on the plan: 6 m body and 23.5 m ruffle from printed stock', pw.fabric.fromPrinted === 6 && pw.extra[0].fromPrinted === 23.5, JSON.stringify(pw.fabric));
+    ok('no print order, no vendor order — nothing for a printer', !Object.keys(w0).some(k => /^pt_(flowPrintOrders|vendorOrders)\//.test(k)), Object.keys(w0).join());
+    { const B = mk([{ key: 'M|SHEETING 92|LIGHT STEEL BLUE', qty: 100 }, { key: 'M|CAMBRIC|LIGHT STEEL BLUE', qty: 1500 }]);
+      B.flowPpcOpen('AMZ-1', 'RTC327-6060'); B.ctx.document.querySelectorAll = () => [{ addEventListener() {}, dataset: { fp: '0', k: 'printer.code' }, type: 'select-one', value: 'P1' }]; B.els.flpUndo = { checked: false };
+      const e3 = await B.ctx.__dlg.onSave();
+      ok('…even with a printer picked, nothing goes to it', !e3 && !Object.keys(B.writes[0] || {}).some(k => /^pt_(flowPrintOrders|vendorOrders)\//.test(k)), e3 || Object.keys(B.writes[0] || {}).join()); }
+    const st0 = A.flowState(L({ sku: 'RTC327-6060', qty: 10, cutReq: true }));
+    ok('the line goes straight to Cutting: given and back in full, not in Demand', st0.fromStock && st0.given === 10 && st0.back === 10 && st0.bucket === 'cut' && !A.flowInView('drfd', st0));
+    A.W.lines[0].cutReq = true; A.setFLOW(Object.assign(A.FLOW(), { ppc: Object.assign({}, A.FLOW().ppc) })); A.setView('cut'); A.ctx.document.querySelector = () => null;
+    A.ctx.ME = A.ctx.ME; A.renderFlow();
+    ok('the Cutting list shows what to cut: RBPSF327-V-92, 6 m for 10 pcs, all from printed stock', /RBPSF327-V-92/.test(A.els.flTable.innerHTML) && /6 m for 10 pcs/.test(A.els.flTable.innerHTML) && /all from printed stock in the store/.test(A.els.flTable.innerHTML), A.els.flTable.innerHTML.slice(0, 300));
     A = mk([{ key: 'M|SHEETING 92|LIGHT STEEL BLUE', qty: 2 }]);
     A.flowPpcOpen('AMZ-1', 'RTC327-6060');
     const m2 = spans['[data-mat="0"]'].innerHTML;

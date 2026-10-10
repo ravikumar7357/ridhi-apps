@@ -91,6 +91,14 @@ function flowByPrintTable(rows) {
   return `<thead><tr><th class="frz" style="text-align:left">Printed fabric</th><th style="text-align:left">Orders</th><th>Lines</th><th>To print</th><th style="text-align:left">Printer</th><th></th></tr></thead><tbody>`
     + (body || '<tr><td colspan="6" class="muted" style="padding:16px">No line is waiting for fabric.</td></tr>') + '</tbody>';
 }
+/* WHAT THE CUTTING DEPARTMENT CUTS FROM, for a planned line: the printed fabric (from the store, or back from the
+ * printer), how much, for how many pieces of the order. */
+function flowCutFrom(x) {
+  const p = x.s.plan; if (!p || x.s.route !== 'inhouse') return '<span class="muted">—</span>';
+  const w = flowPrintWhat(x.r, p), m = flowR2(+(p.fabric && p.fabric.metres) || 0), fp = +(p.fabric && p.fabric.fromPrinted) || 0;
+  return `${w.kind === 'sku' ? `<b>${esc(w.code)}</b> printed pieces` : flowPrintTxt(w)}<div class="muted" style="font-size:10.5px">${w.kind === 'sku' ? nf(x.r.qty) + ' pcs' : nf(m) + ' m'} for ${nf(x.r.qty)} pcs`
+    + (x.s.fromStock ? ' · <b style="color:#166534">all from printed stock in the store</b>' : fp > 0 ? ` · ${nf(fp)} ${p.fabric.printedUnit === 'pcs' ? 'pcs' : 'm'} from printed stock, the rest from the printer` : ' · from the printer') + '</div>';
+}
 /** The challan a line's fabric went on, if it went on one. */
 const flowChTag = s => { const fr = s.demand && s.demand.fabricReady; return fr && fr.challan
   ? `<div class="muted" style="font-size:10.5px">RFD on <a href="#" data-flchp="${esc(fr.challan)}">${esc(fr.challan)}</a> → ${esc(fr.vendor || '')}</div>` : ''; };
@@ -172,8 +180,8 @@ function flowTable(view, rows) {
     head = ['PO', 'SKU', 'Qty', 'Back and accepted', ''];
     body = rows.map(x => `<tr>${base(x)}<td class="num">${prog(x.s.back, x.s.given || +x.r.qty)}${flowChTag(x.s)}</td><td>${go(view, x)}</td></tr>`).join('');
   } else if (view === 'cut') {
-    head = ['PO', 'SKU', 'Qty', 'Cut', ''];
-    body = rows.map(x => `<tr>${base(x)}<td class="num">${prog(x.s.cut, +x.r.qty)}${due(x.s.plan && x.s.plan.dates && x.s.plan.dates.cut, 'plan')}</td><td>${go(view, x)}</td></tr>`).join('');
+    head = ['PO', 'SKU', 'Qty', 'Printed fabric to cut', 'Cut', ''];
+    body = rows.map(x => `<tr>${base(x)}<td style="text-align:left;font-size:12px">${flowCutFrom(x)}</td><td class="num">${prog(x.s.cut, +x.r.qty)}${due(x.s.plan && x.s.plan.dates && x.s.plan.dates.cut, 'plan')}</td><td>${go(view, x)}</td></tr>`).join('');
   } else if (view === 'raw') {
     head = ['PO', 'SKU', 'Qty', 'In store, to issue', 'Issued', ''];
     body = rows.map(x => { const avail = x.r.cutReq ? x.s.cut : (x.s.printed ? x.s.back : +x.r.qty);

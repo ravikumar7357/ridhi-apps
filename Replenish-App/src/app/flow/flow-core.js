@@ -115,7 +115,10 @@ function flowState(r) {
     const pcsWise = flowPrintWhat(r, p).kind === 'sku', tp = flowToPrint(r, p), fp = +(p.fabric && p.fabric.fromPrinted) || 0;
     s.fabUnit = pcsWise ? 'pcs' : 'm'; s.fabNeed = pcsWise ? tp.pcs : tp.metres; s.fabSent = cx ? flowR2(cx.sent) : 0;
     const total = pcsWise ? qty : flowR2(+(p.fabric && p.fabric.metres) || 0), have = fp + (cx ? cx.recv : 0);
-    if (po || cx) {
+    /* ALL FROM PRINTED STOCK: nothing to print, nothing to send — given and back in full, straight to Cutting. */
+    s.fromStock = !flowPrintsSomething(r, p);
+    if (s.fromStock) { s.given = qty; s.back = qty; }
+    else if (po || cx) {
       s.given = qty;
       const allBack = s.fabNeed <= 0 || (cx && cx.closed && s.fabSent >= s.fabNeed - 0.01);
       s.back = allBack ? qty : Math.max(s.back, cap(Math.floor(qty * Math.min(1, total > 0 ? have / total : 0) + 1e-9)));

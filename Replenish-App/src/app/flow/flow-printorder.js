@@ -10,6 +10,9 @@
  *   pt_flowPrintOrders/<no> = { no, date, orderNo, printer:{code,name}, items:{ <line>: {sku, item, print, extras, pcs,
  *                               metres, unit} }, at, by, cancelled? }  */
 
+/** Whether a planned line still sends anything to a printer once printed stock is taken: body or ruffle cloth. */
+const flowPrintsSomething = (r, p) => { const w = flowPrintWhat(r, p), tp = flowToPrint(r, p);
+  return (w.kind === 'sku' ? tp.pcs > 0 : tp.metres > 0.01) || flowPrintExtras(r, p).length > 0; };
 /** Which print order holds each line: { lineKey: no } — cached on FLOW.po. */
 let FLOW_POX = { src: null, map: {} };
 function flowPoIndex() {
@@ -40,7 +43,9 @@ function flowPoSync(items, date) {
     local[no] = Object.assign({}, o, { items: Object.assign({}, o.items, { [key]: null }) }); patch[`pt_flowPrintOrders/${no}/items/${key}`] = null; delete idx[key];
     if (!Object.values(local[no].items).some(Boolean)) { const c = { at: now, by: ME.email || '', why: 'no line left' }; local[no] = Object.assign({}, local[no], { cancelled: c }); patch[`pt_flowPrintOrders/${no}/cancelled`] = c; } };
   items.forEach(({ r, p }) => {
-    const key = flowKey(r.orderNo, r.sku), cur = idx[key], pc = p && flowRouteOf(p) === 'inhouse' && p.printer && p.printer.code;
+    /* All from printed stock (body and ruffle): nothing for a printer — no print order, no vendor order. */
+    const prints = p && flowRouteOf(p) === 'inhouse' && flowPrintsSomething(r, p);
+    const key = flowKey(r.orderNo, r.sku), cur = idx[key], pc = prints && p.printer && p.printer.code;
     if (!pc) { if (cur) { take(cur, key); said.push(`${obUC(r.sku)} taken off print order ${cur}`); } return; }
     if (cur && String((local[cur].printer || {}).code) !== String(pc)) { take(cur, key); said.push(`${obUC(r.sku)} moved off ${cur}`); }
     let no = idx[key];

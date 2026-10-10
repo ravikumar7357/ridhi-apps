@@ -249,7 +249,11 @@ function flowPpcOpen(orderNo, onlySku) {
       const noDir = plans.filter((p, i) => p.route === 'inhouse' && flowPrintWhat(rows[i].r, p).needDir).map(p => p.sku);
       if (noDir.length) return `Which way is it printed? Pick the print direction for ${noDir.join(', ')}.`;
       /* The print order goes to the printer now — so a printed line has to say which printer. */
-      const noPr = plans.filter(p => p.route === 'inhouse' && !(p.printer && p.printer.code)).map(p => p.sku);
+      /* What still goes to a printer once printed stock is taken: the body not covered, or a ruffle cloth not covered. */
+      const printsAt = i => { const c = cover[i] || { fab: 0, unit: 'm', extra: {} }, p = plans[i], qty = +p.qty || 0, m = flowR2((+p.fabric.perPc || 0) * qty);
+        const bodyLeft = c.unit === 'pcs' ? qty - (c.fab || 0) : m - (c.fab || 0);
+        return bodyLeft > 0.01 || (p.extra || []).some((x, j) => /^Ruffle — /.test(String(x.what || '')) && (+x.qty || 0) - ((c.extra || {})[j] || 0) > 0.01); };
+      const noPr = plans.filter((p, i) => p.route === 'inhouse' && printsAt(i) && !(p.printer && p.printer.code)).map(p => p.sku);
       if (noPr.length) return `Which printer? The print order goes to them now — pick it for ${noPr.join(', ')}.`;
       const noVen = plans.filter(p => p.route === 'outsource' && !String(p.outVendor || '').trim()).map(p => p.sku);
       if (noVen.length) return `Who makes it? Type the outsource vendor for ${noVen.join(', ')}.`;
@@ -340,14 +344,14 @@ function flowPpcOpen(orderNo, onlySku) {
         const name = String(x.what).replace(/^Ruffle — /, ''), k = flowFabKey(name), ruf = /^Ruffle — /.test(x.what);
         let need = +x.qty || 0;
         if (ruf && w) {
-          /* THE RUFFLE CLOTH IS NOT TAKEN FROM PRINTED STOCK (Ravi, 10 Oct: "printed fabric galat use kar raha h"). The store
-           * counts printed cloth out only at cutting; ruffle cloth used at the Job Work issue comes off the RFD register,
-           * never off the store — so printed Cambric used for ruffles still reads as in the store (Light Steel Blue: 1,500 m
-           * received, 1,476.5 m "left"). Shown for information until ruffle use leaves the store; never counted. */
+          /* the ruffle cloth: printed stock first too (Ravi, 10 Oct: printed LSB in the store is used — a printed ruffle
+           * needs no printer). The store does not yet take ruffle cloth out at the Job Work issue, so its figure can read
+           * high — the row says what it takes. */
           const xc = (flowPrintExtras(r, Object.assign({}, cur, { extra: [Object.assign({}, x, { fromPrinted: 0 })] }))[0] || {}).code;
-          const ps = flowPrintedStock({ kind: 'fabric', fabric: name }, colour);
-          h.push(`<tr style="background:rgba(124,58,237,.05)"><td style="text-align:left">Printed in store · <b>${esc(xc || name)}</b> <span class="muted">(ruffle)</span></td><td class="num">—</td>
-            <td class="num">${ps == null ? '<span class="muted">…</span>' : nf(flowR2(ps))} m</td><td style="text-align:left"><span class="pill mute" title="Ruffle cloth used at the Job Work issue is not taken off the store, so this figure is too high">not counted — ruffle use is not taken off the store</span></td></tr>`);
+          const pk = 'M|' + fabKey(name) + '|' + fabKey(colour), ps = flowPrintedStock({ kind: 'fabric', fabric: name }, colour);
+          const pleft = ps == null ? null : ps - (com.printed[pk] || 0) - (run.printed[pk] || 0), use = pleft == null ? 0 : flowR2(Math.max(0, Math.min(need, pleft)));
+          h.push(flowPrintedRow(`<b>${esc(xc || name)}</b> <span class="muted">(ruffle)</span>`, pleft, ' m', use));
+          run.printed[pk] = flowR2((run.printed[pk] || 0) + use); cover[i].extra[j] = use; need = flowR2(need - use);
         }
         const before = (com.extra[k] || 0) + (run.extra[k] || 0);
         h.push(flowMatRow(ruf ? `RFD · <b>${esc(name)}</b> <span class="muted">(ruffle${need < (+x.qty || 0) ? ', the rest' : ''})</span>` : `<b>${esc(x.what)}</b>`, need, ruf ? flowRfdStock(name) : 0, before, ' m', ruf && flowFabKnown(name)));
@@ -356,7 +360,11 @@ function flowPpcOpen(orderNo, onlySku) {
         h.push(flowMatRow(`${esc(a.what)} <span class="muted">(code ${esc(a.code)})</span>`, need, shelf[c] || 0, before, '', c in shelf));
         run.acc[c] = (run.acc[c] || 0) + need; });
       mat.innerHTML = h.join('') || '<tr><td colspan="4" class="muted" style="text-align:left">nothing to raise</td></tr>';
-      if (pg && w && (cover[i].fab > 0 || Object.values(cover[i].extra).some(v => v > 0))) {
+      const allPrinted = w && (cover[i].unit === 'pcs' ? cover[i].fab >= (+p.qty || 0) : cover[i].fab >= metres - 0.01)
+        && (p.extra || []).every((x, j) => !/^Ruffle — /.test(String(x.what || '')) || (cover[i].extra[j] || 0) >= (+x.qty || 0) - 0.01);
+      if (pg && allPrinted) pg.innerHTML = `<div style="color:#166534;font-weight:600">✓ All already printed, in the store — nothing goes to the printer. The line goes straight to Cutting.</div>`
+        + `<div style="font-size:11.5px">${flowPrintTxt(w)}${Object.values(cover[i].extra).some(v => v > 0) ? ' · ruffle ' + nf(Object.values(cover[i].extra).reduce((a, v) => a + v, 0)) + ' m' : ''}</div>`;
+      else if (pg && w && (cover[i].fab > 0 || Object.values(cover[i].extra).some(v => v > 0))) {
         const u = cover[i].unit === 'pcs' ? ' pcs' : ' m', left = cover[i].unit === 'pcs' ? Math.max(0, (+p.qty || 0) - cover[i].fab) : flowR2(Math.max(0, metres - cover[i].fab));
         pg.innerHTML += `<div style="color:#166534">✓ ${nf(cover[i].fab)}${u} from printed stock — <b>print ${nf(left)}${u}</b>${Object.values(cover[i].extra).some(v => v > 0) ? ` · ruffle ${nf(Object.values(cover[i].extra).reduce((a, v) => a + v, 0))} m from printed stock` : ''}</div>`; }
       /* The chips: how it is made, the printer, and whether everything is there. */
