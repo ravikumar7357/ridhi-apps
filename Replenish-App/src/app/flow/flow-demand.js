@@ -91,7 +91,7 @@ function flowRfdCover() {
   rows.filter(x => flowInView('drfd', x.s))
     .sort((a, b) => String(a.r.orderDate || '').localeCompare(String(b.r.orderDate || '')) || String(a.r.orderNo).localeCompare(String(b.r.orderNo)))
     .forEach(({ s }) => {
-      const p = s.plan || {}, name = p.fabric && p.fabric.name, need = +(p.fabric && p.fabric.metres) || 0;
+      const p = s.plan || {}, name = p.fabric && p.fabric.name, need = flowToPrint({ qty: s.plan && s.plan.qty || 0 }, p).metres;
       if (!name) { line[s.key] = { name: '', need, short: need, avail: 0 }; return; }
       const f = F(name), avail = Math.max(0, f.stock - f.held - f.need);
       line[s.key] = { name: f.name, need, avail: flowR2(avail), short: flowR2(Math.max(0, need - avail)) };

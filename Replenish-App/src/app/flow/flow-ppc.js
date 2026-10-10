@@ -79,18 +79,24 @@ function flowDirOpts(r, p) {
  *   ruffle cloth plan metres until issued (taken off the RFD register at issue, ptConsumeRuffle)
  * Lines in the form itself count in their order, each after the ones above it. */
 function flowCommitted(skipKeys, withTest) {
-  const skip = new Set(skipKeys || []), acc = {}, fab = {}, extra = {};
+  const skip = new Set(skipKeys || []), acc = {}, fab = {}, extra = {}, printed = {};
   flowRows().forEach(({ r, s }) => {
     const p = s.plan; if (!p || skip.has(s.key) || s.route === 'outsource' || (r.__t && !withTest)) return;   // a test order never eats a real one's stock
     const qty = +r.qty || 0, left = qty > 0 ? Math.max(0, 1 - s.issued / qty) : 0;
     (p.acc || []).forEach(a => { if (!a.code || !(+a.qty > 0)) return; const c = accCode(a.code); acc[c] = (acc[c] || 0) + Math.ceil(+a.qty * left); });
     const fr = s.demand && s.demand.fabricReady;
     const unmoved = !s.cut && !s.issued && (fr && fr.challan ? !s.back : !s.given);
-    if (unmoved && p.fabric && p.fabric.name) { const k = flowFabKey(p.fabric.name); fab[k] = flowR2((fab[k] || 0) + (+p.fabric.metres || 0)); }
+    if (unmoved && p.fabric && p.fabric.name) { const k = flowFabKey(p.fabric.name); fab[k] = flowR2((fab[k] || 0) + flowToPrint(r, p).metres); }
     (p.extra || []).forEach(x => { if (x.unit !== 'm' || !x.what) return; const k = flowFabKey(String(x.what).replace(/^Ruffle — /, ''));
-      extra[k] = flowR2((extra[k] || 0) + (+x.qty || 0) * left); });
+      extra[k] = flowR2((extra[k] || 0) + Math.max(0, (+x.qty || 0) - (+x.fromPrinted || 0)) * left); });
+    /* Printed stock an earlier plan took, until that line's cloth moves. */
+    if (unmoved && s.route === 'inhouse') {
+      const m = cutSkuOf(r.sku) || {}, colour = String(m.color || r.color || '').trim();
+      if (+(p.fabric && p.fabric.fromPrinted) > 0) { const k = flowPrintedKey(flowPrintWhat(r, p), p.fabric.name, colour); printed[k] = flowR2((printed[k] || 0) + (+p.fabric.fromPrinted)); }
+      (p.extra || []).forEach(x => { if (!(+x.fromPrinted > 0)) return; const k = 'M|' + fabKey(String(x.what).replace(/^Ruffle — /, '')) + '|' + fabKey(colour); printed[k] = flowR2((printed[k] || 0) + (+x.fromPrinted)); });
+    }
   });
-  return { acc, fab, extra };
+  return { acc, fab, extra, printed };
 }
 /** One stock line: in stock · planned for earlier orders · available for this line, and whether it is enough. */
 /* NEAT AND CLEAN (Ravi, 10 Oct: "neat and clean information … RFD: the main fabric's requirement and availability …
@@ -104,16 +110,17 @@ function flowMatRow(what, need, stock, earlier, unit, known) {
   return `<tr><td style="text-align:left">${what}</td><td class="num">${nf(flowR2(need))}${unit}</td>
     <td class="num" title="${esc(tip)}">${known ? `<b>${nf(flowR2(Math.max(0, bal)))}${unit}</b>` : '—'}</td><td style="text-align:left">${st}</td></tr>`;
 }
+const flowPrintedKey = (w, fabric, colour) => (w.kind === 'sku' ? 'P|' + obUC(w.code) : 'M|' + fabKey(fabric) + '|' + fabKey(colour));
 /** Printed stock in the store (Store Stock Balance): cloth by fabric + colour, pieces by SKU. Null while not read. */
 let FLOW_STB = { src: null, map: null };
 function flowPrintedStock(w, colour) {
   if (typeof STORE === 'undefined' || !STORE.rows) return null;
   if (FLOW_STB.src !== STORE.rows) { try { FLOW_STB = { src: STORE.rows, map: new Map(stBalances(stMoves()).map(e => [e.key, e])) }; } catch (e) { return null; } }
-  const key = w.kind === 'sku' ? 'P|' + obUC(w.code) : 'M|' + fabKey(w.fabric) + '|' + fabKey(colour);
+  const key = flowPrintedKey(w, w.fabric, colour);
   const e = FLOW_STB.map.get(key); return e ? Math.max(0, +e.qty || 0) : 0;
 }
-const flowPrintedRow = (label, qty, unit) => `<tr style="background:#f5f3ff"><td style="text-align:left">Printed in store · ${label}</td><td class="num">—</td>
-  <td class="num">${qty == null ? '<span class="muted">…</span>' : `<b>${nf(flowR2(qty))}${unit}</b>`}</td><td style="text-align:left"><span class="pill mute">printed, ready to use</span></td></tr>`;
+const flowPrintedRow = (label, qty, unit, use) => `<tr style="background:rgba(124,58,237,.05)"><td style="text-align:left">Printed in store · ${label}</td><td class="num">${use ? nf(flowR2(use)) + unit : '—'}</td>
+  <td class="num">${qty == null ? '<span class="muted">…</span>' : `<b>${nf(flowR2(Math.max(0, qty)))}${unit}</b>`}</td><td style="text-align:left">${use > 0 ? `<span class="pill ok">✓ covers ${nf(flowR2(use))}${unit}</span>` : '<span class="pill mute">none in store</span>'}</td></tr>`;
 function flowFabKnown(name) { const k = flowFabKey(name); try { return fabAll().some(r => flowFabKey(r.fabricType) === k); } catch (e) { return false; } }
 
 /* The line card's look — scoped to .fpc, so nothing else in the app changes. */
@@ -235,8 +242,12 @@ function flowPpcOpen(orderNo, onlySku) {
       const patch = {}, now = new Date().toISOString();
       const noFab = plans.filter(p => p.route !== 'outsource' && !String(p.fabric.name || '').trim()).map(p => p.sku);
       if (noFab.length) return `Which fabric? Type it for ${noFab.join(', ')} before raising the plan.`;
-      plans.forEach(p => {
+      plans.forEach((p, i) => {
         p.fabric.metres = flowR2(p.fabric.perPc * p.qty);
+        /* What printed stock covers (worked out on screen): the challan sends only the rest. */
+        const cv0 = cover[i] || { fab: 0, unit: 'm', extra: {} };
+        p.fabric.fromPrinted = flowR2(cv0.fab || 0); p.fabric.printedUnit = cv0.unit;
+        p.extra = (p.extra || []).map((x, j) => Object.assign({}, x, { fromPrinted: flowR2((cv0.extra || {})[j] || 0) }));
         if (p.route === 'outsource') { p.acc = []; p.fabric = Object.assign({}, p.fabric, { metres: 0 }); }
         const rec = Object.assign({}, p, { at: now, by: ME.email || '' }); delete rec.gaps;
         patch['pt_ppc/' + flowKey(p.orderNo, p.sku)] = rec;
@@ -264,12 +275,14 @@ function flowPpcOpen(orderNo, onlySku) {
     const i = b.dataset.usem, n = document.querySelector(`[data-fp="${i}"][data-k="fabric.name"]`), pc = document.querySelector(`[data-fp="${i}"][data-k="fabric.perPc"]`);
     if (n) n.value = b.dataset.n; if (pc && +b.dataset.p) pc.value = b.dataset.p;
     if (pc) pc.dispatchEvent(new Event('input')); b.parentNode.textContent = 'master data taken — save the plan'; }; });
+  /* What printed stock covers, per line — worked out by the drawing below, kept on the plan when it is saved. */
+  const cover = {};
   /* THE STOCK LINES: worked out again whenever a quantity, a fabric or the route changes, in the form's own order. */
   const com = flowCommitted(rows.map(x => x.s.key), flowIsTest(orderNo));
   let shelf = {}; try { (accBalances() || []).forEach(b => { shelf[accCode(b.code)] = +b.qty || 0; }); } catch (e) { shelf = {}; }
   const val = (i, k) => { const el = document.querySelector(`[data-fp="${i}"][data-k="${k}"]`); return el ? el.value : null; };
   const paint = () => {
-    const run = { acc: {}, fab: {}, extra: {} };
+    const run = { acc: {}, fab: {}, extra: {}, printed: {} };
     plans.forEach((p, i) => {
       const route = val(i, 'route') || flowRouteOf(p), out = route === 'outsource';
       const fname = (val(i, 'fabric.name') ?? p.fabric.name) || '', per = +(val(i, 'fabric.perPc') ?? p.fabric.perPc) || 0, metres = flowR2(per * p.qty);
@@ -280,27 +293,46 @@ function flowPpcOpen(orderNo, onlySku) {
         print: Object.assign({}, p.print, { dir: val(i, 'print.dir') ?? flowDirOpts(r, p).cur }) });
       const w = route === 'inhouse' ? flowPrintWhat(r, cur) : null, xw = route === 'inhouse' ? flowPrintExtras(r, cur) : [];
       const pg = document.querySelector(`[data-pget="${i}"]`);
-      if (pg) pg.innerHTML = w ? `<span class="fpc-mode">${esc(w.mode)}</span> ` + flowPrintTxt(w) + flowExtrasTxt(xw)
+      if (pg) pg.innerHTML = w ? `<span class="fpc-mode">${esc(w.mode)}</span> ` + flowPrintTxt(w) + flowExtrasTxt(xw) + '<div data-pcov></div>'
         : `<span class="muted">${route === 'stitch' ? 'Nothing — stitching only, no printing.' : 'Nothing — made outside.'}</span>`;
       const mat = document.querySelector(`[data-mat="${i}"]`); if (!mat) return;
       if (out) { mat.innerHTML = '<tr><td colspan="4" class="muted" style="text-align:left">Outsourced — nothing is raised from our stock.</td></tr>';
         const ch = document.querySelector(`[data-chips="${i}"]`); if (ch) ch.innerHTML = '<span class="fpc-chip vio">Outsourced</span>'; return; }
-      const h = [];
+      const h = []; cover[i] = { fab: 0, unit: w && w.kind === 'sku' ? 'pcs' : 'm', extra: {} };
+      let rfdNeed = metres;
+      /* PRINTED STOCK FIRST: what is already printed in the store, less what earlier plans and the lines above took. */
+      if (w && w.code) {
+        const pu = w.kind === 'sku' ? ' pcs' : ' m', pk = flowPrintedKey(w, fname, colour), ps = flowPrintedStock(Object.assign({ fabric: fname }, w), colour);
+        const pleft = ps == null ? null : ps - (com.printed[pk] || 0) - (run.printed[pk] || 0);
+        const want = w.kind === 'sku' ? (+p.qty || 0) : metres, use = pleft == null ? 0 : flowR2(Math.max(0, Math.min(want, pleft)));
+        h.push(flowPrintedRow(`<b>${esc(w.code)}</b>`, pleft, pu, use));
+        run.printed[pk] = flowR2((run.printed[pk] || 0) + use); cover[i].fab = use;
+        rfdNeed = w.kind === 'sku' ? flowR2(metres * (1 - (p.qty ? use / p.qty : 0))) : flowR2(metres - use);
+      }
       if (fname) { const k = flowFabKey(fname), before = (com.fab[k] || 0) + (run.fab[k] || 0);
-        h.push(flowMatRow(`RFD · <b>${esc(fname)}</b>`, metres, flowRfdStock(fname), before, ' m', flowFabKnown(fname)));
-        run.fab[k] = flowR2((run.fab[k] || 0) + metres); }
-      if (w && w.code) h.push(flowPrintedRow(`<b>${esc(w.code)}</b>`, flowPrintedStock(Object.assign({ fabric: fname }, w), colour), w.kind === 'sku' ? ' pcs' : ' m'));
-      (p.extra || []).forEach(x => {
+        h.push(flowMatRow(`RFD · <b>${esc(fname)}</b>${rfdNeed < metres ? ' <span class="muted">(the rest)</span>' : ''}`, rfdNeed, flowRfdStock(fname), before, ' m', flowFabKnown(fname)));
+        run.fab[k] = flowR2((run.fab[k] || 0) + rfdNeed); }
+      (p.extra || []).forEach((x, j) => {
         if (x.unit !== 'm') { h.push(flowMatRow(esc(x.what), +x.qty || 0, 0, 0, ' ' + esc(x.unit || ''), false)); return; }
-        const name = String(x.what).replace(/^Ruffle — /, ''), k = flowFabKey(name), before = (com.extra[k] || 0) + (run.extra[k] || 0);
-        const ruf = /^Ruffle — /.test(x.what);
-        h.push(flowMatRow(ruf ? `RFD · <b>${esc(name)}</b> <span class="muted">(ruffle)</span>` : `<b>${esc(x.what)}</b>`, +x.qty || 0, ruf ? flowRfdStock(name) : 0, before, ' m', ruf && flowFabKnown(name)));
-        run.extra[k] = flowR2((run.extra[k] || 0) + (+x.qty || 0)); });
-      xw.filter(x => x.code).forEach(x => h.push(flowPrintedRow(`<b>${esc(x.code)}</b> <span class="muted">(ruffle)</span>`, flowPrintedStock({ kind: 'fabric', fabric: x.label.split(' · ')[1] || '' }, colour), ' m')));
+        const name = String(x.what).replace(/^Ruffle — /, ''), k = flowFabKey(name), ruf = /^Ruffle — /.test(x.what);
+        let need = +x.qty || 0;
+        if (ruf && w) {   /* the ruffle cloth: printed stock first too */
+          const xc = (flowPrintExtras(r, Object.assign({}, cur, { extra: [Object.assign({}, x, { fromPrinted: 0 })] }))[0] || {}).code;
+          const pk = 'M|' + fabKey(name) + '|' + fabKey(colour), ps = flowPrintedStock({ kind: 'fabric', fabric: name }, colour);
+          const pleft = ps == null ? null : ps - (com.printed[pk] || 0) - (run.printed[pk] || 0), use = pleft == null ? 0 : flowR2(Math.max(0, Math.min(need, pleft)));
+          h.push(flowPrintedRow(`<b>${esc(xc || name)}</b> <span class="muted">(ruffle)</span>`, pleft, ' m', use));
+          run.printed[pk] = flowR2((run.printed[pk] || 0) + use); cover[i].extra[j] = use; need = flowR2(need - use);
+        }
+        const before = (com.extra[k] || 0) + (run.extra[k] || 0);
+        h.push(flowMatRow(ruf ? `RFD · <b>${esc(name)}</b> <span class="muted">(ruffle${need < (+x.qty || 0) ? ', the rest' : ''})</span>` : `<b>${esc(x.what)}</b>`, need, ruf ? flowRfdStock(name) : 0, before, ' m', ruf && flowFabKnown(name)));
+        run.extra[k] = flowR2((run.extra[k] || 0) + need); });
       (p.acc || []).forEach((a, j) => { const c = accCode(a.code), need = +(val(i, 'acc.' + j + '.qty') ?? a.qty) || 0, before = (com.acc[c] || 0) + (run.acc[c] || 0);
         h.push(flowMatRow(`${esc(a.what)} <span class="muted">(code ${esc(a.code)})</span>`, need, shelf[c] || 0, before, '', c in shelf));
         run.acc[c] = (run.acc[c] || 0) + need; });
       mat.innerHTML = h.join('') || '<tr><td colspan="4" class="muted" style="text-align:left">nothing to raise</td></tr>';
+      if (pg && w && (cover[i].fab > 0 || Object.values(cover[i].extra).some(v => v > 0))) {
+        const u = cover[i].unit === 'pcs' ? ' pcs' : ' m', left = cover[i].unit === 'pcs' ? Math.max(0, (+p.qty || 0) - cover[i].fab) : flowR2(Math.max(0, metres - cover[i].fab));
+        pg.innerHTML += `<div style="color:#166534">✓ ${nf(cover[i].fab)}${u} from printed stock — <b>print ${nf(left)}${u}</b>${Object.values(cover[i].extra).some(v => v > 0) ? ` · ruffle ${nf(Object.values(cover[i].extra).reduce((a, v) => a + v, 0))} m from printed stock` : ''}</div>`; }
       /* The chips: how it is made, the printer, and whether everything is there. */
       const ch = document.querySelector(`[data-chips="${i}"]`);
       if (ch) { const pc = val(i, 'printer.code'), pv = pc ? flowChVendors().find(v => String(v.code) === String(pc)) : null;

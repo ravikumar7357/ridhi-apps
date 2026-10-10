@@ -45,7 +45,7 @@ function load(opts) {
     FAB: { rows: opts.fabRows || [] },
     STORE: { rows: opts.store ? [] : null }, stMoves: () => opts.store || [], stBalances: mv => mv, fabKey: v => String(v || '').trim().toUpperCase(), fabAll: () => opts.fabRows || [], ptList: x => x || [], fabAutoLoad: async () => {}, fabStockOf: (name, st) => (st === 'RFD' ? (opts.rfd || {})[String(name).toUpperCase()] || 0 : 0),
   };
-  const api = new Function(...Object.keys(ctx), SRC + '\n;return { FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowUnplan, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v} };')(...Object.values(ctx));
+  const api = new Function(...Object.keys(ctx), SRC + '\n;return { FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowUnplan, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v} };')(...Object.values(ctx));
   api.setFLOW(Object.assign(api.FLOW(), { ppc: opts.ppc || {}, dem: opts.dem || {}, res: opts.res || {} }));
   return Object.assign(api, { els, writes, W, ctx });
 }
@@ -450,6 +450,76 @@ const K = 'AMZ-1__S1';
     const gs = A.flowChPrintGroups(A.FLOW().ch['RFD-202610-001']);
     ok('"To print": RBPSF327-H-82 10.4 m, RBP-CANVAS-327 5.3 m, LSB 16 m', !er && gs.length === 3 && gs.find(g => g.code === 'LSB').metres === 16 && gs.find(g => g.code === 'RBPSF327-H-82').metres === 10.4 && gs.find(g => g.code === 'RBP-CANVAS-327').metres === 5.3, er);
     ok('…and on the printed challan', /LSB/.test(A.ctx.__win[0] || '') && /16 m/.test(A.ctx.__win[0] || '') && /\+ ruffle LSB/.test(A.ctx.__win[0] || ''));
+  }
+
+  console.log('== printed stock in the store is used first; only the rest needs RFD and the printer ==');
+  {
+    const spans = {}, span = q => spans[q] || (spans[q] = { innerHTML: '', textContent: '' });
+    const mdb = { 'RTC327-6060': { color: 'Light Steel Blue', fabric: 'Sheeting 92', consumption: 0.6, cuttingRequired: true, subtype: 'Ruffle Tablecloth' } };
+    const fsCat = [{ sku: 'RBPSF327-V-92', fabric: 'Sheeting 92', colour: 'Light Steel Blue', dir: 'Vertical', code: '327' },
+      { sku: 'LSB', fabric: 'Cambric', colour: 'Light Steel Blue', dir: 'Vertical', code: '327', manual: true }];
+    const mk = store => { const B = load({ mdb, fsCat, rfd: { 'SHEETING 92': 2461, CAMBRIC: 0 }, fabRows: [{ fabricType: 'Sheeting 92' }, { fabricType: 'Cambric' }], store,
+      lines: [L({ sku: 'RTC327-6060', qty: 10 })], ppc: { [ 'AMZ-1__RTC327-6060']: plan({ sku: 'RTC327-6060', qty: 10, route: 'inhouse', fabric: { name: 'Sheeting 92', perPc: 0.6, metres: 6 }, print: { need: true, dir: 'Vertical' }, extra: [{ what: 'Ruffle — Cambric', qty: 23.5, unit: 'm' }] }) } });
+      Object.keys(spans).forEach(k => delete spans[k]); B.ctx.document.querySelector = q => (/data-mat=|data-fm=|data-pget=|data-chips=/.test(q) ? span(q) : null); return B; };
+    /* Ravi's screen: 100 m printed RBPSF327-V-92 and 1,500 m printed LSB in the store; Cambric RFD 0. */
+    A = mk([{ key: 'M|SHEETING 92|LIGHT STEEL BLUE', qty: 100 }, { key: 'M|CAMBRIC|LIGHT STEEL BLUE', qty: 1500 }]);
+    A.flowPpcOpen('AMZ-1', 'RTC327-6060');
+    const mt = spans['[data-mat="0"]'].innerHTML;
+    ok('the ruffle Cambric (23.5 m) is covered by the 1,500 m printed LSB — not short any more', /✓ covers 23\.5 m/.test(mt) && !/short/.test(mt), mt);
+    ok('the body: 100 m printed RBPSF327-V-92 covers the 6 m', /Printed in store · <b>RBPSF327-V-92<\/b>/.test(mt) && /✓ covers 6 m/.test(mt));
+    ok('…so RFD needs 0 m of either', /<td class="num">0 m<\/td>/.test(mt));
+    ok('the printer box says: 6 m from printed stock — print 0 m', /6 m from printed stock — <b>print 0 m<\/b>/.test(spans['[data-pget="0"]'].innerHTML));
+    ok('the chip says all in stock', /✓ all in stock/.test(spans['[data-chips="0"]'].innerHTML));
+    A.ctx.document.querySelectorAll = () => []; A.els.flpUndo = { checked: false };
+    let er = await A.ctx.__dlg.onSave(); let pw = (A.writes[0] || {})['pt_ppc/AMZ-1__RTC327-6060'] || {};
+    ok('saved on the plan: 6 m and 23.5 m ruffle from printed stock', !er && pw.fabric.fromPrinted === 6 && pw.extra[0].fromPrinted === 23.5, er || JSON.stringify(pw.fabric));
+    ok('…so there is nothing left to print, and RFD is not asked for it', A.flowToPrint(L({ sku: 'RTC327-6060', qty: 10 }), pw).metres === 0 && A.flowPrintExtras(L({ sku: 'RTC327-6060', qty: 10 }), pw).length === 0
+      && A.flowRfdCover().line['AMZ-1__RTC327-6060'].need === 0);
+    A = mk([{ key: 'M|SHEETING 92|LIGHT STEEL BLUE', qty: 2 }]);
+    A.flowPpcOpen('AMZ-1', 'RTC327-6060');
+    const m2 = spans['[data-mat="0"]'].innerHTML;
+    ok('only 2 m printed in store → covers 2 m, RFD the rest 4 m; ruffle all from RFD → short', /✓ covers 2 m/.test(m2) && /\(the rest\)<\/span><\/td><td class="num">4 m/.test(m2) && /⚑ short 23\.5 m/.test(m2), m2);
+  }
+
+  console.log('== a quilt: Front and Back, half the cloth each ==');
+  {
+    const mdb = { 'RQL327-Q': { color: 'Light Steel Blue', fabric: 'Voil 92', consumption: 5, cuttingRequired: true, articleType: 'Quilt' } };
+    const fsCat = [{ sku: 'RQL327-Q-Front', fabric: 'Voil 92', colour: 'Light Steel Blue', dir: 'Vertical', side: 'Front', code: '327' },
+      { sku: 'RQL327-Q-Back', fabric: 'Voil 92', colour: 'Light Steel Blue', dir: 'Vertical', side: 'Back', code: '327' }];
+    A = load({ me: { admin: true }, mdb, fsCat, rfd: { 'VOIL 92': 999 }, lines: [L({ sku: 'RQL327-Q', qty: 10 })],
+      ppc: { 'AMZ-1__RQL327-Q': plan({ sku: 'RQL327-Q', qty: 10, printer: { code: 'P1', name: 'Sanganer Prints' }, fabric: { name: 'Voil 92', perPc: 5, metres: 50 }, print: { need: true, dir: 'Vertical' } }) } });
+    const w = A.flowPrintWhat(L({ sku: 'RQL327-Q' }), A.FLOW().ppc['AMZ-1__RQL327-Q']);
+    ok('the quilt prints as two fabric SKUs: Front RQL327-Q-Front + Back RQL327-Q-Back', w.sides && w.sides.length === 2 && w.sides[0].side === 'Front' && w.sides[0].code === 'RQL327-Q-Front' && w.sides[1].code === 'RQL327-Q-Back');
+    A.flowChallanOpen('AMZ-1', 'P1');
+    A.ctx.document.querySelector = q => ({ '[data-chk="0"]': { checked: true }, '[data-chm="0"]': { value: '50' } })[q] || null;
+    A.els.flcVen = { value: 'P1' }; A.els.flcDate = { value: '2026-10-10' }; A.els.flcNote = { value: '' }; A.ctx.__win = [];
+    await A.ctx.__dlg.onSave();
+    const gs = A.flowChPrintGroups(A.FLOW().ch['RFD-202610-001']);
+    ok('"To print": RQL327-Q-Front 25 m and RQL327-Q-Back 25 m (5 m a quilt = 2.5 + 2.5)', gs.length === 2 && gs.find(g => g.code === 'RQL327-Q-Front').metres === 25 && gs.find(g => g.code === 'RQL327-Q-Back').metres === 25, JSON.stringify(gs));
+  }
+
+  console.log('== one printed fabric, several orders → one challan ==');
+  {
+    const mdb = { 'RPC327-A': { color: 'Light Steel Blue', fabric: 'Canvas', consumption: 0.5, cuttingRequired: true }, 'RPC327-B': { color: 'Light Steel Blue', fabric: 'Canvas', consumption: 0.25, cuttingRequired: true } };
+    const fsCat = [{ sku: 'RBP-CANVAS-327', fabric: 'Canvas', colour: 'Light Steel Blue', dir: 'Vertical', code: '327' }];
+    const pr = { code: 'P1', name: 'Sanganer Prints' };
+    const pp = (no, sku, m) => plan({ orderNo: no, sku, qty: 10, printer: pr, fabric: { name: 'Canvas', perPc: m / 10, metres: m }, print: { need: true } });
+    A = load({ me: { admin: true }, mdb, fsCat, rfd: { CANVAS: 999 },
+      lines: [L({ orderNo: 'AMZ-1', sku: 'RPC327-A' }), L({ orderNo: 'AMZ-2', sku: 'RPC327-B' }), L({ orderNo: 'TEST-AMZ-9', sku: 'RPC327-A', __t: {} })],
+      ppc: { 'AMZ-1__RPC327-A': pp('AMZ-1', 'RPC327-A', 5), 'AMZ-2__RPC327-B': pp('AMZ-2', 'RPC327-B', 2.5), 'TEST-AMZ-9__RPC327-A': pp('TEST-AMZ-9', 'RPC327-A', 5) } });
+    A.flowTestOnlySet(false);
+    A.setView('drfd'); A.setAngle('drfd', 'print'); A.renderFlow();
+    const h = A.els.flTable.innerHTML;
+    ok('By printed fabric: RBP-CANVAS-327 for AMZ-1 + AMZ-2 in one row, 7.5 m to print, Sanganer', /RBP-CANVAS-327/.test(h) && /AMZ-1<br>AMZ-2/.test(h) && /<b>7\.5 m<\/b>/.test(h) && /One challan for 2 orders/.test(h), h);
+    ok('…the test order is its own row, never mixed with real ones', (h.match(/RBP-CANVAS-327/g) || []).length === 2);
+    A.flowChallanForKeys(['AMZ-1__RPC327-A', 'TEST-AMZ-9__RPC327-A']);
+    ok('a test order and a real one cannot share a challan', /cannot share a challan/.test(A.els.flMsg.textContent));
+    A.flowChallanForKeys(['AMZ-1__RPC327-A', 'AMZ-2__RPC327-B']);
+    ok('one challan form with both orders\u2019 lines', /AMZ-1/.test(A.ctx.__dlg.html) && /AMZ-2/.test(A.ctx.__dlg.html) && /2 orders, one printed fabric, one vendor/.test(A.ctx.__dlg.subtitle));
+    A.ctx.document.querySelector = q => ({ '[data-chk="0"]': { checked: true }, '[data-chm="0"]': { value: '5' }, '[data-chk="1"]': { checked: true }, '[data-chm="1"]': { value: '2.5' } })[q] || null;
+    A.els.flcVen = { value: 'P1' }; A.els.flcDate = { value: '2026-10-10' }; A.els.flcNote = { value: '' }; A.ctx.__win = [];
+    const er = await A.ctx.__dlg.onSave(); const ch = A.FLOW().ch['RFD-202610-001'];
+    ok('saved as one challan for both orders; both lines move on', !er && ch.orders.join() === 'AMZ-1,AMZ-2' && ch.orderNo === 'AMZ-1, AMZ-2' && A.flowState(L({ orderNo: 'AMZ-1', sku: 'RPC327-A' })).bucket === 'fabric' && A.flowState(L({ orderNo: 'AMZ-2', sku: 'RPC327-B' })).bucket === 'fabric', er);
   }
 
   console.log('== the catalogue by its own colour code; a SKU added by hand wins ==');
