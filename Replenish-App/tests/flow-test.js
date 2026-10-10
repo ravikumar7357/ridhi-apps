@@ -35,9 +35,9 @@ function load(opts) {
     ptLoadGates: async () => {}, palKey: (b, c) => (b || '') + '|' + c, palInfoOf: k => (opts.pal || {})[k] || {}, VO: { rows: opts.vo || [] }, voLines: o => o.lines || [], ordCutReq: sku => !/NOCUT/.test(sku), confirm: () => true, PTG: { mdb: [] }, setTimeout, clearTimeout,
     voAllVendors: () => [{ code: 'V9', desc: 'Kalu Mill', category: 'Mill' }, { code: 'P1', desc: 'Sanganer Prints', category: 'Printer' }],
     window: { open: () => (opts.popupBlocked ? null : { document: { open() {}, write(h) { (ctx.__win = ctx.__win || []).push(h); }, close() {} } }) }, GPO: { settings: { company: 'Ridhi Home & Living' } },
-    FAB: { rows: [] }, ptList: x => x || [], fabAutoLoad: async () => {}, fabStockOf: (name, st) => (st === 'RFD' ? (opts.rfd || {})[String(name).toUpperCase()] || 0 : 0),
+    FAB: { rows: opts.fabRows || [] }, fabAll: () => opts.fabRows || [], ptList: x => x || [], fabAutoLoad: async () => {}, fabStockOf: (name, st) => (st === 'RFD' ? (opts.rfd || {})[String(name).toUpperCase()] || 0 : 0),
   };
-  const api = new Function(...Object.keys(ctx), SRC + '\n;return { FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowReceiveOpen, flowCloseShortOpen, flowPrinterFor, flowChIndex, setView:v=>{FLOW_VIEW=v} };')(...Object.values(ctx));
+  const api = new Function(...Object.keys(ctx), SRC + '\n;return { FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowReceiveOpen, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v} };')(...Object.values(ctx));
   api.setFLOW(Object.assign(api.FLOW(), { ppc: opts.ppc || {}, dem: opts.dem || {}, res: opts.res || {} }));
   return Object.assign(api, { els, writes, W, ctx });
 }
@@ -123,12 +123,17 @@ const K = 'AMZ-1__S1';
   A = load({ me: { tabs: ['fldem'] }, rfd: { 'SHEETING 58': 50 }, lines: [L()], ppc: { [K]: pl('S1', 60) } });
   A.setView('drfd'); A.renderFlow();
   ok('the RFD list flags the line red: SHORT 10 m', /SHORT 10 m/.test(A.els.flTable.innerHTML) && /fef2f2/.test(A.els.flTable.innerHTML));
-  ok('…and the panel shows stock, need and short per fabric', /RFD in stock against these orders/.test(A.els.flPanel.innerHTML) && /⚑ 10 m/.test(A.els.flPanel.innerHTML));
+  ok('above the lines: only the switch, By line | By fabric — not the stock table', /data-flang="stock"/.test(A.els.flPanel.innerHTML) && !/⚑ 10 m/.test(A.els.flPanel.innerHTML) && /By fabric/.test(A.els.flPanel.innerHTML));
+  A.setAngle('drfd', 'stock'); A.renderFlow();
+  ok('By fabric: the table IS the stock — in stock, need, short per fabric; the lines are not under it', /⚑ 10 m/.test(A.els.flTable.innerHTML) && /RFD in stock/.test(A.els.flTable.innerHTML) && !/data-flfab=/.test(A.els.flTable.innerHTML));
+  A.setAngle('drfd', 'line'); A.renderFlow();
   ok('accessories are not in the RFD department', !/Reserve/.test(A.els.flTable.innerHTML));
   A = load({ me: { tabs: ['flacc'] }, lines: [L()], ppc: { [K]: pl('S1', 60, { acc: [{ code: '18', qty: 100 }] }) }, shelf: [{ code: '18', name: '18in zip', qty: 70 }] });
   A.setView('dacc'); A.renderFlow();
   ok('the Accessories list flags short 30 and offers Reserve', /short 30/.test(A.els.flTable.innerHTML) && /data-flres/.test(A.els.flTable.innerHTML));
-  ok('…its panel: shelf 70, need 100, short 30', A.flowAccCover()[0].short === 30 && /Accessories on the shelf/.test(A.els.flPanel.innerHTML));
+  ok('accessories have the same switch', /data-flang="stock"/.test(A.els.flPanel.innerHTML) && /By accessory/.test(A.els.flPanel.innerHTML) && A.flowAccCover()[0].short === 30);
+  A.setAngle('dacc', 'stock'); A.renderFlow();
+  ok('By accessory: shelf 70, need 100, short 30', /On the shelf/.test(A.els.flTable.innerHTML) && /⚑ 30/.test(A.els.flTable.innerHTML) && !/data-flres=/.test(A.els.flTable.innerHTML));
   ok('fabric is not in the Accessories department', !/Mark fabric ready/.test(A.els.flTable.innerHTML));
 
   console.log('== RFD challan, order-wise, to one vendor ==');
@@ -234,6 +239,34 @@ const K = 'AMZ-1__S1';
     A.ctx.document.querySelectorAll = () => [{ dataset: { fp: '0', k: 'route' }, type: 'select-one', value: 'stitch' }, { dataset: { fp: '0', k: 'printer.code' }, type: 'select-one', value: 'P1' }];
     await A.ctx.__dlg.onSave();
     ok('a stitching-only line keeps no printer', A.writes[0]['pt_ppc/' + K].printer === null);
+  }
+
+  console.log('== PPC sees the stock: in stock · planned for earlier orders · available ==');
+  {
+    const spans = {};
+    const span = sel => spans[sel] || (spans[sel] = { innerHTML: '', textContent: '' });
+    const mdb = { S1: { cons: 1, fab: 'Sheeting 82', chainLength: '18' }, S2: { cons: 0.5, fab: 'Sheeting 82', chainLength: '18' }, S3: { cons: 0.5, fab: 'Sheeting 82', chainLength: '18' } };
+    A = load({ mdb, rfd: { 'SHEETING 82': 100 }, fabRows: [{ fabricType: 'Sheeting 82' }], shelf: [{ code: '18', name: '18in zip', qty: 100 }],
+      lines: [L({ orderNo: 'AMZ-0', sku: 'S1', qty: 40, orderDate: '2026-10-11' }), L({ sku: 'S2', qty: 50 }), L({ sku: 'S3', qty: 20 })],
+      ppc: { 'AMZ-0__S1': plan({ orderNo: 'AMZ-0', sku: 'S1', qty: 40, acc: [{ code: '18', qty: 40 }], fabric: { name: 'Sheeting 82', perPc: 0.75, metres: 30 } }) } });
+    A.ctx.document.querySelector = sel => (/stk=|data-fm=/.test(sel) ? span(sel) : null);
+    A.flowPpcOpen('AMZ-1');
+    const z1 = spans['[data-astk="0.0"]'].innerHTML, z2 = spans['[data-astk="1.0"]'].innerHTML, f1 = spans['[data-fstk="0"]'].innerHTML;
+    ok('100 zippers, an earlier order planned 40 → this order of 50 sees 60 available', /in stock 100/.test(z1) && /planned for earlier orders 40/.test(z1) && /available 60/.test(z1) && !/short/.test(z1), z1);
+    ok('the next line in the same form counts the one above it: 90 planned, 10 available, short 10 for 20', /planned for earlier orders 90/.test(z2) && /available 10/.test(z2) && /short 10/.test(z2), z2);
+    ok('RFD fabric the same: 100 m, 30 m planned earlier, 70 m available for 25 m', /in stock 100 m/.test(f1) && /planned for earlier orders 30 m/.test(f1) && /available 70 m/.test(f1), f1);
+    ok('shown only — opening the form writes nothing', !A.writes.length);
+    A.W.lines[0].issued = 20; A.setFLOW(Object.assign(A.FLOW(), { ppc: Object.assign({}, A.FLOW().ppc) }));
+    ok('half the earlier line issued → its zippers left the shelf at issue: only 20 still counted', A.flowCommitted([]).acc['18'] === 20);
+    ok('…and its cloth has moved, so its fabric is no longer counted', !A.flowCommitted([]).fab['SHEETING 82']);
+    A.W.lines.push(L({ orderNo: 'TEST-AMZ-1', sku: 'S1', qty: 30, __t: {} })); A.setFLOW(Object.assign(A.FLOW(), { ppc: Object.assign({}, A.FLOW().ppc, { 'TEST-AMZ-1__S1': plan({ acc: [{ code: '18', qty: 30 }] }) }) }));
+    ok('a test order’s plan does not eat into a real order’s stock (but counts for another test)', A.flowCommitted([]).acc['18'] === 20 && A.flowCommitted([], true).acc['18'] === 50);
+    ok('a line in the form is not counted twice when it was planned before', A.flowCommitted(['AMZ-0__S1']).acc['18'] === undefined);
+    A = load({ mdb, lines: [L({ sku: 'S2', qty: 50 })], shelf: [] });
+    Object.keys(spans).forEach(k => delete spans[k]);
+    A.ctx.document.querySelector = sel => (/stk=|data-fm=/.test(sel) ? span(sel) : null);
+    A.flowPpcOpen('AMZ-1');
+    ok('an accessory nobody keeps / a fabric not in the register is said, not shown as 0', /not kept in the app/.test(spans['[data-astk="0.0"]'].innerHTML) && /not kept in the app/.test(spans['[data-fstk="0"]'].innerHTML));
   }
 
   console.log('== a TEST order walks every bucket, end to end ==');

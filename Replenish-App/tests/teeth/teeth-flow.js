@@ -23,6 +23,12 @@ const breaks = {
   'flow-ppc.js': {
     'a plan with no fabric is saved': s => s.replace('if (noFab.length) return', 'if (false) return'),
     'a stitching line keeps a printer': s => s.replace("p.printer = v ? {", "p.printer = (v || p.printer.code) ? {").replace("p.route === 'inhouse' && p.printer && p.printer.code ? flowChVendors()", "p.printer && p.printer.code ? flowChVendors()"),
+    'a test order eats real stock': s => s.replace(" || (r.__t && !withTest)) return;", ") return;"),
+    'earlier plans not counted': s => s.replace('before = (com.acc[c] || 0) + (run.acc[c] || 0)', 'before = (run.acc[c] || 0)'),
+    'lines above in the form not counted': s => s.replace('if (!out) run.acc[c] = (run.acc[c] || 0) + need;', ''),
+    'issued zippers still counted': s => s.replace("acc[c] = (acc[c] || 0) + Math.ceil(+a.qty * left);", "acc[c] = (acc[c] || 0) + (+a.qty);"),
+    'moved cloth still counted': s => s.replace('const unmoved = !s.cut && !s.issued &&', 'const unmoved = true ||'),
+    'unknown stock shown as 0': s => s.replace("if (!known) return '<span", "if (false) return '<span"),
     'the gaps are saved': s => s.replace('delete rec.gaps;', ''),
     'no recipe fallback': s => s.replace("const per = +(recipeValue(m, 'consumption') || 0)", 'const per = 0'),
     'an outsourced line needs no vendor': s => s.replace('if (noVen.length) return', 'if (false) return'),
@@ -64,7 +70,8 @@ const breaks = {
   },
   'flow-view.js': {
     'buttons for buckets not held': s => s.replace('$(\'flBuckets\').innerHTML = allowed.map(', '$(\'flBuckets\').innerHTML = FLOW_BUCKETS.map('),
-    'no RFD stock panel': s => s.replace("if (fs.length) FLOW.panel =", "if (false) FLOW.panel ="),
+    'no RFD stock angle': s => s.replace("if (ang === 'stock') $('flTable').innerHTML = FLOW.stock;", ''),
+    'stock stacked above the lines again': s => s.replace("    if (ang === 'stock') $('flTable').innerHTML = FLOW.stock;", "    FLOW.panel += '<table>' + FLOW.stock + '</table>';"),
     'no red flag on a short line': s => s.replace('⚑ SHORT ${nf(c.short)} m', 'covered'),
     'challans still shown in Demand RFD': s => s.replace("$('flPanel').innerHTML = FLOW.panel;", "$('flPanel').innerHTML = FLOW.panel + (FLOW_VIEW === 'drfd' ? flowHistTable('') : '');"),
     'no Receive button on the fabric bucket': s => s.replace("x && x.s.challan && view === 'fabric' && !x.s.challan.closed", 'false'),

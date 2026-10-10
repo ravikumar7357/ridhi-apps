@@ -3,6 +3,7 @@
  * the chosen bucket's list: SKU by SKU, with what that bucket is waiting for and a button to the screen where the work
  * is entered. The lines move on by themselves when that entry is made. */
 let FLOW_VIEW = '';
+const FLOW_ANGLE = {};   // per Demand view: 'line' or 'stock'
 
 async function ensureFlow() {
   if (!PTG.mdb) { $('flMsg').textContent = 'Reading the order book…'; await ptLoadGates(); }
@@ -41,8 +42,16 @@ function renderFlow() {
       <span class="fl-n">${nf(n[k] || 0)}</span><span>${esc(l)}</span></button>`).join('<span class="fl-arrow">›</span>');
   const rows = FLOW_VIEW === 'new' ? shown.filter(x => x.recent) : shown.filter(x => flowInView(FLOW_VIEW, x.s));
   rows.sort((a, b) => String(a.r.orderDate || '').localeCompare(String(b.r.orderDate || '')) || String(a.r.orderNo).localeCompare(String(b.r.orderNo)));
-  FLOW.panel = '';
+  FLOW.panel = ''; FLOW.stock = '';
   $('flTable').innerHTML = flowTable(FLOW_VIEW, rows.slice(0, 800));
+  /* DEMAND HAS TWO ANGLES (Ravi, 10 Oct: "keep this section in a different angle"): the lines, or the stock by
+   * fabric / accessory against them — one at a time, never stacked. */
+  if (FLOW.stock) {
+    const ang = FLOW_ANGLE[FLOW_VIEW] || 'line', what = FLOW_VIEW === 'drfd' ? 'By fabric (RFD stock)' : 'By accessory (shelf stock)';
+    FLOW.panel = `<div class="seg" style="display:inline-flex;gap:4px">${[['line', 'By line'], ['stock', what]].map(([k, l]) =>
+      `<button data-flang="${k}" class="${ang === k ? '' : 'ghost'}" style="width:auto;padding:4px 12px;font-size:12.5px">${l}</button>`).join('')}</div>`;
+    if (ang === 'stock') $('flTable').innerHTML = FLOW.stock;
+  }
   $('flPanel').innerHTML = FLOW.panel; $('flPanel').classList.toggle('hide', !FLOW.panel);
   const b = FLOW_BUCKETS.find(x => x[0] === FLOW_VIEW);
   $('flMsg').className = FLOW.err ? 'err' : 'muted';
@@ -102,9 +111,9 @@ function flowTable(view, rows) {
           : `<span class="jw-st done">covered</span> <span class="muted">${nf(c.avail)} m left</span>`}</td>
         <td style="white-space:nowrap">${first ? `<button data-flch="${esc(x.r.orderNo)}" style="width:auto;padding:3px 10px;font-size:12px">Challan for this PO</button> ` : ''}<button class="ghost" data-flfab="${esc(x.s.key)}" style="width:auto;padding:2px 9px;font-size:11.5px">Mark fabric ready</button></td></tr>`; }).join('');
     const fs = Object.values(cv.fab).filter(f => f.need > 0).sort((a, b) => b.short - a.short || a.name.localeCompare(b.name));
-    if (fs.length) FLOW.panel = `<div style="font-weight:600;margin:2px 0 6px">RFD in stock against these orders</div><table class="xl" style="width:auto"><thead><tr><th style="text-align:left">Fabric</th><th>RFD in stock</th><th>Kept for lines already ready</th><th>These lines need</th><th>Short</th></tr></thead><tbody>`
+    FLOW.stock = `<thead><tr><th style="text-align:left">Fabric</th><th>RFD in stock</th><th>Kept for lines already ready</th><th>These lines need</th><th>Short</th></tr></thead><tbody>`
       + fs.map(f => `<tr${f.short ? ' style="background:#fef2f2"' : ''}><td style="text-align:left"><b>${esc(f.name)}</b></td><td class="num">${nf(flowR2(f.stock))} m</td><td class="num">${nf(flowR2(f.held))} m</td><td class="num">${nf(f.need)} m · ${nf(f.lines)} line(s)</td>
-        <td class="num">${f.short ? `<b style="color:#b91c1c">⚑ ${nf(f.short)} m</b>` : '<span style="color:#166534">—</span>'}</td></tr>`).join('') + '</tbody></table>';
+        <td class="num">${f.short ? `<b style="color:#b91c1c">⚑ ${nf(f.short)} m</b>` : '<span style="color:#166534">—</span>'}</td></tr>`).join('') + (fs.length ? '' : '<tr><td colspan="5" class="muted" style="padding:16px">No line is waiting for fabric.</td></tr>') + '</tbody>';
   } else if (view === 'dacc') {
     head = ['PO', 'SKU', 'Qty', 'Accessories this line uses', ''];
     const free = flowAccFree();
@@ -114,9 +123,9 @@ function flowTable(view, rows) {
           return `<div style="font-size:12px"><b>${esc(a.code)}</b> ${esc(a.what || '')} × ${nf(a.qty)} <span style="color:${ok ? '#166534' : '#b91c1c'};font-weight:600">${f ? nf(Math.max(0, f.free)) + ' free' : 'not on the shelf'}${ok ? '' : ' · ⚑ short ' + nf(a.qty - Math.max(0, f ? f.free : 0))}</span></div>`; }).join('')}</td>
         <td><button data-flres="${esc(x.s.key)}" style="width:auto;padding:3px 10px;font-size:12px">Reserve</button></td></tr>`; }).join('');
     const ac = flowAccCover();
-    if (ac.length) FLOW.panel = `<div style="font-weight:600;margin:2px 0 6px">Accessories on the shelf against these orders</div><table class="xl" style="width:auto"><thead><tr><th style="text-align:left">Code</th><th>On the shelf</th><th>Reserved already</th><th>These lines need</th><th>Short</th></tr></thead><tbody>`
+    FLOW.stock = `<thead><tr><th style="text-align:left">Code</th><th>On the shelf</th><th>Reserved already</th><th>These lines need</th><th>Short</th></tr></thead><tbody>`
       + ac.map(a => `<tr${a.short ? ' style="background:#fef2f2"' : ''}><td style="text-align:left"><b>${esc(a.code)}</b> <span class="muted">${esc(a.name !== a.code ? a.name : '')}</span></td><td class="num">${nf(a.shelf)}</td><td class="num">${nf(a.held)}</td><td class="num">${nf(a.need)}</td>
-        <td class="num">${a.short ? `<b style="color:#b91c1c">⚑ ${nf(a.short)}</b>` : '<span style="color:#166534">—</span>'}</td></tr>`).join('') + '</tbody></table>';
+        <td class="num">${a.short ? `<b style="color:#b91c1c">⚑ ${nf(a.short)}</b>` : '<span style="color:#166534">—</span>'}</td></tr>`).join('') + (ac.length ? '' : '<tr><td colspan="5" class="muted" style="padding:16px">No line is waiting for accessories.</td></tr>') + '</tbody>';
   } else if (view === 'out') {
     head = ['PO', 'SKU', 'Qty', 'Made by', 'Received in Finished Goods', ''];
     body = rows.map(x => `<tr>${base(x)}<td style="text-align:left"><b>${esc((x.s.plan && x.s.plan.outVendor) || '—')}</b></td>
@@ -149,7 +158,8 @@ function flowTable(view, rows) {
 
 /* ---- wiring ---- */
 $('flBuckets').addEventListener('click', e => { const b = e.target.closest('[data-flb]'); if (!b) return; FLOW_VIEW = b.dataset.flb; renderFlow(); });
-$('flPanel').addEventListener('click', e => { const cp = e.target.closest('[data-flchp]'); if (!cp) return;
+$('flPanel').addEventListener('click', e => { const an = e.target.closest('[data-flang]'); if (an) { FLOW_ANGLE[FLOW_VIEW] = an.dataset.flang; renderFlow(); return; }
+  const cp = e.target.closest('[data-flchp]'); if (!cp) return;
   const er = flowChallanPrint(cp.dataset.flchp); if (er) { $('flMsg').className = 'err'; $('flMsg').textContent = er; } });
 $('flQ').addEventListener('input', () => { clearTimeout(FLOW.qt); FLOW.qt = setTimeout(renderFlow, 220); });
 $('flSrc').addEventListener('change', renderFlow);
