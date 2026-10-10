@@ -105,6 +105,7 @@ const breaks = {
     'a blocked pop-up is swallowed': s => s.replace("if (!w || !w.document) return 'The browser blocked", "if (!w || !w.document) return ''; if (0) return 'The browser blocked"),
   },
   'flow-test-order.js': {
+    'delete test leaves the store entry': s => s.replace("if (h.fgId) patch['pt_fgiLedger/' + h.fgId] = null; });", '});').replace(".forEach(r => { patch['pt_fgiLedger/' + r._id] = null; });", '.forEach(r => {});'),
     'test cutting not written to Cutting Data': s => s.replace("{ ['pt_cuttingData/' + reg.id]: reg }", '{}'),
     'test issue not written to Job Work': s => s.replace("{ ['pt_baseData/' + reg.id]: reg }", '{}'),
     'test receipt not written to its Job Work row': s => s.replace("regs = { ['pt_baseData/' + row.id]: clean };", ''),
@@ -169,7 +170,8 @@ const breaks = {
     'FG reject without a reason': s => s.replace("if (!why) return 'Say why they are rejected.';", ''),
     'FG reject leaves the pass': s => s.replace("checked: -k, ok: -k, forAlteration: 0", "checked: 0, ok: 0, forAlteration: 0"),
     'FG reject not on the karigar entry': s => s.replace("...(b ? { baseId: b } : {}),", ''),
-    'a test order put into India stock': s => s.replace("  if (!x.r.__t) {\n    if (typeof FGI", "  if (true) {\n    if (typeof FGI"),
+    'a test accept not marked TEST in the store': s => s.replace("createdAt: now, createdBy: ME.email || '', ...(x.r.__t ? { test: true } : {}) };", "createdAt: now, createdBy: ME.email || '' };"),
+    'the order check run on a test order': s => s.replace("  if (!x.r.__t) {   // a test order", "  if (true) {   // a test order"),
   },
   'flow-view.js': {
     'buttons for buckets not held': s => s.replace('$(\'flBuckets\').innerHTML = allowed.map(', '$(\'flBuckets\').innerHTML = FLOW_BUCKETS.map('),

@@ -24569,13 +24569,14 @@ function flowTestOpen() {
 /** Take a test order out — and every plan, demand, reservation and challan written for it. */
 async function flowTestDelete(orderNo) {
   const o = (FLOW.test || {})[orderNo]; if (!o) return '';
-  if (!confirm(`Delete test order ${orderNo} and everything made for it — plan, fabric ready, reservations, challans, print orders, and its TEST entries in Cutting Data, the Job Work Register and Quality Control?`)) return '';
+  if (!confirm(`Delete test order ${orderNo} and everything made for it — plan, fabric ready, reservations, challans, print orders, and its TEST entries in Cutting Data, the Job Work Register, Quality Control and Finished Goods (India store)?`)) return '';
   const patch = { ['pt_flowTest/' + orderNo]: null };
   Object.keys(o.lines || {}).forEach(sku => { const k = flowKey(orderNo, sku);
     patch['pt_ppc/' + k] = null; patch['pt_flowDemand/' + k] = null; patch['pt_accReserve/' + k] = null; });
   Object.values(FLOW.ch || {}).filter(c => (c.orders || [c.orderNo]).includes(orderNo)).forEach(c => { patch['pt_flowChallans/' + c.no] = null; });
   Object.values(FLOW.po || {}).filter(o => o && o.orderNo === orderNo).forEach(o => { patch['pt_flowPrintOrders/' + o.no] = null; });
-  Object.entries(FLOW.fg || {}).filter(([, h]) => h && h.orderNo === orderNo).forEach(([id]) => { patch['pt_flowFgSend/' + id] = null; });
+  Object.entries(FLOW.fg || {}).filter(([, h]) => h && h.orderNo === orderNo).forEach(([id, h]) => { patch['pt_flowFgSend/' + id] = null; if (h.fgId) patch['pt_fgiLedger/' + h.fgId] = null; });
+  if (typeof FGI !== 'undefined' && Array.isArray(FGI.rows)) FGI.rows.filter(r => r && r._id && obUC(r.orderNo) === obUC(orderNo)).forEach(r => { patch['pt_fgiLedger/' + r._id] = null; });
   /* …and its TEST rows in Cutting Data, the Job Work Register and Quality Control — by what the test order recorded, and
    * by order no in whatever the screens have read, so nothing written for it is left behind. */
   const regs = { pt_cuttingData: new Set(), pt_baseData: new Set(), pt_qcChecks: new Set() };
@@ -24594,6 +24595,8 @@ async function flowTestDelete(orderNo) {
   if (gc.size) PT.cut = (PT.cut || []).filter(r => !(r && gc.has(r.id)));
   if (gb.size) PT.base = (PT.base || []).filter(r => !(r && gb.has(r.id)));
   if (gq.size && typeof QC !== 'undefined' && Array.isArray(QC.checks)) QC.checks = QC.checks.filter(r => !(r && gq.has(r.id)));
+  const gf = gone('pt_fgiLedger');
+  if (gf.size && typeof FGI !== 'undefined' && Array.isArray(FGI.rows)) FGI.rows = FGI.rows.filter(r => !(r && gf.has(r._id)));
   return '';
 }
 
@@ -25343,8 +25346,9 @@ const flowStorePcs = sku => flowPrintedStock({ kind: 'sku', code: obUC(sku) }, '
  *                  pt_qcChecks with checked and ok negative, on the karigar's Job Work entry, saying why) so the pieces are
  *                  in Waiting for QC again. Each accept / reject is logged in pt_flowFgSend.
  * A test order's QC rows are the ones the Quality Control screen writes for its TEST Job Work entries (removed with the
- * test); its Finished Goods stay on the test order — a test must never put stock into India stock, which Replenishment
- * reads. Everything on the Finished Goods screen is switched on with the flow (FLOW_ON) only. */
+ * test). Its accept is a RECEIVE row in the India store too (Ravi, 10 Oct: "India stock me received from QC kiya but entry
+ * kahan gayi, wo in store dikhani chahiye") — test: true, remarks "[TEST] …" — and counts in India stock until "delete
+ * test" takes it out again. Everything on the Finished Goods screen is switched on with the flow (FLOW_ON) only. */
 
 /* ---- what the QC register says about one line (indexed once per read of the register) ---- */
 const FLOW_QC_NONE = Object.freeze([]);
@@ -25409,7 +25413,7 @@ function flowFgAcceptOpen(key) {
   if (!can) return flowFgSay('Nothing of that line is waiting any more — press Refresh.', true);
   ptOpenDialog({
     title: `Accept into Finished Goods — ${x.r.orderNo} · ${obUC(x.r.sku)}${x.r.__t ? ' (TEST)' : ''}`,
-    subtitle: `${nf(can)} passed QC and are not in India stock yet.${x.r.__t ? ' A test order\'s goods stay on the test order — never in India stock.' : ''}`,
+    subtitle: `${nf(can)} passed QC and are not in India stock yet.${x.r.__t ? ' TEST order: it goes into the India store as a TEST entry, and "delete test" takes it out again.' : ''}`,
     html: `<div class="ptgrid" style="grid-template-columns:1fr 2fr"><label>Pieces counted in<input id="flfP" type="number" min="1" value="${can}"></label><label>Note<input id="flfN"></label></div>`,
     saveLabel: 'Accept',
     onSave: async () => {
@@ -25422,26 +25426,26 @@ function flowFgAcceptOpen(key) {
 }
 async function flowFgAccept(x, n, note) {
   const now = new Date().toISOString(), patch = {}, d = new Date(), p2 = v => String(v).padStart(2, '0'), sku = obUC(x.r.sku);
-  let fgRow = null;
-  if (!x.r.__t) {
-    if (typeof FGI !== 'undefined' && FGI.rows == null && typeof fgiLoad === 'function') { try { await fgiLoad(); } catch (e) { /* refused below */ } }
+  let over = {};
+  if (typeof FGI !== 'undefined' && FGI.rows == null && typeof fgiLoad === 'function') { try { await fgiLoad(); } catch (e) { /* refused below */ } }
+  if (!x.r.__t) {   // a test order is on no order book: the order check has nothing to check it against
     let chk = {}; try { chk = fgiRecvOrderCheck({ sku, qty: n, orderNo: x.r.orderNo, pick: 'console' }) || {}; } catch (e) { chk = {}; }
     if (chk.err && !chk.needOver) return 'Not accepted: ' + chk.err;
-    const over = chk.needOver ? { overQty: chk.overQty, overReason: 'passed QC (Production flow)', overOrdered: chk.overOrdered, overStatus: 'open' } : {};
-    fgRow = { _id: fgiNewId('RCP'), txnType: 'RECEIVE', sku, qty: n, date: `${p2(d.getDate())}/${p2(d.getMonth() + 1)}/${d.getFullYear()}`, reason: '',
-      orderNo: x.r.orderNo, orderSource: 'console', ...over, receivedFrom: 'QC (Production flow)', remarks: ('Accepted from QC' + (note ? ' — ' + note : '')), createdAt: now, createdBy: ME.email || '' };
-    patch['pt_fgiLedger/' + fgRow._id] = fgRow;
-  } else {
-    patch[`pt_flowTest/${x.r.orderNo}/lines/${sku}/fgIn`] = (+x.r.__t.fgIn || 0) + n;
+    if (chk.needOver) over = { overQty: chk.overQty, overReason: 'passed QC (Production flow)', overOrdered: chk.overOrdered, overStatus: 'open' };
   }
-  const [id, log] = flowFgLog(x, { pcs: n, status: 'accepted', note: note || '', ...(fgRow ? { fgId: fgRow._id } : {}) });
+  const fgRow = { _id: fgiNewId('RCP'), txnType: 'RECEIVE', sku, qty: n, date: `${p2(d.getDate())}/${p2(d.getMonth() + 1)}/${d.getFullYear()}`, reason: '',
+    orderNo: x.r.orderNo, orderSource: 'console', ...over, receivedFrom: 'QC (Production flow)', remarks: ((x.r.__t ? '[TEST] ' : '') + 'Accepted from QC' + (note ? ' — ' + note : '')),
+    createdAt: now, createdBy: ME.email || '', ...(x.r.__t ? { test: true } : {}) };
+  patch['pt_fgiLedger/' + fgRow._id] = fgRow;
+  if (x.r.__t) patch[`pt_flowTest/${x.r.orderNo}/lines/${sku}/fgIn`] = (+x.r.__t.fgIn || 0) + n;
+  const [id, log] = flowFgLog(x, { pcs: n, status: 'accepted', note: note || '', fgId: fgRow._id });
   patch['pt_flowFgSend/' + id] = log;
   try { await ptPatch(patch); } catch (e) { return 'Could not save: ' + (e.message || e); }
-  if (fgRow && typeof FGI !== 'undefined') FGI.rows = (FGI.rows || []).concat([fgRow]);
+  if (typeof FGI !== 'undefined') FGI.rows = (FGI.rows || []).concat([fgRow]);
   if (x.r.__t) { const o = FLOW.test[x.r.orderNo]; const t = Object.assign({}, o.lines[sku], { fgIn: patch[`pt_flowTest/${x.r.orderNo}/lines/${sku}/fgIn`] });
     FLOW.test = Object.assign({}, FLOW.test, { [x.r.orderNo]: Object.assign({}, o, { lines: Object.assign({}, o.lines, { [sku]: t }) }) }); }
   FLOW.fg = Object.assign({}, FLOW.fg, { [id]: log });
-  flowFgAfter(); flowFgSay(`${nf(n)} of ${sku} (${x.r.orderNo}) accepted into ${x.r.__t ? 'Finished Goods (TEST — not in India stock)' : 'Finished Goods — India stock'}.`);
+  flowFgAfter(); flowFgSay(`${nf(n)} of ${sku} (${x.r.orderNo}) accepted into Finished Goods — India stock${x.r.__t ? ' (TEST entry: Every movement shows it, Received from QC (Production flow); delete test takes it out)' : ''}.`);
   return '';
 }
 /** Reject — with why. The QC pass is taken back on the karigar's Job Work entries it was given on, newest first, so the

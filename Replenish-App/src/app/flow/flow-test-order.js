@@ -90,13 +90,14 @@ function flowTestOpen() {
 /** Take a test order out — and every plan, demand, reservation and challan written for it. */
 async function flowTestDelete(orderNo) {
   const o = (FLOW.test || {})[orderNo]; if (!o) return '';
-  if (!confirm(`Delete test order ${orderNo} and everything made for it — plan, fabric ready, reservations, challans, print orders, and its TEST entries in Cutting Data, the Job Work Register and Quality Control?`)) return '';
+  if (!confirm(`Delete test order ${orderNo} and everything made for it — plan, fabric ready, reservations, challans, print orders, and its TEST entries in Cutting Data, the Job Work Register, Quality Control and Finished Goods (India store)?`)) return '';
   const patch = { ['pt_flowTest/' + orderNo]: null };
   Object.keys(o.lines || {}).forEach(sku => { const k = flowKey(orderNo, sku);
     patch['pt_ppc/' + k] = null; patch['pt_flowDemand/' + k] = null; patch['pt_accReserve/' + k] = null; });
   Object.values(FLOW.ch || {}).filter(c => (c.orders || [c.orderNo]).includes(orderNo)).forEach(c => { patch['pt_flowChallans/' + c.no] = null; });
   Object.values(FLOW.po || {}).filter(o => o && o.orderNo === orderNo).forEach(o => { patch['pt_flowPrintOrders/' + o.no] = null; });
-  Object.entries(FLOW.fg || {}).filter(([, h]) => h && h.orderNo === orderNo).forEach(([id]) => { patch['pt_flowFgSend/' + id] = null; });
+  Object.entries(FLOW.fg || {}).filter(([, h]) => h && h.orderNo === orderNo).forEach(([id, h]) => { patch['pt_flowFgSend/' + id] = null; if (h.fgId) patch['pt_fgiLedger/' + h.fgId] = null; });
+  if (typeof FGI !== 'undefined' && Array.isArray(FGI.rows)) FGI.rows.filter(r => r && r._id && obUC(r.orderNo) === obUC(orderNo)).forEach(r => { patch['pt_fgiLedger/' + r._id] = null; });
   /* …and its TEST rows in Cutting Data, the Job Work Register and Quality Control — by what the test order recorded, and
    * by order no in whatever the screens have read, so nothing written for it is left behind. */
   const regs = { pt_cuttingData: new Set(), pt_baseData: new Set(), pt_qcChecks: new Set() };
@@ -115,6 +116,8 @@ async function flowTestDelete(orderNo) {
   if (gc.size) PT.cut = (PT.cut || []).filter(r => !(r && gc.has(r.id)));
   if (gb.size) PT.base = (PT.base || []).filter(r => !(r && gb.has(r.id)));
   if (gq.size && typeof QC !== 'undefined' && Array.isArray(QC.checks)) QC.checks = QC.checks.filter(r => !(r && gq.has(r.id)));
+  const gf = gone('pt_fgiLedger');
+  if (gf.size && typeof FGI !== 'undefined' && Array.isArray(FGI.rows)) FGI.rows = FGI.rows.filter(r => !(r && gf.has(r._id)));
   return '';
 }
 

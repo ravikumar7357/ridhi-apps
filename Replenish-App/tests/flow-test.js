@@ -36,7 +36,7 @@ function load(opts) {
     showTab: t => { (ctx.__tabs = ctx.__tabs || []).push(t); }, ensureCutForm: async () => {}, cutSkuTyped: () => {}, renderCutForm: () => {}, renderCutFab: () => {},
     ensureBdForm: async () => {}, bdSkuTyped: () => {}, renderBdForm: () => {}, bdMatFill: () => {}, qcSkuTyped: () => {}, renderQcCheckForm: () => {},
     jwRecvOpen: id => { ctx.__recv = id; },
-    ptStampDate: d => String(d || ''), ptNow: () => '2026-10-13T10:00:00Z', qcParts: sku => ({ brand: 'Ridhi', at: 'Pillow Cover', sub: 'x', col: 'c', size: 's' }), QC: { checks: opts.qcChecks || [] },
+    ptStampDate: d => String(d || ''), ptNow: () => '2026-10-13T10:00:00Z', qcParts: sku => ({ brand: 'Ridhi', at: 'Pillow Cover', sub: 'x', col: 'c', size: 's' }), QC: { checks: opts.qcChecks || [] }, FGI: { rows: [] }, fgiRecvOrderCheck: o => (W.lines.some(l => l.orderNo === o.orderNo) ? {} : { err: o.orderNo + ' is not on the order book' }), fgiNewId: (() => { let n = 0; return p => (p || 'FGI') + '-T' + (++n); })(),
     bdApplyRecv: (row, add) => { const recv = (+row.receivedPieces || 0) + add, iss = +row.issuePieces || 0, rej = +row.rejectionPieces || 0;
       if (recv + rej > iss) return { err: 'more than issued' }; return { row: Object.assign({}, row, { receivedPieces: recv, pendingPieces: iss - recv - rej, frozen: iss - recv - rej <= 0 }) }; },
     bdApplyRej: (row, val) => { const recv = +row.receivedPieces || 0, iss = +row.issuePieces || 0; if (recv + val > iss) return { err: 'more than issued' };
@@ -985,8 +985,10 @@ const K = 'AMZ-1__S1';
     say({ flfP: '6' }); er = await A.ctx.__dlg.onSave();
     ok('6 counted in and accepted → 4 still to accept', !er && T().s.india === 6 && T().s.bucket === 'fgin' && A.flowFgLines().length === 1, er);
     er = await A.flowFgAccept(A.flowRows().find(y => y.s.key === TK), 4, '');
-    ok('the other 4 accepted → done; a TEST order never goes into India stock', !er && A.flowState(T() ? T().r : A.flowTestLines()[0]).bucket === 'done' && !A.flowFgLines().length
-      && !A.writes.some(w => Object.keys(w).some(k => k.startsWith('pt_fgiLedger/'))), er);
+    const fgRows = A.writes.flatMap(w => Object.entries(w).filter(([k, v]) => k.startsWith('pt_fgiLedger/') && v).map(([, v]) => v));
+    ok('the other 4 accepted → done; each accept is a TEST entry in the India store: RECEIVE, Received from QC (Production flow)', !er && A.flowState(T() ? T().r : A.flowTestLines()[0]).bucket === 'done' && !A.flowFgLines().length
+      && fgRows.length === 2 && fgRows.every(r => r.txnType === 'RECEIVE' && r.orderNo === TN && r.sku === 'S1' && r.test && r.receivedFrom === 'QC (Production flow)' && /^\[TEST\]/.test(r.remarks))
+      && fgRows.reduce((a, r) => a + r.qty, 0) === 10 && A.ctx.FGI.rows.length === 2, er || JSON.stringify(fgRows));
     /* In the real screens: each entry also went into its own register, marked TEST. */
     const all = Object.assign({}, ...A.writes), reg = n => Object.entries(all).filter(([k, v]) => k.startsWith(n + '/') && v && typeof v === 'object').map(([, v]) => v);
     const cuts = reg('pt_cuttingData'), bds = reg('pt_baseData'), qcs = reg('pt_qcChecks');
@@ -1006,7 +1008,8 @@ const K = 'AMZ-1__S1';
     const n0 = A.writes.length;
     ok('delete test removes the order, its plan, its demand and its challan', !(await A.flowTestDelete(TN)) && (() => { const w = A.writes[n0];
       return w['pt_flowTest/' + TN] === null && w['pt_ppc/' + TK] === null && w['pt_flowDemand/' + TK] === null && w['pt_flowChallans/TRFD-202610-001'] === null
-        && Object.keys(A.FLOW().fg || {}).length === 0 && Object.keys(w).filter(k => k.startsWith('pt_flowFgSend/')).length === 3; })());
+        && Object.keys(A.FLOW().fg || {}).length === 0 && Object.keys(w).filter(k => k.startsWith('pt_flowFgSend/')).length === 3
+        && fgRows.every(r => w['pt_fgiLedger/' + r._id] === null) && !A.ctx.FGI.rows.length; })());
     { const w = A.writes[n0];
       ok('…and its TEST entries from all three registers — Cutting Data, Job Work, Quality Control', w['pt_cuttingData/' + cuts[0].id] === null && bds.every(r => w['pt_baseData/' + r.id] === null) && qcs.every(q => w['pt_qcChecks/' + q.id] === null), Object.keys(w).join());
       ok('…and from the screens\u2019 lists at once', !A.ctx.PT.cut.some(r => r.orderNo === TN) && !A.ctx.PT.base.some(r => r.orderNo === TN) && !A.ctx.QC.checks.some(r => r.orderNo === TN)); }
