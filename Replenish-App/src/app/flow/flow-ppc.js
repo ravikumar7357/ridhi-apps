@@ -13,11 +13,15 @@ const flowAddDays = (iso, n) => { const d = new Date((iso || dToday()) + 'T00:00
  *  left blank and named in `gaps`. */
 function flowSuggest(r) {
   const m = cutSkuOf(r.sku) || {}, qty = +r.qty || 0, gaps = [];
-  /* Fabric: cloth per piece first (print rules, widths, panels), then the recipe's consumption. */
+  /* Fabric: THE MASTER ROW first (Ravi, 10 Oct: "fetch the data correctly from the master data") — its fabric and its
+   * consumption. Only where the master row leaves them blank: cloth per piece (widths, panels), then the recipe. */
   let fabric = { name: '', perPc: 0, metres: 0, how: '' };
   let cons = null;
-  try { cons = ptConsPlan(m); } catch (e) { cons = null; }
-  if (cons && cons.metres > 0) fabric = { name: cons.fabric || '', perPc: flowR2(cons.metres), metres: flowR2(cons.metres * qty), how: 'cloth per piece' };
+  const mFab = String(m.fabric || '').trim(), mCons = +m.consumption || 0;
+  if (mFab && mCons > 0) fabric = { name: mFab, perPc: flowR2(mCons), metres: flowR2(mCons * qty), how: 'master data' };
+  else { try { cons = ptConsPlan(m); } catch (e) { cons = null; } }
+  if (fabric.how) { /* from the master row */ }
+  else if (cons && cons.metres > 0) fabric = { name: mFab || cons.fabric || '', perPc: flowR2(cons.metres), metres: flowR2(cons.metres * qty), how: 'cloth per piece (no consumption on the master row)' };
   else {
     const per = +(recipeValue(m, 'consumption') || 0), name = recipeValue(m, 'fabric') || m.fabric || '';
     fabric = { name, perPc: flowR2(per), metres: flowR2(per * qty), how: per ? 'recipe consumption' : '' };
@@ -45,6 +49,13 @@ function flowSuggest(r) {
   if (need) try { printer = flowPrinterFor(r); } catch (e) { /* no planning read yet */ }
   return { orderNo: r.orderNo, sku: obUC(r.sku), qty, route: need ? 'inhouse' : 'stitch', outVendor: '', printer, fabric, acc, extra, print: { need, as },
     dates: { cut: flowAddDays(t, 3), qc: flowAddDays(t, 7), ready: ptIsoDate(r.mtoDue) || flowAddDays(t, 10) }, note: '', gaps };
+}
+/** The print direction offered for a line: the directions its fabric is made in (none for Canvas / Cambric). */
+function flowDirOpts(r, p) {
+  const m = cutSkuOf(r.sku) || {}, fab = String((p.fabric && p.fabric.name) || m.fabric || '').trim();
+  const dirs = flowFabDirs(fab, String(m.color || r.color || '').trim(), ordColCodeOf(r.sku));
+  const cur = (p.print && p.print.dir) || flowDirDefault(m, fab) || (dirs.length === 1 ? dirs[0] : '');
+  return { dirs, cur };
 }
 
 /* ---- STOCK SEEN FROM PPC (Ravi, 10 Oct: "yahan current stock visibility show ho … 100 in stock, an earlier order of 40
@@ -99,7 +110,8 @@ function flowPpcOpen(orderNo, onlySku) {
           <span class="muted" style="font-size:11px">${esc(p.fabric.how || 'not known — type it')}</span><br><span data-fstk="${i}"></span></span>
         <span class="muted">How it is made</span><span><select data-fp="${i}" data-k="route" style="width:auto;padding:3px 6px;font-size:12px">${FLOW_ROUTES.map(([k, l]) => `<option value="${k}"${flowRouteOf(p) === k ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>
           ${p.print.as ? `<span class="muted" style="font-size:11px"> · print rule: given as ${esc(p.print.as)}</span>` : ''}
-          <div style="font-size:11px;color:#4338ca">Printer gets: ${(() => { const w = flowPrintWhat(r, p); return esc(w.mode) + ' — ' + flowPrintTxt(w); })()}</div></span>
+          ${(() => { const d = flowDirOpts(r, p); return d.dirs.length > 1 ? ` <select data-fp="${i}" data-k="print.dir" style="width:auto;padding:3px 6px;font-size:12px"><option value="">— print direction —</option>${d.dirs.map(x => `<option${x === d.cur ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select>` : ''; })()}
+          <div style="font-size:11px;color:#4338ca">Printer gets: ${(() => { const w = flowPrintWhat(r, Object.assign({}, p, { print: Object.assign({}, p.print, { dir: flowDirOpts(r, p).cur }) })); return esc(w.mode) + ' — ' + flowPrintTxt(w); })()}</div></span>
         <span class="muted">Printer</span><span><select data-fp="${i}" data-k="printer.code" style="width:auto;padding:3px 6px;font-size:12px"><option value="">— PPC decides —</option>${flowPrinterOpts((p.printer || {}).code)}</select>
           <span class="muted" style="font-size:11px">${esc((p.printer || {}).why || '')} · only for a printed line</span></span>
         <span class="muted">Outsource vendor</span><span>${f(i, 'outVendor', p.outVendor || '')} <span class="muted" style="font-size:11px">only for an outsourced line — no fabric or accessories are raised for it</span></span>
@@ -132,6 +144,9 @@ function flowPpcOpen(orderNo, onlySku) {
         /* The printer is kept by code and name; a line not printed has none. */
         const v = p.route === 'inhouse' && p.printer && p.printer.code ? flowChVendors().find(x => String(x.code) === String(p.printer.code)) : null;
         p.printer = v ? { code: v.code, name: v.desc || v.name || v.code, why: p.printer.why || '' } : null; });
+      /* A printed line on a fabric made both ways must say which way — the printer cannot print "either". */
+      const noDir = plans.filter((p, i) => p.route === 'inhouse' && flowPrintWhat(rows[i].r, p).needDir).map(p => p.sku);
+      if (noDir.length) return `Which way is it printed? Pick the print direction for ${noDir.join(', ')}.`;
       const noVen = plans.filter(p => p.route === 'outsource' && !String(p.outVendor || '').trim()).map(p => p.sku);
       if (noVen.length) return `Who makes it? Type the outsource vendor for ${noVen.join(', ')}.`;
       const patch = {}, now = new Date().toISOString();

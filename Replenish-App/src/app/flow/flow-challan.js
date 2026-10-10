@@ -14,20 +14,37 @@
  *   cut pieces, cutting req.  cut from the printed cloth here, so the printer prints the FABRIC SKU, like running
  * Running vs cut pieces is the app's own rule (ordPrintAsPcs: the printing rule, else "Cutting required: no" = pieces).
  * A fabric SKU the catalogue does not have is said, never made up. */
+/* FROM THE MASTER DATA (Ravi, 10 Oct: "fetch the data correctly from the master data"). The master row decides:
+ *   Cutting required: no   → the SKU itself is printed (the pieces go to the printer)
+ *   Cutting required: yes  → the printed FABRIC SKU of the master row's fabric + colour + colour code + direction
+ * The fabric is PPC's plan (which starts from the master row), else the master row's own fabric. The direction is PPC's
+ * choice (plan.print.dir); a quilt's comes from its lay; a fabric made only one way (Canvas, Cambric) needs none. A
+ * sheeting or voil with no direction chosen says so — it is never shown as both. */
 function flowPrintWhat(r, plan) {
   const m = cutSkuOf(r.sku) || {};
-  let asPcs = false; try { asPcs = !!ordPrintAsPcs(m); } catch (e) { asPcs = false; }
-  if (asPcs && m.cuttingRequired === false)
+  if (m.cuttingRequired === false)
     return { kind: 'sku', code: obUC(r.sku), mode: 'Cut pieces', label: 'printed on the SKU itself (no cutting)', unit: 'pcs' };
-  let fab = ''; try { fab = ptPrintFabric(m) || ''; } catch (e) { fab = ''; }
-  fab = fab || (plan && plan.fabric && plan.fabric.name) || '';
-  let dir = ''; try { dir = ptPrintDir(m, fab) || ''; } catch (e) { dir = ''; }
-  const colour = String(m.color || r.color || '').trim();
-  let code = ''; try { code = ordFabSkuOf(fab, colour, dir, ordColCodeOf(r.sku)) || ''; } catch (e) { code = ''; }
-  return { kind: 'fabric', code, mode: asPcs ? 'Cut pieces (cut here from the printed fabric)' : 'Running fabric',
-    label: [colour, fab, dir].filter(Boolean).join(' · '), unit: 'm' };
+  const fab = String((plan && plan.fabric && plan.fabric.name) || m.fabric || '').trim();
+  const colour = String(m.color || r.color || '').trim(), cc = ordColCodeOf(r.sku);
+  const dirs = flowFabDirs(fab, colour, cc);
+  let dir = (plan && plan.print && plan.print.dir) || flowDirDefault(m, fab);
+  if (!dir && dirs.length === 1) dir = dirs[0];
+  let rule = ''; try { rule = ptPrintIssueAs(m) || ''; } catch (e) { rule = ''; }
+  const mode = rule === 'cut' ? 'Cut pieces (cut here from the printed fabric)' : 'Running fabric';
+  if (!dir && dirs.length > 1)
+    return { kind: 'fabric', code: '', needDir: true, mode, label: [colour, fab].filter(Boolean).join(' · '), unit: 'm' };
+  let code = ''; try { code = ordFabSkuOf(fab, colour, dir, cc) || ''; } catch (e) { code = ''; }
+  return { kind: 'fabric', code, mode, label: [colour, fab, dir].filter(Boolean).join(' · '), unit: 'm' };
 }
+/** The directions the fabric catalogue makes this fabric + colour (+ code) in. */
+function flowFabDirs(fab, colour, cc) {
+  let hits = []; try { hits = ordFabHits(fab, colour, '', cc); } catch (e) { hits = []; }
+  return [...new Set(hits.map(h => String(h.dir || '').trim()).filter(Boolean))].sort();
+}
+/** A direction nobody has to choose: a quilt's comes from how it lies on the roll. */
+function flowDirDefault(m, fab) { try { return ptPrintDir(m, fab) || ''; } catch (e) { return ''; } }
 const flowPrintTxt = w => w.kind === 'sku' ? `<b>${esc(w.code)}</b> · ${esc(w.label)}`
+  : w.needDir ? `<b style="color:#b91c1c">pick the print direction (edit plan)</b> · ${esc(w.label)}`
   : `${w.code ? `<b>${esc(w.code)}</b>` : '<b style="color:#b91c1c">no fabric SKU in the catalogue</b>'} · ${esc(w.label)}`;
 
 const flowChItem = r => [r.articleSubtype || r.articleType, r.color, r.size].filter(Boolean).join(' · ');
