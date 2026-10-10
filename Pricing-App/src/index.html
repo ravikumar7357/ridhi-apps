@@ -1703,9 +1703,12 @@
           <option value="value">Wrong / old value</option><option value="catalog">Differs from catalogue</option>
           <option value="variation">Variation</option><option value="other">Other</option>
         </select>
-        <select id="leSev" style="flex:0 0 170px"><option value="err">Errors only</option><option value="all">Errors and warnings</option></select>
+        <select id="leSev" style="flex:0 0 170px"><option value="err">Errors only</option><option value="all">Errors and warnings</option><option value="any">Every listing</option></select>
         <input id="leQ" placeholder="Search SKU, ASIN, colour, message" style="flex:0 0 240px">
         <button id="leRefresh" class="ghost" style="flex:0 0 170px">Refresh from Amazon</button>
+        <button id="leDown" class="ghost" style="flex:0 0 150px" title="Title, bullets, description and search terms of the listings on screen, with Listing Rules suggestions">Content → Excel</button>
+        <button id="leUpBtn" class="ghost" style="flex:0 0 150px" title="The same file, changed — compared with Amazon now, then checked and applied row by row">Upload Excel</button>
+        <input id="leUpFile" type="file" accept=".xlsx,.csv" class="hide">
         <span style="flex:1"></span>
         <span id="leMsg" class="muted" style="align-self:center;font-size:12px"></span>
       </div>
@@ -1714,7 +1717,7 @@
       <div style="margin-bottom:8px"><button id="leBack" class="ghost" style="width:auto;padding:5px 14px">&larr; All errors</button></div>
       <div id="leFix"></div>
     </div>
-    <div id="leListWrap"><div id="leList"></div></div>
+    <div id="leListWrap"><div id="leUp"></div><div id="leList"></div></div>
   </div>
 
   <div id="paneBasket" class="hide">

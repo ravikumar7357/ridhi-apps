@@ -199,6 +199,7 @@ function doGet(e) {
     if (p.lfix === 'get') return json_(lfixGet_(p));
     if (p.lfix === 'schema') return json_(lfixSchema_(p));
     if (p.lfix === 'history') return json_(lfixHistory_(p.sku));
+    if (p.lfix === 'content') return json_(lfixContent_(p));
     if (p.limg === 'history') return json_(limgHistory_(p.sku));
     if (p.limg === 'page') return json_(limgPage_(p));
     if (p.listing === 'audit') { setBrand_(p.brand); return json_(listingAudit_(p.asin)); }

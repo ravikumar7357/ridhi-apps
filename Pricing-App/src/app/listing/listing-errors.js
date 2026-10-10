@@ -53,13 +53,13 @@ async function leListEnsure() {
 function leRows() {
   const b = $('leBrand').value, data = IML[b];
   if (!data) return null;
-  const warn = $('leSev').value === 'all', kind = $('leKind').value, q = ($('leQ').value || '').trim().toLowerCase();
+  const sev = $('leSev').value, warn = sev !== 'err', kind = $('leKind').value, q = ($('leQ').value || '').trim().toLowerCase();
   const out = [];
   data.items.forEach(x => {
     if (x.lvl === 'parent') return;
     let iss = (x.iss || []).filter(i => i.s === 'E' || (warn && i.s === 'W'));
     if (!iss.length && x.ie && !x.iss) iss = [{ s: 'E', m: x.im || '', a: [] }];       // a snapshot from before `iss`
-    if (!iss.length) return;
+    if (!iss.length && sev !== 'any') return;          // "Every listing": its content can be edited with no issue at all
     if (kind !== 'all' && !iss.some(i => leKind(i) === kind)) return;
     if (q && ![x.sku, x.asin, x.c, x.z, x.t].concat(iss.map(i => i.m)).join(' ').toLowerCase().includes(q)) return;
     out.push({ x, iss: iss.slice().sort((p, r) => (p.s === 'E' ? 0 : 1) - (r.s === 'E' ? 0 : 1)) });
@@ -109,7 +109,7 @@ function leRender() {
           <td style="text-align:left;white-space:normal;font-size:12px;max-width:620px">${iss.slice(0, 4).map(i => `<div style="margin:2px 0">
               <span class="st ${i.s === 'E' ? 'st-rejected' : 'st-draft'}" style="font-size:10px">${leEsc((LE_KINDS.find(k => k[0] === leKind(i)) || [, ''])[1])}</span>
               ${leEsc(String(i.m || '').slice(0, 200))}</div>`).join('')}${iss.length > 4 ? `<div class="muted">+${iss.length - 4} more</div>` : ''}</td>
-          <td style="white-space:nowrap">${hasOther ? `<button class="im-b" data-fix="${leEsc(x.sku)}">Fix</button>` : ''}
+          <td style="white-space:nowrap"><button class="im-b" data-fix="${leEsc(x.sku)}">${hasOther ? 'Fix' : 'Content'}</button>
             ${hasImg ? `<button class="ghost im-b" data-img="${leEsc(x.sku)}">Images</button>` : ''}</td></tr>`;
       }).join('') || '<tr><td colspan="6" class="muted" style="padding:14px">Nothing to fix here.</td></tr>'}</tbody></table></div>
     ${pager}`;
@@ -133,7 +133,8 @@ async function leOpen(sku) {
   try {
     const r = await baCall({ lfix: 'get', brand: $('leBrand').value, sku });
     LE = r;
-    const names = [...new Set(r.issues.flatMap(i => i.attrs || []))].filter(a => !/image_locator/.test(a));
+    await lcEnsureRules();
+    const names = [...new Set(r.issues.flatMap(i => i.attrs || []))].filter(a => !/image_locator/.test(a) && !LC_FIELDS.includes(a));
     if (names.length && r.productType) {
       const s = await baCall({ lfix: 'schema', brand: $('leBrand').value, pt: r.productType, attrs: names.join(',') });
       LE_SCHEMA = s.attrs || {};
@@ -197,7 +198,7 @@ function lePatches() {
 
 function leFixRender() {
   const d = LE; if (!d) return;
-  const names = [...new Set(d.issues.flatMap(i => i.attrs || []))].filter(a => !/image_locator/.test(a));
+  const names = [...new Set(d.issues.flatMap(i => i.attrs || []))].filter(a => !/image_locator/.test(a) && !LC_FIELDS.includes(a));
   const imgIssues = d.issues.filter(i => leKind(i) === 'image');
   const n = Object.keys(LE_EDIT).length;
   $('leFix').innerHTML = `
@@ -213,8 +214,9 @@ function leFixRender() {
         ${leEsc(i.message)} ${(i.attrs || []).length ? `<span class="muted">· ${leEsc(i.attrs.join(', '))}</span>` : ''}</div>`).join('') || '<div class="muted" style="font-size:12px">No issues — Amazon reports nothing on this listing now.</div>'}
       ${imgIssues.length ? `<div style="margin-top:6px"><button class="ghost im-b" id="leToImg">Fix the images in the Image Manager</button></div>` : ''}
     </div>
+    ${lcSectionHtml()}
     ${names.map(leCard).join('')}
-    ${names.length ? `<div class="card" style="padding:10px 14px;margin-bottom:10px">
+    ${true ? `<div class="card" style="padding:10px 14px;margin-bottom:10px">
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <button id="leCheck" class="ghost" style="width:auto;padding:6px 14px" ${n ? '' : 'disabled'}>Check with Amazon</button>
         <button id="leApply" style="width:auto;padding:6px 14px" ${n ? '' : 'disabled'}>Apply to Amazon${n ? ' (' + n + ')' : ''}</button>
@@ -266,6 +268,7 @@ function leFixWire() {
       leMsg('Suggested title filled in (' + s.suggested.length + ' characters) — it only rearranges and trims what the listing already says. Read it before applying.');
     } catch (e) { sug.disabled = false; sug.textContent = 'Suggest a 75-character title'; leMsg('Could not suggest a title: ' + (e.message || e), true); }
   };
+  lcWire(leFixRender);
   if ($('leToImg')) $('leToImg').onclick = () => { showTab('img'); $('imBrand').value = $('leBrand').value; $('imQ').value = LE.sku; IM_SKU_CHOICES = null; imLoad(LE.sku); window.scrollTo(0, 0); };
   if ($('leCheck')) $('leCheck').onclick = () => leSend(false);
   if ($('leApply')) $('leApply').onclick = () => leSend(true);
@@ -306,3 +309,6 @@ $('leKind').onchange = $('leSev').onchange = () => { LE_PAGE = 0; leShow(false);
 $('leQ').addEventListener('input', () => { clearTimeout(LE_T); LE_T = setTimeout(() => { LE_PAGE = 0; leShow(false); leRender(); }, 250); });
 $('leRefresh').onclick = async () => { await imListBuild($('leBrand').value); leRender(); };
 $('leBack').onclick = () => { leShow(false); leRender(); };
+$('leDown').onclick = () => lcDownload();
+$('leUpBtn').onclick = () => { $('leUpFile').value = ''; $('leUpFile').click(); };
+$('leUpFile').onchange = () => { const f = $('leUpFile').files[0]; if (f) lcUpload(f); };

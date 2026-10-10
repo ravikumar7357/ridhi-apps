@@ -157,3 +157,24 @@ function lfixHistory_(sku) {
   if (sku) list = list.filter(function (r) { return r.sku === sku; });
   return { ok: true, rows: list };
 }
+
+/* ---- content in bulk: title, bullets, description, search terms for up to 20 SKUs in one call ----
+ *   GET ?lfix=content&brand=&skus=A,B,C   (searchListingsItems by SKU, 20 a page) */
+var LFIX_CONTENT = ['item_name', 'bullet_point', 'product_description', 'generic_keyword'];
+function lfixContent_(p) {
+  setBrand_(p.brand);
+  var skus = String(p.skus || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean).slice(0, 20);
+  if (!skus.length) return { ok: false, error: 'Give the SKUs.' };
+  var seller;
+  try { seller = limgSeller_(''); } catch (e) { return { ok: false, error: String(e.message || e) }; }
+  var r = limgSp_('/listings/2021-08-01/items/' + seller + '?marketplaceIds=' + marketplaceId_() +
+    '&identifiers=' + skus.map(encodeURIComponent).join(',') + '&identifiersType=SKU&pageSize=20&includedData=summaries,attributes', 'get');
+  if (r.code >= 300) return limgErr_(r, 'Reading content');
+  var out = {};
+  (r.body.items || []).forEach(function (it) {
+    var s = (it.summaries && it.summaries[0]) || {}, at = it.attributes || {}, row = { productType: s.productType || '', asin: s.asin || '' };
+    LFIX_CONTENT.forEach(function (k) { row[k] = at[k] || []; });
+    out[it.sku] = row;
+  });
+  return { ok: true, items: out, missing: skus.filter(function (s) { return !out[s]; }) };
+}
