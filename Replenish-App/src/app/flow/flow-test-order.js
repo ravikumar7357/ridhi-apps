@@ -8,6 +8,15 @@
  * screen. "Delete test" removes the order and everything written for it. */
 
 const flowIsTest = no => /^TEST-/.test(String(no || ''));
+/* ONLY TEST ORDERS (Ravi, 10 Oct: "abhi mujhe yahan sirf test order related hi entry show ho, jisase me order end to end
+ * track kar saku"). On, every bucket, count and challan list holds the TEST orders alone. Remembered on this computer;
+ * on by itself the first time there is a test order to follow. */
+function flowTestOnly() {
+  let v = null; try { v = localStorage.getItem('flowTestOnly'); } catch (e) { v = null; }
+  if (v === '1') return true; if (v === '0') return false;
+  return Object.keys(FLOW.test || {}).length > 0;
+}
+function flowTestOnlySet(on) { try { localStorage.setItem('flowTestOnly', on ? '1' : '0'); } catch (e) { /* storage blocked: this visit only */ } FLOW.testOnly = on; }
 let FLOW_TC = { src: null, rows: [] };
 /** The test orders as order lines, shaped like ordLines(), carrying their simulated figures in __t. */
 function flowTestLines() {

@@ -82,12 +82,14 @@ const breaks = {
     'a blocked pop-up is swallowed': s => s.replace("if (!w || !w.document) return 'The browser blocked", "if (!w || !w.document) return ''; if (0) return 'The browser blocked"),
   },
   'flow-test-order.js': {
+    'switch on with no test order': s => s.replace('return Object.keys(FLOW.test || {}).length > 0;', 'return true;'),
     'a test order with a SKU not in the master': s => s.replace("if (!cutSkuOf(sku)) { bad.push", "if (false) { bad.push"),
     'Simulate does not move the line': s => s.replace('const nt = Object.assign({}, t, set);', 'const nt = t;'),
     'delete leaves the plan behind': s => s.replace("patch['pt_ppc/' + k] = null; ", ''),
     'test lines never re-read': s => s.replace('if (FLOW_TC.src === FLOW.test) return FLOW_TC.rows;', 'if (FLOW_TC.rows.length) return FLOW_TC.rows;'),
   },
   'flow-receive.js': {
+    'Demand history challans not filtered': s => s.replace('.filter(c => !testOnly || flowIsTest(c.orderNo))', ''),
     'a receipt never closes the challan': s => s.replace('if (allBack) patch[', 'if (false) patch['),
     'receipts not added up': s => s.replace('out[k] = flowR2((out[k] || 0) + (+m || 0));', 'out[k] = flowR2(+m || 0);'),
     'any metres accepted': s => s.replace('if (over.length) return', 'if (false) return'),
@@ -113,6 +115,8 @@ const breaks = {
     'no RFD stock angle': s => s.replace("if (ang === 'stock') $('flTable').innerHTML = FLOW.stock;", ''),
     'stock stacked above the lines again': s => s.replace("    if (ang === 'stock') $('flTable').innerHTML = FLOW.stock;", "    FLOW.panel += '<table>' + FLOW.stock + '</table>';"),
     'no red flag on a short line': s => s.replace('⚑ SHORT ${nf(c.short)} m', 'covered'),
+    'test-only switch ignored on the lines': s => s.replace('const pass = x => (!only || x.r.__t) &&', 'const pass = x =>'),
+    'test-only switch ignored in Demand history': s => s.replace("filter(c => !c.closed && !c.cancelled && (!only || flowIsTest(c.orderNo)))", 'filter(c => !c.closed && !c.cancelled)'),
     'challans still shown in Demand RFD': s => s.replace("$('flPanel').innerHTML = FLOW.panel;", "$('flPanel').innerHTML = FLOW.panel + (FLOW_VIEW === 'drfd' ? flowHistTable('') : '');"),
     'no Receive button on the fabric bucket': s => s.replace("x && x.s.challan && view === 'fabric' && !x.s.challan.closed", 'false'),
     'one challan button per PO again': s => s.replace("const pk = x.s.route === 'stitch' ? '' : (flowPlanPrinter(x.s) || '?'), gk = x.r.orderNo + '|' + pk;", "const pk = x.s.route === 'stitch' ? '' : (flowPlanPrinter(x.s) || '?'), gk = x.r.orderNo;"),

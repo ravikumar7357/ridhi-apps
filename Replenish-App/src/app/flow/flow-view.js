@@ -23,7 +23,8 @@ async function flowFabLoad() {
 function flowCounts(rows) {
   const n = {}; FLOW_BUCKETS.forEach(b => { n[b[0]] = 0; });
   rows.forEach(({ s, recent }) => { FLOW_BUCKETS.forEach(([k]) => { if (k !== 'new' && flowInView(k, s)) n[k]++; }); if (recent) n.new++; });
-  n.dhist = Object.values(FLOW.ch || {}).filter(c => !c.closed && !c.cancelled).length;   // open challans
+  const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly();
+  n.dhist = Object.values(FLOW.ch || {}).filter(c => !c.closed && !c.cancelled && (!only || flowIsTest(c.orderNo))).length;   // open challans
   return n;
 }
 const flowDays = iso => { const d = ptIsoDate(iso); if (!d) return null; return Math.max(0, Math.round((Date.now() - new Date(d + 'T00:00:00').getTime()) / 864e5)); };
@@ -37,7 +38,9 @@ function renderFlow() {
   const q = String($('flQ').value || '').trim().toLowerCase(), src = $('flSrc').value;
   const srcs = [...new Set(all.map(x => x.r.src || String(x.r.orderNo).split('-')[0]))].sort();
   ptFillSelect('flSrc', srcs.map(s => [s, s]), 'Every platform');
-  const pass = x => (!src || (x.r.src || String(x.r.orderNo).split('-')[0]) === src)
+  const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly();
+  if ($('flTestOnly')) $('flTestOnly').checked = only;
+  const pass = x => (!only || x.r.__t) && (!src || (x.r.src || String(x.r.orderNo).split('-')[0]) === src)
     && (!q || [x.r.orderNo, x.r.sku, x.r.color, x.r.size, x.r.articleSubtype, x.r.articleType].join(' ').toLowerCase().includes(q));
   const shown = all.filter(pass), n = flowCounts(shown);
   $('flBuckets').innerHTML = allowed.map(([k, l, , tip]) => `<button class="fl-b${k === FLOW_VIEW ? ' on' : ''}" data-flb="${k}" title="${esc(tip)}">
@@ -59,7 +62,8 @@ function renderFlow() {
   $('flMsg').className = FLOW.err ? 'err' : 'muted';
   $('flMsg').textContent = (FLOW.err ? 'Could not read the plans: ' + FLOW.err + ' · ' : '')
     + `${b[1]}: ${FLOW_VIEW === 'dhist' ? nf(n.dhist) + ' open challan(s)' : nf(rows.length) + ' line(s)'} — ${b[3]}` + (rows.length > 800 ? ' · showing the oldest 800' : '')
-    + ` · PPC and Demand apply to orders from ${flowFrom()} · TEST VIEW, not on the live app`;
+    + ` · PPC and Demand apply to orders from ${flowFrom()} · TEST VIEW, not on the live app`
+    + ((FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly()) ? ' · SHOWING TEST ORDERS ONLY' : '');
 }
 
 /** The challan a line's fabric went on, if it went on one. */
@@ -84,7 +88,7 @@ function flowTable(view, rows) {
   const prog = (d, of) => `<span class="jw-st ${d >= of ? 'done' : d > 0 ? 'prog' : 'pend'}">${nf(d)} / ${nf(of)}</span>`;
   const due = (iso, label) => iso ? `<div class="muted" style="font-size:10.5px${flowLate(iso) ? ';color:#b91c1c;font-weight:600' : ''}">${label} ${esc(iso.slice(5))}${flowLate(iso) ? ' · late' : ''}</div>` : '';
   let head = '', body = '';
-  if (view === 'dhist') return flowHistTable(String($('flQ').value || '').trim().toLowerCase());
+  if (view === 'dhist') return flowHistTable(String($('flQ').value || '').trim().toLowerCase(), FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly());
   if (view === 'new') {
     head = ['PO', 'SKU', 'Qty', 'Now in'];
     const now = s => s.bucket === 'done' ? 'Done' : s.bucket === 'demand' ? [s.needFab && 'Demand · RFD fabric', s.needAcc && 'Demand · Accessories'].filter(Boolean).join(' + ')
@@ -168,6 +172,7 @@ $('flPanel').addEventListener('click', e => { const an = e.target.closest('[data
 $('flQ').addEventListener('input', () => { clearTimeout(FLOW.qt); FLOW.qt = setTimeout(renderFlow, 220); });
 $('flSrc').addEventListener('change', renderFlow);
 $('flTest').onclick = () => flowTestOpen();
+$('flTestOnly').addEventListener('change', () => { flowTestOnlySet($('flTestOnly').checked); renderFlow(); });
 $('flRefresh').onclick = async () => { $('flMsg').textContent = 'Reading again…'; await Promise.all([ptLoadGates(true), flowLoad(true)]); renderFlow(); };
 $('flTable').addEventListener('click', async e => {
   const sm = e.target.closest('[data-flsim]');

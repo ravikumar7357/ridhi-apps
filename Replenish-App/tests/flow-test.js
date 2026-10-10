@@ -45,7 +45,7 @@ function load(opts) {
     FAB: { rows: opts.fabRows || [] },
     STORE: { rows: opts.store ? [] : null }, stMoves: () => opts.store || [], stBalances: mv => mv, fabKey: v => String(v || '').trim().toUpperCase(), fabAll: () => opts.fabRows || [], ptList: x => x || [], fabAutoLoad: async () => {}, fabStockOf: (name, st) => (st === 'RFD' ? (opts.rfd || {})[String(name).toUpperCase()] || 0 : 0),
   };
-  const api = new Function(...Object.keys(ctx), SRC + '\n;return { FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowReceiveOpen, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowUnplan, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v} };')(...Object.values(ctx));
+  const api = new Function(...Object.keys(ctx), SRC + '\n;return { FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowUnplan, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v} };')(...Object.values(ctx));
   api.setFLOW(Object.assign(api.FLOW(), { ppc: opts.ppc || {}, dem: opts.dem || {}, res: opts.res || {} }));
   return Object.assign(api, { els, writes, W, ctx });
 }
@@ -531,6 +531,25 @@ const K = 'AMZ-1__S1';
     A = mk();
     A.setFLOW(Object.assign(A.FLOW(), { ch: { 'RFD-202610-001': Object.assign(JSON.parse(JSON.stringify(ch['RFD-202610-001'])), { closed: { at: 'x', why: 'oops', short: true } }) } }));
     ok('closed short by mistake → Reopen', !(await A.flowReopen('RFD-202610-001')) && !A.FLOW().ch['RFD-202610-001'].closed && A.flowState(L()).bucket === 'fabric');
+  }
+
+  console.log('== only test orders: track one order end to end ==');
+  {
+    const tst = { 'TEST-AMZ-10102026-01': { orderNo: 'TEST-AMZ-10102026-01', src: 'AMZ', orderDate: '2026-10-13', lines: { S1: { qty: 10 } } } };
+    const chs = { 'RFD-202610-001': { no: 'RFD-202610-001', orderNo: 'AMZ-1', vendor: { name: 'Real' }, lines: [] },
+      'TRFD-202610-001': { no: 'TRFD-202610-001', orderNo: 'TEST-AMZ-10102026-01', vendor: { name: 'Test' }, lines: [] } };
+    A = load({ me: { admin: true }, mdb: { S1: { cons: 1, fab: 'Cotton' } }, lines: [L({ orderNo: 'SHP-5717', orderDate: '2026-08-01', sku: 'R1', issued: 1, qty: 1 }), L({ sku: 'R2' })] });
+    A.setFLOW(Object.assign(A.FLOW(), { test: tst, ch: chs }));
+    ok('with a test order there, the switch starts ON', A.flowTestOnly() === true);
+    A.setView('ppc'); A.renderFlow();
+    ok('PPC holds only the test order, not the real AMZ-1', /TEST-AMZ-10102026-01/.test(A.els.flTable.innerHTML) && !/AMZ-1<\/a>/.test(A.els.flTable.innerHTML) && /SHOWING TEST ORDERS ONLY/.test(A.els.flMsg.textContent));
+    ok('the counts are the test order\u2019s: PPC 1, WIP 0 (the real SHP line is not counted)', /<span class="fl-n">1<\/span><span>PPC/.test(A.els.flBuckets.innerHTML) && /<span class="fl-n">0<\/span><span>WIP/.test(A.els.flBuckets.innerHTML));
+    A.setView('dhist'); A.renderFlow();
+    ok('Demand history shows only the test challan', /TRFD-202610-001/.test(A.els.flTable.innerHTML) && !/>RFD-202610-001</.test(A.els.flTable.innerHTML) && /<span class="fl-n">1<\/span><span>Demand history/.test(A.els.flBuckets.innerHTML));
+    A.flowTestOnlySet(false); A.setView('wip'); A.renderFlow();
+    ok('switched off: everything again (the real SHP line is in WIP)', /SHP-5717/.test(A.els.flTable.innerHTML) && !/SHOWING TEST ORDERS ONLY/.test(A.els.flMsg.textContent));
+    ok('no test order → the switch starts OFF', load({ me: { admin: true } }).flowTestOnly() === false);
+    ok('a choice made is kept (localStorage flowTestOnly)', load({ ls: { flowTestOnly: '0' } , me: { admin: true } }).flowTestOnly() === false && load({ ls: { flowTestOnly: '1' } }).flowTestOnly() === true);
   }
 
   console.log('== a TEST order walks every bucket, end to end ==');
