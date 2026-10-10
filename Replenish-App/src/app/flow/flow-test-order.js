@@ -92,16 +92,30 @@ function flowTestOpen() {
 /** Take a test order out — and every plan, demand, reservation and challan written for it. */
 async function flowTestDelete(orderNo) {
   const o = (FLOW.test || {})[orderNo]; if (!o) return '';
-  if (!confirm(`Delete test order ${orderNo} and everything made for it (plan, fabric ready, reservations, challans)?`)) return '';
+  if (!confirm(`Delete test order ${orderNo} and everything made for it — plan, fabric ready, reservations, challans, print orders, and its TEST entries in Cutting Data, the Job Work Register and Quality Control?`)) return '';
   const patch = { ['pt_flowTest/' + orderNo]: null };
   Object.keys(o.lines || {}).forEach(sku => { const k = flowKey(orderNo, sku);
     patch['pt_ppc/' + k] = null; patch['pt_flowDemand/' + k] = null; patch['pt_accReserve/' + k] = null; });
   Object.values(FLOW.ch || {}).filter(c => (c.orders || [c.orderNo]).includes(orderNo)).forEach(c => { patch['pt_flowChallans/' + c.no] = null; });
   Object.values(FLOW.po || {}).filter(o => o && o.orderNo === orderNo).forEach(o => { patch['pt_flowPrintOrders/' + o.no] = null; });
+  /* …and its TEST rows in Cutting Data, the Job Work Register and Quality Control — by what the test order recorded, and
+   * by order no in whatever the screens have read, so nothing written for it is left behind. */
+  const regs = { pt_cuttingData: new Set(), pt_baseData: new Set(), pt_qcChecks: new Set() };
+  Object.values(o.lines || {}).forEach(t => { Object.values(t.cutLog || {}).forEach(c => c && c.reg && regs.pt_cuttingData.add(c.reg));
+    Object.values(t.issues || {}).forEach(c => c && c.reg && regs.pt_baseData.add(c.reg)); Object.values(t.qcLog || {}).forEach(c => c && c.reg && regs.pt_qcChecks.add(c.reg)); });
+  const mine = r => r && obUC(r.orderNo) === obUC(orderNo);
+  (PT.cut || []).filter(mine).forEach(r => regs.pt_cuttingData.add(r.id)); (PT.base || []).filter(mine).forEach(r => regs.pt_baseData.add(r.id));
+  if (typeof QC !== 'undefined' && Array.isArray(QC.checks)) QC.checks.filter(mine).forEach(r => regs.pt_qcChecks.add(r.id));
+  Object.entries(regs).forEach(([node, ids]) => ids.forEach(id => { if (id) patch[node + '/' + id] = null; }));
   try { await ptPatch(patch); } catch (e) { return 'Could not delete: ' + (e.message || e); }
   const drop = (obj, pre) => { const n = Object.assign({}, obj); Object.keys(patch).filter(p => p.startsWith(pre)).forEach(p => { delete n[p.slice(pre.length)]; }); return n; };
   FLOW.test = drop(FLOW.test, 'pt_flowTest/'); FLOW.ppc = drop(FLOW.ppc, 'pt_ppc/'); FLOW.dem = drop(FLOW.dem, 'pt_flowDemand/');
   FLOW.res = drop(FLOW.res, 'pt_accReserve/'); FLOW.ch = drop(FLOW.ch, 'pt_flowChallans/'); FLOW.po = drop(FLOW.po, 'pt_flowPrintOrders/');
+  const gone = node => new Set(Object.keys(patch).filter(k => k.startsWith(node + '/')).map(k => k.slice(node.length + 1)));
+  const gc = gone('pt_cuttingData'), gb = gone('pt_baseData'), gq = gone('pt_qcChecks');
+  if (gc.size) PT.cut = (PT.cut || []).filter(r => !(r && gc.has(r.id)));
+  if (gb.size) PT.base = (PT.base || []).filter(r => !(r && gb.has(r.id)));
+  if (gq.size && typeof QC !== 'undefined' && Array.isArray(QC.checks)) QC.checks = QC.checks.filter(r => !(r && gq.has(r.id)));
   return '';
 }
 
@@ -112,10 +126,16 @@ async function flowTestDelete(orderNo) {
  * checked, passed, alteration, rejected — and keep the answers ON THE TEST ORDER (pt_flowTest), never in a register.
  * The line moves on from what was entered. ---- */
 const flowTestRec = (no, sku) => { const o = (FLOW.test || {})[no]; return o && o.lines && o.lines[sku] ? { o, t: o.lines[sku] } : null; };
-async function flowTestSave(no, sku, set, said) {
+/* IN THE REAL SCREENS TOO (Ravi, 10 Oct: "har action ka individual history ho — cutting ka Cutting me, karigar issue/receive
+ * ka Job Work me, QC ka Quality Control me; test entry mujhe sabhi jagah se nikalna h"). A test entry is ALSO written into
+ * the register the factory's screen reads — pt_cuttingData, pt_baseData, pt_qcChecks — in the very shape that screen
+ * saves, order no TEST-…, remarks "[TEST] …", test: true; "delete test" takes every one of them out again. A test issue
+ * does not take zippers or ruffle cloth off the real stock. Until it is deleted it counts where the register counts. */
+async function flowTestSave(no, sku, set, said, regs, after) {
   const x = flowTestRec(no, sku); if (!x) return 'That test line is gone — press Refresh.';
-  const patch = {}; Object.entries(set).forEach(([k, v]) => { patch[`pt_flowTest/${no}/lines/${sku}/${k}`] = v; });
+  const patch = Object.assign({}, regs || {}); Object.entries(set).forEach(([k, v]) => { patch[`pt_flowTest/${no}/lines/${sku}/${k}`] = v; });
   try { await ptPatch(patch); } catch (e) { return 'Could not save: ' + (e.message || e); }
+  if (after) { try { after(); } catch (e) { /* the screens read it again when opened */ } }
   const nt = Object.assign({}, x.t);
   Object.entries(set).forEach(([k, v]) => { const [a, b] = k.split('/'); if (b) nt[a] = Object.assign({}, nt[a], { [b]: v }); else nt[a] = v; });
   FLOW.test = Object.assign({}, FLOW.test, { [no]: Object.assign({}, x.o, { lines: Object.assign({}, x.o.lines, { [sku]: nt }) }) });
@@ -151,10 +171,14 @@ function flowTestCutOpen(no, sku) {
       if (!(used > 0)) return 'How many metres of fabric were used?';
       if (waste < 0 || ww < 0) return 'Waste cannot be below zero.';
       if (waste > 0 && !(ww > 0)) return 'Waste width (in) — the cutting entry asks it whenever there is waste.';
-      const id = flowTid('c');
+      const id = flowTid('c'), m = cutSkuOf(sku) || {}, date = $('fltcD').value || dToday(), now = new Date().toISOString();
+      const reg = { id: 'cut_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8), sku, articleType: m.articleType || '', articleSubtype: m.subtype || m.articleSubtype || '',
+        color: m.color || '', size: m.size || '', pieces: pcs, cutDate: ptStampDate(date), fabricWidth: fab, fabricUsed: flowR2(used),
+        ...(waste > 0 ? { fabricWaste: flowR2(waste), fabricWasteWidth: ww } : {}), orderNo: no, remarks: ('[TEST] ' + $('fltcR').value.trim()).trim(), test: true, addedBy: ME.email || '', addedAt: now };
       return flowTestSave(no, sku, { cut: (+x.t.cut || 0) + pcs, [`cutLog/${id}`]: { pcs, fabric: fab, used: flowR2(used), waste: flowR2(waste), wasteWidth: ww,
-        date: $('fltcD').value || dToday(), remarks: $('fltcR').value.trim(), at: new Date().toISOString(), by: ME.email || '' } },
-        `${nf(pcs)} pieces cut from ${fab} (${nf(used)} m, waste ${nf(waste)} m) — test order only.`);
+        date, remarks: $('fltcR').value.trim(), at: now, by: ME.email || '', reg: reg.id } },
+        `${nf(pcs)} pieces cut from ${fab} (${nf(used)} m, waste ${nf(waste)} m) — in Cutting Data as a TEST entry.`,
+        { ['pt_cuttingData/' + reg.id]: reg }, () => { PT.cut = (PT.cut || []).concat([Object.assign({ _key: reg.id }, reg)]); });
     },
   });
 }
@@ -182,10 +206,16 @@ async function flowTestIssueOpen(no, sku) {
       if (known.length && !known.includes(k.toLowerCase())) return `${k} is not a ${type} karigar in the employee list — pick from the list.`;
       if (!(pcs > 0)) return 'How many pieces are issued?';
       if (pcs > can) return `Only ${nf(can)} pieces are cut and not yet issued.`;
-      const id = flowTid('i');
-      return flowTestSave(no, sku, { issued: (+x.t.issued || 0) + pcs, [`issues/${id}`]: { karigar: k, type, pcs, received: 0, rejected: 0,
-        date: $('fltiD').value || dToday(), remarks: $('fltiR').value.trim(), at: new Date().toISOString(), by: ME.email || '' } },
-        `${nf(pcs)} pieces issued to ${k} — test order only.`);
+      const id = flowTid('i'), m = cutSkuOf(sku) || {}, date = $('fltiD').value || dToday(), now = new Date().toISOString();
+      const name = (ptEmpsOfType(type).find(e => String(e[1]).trim().toLowerCase() === k.toLowerCase()) || [, k])[1];
+      const reg = { id: 'bd_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8), empType: type, empName: name, sku,
+        articleType: m.articleType || '', articleSubtype: m.subtype || m.articleSubtype || '', color: m.color || '', size: m.size || '', orderNo: no,
+        issuePieces: pcs, issueDate: ptStampDate(date), receivedPieces: 0, rejectionPieces: 0, receivingDate: '', pendingPieces: pcs,
+        remarks: ('[TEST] ' + $('fltiR').value.trim()).trim(), frozen: false, test: true, addedBy: ME.email || '', addedAt: now };
+      return flowTestSave(no, sku, { issued: (+x.t.issued || 0) + pcs, [`issues/${id}`]: { karigar: name, type, pcs, received: 0, rejected: 0,
+        date, remarks: $('fltiR').value.trim(), at: now, by: ME.email || '', reg: reg.id } },
+        `${nf(pcs)} pieces issued to ${name} — in the Job Work Register as a TEST entry (no zipper or ruffle taken off the stock).`,
+        { ['pt_baseData/' + reg.id]: reg }, () => { PT.base = (PT.base || []).concat([Object.assign({ _key: reg.id }, reg)]); });
     },
   });
   const fill = () => { let l = []; try { l = ptEmpsOfType($('fltiT').value); } catch (e) { l = []; }
@@ -209,9 +239,20 @@ function flowTestRecvOpen(no, sku) {
       const got = Math.round(+$('fltrP').value || 0), rej = Math.round(+$('fltrX').value || 0), out = (+e.pcs || 0) - (+e.received || 0) - (+e.rejected || 0);
       if (!(got > 0) && !(rej > 0)) return 'How many came back?';
       if (got + rej > out) return `Only ${nf(out)} are out with ${e.karigar}.`;
+      /* The same Job Work row gets the receipt, the way the register's own Receive writes it. */
+      let regs = {}, after = null;
+      const row = e.reg && (PT.base || []).find(b => b && b.id === e.reg);
+      if (row) {
+        let nx = row;
+        if (got > 0) { const a = bdApplyRecv(nx, got, ptNow()); if (a.err) return a.err; nx = a.row; }
+        if (rej > 0) { const b = bdApplyRej(nx, (+nx.rejectionPieces || 0) + rej); if (b.err) return b.err; nx = b.row; }
+        const clean = Object.assign({}, nx); delete clean._key;
+        regs = { ['pt_baseData/' + row.id]: clean };
+        after = () => { PT.base = (PT.base || []).map(b => (b && b.id === row.id ? Object.assign({ _key: row.id }, clean) : b)); };
+      }
       return flowTestSave(no, sku, { received: (+x.t.received || 0) + got,
         [`issues/${id}`]: Object.assign({}, e, { received: (+e.received || 0) + got, rejected: (+e.rejected || 0) + rej, lastBack: $('fltrD').value || dToday() }) },
-        `${nf(got)} back from ${e.karigar}${rej ? `, ${nf(rej)} rejected` : ''} — test order only.`);
+        `${nf(got)} back from ${e.karigar}${rej ? `, ${nf(rej)} rejected` : ''}${row ? ' — on its TEST row in the Job Work Register' : ''}.`, regs, after);
     },
   });
 }
@@ -224,16 +265,23 @@ function flowTestQcOpen(no, sku) {
     title: `QC check (TEST) — ${no} · ${sku}`, subtitle: `${nf(can)} received and not yet checked. Kept on the test order only — not in Quality Control.`,
     html: `<div class="ptgrid" style="grid-template-columns:repeat(4,1fr)">
       <label>Checked<input id="fltqC" type="number" min="1" value="${can}"></label><label>Passed<input id="fltqO" type="number" min="0" value="${can}"></label>
-      <label>Alteration<input id="fltqA" type="number" min="0" value="0"></label><label>Rejected<input id="fltqR" type="number" min="0" value="0"></label></div>`,
+      <label>Alteration<input id="fltqA" type="number" min="0" value="0"></label><label>Rejected<input id="fltqR" type="number" min="0" value="0"></label>
+      <label style="grid-column:1/-1">Checked by<input id="fltqB" value="${esc(String(ME.email || '').split('@')[0])}"></label></div>`,
     saveLabel: 'Save the check',
     onSave: async () => {
       const c = Math.round(+$('fltqC').value || 0), ok = Math.round(+$('fltqO').value || 0), alt = Math.round(+$('fltqA').value || 0), rej = Math.round(+$('fltqR').value || 0);
       if (!(c > 0)) return 'How many were checked?';
       if (c > can) return `Only ${nf(can)} are waiting for QC.`;
       if (ok + alt + rej !== c) return `Passed + alteration + rejected must make the ${nf(c)} checked.`;
-      const id = flowTid('q');
-      return flowTestSave(no, sku, { qc: (+x.t.qc || 0) + ok, qcChecked: (+x.t.qcChecked || 0) + c, [`qcLog/${id}`]: { checked: c, ok, alt, rej, at: new Date().toISOString(), by: ME.email || '' } },
-        `${nf(c)} checked: ${nf(ok)} passed${alt ? `, ${nf(alt)} to alteration` : ''}${rej ? `, ${nf(rej)} rejected` : ''} — test order only.`);
+      const by = ($('fltqB').value || '').trim(); if (!by) return 'Who checked them?';
+      const id = flowTid('q'), now = new Date().toISOString();
+      let pp = {}; try { pp = qcParts(sku) || {}; } catch (e) { pp = {}; }
+      const reg = { id: 'qc_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), date: ptNow(), checkedBy: by, brand: pp.brand || '', articleType: pp.at || '',
+        subtype: pp.sub || '', color: pp.col || '', size: pp.size || '', sku, checked: c, forAlteration: alt, rejected: rej, ok: c - alt - rej, orderNo: no,
+        remarks: '[TEST]', test: true, addedBy: ME.email || '', addedAt: now };
+      return flowTestSave(no, sku, { qc: (+x.t.qc || 0) + ok, qcChecked: (+x.t.qcChecked || 0) + c, [`qcLog/${id}`]: { checked: c, ok, alt, rej, by, at: now, reg: reg.id } },
+        `${nf(c)} checked: ${nf(ok)} passed${alt ? `, ${nf(alt)} to alteration` : ''}${rej ? `, ${nf(rej)} rejected` : ''} — in Quality Control as a TEST entry.`,
+        { ['pt_qcChecks/' + reg.id]: reg }, () => { if (typeof QC !== 'undefined' && Array.isArray(QC.checks)) QC.checks = QC.checks.concat([Object.assign({ _key: reg.id }, reg)]); });
     },
   });
 }

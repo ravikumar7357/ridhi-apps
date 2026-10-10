@@ -36,6 +36,11 @@ function load(opts) {
     showTab: t => { (ctx.__tabs = ctx.__tabs || []).push(t); }, ensureCutForm: async () => {}, cutSkuTyped: () => {}, renderCutForm: () => {}, renderCutFab: () => {},
     ensureBdForm: async () => {}, bdSkuTyped: () => {}, renderBdForm: () => {}, bdMatFill: () => {}, qcSkuTyped: () => {}, renderQcCheckForm: () => {},
     jwRecvOpen: id => { ctx.__recv = id; },
+    ptStampDate: d => String(d || ''), ptNow: () => '2026-10-13T10:00:00Z', qcParts: sku => ({ brand: 'Ridhi', at: 'Pillow Cover', sub: 'x', col: 'c', size: 's' }), QC: { checks: [] },
+    bdApplyRecv: (row, add) => { const recv = (+row.receivedPieces || 0) + add, iss = +row.issuePieces || 0, rej = +row.rejectionPieces || 0;
+      if (recv + rej > iss) return { err: 'more than issued' }; return { row: Object.assign({}, row, { receivedPieces: recv, pendingPieces: iss - recv - rej, frozen: iss - recv - rej <= 0 }) }; },
+    bdApplyRej: (row, val) => { const recv = +row.receivedPieces || 0, iss = +row.issuePieces || 0; if (recv + val > iss) return { err: 'more than issued' };
+      return { row: Object.assign({}, row, { rejectionPieces: val, pendingPieces: iss - recv - val, frozen: iss - recv - val <= 0 }) }; },
     ptLoadEmp: async () => {}, ptEmpTypes: () => ['Company Contractor', 'External Contractor'],
     ptEmpsOfType: t => ({ 'Company Contractor': [['Company Contractor', 'Ramesh'], ['Company Contractor', 'Suresh']], 'External Contractor': [['External Contractor', 'Pradeep']] })[t] || [],
     cutFabrics: () => ['Canvas', 'Cotton', 'Sheeting 82'], ptDlgClose: () => {}, PT: { base: opts.base || [] }, ORD_IX: {}, palKey: (b, c) => (b || '') + '|' + c, palInfoOf: k => (opts.pal || {})[k] || {}, VO: { rows: opts.vo || [] }, voLines: o => (Array.isArray(o.lines) ? o.lines : Object.values(o.lines || {})), voNewOrderNo: (() => { let n = 0; return () => 'VPO-261010-T' + (++n); })(), voTodayDMY: () => '10/10/2026', ordCutReq: sku => !/NOCUT/.test(sku), confirm: q => { (ctx.__asked = ctx.__asked || []).push(q); return !opts.confirmNo; }, PTG: { mdb: [] }, setTimeout, clearTimeout,
@@ -924,16 +929,34 @@ const K = 'AMZ-1__S1';
     A.flowTestRecvOpen(TN, 'S1'); say({ fltrI: pradeep, fltrP: '4', fltrX: '0' }); er = er || await A.ctx.__dlg.onSave();
     ok('10 back (Ramesh 6, Pradeep 4) → waiting for QC', !er && T().s.received === 10 && T().s.bucket === 'wip', er);
     /* QC: checked = passed + alteration + rejected. */
-    A.flowTestQcOpen(TN, 'S1'); say({ fltqC: '10', fltqO: '9', fltqA: '0', fltqR: '0' });
+    A.flowTestQcOpen(TN, 'S1'); say({ fltqC: '10', fltqO: '9', fltqA: '0', fltqR: '0', fltqB: 'Sunita' });
     ok('passed + alteration + rejected must make the checked', /must make the 10 checked/.test(await A.ctx.__dlg.onSave()));
     say({ fltqO: '10' }); er = await A.ctx.__dlg.onSave();
     ok('10 checked, 10 passed → Ready → India stock', !er && T().s.qc === 10 && T().s.bucket === 'ready', er || T().s.bucket);
     er = await A.flowSimulate(TN, 'S1', 'ready');
     ok('received in Finished Goods → done', !er && A.flowState(T() ? T().r : A.flowTestLines()[0]).bucket === 'done', er);
-    ok('the simulation is written on the test order only', A.writes.every(w => Object.keys(w).every(k => /^pt_(flowTest|ppc|flowDemand|flowChallans|accReserve|flowPrintOrders)\//.test(k))));
+    /* In the real screens: each entry also went into its own register, marked TEST. */
+    const all = Object.assign({}, ...A.writes), reg = n => Object.entries(all).filter(([k, v]) => k.startsWith(n + '/') && v && typeof v === 'object').map(([, v]) => v);
+    const cuts = reg('pt_cuttingData'), bds = reg('pt_baseData'), qcs = reg('pt_qcChecks');
+    ok('Cutting Data got the cutting entry: TEST order no, SKU, 10 pieces, Cotton, 5 m used, 0.4 m waste at 18 in', cuts.length === 1 && cuts[0].orderNo === TN && cuts[0].sku === 'S1' && cuts[0].pieces === 10
+      && cuts[0].fabricWidth === 'Cotton' && cuts[0].fabricUsed === 5 && cuts[0].fabricWaste === 0.4 && cuts[0].fabricWasteWidth === 18 && cuts[0].test && /^\[TEST\]/.test(cuts[0].remarks), JSON.stringify(cuts));
+    const lastBd = id => Object.assign({}, ...A.writes.map(w => Object.fromEntries(Object.entries(w).filter(([k]) => k === 'pt_baseData/' + id))))['pt_baseData/' + id];
+    ok('the Job Work Register got both issues — Ramesh 6, Pradeep 4 — as its own rows (empType, empName, issuePieces, pending)', bds.length >= 2
+      && bds.some(r => r.empName === 'Ramesh' && r.issuePieces === 6 && r.orderNo === TN && r.test) && bds.some(r => r.empName === 'Pradeep' && r.issuePieces === 4));
+    const rRow = bds.find(r => r.empName === 'Ramesh');
+    { const firstW = A.writes.find(w => w['pt_baseData/' + rRow.id]); const fr = firstW && firstW['pt_baseData/' + rRow.id];
+      ok('…the issue itself wrote its row (6 issued, 0 received, 6 pending), in the same save as the test order', fr && fr.issuePieces === 6 && fr.receivedPieces === 0 && fr.pendingPieces === 6
+        && Object.keys(firstW).some(k => /\/issues\//.test(k))); }
+    ok('…and the receipts went onto those rows (Ramesh: 6 received, nothing pending, closed)', lastBd(rRow.id).receivedPieces === 6 && lastBd(rRow.id).pendingPieces === 0 && lastBd(rRow.id).frozen);
+    ok('Quality Control got the check: 10 checked, 10 ok, checked by Sunita, TEST order', qcs.length === 1 && qcs[0].checked === 10 && qcs[0].ok === 10 && qcs[0].checkedBy === 'Sunita' && qcs[0].orderNo === TN && qcs[0].test);
+    ok('…and the screens\u2019 own lists hold them now (Cutting, Job Work, QC)', A.ctx.PT.cut.some(r => r.orderNo === TN) && A.ctx.PT.base.filter(r => r.orderNo === TN).length === 2 && A.ctx.QC.checks.some(r => r.orderNo === TN));
+    ok('no zipper or ruffle cloth was taken off the real stock by a test issue', !Object.keys(all).some(k => /^pt_(accLedger|fabInvLedger)\//.test(k)));
     const n0 = A.writes.length;
     ok('delete test removes the order, its plan, its demand and its challan', !(await A.flowTestDelete(TN)) && (() => { const w = A.writes[n0];
       return w['pt_flowTest/' + TN] === null && w['pt_ppc/' + TK] === null && w['pt_flowDemand/' + TK] === null && w['pt_flowChallans/TRFD-202610-001'] === null; })());
+    { const w = A.writes[n0];
+      ok('…and its TEST entries from all three registers — Cutting Data, Job Work, Quality Control', w['pt_cuttingData/' + cuts[0].id] === null && bds.every(r => w['pt_baseData/' + r.id] === null) && w['pt_qcChecks/' + qcs[0].id] === null, Object.keys(w).join());
+      ok('…and from the screens\u2019 lists at once', !A.ctx.PT.cut.some(r => r.orderNo === TN) && !A.ctx.PT.base.some(r => r.orderNo === TN) && !A.ctx.QC.checks.some(r => r.orderNo === TN)); }
     ok('…and it is gone from every bucket', !A.flowRows().some(x => x.r.orderNo === TN));
   }
 

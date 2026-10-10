@@ -103,6 +103,11 @@ const breaks = {
     'a blocked pop-up is swallowed': s => s.replace("if (!w || !w.document) return 'The browser blocked", "if (!w || !w.document) return ''; if (0) return 'The browser blocked"),
   },
   'flow-test-order.js': {
+    'test cutting not written to Cutting Data': s => s.replace("{ ['pt_cuttingData/' + reg.id]: reg }", '{}'),
+    'test issue not written to Job Work': s => s.replace("{ ['pt_baseData/' + reg.id]: reg }", '{}'),
+    'test QC not written to Quality Control': s => s.replace("{ ['pt_qcChecks/' + reg.id]: reg }", '{}'),
+    'test receipt not written to its Job Work row': s => s.replace("regs = { ['pt_baseData/' + row.id]: clean };", ''),
+    'delete test leaves the register rows': s => s.replace("Object.entries(regs).forEach(([node, ids]) => ids.forEach(id => { if (id) patch[node + '/' + id] = null; }));", ''),
     'test cutting without a fabric': s => s.replace("if (!fab) return 'Which fabric was it cut from?';", ''),
     'test waste without its width': s => s.replace("if (waste > 0 && !(ww > 0)) return", 'if (false) return'),
     'test issue to anyone': s => s.replace("if (known.length && !known.includes(k.toLowerCase())) return", 'if (false) return'),
