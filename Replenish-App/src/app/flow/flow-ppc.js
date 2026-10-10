@@ -278,6 +278,21 @@ function flowPpcOpen(orderNo, onlySku) {
         const nu = patch['pt_ppc/' + x.s.key];
         if (locked) ['fabric', 'route', 'printer', 'print'].forEach(k => { nu[k] = x.s.plan[k]; });
         const side = flowReplanSide(x.s.plan, nu, x.s); Object.assign(patch, side.patch); said.push(...side.said); });
+      /* ACCESSORIES RESERVED BY THEMSELVES (Ravi, 10 Oct: "zip available ho to us order ke liye auto reserve ho"). Each
+       * line's accessories are held in the same save when the shelf has them free — after every earlier reservation
+       * and the lines above in this save. One that is short stays in Demand · Accessories, saying what is short. */
+      { const free = flowAccFree(), took = {};
+        rows.forEach((x, i) => { const p = patch['pt_ppc/' + x.s.key]; if (!p || p.route === 'outsource') return;
+          const items = {}; (p.acc || []).forEach(a => { if (a.code && +a.qty > 0) items[accCode(a.code)] = (items[accCode(a.code)] || 0) + (+a.qty); });
+          if (!Object.keys(items).length) return;
+          const had = (FLOW.res || {})[x.s.key], dropped = had && patch['pt_accReserve/' + x.s.key] === null;
+          if (had && !dropped) return;   // already reserved and the accessories did not change
+          if (had) Object.entries(flowHeld(x.s.key, x.s.issued, +x.r.qty || 0)).forEach(([c, n]) => { if (free[c]) free[c].free += n; });   // its own old hold
+          const short = Object.entries(items).filter(([c, n]) => ((free[c] || {}).free || 0) - (took[c] || 0) < n);
+          if (short.length) { said.push(`${x.s.sku || obUC(x.r.sku)}: ${short.map(([c, n]) => `${c} short ${n - Math.max(0, ((free[c] || {}).free || 0) - (took[c] || 0))}`).join(', ')} — waits in Demand · Accessories`); return; }
+          Object.entries(items).forEach(([c, n]) => { took[c] = (took[c] || 0) + n; });
+          patch['pt_accReserve/' + x.s.key] = { orderNo: x.r.orderNo, sku: obUC(x.r.sku), items, at: now, by: ME.email || '', auto: true };
+          said.push(`${obUC(x.r.sku)}: accessories reserved`); }); }
       /* The print orders, in the same write. */
       const pos = flowPoSync(rows.map((x, i) => ({ r: x.r, p: patch['pt_ppc/' + x.s.key] })), dToday());
       Object.assign(patch, pos.patch); said.push(...pos.said);
@@ -286,7 +301,8 @@ function flowPpcOpen(orderNo, onlySku) {
       if (vop.ask && !confirm(vop.ask)) { vop.undo(); return 'Not saved — no Vendor Order was placed or changed.'; }
       try { await ptPatch(patch); } catch (e) { vop.undo(); return 'Could not save: ' + (e.message || e); }
       FLOW.po = pos.local; flowVoAfter(vop.placed); said.push(...vop.said);
-      if (Object.keys(patch).some(k => k.startsWith('pt_accReserve/'))) { FLOW.res = Object.assign({}, FLOW.res); Object.keys(patch).filter(k => k.startsWith('pt_accReserve/')).forEach(k => { delete FLOW.res[k.slice(14)]; }); }
+      if (Object.keys(patch).some(k => k.startsWith('pt_accReserve/'))) { FLOW.res = Object.assign({}, FLOW.res);
+        Object.keys(patch).filter(k => k.startsWith('pt_accReserve/')).forEach(k => { if (patch[k]) FLOW.res[k.slice(14)] = patch[k]; else delete FLOW.res[k.slice(14)]; }); }
       Object.keys(patch).filter(k => k.startsWith('pt_flowDemand/')).forEach(k => { const key = k.split('/')[1]; FLOW.dem = Object.assign({}, FLOW.dem, { [key]: Object.assign({}, (FLOW.dem || {})[key], { fabricReady: null }) }); });
       if (said.length) setTimeout(() => { $('flMsg').className = 'muted'; $('flMsg').textContent = 'Plan saved · ' + said.join(' · ') + ' · the fabric team and the accessories team have their demand.'; }, 0);
       /* A new object, so every cache keyed on it knows it changed. */

@@ -2,7 +2,7 @@
  *   node tests/teeth/teeth-flow.js */
 const fs = require('fs'), path = require('path'), os = require('os'), { spawnSync } = require('child_process');
 const DIR = path.join(__dirname, '..', '..', 'src', 'app', 'flow');
-const FILES = ['flow-core.js', 'flow-ppc.js', 'flow-demand.js', 'flow-challan.js', 'flow-test-order.js', 'flow-receive.js', 'flow-printorder.js', 'flow-edit.js', 'flow-view.js'];
+const FILES = ['flow-core.js', 'flow-ppc.js', 'flow-demand.js', 'flow-challan.js', 'flow-test-order.js', 'flow-receive.js', 'flow-printorder.js', 'flow-edit.js', 'flow-entries.js', 'flow-view.js'];
 const read = f => fs.readFileSync(path.join(DIR, f), 'utf8').replace(/\r\n/g, '\n');
 const breaks = {
   'flow-core.js': {
@@ -34,6 +34,8 @@ const breaks = {
     'the printer told without asking': s => s.replace("if (vop.ask && !confirm(vop.ask)) { vop.undo(); return 'Not saved", "if (false) { vop.undo(); return 'Not saved"),
     'an all-printed line made to name a printer': s => s.replace("p.route === 'inhouse' && printsAt(i) && !(p.printer && p.printer.code)", "p.route === 'inhouse' && !(p.printer && p.printer.code)"),
     'the ruffle not taken from printed stock': s => s.replace('cover[i].extra[j] = use; need = flowR2(need - use);', 'cover[i].extra[j] = 0;'),
+    'accessories not reserved by themselves': s => s.replace("patch['pt_accReserve/' + x.s.key] = { orderNo: x.r.orderNo, sku: obUC(x.r.sku), items, at: now, by: ME.email || '', auto: true };", ''),
+    'auto-reserve ignores what the lines above took': s => s.replace('Object.entries(items).forEach(([c, n]) => { took[c] = (took[c] || 0) + n; });', ''),
     'a printed line saved with no printer': s => s.replace('if (noPr.length) return', 'if (false) return'),
     'a plan with no fabric is saved': s => s.replace('if (noFab.length) return', 'if (false) return'),
     'a stitching line keeps a printer': s => s.replace("p.printer = v ? {", "p.printer = (v || p.printer.code) ? {").replace("p.route === 'inhouse' && p.printer && p.printer.code ? flowChVendors()", "p.printer && p.printer.code ? flowChVendors()"),
@@ -142,6 +144,12 @@ const breaks = {
     'no print order raised': s => s.replace("return { patch, said, local };", "return { patch: {}, said, local: Object.assign({}, FLOW.po || {}) };"),
     'printer change leaves the line on the old order': s => s.replace("if (cur && String((local[cur].printer || {}).code) !== String(pc)) { take(cur, key);", "if (false) {"),
     'an emptied print order stays open': s => s.replace("if (!Object.values(local[no].items).some(Boolean)) {", "if (false) {"),
+  },
+  'flow-entries.js': {
+    'cutting entry not filled with the pieces left': s => s.replace("$('cwPcs').value = Math.max(0, (+r.qty || 0) - (s.cut || 0));", "$('cwPcs').value = +r.qty || 0;"),
+    'issue offers more than is cut': s => s.replace("const flowIssuable = (r, s) => Math.max(0, (r.cutReq ? s.cut : (s.printed ? s.back : +r.qty || 0)) - (s.issued || 0));", "const flowIssuable = (r, s) => +r.qty || 0;"),
+    'receive opens the wrong row': s => s.replace("obUC(b.orderNo) === obUC(r.orderNo) &&", ''),
+    'no right needed for the entry': s => s.replace("const flowMay = tab => !!(ME.admin || (ME.tabs || []).includes(tab));", 'const flowMay = tab => true;'),
   },
   'flow-view.js': {
     'buttons for buckets not held': s => s.replace('$(\'flBuckets\').innerHTML = allowed.map(', '$(\'flBuckets\').innerHTML = FLOW_BUCKETS.map('),

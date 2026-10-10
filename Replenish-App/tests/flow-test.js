@@ -2,7 +2,7 @@
  *   node tests/flow-test.js      (FLOW_DIR=<dir> to test another copy — teeth/teeth-flow.js does) */
 const fs = require('fs'), path = require('path');
 const DIR = process.env.FLOW_DIR || path.join(__dirname, '..', 'src', 'app', 'flow');
-const SRC = ['flow-core.js', 'flow-ppc.js', 'flow-demand.js', 'flow-challan.js', 'flow-test-order.js', 'flow-receive.js', 'flow-printorder.js', 'flow-edit.js', 'flow-view.js'].map(f => fs.readFileSync(path.join(DIR, f), 'utf8')).join('\n');
+const SRC = ['flow-core.js', 'flow-ppc.js', 'flow-demand.js', 'flow-challan.js', 'flow-test-order.js', 'flow-receive.js', 'flow-printorder.js', 'flow-edit.js', 'flow-entries.js', 'flow-view.js'].map(f => fs.readFileSync(path.join(DIR, f), 'utf8')).join('\n');
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => { if (cond) { pass++; console.log('  PASS ' + name); } else { fail++; console.log('  FAIL ' + name + (extra ? ' — ' + extra : '')); } };
 
@@ -13,7 +13,7 @@ const L = (o) => Object.assign({ orderNo: 'AMZ-1', sku: 'S1', qty: 100, orderDat
 function load(opts) {
   opts = opts || {};
   const els = {}, writes = [];
-  const el = id => els[id] || (els[id] = { id, value: '', textContent: '', innerHTML: '', className: '', style: {}, dataset: {}, classList: { toggle() {}, add() {}, remove() {} }, addEventListener() {}, onclick: null });
+  const el = id => els[id] || (els[id] = { id, value: '', textContent: '', innerHTML: '', className: '', style: {}, dataset: {}, classList: { toggle() {}, add() {}, remove() {}, contains: () => false }, addEventListener() {}, onclick: null });
   const W = { lines: opts.lines || [], vendor: opts.vendor || {}, qc: opts.qc || {}, fg: opts.fg || {}, shelf: opts.shelf || [] };
   const ctx = {
     $: el, document: { querySelectorAll: () => [], querySelector: () => null }, localStorage: { getItem: k => (opts.ls || {})[k] ?? null },
@@ -32,7 +32,10 @@ function load(opts) {
     ptPatch: async p => { if (opts.writeFails) throw new Error('denied'); writes.push(p); },
     ptGet: async node => (opts.db || {})[node] || null,
     ptOpenDialog: cfg => { ctx.__dlg = cfg; }, ptFillSelect: () => {}, ptImgOf: () => '', ptImgSrc: u => u, showTab: () => {},
-    ptLoadGates: async () => {}, palKey: (b, c) => (b || '') + '|' + c, palInfoOf: k => (opts.pal || {})[k] || {}, VO: { rows: opts.vo || [] }, voLines: o => (Array.isArray(o.lines) ? o.lines : Object.values(o.lines || {})), voNewOrderNo: (() => { let n = 0; return () => 'VPO-261010-T' + (++n); })(), voTodayDMY: () => '10/10/2026', ordCutReq: sku => !/NOCUT/.test(sku), confirm: q => { (ctx.__asked = ctx.__asked || []).push(q); return !opts.confirmNo; }, PTG: { mdb: [] }, setTimeout, clearTimeout,
+    ptLoadGates: async () => {},
+    showTab: t => { (ctx.__tabs = ctx.__tabs || []).push(t); }, ensureCutForm: async () => {}, cutSkuTyped: () => {}, renderCutForm: () => {}, renderCutFab: () => {},
+    ensureBdForm: async () => {}, bdSkuTyped: () => {}, renderBdForm: () => {}, bdMatFill: () => {}, qcSkuTyped: () => {}, renderQcCheckForm: () => {},
+    jwRecvOpen: id => { ctx.__recv = id; }, ptDlgClose: () => {}, PT: { base: opts.base || [] }, ORD_IX: {}, palKey: (b, c) => (b || '') + '|' + c, palInfoOf: k => (opts.pal || {})[k] || {}, VO: { rows: opts.vo || [] }, voLines: o => (Array.isArray(o.lines) ? o.lines : Object.values(o.lines || {})), voNewOrderNo: (() => { let n = 0; return () => 'VPO-261010-T' + (++n); })(), voTodayDMY: () => '10/10/2026', ordCutReq: sku => !/NOCUT/.test(sku), confirm: q => { (ctx.__asked = ctx.__asked || []).push(q); return !opts.confirmNo; }, PTG: { mdb: [] }, setTimeout, clearTimeout,
     voAllVendors: () => [{ code: 'V9', desc: 'Kalu Mill', category: 'Mill' }, { code: 'P1', desc: 'Sanganer Prints', category: 'Printer' }, { code: 'P2', desc: 'Choudhary Hand Block', category: 'Printer' }],
     window: { open: () => (opts.popupBlocked ? null : { document: { open() {}, write(h) { (ctx.__win = ctx.__win || []).push(h); }, close() {} } }) }, GPO: { settings: { company: 'Ridhi Home & Living' } },
     ordPrintAsPcs: m => !!(m && m.asPcs), ptPrintFabric: m => (m && m.pfab) || '', ptPrintDir: m => (m && m.dir) || '',
@@ -45,7 +48,7 @@ function load(opts) {
     FAB: { rows: opts.fabRows || [] },
     STORE: { rows: opts.store ? [] : null }, stMoves: () => opts.store || [], stBalances: mv => mv, fabKey: v => String(v || '').trim().toUpperCase(), fabAll: () => opts.fabRows || [], ptList: x => x || [], fabAutoLoad: async () => {}, fabStockOf: (name, st) => (st === 'RFD' ? (opts.rfd || {})[String(name).toUpperCase()] || 0 : 0),
   };
-  const api = new Function(...Object.keys(ctx), SRC + '\n;return { FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowVoLines, VOrows:()=>VO.rows, setVOrows:v=>{VO.rows=v}, flowUnplan, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v} };')(...Object.values(ctx));
+  const api = new Function(...Object.keys(ctx), SRC + '\n;return { FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowCutEntry, flowIssueEntry, flowRecvEntry, flowQcEntry, flowIssuable, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowVoLines, VOrows:()=>VO.rows, setVOrows:v=>{VO.rows=v}, flowUnplan, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v} };')(...Object.values(ctx));
   api.setFLOW(Object.assign(api.FLOW(), { ppc: opts.ppc || {}, dem: opts.dem || {}, res: opts.res || {} }));
   return Object.assign(api, { els, writes, W, ctx });
 }
@@ -650,6 +653,44 @@ const K = 'AMZ-1__S1';
     ok('plan undone → its vendor order cancelled too', !er && Object.values(w).some(o => o && o.id === p2.id && o.status === 'Cancelled'), er || Object.keys(w).join());
   }
 
+  console.log('== accessories reserved by themselves when PPC raises the plan ==');
+  {
+    const mdb = { 'S1': { cons: 1, fab: 'Cotton', chainLength: '18' }, 'S2': { cons: 1, fab: 'Cotton', chainLength: '18' }, 'S3': { cons: 1, fab: 'Cotton', chainLength: '18' } };
+    A = load({ me: { admin: true }, mdb, shelf: [{ code: '18', name: '18 inch zip', qty: 100 }],
+      lines: [L({ sku: 'S1', qty: 40 }), L({ sku: 'S2', qty: 50 }), L({ sku: 'S3', qty: 30 })] });
+    A.flowPpcOpen('AMZ-1');
+    A.ctx.document.querySelectorAll = () => [0, 1, 2].map(i => ({ addEventListener() {}, dataset: { fp: String(i), k: 'printer.code' }, type: 'select-one', value: 'P1' }));
+    const er = await A.ctx.__dlg.onSave(); const w = A.writes[0] || {};
+    ok('100 zippers: S1 (40) and S2 (50) are reserved in the same save, marked auto', !er && w['pt_accReserve/AMZ-1__S1'].items['18'] === 40 && w['pt_accReserve/AMZ-1__S2'].items['18'] === 50 && w['pt_accReserve/AMZ-1__S1'].auto, er);
+    ok('S3 (30) — only 10 left — is not reserved and waits in Demand · Accessories', !w['pt_accReserve/AMZ-1__S3'] && A.flowInView('dacc', A.flowState(L({ sku: 'S3', qty: 30 }))));
+    ok('…S1 and S2 are not in Demand · Accessories', !A.flowInView('dacc', A.flowState(L({ sku: 'S1', qty: 40 }))) && !A.flowInView('dacc', A.flowState(L({ sku: 'S2', qty: 50 }))));
+    ok('the shelf now shows 10 free', A.flowAccFree()['18'].free === 10);
+  }
+
+  console.log('== Cutting, Raw cutting in store, WIP open the factory\u2019s own entry for the line ==');
+  {
+    A = load({ me: { admin: true }, base: [{ id: 'b0', sku: 'S1', orderNo: 'AMZ-2', issuePieces: 10, receivedPieces: 0, empName: 'Other order' }, { id: 'b1', sku: 'S1', orderNo: 'AMZ-1', issuePieces: 30, receivedPieces: 10, rejectionPieces: 0, empName: 'Ramesh', issueDate: '2026-10-11' },
+      { id: 'b2', sku: 'S9', orderNo: 'AMZ-1', issuePieces: 5, receivedPieces: 5 }] });
+    const r = L({ sku: 'S1', qty: 100, cutReq: true, cut: 60 }), st = A.flowState(r);
+    await A.flowCutEntry(r, st);
+    ok('Cutting entry: Cutting Data opens with SKU S1, order AMZ-1, the 40 pieces still to cut', A.ctx.__tabs.includes('pcut') && A.els.cwSku.value === 'S1' && A.els.cwOrd.value === 'AMZ-1' && A.els.cwPcs.value === 40);
+    await A.flowIssueEntry(r, st);
+    ok('Issue to karigar: the Job Work form opens with S1, AMZ-1 and the 60 cut, none issued yet', A.ctx.__tabs.includes('pbase') && A.els.bwSku.value === 'S1' && A.els.bwOrd.value === 'AMZ-1' && A.els.bwPcs.value === A.flowIssuable(r, st) && A.flowIssuable(r, st) === 60);
+    A.flowRecvEntry(r);
+    ok('Receive: the karigar\u2019s open issue for this line (Ramesh, 20 still out) opens the Job Work receive', A.ctx.__recv === 'b1');
+    const r2 = L({ sku: 'S1', qty: 100, issued: 30, received: 25 });
+    await A.flowQcEntry(r2, A.flowState(r2));
+    ok('QC check: the QC form opens with S1, AMZ-1 and the 25 received, none checked', A.ctx.__tabs.includes('qc') && A.els.qcwSku.value === 'S1' && A.els.qcwOrd.value === 'AMZ-1' && A.els.qcwChecked.value === 25);
+    A.flowRecvEntry(L({ sku: 'S9', qty: 5 }));
+    ok('nothing out with a karigar → it says so', /Nothing of S9 on AMZ-1 is out with a karigar/.test(A.els.flMsg.textContent));
+    const B = load({ me: { tabs: ['flcut'] } });
+    await B.flowCutEntry(r, st);
+    ok('an account without the Cutting right is told, and no screen is opened', /not open to this account/.test(B.els.flMsg.textContent) && !(B.ctx.__tabs || []).length);
+    A.W.lines.push(L({ orderNo: 'AMZ-5', sku: 'S5', qty: 10, orderDate: '2026-09-01', cutReq: true }));
+    A.setView('cut'); A.setFLOW(Object.assign(A.FLOW(), { ppc: Object.assign({}, A.FLOW().ppc) })); A.renderFlow();
+    ok('the Cutting list offers "Cutting entry" for a real line', /data-flent="cut\|AMZ-5__S5"/.test(A.els.flTable.innerHTML));
+  }
+
   console.log('== a body all from printed stock still sends its ruffle cloth ==');
   {
     const mdb = { 'RTC327-6060': { color: 'Light Steel Blue', fabric: 'Sheeting 92', consumption: 0.6, cuttingRequired: true } };
@@ -953,7 +994,7 @@ const K = 'AMZ-1__S1';
   ok('it opens on PPC, with the new line and a Plan button', /AMZ-1/.test(A.els.flTable.innerHTML) && /data-flppc="AMZ-1"/.test(A.els.flTable.innerHTML));
   ok('the old line is not in PPC', !/AMZ-0/.test(A.els.flTable.innerHTML));
   A.setView('wip'); A.renderFlow();
-  ok('…it is in WIP, with a button to QC', /AMZ-0/.test(A.els.flTable.innerHTML) && /data-flgo="qc"/.test(A.els.flTable.innerHTML));
+  ok('…it is in WIP, with Receive (issued 100, nothing back yet)', /AMZ-0/.test(A.els.flTable.innerHTML) && /data-flent="recv\|AMZ-0__S1"/.test(A.els.flTable.innerHTML));
   ok('the page says it is a test view', /TEST VIEW/.test(A.els.flMsg.textContent));
   A = load({ me: { tabs: ['ord'] } });
   A.renderFlow();

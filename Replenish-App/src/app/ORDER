@@ -65,6 +65,7 @@ flow/flow-test-order.js
 flow/flow-receive.js
 flow/flow-printorder.js
 flow/flow-edit.js
+flow/flow-entries.js
 flow/flow-view.js
 dashboard/management-dashboard.js
 people-pay/finance-hr.js

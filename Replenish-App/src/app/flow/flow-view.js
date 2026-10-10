@@ -99,6 +99,13 @@ function flowCutFrom(x) {
   return `${w.kind === 'sku' ? `<b>${esc(w.code)}</b> printed pieces` : flowPrintTxt(w)}<div class="muted" style="font-size:10.5px">${w.kind === 'sku' ? nf(x.r.qty) + ' pcs' : nf(m) + ' m'} for ${nf(x.r.qty)} pcs`
     + (x.s.fromStock ? ' · <b style="color:#166534">all from printed stock in the store</b>' : fp > 0 ? ` · ${nf(fp)} ${p.fabric.printedUnit === 'pcs' ? 'pcs' : 'm'} from printed stock, the rest from the printer` : ' · from the printer') + '</div>';
 }
+/** The factory's own entry, opened for the line (flow-entries.js) — what the bucket is waiting for. */
+function flowEntryButtons(view, x) {
+  const b = (what, label, main) => `<button ${main ? '' : 'class="ghost" '}data-flent="${what}|${esc(x.s.key)}" style="width:auto;padding:${main ? '3px 10px;font-size:12px' : '2px 9px;font-size:11.5px'};margin:1px">${label}</button>`;
+  if (view === 'cut') return b('cut', 'Cutting entry →', true);
+  if (view === 'raw') return b('issue', 'Issue to karigar →', true);
+  return (x.s.issued > x.s.received ? b('recv', 'Receive →', true) : '') + (x.s.received > x.s.qc ? b('qc', 'QC check →', x.s.issued <= x.s.received) : '');
+}
 /** The challan a line's fabric went on, if it went on one. */
 const flowChTag = s => { const fr = s.demand && s.demand.fabricReady; return fr && fr.challan
   ? `<div class="muted" style="font-size:10.5px">RFD on <a href="#" data-flchp="${esc(fr.challan)}">${esc(fr.challan)}</a> → ${esc(fr.vendor || '')}</div>` : ''; };
@@ -117,6 +124,7 @@ function flowTable(view, rows) {
   const go = (view, x) => x && x.s.challan && view === 'fabric' && !x.s.challan.closed
       ? `<button data-flchr="${esc(x.s.challan.no)}" style="width:auto;padding:3px 10px;font-size:12px">Receive on ${esc(x.s.challan.no)}</button>`
     : x && x.r.__t && FLOW_SIM[view] ? `<button data-flsim="${esc(x.r.orderNo)}|${esc(x.r.sku)}|${view}" title="Stands in for: ${esc(FLOW_SIM[view][1])}" style="width:auto;padding:3px 10px;font-size:12px;background:#7c3aed;border-color:#7c3aed">${esc(FLOW_SIM[view][0])}</button>`
+    : x && !x.r.__t && ['cut', 'raw', 'wip'].includes(view) ? flowEntryButtons(view, x)
     : FLOW_GO[view] ? `<button class="ghost" data-flgo="${FLOW_GO[view][0]}" style="width:auto;padding:2px 9px;font-size:11.5px">${FLOW_GO[view][1]} →</button>` : '';
   const prog = (d, of) => `<span class="jw-st ${d >= of ? 'done' : d > 0 ? 'prog' : 'pend'}">${nf(d)} / ${nf(of)}</span>`;
   const due = (iso, label) => iso ? `<div class="muted" style="font-size:10.5px${flowLate(iso) ? ';color:#b91c1c;font-weight:600' : ''}">${label} ${esc(iso.slice(5))}${flowLate(iso) ? ' · late' : ''}</div>` : '';
@@ -184,8 +192,8 @@ function flowTable(view, rows) {
     body = rows.map(x => `<tr>${base(x)}<td style="text-align:left;font-size:12px">${flowCutFrom(x)}</td><td class="num">${prog(x.s.cut, +x.r.qty)}${due(x.s.plan && x.s.plan.dates && x.s.plan.dates.cut, 'plan')}</td><td>${go(view, x)}</td></tr>`).join('');
   } else if (view === 'raw') {
     head = ['PO', 'SKU', 'Qty', 'In store, to issue', 'Issued', ''];
-    body = rows.map(x => { const avail = x.r.cutReq ? x.s.cut : (x.s.printed ? x.s.back : +x.r.qty);
-      return `<tr>${base(x)}<td class="num"><b>${nf(Math.max(0, avail - x.s.issued))}</b></td><td class="num">${prog(x.s.issued, +x.r.qty)}</td><td>${go(view, x)}</td></tr>`; }).join('');
+    body = rows.map(x => { const sp = flowStorePcs(x.r.sku);
+      return `<tr>${base(x)}<td class="num"><b>${nf(flowIssuable(x.r, x.s))}</b>${sp == null ? '' : `<div class="muted" style="font-size:10.5px">store balance ${nf(sp)} pcs of this SKU</div>`}</td><td class="num">${prog(x.s.issued, +x.r.qty)}</td><td>${go(view, x)}</td></tr>`; }).join('');
   } else if (view === 'wip') {
     head = ['PO', 'SKU', 'Qty', 'Issued', 'Received', 'QC passed', ''];
     body = rows.map(x => `<tr>${base(x)}<td class="num">${nf(x.s.issued)}</td><td class="num">${nf(x.s.received)}</td>
@@ -227,6 +235,10 @@ $('flTable').addEventListener('click', async e => {
     $('flMsg').className = er ? 'err' : 'muted'; if (er) $('flMsg').textContent = er; else renderFlow(); return; }
   const cs = e.target.closest('[data-flchc]'); if (cs) { flowCloseShortOpen(cs.dataset.flchc); return; }
   const ch = e.target.closest('[data-flch]'); if (ch) { flowChallanOpen(ch.dataset.flch, ch.dataset.pc); return; }
+  const en = e.target.closest('[data-flent]');
+  if (en) { const [what, key] = en.dataset.flent.split('|'), x = flowRows().find(y => y.s.key === key); if (!x) return;
+    if (what === 'cut') flowCutEntry(x.r, x.s); else if (what === 'issue') flowIssueEntry(x.r, x.s); else if (what === 'recv') flowRecvEntry(x.r); else if (what === 'qc') flowQcEntry(x.r, x.s);
+    return; }
   const pop = e.target.closest('[data-flpop]'); if (pop) { const er = flowPoPrint(pop.dataset.flpop); if (er) { $('flMsg').className = 'err'; $('flMsg').textContent = er; } return; }
   const cg = e.target.closest('[data-flchg]'); if (cg) { const grp = FLOW_GROUPS[+cg.dataset.flchg]; if (grp) flowChallanForKeys(grp.keys); return; }
   const cp = e.target.closest('[data-flchp]'); if (cp) { e.preventDefault(); const er = flowChallanPrint(cp.dataset.flchp); if (er) { $('flMsg').className = 'err'; $('flMsg').textContent = er; } return; }

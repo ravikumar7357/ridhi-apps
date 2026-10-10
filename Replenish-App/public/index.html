@@ -1,5 +1,5 @@
 <!-- ================================================================================================
-     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 142 files of src/ joined into one page.
+     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 143 files of src/ joined into one page.
      The real, grouped source: Replenish-App/src/   (map and workflow: src/README.md)
        src/index.html   page markup        src/styles.css   stylesheet        src/app/ORDER   join order
        src/app/<group>/ the code, by group: core, replenishment, masters, production, vendors, orders, shopify, flow, dashboard, people-pay, inventory, reports, shared
@@ -23930,6 +23930,21 @@ function flowPpcOpen(orderNo, onlySku) {
         const nu = patch['pt_ppc/' + x.s.key];
         if (locked) ['fabric', 'route', 'printer', 'print'].forEach(k => { nu[k] = x.s.plan[k]; });
         const side = flowReplanSide(x.s.plan, nu, x.s); Object.assign(patch, side.patch); said.push(...side.said); });
+      /* ACCESSORIES RESERVED BY THEMSELVES (Ravi, 10 Oct: "zip available ho to us order ke liye auto reserve ho"). Each
+       * line's accessories are held in the same save when the shelf has them free — after every earlier reservation
+       * and the lines above in this save. One that is short stays in Demand · Accessories, saying what is short. */
+      { const free = flowAccFree(), took = {};
+        rows.forEach((x, i) => { const p = patch['pt_ppc/' + x.s.key]; if (!p || p.route === 'outsource') return;
+          const items = {}; (p.acc || []).forEach(a => { if (a.code && +a.qty > 0) items[accCode(a.code)] = (items[accCode(a.code)] || 0) + (+a.qty); });
+          if (!Object.keys(items).length) return;
+          const had = (FLOW.res || {})[x.s.key], dropped = had && patch['pt_accReserve/' + x.s.key] === null;
+          if (had && !dropped) return;   // already reserved and the accessories did not change
+          if (had) Object.entries(flowHeld(x.s.key, x.s.issued, +x.r.qty || 0)).forEach(([c, n]) => { if (free[c]) free[c].free += n; });   // its own old hold
+          const short = Object.entries(items).filter(([c, n]) => ((free[c] || {}).free || 0) - (took[c] || 0) < n);
+          if (short.length) { said.push(`${x.s.sku || obUC(x.r.sku)}: ${short.map(([c, n]) => `${c} short ${n - Math.max(0, ((free[c] || {}).free || 0) - (took[c] || 0))}`).join(', ')} — waits in Demand · Accessories`); return; }
+          Object.entries(items).forEach(([c, n]) => { took[c] = (took[c] || 0) + n; });
+          patch['pt_accReserve/' + x.s.key] = { orderNo: x.r.orderNo, sku: obUC(x.r.sku), items, at: now, by: ME.email || '', auto: true };
+          said.push(`${obUC(x.r.sku)}: accessories reserved`); }); }
       /* The print orders, in the same write. */
       const pos = flowPoSync(rows.map((x, i) => ({ r: x.r, p: patch['pt_ppc/' + x.s.key] })), dToday());
       Object.assign(patch, pos.patch); said.push(...pos.said);
@@ -23938,7 +23953,8 @@ function flowPpcOpen(orderNo, onlySku) {
       if (vop.ask && !confirm(vop.ask)) { vop.undo(); return 'Not saved — no Vendor Order was placed or changed.'; }
       try { await ptPatch(patch); } catch (e) { vop.undo(); return 'Could not save: ' + (e.message || e); }
       FLOW.po = pos.local; flowVoAfter(vop.placed); said.push(...vop.said);
-      if (Object.keys(patch).some(k => k.startsWith('pt_accReserve/'))) { FLOW.res = Object.assign({}, FLOW.res); Object.keys(patch).filter(k => k.startsWith('pt_accReserve/')).forEach(k => { delete FLOW.res[k.slice(14)]; }); }
+      if (Object.keys(patch).some(k => k.startsWith('pt_accReserve/'))) { FLOW.res = Object.assign({}, FLOW.res);
+        Object.keys(patch).filter(k => k.startsWith('pt_accReserve/')).forEach(k => { if (patch[k]) FLOW.res[k.slice(14)] = patch[k]; else delete FLOW.res[k.slice(14)]; }); }
       Object.keys(patch).filter(k => k.startsWith('pt_flowDemand/')).forEach(k => { const key = k.split('/')[1]; FLOW.dem = Object.assign({}, FLOW.dem, { [key]: Object.assign({}, (FLOW.dem || {})[key], { fabricReady: null }) }); });
       if (said.length) setTimeout(() => { $('flMsg').className = 'muted'; $('flMsg').textContent = 'Plan saved · ' + said.join(' · ') + ' · the fabric team and the accessories team have their demand.'; }, 0);
       /* A new object, so every cache keyed on it knows it changed. */
@@ -25026,6 +25042,89 @@ async function flowReopen(no) {
   FLOW.ch = Object.assign({}, FLOW.ch, { [no]: nc });
   return '';
 }
+/* ============================== FILE: src/app/flow/flow-entries.js ============================== */
+/* ================= PRODUCTION FLOW · THE FACTORY'S OWN ENTRIES, OPENED FOR THE LINE =================
+ * Ravi, 10 Oct: the lines move to Cutting by themselves, "then wahan se cutting ki entry ho jise hum abhi individual kar
+ * rahe h (abhi ki cutting flow par impact na ho)", the Job Work issue / receive from Raw cutting in store showing the store
+ * balance, then QC — then ready for India stock. So each bucket opens THE SAME entry form the factory uses today, filled
+ * in for the line (SKU, order, pieces), and the entry is made and saved there exactly as now: same register, same checks,
+ * same caps. Nothing here writes a register. A test order has no real entry — it keeps its Simulate buttons.
+ * The forms are filled the way the Fabric tab's stage buttons fill theirs (fabEntryOpen): open the tab and the box, set
+ * the SKU as typed, draw, set the order, draw again, then the pieces. */
+
+/** Can this account open that screen at all? */
+const flowMay = tab => !!(ME.admin || (ME.tabs || []).includes(tab));
+/** Open a "+ New …" box on its screen if it is shut (its toggle loads what the form needs). */
+async function flowOpenBox(boxId, toggleId) {
+  const box = $(boxId), t = $(toggleId);
+  if (box && box.classList.contains('hide') && t && typeof t.onclick === 'function') await t.onclick();
+}
+const flowSay = (t, bad) => { if ($('flMsg')) { $('flMsg').className = bad ? 'err' : 'muted'; $('flMsg').textContent = t; } };
+
+/** Cutting Data → a new cutting entry for the line: SKU, order, the pieces still to cut, the plan's fabric. */
+async function flowCutEntry(r, s) {
+  if (!flowMay('pcut')) return flowSay('Cutting Data is not open to this account — ask for the Cutting right.', true);
+  try {
+    showTab('pcut'); await flowOpenBox('cwBox', 'cwToggle'); if (typeof ensureCutForm === 'function') await ensureCutForm();
+    $('cwSku').value = obUC(r.sku); cutSkuTyped(); renderCutForm();
+    $('cwOrd').value = r.orderNo; renderCutForm();
+    $('cwPcs').value = Math.max(0, (+r.qty || 0) - (s.cut || 0));
+    const fab = s.plan && s.plan.fabric && s.plan.fabric.name, sel = $('cwFabric');
+    if (fab && sel && [...sel.options].some(o => o.value === fab)) sel.value = fab;
+    if (typeof renderCutFab === 'function') renderCutFab();
+    if ($('cwBox').scrollIntoView) $('cwBox').scrollIntoView({ block: 'start', behavior: 'smooth' });
+  } catch (e) { flowSay('Cutting Data is open — the form could not be filled in by itself (' + (e.message || e) + '); type the line in.', true); }
+}
+/** Job Work Register → a new issue to a karigar for the line: SKU, order, the pieces to issue. The karigar is picked there. */
+async function flowIssueEntry(r, s) {
+  if (!flowMay('pbase')) return flowSay('The Job Work Register is not open to this account.', true);
+  try {
+    showTab('pbase'); await flowOpenBox('bwBox', 'bwToggle'); if (typeof ensureBdForm === 'function') await ensureBdForm();
+    $('bwSku').value = obUC(r.sku); bdSkuTyped(); renderBdForm();
+    $('bwOrd').value = r.orderNo; renderBdForm();
+    $('bwPcs').value = Math.max(0, flowIssuable(r, s));
+    if (typeof bdMatFill === 'function') bdMatFill();
+    if ($('bwBox').scrollIntoView) $('bwBox').scrollIntoView({ block: 'start', behavior: 'smooth' });
+  } catch (e) { flowSay('The Job Work Register is open — the issue could not be filled in by itself (' + (e.message || e) + '); type it in.', true); }
+}
+/** What can go to a karigar now: what is cut (or back from the printer as pieces) less what is issued. */
+const flowIssuable = (r, s) => Math.max(0, (r.cutReq ? s.cut : (s.printed ? s.back : +r.qty || 0)) - (s.issued || 0));
+/** The Job Work rows of this line still out with a karigar. */
+const flowOpenIssues = r => (PT.base || []).filter(b => b && obUC(b.sku) === obUC(r.sku) && obUC(b.orderNo) === obUC(r.orderNo) && !b.frozen
+  && (+b.issuePieces || 0) - (+b.receivedPieces || 0) - (+b.rejectionPieces || 0) > 0);
+/** Job Work → receive pieces back: the karigar's issue for this line (picked when there is more than one). */
+function flowRecvEntry(r) {
+  if (!flowMay('pbase')) return flowSay('The Job Work Register is not open to this account.', true);
+  const open = flowOpenIssues(r);
+  if (!open.length) return flowSay(`Nothing of ${obUC(r.sku)} on ${r.orderNo} is out with a karigar.`, true);
+  const go = id => { jwRecvOpen(id); flowAfterDialog(); };
+  if (open.length === 1) return go(open[0].id);
+  ptOpenDialog({
+    title: `Receive — ${r.orderNo} · ${obUC(r.sku)}`, subtitle: 'Which karigar\'s issue came back?',
+    html: open.map(b => `<button class="ghost" data-flrb="${esc(b.id)}" style="display:block;width:100%;text-align:left;margin:4px 0;padding:8px 10px">${esc(b.empName || '?')} · issued ${nf(b.issuePieces)} on ${esc(String(b.issueDate || '').slice(0, 10))} · ${nf((+b.issuePieces || 0) - (+b.receivedPieces || 0) - (+b.rejectionPieces || 0))} still out</button>`).join(''),
+    saveLabel: 'Close', onSave: () => '',
+  });
+  document.querySelectorAll('[data-flrb]').forEach(b => { b.onclick = () => { ptDlgClose(); go(b.dataset.flrb); }; });
+}
+/** Quality Control → a check for the line: SKU, order, the pieces received and not yet checked. */
+async function flowQcEntry(r, s) {
+  if (!flowMay('qc')) return flowSay('Quality Control is not open to this account.', true);
+  try {
+    showTab('qc'); await flowOpenBox('qcwBox', 'qcwToggle');
+    $('qcwSku').value = obUC(r.sku); qcSkuTyped();
+    $('qcwOrd').value = r.orderNo; $('qcwChecked').value = Math.max(0, (s.received || 0) - (s.qc || 0));
+    renderQcCheckForm();
+    if ($('qcwBox').scrollIntoView) $('qcwBox').scrollIntoView({ block: 'start', behavior: 'smooth' });
+  } catch (e) { flowSay('Quality Control is open — the check could not be filled in by itself (' + (e.message || e) + '); type it in.', true); }
+}
+/** When a dialog opened from here closes, the lines are worked out again — a receipt changes a row in place. */
+function flowAfterDialog() {
+  const d = $('ptDlg'); if (!d || typeof MutationObserver === 'undefined') return;
+  const mo = new MutationObserver(() => { if (d.classList.contains('hide')) { mo.disconnect(); try { ORD_IX.rows = null; } catch (e) { /* the cache is rebuilt anyway */ } renderFlow(); } });
+  mo.observe(d, { attributes: true, attributeFilter: ['class'] });
+}
+/** The store's balance of a SKU's cut pieces (Store Stock Balance, P|SKU); null while the store is not read. */
+const flowStorePcs = sku => flowPrintedStock({ kind: 'sku', code: obUC(sku) }, '');
 /* ============================== FILE: src/app/flow/flow-view.js ============================== */
 /* ================= PRODUCTION FLOW · THE SCREEN =================
  * The bucket buttons across the top (each with how many lines are in it; only the buckets this account may open), and
@@ -25128,6 +25227,13 @@ function flowCutFrom(x) {
   return `${w.kind === 'sku' ? `<b>${esc(w.code)}</b> printed pieces` : flowPrintTxt(w)}<div class="muted" style="font-size:10.5px">${w.kind === 'sku' ? nf(x.r.qty) + ' pcs' : nf(m) + ' m'} for ${nf(x.r.qty)} pcs`
     + (x.s.fromStock ? ' · <b style="color:#166534">all from printed stock in the store</b>' : fp > 0 ? ` · ${nf(fp)} ${p.fabric.printedUnit === 'pcs' ? 'pcs' : 'm'} from printed stock, the rest from the printer` : ' · from the printer') + '</div>';
 }
+/** The factory's own entry, opened for the line (flow-entries.js) — what the bucket is waiting for. */
+function flowEntryButtons(view, x) {
+  const b = (what, label, main) => `<button ${main ? '' : 'class="ghost" '}data-flent="${what}|${esc(x.s.key)}" style="width:auto;padding:${main ? '3px 10px;font-size:12px' : '2px 9px;font-size:11.5px'};margin:1px">${label}</button>`;
+  if (view === 'cut') return b('cut', 'Cutting entry →', true);
+  if (view === 'raw') return b('issue', 'Issue to karigar →', true);
+  return (x.s.issued > x.s.received ? b('recv', 'Receive →', true) : '') + (x.s.received > x.s.qc ? b('qc', 'QC check →', x.s.issued <= x.s.received) : '');
+}
 /** The challan a line's fabric went on, if it went on one. */
 const flowChTag = s => { const fr = s.demand && s.demand.fabricReady; return fr && fr.challan
   ? `<div class="muted" style="font-size:10.5px">RFD on <a href="#" data-flchp="${esc(fr.challan)}">${esc(fr.challan)}</a> → ${esc(fr.vendor || '')}</div>` : ''; };
@@ -25146,6 +25252,7 @@ function flowTable(view, rows) {
   const go = (view, x) => x && x.s.challan && view === 'fabric' && !x.s.challan.closed
       ? `<button data-flchr="${esc(x.s.challan.no)}" style="width:auto;padding:3px 10px;font-size:12px">Receive on ${esc(x.s.challan.no)}</button>`
     : x && x.r.__t && FLOW_SIM[view] ? `<button data-flsim="${esc(x.r.orderNo)}|${esc(x.r.sku)}|${view}" title="Stands in for: ${esc(FLOW_SIM[view][1])}" style="width:auto;padding:3px 10px;font-size:12px;background:#7c3aed;border-color:#7c3aed">${esc(FLOW_SIM[view][0])}</button>`
+    : x && !x.r.__t && ['cut', 'raw', 'wip'].includes(view) ? flowEntryButtons(view, x)
     : FLOW_GO[view] ? `<button class="ghost" data-flgo="${FLOW_GO[view][0]}" style="width:auto;padding:2px 9px;font-size:11.5px">${FLOW_GO[view][1]} →</button>` : '';
   const prog = (d, of) => `<span class="jw-st ${d >= of ? 'done' : d > 0 ? 'prog' : 'pend'}">${nf(d)} / ${nf(of)}</span>`;
   const due = (iso, label) => iso ? `<div class="muted" style="font-size:10.5px${flowLate(iso) ? ';color:#b91c1c;font-weight:600' : ''}">${label} ${esc(iso.slice(5))}${flowLate(iso) ? ' · late' : ''}</div>` : '';
@@ -25213,8 +25320,8 @@ function flowTable(view, rows) {
     body = rows.map(x => `<tr>${base(x)}<td style="text-align:left;font-size:12px">${flowCutFrom(x)}</td><td class="num">${prog(x.s.cut, +x.r.qty)}${due(x.s.plan && x.s.plan.dates && x.s.plan.dates.cut, 'plan')}</td><td>${go(view, x)}</td></tr>`).join('');
   } else if (view === 'raw') {
     head = ['PO', 'SKU', 'Qty', 'In store, to issue', 'Issued', ''];
-    body = rows.map(x => { const avail = x.r.cutReq ? x.s.cut : (x.s.printed ? x.s.back : +x.r.qty);
-      return `<tr>${base(x)}<td class="num"><b>${nf(Math.max(0, avail - x.s.issued))}</b></td><td class="num">${prog(x.s.issued, +x.r.qty)}</td><td>${go(view, x)}</td></tr>`; }).join('');
+    body = rows.map(x => { const sp = flowStorePcs(x.r.sku);
+      return `<tr>${base(x)}<td class="num"><b>${nf(flowIssuable(x.r, x.s))}</b>${sp == null ? '' : `<div class="muted" style="font-size:10.5px">store balance ${nf(sp)} pcs of this SKU</div>`}</td><td class="num">${prog(x.s.issued, +x.r.qty)}</td><td>${go(view, x)}</td></tr>`; }).join('');
   } else if (view === 'wip') {
     head = ['PO', 'SKU', 'Qty', 'Issued', 'Received', 'QC passed', ''];
     body = rows.map(x => `<tr>${base(x)}<td class="num">${nf(x.s.issued)}</td><td class="num">${nf(x.s.received)}</td>
@@ -25256,6 +25363,10 @@ $('flTable').addEventListener('click', async e => {
     $('flMsg').className = er ? 'err' : 'muted'; if (er) $('flMsg').textContent = er; else renderFlow(); return; }
   const cs = e.target.closest('[data-flchc]'); if (cs) { flowCloseShortOpen(cs.dataset.flchc); return; }
   const ch = e.target.closest('[data-flch]'); if (ch) { flowChallanOpen(ch.dataset.flch, ch.dataset.pc); return; }
+  const en = e.target.closest('[data-flent]');
+  if (en) { const [what, key] = en.dataset.flent.split('|'), x = flowRows().find(y => y.s.key === key); if (!x) return;
+    if (what === 'cut') flowCutEntry(x.r, x.s); else if (what === 'issue') flowIssueEntry(x.r, x.s); else if (what === 'recv') flowRecvEntry(x.r); else if (what === 'qc') flowQcEntry(x.r, x.s);
+    return; }
   const pop = e.target.closest('[data-flpop]'); if (pop) { const er = flowPoPrint(pop.dataset.flpop); if (er) { $('flMsg').className = 'err'; $('flMsg').textContent = er; } return; }
   const cg = e.target.closest('[data-flchg]'); if (cg) { const grp = FLOW_GROUPS[+cg.dataset.flchg]; if (grp) flowChallanForKeys(grp.keys); return; }
   const cp = e.target.closest('[data-flchp]'); if (cp) { e.preventDefault(); const er = flowChallanPrint(cp.dataset.flchp); if (er) { $('flMsg').className = 'err'; $('flMsg').textContent = er; } return; }
