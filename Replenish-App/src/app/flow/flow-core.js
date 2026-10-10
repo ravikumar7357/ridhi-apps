@@ -36,6 +36,7 @@ const flowFrom = () => { try { return localStorage.getItem('flowFrom') || FLOW_F
 const FLOW_BUCKETS = [
   ['new', 'New orders', 'flnew', 'Orders that came in over the last 7 days, and the bucket each line is in now.'],
   ['ppc', 'PPC', 'flppc', 'Plan not raised yet: fabric, accessories, printing and dates.'],
+  ['pord', 'Print orders', 'flpo', 'What each printer was told to print — sent the moment PPC raised the plan; the fabric follows on challans.'],
   /* Demand is two departments (Ravi, 10 Oct): the RFD store answers for the fabric, the accessories store for the
    * accessories. A line stays in Demand until both have answered, and shows in each list only for its own part. */
   ['drfd', 'Demand · RFD fabric', 'fldem', 'Planned; the fabric is not ready yet. RFD in stock against what each line needs — red where it falls short.'],
@@ -66,15 +67,15 @@ const flowBucketsAllowed = () => (ME.admin ? FLOW_BUCKETS : FLOW_BUCKETS.filter(
 const flowKey = (orderNo, sku) => (obUC(orderNo) + '__' + obUC(sku)).replace(/[.#$\[\]\/]/g, '_');
 
 /* ---- the data ---- */
-let FLOW = { ppc: null, dem: null, res: null, ch: null, test: null, at: 0, busy: null, err: '' };
+let FLOW = { ppc: null, dem: null, res: null, ch: null, test: null, po: null, at: 0, busy: null, err: '' };
 async function flowLoad(force) {
   if (FLOW.busy) return FLOW.busy;
   if (FLOW.ppc && !force && Date.now() - FLOW.at < 60e3) return;
   FLOW.busy = (async () => {
     try {
-      const [ppc, dem, res, ch, test] = await Promise.all([ptGet('pt_ppc'), ptGet('pt_flowDemand'), ptGet('pt_accReserve'), ptGet('pt_flowChallans'), ptGet('pt_flowTest')]);
-      FLOW.ppc = ppc || {}; FLOW.dem = dem || {}; FLOW.res = res || {}; FLOW.ch = ch || {}; FLOW.test = test || {}; FLOW.err = '';
-    } catch (e) { FLOW.err = e.message || String(e); FLOW.ppc = FLOW.ppc || {}; FLOW.dem = FLOW.dem || {}; FLOW.res = FLOW.res || {}; FLOW.ch = FLOW.ch || {}; FLOW.test = FLOW.test || {}; }
+      const [ppc, dem, res, ch, test, po] = await Promise.all([ptGet('pt_ppc'), ptGet('pt_flowDemand'), ptGet('pt_accReserve'), ptGet('pt_flowChallans'), ptGet('pt_flowTest'), ptGet('pt_flowPrintOrders')]);
+      FLOW.ppc = ppc || {}; FLOW.dem = dem || {}; FLOW.res = res || {}; FLOW.ch = ch || {}; FLOW.test = test || {}; FLOW.po = po || {}; FLOW.err = '';
+    } catch (e) { FLOW.err = e.message || String(e); FLOW.ppc = FLOW.ppc || {}; FLOW.dem = FLOW.dem || {}; FLOW.res = FLOW.res || {}; FLOW.ch = FLOW.ch || {}; FLOW.test = FLOW.test || {}; FLOW.po = FLOW.po || {}; }
     FLOW.at = Date.now(); FLOW.busy = null;
   })();
   return FLOW.busy;
@@ -102,11 +103,28 @@ function flowState(r) {
   };
   /* ON A CHALLAN: given to that printer by the challan itself; back in the share received of what was sent, and all of
    * it once the challan is closed (flow-receive.js). */
-  const cx = flowChIndex()[k];
-  if (cx) { s.challan = cx; s.given = qty;
-    s.back = cx.closed ? qty : Math.max(s.back, cap(Math.floor(qty * Math.min(1, cx.sent ? cx.recv / cx.sent : 0) + 1e-9))); }
+  /* PRINT ORDER + CHALLANS (flow-printorder.js, flow-challan.js). The print order gives the work to the printer the moment
+   * PPC plans; the fabric team then sends the cloth in as many challans as it takes. A printed line needs fabric until
+   * what was sent covers what is still to print (printed stock already in the store taken off first); its printed
+   * fabric is back in the share of the whole it makes up — printed stock taken + printed cloth received. */
+  const cx = flowChIndex()[k], po = flowPoIndex()[k];
+  if (cx) s.challan = cx;
+  if (po) s.po = po;
+  s.fabNeed = 0; s.fabSent = 0;
+  if (p && route === 'inhouse') {
+    const pcsWise = flowPrintWhat(r, p).kind === 'sku', tp = flowToPrint(r, p), fp = +(p.fabric && p.fabric.fromPrinted) || 0;
+    s.fabUnit = pcsWise ? 'pcs' : 'm'; s.fabNeed = pcsWise ? tp.pcs : tp.metres; s.fabSent = cx ? flowR2(cx.sent) : 0;
+    const total = pcsWise ? qty : flowR2(+(p.fabric && p.fabric.metres) || 0), have = fp + (cx ? cx.recv : 0);
+    if (po || cx) {
+      s.given = qty;
+      const allBack = s.fabNeed <= 0 || (cx && cx.closed && s.fabSent >= s.fabNeed - 0.01);
+      s.back = allBack ? qty : Math.max(s.back, cap(Math.floor(qty * Math.min(1, total > 0 ? have / total : 0) + 1e-9)));
+    }
+  }
   const accNeed = !!p && route !== 'outsource' && (p.acc || []).some(a => a.code && +a.qty > 0);
-  s.needFab = isNew && !!p && route !== 'outsource' && !(d && d.fabricReady);
+  const handReady = !!(d && d.fabricReady && !d.fabricReady.challan);
+  s.needFab = isNew && !!p && route !== 'outsource' && !handReady
+    && (route === 'inhouse' ? (s.fabNeed - s.fabSent > 0.01 || (!cx && flowPrintExtras(r, p).length > 0)) : !(d && d.fabricReady));   // the ruffle cloth goes too, on the first challan
   s.needAcc = isNew && accNeed && !res;
   s.bucket =
       (r.handedAt || r.shopDoneAt) ? 'done'
@@ -127,7 +145,7 @@ function flowState(r) {
 let FLOW_C = { src: null, test: null, ppc: null, dem: null, res: null, rows: null };
 function flowRows() {
   const real = ordLines(), test = flowTestLines();
-  if (FLOW_C.rows && FLOW_C.src === real && FLOW_C.test === test && FLOW_C.ppc === FLOW.ppc && FLOW_C.dem === FLOW.dem && FLOW_C.res === FLOW.res && FLOW_C.ch === FLOW.ch) return FLOW_C.rows;
+  if (FLOW_C.rows && FLOW_C.src === real && FLOW_C.test === test && FLOW_C.ppc === FLOW.ppc && FLOW_C.dem === FLOW.dem && FLOW_C.res === FLOW.res && FLOW_C.ch === FLOW.ch && FLOW_C.po === FLOW.po) return FLOW_C.rows;
   const lines = test.length ? real.concat(test) : real;
   const since = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10);
   const rows = [];
@@ -137,6 +155,6 @@ function flowRows() {
     if (s.bucket === 'done' && !recent) return;
     rows.push({ r, s, recent });
   });
-  FLOW_C = { src: real, test, ppc: FLOW.ppc, dem: FLOW.dem, res: FLOW.res, ch: FLOW.ch, rows };
+  FLOW_C = { src: real, test, ppc: FLOW.ppc, dem: FLOW.dem, res: FLOW.res, ch: FLOW.ch, po: FLOW.po, rows };
   return rows;
 }

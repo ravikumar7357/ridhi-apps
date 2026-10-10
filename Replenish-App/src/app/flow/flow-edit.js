@@ -31,7 +31,10 @@ function flowReplanSide(old, nu, s) {
 async function flowUnplan(s) {
   if (flowFabLocked(s)) return `Its fabric is on challan ${s.challan.no} — cancel that challan first (Demand history).`;
   const patch = { ['pt_ppc/' + s.key]: null, ['pt_flowDemand/' + s.key]: null, ['pt_accReserve/' + s.key]: null };
+  const row = flowRows().find(x => x.s.key === s.key), pos = row ? flowPoSync([{ r: row.r, p: null }], dToday()) : { patch: {}, local: FLOW.po };
+  Object.assign(patch, pos.patch);
   try { await ptPatch(patch); } catch (e) { return 'Could not save: ' + (e.message || e); }
+  FLOW.po = pos.local;
   const drop = (o) => { const n = Object.assign({}, o); delete n[s.key]; return n; };
   FLOW.ppc = drop(FLOW.ppc); FLOW.dem = drop(FLOW.dem); FLOW.res = drop(FLOW.res);
   return '';

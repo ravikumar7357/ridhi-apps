@@ -25,6 +25,7 @@ function flowCounts(rows) {
   rows.forEach(({ s, recent }) => { FLOW_BUCKETS.forEach(([k]) => { if (k !== 'new' && flowInView(k, s)) n[k]++; }); if (recent) n.new++; });
   const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly();
   n.dhist = Object.values(FLOW.ch || {}).filter(c => !c.closed && !c.cancelled && (!only || flowIsTest(c.orderNo))).length;   // open challans
+  n.pord = Object.values(FLOW.po || {}).filter(o => o && (!only || o.test) && !['done', 'cancelled'].includes(flowPoState(o))).length;   // print orders not finished
   return n;
 }
 const flowDays = iso => { const d = ptIsoDate(iso); if (!d) return null; return Math.max(0, Math.round((Date.now() - new Date(d + 'T00:00:00').getTime()) / 864e5)); };
@@ -63,7 +64,7 @@ function renderFlow() {
   const b = FLOW_BUCKETS.find(x => x[0] === FLOW_VIEW);
   $('flMsg').className = FLOW.err ? 'err' : 'muted';
   $('flMsg').textContent = (FLOW.err ? 'Could not read the plans: ' + FLOW.err + ' · ' : '')
-    + `${b[1]}: ${FLOW_VIEW === 'dhist' ? nf(n.dhist) + ' open challan(s)' : nf(rows.length) + ' line(s)'} — ${b[3]}` + (rows.length > 800 ? ' · showing the oldest 800' : '')
+    + `${b[1]}: ${FLOW_VIEW === 'dhist' ? nf(n.dhist) + ' open challan(s)' : FLOW_VIEW === 'pord' ? nf(n.pord) + ' print order(s) not finished' : nf(rows.length) + ' line(s)'} — ${b[3]}` + (rows.length > 800 ? ' · showing the oldest 800' : '')
     + ` · PPC and Demand apply to orders from ${flowFrom()} · TEST VIEW, not on the live app`
     + ((FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly()) ? ' · SHOWING TEST ORDERS ONLY' : '');
 }
@@ -112,6 +113,7 @@ function flowTable(view, rows) {
   const prog = (d, of) => `<span class="jw-st ${d >= of ? 'done' : d > 0 ? 'prog' : 'pend'}">${nf(d)} / ${nf(of)}</span>`;
   const due = (iso, label) => iso ? `<div class="muted" style="font-size:10.5px${flowLate(iso) ? ';color:#b91c1c;font-weight:600' : ''}">${label} ${esc(iso.slice(5))}${flowLate(iso) ? ' · late' : ''}</div>` : '';
   let head = '', body = '';
+  if (view === 'pord') return flowPoTable(String($('flQ').value || '').trim().toLowerCase(), FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly());
   if (view === 'dhist') return flowHistTable(String($('flQ').value || '').trim().toLowerCase(), FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly());
   if (view === 'new') {
     head = ['PO', 'SKU', 'Qty', 'Now in'];
@@ -138,7 +140,7 @@ function flowTable(view, rows) {
       const first = pk && !seen.has(gk); seen.add(gk);
       return `<tr${c.short ? ' style="background:#fef2f2"' : ''}>${base(x)}
         <td style="text-align:left;font-size:12px">${x.s.route === 'stitch' ? 'Stitching only' : `Print: <b>${esc((p.printer && p.printer.name) || '—')}</b><div style="font-size:11px;color:#4338ca">${flowPrintTxt(flowPrintWhat(x.r, p))}</div>${flowExtrasTxt(flowPrintExtras(x.r, p))}`}</td>
-        <td style="text-align:left;font-size:12px">${p.fabric ? `<b>${esc(p.fabric.name)}</b> · ${nf(c.need)} m` : '—'}${flowMasterDiffTxt(flowMasterDiff(x.r, p))}</td>
+        <td style="text-align:left;font-size:12px">${p.fabric ? `<b>${esc(p.fabric.name)}</b> · ${nf(c.need)} m to send` : '—'}${x.s.fabSent > 0 ? `<div class="muted" style="font-size:10.5px">${nf(x.s.fabSent)} of ${nf(x.s.fabNeed)} ${x.s.fabUnit} sent</div>` : ''}${x.s.po ? `<div class="muted" style="font-size:10.5px">print order ${esc(x.s.po)}</div>` : ''}${flowMasterDiffTxt(flowMasterDiff(x.r, p))}</td>
         <td style="text-align:left;font-size:12px">${c.short ? `<span class="jw-st" style="background:#fee2e2;color:#b91c1c;font-weight:700">⚑ SHORT ${nf(c.short)} m</span> <span class="muted">${nf(c.avail)} m left</span>`
           : `<span class="jw-st done">covered</span> <span class="muted">${nf(c.avail)} m left</span>`}</td>
         <td style="white-space:nowrap">${first ? `<button data-flch="${esc(x.r.orderNo)}" data-pc="${esc(pk)}" style="width:auto;padding:3px 10px;font-size:12px">${pk === '?' ? 'Challan (printer not chosen)' : 'Challan → ' + esc((p.printer && p.printer.name) || pk)}</button> ` : ''}<button class="ghost" data-flfab="${esc(x.s.key)}" style="width:auto;padding:2px 9px;font-size:11.5px">Mark fabric ready</button></td></tr>`; }).join('');
@@ -217,6 +219,7 @@ $('flTable').addEventListener('click', async e => {
     $('flMsg').className = er ? 'err' : 'muted'; if (er) $('flMsg').textContent = er; else renderFlow(); return; }
   const cs = e.target.closest('[data-flchc]'); if (cs) { flowCloseShortOpen(cs.dataset.flchc); return; }
   const ch = e.target.closest('[data-flch]'); if (ch) { flowChallanOpen(ch.dataset.flch, ch.dataset.pc); return; }
+  const pop = e.target.closest('[data-flpop]'); if (pop) { const er = flowPoPrint(pop.dataset.flpop); if (er) { $('flMsg').className = 'err'; $('flMsg').textContent = er; } return; }
   const cg = e.target.closest('[data-flchg]'); if (cg) { const grp = FLOW_GROUPS[+cg.dataset.flchg]; if (grp) flowChallanForKeys(grp.keys); return; }
   const cp = e.target.closest('[data-flchp]'); if (cp) { e.preventDefault(); const er = flowChallanPrint(cp.dataset.flchp); if (er) { $('flMsg').className = 'err'; $('flMsg').textContent = er; } return; }
   const pp = e.target.closest('[data-flppc]'); if (pp) { flowPpcOpen(pp.dataset.flppc, pp.dataset.sku || ''); return; }

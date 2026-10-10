@@ -97,9 +97,10 @@ async function flowTestDelete(orderNo) {
   Object.keys(o.lines || {}).forEach(sku => { const k = flowKey(orderNo, sku);
     patch['pt_ppc/' + k] = null; patch['pt_flowDemand/' + k] = null; patch['pt_accReserve/' + k] = null; });
   Object.values(FLOW.ch || {}).filter(c => (c.orders || [c.orderNo]).includes(orderNo)).forEach(c => { patch['pt_flowChallans/' + c.no] = null; });
+  Object.values(FLOW.po || {}).filter(o => o && o.orderNo === orderNo).forEach(o => { patch['pt_flowPrintOrders/' + o.no] = null; });
   try { await ptPatch(patch); } catch (e) { return 'Could not delete: ' + (e.message || e); }
   const drop = (obj, pre) => { const n = Object.assign({}, obj); Object.keys(patch).filter(p => p.startsWith(pre)).forEach(p => { delete n[p.slice(pre.length)]; }); return n; };
   FLOW.test = drop(FLOW.test, 'pt_flowTest/'); FLOW.ppc = drop(FLOW.ppc, 'pt_ppc/'); FLOW.dem = drop(FLOW.dem, 'pt_flowDemand/');
-  FLOW.res = drop(FLOW.res, 'pt_accReserve/'); FLOW.ch = drop(FLOW.ch, 'pt_flowChallans/');
+  FLOW.res = drop(FLOW.res, 'pt_accReserve/'); FLOW.ch = drop(FLOW.ch, 'pt_flowChallans/'); FLOW.po = drop(FLOW.po, 'pt_flowPrintOrders/');
   return '';
 }

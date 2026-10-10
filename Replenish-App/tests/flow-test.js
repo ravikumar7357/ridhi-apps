@@ -2,7 +2,7 @@
  *   node tests/flow-test.js      (FLOW_DIR=<dir> to test another copy — teeth/teeth-flow.js does) */
 const fs = require('fs'), path = require('path');
 const DIR = process.env.FLOW_DIR || path.join(__dirname, '..', 'src', 'app', 'flow');
-const SRC = ['flow-core.js', 'flow-ppc.js', 'flow-demand.js', 'flow-challan.js', 'flow-test-order.js', 'flow-receive.js', 'flow-edit.js', 'flow-view.js'].map(f => fs.readFileSync(path.join(DIR, f), 'utf8')).join('\n');
+const SRC = ['flow-core.js', 'flow-ppc.js', 'flow-demand.js', 'flow-challan.js', 'flow-test-order.js', 'flow-receive.js', 'flow-printorder.js', 'flow-edit.js', 'flow-view.js'].map(f => fs.readFileSync(path.join(DIR, f), 'utf8')).join('\n');
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => { if (cond) { pass++; console.log('  PASS ' + name); } else { fail++; console.log('  FAIL ' + name + (extra ? ' — ' + extra : '')); } };
 
@@ -45,7 +45,7 @@ function load(opts) {
     FAB: { rows: opts.fabRows || [] },
     STORE: { rows: opts.store ? [] : null }, stMoves: () => opts.store || [], stBalances: mv => mv, fabKey: v => String(v || '').trim().toUpperCase(), fabAll: () => opts.fabRows || [], ptList: x => x || [], fabAutoLoad: async () => {}, fabStockOf: (name, st) => (st === 'RFD' ? (opts.rfd || {})[String(name).toUpperCase()] || 0 : 0),
   };
-  const api = new Function(...Object.keys(ctx), SRC + '\n;return { FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowUnplan, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v} };')(...Object.values(ctx));
+  const api = new Function(...Object.keys(ctx), SRC + '\n;return { FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowUnplan, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v} };')(...Object.values(ctx));
   api.setFLOW(Object.assign(api.FLOW(), { ppc: opts.ppc || {}, dem: opts.dem || {}, res: opts.res || {} }));
   return Object.assign(api, { els, writes, W, ctx });
 }
@@ -60,8 +60,8 @@ const K = 'AMZ-1__S1';
     load({ host: 'price-research-48ff3.web.app', ls: { flow: '1' } }).FLOW_ON === true && load({ ls: { flow: '0' } }).FLOW_ON === false);
 
   console.log('== each bucket its own right ==');
-  ok('twelve buckets, twelve rights', load().FLOW_TABS.length === 12 && new Set(load().FLOW_TABS).size === 12);
-  ok('an admin sees every bucket', load({ me: { admin: true } }).flowBucketsAllowed().length === 12);
+  ok('thirteen buckets, thirteen rights', load().FLOW_TABS.length === 13 && new Set(load().FLOW_TABS).size === 13);
+  ok('an admin sees every bucket', load({ me: { admin: true } }).flowBucketsAllowed().length === 13);
   ok('PPC staff see PPC only', load({ me: { tabs: ['flppc', 'ord'] } }).flowBucketsAllowed().map(b => b[0]).join() === 'ppc');
   ok('nobody with no right sees any', load({ me: { tabs: ['ord'] } }).flowBucketsAllowed().length === 0);
   ok('a key is safe for the database (no . # $ [ ] /)', load().flowKey('amz/1.2', 's#1') === 'AMZ_1_2__S_1');
@@ -188,7 +188,7 @@ const K = 'AMZ-1__S1';
   {
     const chs = { 'RFD-202610-001': { no: 'RFD-202610-001', date: '2026-10-10', orderNo: 'AMZ-1', vendor: { code: 'P1', name: 'Sanganer Prints' },
       lines: [{ key: K, sku: 'S1', metres: 100 }, { key: 'AMZ-1__S2', sku: 'S2', metres: 50 }] } };
-    const base = { me: { tabs: ['flchl', 'flfab', 'flcut'] }, lines: [L(), L({ sku: 'S2', qty: 40 })], ppc: { [K]: plan(), 'AMZ-1__S2': plan({ sku: 'S2', qty: 40 }) },
+    const base = { me: { tabs: ['flchl', 'flfab', 'flcut'] }, lines: [L(), L({ sku: 'S2', qty: 40 })], ppc: { [K]: plan({ fabric: { name: 'Cotton', perPc: 1, metres: 100 } }), 'AMZ-1__S2': plan({ sku: 'S2', qty: 40, fabric: { name: 'Cotton', perPc: 1.25, metres: 50 } }) },
       dem: { [K]: { fabricReady: { at: 'x', challan: 'RFD-202610-001' } }, 'AMZ-1__S2': { fabricReady: { at: 'x', challan: 'RFD-202610-001' } } } };
     A = load(base); A.setFLOW(Object.assign(A.FLOW(), { ch: JSON.parse(JSON.stringify(chs)) }));
     ok('a line on a challan is given in full and waits for its printed fabric', A.flowState(L()).given === 100 && A.flowState(L()).bucket === 'fabric');
@@ -229,8 +229,9 @@ const K = 'AMZ-1__S1';
       lines: [{ key: K2, sku: 'CPC-02', item: 'Tablecloth · Agate Green · 60x90', pcs: 45, metres: 105.75, print: { kind: 'sku', code: 'CPC-02', mode: 'Cut pieces' } },
         { key: 'TEST-AMZ-10102026-02__RPC1', sku: 'RPC1', pcs: 10, metres: 5.3, print: { kind: 'fabric', code: 'RBP-CANVAS-327' } }] } };
     const fr = { at: 'x', challan: 'TRFD-202610-001' };
-    A = load({ me: { admin: true }, lines: [L({ orderNo: 'TEST-AMZ-10102026-02', sku: 'CPC-02', qty: 45 }), L({ orderNo: 'TEST-AMZ-10102026-02', sku: 'RPC1', qty: 10 })],
-      ppc: { [K2]: plan({ sku: 'CPC-02', qty: 45 }), 'TEST-AMZ-10102026-02__RPC1': plan({ sku: 'RPC1', qty: 10 }) },
+    A = load({ me: { admin: true }, mdb: { 'CPC-02': { color: 'Agate Green', fabric: 'Sheeting 62', consumption: 2.35, cuttingRequired: false }, RPC1: { color: 'Light Steel Blue', fabric: 'Canvas', consumption: 0.53, cuttingRequired: true } },
+      lines: [L({ orderNo: 'TEST-AMZ-10102026-02', sku: 'CPC-02', qty: 45 }), L({ orderNo: 'TEST-AMZ-10102026-02', sku: 'RPC1', qty: 10 })],
+      ppc: { [K2]: plan({ sku: 'CPC-02', qty: 45, fabric: { name: 'Sheeting 62', perPc: 2.35, metres: 105.75 } }), 'TEST-AMZ-10102026-02__RPC1': plan({ sku: 'RPC1', qty: 10, fabric: { name: 'Canvas', perPc: 0.53, metres: 5.3 } }) },
       dem: { [K2]: { fabricReady: fr }, 'TEST-AMZ-10102026-02__RPC1': { fabricReady: fr } } });
     A.setFLOW(Object.assign(A.FLOW(), { ch: JSON.parse(JSON.stringify(ch)) }));
     A.flowReceiveOpen('TRFD-202610-001');
@@ -391,7 +392,7 @@ const K = 'AMZ-1__S1';
     A.ctx.document.querySelectorAll = () => [];
     let er = await A.ctx.__dlg.onSave();
     ok('…and will not save a printed sheeting line without one', /Pick the print direction for RPCRU327-1818/.test(er) && !A.writes.length, er);
-    A.ctx.document.querySelectorAll = () => [{ addEventListener() {}, dataset: { fp: '0', k: 'print.dir' }, type: 'select-one', value: 'Vertical' }];
+    A.ctx.document.querySelectorAll = () => [{ addEventListener() {}, dataset: { fp: '0', k: 'print.dir' }, type: 'select-one', value: 'Vertical' }, { addEventListener() {}, dataset: { fp: '0', k: 'printer.code' }, type: 'select-one', value: 'P1' }];
     er = await A.ctx.__dlg.onSave();
     ok('…saved with Vertical; the printer gets RBPSF327-V-82', !er && A.writes[0]['pt_ppc/AMZ-1__RPCRU327-1818'].print.dir === 'Vertical' && A.flowPrintWhat(L({ sku: 'RPCRU327-1818' }), A.writes[0]['pt_ppc/AMZ-1__RPCRU327-1818']).code === 'RBPSF327-V-82', er);
     A = load({ mdb, fsku, lines: [L({ sku: 'RPC327-1818' })] });
@@ -401,7 +402,7 @@ const K = 'AMZ-1__S1';
       const B = load({ mdb: md3, fsku: { 'Sheeting 62|Agate Green|Vertical|': 'CPCSF002-V-62', 'Sheeting 62|Agate Green|Horizontal|': 'CPCSF002-H-62' }, lines: [L({ sku: 'CPC-02', qty: 45 })] });
       B.flowPpcOpen('AMZ-1');
       ok('cutting not required (CPC-02 tablecloth): no direction box, and it saves without one', !/data-k="print.dir"/.test(B.ctx.__dlg.html));
-      B.ctx.document.querySelectorAll = () => [];
+      B.ctx.document.querySelectorAll = () => [{ addEventListener() {}, dataset: { fp: '0', k: 'printer.code' }, type: 'select-one', value: 'P1' }];
       const e2 = await B.ctx.__dlg.onSave();
       ok('…saved, printed on the SKU itself', !e2 && B.flowPrintWhat(L({ sku: 'CPC-02' }), B.writes[0]['pt_ppc/AMZ-1__CPC-02']).kind === 'sku', e2); }
     { const pg = { innerHTML: '' }; A.ctx.document.querySelector = q => (q === '[data-pget="0"]' ? pg : null); A.flowPpcOpen('AMZ-1');
@@ -471,7 +472,7 @@ const K = 'AMZ-1__S1';
     ok('…RFD Sheeting 92 needs 0 m and says "not needed", never "short 0"', /<td class="num">0 m<\/td>/.test(mt) && /not needed/.test(mt) && !/short 0/.test(mt));
     ok('the printer box says: 6 m from printed stock — print 0 m', /6 m from printed stock — <b>print 0 m<\/b>/.test(spans['[data-pget="0"]'].innerHTML));
     ok('the chip says something is short (the ruffle Cambric)', /something is short/.test(spans['[data-chips="0"]'].innerHTML));
-    A.ctx.document.querySelectorAll = () => []; A.els.flpUndo = { checked: false };
+    A.ctx.document.querySelectorAll = () => [{ addEventListener() {}, dataset: { fp: '0', k: 'printer.code' }, type: 'select-one', value: 'P1' }]; A.els.flpUndo = { checked: false };
     let er = await A.ctx.__dlg.onSave(); let pw = (A.writes[0] || {})['pt_ppc/AMZ-1__RTC327-6060'] || {};
     ok('saved on the plan: 6 m body from printed stock, 0 m ruffle from it', !er && pw.fabric.fromPrinted === 6 && pw.extra[0].fromPrinted === 0, er || JSON.stringify(pw.fabric));
     ok('…so the body is not printed again, RFD is not asked for it — the ruffle 23.5 m is', A.flowToPrint(L({ sku: 'RTC327-6060', qty: 10 }), pw).metres === 0
@@ -523,6 +524,75 @@ const K = 'AMZ-1__S1';
     ok('saved as one challan for both orders; both lines move on', !er && ch.orders.join() === 'AMZ-1,AMZ-2' && ch.orderNo === 'AMZ-1, AMZ-2' && A.flowState(L({ orderNo: 'AMZ-1', sku: 'RPC327-A' })).bucket === 'fabric' && A.flowState(L({ orderNo: 'AMZ-2', sku: 'RPC327-B' })).bucket === 'fabric', er);
   }
 
+  console.log('== PPC raises the plan → the printer gets its print order at once; the fabric follows in challans ==');
+  {
+    const mdb = { 'RPC327-1818': { color: 'Light Steel Blue', fabric: 'Canvas', consumption: 0.53, cuttingRequired: true },
+      'CPC-02': { color: 'Agate Green', fabric: 'Sheeting 62', consumption: 2.35, cuttingRequired: false } };
+    const fsCat = [{ sku: 'RBP-CANVAS-327', fabric: 'Canvas', colour: 'Light Steel Blue', dir: 'Vertical', code: '327' }];
+    const PRF = v => ({ addEventListener() {}, dataset: { fp: '0', k: 'printer.code' }, type: 'select-one', value: v });
+    const PRF1 = v => ({ addEventListener() {}, dataset: { fp: '1', k: 'printer.code' }, type: 'select-one', value: v });
+    A = load({ me: { admin: true }, mdb, fsCat, rfd: { CANVAS: 999, 'SHEETING 62': 999 }, fabRows: [{ fabricType: 'Canvas' }],
+      lines: [L({ sku: 'RPC327-1818', qty: 10 }), L({ sku: 'CPC-02', qty: 45 })] });
+    A.flowPpcOpen('AMZ-1');
+    A.ctx.document.querySelectorAll = () => [PRF('P1'), PRF1('P1')];
+    let er = await A.ctx.__dlg.onSave();
+    const po = Object.values(A.FLOW().po)[0];
+    ok('one save → one print order PRN-202610-001 to Sanganer, both lines on it', !er && po && po.no === 'PRN-202610-001' && po.printer.name === 'Sanganer Prints'
+      && po.items['AMZ-1__RPC327-1818'] && po.items['AMZ-1__CPC-02'], er || JSON.stringify(A.FLOW().po));
+    ok('…what to print: RBP-CANVAS-327 5.3 m, and CPC-02 45 pcs on the SKU itself', po.items['AMZ-1__RPC327-1818'].print.code === 'RBP-CANVAS-327' && po.items['AMZ-1__RPC327-1818'].metres === 5.3
+      && po.items['AMZ-1__CPC-02'].unit === 'pcs' && po.items['AMZ-1__CPC-02'].pcs === 45);
+    ok('the line is given to the printer by the print order; the fabric team still owes the cloth (Demand · RFD)', A.flowState(L({ sku: 'RPC327-1818', qty: 10 })).given === 10 && A.flowInView('drfd', A.flowState(L({ sku: 'RPC327-1818', qty: 10 }))));
+    A.setView('pord'); A.renderFlow();
+    ok('the Print orders bucket lists it, counted as open', /PRN-202610-001/.test(A.els.flTable.innerHTML) && /sent to printer/.test(A.els.flTable.innerHTML) && /<span class="fl-n">1<\/span><span>Print orders/.test(A.els.flBuckets.innerHTML));
+    const page = A.flowPoHtml(po);
+    ok('the print order page: PRINT ORDER, the printer, what to print', /PRINT ORDER/.test(page) && /Sanganer Prints/.test(page) && /RBP-CANVAS-327/.test(page) && /5\.3 m/.test(page) && /45 pcs/.test(page));
+    /* The fabric team sends the cloth in two goes. */
+    A.flowChallanOpen('AMZ-1', 'P1');
+    ok('the challan offers what is owed: 5.3 m for the Canvas line', /data-chm="0" type="number" step="0.01" value="5.3"/.test(A.ctx.__dlg.html));
+    let q = { '[data-chk="0"]': { checked: true }, '[data-chm="0"]': { value: '3' }, '[data-chk="1"]': { checked: false }, '[data-chm="1"]': { value: '' } };
+    A.ctx.document.querySelector = x => q[x] || null; A.els.flcVen = { value: 'P1' }; A.els.flcDate = { value: '2026-10-10' }; A.els.flcNote = { value: '' }; A.ctx.__win = [];
+    er = await A.ctx.__dlg.onSave();
+    let st = A.flowState(L({ sku: 'RPC327-1818', qty: 10 }));
+    ok('3 of 5.3 m sent → still in Demand · RFD, owing 2.3 m', !er && A.flowInView('drfd', st) && st.fabSent === 3 && A.flowFabOwed(L({ sku: 'RPC327-1818', qty: 10 }), st).metres === 2.3, er);
+    A.setView('drfd'); A.setAngle('drfd', 'line'); A.renderFlow();
+    ok('Demand RFD says "3 of 5.3 m sent" and the print order', /3 of 5\.3 m sent/.test(A.els.flTable.innerHTML) && /print order PRN-202610-001/.test(A.els.flTable.innerHTML));
+    A.flowChallanOpen('AMZ-1', 'P1');
+    ok('the next challan offers the 2.3 m left', /data-chm="0" type="number" step="0.01" value="2.3"/.test(A.ctx.__dlg.html) && /3 m sent already/.test(A.ctx.__dlg.html));
+    q = { '[data-chk="0"]': { checked: true }, '[data-chm="0"]': { value: '2.3' }, '[data-chk="1"]': { checked: false }, '[data-chm="1"]': { value: '' } };
+    er = await A.ctx.__dlg.onSave();
+    st = A.flowState(L({ sku: 'RPC327-1818', qty: 10 }));
+    ok('all 5.3 m sent over two challans → the line leaves Demand for Printed fabric in', !er && !A.flowInView('drfd', st) && st.bucket === 'fabric' && Object.keys(A.FLOW().ch).length === 2, er);
+    A.setView('pord'); A.renderFlow();
+    ok('the print order shows the cloth sent: 5.3 m, nothing back yet', /cloth sent 5\.3 m, back 0 m/.test(A.els.flTable.innerHTML) && /fabric going/.test(A.els.flTable.innerHTML));
+    /* Printer changed in a re-plan: the line moves to the other printer's order. */
+    A = load({ me: { admin: true }, mdb, fsCat, lines: [L({ sku: 'RPC327-1818', qty: 10 })] });
+    const r = L({ sku: 'RPC327-1818', qty: 10 }), p1 = Object.assign(A.flowSuggest(r), { printer: { code: 'P1', name: 'Sanganer Prints' } });
+    let sy = A.flowPoSync([{ r, p: p1 }], '2026-10-10'); A.setFLOW(Object.assign(A.FLOW(), { po: sy.local }));
+    sy = A.flowPoSync([{ r, p: Object.assign({}, p1, { printer: { code: 'P2', name: 'Choudhary Hand Block' } }) }], '2026-10-10');
+    ok('printer changed → off PRN-001 (now empty, cancelled), onto a new order for Choudhary', sy.local['PRN-202610-001'].cancelled && sy.local['PRN-202610-002'].printer.code === 'P2' && sy.local['PRN-202610-002'].items['AMZ-1__RPC327-1818']);
+    A.setFLOW(Object.assign(A.FLOW(), { po: sy.local }));
+    sy = A.flowPoSync([{ r, p: null }], '2026-10-10');
+    ok('plan undone → taken off its print order', sy.local['PRN-202610-002'].cancelled && sy.patch['pt_flowPrintOrders/PRN-202610-002/items/AMZ-1__RPC327-1818'] === null);
+    sy = A.flowPoSync([{ r, p: Object.assign({}, p1, { route: 'stitch' }) }], '2026-10-10');
+    ok('a stitching-only line has no print order', !Object.keys(sy.patch).some(k => /items\/AMZ-1__RPC327-1818$/.test(k) && sy.patch[k]));
+  }
+
+  console.log('== a body all from printed stock still sends its ruffle cloth ==');
+  {
+    const mdb = { 'RTC327-6060': { color: 'Light Steel Blue', fabric: 'Sheeting 92', consumption: 0.6, cuttingRequired: true } };
+    const fsCat = [{ sku: 'RBPSF327-V-92', fabric: 'Sheeting 92', colour: 'Light Steel Blue', dir: 'Vertical', code: '327' }, { sku: 'LSB', fabric: 'Cambric', colour: 'Light Steel Blue', dir: 'Vertical', code: '327', manual: true }];
+    const pl = plan({ sku: 'RTC327-6060', qty: 10, route: 'inhouse', printer: { code: 'P1', name: 'Sanganer Prints' }, fabric: { name: 'Sheeting 92', perPc: 0.6, metres: 6, fromPrinted: 6, printedUnit: 'm' }, print: { need: true, dir: 'Vertical' }, extra: [{ what: 'Ruffle — Cambric', qty: 23.5, unit: 'm', fromPrinted: 0 }] });
+    A = load({ me: { admin: true }, mdb, fsCat, lines: [L({ sku: 'RTC327-6060', qty: 10 })], ppc: { 'AMZ-1__RTC327-6060': pl } });
+    ok('the body is covered (0 m owed) but the ruffle cloth is not → still in Demand · RFD', A.flowInView('drfd', A.flowState(L({ sku: 'RTC327-6060', qty: 10 }))));
+    A.flowChallanOpen('AMZ-1', 'P1');
+    A.ctx.document.querySelector = x => ({ '[data-chk="0"]': { checked: true }, '[data-chm="0"]': { value: '0' } })[x] || null;
+    A.els.flcVen = { value: 'P1' }; A.els.flcDate = { value: '2026-10-10' }; A.els.flcNote = { value: '' }; A.ctx.__win = [];
+    const er = await A.ctx.__dlg.onSave();
+    const ch = A.FLOW().ch['RFD-202610-001'];
+    ok('a challan for the ruffle cloth alone: LSB 23.5 m', !er && ch && ch.lines[0].extras[0].code === 'LSB' && ch.lines[0].extras[0].metres === 23.5, er);
+    ok('…and the line moves on', !A.flowInView('drfd', A.flowState(L({ sku: 'RTC327-6060', qty: 10 }))));
+  }
+
   console.log('== the catalogue by its own colour code; a SKU added by hand wins ==');
   {
     const mdb = { 'RPC327-1818': { color: 'Light Steel Blue', fabric: 'Canvas', consumption: 0.53, cuttingRequired: true } };
@@ -547,8 +617,8 @@ const K = 'AMZ-1__S1';
   {
     const mdb = { 'RPC327-1818': { color: 'Light Steel Blue', fabric: 'Canvas', consumption: 0.53, cuttingRequired: true },
       'RTC327-6060': { color: 'Light Steel Blue', fabric: 'Sheeting 62', consumption: 1.58, cuttingRequired: false } };
-    const old = { 'AMZ-1__RPC327-1818': plan({ sku: 'RPC327-1818', qty: 10, fabric: { name: 'Sheeting 82', perPc: 0.13, metres: 1.3 } }),
-      'AMZ-1__RTC327-6060': plan({ sku: 'RTC327-6060', qty: 10, fabric: { name: 'Sheeting 62', perPc: 1.58, metres: 15.8 } }) };
+    const old = { 'AMZ-1__RPC327-1818': plan({ sku: 'RPC327-1818', qty: 10, printer: { code: 'P1', name: 'Sanganer Prints' }, fabric: { name: 'Sheeting 82', perPc: 0.13, metres: 1.3 } }),
+      'AMZ-1__RTC327-6060': plan({ sku: 'RTC327-6060', qty: 10, printer: { code: 'P1', name: 'Sanganer Prints' }, fabric: { name: 'Sheeting 62', perPc: 1.58, metres: 15.8 } }) };
     A = load({ me: { admin: true }, mdb, rfd: { 'SHEETING 82': 99, 'SHEETING 62': 99 }, lines: [L({ sku: 'RPC327-1818', qty: 10 }), L({ sku: 'RTC327-6060', qty: 10 })], ppc: old });
     A.setView('drfd'); A.renderFlow();
     const h = A.els.flTable.innerHTML;
@@ -562,7 +632,7 @@ const K = 'AMZ-1__S1';
     let w = A.writes[0]['pt_ppc/AMZ-1__RPC327-1818'];
     ok('…saving makes the plan Canvas · 5.3 m (master data) — the flag is gone', !er && w.fabric.name === 'Canvas' && w.fabric.metres === 5.3 && w.fabric.how === 'master data' && !w.fabric.was && !A.flowMasterDiff(L({ sku: 'RPC327-1818', qty: 10 }), w), er);
     /* A fabric PPC typed on purpose stays PPC's choice. */
-    const typed = { 'AMZ-1__RPC327-1818': plan({ sku: 'RPC327-1818', qty: 10, fabric: { name: 'Sheeting 82', perPc: 0.13, metres: 1.3, how: 'typed by PPC' } }) };
+    const typed = { 'AMZ-1__RPC327-1818': plan({ sku: 'RPC327-1818', qty: 10, printer: { code: 'P1', name: 'Sanganer Prints' }, fabric: { name: 'Sheeting 82', perPc: 0.13, metres: 1.3, how: 'typed by PPC' } }) };
     A = load({ me: { admin: true }, mdb, lines: [L({ sku: 'RPC327-1818', qty: 10 })], ppc: typed });
     A.flowPpcOpen('AMZ-1', 'RPC327-1818');
     ok('a fabric PPC typed on purpose is kept, flagged, with "Use the master data"', /value="Sheeting 82"/.test(A.ctx.__dlg.html) && /master data says Canvas/.test(A.ctx.__dlg.html) && /data-usem="0" data-n="Canvas" data-p="0.53"/.test(A.ctx.__dlg.html));
@@ -585,7 +655,7 @@ const K = 'AMZ-1__S1';
   console.log('== putting a mistake right ==');
   {
     const mdb = { S1: { cons: 1, fab: 'Cotton', chainLength: '18' } };
-    const pl = plan({ acc: [{ code: '18', qty: 100 }], fabric: { name: 'Cotton', perPc: 1, metres: 100 } });
+    const pl = plan({ printer: { code: 'P1', name: 'Sanganer Prints' }, acc: [{ code: '18', qty: 100 }], fabric: { name: 'Cotton', perPc: 1, metres: 100 } });
     A = load({ me: { admin: true }, mdb, lines: [L()], ppc: { [K]: pl }, dem: { [K]: { fabricReady: { at: 'x', metres: 100 } } }, res: { [K]: { items: { 18: 100 } } } });
     A.setView('cut'); A.renderFlow(); A.setView('vendor'); A.renderFlow();
     ok('every planned line has an "edit plan" link', /data-flplan="AMZ-1\|S1"/.test(A.els.flTable.innerHTML));
@@ -609,7 +679,7 @@ const K = 'AMZ-1__S1';
     const ch = { 'RFD-202610-001': { no: 'RFD-202610-001', date: '2026-10-10', orderNo: 'AMZ-1', vendor: { code: 'P1', name: 'Sanganer Prints' },
       lines: [{ key: K, sku: 'S1', fabric: 'Cotton', metres: 100 }, { key: 'AMZ-1__S2', sku: 'S2', fabric: 'Cotton', metres: 50 }] } };
     const fr = { at: 'x', challan: 'RFD-202610-001', vendor: 'Sanganer Prints' };
-    const mk = () => { const B = load({ me: { admin: true }, mdb, lines: [L(), L({ sku: 'S2' })], ppc: { [K]: pl, 'AMZ-1__S2': plan({ sku: 'S2' }) }, dem: { [K]: { fabricReady: fr }, 'AMZ-1__S2': { fabricReady: fr } }, res: { [K]: { items: { 18: 100 } } } });
+    const mk = () => { const B = load({ me: { admin: true }, mdb, lines: [L(), L({ sku: 'S2' })], ppc: { [K]: pl, 'AMZ-1__S2': plan({ sku: 'S2', printer: { code: 'P1', name: 'Sanganer Prints' } }) }, dem: { [K]: { fabricReady: fr }, 'AMZ-1__S2': { fabricReady: fr } }, res: { [K]: { items: { 18: 100 } } } });
       B.setFLOW(Object.assign(B.FLOW(), { ch: JSON.parse(JSON.stringify(ch)) })); return B; };
     A = mk();
     A.flowPpcOpen('AMZ-1', 'S1');
@@ -623,11 +693,11 @@ const K = 'AMZ-1__S1';
     ok('a challan with nothing received offers Edit and Cancel', /data-flche=/.test(A.els.flTable.innerHTML) && /data-flchx=/.test(A.els.flTable.innerHTML));
     const QS = { '[data-cek="0"]': { checked: true }, '[data-cem="0"]': { value: '90' }, '[data-cek="1"]': { checked: false }, '[data-cem="1"]': { value: '50' } };
     A.ctx.document.querySelector = sel => QS[sel] || null;
-    A.flowChallanEditOpen('RFD-202610-001'); A.els.flceVen = { value: 'V9' }; A.els.flceDate = { value: '2026-10-11' }; A.els.flceNote = { value: '' };
+    A.flowChallanEditOpen('RFD-202610-001'); A.els.flceVen = { value: 'P1' }; A.els.flceDate = { value: '2026-10-11' }; A.els.flceNote = { value: '' };
     er = await A.ctx.__dlg.onSave(); w = A.writes[1] || {};
     const ec = A.FLOW().ch['RFD-202610-001'];
-    ok('edit: new vendor and metres, the unticked line taken off and back in Demand · RFD', !er && ec.vendor.name === 'Kalu Mill' && ec.lines.length === 1 && ec.lines[0].metres === 90 && w['pt_flowDemand/AMZ-1__S2/fabricReady'] === null && A.flowInView('drfd', A.flowState(L({ sku: 'S2' }))), er);
-    ok('…the line still on it now shows the new vendor', w['pt_flowDemand/' + K + '/fabricReady'].vendor === 'Kalu Mill');
+    ok('edit: new metres, the unticked line taken off and back in Demand · RFD', !er && ec.vendor.name === 'Sanganer Prints' && ec.lines.length === 1 && ec.lines[0].metres === 90 && w['pt_flowDemand/AMZ-1__S2/fabricReady'] === null && A.flowInView('drfd', A.flowState(L({ sku: 'S2' }))), er);
+    ok('…the line still on it is re-stamped with the challan', w['pt_flowDemand/' + K + '/fabricReady'].vendor === 'Sanganer Prints' && w['pt_flowDemand/' + K + '/fabricReady'].metres === 90);
     A = mk();
     A.flowChallanCancelOpen('RFD-202610-001'); A.els.flccWhy = { value: '' };
     ok('cancel needs a reason', /Say why/.test(await A.ctx.__dlg.onSave()) && !A.writes.length);
@@ -688,8 +758,9 @@ const K = 'AMZ-1__S1';
     ok('it starts in PPC, with the master’s description', T().s.bucket === 'ppc' && T().r.articleSubtype === 'Napkin');
     A.setView('ppc'); A.renderFlow();
     ok('the row says TEST and offers delete, not the order journey', /TEST/.test(A.els.flTable.innerHTML) && /data-fltdel/.test(A.els.flTable.innerHTML) && !/data-ordj="TEST/.test(A.els.flTable.innerHTML));
-    A.ctx.document.querySelectorAll = () => [];
+    A.ctx.document.querySelectorAll = () => [{ addEventListener() {}, dataset: { fp: '0', k: 'printer.code' }, type: 'select-one', value: 'P1' }];
     A.flowPpcOpen(TN); await A.ctx.__dlg.onSave();
+    ok('raising the plan sends the printer its print order at once (TPRN-…)', Object.values(A.FLOW().po || {}).some(o => o.no.startsWith('TPRN-') && o.printer.code === 'P1' && o.items[TK]));
     ok('PPC plans it for real → Demand · RFD', A.flowInView('drfd', T().s));
     A.ctx.document.querySelector = sel => ({ '[data-chk="0"]': { checked: true }, '[data-chm="0"]': { value: '5' } })[sel] || null;
     A.flowChallanOpen(TN); A.els.flcVen = { value: 'P1' }; A.els.flcDate = { value: '2026-10-13' }; A.els.flcNote = { value: '' };
@@ -709,7 +780,7 @@ const K = 'AMZ-1__S1';
       const er = await A.flowSimulate(TN, 'S1', from);
       ok(`${from}: a Simulate button, and pressing it moves the line to ${to}`, btn && !er && A.flowState(T() ? T().r : A.flowTestLines()[0]).bucket === to, er || (T() ? T().s.bucket : 'gone'));
     }
-    ok('the simulation is written on the test order only', A.writes.every(w => Object.keys(w).every(k => /^pt_(flowTest|ppc|flowDemand|flowChallans|accReserve)\//.test(k))));
+    ok('the simulation is written on the test order only', A.writes.every(w => Object.keys(w).every(k => /^pt_(flowTest|ppc|flowDemand|flowChallans|accReserve|flowPrintOrders)\//.test(k))));
     const n0 = A.writes.length;
     ok('delete test removes the order, its plan, its demand and its challan', !(await A.flowTestDelete(TN)) && (() => { const w = A.writes[n0];
       return w['pt_flowTest/' + TN] === null && w['pt_ppc/' + TK] === null && w['pt_flowDemand/' + TK] === null && w['pt_flowChallans/TRFD-202610-001'] === null; })());
@@ -746,17 +817,22 @@ const K = 'AMZ-1__S1';
   A = load({ lines: [L(), L({ sku: 'S2', qty: 40 })], mdb: { S1: { cons: 0.5, fab: 'Cotton' } } });
   A.flowPpcOpen('AMZ-1');
   ok('one dialog for every line of the PO still in PPC', /2 line/.test(A.ctx.__dlg.subtitle));
+  A.ctx.document.querySelectorAll = () => [0, 1].map(i => ({ addEventListener() {}, dataset: { fp: String(i), k: 'printer.code' }, type: 'select-one', value: 'P1' }));
   let err = await A.ctx.__dlg.onSave();
-  ok('a line with no fabric is refused, named — nothing written', /S2/.test(err) && A.writes.length === 0, err);
+  ok('a line with no fabric is refused, named — nothing written', /Which fabric\? Type it for S2/.test(err) && A.writes.length === 0, err);
   A = load({ lines: [L()], mdb: { S1: { cons: 0.5, fab: 'Cotton' } } });
   A.flowPpcOpen('AMZ-1');
   err = await A.ctx.__dlg.onSave();
+  ok('a printed line with no printer is refused: the print order goes now', /Which printer\? The print order goes to them now/.test(err) && !A.writes.length, err);
+  A.ctx.document.querySelectorAll = () => [{ addEventListener() {}, dataset: { fp: '0', k: 'printer.code' }, type: 'select-one', value: 'P1' }];
+  err = await A.ctx.__dlg.onSave();
   const w = A.writes[0] || {};
+  ok('…with a printer: the plan AND the print order in the same write', !err && Object.keys(w).some(k => /^pt_flowPrintOrders\/PRN-\d{6}-001$/.test(k)), Object.keys(w).join());
   ok('saved under pt_ppc/<line> with who and when', !err && w['pt_ppc/' + K] && w['pt_ppc/' + K].by === 'ppc@x' && w['pt_ppc/' + K].at, err);
   ok('the gaps list is not saved', w['pt_ppc/' + K] && !('gaps' in w['pt_ppc/' + K]));
   ok('the line moves to Demand by itself', A.flowState(L()).bucket === 'demand');
   A = load({ lines: [L()], mdb: { S1: { cons: 0.5, fab: 'Cotton' } }, writeFails: true });
-  A.flowPpcOpen('AMZ-1');
+  A.flowPpcOpen('AMZ-1'); A.ctx.document.querySelectorAll = () => [{ addEventListener() {}, dataset: { fp: '0', k: 'printer.code' }, type: 'select-one', value: 'P1' }];
   ok('a refused write is said, and the line stays', /Could not save/.test(await A.ctx.__dlg.onSave()) && A.flowState(L()).bucket === 'ppc');
 
   A = load({ lines: [L()], mdb: { S1: { cons: 0.5, fab: '', chainLength: '18' } } });

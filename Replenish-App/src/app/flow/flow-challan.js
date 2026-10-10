@@ -77,6 +77,12 @@ function flowFabHits(fab, colour, dir, cc) {
 const flowFabSku = (fab, colour, dir, cc) => [...new Set(flowFabHits(fab, colour, dir, cc).map(c => c.sku))].join(' ');
 /* WHAT STILL HAS TO BE PRINTED (Ravi, 10 Oct: the ruffle showed short with 1,500 m of printed LSB in the store). PPC
  * takes printed stock first; only the rest goes to RFD and the printer. A line printed on the SKU counts pieces. */
+/** What the fabric team still owes a line: in its unit (m, or pcs for a SKU printed on itself) and in metres. */
+function flowFabOwed(r, s) {
+  const p = s.plan || {}, tp = flowToPrint(r, p), pcsWise = s.fabUnit === 'pcs';
+  const need = pcsWise ? tp.pcs : tp.metres, left = Math.max(0, need - (s.fabSent || 0));
+  return { unit: pcsWise ? 'pcs' : 'm', need, sent: s.fabSent || 0, left: flowR2(left), metres: pcsWise ? (need ? flowR2(tp.metres * left / need) : 0) : flowR2(left) };
+}
 function flowToPrint(r, p) {
   const qty = +r.qty || 0, m = flowR2(+(p && p.fabric && p.fabric.metres) || 0), fp = +(p && p.fabric && p.fabric.fromPrinted) || 0;
   if (p && p.fabric && p.fabric.printedUnit === 'pcs') { const pcs = Math.max(0, qty - fp); return { pcs, metres: qty ? flowR2(m * pcs / qty) : 0 }; }
@@ -135,12 +141,12 @@ function flowChallanDialog(rows, pcode) {
   /* The printer PPC planned for these lines comes ready picked. */
   const planned = (pcode && pcode !== '?' ? pcode : rows.map(x => flowPlanPrinter(x.s)).find(Boolean)) || '';
   const lineHtml = rows.map((x, i) => { const p = x.s.plan || {}, c = cv.line[x.s.key] || {};
-    return `<tr><td><input type="checkbox" data-chk="${i}"${flowToPrint(x.r, p).metres > 0 || flowPrintExtras(x.r, p).length ? ' checked' : ''} style="width:auto"></td>
+    return `<tr><td><input type="checkbox" data-chk="${i}"${flowFabOwed(x.r, x.s).metres > 0 || (!x.s.fabSent && flowPrintExtras(x.r, p).length) ? ' checked' : ''} style="width:auto"></td>
       <td style="text-align:left"><b style="font-family:ui-monospace,monospace">${esc(obUC(x.r.sku))}</b>${orders.length > 1 ? ` <span class="muted" style="font-size:10.5px">· ${esc(x.r.orderNo)}</span>` : ''}<div class="muted" style="font-size:10.5px">${esc(flowChItem(x.r))}</div>
         <div style="font-size:11px;color:#4338ca">Print: ${flowPrintTxt(flowPrintWhat(x.r, p))}</div>${flowExtrasTxt(flowPrintExtras(x.r, p))}</td>
       <td style="text-align:left">${esc((p.fabric && p.fabric.name) || '—')}</td>
-      <td class="num">${nf(x.r.qty)}</td>
-      <td class="num"><input data-chm="${i}" type="number" step="0.01" value="${esc(flowToPrint(x.r, p).metres || '')}" style="width:90px;padding:3px 6px;font-size:12px">${+(p.fabric && p.fabric.fromPrinted) ? `<div class="muted" style="font-size:10px">${nf(p.fabric.fromPrinted)} ${p.fabric.printedUnit === 'pcs' ? 'pcs' : 'm'} from printed stock</div>` : ''}</td>
+      <td class="num">${x.s.fabUnit === 'pcs' ? nf(flowFabOwed(x.r, x.s).left) : nf(x.r.qty)}</td>
+      <td class="num"><input data-chm="${i}" type="number" step="0.01" value="${esc(flowFabOwed(x.r, x.s).metres || '')}" style="width:90px;padding:3px 6px;font-size:12px">${x.s.fabSent > 0 ? `<div class="muted" style="font-size:10px">${nf(x.s.fabSent)} ${x.s.fabUnit} sent already</div>` : ''}${+(p.fabric && p.fabric.fromPrinted) ? `<div class="muted" style="font-size:10px">${nf(p.fabric.fromPrinted)} ${p.fabric.printedUnit === 'pcs' ? 'pcs' : 'm'} from printed stock</div>` : ''}</td>
       <td style="font-size:11px">${c.short ? `<b style="color:#b91c1c">⚑ short ${nf(c.short)} m</b>` : '<span style="color:#166534">covered</span>'}</td></tr>`; }).join('');
   ptOpenDialog({
     title: `RFD challan — ${orderNo}${pcode && pcode !== '?' ? ' → ' + ((rows[0].s.plan.printer || {}).name || pcode) : ''}`,
@@ -160,11 +166,13 @@ function flowChallanDialog(rows, pcode) {
       if (!picked.length) return 'Tick at least one line.';
       const other = picked.filter(y => flowPlanPrinter(y.x.s) && flowPlanPrinter(y.x.s) !== String(v.code));
       if (other.length) return `${other.map(y => `${obUC(y.x.r.sku)} is planned for ${y.x.s.plan.printer.name}`).join(' · ')} — give it to that printer, or change the printer with "edit plan" first.`;
-      const noM = picked.filter(y => !(y.m > 0)).map(y => obUC(y.x.r.sku));
+      /* A line whose body is all from printed stock may go for its ruffle cloth alone. */
+      const noM = picked.filter(y => !(y.m > 0) && !(!y.x.s.fabSent && flowPrintExtras(y.x.r, y.x.s.plan).length)).map(y => obUC(y.x.r.sku));
       if (noM.length) return `How many metres? Type them for ${noM.join(', ')}.`;
       const no = flowChallanNo(date, isTest), now = new Date().toISOString(), vname = v.desc || v.name || v.code;
       const ch = { no, date, orderNo, orders, vendor: { code: v.code, name: vname }, note: $('flcNote').value.trim(), at: now, by: ME.email || '',
-        lines: picked.map(({ x, m }) => ({ key: x.s.key, sku: obUC(x.r.sku), item: flowChItem(x.r), print: flowPrintWhat(x.r, x.s.plan), extras: flowPrintExtras(x.r, x.s.plan), fabric: (x.s.plan && x.s.plan.fabric && x.s.plan.fabric.name) || '', pcs: flowToPrint(x.r, x.s.plan).pcs, metres: flowR2(m) })) };
+        lines: picked.map(({ x, m }) => ({ key: x.s.key, sku: obUC(x.r.sku), item: flowChItem(x.r), print: flowPrintWhat(x.r, x.s.plan), extras: flowPrintExtras(x.r, x.s.plan), fabric: (x.s.plan && x.s.plan.fabric && x.s.plan.fabric.name) || '', pcs: x.s.fabUnit === 'pcs' ? flowFabOwed(x.r, x.s).left : flowToPrint(x.r, x.s.plan).pcs, metres: flowR2(m),
+          /* the ruffle cloth goes once, on the first challan for the line */ ...(x.s.fabSent > 0 ? { extras: [] } : {}) })) };
       const patch = { ['pt_flowChallans/' + no]: ch };
       /* A line PPC left without a printer: the one it went to is now its printer. */
       const setP = picked.filter(y => !flowPlanPrinter(y.x.s)).map(y => y.x.s.key);

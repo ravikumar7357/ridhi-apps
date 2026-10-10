@@ -234,7 +234,8 @@ function flowPpcOpen(orderNo, onlySku) {
     saveLabel: editing ? 'Save the plan' : rows.length > 1 ? `Raise the plan for ${rows.length} lines` : 'Raise the plan',
     onSave: async () => {
       if (editing && $('flpUndo') && $('flpUndo').checked) { const er = await flowUnplan(rows[0].s); if (er) return er; renderFlow(); return ''; }
-      const set = (o, path, v) => { const ks = path.split('.'); let t = o; ks.slice(0, -1).forEach(k => { t = t[/^\d+$/.test(k) ? +k : k]; }); t[ks[ks.length - 1]] = v; };
+      /* A box's value into the plan; a part the plan has lost (a refused save can leave printer null) is made again. */
+      const set = (o, path, v) => { const ks = path.split('.'); let t = o; ks.slice(0, -1).forEach(k => { const kk = /^\d+$/.test(k) ? +k : k; if (t[kk] == null) t[kk] = {}; t = t[kk]; }); t[ks[ks.length - 1]] = v; };
       document.querySelectorAll('[data-fp]').forEach(inp => {
         const p = plans[+inp.dataset.fp], k = inp.dataset.k;
         set(p, k, inp.type === 'checkbox' ? inp.checked : inp.type === 'number' ? (+inp.value || 0) : inp.value.trim());
@@ -247,6 +248,9 @@ function flowPpcOpen(orderNo, onlySku) {
       /* A printed line on a fabric made both ways must say which way — the printer cannot print "either". */
       const noDir = plans.filter((p, i) => p.route === 'inhouse' && flowPrintWhat(rows[i].r, p).needDir).map(p => p.sku);
       if (noDir.length) return `Which way is it printed? Pick the print direction for ${noDir.join(', ')}.`;
+      /* The print order goes to the printer now — so a printed line has to say which printer. */
+      const noPr = plans.filter(p => p.route === 'inhouse' && !(p.printer && p.printer.code)).map(p => p.sku);
+      if (noPr.length) return `Which printer? The print order goes to them now — pick it for ${noPr.join(', ')}.`;
       const noVen = plans.filter(p => p.route === 'outsource' && !String(p.outVendor || '').trim()).map(p => p.sku);
       if (noVen.length) return `Who makes it? Type the outsource vendor for ${noVen.join(', ')}.`;
       const patch = {}, now = new Date().toISOString();
@@ -270,10 +274,14 @@ function flowPpcOpen(orderNo, onlySku) {
         const nu = patch['pt_ppc/' + x.s.key];
         if (locked) ['fabric', 'route', 'printer', 'print'].forEach(k => { nu[k] = x.s.plan[k]; });
         const side = flowReplanSide(x.s.plan, nu, x.s); Object.assign(patch, side.patch); said.push(...side.said); });
+      /* The print orders, in the same write. */
+      const pos = flowPoSync(rows.map((x, i) => ({ r: x.r, p: patch['pt_ppc/' + x.s.key] })), dToday());
+      Object.assign(patch, pos.patch); said.push(...pos.said);
       try { await ptPatch(patch); } catch (e) { return 'Could not save: ' + (e.message || e); }
+      FLOW.po = pos.local;
       if (Object.keys(patch).some(k => k.startsWith('pt_accReserve/'))) { FLOW.res = Object.assign({}, FLOW.res); Object.keys(patch).filter(k => k.startsWith('pt_accReserve/')).forEach(k => { delete FLOW.res[k.slice(14)]; }); }
       Object.keys(patch).filter(k => k.startsWith('pt_flowDemand/')).forEach(k => { const key = k.split('/')[1]; FLOW.dem = Object.assign({}, FLOW.dem, { [key]: Object.assign({}, (FLOW.dem || {})[key], { fabricReady: null }) }); });
-      if (said.length) setTimeout(() => { $('flMsg').className = 'muted'; $('flMsg').textContent = 'Plan saved · ' + said.join(' · '); }, 0);
+      if (said.length) setTimeout(() => { $('flMsg').className = 'muted'; $('flMsg').textContent = 'Plan saved · ' + said.join(' · ') + ' · the fabric team and the accessories team have their demand.'; }, 0);
       /* A new object, so every cache keyed on it knows it changed. */
       FLOW.ppc = Object.assign({}, FLOW.ppc);
       Object.entries(patch).filter(([path]) => path.startsWith('pt_ppc/')).forEach(([path, rec]) => { FLOW.ppc[path.slice('pt_ppc/'.length)] = rec; });

@@ -63,6 +63,7 @@ flow/flow-demand.js
 flow/flow-challan.js
 flow/flow-test-order.js
 flow/flow-receive.js
+flow/flow-printorder.js
 flow/flow-edit.js
 flow/flow-view.js
 dashboard/management-dashboard.js
