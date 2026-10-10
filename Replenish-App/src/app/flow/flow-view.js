@@ -8,7 +8,9 @@ const FLOW_ANGLE = {};   // per Demand view: 'line' or 'stock'
 async function ensureFlow() {
   if (!PTG.mdb) { $('flMsg').textContent = 'Reading the order book…'; await ptLoadGates(); }
   /* Printer Allocation too: PPC's printer is suggested from it. */
-  await Promise.all([flowLoad(), flowFabLoad(), (PAL.printers === null ? palLoad().catch(() => {}) : null), (typeof ensureVo === 'function' ? ensureVo().catch(() => {}) : null),
+  /* The store too: the printed stock PPC sees beside the RFD balance (Store Stock Balance; its Job Work and cutting
+   * registers are the ones the order book has already read). */
+  await Promise.all([flowLoad(), flowFabLoad(), (typeof STORE !== 'undefined' && STORE.rows === null ? ensureStore().catch(() => {}) : null), (PAL.printers === null ? palLoad().catch(() => {}) : null), (typeof ensureVo === 'function' ? ensureVo().catch(() => {}) : null),
     (typeof ensureAcc === 'function' ? ensureAcc().catch(() => {}) : null)]);
   renderFlow();
 }
