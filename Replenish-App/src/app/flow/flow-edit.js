@@ -33,8 +33,10 @@ async function flowUnplan(s) {
   const patch = { ['pt_ppc/' + s.key]: null, ['pt_flowDemand/' + s.key]: null, ['pt_accReserve/' + s.key]: null };
   const row = flowRows().find(x => x.s.key === s.key), pos = row ? flowPoSync([{ r: row.r, p: null }], dToday()) : { patch: {}, local: FLOW.po };
   Object.assign(patch, pos.patch);
-  try { await ptPatch(patch); } catch (e) { return 'Could not save: ' + (e.message || e); }
-  FLOW.po = pos.local;
+  const vop = await flowVoPrepare(pos.local, patch, () => null);
+  if (vop.ask && !confirm(vop.ask)) { vop.undo(); return 'Not undone — the Vendor Order was left as it is.'; }
+  try { await ptPatch(patch); } catch (e) { vop.undo(); return 'Could not save: ' + (e.message || e); }
+  FLOW.po = pos.local; flowVoAfter(vop.placed);
   const drop = (o) => { const n = Object.assign({}, o); delete n[s.key]; return n; };
   FLOW.ppc = drop(FLOW.ppc); FLOW.dem = drop(FLOW.dem); FLOW.res = drop(FLOW.res);
   return '';

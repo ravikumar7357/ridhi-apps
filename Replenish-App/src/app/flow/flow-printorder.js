@@ -116,3 +116,101 @@ function flowPoPrint(no) {
   w.document.close();
   return '';
 }
+
+/* ---- THE REAL VENDOR ORDER (Ravi, 10 Oct: "PPC se vendor order me printer ko order jay" — placed directly, the printer
+ * sees it in the Vendor Portal) ----
+ * A flow print order for a REAL order is placed as Vendor Order(s) in pt_vendorOrders, in the very shape the Vendor Orders
+ * screen writes: one running order (printed cloth: fabric SKU, fabric, colour, direction, metres — a quilt's Front and Back
+ * as two lines, the ruffle cloth its own line) and one cut order (pieces printed on the SKU), each line naming the sales
+ * order it is for (forOrders) and its flow line (flowKey/flowPart) so a re-plan finds it again. A test order never makes
+ * one. A vendor order the printer has started delivering is never rewritten from here. */
+function flowChannelOf(r, m) {
+  const s = String((r && r.src) || String((r && r.orderNo) || '').split('-')[0]).toUpperCase();
+  if (s === 'AMZ') return 'Amazon'; if (s === 'B2B') return 'B2B';
+  if (/SHP|ONL/.test(s)) return /CPC/i.test(String((m && m.brand) || '')) ? 'CPC Shopify' : 'Shopify';
+  return '';
+}
+/** The vendor-order lines a flow print order stands for: { running: [...], cut: [...], channel }. */
+function flowVoLines(o, planOf) {
+  const out = { running: [], cut: [], channel: '' };
+  Object.entries(o.items || {}).forEach(([key, it]) => {
+    if (!it) return;
+    const row = flowRows().find(x => x.s.key === key), r = row ? row.r : { orderNo: o.orderNo, sku: it.sku };
+    const p = (planOf && planOf(key)) || (row && row.s.plan) || {};   // the plan being saved, not the one it replaces
+    const m = cutSkuOf(it.sku) || {}, w = it.print || {};
+    if (!out.channel) out.channel = flowChannelOf(r, m);
+    const base = { brand: m.brand || '', color: String(m.color || r.color || '').trim(), deliveryDate: (p.dates && p.dates.cut) || '', dispatchedQty: 0,
+      notes: `${o.orderNo} · ${it.sku} (PPC ${o.no})`, priority: 'P2', forOrders: [{ orderNo: o.orderNo, qty: +r.qty || it.pcs || 0 }], flowKey: key };
+    if (w.kind === 'sku') {
+      if (it.pcs > 0) out.cut.push(Object.assign({}, base, { kind: 'cut', sku: it.sku, qty: it.pcs, articleType: m.articleType || '',
+        articleSubtype: m.subtype || m.articleSubtype || '', size: m.size || '', flowPart: key + '|sku' }));
+    } else {
+      const fab = String((p.fabric && p.fabric.name) || m.fabric || '').trim(), dir = (p.print && p.print.dir) || String(w.label || '').split(' · ')[2] || '';
+      const parts = w.sides && w.sides.length ? w.sides.map(sd => ({ sku: sd.code, meters: flowR2(it.metres / w.sides.length), part: sd.side }))
+        : [{ sku: w.code, meters: it.metres, part: 'body' }];
+      parts.forEach(pt => { if (pt.meters > 0) out.running.push(Object.assign({}, base, { kind: 'running', sku: pt.sku, fabricType: fab, printDirection: dir, meters: pt.meters, flowPart: key + '|' + pt.part })); });
+    }
+    (it.extras || []).forEach(x => { if (+x.metres > 0) out.running.push(Object.assign({}, base, { kind: 'running', sku: x.code, fabricType: String(x.label || '').split(' · ')[1] || '',
+      printDirection: String(x.label || '').split(' · ')[2] || '', meters: flowR2(+x.metres), notes: base.notes + ' · ruffle', flowPart: key + '|ruffle' })); });
+  });
+  return out;
+}
+/**
+ * The Vendor Order writes for the flow print orders `nos` (already updated in `local`). Mutates `local[no].vo` and puts the
+ * link into `patch` the safe way (inside a whole-record write when the same save writes the whole record).
+ */
+function flowVoSync(local, nos, patch, planOf) {
+  const said = [], placed = [], now = new Date().toISOString();
+  [...new Set(nos)].forEach(no => {
+    const o = local[no]; if (!o || o.test) return;
+    const want = o.cancelled ? { running: [], cut: [], channel: '' } : flowVoLines(o, planOf);
+    const vo = Object.assign({}, o.vo || {});
+    ['running', 'cut'].forEach(kind => {
+      const ref = vo[kind], existing = ref ? (VO.rows || []).find(x => x && x.vendorCode === ref.code && x.id === ref.id) : null;
+      if (existing && voLines(existing).some(l => (l.deliveries || []).length || +l.dispatchedQty > 0)) {
+        said.push(`${existing.orderNo} has deliveries already — change it on Vendor Orders`); return; }
+      const lines = want[kind];
+      if (!lines.length) {
+        if (existing && existing.status !== 'Cancelled') {
+          const c = Object.assign({}, existing, { status: 'Cancelled', staffUpdatedAt: now });
+          patch[`pt_vendorOrders/${ref.code}/${ref.id}`] = c; placed.push(c); said.push(`${existing.orderNo} cancelled`); }
+        return;
+      }
+      const prev = {}; if (existing) voLines(existing).forEach(l => { if (l.flowPart) prev[l.flowPart] = l; });
+      const ln = lines.map(l => Object.assign({ lineId: (prev[l.flowPart] || {}).lineId || 'ln_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7) }, l));
+      const order = existing
+        ? Object.assign({}, existing, { lines: ln, status: existing.status === 'Cancelled' ? 'Placed' : existing.status, staffUpdatedAt: now })
+        : { id: 'vpo_flow_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7), orderNo: voNewOrderNo(), vendorCode: o.printer.code, vendorName: o.printer.name,
+            service: 'Block print', ...(want.channel ? { channel: want.channel } : {}), orderType: kind, orderDate: voTodayDMY(), status: 'Placed',
+            notes: `From the PPC plan — ${o.orderNo} (${o.no})`, lines: ln, createdBy: ME.email || '', createdAt: now, demandSource: 'ppc', flowPrintOrder: o.no };
+      patch[`pt_vendorOrders/${order.vendorCode}/${order.id}`] = order; placed.push(order);
+      vo[kind] = { code: order.vendorCode, id: order.id, orderNo: order.orderNo };
+      if (!existing) VO.rows = (VO.rows || []).concat([order]);   // so the next number drawn this save is a different one
+      said.push(existing ? `${order.orderNo} updated` : `Vendor Order ${order.orderNo} placed with ${o.printer.name}`);
+    });
+    local[no] = Object.assign({}, local[no], { vo });
+    if (patch['pt_flowPrintOrders/' + no]) patch['pt_flowPrintOrders/' + no] = Object.assign({}, patch['pt_flowPrintOrders/' + no], { vo });
+    else patch[`pt_flowPrintOrders/${no}/vo`] = vo;
+  });
+  return { said, placed };
+}
+/**
+ * Everything the Vendor Order side of a save needs: the writes, the question to ask before a printer is told, and
+ * how to put VO.rows back if the answer is no or the write is refused.
+ */
+async function flowVoPrepare(local, patch, planOf) {
+  if (VO.rows == null && typeof ensureVo === 'function') { try { await ensureVo(); } catch (e) { /* placed fresh; a re-plan cannot find the old one */ } }
+  const before = VO.rows, vs = flowVoSync(local, flowPoNosIn(patch), patch, planOf);
+  const live = vs.placed.filter(o => o.status !== 'Cancelled');
+  const ask = vs.placed.length ? `This ${live.length ? 'places / changes' : 'cancels'} Vendor Order(s) the printer sees in the Vendor Portal now:\n`
+    + vs.placed.map(o => `• ${o.orderNo} — ${o.vendorName} — ${o.status === 'Cancelled' ? 'cancelled' : voLines(o).length + ' line(s)'}`).join('\n') + '\n\nGo ahead?' : '';
+  return { said: vs.said, placed: vs.placed, ask, undo: () => { VO.rows = before; } };
+}
+/** The flow print orders a patch touches. */
+const flowPoNosIn = patch => [...new Set(Object.keys(patch).filter(k => k.startsWith('pt_flowPrintOrders/')).map(k => k.split('/')[1]))];
+/** After a write: the vendor orders it placed or changed, into VO.rows — the Vendor Orders screen and the portal read those. */
+function flowVoAfter(placed) {
+  if (!placed.length) return;
+  const byId = new Map(placed.map(o => [o.vendorCode + '/' + o.id, o]));
+  VO.rows = (VO.rows || []).filter(o => !(o && byId.has(o.vendorCode + '/' + o.id))).concat(placed);
+}

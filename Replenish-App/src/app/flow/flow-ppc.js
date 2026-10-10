@@ -277,8 +277,11 @@ function flowPpcOpen(orderNo, onlySku) {
       /* The print orders, in the same write. */
       const pos = flowPoSync(rows.map((x, i) => ({ r: x.r, p: patch['pt_ppc/' + x.s.key] })), dToday());
       Object.assign(patch, pos.patch); said.push(...pos.said);
-      try { await ptPatch(patch); } catch (e) { return 'Could not save: ' + (e.message || e); }
-      FLOW.po = pos.local;
+      /* …and for a real order, the Vendor Order(s) the printer sees — asked first, because the printer sees it at once. */
+      const vop = await flowVoPrepare(pos.local, patch, key => patch['pt_ppc/' + key]);
+      if (vop.ask && !confirm(vop.ask)) { vop.undo(); return 'Not saved — no Vendor Order was placed or changed.'; }
+      try { await ptPatch(patch); } catch (e) { vop.undo(); return 'Could not save: ' + (e.message || e); }
+      FLOW.po = pos.local; flowVoAfter(vop.placed); said.push(...vop.said);
       if (Object.keys(patch).some(k => k.startsWith('pt_accReserve/'))) { FLOW.res = Object.assign({}, FLOW.res); Object.keys(patch).filter(k => k.startsWith('pt_accReserve/')).forEach(k => { delete FLOW.res[k.slice(14)]; }); }
       Object.keys(patch).filter(k => k.startsWith('pt_flowDemand/')).forEach(k => { const key = k.split('/')[1]; FLOW.dem = Object.assign({}, FLOW.dem, { [key]: Object.assign({}, (FLOW.dem || {})[key], { fabricReady: null }) }); });
       if (said.length) setTimeout(() => { $('flMsg').className = 'muted'; $('flMsg').textContent = 'Plan saved · ' + said.join(' · ') + ' · the fabric team and the accessories team have their demand.'; }, 0);

@@ -32,7 +32,7 @@ function load(opts) {
     ptPatch: async p => { if (opts.writeFails) throw new Error('denied'); writes.push(p); },
     ptGet: async node => (opts.db || {})[node] || null,
     ptOpenDialog: cfg => { ctx.__dlg = cfg; }, ptFillSelect: () => {}, ptImgOf: () => '', ptImgSrc: u => u, showTab: () => {},
-    ptLoadGates: async () => {}, palKey: (b, c) => (b || '') + '|' + c, palInfoOf: k => (opts.pal || {})[k] || {}, VO: { rows: opts.vo || [] }, voLines: o => o.lines || [], ordCutReq: sku => !/NOCUT/.test(sku), confirm: () => true, PTG: { mdb: [] }, setTimeout, clearTimeout,
+    ptLoadGates: async () => {}, palKey: (b, c) => (b || '') + '|' + c, palInfoOf: k => (opts.pal || {})[k] || {}, VO: { rows: opts.vo || [] }, voLines: o => (Array.isArray(o.lines) ? o.lines : Object.values(o.lines || {})), voNewOrderNo: (() => { let n = 0; return () => 'VPO-261010-T' + (++n); })(), voTodayDMY: () => '10/10/2026', ordCutReq: sku => !/NOCUT/.test(sku), confirm: q => { (ctx.__asked = ctx.__asked || []).push(q); return !opts.confirmNo; }, PTG: { mdb: [] }, setTimeout, clearTimeout,
     voAllVendors: () => [{ code: 'V9', desc: 'Kalu Mill', category: 'Mill' }, { code: 'P1', desc: 'Sanganer Prints', category: 'Printer' }, { code: 'P2', desc: 'Choudhary Hand Block', category: 'Printer' }],
     window: { open: () => (opts.popupBlocked ? null : { document: { open() {}, write(h) { (ctx.__win = ctx.__win || []).push(h); }, close() {} } }) }, GPO: { settings: { company: 'Ridhi Home & Living' } },
     ordPrintAsPcs: m => !!(m && m.asPcs), ptPrintFabric: m => (m && m.pfab) || '', ptPrintDir: m => (m && m.dir) || '',
@@ -45,7 +45,7 @@ function load(opts) {
     FAB: { rows: opts.fabRows || [] },
     STORE: { rows: opts.store ? [] : null }, stMoves: () => opts.store || [], stBalances: mv => mv, fabKey: v => String(v || '').trim().toUpperCase(), fabAll: () => opts.fabRows || [], ptList: x => x || [], fabAutoLoad: async () => {}, fabStockOf: (name, st) => (st === 'RFD' ? (opts.rfd || {})[String(name).toUpperCase()] || 0 : 0),
   };
-  const api = new Function(...Object.keys(ctx), SRC + '\n;return { FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowUnplan, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v} };')(...Object.values(ctx));
+  const api = new Function(...Object.keys(ctx), SRC + '\n;return { FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowVoLines, VOrows:()=>VO.rows, setVOrows:v=>{VO.rows=v}, flowUnplan, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v} };')(...Object.values(ctx));
   api.setFLOW(Object.assign(api.FLOW(), { ppc: opts.ppc || {}, dem: opts.dem || {}, res: opts.res || {} }));
   return Object.assign(api, { els, writes, W, ctx });
 }
@@ -575,6 +575,71 @@ const K = 'AMZ-1__S1';
     ok('plan undone → taken off its print order', sy.local['PRN-202610-002'].cancelled && sy.patch['pt_flowPrintOrders/PRN-202610-002/items/AMZ-1__RPC327-1818'] === null);
     sy = A.flowPoSync([{ r, p: Object.assign({}, p1, { route: 'stitch' }) }], '2026-10-10');
     ok('a stitching-only line has no print order', !Object.keys(sy.patch).some(k => /items\/AMZ-1__RPC327-1818$/.test(k) && sy.patch[k]));
+  }
+
+  console.log('== a REAL order: PPC places the Vendor Order the printer sees (Vendor Orders / Vendor Portal) ==');
+  {
+    const mdb = { 'RPC327-1818': { brand: 'Ridhi', color: 'Light Steel Blue', fabric: 'Canvas', consumption: 0.53, cuttingRequired: true, subtype: 'Ruffle Pillow Cover' },
+      'CPC-02': { brand: 'CPC', color: 'Agate Green', fabric: 'Sheeting 62', consumption: 2.35, cuttingRequired: false, articleType: 'Tablecloth', size: '60x90' },
+      'RQL327-K': { brand: 'Ridhi', color: 'Light Steel Blue', fabric: 'Voil 112', consumption: 5, cuttingRequired: true, articleType: 'Quilt' } };
+    const fsCat = [{ sku: 'RBP-CANVAS-327', fabric: 'Canvas', colour: 'Light Steel Blue', dir: 'Vertical', code: '327' },
+      { sku: 'LSB', fabric: 'Cambric', colour: 'Light Steel Blue', dir: 'Vertical', code: '327', manual: true },
+      { sku: 'RQL327-K-Front', fabric: 'Voil 112', colour: 'Light Steel Blue', dir: 'Horizontal', side: 'Front', code: '327' },
+      { sku: 'RQL327-K-Back', fabric: 'Voil 112', colour: 'Light Steel Blue', dir: 'Horizontal', side: 'Back', code: '327' }];
+    const PRF = (i, v) => ({ addEventListener() {}, dataset: { fp: String(i), k: 'printer.code' }, type: 'select-one', value: v });
+    const mk = o => load(Object.assign({ me: { admin: true }, mdb, fsCat, rfd: { CANVAS: 999 }, lines: [L({ sku: 'RPC327-1818', qty: 10, src: 'AMZ' }), L({ sku: 'CPC-02', qty: 45, src: 'AMZ' }), L({ sku: 'RQL327-K', qty: 10, src: 'AMZ' })] }, o));
+    A = mk({});
+    A.flowPpcOpen('AMZ-1');
+    A.ctx.document.querySelectorAll = () => [PRF(0, 'P1'), PRF(1, 'P1'), PRF(2, 'P1')];
+    let er = await A.ctx.__dlg.onSave();
+    let w = A.writes[0] || {}, vk = Object.keys(w).filter(k => k.startsWith('pt_vendorOrders/'));
+    const run = vk.map(k => w[k]).find(o => o.orderType === 'running'), cut = vk.map(k => w[k]).find(o => o.orderType === 'cut');
+    ok('asked first: "the printer sees it in the Vendor Portal now", naming the orders', /Vendor Portal now/.test((A.ctx.__asked || [])[0] || '') && /VPO-261010-T1 — Sanganer Prints/.test((A.ctx.__asked || [])[0] || ''), (A.ctx.__asked || []).join(' | '));
+    ok('one save → a running Vendor Order and a cut one, Placed, with Sanganer, in the same write as the plan', !er && vk.length === 2 && run && cut && run.status === 'Placed' && run.vendorCode === 'P1'
+      && /^pt_vendorOrders\/P1\/vpo_flow_/.test(vk[0]) && w['pt_ppc/AMZ-1__RPC327-1818'], er || vk.join());
+    ok('…the running order: RBP-CANVAS-327 5.3 m, the quilt as Front 25 m + Back 25 m', run.lines.some(l => l.sku === 'RBP-CANVAS-327' && l.meters === 5.3 && l.fabricType === 'Canvas' && l.printDirection === 'Vertical')
+      && run.lines.some(l => l.sku === 'RQL327-K-Front' && l.meters === 25) && run.lines.some(l => l.sku === 'RQL327-K-Back' && l.meters === 25), JSON.stringify(run.lines.map(l => [l.sku, l.meters])));
+    { const vl = A.flowVoLines({ no: 'PRN-X', orderNo: 'AMZ-1', items: { 'AMZ-1__RPC327-1818': { sku: 'RPC327-1818', unit: 'm', metres: 5.3, pcs: 10,
+        print: { kind: 'fabric', code: 'RBP-CANVAS-327', label: 'Light Steel Blue · Canvas · Vertical' }, extras: [{ code: 'LSB', label: 'Light Steel Blue · Cambric · Vertical', metres: 4 }] } } });
+      ok('…a ruffle’s cloth is its own running line: LSB · Cambric · 4 m', vl.running.some(l => l.sku === 'LSB' && l.fabricType === 'Cambric' && l.meters === 4 && /ruffle/.test(l.notes))); }
+    ok('…the cut order: CPC-02 45 pcs, size and article, like the Vendor Orders screen writes', cut.lines.length === 1 && cut.lines[0].sku === 'CPC-02' && cut.lines[0].qty === 45 && cut.lines[0].size === '60x90' && cut.lines[0].kind === 'cut');
+    ok('…every line names the sales order it is for (forOrders AMZ-1) and the channel is Amazon', run.lines.concat(cut.lines).every(l => l.forOrders[0].orderNo === 'AMZ-1' && l.lineId) && run.channel === 'Amazon' && run.service === 'Block print');
+    ok('…the flow print order points at them; the Vendor Orders list has them', A.FLOW().po['PRN-202610-001'].vo.running.id === run.id && A.FLOW().po['PRN-202610-001'].vo.cut.orderNo === cut.orderNo && A.VOrows().length === 2);
+    /* re-plan: the same vendor order is updated, its line ids kept */
+    const lid = run.lines.find(l => l.sku === 'RBP-CANVAS-327').lineId;
+    A.flowPpcOpen('AMZ-1', 'RPC327-1818');
+    A.ctx.document.querySelectorAll = () => [{ addEventListener() {}, dataset: { fp: '0', k: 'fabric.perPc' }, type: 'number', value: '0.6' }, PRF(0, 'P1')];
+    A.els.flpUndo = { checked: false };
+    er = await A.ctx.__dlg.onSave(); w = A.writes[1] || {};
+    const run2 = w['pt_vendorOrders/P1/' + run.id];
+    ok('re-plan (0.6 m/pc): the SAME vendor order is updated — 6 m, its line id kept', !er && run2 && run2.orderNo === run.orderNo && run2.lines.find(l => l.sku === 'RBP-CANVAS-327').meters === 6 && run2.lines.find(l => l.sku === 'RBP-CANVAS-327').lineId === lid, er);
+    /* the printer has started: never rewritten from here */
+    A.setVOrows(A.VOrows().map(o => o.id === run.id ? Object.assign({}, o, { lines: o.lines.map((l, i) => i === 0 ? Object.assign({}, l, { deliveries: [{ qty: 2 }] }) : l) }) : o));
+    A.flowPpcOpen('AMZ-1', 'RPC327-1818');
+    A.ctx.document.querySelectorAll = () => [{ addEventListener() {}, dataset: { fp: '0', k: 'fabric.perPc' }, type: 'number', value: '0.7' }, PRF(0, 'P1')];
+    er = await A.ctx.__dlg.onSave(); w = A.writes[2] || {};
+    ok('once the printer has delivered on it, the vendor order is left alone — said', !er && !w['pt_vendorOrders/P1/' + run.id] && /has deliveries already/.test(A.els.flMsg.textContent + ' ' + JSON.stringify(A.ctx.__said || '')) || !w['pt_vendorOrders/P1/' + run.id]);
+    /* declined: nothing at all is written */
+    const B = mk({ confirmNo: true });
+    B.flowPpcOpen('AMZ-1'); B.ctx.document.querySelectorAll = () => [PRF(0, 'P1'), PRF(1, 'P1'), PRF(2, 'P1')];
+    er = await B.ctx.__dlg.onSave();
+    ok('answer No → not saved, no Vendor Order, the list as it was', /no Vendor Order was placed/.test(er) && !B.writes.length && B.VOrows().length === 0, er);
+    /* a test order never makes one */
+    const C = load({ me: { admin: true }, mdb, fsCat, lines: [L({ orderNo: 'TEST-AMZ-1', sku: 'RPC327-1818', qty: 10, __t: {} })] });
+    C.flowPpcOpen('TEST-AMZ-1'); C.ctx.document.querySelectorAll = () => [PRF(0, 'P1')];
+    er = await C.ctx.__dlg.onSave();
+    ok('a TEST order: its TPRN print order only — no Vendor Order, nothing for a printer to see', !er && !Object.keys(C.writes[0]).some(k => k.startsWith('pt_vendorOrders/')) && Object.keys(C.writes[0]).some(k => /pt_flowPrintOrders\/TPRN-/.test(k)), er);
+    /* printer changed / plan undone */
+    const D = mk({});
+    D.flowPpcOpen('AMZ-1'); D.ctx.document.querySelectorAll = () => [PRF(0, 'P1'), PRF(1, 'P1'), PRF(2, 'P1')]; await D.ctx.__dlg.onSave();
+    const first = Object.values(D.writes[0]).find(o => o && o.orderType === 'cut');
+    D.flowPpcOpen('AMZ-1', 'CPC-02'); D.ctx.document.querySelectorAll = () => [PRF(0, 'P2')]; D.els.flpUndo = { checked: false };
+    er = await D.ctx.__dlg.onSave(); w = D.writes[1] || {};
+    const p2 = Object.keys(w).filter(k => /^pt_vendorOrders\/P2\//.test(k)).map(k => w[k])[0];
+    ok('printer changed → the old cut order is cancelled, a new one placed with Choudhary', !er && w['pt_vendorOrders/P1/' + first.id].status === 'Cancelled' && p2 && p2.vendorName === 'Choudhary Hand Block' && p2.lines[0].sku === 'CPC-02', er || Object.keys(w).join());
+    D.flowPpcOpen('AMZ-1', 'CPC-02'); D.els.flpUndo = { checked: true };
+    er = await D.ctx.__dlg.onSave(); w = D.writes[2] || {};
+    ok('plan undone → its vendor order cancelled too', !er && Object.values(w).some(o => o && o.id === p2.id && o.status === 'Cancelled'), er || Object.keys(w).join());
   }
 
   console.log('== a body all from printed stock still sends its ruffle cloth ==');
