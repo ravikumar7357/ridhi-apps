@@ -33,7 +33,7 @@ function flowPrintWhat(r, plan) {
   const mode = rule === 'cut' ? 'Cut pieces (cut here from the printed fabric)' : 'Running fabric';
   if (!dir && dirs.length > 1)
     return { kind: 'fabric', code: '', needDir: true, mode, label: [colour, fab].filter(Boolean).join(' · '), unit: 'm' };
-  let code = ''; try { code = ordFabSkuOf(fab, colour, dir, cc) || ''; } catch (e) { code = ''; }
+  const code = flowFabSku(fab, colour, dir, cc);
   return { kind: 'fabric', code, mode, label: [colour, fab, dir].filter(Boolean).join(' · '), unit: 'm' };
 }
 /* THE RUFFLE CLOTH IS PRINTED TOO (Ravi, 10 Oct, the 327 catalogue: Cambric → LSB). A ruffle SKU's ruffle cloth (the
@@ -45,15 +45,30 @@ function flowPrintExtras(r, plan) {
   return (plan.extra || []).filter(x => x.unit === 'm' && /^Ruffle — /.test(String(x.what || '')) && +x.qty > 0).map(x => {
     const fab = String(x.what).replace(/^Ruffle — /, '').trim(), dirs = flowFabDirs(fab, colour, cc);
     const dir = dirs.length === 1 ? dirs[0] : ((plan.print && plan.print.dir) || '');
-    let code = ''; if (dir || !dirs.length) { try { code = ordFabSkuOf(fab, colour, dir, cc) || ''; } catch (e) { code = ''; } }
+    const code = dir || !dirs.length ? flowFabSku(fab, colour, dir, cc) : '';
     return { kind: 'fabric', code, mode: 'Ruffle cloth', label: [colour, fab, dir].filter(Boolean).join(' · '), unit: 'm', metres: flowR2(+x.qty), what: 'ruffle' };
   });
 }
 const flowExtrasTxt = xs => xs.map(w => `<div style="font-size:11px;color:#4338ca">+ Ruffle: ${w.code ? `<b>${esc(w.code)}</b>` : '<b style="color:#b91c1c">no fabric SKU in the catalogue</b>'} · ${esc(w.label)} · ${nf(w.metres)} m</div>`).join('');
+/* THE FABRIC CATALOGUE, BY ITS OWN COLOUR CODE (Ravi, 10 Oct: Canvas showed "no fabric SKU"). Each catalogue row
+ * carries its colour code; reading it back out of the SKU text fails for RBP-CANVAS-327 and for a code added by hand
+ * like LSB. Where a fabric SKU was ADDED BY HAND for the same fabric, colour and direction, it is the one — it is a
+ * decision somebody made over the built name. */
+function flowFabHits(fab, colour, dir, cc) {
+  const lo = x => String(x || '').trim().toLowerCase(), num = x => Number(String(x || '').replace(/\D/g, '')) || 0;
+  let cat = []; try { cat = [...voFabricCatalogue().values()]; } catch (e) { cat = []; }
+  const codeOf = c => String(c.code || ordColCodeOf(c.sku) || '');
+  const hits = cat.filter(c => lo(c.fabric) === lo(fab) && lo(c.colour) === lo(colour) && (!lo(dir) || !lo(c.dir) || lo(c.dir) === lo(dir))
+    && (!cc || codeOf(c) === String(cc) || (num(codeOf(c)) && num(codeOf(c)) === num(cc))));
+  const byDir = new Map();
+  hits.forEach(c => { const k = lo(c.dir) + '|' + lo(c.side); const e = byDir.get(k);
+    if (!e || (c.manual && !e.some(x => x.manual))) byDir.set(k, [c]); else if (!!c.manual === !!e[0].manual) e.push(c); });
+  return [].concat(...byDir.values());
+}
+const flowFabSku = (fab, colour, dir, cc) => [...new Set(flowFabHits(fab, colour, dir, cc).map(c => c.sku))].join(' ');
 /** The directions the fabric catalogue makes this fabric + colour (+ code) in. */
 function flowFabDirs(fab, colour, cc) {
-  let hits = []; try { hits = ordFabHits(fab, colour, '', cc); } catch (e) { hits = []; }
-  return [...new Set(hits.map(h => String(h.dir || '').trim()).filter(Boolean))].sort();
+  return [...new Set(flowFabHits(fab, colour, '', cc).map(h => String(h.dir || '').trim()).filter(Boolean))].sort();
 }
 /** A direction nobody has to choose: a quilt's comes from how it lies on the roll. */
 function flowDirDefault(m, fab) { try { return ptPrintDir(m, fab) || ''; } catch (e) { return ''; } }

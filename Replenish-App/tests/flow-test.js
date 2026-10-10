@@ -38,7 +38,10 @@ function load(opts) {
     ordPrintAsPcs: m => !!(m && m.asPcs), ptPrintFabric: m => (m && m.pfab) || '', ptPrintDir: m => (m && m.dir) || '',
     ordFabSkuOf: (f, c, d, code) => Object.entries(opts.fsku || {}).filter(([k]) => { const [kf, kc, kd, kk] = k.split('|'); return kf === f && kc === c && (!d || kd === d) && kk === code; }).map(([, v]) => v).join(' '),
     ordFabHits: (f, c, d, code) => Object.keys(opts.fsku || {}).filter(k => { const [kf, kc, kd, kk] = k.split('|'); return kf === f && kc === c && (!d || kd === d) && (!code || kk === code); }).map(k => ({ dir: k.split('|')[2] })),
-    ptPrintIssueAs: m => (m && m.issueAs) || '', ordColCodeOf: sku => (String(sku || '').toUpperCase().match(/^[A-Z]+(\d{1,5})/) || ['', ''])[1],
+    ptPrintIssueAs: m => (m && m.issueAs) || '',
+    /* The catalogue as the app builds it: rows carrying their own colour code (fsku keys: fabric|colour|dir|code). */
+    voFabricCatalogue: () => new Map(Object.entries(opts.fsku || {}).map(([k, v]) => { const [fabric, colour, dir, code] = k.split('|'); return [v, { sku: v, fabric, colour, dir, code }]; })
+      .concat((opts.fsCat || []).map(c => [c.sku, c]))), ordColCodeOf: sku => (String(sku || '').toUpperCase().match(/^[A-Z]+(\d{1,5})/) || ['', ''])[1],
     FAB: { rows: opts.fabRows || [] }, fabAll: () => opts.fabRows || [], ptList: x => x || [], fabAutoLoad: async () => {}, fabStockOf: (name, st) => (st === 'RFD' ? (opts.rfd || {})[String(name).toUpperCase()] || 0 : 0),
   };
   const api = new Function(...Object.keys(ctx), SRC + '\n;return { FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowReceiveOpen, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowUnplan, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v} };')(...Object.values(ctx));
@@ -256,9 +259,9 @@ const K = 'AMZ-1__S1';
     A.ctx.document.querySelector = sel => (/stk=|data-fm=/.test(sel) ? span(sel) : null);
     A.flowPpcOpen('AMZ-1');
     const z1 = spans['[data-astk="0.0"]'].innerHTML, z2 = spans['[data-astk="1.0"]'].innerHTML, f1 = spans['[data-fstk="0"]'].innerHTML;
-    ok('100 zippers, an earlier order planned 40 → this order of 50 sees 60 available', /in stock 100/.test(z1) && /planned for earlier orders 40/.test(z1) && /available 60/.test(z1) && !/short/.test(z1), z1);
-    ok('the next line in the same form counts the one above it: 90 planned, 10 available, short 10 for 20', /planned for earlier orders 90/.test(z2) && /available 10/.test(z2) && /short 10/.test(z2), z2);
-    ok('RFD fabric the same: 100 m, 30 m planned earlier, 70 m available for 25 m', /in stock 100 m/.test(f1) && /planned for earlier orders 30 m/.test(f1) && /available 70 m/.test(f1), f1);
+    ok('100 zippers, an earlier order planned 40 → this order of 50 sees 60 available', /in stock 100/.test(z1) && /already planned \(other orders \+ lines above\) 40/.test(z1) && /available 60/.test(z1) && !/short/.test(z1), z1);
+    ok('the next line in the same form counts the one above it: 90 planned, 10 available, short 10 for 20', /already planned \(other orders \+ lines above\) 90/.test(z2) && /available 10/.test(z2) && /short 10/.test(z2), z2);
+    ok('RFD fabric the same: 100 m, 30 m planned earlier, 70 m available for 25 m', /in stock 100 m/.test(f1) && /already planned \(other orders \+ lines above\) 30 m/.test(f1) && /available 70 m/.test(f1), f1);
     ok('shown only — opening the form writes nothing', !A.writes.length);
     A.W.lines[0].issued = 20; A.setFLOW(Object.assign(A.FLOW(), { ppc: Object.assign({}, A.FLOW().ppc) }));
     ok('half the earlier line issued → its zippers left the shelf at issue: only 20 still counted', A.flowCommitted([]).acc['18'] === 20);
@@ -387,6 +390,26 @@ const K = 'AMZ-1__S1';
     const gs = A.flowChPrintGroups(A.FLOW().ch['RFD-202610-001']);
     ok('"To print": RBPSF327-H-82 10.4 m, RBP-CANVAS-327 5.3 m, LSB 16 m', !er && gs.length === 3 && gs.find(g => g.code === 'LSB').metres === 16 && gs.find(g => g.code === 'RBPSF327-H-82').metres === 10.4 && gs.find(g => g.code === 'RBP-CANVAS-327').metres === 5.3, er);
     ok('…and on the printed challan', /LSB/.test(A.ctx.__win[0] || '') && /16 m/.test(A.ctx.__win[0] || '') && /\+ ruffle LSB/.test(A.ctx.__win[0] || ''));
+  }
+
+  console.log('== the catalogue by its own colour code; a SKU added by hand wins ==');
+  {
+    const mdb = { 'RPC327-1818': { color: 'Light Steel Blue', fabric: 'Canvas', consumption: 0.53, cuttingRequired: true } };
+    /* The real 327 rows: built names that do not carry the code where the SKU-text reading looked for it. */
+    const fsCat = [
+      { sku: 'RBP-CANVAS-327', fabric: 'Canvas', colour: 'Light Steel Blue', dir: 'Vertical', code: '327' },
+      { sku: 'RBP327', fabric: 'Cambric', colour: 'Light Steel Blue', dir: 'Vertical', code: '327' },
+      { sku: 'LSB', fabric: 'Cambric', colour: 'Light Steel Blue', dir: 'Vertical', code: '327', manual: true },
+      { sku: 'CPC-CANVAS-327', fabric: 'Canvas', colour: 'Some Other Colour', dir: 'Vertical', code: '327' },
+      { sku: 'RBP-CANVAS-328', fabric: 'Canvas', colour: 'Light Steel Blue', dir: 'Vertical', code: '328' },   // one colour name, two codes
+    ];
+    A = load({ mdb, fsCat });
+    const p1 = plan({ sku: 'RPC327-1818', route: 'inhouse', fabric: { name: 'Canvas', perPc: 0.53, metres: 10.6 }, print: { need: true }, extra: [{ what: 'Ruffle — Cambric', qty: 8, unit: 'm' }] });
+    const w = A.flowPrintWhat(L({ sku: 'RPC327-1818', qty: 20 }), p1);
+    ok('Canvas 327 → RBP-CANVAS-327 (Ravi\u2019s screen said "no fabric SKU in the catalogue")', w.code === 'RBP-CANVAS-327' && !w.needDir, JSON.stringify(w));
+    const xs = A.flowPrintExtras(L({ sku: 'RPC327-1818', qty: 20 }), p1);
+    ok('the ruffle Cambric → LSB, the one added by hand — not the built RBP327', xs.length === 1 && xs[0].code === 'LSB' && xs[0].metres === 8, JSON.stringify(xs));
+    ok('a built SKU with no hand-added one beside it still counts (RBP327 when LSB is not there)', load({ mdb, fsCat: fsCat.filter(c => !c.manual) }).flowPrintExtras(L({ sku: 'RPC327-1818', qty: 20 }), p1)[0].code === 'RBP327');
   }
 
   console.log('== a plan saved before the master-data fix is flagged, not hidden ==');

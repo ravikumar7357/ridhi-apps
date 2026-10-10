@@ -94,7 +94,7 @@ function flowCommitted(skipKeys, withTest) {
 function flowStockTxt(stock, earlier, need, unit, known) {
   if (!known) return '<span class="muted" style="font-size:11px">stock not kept in the app</span>';
   const avail = flowR2(stock - earlier), ok = avail >= need;
-  return `<span style="font-size:11px;color:${ok ? '#166534' : '#b91c1c'}">in stock ${nf(flowR2(stock))}${unit} · planned for earlier orders ${nf(flowR2(earlier))}${unit} · <b>available ${nf(Math.max(0, avail))}${unit}</b>${ok ? '' : ` · ⚑ short ${nf(flowR2(need - Math.max(0, avail)))}${unit}`}</span>`;
+  return `<span style="font-size:11px;color:${ok ? '#166534' : '#b91c1c'}">in stock ${nf(flowR2(stock))}${unit} · already planned (other orders + lines above) ${nf(flowR2(earlier))}${unit} · <b>available ${nf(Math.max(0, avail))}${unit}</b>${ok ? '' : ` · ⚑ short ${nf(flowR2(need - Math.max(0, avail)))}${unit}`}</span>`;
 }
 function flowFabKnown(name) { const k = flowFabKey(name); try { return fabAll().some(r => flowFabKey(r.fabricType) === k); } catch (e) { return false; } }
 

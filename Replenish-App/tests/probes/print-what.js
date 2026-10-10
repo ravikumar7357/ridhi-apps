@@ -19,7 +19,7 @@ const skus = process.argv.slice(2).map(s => s.toUpperCase());
     const m = mdb.find(r => String(r.sku || '').toUpperCase() === sku);
     console.log('\n=== ' + sku + (m ? '' : ' — NOT IN pt_masterDB'));
     if (!m) continue;
-    const keep = Object.fromEntries(Object.entries(m).filter(([k]) => /print|cut|fabric|dir|color|colour|consum|article|subtype|size|brand|width|lay|panel|code|recipe/i.test(k)));
+    const keep = Object.fromEntries(Object.entries(m).filter(([k]) => /print|cut|fabric|dir|color|colour|consum|article|subtype|size|brand|width|lay|panel|code|recipe|ruffle|piping/i.test(k)));
     console.log(JSON.stringify(keep, null, 1));
     const rk = Object.keys(rules).filter(k => k.toLowerCase().includes(String(m.articleType || '').toLowerCase()) || k.toLowerCase().includes(String(m.articleSubtype || m.subtype || '').toLowerCase()));
     rk.forEach(k => console.log('  printRule', k, JSON.stringify(rules[k])));
