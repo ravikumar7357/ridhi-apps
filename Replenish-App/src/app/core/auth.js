@@ -137,6 +137,7 @@ onAuthStateChanged(auth, async user => {
   if ($('tabPpress')) $('tabPpress').style.display = 'none';
   /* One button, three grants — any of them opens it, and the picker inside decides what it holds. */
   if ($('tabQc')) $('tabQc').style.display = qcViewsAllowed().length ? '' : 'none';
+  flowNavShow();
 
   /* THE VENDOR PORTAL IS THE VENDOR'S OWN SCREEN. To anybody else it can only say "you are not
    * linked to a vendor", which is the broken-button problem the note above this map describes.
@@ -175,7 +176,7 @@ onAuthStateChanged(auth, async user => {
   const FACTORY_TABS = ['dash', 'att', 'pmdb', 'mst', 'pbase', 'pcut', 'ppress', 'qc', 'qcalt', 'qcret', 'ord', 'so', 'vord', 'vreq', 'rfd', 'vend', 'palloc', 'fgi', 'fba', 'fab', 'acc', 'rep', 'pa', 'ka', 'hr',
     /* History and Customer Orders are factory screens too; missing here, a login holding History loaded
      * the Replenishment snapshot at sign-in — a vendor's among them. */
-    'vlog', 'cx'];
+    'vlog', 'cx', ...FLOW_TABS];
   const FACTORY_ONLY = ME.tabs.every(t => FACTORY_TABS.includes(t));
 
   if (!FACTORY_ONLY) try {

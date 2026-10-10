@@ -68,7 +68,9 @@ const REPL_TABS = ['repl', 'article', 'target', 'top', 'shopify', 'pack',
   /* Quality Control is three jobs, not one: 'qc' is the checks, 'qcalt' is sending rejects out for
    * alteration, 'qcret' is taking them back. One tab, three grants. */
   'pmdb', 'mst', 'att', 'pbase', 'pcut', 'ppress', 'qc', 'qcalt', 'qcret', 'ord', 'so', 'vord', 'vreq', 'rfd', 'vend', 'vlog', 'palloc', 'fgi', 'fba', 'fab', 'acc', 'rep', 'pa', 'ka', 'hr',
-  'shop', 'adj', 'shopprod', 'dash'];   // section keys, gated per-user via perms.replTabs — 'dash' is the admins' dashboard
+  'shop', 'adj', 'shopprod', 'dash',
+  /* Production flow (test, 2026-10-10): one right per bucket — the same keys as FLOW_BUCKETS in flow/flow-core.js. */
+  'flnew', 'flppc', 'fldem', 'flven', 'flfab', 'flcut', 'flraw', 'flwip', 'flrdy'];   // section keys, gated per-user via perms.replTabs — 'dash' is the admins' dashboard
 let REPL = { SP: null, CPC: null };   // brand → { rows, at }
 let PO = [];                  // purchase orders
 

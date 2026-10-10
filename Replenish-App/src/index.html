@@ -103,7 +103,7 @@
 
     <!-- The shop floor, in the order work moves through it: the order, the cut, the karigar, the
          press, the check, the stock — and the masters everything is keyed on, last. -->
-    <div class="navwrap"><button class="navgrp" id="grpProd" type="button" data-grp="prod" data-tabs="so,ord,pcut,pbase,ppress,qc,fgi,fba,fab,acc,pmdb,mst,cx">
+    <div class="navwrap"><button class="navgrp" id="grpProd" type="button" data-grp="prod" data-tabs="so,ord,pcut,pbase,ppress,qc,fgi,fba,fab,acc,pmdb,mst,cx,flow,flnew,flppc,fldem,flven,flfab,flcut,flraw,flwip,flrdy">
       <span class="caret">&#9656;</span> Production</button>
     <!-- A MEGA MENU (Ravi, 2026-09-24: "2 — Mega menu"). Five columns in the order work moves; every
          count carries the words for what it counts (data-what), because "26" alone told nobody. -->
@@ -112,6 +112,7 @@
         <div class="mg-h">Orders</div>
         <a id="tabSo" class="nav" href="#so"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg></span><span class="nav-t">Sales Orders</span><span class="nav-bd"><span id="soDelBadge" class="navbadge hide" data-what="to delete" title="Deletion requests waiting for an answer"></span></span></a>
         <a id="tabOrd" class="nav" href="#ord"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg></span><span class="nav-t">Order Console</span><span class="nav-bd"><span id="ordAdjBadge" class="navbadge hide" data-what="qty changed" title="Quantities changed on an order that nobody here has said they have seen" style="background:#b45309"></span></span></a>
+        <a id="tabFlow" class="nav" href="#flow" style="display:none"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="10" y="4" width="5" height="11" rx="1"/><rect x="17" y="4" width="4" height="7" rx="1"/></svg></span><span class="nav-t">Production flow</span><span class="nav-bd"><span class="navbadge" style="background:#7c3aed" data-what="test">TEST</span></span></a>
         <a id="tabCx" class="nav" href="#cx"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span><span class="nav-t">Customer Orders</span></a>
       </div>
       <div class="mg-col">
@@ -1303,6 +1304,21 @@
       </div>
       <div id="spBulkBox" class="hide" style="margin-top:12px"></div>
       <div class="card xlwrap jw-table" style="margin-top:12px"><table class="xl" id="odTable"></table></div>
+    </div>
+
+    <!-- ============ PRODUCTION FLOW (test view, 2026-10-10) ============ -->
+    <div id="paneFlow" class="hide">
+      <div class="card" style="padding:12px 14px">
+        <div id="flBuckets" class="fl-row"></div>
+        <div class="toolbar" style="margin-top:10px">
+          <input id="flQ" placeholder="Find a PO, SKU, colour…" style="max-width:260px">
+          <select id="flSrc" style="max-width:170px"></select>
+          <button id="flRefresh" class="ghost" style="width:auto">Refresh</button>
+        </div>
+        <div id="flMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
+      </div>
+      <div class="card xlwrap jw-table" style="margin-top:12px"><table class="xl" id="flTable"></table></div>
+      <style>.fl-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.fl-b{width:auto;display:flex;flex-direction:column;align-items:center;padding:6px 12px;border:1px solid var(--line);background:var(--card,#fff);color:inherit;border-radius:10px;font-size:12px;line-height:1.25;min-width:84px}.fl-b .fl-n{font-size:18px;font-weight:700}.fl-b.on{background:#4f46e5;color:#fff;border-color:#4f46e5}.fl-arrow{color:#94a3b8;font-size:18px}</style>
     </div>
 
     <!-- ============ QUALITY CONTROL ============ -->

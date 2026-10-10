@@ -1007,7 +1007,6 @@ function renderOrd() {
   if (v === 'demtot') return renderOrdDemandTot();
   if (v === 'orders') return renderOrdSheet();
   if (v === 'track') return renderOrdTrack();
-  if (v === 'steps') return renderOrdSteps();      // PO — 10 steps (orders/po-steps.js), test links only for now
   if (v === 'shppipe') return renderOrdPipe();
   if (v === 'team') return renderOrdTeam();
   if (v === 'prnplat') return renderOrdPrnPlat();

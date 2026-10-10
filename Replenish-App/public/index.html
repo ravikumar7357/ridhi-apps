@@ -1,8 +1,8 @@
 <!-- ================================================================================================
-     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 134 files of src/ joined into one page.
+     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 137 files of src/ joined into one page.
      The real, grouped source: Replenish-App/src/   (map and workflow: src/README.md)
        src/index.html   page markup        src/styles.css   stylesheet        src/app/ORDER   join order
-       src/app/<group>/ the code, by group: core, replenishment, masters, production, vendors, orders, shopify, dashboard, people-pay, inventory, reports, shared
+       src/app/<group>/ the code, by group: core, replenishment, masters, production, vendors, orders, shopify, flow, dashboard, people-pay, inventory, reports, shared
      Rebuild after editing src/:  node Replenish-App/tests/assemble.js
      Inside the script below, every source file starts with a "FILE: src/app/..." comment, every group with "GROUP:".
      ================================================================================================ --><title>Ridhi Home &amp; Living</title>
@@ -1105,7 +1105,7 @@
 
     <!-- The shop floor, in the order work moves through it: the order, the cut, the karigar, the
          press, the check, the stock — and the masters everything is keyed on, last. -->
-    <div class="navwrap"><button class="navgrp" id="grpProd" type="button" data-grp="prod" data-tabs="so,ord,pcut,pbase,ppress,qc,fgi,fba,fab,acc,pmdb,mst,cx">
+    <div class="navwrap"><button class="navgrp" id="grpProd" type="button" data-grp="prod" data-tabs="so,ord,pcut,pbase,ppress,qc,fgi,fba,fab,acc,pmdb,mst,cx,flow,flnew,flppc,fldem,flven,flfab,flcut,flraw,flwip,flrdy">
       <span class="caret">&#9656;</span> Production</button>
     <!-- A MEGA MENU (Ravi, 2026-09-24: "2 — Mega menu"). Five columns in the order work moves; every
          count carries the words for what it counts (data-what), because "26" alone told nobody. -->
@@ -1114,6 +1114,7 @@
         <div class="mg-h">Orders</div>
         <a id="tabSo" class="nav" href="#so"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg></span><span class="nav-t">Sales Orders</span><span class="nav-bd"><span id="soDelBadge" class="navbadge hide" data-what="to delete" title="Deletion requests waiting for an answer"></span></span></a>
         <a id="tabOrd" class="nav" href="#ord"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg></span><span class="nav-t">Order Console</span><span class="nav-bd"><span id="ordAdjBadge" class="navbadge hide" data-what="qty changed" title="Quantities changed on an order that nobody here has said they have seen" style="background:#b45309"></span></span></a>
+        <a id="tabFlow" class="nav" href="#flow" style="display:none"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="10" y="4" width="5" height="11" rx="1"/><rect x="17" y="4" width="4" height="7" rx="1"/></svg></span><span class="nav-t">Production flow</span><span class="nav-bd"><span class="navbadge" style="background:#7c3aed" data-what="test">TEST</span></span></a>
         <a id="tabCx" class="nav" href="#cx"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span><span class="nav-t">Customer Orders</span></a>
       </div>
       <div class="mg-col">
@@ -2305,6 +2306,21 @@
       </div>
       <div id="spBulkBox" class="hide" style="margin-top:12px"></div>
       <div class="card xlwrap jw-table" style="margin-top:12px"><table class="xl" id="odTable"></table></div>
+    </div>
+
+    <!-- ============ PRODUCTION FLOW (test view, 2026-10-10) ============ -->
+    <div id="paneFlow" class="hide">
+      <div class="card" style="padding:12px 14px">
+        <div id="flBuckets" class="fl-row"></div>
+        <div class="toolbar" style="margin-top:10px">
+          <input id="flQ" placeholder="Find a PO, SKU, colour…" style="max-width:260px">
+          <select id="flSrc" style="max-width:170px"></select>
+          <button id="flRefresh" class="ghost" style="width:auto">Refresh</button>
+        </div>
+        <div id="flMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
+      </div>
+      <div class="card xlwrap jw-table" style="margin-top:12px"><table class="xl" id="flTable"></table></div>
+      <style>.fl-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.fl-b{width:auto;display:flex;flex-direction:column;align-items:center;padding:6px 12px;border:1px solid var(--line);background:var(--card,#fff);color:inherit;border-radius:10px;font-size:12px;line-height:1.25;min-width:84px}.fl-b .fl-n{font-size:18px;font-weight:700}.fl-b.on{background:#4f46e5;color:#fff;border-color:#4f46e5}.fl-arrow{color:#94a3b8;font-size:18px}</style>
     </div>
 
     <!-- ============ QUALITY CONTROL ============ -->
@@ -3513,7 +3529,9 @@ const REPL_TABS = ['repl', 'article', 'target', 'top', 'shopify', 'pack',
   /* Quality Control is three jobs, not one: 'qc' is the checks, 'qcalt' is sending rejects out for
    * alteration, 'qcret' is taking them back. One tab, three grants. */
   'pmdb', 'mst', 'att', 'pbase', 'pcut', 'ppress', 'qc', 'qcalt', 'qcret', 'ord', 'so', 'vord', 'vreq', 'rfd', 'vend', 'vlog', 'palloc', 'fgi', 'fba', 'fab', 'acc', 'rep', 'pa', 'ka', 'hr',
-  'shop', 'adj', 'shopprod', 'dash'];   // section keys, gated per-user via perms.replTabs — 'dash' is the admins' dashboard
+  'shop', 'adj', 'shopprod', 'dash',
+  /* Production flow (test, 2026-10-10): one right per bucket — the same keys as FLOW_BUCKETS in flow/flow-core.js. */
+  'flnew', 'flppc', 'fldem', 'flven', 'flfab', 'flcut', 'flraw', 'flwip', 'flrdy'];   // section keys, gated per-user via perms.replTabs — 'dash' is the admins' dashboard
 let REPL = { SP: null, CPC: null };   // brand → { rows, at }
 let PO = [];                  // purchase orders
 
@@ -3657,6 +3675,7 @@ onAuthStateChanged(auth, async user => {
   if ($('tabPpress')) $('tabPpress').style.display = 'none';
   /* One button, three grants — any of them opens it, and the picker inside decides what it holds. */
   if ($('tabQc')) $('tabQc').style.display = qcViewsAllowed().length ? '' : 'none';
+  flowNavShow();
 
   /* THE VENDOR PORTAL IS THE VENDOR'S OWN SCREEN. To anybody else it can only say "you are not
    * linked to a vendor", which is the broken-button problem the note above this map describes.
@@ -3695,7 +3714,7 @@ onAuthStateChanged(auth, async user => {
   const FACTORY_TABS = ['dash', 'att', 'pmdb', 'mst', 'pbase', 'pcut', 'ppress', 'qc', 'qcalt', 'qcret', 'ord', 'so', 'vord', 'vreq', 'rfd', 'vend', 'palloc', 'fgi', 'fba', 'fab', 'acc', 'rep', 'pa', 'ka', 'hr',
     /* History and Customer Orders are factory screens too; missing here, a login holding History loaded
      * the Replenishment snapshot at sign-in — a vendor's among them. */
-    'vlog', 'cx'];
+    'vlog', 'cx', ...FLOW_TABS];
   const FACTORY_ONLY = ME.tabs.every(t => FACTORY_TABS.includes(t));
 
   if (!FACTORY_ONLY) try {
@@ -3979,7 +3998,7 @@ let TAB_NOW = '';
 const TAB_TABLES = {
   ord: ['odTable'], pbase: ['pbTable'], pcut: ['pcTable'], ppress: ['ppTable'], qc: ['qcTable'],
   fgi: ['fgTable'], fba: ['fbaTable'], vlog: ['vlTable'], so: ['soTable'], pmdb: ['pmTable'],
-  acc: ['acTable'], vord: ['voTable'], fab: ['fbTable'], palloc: ['palTable'], mst: ['mstTable'],
+  acc: ['acTable'], vord: ['voTable'], fab: ['fbTable'], palloc: ['palTable'], mst: ['mstTable'], flow: ['flTable'],
 };
 /** Give the page back the megabyte the screen you just left was holding. */
 function tabShed(prev) {
@@ -3992,17 +4011,20 @@ const SHOP_ONLY = () => !!(ME.tabs && ME.tabs.includes('shopprod') && !ME.tabs.i
 function showTab(which) {
   // 'shopprod' is not a pane of its own — it is the Order Console, opened at its Shopify views.
   if (which === 'shopprod') which = 'ord';
+  /* A production-flow bucket right opens the one flow screen; the guard below lets it in for any bucket held. */
+  if (FLOW_TABS.includes(which)) which = 'flow';
   if (ME.tabs && ME.tabs.length && !ME.tabs.includes(which)
-      && !(which === 'ord' && ME.tabs.includes('shopprod'))) which = ME.tabs[0];
-  const panes = { dash: 'paneDash', repl: 'paneRepl', article: 'paneArticle', target: 'paneTarget', follow: 'paneFollow', top: 'paneTop', india: 'paneIndia', shopify: 'paneShopify', prod: 'paneProd', pack: 'panePack', att: 'paneAtt', pmdb: 'panePmdb', mst: 'paneMst', pbase: 'panePbase', pcut: 'panePcut', ppress: 'panePpress', qc: 'paneQc', ord: 'paneOrd', so: 'paneSo', vord: 'paneVord', vreq: 'paneVreq', rfd: 'paneRfd', vend: 'paneVend', vlog: 'paneVlog', cx: 'paneCx', palloc: 'panePalloc', fgi: 'paneFgi', fba: 'paneFba', fab: 'paneFab', acc: 'paneAcc', rep: 'paneRep', pa: 'panePa', ka: 'paneKa', hr: 'paneHr', shop: 'paneShop', adj: 'paneAdj' };
-  const navs = { dash: 'tabDash', repl: 'tabRepl', article: 'tabArticle', target: 'tabTarget', follow: 'tabFollow', top: 'tabTop', india: 'tabIndia', shopify: 'tabShopify', prod: 'tabProd', pack: 'tabPack', att: 'tabAtt', pmdb: 'tabPmdb', mst: 'tabMst', pbase: 'tabPbase', pcut: 'tabPcut', ppress: 'tabPpress', qc: 'tabQc', ord: 'tabOrd', so: 'tabSo', vord: 'tabVord', vreq: 'tabVreq', rfd: 'tabRfd', vend: 'tabVend', vlog: 'tabVlog', cx: 'tabCx', palloc: 'tabPalloc', fgi: 'tabFgi', fba: 'tabFba', fab: 'tabFab', acc: 'tabAcc', rep: 'tabRep', pa: 'tabPa', ka: 'tabKa', hr: 'tabHr', shop: 'tabShop', adj: 'tabAdj' };
+      && !(which === 'ord' && ME.tabs.includes('shopprod'))
+      && !(which === 'flow' && FLOW_ON && flowBucketsAllowed().length)) which = FLOW_TABS.includes(ME.tabs[0]) ? 'flow' : ME.tabs[0];
+  const panes = { dash: 'paneDash', repl: 'paneRepl', article: 'paneArticle', target: 'paneTarget', follow: 'paneFollow', top: 'paneTop', india: 'paneIndia', shopify: 'paneShopify', prod: 'paneProd', pack: 'panePack', att: 'paneAtt', pmdb: 'panePmdb', mst: 'paneMst', pbase: 'panePbase', pcut: 'panePcut', ppress: 'panePpress', qc: 'paneQc', ord: 'paneOrd', so: 'paneSo', vord: 'paneVord', vreq: 'paneVreq', rfd: 'paneRfd', vend: 'paneVend', vlog: 'paneVlog', cx: 'paneCx', palloc: 'panePalloc', fgi: 'paneFgi', fba: 'paneFba', fab: 'paneFab', acc: 'paneAcc', rep: 'paneRep', pa: 'panePa', ka: 'paneKa', hr: 'paneHr', shop: 'paneShop', adj: 'paneAdj', flow: 'paneFlow' };
+  const navs = { dash: 'tabDash', repl: 'tabRepl', article: 'tabArticle', target: 'tabTarget', follow: 'tabFollow', top: 'tabTop', india: 'tabIndia', shopify: 'tabShopify', prod: 'tabProd', pack: 'tabPack', att: 'tabAtt', pmdb: 'tabPmdb', mst: 'tabMst', pbase: 'tabPbase', pcut: 'tabPcut', ppress: 'tabPpress', qc: 'tabQc', ord: 'tabOrd', so: 'tabSo', vord: 'tabVord', vreq: 'tabVreq', rfd: 'tabRfd', vend: 'tabVend', vlog: 'tabVlog', cx: 'tabCx', palloc: 'tabPalloc', fgi: 'tabFgi', fba: 'tabFba', fab: 'tabFab', acc: 'tabAcc', rep: 'tabRep', pa: 'tabPa', ka: 'tabKa', hr: 'tabHr', shop: 'tabShop', adj: 'tabAdj', flow: 'tabFlow' };
   /* Before anything is shown: hand back what the screen being left was holding. */
   if (TAB_NOW && TAB_NOW !== which) tabShed(TAB_NOW);
   Object.entries(panes).forEach(([k, id]) => $(id).classList.toggle('hide', which !== k));
   Object.entries(navs).forEach(([k, id]) => $(id).classList.toggle('on', which === k));
   if (SHOP_ONLY() && which === 'ord') { $('pageTitle').textContent = 'Shopify Orders'; }
   const TITLES = { dash: 'Dashboard', repl: 'Replenishment', article: 'Article Review', target: 'Revenue Target', follow: 'Ongoing Purchase Order', top: 'Top ASIN Status', india: 'India Stock', shopify: 'Shopify Stock', prod: 'In Production', pack: 'Packing List', plan: 'Action Plan',
-    att: 'Attendance', pmdb: 'Master Database', mst: 'Masters', pbase: 'Job Work Register', pcut: 'Cutting Data', ppress: 'Press Inventory', qc: 'Quality Control', ord: 'Order Console', so: 'Sales Orders', vord: 'Vendor Orders', vreq: 'Vendor Order Requests', rfd: 'RFD Requirements', vend: 'Vendor Portal', vlog: 'History — what printers have sent', cx: 'Customer Orders', palloc: 'Printer Allocation', fgi: 'Finished Goods', fba: 'FBA Dispatch', fab: 'Fabric Inventory', acc: 'Accessories', rep: 'Reports', pa: 'Production Analysis', ka: 'Karigar Analysis', hr: 'Finance & HR', shop: 'Shopify Orders', adj: 'Adjustments' };
+    att: 'Attendance', pmdb: 'Master Database', mst: 'Masters', pbase: 'Job Work Register', pcut: 'Cutting Data', ppress: 'Press Inventory', qc: 'Quality Control', ord: 'Order Console', so: 'Sales Orders', vord: 'Vendor Orders', vreq: 'Vendor Order Requests', rfd: 'RFD Requirements', vend: 'Vendor Portal', vlog: 'History — what printers have sent', cx: 'Customer Orders', palloc: 'Printer Allocation', fgi: 'Finished Goods', fba: 'FBA Dispatch', fab: 'Fabric Inventory', acc: 'Accessories', rep: 'Reports', pa: 'Production Analysis', ka: 'Karigar Analysis', hr: 'Finance & HR', shop: 'Shopify Orders', adj: 'Adjustments', flow: 'Production flow (test)' };
   $('pageTitle').textContent = TITLES[which] || 'Replenishment';
   /* The line under a title, and the button that starts work, for the screens that have them. */
   const SUBS = { pbase: 'Track job work issued to karigars and manage receipts' };
@@ -4060,6 +4082,7 @@ function showTab(which) {
   if (which === 'hr') ensureHr();
   if (which === 'shop') ensureShop();
   if (which === 'adj') ensureAdj();
+  if (which === 'flow') ensureFlow();
 }
 $('tabDash').onclick = () => showTab('dash');
 $('tabRepl').onclick = () => showTab('repl');
@@ -4079,6 +4102,7 @@ $('tabPcut').onclick = () => showTab('pcut');
 $('tabPpress').onclick = () => showTab('ppress');
 $('tabQc').onclick = () => showTab('qc');
 $('tabOrd').onclick = () => showTab('ord');
+$('tabFlow').onclick = () => showTab('flow');
 $('tabSo').onclick = () => showTab('so');
 $('tabVord').onclick = () => showTab('vord');
 $('tabVreq').onclick = () => showTab('vreq');
@@ -21755,7 +21779,6 @@ function renderOrd() {
   if (v === 'demtot') return renderOrdDemandTot();
   if (v === 'orders') return renderOrdSheet();
   if (v === 'track') return renderOrdTrack();
-  if (v === 'steps') return renderOrdSteps();      // PO — 10 steps (orders/po-steps.js), test links only for now
   if (v === 'shppipe') return renderOrdPipe();
   if (v === 'team') return renderOrdTeam();
   if (v === 'prnplat') return renderOrdPrnPlat();
@@ -23455,202 +23478,432 @@ $('odExport').onclick = () => {
   ptDownload('order-console', ordBookCsv(rows));
 };
 
-/* ============================== FILE: src/app/orders/po-steps.js ============================== */
-/* ================= PO — 10 STEPS (2026-10-10, TEST ONLY until Ravi says deploy) =================
- *
- * Ravi's "production plan" document: every PO goes Order → PPC → Demand (accessories / RFD fabric) → Vendor
- * allocation → Printed fabric in store → Cutting → Cutting done, back to store → Raw cutting in store → WIP (issue →
- * receive → QC) → India stock "ready from production". This view puts every PO on one line across those ten steps.
- *
- * HOW THIS FILE IS LAID OUT:
- *   1. Switch            — shown only on a Firebase preview link (host has "--") or with localStorage poSteps = '1';
- *                          the live app never offers it until Ravi has checked it and says deploy
- *   2. The ten steps     — what each one counts, and from which register
- *   3. Per PO            — the lines of each PO added up, step by step; where it is stuck
- *   4. The two ticks     — PPC and Demand have no register in this app, so they are ticked here: pt_poSteps/<order>
- *   5. The screen        — Order Console → view "PO — 10 steps"
- *
- * Every figure except the two ticks is the one the Order Console already shows (ordLines, ordVendorOf, ordQcOf, ordFgAt),
- * so this view and the console can never disagree. */
 
-/* ============================================================================================
- * 1. SWITCH
- * ============================================================================================ */
-const POS_ON = (() => {
-  try { if (localStorage.getItem('poSteps') === '0') return false; if (localStorage.getItem('poSteps') === '1') return true; } catch (e) { /* storage blocked */ }
+/* ####################################################################################################
+ * GROUP: src/app/flow/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/flow/flow-core.js ============================== */
+/* ================= PRODUCTION FLOW — every order line through Ravi's buckets (2026-10-10) =================
+ *
+ * Ravi's "production plan" (Downloads/production plan.docx): an order comes in, PPC raises what it needs (fabric,
+ * accessories, printing, dates), the demand is arranged, a printer is given the work, the printed fabric comes in,
+ * it is cut, the cut pieces wait in the store, karigars make them (issue → receive → QC), and the finished pieces go
+ * to India stock. "Mene jo step bheje h wo apna apna alag alag bucket lete h" — each step is its own BUCKET, with its
+ * own people, holding only the lines standing at that step.
+ *
+ * His choices (10 Oct): a line moves on BY ITSELF when its entry is made (no "done" button); it moves SKU by SKU, not
+ * as a whole PO; PPC raises fabric, accessories, printing and planned dates; each bucket is its own access right;
+ * cutting and "cut → store" are one bucket; accessories are RESERVED for the line in Demand.
+ *
+ * TEST ONLY until Ravi checks it: shown on a Firebase preview link (host has "--") or with localStorage flow = '1'.
+ *
+ * HOW THE FLOW FILES ARE LAID OUT:
+ *   flow-core.js    the switch, the buckets and their rights, the data, and THE RULE that puts a line in a bucket
+ *   flow-ppc.js     PPC: the plan for a line — worked out from the recipe, checked and saved by PPC
+ *   flow-demand.js  Demand: fabric ready, accessories reserved (and what is short)
+ *   flow-view.js    the screen: the bucket buttons and each bucket's list
+ *
+ * Data: pt_ppc/<line> (the plan), pt_flowDemand/<line> (fabric ready), pt_accReserve/<line> (accessories held).
+ * Everything else is read from the registers the factory already fills — the Order Console's own figures. */
+
+/* ---- the switch ---- */
+const FLOW_ON = (() => {
+  try { const v = localStorage.getItem('flow'); if (v === '0') return false; if (v === '1') return true; } catch (e) { /* storage blocked */ }
   try { return /--/.test(location.hostname) || /^(localhost|127\.)/.test(location.hostname); } catch (e) { return false; }
 })();
+/* PPC and Demand apply to orders from this date on: the 2,000 older POs were never planned this way, and putting them
+ * all in PPC would bury the new ones. Older lines go straight to the bucket of the step they are really at. */
+const FLOW_FROM_DEFAULT = '2026-10-10';
+const flowFrom = () => { try { return localStorage.getItem('flowFrom') || FLOW_FROM_DEFAULT; } catch (e) { return FLOW_FROM_DEFAULT; } };
 
-/* ============================================================================================
- * 2. THE TEN STEPS
- * ============================================================================================ */
-const POS_STEPS = [
-  { k: 'po', l: '1 · PO', tip: 'The PO in the order book: its lines and pieces, the platform and the date.' },
-  { k: 'ppc', l: '2 · PPC', tip: 'Production planning. No register holds it — ticked here, with a date and a note.', manual: true },
-  { k: 'demand', l: '3 · Demand', tip: 'Accessories and RFD fabric asked for. Ticked here; shown done on its own once printing has been given for every printed line.', manual: true },
-  { k: 'vendor', l: '4 · Vendor', tip: 'Pieces given to a printer for this PO (vendor orders, shared by SKU the way the Order Console shares them). Lines that are not printed: n/a.' },
-  { k: 'fabric', l: '5 · Fabric in', tip: 'Printed pieces back from the printer and accepted (History → Accept).' },
-  { k: 'cut', l: '6 · Cutting', tip: 'Cutting register entries naming this PO. Only lines whose SKU needs cutting.' },
-  { k: 'cutstore', l: '7 · Cut → store', tip: 'The cutting master\'s entry is what puts cut pieces in the store, so this is the same figure as Cutting until a separate hand-over is recorded.' },
-  { k: 'raw', l: '8 · Raw in store', tip: 'Cut (or, for a line with no cutting, printed) pieces not yet issued to a karigar — what is sitting in the store now.' },
-  { k: 'wip', l: '9 · WIP', tip: 'Issued to karigars → received back → QC passed. Done when QC has passed every piece.' },
-  { k: 'india', l: '10 · India stock', tip: 'Received into Finished Goods (India stock) for this PO. A Shopify line: handed to shipping.' },
+/* ---- the buckets, in the order the work moves: [key, label, the right that opens it, what it is waiting for] ---- */
+const FLOW_BUCKETS = [
+  ['new', 'New orders', 'flnew', 'Orders that came in over the last 7 days, and the bucket each line is in now.'],
+  ['ppc', 'PPC', 'flppc', 'Plan not raised yet: fabric, accessories, printing and dates.'],
+  ['demand', 'Demand', 'fldem', 'Planned, but the fabric is not ready or the accessories are not reserved.'],
+  ['vendor', 'Vendor allocation', 'flven', 'Printed lines not yet given to a printer in full.'],
+  ['fabric', 'Printed fabric in', 'flfab', 'Given to a printer, not all back and accepted.'],
+  ['cut', 'Cutting', 'flcut', 'Lines that need cutting, not all cut. The cutting entry puts the pieces in the store.'],
+  ['raw', 'Raw cutting in store', 'flraw', 'Cut (or printed) pieces waiting to be issued to a karigar.'],
+  ['wip', 'WIP', 'flwip', 'With karigars: issued, received, waiting for QC.'],
+  ['ready', 'Ready → India stock', 'flrdy', 'Made and QC passed, not yet received into Finished Goods (Shopify: not handed to shipping).'],
 ];
+const FLOW_TABS = FLOW_BUCKETS.map(b => b[2]);
+const flowBucketsAllowed = () => (ME.admin ? FLOW_BUCKETS : FLOW_BUCKETS.filter(b => (ME.tabs || []).includes(b[2])));
+const flowKey = (orderNo, sku) => (obUC(orderNo) + '__' + obUC(sku)).replace(/[.#$\[\]\/]/g, '_');
 
-/* ============================================================================================
- * 3. PER PO
- * ============================================================================================ */
-let POS_TICKS = null, POS_TICKS_AT = 0;
-async function posLoadTicks(force) {
-  if (POS_TICKS && !force && Date.now() - POS_TICKS_AT < 60e3) return POS_TICKS;
-  try { POS_TICKS = (await ptGet('pt_poSteps')) || {}; } catch (e) { POS_TICKS = POS_TICKS || {}; }
-  POS_TICKS_AT = Date.now();
-  return POS_TICKS;
+/* ---- the data ---- */
+let FLOW = { ppc: null, dem: null, res: null, at: 0, busy: null, err: '' };
+async function flowLoad(force) {
+  if (FLOW.busy) return FLOW.busy;
+  if (FLOW.ppc && !force && Date.now() - FLOW.at < 60e3) return;
+  FLOW.busy = (async () => {
+    try {
+      const [ppc, dem, res] = await Promise.all([ptGet('pt_ppc'), ptGet('pt_flowDemand'), ptGet('pt_accReserve')]);
+      FLOW.ppc = ppc || {}; FLOW.dem = dem || {}; FLOW.res = res || {}; FLOW.err = '';
+    } catch (e) { FLOW.err = e.message || String(e); FLOW.ppc = FLOW.ppc || {}; FLOW.dem = FLOW.dem || {}; FLOW.res = FLOW.res || {}; }
+    FLOW.at = Date.now(); FLOW.busy = null;
+  })();
+  return FLOW.busy;
 }
-/** The database key for an order number (it may not hold . # $ [ ] /). */
-const posKey = no => String(no || '').replace(/[.#$\[\]\/]/g, '_');
 
-/** One line's figures for each step: { need, done } (need 0 = not this line's step), plus the WIP three. */
-function posLine(r) {
+/* ---- THE RULE: which bucket a line is in ----
+ * Read straight off the registers, in the order the work moves; the first step not finished is the bucket.
+ * `printed` for a planned line is what PPC said; for an older line it is what the registers show. */
+function flowState(r) {
+  const k = flowKey(r.orderNo, r.sku), qty = +r.qty || 0;
+  const cap = n => Math.max(0, Math.min(qty, +n || 0));
+  const p = (FLOW.ppc || {})[k] || null, d = (FLOW.dem || {})[k] || null, res = (FLOW.res || {})[k] || null;
+  const isNew = String(ptIsoDate(r.orderDate) || '') >= flowFrom();
   const v = ordVendorOf(r.orderNo, r.sku), q = ordQcOf(r.orderNo, r.sku), g = ordFgAt(r.orderNo, r.sku) || {};
-  const qty = +r.qty || 0, cap = n => Math.max(0, Math.min(qty, +n || 0));
-  const printed = !!(r.printer || (v && v.given > 0) || /^Vendor/.test(ordWaitingAt(r) || ''));
-  const given = r.printer ? qty : (v ? cap(v.given) : 0), back = r.printer ? cap(r.printed) : (v ? cap(v.back) : 0);
-  const cut = r.cutReq ? cap(r.cut) : 0, issued = cap(r.issued), received = cap(r.received), qc = q ? cap(q.ok) : 0;
-  const avail = r.cutReq ? cut : (printed ? back : qty);
-  const india = r.handedAt || r.shopDoneAt ? qty : cap(g.in);
-  return {
-    po: { need: qty, done: qty },
-    vendor: { need: printed ? qty : 0, done: given },
-    fabric: { need: printed ? qty : 0, done: back },
-    cut: { need: r.cutReq ? qty : 0, done: cut },
-    cutstore: { need: r.cutReq ? qty : 0, done: cut },
-    raw: { need: 0, done: 0, now: Math.max(0, avail - issued) },
-    wip: { need: qty, done: qc, issued, received, qc },
-    india: { need: qty, done: india },
-    printed,
+  const printed = p ? !!(p.print && p.print.need) : !!(r.printer || (v && v.given > 0) || /^Vendor/.test(ordWaitingAt(r) || ''));
+  const s = {
+    key: k, isNew, plan: p, demand: d, res, printed,
+    given: r.printer ? qty : (v ? cap(v.given) : 0), back: r.printer ? cap(r.printed) : (v ? cap(v.back) : 0),
+    cut: r.cutReq ? cap(r.cut) : 0, issued: cap(r.issued), received: cap(r.received), qc: q ? cap(q.ok) : 0,
+    made: Math.max(cap(r.pressed), q ? cap(q.ok) : 0), india: (r.handedAt || r.shopDoneAt) ? qty : cap(g.in),
   };
+  const accNeed = p && (p.acc || []).some(a => a.code && +a.qty > 0);
+  s.bucket =
+      (r.handedAt || r.shopDoneAt) ? 'done'
+    : (isNew && !p) ? 'ppc'
+    : (isNew && (!(d && d.fabricReady) || (accNeed && !res))) ? 'demand'
+    : (printed && s.given < qty) ? 'vendor'
+    : (printed && s.back < qty) ? 'fabric'
+    : (r.cutReq && s.cut < qty) ? 'cut'
+    : (s.issued < qty) ? 'raw'
+    : (s.made < qty) ? 'wip'
+    : (s.india < qty && (isNew || r.open)) ? 'ready'
+    : 'done';
+  return s;
 }
 
-/** Every PO on the book (after the console's own filters), each step added up over its lines. */
-function posRows(lines, ticks) {
-  const by = new Map();
-  (lines || []).forEach(r => {
-    let o = by.get(r.orderNo);
-    if (!o) {
-      o = { orderNo: r.orderNo, date: r.orderDate || '', src: (typeof ordSrcOf === 'function' && ordSrcOf(r.orderNo)) || String(r.orderNo).split('-')[0],
-        lines: 0, open: 0, s: {}, wip: { issued: 0, received: 0, qc: 0 }, raw: 0, printedLines: 0 };
-      POS_STEPS.forEach(st => { o.s[st.k] = { need: 0, done: 0 }; });
-      by.set(r.orderNo, o);
-    }
-    const x = posLine(r);
-    o.lines++; if (r.open) o.open++;
-    if (x.printed) o.printedLines++;
-    ['po', 'vendor', 'fabric', 'cut', 'cutstore', 'wip', 'india'].forEach(k => { o.s[k].need += x[k].need; o.s[k].done += x[k].done; });
-    o.raw += x.raw.now; o.wip.issued += x.wip.issued; o.wip.received += x.wip.received; o.wip.qc += x.wip.qc;
+/** Every open line (and every new order's lines) with its state. Cached on the order book and the three nodes. */
+let FLOW_C = { src: null, ppc: null, dem: null, res: null, rows: null };
+function flowRows() {
+  const lines = ordLines();
+  if (FLOW_C.rows && FLOW_C.src === lines && FLOW_C.ppc === FLOW.ppc && FLOW_C.dem === FLOW.dem && FLOW_C.res === FLOW.res) return FLOW_C.rows;
+  const since = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10);
+  const rows = [];
+  lines.forEach(r => {
+    const s = flowState(r);
+    const recent = String(ptIsoDate(r.orderDate) || '') >= since;
+    if (s.bucket === 'done' && !recent) return;
+    rows.push({ r, s, recent });
   });
-  by.forEach(o => {
-    const t = (ticks || {})[posKey(o.orderNo)] || {};
-    o.ticks = t;
-    o.s.ppc = { need: 1, done: t.ppc ? 1 : 0, manual: true };
-    /* Demand: ticked, or every printed line already given out (the demand evidently went). */
-    const auto = o.printedLines > 0 && o.s.vendor.done >= o.s.vendor.need;
-    o.s.demand = { need: 1, done: t.demand || auto ? 1 : 0, manual: true, auto: !t.demand && auto };
-    o.s.raw = { need: 0, done: 0, now: o.raw };
-    /* Stuck at: the first step not finished, in the document's order (n/a steps are passed). */
-    o.at = POS_STEPS.findIndex(st => { const c = o.s[st.k]; return c.need > 0 && c.done < c.need; });
-    if (o.at < 0) o.at = POS_STEPS.length;
+  FLOW_C = { src: lines, ppc: FLOW.ppc, dem: FLOW.dem, res: FLOW.res, rows };
+  return rows;
+}
+/* ============================== FILE: src/app/flow/flow-ppc.js ============================== */
+/* ================= PRODUCTION FLOW · PPC — the plan for a line =================
+ * What PPC raises for each order line: the fabric (which, how many metres), the accessories (zippers by their code,
+ * which is what Demand reserves), whether it is printed, and the planned dates. Worked out from what the app already
+ * knows — cloth per piece (ptConsPlan), the recipe, the print rules, the Job Work materials planner — and shown for PPC
+ * to check and change before saving. Saving IS raising: the line leaves PPC for Demand by itself.
+ *   pt_ppc/<line> = { orderNo, sku, qty, fabric:{name, perPc, metres, how}, extra:[{what, qty, unit}],
+ *                     acc:[{code, what, qty}], print:{need, as}, dates:{cut, qc, ready}, note, at, by } */
+
+const flowR2 = n => Math.round((+n || 0) * 100) / 100;
+const flowAddDays = (iso, n) => { const d = new Date((iso || dToday()) + 'T00:00:00'); d.setDate(d.getDate() + n); return d.toLocaleDateString('en-CA'); };
+
+/** The plan the app would raise for this line, from the recipe and the rules. Nothing invented: what is not known is
+ *  left blank and named in `gaps`. */
+function flowSuggest(r) {
+  const m = cutSkuOf(r.sku) || {}, qty = +r.qty || 0, gaps = [];
+  /* Fabric: cloth per piece first (print rules, widths, panels), then the recipe's consumption. */
+  let fabric = { name: '', perPc: 0, metres: 0, how: '' };
+  let cons = null;
+  try { cons = ptConsPlan(m); } catch (e) { cons = null; }
+  if (cons && cons.metres > 0) fabric = { name: cons.fabric || '', perPc: flowR2(cons.metres), metres: flowR2(cons.metres * qty), how: 'cloth per piece' };
+  else {
+    const per = +(recipeValue(m, 'consumption') || 0), name = recipeValue(m, 'fabric') || m.fabric || '';
+    fabric = { name, perPc: flowR2(per), metres: flowR2(per * qty), how: per ? 'recipe consumption' : '' };
+    if (!per) gaps.push('no cloth per piece or consumption for this SKU' + (cons && cons.why ? ' (' + cons.why + ')' : ''));
+  }
+  /* Accessories that come off the accessories shelf (zippers, by code) — and other materials, which do not. */
+  const acc = [], extra = [];
+  (bdMaterialsFor(r.sku, qty) || []).forEach(x => {
+    if (x.why) { gaps.push(x.why); return; }
+    if (x.kind === 'zip') acc.push({ code: accCode(m.chainLength), what: x.what, qty: x.qty });
+    else extra.push({ what: (x.kind === 'ruffle' ? 'Ruffle — ' : '') + x.what, qty: x.qty, unit: x.unit });
   });
-  return [...by.values()].sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(a.orderNo).localeCompare(String(b.orderNo)));
+  if (recipeValue(m, 'isPiping') === true) {
+    const pm = +(recipeValue(m, 'pipingMeters') || 0);
+    if (pm) extra.push({ what: 'Piping', qty: flowR2(pm * qty), unit: 'm' }); else gaps.push('piping SKU with no piping metres in its recipe');
+  }
+  if (recipeValue(m, 'fillerFabricRequired') === true) {
+    const fq = +(recipeValue(m, 'standardFillingQty') || 0);
+    if (fq) extra.push({ what: 'Filler', qty: flowR2(fq * qty), unit: '' }); else gaps.push('filler SKU with no standard filling quantity in its recipe');
+  }
+  let need = true, as = '';
+  try { need = !!ptPrintNeeded(m); as = ptPrintIssueAs(m) || ''; } catch (e) { /* no print rules loaded: printed, as the rules default */ }
+  const t = dToday();
+  return { orderNo: r.orderNo, sku: obUC(r.sku), qty, fabric, acc, extra, print: { need, as },
+    dates: { cut: flowAddDays(t, 3), qc: flowAddDays(t, 7), ready: ptIsoDate(r.mtoDue) || flowAddDays(t, 10) }, note: '', gaps };
 }
 
-/* ============================================================================================
- * 4. THE TWO TICKS — pt_poSteps/<order>/{ppc|demand} = { at, by, date, note }
- * ============================================================================================ */
-function posTickOpen(orderNo, k) {
-  const st = POS_STEPS.find(x => x.k === k), cur = ((POS_TICKS || {})[posKey(orderNo)] || {})[k];
+/** PPC's form for every line of one PO that is still in PPC (or one line). */
+function flowPpcOpen(orderNo, onlySku) {
+  const rows = flowRows().filter(x => x.r.orderNo === orderNo && (onlySku ? obUC(x.r.sku) === obUC(onlySku) : x.s.bucket === 'ppc'));
+  if (!rows.length) return;
+  const plans = rows.map(x => Object.assign(flowSuggest(x.r), x.s.plan ? JSON.parse(JSON.stringify(x.s.plan)) : {}));
+  const f = (i, k, v, type) => `<input data-fp="${i}" data-k="${k}" ${type ? `type="${type}"` : ''} value="${esc(v == null ? '' : v)}" style="width:${type === 'date' ? 135 : type === 'number' ? 80 : 150}px;padding:3px 6px;font-size:12px">`;
+  const html = plans.map((p, i) => {
+    const r = rows[i].r, img = (typeof ptImgOf === 'function' && ptImgOf(r.sku)) || '';
+    return `<div style="border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:10px">
+      <div style="display:flex;gap:10px;align-items:center">
+        ${img ? `<img src="${esc(ptImgSrc ? ptImgSrc(img, 48) : img)}" style="width:48px;height:48px;object-fit:contain;border-radius:6px;background:#fff" alt="">` : ''}
+        <div><b style="font-family:ui-monospace,monospace">${esc(p.sku)}</b> · <b>${nf(p.qty)} pcs</b>
+          <div class="muted" style="font-size:11.5px">${esc([r.articleSubtype || r.articleType, r.color, r.size].filter(Boolean).join(' · '))}</div></div></div>
+      <div style="display:grid;grid-template-columns:120px 1fr;gap:6px 10px;margin-top:8px;font-size:12.5px;align-items:center">
+        <span class="muted">Fabric</span><span>${f(i, 'fabric.name', p.fabric.name)} ${f(i, 'fabric.perPc', p.fabric.perPc, 'number')} m/pc → <b data-fm="${i}">${nf(p.fabric.metres)}</b> m
+          <span class="muted" style="font-size:11px">${esc(p.fabric.how || 'not known — type it')}</span></span>
+        <span class="muted">Printing</span><span><label style="display:inline-flex;gap:5px;align-items:center"><input data-fp="${i}" data-k="print.need" type="checkbox" ${p.print.need ? 'checked' : ''} style="width:auto"> printed by a vendor</label>
+          ${p.print.as ? `<span class="muted" style="font-size:11px"> · given as ${esc(p.print.as)}</span>` : ''}</span>
+        <span class="muted">Accessories</span><span>${(p.acc || []).length ? p.acc.map((a, j) => `${esc(a.what)} (code ${esc(a.code)}) × ${f(i, 'acc.' + j + '.qty', a.qty, 'number')}`).join('<br>') : '<span class="muted">none from the accessories shelf</span>'}</span>
+        <span class="muted">Other materials</span><span>${(p.extra || []).length ? p.extra.map(x => `${esc(x.what)}: <b>${nf(x.qty)}</b> ${esc(x.unit)}`).join(' · ') : '<span class="muted">none</span>'}</span>
+        <span class="muted">Planned dates</span><span>cut ${f(i, 'dates.cut', p.dates.cut, 'date')} QC ${f(i, 'dates.qc', p.dates.qc, 'date')} ready ${f(i, 'dates.ready', p.dates.ready, 'date')}</span>
+        <span class="muted">Note</span><span>${f(i, 'note', p.note)}</span>
+      </div>
+      ${(p.gaps || []).length ? `<div style="font-size:11.5px;color:#92400e;margin-top:6px">• ${p.gaps.map(esc).join('<br>• ')}</div>` : ''}
+    </div>`;
+  }).join('');
   ptOpenDialog({
-    title: `${st.l} — ${orderNo}`,
-    subtitle: st.tip,
-    html: `<div class="ptgrid" style="grid-template-columns:1fr">
-      <label>Date<input id="posDate" type="date" value="${esc((cur && cur.date) || dToday())}"></label>
-      <label>Note (what was planned / asked for, by whom)<input id="posNote" value="${esc((cur && cur.note) || '')}"></label>
-      ${cur ? `<div class="muted" style="font-size:12px">Ticked by ${esc(String(cur.by || '').split('@')[0])} on ${esc(String(cur.at || '').slice(0, 10))}.
-        <label style="display:flex;gap:6px;align-items:center;margin-top:6px"><input id="posUndo" type="checkbox" style="width:auto"> Take the tick off</label></div>` : ''}
-    </div>`,
-    saveLabel: cur ? 'Save' : 'Mark done',
+    title: `PPC — ${orderNo}`,
+    subtitle: `${nf(rows.length)} line(s). Worked out from cloth per piece, the recipe and the print rules — check, change, save. Saving raises it: the line moves on to Demand by itself.`,
+    html,
+    saveLabel: rows.length > 1 ? `Raise the plan for ${rows.length} lines` : 'Raise the plan',
     onSave: async () => {
-      const path = `pt_poSteps/${posKey(orderNo)}/${k}`;
-      const undo = $('posUndo') && $('posUndo').checked;
-      const val = undo ? null : { at: new Date().toISOString(), by: ME.email || '', date: $('posDate').value || dToday(), note: String($('posNote').value || '').trim(), orderNo };
-      try { await ptPatch({ [path]: val }); }
-      catch (e) { return 'Could not save: ' + (e.message || e); }
-      POS_TICKS = POS_TICKS || {};
-      const t = POS_TICKS[posKey(orderNo)] = POS_TICKS[posKey(orderNo)] || {};
-      if (val) t[k] = val; else delete t[k];
-      renderOrdSteps();
+      const set = (o, path, v) => { const ks = path.split('.'); let t = o; ks.slice(0, -1).forEach(k => { t = t[/^\d+$/.test(k) ? +k : k]; }); t[ks[ks.length - 1]] = v; };
+      document.querySelectorAll('[data-fp]').forEach(inp => {
+        const p = plans[+inp.dataset.fp], k = inp.dataset.k;
+        set(p, k, inp.type === 'checkbox' ? inp.checked : inp.type === 'number' ? (+inp.value || 0) : inp.value.trim());
+      });
+      const patch = {}, now = new Date().toISOString();
+      const noFab = plans.filter(p => !String(p.fabric.name || '').trim()).map(p => p.sku);
+      if (noFab.length) return `Which fabric? Type it for ${noFab.join(', ')} before raising the plan.`;
+      plans.forEach(p => {
+        p.fabric.metres = flowR2(p.fabric.perPc * p.qty);
+        const rec = Object.assign({}, p, { at: now, by: ME.email || '' }); delete rec.gaps;
+        patch['pt_ppc/' + flowKey(p.orderNo, p.sku)] = rec;
+      });
+      try { await ptPatch(patch); } catch (e) { return 'Could not save: ' + (e.message || e); }
+      /* A new object, so every cache keyed on it knows it changed. */
+      FLOW.ppc = Object.assign({}, FLOW.ppc);
+      Object.entries(patch).forEach(([path, rec]) => { FLOW.ppc[path.slice('pt_ppc/'.length)] = rec; });
+      renderFlow();
+      return '';
+    },
+  });
+  /* The metres follow the per-piece figure as it is typed. */
+  document.querySelectorAll('[data-k="fabric.perPc"]').forEach(inp => inp.oninput = () => {
+    const i = +inp.dataset.fp, el = document.querySelector(`[data-fm="${i}"]`);
+    if (el) el.textContent = nf(flowR2((+inp.value || 0) * plans[i].qty));
+  });
+}
+/* ============================== FILE: src/app/flow/flow-demand.js ============================== */
+/* ================= PRODUCTION FLOW · DEMAND — fabric ready, accessories reserved =================
+ * A planned line waits here until (a) its fabric is ready — the store says so, with what and how much — and (b) every
+ * accessory PPC raised for it is RESERVED: held for this line so no other order takes it.
+ *
+ * A RESERVATION LETS GO BY ITSELF as the line is issued to karigars: the zipper is taken off the shelf at issue
+ * (ptConsumeZippers), so what is still held is the reservation × the share of the line not yet issued. Counting the
+ * full reservation AND the issue would hold the same zipper twice.
+ *   pt_flowDemand/<line> = { fabricReady: { at, by, what, metres, note } }
+ *   pt_accReserve/<line> = { orderNo, sku, items: { CODE: qty }, at, by } */
+
+/** What a reservation still holds now: its items × the share of the line not yet issued. */
+function flowHeld(key, issued, qty) {
+  const res = (FLOW.res || {})[key]; if (!res || !res.items) return {};
+  const left = qty > 0 ? Math.max(0, 1 - (+issued || 0) / qty) : 0, out = {};
+  Object.entries(res.items).forEach(([code, n]) => { const h = Math.ceil((+n || 0) * left); if (h > 0) out[accCode(code)] = h; });
+  return out;
+}
+/** Every accessory: on the shelf, held for lines, free to reserve. */
+function flowAccFree() {
+  const held = {};
+  flowRows().forEach(({ r, s }) => Object.entries(flowHeld(s.key, s.issued, +r.qty || 0)).forEach(([c, n]) => { held[c] = (held[c] || 0) + n; }));
+  const out = {};
+  (accBalances() || []).forEach(b => { const c = accCode(b.code); out[c] = { name: b.name || c, shelf: +b.qty || 0, held: held[c] || 0, free: (+b.qty || 0) - (held[c] || 0) }; });
+  Object.keys(held).forEach(c => { if (!out[c]) out[c] = { name: c, shelf: 0, held: held[c], free: -held[c] }; });
+  return out;
+}
+
+/** Reserve every accessory this line's plan raised — all of it, or none, with what is short named. */
+async function flowReserve(r, s) {
+  const items = {};
+  ((s.plan && s.plan.acc) || []).forEach(a => { if (a.code && +a.qty > 0) items[accCode(a.code)] = (items[accCode(a.code)] || 0) + (+a.qty); });
+  if (!Object.keys(items).length) return 'Nothing to reserve: the plan raised no accessory from the shelf.';
+  const free = flowAccFree(), short = Object.entries(items).filter(([c, n]) => !free[c] || free[c].free < n);
+  if (short.length) return 'Short: ' + short.map(([c, n]) => `${c} needs ${n}, ${free[c] ? Math.max(0, free[c].free) : 0} free`).join(' · ') + ' — buy or free some first.';
+  const rec = { orderNo: r.orderNo, sku: obUC(r.sku), items, at: new Date().toISOString(), by: ME.email || '' };
+  try { await ptPatch({ ['pt_accReserve/' + s.key]: rec }); } catch (e) { return 'Could not save: ' + (e.message || e); }
+  FLOW.res = Object.assign({}, FLOW.res, { [s.key]: rec });
+  return '';
+}
+async function flowUnreserve(s) {
+  try { await ptPatch({ ['pt_accReserve/' + s.key]: null }); } catch (e) { return 'Could not save: ' + (e.message || e); }
+  FLOW.res = Object.assign({}, FLOW.res); delete FLOW.res[s.key];
+  return '';
+}
+
+/** The store says the fabric for a line is ready: what, how much, a note. */
+function flowFabricOpen(r, s) {
+  const p = s.plan || {}, cur = s.demand && s.demand.fabricReady;
+  ptOpenDialog({
+    title: `Fabric ready — ${r.orderNo} · ${obUC(r.sku)}`,
+    subtitle: `PPC raised: ${p.fabric ? `${p.fabric.name || '?'} · ${nf(p.fabric.metres)} m` : 'no fabric'}${p.print && p.print.need ? ' · to be printed by a vendor' : ''}.`,
+    html: `<div class="ptgrid" style="grid-template-columns:1fr">
+      <label>Fabric<input id="flfWhat" value="${esc((cur && cur.what) || (p.fabric && p.fabric.name) || '')}"></label>
+      <label>Metres ready<input id="flfM" type="number" step="0.01" value="${esc((cur && cur.metres) || (p.fabric && p.fabric.metres) || '')}"></label>
+      <label>Note (where it is: RFD in store, sent to the printer, greige ordered…)<input id="flfNote" value="${esc((cur && cur.note) || '')}"></label>
+      ${cur ? '<label style="display:flex;gap:6px;align-items:center"><input id="flfUndo" type="checkbox" style="width:auto"> Not ready after all — take it back</label>' : ''}</div>`,
+    saveLabel: 'Fabric is ready',
+    onSave: async () => {
+      const undo = $('flfUndo') && $('flfUndo').checked;
+      const metres = +($('flfM').value || 0), need = (p.fabric && +p.fabric.metres) || 0;
+      if (!undo && need && metres < need) return `PPC raised ${nf(need)} m; ${nf(metres)} m is not all of it. Ready means all of it.`;
+      const val = undo ? null : { at: new Date().toISOString(), by: ME.email || '', what: $('flfWhat').value.trim(), metres, note: $('flfNote').value.trim() };
+      try { await ptPatch({ [`pt_flowDemand/${s.key}/fabricReady`]: val }); } catch (e) { return 'Could not save: ' + (e.message || e); }
+      FLOW.dem = Object.assign({}, FLOW.dem, { [s.key]: Object.assign({}, FLOW.dem[s.key] || {}, { fabricReady: val }) });
+      renderFlow();
       return '';
     },
   });
 }
+/* ============================== FILE: src/app/flow/flow-view.js ============================== */
+/* ================= PRODUCTION FLOW · THE SCREEN =================
+ * The bucket buttons across the top (each with how many lines are in it; only the buckets this account may open), and
+ * the chosen bucket's list: SKU by SKU, with what that bucket is waiting for and a button to the screen where the work
+ * is entered. The lines move on by themselves when that entry is made. */
+let FLOW_VIEW = '';
 
-/* ============================================================================================
- * 5. THE SCREEN
- * ============================================================================================ */
-function posCell(o, st) {
-  const c = o.s[st.k];
-  if (st.k === 'po') return `<td class="num"><b>${nf(c.need)}</b><div class="muted" style="font-size:10.5px">${nf(o.lines)} line(s)</div></td>`;
-  if (st.k === 'raw') return `<td class="num">${c.now ? `<b>${nf(c.now)}</b><div class="muted" style="font-size:10.5px">waiting to issue</div>` : '<span class="muted">0</span>'}</td>`;
-  if (st.manual) {
-    const t = (o.ticks || {})[st.k];
-    const body = c.done ? (t ? `<span class="jw-st done">✓ ${esc(String(t.date || '').slice(5))}</span>${t.note ? `<div class="muted" style="font-size:10.5px;max-width:120px;white-space:normal">${esc(t.note.slice(0, 40))}</div>` : ''}`
-      : '<span class="jw-st done" title="Every printed line has been given to a printer">✓ auto</span>') : '<span class="jw-st pend">Mark</span>';
-    return `<td style="text-align:center"><a href="#" data-postick="${esc(o.orderNo)}|${st.k}" title="${esc(st.tip)}">${body}</a></td>`;
+async function ensureFlow() {
+  if (!PTG.mdb) { $('flMsg').textContent = 'Reading the order book…'; await ptLoadGates(); }
+  await Promise.all([flowLoad(), (typeof ensureVo === 'function' ? ensureVo().catch(() => {}) : null),
+    (typeof ensureAcc === 'function' ? ensureAcc().catch(() => {}) : null)]);
+  renderFlow();
+}
+
+function flowCounts(rows) {
+  const n = {}; FLOW_BUCKETS.forEach(b => { n[b[0]] = 0; });
+  rows.forEach(({ s, recent }) => { if (n[s.bucket] != null) n[s.bucket]++; if (recent) n.new++; });
+  return n;
+}
+const flowDays = iso => { const d = ptIsoDate(iso); if (!d) return null; return Math.max(0, Math.round((Date.now() - new Date(d + 'T00:00:00').getTime()) / 864e5)); };
+const flowLate = iso => iso && iso < dToday();
+
+function renderFlow() {
+  const allowed = flowBucketsAllowed();
+  if (!allowed.length) { $('flTable').innerHTML = ''; $('flMsg').textContent = 'No bucket of the production flow is given to this account.'; return; }
+  if (!allowed.some(b => b[0] === FLOW_VIEW)) FLOW_VIEW = allowed.find(b => b[0] === 'ppc') ? 'ppc' : allowed[0][0];
+  const all = flowRows();
+  const q = String($('flQ').value || '').trim().toLowerCase(), src = $('flSrc').value;
+  const srcs = [...new Set(all.map(x => x.r.src || String(x.r.orderNo).split('-')[0]))].sort();
+  ptFillSelect('flSrc', srcs.map(s => [s, s]), 'Every platform');
+  const pass = x => (!src || (x.r.src || String(x.r.orderNo).split('-')[0]) === src)
+    && (!q || [x.r.orderNo, x.r.sku, x.r.color, x.r.size, x.r.articleSubtype, x.r.articleType].join(' ').toLowerCase().includes(q));
+  const shown = all.filter(pass), n = flowCounts(shown);
+  $('flBuckets').innerHTML = allowed.map(([k, l, , tip]) => `<button class="fl-b${k === FLOW_VIEW ? ' on' : ''}" data-flb="${k}" title="${esc(tip)}">
+      <span class="fl-n">${nf(n[k] || 0)}</span><span>${esc(l)}</span></button>`).join('<span class="fl-arrow">›</span>');
+  const rows = FLOW_VIEW === 'new' ? shown.filter(x => x.recent) : shown.filter(x => x.s.bucket === FLOW_VIEW);
+  rows.sort((a, b) => String(a.r.orderDate || '').localeCompare(String(b.r.orderDate || '')) || String(a.r.orderNo).localeCompare(String(b.r.orderNo)));
+  $('flTable').innerHTML = flowTable(FLOW_VIEW, rows.slice(0, 800));
+  const b = FLOW_BUCKETS.find(x => x[0] === FLOW_VIEW);
+  $('flMsg').className = FLOW.err ? 'err' : 'muted';
+  $('flMsg').textContent = (FLOW.err ? 'Could not read the plans: ' + FLOW.err + ' · ' : '')
+    + `${b[1]}: ${nf(rows.length)} line(s) — ${b[3]}` + (rows.length > 800 ? ' · showing the oldest 800' : '')
+    + ` · PPC and Demand apply to orders from ${flowFrom()} · TEST VIEW, not on the live app`;
+}
+
+const FLOW_GO = { vendor: ['vreq', 'Vendor requests'], fabric: ['vlog', 'History (accept)'], cut: ['pcut', 'Cutting'], raw: ['pbase', 'Job Work (issue)'],
+  wip: ['qc', 'QC'], ready: ['fgi', 'Finished Goods'] };
+
+function flowTable(view, rows) {
+  const pic = sku => { const u = typeof ptImgOf === 'function' ? ptImgOf(sku) : ''; return u ? `<img src="${esc(ptImgSrc(u, 34))}" alt="" style="width:34px;height:34px;object-fit:contain;background:#fff;border-radius:5px">` : ''; };
+  const base = x => `<td class="frz" style="text-align:left"><a href="#" data-ordj="${esc(x.r.orderNo)}" style="font-weight:600">${esc(x.r.orderNo)}</a>
+      <div class="muted" style="font-size:10.5px">${esc(x.r.src || '')} · ${esc(ptIsoDate(x.r.orderDate) || '')} · ${nf(flowDays(x.r.orderDate) || 0)} d</div></td>
+    <td style="text-align:left;white-space:nowrap">${pic(x.r.sku)} <b style="font-family:ui-monospace,monospace;vertical-align:top">${esc(x.r.sku)}</b>
+      <div class="muted" style="font-size:10.5px">${esc([x.r.articleSubtype || x.r.articleType, x.r.color, x.r.size].filter(Boolean).join(' · '))}</div></td>
+    <td class="num"><b>${nf(x.r.qty)}</b></td>`;
+  const go = view => FLOW_GO[view] ? `<button class="ghost" data-flgo="${FLOW_GO[view][0]}" style="width:auto;padding:2px 9px;font-size:11.5px">${FLOW_GO[view][1]} →</button>` : '';
+  const prog = (d, of) => `<span class="jw-st ${d >= of ? 'done' : d > 0 ? 'prog' : 'pend'}">${nf(d)} / ${nf(of)}</span>`;
+  const due = (iso, label) => iso ? `<div class="muted" style="font-size:10.5px${flowLate(iso) ? ';color:#b91c1c;font-weight:600' : ''}">${label} ${esc(iso.slice(5))}${flowLate(iso) ? ' · late' : ''}</div>` : '';
+  let head = '', body = '';
+  if (view === 'new') {
+    head = ['PO', 'SKU', 'Qty', 'Now in'];
+    body = rows.map(x => `<tr>${base(x)}<td style="text-align:left">${esc((FLOW_BUCKETS.find(b => b[0] === x.s.bucket) || [, x.s.bucket === 'done' ? 'Done' : x.s.bucket])[1])}</td></tr>`).join('');
+  } else if (view === 'ppc') {
+    head = ['PO', 'SKU', 'Qty', 'What the plan will hold', ''];
+    const seen = new Set();
+    body = rows.map(x => { const sg = flowSuggest(x.r), first = !seen.has(x.r.orderNo); seen.add(x.r.orderNo);
+      return `<tr>${base(x)}<td style="text-align:left;font-size:12px">${esc(sg.fabric.name || '?')} ${sg.fabric.metres ? nf(sg.fabric.metres) + ' m' : '<b style="color:#b91c1c">metres not known</b>'}
+        · ${sg.print.need ? 'printed' : 'not printed'}${sg.acc.length ? ' · ' + sg.acc.map(a => esc(a.code) + '×' + nf(a.qty)).join(', ') : ''}
+        ${sg.gaps.length ? `<div style="font-size:10.5px;color:#92400e">${esc(sg.gaps[0])}${sg.gaps.length > 1 ? ' (+' + (sg.gaps.length - 1) + ')' : ''}</div>` : ''}</td>
+        <td style="white-space:nowrap">${first ? `<button data-flppc="${esc(x.r.orderNo)}" style="width:auto;padding:3px 10px;font-size:12px">Plan this PO</button>` : ''}
+          <button class="ghost" data-flppc="${esc(x.r.orderNo)}" data-sku="${esc(x.r.sku)}" style="width:auto;padding:2px 8px;font-size:11.5px">This line</button></td></tr>`; }).join('');
+  } else if (view === 'demand') {
+    head = ['PO', 'SKU', 'Qty', 'Fabric', 'Accessories', ''];
+    const free = flowAccFree();
+    body = rows.map(x => { const p = x.s.plan || {}, fr = x.s.demand && x.s.demand.fabricReady;
+      const acc = (p.acc || []).filter(a => a.code && +a.qty > 0);
+      const accCell = !acc.length ? '<span class="muted">none</span>' : x.s.res
+        ? `<span class="jw-st done">reserved</span> <span class="muted" style="font-size:11px">${acc.map(a => esc(a.code) + '×' + nf(a.qty)).join(', ')}</span>`
+        : acc.map(a => { const f = free[accCode(a.code)]; const ok = f && f.free >= a.qty;
+            return `<div style="font-size:12px">${esc(a.code)} × ${nf(a.qty)} <span style="color:${ok ? '#166534' : '#b91c1c'};font-weight:600">${f ? nf(Math.max(0, f.free)) + ' free' : 'not on the shelf'}${ok ? '' : ' · short ' + nf(a.qty - Math.max(0, f ? f.free : 0))}</span></div>`; }).join('');
+      return `<tr>${base(x)}
+        <td style="text-align:left;font-size:12px">${p.fabric ? `${esc(p.fabric.name)} · ${nf(p.fabric.metres)} m` : '—'}<br>
+          ${fr ? `<span class="jw-st done">ready</span> <span class="muted" style="font-size:10.5px">${esc(String(fr.by || '').split('@')[0])} ${esc(String(fr.at || '').slice(5, 10))}${fr.note ? ' · ' + esc(fr.note) : ''}</span>`
+            : `<button class="ghost" data-flfab="${esc(x.s.key)}" style="width:auto;padding:2px 9px;font-size:11.5px">Mark fabric ready</button>`}</td>
+        <td style="text-align:left">${accCell}</td>
+        <td>${acc.length ? (x.s.res ? `<button class="ghost" data-flunres="${esc(x.s.key)}" style="width:auto;padding:2px 8px;font-size:11.5px">Release</button>`
+            : `<button data-flres="${esc(x.s.key)}" style="width:auto;padding:3px 10px;font-size:12px">Reserve</button>`) : ''}</td></tr>`; }).join('');
+  } else if (view === 'vendor') {
+    head = ['PO', 'SKU', 'Qty', 'Given to a printer', ''];
+    body = rows.map(x => `<tr>${base(x)}<td class="num">${prog(x.s.given, +x.r.qty)}</td><td>${go(view)}</td></tr>`).join('');
+  } else if (view === 'fabric') {
+    head = ['PO', 'SKU', 'Qty', 'Back and accepted', ''];
+    body = rows.map(x => `<tr>${base(x)}<td class="num">${prog(x.s.back, x.s.given || +x.r.qty)}</td><td>${go(view)}</td></tr>`).join('');
+  } else if (view === 'cut') {
+    head = ['PO', 'SKU', 'Qty', 'Cut', ''];
+    body = rows.map(x => `<tr>${base(x)}<td class="num">${prog(x.s.cut, +x.r.qty)}${due(x.s.plan && x.s.plan.dates && x.s.plan.dates.cut, 'plan')}</td><td>${go(view)}</td></tr>`).join('');
+  } else if (view === 'raw') {
+    head = ['PO', 'SKU', 'Qty', 'In store, to issue', 'Issued', ''];
+    body = rows.map(x => { const avail = x.r.cutReq ? x.s.cut : (x.s.printed ? x.s.back : +x.r.qty);
+      return `<tr>${base(x)}<td class="num"><b>${nf(Math.max(0, avail - x.s.issued))}</b></td><td class="num">${prog(x.s.issued, +x.r.qty)}</td><td>${go(view)}</td></tr>`; }).join('');
+  } else if (view === 'wip') {
+    head = ['PO', 'SKU', 'Qty', 'Issued', 'Received', 'QC passed', ''];
+    body = rows.map(x => `<tr>${base(x)}<td class="num">${nf(x.s.issued)}</td><td class="num">${nf(x.s.received)}</td>
+      <td class="num">${prog(x.s.made, +x.r.qty)}${due(x.s.plan && x.s.plan.dates && x.s.plan.dates.qc, 'plan')}</td><td>${go(view)}</td></tr>`).join('');
+  } else if (view === 'ready') {
+    head = ['PO', 'SKU', 'Qty', 'Made', 'In India stock', ''];
+    body = rows.map(x => `<tr>${base(x)}<td class="num">${nf(x.s.made)}</td><td class="num">${prog(x.s.india, +x.r.qty)}${due(x.s.plan && x.s.plan.dates && x.s.plan.dates.ready, 'plan')}</td>
+      <td>${ordIsMto(x.r.orderNo) ? '<button class="ghost" data-flgo="ord" style="width:auto;padding:2px 9px;font-size:11.5px">Order Console (hand over) →</button>' : go(view)}</td></tr>`).join('');
   }
-  if (!c.need) return '<td class="num"><span class="muted" title="Not a step for this PO\'s lines">n/a</span></td>';
-  const tone = c.done >= c.need ? 'done' : c.done > 0 ? 'prog' : 'pend';
-  const extra = st.k === 'wip' ? `<div class="muted" style="font-size:10.5px">iss ${nf(o.wip.issued)} · rec ${nf(o.wip.received)} · QC ${nf(o.wip.qc)}</div>` : '';
-  return `<td class="num"><span class="jw-st ${tone}">${nf(c.done)} / ${nf(c.need)}</span>${extra}</td>`;
+  return '<thead><tr>' + head.map((h, i) => `<th${i === 0 ? ' class="frz" style="text-align:left"' : i === 1 ? ' style="text-align:left"' : ''}>${esc(h)}</th>`).join('') + '</tr></thead><tbody>'
+    + (body || `<tr><td colspan="${head.length}" class="muted" style="padding:16px">Nothing in this bucket.</td></tr>`) + '</tbody>';
 }
 
-async function renderOrdSteps() {
-  await posLoadTicks();
-  const all = posRows(ordApply(ordLines(), ordFilters()), POS_TICKS);
-  const pick = /^step\d+$/.test(ORD_KPI) ? +ORD_KPI.slice(4) : -1;
-  const openOnly = all.filter(o => o.open > 0 || o.at < POS_STEPS.length);
-  const rows = pick >= 0 ? openOnly.filter(o => o.at === pick) : openOnly;
-  ORD.rows = rows;
-  $('odKpis').innerHTML = '<div class="jw-kpiname">PO — 10 steps · TEST VIEW (not on the live app)</div><div class="jw-kpis">'
-    + ordKpiCard(nf(openOnly.length), 'POs not finished', 'doc', 'blue', 'the filters above decide which')
-    + POS_STEPS.map((st, i) => { const n = openOnly.filter(o => o.at === i).length;
-      return ordKpiCard(nf(n), st.l, i < 3 ? 'doc' : i < 8 ? 'cut' : i === 8 ? 'clock' : 'box', n ? 'amber' : 'green', 'POs stuck here',
-        { key: 'step' + i, tip: (pick === i ? 'Showing only these POs. Click again for all.' : 'Show only the POs whose first unfinished step is this one.') + ' ' + st.tip }); }).join('')
-    + '</div>';
-  const head = '<thead><tr><th class="frz" style="text-align:left">PO</th><th>From</th><th>Date</th>'
-    + POS_STEPS.map(st => `<th title="${esc(st.tip)}">${esc(st.l)}</th>`).join('') + '<th style="text-align:left">Stuck at</th></tr></thead>';
-  const body = rows.slice(0, 600).map(o => '<tr>'
-    + `<td class="frz" style="text-align:left"><a href="#" data-ordj="${esc(o.orderNo)}" title="Every line of this PO, start to finish" style="font-weight:600">${esc(o.orderNo)}</a></td>`
-    + `<td>${esc(o.src)}</td><td>${esc(o.date)}</td>`
-    + POS_STEPS.map(st => posCell(o, st)).join('')
-    + `<td style="text-align:left">${o.at < POS_STEPS.length ? `<span class="jw-st pend">${esc(POS_STEPS[o.at].l)}</span>` : '<span class="jw-st done">All ten done</span>'}</td></tr>`).join('');
-  $('odTable').innerHTML = head + '<tbody>' + (body || `<tr><td colspan="${POS_STEPS.length + 4}" class="muted" style="padding:16px">No PO matches.</td></tr>`) + '</tbody>';
-  $('odMsg').className = 'muted';
-  $('odMsg').textContent = `${nf(rows.length)} PO(s)${pick >= 0 ? ' stuck at ' + POS_STEPS[pick].l + ' — click the card again for all' : ''}`
-    + (rows.length > 600 ? ' · showing the first 600' : '')
-    + ' · finished POs are left out · PPC and Demand are ticked here (click them); every other figure comes from its own register · click a PO for its lines';
-}
-
-/* Wiring: the view joins the console's picker only where it is switched on; the ticks open their dialog. */
-if (POS_ON && $('odView') && !$('odView').querySelector('option[value="steps"]')) {
-  const op = document.createElement('option'); op.value = 'steps'; op.textContent = 'PO — 10 steps (test)';
-  $('odView').insertBefore(op, $('odView').firstChild);
-}
-$('odTable').addEventListener('click', e => {
-  const t = e.target.closest('[data-postick]'); if (!t) return;
-  e.preventDefault();
-  const [no, k] = t.getAttribute('data-postick').split('|');
-  posTickOpen(no, k);
+/* ---- wiring ---- */
+$('flBuckets').addEventListener('click', e => { const b = e.target.closest('[data-flb]'); if (!b) return; FLOW_VIEW = b.dataset.flb; renderFlow(); });
+$('flQ').addEventListener('input', () => { clearTimeout(FLOW.qt); FLOW.qt = setTimeout(renderFlow, 220); });
+$('flSrc').addEventListener('change', renderFlow);
+$('flRefresh').onclick = async () => { $('flMsg').textContent = 'Reading again…'; await Promise.all([ptLoadGates(true), flowLoad(true)]); renderFlow(); };
+$('flTable').addEventListener('click', async e => {
+  const oj = e.target.closest('[data-ordj]');
+  if (oj) { e.preventDefault(); try { ordJourney(oj.getAttribute('data-ordj')); } catch (err) { /* the order book is not read yet */ } return; }
+  const g = e.target.closest('[data-flgo]'); if (g) { showTab(g.dataset.flgo); return; }
+  const pp = e.target.closest('[data-flppc]'); if (pp) { flowPpcOpen(pp.dataset.flppc, pp.dataset.sku || ''); return; }
+  const key = (e.target.closest('[data-flfab],[data-flres],[data-flunres]') || {}).dataset;
+  if (!key) return;
+  const x = flowRows().find(y => y.s.key === (key.flfab || key.flres || key.flunres)); if (!x) return;
+  if (key.flfab) return flowFabricOpen(x.r, x.s);
+  const err = key.flres ? await flowReserve(x.r, x.s) : await flowUnreserve(x.s);
+  $('flMsg').className = err ? 'err' : 'muted';
+  if (err) $('flMsg').textContent = err; else renderFlow();
 });
+/* The menu button shows only where the flow is switched on, and only to an account with a bucket. */
+function flowNavShow() { if ($('tabFlow')) $('tabFlow').style.display = FLOW_ON && flowBucketsAllowed().length ? '' : 'none'; }
 
 /* ####################################################################################################
  * GROUP: src/app/dashboard/
