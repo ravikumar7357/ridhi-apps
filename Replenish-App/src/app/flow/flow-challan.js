@@ -9,10 +9,11 @@
 
 const flowChItem = r => [r.articleSubtype || r.articleType, r.color, r.size].filter(Boolean).join(' · ');
 /** The next number for a month: RFD-YYYYMM-001, after every challan already saved that month. */
-function flowChallanNo(date) {
-  const ym = String(date || dToday()).slice(0, 7).replace('-', '');
-  const used = Object.keys(FLOW.ch || {}).filter(k => k.startsWith('RFD-' + ym + '-')).map(k => +k.slice(-3) || 0);
-  return 'RFD-' + ym + '-' + String((used.length ? Math.max(...used) : 0) + 1).padStart(3, '0');
+function flowChallanNo(date, test) {
+  /* A test order's challans count on their own (TRFD-…), so testing never uses up a real number. */
+  const pre = (test ? 'TRFD-' : 'RFD-') + String(date || dToday()).slice(0, 7).replace('-', '') + '-';
+  const used = Object.keys(FLOW.ch || {}).filter(k => k.startsWith(pre)).map(k => +k.slice(-3) || 0);
+  return pre + String((used.length ? Math.max(...used) : 0) + 1).padStart(3, '0');
 }
 const flowChVendors = () => {
   let all = []; try { all = voAllVendors(); } catch (e) { all = []; }
@@ -51,7 +52,7 @@ function flowChallanOpen(orderNo) {
       if (!picked.length) return 'Tick at least one line.';
       const noM = picked.filter(y => !(y.m > 0)).map(y => obUC(y.x.r.sku));
       if (noM.length) return `How many metres? Type them for ${noM.join(', ')}.`;
-      const no = flowChallanNo(date), now = new Date().toISOString(), vname = v.desc || v.name || v.code;
+      const no = flowChallanNo(date, flowIsTest(orderNo)), now = new Date().toISOString(), vname = v.desc || v.name || v.code;
       const ch = { no, date, orderNo, vendor: { code: v.code, name: vname }, note: $('flcNote').value.trim(), at: now, by: ME.email || '',
         lines: picked.map(({ x, m }) => ({ key: x.s.key, sku: obUC(x.r.sku), item: flowChItem(x.r), fabric: (x.s.plan && x.s.plan.fabric && x.s.plan.fabric.name) || '', pcs: +x.r.qty || 0, metres: flowR2(m) })) };
       const patch = { ['pt_flowChallans/' + no]: ch };

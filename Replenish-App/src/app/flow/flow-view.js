@@ -57,12 +57,15 @@ const FLOW_GO = { out: ['fgi', 'Finished Goods (receive)'], vendor: ['vreq', 'Ve
 
 function flowTable(view, rows) {
   const pic = sku => { const u = typeof ptImgOf === 'function' ? ptImgOf(sku) : ''; return u ? `<img src="${esc(ptImgSrc(u, 34))}" alt="" style="width:34px;height:34px;object-fit:contain;background:#fff;border-radius:5px">` : ''; };
-  const base = x => `<td class="frz" style="text-align:left"><a href="#" data-ordj="${esc(x.r.orderNo)}" style="font-weight:600">${esc(x.r.orderNo)}</a>
+  const base = x => `<td class="frz" style="text-align:left">${x.r.__t ? `<b>${esc(x.r.orderNo)}</b> <span class="navbadge" style="background:#7c3aed;position:static">TEST</span>
+      <a href="#" data-fltdel="${esc(x.r.orderNo)}" style="font-size:10.5px;color:#b91c1c;margin-left:4px">delete test</a>` : `<a href="#" data-ordj="${esc(x.r.orderNo)}" style="font-weight:600">${esc(x.r.orderNo)}</a>`}
       <div class="muted" style="font-size:10.5px">${esc(x.r.src || '')} · ${esc(ptIsoDate(x.r.orderDate) || '')} · ${nf(flowDays(x.r.orderDate) || 0)} d</div></td>
     <td style="text-align:left;white-space:nowrap">${pic(x.r.sku)} <b style="font-family:ui-monospace,monospace;vertical-align:top">${esc(x.r.sku)}</b>
       <div class="muted" style="font-size:10.5px">${esc([x.r.articleSubtype || x.r.articleType, x.r.color, x.r.size].filter(Boolean).join(' · '))}</div></td>
     <td class="num"><b>${nf(x.r.qty)}</b></td>`;
-  const go = view => FLOW_GO[view] ? `<button class="ghost" data-flgo="${FLOW_GO[view][0]}" style="width:auto;padding:2px 9px;font-size:11.5px">${FLOW_GO[view][1]} →</button>` : '';
+  /* A test line has no register entry to make: its button stands in for that entry. */
+  const go = (view, x) => x && x.r.__t && FLOW_SIM[view] ? `<button data-flsim="${esc(x.r.orderNo)}|${esc(x.r.sku)}|${view}" title="Stands in for: ${esc(FLOW_SIM[view][1])}" style="width:auto;padding:3px 10px;font-size:12px;background:#7c3aed;border-color:#7c3aed">${esc(FLOW_SIM[view][0])}</button>`
+    : FLOW_GO[view] ? `<button class="ghost" data-flgo="${FLOW_GO[view][0]}" style="width:auto;padding:2px 9px;font-size:11.5px">${FLOW_GO[view][1]} →</button>` : '';
   const prog = (d, of) => `<span class="jw-st ${d >= of ? 'done' : d > 0 ? 'prog' : 'pend'}">${nf(d)} / ${nf(of)}</span>`;
   const due = (iso, label) => iso ? `<div class="muted" style="font-size:10.5px${flowLate(iso) ? ';color:#b91c1c;font-weight:600' : ''}">${label} ${esc(iso.slice(5))}${flowLate(iso) ? ' · late' : ''}</div>` : '';
   let head = '', body = '';
@@ -113,28 +116,28 @@ function flowTable(view, rows) {
   } else if (view === 'out') {
     head = ['PO', 'SKU', 'Qty', 'Made by', 'Received in Finished Goods', ''];
     body = rows.map(x => `<tr>${base(x)}<td style="text-align:left"><b>${esc((x.s.plan && x.s.plan.outVendor) || '—')}</b></td>
-      <td class="num">${prog(x.s.india, +x.r.qty)}${due(x.s.plan && x.s.plan.dates && x.s.plan.dates.ready, 'due')}</td><td>${go(view)}</td></tr>`).join('');
+      <td class="num">${prog(x.s.india, +x.r.qty)}${due(x.s.plan && x.s.plan.dates && x.s.plan.dates.ready, 'due')}</td><td>${go(view, x)}</td></tr>`).join('');
   } else if (view === 'vendor') {
     head = ['PO', 'SKU', 'Qty', 'Given to a printer', ''];
-    body = rows.map(x => `<tr>${base(x)}<td class="num">${prog(x.s.given, +x.r.qty)}${flowChTag(x.s)}</td><td>${go(view)}</td></tr>`).join('');
+    body = rows.map(x => `<tr>${base(x)}<td class="num">${prog(x.s.given, +x.r.qty)}${flowChTag(x.s)}</td><td>${go(view, x)}</td></tr>`).join('');
   } else if (view === 'fabric') {
     head = ['PO', 'SKU', 'Qty', 'Back and accepted', ''];
-    body = rows.map(x => `<tr>${base(x)}<td class="num">${prog(x.s.back, x.s.given || +x.r.qty)}${flowChTag(x.s)}</td><td>${go(view)}</td></tr>`).join('');
+    body = rows.map(x => `<tr>${base(x)}<td class="num">${prog(x.s.back, x.s.given || +x.r.qty)}${flowChTag(x.s)}</td><td>${go(view, x)}</td></tr>`).join('');
   } else if (view === 'cut') {
     head = ['PO', 'SKU', 'Qty', 'Cut', ''];
-    body = rows.map(x => `<tr>${base(x)}<td class="num">${prog(x.s.cut, +x.r.qty)}${due(x.s.plan && x.s.plan.dates && x.s.plan.dates.cut, 'plan')}</td><td>${go(view)}</td></tr>`).join('');
+    body = rows.map(x => `<tr>${base(x)}<td class="num">${prog(x.s.cut, +x.r.qty)}${due(x.s.plan && x.s.plan.dates && x.s.plan.dates.cut, 'plan')}</td><td>${go(view, x)}</td></tr>`).join('');
   } else if (view === 'raw') {
     head = ['PO', 'SKU', 'Qty', 'In store, to issue', 'Issued', ''];
     body = rows.map(x => { const avail = x.r.cutReq ? x.s.cut : (x.s.printed ? x.s.back : +x.r.qty);
-      return `<tr>${base(x)}<td class="num"><b>${nf(Math.max(0, avail - x.s.issued))}</b></td><td class="num">${prog(x.s.issued, +x.r.qty)}</td><td>${go(view)}</td></tr>`; }).join('');
+      return `<tr>${base(x)}<td class="num"><b>${nf(Math.max(0, avail - x.s.issued))}</b></td><td class="num">${prog(x.s.issued, +x.r.qty)}</td><td>${go(view, x)}</td></tr>`; }).join('');
   } else if (view === 'wip') {
     head = ['PO', 'SKU', 'Qty', 'Issued', 'Received', 'QC passed', ''];
     body = rows.map(x => `<tr>${base(x)}<td class="num">${nf(x.s.issued)}</td><td class="num">${nf(x.s.received)}</td>
-      <td class="num">${prog(x.s.made, +x.r.qty)}${due(x.s.plan && x.s.plan.dates && x.s.plan.dates.qc, 'plan')}</td><td>${go(view)}</td></tr>`).join('');
+      <td class="num">${prog(x.s.made, +x.r.qty)}${due(x.s.plan && x.s.plan.dates && x.s.plan.dates.qc, 'plan')}</td><td>${go(view, x)}</td></tr>`).join('');
   } else if (view === 'ready') {
     head = ['PO', 'SKU', 'Qty', 'Made', 'In India stock', ''];
     body = rows.map(x => `<tr>${base(x)}<td class="num">${nf(x.s.made)}</td><td class="num">${prog(x.s.india, +x.r.qty)}${due(x.s.plan && x.s.plan.dates && x.s.plan.dates.ready, 'plan')}</td>
-      <td>${ordIsMto(x.r.orderNo) ? '<button class="ghost" data-flgo="ord" style="width:auto;padding:2px 9px;font-size:11.5px">Order Console (hand over) →</button>' : go(view)}</td></tr>`).join('');
+      <td>${ordIsMto(x.r.orderNo) && !x.r.__t ? '<button class="ghost" data-flgo="ord" style="width:auto;padding:2px 9px;font-size:11.5px">Order Console (hand over) →</button>' : go(view, x)}</td></tr>`).join('');
   }
   return '<thead><tr>' + head.map((h, i) => `<th${i === 0 ? ' class="frz" style="text-align:left"' : i === 1 ? ' style="text-align:left"' : ''}>${esc(h)}</th>`).join('') + '</tr></thead><tbody>'
     + (body || `<tr><td colspan="${head.length}" class="muted" style="padding:16px">Nothing in this bucket.</td></tr>`) + '</tbody>';
@@ -146,8 +149,14 @@ $('flPanel').addEventListener('click', e => { const cp = e.target.closest('[data
   const er = flowChallanPrint(cp.dataset.flchp); if (er) { $('flMsg').className = 'err'; $('flMsg').textContent = er; } });
 $('flQ').addEventListener('input', () => { clearTimeout(FLOW.qt); FLOW.qt = setTimeout(renderFlow, 220); });
 $('flSrc').addEventListener('change', renderFlow);
+$('flTest').onclick = () => flowTestOpen();
 $('flRefresh').onclick = async () => { $('flMsg').textContent = 'Reading again…'; await Promise.all([ptLoadGates(true), flowLoad(true)]); renderFlow(); };
 $('flTable').addEventListener('click', async e => {
+  const sm = e.target.closest('[data-flsim]');
+  if (sm) { const [no, sku, view] = sm.dataset.flsim.split('|'); const er = await flowSimulate(no, sku, view);
+    $('flMsg').className = er ? 'err' : 'muted'; if (er) $('flMsg').textContent = er; else renderFlow(); return; }
+  const td = e.target.closest('[data-fltdel]');
+  if (td) { e.preventDefault(); const er = await flowTestDelete(td.dataset.fltdel); $('flMsg').className = er ? 'err' : 'muted'; if (er) $('flMsg').textContent = er; else renderFlow(); return; }
   const oj = e.target.closest('[data-ordj]');
   if (oj) { e.preventDefault(); try { ordJourney(oj.getAttribute('data-ordj')); } catch (err) { /* the order book is not read yet */ } return; }
   const g = e.target.closest('[data-flgo]'); if (g) { showTab(g.dataset.flgo); return; }

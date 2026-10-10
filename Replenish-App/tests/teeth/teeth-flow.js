@@ -2,7 +2,7 @@
  *   node tests/teeth/teeth-flow.js */
 const fs = require('fs'), path = require('path'), os = require('os'), { spawnSync } = require('child_process');
 const DIR = path.join(__dirname, '..', '..', 'src', 'app', 'flow');
-const FILES = ['flow-core.js', 'flow-ppc.js', 'flow-demand.js', 'flow-challan.js', 'flow-view.js'];
+const FILES = ['flow-core.js', 'flow-ppc.js', 'flow-demand.js', 'flow-challan.js', 'flow-test-order.js', 'flow-view.js'];
 const read = f => fs.readFileSync(path.join(DIR, f), 'utf8').replace(/\r\n/g, '\n');
 const breaks = {
   'flow-core.js': {
@@ -38,9 +38,16 @@ const breaks = {
   'flow-challan.js': {
     'a challan with no vendor': s => s.replace("if (!v) return 'Which vendor", "if (false) return 'Which vendor"),
     'unticked lines go on it too': s => s.replace('.filter(y => y.on);', '.filter(y => true);'),
+    'test challans use real numbers': s => s.replace("(test ? 'TRFD-' : 'RFD-')", "'RFD-'"),
     'challan number never moves on': s => s.replace('(used.length ? Math.max(...used) : 0) + 1', '1'),
     'lines not marked given': s => s.replace("ch.lines.forEach(l => { patch[`pt_flowDemand/${l.key}/fabricReady`]", "[].forEach(l => { patch[`pt_flowDemand/${l.key}/fabricReady`]"),
     'a blocked pop-up is swallowed': s => s.replace("if (!w || !w.document) return 'The browser blocked", "if (!w || !w.document) return ''; if (0) return 'The browser blocked"),
+  },
+  'flow-test-order.js': {
+    'a test order with a SKU not in the master': s => s.replace("if (!cutSkuOf(sku)) { bad.push", "if (false) { bad.push"),
+    'Simulate does not move the line': s => s.replace('const nt = Object.assign({}, t, set);', 'const nt = t;'),
+    'delete leaves the plan behind': s => s.replace("patch['pt_ppc/' + k] = null; ", ''),
+    'test lines never re-read': s => s.replace('if (FLOW_TC.src === FLOW.test) return FLOW_TC.rows;', 'if (FLOW_TC.rows.length) return FLOW_TC.rows;'),
   },
   'flow-view.js': {
     'buttons for buckets not held': s => s.replace('$(\'flBuckets\').innerHTML = allowed.map(', '$(\'flBuckets\').innerHTML = FLOW_BUCKETS.map('),

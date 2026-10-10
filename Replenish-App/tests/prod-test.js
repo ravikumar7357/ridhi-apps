@@ -37,7 +37,7 @@ function mkEl(id) {
   };
 }
 const IDS = ('ptmBrand ptmArt ptmSub ptmCol ptmSz ptmCut ptmQ ptmBrandFs ptmDir ptmClear ptmExport ptmGo ptmMsg ptmKpis ptmTable '
-  + 'flBuckets flQ flSrc flRefresh flMsg flTable flPanel tabFlow pbType pbEmp pbWho pbArt pbSub pbCol pbSz pbStatus pbQ pbDBy pbD1 pbD2 pbClear pbExport pbGo pbMsg pbMore pcMore audView audMonth audQ audGo audMsg audBody pbKpis pbTable '
+  + 'flBuckets flQ flSrc flRefresh flMsg flTable flPanel flTest tabFlow pbType pbEmp pbWho pbArt pbSub pbCol pbSz pbStatus pbQ pbDBy pbD1 pbD2 pbClear pbExport pbGo pbMsg pbMore pcMore audView audMonth audQ audGo audMsg audBody pbKpis pbTable '
   + 'pcView pcUse pcArt pcSub pcWho pcCol pcSz pcOrd pcQ pcD1 pcD2 pcClear pcExport pcGo pcMsg pcKpis pcTable '
   + ''
   + 'tabPa tabKa panePa paneKa paWk paFabWeeks paTarget paBasis paGo paMsg paBody kaMetric kaGroup kaWeeks kaBands kaLevelsBtn kaDept qcwMode qcwAt qcwSub qcwCol qcwSz qcwSkuList kaQ kaExport kaGo kaMsg kaDetail kaTable '

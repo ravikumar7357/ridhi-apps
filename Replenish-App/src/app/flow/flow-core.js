@@ -65,15 +65,15 @@ const flowBucketsAllowed = () => (ME.admin ? FLOW_BUCKETS : FLOW_BUCKETS.filter(
 const flowKey = (orderNo, sku) => (obUC(orderNo) + '__' + obUC(sku)).replace(/[.#$\[\]\/]/g, '_');
 
 /* ---- the data ---- */
-let FLOW = { ppc: null, dem: null, res: null, ch: null, at: 0, busy: null, err: '' };
+let FLOW = { ppc: null, dem: null, res: null, ch: null, test: null, at: 0, busy: null, err: '' };
 async function flowLoad(force) {
   if (FLOW.busy) return FLOW.busy;
   if (FLOW.ppc && !force && Date.now() - FLOW.at < 60e3) return;
   FLOW.busy = (async () => {
     try {
-      const [ppc, dem, res, ch] = await Promise.all([ptGet('pt_ppc'), ptGet('pt_flowDemand'), ptGet('pt_accReserve'), ptGet('pt_flowChallans')]);
-      FLOW.ppc = ppc || {}; FLOW.dem = dem || {}; FLOW.res = res || {}; FLOW.ch = ch || {}; FLOW.err = '';
-    } catch (e) { FLOW.err = e.message || String(e); FLOW.ppc = FLOW.ppc || {}; FLOW.dem = FLOW.dem || {}; FLOW.res = FLOW.res || {}; FLOW.ch = FLOW.ch || {}; }
+      const [ppc, dem, res, ch, test] = await Promise.all([ptGet('pt_ppc'), ptGet('pt_flowDemand'), ptGet('pt_accReserve'), ptGet('pt_flowChallans'), ptGet('pt_flowTest')]);
+      FLOW.ppc = ppc || {}; FLOW.dem = dem || {}; FLOW.res = res || {}; FLOW.ch = ch || {}; FLOW.test = test || {}; FLOW.err = '';
+    } catch (e) { FLOW.err = e.message || String(e); FLOW.ppc = FLOW.ppc || {}; FLOW.dem = FLOW.dem || {}; FLOW.res = FLOW.res || {}; FLOW.ch = FLOW.ch || {}; FLOW.test = FLOW.test || {}; }
     FLOW.at = Date.now(); FLOW.busy = null;
   })();
   return FLOW.busy;
@@ -87,9 +87,12 @@ function flowState(r) {
   const cap = n => Math.max(0, Math.min(qty, +n || 0));
   const p = (FLOW.ppc || {})[k] || null, d = (FLOW.dem || {})[k] || null, res = (FLOW.res || {})[k] || null;
   const isNew = String(ptIsoDate(r.orderDate) || '') >= flowFrom();
-  const v = ordVendorOf(r.orderNo, r.sku), q = ordQcOf(r.orderNo, r.sku), g = ordFgAt(r.orderNo, r.sku) || {};
+  /* A test order (flow-test-order.js) carries its own simulated figures instead of the registers'. */
+  const t = r.__t;
+  const v = t ? { given: +t.given || 0, back: +t.back || 0 } : ordVendorOf(r.orderNo, r.sku);
+  const q = t ? { ok: +t.qc || 0 } : ordQcOf(r.orderNo, r.sku), g = t ? { in: +t.fgIn || 0 } : (ordFgAt(r.orderNo, r.sku) || {});
   const route = p ? flowRouteOf(p) : '';
-  const printed = p ? route === 'inhouse' : !!(r.printer || (v && v.given > 0) || /^Vendor/.test(ordWaitingAt(r) || ''));
+  const printed = p ? route === 'inhouse' : !!(r.printer || (v && v.given > 0) || (!t && /^Vendor/.test(ordWaitingAt(r) || '')));
   const s = {
     key: k, isNew, plan: p, demand: d, res, printed, route,
     given: r.printer ? qty : (v ? cap(v.given) : 0), back: r.printer ? cap(r.printed) : (v ? cap(v.back) : 0),
@@ -115,10 +118,11 @@ function flowState(r) {
 }
 
 /** Every open line (and every new order's lines) with its state. Cached on the order book and the three nodes. */
-let FLOW_C = { src: null, ppc: null, dem: null, res: null, rows: null };
+let FLOW_C = { src: null, test: null, ppc: null, dem: null, res: null, rows: null };
 function flowRows() {
-  const lines = ordLines();
-  if (FLOW_C.rows && FLOW_C.src === lines && FLOW_C.ppc === FLOW.ppc && FLOW_C.dem === FLOW.dem && FLOW_C.res === FLOW.res) return FLOW_C.rows;
+  const real = ordLines(), test = flowTestLines();
+  if (FLOW_C.rows && FLOW_C.src === real && FLOW_C.test === test && FLOW_C.ppc === FLOW.ppc && FLOW_C.dem === FLOW.dem && FLOW_C.res === FLOW.res) return FLOW_C.rows;
+  const lines = test.length ? real.concat(test) : real;
   const since = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10);
   const rows = [];
   lines.forEach(r => {
@@ -127,6 +131,6 @@ function flowRows() {
     if (s.bucket === 'done' && !recent) return;
     rows.push({ r, s, recent });
   });
-  FLOW_C = { src: lines, ppc: FLOW.ppc, dem: FLOW.dem, res: FLOW.res, rows };
+  FLOW_C = { src: real, test, ppc: FLOW.ppc, dem: FLOW.dem, res: FLOW.res, rows };
   return rows;
 }

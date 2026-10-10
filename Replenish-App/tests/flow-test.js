@@ -2,7 +2,7 @@
  *   node tests/flow-test.js      (FLOW_DIR=<dir> to test another copy — teeth/teeth-flow.js does) */
 const fs = require('fs'), path = require('path');
 const DIR = process.env.FLOW_DIR || path.join(__dirname, '..', 'src', 'app', 'flow');
-const SRC = ['flow-core.js', 'flow-ppc.js', 'flow-demand.js', 'flow-challan.js', 'flow-view.js'].map(f => fs.readFileSync(path.join(DIR, f), 'utf8')).join('\n');
+const SRC = ['flow-core.js', 'flow-ppc.js', 'flow-demand.js', 'flow-challan.js', 'flow-test-order.js', 'flow-view.js'].map(f => fs.readFileSync(path.join(DIR, f), 'utf8')).join('\n');
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => { if (cond) { pass++; console.log('  PASS ' + name); } else { fail++; console.log('  FAIL ' + name + (extra ? ' — ' + extra : '')); } };
 
@@ -32,12 +32,12 @@ function load(opts) {
     ptPatch: async p => { if (opts.writeFails) throw new Error('denied'); writes.push(p); },
     ptGet: async node => (opts.db || {})[node] || null,
     ptOpenDialog: cfg => { ctx.__dlg = cfg; }, ptFillSelect: () => {}, ptImgOf: () => '', ptImgSrc: u => u, showTab: () => {},
-    ptLoadGates: async () => {}, PTG: { mdb: [] }, setTimeout, clearTimeout,
+    ptLoadGates: async () => {}, ordCutReq: sku => !/NOCUT/.test(sku), confirm: () => true, PTG: { mdb: [] }, setTimeout, clearTimeout,
     voAllVendors: () => [{ code: 'V9', desc: 'Kalu Mill', category: 'Mill' }, { code: 'P1', desc: 'Sanganer Prints', category: 'Printer' }],
     window: { open: () => (opts.popupBlocked ? null : { document: { open() {}, write(h) { (ctx.__win = ctx.__win || []).push(h); }, close() {} } }) }, GPO: { settings: { company: 'Ridhi Home & Living' } },
     FAB: { rows: [] }, ptList: x => x || [], fabAutoLoad: async () => {}, fabStockOf: (name, st) => (st === 'RFD' ? (opts.rfd || {})[String(name).toUpperCase()] || 0 : 0),
   };
-  const api = new Function(...Object.keys(ctx), SRC + '\n;return { FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChallanNo, flowChallanHtml, flowChallanPrint, setView:v=>{FLOW_VIEW=v} };')(...Object.values(ctx));
+  const api = new Function(...Object.keys(ctx), SRC + '\n;return { FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, setView:v=>{FLOW_VIEW=v} };')(...Object.values(ctx));
   api.setFLOW(Object.assign(api.FLOW(), { ppc: opts.ppc || {}, dem: opts.dem || {}, res: opts.res || {} }));
   return Object.assign(api, { els, writes, W, ctx });
 }
@@ -169,6 +169,44 @@ const K = 'AMZ-1__S1';
     ok('the challans made are listed to print again', /Challans made/.test(A.els.flPanel.innerHTML) && /data-flchp="RFD-202610-001"/.test(A.els.flPanel.innerHTML));
     const B = load({ popupBlocked: true }); B.setFLOW(Object.assign(B.FLOW(), { ch: { X: { no: 'X', lines: [] } } }));
     ok('a blocked pop-up is said, not swallowed', /blocked/.test(B.flowChallanPrint('X')));
+  }
+
+  console.log('== a TEST order walks every bucket, end to end ==');
+  {
+    A = load({ me: { admin: true }, lines: [L({ orderNo: 'AMZ-REAL', sku: 'R1' })], mdb: { S1: { cons: 0.5, fab: 'Cotton', articleSubtype: 'Napkin' }, X1: { cons: 1, fab: 'Cotton' } }, rfd: { COTTON: 999 } });
+    A.ctx.__win = [];
+    A.flowTestOpen();
+    const QS = { '[data-tsku="0"]': { value: 's1' }, '[data-tqty="0"]': { value: '10' }, '[data-tsku="1"]': { value: 'NOPE' }, '[data-tqty="1"]': { value: '5' } };
+    A.ctx.document.querySelector = sel => QS[sel] || null;
+    A.els.fltSrc = { value: 'AMZ' };
+    ok('a SKU not in the master is refused, named', /NOPE is not in the master/.test(await A.ctx.__dlg.onSave()) && !A.writes.length);
+    QS['[data-tsku="1"]'].value = '';
+    ok('saved as TEST-AMZ-<date>-01, in pt_flowTest only', !(await A.ctx.__dlg.onSave()) && A.writes.length === 1 && A.writes[0]['pt_flowTest/TEST-AMZ-13102026-01']);
+    const TN = 'TEST-AMZ-13102026-01', TK = TN + '__S1', T = () => A.flowRows().find(x => x.r.orderNo === TN);
+    ok('the real order book is untouched; the test line sits beside it', A.W.lines.length === 1 && A.flowRows().some(x => x.r.orderNo === 'AMZ-REAL') && T());
+    ok('it starts in PPC, with the master’s description', T().s.bucket === 'ppc' && T().r.articleSubtype === 'Napkin');
+    A.setView('ppc'); A.renderFlow();
+    ok('the row says TEST and offers delete, not the order journey', /TEST/.test(A.els.flTable.innerHTML) && /data-fltdel/.test(A.els.flTable.innerHTML) && !/data-ordj="TEST/.test(A.els.flTable.innerHTML));
+    A.ctx.document.querySelectorAll = () => [];
+    A.flowPpcOpen(TN); await A.ctx.__dlg.onSave();
+    ok('PPC plans it for real → Demand · RFD', A.flowInView('drfd', T().s));
+    A.ctx.document.querySelector = sel => ({ '[data-chk="0"]': { checked: true }, '[data-chm="0"]': { value: '5' } })[sel] || null;
+    A.flowChallanOpen(TN); A.els.flcVen = { value: 'P1' }; A.els.flcDate = { value: '2026-10-13' }; A.els.flcNote = { value: '' };
+    await A.ctx.__dlg.onSave();
+    ok('its challan is numbered apart (TRFD-…), never using a real number', A.FLOW().ch['TRFD-202610-001'] && A.flowChallanNo('2026-10-13') === 'RFD-202610-001');
+    ok('→ Vendor allocation', T().s.bucket === 'vendor');
+    const walk = [['vendor', 'fabric'], ['fabric', 'cut'], ['cut', 'raw'], ['raw', 'wip'], ['wip', 'ready'], ['ready', 'done']];
+    for (const [from, to] of walk) {
+      A.setView(from); A.renderFlow();
+      const btn = new RegExp('data-flsim="' + TN + '\|S1\|' + from + '"').test(A.els.flTable.innerHTML);
+      const er = await A.flowSimulate(TN, 'S1', from);
+      ok(`${from}: a Simulate button, and pressing it moves the line to ${to}`, btn && !er && A.flowState(T() ? T().r : A.flowTestLines()[0]).bucket === to, er || (T() ? T().s.bucket : 'gone'));
+    }
+    ok('the simulation is written on the test order only', A.writes.every(w => Object.keys(w).every(k => /^pt_(flowTest|ppc|flowDemand|flowChallans|accReserve)\//.test(k))));
+    const n0 = A.writes.length;
+    ok('delete test removes the order, its plan, its demand and its challan', !(await A.flowTestDelete(TN)) && (() => { const w = A.writes[n0];
+      return w['pt_flowTest/' + TN] === null && w['pt_ppc/' + TK] === null && w['pt_flowDemand/' + TK] === null && w['pt_flowChallans/TRFD-202610-001'] === null; })());
+    ok('…and it is gone from every bucket', !A.flowRows().some(x => x.r.orderNo === TN));
   }
 
   console.log('== old orders are not dumped into PPC ==');
