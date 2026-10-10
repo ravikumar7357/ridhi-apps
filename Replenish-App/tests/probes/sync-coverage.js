@@ -2,12 +2,15 @@
  *   node sync-coverage.js [since ISO, default: phase 1 went live 2026-10-09T17:10Z]
  * Every history line (pt_audit) since then that touched a gate register must have a pt_sync line for that row at or
  * after the history line's time. A miss means a save the delta read would not see: a tab still running the code from
- * before phase 1 (it shows a "newer version — Reload" bar), or a writer outside core/history.js. */
+ * before phase 1 (it shows a "newer version — Reload" bar), or a writer outside core/history.js.
+ * The history line's time is the DEVICE's clock, the pt_sync line's is the server's: on 2026-10-10 one QC PC ran ~50 s
+ * fast and 59 noted saves showed as misses. So a line counts if it is within SKEW_MS either way. */
 const fs = require('fs'), https = require('https'), pathm = require('path');
 const FTL = 'C:/Users/ravik/AppData/Roaming/npm/node_modules/firebase-tools/lib/';
 const H = 'https://price-research-48ff3-default-rtdb.asia-southeast1.firebasedatabase.app/';
 const NODES = ['pt_orderBook', 'pt_masterDB', 'pt_cuttingData', 'pt_pressInventory', 'pt_shopProd', 'pt_masters', 'pt_cuttingFreezes', 'pt_qcChecks'];
 const since = Date.parse(process.argv[2] || '2026-10-09T17:10:00Z');
+const SKEW_MS = 2 * 60 * 1000;
 (async () => {
   const cfg = JSON.parse(fs.readFileSync(pathm.join(process.env.USERPROFILE, '.config/configstore/firebase-tools.json'), 'utf8'));
   const t = await require(FTL + 'auth').getAccessToken(cfg.tokens.refresh_token, []); const at = t.access_token || t;
@@ -24,7 +27,7 @@ const since = Date.parse(process.argv[2] || '2026-10-09T17:10:00Z');
     if (!NODES.includes(seg[0]) || seg.length < 2) continue;
     want++;
     const ts = ((sync[seg[0]] || {})[seg[1]]) || 0;
-    if (ts >= Date.parse(l.at) - 5000) got++;
+    if (ts >= Date.parse(l.at) - SKEW_MS) got++;
     else { miss.push(`${l.at} ${l.by} ${l.tab} ${seg[0]}/${seg[1]}`); byWho[l.by] = (byWho[l.by] || 0) + 1; }
   }
   const entries = NODES.reduce((s, n) => s + Object.keys(sync[n] || {}).length, 0);

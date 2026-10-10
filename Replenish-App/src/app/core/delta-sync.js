@@ -16,8 +16,8 @@
  *      full size, and every mismatch. Phase 3 happens only after days of zero mismatches.
  * Then the copy is replaced with today's. Everything is caught; nothing here can stop or slow a save or a screen.
  * Off with localStorage deltaShadowOff = '1'. Never in the test harnesses (AUDIT_OFF) or for a vendor. */
-/* OFF until probes/sync-coverage.js shows every save since phase 1 noted (Ravi agreed: deploy after that check). */
-const DELTA = { on: false, delayMs: 20000, maxRows: 300, marginMs: 2 * 60 * 1000, done: false, running: false, offset: null,
+/* ON since 2026-10-10: sync-coverage.js showed every gate-row save since phase 1 noted (458 of 458), Ravi said go. */
+const DELTA = { on: true, delayMs: 20000, maxRows: 300, marginMs: 2 * 60 * 1000, done: false, running: false, offset: null,
   /* phase 3 (below): OFF as shipped; one device can try it first with localStorage deltaUse = '1' */
   use: false, maxAgeMs: 24 * 3600 * 1000, keyCheckMs: 24 * 3600 * 1000 };
 const DELTA_DB = 'ridhi-delta', DELTA_STORE = 'copies';
