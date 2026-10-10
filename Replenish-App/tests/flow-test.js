@@ -324,7 +324,7 @@ const K = 'AMZ-1__S1';
     ok('RPC327-1818: RFD Canvas needs 10.6 m, balance 6,400 m', /RFD · <b>Canvas<\/b>/.test(pm) && /10\.6 m/.test(pm) && /<b>6400 m<\/b>/.test(pm), pm);
     ok('…and the printed stock beside it: RBP-CANVAS-327 in store 37.5 m', /Printed in store · <b>RBP-CANVAS-327<\/b>/.test(pm) && /<b>37\.5 m<\/b>/.test(pm));
     ok('a SKU printed as pieces: its printed pieces in the store (RTC327-6060: 4 pcs)', /Printed in store · <b>RTC327-6060<\/b>/.test(pk) && /<b>4 pcs<\/b>/.test(pk), pk);
-    ok('"Printer gets" sits under the printer, worked out from what is typed', /Printer gets: Running fabric — <b>RBP-CANVAS-327/.test(spans['[data-pget="0"]'].innerHTML));
+    ok('"Printer gets" sits under the printer, worked out from what is typed', /<span class="fpc-mode">Running fabric<\/span> <b>RBP-CANVAS-327/.test(spans['[data-pget="0"]'].innerHTML));
   }
 
   console.log('== one challan per printer — the printer PPC planned ==');
@@ -405,7 +405,7 @@ const K = 'AMZ-1__S1';
       const e2 = await B.ctx.__dlg.onSave();
       ok('…saved, printed on the SKU itself', !e2 && B.flowPrintWhat(L({ sku: 'CPC-02' }), B.writes[0]['pt_ppc/AMZ-1__CPC-02']).kind === 'sku', e2); }
     { const pg = { innerHTML: '' }; A.ctx.document.querySelector = q => (q === '[data-pget="0"]' ? pg : null); A.flowPpcOpen('AMZ-1');
-      ok('…and the printer gets RBP-CANVAS-327', /Printer gets: Running fabric — <b>RBP-CANVAS-327/.test(pg.innerHTML), pg.innerHTML); }
+      ok('…and the printer gets RBP-CANVAS-327', /<span class="fpc-mode">Running fabric<\/span> <b>RBP-CANVAS-327/.test(pg.innerHTML), pg.innerHTML); }
     const pr = { code: 'P1', name: 'Sanganer Prints' };
     const pp = (sku, m, dir) => plan({ sku, printer: pr, fabric: { name: mdb[sku].fabric, perPc: 1, metres: m }, print: { need: true, dir } });
     A = load({ me: { admin: true }, mdb, fsku, rfd: { CANVAS: 999, 'SHEETING 82': 999, 'SHEETING 62': 999 },

@@ -39,7 +39,7 @@ const breaks = {
     'lines above in the form not counted': s => s.replace('        run.acc[c] = (run.acc[c] || 0) + need; });', '        });'),
     'issued zippers still counted': s => s.replace("acc[c] = (acc[c] || 0) + Math.ceil(+a.qty * left);", "acc[c] = (acc[c] || 0) + (+a.qty);"),
     'moved cloth still counted': s => s.replace('const unmoved = !s.cut && !s.issued &&', 'const unmoved = true ||'),
-    'unknown stock shown as 0': s => s.replace("const st = !known ? '<span class=\"muted\">stock not kept in the app</span>'", "const st = false ? ''"),
+    'unknown stock shown as 0': s => s.replace("const st = !known ? '<span class=\"pill mute\">stock not kept in the app</span>'", "const st = false ? ''"),
     'the gaps are saved': s => s.replace('delete rec.gaps;', ''),
     'no recipe fallback': s => s.replace("const per = +(recipeValue(m, 'consumption') || 0)", 'const per = 0'),
     'an outsourced line needs no vendor': s => s.replace('if (noVen.length) return', 'if (false) return'),

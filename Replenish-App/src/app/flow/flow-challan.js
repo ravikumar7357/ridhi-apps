@@ -73,7 +73,7 @@ function flowFabDirs(fab, colour, cc) {
 /** A direction nobody has to choose: a quilt's comes from how it lies on the roll. */
 function flowDirDefault(m, fab) { try { return ptPrintDir(m, fab) || ''; } catch (e) { return ''; } }
 const flowPrintTxt = w => w.kind === 'sku' ? `<b>${esc(w.code)}</b> · ${esc(w.label)}`
-  : w.needDir ? `<b style="color:#b91c1c">pick the print direction (edit plan)</b> · ${esc(w.label)}`
+  : w.needDir ? `<b style="color:#b91c1c">pick the print direction</b> · ${esc(w.label)}`
   : `${w.code ? `<b>${esc(w.code)}</b>` : '<b style="color:#b91c1c">no fabric SKU in the catalogue</b>'} · ${esc(w.label)}`;
 
 const flowChItem = r => [r.articleSubtype || r.articleType, r.color, r.size].filter(Boolean).join(' · ');

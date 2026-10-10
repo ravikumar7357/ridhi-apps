@@ -55,9 +55,9 @@ const FLOW_TABS = FLOW_BUCKETS.map(b => b[2]);
  *   inhouse   printed by a vendor here, then cut, stitched, QC'd here — every bucket
  *   stitch    no printing: the fabric goes from RFD/store straight to cutting and stitching — skips both printer buckets
  *   outsource made outside and bought finished — no fabric, no accessories; waits in Outsourced until received */
-const FLOW_ROUTES = [['inhouse', 'In-house: printed by a vendor, then cut and stitched here'],
-  ['stitch', 'Stitching here, no printing: fabric from RFD / store to cutting'],
-  ['outsource', 'Outsourced: made outside, we receive it finished']];
+const FLOW_ROUTES = [['inhouse', 'In-house — printed by a vendor, cut & stitched here', 'In-house'],
+  ['stitch', 'Stitching only — no printing', 'Stitching only'],
+  ['outsource', 'Outsourced — made outside, received finished', 'Outsourced']];
 const flowRouteOf = p => (p && p.route) || (p && p.print && p.print.need === false ? 'stitch' : 'inhouse');
 /** Which list a line is in. Demand is one stop in the walk but two lists; the rest are the bucket itself. */
 const flowInView = (view, s) => view === 'drfd' ? s.bucket === 'demand' && s.needFab
