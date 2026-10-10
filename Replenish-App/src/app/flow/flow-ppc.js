@@ -3,7 +3,7 @@
  * which is what Demand reserves), whether it is printed, and the planned dates. Worked out from what the app already
  * knows — cloth per piece (ptConsPlan), the recipe, the print rules, the Job Work materials planner — and shown for PPC
  * to check and change before saving. Saving IS raising: the line leaves PPC for Demand by itself.
- *   pt_ppc/<line> = { orderNo, sku, qty, fabric:{name, perPc, metres, how}, extra:[{what, qty, unit}],
+ *   pt_ppc/<line> = { orderNo, sku, qty, route (inhouse|stitch|outsource), outVendor, fabric:{name, perPc, metres, how}, extra:[{what, qty, unit}],
  *                     acc:[{code, what, qty}], print:{need, as}, dates:{cut, qc, ready}, note, at, by } */
 
 const flowR2 = n => Math.round((+n || 0) * 100) / 100;
@@ -41,7 +41,7 @@ function flowSuggest(r) {
   let need = true, as = '';
   try { need = !!ptPrintNeeded(m); as = ptPrintIssueAs(m) || ''; } catch (e) { /* no print rules loaded: printed, as the rules default */ }
   const t = dToday();
-  return { orderNo: r.orderNo, sku: obUC(r.sku), qty, fabric, acc, extra, print: { need, as },
+  return { orderNo: r.orderNo, sku: obUC(r.sku), qty, route: need ? 'inhouse' : 'stitch', outVendor: '', fabric, acc, extra, print: { need, as },
     dates: { cut: flowAddDays(t, 3), qc: flowAddDays(t, 7), ready: ptIsoDate(r.mtoDue) || flowAddDays(t, 10) }, note: '', gaps };
 }
 
@@ -61,8 +61,9 @@ function flowPpcOpen(orderNo, onlySku) {
       <div style="display:grid;grid-template-columns:120px 1fr;gap:6px 10px;margin-top:8px;font-size:12.5px;align-items:center">
         <span class="muted">Fabric</span><span>${f(i, 'fabric.name', p.fabric.name)} ${f(i, 'fabric.perPc', p.fabric.perPc, 'number')} m/pc → <b data-fm="${i}">${nf(p.fabric.metres)}</b> m
           <span class="muted" style="font-size:11px">${esc(p.fabric.how || 'not known — type it')}</span></span>
-        <span class="muted">Printing</span><span><label style="display:inline-flex;gap:5px;align-items:center"><input data-fp="${i}" data-k="print.need" type="checkbox" ${p.print.need ? 'checked' : ''} style="width:auto"> printed by a vendor</label>
-          ${p.print.as ? `<span class="muted" style="font-size:11px"> · given as ${esc(p.print.as)}</span>` : ''}</span>
+        <span class="muted">How it is made</span><span><select data-fp="${i}" data-k="route" style="width:auto;padding:3px 6px;font-size:12px">${FLOW_ROUTES.map(([k, l]) => `<option value="${k}"${flowRouteOf(p) === k ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>
+          ${p.print.as ? `<span class="muted" style="font-size:11px"> · print rule: given as ${esc(p.print.as)}</span>` : ''}</span>
+        <span class="muted">Outsource vendor</span><span>${f(i, 'outVendor', p.outVendor || '')} <span class="muted" style="font-size:11px">only for an outsourced line — no fabric or accessories are raised for it</span></span>
         <span class="muted">Accessories</span><span>${(p.acc || []).length ? p.acc.map((a, j) => `${esc(a.what)} (code ${esc(a.code)}) × ${f(i, 'acc.' + j + '.qty', a.qty, 'number')}`).join('<br>') : '<span class="muted">none from the accessories shelf</span>'}</span>
         <span class="muted">Other materials</span><span>${(p.extra || []).length ? p.extra.map(x => `${esc(x.what)}: <b>${nf(x.qty)}</b> ${esc(x.unit)}`).join(' · ') : '<span class="muted">none</span>'}</span>
         <span class="muted">Planned dates</span><span>cut ${f(i, 'dates.cut', p.dates.cut, 'date')} QC ${f(i, 'dates.qc', p.dates.qc, 'date')} ready ${f(i, 'dates.ready', p.dates.ready, 'date')}</span>
@@ -82,11 +83,16 @@ function flowPpcOpen(orderNo, onlySku) {
         const p = plans[+inp.dataset.fp], k = inp.dataset.k;
         set(p, k, inp.type === 'checkbox' ? inp.checked : inp.type === 'number' ? (+inp.value || 0) : inp.value.trim());
       });
+      /* The route decides printing; an outsourced line raises no cloth and no accessories, and must name who makes it. */
+      plans.forEach(p => { p.route = p.route || 'inhouse'; p.print = Object.assign({}, p.print, { need: p.route === 'inhouse' }); });
+      const noVen = plans.filter(p => p.route === 'outsource' && !String(p.outVendor || '').trim()).map(p => p.sku);
+      if (noVen.length) return `Who makes it? Type the outsource vendor for ${noVen.join(', ')}.`;
       const patch = {}, now = new Date().toISOString();
-      const noFab = plans.filter(p => !String(p.fabric.name || '').trim()).map(p => p.sku);
+      const noFab = plans.filter(p => p.route !== 'outsource' && !String(p.fabric.name || '').trim()).map(p => p.sku);
       if (noFab.length) return `Which fabric? Type it for ${noFab.join(', ')} before raising the plan.`;
       plans.forEach(p => {
         p.fabric.metres = flowR2(p.fabric.perPc * p.qty);
+        if (p.route === 'outsource') { p.acc = []; p.fabric = Object.assign({}, p.fabric, { metres: 0 }); }
         const rec = Object.assign({}, p, { at: now, by: ME.email || '' }); delete rec.gaps;
         patch['pt_ppc/' + flowKey(p.orderNo, p.sku)] = rec;
       });

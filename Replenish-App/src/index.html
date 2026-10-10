@@ -103,7 +103,7 @@
 
     <!-- The shop floor, in the order work moves through it: the order, the cut, the karigar, the
          press, the check, the stock — and the masters everything is keyed on, last. -->
-    <div class="navwrap"><button class="navgrp" id="grpProd" type="button" data-grp="prod" data-tabs="so,ord,pcut,pbase,ppress,qc,fgi,fba,fab,acc,pmdb,mst,cx,flow,flnew,flppc,fldem,flven,flfab,flcut,flraw,flwip,flrdy">
+    <div class="navwrap"><button class="navgrp" id="grpProd" type="button" data-grp="prod" data-tabs="so,ord,pcut,pbase,ppress,qc,fgi,fba,fab,acc,pmdb,mst,cx,flow,flnew,flppc,fldem,flacc,flout,flven,flfab,flcut,flraw,flwip,flrdy">
       <span class="caret">&#9656;</span> Production</button>
     <!-- A MEGA MENU (Ravi, 2026-09-24: "2 — Mega menu"). Five columns in the order work moves; every
          count carries the words for what it counts (data-what), because "26" alone told nobody. -->
@@ -1317,6 +1317,7 @@
         </div>
         <div id="flMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
       </div>
+      <div id="flPanel" class="card hide" style="margin-top:12px;padding:10px 14px;overflow-x:auto"></div>
       <div class="card xlwrap jw-table" style="margin-top:12px"><table class="xl" id="flTable"></table></div>
       <style>.fl-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.fl-b{width:auto;display:flex;flex-direction:column;align-items:center;padding:6px 12px;border:1px solid var(--line);background:var(--card,#fff);color:inherit;border-radius:10px;font-size:12px;line-height:1.25;min-width:84px}.fl-b .fl-n{font-size:18px;font-weight:700}.fl-b.on{background:#4f46e5;color:#fff;border-color:#4f46e5}.fl-arrow{color:#94a3b8;font-size:18px}</style>
     </div>

@@ -35,7 +35,11 @@ const flowFrom = () => { try { return localStorage.getItem('flowFrom') || FLOW_F
 const FLOW_BUCKETS = [
   ['new', 'New orders', 'flnew', 'Orders that came in over the last 7 days, and the bucket each line is in now.'],
   ['ppc', 'PPC', 'flppc', 'Plan not raised yet: fabric, accessories, printing and dates.'],
-  ['demand', 'Demand', 'fldem', 'Planned, but the fabric is not ready or the accessories are not reserved.'],
+  /* Demand is two departments (Ravi, 10 Oct): the RFD store answers for the fabric, the accessories store for the
+   * accessories. A line stays in Demand until both have answered, and shows in each list only for its own part. */
+  ['drfd', 'Demand · RFD fabric', 'fldem', 'Planned; the fabric is not ready yet. RFD in stock against what each line needs — red where it falls short.'],
+  ['dacc', 'Demand · Accessories', 'flacc', 'Planned; the accessories are not reserved yet. Free on the shelf against what each line needs.'],
+  ['out', 'Outsourced', 'flout', 'Made outside, finished: waiting to be received into Finished Goods.'],
   ['vendor', 'Vendor allocation', 'flven', 'Printed lines not yet given to a printer in full.'],
   ['fabric', 'Printed fabric in', 'flfab', 'Given to a printer, not all back and accepted.'],
   ['cut', 'Cutting', 'flcut', 'Lines that need cutting, not all cut. The cutting entry puts the pieces in the store.'],
@@ -44,6 +48,18 @@ const FLOW_BUCKETS = [
   ['ready', 'Ready → India stock', 'flrdy', 'Made and QC passed, not yet received into Finished Goods (Shopify: not handed to shipping).'],
 ];
 const FLOW_TABS = FLOW_BUCKETS.map(b => b[2]);
+/* How a line is made — PPC chooses (Ravi, 10 Oct: "mere yaha sirf stitching hoga … printing wala part nahi hoga", and
+ * a provision for orders made outside):
+ *   inhouse   printed by a vendor here, then cut, stitched, QC'd here — every bucket
+ *   stitch    no printing: the fabric goes from RFD/store straight to cutting and stitching — skips both printer buckets
+ *   outsource made outside and bought finished — no fabric, no accessories; waits in Outsourced until received */
+const FLOW_ROUTES = [['inhouse', 'In-house: printed by a vendor, then cut and stitched here'],
+  ['stitch', 'Stitching here, no printing: fabric from RFD / store to cutting'],
+  ['outsource', 'Outsourced: made outside, we receive it finished']];
+const flowRouteOf = p => (p && p.route) || (p && p.print && p.print.need === false ? 'stitch' : 'inhouse');
+/** Which list a line is in. Demand is one stop in the walk but two lists; the rest are the bucket itself. */
+const flowInView = (view, s) => view === 'drfd' ? s.bucket === 'demand' && s.needFab
+  : view === 'dacc' ? s.bucket === 'demand' && s.needAcc : s.bucket === view;
 const flowBucketsAllowed = () => (ME.admin ? FLOW_BUCKETS : FLOW_BUCKETS.filter(b => (ME.tabs || []).includes(b[2])));
 const flowKey = (orderNo, sku) => (obUC(orderNo) + '__' + obUC(sku)).replace(/[.#$\[\]\/]/g, '_');
 
@@ -71,18 +87,22 @@ function flowState(r) {
   const p = (FLOW.ppc || {})[k] || null, d = (FLOW.dem || {})[k] || null, res = (FLOW.res || {})[k] || null;
   const isNew = String(ptIsoDate(r.orderDate) || '') >= flowFrom();
   const v = ordVendorOf(r.orderNo, r.sku), q = ordQcOf(r.orderNo, r.sku), g = ordFgAt(r.orderNo, r.sku) || {};
-  const printed = p ? !!(p.print && p.print.need) : !!(r.printer || (v && v.given > 0) || /^Vendor/.test(ordWaitingAt(r) || ''));
+  const route = p ? flowRouteOf(p) : '';
+  const printed = p ? route === 'inhouse' : !!(r.printer || (v && v.given > 0) || /^Vendor/.test(ordWaitingAt(r) || ''));
   const s = {
-    key: k, isNew, plan: p, demand: d, res, printed,
+    key: k, isNew, plan: p, demand: d, res, printed, route,
     given: r.printer ? qty : (v ? cap(v.given) : 0), back: r.printer ? cap(r.printed) : (v ? cap(v.back) : 0),
     cut: r.cutReq ? cap(r.cut) : 0, issued: cap(r.issued), received: cap(r.received), qc: q ? cap(q.ok) : 0,
     made: Math.max(cap(r.pressed), q ? cap(q.ok) : 0), india: (r.handedAt || r.shopDoneAt) ? qty : cap(g.in),
   };
-  const accNeed = p && (p.acc || []).some(a => a.code && +a.qty > 0);
+  const accNeed = !!p && route !== 'outsource' && (p.acc || []).some(a => a.code && +a.qty > 0);
+  s.needFab = isNew && !!p && route !== 'outsource' && !(d && d.fabricReady);
+  s.needAcc = isNew && accNeed && !res;
   s.bucket =
       (r.handedAt || r.shopDoneAt) ? 'done'
     : (isNew && !p) ? 'ppc'
-    : (isNew && (!(d && d.fabricReady) || (accNeed && !res))) ? 'demand'
+    : (route === 'outsource') ? (s.india < qty ? 'out' : 'done')
+    : (s.needFab || s.needAcc) ? 'demand'
     : (printed && s.given < qty) ? 'vendor'
     : (printed && s.back < qty) ? 'fabric'
     : (r.cutReq && s.cut < qty) ? 'cut'

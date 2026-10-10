@@ -6,14 +6,19 @@ let FLOW_VIEW = '';
 
 async function ensureFlow() {
   if (!PTG.mdb) { $('flMsg').textContent = 'Reading the order book…'; await ptLoadGates(); }
-  await Promise.all([flowLoad(), (typeof ensureVo === 'function' ? ensureVo().catch(() => {}) : null),
+  await Promise.all([flowLoad(), flowFabLoad(), (typeof ensureVo === 'function' ? ensureVo().catch(() => {}) : null),
     (typeof ensureAcc === 'function' ? ensureAcc().catch(() => {}) : null)]);
   renderFlow();
 }
 
+/* The Fabric register, for the RFD stock Demand shows — read here without drawing the Fabric screen. */
+async function flowFabLoad() {
+  if (FAB.rows) return;
+  try { FAB.rows = ptList(await ptGet('pt_fabInvLedger')); await fabAutoLoad(); } catch (e) { FAB.rows = FAB.rows || []; }
+}
 function flowCounts(rows) {
   const n = {}; FLOW_BUCKETS.forEach(b => { n[b[0]] = 0; });
-  rows.forEach(({ s, recent }) => { if (n[s.bucket] != null) n[s.bucket]++; if (recent) n.new++; });
+  rows.forEach(({ s, recent }) => { FLOW_BUCKETS.forEach(([k]) => { if (k !== 'new' && flowInView(k, s)) n[k]++; }); if (recent) n.new++; });
   return n;
 }
 const flowDays = iso => { const d = ptIsoDate(iso); if (!d) return null; return Math.max(0, Math.round((Date.now() - new Date(d + 'T00:00:00').getTime()) / 864e5)); };
@@ -32,9 +37,11 @@ function renderFlow() {
   const shown = all.filter(pass), n = flowCounts(shown);
   $('flBuckets').innerHTML = allowed.map(([k, l, , tip]) => `<button class="fl-b${k === FLOW_VIEW ? ' on' : ''}" data-flb="${k}" title="${esc(tip)}">
       <span class="fl-n">${nf(n[k] || 0)}</span><span>${esc(l)}</span></button>`).join('<span class="fl-arrow">›</span>');
-  const rows = FLOW_VIEW === 'new' ? shown.filter(x => x.recent) : shown.filter(x => x.s.bucket === FLOW_VIEW);
+  const rows = FLOW_VIEW === 'new' ? shown.filter(x => x.recent) : shown.filter(x => flowInView(FLOW_VIEW, x.s));
   rows.sort((a, b) => String(a.r.orderDate || '').localeCompare(String(b.r.orderDate || '')) || String(a.r.orderNo).localeCompare(String(b.r.orderNo)));
+  FLOW.panel = '';
   $('flTable').innerHTML = flowTable(FLOW_VIEW, rows.slice(0, 800));
+  $('flPanel').innerHTML = FLOW.panel; $('flPanel').classList.toggle('hide', !FLOW.panel);
   const b = FLOW_BUCKETS.find(x => x[0] === FLOW_VIEW);
   $('flMsg').className = FLOW.err ? 'err' : 'muted';
   $('flMsg').textContent = (FLOW.err ? 'Could not read the plans: ' + FLOW.err + ' · ' : '')
@@ -42,7 +49,7 @@ function renderFlow() {
     + ` · PPC and Demand apply to orders from ${flowFrom()} · TEST VIEW, not on the live app`;
 }
 
-const FLOW_GO = { vendor: ['vreq', 'Vendor requests'], fabric: ['vlog', 'History (accept)'], cut: ['pcut', 'Cutting'], raw: ['pbase', 'Job Work (issue)'],
+const FLOW_GO = { out: ['fgi', 'Finished Goods (receive)'], vendor: ['vreq', 'Vendor requests'], fabric: ['vlog', 'History (accept)'], cut: ['pcut', 'Cutting'], raw: ['pbase', 'Job Work (issue)'],
   wip: ['qc', 'QC'], ready: ['fgi', 'Finished Goods'] };
 
 function flowTable(view, rows) {
@@ -58,32 +65,50 @@ function flowTable(view, rows) {
   let head = '', body = '';
   if (view === 'new') {
     head = ['PO', 'SKU', 'Qty', 'Now in'];
-    body = rows.map(x => `<tr>${base(x)}<td style="text-align:left">${esc((FLOW_BUCKETS.find(b => b[0] === x.s.bucket) || [, x.s.bucket === 'done' ? 'Done' : x.s.bucket])[1])}</td></tr>`).join('');
+    const now = s => s.bucket === 'done' ? 'Done' : s.bucket === 'demand' ? [s.needFab && 'Demand · RFD fabric', s.needAcc && 'Demand · Accessories'].filter(Boolean).join(' + ')
+      : (FLOW_BUCKETS.find(b => b[0] === s.bucket) || [, s.bucket])[1];
+    /* A reserved line leaves the Accessories list, so this is where a reservation can be let go before issue. */
+    body = rows.map(x => `<tr>${base(x)}<td style="text-align:left">${esc(now(x.s))}${x.s.res && !x.s.issued && flowBucketsAllowed().some(b => b[0] === 'dacc')
+      ? ` <button class="ghost" data-flunres="${esc(x.s.key)}" style="width:auto;padding:1px 7px;font-size:11px">Release accessories</button>` : ''}</td></tr>`).join('');
   } else if (view === 'ppc') {
     head = ['PO', 'SKU', 'Qty', 'What the plan will hold', ''];
     const seen = new Set();
     body = rows.map(x => { const sg = flowSuggest(x.r), first = !seen.has(x.r.orderNo); seen.add(x.r.orderNo);
       return `<tr>${base(x)}<td style="text-align:left;font-size:12px">${esc(sg.fabric.name || '?')} ${sg.fabric.metres ? nf(sg.fabric.metres) + ' m' : '<b style="color:#b91c1c">metres not known</b>'}
-        · ${sg.print.need ? 'printed' : 'not printed'}${sg.acc.length ? ' · ' + sg.acc.map(a => esc(a.code) + '×' + nf(a.qty)).join(', ') : ''}
+        · ${sg.print.need ? 'printed in-house' : 'stitching only, no printing'}${sg.acc.length ? ' · ' + sg.acc.map(a => esc(a.code) + '×' + nf(a.qty)).join(', ') : ''}
         ${sg.gaps.length ? `<div style="font-size:10.5px;color:#92400e">${esc(sg.gaps[0])}${sg.gaps.length > 1 ? ' (+' + (sg.gaps.length - 1) + ')' : ''}</div>` : ''}</td>
         <td style="white-space:nowrap">${first ? `<button data-flppc="${esc(x.r.orderNo)}" style="width:auto;padding:3px 10px;font-size:12px">Plan this PO</button>` : ''}
           <button class="ghost" data-flppc="${esc(x.r.orderNo)}" data-sku="${esc(x.r.sku)}" style="width:auto;padding:2px 8px;font-size:11.5px">This line</button></td></tr>`; }).join('');
-  } else if (view === 'demand') {
-    head = ['PO', 'SKU', 'Qty', 'Fabric', 'Accessories', ''];
+  } else if (view === 'drfd') {
+    head = ['PO', 'SKU', 'Qty', 'Made as', 'Fabric this line uses', 'RFD left for it', ''];
+    const cv = flowRfdCover();
+    body = rows.map(x => { const p = x.s.plan || {}, c = cv.line[x.s.key] || { need: 0, avail: 0, short: 0 };
+      return `<tr${c.short ? ' style="background:#fef2f2"' : ''}>${base(x)}
+        <td style="text-align:left;font-size:12px">${x.s.route === 'stitch' ? 'Stitching only' : 'Printed in-house'}</td>
+        <td style="text-align:left;font-size:12px">${p.fabric ? `<b>${esc(p.fabric.name)}</b> · ${nf(c.need)} m` : '—'}</td>
+        <td style="text-align:left;font-size:12px">${c.short ? `<span class="jw-st" style="background:#fee2e2;color:#b91c1c;font-weight:700">⚑ SHORT ${nf(c.short)} m</span> <span class="muted">${nf(c.avail)} m left</span>`
+          : `<span class="jw-st done">covered</span> <span class="muted">${nf(c.avail)} m left</span>`}</td>
+        <td><button class="ghost" data-flfab="${esc(x.s.key)}" style="width:auto;padding:2px 9px;font-size:11.5px">Mark fabric ready</button></td></tr>`; }).join('');
+    const fs = Object.values(cv.fab).filter(f => f.need > 0).sort((a, b) => b.short - a.short || a.name.localeCompare(b.name));
+    if (fs.length) FLOW.panel = `<div style="font-weight:600;margin:2px 0 6px">RFD in stock against these orders</div><table class="xl" style="width:auto"><thead><tr><th style="text-align:left">Fabric</th><th>RFD in stock</th><th>Kept for lines already ready</th><th>These lines need</th><th>Short</th></tr></thead><tbody>`
+      + fs.map(f => `<tr${f.short ? ' style="background:#fef2f2"' : ''}><td style="text-align:left"><b>${esc(f.name)}</b></td><td class="num">${nf(flowR2(f.stock))} m</td><td class="num">${nf(flowR2(f.held))} m</td><td class="num">${nf(f.need)} m · ${nf(f.lines)} line(s)</td>
+        <td class="num">${f.short ? `<b style="color:#b91c1c">⚑ ${nf(f.short)} m</b>` : '<span style="color:#166534">—</span>'}</td></tr>`).join('') + '</tbody></table>';
+  } else if (view === 'dacc') {
+    head = ['PO', 'SKU', 'Qty', 'Accessories this line uses', ''];
     const free = flowAccFree();
-    body = rows.map(x => { const p = x.s.plan || {}, fr = x.s.demand && x.s.demand.fabricReady;
-      const acc = (p.acc || []).filter(a => a.code && +a.qty > 0);
-      const accCell = !acc.length ? '<span class="muted">none</span>' : x.s.res
-        ? `<span class="jw-st done">reserved</span> <span class="muted" style="font-size:11px">${acc.map(a => esc(a.code) + '×' + nf(a.qty)).join(', ')}</span>`
-        : acc.map(a => { const f = free[accCode(a.code)]; const ok = f && f.free >= a.qty;
-            return `<div style="font-size:12px">${esc(a.code)} × ${nf(a.qty)} <span style="color:${ok ? '#166534' : '#b91c1c'};font-weight:600">${f ? nf(Math.max(0, f.free)) + ' free' : 'not on the shelf'}${ok ? '' : ' · short ' + nf(a.qty - Math.max(0, f ? f.free : 0))}</span></div>`; }).join('');
-      return `<tr>${base(x)}
-        <td style="text-align:left;font-size:12px">${p.fabric ? `${esc(p.fabric.name)} · ${nf(p.fabric.metres)} m` : '—'}<br>
-          ${fr ? `<span class="jw-st done">ready</span> <span class="muted" style="font-size:10.5px">${esc(String(fr.by || '').split('@')[0])} ${esc(String(fr.at || '').slice(5, 10))}${fr.note ? ' · ' + esc(fr.note) : ''}</span>`
-            : `<button class="ghost" data-flfab="${esc(x.s.key)}" style="width:auto;padding:2px 9px;font-size:11.5px">Mark fabric ready</button>`}</td>
-        <td style="text-align:left">${accCell}</td>
-        <td>${acc.length ? (x.s.res ? `<button class="ghost" data-flunres="${esc(x.s.key)}" style="width:auto;padding:2px 8px;font-size:11.5px">Release</button>`
-            : `<button data-flres="${esc(x.s.key)}" style="width:auto;padding:3px 10px;font-size:12px">Reserve</button>`) : ''}</td></tr>`; }).join('');
+    body = rows.map(x => { const acc = ((x.s.plan && x.s.plan.acc) || []).filter(a => a.code && +a.qty > 0);
+      const short = acc.some(a => { const f = free[accCode(a.code)]; return !f || f.free < a.qty; });
+      return `<tr${short ? ' style="background:#fef2f2"' : ''}>${base(x)}<td style="text-align:left">${acc.map(a => { const f = free[accCode(a.code)]; const ok = f && f.free >= a.qty;
+          return `<div style="font-size:12px"><b>${esc(a.code)}</b> ${esc(a.what || '')} × ${nf(a.qty)} <span style="color:${ok ? '#166534' : '#b91c1c'};font-weight:600">${f ? nf(Math.max(0, f.free)) + ' free' : 'not on the shelf'}${ok ? '' : ' · ⚑ short ' + nf(a.qty - Math.max(0, f ? f.free : 0))}</span></div>`; }).join('')}</td>
+        <td><button data-flres="${esc(x.s.key)}" style="width:auto;padding:3px 10px;font-size:12px">Reserve</button></td></tr>`; }).join('');
+    const ac = flowAccCover();
+    if (ac.length) FLOW.panel = `<div style="font-weight:600;margin:2px 0 6px">Accessories on the shelf against these orders</div><table class="xl" style="width:auto"><thead><tr><th style="text-align:left">Code</th><th>On the shelf</th><th>Reserved already</th><th>These lines need</th><th>Short</th></tr></thead><tbody>`
+      + ac.map(a => `<tr${a.short ? ' style="background:#fef2f2"' : ''}><td style="text-align:left"><b>${esc(a.code)}</b> <span class="muted">${esc(a.name !== a.code ? a.name : '')}</span></td><td class="num">${nf(a.shelf)}</td><td class="num">${nf(a.held)}</td><td class="num">${nf(a.need)}</td>
+        <td class="num">${a.short ? `<b style="color:#b91c1c">⚑ ${nf(a.short)}</b>` : '<span style="color:#166534">—</span>'}</td></tr>`).join('') + '</tbody></table>';
+  } else if (view === 'out') {
+    head = ['PO', 'SKU', 'Qty', 'Made by', 'Received in Finished Goods', ''];
+    body = rows.map(x => `<tr>${base(x)}<td style="text-align:left"><b>${esc((x.s.plan && x.s.plan.outVendor) || '—')}</b></td>
+      <td class="num">${prog(x.s.india, +x.r.qty)}${due(x.s.plan && x.s.plan.dates && x.s.plan.dates.ready, 'due')}</td><td>${go(view)}</td></tr>`).join('');
   } else if (view === 'vendor') {
     head = ['PO', 'SKU', 'Qty', 'Given to a printer', ''];
     body = rows.map(x => `<tr>${base(x)}<td class="num">${prog(x.s.given, +x.r.qty)}</td><td>${go(view)}</td></tr>`).join('');

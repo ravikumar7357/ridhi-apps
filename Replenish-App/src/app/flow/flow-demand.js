@@ -48,7 +48,9 @@ function flowFabricOpen(r, s) {
   const p = s.plan || {}, cur = s.demand && s.demand.fabricReady;
   ptOpenDialog({
     title: `Fabric ready — ${r.orderNo} · ${obUC(r.sku)}`,
-    subtitle: `PPC raised: ${p.fabric ? `${p.fabric.name || '?'} · ${nf(p.fabric.metres)} m` : 'no fabric'}${p.print && p.print.need ? ' · to be printed by a vendor' : ''}.`,
+    subtitle: (() => { const st = p.fabric && p.fabric.name ? flowRfdStock(p.fabric.name) : 0;
+      return `PPC raised: ${p.fabric ? `${p.fabric.name || '?'} · ${nf(p.fabric.metres)} m` : 'no fabric'}${p.print && p.print.need ? ' · to be printed by a vendor' : ' · no printing'}.`
+        + ` RFD in stock for this fabric: ${nf(flowR2(st))} m${p.fabric && st < +p.fabric.metres ? ' — LESS than this line needs' : ''}.`; })(),
     html: `<div class="ptgrid" style="grid-template-columns:1fr">
       <label>Fabric<input id="flfWhat" value="${esc((cur && cur.what) || (p.fabric && p.fabric.name) || '')}"></label>
       <label>Metres ready<input id="flfM" type="number" step="0.01" value="${esc((cur && cur.metres) || (p.fabric && p.fabric.metres) || '')}"></label>
@@ -66,4 +68,44 @@ function flowFabricOpen(r, s) {
       return '';
     },
   });
+}
+
+/* ---- RFD fabric: what is in stock against what the waiting lines need (Ravi, 10 Oct: "instock rfd kitna h and us
+ * particular order me kitna fabric use hoga, if short it will give me a red flag") ----
+ * Stock is the Fabric register's RFD balance for that fabric (fabStockOf). Lines already marked ready whose cloth has
+ * not moved yet (nothing given to a printer, cut or issued) still sit in that balance, so they are taken off it first —
+ * otherwise two orders would be shown the same metres. The rest is handed out oldest order first; a line the stock
+ * does not reach is short by what it misses. */
+const flowFabKey = n => String(n || '').trim().toUpperCase();
+function flowRfdStock(name) { try { return Math.max(0, +fabStockOf(name, 'RFD') || 0); } catch (e) { return 0; } }
+function flowRfdCover() {
+  const rows = flowRows(), fab = {}, line = {};
+  const F = name => { const k = flowFabKey(name); return fab[k] || (fab[k] = { name: String(name || '').trim(), stock: flowRfdStock(name), held: 0, need: 0, lines: 0 }); };
+  rows.forEach(({ s }) => {
+    const fr = s.demand && s.demand.fabricReady, p = s.plan;
+    if (!fr || !p || s.route === 'outsource' || s.given || s.cut || s.issued) return;
+    const name = fr.what || (p.fabric && p.fabric.name); if (!name) return;
+    F(name).held += +fr.metres || +(p.fabric && p.fabric.metres) || 0;
+  });
+  rows.filter(x => flowInView('drfd', x.s))
+    .sort((a, b) => String(a.r.orderDate || '').localeCompare(String(b.r.orderDate || '')) || String(a.r.orderNo).localeCompare(String(b.r.orderNo)))
+    .forEach(({ s }) => {
+      const p = s.plan || {}, name = p.fabric && p.fabric.name, need = +(p.fabric && p.fabric.metres) || 0;
+      if (!name) { line[s.key] = { name: '', need, short: need, avail: 0 }; return; }
+      const f = F(name), avail = Math.max(0, f.stock - f.held - f.need);
+      line[s.key] = { name: f.name, need, avail: flowR2(avail), short: flowR2(Math.max(0, need - avail)) };
+      f.need = flowR2(f.need + need); f.lines++;
+    });
+  Object.values(fab).forEach(f => { f.free = flowR2(f.stock - f.held); f.short = flowR2(Math.max(0, f.need - Math.max(0, f.free))); });
+  return { fab, line };
+}
+/** Accessories the same way, for the Accessories department: on the shelf, held, and what the lines waiting need. */
+function flowAccCover() {
+  const free = flowAccFree(), want = {};
+  flowRows().filter(x => flowInView('dacc', x.s)).forEach(({ s }) => ((s.plan && s.plan.acc) || []).forEach(a => {
+    if (!a.code || !(+a.qty > 0)) return; const c = accCode(a.code);
+    want[c] = (want[c] || 0) + (+a.qty);
+  }));
+  return Object.keys(want).sort().map(c => { const f = free[c] || { name: c, shelf: 0, held: 0, free: 0 };
+    return { code: c, name: f.name, shelf: f.shelf, held: f.held, free: f.free, need: want[c], short: Math.max(0, want[c] - Math.max(0, f.free)) }; });
 }
