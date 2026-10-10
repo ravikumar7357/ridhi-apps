@@ -2,7 +2,7 @@
  *   node tests/flow-test.js      (FLOW_DIR=<dir> to test another copy — teeth/teeth-flow.js does) */
 const fs = require('fs'), path = require('path');
 const DIR = process.env.FLOW_DIR || path.join(__dirname, '..', 'src', 'app', 'flow');
-const SRC = ['flow-core.js', 'flow-ppc.js', 'flow-demand.js', 'flow-view.js'].map(f => fs.readFileSync(path.join(DIR, f), 'utf8')).join('\n');
+const SRC = ['flow-core.js', 'flow-ppc.js', 'flow-demand.js', 'flow-challan.js', 'flow-view.js'].map(f => fs.readFileSync(path.join(DIR, f), 'utf8')).join('\n');
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => { if (cond) { pass++; console.log('  PASS ' + name); } else { fail++; console.log('  FAIL ' + name + (extra ? ' — ' + extra : '')); } };
 
@@ -33,9 +33,11 @@ function load(opts) {
     ptGet: async node => (opts.db || {})[node] || null,
     ptOpenDialog: cfg => { ctx.__dlg = cfg; }, ptFillSelect: () => {}, ptImgOf: () => '', ptImgSrc: u => u, showTab: () => {},
     ptLoadGates: async () => {}, PTG: { mdb: [] }, setTimeout, clearTimeout,
+    voAllVendors: () => [{ code: 'V9', desc: 'Kalu Mill', category: 'Mill' }, { code: 'P1', desc: 'Sanganer Prints', category: 'Printer' }],
+    window: { open: () => (opts.popupBlocked ? null : { document: { open() {}, write(h) { (ctx.__win = ctx.__win || []).push(h); }, close() {} } }) }, GPO: { settings: { company: 'Ridhi Home & Living' } },
     FAB: { rows: [] }, ptList: x => x || [], fabAutoLoad: async () => {}, fabStockOf: (name, st) => (st === 'RFD' ? (opts.rfd || {})[String(name).toUpperCase()] || 0 : 0),
   };
-  const api = new Function(...Object.keys(ctx), SRC + '\n;return { FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, setView:v=>{FLOW_VIEW=v} };')(...Object.values(ctx));
+  const api = new Function(...Object.keys(ctx), SRC + '\n;return { FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChallanNo, flowChallanHtml, flowChallanPrint, setView:v=>{FLOW_VIEW=v} };')(...Object.values(ctx));
   api.setFLOW(Object.assign(api.FLOW(), { ppc: opts.ppc || {}, dem: opts.dem || {}, res: opts.res || {} }));
   return Object.assign(api, { els, writes, W, ctx });
 }
@@ -128,6 +130,46 @@ const K = 'AMZ-1__S1';
   ok('the Accessories list flags short 30 and offers Reserve', /short 30/.test(A.els.flTable.innerHTML) && /data-flres/.test(A.els.flTable.innerHTML));
   ok('…its panel: shelf 70, need 100, short 30', A.flowAccCover()[0].short === 30 && /Accessories on the shelf/.test(A.els.flPanel.innerHTML));
   ok('fabric is not in the Accessories department', !/Mark fabric ready/.test(A.els.flTable.innerHTML));
+
+  console.log('== RFD challan, order-wise, to one vendor ==');
+  {
+    const pl2 = (sku, m) => plan({ sku, fabric: { name: 'Sheeting 62', perPc: 1, metres: m } });
+    A = load({ me: { tabs: ['fldem', 'flfab'] }, rfd: { 'SHEETING 62': 500 }, lines: [L({ sku: 'S1', articleSubtype: 'Square Tablecloth', color: 'Almond', size: '60x60' }), L({ sku: 'S2' }), L({ orderNo: 'AMZ-9', sku: 'S3' })],
+      ppc: { [K]: pl2('S1', 66), 'AMZ-1__S2': pl2('S2', 83.7), 'AMZ-9__S3': pl2('S3', 10) } });
+    A.setView('drfd'); A.renderFlow();
+    ok('one "Challan for this PO" button per PO', (A.els.flTable.innerHTML.match(/data-flch="AMZ-1"/g) || []).length === 1 && /data-flch="AMZ-9"/.test(A.els.flTable.innerHTML));
+    A.flowChallanOpen('AMZ-1');
+    ok('the challan holds only this PO’s lines', /S1/.test(A.ctx.__dlg.html) && /S2/.test(A.ctx.__dlg.html) && !/S3/.test(A.ctx.__dlg.html));
+    ok('…and offers the printers first', A.ctx.__dlg.html.indexOf('Sanganer') < A.ctx.__dlg.html.indexOf('Kalu'));
+    const QS = { '[data-chk="0"]': { checked: true }, '[data-chm="0"]': { value: '66' }, '[data-chk="1"]': { checked: false }, '[data-chm="1"]': { value: '83.7' } };
+    A.ctx.document.querySelector = sel => QS[sel] || null;
+    A.els.flcVen = { value: '' }; A.els.flcDate = { value: '2026-10-10' }; A.els.flcNote = { value: 'tempo' };
+    ok('no vendor → refused, nothing written', /Which vendor/.test(await A.ctx.__dlg.onSave()) && !A.writes.length);
+    A.els.flcVen.value = 'P1';
+    QS['[data-chm="0"]'].value = '';
+    ok('a ticked line with no metres → refused', /How many metres/.test(await A.ctx.__dlg.onSave()) && !A.writes.length);
+    QS['[data-chm="0"]'].value = '66';
+    const e3 = await A.ctx.__dlg.onSave();
+    const cw = A.writes[0] || {}, chs = cw['pt_flowChallans/RFD-202610-001'];
+    ok('saved as RFD-202610-001: order, vendor, the ticked line only', !e3 && chs && chs.orderNo === 'AMZ-1' && chs.vendor.name === 'Sanganer Prints' && chs.lines.length === 1 && chs.lines[0].metres === 66, e3 || JSON.stringify(Object.keys(cw)));
+    ok('the line’s fabric is marked given on that challan, in the same write', cw['pt_flowDemand/' + K + '/fabricReady'].challan === 'RFD-202610-001' && !cw['pt_flowDemand/AMZ-1__S2/fabricReady']);
+    ok('the line moves on to Vendor allocation; the unticked one stays in RFD', A.flowState(L()).bucket === 'vendor' && A.flowInView('drfd', A.flowState(L({ sku: 'S2' }))));
+    const page = (A.ctx.__win || [])[0] || '';
+    ok('the challan opens to print: number, order, vendor, item, metres, signatures', /DELIVERY CHALLAN/.test(page) && /RFD-202610-001/.test(page) && /AMZ-1/.test(page) && /Sanganer Prints/.test(page) && /Square Tablecloth · Almond · 60x60/.test(page) && /66/.test(page) && /Received by/.test(page) && /Ridhi Home/.test(page));
+    ok('the next challan that month is 002', A.flowChallanNo('2026-10-20') === 'RFD-202610-002' && A.flowChallanNo('2026-11-01') === 'RFD-202611-001');
+    let cv2 = A.flowRfdCover();
+    ok('its metres are kept out of the RFD stock', cv2.fab['SHEETING 62'].held === 66);
+    A.W.vendor['AMZ-1|S1'] = { given: 100, back: 0 }; A.setFLOW(Object.assign(A.FLOW(), { ppc: Object.assign({}, A.FLOW().ppc) }));
+    ok('…still kept once the vendor order is placed (the register has not taken it)', A.flowRfdCover().fab['SHEETING 62'].held === 66);
+    A.W.vendor['AMZ-1|S1'] = { given: 100, back: 20 }; A.setFLOW(Object.assign(A.FLOW(), { ppc: Object.assign({}, A.FLOW().ppc) }));
+    ok('…let go once printed cloth comes back', A.flowRfdCover().fab['SHEETING 62'].held === 0);
+    A.setView('fabric'); A.renderFlow();
+    ok('Printed fabric in shows which challan it went on', /RFD-202610-001/.test(A.els.flTable.innerHTML) && /Sanganer/.test(A.els.flTable.innerHTML));
+    A.setView('drfd'); A.renderFlow();
+    ok('the challans made are listed to print again', /Challans made/.test(A.els.flPanel.innerHTML) && /data-flchp="RFD-202610-001"/.test(A.els.flPanel.innerHTML));
+    const B = load({ popupBlocked: true }); B.setFLOW(Object.assign(B.FLOW(), { ch: { X: { no: 'X', lines: [] } } }));
+    ok('a blocked pop-up is said, not swallowed', /blocked/.test(B.flowChallanPrint('X')));
+  }
 
   console.log('== old orders are not dumped into PPC ==');
   A = load();

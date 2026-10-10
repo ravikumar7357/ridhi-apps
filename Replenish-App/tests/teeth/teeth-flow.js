@@ -2,7 +2,7 @@
  *   node tests/teeth/teeth-flow.js */
 const fs = require('fs'), path = require('path'), os = require('os'), { spawnSync } = require('child_process');
 const DIR = path.join(__dirname, '..', '..', 'src', 'app', 'flow');
-const FILES = ['flow-core.js', 'flow-ppc.js', 'flow-demand.js', 'flow-view.js'];
+const FILES = ['flow-core.js', 'flow-ppc.js', 'flow-demand.js', 'flow-challan.js', 'flow-view.js'];
 const read = f => fs.readFileSync(path.join(DIR, f), 'utf8').replace(/\r\n/g, '\n');
 const breaks = {
   'flow-core.js': {
@@ -30,9 +30,17 @@ const breaks = {
     'a reservation is never let go at issue': s => s.replace('const left = qty > 0 ? Math.max(0, 1 - (+issued || 0) / qty) : 0', 'const left = 1'),
     'reserving more than is free': s => s.replace('if (short.length) return', 'if (false) return'),
     'held is not taken off the shelf': s => s.replace("free: (+b.qty || 0) - (held[c] || 0) }", 'free: (+b.qty || 0) }'),
+    'a challan is let go as soon as the vendor order is placed': s => s.replace('(fr.challan ? s.back : s.given)', 's.given'),
     'ready lines do not hold their cloth': s => s.replace('F(name).held += +fr.metres || +(p.fabric && p.fabric.metres) || 0;', 'F(name).held += 0;'),
     'every line sees the whole stock (no oldest-first)': s => s.replace('avail = Math.max(0, f.stock - f.held - f.need);', 'avail = Math.max(0, f.stock - f.held);'),
     'part of the fabric is "ready"': s => s.replace('if (!undo && need && metres < need) return', 'if (false) return'),
+  },
+  'flow-challan.js': {
+    'a challan with no vendor': s => s.replace("if (!v) return 'Which vendor", "if (false) return 'Which vendor"),
+    'unticked lines go on it too': s => s.replace('.filter(y => y.on);', '.filter(y => true);'),
+    'challan number never moves on': s => s.replace('(used.length ? Math.max(...used) : 0) + 1', '1'),
+    'lines not marked given': s => s.replace("ch.lines.forEach(l => { patch[`pt_flowDemand/${l.key}/fabricReady`]", "[].forEach(l => { patch[`pt_flowDemand/${l.key}/fabricReady`]"),
+    'a blocked pop-up is swallowed': s => s.replace("if (!w || !w.document) return 'The browser blocked", "if (!w || !w.document) return ''; if (0) return 'The browser blocked"),
   },
   'flow-view.js': {
     'buttons for buckets not held': s => s.replace('$(\'flBuckets\').innerHTML = allowed.map(', '$(\'flBuckets\').innerHTML = FLOW_BUCKETS.map('),

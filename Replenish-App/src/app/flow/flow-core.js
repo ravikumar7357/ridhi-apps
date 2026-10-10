@@ -18,7 +18,8 @@
  *   flow-demand.js  Demand: fabric ready, accessories reserved (and what is short)
  *   flow-view.js    the screen: the bucket buttons and each bucket's list
  *
- * Data: pt_ppc/<line> (the plan), pt_flowDemand/<line> (fabric ready), pt_accReserve/<line> (accessories held).
+ * Data: pt_ppc/<line> (the plan), pt_flowDemand/<line> (fabric ready), pt_accReserve/<line> (accessories held),
+ * pt_flowChallans/<no> (RFD challans, flow-challan.js).
  * Everything else is read from the registers the factory already fills — the Order Console's own figures. */
 
 /* ---- the switch ---- */
@@ -64,15 +65,15 @@ const flowBucketsAllowed = () => (ME.admin ? FLOW_BUCKETS : FLOW_BUCKETS.filter(
 const flowKey = (orderNo, sku) => (obUC(orderNo) + '__' + obUC(sku)).replace(/[.#$\[\]\/]/g, '_');
 
 /* ---- the data ---- */
-let FLOW = { ppc: null, dem: null, res: null, at: 0, busy: null, err: '' };
+let FLOW = { ppc: null, dem: null, res: null, ch: null, at: 0, busy: null, err: '' };
 async function flowLoad(force) {
   if (FLOW.busy) return FLOW.busy;
   if (FLOW.ppc && !force && Date.now() - FLOW.at < 60e3) return;
   FLOW.busy = (async () => {
     try {
-      const [ppc, dem, res] = await Promise.all([ptGet('pt_ppc'), ptGet('pt_flowDemand'), ptGet('pt_accReserve')]);
-      FLOW.ppc = ppc || {}; FLOW.dem = dem || {}; FLOW.res = res || {}; FLOW.err = '';
-    } catch (e) { FLOW.err = e.message || String(e); FLOW.ppc = FLOW.ppc || {}; FLOW.dem = FLOW.dem || {}; FLOW.res = FLOW.res || {}; }
+      const [ppc, dem, res, ch] = await Promise.all([ptGet('pt_ppc'), ptGet('pt_flowDemand'), ptGet('pt_accReserve'), ptGet('pt_flowChallans')]);
+      FLOW.ppc = ppc || {}; FLOW.dem = dem || {}; FLOW.res = res || {}; FLOW.ch = ch || {}; FLOW.err = '';
+    } catch (e) { FLOW.err = e.message || String(e); FLOW.ppc = FLOW.ppc || {}; FLOW.dem = FLOW.dem || {}; FLOW.res = FLOW.res || {}; FLOW.ch = FLOW.ch || {}; }
     FLOW.at = Date.now(); FLOW.busy = null;
   })();
   return FLOW.busy;

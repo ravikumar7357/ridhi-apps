@@ -83,7 +83,8 @@ function flowRfdCover() {
   const F = name => { const k = flowFabKey(name); return fab[k] || (fab[k] = { name: String(name || '').trim(), stock: flowRfdStock(name), held: 0, need: 0, lines: 0 }); };
   rows.forEach(({ s }) => {
     const fr = s.demand && s.demand.fabricReady, p = s.plan;
-    if (!fr || !p || s.route === 'outsource' || s.given || s.cut || s.issued) return;
+    /* A line on a challan has left the store on paper, not in the register: kept until the printed cloth is back. */
+    if (!fr || !p || s.route === 'outsource' || s.cut || s.issued || (fr.challan ? s.back : s.given)) return;
     const name = fr.what || (p.fabric && p.fabric.name); if (!name) return;
     F(name).held += +fr.metres || +(p.fabric && p.fabric.metres) || 0;
   });

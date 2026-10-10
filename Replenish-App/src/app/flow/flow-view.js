@@ -49,6 +49,9 @@ function renderFlow() {
     + ` · PPC and Demand apply to orders from ${flowFrom()} · TEST VIEW, not on the live app`;
 }
 
+/** The challan a line's fabric went on, if it went on one. */
+const flowChTag = s => { const fr = s.demand && s.demand.fabricReady; return fr && fr.challan
+  ? `<div class="muted" style="font-size:10.5px">RFD on <a href="#" data-flchp="${esc(fr.challan)}">${esc(fr.challan)}</a> → ${esc(fr.vendor || '')}</div>` : ''; };
 const FLOW_GO = { out: ['fgi', 'Finished Goods (receive)'], vendor: ['vreq', 'Vendor requests'], fabric: ['vlog', 'History (accept)'], cut: ['pcut', 'Cutting'], raw: ['pbase', 'Job Work (issue)'],
   wip: ['qc', 'QC'], ready: ['fgi', 'Finished Goods'] };
 
@@ -81,18 +84,20 @@ function flowTable(view, rows) {
           <button class="ghost" data-flppc="${esc(x.r.orderNo)}" data-sku="${esc(x.r.sku)}" style="width:auto;padding:2px 8px;font-size:11.5px">This line</button></td></tr>`; }).join('');
   } else if (view === 'drfd') {
     head = ['PO', 'SKU', 'Qty', 'Made as', 'Fabric this line uses', 'RFD left for it', ''];
-    const cv = flowRfdCover();
+    const cv = flowRfdCover(), seen = new Set();
     body = rows.map(x => { const p = x.s.plan || {}, c = cv.line[x.s.key] || { need: 0, avail: 0, short: 0 };
+      const first = !seen.has(x.r.orderNo); seen.add(x.r.orderNo);
       return `<tr${c.short ? ' style="background:#fef2f2"' : ''}>${base(x)}
         <td style="text-align:left;font-size:12px">${x.s.route === 'stitch' ? 'Stitching only' : 'Printed in-house'}</td>
         <td style="text-align:left;font-size:12px">${p.fabric ? `<b>${esc(p.fabric.name)}</b> · ${nf(c.need)} m` : '—'}</td>
         <td style="text-align:left;font-size:12px">${c.short ? `<span class="jw-st" style="background:#fee2e2;color:#b91c1c;font-weight:700">⚑ SHORT ${nf(c.short)} m</span> <span class="muted">${nf(c.avail)} m left</span>`
           : `<span class="jw-st done">covered</span> <span class="muted">${nf(c.avail)} m left</span>`}</td>
-        <td><button class="ghost" data-flfab="${esc(x.s.key)}" style="width:auto;padding:2px 9px;font-size:11.5px">Mark fabric ready</button></td></tr>`; }).join('');
+        <td style="white-space:nowrap">${first ? `<button data-flch="${esc(x.r.orderNo)}" style="width:auto;padding:3px 10px;font-size:12px">Challan for this PO</button> ` : ''}<button class="ghost" data-flfab="${esc(x.s.key)}" style="width:auto;padding:2px 9px;font-size:11.5px">Mark fabric ready</button></td></tr>`; }).join('');
     const fs = Object.values(cv.fab).filter(f => f.need > 0).sort((a, b) => b.short - a.short || a.name.localeCompare(b.name));
     if (fs.length) FLOW.panel = `<div style="font-weight:600;margin:2px 0 6px">RFD in stock against these orders</div><table class="xl" style="width:auto"><thead><tr><th style="text-align:left">Fabric</th><th>RFD in stock</th><th>Kept for lines already ready</th><th>These lines need</th><th>Short</th></tr></thead><tbody>`
       + fs.map(f => `<tr${f.short ? ' style="background:#fef2f2"' : ''}><td style="text-align:left"><b>${esc(f.name)}</b></td><td class="num">${nf(flowR2(f.stock))} m</td><td class="num">${nf(flowR2(f.held))} m</td><td class="num">${nf(f.need)} m · ${nf(f.lines)} line(s)</td>
         <td class="num">${f.short ? `<b style="color:#b91c1c">⚑ ${nf(f.short)} m</b>` : '<span style="color:#166534">—</span>'}</td></tr>`).join('') + '</tbody></table>';
+    FLOW.panel = (FLOW.panel || '') + flowChallanList();
   } else if (view === 'dacc') {
     head = ['PO', 'SKU', 'Qty', 'Accessories this line uses', ''];
     const free = flowAccFree();
@@ -111,10 +116,10 @@ function flowTable(view, rows) {
       <td class="num">${prog(x.s.india, +x.r.qty)}${due(x.s.plan && x.s.plan.dates && x.s.plan.dates.ready, 'due')}</td><td>${go(view)}</td></tr>`).join('');
   } else if (view === 'vendor') {
     head = ['PO', 'SKU', 'Qty', 'Given to a printer', ''];
-    body = rows.map(x => `<tr>${base(x)}<td class="num">${prog(x.s.given, +x.r.qty)}</td><td>${go(view)}</td></tr>`).join('');
+    body = rows.map(x => `<tr>${base(x)}<td class="num">${prog(x.s.given, +x.r.qty)}${flowChTag(x.s)}</td><td>${go(view)}</td></tr>`).join('');
   } else if (view === 'fabric') {
     head = ['PO', 'SKU', 'Qty', 'Back and accepted', ''];
-    body = rows.map(x => `<tr>${base(x)}<td class="num">${prog(x.s.back, x.s.given || +x.r.qty)}</td><td>${go(view)}</td></tr>`).join('');
+    body = rows.map(x => `<tr>${base(x)}<td class="num">${prog(x.s.back, x.s.given || +x.r.qty)}${flowChTag(x.s)}</td><td>${go(view)}</td></tr>`).join('');
   } else if (view === 'cut') {
     head = ['PO', 'SKU', 'Qty', 'Cut', ''];
     body = rows.map(x => `<tr>${base(x)}<td class="num">${prog(x.s.cut, +x.r.qty)}${due(x.s.plan && x.s.plan.dates && x.s.plan.dates.cut, 'plan')}</td><td>${go(view)}</td></tr>`).join('');
@@ -137,6 +142,8 @@ function flowTable(view, rows) {
 
 /* ---- wiring ---- */
 $('flBuckets').addEventListener('click', e => { const b = e.target.closest('[data-flb]'); if (!b) return; FLOW_VIEW = b.dataset.flb; renderFlow(); });
+$('flPanel').addEventListener('click', e => { const cp = e.target.closest('[data-flchp]'); if (!cp) return;
+  const er = flowChallanPrint(cp.dataset.flchp); if (er) { $('flMsg').className = 'err'; $('flMsg').textContent = er; } });
 $('flQ').addEventListener('input', () => { clearTimeout(FLOW.qt); FLOW.qt = setTimeout(renderFlow, 220); });
 $('flSrc').addEventListener('change', renderFlow);
 $('flRefresh').onclick = async () => { $('flMsg').textContent = 'Reading again…'; await Promise.all([ptLoadGates(true), flowLoad(true)]); renderFlow(); };
@@ -144,6 +151,8 @@ $('flTable').addEventListener('click', async e => {
   const oj = e.target.closest('[data-ordj]');
   if (oj) { e.preventDefault(); try { ordJourney(oj.getAttribute('data-ordj')); } catch (err) { /* the order book is not read yet */ } return; }
   const g = e.target.closest('[data-flgo]'); if (g) { showTab(g.dataset.flgo); return; }
+  const ch = e.target.closest('[data-flch]'); if (ch) { flowChallanOpen(ch.dataset.flch); return; }
+  const cp = e.target.closest('[data-flchp]'); if (cp) { e.preventDefault(); const er = flowChallanPrint(cp.dataset.flchp); if (er) { $('flMsg').className = 'err'; $('flMsg').textContent = er; } return; }
   const pp = e.target.closest('[data-flppc]'); if (pp) { flowPpcOpen(pp.dataset.flppc, pp.dataset.sku || ''); return; }
   const key = (e.target.closest('[data-flfab],[data-flres],[data-flunres]') || {}).dataset;
   if (!key) return;
