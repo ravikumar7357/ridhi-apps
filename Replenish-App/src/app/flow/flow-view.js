@@ -10,6 +10,9 @@ async function ensureFlow() {
   /* Printer Allocation too: PPC's printer is suggested from it. */
   /* The store too: the printed stock PPC sees beside the RFD balance (Store Stock Balance; its Job Work and cutting
    * registers are the ones the order book has already read). */
+  /* QC checks and the Finished Goods ledger: the QC bucket and the hand-over read them. */
+  if (typeof QC !== 'undefined' && QC.checks == null) { try { QC.checks = ptList(await ptGet('pt_qcChecks')); } catch (e) { /* the QC bucket waits */ } }
+  if (typeof FGI !== 'undefined' && FGI.rows == null && typeof fgiLoad === 'function') { try { await fgiLoad(); } catch (e) { /* India stock waits */ } }
   await Promise.all([flowLoad(), flowFabLoad(), (typeof STORE !== 'undefined' && STORE.rows === null ? ensureStore().catch(() => {}) : null), (PAL.printers === null ? palLoad().catch(() => {}) : null), (typeof ensureVo === 'function' ? ensureVo().catch(() => {}) : null),
     (typeof ensureAcc === 'function' ? ensureAcc().catch(() => {}) : null)]);
   renderFlow();
@@ -103,7 +106,7 @@ function flowCutFrom(x) {
 function flowTestEntryButtons(view, x) {
   const b = (what, label, main) => `<button data-flte="${what}|${esc(x.r.orderNo)}|${esc(obUC(x.r.sku))}" style="width:auto;padding:3px 10px;font-size:12px;margin:1px;background:${main ? '#7c3aed' : 'transparent'};border-color:#7c3aed;color:${main ? '#fff' : '#7c3aed'}">${label}</button>`;
   const btns = view === 'cut' ? b('cut', 'Cutting entry (test) →', true) : view === 'raw' ? b('issue', 'Issue to karigar (test) →', true)
-    : (x.s.issued > x.s.received ? b('recv', 'Receive (test) →', true) : '') + (x.s.received > (+(x.r.__t || {}).qcChecked || 0) ? b('qc', 'QC check (test) →', x.s.issued <= x.s.received) : '');
+    : (x.s.issued > x.s.received ? b('recv', 'Receive (test) →', true) : '');
   const note = flowTestNote(x, view);
   return btns + (note ? `<div class="muted" style="font-size:10.5px;margin-top:3px">${note}</div>` : '');
 }
@@ -112,7 +115,7 @@ function flowEntryButtons(view, x) {
   const b = (what, label, main) => `<button ${main ? '' : 'class="ghost" '}data-flent="${what}|${esc(x.s.key)}" style="width:auto;padding:${main ? '3px 10px;font-size:12px' : '2px 9px;font-size:11.5px'};margin:1px">${label}</button>`;
   if (view === 'cut') return b('cut', 'Cutting entry →', true);
   if (view === 'raw') return b('issue', 'Issue to karigar →', true);
-  return (x.s.issued > x.s.received ? b('recv', 'Receive →', true) : '') + (x.s.received > x.s.qc ? b('qc', 'QC check →', x.s.issued <= x.s.received) : '');
+  return x.s.issued > x.s.received ? b('recv', 'Receive →', true) : '';
 }
 /** The challan a line's fabric went on, if it went on one. */
 const flowChTag = s => { const fr = s.demand && s.demand.fabricReady; return fr && fr.challan
@@ -207,10 +210,27 @@ function flowTable(view, rows) {
     head = ['PO', 'SKU', 'Qty', 'Issued', 'Received', 'QC passed', ''];
     body = rows.map(x => `<tr>${base(x)}<td class="num">${nf(x.s.issued)}</td><td class="num">${nf(x.s.received)}</td>
       <td class="num">${prog(x.s.made, +x.r.qty)}${due(x.s.plan && x.s.plan.dates && x.s.plan.dates.qc, 'plan')}</td><td>${go(view, x)}</td></tr>`).join('');
+  } else if (view === 'qcb') {
+    head = ['PO', 'SKU', 'Qty', 'Back from karigar', 'Waiting for QC', 'Passed', ''];
+    const qb = (what, x, label, main) => `<button data-flqb="${what}|${esc(x.s.key)}" style="width:auto;padding:${main ? '3px 10px;font-size:12px' : '2px 9px;font-size:11.5px'};margin:1px"${main ? '' : ' class="ghost"'}>${label}</button>`;
+    body = rows.map(x => { const w = flowQcWaiting(x.r, x.s), alt = flowQcAltOpen(x.r);
+      return `<tr>${base(x)}<td class="num">${nf(x.s.received)} / ${nf(x.s.issued)}</td><td class="num"><b>${nf(w)}</b>${alt ? `<div style="font-size:10.5px;color:#b45309">${nf(alt)} out for alteration</div>` : ''}</td>
+      <td class="num">${prog(x.s.made, +x.r.qty)}</td>
+      <td style="white-space:nowrap">${w ? qb('check', x, 'QC check →', true) : ''}${alt ? qb('alt', x, 'Alteration back →', !w) : ''}${x.s.issued > x.s.received ? (x.r.__t ? `<button data-flte="recv|${esc(x.r.orderNo)}|${esc(obUC(x.r.sku))}" class="ghost" style="width:auto;padding:2px 9px;font-size:11.5px;margin:1px">Receive (test) →</button>` : qb('recv', x, 'Receive →')) : ''}
+        ${flowQcHistory(x.r)}</td></tr>`; }).join('');
+  } else if (view === 'fgin') {
+    head = ['PO', 'SKU', 'Qty', 'Sent from QC', 'In India stock', ''];
+    body = rows.map(x => `<tr>${base(x)}<td style="text-align:left;font-size:12px">${flowFgWaiting(x.r).map(h => `<div style="margin:2px 0"><b>${nf(h.pcs)} pcs</b> <span class="muted">· ${esc(String(h.by || '').split('@')[0])} ${esc(String(h.at || '').slice(0, 10))}${h.note ? ' · ' + esc(h.note) : ''}</span>
+        <button data-flfga="${esc(Object.keys(FLOW.fg).find(k => FLOW.fg[k] === h))}" style="width:auto;padding:3px 10px;font-size:12px;margin-left:6px">Accept</button>
+        <button class="ghost" data-flfgr="${esc(Object.keys(FLOW.fg).find(k => FLOW.fg[k] === h))}" style="width:auto;padding:2px 9px;font-size:11.5px;color:#b91c1c">Reject</button></div>`).join('')}</td>
+      <td class="num">${prog(x.s.india, +x.r.qty)}</td><td></td></tr>`).join('');
   } else if (view === 'ready') {
     head = ['PO', 'SKU', 'Qty', 'Made', 'In India stock', ''];
     body = rows.map(x => `<tr>${base(x)}<td class="num">${nf(x.s.made)}</td><td class="num">${prog(x.s.india, +x.r.qty)}${due(x.s.plan && x.s.plan.dates && x.s.plan.dates.ready, 'plan')}</td>
-      <td>${ordIsMto(x.r.orderNo) && !x.r.__t ? '<button class="ghost" data-flgo="ord" style="width:auto;padding:2px 9px;font-size:11.5px">Order Console (hand over) →</button>' : go(view, x)}</td></tr>`).join('');
+      <td>${ordIsMto(x.r.orderNo) && !x.r.__t ? '<button class="ghost" data-flgo="ord" style="width:auto;padding:2px 9px;font-size:11.5px">Order Console (hand over) →</button>'
+        : x.s.plan ? (flowFgToSend(x.r, x.s) > 0 ? `<button data-flqb="send|${esc(x.s.key)}" style="width:auto;padding:3px 10px;font-size:12px">Send to Finished Goods →</button>` : '')
+          + flowFgOf(x.r).filter(h => h.status === 'rejected').map(h => `<div style="font-size:10.5px;color:#b91c1c">${nf(h.pcs)} rejected by Finished Goods: ${esc(h.why || '')}</div>`).join('')
+        : go(view, x)}</td></tr>`).join('');
   }
   return '<thead><tr>' + head.map((h, i) => `<th${i === 0 ? ' class="frz" style="text-align:left"' : i === 1 ? ' style="text-align:left"' : ''}>${esc(h)}</th>`).join('') + '</tr></thead><tbody>'
     + (body || `<tr><td colspan="${head.length}" class="muted" style="padding:16px">Nothing in this bucket.</td></tr>`) + '</tbody>';
@@ -244,9 +264,15 @@ $('flTable').addEventListener('click', async e => {
     $('flMsg').className = er ? 'err' : 'muted'; if (er) $('flMsg').textContent = er; else renderFlow(); return; }
   const cs = e.target.closest('[data-flchc]'); if (cs) { flowCloseShortOpen(cs.dataset.flchc); return; }
   const ch = e.target.closest('[data-flch]'); if (ch) { flowChallanOpen(ch.dataset.flch, ch.dataset.pc); return; }
+  const qb = e.target.closest('[data-flqb]');
+  if (qb) { const [what, key] = qb.dataset.flqb.split('|'), x = flowRows().find(y => y.s.key === key); if (!x) return;
+    if (what === 'check') flowQcCheckOpen(x); else if (what === 'alt') flowAltBackOpen(x); else if (what === 'send') flowFgSendOpen(x); else if (what === 'recv') flowRecvEntry(x.r);
+    return; }
+  const fa = e.target.closest('[data-flfga]'); if (fa) { flowFgAccept(fa.dataset.flfga); return; }
+  const fr = e.target.closest('[data-flfgr]'); if (fr) { flowFgRejectOpen(fr.dataset.flfgr); return; }
   const te = e.target.closest('[data-flte]');
   if (te) { const [what, no, sku] = te.dataset.flte.split('|');
-    if (what === 'cut') flowTestCutOpen(no, sku); else if (what === 'issue') flowTestIssueOpen(no, sku); else if (what === 'recv') flowTestRecvOpen(no, sku); else if (what === 'qc') flowTestQcOpen(no, sku);
+    if (what === 'cut') flowTestCutOpen(no, sku); else if (what === 'issue') flowTestIssueOpen(no, sku); else if (what === 'recv') flowTestRecvOpen(no, sku);
     return; }
   const en = e.target.closest('[data-flent]');
   if (en) { const [what, key] = en.dataset.flent.split('|'), x = flowRows().find(y => y.s.key === key); if (!x) return;

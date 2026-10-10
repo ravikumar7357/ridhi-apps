@@ -70,7 +70,7 @@ const REPL_TABS = ['repl', 'article', 'target', 'top', 'shopify', 'pack',
   'pmdb', 'mst', 'att', 'pbase', 'pcut', 'ppress', 'qc', 'qcalt', 'qcret', 'ord', 'so', 'vord', 'vreq', 'rfd', 'vend', 'vlog', 'palloc', 'fgi', 'fba', 'fab', 'acc', 'rep', 'pa', 'ka', 'hr',
   'shop', 'adj', 'shopprod', 'dash',
   /* Production flow (test, 2026-10-10): one right per bucket — the same keys as FLOW_BUCKETS in flow/flow-core.js. */
-  'flnew', 'flppc', 'flpo', 'fldem', 'flacc', 'flchl', 'flout', 'flven', 'flfab', 'flcut', 'flraw', 'flwip', 'flrdy'];   // section keys, gated per-user via perms.replTabs — 'dash' is the admins' dashboard
+  'flnew', 'flppc', 'flpo', 'fldem', 'flacc', 'flchl', 'flout', 'flven', 'flfab', 'flcut', 'flraw', 'flwip', 'flqc', 'flrdy', 'flfg'];   // section keys, gated per-user via perms.replTabs — 'dash' is the admins' dashboard
 let REPL = { SP: null, CPC: null };   // brand → { rows, at }
 let PO = [];                  // purchase orders
 

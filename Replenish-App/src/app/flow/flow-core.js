@@ -48,7 +48,9 @@ const FLOW_BUCKETS = [
   ['cut', 'Cutting', 'flcut', 'Lines that need cutting, not all cut. The cutting entry puts the pieces in the store.'],
   ['raw', 'Raw cutting in store', 'flraw', 'Cut (or printed) pieces waiting to be issued to a karigar.'],
   ['wip', 'WIP', 'flwip', 'With karigars: issued, received, waiting for QC.'],
-  ['ready', 'Ready → India stock', 'flrdy', 'Made and QC passed, not yet received into Finished Goods (Shopify: not handed to shipping).'],
+  ['qcb', 'QC', 'flqc', 'Back from the karigar and waiting for QC, or out for alteration — check here, history here.'],
+  ['ready', 'Ready → India stock', 'flrdy', 'Passed QC, not yet sent to Finished Goods (Shopify: not handed to shipping).'],
+  ['fgin', 'Finished Goods · accept', 'flfg', 'Sent from QC — the Finished Goods team accepts them into India stock, or rejects them back to QC.'],
 ];
 const FLOW_TABS = FLOW_BUCKETS.map(b => b[2]);
 /* How a line is made — PPC chooses (Ravi, 10 Oct: "mere yaha sirf stitching hoga … printing wala part nahi hoga", and
@@ -67,15 +69,15 @@ const flowBucketsAllowed = () => (ME.admin ? FLOW_BUCKETS : FLOW_BUCKETS.filter(
 const flowKey = (orderNo, sku) => (obUC(orderNo) + '__' + obUC(sku)).replace(/[.#$\[\]\/]/g, '_');
 
 /* ---- the data ---- */
-let FLOW = { ppc: null, dem: null, res: null, ch: null, test: null, po: null, at: 0, busy: null, err: '' };
+let FLOW = { ppc: null, dem: null, res: null, ch: null, test: null, po: null, fg: null, at: 0, busy: null, err: '' };
 async function flowLoad(force) {
   if (FLOW.busy) return FLOW.busy;
   if (FLOW.ppc && !force && Date.now() - FLOW.at < 60e3) return;
   FLOW.busy = (async () => {
     try {
-      const [ppc, dem, res, ch, test, po] = await Promise.all([ptGet('pt_ppc'), ptGet('pt_flowDemand'), ptGet('pt_accReserve'), ptGet('pt_flowChallans'), ptGet('pt_flowTest'), ptGet('pt_flowPrintOrders')]);
-      FLOW.ppc = ppc || {}; FLOW.dem = dem || {}; FLOW.res = res || {}; FLOW.ch = ch || {}; FLOW.test = test || {}; FLOW.po = po || {}; FLOW.err = '';
-    } catch (e) { FLOW.err = e.message || String(e); FLOW.ppc = FLOW.ppc || {}; FLOW.dem = FLOW.dem || {}; FLOW.res = FLOW.res || {}; FLOW.ch = FLOW.ch || {}; FLOW.test = FLOW.test || {}; FLOW.po = FLOW.po || {}; }
+      const [ppc, dem, res, ch, test, po, fg] = await Promise.all([ptGet('pt_ppc'), ptGet('pt_flowDemand'), ptGet('pt_accReserve'), ptGet('pt_flowChallans'), ptGet('pt_flowTest'), ptGet('pt_flowPrintOrders'), ptGet('pt_flowFgSend')]);
+      FLOW.ppc = ppc || {}; FLOW.dem = dem || {}; FLOW.res = res || {}; FLOW.ch = ch || {}; FLOW.test = test || {}; FLOW.po = po || {}; FLOW.fg = fg || {}; FLOW.err = '';
+    } catch (e) { FLOW.err = e.message || String(e); FLOW.ppc = FLOW.ppc || {}; FLOW.dem = FLOW.dem || {}; FLOW.res = FLOW.res || {}; FLOW.ch = FLOW.ch || {}; FLOW.test = FLOW.test || {}; FLOW.po = FLOW.po || {}; FLOW.fg = FLOW.fg || {}; }
     FLOW.at = Date.now(); FLOW.busy = null;
   })();
   return FLOW.busy;
@@ -138,7 +140,11 @@ function flowState(r) {
     : (printed && s.back < qty) ? 'fabric'
     : (r.cutReq && s.cut < qty) ? 'cut'
     : (s.issued < qty) ? 'raw'
-    : (s.made < qty) ? 'wip'
+    /* QC (flow-qcfg.js), for a planned line: back from the karigar and not checked, or out for alteration → QC. */
+    : (s.made < qty) ? (p && (flowQcWaiting(r, s) > 0 || flowQcAltOpen(r) > 0) ? 'qcb' : 'wip')
+    /* …then Ready = passed and not yet sent to Finished Goods; FG · accept = sent and waiting for them. A line with no plan
+     * (older orders) is received into Finished Goods on its own screen, as before. */
+    : (p && !ordIsMto(r.orderNo) && s.india < qty) ? (flowFgToSend(r, s) > 0 ? 'ready' : flowFgWaiting(r).length ? 'fgin' : 'ready')
     : (s.india < qty && (isNew || r.open)) ? 'ready'
     : 'done';
   return s;
@@ -148,7 +154,8 @@ function flowState(r) {
 let FLOW_C = { src: null, test: null, ppc: null, dem: null, res: null, rows: null };
 function flowRows() {
   const real = ordLines(), test = flowTestLines();
-  if (FLOW_C.rows && FLOW_C.src === real && FLOW_C.test === test && FLOW_C.ppc === FLOW.ppc && FLOW_C.dem === FLOW.dem && FLOW_C.res === FLOW.res && FLOW_C.ch === FLOW.ch && FLOW_C.po === FLOW.po) return FLOW_C.rows;
+  if (FLOW_C.rows && FLOW_C.src === real && FLOW_C.test === test && FLOW_C.ppc === FLOW.ppc && FLOW_C.dem === FLOW.dem && FLOW_C.res === FLOW.res && FLOW_C.ch === FLOW.ch && FLOW_C.po === FLOW.po && FLOW_C.fg === FLOW.fg
+    && FLOW_C.qc === (typeof QC !== 'undefined' ? QC.checks : null) && FLOW_C.fgi === (typeof FGI !== 'undefined' ? FGI.rows : null)) return FLOW_C.rows;
   const lines = test.length ? real.concat(test) : real;
   const since = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10);
   const rows = [];
@@ -158,6 +165,6 @@ function flowRows() {
     if (s.bucket === 'done' && !recent) return;
     rows.push({ r, s, recent });
   });
-  FLOW_C = { src: real, test, ppc: FLOW.ppc, dem: FLOW.dem, res: FLOW.res, ch: FLOW.ch, po: FLOW.po, rows };
+  FLOW_C = { src: real, test, ppc: FLOW.ppc, dem: FLOW.dem, res: FLOW.res, ch: FLOW.ch, po: FLOW.po, fg: FLOW.fg, qc: (typeof QC !== 'undefined' ? QC.checks : null), fgi: (typeof FGI !== 'undefined' ? FGI.rows : null), rows };
   return rows;
 }

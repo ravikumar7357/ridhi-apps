@@ -2,7 +2,7 @@
  *   node tests/teeth/teeth-flow.js */
 const fs = require('fs'), path = require('path'), os = require('os'), { spawnSync } = require('child_process');
 const DIR = path.join(__dirname, '..', '..', 'src', 'app', 'flow');
-const FILES = ['flow-core.js', 'flow-ppc.js', 'flow-demand.js', 'flow-challan.js', 'flow-test-order.js', 'flow-receive.js', 'flow-printorder.js', 'flow-edit.js', 'flow-entries.js', 'flow-view.js'];
+const FILES = ['flow-core.js', 'flow-ppc.js', 'flow-demand.js', 'flow-challan.js', 'flow-test-order.js', 'flow-receive.js', 'flow-printorder.js', 'flow-edit.js', 'flow-entries.js', 'flow-qcfg.js', 'flow-view.js'];
 const read = f => fs.readFileSync(path.join(DIR, f), 'utf8').replace(/\r\n/g, '\n');
 const breaks = {
   'flow-core.js': {
@@ -105,13 +105,11 @@ const breaks = {
   'flow-test-order.js': {
     'test cutting not written to Cutting Data': s => s.replace("{ ['pt_cuttingData/' + reg.id]: reg }", '{}'),
     'test issue not written to Job Work': s => s.replace("{ ['pt_baseData/' + reg.id]: reg }", '{}'),
-    'test QC not written to Quality Control': s => s.replace("{ ['pt_qcChecks/' + reg.id]: reg }", '{}'),
     'test receipt not written to its Job Work row': s => s.replace("regs = { ['pt_baseData/' + row.id]: clean };", ''),
     'delete test leaves the register rows': s => s.replace("Object.entries(regs).forEach(([node, ids]) => ids.forEach(id => { if (id) patch[node + '/' + id] = null; }));", ''),
     'test cutting without a fabric': s => s.replace("if (!fab) return 'Which fabric was it cut from?';", ''),
     'test waste without its width': s => s.replace("if (waste > 0 && !(ww > 0)) return", 'if (false) return'),
     'test issue to anyone': s => s.replace("if (known.length && !known.includes(k.toLowerCase())) return", 'if (false) return'),
-    'test QC that does not add up': s => s.replace("if (ok + alt + rej !== c) return", 'if (false) return'),
     'test receive more than is out': s => s.replace("if (got + rej > out) return", 'if (false) return'),
     'switch on with no test order': s => s.replace('return Object.keys(FLOW.test || {}).length > 0;', 'return true;'),
     'a test order with a SKU not in the master': s => s.replace("if (!cutSkuOf(sku)) { bad.push", "if (false) { bad.push"),
@@ -160,6 +158,16 @@ const breaks = {
     'issue offers more than is cut': s => s.replace("const flowIssuable = (r, s) => Math.max(0, (r.cutReq ? s.cut : (s.printed ? s.back : +r.qty || 0)) - (s.issued || 0));", "const flowIssuable = (r, s) => +r.qty || 0;"),
     'receive opens the wrong row': s => s.replace("obUC(b.orderNo) === obUC(r.orderNo) &&", ''),
     'no right needed for the entry': s => s.replace("const flowMay = tab => !!(ME.admin || (ME.tabs || []).includes(tab));", 'const flowMay = tab => true;'),
+  },
+  'flow-qcfg.js': {
+    'QC that does not add up': s => s.replace("if (ok + alt + rej !== c) return", 'if (false) return'),
+    'QC more than is waiting': s => s.replace("if (c > can) return `Only ${nf(can)} are waiting for QC.`;", ''),
+    'QC not written to Quality Control': s => s.replace("const patch = { ['pt_qcChecks/' + row.id]: row };", 'const patch = {};'),
+    'alteration back more than went': s => s.replace("if (ok + rej > open) return", 'if (false) return'),
+    'alteration back not counted as passed': s => s.replace("{ checked: 0, ok, rejected: rej, altBack: ok + rej,", "{ checked: 0, ok: 0, rejected: rej, altBack: ok + rej,"),
+    'FG reject without a reason': s => s.replace("if (!why) return 'Say why they are rejected.';", ''),
+    'FG reject leaves the pass': s => s.replace("{ checked: -h.pcs, ok: -h.pcs, fgReject: h.pcs,", "{ checked: 0, ok: 0, fgReject: h.pcs,"),
+    'a test order put into India stock': s => s.replace('  if (!h.test) {\n    if (typeof FGI', '  if (true) {\n    if (typeof FGI'),
   },
   'flow-view.js': {
     'buttons for buckets not held': s => s.replace('$(\'flBuckets\').innerHTML = allowed.map(', '$(\'flBuckets\').innerHTML = FLOW_BUCKETS.map('),

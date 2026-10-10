@@ -1,5 +1,5 @@
 <!-- ================================================================================================
-     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 143 files of src/ joined into one page.
+     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 144 files of src/ joined into one page.
      The real, grouped source: Replenish-App/src/   (map and workflow: src/README.md)
        src/index.html   page markup        src/styles.css   stylesheet        src/app/ORDER   join order
        src/app/<group>/ the code, by group: core, replenishment, masters, production, vendors, orders, shopify, flow, dashboard, people-pay, inventory, reports, shared
@@ -1105,7 +1105,7 @@
 
     <!-- The shop floor, in the order work moves through it: the order, the cut, the karigar, the
          press, the check, the stock — and the masters everything is keyed on, last. -->
-    <div class="navwrap"><button class="navgrp" id="grpProd" type="button" data-grp="prod" data-tabs="so,ord,pcut,pbase,ppress,qc,fgi,fba,fab,acc,pmdb,mst,cx,flow,flnew,flppc,flpo,fldem,flacc,flchl,flout,flven,flfab,flcut,flraw,flwip,flrdy">
+    <div class="navwrap"><button class="navgrp" id="grpProd" type="button" data-grp="prod" data-tabs="so,ord,pcut,pbase,ppress,qc,fgi,fba,fab,acc,pmdb,mst,cx,flow,flnew,flppc,flpo,fldem,flacc,flchl,flout,flven,flfab,flcut,flraw,flwip,flqc,flrdy,flfg">
       <span class="caret">&#9656;</span> Production</button>
     <!-- A MEGA MENU (Ravi, 2026-09-24: "2 — Mega menu"). Five columns in the order work moves; every
          count carries the words for what it counts (data-what), because "26" alone told nobody. -->
@@ -3537,7 +3537,7 @@ const REPL_TABS = ['repl', 'article', 'target', 'top', 'shopify', 'pack',
   'pmdb', 'mst', 'att', 'pbase', 'pcut', 'ppress', 'qc', 'qcalt', 'qcret', 'ord', 'so', 'vord', 'vreq', 'rfd', 'vend', 'vlog', 'palloc', 'fgi', 'fba', 'fab', 'acc', 'rep', 'pa', 'ka', 'hr',
   'shop', 'adj', 'shopprod', 'dash',
   /* Production flow (test, 2026-10-10): one right per bucket — the same keys as FLOW_BUCKETS in flow/flow-core.js. */
-  'flnew', 'flppc', 'flpo', 'fldem', 'flacc', 'flchl', 'flout', 'flven', 'flfab', 'flcut', 'flraw', 'flwip', 'flrdy'];   // section keys, gated per-user via perms.replTabs — 'dash' is the admins' dashboard
+  'flnew', 'flppc', 'flpo', 'fldem', 'flacc', 'flchl', 'flout', 'flven', 'flfab', 'flcut', 'flraw', 'flwip', 'flqc', 'flrdy', 'flfg'];   // section keys, gated per-user via perms.replTabs — 'dash' is the admins' dashboard
 let REPL = { SP: null, CPC: null };   // brand → { rows, at }
 let PO = [];                  // purchase orders
 
@@ -23579,7 +23579,9 @@ const FLOW_BUCKETS = [
   ['cut', 'Cutting', 'flcut', 'Lines that need cutting, not all cut. The cutting entry puts the pieces in the store.'],
   ['raw', 'Raw cutting in store', 'flraw', 'Cut (or printed) pieces waiting to be issued to a karigar.'],
   ['wip', 'WIP', 'flwip', 'With karigars: issued, received, waiting for QC.'],
-  ['ready', 'Ready → India stock', 'flrdy', 'Made and QC passed, not yet received into Finished Goods (Shopify: not handed to shipping).'],
+  ['qcb', 'QC', 'flqc', 'Back from the karigar and waiting for QC, or out for alteration — check here, history here.'],
+  ['ready', 'Ready → India stock', 'flrdy', 'Passed QC, not yet sent to Finished Goods (Shopify: not handed to shipping).'],
+  ['fgin', 'Finished Goods · accept', 'flfg', 'Sent from QC — the Finished Goods team accepts them into India stock, or rejects them back to QC.'],
 ];
 const FLOW_TABS = FLOW_BUCKETS.map(b => b[2]);
 /* How a line is made — PPC chooses (Ravi, 10 Oct: "mere yaha sirf stitching hoga … printing wala part nahi hoga", and
@@ -23598,15 +23600,15 @@ const flowBucketsAllowed = () => (ME.admin ? FLOW_BUCKETS : FLOW_BUCKETS.filter(
 const flowKey = (orderNo, sku) => (obUC(orderNo) + '__' + obUC(sku)).replace(/[.#$\[\]\/]/g, '_');
 
 /* ---- the data ---- */
-let FLOW = { ppc: null, dem: null, res: null, ch: null, test: null, po: null, at: 0, busy: null, err: '' };
+let FLOW = { ppc: null, dem: null, res: null, ch: null, test: null, po: null, fg: null, at: 0, busy: null, err: '' };
 async function flowLoad(force) {
   if (FLOW.busy) return FLOW.busy;
   if (FLOW.ppc && !force && Date.now() - FLOW.at < 60e3) return;
   FLOW.busy = (async () => {
     try {
-      const [ppc, dem, res, ch, test, po] = await Promise.all([ptGet('pt_ppc'), ptGet('pt_flowDemand'), ptGet('pt_accReserve'), ptGet('pt_flowChallans'), ptGet('pt_flowTest'), ptGet('pt_flowPrintOrders')]);
-      FLOW.ppc = ppc || {}; FLOW.dem = dem || {}; FLOW.res = res || {}; FLOW.ch = ch || {}; FLOW.test = test || {}; FLOW.po = po || {}; FLOW.err = '';
-    } catch (e) { FLOW.err = e.message || String(e); FLOW.ppc = FLOW.ppc || {}; FLOW.dem = FLOW.dem || {}; FLOW.res = FLOW.res || {}; FLOW.ch = FLOW.ch || {}; FLOW.test = FLOW.test || {}; FLOW.po = FLOW.po || {}; }
+      const [ppc, dem, res, ch, test, po, fg] = await Promise.all([ptGet('pt_ppc'), ptGet('pt_flowDemand'), ptGet('pt_accReserve'), ptGet('pt_flowChallans'), ptGet('pt_flowTest'), ptGet('pt_flowPrintOrders'), ptGet('pt_flowFgSend')]);
+      FLOW.ppc = ppc || {}; FLOW.dem = dem || {}; FLOW.res = res || {}; FLOW.ch = ch || {}; FLOW.test = test || {}; FLOW.po = po || {}; FLOW.fg = fg || {}; FLOW.err = '';
+    } catch (e) { FLOW.err = e.message || String(e); FLOW.ppc = FLOW.ppc || {}; FLOW.dem = FLOW.dem || {}; FLOW.res = FLOW.res || {}; FLOW.ch = FLOW.ch || {}; FLOW.test = FLOW.test || {}; FLOW.po = FLOW.po || {}; FLOW.fg = FLOW.fg || {}; }
     FLOW.at = Date.now(); FLOW.busy = null;
   })();
   return FLOW.busy;
@@ -23669,7 +23671,11 @@ function flowState(r) {
     : (printed && s.back < qty) ? 'fabric'
     : (r.cutReq && s.cut < qty) ? 'cut'
     : (s.issued < qty) ? 'raw'
-    : (s.made < qty) ? 'wip'
+    /* QC (flow-qcfg.js), for a planned line: back from the karigar and not checked, or out for alteration → QC. */
+    : (s.made < qty) ? (p && (flowQcWaiting(r, s) > 0 || flowQcAltOpen(r) > 0) ? 'qcb' : 'wip')
+    /* …then Ready = passed and not yet sent to Finished Goods; FG · accept = sent and waiting for them. A line with no plan
+     * (older orders) is received into Finished Goods on its own screen, as before. */
+    : (p && !ordIsMto(r.orderNo) && s.india < qty) ? (flowFgToSend(r, s) > 0 ? 'ready' : flowFgWaiting(r).length ? 'fgin' : 'ready')
     : (s.india < qty && (isNew || r.open)) ? 'ready'
     : 'done';
   return s;
@@ -23679,7 +23685,8 @@ function flowState(r) {
 let FLOW_C = { src: null, test: null, ppc: null, dem: null, res: null, rows: null };
 function flowRows() {
   const real = ordLines(), test = flowTestLines();
-  if (FLOW_C.rows && FLOW_C.src === real && FLOW_C.test === test && FLOW_C.ppc === FLOW.ppc && FLOW_C.dem === FLOW.dem && FLOW_C.res === FLOW.res && FLOW_C.ch === FLOW.ch && FLOW_C.po === FLOW.po) return FLOW_C.rows;
+  if (FLOW_C.rows && FLOW_C.src === real && FLOW_C.test === test && FLOW_C.ppc === FLOW.ppc && FLOW_C.dem === FLOW.dem && FLOW_C.res === FLOW.res && FLOW_C.ch === FLOW.ch && FLOW_C.po === FLOW.po && FLOW_C.fg === FLOW.fg
+    && FLOW_C.qc === (typeof QC !== 'undefined' ? QC.checks : null) && FLOW_C.fgi === (typeof FGI !== 'undefined' ? FGI.rows : null)) return FLOW_C.rows;
   const lines = test.length ? real.concat(test) : real;
   const since = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10);
   const rows = [];
@@ -23689,7 +23696,7 @@ function flowRows() {
     if (s.bucket === 'done' && !recent) return;
     rows.push({ r, s, recent });
   });
-  FLOW_C = { src: real, test, ppc: FLOW.ppc, dem: FLOW.dem, res: FLOW.res, ch: FLOW.ch, po: FLOW.po, rows };
+  FLOW_C = { src: real, test, ppc: FLOW.ppc, dem: FLOW.dem, res: FLOW.res, ch: FLOW.ch, po: FLOW.po, fg: FLOW.fg, qc: (typeof QC !== 'undefined' ? QC.checks : null), fgi: (typeof FGI !== 'undefined' ? FGI.rows : null), rows };
   return rows;
 }
 /* ============================== FILE: src/app/flow/flow-ppc.js ============================== */
@@ -24620,7 +24627,7 @@ function flowTestCutOpen(no, sku) {
   const want = String((p.fabric && p.fabric.name) || '');
   if (want && !fabs.some(f => f.toLowerCase() === want.toLowerCase())) fabs.unshift(want);
   ptOpenDialog({
-    title: `Cutting entry (TEST) — ${no} · ${sku}`, subtitle: `${nf(left)} of ${nf(x.t.qty)} pieces still to cut. Kept on the test order only — not in Cutting Data.`,
+    title: `Cutting entry (TEST) — ${no} · ${sku}`, subtitle: `${nf(left)} of ${nf(x.t.qty)} pieces still to cut. Saved as a TEST entry in Cutting Data too — "delete test" removes it.`,
     html: `<div class="ptgrid" style="grid-template-columns:repeat(3,1fr)">
       <label>Pieces<input id="fltcP" type="number" min="1" value="${left}"></label>
       <label>Fabric<select id="fltcF"><option value="">— Fabric —</option>${fabs.map(f => `<option${f === want ? ' selected' : ''}>${esc(f)}</option>`).join('')}</select></label>
@@ -24657,7 +24664,7 @@ async function flowTestIssueOpen(no, sku) {
   const can = row ? flowIssuable(row.r, row.s) : 0;
   let types = []; try { types = ptEmpTypes(); } catch (e) { types = []; }
   ptOpenDialog({
-    title: `Issue to karigar (TEST) — ${no} · ${sku}`, subtitle: `${nf(can)} pieces cut and not yet issued. Kept on the test order only — not in the Job Work Register.`,
+    title: `Issue to karigar (TEST) — ${no} · ${sku}`, subtitle: `${nf(can)} pieces cut and not yet issued. Saved as a TEST entry in the Job Work Register too — "delete test" removes it.`,
     html: `<div class="ptgrid" style="grid-template-columns:repeat(2,1fr)">
       <label>Employment type<select id="fltiT"><option value="">Employment type…</option>${types.map(t => `<option>${esc(t)}</option>`).join('')}</select></label>
       <label>Karigar<input id="fltiK" list="fltiKL" placeholder="name"><datalist id="fltiKL"></datalist></label>
@@ -24695,7 +24702,7 @@ function flowTestRecvOpen(no, sku) {
   const open = Object.entries(x.t.issues || {}).filter(([, e]) => e && (+e.pcs || 0) - (+e.received || 0) - (+e.rejected || 0) > 0);
   if (!open.length) return flowSay('Nothing of this test line is out with a karigar.', true);
   ptOpenDialog({
-    title: `Receive from karigar (TEST) — ${no} · ${sku}`, subtitle: 'Kept on the test order only — not in the Job Work Register.',
+    title: `Receive from karigar (TEST) — ${no} · ${sku}`, subtitle: 'Updates its TEST row in the Job Work Register — "delete test" removes it.',
     html: `<div class="ptgrid" style="grid-template-columns:repeat(3,1fr)">
       <label style="grid-column:1/-1">Issue<select id="fltrI">${open.map(([id, e]) => `<option value="${esc(id)}">${esc(e.karigar)} · issued ${nf(e.pcs)} on ${esc(e.date)} · ${nf(e.pcs - (e.received || 0) - (e.rejected || 0))} out</option>`).join('')}</select></label>
       <label>Received now<input id="fltrP" type="number" min="0"></label><label>Rejected<input id="fltrX" type="number" min="0" value="0"></label>
@@ -24720,35 +24727,6 @@ function flowTestRecvOpen(no, sku) {
       return flowTestSave(no, sku, { received: (+x.t.received || 0) + got,
         [`issues/${id}`]: Object.assign({}, e, { received: (+e.received || 0) + got, rejected: (+e.rejected || 0) + rej, lastBack: $('fltrD').value || dToday() }) },
         `${nf(got)} back from ${e.karigar}${rej ? `, ${nf(rej)} rejected` : ''}${row ? ' — on its TEST row in the Job Work Register' : ''}.`, regs, after);
-    },
-  });
-}
-/** QC check (test): checked = passed + alteration + rejected, against what came back — as Quality Control asks. */
-function flowTestQcOpen(no, sku) {
-  const x = flowTestRec(no, sku); if (!x) return;
-  const can = Math.max(0, (+x.t.received || 0) - (+x.t.qcChecked || 0));
-  if (!can) return flowSay('Nothing received is waiting for QC on this test line.', true);
-  ptOpenDialog({
-    title: `QC check (TEST) — ${no} · ${sku}`, subtitle: `${nf(can)} received and not yet checked. Kept on the test order only — not in Quality Control.`,
-    html: `<div class="ptgrid" style="grid-template-columns:repeat(4,1fr)">
-      <label>Checked<input id="fltqC" type="number" min="1" value="${can}"></label><label>Passed<input id="fltqO" type="number" min="0" value="${can}"></label>
-      <label>Alteration<input id="fltqA" type="number" min="0" value="0"></label><label>Rejected<input id="fltqR" type="number" min="0" value="0"></label>
-      <label style="grid-column:1/-1">Checked by<input id="fltqB" value="${esc(String(ME.email || '').split('@')[0])}"></label></div>`,
-    saveLabel: 'Save the check',
-    onSave: async () => {
-      const c = Math.round(+$('fltqC').value || 0), ok = Math.round(+$('fltqO').value || 0), alt = Math.round(+$('fltqA').value || 0), rej = Math.round(+$('fltqR').value || 0);
-      if (!(c > 0)) return 'How many were checked?';
-      if (c > can) return `Only ${nf(can)} are waiting for QC.`;
-      if (ok + alt + rej !== c) return `Passed + alteration + rejected must make the ${nf(c)} checked.`;
-      const by = ($('fltqB').value || '').trim(); if (!by) return 'Who checked them?';
-      const id = flowTid('q'), now = new Date().toISOString();
-      let pp = {}; try { pp = qcParts(sku) || {}; } catch (e) { pp = {}; }
-      const reg = { id: 'qc_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), date: ptNow(), checkedBy: by, brand: pp.brand || '', articleType: pp.at || '',
-        subtype: pp.sub || '', color: pp.col || '', size: pp.size || '', sku, checked: c, forAlteration: alt, rejected: rej, ok: c - alt - rej, orderNo: no,
-        remarks: '[TEST]', test: true, addedBy: ME.email || '', addedAt: now };
-      return flowTestSave(no, sku, { qc: (+x.t.qc || 0) + ok, qcChecked: (+x.t.qcChecked || 0) + c, [`qcLog/${id}`]: { checked: c, ok, alt, rej, by, at: now, reg: reg.id } },
-        `${nf(c)} checked: ${nf(ok)} passed${alt ? `, ${nf(alt)} to alteration` : ''}${rej ? `, ${nf(rej)} rejected` : ''} — in Quality Control as a TEST entry.`,
-        { ['pt_qcChecks/' + reg.id]: reg }, () => { if (typeof QC !== 'undefined' && Array.isArray(QC.checks)) QC.checks = QC.checks.concat([Object.assign({ _key: reg.id }, reg)]); });
     },
   });
 }
@@ -25356,6 +25334,196 @@ function flowAfterDialog() {
 }
 /** The store's balance of a SKU's cut pieces (Store Stock Balance, P|SKU); null while the store is not read. */
 const flowStorePcs = sku => flowPrintedStock({ kind: 'sku', code: obUC(sku) }, '');
+/* ============================== FILE: src/app/flow/flow-qcfg.js ============================== */
+/* ================= PRODUCTION FLOW · QC, AND THE HAND-OVER TO FINISHED GOODS =================
+ * Ravi, 10 Oct: "Q.C ke sare action yahin se ho and history bhi yahin check kar pau, and yahin se move ho India store me —
+ * Finish Goods team ke pas sirf goods accept karne ka option ho ya reject karne ka".
+ *
+ *   QC bucket      the pieces back from the karigar and not yet checked, and pieces out for alteration. Here: the QC check
+ *                  (checked = passed + alteration + rejected, who checked — written to pt_qcChecks exactly as Quality
+ *                  Control writes it), "Alteration back" (those pieces back as passed / rejected — a pt_qcChecks row with
+ *                  checked 0, the way spotting and touching come back, so they count as passed for the order: Quality
+ *                  Control's own alteration return never did), and the line's whole QC history.
+ *   Ready          what passed and is not yet with Finished Goods: "Send to Finished Goods" (pt_flowFgSend).
+ *   FG · accept    the Finished Goods team sees only what was sent, and only Accept or Reject. Accept writes the RECEIVE row
+ *                  into pt_fgiLedger — the India store — the way the Stock entry does (Received from: QC). Reject takes the
+ *                  pass back (a pt_qcChecks row with checked and ok negative, saying why) and the pieces are in QC again.
+ * A test order's QC rows go to Quality Control as TEST rows (removed with the test); its Finished Goods stay on the test
+ * order — a test must never put stock into India stock, which Replenishment reads. */
+
+/* ---- what the QC register says about one line ---- */
+function flowQcLine(r) {
+  const out = { checked: 0, ok: 0, alt: 0, altBack: 0, rej: 0, rows: [] };
+  (typeof QC !== 'undefined' && QC.checks || []).forEach(c => {
+    if (!c || obUC(c.orderNo) !== obUC(r.orderNo) || obUC(c.sku) !== obUC(r.sku)) return;
+    out.rows.push(c); out.checked += +c.checked || 0; out.ok += +c.ok || 0; out.rej += +c.rejected || 0;
+    out.alt += +c.forAlteration || 0; out.altBack += +c.altBack || 0;
+  });
+  out.altOpen = Math.max(0, out.alt - out.altBack);
+  return out;
+}
+/** Pieces back from the karigar and not yet checked, for a line. */
+const flowQcWaiting = (r, s) => Math.max(0, (s.received || 0) - (r.__t ? (+r.__t.qcChecked || 0) : flowQcLine(r).checked));
+const flowQcAltOpen = r => (r.__t ? Math.max(0, (+r.__t.qcAlt || 0) - (+r.__t.qcAltBack || 0)) : flowQcLine(r).altOpen);
+const flowMayQc = () => !!(ME.admin || ['qc', 'flqc'].some(t => (ME.tabs || []).includes(t)));
+const flowMayFg = () => !!(ME.admin || ['fgi', 'flfg'].some(t => (ME.tabs || []).includes(t)));
+
+/** Write a QC row (and, on a test line, its test figures) — one place for check, alteration back and FG reject. */
+async function flowQcWrite(x, rec, testSet, said) {
+  const p0 = (() => { try { return qcParts(x.r.sku) || {}; } catch (e) { return {}; } })();
+  const row = Object.assign({ id: 'qc_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), date: ptNow(), brand: p0.brand || '',
+    articleType: p0.at || '', subtype: p0.sub || '', color: p0.col || '', size: p0.size || '', sku: obUC(x.r.sku), checked: 0, forAlteration: 0,
+    rejected: 0, ok: 0, orderNo: x.r.orderNo, addedBy: ME.email || '', addedAt: new Date().toISOString() }, rec, x.r.__t ? { test: true, remarks: ('[TEST] ' + (rec.remarks || '')).trim() } : {});
+  const patch = { ['pt_qcChecks/' + row.id]: row };
+  if (x.r.__t && testSet) Object.entries(testSet).forEach(([k, v]) => { patch[`pt_flowTest/${x.r.orderNo}/lines/${obUC(x.r.sku)}/${k}`] = v; });
+  if (x.r.__t) patch[`pt_flowTest/${x.r.orderNo}/lines/${obUC(x.r.sku)}/qcLog/${row.id}`] = { checked: row.checked, ok: row.ok, alt: row.forAlteration, rej: row.rejected, by: row.checkedBy || '', at: row.addedAt, reg: row.id };
+  try { await ptPatch(patch); } catch (e) { return 'Could not save: ' + (e.message || e); }
+  if (typeof QC !== 'undefined') QC.checks = (QC.checks || []).concat([Object.assign({ _key: row.id }, row)]);
+  if (x.r.__t && testSet) {
+    const o = FLOW.test[x.r.orderNo], sku = obUC(x.r.sku), t = Object.assign({}, o.lines[sku], testSet);
+    FLOW.test = Object.assign({}, FLOW.test, { [x.r.orderNo]: Object.assign({}, o, { lines: Object.assign({}, o.lines, { [sku]: t }) }) });
+  }
+  renderFlow(); flowSay(said);
+  return '';
+}
+
+/** QC check: checked = passed + alteration + rejected, who checked — against what came back and is not checked yet. */
+async function flowQcCheckOpen(x) {
+  if (!flowMayQc()) return flowSay('QC is not open to this account.', true);
+  try { if (typeof ptLoadEmp === 'function') await ptLoadEmp(); } catch (e) { /* typed then */ }
+  const can = flowQcWaiting(x.r, x.s);
+  if (!can) return flowSay('Nothing back from the karigar is waiting for QC on this line.', true);
+  let names = []; try { names = (PTE.emp || []).map(e => e[1]); } catch (e) { names = []; }
+  ptOpenDialog({
+    title: `QC check — ${x.r.orderNo} · ${obUC(x.r.sku)}${x.r.__t ? ' (TEST)' : ''}`,
+    subtitle: `${nf(can)} back from the karigar and not yet checked. Saved in Quality Control${x.r.__t ? ' as a TEST entry' : ''}.`,
+    html: `<div class="ptgrid" style="grid-template-columns:repeat(4,1fr)">
+      <label>Checked<input id="flqC" type="number" min="1" value="${can}"></label><label>Passed<input id="flqO" type="number" min="0" value="${can}"></label>
+      <label>Alteration<input id="flqA" type="number" min="0" value="0"></label><label>Rejected<input id="flqR" type="number" min="0" value="0"></label>
+      <label style="grid-column:1/3">Checked by<input id="flqB" list="flqBL" value="${esc(String(ME.email || '').split('@')[0])}"><datalist id="flqBL">${names.map(n => `<option value="${esc(n)}">`).join('')}</datalist></label>
+      <label style="grid-column:3/5">Remarks<input id="flqM"></label></div>`,
+    saveLabel: 'Save the check',
+    onSave: async () => {
+      const c = Math.round(+$('flqC').value || 0), ok = Math.round(+$('flqO').value || 0), alt = Math.round(+$('flqA').value || 0), rej = Math.round(+$('flqR').value || 0), by = $('flqB').value.trim();
+      if (!(c > 0)) return 'How many were checked?';
+      if (c > can) return `Only ${nf(can)} are waiting for QC.`;
+      if (ok < 0 || alt < 0 || rej < 0) return 'Nothing below zero.';
+      if (ok + alt + rej !== c) return `Passed + alteration + rejected must make the ${nf(c)} checked.`;
+      if (!by) return 'Who checked them?';
+      const t = x.r.__t || {};
+      return flowQcWrite(x, { checked: c, ok, forAlteration: alt, rejected: rej, checkedBy: by, remarks: $('flqM').value.trim() },
+        { qc: (+t.qc || 0) + ok, qcChecked: (+t.qcChecked || 0) + c, qcAlt: (+t.qcAlt || 0) + alt },
+        `${nf(c)} checked: ${nf(ok)} passed${alt ? `, ${nf(alt)} to alteration` : ''}${rej ? `, ${nf(rej)} rejected` : ''} — in Quality Control.`);
+    },
+  });
+}
+/** Alteration back: pieces sent to alteration come back passed or rejected — counted for the order this time. */
+function flowAltBackOpen(x) {
+  if (!flowMayQc()) return flowSay('QC is not open to this account.', true);
+  const open = flowQcAltOpen(x.r);
+  if (!open) return flowSay('Nothing of this line is out for alteration.', true);
+  ptOpenDialog({
+    title: `Alteration back — ${x.r.orderNo} · ${obUC(x.r.sku)}${x.r.__t ? ' (TEST)' : ''}`, subtitle: `${nf(open)} out for alteration.`,
+    html: `<div class="ptgrid" style="grid-template-columns:repeat(3,1fr)">
+      <label>Back — passed<input id="flaO" type="number" min="0" value="${open}"></label><label>Back — rejected<input id="flaR" type="number" min="0" value="0"></label>
+      <label>Checked by<input id="flaB" value="${esc(String(ME.email || '').split('@')[0])}"></label></div>`,
+    saveLabel: 'Save',
+    onSave: async () => {
+      const ok = Math.round(+$('flaO').value || 0), rej = Math.round(+$('flaR').value || 0), by = $('flaB').value.trim();
+      if (!(ok + rej > 0)) return 'How many came back?';
+      if (ok + rej > open) return `Only ${nf(open)} are out for alteration.`;
+      if (!by) return 'Who checked them?';
+      const t = x.r.__t || {};
+      return flowQcWrite(x, { checked: 0, ok, rejected: rej, altBack: ok + rej, checkedBy: by, remarks: 'Back from alteration' },
+        { qc: (+t.qc || 0) + ok, qcAltBack: (+t.qcAltBack || 0) + ok + rej }, `${nf(ok)} back from alteration and passed${rej ? `, ${nf(rej)} rejected` : ''}.`);
+    },
+  });
+}
+/** The line's QC history, newest first. */
+function flowQcHistory(r) {
+  const rows = flowQcLine(r).rows.slice().sort((a, b) => String(b.addedAt || b.date || '').localeCompare(String(a.addedAt || a.date || '')));
+  if (!rows.length) return '';
+  return `<details style="margin-top:3px"><summary class="muted" style="font-size:10.5px;cursor:pointer">QC history (${rows.length})</summary><div style="font-size:10.5px;line-height:1.5">`
+    + rows.map(c => `${esc(String(c.addedAt || c.date || '').slice(0, 10))} · ${esc(c.checkedBy || String(c.addedBy || '').split('@')[0])}: `
+      + (+c.fgReject ? `<b style="color:#b91c1c">${nf(c.fgReject)} rejected by Finished Goods</b> — ${esc(c.remarks || '')}`
+        : +c.altBack ? `${nf(c.altBack)} back from alteration — ${nf(c.ok)} passed${+c.rejected ? `, ${nf(c.rejected)} rejected` : ''}`
+        : +c.dept ? `${esc(c.dept)}` : `${nf(c.checked)} checked — ${nf(c.ok)} passed${+c.forAlteration ? `, ${nf(c.forAlteration)} alteration` : ''}${+c.rejected ? `, ${nf(c.rejected)} rejected` : ''}`)
+      + (c.test ? ' <span style="color:#7c3aed">TEST</span>' : '')).join('<br>') + '</div></details>';
+}
+
+/* ---- the hand-over to Finished Goods ----
+ *   pt_flowFgSend/<id> = { orderNo, sku, pcs, at, by, status: 'sent' | 'accepted' | 'rejected', fgId?, why?, doneAt?, doneBy? } */
+const flowFgOf = r => Object.values(FLOW.fg || {}).filter(h => h && obUC(h.orderNo) === obUC(r.orderNo) && obUC(h.sku) === obUC(r.sku));
+const flowFgSent = r => flowFgOf(r).filter(h => h.status !== 'rejected').reduce((a, h) => a + (+h.pcs || 0), 0);
+const flowFgWaiting = r => flowFgOf(r).filter(h => h.status === 'sent');
+/** QC passed and not yet sent to Finished Goods. */
+const flowFgToSend = (r, s) => Math.max(0, (s.made || 0) - flowFgSent(r));
+
+function flowFgSendOpen(x) {
+  if (!flowMayQc()) return flowSay('Sending to Finished Goods is QC\'s — this account has no QC right.', true);
+  const can = flowFgToSend(x.r, x.s);
+  if (!can) return flowSay('Nothing passed QC that is not already with Finished Goods.', true);
+  ptOpenDialog({
+    title: `Send to Finished Goods — ${x.r.orderNo} · ${obUC(x.r.sku)}${x.r.__t ? ' (TEST)' : ''}`,
+    subtitle: `${nf(can)} passed QC. The Finished Goods team accepts or rejects them; accepted they are in India stock.`,
+    html: `<label>Pieces<input id="flfP" type="number" min="1" value="${can}"></label><label>Note<input id="flfN"></label>`,
+    saveLabel: 'Send',
+    onSave: async () => {
+      const n = Math.round(+$('flfP').value || 0); if (!(n > 0)) return 'How many?'; if (n > can) return `Only ${nf(can)} passed and not sent.`;
+      const id = 'fgs_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+      const rec = { orderNo: x.r.orderNo, sku: obUC(x.r.sku), pcs: n, note: $('flfN').value.trim(), at: new Date().toISOString(), by: ME.email || '', status: 'sent', ...(x.r.__t ? { test: true } : {}) };
+      try { await ptPatch({ ['pt_flowFgSend/' + id]: rec }); } catch (e) { return 'Could not save: ' + (e.message || e); }
+      FLOW.fg = Object.assign({}, FLOW.fg, { [id]: rec }); renderFlow(); flowSay(`${nf(n)} sent to Finished Goods — waiting for them to accept.`);
+      return '';
+    },
+  });
+}
+/** Finished Goods: Accept — the RECEIVE row in the India store (a test order's stays on the test order). */
+async function flowFgAccept(id) {
+  if (!flowMayFg()) return flowSay('Accepting is the Finished Goods team\'s — this account has no Finished Goods right.', true);
+  const h = (FLOW.fg || {})[id]; if (!h || h.status !== 'sent') return flowSay('That hand-over is not waiting any more — press Refresh.', true);
+  const now = new Date().toISOString(), patch = {}, d = new Date(), p2 = n => String(n).padStart(2, '0');
+  let fgRow = null;
+  if (!h.test) {
+    if (typeof FGI !== 'undefined' && FGI.rows == null && typeof fgiLoad === 'function') { try { await fgiLoad(); } catch (e) { /* refused below */ } }
+    let chk = {}; try { chk = fgiRecvOrderCheck({ sku: h.sku, qty: h.pcs, orderNo: h.orderNo, pick: 'console' }) || {}; } catch (e) { chk = {}; }
+    if (chk.err && !chk.needOver) return flowSay('Not accepted: ' + chk.err, true);
+    const over = chk.needOver ? { overQty: chk.overQty, overReason: 'sent from QC (Production flow)', overOrdered: chk.overOrdered, overStatus: 'open' } : {};
+    fgRow = { _id: fgiNewId('RCP'), txnType: 'RECEIVE', sku: h.sku, qty: h.pcs, date: `${p2(d.getDate())}/${p2(d.getMonth() + 1)}/${d.getFullYear()}`, reason: '',
+      orderNo: h.orderNo, orderSource: 'console', ...over, receivedFrom: 'QC (Production flow)', remarks: `Accepted from QC hand-over ${id}`, createdAt: now, createdBy: ME.email || '' };
+    patch['pt_fgiLedger/' + fgRow._id] = fgRow;
+  } else {
+    const o = FLOW.test[h.orderNo], t = o && o.lines[h.sku];
+    if (t) patch[`pt_flowTest/${h.orderNo}/lines/${h.sku}/fgIn`] = (+t.fgIn || 0) + h.pcs;
+  }
+  const nh = Object.assign({}, h, { status: 'accepted', doneAt: now, doneBy: ME.email || '', ...(fgRow ? { fgId: fgRow._id } : {}) });
+  patch['pt_flowFgSend/' + id] = nh;
+  try { await ptPatch(patch); } catch (e) { return flowSay('Could not save: ' + (e.message || e), true); }
+  if (fgRow && typeof FGI !== 'undefined') FGI.rows = (FGI.rows || []).concat([fgRow]);
+  if (h.test) { const o = FLOW.test[h.orderNo]; const t = Object.assign({}, o.lines[h.sku], { fgIn: patch[`pt_flowTest/${h.orderNo}/lines/${h.sku}/fgIn`] });
+    FLOW.test = Object.assign({}, FLOW.test, { [h.orderNo]: Object.assign({}, o, { lines: Object.assign({}, o.lines, { [h.sku]: t }) }) }); }
+  FLOW.fg = Object.assign({}, FLOW.fg, { [id]: nh });
+  renderFlow(); flowSay(`${nf(h.pcs)} of ${h.sku} accepted into ${h.test ? 'Finished Goods (TEST — not in India stock)' : 'Finished Goods — India stock'}.`);
+}
+/** Finished Goods: Reject — with why; the QC pass is taken back and the pieces are in QC again. */
+function flowFgRejectOpen(id) {
+  if (!flowMayFg()) return flowSay('Rejecting is the Finished Goods team\'s — this account has no Finished Goods right.', true);
+  const h = (FLOW.fg || {})[id]; if (!h || h.status !== 'sent') return flowSay('That hand-over is not waiting any more — press Refresh.', true);
+  ptOpenDialog({
+    title: `Reject — ${h.orderNo} · ${h.sku} · ${nf(h.pcs)} pcs`, subtitle: 'They go back to QC to be checked again.',
+    html: '<label>Why (stain, wrong size, stitching, packing…)<input id="flfrW"></label>', saveLabel: 'Reject',
+    onSave: async () => {
+      const why = $('flfrW').value.trim(); if (!why) return 'Say why they are rejected.';
+      const x = flowRows().find(y => obUC(y.r.orderNo) === obUC(h.orderNo) && obUC(y.r.sku) === h.sku) || { r: { orderNo: h.orderNo, sku: h.sku } };
+      const nh = Object.assign({}, h, { status: 'rejected', why, doneAt: new Date().toISOString(), doneBy: ME.email || '' });
+      try { await ptPatch({ ['pt_flowFgSend/' + id]: nh }); } catch (e) { return 'Could not save: ' + (e.message || e); }
+      FLOW.fg = Object.assign({}, FLOW.fg, { [id]: nh });
+      const t = (x.r.__t || {});
+      return flowQcWrite(x, { checked: -h.pcs, ok: -h.pcs, fgReject: h.pcs, checkedBy: 'Finished Goods', remarks: 'Rejected by Finished Goods: ' + why },
+        { qc: (+t.qc || 0) - h.pcs, qcChecked: (+t.qcChecked || 0) - h.pcs }, `${nf(h.pcs)} rejected by Finished Goods (${why}) — back in QC.`);
+    },
+  });
+}
 /* ============================== FILE: src/app/flow/flow-view.js ============================== */
 /* ================= PRODUCTION FLOW · THE SCREEN =================
  * The bucket buttons across the top (each with how many lines are in it; only the buckets this account may open), and
@@ -25369,6 +25537,9 @@ async function ensureFlow() {
   /* Printer Allocation too: PPC's printer is suggested from it. */
   /* The store too: the printed stock PPC sees beside the RFD balance (Store Stock Balance; its Job Work and cutting
    * registers are the ones the order book has already read). */
+  /* QC checks and the Finished Goods ledger: the QC bucket and the hand-over read them. */
+  if (typeof QC !== 'undefined' && QC.checks == null) { try { QC.checks = ptList(await ptGet('pt_qcChecks')); } catch (e) { /* the QC bucket waits */ } }
+  if (typeof FGI !== 'undefined' && FGI.rows == null && typeof fgiLoad === 'function') { try { await fgiLoad(); } catch (e) { /* India stock waits */ } }
   await Promise.all([flowLoad(), flowFabLoad(), (typeof STORE !== 'undefined' && STORE.rows === null ? ensureStore().catch(() => {}) : null), (PAL.printers === null ? palLoad().catch(() => {}) : null), (typeof ensureVo === 'function' ? ensureVo().catch(() => {}) : null),
     (typeof ensureAcc === 'function' ? ensureAcc().catch(() => {}) : null)]);
   renderFlow();
@@ -25462,7 +25633,7 @@ function flowCutFrom(x) {
 function flowTestEntryButtons(view, x) {
   const b = (what, label, main) => `<button data-flte="${what}|${esc(x.r.orderNo)}|${esc(obUC(x.r.sku))}" style="width:auto;padding:3px 10px;font-size:12px;margin:1px;background:${main ? '#7c3aed' : 'transparent'};border-color:#7c3aed;color:${main ? '#fff' : '#7c3aed'}">${label}</button>`;
   const btns = view === 'cut' ? b('cut', 'Cutting entry (test) →', true) : view === 'raw' ? b('issue', 'Issue to karigar (test) →', true)
-    : (x.s.issued > x.s.received ? b('recv', 'Receive (test) →', true) : '') + (x.s.received > (+(x.r.__t || {}).qcChecked || 0) ? b('qc', 'QC check (test) →', x.s.issued <= x.s.received) : '');
+    : (x.s.issued > x.s.received ? b('recv', 'Receive (test) →', true) : '');
   const note = flowTestNote(x, view);
   return btns + (note ? `<div class="muted" style="font-size:10.5px;margin-top:3px">${note}</div>` : '');
 }
@@ -25471,7 +25642,7 @@ function flowEntryButtons(view, x) {
   const b = (what, label, main) => `<button ${main ? '' : 'class="ghost" '}data-flent="${what}|${esc(x.s.key)}" style="width:auto;padding:${main ? '3px 10px;font-size:12px' : '2px 9px;font-size:11.5px'};margin:1px">${label}</button>`;
   if (view === 'cut') return b('cut', 'Cutting entry →', true);
   if (view === 'raw') return b('issue', 'Issue to karigar →', true);
-  return (x.s.issued > x.s.received ? b('recv', 'Receive →', true) : '') + (x.s.received > x.s.qc ? b('qc', 'QC check →', x.s.issued <= x.s.received) : '');
+  return x.s.issued > x.s.received ? b('recv', 'Receive →', true) : '';
 }
 /** The challan a line's fabric went on, if it went on one. */
 const flowChTag = s => { const fr = s.demand && s.demand.fabricReady; return fr && fr.challan
@@ -25566,10 +25737,27 @@ function flowTable(view, rows) {
     head = ['PO', 'SKU', 'Qty', 'Issued', 'Received', 'QC passed', ''];
     body = rows.map(x => `<tr>${base(x)}<td class="num">${nf(x.s.issued)}</td><td class="num">${nf(x.s.received)}</td>
       <td class="num">${prog(x.s.made, +x.r.qty)}${due(x.s.plan && x.s.plan.dates && x.s.plan.dates.qc, 'plan')}</td><td>${go(view, x)}</td></tr>`).join('');
+  } else if (view === 'qcb') {
+    head = ['PO', 'SKU', 'Qty', 'Back from karigar', 'Waiting for QC', 'Passed', ''];
+    const qb = (what, x, label, main) => `<button data-flqb="${what}|${esc(x.s.key)}" style="width:auto;padding:${main ? '3px 10px;font-size:12px' : '2px 9px;font-size:11.5px'};margin:1px"${main ? '' : ' class="ghost"'}>${label}</button>`;
+    body = rows.map(x => { const w = flowQcWaiting(x.r, x.s), alt = flowQcAltOpen(x.r);
+      return `<tr>${base(x)}<td class="num">${nf(x.s.received)} / ${nf(x.s.issued)}</td><td class="num"><b>${nf(w)}</b>${alt ? `<div style="font-size:10.5px;color:#b45309">${nf(alt)} out for alteration</div>` : ''}</td>
+      <td class="num">${prog(x.s.made, +x.r.qty)}</td>
+      <td style="white-space:nowrap">${w ? qb('check', x, 'QC check →', true) : ''}${alt ? qb('alt', x, 'Alteration back →', !w) : ''}${x.s.issued > x.s.received ? (x.r.__t ? `<button data-flte="recv|${esc(x.r.orderNo)}|${esc(obUC(x.r.sku))}" class="ghost" style="width:auto;padding:2px 9px;font-size:11.5px;margin:1px">Receive (test) →</button>` : qb('recv', x, 'Receive →')) : ''}
+        ${flowQcHistory(x.r)}</td></tr>`; }).join('');
+  } else if (view === 'fgin') {
+    head = ['PO', 'SKU', 'Qty', 'Sent from QC', 'In India stock', ''];
+    body = rows.map(x => `<tr>${base(x)}<td style="text-align:left;font-size:12px">${flowFgWaiting(x.r).map(h => `<div style="margin:2px 0"><b>${nf(h.pcs)} pcs</b> <span class="muted">· ${esc(String(h.by || '').split('@')[0])} ${esc(String(h.at || '').slice(0, 10))}${h.note ? ' · ' + esc(h.note) : ''}</span>
+        <button data-flfga="${esc(Object.keys(FLOW.fg).find(k => FLOW.fg[k] === h))}" style="width:auto;padding:3px 10px;font-size:12px;margin-left:6px">Accept</button>
+        <button class="ghost" data-flfgr="${esc(Object.keys(FLOW.fg).find(k => FLOW.fg[k] === h))}" style="width:auto;padding:2px 9px;font-size:11.5px;color:#b91c1c">Reject</button></div>`).join('')}</td>
+      <td class="num">${prog(x.s.india, +x.r.qty)}</td><td></td></tr>`).join('');
   } else if (view === 'ready') {
     head = ['PO', 'SKU', 'Qty', 'Made', 'In India stock', ''];
     body = rows.map(x => `<tr>${base(x)}<td class="num">${nf(x.s.made)}</td><td class="num">${prog(x.s.india, +x.r.qty)}${due(x.s.plan && x.s.plan.dates && x.s.plan.dates.ready, 'plan')}</td>
-      <td>${ordIsMto(x.r.orderNo) && !x.r.__t ? '<button class="ghost" data-flgo="ord" style="width:auto;padding:2px 9px;font-size:11.5px">Order Console (hand over) →</button>' : go(view, x)}</td></tr>`).join('');
+      <td>${ordIsMto(x.r.orderNo) && !x.r.__t ? '<button class="ghost" data-flgo="ord" style="width:auto;padding:2px 9px;font-size:11.5px">Order Console (hand over) →</button>'
+        : x.s.plan ? (flowFgToSend(x.r, x.s) > 0 ? `<button data-flqb="send|${esc(x.s.key)}" style="width:auto;padding:3px 10px;font-size:12px">Send to Finished Goods →</button>` : '')
+          + flowFgOf(x.r).filter(h => h.status === 'rejected').map(h => `<div style="font-size:10.5px;color:#b91c1c">${nf(h.pcs)} rejected by Finished Goods: ${esc(h.why || '')}</div>`).join('')
+        : go(view, x)}</td></tr>`).join('');
   }
   return '<thead><tr>' + head.map((h, i) => `<th${i === 0 ? ' class="frz" style="text-align:left"' : i === 1 ? ' style="text-align:left"' : ''}>${esc(h)}</th>`).join('') + '</tr></thead><tbody>'
     + (body || `<tr><td colspan="${head.length}" class="muted" style="padding:16px">Nothing in this bucket.</td></tr>`) + '</tbody>';
@@ -25603,9 +25791,15 @@ $('flTable').addEventListener('click', async e => {
     $('flMsg').className = er ? 'err' : 'muted'; if (er) $('flMsg').textContent = er; else renderFlow(); return; }
   const cs = e.target.closest('[data-flchc]'); if (cs) { flowCloseShortOpen(cs.dataset.flchc); return; }
   const ch = e.target.closest('[data-flch]'); if (ch) { flowChallanOpen(ch.dataset.flch, ch.dataset.pc); return; }
+  const qb = e.target.closest('[data-flqb]');
+  if (qb) { const [what, key] = qb.dataset.flqb.split('|'), x = flowRows().find(y => y.s.key === key); if (!x) return;
+    if (what === 'check') flowQcCheckOpen(x); else if (what === 'alt') flowAltBackOpen(x); else if (what === 'send') flowFgSendOpen(x); else if (what === 'recv') flowRecvEntry(x.r);
+    return; }
+  const fa = e.target.closest('[data-flfga]'); if (fa) { flowFgAccept(fa.dataset.flfga); return; }
+  const fr = e.target.closest('[data-flfgr]'); if (fr) { flowFgRejectOpen(fr.dataset.flfgr); return; }
   const te = e.target.closest('[data-flte]');
   if (te) { const [what, no, sku] = te.dataset.flte.split('|');
-    if (what === 'cut') flowTestCutOpen(no, sku); else if (what === 'issue') flowTestIssueOpen(no, sku); else if (what === 'recv') flowTestRecvOpen(no, sku); else if (what === 'qc') flowTestQcOpen(no, sku);
+    if (what === 'cut') flowTestCutOpen(no, sku); else if (what === 'issue') flowTestIssueOpen(no, sku); else if (what === 'recv') flowTestRecvOpen(no, sku);
     return; }
   const en = e.target.closest('[data-flent]');
   if (en) { const [what, key] = en.dataset.flent.split('|'), x = flowRows().find(y => y.s.key === key); if (!x) return;

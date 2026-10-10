@@ -2,7 +2,7 @@
  *   node tests/flow-test.js      (FLOW_DIR=<dir> to test another copy — teeth/teeth-flow.js does) */
 const fs = require('fs'), path = require('path');
 const DIR = process.env.FLOW_DIR || path.join(__dirname, '..', 'src', 'app', 'flow');
-const SRC = ['flow-core.js', 'flow-ppc.js', 'flow-demand.js', 'flow-challan.js', 'flow-test-order.js', 'flow-receive.js', 'flow-printorder.js', 'flow-edit.js', 'flow-entries.js', 'flow-view.js'].map(f => fs.readFileSync(path.join(DIR, f), 'utf8')).join('\n');
+const SRC = ['flow-core.js', 'flow-ppc.js', 'flow-demand.js', 'flow-challan.js', 'flow-test-order.js', 'flow-receive.js', 'flow-printorder.js', 'flow-edit.js', 'flow-entries.js', 'flow-qcfg.js', 'flow-view.js'].map(f => fs.readFileSync(path.join(DIR, f), 'utf8')).join('\n');
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => { if (cond) { pass++; console.log('  PASS ' + name); } else { fail++; console.log('  FAIL ' + name + (extra ? ' — ' + extra : '')); } };
 
@@ -56,7 +56,7 @@ function load(opts) {
     FAB: { rows: opts.fabRows || [] },
     STORE: { rows: opts.store ? [] : null }, stMoves: () => opts.store || [], stBalances: mv => mv, fabKey: v => String(v || '').trim().toUpperCase(), fabAll: () => opts.fabRows || [], ptList: x => x || [], fabAutoLoad: async () => {}, fabStockOf: (name, st) => (st === 'RFD' ? (opts.rfd || {})[String(name).toUpperCase()] || 0 : 0),
   };
-  const api = new Function(...Object.keys(ctx), SRC + '\n;return { FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestCutOpen, flowTestIssueOpen, flowTestRecvOpen, flowTestQcOpen, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowCutEntry, flowIssueEntry, flowRecvEntry, flowQcEntry, flowIssuable, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowVoLines, VOrows:()=>VO.rows, setVOrows:v=>{VO.rows=v}, flowUnplan, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v} };')(...Object.values(ctx));
+  const api = new Function(...Object.keys(ctx), SRC + '\n;return { FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestCutOpen, flowTestIssueOpen, flowTestRecvOpen, flowQcCheckOpen, flowAltBackOpen, flowFgSendOpen, flowFgAccept, flowFgRejectOpen, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowCutEntry, flowIssueEntry, flowRecvEntry, flowQcEntry, flowIssuable, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowVoLines, VOrows:()=>VO.rows, setVOrows:v=>{VO.rows=v}, flowUnplan, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v} };')(...Object.values(ctx));
   api.setFLOW(Object.assign(api.FLOW(), { ppc: opts.ppc || {}, dem: opts.dem || {}, res: opts.res || {} }));
   return Object.assign(api, { els, writes, W, ctx });
 }
@@ -71,8 +71,8 @@ const K = 'AMZ-1__S1';
     load({ host: 'price-research-48ff3.web.app', ls: { flow: '1' } }).FLOW_ON === true && load({ ls: { flow: '0' } }).FLOW_ON === false);
 
   console.log('== each bucket its own right ==');
-  ok('thirteen buckets, thirteen rights', load().FLOW_TABS.length === 13 && new Set(load().FLOW_TABS).size === 13);
-  ok('an admin sees every bucket', load({ me: { admin: true } }).flowBucketsAllowed().length === 13);
+  ok('fifteen buckets, fifteen rights', load().FLOW_TABS.length === 15 && new Set(load().FLOW_TABS).size === 15);
+  ok('an admin sees every bucket', load({ me: { admin: true } }).flowBucketsAllowed().length === 15);
   ok('PPC staff see PPC only', load({ me: { tabs: ['flppc', 'ord'] } }).flowBucketsAllowed().map(b => b[0]).join() === 'ppc');
   ok('nobody with no right sees any', load({ me: { tabs: ['ord'] } }).flowBucketsAllowed().length === 0);
   ok('a key is safe for the database (no . # $ [ ] /)', load().flowKey('amz/1.2', 's#1') === 'AMZ_1_2__S_1');
@@ -95,7 +95,8 @@ const K = 'AMZ-1__S1';
   A = load(Object.assign({ vendor: { 'AMZ-1|S1': { given: 100, back: 100 } } }, ready));
   ok('all back, cutting needed, not cut → Cutting', b(L({ cutReq: true, cut: 60 })) === 'cut');
   ok('all cut → Raw cutting in store', b(L({ cutReq: true, cut: 100 })) === 'raw');
-  ok('all issued → WIP', b(L({ cutReq: true, cut: 100, issued: 100, received: 30 })) === 'wip');
+  ok('all issued, 30 back and not checked → QC', b(L({ cutReq: true, cut: 100, issued: 100, received: 30 })) === 'qcb');
+  ok('all issued, nothing back → WIP', b(L({ cutReq: true, cut: 100, issued: 100, received: 0 })) === 'wip');
   A = load(Object.assign({ vendor: { 'AMZ-1|S1': { given: 100, back: 100 } }, qc: { 'AMZ-1|S1': { ok: 100 } } }, ready));
   ok('all QC passed, not in Finished Goods → Ready', b(L({ issued: 100, received: 100 })) === 'ready');
   A = load(Object.assign({ vendor: { 'AMZ-1|S1': { given: 100, back: 100 } }, qc: { 'AMZ-1|S1': { ok: 100 } }, fg: { 'AMZ-1|S1': { in: 100 } } }, ready));
@@ -927,14 +928,42 @@ const K = 'AMZ-1__S1';
     ok('more back than Ramesh has is refused', /Only 6 are out with Ramesh/.test(await A.ctx.__dlg.onSave()));
     say({ fltrP: '6' }); er = await A.ctx.__dlg.onSave();
     A.flowTestRecvOpen(TN, 'S1'); say({ fltrI: pradeep, fltrP: '4', fltrX: '0' }); er = er || await A.ctx.__dlg.onSave();
-    ok('10 back (Ramesh 6, Pradeep 4) → waiting for QC', !er && T().s.received === 10 && T().s.bucket === 'wip', er);
+    ok('10 back (Ramesh 6, Pradeep 4) → the QC bucket', !er && T().s.received === 10 && T().s.bucket === 'qcb', er);
     /* QC: checked = passed + alteration + rejected. */
-    A.flowTestQcOpen(TN, 'S1'); say({ fltqC: '10', fltqO: '9', fltqA: '0', fltqR: '0', fltqB: 'Sunita' });
+    A.setView('qcb'); A.renderFlow();
+    ok('the QC bucket offers "QC check" for the 10 waiting', /data-flqb="check\|/.test(A.els.flTable.innerHTML) && />10<\/b>/.test(A.els.flTable.innerHTML));
+    await A.flowQcCheckOpen(T()); say({ flqC: '10', flqO: '7', flqA: '2', flqR: '0', flqB: 'Sunita', flqM: '' });
     ok('passed + alteration + rejected must make the checked', /must make the 10 checked/.test(await A.ctx.__dlg.onSave()));
-    say({ fltqO: '10' }); er = await A.ctx.__dlg.onSave();
-    ok('10 checked, 10 passed → Ready → India stock', !er && T().s.qc === 10 && T().s.bucket === 'ready', er || T().s.bucket);
-    er = await A.flowSimulate(TN, 'S1', 'ready');
-    ok('received in Finished Goods → done', !er && A.flowState(T() ? T().r : A.flowTestLines()[0]).bucket === 'done', er);
+    say({ flqC: '11', flqO: '11', flqA: '0', flqR: '0' });
+    ok('checking more than came back is refused', /Only 10 are waiting for QC/.test(await A.ctx.__dlg.onSave()));
+    say({ flqC: '10', flqO: '7', flqA: '2', flqR: '1' }); er = await A.ctx.__dlg.onSave();
+    ok('10 checked: 7 passed, 2 to alteration, 1 rejected — still in QC (2 out for alteration)', !er && T().s.qc === 7 && T().s.bucket === 'qcb', er || T().s.bucket);
+    A.renderFlow();
+    ok('…its QC history shows the check, and "Alteration back" is offered', /QC history \(1\)/.test(A.els.flTable.innerHTML) && /10 checked — 7 passed, 2 alteration, 1 rejected/.test(A.els.flTable.innerHTML) && /data-flqb="alt\|/.test(A.els.flTable.innerHTML));
+    A.flowAltBackOpen(T()); say({ flaO: '3', flaR: '0', flaB: 'Sunita' });
+    ok('more back from alteration than went is refused', /Only 2 are out for alteration/.test(await A.ctx.__dlg.onSave()));
+    say({ flaO: '2' }); er = await A.ctx.__dlg.onSave();
+    ok('the 2 back from alteration and passed → 9 passed (counted for the order)', !er && T().s.qc === 9, er);
+    /* 1 rejected at QC means the line is short by one: here make it whole for the walk with a re-check of a re-made piece. */
+    A.W.lines; const tl = A.FLOW().test[TN].lines.S1; A.setFLOW(Object.assign(A.FLOW(), { test: Object.assign({}, A.FLOW().test, { [TN]: Object.assign({}, A.FLOW().test[TN], { lines: { S1: Object.assign({}, tl, { qc: 10 }) } }) }) }));
+    ok('all passed → Ready → India stock (send to Finished Goods)', T().s.bucket === 'ready');
+    A.setView('ready'); A.renderFlow();
+    ok('Ready offers "Send to Finished Goods"', /data-flqb="send\|/.test(A.els.flTable.innerHTML));
+    A.flowFgSendOpen(T()); say({ flfP: '10', flfN: '' }); er = await A.ctx.__dlg.onSave();
+    ok('sent → the Finished Goods team\u2019s bucket', !er && T().s.bucket === 'fgin', er || T().s.bucket);
+    A.setView('fgin'); A.renderFlow();
+    ok('Finished Goods sees only Accept and Reject', /data-flfga=/.test(A.els.flTable.innerHTML) && /data-flfgr=/.test(A.els.flTable.innerHTML));
+    const hid = Object.keys(A.FLOW().fg)[0];
+    A.flowFgRejectOpen(hid); say({ flfrW: '' });
+    ok('reject needs a reason', /Say why/.test(await A.ctx.__dlg.onSave()));
+    say({ flfrW: 'stain on 10' }); er = await A.ctx.__dlg.onSave();
+    ok('rejected → the pass is taken back, the pieces are in QC again', !er && T().s.bucket === 'qcb' && A.FLOW().fg[hid].status === 'rejected', er || T().s.bucket);
+    await A.flowQcCheckOpen(T()); say({ flqC: '10', flqO: '10', flqA: '0', flqR: '0', flqB: 'Sunita' }); er = await A.ctx.__dlg.onSave();
+    A.flowFgSendOpen(T()); say({ flfP: '10' }); er = er || await A.ctx.__dlg.onSave();
+    const hid2 = Object.keys(A.FLOW().fg).find(k => A.FLOW().fg[k].status === 'sent');
+    await A.flowFgAccept(hid2);
+    ok('re-checked, sent again, accepted → done; a TEST order never goes into India stock', !er && A.flowState(T() ? T().r : A.flowTestLines()[0]).bucket === 'done'
+      && !A.writes.some(w => Object.keys(w).some(k => k.startsWith('pt_fgiLedger/'))), er);
     /* In the real screens: each entry also went into its own register, marked TEST. */
     const all = Object.assign({}, ...A.writes), reg = n => Object.entries(all).filter(([k, v]) => k.startsWith(n + '/') && v && typeof v === 'object').map(([, v]) => v);
     const cuts = reg('pt_cuttingData'), bds = reg('pt_baseData'), qcs = reg('pt_qcChecks');
@@ -948,17 +977,23 @@ const K = 'AMZ-1__S1';
       ok('…the issue itself wrote its row (6 issued, 0 received, 6 pending), in the same save as the test order', fr && fr.issuePieces === 6 && fr.receivedPieces === 0 && fr.pendingPieces === 6
         && Object.keys(firstW).some(k => /\/issues\//.test(k))); }
     ok('…and the receipts went onto those rows (Ramesh: 6 received, nothing pending, closed)', lastBd(rRow.id).receivedPieces === 6 && lastBd(rRow.id).pendingPieces === 0 && lastBd(rRow.id).frozen);
-    ok('Quality Control got the check: 10 checked, 10 ok, checked by Sunita, TEST order', qcs.length === 1 && qcs[0].checked === 10 && qcs[0].ok === 10 && qcs[0].checkedBy === 'Sunita' && qcs[0].orderNo === TN && qcs[0].test);
+    ok('Quality Control got every QC row of the walk, TEST order: check, alteration back, FG rejection, re-check', qcs.length === 4 && qcs.every(q => q.orderNo === TN && q.test)
+      && qcs.some(q => q.checked === 10 && q.ok === 7 && q.forAlteration === 2 && q.checkedBy === 'Sunita') && qcs.some(q => q.altBack === 2 && q.ok === 2 && q.checked === 0) && qcs.some(q => q.fgReject === 10 && q.checked === -10), JSON.stringify(qcs.map(q => [q.checked, q.ok, q.altBack, q.fgReject])));
     ok('…and the screens\u2019 own lists hold them now (Cutting, Job Work, QC)', A.ctx.PT.cut.some(r => r.orderNo === TN) && A.ctx.PT.base.filter(r => r.orderNo === TN).length === 2 && A.ctx.QC.checks.some(r => r.orderNo === TN));
     ok('no zipper or ruffle cloth was taken off the real stock by a test issue', !Object.keys(all).some(k => /^pt_(accLedger|fabInvLedger)\//.test(k)));
     const n0 = A.writes.length;
     ok('delete test removes the order, its plan, its demand and its challan', !(await A.flowTestDelete(TN)) && (() => { const w = A.writes[n0];
       return w['pt_flowTest/' + TN] === null && w['pt_ppc/' + TK] === null && w['pt_flowDemand/' + TK] === null && w['pt_flowChallans/TRFD-202610-001'] === null; })());
     { const w = A.writes[n0];
-      ok('…and its TEST entries from all three registers — Cutting Data, Job Work, Quality Control', w['pt_cuttingData/' + cuts[0].id] === null && bds.every(r => w['pt_baseData/' + r.id] === null) && w['pt_qcChecks/' + qcs[0].id] === null, Object.keys(w).join());
+      ok('…and its TEST entries from all three registers — Cutting Data, Job Work, Quality Control', w['pt_cuttingData/' + cuts[0].id] === null && bds.every(r => w['pt_baseData/' + r.id] === null) && qcs.every(q => w['pt_qcChecks/' + q.id] === null), Object.keys(w).join());
       ok('…and from the screens\u2019 lists at once', !A.ctx.PT.cut.some(r => r.orderNo === TN) && !A.ctx.PT.base.some(r => r.orderNo === TN) && !A.ctx.QC.checks.some(r => r.orderNo === TN)); }
     ok('…and it is gone from every bucket', !A.flowRows().some(x => x.r.orderNo === TN));
   }
+
+  console.log('== Simulate still stands in where the factory has no form of ours (printer, outsourced) ==');
+  { const B = load({ me: { admin: true } }); B.setFLOW(Object.assign(B.FLOW(), { test: { 'TEST-AMZ-9': { orderNo: 'TEST-AMZ-9', orderDate: '2026-10-13', lines: { S1: { qty: 10 } } } } }));
+    const er = await B.flowSimulate('TEST-AMZ-9', 'S1', 'vendor');
+    ok('Simulate: vendor order placed → given 10', !er && B.flowTestLines()[0].__t.given === 10, er); }
 
   console.log('== old orders are not dumped into PPC ==');
   A = load();

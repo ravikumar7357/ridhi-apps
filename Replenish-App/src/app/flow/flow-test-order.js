@@ -153,7 +153,7 @@ function flowTestCutOpen(no, sku) {
   const want = String((p.fabric && p.fabric.name) || '');
   if (want && !fabs.some(f => f.toLowerCase() === want.toLowerCase())) fabs.unshift(want);
   ptOpenDialog({
-    title: `Cutting entry (TEST) — ${no} · ${sku}`, subtitle: `${nf(left)} of ${nf(x.t.qty)} pieces still to cut. Kept on the test order only — not in Cutting Data.`,
+    title: `Cutting entry (TEST) — ${no} · ${sku}`, subtitle: `${nf(left)} of ${nf(x.t.qty)} pieces still to cut. Saved as a TEST entry in Cutting Data too — "delete test" removes it.`,
     html: `<div class="ptgrid" style="grid-template-columns:repeat(3,1fr)">
       <label>Pieces<input id="fltcP" type="number" min="1" value="${left}"></label>
       <label>Fabric<select id="fltcF"><option value="">— Fabric —</option>${fabs.map(f => `<option${f === want ? ' selected' : ''}>${esc(f)}</option>`).join('')}</select></label>
@@ -190,7 +190,7 @@ async function flowTestIssueOpen(no, sku) {
   const can = row ? flowIssuable(row.r, row.s) : 0;
   let types = []; try { types = ptEmpTypes(); } catch (e) { types = []; }
   ptOpenDialog({
-    title: `Issue to karigar (TEST) — ${no} · ${sku}`, subtitle: `${nf(can)} pieces cut and not yet issued. Kept on the test order only — not in the Job Work Register.`,
+    title: `Issue to karigar (TEST) — ${no} · ${sku}`, subtitle: `${nf(can)} pieces cut and not yet issued. Saved as a TEST entry in the Job Work Register too — "delete test" removes it.`,
     html: `<div class="ptgrid" style="grid-template-columns:repeat(2,1fr)">
       <label>Employment type<select id="fltiT"><option value="">Employment type…</option>${types.map(t => `<option>${esc(t)}</option>`).join('')}</select></label>
       <label>Karigar<input id="fltiK" list="fltiKL" placeholder="name"><datalist id="fltiKL"></datalist></label>
@@ -228,7 +228,7 @@ function flowTestRecvOpen(no, sku) {
   const open = Object.entries(x.t.issues || {}).filter(([, e]) => e && (+e.pcs || 0) - (+e.received || 0) - (+e.rejected || 0) > 0);
   if (!open.length) return flowSay('Nothing of this test line is out with a karigar.', true);
   ptOpenDialog({
-    title: `Receive from karigar (TEST) — ${no} · ${sku}`, subtitle: 'Kept on the test order only — not in the Job Work Register.',
+    title: `Receive from karigar (TEST) — ${no} · ${sku}`, subtitle: 'Updates its TEST row in the Job Work Register — "delete test" removes it.',
     html: `<div class="ptgrid" style="grid-template-columns:repeat(3,1fr)">
       <label style="grid-column:1/-1">Issue<select id="fltrI">${open.map(([id, e]) => `<option value="${esc(id)}">${esc(e.karigar)} · issued ${nf(e.pcs)} on ${esc(e.date)} · ${nf(e.pcs - (e.received || 0) - (e.rejected || 0))} out</option>`).join('')}</select></label>
       <label>Received now<input id="fltrP" type="number" min="0"></label><label>Rejected<input id="fltrX" type="number" min="0" value="0"></label>
@@ -253,35 +253,6 @@ function flowTestRecvOpen(no, sku) {
       return flowTestSave(no, sku, { received: (+x.t.received || 0) + got,
         [`issues/${id}`]: Object.assign({}, e, { received: (+e.received || 0) + got, rejected: (+e.rejected || 0) + rej, lastBack: $('fltrD').value || dToday() }) },
         `${nf(got)} back from ${e.karigar}${rej ? `, ${nf(rej)} rejected` : ''}${row ? ' — on its TEST row in the Job Work Register' : ''}.`, regs, after);
-    },
-  });
-}
-/** QC check (test): checked = passed + alteration + rejected, against what came back — as Quality Control asks. */
-function flowTestQcOpen(no, sku) {
-  const x = flowTestRec(no, sku); if (!x) return;
-  const can = Math.max(0, (+x.t.received || 0) - (+x.t.qcChecked || 0));
-  if (!can) return flowSay('Nothing received is waiting for QC on this test line.', true);
-  ptOpenDialog({
-    title: `QC check (TEST) — ${no} · ${sku}`, subtitle: `${nf(can)} received and not yet checked. Kept on the test order only — not in Quality Control.`,
-    html: `<div class="ptgrid" style="grid-template-columns:repeat(4,1fr)">
-      <label>Checked<input id="fltqC" type="number" min="1" value="${can}"></label><label>Passed<input id="fltqO" type="number" min="0" value="${can}"></label>
-      <label>Alteration<input id="fltqA" type="number" min="0" value="0"></label><label>Rejected<input id="fltqR" type="number" min="0" value="0"></label>
-      <label style="grid-column:1/-1">Checked by<input id="fltqB" value="${esc(String(ME.email || '').split('@')[0])}"></label></div>`,
-    saveLabel: 'Save the check',
-    onSave: async () => {
-      const c = Math.round(+$('fltqC').value || 0), ok = Math.round(+$('fltqO').value || 0), alt = Math.round(+$('fltqA').value || 0), rej = Math.round(+$('fltqR').value || 0);
-      if (!(c > 0)) return 'How many were checked?';
-      if (c > can) return `Only ${nf(can)} are waiting for QC.`;
-      if (ok + alt + rej !== c) return `Passed + alteration + rejected must make the ${nf(c)} checked.`;
-      const by = ($('fltqB').value || '').trim(); if (!by) return 'Who checked them?';
-      const id = flowTid('q'), now = new Date().toISOString();
-      let pp = {}; try { pp = qcParts(sku) || {}; } catch (e) { pp = {}; }
-      const reg = { id: 'qc_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), date: ptNow(), checkedBy: by, brand: pp.brand || '', articleType: pp.at || '',
-        subtype: pp.sub || '', color: pp.col || '', size: pp.size || '', sku, checked: c, forAlteration: alt, rejected: rej, ok: c - alt - rej, orderNo: no,
-        remarks: '[TEST]', test: true, addedBy: ME.email || '', addedAt: now };
-      return flowTestSave(no, sku, { qc: (+x.t.qc || 0) + ok, qcChecked: (+x.t.qcChecked || 0) + c, [`qcLog/${id}`]: { checked: c, ok, alt, rej, by, at: now, reg: reg.id } },
-        `${nf(c)} checked: ${nf(ok)} passed${alt ? `, ${nf(alt)} to alteration` : ''}${rej ? `, ${nf(rej)} rejected` : ''} — in Quality Control as a TEST entry.`,
-        { ['pt_qcChecks/' + reg.id]: reg }, () => { if (typeof QC !== 'undefined' && Array.isArray(QC.checks)) QC.checks = QC.checks.concat([Object.assign({ _key: reg.id }, reg)]); });
     },
   });
 }
