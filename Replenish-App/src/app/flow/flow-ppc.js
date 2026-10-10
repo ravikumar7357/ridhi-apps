@@ -104,7 +104,8 @@ function flowCommitted(skipKeys, withTest) {
  * BALANCE left after every earlier plan, enough or short — the stock and what the earlier plans hold are in the tooltip. */
 function flowMatRow(what, need, stock, earlier, unit, known) {
   const bal = flowR2(stock - earlier), ok = bal >= need;
-  const st = !known ? '<span class="pill mute">stock not kept in the app</span>'
+  const st = !(need > 0) ? '<span class="pill mute">not needed</span>'
+    : !known ? '<span class="pill mute">stock not kept in the app</span>'
     : ok ? '<span class="pill ok">✓ enough</span>' : `<span class="pill bad">⚑ short ${nf(flowR2(need - Math.max(0, bal)))}${unit}</span>`;
   const tip = known ? `in stock ${nf(flowR2(stock))}${unit}, already planned for earlier orders / lines above ${nf(flowR2(earlier))}${unit}` : '';
   return `<tr><td style="text-align:left">${what}</td><td class="num">${nf(flowR2(need))}${unit}</td>
@@ -162,7 +163,16 @@ function flowPrinterOpts(code) {
 function flowPpcOpen(orderNo, onlySku) {
   const rows = flowRows().filter(x => x.r.orderNo === orderNo && (onlySku ? obUC(x.r.sku) === obUC(onlySku) : x.s.bucket === 'ppc'));
   if (!rows.length) return;
-  const plans = rows.map(x => Object.assign(flowSuggest(x.r), x.s.plan ? JSON.parse(JSON.stringify(x.s.plan)) : {}));
+  /* AN OLD PLAN OPENS ON THE MASTER DATA (Ravi, 10 Oct: "main fabric galat select kar raha h"). Plans saved before the
+   * fabric came from the master row carry the width calculator's answer (RPC327-1818: Sheeting 82 · 0.13 m/pc, where the
+   * master row says Canvas · 0.53). Unless PPC typed that fabric on purpose, the form opens with the master row's and
+   * says what the old plan had. A line whose fabric is already on a challan keeps it. */
+  const plans = rows.map(x => {
+    const p = Object.assign(flowSuggest(x.r), x.s.plan ? JSON.parse(JSON.stringify(x.s.plan)) : {});
+    const d = x.s.plan && !flowFabLocked(x.s) && p.fabric && p.fabric.how !== 'typed by PPC' ? flowMasterDiff(x.r, p) : null;
+    if (d) p.fabric = { name: d.name, perPc: d.perPc, metres: d.metres, how: 'master data', was: `${p.fabric.name || '?'} · ${nf(p.fabric.perPc)} m/pc` };
+    return p;
+  });
   /* THE LINE CARD (Ravi, 10 Oct: "need more design"). A header with what the line is and, as chips, how it is made,
    * the printer and whether everything is there; then two columns — the plan on the left, what it needs and what is in
    * stock on the right — and the dates last. Every box keeps its data-fp / data-k, so saving is unchanged. */
@@ -184,7 +194,7 @@ function flowPpcOpen(orderNo, onlySku) {
           <div class="fpc-g">
             ${fld('Fabric', inp(i, 'fabric.name', p.fabric.name))}
             ${fld('Metres / piece', inp(i, 'fabric.perPc', p.fabric.perPc, 'number'))}
-            ${fld('Total for ' + nf(p.qty) + ' pcs', `<div class="fpc-tot"><b data-fm="${i}">${nf(p.fabric.metres)}</b> m <small>${esc(p.fabric.how || 'not known — type it')}</small></div>`)}
+            ${fld('Total for ' + nf(p.qty) + ' pcs', `<div class="fpc-tot"><b data-fm="${i}">${nf(p.fabric.metres)}</b> m <small>${esc(p.fabric.how || 'not known — type it')}</small>${p.fabric.was ? `<div style="font-size:10.5px;color:#b45309">old plan had ${esc(p.fabric.was)}</div>` : ''}</div>`)}
           </div>
           ${md ? flowMasterDiffTxt(md).replace('</div>', ` <button type="button" class="ghost" data-usem="${i}" data-n="${esc(md.name)}" data-p="${md.perPc}" style="width:auto;padding:1px 8px;font-size:11px">Use the master data</button></div>`) : ''}
           <div class="fpc-sec">Printing</div>
@@ -243,7 +253,9 @@ function flowPpcOpen(orderNo, onlySku) {
       const noFab = plans.filter(p => p.route !== 'outsource' && !String(p.fabric.name || '').trim()).map(p => p.sku);
       if (noFab.length) return `Which fabric? Type it for ${noFab.join(', ')} before raising the plan.`;
       plans.forEach((p, i) => {
-        p.fabric.metres = flowR2(p.fabric.perPc * p.qty);
+        p.fabric.metres = flowR2(p.fabric.perPc * p.qty); delete p.fabric.was;
+        /* Where the fabric came from: the master row, or PPC typing something else on purpose (kept as PPC's choice). */
+        if (String(((cutSkuOf(rows[i].r.sku) || {}).fabric) || '').trim()) p.fabric.how = flowMasterDiff(rows[i].r, p) ? 'typed by PPC' : 'master data';
         /* What printed stock covers (worked out on screen): the challan sends only the rest. */
         const cv0 = cover[i] || { fab: 0, unit: 'm', extra: {} };
         p.fabric.fromPrinted = flowR2(cv0.fab || 0); p.fabric.printedUnit = cv0.unit;
@@ -316,12 +328,15 @@ function flowPpcOpen(orderNo, onlySku) {
         if (x.unit !== 'm') { h.push(flowMatRow(esc(x.what), +x.qty || 0, 0, 0, ' ' + esc(x.unit || ''), false)); return; }
         const name = String(x.what).replace(/^Ruffle — /, ''), k = flowFabKey(name), ruf = /^Ruffle — /.test(x.what);
         let need = +x.qty || 0;
-        if (ruf && w) {   /* the ruffle cloth: printed stock first too */
+        if (ruf && w) {
+          /* THE RUFFLE CLOTH IS NOT TAKEN FROM PRINTED STOCK (Ravi, 10 Oct: "printed fabric galat use kar raha h"). The store
+           * counts printed cloth out only at cutting; ruffle cloth used at the Job Work issue comes off the RFD register,
+           * never off the store — so printed Cambric used for ruffles still reads as in the store (Light Steel Blue: 1,500 m
+           * received, 1,476.5 m "left"). Shown for information until ruffle use leaves the store; never counted. */
           const xc = (flowPrintExtras(r, Object.assign({}, cur, { extra: [Object.assign({}, x, { fromPrinted: 0 })] }))[0] || {}).code;
-          const pk = 'M|' + fabKey(name) + '|' + fabKey(colour), ps = flowPrintedStock({ kind: 'fabric', fabric: name }, colour);
-          const pleft = ps == null ? null : ps - (com.printed[pk] || 0) - (run.printed[pk] || 0), use = pleft == null ? 0 : flowR2(Math.max(0, Math.min(need, pleft)));
-          h.push(flowPrintedRow(`<b>${esc(xc || name)}</b> <span class="muted">(ruffle)</span>`, pleft, ' m', use));
-          run.printed[pk] = flowR2((run.printed[pk] || 0) + use); cover[i].extra[j] = use; need = flowR2(need - use);
+          const ps = flowPrintedStock({ kind: 'fabric', fabric: name }, colour);
+          h.push(`<tr style="background:rgba(124,58,237,.05)"><td style="text-align:left">Printed in store · <b>${esc(xc || name)}</b> <span class="muted">(ruffle)</span></td><td class="num">—</td>
+            <td class="num">${ps == null ? '<span class="muted">…</span>' : nf(flowR2(ps))} m</td><td style="text-align:left"><span class="pill mute" title="Ruffle cloth used at the Job Work issue is not taken off the store, so this figure is too high">not counted — ruffle use is not taken off the store</span></td></tr>`);
         }
         const before = (com.extra[k] || 0) + (run.extra[k] || 0);
         h.push(flowMatRow(ruf ? `RFD · <b>${esc(name)}</b> <span class="muted">(ruffle${need < (+x.qty || 0) ? ', the rest' : ''})</span>` : `<b>${esc(x.what)}</b>`, need, ruf ? flowRfdStock(name) : 0, before, ' m', ruf && flowFabKnown(name)));

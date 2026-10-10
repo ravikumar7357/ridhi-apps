@@ -465,16 +465,17 @@ const K = 'AMZ-1__S1';
     A = mk([{ key: 'M|SHEETING 92|LIGHT STEEL BLUE', qty: 100 }, { key: 'M|CAMBRIC|LIGHT STEEL BLUE', qty: 1500 }]);
     A.flowPpcOpen('AMZ-1', 'RTC327-6060');
     const mt = spans['[data-mat="0"]'].innerHTML;
-    ok('the ruffle Cambric (23.5 m) is covered by the 1,500 m printed LSB — not short any more', /✓ covers 23\.5 m/.test(mt) && !/short/.test(mt), mt);
+    ok('the ruffle Cambric is NOT taken from the store’s printed LSB (ruffle use never leaves the store, so that figure is too high)', /not counted — ruffle use is not taken off the store/.test(mt) && !/✓ covers 23\.5 m/.test(mt), mt);
+    ok('…so RFD Cambric is asked for all 23.5 m (0 in RFD → short 23.5 m)', /⚑ short 23\.5 m/.test(mt));
     ok('the body: 100 m printed RBPSF327-V-92 covers the 6 m', /Printed in store · <b>RBPSF327-V-92<\/b>/.test(mt) && /✓ covers 6 m/.test(mt));
-    ok('…so RFD needs 0 m of either', /<td class="num">0 m<\/td>/.test(mt));
+    ok('…RFD Sheeting 92 needs 0 m and says "not needed", never "short 0"', /<td class="num">0 m<\/td>/.test(mt) && /not needed/.test(mt) && !/short 0/.test(mt));
     ok('the printer box says: 6 m from printed stock — print 0 m', /6 m from printed stock — <b>print 0 m<\/b>/.test(spans['[data-pget="0"]'].innerHTML));
-    ok('the chip says all in stock', /✓ all in stock/.test(spans['[data-chips="0"]'].innerHTML));
+    ok('the chip says something is short (the ruffle Cambric)', /something is short/.test(spans['[data-chips="0"]'].innerHTML));
     A.ctx.document.querySelectorAll = () => []; A.els.flpUndo = { checked: false };
     let er = await A.ctx.__dlg.onSave(); let pw = (A.writes[0] || {})['pt_ppc/AMZ-1__RTC327-6060'] || {};
-    ok('saved on the plan: 6 m and 23.5 m ruffle from printed stock', !er && pw.fabric.fromPrinted === 6 && pw.extra[0].fromPrinted === 23.5, er || JSON.stringify(pw.fabric));
-    ok('…so there is nothing left to print, and RFD is not asked for it', A.flowToPrint(L({ sku: 'RTC327-6060', qty: 10 }), pw).metres === 0 && A.flowPrintExtras(L({ sku: 'RTC327-6060', qty: 10 }), pw).length === 0
-      && A.flowRfdCover().line['AMZ-1__RTC327-6060'].need === 0);
+    ok('saved on the plan: 6 m body from printed stock, 0 m ruffle from it', !er && pw.fabric.fromPrinted === 6 && pw.extra[0].fromPrinted === 0, er || JSON.stringify(pw.fabric));
+    ok('…so the body is not printed again, RFD is not asked for it — the ruffle 23.5 m is', A.flowToPrint(L({ sku: 'RTC327-6060', qty: 10 }), pw).metres === 0
+      && A.flowPrintExtras(L({ sku: 'RTC327-6060', qty: 10 }), pw)[0].metres === 23.5 && A.flowRfdCover().line['AMZ-1__RTC327-6060'].need === 0);
     A = mk([{ key: 'M|SHEETING 92|LIGHT STEEL BLUE', qty: 2 }]);
     A.flowPpcOpen('AMZ-1', 'RTC327-6060');
     const m2 = spans['[data-mat="0"]'].innerHTML;
@@ -555,7 +556,16 @@ const K = 'AMZ-1__S1';
     ok('a plan that matches the master row has no flag', (h.match(/master data says/g) || []).length === 1);
     ok('right fabric, wrong m/pc is flagged too (RTME-327: Canvas 0.22 saved, master 0.25)', !!(load({ mdb: { 'RTME-327': { fabric: 'Canvas', consumption: 0.25 } } }).flowMasterDiff(L({ sku: 'RTME-327', qty: 1 }), plan({ fabric: { name: 'Canvas', perPc: 0.22 } }))));
     A.flowPpcOpen('AMZ-1', 'RPC327-1818');
-    ok('edit plan shows it too, with "Use the master data"', /master data says Canvas/.test(A.ctx.__dlg.html) && /data-usem="0" data-n="Canvas" data-p="0.53"/.test(A.ctx.__dlg.html));
+    ok('edit plan opens on the MASTER data (Canvas · 0.53), saying what the old plan had', /value="Canvas"/.test(A.ctx.__dlg.html) && /value="0.53"/.test(A.ctx.__dlg.html) && /old plan had Sheeting 82 · 0\.13 m\/pc/.test(A.ctx.__dlg.html) && !/master data says/.test(A.ctx.__dlg.html));
+    A.ctx.document.querySelectorAll = () => []; A.els.flpUndo = { checked: false };
+    let er = await A.ctx.__dlg.onSave();
+    let w = A.writes[0]['pt_ppc/AMZ-1__RPC327-1818'];
+    ok('…saving makes the plan Canvas · 5.3 m (master data) — the flag is gone', !er && w.fabric.name === 'Canvas' && w.fabric.metres === 5.3 && w.fabric.how === 'master data' && !w.fabric.was && !A.flowMasterDiff(L({ sku: 'RPC327-1818', qty: 10 }), w), er);
+    /* A fabric PPC typed on purpose stays PPC's choice. */
+    const typed = { 'AMZ-1__RPC327-1818': plan({ sku: 'RPC327-1818', qty: 10, fabric: { name: 'Sheeting 82', perPc: 0.13, metres: 1.3, how: 'typed by PPC' } }) };
+    A = load({ me: { admin: true }, mdb, lines: [L({ sku: 'RPC327-1818', qty: 10 })], ppc: typed });
+    A.flowPpcOpen('AMZ-1', 'RPC327-1818');
+    ok('a fabric PPC typed on purpose is kept, flagged, with "Use the master data"', /value="Sheeting 82"/.test(A.ctx.__dlg.html) && /master data says Canvas/.test(A.ctx.__dlg.html) && /data-usem="0" data-n="Canvas" data-p="0.53"/.test(A.ctx.__dlg.html));
     const nameBox = { value: 'Sheeting 82', dataset: { fp: '0', k: 'fabric.name' }, type: 'text', addEventListener() {} };
     const perBox = { value: '0.13', dataset: { fp: '0', k: 'fabric.perPc' }, type: 'number', addEventListener() {}, dispatchEvent() {} };
     const btn = { dataset: { usem: '0', n: 'Canvas', p: '0.53' }, parentNode: { textContent: '' }, remove() {} };
@@ -565,9 +575,11 @@ const K = 'AMZ-1__S1';
     btn.onclick();
     ok('pressing it puts Canvas and 0.53 in the boxes', nameBox.value === 'Canvas' && perBox.value === '0.53');
     A.els.flpUndo = { checked: false };
-    const er = await A.ctx.__dlg.onSave();
-    const w = A.writes[0]['pt_ppc/AMZ-1__RPC327-1818'];
-    ok('…and saving makes the plan Canvas · 5.3 m — the flag is gone', !er && w.fabric.name === 'Canvas' && w.fabric.metres === 5.3 && !A.flowMasterDiff(L({ sku: 'RPC327-1818', qty: 10 }), w), er);
+    er = await A.ctx.__dlg.onSave(); w = A.writes[0]['pt_ppc/AMZ-1__RPC327-1818'];
+    ok('…and saving with them makes it master data again', !er && w.fabric.name === 'Canvas' && w.fabric.how === 'master data', er);
+    nameBox.value = 'Sheeting 82'; perBox.value = '0.13';
+    A.flowPpcOpen('AMZ-1', 'RPC327-1818'); er = await A.ctx.__dlg.onSave(); w = A.writes[1]['pt_ppc/AMZ-1__RPC327-1818'];
+    ok('typing another fabric again saves it as "typed by PPC"', !er && w.fabric.name === 'Sheeting 82' && w.fabric.how === 'typed by PPC', er);
   }
 
   console.log('== putting a mistake right ==');
