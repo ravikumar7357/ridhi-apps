@@ -36,7 +36,7 @@ function load(opts) {
     showTab: t => { (ctx.__tabs = ctx.__tabs || []).push(t); }, ensureCutForm: async () => {}, cutSkuTyped: () => {}, renderCutForm: () => {}, renderCutFab: () => {},
     ensureBdForm: async () => {}, bdSkuTyped: () => {}, renderBdForm: () => {}, bdMatFill: () => {}, qcSkuTyped: () => {}, renderQcCheckForm: () => {},
     jwRecvOpen: id => { ctx.__recv = id; },
-    ptStampDate: d => String(d || ''), ptNow: () => '2026-10-13T10:00:00Z', qcParts: sku => ({ brand: 'Ridhi', at: 'Pillow Cover', sub: 'x', col: 'c', size: 's' }), QC: { checks: [] },
+    ptStampDate: d => String(d || ''), ptNow: () => '2026-10-13T10:00:00Z', qcParts: sku => ({ brand: 'Ridhi', at: 'Pillow Cover', sub: 'x', col: 'c', size: 's' }), QC: { checks: opts.qcChecks || [] },
     bdApplyRecv: (row, add) => { const recv = (+row.receivedPieces || 0) + add, iss = +row.issuePieces || 0, rej = +row.rejectionPieces || 0;
       if (recv + rej > iss) return { err: 'more than issued' }; return { row: Object.assign({}, row, { receivedPieces: recv, pendingPieces: iss - recv - rej, frozen: iss - recv - rej <= 0 }) }; },
     bdApplyRej: (row, val) => { const recv = +row.receivedPieces || 0, iss = +row.issuePieces || 0; if (recv + val > iss) return { err: 'more than issued' };
@@ -56,7 +56,7 @@ function load(opts) {
     FAB: { rows: opts.fabRows || [] },
     STORE: { rows: opts.store ? [] : null }, stMoves: () => opts.store || [], stBalances: mv => mv, fabKey: v => String(v || '').trim().toUpperCase(), fabAll: () => opts.fabRows || [], ptList: x => x || [], fabAutoLoad: async () => {}, fabStockOf: (name, st) => (st === 'RFD' ? (opts.rfd || {})[String(name).toUpperCase()] || 0 : 0),
   };
-  const api = new Function(...Object.keys(ctx), SRC + '\n;return { FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestCutOpen, flowTestIssueOpen, flowTestRecvOpen, flowQcCheckOpen, flowAltBackOpen, flowFgSendOpen, flowFgAccept, flowFgRejectOpen, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowCutEntry, flowIssueEntry, flowRecvEntry, flowQcEntry, flowIssuable, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowVoLines, VOrows:()=>VO.rows, setVOrows:v=>{VO.rows=v}, flowUnplan, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v} };')(...Object.values(ctx));
+  const api = new Function(...Object.keys(ctx), SRC + '\n;return { FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestCutOpen, flowTestIssueOpen, flowTestRecvOpen, flowFgAcceptOpen, flowFgAccept, flowFgRejectOpen, flowFgReject, flowFgLines, flowFgRender, flowQcLine, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowCutEntry, flowIssueEntry, flowRecvEntry, flowQcEntry, flowIssuable, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowVoLines, VOrows:()=>VO.rows, setVOrows:v=>{VO.rows=v}, flowUnplan, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v} };')(...Object.values(ctx));
   api.setFLOW(Object.assign(api.FLOW(), { ppc: opts.ppc || {}, dem: opts.dem || {}, res: opts.res || {} }));
   return Object.assign(api, { els, writes, W, ctx });
 }
@@ -71,8 +71,8 @@ const K = 'AMZ-1__S1';
     load({ host: 'price-research-48ff3.web.app', ls: { flow: '1' } }).FLOW_ON === true && load({ ls: { flow: '0' } }).FLOW_ON === false);
 
   console.log('== each bucket its own right ==');
-  ok('fifteen buckets, fifteen rights', load().FLOW_TABS.length === 15 && new Set(load().FLOW_TABS).size === 15);
-  ok('an admin sees every bucket', load({ me: { admin: true } }).flowBucketsAllowed().length === 15);
+  ok('twelve buckets, twelve rights — QC and Finished Goods are done on their own screens, not here', load().FLOW_TABS.length === 12 && new Set(load().FLOW_TABS).size === 12 && !['flqc', 'flrdy', 'flfg'].some(t => load().FLOW_TABS.includes(t)));
+  ok('an admin sees every bucket', load({ me: { admin: true } }).flowBucketsAllowed().length === 12);
   ok('PPC staff see PPC only', load({ me: { tabs: ['flppc', 'ord'] } }).flowBucketsAllowed().map(b => b[0]).join() === 'ppc');
   ok('nobody with no right sees any', load({ me: { tabs: ['ord'] } }).flowBucketsAllowed().length === 0);
   ok('a key is safe for the database (no . # $ [ ] /)', load().flowKey('amz/1.2', 's#1') === 'AMZ_1_2__S_1');
@@ -97,14 +97,21 @@ const K = 'AMZ-1__S1';
   ok('all cut → Raw cutting in store', b(L({ cutReq: true, cut: 100 })) === 'raw');
   ok('all issued, 30 back and not checked → QC', b(L({ cutReq: true, cut: 100, issued: 100, received: 30 })) === 'qcb');
   ok('all issued, nothing back → WIP', b(L({ cutReq: true, cut: 100, issued: 100, received: 0 })) === 'wip');
-  A = load(Object.assign({ vendor: { 'AMZ-1|S1': { given: 100, back: 100 } }, qc: { 'AMZ-1|S1': { ok: 100 } } }, ready));
-  ok('all QC passed, not in Finished Goods → Ready', b(L({ issued: 100, received: 100 })) === 'ready');
+  const qc100 = [{ orderNo: 'AMZ-1', sku: 'S1', checked: 100, ok: 100 }];
+  A = load(Object.assign({ vendor: { 'AMZ-1|S1': { given: 100, back: 100 } }, qc: { 'AMZ-1|S1': { ok: 100 } }, qcChecks: qc100 }, ready));
+  ok('all QC passed, not in Finished Goods → Ready → India stock (the Finished Goods team accepts)', b(L({ issued: 100, received: 100 })) === 'fgin');
+  A = load(Object.assign({ vendor: { 'AMZ-1|S1': { given: 100, back: 100 } }, qc: { 'AMZ-1|S1': { ok: 60 } }, qcChecks: [{ orderNo: 'AMZ-1', sku: 'S1', checked: 100, ok: 60, dept: 'spotting', spotting: 40 }] }, ready));
+  ok('40 in spotting on the Quality Control screen → still in QC', b(L({ issued: 100, received: 100 })) === 'qcb');
+  A = load(Object.assign({ vendor: { 'AMZ-1|S1': { given: 100, back: 100 } }, qc: { 'AMZ-1|S1': { ok: 60 } }, qcChecks: [{ orderNo: 'AMZ-1', sku: 'S1', checked: 70, ok: 60, rejected: 10 }] }, ready));
+  ok('10 rejected while 30 are still waiting for QC → stays in QC until QC is done with them', b(L({ issued: 100, received: 100 })) === 'qcb');
+  A = load(Object.assign({ vendor: { 'AMZ-1|S1': { given: 100, back: 100 } }, qc: { 'AMZ-1|S1': { ok: 90 } }, qcChecks: [{ orderNo: 'AMZ-1', sku: 'S1', checked: 100, ok: 90, rejected: 10 }] }, ready));
+  ok('…once QC has done them all, the 10 rejected are back in Raw cutting in store', b(L({ issued: 100, received: 100 })) === 'raw');
   A = load(Object.assign({ vendor: { 'AMZ-1|S1': { given: 100, back: 100 } }, qc: { 'AMZ-1|S1': { ok: 100 } }, fg: { 'AMZ-1|S1': { in: 100 } } }, ready));
   ok('in India stock → done', b(L({ issued: 100, received: 100 })) === 'done');
   ok('handed to shipping is done whatever else says', b(L({ handedAt: '2026-10-12' })) === 'done');
   A = load({ ppc: { [K]: plan({ print: { need: false } }) }, dem: { [K]: { fabricReady: { at: 'x' } } } });
   ok('PPC said not printed → skips both printer buckets', b(L()) === 'raw');
-  ok('pressed counts as made, like QC (5 Oct rule)', b(L({ issued: 100, pressed: 100 })) === 'ready');
+  ok('pressed counts as made, like QC (5 Oct rule)', b(L({ issued: 100, pressed: 100 })) === 'fgin');
   ok('figures over the order are capped at it', A.flowState(L({ issued: 250 })).issued === 100);
 
   console.log('== Demand is two departments ==');
@@ -688,8 +695,8 @@ const K = 'AMZ-1__S1';
     A.flowRecvEntry(r);
     ok('Receive: the karigar\u2019s open issue for this line (Ramesh, 20 still out) opens the Job Work receive', A.ctx.__recv === 'b1');
     const r2 = L({ sku: 'S1', qty: 100, issued: 30, received: 25 });
-    await A.flowQcEntry(r2, A.flowState(r2));
-    ok('QC check: the QC form opens with S1, AMZ-1 and the 25 received, none checked', A.ctx.__tabs.includes('qc') && A.els.qcwSku.value === 'S1' && A.els.qcwOrd.value === 'AMZ-1' && A.els.qcwChecked.value === 25);
+    await A.flowQcEntry(r2);
+    ok('Quality Control →: the QC screen opens on Waiting for QC, narrowed to AMZ-1', A.ctx.__tabs.includes('qc') && A.els.qcQ.value === 'AMZ-1');
     A.flowRecvEntry(L({ sku: 'S9', qty: 5 }));
     ok('nothing out with a karigar → it says so', /Nothing of S9 on AMZ-1 is out with a karigar/.test(A.els.flMsg.textContent));
     const B = load({ me: { tabs: ['flcut'] } });
@@ -929,23 +936,21 @@ const K = 'AMZ-1__S1';
     say({ fltrP: '6' }); er = await A.ctx.__dlg.onSave();
     A.flowTestRecvOpen(TN, 'S1'); say({ fltrI: pradeep, fltrP: '4', fltrX: '0' }); er = er || await A.ctx.__dlg.onSave();
     ok('10 back (Ramesh 6, Pradeep 4) → the QC bucket', !er && T().s.received === 10 && T().s.bucket === 'qcb', er);
-    /* QC: checked = passed + alteration + rejected. */
-    A.setView('qcb'); A.renderFlow();
-    ok('the QC bucket offers "QC check" for the 10 waiting', /data-flqb="check\|/.test(A.els.flTable.innerHTML) && />10<\/b>/.test(A.els.flTable.innerHTML));
-    await A.flowQcCheckOpen(T()); say({ flqC: '10', flqO: '7', flqA: '2', flqR: '0', flqB: 'Sunita', flqM: '' });
-    ok('passed + alteration + rejected must make the checked', /must make the 10 checked/.test(await A.ctx.__dlg.onSave()));
-    say({ flqC: '11', flqO: '11', flqA: '0', flqR: '0' });
-    ok('checking more than came back is refused', /Only 10 are waiting for QC/.test(await A.ctx.__dlg.onSave()));
-    say({ flqC: '10', flqO: '7', flqA: '2', flqR: '1' }); er = await A.ctx.__dlg.onSave();
-    ok('10 checked: 7 passed, 2 to alteration, 1 rejected — stays in QC while 2 are out for alteration', !er && T().s.qc === 7 && T().s.bucket === 'qcb', er || T().s.bucket);
+    /* QC is made on the Quality Control screen (Ravi, 10 Oct: "Q.C wala part abhi ke Q.C me flow kare, yahan se remove").
+     * Here the rows go into its register the way Waiting for QC and Spotting & touching write them. */
+    const bid = k => T().r.__t.issues[k].reg;
+    const qcAdd = rows => { A.ctx.QC.checks = A.ctx.QC.checks.concat(rows.map((o, i) => Object.assign({ id: 'qcT' + (A.ctx.QC.checks.length + i), orderNo: TN, sku: 'S1', checked: 0, ok: 0, forAlteration: 0, rejected: 0, test: true, date: '2026-10-14' }, o))); };
     A.renderFlow();
-    ok('…its QC history shows the check, and "Alteration back" is offered', /QC history \(1\)/.test(A.els.flTable.innerHTML) && /10 checked — 7 passed, 2 alteration, 1 rejected/.test(A.els.flTable.innerHTML) && /data-flqb="alt\|/.test(A.els.flTable.innerHTML));
-    A.flowAltBackOpen(T()); say({ flaO: '3', flaR: '0', flaB: 'Sunita' });
-    ok('more back from alteration than went is refused', /Only 2 are out for alteration/.test(await A.ctx.__dlg.onSave()));
-    say({ flaO: '2' }); er = await A.ctx.__dlg.onSave();
-    ok('the 2 back from alteration and passed → 9 passed (counted for the order)', !er && T().s.qc === 9, er);
-    /* The 1 rejected at QC is back in Raw cutting in store: issued again, received, checked. */
-    ok('QC clear, 1 rejected → back in Raw cutting in store to issue again', T().s.bucket === 'raw' && T().s.qcRej === 1 && T().s.issuedNet === 9);
+    ok('the flow screen has no QC bucket — the line is with Quality Control', !/data-flb="qcb"/.test(A.els.flBuckets.innerHTML) && !/data-flb="fgin"/.test(A.els.flBuckets.innerHTML) && /data-flb="wip"/.test(A.els.flBuckets.innerHTML), A.els.flBuckets.innerHTML.slice(0, 200));
+    A.setView('new'); A.renderFlow();
+    ok('…New orders says where it is now: Quality Control (QC screen)', /Quality Control \(QC screen\)/.test(A.els.flTable.innerHTML));
+    await A.flowQcEntry(T().r);
+    ok('…"Quality Control →" opens Waiting for QC narrowed to the test order', A.ctx.__tabs.includes('qc') && A.els.qcQ.value === TN);
+    qcAdd([{ checked: 6, ok: 6, baseId: bid(ramesh) }, { id: 'qcSpot', checked: 4, ok: 0, dept: 'spotting', spotting: 4, baseId: bid(pradeep) }]);
+    ok('Quality Control passed 6 and sent 4 to spotting → still with Quality Control', T().s.qc === 6 && T().s.bucket === 'qcb', T().s.bucket);
+    qcAdd([{ refId: 'qcSpot', ok: 3, rejected: 1, dept: 'spotting', baseId: bid(pradeep) }]);
+    /* The 1 rejected is back in Raw cutting in store: issued again, received, checked. */
+    ok('back from spotting: 3 passed, 1 rejected → QC clear, the 1 back in Raw cutting in store to issue again', T().s.qc === 9 && T().s.bucket === 'raw' && T().s.qcRej === 1 && T().s.issuedNet === 9, T().s.bucket);
     A.setView('raw'); A.renderFlow();
     ok('…the store list says so and offers the 1 to issue', /1 rejected at QC — back in store/.test(A.els.flTable.innerHTML) && />1<\/b>/.test(A.els.flTable.innerHTML));
     A.flowTestIssueOpen(TN, 'S1'); await new Promise(r => setTimeout(r, 0)); say({ fltiT: 'Company Contractor', fltiK: 'Suresh', fltiP: '1', fltiD: '2026-10-15', fltiR: '' });
@@ -954,24 +959,33 @@ const K = 'AMZ-1__S1';
     const sur = Object.entries(T().r.__t.issues).find(([, e]) => e.karigar === 'Suresh')[0];
     A.flowTestRecvOpen(TN, 'S1'); say({ fltrI: sur, fltrP: '1', fltrX: '0', fltrD: '2026-10-16' }); er = await A.ctx.__dlg.onSave();
     ok('back from Suresh → QC (1 waiting)', !er && T().s.bucket === 'qcb', er || T().s.bucket);
-    await A.flowQcCheckOpen(T()); say({ flqC: '1', flqO: '1', flqA: '0', flqR: '0', flqB: 'Sunita' }); er = await A.ctx.__dlg.onSave();
-    ok('passed → all 10 passed → Ready → India stock (send to Finished Goods)', !er && T().s.qc === 10 && T().s.bucket === 'ready', er || T().s.bucket);
-    A.setView('ready'); A.renderFlow();
-    ok('Ready offers "Send to Finished Goods"', /data-flqb="send\|/.test(A.els.flTable.innerHTML));
-    A.flowFgSendOpen(T()); say({ flfP: '10', flfN: '' }); er = await A.ctx.__dlg.onSave();
-    ok('sent → the Finished Goods team\u2019s bucket', !er && T().s.bucket === 'fgin', er || T().s.bucket);
-    A.setView('fgin'); A.renderFlow();
-    ok('Finished Goods sees only Accept and Reject', /data-flfga=/.test(A.els.flTable.innerHTML) && /data-flfgr=/.test(A.els.flTable.innerHTML));
-    const hid = Object.keys(A.FLOW().fg)[0];
-    A.flowFgRejectOpen(hid); say({ flfrW: '' });
+    qcAdd([{ checked: 1, ok: 1, baseId: bid(sur), date: '2026-10-16' }]);
+    ok('QC passed it → all 10 passed → Ready → India stock', T().s.qc === 10 && T().s.bucket === 'fgin', T().s.bucket);
+    A.setView('new'); A.renderFlow();
+    ok('…New orders says it waits in Finished Goods to be accepted — nothing to do on this screen', /Finished Goods — to accept \(Finished Goods screen\)/.test(A.els.flTable.innerHTML) && !/data-flfga=/.test(A.els.flTable.innerHTML));
+    /* The Finished Goods screen: From QC — to accept. Only Accept or Reject. */
+    A.flowFgRender();
+    ok('Finished Goods lists the line: 10 passed QC, 0 in India stock, 10 to accept — Accept and Reject', A.flowFgLines().length === 1 && new RegExp('data-flfga="' + TK + '"').test(A.els.fgTable.innerHTML)
+      && new RegExp('data-flfgr="' + TK + '"').test(A.els.fgTable.innerHTML) && /TEST/.test(A.els.fgTable.innerHTML), A.els.fgMsg.textContent);
+    A.flowFgRejectOpen(TK); say({ flfrP: '2', flfrW: '' });
     ok('reject needs a reason', /Say why/.test(await A.ctx.__dlg.onSave()));
-    say({ flfrW: 'stain on 10' }); er = await A.ctx.__dlg.onSave();
-    ok('rejected → the pass is taken back, the pieces are in QC again', !er && T().s.bucket === 'qcb' && A.FLOW().fg[hid].status === 'rejected', er || T().s.bucket);
-    await A.flowQcCheckOpen(T()); say({ flqC: '10', flqO: '10', flqA: '0', flqR: '0', flqB: 'Sunita' }); er = await A.ctx.__dlg.onSave();
-    A.flowFgSendOpen(T()); say({ flfP: '10' }); er = er || await A.ctx.__dlg.onSave();
-    const hid2 = Object.keys(A.FLOW().fg).find(k => A.FLOW().fg[k].status === 'sent');
-    await A.flowFgAccept(hid2);
-    ok('re-checked, sent again, accepted → done; a TEST order never goes into India stock', !er && A.flowState(T() ? T().r : A.flowTestLines()[0]).bucket === 'done'
+    say({ flfrP: '11', flfrW: 'stain' });
+    ok('rejecting more than is waiting is refused', /Only 10 are waiting/.test(await A.ctx.__dlg.onSave()));
+    say({ flfrP: '2', flfrW: 'stain on 2' }); er = await A.ctx.__dlg.onSave();
+    const rej = A.ctx.QC.checks.filter(q => q.fgReject);
+    ok('2 rejected → the pass taken back on the karigars\u2019 Job Work entries → in Quality Control (Waiting for QC) again', !er && T().s.qc === 8 && T().s.bucket === 'qcb'
+      && rej.reduce((a, q) => a + q.fgReject, 0) === 2 && rej.every(q => q.baseId && q.checked === -q.fgReject && q.ok === -q.fgReject && q.test && /stain on 2/.test(q.remarks))
+      && Object.values(A.FLOW().fg).some(h => h.status === 'rejected' && h.pcs === 2 && h.why === 'stain on 2'), er || JSON.stringify(rej));
+    qcAdd(rej.map(q => ({ checked: q.fgReject, ok: q.fgReject, baseId: q.baseId, date: '2026-10-17' })));
+    ok('re-checked on the Quality Control screen → Ready → India stock again', T().s.qc === 10 && T().s.bucket === 'fgin', T().s.bucket);
+    A.flowFgRender();
+    ok('…Finished Goods shows what happened before (2 rejected — stain on 2)', /2 rejected — stain on 2/.test(A.els.fgTable.innerHTML));
+    A.flowFgAcceptOpen(TK); say({ flfP: '11', flfN: '' });
+    ok('accepting more than passed is refused', /Only 10 passed QC/.test(await A.ctx.__dlg.onSave()));
+    say({ flfP: '6' }); er = await A.ctx.__dlg.onSave();
+    ok('6 counted in and accepted → 4 still to accept', !er && T().s.india === 6 && T().s.bucket === 'fgin' && A.flowFgLines().length === 1, er);
+    er = await A.flowFgAccept(A.flowRows().find(y => y.s.key === TK), 4, '');
+    ok('the other 4 accepted → done; a TEST order never goes into India stock', !er && A.flowState(T() ? T().r : A.flowTestLines()[0]).bucket === 'done' && !A.flowFgLines().length
       && !A.writes.some(w => Object.keys(w).some(k => k.startsWith('pt_fgiLedger/'))), er);
     /* In the real screens: each entry also went into its own register, marked TEST. */
     const all = Object.assign({}, ...A.writes), reg = n => Object.entries(all).filter(([k, v]) => k.startsWith(n + '/') && v && typeof v === 'object').map(([, v]) => v);
@@ -986,14 +1000,13 @@ const K = 'AMZ-1__S1';
       ok('…the issue itself wrote its row (6 issued, 0 received, 6 pending), in the same save as the test order', fr && fr.issuePieces === 6 && fr.receivedPieces === 0 && fr.pendingPieces === 6
         && Object.keys(firstW).some(k => /\/issues\//.test(k))); }
     ok('…and the receipts went onto those rows (Ramesh: 6 received, nothing pending, closed)', lastBd(rRow.id).receivedPieces === 6 && lastBd(rRow.id).pendingPieces === 0 && lastBd(rRow.id).frozen);
-    ok('Quality Control got every QC row of the walk, TEST order: check, alteration back, the re-made piece, FG rejection, re-check', qcs.length === 5 && qcs.every(q => q.orderNo === TN && q.test)
-      && qcs.some(q => q.checked === 10 && q.ok === 7 && q.forAlteration === 2 && q.checkedBy === 'Sunita') && qcs.some(q => q.altBack === 2 && q.ok === 2 && q.checked === 0) && qcs.some(q => q.fgReject === 10 && q.checked === -10)
-      && qcs.some(q => q.checked === 1 && q.ok === 1), JSON.stringify(qcs.map(q => [q.checked, q.ok, q.altBack, q.fgReject])));
+    ok('the flow wrote no QC check of its own — only Finished Goods’ rejection, as TEST rows in Quality Control', qcs.length >= 1 && qcs.every(q => q.orderNo === TN && q.test && q.fgReject > 0), JSON.stringify(qcs.map(q => [q.checked, q.ok, q.fgReject])));
     ok('…and the screens\u2019 own lists hold them now (Cutting, Job Work, QC)', A.ctx.PT.cut.some(r => r.orderNo === TN) && A.ctx.PT.base.filter(r => r.orderNo === TN).length === 3 && A.ctx.QC.checks.some(r => r.orderNo === TN));
     ok('no zipper or ruffle cloth was taken off the real stock by a test issue', !Object.keys(all).some(k => /^pt_(accLedger|fabInvLedger)\//.test(k)));
     const n0 = A.writes.length;
     ok('delete test removes the order, its plan, its demand and its challan', !(await A.flowTestDelete(TN)) && (() => { const w = A.writes[n0];
-      return w['pt_flowTest/' + TN] === null && w['pt_ppc/' + TK] === null && w['pt_flowDemand/' + TK] === null && w['pt_flowChallans/TRFD-202610-001'] === null; })());
+      return w['pt_flowTest/' + TN] === null && w['pt_ppc/' + TK] === null && w['pt_flowDemand/' + TK] === null && w['pt_flowChallans/TRFD-202610-001'] === null
+        && Object.keys(A.FLOW().fg || {}).length === 0 && Object.keys(w).filter(k => k.startsWith('pt_flowFgSend/')).length === 3; })());
     { const w = A.writes[n0];
       ok('…and its TEST entries from all three registers — Cutting Data, Job Work, Quality Control', w['pt_cuttingData/' + cuts[0].id] === null && bds.every(r => w['pt_baseData/' + r.id] === null) && qcs.every(q => w['pt_qcChecks/' + q.id] === null), Object.keys(w).join());
       ok('…and from the screens\u2019 lists at once', !A.ctx.PT.cut.some(r => r.orderNo === TN) && !A.ctx.PT.base.some(r => r.orderNo === TN) && !A.ctx.QC.checks.some(r => r.orderNo === TN)); }

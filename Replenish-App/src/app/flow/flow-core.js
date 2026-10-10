@@ -48,11 +48,12 @@ const FLOW_BUCKETS = [
   ['cut', 'Cutting', 'flcut', 'Lines that need cutting, not all cut. The cutting entry puts the pieces in the store.'],
   ['raw', 'Raw cutting in store', 'flraw', 'Cut (or printed) pieces waiting to be issued to a karigar.'],
   ['wip', 'WIP', 'flwip', 'With karigars: issued, received, waiting for QC.'],
-  ['qcb', 'QC', 'flqc', 'Back from the karigar and waiting for QC, or out for alteration — check here, history here.'],
-  ['ready', 'Ready → India stock', 'flrdy', 'Passed QC, not yet sent to Finished Goods (Shopify: not handed to shipping).'],
-  ['fgin', 'Finished Goods · accept', 'flfg', 'Sent from QC — the Finished Goods team accepts them into India stock, or rejects them back to QC.'],
 ];
 const FLOW_TABS = FLOW_BUCKETS.map(b => b[2]);
+/* AFTER WIP THE LINE LEAVES THIS SCREEN (Ravi, 10 Oct: "Q.C wala part abhi ke Q.C me flow kare, yahan se remove; ready to
+ * India stock wala Finish Goods me show ho for accept"). A line still gets the bucket of where it is — 'qcb' with Quality
+ * Control, 'fgin' waiting for the Finished Goods team — but no bucket of this screen lists it: the work is done there. */
+const FLOW_ELSEWHERE = { qcb: 'Quality Control (QC screen)', fgin: 'Finished Goods — to accept (Finished Goods screen)' };
 /* How a line is made — PPC chooses (Ravi, 10 Oct: "mere yaha sirf stitching hoga … printing wala part nahi hoga", and
  * a provision for orders made outside):
  *   inhouse   printed by a vendor here, then cut, stitched, QC'd here — every bucket
@@ -94,7 +95,7 @@ function flowState(r) {
   /* A test order (flow-test-order.js) carries its own simulated figures instead of the registers'. */
   const t = r.__t;
   const v = t ? { given: +t.given || 0, back: +t.back || 0 } : ordVendorOf(r.orderNo, r.sku);
-  const q = t ? { ok: +t.qc || 0 } : ordQcOf(r.orderNo, r.sku), g = t ? { in: +t.fgIn || 0 } : (ordFgAt(r.orderNo, r.sku) || {});
+  const q = t ? { ok: flowQcLine(r).ok } : ordQcOf(r.orderNo, r.sku), g = t ? { in: +t.fgIn || 0 } : (ordFgAt(r.orderNo, r.sku) || {});
   const route = p ? flowRouteOf(p) : '';
   const printed = p ? route === 'inhouse' : !!(r.printer || (v && v.given > 0) || (!t && /^Vendor/.test(ordWaitingAt(r) || '')));
   const s = {
@@ -128,7 +129,7 @@ function flowState(r) {
       s.back = allBack ? qty : Math.max(s.back, cap(Math.floor(qty * Math.min(1, total > 0 ? have / total : 0) + 1e-9)));
     }
   }
-  s.qcRej = p ? (t ? Math.max(0, +t.qcRej || 0) : flowQcLine(r).rej) : 0;
+  s.qcRej = p ? flowQcLine(r).rej : 0;
   s.issuedNet = p ? Math.max(0, s.issuedAll - s.qcRej) : s.issued;
   const accNeed = !!p && route !== 'outsource' && (p.acc || []).some(a => a.code && +a.qty > 0);
   const handReady = !!(d && d.fabricReady && !d.fabricReady.challan);
@@ -145,13 +146,11 @@ function flowState(r) {
     : (r.cutReq && s.cut < qty) ? 'cut'
     /* REJECTED AT QC → BACK IN RAW CUTTING IN STORE (Ravi, 10 Oct: "rejected pcs raw cutting in store me hona chahiye").
      * For a planned line the pieces QC rejected are not "issued" any more: they wait in the store to be issued again. */
-    : (s.issuedNet < qty && !(p && (flowQcWaiting(r, s) > 0 || flowQcAltOpen(r) > 0))) ? 'raw'   // QC work still open comes first
-    /* QC (flow-qcfg.js), for a planned line: back from the karigar and not checked, or out for alteration → QC. */
-    : (s.made < qty) ? (p && (flowQcWaiting(r, s) > 0 || flowQcAltOpen(r) > 0) ? 'qcb' : 'wip')
-    /* …then Ready = passed and not yet sent to Finished Goods; FG · accept = sent and waiting for them. A line with no plan
-     * (older orders) is received into Finished Goods on its own screen, as before. */
-    : (p && !ordIsMto(r.orderNo) && s.india < qty) ? (flowFgToSend(r, s) > 0 ? 'ready' : flowFgWaiting(r).length ? 'fgin' : 'ready')
-    : (s.india < qty && (isNew || r.open)) ? 'ready'
+    : (s.issuedNet < qty && !(p && flowQcOpen(r, s))) ? 'raw'   // QC work still open comes first
+    /* QC (flow-qcfg.js), for a planned line: anything still with Quality Control (waiting, spotting / touching, alteration). */
+    : (s.made < qty) ? (p && flowQcOpen(r, s) ? 'qcb' : 'wip')
+    /* …then Ready → India stock: passed and not in India stock — the Finished Goods team accepts it on its own screen. */
+    : (s.india < qty && (p || isNew || r.open)) ? 'fgin'
     : 'done';
   return s;
 }

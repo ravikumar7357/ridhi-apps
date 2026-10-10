@@ -755,7 +755,7 @@ async function qcInboxAccept(baseId, qty, to) {
     sku: qcNorm(r.sku), checked: q, ok: dept ? 0 : q, forAlteration: 0, rejected: 0,
     ...(dept ? { dept, [dept]: q } : {}),
     ...(r.orderNo ? { orderNo: obUC(r.orderNo) } : {}),
-    baseId: r.id, karigar: r.empName || '', from: 'waiting',
+    baseId: r.id, karigar: r.empName || '', from: 'waiting', ...(r.test ? { test: true } : {}),
     remarks: dept ? 'Sent to ' + QC_DEPTS[dept].toLowerCase() + ' from Waiting for QC' : 'Accepted from Waiting for QC',
     addedBy: ME.email, addedAt: new Date().toISOString(),
   };
@@ -791,7 +791,7 @@ async function qcDeptBack(sendId, qty, reject) {
     articleType: c.articleType || '', subtype: c.subtype || '', color: c.color || '', size: c.size || '',
     sku: c.sku, checked: 0, ok: reject ? 0 : q, forAlteration: 0, rejected: reject ? q : 0,
     ...(c.orderNo ? { orderNo: c.orderNo } : {}),
-    refId: c.id, dept: x.dept, from: x.dept, baseId: c.baseId || '', karigar: c.karigar || '',
+    refId: c.id, dept: x.dept, from: x.dept, baseId: c.baseId || '', karigar: c.karigar || '', ...(c.test ? { test: true } : {}),
     remarks: reject ? 'Rejected after ' + x.dept : 'Back from ' + x.dept + ' — passed by QC', addedBy: ME.email, addedAt: new Date().toISOString(),
   };
   await ptPut('pt_qcChecks/' + rec.id, rec);

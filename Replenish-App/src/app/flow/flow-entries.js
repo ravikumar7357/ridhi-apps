@@ -61,17 +61,6 @@ function flowRecvEntry(r) {
   });
   document.querySelectorAll('[data-flrb]').forEach(b => { b.onclick = () => { ptDlgClose(); go(b.dataset.flrb); }; });
 }
-/** Quality Control → a check for the line: SKU, order, the pieces received and not yet checked. */
-async function flowQcEntry(r, s) {
-  if (!flowMay('qc')) return flowSay('Quality Control is not open to this account.', true);
-  try {
-    showTab('qc'); await flowOpenBox('qcwBox', 'qcwToggle');
-    $('qcwSku').value = obUC(r.sku); qcSkuTyped();
-    $('qcwOrd').value = r.orderNo; $('qcwChecked').value = Math.max(0, (s.received || 0) - (s.qc || 0));
-    renderQcCheckForm();
-    if ($('qcwBox').scrollIntoView) $('qcwBox').scrollIntoView({ block: 'start', behavior: 'smooth' });
-  } catch (e) { flowSay('Quality Control is open — the check could not be filled in by itself (' + (e.message || e) + '); type it in.', true); }
-}
 /** When a dialog opened from here closes, the lines are worked out again — a receipt changes a row in place. */
 function flowAfterDialog() {
   const d = $('ptDlg'); if (!d || typeof MutationObserver === 'undefined') return;

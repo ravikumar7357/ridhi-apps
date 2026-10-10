@@ -5,8 +5,10 @@
 let FLOW_VIEW = '';
 const FLOW_ANGLE = {};   // per Demand view: 'line' or 'stock'
 
-async function ensureFlow() {
-  if (!PTG.mdb) { $('flMsg').textContent = 'Reading the order book…'; await ptLoadGates(); }
+async function ensureFlow() { await flowEnsureData(); renderFlow(); }
+/** Everything the lines are worked out from — also read by the Finished Goods screen's "From QC — to accept". */
+async function flowEnsureData() {
+  if (!PTG.mdb) { if ($('flMsg')) $('flMsg').textContent = 'Reading the order book…'; await ptLoadGates(); }
   /* Printer Allocation too: PPC's printer is suggested from it. */
   /* The store too: the printed stock PPC sees beside the RFD balance (Store Stock Balance; its Job Work and cutting
    * registers are the ones the order book has already read). */
@@ -15,7 +17,6 @@ async function ensureFlow() {
   if (typeof FGI !== 'undefined' && FGI.rows == null && typeof fgiLoad === 'function') { try { await fgiLoad(); } catch (e) { /* India stock waits */ } }
   await Promise.all([flowLoad(), flowFabLoad(), (typeof STORE !== 'undefined' && STORE.rows === null ? ensureStore().catch(() => {}) : null), (PAL.printers === null ? palLoad().catch(() => {}) : null), (typeof ensureVo === 'function' ? ensureVo().catch(() => {}) : null),
     (typeof ensureAcc === 'function' ? ensureAcc().catch(() => {}) : null)]);
-  renderFlow();
 }
 
 /* The Fabric register, for the RFD stock Demand shows — read here without drawing the Fabric screen. */
@@ -121,7 +122,7 @@ function flowEntryButtons(view, x) {
 const flowChTag = s => { const fr = s.demand && s.demand.fabricReady; return fr && fr.challan
   ? `<div class="muted" style="font-size:10.5px">RFD on <a href="#" data-flchp="${esc(fr.challan)}">${esc(fr.challan)}</a> → ${esc(fr.vendor || '')}</div>` : ''; };
 const FLOW_GO = { out: ['fgi', 'Finished Goods (receive)'], vendor: ['vreq', 'Vendor requests'], fabric: ['vlog', 'History (accept)'], cut: ['pcut', 'Cutting'], raw: ['pbase', 'Job Work (issue)'],
-  wip: ['qc', 'QC'], ready: ['fgi', 'Finished Goods'] };
+  wip: ['qc', 'QC'], fgin: ['fgi', 'Finished Goods (receive)'] };
 
 function flowTable(view, rows) {
   const pic = sku => { const u = typeof ptImgOf === 'function' ? ptImgOf(sku) : ''; return u ? `<img src="${esc(ptImgSrc(u, 34))}" alt="" style="width:34px;height:34px;object-fit:contain;background:#fff;border-radius:5px">` : ''; };
@@ -146,7 +147,7 @@ function flowTable(view, rows) {
   if (view === 'new') {
     head = ['PO', 'SKU', 'Qty', 'Now in'];
     const now = s => s.bucket === 'done' ? 'Done' : s.bucket === 'demand' ? [s.needFab && 'Demand · RFD fabric', s.needAcc && 'Demand · Accessories'].filter(Boolean).join(' + ')
-      : (FLOW_BUCKETS.find(b => b[0] === s.bucket) || [, s.bucket])[1];
+      : FLOW_ELSEWHERE[s.bucket] || (FLOW_BUCKETS.find(b => b[0] === s.bucket) || [, s.bucket])[1];
     /* A reserved line leaves the Accessories list, so this is where a reservation can be let go before issue. */
     body = rows.map(x => `<tr>${base(x)}<td style="text-align:left">${esc(now(x.s))}${x.s.res && !x.s.issued && flowBucketsAllowed().some(b => b[0] === 'dacc')
       ? ` <button class="ghost" data-flunres="${esc(x.s.key)}" style="width:auto;padding:1px 7px;font-size:11px">Release accessories</button>` : ''}</td></tr>`).join('');
@@ -210,28 +211,6 @@ function flowTable(view, rows) {
     head = ['PO', 'SKU', 'Qty', 'Issued', 'Received', 'QC passed', ''];
     body = rows.map(x => `<tr>${base(x)}<td class="num">${nf(x.s.issued)}</td><td class="num">${nf(x.s.received)}</td>
       <td class="num">${prog(x.s.made, +x.r.qty)}${due(x.s.plan && x.s.plan.dates && x.s.plan.dates.qc, 'plan')}</td><td>${go(view, x)}</td></tr>`).join('');
-  } else if (view === 'qcb') {
-    head = ['PO', 'SKU', 'Qty', 'Back from karigar', 'Waiting for QC', 'Passed', ''];
-    const qb = (what, x, label, main) => `<button data-flqb="${what}|${esc(x.s.key)}" style="width:auto;padding:${main ? '3px 10px;font-size:12px' : '2px 9px;font-size:11.5px'};margin:1px"${main ? '' : ' class="ghost"'}>${label}</button>`;
-    body = rows.map(x => { const w = flowQcWaiting(x.r, x.s), alt = flowQcAltOpen(x.r);
-      return `<tr>${base(x)}<td class="num">${nf(x.s.receivedAll)} / ${nf(x.s.issuedAll)}</td><td class="num"><b>${nf(w)}</b>${alt ? `<div style="font-size:10.5px;color:#b45309">${nf(alt)} out for alteration</div>` : ''}${x.s.qcRej ? `<div style="font-size:10.5px;color:#b45309">${nf(x.s.qcRej)} rejected — back in store</div>` : ''}</td>
-      <td class="num">${prog(x.s.made, +x.r.qty)}</td>
-      <td style="white-space:nowrap">${w ? qb('check', x, 'QC check →', true) : ''}${alt ? qb('alt', x, 'Alteration back →', !w) : ''}${x.s.issuedNet < +x.r.qty && flowIssuable(x.r, x.s) > 0
-          ? (x.r.__t ? `<button data-flte="issue|${esc(x.r.orderNo)}|${esc(obUC(x.r.sku))}" class="ghost" style="width:auto;padding:2px 9px;font-size:11.5px;margin:1px">Issue again (test) →</button>` : qb('issue', x, 'Issue again →')) : ''}${x.s.issued > x.s.received ? (x.r.__t ? `<button data-flte="recv|${esc(x.r.orderNo)}|${esc(obUC(x.r.sku))}" class="ghost" style="width:auto;padding:2px 9px;font-size:11.5px;margin:1px">Receive (test) →</button>` : qb('recv', x, 'Receive →')) : ''}
-        ${flowQcHistory(x.r)}</td></tr>`; }).join('');
-  } else if (view === 'fgin') {
-    head = ['PO', 'SKU', 'Qty', 'Sent from QC', 'In India stock', ''];
-    body = rows.map(x => `<tr>${base(x)}<td style="text-align:left;font-size:12px">${flowFgWaiting(x.r).map(h => `<div style="margin:2px 0"><b>${nf(h.pcs)} pcs</b> <span class="muted">· ${esc(String(h.by || '').split('@')[0])} ${esc(String(h.at || '').slice(0, 10))}${h.note ? ' · ' + esc(h.note) : ''}</span>
-        <button data-flfga="${esc(Object.keys(FLOW.fg).find(k => FLOW.fg[k] === h))}" style="width:auto;padding:3px 10px;font-size:12px;margin-left:6px">Accept</button>
-        <button class="ghost" data-flfgr="${esc(Object.keys(FLOW.fg).find(k => FLOW.fg[k] === h))}" style="width:auto;padding:2px 9px;font-size:11.5px;color:#b91c1c">Reject</button></div>`).join('')}</td>
-      <td class="num">${prog(x.s.india, +x.r.qty)}</td><td></td></tr>`).join('');
-  } else if (view === 'ready') {
-    head = ['PO', 'SKU', 'Qty', 'Made', 'In India stock', ''];
-    body = rows.map(x => `<tr>${base(x)}<td class="num">${nf(x.s.made)}</td><td class="num">${prog(x.s.india, +x.r.qty)}${due(x.s.plan && x.s.plan.dates && x.s.plan.dates.ready, 'plan')}</td>
-      <td>${ordIsMto(x.r.orderNo) && !x.r.__t ? '<button class="ghost" data-flgo="ord" style="width:auto;padding:2px 9px;font-size:11.5px">Order Console (hand over) →</button>'
-        : x.s.plan ? (flowFgToSend(x.r, x.s) > 0 ? `<button data-flqb="send|${esc(x.s.key)}" style="width:auto;padding:3px 10px;font-size:12px">Send to Finished Goods →</button>` : '')
-          + flowFgOf(x.r).filter(h => h.status === 'rejected').map(h => `<div style="font-size:10.5px;color:#b91c1c">${nf(h.pcs)} rejected by Finished Goods: ${esc(h.why || '')}</div>`).join('')
-        : go(view, x)}</td></tr>`).join('');
   }
   return '<thead><tr>' + head.map((h, i) => `<th${i === 0 ? ' class="frz" style="text-align:left"' : i === 1 ? ' style="text-align:left"' : ''}>${esc(h)}</th>`).join('') + '</tr></thead><tbody>'
     + (body || `<tr><td colspan="${head.length}" class="muted" style="padding:16px">Nothing in this bucket.</td></tr>`) + '</tbody>';
@@ -267,17 +246,15 @@ $('flTable').addEventListener('click', async e => {
   const ch = e.target.closest('[data-flch]'); if (ch) { flowChallanOpen(ch.dataset.flch, ch.dataset.pc); return; }
   const qb = e.target.closest('[data-flqb]');
   if (qb) { const [what, key] = qb.dataset.flqb.split('|'), x = flowRows().find(y => y.s.key === key); if (!x) return;
-    if (what === 'check') flowQcCheckOpen(x); else if (what === 'alt') flowAltBackOpen(x); else if (what === 'send') flowFgSendOpen(x); else if (what === 'recv') flowRecvEntry(x.r); else if (what === 'issue') flowIssueEntry(x.r, x.s);
+    if (what === 'qc') flowQcEntry(x.r); else if (what === 'fg') flowFgOpen(); else if (what === 'recv') flowRecvEntry(x.r); else if (what === 'issue') flowIssueEntry(x.r, x.s);
     return; }
-  const fa = e.target.closest('[data-flfga]'); if (fa) { flowFgAccept(fa.dataset.flfga); return; }
-  const fr = e.target.closest('[data-flfgr]'); if (fr) { flowFgRejectOpen(fr.dataset.flfgr); return; }
   const te = e.target.closest('[data-flte]');
   if (te) { const [what, no, sku] = te.dataset.flte.split('|');
     if (what === 'cut') flowTestCutOpen(no, sku); else if (what === 'issue') flowTestIssueOpen(no, sku); else if (what === 'recv') flowTestRecvOpen(no, sku);
     return; }
   const en = e.target.closest('[data-flent]');
   if (en) { const [what, key] = en.dataset.flent.split('|'), x = flowRows().find(y => y.s.key === key); if (!x) return;
-    if (what === 'cut') flowCutEntry(x.r, x.s); else if (what === 'issue') flowIssueEntry(x.r, x.s); else if (what === 'recv') flowRecvEntry(x.r); else if (what === 'qc') flowQcEntry(x.r, x.s);
+    if (what === 'cut') flowCutEntry(x.r, x.s); else if (what === 'issue') flowIssueEntry(x.r, x.s); else if (what === 'recv') flowRecvEntry(x.r); else if (what === 'qc') flowQcEntry(x.r);
     return; }
   const pop = e.target.closest('[data-flpop]'); if (pop) { const er = flowPoPrint(pop.dataset.flpop); if (er) { $('flMsg').className = 'err'; $('flMsg').textContent = er; } return; }
   const cg = e.target.closest('[data-flchg]'); if (cg) { const grp = FLOW_GROUPS[+cg.dataset.flchg]; if (grp) flowChallanForKeys(grp.keys); return; }
@@ -293,3 +270,9 @@ $('flTable').addEventListener('click', async e => {
 });
 /* The menu button shows only where the flow is switched on, and only to an account with a bucket. */
 function flowNavShow() { if ($('tabFlow')) $('tabFlow').style.display = FLOW_ON && flowBucketsAllowed().length ? '' : 'none'; }
+/** Finished Goods → From QC — to accept. */
+async function flowFgOpen() {
+  if (!flowMay('fgi') && !flowMayFg()) return flowSay('Finished Goods is not open to this account.', true);
+  showTab('fgi'); if ($('fgView')) $('fgView').value = 'flow';
+  if (typeof ensureFgi === 'function') await ensureFgi(); else renderFgi();
+}

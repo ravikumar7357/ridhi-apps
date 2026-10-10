@@ -40,8 +40,6 @@ const FLOW_SIM = {
   fabric: ['Simulate: printed fabric accepted', 'History → accept what the printer sent', t => ({ given: t.qty, back: t.qty })],
   cut: ['Simulate: cutting entry', 'Cutting Data → the cutting entry', t => ({ cut: t.qty })],
   raw: ['Simulate: issued to karigar', 'Job Work Register → issue', t => ({ issued: t.qty })],
-  wip: ['Simulate: received + QC passed', 'Job Work → receive, then Quality Control → pass', t => ({ received: t.qty, qc: t.qty })],
-  ready: ['Simulate: received in Finished Goods', 'Finished Goods → receive', t => ({ fgIn: t.qty })],
   out: ['Simulate: received in Finished Goods', 'Finished Goods → receive (from the outsource vendor)', t => ({ fgIn: t.qty })],
 };
 async function flowSimulate(orderNo, sku, view) {
@@ -98,6 +96,7 @@ async function flowTestDelete(orderNo) {
     patch['pt_ppc/' + k] = null; patch['pt_flowDemand/' + k] = null; patch['pt_accReserve/' + k] = null; });
   Object.values(FLOW.ch || {}).filter(c => (c.orders || [c.orderNo]).includes(orderNo)).forEach(c => { patch['pt_flowChallans/' + c.no] = null; });
   Object.values(FLOW.po || {}).filter(o => o && o.orderNo === orderNo).forEach(o => { patch['pt_flowPrintOrders/' + o.no] = null; });
+  Object.entries(FLOW.fg || {}).filter(([, h]) => h && h.orderNo === orderNo).forEach(([id]) => { patch['pt_flowFgSend/' + id] = null; });
   /* …and its TEST rows in Cutting Data, the Job Work Register and Quality Control — by what the test order recorded, and
    * by order no in whatever the screens have read, so nothing written for it is left behind. */
   const regs = { pt_cuttingData: new Set(), pt_baseData: new Set(), pt_qcChecks: new Set() };
@@ -110,7 +109,7 @@ async function flowTestDelete(orderNo) {
   try { await ptPatch(patch); } catch (e) { return 'Could not delete: ' + (e.message || e); }
   const drop = (obj, pre) => { const n = Object.assign({}, obj); Object.keys(patch).filter(p => p.startsWith(pre)).forEach(p => { delete n[p.slice(pre.length)]; }); return n; };
   FLOW.test = drop(FLOW.test, 'pt_flowTest/'); FLOW.ppc = drop(FLOW.ppc, 'pt_ppc/'); FLOW.dem = drop(FLOW.dem, 'pt_flowDemand/');
-  FLOW.res = drop(FLOW.res, 'pt_accReserve/'); FLOW.ch = drop(FLOW.ch, 'pt_flowChallans/'); FLOW.po = drop(FLOW.po, 'pt_flowPrintOrders/');
+  FLOW.res = drop(FLOW.res, 'pt_accReserve/'); FLOW.ch = drop(FLOW.ch, 'pt_flowChallans/'); FLOW.po = drop(FLOW.po, 'pt_flowPrintOrders/'); FLOW.fg = drop(FLOW.fg, 'pt_flowFgSend/');
   const gone = node => new Set(Object.keys(patch).filter(k => k.startsWith(node + '/')).map(k => k.slice(node.length + 1)));
   const gc = gone('pt_cuttingData'), gb = gone('pt_baseData'), gq = gone('pt_qcChecks');
   if (gc.size) PT.cut = (PT.cut || []).filter(r => !(r && gc.has(r.id)));
@@ -261,5 +260,5 @@ function flowTestNote(x, view) {
   const t = x.r.__t || {};
   if (view === 'cut') return Object.values(t.cutLog || {}).map(c => `cut ${nf(c.pcs)} · ${esc(c.fabric)} ${nf(c.used)} m, waste ${nf(c.waste)} m`).join('<br>');
   return Object.values(t.issues || {}).map(e => `${esc(e.karigar)}: ${nf(e.pcs)} issued, ${nf(e.received || 0)} back${e.rejected ? `, ${nf(e.rejected)} rejected` : ''}`).join('<br>')
-    + (t.qcChecked ? `<br>QC: ${nf(t.qcChecked)} checked, ${nf(t.qc || 0)} passed` : '');
+    + (() => { const q = flowQcLine(x.r); return q.checked || q.ok ? `<br>QC: ${nf(q.checked)} checked, ${nf(q.ok)} passed${q.rej ? `, ${nf(q.rej)} rejected` : ''}` : ''; })();
 }

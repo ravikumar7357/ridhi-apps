@@ -58,6 +58,7 @@ async function fgiLoad() {
   await fgiCorrLoad();
   await fnLoad();
   fgiOverBadge();
+  if (typeof FLOW_ON !== 'undefined' && FLOW_ON && typeof flowFgBadgeLoad === 'function') flowFgBadgeLoad();
   lstMaybeRefresh();
 }
 
@@ -159,7 +160,7 @@ function renderFgi() {
   // that changes shape would otherwise break this silently.
   $('fgZeroWrap').classList.toggle('hide', view !== 'stock');
   $('fgEntry').classList.toggle('hide', !fgiCanEntry());
-  ['fgiLstBadge', 'fgiCorrBadge', 'fgiOverBadge'].forEach(id => { const b = $(id); if (b && b.dataset) b.classList.toggle('on', b.dataset.fgview === $('fgView').value); });
+  ['fgiLstBadge', 'fgiCorrBadge', 'fgiOverBadge', 'flFgBadge'].forEach(id => { const b = $(id); if (b && b.dataset) b.classList.toggle('on', b.dataset.fgview === $('fgView').value); });
   ['fgRecvXl', 'fgIssXl'].forEach(id => { if ($(id)) $(id).classList.toggle('hide', !fgiCanEntry()); });
   $('fgScan').classList.toggle('hide', !fgiCanEntry());
   $('fgOpening').classList.toggle('hide', !fgiCanEdit());
@@ -169,6 +170,7 @@ function renderFgi() {
   if (view === 'alerts') return lstRenderAlerts();
   if (view === 'corr') return fgiRenderCorr();
   if (view === 'over') return fgiRenderOver();
+  if (view === 'flow' && typeof flowFgRender === 'function') return flowFgRender();   // Production flow (preview): From QC — to accept
   fgiRenderStock(stock);
 }
 
