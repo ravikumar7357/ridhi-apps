@@ -2522,6 +2522,9 @@
           <select id="ptmCut" style="flex:0 0 150px" title="Whether the SKU needs cutting before stitching">
             <option value="">Cutting: any</option><option value="y">Cutting required</option><option value="n">No cutting</option>
           </select>
+          <select id="ptmMaker" style="flex:0 0 160px" title="Made by Ridhi, or a ready product bought finished">
+            <option value="">Made by: any</option><option value="ridhi">Made by Ridhi</option><option value="ready">Ready products</option>
+          </select>
           <input id="ptmQ" placeholder="Search SKU / article / fabric" style="flex:1 1 180px;min-width:0">
           <select id="ptmBrandFs" class="hide" style="flex:0 0 130px">
             <option value="">Both brands</option><option value="CPC">CPC</option><option value="RBP">Ridhi</option>
@@ -10600,7 +10603,7 @@ async function ensurePmdb() {
 function pmdbFilters() {
   const v = id => ($(id) || {}).value || '';
   return { brand: v('ptmBrand'), art: v('ptmArt'), sub: v('ptmSub'), col: v('ptmCol'),
-    sz: v('ptmSz'), cut: v('ptmCut'), q: v('ptmQ').trim().toLowerCase() };
+    sz: v('ptmSz'), cut: v('ptmCut'), maker: v('ptmMaker'), q: v('ptmQ').trim().toLowerCase() };
 }
 
 function pmdbApply(rows, f, skip) {
@@ -10613,8 +10616,10 @@ function pmdbApply(rows, f, skip) {
     if (skip !== 'sz' && f.sz && !ptCi(r.size, f.sz)) return false;
     if (skip !== 'cut' && f.cut === 'y' && !r.cuttingRequired) return false;
     if (skip !== 'cut' && f.cut === 'n' && r.cuttingRequired) return false;
+    if (skip !== 'maker' && f.maker === 'ridhi' && mdbIsReady(r)) return false;
+    if (skip !== 'maker' && f.maker === 'ready' && !mdbIsReady(r)) return false;
     if (skip !== 'q' && f.q) {
-      const hay = [r.sku, r.articleType, r.subtype, r.color, r.size, r.fabric, r.brand, r.asin, r.parentAsin].join(' ').toLowerCase();
+      const hay = [r.sku, r.articleType, r.subtype, r.color, r.size, r.fabric, r.brand, r.asin, r.parentAsin, r.manufacturer, r.pipingFabric, r.packMaterial].join(' ').toLowerCase();
       if (!hay.includes(f.q)) return false;
     }
     return true;
@@ -10753,15 +10758,15 @@ async function mdbConsApply() {
  * and are always there.
  */
 const PMDB_TOOLS = {
-  master: ['ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut', 'ptmQ',
+  master: ['ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut', 'ptmMaker', 'ptmQ',
     'ptmNew', 'ptmAsin', 'ptmImgs', 'ptmClear', 'ptmTemplate', 'ptmTplShort', 'ptmImport', 'ptmRename', 'ptmCustFix', 'ptmExport', 'ptmGo'],
   /* A one-off item never amends the real catalogue, so Change SKU — which rewrites a code across
    * every register — is not offered from here. */
-  custom: ['ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut', 'ptmQ',
+  custom: ['ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut', 'ptmMaker', 'ptmQ',
     'ptmNew', 'ptmLookalike', 'ptmImgs', 'ptmClear', 'ptmTemplate', 'ptmTplShort', 'ptmImport', 'ptmExport', 'ptmGo'],
   /* The printer's cloth is grouped by fabric and colour; article and size say nothing about it. */
   fabric: ['ptmBrandFs', 'ptmDir', 'ptmCol', 'ptmQ', 'ptmNew', 'ptmTemplate', 'ptmImport', 'ptmClear', 'ptmExport', 'ptmGo'],
-  cons: ['ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut', 'ptmQ',
+  cons: ['ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut', 'ptmMaker', 'ptmQ',
     'ptmConsApply', 'ptmClear', 'ptmExport', 'ptmGo'],
   /* A recipe has no brand, no colour and no picture. Its key is the three boxes that are left. */
   recipe: ['ptmArt', 'ptmSub', 'ptmSz', 'ptmQ', 'ptmRecSeed', 'ptmRecApply',
@@ -10774,7 +10779,7 @@ const PMDB_WRITES = ['ptmNew', 'ptmLookalike', 'ptmAsin', 'ptmImport', 'ptmRenam
 /* NAMED OUTRIGHT, not gathered from the lists above. Derived from them, a control dropped from
  * every view fell out of this set and so was never hidden — it stayed wherever the last view left
  * it, which is the very thing this function exists to stop. */
-const PMDB_ALL = ['ptmTplShort', 'ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut', 'ptmQ',
+const PMDB_ALL = ['ptmTplShort', 'ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut', 'ptmMaker', 'ptmQ',
   'ptmBrandFs', 'ptmDir', 'ptmConsApply', 'ptmRecSeed', 'ptmRecApply', 'ptmNew', 'ptmLookalike', 'ptmCustFix', 'ptmAsin', 'ptmImgs',
   'ptmClear', 'ptmTemplate', 'ptmImport', 'ptmRename', 'ptmExport', 'ptmGo'];
 
@@ -10836,17 +10841,22 @@ function renderPmdb() {
       <div class="metric"><div class="v">${nf(cnt(r => r.isRuffle))}</div><div class="l">Ruffle</div></div>
       ${(n => n ? `<div class="metric" title="Ruffle SKUs whose metres are neither on the SKU nor in its recipe — fill Ruffle metres and fabric in the Recipe for that article · subtype · size"><div class="v" style="color:var(--bad)">${nf(n)}</div><div class="l">Ruffle, no metres</div></div>` : '')(cnt(r => r.isRuffle && !ptRuffleOf(r)))}
       <div class="metric"><div class="v">${nf(cnt(r => r.fillerFabricRequired))}</div><div class="l">Needs filler</div></div>
+      <div class="metric" title="Manufacturer is not Ridhi — bought finished; no cloth, cutting or making details needed"><div class="v">${nf(cnt(mdbIsReady))}</div><div class="l">Ready products</div></div>
       ${(n => `<div class="metric" title="SKUs with no ASIN yet. ASIN from Amazon fills the ones Amazon lists; the rest are not on Amazon."><div class="v"${n ? ' style="color:var(--bad)"' : ''}>${nf(n)}</div><div class="l">No ASIN</div></div>`)(cnt(r => !String(r.asin || '').trim()))}
     </div></div>`;
 
   const yn = v => v ? '<span class="pill pill-ok">Yes</span>' : '<span class="muted">—</span>';
-  const head = '<thead><tr>' + ['SKU', 'Image', 'ASIN', 'Parent ASIN', 'Brand', 'Article', 'Subtype', 'Color', 'Size', 'Fabric', 'Consumption', 'Pack of', 'Cutting', 'Zip', 'Ruffle', 'Piping', 'Filler', 'Edit']
-    .map((h, i) => `<th${i === 0 ? ' class="frz"' : (i === 10 || i === 11 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
+  const head = '<thead><tr>' + ['SKU', 'Image', 'ASIN', 'Parent ASIN', 'Brand', 'Manufacturer', 'Article', 'Subtype', 'Color', 'Size', 'Fabric', 'Consumption', 'Pack of', 'Packing', 'Cutting', 'Zip', 'Ruffle', 'Piping', 'Filler', 'Edit']
+    .map((h, i) => `<th${i === 0 ? ' class="frz"' : (i === 11 || i === 12 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
+  /* Ridhi (or blank) is said plainly; anything else carries the Ready product mark. */
+  const makerCell = r => mdbIsReady(r) ? `${esc(r.manufacturer)}<div><span class="pill pill-low" title="Bought finished — no cloth, cutting or making details needed">Ready product</span></div>`
+    : `${esc(String(r.manufacturer || '').trim() || 'Ridhi')}`;
+  const packCell = r => r.packType || r.packMaterial ? `${esc(r.packType || '')}${r.packMaterial ? `<div class="muted" style="font-size:11px;margin-top:2px">${esc(r.packMaterial)}</div>` : ''}` : '<span class="muted">—</span>';
   const asinCell = v => String(v || '').trim() ? `<td style="font-family:ui-monospace,monospace">${esc(v)}</td>` : '<td><span class="muted">—</span></td>';
   const zipCell = r => !r.isZip ? '<span class="muted">—</span>'
     : `<span class="pill pill-ok">Yes</span><div class="muted" style="font-size:11px;margin-top:2px">${nf(mdbZipQty(r))} × ${esc(r.chainLength == null ? '?' : r.chainLength)}"</div>`;
-  const pipCell = r => !r.isPiping ? '<span class="muted">—</span>'
-    : `<span class="pill pill-ok">Yes</span><div class="muted" style="font-size:11px;margin-top:2px">${r.pipingMeters == null ? '?' : esc(r.pipingMeters)}m dori</div>`;
+  const pipCell = r => !r.isPiping ? (r.pipingFabric ? `<span class="muted">—</span><div class="muted" style="font-size:11px;margin-top:2px">${esc(r.pipingFabric)}</div>` : '<span class="muted">—</span>')
+    : `<span class="pill pill-ok">Yes</span><div class="muted" style="font-size:11px;margin-top:2px">${r.pipingMeters == null ? '?' : esc(r.pipingMeters)}m dori${r.pipingFabric ? ' · ' + esc(r.pipingFabric) : ''}</div>`;
   /* What the cutting issue and the demand will use — the SKU's own figures, else its recipe — and a word
    * saying which, so a figure that is not typed on the SKU is not mistaken for one that is. */
   const rufCell = r => {
@@ -10861,10 +10871,10 @@ function renderPmdb() {
     + `<td class="frz" style="font-family:ui-monospace,monospace;text-align:left">${esc(r.sku)}</td>`
     + ptImgCell(r.sku, 44)
     + asinCell(r.asin) + asinCell(r.parentAsin)
-    + `<td>${esc(r.brand)}</td><td>${esc(r.articleType)}</td><td>${esc(r.subtype)}</td>`
+    + `<td>${esc(r.brand)}</td><td style="text-align:left">${makerCell(r)}</td><td>${esc(r.articleType)}</td><td>${esc(r.subtype)}</td>`
     + `<td>${esc(r.color)}</td><td>${esc(r.size)}</td><td>${esc(r.fabric)}</td>`
     + `<td class="num">${mdbM2Txt(r.consumption) === '' ? '<span class="muted">—</span>' : esc(mdbM2Txt(r.consumption))}</td>`
-    + `<td class="num">${esc(r.packOf)}</td><td>${yn(r.cuttingRequired)}</td><td>${zipCell(r)}</td>`
+    + `<td class="num">${esc(r.packOf)}</td><td style="text-align:left">${packCell(r)}</td><td>${yn(r.cuttingRequired)}</td><td>${zipCell(r)}</td>`
     + `<td>${rufCell(r)}</td><td>${pipCell(r)}</td><td>${yn(r.fillerFabricRequired)}</td>`
     + `<td>${custom ? '<span class="muted">—</span>'
       : `<button class="ghost" data-mdb-edit="${esc(r.sku)}" style="padding:3px 10px;font-size:12px">Edit</button>`}</td></tr>`).join('');
@@ -11815,7 +11825,7 @@ function renderPcutWait(cutRows) {
 
 /* ---------------- wiring ---------------- */
 
-['ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut'].forEach(id => $(id).addEventListener('change', renderPmdb));
+['ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut', 'ptmMaker'].forEach(id => $(id).addEventListener('change', renderPmdb));
 ['pbType', 'pbEmp', 'pbArt', 'pbSub', 'pbCol', 'pbSz', 'pbStatus', 'pbDBy', 'pbD1', 'pbD2'].forEach(id => $(id).addEventListener('change', renderPbase));
 ['pcView', 'pcUse', 'pcArt', 'pcSub', 'pcCol', 'pcSz', 'pcOrd', 'pcD1', 'pcD2'].forEach(id => $(id).addEventListener('change', renderPcut));
 /* The cloth the cut costs follows the pieces and the SKU as they are typed. renderCutFab, NOT
@@ -11836,7 +11846,7 @@ function ptDebounce(id, fn) {
 }
 ptDebounce('ptmQ', renderPmdb); ptDebounce('pbQ', renderPbase); ptDebounce('pcQ', renderPcut);
 
-$('ptmClear').onclick = () => { ['ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut', 'ptmQ'].forEach(id => $(id).value = ''); renderPmdb(); };
+$('ptmClear').onclick = () => { ['ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut', 'ptmMaker', 'ptmQ'].forEach(id => $(id).value = ''); renderPmdb(); };
 if ($('audGo')) {
   $('audGo').onclick = () => audLoad();
   $('audView').onchange = () => { if ($('audView').value === 'bin' ? !AUD.bin : !AUD.rows) audLoad(); else audRender(); };
@@ -11924,7 +11934,7 @@ $('ptmExport').onclick = () => {
   const rows = PT._pmdbRows || []; if (!rows.length) return;
   const lines = [['SKU', 'Brand', 'Article', 'Subtype', 'Color', 'Size', 'Fabric', 'Consumption', 'Pack of',
     'Cutting required', 'Zip', 'Zips per piece', 'Zip size', 'Ruffle', 'Ruffle metres', 'Ruffle fabric', 'Piping dori', 'Piping dori metres',
-    'Filler fabric', 'Filling qty', 'Valuation price', 'Image', 'ASIN', 'Parent ASIN'].map(csvCell).join(',')];
+    'Filler fabric', 'Filling qty', 'Valuation price', 'Image', 'ASIN', 'Parent ASIN', 'Manufacturer', 'Piping fabric', 'Packing type', 'Packing material'].map(csvCell).join(',')];
   const b = v => v ? 'Yes' : 'No';
   rows.forEach(r => lines.push([r.sku, r.brand, r.articleType, r.subtype, r.color, r.size, r.fabric,
     mdbM2(r.consumption), r.packOf, b(r.cuttingRequired),
@@ -11933,7 +11943,7 @@ $('ptmExport').onclick = () => {
     b(r.isPiping), r.isPiping ? r.pipingMeters : '',
     b(r.fillerFabricRequired), r.fillerFabricRequired && r.standardFillingQty != null ? r.standardFillingQty : '',
     r.inventoryValuationPrice == null ? '' : r.inventoryValuationPrice, r.imageUrl || MDBIMG.map[obUC(r.sku)] || '',
-    r.asin || '', r.parentAsin || '']
+    r.asin || '', r.parentAsin || '', r.manufacturer || '', r.pipingFabric || '', r.packType || '', r.packMaterial || '']
     .map(csvCell).join(',')));
   ptDownload('master-database', lines);
 };
@@ -16773,6 +16783,12 @@ function mdbUsage(sku) {
 }
 
 const mdbNum = v => { const s = String(v == null ? '' : v).trim(); if (s === '') return null; const n = parseFloat(s); return isFinite(n) ? n : null; };
+/* MANUFACTURER, PIPING FABRIC, PACKING (Ravi, 2026-10-10). A SKU whose manufacturer is not Ridhi is a READY PRODUCT — bought
+ * finished — so its cloth, consumption, cutting, zip, ruffle, piping and filler are not needed (cutting is saved as No).
+ * Blank means Ridhi: every SKU before this field existed was made here. */
+function mdbIsReady(r) { const m = String((r && r.manufacturer) || '').trim(); return !!m && !/^ridhi\b/i.test(m); }
+/** Polythene or Box — however the sheet spells it. */
+function mdbPackType(v) { const s = String(v || '').trim().toLowerCase(); return !s ? '' : /^box|carton/.test(s) ? 'Box' : /^poly|bag/.test(s) ? 'Polythene' : ''; }
 /**
  * METRES, TO TWO PLACES. Ravi, 2026-09-24: consumption showed as 1.2953999999999999 — inches turned
  * into metres and stored as the raw float. The fields that are metres of cloth are rounded on the way
@@ -16794,7 +16810,9 @@ function mdbRecord(v, isCustom) {
     color: String(v.color || '').trim(), size: String(v.size || '').trim(),
     brand: String(v.brand || '').trim(), packOf: String(v.packOf || '').trim(),
     fabric: String(v.fabric || '').trim(),
-    cuttingRequired: v.cuttingRequired !== 'no',
+    manufacturer: String(v.manufacturer || '').trim(),
+    /* A ready product is not cut here, whatever the box said. */
+    cuttingRequired: mdbIsReady(v) ? false : v.cuttingRequired !== 'no',
     consumption: mdbM2(v.consumption),
     isZip: v.isZip === 'yes', chainLength: v.isZip === 'yes' ? mdbNum(v.chainLength) : null,
     // How many zips one piece takes. Absent means one — see the note above mdbZipQty.
@@ -16804,6 +16822,10 @@ function mdbRecord(v, isCustom) {
     /* PIPING DORI (Ravi, 2026-09-22: "jisme ruffle nahi h usme piping dori lagti h") — the cord sewn into
      * a piped edge, in metres per piece. */
     isPiping: v.isPiping === 'yes', pipingMeters: v.isPiping === 'yes' ? mdbM2(v.pipingMeters) : null,
+    /* The cloth the piping strip is cut from — its own field, beside the dori. */
+    pipingFabric: String(v.pipingFabric || '').trim(),
+    /* How one piece is packed: a polythene (which one) or a box (which one). */
+    packType: mdbPackType(v.packType), packMaterial: String(v.packMaterial || '').trim(),
     fillerFabricRequired: v.fillerFabricRequired === 'yes',
     standardFillingQty: v.fillerFabricRequired === 'yes' ? mdbNum(v.standardFillingQty) : null,
     inventoryValuationPrice: mdbNum(v.inventoryValuationPrice),
@@ -16826,14 +16848,17 @@ function mdbValidate(v, existingSku) {
   if (String(v.parentAsin || '').trim() && !MDB_ASIN_RE.test(obUC(v.parentAsin))) return `Parent ASIN "${String(v.parentAsin).trim()}" is not an ASIN — ten letters and digits.`;
   if (obUC(v.sku) !== obUC(existingSku || '') && (PTG.mdb || []).some(r => obUC(r.sku) === obUC(v.sku)))
     return `SKU "${obUC(v.sku)}" is already in the master database.`;
-  if (v.isZip === 'yes' && !(mdbNum(v.chainLength) > 0)) return 'Zip size (chain length) is required when zip is Yes.';
+  if (String(v.packType || '').trim() && !mdbPackType(v.packType)) return `Packing type "${String(v.packType).trim()}" — pick Polythene or Box.`;
+  /* A READY PRODUCT needs none of the making details, so none of their checks apply. */
+  const ready = mdbIsReady(v);
+  if (!ready && v.isZip === 'yes' && !(mdbNum(v.chainLength) > 0)) return 'Zip size (chain length) is required when zip is Yes.';
   // Blank is allowed and means one; a number that is there must be a real one.
-  if (v.isZip === 'yes' && String(v.zipQty || '').trim() !== '' && !(mdbNum(v.zipQty) > 0))
+  if (!ready && v.isZip === 'yes' && String(v.zipQty || '').trim() !== '' && !(mdbNum(v.zipQty) > 0))
     return 'Zip quantity must be a number greater than zero.';
-  if (v.isRuffle === 'yes' && !(mdbNum(v.ruffleMeters) > 0) && !(mdbNum((recipeOf(v) || {}).ruffleMeters) > 0))
+  if (!ready && v.isRuffle === 'yes' && !(mdbNum(v.ruffleMeters) > 0) && !(mdbNum((recipeOf(v) || {}).ruffleMeters) > 0))
     return 'Ruffle metres are required when ruffle is Yes (or fill them in the recipe for this product and size).';
-  if (v.isPiping === 'yes' && !(mdbNum(v.pipingMeters) > 0)) return 'Piping dori metres are required when piping dori is Yes.';
-  if (v.fillerFabricRequired === 'yes' && !(mdbNum(v.standardFillingQty) > 0))
+  if (!ready && v.isPiping === 'yes' && !(mdbNum(v.pipingMeters) > 0)) return 'Piping dori metres are required when piping dori is Yes.';
+  if (!ready && v.fillerFabricRequired === 'yes' && !(mdbNum(v.standardFillingQty) > 0))
     return 'Standard filling quantity is required when filler fabric is Yes.';
   const p = mdbNum(v.inventoryValuationPrice);
   if (v.inventoryValuationPrice !== '' && v.inventoryValuationPrice != null && (p == null || p < 0))
@@ -16853,6 +16878,9 @@ function mdbFields(r) {
   return [
     { key: 'sku', label: 'SKU', value: m('sku', '') },
     { key: 'brand', label: 'Brand', value: m('brand', '') },
+    /* Blank = Ridhi. Anything else makes it a ready product. */
+    { key: 'manufacturer', label: 'Manufacturer name', value: m('manufacturer', ''),
+      list: ['Ridhi'].concat((PTG.mdb || []).map(x => String((x && x.manufacturer) || '').trim())) },
     { key: 'asin', label: 'ASIN', value: m('asin', '') },
     { key: 'parentAsin', label: 'Parent ASIN', value: m('parentAsin', '') },
     { key: 'articleType', label: 'Article type', type: 'select', value: m('articleType', ''),
@@ -16881,6 +16909,13 @@ function mdbFields(r) {
       options: [''].concat(fabListOr(m('ruffleFabric', ''))) },
     { key: 'isPiping', label: 'Piping dori', type: 'select', value: yn(m('isPiping', false)), options: YESNO },
     { key: 'pipingMeters', label: 'Piping dori per piece (m)', type: 'number', step: '0.01', value: m('pipingMeters', '') },
+    { key: 'pipingFabric', label: 'Piping fabric', type: 'select', value: m('pipingFabric', ''),
+      options: [''].concat(fabListOr(m('pipingFabric', ''))) },
+    { key: 'packType', label: 'Packing', type: 'select', value: m('packType', ''), options: ['', 'Polythene', 'Box'] },
+    /* Which polythene or box — the names already used, and any Packing item in Accessories, are offered. */
+    { key: 'packMaterial', label: 'Polythene / box used', value: m('packMaterial', ''),
+      list: (PTG.mdb || []).map(x => String((x && x.packMaterial) || '').trim())
+        .concat(ptList((PTG.masters || {}).accessories).filter(x => x && String(x.category || '') === 'Packing').map(x => x.name || x.desc || '')) },
     { key: 'fillerFabricRequired', label: 'Filler fabric', type: 'select', value: yn(m('fillerFabricRequired', false)), options: YESNO },
     { key: 'standardFillingQty', label: 'Standard filling qty', type: 'number', step: '0.01', value: m('standardFillingQty', '') },
     { key: 'inventoryValuationPrice', label: 'Valuation price', type: 'number', step: '0.01', value: m('inventoryValuationPrice', '') },
@@ -16911,7 +16946,8 @@ function mdbAddNew() {
      * feed hoga"). The same three boxes that key a recipe are watched, and the line says what will be
      * filled in — so nobody saves first to find out. */
     note: 'Chain length, ruffle metres, piping dori metres and filling quantity are each required only when their '
-      + 'Yes is picked — a Yes with no number is what makes a SKU look complete and behave as if it were not.',
+      + 'Yes is picked — a Yes with no number is what makes a SKU look complete and behave as if it were not. '
+      + 'A manufacturer other than Ridhi makes it a ready product: none of the making details are needed, and cutting is saved as No.',
     fields: mdbFields(null),
     onSave: async v => {
       const err = mdbValidate(v, '');
@@ -17166,7 +17202,8 @@ $('ptmImgs').onclick = () => mdbImgFill(true);
 
 const MDB_IMPORT_COLS = ['SKU', 'Brand', 'Article', 'Subtype', 'Color', 'Size', 'Fabric', 'Consumption',
   'Pack of', 'Cutting required', 'Zip', 'Zips per piece', 'Zip size', 'Ruffle', 'Ruffle metres',
-  'Ruffle fabric', 'Piping dori', 'Piping dori metres', 'Filler fabric', 'Filling qty', 'Valuation price', 'Image', 'ASIN', 'Parent ASIN'];
+  'Ruffle fabric', 'Piping dori', 'Piping dori metres', 'Filler fabric', 'Filling qty', 'Valuation price', 'Image', 'ASIN', 'Parent ASIN',
+  'Manufacturer', 'Piping fabric', 'Packing type', 'Packing material'];
 
 /** The recipe template: every combination, its recipe so far, and what its SKUs say. */
 function recipeTemplateDownload() {
@@ -17243,12 +17280,12 @@ $('ptmTemplate').onclick = () => {
   if (($('ptmView') || {}).value === 'skucode') return ptDownload('sku-base-codes-template', [SKC_COLS, ['Tablecloth', 'Square Tablecloth', '60x60', 'RTC-6060'],
     ['Home and Kitchen', 'Apron', 'Free', 'RKA-']].map(r => r.map(csvCell).join(',')));
   const ex = ['RPC123-1818', 'Ridhi', 'Pillow Cover', 'Piping Pillow Cover', 'Indigo Blue', '18X18',
-    'Sheeting 82', 0.28, '2', 'Yes', 'Yes', 1, 18, 'No', '', '', 'Yes', 2.1, 'No', '', '', '', '', ''];
+    'Sheeting 82', 0.28, '2', 'Yes', 'Yes', 1, 18, 'No', '', '', 'Yes', 2.1, 'No', '', '', '', '', '', 'Ridhi', 'Sheeting 82', 'Polythene', '12x16 polythene'];
   /* AN EXCEL SHEET, with Yes/No and the cloth as dropdowns, so a spelling nobody agreed to cannot be
    * typed into it. Import reads .xlsx and .csv alike. */
   const ix = h => MDB_IMPORT_COLS.indexOf(h);
   const bytes = recipeXlsx([MDB_IMPORT_COLS, ex], { name: 'SKUs', freeze: 1,
-    cols: { yn: ['Cutting required', 'Zip', 'Ruffle', 'Piping dori', 'Filler fabric'].map(ix), fab: ['Fabric', 'Ruffle fabric'].map(ix) } });
+    cols: { yn: ['Cutting required', 'Zip', 'Ruffle', 'Piping dori', 'Filler fabric'].map(ix), fab: ['Fabric', 'Ruffle fabric', 'Piping fabric'].map(ix) } });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
   a.download = `master-database-template-${dToday()}.xlsx`;
@@ -17477,6 +17514,7 @@ function mdbFromCsv(row, ix) {
     fillerFabricRequired: yn('filler'), standardFillingQty: g('fillqty'),
     inventoryValuationPrice: g('valprice'), imageUrl: g('image'),
     asin: g('asin'), parentAsin: g('parent'),
+    manufacturer: g('maker'), pipingFabric: g('pipingfab'), packType: g('packtype'), packMaterial: g('packmat'),
   };
 }
 
@@ -17504,7 +17542,8 @@ function mdbFormOf(r) {
     isPiping: yn(r.isPiping), pipingMeters: s(r.pipingMeters),
     fillerFabricRequired: yn(r.fillerFabricRequired), standardFillingQty: s(r.standardFillingQty),
     inventoryValuationPrice: s(r.inventoryValuationPrice), imageUrl: s(r.imageUrl),
-    asin: s(r.asin), parentAsin: s(r.parentAsin) };
+    asin: s(r.asin), parentAsin: s(r.parentAsin),
+    manufacturer: s(r.manufacturer), pipingFabric: s(r.pipingFabric), packType: s(r.packType), packMaterial: s(r.packMaterial) };
 }
 /** What the file says, over what the SKU already says. */
 function mdbMerge(v, existing) {
@@ -17547,6 +17586,10 @@ $('ptmFile').onchange = async e => {
       valprice: colIdx(head, ['valuation price', 'inventory valuation price']),
       image: colIdx(head, ['image', 'image url', 'picture']),
       asin: colIdx(head, ['asin', 'child asin']), parent: colIdx(head, ['parent asin', 'parentasin', 'parent']),
+      maker: colIdx(head, ['manufacturer', 'manufacturer name', 'maker']),
+      pipingfab: colIdx(head, ['piping fabric']),
+      packtype: colIdx(head, ['packing type', 'packing', 'pack type']),
+      packmat: colIdx(head, ['packing material', 'polythene / box used', 'polythene', 'box', 'packing item']),
     };
     if (ix.sku < 0) {
       $('ptmMsg').className = 'err';

@@ -28,6 +28,12 @@ function mdbUsage(sku) {
 }
 
 const mdbNum = v => { const s = String(v == null ? '' : v).trim(); if (s === '') return null; const n = parseFloat(s); return isFinite(n) ? n : null; };
+/* MANUFACTURER, PIPING FABRIC, PACKING (Ravi, 2026-10-10). A SKU whose manufacturer is not Ridhi is a READY PRODUCT — bought
+ * finished — so its cloth, consumption, cutting, zip, ruffle, piping and filler are not needed (cutting is saved as No).
+ * Blank means Ridhi: every SKU before this field existed was made here. */
+function mdbIsReady(r) { const m = String((r && r.manufacturer) || '').trim(); return !!m && !/^ridhi\b/i.test(m); }
+/** Polythene or Box — however the sheet spells it. */
+function mdbPackType(v) { const s = String(v || '').trim().toLowerCase(); return !s ? '' : /^box|carton/.test(s) ? 'Box' : /^poly|bag/.test(s) ? 'Polythene' : ''; }
 /**
  * METRES, TO TWO PLACES. Ravi, 2026-09-24: consumption showed as 1.2953999999999999 — inches turned
  * into metres and stored as the raw float. The fields that are metres of cloth are rounded on the way
@@ -49,7 +55,9 @@ function mdbRecord(v, isCustom) {
     color: String(v.color || '').trim(), size: String(v.size || '').trim(),
     brand: String(v.brand || '').trim(), packOf: String(v.packOf || '').trim(),
     fabric: String(v.fabric || '').trim(),
-    cuttingRequired: v.cuttingRequired !== 'no',
+    manufacturer: String(v.manufacturer || '').trim(),
+    /* A ready product is not cut here, whatever the box said. */
+    cuttingRequired: mdbIsReady(v) ? false : v.cuttingRequired !== 'no',
     consumption: mdbM2(v.consumption),
     isZip: v.isZip === 'yes', chainLength: v.isZip === 'yes' ? mdbNum(v.chainLength) : null,
     // How many zips one piece takes. Absent means one — see the note above mdbZipQty.
@@ -59,6 +67,10 @@ function mdbRecord(v, isCustom) {
     /* PIPING DORI (Ravi, 2026-09-22: "jisme ruffle nahi h usme piping dori lagti h") — the cord sewn into
      * a piped edge, in metres per piece. */
     isPiping: v.isPiping === 'yes', pipingMeters: v.isPiping === 'yes' ? mdbM2(v.pipingMeters) : null,
+    /* The cloth the piping strip is cut from — its own field, beside the dori. */
+    pipingFabric: String(v.pipingFabric || '').trim(),
+    /* How one piece is packed: a polythene (which one) or a box (which one). */
+    packType: mdbPackType(v.packType), packMaterial: String(v.packMaterial || '').trim(),
     fillerFabricRequired: v.fillerFabricRequired === 'yes',
     standardFillingQty: v.fillerFabricRequired === 'yes' ? mdbNum(v.standardFillingQty) : null,
     inventoryValuationPrice: mdbNum(v.inventoryValuationPrice),
@@ -81,14 +93,17 @@ function mdbValidate(v, existingSku) {
   if (String(v.parentAsin || '').trim() && !MDB_ASIN_RE.test(obUC(v.parentAsin))) return `Parent ASIN "${String(v.parentAsin).trim()}" is not an ASIN — ten letters and digits.`;
   if (obUC(v.sku) !== obUC(existingSku || '') && (PTG.mdb || []).some(r => obUC(r.sku) === obUC(v.sku)))
     return `SKU "${obUC(v.sku)}" is already in the master database.`;
-  if (v.isZip === 'yes' && !(mdbNum(v.chainLength) > 0)) return 'Zip size (chain length) is required when zip is Yes.';
+  if (String(v.packType || '').trim() && !mdbPackType(v.packType)) return `Packing type "${String(v.packType).trim()}" — pick Polythene or Box.`;
+  /* A READY PRODUCT needs none of the making details, so none of their checks apply. */
+  const ready = mdbIsReady(v);
+  if (!ready && v.isZip === 'yes' && !(mdbNum(v.chainLength) > 0)) return 'Zip size (chain length) is required when zip is Yes.';
   // Blank is allowed and means one; a number that is there must be a real one.
-  if (v.isZip === 'yes' && String(v.zipQty || '').trim() !== '' && !(mdbNum(v.zipQty) > 0))
+  if (!ready && v.isZip === 'yes' && String(v.zipQty || '').trim() !== '' && !(mdbNum(v.zipQty) > 0))
     return 'Zip quantity must be a number greater than zero.';
-  if (v.isRuffle === 'yes' && !(mdbNum(v.ruffleMeters) > 0) && !(mdbNum((recipeOf(v) || {}).ruffleMeters) > 0))
+  if (!ready && v.isRuffle === 'yes' && !(mdbNum(v.ruffleMeters) > 0) && !(mdbNum((recipeOf(v) || {}).ruffleMeters) > 0))
     return 'Ruffle metres are required when ruffle is Yes (or fill them in the recipe for this product and size).';
-  if (v.isPiping === 'yes' && !(mdbNum(v.pipingMeters) > 0)) return 'Piping dori metres are required when piping dori is Yes.';
-  if (v.fillerFabricRequired === 'yes' && !(mdbNum(v.standardFillingQty) > 0))
+  if (!ready && v.isPiping === 'yes' && !(mdbNum(v.pipingMeters) > 0)) return 'Piping dori metres are required when piping dori is Yes.';
+  if (!ready && v.fillerFabricRequired === 'yes' && !(mdbNum(v.standardFillingQty) > 0))
     return 'Standard filling quantity is required when filler fabric is Yes.';
   const p = mdbNum(v.inventoryValuationPrice);
   if (v.inventoryValuationPrice !== '' && v.inventoryValuationPrice != null && (p == null || p < 0))
@@ -108,6 +123,9 @@ function mdbFields(r) {
   return [
     { key: 'sku', label: 'SKU', value: m('sku', '') },
     { key: 'brand', label: 'Brand', value: m('brand', '') },
+    /* Blank = Ridhi. Anything else makes it a ready product. */
+    { key: 'manufacturer', label: 'Manufacturer name', value: m('manufacturer', ''),
+      list: ['Ridhi'].concat((PTG.mdb || []).map(x => String((x && x.manufacturer) || '').trim())) },
     { key: 'asin', label: 'ASIN', value: m('asin', '') },
     { key: 'parentAsin', label: 'Parent ASIN', value: m('parentAsin', '') },
     { key: 'articleType', label: 'Article type', type: 'select', value: m('articleType', ''),
@@ -136,6 +154,13 @@ function mdbFields(r) {
       options: [''].concat(fabListOr(m('ruffleFabric', ''))) },
     { key: 'isPiping', label: 'Piping dori', type: 'select', value: yn(m('isPiping', false)), options: YESNO },
     { key: 'pipingMeters', label: 'Piping dori per piece (m)', type: 'number', step: '0.01', value: m('pipingMeters', '') },
+    { key: 'pipingFabric', label: 'Piping fabric', type: 'select', value: m('pipingFabric', ''),
+      options: [''].concat(fabListOr(m('pipingFabric', ''))) },
+    { key: 'packType', label: 'Packing', type: 'select', value: m('packType', ''), options: ['', 'Polythene', 'Box'] },
+    /* Which polythene or box — the names already used, and any Packing item in Accessories, are offered. */
+    { key: 'packMaterial', label: 'Polythene / box used', value: m('packMaterial', ''),
+      list: (PTG.mdb || []).map(x => String((x && x.packMaterial) || '').trim())
+        .concat(ptList((PTG.masters || {}).accessories).filter(x => x && String(x.category || '') === 'Packing').map(x => x.name || x.desc || '')) },
     { key: 'fillerFabricRequired', label: 'Filler fabric', type: 'select', value: yn(m('fillerFabricRequired', false)), options: YESNO },
     { key: 'standardFillingQty', label: 'Standard filling qty', type: 'number', step: '0.01', value: m('standardFillingQty', '') },
     { key: 'inventoryValuationPrice', label: 'Valuation price', type: 'number', step: '0.01', value: m('inventoryValuationPrice', '') },
@@ -166,7 +191,8 @@ function mdbAddNew() {
      * feed hoga"). The same three boxes that key a recipe are watched, and the line says what will be
      * filled in — so nobody saves first to find out. */
     note: 'Chain length, ruffle metres, piping dori metres and filling quantity are each required only when their '
-      + 'Yes is picked — a Yes with no number is what makes a SKU look complete and behave as if it were not.',
+      + 'Yes is picked — a Yes with no number is what makes a SKU look complete and behave as if it were not. '
+      + 'A manufacturer other than Ridhi makes it a ready product: none of the making details are needed, and cutting is saved as No.',
     fields: mdbFields(null),
     onSave: async v => {
       const err = mdbValidate(v, '');
@@ -421,7 +447,8 @@ $('ptmImgs').onclick = () => mdbImgFill(true);
 
 const MDB_IMPORT_COLS = ['SKU', 'Brand', 'Article', 'Subtype', 'Color', 'Size', 'Fabric', 'Consumption',
   'Pack of', 'Cutting required', 'Zip', 'Zips per piece', 'Zip size', 'Ruffle', 'Ruffle metres',
-  'Ruffle fabric', 'Piping dori', 'Piping dori metres', 'Filler fabric', 'Filling qty', 'Valuation price', 'Image', 'ASIN', 'Parent ASIN'];
+  'Ruffle fabric', 'Piping dori', 'Piping dori metres', 'Filler fabric', 'Filling qty', 'Valuation price', 'Image', 'ASIN', 'Parent ASIN',
+  'Manufacturer', 'Piping fabric', 'Packing type', 'Packing material'];
 
 /** The recipe template: every combination, its recipe so far, and what its SKUs say. */
 function recipeTemplateDownload() {
@@ -498,12 +525,12 @@ $('ptmTemplate').onclick = () => {
   if (($('ptmView') || {}).value === 'skucode') return ptDownload('sku-base-codes-template', [SKC_COLS, ['Tablecloth', 'Square Tablecloth', '60x60', 'RTC-6060'],
     ['Home and Kitchen', 'Apron', 'Free', 'RKA-']].map(r => r.map(csvCell).join(',')));
   const ex = ['RPC123-1818', 'Ridhi', 'Pillow Cover', 'Piping Pillow Cover', 'Indigo Blue', '18X18',
-    'Sheeting 82', 0.28, '2', 'Yes', 'Yes', 1, 18, 'No', '', '', 'Yes', 2.1, 'No', '', '', '', '', ''];
+    'Sheeting 82', 0.28, '2', 'Yes', 'Yes', 1, 18, 'No', '', '', 'Yes', 2.1, 'No', '', '', '', '', '', 'Ridhi', 'Sheeting 82', 'Polythene', '12x16 polythene'];
   /* AN EXCEL SHEET, with Yes/No and the cloth as dropdowns, so a spelling nobody agreed to cannot be
    * typed into it. Import reads .xlsx and .csv alike. */
   const ix = h => MDB_IMPORT_COLS.indexOf(h);
   const bytes = recipeXlsx([MDB_IMPORT_COLS, ex], { name: 'SKUs', freeze: 1,
-    cols: { yn: ['Cutting required', 'Zip', 'Ruffle', 'Piping dori', 'Filler fabric'].map(ix), fab: ['Fabric', 'Ruffle fabric'].map(ix) } });
+    cols: { yn: ['Cutting required', 'Zip', 'Ruffle', 'Piping dori', 'Filler fabric'].map(ix), fab: ['Fabric', 'Ruffle fabric', 'Piping fabric'].map(ix) } });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
   a.download = `master-database-template-${dToday()}.xlsx`;

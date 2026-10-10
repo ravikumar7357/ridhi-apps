@@ -25,7 +25,7 @@ async function ensurePmdb() {
 function pmdbFilters() {
   const v = id => ($(id) || {}).value || '';
   return { brand: v('ptmBrand'), art: v('ptmArt'), sub: v('ptmSub'), col: v('ptmCol'),
-    sz: v('ptmSz'), cut: v('ptmCut'), q: v('ptmQ').trim().toLowerCase() };
+    sz: v('ptmSz'), cut: v('ptmCut'), maker: v('ptmMaker'), q: v('ptmQ').trim().toLowerCase() };
 }
 
 function pmdbApply(rows, f, skip) {
@@ -38,8 +38,10 @@ function pmdbApply(rows, f, skip) {
     if (skip !== 'sz' && f.sz && !ptCi(r.size, f.sz)) return false;
     if (skip !== 'cut' && f.cut === 'y' && !r.cuttingRequired) return false;
     if (skip !== 'cut' && f.cut === 'n' && r.cuttingRequired) return false;
+    if (skip !== 'maker' && f.maker === 'ridhi' && mdbIsReady(r)) return false;
+    if (skip !== 'maker' && f.maker === 'ready' && !mdbIsReady(r)) return false;
     if (skip !== 'q' && f.q) {
-      const hay = [r.sku, r.articleType, r.subtype, r.color, r.size, r.fabric, r.brand, r.asin, r.parentAsin].join(' ').toLowerCase();
+      const hay = [r.sku, r.articleType, r.subtype, r.color, r.size, r.fabric, r.brand, r.asin, r.parentAsin, r.manufacturer, r.pipingFabric, r.packMaterial].join(' ').toLowerCase();
       if (!hay.includes(f.q)) return false;
     }
     return true;
@@ -178,15 +180,15 @@ async function mdbConsApply() {
  * and are always there.
  */
 const PMDB_TOOLS = {
-  master: ['ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut', 'ptmQ',
+  master: ['ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut', 'ptmMaker', 'ptmQ',
     'ptmNew', 'ptmAsin', 'ptmImgs', 'ptmClear', 'ptmTemplate', 'ptmTplShort', 'ptmImport', 'ptmRename', 'ptmCustFix', 'ptmExport', 'ptmGo'],
   /* A one-off item never amends the real catalogue, so Change SKU — which rewrites a code across
    * every register — is not offered from here. */
-  custom: ['ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut', 'ptmQ',
+  custom: ['ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut', 'ptmMaker', 'ptmQ',
     'ptmNew', 'ptmLookalike', 'ptmImgs', 'ptmClear', 'ptmTemplate', 'ptmTplShort', 'ptmImport', 'ptmExport', 'ptmGo'],
   /* The printer's cloth is grouped by fabric and colour; article and size say nothing about it. */
   fabric: ['ptmBrandFs', 'ptmDir', 'ptmCol', 'ptmQ', 'ptmNew', 'ptmTemplate', 'ptmImport', 'ptmClear', 'ptmExport', 'ptmGo'],
-  cons: ['ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut', 'ptmQ',
+  cons: ['ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut', 'ptmMaker', 'ptmQ',
     'ptmConsApply', 'ptmClear', 'ptmExport', 'ptmGo'],
   /* A recipe has no brand, no colour and no picture. Its key is the three boxes that are left. */
   recipe: ['ptmArt', 'ptmSub', 'ptmSz', 'ptmQ', 'ptmRecSeed', 'ptmRecApply',
@@ -199,7 +201,7 @@ const PMDB_WRITES = ['ptmNew', 'ptmLookalike', 'ptmAsin', 'ptmImport', 'ptmRenam
 /* NAMED OUTRIGHT, not gathered from the lists above. Derived from them, a control dropped from
  * every view fell out of this set and so was never hidden — it stayed wherever the last view left
  * it, which is the very thing this function exists to stop. */
-const PMDB_ALL = ['ptmTplShort', 'ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut', 'ptmQ',
+const PMDB_ALL = ['ptmTplShort', 'ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut', 'ptmMaker', 'ptmQ',
   'ptmBrandFs', 'ptmDir', 'ptmConsApply', 'ptmRecSeed', 'ptmRecApply', 'ptmNew', 'ptmLookalike', 'ptmCustFix', 'ptmAsin', 'ptmImgs',
   'ptmClear', 'ptmTemplate', 'ptmImport', 'ptmRename', 'ptmExport', 'ptmGo'];
 
@@ -261,17 +263,22 @@ function renderPmdb() {
       <div class="metric"><div class="v">${nf(cnt(r => r.isRuffle))}</div><div class="l">Ruffle</div></div>
       ${(n => n ? `<div class="metric" title="Ruffle SKUs whose metres are neither on the SKU nor in its recipe — fill Ruffle metres and fabric in the Recipe for that article · subtype · size"><div class="v" style="color:var(--bad)">${nf(n)}</div><div class="l">Ruffle, no metres</div></div>` : '')(cnt(r => r.isRuffle && !ptRuffleOf(r)))}
       <div class="metric"><div class="v">${nf(cnt(r => r.fillerFabricRequired))}</div><div class="l">Needs filler</div></div>
+      <div class="metric" title="Manufacturer is not Ridhi — bought finished; no cloth, cutting or making details needed"><div class="v">${nf(cnt(mdbIsReady))}</div><div class="l">Ready products</div></div>
       ${(n => `<div class="metric" title="SKUs with no ASIN yet. ASIN from Amazon fills the ones Amazon lists; the rest are not on Amazon."><div class="v"${n ? ' style="color:var(--bad)"' : ''}>${nf(n)}</div><div class="l">No ASIN</div></div>`)(cnt(r => !String(r.asin || '').trim()))}
     </div></div>`;
 
   const yn = v => v ? '<span class="pill pill-ok">Yes</span>' : '<span class="muted">—</span>';
-  const head = '<thead><tr>' + ['SKU', 'Image', 'ASIN', 'Parent ASIN', 'Brand', 'Article', 'Subtype', 'Color', 'Size', 'Fabric', 'Consumption', 'Pack of', 'Cutting', 'Zip', 'Ruffle', 'Piping', 'Filler', 'Edit']
-    .map((h, i) => `<th${i === 0 ? ' class="frz"' : (i === 10 || i === 11 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
+  const head = '<thead><tr>' + ['SKU', 'Image', 'ASIN', 'Parent ASIN', 'Brand', 'Manufacturer', 'Article', 'Subtype', 'Color', 'Size', 'Fabric', 'Consumption', 'Pack of', 'Packing', 'Cutting', 'Zip', 'Ruffle', 'Piping', 'Filler', 'Edit']
+    .map((h, i) => `<th${i === 0 ? ' class="frz"' : (i === 11 || i === 12 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
+  /* Ridhi (or blank) is said plainly; anything else carries the Ready product mark. */
+  const makerCell = r => mdbIsReady(r) ? `${esc(r.manufacturer)}<div><span class="pill pill-low" title="Bought finished — no cloth, cutting or making details needed">Ready product</span></div>`
+    : `${esc(String(r.manufacturer || '').trim() || 'Ridhi')}`;
+  const packCell = r => r.packType || r.packMaterial ? `${esc(r.packType || '')}${r.packMaterial ? `<div class="muted" style="font-size:11px;margin-top:2px">${esc(r.packMaterial)}</div>` : ''}` : '<span class="muted">—</span>';
   const asinCell = v => String(v || '').trim() ? `<td style="font-family:ui-monospace,monospace">${esc(v)}</td>` : '<td><span class="muted">—</span></td>';
   const zipCell = r => !r.isZip ? '<span class="muted">—</span>'
     : `<span class="pill pill-ok">Yes</span><div class="muted" style="font-size:11px;margin-top:2px">${nf(mdbZipQty(r))} × ${esc(r.chainLength == null ? '?' : r.chainLength)}"</div>`;
-  const pipCell = r => !r.isPiping ? '<span class="muted">—</span>'
-    : `<span class="pill pill-ok">Yes</span><div class="muted" style="font-size:11px;margin-top:2px">${r.pipingMeters == null ? '?' : esc(r.pipingMeters)}m dori</div>`;
+  const pipCell = r => !r.isPiping ? (r.pipingFabric ? `<span class="muted">—</span><div class="muted" style="font-size:11px;margin-top:2px">${esc(r.pipingFabric)}</div>` : '<span class="muted">—</span>')
+    : `<span class="pill pill-ok">Yes</span><div class="muted" style="font-size:11px;margin-top:2px">${r.pipingMeters == null ? '?' : esc(r.pipingMeters)}m dori${r.pipingFabric ? ' · ' + esc(r.pipingFabric) : ''}</div>`;
   /* What the cutting issue and the demand will use — the SKU's own figures, else its recipe — and a word
    * saying which, so a figure that is not typed on the SKU is not mistaken for one that is. */
   const rufCell = r => {
@@ -286,10 +293,10 @@ function renderPmdb() {
     + `<td class="frz" style="font-family:ui-monospace,monospace;text-align:left">${esc(r.sku)}</td>`
     + ptImgCell(r.sku, 44)
     + asinCell(r.asin) + asinCell(r.parentAsin)
-    + `<td>${esc(r.brand)}</td><td>${esc(r.articleType)}</td><td>${esc(r.subtype)}</td>`
+    + `<td>${esc(r.brand)}</td><td style="text-align:left">${makerCell(r)}</td><td>${esc(r.articleType)}</td><td>${esc(r.subtype)}</td>`
     + `<td>${esc(r.color)}</td><td>${esc(r.size)}</td><td>${esc(r.fabric)}</td>`
     + `<td class="num">${mdbM2Txt(r.consumption) === '' ? '<span class="muted">—</span>' : esc(mdbM2Txt(r.consumption))}</td>`
-    + `<td class="num">${esc(r.packOf)}</td><td>${yn(r.cuttingRequired)}</td><td>${zipCell(r)}</td>`
+    + `<td class="num">${esc(r.packOf)}</td><td style="text-align:left">${packCell(r)}</td><td>${yn(r.cuttingRequired)}</td><td>${zipCell(r)}</td>`
     + `<td>${rufCell(r)}</td><td>${pipCell(r)}</td><td>${yn(r.fillerFabricRequired)}</td>`
     + `<td>${custom ? '<span class="muted">—</span>'
       : `<button class="ghost" data-mdb-edit="${esc(r.sku)}" style="padding:3px 10px;font-size:12px">Edit</button>`}</td></tr>`).join('');

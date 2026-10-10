@@ -454,7 +454,7 @@ function renderPcutWait(cutRows) {
 
 /* ---------------- wiring ---------------- */
 
-['ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut'].forEach(id => $(id).addEventListener('change', renderPmdb));
+['ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut', 'ptmMaker'].forEach(id => $(id).addEventListener('change', renderPmdb));
 ['pbType', 'pbEmp', 'pbArt', 'pbSub', 'pbCol', 'pbSz', 'pbStatus', 'pbDBy', 'pbD1', 'pbD2'].forEach(id => $(id).addEventListener('change', renderPbase));
 ['pcView', 'pcUse', 'pcArt', 'pcSub', 'pcCol', 'pcSz', 'pcOrd', 'pcD1', 'pcD2'].forEach(id => $(id).addEventListener('change', renderPcut));
 /* The cloth the cut costs follows the pieces and the SKU as they are typed. renderCutFab, NOT
@@ -475,7 +475,7 @@ function ptDebounce(id, fn) {
 }
 ptDebounce('ptmQ', renderPmdb); ptDebounce('pbQ', renderPbase); ptDebounce('pcQ', renderPcut);
 
-$('ptmClear').onclick = () => { ['ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut', 'ptmQ'].forEach(id => $(id).value = ''); renderPmdb(); };
+$('ptmClear').onclick = () => { ['ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut', 'ptmMaker', 'ptmQ'].forEach(id => $(id).value = ''); renderPmdb(); };
 if ($('audGo')) {
   $('audGo').onclick = () => audLoad();
   $('audView').onchange = () => { if ($('audView').value === 'bin' ? !AUD.bin : !AUD.rows) audLoad(); else audRender(); };
@@ -563,7 +563,7 @@ $('ptmExport').onclick = () => {
   const rows = PT._pmdbRows || []; if (!rows.length) return;
   const lines = [['SKU', 'Brand', 'Article', 'Subtype', 'Color', 'Size', 'Fabric', 'Consumption', 'Pack of',
     'Cutting required', 'Zip', 'Zips per piece', 'Zip size', 'Ruffle', 'Ruffle metres', 'Ruffle fabric', 'Piping dori', 'Piping dori metres',
-    'Filler fabric', 'Filling qty', 'Valuation price', 'Image', 'ASIN', 'Parent ASIN'].map(csvCell).join(',')];
+    'Filler fabric', 'Filling qty', 'Valuation price', 'Image', 'ASIN', 'Parent ASIN', 'Manufacturer', 'Piping fabric', 'Packing type', 'Packing material'].map(csvCell).join(',')];
   const b = v => v ? 'Yes' : 'No';
   rows.forEach(r => lines.push([r.sku, r.brand, r.articleType, r.subtype, r.color, r.size, r.fabric,
     mdbM2(r.consumption), r.packOf, b(r.cuttingRequired),
@@ -572,7 +572,7 @@ $('ptmExport').onclick = () => {
     b(r.isPiping), r.isPiping ? r.pipingMeters : '',
     b(r.fillerFabricRequired), r.fillerFabricRequired && r.standardFillingQty != null ? r.standardFillingQty : '',
     r.inventoryValuationPrice == null ? '' : r.inventoryValuationPrice, r.imageUrl || MDBIMG.map[obUC(r.sku)] || '',
-    r.asin || '', r.parentAsin || '']
+    r.asin || '', r.parentAsin || '', r.manufacturer || '', r.pipingFabric || '', r.packType || '', r.packMaterial || '']
     .map(csvCell).join(',')));
   ptDownload('master-database', lines);
 };

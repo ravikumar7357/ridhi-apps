@@ -216,6 +216,7 @@ function mdbFromCsv(row, ix) {
     fillerFabricRequired: yn('filler'), standardFillingQty: g('fillqty'),
     inventoryValuationPrice: g('valprice'), imageUrl: g('image'),
     asin: g('asin'), parentAsin: g('parent'),
+    manufacturer: g('maker'), pipingFabric: g('pipingfab'), packType: g('packtype'), packMaterial: g('packmat'),
   };
 }
 
@@ -243,7 +244,8 @@ function mdbFormOf(r) {
     isPiping: yn(r.isPiping), pipingMeters: s(r.pipingMeters),
     fillerFabricRequired: yn(r.fillerFabricRequired), standardFillingQty: s(r.standardFillingQty),
     inventoryValuationPrice: s(r.inventoryValuationPrice), imageUrl: s(r.imageUrl),
-    asin: s(r.asin), parentAsin: s(r.parentAsin) };
+    asin: s(r.asin), parentAsin: s(r.parentAsin),
+    manufacturer: s(r.manufacturer), pipingFabric: s(r.pipingFabric), packType: s(r.packType), packMaterial: s(r.packMaterial) };
 }
 /** What the file says, over what the SKU already says. */
 function mdbMerge(v, existing) {
@@ -286,6 +288,10 @@ $('ptmFile').onchange = async e => {
       valprice: colIdx(head, ['valuation price', 'inventory valuation price']),
       image: colIdx(head, ['image', 'image url', 'picture']),
       asin: colIdx(head, ['asin', 'child asin']), parent: colIdx(head, ['parent asin', 'parentasin', 'parent']),
+      maker: colIdx(head, ['manufacturer', 'manufacturer name', 'maker']),
+      pipingfab: colIdx(head, ['piping fabric']),
+      packtype: colIdx(head, ['packing type', 'packing', 'pack type']),
+      packmat: colIdx(head, ['packing material', 'polythene / box used', 'polythene', 'box', 'packing item']),
     };
     if (ix.sku < 0) {
       $('ptmMsg').className = 'err';
