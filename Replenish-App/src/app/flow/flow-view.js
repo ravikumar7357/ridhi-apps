@@ -107,8 +107,8 @@ function flowTable(view, rows) {
       const pk = x.s.route === 'stitch' ? '' : (flowPlanPrinter(x.s) || '?'), gk = x.r.orderNo + '|' + pk;
       const first = pk && !seen.has(gk); seen.add(gk);
       return `<tr${c.short ? ' style="background:#fef2f2"' : ''}>${base(x)}
-        <td style="text-align:left;font-size:12px">${x.s.route === 'stitch' ? 'Stitching only' : `Print: <b>${esc((p.printer && p.printer.name) || '—')}</b><div style="font-size:11px;color:#4338ca">${flowPrintTxt(flowPrintWhat(x.r, p))}</div>`}</td>
-        <td style="text-align:left;font-size:12px">${p.fabric ? `<b>${esc(p.fabric.name)}</b> · ${nf(c.need)} m` : '—'}</td>
+        <td style="text-align:left;font-size:12px">${x.s.route === 'stitch' ? 'Stitching only' : `Print: <b>${esc((p.printer && p.printer.name) || '—')}</b><div style="font-size:11px;color:#4338ca">${flowPrintTxt(flowPrintWhat(x.r, p))}</div>${flowExtrasTxt(flowPrintExtras(x.r, p))}`}</td>
+        <td style="text-align:left;font-size:12px">${p.fabric ? `<b>${esc(p.fabric.name)}</b> · ${nf(c.need)} m` : '—'}${flowMasterDiffTxt(flowMasterDiff(x.r, p))}</td>
         <td style="text-align:left;font-size:12px">${c.short ? `<span class="jw-st" style="background:#fee2e2;color:#b91c1c;font-weight:700">⚑ SHORT ${nf(c.short)} m</span> <span class="muted">${nf(c.avail)} m left</span>`
           : `<span class="jw-st done">covered</span> <span class="muted">${nf(c.avail)} m left</span>`}</td>
         <td style="white-space:nowrap">${first ? `<button data-flch="${esc(x.r.orderNo)}" data-pc="${esc(pk)}" style="width:auto;padding:3px 10px;font-size:12px">${pk === '?' ? 'Challan (printer not chosen)' : 'Challan → ' + esc((p.printer && p.printer.name) || pk)}</button> ` : ''}<button class="ghost" data-flfab="${esc(x.s.key)}" style="width:auto;padding:2px 9px;font-size:11.5px">Mark fabric ready</button></td></tr>`; }).join('');

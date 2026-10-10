@@ -50,6 +50,17 @@ function flowSuggest(r) {
   return { orderNo: r.orderNo, sku: obUC(r.sku), qty, route: need ? 'inhouse' : 'stitch', outVendor: '', printer, fabric, acc, extra, print: { need, as },
     dates: { cut: flowAddDays(t, 3), qc: flowAddDays(t, 7), ready: ptIsoDate(r.mtoDue) || flowAddDays(t, 10) }, note: '', gaps };
 }
+/* A SAVED PLAN THAT NO LONGER MATCHES THE MASTER ROW (Ravi, 10 Oct: "it is only showing Sheeting 82 — is it canvas or
+ * what?"). Plans saved before the fabric came from the master row keep what they were saved with; that is never
+ * hidden — the master row's fabric and m/pc are shown beside it, in red, with a way to take them. */
+function flowMasterDiff(r, p) {
+  const m = cutSkuOf(r.sku) || {}, mf = String(m.fabric || '').trim(), mc = +m.consumption || 0;
+  if (!p || !p.fabric || flowRouteOf(p) === 'outsource' || !mf) return null;
+  const nameOff = flowFabKey(p.fabric.name) !== flowFabKey(mf), perOff = mc > 0 && Math.abs((+p.fabric.perPc || 0) - mc) > 0.005;
+  return nameOff || perOff ? { name: mf, perPc: mc, metres: flowR2(mc * (+r.qty || 0)) } : null;
+}
+const flowMasterDiffTxt = d => d ? `<div style="font-size:11px;color:#b91c1c;font-weight:600">⚑ master data says ${esc(d.name)}${d.perPc ? ` · ${nf(d.perPc)} m/pc → ${nf(d.metres)} m` : ''}</div>` : '';
+
 /** The print direction offered for a line: the directions its fabric is made in (none for Canvas / Cambric). */
 function flowDirOpts(r, p) {
   const m = cutSkuOf(r.sku) || {}, fab = String((p.fabric && p.fabric.name) || m.fabric || '').trim();
@@ -107,11 +118,13 @@ function flowPpcOpen(orderNo, onlySku) {
           <div class="muted" style="font-size:11.5px">${esc([r.articleSubtype || r.articleType, r.color, r.size].filter(Boolean).join(' · '))}</div></div></div>
       <div style="display:grid;grid-template-columns:120px 1fr;gap:6px 10px;margin-top:8px;font-size:12.5px;align-items:center">
         <span class="muted">Fabric</span><span>${f(i, 'fabric.name', p.fabric.name)} ${f(i, 'fabric.perPc', p.fabric.perPc, 'number')} m/pc → <b data-fm="${i}">${nf(p.fabric.metres)}</b> m
-          <span class="muted" style="font-size:11px">${esc(p.fabric.how || 'not known — type it')}</span><br><span data-fstk="${i}"></span></span>
+          <span class="muted" style="font-size:11px">${esc(p.fabric.how || 'not known — type it')}</span>
+          ${(() => { const d = flowMasterDiff(r, p); return d ? flowMasterDiffTxt(d).replace('</div>', ` <button type="button" class="ghost" data-usem="${i}" data-n="${esc(d.name)}" data-p="${d.perPc}" style="width:auto;padding:1px 8px;font-size:11px">Use the master data</button></div>`) : ''; })()}
+          <br><span data-fstk="${i}"></span></span>
         <span class="muted">How it is made</span><span><select data-fp="${i}" data-k="route" style="width:auto;padding:3px 6px;font-size:12px">${FLOW_ROUTES.map(([k, l]) => `<option value="${k}"${flowRouteOf(p) === k ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>
           ${p.print.as ? `<span class="muted" style="font-size:11px"> · print rule: given as ${esc(p.print.as)}</span>` : ''}
           ${(() => { const d = flowDirOpts(r, p); return d.dirs.length > 1 ? ` <select data-fp="${i}" data-k="print.dir" style="width:auto;padding:3px 6px;font-size:12px"><option value="">— print direction —</option>${d.dirs.map(x => `<option${x === d.cur ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select>` : ''; })()}
-          <div style="font-size:11px;color:#4338ca">Printer gets: ${(() => { const w = flowPrintWhat(r, Object.assign({}, p, { print: Object.assign({}, p.print, { dir: flowDirOpts(r, p).cur }) })); return esc(w.mode) + ' — ' + flowPrintTxt(w); })()}</div></span>
+          <div style="font-size:11px;color:#4338ca">Printer gets: ${(() => { const w = flowPrintWhat(r, Object.assign({}, p, { print: Object.assign({}, p.print, { dir: flowDirOpts(r, p).cur }) })); return esc(w.mode) + ' — ' + flowPrintTxt(w); })()}</div>${flowExtrasTxt(flowPrintExtras(r, Object.assign({}, p, { print: Object.assign({}, p.print, { dir: flowDirOpts(r, p).cur }) })))}</span>
         <span class="muted">Printer</span><span><select data-fp="${i}" data-k="printer.code" style="width:auto;padding:3px 6px;font-size:12px"><option value="">— PPC decides —</option>${flowPrinterOpts((p.printer || {}).code)}</select>
           <span class="muted" style="font-size:11px">${esc((p.printer || {}).why || '')} · only for a printed line</span></span>
         <span class="muted">Outsource vendor</span><span>${f(i, 'outVendor', p.outVendor || '')} <span class="muted" style="font-size:11px">only for an outsourced line — no fabric or accessories are raised for it</span></span>
@@ -176,6 +189,11 @@ function flowPpcOpen(orderNo, onlySku) {
     },
   });
   if (locked) ['fabric.name', 'fabric.perPc', 'route', 'printer.code'].forEach(k => { const el = document.querySelector(`[data-fp="0"][data-k="${k}"]`); if (el) el.disabled = true; });
+  /* "Use the master data": the master row's fabric and m/pc into the boxes (not saved until the plan is). */
+  document.querySelectorAll('[data-usem]').forEach(b => { if (locked) { b.remove(); return; } b.onclick = () => {
+    const i = b.dataset.usem, n = document.querySelector(`[data-fp="${i}"][data-k="fabric.name"]`), pc = document.querySelector(`[data-fp="${i}"][data-k="fabric.perPc"]`);
+    if (n) n.value = b.dataset.n; if (pc && +b.dataset.p) pc.value = b.dataset.p;
+    if (pc) pc.dispatchEvent(new Event('input')); b.parentNode.textContent = 'master data taken — save the plan'; }; });
   /* THE STOCK LINES: worked out again whenever a quantity, a fabric or the route changes, in the form's own order. */
   const com = flowCommitted(rows.map(x => x.s.key), flowIsTest(orderNo));
   let shelf = {}; try { (accBalances() || []).forEach(b => { shelf[accCode(b.code)] = +b.qty || 0; }); } catch (e) { shelf = {}; }

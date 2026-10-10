@@ -36,6 +36,20 @@ function flowPrintWhat(r, plan) {
   let code = ''; try { code = ordFabSkuOf(fab, colour, dir, cc) || ''; } catch (e) { code = ''; }
   return { kind: 'fabric', code, mode, label: [colour, fab, dir].filter(Boolean).join(' · '), unit: 'm' };
 }
+/* THE RUFFLE CLOTH IS PRINTED TOO (Ravi, 10 Oct, the 327 catalogue: Cambric → LSB). A ruffle SKU's ruffle cloth (the
+ * plan's "Ruffle — <fabric>", from the master row / recipe / ruffle rule) goes to the same printer as the body: its
+ * printed fabric SKU, in metres. Only for a printed line. */
+function flowPrintExtras(r, plan) {
+  if (!plan || flowRouteOf(plan) !== 'inhouse') return [];
+  const m = cutSkuOf(r.sku) || {}, colour = String(m.color || r.color || '').trim(), cc = ordColCodeOf(r.sku);
+  return (plan.extra || []).filter(x => x.unit === 'm' && /^Ruffle — /.test(String(x.what || '')) && +x.qty > 0).map(x => {
+    const fab = String(x.what).replace(/^Ruffle — /, '').trim(), dirs = flowFabDirs(fab, colour, cc);
+    const dir = dirs.length === 1 ? dirs[0] : ((plan.print && plan.print.dir) || '');
+    let code = ''; if (dir || !dirs.length) { try { code = ordFabSkuOf(fab, colour, dir, cc) || ''; } catch (e) { code = ''; } }
+    return { kind: 'fabric', code, mode: 'Ruffle cloth', label: [colour, fab, dir].filter(Boolean).join(' · '), unit: 'm', metres: flowR2(+x.qty), what: 'ruffle' };
+  });
+}
+const flowExtrasTxt = xs => xs.map(w => `<div style="font-size:11px;color:#4338ca">+ Ruffle: ${w.code ? `<b>${esc(w.code)}</b>` : '<b style="color:#b91c1c">no fabric SKU in the catalogue</b>'} · ${esc(w.label)} · ${nf(w.metres)} m</div>`).join('');
 /** The directions the fabric catalogue makes this fabric + colour (+ code) in. */
 function flowFabDirs(fab, colour, cc) {
   let hits = []; try { hits = ordFabHits(fab, colour, '', cc); } catch (e) { hits = []; }
@@ -78,7 +92,7 @@ function flowChallanOpen(orderNo, pcode) {
   const lineHtml = rows.map((x, i) => { const p = x.s.plan || {}, c = cv.line[x.s.key] || {};
     return `<tr><td><input type="checkbox" data-chk="${i}" checked style="width:auto"></td>
       <td style="text-align:left"><b style="font-family:ui-monospace,monospace">${esc(obUC(x.r.sku))}</b><div class="muted" style="font-size:10.5px">${esc(flowChItem(x.r))}</div>
-        <div style="font-size:11px;color:#4338ca">Print: ${flowPrintTxt(flowPrintWhat(x.r, p))}</div></td>
+        <div style="font-size:11px;color:#4338ca">Print: ${flowPrintTxt(flowPrintWhat(x.r, p))}</div>${flowExtrasTxt(flowPrintExtras(x.r, p))}</td>
       <td style="text-align:left">${esc((p.fabric && p.fabric.name) || '—')}</td>
       <td class="num">${nf(x.r.qty)}</td>
       <td class="num"><input data-chm="${i}" type="number" step="0.01" value="${esc((p.fabric && p.fabric.metres) || '')}" style="width:90px;padding:3px 6px;font-size:12px"></td>
@@ -105,7 +119,7 @@ function flowChallanOpen(orderNo, pcode) {
       if (noM.length) return `How many metres? Type them for ${noM.join(', ')}.`;
       const no = flowChallanNo(date, flowIsTest(orderNo)), now = new Date().toISOString(), vname = v.desc || v.name || v.code;
       const ch = { no, date, orderNo, vendor: { code: v.code, name: vname }, note: $('flcNote').value.trim(), at: now, by: ME.email || '',
-        lines: picked.map(({ x, m }) => ({ key: x.s.key, sku: obUC(x.r.sku), item: flowChItem(x.r), print: flowPrintWhat(x.r, x.s.plan), fabric: (x.s.plan && x.s.plan.fabric && x.s.plan.fabric.name) || '', pcs: +x.r.qty || 0, metres: flowR2(m) })) };
+        lines: picked.map(({ x, m }) => ({ key: x.s.key, sku: obUC(x.r.sku), item: flowChItem(x.r), print: flowPrintWhat(x.r, x.s.plan), extras: flowPrintExtras(x.r, x.s.plan), fabric: (x.s.plan && x.s.plan.fabric && x.s.plan.fabric.name) || '', pcs: +x.r.qty || 0, metres: flowR2(m) })) };
       const patch = { ['pt_flowChallans/' + no]: ch };
       /* A line PPC left without a printer: the one it went to is now its printer. */
       const setP = picked.filter(y => !flowPlanPrinter(y.x.s)).map(y => y.x.s.key);
@@ -151,7 +165,7 @@ function flowChallanHtml(ch) {
     + `<table style="width:100%;border-collapse:collapse"><tr style="background:#f0f0f0">`
     + ['#', 'SKU', 'Item', 'Print', 'Fabric (RFD)', 'Pieces to make', 'Metres'].map(h => `<th style="${cell};text-align:left">${h}</th>`).join('') + '</tr>'
     + (ch.lines || []).map((l, i) => `<tr><td style="${cell};text-align:center">${i + 1}</td><td style="${cell}">${e(l.sku)}</td><td style="${cell}">${e(l.item)}</td>`
-      + `<td style="${cell}">${e((l.print && l.print.code) || '—')}</td>`
+      + `<td style="${cell}">${e((l.print && l.print.code) || '—')}${(l.extras || []).map(x => `<br>+ ruffle ${e(x.code || '?')} · ${e(nf(x.metres))} m`).join('')}</td>`
       + `<td style="${cell}">${e(l.fabric)}</td><td style="${cell};text-align:right">${e(nf(l.pcs))}</td><td style="${cell};text-align:right">${e(nf(l.metres))}</td></tr>`).join('')
     + `<tr><td style="${cell}" colspan="5"><b>Total</b></td><td style="${cell};text-align:right"><b>${e(nf(tp))}</b></td><td style="${cell};text-align:right"><b>${e(nf(tm))}</b></td></tr></table>`
     + (ch.note ? `<div style="margin-top:10px;font-size:11px"><b>Note:</b> ${e(ch.note)}</div>` : '')
@@ -165,7 +179,11 @@ function flowChPrintGroups(ch) {
   (ch.lines || []).forEach(l => { const w = l.print || { kind: 'fabric', code: '', label: l.fabric, mode: 'Running fabric' };
     const k = w.kind + '|' + (w.code || '?' + w.label);
     const e = g.get(k) || { kind: w.kind, code: w.code, label: w.label, mode: w.mode, metres: 0, pcs: 0 };
-    e.metres += +l.metres || 0; e.pcs += +l.pcs || 0; g.set(k, e); });
+    e.metres += +l.metres || 0; e.pcs += +l.pcs || 0; g.set(k, e);
+    /* The ruffle cloth: its own printed fabric SKU, its own metres. */
+    (l.extras || []).forEach(x => { const xk = 'fabric|' + (x.code || '?' + x.label);
+      const xe = g.get(xk) || { kind: 'fabric', code: x.code, label: x.label, mode: x.mode, metres: 0, pcs: 0 };
+      xe.metres += +x.metres || 0; g.set(xk, xe); }); });
   return [...g.values()];
 }
 function flowChallanPrint(no) {

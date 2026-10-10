@@ -41,7 +41,7 @@ function load(opts) {
     ptPrintIssueAs: m => (m && m.issueAs) || '', ordColCodeOf: sku => (String(sku || '').toUpperCase().match(/^[A-Z]+(\d{1,5})/) || ['', ''])[1],
     FAB: { rows: opts.fabRows || [] }, fabAll: () => opts.fabRows || [], ptList: x => x || [], fabAutoLoad: async () => {}, fabStockOf: (name, st) => (st === 'RFD' ? (opts.rfd || {})[String(name).toUpperCase()] || 0 : 0),
   };
-  const api = new Function(...Object.keys(ctx), SRC + '\n;return { FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowReceiveOpen, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowPrintWhat, flowChPrintGroups, flowUnplan, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v} };')(...Object.values(ctx));
+  const api = new Function(...Object.keys(ctx), SRC + '\n;return { FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowReceiveOpen, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowUnplan, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v} };')(...Object.values(ctx));
   api.setFLOW(Object.assign(api.FLOW(), { ppc: opts.ppc || {}, dem: opts.dem || {}, res: opts.res || {} }));
   return Object.assign(api, { els, writes, W, ctx });
 }
@@ -359,6 +359,62 @@ const K = 'AMZ-1__S1';
     ok('the challan keeps it per line, and "To print" has one row each: RBP-CANVAS-327 5.3 m, RBPSF327-V-82 10.4 + 2 = 12.4 m (two lines, one cloth), RTME-327 1 pcs', !er && gs.length === 3
       && gs.find(g => g.code === 'RBP-CANVAS-327').metres === 5.3 && Math.abs(gs.find(g => g.code === 'RBPSF327-V-82').metres - 12.4) < 1e-9 && gs.find(g => g.kind === 'sku').pcs === 1, er);
     ok('the printed challan says so', /To print/.test(A.ctx.__win[0] || '') && /RBP-CANVAS-327/.test(A.ctx.__win[0] || '') && /12\.4 m/.test(A.ctx.__win[0] || ''));
+  }
+
+  console.log('== the ruffle cloth is printed too: RPCRU327-1818 → 16 m Cambric = LSB ==');
+  {
+    const mdb = { 'RPCRU327-1818': { color: 'Light Steel Blue', fabric: 'Sheeting 82', consumption: 0.26, cuttingRequired: true },
+      'RPC327-1818': { color: 'Light Steel Blue', fabric: 'Canvas', consumption: 0.53, cuttingRequired: true } };
+    const fsku = { 'Cambric|Light Steel Blue|Vertical|327': 'LSB', 'Canvas|Light Steel Blue|Vertical|327': 'RBP-CANVAS-327',
+      'Sheeting 82|Light Steel Blue|Vertical|327': 'RBPSF327-V-82', 'Sheeting 82|Light Steel Blue|Horizontal|327': 'RBPSF327-H-82' };
+    const pr = { code: 'P1', name: 'Sanganer Prints' };
+    const ru = plan({ sku: 'RPCRU327-1818', qty: 40, printer: pr, route: 'inhouse', fabric: { name: 'Sheeting 82', perPc: 0.26, metres: 10.4 }, print: { need: true, dir: 'Horizontal' }, extra: [{ what: 'Ruffle — Cambric', qty: 16, unit: 'm' }] });
+    const pc = plan({ sku: 'RPC327-1818', qty: 10, printer: pr, route: 'inhouse', fabric: { name: 'Canvas', perPc: 0.53, metres: 5.3 }, print: { need: true } });
+    A = load({ me: { admin: true }, mdb, fsku, rfd: { 'SHEETING 82': 99, CANVAS: 99 }, lines: [L({ sku: 'RPCRU327-1818', qty: 40 }), L({ sku: 'RPC327-1818', qty: 10 })],
+      ppc: { 'AMZ-1__RPCRU327-1818': ru, 'AMZ-1__RPC327-1818': pc } });
+    let xs = A.flowPrintExtras(L({ sku: 'RPCRU327-1818' }), ru);
+    ok('the ruffle Cambric → LSB, 16 m, Vertical (Cambric is made one way, whatever the body\u2019s direction)', xs.length === 1 && xs[0].code === 'LSB' && xs[0].metres === 16 && /Cambric · Vertical/.test(xs[0].label));
+    ok('a SKU with no ruffle has none (RPC327-1818, piping flap)', A.flowPrintExtras(L({ sku: 'RPC327-1818' }), pc).length === 0);
+    ok('a line not printed here has none', A.flowPrintExtras(L({ sku: 'RPCRU327-1818' }), Object.assign({}, ru, { route: 'stitch' })).length === 0);
+    A.setView('drfd'); A.renderFlow();
+    ok('Made as shows both: RBPSF327-H-82 and "+ Ruffle: LSB … 16 m"', /RBPSF327-H-82/.test(A.els.flTable.innerHTML) && /\+ Ruffle: <b>LSB<\/b> · Light Steel Blue · Cambric · Vertical · 16 m/.test(A.els.flTable.innerHTML));
+    A.flowChallanOpen('AMZ-1', 'P1');
+    ok('the challan form too', /\+ Ruffle: <b>LSB/.test(A.ctx.__dlg.html));
+    const q = { '[data-chk="0"]': { checked: true }, '[data-chm="0"]': { value: '10.4' }, '[data-chk="1"]': { checked: true }, '[data-chm="1"]': { value: '5.3' } };
+    A.ctx.document.querySelector = sel => q[sel] || null;
+    A.els.flcVen = { value: 'P1' }; A.els.flcDate = { value: '2026-10-10' }; A.els.flcNote = { value: '' }; A.ctx.__win = [];
+    const er = await A.ctx.__dlg.onSave();
+    const gs = A.flowChPrintGroups(A.FLOW().ch['RFD-202610-001']);
+    ok('"To print": RBPSF327-H-82 10.4 m, RBP-CANVAS-327 5.3 m, LSB 16 m', !er && gs.length === 3 && gs.find(g => g.code === 'LSB').metres === 16 && gs.find(g => g.code === 'RBPSF327-H-82').metres === 10.4 && gs.find(g => g.code === 'RBP-CANVAS-327').metres === 5.3, er);
+    ok('…and on the printed challan', /LSB/.test(A.ctx.__win[0] || '') && /16 m/.test(A.ctx.__win[0] || '') && /\+ ruffle LSB/.test(A.ctx.__win[0] || ''));
+  }
+
+  console.log('== a plan saved before the master-data fix is flagged, not hidden ==');
+  {
+    const mdb = { 'RPC327-1818': { color: 'Light Steel Blue', fabric: 'Canvas', consumption: 0.53, cuttingRequired: true },
+      'RTC327-6060': { color: 'Light Steel Blue', fabric: 'Sheeting 62', consumption: 1.58, cuttingRequired: false } };
+    const old = { 'AMZ-1__RPC327-1818': plan({ sku: 'RPC327-1818', qty: 10, fabric: { name: 'Sheeting 82', perPc: 0.13, metres: 1.3 } }),
+      'AMZ-1__RTC327-6060': plan({ sku: 'RTC327-6060', qty: 10, fabric: { name: 'Sheeting 62', perPc: 1.58, metres: 15.8 } }) };
+    A = load({ me: { admin: true }, mdb, rfd: { 'SHEETING 82': 99, 'SHEETING 62': 99 }, lines: [L({ sku: 'RPC327-1818', qty: 10 }), L({ sku: 'RTC327-6060', qty: 10 })], ppc: old });
+    A.setView('drfd'); A.renderFlow();
+    const h = A.els.flTable.innerHTML;
+    ok('Ravi\u2019s old RPC327-1818 plan (Sheeting 82, 1.3 m) shows "⚑ master data says Canvas · 0.53 m/pc → 5.3 m"', /master data says Canvas · 0\.53 m\/pc → 5\.3 m/.test(h));
+    ok('a plan that matches the master row has no flag', (h.match(/master data says/g) || []).length === 1);
+    ok('right fabric, wrong m/pc is flagged too (RTME-327: Canvas 0.22 saved, master 0.25)', !!(load({ mdb: { 'RTME-327': { fabric: 'Canvas', consumption: 0.25 } } }).flowMasterDiff(L({ sku: 'RTME-327', qty: 1 }), plan({ fabric: { name: 'Canvas', perPc: 0.22 } }))));
+    A.flowPpcOpen('AMZ-1', 'RPC327-1818');
+    ok('edit plan shows it too, with "Use the master data"', /master data says Canvas/.test(A.ctx.__dlg.html) && /data-usem="0" data-n="Canvas" data-p="0.53"/.test(A.ctx.__dlg.html));
+    const nameBox = { value: 'Sheeting 82', dataset: { fp: '0', k: 'fabric.name' }, type: 'text', addEventListener() {} };
+    const perBox = { value: '0.13', dataset: { fp: '0', k: 'fabric.perPc' }, type: 'number', addEventListener() {}, dispatchEvent() {} };
+    const btn = { dataset: { usem: '0', n: 'Canvas', p: '0.53' }, parentNode: { textContent: '' }, remove() {} };
+    A.ctx.document.querySelectorAll = sel => (sel === '[data-usem]' ? [btn] : [nameBox, perBox]);
+    A.ctx.document.querySelector = sel => (sel === '[data-fp="0"][data-k="fabric.name"]' ? nameBox : sel === '[data-fp="0"][data-k="fabric.perPc"]' ? perBox : null);
+    A.flowPpcOpen('AMZ-1', 'RPC327-1818');
+    btn.onclick();
+    ok('pressing it puts Canvas and 0.53 in the boxes', nameBox.value === 'Canvas' && perBox.value === '0.53');
+    A.els.flpUndo = { checked: false };
+    const er = await A.ctx.__dlg.onSave();
+    const w = A.writes[0]['pt_ppc/AMZ-1__RPC327-1818'];
+    ok('…and saving makes the plan Canvas · 5.3 m — the flag is gone', !er && w.fabric.name === 'Canvas' && w.fabric.metres === 5.3 && !A.flowMasterDiff(L({ sku: 'RPC327-1818', qty: 10 }), w), er);
   }
 
   console.log('== putting a mistake right ==');
