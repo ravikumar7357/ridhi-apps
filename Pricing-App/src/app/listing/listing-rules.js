@@ -83,7 +83,7 @@ const LR_DEFAULT = {
     { id: 'style_attr', name: 'Style attribute questionable', sev: 'review', area: 'Title', detector: 'title_contains', params: { words: 'Rustic' }, desc: '“Rustic” when CPC primarily calls it Cottagecore' },
     { id: 'img_low', name: 'Low image count but minimum met', sev: 'review', area: 'Images', detector: 'images_between', params: { min: 6, max: 7 }, desc: '6 images when ideal is 8' },
     { id: 'no_video', name: 'No video', sev: 'review', area: 'Images', detector: 'manual', desc: 'Video recommended but not mandatory' },
-    { id: 'title_opt', name: 'Title slightly under-optimized', sev: 'review', area: 'Title', detector: 'title_length', params: { min: 80, max: 200 }, desc: 'Correct and compliant but could contain better terminology' },
+    { id: 'title_opt', name: 'Title slightly under-optimized', sev: 'review', area: 'Title', detector: 'title_length', params: { min: 60, max: 75 }, desc: 'Outside 60–75 characters. Amazon asks for 75 or less to use Item Highlights (from 27 Jul 2026); under 60 usually leaves useful words out.' },
     { id: 'bullet_short', name: 'Bullet unusually short', sev: 'review', area: 'Content', detector: 'manual', desc: 'Technically complete but weaker than CPC standard' },
     { id: 'desc_weak', name: 'Description weak', sev: 'review', area: 'Content', detector: 'desc_below', params: { n: 200 }, desc: 'Exists but could improve' },
     { id: 'attr_optional', name: 'Optional attribute missing', sev: 'review', area: 'Content', detector: 'manual', desc: 'Non-essential field' },
