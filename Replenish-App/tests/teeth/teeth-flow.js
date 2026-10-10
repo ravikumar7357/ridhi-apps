@@ -103,6 +103,11 @@ const breaks = {
     'a blocked pop-up is swallowed': s => s.replace("if (!w || !w.document) return 'The browser blocked", "if (!w || !w.document) return ''; if (0) return 'The browser blocked"),
   },
   'flow-test-order.js': {
+    'test cutting without a fabric': s => s.replace("if (!fab) return 'Which fabric was it cut from?';", ''),
+    'test waste without its width': s => s.replace("if (waste > 0 && !(ww > 0)) return", 'if (false) return'),
+    'test issue to anyone': s => s.replace("if (known.length && !known.includes(k.toLowerCase())) return", 'if (false) return'),
+    'test QC that does not add up': s => s.replace("if (ok + alt + rej !== c) return", 'if (false) return'),
+    'test receive more than is out': s => s.replace("if (got + rej > out) return", 'if (false) return'),
     'switch on with no test order': s => s.replace('return Object.keys(FLOW.test || {}).length > 0;', 'return true;'),
     'a test order with a SKU not in the master': s => s.replace("if (!cutSkuOf(sku)) { bad.push", "if (false) { bad.push"),
     'Simulate does not move the line': s => s.replace('const nt = Object.assign({}, t, set);', 'const nt = t;'),

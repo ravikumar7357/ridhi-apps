@@ -99,6 +99,14 @@ function flowCutFrom(x) {
   return `${w.kind === 'sku' ? `<b>${esc(w.code)}</b> printed pieces` : flowPrintTxt(w)}<div class="muted" style="font-size:10.5px">${w.kind === 'sku' ? nf(x.r.qty) + ' pcs' : nf(m) + ' m'} for ${nf(x.r.qty)} pcs`
     + (x.s.fromStock ? ' · <b style="color:#166534">all from printed stock in the store</b>' : fp > 0 ? ` · ${nf(fp)} ${p.fabric.printedUnit === 'pcs' ? 'pcs' : 'm'} from printed stock, the rest from the printer` : ' · from the printer') + '</div>';
 }
+/** A test line asks what the factory's forms ask, and keeps it on the test order (flow-test-order.js). */
+function flowTestEntryButtons(view, x) {
+  const b = (what, label, main) => `<button data-flte="${what}|${esc(x.r.orderNo)}|${esc(obUC(x.r.sku))}" style="width:auto;padding:3px 10px;font-size:12px;margin:1px;background:${main ? '#7c3aed' : 'transparent'};border-color:#7c3aed;color:${main ? '#fff' : '#7c3aed'}">${label}</button>`;
+  const btns = view === 'cut' ? b('cut', 'Cutting entry (test) →', true) : view === 'raw' ? b('issue', 'Issue to karigar (test) →', true)
+    : (x.s.issued > x.s.received ? b('recv', 'Receive (test) →', true) : '') + (x.s.received > (+(x.r.__t || {}).qcChecked || 0) ? b('qc', 'QC check (test) →', x.s.issued <= x.s.received) : '');
+  const note = flowTestNote(x, view);
+  return btns + (note ? `<div class="muted" style="font-size:10.5px;margin-top:3px">${note}</div>` : '');
+}
 /** The factory's own entry, opened for the line (flow-entries.js) — what the bucket is waiting for. */
 function flowEntryButtons(view, x) {
   const b = (what, label, main) => `<button ${main ? '' : 'class="ghost" '}data-flent="${what}|${esc(x.s.key)}" style="width:auto;padding:${main ? '3px 10px;font-size:12px' : '2px 9px;font-size:11.5px'};margin:1px">${label}</button>`;
@@ -123,6 +131,7 @@ function flowTable(view, rows) {
   /* A test line has no register entry to make: its button stands in for that entry. */
   const go = (view, x) => x && x.s.challan && view === 'fabric' && !x.s.challan.closed
       ? `<button data-flchr="${esc(x.s.challan.no)}" style="width:auto;padding:3px 10px;font-size:12px">Receive on ${esc(x.s.challan.no)}</button>`
+    : x && x.r.__t && ['cut', 'raw', 'wip'].includes(view) ? flowTestEntryButtons(view, x)
     : x && x.r.__t && FLOW_SIM[view] ? `<button data-flsim="${esc(x.r.orderNo)}|${esc(x.r.sku)}|${view}" title="Stands in for: ${esc(FLOW_SIM[view][1])}" style="width:auto;padding:3px 10px;font-size:12px;background:#7c3aed;border-color:#7c3aed">${esc(FLOW_SIM[view][0])}</button>`
     : x && !x.r.__t && ['cut', 'raw', 'wip'].includes(view) ? flowEntryButtons(view, x)
     : FLOW_GO[view] ? `<button class="ghost" data-flgo="${FLOW_GO[view][0]}" style="width:auto;padding:2px 9px;font-size:11.5px">${FLOW_GO[view][1]} →</button>` : '';
@@ -235,6 +244,10 @@ $('flTable').addEventListener('click', async e => {
     $('flMsg').className = er ? 'err' : 'muted'; if (er) $('flMsg').textContent = er; else renderFlow(); return; }
   const cs = e.target.closest('[data-flchc]'); if (cs) { flowCloseShortOpen(cs.dataset.flchc); return; }
   const ch = e.target.closest('[data-flch]'); if (ch) { flowChallanOpen(ch.dataset.flch, ch.dataset.pc); return; }
+  const te = e.target.closest('[data-flte]');
+  if (te) { const [what, no, sku] = te.dataset.flte.split('|');
+    if (what === 'cut') flowTestCutOpen(no, sku); else if (what === 'issue') flowTestIssueOpen(no, sku); else if (what === 'recv') flowTestRecvOpen(no, sku); else if (what === 'qc') flowTestQcOpen(no, sku);
+    return; }
   const en = e.target.closest('[data-flent]');
   if (en) { const [what, key] = en.dataset.flent.split('|'), x = flowRows().find(y => y.s.key === key); if (!x) return;
     if (what === 'cut') flowCutEntry(x.r, x.s); else if (what === 'issue') flowIssueEntry(x.r, x.s); else if (what === 'recv') flowRecvEntry(x.r); else if (what === 'qc') flowQcEntry(x.r, x.s);

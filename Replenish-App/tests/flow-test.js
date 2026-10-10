@@ -35,7 +35,10 @@ function load(opts) {
     ptLoadGates: async () => {},
     showTab: t => { (ctx.__tabs = ctx.__tabs || []).push(t); }, ensureCutForm: async () => {}, cutSkuTyped: () => {}, renderCutForm: () => {}, renderCutFab: () => {},
     ensureBdForm: async () => {}, bdSkuTyped: () => {}, renderBdForm: () => {}, bdMatFill: () => {}, qcSkuTyped: () => {}, renderQcCheckForm: () => {},
-    jwRecvOpen: id => { ctx.__recv = id; }, ptDlgClose: () => {}, PT: { base: opts.base || [] }, ORD_IX: {}, palKey: (b, c) => (b || '') + '|' + c, palInfoOf: k => (opts.pal || {})[k] || {}, VO: { rows: opts.vo || [] }, voLines: o => (Array.isArray(o.lines) ? o.lines : Object.values(o.lines || {})), voNewOrderNo: (() => { let n = 0; return () => 'VPO-261010-T' + (++n); })(), voTodayDMY: () => '10/10/2026', ordCutReq: sku => !/NOCUT/.test(sku), confirm: q => { (ctx.__asked = ctx.__asked || []).push(q); return !opts.confirmNo; }, PTG: { mdb: [] }, setTimeout, clearTimeout,
+    jwRecvOpen: id => { ctx.__recv = id; },
+    ptLoadEmp: async () => {}, ptEmpTypes: () => ['Company Contractor', 'External Contractor'],
+    ptEmpsOfType: t => ({ 'Company Contractor': [['Company Contractor', 'Ramesh'], ['Company Contractor', 'Suresh']], 'External Contractor': [['External Contractor', 'Pradeep']] })[t] || [],
+    cutFabrics: () => ['Canvas', 'Cotton', 'Sheeting 82'], ptDlgClose: () => {}, PT: { base: opts.base || [] }, ORD_IX: {}, palKey: (b, c) => (b || '') + '|' + c, palInfoOf: k => (opts.pal || {})[k] || {}, VO: { rows: opts.vo || [] }, voLines: o => (Array.isArray(o.lines) ? o.lines : Object.values(o.lines || {})), voNewOrderNo: (() => { let n = 0; return () => 'VPO-261010-T' + (++n); })(), voTodayDMY: () => '10/10/2026', ordCutReq: sku => !/NOCUT/.test(sku), confirm: q => { (ctx.__asked = ctx.__asked || []).push(q); return !opts.confirmNo; }, PTG: { mdb: [] }, setTimeout, clearTimeout,
     voAllVendors: () => [{ code: 'V9', desc: 'Kalu Mill', category: 'Mill' }, { code: 'P1', desc: 'Sanganer Prints', category: 'Printer' }, { code: 'P2', desc: 'Choudhary Hand Block', category: 'Printer' }],
     window: { open: () => (opts.popupBlocked ? null : { document: { open() {}, write(h) { (ctx.__win = ctx.__win || []).push(h); }, close() {} } }) }, GPO: { settings: { company: 'Ridhi Home & Living' } },
     ordPrintAsPcs: m => !!(m && m.asPcs), ptPrintFabric: m => (m && m.pfab) || '', ptPrintDir: m => (m && m.dir) || '',
@@ -48,7 +51,7 @@ function load(opts) {
     FAB: { rows: opts.fabRows || [] },
     STORE: { rows: opts.store ? [] : null }, stMoves: () => opts.store || [], stBalances: mv => mv, fabKey: v => String(v || '').trim().toUpperCase(), fabAll: () => opts.fabRows || [], ptList: x => x || [], fabAutoLoad: async () => {}, fabStockOf: (name, st) => (st === 'RFD' ? (opts.rfd || {})[String(name).toUpperCase()] || 0 : 0),
   };
-  const api = new Function(...Object.keys(ctx), SRC + '\n;return { FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowCutEntry, flowIssueEntry, flowRecvEntry, flowQcEntry, flowIssuable, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowVoLines, VOrows:()=>VO.rows, setVOrows:v=>{VO.rows=v}, flowUnplan, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v} };')(...Object.values(ctx));
+  const api = new Function(...Object.keys(ctx), SRC + '\n;return { FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestCutOpen, flowTestIssueOpen, flowTestRecvOpen, flowTestQcOpen, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowCutEntry, flowIssueEntry, flowRecvEntry, flowQcEntry, flowIssuable, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowVoLines, VOrows:()=>VO.rows, setVOrows:v=>{VO.rows=v}, flowUnplan, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v} };')(...Object.values(ctx));
   api.setFLOW(Object.assign(api.FLOW(), { ppc: opts.ppc || {}, dem: opts.dem || {}, res: opts.res || {} }));
   return Object.assign(api, { els, writes, W, ctx });
 }
@@ -887,13 +890,46 @@ const K = 'AMZ-1__S1';
     A.flowReceiveOpen('TRFD-202610-001'); A.els.flrDate = { value: '2026-10-14' }; A.els.flrNote = { value: '' };
     await A.ctx.__dlg.onSave();
     ok('received in full → the challan closes → the line is in the store (Cutting)', A.FLOW().ch['TRFD-202610-001'].closed && T().s.bucket === 'cut');
-    const walk = [['cut', 'raw'], ['raw', 'wip'], ['wip', 'ready'], ['ready', 'done']];
-    for (const [from, to] of walk) {
-      A.setView(from); A.renderFlow();
-      const btn = new RegExp('data-flsim="' + TN + '\|S1\|' + from + '"').test(A.els.flTable.innerHTML);
-      const er = await A.flowSimulate(TN, 'S1', from);
-      ok(`${from}: a Simulate button, and pressing it moves the line to ${to}`, btn && !er && A.flowState(T() ? T().r : A.flowTestLines()[0]).bucket === to, er || (T() ? T().s.bucket : 'gone'));
-    }
+    /* Cutting: asks what Cutting Data asks. */
+    A.setView('cut'); A.renderFlow();
+    ok('Cutting offers "Cutting entry (test)", not a bare Simulate', /data-flte="cut\|TEST-AMZ-13102026-01\|S1"/.test(A.els.flTable.innerHTML) && !/data-flsim="[^"]*\|cut"/.test(A.els.flTable.innerHTML));
+    const say = (o) => { Object.entries(o).forEach(([k, v]) => { A.els[k] = { value: v }; }); };
+    A.flowTestCutOpen(TN, 'S1');
+    say({ fltcP: '10', fltcF: '', fltcU: '5', fltcW: '0', fltcWW: '', fltcD: '2026-10-13', fltcR: '' });
+    ok('cutting with no fabric is refused', /Which fabric/.test(await A.ctx.__dlg.onSave()));
+    say({ fltcF: 'Cotton', fltcW: '0.4' });
+    ok('waste with no waste width is refused', /Waste width/.test(await A.ctx.__dlg.onSave()));
+    say({ fltcWW: '18', fltcP: '11' });
+    ok('more pieces than are left to cut is refused', /Only 10 pieces are left/.test(await A.ctx.__dlg.onSave()));
+    say({ fltcP: '10' });
+    let er = await A.ctx.__dlg.onSave();
+    ok('cut 10 from Cotton, 5 m used, 0.4 m waste at 18 in — on the test order → Raw cutting in store', !er && T().s.bucket === 'raw' && Object.values(T().r.__t.cutLog)[0].used === 5 && Object.values(T().r.__t.cutLog)[0].waste === 0.4, er);
+    /* Issue: the karigar from the employee list. */
+    A.flowTestIssueOpen(TN, 'S1'); await new Promise(r => setTimeout(r, 0));
+    say({ fltiT: 'Company Contractor', fltiK: 'Mohan', fltiP: '10', fltiD: '2026-10-13', fltiR: '' });
+    ok('a karigar not in the employee list is refused', /Mohan is not a Company Contractor karigar/.test(await A.ctx.__dlg.onSave()));
+    say({ fltiK: 'Ramesh', fltiP: '6' });
+    er = await A.ctx.__dlg.onSave();
+    ok('6 issued to Ramesh — the other 4 still wait in Raw cutting in store', !er && T().s.issued === 6 && T().s.bucket === 'raw', er || T().s.bucket);
+    A.flowTestIssueOpen(TN, 'S1'); await new Promise(r => setTimeout(r, 0)); say({ fltiT: 'External Contractor', fltiK: 'Pradeep', fltiP: '4' });
+    er = await A.ctx.__dlg.onSave();
+    ok('the other 4 to Pradeep → all issued → WIP', !er && T().s.issued === 10 && T().s.bucket === 'wip', er);
+    A.setView('wip'); A.renderFlow();
+    ok('WIP shows who has what: Ramesh 6, Pradeep 4', /Ramesh: 6 issued, 0 back/.test(A.els.flTable.innerHTML) && /Pradeep: 4 issued/.test(A.els.flTable.innerHTML));
+    /* Receive: from which karigar. */
+    const ramesh = Object.entries(T().r.__t.issues).find(([, e]) => e.karigar === 'Ramesh')[0], pradeep = Object.entries(T().r.__t.issues).find(([, e]) => e.karigar === 'Pradeep')[0];
+    A.flowTestRecvOpen(TN, 'S1'); say({ fltrI: ramesh, fltrP: '7', fltrX: '0', fltrD: '2026-10-14' });
+    ok('more back than Ramesh has is refused', /Only 6 are out with Ramesh/.test(await A.ctx.__dlg.onSave()));
+    say({ fltrP: '6' }); er = await A.ctx.__dlg.onSave();
+    A.flowTestRecvOpen(TN, 'S1'); say({ fltrI: pradeep, fltrP: '4', fltrX: '0' }); er = er || await A.ctx.__dlg.onSave();
+    ok('10 back (Ramesh 6, Pradeep 4) → waiting for QC', !er && T().s.received === 10 && T().s.bucket === 'wip', er);
+    /* QC: checked = passed + alteration + rejected. */
+    A.flowTestQcOpen(TN, 'S1'); say({ fltqC: '10', fltqO: '9', fltqA: '0', fltqR: '0' });
+    ok('passed + alteration + rejected must make the checked', /must make the 10 checked/.test(await A.ctx.__dlg.onSave()));
+    say({ fltqO: '10' }); er = await A.ctx.__dlg.onSave();
+    ok('10 checked, 10 passed → Ready → India stock', !er && T().s.qc === 10 && T().s.bucket === 'ready', er || T().s.bucket);
+    er = await A.flowSimulate(TN, 'S1', 'ready');
+    ok('received in Finished Goods → done', !er && A.flowState(T() ? T().r : A.flowTestLines()[0]).bucket === 'done', er);
     ok('the simulation is written on the test order only', A.writes.every(w => Object.keys(w).every(k => /^pt_(flowTest|ppc|flowDemand|flowChallans|accReserve|flowPrintOrders)\//.test(k))));
     const n0 = A.writes.length;
     ok('delete test removes the order, its plan, its demand and its challan', !(await A.flowTestDelete(TN)) && (() => { const w = A.writes[n0];
