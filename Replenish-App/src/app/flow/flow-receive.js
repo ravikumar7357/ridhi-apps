@@ -12,6 +12,7 @@ function flowChIndex() {
   if (FLOW_CHX.src === FLOW.ch) return FLOW_CHX.map;
   const map = {};
   Object.values(FLOW.ch || {}).forEach(c => {
+    if (c.cancelled) return;   // a cancelled challan gave nothing to anybody
     const recv = flowChRecv(c);
     (c.lines || []).forEach(l => { const e = map[l.key] || (map[l.key] = { no: c.no, vendor: c.vendor && c.vendor.name, sent: 0, recv: 0, closed: true });
       e.no = c.no; e.vendor = c.vendor && c.vendor.name; e.sent += +l.metres || 0; e.recv += recv[l.key] || 0; e.closed = e.closed && !!c.closed; });
@@ -26,6 +27,7 @@ function flowChRecv(c) {
   return out;
 }
 function flowChState(c) {
+  if (c.cancelled) return 'cancelled';
   if (c.closed) return 'closed';
   const recv = flowChRecv(c), any = Object.values(recv).some(m => m > 0);
   return any ? 'part' : 'open';
@@ -35,20 +37,32 @@ function flowChState(c) {
 function flowHistTable(q) {
   const list = Object.values(FLOW.ch || {})
     .filter(c => !q || [c.no, c.orderNo, c.vendor && c.vendor.name].concat((c.lines || []).map(l => l.sku)).join(' ').toLowerCase().includes(q))
-    .sort((a, b) => (flowChState(a) === 'closed') - (flowChState(b) === 'closed') || String(b.no).localeCompare(String(a.no)));
-  const pill = st => st === 'closed' ? '<span class="jw-st done">closed</span>' : st === 'part' ? '<span class="jw-st prog">part received</span>' : '<span class="jw-st pend">open</span>';
+    .sort((a, b) => (['closed', 'cancelled'].includes(flowChState(a))) - (['closed', 'cancelled'].includes(flowChState(b))) || String(b.no).localeCompare(String(a.no)));
+  const pill = st => st === 'cancelled' ? '<span class="jw-st" style="background:#f1f5f9;color:#64748b">cancelled</span>' : st === 'closed' ? '<span class="jw-st done">closed</span>' : st === 'part' ? '<span class="jw-st prog">part received</span>' : '<span class="jw-st pend">open</span>';
   const body = list.map(c => { const recv = flowChRecv(c), st = flowChState(c);
     const sent = flowR2((c.lines || []).reduce((a, l) => a + (+l.metres || 0), 0)), got = flowR2(Object.values(recv).reduce((a, m) => a + m, 0));
     return `<tr><td class="frz" style="text-align:left"><b>${esc(c.no)}</b>${flowIsTest(c.orderNo) ? ' <span class="navbadge" style="background:#7c3aed;position:static">TEST</span>' : ''}<div class="muted" style="font-size:10.5px">${esc(c.date || '')}</div></td>
       <td style="text-align:left">${esc(c.orderNo)}</td><td style="text-align:left"><b>${esc(c.vendor && c.vendor.name)}</b></td>
       <td style="text-align:left;font-size:11.5px">${(c.lines || []).map(l => `${esc(l.sku)} · ${nf(l.metres)} m${recv[l.key] ? ` <span style="color:#166534">(${nf(recv[l.key])} back)</span>` : ''}`).join('<br>')}</td>
       <td class="num">${nf(sent)} m</td><td class="num">${nf(got)} m</td>
-      <td>${pill(st)}${c.closed && c.closed.why ? `<div class="muted" style="font-size:10.5px">${esc(c.closed.why)}</div>` : ''}</td>
-      <td style="white-space:nowrap">${st !== 'closed' ? `<button data-flchr="${esc(c.no)}" style="width:auto;padding:3px 10px;font-size:12px">Receive</button> <button class="ghost" data-flchc="${esc(c.no)}" style="width:auto;padding:2px 8px;font-size:11.5px">Close short</button> ` : ''}<button class="ghost" data-flchp="${esc(c.no)}" style="width:auto;padding:2px 8px;font-size:11.5px">Print</button></td></tr>`; }).join('');
+      <td>${pill(st)}${(c.cancelled || c.closed) && (c.cancelled || c.closed).why ? `<div class="muted" style="font-size:10.5px">${esc((c.cancelled || c.closed).why)}</div>` : ''}</td>
+      <td style="white-space:nowrap">${flowChActions(c, st)}</td></tr>`; }).join('');
   return `<thead><tr><th class="frz" style="text-align:left">Challan</th><th style="text-align:left">Order</th><th style="text-align:left">Vendor</th><th style="text-align:left">Lines · sent</th><th>Sent</th><th>Received</th><th>Status</th><th></th></tr></thead><tbody>`
     + (body || '<tr><td colspan="8" class="muted" style="padding:16px">No challan yet — they are made in Demand · RFD fabric.</td></tr>') + '</tbody>';
 }
 
+/** What can be done to a challan in its state — and, to put a mistake right, Edit / Cancel / Undo receipt / Reopen. */
+function flowChActions(c, st) {
+  const b = (attr, label, main) => `<button ${main ? '' : 'class="ghost" '}${attr}="${esc(c.no)}" style="width:auto;padding:${main ? '3px 10px;font-size:12px' : '2px 8px;font-size:11.5px'}">${label}</button>`;
+  if (st === 'cancelled') return '';
+  const out = [];
+  if (st !== 'closed') out.push(b('data-flchr', 'Receive', true), b('data-flchc', 'Close short'));
+  if (!flowChHasRecv(c) && st !== 'closed') out.push(b('data-flche', 'Edit'), b('data-flchx', 'Cancel'));
+  if (flowChHasRecv(c)) out.push(b('data-flchu', 'Undo last receipt'));
+  if (st === 'closed' && c.closed.short) out.push(b('data-flcho', 'Reopen'));
+  out.push(b('data-flchp', 'Print'));
+  return out.join(' ');
+}
 /** Printed fabric back from the printer against a challan: metres per line. Closes by itself when all of it is back. */
 function flowReceiveOpen(no) {
   const c = (FLOW.ch || {})[no]; if (!c) return;

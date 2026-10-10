@@ -2,7 +2,7 @@
  *   node tests/teeth/teeth-flow.js */
 const fs = require('fs'), path = require('path'), os = require('os'), { spawnSync } = require('child_process');
 const DIR = path.join(__dirname, '..', '..', 'src', 'app', 'flow');
-const FILES = ['flow-core.js', 'flow-ppc.js', 'flow-demand.js', 'flow-challan.js', 'flow-test-order.js', 'flow-receive.js', 'flow-view.js'];
+const FILES = ['flow-core.js', 'flow-ppc.js', 'flow-demand.js', 'flow-challan.js', 'flow-test-order.js', 'flow-receive.js', 'flow-edit.js', 'flow-view.js'];
 const read = f => fs.readFileSync(path.join(DIR, f), 'utf8').replace(/\r\n/g, '\n');
 const breaks = {
   'flow-core.js': {
@@ -21,6 +21,8 @@ const breaks = {
     'rows never worked out again': s => s.replace('&& FLOW_C.ppc === FLOW.ppc ', ''),
   },
   'flow-ppc.js': {
+    'a locked fabric can be changed': s => s.replace("if (locked) ['fabric', 'route', 'printer', 'print'].forEach(k => { nu[k] = x.s.plan[k]; });", ''),
+    'stray keys in the plan list': s => s.replace(".filter(([path]) => path.startsWith('pt_ppc/'))", ''),
     'a plan with no fabric is saved': s => s.replace('if (noFab.length) return', 'if (false) return'),
     'a stitching line keeps a printer': s => s.replace("p.printer = v ? {", "p.printer = (v || p.printer.code) ? {").replace("p.route === 'inhouse' && p.printer && p.printer.code ? flowChVendors()", "p.printer && p.printer.code ? flowChVendors()"),
     'a test order eats real stock': s => s.replace(" || (r.__t && !withTest)) return;", ") return;"),
@@ -66,7 +68,18 @@ const breaks = {
     'close short with no reason': s => s.replace("if (!why) return 'Say why", "if (false) return 'Say why"),
     'no printer from the allocation': s => s.replace('if (v) return as(v, `Printer Allocation', 'if (false) return as(v, `Printer Allocation'),
     'no printer from history': s => s.replace('const v = best && find(best.code);', 'const v = null;'),
+    'a cancelled challan still gives the line away': s => s.replace("if (c.cancelled) return;   // a cancelled challan gave nothing to anybody", ''),
     'challan index never re-read': s => s.replace('if (FLOW_CHX.src === FLOW.ch) return FLOW_CHX.map;', 'if (FLOW_CHX.src) return FLOW_CHX.map;'),
+  },
+  'flow-edit.js': {
+    'a changed accessory list keeps the old reservation': s => s.replace("if (s.res && accSig(old) !== accSig(nu))", 'if (false)'),
+    'changed cloth keeps fabric ready': s => s.replace("if (fr && !fr.challan && fabSig(old) !== fabSig(nu))", 'if (false)'),
+    'undo allowed with fabric on a challan': s => s.replace("if (flowFabLocked(s)) return `Its fabric", "if (false) return `Its fabric"),
+    'undo leaves the reservation': s => s.replace(", ['pt_accReserve/' + s.key]: null };", ' };'),
+    'edit after a receipt': s => s.replace("if (flowChHasRecv(c)) { $('flMsg').className = 'err'; $('flMsg').textContent = `${no} has fabric received against it — undo the receipt first.`; return; }", ''),
+    'unticked line stays on the challan': s => s.replace("drop.forEach(l => { patch[`pt_flowDemand/${l.key}/fabricReady`] = null; });", ''),
+    'cancel with no reason': s => s.replace("if (!why) return 'Say why it is cancelled.';", ''),
+    'undo receipt keeps it closed': s => s.replace("if (c.closed && !c.closed.short) patch[", "if (false) patch["),
   },
   'flow-view.js': {
     'buttons for buckets not held': s => s.replace('$(\'flBuckets\').innerHTML = allowed.map(', '$(\'flBuckets\').innerHTML = FLOW_BUCKETS.map('),

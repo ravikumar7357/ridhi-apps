@@ -110,12 +110,17 @@ function flowPpcOpen(orderNo, onlySku) {
       ${(p.gaps || []).length ? `<div style="font-size:11.5px;color:#92400e;margin-top:6px">• ${p.gaps.map(esc).join('<br>• ')}</div>` : ''}
     </div>`;
   }).join('');
+  /* EDITING A PLAN ALREADY RAISED (flow-edit.js): the same form, plus "undo — back to PPC"; a line whose fabric is on a
+   * challan keeps its fabric, route and printer. */
+  const editing = rows.length === 1 && !!rows[0].s.plan, locked = editing && flowFabLocked(rows[0].s);
   ptOpenDialog({
-    title: `PPC — ${orderNo}`,
-    subtitle: `${nf(rows.length)} line(s). Worked out from cloth per piece, the recipe and the print rules — check, change, save. Saving raises it: the line moves on to Demand by itself.`,
-    html,
-    saveLabel: rows.length > 1 ? `Raise the plan for ${rows.length} lines` : 'Raise the plan',
+    title: editing ? `Edit plan — ${orderNo} · ${obUC(rows[0].r.sku)}` : `PPC — ${orderNo}`,
+    subtitle: editing ? `Change what was planned and save; the line moves to wherever it now belongs.${locked ? ` Its fabric is on challan ${rows[0].s.challan.no}: fabric, route and printer stay as they are until that challan is cancelled (Demand history).` : ''}`
+      : `${nf(rows.length)} line(s). Worked out from cloth per piece, the recipe and the print rules — check, change, save. Saving raises it: the line moves on to Demand by itself.`,
+    html: html + (editing ? `<label style="display:flex;gap:6px;align-items:center;margin-top:4px;color:#b91c1c"><input id="flpUndo" type="checkbox" style="width:auto"${locked ? ' disabled' : ''}> Undo this plan — send the line back to PPC (its fabric-ready and reservation go too)${locked ? ' · not while its fabric is on a challan' : ''}</label>` : ''),
+    saveLabel: editing ? 'Save the plan' : rows.length > 1 ? `Raise the plan for ${rows.length} lines` : 'Raise the plan',
     onSave: async () => {
+      if (editing && $('flpUndo') && $('flpUndo').checked) { const er = await flowUnplan(rows[0].s); if (er) return er; renderFlow(); return ''; }
       const set = (o, path, v) => { const ks = path.split('.'); let t = o; ks.slice(0, -1).forEach(k => { t = t[/^\d+$/.test(k) ? +k : k]; }); t[ks[ks.length - 1]] = v; };
       document.querySelectorAll('[data-fp]').forEach(inp => {
         const p = plans[+inp.dataset.fp], k = inp.dataset.k;
@@ -137,14 +142,24 @@ function flowPpcOpen(orderNo, onlySku) {
         const rec = Object.assign({}, p, { at: now, by: ME.email || '' }); delete rec.gaps;
         patch['pt_ppc/' + flowKey(p.orderNo, p.sku)] = rec;
       });
+      /* A re-plan: what it undoes downstream, written in the same save and said. */
+      const said = [];
+      rows.forEach((x, i) => { if (!x.s.plan) return;
+        const nu = patch['pt_ppc/' + x.s.key];
+        if (locked) ['fabric', 'route', 'printer', 'print'].forEach(k => { nu[k] = x.s.plan[k]; });
+        const side = flowReplanSide(x.s.plan, nu, x.s); Object.assign(patch, side.patch); said.push(...side.said); });
       try { await ptPatch(patch); } catch (e) { return 'Could not save: ' + (e.message || e); }
+      if (Object.keys(patch).some(k => k.startsWith('pt_accReserve/'))) { FLOW.res = Object.assign({}, FLOW.res); Object.keys(patch).filter(k => k.startsWith('pt_accReserve/')).forEach(k => { delete FLOW.res[k.slice(14)]; }); }
+      Object.keys(patch).filter(k => k.startsWith('pt_flowDemand/')).forEach(k => { const key = k.split('/')[1]; FLOW.dem = Object.assign({}, FLOW.dem, { [key]: Object.assign({}, (FLOW.dem || {})[key], { fabricReady: null }) }); });
+      if (said.length) setTimeout(() => { $('flMsg').className = 'muted'; $('flMsg').textContent = 'Plan saved · ' + said.join(' · '); }, 0);
       /* A new object, so every cache keyed on it knows it changed. */
       FLOW.ppc = Object.assign({}, FLOW.ppc);
-      Object.entries(patch).forEach(([path, rec]) => { FLOW.ppc[path.slice('pt_ppc/'.length)] = rec; });
+      Object.entries(patch).filter(([path]) => path.startsWith('pt_ppc/')).forEach(([path, rec]) => { FLOW.ppc[path.slice('pt_ppc/'.length)] = rec; });
       renderFlow();
       return '';
     },
   });
+  if (locked) ['fabric.name', 'fabric.perPc', 'route', 'printer.code'].forEach(k => { const el = document.querySelector(`[data-fp="0"][data-k="${k}"]`); if (el) el.disabled = true; });
   /* THE STOCK LINES: worked out again whenever a quantity, a fabric or the route changes, in the form's own order. */
   const com = flowCommitted(rows.map(x => x.s.key), flowIsTest(orderNo));
   let shelf = {}; try { (accBalances() || []).forEach(b => { shelf[accCode(b.code)] = +b.qty || 0; }); } catch (e) { shelf = {}; }

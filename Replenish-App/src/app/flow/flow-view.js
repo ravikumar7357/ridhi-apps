@@ -21,7 +21,7 @@ async function flowFabLoad() {
 function flowCounts(rows) {
   const n = {}; FLOW_BUCKETS.forEach(b => { n[b[0]] = 0; });
   rows.forEach(({ s, recent }) => { FLOW_BUCKETS.forEach(([k]) => { if (k !== 'new' && flowInView(k, s)) n[k]++; }); if (recent) n.new++; });
-  n.dhist = Object.values(FLOW.ch || {}).filter(c => !c.closed).length;   // open challans
+  n.dhist = Object.values(FLOW.ch || {}).filter(c => !c.closed && !c.cancelled).length;   // open challans
   return n;
 }
 const flowDays = iso => { const d = ptIsoDate(iso); if (!d) return null; return Math.max(0, Math.round((Date.now() - new Date(d + 'T00:00:00').getTime()) / 864e5)); };
@@ -70,7 +70,7 @@ function flowTable(view, rows) {
   const pic = sku => { const u = typeof ptImgOf === 'function' ? ptImgOf(sku) : ''; return u ? `<img src="${esc(ptImgSrc(u, 34))}" alt="" style="width:34px;height:34px;object-fit:contain;background:#fff;border-radius:5px">` : ''; };
   const base = x => `<td class="frz" style="text-align:left">${x.r.__t ? `<b>${esc(x.r.orderNo)}</b> <span class="navbadge" style="background:#7c3aed;position:static">TEST</span>
       <a href="#" data-fltdel="${esc(x.r.orderNo)}" style="font-size:10.5px;color:#b91c1c;margin-left:4px">delete test</a>` : `<a href="#" data-ordj="${esc(x.r.orderNo)}" style="font-weight:600">${esc(x.r.orderNo)}</a>`}
-      <div class="muted" style="font-size:10.5px">${esc(x.r.src || '')} · ${esc(ptIsoDate(x.r.orderDate) || '')} · ${nf(flowDays(x.r.orderDate) || 0)} d</div></td>
+      <div class="muted" style="font-size:10.5px">${esc(x.r.src || '')} · ${esc(ptIsoDate(x.r.orderDate) || '')} · ${nf(flowDays(x.r.orderDate) || 0)} d${x.s.plan ? ` · <a href="#" data-flplan="${esc(x.r.orderNo)}|${esc(x.r.sku)}" title="Change or undo what PPC planned">edit plan</a>` : ''}</div></td>
     <td style="text-align:left;white-space:nowrap">${pic(x.r.sku)} <b style="font-family:ui-monospace,monospace;vertical-align:top">${esc(x.r.sku)}</b>
       <div class="muted" style="font-size:10.5px">${esc([x.r.articleSubtype || x.r.articleType, x.r.color, x.r.size].filter(Boolean).join(' · '))}</div></td>
     <td class="num"><b>${nf(x.r.qty)}</b></td>`;
@@ -175,6 +175,12 @@ $('flTable').addEventListener('click', async e => {
   if (oj) { e.preventDefault(); try { ordJourney(oj.getAttribute('data-ordj')); } catch (err) { /* the order book is not read yet */ } return; }
   const g = e.target.closest('[data-flgo]'); if (g) { showTab(g.dataset.flgo); return; }
   const rv = e.target.closest('[data-flchr]'); if (rv) { flowReceiveOpen(rv.dataset.flchr); return; }
+  const pl = e.target.closest('[data-flplan]'); if (pl) { e.preventDefault(); const [no, sku] = pl.dataset.flplan.split('|'); flowPpcOpen(no, sku); return; }
+  const ce = e.target.closest('[data-flche]'); if (ce) { flowChallanEditOpen(ce.dataset.flche); return; }
+  const cx = e.target.closest('[data-flchx]'); if (cx) { flowChallanCancelOpen(cx.dataset.flchx); return; }
+  const cu = e.target.closest('[data-flchu],[data-flcho]');
+  if (cu) { const er = cu.dataset.flchu ? await flowUndoReceipt(cu.dataset.flchu) : await flowReopen(cu.dataset.flcho);
+    $('flMsg').className = er ? 'err' : 'muted'; if (er) $('flMsg').textContent = er; else renderFlow(); return; }
   const cs = e.target.closest('[data-flchc]'); if (cs) { flowCloseShortOpen(cs.dataset.flchc); return; }
   const ch = e.target.closest('[data-flch]'); if (ch) { flowChallanOpen(ch.dataset.flch); return; }
   const cp = e.target.closest('[data-flchp]'); if (cp) { e.preventDefault(); const er = flowChallanPrint(cp.dataset.flchp); if (er) { $('flMsg').className = 'err'; $('flMsg').textContent = er; } return; }
