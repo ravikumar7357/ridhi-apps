@@ -47,6 +47,10 @@ const breaks = {
     'part of the fabric is "ready"': s => s.replace('if (!undo && need && metres < need) return', 'if (false) return'),
   },
   'flow-challan.js': {
+    'any printer may take any line': s => s.replace('if (other.length) return `${other.map(y =>', 'if (false) return `${other.map(y =>'),
+    'the challan holds every printer\'s lines': s => s.replace("(pcode == null || (pcode === '?' ? !flowPlanPrinter(x.s) : flowPlanPrinter(x.s) === pcode))", 'true'),
+    'stitching lines go on a challan': s => s.replace("flowInView('drfd', x.s) && x.s.route !== 'stitch'", "flowInView('drfd', x.s)"),
+    'no printer set from the challan': s => s.replace("setP.forEach(k => { patch[`pt_ppc/${k}/printer`]", "[].forEach(k => { patch[`pt_ppc/${k}/printer`]"),
     'a challan with no vendor': s => s.replace("if (!v) return 'Which vendor", "if (false) return 'Which vendor"),
     'the challan ignores the PPC printer': s => s.replace("String(v.code) === String(planned) ? ' selected' : ''", "''"),
     'unticked lines go on it too': s => s.replace('.filter(y => y.on);', '.filter(y => true);'),
@@ -78,6 +82,7 @@ const breaks = {
     'undo leaves the reservation': s => s.replace(", ['pt_accReserve/' + s.key]: null };", ' };'),
     'edit after a receipt': s => s.replace("if (flowChHasRecv(c)) { $('flMsg').className = 'err'; $('flMsg').textContent = `${no} has fabric received against it — undo the receipt first.`; return; }", ''),
     'unticked line stays on the challan': s => s.replace("drop.forEach(l => { patch[`pt_flowDemand/${l.key}/fabricReady`] = null; });", ''),
+    'edit gives a line to another printer': s => s.replace('if (other.length) return `${other.map(l =>', 'if (false) return `${other.map(l =>'),
     'cancel with no reason': s => s.replace("if (!why) return 'Say why it is cancelled.';", ''),
     'undo receipt keeps it closed': s => s.replace("if (c.closed && !c.closed.short) patch[", "if (false) patch["),
   },
@@ -88,6 +93,7 @@ const breaks = {
     'no red flag on a short line': s => s.replace('⚑ SHORT ${nf(c.short)} m', 'covered'),
     'challans still shown in Demand RFD': s => s.replace("$('flPanel').innerHTML = FLOW.panel;", "$('flPanel').innerHTML = FLOW.panel + (FLOW_VIEW === 'drfd' ? flowHistTable('') : '');"),
     'no Receive button on the fabric bucket': s => s.replace("x && x.s.challan && view === 'fabric' && !x.s.challan.closed", 'false'),
+    'one challan button per PO again': s => s.replace("const pk = x.s.route === 'stitch' ? '' : (flowPlanPrinter(x.s) || '?'), gk = x.r.orderNo + '|' + pk;", "const pk = x.s.route === 'stitch' ? '' : (flowPlanPrinter(x.s) || '?'), gk = x.r.orderNo;"),
     'no "test view" warning': s => s.replace(' · TEST VIEW, not on the live app', ''),
   },
 };

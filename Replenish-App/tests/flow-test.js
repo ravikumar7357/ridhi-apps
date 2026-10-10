@@ -33,7 +33,7 @@ function load(opts) {
     ptGet: async node => (opts.db || {})[node] || null,
     ptOpenDialog: cfg => { ctx.__dlg = cfg; }, ptFillSelect: () => {}, ptImgOf: () => '', ptImgSrc: u => u, showTab: () => {},
     ptLoadGates: async () => {}, palKey: (b, c) => (b || '') + '|' + c, palInfoOf: k => (opts.pal || {})[k] || {}, VO: { rows: opts.vo || [] }, voLines: o => o.lines || [], ordCutReq: sku => !/NOCUT/.test(sku), confirm: () => true, PTG: { mdb: [] }, setTimeout, clearTimeout,
-    voAllVendors: () => [{ code: 'V9', desc: 'Kalu Mill', category: 'Mill' }, { code: 'P1', desc: 'Sanganer Prints', category: 'Printer' }],
+    voAllVendors: () => [{ code: 'V9', desc: 'Kalu Mill', category: 'Mill' }, { code: 'P1', desc: 'Sanganer Prints', category: 'Printer' }, { code: 'P2', desc: 'Choudhary Hand Block', category: 'Printer' }],
     window: { open: () => (opts.popupBlocked ? null : { document: { open() {}, write(h) { (ctx.__win = ctx.__win || []).push(h); }, close() {} } }) }, GPO: { settings: { company: 'Ridhi Home & Living' } },
     FAB: { rows: opts.fabRows || [] }, fabAll: () => opts.fabRows || [], ptList: x => x || [], fabAutoLoad: async () => {}, fabStockOf: (name, st) => (st === 'RFD' ? (opts.rfd || {})[String(name).toUpperCase()] || 0 : 0),
   };
@@ -267,6 +267,40 @@ const K = 'AMZ-1__S1';
     A.ctx.document.querySelector = sel => (/stk=|data-fm=/.test(sel) ? span(sel) : null);
     A.flowPpcOpen('AMZ-1');
     ok('an accessory nobody keeps / a fabric not in the register is said, not shown as 0', /not kept in the app/.test(spans['[data-astk="0.0"]'].innerHTML) && /not kept in the app/.test(spans['[data-fstk="0"]'].innerHTML));
+  }
+
+  console.log('== one challan per printer — the printer PPC planned ==');
+  {
+    const pr = (code, name) => ({ code, name });
+    const pp = (sku, extra) => plan(Object.assign({ sku, fabric: { name: 'Sheeting 82', perPc: 1, metres: 10 } }, extra));
+    A = load({ me: { admin: true }, rfd: { 'SHEETING 82': 999 },
+      lines: [L({ sku: 'S1' }), L({ sku: 'S2' }), L({ sku: 'S3' }), L({ sku: 'S4' }), L({ sku: 'S5' })],
+      ppc: { 'AMZ-1__S1': pp('S1', { printer: pr('P1', 'Sanganer Prints') }), 'AMZ-1__S2': pp('S2', { printer: pr('P2', 'Choudhary Hand Block') }),
+        'AMZ-1__S3': pp('S3', { printer: pr('P1', 'Sanganer Prints') }), 'AMZ-1__S4': pp('S4', { route: 'stitch', print: { need: false } }), 'AMZ-1__S5': pp('S5') } });
+    A.setView('drfd'); A.renderFlow();
+    const h = A.els.flTable.innerHTML;
+    ok('a button per printer the PO is planned for: → Sanganer, → Choudhary, and one for the line with no printer', /data-pc="P1"[^>]*>Challan → Sanganer Prints/.test(h) && /data-pc="P2"[^>]*>Challan → Choudhary Hand Block/.test(h) && /data-pc="\?"[^>]*>Challan \(printer not chosen\)/.test(h) && (h.match(/data-flch=/g) || []).length === 3);
+    A.flowChallanOpen('AMZ-1', 'P1');
+    ok('the Sanganer challan holds only Sanganer\u2019s lines, Sanganer picked', /S1/.test(A.ctx.__dlg.html) && /S3/.test(A.ctx.__dlg.html) && !/<b style="font-family:ui-monospace,monospace">S2/.test(A.ctx.__dlg.html) && /value="P1" selected/.test(A.ctx.__dlg.html) && /→ Sanganer Prints/.test(A.ctx.__dlg.title));
+    ok('a stitching-only line is on no challan', !/<b style="font-family:ui-monospace,monospace">S4/.test(A.ctx.__dlg.html));
+    A.ctx.document.querySelector = sel => ({ '[data-chk="0"]': { checked: true }, '[data-chm="0"]': { value: '10' }, '[data-chk="1"]': { checked: true }, '[data-chm="1"]': { value: '10' } })[sel] || null;
+    A.els.flcVen = { value: 'P2' }; A.els.flcDate = { value: '2026-10-10' }; A.els.flcNote = { value: '' };
+    let er = await A.ctx.__dlg.onSave();
+    ok('giving Sanganer\u2019s lines to Choudhary is refused, naming the planned printer', /S1 is planned for Sanganer Prints/.test(er) && !A.writes.length, er);
+    A.els.flcVen.value = 'P1';
+    er = await A.ctx.__dlg.onSave();
+    ok('to Sanganer it goes: the challan and the plan match', !er && A.FLOW().ch['RFD-202610-001'].vendor.name === 'Sanganer Prints' && A.FLOW().ch['RFD-202610-001'].lines.map(l => l.sku).join() === 'S1,S3', er);
+    A.flowChallanOpen('AMZ-1', '?');
+    A.ctx.document.querySelector = sel => ({ '[data-chk="0"]': { checked: true }, '[data-chm="0"]': { value: '10' } })[sel] || null;
+    A.els.flcVen.value = 'P2';
+    er = await A.ctx.__dlg.onSave();
+    ok('a line PPC left without a printer takes the one it went to — its plan now says so', !er && A.writes[1]['pt_ppc/AMZ-1__S5/printer'].name === 'Choudhary Hand Block' && A.FLOW().ppc['AMZ-1__S5'].printer.code === 'P2', er);
+    A.setFLOW(Object.assign(A.FLOW(), { ch: Object.assign({}, A.FLOW().ch, { 'RFD-202610-001': Object.assign({}, A.FLOW().ch['RFD-202610-001'], { receipts: undefined }) }) }));
+    A.flowChallanEditOpen('RFD-202610-001');
+    A.ctx.document.querySelector = sel => ({ '[data-cek="0"]': { checked: true }, '[data-cem="0"]': { value: '10' }, '[data-cek="1"]': { checked: true }, '[data-cem="1"]': { value: '10' } })[sel] || null;
+    A.els.flceVen = { value: 'P2' }; A.els.flceDate = { value: '2026-10-10' }; A.els.flceNote = { value: '' };
+    er = await A.ctx.__dlg.onSave();
+    ok('editing a challan to another printer is refused the same way', /planned for Sanganer Prints/.test(er), er);
   }
 
   console.log('== putting a mistake right ==');

@@ -62,6 +62,9 @@ function flowChallanEditOpen(no) {
         const m = flowR2(+((document.querySelector(`[data-cem="${i}"]`) || {}).value || 0));
         (on ? keep : drop).push(Object.assign({}, l, { metres: on ? m : l.metres })); });
       if (!keep.length) return 'Every line is unticked — use Cancel to cancel the whole challan.';
+      /* Same rule as making it: a line goes to the printer PPC planned for it. */
+      const other = keep.filter(l => { const pc = flowPlanPrinter({ plan: (FLOW.ppc || {})[l.key] }); return pc && pc !== String(v.code); });
+      if (other.length) return `${other.map(l => `${l.sku} is planned for ${FLOW.ppc[l.key].printer.name}`).join(' · ')} — untick it, or change its printer with "edit plan" first.`;
       const noM = keep.filter(l => !(l.metres > 0)).map(l => l.sku); if (noM.length) return `How many metres for ${noM.join(', ')}?`;
       const vname = v.desc || v.name || v.code, now = new Date().toISOString();
       const nc = Object.assign({}, c, { vendor: { code: v.code, name: vname }, date: $('flceDate').value || c.date, note: $('flceNote').value.trim(), lines: keep, editedAt: now, editedBy: ME.email || '' });

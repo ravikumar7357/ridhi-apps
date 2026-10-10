@@ -22,13 +22,19 @@ const flowChVendors = () => {
 };
 
 /** The challan for one PO: its lines still waiting for fabric. */
-function flowChallanOpen(orderNo) {
+/* ONE CHALLAN, ONE PRINTER, THE PRINTER PPC PLANNED (Ravi, 10 Oct: "the challan and the PO's made-as do not match").
+ * A PO's lines can be planned for different printers; each printer gets its own challan with only its own lines.
+ * A stitching-only line goes to no printer, so never on a challan (Mark fabric ready). A line PPC left without a
+ * printer takes the one picked here, and its plan says so from then on. */
+const flowPlanPrinter = s => (s.plan && s.plan.printer && s.plan.printer.code) || '';
+function flowChallanOpen(orderNo, pcode) {
   const cv = flowRfdCover();
-  const rows = flowRows().filter(x => x.r.orderNo === orderNo && flowInView('drfd', x.s));
+  const rows = flowRows().filter(x => x.r.orderNo === orderNo && flowInView('drfd', x.s) && x.s.route !== 'stitch'
+    && (pcode == null || (pcode === '?' ? !flowPlanPrinter(x.s) : flowPlanPrinter(x.s) === pcode)));
   if (!rows.length) return;
   const vens = flowChVendors();
   /* The printer PPC planned for these lines comes ready picked. */
-  const planned = (rows.map(x => x.s.plan && x.s.plan.printer && x.s.plan.printer.code).find(Boolean)) || '';
+  const planned = (pcode && pcode !== '?' ? pcode : rows.map(x => flowPlanPrinter(x.s)).find(Boolean)) || '';
   const lineHtml = rows.map((x, i) => { const p = x.s.plan || {}, c = cv.line[x.s.key] || {};
     return `<tr><td><input type="checkbox" data-chk="${i}" checked style="width:auto"></td>
       <td style="text-align:left"><b style="font-family:ui-monospace,monospace">${esc(obUC(x.r.sku))}</b><div class="muted" style="font-size:10.5px">${esc(flowChItem(x.r))}</div></td>
@@ -37,7 +43,7 @@ function flowChallanOpen(orderNo) {
       <td class="num"><input data-chm="${i}" type="number" step="0.01" value="${esc((p.fabric && p.fabric.metres) || '')}" style="width:90px;padding:3px 6px;font-size:12px"></td>
       <td style="font-size:11px">${c.short ? `<b style="color:#b91c1c">⚑ short ${nf(c.short)} m</b>` : '<span style="color:#166534">covered</span>'}</td></tr>`; }).join('');
   ptOpenDialog({
-    title: `RFD challan — ${orderNo}`,
+    title: `RFD challan — ${orderNo}${pcode && pcode !== '?' ? ' → ' + ((rows[0].s.plan.printer || {}).name || pcode) : ''}`,
     subtitle: 'The fabric of this order, to one vendor. Saving numbers the challan, opens it to print, and marks these lines\' fabric as given — they leave Demand by themselves.',
     html: `<div class="ptgrid" style="grid-template-columns:2fr 1fr">
         <label>Vendor<select id="flcVen"><option value="">— pick the vendor —</option>${vens.map(v => `<option value="${esc(v.code)}"${String(v.code) === String(planned) ? ' selected' : ''}>${esc((v.desc || v.name || v.code) + (v.category ? ' · ' + v.category : ''))}</option>`).join('')}</select></label>
@@ -52,15 +58,21 @@ function flowChallanOpen(orderNo) {
       const picked = rows.map((x, i) => ({ x, on: (document.querySelector(`[data-chk="${i}"]`) || {}).checked, m: +((document.querySelector(`[data-chm="${i}"]`) || {}).value || 0) }))
         .filter(y => y.on);
       if (!picked.length) return 'Tick at least one line.';
+      const other = picked.filter(y => flowPlanPrinter(y.x.s) && flowPlanPrinter(y.x.s) !== String(v.code));
+      if (other.length) return `${other.map(y => `${obUC(y.x.r.sku)} is planned for ${y.x.s.plan.printer.name}`).join(' · ')} — give it to that printer, or change the printer with "edit plan" first.`;
       const noM = picked.filter(y => !(y.m > 0)).map(y => obUC(y.x.r.sku));
       if (noM.length) return `How many metres? Type them for ${noM.join(', ')}.`;
       const no = flowChallanNo(date, flowIsTest(orderNo)), now = new Date().toISOString(), vname = v.desc || v.name || v.code;
       const ch = { no, date, orderNo, vendor: { code: v.code, name: vname }, note: $('flcNote').value.trim(), at: now, by: ME.email || '',
         lines: picked.map(({ x, m }) => ({ key: x.s.key, sku: obUC(x.r.sku), item: flowChItem(x.r), fabric: (x.s.plan && x.s.plan.fabric && x.s.plan.fabric.name) || '', pcs: +x.r.qty || 0, metres: flowR2(m) })) };
       const patch = { ['pt_flowChallans/' + no]: ch };
+      /* A line PPC left without a printer: the one it went to is now its printer. */
+      const setP = picked.filter(y => !flowPlanPrinter(y.x.s)).map(y => y.x.s.key);
+      setP.forEach(k => { patch[`pt_ppc/${k}/printer`] = { code: v.code, name: vname, why: 'set by challan ' + no }; });
       ch.lines.forEach(l => { patch[`pt_flowDemand/${l.key}/fabricReady`] = { at: now, by: ME.email || '', what: l.fabric, metres: l.metres, note: `Challan ${no} to ${vname}`, challan: no, vendor: vname }; });
       try { await ptPatch(patch); } catch (e) { return 'Could not save: ' + (e.message || e); }
       FLOW.ch = Object.assign({}, FLOW.ch, { [no]: ch });
+      if (setP.length) { FLOW.ppc = Object.assign({}, FLOW.ppc); setP.forEach(k => { FLOW.ppc[k] = Object.assign({}, FLOW.ppc[k], { printer: patch[`pt_ppc/${k}/printer`] }); }); }
       const dem = Object.assign({}, FLOW.dem);
       ch.lines.forEach(l => { dem[l.key] = Object.assign({}, dem[l.key] || {}, { fabricReady: patch[`pt_flowDemand/${l.key}/fabricReady`] }); });
       FLOW.dem = dem;
