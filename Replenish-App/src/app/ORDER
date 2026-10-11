@@ -64,6 +64,7 @@ flow/flow-challan.js
 flow/flow-test-order.js
 flow/flow-receive.js
 flow/flow-printorder.js
+flow/flow-vendor.js
 flow/flow-edit.js
 flow/flow-entries.js
 flow/flow-qcfg.js

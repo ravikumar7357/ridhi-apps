@@ -54,6 +54,7 @@ async function ensureVo() {
     VO.at = ptStamp(); VO.busy = false;
     } finally { VO_LOADING = null; done(); }
   }
+  if (typeof flowVoExtra === 'function') await flowVoExtra();   // Production flow (preview only): test print orders as vendor orders
   renderVo();
 }
 

@@ -2,7 +2,7 @@
  *   node tests/flow-test.js      (FLOW_DIR=<dir> to test another copy — teeth/teeth-flow.js does) */
 const fs = require('fs'), path = require('path');
 const DIR = process.env.FLOW_DIR || path.join(__dirname, '..', 'src', 'app', 'flow');
-const SRC = ['flow-core.js', 'flow-ppc.js', 'flow-demand.js', 'flow-challan.js', 'flow-test-order.js', 'flow-receive.js', 'flow-printorder.js', 'flow-edit.js', 'flow-entries.js', 'flow-qcfg.js', 'flow-view.js'].map(f => fs.readFileSync(path.join(DIR, f), 'utf8')).join('\n');
+const SRC = ['flow-core.js', 'flow-ppc.js', 'flow-demand.js', 'flow-challan.js', 'flow-test-order.js', 'flow-receive.js', 'flow-printorder.js', 'flow-vendor.js', 'flow-edit.js', 'flow-entries.js', 'flow-qcfg.js', 'flow-view.js'].map(f => fs.readFileSync(path.join(DIR, f), 'utf8')).join('\n');
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => { if (cond) { pass++; console.log('  PASS ' + name); } else { fail++; console.log('  FAIL ' + name + (extra ? ' — ' + extra : '')); } };
 
@@ -56,7 +56,7 @@ function load(opts) {
     FAB: { rows: opts.fabRows || [] },
     STORE: { rows: opts.store ? [] : null }, stMoves: () => opts.store || [], stBalances: mv => mv, fabKey: v => String(v || '').trim().toUpperCase(), fabAll: () => opts.fabRows || [], ptList: x => x || [], fabAutoLoad: async () => {}, fabStockOf: (name, st) => (st === 'RFD' ? (opts.rfd || {})[String(name).toUpperCase()] || 0 : 0),
   };
-  const api = new Function(...Object.keys(ctx), SRC + '\n;return { FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestCutOpen, flowTestIssueOpen, flowTestRecvOpen, flowFgAcceptOpen, flowFgAccept, flowFgRejectOpen, flowFgReject, flowFgLines, flowFgRender, flowQcLine, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowCutEntry, flowIssueEntry, flowRecvEntry, flowQcEntry, flowIssuable, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowVoLines, VOrows:()=>VO.rows, setVOrows:v=>{VO.rows=v}, flowUnplan, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v} };')(...Object.values(ctx));
+  const api = new Function(...Object.keys(ctx), SRC + '\n;return { FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestCutOpen, flowTestIssueOpen, flowTestRecvOpen, flowTestVos, flowVoExtra, flowVpViewOnly, flowFgAcceptOpen, flowFgAccept, flowFgRejectOpen, flowFgReject, flowFgLines, flowFgRender, flowQcLine, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowCutEntry, flowIssueEntry, flowRecvEntry, flowQcEntry, flowIssuable, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowVoLines, VOrows:()=>VO.rows, setVOrows:v=>{VO.rows=v}, flowUnplan, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v} };')(...Object.values(ctx));
   api.setFLOW(Object.assign(api.FLOW(), { ppc: opts.ppc || {}, dem: opts.dem || {}, res: opts.res || {} }));
   return Object.assign(api, { els, writes, W, ctx });
 }
@@ -655,7 +655,17 @@ const K = 'AMZ-1__S1';
     const C = load({ me: { admin: true }, mdb, fsCat, lines: [L({ orderNo: 'TEST-AMZ-1', sku: 'RPC327-1818', qty: 10, __t: {} })] });
     C.flowPpcOpen('TEST-AMZ-1'); C.ctx.document.querySelectorAll = () => [PRF(0, 'P1')];
     er = await C.ctx.__dlg.onSave();
-    ok('a TEST order: its TPRN print order only — no Vendor Order, nothing for a printer to see', !er && !Object.keys(C.writes[0]).some(k => k.startsWith('pt_vendorOrders/')) && Object.keys(C.writes[0]).some(k => /pt_flowPrintOrders\/TPRN-/.test(k)), er);
+    ok('a TEST order: its TPRN print order only — nothing written into the vendor order register', !er && !Object.keys(C.writes[0]).some(k => k.startsWith('pt_vendorOrders/')) && Object.keys(C.writes[0]).some(k => /pt_flowPrintOrders\/TPRN-/.test(k)), er);
+    /* …but on the preview the Vendor Orders screen and the printer's portal show it (Ravi, 11 Oct), built on the fly. */
+    const tv = C.flowTestVos();
+    ok('…the test print order shows as a TEST vendor order for P1: TVPO-…, the printed cloth, view only', tv.length >= 1 && tv.every(v => v.vendorCode === 'P1' && v.test && v.virtual && /^TVPO-/.test(v.orderNo) && /^tvpo_TPRN-/.test(v.id))
+      && tv.some(v => v.lines.some(l => l.sku === 'RBP-CANVAS-327')) && C.flowVpViewOnly(tv[0]), JSON.stringify(tv.map(v => [v.orderNo, v.lines.map(l => l.sku)])));
+    C.setFLOW(Object.assign(C.FLOW(), { at: Date.now() })); C.setVOrows([{ vendorCode: 'P1', id: 'real1', orderNo: 'VPO-1', lines: [] }]); await C.flowVoExtra(); await C.flowVoExtra();
+    ok('…the Vendor Orders screen gets it once, beside the real ones, however often it is drawn', C.VOrows().length === 1 + tv.length && C.VOrows()[0].id === 'real1');
+    ok('…an old running order stays as it is: the printer still records it in the portal', !C.flowVpViewOnly({ id: 'real1', status: 'Placed' }) && C.flowVpViewOnly({ demandSource: 'ppc' }));
+    { const off = load({ host: 'price-research-48ff3.web.app', me: { admin: true }, mdb, fsCat });
+      off.setFLOW(Object.assign(off.FLOW(), { po: C.FLOW().po, ppc: C.FLOW().ppc }));
+      ok('on the live app: no test vendor order anywhere, and a PPC order is not view only', !off.flowTestVos().length && !off.flowVpViewOnly({ demandSource: 'ppc', test: true })); }
     /* printer changed / plan undone */
     const D = mk({});
     D.flowPpcOpen('AMZ-1'); D.ctx.document.querySelectorAll = () => [PRF(0, 'P1'), PRF(1, 'P1'), PRF(2, 'P1')]; await D.ctx.__dlg.onSave();

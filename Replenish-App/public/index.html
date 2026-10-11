@@ -1,5 +1,5 @@
 <!-- ================================================================================================
-     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 144 files of src/ joined into one page.
+     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 145 files of src/ joined into one page.
      The real, grouped source: Replenish-App/src/   (map and workflow: src/README.md)
        src/index.html   page markup        src/styles.css   stylesheet        src/app/ORDER   join order
        src/app/<group>/ the code, by group: core, replenishment, masters, production, vendors, orders, shopify, flow, dashboard, people-pay, inventory, reports, shared
@@ -25122,6 +25122,95 @@ function flowVoAfter(placed) {
   const byId = new Map(placed.map(o => [o.vendorCode + '/' + o.id, o]));
   VO.rows = (VO.rows || []).filter(o => !(o && byId.has(o.vendorCode + '/' + o.id))).concat(placed);
 }
+/* ============================== FILE: src/app/flow/flow-vendor.js ============================== */
+/* ================= PRODUCTION FLOW · WHAT THE PRINTER SEES =================
+ * Ravi, 11 Oct: "yahan dikha raha h sent to printer but na to ye vendor screen me show ho raha h na hi vendor ke pas; and
+ * going forward hum sirf vendor ko order dikhayenge, aur sari entry hum apne bande se karenge — kya order diya humne aur
+ * humne unse kya receive kar liya. Abhi jo running order h unko aise hi close karenge, aur isko sirf abhi test flow me hi
+ * rakhna h, main jagah nahi."
+ *
+ *   A TEST print order shows as the Vendor Order(s) it would be — on the Vendor Orders screen and in the printer's portal —
+ *   built on the fly from pt_flowPrintOrders, NEVER written into pt_vendorOrders: that register is read by the live app
+ *   (portal, payouts, printer capacity, karigar analysis), and a test must not reach any of them.
+ *   A flow order (test, or placed by PPC) is VIEW ONLY for the printer: no Acknowledge, no Start, no "I sent", no promise
+ *   dates, no RFD asking. The Fabric Rush's own people record what was given (the RFD challans) and what came back (receive
+ *   on the challan, Demand history). The orders already running keep the old way.
+ *   An admin can look at the portal AS a printer, on the preview only ("View as printer") — view only throughout.
+ * All of it is switched on with the flow (FLOW_ON); the live app is untouched. */
+
+/** View only in the portal: a flow order, or anything while an admin is looking as a printer. */
+const flowVpViewOnly = o => !!(FLOW_ON && o && (o.test || o.demandSource === 'ppc' || (typeof VP !== 'undefined' && VP.viewAs)));
+const flowDmy = iso => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}/${m[2]}/${m[1]}` : String(iso || ''); };
+
+/** The test print orders as Vendor Orders — built on the fly, never stored. */
+function flowTestVos() {
+  if (!FLOW_ON) return [];   // the live app never sees a test vendor order
+  const out = [];
+  Object.values(FLOW.po || {}).forEach(o => {
+    if (!o || !o.test || o.cancelled || !o.printer || !o.printer.code) return;
+    let want; try { want = flowVoLines(o, k => (FLOW.ppc || {})[k]); } catch (e) { return; }
+    let prog = []; try { prog = flowPoProgress(o); } catch (e) { prog = []; }
+    const sent = prog.reduce((a, x) => a + (+x.sent || 0), 0), back = prog.reduce((a, x) => a + (+x.back || 0), 0);
+    ['running', 'cut'].forEach(kind => {
+      const lines = want[kind] || []; if (!lines.length) return;
+      out.push({ id: 'tvpo_' + o.no + '_' + kind, orderNo: String(o.no).replace(/^TPRN-/, 'TVPO-') + (kind === 'cut' ? '-C' : '-R'),
+        vendorCode: o.printer.code, vendorName: o.printer.name, service: 'Block print', ...(want.channel ? { channel: want.channel } : {}),
+        orderType: kind, orderDate: flowDmy(o.date), status: 'Placed',
+        notes: `TEST — from the PPC plan, ${o.orderNo} (${o.no}). View only: The Fabric Rush records the cloth sent and the printed cloth received`
+          + ` (so far: sent ${nf(flowR2(sent))}, back ${nf(flowR2(back))}).`,
+        lines: lines.map((l, i) => Object.assign({ lineId: 'tl_' + kind + '_' + i }, l)), createdBy: o.by || '', createdAt: o.at || '',
+        demandSource: 'ppc', flowPrintOrder: o.no, test: true, virtual: true });
+    });
+  });
+  return out;
+}
+
+/** Vendor Orders screen: the test ones in VO.rows (preview only), fresh each time the screen is drawn from ensureVo. */
+async function flowVoExtra() {
+  if (!FLOW_ON || typeof VO === 'undefined' || !Array.isArray(VO.rows)) return;
+  try { await flowLoad(); } catch (e) { /* without the flow there is nothing to add */ }
+  VO.rows = VO.rows.filter(o => !(o && o.virtual)).concat(flowTestVos());
+}
+
+/* ---- the portal ---- */
+let FLOW_VP_AS = null;   // { code, name } while an admin looks as a printer
+/** After the portal read its printer's branch: the view-as printer instead, and the test orders for that printer. */
+async function flowVpAfterLoad() {
+  if (!FLOW_ON || typeof VP === 'undefined') return;
+  VP.viewAs = false;
+  if (FLOW_VP_AS && ME.admin) {
+    VP.code = FLOW_VP_AS.code; VP.name = FLOW_VP_AS.name; VP.viewAs = true;
+    try { VP.rows = ptList(await ptGet('pt_vendorOrders/' + VP.code)); } catch (e) { VP.rows = []; }
+  }
+  if (!VP.code) return;
+  try { await flowLoad(); } catch (e) { return; }
+  VP.rows = (VP.rows || []).filter(o => !(o && o.virtual)).concat(flowTestVos().filter(v => obUC(v.vendorCode) === obUC(VP.code)));
+}
+/** The "View as printer" picker above the portal — an admin, on the preview only. */
+async function flowVpBar() {
+  if (!FLOW_ON || !ME.admin || !$('vpBody') || $('flVpAs')) return;
+  $('vpBody').insertAdjacentHTML('beforebegin', `<div class="card" style="padding:8px 12px;margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;border:1px dashed #7c3aed">
+    <span style="color:#7c3aed;font-weight:600;font-size:12.5px">TEST VIEW</span>
+    <label style="display:flex;gap:6px;align-items:center;margin:0;font-size:12.5px">See the portal as printer
+      <select id="flVpAs" style="width:auto;min-width:220px"><option value="">— my own sign-in —</option></select></label>
+    <span class="muted" style="font-size:12px">what that printer sees, view only — nothing can be changed from here</span></div>`);
+  let map = {}; try { map = (await ptGet('pt_vendorMap')) || {}; } catch (e) { map = {}; }
+  const sel = $('flVpAs'); if (!sel) return;
+  sel.innerHTML += Object.entries(map).filter(([, v]) => v).sort((a, b) => String(a[1].name || a[0]).localeCompare(String(b[1].name || b[0])))
+    .map(([code, v]) => `<option value="${esc(code)}">${esc(v.name || code)} (${esc(code)})</option>`).join('');
+  sel.onchange = async () => {
+    const code = sel.value; FLOW_VP_AS = code ? { code, name: (map[code] && map[code].name) || code } : null;
+    VP.rows = null; if (typeof ensureVp === 'function') await ensureVp();
+  };
+}
+
+/* The staff screens never change a test vendor order: it is not in the register, and its entries are the flow's. */
+if (FLOW_ON && typeof document !== 'undefined' && document.addEventListener) document.addEventListener('click', e => {
+  const t = e.target && e.target.closest && e.target.closest('[data-vo-open],[data-vo-recv],[data-vo-move],[data-vo-cxl],[data-vo-pick],[data-vopick],[data-vocancel],[data-vorestore],[data-voqtysave],[data-voqty]');
+  if (!t || ![...t.attributes].some(a => /^data-vo/.test(a.name) && /tvpo_/.test(a.value))) return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  const m = $('voMsg'); if (m) { m.className = 'err'; m.textContent = 'This is a TEST vendor order from the Production flow — it is not in the register. The cloth sent and the printed cloth received are entered in Production flow → Demand history.'; }
+}, true);
 /* ============================== FILE: src/app/flow/flow-edit.js ============================== */
 /* ================= PRODUCTION FLOW · CORRECTIONS — a wrong plan, a wrong challan, a wrong receipt =================
  * Ravi, 10 Oct: "yadi mere se galat demand generate ho gya ya kuch bhi data galat select ho gya and want to edit,
@@ -31659,6 +31748,7 @@ async function ensureVo() {
     VO.at = ptStamp(); VO.busy = false;
     } finally { VO_LOADING = null; done(); }
   }
+  if (typeof flowVoExtra === 'function') await flowVoExtra();   // Production flow (preview only): test print orders as vendor orders
   renderVo();
 }
 
@@ -36085,6 +36175,7 @@ function vendTabRule(isVendor) {
 }
 
 async function ensureVp() {
+  if (typeof flowVpBar === 'function') flowVpBar();   // Production flow (preview only): view as a printer
   if (VP.rows === null) {
     VP.busy = true; renderVp();
     try {
@@ -36127,6 +36218,7 @@ async function ensureVp() {
       VP.name = name;
       // Only this vendor's branch is ever asked for. Reading the node would hand over every vendor.
       VP.rows = code ? ptList(await ptGet('pt_vendorOrders/' + code)) : [];
+      if (typeof flowVpAfterLoad === 'function') { await flowVpAfterLoad(); code = VP.code; }   // Production flow (preview only)
       /* WHAT THIS PRINTER HAS SAID IS ON THEIR FLOOR. Their branch and nobody else's, for the same
        * reason. A failed read leaves the boxes empty and the requirement at its full size, which is
        * the safe way round — it asks for cloth that may not be needed rather than skipping cloth
@@ -36507,11 +36599,11 @@ function vpShopTable(rows, f) {
 
   const body = rows.map(o => {
     const st = o.status || 'Placed';
-    const can = VP_CAN_DELIVER.indexOf(st) >= 0;
+    const can = !flowVpViewOnly(o) && VP_CAN_DELIVER.indexOf(st) >= 0;
     const on = !!(f && vpLineOn(f));
     const keep = voLines(o).map((l, i) => ({ l, i })).filter(({ l }) => (!on || voLineMatches(l, f)) && vpPartOk(o, l));
     if (!keep.length) return '';
-    const flow = VP_FLOW[st];
+    const flow = flowVpViewOnly(o) ? null : VP_FLOW[st];
     const cls = st === 'Cancelled' ? 'pill-out' : (st === 'Dispatched' || st === 'Received' ? 'pill-ok' : 'pill-low');
 
     /* One product, its lines, and the orders they came from. */
@@ -36585,7 +36677,7 @@ function vpShopTable(rows, f) {
           + `<td class="num" style="color:#166534">${done ? nf(done) : '<span class="muted">—</span>'}</td>`
           + `<td class="num">${bal > 0 ? `<span style="font-weight:700;color:var(--bad)">${nf(bal)}</span>`
               : '<span class="pill pill-ok">done</span>'}</td>`
-          + `<td>${bal <= 0 ? '<span class="muted">—</span>'
+          + `<td>${flowVpViewOnly(o) || bal <= 0 ? '<span class="muted">—</span>'
               : `<input data-vppromg="${esc(o.id)}" data-ix="${esc(ix)}" type="date" value="${esc(dateVal)}" style="width:146px">`}</td>`
           + `<td class="num">${!can || bal <= 0 ? '<span class="muted">—</span>'
               : `<input data-vpsendg="${esc(o.id)}" data-ix="${esc(ix)}" type="number" min="0" max="${bal}" step="1"
@@ -36624,14 +36716,14 @@ function vpTable(rows, f) {
 
   const body = rows.map(o => {
     const st = o.status || 'Placed';
-    const can = VP_CAN_DELIVER.indexOf(st) >= 0;
+    const can = !flowVpViewOnly(o) && VP_CAN_DELIVER.indexOf(st) >= 0;
     const run = o.orderType === 'running';
     const unit = run ? 'm' : 'pcs';
     const all = voLines(o);
     const on = !!(f && vpLineOn(f));
     const keep = all.map((l, i) => ({ l, i })).filter(({ l }) => (!on || voLineMatches(l, f)) && vpPartOk(o, l));
     if (!keep.length) return '';
-    const flow = VP_FLOW[st];
+    const flow = flowVpViewOnly(o) ? null : VP_FLOW[st];
     const cls = st === 'Cancelled' ? 'pill-out' : (st === 'Dispatched' || st === 'Received' ? 'pill-ok' : 'pill-low');
 
     /* The order itself, as one row across the table. Everything that belongs to the WHOLE order lives
@@ -36684,7 +36776,7 @@ function vpTable(rows, f) {
         + `<td class="num">${dead ? '<span class="pill pill-out">cancelled</span>'
             : (bal > 0 ? `<span style="font-weight:700;color:var(--bad)">${nf(bal)}</span>` : '<span class="pill pill-ok">done</span>')}</td>`
         + `<td class="muted" style="font-size:12px">${voWant(l) ? esc(dShow(voWant(l))) : '—'}</td>`
-        + `<td>${dead || bal <= 0 ? '<span class="muted">—</span>'
+        + `<td>${flowVpViewOnly(o) || dead || bal <= 0 ? '<span class="muted">—</span>'
             : `<input data-vpprom="${esc(o.id)}" data-i="${i}" type="date" value="${esc(voProm(l))}" style="width:146px">`
               + (voMoves(l) ? `<div class="muted" style="font-size:10px">first said ${esc(dShow(voPromFirst(l)))}</div>` : '')}</td>`
         + `<td class="num">${!can || dead || bal <= 0 ? '<span class="muted">—</span>'
@@ -36704,7 +36796,7 @@ function vpTable(rows, f) {
 
 function vpCard(o, f) {
   const st = o.status || 'Placed';
-  const can = VP_CAN_DELIVER.indexOf(st) >= 0;
+  const can = !flowVpViewOnly(o) && VP_CAN_DELIVER.indexOf(st) >= 0;
   const run = o.orderType === 'running';
   const unit = run ? 'm' : 'pcs';
   const all = voLines(o);
@@ -36737,7 +36829,7 @@ function vpCard(o, f) {
         : (bal > 0 ? `<span style="font-weight:700;color:var(--bad)">${nf(bal)}</span>` : '<span class="pill pill-ok">done</span>')}</td>`
       /* What the buyer asked for, and the box where this vendor says what they can really do. */
       + `<td class="muted" style="font-size:12px">${voWant(l) ? esc(dShow(voWant(l))) : '—'}</td>`
-      + `<td>${dead || bal <= 0 ? '<span class="muted">—</span>'
+      + `<td>${flowVpViewOnly(o) || dead || bal <= 0 ? '<span class="muted">—</span>'
         : `<input data-vpprom="${esc(o.id)}" data-i="${i}" type="date" value="${esc(voProm(l))}" style="width:148px">`
           + (voMoves(l) ? `<div class="muted" style="font-size:10px">first said ${esc(dShow(voPromFirst(l)))}</div>` : '')}</td>`
       + (can ? `<td class="num">${dead || bal <= 0 ? '<span class="muted">—</span>'
@@ -36746,7 +36838,7 @@ function vpCard(o, f) {
       + '</tr>';
   }).join('');
 
-  const flow = VP_FLOW[st];
+  const flow = flowVpViewOnly(o) ? null : VP_FLOW[st];
   const cls = st === 'Cancelled' ? 'pill-out' : (st === 'Dispatched' || st === 'Received' ? 'pill-ok' : 'pill-low');
   return `<div class="card" style="padding:14px 16px;margin-bottom:12px">
     <div class="toolbar" style="align-items:baseline">
@@ -36783,7 +36875,7 @@ async function vpSave(o, note) {
 }
 
 async function vpFlow(id) {
-  const o = (VP.rows || []).find(x => x.id === id); if (!o) return;
+  const o = (VP.rows || []).find(x => x.id === id); if (!o || flowVpViewOnly(o)) return;
   const next = VP_FLOW[o.status || 'Placed'];
   if (!next) return;
   try { await vpSave(Object.assign({}, o, { status: next }), `Marked as ${next}.`); }
@@ -36851,7 +36943,7 @@ async function vpRecordAll() {
 
   const plan = [];
   (VP.shown || []).forEach(o => {
-    if (VP_CAN_DELIVER.indexOf(o.status || 'Placed') < 0) return;   // not an order you can send against
+    if (VP_CAN_DELIVER.indexOf(o.status || 'Placed') < 0 || flowVpViewOnly(o)) return;   // not an order you can send against
     const typed = {};
     let n = 0;
     voLines(o).forEach((l, i) => {
@@ -36894,7 +36986,7 @@ async function vpRecordAll() {
 
 /** The per-order button, for anywhere it is still drawn: read this order's boxes, then write. */
 async function vpDeliver(id) {
-  const o = (VP.rows || []).find(x => x.id === id); if (!o) return;
+  const o = (VP.rows || []).find(x => x.id === id); if (!o || flowVpViewOnly(o)) return;
   const dEl = document.querySelector(`[data-vpdate="${id}"]`);
   const iso = (dEl ? dEl.value : '') || String(($('vpSendDate') || {}).value || '');
   const typed = {};
@@ -36915,7 +37007,7 @@ async function vpDeliver(id) {
  * at all. vendorDateFirst is written once; every later change is added to the log instead.
  */
 async function vpPromise(id, bulkIn, typedIn) {
-  const o = (VP.rows || []).find(x => x.id === id); if (!o) return '';
+  const o = (VP.rows || []).find(x => x.id === id); if (!o || flowVpViewOnly(o)) return '';
   const all = document.querySelector(`[data-vpallprom="${id}"]`);
   /* The bulk date now lives in the toolbar, one for the whole screen. A per-order box is still read
    * first for anywhere one is still drawn. */
@@ -37167,7 +37259,7 @@ $('voSync').onclick = async () => {
  * Only orders still being worked on. Cloth for an order already sent back is not a requirement, it
  * is a question about last month.
  */
-const vpRfdOrders = () => (VP.rows || []).filter(o => o
+const vpRfdOrders = () => (VP.rows || []).filter(o => o && !flowVpViewOnly(o)
   && ['Received', 'Cancelled'].indexOf(o.status || 'Placed') < 0
   /* Either kind counts. An order that is entirely Tablecloths has no cloth to ask for at all and is
    * still an order whose pieces have to be asked for. */
@@ -50094,6 +50186,10 @@ function recipeUploadPlan(entries) {
           return;
         }
         e.vals[f] = hit;                       // the master's own spelling, not the sheet's
+      } else if (spec[2] === 'pack') {
+        const t = mdbPackType(raw);
+        if (!t) { skip.push({ row: e.row, key, why: `${spec[1]} must be Polythene or Box, not "${raw}".` }); return; }
+        e.vals[f] = t;
       } else if (spec[2] === 'num' && !Number.isFinite(mdbNum(raw))) {
         /* NOT `mdbNum(raw) >= 0`. mdbNum answers null for anything that is not a number, and
          * null >= 0 is true — so "lots" sailed through and would have been written as a quantity. */
@@ -50278,6 +50374,8 @@ function recipeEdit(key) {
       const said = s.values.map(v => nf(v.n) + ' × ' + v.value).join(', ') + (s.blank ? ', ' + nf(s.blank) + ' blank' : '');
       if (kind === 'fab') return { key: f, label: label + '  [' + said + ']', type: 'select',
         value: recSaid(r[f]) ? String(r[f]).trim() : '', options: [''].concat(fabListOr(r[f])) };
+      if (kind === 'pack') return { key: f, label: label + '  [' + said + ']', type: 'select',
+        value: recSaid(r[f]) ? mdbPackType(r[f]) : '', options: ['', 'Polythene', 'Box'] };
       return kind === 'yn'
         ? { key: f, label: label + '  [' + said + ']', type: 'select', value: recSaid(r[f]) ? recNorm(r[f]) : '',
             options: ['', 'yes', 'no'] }
@@ -51349,6 +51447,10 @@ const RECIPE_FIELDS = [
   ['pipingMeters', 'Piping dori metres', 'num'],
   ['fillerFabricRequired', 'Filler fabric', 'yn'],
   ['standardFillingQty', 'Filling qty', 'num'],
+  /* PACKING (Ravi, 2026-10-11: "packing ko recipe me bhi daal do") — every colour of a size packs the same way.
+   * 'pack' is Polythene or Box only. */
+  ['packType', 'Packing', 'pack'],
+  ['packMaterial', 'Polythene / box used', 'txt'],
 ];
 /* A YES/NO ON A SKU IS NEVER BLANK — mdbRecord writes true or false — so "nobody has said" and "no"
  * cannot be told apart on the SKU. A recipe CAN be silent about one, which is why these are stored
@@ -51420,7 +51522,7 @@ function recipeFill(rec) {
       return;
     }
     if (recSaid(out[f])) return;                  // the row said something; leave it alone
-    out[f] = kind === 'num' ? mdbNum(r[f]) : String(r[f]).trim();
+    out[f] = kind === 'num' ? mdbNum(r[f]) : kind === 'pack' ? mdbPackType(r[f]) : String(r[f]).trim();
     from.push(f);
   });
   /* A zip that is off carries no size and no count, and a ruffle that is off carries no metres — the

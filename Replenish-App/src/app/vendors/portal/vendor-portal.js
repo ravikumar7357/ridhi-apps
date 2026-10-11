@@ -90,6 +90,7 @@ function vendTabRule(isVendor) {
 }
 
 async function ensureVp() {
+  if (typeof flowVpBar === 'function') flowVpBar();   // Production flow (preview only): view as a printer
   if (VP.rows === null) {
     VP.busy = true; renderVp();
     try {
@@ -132,6 +133,7 @@ async function ensureVp() {
       VP.name = name;
       // Only this vendor's branch is ever asked for. Reading the node would hand over every vendor.
       VP.rows = code ? ptList(await ptGet('pt_vendorOrders/' + code)) : [];
+      if (typeof flowVpAfterLoad === 'function') { await flowVpAfterLoad(); code = VP.code; }   // Production flow (preview only)
       /* WHAT THIS PRINTER HAS SAID IS ON THEIR FLOOR. Their branch and nobody else's, for the same
        * reason. A failed read leaves the boxes empty and the requirement at its full size, which is
        * the safe way round — it asks for cloth that may not be needed rather than skipping cloth
@@ -512,11 +514,11 @@ function vpShopTable(rows, f) {
 
   const body = rows.map(o => {
     const st = o.status || 'Placed';
-    const can = VP_CAN_DELIVER.indexOf(st) >= 0;
+    const can = !flowVpViewOnly(o) && VP_CAN_DELIVER.indexOf(st) >= 0;
     const on = !!(f && vpLineOn(f));
     const keep = voLines(o).map((l, i) => ({ l, i })).filter(({ l }) => (!on || voLineMatches(l, f)) && vpPartOk(o, l));
     if (!keep.length) return '';
-    const flow = VP_FLOW[st];
+    const flow = flowVpViewOnly(o) ? null : VP_FLOW[st];
     const cls = st === 'Cancelled' ? 'pill-out' : (st === 'Dispatched' || st === 'Received' ? 'pill-ok' : 'pill-low');
 
     /* One product, its lines, and the orders they came from. */
@@ -590,7 +592,7 @@ function vpShopTable(rows, f) {
           + `<td class="num" style="color:#166534">${done ? nf(done) : '<span class="muted">—</span>'}</td>`
           + `<td class="num">${bal > 0 ? `<span style="font-weight:700;color:var(--bad)">${nf(bal)}</span>`
               : '<span class="pill pill-ok">done</span>'}</td>`
-          + `<td>${bal <= 0 ? '<span class="muted">—</span>'
+          + `<td>${flowVpViewOnly(o) || bal <= 0 ? '<span class="muted">—</span>'
               : `<input data-vppromg="${esc(o.id)}" data-ix="${esc(ix)}" type="date" value="${esc(dateVal)}" style="width:146px">`}</td>`
           + `<td class="num">${!can || bal <= 0 ? '<span class="muted">—</span>'
               : `<input data-vpsendg="${esc(o.id)}" data-ix="${esc(ix)}" type="number" min="0" max="${bal}" step="1"
@@ -629,14 +631,14 @@ function vpTable(rows, f) {
 
   const body = rows.map(o => {
     const st = o.status || 'Placed';
-    const can = VP_CAN_DELIVER.indexOf(st) >= 0;
+    const can = !flowVpViewOnly(o) && VP_CAN_DELIVER.indexOf(st) >= 0;
     const run = o.orderType === 'running';
     const unit = run ? 'm' : 'pcs';
     const all = voLines(o);
     const on = !!(f && vpLineOn(f));
     const keep = all.map((l, i) => ({ l, i })).filter(({ l }) => (!on || voLineMatches(l, f)) && vpPartOk(o, l));
     if (!keep.length) return '';
-    const flow = VP_FLOW[st];
+    const flow = flowVpViewOnly(o) ? null : VP_FLOW[st];
     const cls = st === 'Cancelled' ? 'pill-out' : (st === 'Dispatched' || st === 'Received' ? 'pill-ok' : 'pill-low');
 
     /* The order itself, as one row across the table. Everything that belongs to the WHOLE order lives
@@ -689,7 +691,7 @@ function vpTable(rows, f) {
         + `<td class="num">${dead ? '<span class="pill pill-out">cancelled</span>'
             : (bal > 0 ? `<span style="font-weight:700;color:var(--bad)">${nf(bal)}</span>` : '<span class="pill pill-ok">done</span>')}</td>`
         + `<td class="muted" style="font-size:12px">${voWant(l) ? esc(dShow(voWant(l))) : '—'}</td>`
-        + `<td>${dead || bal <= 0 ? '<span class="muted">—</span>'
+        + `<td>${flowVpViewOnly(o) || dead || bal <= 0 ? '<span class="muted">—</span>'
             : `<input data-vpprom="${esc(o.id)}" data-i="${i}" type="date" value="${esc(voProm(l))}" style="width:146px">`
               + (voMoves(l) ? `<div class="muted" style="font-size:10px">first said ${esc(dShow(voPromFirst(l)))}</div>` : '')}</td>`
         + `<td class="num">${!can || dead || bal <= 0 ? '<span class="muted">—</span>'
@@ -709,7 +711,7 @@ function vpTable(rows, f) {
 
 function vpCard(o, f) {
   const st = o.status || 'Placed';
-  const can = VP_CAN_DELIVER.indexOf(st) >= 0;
+  const can = !flowVpViewOnly(o) && VP_CAN_DELIVER.indexOf(st) >= 0;
   const run = o.orderType === 'running';
   const unit = run ? 'm' : 'pcs';
   const all = voLines(o);
@@ -742,7 +744,7 @@ function vpCard(o, f) {
         : (bal > 0 ? `<span style="font-weight:700;color:var(--bad)">${nf(bal)}</span>` : '<span class="pill pill-ok">done</span>')}</td>`
       /* What the buyer asked for, and the box where this vendor says what they can really do. */
       + `<td class="muted" style="font-size:12px">${voWant(l) ? esc(dShow(voWant(l))) : '—'}</td>`
-      + `<td>${dead || bal <= 0 ? '<span class="muted">—</span>'
+      + `<td>${flowVpViewOnly(o) || dead || bal <= 0 ? '<span class="muted">—</span>'
         : `<input data-vpprom="${esc(o.id)}" data-i="${i}" type="date" value="${esc(voProm(l))}" style="width:148px">`
           + (voMoves(l) ? `<div class="muted" style="font-size:10px">first said ${esc(dShow(voPromFirst(l)))}</div>` : '')}</td>`
       + (can ? `<td class="num">${dead || bal <= 0 ? '<span class="muted">—</span>'
@@ -751,7 +753,7 @@ function vpCard(o, f) {
       + '</tr>';
   }).join('');
 
-  const flow = VP_FLOW[st];
+  const flow = flowVpViewOnly(o) ? null : VP_FLOW[st];
   const cls = st === 'Cancelled' ? 'pill-out' : (st === 'Dispatched' || st === 'Received' ? 'pill-ok' : 'pill-low');
   return `<div class="card" style="padding:14px 16px;margin-bottom:12px">
     <div class="toolbar" style="align-items:baseline">
@@ -788,7 +790,7 @@ async function vpSave(o, note) {
 }
 
 async function vpFlow(id) {
-  const o = (VP.rows || []).find(x => x.id === id); if (!o) return;
+  const o = (VP.rows || []).find(x => x.id === id); if (!o || flowVpViewOnly(o)) return;
   const next = VP_FLOW[o.status || 'Placed'];
   if (!next) return;
   try { await vpSave(Object.assign({}, o, { status: next }), `Marked as ${next}.`); }
@@ -856,7 +858,7 @@ async function vpRecordAll() {
 
   const plan = [];
   (VP.shown || []).forEach(o => {
-    if (VP_CAN_DELIVER.indexOf(o.status || 'Placed') < 0) return;   // not an order you can send against
+    if (VP_CAN_DELIVER.indexOf(o.status || 'Placed') < 0 || flowVpViewOnly(o)) return;   // not an order you can send against
     const typed = {};
     let n = 0;
     voLines(o).forEach((l, i) => {
@@ -899,7 +901,7 @@ async function vpRecordAll() {
 
 /** The per-order button, for anywhere it is still drawn: read this order's boxes, then write. */
 async function vpDeliver(id) {
-  const o = (VP.rows || []).find(x => x.id === id); if (!o) return;
+  const o = (VP.rows || []).find(x => x.id === id); if (!o || flowVpViewOnly(o)) return;
   const dEl = document.querySelector(`[data-vpdate="${id}"]`);
   const iso = (dEl ? dEl.value : '') || String(($('vpSendDate') || {}).value || '');
   const typed = {};
@@ -920,7 +922,7 @@ async function vpDeliver(id) {
  * at all. vendorDateFirst is written once; every later change is added to the log instead.
  */
 async function vpPromise(id, bulkIn, typedIn) {
-  const o = (VP.rows || []).find(x => x.id === id); if (!o) return '';
+  const o = (VP.rows || []).find(x => x.id === id); if (!o || flowVpViewOnly(o)) return '';
   const all = document.querySelector(`[data-vpallprom="${id}"]`);
   /* The bulk date now lives in the toolbar, one for the whole screen. A per-order box is still read
    * first for anywhere one is still drawn. */
@@ -1172,7 +1174,7 @@ $('voSync').onclick = async () => {
  * Only orders still being worked on. Cloth for an order already sent back is not a requirement, it
  * is a question about last month.
  */
-const vpRfdOrders = () => (VP.rows || []).filter(o => o
+const vpRfdOrders = () => (VP.rows || []).filter(o => o && !flowVpViewOnly(o)
   && ['Received', 'Cancelled'].indexOf(o.status || 'Placed') < 0
   /* Either kind counts. An order that is entirely Tablecloths has no cloth to ask for at all and is
    * still an order whose pieces have to be asked for. */

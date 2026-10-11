@@ -2,7 +2,7 @@
  *   node tests/teeth/teeth-flow.js */
 const fs = require('fs'), path = require('path'), os = require('os'), { spawnSync } = require('child_process');
 const DIR = path.join(__dirname, '..', '..', 'src', 'app', 'flow');
-const FILES = ['flow-core.js', 'flow-ppc.js', 'flow-demand.js', 'flow-challan.js', 'flow-test-order.js', 'flow-receive.js', 'flow-printorder.js', 'flow-edit.js', 'flow-entries.js', 'flow-qcfg.js', 'flow-view.js'];
+const FILES = ['flow-core.js', 'flow-ppc.js', 'flow-demand.js', 'flow-challan.js', 'flow-test-order.js', 'flow-receive.js', 'flow-printorder.js', 'flow-vendor.js', 'flow-edit.js', 'flow-entries.js', 'flow-qcfg.js', 'flow-view.js'];
 const read = f => fs.readFileSync(path.join(DIR, f), 'utf8').replace(/\r\n/g, '\n');
 const breaks = {
   'flow-core.js': {
@@ -162,6 +162,11 @@ const breaks = {
     'QC rejections not offered to issue again': s => s.replace("- (s.issuedNet != null ? s.issuedNet : (s.issued || 0)));", "- (s.issued || 0));"),
     'receive opens the wrong row': s => s.replace("obUC(b.orderNo) === obUC(r.orderNo) &&", ''),
     'no right needed for the entry': s => s.replace("const flowMay = tab => !!(ME.admin || (ME.tabs || []).includes(tab));", 'const flowMay = tab => true;'),
+  },
+  'flow-vendor.js': {
+    'test vendor orders on the live app': s => s.replace("if (!FLOW_ON) return [];   // the live app never sees a test vendor order", ''),
+    'a flow order not view only for the printer': s => s.replace("(o.test || o.demandSource === 'ppc' ||", "(false ||"),
+    'test vendor orders added again on every draw': s => s.replace("VO.rows = VO.rows.filter(o => !(o && o.virtual)).concat(flowTestVos());", "VO.rows = VO.rows.concat(flowTestVos());"),
   },
   'flow-qcfg.js': {
     'spotting / touching not counted as still in QC': s => s.replace("e.dept += c.refId ?", 'e.dept += 0 && c.refId ?'),
