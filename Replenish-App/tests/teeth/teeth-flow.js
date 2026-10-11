@@ -138,6 +138,8 @@ const breaks = {
     'test lines never re-read': s => s.replace('if (FLOW_TC.src === FLOW.test) return FLOW_TC.rows;', 'if (FLOW_TC.rows.length) return FLOW_TC.rows;'),
   },
   'flow-receive.js': {
+    'flow receipts not in History': s => s.replace("if (typeof FLOW_ON === 'undefined' || !FLOW_ON || !FLOW.ch) return [];", "return [];"),
+    'flow receipts in History on the live app': s => s.replace("if (typeof FLOW_ON === 'undefined' || !FLOW_ON || !FLOW.ch) return [];", "if (!FLOW.ch) return [];"),
     'two receipts at once not guarded': s => s.replace("const g = await flowGuard('ch_' + no); if (g) return g;   // two people receiving", "const g = ''; // two people receiving"),
     'a ruffle-only challan counted as the body cloth': s => s.replace("const k = l.ruffleOnly ? l.key + FLOW_RUF : l.key,", "const k = l.key,"),
     'pieces received as metres': s => s.replace("const flowChUnit = l => (l && l.print && l.print.kind === 'sku' ? 'pcs' : 'm');", "const flowChUnit = l => 'm';"),
@@ -211,7 +213,6 @@ const breaks = {
     'test-only switch ignored on the lines': s => s.replace('const pass = x => (!only || x.r.__t) &&', 'const pass = x =>'),
     'test-only switch ignored in Demand history': s => s.replace("filter(c => !c.closed && !c.cancelled && (!only || flowIsTest(c.orderNo)))", 'filter(c => !c.closed && !c.cancelled)'),
     'challans still shown in Demand RFD': s => s.replace("$('flPanel').innerHTML = FLOW.panel;", "$('flPanel').innerHTML = FLOW.panel + (FLOW_VIEW === 'drfd' ? flowHistTable('') : '');"),
-    'no Receive button on the fabric bucket': s => s.replace("x && x.s.challan && view === 'fabric' && !x.s.challan.closed", 'false'),
     'by printed fabric groups each order apart': s => s.replace("const k = (x.r.__t ? 'T|' : 'R|') + (pc || '?') + '|' + (w.code || '?' + w.label);", "const k = x.r.orderNo + (pc || '?') + '|' + (w.code || '?' + w.label);"),
     'one challan button per PO again': s => s.replace("const pk = x.s.route === 'stitch' ? '' : (flowPlanPrinter(x.s) || '?'), gk = x.r.orderNo + '|' + pk;", "const pk = x.s.route === 'stitch' ? '' : (flowPlanPrinter(x.s) || '?'), gk = x.r.orderNo;"),
     'no "test view" warning': s => s.replace(' · TEST VIEW, not on the live app', ''),

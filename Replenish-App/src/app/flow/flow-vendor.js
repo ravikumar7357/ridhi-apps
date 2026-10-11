@@ -79,6 +79,13 @@ async function flowVpBar() {
   };
 }
 
+/* History never changes a receipt made on a flow challan: it is changed on the challan itself (Demand history). */
+if (FLOW_ON && typeof document !== 'undefined' && document.addEventListener) document.addEventListener('click', e => {
+  const t = e.target && e.target.closest && e.target.closest('[data-vl-ok],[data-vl-no],[data-vl-pick]');
+  if (!t || ![...t.attributes].some(a => /^data-vl-/.test(a.name) && /^flow\//.test(a.value))) return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  const m = $('vlMsg'); if (m) { m.className = 'err'; m.textContent = 'This was received on a Production flow challan — change it on the challan in Production flow → Demand history (undo the receipt there).'; }
+}, true);
 /* The staff screens never change a test vendor order: it is not in the register, and its entries are the flow's. */
 if (FLOW_ON && typeof document !== 'undefined' && document.addEventListener) document.addEventListener('click', e => {
   const t = e.target && e.target.closest && e.target.closest('[data-vo-open],[data-vo-recv],[data-vo-move],[data-vo-cxl],[data-vo-pick],[data-vopick],[data-vocancel],[data-vorestore],[data-voqtysave],[data-voqty]');

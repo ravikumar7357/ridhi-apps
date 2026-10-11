@@ -68,6 +68,7 @@ async function ensureStoreRead() {
   if (!PTG.mdb) { try { await ptLoadGates(); } catch (e) { errs.push('the master database'); } }
   if (!PT.base) { try { PT.base = ptList(await ptGet('pt_baseData')); } catch (e) { errs.push('the Job Work Register'); } }
   if (VO.rows === null) { try { await ensureVo(); } catch (e) { errs.push('the printers\' orders'); } }
+  if (typeof FLOW_ON !== 'undefined' && FLOW_ON && typeof flowLoad === 'function') { try { await flowLoad(); } catch (e) { /* the flow's receipts wait */ } }
   STORE.err = errs.length ? 'Could not read ' + errs.join(' or ') + '.' : '';
   STORE.at = ptStamp(); STORE.busy = false;
   renderFab();

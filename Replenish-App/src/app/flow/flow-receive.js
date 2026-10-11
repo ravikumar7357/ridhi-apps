@@ -30,6 +30,35 @@ function flowChIndex() {
   FLOW_CHX = { src: FLOW.ch, map };
   return map;
 }
+/* SEEN IN HISTORY (Ravi, 11 Oct: "dekhne ke liye hum History tab use karenge, Printed fabric in ko hata dete h"). Every
+ * receipt on a flow challan is a row of Vendors & printers → History (voLogRows) — accepted as it was received, by who
+ * received it — and so, like a printer's delivery, printed cloth / printed pieces IN at the store, which reads the same
+ * log. Preview only (FLOW_ON); a TEST challan's rows say TEST. History does not change them: they are changed on the
+ * challan (Demand history: undo receipt). */
+function flowVlogRows() {
+  if (typeof FLOW_ON === 'undefined' || !FLOW_ON || !FLOW.ch) return [];
+  const out = [];
+  Object.values(FLOW.ch).forEach(c => {
+    if (!c || c.cancelled) return;
+    Object.entries(c.receipts || {}).forEach(([rid, rc]) => Object.entries((rc && rc.items) || {}).forEach(([key, q]) => {
+      const qty = +q || 0, l = (c.lines || []).find(x => x.key === key); if (!qty || !l) return;
+      const u = flowChUnit(l), run = u === 'm';
+      let m = {}; try { m = cutSkuOf(l.sku) || {}; } catch (e) { m = {}; }
+      const colour = String(m.color || String(l.item || '').split(' · ')[1] || '').trim();
+      const code = l.ruffleOnly ? (l.extras || []).map(x => x.code).filter(Boolean).join(' + ')
+        : l.print && l.print.sides && l.print.sides.length ? l.print.sides.map(sd => sd.code).join(' + ') : ((l.print && l.print.code) || '');
+      const day = voDayOf(rc.date || String(rc.at || '').slice(0, 10)), test = /^T/.test(String(c.no));
+      out.push({ day, key: voDayKey(day), raw: String(rc.date || ''), li: -1, di: -1, del: { qty, date: rc.date, by: rc.by || '', at: rc.at || '' },
+        ok: { qty, at: rc.at || '', by: rc.by || '', note: (test ? 'TEST · ' : '') + 'received on challan ' + c.no + (rc.note ? ' · ' + rc.note : '') },
+        key2: 'flow/' + c.no + '/' + rid + '/' + key, vendorCode: (c.vendor && c.vendor.code) || '', vendor: (c.vendor && c.vendor.name) || '',
+        orderNo: (test ? 'TEST · ' : '') + c.no + ' · ' + (l.orderNo || c.orderNo || ''), id: c.no, run, unit: u, printing: true,
+        sku: run ? code : obUC(l.sku), fabric: run ? (l.fabric || '') : '', colour,
+        what: run ? [code, l.fabric, colour].filter(Boolean).join(' · ') + (l.ruffleOnly ? ' (ruffle)' : '') + ' — for ' + obUC(l.sku) : (l.item || l.sku),
+        qty, by: rc.by || '', at: rc.at || '', flow: true, test });
+    }));
+  });
+  return out;
+}
 /** Received so far, per line key, on one challan — in the line's own unit (metres, or pieces). */
 function flowChRecv(c) {
   const out = {};

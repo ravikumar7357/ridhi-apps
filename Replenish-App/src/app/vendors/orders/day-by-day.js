@@ -142,6 +142,8 @@ function voLogRows() {
       });
     });
   });
+  /* Production flow (preview only): what was received on its RFD challans — flow-receive.js. */
+  if (typeof flowVlogRows === 'function') out.push(...flowVlogRows());
   return out;
 }
 

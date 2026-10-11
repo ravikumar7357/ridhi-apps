@@ -150,9 +150,7 @@ function flowTable(view, rows) {
       <div class="muted" style="font-size:10.5px">${esc([x.r.articleSubtype || x.r.articleType, x.r.color, x.r.size].filter(Boolean).join(' · '))}</div></td>
     <td class="num"><b>${nf(x.r.qty)}</b></td>`;
   /* A test line has no register entry to make: its button stands in for that entry. */
-  const go = (view, x) => x && x.s.challan && view === 'fabric' && !x.s.challan.closed
-      ? `<button data-flchr="${esc(x.s.challan.no)}" style="width:auto;padding:3px 10px;font-size:12px">Receive on ${esc(x.s.challan.no)}</button>`
-    : x && x.r.__t && ['cut', 'raw', 'wip'].includes(view) ? flowTestEntryButtons(view, x)
+  const go = (view, x) => x && x.r.__t && ['cut', 'raw', 'wip'].includes(view) ? flowTestEntryButtons(view, x)
     : x && x.r.__t && FLOW_SIM[view] ? `<button data-flsim="${esc(x.r.orderNo)}|${esc(x.r.sku)}|${view}" title="Stands in for: ${esc(FLOW_SIM[view][1])}" style="width:auto;padding:3px 10px;font-size:12px;background:#7c3aed;border-color:#7c3aed">${esc(FLOW_SIM[view][0])}</button>`
     : x && !x.r.__t && ['cut', 'raw', 'wip'].includes(view) ? flowEntryButtons(view, x)
     : FLOW_GO[view] ? `<button class="ghost" data-flgo="${FLOW_GO[view][0]}" style="width:auto;padding:2px 9px;font-size:11.5px">${FLOW_GO[view][1]} →</button>` : '';
@@ -216,9 +214,6 @@ function flowTable(view, rows) {
   } else if (view === 'vendor') {
     head = ['PO', 'SKU', 'Qty', 'Given to a printer', ''];
     body = rows.map(x => `<tr>${base(x)}<td class="num">${prog(x.s.given, +x.r.qty)}${flowChTag(x.s)}</td><td>${go(view, x)}</td></tr>`).join('');
-  } else if (view === 'fabric') {
-    head = ['PO', 'SKU', 'Qty', 'Back and accepted', ''];
-    body = rows.map(x => `<tr>${base(x)}<td class="num">${prog(x.s.back, x.s.given || +x.r.qty)}${flowChTag(x.s)}</td><td>${go(view, x)}</td></tr>`).join('');
   } else if (view === 'cut') {
     head = ['PO', 'SKU', 'Qty', 'Printed fabric to cut', 'Cut', ''];
     body = rows.map(x => `<tr>${base(x)}<td style="text-align:left;font-size:12px">${flowCutFrom(x)}</td><td class="num">${prog(x.s.cut, +x.r.qty)}${due(x.s.plan && x.s.plan.dates && x.s.plan.dates.cut, 'plan')}</td><td>${go(view, x)}</td></tr>`).join('');

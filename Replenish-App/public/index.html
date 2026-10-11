@@ -1105,7 +1105,7 @@
 
     <!-- The shop floor, in the order work moves through it: the order, the cut, the karigar, the
          press, the check, the stock — and the masters everything is keyed on, last. -->
-    <div class="navwrap"><button class="navgrp" id="grpProd" type="button" data-grp="prod" data-tabs="so,ord,pcut,pbase,ppress,qc,fgi,fba,fab,acc,pmdb,mst,cx,flow,flnew,flppc,flpo,fldem,flacc,flchl,flout,flven,flfab,flcut,flraw,flwip">
+    <div class="navwrap"><button class="navgrp" id="grpProd" type="button" data-grp="prod" data-tabs="so,ord,pcut,pbase,ppress,qc,fgi,fba,fab,acc,pmdb,mst,cx,flow,flnew,flppc,flpo,fldem,flacc,flchl,flout,flven,flcut,flraw,flwip">
       <span class="caret">&#9656;</span> Production</button>
     <!-- A MEGA MENU (Ravi, 2026-09-24: "2 — Mega menu"). Five columns in the order work moves; every
          count carries the words for what it counts (data-what), because "26" alone told nobody. -->
@@ -3537,7 +3537,7 @@ const REPL_TABS = ['repl', 'article', 'target', 'top', 'shopify', 'pack',
   'pmdb', 'mst', 'att', 'pbase', 'pcut', 'ppress', 'qc', 'qcalt', 'qcret', 'ord', 'so', 'vord', 'vreq', 'rfd', 'vend', 'vlog', 'palloc', 'fgi', 'fba', 'fab', 'acc', 'rep', 'pa', 'ka', 'hr',
   'shop', 'adj', 'shopprod', 'dash',
   /* Production flow (test, 2026-10-10): one right per bucket — the same keys as FLOW_BUCKETS in flow/flow-core.js. */
-  'flnew', 'flppc', 'flpo', 'fldem', 'flacc', 'flchl', 'flout', 'flven', 'flfab', 'flcut', 'flraw', 'flwip'];   // section keys, gated per-user via perms.replTabs — 'dash' is the admins' dashboard
+  'flnew', 'flppc', 'flpo', 'fldem', 'flacc', 'flchl', 'flout', 'flven', 'flcut', 'flraw', 'flwip'];   // section keys, gated per-user via perms.replTabs — 'dash' is the admins' dashboard
 let REPL = { SP: null, CPC: null };   // brand → { rows, at }
 let PO = [];                  // purchase orders
 
@@ -23604,7 +23604,6 @@ const FLOW_BUCKETS = [
   ['dhist', 'Demand history', 'flchl', 'Every RFD challan. Open until the printed fabric comes back against it — receive it here and the lines move to the store.'],
   ['out', 'Outsourced', 'flout', 'Made outside, finished: waiting to be received into Finished Goods.'],
   ['vendor', 'Vendor allocation', 'flven', 'Printed lines not yet given to a printer in full.'],
-  ['fabric', 'Printed fabric in', 'flfab', 'Given to a printer, not all back and accepted.'],
   ['cut', 'Cutting', 'flcut', 'Lines that need cutting, not all cut. The cutting entry puts the pieces in the store.'],
   ['raw', 'Raw cutting in store', 'flraw', 'Cut (or printed) pieces waiting to be issued to a karigar.'],
   ['wip', 'WIP', 'flwip', 'With karigars: issued, received, waiting for QC.'],
@@ -23613,7 +23612,9 @@ const FLOW_TABS = FLOW_BUCKETS.map(b => b[2]);
 /* AFTER WIP THE LINE LEAVES THIS SCREEN (Ravi, 10 Oct: "Q.C wala part abhi ke Q.C me flow kare, yahan se remove; ready to
  * India stock wala Finish Goods me show ho for accept"). A line still gets the bucket of where it is — 'qcb' with Quality
  * Control, 'fgin' waiting for the Finished Goods team — but no bucket of this screen lists it: the work is done there. */
-const FLOW_ELSEWHERE = { qcb: 'Quality Control (QC screen)', fgin: 'Finished Goods — to accept (Finished Goods screen)' };
+/* Printed fabric in, too (Ravi, 11 Oct: "dekhne ke liye hum History tab use karenge, Printed fabric in ko hata dete h"):
+ * received on its challan in Demand history, seen in Vendors & printers → History (flowVlogRows). */
+const FLOW_ELSEWHERE = { qcb: 'Quality Control (QC screen)', fgin: 'Finished Goods — to accept (Finished Goods screen)', fabric: 'With the printer — receive in Demand history, see Vendors & printers → History' };
 /* How a line is made — PPC chooses (Ravi, 10 Oct: "mere yaha sirf stitching hoga … printing wala part nahi hoga", and
  * a provision for orders made outside):
  *   inhouse   printed by a vendor here, then cut, stitched, QC'd here — every bucket
@@ -24998,6 +24999,35 @@ function flowChIndex() {
   FLOW_CHX = { src: FLOW.ch, map };
   return map;
 }
+/* SEEN IN HISTORY (Ravi, 11 Oct: "dekhne ke liye hum History tab use karenge, Printed fabric in ko hata dete h"). Every
+ * receipt on a flow challan is a row of Vendors & printers → History (voLogRows) — accepted as it was received, by who
+ * received it — and so, like a printer's delivery, printed cloth / printed pieces IN at the store, which reads the same
+ * log. Preview only (FLOW_ON); a TEST challan's rows say TEST. History does not change them: they are changed on the
+ * challan (Demand history: undo receipt). */
+function flowVlogRows() {
+  if (typeof FLOW_ON === 'undefined' || !FLOW_ON || !FLOW.ch) return [];
+  const out = [];
+  Object.values(FLOW.ch).forEach(c => {
+    if (!c || c.cancelled) return;
+    Object.entries(c.receipts || {}).forEach(([rid, rc]) => Object.entries((rc && rc.items) || {}).forEach(([key, q]) => {
+      const qty = +q || 0, l = (c.lines || []).find(x => x.key === key); if (!qty || !l) return;
+      const u = flowChUnit(l), run = u === 'm';
+      let m = {}; try { m = cutSkuOf(l.sku) || {}; } catch (e) { m = {}; }
+      const colour = String(m.color || String(l.item || '').split(' · ')[1] || '').trim();
+      const code = l.ruffleOnly ? (l.extras || []).map(x => x.code).filter(Boolean).join(' + ')
+        : l.print && l.print.sides && l.print.sides.length ? l.print.sides.map(sd => sd.code).join(' + ') : ((l.print && l.print.code) || '');
+      const day = voDayOf(rc.date || String(rc.at || '').slice(0, 10)), test = /^T/.test(String(c.no));
+      out.push({ day, key: voDayKey(day), raw: String(rc.date || ''), li: -1, di: -1, del: { qty, date: rc.date, by: rc.by || '', at: rc.at || '' },
+        ok: { qty, at: rc.at || '', by: rc.by || '', note: (test ? 'TEST · ' : '') + 'received on challan ' + c.no + (rc.note ? ' · ' + rc.note : '') },
+        key2: 'flow/' + c.no + '/' + rid + '/' + key, vendorCode: (c.vendor && c.vendor.code) || '', vendor: (c.vendor && c.vendor.name) || '',
+        orderNo: (test ? 'TEST · ' : '') + c.no + ' · ' + (l.orderNo || c.orderNo || ''), id: c.no, run, unit: u, printing: true,
+        sku: run ? code : obUC(l.sku), fabric: run ? (l.fabric || '') : '', colour,
+        what: run ? [code, l.fabric, colour].filter(Boolean).join(' · ') + (l.ruffleOnly ? ' (ruffle)' : '') + ' — for ' + obUC(l.sku) : (l.item || l.sku),
+        qty, by: rc.by || '', at: rc.at || '', flow: true, test });
+    }));
+  });
+  return out;
+}
 /** Received so far, per line key, on one challan — in the line's own unit (metres, or pieces). */
 function flowChRecv(c) {
   const out = {};
@@ -25461,6 +25491,13 @@ async function flowVpBar() {
   };
 }
 
+/* History never changes a receipt made on a flow challan: it is changed on the challan itself (Demand history). */
+if (FLOW_ON && typeof document !== 'undefined' && document.addEventListener) document.addEventListener('click', e => {
+  const t = e.target && e.target.closest && e.target.closest('[data-vl-ok],[data-vl-no],[data-vl-pick]');
+  if (!t || ![...t.attributes].some(a => /^data-vl-/.test(a.name) && /^flow\//.test(a.value))) return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  const m = $('vlMsg'); if (m) { m.className = 'err'; m.textContent = 'This was received on a Production flow challan — change it on the challan in Production flow → Demand history (undo the receipt there).'; }
+}, true);
 /* The staff screens never change a test vendor order: it is not in the register, and its entries are the flow's. */
 if (FLOW_ON && typeof document !== 'undefined' && document.addEventListener) document.addEventListener('click', e => {
   const t = e.target && e.target.closest && e.target.closest('[data-vo-open],[data-vo-recv],[data-vo-move],[data-vo-cxl],[data-vo-pick],[data-vopick],[data-vocancel],[data-vorestore],[data-voqtysave],[data-voqty]');
@@ -26058,9 +26095,7 @@ function flowTable(view, rows) {
       <div class="muted" style="font-size:10.5px">${esc([x.r.articleSubtype || x.r.articleType, x.r.color, x.r.size].filter(Boolean).join(' · '))}</div></td>
     <td class="num"><b>${nf(x.r.qty)}</b></td>`;
   /* A test line has no register entry to make: its button stands in for that entry. */
-  const go = (view, x) => x && x.s.challan && view === 'fabric' && !x.s.challan.closed
-      ? `<button data-flchr="${esc(x.s.challan.no)}" style="width:auto;padding:3px 10px;font-size:12px">Receive on ${esc(x.s.challan.no)}</button>`
-    : x && x.r.__t && ['cut', 'raw', 'wip'].includes(view) ? flowTestEntryButtons(view, x)
+  const go = (view, x) => x && x.r.__t && ['cut', 'raw', 'wip'].includes(view) ? flowTestEntryButtons(view, x)
     : x && x.r.__t && FLOW_SIM[view] ? `<button data-flsim="${esc(x.r.orderNo)}|${esc(x.r.sku)}|${view}" title="Stands in for: ${esc(FLOW_SIM[view][1])}" style="width:auto;padding:3px 10px;font-size:12px;background:#7c3aed;border-color:#7c3aed">${esc(FLOW_SIM[view][0])}</button>`
     : x && !x.r.__t && ['cut', 'raw', 'wip'].includes(view) ? flowEntryButtons(view, x)
     : FLOW_GO[view] ? `<button class="ghost" data-flgo="${FLOW_GO[view][0]}" style="width:auto;padding:2px 9px;font-size:11.5px">${FLOW_GO[view][1]} →</button>` : '';
@@ -26124,9 +26159,6 @@ function flowTable(view, rows) {
   } else if (view === 'vendor') {
     head = ['PO', 'SKU', 'Qty', 'Given to a printer', ''];
     body = rows.map(x => `<tr>${base(x)}<td class="num">${prog(x.s.given, +x.r.qty)}${flowChTag(x.s)}</td><td>${go(view, x)}</td></tr>`).join('');
-  } else if (view === 'fabric') {
-    head = ['PO', 'SKU', 'Qty', 'Back and accepted', ''];
-    body = rows.map(x => `<tr>${base(x)}<td class="num">${prog(x.s.back, x.s.given || +x.r.qty)}${flowChTag(x.s)}</td><td>${go(view, x)}</td></tr>`).join('');
   } else if (view === 'cut') {
     head = ['PO', 'SKU', 'Qty', 'Printed fabric to cut', 'Cut', ''];
     body = rows.map(x => `<tr>${base(x)}<td style="text-align:left;font-size:12px">${flowCutFrom(x)}</td><td class="num">${prog(x.s.cut, +x.r.qty)}${due(x.s.plan && x.s.plan.dates && x.s.plan.dates.cut, 'plan')}</td><td>${go(view, x)}</td></tr>`).join('');
@@ -32315,6 +32347,8 @@ function voLogRows() {
       });
     });
   });
+  /* Production flow (preview only): what was received on its RFD challans — flow-receive.js. */
+  if (typeof flowVlogRows === 'function') out.push(...flowVlogRows());
   return out;
 }
 
@@ -33433,6 +33467,7 @@ $('vlAccept').onclick = vlAcceptPicked;
 
 async function ensureVlog() {
   if (VO.rows === null) await ensureVo();
+  if (typeof FLOW_ON !== 'undefined' && FLOW_ON && typeof flowLoad === 'function') { try { await flowLoad(); } catch (e) { /* the flow's receipts wait */ } }
   renderVlog();
   /* THE MASTER NAMES THE CLOTH (Ravi, 2026-09-29: "tablecloth ki sizes ke liye bhi Fabric m² lagao"). A cut line's
    * square metres come from its SKU's master row, and this screen never loaded the master — so every tablecloth
@@ -51166,6 +51201,7 @@ async function ensureStoreRead() {
   if (!PTG.mdb) { try { await ptLoadGates(); } catch (e) { errs.push('the master database'); } }
   if (!PT.base) { try { PT.base = ptList(await ptGet('pt_baseData')); } catch (e) { errs.push('the Job Work Register'); } }
   if (VO.rows === null) { try { await ensureVo(); } catch (e) { errs.push('the printers\' orders'); } }
+  if (typeof FLOW_ON !== 'undefined' && FLOW_ON && typeof flowLoad === 'function') { try { await flowLoad(); } catch (e) { /* the flow's receipts wait */ } }
   STORE.err = errs.length ? 'Could not read ' + errs.join(' or ') + '.' : '';
   STORE.at = ptStamp(); STORE.busy = false;
   renderFab();

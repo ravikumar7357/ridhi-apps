@@ -48,7 +48,6 @@ const FLOW_BUCKETS = [
   ['dhist', 'Demand history', 'flchl', 'Every RFD challan. Open until the printed fabric comes back against it — receive it here and the lines move to the store.'],
   ['out', 'Outsourced', 'flout', 'Made outside, finished: waiting to be received into Finished Goods.'],
   ['vendor', 'Vendor allocation', 'flven', 'Printed lines not yet given to a printer in full.'],
-  ['fabric', 'Printed fabric in', 'flfab', 'Given to a printer, not all back and accepted.'],
   ['cut', 'Cutting', 'flcut', 'Lines that need cutting, not all cut. The cutting entry puts the pieces in the store.'],
   ['raw', 'Raw cutting in store', 'flraw', 'Cut (or printed) pieces waiting to be issued to a karigar.'],
   ['wip', 'WIP', 'flwip', 'With karigars: issued, received, waiting for QC.'],
@@ -57,7 +56,9 @@ const FLOW_TABS = FLOW_BUCKETS.map(b => b[2]);
 /* AFTER WIP THE LINE LEAVES THIS SCREEN (Ravi, 10 Oct: "Q.C wala part abhi ke Q.C me flow kare, yahan se remove; ready to
  * India stock wala Finish Goods me show ho for accept"). A line still gets the bucket of where it is — 'qcb' with Quality
  * Control, 'fgin' waiting for the Finished Goods team — but no bucket of this screen lists it: the work is done there. */
-const FLOW_ELSEWHERE = { qcb: 'Quality Control (QC screen)', fgin: 'Finished Goods — to accept (Finished Goods screen)' };
+/* Printed fabric in, too (Ravi, 11 Oct: "dekhne ke liye hum History tab use karenge, Printed fabric in ko hata dete h"):
+ * received on its challan in Demand history, seen in Vendors & printers → History (flowVlogRows). */
+const FLOW_ELSEWHERE = { qcb: 'Quality Control (QC screen)', fgin: 'Finished Goods — to accept (Finished Goods screen)', fabric: 'With the printer — receive in Demand history, see Vendors & printers → History' };
 /* How a line is made — PPC chooses (Ravi, 10 Oct: "mere yaha sirf stitching hoga … printing wala part nahi hoga", and
  * a provision for orders made outside):
  *   inhouse   printed by a vendor here, then cut, stitched, QC'd here — every bucket

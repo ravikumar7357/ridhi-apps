@@ -613,6 +613,7 @@ $('vlAccept').onclick = vlAcceptPicked;
 
 async function ensureVlog() {
   if (VO.rows === null) await ensureVo();
+  if (typeof FLOW_ON !== 'undefined' && FLOW_ON && typeof flowLoad === 'function') { try { await flowLoad(); } catch (e) { /* the flow's receipts wait */ } }
   renderVlog();
   /* THE MASTER NAMES THE CLOTH (Ravi, 2026-09-29: "tablecloth ki sizes ke liye bhi Fabric m² lagao"). A cut line's
    * square metres come from its SKU's master row, and this screen never loaded the master — so every tablecloth
