@@ -28,7 +28,7 @@ async function vpRfdRaiseRun(o, drafts, reason) {
   if (bad) return { err: bad.label + ': ' + bad.err + '.' };
   if (!rows.length) return { err: 'Put how much you need in "Ask for now" on at least one row.' };
   const why = String(reason || '').trim();
-  if (rows.some(r => r.over > 0) && !why) return { err: 'Some of this is more than the order needs — say why, and it goes to The Fabric Rush to approve.' };
+  if (rows.some(r => r.over > 0) && !why) return { err: 'Some of this is more than the order needs — say why, and it goes to Ridhi Home & Living to approve.' };
   let agreed = 0, waiting = 0;
   for (const r of rows) {
     if (r.within > 0) {

@@ -8,7 +8,7 @@
  *   built on the fly from pt_flowPrintOrders, NEVER written into pt_vendorOrders: that register is read by the live app
  *   (portal, payouts, printer capacity, karigar analysis), and a test must not reach any of them.
  *   A flow order (test, or placed by PPC) is VIEW ONLY for the printer: no Acknowledge, no Start, no "I sent", no promise
- *   dates, no RFD asking. The Fabric Rush's own people record what was given (the RFD challans) and what came back (receive
+ *   dates, no RFD asking. Ridhi Home & Living's own people record what was given (the RFD challans) and what came back (receive
  *   on the challan, Demand history). The orders already running keep the old way.
  *   An admin can look at the portal AS a printer, on the preview only ("View as printer") — view only throughout.
  * All of it is switched on with the flow (FLOW_ON); the live app is untouched. */

@@ -88,6 +88,15 @@ function flowToPrint(r, p) {
   if (p && p.fabric && p.fabric.printedUnit === 'pcs') { const pcs = Math.max(0, qty - fp); return { pcs, metres: qty ? flowR2(m * pcs / qty) : 0 }; }
   return { pcs: qty, metres: flowR2(Math.max(0, m - fp)) };
 }
+/* CUT FROM THE CLOTH PRINTED FOR IT (Ravi, 11 Oct: "jab cutting ho to particular wahi fabric use ho jo iske liye print hokar
+ * aaya tha"). The printed fabric SKU(s) a line is cut from — '' when nothing is printed as cloth for it (stitching only,
+ * or the SKU itself is printed). A quilt names its Front and Back. */
+function flowCutFabricOf(r, p) {
+  if (!p || flowRouteOf(p) !== 'inhouse') return { code: '', label: '' };
+  let w = null; try { w = flowPrintWhat(r, p); } catch (e) { w = null; }
+  if (!w || w.kind === 'sku') return { code: '', label: '' };
+  return { code: w.sides && w.sides.length ? w.sides.map(sd => sd.code).join(' + ') : (w.code || ''), label: w.label || '', w };
+}
 /** The directions the fabric catalogue makes this fabric + colour (+ code) in. */
 function flowFabDirs(fab, colour, cc) {
   return [...new Set(flowFabHits(fab, colour, '', cc).map(h => String(h.dir || '').trim()).filter(Boolean))].sort();

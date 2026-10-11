@@ -68,7 +68,7 @@ $('pinBtn').onclick = async () => {
     say(/user-not-found|invalid-credential|invalid-login|wrong-password/i.test(c)
       /* One message for a wrong number and a wrong PIN, so it cannot be used to find out which
        * numbers have an account. */
-      ? 'That cellphone and PIN do not match an account. Ask The Fabric Rush if you have not been set up yet.'
+      ? 'That cellphone and PIN do not match an account. Ask Ridhi Home & Living if you have not been set up yet.'
       : (/too-many/i.test(c) ? 'Too many attempts from here. Wait a few minutes and try again.'
                              : (e.message || String(e))));
   }

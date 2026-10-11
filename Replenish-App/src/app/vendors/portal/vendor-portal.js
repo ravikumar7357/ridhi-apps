@@ -288,7 +288,7 @@ function renderVp() {
       + `one thing; being a vendor is another, and only the second decides whose orders show up here.`
       + `<br><br>The link is made in <b>Vendor Orders → Printers</b>, with the <b>Set up</b> button on `
       + `that vendor's row — or in one go with <b>Vendor access</b>. Granting sections does not do it.`
-      + `<br><br>Ask The Fabric Rush to do that for <b>${esc(ME.email)}</b>.</div></div>`;
+      + `<br><br>Ask Ridhi Home & Living to do that for <b>${esc(ME.email)}</b>.</div></div>`;
     $('vpKpis').innerHTML = '';
     return;
   }
@@ -1413,7 +1413,7 @@ function vpRfdRender(matched, nag) {
     <th>${what}</th><th class="num">On this order</th>
     <th class="num" title="What you already have. Type it in — it comes off what is left to ask for, here and on your later orders. Sent against this order is shown underneath.">With you</th>
     <th class="num" title="What is left to ask for, or what has been asked for and is still to arrive.">Still to ask for</th>
-    <th class="num" title="Type how much you need now. Up to what is left is agreed at once; anything more goes to The Fabric Rush to approve. Press Raise requirement to send.">Ask for now</th>
+    <th class="num" title="Type how much you need now. Up to what is left is agreed at once; anything more goes to Ridhi Home & Living to approve. Press Raise requirement to send.">Ask for now</th>
   </tr></thead><tbody>`;
 
   const unruled = pcsLines.filter(x => !x.ruled);
@@ -1565,7 +1565,7 @@ function vpRfdRaiseOpen(o) {
   ptOpenDialog({
     title: 'Raise requirement on ' + (o.orderNo || o.id),
     subtitle: `${nf(rows.length)} row(s)`,
-    note: 'What fits inside the order is agreed at once. Anything more than the order needs is sent separately and waits for The Fabric Rush to approve.',
+    note: 'What fits inside the order is agreed at once. Anything more than the order needs is sent separately and waits for Ridhi Home & Living to approve.',
     html: '<table class="xl"><thead><tr><th>What</th><th class="num">Asked</th><th class="num">Agreed at once</th><th class="num">Needs approval</th></tr></thead><tbody>'
       + rows.map(r => `<tr><td style="text-align:left">${esc(r.label)}${r.err ? '<div class="err" style="font-size:11px">' + esc(r.err) + '</div>' : ''}</td>`
         + `<td class="num">${r.err ? '—' : nf(r.want) + ' ' + r.unit}</td><td class="num" style="color:#166534;font-weight:700">${r.within ? nf(r.within) + ' ' + r.unit : '—'}</td>`

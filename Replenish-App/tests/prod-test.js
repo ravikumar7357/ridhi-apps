@@ -19391,7 +19391,7 @@ console.log('\n== greige purchase orders, and greige that comes back as RFD ==')
               v2: { code: 'VND051', desc: 'A Printer', category: 'Printer', active: true } },
   }) }));
   A.setFAB({ rows: [], err: '', busy: false, at: '', shown: [] });
-  A.setGPO({ rows: [], settings: { company: 'The Fabric Rush', gstin: '08ABCDE1234F1Z5' }, err: '', busy: false, at: '' });
+  A.setGPO({ rows: [], settings: { company: 'Ridhi Home & Living', gstin: '08ABCDE1234F1Z5' }, err: '', busy: false, at: '' });
 
   /* ---- the greige name ---- */
   ok('an RFD fabric knows the greige it is bought as', A.fabGreigeOf('sheeting 62') === 'Greige Sheeting 67');

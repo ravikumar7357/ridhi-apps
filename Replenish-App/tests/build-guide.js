@@ -168,12 +168,12 @@ ${o.body}
 const guard = `<script>try { if (localStorage.getItem('guideRole') === 'vendor') location.replace('vendor/'); } catch (e) {}</script>`;
 fs.writeFileSync(OUT, pageOf({ title: 'App guide · ऐप गाइड', guard, pdf: true, toc, body,
   h1: '<span class="en">App guide</span><span class="sep"> · </span><span class="hi">ऐप गाइड</span>',
-  sub: '<span class="en">Every screen, step by step · The Fabric Rush</span><span class="sep"> · </span><span class="hi">हर स्क्रीन, स्टेप-बाय-स्टेप</span>' }));
+  sub: '<span class="en">Every screen, step by step · Ridhi Home & Living</span><span class="sep"> · </span><span class="hi">हर स्क्रीन, स्टेप-बाय-स्टेप</span>' }));
 if (secs.has('vend')) {
   fs.mkdirSync(pathm.dirname(VENDOR_OUT), { recursive: true });
   fs.writeFileSync(VENDOR_OUT, pageOf({ title: 'Vendor guide · वेंडर गाइड', pdf: false, toc: '', body: stripStaff(secs.get('vend')),
     h1: '<span class="en">Vendor guide</span><span class="sep"> · </span><span class="hi">वेंडर गाइड</span>',
-    sub: '<span class="en">Your orders, what you send, and the RFD fabric you need · The Fabric Rush</span><span class="sep"> · </span><span class="hi">आपके ऑर्डर, भेजा गया माल, और RFD कपड़ा</span>' }));
+    sub: '<span class="en">Your orders, what you send, and the RFD fabric you need · Ridhi Home & Living</span><span class="sep"> · </span><span class="hi">आपके ऑर्डर, भेजा गया माल, और RFD कपड़ा</span>' }));
 }
 console.log(`written ${OUT} and ${VENDOR_OUT} — ${secs.size} section(s)`
   + (missing.length ? `\nNO SECTION YET: ${missing.join(', ')}` : '')

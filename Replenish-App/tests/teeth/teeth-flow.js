@@ -121,6 +121,7 @@ const breaks = {
     'a blocked pop-up is swallowed': s => s.replace("if (!w || !w.document) return 'The browser blocked", "if (!w || !w.document) return ''; if (0) return 'The browser blocked"),
   },
   'flow-test-order.js': {
+    'a printed line still picks any fabric to cut': s => s.replace("fixed = !!(pf.code && want);", "fixed = false;"),
     'delete test leaves the store entry': s => s.replace("if (h.fgId) patch['pt_fgiLedger/' + h.fgId] = null; });", '});').replace(".forEach(r => { patch['pt_fgiLedger/' + r._id] = null; });", '.forEach(r => {});'),
     'test cutting not written to Cutting Data': s => s.replace("{ ['pt_cuttingData/' + reg.id]: reg }", '{}'),
     'test issue not written to Job Work': s => s.replace("{ ['pt_baseData/' + reg.id]: reg }", '{}'),
@@ -202,6 +203,7 @@ const breaks = {
     'the order check run on a test order': s => s.replace("  if (!x.r.__t) {   // a test order", "  if (true) {   // a test order"),
   },
   'flow-view.js': {
+    'cutting waste not shown in Raw cutting in store': s => s.replace("body = wasteHtml + rows.map(", "body = rows.map("),
     'buttons for buckets not held': s => s.replace('$(\'flBuckets\').innerHTML = allowed.map(', '$(\'flBuckets\').innerHTML = FLOW_BUCKETS.map('),
     'no RFD stock angle': s => s.replace("if (ang === 'stock') $('flTable').innerHTML = FLOW.stock;", ''),
     'stock stacked above the lines again': s => s.replace("    if (ang === 'stock') $('flTable').innerHTML = FLOW.stock;", "    FLOW.panel += '<table>' + FLOW.stock + '</table>';"),

@@ -156,12 +156,15 @@ function flowTestCutOpen(no, sku) {
   const left = Math.max(0, upto - (+x.t.cut || 0)), per = +(p.fabric && p.fabric.perPc) || 0;
   let fabs = []; try { fabs = cutFabrics(); } catch (e) { fabs = []; }
   const want = String((p.fabric && p.fabric.name) || '');
+  /* the printed fabric this line was printed on — fixed, not picked */
+  const pf = row ? flowCutFabricOf(row.r, p) : { code: '' }, fixed = !!(pf.code && want);
   if (want && !fabs.some(f => f.toLowerCase() === want.toLowerCase())) fabs.unshift(want);
   ptOpenDialog({
     title: `Cutting entry (TEST) — ${no} · ${sku}`, subtitle: `${nf(left)} of ${nf(x.t.qty)} pieces to cut now${upto < (+x.t.qty || 0) ? ` (printed fabric back for ${nf(upto)} so far)` : ''}. Saved as a TEST entry in Cutting Data too — "delete test" removes it.`,
     html: `<div class="ptgrid" style="grid-template-columns:repeat(3,1fr)">
       <label>Pieces<input id="fltcP" type="number" min="1" value="${left}"></label>
-      <label>Fabric<select id="fltcF"><option value="">— Fabric —</option>${fabs.map(f => `<option${f === want ? ' selected' : ''}>${esc(f)}</option>`).join('')}</select></label>
+      ${fixed ? `<label>Printed fabric <small class="muted">printed for this order</small><div style="padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:rgba(124,58,237,.06)"><b>${esc(pf.code)}</b><div class="muted" style="font-size:11px">${esc(pf.label || want)}</div></div></label>`
+        : `<label>Fabric<select id="fltcF"><option value="">— Fabric —</option>${fabs.map(f => `<option${f === want ? ' selected' : ''}>${esc(f)}</option>`).join('')}</select></label>`}
       <label>Fabric used (m)<input id="fltcU" type="number" step="0.01" value="${per ? flowR2(per * left) : ''}"></label>
       <label>Waste (m)<input id="fltcW" type="number" step="0.01"></label>
       <label>Waste width (in)<input id="fltcWW" type="number" step="0.1"></label>
@@ -169,7 +172,7 @@ function flowTestCutOpen(no, sku) {
       <label style="grid-column:1/-1">Remarks (optional)<input id="fltcR"></label></div>`,
     saveLabel: 'Save the cutting entry',
     onSave: async () => {
-      const pcs = Math.round(+$('fltcP').value || 0), fab = $('fltcF').value, used = +$('fltcU').value || 0, waste = +$('fltcW').value || 0, ww = +$('fltcWW').value || 0;
+      const pcs = Math.round(+$('fltcP').value || 0), fab = fixed ? want : $('fltcF').value, used = +$('fltcU').value || 0, waste = +$('fltcW').value || 0, ww = +$('fltcWW').value || 0;
       if (!(pcs > 0)) return 'How many pieces were cut?';
       if (pcs > left) return `Only ${nf(left)} pieces are left to cut on this line.`;
       if (!fab) return 'Which fabric was it cut from?';
@@ -179,10 +182,11 @@ function flowTestCutOpen(no, sku) {
       const id = flowTid('c'), m = cutSkuOf(sku) || {}, date = $('fltcD').value || dToday(), now = new Date().toISOString();
       const reg = { id: 'cut_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8), sku, articleType: m.articleType || '', articleSubtype: m.subtype || m.articleSubtype || '',
         color: m.color || '', size: m.size || '', pieces: pcs, cutDate: ptStampDate(date), fabricWidth: fab, fabricUsed: flowR2(used),
-        ...(waste > 0 ? { fabricWaste: flowR2(waste), fabricWasteWidth: ww } : {}), orderNo: no, remarks: ('[TEST] ' + $('fltcR').value.trim()).trim(), test: true, addedBy: ME.email || '', addedAt: now };
-      return flowTestSave(no, sku, { cut: (+x.t.cut || 0) + pcs, [`cutLog/${id}`]: { pcs, fabric: fab, used: flowR2(used), waste: flowR2(waste), wasteWidth: ww,
+        ...(waste > 0 ? { fabricWaste: flowR2(waste), fabricWasteWidth: ww } : {}), ...(fixed ? { printedFabric: pf.code } : {}), orderNo: no,
+        remarks: ('[TEST] ' + (fixed ? 'Printed fabric ' + pf.code + ' ' : '') + $('fltcR').value.trim()).trim(), test: true, addedBy: ME.email || '', addedAt: now };
+      return flowTestSave(no, sku, { cut: (+x.t.cut || 0) + pcs, [`cutLog/${id}`]: { pcs, fabric: fab, ...(fixed ? { printed: pf.code } : {}), used: flowR2(used), waste: flowR2(waste), wasteWidth: ww,
         date, remarks: $('fltcR').value.trim(), at: now, by: ME.email || '', reg: reg.id } },
-        `${nf(pcs)} pieces cut from ${fab} (${nf(used)} m, waste ${nf(waste)} m) — in Cutting Data as a TEST entry.`,
+        `${nf(pcs)} pieces cut from ${fixed ? pf.code : fab} (${nf(used)} m${waste > 0 ? `, waste ${nf(waste)} m back in the store` : ''}) — in Cutting Data as a TEST entry.`,
         { ['pt_cuttingData/' + reg.id]: reg }, () => { PT.cut = (PT.cut || []).concat([Object.assign({ _key: reg.id }, reg)]); });
     },
   });
@@ -264,7 +268,7 @@ function flowTestRecvOpen(no, sku) {
 /** What a test line's entries say, under its buttons. */
 function flowTestNote(x, view) {
   const t = x.r.__t || {};
-  if (view === 'cut') return Object.values(t.cutLog || {}).map(c => `cut ${nf(c.pcs)} · ${esc(c.fabric)} ${nf(c.used)} m, waste ${nf(c.waste)} m`).join('<br>');
+  if (view === 'cut') return Object.values(t.cutLog || {}).map(c => `cut ${nf(c.pcs)} · ${esc(c.printed || c.fabric)} ${nf(c.used)} m, waste ${nf(c.waste)} m`).join('<br>');
   return Object.values(t.issues || {}).map(e => `${esc(e.karigar)}: ${nf(e.pcs)} issued, ${nf(e.received || 0)} back${e.rejected ? `, ${nf(e.rejected)} rejected` : ''}`).join('<br>')
     + (() => { const q = flowQcLine(x.r); return q.checked || q.ok ? `<br>QC: ${nf(q.checked)} checked, ${nf(q.ok)} passed${q.rej ? `, ${nf(q.rej)} rejected` : ''}` : ''; })();
 }

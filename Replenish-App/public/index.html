@@ -24456,6 +24456,15 @@ function flowToPrint(r, p) {
   if (p && p.fabric && p.fabric.printedUnit === 'pcs') { const pcs = Math.max(0, qty - fp); return { pcs, metres: qty ? flowR2(m * pcs / qty) : 0 }; }
   return { pcs: qty, metres: flowR2(Math.max(0, m - fp)) };
 }
+/* CUT FROM THE CLOTH PRINTED FOR IT (Ravi, 11 Oct: "jab cutting ho to particular wahi fabric use ho jo iske liye print hokar
+ * aaya tha"). The printed fabric SKU(s) a line is cut from — '' when nothing is printed as cloth for it (stitching only,
+ * or the SKU itself is printed). A quilt names its Front and Back. */
+function flowCutFabricOf(r, p) {
+  if (!p || flowRouteOf(p) !== 'inhouse') return { code: '', label: '' };
+  let w = null; try { w = flowPrintWhat(r, p); } catch (e) { w = null; }
+  if (!w || w.kind === 'sku') return { code: '', label: '' };
+  return { code: w.sides && w.sides.length ? w.sides.map(sd => sd.code).join(' + ') : (w.code || ''), label: w.label || '', w };
+}
 /** The directions the fabric catalogue makes this fabric + colour (+ code) in. */
 function flowFabDirs(fab, colour, cc) {
   return [...new Set(flowFabHits(fab, colour, '', cc).map(h => String(h.dir || '').trim()).filter(Boolean))].sort();
@@ -24840,12 +24849,15 @@ function flowTestCutOpen(no, sku) {
   const left = Math.max(0, upto - (+x.t.cut || 0)), per = +(p.fabric && p.fabric.perPc) || 0;
   let fabs = []; try { fabs = cutFabrics(); } catch (e) { fabs = []; }
   const want = String((p.fabric && p.fabric.name) || '');
+  /* the printed fabric this line was printed on — fixed, not picked */
+  const pf = row ? flowCutFabricOf(row.r, p) : { code: '' }, fixed = !!(pf.code && want);
   if (want && !fabs.some(f => f.toLowerCase() === want.toLowerCase())) fabs.unshift(want);
   ptOpenDialog({
     title: `Cutting entry (TEST) — ${no} · ${sku}`, subtitle: `${nf(left)} of ${nf(x.t.qty)} pieces to cut now${upto < (+x.t.qty || 0) ? ` (printed fabric back for ${nf(upto)} so far)` : ''}. Saved as a TEST entry in Cutting Data too — "delete test" removes it.`,
     html: `<div class="ptgrid" style="grid-template-columns:repeat(3,1fr)">
       <label>Pieces<input id="fltcP" type="number" min="1" value="${left}"></label>
-      <label>Fabric<select id="fltcF"><option value="">— Fabric —</option>${fabs.map(f => `<option${f === want ? ' selected' : ''}>${esc(f)}</option>`).join('')}</select></label>
+      ${fixed ? `<label>Printed fabric <small class="muted">printed for this order</small><div style="padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:rgba(124,58,237,.06)"><b>${esc(pf.code)}</b><div class="muted" style="font-size:11px">${esc(pf.label || want)}</div></div></label>`
+        : `<label>Fabric<select id="fltcF"><option value="">— Fabric —</option>${fabs.map(f => `<option${f === want ? ' selected' : ''}>${esc(f)}</option>`).join('')}</select></label>`}
       <label>Fabric used (m)<input id="fltcU" type="number" step="0.01" value="${per ? flowR2(per * left) : ''}"></label>
       <label>Waste (m)<input id="fltcW" type="number" step="0.01"></label>
       <label>Waste width (in)<input id="fltcWW" type="number" step="0.1"></label>
@@ -24853,7 +24865,7 @@ function flowTestCutOpen(no, sku) {
       <label style="grid-column:1/-1">Remarks (optional)<input id="fltcR"></label></div>`,
     saveLabel: 'Save the cutting entry',
     onSave: async () => {
-      const pcs = Math.round(+$('fltcP').value || 0), fab = $('fltcF').value, used = +$('fltcU').value || 0, waste = +$('fltcW').value || 0, ww = +$('fltcWW').value || 0;
+      const pcs = Math.round(+$('fltcP').value || 0), fab = fixed ? want : $('fltcF').value, used = +$('fltcU').value || 0, waste = +$('fltcW').value || 0, ww = +$('fltcWW').value || 0;
       if (!(pcs > 0)) return 'How many pieces were cut?';
       if (pcs > left) return `Only ${nf(left)} pieces are left to cut on this line.`;
       if (!fab) return 'Which fabric was it cut from?';
@@ -24863,10 +24875,11 @@ function flowTestCutOpen(no, sku) {
       const id = flowTid('c'), m = cutSkuOf(sku) || {}, date = $('fltcD').value || dToday(), now = new Date().toISOString();
       const reg = { id: 'cut_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8), sku, articleType: m.articleType || '', articleSubtype: m.subtype || m.articleSubtype || '',
         color: m.color || '', size: m.size || '', pieces: pcs, cutDate: ptStampDate(date), fabricWidth: fab, fabricUsed: flowR2(used),
-        ...(waste > 0 ? { fabricWaste: flowR2(waste), fabricWasteWidth: ww } : {}), orderNo: no, remarks: ('[TEST] ' + $('fltcR').value.trim()).trim(), test: true, addedBy: ME.email || '', addedAt: now };
-      return flowTestSave(no, sku, { cut: (+x.t.cut || 0) + pcs, [`cutLog/${id}`]: { pcs, fabric: fab, used: flowR2(used), waste: flowR2(waste), wasteWidth: ww,
+        ...(waste > 0 ? { fabricWaste: flowR2(waste), fabricWasteWidth: ww } : {}), ...(fixed ? { printedFabric: pf.code } : {}), orderNo: no,
+        remarks: ('[TEST] ' + (fixed ? 'Printed fabric ' + pf.code + ' ' : '') + $('fltcR').value.trim()).trim(), test: true, addedBy: ME.email || '', addedAt: now };
+      return flowTestSave(no, sku, { cut: (+x.t.cut || 0) + pcs, [`cutLog/${id}`]: { pcs, fabric: fab, ...(fixed ? { printed: pf.code } : {}), used: flowR2(used), waste: flowR2(waste), wasteWidth: ww,
         date, remarks: $('fltcR').value.trim(), at: now, by: ME.email || '', reg: reg.id } },
-        `${nf(pcs)} pieces cut from ${fab} (${nf(used)} m, waste ${nf(waste)} m) — in Cutting Data as a TEST entry.`,
+        `${nf(pcs)} pieces cut from ${fixed ? pf.code : fab} (${nf(used)} m${waste > 0 ? `, waste ${nf(waste)} m back in the store` : ''}) — in Cutting Data as a TEST entry.`,
         { ['pt_cuttingData/' + reg.id]: reg }, () => { PT.cut = (PT.cut || []).concat([Object.assign({ _key: reg.id }, reg)]); });
     },
   });
@@ -24948,7 +24961,7 @@ function flowTestRecvOpen(no, sku) {
 /** What a test line's entries say, under its buttons. */
 function flowTestNote(x, view) {
   const t = x.r.__t || {};
-  if (view === 'cut') return Object.values(t.cutLog || {}).map(c => `cut ${nf(c.pcs)} · ${esc(c.fabric)} ${nf(c.used)} m, waste ${nf(c.waste)} m`).join('<br>');
+  if (view === 'cut') return Object.values(t.cutLog || {}).map(c => `cut ${nf(c.pcs)} · ${esc(c.printed || c.fabric)} ${nf(c.used)} m, waste ${nf(c.waste)} m`).join('<br>');
   return Object.values(t.issues || {}).map(e => `${esc(e.karigar)}: ${nf(e.pcs)} issued, ${nf(e.received || 0)} back${e.rejected ? `, ${nf(e.rejected)} rejected` : ''}`).join('<br>')
     + (() => { const q = flowQcLine(x.r); return q.checked || q.ok ? `<br>QC: ${nf(q.checked)} checked, ${nf(q.ok)} passed${q.rej ? `, ${nf(q.rej)} rejected` : ''}` : ''; })();
 }
@@ -25377,7 +25390,7 @@ function flowVoAfter(placed) {
  *   built on the fly from pt_flowPrintOrders, NEVER written into pt_vendorOrders: that register is read by the live app
  *   (portal, payouts, printer capacity, karigar analysis), and a test must not reach any of them.
  *   A flow order (test, or placed by PPC) is VIEW ONLY for the printer: no Acknowledge, no Start, no "I sent", no promise
- *   dates, no RFD asking. The Fabric Rush's own people record what was given (the RFD challans) and what came back (receive
+ *   dates, no RFD asking. Ridhi Home & Living's own people record what was given (the RFD challans) and what came back (receive
  *   on the challan, Demand history). The orders already running keep the old way.
  *   An admin can look at the portal AS a printer, on the preview only ("View as printer") — view only throughout.
  * All of it is switched on with the flow (FLOW_ON); the live app is untouched. */
@@ -25630,6 +25643,8 @@ async function flowCutEntry(r, s) {
     const fab = s.plan && s.plan.fabric && s.plan.fabric.name, sel = $('cwFabric');
     if (fab && sel && [...sel.options].some(o => o.value === fab)) sel.value = fab;
     if (typeof renderCutFab === 'function') renderCutFab();
+    /* the printed fabric printed for this line, in the remarks — the Cutting Data form keeps its own fabric list */
+    const pf = flowCutFabricOf(r, s.plan); if (pf.code && $('cwRemarks') && !String($('cwRemarks').value || '').trim()) $('cwRemarks').value = 'Printed fabric ' + pf.code;
     if ($('cwBox').scrollIntoView) $('cwBox').scrollIntoView({ block: 'start', behavior: 'smooth' });
   } catch (e) { flowSay('Cutting Data is open — the form could not be filled in by itself (' + (e.message || e) + '); type the line in.', true); }
 }
@@ -25997,6 +26012,22 @@ function flowCutFrom(x) {
     + (x.s.fromStock ? ' · <b style="color:#166534">all from printed stock in the store</b>' : fp > 0 ? ` · ${nf(fp)} ${p.fabric.printedUnit === 'pcs' ? 'pcs' : 'm'} from printed stock, the rest from the printer` : ' · from the printer') + '</div>'
     + (x.s.bucket === 'fabric' ? `<div style="font-size:11px;color:#b45309"><b>${nf(x.s.canCut)} pcs can be cut now</b> — printed fabric back for ${nf(x.s.back)} of ${nf(x.r.qty)} pcs, the rest still with the printer</div>` : '');
 }
+/* THE WASTE OF THE CUTTING TABLE (Ravi, 11 Oct: "yadi kuch waste ho to wo show ho Raw cutting in store me"). Every cutting
+ * entry of a planned line that left printed fabric on the table — the test order's own, and the Cutting Data rows of a
+ * real one — with the printed fabric it is, and what the store holds of that cloth now (the waste goes back in there). */
+function flowWasteRows() {
+  const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly(), out = [];
+  flowRows().forEach(({ r, s }) => {
+    if (!s.plan || (only && !r.__t)) return;
+    const pf = flowCutFabricOf(r, s.plan); if (!pf.code) return;
+    const m = cutSkuOf(r.sku) || {}, colour = String(m.color || r.color || '').trim();
+    let store = null; try { store = flowPrintedStock(Object.assign({ fabric: (s.plan.fabric || {}).name }, pf.w), colour); } catch (e) { store = null; }
+    const cuts = r.__t ? Object.values(r.__t.cutLog || {}).map(c => ({ m: +c.waste || 0, width: +c.wasteWidth || 0, date: c.date || String(c.at || '').slice(0, 10) }))
+      : (PT.cut || []).filter(c => c && obUC(c.orderNo) === obUC(r.orderNo) && obUC(c.sku) === obUC(r.sku)).map(c => ({ m: +c.fabricWaste || 0, width: +c.fabricWasteWidth || 0, date: ptIsoDate(c.cutDate) || String(c.addedAt || '').slice(0, 10) }));
+    cuts.filter(c => c.m > 0).forEach(c => out.push({ date: c.date, orderNo: r.orderNo, sku: obUC(r.sku), code: pf.code, label: pf.label, m: flowR2(c.m), width: c.width, store, test: !!r.__t }));
+  });
+  return out.sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 50);
+}
 /** A test line asks what the factory's forms ask, and keeps it on the test order (flow-test-order.js). */
 function flowTestEntryButtons(view, x) {
   const b = (what, label, main) => `<button data-flte="${what}|${esc(x.r.orderNo)}|${esc(obUC(x.r.sku))}" style="width:auto;padding:3px 10px;font-size:12px;margin:1px;background:${main ? '#7c3aed' : 'transparent'};border-color:#7c3aed;color:${main ? '#fff' : '#7c3aed'}">${label}</button>`;
@@ -26101,7 +26132,13 @@ function flowTable(view, rows) {
     body = rows.map(x => `<tr>${base(x)}<td style="text-align:left;font-size:12px">${flowCutFrom(x)}</td><td class="num">${prog(x.s.cut, +x.r.qty)}${due(x.s.plan && x.s.plan.dates && x.s.plan.dates.cut, 'plan')}</td><td>${go(view, x)}</td></tr>`).join('');
   } else if (view === 'raw') {
     head = ['PO', 'SKU', 'Qty', 'In store, to issue', 'Issued', ''];
-    body = rows.map(x => { const sp = flowStorePcs(x.r.sku);
+    const wr = flowWasteRows();
+    const wasteHtml = wr.length ? `<tr style="background:rgba(180,83,9,.06)"><td colspan="6" style="text-align:left;font-size:12px"><b>Waste back in the store from cutting</b> <span class="muted">— printed fabric left on the table; it is in the store and the next plan can use it</span>`
+      + `<table class="xl" style="margin-top:6px;width:auto"><thead><tr><th style="text-align:left">Date</th><th style="text-align:left">Order · SKU</th><th style="text-align:left">Printed fabric</th><th>Waste</th><th>Width</th><th>In store now</th></tr></thead><tbody>`
+      + wr.map(w => `<tr><td style="text-align:left">${esc(w.date)}</td><td style="text-align:left">${esc(w.orderNo)} · ${esc(w.sku)}${w.test ? ' <span class="navbadge" style="background:#7c3aed;position:static">TEST</span>' : ''}</td>`
+        + `<td style="text-align:left"><b>${esc(w.code)}</b> <span class="muted">${esc(w.label)}</span></td><td class="num"><b>${nf(w.m)} m</b></td><td class="num">${w.width ? nf(w.width) + '"' : '—'}</td><td class="num">${w.store == null ? '…' : nf(w.store) + ' m'}</td></tr>`).join('')
+      + '</tbody></table></td></tr>' : '';
+    body = wasteHtml + rows.map(x => { const sp = flowStorePcs(x.r.sku);
       return `<tr>${base(x)}<td class="num"><b>${nf(flowIssuable(x.r, x.s))}</b>${x.s.bucket !== 'raw' ? `<div style="font-size:10.5px;color:#b45309">${x.s.bucket === 'fabric' ? 'part back from the printer' : 'part cut'} — the rest still to come</div>` : ''}${x.s.qcRej ? `<div style="font-size:10.5px;color:#b45309">${nf(x.s.qcRej)} rejected at QC — back in store, issue again</div>` : ''}${sp == null ? '' : `<div class="muted" style="font-size:10.5px">store balance ${nf(sp)} pcs of this SKU</div>`}</td><td class="num">${prog(x.s.issued, +x.r.qty)}</td><td>${go(view, x)}</td></tr>`; }).join('');
   } else if (view === 'wip') {
     head = ['PO', 'SKU', 'Qty', 'Issued', 'Received', 'QC passed', ''];
@@ -36631,7 +36668,7 @@ function renderVp() {
       + `one thing; being a vendor is another, and only the second decides whose orders show up here.`
       + `<br><br>The link is made in <b>Vendor Orders → Printers</b>, with the <b>Set up</b> button on `
       + `that vendor's row — or in one go with <b>Vendor access</b>. Granting sections does not do it.`
-      + `<br><br>Ask The Fabric Rush to do that for <b>${esc(ME.email)}</b>.</div></div>`;
+      + `<br><br>Ask Ridhi Home & Living to do that for <b>${esc(ME.email)}</b>.</div></div>`;
     $('vpKpis').innerHTML = '';
     return;
   }
@@ -37756,7 +37793,7 @@ function vpRfdRender(matched, nag) {
     <th>${what}</th><th class="num">On this order</th>
     <th class="num" title="What you already have. Type it in — it comes off what is left to ask for, here and on your later orders. Sent against this order is shown underneath.">With you</th>
     <th class="num" title="What is left to ask for, or what has been asked for and is still to arrive.">Still to ask for</th>
-    <th class="num" title="Type how much you need now. Up to what is left is agreed at once; anything more goes to The Fabric Rush to approve. Press Raise requirement to send.">Ask for now</th>
+    <th class="num" title="Type how much you need now. Up to what is left is agreed at once; anything more goes to Ridhi Home & Living to approve. Press Raise requirement to send.">Ask for now</th>
   </tr></thead><tbody>`;
 
   const unruled = pcsLines.filter(x => !x.ruled);
@@ -37908,7 +37945,7 @@ function vpRfdRaiseOpen(o) {
   ptOpenDialog({
     title: 'Raise requirement on ' + (o.orderNo || o.id),
     subtitle: `${nf(rows.length)} row(s)`,
-    note: 'What fits inside the order is agreed at once. Anything more than the order needs is sent separately and waits for The Fabric Rush to approve.',
+    note: 'What fits inside the order is agreed at once. Anything more than the order needs is sent separately and waits for Ridhi Home & Living to approve.',
     html: '<table class="xl"><thead><tr><th>What</th><th class="num">Asked</th><th class="num">Agreed at once</th><th class="num">Needs approval</th></tr></thead><tbody>'
       + rows.map(r => `<tr><td style="text-align:left">${esc(r.label)}${r.err ? '<div class="err" style="font-size:11px">' + esc(r.err) + '</div>' : ''}</td>`
         + `<td class="num">${r.err ? '—' : nf(r.want) + ' ' + r.unit}</td><td class="num" style="color:#166534;font-weight:700">${r.within ? nf(r.within) + ' ' + r.unit : '—'}</td>`
@@ -38281,7 +38318,7 @@ $('pinBtn').onclick = async () => {
     say(/user-not-found|invalid-credential|invalid-login|wrong-password/i.test(c)
       /* One message for a wrong number and a wrong PIN, so it cannot be used to find out which
        * numbers have an account. */
-      ? 'That cellphone and PIN do not match an account. Ask The Fabric Rush if you have not been set up yet.'
+      ? 'That cellphone and PIN do not match an account. Ask Ridhi Home & Living if you have not been set up yet.'
       : (/too-many/i.test(c) ? 'Too many attempts from here. Wait a few minutes and try again.'
                              : (e.message || String(e))));
   }
@@ -48345,7 +48382,7 @@ async function vpRfdRaiseRun(o, drafts, reason) {
   if (bad) return { err: bad.label + ': ' + bad.err + '.' };
   if (!rows.length) return { err: 'Put how much you need in "Ask for now" on at least one row.' };
   const why = String(reason || '').trim();
-  if (rows.some(r => r.over > 0) && !why) return { err: 'Some of this is more than the order needs — say why, and it goes to The Fabric Rush to approve.' };
+  if (rows.some(r => r.over > 0) && !why) return { err: 'Some of this is more than the order needs — say why, and it goes to Ridhi Home & Living to approve.' };
   let agreed = 0, waiting = 0;
   for (const r of rows) {
     if (r.within > 0) {

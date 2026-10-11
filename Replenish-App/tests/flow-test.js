@@ -567,6 +567,25 @@ const K = 'AMZ-1__S1';
     const pg = S2.flowChallanHtml({ no: 'TRFD-2', date: '2026-10-11', orderNo: 'T', vendor: { code: 'V', name: 'X' }, lines: [] }) + S2.flowPoHtml({ no: 'TPRN-2', date: '2026-10-11', orderNo: 'T', printer: { name: 'X' }, items: {} });
     ok('the challan and the print order carry Ridhi Home & Living — never The Fabric Rush', (pg.match(/Ridhi Home &amp; Living/g) || []).length === 2 && !/Fabric Rush/.test(pg), pg.slice(0, 300)); }
 
+  console.log('== cut from the cloth printed for it; the waste shows in Raw cutting in store (Ravi, 11 Oct) ==');
+  {
+    const mdb = { 'RTC327-6060': { color: 'Light Steel Blue', fabric: 'Sheeting 92', consumption: 0.6, cuttingRequired: true, subtype: 'Ruffle Tablecloth' } };
+    const fsCat = [{ sku: 'RBPSF327-V-92', fabric: 'Sheeting 92', colour: 'Light Steel Blue', dir: 'Vertical', code: '327' }];
+    const T7 = 'TEST-AMZ-77', K7 = T7 + '__RTC327-6060';
+    const W7 = load({ me: { admin: true }, mdb, fsCat, fabRows: [{ fabricType: 'Sheeting 92' }], store: [{ key: 'M|SHEETING 92|LIGHT STEEL BLUE', qty: 40 }],
+      ppc: { [K7]: plan({ orderNo: T7, sku: 'RTC327-6060', qty: 10, route: 'inhouse', fabric: { name: 'Sheeting 92', perPc: 0.6, metres: 6, fromPrinted: 6 }, print: { need: true, dir: 'Vertical' } }) },
+      dem: { [K7]: { fabricReady: { at: 'x' } } } });
+    W7.setFLOW(Object.assign(W7.FLOW(), { test: { [T7]: { orderNo: T7, orderDate: '2026-10-12', lines: { 'RTC327-6060': { qty: 10 } } } } }));
+    W7.flowTestCutOpen(T7, 'RTC327-6060');
+    ok('the cutting entry names the printed fabric printed for it — RBPSF327-V-92 — and offers no fabric to pick', /<b>RBPSF327-V-92<\/b>/.test(W7.ctx.__dlg.html) && /printed for this order/.test(W7.ctx.__dlg.html) && !/id="fltcF"/.test(W7.ctx.__dlg.html), W7.ctx.__dlg.html.slice(0, 400));
+    Object.assign(W7.els, { fltcP: { value: '10' }, fltcU: { value: '6' }, fltcW: { value: '0.5' }, fltcWW: { value: '18' }, fltcD: { value: '2026-10-12' }, fltcR: { value: '' } });
+    const er = await W7.ctx.__dlg.onSave(); const reg = Object.values(W7.writes[0] || {}).find(v => v && v.pieces);
+    ok('…saved: Cutting Data says printed fabric RBPSF327-V-92, Sheeting 92, 6 m used, 0.5 m waste at 18"', !er && reg && reg.printedFabric === 'RBPSF327-V-92' && reg.fabricWidth === 'Sheeting 92' && reg.fabricWaste === 0.5 && /Printed fabric RBPSF327-V-92/.test(reg.remarks), er || JSON.stringify(reg));
+    W7.setView('raw'); W7.renderFlow();
+    ok('Raw cutting in store shows the waste: RBPSF327-V-92, 0.5 m, 18" wide — and what the store holds of that cloth', /Waste back in the store from cutting/.test(W7.els.flTable.innerHTML) && /<b>RBPSF327-V-92<\/b>/.test(W7.els.flTable.innerHTML)
+      && /<b>0\.5 m<\/b>/.test(W7.els.flTable.innerHTML) && /18"/.test(W7.els.flTable.innerHTML) && /40 m/.test(W7.els.flTable.innerHTML), W7.els.flTable.innerHTML.slice(0, 600));
+  }
+
   console.log('== the ruffle cloth to a printer of its own (Ravi, 11 Oct: "ruffle ke fabric ke liye vendor alag h") ==');
   {
     const mdb = { 'RTC327-6060': { color: 'Light Steel Blue', fabric: 'Sheeting 92', consumption: 0.6, cuttingRequired: true, subtype: 'Ruffle Tablecloth' } };

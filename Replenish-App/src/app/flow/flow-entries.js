@@ -27,6 +27,8 @@ async function flowCutEntry(r, s) {
     const fab = s.plan && s.plan.fabric && s.plan.fabric.name, sel = $('cwFabric');
     if (fab && sel && [...sel.options].some(o => o.value === fab)) sel.value = fab;
     if (typeof renderCutFab === 'function') renderCutFab();
+    /* the printed fabric printed for this line, in the remarks — the Cutting Data form keeps its own fabric list */
+    const pf = flowCutFabricOf(r, s.plan); if (pf.code && $('cwRemarks') && !String($('cwRemarks').value || '').trim()) $('cwRemarks').value = 'Printed fabric ' + pf.code;
     if ($('cwBox').scrollIntoView) $('cwBox').scrollIntoView({ block: 'start', behavior: 'smooth' });
   } catch (e) { flowSay('Cutting Data is open — the form could not be filled in by itself (' + (e.message || e) + '); type the line in.', true); }
 }

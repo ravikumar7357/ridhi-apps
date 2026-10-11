@@ -104,6 +104,22 @@ function flowCutFrom(x) {
     + (x.s.fromStock ? ' · <b style="color:#166534">all from printed stock in the store</b>' : fp > 0 ? ` · ${nf(fp)} ${p.fabric.printedUnit === 'pcs' ? 'pcs' : 'm'} from printed stock, the rest from the printer` : ' · from the printer') + '</div>'
     + (x.s.bucket === 'fabric' ? `<div style="font-size:11px;color:#b45309"><b>${nf(x.s.canCut)} pcs can be cut now</b> — printed fabric back for ${nf(x.s.back)} of ${nf(x.r.qty)} pcs, the rest still with the printer</div>` : '');
 }
+/* THE WASTE OF THE CUTTING TABLE (Ravi, 11 Oct: "yadi kuch waste ho to wo show ho Raw cutting in store me"). Every cutting
+ * entry of a planned line that left printed fabric on the table — the test order's own, and the Cutting Data rows of a
+ * real one — with the printed fabric it is, and what the store holds of that cloth now (the waste goes back in there). */
+function flowWasteRows() {
+  const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly(), out = [];
+  flowRows().forEach(({ r, s }) => {
+    if (!s.plan || (only && !r.__t)) return;
+    const pf = flowCutFabricOf(r, s.plan); if (!pf.code) return;
+    const m = cutSkuOf(r.sku) || {}, colour = String(m.color || r.color || '').trim();
+    let store = null; try { store = flowPrintedStock(Object.assign({ fabric: (s.plan.fabric || {}).name }, pf.w), colour); } catch (e) { store = null; }
+    const cuts = r.__t ? Object.values(r.__t.cutLog || {}).map(c => ({ m: +c.waste || 0, width: +c.wasteWidth || 0, date: c.date || String(c.at || '').slice(0, 10) }))
+      : (PT.cut || []).filter(c => c && obUC(c.orderNo) === obUC(r.orderNo) && obUC(c.sku) === obUC(r.sku)).map(c => ({ m: +c.fabricWaste || 0, width: +c.fabricWasteWidth || 0, date: ptIsoDate(c.cutDate) || String(c.addedAt || '').slice(0, 10) }));
+    cuts.filter(c => c.m > 0).forEach(c => out.push({ date: c.date, orderNo: r.orderNo, sku: obUC(r.sku), code: pf.code, label: pf.label, m: flowR2(c.m), width: c.width, store, test: !!r.__t }));
+  });
+  return out.sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 50);
+}
 /** A test line asks what the factory's forms ask, and keeps it on the test order (flow-test-order.js). */
 function flowTestEntryButtons(view, x) {
   const b = (what, label, main) => `<button data-flte="${what}|${esc(x.r.orderNo)}|${esc(obUC(x.r.sku))}" style="width:auto;padding:3px 10px;font-size:12px;margin:1px;background:${main ? '#7c3aed' : 'transparent'};border-color:#7c3aed;color:${main ? '#fff' : '#7c3aed'}">${label}</button>`;
@@ -208,7 +224,13 @@ function flowTable(view, rows) {
     body = rows.map(x => `<tr>${base(x)}<td style="text-align:left;font-size:12px">${flowCutFrom(x)}</td><td class="num">${prog(x.s.cut, +x.r.qty)}${due(x.s.plan && x.s.plan.dates && x.s.plan.dates.cut, 'plan')}</td><td>${go(view, x)}</td></tr>`).join('');
   } else if (view === 'raw') {
     head = ['PO', 'SKU', 'Qty', 'In store, to issue', 'Issued', ''];
-    body = rows.map(x => { const sp = flowStorePcs(x.r.sku);
+    const wr = flowWasteRows();
+    const wasteHtml = wr.length ? `<tr style="background:rgba(180,83,9,.06)"><td colspan="6" style="text-align:left;font-size:12px"><b>Waste back in the store from cutting</b> <span class="muted">— printed fabric left on the table; it is in the store and the next plan can use it</span>`
+      + `<table class="xl" style="margin-top:6px;width:auto"><thead><tr><th style="text-align:left">Date</th><th style="text-align:left">Order · SKU</th><th style="text-align:left">Printed fabric</th><th>Waste</th><th>Width</th><th>In store now</th></tr></thead><tbody>`
+      + wr.map(w => `<tr><td style="text-align:left">${esc(w.date)}</td><td style="text-align:left">${esc(w.orderNo)} · ${esc(w.sku)}${w.test ? ' <span class="navbadge" style="background:#7c3aed;position:static">TEST</span>' : ''}</td>`
+        + `<td style="text-align:left"><b>${esc(w.code)}</b> <span class="muted">${esc(w.label)}</span></td><td class="num"><b>${nf(w.m)} m</b></td><td class="num">${w.width ? nf(w.width) + '"' : '—'}</td><td class="num">${w.store == null ? '…' : nf(w.store) + ' m'}</td></tr>`).join('')
+      + '</tbody></table></td></tr>' : '';
+    body = wasteHtml + rows.map(x => { const sp = flowStorePcs(x.r.sku);
       return `<tr>${base(x)}<td class="num"><b>${nf(flowIssuable(x.r, x.s))}</b>${x.s.bucket !== 'raw' ? `<div style="font-size:10.5px;color:#b45309">${x.s.bucket === 'fabric' ? 'part back from the printer' : 'part cut'} — the rest still to come</div>` : ''}${x.s.qcRej ? `<div style="font-size:10.5px;color:#b45309">${nf(x.s.qcRej)} rejected at QC — back in store, issue again</div>` : ''}${sp == null ? '' : `<div class="muted" style="font-size:10.5px">store balance ${nf(sp)} pcs of this SKU</div>`}</td><td class="num">${prog(x.s.issued, +x.r.qty)}</td><td>${go(view, x)}</td></tr>`; }).join('');
   } else if (view === 'wip') {
     head = ['PO', 'SKU', 'Qty', 'Issued', 'Received', 'QC passed', ''];
