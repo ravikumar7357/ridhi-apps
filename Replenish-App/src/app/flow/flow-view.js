@@ -101,7 +101,8 @@ function flowCutFrom(x) {
   const p = x.s.plan; if (!p || x.s.route !== 'inhouse') return '<span class="muted">—</span>';
   const w = flowPrintWhat(x.r, p), m = flowR2(+(p.fabric && p.fabric.metres) || 0), fp = +(p.fabric && p.fabric.fromPrinted) || 0;
   return `${w.kind === 'sku' ? `<b>${esc(w.code)}</b> printed pieces` : flowPrintTxt(w)}<div class="muted" style="font-size:10.5px">${w.kind === 'sku' ? nf(x.r.qty) + ' pcs' : nf(m) + ' m'} for ${nf(x.r.qty)} pcs`
-    + (x.s.fromStock ? ' · <b style="color:#166534">all from printed stock in the store</b>' : fp > 0 ? ` · ${nf(fp)} ${p.fabric.printedUnit === 'pcs' ? 'pcs' : 'm'} from printed stock, the rest from the printer` : ' · from the printer') + '</div>';
+    + (x.s.fromStock ? ' · <b style="color:#166534">all from printed stock in the store</b>' : fp > 0 ? ` · ${nf(fp)} ${p.fabric.printedUnit === 'pcs' ? 'pcs' : 'm'} from printed stock, the rest from the printer` : ' · from the printer') + '</div>'
+    + (x.s.bucket === 'fabric' ? `<div style="font-size:11px;color:#b45309"><b>${nf(x.s.canCut)} pcs can be cut now</b> — printed fabric back for ${nf(x.s.back)} of ${nf(x.r.qty)} pcs, the rest still with the printer</div>` : '');
 }
 /** A test line asks what the factory's forms ask, and keeps it on the test order (flow-test-order.js). */
 function flowTestEntryButtons(view, x) {
@@ -208,7 +209,7 @@ function flowTable(view, rows) {
   } else if (view === 'raw') {
     head = ['PO', 'SKU', 'Qty', 'In store, to issue', 'Issued', ''];
     body = rows.map(x => { const sp = flowStorePcs(x.r.sku);
-      return `<tr>${base(x)}<td class="num"><b>${nf(flowIssuable(x.r, x.s))}</b>${x.s.qcRej ? `<div style="font-size:10.5px;color:#b45309">${nf(x.s.qcRej)} rejected at QC — back in store, issue again</div>` : ''}${sp == null ? '' : `<div class="muted" style="font-size:10.5px">store balance ${nf(sp)} pcs of this SKU</div>`}</td><td class="num">${prog(x.s.issued, +x.r.qty)}</td><td>${go(view, x)}</td></tr>`; }).join('');
+      return `<tr>${base(x)}<td class="num"><b>${nf(flowIssuable(x.r, x.s))}</b>${x.s.bucket !== 'raw' ? `<div style="font-size:10.5px;color:#b45309">${x.s.bucket === 'fabric' ? 'part back from the printer' : 'part cut'} — the rest still to come</div>` : ''}${x.s.qcRej ? `<div style="font-size:10.5px;color:#b45309">${nf(x.s.qcRej)} rejected at QC — back in store, issue again</div>` : ''}${sp == null ? '' : `<div class="muted" style="font-size:10.5px">store balance ${nf(sp)} pcs of this SKU</div>`}</td><td class="num">${prog(x.s.issued, +x.r.qty)}</td><td>${go(view, x)}</td></tr>`; }).join('');
   } else if (view === 'wip') {
     head = ['PO', 'SKU', 'Qty', 'Issued', 'Received', 'QC passed', ''];
     body = rows.map(x => `<tr>${base(x)}<td class="num">${nf(x.s.issued)}</td><td class="num">${nf(x.s.received)}</td>

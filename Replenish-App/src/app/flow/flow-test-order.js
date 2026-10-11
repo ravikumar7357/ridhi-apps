@@ -151,12 +151,14 @@ const flowTid = p => p + Date.now().toString(36) + Math.random().toString(36).sl
 function flowTestCutOpen(no, sku) {
   const x = flowTestRec(no, sku); if (!x) return;
   const row = flowRows().find(y => y.r.orderNo === no && obUC(y.r.sku) === sku), p = (row && row.s.plan) || {};
-  const left = Math.max(0, (+x.t.qty || 0) - (+x.t.cut || 0)), per = +(p.fabric && p.fabric.perPc) || 0;
+  /* only what is back from the printer can be cut (part back → that part) */
+  const st = (flowRows().find(y => y.s.key === flowKey(no, sku)) || {}).s, upto = st && st.printed ? Math.min(+x.t.qty || 0, st.back || 0) : (+x.t.qty || 0);
+  const left = Math.max(0, upto - (+x.t.cut || 0)), per = +(p.fabric && p.fabric.perPc) || 0;
   let fabs = []; try { fabs = cutFabrics(); } catch (e) { fabs = []; }
   const want = String((p.fabric && p.fabric.name) || '');
   if (want && !fabs.some(f => f.toLowerCase() === want.toLowerCase())) fabs.unshift(want);
   ptOpenDialog({
-    title: `Cutting entry (TEST) — ${no} · ${sku}`, subtitle: `${nf(left)} of ${nf(x.t.qty)} pieces still to cut. Saved as a TEST entry in Cutting Data too — "delete test" removes it.`,
+    title: `Cutting entry (TEST) — ${no} · ${sku}`, subtitle: `${nf(left)} of ${nf(x.t.qty)} pieces to cut now${upto < (+x.t.qty || 0) ? ` (printed fabric back for ${nf(upto)} so far)` : ''}. Saved as a TEST entry in Cutting Data too — "delete test" removes it.`,
     html: `<div class="ptgrid" style="grid-template-columns:repeat(3,1fr)">
       <label>Pieces<input id="fltcP" type="number" min="1" value="${left}"></label>
       <label>Fabric<select id="fltcF"><option value="">— Fabric —</option>${fabs.map(f => `<option${f === want ? ' selected' : ''}>${esc(f)}</option>`).join('')}</select></label>

@@ -23,7 +23,7 @@ async function flowCutEntry(r, s) {
     showTab('pcut'); await flowOpenBox('cwBox', 'cwToggle'); if (typeof ensureCutForm === 'function') await ensureCutForm();
     $('cwSku').value = obUC(r.sku); cutSkuTyped(); renderCutForm();
     $('cwOrd').value = r.orderNo; renderCutForm();
-    $('cwPcs').value = Math.max(0, (+r.qty || 0) - (s.cut || 0));
+    $('cwPcs').value = Math.max(0, Math.min(+r.qty || 0, s.printed ? (s.back || 0) : (+r.qty || 0)) - (s.cut || 0));   // only what is back to cut
     const fab = s.plan && s.plan.fabric && s.plan.fabric.name, sel = $('cwFabric');
     if (fab && sel && [...sel.options].some(o => o.value === fab)) sel.value = fab;
     if (typeof renderCutFab === 'function') renderCutFab();

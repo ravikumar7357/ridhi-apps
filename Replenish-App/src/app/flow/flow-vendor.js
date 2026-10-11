@@ -31,7 +31,7 @@ function flowTestVos() {
       out.push({ id: 'tvpo_' + o.no + '_' + kind, orderNo: String(o.no).replace(/^TPRN-/, 'TVPO-') + (kind === 'cut' ? '-C' : '-R'),
         vendorCode: o.printer.code, vendorName: o.printer.name, service: 'Block print', ...(want.channel ? { channel: want.channel } : {}),
         orderType: kind, orderDate: flowDmy(o.date), status: 'Placed',
-        notes: `TEST — from the PPC plan, ${o.orderNo} (${o.no}). View only: The Fabric Rush records the cloth sent and the printed cloth received`
+        notes: `TEST — from the PPC plan, ${o.orderNo} (${o.no}). View only: ${FLOW_COMPANY} records the cloth sent and the printed cloth received`
           + ` (so far: sent ${nf(flowR2(sent))}, back ${nf(flowR2(back))}).`,
         lines: lines.map((l, i) => Object.assign({ lineId: 'tl_' + kind + '_' + i }, l)), createdBy: o.by || '', createdAt: o.at || '',
         demandSource: 'ppc', flowPrintOrder: o.no, test: true, virtual: true });

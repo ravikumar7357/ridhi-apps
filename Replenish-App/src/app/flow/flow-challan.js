@@ -233,7 +233,7 @@ function flowChallanHtml(ch) {
   return '<!doctype html><html><head><meta charset="utf-8"><title>' + e(ch.no) + '</title></head>'
     + '<body style="font-family:Arial,Helvetica,sans-serif;color:#111;margin:24px">'
     + `<table style="width:100%;border-collapse:collapse"><tr><td style="vertical-align:top">`
-    + `<div style="font-size:18px;font-weight:bold">${e(s.company || 'The Fabric Rush')}</div>`
+    + `<div style="font-size:18px;font-weight:bold">${e(s.company || FLOW_COMPANY)}</div>`
     + `<div style="font-size:11px;white-space:pre-line">${e(s.address)}</div>`
     + (s.gstin ? `<div style="font-size:11px">GSTIN: ${e(s.gstin)}</div>` : '')
     + `</td><td style="vertical-align:top;text-align:right"><div style="font-size:20px;font-weight:bold">DELIVERY CHALLAN</div>`

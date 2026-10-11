@@ -94,6 +94,12 @@ const K = 'AMZ-1__S1';
   const ready = { ppc: { [K]: plan() }, dem: { [K]: { fabricReady: { at: 'x' } } } };
   A = load(Object.assign({ vendor: { 'AMZ-1|S1': { given: 100, back: 40 } } }, ready));
   ok('all given, 40 back → Printed fabric in', b(L()) === 'fabric');
+  { const st = A.flowState(L({ cutReq: true }));
+    ok('part back (40 of 100), cutting needed → stays in Printed fabric in AND shows in Cutting for the 40 that can be cut now', st.bucket === 'fabric' && st.canCut === 40 && A.flowInView('cut', st) && A.flowInView('fabric', st));
+    const sn = A.flowState(L({ cutReq: false }));
+    ok('part back, printed on the SKU (no cutting) → the 40 pieces show in Raw cutting in store to issue', sn.bucket === 'fabric' && sn.canIssue === 40 && A.flowInView('raw', sn) && !A.flowInView('cut', sn));
+    const s2 = A.flowState(L({ cutReq: true, cut: 40 }));
+    ok('…cut those 40 → nothing more to cut now (Cutting empty), the 40 cut pieces in Raw cutting in store', !A.flowInView('cut', s2) && s2.canIssue === 40 && A.flowInView('raw', s2)); }
   A = load(Object.assign({ vendor: { 'AMZ-1|S1': { given: 100, back: 100 } } }, ready));
   ok('all back, cutting needed, not cut → Cutting', b(L({ cutReq: true, cut: 60 })) === 'cut');
   ok('all cut → Raw cutting in store', b(L({ cutReq: true, cut: 100 })) === 'raw');
@@ -556,6 +562,10 @@ const K = 'AMZ-1__S1';
     ok('cut pieces: per SKU — what, colour, size — in pieces, with the cloth that goes for them', /Cut pieces — print on the SKU/.test(page) && /<b>CPC-01<\/b>/.test(page) && /<b>40 pcs<\/b>/.test(page) && /94 m/.test(page)
       && /<td[^>]*>Tablecloth<\/td><td[^>]*><b>Agate Green<\/b><\/td><td[^>]*><b>60x60<\/b><\/td>/.test(page), page.slice(page.indexOf('Cut pieces'), page.indexOf('Cut pieces') + 700));
   }
+
+  { const S2 = load({ me: { admin: true } }); S2.ctx.GPO.settings = {};
+    const pg = S2.flowChallanHtml({ no: 'TRFD-2', date: '2026-10-11', orderNo: 'T', vendor: { code: 'V', name: 'X' }, lines: [] }) + S2.flowPoHtml({ no: 'TPRN-2', date: '2026-10-11', orderNo: 'T', printer: { name: 'X' }, items: {} });
+    ok('the challan and the print order carry Ridhi Home & Living — never The Fabric Rush', (pg.match(/Ridhi Home &amp; Living/g) || []).length === 2 && !/Fabric Rush/.test(pg), pg.slice(0, 300)); }
 
   console.log('== the ruffle cloth to a printer of its own (Ravi, 11 Oct: "ruffle ke fabric ke liye vendor alag h") ==');
   {

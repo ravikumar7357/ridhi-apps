@@ -32,6 +32,10 @@ const FLOW_ON = (() => {
 const FLOW_FROM_DEFAULT = '2026-10-10';
 const flowFrom = () => { try { return localStorage.getItem('flowFrom') || FLOW_FROM_DEFAULT; } catch (e) { return FLOW_FROM_DEFAULT; } };
 
+/* The name on the challans and print orders (Ravi, 11 Oct: "challan me The Fabric Rush nahi hoga, yahan Ridhi Home &
+ * Living karna h") — the PO settings' company when one is saved, else this. */
+const FLOW_COMPANY = 'Ridhi Home & Living';
+
 /* ---- the buckets, in the order the work moves: [key, label, the right that opens it, what it is waiting for] ---- */
 const FLOW_BUCKETS = [
   ['new', 'New orders', 'flnew', 'Orders that came in over the last 7 days, and the bucket each line is in now.'],
@@ -64,8 +68,15 @@ const FLOW_ROUTES = [['inhouse', 'In-house — printed by a vendor, cut & stitch
   ['outsource', 'Outsourced — made outside, received finished', 'Outsourced']];
 const flowRouteOf = p => (p && p.route) || (p && p.print && p.print.need === false ? 'stitch' : 'inhouse');
 /** Which list a line is in. Demand is one stop in the walk but two lists; the rest are the bucket itself. */
+/* PART BACK, PART ON (Ravi, 11 Oct: "maine order ke against partially fabric receive kiya, but wo partially fabric cutting
+ * me show nahi hua"). A line stays in the bucket of the step it has not finished, and ALSO shows where the part already
+ * done can go on: printed fabric back for part of it → Cutting, for what can be cut now; pieces back from the printer
+ * (or cut) and not issued → Raw cutting in store, for what can be issued now. */
 const flowInView = (view, s) => view === 'drfd' ? s.bucket === 'demand' && s.needFab
-  : view === 'dacc' ? s.bucket === 'demand' && s.needAcc : s.bucket === view;
+  : view === 'dacc' ? s.bucket === 'demand' && s.needAcc
+  : view === 'cut' ? s.bucket === 'cut' || (s.bucket === 'fabric' && s.cutReq && s.canCut > 0)
+  : view === 'raw' ? s.bucket === 'raw' || (['fabric', 'cut'].includes(s.bucket) && s.canIssue > 0)
+  : s.bucket === view;
 const flowBucketsAllowed = () => (ME.admin ? FLOW_BUCKETS : FLOW_BUCKETS.filter(b => (ME.tabs || []).includes(b[2])));
 const flowKey = (orderNo, sku) => (obUC(orderNo) + '__' + obUC(sku)).replace(/[.#$\[\]\/]/g, '_');
 
@@ -152,6 +163,10 @@ function flowState(r) {
   }
   s.qcRej = p ? flowQcLine(r).rej : 0;
   s.issuedNet = p ? Math.max(0, s.issuedAll - s.qcRej) : s.issued;
+  /* what can go on now, while the rest is still on its way (flowInView) */
+  s.cutReq = !!r.cutReq;
+  s.canCut = r.cutReq ? Math.max(0, (printed ? s.back : qty) - s.cut) : 0;
+  s.canIssue = Math.max(0, (r.cutReq ? s.cut : (printed ? s.back : qty)) - s.issuedNet);
   const accNeed = !!p && route !== 'outsource' && (p.acc || []).some(a => a.code && +a.qty > 0);
   const handReady = !!(d && d.fabricReady && !d.fabricReady.challan);
   s.needFab = isNew && !!p && route !== 'outsource' && !handReady

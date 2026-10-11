@@ -123,7 +123,7 @@ function flowPoHtml(o) {
   const lines = Object.values(o.items || {}).filter(Boolean);
   const dmy = d => { const m = String(d || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}/${m[2]}/${m[1]}` : d; };
   return '<!doctype html><html><head><meta charset="utf-8"><title>' + e(o.no) + '</title></head><body style="font-family:Arial,Helvetica,sans-serif;color:#111;margin:24px">'
-    + `<table style="width:100%;border-collapse:collapse"><tr><td style="vertical-align:top"><div style="font-size:18px;font-weight:bold">${e(s.company || 'The Fabric Rush')}</div>`
+    + `<table style="width:100%;border-collapse:collapse"><tr><td style="vertical-align:top"><div style="font-size:18px;font-weight:bold">${e(s.company || FLOW_COMPANY)}</div>`
     + `<div style="font-size:11px;white-space:pre-line">${e(s.address)}</div></td><td style="vertical-align:top;text-align:right"><div style="font-size:20px;font-weight:bold">PRINT ORDER</div>`
     + `<div style="font-size:12px;margin-top:4px">No: <b>${e(o.no)}</b></div><div style="font-size:12px">Date: ${e(dmy(o.date))}</div><div style="font-size:12px">Order: <b>${e(o.orderNo)}</b></div></td></tr></table>`
     + `<div style="margin:16px 0 8px;font-size:12px"><b>To</b><br>${e(o.printer && o.printer.name)}</div>`
