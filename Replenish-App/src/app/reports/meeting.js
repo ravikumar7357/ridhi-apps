@@ -69,7 +69,7 @@ const mtgChan = no => { const p = String(no || '').split('-')[0].toUpperCase(); 
 function mtgProduction(wk, brand) {
   const from = mtgMs(wk);
   const Q = repQcByWindow(brand, from, from + 7 * 864e5), Qp = repQcByWindow(brand, from - 7 * 864e5, from);
-  const made = repByWindow(brand, false, from, from + 7 * 864e5), madeTot = Object.values(made).reduce((t, a) => t + a.prod, 0);
+  const made = repByWindow(brand, false, from, from + 7 * 864e5, 'recv'), madeTot = Object.values(made).reduce((t, a) => t + a.prod, 0);
   const tgt = repTarget(), pc = (v, b) => (b > 0 ? Math.round(v / b * 100) + '%' : '—');
   const arts = [...new Set(Object.keys(made).concat(Object.keys(Q.byArt), Object.keys(Qp.byArt)))]
     .map(a => ({ a, made: (made[a] || {}).prod || 0, qc: Q.byArt[a] || 0, prev: Qp.byArt[a] || 0 })).filter(x => x.made || x.qc || x.prev)

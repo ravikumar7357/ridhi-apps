@@ -46,12 +46,22 @@ let REP_HEADS = null;
 const REP_DAYS = 6;
 const repHeadKey = n => String(n || '').trim().toLowerCase().replace(/[.#$\[\]\/]/g, '').replace(/\s+/g, '_');
 /** One week of work, pillow insert apart: in-house karigars and what each brought back, and each contractor. */
-function repManpower(week, brand) {
+function repManpower(week, brand, src) {
   /* The week read in local time: "2026-09-20" on its own parses as UTC midnight, five and a half hours off. */
   const wp = String(week).split('-').map(Number), from = new Date(wp[0], wp[1] - 1, wp[2]).getTime(), to = new Date(wp[0], wp[1] - 1, wp[2] + 7).getTime();
   const kar = new Map(), con = new Map();
-  let insert = 0;
-  (PT.base || []).forEach(r => {
+  let insert = 0, unknown = 0, shared = 0;
+  /* QC passed (REP_SRC): under the karigar the pieces came back from; a check that names nobody is counted, not credited. */
+  if ((src || REP_SRC) === 'qc') repQcUnits().forEach(u => {
+    if (!u.ms || u.ms < from || u.ms >= to) return;
+    if (brand && repBrand(u.sku) !== brand) return;
+    if (u.apart) { if (u.apart === 'Pillow insert') insert += u.pcs; return; }
+    if (!u.who) { unknown += u.pcs; return; }
+    if (u.shared) shared += u.pcs;
+    const m = REP_CONTRACTOR_RE.test(u.who) ? con : kar;
+    m.set(u.who, (m.get(u.who) || 0) + u.pcs);
+  });
+  else (PT.base || []).forEach(r => {
     if (!r) return;
     const pcs = ptNum(r.receivedPieces);
     if (!(pcs > 0)) return;
@@ -71,7 +81,7 @@ function repManpower(week, brand) {
    * attendance, in a day. The working days are 6 (Monday to Saturday) unless typed for the week. */
   const days = Number(heads._days) || REP_DAYS;
   const avg = kar.size ? inPcs / kar.size : 0;
-  return { week, insert, days, people: kar.size, inPcs, avg, avgDay: avg / days,
+  return { week, insert, unknown, shared, days, people: kar.size, inPcs, avg, avgDay: avg / days,
     karigars: [...kar.entries()].sort((a, b) => b[1] - a[1]),
     contractors: [...con.entries()].map(([name, pcs]) => {
       const h = Number(heads[repHeadKey(name)]) || 0;
@@ -101,7 +111,7 @@ function repNeedsCutting(r) {
   return true;
 }
 const repPerDay = () => Number(((REP_HEADS || {})._settings || {}).perday) || REP_PER_DAY;   // saved under repHeadKey('perDay')
-function repGap(week, brand) {
+function repGap(week, brand, src) {
   const wp = String(week).split('-').map(Number), from = new Date(wp[0], wp[1] - 1, wp[2]).getTime(), DAY = 864e5, to = from + 7 * DAY;
   const heads = (REP_HEADS || {})[week] || {}, nDays = Number(heads._days) || REP_DAYS, T = repPerDay();
   const mine = r => r && !repIsInsert(r) && !REP_CONTRACTOR_RE.test(String(r.empName || '')) && (!brand || repBrand(r.sku) === brand);
@@ -112,9 +122,16 @@ function repGap(week, brand) {
     const k = String(r.empName || '').trim() || '(no name)';
     (byWho.get(k) || byWho.set(k, []).get(k)).push(r);
     const im = ptDtMs(r.issueDate), rm = r.receivingDate ? ptDtMs(r.receivingDate) : 0;
-    if (rm && rm >= from && rm < to && ptNum(r.receivedPieces) > 0) made.set(k, (made.get(k) || 0) + ptNum(r.receivedPieces));
+    if ((src || REP_SRC) !== 'qc' && rm && rm >= from && rm < to && ptNum(r.receivedPieces) > 0) made.set(k, (made.get(k) || 0) + ptNum(r.receivedPieces));
     if (im && im >= from && im < to) { issued += ptNum(r.issuePieces); if (repNeedsCutting(r)) issuedCut += ptNum(r.issuePieces); }
     if (im && im < from && (!rm || rm >= from)) held += ptNum(r.issuePieces);         // still out when the week began
+  });
+  /* MADE = what QC passed this week, under each of our karigars (REP_SRC) — pillow insert, Pradeep and a check naming
+   * nobody left out. Their work in hand, issue to receipt, still comes from the Job Work rows above. */
+  if ((src || REP_SRC) === 'qc') repQcUnits().forEach(u => {
+    if (!u.ms || u.ms < from || u.ms >= to || u.apart || !u.who || REP_CONTRACTOR_RE.test(u.who)) return;
+    if (brand && repBrand(u.sku) !== brand) return;
+    made.set(u.who, (made.get(u.who) || 0) + u.pcs);
   });
   /* The working days: Monday to Saturday of this week, as many as the week's working days, and none still to come. */
   const days = [];

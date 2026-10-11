@@ -143,8 +143,7 @@ function repRenderLive() {
     The comparison is the SAME ${nf(days)} ${dayWord} of last week (${nf(Math.round(prevProd))} pcs),
     not the whole of it (${nf(Math.round(L.fullPrevProd))} pcs) — a part week against a finished one
     reads as a collapse that never happened.
-    ${REP_UNDATED ? '<br>A receiving date is stamped when a row is FULLY received, so work part-received today '
-      + 'is not in this figure yet. Every week lags that way; this one carries all of it at once.' : ''}`;
+    Production is what QC passed, on the day it was passed.`;
 
   /* OPEN OR CLOSED HERE TOO (Ravi, 2026-10-02: "this week me bhi open close add karo"): the same switch as Last week
    * (remembered in this browser, one for both views); open, the production tiles are THIS week's, so far. */
@@ -160,9 +159,9 @@ function repRenderLive() {
   } else
   $('repKpis').innerHTML = `<div class="kpi" style="flex-basis:100%">
     <div class="kpihead"><span class="kpiname">This week so far — ${esc(span)}</span>
-      <span class="kpiwhen">${nf(days)} ${dayWord} in · against the same ${nf(days)} ${dayWord} last week · what came back, from Job Work Register</span></div>
+      <span class="kpiwhen">${nf(days)} ${dayWord} in · against the same ${nf(days)} ${dayWord} last week · what QC passed, from Quality Control</span></div>
     <div class="metrics">
-      <div class="metric"><div class="v">${nf(Math.round(prod))}</div><div class="l">Pieces received</div></div>
+      <div class="metric"><div class="v">${nf(Math.round(prod))}</div><div class="l">QC passed</div></div>
       <div class="metric"><div class="v" style="color:#166534">${nf(Math.round(cust))}</div><div class="l">Customer-facing pieces</div></div>
       <div class="metric"><div class="v">${nf(Math.round(prevProd))}</div><div class="l">Same days last week</div></div>
       <div class="metric"><div class="v" style="color:${pct === null ? 'var(--muted)' : (pct >= 0 ? '#166534' : 'var(--bad)')}">`
@@ -171,27 +170,21 @@ function repRenderLive() {
       <div class="metric"><div class="v"><span style="color:#166534">${nf(up)}</span> / <span style="color:var(--bad)">${nf(down)}</span></div><div class="l">Up / down</div></div>
     </div></div>` + repManpowerCard(thisWeek, brand);
 
-  if (!L.rows.length) { ptEmpty('repTable', 'Nothing has come back yet this week.'); REP.live = L; return; }
+  if (!L.rows.length) { ptEmpty('repTable', 'Nothing has passed QC yet this week.'); REP.live = L; return; }
 
   const head = '<thead><tr><th class="frz">Article type</th>'
-    + `<th class="num">This week so far</th><th class="num">Customer</th>`
-    + `<th class="num" title="Pieces QC passed this week so far — the real production">QC passed</th>`
-    + `<th class="num" title="Made this week but not passed by QC yet (waiting, in spotting/touching, rejected or for alteration)">Made − QC passed</th>`
-    + `<th class="num">Same days last week</th><th class="num">QC passed, same days last week</th><th class="num">Change</th><th>Week on week</th></tr></thead>`;
+    + `<th class="num">QC passed this week so far</th><th class="num">Customer</th>`
+    + `<th class="num">Same days last week</th><th class="num">Change</th><th>Week on week</th></tr></thead>`;
   const body = L.rows.map(r => '<tr>'
     + `<td class="frz" style="text-align:left;font-weight:600">${esc(r.art)}</td>`
     + `<td class="num" style="font-weight:700">${nf(Math.round(r.prod))}</td>`
     + `<td class="num">${nf(Math.round(r.cust))}</td>`
-    + `<td class="num" style="font-weight:700;color:#166534">${r.qc ? nf(r.qc) : '<span class="muted">—</span>'}</td>`
-    + `<td class="num"${r.prod - r.qc > 0 ? ' style="color:#B45309"' : ''}>${nf(Math.round(r.prod - r.qc))}</td>`
     + `<td class="num muted">${r.prevProd ? nf(Math.round(r.prevProd)) : '<span class="muted">·</span>'}</td>`
-    + `<td class="num muted">${r.prevQc ? nf(r.prevQc) : '<span class="muted">·</span>'}</td>`
     + `<td class="num" style="color:${r.delta > 0 ? '#166534' : (r.delta < 0 ? 'var(--bad)' : 'var(--muted)')};font-weight:600">`
       + `${r.delta > 0 ? '+' : ''}${nf(Math.round(r.delta))}</td>`
     + `<td>${repPctCell(r)}</td></tr>`).join('');
-  const tq = L.rows.reduce((t, r) => t + r.qc, 0), tpq = L.rows.reduce((t, r) => t + r.prevQc, 0);
   const foot = `<tfoot><tr><td class="frz">TOTAL</td><td class="num">${nf(Math.round(prod))}</td><td class="num">${nf(Math.round(cust))}</td>`
-    + `<td class="num" style="color:#166534">${nf(tq)}</td><td class="num">${nf(Math.round(prod - tq))}</td><td class="num">${nf(Math.round(prevProd))}</td><td class="num">${nf(tpq)}</td><td></td><td></td></tr></tfoot>`;
+    + `<td class="num">${nf(Math.round(prevProd))}</td><td></td><td></td></tr></tfoot>`;
   $('repTable').innerHTML = head + '<tbody>' + body + '</tbody>' + foot;
   REP.live = L;
 }
@@ -332,7 +325,7 @@ function repManpowerCard(week, brand) {
     : `<b style="color:var(--bad)">${nf(Math.round(need - have))}${unit || ''} short</b>`;
   const okCol = (have, need) => have == null ? 'var(--muted)' : (have >= need ? '#15803D' : 'var(--bad)');
   const pctCut = Math.round(shareAll * 100);
-  const total = g.made + conPcs, totalWas = gp.made + p.contractors.reduce((t, c) => t + c.pcs, 0);
+  const total = g.made + conPcs + (m.unknown || 0), totalWas = gp.made + p.contractors.reduce((t, c) => t + c.pcs, 0) + (p.unknown || 0);
 
   /* A tile that is a little sheet: the figure on top, then label | value rows, like Excel. */
   const sheet = (label, v, col, rows) => `<div style="border:1px solid var(--line);border-radius:12px;padding:10px 12px;min-width:0">
@@ -353,7 +346,8 @@ function repManpowerCard(week, brand) {
         <!-- CLOSE sits on this line (Ravi, 2026-09-29: "close button line ki jagah hona chahiye"). -->
         <button type="button" class="ghost" data-reptoggle="1" style="height:30px;padding:0 12px;font-size:12.5px">Close ▲</button>
       </div></div>
-    ${row('MADE', tile('Total pcs made', nf(total), `ours ${nf(g.made)} + Pradeep ${nf(conPcs)} · ${vs(total, totalWas)}`)
+    ${row('MADE — QC PASSED', tile('Total QC passed', nf(total), `ours ${nf(g.made)} + Pradeep ${nf(conPcs)}${m.unknown ? ` + karigar not known ${nf(m.unknown)}` : ''} · ${vs(total, totalWas)}`
+        + (m.shared ? `<br><span title="QC checks made on the Checks form name no karigar: their pieces are shared among the karigars who brought that order's SKU back, by what each brought back">${nf(m.shared)} from checks with no karigar, shared by order &amp; SKU</span>` : ''))
       + sheet('Our karigars made', nf(g.made), '#1D4ED8', [
           ['People in the week', nf(g.karigars) + (gp.karigars ? ` <span class="muted">(${nf(gp.karigars)} before)</span>` : '')],
           ['People a day, average', g.days ? (Math.round(g.perDayPeople * 10) / 10) : '—'],
@@ -365,26 +359,8 @@ function repManpowerCard(week, brand) {
           ['People a day, average', con.perDayPeople == null ? '—' : (Math.round(con.perDayPeople * 10) / 10) + ` <span class="muted">(÷ ${nf(m.days)} days)</span>`],
           ['One person a day', con.perDay == null ? '<span class="muted">enter the attendance</span>' : `<span style="color:${aim(con.perDay)}">${r0(con.perDay)}</span> <span class="muted">/ ${nf(T)}</span>`],
           ['One person in the week', con.per == null ? '—' : r0(con.per)]])
-        : tile('Pradeep made', '—', 'nothing received this week'))
+        : tile('Pradeep made', '—', 'nothing QC passed this week'))
       + tile('Pillow insert (apart)', nf(m.insert), `not in any figure here${p.insert ? ' · ' + nf(p.insert) + ' the week before' : ''}`, '#B45309'))}
-    ${(() => {
-      /* QC PASSED, THE SAME WEEK (Ravi, 2026-10-07): the production meeting counts what QC passed, so it sits right under
-       * what was made. Same week, Sunday to Saturday; pillow insert and embroidery napkin apart. */
-      const wp = String(week).split('-').map(Number), from = new Date(wp[0], wp[1] - 1, wp[2]).getTime();
-      const Q = repQcByWindow(brand, from, from + 7 * 864e5), Qp = repQcByWindow(brand, from - 7 * 864e5, from);
-      const pc = (v, b) => b > 0 ? Math.round(v / b * 1000) / 10 + '%' : '—';
-      return row('QC PASSED — THE REAL PRODUCTION', tile('QC passed', nf(Q.ok), vs(Q.ok, Qp.ok), '#166534', '#F0FDF4')
-        + sheet('Made against QC passed', nf(total - Q.ok), (total - Q.ok) > 0 ? '#B45309' : '#15803D', [
-            ['Made (received)', nf(total)], ['QC passed', nf(Q.ok)],
-            ['Passed, as a share of made', pc(Q.ok, total)],
-            ['Not passed yet', (total - Q.ok) > 0 ? `<span style="color:#B45309">${nf(total - Q.ok)}</span>` : '<span style="color:#15803D">none</span>']])
-        + sheet('QC checks this week', nf(Q.chk), 'var(--ink)', [
-            ['Passed', `${nf(Q.ok)} <span class="muted">${pc(Q.ok, Q.chk)}</span>`],
-            ['Rejected', `<span style="color:var(--bad)">${nf(Q.rej)}</span> <span class="muted">${pc(Q.rej, Q.chk)}</span>`],
-            ['For alteration', `<span style="color:#7f6000">${nf(Q.alt)}</span> <span class="muted">${pc(Q.alt, Q.chk)}</span>`]])
-        + sheet('QC passed, kept apart', nf(Q.apart['Pillow insert'] + Q.apart['Embroidery napkin']), '#B45309', [
-            ['Pillow insert', nf(Q.apart['Pillow insert'])], ['Embroidery napkin', nf(Q.apart['Embroidery napkin'])]]));
-    })()}
     ${(() => {
       /* TO REACH THE TARGET: Pradeep is taken to make what he made; the rest is ours. Cutting and cut pieces from
        * printers are split as this week's work was given out; printing is the target × the m² in a piece this week. */
@@ -399,7 +375,7 @@ function repManpowerCard(week, brand) {
       return row('TO REACH ' + nf(tgt) + ' A WEEK',
         sheet('Short of the target', nf(short), short ? 'var(--bad)' : '#15803D', [
           ['Target a week', box('target', tgt, '20000', 84, '_settings')],
-          ['Made this week', nf(total)],
+          ['QC passed this week', nf(total)],
           ['Pradeep made (kept as is)', nf(conPcs)],
           ['Our karigars must make', nf(ours)]])
         + sheet('Karigars needed a day', g.days ? nf(Math.ceil(needPeople)) : '—', '#1D4ED8', [
@@ -457,10 +433,10 @@ function repRenderWow() {
 
   if (!rows.length) {
     repChartsOff();
-    ptEmpty('repTable', 'Nothing came back in any of those weeks.');
+    ptEmpty('repTable', 'Nothing passed QC in any of those weeks.');
     $('repKpis').innerHTML = '';
     $('repMsg').className = 'muted';
-    $('repMsg').textContent = `Nothing was received in ${repWkRange(week)} or the weeks before it.`;
+    $('repMsg').textContent = `Nothing passed QC in ${repWkRange(week)} or the weeks before it.`;
     return;
   }
 
@@ -481,9 +457,9 @@ function repRenderWow() {
   } else
   $('repKpis').innerHTML = `<div class="kpi" style="flex-basis:100%">
     <div class="kpihead"><span class="kpiname">Week of ${esc(repWkRange(week))}</span>
-      <span class="kpiwhen">${nf(weeks.length)} weeks shown · against ${esc(repWkRange(prevWeek))} · what came back, from Job Work Register</span></div>
+      <span class="kpiwhen">${nf(weeks.length)} weeks shown · against ${esc(repWkRange(prevWeek))} · what QC passed, from Quality Control</span></div>
     <div class="metrics">
-      <div class="metric"><div class="v">${nf(Math.round(prod))}</div><div class="l">Pieces received</div></div>
+      <div class="metric"><div class="v">${nf(Math.round(prod))}</div><div class="l">QC passed</div></div>
       <div class="metric"><div class="v" style="color:#166534">${nf(Math.round(cust))}</div><div class="l">Customer-facing pieces</div></div>
       <div class="metric"><div class="v">${nf(Math.round(prevProd))}</div><div class="l">The week before</div></div>
       <div class="metric"><div class="v" style="color:${pct === null ? 'var(--muted)' : (pct >= 0 ? '#166534' : 'var(--bad)')}">`
@@ -497,10 +473,10 @@ function repRenderWow() {
   const totals = weeks.map((w, i) => rows.reduce((n2, r) => n2 + (r.hist[i] || 0), 0));
   $('repCharts').classList.remove('hide');
   $('repCharts').innerHTML =
-    '<div class="card repchart"><div class="repchart-h">Pieces received each week'
+    '<div class="card repchart"><div class="repchart-h">QC passed each week'
       + '<span class="repchart-s">' + esc(wkLabel(weeks[0])) + ' to ' + esc(repWkRange(week)) + '</span></div>'
       + repTrendSvg(weeks, totals, weeks.map(wkLabel)) + '</div>'
-    + '<div class="card repchart"><div class="repchart-h">What came back last week'
+    + '<div class="card repchart"><div class="repchart-h">What QC passed last week'
       + '<span class="repchart-s">by article type &middot; the rest are in the table below</span></div>'
       + repShareSvg(rows) + '</div>';
 

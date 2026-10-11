@@ -57,8 +57,56 @@ function repRecvParts(r) {
   return out;
 }
 
-function repByWeek(brand, inhouseOnly) {
+/* PRODUCTION = QC PASSED (Ravi, 2026-10-11: "pehle hum production weekly report Job Work receiving se banate the, ab hum
+ * Q.C pass data se banayenge, aur abhi jo Q.C ka data dikhaya h usko remove kar dena"). The weekly figures — week on week,
+ * this week so far, the Production card, the meeting's people — count what QC passed, on the day it was passed, under the
+ * karigar the pieces came back from (the check's own karigar, else its Job Work row's). A pass taken back by Finished
+ * Goods counts against it. Pillow insert and embroidery napkin are kept apart, as in the Quality report (qaApart).
+ * 'recv' keeps the old count — Job Work received — for what still asks for it by name (the meeting's "made"). */
+let REP_SRC = 'qc';
+let REP_QCU = { src: null, n: -1, base: null, list: null };
+function repQcUnits() {
+  const src = repQcRows(), base = PT.base || null;
+  if (REP_QCU.list && REP_QCU.src === src && REP_QCU.n === src.length && REP_QCU.base === base) return REP_QCU.list;
+  const byId = new Map(), byOS = new Map();
+  (base || []).forEach(b => { if (!b) return; if (b.id) byId.set(b.id, b);
+    if (ptNum(b.receivedPieces) > 0 && String(b.empName || '').trim()) { const k = obUC(b.orderNo) + '|' + obUC(b.sku); (byOS.get(k) || byOS.set(k, []).get(k)).push(b); } });
+  const list = [];
+  src.forEach(r => {
+    if (!r || !ptNum(r.ok)) return;
+    const b = r.baseId ? byId.get(r.baseId) : null, u = { ms: ptDtMs(r.date), sku: r.sku, art: repAt(r.sku, r.articleType), pcs: ptNum(r.ok), who: String(r.karigar || (b && b.empName) || '').trim(), apart: qaApart(r) };
+    /* A CHECK THAT NAMES NOBODY (the Checks form — 6,141 of 16,182 passed on 4–10 Oct): shared out among the karigars who
+     * brought that order's SKU back, by what each brought back; whole pieces, the remainder to the biggest shares. Only
+     * a check whose order and SKU no Job Work row has stays "not known". */
+    const rows = !u.who && u.pcs > 0 && r.orderNo ? (byOS.get(obUC(r.orderNo) + '|' + obUC(r.sku)) || []) : [];
+    if (!rows.length) { list.push(u); return; }
+    const w = new Map(); rows.forEach(x => { const k = String(x.empName).trim(); w.set(k, (w.get(k) || 0) + ptNum(x.receivedPieces)); });
+    const W = [...w.values()].reduce((a, v) => a + v, 0);
+    const parts = [...w.entries()].map(([k, v]) => ({ k, exact: u.pcs * v / W })).map(x => Object.assign(x, { n: Math.floor(x.exact) }));
+    let left = u.pcs - parts.reduce((a, x) => a + x.n, 0);
+    parts.slice().sort((a, b2) => (b2.exact - b2.n) - (a.exact - a.n)).forEach(x => { if (left > 0) { x.n++; left--; } });
+    parts.forEach(x => { if (x.n) list.push(Object.assign({}, u, { pcs: x.n, who: x.k, shared: true })); });
+  });
+  REP_QCU = { src, n: src.length, base, list };
+  return list;
+}
+
+function repByWeek(brand, inhouseOnly, src) {
   const byWeek = {};
+  if ((src || REP_SRC) === 'qc') {
+    repQcUnits().forEach(u => {
+      if (!u.ms || u.apart) return;
+      if (brand && repBrand(u.sku) !== brand) return;
+      if (inhouseOnly && !repInhouse(u.sku)) return;
+      const wk = repWkIso(repWeekStart(u.ms));
+      byWeek[wk] = byWeek[wk] || {};
+      byWeek[wk][u.art] = byWeek[wk][u.art] || { cust: 0, prod: 0 };
+      byWeek[wk][u.art].prod += u.pcs;
+      byWeek[wk][u.art].cust += u.pcs / repPack(u.sku);
+    });
+    REP_UNDATED = 0;                                           // a QC check always carries its date
+    return byWeek;
+  }
   let undated = 0;
   (PT.base || []).forEach(r => {
     if (!r) return;
@@ -106,8 +154,19 @@ function repUndatedCsv() {
  * that answer the same question have to be pinned together or they drift, and the drift shows up as
  * a report that quietly disagrees with the one beside it.
  */
-function repByWindow(brand, inhouseOnly, from, to) {
+function repByWindow(brand, inhouseOnly, from, to, src) {
   const out = {};
+  if ((src || REP_SRC) === 'qc') {
+    repQcUnits().forEach(u => {
+      if (!u.ms || u.ms < from || u.ms >= to || u.apart) return;
+      if (brand && repBrand(u.sku) !== brand) return;
+      if (inhouseOnly && !repInhouse(u.sku)) return;
+      out[u.art] = out[u.art] || { cust: 0, prod: 0 };
+      out[u.art].prod += u.pcs;
+      out[u.art].cust += u.pcs / repPack(u.sku);
+    });
+    return out;
+  }
   (PT.base || []).forEach(r => {
     if (!r) return;
     const pcs = ptNum(r.receivedPieces);
