@@ -76,6 +76,8 @@ const breaks = {
     'part of the fabric is "ready"': s => s.replace('if (!undo && need && metres < need) return', 'if (false) return'),
   },
   'flow-challan.js': {
+    'running fabric listed per order line on the challan': s => s.replace("const e = v => esc(v == null ? '' : String(v)), gs = flowChPrintGroups({ lines });", "const e = v => esc(v == null ? '' : String(v)), gs = lines.flatMap(l => flowChPrintGroups({ lines: [l] }));"),
+    'cut pieces left off the challan': s => s.replace("pcs = gs.filter(g => g.kind === 'sku' && g.pcs > 0);", "pcs = [];"),
     'a ruffle-only challan marks the body fabric ready': s => s.replace("ch.lines.filter(l => !l.ruffleOnly).forEach(l => { patch[`pt_flowDemand/", "ch.lines.forEach(l => { patch[`pt_flowDemand/"),
     'the ruffle also put on the body challan': s => s.replace("...(x.s.fabSent > 0 || flowRufflePrinter(x.s.plan) ? { extras: [] } : {})", "...(x.s.fabSent > 0 ? { extras: [] } : {})"),
     'any printer may take any line': s => s.replace('if (other.length) return `${other.map(y =>', 'if (false) return `${other.map(y =>'),

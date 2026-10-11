@@ -187,7 +187,7 @@ const K = 'AMZ-1__S1';
     ok('the line’s fabric is marked given on that challan, in the same write', cw['pt_flowDemand/' + K + '/fabricReady'].challan === 'RFD-202610-001' && !cw['pt_flowDemand/AMZ-1__S2/fabricReady']);
     ok('the challan IS the vendor allocation: the line waits in Printed fabric in; the unticked one stays in RFD', A.flowState(L()).bucket === 'fabric' && A.flowInView('drfd', A.flowState(L({ sku: 'S2' }))));
     const page = (A.ctx.__win || [])[0] || '';
-    ok('the challan opens to print: number, order, vendor, item, metres, signatures', /DELIVERY CHALLAN/.test(page) && /RFD-202610-001/.test(page) && /AMZ-1/.test(page) && /Sanganer Prints/.test(page) && /Square Tablecloth · Almond · 60x60/.test(page) && /66/.test(page) && /Received by/.test(page) && /Ridhi Home/.test(page));
+    ok('the challan opens to print: number, order, vendor, the running fabric and its metres (no order lines listed), signatures', /DELIVERY CHALLAN/.test(page) && /RFD-202610-001/.test(page) && /AMZ-1/.test(page) && /Sanganer Prints/.test(page) && /Running fabric — to print/.test(page) && /66 m/.test(page) && !/Square Tablecloth · Almond · 60x60/.test(page) && /Received by/.test(page) && /Ridhi Home/.test(page));
     ok('the next challan that month is 002', A.flowChallanNo('2026-10-20') === 'RFD-202610-002' && A.flowChallanNo('2026-11-01') === 'RFD-202611-001');
     let cv2 = A.flowRfdCover();
     ok('its metres are kept out of the RFD stock', cv2.fab['SHEETING 62'].held === 66);
@@ -441,7 +441,7 @@ const K = 'AMZ-1__S1';
     const ch = A.FLOW().ch['RFD-202610-001'], gs = A.flowChPrintGroups(ch);
     ok('the challan keeps it per line, and "To print" has one row each: RBP-CANVAS-327 5.3 m, RBPSF327-V-82 10.4 + 2 = 12.4 m (two lines, one cloth), RTME-327 1 pcs', !er && gs.length === 3
       && gs.find(g => g.code === 'RBP-CANVAS-327').metres === 5.3 && Math.abs(gs.find(g => g.code === 'RBPSF327-V-82').metres - 12.4) < 1e-9 && gs.find(g => g.kind === 'sku').pcs === 1, er);
-    ok('the printed challan says so', /To print/.test(A.ctx.__win[0] || '') && /RBP-CANVAS-327/.test(A.ctx.__win[0] || '') && /12\.4 m/.test(A.ctx.__win[0] || ''));
+    ok('the printed challan says so', /Running fabric — to print/.test(A.ctx.__win[0] || '') && /RBP-CANVAS-327/.test(A.ctx.__win[0] || '') && /12\.4 m/.test(A.ctx.__win[0] || ''));
   }
 
   console.log('== the ruffle cloth is printed too: RPCRU327-1818 → 16 m Cambric = LSB ==');
@@ -469,7 +469,7 @@ const K = 'AMZ-1__S1';
     const er = await A.ctx.__dlg.onSave();
     const gs = A.flowChPrintGroups(A.FLOW().ch['RFD-202610-001']);
     ok('"To print": RBPSF327-H-82 10.4 m, RBP-CANVAS-327 5.3 m, LSB 16 m', !er && gs.length === 3 && gs.find(g => g.code === 'LSB').metres === 16 && gs.find(g => g.code === 'RBPSF327-H-82').metres === 10.4 && gs.find(g => g.code === 'RBP-CANVAS-327').metres === 5.3, er);
-    ok('…and on the printed challan', /LSB/.test(A.ctx.__win[0] || '') && /16 m/.test(A.ctx.__win[0] || '') && /\+ ruffle LSB/.test(A.ctx.__win[0] || ''));
+    ok('…and on the printed challan', /LSB/.test(A.ctx.__win[0] || '') && /16 m/.test(A.ctx.__win[0] || '') && /<b>LSB<\/b>/.test(A.ctx.__win[0] || ''));
   }
 
   console.log('== printed stock in the store is used first; only the rest needs RFD and the printer ==');
@@ -541,6 +541,17 @@ const K = 'AMZ-1__S1';
     B = mk([old('RTC327-6060', 20, { cut: 15 })], [{ key: 'M|SHEETING 92|LIGHT STEEL BLUE', qty: 10 }], 'RTC327-6060');
     B.flowPpcOpen(T1, 'RTC327-6060'); mt = spans['[data-mat="0"]'].innerHTML;
     ok('…it has cut 15 of its 20 → it still needs 3 m, 7 m free → covers 7 m of the 12 m', /✓ covers 7 m/.test(mt), mt);
+  }
+
+  console.log('== what the printer reads: running fabric combined, cut pieces per SKU (Ravi, 11 Oct) ==');
+  {
+    const S = load({ me: { admin: true } });
+    const run = (sku, m) => ({ key: 'K' + sku, sku, item: 'Pillow Cover · Basil Green', print: { kind: 'fabric', code: 'RBPSF9-H-82', label: 'Basil Green · Sheeting 82 · Horizontal', mode: 'Running fabric' }, extras: [], fabric: 'Sheeting 82', pcs: 100, metres: m });
+    const cutp = { key: 'KCPC', sku: 'CPC-01', item: 'Tablecloth · Agate Green · 60x60', print: { kind: 'sku', code: 'CPC-01', label: 'Tablecloth · Agate Green · 60x60', mode: 'Cut pieces' }, extras: [], fabric: 'Sheeting 62', pcs: 40, metres: 94 };
+    const page = S.flowChallanHtml({ no: 'TRFD-1', date: '2026-10-11', orderNo: 'TEST-1', vendor: { code: 'V', name: 'RBP-Bagru' }, lines: [run('RPCRU9-1818', 52), run('RPCRU9-2020', 184), cutp] });
+    ok('running: ONE row — RBPSF9-H-82 · Sheeting 82 · Basil Green · Horizontal · 236 m; the two order lines are not listed', (page.match(/RBPSF9-H-82/g) || []).length === 1 && /<td[^>]*>Sheeting 82<\/td><td[^>]*>Basil Green<\/td><td[^>]*>Horizontal<\/td><td[^>]*><b>236 m<\/b>/.test(page)
+      && !/RPCRU9-1818|RPCRU9-2020/.test(page) && !/For these order lines/.test(page), page.slice(page.indexOf('Running'), page.indexOf('Running') + 600));
+    ok('cut pieces: per SKU, in pieces, with the cloth that goes for them', /Cut pieces — print on the SKU/.test(page) && /<b>CPC-01<\/b>/.test(page) && /<b>40 pcs<\/b>/.test(page) && /94 m/.test(page));
   }
 
   console.log('== the ruffle cloth to a printer of its own (Ravi, 11 Oct: "ruffle ke fabric ke liye vendor alag h") ==');

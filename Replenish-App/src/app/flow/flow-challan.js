@@ -221,7 +221,6 @@ function flowChallanHtml(ch) {
   let s = {}; try { s = (GPO && GPO.settings) || {}; } catch (e) { s = {}; }
   const e = v => esc(v == null ? '' : String(v));
   const cell = 'border:1px solid #999;padding:6px 8px;font-size:11px';
-  const tm = flowR2((ch.lines || []).reduce((a, l) => a + (+l.metres || 0), 0)), tp = (ch.lines || []).reduce((a, l) => a + (+l.pcs || 0), 0);
   const dmy = d => { const m = String(d || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}/${m[2]}/${m[1]}` : d; };
   return '<!doctype html><html><head><meta charset="utf-8"><title>' + e(ch.no) + '</title></head>'
     + '<body style="font-family:Arial,Helvetica,sans-serif;color:#111;margin:24px">'
@@ -234,22 +233,37 @@ function flowChallanHtml(ch) {
     + `<div style="font-size:12px;margin-top:4px">Challan No: <b>${e(ch.no)}</b></div><div style="font-size:12px">Date: ${e(dmy(ch.date))}</div>`
     + `<div style="font-size:12px">Order: <b>${e(ch.orderNo)}</b></div></td></tr></table>`
     + `<div style="margin:16px 0 8px;font-size:12px"><b>To</b><br>${e(ch.vendor && ch.vendor.name)}${ch.vendor && ch.vendor.code ? ` <span style="color:#666">(${e(ch.vendor.code)})</span>` : ''}</div>`
-    /* TO PRINT: what the printer prints, one line per printed fabric SKU (several order lines can share one) or SKU. */
-    + `<div style="font-size:12px;font-weight:bold;margin:4px 0 6px">To print</div><table style="width:100%;border-collapse:collapse;margin-bottom:14px"><tr style="background:#f0f0f0">`
-    + ['Print', 'What it is', 'Given as', 'Quantity'].map(h => `<th style="${cell};text-align:left">${h}</th>`).join('') + '</tr>'
-    + flowChPrintGroups(ch).map(g => `<tr><td style="${cell}"><b>${e(g.code || 'no fabric SKU in the catalogue')}</b></td><td style="${cell}">${e(g.label)}</td><td style="${cell}">${e(g.mode)}</td>`
-      + `<td style="${cell};text-align:right"><b>${e(g.kind === 'sku' ? nf(g.pcs) + ' pcs' : nf(flowR2(g.metres)) + ' m')}</b></td></tr>`).join('') + '</table>'
-    + `<div style="font-size:12px;font-weight:bold;margin:4px 0 6px">For these order lines</div>`
-    + `<table style="width:100%;border-collapse:collapse"><tr style="background:#f0f0f0">`
-    + ['#', 'SKU', 'Item', 'Print', 'Fabric (RFD)', 'Pieces to make', 'Metres'].map(h => `<th style="${cell};text-align:left">${h}</th>`).join('') + '</tr>'
-    + (ch.lines || []).map((l, i) => `<tr><td style="${cell};text-align:center">${i + 1}</td><td style="${cell}">${e(l.sku)}</td><td style="${cell}">${e(l.item)}</td>`
-      + `<td style="${cell}">${e((l.print && l.print.code) || '—')}${(l.extras || []).map(x => `<br>+ ruffle ${e(x.code || '?')} · ${e(nf(x.metres))} m`).join('')}</td>`
-      + `<td style="${cell}">${e(l.fabric)}</td><td style="${cell};text-align:right">${e(nf(l.pcs))}</td><td style="${cell};text-align:right">${e(nf(l.metres))}</td></tr>`).join('')
-    + `<tr><td style="${cell}" colspan="5"><b>Total</b></td><td style="${cell};text-align:right"><b>${e(nf(tp))}</b></td><td style="${cell};text-align:right"><b>${e(nf(tm))}</b></td></tr></table>`
+    + flowPrintSheetHtml(ch.lines || [], cell, true)
     + (ch.note ? `<div style="margin-top:10px;font-size:11px"><b>Note:</b> ${e(ch.note)}</div>` : '')
     + `<table style="width:100%;margin-top:50px;font-size:11px"><tr><td>Issued by<br><br><br>${e(String(ch.by || '').split('@')[0])}</td>`
     + `<td style="text-align:right">Received by (${e(ch.vendor && ch.vendor.name)})<br><br><br>Signature &amp; date</td></tr></table>`
     + '</body></html>';
+}
+/* WHAT THE PRINTER IS TOLD (Ravi, 11 Oct: "vendor ko jab cut piece ke alawa running me order de to sirf usko challan me
+ * dikhana chahiye: print SKU, fabric, colour name, and ek saath combine jitna metre print karna h — abhi 52 aur 184 alag
+ * alag dikh rahe h jabki wo ek hi fabric me se banenge"). Running fabric: one row per printed fabric SKU — fabric, colour,
+ * direction, the metres of every order line together; the order lines are not listed. Cut pieces (printed on the SKU):
+ * one row per SKU, in pieces, with the cloth that goes for them. Used by the RFD challan and the print order alike. */
+function flowPrintSheetHtml(lines, cell, withCloth) {
+  const e = v => esc(v == null ? '' : String(v)), gs = flowChPrintGroups({ lines });
+  const run = gs.filter(g => g.kind !== 'sku' && g.metres > 0), pcs = gs.filter(g => g.kind === 'sku' && g.pcs > 0);
+  const bits = l => String(l || '').split(' · ');   // colour · fabric · direction (· Front / Back)
+  const th = hs => '<tr style="background:#f0f0f0">' + hs.map(h => `<th style="${cell};text-align:${/Metres|Pieces|Cloth/.test(h) ? 'right' : 'left'}">${h}</th>`).join('') + '</tr>';
+  const tR = flowR2(run.reduce((a, g) => a + g.metres, 0)), tP = pcs.reduce((a, g) => a + g.pcs, 0);
+  /* the cloth that goes for the pieces: the lines printed on each SKU */
+  const clothOf = code => flowR2(lines.filter(l => l.print && l.print.kind === 'sku' && obUC(l.print.code) === obUC(code)).reduce((a, l) => a + (+l.metres || 0), 0));
+  const fabOf = code => [...new Set(lines.filter(l => l.print && l.print.kind === 'sku' && obUC(l.print.code) === obUC(code)).map(l => l.fabric).filter(Boolean))].join(', ');
+  return (run.length ? `<div style="font-size:12px;font-weight:bold;margin:4px 0 6px">Running fabric — to print</div><table style="width:100%;border-collapse:collapse;margin-bottom:14px">`
+      + th(['Print SKU', 'Fabric', 'Colour', 'Direction', 'Metres'])
+      + run.map(g => { const b = bits(g.label); return `<tr><td style="${cell}"><b>${e(g.code || 'no fabric SKU in the catalogue')}</b></td><td style="${cell}">${e(b[1] || '')}</td><td style="${cell}">${e(b[0] || '')}</td>`
+        + `<td style="${cell}">${e(b.slice(2).join(' · '))}</td><td style="${cell};text-align:right"><b>${e(nf(flowR2(g.metres)))} m</b></td></tr>`; }).join('')
+      + (run.length > 1 ? `<tr><td style="${cell}" colspan="4"><b>Total</b></td><td style="${cell};text-align:right"><b>${e(nf(tR))} m</b></td></tr>` : '') + '</table>' : '')
+    + (pcs.length ? `<div style="font-size:12px;font-weight:bold;margin:4px 0 6px">Cut pieces — print on the SKU</div><table style="width:100%;border-collapse:collapse;margin-bottom:14px">`
+      + th(['SKU', 'What it is', 'Pieces'].concat(withCloth ? ['Fabric (RFD)', 'Cloth'] : []))
+      + pcs.map(g => `<tr><td style="${cell}"><b>${e(g.code)}</b></td><td style="${cell}">${e(g.label)}</td><td style="${cell};text-align:right"><b>${e(nf(g.pcs))} pcs</b></td>`
+        + (withCloth ? `<td style="${cell}">${e(fabOf(g.code))}</td><td style="${cell};text-align:right">${e(nf(clothOf(g.code)))} m</td>` : '') + '</tr>').join('')
+      + (pcs.length > 1 ? `<tr><td style="${cell}" colspan="2"><b>Total</b></td><td style="${cell};text-align:right"><b>${e(nf(tP))} pcs</b></td>${withCloth ? `<td style="${cell}"></td><td style="${cell};text-align:right"><b>${e(nf(flowR2(pcs.reduce((a, g) => a + clothOf(g.code), 0))))} m</b></td>` : ''}</tr>` : '') + '</table>' : '')
+    + (!run.length && !pcs.length ? '<div style="font-size:12px;color:#666">Nothing to print on this one.</div>' : '');
 }
 /** The challan's lines grouped by what is printed: a fabric SKU's metres add up; a SKU printed on is counted in pieces. */
 function flowChPrintGroups(ch) {

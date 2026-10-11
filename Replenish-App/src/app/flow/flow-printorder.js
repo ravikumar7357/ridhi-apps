@@ -121,7 +121,6 @@ function flowPoHtml(o) {
   let s = {}; try { s = (GPO && GPO.settings) || {}; } catch (e) { s = {}; }
   const e = v => esc(v == null ? '' : String(v)), cell = 'border:1px solid #999;padding:6px 8px;font-size:11px';
   const lines = Object.values(o.items || {}).filter(Boolean);
-  const groups = flowChPrintGroups({ lines: lines.map(it => ({ print: it.print, extras: it.extras, metres: it.metres, pcs: it.pcs, fabric: '' })) });
   const dmy = d => { const m = String(d || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}/${m[2]}/${m[1]}` : d; };
   return '<!doctype html><html><head><meta charset="utf-8"><title>' + e(o.no) + '</title></head><body style="font-family:Arial,Helvetica,sans-serif;color:#111;margin:24px">'
     + `<table style="width:100%;border-collapse:collapse"><tr><td style="vertical-align:top"><div style="font-size:18px;font-weight:bold">${e(s.company || 'The Fabric Rush')}</div>`
@@ -129,13 +128,8 @@ function flowPoHtml(o) {
     + `<div style="font-size:12px;margin-top:4px">No: <b>${e(o.no)}</b></div><div style="font-size:12px">Date: ${e(dmy(o.date))}</div><div style="font-size:12px">Order: <b>${e(o.orderNo)}</b></div></td></tr></table>`
     + `<div style="margin:16px 0 8px;font-size:12px"><b>To</b><br>${e(o.printer && o.printer.name)}</div>`
     + `<div style="font-size:12px;margin-bottom:6px">Please print the following. The RFD cloth follows on our delivery challans.</div>`
-    + `<table style="width:100%;border-collapse:collapse"><tr style="background:#f0f0f0">${['Print', 'What it is', 'Given as', 'Quantity'].map(h => `<th style="${cell};text-align:left">${h}</th>`).join('')}</tr>`
-    + groups.map(g => `<tr><td style="${cell}"><b>${e(g.code || 'fabric SKU to be confirmed')}</b></td><td style="${cell}">${e(g.label)}</td><td style="${cell}">${e(g.mode)}</td>`
-      + `<td style="${cell};text-align:right"><b>${e(g.kind === 'sku' ? nf(g.pcs) + ' pcs' : nf(flowR2(g.metres)) + ' m')}</b></td></tr>`).join('') + '</table>'
-    + `<div style="font-size:12px;font-weight:bold;margin:14px 0 6px">For these order lines</div><table style="width:100%;border-collapse:collapse"><tr style="background:#f0f0f0">`
-    + ['SKU', 'Item', 'Print', 'Quantity'].map(h => `<th style="${cell};text-align:left">${h}</th>`).join('') + '</tr>'
-    + lines.map(it => `<tr><td style="${cell}">${e(it.sku)}</td><td style="${cell}">${e(it.item)}</td><td style="${cell}">${e((it.print && it.print.code) || '—')}</td><td style="${cell};text-align:right">${e(it.unit === 'pcs' ? nf(it.pcs) + ' pcs' : nf(it.metres) + ' m')}</td></tr>`).join('')
-    + '</table><table style="width:100%;margin-top:50px;font-size:11px"><tr><td>Issued by<br><br><br>' + e(String(o.by || '').split('@')[0]) + '</td><td style="text-align:right">Accepted by (' + e(o.printer && o.printer.name) + ')<br><br><br>Signature &amp; date</td></tr></table></body></html>';
+    + flowPrintSheetHtml(lines, cell, false)
+    + '<table style="width:100%;margin-top:50px;font-size:11px"><tr><td>Issued by<br><br><br>' + e(String(o.by || '').split('@')[0]) + '</td><td style="text-align:right">Accepted by (' + e(o.printer && o.printer.name) + ')<br><br><br>Signature &amp; date</td></tr></table></body></html>';
 }
 function flowPoPrint(no) {
   const o = (FLOW.po || {})[no]; if (!o) return 'That print order is not here — press Refresh.';
