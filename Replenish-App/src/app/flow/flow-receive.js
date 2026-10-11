@@ -24,7 +24,7 @@ function flowChIndex() {
   Object.values(FLOW.ch || {}).forEach(c => {
     if (c.cancelled) return;   // a cancelled challan gave nothing to anybody
     const recv = flowChRecv(c);
-    (c.lines || []).forEach(l => { const e = map[l.key] || (map[l.key] = { no: c.no, vendor: c.vendor && c.vendor.name, sent: 0, recv: 0, closed: true });
+    (c.lines || []).forEach(l => { const k = l.ruffleOnly ? l.key + FLOW_RUF : l.key, e = map[k] || (map[k] = { no: c.no, vendor: c.vendor && c.vendor.name, sent: 0, recv: 0, closed: true });
       e.no = c.no; e.vendor = c.vendor && c.vendor.name; e.sent += flowChSent(l); e.recv += recv[l.key] || 0; e.closed = e.closed && !!c.closed; });
   });
   FLOW_CHX = { src: FLOW.ch, map };
@@ -84,7 +84,7 @@ function flowReceiveOpen(no) {
       <table class="xl" style="margin-top:8px;width:100%"><thead><tr><th style="text-align:left">SKU</th><th>Given as</th><th>Sent</th><th>Back so far</th><th>Received now</th></tr></thead><tbody>
       ${(c.lines || []).map((l, i) => { const u = flowChUnit(l), left = flowR2(Math.max(0, flowChSent(l) - (recv[l.key] || 0)));
         return `<tr><td style="text-align:left"><b>${esc(l.sku)}</b><div class="muted" style="font-size:10.5px">${esc(l.item || '')}</div></td>
-          <td style="text-align:left;font-size:11.5px">${u === 'pcs' ? 'Cut pieces' : 'Printed cloth'}</td>
+          <td style="text-align:left;font-size:11.5px">${u === 'pcs' ? 'Cut pieces' : l.ruffleOnly ? 'Printed ruffle cloth' : 'Printed cloth'}</td>
           <td class="num"><b>${flowQtyTxt(flowChSent(l), u)}</b>${u === 'pcs' ? `<div class="muted" style="font-size:10.5px">${flowQtyTxt(l.metres, 'm')} cloth</div>` : ''}</td><td class="num">${flowQtyTxt(recv[l.key] || 0, u)}</td>
           <td class="num"><input data-flrm="${i}" type="number" step="${u === 'pcs' ? '1' : '0.01'}" min="0" value="${left > 0 ? esc(left) : ''}" ${left > 0 ? '' : 'disabled'} style="width:85px;padding:3px 6px;font-size:12px"> ${u}</td></tr>`; }).join('')}
       </tbody></table><label style="display:block;margin-top:8px">Note (lot, vehicle, quality…)<input id="flrNote"></label>`,

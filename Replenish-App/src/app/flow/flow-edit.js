@@ -68,18 +68,19 @@ function flowChallanEditOpen(no) {
         (on ? keep : drop).push(Object.assign({}, l, { metres: on ? m : l.metres })); });
       if (!keep.length) return 'Every line is unticked — use Cancel to cancel the whole challan.';
       /* Same rule as making it: a line goes to the printer PPC planned for it. */
-      const other = keep.filter(l => { const pc = flowPlanPrinter({ plan: (FLOW.ppc || {})[l.key] }); return pc && pc !== String(v.code); });
-      if (other.length) return `${other.map(l => `${l.sku} is planned for ${FLOW.ppc[l.key].printer.name}`).join(' · ')} — untick it, or change its printer with "edit plan" first.`;
+      const pOf = l => { const pl = (FLOW.ppc || {})[l.key]; return l.ruffleOnly ? flowRufflePrinter(pl) : (pl && pl.printer); };
+      const other = keep.filter(l => { const pp = pOf(l), pc = pp && pp.code; return pc && String(pc) !== String(v.code); });
+      if (other.length) return `${other.map(l => `${l.sku}${l.ruffleOnly ? '\'s ruffle' : ''} is planned for ${pOf(l).name}`).join(' · ')} — untick it, or change its printer with "edit plan" first.`;
       const noM = keep.filter(l => !(l.metres > 0)).map(l => l.sku); if (noM.length) return `How many metres for ${noM.join(', ')}?`;
       const vname = v.desc || v.name || v.code, now = new Date().toISOString();
       const nc = Object.assign({}, c, { vendor: { code: v.code, name: vname }, date: $('flceDate').value || c.date, note: $('flceNote').value.trim(), lines: keep, editedAt: now, editedBy: ME.email || '' });
       const patch = { ['pt_flowChallans/' + no]: nc };
-      keep.forEach(l => { patch[`pt_flowDemand/${l.key}/fabricReady`] = { at: now, by: ME.email || '', what: l.fabric, metres: l.metres, note: `Challan ${no} to ${vname}`, challan: no, vendor: vname }; });
-      drop.forEach(l => { patch[`pt_flowDemand/${l.key}/fabricReady`] = null; });
+      keep.filter(l => !l.ruffleOnly).forEach(l => { patch[`pt_flowDemand/${l.key}/fabricReady`] = { at: now, by: ME.email || '', what: l.fabric, metres: l.metres, note: `Challan ${no} to ${vname}`, challan: no, vendor: vname }; });
+      drop.filter(l => !l.ruffleOnly).forEach(l => { patch[`pt_flowDemand/${l.key}/fabricReady`] = null; });
       try { await ptPatch(patch); } catch (e) { return 'Could not save: ' + (e.message || e); }
       FLOW.ch = Object.assign({}, FLOW.ch, { [no]: nc });
       const dem = Object.assign({}, FLOW.dem);
-      keep.concat(drop).forEach(l => { dem[l.key] = Object.assign({}, dem[l.key] || {}, { fabricReady: patch[`pt_flowDemand/${l.key}/fabricReady`] }); });
+      keep.concat(drop).filter(l => !l.ruffleOnly).forEach(l => { dem[l.key] = Object.assign({}, dem[l.key] || {}, { fabricReady: patch[`pt_flowDemand/${l.key}/fabricReady`] }); });
       FLOW.dem = dem;
       renderFlow();
       return '';
@@ -99,7 +100,7 @@ function flowChallanCancelOpen(no) {
       const why = $('flccWhy').value.trim(); if (!why) return 'Say why it is cancelled.';
       const val = { at: new Date().toISOString(), by: ME.email || '', why };
       const patch = { [`pt_flowChallans/${no}/cancelled`]: val };
-      (c.lines || []).forEach(l => { const fr = FLOW.dem && FLOW.dem[l.key] && FLOW.dem[l.key].fabricReady;
+      (c.lines || []).filter(l => !l.ruffleOnly).forEach(l => { const fr = FLOW.dem && FLOW.dem[l.key] && FLOW.dem[l.key].fabricReady;
         if (fr && fr.challan === no) patch[`pt_flowDemand/${l.key}/fabricReady`] = null; });
       try { await ptPatch(patch); } catch (e) { return 'Could not save: ' + (e.message || e); }
       FLOW.ch = Object.assign({}, FLOW.ch, { [no]: Object.assign({}, c, { cancelled: val }) });

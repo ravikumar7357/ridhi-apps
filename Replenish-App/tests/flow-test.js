@@ -543,6 +543,52 @@ const K = 'AMZ-1__S1';
     ok('…it has cut 15 of its 20 → it still needs 3 m, 7 m free → covers 7 m of the 12 m', /✓ covers 7 m/.test(mt), mt);
   }
 
+  console.log('== the ruffle cloth to a printer of its own (Ravi, 11 Oct: "ruffle ke fabric ke liye vendor alag h") ==');
+  {
+    const mdb = { 'RTC327-6060': { color: 'Light Steel Blue', fabric: 'Sheeting 92', consumption: 0.6, cuttingRequired: true, subtype: 'Ruffle Tablecloth' } };
+    const fsCat = [{ sku: 'RBPSF327-V-92', fabric: 'Sheeting 92', colour: 'Light Steel Blue', dir: 'Vertical', code: '327' },
+      { sku: 'LSB', fabric: 'Cambric', colour: 'Light Steel Blue', dir: 'Vertical', code: '327', manual: true }];
+    const KR = 'AMZ-1__RTC327-6060', P1 = { code: 'P1', name: 'Sanganer Prints' }, P2 = { code: 'P2', name: 'Choudhary Hand Block' };
+    const pr = o => plan(Object.assign({ sku: 'RTC327-6060', qty: 10, route: 'inhouse', fabric: { name: 'Sheeting 92', perPc: 0.6, metres: 6 }, print: { need: true, dir: 'Vertical' }, printer: P1, rufflePrinter: P2,
+      extra: [{ what: 'Ruffle — Cambric', qty: 23.5, unit: 'm' }] }, o || {}));
+    const mkR = o => load({ me: { admin: true }, mdb, fsCat, rfd: { 'SHEETING 92': 500, CAMBRIC: 500 }, fabRows: [{ fabricType: 'Sheeting 92' }, { fabricType: 'Cambric' }],
+      lines: [L({ sku: 'RTC327-6060', qty: 10, cutReq: true })], ppc: { [KR]: pr(o) } });
+    let R = mkR();
+    R.flowPpcOpen('AMZ-1', 'RTC327-6060');
+    ok('PPC offers a "Ruffle printer" beside the printer, the ruffle’s own one picked', /data-k="rufflePrinter.code"/.test(R.ctx.__dlg.html) && /Ruffle printer/.test(R.ctx.__dlg.html)
+      && /<option value="P2" selected>/.test(R.ctx.__dlg.html.slice(R.ctx.__dlg.html.indexOf('rufflePrinter.code'))));
+    const ps = R.flowPoSync([{ r: R.W.lines[0], p: pr() }], '2026-10-11'), pos = Object.values(ps.local);
+    const po1 = pos.find(o => o.printer.code === 'P1'), po2 = pos.find(o => o.printer.code === 'P2');
+    ok('two print orders, two numbers: the body to Sanganer (no ruffle on it), the ruffle cloth to Choudhary', po1 && po2 && po1.no !== po2.no && po1.items[KR] && !(po1.items[KR].extras || []).length && !po1.items[KR + '~ruffle']
+      && po2.items[KR + '~ruffle'] && po2.items[KR + '~ruffle'].ruffle && po2.items[KR + '~ruffle'].metres === 23.5 && po2.items[KR + '~ruffle'].extras[0].code === 'LSB', JSON.stringify(pos.map(o => [o.printer.code, Object.keys(o.items)])));
+    const v1 = R.flowVoLines(po1, () => pr()), v2 = R.flowVoLines(po2, () => pr());
+    ok('…the Vendor Orders: Sanganer prints RBPSF327-V-92 6 m, Choudhary prints LSB 23.5 m — nothing else', v1.running.length === 1 && v1.running[0].sku === 'RBPSF327-V-92' && v1.running[0].meters === 6
+      && v2.running.length === 1 && v2.running[0].sku === 'LSB' && v2.running[0].meters === 23.5 && !v2.cut.length, JSON.stringify([v1.running, v2.running]));
+    ok('the same printer for both → one print order, the ruffle on it as before', (() => { const one = R.flowPoSync([{ r: R.W.lines[0], p: pr({ rufflePrinter: P1 }) }], '2026-10-11');
+      const os = Object.values(one.local); return os.length === 1 && (os[0].items[KR].extras || []).length === 1 && !os[0].items[KR + '~ruffle']; })());
+    R.setView('drfd'); R.renderFlow();
+    ok('Demand · RFD: a challan button for each printer — the body to Sanganer, "Ruffle challan → Choudhary"', /data-pc="P1"/.test(R.els.flTable.innerHTML) && /Ruffle challan → Choudhary Hand Block/.test(R.els.flTable.innerHTML)
+      && /ruffle: Cambric · 23\.5 m to Choudhary Hand Block/.test(R.els.flTable.innerHTML));
+    R.flowChallanOpen('AMZ-1', 'P2');
+    ok('Choudhary’s challan holds the ruffle cloth only', /ruffle only/.test(R.ctx.__dlg.html) && /RTC327-6060/.test(R.ctx.__dlg.html));
+    let QS = { '[data-chk="0"]': { checked: true }, '[data-chm="0"]': { value: '23.5' } };
+    R.ctx.document.querySelector = sel => QS[sel] || null;
+    R.els.flcVen = { value: 'P1' }; R.els.flcDate = { value: '2026-10-11' }; R.els.flcNote = { value: '' };
+    ok('…given to the wrong printer → refused', /ruffle is planned for Choudhary Hand Block/.test(await R.ctx.__dlg.onSave()));
+    R.els.flcVen.value = 'P2'; let er = await R.ctx.__dlg.onSave();
+    const cw = R.writes[R.writes.length - 1], chR = Object.entries(cw).find(([k]) => k.startsWith('pt_flowChallans/'))[1];
+    ok('saved: one ruffle-only line, Cambric 23.5 m, and the line’s "fabric ready" left alone', !er && chR.lines.length === 1 && chR.lines[0].ruffleOnly && chR.lines[0].metres === 23.5 && chR.lines[0].fabric === 'Cambric'
+      && !Object.keys(cw).some(k => k.startsWith('pt_flowDemand/')), er || JSON.stringify(cw));
+    let st = R.flowState(R.W.lines[0]);
+    ok('…the body cloth is still owed → the line stays in Demand · RFD; the ruffle button is gone', st.needFab && st.bucket === 'demand' && (R.setView('drfd'), R.renderFlow(), !/Ruffle challan/.test(R.els.flTable.innerHTML)));
+    R.flowChallanOpen('AMZ-1', 'P1');
+    ok('Sanganer’s challan: the body only, saying the ruffle went to Choudhary', !/ruffle only/.test(R.ctx.__dlg.html) && /ruffle → Choudhary Hand Block/.test(R.ctx.__dlg.html));
+    QS = { '[data-chk="0"]': { checked: true }, '[data-chm="0"]': { value: '6' } }; R.els.flcVen.value = 'P1'; er = await R.ctx.__dlg.onSave();
+    const chB = Object.entries(R.writes[R.writes.length - 1]).find(([k]) => k.startsWith('pt_flowChallans/'))[1];
+    st = R.flowState(R.W.lines[0]);
+    ok('…saved with no ruffle on it; now nothing is owed → out of Demand', !er && !chB.lines[0].ruffleOnly && !(chB.lines[0].extras || []).length && !st.needFab && st.bucket !== 'demand', er || st.bucket);
+  }
+
   console.log('== one order, two sizes on the same printed cloth: the store first, then ONE combined demand (Ravi, 11 Oct) ==');
   {
     const spans = {}, span = q => spans[q] || (spans[q] = { innerHTML: '', textContent: '' });

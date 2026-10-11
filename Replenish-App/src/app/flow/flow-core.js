@@ -134,7 +134,7 @@ function flowState(r) {
   const accNeed = !!p && route !== 'outsource' && (p.acc || []).some(a => a.code && +a.qty > 0);
   const handReady = !!(d && d.fabricReady && !d.fabricReady.challan);
   s.needFab = isNew && !!p && route !== 'outsource' && !handReady
-    && (route === 'inhouse' ? (s.fabNeed - s.fabSent > 0.01 || (!cx && flowPrintExtras(r, p).length > 0)) : !(d && d.fabricReady));   // the ruffle cloth goes too, on the first challan
+    && (route === 'inhouse' ? (s.fabNeed - s.fabSent > 0.01 || (flowPrintExtras(r, p).length > 0 && !(flowRufflePrinter(p) ? flowChIndex()[k + FLOW_RUF] : cx))) : !(d && d.fabricReady));   // the ruffle cloth goes too, on the first challan
   s.needAcc = isNew && accNeed && !res;
   s.bucket =
       (r.handedAt || r.shopDoneAt) ? 'done'

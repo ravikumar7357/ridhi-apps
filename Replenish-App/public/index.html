@@ -23665,7 +23665,7 @@ function flowState(r) {
   const accNeed = !!p && route !== 'outsource' && (p.acc || []).some(a => a.code && +a.qty > 0);
   const handReady = !!(d && d.fabricReady && !d.fabricReady.challan);
   s.needFab = isNew && !!p && route !== 'outsource' && !handReady
-    && (route === 'inhouse' ? (s.fabNeed - s.fabSent > 0.01 || (!cx && flowPrintExtras(r, p).length > 0)) : !(d && d.fabricReady));   // the ruffle cloth goes too, on the first challan
+    && (route === 'inhouse' ? (s.fabNeed - s.fabSent > 0.01 || (flowPrintExtras(r, p).length > 0 && !(flowRufflePrinter(p) ? flowChIndex()[k + FLOW_RUF] : cx))) : !(d && d.fabricReady));   // the ruffle cloth goes too, on the first challan
   s.needAcc = isNew && accNeed && !res;
   s.bucket =
       (r.handedAt || r.shopDoneAt) ? 'done'
@@ -23968,6 +23968,8 @@ function flowPpcOpen(orderNo, onlySku) {
             ${d.dirs.length > 1 ? fld('Print direction', `<select data-fp="${i}" data-k="print.dir"><option value="">— pick —</option>${d.dirs.map(x => `<option${x === d.cur ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select>`) : ''}
             ${fld('Printer', `<select data-fp="${i}" data-k="printer.code"><option value="">— PPC decides —</option>${flowPrinterOpts((p.printer || {}).code)}</select>`
               + `<small class="fpc-why">${esc((p.printer || {}).why || '')}</small>`, 'w2')}
+            ${(p.extra || []).some(x => /^Ruffle — /.test(String(x.what || ''))) ? fld('Ruffle printer', `<select data-fp="${i}" data-k="rufflePrinter.code"><option value="">— same as the printer —</option>${flowPrinterOpts((flowRufflePrinter(p) || {}).code)}</select>`
+              + '<small class="fpc-why">the ruffle cloth can go to another printer — its own print order and challan</small>', 'w2') : ''}
             ${fld('Outsource vendor', inp(i, 'outVendor', p.outVendor || '', '', ' placeholder="who makes it"') + '<small class="fpc-why">no fabric or accessories are raised for it</small>', 'w2" data-outrow="' + i)}
           </div>
           ${(p.acc || []).length ? `<div class="fpc-sec">Accessories</div><div class="fpc-g">${p.acc.map((a, j) => fld(`${esc(a.what)} <small>code ${esc(a.code)}</small>`, inp(i, 'acc.' + j + '.qty', a.qty, 'number'))).join('')}</div>` : ''}
@@ -24009,16 +24011,20 @@ function flowPpcOpen(orderNo, onlySku) {
       plans.forEach(p => { p.route = p.route || 'inhouse'; p.print = Object.assign({}, p.print, { need: p.route === 'inhouse' });
         /* The printer is kept by code and name; a line not printed has none. */
         const v = p.route === 'inhouse' && p.printer && p.printer.code ? flowChVendors().find(x => String(x.code) === String(p.printer.code)) : null;
-        p.printer = v ? { code: v.code, name: v.desc || v.name || v.code, why: p.printer.why || '' } : null; });
+        p.printer = v ? { code: v.code, name: v.desc || v.name || v.code, why: p.printer.why || '' } : null;
+        const rv = p.route === 'inhouse' && p.rufflePrinter && p.rufflePrinter.code ? flowChVendors().find(x => String(x.code) === String(p.rufflePrinter.code)) : null;
+        p.rufflePrinter = rv && (!p.printer || String(rv.code) !== String(p.printer.code)) ? { code: rv.code, name: rv.desc || rv.name || rv.code } : null; });
       /* A printed line on a fabric made both ways must say which way — the printer cannot print "either". */
       const noDir = plans.filter((p, i) => p.route === 'inhouse' && flowPrintWhat(rows[i].r, p).needDir).map(p => p.sku);
       if (noDir.length) return `Which way is it printed? Pick the print direction for ${noDir.join(', ')}.`;
       /* The print order goes to the printer now — so a printed line has to say which printer. */
       /* What still goes to a printer once printed stock is taken: the body not covered, or a ruffle cloth not covered. */
-      const printsAt = i => { const c = cover[i] || { fab: 0, unit: 'm', extra: {} }, p = plans[i], qty = +p.qty || 0, m = flowR2((+p.fabric.perPc || 0) * qty);
+      const printsAt = (i, which) => { const c = cover[i] || { fab: 0, unit: 'm', extra: {} }, p = plans[i], qty = +p.qty || 0, m = flowR2((+p.fabric.perPc || 0) * qty);
         const bodyLeft = c.unit === 'pcs' ? qty - (c.fab || 0) : m - (c.fab || 0);
-        return bodyLeft > 0.01 || (p.extra || []).some((x, j) => /^Ruffle — /.test(String(x.what || '')) && (+x.qty || 0) - ((c.extra || {})[j] || 0) > 0.01); };
-      const noPr = plans.filter((p, i) => p.route === 'inhouse' && printsAt(i) && !(p.printer && p.printer.code)).map(p => p.sku);
+        const rufLeft = (p.extra || []).some((x, j) => /^Ruffle — /.test(String(x.what || '')) && (+x.qty || 0) - ((c.extra || {})[j] || 0) > 0.01);
+        if (which) return bodyLeft > 0.01 ? 'body' : rufLeft ? 'ruffle' : '';   // only the ruffle prints → the ruffle printer is enough
+        return bodyLeft > 0.01 || rufLeft; };
+      const noPr = plans.filter((p, i) => p.route === 'inhouse' && printsAt(i) && !(p.printer && p.printer.code) && !(p.rufflePrinter && printsAt(i, true) === 'ruffle')).map(p => p.sku);
       if (noPr.length) return `Which printer? The print order goes to them now — pick it for ${noPr.join(', ')}.`;
       const noVen = plans.filter(p => p.route === 'outsource' && !String(p.outVendor || '').trim()).map(p => p.sku);
       if (noVen.length) return `Who makes it? Type the outsource vendor for ${noVen.join(', ')}.`;
@@ -24042,6 +24048,7 @@ function flowPpcOpen(orderNo, onlySku) {
       rows.forEach((x, i) => { if (!x.s.plan) return;
         const nu = patch['pt_ppc/' + x.s.key];
         if (locked) ['fabric', 'route', 'printer', 'print'].forEach(k => { nu[k] = x.s.plan[k]; });
+        if (locked && flowChIndex()[x.s.key + FLOW_RUF]) nu.rufflePrinter = x.s.plan.rufflePrinter || null;   // its ruffle is on a challan too
         const side = flowReplanSide(x.s.plan, nu, x.s); Object.assign(patch, side.patch); said.push(...side.said); });
       /* ACCESSORIES RESERVED BY THEMSELVES (Ravi, 10 Oct: "zip available ho to us order ke liye auto reserve ho"). Each
        * line's accessories are held in the same save when the shelf has them free — after every earlier reservation
@@ -24145,7 +24152,9 @@ function flowPpcOpen(orderNo, onlySku) {
       /* What this line sends to the printer once the store has given what it can — for the order's combined demand. */
       if (w) { try { const curC = Object.assign({}, cur, { fabric: Object.assign({}, cur.fabric, { fromPrinted: cover[i].fab }),
           extra: (p.extra || []).map((x, j) => Object.assign({}, x, { fromPrinted: cover[i].extra[j] || 0 })) });
-        if (flowPrintsSomething(r, curC)) combo.push(Object.assign(flowPoItem(r, curC), { printer: val(i, 'printer.code') || (p.printer && p.printer.code) || '' })); } catch (e) { /* the line's own box still shows it */ } }
+        const pcV = val(i, 'printer.code') ?? (p.printer && p.printer.code) ?? '', rcV = val(i, 'rufflePrinter.code') ?? (p.rufflePrinter && p.rufflePrinter.code) ?? '';
+        Object.assign(curC, { printer: pcV ? { code: pcV } : null, rufflePrinter: rcV ? { code: rcV } : null });
+        flowPoParts(r, curC).forEach(x => combo.push(Object.assign({}, x.item, { printer: (x.printer && x.printer.code) || '' }))); } catch (e) { /* the line's own box still shows it */ } }
       const allPrinted = w && (cover[i].unit === 'pcs' ? cover[i].fab >= (+p.qty || 0) : cover[i].fab >= metres - 0.01)
         && (p.extra || []).every((x, j) => !/^Ruffle — /.test(String(x.what || '')) || (cover[i].extra[j] || 0) >= (+x.qty || 0) - 0.01);
       if (pg && allPrinted) pg.innerHTML = `<div style="color:#166534;font-weight:600">✓ All already printed, in the store — nothing goes to the printer. The line goes straight to Cutting.</div>`
@@ -24402,10 +24411,21 @@ const flowChVendors = () => {
  * A stitching-only line goes to no printer, so never on a challan (Mark fabric ready). A line PPC left without a
  * printer takes the one picked here, and its plan says so from then on. */
 const flowPlanPrinter = s => (s.plan && s.plan.printer && s.plan.printer.code) || '';
+/** A line's ruffle going to its own printer, not sent yet: { printer, extras, metres, fabric } or null. */
+function flowRuffleOwed(x) {
+  const p = x.s.plan, rp = flowRufflePrinter(p); if (!rp || x.s.route !== 'inhouse') return null;
+  if (flowChIndex()[x.s.key + FLOW_RUF]) return null;   // sent already
+  const xs = flowPrintExtras(x.r, p); if (!xs.length) return null;
+  const ruf = (p.extra || []).find(e => /^Ruffle — /.test(String(e.what || '')));
+  return { printer: rp, extras: xs, metres: flowR2(xs.reduce((a, e) => a + (+e.metres || 0), 0)), fabric: ruf ? String(ruf.what).replace(/^Ruffle — /, '') : '' };
+}
 function flowChallanOpen(orderNo, pcode) {
   const rows = flowRows().filter(x => x.r.orderNo === orderNo && flowInView('drfd', x.s) && x.s.route !== 'stitch'
     && (pcode == null || (pcode === '?' ? !flowPlanPrinter(x.s) : flowPlanPrinter(x.s) === pcode)));
-  return flowChallanDialog(rows, pcode);
+  /* …and the lines whose ruffle cloth goes to this printer as their ruffle printer. */
+  const ruf = pcode && pcode !== '?' ? flowRows().filter(x => x.r.orderNo === orderNo && flowInView('drfd', x.s) && (flowRuffleOwed(x) || {}).printer
+    && String(flowRuffleOwed(x).printer.code) === String(pcode)) : [];
+  return flowChallanDialog(rows, pcode, ruf);
 }
 /* SEVERAL ORDERS, ONE PRINTED FABRIC, ONE VENDOR (Ravi, 10 Oct: "same printed fabric ki requirement alag alag order me h
  * to sabka total hokar vendor ko ek saath assign karne ka option ho"). Demand · RFD → By printed fabric lists each printed
@@ -24416,23 +24436,32 @@ function flowChallanForKeys(keys) {
   const pcs = [...new Set(rows.map(x => flowPlanPrinter(x.s)).filter(Boolean))];
   return flowChallanDialog(rows, pcs.length === 1 ? pcs[0] : null);
 }
-function flowChallanDialog(rows, pcode) {
+function flowChallanDialog(rows, pcode, rufRows) {
   const cv = flowRfdCover();
-  if (!rows.length) return;
+  rufRows = rufRows || [];
+  if (!rows.length && !rufRows.length) return;
+  const nM = rows.length;
+  const rufHtml = rufRows.map((x, j) => { const o = flowRuffleOwed(x), i = nM + j;
+    return `<tr><td><input type="checkbox" data-chk="${i}" checked style="width:auto"></td>
+      <td style="text-align:left"><b style="font-family:ui-monospace,monospace">${esc(obUC(x.r.sku))}</b> <span class="fpc-mode" style="background:rgba(124,58,237,.14);color:#5b21b6;border-radius:6px;padding:0 6px;font-size:10.5px">ruffle only</span><div class="muted" style="font-size:10.5px">${esc(flowChItem(x.r))}</div>${flowExtrasTxt(o.extras)}</td>
+      <td style="text-align:left">${esc(o.fabric || '—')}</td><td class="num">—</td>
+      <td class="num"><input data-chm="${i}" type="number" step="0.01" value="${esc(o.metres || '')}" style="width:90px;padding:3px 6px;font-size:12px"></td>
+      <td style="font-size:11px"><span class="muted">ruffle cloth</span></td></tr>`; }).join('');
+  rows = rows.concat(rufRows); const isRuf = i => i >= nM;
   const orders = [...new Set(rows.map(x => x.r.orderNo))], orderNo = orders.join(', '), isTest = rows.every(x => !!x.r.__t);
   const vens = flowChVendors();
   /* The printer PPC planned for these lines comes ready picked. */
   const planned = (pcode && pcode !== '?' ? pcode : rows.map(x => flowPlanPrinter(x.s)).find(Boolean)) || '';
-  const lineHtml = rows.map((x, i) => { const p = x.s.plan || {}, c = cv.line[x.s.key] || {};
-    return `<tr><td><input type="checkbox" data-chk="${i}"${flowFabOwed(x.r, x.s).metres > 0 || (!x.s.fabSent && flowPrintExtras(x.r, p).length) ? ' checked' : ''} style="width:auto"></td>
+  const lineHtml = rows.slice(0, nM).map((x, i) => { const p = x.s.plan || {}, c = cv.line[x.s.key] || {}, sepR = !!flowRufflePrinter(p);
+    return `<tr><td><input type="checkbox" data-chk="${i}"${flowFabOwed(x.r, x.s).metres > 0 || (!sepR && !x.s.fabSent && flowPrintExtras(x.r, p).length) ? ' checked' : ''} style="width:auto"></td>
       <td style="text-align:left"><b style="font-family:ui-monospace,monospace">${esc(obUC(x.r.sku))}</b>${orders.length > 1 ? ` <span class="muted" style="font-size:10.5px">· ${esc(x.r.orderNo)}</span>` : ''}<div class="muted" style="font-size:10.5px">${esc(flowChItem(x.r))}</div>
-        <div style="font-size:11px;color:#4338ca">Print: ${flowPrintTxt(flowPrintWhat(x.r, p))}</div>${flowExtrasTxt(flowPrintExtras(x.r, p))}</td>
+        <div style="font-size:11px;color:#4338ca">Print: ${flowPrintTxt(flowPrintWhat(x.r, p))}</div>${sepR ? `<div class="muted" style="font-size:10.5px">ruffle → ${esc(flowRufflePrinter(p).name)} (its own challan)</div>` : flowExtrasTxt(flowPrintExtras(x.r, p))}</td>
       <td style="text-align:left">${esc((p.fabric && p.fabric.name) || '—')}</td>
       <td class="num">${x.s.fabUnit === 'pcs' ? nf(flowFabOwed(x.r, x.s).left) : nf(x.r.qty)}</td>
       <td class="num"><input data-chm="${i}" type="number" step="0.01" value="${esc(flowFabOwed(x.r, x.s).metres || '')}" style="width:90px;padding:3px 6px;font-size:12px">${x.s.fabSent > 0 ? `<div class="muted" style="font-size:10px">${nf(x.s.fabSent)} ${x.s.fabUnit} sent already</div>` : ''}${+(p.fabric && p.fabric.fromPrinted) ? `<div class="muted" style="font-size:10px">${nf(p.fabric.fromPrinted)} ${p.fabric.printedUnit === 'pcs' ? 'pcs' : 'm'} from printed stock</div>` : ''}</td>
-      <td style="font-size:11px">${c.short ? `<b style="color:#b91c1c">⚑ short ${nf(c.short)} m</b>` : '<span style="color:#166534">covered</span>'}</td></tr>`; }).join('');
+      <td style="font-size:11px">${c.short ? `<b style="color:#b91c1c">⚑ short ${nf(c.short)} m</b>` : '<span style="color:#166534">covered</span>'}</td></tr>`; }).join('') + rufHtml;
   ptOpenDialog({
-    title: `RFD challan — ${orderNo}${pcode && pcode !== '?' ? ' → ' + ((rows[0].s.plan.printer || {}).name || pcode) : ''}`,
+    title: `RFD challan — ${orderNo}${pcode && pcode !== '?' ? ' → ' + ((vens.find(v => String(v.code) === String(pcode)) || {}).desc || ((rows[0].s.plan.printer || {}).name) || pcode) : ''}`,
     subtitle: (orders.length > 1 ? `${orders.length} orders, one printed fabric, one vendor. ` : 'The fabric of this order, to one vendor. ') + 'Saving numbers the challan, opens it to print, and marks these lines\' fabric as given — they leave Demand by themselves.',
     html: `<div class="ptgrid" style="grid-template-columns:2fr 1fr">
         <label>Vendor<select id="flcVen"><option value="">— pick the vendor —</option>${vens.map(v => `<option value="${esc(v.code)}"${String(v.code) === String(planned) ? ' selected' : ''}>${esc((v.desc || v.name || v.code) + (v.category ? ' · ' + v.category : ''))}</option>`).join('')}</select></label>
@@ -24444,28 +24473,33 @@ function flowChallanDialog(rows, pcode) {
       const code = $('flcVen').value, v = vens.find(x => String(x.code) === String(code));
       if (!v) return 'Which vendor is the fabric going to? Pick one.';
       const date = $('flcDate').value || dToday();
-      const picked = rows.map((x, i) => ({ x, on: (document.querySelector(`[data-chk="${i}"]`) || {}).checked, m: +((document.querySelector(`[data-chm="${i}"]`) || {}).value || 0) }))
+      const picked = rows.map((x, i) => ({ x, ruf: isRuf(i), on: (document.querySelector(`[data-chk="${i}"]`) || {}).checked, m: +((document.querySelector(`[data-chm="${i}"]`) || {}).value || 0) }))
         .filter(y => y.on);
       if (!picked.length) return 'Tick at least one line.';
-      const other = picked.filter(y => flowPlanPrinter(y.x.s) && flowPlanPrinter(y.x.s) !== String(v.code));
+      const other = picked.filter(y => !y.ruf && flowPlanPrinter(y.x.s) && flowPlanPrinter(y.x.s) !== String(v.code));
       if (other.length) return `${other.map(y => `${obUC(y.x.r.sku)} is planned for ${y.x.s.plan.printer.name}`).join(' · ')} — give it to that printer, or change the printer with "edit plan" first.`;
+      const otherR = picked.filter(y => y.ruf && String(flowRufflePrinter(y.x.s.plan).code) !== String(v.code));
+      if (otherR.length) return `${otherR.map(y => `${obUC(y.x.r.sku)}'s ruffle is planned for ${flowRufflePrinter(y.x.s.plan).name}`).join(' · ')} — give it to that printer, or change it with "edit plan" first.`;
       /* A line whose body is all from printed stock may go for its ruffle cloth alone. */
-      const noM = picked.filter(y => !(y.m > 0) && !(!y.x.s.fabSent && flowPrintExtras(y.x.r, y.x.s.plan).length)).map(y => obUC(y.x.r.sku));
+      const noM = picked.filter(y => !(y.m > 0) && (y.ruf || flowRufflePrinter(y.x.s.plan) || !(!y.x.s.fabSent && flowPrintExtras(y.x.r, y.x.s.plan).length))).map(y => obUC(y.x.r.sku) + (y.ruf ? ' (ruffle)' : ''));
       if (noM.length) return `How many metres? Type them for ${noM.join(', ')}.`;
       const no = flowChallanNo(date, isTest), now = new Date().toISOString(), vname = v.desc || v.name || v.code;
       const ch = { no, date, orderNo, orders, vendor: { code: v.code, name: vname }, note: $('flcNote').value.trim(), at: now, by: ME.email || '',
-        lines: picked.map(({ x, m }) => ({ key: x.s.key, sku: obUC(x.r.sku), item: flowChItem(x.r), print: flowPrintWhat(x.r, x.s.plan), extras: flowPrintExtras(x.r, x.s.plan), fabric: (x.s.plan && x.s.plan.fabric && x.s.plan.fabric.name) || '', pcs: x.s.fabUnit === 'pcs' ? flowFabOwed(x.r, x.s).left : flowToPrint(x.r, x.s.plan).pcs, metres: flowR2(m),
-          /* the ruffle cloth goes once, on the first challan for the line */ ...(x.s.fabSent > 0 ? { extras: [] } : {}) })) };
+        lines: picked.map(({ x, m, ruf }) => ruf
+          /* the ruffle cloth alone, to its own printer: its key is the line's, marked ruffleOnly (indexed as <key>~ruffle) */
+          ? { key: x.s.key, ruffleOnly: true, sku: obUC(x.r.sku), item: flowChItem(x.r), print: null, extras: flowPrintExtras(x.r, x.s.plan), fabric: (flowRuffleOwed(x) || {}).fabric || '', pcs: 0, metres: flowR2(m) }
+          : { key: x.s.key, sku: obUC(x.r.sku), item: flowChItem(x.r), print: flowPrintWhat(x.r, x.s.plan), extras: flowPrintExtras(x.r, x.s.plan), fabric: (x.s.plan && x.s.plan.fabric && x.s.plan.fabric.name) || '', pcs: x.s.fabUnit === 'pcs' ? flowFabOwed(x.r, x.s).left : flowToPrint(x.r, x.s.plan).pcs, metres: flowR2(m),
+          /* the ruffle cloth goes once, on the first challan for the line — never when it has a printer of its own */ ...(x.s.fabSent > 0 || flowRufflePrinter(x.s.plan) ? { extras: [] } : {}) }) };
       const patch = { ['pt_flowChallans/' + no]: ch };
       /* A line PPC left without a printer: the one it went to is now its printer. */
-      const setP = picked.filter(y => !flowPlanPrinter(y.x.s)).map(y => y.x.s.key);
+      const setP = picked.filter(y => !y.ruf && !flowPlanPrinter(y.x.s)).map(y => y.x.s.key);
       setP.forEach(k => { patch[`pt_ppc/${k}/printer`] = { code: v.code, name: vname, why: 'set by challan ' + no }; });
-      ch.lines.forEach(l => { patch[`pt_flowDemand/${l.key}/fabricReady`] = { at: now, by: ME.email || '', what: l.fabric, metres: l.metres, note: `Challan ${no} to ${vname}`, challan: no, vendor: vname }; });
+      ch.lines.filter(l => !l.ruffleOnly).forEach(l => { patch[`pt_flowDemand/${l.key}/fabricReady`] = { at: now, by: ME.email || '', what: l.fabric, metres: l.metres, note: `Challan ${no} to ${vname}`, challan: no, vendor: vname }; });
       try { await ptPatch(patch); } catch (e) { return 'Could not save: ' + (e.message || e); }
       FLOW.ch = Object.assign({}, FLOW.ch, { [no]: ch });
       if (setP.length) { FLOW.ppc = Object.assign({}, FLOW.ppc); setP.forEach(k => { FLOW.ppc[k] = Object.assign({}, FLOW.ppc[k], { printer: patch[`pt_ppc/${k}/printer`] }); }); }
       const dem = Object.assign({}, FLOW.dem);
-      ch.lines.forEach(l => { dem[l.key] = Object.assign({}, dem[l.key] || {}, { fabricReady: patch[`pt_flowDemand/${l.key}/fabricReady`] }); });
+      ch.lines.filter(l => !l.ruffleOnly).forEach(l => { dem[l.key] = Object.assign({}, dem[l.key] || {}, { fabricReady: patch[`pt_flowDemand/${l.key}/fabricReady`] }); });
       FLOW.dem = dem;
       renderFlow();
       const err = flowChallanPrint(no);
@@ -24513,6 +24547,10 @@ function flowChallanHtml(ch) {
 function flowChPrintGroups(ch) {
   const g = new Map();
   (ch.lines || []).forEach(l => { const w = l.print || { kind: 'fabric', code: '', label: l.fabric, mode: 'Running fabric' };
+    if (l.ruffle || l.ruffleOnly) {   /* the ruffle cloth alone (its own printer): only its printed fabric */
+      (l.extras || []).forEach(x => { const xk = 'fabric|' + (x.code || '?' + x.label);
+        const xe = g.get(xk) || { kind: 'fabric', code: x.code, label: x.label, mode: x.mode, metres: 0, pcs: 0 }; xe.metres += +x.metres || 0; g.set(xk, xe); });
+      return; }
     if (w.sides && w.sides.length) {   /* a Front and a Back: each its own printed SKU, half the metres */
       w.sides.forEach(sd => { const sk = 'fabric|' + sd.code;
         const se = g.get(sk) || { kind: 'fabric', code: sd.code, label: w.label.replace(/ · [^·]*\+[^·]*$/, '') + ' · ' + sd.side, mode: w.mode, metres: 0, pcs: 0 };
@@ -24835,7 +24873,7 @@ function flowChIndex() {
   Object.values(FLOW.ch || {}).forEach(c => {
     if (c.cancelled) return;   // a cancelled challan gave nothing to anybody
     const recv = flowChRecv(c);
-    (c.lines || []).forEach(l => { const e = map[l.key] || (map[l.key] = { no: c.no, vendor: c.vendor && c.vendor.name, sent: 0, recv: 0, closed: true });
+    (c.lines || []).forEach(l => { const k = l.ruffleOnly ? l.key + FLOW_RUF : l.key, e = map[k] || (map[k] = { no: c.no, vendor: c.vendor && c.vendor.name, sent: 0, recv: 0, closed: true });
       e.no = c.no; e.vendor = c.vendor && c.vendor.name; e.sent += flowChSent(l); e.recv += recv[l.key] || 0; e.closed = e.closed && !!c.closed; });
   });
   FLOW_CHX = { src: FLOW.ch, map };
@@ -24895,7 +24933,7 @@ function flowReceiveOpen(no) {
       <table class="xl" style="margin-top:8px;width:100%"><thead><tr><th style="text-align:left">SKU</th><th>Given as</th><th>Sent</th><th>Back so far</th><th>Received now</th></tr></thead><tbody>
       ${(c.lines || []).map((l, i) => { const u = flowChUnit(l), left = flowR2(Math.max(0, flowChSent(l) - (recv[l.key] || 0)));
         return `<tr><td style="text-align:left"><b>${esc(l.sku)}</b><div class="muted" style="font-size:10.5px">${esc(l.item || '')}</div></td>
-          <td style="text-align:left;font-size:11.5px">${u === 'pcs' ? 'Cut pieces' : 'Printed cloth'}</td>
+          <td style="text-align:left;font-size:11.5px">${u === 'pcs' ? 'Cut pieces' : l.ruffleOnly ? 'Printed ruffle cloth' : 'Printed cloth'}</td>
           <td class="num"><b>${flowQtyTxt(flowChSent(l), u)}</b>${u === 'pcs' ? `<div class="muted" style="font-size:10.5px">${flowQtyTxt(l.metres, 'm')} cloth</div>` : ''}</td><td class="num">${flowQtyTxt(recv[l.key] || 0, u)}</td>
           <td class="num"><input data-flrm="${i}" type="number" step="${u === 'pcs' ? '1' : '0.01'}" min="0" value="${left > 0 ? esc(left) : ''}" ${left > 0 ? '' : 'disabled'} style="width:85px;padding:3px 6px;font-size:12px"> ${u}</td></tr>`; }).join('')}
       </tbody></table><label style="display:block;margin-top:8px">Note (lot, vehicle, quality…)<input id="flrNote"></label>`,
@@ -24989,16 +25027,35 @@ function flowPoIndex() {
   FLOW_POX = { src: FLOW.po, map };
   return map;
 }
-function flowPoNo(date, test) {
+function flowPoNo(date, test, more) {
   const pre = (test ? 'TPRN-' : 'PRN-') + String(date || dToday()).slice(0, 7).replace('-', '') + '-';
-  const used = Object.keys(FLOW.po || {}).filter(k => k.startsWith(pre)).map(k => +k.slice(-3) || 0);
+  /* the ones this same save has just drawn count too — two printers in one save are two numbers */
+  const used = Object.keys(Object.assign({}, FLOW.po || {}, more || {})).filter(k => k.startsWith(pre)).map(k => +k.slice(-3) || 0);
   return pre + String((used.length ? Math.max(...used) : 0) + 1).padStart(3, '0');
 }
-/** The item a print order carries for one planned line: what is printed, and how much is still to print. */
-function flowPoItem(r, p) {
-  const w = flowPrintWhat(r, p), tp = flowToPrint(r, p);
-  return { sku: obUC(r.sku), item: flowChItem(r), print: w, extras: flowPrintExtras(r, p), unit: w.kind === 'sku' ? 'pcs' : 'm',
+/* THE RUFFLE CLOTH TO ITS OWN PRINTER (Ravi, 11 Oct: "mere ruffle ke fabric ke liye vendor alag h, to mujhe wo option bhi
+ * chahiye"). A plan may name a ruffle printer apart from the body's. Then the ruffle cloth is its own part of the line,
+ * keyed <line key>~ruffle: its own print order (to that printer), its own Vendor Order line, its own RFD challan (the
+ * ruffle RFD cloth goes to that printer), received on that challan. The body's print order and challans carry no ruffle. */
+const FLOW_RUF = '~ruffle';
+const flowRufflePrinter = p => (p && p.rufflePrinter && p.rufflePrinter.code && (!p.printer || String(p.rufflePrinter.code) !== String(p.printer.code))) ? p.rufflePrinter : null;
+/** The item a print order carries for one planned line: what is printed, and how much is still to print.
+ * part: '' the whole line · 'body' without its ruffle (the ruffle goes to another printer) · 'ruffle' the ruffle alone. */
+function flowPoItem(r, p, part) {
+  const w = flowPrintWhat(r, p), tp = flowToPrint(r, p), xs = flowPrintExtras(r, p);
+  if (part === 'ruffle') return { sku: obUC(r.sku), item: flowChItem(r), print: null, ruffle: true, extras: xs, unit: 'm', pcs: 0,
+    metres: flowR2(xs.reduce((a, x) => a + (+x.metres || 0), 0)) };
+  return { sku: obUC(r.sku), item: flowChItem(r), print: w, extras: part === 'body' ? [] : xs, unit: w.kind === 'sku' ? 'pcs' : 'm',
     pcs: tp.pcs, metres: tp.metres };
+}
+const flowPoItemPrints = it => (it.unit === 'pcs' ? it.pcs > 0 : it.metres > 0.01) || (it.extras || []).length > 0;
+/** What one planned line puts on print orders: [{ part: '' | '~ruffle', printer, item }]. */
+function flowPoParts(r, p) {
+  if (!p || flowRouteOf(p) !== 'inhouse' || !flowPrintsSomething(r, p)) return [];
+  const rp = flowRufflePrinter(p), out = [], body = flowPoItem(r, p, rp ? 'body' : '');
+  if (flowPoItemPrints(body)) out.push({ part: '', printer: p.printer || null, item: body });
+  if (rp) { const ruf = flowPoItem(r, p, 'ruffle'); if (ruf.extras.length) out.push({ part: FLOW_RUF, printer: rp, item: ruf }); }
+  return out;
 }
 /**
  * The writes that keep print orders in step with the plans being saved: [{ r, p (null = no plan any more) }].
@@ -25009,23 +25066,28 @@ function flowPoSync(items, date) {
   const take = (no, key) => { const o = local[no]; if (!o || !o.items || !o.items[key]) return;
     local[no] = Object.assign({}, o, { items: Object.assign({}, o.items, { [key]: null }) }); patch[`pt_flowPrintOrders/${no}/items/${key}`] = null; delete idx[key];
     if (!Object.values(local[no].items).some(Boolean)) { const c = { at: now, by: ME.email || '', why: 'no line left' }; local[no] = Object.assign({}, local[no], { cancelled: c }); patch[`pt_flowPrintOrders/${no}/cancelled`] = c; } };
-  items.forEach(({ r, p }) => {
-    /* All from printed stock (body and ruffle): nothing for a printer — no print order, no vendor order. */
-    const prints = p && flowRouteOf(p) === 'inhouse' && flowPrintsSomething(r, p);
-    const key = flowKey(r.orderNo, r.sku), cur = idx[key], pc = prints && p.printer && p.printer.code;
-    if (!pc) { if (cur) { take(cur, key); said.push(`${obUC(r.sku)} taken off print order ${cur}`); } return; }
-    if (cur && String((local[cur].printer || {}).code) !== String(pc)) { take(cur, key); said.push(`${obUC(r.sku)} moved off ${cur}`); }
+  /* One part of a line (the line, or its ruffle) onto the print order of its printer for that order — or off it. */
+  const place = (r, key, want, label) => {
+    const cur = idx[key], pc = want && want.printer && want.printer.code;
+    if (!pc) { if (cur) { take(cur, key); said.push(`${label} taken off print order ${cur}`); } return; }
+    if (cur && String((local[cur].printer || {}).code) !== String(pc)) { take(cur, key); said.push(`${label} moved off ${cur}`); }
     let no = idx[key];
     if (!no) no = Object.keys(local).find(n => { const o = local[n]; return o && !o.cancelled && o.orderNo === r.orderNo && String((o.printer || {}).code) === String(pc); });
-    const item = flowPoItem(r, p);
+    const item = want.item;
     if (!no) {
-      no = flowPoNo(date, !!r.__t);
-      local[no] = { no, date: date || dToday(), orderNo: r.orderNo, printer: { code: pc, name: p.printer.name }, items: {}, at: now, by: ME.email || '', test: !!r.__t };
+      no = flowPoNo(date, !!r.__t, local);
+      local[no] = { no, date: date || dToday(), orderNo: r.orderNo, printer: { code: pc, name: want.printer.name }, items: {}, at: now, by: ME.email || '', test: !!r.__t };
       patch['pt_flowPrintOrders/' + no] = Object.assign({}, local[no], { items: { [key]: item } });
-      said.push(`print order ${no} → ${p.printer.name}`);
+      said.push(`print order ${no} → ${want.printer.name}`);
     } else if (patch['pt_flowPrintOrders/' + no]) patch['pt_flowPrintOrders/' + no].items[key] = item;
     else patch[`pt_flowPrintOrders/${no}/items/${key}`] = item;
     local[no] = Object.assign({}, local[no], { items: Object.assign({}, local[no].items, { [key]: item }) }); idx[key] = no;
+  };
+  items.forEach(({ r, p }) => {
+    /* All from printed stock (body and ruffle): nothing for a printer — no print order, no vendor order. */
+    const key = flowKey(r.orderNo, r.sku), parts = {};
+    flowPoParts(r, p).forEach(x => { parts[x.part] = x; });
+    place(r, key, parts[''], obUC(r.sku)); place(r, key + FLOW_RUF, parts[FLOW_RUF], obUC(r.sku) + ' (ruffle)');
   });
   return { patch, said, local };
 }
@@ -25051,8 +25113,8 @@ function flowPoTable(q, testOnly) {
   const body = list.map(o => { const pr = flowPoProgress(o), st = flowPoState(o);
     return `<tr><td class="frz" style="text-align:left"><b>${esc(o.no)}</b>${o.test ? ' <span class="navbadge" style="background:#7c3aed;position:static">TEST</span>' : ''}<div class="muted" style="font-size:10.5px">${esc(o.date || '')}</div></td>
       <td style="text-align:left">${esc(o.orderNo)}</td><td style="text-align:left"><b>${esc(o.printer && o.printer.name)}</b></td>
-      <td style="text-align:left;font-size:11.5px">${pr.length > 1 ? `<div style="margin-bottom:3px">Print, combined: ${flowChPrintGroups({ lines: pr.map(x => x.it) }).filter(g => (g.kind === 'sku' ? g.pcs : g.metres) > 0)
-          .map(g => `<b>${esc(g.code || 'fabric SKU to be confirmed')}</b> ${g.kind === 'sku' ? nf(g.pcs) + ' pcs' : nf(flowR2(g.metres)) + ' m'}`).join(' · ')}</div>` : ''}${pr.map(x => `<span${pr.length > 1 ? ' class="muted"' : ''}>${esc(x.it.sku)} · ${x.it.print && x.it.print.code ? `<b>${esc(x.it.print.code)}</b>` : '<span style="color:#b91c1c">no fabric SKU</span>'} · ${q2(x.need, x.it.unit)}</span>
+      <td style="text-align:left;font-size:11.5px">${pr.length > 1 && pr.some(x => !x.it.ruffle) ? `<div style="margin-bottom:3px">Print, combined: ${flowChPrintGroups({ lines: pr.map(x => x.it) }).filter(g => (g.kind === 'sku' ? g.pcs : g.metres) > 0)
+          .map(g => `<b>${esc(g.code || 'fabric SKU to be confirmed')}</b> ${g.kind === 'sku' ? nf(g.pcs) + ' pcs' : nf(flowR2(g.metres)) + ' m'}`).join(' · ')}</div>` : ''}${pr.map(x => `<span${pr.length > 1 ? ' class="muted"' : ''}>${esc(x.it.sku)} · ${x.it.ruffle ? `ruffle <b>${esc((x.it.extras || []).map(e => e.code || '?').join(', '))}</b>` : x.it.print && x.it.print.code ? `<b>${esc(x.it.print.code)}</b>` : '<span style="color:#b91c1c">no fabric SKU</span>'} · ${q2(x.need, x.it.unit)}</span>
         <span class="muted">— cloth sent ${q2(x.sent, x.it.unit)}, back ${q2(x.back, x.it.unit)}</span>`).join('<br>')}</td>
       <td>${pill(st)}</td><td><button class="ghost" data-flpop="${esc(o.no)}" style="width:auto;padding:2px 8px;font-size:11.5px">Print</button></td></tr>`; }).join('');
   return `<thead><tr><th class="frz" style="text-align:left">Print order</th><th style="text-align:left">Order</th><th style="text-align:left">Printer</th><th style="text-align:left">What to print · fabric sent · printed back</th><th>Status</th><th></th></tr></thead><tbody>`
@@ -25108,13 +25170,15 @@ function flowVoLines(o, planOf) {
   const out = { running: [], cut: [], channel: '' };
   Object.entries(o.items || {}).forEach(([key, it]) => {
     if (!it) return;
-    const row = flowRows().find(x => x.s.key === key), r = row ? row.r : { orderNo: o.orderNo, sku: it.sku };
-    const p = (planOf && planOf(key)) || (row && row.s.plan) || {};   // the plan being saved, not the one it replaces
-    const m = cutSkuOf(it.sku) || {}, w = it.print || {};
+    const lk0 = key.endsWith(FLOW_RUF) ? key.slice(0, -FLOW_RUF.length) : key;
+    let row = null; try { row = flowRows().find(x => x.s.key === lk0); } catch (e) { row = null; }
+    const r = row ? row.r : { orderNo: o.orderNo, sku: it.sku };
+    const p = (planOf && planOf(lk0)) || (row && row.s.plan) || {};   // the plan being saved, not the one it replaces
+    const m = cutSkuOf(it.sku) || {}, w = it.print || {}, lk = key.endsWith(FLOW_RUF) ? key.slice(0, -FLOW_RUF.length) : key;
     if (!out.channel) out.channel = flowChannelOf(r, m);
     const base = { brand: m.brand || '', color: String(m.color || r.color || '').trim(), deliveryDate: (p.dates && p.dates.cut) || '', dispatchedQty: 0,
-      notes: `${o.orderNo} · ${it.sku} (PPC ${o.no})`, priority: 'P2', forOrders: [{ orderNo: o.orderNo, qty: +r.qty || it.pcs || 0 }], flowKey: key };
-    if (w.kind === 'sku') {
+      notes: `${o.orderNo} · ${it.sku} (PPC ${o.no})`, priority: 'P2', forOrders: [{ orderNo: o.orderNo, qty: +r.qty || it.pcs || 0 }], flowKey: lk };
+    if (it.ruffle) { /* the ruffle cloth alone — its lines below */ } else if (w.kind === 'sku') {
       if (it.pcs > 0) out.cut.push(Object.assign({}, base, { kind: 'cut', sku: it.sku, qty: it.pcs, articleType: m.articleType || '',
         articleSubtype: m.subtype || m.articleSubtype || '', size: m.size || '', flowPart: key + '|sku' }));
     } else {
@@ -25124,7 +25188,7 @@ function flowVoLines(o, planOf) {
       parts.forEach(pt => { if (pt.meters > 0) out.running.push(Object.assign({}, base, { kind: 'running', sku: pt.sku, fabricType: fab, printDirection: dir, meters: pt.meters, flowPart: key + '|' + pt.part })); });
     }
     (it.extras || []).forEach(x => { if (+x.metres > 0) out.running.push(Object.assign({}, base, { kind: 'running', sku: x.code, fabricType: String(x.label || '').split(' · ')[1] || '',
-      printDirection: String(x.label || '').split(' · ')[2] || '', meters: flowR2(+x.metres), notes: base.notes + ' · ruffle', flowPart: key + '|ruffle' })); });
+      printDirection: String(x.label || '').split(' · ')[2] || '', meters: flowR2(+x.metres), notes: base.notes + ' · ruffle', flowPart: lk + '|ruffle' })); });
   });
   /* COMBINED (Ravi, 11 Oct): one vendor-order line per printed fabric (fabric, colour, direction) and per printed SKU, across
    * the order's lines — the printer prints RBPSF9-H-82 once, for both pillow sizes. flowPart names every part it stands for. */
@@ -25360,18 +25424,19 @@ function flowChallanEditOpen(no) {
         (on ? keep : drop).push(Object.assign({}, l, { metres: on ? m : l.metres })); });
       if (!keep.length) return 'Every line is unticked — use Cancel to cancel the whole challan.';
       /* Same rule as making it: a line goes to the printer PPC planned for it. */
-      const other = keep.filter(l => { const pc = flowPlanPrinter({ plan: (FLOW.ppc || {})[l.key] }); return pc && pc !== String(v.code); });
-      if (other.length) return `${other.map(l => `${l.sku} is planned for ${FLOW.ppc[l.key].printer.name}`).join(' · ')} — untick it, or change its printer with "edit plan" first.`;
+      const pOf = l => { const pl = (FLOW.ppc || {})[l.key]; return l.ruffleOnly ? flowRufflePrinter(pl) : (pl && pl.printer); };
+      const other = keep.filter(l => { const pp = pOf(l), pc = pp && pp.code; return pc && String(pc) !== String(v.code); });
+      if (other.length) return `${other.map(l => `${l.sku}${l.ruffleOnly ? '\'s ruffle' : ''} is planned for ${pOf(l).name}`).join(' · ')} — untick it, or change its printer with "edit plan" first.`;
       const noM = keep.filter(l => !(l.metres > 0)).map(l => l.sku); if (noM.length) return `How many metres for ${noM.join(', ')}?`;
       const vname = v.desc || v.name || v.code, now = new Date().toISOString();
       const nc = Object.assign({}, c, { vendor: { code: v.code, name: vname }, date: $('flceDate').value || c.date, note: $('flceNote').value.trim(), lines: keep, editedAt: now, editedBy: ME.email || '' });
       const patch = { ['pt_flowChallans/' + no]: nc };
-      keep.forEach(l => { patch[`pt_flowDemand/${l.key}/fabricReady`] = { at: now, by: ME.email || '', what: l.fabric, metres: l.metres, note: `Challan ${no} to ${vname}`, challan: no, vendor: vname }; });
-      drop.forEach(l => { patch[`pt_flowDemand/${l.key}/fabricReady`] = null; });
+      keep.filter(l => !l.ruffleOnly).forEach(l => { patch[`pt_flowDemand/${l.key}/fabricReady`] = { at: now, by: ME.email || '', what: l.fabric, metres: l.metres, note: `Challan ${no} to ${vname}`, challan: no, vendor: vname }; });
+      drop.filter(l => !l.ruffleOnly).forEach(l => { patch[`pt_flowDemand/${l.key}/fabricReady`] = null; });
       try { await ptPatch(patch); } catch (e) { return 'Could not save: ' + (e.message || e); }
       FLOW.ch = Object.assign({}, FLOW.ch, { [no]: nc });
       const dem = Object.assign({}, FLOW.dem);
-      keep.concat(drop).forEach(l => { dem[l.key] = Object.assign({}, dem[l.key] || {}, { fabricReady: patch[`pt_flowDemand/${l.key}/fabricReady`] }); });
+      keep.concat(drop).filter(l => !l.ruffleOnly).forEach(l => { dem[l.key] = Object.assign({}, dem[l.key] || {}, { fabricReady: patch[`pt_flowDemand/${l.key}/fabricReady`] }); });
       FLOW.dem = dem;
       renderFlow();
       return '';
@@ -25391,7 +25456,7 @@ function flowChallanCancelOpen(no) {
       const why = $('flccWhy').value.trim(); if (!why) return 'Say why it is cancelled.';
       const val = { at: new Date().toISOString(), by: ME.email || '', why };
       const patch = { [`pt_flowChallans/${no}/cancelled`]: val };
-      (c.lines || []).forEach(l => { const fr = FLOW.dem && FLOW.dem[l.key] && FLOW.dem[l.key].fabricReady;
+      (c.lines || []).filter(l => !l.ruffleOnly).forEach(l => { const fr = FLOW.dem && FLOW.dem[l.key] && FLOW.dem[l.key].fabricReady;
         if (fr && fr.challan === no) patch[`pt_flowDemand/${l.key}/fabricReady`] = null; });
       try { await ptPatch(patch); } catch (e) { return 'Could not save: ' + (e.message || e); }
       FLOW.ch = Object.assign({}, FLOW.ch, { [no]: Object.assign({}, c, { cancelled: val }) });
@@ -25883,12 +25948,14 @@ function flowTable(view, rows) {
       /* One challan button per PO and planned printer, on that printer's first line; none for stitching only. */
       const pk = x.s.route === 'stitch' ? '' : (flowPlanPrinter(x.s) || '?'), gk = x.r.orderNo + '|' + pk;
       const first = pk && !seen.has(gk); seen.add(gk);
+      /* The ruffle cloth to its own printer: that printer's challan button too (once per PO and printer). */
+      const ro = flowRuffleOwed(x), rk = ro ? x.r.orderNo + '|' + ro.printer.code : '', rfirst = !!ro && !seen.has(rk); if (ro) seen.add(rk);
       return `<tr${c.short ? ' style="background:#fef2f2"' : ''}>${base(x)}
-        <td style="text-align:left;font-size:12px">${x.s.route === 'stitch' ? 'Stitching only' : `Print: <b>${esc((p.printer && p.printer.name) || '—')}</b><div style="font-size:11px;color:#4338ca">${flowPrintTxt(flowPrintWhat(x.r, p))}</div>${flowExtrasTxt(flowPrintExtras(x.r, p))}`}</td>
-        <td style="text-align:left;font-size:12px">${p.fabric ? `<b>${esc(p.fabric.name)}</b> · ${nf(c.need)} m to send` : '—'}${x.s.fabSent > 0 ? `<div class="muted" style="font-size:10.5px">${nf(x.s.fabSent)} of ${nf(x.s.fabNeed)} ${x.s.fabUnit} sent</div>` : ''}${x.s.po ? `<div class="muted" style="font-size:10.5px">print order ${esc(x.s.po)}</div>` : ''}${flowMasterDiffTxt(flowMasterDiff(x.r, p))}</td>
+        <td style="text-align:left;font-size:12px">${x.s.route === 'stitch' ? 'Stitching only' : `Print: <b>${esc((p.printer && p.printer.name) || '—')}</b><div style="font-size:11px;color:#4338ca">${flowPrintTxt(flowPrintWhat(x.r, p))}</div>${flowExtrasTxt(flowPrintExtras(x.r, p))}${flowRufflePrinter(p) ? `<div style="font-size:10.5px;color:#5b21b6">ruffle → <b>${esc(flowRufflePrinter(p).name)}</b>${ro ? '' : ' · sent'}</div>` : ''}`}</td>
+        <td style="text-align:left;font-size:12px">${p.fabric ? `<b>${esc(p.fabric.name)}</b> · ${nf(c.need)} m to send` : '—'}${ro ? `<div style="font-size:10.5px;color:#5b21b6">ruffle: ${esc(ro.fabric)} · ${nf(ro.metres)} m to ${esc(ro.printer.name)}</div>` : ''}${x.s.fabSent > 0 ? `<div class="muted" style="font-size:10.5px">${nf(x.s.fabSent)} of ${nf(x.s.fabNeed)} ${x.s.fabUnit} sent</div>` : ''}${x.s.po ? `<div class="muted" style="font-size:10.5px">print order ${esc(x.s.po)}</div>` : ''}${flowMasterDiffTxt(flowMasterDiff(x.r, p))}</td>
         <td style="text-align:left;font-size:12px">${c.short ? `<span class="jw-st" style="background:#fee2e2;color:#b91c1c;font-weight:700">⚑ SHORT ${nf(c.short)} m</span> <span class="muted">${nf(c.avail)} m left</span>`
           : `<span class="jw-st done">covered</span> <span class="muted">${nf(c.avail)} m left</span>`}</td>
-        <td style="white-space:nowrap">${first ? `<button data-flch="${esc(x.r.orderNo)}" data-pc="${esc(pk)}" style="width:auto;padding:3px 10px;font-size:12px">${pk === '?' ? 'Challan (printer not chosen)' : 'Challan → ' + esc((p.printer && p.printer.name) || pk)}</button> ` : ''}<button class="ghost" data-flfab="${esc(x.s.key)}" style="width:auto;padding:2px 9px;font-size:11.5px">Mark fabric ready</button></td></tr>`; }).join('');
+        <td style="white-space:nowrap">${first ? `<button data-flch="${esc(x.r.orderNo)}" data-pc="${esc(pk)}" style="width:auto;padding:3px 10px;font-size:12px">${pk === '?' ? 'Challan (printer not chosen)' : 'Challan → ' + esc((p.printer && p.printer.name) || pk)}</button> ` : ''}${rfirst ? `<button data-flch="${esc(x.r.orderNo)}" data-pc="${esc(ro.printer.code)}" style="width:auto;padding:3px 10px;font-size:12px;background:#7c3aed;border-color:#7c3aed">Ruffle challan → ${esc(ro.printer.name)}</button> ` : ''}<button class="ghost" data-flfab="${esc(x.s.key)}" style="width:auto;padding:2px 9px;font-size:11.5px">Mark fabric ready</button></td></tr>`; }).join('');
     const fs = Object.values(cv.fab).filter(f => f.need > 0).sort((a, b) => b.short - a.short || a.name.localeCompare(b.name));
     FLOW.byprint = flowByPrintTable(rows);
     FLOW.stock = `<thead><tr><th style="text-align:left">Fabric</th><th>RFD in stock</th><th>Kept for lines already ready</th><th>These lines need</th><th>Short</th></tr></thead><tbody>`
