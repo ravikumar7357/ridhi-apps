@@ -25,6 +25,9 @@ const breaks = {
     'rows never worked out again': s => s.replace('&& FLOW_C.ppc === FLOW.ppc ', ''),
   },
   'flow-ppc.js': {
+    'store stock taken from the earlier orders': s => s.replace("const held = ps == null ? 0 : hold(pk), pleft = ps == null ? null : ps - held -", "const held = 0, pleft = ps == null ? null : ps -"),
+    'an unplanned earlier order holds nothing': s => s.replace("held += p ? Math.max(0, flowIssuable(r, s)) : Math.max(0, qty - (s.issuedAll != null ? s.issuedAll : s.issued || 0));", "held += p ? Math.max(0, flowIssuable(r, s)) : 0;"),
+    'a finished order still holds store stock': s => s.replace("if (skip.has(s.key) || s.bucket === 'done' ||", "if (skip.has(s.key) ||"),
     'a locked fabric can be changed': s => s.replace("if (locked) ['fabric', 'route', 'printer', 'print'].forEach(k => { nu[k] = x.s.plan[k]; });", ''),
     'stray keys in the plan list': s => s.replace(".filter(([path]) => path.startsWith('pt_ppc/'))", ''),
     'width calculator beats the master row': s => s.replace('if (mFab && mCons > 0) fabric =', 'if (false) fabric ='),
@@ -47,7 +50,7 @@ const breaks = {
     'what printed stock covers is not saved': s => s.replace('p.fabric.fromPrinted = flowR2(cv0.fab || 0);', 'p.fabric.fromPrinted = 0;'),
     'earlier plans not counted': s => s.replace('before = (com.acc[c] || 0) + (run.acc[c] || 0)', 'before = (run.acc[c] || 0)'),
     'balance shows the stock, not what is left': s => s.replace('const bal = flowR2(stock - earlier), ok = bal >= need;', 'const bal = flowR2(stock), ok = bal >= need;'),
-    'no printed stock row': s => s.replace("h.push(flowPrintedRow(`<b>${esc(w.code)}</b>`, pleft, pu, use));", ''),
+    'no printed stock row': s => s.replace("h.push(flowPrintedRow(`<b>${esc(w.code)}</b>`, pleft, pu, use, ps, held + (com.printed[pk] || 0)));", ''),
     'printed pieces looked up as cloth': s => s.replace("const flowPrintedKey = (w, fabric, colour) => (w.kind === 'sku' ?", "const flowPrintedKey = (w, fabric, colour) => (false ?"),
     'lines above in the form not counted': s => s.replace('        run.acc[c] = (run.acc[c] || 0) + need; });', '        });'),
     'issued zippers still counted': s => s.replace("acc[c] = (acc[c] || 0) + Math.ceil(+a.qty * left);", "acc[c] = (acc[c] || 0) + (+a.qty);"),

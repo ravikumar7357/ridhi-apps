@@ -510,6 +510,39 @@ const K = 'AMZ-1__S1';
     ok('only 2 m printed in store → covers 2 m, RFD the rest 4 m; ruffle all from RFD → short', /✓ covers 2 m/.test(m2) && /\(the rest\)<\/span><\/td><td class="num">4 m/.test(m2) && /⚑ short 23\.5 m/.test(m2), m2);
   }
 
+  console.log('== the store belongs to the earlier orders first (Ravi, 11 Oct: CPC-01, 465 pcs in store, all another order’s) ==');
+  {
+    const spans = {}, span = q => spans[q] || (spans[q] = { innerHTML: '', textContent: '' });
+    const mdb = { 'CPC-01': { color: 'Agate Green', fabric: 'Sheeting 62', consumption: 2.35, cuttingRequired: false, subtype: 'Tablecloth' },
+      'RTC327-6060': { color: 'Light Steel Blue', fabric: 'Sheeting 92', consumption: 0.6, cuttingRequired: true, subtype: 'Ruffle Tablecloth' } };
+    const fsCat = [{ sku: 'RBPSF327-V-92', fabric: 'Sheeting 92', colour: 'Light Steel Blue', dir: 'Vertical', code: '327' }];
+    const T1 = 'TEST-AMZ-11102026-01';
+    const mk = (earlier, store, sku) => { const B = load({ me: { admin: true }, mdb, fsCat, rfd: { 'SHEETING 62': 5000, 'SHEETING 92': 5000 }, fabRows: [{ fabricType: 'Sheeting 62' }, { fabricType: 'Sheeting 92' }], store,
+        lines: [L({ orderNo: T1, sku, qty: 20, __t: {}, cutReq: sku !== 'CPC-01' }), ...earlier] });
+      B.ctx.document.querySelector = q => (/data-mat=|data-fm=|data-pget=|data-chips=/.test(q) ? span(q) : null); return B; };
+    const old = (sku, qty, o) => L(Object.assign({ orderNo: 'AMZ-OLD', sku, qty, orderDate: '2026-09-20', cutReq: sku !== 'CPC-01' }, o || {}));
+    /* 465 in store, an earlier order still to issue 470 → nothing free: the new order goes to the printer */
+    let B = mk([old('CPC-01', 470)], [{ key: 'P|CPC-01', qty: 465 }], 'CPC-01');
+    B.flowPpcOpen(T1, 'CPC-01'); let mt = spans['[data-mat="0"]'].innerHTML;
+    ok('465 in store, the earlier order still needs 470 → none free for the new order; it goes to the printer', /<b>0 pcs<\/b>/.test(mt) && !/✓ covers/.test(mt) && /all for earlier orders — goes to the printer/.test(mt)
+      && /in store 465 pcs, 470 pcs of it for earlier orders/.test(mt) && !/All already printed/.test(spans['[data-pget="0"]'].innerHTML), mt);
+    /* 465 in store, earlier orders need 400 (one issued 100 of 500) → 65 free → the 20 come from the store */
+    B = mk([old('CPC-01', 500, { issued: 100 })], [{ key: 'P|CPC-01', qty: 465 }], 'CPC-01');
+    B.flowPpcOpen(T1, 'CPC-01'); mt = spans['[data-mat="0"]'].innerHTML;
+    ok('…earlier orders need only 400 of the 465 → 65 free, the 20 are covered: straight to the next step', /✓ covers 20 pcs/.test(mt) && /<b>65 pcs<\/b>/.test(mt), mt);
+    /* a done line does not hold anything */
+    B = mk([old('CPC-01', 470, { orderNo: 'AMZ-NEW', orderDate: '2026-10-11', handedAt: '2026-10-12' })], [{ key: 'P|CPC-01', qty: 465 }], 'CPC-01');
+    B.flowPpcOpen(T1, 'CPC-01'); mt = spans['[data-mat="0"]'].innerHTML;
+    ok('…an order already finished (handed over) holds nothing, though it is still listed', /✓ covers 20 pcs/.test(mt), mt);
+    /* printed cloth: 10 m in store, an earlier order still to cut 20 pcs × 0.6 m = 12 m → none free */
+    B = mk([old('RTC327-6060', 20)], [{ key: 'M|SHEETING 92|LIGHT STEEL BLUE', qty: 10 }], 'RTC327-6060');
+    B.flowPpcOpen(T1, 'RTC327-6060'); mt = spans['[data-mat="0"]'].innerHTML;
+    ok('printed cloth too: 10 m in store, an earlier order still to cut 12 m of it → none for the new order', !/✓ covers/.test(mt) && /12 m of it for earlier orders/.test(mt), mt);
+    B = mk([old('RTC327-6060', 20, { cut: 15 })], [{ key: 'M|SHEETING 92|LIGHT STEEL BLUE', qty: 10 }], 'RTC327-6060');
+    B.flowPpcOpen(T1, 'RTC327-6060'); mt = spans['[data-mat="0"]'].innerHTML;
+    ok('…it has cut 15 of its 20 → it still needs 3 m, 7 m free → covers 7 m of the 12 m', /✓ covers 7 m/.test(mt), mt);
+  }
+
   console.log('== a quilt: Front and Back, half the cloth each ==');
   {
     const mdb = { 'RQL327-Q': { color: 'Light Steel Blue', fabric: 'Voil 92', consumption: 5, cuttingRequired: true, articleType: 'Quilt' } };
