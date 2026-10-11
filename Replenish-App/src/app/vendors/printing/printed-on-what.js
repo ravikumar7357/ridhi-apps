@@ -278,6 +278,10 @@ function recipeUploadPlan(entries) {
           return;
         }
         e.vals[f] = hit;                       // the master's own spelling, not the sheet's
+      } else if (spec[2] === 'pack') {
+        const t = mdbPackType(raw);
+        if (!t) { skip.push({ row: e.row, key, why: `${spec[1]} must be Polythene or Box, not "${raw}".` }); return; }
+        e.vals[f] = t;
       } else if (spec[2] === 'num' && !Number.isFinite(mdbNum(raw))) {
         /* NOT `mdbNum(raw) >= 0`. mdbNum answers null for anything that is not a number, and
          * null >= 0 is true — so "lots" sailed through and would have been written as a quantity. */
@@ -462,6 +466,8 @@ function recipeEdit(key) {
       const said = s.values.map(v => nf(v.n) + ' × ' + v.value).join(', ') + (s.blank ? ', ' + nf(s.blank) + ' blank' : '');
       if (kind === 'fab') return { key: f, label: label + '  [' + said + ']', type: 'select',
         value: recSaid(r[f]) ? String(r[f]).trim() : '', options: [''].concat(fabListOr(r[f])) };
+      if (kind === 'pack') return { key: f, label: label + '  [' + said + ']', type: 'select',
+        value: recSaid(r[f]) ? mdbPackType(r[f]) : '', options: ['', 'Polythene', 'Box'] };
       return kind === 'yn'
         ? { key: f, label: label + '  [' + said + ']', type: 'select', value: recSaid(r[f]) ? recNorm(r[f]) : '',
             options: ['', 'yes', 'no'] }

@@ -8900,6 +8900,15 @@ console.log('\n== the fabric on a cutting entry is picked from the master ==');
        A.recipeFill({ sku: 'RF-9', articleType: 'Tablecloth', subtype: 'Square Tablecloth', size: '60x60',
          color: 'Green' }).rec.fabric === 'Sheeting 62',
        JSON.stringify(A.recipeFill({ sku: 'RF-9', articleType: 'Tablecloth', subtype: 'Square Tablecloth', size: '60x60' }).rec));
+    /* PACKING IN THE RECIPE (11 Oct): a new colour of that size packs the same way. */
+    A.setPTG(Object.assign({}, A.PTG(), { masters: masters({
+      r1: { articleType: 'Tablecloth', subtype: 'Square Tablecloth', size: '60x60', fabric: 'Sheeting 62', packType: 'box', packMaterial: 'Box 14x10x4' } }) }));
+    { const pf = A.recipeFill({ sku: 'RF-9', articleType: 'Tablecloth', subtype: 'Square Tablecloth', size: '60x60', color: 'Green' });
+      ok('a new colour of that size takes its packing from the recipe — a box, and which box', pf.rec.packType === 'Box' && pf.rec.packMaterial === 'Box 14x10x4'
+         && pf.from.indexOf('packType') >= 0 && pf.from.indexOf('packMaterial') >= 0, JSON.stringify(pf));
+      ok('…but packing typed on the SKU is kept', A.recipeFill({ sku: 'RF-9', articleType: 'Tablecloth', subtype: 'Square Tablecloth', size: '60x60', packType: 'Polythene', packMaterial: '12x16 polythene' }).rec.packMaterial === '12x16 polythene'); }
+    A.setPTG(Object.assign({}, A.PTG(), { masters: masters({
+      r1: { articleType: 'Tablecloth', subtype: 'Square Tablecloth', size: '60x60', fabric: 'Sheeting 62' } }) }));
     ok('…and the screen says the cloth came from the recipe',
        A.recipeFill({ sku: 'RF-9', articleType: 'Tablecloth', subtype: 'Square Tablecloth', size: '60x60' }).from.indexOf('fabric') >= 0,
        A.recipeFill({ sku: 'RF-9', articleType: 'Tablecloth', subtype: 'Square Tablecloth', size: '60x60' }).from.join(','));

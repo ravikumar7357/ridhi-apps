@@ -644,6 +644,10 @@ const RECIPE_FIELDS = [
   ['pipingMeters', 'Piping dori metres', 'num'],
   ['fillerFabricRequired', 'Filler fabric', 'yn'],
   ['standardFillingQty', 'Filling qty', 'num'],
+  /* PACKING (Ravi, 2026-10-11: "packing ko recipe me bhi daal do") — every colour of a size packs the same way.
+   * 'pack' is Polythene or Box only. */
+  ['packType', 'Packing', 'pack'],
+  ['packMaterial', 'Polythene / box used', 'txt'],
 ];
 /* A YES/NO ON A SKU IS NEVER BLANK — mdbRecord writes true or false — so "nobody has said" and "no"
  * cannot be told apart on the SKU. A recipe CAN be silent about one, which is why these are stored
@@ -715,7 +719,7 @@ function recipeFill(rec) {
       return;
     }
     if (recSaid(out[f])) return;                  // the row said something; leave it alone
-    out[f] = kind === 'num' ? mdbNum(r[f]) : String(r[f]).trim();
+    out[f] = kind === 'num' ? mdbNum(r[f]) : kind === 'pack' ? mdbPackType(r[f]) : String(r[f]).trim();
     from.push(f);
   });
   /* A zip that is off carries no size and no count, and a ruffle that is off carries no metres — the
