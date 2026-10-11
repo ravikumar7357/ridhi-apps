@@ -84,7 +84,8 @@ function flowPoTable(q, testOnly) {
   const body = list.map(o => { const pr = flowPoProgress(o), st = flowPoState(o);
     return `<tr><td class="frz" style="text-align:left"><b>${esc(o.no)}</b>${o.test ? ' <span class="navbadge" style="background:#7c3aed;position:static">TEST</span>' : ''}<div class="muted" style="font-size:10.5px">${esc(o.date || '')}</div></td>
       <td style="text-align:left">${esc(o.orderNo)}</td><td style="text-align:left"><b>${esc(o.printer && o.printer.name)}</b></td>
-      <td style="text-align:left;font-size:11.5px">${pr.map(x => `${esc(x.it.sku)} · ${x.it.print && x.it.print.code ? `<b>${esc(x.it.print.code)}</b>` : '<span style="color:#b91c1c">no fabric SKU</span>'} · ${q2(x.need, x.it.unit)}
+      <td style="text-align:left;font-size:11.5px">${pr.length > 1 ? `<div style="margin-bottom:3px">Print, combined: ${flowChPrintGroups({ lines: pr.map(x => x.it) }).filter(g => (g.kind === 'sku' ? g.pcs : g.metres) > 0)
+          .map(g => `<b>${esc(g.code || 'fabric SKU to be confirmed')}</b> ${g.kind === 'sku' ? nf(g.pcs) + ' pcs' : nf(flowR2(g.metres)) + ' m'}`).join(' · ')}</div>` : ''}${pr.map(x => `<span${pr.length > 1 ? ' class="muted"' : ''}>${esc(x.it.sku)} · ${x.it.print && x.it.print.code ? `<b>${esc(x.it.print.code)}</b>` : '<span style="color:#b91c1c">no fabric SKU</span>'} · ${q2(x.need, x.it.unit)}</span>
         <span class="muted">— cloth sent ${q2(x.sent, x.it.unit)}, back ${q2(x.back, x.it.unit)}</span>`).join('<br>')}</td>
       <td>${pill(st)}</td><td><button class="ghost" data-flpop="${esc(o.no)}" style="width:auto;padding:2px 8px;font-size:11.5px">Print</button></td></tr>`; }).join('');
   return `<thead><tr><th class="frz" style="text-align:left">Print order</th><th style="text-align:left">Order</th><th style="text-align:left">Printer</th><th style="text-align:left">What to print · fabric sent · printed back</th><th>Status</th><th></th></tr></thead><tbody>`
@@ -158,6 +159,19 @@ function flowVoLines(o, planOf) {
     (it.extras || []).forEach(x => { if (+x.metres > 0) out.running.push(Object.assign({}, base, { kind: 'running', sku: x.code, fabricType: String(x.label || '').split(' · ')[1] || '',
       printDirection: String(x.label || '').split(' · ')[2] || '', meters: flowR2(+x.metres), notes: base.notes + ' · ruffle', flowPart: key + '|ruffle' })); });
   });
+  /* COMBINED (Ravi, 11 Oct): one vendor-order line per printed fabric (fabric, colour, direction) and per printed SKU, across
+   * the order's lines — the printer prints RBPSF9-H-82 once, for both pillow sizes. flowPart names every part it stands for. */
+  const merge = (list, keyOf, qty) => { const m = new Map();
+    list.forEach(l => { const k = keyOf(l), e = m.get(k);
+      if (!e) { m.set(k, Object.assign({}, l, { forOrders: (l.forOrders || []).map(f => Object.assign({}, f)), parts: [l.flowPart], skus: [String(l.notes || '').split(' · ')[1] || ''] })); return; }
+      e[qty] = qty === 'meters' ? flowR2((+e[qty] || 0) + (+l[qty] || 0)) : (+e[qty] || 0) + (+l[qty] || 0);
+      (l.forOrders || []).forEach(f => { const o = e.forOrders.find(x => x.orderNo === f.orderNo); if (o) o.qty = (+o.qty || 0) + (+f.qty || 0); else e.forOrders.push(Object.assign({}, f)); });
+      e.parts.push(l.flowPart); e.skus.push(String(l.notes || '').split(' · ')[1] || '');
+      if (l.deliveryDate && (!e.deliveryDate || l.deliveryDate < e.deliveryDate)) e.deliveryDate = l.deliveryDate; });
+    return [...m.values()].map(e => { const { parts, skus, ...l } = e; const u = [...new Set(skus.map(x => x.replace(/ \(PPC.*$/, '')).filter(Boolean))];
+      return Object.assign(l, { flowPart: parts.slice().sort().join('+'), ...(parts.length > 1 ? { notes: `${o.orderNo} · ${u.join(', ')} (PPC ${o.no})${/· ruffle$/.test(l.notes || '') ? ' · ruffle' : ''}`, forOrders: l.forOrders } : {}) }); }); };
+  out.running = merge(out.running, l => [obUC(l.sku), fabKey(l.fabricType), String(l.printDirection || '').toLowerCase(), fabKey(l.color)].join('|'), 'meters');
+  out.cut = merge(out.cut, l => obUC(l.sku), 'qty');
   return out;
 }
 /**

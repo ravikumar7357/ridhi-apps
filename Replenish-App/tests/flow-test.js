@@ -543,6 +543,29 @@ const K = 'AMZ-1__S1';
     ok('…it has cut 15 of its 20 → it still needs 3 m, 7 m free → covers 7 m of the 12 m', /✓ covers 7 m/.test(mt), mt);
   }
 
+  console.log('== one order, two sizes on the same printed cloth: the store first, then ONE combined demand (Ravi, 11 Oct) ==');
+  {
+    const spans = {}, span = q => spans[q] || (spans[q] = { innerHTML: '', textContent: '' });
+    const mdb = { 'RTC327-6060': { color: 'Light Steel Blue', fabric: 'Sheeting 92', consumption: 0.6, cuttingRequired: true, subtype: 'Ruffle Tablecloth' },
+      'RTC327-6090': { color: 'Light Steel Blue', fabric: 'Sheeting 92', consumption: 0.9, cuttingRequired: true, subtype: 'Ruffle Tablecloth' } };
+    const fsCat = [{ sku: 'RBPSF327-V-92', fabric: 'Sheeting 92', colour: 'Light Steel Blue', dir: 'Vertical', code: '327' }];
+    const B = load({ me: { admin: true }, mdb, fsCat, rfd: { 'SHEETING 92': 500 }, fabRows: [{ fabricType: 'Sheeting 92' }], store: [{ key: 'M|SHEETING 92|LIGHT STEEL BLUE', qty: 10 }],
+      lines: [L({ orderNo: 'AMZ-2', sku: 'RTC327-6060', qty: 20, cutReq: true }), L({ orderNo: 'AMZ-2', sku: 'RTC327-6090', qty: 20, cutReq: true })] });
+    B.ctx.document.querySelector = q => (/data-mat=|data-fm=|data-pget=|data-chips=|data-combo/.test(q) ? span(q) : null);
+    B.flowPpcOpen('AMZ-2');
+    const m0 = spans['[data-mat="0"]'].innerHTML, m1 = spans['[data-mat="1"]'].innerHTML, cb = spans['[data-combo]'].innerHTML;
+    ok('the first line takes the 10 m in the store (needs 12 m)', /✓ covers 10 m/.test(m0), m0);
+    ok('…the second sees it taken by the line above — not "for earlier orders"', /the line above took it — goes to the printer/.test(m1) && /10 m taken by the line\(s\) above/.test(m1) && !/all for earlier orders|of it for earlier orders/.test(m1), m1);
+    ok('"This order, combined": RBPSF327-V-92 to print once, 2 m + 18 m = 20 m', /This order, combined/.test(cb) && /<b>RBPSF327-V-92<\/b>[^]*?<b>20 m<\/b>/.test(cb), cb);
+    ok('…and the RFD for the whole order in one row: Sheeting 92, 20 m', /RFD · <b>Sheeting 92<\/b><\/td><td class="num">20 m/.test(cb), cb);
+    /* the Vendor Order the printer sees: one line for RBPSF327-V-92 */
+    const it = (sku, m) => ({ sku, print: { kind: 'fabric', code: 'RBPSF327-V-92', label: 'Light Steel Blue · Sheeting 92 · Vertical', mode: 'Running fabric' }, extras: [], unit: 'm', pcs: 20, metres: m });
+    const K1 = 'AMZ-2__RTC327-6060', K2 = 'AMZ-2__RTC327-6090', pl = { fabric: { name: 'Sheeting 92' }, print: { dir: 'Vertical' }, dates: {} };
+    const vl = B.flowVoLines({ no: 'PRN-202610-009', orderNo: 'AMZ-2', items: { [K1]: it('RTC327-6060', 2), [K2]: it('RTC327-6090', 18) } }, () => pl);
+    ok('the Vendor Order has ONE running line for RBPSF327-V-92: 20 m, for both SKUs', vl.running.length === 1 && vl.running[0].meters === 20 && vl.running[0].sku === 'RBPSF327-V-92'
+      && vl.running[0].flowPart === [K1 + '|body', K2 + '|body'].sort().join('+') && /RTC327-6060, RTC327-6090/.test(vl.running[0].notes) && vl.running[0].forOrders.length === 1 && vl.running[0].forOrders[0].qty === 40, JSON.stringify(vl.running));
+  }
+
   console.log('== a quilt: Front and Back, half the cloth each ==');
   {
     const mdb = { 'RQL327-Q': { color: 'Light Steel Blue', fabric: 'Voil 92', consumption: 5, cuttingRequired: true, articleType: 'Quilt' } };
