@@ -227,7 +227,7 @@ function gpoHtml(po, settings) {
   return '<!doctype html><html><head><meta charset="utf-8"><title>' + e(po.poNo) + '</title></head>'
     + '<body style="font-family:Arial,Helvetica,sans-serif;color:#111;margin:24px">'
     + `<table style="width:100%;border-collapse:collapse"><tr><td style="vertical-align:top">`
-    + `<div style="font-size:18px;font-weight:bold">${e(s.company || 'The Fabric Rush')}</div>`
+    + `<div style="font-size:18px;font-weight:bold">${e(s.company || 'Ridhi Home & Living')}</div>`
     + `<div style="font-size:11px;white-space:pre-line">${e(s.address)}</div>`
     + (s.gstin ? `<div style="font-size:11px">GSTIN: ${e(s.gstin)}</div>` : '')
     + ((s.phone || s.email) ? `<div style="font-size:11px">${e([s.phone, s.email].filter(Boolean).join(' · '))}</div>` : '')
@@ -245,7 +245,7 @@ function gpoHtml(po, settings) {
     + `<td style="${cell}"></td><td style="${cell};text-align:right"><b>${e(gpoMoney(t.amount))}</b></td><td style="${cell}"></td>`
     + `<td style="${cell};text-align:right"><b>${e(gpoMoney(t.gst))}</b></td><td style="${cell};text-align:right"><b>${e(gpoMoney(t.total))}</b></td></tr></table>`
     + (terms ? `<div style="margin-top:14px;font-size:11px"><b>Terms</b><div style="white-space:pre-line">${e(terms)}</div></div>` : '')
-    + `<div style="margin-top:40px;font-size:11px;text-align:right">For ${e(s.company || 'The Fabric Rush')}<br><br><br>Authorised signatory</div>`
+    + `<div style="margin-top:40px;font-size:11px;text-align:right">For ${e(s.company || 'Ridhi Home & Living')}<br><br><br>Authorised signatory</div>`
     + '</body></html>';
 }
 
@@ -279,7 +279,7 @@ async function gpoEmail(id, to, cc, message) {
   const bad = toL.concat(ccL).find(x => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x));
   if (bad) return `"${bad}" is not an email address.`;
   if (toL.length + ccL.length > 5) return 'Five addresses at most.';
-  const company = (GPO.settings || {}).company || 'The Fabric Rush';
+  const company = (GPO.settings || {}).company || 'Ridhi Home & Living';
   try {
     await apiPost({ mail: 'po', poNo: po.poNo, to: toL.join(','), cc: ccL.join(','),
       subject: 'Purchase Order ' + po.poNo + ' — ' + company,
@@ -402,7 +402,7 @@ function gpoSettingsOpen() {
   const s = GPO.settings || {};
   ptOpenDialog({
     title: 'PO settings',
-    subtitle: 'What every greige PO says about The Fabric Rush.',
+    subtitle: 'What every greige PO says about Ridhi Home & Living.',
     fields: GPO_SETTING_FIELDS.map(([k, label]) => ({ key: k, label, span: k === 'address' || k === 'terms', value: s[k] || '' })),
     saveLabel: 'Save',
     onSave: async v => { const err = await gpoSettingsSave(v); if (!err) renderGpo(); return err; },

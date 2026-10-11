@@ -19420,6 +19420,8 @@ console.log('\n== greige purchase orders, and greige that comes back as RFD ==')
   ok('the PO page names the PO, the mill, the greige and our GSTIN',
     /GPO-260921-01/.test(html) && /Good Mill/.test(html) && /Greige Sheeting 67/.test(html) && /08ABCDE1234F1Z5/.test(html) && /52,500\.00/.test(html),
     html.slice(0, 200));
+  { const h0 = A.gpoHtml(po, {});
+    ok('no company saved in the PO settings → the PO says Ridhi Home & Living, never The Fabric Rush (Ravi, 11 Oct)', /Ridhi Home &amp; Living/.test(h0) && !/Fabric Rush/.test(h0), h0.slice(0, 300)); }
   ok('a new PO is not sent yet', A.gpoStatus(po) === 'open');
 
   /* ---- mailing it ---- */
