@@ -99,6 +99,7 @@ function flowReceiveOpen(no) {
       /* Pieces back are pieces given — never more. Cloth may come back a little over (shrinkage, roll ends): up to 10%. */
       const over = (c.lines || []).filter(l => (recv[l.key] || 0) + (items[l.key] || 0) > flowChSent(l) * (flowChUnit(l) === 'pcs' ? 1 : 1.1) + 1e-9).map(l => l.sku);
       if (over.length) return `More came back than was given for ${over.join(', ')} — check the figure.`;
+      const g = await flowGuard('ch_' + no); if (g) return g;   // two people receiving on one challan at once
       const now = new Date().toISOString(), id = 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
       const rc = { date: $('flrDate').value || dToday(), items, note: $('flrNote').value.trim(), at: now, by: ME.email || '' };
       const allBack = (c.lines || []).every(l => (recv[l.key] || 0) + (items[l.key] || 0) >= flowChSent(l) - 0.01);
@@ -123,6 +124,7 @@ function flowCloseShortOpen(no) {
     saveLabel: 'Close the challan',
     onSave: async () => {
       const why = $('flcWhy').value.trim(); if (!why) return 'Say why it is closed short.';
+      const g = await flowGuard('ch_' + no); if (g) return g;
       const val = { at: new Date().toISOString(), by: ME.email || '', why, short: true };
       try { await ptPatch({ [`pt_flowChallans/${no}/closed`]: val }); } catch (e) { return 'Could not save: ' + (e.message || e); }
       FLOW.ch = Object.assign({}, FLOW.ch, { [no]: Object.assign({}, c, { closed: val }) });

@@ -364,6 +364,19 @@ function flowPpcOpen(orderNo, onlySku) {
       /* …and for a real order, the Vendor Order(s) the printer sees — asked first, because the printer sees it at once. */
       const vop = await flowVoPrepare(pos.local, patch, key => patch['pt_ppc/' + key]);
       if (vop.ask && !confirm(vop.ask)) { vop.undo(); return 'Not saved — no Vendor Order was placed or changed.'; }
+      /* Reservations made here take from the shared shelf: only if nobody else reserved since this screen read it. */
+      if (Object.entries(patch).some(([k, v]) => k.startsWith('pt_accReserve/') && v) && await flowGuard('acc')) {
+        Object.keys(patch).filter(k => k.startsWith('pt_accReserve/') && patch[k]).forEach(k => { delete patch[k]; });
+        said.push('accessories not reserved — somebody else reserved at the same moment; reserve them from Demand · Accessories'); }
+      /* A NEW print order is written only where no print order of that number is yet (two plans raised at once). */
+      const fresh = Object.keys(patch).filter(k => /^pt_flowPrintOrders\/[^/]+$/.test(k) && !(FLOW.po || {})[k.split('/')[1]]), claimed = [];
+      for (const k of fresh) {
+        let er = ''; try { er = await flowClaim(k, patch[k]); } catch (e) { er = e.message || String(e); }
+        if (er) { vop.undo(); if (claimed.length) { try { await ptPatch(Object.fromEntries(claimed.map(c => [c, null]))); } catch (e) { /* left to Refresh */ } }
+          try { await flowLoad(true); } catch (e) { /* the message still stands */ }
+          return er === 'taken' ? `Print order ${k.split('/')[1]} was raised by somebody else at the same moment — nothing was saved. Press "${rows.length > 1 ? 'Raise the plan' : 'Save'}" again.` : 'Could not save: ' + er; }
+        claimed.push(k);
+      }
       try { await ptPatch(patch); } catch (e) { vop.undo(); return 'Could not save: ' + (e.message || e); }
       FLOW.po = pos.local; flowVoAfter(vop.placed); said.push(...vop.said);
       if (Object.keys(patch).some(k => k.startsWith('pt_accReserve/'))) { FLOW.res = Object.assign({}, FLOW.res);

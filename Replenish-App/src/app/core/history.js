@@ -212,6 +212,31 @@ async function ptPut(path, value) {
   return out;
 }
 
+/**
+ * COMPARE-AND-SET on one path (the database's ETag): `next` is written only if the path still holds `expect` — nothing
+ * else has been written there since it was read. '' when written, 'changed' when somebody else got there first.
+ * Two people saving at the same moment can then never write over each other (Production flow: challan and print order
+ * numbers, and a revision per challan / line / the accessory shelf).
+ */
+async function ptCas(path, expect, next) {
+  const url = `${PT_URL}/${ptPath(path)}.json` + await ptAuthQuery();
+  const g = await fetch(url, { headers: { 'X-Firebase-ETag': 'true' } });
+  if (g.status === 401 || g.status === 403) throw new Error('The production database refused the read (permission denied).');
+  if (!g.ok) throw new Error(`The production database answered ${g.status} ${g.statusText || ''}`.trim());
+  const cur = await g.json(), tag = g.headers.get('ETag');
+  if (JSON.stringify(cur == null ? null : cur) !== JSON.stringify(expect == null ? null : expect)) return 'changed';
+  ptLiveWrote([path]);
+  const r = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'if-match': tag }, body: JSON.stringify(next) });
+  ptLiveWrote([path]);
+  if (r.status === 412) return 'changed';
+  if (r.status === 401 || r.status === 403)
+    throw new Error('The production database refused the change — this account does not hold the right it needs.');
+  if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
+  auditLog('put', { [path]: next });
+  ptSyncNote([path], true);
+  return '';
+}
+
 /** A single update touching many paths at once. RTDB applies it all or not at all. */
 async function ptPatch(updates, opts) {
   opts = opts || {};

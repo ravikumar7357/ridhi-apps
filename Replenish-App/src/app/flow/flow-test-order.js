@@ -135,6 +135,7 @@ const flowTestRec = (no, sku) => { const o = (FLOW.test || {})[no]; return o && 
  * does not take zippers or ruffle cloth off the real stock. Until it is deleted it counts where the register counts. */
 async function flowTestSave(no, sku, set, said, regs, after) {
   const x = flowTestRec(no, sku); if (!x) return 'That test line is gone — press Refresh.';
+  const g = await flowGuard('t_' + flowKey(no, sku)); if (g) return g;   // counts are added to what was read: never two at once
   const patch = Object.assign({}, regs || {}); Object.entries(set).forEach(([k, v]) => { patch[`pt_flowTest/${no}/lines/${sku}/${k}`] = v; });
   try { await ptPatch(patch); } catch (e) { return 'Could not save: ' + (e.message || e); }
   if (after) { try { after(); } catch (e) { /* the screens read it again when opened */ } }

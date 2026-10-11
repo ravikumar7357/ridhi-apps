@@ -92,6 +92,7 @@ function flowFgAcceptOpen(key) {
   });
 }
 async function flowFgAccept(x, n, note) {
+  const g = await flowGuard('fg_' + x.s.key); if (g) { flowFgAfter(); return g; }   // two of the team accepting one line at once
   const now = new Date().toISOString(), patch = {}, d = new Date(), p2 = v => String(v).padStart(2, '0'), sku = obUC(x.r.sku);
   let over = {};
   if (typeof FGI !== 'undefined' && FGI.rows == null && typeof fgiLoad === 'function') { try { await fgiLoad(); } catch (e) { /* refused below */ } }
@@ -135,6 +136,7 @@ function flowFgRejectOpen(key) {
   });
 }
 async function flowFgReject(x, n, why) {
+  const g = await flowGuard('fg_' + x.s.key); if (g) { flowFgAfter(); return g; }
   const q = flowQcLine(x.r), net = new Map(), last = new Map();
   q.rows.forEach(c => { const b = c.baseId || ''; net.set(b, (net.get(b) || 0) + (+c.ok || 0)); const at = String(c.addedAt || c.date || ''); if (at > (last.get(b) || '')) last.set(b, at); });
   const order = [...net.keys()].filter(b => b && net.get(b) > 0).sort((a, b) => String(last.get(b)).localeCompare(String(last.get(a))));

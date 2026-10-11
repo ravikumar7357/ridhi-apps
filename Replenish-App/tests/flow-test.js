@@ -36,7 +36,9 @@ function load(opts) {
     showTab: t => { (ctx.__tabs = ctx.__tabs || []).push(t); }, ensureCutForm: async () => {}, cutSkuTyped: () => {}, renderCutForm: () => {}, renderCutFab: () => {},
     ensureBdForm: async () => {}, bdSkuTyped: () => {}, renderBdForm: () => {}, bdMatFill: () => {}, qcSkuTyped: () => {}, renderQcCheckForm: () => {},
     jwRecvOpen: id => { ctx.__recv = id; },
-    ptStampDate: d => String(d || ''), ptNow: () => '2026-10-13T10:00:00Z', qcParts: sku => ({ brand: 'Ridhi', at: 'Pillow Cover', sub: 'x', col: 'c', size: 's' }), QC: { checks: opts.qcChecks || [] }, FGI: { rows: [] }, fgiRecvOrderCheck: o => (W.lines.some(l => l.orderNo === o.orderNo) ? {} : { err: o.orderNo + ' is not on the order book' }), fgiNewId: (() => { let n = 0; return p => (p || 'FGI') + '-T' + (++n); })(),
+    ptStampDate: d => String(d || ''), ptNow: () => '2026-10-13T10:00:00Z', qcParts: sku => ({ brand: 'Ridhi', at: 'Pillow Cover', sub: 'x', col: 'c', size: 's' }), QC: { checks: opts.qcChecks || [] }, ...(opts.cas ? { ptCas: async (path, expect, next) => { const db = ctx.__casDb || (ctx.__casDb = Object.assign({}, opts.casDb || {}));
+      const cur = db[path] == null ? null : db[path]; if (JSON.stringify(cur) !== JSON.stringify(expect == null ? null : expect)) return 'changed';
+      db[path] = next; (ctx.__cas = ctx.__cas || []).push([path, next]); return ''; } } : {}), FGI: { rows: [] }, fgiRecvOrderCheck: o => (W.lines.some(l => l.orderNo === o.orderNo) ? {} : { err: o.orderNo + ' is not on the order book' }), fgiNewId: (() => { let n = 0; return p => (p || 'FGI') + '-T' + (++n); })(),
     bdApplyRecv: (row, add) => { const recv = (+row.receivedPieces || 0) + add, iss = +row.issuePieces || 0, rej = +row.rejectionPieces || 0;
       if (recv + rej > iss) return { err: 'more than issued' }; return { row: Object.assign({}, row, { receivedPieces: recv, pendingPieces: iss - recv - rej, frozen: iss - recv - rej <= 0 }) }; },
     bdApplyRej: (row, val) => { const recv = +row.receivedPieces || 0, iss = +row.issuePieces || 0; if (recv + val > iss) return { err: 'more than issued' };
@@ -772,6 +774,9 @@ const K = 'AMZ-1__S1';
     ok('a TEST order: its TPRN print order only — nothing written into the vendor order register', !er && !Object.keys(C.writes[0]).some(k => k.startsWith('pt_vendorOrders/')) && Object.keys(C.writes[0]).some(k => /pt_flowPrintOrders\/TPRN-/.test(k)), er);
     /* …but on the preview the Vendor Orders screen and the printer's portal show it (Ravi, 11 Oct), built on the fly. */
     const tv = C.flowTestVos();
+    { const D2 = load({ me: { admin: true }, mdb, fsCat, cas: true, casDb: { 'pt_flowPrintOrders/TPRN-202610-001': { no: 'TPRN-202610-001', by: 'a@x' } }, lines: [L({ orderNo: 'TEST-AMZ-2', sku: 'RPC327-1818', qty: 10, __t: {} })] });
+      D2.flowPpcOpen('TEST-AMZ-2'); D2.ctx.document.querySelectorAll = () => [PRF(0, 'P1')]; const e2 = await D2.ctx.__dlg.onSave();
+      ok('two plans raised at once, same print order number: nothing saved, said — the other one’s print order stands', /raised by somebody else at the same moment/.test(e2) && !D2.writes.length && D2.ctx.__casDb['pt_flowPrintOrders/TPRN-202610-001'].by === 'a@x', e2); }
     ok('…the test print order shows as a TEST vendor order for P1: TVPO-…, the printed cloth, view only', tv.length >= 1 && tv.every(v => v.vendorCode === 'P1' && v.test && v.virtual && /^TVPO-/.test(v.orderNo) && /^tvpo_TPRN-/.test(v.id))
       && tv.some(v => v.lines.some(l => l.sku === 'RBP-CANVAS-327')) && C.flowVpViewOnly(tv[0]), JSON.stringify(tv.map(v => [v.orderNo, v.lines.map(l => l.sku)])));
     C.setFLOW(Object.assign(C.FLOW(), { at: Date.now() })); C.setVOrows([{ vendorCode: 'P1', id: 'real1', orderNo: 'VPO-1', lines: [] }]); await C.flowVoExtra(); await C.flowVoExtra();
@@ -1144,6 +1149,50 @@ const K = 'AMZ-1__S1';
   { const B = load({ me: { admin: true } }); B.setFLOW(Object.assign(B.FLOW(), { test: { 'TEST-AMZ-9': { orderNo: 'TEST-AMZ-9', orderDate: '2026-10-13', lines: { S1: { qty: 10 } } } } }));
     const er = await B.flowSimulate('TEST-AMZ-9', 'S1', 'vendor');
     ok('Simulate: vendor order placed → given 10', !er && B.flowTestLines()[0].__t.given === 10, er); }
+
+  console.log('== two people at once: nothing written over (Ravi, 11 Oct: "same time par alag alag entry, ek hi bucket me") ==');
+  {
+    const pl2 = (sku, m) => plan({ sku, fabric: { name: 'Sheeting 62', perPc: 1, metres: m } });
+    const mk = o => load(Object.assign({ me: { admin: true }, cas: true, rfd: { 'SHEETING 62': 500 }, lines: [L({ sku: 'S1' }), L({ sku: 'S2' })], ppc: { [K]: pl2('S1', 66), 'AMZ-1__S2': pl2('S2', 20) } }, o || {}));
+    /* A made RFD-202610-001 a moment ago; B's screen has not read it yet */
+    let B = mk({ casDb: { 'pt_flowChallans/RFD-202610-001': { no: 'RFD-202610-001', by: 'a@x' } } });
+    B.flowChallanOpen('AMZ-1');
+    const QS = { '[data-chk="0"]': { checked: true }, '[data-chm="0"]': { value: '66' }, '[data-chk="1"]': { checked: false }, '[data-chm="1"]': { value: '' } };
+    B.ctx.document.querySelector = sel => QS[sel] || null;
+    B.els.flcVen = { value: 'P1' }; B.els.flcDate = { value: '2026-10-10' }; B.els.flcNote = { value: '' };
+    let er = await B.ctx.__dlg.onSave();
+    ok('two challans at once: B’s number was taken → B gets RFD-202610-002; A’s challan is not written over', !er && B.ctx.__casDb['pt_flowChallans/RFD-202610-001'].by === 'a@x'
+      && B.ctx.__casDb['pt_flowChallans/RFD-202610-002'] && B.ctx.__casDb['pt_flowChallans/RFD-202610-002'].no === 'RFD-202610-002', er || JSON.stringify(Object.keys(B.ctx.__casDb)));
+    ok('…the challan itself is written only where nothing was; the save marks the line with the new number', !Object.keys(B.writes[0] || {}).some(k => /^pt_flowChallans\/[^/]+$/.test(k))
+      && (B.writes[0] || {})['pt_flowDemand/' + K + '/fabricReady'].challan === 'RFD-202610-002', JSON.stringify(B.writes[0]));
+    /* receiving: A received on it a moment ago (its revision is 1 in the database; B read it at none) */
+    const ch = { 'RFD-202610-009': { no: 'RFD-202610-009', date: '2026-10-10', orderNo: 'AMZ-1', vendor: { code: 'P1', name: 'Sanganer Prints' }, lines: [{ key: K, sku: 'S1', metres: 66, print: { kind: 'fabric', code: 'X' } }] } };
+    B = mk({ casDb: { 'pt_flowRev/ch_RFD-202610-009': 1 } }); B.setFLOW(Object.assign(B.FLOW(), { ch, at: Date.now() }));
+    B.flowReceiveOpen('RFD-202610-009'); B.ctx.document.querySelector = sel => (sel === '[data-flrm="0"]' ? { value: '66' } : null);
+    B.els.flrDate = { value: '2026-10-11' }; B.els.flrNote = { value: '' };
+    er = await B.ctx.__dlg.onSave();
+    ok('two receipts on one challan at once: the second is refused, nothing written, the screen read again', /Somebody else saved here just now/.test(er) && !B.writes.length, er);
+    B = mk({ casDb: {} }); B.setFLOW(Object.assign(B.FLOW(), { ch, at: Date.now() }));
+    B.flowReceiveOpen('RFD-202610-009'); B.ctx.document.querySelector = sel => (sel === '[data-flrm="0"]' ? { value: '66' } : null);
+    B.els.flrDate = { value: '2026-10-11' }; B.els.flrNote = { value: '' };
+    er = await B.ctx.__dlg.onSave();
+    ok('…alone, it saves and moves the challan’s revision to 1', !er && B.ctx.__casDb['pt_flowRev/ch_RFD-202610-009'] === 1 && B.writes.length === 1, er);
+    /* editing a challan writes its own fields, never the whole record (a receipt saved meanwhile would be lost) */
+    B = mk({ casDb: {} }); B.setFLOW(Object.assign(B.FLOW(), { ch, at: Date.now() }));
+    B.flowChallanEditOpen('RFD-202610-009');
+    B.ctx.document.querySelector = sel => ({ '[data-cek="0"]': { checked: true }, '[data-cem="0"]': { value: '60' } })[sel] || null;
+    B.els.flceVen = { value: 'P1' }; B.els.flceDate = { value: '2026-10-10' }; B.els.flceNote = { value: 'edited' };
+    er = await B.ctx.__dlg.onSave(); const ew = B.writes[B.writes.length - 1] || {};
+    ok('editing a challan: field by field (vendor, date, note, lines) — the receipts are never written over', !er && !('pt_flowChallans/RFD-202610-009' in ew) && ew['pt_flowChallans/RFD-202610-009/lines'] && !Object.keys(ew).some(k => /receipts/.test(k)), er || Object.keys(ew).join());
+    /* the shared accessory shelf */
+    B = mk({ casDb: { 'pt_flowRev/acc': 3 }, shelf: [{ code: '18', qty: 500 }], ppc: { [K]: plan({ acc: [{ code: '18', qty: 10 }] }) } });
+    er = await B.flowReserve(L(), B.flowState(L()));
+    ok('two reservations from the shelf at once: the second is refused, nothing reserved', /Somebody else saved here just now/.test(er) && !B.writes.length, er);
+    /* Finished Goods: one line accepted by two of the team at once */
+    B = mk({ casDb: { ['pt_flowRev/fg_' + K]: 1 } });
+    er = await B.flowFgAccept({ r: L(), s: { key: K, made: 10, india: 0 } }, 10, '');
+    ok('two Finished Goods accepts of one line at once: the second is refused — India stock counted once', /Somebody else saved here just now/.test(er) && !B.writes.length, er);
+  }
 
   console.log('== old orders are not dumped into PPC ==');
   A = load();

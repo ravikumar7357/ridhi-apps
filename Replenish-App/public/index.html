@@ -12235,6 +12235,31 @@ async function ptPut(path, value) {
   return out;
 }
 
+/**
+ * COMPARE-AND-SET on one path (the database's ETag): `next` is written only if the path still holds `expect` — nothing
+ * else has been written there since it was read. '' when written, 'changed' when somebody else got there first.
+ * Two people saving at the same moment can then never write over each other (Production flow: challan and print order
+ * numbers, and a revision per challan / line / the accessory shelf).
+ */
+async function ptCas(path, expect, next) {
+  const url = `${PT_URL}/${ptPath(path)}.json` + await ptAuthQuery();
+  const g = await fetch(url, { headers: { 'X-Firebase-ETag': 'true' } });
+  if (g.status === 401 || g.status === 403) throw new Error('The production database refused the read (permission denied).');
+  if (!g.ok) throw new Error(`The production database answered ${g.status} ${g.statusText || ''}`.trim());
+  const cur = await g.json(), tag = g.headers.get('ETag');
+  if (JSON.stringify(cur == null ? null : cur) !== JSON.stringify(expect == null ? null : expect)) return 'changed';
+  ptLiveWrote([path]);
+  const r = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'if-match': tag }, body: JSON.stringify(next) });
+  ptLiveWrote([path]);
+  if (r.status === 412) return 'changed';
+  if (r.status === 401 || r.status === 403)
+    throw new Error('The production database refused the change — this account does not hold the right it needs.');
+  if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
+  auditLog('put', { [path]: next });
+  ptSyncNote([path], true);
+  return '';
+}
+
 /** A single update touching many paths at once. RTDB applies it all or not at all. */
 async function ptPatch(updates, opts) {
   opts = opts || {};
@@ -23601,18 +23626,39 @@ const flowBucketsAllowed = () => (ME.admin ? FLOW_BUCKETS : FLOW_BUCKETS.filter(
 const flowKey = (orderNo, sku) => (obUC(orderNo) + '__' + obUC(sku)).replace(/[.#$\[\]\/]/g, '_');
 
 /* ---- the data ---- */
-let FLOW = { ppc: null, dem: null, res: null, ch: null, test: null, po: null, fg: null, at: 0, busy: null, err: '' };
+let FLOW = { ppc: null, dem: null, res: null, ch: null, test: null, po: null, fg: null, rev: null, at: 0, busy: null, err: '' };
 async function flowLoad(force) {
   if (FLOW.busy) return FLOW.busy;
   if (FLOW.ppc && !force && Date.now() - FLOW.at < 60e3) return;
   FLOW.busy = (async () => {
     try {
-      const [ppc, dem, res, ch, test, po, fg] = await Promise.all([ptGet('pt_ppc'), ptGet('pt_flowDemand'), ptGet('pt_accReserve'), ptGet('pt_flowChallans'), ptGet('pt_flowTest'), ptGet('pt_flowPrintOrders'), ptGet('pt_flowFgSend')]);
-      FLOW.ppc = ppc || {}; FLOW.dem = dem || {}; FLOW.res = res || {}; FLOW.ch = ch || {}; FLOW.test = test || {}; FLOW.po = po || {}; FLOW.fg = fg || {}; FLOW.err = '';
+      const [ppc, dem, res, ch, test, po, fg, rev] = await Promise.all([ptGet('pt_ppc'), ptGet('pt_flowDemand'), ptGet('pt_accReserve'), ptGet('pt_flowChallans'), ptGet('pt_flowTest'), ptGet('pt_flowPrintOrders'), ptGet('pt_flowFgSend'), ptGet('pt_flowRev')]);
+      FLOW.ppc = ppc || {}; FLOW.dem = dem || {}; FLOW.res = res || {}; FLOW.ch = ch || {}; FLOW.test = test || {}; FLOW.po = po || {}; FLOW.fg = fg || {}; FLOW.rev = rev || {}; FLOW.err = '';
     } catch (e) { FLOW.err = e.message || String(e); FLOW.ppc = FLOW.ppc || {}; FLOW.dem = FLOW.dem || {}; FLOW.res = FLOW.res || {}; FLOW.ch = FLOW.ch || {}; FLOW.test = FLOW.test || {}; FLOW.po = FLOW.po || {}; FLOW.fg = FLOW.fg || {}; }
     FLOW.at = Date.now(); FLOW.busy = null;
   })();
   return FLOW.busy;
+}
+
+/* ---- TWO PEOPLE AT ONCE (Ravi, 11 Oct: "mere bande same time par alag alag entry karein ek hi bucket me, to kya dono ki
+ * entry save hone me risk h") ----
+ * Every write names its own paths, so two people on different lines never touch each other. Where they could — the same
+ * challan, the same line's Finished Goods, the shared accessory shelf, a test line's counts — a revision number in
+ * pt_flowRev is moved with a compare-and-set first (ptCas): it moves only if it still holds what this screen read. If
+ * somebody else saved there since, nothing is written, the screen reads everything again and says so. A new challan or
+ * print order is written only where no record of that number exists yet (a number taken meanwhile → the next one). */
+async function flowGuard(thing) {
+  if (typeof ptCas !== 'function') return '';
+  const expect = (FLOW.rev || {})[thing] || null, next = (+expect || 0) + 1;
+  let r = ''; try { r = await ptCas('pt_flowRev/' + thing, expect, next); } catch (e) { return 'Could not save: ' + (e.message || e); }
+  if (r) { try { await flowLoad(true); } catch (e) { /* the message still stands */ } return 'Somebody else saved here just now — the screen has been read again. Look at it and do it once more if it is still needed.'; }
+  FLOW.rev = Object.assign({}, FLOW.rev, { [thing]: next });
+  return '';
+}
+/** Write a NEW record only where nothing is yet: '' written, 'taken' somebody else holds that number. */
+async function flowClaim(path, value) {
+  if (typeof ptCas !== 'function') return '';
+  return (await ptCas(path, null, value)) ? 'taken' : '';
 }
 
 /* ---- THE RULE: which bucket a line is in ----
@@ -24071,6 +24117,19 @@ function flowPpcOpen(orderNo, onlySku) {
       /* …and for a real order, the Vendor Order(s) the printer sees — asked first, because the printer sees it at once. */
       const vop = await flowVoPrepare(pos.local, patch, key => patch['pt_ppc/' + key]);
       if (vop.ask && !confirm(vop.ask)) { vop.undo(); return 'Not saved — no Vendor Order was placed or changed.'; }
+      /* Reservations made here take from the shared shelf: only if nobody else reserved since this screen read it. */
+      if (Object.entries(patch).some(([k, v]) => k.startsWith('pt_accReserve/') && v) && await flowGuard('acc')) {
+        Object.keys(patch).filter(k => k.startsWith('pt_accReserve/') && patch[k]).forEach(k => { delete patch[k]; });
+        said.push('accessories not reserved — somebody else reserved at the same moment; reserve them from Demand · Accessories'); }
+      /* A NEW print order is written only where no print order of that number is yet (two plans raised at once). */
+      const fresh = Object.keys(patch).filter(k => /^pt_flowPrintOrders\/[^/]+$/.test(k) && !(FLOW.po || {})[k.split('/')[1]]), claimed = [];
+      for (const k of fresh) {
+        let er = ''; try { er = await flowClaim(k, patch[k]); } catch (e) { er = e.message || String(e); }
+        if (er) { vop.undo(); if (claimed.length) { try { await ptPatch(Object.fromEntries(claimed.map(c => [c, null]))); } catch (e) { /* left to Refresh */ } }
+          try { await flowLoad(true); } catch (e) { /* the message still stands */ }
+          return er === 'taken' ? `Print order ${k.split('/')[1]} was raised by somebody else at the same moment — nothing was saved. Press "${rows.length > 1 ? 'Raise the plan' : 'Save'}" again.` : 'Could not save: ' + er; }
+        claimed.push(k);
+      }
       try { await ptPatch(patch); } catch (e) { vop.undo(); return 'Could not save: ' + (e.message || e); }
       FLOW.po = pos.local; flowVoAfter(vop.placed); said.push(...vop.said);
       if (Object.keys(patch).some(k => k.startsWith('pt_accReserve/'))) { FLOW.res = Object.assign({}, FLOW.res);
@@ -24211,11 +24270,13 @@ async function flowReserve(r, s) {
   const free = flowAccFree(), short = Object.entries(items).filter(([c, n]) => !free[c] || free[c].free < n);
   if (short.length) return 'Short: ' + short.map(([c, n]) => `${c} needs ${n}, ${free[c] ? Math.max(0, free[c].free) : 0} free`).join(' · ') + ' — buy or free some first.';
   const rec = { orderNo: r.orderNo, sku: obUC(r.sku), items, at: new Date().toISOString(), by: ME.email || '' };
+  const g = await flowGuard('acc'); if (g) return g;   // the shelf is shared: two reservations at once must not both take the same zips
   try { await ptPatch({ ['pt_accReserve/' + s.key]: rec }); } catch (e) { return 'Could not save: ' + (e.message || e); }
   FLOW.res = Object.assign({}, FLOW.res, { [s.key]: rec });
   return '';
 }
 async function flowUnreserve(s) {
+  const g = await flowGuard('acc'); if (g) return g;
   try { await ptPatch({ ['pt_accReserve/' + s.key]: null }); } catch (e) { return 'Could not save: ' + (e.message || e); }
   FLOW.res = Object.assign({}, FLOW.res); delete FLOW.res[s.key];
   return '';
@@ -24393,10 +24454,10 @@ const flowPrintTxt = w => w.kind === 'sku' ? `<b>${esc(w.code)}</b> · ${esc(w.l
 
 const flowChItem = r => [r.articleSubtype || r.articleType, r.color, r.size].filter(Boolean).join(' · ');
 /** The next number for a month: RFD-YYYYMM-001, after every challan already saved that month. */
-function flowChallanNo(date, test) {
+function flowChallanNo(date, test, taken) {
   /* A test order's challans count on their own (TRFD-…), so testing never uses up a real number. */
   const pre = (test ? 'TRFD-' : 'RFD-') + String(date || dToday()).slice(0, 7).replace('-', '') + '-';
-  const used = Object.keys(FLOW.ch || {}).filter(k => k.startsWith(pre)).map(k => +k.slice(-3) || 0);
+  const used = Object.keys(FLOW.ch || {}).concat(taken || []).filter(k => k.startsWith(pre)).map(k => +k.slice(-3) || 0);
   return pre + String((used.length ? Math.max(...used) : 0) + 1).padStart(3, '0');
 }
 const flowChVendors = () => {
@@ -24483,19 +24544,27 @@ function flowChallanDialog(rows, pcode, rufRows) {
       /* A line whose body is all from printed stock may go for its ruffle cloth alone. */
       const noM = picked.filter(y => !(y.m > 0) && (y.ruf || flowRufflePrinter(y.x.s.plan) || !(!y.x.s.fabSent && flowPrintExtras(y.x.r, y.x.s.plan).length))).map(y => obUC(y.x.r.sku) + (y.ruf ? ' (ruffle)' : ''));
       if (noM.length) return `How many metres? Type them for ${noM.join(', ')}.`;
-      const no = flowChallanNo(date, isTest), now = new Date().toISOString(), vname = v.desc || v.name || v.code;
+      let no = flowChallanNo(date, isTest); const now = new Date().toISOString(), vname = v.desc || v.name || v.code;
       const ch = { no, date, orderNo, orders, vendor: { code: v.code, name: vname }, note: $('flcNote').value.trim(), at: now, by: ME.email || '',
         lines: picked.map(({ x, m, ruf }) => ruf
           /* the ruffle cloth alone, to its own printer: its key is the line's, marked ruffleOnly (indexed as <key>~ruffle) */
           ? { key: x.s.key, ruffleOnly: true, sku: obUC(x.r.sku), item: flowChItem(x.r), print: null, extras: flowPrintExtras(x.r, x.s.plan), fabric: (flowRuffleOwed(x) || {}).fabric || '', pcs: 0, metres: flowR2(m) }
           : { key: x.s.key, sku: obUC(x.r.sku), item: flowChItem(x.r), print: flowPrintWhat(x.r, x.s.plan), extras: flowPrintExtras(x.r, x.s.plan), fabric: (x.s.plan && x.s.plan.fabric && x.s.plan.fabric.name) || '', pcs: x.s.fabUnit === 'pcs' ? flowFabOwed(x.r, x.s).left : flowToPrint(x.r, x.s.plan).pcs, metres: flowR2(m),
           /* the ruffle cloth goes once, on the first challan for the line — never when it has a printer of its own */ ...(x.s.fabSent > 0 || flowRufflePrinter(x.s.plan) ? { extras: [] } : {}) }) };
-      const patch = { ['pt_flowChallans/' + no]: ch };
+      /* THE NUMBER IS CLAIMED: the challan is written only where no challan of that number is yet — two people making one at
+       * the same moment get two numbers, never one challan written over the other. */
+      for (let k = 0, taken = []; ; k++) {
+        let er = ''; try { er = await flowClaim('pt_flowChallans/' + no, ch); } catch (e) { return 'Could not save: ' + (e.message || e); }
+        if (!er) break;
+        if (k >= 15) return 'Could not get a free challan number — press Refresh and try again.';
+        taken.push(no); no = flowChallanNo(date, isTest, taken); ch.no = no;
+      }
+      const patch = typeof ptCas === 'function' ? {} : { ['pt_flowChallans/' + no]: ch };
       /* A line PPC left without a printer: the one it went to is now its printer. */
       const setP = picked.filter(y => !y.ruf && !flowPlanPrinter(y.x.s)).map(y => y.x.s.key);
       setP.forEach(k => { patch[`pt_ppc/${k}/printer`] = { code: v.code, name: vname, why: 'set by challan ' + no }; });
       ch.lines.filter(l => !l.ruffleOnly).forEach(l => { patch[`pt_flowDemand/${l.key}/fabricReady`] = { at: now, by: ME.email || '', what: l.fabric, metres: l.metres, note: `Challan ${no} to ${vname}`, challan: no, vendor: vname }; });
-      try { await ptPatch(patch); } catch (e) { return 'Could not save: ' + (e.message || e); }
+      try { if (Object.keys(patch).length) await ptPatch(patch); } catch (e) { return `Challan ${no} is saved, but the lines could not be marked (${e.message || e}) — press Refresh.`; }
       FLOW.ch = Object.assign({}, FLOW.ch, { [no]: ch });
       if (setP.length) { FLOW.ppc = Object.assign({}, FLOW.ppc); setP.forEach(k => { FLOW.ppc[k] = Object.assign({}, FLOW.ppc[k], { printer: patch[`pt_ppc/${k}/printer`] }); }); }
       const dem = Object.assign({}, FLOW.dem);
@@ -24735,6 +24804,7 @@ const flowTestRec = (no, sku) => { const o = (FLOW.test || {})[no]; return o && 
  * does not take zippers or ruffle cloth off the real stock. Until it is deleted it counts where the register counts. */
 async function flowTestSave(no, sku, set, said, regs, after) {
   const x = flowTestRec(no, sku); if (!x) return 'That test line is gone — press Refresh.';
+  const g = await flowGuard('t_' + flowKey(no, sku)); if (g) return g;   // counts are added to what was read: never two at once
   const patch = Object.assign({}, regs || {}); Object.entries(set).forEach(([k, v]) => { patch[`pt_flowTest/${no}/lines/${sku}/${k}`] = v; });
   try { await ptPatch(patch); } catch (e) { return 'Could not save: ' + (e.message || e); }
   if (after) { try { after(); } catch (e) { /* the screens read it again when opened */ } }
@@ -24967,6 +25037,7 @@ function flowReceiveOpen(no) {
       /* Pieces back are pieces given — never more. Cloth may come back a little over (shrinkage, roll ends): up to 10%. */
       const over = (c.lines || []).filter(l => (recv[l.key] || 0) + (items[l.key] || 0) > flowChSent(l) * (flowChUnit(l) === 'pcs' ? 1 : 1.1) + 1e-9).map(l => l.sku);
       if (over.length) return `More came back than was given for ${over.join(', ')} — check the figure.`;
+      const g = await flowGuard('ch_' + no); if (g) return g;   // two people receiving on one challan at once
       const now = new Date().toISOString(), id = 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
       const rc = { date: $('flrDate').value || dToday(), items, note: $('flrNote').value.trim(), at: now, by: ME.email || '' };
       const allBack = (c.lines || []).every(l => (recv[l.key] || 0) + (items[l.key] || 0) >= flowChSent(l) - 0.01);
@@ -24991,6 +25062,7 @@ function flowCloseShortOpen(no) {
     saveLabel: 'Close the challan',
     onSave: async () => {
       const why = $('flcWhy').value.trim(); if (!why) return 'Say why it is closed short.';
+      const g = await flowGuard('ch_' + no); if (g) return g;
       const val = { at: new Date().toISOString(), by: ME.email || '', why, short: true };
       try { await ptPatch({ [`pt_flowChallans/${no}/closed`]: val }); } catch (e) { return 'Could not save: ' + (e.message || e); }
       FLOW.ch = Object.assign({}, FLOW.ch, { [no]: Object.assign({}, c, { closed: val }) });
@@ -25443,7 +25515,10 @@ function flowChallanEditOpen(no) {
       const noM = keep.filter(l => !(l.metres > 0)).map(l => l.sku); if (noM.length) return `How many metres for ${noM.join(', ')}?`;
       const vname = v.desc || v.name || v.code, now = new Date().toISOString();
       const nc = Object.assign({}, c, { vendor: { code: v.code, name: vname }, date: $('flceDate').value || c.date, note: $('flceNote').value.trim(), lines: keep, editedAt: now, editedBy: ME.email || '' });
-      const patch = { ['pt_flowChallans/' + no]: nc };
+      const g = await flowGuard('ch_' + no); if (g) return g;
+      /* field by field — never the whole challan, so nothing saved on it meanwhile is written over */
+      const patch = { [`pt_flowChallans/${no}/vendor`]: nc.vendor, [`pt_flowChallans/${no}/date`]: nc.date, [`pt_flowChallans/${no}/note`]: nc.note,
+        [`pt_flowChallans/${no}/lines`]: nc.lines, [`pt_flowChallans/${no}/editedAt`]: now, [`pt_flowChallans/${no}/editedBy`]: ME.email || '' };
       keep.filter(l => !l.ruffleOnly).forEach(l => { patch[`pt_flowDemand/${l.key}/fabricReady`] = { at: now, by: ME.email || '', what: l.fabric, metres: l.metres, note: `Challan ${no} to ${vname}`, challan: no, vendor: vname }; });
       drop.filter(l => !l.ruffleOnly).forEach(l => { patch[`pt_flowDemand/${l.key}/fabricReady`] = null; });
       try { await ptPatch(patch); } catch (e) { return 'Could not save: ' + (e.message || e); }
@@ -25467,6 +25542,7 @@ function flowChallanCancelOpen(no) {
     saveLabel: 'Cancel the challan',
     onSave: async () => {
       const why = $('flccWhy').value.trim(); if (!why) return 'Say why it is cancelled.';
+      const g = await flowGuard('ch_' + no); if (g) return g;
       const val = { at: new Date().toISOString(), by: ME.email || '', why };
       const patch = { [`pt_flowChallans/${no}/cancelled`]: val };
       (c.lines || []).filter(l => !l.ruffleOnly).forEach(l => { const fr = FLOW.dem && FLOW.dem[l.key] && FLOW.dem[l.key].fabricReady;
@@ -25486,7 +25562,10 @@ function flowChallanCancelOpen(no) {
 async function flowUndoReceipt(no) {
   const c = (FLOW.ch || {})[no]; if (!c || !flowChHasRecv(c)) return 'Nothing received on it to undo.';
   const [id, rc] = Object.entries(c.receipts).sort((a, b) => String(b[1].at).localeCompare(String(a[1].at)))[0];
+  const g0 = (FLOW.rev || {})['ch_' + no];
   if (!confirm(`Undo the receipt of ${flowMixTxt(Object.entries(rc.items || {}).map(([k, q]) => [q, flowChUnit((c.lines || []).find(l => l.key === k))]))} on ${rc.date} against ${no}?`)) return '';
+  if ((FLOW.rev || {})['ch_' + no] !== g0) return 'Somebody else saved on this challan just now — look again.';
+  const g = await flowGuard('ch_' + no); if (g) return g;
   const patch = { [`pt_flowChallans/${no}/receipts/${id}`]: null };
   if (c.closed && !c.closed.short) patch[`pt_flowChallans/${no}/closed`] = null;
   try { await ptPatch(patch); } catch (e) { return 'Could not save: ' + (e.message || e); }
@@ -25498,6 +25577,7 @@ async function flowUndoReceipt(no) {
 /** Open a challan closed by hand (closed short) again. */
 async function flowReopen(no) {
   const c = (FLOW.ch || {})[no]; if (!c || !c.closed) return '';
+  const g = await flowGuard('ch_' + no); if (g) return g;
   try { await ptPatch({ [`pt_flowChallans/${no}/closed`]: null }); } catch (e) { return 'Could not save: ' + (e.message || e); }
   const nc = Object.assign({}, c); delete nc.closed;
   FLOW.ch = Object.assign({}, FLOW.ch, { [no]: nc });
@@ -25670,6 +25750,7 @@ function flowFgAcceptOpen(key) {
   });
 }
 async function flowFgAccept(x, n, note) {
+  const g = await flowGuard('fg_' + x.s.key); if (g) { flowFgAfter(); return g; }   // two of the team accepting one line at once
   const now = new Date().toISOString(), patch = {}, d = new Date(), p2 = v => String(v).padStart(2, '0'), sku = obUC(x.r.sku);
   let over = {};
   if (typeof FGI !== 'undefined' && FGI.rows == null && typeof fgiLoad === 'function') { try { await fgiLoad(); } catch (e) { /* refused below */ } }
@@ -25713,6 +25794,7 @@ function flowFgRejectOpen(key) {
   });
 }
 async function flowFgReject(x, n, why) {
+  const g = await flowGuard('fg_' + x.s.key); if (g) { flowFgAfter(); return g; }
   const q = flowQcLine(x.r), net = new Map(), last = new Map();
   q.rows.forEach(c => { const b = c.baseId || ''; net.set(b, (net.get(b) || 0) + (+c.ok || 0)); const at = String(c.addedAt || c.date || ''); if (at > (last.get(b) || '')) last.set(b, at); });
   const order = [...net.keys()].filter(b => b && net.get(b) > 0).sort((a, b) => String(last.get(b)).localeCompare(String(last.get(a))));

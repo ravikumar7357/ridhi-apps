@@ -33,11 +33,13 @@ async function flowReserve(r, s) {
   const free = flowAccFree(), short = Object.entries(items).filter(([c, n]) => !free[c] || free[c].free < n);
   if (short.length) return 'Short: ' + short.map(([c, n]) => `${c} needs ${n}, ${free[c] ? Math.max(0, free[c].free) : 0} free`).join(' · ') + ' — buy or free some first.';
   const rec = { orderNo: r.orderNo, sku: obUC(r.sku), items, at: new Date().toISOString(), by: ME.email || '' };
+  const g = await flowGuard('acc'); if (g) return g;   // the shelf is shared: two reservations at once must not both take the same zips
   try { await ptPatch({ ['pt_accReserve/' + s.key]: rec }); } catch (e) { return 'Could not save: ' + (e.message || e); }
   FLOW.res = Object.assign({}, FLOW.res, { [s.key]: rec });
   return '';
 }
 async function flowUnreserve(s) {
+  const g = await flowGuard('acc'); if (g) return g;
   try { await ptPatch({ ['pt_accReserve/' + s.key]: null }); } catch (e) { return 'Could not save: ' + (e.message || e); }
   FLOW.res = Object.assign({}, FLOW.res); delete FLOW.res[s.key];
   return '';

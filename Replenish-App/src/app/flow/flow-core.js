@@ -70,18 +70,39 @@ const flowBucketsAllowed = () => (ME.admin ? FLOW_BUCKETS : FLOW_BUCKETS.filter(
 const flowKey = (orderNo, sku) => (obUC(orderNo) + '__' + obUC(sku)).replace(/[.#$\[\]\/]/g, '_');
 
 /* ---- the data ---- */
-let FLOW = { ppc: null, dem: null, res: null, ch: null, test: null, po: null, fg: null, at: 0, busy: null, err: '' };
+let FLOW = { ppc: null, dem: null, res: null, ch: null, test: null, po: null, fg: null, rev: null, at: 0, busy: null, err: '' };
 async function flowLoad(force) {
   if (FLOW.busy) return FLOW.busy;
   if (FLOW.ppc && !force && Date.now() - FLOW.at < 60e3) return;
   FLOW.busy = (async () => {
     try {
-      const [ppc, dem, res, ch, test, po, fg] = await Promise.all([ptGet('pt_ppc'), ptGet('pt_flowDemand'), ptGet('pt_accReserve'), ptGet('pt_flowChallans'), ptGet('pt_flowTest'), ptGet('pt_flowPrintOrders'), ptGet('pt_flowFgSend')]);
-      FLOW.ppc = ppc || {}; FLOW.dem = dem || {}; FLOW.res = res || {}; FLOW.ch = ch || {}; FLOW.test = test || {}; FLOW.po = po || {}; FLOW.fg = fg || {}; FLOW.err = '';
+      const [ppc, dem, res, ch, test, po, fg, rev] = await Promise.all([ptGet('pt_ppc'), ptGet('pt_flowDemand'), ptGet('pt_accReserve'), ptGet('pt_flowChallans'), ptGet('pt_flowTest'), ptGet('pt_flowPrintOrders'), ptGet('pt_flowFgSend'), ptGet('pt_flowRev')]);
+      FLOW.ppc = ppc || {}; FLOW.dem = dem || {}; FLOW.res = res || {}; FLOW.ch = ch || {}; FLOW.test = test || {}; FLOW.po = po || {}; FLOW.fg = fg || {}; FLOW.rev = rev || {}; FLOW.err = '';
     } catch (e) { FLOW.err = e.message || String(e); FLOW.ppc = FLOW.ppc || {}; FLOW.dem = FLOW.dem || {}; FLOW.res = FLOW.res || {}; FLOW.ch = FLOW.ch || {}; FLOW.test = FLOW.test || {}; FLOW.po = FLOW.po || {}; FLOW.fg = FLOW.fg || {}; }
     FLOW.at = Date.now(); FLOW.busy = null;
   })();
   return FLOW.busy;
+}
+
+/* ---- TWO PEOPLE AT ONCE (Ravi, 11 Oct: "mere bande same time par alag alag entry karein ek hi bucket me, to kya dono ki
+ * entry save hone me risk h") ----
+ * Every write names its own paths, so two people on different lines never touch each other. Where they could — the same
+ * challan, the same line's Finished Goods, the shared accessory shelf, a test line's counts — a revision number in
+ * pt_flowRev is moved with a compare-and-set first (ptCas): it moves only if it still holds what this screen read. If
+ * somebody else saved there since, nothing is written, the screen reads everything again and says so. A new challan or
+ * print order is written only where no record of that number exists yet (a number taken meanwhile → the next one). */
+async function flowGuard(thing) {
+  if (typeof ptCas !== 'function') return '';
+  const expect = (FLOW.rev || {})[thing] || null, next = (+expect || 0) + 1;
+  let r = ''; try { r = await ptCas('pt_flowRev/' + thing, expect, next); } catch (e) { return 'Could not save: ' + (e.message || e); }
+  if (r) { try { await flowLoad(true); } catch (e) { /* the message still stands */ } return 'Somebody else saved here just now — the screen has been read again. Look at it and do it once more if it is still needed.'; }
+  FLOW.rev = Object.assign({}, FLOW.rev, { [thing]: next });
+  return '';
+}
+/** Write a NEW record only where nothing is yet: '' written, 'taken' somebody else holds that number. */
+async function flowClaim(path, value) {
+  if (typeof ptCas !== 'function') return '';
+  return (await ptCas(path, null, value)) ? 'taken' : '';
 }
 
 /* ---- THE RULE: which bucket a line is in ----

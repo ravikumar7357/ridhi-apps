@@ -74,7 +74,10 @@ function flowChallanEditOpen(no) {
       const noM = keep.filter(l => !(l.metres > 0)).map(l => l.sku); if (noM.length) return `How many metres for ${noM.join(', ')}?`;
       const vname = v.desc || v.name || v.code, now = new Date().toISOString();
       const nc = Object.assign({}, c, { vendor: { code: v.code, name: vname }, date: $('flceDate').value || c.date, note: $('flceNote').value.trim(), lines: keep, editedAt: now, editedBy: ME.email || '' });
-      const patch = { ['pt_flowChallans/' + no]: nc };
+      const g = await flowGuard('ch_' + no); if (g) return g;
+      /* field by field — never the whole challan, so nothing saved on it meanwhile is written over */
+      const patch = { [`pt_flowChallans/${no}/vendor`]: nc.vendor, [`pt_flowChallans/${no}/date`]: nc.date, [`pt_flowChallans/${no}/note`]: nc.note,
+        [`pt_flowChallans/${no}/lines`]: nc.lines, [`pt_flowChallans/${no}/editedAt`]: now, [`pt_flowChallans/${no}/editedBy`]: ME.email || '' };
       keep.filter(l => !l.ruffleOnly).forEach(l => { patch[`pt_flowDemand/${l.key}/fabricReady`] = { at: now, by: ME.email || '', what: l.fabric, metres: l.metres, note: `Challan ${no} to ${vname}`, challan: no, vendor: vname }; });
       drop.filter(l => !l.ruffleOnly).forEach(l => { patch[`pt_flowDemand/${l.key}/fabricReady`] = null; });
       try { await ptPatch(patch); } catch (e) { return 'Could not save: ' + (e.message || e); }
@@ -98,6 +101,7 @@ function flowChallanCancelOpen(no) {
     saveLabel: 'Cancel the challan',
     onSave: async () => {
       const why = $('flccWhy').value.trim(); if (!why) return 'Say why it is cancelled.';
+      const g = await flowGuard('ch_' + no); if (g) return g;
       const val = { at: new Date().toISOString(), by: ME.email || '', why };
       const patch = { [`pt_flowChallans/${no}/cancelled`]: val };
       (c.lines || []).filter(l => !l.ruffleOnly).forEach(l => { const fr = FLOW.dem && FLOW.dem[l.key] && FLOW.dem[l.key].fabricReady;
@@ -117,7 +121,10 @@ function flowChallanCancelOpen(no) {
 async function flowUndoReceipt(no) {
   const c = (FLOW.ch || {})[no]; if (!c || !flowChHasRecv(c)) return 'Nothing received on it to undo.';
   const [id, rc] = Object.entries(c.receipts).sort((a, b) => String(b[1].at).localeCompare(String(a[1].at)))[0];
+  const g0 = (FLOW.rev || {})['ch_' + no];
   if (!confirm(`Undo the receipt of ${flowMixTxt(Object.entries(rc.items || {}).map(([k, q]) => [q, flowChUnit((c.lines || []).find(l => l.key === k))]))} on ${rc.date} against ${no}?`)) return '';
+  if ((FLOW.rev || {})['ch_' + no] !== g0) return 'Somebody else saved on this challan just now — look again.';
+  const g = await flowGuard('ch_' + no); if (g) return g;
   const patch = { [`pt_flowChallans/${no}/receipts/${id}`]: null };
   if (c.closed && !c.closed.short) patch[`pt_flowChallans/${no}/closed`] = null;
   try { await ptPatch(patch); } catch (e) { return 'Could not save: ' + (e.message || e); }
@@ -129,6 +136,7 @@ async function flowUndoReceipt(no) {
 /** Open a challan closed by hand (closed short) again. */
 async function flowReopen(no) {
   const c = (FLOW.ch || {})[no]; if (!c || !c.closed) return '';
+  const g = await flowGuard('ch_' + no); if (g) return g;
   try { await ptPatch({ [`pt_flowChallans/${no}/closed`]: null }); } catch (e) { return 'Could not save: ' + (e.message || e); }
   const nc = Object.assign({}, c); delete nc.closed;
   FLOW.ch = Object.assign({}, FLOW.ch, { [no]: nc });

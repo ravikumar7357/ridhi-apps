@@ -25,6 +25,7 @@ const breaks = {
     'rows never worked out again': s => s.replace('&& FLOW_C.ppc === FLOW.ppc ', ''),
   },
   'flow-ppc.js': {
+    'a new print order not claimed': s => s.replace("er = await flowClaim(k, patch[k]);", "er = '';"),
     'no combined box for the order': s => s.replace("flowComboPaint(combo, run, com, names, shelf);", ''),
     'the line above blamed on earlier orders': s => s.replace("    : above > 0 && stock > 0 ? '<span class=\"pill mute\">the line above took it — goes to the printer</span>' :", "    :"),
     'store stock taken from the earlier orders': s => s.replace("const held = ps == null ? 0 : hold(pk), pleft = ps == null ? null : ps - held -", "const held = 0, pleft = ps == null ? null : ps -"),
@@ -67,6 +68,7 @@ const breaks = {
     'ready date ignores the MTO due date': s => s.replace('ready: ptIsoDate(r.mtoDue) || flowAddDays(t, 10)', 'ready: flowAddDays(t, 10)'),
   },
   'flow-demand.js': {
+    'two reservations at once not guarded': s => s.replace("const g = await flowGuard('acc'); if (g) return g;   // the shelf is shared", "const g = ''; // the shelf is shared"),
     'a reservation is never let go at issue': s => s.replace('const left = qty > 0 ? Math.max(0, 1 - (+issued || 0) / qty) : 0', 'const left = 1'),
     'reserving more than is free': s => s.replace('if (short.length) return', 'if (false) return'),
     'held is not taken off the shelf': s => s.replace("free: (+b.qty || 0) - (held[c] || 0) }", 'free: (+b.qty || 0) }'),
@@ -76,6 +78,7 @@ const breaks = {
     'part of the fabric is "ready"': s => s.replace('if (!undo && need && metres < need) return', 'if (false) return'),
   },
   'flow-challan.js': {
+    'a challan number not claimed': s => s.replace("er = await flowClaim('pt_flowChallans/' + no, ch);", "er = '';"),
     'running fabric listed per order line on the challan': s => s.replace("const e = v => esc(v == null ? '' : String(v)), gs = flowChPrintGroups({ lines });", "const e = v => esc(v == null ? '' : String(v)), gs = lines.flatMap(l => flowChPrintGroups({ lines: [l] }));"),
     'cut pieces without colour and size': s => s.replace("<td style=\"${cell}\"><b>${e(pt.colour)}</b></td><td style=\"${cell}\"><b>${e(pt.size)}</b></td>", ''),
     'cut pieces left off the challan': s => s.replace("pcs = gs.filter(g => g.kind === 'sku' && g.pcs > 0);", "pcs = [];"),
@@ -131,6 +134,7 @@ const breaks = {
     'test lines never re-read': s => s.replace('if (FLOW_TC.src === FLOW.test) return FLOW_TC.rows;', 'if (FLOW_TC.rows.length) return FLOW_TC.rows;'),
   },
   'flow-receive.js': {
+    'two receipts at once not guarded': s => s.replace("const g = await flowGuard('ch_' + no); if (g) return g;   // two people receiving", "const g = ''; // two people receiving"),
     'a ruffle-only challan counted as the body cloth': s => s.replace("const k = l.ruffleOnly ? l.key + FLOW_RUF : l.key,", "const k = l.key,"),
     'pieces received as metres': s => s.replace("const flowChUnit = l => (l && l.print && l.print.kind === 'sku' ? 'pcs' : 'm');", "const flowChUnit = l => 'm';"),
     'pieces get the 10% too': s => s.replace("flowChSent(l) * (flowChUnit(l) === 'pcs' ? 1 : 1.1)", 'flowChSent(l) * 1.1'),
@@ -146,6 +150,7 @@ const breaks = {
     'challan index never re-read': s => s.replace('if (FLOW_CHX.src === FLOW.ch) return FLOW_CHX.map;', 'if (FLOW_CHX.src) return FLOW_CHX.map;'),
   },
   'flow-edit.js': {
+    'a challan edit writes the whole challan': s => s.replace("const patch = { [`pt_flowChallans/${no}/vendor`]: nc.vendor,", "const patch = { ['pt_flowChallans/' + no]: nc, [`pt_flowChallans/${no}/vendor_`]: nc.vendor,"),
     'a changed accessory list keeps the old reservation': s => s.replace("if (s.res && accSig(old) !== accSig(nu))", 'if (false)'),
     'changed cloth keeps fabric ready': s => s.replace("if (fr && !fr.challan && fabSig(old) !== fabSig(nu))", 'if (false)'),
     'undo allowed with fabric on a challan': s => s.replace("if (flowFabLocked(s)) return `Its fabric", "if (false) return `Its fabric"),
@@ -183,6 +188,7 @@ const breaks = {
     'test vendor orders added again on every draw': s => s.replace("VO.rows = VO.rows.filter(o => !(o && o.virtual)).concat(flowTestVos());", "VO.rows = VO.rows.concat(flowTestVos());"),
   },
   'flow-qcfg.js': {
+    'two FG accepts at once not guarded': s => s.replace("const g = await flowGuard('fg_' + x.s.key); if (g) { flowFgAfter(); return g; }   // two of the team", "const g = ''; // two of the team"),
     'spotting / touching not counted as still in QC': s => s.replace("e.dept += c.refId ?", 'e.dept += 0 && c.refId ?'),
     'QC passed counted from the test figures, not the QC screen': s => s.replace("const q = flowQcLine(r); return flowQcWaiting(r, s) > 0 ||", "const q = flowQcLine(r); return false &&"),
     'FG accept more than passed': s => s.replace("if (n > can) return `Only ${nf(can)} passed QC and are not in India stock.`;", ''),
