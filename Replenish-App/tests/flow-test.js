@@ -551,7 +551,8 @@ const K = 'AMZ-1__S1';
     const page = S.flowChallanHtml({ no: 'TRFD-1', date: '2026-10-11', orderNo: 'TEST-1', vendor: { code: 'V', name: 'RBP-Bagru' }, lines: [run('RPCRU9-1818', 52), run('RPCRU9-2020', 184), cutp] });
     ok('running: ONE row — RBPSF9-H-82 · Sheeting 82 · Basil Green · Horizontal · 236 m; the two order lines are not listed', (page.match(/RBPSF9-H-82/g) || []).length === 1 && /<td[^>]*>Sheeting 82<\/td><td[^>]*>Basil Green<\/td><td[^>]*>Horizontal<\/td><td[^>]*><b>236 m<\/b>/.test(page)
       && !/RPCRU9-1818|RPCRU9-2020/.test(page) && !/For these order lines/.test(page), page.slice(page.indexOf('Running'), page.indexOf('Running') + 600));
-    ok('cut pieces: per SKU, in pieces, with the cloth that goes for them', /Cut pieces — print on the SKU/.test(page) && /<b>CPC-01<\/b>/.test(page) && /<b>40 pcs<\/b>/.test(page) && /94 m/.test(page));
+    ok('cut pieces: per SKU — what, colour, size — in pieces, with the cloth that goes for them', /Cut pieces — print on the SKU/.test(page) && /<b>CPC-01<\/b>/.test(page) && /<b>40 pcs<\/b>/.test(page) && /94 m/.test(page)
+      && /<td[^>]*>Tablecloth<\/td><td[^>]*><b>Agate Green<\/b><\/td><td[^>]*><b>60x60<\/b><\/td>/.test(page), page.slice(page.indexOf('Cut pieces'), page.indexOf('Cut pieces') + 700));
   }
 
   console.log('== the ruffle cloth to a printer of its own (Ravi, 11 Oct: "ruffle ke fabric ke liye vendor alag h") ==');

@@ -253,16 +253,21 @@ function flowPrintSheetHtml(lines, cell, withCloth) {
   /* the cloth that goes for the pieces: the lines printed on each SKU */
   const clothOf = code => flowR2(lines.filter(l => l.print && l.print.kind === 'sku' && obUC(l.print.code) === obUC(code)).reduce((a, l) => a + (+l.metres || 0), 0));
   const fabOf = code => [...new Set(lines.filter(l => l.print && l.print.kind === 'sku' && obUC(l.print.code) === obUC(code)).map(l => l.fabric).filter(Boolean))].join(', ');
+  /* What the piece is, its colour and its size (Ravi, 11 Oct: "cut pcs me bhi colour name and size show ho — kya size banega
+   * aur kis colour me"): the master row first, then the order line's own words (item = subtype · colour · size). */
+  const partsOf = code => { let m = {}; try { m = cutSkuOf(code) || {}; } catch (e) { m = {}; }
+    const l = lines.find(x => x.print && x.print.kind === 'sku' && obUC(x.print.code) === obUC(code)), b = String((l && l.item) || '').split(' · ');
+    return { what: m.subtype || m.articleSubtype || m.articleType || (b.length > 2 ? b[0] : ''), colour: m.color || (b.length > 2 ? b[1] : ''), size: m.size || (b.length > 2 ? b[2] : '') }; };
   return (run.length ? `<div style="font-size:12px;font-weight:bold;margin:4px 0 6px">Running fabric — to print</div><table style="width:100%;border-collapse:collapse;margin-bottom:14px">`
       + th(['Print SKU', 'Fabric', 'Colour', 'Direction', 'Metres'])
       + run.map(g => { const b = bits(g.label); return `<tr><td style="${cell}"><b>${e(g.code || 'no fabric SKU in the catalogue')}</b></td><td style="${cell}">${e(b[1] || '')}</td><td style="${cell}">${e(b[0] || '')}</td>`
         + `<td style="${cell}">${e(b.slice(2).join(' · '))}</td><td style="${cell};text-align:right"><b>${e(nf(flowR2(g.metres)))} m</b></td></tr>`; }).join('')
       + (run.length > 1 ? `<tr><td style="${cell}" colspan="4"><b>Total</b></td><td style="${cell};text-align:right"><b>${e(nf(tR))} m</b></td></tr>` : '') + '</table>' : '')
     + (pcs.length ? `<div style="font-size:12px;font-weight:bold;margin:4px 0 6px">Cut pieces — print on the SKU</div><table style="width:100%;border-collapse:collapse;margin-bottom:14px">`
-      + th(['SKU', 'What it is', 'Pieces'].concat(withCloth ? ['Fabric (RFD)', 'Cloth'] : []))
-      + pcs.map(g => `<tr><td style="${cell}"><b>${e(g.code)}</b></td><td style="${cell}">${e(g.label)}</td><td style="${cell};text-align:right"><b>${e(nf(g.pcs))} pcs</b></td>`
-        + (withCloth ? `<td style="${cell}">${e(fabOf(g.code))}</td><td style="${cell};text-align:right">${e(nf(clothOf(g.code)))} m</td>` : '') + '</tr>').join('')
-      + (pcs.length > 1 ? `<tr><td style="${cell}" colspan="2"><b>Total</b></td><td style="${cell};text-align:right"><b>${e(nf(tP))} pcs</b></td>${withCloth ? `<td style="${cell}"></td><td style="${cell};text-align:right"><b>${e(nf(flowR2(pcs.reduce((a, g) => a + clothOf(g.code), 0))))} m</b></td>` : ''}</tr>` : '') + '</table>' : '')
+      + th(['SKU', 'Item', 'Colour', 'Size', 'Pieces'].concat(withCloth ? ['Fabric (RFD)', 'Cloth'] : []))
+      + pcs.map(g => { const pt = partsOf(g.code); return `<tr><td style="${cell}"><b>${e(g.code)}</b></td><td style="${cell}">${e(pt.what)}</td><td style="${cell}"><b>${e(pt.colour)}</b></td><td style="${cell}"><b>${e(pt.size)}</b></td><td style="${cell};text-align:right"><b>${e(nf(g.pcs))} pcs</b></td>`
+        + (withCloth ? `<td style="${cell}">${e(fabOf(g.code))}</td><td style="${cell};text-align:right">${e(nf(clothOf(g.code)))} m</td>` : '') + '</tr>'; }).join('')
+      + (pcs.length > 1 ? `<tr><td style="${cell}" colspan="4"><b>Total</b></td><td style="${cell};text-align:right"><b>${e(nf(tP))} pcs</b></td>${withCloth ? `<td style="${cell}"></td><td style="${cell};text-align:right"><b>${e(nf(flowR2(pcs.reduce((a, g) => a + clothOf(g.code), 0))))} m</b></td>` : ''}</tr>` : '') + '</table>' : '')
     + (!run.length && !pcs.length ? '<div style="font-size:12px;color:#666">Nothing to print on this one.</div>' : '');
 }
 /** The challan's lines grouped by what is printed: a fabric SKU's metres add up; a SKU printed on is counted in pieces. */
