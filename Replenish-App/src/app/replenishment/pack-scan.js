@@ -16,7 +16,14 @@
  * MISTAKES IT STOPS: a code nobody knows is NEVER counted (red screen, buzz); the same label held in front of the
  * camera counts ONCE — it counts again only after it has left the frame, i.e. the next piece; a read must agree on two
  * frames running; and every count shows the product's picture, large, with its SKU, size and what this box now holds.
- * The list is the same packlist/{id} document the Packing List tab prints, labels and sends to Amazon from. */
+ * The list is the same packlist/{id} document the Packing List tab prints, labels and sends to Amazon from.
+ *
+ * AGAINST THE ORDERS (2026-10-12, merged from the "Pack & verify" hand-over — rules in pack-core.js, shared with the
+ * desktop Pack & verify button on Finished Goods): a list may name Order Console orders and/or a pasted Amazon shipment
+ * plan. Then a known SKU on none of them is WRONG ARTICLE (red, buzz, listed, never counted), a line already packed or
+ * with no pieces in the India Store is NOT COUNTED, and the screen shows what the orders still want. Finish offers
+ * Pause (carry on later) or Done, which writes one Send to FBA row per SKU into Finished Goods (packLedgerWrite) so the
+ * same pieces are never typed twice; the FBA Dispatch tab then has them. */
 
 /* ============================================================================================
  * 1. STATE
@@ -56,35 +63,48 @@ function pksBoxOf(p, n) {
   return b;
 }
 /** A camera read: counts only when it is a NEW piece (see PKS_GAP_MS / PKS_AGREE). Returns true when it counted. */
-function pksFrame(code, t) {
-  const s = PKS.seen;
-  if (!s || s.code !== code || t - s.last > PKS_GAP_MS) PKS.seen = { code, last: t, hits: 1, counted: false };
+function pksFrame(code, t, st) {
+  st = st || PKS;
+  const s = st.seen;
+  if (!s || s.code !== code || t - s.last > PKS_GAP_MS) st.seen = { code, last: t, hits: 1, counted: false };
   else { s.last = t; s.hits++; }
-  if (!PKS.seen.counted && PKS.seen.hits >= PKS_AGREE) { PKS.seen.counted = true; return true; }
+  if (!st.seen.counted && st.seen.hits >= PKS_AGREE) { st.seen.counted = true; return true; }
   return false;
 }
-/** One scan into the open box. { ok, sku, how, item, box } or { ok:false, code, why }. */
+/** The order lines this list packs against (none for a plain list). */
+const pksOrderLines = () => packOrderLines(PKS.p && PKS.p.scan);
+/** One scan into the open box. { ok, sku, how, item, box, n, short, left } or { ok:false, kind, code, sku, why }.
+ *  kind: unknown (not a code we know) · wrong (known SKU, on none of the list's orders) · full (orders want no more). */
 function pksCount(code, via) {
-  const p = PKS.p; if (!p) return { ok: false, code, why: 'No packing list open.' };
+  const p = PKS.p; if (!p) return { ok: false, kind: 'none', code, why: 'No packing list open.' };
   const r = pksResolve(code);
-  if (!r.sku) return { ok: false, code: obUC(code), why: 'This code is not in the FNSKU list and is not a SKU this app knows.' };
-  const b = pksBoxOf(p, PKS.box);
-  let it = (b.items || []).find(x => obUC(x.sku) === r.sku);
-  if (!it) {
-    const info = pkLookupSku(r.sku) || {};
-    it = { sku: r.sku, desc: info.desc || r.sku, size: info.size || '', material: info.material || '100% COTTON', qty: 0, perPcsWt: info.perPcsWt || 0 };
-    b.items = (b.items || []).concat([it]);
+  if (!r.sku) return { ok: false, kind: 'unknown', code: obUC(code), why: 'This code is not in the FNSKU list and is not a SKU this app knows.' };
+  /* AGAINST THE ORDERS: a list that names orders counts only what they still want (PACK_CORE.apply, pack-core.js). */
+  let n = PKS.per, parts = null, left = null;
+  if (packGuarded(p)) {
+    const a = PACK_CORE.apply(r, pksOrderLines(), p.scan.packed, PKS.per);
+    if (a.kind === 'wrong') {
+      p.scan.wrong.push({ at: new Date().toISOString(), code: obUC(code), sku: r.sku, by: ME.email || '' });
+      pksSaveSoon();
+      return { ok: false, kind: 'wrong', code: obUC(code), sku: r.sku, why: r.sku + ' is not on any order of this list. Keep it aside.' };
+    }
+    if (a.kind === 'full') return { ok: false, kind: 'full', code: obUC(code), sku: r.sku, why: a.why === 'store'
+      ? 'The India Store holds no more ' + r.sku + ' for these orders — receive it in Finished Goods first.'
+      : 'Every order line for ' + r.sku + ' is already packed.' };
+    n = a.taken; parts = a.parts; left = a.left;
   }
-  it.qty = pkNum(it.qty) + PKS.per;
-  PKS.hist.push({ box: b.n, sku: r.sku, n: PKS.per, code: obUC(code), at: Date.now(), via: via || 'camera' });
-  PKS.last = { sku: r.sku, how: r.how, code: obUC(code) };
+  const b = pksBoxOf(p, PKS.box);
+  const it = PACK_CORE.addToBox(b, r.sku, n, pkLookupSku(r.sku) || {});
+  PKS.hist.push({ box: b.n, sku: r.sku, n, parts, code: obUC(code), at: Date.now(), via: via || 'camera' });
+  PKS.last = { sku: r.sku, how: r.how, code: obUC(code), left };
   pksSaveSoon();
-  return { ok: true, sku: r.sku, how: r.how, item: it, box: b };
+  return { ok: true, sku: r.sku, how: r.how, item: it, box: b, n, short: n < PKS.per, left };
 }
 function pksUndo() {
   const h = PKS.hist.pop(); if (!h || !PKS.p) return null;
-  const b = pksBoxOf(PKS.p, h.box), it = (b.items || []).find(x => obUC(x.sku) === h.sku);
-  if (it) { it.qty = pkNum(it.qty) - h.n; if (it.qty <= 0) b.items = b.items.filter(x => x !== it); }
+  const b = pksBoxOf(PKS.p, h.box);
+  PACK_CORE.takeFromBox(b, h.sku, h.n);
+  if (h.parts && PKS.p.scan) PACK_CORE.untake(PKS.p.scan.packed, h.sku, h.parts);
   PKS.last = PKS.hist.length ? { sku: PKS.hist[PKS.hist.length - 1].sku } : null;
   pksSaveSoon(0);
   return h;
@@ -196,10 +216,10 @@ const pksSay = (t, bad) => { const el = $('pksSay'); if (el) { el.textContent = 
 
 function pksHit(code, via) {
   const r = pksCount(code, via);
-  if (!r.ok) { PKS.bad = r; pksBeep(false); pksFlash(false); pksSay('NOT COUNTED — ' + r.code + ': ' + r.why, true); pksDraw(); return; }
+  if (!r.ok) { PKS.bad = r; pksBeep(false); pksFlash(false); pksSay((r.kind === 'wrong' ? 'WRONG ARTICLE — ' : 'NOT COUNTED — ') + r.code + ': ' + r.why, true); pksDraw(); return; }
   PKS.bad = null;
   pksBeep(true); pksFlash(true);
-  pksSay(`+${PKS.per} ${r.sku}${r.how === 'fnsku' ? ' (from FNSKU ' + obUC(code) + ')' : ''}`);
+  pksSay(`+${r.n} ${r.sku}${r.how === 'fnsku' ? ' (from FNSKU ' + obUC(code) + ')' : ''}${r.short ? ` — only ${r.n} of ${PKS.per}: the orders want no more` : ''}${r.left != null ? ` · ${r.left} left on the orders` : ''}`);
   pksDraw();
 }
 
@@ -216,16 +236,36 @@ async function pksOpen() {
         ${open.map(p => `<option value="${esc(p.id)}">${esc((p.title || '(untitled)') + ' · ' + (p.date || '') + ' · ' + pkTotals(p).boxes + ' box(es)')}</option>`).join('')}
       </select></label>
       <label>Title (a new list)<input id="pksTitle" value="Scan ${esc(pkToday())}"></label>
-      <label>FBA account (a new list)<input id="pksAcc" list="pksAccs"><datalist id="pksAccs">${[...new Set(PK.map(p => p.account).filter(Boolean))].map(a => `<option value="${esc(a)}">`).join('')}</datalist></label>
-      <div class="muted" style="font-size:12px">FNSKU list: ${(FN.map || new Map()).size.toLocaleString('en-US')} codes. A label not on it is never counted — refresh it in Finished Goods → FNSKU list.</div>
+      <label>FBA account (a new list)<input id="pksAcc" list="pksAccs" placeholder="${esc(FGI_FBA_ACCOUNTS.join(' / '))}"><datalist id="pksAccs">${[...new Set(FGI_FBA_ACCOUNTS.concat(PK.map(p => p.account).filter(Boolean)))].map(a => `<option value="${esc(a)}">`).join('')}</datalist></label>
+      <label>Pack against orders (optional, a new list)<input id="pksOrds" placeholder="Order Console order numbers, comma separated"></label>
+      <label>Amazon shipment plan (optional, a new list)<textarea id="pksPlan" rows="3" placeholder="Paste the Send to Amazon list — a SKU column and a Quantity column"></textarea></label>
+      <div class="muted" style="font-size:12px">With orders or a plan, a wrong article is blocked and only what they still want counts; without them every known label counts.
+        FNSKU list: ${(FN.map || new Map()).size.toLocaleString('en-US')} codes. A label not on it is never counted — refresh it in Finished Goods → FNSKU list.</div>
     </div>`,
     saveLabel: 'Start scanning',
     onSave: async () => {
       const id = $('pksPick').value;
-      if (id) PKS.p = JSON.parse(JSON.stringify(PK.find(p => p.id === id)));
-      else {
-        PKS.p = { id: pkId(), date: pkToday(), invoice: '', title: ($('pksTitle').value || '').trim() || 'Scan ' + pkToday(),
-          account: ($('pksAcc').value || '').trim(), status: 'progress', pkgWt: 0.5, volDiv: 5000, boxes: [], by: ME.email || '', src: 'scan' };
+      if (id) {
+        PKS.p = JSON.parse(JSON.stringify(PK.find(p => p.id === id)));
+        if (packGuarded(PKS.p)) { const why = await packDataReady(); if (why) return 'This list packs against orders, and the orders could not be read: ' + why; }
+      } else {
+        /* ORDERS OR A PLAN make a guarded list (pack-core.js): the orders must be in the Order Console, the plan's SKUs known. */
+        const ords = ($('pksOrds') ? $('pksOrds').value : '').split(/[,;\s]+/).map(obUC).filter(Boolean);
+        const planTxt = ($('pksPlan') ? $('pksPlan').value : '').trim();
+        let scan = null;
+        if (ords.length || planTxt) {
+          const why = await packDataReady(); if (why) return 'Could not read the orders and the Finished Goods ledger: ' + why;
+          const bad = packOrdersUnknown(ords); if (bad.length) return 'Not in the Order Console: ' + bad.join(', ');
+          let plan = [], planNo = '';
+          if (planTxt) {
+            const pp = PACK_CORE.planParse(planTxt); if (!pp.lines.length) return pp.why;
+            const unk = pp.lines.filter(l => !pksResolve(l.sku).sku).map(l => l.sku); if (unk.length) return 'Not a SKU this app knows: ' + unk.join(', ');
+            plan = pp.lines; planNo = 'FBA-PLAN-' + Date.now().toString(36).toUpperCase();
+          }
+          scan = packScanNew(ords, plan, planNo, '');
+        }
+        PKS.p = Object.assign({ id: pkId(), date: pkToday(), invoice: '', title: ($('pksTitle').value || '').trim() || 'Scan ' + pkToday(),
+          account: ($('pksAcc').value || '').trim(), status: 'progress', pkgWt: 0.5, volDiv: 5000, boxes: [], by: ME.email || '', src: 'scan' }, scan ? { scan } : {});
         try { await savePkOne(PKS.p); } catch (e) { return 'Could not create the list: ' + (e.message || e); }
       }
       /* Carry on in the last box that has something in it — that is where the packer stopped. */
@@ -257,7 +297,7 @@ function pksShow() {
     <div class="pks-type"><input id="pksCode" placeholder="Hand scanner / type the FNSKU and press Enter" autocomplete="off" autocapitalize="characters"><button id="pksGo">Add</button></div>
     <div id="pksBox"></div>`;
   PKS.on = true;
-  $('pksClose').onclick = pksClose;
+  $('pksClose').onclick = pksFinishAsk;
   $('pksUndo').onclick = () => { const h = pksUndo(); pksSay(h ? `Undone: −${h.n} ${h.sku} (box ${h.box})` : 'Nothing to undo.'); pksDraw(); };
   $('pksPer').onchange = () => { PKS.per = Math.max(1, +$('pksPer').value || 1); };
   $('pksNext').onclick = pksNextAsk;
@@ -291,8 +331,11 @@ function pksDraw() {
   const er = $('pksErr'); er.classList.toggle('hide', !PKS.err); er.textContent = PKS.err;
   const card = $('pksCard');
   if (PKS.bad) {
-    card.innerHTML = `<div class="pks-badcard"><div class="pks-big">✕ NOT COUNTED</div><div class="pks-code">${esc(PKS.bad.code)}</div>
-      <div class="pks-sub">${esc(PKS.bad.why)} Keep this piece aside and check its label.</div></div>`;
+    const k = PKS.bad.kind, title = k === 'wrong' ? '✕ WRONG ARTICLE' : (k === 'full' ? '■ NOT COUNTED — ORDERS WANT NO MORE' : '✕ NOT COUNTED');
+    const img = k === 'wrong' || k === 'full' ? pksImg(PKS.bad.sku) : '';
+    card.innerHTML = `<div class="pks-badcard${k === 'full' ? ' pks-fullcard' : ''}"><div class="pks-big">${title}</div><div class="pks-code">${esc(PKS.bad.sku || PKS.bad.code)}</div>
+      ${img ? `<img class="pks-img pks-img-sm" src="${esc(img)}" alt="">` : ''}
+      <div class="pks-sub">${esc(PKS.bad.why)}${k === 'unknown' ? ' Keep this piece aside and check its label.' : ''}</div></div>`;
   } else if (PKS.last) {
     const sku = PKS.last.sku, it = (b.items || []).find(x => obUC(x.sku) === sku) || {}, info = pkLookupSku(sku) || {}, img = pksImg(sku);
     card.innerHTML = `<div class="pks-prod">
@@ -301,12 +344,59 @@ function pksDraw() {
       <div class="pks-desc">${esc(it.desc || info.desc || '')}</div>
       <div class="pks-facts"><span>Size <b>${esc(it.size || info.size || '—')}</b></span><span>${esc(it.material || info.material || '')}</span>
         <span>${pkNum(it.perPcsWt) ? pkNum(it.perPcsWt).toFixed(2) + ' kg/pc' : '<b style="color:#fca5a5">no weight</b>'}</span></div>
-      <div class="pks-count">${pkNum(it.qty)} <small>in box ${b.n}</small></div></div>`;
+      <div class="pks-count">${pkNum(it.qty)} <small>in box ${b.n}</small></div>
+      ${PKS.last.left != null ? `<div class="pks-facts"><span>The orders still want <b>${nf(PKS.last.left)}</b> of this SKU</span></div>` : ''}</div>`;
   } else card.innerHTML = `<div class="pks-empty">Box ${b.n} is open. Scan the first piece.</div>`;
   $('pksBox').innerHTML = `<div class="pks-list-h">In box ${b.n}</div>` + ((b.items || []).slice().reverse().map(x => {
     const u = pksImg(x.sku);
     return `<div class="pks-row">${u ? `<img src="${esc(u)}" alt="">` : '<span class="pks-ph"></span>'}<div><b>${esc(x.sku)}</b><div class="pks-sub">${esc(x.desc || '')}</div></div><div class="pks-q">${pkNum(x.qty)}</div></div>`;
-  }).join('') || '<div class="pks-sub">Nothing yet.</div>');
+  }).join('') || '<div class="pks-sub">Nothing yet.</div>') + pksOrdersHtml(p);
+}
+/** What the list's orders still want, per SKU, and what was blocked — only for a list that names orders. */
+function pksOrdersHtml(p) {
+  if (!packGuarded(p)) return '';
+  const rows = PACK_CORE.leftBySku(pksOrderLines(), p.scan.packed);
+  const wrong = (p.scan.wrong || []).length;
+  return `<div class="pks-list-h">Orders ${esc((p.scan.orders || []).join(', '))}${p.scan.planNo ? (p.scan.orders.length ? ' + ' : '') + 'Amazon plan' : ''} — left to pack${wrong ? ` · <span style="color:#fca5a5">${nf(wrong)} wrong article scan(s)</span>` : ''}</div>`
+    + (rows.length ? rows.map(r => `<div class="pks-row pks-row-ord${r.left ? '' : ' pks-row-done'}"><div><b>${esc(r.sku)}</b><div class="pks-sub">packed ${nf(r.got)} of ${nf(r.qty)}</div></div><div class="pks-q">${r.left ? nf(r.left) : '✓'}</div></div>`).join('')
+      : '<div class="pks-sub">The orders have no pieces of their SKUs in the India Store — receive them in Finished Goods first.</div>');
+}
+
+/* FINISH: Pause keeps the list for later (as before). DONE writes the Send to FBA rows — once — through packLedgerWrite,
+ * the same checks a typed dispatch runs, then saves and closes. A list with no orders is dealt to open orders the Auto way. */
+function pksFinishAsk() {
+  const p = PKS.p, card = $('pksCard'); if (!p || !card) return;
+  const t = pkTotals(Object.assign({}, p, { boxes: (p.boxes || []).filter(x => (x.items || []).length) }));
+  const done = !!(p.scan && (p.scan.ledgerIds || []).length), accOk = FGI_FBA_ACCOUNTS.indexOf(p.account) >= 0;
+  card.innerHTML = `<div class="pks-dims"><div class="pks-big">Finish — ${nf(t.qty)} pcs in ${nf(t.boxes)} box(es)</div>
+    ${done ? `<div class="pks-sub">The Send to FBA rows for this list are already written (${nf(p.scan.ledgerIds.length)}). Pause just closes.</div>`
+      : `<div class="pks-sub">Done writes one Send to FBA row per SKU into Finished Goods, so nothing is typed twice; the FBA Dispatch tab then has them. Pause keeps the list to carry on later.</div>
+    ${accOk ? '' : `<div class="pks-dimrow"><select id="pksDoneAcc"><option value="">FBA account…</option>${FGI_FBA_ACCOUNTS.map(a => `<option${a === p.account ? ' selected' : ''}>${esc(a)}</option>`).join('')}</select></div>`}
+    <div class="pks-dimrow"><input id="pksDoneHand" placeholder="Handed over to (optional)" value="${esc((p.scan && p.scan.handoverTo) || '')}"></div>`}
+    <div class="pks-dimrow"><button id="pksPause">Pause — carry on later</button>${done ? '' : '<button id="pksDoneBtn">Done — write Send to FBA</button>'}<button id="pksFinNo" class="pks-ghost">Back</button></div></div>`;
+  $('pksPause').onclick = () => pksClose();
+  $('pksFinNo').onclick = () => pksDraw();
+  if (!done) $('pksDoneBtn').onclick = () => pksDone();
+}
+async function pksDone() {
+  const p = PKS.p; if (!p) return;
+  const acc = $('pksDoneAcc') ? $('pksDoneAcc').value : p.account;
+  if (FGI_FBA_ACCOUNTS.indexOf(acc) < 0) { pksSay('Pick the FBA account — ' + FGI_FBA_ACCOUNTS.join(' or ') + '.', true); return; }
+  p.account = acc;
+  const hand = $('pksDoneHand') ? $('pksDoneHand').value : '';
+  pksSay('Writing the Send to FBA rows…');
+  let res;
+  try { res = await packLedgerWrite(p, hand); } catch (e) { res = { err: e.message || String(e) }; }
+  if (res.err) { pksSay('Not done — ' + res.err, true); return; }
+  PKS.dirty = true; clearTimeout(PKS.saveT); await pksSaveNow();
+  if (PKS.err) { pksSay('The rows are written, but the list did not save — ' + PKS.err + ' Press Finish → Done again: nothing is written twice.', true); return; }
+  pksCamStop();
+  PKS.on = false;
+  const ov = $('pksOv'); if (ov) ov.remove();
+  if (typeof renderPack === 'function' && PK_LOADED) renderPack();
+  if (typeof renderFgi === 'function' && FGI.rows) { try { renderFgi(); } catch (e) { /* not on that tab */ } }
+  pkMsg(res.already ? `${p.title}: the Send to FBA rows were already written — list saved.`
+    : `${nf(res.rows.length)} Send to FBA row(s) written for ${p.title} (pack ${p.id}) — the FBA Dispatch tab has them. Open the list for sizes and weights, then Packing list / Labels / FBA file as usual.`);
 }
 
 async function pksClose() {

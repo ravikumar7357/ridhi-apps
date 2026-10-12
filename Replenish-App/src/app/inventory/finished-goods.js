@@ -163,6 +163,7 @@ function renderFgi() {
   ['fgiLstBadge', 'fgiCorrBadge', 'fgiOverBadge', 'flFgBadge'].forEach(id => { const b = $(id); if (b && b.dataset) b.classList.toggle('on', b.dataset.fgview === $('fgView').value); });
   ['fgRecvXl', 'fgIssXl'].forEach(id => { if ($(id)) $(id).classList.toggle('hide', !fgiCanEntry()); });
   $('fgScan').classList.toggle('hide', !fgiCanEntry());
+  $('fgPack').classList.toggle('hide', !fgiCanEntry());
   $('fgOpening').classList.toggle('hide', !fgiCanEdit());
   fgiPickCount();
   if (view === 'ledger') return fgiRenderLedger();

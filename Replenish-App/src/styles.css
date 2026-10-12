@@ -996,3 +996,41 @@
 .pks-q{flex:none !important;font-size:7vw;font-weight:800}
 /* Production flow (preview): a screen's own content set aside while one of its flow tabs is open. */
 .fl-embhide{display:none!important}
+/* Scan to pack — against the orders (2026-10-12): blocked card variants and the "left to pack" rows. */
+.pks-fullcard{background:#fef3c7;color:#78350f;border-color:#b45309}
+.pks-fullcard .pks-sub{color:#78350f}
+.pks-img-sm{max-height:40vw;margin:1vw auto}
+.pks-row-ord .pks-q{color:#fbbf24}
+.pks-row-done{opacity:.55}.pks-row-done .pks-q{color:#4ade80}
+/* Pack & verify (Finished Goods, 2026-10-12): the desktop board. Prefix pkv. */
+.pkvhead{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:end}
+.pkvhead label{display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted)}
+.pkvscan{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}
+#pkvCode{flex:1 1 260px;font-family:ui-monospace,monospace;font-size:18px;font-weight:600;padding:10px 12px;border:2px solid var(--accent,#3d5a99);border-radius:8px;min-width:0}
+.pkvcam{position:relative;margin-top:8px;border-radius:8px;overflow:hidden;background:#000;max-height:240px}
+.pkvcam video{width:100%;max-height:240px;display:block;object-fit:cover}
+.pkvcam .roi{position:absolute;left:6%;right:6%;top:30%;bottom:30%;border:2px solid #22c55e;border-radius:6px;box-shadow:0 0 0 999px rgba(0,0,0,.35)}
+.pkvfb{margin-top:8px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:grid;grid-template-columns:120px 1fr;gap:12px;align-items:center;min-height:96px}
+.pkvfb .img{width:120px;height:120px;border-radius:6px;background:var(--hover,#f1f5f9);overflow:hidden}
+.pkvfb .img img{width:100%;height:100%;object-fit:contain;display:block;background:#fff}
+.pkvfb .msg{font-size:22px;font-weight:800;line-height:1.15}
+.pkvfb .sub{font-size:12.5px;color:var(--muted);margin-top:2px}
+.pkvfb.good{background:#e4f5ea;border-color:#1f8a4c}.pkvfb.good .msg{color:#1f8a4c}
+.pkvfb.full{background:#fff2d9;border-color:#b76e00}.pkvfb.full .msg{color:#b76e00}
+.pkvfb.bad{background:#fde8e8;border-color:#c62828}.pkvfb.bad .msg{color:#c62828}
+.pkvtabs{display:flex;gap:4px;margin-top:12px;border-bottom:1px solid var(--line)}
+.pkvtabs button{border:0;border-bottom:3px solid transparent;border-radius:0;background:none;padding:8px 12px;color:var(--muted);font-weight:600;width:auto}
+.pkvtabs button.on{color:inherit;border-bottom-color:var(--accent,#3d5a99)}
+.pkvgrid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:12px;margin-top:12px}
+@media (max-width:760px){.pkvgrid{grid-template-columns:1fr}.pkvfb .msg{font-size:16px}}
+.pkvlines{width:100%;border-collapse:collapse}.pkvlines th{font-size:11px;text-transform:uppercase;color:var(--muted);text-align:left;padding:6px;border-bottom:1px solid var(--line)}
+.pkvlines td{padding:6px;border-bottom:1px solid var(--line);vertical-align:middle}.pkvlines .num{text-align:right}.pkvlines .mono{font-family:ui-monospace,monospace;font-size:11.5px}
+.pkvlines tr.done td{color:var(--muted)}
+.pkvart{display:flex;gap:8px;align-items:center;min-width:0}.pkvart img,.pkvart .noimg{width:44px;height:44px;border-radius:6px;object-fit:contain;background:#fff;border:1px solid var(--line);flex:none}
+.pkvart b{display:block;font-size:13px}.pkvart span{display:block;font-size:11px;color:var(--muted);font-family:ui-monospace,monospace}
+.pkvbox{border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:8px}.pkvbox.open{border-color:var(--accent,#3d5a99);box-shadow:inset 3px 0 0 var(--accent,#3d5a99)}
+.pkvbox .bh{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12.5px}.pkvbox ul{list-style:none;margin:6px 0 0;padding:0;font-size:12.5px}
+.pkvbox li{display:flex;justify-content:space-between;gap:8px;padding:2px 0;font-family:ui-monospace,monospace}
+.pkvclose{border:1px solid var(--accent,#3d5a99);border-radius:8px;padding:10px;margin-bottom:8px}
+.pkvwrong{list-style:none;margin:6px 0 0;padding:0}.pkvwrong li{display:flex;justify-content:space-between;gap:8px;font-size:12.5px;padding:4px 0;border-bottom:1px solid var(--line)}
+.pkvkv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:13px;margin-top:10px}.pkvkv dt{color:var(--muted)}.pkvkv dd{margin:0}

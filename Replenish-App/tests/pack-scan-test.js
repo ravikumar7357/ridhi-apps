@@ -1,15 +1,18 @@
 /* Scan to pack (src/app/replenishment/pack-scan.js): what a code is, when a camera read counts, and what is saved.
  *   node tests/pack-scan-test.js      (PKS_SRC=<file> to test another copy — teeth/teeth-pack-scan.js does) */
 const fs = require('fs'), path = require('path');
-const SRC = fs.readFileSync(process.env.PKS_SRC || path.join(__dirname, '..', 'src', 'app', 'replenishment', 'pack-scan.js'), 'utf8');
+/* The rules live in pack-core.js (shared with Pack & verify); the screen is pack-scan.js. Both are loaded, core first, as the page does. */
+const CORE = fs.readFileSync(process.env.PKC_SRC || path.join(__dirname, '..', 'src', 'app', 'replenishment', 'pack-core.js'), 'utf8');
+const SRC = CORE + '\n' + fs.readFileSync(process.env.PKS_SRC || path.join(__dirname, '..', 'src', 'app', 'replenishment', 'pack-scan.js'), 'utf8');
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => { if (cond) { pass++; console.log('  PASS ' + name); } else { fail++; console.log('  FAIL ' + name + (extra ? ' — ' + extra : '')); } };
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
 function load(opts) {
   opts = opts || {};
-  const els = {}, saved = [];
-  const el = id => els[id] || (els[id] = { id, value: '', textContent: '', innerHTML: '', style: {}, classList: { toggle() {}, add() {}, remove() {} }, onclick: null, remove() {} });
+  const els = {}, saved = [], patches = [];
+  /* the real $() gives null for an id that is not on the page; the Done card's fields exist only while it is drawn */
+  const el = id => els[id] || (/^pksDone(Acc|Hand)$/.test(id) ? undefined : els[id] = { id, value: '', textContent: '', innerHTML: '', style: {}, classList: { toggle() {}, add() {}, remove() {} }, onclick: null, remove() {} });
   const ctx = {
     $: el, document: { createElement: () => el('x' + Math.random()), body: { appendChild() {} }, head: { appendChild() {} } }, window: {}, navigator: {},
     obUC: s => String(s == null ? '' : s).trim().toUpperCase(), pkNum: v => { const n = Number(v); return isFinite(n) ? n : 0; },
@@ -21,10 +24,19 @@ function load(opts) {
     savePkOne: async p => { if (opts.saveFails) throw new Error('offline'); saved.push(JSON.parse(JSON.stringify(p))); },
     ptImgOf: sku => (opts.img || {})[sku], esc: s => String(s == null ? '' : s), pkMsg: () => {}, setTimeout, clearTimeout, confirm: () => true,
     PK: [], PK_LOADED: true, loadPk: async () => {}, loadPkWt: async () => {}, fnLoad: async () => {}, ptOpenDialog: () => {}, pkToday: () => '2026-10-10', pkId: () => 'PKT', ME: { email: 't' },
+    /* what pack-core.js reads and writes (the Finished Goods side), stubbed */
+    nf: v => String(v), FGI: { rows: [], err: '' }, fgiLoad: async () => {}, mdbOf: () => null, PK_WT: {},
+    ordLines: () => opts.lines || [], fgiOrderKnown: no => (opts.lines || []).some(l => l.orderNo === no),
+    fgiOutOrders: sku => (opts.lines || []).filter(l => l.sku === sku).map(l => ({ orderNo: l.orderNo, store: (opts.store || {})[l.orderNo + '|' + sku] || 0 })),
+    fgiOf: sku => ({ current: (opts.stock || {})[sku] || 0 }), fgiOutCheck: (sku, qty) => qty > ((opts.stock || {})[sku] || 0) ? 'You don\'t have enough stock — ' + sku : '',
+    fgiOutAlloc: (sku, n) => ({ orders: [{ orderNo: 'AUTO', qty: n }], loose: 0 }), fgiCanEntry: () => opts.right !== false, FGI_NO_ENTRY: 'no right', FGI_FBA_ACCOUNTS: ['Ridhi FBA', 'CPC FBA'],
+    fgiNewId: p => p + '-' + Math.random().toString(36).slice(2, 7).toUpperCase(), ptPatch: async patch => { patches.push(patch); }, fbaBadge: () => {}, fgiOverBadge: () => {}, lstAlertFor: async () => '',
+    renderPack: () => {}, renderFgi: () => {},
   };
-  const api = new Function(...Object.keys(ctx), SRC + '\n;return { PKS, pksResolve, pksFrame, pksCount, pksUndo, pksNextBox, pksSaveNow, pksImg, pksHit };')(...Object.values(ctx));
-  api.PKS.p = { id: 'PKT', title: 'T', boxes: [] }; api.PKS.box = 1; api.PKS.per = 1;
-  return Object.assign(api, { saved, els });
+  const api = new Function(...Object.keys(ctx), SRC + '\n;return { PKS, pksResolve, pksFrame, pksCount, pksUndo, pksNextBox, pksSaveNow, pksImg, pksHit, pksDone, pksFinishAsk, packScanNew };')(...Object.values(ctx));
+  api.PKS.p = { id: 'PKT', title: 'T', account: 'Ridhi FBA', date: '2026-10-10', boxes: [] }; api.PKS.box = 1; api.PKS.per = 1;
+  if (opts.orders) api.PKS.p.scan = api.packScanNew(opts.orders, [], '', '');
+  return Object.assign(api, { saved, els, patches });
 }
 
 (async () => {
@@ -88,6 +100,47 @@ function load(opts) {
   ok("Amazon's picture is asked for at 900 px", A.pksImg('RTC136060') === 'https://m.media-amazon.com/images/I/81RpvEJa+bL._SL900_.jpg', A.pksImg('RTC136060'));
   ok('without one, the snapshot\'s', /81RpvEJa\+bL\._SL900_\.jpg$/.test(load().pksImg('RTC136060')));
   ok('no picture is no picture (the screen says so)', load().pksImg('RCN371-1') === '');
+
+  console.log('== against the orders (shared rules, pack-core.js) ==');
+  const ORD = { orders: ['OC-1'], lines: [{ orderNo: 'OC-1', sku: 'RTC136060', qty: 2 }], store: { 'OC-1|RTC136060': 2 }, stock: { RTC136060: 2 } };
+  A = load(ORD);
+  r = A.pksCount('X0045G8P3B'); const r2 = A.pksCount('X0045G8P3B');
+  ok('pieces the order wants count, and say what is left', r.ok && r.left === 1 && r2.ok && r2.left === 0 && A.PKS.p.boxes[0].items[0].qty === 2 && A.PKS.p.scan.packed.RTC136060['OC-1'] === 2, JSON.stringify([r, r2]));
+  r = A.pksCount('X0045G8P3B');
+  ok('the third is NOT COUNTED: the order is full', !r.ok && r.kind === 'full' && /already packed/.test(r.why) && A.PKS.p.boxes[0].items[0].qty === 2);
+  r = A.pksCount('X003ZK2Q9L');
+  ok('a known SKU on no order is WRONG ARTICLE — never in the box, listed on the list', !r.ok && r.kind === 'wrong' && r.sku === 'RCN371-1' && A.PKS.p.boxes[0].items.length === 1 && A.PKS.p.scan.wrong.length === 1 && A.PKS.p.scan.wrong[0].sku === 'RCN371-1');
+  A.pksUndo();
+  ok('undo gives the piece back to the order', A.PKS.p.boxes[0].items[0].qty === 1 && A.PKS.p.scan.packed.RTC136060['OC-1'] === 1);
+  A.PKS.per = 4; r = A.pksCount('X0045G8P3B');
+  ok('4 per scan when the order wants 1: one counted, says so', r.ok && r.n === 1 && r.short && A.PKS.p.boxes[0].items[0].qty === 2);
+  A = load({ orders: ['OC-1'], lines: ORD.lines, store: { 'OC-1|RTC136060': 0 } });
+  r = A.pksCount('X0045G8P3B');
+  ok('nothing in the India Store for the order: NOT COUNTED, says to receive first', !r.ok && r.kind === 'full' && /receive it in Finished Goods first/.test(r.why));
+  A = load();
+  ok('a list with no orders has no guard — every known label counts (10 Oct)', A.pksCount('X003ZK2Q9L').ok && A.pksCount('X0045G8P3B').ok);
+
+  console.log('== Finish → Done writes the Send to FBA rows once ==');
+  A = load(ORD); A.pksCount('X0045G8P3B'); A.pksCount('X0045G8P3B');
+  A.PKS.on = true; A.pksFinishAsk();
+  ok('the finish card offers Pause and Done', /Done — write Send to FBA/.test(A.els.pksCard.innerHTML) && /Pause/.test(A.els.pksCard.innerHTML));
+  A.els.pksDoneHand = { value: 'Raju' };
+  await A.pksDone();
+  const keys = Object.keys(A.patches[0] || {});
+  ok('one PATCH, one FBA row for the SKU, 2 pcs for OC-1, box 1, handed to Raju', A.patches.length === 1 && keys.length === 1 && /^pt_fgiLedger\/FBA-/.test(keys[0]) && A.patches[0][keys[0]].qty === 2 && JSON.stringify(A.patches[0][keys[0]].orders) === '[{"orderNo":"OC-1","qty":2}]' && A.patches[0][keys[0]].handoverTo === 'Raju' && A.patches[0][keys[0]].packId === 'PKT', JSON.stringify(A.patches));
+  ok('the list is saved with the ledger ids and closes', A.saved.length >= 1 && A.saved[A.saved.length - 1].scan.ledgerIds.length === 1 && A.PKS.on === false);
+  A.PKS.on = true; A.pksFinishAsk();
+  ok('Finish again: already written, no Done button', /already written/.test(A.els.pksCard.innerHTML) && !/Done — write/.test(A.els.pksCard.innerHTML));
+  const S = load(Object.assign({}, ORD, { stock: { RTC136060: 1 } })); S.pksCount('X0045G8P3B'); S.pksCount('X0045G8P3B'); S.PKS.on = true; S.pksFinishAsk(); await S.pksDone();
+  ok('more than the store holds: Done refuses, nothing written, the screen stays open', S.patches.length === 0 && /Not done/.test(S.els.pksSay.textContent) && S.PKS.on === true);
+  const N = load(); N.pksCount('X0045G8P3B'); N.PKS.on = true; N.pksFinishAsk();
+  ok('a list with no orders: Done still offered, FBA account asked where the list has none', /Done — write/.test(N.els.pksCard.innerHTML) && /pksDoneAcc/.test(N.els.pksCard.innerHTML) === false);
+  const Q = load({ stock: { RTC136060: 5 } }); Q.PKS.p.account = 'Amazon'; Q.pksCount('X0045G8P3B'); Q.PKS.on = true; Q.pksFinishAsk();
+  ok('…an account that is not an FBA account is asked for', /pksDoneAcc/.test(Q.els.pksCard.innerHTML));
+  await Q.pksDone();
+  ok('…and Done without it refuses', Q.patches.length === 0 && /FBA account/.test(Q.els.pksSay.textContent));
+  Q.els.pksDoneAcc = { value: 'CPC FBA' }; await Q.pksDone();
+  ok('…with it, the rows go, dealt to orders the Auto way, account on the row', Q.patches.length === 1 && Object.values(Q.patches[0])[0].issuedFor === 'CPC FBA' && Object.values(Q.patches[0])[0].orders[0].orderNo === 'AUTO');
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);

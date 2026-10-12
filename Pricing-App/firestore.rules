@@ -75,6 +75,9 @@ service cloud.firestore {
     // Changing the MONTHLY PROJECTIONS is a narrower right than using the app: those numbers drive
     // every requirement and lane decision, so they are granted separately (perms.replProj).
     function canProj() { return isAdmin() || (hasPerms() && permData().replProj == true); }
+    // Pack & verify (Finished Goods, 2026-10-12) builds a packing list by scanning: whoever may add stock entries
+    // (perms.fgiEntry / fgiEdit) may read and write packing lists and the per-piece weight master too.
+    function canPack() { return canRepl() || (hasPerms() && (permData().fgiEntry == true || permData().fgiEdit == true)); }
 
     // A user may read their OWN permissions (the app needs them to build the menu) and nobody
     // else's. Only an admin can grant or revoke.
@@ -308,8 +311,8 @@ service cloud.firestore {
     // ⚠️ Matches are OR'd in Firestore, so a narrower rule below can only ADD permission, never remove
     //    it — 'projoverride' therefore has to be carved OUT here for its own rule to be the real gate.
     match /repl/{brand} {
-      allow read: if replPrivate(brand) ? canReplFull() : canRepl();
-      allow write: if brand != 'projoverride' && (replPrivate(brand) ? canReplFull() : canRepl());
+      allow read: if replPrivate(brand) ? canReplFull() : (canRepl() || (brand == 'packwt' && canPack()));
+      allow write: if brand != 'projoverride' && (replPrivate(brand) ? canReplFull() : (canRepl() || (brand == 'packwt' && canPack())));
     }
     // Manual monthly projections ("SKU|YYYY-MM" -> units). Readable by anyone who uses the app —
     // everyone needs to SEE the numbers the plan is built on — but writable only with canProj().
@@ -347,7 +350,7 @@ service cloud.firestore {
     // fit: a few hundred lines of {sku, desc, qty, weight} is far inside Firestore's 1 MB, and a
     // packing list that outgrew one document would be a shipment nobody could load anyway.
     match /packlist/{doc} {
-      allow read, write: if canRepl();
+      allow read, write: if canPack();
     }
   }
 }

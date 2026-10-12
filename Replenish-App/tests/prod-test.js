@@ -87,7 +87,7 @@ const IDS = ('ptmBrand ptmArt ptmSub ptmCol ptmSz ptmCut ptmMaker ptmQ ptmBrandF
   + 'fgmOrdQty fgmOverWrap fgmOver fgiOverBadge '
   + 'fgmOrdSrc fgmOrdLbl fgmExtFrom fgmExtFromWrap fgmExtFromList fgmExtQty fgmExtQtyWrap fgmExtNew fgmExtNewWrap '
   + 'fgmFbaAcct fgmReasonLbl fgmHandList demTotAssign demTotClear demTotAll '
-  + 'fgScan fgsType fgsDate fgsPer fgsOrdWrap fgsOrdSrc fgsOrdLbl fgsOrd fgsOrdList fgsExtWrap fgsExtFrom '
+  + 'fgScan fgPack fgsType fgsDate fgsPer fgsOrdWrap fgsOrdSrc fgsOrdLbl fgsOrd fgsOrdList fgsExtWrap fgsExtFrom '
   + 'fgsOutWrap fgsWhoWrap fgsWhoLbl fgsWho fgsAcctWrap fgsAcct fgsHandWrap fgsHand fgsCode fgsMsg fgsTable fgsFn fgsAuto fgsMode palView palWeeks palBrand palPrn palQ palPrinterAdd palExport palRefresh palSheet palImport palClear palOff palFile palMsg palKpis palTable palFoot palGroupList palBlkTable '
   + 'fnPaste fnUp fnFile fnPull fnMsg '
   + 'ptf_from ptf_to ptf_vlq ptf_vlr ptf_vln ptf_vlroom ptf_txnType ptf_itemCode ptf_qty ptf_date ptf_issuedTo ptf_ref ptf_remarks').split(' ');
