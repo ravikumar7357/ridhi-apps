@@ -58,7 +58,7 @@ function load(opts) {
     FAB: { rows: opts.fabRows || [] },
     STORE: { rows: opts.store ? [] : null }, stMoves: () => opts.store || [], stBalances: mv => mv, fabKey: v => String(v || '').trim().toUpperCase(), fabAll: () => opts.fabRows || [], ptList: x => x || [], fabAutoLoad: async () => {}, fabStockOf: (name, st) => (st === 'RFD' ? (opts.rfd || {})[String(name).toUpperCase()] || 0 : 0),
   };
-  const api = new Function(...Object.keys(ctx), SRC + '\n;return { FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestCutOpen, flowTestIssueOpen, flowTestRecvOpen, flowTestVos, flowVlogRows, flowVoExtra, flowVpViewOnly, flowFgAcceptOpen, flowFgAccept, flowFgRejectOpen, flowFgReject, flowFgLines, flowFgRender, flowQcLine, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowCutEntry, flowIssueEntry, flowRecvEntry, flowQcEntry, flowIssuable, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowVoLines, VOrows:()=>VO.rows, setVOrows:v=>{VO.rows=v}, flowUnplan, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v} };')(...Object.values(ctx));
+  const api = new Function(...Object.keys(ctx), SRC + '\n;return { FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestCutOpen, flowTestIssueOpen, flowTestRecvOpen, flowTestVos, flowVlogRows, flowMenuBuild, flowMenuCounts, flowVoExtra, flowVpViewOnly, flowFgAcceptOpen, flowFgAccept, flowFgRejectOpen, flowFgReject, flowFgLines, flowFgRender, flowQcLine, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowCutEntry, flowIssueEntry, flowRecvEntry, flowQcEntry, flowIssuable, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowVoLines, VOrows:()=>VO.rows, setVOrows:v=>{VO.rows=v}, flowUnplan, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v} };')(...Object.values(ctx));
   api.setFLOW(Object.assign(api.FLOW(), { ppc: opts.ppc || {}, dem: opts.dem || {}, res: opts.res || {} }));
   return Object.assign(api, { els, writes, W, ctx });
 }
@@ -1227,6 +1227,19 @@ const K = 'AMZ-1__S1';
     er = await B.flowFgAccept({ r: L(), s: { key: K, made: 10, india: 0 } }, 10, '');
     ok('two Finished Goods accepts of one line at once: the second is refused — India stock counted once', /Somebody else saved here just now/.test(er) && !B.writes.length, er);
   }
+
+  console.log('== the buckets in the Production menu (Ravi, 12 Oct: "jitne bhi tab h unko upar dikhao") ==');
+  { const M = load({ me: { tabs: ['flppc', 'flcut'] } });
+    M.ctx.$('secProd').querySelector = () => ({ insertAdjacentHTML() {} });
+    M.flowMenuBuild();
+    const h = M.els.flMenuCol.innerHTML;
+    ok('a column "PPC · Production flow" with only the buckets this account may open, in order, numbered', /PPC · Production flow/.test(h) && /data-flmenu="ppc"/.test(h) && /data-flmenu="cut"/.test(h)
+      && !/data-flmenu="drfd"/.test(h) && h.indexOf('data-flmenu="ppc"') < h.indexOf('data-flmenu="cut"') && /<span class="nav-ic"[^>]*>1<\/span><span class="nav-t">PPC/.test(h), h.slice(0, 300));
+    M.flowMenuCounts({ ppc: 3, cut: 0 }); M.flowMenuBuild();
+    ok('…with each bucket’s count once the flow is read (3 in PPC; none shown for 0)', /data-flmenun="ppc" data-what="lines" style="background:#7c3aed">3</.test(M.els.flMenuCol.innerHTML) && /class="navbadge hide" data-flmenun="cut"/.test(M.els.flMenuCol.innerHTML), M.els.flMenuCol.innerHTML);
+    const L2 = load({ host: 'price-research-48ff3.web.app', me: { admin: true } }); L2.ctx.$('secProd').querySelector = () => ({ insertAdjacentHTML() {} }); L2.ctx.$('flMenuCol').innerHTML = 'x'; L2.els.flMenuCol.remove = () => { L2.els.flMenuCol.innerHTML = 'removed'; };
+    L2.flowMenuBuild();
+    ok('…and none on the live app', L2.els.flMenuCol.innerHTML === 'removed'); }
 
   console.log('== old orders are not dumped into PPC ==');
   A = load();

@@ -48,6 +48,7 @@ function renderFlow() {
   const pass = x => (!only || x.r.__t) && (!src || (x.r.src || String(x.r.orderNo).split('-')[0]) === src)
     && (!q || [x.r.orderNo, x.r.sku, x.r.color, x.r.size, x.r.articleSubtype, x.r.articleType].join(' ').toLowerCase().includes(q));
   const shown = all.filter(pass), n = flowCounts(shown);
+  flowMenuCounts(n);
   $('flBuckets').innerHTML = allowed.map(([k, l, , tip]) => `<button class="fl-b${k === FLOW_VIEW ? ' on' : ''}" data-flb="${k}" title="${esc(tip)}">
       <span class="fl-n">${nf(n[k] || 0)}</span><span>${esc(l)}</span></button>`).join('<span class="fl-arrow">›</span>');
   const rows = FLOW_VIEW === 'new' ? shown.filter(x => x.recent) : shown.filter(x => flowInView(FLOW_VIEW, x.s));
@@ -289,7 +290,37 @@ $('flTable').addEventListener('click', async e => {
   if (err) $('flMsg').textContent = err; else renderFlow();
 });
 /* The menu button shows only where the flow is switched on, and only to an account with a bucket. */
-function flowNavShow() { if ($('tabFlow')) $('tabFlow').style.display = FLOW_ON && flowBucketsAllowed().length ? '' : 'none'; }
+function flowNavShow() { if ($('tabFlow')) $('tabFlow').style.display = FLOW_ON && flowBucketsAllowed().length ? '' : 'none'; flowMenuBuild(); }
+/* THE BUCKETS IN THE MENU (Ravi, 12 Oct: "production flow me abhi jitne bhi tab h unko upar dikhao, just like Orders aur
+ * uske action"). A column of its own in the Production menu, beside Orders: every bucket this account may open, in the
+ * order the work moves, each with its count once the flow has been read. Only where the flow is switched on. */
+const FLOW_MENU_WHAT = { dhist: 'open challans', pord: 'open' };
+let FLOW_MENU_N = null;
+function flowMenuBuild() {
+  const sec = $('secProd'); if (!sec || !sec.querySelector) return;
+  const allowed = FLOW_ON ? flowBucketsAllowed() : [];
+  let col = $('flMenuCol');
+  if (!allowed.length) { if (col && col.remove) col.remove(); return; }
+  if (!col) {
+    const first = sec.querySelector('.mg-col'); if (!first || !first.insertAdjacentHTML) return;
+    first.insertAdjacentHTML('afterend', '<div class="mg-col" id="flMenuCol"></div>'); col = $('flMenuCol');
+    col.addEventListener('click', e => { const a = e.target.closest && e.target.closest('[data-flmenu]'); if (!a) return;
+      e.preventDefault(); FLOW_VIEW = a.dataset.flmenu; showTab('flow'); });
+  }
+  col.innerHTML = '<div class="mg-h">PPC · Production flow</div>' + allowed.map(([k, label], i) => {
+    const c = FLOW_MENU_N ? (+FLOW_MENU_N[k] || 0) : 0;
+    return `<a class="nav" href="#flow" data-flmenu="${esc(k)}" title="${esc((FLOW_BUCKETS.find(b => b[0] === k) || [])[3] || '')}">`
+      + `<span class="nav-ic" style="font-weight:800;font-size:12.5px">${i + 1}</span><span class="nav-t">${esc(label)}</span>`
+      + `<span class="nav-bd"><span class="navbadge${c ? '' : ' hide'}" data-flmenun="${esc(k)}" data-what="${esc(FLOW_MENU_WHAT[k] || (c === 1 ? 'line' : 'lines'))}" style="background:#7c3aed">${c || ''}</span></span></a>`; }).join('');
+}
+/** The counts beside the buckets in the menu, from the screen's own count. */
+function flowMenuCounts(n) {
+  FLOW_MENU_N = n;
+  if (typeof document === 'undefined' || !document.querySelectorAll) return;
+  document.querySelectorAll('[data-flmenun]').forEach(b => { if (!b || !b.dataset || !b.dataset.flmenun || !b.classList) return; const c = +n[b.dataset.flmenun] || 0;
+    b.textContent = c ? String(c) : ''; b.classList.toggle('hide', !c);
+    if (!FLOW_MENU_WHAT[b.dataset.flmenun]) b.setAttribute('data-what', c === 1 ? 'line' : 'lines'); });
+}
 /** Finished Goods → From QC — to accept. */
 async function flowFgOpen() {
   if (!flowMay('fgi') && !flowMayFg()) return flowSay('Finished Goods is not open to this account.', true);
