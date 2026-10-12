@@ -1107,7 +1107,7 @@
 
     <!-- The shop floor, in the order work moves through it: the order, the cut, the karigar, the
          press, the check, the stock — and the masters everything is keyed on, last. -->
-    <div class="navwrap"><button class="navgrp" id="grpProd" type="button" data-grp="prod" data-tabs="so,ord,pcut,pbase,ppress,qc,fgi,fba,fab,acc,pmdb,mst,cx,flow,flppc,fldem,flacc,flchl,flout,flcut,flraw,flwip">
+    <div class="navwrap"><button class="navgrp" id="grpProd" type="button" data-grp="prod" data-tabs="so,ord,pcut,pbase,ppress,qc,fgi,fba,fab,acc,pmdb,mst,cx,flow,flppc,fldem,flacc,flchl,flcut,flraw,flwip">
       <span class="caret">&#9656;</span> Production</button>
     <!-- A MEGA MENU (Ravi, 2026-09-24: "2 — Mega menu"). Five columns in the order work moves; every
          count carries the words for what it counts (data-what), because "26" alone told nobody. -->
@@ -3539,7 +3539,7 @@ const REPL_TABS = ['repl', 'article', 'target', 'top', 'shopify', 'pack',
   'pmdb', 'mst', 'att', 'pbase', 'pcut', 'ppress', 'qc', 'qcalt', 'qcret', 'ord', 'so', 'vord', 'vreq', 'rfd', 'vend', 'vlog', 'palloc', 'fgi', 'fba', 'fab', 'acc', 'rep', 'pa', 'ka', 'hr',
   'shop', 'adj', 'shopprod', 'dash',
   /* Production flow (test, 2026-10-10): one right per bucket — the same keys as FLOW_BUCKETS in flow/flow-core.js. */
-  'flppc', 'fldem', 'flacc', 'flchl', 'flout', 'flcut', 'flraw', 'flwip'];   // section keys, gated per-user via perms.replTabs — 'dash' is the admins' dashboard
+  'flppc', 'fldem', 'flacc', 'flchl', 'flcut', 'flraw', 'flwip'];   // section keys, gated per-user via perms.replTabs — 'dash' is the admins' dashboard
 let REPL = { SP: null, CPC: null };   // brand → { rows, at }
 let PO = [];                  // purchase orders
 
@@ -23605,7 +23605,6 @@ const FLOW_BUCKETS = [
   ['drfd', 'RFD fabric · out to printers', 'fldem', 'Planned; the fabric is not with the printer yet. RFD in stock against what each line needs — red where it falls short; make the challan to the printer.', 'demand'],
   ['dhist', 'Printed fabric in · history', 'flchl', 'Every RFD challan. Open until the printed fabric comes back against it — receive it here and the lines move to the store.', 'demand'],
   ['dacc', 'Accessories', 'flacc', 'Planned; the accessories are not reserved yet. Free on the shelf against what each line needs.', 'demand'],
-  ['out', 'Outsourced', 'flout', 'Made outside, finished: waiting to be received into Finished Goods.', 'flow'],
   ['cut', 'To cut · Production flow', 'flcut', 'Lines that need cutting and have printed fabric back. The cutting entry puts the pieces in the store.', 'pcut'],
   ['raw', 'Raw cutting in store', 'flraw', 'Cut (or printed) pieces waiting to be issued to a karigar.', 'pbase'],
   ['wip', 'WIP · with karigars', 'flwip', 'With karigars: issued, not back yet.', 'pbase'],
@@ -23617,7 +23616,7 @@ const FLOW_TABS = FLOW_BUCKETS.map(b => b[2]);
 /* Printed fabric in, too (Ravi, 11 Oct: "dekhne ke liye hum History tab use karenge, Printed fabric in ko hata dete h"):
  * received on its challan in Demand history, seen in Vendors & printers → History (flowVlogRows). */
 const FLOW_ELSEWHERE = { qcb: 'Quality Control (QC screen)', fgin: 'Finished Goods — to accept (Finished Goods screen)', fabric: 'With the printer — receive in Demand → Printed fabric in, see Vendors & printers → History',
-  vendor: 'Vendor Orders — not given to a printer yet', cut: 'Cutting Data → To cut', raw: 'Job Work Register → Raw cutting in store', wip: 'Job Work Register → WIP' };
+  vendor: 'Vendor Orders — not given to a printer yet', out: 'Made outside — received into Finished Goods', cut: 'Cutting Data → To cut', raw: 'Job Work Register → Raw cutting in store', wip: 'Job Work Register → WIP' };
 const FLOW_DEMAND = ['drfd', 'dhist', 'dacc'];
 /** The buckets of the Production flow screen itself (its own, and the Demand tabs), this account may open. */
 const flowScreenAllowed = () => flowBucketsAllowed().filter(b => b[4] === 'flow' || b[4] === 'demand');
@@ -26007,8 +26006,12 @@ function renderFlow() {
   allowed.forEach(b => { if (b[4] === 'flow') bar.push(b); if (b[0] === 'ppc' && dem.length) bar.push(['demand', 'Demand', '', 'What PPC raised: RFD fabric out to printers, printed fabric in, accessories.']); });
   if (dem.length && !bar.some(b => b[0] === 'demand')) bar.unshift(['demand', 'Demand', '', 'What PPC raised: RFD fabric out to printers, printed fabric in, accessories.']);
   n.demand = dem.reduce((t, b) => t + (+n[b[0]] || 0), 0);
-  $('flBuckets').innerHTML = bar.map(([k, l, , tip]) => `<button class="fl-b${k === FLOW_VIEW || (k === 'demand' && FLOW_DEMAND.includes(FLOW_VIEW)) ? ' on' : ''}" data-flb="${k}" title="${esc(tip)}">
-      <span class="fl-n">${nf(n[k] || 0)}</span><span>${esc(l)}</span></button>`).join('<span class="fl-arrow">›</span>');
+  /* ONE WAY IN (Ravi, 12 Oct: "PPC, Demand andar aur bahar same dikh rahe h"): the menu's PPC · Production flow column picks the
+   * bucket; the screen only says which one it is showing. */
+  const nowK = FLOW_DEMAND.includes(FLOW_VIEW) ? 'demand' : FLOW_VIEW, now = bar.find(b => b[0] === nowK) || bar[0];
+  $('flBuckets').innerHTML = `<div data-flnow="${esc(now[0])}" style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap" title="${esc(now[3])}">`
+    + `<span style="font-size:22px;font-weight:800">${esc(now[1])}</span><span class="muted" style="font-size:13.5px;font-weight:600">${nf(n[now[0]] || 0)} ${now[0] === 'demand' ? 'waiting' : 'line(s)'}</span>`
+    + '<span class="navbadge" style="background:#7c3aed;position:static">TEST · Production flow</span></div>';
   const rows = FLOW_VIEW === 'new' ? shown.filter(x => x.recent) : shown.filter(x => flowInView(FLOW_VIEW, x.s));
   rows.sort((a, b) => String(a.r.orderDate || '').localeCompare(String(b.r.orderDate || '')) || String(a.r.orderNo).localeCompare(String(b.r.orderNo)));
   FLOW.panel = ''; FLOW.stock = ''; FLOW.byprint = '';
@@ -26255,7 +26258,8 @@ async function flowTableClick(e) {
 }
 $('flTable').addEventListener('click', flowTableClick);
 /* The menu button shows only where the flow is switched on, and only to an account with a bucket. */
-function flowNavShow() { if ($('tabFlow')) $('tabFlow').style.display = FLOW_ON && flowScreenAllowed().length ? '' : 'none'; flowMenuBuild(); flowEmbedSetup(); }
+/* The screen is reached from the menu column (PPC, Demand) — its own item under Orders would show the same thing twice. */
+function flowNavShow() { if ($('tabFlow')) $('tabFlow').style.display = 'none'; flowMenuBuild(); flowEmbedSetup(); }
 
 /* ---- TABS INSIDE THE FACTORY'S OWN SCREENS (Ravi, 12 Oct: "cutting should be shown in cutting department which is already
  * there; raw cutting should be shown in Job Work Register — like Listing Health's tabs; WIP part of Job Work Register") ----
@@ -26324,7 +26328,7 @@ function flowMenuBuild() {
     col.addEventListener('click', e => { const a = e.target.closest && e.target.closest('[data-flmenu]'); if (!a) return;
       e.preventDefault(); FLOW_VIEW = a.dataset.flmenu === 'demand' ? (FLOW.demView || 'drfd') : a.dataset.flmenu; showTab('flow'); });
   }
-  col.innerHTML = '<div class="mg-h">PPC · Production flow</div>' + allowed.map(([k, label], i) => {
+  col.innerHTML = '<div class="mg-h">PPC · Production flow <span class="navbadge" style="background:#7c3aed;position:static;margin-left:4px">TEST</span></div>' + allowed.map(([k, label], i) => {
     const c = FLOW_MENU_N ? (+FLOW_MENU_N[k] || 0) : 0;
     return `<a class="nav" href="#flow" data-flmenu="${esc(k)}" title="${esc((allowed.find(b => b[0] === k) || [])[3] || '')}">`
       + `<span class="nav-ic" style="font-weight:800;font-size:12.5px">${i + 1}</span><span class="nav-t">${esc(label)}</span>`

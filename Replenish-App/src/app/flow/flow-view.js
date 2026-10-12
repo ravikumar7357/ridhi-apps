@@ -56,8 +56,12 @@ function renderFlow() {
   allowed.forEach(b => { if (b[4] === 'flow') bar.push(b); if (b[0] === 'ppc' && dem.length) bar.push(['demand', 'Demand', '', 'What PPC raised: RFD fabric out to printers, printed fabric in, accessories.']); });
   if (dem.length && !bar.some(b => b[0] === 'demand')) bar.unshift(['demand', 'Demand', '', 'What PPC raised: RFD fabric out to printers, printed fabric in, accessories.']);
   n.demand = dem.reduce((t, b) => t + (+n[b[0]] || 0), 0);
-  $('flBuckets').innerHTML = bar.map(([k, l, , tip]) => `<button class="fl-b${k === FLOW_VIEW || (k === 'demand' && FLOW_DEMAND.includes(FLOW_VIEW)) ? ' on' : ''}" data-flb="${k}" title="${esc(tip)}">
-      <span class="fl-n">${nf(n[k] || 0)}</span><span>${esc(l)}</span></button>`).join('<span class="fl-arrow">›</span>');
+  /* ONE WAY IN (Ravi, 12 Oct: "PPC, Demand andar aur bahar same dikh rahe h"): the menu's PPC · Production flow column picks the
+   * bucket; the screen only says which one it is showing. */
+  const nowK = FLOW_DEMAND.includes(FLOW_VIEW) ? 'demand' : FLOW_VIEW, now = bar.find(b => b[0] === nowK) || bar[0];
+  $('flBuckets').innerHTML = `<div data-flnow="${esc(now[0])}" style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap" title="${esc(now[3])}">`
+    + `<span style="font-size:22px;font-weight:800">${esc(now[1])}</span><span class="muted" style="font-size:13.5px;font-weight:600">${nf(n[now[0]] || 0)} ${now[0] === 'demand' ? 'waiting' : 'line(s)'}</span>`
+    + '<span class="navbadge" style="background:#7c3aed;position:static">TEST · Production flow</span></div>';
   const rows = FLOW_VIEW === 'new' ? shown.filter(x => x.recent) : shown.filter(x => flowInView(FLOW_VIEW, x.s));
   rows.sort((a, b) => String(a.r.orderDate || '').localeCompare(String(b.r.orderDate || '')) || String(a.r.orderNo).localeCompare(String(b.r.orderNo)));
   FLOW.panel = ''; FLOW.stock = ''; FLOW.byprint = '';
@@ -304,7 +308,8 @@ async function flowTableClick(e) {
 }
 $('flTable').addEventListener('click', flowTableClick);
 /* The menu button shows only where the flow is switched on, and only to an account with a bucket. */
-function flowNavShow() { if ($('tabFlow')) $('tabFlow').style.display = FLOW_ON && flowScreenAllowed().length ? '' : 'none'; flowMenuBuild(); flowEmbedSetup(); }
+/* The screen is reached from the menu column (PPC, Demand) — its own item under Orders would show the same thing twice. */
+function flowNavShow() { if ($('tabFlow')) $('tabFlow').style.display = 'none'; flowMenuBuild(); flowEmbedSetup(); }
 
 /* ---- TABS INSIDE THE FACTORY'S OWN SCREENS (Ravi, 12 Oct: "cutting should be shown in cutting department which is already
  * there; raw cutting should be shown in Job Work Register — like Listing Health's tabs; WIP part of Job Work Register") ----
@@ -373,7 +378,7 @@ function flowMenuBuild() {
     col.addEventListener('click', e => { const a = e.target.closest && e.target.closest('[data-flmenu]'); if (!a) return;
       e.preventDefault(); FLOW_VIEW = a.dataset.flmenu === 'demand' ? (FLOW.demView || 'drfd') : a.dataset.flmenu; showTab('flow'); });
   }
-  col.innerHTML = '<div class="mg-h">PPC · Production flow</div>' + allowed.map(([k, label], i) => {
+  col.innerHTML = '<div class="mg-h">PPC · Production flow <span class="navbadge" style="background:#7c3aed;position:static;margin-left:4px">TEST</span></div>' + allowed.map(([k, label], i) => {
     const c = FLOW_MENU_N ? (+FLOW_MENU_N[k] || 0) : 0;
     return `<a class="nav" href="#flow" data-flmenu="${esc(k)}" title="${esc((allowed.find(b => b[0] === k) || [])[3] || '')}">`
       + `<span class="nav-ic" style="font-weight:800;font-size:12.5px">${i + 1}</span><span class="nav-t">${esc(label)}</span>`
