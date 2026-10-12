@@ -1116,7 +1116,7 @@
         <div class="mg-h">Orders</div>
         <a id="tabSo" class="nav" href="#so"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg></span><span class="nav-t">Sales Orders</span><span class="nav-bd"><span id="soDelBadge" class="navbadge hide" data-what="to delete" title="Deletion requests waiting for an answer"></span></span></a>
         <a id="tabOrd" class="nav" href="#ord"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg></span><span class="nav-t">Order Console</span><span class="nav-bd"><span id="ordAdjBadge" class="navbadge hide" data-what="qty changed" title="Quantities changed on an order that nobody here has said they have seen" style="background:#b45309"></span></span></a>
-        <a id="tabFlow" class="nav" href="#flow" style="display:none"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="10" y="4" width="5" height="11" rx="1"/><rect x="17" y="4" width="4" height="7" rx="1"/></svg></span><span class="nav-t">Production flow</span><span class="nav-bd"><span class="navbadge" style="background:#7c3aed" data-what="test">TEST</span></span></a>
+        <a id="tabFlow" class="nav" href="#flow" style="display:none"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="10" y="4" width="5" height="11" rx="1"/><rect x="17" y="4" width="4" height="7" rx="1"/></svg></span><span class="nav-t">PPC · Production flow</span><span class="nav-bd"><span class="navbadge" style="background:#7c3aed" data-what="test">TEST</span></span></a>
         <a id="tabCx" class="nav" href="#cx"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span><span class="nav-t">Customer Orders</span></a>
       </div>
       <div class="mg-col">
@@ -26000,18 +26000,15 @@ function renderFlow() {
   const pass = x => (!only || x.r.__t) && (!src || (x.r.src || String(x.r.orderNo).split('-')[0]) === src)
     && (!q || [x.r.orderNo, x.r.sku, x.r.color, x.r.size, x.r.articleSubtype, x.r.articleType].join(' ').toLowerCase().includes(q));
   const shown = all.filter(pass), n = flowCounts(shown);
-  flowMenuCounts(n);
   /* PPC › Demand › Outsourced — Demand is one bucket with its tabs (flowDemandTabs). */
   const dem = allowed.filter(b => b[4] === 'demand'), bar = [];
   allowed.forEach(b => { if (b[4] === 'flow') bar.push(b); if (b[0] === 'ppc' && dem.length) bar.push(['demand', 'Demand', '', 'What PPC raised: RFD fabric out to printers, printed fabric in, accessories.']); });
   if (dem.length && !bar.some(b => b[0] === 'demand')) bar.unshift(['demand', 'Demand', '', 'What PPC raised: RFD fabric out to printers, printed fabric in, accessories.']);
   n.demand = dem.reduce((t, b) => t + (+n[b[0]] || 0), 0);
-  /* ONE WAY IN (Ravi, 12 Oct: "PPC, Demand andar aur bahar same dikh rahe h"): the menu's PPC · Production flow column picks the
-   * bucket; the screen only says which one it is showing. */
-  const nowK = FLOW_DEMAND.includes(FLOW_VIEW) ? 'demand' : FLOW_VIEW, now = bar.find(b => b[0] === nowK) || bar[0];
-  $('flBuckets').innerHTML = `<div data-flnow="${esc(now[0])}" style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap" title="${esc(now[3])}">`
-    + `<span style="font-size:22px;font-weight:800">${esc(now[1])}</span><span class="muted" style="font-size:13.5px;font-weight:600">${nf(n[now[0]] || 0)} ${now[0] === 'demand' ? 'waiting' : 'line(s)'}</span>`
-    + '<span class="navbadge" style="background:#7c3aed;position:static">TEST · Production flow</span></div>';
+  /* One menu item, "PPC · Production flow"; inside it the buckets PPC › Demand (Ravi, 12 Oct: "main tab PPC Production flow
+   * rakhna h, aur andar PPC and Demand like before — outsource rakhna hi nahi h"). */
+  $('flBuckets').innerHTML = bar.map(([k, l, , tip]) => `<button class="fl-b${k === FLOW_VIEW || (k === 'demand' && FLOW_DEMAND.includes(FLOW_VIEW)) ? ' on' : ''}" data-flb="${k}" title="${esc(tip)}">
+      <span class="fl-n">${nf(n[k] || 0)}</span><span>${esc(l)}</span></button>`).join('<span class="fl-arrow">›</span>');
   const rows = FLOW_VIEW === 'new' ? shown.filter(x => x.recent) : shown.filter(x => flowInView(FLOW_VIEW, x.s));
   rows.sort((a, b) => String(a.r.orderDate || '').localeCompare(String(b.r.orderDate || '')) || String(a.r.orderNo).localeCompare(String(b.r.orderNo)));
   FLOW.panel = ''; FLOW.stock = ''; FLOW.byprint = '';
@@ -26258,8 +26255,7 @@ async function flowTableClick(e) {
 }
 $('flTable').addEventListener('click', flowTableClick);
 /* The menu button shows only where the flow is switched on, and only to an account with a bucket. */
-/* The screen is reached from the menu column (PPC, Demand) — its own item under Orders would show the same thing twice. */
-function flowNavShow() { if ($('tabFlow')) $('tabFlow').style.display = 'none'; flowMenuBuild(); flowEmbedSetup(); }
+function flowNavShow() { if ($('tabFlow')) $('tabFlow').style.display = FLOW_ON && flowScreenAllowed().length ? '' : 'none'; flowEmbedSetup(); }
 
 /* ---- TABS INSIDE THE FACTORY'S OWN SCREENS (Ravi, 12 Oct: "cutting should be shown in cutting department which is already
  * there; raw cutting should be shown in Job Work Register — like Listing Health's tabs; WIP part of Job Work Register") ----
@@ -26309,38 +26305,6 @@ async function flowEmbedRender(tab) {
   tbl.innerHTML = flowTable(v, rows.slice(0, 800));
   const b = FLOW_BUCKETS.find(x => x[0] === v) || [];
   msg.textContent = `${b[1]}: ${nf(rows.length)} line(s) — ${b[3]}${only ? ' · SHOWING TEST ORDERS ONLY (switch on the Production flow screen)' : ''} · TEST VIEW, not on the live app`;
-}
-/* THE BUCKETS IN THE MENU (Ravi, 12 Oct: "production flow me abhi jitne bhi tab h unko upar dikhao, just like Orders aur
- * uske action"). A column of its own in the Production menu, beside Orders: every bucket this account may open, in the
- * order the work moves, each with its count once the flow has been read. Only where the flow is switched on. */
-const FLOW_MENU_WHAT = {};
-let FLOW_MENU_N = null;
-function flowMenuBuild() {
-  const sec = $('secProd'); if (!sec || !sec.querySelector) return;
-  const own = FLOW_ON ? flowScreenAllowed() : [], allowed = [];
-  own.forEach(b => { if (b[4] === 'flow') allowed.push(b); if (b[0] === 'ppc' && own.some(x => x[4] === 'demand')) allowed.push(['demand', 'Demand', '', 'RFD fabric out to printers, printed fabric in, accessories']); });
-  if (own.some(x => x[4] === 'demand') && !allowed.some(b => b[0] === 'demand')) allowed.unshift(['demand', 'Demand', '', 'RFD fabric out to printers, printed fabric in, accessories']);
-  let col = $('flMenuCol');
-  if (!allowed.length) { if (col && col.remove) col.remove(); return; }
-  if (!col) {
-    const first = sec.querySelector('.mg-col'); if (!first || !first.insertAdjacentHTML) return;
-    first.insertAdjacentHTML('afterend', '<div class="mg-col" id="flMenuCol"></div>'); col = $('flMenuCol');
-    col.addEventListener('click', e => { const a = e.target.closest && e.target.closest('[data-flmenu]'); if (!a) return;
-      e.preventDefault(); FLOW_VIEW = a.dataset.flmenu === 'demand' ? (FLOW.demView || 'drfd') : a.dataset.flmenu; showTab('flow'); });
-  }
-  col.innerHTML = '<div class="mg-h">PPC · Production flow <span class="navbadge" style="background:#7c3aed;position:static;margin-left:4px">TEST</span></div>' + allowed.map(([k, label], i) => {
-    const c = FLOW_MENU_N ? (+FLOW_MENU_N[k] || 0) : 0;
-    return `<a class="nav" href="#flow" data-flmenu="${esc(k)}" title="${esc((allowed.find(b => b[0] === k) || [])[3] || '')}">`
-      + `<span class="nav-ic" style="font-weight:800;font-size:12.5px">${i + 1}</span><span class="nav-t">${esc(label)}</span>`
-      + `<span class="nav-bd"><span class="navbadge${c ? '' : ' hide'}" data-flmenun="${esc(k)}" data-what="${esc(FLOW_MENU_WHAT[k] || (c === 1 ? 'line' : 'lines'))}" style="background:#7c3aed">${c || ''}</span></span></a>`; }).join('');
-}
-/** The counts beside the buckets in the menu, from the screen's own count. */
-function flowMenuCounts(n) {
-  FLOW_MENU_N = n;
-  if (typeof document === 'undefined' || !document.querySelectorAll) return;
-  document.querySelectorAll('[data-flmenun]').forEach(b => { if (!b || !b.dataset || !b.dataset.flmenun || !b.classList) return; const c = +n[b.dataset.flmenun] || 0;
-    b.textContent = c ? String(c) : ''; b.classList.toggle('hide', !c);
-    if (!FLOW_MENU_WHAT[b.dataset.flmenun]) b.setAttribute('data-what', c === 1 ? 'line' : 'lines'); });
 }
 /** Finished Goods → From QC — to accept. */
 async function flowFgOpen() {
