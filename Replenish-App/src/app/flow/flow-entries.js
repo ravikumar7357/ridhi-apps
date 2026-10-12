@@ -20,7 +20,7 @@ const flowSay = (t, bad) => { if ($('flMsg')) { $('flMsg').className = bad ? 'er
 async function flowCutEntry(r, s) {
   if (!flowMay('pcut')) return flowSay('Cutting Data is not open to this account — ask for the Cutting right.', true);
   try {
-    showTab('pcut'); await flowOpenBox('cwBox', 'cwToggle'); if (typeof ensureCutForm === 'function') await ensureCutForm();
+    flowEmbedOff('pcut'); showTab('pcut'); await flowOpenBox('cwBox', 'cwToggle'); if (typeof ensureCutForm === 'function') await ensureCutForm();
     $('cwSku').value = obUC(r.sku); cutSkuTyped(); renderCutForm();
     $('cwOrd').value = r.orderNo; renderCutForm();
     $('cwPcs').value = Math.max(0, Math.min(+r.qty || 0, s.printed ? (s.back || 0) : (+r.qty || 0)) - (s.cut || 0));   // only what is back to cut
@@ -36,7 +36,7 @@ async function flowCutEntry(r, s) {
 async function flowIssueEntry(r, s) {
   if (!flowMay('pbase')) return flowSay('The Job Work Register is not open to this account.', true);
   try {
-    showTab('pbase'); await flowOpenBox('bwBox', 'bwToggle'); if (typeof ensureBdForm === 'function') await ensureBdForm();
+    flowEmbedOff('pbase'); showTab('pbase'); await flowOpenBox('bwBox', 'bwToggle'); if (typeof ensureBdForm === 'function') await ensureBdForm();
     $('bwSku').value = obUC(r.sku); bdSkuTyped(); renderBdForm();
     $('bwOrd').value = r.orderNo; renderBdForm();
     $('bwPcs').value = Math.max(0, flowIssuable(r, s));

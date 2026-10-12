@@ -37,20 +37,20 @@ const flowFrom = () => { try { return localStorage.getItem('flowFrom') || FLOW_F
 const FLOW_COMPANY = 'Ridhi Home & Living';
 
 /* ---- the buckets, in the order the work moves: [key, label, the right that opens it, what it is waiting for] ---- */
+/* WHERE EACH BUCKET LIVES (Ravi, 12 Oct: "New orders duplicate h — remove; Print orders Vendor Orders me h — remove; Demand
+ * ek alag tab — PPC se jo demand aaye, RFD out to printers and printed fabric in history; Vendor allocation remove; cutting
+ * Cutting department me, Raw cutting aur WIP Job Work Register me"): [key, label, right, what it waits for, home].
+ *   home 'flow'    a bucket of the Production flow screen      home 'demand'  a tab inside its Demand bucket
+ *   home 'pcut'    a tab of Cutting Data                        home 'pbase'   a tab of the Job Work Register */
 const FLOW_BUCKETS = [
-  ['new', 'New orders', 'flnew', 'Orders that came in over the last 7 days, and the bucket each line is in now.'],
-  ['ppc', 'PPC', 'flppc', 'Plan not raised yet: fabric, accessories, printing and dates.'],
-  ['pord', 'Print orders', 'flpo', 'What each printer was told to print — sent the moment PPC raised the plan; the fabric follows on challans.'],
-  /* Demand is two departments (Ravi, 10 Oct): the RFD store answers for the fabric, the accessories store for the
-   * accessories. A line stays in Demand until both have answered, and shows in each list only for its own part. */
-  ['drfd', 'Demand · RFD fabric', 'fldem', 'Planned; the fabric is not ready yet. RFD in stock against what each line needs — red where it falls short.'],
-  ['dacc', 'Demand · Accessories', 'flacc', 'Planned; the accessories are not reserved yet. Free on the shelf against what each line needs.'],
-  ['dhist', 'Demand history', 'flchl', 'Every RFD challan. Open until the printed fabric comes back against it — receive it here and the lines move to the store.'],
-  ['out', 'Outsourced', 'flout', 'Made outside, finished: waiting to be received into Finished Goods.'],
-  ['vendor', 'Vendor allocation', 'flven', 'Printed lines not yet given to a printer in full.'],
-  ['cut', 'Cutting', 'flcut', 'Lines that need cutting, not all cut. The cutting entry puts the pieces in the store.'],
-  ['raw', 'Raw cutting in store', 'flraw', 'Cut (or printed) pieces waiting to be issued to a karigar.'],
-  ['wip', 'WIP', 'flwip', 'With karigars: issued, received, waiting for QC.'],
+  ['ppc', 'PPC', 'flppc', 'Plan not raised yet: fabric, accessories, printing and dates.', 'flow'],
+  ['drfd', 'RFD fabric · out to printers', 'fldem', 'Planned; the fabric is not with the printer yet. RFD in stock against what each line needs — red where it falls short; make the challan to the printer.', 'demand'],
+  ['dhist', 'Printed fabric in · history', 'flchl', 'Every RFD challan. Open until the printed fabric comes back against it — receive it here and the lines move to the store.', 'demand'],
+  ['dacc', 'Accessories', 'flacc', 'Planned; the accessories are not reserved yet. Free on the shelf against what each line needs.', 'demand'],
+  ['out', 'Outsourced', 'flout', 'Made outside, finished: waiting to be received into Finished Goods.', 'flow'],
+  ['cut', 'To cut · Production flow', 'flcut', 'Lines that need cutting and have printed fabric back. The cutting entry puts the pieces in the store.', 'pcut'],
+  ['raw', 'Raw cutting in store', 'flraw', 'Cut (or printed) pieces waiting to be issued to a karigar.', 'pbase'],
+  ['wip', 'WIP · with karigars', 'flwip', 'With karigars: issued, not back yet.', 'pbase'],
 ];
 const FLOW_TABS = FLOW_BUCKETS.map(b => b[2]);
 /* AFTER WIP THE LINE LEAVES THIS SCREEN (Ravi, 10 Oct: "Q.C wala part abhi ke Q.C me flow kare, yahan se remove; ready to
@@ -58,7 +58,11 @@ const FLOW_TABS = FLOW_BUCKETS.map(b => b[2]);
  * Control, 'fgin' waiting for the Finished Goods team — but no bucket of this screen lists it: the work is done there. */
 /* Printed fabric in, too (Ravi, 11 Oct: "dekhne ke liye hum History tab use karenge, Printed fabric in ko hata dete h"):
  * received on its challan in Demand history, seen in Vendors & printers → History (flowVlogRows). */
-const FLOW_ELSEWHERE = { qcb: 'Quality Control (QC screen)', fgin: 'Finished Goods — to accept (Finished Goods screen)', fabric: 'With the printer — receive in Demand history, see Vendors & printers → History' };
+const FLOW_ELSEWHERE = { qcb: 'Quality Control (QC screen)', fgin: 'Finished Goods — to accept (Finished Goods screen)', fabric: 'With the printer — receive in Demand → Printed fabric in, see Vendors & printers → History',
+  vendor: 'Vendor Orders — not given to a printer yet', cut: 'Cutting Data → To cut', raw: 'Job Work Register → Raw cutting in store', wip: 'Job Work Register → WIP' };
+const FLOW_DEMAND = ['drfd', 'dhist', 'dacc'];
+/** The buckets of the Production flow screen itself (its own, and the Demand tabs), this account may open. */
+const flowScreenAllowed = () => flowBucketsAllowed().filter(b => b[4] === 'flow' || b[4] === 'demand');
 /* How a line is made — PPC chooses (Ravi, 10 Oct: "mere yaha sirf stitching hoga … printing wala part nahi hoga", and
  * a provision for orders made outside):
  *   inhouse   printed by a vendor here, then cut, stitched, QC'd here — every bucket

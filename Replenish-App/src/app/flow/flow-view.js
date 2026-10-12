@@ -36,9 +36,11 @@ const flowDays = iso => { const d = ptIsoDate(iso); if (!d) return null; return 
 const flowLate = iso => iso && iso < dToday();
 
 function renderFlow() {
-  const allowed = flowBucketsAllowed();
+  flowEmbedRefresh();
+  const allowed = flowScreenAllowed();
   if (!allowed.length) { $('flTable').innerHTML = ''; $('flMsg').textContent = 'No bucket of the production flow is given to this account.'; return; }
   if (!allowed.some(b => b[0] === FLOW_VIEW)) FLOW_VIEW = allowed.find(b => b[0] === 'ppc') ? 'ppc' : allowed[0][0];
+  if (FLOW_DEMAND.includes(FLOW_VIEW)) FLOW.demView = FLOW_VIEW;
   const all = flowRows();
   const q = String($('flQ').value || '').trim().toLowerCase(), src = $('flSrc').value;
   const srcs = [...new Set(all.map(x => x.r.src || String(x.r.orderNo).split('-')[0]))].sort();
@@ -49,7 +51,12 @@ function renderFlow() {
     && (!q || [x.r.orderNo, x.r.sku, x.r.color, x.r.size, x.r.articleSubtype, x.r.articleType].join(' ').toLowerCase().includes(q));
   const shown = all.filter(pass), n = flowCounts(shown);
   flowMenuCounts(n);
-  $('flBuckets').innerHTML = allowed.map(([k, l, , tip]) => `<button class="fl-b${k === FLOW_VIEW ? ' on' : ''}" data-flb="${k}" title="${esc(tip)}">
+  /* PPC › Demand › Outsourced — Demand is one bucket with its tabs (flowDemandTabs). */
+  const dem = allowed.filter(b => b[4] === 'demand'), bar = [];
+  allowed.forEach(b => { if (b[4] === 'flow') bar.push(b); if (b[0] === 'ppc' && dem.length) bar.push(['demand', 'Demand', '', 'What PPC raised: RFD fabric out to printers, printed fabric in, accessories.']); });
+  if (dem.length && !bar.some(b => b[0] === 'demand')) bar.unshift(['demand', 'Demand', '', 'What PPC raised: RFD fabric out to printers, printed fabric in, accessories.']);
+  n.demand = dem.reduce((t, b) => t + (+n[b[0]] || 0), 0);
+  $('flBuckets').innerHTML = bar.map(([k, l, , tip]) => `<button class="fl-b${k === FLOW_VIEW || (k === 'demand' && FLOW_DEMAND.includes(FLOW_VIEW)) ? ' on' : ''}" data-flb="${k}" title="${esc(tip)}">
       <span class="fl-n">${nf(n[k] || 0)}</span><span>${esc(l)}</span></button>`).join('<span class="fl-arrow">›</span>');
   const rows = FLOW_VIEW === 'new' ? shown.filter(x => x.recent) : shown.filter(x => flowInView(FLOW_VIEW, x.s));
   rows.sort((a, b) => String(a.r.orderDate || '').localeCompare(String(b.r.orderDate || '')) || String(a.r.orderNo).localeCompare(String(b.r.orderNo)));
@@ -65,12 +72,15 @@ function renderFlow() {
     if (ang === 'stock') $('flTable').innerHTML = FLOW.stock;
     if (ang === 'print' && FLOW.byprint) $('flTable').innerHTML = FLOW.byprint;
   }
+  /* DEMAND, ONE TAB (Ravi, 12 Oct): its parts as tabs, like Listing Health's — RFD out to printers, printed fabric in, accessories. */
+  if (FLOW_DEMAND.includes(FLOW_VIEW)) FLOW.panel = `<div class="seg" style="display:inline-flex;gap:4px;flex-wrap:wrap;margin-right:14px">${dem.map(([k, l]) =>
+    `<button data-fldem="${k}" class="${k === FLOW_VIEW ? '' : 'ghost'}" style="width:auto;padding:5px 14px;font-size:13px">${esc(l)} <b>${nf(n[k] || 0)}</b></button>`).join('')}</div>` + (FLOW.panel || '');
   $('flPanel').innerHTML = FLOW.panel; $('flPanel').classList.toggle('hide', !FLOW.panel);
   const b = FLOW_BUCKETS.find(x => x[0] === FLOW_VIEW);
   $('flMsg').className = FLOW.err ? 'err' : 'muted';
   $('flMsg').textContent = (FLOW.err ? 'Could not read the plans: ' + FLOW.err + ' · ' : '')
     + `${b[1]}: ${FLOW_VIEW === 'dhist' ? nf(n.dhist) + ' open challan(s)' : FLOW_VIEW === 'pord' ? nf(n.pord) + ' print order(s) not finished' : nf(rows.length) + ' line(s)'} — ${b[3]}` + (rows.length > 800 ? ' · showing the oldest 800' : '')
-    + ` · PPC and Demand apply to orders from ${flowFrom()} · TEST VIEW, not on the live app`
+    + ` · PPC and Demand apply to orders from ${flowFrom()} · cutting is in Cutting Data, raw cutting and WIP in the Job Work Register · TEST VIEW, not on the live app`
     + ((FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly()) ? ' · SHOWING TEST ORDERS ONLY' : '');
 }
 
@@ -238,8 +248,10 @@ function flowTable(view, rows) {
 }
 
 /* ---- wiring ---- */
-$('flBuckets').addEventListener('click', e => { const b = e.target.closest('[data-flb]'); if (!b) return; FLOW_VIEW = b.dataset.flb; renderFlow(); });
-$('flPanel').addEventListener('click', e => { const an = e.target.closest('[data-flang]'); if (an) { FLOW_ANGLE[FLOW_VIEW] = an.dataset.flang; renderFlow(); return; }
+$('flBuckets').addEventListener('click', e => { const b = e.target.closest('[data-flb]'); if (!b) return;
+  FLOW_VIEW = b.dataset.flb === 'demand' ? (FLOW.demView || (flowScreenAllowed().find(x => x[4] === 'demand') || [])[0] || 'drfd') : b.dataset.flb; renderFlow(); });
+$('flPanel').addEventListener('click', e => { const dm = e.target.closest('[data-fldem]'); if (dm) { FLOW_VIEW = dm.dataset.fldem; renderFlow(); return; }
+  const an = e.target.closest('[data-flang]'); if (an) { FLOW_ANGLE[FLOW_VIEW] = an.dataset.flang; renderFlow(); return; }
   const cp = e.target.closest('[data-flchp]'); if (!cp) return;
   const er = flowChallanPrint(cp.dataset.flchp); if (er) { $('flMsg').className = 'err'; $('flMsg').textContent = er; } });
 $('flQ').addEventListener('input', () => { clearTimeout(FLOW.qt); FLOW.qt = setTimeout(renderFlow, 220); });
@@ -247,7 +259,8 @@ $('flSrc').addEventListener('change', renderFlow);
 $('flTest').onclick = () => flowTestOpen();
 $('flTestOnly').addEventListener('change', () => { flowTestOnlySet($('flTestOnly').checked); renderFlow(); });
 $('flRefresh').onclick = async () => { $('flMsg').textContent = 'Reading again…'; await Promise.all([ptLoadGates(true), flowLoad(true)]); renderFlow(); };
-$('flTable').addEventListener('click', async e => {
+/* The bucket table's buttons — on the flow screen, and in its tabs inside Cutting Data and the Job Work Register. */
+async function flowTableClick(e) {
   const sm = e.target.closest('[data-flsim]');
   if (sm) { const [no, sku, view] = sm.dataset.flsim.split('|'); const er = await flowSimulate(no, sku, view);
     $('flMsg').className = er ? 'err' : 'muted'; if (er) $('flMsg').textContent = er; else renderFlow(); return; }
@@ -288,28 +301,81 @@ $('flTable').addEventListener('click', async e => {
   const err = key.flres ? await flowReserve(x.r, x.s) : await flowUnreserve(x.s);
   $('flMsg').className = err ? 'err' : 'muted';
   if (err) $('flMsg').textContent = err; else renderFlow();
-});
+}
+$('flTable').addEventListener('click', flowTableClick);
 /* The menu button shows only where the flow is switched on, and only to an account with a bucket. */
-function flowNavShow() { if ($('tabFlow')) $('tabFlow').style.display = FLOW_ON && flowBucketsAllowed().length ? '' : 'none'; flowMenuBuild(); }
+function flowNavShow() { if ($('tabFlow')) $('tabFlow').style.display = FLOW_ON && flowScreenAllowed().length ? '' : 'none'; flowMenuBuild(); flowEmbedSetup(); }
+
+/* ---- TABS INSIDE THE FACTORY'S OWN SCREENS (Ravi, 12 Oct: "cutting should be shown in cutting department which is already
+ * there; raw cutting should be shown in Job Work Register — like Listing Health's tabs; WIP part of Job Work Register") ----
+ * Cutting Data gets "To cut · Production flow"; the Job Work Register gets "Raw cutting in store" and "WIP · with karigars".
+ * The first tab is the screen as it is; a flow tab sets the screen's own content aside and shows that bucket, with the
+ * same buttons as before. Only where the flow is switched on, and only the tabs this account may open. */
+const FLOW_EMBED = { pcut: { pane: 'panePcut', own: 'Cutting Data', views: ['cut'] }, pbase: { pane: 'panePbase', own: 'Job Work Register', views: ['raw', 'wip'] } };
+const FLOW_EMB = { pcut: '', pbase: '' };
+function flowEmbedViews(tab) { const mine = new Set(flowBucketsAllowed().map(b => b[0])); return FLOW_ON ? FLOW_EMBED[tab].views.filter(v => mine.has(v)) : []; }
+function flowEmbedSetup() {
+  Object.keys(FLOW_EMBED).forEach(tab => {
+    const pane = $(FLOW_EMBED[tab].pane); if (!pane || !pane.insertAdjacentHTML) return;
+    const views = flowEmbedViews(tab), seg = $('flSeg_' + tab);
+    if (!views.length) { if (seg && seg.remove) { seg.remove(); const b = $('flEmb_' + tab); if (b && b.remove) b.remove(); } FLOW_EMB[tab] = ''; return; }
+    if (!seg || !seg.isConnected) {
+      pane.insertAdjacentHTML('afterbegin', `<div id="flSeg_${tab}" class="card" style="padding:8px 10px;margin-bottom:12px;display:flex;gap:6px;flex-wrap:wrap;align-items:center"></div>`
+        + `<div id="flEmb_${tab}" class="hide"><div class="card" style="padding:10px 14px"><div id="flEmbMsg_${tab}" class="muted" style="font-size:12.5px"></div></div>`
+        + `<div class="card xlwrap" style="margin-top:12px"><table class="xl" id="flEmbT_${tab}"></table></div></div>`);
+      $('flSeg_' + tab).addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-flemb]'); if (!b) return; FLOW_EMB[tab] = b.dataset.flemb; flowEmbedRender(tab); });
+      $('flEmbT_' + tab).addEventListener('click', flowTableClick);
+    }
+    flowEmbedRender(tab);
+  });
+}
+/** Back to the screen's own content (a flow tab's button opens the screen's form). */
+function flowEmbedOff(tab) { if (FLOW_EMB[tab]) { FLOW_EMB[tab] = ''; flowEmbedRender(tab); } }
+function flowEmbedRefresh() { Object.keys(FLOW_EMBED).forEach(tab => { if (FLOW_EMB[tab]) flowEmbedRender(tab); }); }
+async function flowEmbedRender(tab) {
+  const cfg = FLOW_EMBED[tab], pane = $(cfg.pane), seg = $('flSeg_' + tab), box = $('flEmb_' + tab);
+  if (!pane || !seg || !box || !pane.children) return;
+  const views = flowEmbedViews(tab), v = views.includes(FLOW_EMB[tab]) ? FLOW_EMB[tab] : '';
+  FLOW_EMB[tab] = v;
+  const label = k => (FLOW_BUCKETS.find(b => b[0] === k) || [, k])[1];
+  const count = k => { try { if (!FLOW.ppc) return ''; const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly();
+    return String(flowRows().filter(x => (!only || x.r.__t) && flowInView(k, x.s)).length); } catch (e) { return ''; } };
+  seg.innerHTML = [['', cfg.own]].concat(views.map(k => [k, label(k)])).map(([k, l]) => { const c = k ? count(k) : '';
+    return `<button type="button" data-flemb="${k}" class="${k === v ? '' : 'ghost'}" style="width:auto;padding:6px 16px;font-size:13.5px">${esc(l)}${c !== '' ? ` <b style="margin-left:4px">${c}</b>` : ''}</button>`; }).join('')
+    + (views.length ? '<span class="navbadge" style="background:#7c3aed;position:static;margin-left:auto">TEST · Production flow</span>' : '');
+  [...pane.children].forEach(ch => { if (ch !== seg && ch !== box && ch.classList) ch.classList.toggle('fl-embhide', !!v); });
+  box.classList.toggle('hide', !v);
+  if (!v) return;
+  const msg = $('flEmbMsg_' + tab), tbl = $('flEmbT_' + tab);
+  if (!FLOW.ppc) { msg.textContent = 'Reading the production flow…'; tbl.innerHTML = ''; try { await flowEnsureData(); } catch (e) { msg.textContent = 'Could not read the production flow.'; return; } return flowEmbedRender(tab); }
+  const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly();
+  const rows = flowRows().filter(x => (!only || x.r.__t) && flowInView(v, x.s))
+    .sort((a, b) => String(a.r.orderDate || '').localeCompare(String(b.r.orderDate || '')) || String(a.r.orderNo).localeCompare(String(b.r.orderNo)));
+  tbl.innerHTML = flowTable(v, rows.slice(0, 800));
+  const b = FLOW_BUCKETS.find(x => x[0] === v) || [];
+  msg.textContent = `${b[1]}: ${nf(rows.length)} line(s) — ${b[3]}${only ? ' · SHOWING TEST ORDERS ONLY (switch on the Production flow screen)' : ''} · TEST VIEW, not on the live app`;
+}
 /* THE BUCKETS IN THE MENU (Ravi, 12 Oct: "production flow me abhi jitne bhi tab h unko upar dikhao, just like Orders aur
  * uske action"). A column of its own in the Production menu, beside Orders: every bucket this account may open, in the
  * order the work moves, each with its count once the flow has been read. Only where the flow is switched on. */
-const FLOW_MENU_WHAT = { dhist: 'open challans', pord: 'open' };
+const FLOW_MENU_WHAT = {};
 let FLOW_MENU_N = null;
 function flowMenuBuild() {
   const sec = $('secProd'); if (!sec || !sec.querySelector) return;
-  const allowed = FLOW_ON ? flowBucketsAllowed() : [];
+  const own = FLOW_ON ? flowScreenAllowed() : [], allowed = [];
+  own.forEach(b => { if (b[4] === 'flow') allowed.push(b); if (b[0] === 'ppc' && own.some(x => x[4] === 'demand')) allowed.push(['demand', 'Demand', '', 'RFD fabric out to printers, printed fabric in, accessories']); });
+  if (own.some(x => x[4] === 'demand') && !allowed.some(b => b[0] === 'demand')) allowed.unshift(['demand', 'Demand', '', 'RFD fabric out to printers, printed fabric in, accessories']);
   let col = $('flMenuCol');
   if (!allowed.length) { if (col && col.remove) col.remove(); return; }
   if (!col) {
     const first = sec.querySelector('.mg-col'); if (!first || !first.insertAdjacentHTML) return;
     first.insertAdjacentHTML('afterend', '<div class="mg-col" id="flMenuCol"></div>'); col = $('flMenuCol');
     col.addEventListener('click', e => { const a = e.target.closest && e.target.closest('[data-flmenu]'); if (!a) return;
-      e.preventDefault(); FLOW_VIEW = a.dataset.flmenu; showTab('flow'); });
+      e.preventDefault(); FLOW_VIEW = a.dataset.flmenu === 'demand' ? (FLOW.demView || 'drfd') : a.dataset.flmenu; showTab('flow'); });
   }
   col.innerHTML = '<div class="mg-h">PPC · Production flow</div>' + allowed.map(([k, label], i) => {
     const c = FLOW_MENU_N ? (+FLOW_MENU_N[k] || 0) : 0;
-    return `<a class="nav" href="#flow" data-flmenu="${esc(k)}" title="${esc((FLOW_BUCKETS.find(b => b[0] === k) || [])[3] || '')}">`
+    return `<a class="nav" href="#flow" data-flmenu="${esc(k)}" title="${esc((allowed.find(b => b[0] === k) || [])[3] || '')}">`
       + `<span class="nav-ic" style="font-weight:800;font-size:12.5px">${i + 1}</span><span class="nav-t">${esc(label)}</span>`
       + `<span class="nav-bd"><span class="navbadge${c ? '' : ' hide'}" data-flmenun="${esc(k)}" data-what="${esc(FLOW_MENU_WHAT[k] || (c === 1 ? 'line' : 'lines'))}" style="background:#7c3aed">${c || ''}</span></span></a>`; }).join('');
 }

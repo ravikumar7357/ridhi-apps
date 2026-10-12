@@ -206,7 +206,9 @@ const breaks = {
   },
   'flow-view.js': {
     'cutting waste not shown in Raw cutting in store': s => s.replace("body = wasteHtml + rows.map(", "body = rows.map("),
-    'buttons for buckets not held': s => s.replace('$(\'flBuckets\').innerHTML = allowed.map(', '$(\'flBuckets\').innerHTML = FLOW_BUCKETS.map('),
+    'buttons for buckets not held': s => s.replace("const allowed = flowScreenAllowed();", "const allowed = FLOW_BUCKETS.filter(b => b[4] === 'flow' || b[4] === 'demand');"),
+    'a flow tab in Job Work the account does not hold': s => s.replace("return FLOW_ON ? FLOW_EMBED[tab].views.filter(v => mine.has(v)) : [];", "return FLOW_ON ? FLOW_EMBED[tab].views : [];"),
+    'Demand without its tabs': s => s.replace("if (FLOW_DEMAND.includes(FLOW_VIEW)) FLOW.panel = `", "if (false) FLOW.panel = `"),
     'no RFD stock angle': s => s.replace("if (ang === 'stock') $('flTable').innerHTML = FLOW.stock;", ''),
     'stock stacked above the lines again': s => s.replace("    if (ang === 'stock') $('flTable').innerHTML = FLOW.stock;", "    FLOW.panel += '<table>' + FLOW.stock + '</table>';"),
     'no red flag on a short line': s => s.replace('⚑ SHORT ${nf(c.short)} m', 'covered'),

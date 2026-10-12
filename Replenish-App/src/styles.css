@@ -994,3 +994,5 @@
 .pks-row div{flex:1;min-width:0}
 .pks-row b{font-family:ui-monospace,monospace;font-size:4.2vw}
 .pks-q{flex:none !important;font-size:7vw;font-weight:800}
+/* Production flow (preview): a screen's own content set aside while one of its flow tabs is open. */
+.fl-embhide{display:none!important}
