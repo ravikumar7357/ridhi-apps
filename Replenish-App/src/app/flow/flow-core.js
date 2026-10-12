@@ -44,6 +44,10 @@ const FLOW_COMPANY = 'Ridhi Home & Living';
  *   home 'pcut'    a tab of Cutting Data                        home 'pbase'   a tab of the Job Work Register */
 const FLOW_BUCKETS = [
   ['ppc', 'PPC', 'flppc', 'Plan not raised yet: fabric, accessories, printing and dates.', 'flow'],
+  /* PPC COMPLETED (Ravi, 12 Oct: "jiska PPC plan ho chuka h — yadi koi edit h to yahin se edit kar sake; aage se edit nahi
+   * hoga, wo PPC se hi edit hoga"): every line PPC has raised and not finished, with what was planned and where it is now.
+   * The plan is changed (or undone) here and nowhere else. */
+  ['ppcdone', 'PPC completed', 'flppc', 'Plan raised — what was planned and where the line is now. A plan is changed or undone here only.', 'flow'],
   ['drfd', 'RFD fabric · out to printers', 'fldem', 'Planned; the fabric is not with the printer yet. RFD in stock against what each line needs — red where it falls short; make the challan to the printer.', 'demand'],
   ['dhist', 'Printed fabric in · history', 'flchl', 'Every RFD challan. Open until the printed fabric comes back against it — receive it here and the lines move to the store.', 'demand'],
   ['dacc', 'Accessories', 'flacc', 'Planned; the accessories are not reserved yet. Free on the shelf against what each line needs.', 'demand'],
@@ -51,7 +55,7 @@ const FLOW_BUCKETS = [
   ['raw', 'Raw cutting in store', 'flraw', 'Cut (or printed) pieces waiting to be issued to a karigar.', 'pbase'],
   ['wip', 'WIP · with karigars', 'flwip', 'With karigars: issued, not back yet.', 'pbase'],
 ];
-const FLOW_TABS = FLOW_BUCKETS.map(b => b[2]);
+const FLOW_TABS = [...new Set(FLOW_BUCKETS.map(b => b[2]))];   // one right can open more than one bucket (PPC and PPC completed)
 /* AFTER WIP THE LINE LEAVES THIS SCREEN (Ravi, 10 Oct: "Q.C wala part abhi ke Q.C me flow kare, yahan se remove; ready to
  * India stock wala Finish Goods me show ho for accept"). A line still gets the bucket of where it is — 'qcb' with Quality
  * Control, 'fgin' waiting for the Finished Goods team — but no bucket of this screen lists it: the work is done there. */
@@ -80,6 +84,7 @@ const flowInView = (view, s) => view === 'drfd' ? s.bucket === 'demand' && s.nee
   : view === 'dacc' ? s.bucket === 'demand' && s.needAcc
   : view === 'cut' ? s.bucket === 'cut' || (s.bucket === 'fabric' && s.cutReq && s.canCut > 0)
   : view === 'raw' ? s.bucket === 'raw' || (['fabric', 'cut'].includes(s.bucket) && s.canIssue > 0)
+  : view === 'ppcdone' ? !!s.plan && s.bucket !== 'done'
   : s.bucket === view;
 const flowBucketsAllowed = () => (ME.admin ? FLOW_BUCKETS : FLOW_BUCKETS.filter(b => (ME.tabs || []).includes(b[2])));
 const flowKey = (orderNo, sku) => (obUC(orderNo) + '__' + obUC(sku)).replace(/[.#$\[\]\/]/g, '_');

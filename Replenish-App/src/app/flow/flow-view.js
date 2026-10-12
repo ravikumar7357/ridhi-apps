@@ -52,7 +52,8 @@ function renderFlow() {
   const shown = all.filter(pass), n = flowCounts(shown);
   /* PPC › Demand › Outsourced — Demand is one bucket with its tabs (flowDemandTabs). */
   const dem = allowed.filter(b => b[4] === 'demand'), bar = [];
-  allowed.forEach(b => { if (b[4] === 'flow') bar.push(b); if (b[0] === 'ppc' && dem.length) bar.push(['demand', 'Demand', '', 'What PPC raised: RFD fabric out to printers, printed fabric in, accessories.']); });
+  const before = allowed.some(x => x[0] === 'ppcdone') ? 'ppcdone' : 'ppc';
+  allowed.forEach(b => { if (b[4] === 'flow') bar.push(b); if (b[0] === before && dem.length) bar.push(['demand', 'Demand', '', 'What PPC raised: RFD fabric out to printers, printed fabric in, accessories.']); });
   if (dem.length && !bar.some(b => b[0] === 'demand')) bar.unshift(['demand', 'Demand', '', 'What PPC raised: RFD fabric out to printers, printed fabric in, accessories.']);
   n.demand = dem.reduce((t, b) => t + (+n[b[0]] || 0), 0);
   /* One menu item, "PPC · Production flow"; inside it the buckets PPC › Demand (Ravi, 12 Oct: "main tab PPC Production flow
@@ -157,7 +158,7 @@ function flowTable(view, rows) {
   const pic = sku => { const u = typeof ptImgOf === 'function' ? ptImgOf(sku) : ''; return u ? `<img src="${esc(ptImgSrc(u, 34))}" alt="" style="width:34px;height:34px;object-fit:contain;background:#fff;border-radius:5px">` : ''; };
   const base = x => `<td class="frz" style="text-align:left">${x.r.__t ? `<b>${esc(x.r.orderNo)}</b> <span class="navbadge" style="background:#7c3aed;position:static">TEST</span>
       <a href="#" data-fltdel="${esc(x.r.orderNo)}" style="font-size:10.5px;color:#b91c1c;margin-left:4px">delete test</a>` : `<a href="#" data-ordj="${esc(x.r.orderNo)}" style="font-weight:600">${esc(x.r.orderNo)}</a>`}
-      <div class="muted" style="font-size:10.5px">${esc(x.r.src || '')} · ${esc(ptIsoDate(x.r.orderDate) || '')} · ${nf(flowDays(x.r.orderDate) || 0)} d${x.s.plan ? ` · <a href="#" data-flplan="${esc(x.r.orderNo)}|${esc(x.r.sku)}" title="Change or undo what PPC planned">edit plan</a>` : ''}</div></td>
+      <div class="muted" style="font-size:10.5px">${esc(x.r.src || '')} · ${esc(ptIsoDate(x.r.orderDate) || '')} · ${nf(flowDays(x.r.orderDate) || 0)} d</div></td>
     <td style="text-align:left;white-space:nowrap">${pic(x.r.sku)} <b style="font-family:ui-monospace,monospace;vertical-align:top">${esc(x.r.sku)}</b>
       <div class="muted" style="font-size:10.5px">${esc([x.r.articleSubtype || x.r.articleType, x.r.color, x.r.size].filter(Boolean).join(' · '))}</div></td>
     <td class="num"><b>${nf(x.r.qty)}</b></td>`;
@@ -187,6 +188,21 @@ function flowTable(view, rows) {
         ${sg.gaps.length ? `<div style="font-size:10.5px;color:#92400e">${esc(sg.gaps[0])}${sg.gaps.length > 1 ? ' (+' + (sg.gaps.length - 1) + ')' : ''}</div>` : ''}</td>
         <td style="white-space:nowrap">${first ? `<button data-flppc="${esc(x.r.orderNo)}" style="width:auto;padding:3px 10px;font-size:12px">Plan this PO</button>` : ''}
           <button class="ghost" data-flppc="${esc(x.r.orderNo)}" data-sku="${esc(x.r.sku)}" style="width:auto;padding:2px 8px;font-size:11.5px">This line</button></td></tr>`; }).join('');
+  } else if (view === 'ppcdone') {
+    /* What PPC planned, line by line, where the line is now, and the one place to change it. */
+    head = ['PO', 'SKU', 'Qty', 'Planned', 'Now in', 'Raised', ''];
+    const now = s => s.bucket === 'demand' ? [s.needFab && 'Demand · RFD fabric', s.needAcc && 'Demand · Accessories'].filter(Boolean).join(' + ')
+      : FLOW_ELSEWHERE[s.bucket] || (FLOW_BUCKETS.find(b => b[0] === s.bucket) || [, s.bucket])[1];
+    body = rows.map(x => { const p = x.s.plan || {}, rp = flowRufflePrinter(p), rt = (FLOW_ROUTES.find(r => r[0] === flowRouteOf(p)) || [, , flowRouteOf(p)])[2];
+      const locked = flowFabLocked(x.s);
+      return `<tr>${base(x)}<td class="num">${nf(+x.r.qty || 0)}</td>
+        <td style="text-align:left;font-size:12px"><b>${esc(rt || '')}</b>${p.fabric && p.fabric.name ? ` · ${esc(p.fabric.name)} ${nf(flowR2(+p.fabric.metres || 0))} m` : ''}
+          ${p.printer && p.printer.name ? `<div>print: <b>${esc(p.printer.name)}</b>${rp ? ` · ruffle: <b>${esc(rp.name)}</b>` : ''}</div>` : ''}
+          ${(p.acc || []).filter(a => a.code && +a.qty > 0).length ? `<div class="muted" style="font-size:10.5px">${(p.acc || []).filter(a => a.code && +a.qty > 0).map(a => esc(a.what || a.code) + ' × ' + nf(a.qty)).join(' · ')}</div>` : ''}</td>
+        <td style="text-align:left;font-size:12px">${esc(now(x.s))}</td>
+        <td style="text-align:left;font-size:11.5px" class="muted">${esc(String(p.at || '').slice(0, 10))}${p.by ? ' · ' + esc(String(p.by).split('@')[0]) : ''}</td>
+        <td style="white-space:nowrap"><button data-flplan="${esc(x.r.orderNo)}|${esc(x.r.sku)}" style="width:auto;padding:3px 10px;font-size:12px" title="Change or undo what PPC planned">Edit plan</button>
+          ${locked ? `<div class="muted" style="font-size:10.5px">fabric on ${esc(x.s.challan.no)} — fabric, route and printer stay</div>` : ''}</td></tr>`; }).join('');
   } else if (view === 'drfd') {
     head = ['PO', 'SKU', 'Qty', 'Made as', 'Fabric this line uses', 'RFD left for it', ''];
     const cv = flowRfdCover(), seen = new Set();

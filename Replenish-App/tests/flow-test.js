@@ -74,8 +74,8 @@ const K = 'AMZ-1__S1';
 
   console.log('== each bucket its own right ==');
   ok('seven rights — New orders, Print orders, Vendor allocation, Outsourced, QC, Finished Goods and Printed fabric in are gone from the flow', load().FLOW_TABS.length === 7 && new Set(load().FLOW_TABS).size === 7 && !['flnew', 'flpo', 'flven', 'flout', 'flqc', 'flrdy', 'flfg', 'flfab'].some(t => load().FLOW_TABS.includes(t)));
-  ok('an admin sees every bucket', load({ me: { admin: true } }).flowBucketsAllowed().length === 7 && load({ me: { admin: true } }).flowScreenAllowed().map(b => b[0]).join() === 'ppc,drfd,dhist,dacc');
-  ok('PPC staff see PPC only', load({ me: { tabs: ['flppc', 'ord'] } }).flowBucketsAllowed().map(b => b[0]).join() === 'ppc');
+  ok('an admin sees every bucket', load({ me: { admin: true } }).flowBucketsAllowed().length === 8 && load({ me: { admin: true } }).flowScreenAllowed().map(b => b[0]).join() === 'ppc,ppcdone,drfd,dhist,dacc');
+  ok('PPC staff see PPC and PPC completed only', load({ me: { tabs: ['flppc', 'ord'] } }).flowBucketsAllowed().map(b => b[0]).join() === 'ppc,ppcdone');
   ok('nobody with no right sees any', load({ me: { tabs: ['ord'] } }).flowBucketsAllowed().length === 0);
   ok('a key is safe for the database (no . # $ [ ] /)', load().flowKey('amz/1.2', 's#1') === 'AMZ_1_2__S_1');
 
@@ -947,8 +947,12 @@ const K = 'AMZ-1__S1';
     const mdb = { S1: { cons: 1, fab: 'Cotton', chainLength: '18' } };
     const pl = plan({ printer: { code: 'P1', name: 'Sanganer Prints' }, acc: [{ code: '18', qty: 100 }], fabric: { name: 'Cotton', perPc: 1, metres: 100 } });
     A = load({ me: { admin: true }, mdb, lines: [L()], ppc: { [K]: pl }, dem: { [K]: { fabricReady: { at: 'x', metres: 100 } } }, res: { [K]: { items: { 18: 100 } } } });
-    A.setView('cut'); A.renderView(); A.setView('vendor'); A.renderView();
-    ok('every planned line has an "edit plan" link', /data-flplan="AMZ-1\|S1"/.test(A.els.flTable.innerHTML));
+    A.setView('vendor'); A.renderView();
+    ok('no "edit plan" anywhere down the line — a plan is changed from PPC completed only', !/data-flplan=/.test(A.els.flTable.innerHTML));
+    ok('a planned line that is finished (handed over) leaves PPC completed', A.flowInView('ppcdone', A.flowState(L())) && !A.flowInView('ppcdone', A.flowState(L({ handedAt: '2026-10-12' }))));
+    A.setView('ppcdone'); A.renderFlow();
+    ok('PPC completed lists every planned line not finished: what was planned, where it is now, and "Edit plan"', /data-flplan="AMZ-1\|S1"/.test(A.els.flTable.innerHTML) && /Cotton 100 m/.test(A.els.flTable.innerHTML)
+      && /Sanganer Prints/.test(A.els.flTable.innerHTML) && /data-flb="ppcdone"/.test(A.els.flBuckets.innerHTML) && /<span class="fl-n">1<\/span><span>PPC completed/.test(A.els.flBuckets.innerHTML) && /data-flb="ppc"[^]*data-flb="ppcdone"[^]*data-flb="demand"/.test(A.els.flBuckets.innerHTML), A.els.flTable.innerHTML.slice(0, 600));
     A.flowPpcOpen('AMZ-1', 'S1');
     ok('it opens the plan as saved, as an edit, with an undo box', /Edit plan/.test(A.ctx.__dlg.title) && /flpUndo/.test(A.ctx.__dlg.html) && /Save the plan/.test(A.ctx.__dlg.saveLabel));
     A.ctx.document.querySelectorAll = () => [{ addEventListener() {}, dataset: { fp: '0', k: 'acc.0.qty' }, type: 'number', value: '90' }];

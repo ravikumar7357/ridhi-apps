@@ -6,6 +6,7 @@ const FILES = ['flow-core.js', 'flow-ppc.js', 'flow-demand.js', 'flow-challan.js
 const read = f => fs.readFileSync(path.join(DIR, f), 'utf8').replace(/\r\n/g, '\n');
 const breaks = {
   'flow-core.js': {
+    'PPC completed lists finished lines too': s => s.replace(": view === 'ppcdone' ? !!s.plan && s.bucket !== 'done'", ": view === 'ppcdone' ? !!s.plan"),
     'part back never reaches Cutting': s => s.replace(": view === 'cut' ? s.bucket === 'cut' || (s.bucket === 'fabric' && s.cutReq && s.canCut > 0)", ": view === 'cut' ? s.bucket === 'cut'"),
     'part back never reaches Raw cutting in store': s => s.replace(": view === 'raw' ? s.bucket === 'raw' || (['fabric', 'cut'].includes(s.bucket) && s.canIssue > 0)", ": view === 'raw' ? s.bucket === 'raw'"),
     'The Fabric Rush on the papers': s => s.replace("const FLOW_COMPANY = 'Ridhi Home & Living';", "const FLOW_COMPANY = 'The Fabric Rush';"),
@@ -205,6 +206,7 @@ const breaks = {
     'the order check run on a test order': s => s.replace("  if (!x.r.__t) {   // a test order", "  if (true) {   // a test order"),
   },
   'flow-view.js': {
+    'edit plan offered down the line again': s => s.replace("${nf(flowDays(x.r.orderDate) || 0)} d</div></td>", "${nf(flowDays(x.r.orderDate) || 0)} d${x.s.plan ? ` · <a href=\"#\" data-flplan=\"${esc(x.r.orderNo)}|${esc(x.r.sku)}\">edit plan</a>` : ''}</div></td>"),
     'cutting waste not shown in Raw cutting in store': s => s.replace("body = wasteHtml + rows.map(", "body = rows.map("),
     'buttons for buckets not held': s => s.replace("const allowed = flowScreenAllowed();", "const allowed = FLOW_BUCKETS.filter(b => b[4] === 'flow' || b[4] === 'demand');"),
     'a flow tab in Job Work the account does not hold': s => s.replace("return FLOW_ON ? FLOW_EMBED[tab].views.filter(v => mine.has(v)) : [];", "return FLOW_ON ? FLOW_EMBED[tab].views : [];"),
