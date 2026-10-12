@@ -58,7 +58,7 @@ function load(opts) {
     FAB: { rows: opts.fabRows || [] },
     STORE: { rows: opts.store ? [] : null }, stMoves: () => opts.store || [], stBalances: mv => mv, fabKey: v => String(v || '').trim().toUpperCase(), fabAll: () => opts.fabRows || [], ptList: x => x || [], fabAutoLoad: async () => {}, fabStockOf: (name, st) => (st === 'RFD' ? (opts.rfd || {})[String(name).toUpperCase()] || 0 : 0),
   };
-  const api = new Function(...Object.keys(ctx), SRC + '\n;return { FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestCutOpen, flowTestIssueOpen, flowTestRecvOpen, flowTestVos, flowVlogRows, flowVoExtra, flowVpViewOnly, flowFgAcceptOpen, flowFgAccept, flowFgRejectOpen, flowFgReject, flowFgLines, flowFgRender, flowQcLine, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowCutEntry, flowIssueEntry, flowRecvEntry, flowQcEntry, flowIssuable, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowVoLines, VOrows:()=>VO.rows, setVOrows:v=>{VO.rows=v}, flowUnplan, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v}, flowEmbedRender, FLOW_EMB:()=>FLOW_EMB, flowScreenAllowed, renderView:()=>{ if (["cut","raw","wip","new","pord","vendor","fabric"].includes(FLOW_VIEW)) { const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly(); const rows = flowRows().filter(x => (!only || x.r.__t) && (FLOW_VIEW === "new" ? x.recent : flowInView(FLOW_VIEW, x.s))); $("flTable").innerHTML = flowTable(FLOW_VIEW, rows); } else renderFlow(); } };')(...Object.values(ctx));
+  const api = new Function(...Object.keys(ctx), SRC + '\n;return { FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestCutOpen, flowTestIssueOpen, flowTestRecvOpen, flowTestVos, flowVlogRows, flowDocsOf, flowVoExtra, flowVpViewOnly, flowFgAcceptOpen, flowFgAccept, flowFgRejectOpen, flowFgReject, flowFgLines, flowFgRender, flowQcLine, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowCutEntry, flowIssueEntry, flowRecvEntry, flowQcEntry, flowIssuable, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowVoLines, VOrows:()=>VO.rows, setVOrows:v=>{VO.rows=v}, flowUnplan, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v}, flowEmbedRender, FLOW_EMB:()=>FLOW_EMB, flowScreenAllowed, renderView:()=>{ if (["cut","raw","wip","new","pord","vendor","fabric"].includes(FLOW_VIEW)) { const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly(); const rows = flowRows().filter(x => (!only || x.r.__t) && (FLOW_VIEW === "new" ? x.recent : flowInView(FLOW_VIEW, x.s))); $("flTable").innerHTML = flowTable(FLOW_VIEW, rows); } else renderFlow(); } };')(...Object.values(ctx));
   api.setFLOW(Object.assign(api.FLOW(), { ppc: opts.ppc || {}, dem: opts.dem || {}, res: opts.res || {} }));
   return Object.assign(api, { els, writes, W, ctx });
 }
@@ -625,7 +625,7 @@ const K = 'AMZ-1__S1';
     ok('saved: one ruffle-only line, Cambric 23.5 m, and the line’s "fabric ready" left alone', !er && chR.lines.length === 1 && chR.lines[0].ruffleOnly && chR.lines[0].metres === 23.5 && chR.lines[0].fabric === 'Cambric'
       && !Object.keys(cw).some(k => k.startsWith('pt_flowDemand/')), er || JSON.stringify(cw));
     let st = R.flowState(R.W.lines[0]);
-    ok('…the body cloth is still owed → the line stays in Demand · RFD; the ruffle button is gone', st.needFab && st.bucket === 'demand' && (R.setView('drfd'), R.renderFlow(), !/Ruffle challan/.test(R.els.flTable.innerHTML)));
+    ok('…the body cloth is still owed → the line stays in Demand · RFD; the ruffle button is gone', st.needFab && st.bucket === 'demand' && (R.setView('drfd'), R.renderFlow(), !/data-pc="P2"/.test(R.els.flTable.innerHTML) && /Ruffle challan <a href="#" data-flchp="RFD-202610-001"[^]*→ Choudhary Hand Block/.test(R.els.flTable.innerHTML)));
     R.flowChallanOpen('AMZ-1', 'P1');
     ok('Sanganer’s challan: the body only, saying the ruffle went to Choudhary', !/ruffle only/.test(R.ctx.__dlg.html) && /ruffle → Choudhary Hand Block/.test(R.ctx.__dlg.html));
     QS = { '[data-chk="0"]': { checked: true }, '[data-chm="0"]': { value: '6' } }; R.els.flcVen.value = 'P1'; er = await R.ctx.__dlg.onSave();
@@ -729,7 +729,7 @@ const K = 'AMZ-1__S1';
     let st = A.flowState(L({ sku: 'RPC327-1818', qty: 10 }));
     ok('3 of 5.3 m sent → still in Demand · RFD, owing 2.3 m', !er && A.flowInView('drfd', st) && st.fabSent === 3 && A.flowFabOwed(L({ sku: 'RPC327-1818', qty: 10 }), st).metres === 2.3, er);
     A.setView('drfd'); A.setAngle('drfd', 'line'); A.renderFlow();
-    ok('Demand RFD says "3 of 5.3 m sent" and the print order', /3 of 5\.3 m sent/.test(A.els.flTable.innerHTML) && /print order PRN-202610-001/.test(A.els.flTable.innerHTML));
+    ok('Demand RFD says "3 of 5.3 m sent" and the print order', /3 of 5\.3 m sent/.test(A.els.flTable.innerHTML) && /Print order <a href="#" data-flpop="PRN-202610-001"/.test(A.els.flTable.innerHTML));
     A.flowChallanOpen('AMZ-1', 'P1');
     ok('the next challan offers the 2.3 m left', /data-chm="0" type="number" step="0.01" value="2.3"/.test(A.ctx.__dlg.html) && /3 m sent already/.test(A.ctx.__dlg.html));
     q = { '[data-chk="0"]': { checked: true }, '[data-chm="0"]': { value: '2.3' }, '[data-chk="1"]': { checked: false }, '[data-chm="1"]': { value: '' } };
@@ -1250,6 +1250,18 @@ const K = 'AMZ-1__S1';
     await C.flowEmbedRender('pbase');
     ok('…a tab the account does not hold is not there, and nothing is shown for it', !/data-flemb="raw"/.test(C.els.flSeg_pbase.innerHTML) && C.FLOW_EMB().pbase === '');
   }
+
+  console.log('== every number made for a line, on the line (Ravi, 12 Oct: "isme hi vendor bhi add kar do") ==');
+  { const P = load({ me: { admin: true } });
+    P.setFLOW(Object.assign(P.FLOW(), {
+      po: { 'TPRN-202610-004': { no: 'TPRN-202610-004', test: true, orderNo: 'TEST-AMZ-3', printer: { name: 'SS Hand Block' }, items: { 'TEST-AMZ-3__CPC-02': { sku: 'CPC-02', print: { kind: 'sku', code: 'CPC-02' }, extras: [] } } },
+        'PRN-202610-009': { no: 'PRN-202610-009', orderNo: 'AMZ-9', printer: { name: 'RBP-Bagru' }, vo: { running: { orderNo: 'VPO-261012-K7Q' } }, items: { 'AMZ-9__RPC1': { sku: 'RPC1', print: { kind: 'fabric', code: 'RBP-CANVAS-327' }, extras: [] } } } },
+      ch: { 'TRFD-202610-007': { no: 'TRFD-202610-007', vendor: { name: 'SS Hand Block' }, lines: [{ key: 'TEST-AMZ-3__CPC-02' }] },
+        'TRFD-202610-008': { no: 'TRFD-202610-008', cancelled: { why: 'x' }, vendor: { name: 'SS Hand Block' }, lines: [{ key: 'TEST-AMZ-3__CPC-02' }] } } }));
+    const t = P.flowDocsOf({ s: { key: 'TEST-AMZ-3__CPC-02' } }).map(e => e.kind + ' ' + e.no + ' → ' + e.who).join(' | ');
+    ok('a test line: its print order, its vendor order (TVPO-…-C, cut pieces) and its RFD challan — not the cancelled one', t === 'Print order TPRN-202610-004 → SS Hand Block | Vendor order TVPO-202610-004-C → SS Hand Block | RFD challan TRFD-202610-007 → SS Hand Block', t);
+    const r = P.flowDocsOf({ s: { key: 'AMZ-9__RPC1' } }).map(e => e.kind + ' ' + e.no).join(' | ');
+    ok('a real line: the vendor order is the one PPC placed (VPO-…), running cloth', r === 'Print order PRN-202610-009 | Vendor order VPO-261012-K7Q', r); }
 
   console.log('== old orders are not dumped into PPC ==');
   A = load();

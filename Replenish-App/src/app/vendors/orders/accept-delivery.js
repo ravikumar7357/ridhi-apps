@@ -689,8 +689,10 @@ function renderVo() {
     .filter(o => (sf ? o.status === sf : o.status !== 'Cancelled'))
     .filter(o => (!vf || o.vendorCode === vf) && (!tf || (o.orderType || 'cut') === tf))
     .map(o => ({ o, s: voSummary(o) }))
-    .filter(({ o }) => !q || [o.orderNo, o.id, o.vendorCode, voName(o.vendorCode), o.status].join(' ').toLowerCase().includes(q)
-      || voLines(o).some(l => [l.sku, l.color, l.fabricType, l.articleSubtype].join(' ').toLowerCase().includes(q)))
+    /* …and by the sales order it is for (Ravi, 12 Oct: "PPC wala order vendor ke order me kis se check karunga") — the
+     * order's notes and each line's forOrders name it. */
+    .filter(({ o }) => !q || [o.orderNo, o.id, o.vendorCode, voName(o.vendorCode), o.status, o.notes, o.flowPrintOrder].join(' ').toLowerCase().includes(q)
+      || voLines(o).some(l => [l.sku, l.color, l.fabricType, l.articleSubtype, l.notes, ...(l.forOrders || []).map(f => f && f.orderNo)].join(' ').toLowerCase().includes(q)))
     .sort((a, b) => voSortMs(b.o) - voSortMs(a.o) || String(a.o.orderNo || '').localeCompare(String(b.o.orderNo || '')));
   VO.shown = rows;
 

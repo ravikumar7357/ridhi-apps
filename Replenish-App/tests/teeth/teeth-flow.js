@@ -169,6 +169,8 @@ const breaks = {
     'undo receipt keeps it closed': s => s.replace("if (c.closed && !c.closed.short) patch[", "if (false) patch["),
   },
   'flow-printorder.js': {
+    'a cancelled challan still listed on the line': s => s.replace("if (!c || c.cancelled) return;", "if (!c) return;"),
+    'the test vendor order number not on the line': s => s.replace("const no = o.test ? String(o.no).replace(/^TPRN-/, 'TVPO-') + (kd === 'cut' ? '-C' : '-R')", "const no = o.test ? ''"),
     'the ruffle printer ignored': s => s.replace("const flowRufflePrinter = p => (p && p.rufflePrinter", "const flowRufflePrinter = p => (false && p.rufflePrinter"),
     'two new print orders in one save share a number': s => s.replace("Object.keys(Object.assign({}, FLOW.po || {}, more || {}))", "Object.keys(FLOW.po || {})"),
     'vendor order lines not combined': s => s.replace("out.running = merge(out.running,", "out.running = (x => x)(out.running,"),
@@ -206,7 +208,7 @@ const breaks = {
     'the order check run on a test order': s => s.replace("  if (!x.r.__t) {   // a test order", "  if (true) {   // a test order"),
   },
   'flow-view.js': {
-    'edit plan offered down the line again': s => s.replace("${nf(flowDays(x.r.orderDate) || 0)} d</div></td>", "${nf(flowDays(x.r.orderDate) || 0)} d${x.s.plan ? ` · <a href=\"#\" data-flplan=\"${esc(x.r.orderNo)}|${esc(x.r.sku)}\">edit plan</a>` : ''}</div></td>"),
+    'edit plan offered down the line again': s => s.replace("${nf(flowDays(x.r.orderDate) || 0)} d</div>${flowDocsHtml(x)}</td>", "${nf(flowDays(x.r.orderDate) || 0)} d${x.s.plan ? ` · <a href=\"#\" data-flplan=\"${esc(x.r.orderNo)}|${esc(x.r.sku)}\">edit plan</a>` : ''}</div></td>"),
     'cutting waste not shown in Raw cutting in store': s => s.replace("body = wasteHtml + rows.map(", "body = rows.map("),
     'buttons for buckets not held': s => s.replace("const allowed = flowScreenAllowed();", "const allowed = FLOW_BUCKETS.filter(b => b[4] === 'flow' || b[4] === 'demand');"),
     'a flow tab in Job Work the account does not hold': s => s.replace("return FLOW_ON ? FLOW_EMBED[tab].views.filter(v => mine.has(v)) : [];", "return FLOW_ON ? FLOW_EMBED[tab].views : [];"),

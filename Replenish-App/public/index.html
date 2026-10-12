@@ -25419,6 +25419,46 @@ function flowVoAfter(placed) {
   const byId = new Map(placed.map(o => [o.vendorCode + '/' + o.id, o]));
   VO.rows = (VO.rows || []).filter(o => !(o && byId.has(o.vendorCode + '/' + o.id))).concat(placed);
 }
+
+/* ---- THE PAPERS OF A LINE (Ravi, 12 Oct: "isme hi vendor bhi add kar do, aur aise kitne aur bhi number bante hain — jo isse
+ * related h wo bhi add kar do") ----
+ * Every number made for one order line, wherever the line is shown: the print order (and the ruffle's, when it has its own
+ * printer), the vendor order the printer sees for it (running -R or cut pieces -C), and each RFD challan it went on (the
+ * ruffle's challan apart). [{ kind, no, who, link }] — link 'po' prints the print order, 'ch' the challan. */
+function flowDocsOf(x) {
+  const key = x && x.s && x.s.key; if (!key) return [];
+  const out = [];
+  Object.values(FLOW.po || {}).forEach(o => {
+    if (!o || o.cancelled || !o.items) return;
+    [[key, ''], [key + FLOW_RUF, ' (ruffle)']].forEach(([k, tag]) => {
+      const it = o.items[k]; if (!it) return;
+      const who = (o.printer && o.printer.name) || '';
+      out.push({ kind: 'Print order' + tag, no: o.no, who, link: 'po' });
+      /* the vendor order this item is on: cut pieces printed on the SKU → the cut one; cloth (and a ruffle) → the running one */
+      const kinds = new Set(); if (it.ruffle || (it.print && it.print.kind !== 'sku')) kinds.add('running'); if (it.print && it.print.kind === 'sku') kinds.add('cut');
+      if (!it.ruffle && (it.extras || []).length) kinds.add('running');
+      kinds.forEach(kd => {
+        const no = o.test ? String(o.no).replace(/^TPRN-/, 'TVPO-') + (kd === 'cut' ? '-C' : '-R') : ((o.vo || {})[kd] || {}).orderNo;
+        if (no) out.push({ kind: 'Vendor order' + tag, no, who });
+      });
+    });
+  });
+  Object.values(FLOW.ch || {}).forEach(c => {
+    if (!c || c.cancelled) return;
+    const mine = (c.lines || []).filter(l => l && l.key === key); if (!mine.length) return;
+    out.push({ kind: mine.every(l => l.ruffleOnly) ? 'Ruffle challan' : 'RFD challan', no: c.no, who: (c.vendor && c.vendor.name) || '', link: 'ch', closed: !!c.closed });
+  });
+  return out;
+}
+/** The papers of a line, as one small line under the order number. */
+function flowDocsHtml(x) {
+  const d = flowDocsOf(x); if (!d.length) return '';
+  return '<div class="muted" style="font-size:10.5px;line-height:1.5;margin-top:2px">' + d.map(e => `${esc(e.kind)} `
+    + (e.link === 'po' ? `<a href="#" data-flpop="${esc(e.no)}" title="Open the print order to print">${esc(e.no)}</a>`
+      : e.link === 'ch' ? `<a href="#" data-flchp="${esc(e.no)}" title="Open the challan to print">${esc(e.no)}</a>${e.closed ? ' (closed)' : ''}`
+      : `<b style="color:var(--ink,#1c2033)">${esc(e.no)}</b>`)
+    + (e.who ? ` → ${esc(e.who)}` : '')).join(' · ') + '</div>';
+}
 /* ============================== FILE: src/app/flow/flow-vendor.js ============================== */
 /* ================= PRODUCTION FLOW · WHAT THE PRINTER SEES =================
  * Ravi, 11 Oct: "yahan dikha raha h sent to printer but na to ye vendor screen me show ho raha h na hi vendor ke pas; and
@@ -26113,7 +26153,7 @@ function flowTable(view, rows) {
   const pic = sku => { const u = typeof ptImgOf === 'function' ? ptImgOf(sku) : ''; return u ? `<img src="${esc(ptImgSrc(u, 34))}" alt="" style="width:34px;height:34px;object-fit:contain;background:#fff;border-radius:5px">` : ''; };
   const base = x => `<td class="frz" style="text-align:left">${x.r.__t ? `<b>${esc(x.r.orderNo)}</b> <span class="navbadge" style="background:#7c3aed;position:static">TEST</span>
       <a href="#" data-fltdel="${esc(x.r.orderNo)}" style="font-size:10.5px;color:#b91c1c;margin-left:4px">delete test</a>` : `<a href="#" data-ordj="${esc(x.r.orderNo)}" style="font-weight:600">${esc(x.r.orderNo)}</a>`}
-      <div class="muted" style="font-size:10.5px">${esc(x.r.src || '')} · ${esc(ptIsoDate(x.r.orderDate) || '')} · ${nf(flowDays(x.r.orderDate) || 0)} d</div></td>
+      <div class="muted" style="font-size:10.5px">${esc(x.r.src || '')} · ${esc(ptIsoDate(x.r.orderDate) || '')} · ${nf(flowDays(x.r.orderDate) || 0)} d</div>${flowDocsHtml(x)}</td>
     <td style="text-align:left;white-space:nowrap">${pic(x.r.sku)} <b style="font-family:ui-monospace,monospace;vertical-align:top">${esc(x.r.sku)}</b>
       <div class="muted" style="font-size:10.5px">${esc([x.r.articleSubtype || x.r.articleType, x.r.color, x.r.size].filter(Boolean).join(' · '))}</div></td>
     <td class="num"><b>${nf(x.r.qty)}</b></td>`;
@@ -26169,7 +26209,7 @@ function flowTable(view, rows) {
       const ro = flowRuffleOwed(x), rk = ro ? x.r.orderNo + '|' + ro.printer.code : '', rfirst = !!ro && !seen.has(rk); if (ro) seen.add(rk);
       return `<tr${c.short ? ' style="background:#fef2f2"' : ''}>${base(x)}
         <td style="text-align:left;font-size:12px">${x.s.route === 'stitch' ? 'Stitching only' : `Print: <b>${esc((p.printer && p.printer.name) || '—')}</b><div style="font-size:11px;color:#4338ca">${flowPrintTxt(flowPrintWhat(x.r, p))}</div>${flowExtrasTxt(flowPrintExtras(x.r, p))}${flowRufflePrinter(p) ? `<div style="font-size:10.5px;color:#5b21b6">ruffle → <b>${esc(flowRufflePrinter(p).name)}</b>${ro ? '' : ' · sent'}</div>` : ''}`}</td>
-        <td style="text-align:left;font-size:12px">${p.fabric ? `<b>${esc(p.fabric.name)}</b> · ${nf(c.need)} m to send` : '—'}${ro ? `<div style="font-size:10.5px;color:#5b21b6">ruffle: ${esc(ro.fabric)} · ${nf(ro.metres)} m to ${esc(ro.printer.name)}</div>` : ''}${x.s.fabSent > 0 ? `<div class="muted" style="font-size:10.5px">${nf(x.s.fabSent)} of ${nf(x.s.fabNeed)} ${x.s.fabUnit} sent</div>` : ''}${x.s.po ? `<div class="muted" style="font-size:10.5px">print order ${esc(x.s.po)}</div>` : ''}${flowMasterDiffTxt(flowMasterDiff(x.r, p))}</td>
+        <td style="text-align:left;font-size:12px">${p.fabric ? `<b>${esc(p.fabric.name)}</b> · ${nf(c.need)} m to send` : '—'}${ro ? `<div style="font-size:10.5px;color:#5b21b6">ruffle: ${esc(ro.fabric)} · ${nf(ro.metres)} m to ${esc(ro.printer.name)}</div>` : ''}${x.s.fabSent > 0 ? `<div class="muted" style="font-size:10.5px">${nf(x.s.fabSent)} of ${nf(x.s.fabNeed)} ${x.s.fabUnit} sent</div>` : ''}${flowMasterDiffTxt(flowMasterDiff(x.r, p))}</td>
         <td style="text-align:left;font-size:12px">${c.short ? `<span class="jw-st" style="background:#fee2e2;color:#b91c1c;font-weight:700">⚑ SHORT ${nf(c.short)} m</span> <span class="muted">${nf(c.avail)} m left</span>`
           : `<span class="jw-st done">covered</span> <span class="muted">${nf(c.avail)} m left</span>`}</td>
         <td style="white-space:nowrap">${first ? `<button data-flch="${esc(x.r.orderNo)}" data-pc="${esc(pk)}" style="width:auto;padding:3px 10px;font-size:12px">${pk === '?' ? 'Challan (printer not chosen)' : 'Challan → ' + esc((p.printer && p.printer.name) || pk)}</button> ` : ''}${rfirst ? `<button data-flch="${esc(x.r.orderNo)}" data-pc="${esc(ro.printer.code)}" style="width:auto;padding:3px 10px;font-size:12px;background:#7c3aed;border-color:#7c3aed">Ruffle challan → ${esc(ro.printer.name)}</button> ` : ''}<button class="ghost" data-flfab="${esc(x.s.key)}" style="width:auto;padding:2px 9px;font-size:11.5px">Mark fabric ready</button></td></tr>`; }).join('');
@@ -33635,8 +33675,10 @@ function renderVo() {
     .filter(o => (sf ? o.status === sf : o.status !== 'Cancelled'))
     .filter(o => (!vf || o.vendorCode === vf) && (!tf || (o.orderType || 'cut') === tf))
     .map(o => ({ o, s: voSummary(o) }))
-    .filter(({ o }) => !q || [o.orderNo, o.id, o.vendorCode, voName(o.vendorCode), o.status].join(' ').toLowerCase().includes(q)
-      || voLines(o).some(l => [l.sku, l.color, l.fabricType, l.articleSubtype].join(' ').toLowerCase().includes(q)))
+    /* …and by the sales order it is for (Ravi, 12 Oct: "PPC wala order vendor ke order me kis se check karunga") — the
+     * order's notes and each line's forOrders name it. */
+    .filter(({ o }) => !q || [o.orderNo, o.id, o.vendorCode, voName(o.vendorCode), o.status, o.notes, o.flowPrintOrder].join(' ').toLowerCase().includes(q)
+      || voLines(o).some(l => [l.sku, l.color, l.fabricType, l.articleSubtype, l.notes, ...(l.forOrders || []).map(f => f && f.orderNo)].join(' ').toLowerCase().includes(q)))
     .sort((a, b) => voSortMs(b.o) - voSortMs(a.o) || String(a.o.orderNo || '').localeCompare(String(b.o.orderNo || '')));
   VO.shown = rows;
 

@@ -253,3 +253,43 @@ function flowVoAfter(placed) {
   const byId = new Map(placed.map(o => [o.vendorCode + '/' + o.id, o]));
   VO.rows = (VO.rows || []).filter(o => !(o && byId.has(o.vendorCode + '/' + o.id))).concat(placed);
 }
+
+/* ---- THE PAPERS OF A LINE (Ravi, 12 Oct: "isme hi vendor bhi add kar do, aur aise kitne aur bhi number bante hain — jo isse
+ * related h wo bhi add kar do") ----
+ * Every number made for one order line, wherever the line is shown: the print order (and the ruffle's, when it has its own
+ * printer), the vendor order the printer sees for it (running -R or cut pieces -C), and each RFD challan it went on (the
+ * ruffle's challan apart). [{ kind, no, who, link }] — link 'po' prints the print order, 'ch' the challan. */
+function flowDocsOf(x) {
+  const key = x && x.s && x.s.key; if (!key) return [];
+  const out = [];
+  Object.values(FLOW.po || {}).forEach(o => {
+    if (!o || o.cancelled || !o.items) return;
+    [[key, ''], [key + FLOW_RUF, ' (ruffle)']].forEach(([k, tag]) => {
+      const it = o.items[k]; if (!it) return;
+      const who = (o.printer && o.printer.name) || '';
+      out.push({ kind: 'Print order' + tag, no: o.no, who, link: 'po' });
+      /* the vendor order this item is on: cut pieces printed on the SKU → the cut one; cloth (and a ruffle) → the running one */
+      const kinds = new Set(); if (it.ruffle || (it.print && it.print.kind !== 'sku')) kinds.add('running'); if (it.print && it.print.kind === 'sku') kinds.add('cut');
+      if (!it.ruffle && (it.extras || []).length) kinds.add('running');
+      kinds.forEach(kd => {
+        const no = o.test ? String(o.no).replace(/^TPRN-/, 'TVPO-') + (kd === 'cut' ? '-C' : '-R') : ((o.vo || {})[kd] || {}).orderNo;
+        if (no) out.push({ kind: 'Vendor order' + tag, no, who });
+      });
+    });
+  });
+  Object.values(FLOW.ch || {}).forEach(c => {
+    if (!c || c.cancelled) return;
+    const mine = (c.lines || []).filter(l => l && l.key === key); if (!mine.length) return;
+    out.push({ kind: mine.every(l => l.ruffleOnly) ? 'Ruffle challan' : 'RFD challan', no: c.no, who: (c.vendor && c.vendor.name) || '', link: 'ch', closed: !!c.closed });
+  });
+  return out;
+}
+/** The papers of a line, as one small line under the order number. */
+function flowDocsHtml(x) {
+  const d = flowDocsOf(x); if (!d.length) return '';
+  return '<div class="muted" style="font-size:10.5px;line-height:1.5;margin-top:2px">' + d.map(e => `${esc(e.kind)} `
+    + (e.link === 'po' ? `<a href="#" data-flpop="${esc(e.no)}" title="Open the print order to print">${esc(e.no)}</a>`
+      : e.link === 'ch' ? `<a href="#" data-flchp="${esc(e.no)}" title="Open the challan to print">${esc(e.no)}</a>${e.closed ? ' (closed)' : ''}`
+      : `<b style="color:var(--ink,#1c2033)">${esc(e.no)}</b>`)
+    + (e.who ? ` → ${esc(e.who)}` : '')).join(' · ') + '</div>';
+}
