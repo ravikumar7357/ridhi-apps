@@ -47,6 +47,7 @@ async function vpRfdRaiseRun(o, drafts, reason) {
 
 async function rfdSubmitSize(o, key, pieces, note) {
   if (!o) return 'That order is no longer here.';
+  if (flowVoIsFlow(o)) return (o.orderNo || o.id) + ' is a Production flow order: its cloth comes on the office challan, not on an ask.';
   if (!rfdSizeOf(o, key)) return 'Pick which size you need.';
   const want = parseFloat(pieces) || 0;
   if (!(want > 0)) return 'How many pieces do you need?';

@@ -538,6 +538,7 @@ function pbKpiClick(e) {
   if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
   if (e.type === 'keydown') e.preventDefault();
   const k = el.getAttribute('data-kpi') || '';
+  if (k === 'pending' && FLOW_ON && flowPendingToWip()) return;   // the WIP tab is this list now (flow-view.js flowDupViewsOff)
   PT_BD_KPI = (PT_BD_KPI === k) ? '' : k;
   PT_BD_KPI_DEFAULT = false;
   renderPbase();

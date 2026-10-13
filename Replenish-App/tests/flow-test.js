@@ -58,7 +58,7 @@ function load(opts) {
     FAB: { rows: opts.fabRows || [] },
     STORE: { rows: opts.store ? [] : null }, stMoves: () => opts.store || [], stBalances: mv => mv, fabKey: v => String(v || '').trim().toUpperCase(), fabAll: () => opts.fabRows || [], ptList: x => x || [], fabAutoLoad: async () => {}, fabStockOf: (name, st) => (st === 'RFD' ? (opts.rfd || {})[String(name).toUpperCase()] || 0 : 0),
   };
-  const api = new Function(...Object.keys(ctx), SRC + '\n;return { FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestCutOpen, flowTestIssueOpen, flowTestRecvOpen, flowTestVos, flowVlogRows, flowDocsOf, flowVoExtra, flowVpViewOnly, flowFgAcceptOpen, flowFgAccept, flowFgRejectOpen, flowFgReject, flowFgLines, flowFgRender, flowQcLine, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowCutEntry, flowIssueEntry, flowRecvEntry, flowQcEntry, flowIssuable, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowVoLines, VOrows:()=>VO.rows, setVOrows:v=>{VO.rows=v}, flowUnplan, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v}, flowEmbedRender, FLOW_EMB:()=>FLOW_EMB, flowScreenAllowed, renderView:()=>{ if (["cut","raw","wip","new","pord","vendor","fabric"].includes(FLOW_VIEW)) { const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly(); const rows = flowRows().filter(x => (!only || x.r.__t) && (FLOW_VIEW === "new" ? x.recent : flowInView(FLOW_VIEW, x.s))); $("flTable").innerHTML = flowTable(FLOW_VIEW, rows); } else renderFlow(); } };')(...Object.values(ctx));
+  const api = new Function(...Object.keys(ctx), SRC + '\n;return { FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestCutOpen, flowTestIssueOpen, flowTestRecvOpen, flowTestVos, flowVlogRows, flowDocsOf, flowVoExtra, flowVpViewOnly, flowFgAcceptOpen, flowFgAccept, flowFgRejectOpen, flowFgReject, flowFgLines, flowFgRender, flowQcLine, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowCutEntry, flowIssueEntry, flowRecvEntry, flowQcEntry, flowIssuable, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowVoLines, VOrows:()=>VO.rows, setVOrows:v=>{VO.rows=v}, flowUnplan, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v}, flowEmbedRender, FLOW_EMB:()=>FLOW_EMB, flowScreenAllowed, flowOwnsOrder, flowOwnedIn, flowVoIsFlow, flowFgOwns, flowDupViewsOff, renderView:()=>{ if (["cut","raw","wip","new","pord","vendor","fabric"].includes(FLOW_VIEW)) { const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly(); const rows = flowRows().filter(x => (!only || x.r.__t) && (FLOW_VIEW === "new" ? x.recent : flowInView(FLOW_VIEW, x.s))); $("flTable").innerHTML = flowTable(FLOW_VIEW, rows); } else renderFlow(); } };')(...Object.values(ctx));
   api.setFLOW(Object.assign(api.FLOW(), { ppc: opts.ppc || {}, dem: opts.dem || {}, res: opts.res || {} }));
   return Object.assign(api, { els, writes, W, ctx });
 }
@@ -1361,6 +1361,38 @@ const K = 'AMZ-1__S1';
   A = load({ me: { tabs: ['ord'] } });
   A.renderFlow();
   ok('no bucket → says so, draws nothing', /No bucket/.test(A.els.flMsg.textContent) && !A.els.flTable.innerHTML);
+
+  console.log('== one way in for a flow order (Ravi, 13 Oct: "remove the duplicate") ==');
+  A = load({ lines: [L(), L({ orderNo: 'AMZ-0', orderDate: '2026-09-01' }), L({ orderNo: 'SHP-5', orderDate: '2026-10-11' })] });
+  ok('an order dated from the flow date is the flow\'s', A.flowOwnsOrder('AMZ-1') === true && A.flowOwnsOrder('amz-1') === true);
+  ok('an older order is not — it runs the old way to the end', A.flowOwnsOrder('AMZ-0') === false);
+  ok('a test order always is; an order nobody knows is not', A.flowOwnsOrder('TEST-AMZ-12102026-01') === true && A.flowOwnsOrder('XYZ-9') === false);
+  ok('a date passed in is used as it is', A.flowOwnsOrder('NEW-1', '2026-10-10') === true && A.flowOwnsOrder('NEW-1', '2026-10-09') === false);
+  ok('a localStorage flowFrom moves the line', load({ lines: [L()], ls: { flowFrom: '2026-10-13' } }).flowOwnsOrder('AMZ-1') === false);
+  ok('off the test link nothing is the flow\'s', load({ lines: [L()], host: 'price-research-48ff3.web.app' }).flowOwnsOrder('AMZ-1') === false);
+  ok('a hand-made vendor order stamped for a flow order is caught, once per order',
+    JSON.stringify(A.flowOwnedIn([{ sku: 'S1', forOrders: [{ orderNo: 'AMZ-1', qty: 5 }, { orderNo: 'AMZ-0', qty: 5 }] }, { sku: 'S2', forOrders: [{ orderNo: 'AMZ-1', qty: 2 }] }, { sku: 'S3', cancelled: true, forOrders: [{ orderNo: 'TEST-X' }] }])) === '["AMZ-1"]');
+  ok('…and one for older orders only passes', A.flowOwnedIn([{ sku: 'S1', forOrders: [{ orderNo: 'AMZ-0', qty: 5 }] }, { sku: 'S9' }]).length === 0);
+  ok('PPC\'s vendor orders and test ones are the flow\'s; a hand-made one is not',
+    A.flowVoIsFlow({ id: 'vpo_flow_x', demandSource: 'ppc' }) && A.flowVoIsFlow({ id: 'tvpo_PRN-1-R' }) && A.flowVoIsFlow({ id: 'x', test: true }) && !A.flowVoIsFlow({ id: 'vpo_123', demandSource: 'bulk' }));
+  ok('a flow order\'s pieces are refused at the stock entry; an old order\'s and a make-to-order line\'s are not',
+    A.flowFgOwns('AMZ-1', 'S1') === true && A.flowFgOwns('AMZ-0', 'S1') === false && A.flowFgOwns('SHP-5', 'S1') === false);
+  A = load({ lines: [L()], ppc: { [K]: plan({ route: 'outsource', outVendor: 'V1' }) } });
+  ok('…nor an outsourced line\'s, received from its vendor as before', A.flowFgOwns('AMZ-1', 'S1') === false);
+  {
+    const mk = (val, opt) => { const o = { removed: false, remove() { o.removed = true; } }; return { sel: { value: val, changed: 0, querySelector: q => (q.includes('"' + opt + '"') ? o : null), dispatchEvent() { this.changed++; } }, o }; };
+    A = load({ me: { tabs: ['flraw', 'flwip'] } });
+    const pc = mk('wait', 'wait'), pb = mk('', 'pending');
+    A.els.pcView = pc.sel; A.els.pbStatus = pb.sel;
+    A.flowDupViewsOff();
+    ok('"Cut, not yet issued" goes where Raw cutting in store is, and a screen standing on it is moved off', pc.o.removed && pc.sel.value === '' && pc.sel.changed === 1);
+    ok('"Has pending" goes where WIP is', pb.o.removed && pb.sel.changed === 0);
+    A = load({ me: { tabs: ['flwip'] } });
+    const pc2 = mk('wait', 'wait'), pb2 = mk('', 'pending');
+    A.els.pcView = pc2.sel; A.els.pbStatus = pb2.sel;
+    A.flowDupViewsOff();
+    ok('…but stays for an account without the Raw cutting tab, so nobody loses the list', !pc2.o.removed && pc2.sel.value === 'wait' && pb2.o.removed);
+  }
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);

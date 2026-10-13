@@ -66,7 +66,8 @@ const voCutAllowed = (at, sub) => {
 /** What the factory is actually asked for, per SKU: the approved sales orders. */
 function voDemandMap() {
   const m = new Map();
-  (SOX.rows || []).filter(o => o && o.status === 'approved').forEach(o =>
+  /* A flow order's demand is PPC's (flowOwnsOrder, test link only) — it is neither on Reserve nor under the hand-order cap. */
+  (SOX.rows || []).filter(o => o && o.status === 'approved' && !flowOwnsOrder(o._id || o._key, o.orderDate)).forEach(o =>
     soLines(o).forEach(l => { const s = obUC(l.sku); if (!s) return; m.set(s, (m.get(s) || 0) + (parseFloat(l.qty) || 0)); }));
   return m;
 }
@@ -366,7 +367,8 @@ function voSkuInfo() {
   }
   const d = voDemandMap().get(s) || 0, was = voExistingMap().get(s) || 0;
   el.textContent = what
-    + ` · approved orders ask for ${nf(d)}, ${nf(was)} already with printers, ${nf(Math.max(0, Math.floor(d * 1.1) - was))} left within the cap.`;
+    + ` · approved orders ask for ${nf(d)}, ${nf(was)} already with printers, ${nf(Math.max(0, Math.floor(d * 1.1) - was))} left within the cap.`
+    + (FLOW_ON ? ` Production flow orders (from ${flowFrom()}) are not counted — PPC gives them their printer.` : '');
   return m;
 }
 

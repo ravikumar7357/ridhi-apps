@@ -234,6 +234,7 @@ async function fgiScanFlush(sku) {
     if (n > have) return stop(`You don't have enough stock — ${sku} has ${nf(have)} piece(s) in the India Store`
       + ` and this scan asks for ${nf(n)}.`);
   } else if (h.orderSource === 'console') {
+    if (flowFgOwns(h.orderNo, sku)) return stop(flowFgOwnsMsg(h.orderNo));
     const o = fgiOrdersFor(sku).find(x => x.orderNo === h.orderNo);
     if (!o) return stop(`${h.orderNo} has no line for ${sku}. Take it off the list, or pick the right order.`);
     if (o.got + n > o.qty) {
@@ -413,6 +414,7 @@ async function fgiScanSave() {
       if (r.qty > have) return `You don't have enough stock — ${r.sku} has ${nf(have)} piece(s) in the India Store`
         + ` and the scan says ${nf(r.qty)}.`;
     } else if (h.orderSource === 'console') {
+      if (flowFgOwns(h.orderNo, r.sku)) return flowFgOwnsMsg(h.orderNo);
       const o = fgiOrdersFor(r.sku).find(x => x.orderNo === h.orderNo);
       if (!o) return `${h.orderNo} has no line for ${r.sku}. Take it off the list, or pick the right order.`;
       if (o.got + r.qty > o.qty) {

@@ -185,7 +185,7 @@ function renderOrdDemandTot() {
   ORD.demRows = new Map(rows.map(r => [r.key, r]));
   const s = k => rows.reduce((a, r) => a + (r[k] || 0), 0);
   const anyAt = rows.some(r => r.atM != null);
-  $('odKpis').innerHTML = '<div class="jw-kpiname">Demand — fabric &amp; colour totals</div><div class="jw-kpis">'
+  $('odKpis').innerHTML = '<div class="jw-kpiname">Demand — fabric &amp; colour totals' + ordDemFlowNote() + '</div><div class="jw-kpis">'
     + ordKpiCard(nf(rows.length), 'Fabric · colours', 'list', 'blue', 'that the open book needs')
     + ordKpiCard(ordDemBoth(s('need'), s('cutPcs')), 'Cloth needed', 'cut', 'blue', 'running in metres, cut pieces in pcs')
     + ordKpiCard(anyAt ? ordDemBoth(s('atM'), s('cutAtPcs')) : '—', 'With printers', 'clock', anyAt ? 'amber' : 'blue', anyAt ? 'given, not yet back' : 'vendor orders not read')
@@ -363,7 +363,7 @@ function renderOrdDemand() {
   const s = k => d.rows.reduce((a, r) => a + (r[k] || 0), 0);
   const anyAt = d.rows.some(r => r.atM != null), anyRfd = d.rows.some(r => r.have != null);
 
-  $('odKpis').innerHTML = '<div class="jw-kpiname">Demand — printing &amp; cloth</div><div class="jw-kpis">'
+  $('odKpis').innerHTML = '<div class="jw-kpiname">Demand — printing &amp; cloth' + ordDemFlowNote() + '</div><div class="jw-kpis">'
     + ordKpiCard(nf(Math.round(s('runNeed'))) + ' m', 'Running cloth', 'cut', 'blue', 'to print on sheeting')
     + ordKpiCard(nf(Math.round(s('runGive'))) + ' m', 'Running to give', 'up', 'blue',
         anyAt ? nf(Math.round(s('runAtM'))) + ' m already at printers' : 'vendor orders not read')

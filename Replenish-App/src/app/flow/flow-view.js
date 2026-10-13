@@ -321,7 +321,24 @@ async function flowTableClick(e) {
 }
 $('flTable').addEventListener('click', flowTableClick);
 /* The menu button shows only where the flow is switched on, and only to an account with a bucket. */
-function flowNavShow() { if ($('tabFlow')) $('tabFlow').style.display = FLOW_ON && flowScreenAllowed().length ? '' : 'none'; flowEmbedSetup(); }
+function flowNavShow() { if ($('tabFlow')) $('tabFlow').style.display = FLOW_ON && flowScreenAllowed().length ? '' : 'none'; flowEmbedSetup(); flowDupViewsOff(); }
+
+/* ---- THE OLD VIEWS OF THE SAME WORK, TAKEN OUT (Ravi, 13 Oct: "remove the duplicate") ----
+ * Cutting Data's "Cut, not yet issued" is Job Work → Raw cutting in store, and the Job Work Register's "Has pending" (and its
+ * Pending pieces card) is the WIP tab — both read every open line, old orders too. Taken out only for an account that has
+ * the flow tab in their place, so nobody loses the list. */
+const FLOW_DUP_VIEWS = [['pcView', 'wait', 'raw'], ['pbStatus', 'pending', 'wip']];
+function flowDupViewsOff() {
+  FLOW_DUP_VIEWS.forEach(([id, val, view]) => {
+    const sel = $(id);   // both flow tabs that replace them live in the Job Work Register
+    if (!sel || !sel.querySelector || !flowEmbedViews('pbase').includes(view)) return;
+    const o = sel.querySelector(`option[value="${val}"]`); if (!o) return;
+    if (sel.value === val) { sel.value = ''; sel.dispatchEvent(new Event('change')); }
+    o.remove();
+  });
+}
+/** The Pending pieces card opens the WIP tab instead, where the flow has it. */
+const flowPendingToWip = () => (flowEmbedViews('pbase').includes('wip') ? (FLOW_EMB.pbase = 'wip', flowEmbedRender('pbase'), true) : false);
 
 /* ---- TABS INSIDE THE FACTORY'S OWN SCREENS (Ravi, 12 Oct: "cutting should be shown in cutting department which is already
  * there; raw cutting should be shown in Job Work Register — like Listing Health's tabs; WIP part of Job Work Register") ----

@@ -97,7 +97,7 @@ async function flowFgAccept(x, n, note) {
   let over = {};
   if (typeof FGI !== 'undefined' && FGI.rows == null && typeof fgiLoad === 'function') { try { await fgiLoad(); } catch (e) { /* refused below */ } }
   if (!x.r.__t) {   // a test order is on no order book: the order check has nothing to check it against
-    let chk = {}; try { chk = fgiRecvOrderCheck({ sku, qty: n, orderNo: x.r.orderNo, pick: 'console' }) || {}; } catch (e) { chk = {}; }
+    let chk = {}; try { chk = fgiRecvOrderCheck({ sku, qty: n, orderNo: x.r.orderNo, pick: 'console', flow: true }) || {}; } catch (e) { chk = {}; }
     if (chk.err && !chk.needOver) return 'Not accepted: ' + chk.err;
     if (chk.needOver) over = { overQty: chk.overQty, overReason: 'passed QC (Production flow)', overOrdered: chk.overOrdered, overStatus: 'open' };
   }

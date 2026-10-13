@@ -189,6 +189,8 @@ async function vrqApprove(id, opts) {
     requestId: id, requestNo: r.reqNo || '',
   };
   if (!have && order.orderType === 'cut') order.demandSource = 'bulk';
+  /* Raised for what is now a flow order: PPC gives a flow order its printer (flowOwnsOrder, test link only). */
+  if (!have) { const fo = flowOwnedIn(order.lines); if (fo.length) return 'Not sent — ' + flowOwnsMsg(fo, 'PPC raises its printer order in PPC · Production flow. Reject this request with a note.'); }
   if (!have) {
     const put = Object.assign({}, order); delete put._key;
     try { await ptPut('pt_vendorOrders/' + code + '/' + oid, put); }

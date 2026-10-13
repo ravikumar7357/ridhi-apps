@@ -110,7 +110,7 @@ function ordDemandRows() {
   const byFab = new Map();
   let pcs = 0, noPrintPcs = 0, unknownPcs = 0, cutNoConsPcs = 0;
   const noPrint = new Map(), unknown = new Map();
-  ordApply(ordLines(), f).forEach(l => {
+  ordApply(ordLines(), f).filter(ordNotFlow).forEach(l => {
     const left = Math.max(0, ptNum(l.pendingMake));
     if (!left) return;
     const m = mdbOf(l.sku) || {};
@@ -254,7 +254,7 @@ function ordDemAlloc(at) {
   const out = new Map();
   if (!at) return out;
   const byCol = new Map(), byProd = new Map();
-  ordLines().forEach(l => {
+  ordLines().filter(ordNotFlow).forEach(l => {
     const x = ordDemLine(l);
     if (!x || x.noPrint || x.unknown) return;
     const row = { key: x.key, date: String(l.orderDate || ''), no: l.orderNo, x };
@@ -273,6 +273,10 @@ function ordDemAlloc(at) {
   });
   return out;
 }
+/* A FLOW ORDER'S DEMAND IS IN THE FLOW (Ravi, 13 Oct: "remove the duplicate"): PPC · Production flow → Demand shows it, so these
+ * three views leave it out and say so (flowOwnsOrder, test link only). */
+const ordNotFlow = l => !flowOwnsOrder(l.orderNo, l.orderDate);
+const ordDemFlowNote = () => (FLOW_ON ? ` <span class="muted" style="font-weight:500;font-size:12px">· orders from ${esc(flowFrom())} are in PPC · Production flow → Demand</span>` : '');
 /** Is anything narrowing the book? Then "with printers" is the lines' share, not the printers' whole stock. */
 const ordDemNarrowed = f => ['ord', 'art', 'sub', 'col', 'sz', 'st', 'src', 'brand', 'q', 'd1', 'd2'].some(k => String((f || {})[k] || '').trim());
 
@@ -281,7 +285,7 @@ function ordDemandColRows() {
   const narrowed = ordDemNarrowed(f);
   const groups = new Map();
   let pcs = 0, noPrintPcs = 0, unknownPcs = 0;
-  ordApply(ordLines(), f).forEach(l => {
+  ordApply(ordLines(), f).filter(ordNotFlow).forEach(l => {
     const left = Math.max(0, ptNum(l.pendingMake));
     if (!left) return;
     const m = mdbOf(l.sku) || {};
@@ -380,7 +384,7 @@ function renderOrdDemandCol() {
   const s = k => d.cols.reduce((a, r) => a + (r[k] || 0), 0);
   const anyAt = d.cols.some(r => r.atM != null);
 
-  $('odKpis').innerHTML = '<div class="jw-kpiname">Demand — by colour &amp; product</div><div class="jw-kpis">'
+  $('odKpis').innerHTML = '<div class="jw-kpiname">Demand — by colour &amp; product' + ordDemFlowNote() + '</div><div class="jw-kpis">'
     + ordKpiCard(nf(d.pcs), 'To make', 'box', 'blue', 'pieces the book still owes')
     + ordKpiCard(nf(Math.round(s('need'))) + ' m', 'Running cloth', 'cut', 'blue', 'printed on sheeting, in metres')
     + ordKpiCard(nf(s('cutPcs')) + ' pcs', 'Cut pieces', 'list', 'amber', 'printed as pieces')

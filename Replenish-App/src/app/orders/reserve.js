@@ -522,6 +522,13 @@ async function voPlace(given) {
    * not stop the order: the SKU can still be added by hand. */
   { const recs = voCustomRecs(VOF.lines);
     if (Object.keys(recs).length) { try { await ptPatch(recs); if (typeof MDBX !== 'undefined' && Array.isArray(MDBX.custom)) Object.values(recs).forEach(r => MDBX.custom.push(r)); } catch (e) { /* added by hand later */ } } }
+  /* A FLOW ORDER'S PRINTING IS PPC'S (flow-core.js flowOwnsOrder, test link only): a line that would land on one is refused,
+   * request or order alike, so one order never gets two printer orders. */
+  if (FLOW_ON) {
+    let fo = [];
+    try { if (!PTG.ob) await ptLoadGates(); fo = flowOwnedIn(voStampOrders(VOF.lines.map(l => Object.assign({}, l)), channel)); } catch (e) { fo = []; }
+    if (fo.length) return 'Not placed — ' + flowOwnsMsg(fo, 'PPC raises its printer order in PPC · Production flow. Take those SKUs off this order.');
+  }
   /* A REQUEST STOPS HERE — checked exactly as an order is, and stored where no vendor can read it. */
   if (VOF.mode === 'request') {
     const err = await vrqSubmit({ code, vend, service: String(VOF.service || 'Block print'), kind: VOF.kind, channel,

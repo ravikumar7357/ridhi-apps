@@ -93,6 +93,7 @@ function rfdStoreOf(code, orders) {
 async function rfdOfficeSend(o, key, qty, dateIso, note) {
   if (!rfdCanSend()) return RFD_NO_SEND;
   if (!o) return 'That order is no longer here.';
+  if (flowVoIsFlow(o)) return 'Not sent — ' + (o.orderNo || o.id) + ' is a Production flow order: its RFD goes on a challan in PPC · Production flow → Demand → RFD fabric · out to printers.';
   const row = rfdOrderLedger(o).find(x => x.key === key);
   if (!row) return 'That size or cloth is not on this order.';
   const q = parseFloat(qty) || 0;
@@ -181,7 +182,8 @@ const rfdVendorPrints = code => /print/i.test(voCatOf(code));
 /** Every tracked, open order of every printer, one row per size or cloth — the store's worklist. */
 function rfdOrderRows() {
   const out = [];
-  (VO.rows || []).filter(o => o && rfdTracked(o) && rfdVendorPrints(o.vendorCode) && !o.cancelled && ['Received', 'Cancelled', 'Draft'].indexOf(o.status || 'Placed') < 0)
+  /* A flow order's cloth goes on the flow's own RFD challans (PPC · Production flow → Demand), never from here. */
+  (VO.rows || []).filter(o => o && rfdTracked(o) && !flowVoIsFlow(o) && rfdVendorPrints(o.vendorCode) && !o.cancelled && ['Received', 'Cancelled', 'Draft'].indexOf(o.status || 'Placed') < 0)
     .forEach(o => rfdOrderLedger(o).forEach(x => out.push(Object.assign(x, { _order: o, orderId: o.id, orderNo: o.orderNo || o.id,
       vendorCode: o.vendorCode, vendorName: voName(o.vendorCode), placed: voWhenMs(o) }))));
   return out.sort((a, b) => (b.placed - a.placed) || String(a.orderNo).localeCompare(String(b.orderNo))
@@ -316,6 +318,7 @@ function rfdOrderOf(r) {
 
 async function rfdSubmit(o, fabric, metres, note) {
   if (!o) return 'That order is no longer here.';
+  if (flowVoIsFlow(o)) return 'Not asked — ' + (o.orderNo || o.id) + ' is a Production flow order: its RFD goes on a challan in PPC · Production flow → Demand → RFD fabric · out to printers.';
   const fab = String(fabric || '').trim();
   if (!fab) return 'Pick which fabric you need.';
   const want = parseFloat(metres) || 0;
@@ -335,6 +338,7 @@ async function rfdSubmit(o, fabric, metres, note) {
  */
 async function rfdSubmitPcs(o, sku, pieces, note) {
   if (!o) return 'That order is no longer here.';
+  if (flowVoIsFlow(o)) return 'Not asked — ' + (o.orderNo || o.id) + ' is a Production flow order: its RFD goes on a challan in PPC · Production flow → Demand → RFD fabric · out to printers.';
   const line = rfdPieceOf(o, sku);
   if (!line) return 'Pick which size you need.';
   const want = parseFloat(pieces) || 0;
@@ -402,6 +406,7 @@ async function rfdWrite(o, ask, note) {
  */
 async function rfdSubmitOrder(o, note) {
   if (!o) return { err: 'That order is no longer here.' };
+  if (flowVoIsFlow(o)) return { err: (o.orderNo || o.id) + ' is a Production flow order: its cloth comes on the office challan, not on an ask.' };
   const asks = [];
   rfdPieceLines(o).forEach(x => {
     const left = rfdPcsAllowed(o, x.sku).left;

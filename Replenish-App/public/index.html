@@ -12292,6 +12292,7 @@ function pbKpiClick(e) {
   if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
   if (e.type === 'keydown') e.preventDefault();
   const k = el.getAttribute('data-kpi') || '';
+  if (k === 'pending' && FLOW_ON && flowPendingToWip()) return;   // the WIP tab is this list now (flow-view.js flowDupViewsOff)
   PT_BD_KPI = (PT_BD_KPI === k) ? '' : k;
   PT_BD_KPI_DEFAULT = false;
   renderPbase();
@@ -19057,6 +19058,7 @@ async function spAssign(orderNo, sku, code, opts) {
   const key = spKey(orderNo, sku);
   if (!spKeySafe(key)) return 'That order and SKU cannot be made into a database key.';
   const want = String(code || '').trim();
+  if (want && flowOwnsOrder(orderNo)) return flowOwnsMsg([obUC(orderNo)], 'its printer is planned in PPC · Production flow, not given here.');
   if (want && !voMasterRow(want)) return 'That printer is not in the vendor master.';
   /* ONLY A PRINTER PRINTS. The picker has always filtered to printers; this is the same rule where
    * the writing happens, so a spreadsheet cannot put an embroidery firm or a filling house on a line
@@ -22659,7 +22661,7 @@ function ordDemandRows() {
   const byFab = new Map();
   let pcs = 0, noPrintPcs = 0, unknownPcs = 0, cutNoConsPcs = 0;
   const noPrint = new Map(), unknown = new Map();
-  ordApply(ordLines(), f).forEach(l => {
+  ordApply(ordLines(), f).filter(ordNotFlow).forEach(l => {
     const left = Math.max(0, ptNum(l.pendingMake));
     if (!left) return;
     const m = mdbOf(l.sku) || {};
@@ -22803,7 +22805,7 @@ function ordDemAlloc(at) {
   const out = new Map();
   if (!at) return out;
   const byCol = new Map(), byProd = new Map();
-  ordLines().forEach(l => {
+  ordLines().filter(ordNotFlow).forEach(l => {
     const x = ordDemLine(l);
     if (!x || x.noPrint || x.unknown) return;
     const row = { key: x.key, date: String(l.orderDate || ''), no: l.orderNo, x };
@@ -22822,6 +22824,10 @@ function ordDemAlloc(at) {
   });
   return out;
 }
+/* A FLOW ORDER'S DEMAND IS IN THE FLOW (Ravi, 13 Oct: "remove the duplicate"): PPC · Production flow → Demand shows it, so these
+ * three views leave it out and say so (flowOwnsOrder, test link only). */
+const ordNotFlow = l => !flowOwnsOrder(l.orderNo, l.orderDate);
+const ordDemFlowNote = () => (FLOW_ON ? ` <span class="muted" style="font-weight:500;font-size:12px">· orders from ${esc(flowFrom())} are in PPC · Production flow → Demand</span>` : '');
 /** Is anything narrowing the book? Then "with printers" is the lines' share, not the printers' whole stock. */
 const ordDemNarrowed = f => ['ord', 'art', 'sub', 'col', 'sz', 'st', 'src', 'brand', 'q', 'd1', 'd2'].some(k => String((f || {})[k] || '').trim());
 
@@ -22830,7 +22836,7 @@ function ordDemandColRows() {
   const narrowed = ordDemNarrowed(f);
   const groups = new Map();
   let pcs = 0, noPrintPcs = 0, unknownPcs = 0;
-  ordApply(ordLines(), f).forEach(l => {
+  ordApply(ordLines(), f).filter(ordNotFlow).forEach(l => {
     const left = Math.max(0, ptNum(l.pendingMake));
     if (!left) return;
     const m = mdbOf(l.sku) || {};
@@ -22929,7 +22935,7 @@ function renderOrdDemandCol() {
   const s = k => d.cols.reduce((a, r) => a + (r[k] || 0), 0);
   const anyAt = d.cols.some(r => r.atM != null);
 
-  $('odKpis').innerHTML = '<div class="jw-kpiname">Demand — by colour &amp; product</div><div class="jw-kpis">'
+  $('odKpis').innerHTML = '<div class="jw-kpiname">Demand — by colour &amp; product' + ordDemFlowNote() + '</div><div class="jw-kpis">'
     + ordKpiCard(nf(d.pcs), 'To make', 'box', 'blue', 'pieces the book still owes')
     + ordKpiCard(nf(Math.round(s('need'))) + ' m', 'Running cloth', 'cut', 'blue', 'printed on sheeting, in metres')
     + ordKpiCard(nf(s('cutPcs')) + ' pcs', 'Cut pieces', 'list', 'amber', 'printed as pieces')
@@ -23560,7 +23566,7 @@ function renderOrdDemandTot() {
   ORD.demRows = new Map(rows.map(r => [r.key, r]));
   const s = k => rows.reduce((a, r) => a + (r[k] || 0), 0);
   const anyAt = rows.some(r => r.atM != null);
-  $('odKpis').innerHTML = '<div class="jw-kpiname">Demand — fabric &amp; colour totals</div><div class="jw-kpis">'
+  $('odKpis').innerHTML = '<div class="jw-kpiname">Demand — fabric &amp; colour totals' + ordDemFlowNote() + '</div><div class="jw-kpis">'
     + ordKpiCard(nf(rows.length), 'Fabric · colours', 'list', 'blue', 'that the open book needs')
     + ordKpiCard(ordDemBoth(s('need'), s('cutPcs')), 'Cloth needed', 'cut', 'blue', 'running in metres, cut pieces in pcs')
     + ordKpiCard(anyAt ? ordDemBoth(s('atM'), s('cutAtPcs')) : '—', 'With printers', 'clock', anyAt ? 'amber' : 'blue', anyAt ? 'given, not yet back' : 'vendor orders not read')
@@ -23738,7 +23744,7 @@ function renderOrdDemand() {
   const s = k => d.rows.reduce((a, r) => a + (r[k] || 0), 0);
   const anyAt = d.rows.some(r => r.atM != null), anyRfd = d.rows.some(r => r.have != null);
 
-  $('odKpis').innerHTML = '<div class="jw-kpiname">Demand — printing &amp; cloth</div><div class="jw-kpis">'
+  $('odKpis').innerHTML = '<div class="jw-kpiname">Demand — printing &amp; cloth' + ordDemFlowNote() + '</div><div class="jw-kpis">'
     + ordKpiCard(nf(Math.round(s('runNeed'))) + ' m', 'Running cloth', 'cut', 'blue', 'to print on sheeting')
     + ordKpiCard(nf(Math.round(s('runGive'))) + ' m', 'Running to give', 'up', 'blue',
         anyAt ? nf(Math.round(s('runAtM'))) + ' m already at printers' : 'vendor orders not read')
@@ -23970,6 +23976,45 @@ const FLOW_ON = (() => {
  * all in PPC would bury the new ones. Older lines go straight to the bucket of the step they are really at. */
 const FLOW_FROM_DEFAULT = '2026-10-10';
 const flowFrom = () => { try { return localStorage.getItem('flowFrom') || FLOW_FROM_DEFAULT; } catch (e) { return FLOW_FROM_DEFAULT; } };
+
+/* ---- ONE WAY IN FOR A FLOW ORDER (Ravi, 13 Oct: "remove the duplicate") ----
+ * An order the flow runs — a test order, or any order dated from flowFrom() on — has its printer order raised by PPC, its
+ * RFD sent and its printed fabric received on the flow's own challans, and its finished pieces accepted in Finished Goods
+ * → From QC. The old screens that did the same work refuse it, and the old views that showed the same work leave it out,
+ * so nothing is entered or counted twice. Older orders run the old way to the end. Only on the test link (FLOW_ON). */
+let FLOW_OD = { src: null, so: null, map: null };
+function flowOrderDate(no) {
+  const src = typeof ordLines === 'function' ? ordLines() : [], so = (typeof SOX !== 'undefined' && SOX.rows) || null;
+  if (!FLOW_OD.map || FLOW_OD.src !== src || FLOW_OD.so !== so) {
+    const m = new Map();
+    (so || []).forEach(o => { const k = obUC(o && (o._id || o._key)); if (k && o.orderDate) m.set(k, o.orderDate); });
+    src.forEach(r => { if (r && r.orderNo && r.orderDate) m.set(obUC(r.orderNo), r.orderDate); });
+    FLOW_OD = { src, so, map: m };
+  }
+  return FLOW_OD.map.get(obUC(no)) || '';
+}
+function flowOwnsOrder(orderNo, date) {
+  if (!FLOW_ON) return false;
+  const no = obUC(orderNo); if (!no) return false;
+  if (/^TEST-/.test(no)) return true;
+  const iso = String(ptIsoDate(date != null && date !== '' ? date : flowOrderDate(no)) || '');
+  return !!iso && iso >= flowFrom();
+}
+/** A vendor order the flow made: PPC's (demandSource 'ppc', vpo_flow_…) or a test order's (tvpo_…). */
+const flowVoIsFlow = o => !!(FLOW_ON && o && (o.test || o.demandSource === 'ppc' || /^(vpo_flow_|tvpo_)/.test(String(o.id || ''))));
+/** The flow orders a vendor order's lines are stamped for. */
+const flowOwnedIn = lines => [...new Set((lines || []).flatMap(l => (l && !l.cancelled && Array.isArray(l.forOrders) ? l.forOrders : [])
+  .map(x => obUC(x && x.orderNo)).filter(no => flowOwnsOrder(no))))];
+/** A flow order's finished pieces come in through Finished Goods → From QC — to accept, not the stock entry, the Excel or the
+ * scanner. A make-to-order line goes to shipping on the Order Console, and an outsourced line is received from its vendor. */
+function flowFgOwns(orderNo, sku) {
+  if (!flowOwnsOrder(orderNo) || ordIsMto(obUC(orderNo))) return false;
+  const p = ((typeof FLOW !== 'undefined' && FLOW.ppc) || {})[flowKey(orderNo, sku)];
+  return !(p && flowRouteOf(p) === 'outsource');
+}
+const flowFgOwnsMsg = no => `${obUC(no)} is a Production flow order — its pieces come in through Finished Goods → From QC — to accept, once QC passes them.`;
+const flowOwnsMsg = (nos, what) => `${nos.slice(0, 3).join(', ')}${nos.length > 3 ? ` and ${nos.length - 3} more` : ''} ${nos.length > 1 ? 'are Production flow orders' : 'is a Production flow order'}`
+  + ` (dated from ${flowFrom()}): ${what}`;
 
 /* The name on the challans and print orders (Ravi, 11 Oct: "challan me The Fabric Rush nahi hoga, yahan Ridhi Home &
  * Living karna h") — the PO settings' company when one is saved, else this. */
@@ -26255,7 +26300,7 @@ async function flowFgAccept(x, n, note) {
   let over = {};
   if (typeof FGI !== 'undefined' && FGI.rows == null && typeof fgiLoad === 'function') { try { await fgiLoad(); } catch (e) { /* refused below */ } }
   if (!x.r.__t) {   // a test order is on no order book: the order check has nothing to check it against
-    let chk = {}; try { chk = fgiRecvOrderCheck({ sku, qty: n, orderNo: x.r.orderNo, pick: 'console' }) || {}; } catch (e) { chk = {}; }
+    let chk = {}; try { chk = fgiRecvOrderCheck({ sku, qty: n, orderNo: x.r.orderNo, pick: 'console', flow: true }) || {}; } catch (e) { chk = {}; }
     if (chk.err && !chk.needOver) return 'Not accepted: ' + chk.err;
     if (chk.needOver) over = { overQty: chk.overQty, overReason: 'passed QC (Production flow)', overOrdered: chk.overOrdered, overStatus: 'open' };
   }
@@ -26697,7 +26742,24 @@ async function flowTableClick(e) {
 }
 $('flTable').addEventListener('click', flowTableClick);
 /* The menu button shows only where the flow is switched on, and only to an account with a bucket. */
-function flowNavShow() { if ($('tabFlow')) $('tabFlow').style.display = FLOW_ON && flowScreenAllowed().length ? '' : 'none'; flowEmbedSetup(); }
+function flowNavShow() { if ($('tabFlow')) $('tabFlow').style.display = FLOW_ON && flowScreenAllowed().length ? '' : 'none'; flowEmbedSetup(); flowDupViewsOff(); }
+
+/* ---- THE OLD VIEWS OF THE SAME WORK, TAKEN OUT (Ravi, 13 Oct: "remove the duplicate") ----
+ * Cutting Data's "Cut, not yet issued" is Job Work → Raw cutting in store, and the Job Work Register's "Has pending" (and its
+ * Pending pieces card) is the WIP tab — both read every open line, old orders too. Taken out only for an account that has
+ * the flow tab in their place, so nobody loses the list. */
+const FLOW_DUP_VIEWS = [['pcView', 'wait', 'raw'], ['pbStatus', 'pending', 'wip']];
+function flowDupViewsOff() {
+  FLOW_DUP_VIEWS.forEach(([id, val, view]) => {
+    const sel = $(id);   // both flow tabs that replace them live in the Job Work Register
+    if (!sel || !sel.querySelector || !flowEmbedViews('pbase').includes(view)) return;
+    const o = sel.querySelector(`option[value="${val}"]`); if (!o) return;
+    if (sel.value === val) { sel.value = ''; sel.dispatchEvent(new Event('change')); }
+    o.remove();
+  });
+}
+/** The Pending pieces card opens the WIP tab instead, where the flow has it. */
+const flowPendingToWip = () => (flowEmbedViews('pbase').includes('wip') ? (FLOW_EMB.pbase = 'wip', flowEmbedRender('pbase'), true) : false);
 
 /* ---- TABS INSIDE THE FACTORY'S OWN SCREENS (Ravi, 12 Oct: "cutting should be shown in cutting department which is already
  * there; raw cutting should be shown in Job Work Register — like Listing Health's tabs; WIP part of Job Work Register") ----
@@ -33489,6 +33551,8 @@ function vlFind(r) {
  */
 async function vlAcceptWrite(rows, qtyFor, note, rejFor, ordersFor) {
   if (!vlCanAccept()) return VLOG_NO_ACCEPT;
+  /* A FLOW ORDER'S PRINTED FABRIC IS RECEIVED ON ITS CHALLAN (PPC · Production flow → Demand → Printed fabric in · history), never here. */
+  if (rows.some(r => flowVoIsFlow({ id: r.id }))) return 'Not accepted — a Production flow order is received on its RFD challan: PPC · Production flow → Demand → Printed fabric in · history.';
   if (!rows.length) return '';
   const now = new Date().toISOString();
   /* Grouped by order: one write each, however many of its deliveries are being accepted. */
@@ -33671,6 +33735,8 @@ function vlAcceptOne(rowKey) {
  */
 async function vlNoWrite(r, note, undo) {
   if (!vlCanAccept()) return VLOG_NO_ACCEPT;
+  /* A flow order's deliveries are its challan receipts — nothing here to mark. */
+  if (flowVoIsFlow({ id: r.id })) return 'Not changed — a Production flow order is received on its RFD challan: PPC · Production flow → Demand → Printed fabric in · history.';
   const found = vlFind(r);
   if (!found) return 'That delivery is no longer there — press Refresh.';
   const lines = found.lines.map(l => Object.assign({}, l));
@@ -34268,6 +34334,8 @@ $('voTable').addEventListener('click', e => {
 /* Both of these are visible to the vendor and change what counts against the printer cap, so the
  * confirmation says what happens rather than asking "are you sure?". */
 async function voConfirmStatus(key, status) {
+  /* PPC keeps its own vendor orders in step with the plan (flowVoSync): received on the challan, cancelled by undoing the plan. */
+  if (flowVoIsFlow({ id: String(key || '').split('/').pop() })) { $('voMsg').className = 'err'; $('voMsg').textContent = 'This is a Production flow order — PPC keeps it: receive on its challan in Demand → Printed fabric in, or undo the plan in PPC completed.'; return; }
   if (!confirm(status === 'Cancelled'
     ? 'Cancel this order?\n\nThe vendor will see it as cancelled, and its pieces stop counting against '
       + 'what may still be ordered for those SKUs.'
@@ -35415,7 +35483,8 @@ const voCutAllowed = (at, sub) => {
 /** What the factory is actually asked for, per SKU: the approved sales orders. */
 function voDemandMap() {
   const m = new Map();
-  (SOX.rows || []).filter(o => o && o.status === 'approved').forEach(o =>
+  /* A flow order's demand is PPC's (flowOwnsOrder, test link only) — it is neither on Reserve nor under the hand-order cap. */
+  (SOX.rows || []).filter(o => o && o.status === 'approved' && !flowOwnsOrder(o._id || o._key, o.orderDate)).forEach(o =>
     soLines(o).forEach(l => { const s = obUC(l.sku); if (!s) return; m.set(s, (m.get(s) || 0) + (parseFloat(l.qty) || 0)); }));
   return m;
 }
@@ -35715,7 +35784,8 @@ function voSkuInfo() {
   }
   const d = voDemandMap().get(s) || 0, was = voExistingMap().get(s) || 0;
   el.textContent = what
-    + ` · approved orders ask for ${nf(d)}, ${nf(was)} already with printers, ${nf(Math.max(0, Math.floor(d * 1.1) - was))} left within the cap.`;
+    + ` · approved orders ask for ${nf(d)}, ${nf(was)} already with printers, ${nf(Math.max(0, Math.floor(d * 1.1) - was))} left within the cap.`
+    + (FLOW_ON ? ` Production flow orders (from ${flowFrom()}) are not counted — PPC gives them their printer.` : '');
   return m;
 }
 
@@ -36728,6 +36798,13 @@ async function voPlace(given) {
    * not stop the order: the SKU can still be added by hand. */
   { const recs = voCustomRecs(VOF.lines);
     if (Object.keys(recs).length) { try { await ptPatch(recs); if (typeof MDBX !== 'undefined' && Array.isArray(MDBX.custom)) Object.values(recs).forEach(r => MDBX.custom.push(r)); } catch (e) { /* added by hand later */ } } }
+  /* A FLOW ORDER'S PRINTING IS PPC'S (flow-core.js flowOwnsOrder, test link only): a line that would land on one is refused,
+   * request or order alike, so one order never gets two printer orders. */
+  if (FLOW_ON) {
+    let fo = [];
+    try { if (!PTG.ob) await ptLoadGates(); fo = flowOwnedIn(voStampOrders(VOF.lines.map(l => Object.assign({}, l)), channel)); } catch (e) { fo = []; }
+    if (fo.length) return 'Not placed — ' + flowOwnsMsg(fo, 'PPC raises its printer order in PPC · Production flow. Take those SKUs off this order.');
+  }
   /* A REQUEST STOPS HERE — checked exactly as an order is, and stored where no vendor can read it. */
   if (VOF.mode === 'request') {
     const err = await vrqSubmit({ code, vend, service: String(VOF.service || 'Block print'), kind: VOF.kind, channel,
@@ -42976,6 +43053,8 @@ function fgiRecvOrderCheck(v, batch) {
   /* Which kind of order is the person's choice, not a guess from whether the number is known. A form
    * that was never drawn (no picker) falls back to the number, as it always did. */
   const wantExt = pick === 'external' || (!pick && orderNo && !fgiOrdersFor(sku).some(o => o.orderNo === orderNo) && !fgiOrderKnown(orderNo));
+  /* One way in for a flow order (flow-core.js flowFgOwns, test link only): From QC — to accept, which passes v.flow. */
+  if (!wantExt && !v.flow && flowFgOwns(orderNo, sku)) return { err: flowFgOwnsMsg(orderNo) };
   if (!wantExt) {
     if (!orderNo) return { err: 'Pick the Order Console order these pieces were received against — or choose "External order".' };
     if (fgiOrdersFor(sku).some(o => o.orderNo === orderNo)) orderSource = 'console';
@@ -45951,6 +46030,7 @@ async function fgiScanFlush(sku) {
     if (n > have) return stop(`You don't have enough stock — ${sku} has ${nf(have)} piece(s) in the India Store`
       + ` and this scan asks for ${nf(n)}.`);
   } else if (h.orderSource === 'console') {
+    if (flowFgOwns(h.orderNo, sku)) return stop(flowFgOwnsMsg(h.orderNo));
     const o = fgiOrdersFor(sku).find(x => x.orderNo === h.orderNo);
     if (!o) return stop(`${h.orderNo} has no line for ${sku}. Take it off the list, or pick the right order.`);
     if (o.got + n > o.qty) {
@@ -46130,6 +46210,7 @@ async function fgiScanSave() {
       if (r.qty > have) return `You don't have enough stock — ${r.sku} has ${nf(have)} piece(s) in the India Store`
         + ` and the scan says ${nf(r.qty)}.`;
     } else if (h.orderSource === 'console') {
+      if (flowFgOwns(h.orderNo, r.sku)) return flowFgOwnsMsg(h.orderNo);
       const o = fgiOrdersFor(r.sku).find(x => x.orderNo === h.orderNo);
       if (!o) return `${h.orderNo} has no line for ${r.sku}. Take it off the list, or pick the right order.`;
       if (o.got + r.qty > o.qty) {
@@ -48503,6 +48584,8 @@ async function vrqApprove(id, opts) {
     requestId: id, requestNo: r.reqNo || '',
   };
   if (!have && order.orderType === 'cut') order.demandSource = 'bulk';
+  /* Raised for what is now a flow order: PPC gives a flow order its printer (flowOwnsOrder, test link only). */
+  if (!have) { const fo = flowOwnedIn(order.lines); if (fo.length) return 'Not sent — ' + flowOwnsMsg(fo, 'PPC raises its printer order in PPC · Production flow. Reject this request with a note.'); }
   if (!have) {
     const put = Object.assign({}, order); delete put._key;
     try { await ptPut('pt_vendorOrders/' + code + '/' + oid, put); }
@@ -49334,6 +49417,7 @@ async function vpRfdRaiseRun(o, drafts, reason) {
 
 async function rfdSubmitSize(o, key, pieces, note) {
   if (!o) return 'That order is no longer here.';
+  if (flowVoIsFlow(o)) return (o.orderNo || o.id) + ' is a Production flow order: its cloth comes on the office challan, not on an ask.';
   if (!rfdSizeOf(o, key)) return 'Pick which size you need.';
   const want = parseFloat(pieces) || 0;
   if (!(want > 0)) return 'How many pieces do you need?';
@@ -49709,6 +49793,7 @@ function rfdStoreOf(code, orders) {
 async function rfdOfficeSend(o, key, qty, dateIso, note) {
   if (!rfdCanSend()) return RFD_NO_SEND;
   if (!o) return 'That order is no longer here.';
+  if (flowVoIsFlow(o)) return 'Not sent — ' + (o.orderNo || o.id) + ' is a Production flow order: its RFD goes on a challan in PPC · Production flow → Demand → RFD fabric · out to printers.';
   const row = rfdOrderLedger(o).find(x => x.key === key);
   if (!row) return 'That size or cloth is not on this order.';
   const q = parseFloat(qty) || 0;
@@ -49797,7 +49882,8 @@ const rfdVendorPrints = code => /print/i.test(voCatOf(code));
 /** Every tracked, open order of every printer, one row per size or cloth — the store's worklist. */
 function rfdOrderRows() {
   const out = [];
-  (VO.rows || []).filter(o => o && rfdTracked(o) && rfdVendorPrints(o.vendorCode) && !o.cancelled && ['Received', 'Cancelled', 'Draft'].indexOf(o.status || 'Placed') < 0)
+  /* A flow order's cloth goes on the flow's own RFD challans (PPC · Production flow → Demand), never from here. */
+  (VO.rows || []).filter(o => o && rfdTracked(o) && !flowVoIsFlow(o) && rfdVendorPrints(o.vendorCode) && !o.cancelled && ['Received', 'Cancelled', 'Draft'].indexOf(o.status || 'Placed') < 0)
     .forEach(o => rfdOrderLedger(o).forEach(x => out.push(Object.assign(x, { _order: o, orderId: o.id, orderNo: o.orderNo || o.id,
       vendorCode: o.vendorCode, vendorName: voName(o.vendorCode), placed: voWhenMs(o) }))));
   return out.sort((a, b) => (b.placed - a.placed) || String(a.orderNo).localeCompare(String(b.orderNo))
@@ -49932,6 +50018,7 @@ function rfdOrderOf(r) {
 
 async function rfdSubmit(o, fabric, metres, note) {
   if (!o) return 'That order is no longer here.';
+  if (flowVoIsFlow(o)) return 'Not asked — ' + (o.orderNo || o.id) + ' is a Production flow order: its RFD goes on a challan in PPC · Production flow → Demand → RFD fabric · out to printers.';
   const fab = String(fabric || '').trim();
   if (!fab) return 'Pick which fabric you need.';
   const want = parseFloat(metres) || 0;
@@ -49951,6 +50038,7 @@ async function rfdSubmit(o, fabric, metres, note) {
  */
 async function rfdSubmitPcs(o, sku, pieces, note) {
   if (!o) return 'That order is no longer here.';
+  if (flowVoIsFlow(o)) return 'Not asked — ' + (o.orderNo || o.id) + ' is a Production flow order: its RFD goes on a challan in PPC · Production flow → Demand → RFD fabric · out to printers.';
   const line = rfdPieceOf(o, sku);
   if (!line) return 'Pick which size you need.';
   const want = parseFloat(pieces) || 0;
@@ -50018,6 +50106,7 @@ async function rfdWrite(o, ask, note) {
  */
 async function rfdSubmitOrder(o, note) {
   if (!o) return { err: 'That order is no longer here.' };
+  if (flowVoIsFlow(o)) return { err: (o.orderNo || o.id) + ' is a Production flow order: its cloth comes on the office challan, not on an ask.' };
   const asks = [];
   rfdPieceLines(o).forEach(x => {
     const left = rfdPcsAllowed(o, x.sku).left;

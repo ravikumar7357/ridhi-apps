@@ -122,6 +122,8 @@ function vlFind(r) {
  */
 async function vlAcceptWrite(rows, qtyFor, note, rejFor, ordersFor) {
   if (!vlCanAccept()) return VLOG_NO_ACCEPT;
+  /* A FLOW ORDER'S PRINTED FABRIC IS RECEIVED ON ITS CHALLAN (PPC · Production flow → Demand → Printed fabric in · history), never here. */
+  if (rows.some(r => flowVoIsFlow({ id: r.id }))) return 'Not accepted — a Production flow order is received on its RFD challan: PPC · Production flow → Demand → Printed fabric in · history.';
   if (!rows.length) return '';
   const now = new Date().toISOString();
   /* Grouped by order: one write each, however many of its deliveries are being accepted. */
@@ -304,6 +306,8 @@ function vlAcceptOne(rowKey) {
  */
 async function vlNoWrite(r, note, undo) {
   if (!vlCanAccept()) return VLOG_NO_ACCEPT;
+  /* A flow order's deliveries are its challan receipts — nothing here to mark. */
+  if (flowVoIsFlow({ id: r.id })) return 'Not changed — a Production flow order is received on its RFD challan: PPC · Production flow → Demand → Printed fabric in · history.';
   const found = vlFind(r);
   if (!found) return 'That delivery is no longer there — press Refresh.';
   const lines = found.lines.map(l => Object.assign({}, l));
@@ -901,6 +905,8 @@ $('voTable').addEventListener('click', e => {
 /* Both of these are visible to the vendor and change what counts against the printer cap, so the
  * confirmation says what happens rather than asking "are you sure?". */
 async function voConfirmStatus(key, status) {
+  /* PPC keeps its own vendor orders in step with the plan (flowVoSync): received on the challan, cancelled by undoing the plan. */
+  if (flowVoIsFlow({ id: String(key || '').split('/').pop() })) { $('voMsg').className = 'err'; $('voMsg').textContent = 'This is a Production flow order — PPC keeps it: receive on its challan in Demand → Printed fabric in, or undo the plan in PPC completed.'; return; }
   if (!confirm(status === 'Cancelled'
     ? 'Cancel this order?\n\nThe vendor will see it as cancelled, and its pieces stop counting against '
       + 'what may still be ordered for those SKUs.'

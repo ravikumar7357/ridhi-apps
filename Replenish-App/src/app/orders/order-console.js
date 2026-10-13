@@ -351,6 +351,7 @@ async function spAssign(orderNo, sku, code, opts) {
   const key = spKey(orderNo, sku);
   if (!spKeySafe(key)) return 'That order and SKU cannot be made into a database key.';
   const want = String(code || '').trim();
+  if (want && flowOwnsOrder(orderNo)) return flowOwnsMsg([obUC(orderNo)], 'its printer is planned in PPC · Production flow, not given here.');
   if (want && !voMasterRow(want)) return 'That printer is not in the vendor master.';
   /* ONLY A PRINTER PRINTS. The picker has always filtered to printers; this is the same rule where
    * the writing happens, so a spreadsheet cannot put an embroidery firm or a filling house on a line

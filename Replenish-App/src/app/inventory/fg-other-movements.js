@@ -263,6 +263,8 @@ function fgiRecvOrderCheck(v, batch) {
   /* Which kind of order is the person's choice, not a guess from whether the number is known. A form
    * that was never drawn (no picker) falls back to the number, as it always did. */
   const wantExt = pick === 'external' || (!pick && orderNo && !fgiOrdersFor(sku).some(o => o.orderNo === orderNo) && !fgiOrderKnown(orderNo));
+  /* One way in for a flow order (flow-core.js flowFgOwns, test link only): From QC — to accept, which passes v.flow. */
+  if (!wantExt && !v.flow && flowFgOwns(orderNo, sku)) return { err: flowFgOwnsMsg(orderNo) };
   if (!wantExt) {
     if (!orderNo) return { err: 'Pick the Order Console order these pieces were received against — or choose "External order".' };
     if (fgiOrdersFor(sku).some(o => o.orderNo === orderNo)) orderSource = 'console';

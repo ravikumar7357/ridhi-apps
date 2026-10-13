@@ -32,6 +32,45 @@ const FLOW_ON = (() => {
 const FLOW_FROM_DEFAULT = '2026-10-10';
 const flowFrom = () => { try { return localStorage.getItem('flowFrom') || FLOW_FROM_DEFAULT; } catch (e) { return FLOW_FROM_DEFAULT; } };
 
+/* ---- ONE WAY IN FOR A FLOW ORDER (Ravi, 13 Oct: "remove the duplicate") ----
+ * An order the flow runs — a test order, or any order dated from flowFrom() on — has its printer order raised by PPC, its
+ * RFD sent and its printed fabric received on the flow's own challans, and its finished pieces accepted in Finished Goods
+ * → From QC. The old screens that did the same work refuse it, and the old views that showed the same work leave it out,
+ * so nothing is entered or counted twice. Older orders run the old way to the end. Only on the test link (FLOW_ON). */
+let FLOW_OD = { src: null, so: null, map: null };
+function flowOrderDate(no) {
+  const src = typeof ordLines === 'function' ? ordLines() : [], so = (typeof SOX !== 'undefined' && SOX.rows) || null;
+  if (!FLOW_OD.map || FLOW_OD.src !== src || FLOW_OD.so !== so) {
+    const m = new Map();
+    (so || []).forEach(o => { const k = obUC(o && (o._id || o._key)); if (k && o.orderDate) m.set(k, o.orderDate); });
+    src.forEach(r => { if (r && r.orderNo && r.orderDate) m.set(obUC(r.orderNo), r.orderDate); });
+    FLOW_OD = { src, so, map: m };
+  }
+  return FLOW_OD.map.get(obUC(no)) || '';
+}
+function flowOwnsOrder(orderNo, date) {
+  if (!FLOW_ON) return false;
+  const no = obUC(orderNo); if (!no) return false;
+  if (/^TEST-/.test(no)) return true;
+  const iso = String(ptIsoDate(date != null && date !== '' ? date : flowOrderDate(no)) || '');
+  return !!iso && iso >= flowFrom();
+}
+/** A vendor order the flow made: PPC's (demandSource 'ppc', vpo_flow_…) or a test order's (tvpo_…). */
+const flowVoIsFlow = o => !!(FLOW_ON && o && (o.test || o.demandSource === 'ppc' || /^(vpo_flow_|tvpo_)/.test(String(o.id || ''))));
+/** The flow orders a vendor order's lines are stamped for. */
+const flowOwnedIn = lines => [...new Set((lines || []).flatMap(l => (l && !l.cancelled && Array.isArray(l.forOrders) ? l.forOrders : [])
+  .map(x => obUC(x && x.orderNo)).filter(no => flowOwnsOrder(no))))];
+/** A flow order's finished pieces come in through Finished Goods → From QC — to accept, not the stock entry, the Excel or the
+ * scanner. A make-to-order line goes to shipping on the Order Console, and an outsourced line is received from its vendor. */
+function flowFgOwns(orderNo, sku) {
+  if (!flowOwnsOrder(orderNo) || ordIsMto(obUC(orderNo))) return false;
+  const p = ((typeof FLOW !== 'undefined' && FLOW.ppc) || {})[flowKey(orderNo, sku)];
+  return !(p && flowRouteOf(p) === 'outsource');
+}
+const flowFgOwnsMsg = no => `${obUC(no)} is a Production flow order — its pieces come in through Finished Goods → From QC — to accept, once QC passes them.`;
+const flowOwnsMsg = (nos, what) => `${nos.slice(0, 3).join(', ')}${nos.length > 3 ? ` and ${nos.length - 3} more` : ''} ${nos.length > 1 ? 'are Production flow orders' : 'is a Production flow order'}`
+  + ` (dated from ${flowFrom()}): ${what}`;
+
 /* The name on the challans and print orders (Ravi, 11 Oct: "challan me The Fabric Rush nahi hoga, yahan Ridhi Home &
  * Living karna h") — the PO settings' company when one is saved, else this. */
 const FLOW_COMPANY = 'Ridhi Home & Living';
