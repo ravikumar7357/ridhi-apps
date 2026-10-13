@@ -21250,7 +21250,7 @@ console.log('\n== every menu item is a link a new tab can open ==');
   const src = fs.readFileSync(APP, 'utf8');
   const side = src.slice(src.indexOf('<aside class="side">'), src.indexOf('</aside>'));
   const links = [...side.matchAll(/<a id="(tab\w+)" class="nav" href="#(\w+)"/g)];
-  ok('all 37 menu items are links with an address', links.length === 37, String(links.length));   // + Management dashboard (2026-09-26), + Production flow (2026-10-10)
+  ok('all 38 menu items are links with an address', links.length === 38, String(links.length));   // + Management dashboard (2026-09-26), + Production flow (2026-10-10), + Greige Desk (2026-10-13)
   ok('…and not one of them is still a button', !/<button id="tab\w+" class="nav"/.test(side));
   const navs = (src.match(/const navs = \{([^}]+)\};/) || [])[1] || '';
   ok('…each address is the screen its item opens', links.every(([, id, key]) => new RegExp('\\b' + key + ": '" + id + "'").test(navs)),

@@ -1,0 +1,516 @@
+<title>Ridhi Greige Desk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Libre+Caslon+Text:wght@400;700&display=swap">
+<style>
+/* Layout: the Replenish app's own frame -- a bar of screens across the top, soft cards on a tinted
+   ground -- with the greige work at its centre: each PO opens into its challans, each challan into its
+   bales, and receiving is a drawer from the right, opened from the PO itself. */
+:root{
+  --bg:#F3F5F8; --card:#ffffff; --soft:#F7F9FB; --chip:#EFF2F6; --hover:#EFF2F6; --zebra:#FBFCFE; --line:#E8EDF3;
+  --ink:#14181F; --muted:#5A6472; --faint:#98A1AE;
+  --brand:#4A6A92; --brand-bg:#E9EFF6; --brand-ink:#3A5573; --on-brand:#ffffff;
+  --accent:#4A5A3C; --accent-bg:#EDF0E7; --ok-ink:#2F6B33;
+  --bad:#9B1C1C; --bad-bg:#FBE9E9; --bad-line:#EBB9B9;
+  --warn-ink:#8A5A12; --warn-bg:#FFF3D6; --proc-ink:#7F6000;
+  --pink:#9B3F86; --pink-bg:#F7E8F3;
+  --c-greige:#9A6410; --c-proc:#2F6DB5; --c-rfd:#3F7D3A; --wa:#128C3E;
+  --scrim:rgba(15,23,42,.45); --toast-bg:#14181F; --toast-fg:#ffffff;
+  --sh-1:0 2px 10px rgba(20,24,31,.05); --sh-2:0 4px 16px rgba(20,24,31,.09); --sh-3:0 24px 64px rgba(20,24,31,.22);
+  --ring:0 0 0 3px rgba(110,144,181,.32); --ring-line:#6E90B5;
+  --r-card:18px; --r-ctl:12px; --r-sm:10px; --r-pill:999px; --ctl:40px;
+  --sans:"Plus Jakarta Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --serif:"Libre Caslon Text","Iowan Old Style",Baskerville,"Times New Roman",serif;
+  --mono:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0F1319; --card:#171C24; --soft:#1B212A; --chip:#232A35; --hover:#1F2630; --zebra:#191E26; --line:#29313D;
+  --ink:#E7EBF1; --muted:#9AA4B2; --faint:#6E7886;
+  --brand:#86A6CF; --brand-bg:#1E2B3B; --brand-ink:#B3C9E6; --on-brand:#0F1319;
+  --accent:#A9BE8D; --accent-bg:#232B1B; --ok-ink:#8FD49A;
+  --bad:#FF8F85; --bad-bg:#3A1D1D; --bad-line:#6B2B28;
+  --warn-ink:#F0C46E; --warn-bg:#352812; --proc-ink:#E4BA55;
+  --pink:#E59BD4; --pink-bg:#3A1D34;
+  --c-greige:#D7A34C; --c-proc:#6EA6EA; --c-rfd:#7DBB75; --wa:#4CD27F;
+  --scrim:rgba(0,0,0,.6); --toast-bg:#E7EBF1; --toast-fg:#0F1319;
+  --sh-1:0 1px 2px rgba(0,0,0,.35); --sh-2:0 4px 16px rgba(0,0,0,.4); --sh-3:0 24px 64px rgba(0,0,0,.55);
+  color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#0F1319; --card:#171C24; --soft:#1B212A; --chip:#232A35; --hover:#1F2630; --zebra:#191E26; --line:#29313D;
+  --ink:#E7EBF1; --muted:#9AA4B2; --faint:#6E7886;
+  --brand:#86A6CF; --brand-bg:#1E2B3B; --brand-ink:#B3C9E6; --on-brand:#0F1319;
+  --accent:#A9BE8D; --accent-bg:#232B1B; --ok-ink:#8FD49A;
+  --bad:#FF8F85; --bad-bg:#3A1D1D; --bad-line:#6B2B28;
+  --warn-ink:#F0C46E; --warn-bg:#352812; --proc-ink:#E4BA55;
+  --pink:#E59BD4; --pink-bg:#3A1D34;
+  --c-greige:#D7A34C; --c-proc:#6EA6EA; --c-rfd:#7DBB75; --wa:#4CD27F;
+  --scrim:rgba(0,0,0,.6); --toast-bg:#E7EBF1; --toast-fg:#0F1319;
+  --sh-1:0 1px 2px rgba(0,0,0,.35); --sh-2:0 4px 16px rgba(0,0,0,.4); --sh-3:0 24px 64px rgba(0,0,0,.55);
+  color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:14px/1.45 var(--sans);-webkit-font-smoothing:antialiased}
+.pill,.tnum,.metric .v,.dfig,.gk-v,.num,.prog,.pc-m,.pc input,.pr input{font-variant-numeric:tabular-nums}
+h1,h2{letter-spacing:-.02em;text-wrap:balance}
+.muted{color:var(--muted)} .b{font-weight:700} .sub{font-size:12px;color:var(--muted)} .grow{flex:1}
+.mono{font-family:var(--mono);font-size:12.5px} .hide{display:none!important}
+.sel{user-select:text}
+
+/* ---- the frame ---- */
+.shell{display:flex;flex-direction:column;min-height:100%}
+.side{position:sticky;top:env(safe-area-inset-top,0px);z-index:40;display:flex;align-items:center;gap:2px;flex-wrap:wrap;
+  background:var(--card);box-shadow:var(--sh-1);padding:8px 16px}
+.brand{padding:0 14px 0 2px}
+.brandname{font-family:var(--serif);font-size:16px;letter-spacing:.06em;text-transform:uppercase;display:flex;flex-direction:column;line-height:1}
+.brandsub{font-family:var(--sans);font-size:7.5px;font-weight:600;letter-spacing:.22em;color:var(--muted);margin-top:3px}
+.navgrp{background:transparent;color:var(--muted);box-shadow:none;border:0;font:inherit;font-size:13px;font-weight:600;padding:8px 12px;border-radius:var(--r-sm);cursor:pointer}
+.navgrp:hover{color:var(--ink);background:var(--hover)}
+.navgrp.here{color:var(--brand);background:var(--brand-bg);font-weight:800}
+.sidefoot{margin-left:auto;display:flex;align-items:center;gap:8px}
+.lm-tag{display:inline-block;padding:2px 9px;border-radius:var(--r-pill);background:var(--warn-bg);color:var(--warn-ink);font-size:10.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
+.main{flex:1;min-width:0;width:100%;max-width:1560px;margin:0 auto;padding-inline:22px;padding-block:18px 48px}
+@media (max-width:640px){.main{padding-inline:16px}.side{padding:8px 12px;position:static}.brandsub{display:none}.frow select{flex:1 1 100%}}
+.topbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 14px}
+.lm-h{font-family:var(--serif);font-weight:400;font-size:25px;margin:0}
+.topacts{margin-left:auto;display:flex;gap:8px;min-width:0;flex:0 1 280px}
+.topacts input{width:100%}
+
+/* ---- controls ---- */
+label{display:block;font-size:12.5px;font-weight:600;color:var(--muted);margin-bottom:5px}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:var(--r-ctl);padding:9px 12px;width:100%;min-width:0}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--ring-line);box-shadow:var(--ring)}
+input[readonly]{background:var(--soft);color:var(--muted)}
+input::placeholder,textarea::placeholder{color:var(--faint)}
+button{font:inherit;font-weight:700;cursor:pointer;border:0;border-radius:var(--r-ctl);padding:10px 18px;background:var(--brand);color:var(--on-brand);
+  box-shadow:0 4px 12px rgba(74,106,146,.25);transition:background .12s,box-shadow .12s,transform .06s;white-space:nowrap}
+button:hover{background:var(--brand-ink)}
+button:active{transform:translateY(1px);box-shadow:none}
+button:focus-visible,a:focus-visible{outline:none;box-shadow:var(--ring)}
+button.ghost{background:var(--card);color:var(--muted);font-weight:600;box-shadow:var(--sh-1)}
+button.ghost:hover{color:var(--ink);box-shadow:var(--sh-2)}
+button.armed,button.ghost.armed{background:var(--bad);color:#fff}
+.btnlink{display:inline-flex;align-items:center;padding:10px 18px;border-radius:var(--r-ctl);background:var(--card);color:var(--brand-ink);font-weight:700;text-decoration:none;box-shadow:var(--sh-1)}
+.btnlink:hover{box-shadow:var(--sh-2)}
+.btnlink{gap:7px}
+.btnlink.wa,.jw-btn.wa{color:var(--wa)}
+.jw-btn.ico{width:32px;padding:0;display:inline-grid;place-items:center}
+a.jw-btn{text-decoration:none}
+.frozen{padding:8px 11px;border-radius:var(--r-ctl);background:var(--soft);color:var(--ink);font-size:12.5px;min-width:200px}
+@media print{body *{visibility:hidden}#docPaper,#docPaper *{visibility:visible}#docPaper{position:absolute;left:0;top:0;box-shadow:none;margin:0;padding:0}}
+.jw-btn{height:32px;padding:0 13px;font-size:12.5px;border-radius:var(--r-sm);background:var(--chip);color:var(--muted);font-weight:700;box-shadow:none}
+.jw-btn:hover{background:var(--line);color:var(--ink)}
+.jw-btn.jw-primary{background:var(--brand-bg);color:var(--brand-ink)}
+.jw-btn.jw-wa{background:var(--accent-bg);color:var(--accent)}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.seg{display:inline-flex;background:var(--chip);border-radius:var(--r-sm);padding:3px;gap:2px}
+.segbtn{background:transparent;color:var(--muted);box-shadow:none;border-radius:8px;padding:6px 14px;font-size:12.5px;font-weight:600}
+.segbtn:hover{background:transparent;color:var(--ink)}
+.segbtn.on{background:var(--card);color:var(--ink);box-shadow:var(--sh-1)}
+.segbtn .n{color:var(--faint);font-weight:500;margin-left:3px}
+
+/* ---- cards, figures, tables ---- */
+.card{background:var(--card);border-radius:var(--r-card);padding:16px 18px;margin-bottom:14px;box-shadow:var(--sh-1);min-width:0}
+.kpis{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:10px}
+.kpi{flex:1 1 300px;background:var(--card);border-radius:var(--r-card);padding:13px 16px;box-shadow:var(--sh-1)}
+.kpihead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.kpiname{font-size:13px;font-weight:700} .kpiwhen{font-size:11px;color:var(--muted)}
+.metrics{display:flex;gap:24px;flex-wrap:wrap;justify-content:space-between}
+.metric .v{font-size:19px;font-weight:700;line-height:1.2} .metric .l{font-size:11px;color:var(--muted);margin-top:2px}
+.ff-cap{font-size:12.5px;color:var(--muted);margin:0 0 8px;line-height:1.5;max-width:110ch}
+.ff-grid,.scroll{overflow-x:auto}
+.ok{background:var(--accent-bg);color:var(--accent);padding:11px 14px;border-radius:var(--r-sm);font-size:13.5px;border-left:3px solid var(--accent)}
+.err{background:var(--bad-bg);color:var(--bad);padding:10px 14px;border-radius:var(--r-sm);font-size:13px;border-left:3px solid var(--bad);margin-bottom:10px;line-height:1.5}
+.warn{background:var(--warn-bg);color:var(--warn-ink);padding:10px 14px;border-radius:var(--r-sm);font-size:13px;border-left:3px solid var(--warn-ink)}
+table.xl{border-collapse:separate;border-spacing:0;width:100%;font-size:13.5px}
+table.xl th,table.xl td{border-bottom:1px solid var(--line);padding:9px 11px;white-space:nowrap;background:var(--card);text-align:center;vertical-align:middle}
+table.xl thead th{position:sticky;top:0;z-index:2;font-size:11px;font-weight:700;letter-spacing:.03em;color:var(--faint);text-transform:uppercase}
+table.xl .frz{position:sticky;left:0;z-index:1;border-right:1px solid var(--line)}
+table.xl thead th.frz{z-index:3}
+table.xl tbody tr:nth-child(even) td{background:var(--zebra)}
+table.xl tbody tr:hover td{background:var(--soft)}
+table.xl tfoot td{background:var(--soft);font-weight:800}
+table.xl.xl-dense th,table.xl.xl-dense td{padding:6px 8px;font-size:12.5px}
+.pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:var(--r-pill);font-size:11.5px;font-weight:700;line-height:17px;white-space:nowrap}
+.pill-ok{background:var(--accent-bg);color:var(--accent)} .pill-low{background:var(--warn-bg);color:var(--warn-ink)}
+.pill-out{background:var(--bad-bg);color:var(--bad)} .pill-sea{background:var(--brand-bg);color:var(--brand-ink)} .pill-mute{background:var(--chip);color:var(--muted)}
+.lm-note{font-size:12.5px;color:var(--muted);margin:0 0 10px;line-height:1.5}
+.lm-why{font-size:12px;color:var(--muted);line-height:1.55;margin-top:8px}
+.lm-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:12px}
+.lm-lines td{padding:5px 6px} .lm-lines input,.lm-lines select{padding:6px 8px;font-size:12.5px}
+.lm-x{background:transparent;color:var(--bad);box-shadow:none;padding:4px 8px;font-size:15px}
+.lm-x:hover{background:var(--bad-bg)}
+
+/* ---- the dashboard ---- */
+.dashcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(228px,1fr));gap:14px;margin-bottom:14px}
+.dcard{display:block;width:100%;text-align:left;background:var(--card);color:var(--ink);border-radius:var(--r-card);box-shadow:var(--sh-1);padding:14px 16px;font-weight:400;white-space:normal}
+.dcard:hover{background:var(--card);box-shadow:var(--sh-2)}
+.dhead{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+.dicon{width:22px;height:22px;border-radius:7px;background:var(--chip);color:var(--brand-ink);display:inline-flex;align-items:center;justify-content:center;flex:none}
+.dtitle{font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.dchip{margin-left:auto;font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:var(--r-pill);background:var(--accent-bg);color:var(--accent);white-space:nowrap}
+.dfig{font-size:26px;font-weight:800;line-height:1.1;letter-spacing:-.01em}
+.dsub{font-size:12px;color:var(--muted);margin-top:2px}
+.dsplit{display:flex;gap:30px;flex-wrap:wrap}
+.dnote{font-size:12px;color:var(--muted);margin-left:auto;padding-bottom:3px}
+.dash2col{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(380px,100%),1fr));gap:14px;align-items:stretch;margin-bottom:14px}
+
+/* ---- Greige POs: the figures, each one a filter ---- */
+.pobar{display:flex;gap:10px;flex-wrap:wrap;margin:-4px 0 14px}
+.gk-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:14px}
+.gk{display:grid;grid-template-columns:1fr auto;grid-template-rows:auto auto auto;column-gap:8px;text-align:left;background:var(--card);color:var(--ink);
+  border-radius:var(--r-card);box-shadow:var(--sh-1);padding:14px 16px;font-weight:400;white-space:normal;outline:1.5px solid transparent}
+.gk:hover{background:var(--card);box-shadow:var(--sh-2)}
+.gk.on{outline-color:var(--brand)}
+.gk-ic{grid-column:2;grid-row:1/3;width:34px;height:34px;border-radius:10px;display:grid;place-items:center}
+.gk-v{grid-column:1;font-size:21px;font-weight:800;letter-spacing:-.01em}
+.gk-l{grid-column:1;font-size:12.5px;color:var(--muted);font-weight:600}
+.gk-s{grid-column:1/-1;font-size:12px;color:var(--muted);margin-top:9px}
+.tone-blue{background:var(--brand-bg);color:var(--brand-ink)} .tone-amber{background:var(--warn-bg);color:var(--warn-ink)}
+.tone-green{background:var(--accent-bg);color:var(--accent)} .tone-red{background:var(--bad-bg);color:var(--bad)}
+.filters{padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+.frow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.frow select{flex:0 1 200px;width:auto;height:38px;padding-block:0}
+.pair{display:inline-flex;align-items:center;gap:6px;flex:0 1 auto;min-width:0}
+.frow input[type=date]{width:160px;max-width:100%;height:38px;padding-block:0}
+label.inl{margin:0;font-size:12px}
+.frow2{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.count{font-size:12.5px}
+.tablecard{padding:0;overflow:hidden}
+.t{width:100%;min-width:1080px;border-collapse:collapse}
+.t > thead th,.ct > thead th{font-size:11px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--faint);text-align:left;padding:12px 10px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--card)}
+.t > tbody > tr > td{padding:12px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+th.num,td.num{text-align:right;white-space:nowrap} th.ra{text-align:right} td.tl,th.tl{text-align:left}
+.xrow{cursor:pointer}
+.xrow:hover > td,.xrow.open > td{background:var(--soft)}
+.plus{color:var(--muted);font-weight:600}
+.w-chev{width:40px;padding-left:12px!important;padding-right:0!important}
+.chev{width:26px;height:26px;padding:0;background:transparent;box-shadow:none;border-radius:7px;display:grid;place-items:center;color:var(--muted)}
+.chev:hover{background:var(--line);color:var(--ink)}
+.chev svg{transition:transform .15s ease}
+.open > td .chev svg{transform:rotate(90deg)}
+.mill{display:flex;gap:10px;align-items:center}
+.av{width:32px;height:32px;flex:none;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:800}
+.av-a{background:var(--brand-bg);color:var(--brand-ink)} .av-b{background:var(--pink-bg);color:var(--pink)}
+.av-c{background:var(--accent-bg);color:var(--accent)} .av-d{background:var(--warn-bg);color:var(--warn-ink)}
+.prog{display:flex;align-items:center;gap:8px;font-weight:700}
+.actions{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;min-width:230px}
+.plate{font-family:var(--mono);font-size:12px;border:1px solid var(--line);border-radius:5px;padding:1px 7px;background:var(--card);white-space:nowrap}
+.detail > td{padding:0!important;background:var(--soft);border-bottom:1px solid var(--line)}
+.panel{padding:6px 18px 18px 52px;display:flex;flex-direction:column;gap:12px}
+@media (max-width:640px){.panel{padding-left:14px}}
+.panel-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.panel-foot{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12.5px}
+.lsum{display:flex;gap:10px;flex-wrap:wrap}
+.lchip{background:var(--card);border-radius:12px;padding:10px 13px;min-width:min(270px,100%);box-shadow:var(--sh-1)}
+.lchip .top2{display:flex;justify-content:space-between;gap:12px;font-size:13px}
+.lchip .due{color:var(--warn-ink)}
+.bar{height:5px;background:var(--line);border-radius:3px;margin-top:8px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--brand);border-radius:3px}
+.bar i.full{background:var(--accent)}
+.ct.li th{background:var(--card)}
+.ct.li td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+.ct.li tr.tot td{border-bottom:0;font-weight:700;background:var(--soft)}
+.bar.sm{height:4px;margin-top:5px;min-width:70px}
+.box{background:var(--card);border-radius:12px;overflow:hidden;box-shadow:var(--sh-1)}
+.ct{width:100%;border-collapse:collapse}
+.ct > tbody > tr > td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+.ct .xrow:hover > td,.ct .xrow.open > td{background:var(--brand-bg)}
+.empty{padding:18px;color:var(--muted);font-size:13.5px}
+.pieces{padding:12px 14px 14px;display:flex;flex-direction:column;gap:12px;background:var(--soft)}
+.pieces-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
+.pl-h{font-size:13px;margin-bottom:7px}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:8px}
+.pc{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:7px 9px;display:flex;flex-direction:column;gap:3px}
+.pc.short{border-color:var(--bad-line);background:var(--bad-bg)}
+.pc-top{display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted)}
+.pc-m{font-weight:700}
+.pc input{padding:4px 7px;font-size:13px;border-radius:7px}
+.pc-lab{font-size:11px;font-weight:500;color:var(--faint);margin:0}
+.d{font-weight:700} .d.short{color:var(--bad)} .d.extra{color:var(--ok-ink)} .d.ok{color:var(--faint);font-weight:500}
+.foot{font-size:12.5px;color:var(--muted);max-width:90ch;margin:4px 2px 0;line-height:1.55}
+
+/* ---- the receive drawer ---- */
+.scrim{position:fixed;inset:0;background:var(--scrim);z-index:60}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(640px,100%);background:var(--card);z-index:61;display:flex;flex-direction:column;box-shadow:var(--sh-3);
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+.dr-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:16px 22px;border-bottom:1px solid var(--line)}
+.dr-head h2{font-size:19px;margin:2px 0 0}
+.crumb{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.dr-body{flex:1;overflow:auto;padding:18px 22px;display:flex;flex-direction:column;gap:16px}
+.dr-foot{border-top:1px solid var(--line);padding:14px 22px;display:flex;flex-direction:column;gap:10px}
+@media (max-width:520px){.dr-head,.dr-body,.dr-foot{padding-inline:16px}}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:520px){.grid2{grid-template-columns:1fr}}
+.fld{display:flex;flex-direction:column;gap:5px;font-size:12.5px;font-weight:600;color:var(--muted);margin:0}
+.fld small{font-weight:400;font-size:12px}
+.fld.wide{grid-column:1/-1}
+.sect{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.sect span{font-weight:500;letter-spacing:0;text-transform:none}
+.dl{border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;background:var(--soft)}
+.prh,.pr{display:grid;grid-template-columns:24px minmax(0,1fr) minmax(0,1fr) 32px;gap:8px;align-items:center}
+.prh{font-size:11.5px;color:var(--faint);font-weight:600}
+.pr input{padding:7px 10px}
+.pr-i{font-size:12px;color:var(--faint);text-align:right}
+.x{width:32px;height:32px;padding:0;background:transparent;box-shadow:none;color:var(--muted);font-size:18px;line-height:1;border-radius:8px}
+.x:hover{background:var(--line);color:var(--ink)}
+.dl-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.dl-sum{margin-left:auto;font-weight:700;font-size:13px}
+.link{background:none;box-shadow:none;color:var(--brand-ink);font-size:13px;font-weight:700;padding:2px 0}
+.link:hover{background:none;text-decoration:underline}
+.paste{display:flex;flex-direction:column;gap:8px}
+.paste textarea{min-height:84px;resize:vertical;font-family:var(--mono);font-size:13px}
+.warnline{font-size:12.5px;color:var(--warn-ink)}
+.note{font-size:12.5px;color:var(--muted)}
+.empty-sm{border:1px dashed var(--line);border-radius:12px;padding:16px;color:var(--muted);font-size:13.5px}
+.pohead{background:var(--soft);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.pohead-top{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.ct.mini th{padding:7px 8px;background:transparent}
+.ct.mini td{padding:7px 8px;font-size:12.5px}
+.ct.mini tr.tot td{border-bottom:0;font-weight:700}
+.due{color:var(--warn-ink)}
+.dl-top{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.lotf{flex:0 0 150px}
+.lotf input{font-family:var(--mono);font-weight:700}
+.supline{background:var(--brand-bg);color:var(--brand-ink);padding:10px 12px;border-radius:var(--r-sm);font-size:12.5px;line-height:1.55}
+.cellbtn{background:transparent;box-shadow:none;color:inherit;font:inherit;font-weight:inherit;padding:4px 8px;border-radius:8px;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
+.cellbtn:hover,.cellbtn.on{background:var(--brand-bg);color:var(--brand-ink);text-decoration:none}
+.cellbtn .caret{font-size:10px;opacity:.7}
+tr.invdet > td{background:var(--soft)!important;padding:4px 12px 14px!important;white-space:normal!important;text-align:left!important}
+.invdrop{display:flex;flex-direction:column;gap:8px}
+.balegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+.bale{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:0;padding:7px 9px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font-size:12.5px;font-weight:600;cursor:pointer}
+.bale input{width:15px;height:15px;flex:none}.bale b{margin-left:auto;font-variant-numeric:tabular-nums}
+.bale.on{border-color:var(--brand);background:var(--brand-bg);color:var(--brand-ink)}
+.okline{background:var(--accent-bg);color:var(--accent);padding:8px 12px;border-radius:var(--r-sm);font-size:12.5px}
+.approvals{border-left:4px solid var(--warn-ink)}
+.closeline{display:flex;align-items:center;gap:9px;margin:0;font-size:13px;font-weight:600;color:var(--ink);background:var(--warn-bg);border-radius:var(--r-sm);padding:9px 12px}
+.closeline input{width:16px;height:16px;flex:none}
+.dr-total{display:flex;justify-content:space-between;gap:12px;font-weight:700;flex-wrap:wrap}
+.dr-btns{display:flex;justify-content:flex-end;gap:8px}
+
+/* ---- dialogs ---- */
+.modal{position:fixed;inset:0;background:var(--scrim);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}
+.modalbox{background:var(--card);border-radius:var(--r-card);padding:20px;width:min(720px,100%);max-height:92vh;overflow:auto;box-shadow:var(--sh-3)}
+.en-groups{display:flex;flex-direction:column;gap:7px;margin:4px 0 16px}
+.en-group{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.en-gname{font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);width:82px;flex:none}
+.en-chip{display:inline-flex;align-items:center;gap:7px;background:var(--chip);color:var(--ink);box-shadow:none;border-radius:var(--r-pill);padding:6px 13px;font-size:12.5px;font-weight:600}
+.en-chip:hover{background:var(--line);color:var(--ink)}
+.en-chip.on{background:var(--card);box-shadow:inset 0 0 0 1.5px var(--ink),var(--sh-1);font-weight:800}
+.en-dot{width:8px;height:8px;border-radius:50%;flex:none}
+.en-after{background:var(--brand-bg);color:var(--brand-ink);border-radius:var(--r-sm);padding:10px 14px;font-size:13px;line-height:1.7;margin-bottom:10px}
+.en-after-h{font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;opacity:.75;margin-bottom:2px}
+.en-after .bad{color:var(--bad)}
+.docbox{width:min(860px,100%)}
+.docpaper{background:#ffffff;color:#000000;border-radius:8px;padding:16px;overflow-x:auto;box-shadow:inset 0 0 0 1px var(--line);margin:12px 0 16px}
+.mailbox{background:var(--soft);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;font-size:13px;margin:8px 0 12px}
+.mailbox pre{margin:6px 0 0;white-space:pre-wrap;font:13px/1.5 var(--sans);color:var(--ink)}
+.err-in{color:var(--bad);font-weight:600}
+
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--toast-bg);color:var(--toast-fg);
+  padding:11px 16px;border-radius:12px;font-size:13.5px;z-index:80;width:max-content;max-width:calc(100% - 32px);box-shadow:var(--sh-3);border-left:4px solid var(--brand)}
+.toast.ok{border-left-color:var(--c-rfd)} .toast.warn{border-left-color:var(--c-greige)} .toast.err{border-left-color:var(--bad)}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+
+<div class="shell">
+  <div class="side">
+    <div class="brand"><span class="brandname">Ridhi<span class="brandsub">Home &amp; Living</span></span></div>
+    <button type="button" class="navgrp" data-tab="dash">Dashboard</button>
+    <button type="button" class="navgrp" data-tab="po">Greige POs</button>
+    <button type="button" class="navgrp" data-tab="inv">Inventory</button>
+    <button type="button" class="navgrp" data-tab="ledger">Fabric ledger</button>
+    <button type="button" class="navgrp" data-tab="mst">Master data</button>
+    <div class="sidefoot">
+      <label class="inl" for="meSel" style="display:flex;align-items:center;gap:6px;margin:0">Working as <select id="meSel" style="width:auto;height:34px;padding-block:0;font-size:12.5px"></select></label>
+      <span class="lm-tag" title="Everything typed here stays in this browser.">Sample data · this browser</span>
+      <button type="button" class="ghost" id="lmReset" style="padding:7px 12px;font-size:12.5px">Reset sample data</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="topbar">
+      <h1 class="lm-h" id="lmTitle">Greige POs</h1>
+      <div class="topacts"><input id="lmQ" type="search" placeholder="Search PO, supplier, challan, lot, LR…" aria-label="Search"></div>
+    </div>
+    <div id="lmPane"></div>
+  </div>
+</div>
+
+<!-- ENTRY. One dialog for every movement: the kind decides which fields matter. -->
+<div class="modal hide" id="lmEntry">
+  <div class="modalbox">
+    <h2 style="margin:0 0 4px;font-size:18px" id="lmEnTitle">Fabric entry</h2>
+    <div class="lm-note" id="lmEnNote"></div>
+    <div id="lmEnErr" class="err hide"></div>
+    <div id="enChips" class="en-groups"></div>
+    <select id="enKind" class="hide" aria-label="Movement"></select>
+    <div class="lm-fields">
+      <div><label for="enLot">Lot *</label><input id="enLot" list="enLots" placeholder="LOT-005"><datalist id="enLots"></datalist></div>
+      <div><label for="enDate">Date *</label><input type="date" id="enDate"></div>
+      <div><label for="enFab">Fabric *</label><input id="enFab" list="enFabs" placeholder="Greige Sheeting 67"><datalist id="enFabs"></datalist></div>
+      <div><label for="enQty">Metres *</label><input id="enQty" type="number" step="0.01" placeholder="1200"></div>
+      <div><label id="enPartyL" for="enParty">Party</label><input id="enParty" list="enParties" placeholder="Shri Balaji Mills"><datalist id="enParties"></datalist></div>
+      <div><label for="enBill" id="enBillL">Bill / challan</label><input id="enBill" placeholder="Optional"></div>
+      <div id="enFinalWrap"><label>Is that the lot?</label>
+        <label style="display:flex;align-items:center;gap:8px;font-weight:500;color:var(--ink);margin:0;height:var(--ctl)">
+          <input type="checkbox" id="enFinal" checked style="width:16px;height:16px">
+          <span>Yes, close the lot</span></label></div>
+      <div id="enReturnedWrap"><label for="enReturned">Sent back (optional)</label>
+        <input id="enReturned" type="number" step="0.01" placeholder="0" title="Metres refused at the door and returned"></div>
+      <div id="enPoWrap"><label for="enPo">Against greige PO</label><input id="enPo" list="enPos" placeholder="Optional"><datalist id="enPos"></datalist></div>
+    </div>
+    <div style="margin-bottom:12px"><label id="enRemarkL" for="enRemark">Remark (optional)</label>
+      <input id="enRemark" placeholder="Anything worth remembering about this entry"></div>
+    <div id="enAfter" class="en-after hide"></div>
+    <div class="lm-why hide" id="enSpec" style="background:var(--soft);border-radius:var(--r-sm);padding:9px 11px"></div>
+    <div class="lm-why" id="lmEnWhy"></div>
+    <div class="row" style="margin-top:14px;justify-content:flex-end">
+      <button type="button" class="ghost hide" id="enDelete" style="color:var(--bad);margin-right:auto">Remove this entry</button>
+      <button type="button" class="ghost" data-close="lmEntry">Cancel</button>
+      <button type="button" id="enSave">Save the entry</button>
+    </div>
+  </div>
+</div>
+
+<!-- A GREIGE PO. Written in the greige name, priced per line. -->
+<div class="modal hide" id="lmPo">
+  <div class="modalbox" style="width:min(1060px,100%)">
+    <h2 style="margin:0 0 4px;font-size:18px" id="poTitle">New greige PO</h2>
+    <div class="lm-note">The cloth is ordered by its <b>greige</b> name, because greige comes wider than the RFD it becomes.
+      Each line’s description is written from Master data and can be changed by hand.</div>
+    <div id="lmPoErr" class="err hide"></div>
+    <div id="poCoNote" class="warn hide" style="margin-bottom:12px"></div>
+    <div class="lm-fields">
+      <div><label for="poNo">PO number</label><input id="poNo" readonly></div>
+      <div><label for="poDate">Date</label><input type="date" id="poDate" readonly title="The day the PO is raised; it is not changed"></div>
+      <div><label for="poMill">Supplier *</label><input id="poMill" list="poMills" placeholder="Shri Balaji Mills"><datalist id="poMills"></datalist>
+        <div id="poMillNote" class="muted" style="font-size:11px;margin-top:4px"></div><div id="poMillLock" class="muted" style="font-size:11px"></div></div>
+    </div>
+    <details id="poMore" style="margin:0 0 12px">
+      <summary style="cursor:pointer;font-size:12.5px;font-weight:700;color:var(--muted)">Payment, dispatch &amp; delivery terms (optional)</summary>
+      <div class="lm-fields" style="margin-top:10px">
+        <div><label for="poPay">Mode / terms of payment</label><input id="poPay" placeholder="e.g. 30 days"></div>
+        <div><label for="poDisp">Dispatched through</label><input id="poDisp" placeholder="Transporter"></div>
+        <div><label for="poDest">Destination</label><input id="poDest" placeholder="Jaipur"></div>
+        <div><label for="poOther">Other references</label><input id="poOther"></div>
+      </div>
+      <div><label for="poTerms">Terms of delivery</label><input id="poTerms" placeholder="Delivered to our godown, freight paid"></div>
+    </details>
+    <div class="ff-grid"><table class="xl lm-lines" id="poLines"></table></div>
+    <div class="row" style="margin-top:8px"><button type="button" class="ghost" id="poAdd">+ Add a line</button></div>
+    <div id="poTot" class="lm-why"></div>
+    <div class="row" style="margin-top:14px;justify-content:flex-end">
+      <button type="button" class="ghost" data-close="lmPo">Cancel</button>
+      <button type="button" class="ghost" id="poSaveDoc">Save &amp; open the PO</button>
+      <button type="button" id="poSave">Save the PO</button>
+    </div>
+  </div>
+</div>
+
+<!-- ISSUE TO RFD: from a PO, its lots with greige in the store, to one RFD processor. -->
+<div class="modal hide" id="lmIss">
+  <div class="modalbox" style="width:min(900px,100%)">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+      <div><div class="crumb">Issue to RFD</div><h2 style="margin:2px 0 0;font-size:19px" id="issTitle"></h2></div>
+      <button type="button" class="x" data-close="lmIss" aria-label="Close">×</button>
+    </div>
+    <div id="issErr" class="err hide" style="margin-top:12px"></div>
+    <div class="lm-fields" style="margin-top:12px">
+      <div><label for="issProc">RFD processor *</label><select id="issProc"></select></div>
+      <div><label for="issDate">Date</label><input type="date" id="issDate" readonly title="Today"></div>
+      <div><label for="issNo">Our RFD challan no.</label><input id="issNo" readonly title="Given automatically, in its own series"></div>
+      <div><label for="issRem">Remark</label><input id="issRem" autocomplete="off" placeholder="Optional"></div>
+    </div>
+    <div class="sect">Bales going out</div>
+    <div id="issLots" style="display:flex;flex-direction:column;gap:12px;margin-top:8px"></div>
+    <div id="issTot" class="lm-why"></div>
+    <div class="row" style="margin-top:14px;justify-content:flex-end"><button type="button" class="ghost" data-close="lmIss">Cancel</button><button type="button" id="issSave">Issue to RFD</button></div>
+  </div>
+</div>
+
+<!-- SEND TO CUTTING: RFD thans of one lot, off the shelf to the cutting table. -->
+<div class="modal hide" id="lmCut">
+  <div class="modalbox" style="width:min(820px,100%)">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+      <div><div class="crumb">Send to cutting</div><h2 style="margin:2px 0 0;font-size:19px" id="cutTitle"></h2></div>
+      <button type="button" class="x" data-close="lmCut" aria-label="Close">×</button>
+    </div>
+    <div id="cutErr" class="err hide" style="margin-top:12px"></div>
+    <div class="lm-fields" style="margin-top:12px">
+      <div><label for="cutTo">Cutting master / table</label><input id="cutTo" autocomplete="off" placeholder="Optional"></div>
+      <div><label for="cutDate">Date</label><input type="date" id="cutDate" readonly title="Today"></div>
+      <div><label for="cutRem">Remark</label><input id="cutRem" autocomplete="off" placeholder="Optional"></div>
+    </div>
+    <div class="sect">Thans going to cutting</div>
+    <div id="cutBody" style="display:flex;flex-direction:column;gap:12px;margin-top:8px"></div>
+    <div id="cutTot" class="lm-why"></div>
+    <div class="row" style="margin-top:14px;justify-content:flex-end"><button type="button" class="ghost" data-close="lmCut">Cancel</button><button type="button" id="cutSave">Send to cutting</button></div>
+  </div>
+</div>
+
+<!-- RECEIVE RFD: thans back from the RFD processor, against the lots of one PO. -->
+<div class="modal hide" id="lmRr">
+  <div class="modalbox" style="width:min(820px,100%)">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+      <div><div class="crumb">Receive RFD</div><h2 style="margin:2px 0 0;font-size:19px" id="rrTitle"></h2></div>
+      <button type="button" class="x" data-close="lmRr" aria-label="Close">×</button>
+    </div>
+    <div id="rrErr" class="err hide" style="margin-top:12px"></div>
+    <div class="lm-fields" style="margin-top:12px">
+      <div><label for="rrNo">Processor’s challan no. *</label><input id="rrNo" autocomplete="off" placeholder="As printed on their challan"></div>
+      <div><label for="rrDate">Date</label><input type="date" id="rrDate" readonly title="Today"></div>
+    </div>
+    <div class="sect">Thans back <span>Enter in a metres box adds the next than. More than 5% shrinkage on a closed lot needs approval.</span></div>
+    <div id="rrLots" style="display:flex;flex-direction:column;gap:12px;margin-top:8px"></div>
+    <div class="row" style="margin-top:14px;justify-content:flex-end"><button type="button" class="ghost" data-close="lmRr">Cancel</button><button type="button" id="rrSave">Save the receipt</button></div>
+  </div>
+</div>
+
+<!-- THE PO AS PAPER, and the mail that goes with it. -->
+<div class="modal hide" id="lmDoc">
+  <div class="modalbox docbox">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+      <div><div class="crumb">Purchase order</div><h2 style="margin:2px 0 0;font-size:19px" id="docTitle"></h2></div>
+      <button type="button" class="x" data-close="lmDoc" aria-label="Close">×</button>
+    </div>
+    <div class="docpaper" id="docPaper"></div>
+    <div id="docMail"></div>
+  </div>
+</div>
+
+<!-- RECEIVE GREIGE: opened from an open PO; the whole PO, then the supplier's challan bale by bale. -->
+<div class="scrim" id="scrim" hidden data-close="drawer"></div>
+<aside class="drawer" id="drawer" hidden role="dialog" aria-modal="true" aria-labelledby="drTitle">
+  <div class="dr-head">
+    <div><div class="crumb">Receive greige</div><h2 id="drTitle">New challan</h2></div>
+    <button type="button" class="x" data-close="drawer" aria-label="Close">×</button>
+  </div>
+  <div class="dr-body">
+    <div id="dPo"></div>
+    <div class="sect">The supplier’s challan</div>
+    <div class="grid2">
+      <label class="fld" for="dNo"><span>Challan no. *</span><input id="dNo" autocomplete="off" placeholder="As printed on the challan"></label>
+      <label class="fld" for="dDate"><span>Challan date *</span><input id="dDate" type="date"></label>
+      <label class="fld" for="dInv"><span>Invoice no.</span><input id="dInv" autocomplete="off" placeholder="The supplier’s bill, if it came with the goods"></label>
+      <label class="fld" for="dTrn"><span>Transporter name</span><input id="dTrn" autocomplete="off" placeholder="e.g. VRL Logistics"></label>
+      <label class="fld wide" for="dLr"><span>LR no.</span><input id="dLr" autocomplete="off" placeholder="Optional"></label>
+    </div>
+    <div class="sect">Bales on this challan <span>Enter in a metres box adds the next bale</span></div>
+    <div id="dLines"></div>
+  </div>
+  <div class="dr-foot">
+    <div class="dr-total" id="dTotal"></div>
+    <label class="closeline" id="dCloseWrap" for="dClose" hidden><input type="checkbox" id="dClose"><span id="dCloseTxt"></span></label>
+    <div class="err" id="dErr" hidden></div>
+    <div class="dr-btns">
+      <button type="button" class="ghost" data-close="drawer">Cancel</button>
+      <button type="button" id="dSave" data-dr="save">Save challan</button>
+    </div>
+  </div>
+</aside>
+<div class="toast" id="toast" hidden role="status"></div>
+
+<script>
+'use strict';

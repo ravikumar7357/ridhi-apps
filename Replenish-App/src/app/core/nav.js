@@ -221,7 +221,7 @@ const NAV_MAP = { repl: 'tabRepl', article: 'tabArticle', target: 'tabTarget', f
   pmdb: 'tabPmdb', mst: 'tabMst', pbase: 'tabPbase', pcut: 'tabPcut', ppress: 'tabPpress', qc: 'tabQc',
   ord: 'tabOrd', so: 'tabSo', vord: 'tabVord', vreq: 'tabVreq', rfd: 'tabRfd', vend: 'tabVend', vlog: 'tabVlog', cx: 'tabCx',
   palloc: 'tabPalloc', fgi: 'tabFgi', fba: 'tabFba', fab: 'tabFab', acc: 'tabAcc', rep: 'tabRep', pa: 'tabPa', ka: 'tabKa', att: 'tabAtt', hr: 'tabHr',
-  shop: 'tabShop', adj: 'tabAdj' };
+  shop: 'tabShop', adj: 'tabAdj', gdesk: 'tabGdesk' };
 
 /** What is on screen right now — so a check that finishes late knows whether to move anybody. */
 let TAB_NOW = '';
@@ -254,16 +254,17 @@ function showTab(which) {
   if (FLOW_TABS.includes(which)) which = 'flow';
   if (ME.tabs && ME.tabs.length && !ME.tabs.includes(which)
       && !(which === 'ord' && ME.tabs.includes('shopprod'))
-      && !(which === 'flow' && FLOW_ON && flowBucketsAllowed().length)) which = FLOW_TABS.includes(ME.tabs[0]) ? 'flow' : ME.tabs[0];
-  const panes = { dash: 'paneDash', repl: 'paneRepl', article: 'paneArticle', target: 'paneTarget', follow: 'paneFollow', top: 'paneTop', india: 'paneIndia', shopify: 'paneShopify', prod: 'paneProd', pack: 'panePack', att: 'paneAtt', pmdb: 'panePmdb', mst: 'paneMst', pbase: 'panePbase', pcut: 'panePcut', ppress: 'panePpress', qc: 'paneQc', ord: 'paneOrd', so: 'paneSo', vord: 'paneVord', vreq: 'paneVreq', rfd: 'paneRfd', vend: 'paneVend', vlog: 'paneVlog', cx: 'paneCx', palloc: 'panePalloc', fgi: 'paneFgi', fba: 'paneFba', fab: 'paneFab', acc: 'paneAcc', rep: 'paneRep', pa: 'panePa', ka: 'paneKa', hr: 'paneHr', shop: 'paneShop', adj: 'paneAdj', flow: 'paneFlow' };
-  const navs = { dash: 'tabDash', repl: 'tabRepl', article: 'tabArticle', target: 'tabTarget', follow: 'tabFollow', top: 'tabTop', india: 'tabIndia', shopify: 'tabShopify', prod: 'tabProd', pack: 'tabPack', att: 'tabAtt', pmdb: 'tabPmdb', mst: 'tabMst', pbase: 'tabPbase', pcut: 'tabPcut', ppress: 'tabPpress', qc: 'tabQc', ord: 'tabOrd', so: 'tabSo', vord: 'tabVord', vreq: 'tabVreq', rfd: 'tabRfd', vend: 'tabVend', vlog: 'tabVlog', cx: 'tabCx', palloc: 'tabPalloc', fgi: 'tabFgi', fba: 'tabFba', fab: 'tabFab', acc: 'tabAcc', rep: 'tabRep', pa: 'tabPa', ka: 'tabKa', hr: 'tabHr', shop: 'tabShop', adj: 'tabAdj', flow: 'tabFlow' };
+      && !(which === 'flow' && FLOW_ON && flowBucketsAllowed().length)
+      && !(which === 'gdesk' && FLOW_ON && gdAllowed())) which = FLOW_TABS.includes(ME.tabs[0]) ? 'flow' : ME.tabs[0];
+  const panes = { dash: 'paneDash', repl: 'paneRepl', article: 'paneArticle', target: 'paneTarget', follow: 'paneFollow', top: 'paneTop', india: 'paneIndia', shopify: 'paneShopify', prod: 'paneProd', pack: 'panePack', att: 'paneAtt', pmdb: 'panePmdb', mst: 'paneMst', pbase: 'panePbase', pcut: 'panePcut', ppress: 'panePpress', qc: 'paneQc', ord: 'paneOrd', so: 'paneSo', vord: 'paneVord', vreq: 'paneVreq', rfd: 'paneRfd', vend: 'paneVend', vlog: 'paneVlog', cx: 'paneCx', palloc: 'panePalloc', fgi: 'paneFgi', fba: 'paneFba', fab: 'paneFab', acc: 'paneAcc', rep: 'paneRep', pa: 'panePa', ka: 'paneKa', hr: 'paneHr', shop: 'paneShop', adj: 'paneAdj', flow: 'paneFlow', gdesk: 'paneGdesk' };
+  const navs = { dash: 'tabDash', repl: 'tabRepl', article: 'tabArticle', target: 'tabTarget', follow: 'tabFollow', top: 'tabTop', india: 'tabIndia', shopify: 'tabShopify', prod: 'tabProd', pack: 'tabPack', att: 'tabAtt', pmdb: 'tabPmdb', mst: 'tabMst', pbase: 'tabPbase', pcut: 'tabPcut', ppress: 'tabPpress', qc: 'tabQc', ord: 'tabOrd', so: 'tabSo', vord: 'tabVord', vreq: 'tabVreq', rfd: 'tabRfd', vend: 'tabVend', vlog: 'tabVlog', cx: 'tabCx', palloc: 'tabPalloc', fgi: 'tabFgi', fba: 'tabFba', fab: 'tabFab', acc: 'tabAcc', rep: 'tabRep', pa: 'tabPa', ka: 'tabKa', hr: 'tabHr', shop: 'tabShop', adj: 'tabAdj', flow: 'tabFlow', gdesk: 'tabGdesk' };
   /* Before anything is shown: hand back what the screen being left was holding. */
   if (TAB_NOW && TAB_NOW !== which) tabShed(TAB_NOW);
   Object.entries(panes).forEach(([k, id]) => $(id).classList.toggle('hide', which !== k));
   Object.entries(navs).forEach(([k, id]) => $(id).classList.toggle('on', which === k));
   if (SHOP_ONLY() && which === 'ord') { $('pageTitle').textContent = 'Shopify Orders'; }
   const TITLES = { dash: 'Dashboard', repl: 'Replenishment', article: 'Article Review', target: 'Revenue Target', follow: 'Ongoing Purchase Order', top: 'Top ASIN Status', india: 'India Stock', shopify: 'Shopify Stock', prod: 'In Production', pack: 'Packing List', plan: 'Action Plan',
-    att: 'Attendance', pmdb: 'Master Database', mst: 'Masters', pbase: 'Job Work Register', pcut: 'Cutting Data', ppress: 'Press Inventory', qc: 'Quality Control', ord: 'Order Console', so: 'Sales Orders', vord: 'Vendor Orders', vreq: 'Vendor Order Requests', rfd: 'RFD Requirements', vend: 'Vendor Portal', vlog: 'History — what printers have sent', cx: 'Customer Orders', palloc: 'Printer Allocation', fgi: 'Finished Goods', fba: 'FBA Dispatch', fab: 'Fabric Inventory', acc: 'Accessories', rep: 'Reports', pa: 'Production Analysis', ka: 'Karigar Analysis', hr: 'Finance & HR', shop: 'Shopify Orders', adj: 'Adjustments', flow: 'Production flow (test)' };
+    att: 'Attendance', pmdb: 'Master Database', mst: 'Masters', pbase: 'Job Work Register', pcut: 'Cutting Data', ppress: 'Press Inventory', qc: 'Quality Control', ord: 'Order Console', so: 'Sales Orders', vord: 'Vendor Orders', vreq: 'Vendor Order Requests', rfd: 'RFD Requirements', vend: 'Vendor Portal', vlog: 'History — what printers have sent', cx: 'Customer Orders', palloc: 'Printer Allocation', fgi: 'Finished Goods', fba: 'FBA Dispatch', fab: 'Fabric Inventory', acc: 'Accessories', rep: 'Reports', pa: 'Production Analysis', ka: 'Karigar Analysis', hr: 'Finance & HR', shop: 'Shopify Orders', adj: 'Adjustments', flow: 'Production flow (test)', gdesk: 'Greige Desk (test)' };
   $('pageTitle').textContent = TITLES[which] || 'Replenishment';
   /* The line under a title, and the button that starts work, for the screens that have them. */
   const SUBS = { pbase: 'Track job work issued to karigars and manage receipts' };
@@ -322,6 +323,7 @@ function showTab(which) {
   if (which === 'shop') ensureShop();
   if (which === 'adj') ensureAdj();
   if (which === 'flow') ensureFlow();
+  if (which === 'gdesk' && FLOW_ON) GD.open();
 }
 $('tabDash').onclick = () => showTab('dash');
 $('tabRepl').onclick = () => showTab('repl');
@@ -342,6 +344,7 @@ $('tabPpress').onclick = () => showTab('ppress');
 $('tabQc').onclick = () => showTab('qc');
 $('tabOrd').onclick = () => showTab('ord');
 $('tabFlow').onclick = () => showTab('flow');
+$('tabGdesk').onclick = e => { e.preventDefault(); showTab('gdesk'); };
 $('tabSo').onclick = () => showTab('so');
 $('tabVord').onclick = () => showTab('vord');
 $('tabVreq').onclick = () => showTab('vreq');

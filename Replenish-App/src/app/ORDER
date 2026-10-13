@@ -70,6 +70,7 @@ flow/flow-edit.js
 flow/flow-entries.js
 flow/flow-qcfg.js
 flow/flow-view.js
+flow/greige-desk.js
 dashboard/management-dashboard.js
 people-pay/finance-hr.js
 people-pay/printer-rates.js

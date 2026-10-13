@@ -1,0 +1,33 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Greige Desk harness</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Libre+Caslon+Text:wght@400;700&display=swap">
+<style>body{margin:0;background:#F3F5F8;font-family:"Plus Jakarta Sans",sans-serif;padding:16px}</style></head>
+<body>
+<!-- A stand-in for the Replenish app around the Greige Desk module: the database calls write to memory, the PPC
+     flow is a fixed sample. Used only to look at the module in a real browser. -->
+<div id="paneGdesk"></div>
+<script>
+var MEM = {};
+function getPath(p) { return p.split('/').reduce(function (o, k) { return o == null ? undefined : o[k]; }, MEM); }
+function setPath(p, v) { var ks = p.split('/'), o = MEM; for (var i = 0; i < ks.length - 1; i++) { o[ks[i]] = o[ks[i]] || {}; o = o[ks[i]]; } if (v === null) delete o[ks[ks.length - 1]]; else o[ks[ks.length - 1]] = v; }
+var ptGet = async function (p) { var v = getPath(p); return v === undefined ? null : JSON.parse(JSON.stringify(v)); };
+var ptPut = async function (p, v) { setPath(p, JSON.parse(JSON.stringify(v))); };
+var ptPatch = async function (o) { Object.keys(o).forEach(function (k) { setPath(k, o[k] === null ? null : JSON.parse(JSON.stringify(o[k]))); }); };
+var ptList = function (o) { return Array.isArray(o) ? o : Object.keys(o || {}).map(function (k) { return o[k]; }); };
+var ME = { email: 'ravi@example.com', name: 'Ravi', admin: true, tabs: [] };
+var PTG = { masters: { fabricType: [
+  { code: 'Sheeting 62', desc: 'Sheeting 62', greige: 'Greige Sheeting 67', active: true },
+  { code: 'Cambric 44', desc: 'Cambric 44', greige: 'Greige Cambric 48', active: true }],
+  vendor: [{ code: 'SBM', desc: 'Shri Balaji Mills', category: 'Mill' }, { code: 'GP', desc: 'Gayatri Processors', category: 'RFD Processor' }] } };
+var mstRows = function (k) { return ptList((PTG.masters || {})[k]); };
+var FLOW_ON = true, FLOW_VIEW = '';
+var FLOW = { ppc: { x: 1 } };
+function flowRfdCover() { return { fab: {
+  'SHEETING 62': { name: 'Sheeting 62', stock: 200 + GD.rfdShelf('Sheeting 62'), held: 0, need: 3000, lines: 4, free: 200 + GD.rfdShelf('Sheeting 62'), short: Math.max(0, 3000 - 200 - GD.rfdShelf('Sheeting 62')) },
+  'CAMBRIC 44': { name: 'Cambric 44', stock: 900, held: 0, need: 400, lines: 1, free: 900, short: 0 } }, line: {} }; }
+function showTab(t) { console.log('showTab', t); }
+function ensureFlow() {}
+</script>
+<script src="greige-desk.js"></script>
+<script>GD.open();</script>
+</body></html>

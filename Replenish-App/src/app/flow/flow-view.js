@@ -16,7 +16,9 @@ async function flowEnsureData() {
   if (typeof QC !== 'undefined' && QC.checks == null) { try { QC.checks = ptList(await ptGet('pt_qcChecks')); } catch (e) { /* the QC bucket waits */ } }
   if (typeof FGI !== 'undefined' && FGI.rows == null && typeof fgiLoad === 'function') { try { await fgiLoad(); } catch (e) { /* India stock waits */ } }
   await Promise.all([flowLoad(), flowFabLoad(), (typeof STORE !== 'undefined' && STORE.rows === null ? ensureStore().catch(() => {}) : null), (PAL.printers === null ? palLoad().catch(() => {}) : null), (typeof ensureVo === 'function' ? ensureVo().catch(() => {}) : null),
-    (typeof ensureAcc === 'function' ? ensureAcc().catch(() => {}) : null)]);
+    (typeof ensureAcc === 'function' ? ensureAcc().catch(() => {}) : null),
+    /* The Greige Desk's RFD counts in Demand → RFD on the test link. */
+    (FLOW_ON && typeof GD !== 'undefined' && gdAllowed() ? GD.ensure().catch(() => {}) : null)]);
 }
 
 /* The Fabric register, for the RFD stock Demand shows — read here without drawing the Fabric screen. */
@@ -77,6 +79,8 @@ function renderFlow() {
   /* DEMAND, ONE TAB (Ravi, 12 Oct): its parts as tabs, like Listing Health's — RFD out to printers, printed fabric in, accessories. */
   if (FLOW_DEMAND.includes(FLOW_VIEW)) FLOW.panel = `<div class="seg" style="display:inline-flex;gap:4px;flex-wrap:wrap;margin-right:14px">${dem.map(([k, l]) =>
     `<button data-fldem="${k}" class="${k === FLOW_VIEW ? '' : 'ghost'}" style="width:auto;padding:5px 14px;font-size:13px">${esc(l)} <b>${nf(n[k] || 0)}</b></button>`).join('')}</div>` + (FLOW.panel || '');
+  /* RFD short? The Greige Desk shows the greige to order for it (Ravi, 13 Oct: Greige Desk joined to the PPC flow). */
+  if (FLOW_VIEW === 'drfd' && typeof GD !== 'undefined' && gdAllowed()) FLOW.panel = (FLOW.panel || '') + '<button type="button" class="ghost" data-gdgo="ppc" style="width:auto;padding:5px 14px;font-size:13px;margin-left:10px">Greige Desk · greige for PPC</button>';
   $('flPanel').innerHTML = FLOW.panel; $('flPanel').classList.toggle('hide', !FLOW.panel);
   const b = FLOW_BUCKETS.find(x => x[0] === FLOW_VIEW);
   $('flMsg').className = FLOW.err ? 'err' : 'muted';
@@ -267,7 +271,7 @@ function flowTable(view, rows) {
 /* ---- wiring ---- */
 $('flBuckets').addEventListener('click', e => { const b = e.target.closest('[data-flb]'); if (!b) return;
   FLOW_VIEW = b.dataset.flb === 'demand' ? (FLOW.demView || (flowScreenAllowed().find(x => x[4] === 'demand') || [])[0] || 'drfd') : b.dataset.flb; renderFlow(); });
-$('flPanel').addEventListener('click', e => { const dm = e.target.closest('[data-fldem]'); if (dm) { FLOW_VIEW = dm.dataset.fldem; renderFlow(); return; }
+$('flPanel').addEventListener('click', e => { const gg = e.target.closest('[data-gdgo]'); if (gg) { showTab('gdesk'); GD.open(gg.dataset.gdgo); return; } const dm = e.target.closest('[data-fldem]'); if (dm) { FLOW_VIEW = dm.dataset.fldem; renderFlow(); return; }
   const an = e.target.closest('[data-flang]'); if (an) { FLOW_ANGLE[FLOW_VIEW] = an.dataset.flang; renderFlow(); return; }
   const cp = e.target.closest('[data-flchp]'); if (!cp) return;
   const er = flowChallanPrint(cp.dataset.flchp); if (er) { $('flMsg').className = 'err'; $('flMsg').textContent = er; } });
@@ -321,7 +325,9 @@ async function flowTableClick(e) {
 }
 $('flTable').addEventListener('click', flowTableClick);
 /* The menu button shows only where the flow is switched on, and only to an account with a bucket. */
-function flowNavShow() { if ($('tabFlow')) $('tabFlow').style.display = FLOW_ON && flowScreenAllowed().length ? '' : 'none'; flowEmbedSetup(); flowDupViewsOff(); }
+/* The Greige Desk (test) is for anyone holding one of its rights, on the test link only. */
+function gdAllowed() { return ['gdesk', 'gdled', 'gdledit', 'gdappr'].some(k => ME.admin || !(ME.tabs && ME.tabs.length) || ME.tabs.includes(k)); }
+function flowNavShow() { if ($('tabGdesk')) $('tabGdesk').style.display = FLOW_ON && gdAllowed() ? '' : 'none'; if ($('tabFlow')) $('tabFlow').style.display = FLOW_ON && flowScreenAllowed().length ? '' : 'none'; flowEmbedSetup(); flowDupViewsOff(); }
 
 /* ---- THE OLD VIEWS OF THE SAME WORK, TAKEN OUT (Ravi, 13 Oct: "remove the duplicate") ----
  * Cutting Data's "Cut, not yet issued" is Job Work → Raw cutting in store, and the Job Work Register's "Has pending" (and its
