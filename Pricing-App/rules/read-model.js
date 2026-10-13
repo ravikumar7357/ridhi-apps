@@ -29,6 +29,24 @@ const BY_HAND = {
   pt_approvals: { tabs: ['ka', 'pa', 'palloc', 'shop'] },
 };
 
+/* THE PRODUCTION FLOW AND THE GREIGE DESK (test link, 2026-10-13). Their rights are steps of one screen, not tabs the
+ * audit can see: the seven flow rights open 'flow', the four Greige Desk rights open the desk (sealed, flow/greige-desk.js),
+ * and the desk's "Greige for PPC" reads everything the flow reads. Re-running read-audit.js today is NOT the way to add
+ * them: the flow's hooks in shared code make it hand flow and vendor-order nodes to almost every tab, the vendor portal
+ * included, and take the masters away from five screens. So they are named here, from the 'flow' row of that run. */
+const FLOW_RIGHTS = ['flppc', 'fldem', 'flacc', 'flchl', 'flcut', 'flraw', 'flwip'];
+const GD_RIGHTS = ['gdesk', 'gdled', 'gdledit', 'gdappr'];
+const FLOW_NODES = ['pt_accLedger', 'pt_accReserve', 'pt_amzListings', 'pt_approvals', 'pt_baseData', 'pt_blockHave', 'pt_blockNeed',
+  'pt_colorGroups', 'pt_customSkus', 'pt_cuttingData', 'pt_cuttingFreezes', 'pt_empList', 'pt_fabInvLedger', 'pt_fgiCorrReqs',
+  'pt_fgiLedger', 'pt_fgiSettings', 'pt_flowChallans', 'pt_flowDemand', 'pt_flowFgSend', 'pt_flowPrintOrders', 'pt_flowRev',
+  'pt_flowTest', 'pt_fnskuMap', 'pt_greigePOs', 'pt_issueRecipients', 'pt_jwCorrReqs', 'pt_listingAlerts', 'pt_masterDB',
+  'pt_masters', 'pt_orderBook', 'pt_poSettings', 'pt_ppc', 'pt_pressInventory', 'pt_printers', 'pt_qcChecks', 'pt_qcIssuance',
+  'pt_qcReturns', 'pt_rfdDecisions', 'pt_rfdStock', 'pt_shopProd', 'pt_skuImages', 'pt_storeChecks', 'pt_storeLedger',
+  'pt_vendorMap', 'pt_vendorOrders'];
+FLOW_NODES.forEach(n => { const h = BY_HAND[n] || (BY_HAND[n] = {}); h.tabs = (h.tabs || []).concat(FLOW_RIGHTS, GD_RIGHTS); });
+/* The Greige Desk's own test records: read by its four rights; written by staff through $other, as every register is. */
+BY_HAND.pt_gdTest = { tabs: GD_RIGHTS.slice() };
+
 /* "CAN ADD AND DELETE EMPLOYEES" OPENS FINANCE & HR WITHOUT THE TAB (hrEmpOnly): the employee list, the extra
  * hours that count where a name is used, and the shared plumbing every factory screen loads. ensureHr
  * deliberately SKIPS the rest for such an account — so the right is given every node the hr tab reaches

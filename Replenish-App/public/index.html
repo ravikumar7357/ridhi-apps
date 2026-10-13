@@ -3767,7 +3767,9 @@ onAuthStateChanged(auth, async user => {
   const FACTORY_TABS = ['dash', 'att', 'pmdb', 'mst', 'pbase', 'pcut', 'ppress', 'qc', 'qcalt', 'qcret', 'ord', 'so', 'vord', 'vreq', 'rfd', 'vend', 'palloc', 'fgi', 'fba', 'fab', 'acc', 'rep', 'pa', 'ka', 'hr',
     /* History and Customer Orders are factory screens too; missing here, a login holding History loaded
      * the Replenishment snapshot at sign-in — a vendor's among them. */
-    'vlog', 'cx', ...FLOW_TABS];
+    'vlog', 'cx', ...FLOW_TABS,
+    /* The Greige Desk's four rights (test, 2026-10-13) are factory screens too. */
+    'gdesk', 'gdled', 'gdledit', 'gdappr'];
   const FACTORY_ONLY = ME.tabs.every(t => FACTORY_TABS.includes(t));
 
   if (!FACTORY_ONLY) try {
