@@ -157,7 +157,7 @@ const K = 'AMZ-1__S1';
   ok('once its cloth moved (issued), it is no longer held — the register has taken it', A.flowRfdCover().fab['SHEETING 58'].held === 0);
   A = load({ me: { tabs: ['fldem'] }, rfd: { 'SHEETING 58': 50 }, lines: [L()], ppc: { [K]: pl('S1', 60) } });
   A.setView('drfd'); A.renderFlow();
-  ok('the RFD list flags the line red: SHORT 10 m', /SHORT 10 m/.test(A.els.flTable.innerHTML) && /fef2f2/.test(A.els.flTable.innerHTML));
+  ok('the RFD list flags the line red: SHORT 10 m', /Short: 10 m/.test(A.els.flTable.innerHTML) && /fef2f2/.test(A.els.flTable.innerHTML));
   ok('above the lines: only the switch, By line | By fabric — not the stock table', /data-flang="stock"/.test(A.els.flPanel.innerHTML) && !/⚑ 10 m/.test(A.els.flPanel.innerHTML) && /By fabric/.test(A.els.flPanel.innerHTML));
   A.setAngle('drfd', 'stock'); A.renderFlow();
   ok('By fabric: the table IS the stock — in stock, need, short per fabric; the lines are not under it', /⚑ 10 m/.test(A.els.flTable.innerHTML) && /RFD in stock/.test(A.els.flTable.innerHTML) && !/data-flfab=/.test(A.els.flTable.innerHTML));
@@ -294,7 +294,7 @@ const K = 'AMZ-1__S1';
     ok('nothing known → blank, said', A.flowSuggest(L({ sku: 'S3' })).printer.code === '' && /no printer allocated to Nobody/.test(A.flowSuggest(L({ sku: 'S3' })).printer.why));
     A = load({ me: { admin: true }, mdb, lines: [L()], pal: { 'SP|Light Steel Blue': { printer: 'P1' } } });
     A.setView('ppc'); A.renderFlow();
-    ok('the PPC list says which printer, not "printed in-house"', /print: <b>Sanganer Prints/.test(A.els.flTable.innerHTML) && !/printed in-house/.test(A.els.flTable.innerHTML));
+    ok('the PPC list says which printer, not "printed in-house"', /Print: <b>Sanganer Prints/.test(A.els.flTable.innerHTML) && !/printed in-house/.test(A.els.flTable.innerHTML));
     A.flowPpcOpen('AMZ-1');
     ok('the form offers the printers, the suggested one picked', /value="P1" selected/.test(A.ctx.__dlg.html));
     A.ctx.document.querySelectorAll = () => [{ addEventListener() {}, dataset: { fp: '0', k: 'printer.code' }, type: 'select-one', value: 'P1' }];
@@ -442,7 +442,7 @@ const K = 'AMZ-1__S1';
       lines: [L({ sku: 'RPC327-1818', qty: 10 }), L({ sku: 'RPCRU327-1818', qty: 40 }), L({ sku: 'RTME-327', qty: 1 }), L({ sku: 'RPCB327-1818', qty: 10 })],
       ppc: { 'AMZ-1__RPC327-1818': pp('RPC327-1818', 5.3), 'AMZ-1__RPCRU327-1818': pp('RPCRU327-1818', 10.4, 'Vertical'), 'AMZ-1__RTME-327': pp('RTME-327', 0.25), 'AMZ-1__RPCB327-1818': pp('RPCB327-1818', 2, 'Vertical') } });
     A.setView('drfd'); A.renderFlow();
-    ok('Demand RFD "Made as" shows what each line prints, from the master data', /RBP-CANVAS-327/.test(A.els.flTable.innerHTML) && /RBPSF327-V-82/.test(A.els.flTable.innerHTML) && !/RBPSF327-H-82/.test(A.els.flTable.innerHTML) && /RTME-327<\/b> · printed on the SKU itself/.test(A.els.flTable.innerHTML));
+    ok('Demand RFD "Made as" shows what each line prints, from the master data', /RBP-CANVAS-327/.test(A.els.flTable.innerHTML) && /RBPSF327-V-82/.test(A.els.flTable.innerHTML) && !/RBPSF327-H-82/.test(A.els.flTable.innerHTML) && /RTME-327<\/b><\/div><div class="muted" style="font-size:12px">Printed on the SKU itself/.test(A.els.flTable.innerHTML));
     A.flowChallanOpen('AMZ-1', 'P1');
     const q = {}; [0, 1, 2, 3].forEach(i => { q[`[data-chk="${i}"]`] = { checked: true }; q[`[data-chm="${i}"]`] = { value: ['5.3', '10.4', '0.25', '2'][i] }; });
     A.ctx.document.querySelector = sel => q[sel] || null;
@@ -625,7 +625,7 @@ const K = 'AMZ-1__S1';
     ok('saved: one ruffle-only line, Cambric 23.5 m, and the line’s "fabric ready" left alone', !er && chR.lines.length === 1 && chR.lines[0].ruffleOnly && chR.lines[0].metres === 23.5 && chR.lines[0].fabric === 'Cambric'
       && !Object.keys(cw).some(k => k.startsWith('pt_flowDemand/')), er || JSON.stringify(cw));
     let st = R.flowState(R.W.lines[0]);
-    ok('…the body cloth is still owed → the line stays in Demand · RFD; the ruffle button is gone', st.needFab && st.bucket === 'demand' && (R.setView('drfd'), R.renderFlow(), !/data-pc="P2"/.test(R.els.flTable.innerHTML) && /RFD ruffle <a href="#" data-flchp="RFD-202610-001"[^]*→ Choudhary Hand Block/.test(R.els.flTable.innerHTML)));
+    ok('…the body cloth is still owed → the line stays in Demand · RFD; the ruffle button is gone', st.needFab && st.bucket === 'demand' && (R.setView('drfd'), R.renderFlow(), !/data-pc="P2"/.test(R.els.flTable.innerHTML) && /RFD ruffle: <a href="#" data-flchp="RFD-202610-001"[^]*(→ |Printer: )Choudhary Hand Block/.test(R.els.flTable.innerHTML)));
     R.flowChallanOpen('AMZ-1', 'P1');
     ok('Sanganer’s challan: the body only, saying the ruffle went to Choudhary', !/ruffle only/.test(R.ctx.__dlg.html) && /ruffle → Choudhary Hand Block/.test(R.ctx.__dlg.html));
     QS = { '[data-chk="0"]': { checked: true }, '[data-chm="0"]': { value: '6' } }; R.els.flcVen.value = 'P1'; er = await R.ctx.__dlg.onSave();
@@ -729,7 +729,7 @@ const K = 'AMZ-1__S1';
     let st = A.flowState(L({ sku: 'RPC327-1818', qty: 10 }));
     ok('3 of 5.3 m sent → still in Demand · RFD, owing 2.3 m', !er && A.flowInView('drfd', st) && st.fabSent === 3 && A.flowFabOwed(L({ sku: 'RPC327-1818', qty: 10 }), st).metres === 2.3, er);
     A.setView('drfd'); A.setAngle('drfd', 'line'); A.renderFlow();
-    ok('Demand RFD says "3 of 5.3 m sent" and the print order', /3 of 5\.3 m sent/.test(A.els.flTable.innerHTML) && /PO <a href="#" data-flpop="PRN-202610-001"/.test(A.els.flTable.innerHTML));
+    ok('Demand RFD says "3 of 5.3 m sent" and the print order', /3 of 5\.3 m sent/.test(A.els.flTable.innerHTML) && /PO: <a href="#" data-flpop="PRN-202610-001"/.test(A.els.flTable.innerHTML));
     A.flowChallanOpen('AMZ-1', 'P1');
     ok('the next challan offers the 2.3 m left', /data-chm="0" type="number" step="0.01" value="2.3"/.test(A.ctx.__dlg.html) && /3 m sent already/.test(A.ctx.__dlg.html));
     q = { '[data-chk="0"]': { checked: true }, '[data-chm="0"]': { value: '2.3' }, '[data-chk="1"]': { checked: false }, '[data-chm="1"]': { value: '' } };
@@ -951,7 +951,7 @@ const K = 'AMZ-1__S1';
     ok('no "edit plan" anywhere down the line — a plan is changed from PPC completed only', !/data-flplan=/.test(A.els.flTable.innerHTML));
     ok('a planned line that is finished (handed over) leaves PPC completed', A.flowInView('ppcdone', A.flowState(L())) && !A.flowInView('ppcdone', A.flowState(L({ handedAt: '2026-10-12' }))));
     A.setView('ppcdone'); A.renderFlow();
-    ok('PPC completed lists every planned line not finished: what was planned, where it is now, and "Edit plan"', /data-flplan="AMZ-1\|S1"/.test(A.els.flTable.innerHTML) && /Cotton 100 m/.test(A.els.flTable.innerHTML)
+    ok('PPC completed lists every planned line not finished: what was planned, where it is now, and "Edit plan"', /data-flplan="AMZ-1\|S1"/.test(A.els.flTable.innerHTML) && /Cotton<\/b> · 100 m/.test(A.els.flTable.innerHTML)
       && /Sanganer Prints/.test(A.els.flTable.innerHTML) && /data-flb="ppcdone"/.test(A.els.flBuckets.innerHTML) && /<span class="fl-n">1<\/span><span>PPC completed/.test(A.els.flBuckets.innerHTML) && /data-flb="ppc"[^]*data-flb="ppcdone"[^]*data-flb="demand"/.test(A.els.flBuckets.innerHTML), A.els.flTable.innerHTML.slice(0, 600));
     A.flowPpcOpen('AMZ-1', 'S1');
     ok('it opens the plan as saved, as an edit, with an undo box', /Edit plan/.test(A.ctx.__dlg.title) && /flpUndo/.test(A.ctx.__dlg.html) && /Save the plan/.test(A.ctx.__dlg.saveLabel));
@@ -1081,8 +1081,8 @@ const K = 'AMZ-1__S1';
     ok('the sales order itself is untouched, and both sit in the flow', S.W.lines.length === 3 && S.flowRows().some(x => x.r.orderNo === 'TEST-AMZ-13102026-01' && x.r.fromSo === 'AMZ-900'));
     ok('the new test order is put in the search box, so it is the one on screen', S.els.flQ.value === 'TEST-AMZ-13102026-01');
     S.els.flQ.value = ''; S.setView('ppc'); S.renderFlow();
-    ok('PPC shows the real sales order and the test copy, which says what it copies', /AMZ-900/.test(S.els.flTable.innerHTML) && /copy of sales order AMZ-900/.test(S.els.flTable.innerHTML) && /data-ordj="AMZ-900"/.test(S.els.flTable.innerHTML));
-    ok('compact: an order of two lines is named once — one delete link, one copy note, the second line carries the order no small', (S.els.flTable.innerHTML.match(/data-fltdel="TEST-AMZ-13102026-01"/g) || []).length === 1 && (S.els.flTable.innerHTML.match(/copy of sales order AMZ-900/g) || []).length === 1 && /<div class="muted" style="font-size:11px">TEST-AMZ-13102026-01<\/div>/.test(S.els.flTable.innerHTML));
+    ok('PPC shows the real sales order and the test copy, which says what it copies', /AMZ-900/.test(S.els.flTable.innerHTML) && /copy of sales order AMZ-900/i.test(S.els.flTable.innerHTML) && /data-ordj="AMZ-900"/.test(S.els.flTable.innerHTML));
+    ok('compact: an order of two lines is named once — one delete link, one copy note, the second line carries the order no small', (S.els.flTable.innerHTML.match(/data-fltdel="TEST-AMZ-13102026-01"/g) || []).length === 1 && (S.els.flTable.innerHTML.match(/copy of sales order AMZ-900/ig) || []).length === 1 && /<div class="muted" style="font-size:11px">TEST-AMZ-13102026-01<\/div>/.test(S.els.flTable.innerHTML));
   }
 
   console.log('== PPC completed: one cell under every heading (Ravi, 14 Oct: "too hotch potch") ==');
@@ -1094,6 +1094,8 @@ const K = 'AMZ-1__S1';
     const rows = ((h.match(/<tbody>([\s\S]*)<\/tbody>/) || ['', ''])[1]).split(/<tr[ >]/).slice(1).map(r => (r.match(/<td[ >]/g) || []).length);
     ok('every row has as many cells as there are headings (Qty was there twice)', rows.length === 2 && rows.every(n => n === th), th + ' headings, rows ' + rows.join(','));
     ok('Edit plan sits under its own (last) heading, the second line of the order is named small', /Edit plan/.test(h) && /<div class="muted" style="font-size:11px">AMZ-1<\/div>/.test(h));
+    ok('design A: the plan is one thing a line — Route:, Fabric:, Print:', /<div>Route: <b>/.test(h) && /<div>Fabric: <b>Cotton<\/b> · [\d,.]+ m<\/div>/.test(h) && /<div>Print: <b>RBP-Bagru<\/b><\/div>/.test(h), h.slice(0, 1500));
+    ok('design A: the message is one point a line, the bucket first', /^PPC completed: 2 line\(s\)\n• Plan raised/.test(P.els.flMsg.textContent) && /\n• TEST VIEW, not on the live app/.test(P.els.flMsg.textContent) && P.els.flMsg.style.whiteSpace === 'pre-line', P.els.flMsg.textContent);
   }
 
   console.log('== a TEST order walks every bucket, end to end ==');
