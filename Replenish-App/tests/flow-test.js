@@ -1085,6 +1085,17 @@ const K = 'AMZ-1__S1';
     ok('compact: an order of two lines is named once — one delete link, one copy note, the second line carries the order no small', (S.els.flTable.innerHTML.match(/data-fltdel="TEST-AMZ-13102026-01"/g) || []).length === 1 && (S.els.flTable.innerHTML.match(/copy of sales order AMZ-900/g) || []).length === 1 && /<div class="muted" style="font-size:11px">TEST-AMZ-13102026-01<\/div>/.test(S.els.flTable.innerHTML));
   }
 
+  console.log('== PPC completed: one cell under every heading (Ravi, 14 Oct: "too hotch potch") ==');
+  {
+    const P = load({ me: { admin: true }, mdb: { S1: { cons: 1, fab: 'Cotton' }, S2: { cons: 1, fab: 'Cotton' } }, lines: [L({ sku: 'S1' }), L({ sku: 'S2' })],
+      ppc: { 'AMZ-1__S1': plan({ printer: { code: 'P1', name: 'RBP-Bagru' }, at: '2026-10-12T10:00:00Z', by: 'ravi@x' }), 'AMZ-1__S2': plan({ sku: 'S2', at: '2026-10-12T10:00:00Z', by: 'ravi@x' }) } });
+    P.setView('ppcdone'); P.renderFlow();
+    const h = P.els.flTable.innerHTML, th = ((h.match(/<thead>[\s\S]*?<\/thead>/) || [''])[0].match(/<th[ >]/g) || []).length;
+    const rows = ((h.match(/<tbody>([\s\S]*)<\/tbody>/) || ['', ''])[1]).split(/<tr[ >]/).slice(1).map(r => (r.match(/<td[ >]/g) || []).length);
+    ok('every row has as many cells as there are headings (Qty was there twice)', rows.length === 2 && rows.every(n => n === th), th + ' headings, rows ' + rows.join(','));
+    ok('Edit plan sits under its own (last) heading, the second line of the order is named small', /Edit plan/.test(h) && /<div class="muted" style="font-size:11px">AMZ-1<\/div>/.test(h));
+  }
+
   console.log('== a TEST order walks every bucket, end to end ==');
   {
     A = load({ me: { admin: true }, lines: [L({ orderNo: 'AMZ-REAL', sku: 'R1' })], mdb: { S1: { cons: 0.5, fab: 'Cotton', articleSubtype: 'Napkin' }, X1: { cons: 1, fab: 'Cotton' } }, rfd: { COTTON: 999 } });

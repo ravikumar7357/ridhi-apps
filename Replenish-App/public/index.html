@@ -26800,14 +26800,16 @@ function flowTable(view, rows) {
       : FLOW_ELSEWHERE[s.bucket] || (FLOW_BUCKETS.find(b => b[0] === s.bucket) || [, s.bucket])[1];
     body = rows.map(x => { const p = x.s.plan || {}, rp = flowRufflePrinter(p), rt = (FLOW_ROUTES.find(r => r[0] === flowRouteOf(p)) || [, , flowRouteOf(p)])[2];
       const locked = flowFabLocked(x.s);
-      return `<tr>${base(x)}<td class="num">${nf(+x.r.qty || 0)}</td>
-        <td style="text-align:left;font-size:12px"><b>${esc(rt || '')}</b>${p.fabric && p.fabric.name ? ` · ${esc(p.fabric.name)} ${nf(flowR2(+p.fabric.metres || 0))} m` : ''}
+      /* One cell per heading (Ravi, 14 Oct: "too hotch potch"): base() already gives Qty — a second Qty cell here pushed every
+       * column one to the right of its heading. The long words wrap, so the table fits the screen without scrolling sideways. */
+      return `<tr>${base(x)}
+        <td style="text-align:left;font-size:12px;white-space:normal;min-width:220px"><b>${esc(rt || '')}</b>${p.fabric && p.fabric.name ? ` · ${esc(p.fabric.name)} ${nf(flowR2(+p.fabric.metres || 0))} m` : ''}
           ${p.printer && p.printer.name ? `<div>print: <b>${esc(p.printer.name)}</b>${rp ? ` · ruffle: <b>${esc(rp.name)}</b>` : ''}</div>` : ''}
           ${(p.acc || []).filter(a => a.code && +a.qty > 0).length ? `<div class="muted" style="font-size:10.5px">${(p.acc || []).filter(a => a.code && +a.qty > 0).map(a => esc(a.what || a.code) + ' × ' + nf(a.qty)).join(' · ')}</div>` : ''}</td>
-        <td style="text-align:left;font-size:12px">${esc(now(x.s))}</td>
-        <td style="text-align:left;font-size:11.5px" class="muted">${esc(String(p.at || '').slice(0, 10))}${p.by ? ' · ' + esc(String(p.by).split('@')[0]) : ''}</td>
-        <td style="white-space:nowrap"><button data-flplan="${esc(x.r.orderNo)}|${esc(x.r.sku)}" style="width:auto;padding:3px 10px;font-size:12px" title="Change or undo what PPC planned">Edit plan</button>
-          ${locked ? `<div class="muted" style="font-size:10.5px">fabric on ${esc(x.s.challan.no)} — fabric, route and printer stay</div>` : ''}</td></tr>`; }).join('');
+        <td style="text-align:left;font-size:12px;white-space:normal;min-width:160px;max-width:240px">${esc(now(x.s))}</td>
+        <td style="text-align:left;font-size:11.5px" class="muted">${esc(String(p.at || '').slice(0, 10))}${p.by ? '<br>' + esc(String(p.by).split('@')[0]) : ''}</td>
+        <td style="white-space:normal;max-width:170px"><button data-flplan="${esc(x.r.orderNo)}|${esc(x.r.sku)}" style="width:auto;padding:3px 10px;font-size:12px" title="Change or undo what PPC planned">Edit plan</button>
+          ${locked ? `<div class="muted" style="font-size:10.5px;margin-top:3px" title="The fabric went on ${esc(x.s.challan.no)}: fabric, route and printer can no longer change">fabric sent · ${esc(x.s.challan.no)}</div>` : ''}</td></tr>`; }).join('');
   } else if (view === 'drfd') {
     head = ['PO', 'SKU', 'Qty', 'Made as', 'Fabric this line uses', 'RFD left for it', ''];
     const cv = flowRfdCover(), seen = new Set();
