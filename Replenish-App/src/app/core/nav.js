@@ -154,11 +154,51 @@ document.querySelector('.side') && document.querySelector('.side').addEventListe
   const a = e.target.closest && e.target.closest('a.nav');
   if (a && (e.ctrlKey || e.metaKey || e.shiftKey || e.button > 0)) e.stopPropagation();
 }, true);
-/* The address changed by hand, or by Back: follow it, once. */
+/* The address changed by hand, or by Back: follow it, once. NAV_FROM_HISTORY tells showTab not to add a step of its own. */
+let NAV_FROM_HISTORY = false;
 window.addEventListener('hashchange', () => {
   const t = navHashTab();
-  if (t && t !== TAB_NOW && ME && ME.tabs && ME.tabs.length) showTab(t);
+  if (t && t !== TAB_NOW && ME && ME.tabs && ME.tabs.length) { NAV_FROM_HISTORY = true; try { showTab(t); } finally { NAV_FROM_HISTORY = false; } }
 });
+
+/* ---- BACK GOES TO WHERE YOU WERE (Ravi, 14 Oct: "back karta hu to app se bahar aa jata hu — back karne par me last
+ * action jo kar raha tha waha jana chahiye; ye common h"). Two halves:
+ *   1. a screen picked from the menu is a step of its own (showTab pushes it), so Back returns to the screen before;
+ *   2. an open window — an order, the Production bucket, Returns, any form — adds one step while it is open, so Back
+ *      closes the window first, exactly as its ✕ / Cancel would, and leaves you on the screen under it.
+ * A window closed any other way takes its step back off, so Back never "does nothing" once. ---- */
+const NAV_POPS = () => [...document.querySelectorAll('#ptDlg, .modal, .ptmodal, [id$="Modal"]')];
+const navPopOpen = el => !!el && !el.classList.contains('hide') && el.offsetWidth > 0;
+/** The window on top: the shared dialog first (it opens over the others), else the last one open. */
+function navTopPop() {
+  const open = NAV_POPS().filter(navPopOpen);
+  return open.find(el => el.id === 'ptDlg') || open[open.length - 1] || null;
+}
+/** Close a window the way its own button would. */
+function navClosePop(el) {
+  if (!el) return;
+  if (el.id === 'ptDlg' && typeof ptDlgCancel === 'function') { ptDlgCancel(); return; }
+  const btn = [...el.querySelectorAll('button')].find(b => /(Cancel|Close|X)$/.test(b.id || '') || b.classList.contains('close')
+    || /^(✕|×|x|close|cancel)$/i.test(String(b.textContent || '').trim()));
+  if (btn) btn.click(); else el.classList.add('hide');
+}
+let NAV_POP_SKIP = 0, NAV_POP_Q = false;
+/** Keep exactly one extra step while a window is open, and none when none is. */
+function navPopSync() {
+  NAV_POP_Q = false;
+  const open = !!navTopPop(), marked = !!(history.state && history.state.appPop);
+  if (open && !marked) { try { history.pushState({ appPop: 1 }, '', location.href); } catch (e) { /* Back just leaves, as before */ } }
+  else if (!open && marked) { NAV_POP_SKIP++; try { history.back(); } catch (e) { NAV_POP_SKIP--; } }
+}
+const navPopSoon = () => { if (!NAV_POP_Q) { NAV_POP_Q = true; setTimeout(navPopSync, 0); } };
+window.addEventListener('popstate', () => {
+  if (NAV_POP_SKIP > 0) { NAV_POP_SKIP--; return; }   // our own step being taken back off
+  const top = navTopPop();
+  if (top) { navClosePop(top); navPopSoon(); }        // Back with a window open: close it, stay on the screen
+});
+try {
+  new MutationObserver(navPopSoon).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'] });
+} catch (e) { /* no observer: Back behaves as it always did */ }
 
 function navOpenFor(tab) {
   const g = NAV_GROUPS.find(x => x.tabs.includes(tab));
@@ -367,10 +407,18 @@ function showTab(which) {
   if ($('topSub')) { $('topSub').textContent = SUBS[which] || ''; $('topSub').classList.toggle('hide', !SUBS[which]); }
   if ($('bwToggle')) $('bwToggle').classList.toggle('hide', which !== 'pbase');
   VEND_WAS_ON = (which === 'vend');
+  const TAB_PREV = TAB_NOW;
   TAB_NOW = which;
-  /* THE ADDRESS SAYS THE SCREEN, so a link to it — a new tab, a reload — opens here again. Replaced,
-   * not pushed: Back is not a list of every tab visited. */
-  try { if (location.hash !== '#' + which) history.replaceState(null, '', '#' + which); } catch (e) { /* only the address */ }
+  /* THE ADDRESS SAYS THE SCREEN, so a link to it — a new tab, a reload — opens here again. Since 14 Oct it is pushed when
+   * you move from one screen to another, so Back goes to the screen before instead of out of the app. */
+  /* Back returns to the screen before (14 Oct): a screen picked here is a new step — except the first one shown, and one
+   * reached by Back/Forward itself, which only say where you are. */
+  try {
+    if (location.hash !== '#' + which) {
+      if (!NAV_FROM_HISTORY && TAB_PREV) history.pushState(null, '', '#' + which);
+      else history.replaceState(null, '', '#' + which);
+    }
+  } catch (e) { /* only the address */ }
   navOpenFor(which);
   /* Nothing left up there on most screens — so there is no row. The ones that put their own line or
    * their own button there keep it. */

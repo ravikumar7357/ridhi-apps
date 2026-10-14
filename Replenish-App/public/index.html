@@ -946,8 +946,13 @@
   #paneShop .so-more-btn{list-style:none;cursor:pointer;padding:6px 12px;font-size:12.5px;border-radius:999px;border:1px solid var(--line);background:var(--card);user-select:none}
   #paneShop .so-more-btn::-webkit-details-marker{display:none}
   #paneShop .so-more[open] .so-more-btn{background:var(--chip)}
-  #paneShop .so-more-pop{position:absolute;left:0;top:calc(100% + 6px);z-index:60;min-width:300px;display:flex;flex-direction:column;gap:6px;
+  #paneShop .so-more-pop{position:absolute;right:0;top:calc(100% + 6px);z-index:60;min-width:300px;display:flex;flex-direction:column;gap:6px;
     padding:10px;background:var(--card);border-radius:12px;box-shadow:var(--sh-2)}
+  #paneShop .so-more-sep{height:1px;background:var(--line);margin:2px 0}
+  /* The Production bucket as an icon beside Filters (2026-10-14). */
+  #paneShop .so-icon{width:auto;padding:7px 10px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}
+  #paneShop .so-find #soGo{margin-left:0}
+  #paneShop .so-find .so-more{margin-left:auto}
   #paneShop .so-more-pop .so-exp{display:flex;gap:6px}
   #paneShop .so-more-pop > button{width:100%;text-align:left}
   #paneShop .so-sep{width:1px;height:20px;background:var(--line);margin:0 4px}
@@ -2892,24 +2897,21 @@
           <option value="-1">Placed yesterday</option>
           <option value="-7">Last 7 days</option>
         </select>
-        <input id="soFilter" style="flex:1 1 220px;min-width:0" placeholder="Filter order / SKU / name">
-        <button id="soGo">Fetch orders</button>
-      </div>
-      <!-- One button per status, with its count. One click shows that status; All shows everything. -->
-      <div id="soLanes" class="so-lanes"></div>
-      <div class="toolbar so-acts">
-        <button id="soBucket" title="Shopify lines that need production and have no production order yet — tick and open them here. Nothing opens by itself.">Production bucket</button>
-        <button id="soAdj" class="ghost" title="Every shortfall raised, by the day it was raised. Printable, to hand to production.">Adjustments</button>
-        <button id="soReturns" class="ghost" title="Returns, typed by hand: which order, which lines, the return tracking number, and whether it has reached the USA warehouse.">Returns</button>
-        <button id="soDays" class="ghost" title="How many days a parcel from the USA warehouse takes to a zip code — an estimate from distance zones, not a carrier quote.">Delivery days</button>
-        <span class="so-sep"></span>
-        <button id="soPrintMany" class="ghost"
-                title="Pick sheets, with photos, for the ticked orders — or for everything shown if nothing is ticked.">Print orders</button>
-        <!-- MORE (Ravi, 14 Oct: "import export update sheet and bulk update put them in more drop down"): the sheet work
-             that is not done every day, in one menu. Every control keeps its id, so nothing else changes. -->
+        <!-- ONE LINE (Ravi, 14 Oct: "production bucket ka just ek icon bana do filter ke side me", "search bar ko shrink
+             krlo", "return, delivery days and print order select krne par hi show ho"). The bucket is an icon — what is in it
+             shows when it opens; the search is narrower; everything you DO with the orders is in "More". The Adjustments
+             button is gone from here: Adjustments is its own screen in the Shopify menu. Every control keeps its id. -->
+        <button id="soBucket" type="button" class="ghost so-icon" aria-label="Production bucket"
+                title="Production bucket — Shopify lines that need production and have no production order yet. Tick and open them here; nothing opens by itself."><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg></button>
+        <input id="soFilter" style="flex:0 1 260px;min-width:140px" placeholder="Filter order / SKU / name">
         <details class="so-more" id="soMoreMenu">
           <summary class="so-more-btn">More ▾</summary>
           <div class="so-more-pop">
+            <button id="soReturns" class="ghost" title="Returns and replacements: which order, which lines, the return tracking number, and what the customer gets.">Returns</button>
+            <button id="soDays" class="ghost" title="How many days a parcel from the USA warehouse takes to a zip code — an estimate from distance zones, not a carrier quote.">Delivery days</button>
+            <button id="soPrintMany" class="ghost"
+                    title="Pick sheets, with photos, for the ticked orders — or for everything shown if nothing is ticked.">Print orders</button>
+            <span class="so-more-sep"></span>
             <span class="so-exp">
             <select id="soTmpl" style="flex:1 1 auto;width:auto" title="Which upload template to write. The column headings and their order match the courier's own workbook exactly.">
               <option value="plain">Plain list — one row per line item</option>
@@ -2927,12 +2929,15 @@
                     title="A sheet of every line of the orders shown (or ticked), with the Location, At location and Line status recorded today. Change what you need and bring it back with Bulk update.">Update sheet</button>
             <button id="soBulkPick" class="ghost"
                     title="Read an update sheet back: Location, At location and Line status for many lines at once. A blank cell is left as it is; a - clears it.">Bulk update</button>
+            <span class="so-more-sep"></span>
+            <button id="soDense" class="ghost" title="One page: ten columns that fit the screen, or every column with a sideways scroll.">Full columns</button>
           </div>
         </details>
+        <button id="soGo">Fetch orders</button>
+        <button id="soAdj" class="hide" type="button" tabindex="-1" aria-hidden="true">Adjustments</button>
         <input id="soBulkFile" type="file" accept=".xlsx,.csv,text/csv" class="hide">
-        <span class="so-grow"></span>
-        <button id="soDense" class="ghost" title="One page: ten columns that fit the screen, or every column with a sideways scroll.">Full columns</button>
       </div>
+      <div id="soLanes" class="so-lanes"></div>
       <div id="soMsg" class="muted" style="margin-top:8px;font-size:13px"></div>
       <div id="soPickMsg" class="muted" style="margin-top:4px;font-size:12px"></div>
       <!-- Today and yesterday, in the STORE's day. Cancelled orders are left out of all of it. -->
@@ -4056,11 +4061,51 @@ document.querySelector('.side') && document.querySelector('.side').addEventListe
   const a = e.target.closest && e.target.closest('a.nav');
   if (a && (e.ctrlKey || e.metaKey || e.shiftKey || e.button > 0)) e.stopPropagation();
 }, true);
-/* The address changed by hand, or by Back: follow it, once. */
+/* The address changed by hand, or by Back: follow it, once. NAV_FROM_HISTORY tells showTab not to add a step of its own. */
+let NAV_FROM_HISTORY = false;
 window.addEventListener('hashchange', () => {
   const t = navHashTab();
-  if (t && t !== TAB_NOW && ME && ME.tabs && ME.tabs.length) showTab(t);
+  if (t && t !== TAB_NOW && ME && ME.tabs && ME.tabs.length) { NAV_FROM_HISTORY = true; try { showTab(t); } finally { NAV_FROM_HISTORY = false; } }
 });
+
+/* ---- BACK GOES TO WHERE YOU WERE (Ravi, 14 Oct: "back karta hu to app se bahar aa jata hu — back karne par me last
+ * action jo kar raha tha waha jana chahiye; ye common h"). Two halves:
+ *   1. a screen picked from the menu is a step of its own (showTab pushes it), so Back returns to the screen before;
+ *   2. an open window — an order, the Production bucket, Returns, any form — adds one step while it is open, so Back
+ *      closes the window first, exactly as its ✕ / Cancel would, and leaves you on the screen under it.
+ * A window closed any other way takes its step back off, so Back never "does nothing" once. ---- */
+const NAV_POPS = () => [...document.querySelectorAll('#ptDlg, .modal, .ptmodal, [id$="Modal"]')];
+const navPopOpen = el => !!el && !el.classList.contains('hide') && el.offsetWidth > 0;
+/** The window on top: the shared dialog first (it opens over the others), else the last one open. */
+function navTopPop() {
+  const open = NAV_POPS().filter(navPopOpen);
+  return open.find(el => el.id === 'ptDlg') || open[open.length - 1] || null;
+}
+/** Close a window the way its own button would. */
+function navClosePop(el) {
+  if (!el) return;
+  if (el.id === 'ptDlg' && typeof ptDlgCancel === 'function') { ptDlgCancel(); return; }
+  const btn = [...el.querySelectorAll('button')].find(b => /(Cancel|Close|X)$/.test(b.id || '') || b.classList.contains('close')
+    || /^(✕|×|x|close|cancel)$/i.test(String(b.textContent || '').trim()));
+  if (btn) btn.click(); else el.classList.add('hide');
+}
+let NAV_POP_SKIP = 0, NAV_POP_Q = false;
+/** Keep exactly one extra step while a window is open, and none when none is. */
+function navPopSync() {
+  NAV_POP_Q = false;
+  const open = !!navTopPop(), marked = !!(history.state && history.state.appPop);
+  if (open && !marked) { try { history.pushState({ appPop: 1 }, '', location.href); } catch (e) { /* Back just leaves, as before */ } }
+  else if (!open && marked) { NAV_POP_SKIP++; try { history.back(); } catch (e) { NAV_POP_SKIP--; } }
+}
+const navPopSoon = () => { if (!NAV_POP_Q) { NAV_POP_Q = true; setTimeout(navPopSync, 0); } };
+window.addEventListener('popstate', () => {
+  if (NAV_POP_SKIP > 0) { NAV_POP_SKIP--; return; }   // our own step being taken back off
+  const top = navTopPop();
+  if (top) { navClosePop(top); navPopSoon(); }        // Back with a window open: close it, stay on the screen
+});
+try {
+  new MutationObserver(navPopSoon).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'] });
+} catch (e) { /* no observer: Back behaves as it always did */ }
 
 function navOpenFor(tab) {
   const g = NAV_GROUPS.find(x => x.tabs.includes(tab));
@@ -4269,10 +4314,18 @@ function showTab(which) {
   if ($('topSub')) { $('topSub').textContent = SUBS[which] || ''; $('topSub').classList.toggle('hide', !SUBS[which]); }
   if ($('bwToggle')) $('bwToggle').classList.toggle('hide', which !== 'pbase');
   VEND_WAS_ON = (which === 'vend');
+  const TAB_PREV = TAB_NOW;
   TAB_NOW = which;
-  /* THE ADDRESS SAYS THE SCREEN, so a link to it — a new tab, a reload — opens here again. Replaced,
-   * not pushed: Back is not a list of every tab visited. */
-  try { if (location.hash !== '#' + which) history.replaceState(null, '', '#' + which); } catch (e) { /* only the address */ }
+  /* THE ADDRESS SAYS THE SCREEN, so a link to it — a new tab, a reload — opens here again. Since 14 Oct it is pushed when
+   * you move from one screen to another, so Back goes to the screen before instead of out of the app. */
+  /* Back returns to the screen before (14 Oct): a screen picked here is a new step — except the first one shown, and one
+   * reached by Back/Forward itself, which only say where you are. */
+  try {
+    if (location.hash !== '#' + which) {
+      if (!NAV_FROM_HISTORY && TAB_PREV) history.pushState(null, '', '#' + which);
+      else history.replaceState(null, '', '#' + which);
+    }
+  } catch (e) { /* only the address */ }
   navOpenFor(which);
   /* Nothing left up there on most screens — so there is no row. The ones that put their own line or
    * their own button there keep it. */
@@ -60447,7 +60500,9 @@ function renderShop() {
   const bucketMake = shpBucketMake();
   const inBucket = new Set(bucketMake.map(x => x.id));
   if ($('soBucket')) { const rd = typeof shpReadyLines === 'function' ? shpReadyLines().length : 0;
-    $('soBucket').textContent = 'Production bucket' + (bucketMake.length ? ` (${nf(bucketMake.length)})` : '') + (rd ? ` · ${nf(rd)} ready to take` : ''); }
+    /* An icon now (14 Oct): its words and counts are its tooltip; opening it shows what is inside. */
+    const tip = 'Production bucket' + (bucketMake.length ? ` — ${nf(bucketMake.length)} order(s) waiting` : ' — nothing waiting') + (rd ? ` · ${nf(rd)} ready to take` : '');
+    if ($('soBucket').title !== tip) { $('soBucket').title = tip; if ($('soBucket').setAttribute) $('soBucket').setAttribute('aria-label', tip); } }
   SO_IN_BUCKET = inBucket;
   const y = soStoreDay(-1), t = soStoreDay(0);
   const yd = pend.filter(r => r.at === y).length, td = pend.filter(r => r.at === t).length;

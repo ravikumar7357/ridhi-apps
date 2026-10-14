@@ -1638,7 +1638,9 @@ function renderShop() {
   const bucketMake = shpBucketMake();
   const inBucket = new Set(bucketMake.map(x => x.id));
   if ($('soBucket')) { const rd = typeof shpReadyLines === 'function' ? shpReadyLines().length : 0;
-    $('soBucket').textContent = 'Production bucket' + (bucketMake.length ? ` (${nf(bucketMake.length)})` : '') + (rd ? ` · ${nf(rd)} ready to take` : ''); }
+    /* An icon now (14 Oct): its words and counts are its tooltip; opening it shows what is inside. */
+    const tip = 'Production bucket' + (bucketMake.length ? ` — ${nf(bucketMake.length)} order(s) waiting` : ' — nothing waiting') + (rd ? ` · ${nf(rd)} ready to take` : '');
+    if ($('soBucket').title !== tip) { $('soBucket').title = tip; if ($('soBucket').setAttribute) $('soBucket').setAttribute('aria-label', tip); } }
   SO_IN_BUCKET = inBucket;
   const y = soStoreDay(-1), t = soStoreDay(0);
   const yd = pend.filter(r => r.at === y).length, td = pend.filter(r => r.at === t).length;

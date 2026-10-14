@@ -1800,24 +1800,21 @@
           <option value="-1">Placed yesterday</option>
           <option value="-7">Last 7 days</option>
         </select>
-        <input id="soFilter" style="flex:1 1 220px;min-width:0" placeholder="Filter order / SKU / name">
-        <button id="soGo">Fetch orders</button>
-      </div>
-      <!-- One button per status, with its count. One click shows that status; All shows everything. -->
-      <div id="soLanes" class="so-lanes"></div>
-      <div class="toolbar so-acts">
-        <button id="soBucket" title="Shopify lines that need production and have no production order yet — tick and open them here. Nothing opens by itself.">Production bucket</button>
-        <button id="soAdj" class="ghost" title="Every shortfall raised, by the day it was raised. Printable, to hand to production.">Adjustments</button>
-        <button id="soReturns" class="ghost" title="Returns, typed by hand: which order, which lines, the return tracking number, and whether it has reached the USA warehouse.">Returns</button>
-        <button id="soDays" class="ghost" title="How many days a parcel from the USA warehouse takes to a zip code — an estimate from distance zones, not a carrier quote.">Delivery days</button>
-        <span class="so-sep"></span>
-        <button id="soPrintMany" class="ghost"
-                title="Pick sheets, with photos, for the ticked orders — or for everything shown if nothing is ticked.">Print orders</button>
-        <!-- MORE (Ravi, 14 Oct: "import export update sheet and bulk update put them in more drop down"): the sheet work
-             that is not done every day, in one menu. Every control keeps its id, so nothing else changes. -->
+        <!-- ONE LINE (Ravi, 14 Oct: "production bucket ka just ek icon bana do filter ke side me", "search bar ko shrink
+             krlo", "return, delivery days and print order select krne par hi show ho"). The bucket is an icon — what is in it
+             shows when it opens; the search is narrower; everything you DO with the orders is in "More". The Adjustments
+             button is gone from here: Adjustments is its own screen in the Shopify menu. Every control keeps its id. -->
+        <button id="soBucket" type="button" class="ghost so-icon" aria-label="Production bucket"
+                title="Production bucket — Shopify lines that need production and have no production order yet. Tick and open them here; nothing opens by itself."><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg></button>
+        <input id="soFilter" style="flex:0 1 260px;min-width:140px" placeholder="Filter order / SKU / name">
         <details class="so-more" id="soMoreMenu">
           <summary class="so-more-btn">More ▾</summary>
           <div class="so-more-pop">
+            <button id="soReturns" class="ghost" title="Returns and replacements: which order, which lines, the return tracking number, and what the customer gets.">Returns</button>
+            <button id="soDays" class="ghost" title="How many days a parcel from the USA warehouse takes to a zip code — an estimate from distance zones, not a carrier quote.">Delivery days</button>
+            <button id="soPrintMany" class="ghost"
+                    title="Pick sheets, with photos, for the ticked orders — or for everything shown if nothing is ticked.">Print orders</button>
+            <span class="so-more-sep"></span>
             <span class="so-exp">
             <select id="soTmpl" style="flex:1 1 auto;width:auto" title="Which upload template to write. The column headings and their order match the courier's own workbook exactly.">
               <option value="plain">Plain list — one row per line item</option>
@@ -1835,12 +1832,15 @@
                     title="A sheet of every line of the orders shown (or ticked), with the Location, At location and Line status recorded today. Change what you need and bring it back with Bulk update.">Update sheet</button>
             <button id="soBulkPick" class="ghost"
                     title="Read an update sheet back: Location, At location and Line status for many lines at once. A blank cell is left as it is; a - clears it.">Bulk update</button>
+            <span class="so-more-sep"></span>
+            <button id="soDense" class="ghost" title="One page: ten columns that fit the screen, or every column with a sideways scroll.">Full columns</button>
           </div>
         </details>
+        <button id="soGo">Fetch orders</button>
+        <button id="soAdj" class="hide" type="button" tabindex="-1" aria-hidden="true">Adjustments</button>
         <input id="soBulkFile" type="file" accept=".xlsx,.csv,text/csv" class="hide">
-        <span class="so-grow"></span>
-        <button id="soDense" class="ghost" title="One page: ten columns that fit the screen, or every column with a sideways scroll.">Full columns</button>
       </div>
+      <div id="soLanes" class="so-lanes"></div>
       <div id="soMsg" class="muted" style="margin-top:8px;font-size:13px"></div>
       <div id="soPickMsg" class="muted" style="margin-top:4px;font-size:12px"></div>
       <!-- Today and yesterday, in the STORE's day. Cancelled orders are left out of all of it. -->
