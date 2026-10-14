@@ -1024,7 +1024,8 @@ const K = 'AMZ-1__S1';
       'TRFD-202610-001': { no: 'TRFD-202610-001', orderNo: 'TEST-AMZ-10102026-01', vendor: { name: 'Test' }, lines: [] } };
     A = load({ me: { admin: true }, mdb: { S1: { cons: 1, fab: 'Cotton' } }, lines: [L({ orderNo: 'SHP-5717', orderDate: '2026-08-01', sku: 'R1', issued: 1, qty: 1 }), L({ sku: 'R2' })] });
     A.setFLOW(Object.assign(A.FLOW(), { test: tst, ch: chs }));
-    ok('with a test order there, the switch starts ON', A.flowTestOnly() === true);
+    ok('since 14 Oct the switch starts OFF even with a test order there (PPC shows the sales orders)', A.flowTestOnly() === false);
+    A.flowTestOnlySet(true);
     A.setView('ppc'); A.renderFlow();
     ok('PPC holds only the test order, not the real AMZ-1', /TEST-AMZ-10102026-01/.test(A.els.flTable.innerHTML) && !/AMZ-1<\/a>/.test(A.els.flTable.innerHTML) && /SHOWING TEST ORDERS ONLY/.test(A.els.flMsg.textContent));
     ok('the counts are the test order\u2019s: PPC 1 (the real AMZ-1 is not counted); no WIP bucket here', /<span class="fl-n">1<\/span><span>PPC/.test(A.els.flBuckets.innerHTML) && !/data-flb="wip"/.test(A.els.flBuckets.innerHTML), A.els.flBuckets.innerHTML);
@@ -1036,7 +1037,7 @@ const K = 'AMZ-1__S1';
     ok('a choice made is kept (localStorage flowTestOnly)', load({ ls: { flowTestOnly: '0' } , me: { admin: true } }).flowTestOnly() === false && load({ ls: { flowTestOnly: '1' } }).flowTestOnly() === true);
   }
 
-  console.log('== test orders off: PPC is fed by the sales orders (Ravi, 14 Oct) ==');
+  console.log('== test orders switched off (flowTests = 0): only the sales orders ==');
   {
     const TN = 'TEST-AMZ-10102026-01';
     const db = {
@@ -1047,10 +1048,10 @@ const K = 'AMZ-1__S1';
       pt_flowPrintOrders: { 'TPRN-1': { no: 'TPRN-1', test: true }, 'PRN-1': { no: 'PRN-1' } },
       pt_flowFgSend: { f1: { orderNo: TN, sku: 'S1', pcs: 1, test: true }, f2: { orderNo: 'AMZ-1', sku: 'R2', pcs: 1 } },
     };
-    const B = load({ ls: { flowTests: null, flowTestOnly: '1' }, me: { admin: true }, db, mdb: { R2: { cons: 1, fab: 'Cotton' } }, lines: [L({ sku: 'R2' })] });
+    const B = load({ ls: { flowTests: '0', flowTestOnly: '1' }, me: { admin: true }, db, mdb: { R2: { cons: 1, fab: 'Cotton' } }, lines: [L({ sku: 'R2' })] });
     await B.flowLoad(true);
     const F = B.FLOW();
-    ok('off by default: no test order is read', Object.keys(F.test).length === 0);
+    ok('switched off: no test order is read', Object.keys(F.test).length === 0);
     ok('…nor its plan, reservation, challan, print order or FG send',
       !Object.keys(F.ppc).some(k => /^TEST-/.test(k)) && Object.keys(F.res).join() === 'AMZ-1__R2' && Object.keys(F.ch).join() === 'RFD-202610-001'
       && Object.keys(F.po).join() === 'PRN-1' && Object.keys(F.fg).join() === 'f2', JSON.stringify([F.res, F.ch, F.po, F.fg]));
@@ -1058,9 +1059,29 @@ const K = 'AMZ-1__S1';
     B.setView('ppc'); B.renderFlow();
     ok('PPC holds the sales order AMZ-1, no test order', /AMZ-1/.test(B.els.flTable.innerHTML) && !/TEST-/.test(B.els.flTable.innerHTML) && !/SHOWING TEST ORDERS ONLY/.test(B.els.flMsg.textContent));
     ok('the "+ Test order" button and the switch are hidden', B.els.flTest.style.display === 'none');
-    const C = load({ me: { admin: true }, db, lines: [L({ sku: 'R2' })] });
+    const C = load({ ls: { flowTests: null }, me: { admin: true }, db, lines: [L({ sku: 'R2' })] });
     await C.flowLoad(true);
-    ok('localStorage flowTests = 1 brings them back', Object.keys(C.FLOW().test).join() === TN && Object.keys(C.FLOW().po).length === 2);
+    ok('on by default: the test under way carries on', Object.keys(C.FLOW().test).join() === TN && Object.keys(C.FLOW().po).length === 2);
+  }
+
+  console.log('== a test order made from a sales order (Ravi, 14 Oct) ==');
+  {
+    const S = load({ me: { admin: true }, mdb: { S1: { cons: 0.5, fab: 'Cotton' }, S2: { cons: 1, fab: 'Cotton' } },
+      lines: [L({ orderNo: 'AMZ-900', sku: 'S1', qty: 4, orderDate: '2026-10-12' }), L({ orderNo: 'AMZ-900', sku: 'S2', qty: 6, orderDate: '2026-10-12' }),
+        L({ orderNo: 'AMZ-77', sku: 'NOPE', qty: 2, orderDate: '2026-10-11' })] });
+    S.flowTestOpen();
+    ok('the dialog offers the sales orders, newest first', S.ctx.__dlg.html.indexOf('value="AMZ-900"') > 0 && S.ctx.__dlg.html.indexOf('value="AMZ-900"') < S.ctx.__dlg.html.indexOf('value="AMZ-77"'));
+    S.els.fltSo = { value: 'shp-999' };
+    ok('an order not on the book is refused', /SHP-999 is not on the order book/.test(await S.ctx.__dlg.onSave()) && !S.writes.length);
+    S.els.fltSo = { value: 'AMZ-77' };
+    ok('an order with a SKU not in the master is refused, named', /AMZ-77: NOPE is not in the master/.test(await S.ctx.__dlg.onSave()) && !S.writes.length);
+    S.els.fltSo = { value: 'amz-900' };
+    ok('saved: the order’s SKUs and quantities, its platform, and where it came from', !(await S.ctx.__dlg.onSave()) && S.writes.length === 1
+      && (w => w && w.src === 'AMZ' && w.fromSo === 'AMZ-900' && w.lines.S1.qty === 4 && w.lines.S2.qty === 6)(S.writes[0]['pt_flowTest/TEST-AMZ-13102026-01']), JSON.stringify(S.writes));
+    ok('the sales order itself is untouched, and both sit in the flow', S.W.lines.length === 3 && S.flowRows().some(x => x.r.orderNo === 'TEST-AMZ-13102026-01' && x.r.fromSo === 'AMZ-900'));
+    ok('the new test order is put in the search box, so it is the one on screen', S.els.flQ.value === 'TEST-AMZ-13102026-01');
+    S.els.flQ.value = ''; S.setView('ppc'); S.renderFlow();
+    ok('PPC shows the real sales order and the test copy, which says what it copies', /AMZ-900/.test(S.els.flTable.innerHTML) && /copy of sales order AMZ-900/.test(S.els.flTable.innerHTML) && /data-ordj="AMZ-900"/.test(S.els.flTable.innerHTML));
   }
 
   console.log('== a TEST order walks every bucket, end to end ==');

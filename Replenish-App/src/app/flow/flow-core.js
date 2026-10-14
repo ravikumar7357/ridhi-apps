@@ -128,13 +128,13 @@ const flowInView = (view, s) => view === 'drfd' ? s.bucket === 'demand' && s.nee
 const flowBucketsAllowed = () => (ME.admin ? FLOW_BUCKETS : FLOW_BUCKETS.filter(b => (ME.tabs || []).includes(b[2])));
 const flowKey = (orderNo, sku) => (obUC(orderNo) + '__' + obUC(sku)).replace(/[.#$\[\]\/]/g, '_');
 
-/* ---- TEST ORDERS ARE OFF (Ravi, 14 Oct: "PPC me order sales order se aana chahiye — abhi jo test order se aa rha h wo
- * galat h") ----
- * PPC is fed by the sales orders alone: every order from flowFrom() on. The test orders, and everything written for them
- * (plans, demand, reservations, print orders, challans, FG sends), are left out of the screen as they are read, so a test
- * reservation no longer holds real accessories either. Nothing is deleted from the database. localStorage flowTests = '1'
- * brings them back, with the "+ Test order" button, for walking an order end to end. */
-function flowTestsOn() { try { return localStorage.getItem('flowTests') === '1'; } catch (e) { return false; } }
+/* ---- THE TEST ORDERS SWITCH ----
+ * 14 Oct, Ravi: "PPC me order sales order se aana chahiye", then "abhi hum jo test kar rahe h wo chalta rahe but sales order se
+ * test order bana saku". Test orders stay ON, so the test under way carries on, and a new one is made FROM A SALES ORDER
+ * (flow-test-order.js), its lines copied from the order book. PPC holds the real sales orders from flowFrom() on beside them.
+ * localStorage flowTests = '0' takes every test order out of the screen as it is read: its plan, demand, reservations, print
+ * orders, challans and FG sends too, so a test reservation holds no real accessories. Nothing is deleted from the database. */
+function flowTestsOn() { try { return localStorage.getItem('flowTests') !== '0'; } catch (e) { return true; } }
 function flowDropTests() {
   const isTest = (k, v) => /^TEST-/.test(String(k)) || !!(v && (v.test || /^TEST-/.test(obUC(v.orderNo))));
   const keep = o => Object.fromEntries(Object.entries(o || {}).filter(([k, v]) => !isTest(k, v)));

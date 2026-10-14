@@ -9,13 +9,13 @@
 
 const flowIsTest = no => /^TEST-/.test(String(no || ''));
 /* ONLY TEST ORDERS (Ravi, 10 Oct: "abhi mujhe yahan sirf test order related hi entry show ho, jisase me order end to end
- * track kar saku"). On, every bucket, count and challan list holds the TEST orders alone. Remembered on this computer;
- * on by itself the first time there is a test order to follow. */
+ * track kar saku"). On, every bucket, count and challan list holds the TEST orders alone. Remembered on this computer.
+ * OFF until ticked since 14 Oct ("PPC me order sales order se aana chahiye"): PPC shows the sales orders, the tests beside them. */
 function flowTestOnly() {
   if (!flowTestsOn()) return false;   // test orders are off: there is nothing to narrow to
   let v = null; try { v = localStorage.getItem('flowTestOnly'); } catch (e) { v = null; }
   if (v === '1') return true; if (v === '0') return false;
-  return Object.keys(FLOW.test || {}).length > 0;
+  return false;
 }
 function flowTestOnlySet(on) { try { localStorage.setItem('flowTestOnly', on ? '1' : '0'); } catch (e) { /* storage blocked: this visit only */ } FLOW.testOnly = on; }
 let FLOW_TC = { src: null, rows: [] };
@@ -26,7 +26,7 @@ function flowTestLines() {
   Object.values(FLOW.test || {}).forEach(o => Object.entries(o.lines || {}).forEach(([sku, t]) => {
     const m = cutSkuOf(sku) || {}, qty = +t.qty || 0;
     let cutReq = true; try { cutReq = ordCutReq(sku); } catch (e) { cutReq = m.cuttingRequired !== false; }
-    rows.push({ orderNo: o.orderNo, sku: obUC(sku), qty, orderDate: o.orderDate, src: o.src || 'TEST',
+    rows.push({ orderNo: o.orderNo, sku: obUC(sku), qty, orderDate: o.orderDate, src: o.src || 'TEST', fromSo: o.fromSo || '',
       articleType: m.articleType || '', articleSubtype: m.articleSubtype || '', color: m.color || m.colour || '', size: m.size || '',
       cutReq, cut: +t.cut || 0, issued: +t.issued || 0, received: +t.received || 0, pressed: 0, printer: '', printed: 0,
       open: true, handedAt: '', shopDoneAt: '', __t: t });
@@ -54,18 +54,47 @@ async function flowSimulate(orderNo, sku, view) {
   return '';
 }
 
+/* FROM A SALES ORDER (Ravi, 14 Oct: "sales order se test order bana saku"). Every order on the book, newest first, with its
+ * date and lines — the test order copies that order's SKUs and quantities, so it is walked through the flow exactly as the
+ * real one would be, while the real one is left as it is. */
+function flowSoChoices() {
+  const by = new Map();
+  (typeof ordLines === 'function' ? ordLines() : []).forEach(r => {
+    const no = obUC(r && r.orderNo); if (!no || flowIsTest(no)) return;
+    const e = by.get(no) || { no, date: String(ptIsoDate(r.orderDate) || ''), src: r.src || no.split('-')[0], lines: [] };
+    e.lines.push({ sku: obUC(r.sku), qty: Math.round(+r.qty || 0) });
+    by.set(no, e);
+  });
+  return [...by.values()].sort((a, b) => b.date.localeCompare(a.date) || a.no.localeCompare(b.no));
+}
 function flowTestOpen() {
   const plats = [['AMZ', 'Amazon'], ['SHP', 'Shopify'], ['ONL', 'Online'], ['B2B', 'B2B']];
   const row = i => `<div style="display:flex;gap:8px;margin-top:6px"><input data-tsku="${i}" placeholder="SKU ${i + 1}" style="flex:2"><input data-tqty="${i}" type="number" min="1" placeholder="Qty" style="flex:1"></div>`;
+  const sos = flowSoChoices();
   ptOpenDialog({
     title: 'Test order — walk it through the flow',
-    subtitle: 'Lives only in the production flow: not in Sales Orders, the order book or any register. Use real SKUs so PPC can work out fabric and accessories. Delete it when you are done.',
-    html: `<label>Platform<select id="fltSrc">${plats.map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select></label>
-      <div class="muted" style="margin-top:10px;font-size:12px">Lines (SKU and quantity) — fill as many as you want</div>${[0, 1, 2, 3, 4].map(row).join('')}`,
+    subtitle: 'Pick a sales order: the test order copies its SKUs and quantities. It lives only in the production flow — the sales order, the order book and the registers are not touched. Delete it when you are done.',
+    html: `<label>Sales order<input id="fltSo" list="fltSoList" autocomplete="off" placeholder="Type or pick an order no — e.g. ${esc((sos[0] && sos[0].no) || 'AMZ-…')}"></label>
+      <datalist id="fltSoList">${sos.slice(0, 800).map(o => `<option value="${esc(o.no)}">${esc(o.date)} · ${o.lines.length} line(s)</option>`).join('')}</datalist>
+      <details style="margin-top:12px"><summary class="muted" style="font-size:12px;cursor:pointer">…or type the lines by hand</summary>
+      <label style="margin-top:8px">Platform<select id="fltSrc">${plats.map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select></label>
+      <div class="muted" style="margin-top:10px;font-size:12px">Lines (SKU and quantity) — fill as many as you want</div>${[0, 1, 2, 3, 4].map(row).join('')}</details>`,
     saveLabel: 'Add the test order',
     onSave: async () => {
-      const src = $('fltSrc').value || 'AMZ', lines = {}, bad = [];
-      [0, 1, 2, 3, 4].forEach(i => {
+      let src = ($('fltSrc') && $('fltSrc').value) || 'AMZ';
+      const lines = {}, bad = [], soNo = obUC(($('fltSo') && $('fltSo').value) || '');
+      if (soNo) {
+        const so = sos.find(o => o.no === soNo);
+        if (!so) return `${soNo} is not on the order book — pick an order from the list.`;
+        so.lines.forEach(l => {
+          if (!l.sku || !(l.qty > 0)) return;
+          if (!cutSkuOf(l.sku)) { bad.push(l.sku + ' is not in the master'); return; }
+          lines[l.sku] = { qty: (lines[l.sku] ? lines[l.sku].qty : 0) + l.qty };
+        });
+        if (bad.length) return `${soNo}: ` + bad.join(' · ') + ' — add it to the master first, or type the lines by hand.';
+        if (!Object.keys(lines).length) return `${soNo} has no line with a quantity to copy.`;
+        src = plats.some(p => p[0] === obUC(so.src)) ? obUC(so.src) : (plats.some(p => p[0] === soNo.split('-')[0]) ? soNo.split('-')[0] : src);
+      } else [0, 1, 2, 3, 4].forEach(i => {
         const sku = obUC(((document.querySelector(`[data-tsku="${i}"]`) || {}).value || '')), qty = Math.round(+((document.querySelector(`[data-tqty="${i}"]`) || {}).value || 0));
         if (!sku) return;
         if (!cutSkuOf(sku)) { bad.push(sku + ' is not in the master'); return; }
@@ -73,11 +102,11 @@ function flowTestOpen() {
         lines[sku] = { qty: (lines[sku] ? lines[sku].qty : 0) + qty };
       });
       if (bad.length) return bad.join(' · ');
-      if (!Object.keys(lines).length) return 'Type at least one SKU and its quantity.';
+      if (!Object.keys(lines).length) return 'Pick a sales order, or type at least one SKU and its quantity.';
       const d = dToday(), tag = d.slice(8, 10) + d.slice(5, 7) + d.slice(0, 4);
       const used = Object.keys(FLOW.test || {}).filter(k => k.startsWith(`TEST-${src}-${tag}-`)).length;
       const orderNo = `TEST-${src}-${tag}-${String(used + 1).padStart(2, '0')}`;
-      const rec = { orderNo, src, orderDate: d, lines, at: new Date().toISOString(), by: ME.email || '' };
+      const rec = Object.assign({ orderNo, src, orderDate: d, lines, at: new Date().toISOString(), by: ME.email || '' }, soNo ? { fromSo: soNo } : {});
       try { await ptPatch({ ['pt_flowTest/' + orderNo]: rec }); } catch (e) { return 'Could not save: ' + (e.message || e); }
       FLOW.test = Object.assign({}, FLOW.test, { [orderNo]: rec });
       FLOW_VIEW = flowBucketsAllowed().some(b => b[0] === 'ppc') ? 'ppc' : FLOW_VIEW;
