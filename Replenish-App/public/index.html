@@ -3917,11 +3917,9 @@ onAuthStateChanged(auth, async user => {
  * every badge, right and click handler finds them where it always did.
  */
 const NAV_PROD_ONLY = (function navProductionOnly() {
-  let on = false;
-  try {
-    const v = localStorage.getItem('flow');
-    on = v === '1' ? true : v === '0' ? false : /--/.test(location.hostname) || /^(localhost|127\.)/.test(location.hostname);
-  } catch (e) { return false; }
+  /* On everywhere since 14 Oct, the live app too (same switch as FLOW_ON); localStorage flow = '0' keeps the old menu. */
+  let on = true;
+  try { if (localStorage.getItem('flow') === '0') on = false; } catch (e) { /* storage blocked: the new menu */ }
   const side = document.querySelector('.side'), prodWrap = $('grpProd') && $('grpProd').parentNode;
   if (!on || !side || !prodWrap) return false;
   if ($('grpOrders')) return true;
@@ -24362,10 +24360,23 @@ $('odExport').onclick = () => {
  * Everything else is read from the registers the factory already fills — the Order Console's own figures. */
 
 /* ---- the switch ---- */
+/* ON EVERYWHERE SINCE 14 OCT (Ravi: "1 url kro — live par sab kuch, but test jab tak rahe jab tak me pakka n krlu"). The
+ * flow screens, the new menu and the Greige Desk are on the live app too; localStorage flow = '0' still turns them off on
+ * one computer. What keeps it a TEST is FLOW_REAL below. */
 const FLOW_ON = (() => {
-  try { const v = localStorage.getItem('flow'); if (v === '0') return false; if (v === '1') return true; } catch (e) { /* storage blocked */ }
-  try { return /--/.test(location.hostname) || /^(localhost|127\.)/.test(location.hostname); } catch (e) { return false; }
+  try { const v = localStorage.getItem('flow'); if (v === '0') return false; } catch (e) { /* storage blocked */ }
+  return true;
 })();
+/* FLOW_REAL — does the flow run the REAL sales orders? Not yet: until Ravi says it is right, the flow runs the TEST orders
+ * alone (made from a sales order with "+ Test order"). Real orders keep going through the screens they always did, which
+ * do not refuse them, and the flow's lists hold no real line. Turning this on is the one switch for "move forward":
+ * FLOW_REAL_DEFAULT = true (or localStorage flowReal = '1' on one computer to try it). */
+const FLOW_REAL_DEFAULT = false;
+const FLOW_REAL = (() => {
+  try { const v = localStorage.getItem('flowReal'); if (v === '1') return true; if (v === '0') return false; } catch (e) { /* storage blocked */ }
+  return FLOW_REAL_DEFAULT;
+})();
+const FLOW_NO_REAL = Object.freeze([]);
 /* PPC and Demand apply to orders from this date on: the 2,000 older POs were never planned this way, and putting them
  * all in PPC would bury the new ones. Older lines go straight to the bucket of the step they are really at. */
 const FLOW_FROM_DEFAULT = '2026-10-10';
@@ -24391,6 +24402,7 @@ function flowOwnsOrder(orderNo, date) {
   if (!FLOW_ON) return false;
   const no = obUC(orderNo); if (!no) return false;
   if (/^TEST-/.test(no)) return true;
+  if (!FLOW_REAL) return false;   // test phase: a real order is not the flow's
   const iso = String(ptIsoDate(date != null && date !== '' ? date : flowOrderDate(no)) || '');
   return !!iso && iso >= flowFrom();
 }
@@ -24474,6 +24486,15 @@ const flowKey = (orderNo, sku) => (obUC(orderNo) + '__' + obUC(sku)).replace(/[.
  * localStorage flowTests = '0' takes every test order out of the screen as it is read: its plan, demand, reservations, print
  * orders, challans and FG sends too, so a test reservation holds no real accessories. Nothing is deleted from the database. */
 function flowTestsOn() { try { return localStorage.getItem('flowTests') !== '0'; } catch (e) { return true; } }
+/* The other half, for the test phase (FLOW_REAL off): whatever the flow wrote for a REAL order while it ran on the preview
+ * link — plans, fabric ready, reservations, challans, print orders, FG sends — is left out as it is read, so no flow list
+ * shows it and no real accessory or RFD figure is held by it. Nothing is deleted. */
+function flowDropReal() {
+  const isTest = (k, v) => /^TEST-/.test(String(k)) || !!(v && (v.test || /^TEST-/.test(obUC(v.orderNo))));
+  const keep = o => Object.fromEntries(Object.entries(o || {}).filter(([k, v]) => isTest(k, v)));
+  FLOW.ppc = keep(FLOW.ppc); FLOW.dem = keep(FLOW.dem); FLOW.res = keep(FLOW.res);
+  FLOW.ch = keep(FLOW.ch); FLOW.po = keep(FLOW.po); FLOW.fg = keep(FLOW.fg);
+}
 function flowDropTests() {
   const isTest = (k, v) => /^TEST-/.test(String(k)) || !!(v && (v.test || /^TEST-/.test(obUC(v.orderNo))));
   const keep = o => Object.fromEntries(Object.entries(o || {}).filter(([k, v]) => !isTest(k, v)));
@@ -24492,6 +24513,7 @@ async function flowLoad(force) {
       const [ppc, dem, res, ch, test, po, fg, rev] = await Promise.all([ptGet('pt_ppc'), ptGet('pt_flowDemand'), ptGet('pt_accReserve'), ptGet('pt_flowChallans'), ptGet('pt_flowTest'), ptGet('pt_flowPrintOrders'), ptGet('pt_flowFgSend'), ptGet('pt_flowRev')]);
       FLOW.ppc = ppc || {}; FLOW.dem = dem || {}; FLOW.res = res || {}; FLOW.ch = ch || {}; FLOW.test = test || {}; FLOW.po = po || {}; FLOW.fg = fg || {}; FLOW.rev = rev || {}; FLOW.err = '';
       if (!flowTestsOn()) flowDropTests();
+      if (!FLOW_REAL) flowDropReal();
     } catch (e) { FLOW.err = e.message || String(e); FLOW.ppc = FLOW.ppc || {}; FLOW.dem = FLOW.dem || {}; FLOW.res = FLOW.res || {}; FLOW.ch = FLOW.ch || {}; FLOW.test = FLOW.test || {}; FLOW.po = FLOW.po || {}; FLOW.fg = FLOW.fg || {}; }
     FLOW.at = Date.now(); FLOW.busy = null;
   })();
@@ -24597,7 +24619,7 @@ function flowState(r) {
 /** Every open line (and every new order's lines) with its state. Cached on the order book and the three nodes. */
 let FLOW_C = { src: null, test: null, ppc: null, dem: null, res: null, rows: null };
 function flowRows() {
-  const real = ordLines(), test = flowTestLines();
+  const real = FLOW_REAL ? ordLines() : FLOW_NO_REAL, test = flowTestLines();
   if (FLOW_C.rows && FLOW_C.src === real && FLOW_C.test === test && FLOW_C.ppc === FLOW.ppc && FLOW_C.dem === FLOW.dem && FLOW_C.res === FLOW.res && FLOW_C.ch === FLOW.ch && FLOW_C.po === FLOW.po && FLOW_C.fg === FLOW.fg
     && FLOW_C.qc === (typeof QC !== 'undefined' ? QC.checks : null) && FLOW_C.fgi === (typeof FGI !== 'undefined' ? FGI.rows : null)) return FLOW_C.rows;
   const lines = test.length ? real.concat(test) : real;
@@ -26400,6 +26422,9 @@ async function flowVpAfterLoad() {
     try { VP.rows = ptList(await ptGet('pt_vendorOrders/' + VP.code)); } catch (e) { VP.rows = []; }
   }
   if (!VP.code) return;
+  /* A PRINTER'S OWN SIGN-IN NEVER SEES A TEST ORDER (14 Oct: the flow is on the live app now, where real printers sign in).
+   * Test orders reach the portal only when an admin looks at it "as printer". */
+  if (!VP.viewAs) { VP.rows = (VP.rows || []).filter(o => !(o && o.virtual)); return; }
   try { await flowLoad(); } catch (e) { return; }
   VP.rows = (VP.rows || []).filter(o => !(o && o.virtual)).concat(flowTestVos().filter(v => obUC(v.vendorCode) === obUC(VP.code)));
 }

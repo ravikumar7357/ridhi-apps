@@ -16,7 +16,7 @@ function load(opts) {
   const el = id => els[id] || (els[id] = { id, value: '', textContent: '', innerHTML: '', className: '', style: {}, dataset: {}, classList: { toggle() {}, add() {}, remove() {}, contains: () => false }, addEventListener() {}, onclick: null });
   const W = { lines: opts.lines || [], vendor: opts.vendor || {}, qc: opts.qc || {}, fg: opts.fg || {}, shelf: opts.shelf || [] };
   const ctx = {
-    $: el, document: { querySelectorAll: () => [], querySelector: () => null }, localStorage: { getItem: k => Object.assign({ flowTests: '1' }, opts.ls || {})[k] ?? null },
+    $: el, document: { querySelectorAll: () => [], querySelector: () => null }, localStorage: { getItem: k => Object.assign({ flowTests: '1', flowReal: '1' }, opts.ls || {})[k] ?? null },
     location: { hostname: opts.host || 'price-research-48ff3--flow-abc.web.app' },
     ME: Object.assign({ email: 'ppc@x', admin: false, tabs: [] }, opts.me || {}),
     obUC, esc: s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c])), nf: v => String(v),
@@ -68,9 +68,8 @@ const K = 'AMZ-1__S1';
 (async () => {
   console.log('== the switch ==');
   ok('on for a preview link (host has --)', load().FLOW_ON === true);
-  ok('off on the live app', load({ host: 'price-research-48ff3.web.app' }).FLOW_ON === false);
-  ok('localStorage flow=1 turns it on anywhere, flow=0 off anywhere',
-    load({ host: 'price-research-48ff3.web.app', ls: { flow: '1' } }).FLOW_ON === true && load({ ls: { flow: '0' } }).FLOW_ON === false);
+  ok('on the live app too since 14 Oct (one URL)', load({ host: 'price-research-48ff3.web.app' }).FLOW_ON === true);
+  ok('localStorage flow=0 turns it off on one computer', load({ host: 'price-research-48ff3.web.app', ls: { flow: '0' } }).FLOW_ON === false && load({ ls: { flow: '0' } }).FLOW_ON === false);
 
   console.log('== each bucket its own right ==');
   ok('seven rights — New orders, Print orders, Vendor allocation, Outsourced, QC, Finished Goods and Printed fabric in are gone from the flow', load().FLOW_TABS.length === 7 && new Set(load().FLOW_TABS).size === 7 && !['flnew', 'flpo', 'flven', 'flout', 'flqc', 'flrdy', 'flfg', 'flfab'].some(t => load().FLOW_TABS.includes(t)));
@@ -813,9 +812,9 @@ const K = 'AMZ-1__S1';
     C.setFLOW(Object.assign(C.FLOW(), { at: Date.now() })); C.setVOrows([{ vendorCode: 'P1', id: 'real1', orderNo: 'VPO-1', lines: [] }]); await C.flowVoExtra(); await C.flowVoExtra();
     ok('…the Vendor Orders screen gets it once, beside the real ones, however often it is drawn', C.VOrows().length === 1 + tv.length && C.VOrows()[0].id === 'real1');
     ok('…an old running order stays as it is: the printer still records it in the portal', !C.flowVpViewOnly({ id: 'real1', status: 'Placed' }) && C.flowVpViewOnly({ demandSource: 'ppc' }));
-    { const off = load({ host: 'price-research-48ff3.web.app', me: { admin: true }, mdb, fsCat });
+    { const off = load({ ls: { flow: '0' }, me: { admin: true }, mdb, fsCat });
       off.setFLOW(Object.assign(off.FLOW(), { po: C.FLOW().po, ppc: C.FLOW().ppc }));
-      ok('on the live app: no test vendor order anywhere, and a PPC order is not view only', !off.flowTestVos().length && !off.flowVpViewOnly({ demandSource: 'ppc', test: true })); }
+      ok('with the flow switched off (flow = 0): no test vendor order anywhere, and a PPC order is not view only', !off.flowTestVos().length && !off.flowVpViewOnly({ demandSource: 'ppc', test: true })); }
     /* printer changed / plan undone */
     const D = mk({});
     D.flowPpcOpen('AMZ-1'); D.ctx.document.querySelectorAll = () => [PRF(0, 'P1'), PRF(1, 'P1'), PRF(2, 'P1')]; await D.ctx.__dlg.onSave();
@@ -1098,6 +1097,31 @@ const K = 'AMZ-1__S1';
     ok('design A: the message is one point a line, the bucket first', /^PPC completed: 2 line\(s\)\n• Plan raised/.test(P.els.flMsg.textContent) && /\n• TEST VIEW, not on the live app/.test(P.els.flMsg.textContent) && P.els.flMsg.style.whiteSpace === 'pre-line', P.els.flMsg.textContent);
   }
 
+  console.log('== test phase on the live app: the flow runs TEST orders only until Ravi says so (14 Oct) ==');
+  {
+    const TN = 'TEST-AMZ-14102026-01';
+    const db = {
+      pt_flowTest: { [TN]: { orderNo: TN, src: 'AMZ', orderDate: '2026-10-14', fromSo: 'AMZ-1', lines: { S1: { qty: 5 } } } },
+      pt_ppc: { [TN + '__S1']: plan({ orderNo: TN, sku: 'S1', qty: 5 }), 'AMZ-1__S1': plan() },
+      pt_flowChallans: { 'TRFD-202610-001': { no: 'TRFD-202610-001', orderNo: TN, lines: [] }, 'RFD-202610-001': { no: 'RFD-202610-001', orderNo: 'AMZ-1', lines: [] } },
+      pt_flowDemand: { 'AMZ-1__S1': { fabricReady: { at: '2026-10-12' } } },
+    };
+    const P = load({ ls: { flowReal: null }, host: 'fabricrush-replenish.web.app', me: { admin: true }, db, mdb: { S1: { cons: 1, fab: 'Cotton' } }, lines: [L()] });
+    ok('on the live app the flow is on (menu, screens, Greige Desk)', P.FLOW_ON === true);
+    ok('a real order dated after 10 Oct is NOT the flow\'s — the old screens take it as they always did', P.flowOwnsOrder('AMZ-1') === false && P.flowOwnsOrder('AMZ-1', '2026-10-12') === false);
+    ok('a test order is the flow\'s', P.flowOwnsOrder(TN) === true);
+    await P.flowLoad(true);
+    const F = P.FLOW();
+    ok('what the flow wrote for a real order is left out as it is read — plan, fabric ready, challan',
+      !F.ppc['AMZ-1__S1'] && !F.dem['AMZ-1__S1'] && !F.ch['RFD-202610-001'] && !!F.ppc[TN + '__S1'] && !!F.ch['TRFD-202610-001'], JSON.stringify([Object.keys(F.ppc), Object.keys(F.ch)]));
+    ok('the flow\'s lists hold the test order alone, no real line', P.flowRows().length === 1 && P.flowRows()[0].r.orderNo === TN, JSON.stringify(P.flowRows().map(x => x.r.orderNo)));
+    P.flowTestOpen();
+    ok('…and "+ Test order" still offers the real sales orders to copy', /value="AMZ-1"/.test(P.ctx.__dlg.html));
+    const R = load({ ls: { flowReal: '1' }, me: { admin: true }, db, mdb: { S1: { cons: 1, fab: 'Cotton' } }, lines: [L()] });
+    await R.flowLoad(true);
+    ok('flowReal = 1 (the "move forward" switch) brings the real orders in', R.flowOwnsOrder('AMZ-1') === true && R.flowRows().some(x => x.r.orderNo === 'AMZ-1') && !!R.FLOW().ppc['AMZ-1__S1']);
+  }
+
   console.log('== a TEST order walks every bucket, end to end ==');
   {
     A = load({ me: { admin: true }, lines: [L({ orderNo: 'AMZ-REAL', sku: 'R1' })], mdb: { S1: { cons: 0.5, fab: 'Cotton', articleSubtype: 'Napkin' }, X1: { cons: 1, fab: 'Cotton' } }, rfd: { COTTON: 999 } });
@@ -1130,8 +1154,8 @@ const K = 'AMZ-1__S1';
     { const hr = A.flowVlogRows();
       ok('…and the receipt is a row of Vendors & printers → History: 5 m from Sanganer, accepted, TEST, on its challan', hr.length === 1 && hr[0].qty === 5 && hr[0].unit === 'm' && hr[0].ok && hr[0].ok.qty === 5
         && hr[0].vendor === 'Sanganer Prints' && hr[0].test && /^flow\/TRFD-202610-001\//.test(hr[0].key2) && /TRFD-202610-001/.test(hr[0].orderNo), JSON.stringify(hr)); }
-    { const LV = load({ host: 'price-research-48ff3.web.app' }); LV.setFLOW(Object.assign(LV.FLOW(), { ch: A.FLOW().ch }));
-      ok('…never on the live app (the flow is switched off there)', LV.flowVlogRows().length === 0); }
+    { const LV = load({ ls: { flow: '0' } }); LV.setFLOW(Object.assign(LV.FLOW(), { ch: A.FLOW().ch }));
+      ok('…never where the flow is switched off (flow = 0)', LV.flowVlogRows().length === 0); }
     /* Cutting: asks what Cutting Data asks. */
     A.setView('cut'); A.renderView();
     ok('Cutting offers "Cutting entry (test)", not a bare Simulate', /data-flte="cut\|TEST-AMZ-13102026-01\|S1"/.test(A.els.flTable.innerHTML) && !/data-flsim="[^"]*\|cut"/.test(A.els.flTable.innerHTML));
@@ -1431,7 +1455,7 @@ const K = 'AMZ-1__S1';
   ok('a test order always is; an order nobody knows is not', A.flowOwnsOrder('TEST-AMZ-12102026-01') === true && A.flowOwnsOrder('XYZ-9') === false);
   ok('a date passed in is used as it is', A.flowOwnsOrder('NEW-1', '2026-10-10') === true && A.flowOwnsOrder('NEW-1', '2026-10-09') === false);
   ok('a localStorage flowFrom moves the line', load({ lines: [L()], ls: { flowFrom: '2026-10-13' } }).flowOwnsOrder('AMZ-1') === false);
-  ok('off the test link nothing is the flow\'s', load({ lines: [L()], host: 'price-research-48ff3.web.app' }).flowOwnsOrder('AMZ-1') === false);
+  ok('with the flow switched off nothing is the flow\'s', load({ lines: [L()], ls: { flow: '0' } }).flowOwnsOrder('AMZ-1') === false);
   ok('a hand-made vendor order stamped for a flow order is caught, once per order',
     JSON.stringify(A.flowOwnedIn([{ sku: 'S1', forOrders: [{ orderNo: 'AMZ-1', qty: 5 }, { orderNo: 'AMZ-0', qty: 5 }] }, { sku: 'S2', forOrders: [{ orderNo: 'AMZ-1', qty: 2 }] }, { sku: 'S3', cancelled: true, forOrders: [{ orderNo: 'TEST-X' }] }])) === '["AMZ-1"]');
   ok('…and one for older orders only passes', A.flowOwnedIn([{ sku: 'S1', forOrders: [{ orderNo: 'AMZ-0', qty: 5 }] }, { sku: 'S9' }]).length === 0);

@@ -58,6 +58,9 @@ async function flowVpAfterLoad() {
     try { VP.rows = ptList(await ptGet('pt_vendorOrders/' + VP.code)); } catch (e) { VP.rows = []; }
   }
   if (!VP.code) return;
+  /* A PRINTER'S OWN SIGN-IN NEVER SEES A TEST ORDER (14 Oct: the flow is on the live app now, where real printers sign in).
+   * Test orders reach the portal only when an admin looks at it "as printer". */
+  if (!VP.viewAs) { VP.rows = (VP.rows || []).filter(o => !(o && o.virtual)); return; }
   try { await flowLoad(); } catch (e) { return; }
   VP.rows = (VP.rows || []).filter(o => !(o && o.virtual)).concat(flowTestVos().filter(v => obUC(v.vendorCode) === obUC(VP.code)));
 }

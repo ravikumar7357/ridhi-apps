@@ -10,11 +10,9 @@
  * every badge, right and click handler finds them where it always did.
  */
 const NAV_PROD_ONLY = (function navProductionOnly() {
-  let on = false;
-  try {
-    const v = localStorage.getItem('flow');
-    on = v === '1' ? true : v === '0' ? false : /--/.test(location.hostname) || /^(localhost|127\.)/.test(location.hostname);
-  } catch (e) { return false; }
+  /* On everywhere since 14 Oct, the live app too (same switch as FLOW_ON); localStorage flow = '0' keeps the old menu. */
+  let on = true;
+  try { if (localStorage.getItem('flow') === '0') on = false; } catch (e) { /* storage blocked: the new menu */ }
   const side = document.querySelector('.side'), prodWrap = $('grpProd') && $('grpProd').parentNode;
   if (!on || !side || !prodWrap) return false;
   if ($('grpOrders')) return true;
