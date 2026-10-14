@@ -1395,6 +1395,13 @@ console.log('\n== a line with no SKU is refused OUT LOUD, not dropped ==');
   ok('…and it still reports what DID open', /in the Order Console/.test(msg), msg);
   ok('…and names the other refusal separately from the codeless ones',
     /BAD.SKU/.test(msg) && /could not be ordered/.test(msg), msg);
+  /* Ravi, 14 Oct: "remove this" — the run on opening Shopify Orders leaves out the two standing notes. */
+  const autoMsg = A.shpSyncMsg(Object.assign({}, t, { done: 1 }), true);
+  ok('the automatic run does not repeat "NO SKU" or "stay open until production hands them over"',
+    !/NO SKU on the Shopify variant/.test(autoMsg) && !/stay open until production hands them over/.test(autoMsg)
+    && /in the Order Console/.test(autoMsg) && /could not be ordered/.test(autoMsg), autoMsg);
+  ok('…a run somebody starts still says both', /stay open until production hands them over/.test(A.shpSyncMsg(Object.assign({}, t, { done: 1 })))
+    && /NO SKU on the Shopify variant/.test(A.shpSyncMsg(t)));
 
   RT = {}; PTG.ob = []; SOX.rows = [];
 }

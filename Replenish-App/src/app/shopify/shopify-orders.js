@@ -1581,6 +1581,11 @@ function renderShopDense(rows, COLS, arrow, money, esc) {
   if ($('soAll')) $('soAll').checked = drawn.length > 0 && drawn.every(r => SO_PICKED.has(r.id));
 }
 if ($('soDense')) $('soDense').onclick = () => { try { localStorage.setItem('soDense', soDense() ? '0' : '1'); } catch (e) { /* not remembered */ } renderShop(); };
+/* "More ▾" closes when one of its buttons is pressed, and on a click anywhere else — picking the template does not close it. */
+if ($('soMoreMenu')) {
+  $('soMoreMenu').addEventListener('click', e => { if (e.target.closest('.so-more-pop button')) $('soMoreMenu').open = false; });
+  document.addEventListener('click', e => { if ($('soMoreMenu').open && !e.target.closest('#soMoreMenu')) $('soMoreMenu').open = false; });
+}
 
 function renderShop() {
   const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));

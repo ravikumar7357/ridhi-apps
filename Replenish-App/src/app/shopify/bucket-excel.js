@@ -542,13 +542,16 @@ async function shpCloseShipped(opts) {
   return out;
 }
 
-/** What a run did, in one line. */
-function shpSyncMsg(t) {
+/** What a run did, in one line.
+ * auto — the run that happens by itself on opening Shopify Orders. It no longer repeats the two standing notes, "N lines
+ * are fulfilled on Shopify and stay open" and "N lines have no SKU" (Ravi, 14 Oct: "remove this"): they came up on every
+ * visit and said the same thing each time. A run somebody starts (opening orders from the bucket) still says them. */
+function shpSyncMsg(t, auto) {
   if (!t) return '';
   if (t.cancelled) return 'Nothing was sent to production.';
   if (t.err) return 'The Order Console could not be brought up to date: ' + t.err;
   const bits = [];
-  if (t.done) bits.push(`${nf(t.done)} open production line(s) are fulfilled, cancelled or marked done on Shopify — they stay open until production hands them over`);
+  if (t.done && !auto) bits.push(`${nf(t.done)} open production line(s) are fulfilled, cancelled or marked done on Shopify — they stay open until production hands them over`);
   if (t.written) bits.push(`${nf(t.written)} line(s) · ${nf(t.pieces)} piece(s) in the Order Console across ${nf(t.orders)} order(s)`);
   if (t.removed) bits.push(`${nf(t.removed)} closed (now fillable, shipped, or marked done on Shopify)`);
   if (t.dupes) bits.push(`${nf(t.dupes)} duplicate row(s) removed — they were doubling a quantity`);
@@ -562,7 +565,7 @@ function shpSyncMsg(t) {
      * thing done in the same place. Everything else is still named individually. */
     const noCode = t.skipped.filter(s => s.sku === '(no code)');
     const rest = t.skipped.filter(s => s.sku !== '(no code)');
-    if (noCode.length) {
+    if (noCode.length && !auto) {
       bits.push(`${nf(noCode.length)} line(s) have NO SKU on the Shopify variant, so nothing can be `
         + `made for them — ${noCode.slice(0, 2).map(s => (s.why.match(/^"([^"]+)"/) || [, '?'])[1]).join(', ')}`
         + (noCode.length > 2 ? ` and ${nf(noCode.length - 2)} more` : '')
@@ -602,7 +605,7 @@ async function shpSyncSoon(where) {
   try {
     /* THE AUTOMATIC RUN OPENS NOTHING (Ravi, 2026-09-26) — it completes what Shopify has closed. Opening is the bucket's. */
     const t = await shpSyncAll({ maintain: true });
-    let msg = shpSyncMsg(t);
+    let msg = shpSyncMsg(t, true);
     /* AND THEN THE ONES THAT WERE NOT IN THE WINDOW. Without this an order that shipped in July is
      * demanded again every time the app is opened, because nobody ever fetched far enough back to
      * find out that it shipped. */

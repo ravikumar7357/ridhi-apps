@@ -913,6 +913,15 @@
   #paneShop .so-acts{gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
   #paneShop .so-acts button{padding:6px 12px;font-size:12.5px;min-height:0}
   #paneShop .so-acts select{padding:5px 8px;font-size:12.5px;height:auto}
+  /* "More ▾": Export, Import orders, Update sheet, Bulk update in one menu (2026-10-14). */
+  #paneShop .so-more{position:relative}
+  #paneShop .so-more-btn{list-style:none;cursor:pointer;padding:6px 12px;font-size:12.5px;border-radius:999px;border:1px solid var(--line);background:var(--card);user-select:none}
+  #paneShop .so-more-btn::-webkit-details-marker{display:none}
+  #paneShop .so-more[open] .so-more-btn{background:var(--chip)}
+  #paneShop .so-more-pop{position:absolute;left:0;top:calc(100% + 6px);z-index:60;min-width:300px;display:flex;flex-direction:column;gap:6px;
+    padding:10px;background:var(--card);border-radius:12px;box-shadow:var(--sh-2)}
+  #paneShop .so-more-pop .so-exp{display:flex;gap:6px}
+  #paneShop .so-more-pop > button{width:100%;text-align:left}
   #paneShop .so-sep{width:1px;height:20px;background:var(--line);margin:0 4px}
   #paneShop .so-grow{flex:1 1 0}
   #paneShop .so-exp{display:inline-flex;gap:4px;align-items:center}

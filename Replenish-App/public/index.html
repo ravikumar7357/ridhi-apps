@@ -941,6 +941,15 @@
   #paneShop .so-acts{gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
   #paneShop .so-acts button{padding:6px 12px;font-size:12.5px;min-height:0}
   #paneShop .so-acts select{padding:5px 8px;font-size:12.5px;height:auto}
+  /* "More ▾": Export, Import orders, Update sheet, Bulk update in one menu (2026-10-14). */
+  #paneShop .so-more{position:relative}
+  #paneShop .so-more-btn{list-style:none;cursor:pointer;padding:6px 12px;font-size:12.5px;border-radius:999px;border:1px solid var(--line);background:var(--card);user-select:none}
+  #paneShop .so-more-btn::-webkit-details-marker{display:none}
+  #paneShop .so-more[open] .so-more-btn{background:var(--chip)}
+  #paneShop .so-more-pop{position:absolute;left:0;top:calc(100% + 6px);z-index:60;min-width:300px;display:flex;flex-direction:column;gap:6px;
+    padding:10px;background:var(--card);border-radius:12px;box-shadow:var(--sh-2)}
+  #paneShop .so-more-pop .so-exp{display:flex;gap:6px}
+  #paneShop .so-more-pop > button{width:100%;text-align:left}
   #paneShop .so-sep{width:1px;height:20px;background:var(--line);margin:0 4px}
   #paneShop .so-grow{flex:1 1 0}
   #paneShop .so-exp{display:inline-flex;gap:4px;align-items:center}
@@ -2896,23 +2905,30 @@
         <span class="so-sep"></span>
         <button id="soPrintMany" class="ghost"
                 title="Pick sheets, with photos, for the ticked orders — or for everything shown if nothing is ticked.">Print orders</button>
-        <span class="so-exp">
-        <select id="soTmpl" style="flex:0 0 auto;width:auto" title="Which upload template to write. The column headings and their order match the courier's own workbook exactly.">
-          <option value="plain">Plain list — one row per line item</option>
-          <option value="plainOrder">Plain list — one row per order</option>
-          <option value="mcf">Amazon MCF</option>
-          <option value="dhlh">DHL Hybrid</option>
-          <option value="dhlc">DHL CSV</option>
-          <option value="fedex">FedEx</option>
-        </select>
-        <button id="soExport" class="ghost">Export</button>
-        </span>
-        <button id="soImp" class="ghost"
-                title="Bring in orders from a shop this app has no API key for — CPC Shopify and the Etsy stores.">Import orders</button>
-        <button id="soBulkSheet" class="ghost"
-                title="A sheet of every line of the orders shown (or ticked), with the Location, At location and Line status recorded today. Change what you need and bring it back with Bulk update.">Update sheet</button>
-        <button id="soBulkPick" class="ghost"
-                title="Read an update sheet back: Location, At location and Line status for many lines at once. A blank cell is left as it is; a - clears it.">Bulk update</button>
+        <!-- MORE (Ravi, 14 Oct: "import export update sheet and bulk update put them in more drop down"): the sheet work
+             that is not done every day, in one menu. Every control keeps its id, so nothing else changes. -->
+        <details class="so-more" id="soMoreMenu">
+          <summary class="so-more-btn">More ▾</summary>
+          <div class="so-more-pop">
+            <span class="so-exp">
+            <select id="soTmpl" style="flex:1 1 auto;width:auto" title="Which upload template to write. The column headings and their order match the courier's own workbook exactly.">
+              <option value="plain">Plain list — one row per line item</option>
+              <option value="plainOrder">Plain list — one row per order</option>
+              <option value="mcf">Amazon MCF</option>
+              <option value="dhlh">DHL Hybrid</option>
+              <option value="dhlc">DHL CSV</option>
+              <option value="fedex">FedEx</option>
+            </select>
+            <button id="soExport" class="ghost">Export</button>
+            </span>
+            <button id="soImp" class="ghost"
+                    title="Bring in orders from a shop this app has no API key for — CPC Shopify and the Etsy stores.">Import orders</button>
+            <button id="soBulkSheet" class="ghost"
+                    title="A sheet of every line of the orders shown (or ticked), with the Location, At location and Line status recorded today. Change what you need and bring it back with Bulk update.">Update sheet</button>
+            <button id="soBulkPick" class="ghost"
+                    title="Read an update sheet back: Location, At location and Line status for many lines at once. A blank cell is left as it is; a - clears it.">Bulk update</button>
+          </div>
+        </details>
         <input id="soBulkFile" type="file" accept=".xlsx,.csv,text/csv" class="hide">
         <span class="so-grow"></span>
         <button id="soDense" class="ghost" title="One page: ten columns that fit the screen, or every column with a sideways scroll.">Full columns</button>
@@ -60374,6 +60390,11 @@ function renderShopDense(rows, COLS, arrow, money, esc) {
   if ($('soAll')) $('soAll').checked = drawn.length > 0 && drawn.every(r => SO_PICKED.has(r.id));
 }
 if ($('soDense')) $('soDense').onclick = () => { try { localStorage.setItem('soDense', soDense() ? '0' : '1'); } catch (e) { /* not remembered */ } renderShop(); };
+/* "More ▾" closes when one of its buttons is pressed, and on a click anywhere else — picking the template does not close it. */
+if ($('soMoreMenu')) {
+  $('soMoreMenu').addEventListener('click', e => { if (e.target.closest('.so-more-pop button')) $('soMoreMenu').open = false; });
+  document.addEventListener('click', e => { if ($('soMoreMenu').open && !e.target.closest('#soMoreMenu')) $('soMoreMenu').open = false; });
+}
 
 function renderShop() {
   const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
@@ -62362,13 +62383,16 @@ async function shpCloseShipped(opts) {
   return out;
 }
 
-/** What a run did, in one line. */
-function shpSyncMsg(t) {
+/** What a run did, in one line.
+ * auto — the run that happens by itself on opening Shopify Orders. It no longer repeats the two standing notes, "N lines
+ * are fulfilled on Shopify and stay open" and "N lines have no SKU" (Ravi, 14 Oct: "remove this"): they came up on every
+ * visit and said the same thing each time. A run somebody starts (opening orders from the bucket) still says them. */
+function shpSyncMsg(t, auto) {
   if (!t) return '';
   if (t.cancelled) return 'Nothing was sent to production.';
   if (t.err) return 'The Order Console could not be brought up to date: ' + t.err;
   const bits = [];
-  if (t.done) bits.push(`${nf(t.done)} open production line(s) are fulfilled, cancelled or marked done on Shopify — they stay open until production hands them over`);
+  if (t.done && !auto) bits.push(`${nf(t.done)} open production line(s) are fulfilled, cancelled or marked done on Shopify — they stay open until production hands them over`);
   if (t.written) bits.push(`${nf(t.written)} line(s) · ${nf(t.pieces)} piece(s) in the Order Console across ${nf(t.orders)} order(s)`);
   if (t.removed) bits.push(`${nf(t.removed)} closed (now fillable, shipped, or marked done on Shopify)`);
   if (t.dupes) bits.push(`${nf(t.dupes)} duplicate row(s) removed — they were doubling a quantity`);
@@ -62382,7 +62406,7 @@ function shpSyncMsg(t) {
      * thing done in the same place. Everything else is still named individually. */
     const noCode = t.skipped.filter(s => s.sku === '(no code)');
     const rest = t.skipped.filter(s => s.sku !== '(no code)');
-    if (noCode.length) {
+    if (noCode.length && !auto) {
       bits.push(`${nf(noCode.length)} line(s) have NO SKU on the Shopify variant, so nothing can be `
         + `made for them — ${noCode.slice(0, 2).map(s => (s.why.match(/^"([^"]+)"/) || [, '?'])[1]).join(', ')}`
         + (noCode.length > 2 ? ` and ${nf(noCode.length - 2)} more` : '')
@@ -62422,7 +62446,7 @@ async function shpSyncSoon(where) {
   try {
     /* THE AUTOMATIC RUN OPENS NOTHING (Ravi, 2026-09-26) — it completes what Shopify has closed. Opening is the bucket's. */
     const t = await shpSyncAll({ maintain: true });
-    let msg = shpSyncMsg(t);
+    let msg = shpSyncMsg(t, true);
     /* AND THEN THE ONES THAT WERE NOT IN THE WINDOW. Without this an order that shipped in July is
      * demanded again every time the app is opened, because nobody ever fetched far enough back to
      * find out that it shipped. */
