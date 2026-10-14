@@ -16,7 +16,7 @@ function load(opts) {
   const el = id => els[id] || (els[id] = { id, value: '', textContent: '', innerHTML: '', className: '', style: {}, dataset: {}, classList: { toggle() {}, add() {}, remove() {}, contains: () => false }, addEventListener() {}, onclick: null });
   const W = { lines: opts.lines || [], vendor: opts.vendor || {}, qc: opts.qc || {}, fg: opts.fg || {}, shelf: opts.shelf || [] };
   const ctx = {
-    $: el, document: { querySelectorAll: () => [], querySelector: () => null }, localStorage: { getItem: k => (opts.ls || {})[k] ?? null },
+    $: el, document: { querySelectorAll: () => [], querySelector: () => null }, localStorage: { getItem: k => Object.assign({ flowTests: '1' }, opts.ls || {})[k] ?? null },
     location: { hostname: opts.host || 'price-research-48ff3--flow-abc.web.app' },
     ME: Object.assign({ email: 'ppc@x', admin: false, tabs: [] }, opts.me || {}),
     obUC, esc: s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c])), nf: v => String(v),
@@ -1034,6 +1034,33 @@ const K = 'AMZ-1__S1';
     ok('switched off: everything again (the real SHP line is in WIP)', /SHP-5717/.test(A.els.flTable.innerHTML));
     ok('no test order → the switch starts OFF', load({ me: { admin: true } }).flowTestOnly() === false);
     ok('a choice made is kept (localStorage flowTestOnly)', load({ ls: { flowTestOnly: '0' } , me: { admin: true } }).flowTestOnly() === false && load({ ls: { flowTestOnly: '1' } }).flowTestOnly() === true);
+  }
+
+  console.log('== test orders off: PPC is fed by the sales orders (Ravi, 14 Oct) ==');
+  {
+    const TN = 'TEST-AMZ-10102026-01';
+    const db = {
+      pt_flowTest: { [TN]: { orderNo: TN, src: 'AMZ', orderDate: '2026-10-13', lines: { S1: { qty: 10 } } } },
+      pt_ppc: { [TN + '__S1']: { orderNo: TN, sku: 'S1' } },
+      pt_accReserve: { [TN + '__S1']: { orderNo: TN, sku: 'S1', items: { Z1: 5 } }, 'AMZ-1__R2': { orderNo: 'AMZ-1', sku: 'R2', items: { Z1: 2 } } },
+      pt_flowChallans: { 'TRFD-202610-001': { no: 'TRFD-202610-001', orderNo: TN, lines: [] }, 'RFD-202610-001': { no: 'RFD-202610-001', orderNo: 'AMZ-1', lines: [] } },
+      pt_flowPrintOrders: { 'TPRN-1': { no: 'TPRN-1', test: true }, 'PRN-1': { no: 'PRN-1' } },
+      pt_flowFgSend: { f1: { orderNo: TN, sku: 'S1', pcs: 1, test: true }, f2: { orderNo: 'AMZ-1', sku: 'R2', pcs: 1 } },
+    };
+    const B = load({ ls: { flowTests: null, flowTestOnly: '1' }, me: { admin: true }, db, mdb: { R2: { cons: 1, fab: 'Cotton' } }, lines: [L({ sku: 'R2' })] });
+    await B.flowLoad(true);
+    const F = B.FLOW();
+    ok('off by default: no test order is read', Object.keys(F.test).length === 0);
+    ok('…nor its plan, reservation, challan, print order or FG send',
+      !Object.keys(F.ppc).some(k => /^TEST-/.test(k)) && Object.keys(F.res).join() === 'AMZ-1__R2' && Object.keys(F.ch).join() === 'RFD-202610-001'
+      && Object.keys(F.po).join() === 'PRN-1' && Object.keys(F.fg).join() === 'f2', JSON.stringify([F.res, F.ch, F.po, F.fg]));
+    ok('"Only test orders" cannot narrow to nothing, even remembered ON', B.flowTestOnly() === false);
+    B.setView('ppc'); B.renderFlow();
+    ok('PPC holds the sales order AMZ-1, no test order', /AMZ-1/.test(B.els.flTable.innerHTML) && !/TEST-/.test(B.els.flTable.innerHTML) && !/SHOWING TEST ORDERS ONLY/.test(B.els.flMsg.textContent));
+    ok('the "+ Test order" button and the switch are hidden', B.els.flTest.style.display === 'none');
+    const C = load({ me: { admin: true }, db, lines: [L({ sku: 'R2' })] });
+    await C.flowLoad(true);
+    ok('localStorage flowTests = 1 brings them back', Object.keys(C.FLOW().test).join() === TN && Object.keys(C.FLOW().po).length === 2);
   }
 
   console.log('== a TEST order walks every bucket, end to end ==');

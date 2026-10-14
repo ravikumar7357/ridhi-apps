@@ -3827,14 +3827,15 @@ onAuthStateChanged(auth, async user => {
  * live app has it and the links are moved here, before the groups below are read from it. The links keep their ids, so
  * every badge, right and click handler finds them where it always did.
  */
-(function navProductionOnly() {
+const NAV_PROD_ONLY = (function navProductionOnly() {
   let on = false;
   try {
     const v = localStorage.getItem('flow');
     on = v === '1' ? true : v === '0' ? false : /--/.test(location.hostname) || /^(localhost|127\.)/.test(location.hostname);
-  } catch (e) { return; }
+  } catch (e) { return false; }
   const side = document.querySelector('.side'), prodWrap = $('grpProd') && $('grpProd').parentNode;
-  if (!on || !side || !prodWrap || $('grpOrders')) return;
+  if (!on || !side || !prodWrap) return false;
+  if ($('grpOrders')) return true;
   const SVG = d => '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
     + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>';
   const ICON = {
@@ -3905,7 +3906,12 @@ onAuthStateChanged(auth, async user => {
   side.insertBefore(store, prodWrap.nextSibling);
   const people = $('grpPeople') && $('grpPeople').parentNode;
   if (people) side.insertBefore(setup, people.nextSibling);
+  return true;
 })();
+/* NO VENDORS HEADING FOR STAFF (Ravi, 14 Oct: "vendor bucket remove karo yadi koi action hi nahi h usme"). All it holds is the
+ * portal a printer signs in to; the printers' own work is under Production → Printing. A printer's sign-in still gets it —
+ * vendorOnlyTabs sets this — and nothing else. */
+let NAV_IS_VENDOR = false;
 const NAV_GROUPS =[...document.querySelectorAll('.navgrp')].map(head => ({
   key: head.dataset.grp,
   head,
@@ -3995,7 +4001,7 @@ NAV_GROUPS.forEach(g => setGroupOpen(g, false));
 function syncNavGroups() {
   const may = t => !ME.tabs || !ME.tabs.length || ME.tabs.includes(t);
   NAV_GROUPS.forEach(g => {
-    const dead = !g.tabs.some(may);
+    const dead = !g.tabs.some(may) || (g.key === 'vendors' && NAV_PROD_ONLY && !NAV_IS_VENDOR && (ME.tabs || []).some(t => t !== 'vend'));
     g.head.classList.toggle('hide', dead);
     g.sec.classList.toggle('hide', dead);
   });
@@ -4039,6 +4045,7 @@ const VENDOR_TABS = ['vend'];
  * screen, never what is stored.
  */
 function vendorOnlyTabs() {
+  NAV_IS_VENDOR = true;
   const keep = (ME.tabs || []).filter(t => VENDOR_TABS.indexOf(t) >= 0);
   ME.tabs = keep.length ? keep : VENDOR_TABS.slice();
   Object.entries(NAV_MAP).forEach(([t, id]) => {
@@ -24175,8 +24182,23 @@ const flowInView = (view, s) => view === 'drfd' ? s.bucket === 'demand' && s.nee
 const flowBucketsAllowed = () => (ME.admin ? FLOW_BUCKETS : FLOW_BUCKETS.filter(b => (ME.tabs || []).includes(b[2])));
 const flowKey = (orderNo, sku) => (obUC(orderNo) + '__' + obUC(sku)).replace(/[.#$\[\]\/]/g, '_');
 
+/* ---- TEST ORDERS ARE OFF (Ravi, 14 Oct: "PPC me order sales order se aana chahiye — abhi jo test order se aa rha h wo
+ * galat h") ----
+ * PPC is fed by the sales orders alone: every order from flowFrom() on. The test orders, and everything written for them
+ * (plans, demand, reservations, print orders, challans, FG sends), are left out of the screen as they are read, so a test
+ * reservation no longer holds real accessories either. Nothing is deleted from the database. localStorage flowTests = '1'
+ * brings them back, with the "+ Test order" button, for walking an order end to end. */
+function flowTestsOn() { try { return localStorage.getItem('flowTests') === '1'; } catch (e) { return false; } }
+function flowDropTests() {
+  const isTest = (k, v) => /^TEST-/.test(String(k)) || !!(v && (v.test || /^TEST-/.test(obUC(v.orderNo))));
+  const keep = o => Object.fromEntries(Object.entries(o || {}).filter(([k, v]) => !isTest(k, v)));
+  FLOW.test = {};
+  FLOW.ppc = keep(FLOW.ppc); FLOW.dem = keep(FLOW.dem); FLOW.res = keep(FLOW.res);
+  FLOW.ch = keep(FLOW.ch); FLOW.po = keep(FLOW.po); FLOW.fg = keep(FLOW.fg);
+}
+
 /* ---- the data ---- */
-let FLOW = { ppc: null, dem: null, res: null, ch: null, test: null, po: null, fg: null, rev: null, at: 0, busy: null, err: '' };
+let FLOW ={ ppc: null, dem: null, res: null, ch: null, test: null, po: null, fg: null, rev: null, at: 0, busy: null, err: '' };
 async function flowLoad(force) {
   if (FLOW.busy) return FLOW.busy;
   if (FLOW.ppc && !force && Date.now() - FLOW.at < 60e3) return;
@@ -24184,6 +24206,7 @@ async function flowLoad(force) {
     try {
       const [ppc, dem, res, ch, test, po, fg, rev] = await Promise.all([ptGet('pt_ppc'), ptGet('pt_flowDemand'), ptGet('pt_accReserve'), ptGet('pt_flowChallans'), ptGet('pt_flowTest'), ptGet('pt_flowPrintOrders'), ptGet('pt_flowFgSend'), ptGet('pt_flowRev')]);
       FLOW.ppc = ppc || {}; FLOW.dem = dem || {}; FLOW.res = res || {}; FLOW.ch = ch || {}; FLOW.test = test || {}; FLOW.po = po || {}; FLOW.fg = fg || {}; FLOW.rev = rev || {}; FLOW.err = '';
+      if (!flowTestsOn()) flowDropTests();
     } catch (e) { FLOW.err = e.message || String(e); FLOW.ppc = FLOW.ppc || {}; FLOW.dem = FLOW.dem || {}; FLOW.res = FLOW.res || {}; FLOW.ch = FLOW.ch || {}; FLOW.test = FLOW.test || {}; FLOW.po = FLOW.po || {}; FLOW.fg = FLOW.fg || {}; }
     FLOW.at = Date.now(); FLOW.busy = null;
   })();
@@ -25248,6 +25271,7 @@ const flowIsTest = no => /^TEST-/.test(String(no || ''));
  * track kar saku"). On, every bucket, count and challan list holds the TEST orders alone. Remembered on this computer;
  * on by itself the first time there is a test order to follow. */
 function flowTestOnly() {
+  if (!flowTestsOn()) return false;   // test orders are off: there is nothing to narrow to
   let v = null; try { v = localStorage.getItem('flowTestOnly'); } catch (e) { v = null; }
   if (v === '1') return true; if (v === '0') return false;
   return Object.keys(FLOW.test || {}).length > 0;
@@ -26013,7 +26037,7 @@ const flowDmy = iso => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d
 
 /** The test print orders as Vendor Orders — built on the fly, never stored. */
 function flowTestVos() {
-  if (!FLOW_ON) return [];   // the live app never sees a test vendor order
+  if (!FLOW_ON || !flowTestsOn()) return [];   // the live app never sees a test vendor order, nor the preview with tests off
   const out = [];
   Object.values(FLOW.po || {}).forEach(o => {
     if (!o || !o.test || o.cancelled || !o.printer || !o.printer.code) return;
@@ -26576,6 +26600,11 @@ function renderFlow() {
   ptFillSelect('flSrc', srcs.map(s => [s, s]), 'Every platform');
   const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly();
   if ($('flTestOnly')) $('flTestOnly').checked = only;
+  /* With test orders off (flow-core.js) there is no test order to raise or narrow to: the button and the switch go. */
+  const tests = flowTestsOn();
+  if ($('flTest') && $('flTest').style) $('flTest').style.display = tests ? '' : 'none';
+  const tLab = $('flTestOnly') && $('flTestOnly').parentNode;
+  if (tLab && tLab.style) tLab.style.display = tests ? '' : 'none';
   const pass = x => (!only || x.r.__t) && (!src || (x.r.src || String(x.r.orderNo).split('-')[0]) === src)
     && (!q || [x.r.orderNo, x.r.sku, x.r.color, x.r.size, x.r.articleSubtype, x.r.articleType].join(' ').toLowerCase().includes(q));
   const shown = all.filter(pass), n = flowCounts(shown);

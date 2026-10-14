@@ -49,6 +49,11 @@ function renderFlow() {
   ptFillSelect('flSrc', srcs.map(s => [s, s]), 'Every platform');
   const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly();
   if ($('flTestOnly')) $('flTestOnly').checked = only;
+  /* With test orders off (flow-core.js) there is no test order to raise or narrow to: the button and the switch go. */
+  const tests = flowTestsOn();
+  if ($('flTest') && $('flTest').style) $('flTest').style.display = tests ? '' : 'none';
+  const tLab = $('flTestOnly') && $('flTestOnly').parentNode;
+  if (tLab && tLab.style) tLab.style.display = tests ? '' : 'none';
   const pass = x => (!only || x.r.__t) && (!src || (x.r.src || String(x.r.orderNo).split('-')[0]) === src)
     && (!q || [x.r.orderNo, x.r.sku, x.r.color, x.r.size, x.r.articleSubtype, x.r.articleType].join(' ').toLowerCase().includes(q));
   const shown = all.filter(pass), n = flowCounts(shown);

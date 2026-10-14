@@ -12,6 +12,7 @@ const flowIsTest = no => /^TEST-/.test(String(no || ''));
  * track kar saku"). On, every bucket, count and challan list holds the TEST orders alone. Remembered on this computer;
  * on by itself the first time there is a test order to follow. */
 function flowTestOnly() {
+  if (!flowTestsOn()) return false;   // test orders are off: there is nothing to narrow to
   let v = null; try { v = localStorage.getItem('flowTestOnly'); } catch (e) { v = null; }
   if (v === '1') return true; if (v === '0') return false;
   return Object.keys(FLOW.test || {}).length > 0;

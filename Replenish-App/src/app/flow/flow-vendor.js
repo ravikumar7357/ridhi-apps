@@ -19,7 +19,7 @@ const flowDmy = iso => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d
 
 /** The test print orders as Vendor Orders — built on the fly, never stored. */
 function flowTestVos() {
-  if (!FLOW_ON) return [];   // the live app never sees a test vendor order
+  if (!FLOW_ON || !flowTestsOn()) return [];   // the live app never sees a test vendor order, nor the preview with tests off
   const out = [];
   Object.values(FLOW.po || {}).forEach(o => {
     if (!o || !o.test || o.cancelled || !o.printer || !o.printer.code) return;

@@ -9,14 +9,15 @@
  * live app has it and the links are moved here, before the groups below are read from it. The links keep their ids, so
  * every badge, right and click handler finds them where it always did.
  */
-(function navProductionOnly() {
+const NAV_PROD_ONLY = (function navProductionOnly() {
   let on = false;
   try {
     const v = localStorage.getItem('flow');
     on = v === '1' ? true : v === '0' ? false : /--/.test(location.hostname) || /^(localhost|127\.)/.test(location.hostname);
-  } catch (e) { return; }
+  } catch (e) { return false; }
   const side = document.querySelector('.side'), prodWrap = $('grpProd') && $('grpProd').parentNode;
-  if (!on || !side || !prodWrap || $('grpOrders')) return;
+  if (!on || !side || !prodWrap) return false;
+  if ($('grpOrders')) return true;
   const SVG = d => '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
     + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>';
   const ICON = {
@@ -87,7 +88,12 @@
   side.insertBefore(store, prodWrap.nextSibling);
   const people = $('grpPeople') && $('grpPeople').parentNode;
   if (people) side.insertBefore(setup, people.nextSibling);
+  return true;
 })();
+/* NO VENDORS HEADING FOR STAFF (Ravi, 14 Oct: "vendor bucket remove karo yadi koi action hi nahi h usme"). All it holds is the
+ * portal a printer signs in to; the printers' own work is under Production → Printing. A printer's sign-in still gets it —
+ * vendorOnlyTabs sets this — and nothing else. */
+let NAV_IS_VENDOR = false;
 const NAV_GROUPS =[...document.querySelectorAll('.navgrp')].map(head => ({
   key: head.dataset.grp,
   head,
@@ -177,7 +183,7 @@ NAV_GROUPS.forEach(g => setGroupOpen(g, false));
 function syncNavGroups() {
   const may = t => !ME.tabs || !ME.tabs.length || ME.tabs.includes(t);
   NAV_GROUPS.forEach(g => {
-    const dead = !g.tabs.some(may);
+    const dead = !g.tabs.some(may) || (g.key === 'vendors' && NAV_PROD_ONLY && !NAV_IS_VENDOR && (ME.tabs || []).some(t => t !== 'vend'));
     g.head.classList.toggle('hide', dead);
     g.sec.classList.toggle('hide', dead);
   });
@@ -221,6 +227,7 @@ const VENDOR_TABS = ['vend'];
  * screen, never what is stored.
  */
 function vendorOnlyTabs() {
+  NAV_IS_VENDOR = true;
   const keep = (ME.tabs || []).filter(t => VENDOR_TABS.indexOf(t) >= 0);
   ME.tabs = keep.length ? keep : VENDOR_TABS.slice();
   Object.entries(NAV_MAP).forEach(([t, id]) => {
