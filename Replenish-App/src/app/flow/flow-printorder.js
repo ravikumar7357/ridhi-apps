@@ -284,12 +284,20 @@ function flowDocsOf(x) {
   });
   return out;
 }
-/** The papers of a line, as one small line under the order number. */
+/** The papers of a line, as one small line under the order number.
+ * COMPACT (Ravi, 14 Oct: "compact this"): PO, VO and RFD for print order, vendor order and challan, the full name on hover;
+ * the printer said once when every paper went to the same one; a closed challan ticked. Each paper keeps to one line and
+ * the papers wrap, so the order column stays narrow. */
+const FLOW_DOC_SHORT = { 'Print order': 'PO', 'Vendor order': 'VO', 'RFD challan': 'RFD', 'Ruffle challan': 'RFD ruffle' };
 function flowDocsHtml(x) {
   const d = flowDocsOf(x); if (!d.length) return '';
-  return '<div class="muted" style="font-size:10.5px;line-height:1.5;margin-top:2px">' + d.map(e => `${esc(e.kind)} `
-    + (e.link === 'po' ? `<a href="#" data-flpop="${esc(e.no)}" title="Open the print order to print">${esc(e.no)}</a>`
-      : e.link === 'ch' ? `<a href="#" data-flchp="${esc(e.no)}" title="Open the challan to print">${esc(e.no)}</a>${e.closed ? ' (closed)' : ''}`
+  const short = k => { const ruf = / \(ruffle\)$/.test(k), b = k.replace(/ \(ruffle\)$/, ''); return (FLOW_DOC_SHORT[b] || b) + (ruf ? ' ruffle' : ''); };
+  const whos = [...new Set(d.map(e => e.who).filter(Boolean))], one = whos.length === 1;
+  const tip = e => esc(e.kind + ' ' + e.no + (e.who ? ' → ' + e.who : '') + (e.closed ? ' · closed' : ''));
+  return '<div class="muted" style="font-size:10.5px;line-height:1.55;margin-top:2px">' + d.map(e => `<span style="white-space:nowrap" title="${tip(e)}">${esc(short(e.kind))} `
+    + (e.link === 'po' ? `<a href="#" data-flpop="${esc(e.no)}">${esc(e.no)}</a>`
+      : e.link === 'ch' ? `<a href="#" data-flchp="${esc(e.no)}">${esc(e.no)}</a>${e.closed ? ' ✓' : ''}`
       : `<b style="color:var(--ink,#1c2033)">${esc(e.no)}</b>`)
-    + (e.who ? ` → ${esc(e.who)}` : '')).join(' · ') + '</div>';
+    + (!one && e.who ? ` → ${esc(e.who)}` : '') + '</span>').join(' · ')
+    + (one ? ` <span style="white-space:nowrap">→ ${esc(whos[0])}</span>` : '') + '</div>';
 }

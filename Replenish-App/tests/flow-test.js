@@ -625,7 +625,7 @@ const K = 'AMZ-1__S1';
     ok('saved: one ruffle-only line, Cambric 23.5 m, and the line’s "fabric ready" left alone', !er && chR.lines.length === 1 && chR.lines[0].ruffleOnly && chR.lines[0].metres === 23.5 && chR.lines[0].fabric === 'Cambric'
       && !Object.keys(cw).some(k => k.startsWith('pt_flowDemand/')), er || JSON.stringify(cw));
     let st = R.flowState(R.W.lines[0]);
-    ok('…the body cloth is still owed → the line stays in Demand · RFD; the ruffle button is gone', st.needFab && st.bucket === 'demand' && (R.setView('drfd'), R.renderFlow(), !/data-pc="P2"/.test(R.els.flTable.innerHTML) && /Ruffle challan <a href="#" data-flchp="RFD-202610-001"[^]*→ Choudhary Hand Block/.test(R.els.flTable.innerHTML)));
+    ok('…the body cloth is still owed → the line stays in Demand · RFD; the ruffle button is gone', st.needFab && st.bucket === 'demand' && (R.setView('drfd'), R.renderFlow(), !/data-pc="P2"/.test(R.els.flTable.innerHTML) && /RFD ruffle <a href="#" data-flchp="RFD-202610-001"[^]*→ Choudhary Hand Block/.test(R.els.flTable.innerHTML)));
     R.flowChallanOpen('AMZ-1', 'P1');
     ok('Sanganer’s challan: the body only, saying the ruffle went to Choudhary', !/ruffle only/.test(R.ctx.__dlg.html) && /ruffle → Choudhary Hand Block/.test(R.ctx.__dlg.html));
     QS = { '[data-chk="0"]': { checked: true }, '[data-chm="0"]': { value: '6' } }; R.els.flcVen.value = 'P1'; er = await R.ctx.__dlg.onSave();
@@ -729,7 +729,7 @@ const K = 'AMZ-1__S1';
     let st = A.flowState(L({ sku: 'RPC327-1818', qty: 10 }));
     ok('3 of 5.3 m sent → still in Demand · RFD, owing 2.3 m', !er && A.flowInView('drfd', st) && st.fabSent === 3 && A.flowFabOwed(L({ sku: 'RPC327-1818', qty: 10 }), st).metres === 2.3, er);
     A.setView('drfd'); A.setAngle('drfd', 'line'); A.renderFlow();
-    ok('Demand RFD says "3 of 5.3 m sent" and the print order', /3 of 5\.3 m sent/.test(A.els.flTable.innerHTML) && /Print order <a href="#" data-flpop="PRN-202610-001"/.test(A.els.flTable.innerHTML));
+    ok('Demand RFD says "3 of 5.3 m sent" and the print order', /3 of 5\.3 m sent/.test(A.els.flTable.innerHTML) && /PO <a href="#" data-flpop="PRN-202610-001"/.test(A.els.flTable.innerHTML));
     A.flowChallanOpen('AMZ-1', 'P1');
     ok('the next challan offers the 2.3 m left', /data-chm="0" type="number" step="0.01" value="2.3"/.test(A.ctx.__dlg.html) && /3 m sent already/.test(A.ctx.__dlg.html));
     q = { '[data-chk="0"]': { checked: true }, '[data-chm="0"]': { value: '2.3' }, '[data-chk="1"]': { checked: false }, '[data-chm="1"]': { value: '' } };
@@ -1082,6 +1082,7 @@ const K = 'AMZ-1__S1';
     ok('the new test order is put in the search box, so it is the one on screen', S.els.flQ.value === 'TEST-AMZ-13102026-01');
     S.els.flQ.value = ''; S.setView('ppc'); S.renderFlow();
     ok('PPC shows the real sales order and the test copy, which says what it copies', /AMZ-900/.test(S.els.flTable.innerHTML) && /copy of sales order AMZ-900/.test(S.els.flTable.innerHTML) && /data-ordj="AMZ-900"/.test(S.els.flTable.innerHTML));
+    ok('compact: an order of two lines is named once — one delete link, one copy note, the second line carries the order no small', (S.els.flTable.innerHTML.match(/data-fltdel="TEST-AMZ-13102026-01"/g) || []).length === 1 && (S.els.flTable.innerHTML.match(/copy of sales order AMZ-900/g) || []).length === 1 && /<div class="muted" style="font-size:11px">TEST-AMZ-13102026-01<\/div>/.test(S.els.flTable.innerHTML));
   }
 
   console.log('== a TEST order walks every bucket, end to end ==');

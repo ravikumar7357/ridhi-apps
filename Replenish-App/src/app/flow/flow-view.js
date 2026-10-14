@@ -165,9 +165,17 @@ const FLOW_GO = { out: ['fgi', 'Finished Goods (receive)'], vendor: ['vreq', 'Ve
 
 function flowTable(view, rows) {
   const pic = sku => { const u = typeof ptImgOf === 'function' ? ptImgOf(sku) : ''; return u ? `<img src="${esc(ptImgSrc(u, 34))}" alt="" style="width:34px;height:34px;object-fit:contain;background:#fff;border-radius:5px">` : ''; };
-  const base = x => `<td class="frz" style="text-align:left">${x.r.__t ? `<b>${esc(x.r.orderNo)}</b> <span class="navbadge" style="background:#7c3aed;position:static">TEST</span>
-      <a href="#" data-fltdel="${esc(x.r.orderNo)}" style="font-size:10.5px;color:#b91c1c;margin-left:4px">delete test</a>${x.r.fromSo ? `<div class="muted" style="font-size:10.5px">copy of sales order ${esc(x.r.fromSo)}</div>` : ''}` : `<a href="#" data-ordj="${esc(x.r.orderNo)}" style="font-weight:600">${esc(x.r.orderNo)}</a>`}
-      <div class="muted" style="font-size:10.5px">${esc(x.r.src || '')} · ${esc(ptIsoDate(x.r.orderDate) || '')} · ${nf(flowDays(x.r.orderDate) || 0)} d</div>${flowDocsHtml(x)}</td>
+  /* COMPACT (Ravi, 14 Oct: "compact this"): the order column has a width it wraps in, and the order's name, badge, delete
+   * link and date are written once — on the first of its lines in a run; the lines under it carry the order no small. */
+  let prevNo = null;
+  const poHead = x => {
+    const again = x.r.orderNo === prevNo; prevNo = x.r.orderNo;
+    if (again) return `<div class="muted" style="font-size:11px">${esc(x.r.orderNo)}</div>`;
+    return (x.r.__t ? `<b>${esc(x.r.orderNo)}</b> <span class="navbadge" style="background:#7c3aed;position:static">TEST</span>
+      <a href="#" data-fltdel="${esc(x.r.orderNo)}" style="font-size:10.5px;color:#b91c1c;margin-left:4px">delete test</a>` : `<a href="#" data-ordj="${esc(x.r.orderNo)}" style="font-weight:600">${esc(x.r.orderNo)}</a>`)
+      + `<div class="muted" style="font-size:10.5px">${esc(x.r.src || '')} · ${esc(ptIsoDate(x.r.orderDate) || '')} · ${nf(flowDays(x.r.orderDate) || 0)} d${x.r.fromSo ? ` · copy of sales order ${esc(x.r.fromSo)}` : ''}</div>`;
+  };
+  const base = x => `<td class="frz" style="text-align:left;width:300px;max-width:300px;white-space:normal">${poHead(x)}${flowDocsHtml(x)}</td>
     <td style="text-align:left;white-space:nowrap">${pic(x.r.sku)} <b style="font-family:ui-monospace,monospace;vertical-align:top">${esc(x.r.sku)}</b>
       <div class="muted" style="font-size:10.5px">${esc([x.r.articleSubtype || x.r.articleType, x.r.color, x.r.size].filter(Boolean).join(' · '))}</div></td>
     <td class="num"><b>${nf(x.r.qty)}</b></td>`;
