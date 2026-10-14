@@ -1860,8 +1860,19 @@ function renderShopToday() {
   // The window is the user's choice and can easily not reach today — saying so beats showing a
   // truthful zero that reads as "no sales today".
   const covers = d => (!SHOP.from || d >= SHOP.from) && (!SHOP.to || d <= SHOP.to);
-  $('soToday').innerHTML = box('Today', today, soDayStats(today))
-    + box('Yesterday', yday, soDayStats(yday))
+  /* AS KPI CARDS in the toolbar (Ravi, 14 Oct): the sale in big figures, the day, orders and units under it. The cancelled
+   * ones are left out of the figures and named in the card's tooltip. The notes below stay in the strip under the toolbar. */
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const day = iso => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || '')); return m ? `${+m[3]} ${MON[+m[2] - 1]}` : String(iso || ''); };
+  const icon = k => (typeof JW_ICON !== 'undefined' && JW_ICON[k]) || '';
+  const kpi = (label, iso, s, ic, tone) => `<div class="so-kpi" title="${esc(label + ' · ' + iso + (who ? ' · ' + who : '') + ' — placed in the store\'s own day'
+      + (s.cancelled ? ` · ${s.cancelled} cancelled, not counted` : ''))}"><span class="jw-ki ${tone}">${icon(ic)}</span>`
+    + `<div><div class="v">${money(s.value)}</div><div class="l"><b>${label}</b> ${day(iso)}${who ? ' · ' + esc(who) : ''}`
+    + ` · ${nf(s.orders)} order${s.orders === 1 ? '' : 's'} · ${nf(s.units)} unit${s.units === 1 ? '' : 's'}</div></div></div>`;
+  if ($('soKpis')) {
+    $('soKpis').innerHTML = kpi('Today', today, soDayStats(today), 'up', 'green') + kpi('Yesterday', yday, soDayStats(yday), 'clock', 'blue');
+  }
+  $('soToday').innerHTML = ($('soKpis') ? '' : box('Today', today, soDayStats(today)) + box('Yesterday', yday, soDayStats(yday)))
     + (SHOP.tz ? '' : '<div class="muted" style="font-size:11px;align-self:center">'
         + 'Store timezone unknown — these two days are counted in PT and may be a day out. '
         + 'Press Fetch orders to pick it up.</div>')

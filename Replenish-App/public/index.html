@@ -953,6 +953,15 @@
   #paneShop .so-icon{width:auto;padding:7px 10px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}
   #paneShop .so-find #soGo{margin-left:0}
   #paneShop .so-find .so-more{margin-left:auto}
+  /* Today / Yesterday sales as small KPI cards in the toolbar (2026-10-14) — the Job Work card, made to fit one line. */
+  #paneShop .so-kpis{display:flex;gap:10px;flex:1 1 auto;justify-content:center;flex-wrap:wrap;min-width:0}
+  #paneShop .so-kpis:empty{display:none}
+  #paneShop .so-kpi{display:flex;align-items:center;gap:9px;padding:3px 14px 3px 5px;border-radius:13px;background:var(--card);
+    box-shadow:var(--sh-1);border:1px solid var(--line)}
+  #paneShop .so-kpi .jw-ki{width:30px;height:30px;border-radius:9px}
+  #paneShop .so-kpi .v{font-size:16px;font-weight:800;line-height:1.2;font-variant-numeric:tabular-nums}
+  #paneShop .so-kpi .l{font-size:11.5px;color:var(--muted);white-space:nowrap;line-height:1.3}
+  #paneShop .so-kpi .l b{color:var(--ink,#1c2033);font-weight:700}
   #paneShop .so-more-pop .so-exp{display:flex;gap:6px}
   #paneShop .so-more-pop > button{width:100%;text-align:left}
   #paneShop .so-sep{width:1px;height:20px;background:var(--line);margin:0 4px}
@@ -2904,6 +2913,9 @@
         <button id="soBucket" type="button" class="ghost so-icon" aria-label="Production bucket"
                 title="Production bucket — Shopify lines that need production and have no production order yet. Tick and open them here; nothing opens by itself."><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg></button>
         <input id="soFilter" style="flex:0 1 260px;min-width:140px" placeholder="Filter order / SKU / name">
+        <!-- TODAY AND YESTERDAY as cards in the toolbar's free space (Ravi, 14 Oct: "use this space — kal ka sale and aaj ka
+             sale kuch aise KPI card me show hona chahiye"), the same look as the Job Work cards. -->
+        <div id="soKpis" class="so-kpis"></div>
         <details class="so-more" id="soMoreMenu">
           <summary class="so-more-btn">More ▾</summary>
           <div class="so-more-pop">
@@ -60747,8 +60759,19 @@ function renderShopToday() {
   // The window is the user's choice and can easily not reach today — saying so beats showing a
   // truthful zero that reads as "no sales today".
   const covers = d => (!SHOP.from || d >= SHOP.from) && (!SHOP.to || d <= SHOP.to);
-  $('soToday').innerHTML = box('Today', today, soDayStats(today))
-    + box('Yesterday', yday, soDayStats(yday))
+  /* AS KPI CARDS in the toolbar (Ravi, 14 Oct): the sale in big figures, the day, orders and units under it. The cancelled
+   * ones are left out of the figures and named in the card's tooltip. The notes below stay in the strip under the toolbar. */
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const day = iso => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || '')); return m ? `${+m[3]} ${MON[+m[2] - 1]}` : String(iso || ''); };
+  const icon = k => (typeof JW_ICON !== 'undefined' && JW_ICON[k]) || '';
+  const kpi = (label, iso, s, ic, tone) => `<div class="so-kpi" title="${esc(label + ' · ' + iso + (who ? ' · ' + who : '') + ' — placed in the store\'s own day'
+      + (s.cancelled ? ` · ${s.cancelled} cancelled, not counted` : ''))}"><span class="jw-ki ${tone}">${icon(ic)}</span>`
+    + `<div><div class="v">${money(s.value)}</div><div class="l"><b>${label}</b> ${day(iso)}${who ? ' · ' + esc(who) : ''}`
+    + ` · ${nf(s.orders)} order${s.orders === 1 ? '' : 's'} · ${nf(s.units)} unit${s.units === 1 ? '' : 's'}</div></div></div>`;
+  if ($('soKpis')) {
+    $('soKpis').innerHTML = kpi('Today', today, soDayStats(today), 'up', 'green') + kpi('Yesterday', yday, soDayStats(yday), 'clock', 'blue');
+  }
+  $('soToday').innerHTML = ($('soKpis') ? '' : box('Today', today, soDayStats(today)) + box('Yesterday', yday, soDayStats(yday)))
     + (SHOP.tz ? '' : '<div class="muted" style="font-size:11px;align-self:center">'
         + 'Store timezone unknown — these two days are counted in PT and may be a day out. '
         + 'Press Fetch orders to pick it up.</div>')

@@ -489,6 +489,11 @@ console.log('\n== the orders table: as many cells as it has headers ==');
     heads === cells, heads + ' headers vs ' + cells + ' cells');
   /* Ravi, 14 Oct: "remove the marked pallet" and "it's lagging a lot". */
   ok('the steps row is gone: empty and hidden', els.soLanes.innerHTML === '' && els.soLanes.style.display === 'none');
+  /* Ravi, 14 Oct: "kal ka sale and aaj ka sale kuch aise KPI card me" — two cards in the toolbar, not a line under it. */
+  ok('Today and Yesterday are two KPI cards in the toolbar: the sale, the day, orders and units',
+    (els.soKpis.innerHTML.match(/class="so-kpi"/g) || []).length === 2 && /<b>Today<\/b>/.test(els.soKpis.innerHTML) && /<b>Yesterday<\/b>/.test(els.soKpis.innerHTML)
+    && /class="v">\$\d/.test(els.soKpis.innerHTML) && /\d+ orders? · \d+ units?/.test(els.soKpis.innerHTML), els.soKpis.innerHTML.slice(0, 300));
+  ok('…and the strip under the toolbar no longer repeats them', !/Today ·/.test(els.soToday.innerHTML));
   els.paneShop.classList.add('hide'); els.soTable.innerHTML = '';
   A.renderShop();
   ok('a hidden Shopify tab is not drawn, but its rows are still worked out for the sync',
