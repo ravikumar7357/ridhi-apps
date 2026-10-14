@@ -141,6 +141,8 @@
     .navsec.navmega.open{position:fixed;left:50%;transform:translateX(-50%);top:62px;right:auto;
       width:min(1160px,calc(100vw - 32px));box-sizing:border-box;padding:18px;
       display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:14px;align-items:start}   /* as many columns as are shown */
+    /* Store (the preview's menu, nav.js): two columns, so half as wide. */
+    .navsec.navmega.mg-2.open{width:min(600px,calc(100vw - 32px))}
   }
   .mg-col{display:flex;flex-direction:column;gap:2px;min-width:0}
   .mg-h{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:2px 10px 8px}
@@ -3815,7 +3817,96 @@ onAuthStateChanged(auth, async user => {
 
 /* ============================== FILE: src/app/core/nav.js ============================== */
 /* ---------- the sidebar: collapsible groups + a hamburger ---------- */
-const NAV_GROUPS = [...document.querySelectorAll('.navgrp')].map(head => ({
+/**
+ * PRODUCTION IS THE SHOP FLOOR ONLY (Ravi, 14 Oct, design A: "production se related option hi sirf production me
+ * dikhne chahiye — PPC, QC and printer"). Four numbered columns: 1 PPC · Planning, 2 Printing, 3 Cutting & stitching,
+ * 4 Quality Control. What is not making goes to its own menu: Orders (sales orders, console, customers), Store (fabric,
+ * greige, accessories, finished goods, FBA), Setup (the masters). Vendors keeps only the portal a printer signs in to.
+ *
+ * TEST ONLY, on the same switch as FLOW_ON (a preview link, or localStorage flow = '1'): the page markup is left as the
+ * live app has it and the links are moved here, before the groups below are read from it. The links keep their ids, so
+ * every badge, right and click handler finds them where it always did.
+ */
+(function navProductionOnly() {
+  let on = false;
+  try {
+    const v = localStorage.getItem('flow');
+    on = v === '1' ? true : v === '0' ? false : /--/.test(location.hostname) || /^(localhost|127\.)/.test(location.hostname);
+  } catch (e) { return; }
+  const side = document.querySelector('.side'), prodWrap = $('grpProd') && $('grpProd').parentNode;
+  if (!on || !side || !prodWrap || $('grpOrders')) return;
+  const SVG = d => '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+    + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>';
+  const ICON = {
+    tabPalloc: SVG('<path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 14h10v7H7z"/>'),
+    tabVreq: SVG('<path d="M4 4h16v12H8l-4 4z"/><path d="M8 9h8M8 12h5"/>'),
+    tabVord: SVG('<path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6M9 13h8M9 17h6"/>'),
+    tabRfd: SVG('<ellipse cx="7" cy="12" rx="3" ry="8"/><path d="M7 4h11a3 8 0 0 1 0 16H7"/>'),
+    tabVlog: SVG('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
+  };
+  /* A Vendors link is plain text with its count after it; in a column it gets the icon, name and count line the
+   * Production links have, and the count says what it counts. */
+  const dress = (id, name, what) => {
+    const a = $(id); if (!a || a.querySelector('.nav-t')) return a;
+    const badge = a.querySelector('.navbadge');
+    a.textContent = '';
+    a.insertAdjacentHTML('beforeend', '<span class="nav-ic">' + (ICON[id] || '') + '</span><span class="nav-t"></span>');
+    a.querySelector('.nav-t').textContent = name;
+    if (badge) {
+      if (what) badge.setAttribute('data-what', what);
+      const bd = document.createElement('span'); bd.className = 'nav-bd'; bd.appendChild(badge); a.appendChild(bd);
+    }
+    return a;
+  };
+  const col = (head, ids) => {
+    const c = document.createElement('div'); c.className = 'mg-col';
+    const h = document.createElement('div'); h.className = 'mg-h'; h.textContent = head; c.appendChild(h);
+    ids.forEach(id => { const a = $(id); if (a) c.appendChild(a); });
+    return c;
+  };
+  /* A new heading with its own section; the section's id is what NAV_GROUPS looks it up by ('sec' + Key). */
+  const group = (key, label, tabs, kids, mega) => {
+    const w = document.createElement('div'); w.className = 'navwrap';
+    const b = document.createElement('button');
+    b.className = 'navgrp'; b.id = 'grp' + key; b.type = 'button';
+    b.dataset.grp = key.toLowerCase(); b.dataset.tabs = tabs;
+    b.innerHTML = '<span class="caret">&#9656;</span> ';
+    b.appendChild(document.createTextNode(label));
+    const s = document.createElement('div'); s.className = 'navsec' + (mega ? ' navmega ' + mega : ''); s.id = 'sec' + key;
+    kids.forEach(k => k && s.appendChild(k));
+    w.appendChild(b); w.appendChild(s);
+    return w;
+  };
+  dress('tabPalloc', 'Printer Allocation');
+  dress('tabVreq', 'Vendor Order Requests', 'to approve');
+  dress('tabVord', 'Vendor Orders');
+  dress('tabRfd', 'RFD Requirements', 'asked');
+  dress('tabVlog', 'History · printed in');
+
+  const orders = group('Orders', 'Orders', 'so,ord,cx', [$('tabSo'), $('tabOrd'), $('tabCx')]);
+  const store = group('Store', 'Store', 'fab,gdesk,acc,fgi,fba',
+    [col('Materials', ['tabFab', 'tabGdesk', 'tabAcc']), col('Finished & dispatch', ['tabFgi', 'tabFba'])], 'mg-2');
+  const setup = group('Setup', 'Setup', 'pmdb,mst', [$('tabPmdb'), $('tabMst')]);
+
+  /* The columns are built while the links are still in the page — a link cleared out first can no longer be found. */
+  const cols = [col('1 · PPC · Planning', ['tabFlow', 'tabPalloc']),
+    col('2 · Printing', ['tabVreq', 'tabVord', 'tabRfd', 'tabVlog']),
+    col('3 · Cutting & stitching', ['tabPcut', 'tabPbase', 'tabPpress']),
+    col('4 · Quality Control', ['tabQc'])];
+  const sec = $('secProd');
+  sec.textContent = '';
+  cols.forEach(c => sec.appendChild(c));
+  $('grpProd').dataset.tabs = 'flow,flppc,fldem,flacc,flchl,flcut,flraw,flwip,palloc,vreq,vord,rfd,vlog,pcut,pbase,ppress,qc';
+
+  const vend = $('grpVendors');
+  if (vend) { vend.dataset.tabs = 'vend'; vend.lastChild.textContent = ' Vendors'; }
+
+  side.insertBefore(orders, prodWrap);
+  side.insertBefore(store, prodWrap.nextSibling);
+  const people = $('grpPeople') && $('grpPeople').parentNode;
+  if (people) side.insertBefore(setup, people.nextSibling);
+})();
+const NAV_GROUPS =[...document.querySelectorAll('.navgrp')].map(head => ({
   key: head.dataset.grp,
   head,
   sec: $('sec' + head.dataset.grp.charAt(0).toUpperCase() + head.dataset.grp.slice(1)),
