@@ -59878,7 +59878,7 @@ if ($('soStoreSeg')) {
     SO_STORE = b.dataset.store || '';
     try { localStorage.setItem('soStore', SO_STORE); } catch (err) { /* not remembered */ }
     soStoreSegSync();
-    SO_DENSE_CAP = 200;
+    SO_DENSE_CAP = SO_CAP_STEP;
     renderShop();
   };
   soStoreSegSync();
@@ -60253,8 +60253,12 @@ const SO_GROUPS = [
   { k: 'closed', t: 'Closed', lanes: ['other'], tip: 'Cancelled, marked done, or nothing left to send' },
 ];
 /** The chosen step ('' = All) and, inside it, the chosen status ('' = the whole step). Remembered on the device. */
-let SO_GRP = (() => { try { return localStorage.getItem('soGrp') || ''; } catch (e) { return ''; } })();
-let SO_LANE = (() => { try { return localStorage.getItem('soLane') || ''; } catch (e) { return ''; } })();
+/* THE STEPS ROW IS OFF (Ravi, 14 Oct: "remove the marked pallet"). Nothing narrows the list by step any more — a step
+ * remembered from before is not applied, because with the row gone there would be no way to see or undo it. The lane
+ * of each row is still worked out (counts, days waiting); only the row and its narrowing are gone. */
+const SO_STEPS_ON = false;
+let SO_GRP = SO_STEPS_ON ? (() => { try { return localStorage.getItem('soGrp') || ''; } catch (e) { return ''; } })() : '';
+let SO_LANE = SO_STEPS_ON ? (() => { try { return localStorage.getItem('soLane') || ''; } catch (e) { return ''; } })() : '';
 if (!SO_GROUPS.some(g => g.k === SO_GRP)) SO_GRP = '';
 if (!SO_GRP || !SO_GROUPS.find(g => g.k === SO_GRP).lanes.includes(SO_LANE)) SO_LANE = '';
 /** Is this row inside the chosen step and status? */
@@ -60262,6 +60266,7 @@ const soLaneKeep = r => (!SO_GRP || SO_GROUPS.find(g => g.k === SO_GRP).lanes.in
 let SO_LANE_N = {};
 function renderSoLanes() {
   const box = $('soLanes'); if (!box) return;
+  if (!SO_STEPS_ON) { if (box.innerHTML) box.innerHTML = ''; if (box.style) box.style.display = 'none'; return; }
   const n = g => g.lanes.reduce((t, k) => t + (SO_LANE_N[k] || 0), 0);
   const grp = SO_GROUPS.find(g => g.k === SO_GRP);
   box.innerHTML = '<div class="so-steps">'
@@ -60281,16 +60286,17 @@ if ($('soLanes')) $('soLanes').onclick = e => {
   if (e.target.closest('[data-showall]')) {
     SO_GRP = ''; SO_LANE = ''; SO_STORE = '';
     try { localStorage.setItem('soGrp', ''); localStorage.setItem('soLane', ''); localStorage.setItem('soStore', ''); } catch (err) { /* not remembered */ }
-    soStoreSegSync(); SO_DENSE_CAP = 200; renderShop(); return;
+    soStoreSegSync(); SO_DENSE_CAP = SO_CAP_STEP; renderShop(); return;
   }
   const g = e.target.closest('[data-grp]'), s = e.target.closest('[data-sub]');
   if (!g && !s) return;
   if (g) { SO_GRP = g.dataset.grp || ''; SO_LANE = ''; } else SO_LANE = s.dataset.sub || '';
   try { localStorage.setItem('soGrp', SO_GRP); localStorage.setItem('soLane', SO_LANE); } catch (err) { /* not remembered */ }
-  SO_DENSE_CAP = 200;
+  SO_DENSE_CAP = SO_CAP_STEP;
   renderShop();
 };
-let SO_DENSE_CAP = 200;
+const SO_CAP_STEP = 100;   // rows drawn at first, and added by each "Show more" (14 Oct: 200 → 100, the lag)
+let SO_DENSE_CAP = SO_CAP_STEP;
 /** Days since the order was placed, in the store's day. */
 const SO_AGE_OLD = 7;
 function soAgeDays(r, today) {
@@ -60377,16 +60383,16 @@ function renderShopDense(rows, COLS, arrow, money, esc) {
       + esc(r.items.slice(0, 4).map(i => `${i.sku || i.name} × ${i.qty}`).join(' · ')) + (r.items.length > 4 ? ' <span class="muted">+' + (r.items.length - 4) + ' more</span>' : '') + '</td>'
     + '</tr>';
 
-  /* 200, and the rest by search or 'show more' — 400 rows of three lines each was 550 KB of table to lay out on every
+  /* 100 (14 Oct; 200 before), and the rest by search or "show more" — 400 rows of three lines each was 550 KB of table to lay out on every
    * draw, and nobody reads past the first screens without searching. */
   const laneOf = new Map(SO_LANES.map(l => [l.k, l]));
   const drawn = rows.slice(0, SO_DENSE_CAP);
   const body = drawn.map(r => rowHtml(r, laneOf.get(r.lane))).join('');
   const more = rows.length > drawn.length
-    ? `<tr><td colspan="${DC.length}" style="padding:10px 14px;text-align:left"><span class="muted">Showing ${nf(drawn.length)} of ${nf(rows.length)} — search, or </span><button type="button" class="ghost" id="soMore" style="padding:4px 12px;font-size:12px">show ${nf(Math.min(200, rows.length - drawn.length))} more</button></td></tr>` : '';
+    ? `<tr><td colspan="${DC.length}" style="padding:10px 14px;text-align:left"><span class="muted">Showing ${nf(drawn.length)} of ${nf(rows.length)} — search, or </span><button type="button" class="ghost" id="soMore" style="padding:4px 12px;font-size:12px">show ${nf(Math.min(SO_CAP_STEP, rows.length - drawn.length))} more</button></td></tr>` : '';
   $('soTable').innerHTML = head + '<tbody>' + (body
     || '<tr><td colspan="' + DC.length + '" class="muted" style="padding:14px">Nothing here' + (SO_GRP ? ' — pick another step above, or All' : ' matches that filter') + '.</td></tr>') + more + '</tbody>';
-  if ($('soMore')) $('soMore').onclick = e => { e.stopPropagation(); SO_DENSE_CAP += 200; renderShop(); };
+  if ($('soMore')) $('soMore').onclick = e => { e.stopPropagation(); SO_DENSE_CAP += SO_CAP_STEP; renderShop(); };
   if ($('soAll')) $('soAll').checked = drawn.length > 0 && drawn.every(r => SO_PICKED.has(r.id));
 }
 if ($('soDense')) $('soDense').onclick = () => { try { localStorage.setItem('soDense', soDense() ? '0' : '1'); } catch (e) { /* not remembered */ } renderShop(); };
@@ -60397,6 +60403,12 @@ if ($('soMoreMenu')) {
 }
 
 function renderShop() {
+  /* A HIDDEN TAB IS NOT DRAWN (Ravi, 14 Oct: "it's lagging a lot"). India stock, the imported list, the stock, the
+   * background sync and the other screens' saves all call this when they land, whichever tab is open — each one a full
+   * table of HTML nobody could see. The rows are still worked out (soRows), because the sync reads SO_ALL_ROWS; only
+   * the drawing waits. Opening the tab draws it (ensureShop). */
+  const pane = $('paneShop');
+  if (pane && pane.classList && pane.classList.contains('hide')) { try { soRows(); } catch (e) { /* drawn on the way in */ } return; }
   const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
   const money = v => '$' + Math.round(v || 0).toLocaleString('en-US');
   const rows = soRows();
@@ -60517,8 +60529,9 @@ function renderShop() {
 
   /* HOW MANY ROWS ARE WORTH DRAWING. Beyond this the browser is doing work for a screen nobody
    * scrolls to, and the tab stops answering. Everything else still counts every order. */
-  const SO_DRAW_CAP = 400;
-  const drawn = rows.slice(0, SO_DRAW_CAP);
+  /* 100 to start, then "Show more" — the same as the one-page table (Ravi, 14 Oct: "it's lagging a lot"). 400 wide rows were
+   * drawn on every click with nothing to ask for fewer. */
+  const drawn = rows.slice(0, SO_DENSE_CAP);
   const body = drawn.map(r => '<tr data-so="' + esc(r.id) + '" style="cursor:pointer"'
     + ' class="' + [r.cancelled ? 'so-cancel' : '', r.chargeback ? 'so-cb' : ''].filter(Boolean).join(' ') + '"'
     + (r.cancelled ? ' title="Cancelled ' + esc(r.cancelledAt) + (r.cancelReason ? ' — ' + esc(r.cancelReason) : '') + '"' : '')
@@ -60584,9 +60597,12 @@ function renderShop() {
       + esc(r.items.map(i => `${i.sku || i.name} × ${i.qty}`).join(' · ')) + '</td>'
     + '</tr>').join('');
 
+  const more = rows.length > drawn.length
+    ? `<tr><td colspan="${COLS.length}" style="padding:10px 14px;text-align:left"><span class="muted">Showing ${nf(drawn.length)} of ${nf(rows.length)} — search, or </span><button type="button" class="ghost" id="soMore" style="padding:4px 12px;font-size:12.5px;width:auto">Show ${nf(Math.min(SO_CAP_STEP, rows.length - drawn.length))} more</button></td></tr>` : '';
   $('soTable').innerHTML = head + '<tbody>' + (body
     || '<tr><td colspan="' + COLS.length + '" class="muted" style="padding:14px">Nothing matches that filter.</td></tr>')
-    + '</tbody>';
+    + more + '</tbody>';
+  if ($('soMore')) $('soMore').onclick = e => { e.stopPropagation(); SO_DENSE_CAP += SO_CAP_STEP; renderShop(); };
   soWireTable();
 }
 

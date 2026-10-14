@@ -487,6 +487,15 @@ console.log('\n== the orders table: as many cells as it has headers ==');
   ok('the table rendered at all', heads > 0 && cells > 0, 'th=' + heads + ' td=' + cells);
   ok('every header has a cell under it — a mismatch puts every column after it over the wrong data',
     heads === cells, heads + ' headers vs ' + cells + ' cells');
+  /* Ravi, 14 Oct: "remove the marked pallet" and "it's lagging a lot". */
+  ok('the steps row is gone: empty and hidden', els.soLanes.innerHTML === '' && els.soLanes.style.display === 'none');
+  els.paneShop.classList.add('hide'); els.soTable.innerHTML = '';
+  A.renderShop();
+  ok('a hidden Shopify tab is not drawn, but its rows are still worked out for the sync',
+    els.soTable.innerHTML === '' && A.SO_ALL_ROWS().length === 2, els.soTable.innerHTML.slice(0, 80));
+  els.paneShop.classList.remove('hide');
+  A.renderShop();
+  ok('…and the open tab draws as before', /data-so="gid1"/.test(els.soTable.innerHTML));
   {
     /* Ravi, 2026-09-28: "pahle me order par click krta tha to order ... sab dikhta tha" — the one-page table returned
      * before its wiring, so a click on an order, a heading or a tick did nothing. */
