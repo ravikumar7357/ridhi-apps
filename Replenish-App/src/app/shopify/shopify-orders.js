@@ -1640,7 +1640,9 @@ function renderShop() {
   if ($('soBucket')) { const rd = typeof shpReadyLines === 'function' ? shpReadyLines().length : 0;
     /* An icon now (14 Oct): its words and counts are its tooltip; opening it shows what is inside. */
     const tip = 'Production bucket' + (bucketMake.length ? ` — ${nf(bucketMake.length)} order(s) waiting` : ' — nothing waiting') + (rd ? ` · ${nf(rd)} ready to take` : '');
-    if ($('soBucket').title !== tip) { $('soBucket').title = tip; if ($('soBucket').setAttribute) $('soBucket').setAttribute('aria-label', tip); } }
+    if ($('soBucket').title !== tip) { $('soBucket').title = tip; if ($('soBucket').setAttribute) $('soBucket').setAttribute('aria-label', tip); }
+    /* Design B: the count on the button itself ("Bucket 21"); empty hides it. */
+    if ($('soBucketN')) $('soBucketN').textContent = bucketMake.length ? nf(bucketMake.length) : ''; }
   SO_IN_BUCKET = inBucket;
   const y = soStoreDay(-1), t = soStoreDay(0);
   const yd = pend.filter(r => r.at === y).length, td = pend.filter(r => r.at === t).length;
@@ -1666,7 +1668,11 @@ function renderShop() {
   ].filter(Boolean).join(' · ');
   /* On screen: how many, how many are waiting on production, and — only when it is about to
    * mislead somebody — that the date boxes no longer match what is drawn. */
-  soMsg(`${nf(rows.length)} of ${nf(SHOP.orders.length + soImpLive().length)} orders`
+  /* Design B (14 Oct): the counts are figures in the title band; the line under the filters keeps only what needs reading. */
+  SO_FIG = { shown: rows.length, total: SHOP.orders.length + soImpLive().length, pend: pend.length };
+  renderSoBand();
+  soMsg($('soKpis') ? [stale ? `The boxes now say ${$('soFrom').value} → ${$('soTo').value} — press Fetch orders` : '', SHOP_STOCK_DENIED ? SHOP_STOCK_DENIED_TXT : ''].filter(Boolean).join(' · ')
+    : `${nf(rows.length)} of ${nf(SHOP.orders.length + soImpLive().length)} orders`
     + (pend.length ? ` · ${nf(pend.length)} waiting on production` : '')
     + (stale ? ` — the boxes now say ${$('soFrom').value} → ${$('soTo').value}; press Fetch orders` : '')
     + (SHOP_STOCK_DENIED ? ' · ' + SHOP_STOCK_DENIED_TXT : ''),
@@ -1860,25 +1866,35 @@ function renderShopToday() {
   // The window is the user's choice and can easily not reach today — saying so beats showing a
   // truthful zero that reads as "no sales today".
   const covers = d => (!SHOP.from || d >= SHOP.from) && (!SHOP.to || d <= SHOP.to);
-  /* AS KPI CARDS in the toolbar (Ravi, 14 Oct): the sale in big figures, the day, orders and units under it. The cancelled
-   * ones are left out of the figures and named in the card's tooltip. The notes below stay in the strip under the toolbar. */
-  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const day = iso => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || '')); return m ? `${+m[3]} ${MON[+m[2] - 1]}` : String(iso || ''); };
-  const icon = k => (typeof JW_ICON !== 'undefined' && JW_ICON[k]) || '';
-  const kpi = (label, iso, s, ic, tone) => `<div class="so-kpi" title="${esc(label + ' · ' + iso + (who ? ' · ' + who : '') + ' — placed in the store\'s own day'
-      + (s.cancelled ? ` · ${s.cancelled} cancelled, not counted` : ''))}"><span class="jw-ki ${tone}">${icon(ic)}</span>`
-    + `<div><div class="v">${money(s.value)}</div><div class="l"><b>${label}</b> ${day(iso)}${who ? ' · ' + esc(who) : ''}`
-    + ` · ${nf(s.orders)} order${s.orders === 1 ? '' : 's'} · ${nf(s.units)} unit${s.units === 1 ? '' : 's'}</div></div></div>`;
-  if ($('soKpis')) {
-    $('soKpis').innerHTML = kpi('Today', today, soDayStats(today), 'up', 'green') + kpi('Yesterday', yday, soDayStats(yday), 'clock', 'blue');
-  }
-  $('soToday').innerHTML = ($('soKpis') ? '' : box('Today', today, soDayStats(today)) + box('Yesterday', yday, soDayStats(yday)))
+  /* The two days go to the title band (renderSoBand); the notes about them stay in the strip under the filters. */
+  SO_DAYS = { today, yday, ts: soDayStats(today), ys: soDayStats(yday), who };
+  renderSoBand();
+  if ($('soStockAt')) $('soStockAt').innerHTML = soStockStamp() || '';
+  $('soToday').innerHTML = ($('soKpis') ? '' : box('Today', today, SO_DAYS.ts) + box('Yesterday', yday, SO_DAYS.ys))
     + (SHOP.tz ? '' : '<div class="muted" style="font-size:11px;align-self:center">'
         + 'Store timezone unknown — these two days are counted in PT and may be a day out. '
         + 'Press Fetch orders to pick it up.</div>')
     + (covers(today) && covers(yday) ? '' : '<div style="color:var(--warn);font-size:11.5px;align-self:center">'
         + 'The date range does not cover both days — widen it before reading these.</div>')
-    + (soStockStamp() ? `<div class="muted" style="font-size:11.5px;align-self:center;margin-left:auto">${soStockStamp()}</div>` : '');
+    + ($('soStockAt') || !soStockStamp() ? '' : `<div class="muted" style="font-size:11.5px;align-self:center;margin-left:auto">${soStockStamp()}</div>`);
+}
+
+/* ---- THE TITLE BAND'S FIGURES (Ravi, 14 Oct, design B: "name and store left, figures right") ----
+ * Today and yesterday (the sale, orders and units, in the store's own day — cancelled ones left out and named in the
+ * tooltip), the orders waiting on production, and how many orders are shown of how many fetched. The two days come from
+ * renderShopToday, the counts from renderShop; whichever lands last draws the band. */
+let SO_DAYS = null, SO_FIG = null;
+function renderSoBand() {
+  const box = $('soKpis'); if (!box) return;
+  const money = v => '$' + Math.round(v || 0).toLocaleString('en-US');
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const day = iso => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || '')); return m ? `${+m[3]} ${MON[+m[2] - 1]}` : String(iso || ''); };
+  const fig = (big, small, tip) => `<div class="so-fig"${tip ? ` title="${esc(tip)}"` : ''}><b>${big}</b><span>${small}</span></div>`;
+  const dayFig = (label, iso, s) => fig(money(s.value),
+    `${label} · ${nf(s.orders)} order${s.orders === 1 ? '' : 's'} · ${nf(s.units)} unit${s.units === 1 ? '' : 's'}`,
+    `${label} · ${day(iso)}${SO_DAYS.who ? ' · ' + SO_DAYS.who : ''} — placed in the store's own day` + (s.cancelled ? ` · ${s.cancelled} cancelled, not counted` : ''));
+  box.innerHTML = (SO_DAYS ? dayFig('Today', SO_DAYS.today, SO_DAYS.ts) + dayFig('Yesterday', SO_DAYS.yday, SO_DAYS.ys) : '')
+    + (SO_FIG ? fig(nf(SO_FIG.pend), 'waiting on production', 'Neither Amazon nor India can fill them') + fig(nf(SO_FIG.shown), `of ${nf(SO_FIG.total)} orders shown`, '') : '');
 }
 
 /* ---------- staged quantity, and what is short ----------

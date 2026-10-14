@@ -489,11 +489,12 @@ console.log('\n== the orders table: as many cells as it has headers ==');
     heads === cells, heads + ' headers vs ' + cells + ' cells');
   /* Ravi, 14 Oct: "remove the marked pallet" and "it's lagging a lot". */
   ok('the steps row is gone: empty and hidden', els.soLanes.innerHTML === '' && els.soLanes.style.display === 'none');
-  /* Ravi, 14 Oct: "kal ka sale and aaj ka sale kuch aise KPI card me" — two cards in the toolbar, not a line under it. */
-  ok('Today and Yesterday are two KPI cards in the toolbar: the sale, the day, orders and units',
-    (els.soKpis.innerHTML.match(/class="so-kpi"/g) || []).length === 2 && /<b>Today<\/b>/.test(els.soKpis.innerHTML) && /<b>Yesterday<\/b>/.test(els.soKpis.innerHTML)
-    && /class="v">\$\d/.test(els.soKpis.innerHTML) && /\d+ orders? · \d+ units?/.test(els.soKpis.innerHTML), els.soKpis.innerHTML.slice(0, 300));
-  ok('…and the strip under the toolbar no longer repeats them', !/Today ·/.test(els.soToday.innerHTML));
+  /* Ravi, 14 Oct, design B: the title band — name and store left; today, yesterday, waiting on production and orders shown right. */
+  ok('the title band holds four figures: today and yesterday (sale, orders, units), waiting on production, orders shown',
+    (els.soKpis.innerHTML.match(/class="so-fig"/g) || []).length === 4 && /<b>\$\d[\d,]*<\/b><span>Today · \d+ orders? · \d+ units?<\/span>/.test(els.soKpis.innerHTML)
+    && /<span>Yesterday · /.test(els.soKpis.innerHTML) && /<span>waiting on production<\/span>/.test(els.soKpis.innerHTML) && /of 2 orders shown/.test(els.soKpis.innerHTML), els.soKpis.innerHTML.slice(0, 400));
+  ok('…the store switch sits in the band, and the strip under the filters no longer repeats the days', /class="so-band"[\s\S]*id="soStoreSeg"[\s\S]*id="soKpis"/.test(html) && !/Today ·/.test(els.soToday.innerHTML));
+  ok('…and the counts are not repeated in the line under the filters', !/ of \d+ orders/.test(els.soMsg.textContent), els.soMsg.textContent);
   els.paneShop.classList.add('hide'); els.soTable.innerHTML = '';
   A.renderShop();
   ok('a hidden Shopify tab is not drawn, but its rows are still worked out for the sync',

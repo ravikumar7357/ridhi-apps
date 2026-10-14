@@ -953,15 +953,28 @@
   #paneShop .so-icon{width:auto;padding:7px 10px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}
   #paneShop .so-find #soGo{margin-left:0}
   #paneShop .so-find .so-more{margin-left:auto}
-  /* Today / Yesterday sales as small KPI cards in the toolbar (2026-10-14) — the Job Work card, made to fit one line. */
-  #paneShop .so-kpis{display:flex;gap:10px;flex:1 1 auto;justify-content:center;flex-wrap:wrap;min-width:0}
-  #paneShop .so-kpis:empty{display:none}
-  #paneShop .so-kpi{display:flex;align-items:center;gap:9px;padding:3px 14px 3px 5px;border-radius:13px;background:var(--card);
-    box-shadow:var(--sh-1);border:1px solid var(--line)}
-  #paneShop .so-kpi .jw-ki{width:30px;height:30px;border-radius:9px}
-  #paneShop .so-kpi .v{font-size:16px;font-weight:800;line-height:1.2;font-variant-numeric:tabular-nums}
-  #paneShop .so-kpi .l{font-size:11.5px;color:var(--muted);white-space:nowrap;line-height:1.3}
-  #paneShop .so-kpi .l b{color:var(--ink,#1c2033);font-weight:700}
+  /* THE TITLE BAND (design B, 2026-10-14): name and store left, the day's figures right, on the brand colour. */
+  #paneShop .so-band{display:flex;align-items:center;gap:22px;flex-wrap:wrap;margin:-12px -14px 10px;padding:14px 20px;
+    background:var(--brand,#4A6A92);color:#fff;border-radius:var(--r-card) var(--r-card) 0 0}
+  #paneShop .so-title{display:flex;flex-direction:column;line-height:1.1}
+  #paneShop .so-title span{font-size:11px;font-weight:700;letter-spacing:.1em;opacity:.8}
+  #paneShop .so-title b{font-size:22px;font-weight:800}
+  #paneShop .so-band .seg{background:rgba(255,255,255,.14)}
+  #paneShop .so-band .segbtn{color:#fff;opacity:.9}
+  #paneShop .so-band .segbtn.on{background:#fff;color:var(--brand-ink,#3A5573);opacity:1}
+  #paneShop .so-figs{margin-left:auto;display:flex;align-items:stretch;flex-wrap:wrap;row-gap:8px;font-variant-numeric:tabular-nums}
+  #paneShop .so-fig{display:flex;flex-direction:column;justify-content:center;padding:0 20px;border-left:1px solid rgba(255,255,255,.25)}
+  #paneShop .so-fig:first-child{border-left:0}
+  #paneShop .so-fig:last-child{padding-right:0}
+  #paneShop .so-fig b{font-size:21px;font-weight:800;line-height:1.15}
+  #paneShop .so-fig span{font-size:12px;opacity:.88;white-space:nowrap}
+  /* The bucket, a labelled amber button with its count (design B). */
+  #paneShop .so-bucket{width:auto;flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:10px;
+    border:1px solid var(--warn-line,#F3D9A4);background:var(--warn-bg,#FDF3DC);color:var(--warn-ink,#8A5A12);font-size:13.5px;font-weight:700}
+  #paneShop .so-bucket b:empty{display:none}
+  #paneShop .so-stock{font-size:12px;color:var(--muted);white-space:nowrap;margin-left:auto}
+  #paneShop .so-stock:not(:empty) + .so-more{margin-left:0}
+  #paneShop .so-stock:empty{display:none}
   #paneShop .so-more-pop .so-exp{display:flex;gap:6px}
   #paneShop .so-more-pop > button{width:100%;text-align:left}
   #paneShop .so-sep{width:1px;height:20px;background:var(--line);margin:0 4px}
@@ -2866,10 +2879,11 @@
   <!-- ============ Shopify Orders: what has to ship, whether Amazon can ship it, and where it
        stands. One row per order, because a courier label is made from one order at a time. ====== -->
   <div id="paneShop" class="hide">
-    <div class="card" style="padding:12px 14px">
-      <!-- THE TOOLBAR, TIDIED (2026-10-14): what to look at on the first line, the status buttons under it, and
-           everything you DO with the orders on the last line. Every control keeps its id, so nothing reading them changes. -->
-      <div class="toolbar so-find">
+    <div class="card so-card" style="padding:12px 14px">
+      <!-- THE TITLE BAND (Ravi, 14 Oct: design B, "name and store left, figures right"): the screen's name and the store on
+           the left; today, yesterday, waiting on production and the orders shown on the right. The filters are the line under it. -->
+      <div class="so-band">
+        <div class="so-title"><span>SHOPIFY</span><b>Orders</b></div>
         <!-- WHICH STORE'S ORDERS. Narrows what is drawn and the Today / Yesterday figures; the
              production bucket and the production orders still see both stores. -->
         <div class="seg" id="soStoreSeg" title="Show Ridhi's orders, CPC's orders, or both.">
@@ -2877,6 +2891,9 @@
           <button class="segbtn" data-store="Ridhi">Ridhi</button>
           <button class="segbtn" data-store="CPC">CPC</button>
         </div>
+        <div id="soKpis" class="so-figs"></div>
+      </div>
+      <div class="toolbar so-find">
         <input id="soFrom" type="date" style="flex:0 0 150px">
         <span class="muted" style="font-size:13px">to</span>
         <input id="soTo" type="date" style="flex:0 0 150px">
@@ -2910,12 +2927,10 @@
              krlo", "return, delivery days and print order select krne par hi show ho"). The bucket is an icon — what is in it
              shows when it opens; the search is narrower; everything you DO with the orders is in "More". The Adjustments
              button is gone from here: Adjustments is its own screen in the Shopify menu. Every control keeps its id. -->
-        <button id="soBucket" type="button" class="ghost so-icon" aria-label="Production bucket"
-                title="Production bucket — Shopify lines that need production and have no production order yet. Tick and open them here; nothing opens by itself."><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg></button>
+        <button id="soBucket" type="button" class="so-bucket" aria-label="Production bucket"
+                title="Production bucket — Shopify lines that need production and have no production order yet. Tick and open them here; nothing opens by itself."><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg><span>Bucket</span><b id="soBucketN"></b></button>
         <input id="soFilter" style="flex:0 1 260px;min-width:140px" placeholder="Filter order / SKU / name">
-        <!-- TODAY AND YESTERDAY as cards in the toolbar's free space (Ravi, 14 Oct: "use this space — kal ka sale and aaj ka
-             sale kuch aise KPI card me show hona chahiye"), the same look as the Job Work cards. -->
-        <div id="soKpis" class="so-kpis"></div>
+        <span id="soStockAt" class="so-stock"></span>
         <details class="so-more" id="soMoreMenu">
           <summary class="so-more-btn">More ▾</summary>
           <div class="so-more-pop">
@@ -60539,7 +60554,9 @@ function renderShop() {
   if ($('soBucket')) { const rd = typeof shpReadyLines === 'function' ? shpReadyLines().length : 0;
     /* An icon now (14 Oct): its words and counts are its tooltip; opening it shows what is inside. */
     const tip = 'Production bucket' + (bucketMake.length ? ` — ${nf(bucketMake.length)} order(s) waiting` : ' — nothing waiting') + (rd ? ` · ${nf(rd)} ready to take` : '');
-    if ($('soBucket').title !== tip) { $('soBucket').title = tip; if ($('soBucket').setAttribute) $('soBucket').setAttribute('aria-label', tip); } }
+    if ($('soBucket').title !== tip) { $('soBucket').title = tip; if ($('soBucket').setAttribute) $('soBucket').setAttribute('aria-label', tip); }
+    /* Design B: the count on the button itself ("Bucket 21"); empty hides it. */
+    if ($('soBucketN')) $('soBucketN').textContent = bucketMake.length ? nf(bucketMake.length) : ''; }
   SO_IN_BUCKET = inBucket;
   const y = soStoreDay(-1), t = soStoreDay(0);
   const yd = pend.filter(r => r.at === y).length, td = pend.filter(r => r.at === t).length;
@@ -60565,7 +60582,11 @@ function renderShop() {
   ].filter(Boolean).join(' · ');
   /* On screen: how many, how many are waiting on production, and — only when it is about to
    * mislead somebody — that the date boxes no longer match what is drawn. */
-  soMsg(`${nf(rows.length)} of ${nf(SHOP.orders.length + soImpLive().length)} orders`
+  /* Design B (14 Oct): the counts are figures in the title band; the line under the filters keeps only what needs reading. */
+  SO_FIG = { shown: rows.length, total: SHOP.orders.length + soImpLive().length, pend: pend.length };
+  renderSoBand();
+  soMsg($('soKpis') ? [stale ? `The boxes now say ${$('soFrom').value} → ${$('soTo').value} — press Fetch orders` : '', SHOP_STOCK_DENIED ? SHOP_STOCK_DENIED_TXT : ''].filter(Boolean).join(' · ')
+    : `${nf(rows.length)} of ${nf(SHOP.orders.length + soImpLive().length)} orders`
     + (pend.length ? ` · ${nf(pend.length)} waiting on production` : '')
     + (stale ? ` — the boxes now say ${$('soFrom').value} → ${$('soTo').value}; press Fetch orders` : '')
     + (SHOP_STOCK_DENIED ? ' · ' + SHOP_STOCK_DENIED_TXT : ''),
@@ -60759,25 +60780,35 @@ function renderShopToday() {
   // The window is the user's choice and can easily not reach today — saying so beats showing a
   // truthful zero that reads as "no sales today".
   const covers = d => (!SHOP.from || d >= SHOP.from) && (!SHOP.to || d <= SHOP.to);
-  /* AS KPI CARDS in the toolbar (Ravi, 14 Oct): the sale in big figures, the day, orders and units under it. The cancelled
-   * ones are left out of the figures and named in the card's tooltip. The notes below stay in the strip under the toolbar. */
-  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const day = iso => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || '')); return m ? `${+m[3]} ${MON[+m[2] - 1]}` : String(iso || ''); };
-  const icon = k => (typeof JW_ICON !== 'undefined' && JW_ICON[k]) || '';
-  const kpi = (label, iso, s, ic, tone) => `<div class="so-kpi" title="${esc(label + ' · ' + iso + (who ? ' · ' + who : '') + ' — placed in the store\'s own day'
-      + (s.cancelled ? ` · ${s.cancelled} cancelled, not counted` : ''))}"><span class="jw-ki ${tone}">${icon(ic)}</span>`
-    + `<div><div class="v">${money(s.value)}</div><div class="l"><b>${label}</b> ${day(iso)}${who ? ' · ' + esc(who) : ''}`
-    + ` · ${nf(s.orders)} order${s.orders === 1 ? '' : 's'} · ${nf(s.units)} unit${s.units === 1 ? '' : 's'}</div></div></div>`;
-  if ($('soKpis')) {
-    $('soKpis').innerHTML = kpi('Today', today, soDayStats(today), 'up', 'green') + kpi('Yesterday', yday, soDayStats(yday), 'clock', 'blue');
-  }
-  $('soToday').innerHTML = ($('soKpis') ? '' : box('Today', today, soDayStats(today)) + box('Yesterday', yday, soDayStats(yday)))
+  /* The two days go to the title band (renderSoBand); the notes about them stay in the strip under the filters. */
+  SO_DAYS = { today, yday, ts: soDayStats(today), ys: soDayStats(yday), who };
+  renderSoBand();
+  if ($('soStockAt')) $('soStockAt').innerHTML = soStockStamp() || '';
+  $('soToday').innerHTML = ($('soKpis') ? '' : box('Today', today, SO_DAYS.ts) + box('Yesterday', yday, SO_DAYS.ys))
     + (SHOP.tz ? '' : '<div class="muted" style="font-size:11px;align-self:center">'
         + 'Store timezone unknown — these two days are counted in PT and may be a day out. '
         + 'Press Fetch orders to pick it up.</div>')
     + (covers(today) && covers(yday) ? '' : '<div style="color:var(--warn);font-size:11.5px;align-self:center">'
         + 'The date range does not cover both days — widen it before reading these.</div>')
-    + (soStockStamp() ? `<div class="muted" style="font-size:11.5px;align-self:center;margin-left:auto">${soStockStamp()}</div>` : '');
+    + ($('soStockAt') || !soStockStamp() ? '' : `<div class="muted" style="font-size:11.5px;align-self:center;margin-left:auto">${soStockStamp()}</div>`);
+}
+
+/* ---- THE TITLE BAND'S FIGURES (Ravi, 14 Oct, design B: "name and store left, figures right") ----
+ * Today and yesterday (the sale, orders and units, in the store's own day — cancelled ones left out and named in the
+ * tooltip), the orders waiting on production, and how many orders are shown of how many fetched. The two days come from
+ * renderShopToday, the counts from renderShop; whichever lands last draws the band. */
+let SO_DAYS = null, SO_FIG = null;
+function renderSoBand() {
+  const box = $('soKpis'); if (!box) return;
+  const money = v => '$' + Math.round(v || 0).toLocaleString('en-US');
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const day = iso => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || '')); return m ? `${+m[3]} ${MON[+m[2] - 1]}` : String(iso || ''); };
+  const fig = (big, small, tip) => `<div class="so-fig"${tip ? ` title="${esc(tip)}"` : ''}><b>${big}</b><span>${small}</span></div>`;
+  const dayFig = (label, iso, s) => fig(money(s.value),
+    `${label} · ${nf(s.orders)} order${s.orders === 1 ? '' : 's'} · ${nf(s.units)} unit${s.units === 1 ? '' : 's'}`,
+    `${label} · ${day(iso)}${SO_DAYS.who ? ' · ' + SO_DAYS.who : ''} — placed in the store's own day` + (s.cancelled ? ` · ${s.cancelled} cancelled, not counted` : ''));
+  box.innerHTML = (SO_DAYS ? dayFig('Today', SO_DAYS.today, SO_DAYS.ts) + dayFig('Yesterday', SO_DAYS.yday, SO_DAYS.ys) : '')
+    + (SO_FIG ? fig(nf(SO_FIG.pend), 'waiting on production', 'Neither Amazon nor India can fill them') + fig(nf(SO_FIG.shown), `of ${nf(SO_FIG.total)} orders shown`, '') : '');
 }
 
 /* ---------- staged quantity, and what is short ----------

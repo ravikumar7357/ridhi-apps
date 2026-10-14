@@ -1760,10 +1760,11 @@
   <!-- ============ Shopify Orders: what has to ship, whether Amazon can ship it, and where it
        stands. One row per order, because a courier label is made from one order at a time. ====== -->
   <div id="paneShop" class="hide">
-    <div class="card" style="padding:12px 14px">
-      <!-- THE TOOLBAR, TIDIED (2026-10-14): what to look at on the first line, the status buttons under it, and
-           everything you DO with the orders on the last line. Every control keeps its id, so nothing reading them changes. -->
-      <div class="toolbar so-find">
+    <div class="card so-card" style="padding:12px 14px">
+      <!-- THE TITLE BAND (Ravi, 14 Oct: design B, "name and store left, figures right"): the screen's name and the store on
+           the left; today, yesterday, waiting on production and the orders shown on the right. The filters are the line under it. -->
+      <div class="so-band">
+        <div class="so-title"><span>SHOPIFY</span><b>Orders</b></div>
         <!-- WHICH STORE'S ORDERS. Narrows what is drawn and the Today / Yesterday figures; the
              production bucket and the production orders still see both stores. -->
         <div class="seg" id="soStoreSeg" title="Show Ridhi's orders, CPC's orders, or both.">
@@ -1771,6 +1772,9 @@
           <button class="segbtn" data-store="Ridhi">Ridhi</button>
           <button class="segbtn" data-store="CPC">CPC</button>
         </div>
+        <div id="soKpis" class="so-figs"></div>
+      </div>
+      <div class="toolbar so-find">
         <input id="soFrom" type="date" style="flex:0 0 150px">
         <span class="muted" style="font-size:13px">to</span>
         <input id="soTo" type="date" style="flex:0 0 150px">
@@ -1804,12 +1808,10 @@
              krlo", "return, delivery days and print order select krne par hi show ho"). The bucket is an icon — what is in it
              shows when it opens; the search is narrower; everything you DO with the orders is in "More". The Adjustments
              button is gone from here: Adjustments is its own screen in the Shopify menu. Every control keeps its id. -->
-        <button id="soBucket" type="button" class="ghost so-icon" aria-label="Production bucket"
-                title="Production bucket — Shopify lines that need production and have no production order yet. Tick and open them here; nothing opens by itself."><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg></button>
+        <button id="soBucket" type="button" class="so-bucket" aria-label="Production bucket"
+                title="Production bucket — Shopify lines that need production and have no production order yet. Tick and open them here; nothing opens by itself."><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg><span>Bucket</span><b id="soBucketN"></b></button>
         <input id="soFilter" style="flex:0 1 260px;min-width:140px" placeholder="Filter order / SKU / name">
-        <!-- TODAY AND YESTERDAY as cards in the toolbar's free space (Ravi, 14 Oct: "use this space — kal ka sale and aaj ka
-             sale kuch aise KPI card me show hona chahiye"), the same look as the Job Work cards. -->
-        <div id="soKpis" class="so-kpis"></div>
+        <span id="soStockAt" class="so-stock"></span>
         <details class="so-more" id="soMoreMenu">
           <summary class="so-more-btn">More ▾</summary>
           <div class="so-more-pop">
