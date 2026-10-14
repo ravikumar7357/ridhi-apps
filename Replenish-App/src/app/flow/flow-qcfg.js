@@ -66,7 +66,7 @@ const flowFgOf = r => Object.values(FLOW.fg || {}).filter(h => h && obUC(h.order
 const flowFgToAccept = (r, s) => Math.max(0, (s.made || 0) - (s.india || 0));
 /** The planned lines with something for the Finished Goods team to accept. A make-to-order line is handed to shipping
  * on the Order Console instead; an outsourced one is received from its vendor, as before. */
-const flowFgLines = () => flowRows().filter(x => x.s.plan && x.s.route !== 'outsource' && (x.r.__t || !ordIsMto(x.r.orderNo)) && flowFgToAccept(x.r, x.s) > 0);
+const flowFgLines = () => flowRows().filter(x => x.s.plan && x.s.route !== 'outsource' && !flowIsMto(x.r) && flowFgToAccept(x.r, x.s) > 0);
 const flowFgSay = (t, bad) => { if ($('fgMsg')) { $('fgMsg').className = bad ? 'err' : 'muted'; $('fgMsg').textContent = t; } };
 const flowFgFind = key => flowRows().find(y => y.s.key === key);
 const flowFgLog = (x, rec) => { const id = 'fgs_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
@@ -191,7 +191,7 @@ function flowFgRender() {
         <td style="white-space:nowrap">${may ? `<button data-flfga="${esc(x.s.key)}" style="padding:3px 12px;font-size:12px">Accept</button>
           <button class="ghost" data-flfgr="${esc(x.s.key)}" style="padding:3px 10px;font-size:12px;color:#b91c1c">Reject</button>` : '<span class="muted">—</span>'}</td></tr>`; }).join('')
       || `<tr><td colspan="${head.length}" class="muted" style="padding:14px">Nothing from QC waiting to be accepted.</td></tr>`) + '</tbody>';
-  flowFgSay(`${nf(rows.length)} line(s), ${nf(pcs)} piece(s) passed QC and not in India stock yet — Accept counts them into the India store, Reject sends them back to Quality Control · TEST VIEW, not on the live app`);
+  flowFgSay(`${nf(rows.length)} line(s), ${nf(pcs)} piece(s) passed QC and not in India stock yet — Accept counts them into the India store, Reject sends them back to Quality Control · ${flowPhaseTxt()}`);
 }
 /** The count on the Finished Goods screen — only where the flow is switched on. */
 function flowFgBadge() {

@@ -24404,6 +24404,10 @@ const FLOW_REAL = (() => {
   return FLOW_REAL_DEFAULT;
 })();
 const FLOW_NO_REAL = Object.freeze([]);
+/** What the flow's screens say about the phase they are in (14 Oct: the flow is on the live app, so "not on the live app"
+ * was no longer true). */
+const flowPhaseTxt = () => FLOW_REAL ? `LIVE — the flow runs the real orders from ${flowFrom()}`
+  : 'TEST phase — the flow runs test orders only; real orders go the old way';
 /* PPC and Demand apply to orders from this date on: the 2,000 older POs were never planned this way, and putting them
  * all in PPC would bury the new ones. Older lines go straight to the bucket of the step they are really at. */
 const FLOW_FROM_DEFAULT = '2026-10-10';
@@ -24440,8 +24444,13 @@ const flowOwnedIn = lines => [...new Set((lines || []).flatMap(l => (l && !l.can
   .map(x => obUC(x && x.orderNo)).filter(no => flowOwnsOrder(no))))];
 /** A flow order's finished pieces come in through Finished Goods → From QC — to accept, not the stock entry, the Excel or the
  * scanner. A make-to-order line goes to shipping on the Order Console, and an outsourced line is received from its vendor. */
+/* MADE TO ORDER (Shopify, online): after QC the line goes to the shipping team on the Order Console, never to Finished
+ * Goods. A TEST copy of a Shopify order (TEST-SHP-…) is made to order too — its own platform says so (14 Oct). */
+const flowTestSrcOf = no => { const t = (typeof FLOW !== 'undefined' && FLOW.test) || {}; return obUC((t[no] || t[obUC(no)] || {}).src); };
+const flowIsMtoNo = no => ordIsMto(obUC(no)) || /^(SHP|ONL)$/.test(flowTestSrcOf(no));
+const flowIsMto = r => !!r && (ordIsMto(obUC(r.orderNo)) || (!!r.__t && /^(SHP|ONL)$/.test(obUC(r.src))));
 function flowFgOwns(orderNo, sku) {
-  if (!flowOwnsOrder(orderNo) || ordIsMto(obUC(orderNo))) return false;
+  if (!flowOwnsOrder(orderNo) || flowIsMtoNo(orderNo)) return false;
   const p = ((typeof FLOW !== 'undefined' && FLOW.ppc) || {})[flowKey(orderNo, sku)];
   return !(p && flowRouteOf(p) === 'outsource');
 }
@@ -24478,7 +24487,7 @@ const FLOW_TABS = [...new Set(FLOW_BUCKETS.map(b => b[2]))];   // one right can 
  * Control, 'fgin' waiting for the Finished Goods team — but no bucket of this screen lists it: the work is done there. */
 /* Printed fabric in, too (Ravi, 11 Oct: "dekhne ke liye hum History tab use karenge, Printed fabric in ko hata dete h"):
  * received on its challan in Demand history, seen in Vendors & printers → History (flowVlogRows). */
-const FLOW_ELSEWHERE = { qcb: 'Quality Control (QC screen)', fgin: 'Finished Goods — to accept (Finished Goods screen)', fabric: 'With the printer — receive in Demand → Printed fabric in, see Vendors & printers → History',
+const FLOW_ELSEWHERE = { ship: 'Ready — hand to shipping (Order Console → Production to shipping)', qcb: 'Quality Control (QC screen)',fgin: 'Finished Goods — to accept (Finished Goods screen)', fabric: 'With the printer — receive in Demand → Printed fabric in, see Vendors & printers → History',
   vendor: 'Vendor Orders — not given to a printer yet', out: 'Made outside — received into Finished Goods', cut: 'Cutting Data → To cut', raw: 'Job Work Register → Raw cutting in store', wip: 'Job Work Register → WIP' };
 const FLOW_DEMAND = ['drfd', 'dhist', 'dacc'];
 /** The buckets of the Production flow screen itself (its own, and the Demand tabs), this account may open. */
@@ -24637,6 +24646,8 @@ function flowState(r) {
     : (s.issuedNet < qty && !(p && flowQcOpen(r, s))) ? 'raw'   // QC work still open comes first
     /* QC (flow-qcfg.js), for a planned line: anything still with Quality Control (waiting, spotting / touching, alteration). */
     : (s.made < qty) ? (p && flowQcOpen(r, s) ? 'qcb' : 'wip')
+    /* …a Shopify / online line is made to order: passed QC, it waits to be handed to the shipping team (14 Oct). */
+    : (flowIsMto(r) && (p || isNew || r.open)) ? 'ship'
     /* …then Ready → India stock: passed and not in India stock — the Finished Goods team accepts it on its own screen. */
     : (s.india < qty && (p || isNew || r.open)) ? 'fgin'
     : 'done';
@@ -25622,7 +25633,7 @@ function flowTestLines() {
     rows.push({ orderNo: o.orderNo, sku: obUC(sku), qty, orderDate: o.orderDate, src: o.src || 'TEST', fromSo: o.fromSo || '',
       articleType: m.articleType || '', articleSubtype: m.articleSubtype || '', color: m.color || m.colour || '', size: m.size || '',
       cutReq, cut: +t.cut || 0, issued: +t.issued || 0, received: +t.received || 0, pressed: 0, printer: '', printed: 0,
-      open: true, handedAt: '', shopDoneAt: '', __t: t });
+      open: true, handedAt: t.handedAt || '', shopDoneAt: '', __t: t });
   }));
   FLOW_TC = { src: FLOW.test, rows };
   return rows;
@@ -25635,6 +25646,9 @@ const FLOW_SIM = {
   cut: ['Simulate: cutting entry', 'Cutting Data → the cutting entry', t => ({ cut: t.qty })],
   raw: ['Simulate: issued to karigar', 'Job Work Register → issue', t => ({ issued: t.qty })],
   out: ['Simulate: received in Finished Goods', 'Finished Goods → receive (from the outsource vendor)', t => ({ fgIn: t.qty })],
+  /* A Shopify / online test line, passed QC: handed to the shipping team, as the Order Console's "Production to shipping"
+   * does for a real one (14 Oct). */
+  ship: ['Hand to shipping (test)', 'Order Console → Production to shipping — a Shopify / online line goes to the shipping team, not Finished Goods', () => ({ handedAt: dToday() })],
 };
 async function flowSimulate(orderNo, sku, view) {
   const o = (FLOW.test || {})[orderNo], t = o && o.lines && o.lines[sku], sim = FLOW_SIM[view];
@@ -26775,7 +26789,7 @@ const flowFgOf = r => Object.values(FLOW.fg || {}).filter(h => h && obUC(h.order
 const flowFgToAccept = (r, s) => Math.max(0, (s.made || 0) - (s.india || 0));
 /** The planned lines with something for the Finished Goods team to accept. A make-to-order line is handed to shipping
  * on the Order Console instead; an outsourced one is received from its vendor, as before. */
-const flowFgLines = () => flowRows().filter(x => x.s.plan && x.s.route !== 'outsource' && (x.r.__t || !ordIsMto(x.r.orderNo)) && flowFgToAccept(x.r, x.s) > 0);
+const flowFgLines = () => flowRows().filter(x => x.s.plan && x.s.route !== 'outsource' && !flowIsMto(x.r) && flowFgToAccept(x.r, x.s) > 0);
 const flowFgSay = (t, bad) => { if ($('fgMsg')) { $('fgMsg').className = bad ? 'err' : 'muted'; $('fgMsg').textContent = t; } };
 const flowFgFind = key => flowRows().find(y => y.s.key === key);
 const flowFgLog = (x, rec) => { const id = 'fgs_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
@@ -26900,7 +26914,7 @@ function flowFgRender() {
         <td style="white-space:nowrap">${may ? `<button data-flfga="${esc(x.s.key)}" style="padding:3px 12px;font-size:12px">Accept</button>
           <button class="ghost" data-flfgr="${esc(x.s.key)}" style="padding:3px 10px;font-size:12px;color:#b91c1c">Reject</button>` : '<span class="muted">—</span>'}</td></tr>`; }).join('')
       || `<tr><td colspan="${head.length}" class="muted" style="padding:14px">Nothing from QC waiting to be accepted.</td></tr>`) + '</tbody>';
-  flowFgSay(`${nf(rows.length)} line(s), ${nf(pcs)} piece(s) passed QC and not in India stock yet — Accept counts them into the India store, Reject sends them back to Quality Control · TEST VIEW, not on the live app`);
+  flowFgSay(`${nf(rows.length)} line(s), ${nf(pcs)} piece(s) passed QC and not in India stock yet — Accept counts them into the India store, Reject sends them back to Quality Control · ${flowPhaseTxt()}`);
 }
 /** The count on the Finished Goods screen — only where the flow is switched on. */
 function flowFgBadge() {
@@ -27024,7 +27038,7 @@ function renderFlow() {
   $('flMsg').textContent = [FLOW.err ? 'Could not read the plans: ' + FLOW.err : '',
     `${b[1]}: ${FLOW_VIEW === 'dhist' ? nf(n.dhist) + ' open challan(s)' : FLOW_VIEW === 'pord' ? nf(n.pord) + ' print order(s) not finished' : nf(rows.length) + ' line(s)'}${rows.length > 800 ? ' — showing the oldest 800' : ''}`]
     .concat(pts.map(t => '• ' + t), [`• PPC and Demand apply to orders from ${flowFrom()}`, '• Cutting is in Cutting Data; raw cutting and WIP in the Job Work Register',
-      '• TEST VIEW, not on the live app' + ((FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly()) ? ' — SHOWING TEST ORDERS ONLY' : '')])
+      '• ' + flowPhaseTxt() + ((FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly()) ? ' — SHOWING TEST ORDERS ONLY' : '')])
     .filter(Boolean).join('\n');
 }
 
@@ -27162,7 +27176,8 @@ function flowTable(view, rows) {
           ${(p.acc || []).filter(a => a.code && +a.qty > 0).map(a => `<div class="muted" style="font-size:12px">${esc(a.what || a.code)} × ${nf(a.qty)}</div>`).join('')}</td>
         <td style="text-align:left;font-size:13px;white-space:normal;min-width:160px;max-width:240px;vertical-align:top">${esc(now(x.s))}</td>
         <td style="text-align:left;font-size:12px;line-height:1.55;vertical-align:top" class="muted">${esc(String(p.at || '').slice(0, 10))}${p.by ? '<br>' + esc(String(p.by).split('@')[0]) : ''}</td>
-        <td style="white-space:normal;max-width:170px;vertical-align:top"><button data-flplan="${esc(x.r.orderNo)}|${esc(x.r.sku)}" style="width:auto;padding:3px 10px;font-size:12px" title="Change or undo what PPC planned">Edit plan</button>
+        <td style="white-space:normal;max-width:170px;vertical-align:top">${x.r.__t && x.s.bucket === 'ship'
+          ? `<button data-flsim="${esc(x.r.orderNo)}|${esc(x.r.sku)}|ship" title="Stands in for: ${esc(FLOW_SIM.ship[1])}" style="width:auto;padding:3px 10px;font-size:12px;margin-bottom:6px;background:#7c3aed;border-color:#7c3aed">${esc(FLOW_SIM.ship[0])}</button><br>` : ''}<button data-flplan="${esc(x.r.orderNo)}|${esc(x.r.sku)}" style="width:auto;padding:3px 10px;font-size:12px" title="Change or undo what PPC planned">Edit plan</button>
           ${locked ? `<div class="muted" style="font-size:10.5px;margin-top:3px" title="The fabric went on ${esc(x.s.challan.no)}: fabric, route and printer can no longer change">fabric sent · ${esc(x.s.challan.no)}</div>` : ''}</td></tr>`; }).join('');
   } else if (view === 'drfd') {
     head = ['PO', 'SKU', 'Qty', 'Made as', 'Fabric this line uses', 'RFD left for it', ''];
@@ -27353,7 +27368,7 @@ async function flowEmbedRender(tab) {
     .sort((a, b) => String(a.r.orderDate || '').localeCompare(String(b.r.orderDate || '')) || String(a.r.orderNo).localeCompare(String(b.r.orderNo)));
   tbl.innerHTML = flowTable(v, rows.slice(0, 800));
   const b = FLOW_BUCKETS.find(x => x[0] === v) || [];
-  msg.textContent = `${b[1]}: ${nf(rows.length)} line(s) — ${b[3]}${only ? ' · SHOWING TEST ORDERS ONLY (switch on the Production flow screen)' : ''} · TEST VIEW, not on the live app`;
+  msg.textContent = `${b[1]}: ${nf(rows.length)} line(s) — ${b[3]}${only ? ' · SHOWING TEST ORDERS ONLY (switch on the Production flow screen)' : ''} · ${flowPhaseTxt()}`;
 }
 /** Finished Goods → From QC — to accept. */
 async function flowFgOpen() {

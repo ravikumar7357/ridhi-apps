@@ -40,6 +40,10 @@ const FLOW_REAL = (() => {
   return FLOW_REAL_DEFAULT;
 })();
 const FLOW_NO_REAL = Object.freeze([]);
+/** What the flow's screens say about the phase they are in (14 Oct: the flow is on the live app, so "not on the live app"
+ * was no longer true). */
+const flowPhaseTxt = () => FLOW_REAL ? `LIVE — the flow runs the real orders from ${flowFrom()}`
+  : 'TEST phase — the flow runs test orders only; real orders go the old way';
 /* PPC and Demand apply to orders from this date on: the 2,000 older POs were never planned this way, and putting them
  * all in PPC would bury the new ones. Older lines go straight to the bucket of the step they are really at. */
 const FLOW_FROM_DEFAULT = '2026-10-10';
@@ -76,8 +80,13 @@ const flowOwnedIn = lines => [...new Set((lines || []).flatMap(l => (l && !l.can
   .map(x => obUC(x && x.orderNo)).filter(no => flowOwnsOrder(no))))];
 /** A flow order's finished pieces come in through Finished Goods → From QC — to accept, not the stock entry, the Excel or the
  * scanner. A make-to-order line goes to shipping on the Order Console, and an outsourced line is received from its vendor. */
+/* MADE TO ORDER (Shopify, online): after QC the line goes to the shipping team on the Order Console, never to Finished
+ * Goods. A TEST copy of a Shopify order (TEST-SHP-…) is made to order too — its own platform says so (14 Oct). */
+const flowTestSrcOf = no => { const t = (typeof FLOW !== 'undefined' && FLOW.test) || {}; return obUC((t[no] || t[obUC(no)] || {}).src); };
+const flowIsMtoNo = no => ordIsMto(obUC(no)) || /^(SHP|ONL)$/.test(flowTestSrcOf(no));
+const flowIsMto = r => !!r && (ordIsMto(obUC(r.orderNo)) || (!!r.__t && /^(SHP|ONL)$/.test(obUC(r.src))));
 function flowFgOwns(orderNo, sku) {
-  if (!flowOwnsOrder(orderNo) || ordIsMto(obUC(orderNo))) return false;
+  if (!flowOwnsOrder(orderNo) || flowIsMtoNo(orderNo)) return false;
   const p = ((typeof FLOW !== 'undefined' && FLOW.ppc) || {})[flowKey(orderNo, sku)];
   return !(p && flowRouteOf(p) === 'outsource');
 }
@@ -114,7 +123,7 @@ const FLOW_TABS = [...new Set(FLOW_BUCKETS.map(b => b[2]))];   // one right can 
  * Control, 'fgin' waiting for the Finished Goods team — but no bucket of this screen lists it: the work is done there. */
 /* Printed fabric in, too (Ravi, 11 Oct: "dekhne ke liye hum History tab use karenge, Printed fabric in ko hata dete h"):
  * received on its challan in Demand history, seen in Vendors & printers → History (flowVlogRows). */
-const FLOW_ELSEWHERE = { qcb: 'Quality Control (QC screen)', fgin: 'Finished Goods — to accept (Finished Goods screen)', fabric: 'With the printer — receive in Demand → Printed fabric in, see Vendors & printers → History',
+const FLOW_ELSEWHERE = { ship: 'Ready — hand to shipping (Order Console → Production to shipping)', qcb: 'Quality Control (QC screen)',fgin: 'Finished Goods — to accept (Finished Goods screen)', fabric: 'With the printer — receive in Demand → Printed fabric in, see Vendors & printers → History',
   vendor: 'Vendor Orders — not given to a printer yet', out: 'Made outside — received into Finished Goods', cut: 'Cutting Data → To cut', raw: 'Job Work Register → Raw cutting in store', wip: 'Job Work Register → WIP' };
 const FLOW_DEMAND = ['drfd', 'dhist', 'dacc'];
 /** The buckets of the Production flow screen itself (its own, and the Demand tabs), this account may open. */
@@ -273,6 +282,8 @@ function flowState(r) {
     : (s.issuedNet < qty && !(p && flowQcOpen(r, s))) ? 'raw'   // QC work still open comes first
     /* QC (flow-qcfg.js), for a planned line: anything still with Quality Control (waiting, spotting / touching, alteration). */
     : (s.made < qty) ? (p && flowQcOpen(r, s) ? 'qcb' : 'wip')
+    /* …a Shopify / online line is made to order: passed QC, it waits to be handed to the shipping team (14 Oct). */
+    : (flowIsMto(r) && (p || isNew || r.open)) ? 'ship'
     /* …then Ready → India stock: passed and not in India stock — the Finished Goods team accepts it on its own screen. */
     : (s.india < qty && (p || isNew || r.open)) ? 'fgin'
     : 'done';

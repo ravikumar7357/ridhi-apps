@@ -107,6 +107,25 @@ const K = 'AMZ-1__S1';
   const qc100 = [{ orderNo: 'AMZ-1', sku: 'S1', checked: 100, ok: 100 }];
   A = load(Object.assign({ vendor: { 'AMZ-1|S1': { given: 100, back: 100 } }, qc: { 'AMZ-1|S1': { ok: 100 } }, qcChecks: qc100 }, ready));
   ok('all QC passed, not in Finished Goods → Ready → India stock (the Finished Goods team accepts)', b(L({ issued: 100, received: 100 })) === 'fgin');
+  { /* A SHOPIFY LINE IS MADE TO ORDER (Ravi, 14 Oct: "naye ppc flow me shopify ke order kese flow honge"): after QC it waits to be
+     * handed to the shipping team, not on Finished Goods. */
+    const SK = 'SHP-1__S1', shpReady = { ppc: { [SK]: plan({ orderNo: 'SHP-1' }) }, dem: { [SK]: { fabricReady: { at: 'x' } } } };
+    A = load(Object.assign({ vendor: { 'SHP-1|S1': { given: 100, back: 100 } }, qc: { 'SHP-1|S1': { ok: 100 } }, qcChecks: [{ orderNo: 'SHP-1', sku: 'S1', checked: 100, ok: 100 }],
+      lines: [L({ orderNo: 'SHP-1', src: 'SHP', issued: 100, received: 100 })] }, shpReady));
+    ok('a Shopify line, all QC passed → Ready — hand to shipping, not Finished Goods', b(L({ orderNo: 'SHP-1', src: 'SHP', issued: 100, received: 100 })) === 'ship');
+    ok('…not on the Finished Goods "to accept" list, and Finished Goods does not own it', !A.flowFgLines().some(x => x.r.orderNo === 'SHP-1') && A.flowFgOwns('SHP-1', 'S1') === false);
+    ok('…handed to shipping on the Order Console → done', b(L({ orderNo: 'SHP-1', src: 'SHP', issued: 100, received: 100, handedAt: '2026-10-14' })) === 'done'); }
+  { /* …and its TEST copy goes the same way (it used to land on Finished Goods, because only SHP-/ONL- numbers were made to order). */
+    const TN = 'TEST-SHP-14102026-01', TK = TN + '__S1';
+    const T = load({ me: { admin: true }, mdb: { S1: { cons: 1, fab: 'Cotton' } }, qcChecks: [{ orderNo: TN, sku: 'S1', checked: 10, ok: 10 }],
+      ppc: { [TK]: plan({ orderNo: TN, qty: 10 }) }, dem: { [TK]: { fabricReady: { at: 'x' } } } });
+    T.setFLOW(Object.assign(T.FLOW(), { test: { [TN]: { orderNo: TN, src: 'SHP', orderDate: '2026-10-14', fromSo: 'SHP-1', lines: { S1: { qty: 10, given: 10, back: 10, cut: 10, issued: 10, received: 10 } } } } }));
+    const row = () => T.flowRows().find(x => x.r.orderNo === TN);
+    ok('a Shopify TEST copy, QC passed → Ready — hand to shipping, not Finished Goods', row() && row().s.bucket === 'ship' && !T.flowFgLines().some(x => x.r.orderNo === TN) && T.flowFgOwns(TN, 'S1') === false, row() && row().s.bucket);
+    T.setView('ppcdone'); T.renderFlow();
+    ok('…PPC completed offers "Hand to shipping (test)" in place of the Order Console\'s hand-over', new RegExp('data-flsim="' + TN + '\\|S1\\|ship"').test(T.els.flTable.innerHTML) && /Ready — hand to shipping/.test(T.els.flTable.innerHTML));
+    const er = await T.flowSimulate(TN, 'S1', 'ship');
+    ok('…pressing it hands the test line over → done', !er && T.writes.some(w => w['pt_flowTest/' + TN + '/lines/S1/handedAt']) && row().s.bucket === 'done', er || (row() && row().s.bucket)); }
   A = load(Object.assign({ vendor: { 'AMZ-1|S1': { given: 100, back: 100 } }, qc: { 'AMZ-1|S1': { ok: 60 } }, qcChecks: [{ orderNo: 'AMZ-1', sku: 'S1', checked: 100, ok: 60, dept: 'spotting', spotting: 40 }] }, ready));
   ok('40 in spotting on the Quality Control screen → still in QC', b(L({ issued: 100, received: 100 })) === 'qcb');
   A = load(Object.assign({ vendor: { 'AMZ-1|S1': { given: 100, back: 100 } }, qc: { 'AMZ-1|S1': { ok: 60 } }, qcChecks: [{ orderNo: 'AMZ-1', sku: 'S1', checked: 70, ok: 60, rejected: 10 }] }, ready));
@@ -1094,7 +1113,7 @@ const K = 'AMZ-1__S1';
     ok('every row has as many cells as there are headings (Qty was there twice)', rows.length === 2 && rows.every(n => n === th), th + ' headings, rows ' + rows.join(','));
     ok('Edit plan sits under its own (last) heading, the second line of the order is named small', /Edit plan/.test(h) && /<div class="muted" style="font-size:11px">AMZ-1<\/div>/.test(h));
     ok('design A: the plan is one thing a line — Route:, Fabric:, Print:', /<div>Route: <b>/.test(h) && /<div>Fabric: <b>Cotton<\/b> · [\d,.]+ m<\/div>/.test(h) && /<div>Print: <b>RBP-Bagru<\/b><\/div>/.test(h), h.slice(0, 1500));
-    ok('design A: the message is one point a line, the bucket first', /^PPC completed: 2 line\(s\)\n• Plan raised/.test(P.els.flMsg.textContent) && /\n• TEST VIEW, not on the live app/.test(P.els.flMsg.textContent) && P.els.flMsg.style.whiteSpace === 'pre-line', P.els.flMsg.textContent);
+    ok('design A: the message is one point a line, the bucket first', /^PPC completed: 2 line\(s\)\n• Plan raised/.test(P.els.flMsg.textContent) && /\n• (LIVE|TEST phase) — the flow runs/.test(P.els.flMsg.textContent) && P.els.flMsg.style.whiteSpace === 'pre-line', P.els.flMsg.textContent);
   }
 
   console.log('== test phase on the live app: the flow runs TEST orders only until Ravi says so (14 Oct) ==');
@@ -1443,7 +1462,9 @@ const K = 'AMZ-1__S1';
   ok('the old line is not in PPC', !/AMZ-0/.test(A.els.flTable.innerHTML));
   A.setView('wip'); A.renderView();
   ok('…it is in WIP, with Receive (issued 100, nothing back yet)', /AMZ-0/.test(A.els.flTable.innerHTML) && /data-flent="recv\|AMZ-0__S1"/.test(A.els.flTable.innerHTML));
-  ok('the page says it is a test view', /TEST VIEW/.test(A.els.flMsg.textContent));
+  ok('the page says which phase the flow is in (here, with flowReal on: LIVE)', /LIVE — the flow runs the real orders from 2026-10-10/.test(A.els.flMsg.textContent) && !/not on the live app/.test(A.els.flMsg.textContent), A.els.flMsg.textContent);
+  { const TP = load({ ls: { flowReal: null }, me: { admin: true } }); TP.setView('ppc'); TP.renderFlow();
+    ok('…and in the test phase it says so: test orders only, real orders the old way', /TEST phase — the flow runs test orders only; real orders go the old way/.test(TP.els.flMsg.textContent), TP.els.flMsg.textContent); }
   A = load({ me: { tabs: ['ord'] } });
   A.renderFlow();
   ok('no bucket → says so, draws nothing', /No bucket/.test(A.els.flMsg.textContent) && !A.els.flTable.innerHTML);

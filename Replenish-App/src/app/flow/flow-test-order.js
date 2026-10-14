@@ -29,7 +29,7 @@ function flowTestLines() {
     rows.push({ orderNo: o.orderNo, sku: obUC(sku), qty, orderDate: o.orderDate, src: o.src || 'TEST', fromSo: o.fromSo || '',
       articleType: m.articleType || '', articleSubtype: m.articleSubtype || '', color: m.color || m.colour || '', size: m.size || '',
       cutReq, cut: +t.cut || 0, issued: +t.issued || 0, received: +t.received || 0, pressed: 0, printer: '', printed: 0,
-      open: true, handedAt: '', shopDoneAt: '', __t: t });
+      open: true, handedAt: t.handedAt || '', shopDoneAt: '', __t: t });
   }));
   FLOW_TC = { src: FLOW.test, rows };
   return rows;
@@ -42,6 +42,9 @@ const FLOW_SIM = {
   cut: ['Simulate: cutting entry', 'Cutting Data → the cutting entry', t => ({ cut: t.qty })],
   raw: ['Simulate: issued to karigar', 'Job Work Register → issue', t => ({ issued: t.qty })],
   out: ['Simulate: received in Finished Goods', 'Finished Goods → receive (from the outsource vendor)', t => ({ fgIn: t.qty })],
+  /* A Shopify / online test line, passed QC: handed to the shipping team, as the Order Console's "Production to shipping"
+   * does for a real one (14 Oct). */
+  ship: ['Hand to shipping (test)', 'Order Console → Production to shipping — a Shopify / online line goes to the shipping team, not Finished Goods', () => ({ handedAt: dToday() })],
 };
 async function flowSimulate(orderNo, sku, view) {
   const o = (FLOW.test || {})[orderNo], t = o && o.lines && o.lines[sku], sim = FLOW_SIM[view];
