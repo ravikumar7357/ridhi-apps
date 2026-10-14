@@ -83,7 +83,7 @@
     <div class="navwrap"><button class="navgrp" id="grpShopify" type="button" data-grp="shopify" data-tabs="shop,adj,shopify">
       <span class="caret">&#9656;</span> Shopify</button>
     <div class="navsec" id="secShopify">
-      <a id="tabShop" class="nav" href="#shop">Shopify Orders</a>
+      <a id="tabShop" class="nav" href="#shop">Shopify Orders <span class="navbadge" style="background:#7c3aed" title="Store switch, order steps, returns &amp; replacements: live in a test phase since 14 Oct 2026 — tell Ravi what is wrong">TEST</span></a>
       <a id="tabAdj" class="nav" href="#adj">Adjustments</a>
       <a id="tabShopify" class="nav" href="#shopify">Shopify Stock</a>
     </div></div>
@@ -1761,14 +1761,23 @@
        stands. One row per order, because a courier label is made from one order at a time. ====== -->
   <div id="paneShop" class="hide">
     <div class="card" style="padding:12px 14px">
-      <div class="toolbar">
+      <!-- THE TOOLBAR, TIDIED (2026-10-14): what to look at on the first line, the status buttons under it, and
+           everything you DO with the orders on the last line. Every control keeps its id, so nothing reading them changes. -->
+      <div class="toolbar so-find">
+        <!-- WHICH STORE'S ORDERS. Narrows what is drawn and the Today / Yesterday figures; the
+             production bucket and the production orders still see both stores. -->
+        <div class="seg" id="soStoreSeg" title="Show Ridhi's orders, CPC's orders, or both.">
+          <button class="segbtn on" data-store="">Both</button>
+          <button class="segbtn" data-store="Ridhi">Ridhi</button>
+          <button class="segbtn" data-store="CPC">CPC</button>
+        </div>
         <input id="soFrom" type="date" style="flex:0 0 150px">
         <span class="muted" style="font-size:13px">to</span>
         <input id="soTo" type="date" style="flex:0 0 150px">
         <!-- EVERY ORDER by default. The sync closes a production row when its order ships, and it
              can only see what the fetch returns — so filtering the shipped ones out is the one
              setting that guarantees nothing ever closes. That is what it was set to. -->
-        <select id="soOpen" style="flex:0 0 180px">
+        <select id="soOpen" data-ftf="Shipped or not" style="flex:0 0 180px">
           <option value="0">Every order</option>
           <option value="1">Not yet shipped</option>
         </select>
@@ -1776,7 +1785,7 @@
              title="Which shop the order came from. Nothing ticked means all of them."></div>
         <div class="ms" id="soMcf" style="flex:0 0 215px"
              title="Where this order can ship from. Tick as many as you like; nothing ticked means all of them."></div>
-        <select id="soState" style="flex:0 0 190px" title="Cancelled comes from Shopify. Chargeback and MCF done are read from the order's tags, its notes, or the status typed here.">
+        <select id="soState" data-ftf="State" style="flex:0 0 190px" title="Cancelled comes from Shopify. Chargeback and MCF done are read from the order's tags, its notes, or the status typed here.">
           <option value="ALL">Any state</option>
           <option value="live">Live only</option>
           <option value="cancel">Cancelled</option>
@@ -1791,13 +1800,21 @@
           <option value="-1">Placed yesterday</option>
           <option value="-7">Last 7 days</option>
         </select>
-        <input id="soFilter" style="flex:1 1 150px;min-width:0" placeholder="Filter order / SKU / name">
-        <button id="soAdj" class="ghost" title="Every shortfall raised, by the day it was raised. Printable, to hand to production.">Adjustments</button>
+        <input id="soFilter" style="flex:1 1 220px;min-width:0" placeholder="Filter order / SKU / name">
+        <button id="soGo">Fetch orders</button>
+      </div>
+      <!-- One button per status, with its count. One click shows that status; All shows everything. -->
+      <div id="soLanes" class="so-lanes"></div>
+      <div class="toolbar so-acts">
         <button id="soBucket" title="Shopify lines that need production and have no production order yet — tick and open them here. Nothing opens by itself.">Production bucket</button>
-        <button id="soDense" class="ghost" title="One page: ten columns that fit the screen, or every column with a sideways scroll.">Full columns</button>
+        <button id="soAdj" class="ghost" title="Every shortfall raised, by the day it was raised. Printable, to hand to production.">Adjustments</button>
         <button id="soReturns" class="ghost" title="Returns, typed by hand: which order, which lines, the return tracking number, and whether it has reached the USA warehouse.">Returns</button>
         <button id="soDays" class="ghost" title="How many days a parcel from the USA warehouse takes to a zip code — an estimate from distance zones, not a carrier quote.">Delivery days</button>
-        <select id="soTmpl" style="flex:0 0 190px" title="Which upload template to write. The column headings and their order match the courier's own workbook exactly.">
+        <span class="so-sep"></span>
+        <button id="soPrintMany" class="ghost"
+                title="Pick sheets, with photos, for the ticked orders — or for everything shown if nothing is ticked.">Print orders</button>
+        <span class="so-exp">
+        <select id="soTmpl" style="flex:0 0 auto;width:auto" title="Which upload template to write. The column headings and their order match the courier's own workbook exactly.">
           <option value="plain">Plain list — one row per line item</option>
           <option value="plainOrder">Plain list — one row per order</option>
           <option value="mcf">Amazon MCF</option>
@@ -1806,8 +1823,7 @@
           <option value="fedex">FedEx</option>
         </select>
         <button id="soExport" class="ghost">Export</button>
-        <button id="soPrintMany" class="ghost"
-                title="Pick sheets, with photos, for the ticked orders — or for everything shown if nothing is ticked.">Print orders</button>
+        </span>
         <button id="soImp" class="ghost"
                 title="Bring in orders from a shop this app has no API key for — CPC Shopify and the Etsy stores.">Import orders</button>
         <button id="soBulkSheet" class="ghost"
@@ -1815,7 +1831,8 @@
         <button id="soBulkPick" class="ghost"
                 title="Read an update sheet back: Location, At location and Line status for many lines at once. A blank cell is left as it is; a - clears it.">Bulk update</button>
         <input id="soBulkFile" type="file" accept=".xlsx,.csv,text/csv" class="hide">
-        <button id="soGo">Fetch orders</button>
+        <span class="so-grow"></span>
+        <button id="soDense" class="ghost" title="One page: ten columns that fit the screen, or every column with a sideways scroll.">Full columns</button>
       </div>
       <div id="soMsg" class="muted" style="margin-top:8px;font-size:13px"></div>
       <div id="soPickMsg" class="muted" style="margin-top:4px;font-size:12px"></div>

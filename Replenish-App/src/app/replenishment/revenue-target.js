@@ -386,6 +386,7 @@ function replFillFromMaster() {
  * hidden table is only marked to redraw, and opening the tab draws it once with everything that has landed. */
 let REPL_DIRTY = false;
 function renderRepl() {
+  if (ME.replShopView) return renderReplShop();     // a Shopify account: the Shopify view only (replenishment.js)
   if ($('paneRepl') && $('paneRepl').classList.contains('hide')) { REPL_DIRTY = true; return; }
   REPL_DIRTY = false;
   if (!replMaster()) replMasterLoad(); else replFillFromMaster();

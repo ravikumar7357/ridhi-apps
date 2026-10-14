@@ -446,15 +446,35 @@ async function saveStockDoc(brand, map) {
 }
 
 let SHOP_STOCK_DENIED = false;
+/* HOW OLD THE AMAZON FIGURES ARE, AND WHICH FIGURE THEY ARE (2026-10-14). Per account: when it was read from Amazon, and
+ * whether it is FULFILLABLE (what Amazon will ship today, from the Replenishment snapshot) or AVAILABLE (Sellora's stock
+ * report, which can count more). The newer of the two is used — and the screen says which, and how old. */
+let SHOP_STOCK_AT = { SP: null, CPC: null }, SHOP_STOCK_SRC = { SP: '', CPC: '' };
 async function loadShopStock() {
   SHOP_STOCK_DENIED = false;
   SHOP_STOCK = {}; SHOP_STOCK_CASE = {};
   SHOP_STOCK_BY = { SP: {}, CPC: {} }; SHOP_STOCK_CASE_BY = { SP: {}, CPC: {} };
+  SHOP_STOCK_AT = { SP: null, CPC: null }; SHOP_STOCK_SRC = { SP: '', CPC: '' };
+  /* The Replenishment snapshot's Fulfillable, from the Shopify copy every Replenishment account may read. A failed read
+   * just leaves Sellora's figure in charge, exactly as before. */
+  let RSS = {};
+  try { if (typeof loadReplShopStock === 'function') RSS = await loadReplShopStock(); } catch (e) { /* Sellora's figure stands */ }
   for (const b of ['SP', 'CPC']) {
     try {
-      const s = await getDoc(doc(db, 'stock', b));
-      if (!s.exists()) continue;
-      Object.entries(s.data().m || {}).forEach(([sku, q]) => {
+      /* Sellora's figure refused is not the end: the Replenishment one below may still answer. */
+      let s = null;
+      try { s = await getDoc(doc(db, 'stock', b)); }
+      catch (e) { if (/permission|insufficient/i.test(String((e && (e.code || e.message)) || ''))) SHOP_STOCK_DENIED = true; }
+      if (!s) s = { exists: () => false, data: () => ({}) };
+      const sAt = s.exists() && s.data().at && s.data().at.toDate ? s.data().at.toDate() : null;
+      const rs = RSS[b] || null;
+      const useFul = !!(rs && rs.ful && Object.keys(rs.ful).length && rs.at && (!sAt || rs.at >= sAt));
+      const map = useFul ? rs.ful
+        : (s.exists() ? (s.data().m || {}) : null);
+      if (!map) continue;
+      SHOP_STOCK_AT[b] = useFul ? rs.at : sAt;
+      SHOP_STOCK_SRC[b] = useFul ? 'fulfillable' : 'available';
+      Object.entries(map).forEach(([sku, q]) => {
         const k = String(sku).trim().toUpperCase();
         SHOP_STOCK[k] = Math.max(SHOP_STOCK[k] || 0, Number(q) || 0);
         if (!SHOP_STOCK_CASE[k]) SHOP_STOCK_CASE[k] = String(sku).trim();
@@ -470,6 +490,20 @@ async function loadShopStock() {
   // Loaded means "we asked and got an answer", which is what lets the column say "not in Amazon"
   // instead of "SKU ?". An empty map is NOT an answer — it means nothing was read.
   SHOP_STOCK_LOADED = Object.keys(SHOP_STOCK).length > 0;
+  if (SHOP_STOCK_LOADED) SHOP_STOCK_DENIED = false;    // one source refused, the other answered — nothing to report
+}
+/** "Amazon stock — Ridhi fulfillable 13 Oct 16:05 · CPC available 12 Oct 09:10", amber once a figure is over a day old:
+ *  a "MCF ready" read off yesterday's shelf is how a parcel gets promised that Amazon cannot send. */
+function soStockStamp() {
+  const fmt = d => d.toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  const parts = ['SP', 'CPC'].filter(b => SHOP_STOCK_SRC[b]).map(b => {
+    const at = SHOP_STOCK_AT[b], old = !at || Date.now() - at.getTime() > 24 * 36e5;
+    return `<span style="color:${old ? 'var(--warn-ink,#8A5A12)' : 'inherit'}" title="${SHOP_STOCK_SRC[b] === 'fulfillable'
+        ? 'Fulfillable — what Amazon will ship today, from the Replenishment snapshot'
+        : 'Available — from Sellora\'s stock report, which can count more than Amazon will ship today'}${old ? ' · over a day old: refresh Replenishment or Sellora' : ''}">`
+      + `${soAcctName(b)} ${at ? fmt(at) : '(no date)'}${old ? ' ⚠' : ''}</span>`;
+  });
+  return parts.length ? 'Amazon stock — ' + parts.join(' · ') : '';
 }
 
 
@@ -1019,17 +1053,39 @@ function soDayStats(iso) {
   };
 }
 
+/* THE STORE SWITCH — Both · Ridhi · CPC (2026-10-14). The same rule the bucket sheet uses (shbStore):
+ * CPC is the CPC Shopify feed and any channel with CPC in its name; everything else is Ridhi's.
+ * Remembered on this device, so the screen opens on the store somebody last worked. */
+let SO_STORE = (() => { try { return localStorage.getItem('soStore') || ''; } catch (e) { return ''; } })();
+const soStoreOf = o => (o && (o.shopBrand === 'CPC' || /cpc/i.test(String(o.channel || ''))) ? 'CPC' : 'Ridhi');
+const soInStore = o => !SO_STORE || soStoreOf(o) === SO_STORE;
+function soStoreSegSync() {
+  document.querySelectorAll('#soStoreSeg .segbtn').forEach(b => b.classList.toggle('on', (b.dataset.store || '') === SO_STORE));
+}
+if ($('soStoreSeg')) {
+  $('soStoreSeg').onclick = e => {
+    const b = e.target.closest('.segbtn');
+    if (!b) return;
+    SO_STORE = b.dataset.store || '';
+    try { localStorage.setItem('soStore', SO_STORE); } catch (err) { /* not remembered */ }
+    soStoreSegSync();
+    SO_DENSE_CAP = 200;
+    renderShop();
+  };
+  soStoreSegSync();
+}
+
 /** Is this order in the shop(s) the toolbar is showing? Nothing chosen means all of them.
  *  The chosen list is read from the DOM, so it is read once and reused, not per order. */
 function soInShop(o, chans) {
   const list = chans || msVals('soChan');
-  return !list.length || list.includes(o.channel || 'Shopify');
+  return soInStore(o) && (!list.length || list.includes(o.channel || 'Shopify'));
 }
 
 /** The shops being counted, for the label — "" when it is all of them. */
 function soShopLabel() {
   const chans = msVals('soChan');
-  return chans.length ? chans.join(' + ') : '';
+  return chans.length ? chans.join(' + ') : (SO_STORE || '');
 }
 
 /** Orders older than this are re-fetched when the tab is opened again. */
@@ -1281,6 +1337,7 @@ function soRows() {
   SO_ALL_ROWS = rows;
   rows = rows.slice();          // the filters and the sort below work on a copy; the kept rows stay as built
 
+  if (SO_STORE) rows = rows.filter(soInStore);
   const chanSel = msVals('soChan');
   if (chanSel.length) rows = rows.filter(r => chanSel.includes(r.channel));
 
@@ -1337,6 +1394,12 @@ function soRows() {
       + ' ' + r.shopNote + ' ' + r.note + ' ' + r.status + ' ' + r.trkTxt
       + ' ' + r.items.map(i => i.name).join(' ')).toLowerCase().includes(q));
 
+  /* THE STATUS BUTTONS (Ravi, 2026-10-14: "buttons, not dropdown bars"). Counted AFTER every other filter, so each
+   * button says how many it would show; then only the chosen one is kept. Print and Export follow it. */
+  SO_LANE_N = { '': rows.length };
+  rows.forEach(r => { r.lane = soLane(r); SO_LANE_N[r.lane] = (SO_LANE_N[r.lane] || 0) + 1; });
+  if (SO_GRP || SO_LANE) rows = rows.filter(soLaneKeep);
+
   const k = SHOP_SORT.k, dir = SHOP_SORT.dir;
   rows.sort((a, b) => (typeof a[k] === 'string')
     ? String(a[k] || '').localeCompare(String(b[k] || '')) * dir
@@ -1344,8 +1407,94 @@ function soRows() {
   return rows;
 }
 
+/* THE STATUS BUTTONS above the table, in the order the work flows. One click shows one status; "All" shows every
+ * order. `wait` marks the statuses where the days an order has been waiting matter, so their rows carry the age. */
+const SO_LANES = [
+  { k: 'make', t: 'Needs production', tone: 'bad', wait: 1, tip: 'Neither Amazon nor India can fill it and production has not opened it yet — open it from the Production bucket' },
+  { k: 'prod', t: 'In production', tone: 'warn', wait: 1, tip: 'Production has it open in the Order Console' },
+  { k: 'made', t: 'Production done', tone: 'ok', wait: 1, tip: 'Production has finished or handed it over — ready to pack and ship' },
+  { k: 'india', t: 'Ship from India', tone: 'warn', wait: 1, tip: 'India stock covers it' },
+  { k: 'mcf', t: 'MCF ready', tone: 'ok', wait: 1, tip: 'Amazon FBA stock covers it — send it to Amazon MCF' },
+  { k: 'mcfdone', t: 'MCF done', tone: 'ok', tip: 'Already sent to Amazon — sending again would ship a second parcel' },
+  { k: 'shipped', t: 'Shipped', tone: 'mute', tip: 'Shopify says it has shipped' },
+  { k: 'other', t: 'Closed', tone: 'mute', tip: 'Cancelled, marked done, or nothing left to send — nothing left to do on these' },
+];
+/** Which section an order sits in. Cancelled and shipped first, because nothing else about them matters any more;
+ *  then a parcel already with Amazon; then production's own word; then the route. */
+function soLane(r) {
+  if (r.cancelled) return 'other';
+  if (String(r.ff || '').toLowerCase() === 'fulfilled') return 'shipped';
+  const route = r.route || '';
+  if (/MCF done/i.test(route)) return 'mcfdone';
+  const p = soProdStatus(r);
+  if (p) return p.tone === 'done' ? 'made' : 'prod';
+  if (route === 'Need from production') return 'make';
+  if (route === 'Ship from India') return 'india';
+  if (/MCF ready/i.test(route)) return 'mcf';
+  return 'other';
+}
+/* FIVE STEPS, NOT NINE BUTTONS (Ravi, 2026-10-14: nine statuses in a row "seems a bit more complex in look").
+ * The row shows the steps an order goes through; picking a step that holds more than one status opens a quiet
+ * second line with those statuses, so the detail is one click away and never in the way. */
+const SO_GROUPS = [
+  { k: 'tomake', t: 'To make', lanes: ['make', 'prod'], tip: 'Needs production, or production has it open' },
+  { k: 'ready', t: 'Ready to ship', lanes: ['made', 'india', 'mcf'], tip: 'Production is done, or India / Amazon FBA stock covers it' },
+  { k: 'amz', t: 'With Amazon', lanes: ['mcfdone'], tip: 'Sent to Amazon MCF — sending again would ship a second parcel' },
+  { k: 'shipped', t: 'Shipped', lanes: ['shipped'], tip: 'Shopify says it has shipped' },
+  { k: 'closed', t: 'Closed', lanes: ['other'], tip: 'Cancelled, marked done, or nothing left to send' },
+];
+/** The chosen step ('' = All) and, inside it, the chosen status ('' = the whole step). Remembered on the device. */
+let SO_GRP = (() => { try { return localStorage.getItem('soGrp') || ''; } catch (e) { return ''; } })();
+let SO_LANE = (() => { try { return localStorage.getItem('soLane') || ''; } catch (e) { return ''; } })();
+if (!SO_GROUPS.some(g => g.k === SO_GRP)) SO_GRP = '';
+if (!SO_GRP || !SO_GROUPS.find(g => g.k === SO_GRP).lanes.includes(SO_LANE)) SO_LANE = '';
+/** Is this row inside the chosen step and status? */
+const soLaneKeep = r => (!SO_GRP || SO_GROUPS.find(g => g.k === SO_GRP).lanes.includes(r.lane)) && (!SO_LANE || r.lane === SO_LANE);
+let SO_LANE_N = {};
+function renderSoLanes() {
+  const box = $('soLanes'); if (!box) return;
+  const n = g => g.lanes.reduce((t, k) => t + (SO_LANE_N[k] || 0), 0);
+  const grp = SO_GROUPS.find(g => g.k === SO_GRP);
+  box.innerHTML = '<div class="so-steps">'
+    + `<button type="button" class="so-st${!SO_GRP ? ' on' : ''}" data-grp="" title="Every order the filters above let through">All <b>${nf(SO_LANE_N[''] || 0)}</b></button>`
+    + SO_GROUPS.map(g => `<button type="button" class="so-st${SO_GRP === g.k ? ' on' : ''}${n(g) ? '' : ' zero'}" data-grp="${g.k}" title="${esc(g.tip)}">${g.t} <b>${nf(n(g))}</b></button>`).join('')
+    + '</div>'
+    + (grp && grp.lanes.length > 1 ? '<div class="so-sub">'
+      + `<button type="button" class="${!SO_LANE ? 'on' : ''}" data-sub="">All ${esc(grp.t.toLowerCase())}</button>`
+      + grp.lanes.map(k => { const l = SO_LANES.find(x => x.k === k); return `<button type="button" class="${SO_LANE === k ? 'on' : ''}" data-sub="${k}" title="${esc(l.tip)}">${l.t} <b>${nf(SO_LANE_N[k] || 0)}</b></button>`; }).join('')
+      + '</div>' : '')
+    /* WHAT IS NARROWING THE LIST, said (2026-10-14). The store, step and status are remembered from the last visit, and a
+     * list opened on 'CPC · To make' without saying so reads as orders gone missing. */
+    + ((SO_STORE || grp) ? `<span class="so-kept">Showing ${esc([SO_STORE, grp && grp.t, SO_LANE && (SO_LANES.find(x => x.k === SO_LANE) || {}).t].filter(Boolean).join(' · '))}`
+      + ' <button type="button" data-showall="1">Show all</button></span>' : '');
+}
+if ($('soLanes')) $('soLanes').onclick = e => {
+  if (e.target.closest('[data-showall]')) {
+    SO_GRP = ''; SO_LANE = ''; SO_STORE = '';
+    try { localStorage.setItem('soGrp', ''); localStorage.setItem('soLane', ''); localStorage.setItem('soStore', ''); } catch (err) { /* not remembered */ }
+    soStoreSegSync(); SO_DENSE_CAP = 200; renderShop(); return;
+  }
+  const g = e.target.closest('[data-grp]'), s = e.target.closest('[data-sub]');
+  if (!g && !s) return;
+  if (g) { SO_GRP = g.dataset.grp || ''; SO_LANE = ''; } else SO_LANE = s.dataset.sub || '';
+  try { localStorage.setItem('soGrp', SO_GRP); localStorage.setItem('soLane', SO_LANE); } catch (err) { /* not remembered */ }
+  SO_DENSE_CAP = 200;
+  renderShop();
+};
 let SO_DENSE_CAP = 200;
-const soDense = () => { try { return localStorage.getItem('soDense') !== '0'; } catch (e) { return true; } };
+/** Days since the order was placed, in the store's day. */
+const SO_AGE_OLD = 7;
+function soAgeDays(r, today) {
+  const a = Date.parse(String(r && r.at || '').slice(0, 10)), b = Date.parse(today);
+  return isNaN(a) || isNaN(b) ? 0 : Math.max(0, Math.round((b - a) / 864e5));
+}
+/** The small "3d" after the date — only where waiting matters, red once it is a week old. */
+function soAgeTag(r, lane, today) {
+  if (!lane || !lane.wait) return '';
+  const d = soAgeDays(r, today);
+  return ` <span class="so-age${d >= SO_AGE_OLD ? ' old' : ''}" title="${d} day${d === 1 ? '' : 's'} since it was placed">${d}d</span>`;
+}
+const soDense =() => { try { return localStorage.getItem('soDense') !== '0'; } catch (e) { return true; } };
 /**
  * THE ONE-PAGE TABLE. Ten columns, each carrying what the wide table spread over two: the date under the order, the
  * country under the name, the weight under the value, MCF and India under Ship from, the tracking under Shopify's
@@ -1394,15 +1543,12 @@ function renderShopDense(rows, COLS, arrow, money, esc) {
       ? '<th style="width:28px"><input type="checkbox" id="soAll" title="Tick every order on screen"></th>'
       : '<th class="' + (c.num ? 'num' : '') + (c.frz ? ' frz' : '') + '" data-so-sort="' + c.k + '" style="cursor:pointer"' + (c.tip ? ' title="' + esc(c.tip) + '"' : '') + '>' + c.t + arrow(c.k) + '</th>').join('') + '</tr></thead>';
   const sub = t => (t ? '<span class="sub">' + t + '</span>' : '');
-  /* 200, and the rest by search or "Show more" — 400 rows of three lines each was 550 KB of table to lay out on every
-   * draw, and nobody reads past the first screens without searching. */
-  const SO_DRAW_CAP = SO_DENSE_CAP;
-  const drawn = rows.slice(0, SO_DRAW_CAP);
-  const body = drawn.map(r => '<tr data-so="' + esc(r.id) + '" style="cursor:pointer"'
+  const today = soStoreDay(0);
+  const rowHtml = (r, lane) => '<tr data-so="' + esc(r.id) + '" style="cursor:pointer"'
     + ' class="' + [r.cancelled ? 'so-cancel' : '', r.chargeback ? 'so-cb' : ''].filter(Boolean).join(' ') + '"'
     + (r.cancelled ? ' title="Cancelled ' + esc(r.cancelledAt) + (r.cancelReason ? ' — ' + esc(r.cancelReason) : '') + '"' : '') + '>'
     + '<td><input type="checkbox" class="soPick" data-id="' + esc(r.id) + '"' + (SO_PICKED.has(r.id) ? ' checked' : '') + '></td>'
-    + '<td class="frz tl" style="font-weight:600">' + esc(r.no) + (r.shopNote ? ' <span title="Shopify note: ' + esc(r.shopNote) + '" style="color:#854d0e">&#9998;</span>' : '') + sub(esc(r.at)) + '</td>'
+    + '<td class="frz tl" style="font-weight:600">' + esc(r.no) + (r.shopNote ? ' <span title="Shopify note: ' + esc(r.shopNote) + '" style="color:#854d0e">&#9998;</span>' : '') + sub(esc(r.at) + soAgeTag(r, lane, today)) + '</td>'
     + '<td class="tl" title="' + esc([r.ship.a1, r.ship.a2, r.ship.city, r.ship.state, r.ship.zip].filter(Boolean).join(', ')) + '">' + esc(String(r.ship.name || '').slice(0, 24))
       + sub(esc([r.ship.state, r.ship.country].filter(Boolean).join(', ')) + (r.units ? ' · ' + r.units + ' unit' + (r.units > 1 ? 's' : '') : '')) + '</td>'
     + '<td class="num">' + money(r.total) + sub(r.kg ? r.kg.toFixed(2) + ' kg' : '') + '</td>'
@@ -1420,11 +1566,17 @@ function renderShopDense(rows, COLS, arrow, money, esc) {
     + '<td>' + (r.channel === 'Shopify' ? '<span class="muted">Shopify</span>' : '<span class="st st-draft">' + esc(r.channel) + '</span>') + '</td>'
     + '<td class="wrap" title="' + esc(r.items.map(i => `${i.sku || i.name} × ${i.qty}`).join(' · ')) + '">'
       + esc(r.items.slice(0, 4).map(i => `${i.sku || i.name} × ${i.qty}`).join(' · ')) + (r.items.length > 4 ? ' <span class="muted">+' + (r.items.length - 4) + ' more</span>' : '') + '</td>'
-    + '</tr>').join('');
+    + '</tr>';
+
+  /* 200, and the rest by search or 'show more' — 400 rows of three lines each was 550 KB of table to lay out on every
+   * draw, and nobody reads past the first screens without searching. */
+  const laneOf = new Map(SO_LANES.map(l => [l.k, l]));
+  const drawn = rows.slice(0, SO_DENSE_CAP);
+  const body = drawn.map(r => rowHtml(r, laneOf.get(r.lane))).join('');
   const more = rows.length > drawn.length
     ? `<tr><td colspan="${DC.length}" style="padding:10px 14px;text-align:left"><span class="muted">Showing ${nf(drawn.length)} of ${nf(rows.length)} — search, or </span><button type="button" class="ghost" id="soMore" style="padding:4px 12px;font-size:12px">show ${nf(Math.min(200, rows.length - drawn.length))} more</button></td></tr>` : '';
   $('soTable').innerHTML = head + '<tbody>' + (body
-    || '<tr><td colspan="' + DC.length + '" class="muted" style="padding:14px">Nothing matches that filter.</td></tr>') + more + '</tbody>';
+    || '<tr><td colspan="' + DC.length + '" class="muted" style="padding:14px">Nothing here' + (SO_GRP ? ' — pick another step above, or All' : ' matches that filter') + '.</td></tr>') + more + '</tbody>';
   if ($('soMore')) $('soMore').onclick = e => { e.stopPropagation(); SO_DENSE_CAP += 200; renderShop(); };
   if ($('soAll')) $('soAll').checked = drawn.length > 0 && drawn.every(r => SO_PICKED.has(r.id));
 }
@@ -1434,6 +1586,7 @@ function renderShop() {
   const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
   const money = v => '$' + Math.round(v || 0).toLocaleString('en-US');
   const rows = soRows();
+  renderSoLanes();
   // Before the empty-list bail-out below, so the strip clears itself instead of keeping the previous
   // fetch's numbers on screen next to "no orders loaded".
   renderShopToday();
@@ -1461,7 +1614,7 @@ function renderShop() {
   // The denominator has to be BOTH sources, or a screen full of imported orders reports "12 of 0".
   /* Over every loaded order, and split by day, because "still pending from yesterday" is the
    * question somebody actually walks in with. */
-  const pend = SO_ALL_ROWS.filter(soIsPending);
+  const pend = SO_ALL_ROWS.filter(r => soIsPending(r) && soInStore(r));
   /* THE BUCKET'S COUNT ON ITS BUTTON (2026-09-26). */
   /* ONLY THE ORDERS WAITING ON PRODUCTION are looked at here — the stock-covered half of the bucket is worked out when
    * the bucket is opened, not on every draw of this tab (Ravi, 2026-09-26: "ye lagg ho rha h"). */
@@ -1690,7 +1843,8 @@ function renderShopToday() {
         + 'Store timezone unknown — these two days are counted in PT and may be a day out. '
         + 'Press Fetch orders to pick it up.</div>')
     + (covers(today) && covers(yday) ? '' : '<div style="color:var(--warn);font-size:11.5px;align-self:center">'
-        + 'The date range does not cover both days — widen it before reading these.</div>');
+        + 'The date range does not cover both days — widen it before reading these.</div>')
+    + (soStockStamp() ? `<div class="muted" style="font-size:11.5px;align-self:center;margin-left:auto">${soStockStamp()}</div>` : '');
 }
 
 /* ---------- staged quantity, and what is short ----------

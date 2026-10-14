@@ -907,6 +907,45 @@
   #soTable tr.so-cancel td.so-keep{text-decoration:none;opacity:1}
   #soTable tr.so-cb td{background:var(--bad-bg)}
   #soTable tr.so-cb td.frz{box-shadow:inset 3px 0 0 var(--bad)}
+  /* THE SHOPIFY TOOLBAR, TIDIED (2026-10-14): find on the first line, status buttons, then actions in small buttons */
+  #paneShop .so-find{gap:8px}
+  #paneShop .so-find #soGo{margin-left:auto}
+  #paneShop .so-acts{gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
+  #paneShop .so-acts button{padding:6px 12px;font-size:12.5px;min-height:0}
+  #paneShop .so-acts select{padding:5px 8px;font-size:12.5px;height:auto}
+  #paneShop .so-sep{width:1px;height:20px;background:var(--line);margin:0 4px}
+  #paneShop .so-grow{flex:1 1 0}
+  #paneShop .so-exp{display:inline-flex;gap:4px;align-items:center}
+  /* the status buttons: one per status, its count beside it; the chosen one is filled */
+  .so-lanes{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+  .so-lb{display:inline-flex;align-items:center;gap:7px;background:var(--card);color:var(--ink);border:1px solid var(--line);
+    box-shadow:none;border-radius:999px;padding:6px 13px;font-size:12.5px;font-weight:600;min-height:0;text-transform:none;letter-spacing:0}
+  .so-lb:hover{background:var(--hover);color:var(--ink)}
+  .so-lb b{font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums}
+  .so-lb.on{background:var(--ink);border-color:var(--ink);color:#fff}
+  .so-lb.on b{color:rgba(255,255,255,.75)}
+  .so-lb.zero{opacity:.45}
+  .so-lb.zero.on{opacity:1}
+  /* the order steps on Shopify orders: plain words with a count, the chosen one a dark pill; its statuses on a quiet second line */
+  .so-steps{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+  .so-st{background:transparent;color:var(--muted);box-shadow:none;border:0;border-radius:999px;padding:6px 14px;font-size:13px;font-weight:600;min-height:0;text-transform:none;letter-spacing:0}
+  .so-st:hover{background:var(--hover);color:var(--ink)}
+  .so-st b{font-weight:600;color:var(--faint);margin-left:3px;font-variant-numeric:tabular-nums}
+  .so-st.on{background:var(--ink);color:#fff}.so-st.on b{color:rgba(255,255,255,.7)}
+  .so-st.zero{opacity:.5}.so-st.zero.on{opacity:1}
+  .so-sub{display:flex;flex-wrap:wrap;gap:14px;margin:8px 0 0 14px;font-size:12.5px}
+  .so-sub button{background:none;box-shadow:none;border:0;padding:2px 0;color:var(--muted);font-weight:500;font-size:12.5px;min-height:0;text-transform:none;letter-spacing:0;border-bottom:2px solid transparent;border-radius:0}
+  .so-sub button:hover{background:none;color:var(--ink)}
+  .so-sub button.on{color:var(--ink);font-weight:700;border-bottom-color:var(--ink)}
+  .so-sub button b{font-weight:600;color:var(--faint)}
+  .so-kept{margin-left:auto;align-self:center;font-size:12px;color:var(--warn-ink,#8A5A12);background:var(--warn-bg,#FFF3D6);border-radius:999px;padding:4px 6px 4px 12px}
+  .so-kept button{background:var(--card);color:var(--ink);box-shadow:none;border:0;border-radius:999px;padding:2px 10px;margin-left:6px;font-size:12px;font-weight:600;min-height:0;text-transform:none;letter-spacing:0}
+  .so-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none}
+  .so-dot-bad{background:var(--bad)} .so-dot-warn{background:#d4a017} .so-dot-ok{background:var(--accent)} .so-dot-mute{background:var(--faint)}
+  #soTable .so-age{display:inline-block;margin-left:4px;padding:0 5px;border-radius:4px;background:var(--hover);color:var(--muted);font-size:10px;font-weight:600}
+  #soTable .so-age.old{background:var(--bad-bg);color:var(--bad)}
+  #srTable .sr-age{display:inline-block;margin-left:4px;padding:0 5px;border-radius:4px;background:var(--hover);color:var(--muted);font-size:10px;font-weight:600}
+  #srTable .sr-age.old{background:var(--bad-bg);color:var(--bad)}
   .ms-btn{width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:9px;
     padding:8px 26px 8px 11px;font:inherit;font-size:13px;color:var(--ink);cursor:pointer;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

@@ -22,7 +22,9 @@ const REPL_FULL_TABS = ['repl', 'article', 'target', 'top', 'prod', 'follow', 'i
  * Amazon ids (Master DB). The full copy is 45 fields and six times the bytes; nothing outside Replenishment needs it. */
 const REPL_SLIM_FIELDS = ['sku', 'category', 'subcat', 'color', 'size', 'totalStock', 'awdAvail', 'awdTransit', 'last90', 'last30', 'asin', 'parent'];
 const REPL_SLIM_CHUNK = 2500;
-const replFull = () => !!(ME.admin || (ME.tabs || []).some(t => REPL_FULL_TABS.includes(t)));
+/* A Shopify-only account sees Replenishment as the Shopify view (ME.replShopView, set at sign-in) — and is never "full",
+ * even though that view put 'repl' in its tabs so the menu shows the screen. */
+const replFull = () => !!(ME.admin || (!ME.replShopView && (ME.tabs || []).some(t => REPL_FULL_TABS.includes(t))));
 const replSlimRow = r => { const o = {}; REPL_SLIM_FIELDS.forEach(k => { if (r && r[k] != null) o[k] = r[k]; }); return o; };
 
 /* WHICH COPY IS IN HAND: '' (none), 'slim' or 'full'. The slim one is read at sign-in by everybody; the full one — 8 MB
@@ -43,6 +45,14 @@ async function loadReplCache(wantFull) {
   return p;
 }
 async function loadReplCacheRun(full) {
+  /* A SHOPIFY-ONLY ACCOUNT TAKES THE SHOPIFY COPY AS ITS SNAPSHOT (2026-10-14). What its screens read from a row — SKU,
+   * colour, size, sub-category, ASINs — is all there; the 30/90-day sales of the slim copy are not, and the rules no
+   * longer let this account read them. */
+  if (!full && ME.shopDataOnly) {
+    if (!REPL_SHOP.SP && !REPL_SHOP.CPC) await loadReplShop();
+    ['SP', 'CPC'].forEach(b => { const s = REPL_SHOP[b]; if (s && s.rows && s.rows.length) REPL[b] = { at: s.at, rows: s.rows, recCols: [], catalogSkus: [], mode: 'shop' }; });
+    return;
+  }
   await Promise.all(['SP', 'CPC'].map(async b => {
     try {
       const meta = await getDoc(doc(db, full ? 'repl' : 'replslim', b));
@@ -58,6 +68,7 @@ async function loadReplCacheRun(full) {
       /* WHICH COPY THESE ROWS ARE. The rows cache keys on count and time, and the slim and full copies share both —
        * a table built from slim rows stayed on screen after the full ones arrived. */
       REPL[b] = { at: d.at && d.at.toDate ? d.at.toDate() : null, rows, recCols: d.recCols || [], catalogSkus: d.catalogSkus || [], mode: full ? 'full' : 'slim' };
+      if (full) replShopBackfill(b, rows, REPL[b].at);     // the Shopify view's copy, once, if it is missing or older
     } catch (e) {
       // A DENIED read must not look like "there is simply no snapshot" — that sent us hunting in the
       // wrong place. Record it so renderRepl can say what actually happened.
@@ -83,6 +94,137 @@ async function saveReplSlim(brand, rows, catalogSkus) {
     await setDoc(doc(db, 'replslimrows', `${brand}_${i}`), { r: slim.slice(i * REPL_SLIM_CHUNK, (i + 1) * REPL_SLIM_CHUNK) });
   }
   await setDoc(doc(db, 'replslim', brand), { chunks, n: slim.length, catalogSkus: catalogSkus || [], at: serverTimestamp() });
+  await saveReplShop(brand, rows);
+}
+
+/* ================= THE SHOPIFY VIEW OF REPLENISHMENT (Ravi, 2026-10-14) =================
+ *
+ * "users that are defined to use the shopify tab except admins can only access that mentioned part": what a SKU is and
+ * what Amazon holds of it — SKU, picture, ASINs, colour, size, sub-category, status, Warehouse and Fulfillable — and
+ * nothing of the plan. The slim copy above will not do: it carries 30- and 90-day sales for the production screens.
+ * So a third copy, written beside the other two, holds only these fields, and the database rules (firestore.rules →
+ * replshop) let a Shopify account read it while the full copy stays shut to it. Hiding columns on the screen alone
+ * would still have sent the sales and forecasts to the browser. */
+const REPL_SHOP_FIELDS = ['sku', 'image', 'asin', 'parent', 'color', 'size', 'subcat', 'status', 'warehouse', 'fulfillable'];
+const REPL_SHOP_CHUNK = 1500;
+const REPL_SHOP_TABS = ['shop', 'adj', 'shopify'];
+/** The sections that make an account "Shopify only" for its data — the same list as firestore.rules → shopDataOnly. */
+const SHOP_DATA_TABS = ['shop', 'adj', 'shopify', 'shopprod'];
+let REPL_SHOP = { SP: null, CPC: null };
+async function saveReplShop(brand, rows, dataAt) {
+  const out = (rows || []).map(r => { const o = {}; REPL_SHOP_FIELDS.forEach(k => { if (r && r[k] != null && r[k] !== '') o[k] = r[k]; }); return o; });
+  const chunks = Math.ceil(out.length / REPL_SHOP_CHUNK) || 1;
+  for (let i = 0; i < chunks; i++) {
+    await setDoc(doc(db, 'replshoprows', `${brand}_${i}`), { r: out.slice(i * REPL_SHOP_CHUNK, (i + 1) * REPL_SHOP_CHUNK) });
+  }
+  /* `dataAt` is WHEN AMAZON'S FIGURES WERE READ — the snapshot's own time, not the moment this copy was written. A copy
+   * written today from last week's snapshot must say last week, or it looks fresher than it is. `ful` is SKU → Fulfillable
+   * on its own (well under 100 KB), so Shopify Orders reads this one record and never the rows. */
+  const ful = {};
+  out.forEach(r => { if (r.sku) ful[r.sku] = Number(r.fulfillable) || 0; });
+  await setDoc(doc(db, 'replshop', brand), { chunks, n: out.length, at: serverTimestamp(), dataAt: dataAt || serverTimestamp(), ful });
+}
+/** When the copy's figures were read from Amazon: `dataAt`, or — for a copy written before it existed — `at`. */
+const replShopAt = d => { const t = (d && (d.dataAt || d.at)) || null; return t && t.toDate ? t.toDate() : null; };
+/** The first time a full account opens Replenishment after this copy was introduced, it is written from the snapshot in
+ *  hand — so the Shopify view does not stay empty until somebody next presses Refresh from sheet. Once only, and
+ *  stamped with the SNAPSHOT's time. */
+async function replShopBackfill(brand, rows, fullAt) {
+  try {
+    const m = await getDoc(doc(db, 'replshop', brand));
+    const at = m.exists() ? replShopAt(m.data()) : null;
+    if (m.exists() && m.data().ful && (!fullAt || (at && at >= fullAt))) return;
+    await saveReplShop(brand, rows, fullAt || null);
+  } catch (e) { /* the next Refresh from sheet writes it anyway */ }
+}
+async function loadReplShop() {
+  await Promise.all(['SP', 'CPC'].map(async b => {
+    try {
+      const meta = await getDoc(doc(db, 'replshop', b));
+      if (!meta.exists()) { REPL_SHOP[b] = { at: null, rows: [] }; return; }
+      const d = meta.data();
+      const got = await Promise.all(Array.from({ length: d.chunks || 0 }, (_, i) => getDoc(doc(db, 'replshoprows', `${b}_${i}`))));
+      let rows = [];
+      got.forEach(s => { if (s.exists()) rows = rows.concat(s.data().r || []); });
+      REPL_SHOP[b] = { at: replShopAt(d), rows };
+    } catch (e) {
+      REPL_SHOP[b] = { at: null, rows: [], err: /permission|insufficient/i.test(e.code || e.message || '') ? 'denied' : (e.message || String(e)) };
+    }
+  }));
+}
+/** Just SKU → Fulfillable and its time, per account — the small record, for Shopify Orders. Rows already in hand are used. */
+async function loadReplShopStock() {
+  const out = {};
+  await Promise.all(['SP', 'CPC'].map(async b => {
+    const s = REPL_SHOP[b];
+    if (s && s.rows && s.rows.length) { out[b] = { at: s.at, ful: Object.fromEntries(s.rows.filter(r => r && r.sku).map(r => [r.sku, Number(r.fulfillable) || 0])) }; return; }
+    try {
+      const m = await getDoc(doc(db, 'replshop', b));
+      if (m.exists() && m.data().ful) out[b] = { at: replShopAt(m.data()), ful: m.data().ful };
+    } catch (e) { /* Sellora's figure stands */ }
+  }));
+  return out;
+}
+let RS = { brand: '', q: '', sort: 'fulfillable', dir: -1, cap: 300 };
+function renderReplShop() {
+  const pane = $('paneRepl'); if (!pane) return;
+  let box = $('rShopView');
+  if (!box) {
+    box = document.createElement('div'); box.id = 'rShopView';
+    box.innerHTML = `<div class="card" style="padding:12px 14px"><div class="toolbar">
+        <div class="seg" id="rsBrand" title="Ridhi's SKUs, CPC's SKUs, or both"><button type="button" class="segbtn" data-rsb="">Both</button><button type="button" class="segbtn" data-rsb="SP">Ridhi</button><button type="button" class="segbtn" data-rsb="CPC">CPC</button></div>
+        <input id="rsQ" style="flex:1 1 240px;min-width:0" placeholder="Search SKU / ASIN / colour / size / sub-category">
+        <span class="muted" id="rsAt" style="font-size:12px"></span><span class="navbadge" style="background:#7c3aed;position:static" title="The Shopify view of Replenishment: live in a test phase since 14 Oct 2026">TEST</span></div></div>
+      <div class="card xlwrap"><table class="xl" id="rsTable"></table></div>`;
+    pane.insertBefore(box, pane.firstChild);
+    $('rsBrand').onclick = e => { const b = e.target.closest('[data-rsb]'); if (!b) return; RS.brand = b.dataset.rsb || ''; RS.cap = 300; renderReplShop(); };
+    $('rsQ').addEventListener('input', debounced(() => { RS.q = $('rsQ').value; RS.cap = 300; renderReplShop(); }));
+    $('rsTable').onclick = e => {
+      const h = e.target.closest('[data-rss]');
+      if (h) { const k = h.dataset.rss; RS.dir = RS.sort === k ? -RS.dir : (['warehouse', 'fulfillable'].includes(k) ? -1 : 1); RS.sort = k; renderReplShop(); return; }
+      if (e.target.closest('#rsMore')) { RS.cap += 300; renderReplShop(); }
+    };
+  }
+  /* Only this view on the screen: the planning toolbar, the reorder summary and the full table stay hidden. */
+  [...pane.children].forEach(c => c.classList.toggle('hide', c !== box));
+  box.querySelectorAll('[data-rsb]').forEach(b => b.classList.toggle('on', (b.dataset.rsb || '') === RS.brand));
+  const brands = (RS.brand ? [RS.brand] : ['SP', 'CPC']).filter(b => REPL_SHOP[b]);
+  if (brands.some(b => REPL_SHOP[b].err === 'denied')) {
+    $('rsTable').innerHTML = '<tbody><tr><td class="muted" style="padding:14px;text-align:left">This account may not read the Amazon stock list yet — ask an admin.</td></tr></tbody>';
+    return;
+  }
+  const at = brands.map(b => REPL_SHOP[b].at).filter(Boolean).sort((a, b) => a - b)[0];
+  $('rsAt').textContent = at ? 'Amazon stock as of ' + at.toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'No stock list yet — it is written the next time Replenishment is refreshed.';
+  const q = RS.q.trim().toLowerCase();
+  /* As the planners see it: a status they set by hand wins over the sheet's, and a SKU they hid (parents, placeholders,
+   * dead codes) is not shown here either — both from repl/prodstatus, read at sign-in. */
+  const ovr = typeof STATUS_OVR === 'object' && STATUS_OVR ? STATUS_OVR : {}, hid = typeof HIDDEN === 'object' && HIDDEN ? HIDDEN : {};
+  let rows = brands.flatMap(b => REPL_SHOP[b].rows.filter(r => !hid[String(r.sku || '').trim().toUpperCase()])
+    .map(r => { const o = Object.assign({ brand: b }, r), k = String(r.sku || '').trim().toUpperCase(); if (ovr[k]) o.status = ovr[k]; return o; }));
+  if (q) rows = rows.filter(r => [r.sku, r.asin, r.parent, r.color, r.size, r.subcat].join(' ').toLowerCase().includes(q));
+  const k = RS.sort, dir = RS.dir;
+  rows.sort((a, b) => (typeof a[k] === 'number' || typeof b[k] === 'number')
+    ? ((Number(a[k]) || 0) - (Number(b[k]) || 0)) * dir : String(a[k] || '').localeCompare(String(b[k] || '')) * dir);
+  const tot = f => rows.reduce((t, r) => t + (Number(r[f]) || 0), 0);
+  const cols = [['sku', 'SKU'], ['image', 'Image'], ['brand', 'Brand'], ['asin', 'ASIN'], ['parent', 'Parent ASIN'], ['color', 'Color'], ['size', 'Size'], ['subcat', 'Sub-Category'], ['status', 'Status'], ['warehouse', 'Warehouse'], ['fulfillable', 'Fulfillable']];
+  const arrow = c => (RS.sort === c ? (RS.dir > 0 ? ' ↑' : ' ↓') : '');
+  const head = '<thead><tr>' + cols.map(([c, t]) => c === 'image' ? '<th>Image</th>'
+    : `<th class="${['warehouse', 'fulfillable'].includes(c) ? 'num' : ''}${c === 'sku' ? ' frz' : ''}" data-rss="${c}" style="cursor:pointer">${t}${arrow(c)}</th>`).join('') + '</tr>'
+    + `<tr><td class="frz muted" style="text-align:left;font-size:12px">${nf(rows.length)} SKUs</td><td colspan="8"></td><td class="num"><b>${nf(tot('warehouse'))}</b></td><td class="num"><b>${nf(tot('fulfillable'))}</b></td></tr></thead>`;
+  const drawn = rows.slice(0, RS.cap);
+  const num = v => (v == null || v === '' ? '<span class="muted">—</span>' : nf(v));
+  const body = drawn.map(r => {
+    const s = String(r.status || '').trim(), cl = /need/i.test(s) ? 'st-need' : /listed/i.test(s) ? 'st-live' : 'st-other';
+    return `<tr><td class="frz">${esc(r.sku)}</td>`
+      + `<td>${r.image ? `<img class="thumb" src="${esc(thumbUrl(r.image))}" loading="lazy" decoding="async" alt="">` : ''}</td>`
+      + `<td>${esc(BRAND_NAME[r.brand] || r.brand)}</td><td style="font-family:ui-monospace,monospace">${esc(r.asin || '—')}</td><td style="font-family:ui-monospace,monospace">${esc(r.parent || '—')}</td>`
+      + `<td>${esc(r.color || '—')}</td><td>${esc(r.size || '—')}</td><td>${esc(r.subcat || '—')}</td>`
+      + `<td>${s ? `<span class="st ${cl}">${esc(s)}</span>` : '<span class="muted">—</span>'}</td>`
+      + `<td class="num">${num(r.warehouse)}</td><td class="num"><b style="color:${(Number(r.fulfillable) || 0) > 0 ? 'inherit' : 'var(--bad)'}">${num(r.fulfillable)}</b></td></tr>`;
+  }).join('');
+  $('rsTable').innerHTML = head + '<tbody>' + (body || `<tr><td colspan="11" class="muted" style="padding:14px;text-align:left">${REPL_SHOP.SP || REPL_SHOP.CPC ? 'Nothing matches that search.' : 'Reading the stock list…'}</td></tr>`)
+    + (rows.length > drawn.length ? `<tr><td colspan="11" style="text-align:left;padding:10px 14px"><span class="muted">Showing ${nf(drawn.length)} of ${nf(rows.length)} — search, or </span><button type="button" class="ghost" id="rsMore" style="padding:4px 12px;font-size:12px">show more</button></td></tr>` : '')
+    + '</tbody>';
 }
 let REPL_LOADED = false;
 // The snapshot and the three side-lists (India stock · status/projection overrides · In Production) are
@@ -105,6 +247,8 @@ async function ensureReplData() {
   REPL_LOADED = true;
 }
 async function ensureRepl() {
+  /* A Shopify account sees only the Shopify view — its own small copy, never the full snapshot. */
+  if (ME.replShopView) { renderReplShop(); await Promise.all([(!REPL_SHOP.SP && !REPL_SHOP.CPC) ? loadReplShop() : null, loadProd()]); renderReplShop(); return; }
   if (!REPL_LOADED) {
     rMsg('Loading last snapshot…');
     /* SAID ON THE SCREEN, not only in the small line: since sign-in stopped waiting for the full snapshot (26 Sep) the

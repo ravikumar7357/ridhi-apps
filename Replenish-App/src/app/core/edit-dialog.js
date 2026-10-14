@@ -119,9 +119,12 @@ const ptDlgValues = () => (PTD.fields || []).reduce((v, f) => {
   return v;
 }, {});
 
-$('ptDlgClose').onclick = ptDlgClose;
-$('ptDlgCancel').onclick = ptDlgClose;
-$('ptDlg').addEventListener('click', e => { if (e.target === $('ptDlg')) ptDlgClose(); });
+/* Closed WITHOUT saving — ✕, Cancel or a click outside. A dialog opened from another one (a returns case from the
+ * Returns list, 2026-10-14) passes onCancel to go back to where it was opened from; every other dialog has none. */
+function ptDlgCancel() { const back = PTD && PTD.onCancel; ptDlgClose(); if (back) setTimeout(back, 0); }
+$('ptDlgClose').onclick = ptDlgCancel;
+$('ptDlgCancel').onclick = ptDlgCancel;
+$('ptDlg').addEventListener('click', e => { if (e.target === $('ptDlg')) ptDlgCancel(); });
 
 $('ptDlgSave').onclick = async () => {
   if (!PTD) return;

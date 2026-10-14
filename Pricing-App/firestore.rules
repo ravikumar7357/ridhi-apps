@@ -70,6 +70,12 @@ service cloud.firestore {
         && (!('replTabs' in permData()) || !(permData().replTabs is list) || permData().replTabs.size() == 0
             || permData().replTabs.hasAny(['shop', 'adj', 'shopify'])));
     }
+    // An account whose Replenishment sections are ONLY Shopify ones — it may not read any copy with sales in it.
+    // Same list as the app's SHOP_DATA_TABS (replenishment.js). A legacy grant with no section list is not this.
+    function shopDataOnly() {
+      return !isAdmin() && hasPerms() && ('replTabs' in permData()) && permData().replTabs is list
+        && permData().replTabs.size() > 0 && permData().replTabs.hasOnly(['shop', 'adj', 'shopify', 'shopprod']);
+    }
     // Which repl/{doc} documents are planning data rather than shared lookups.
     function replPrivate(d) { return d in ['SP', 'CPC', 'projoverride', 'revtarget']; }
     // Changing the MONTHLY PROJECTIONS is a narrower right than using the app: those numbers drive
@@ -312,7 +318,8 @@ service cloud.firestore {
     //    it — 'projoverride' therefore has to be carved OUT here for its own rule to be the real gate.
     match /repl/{brand} {
       allow read: if replPrivate(brand) ? canReplFull() : (canRepl() || (brand == 'packwt' && canPack()));
-      allow write: if brand != 'projoverride' && (replPrivate(brand) ? canReplFull() : (canRepl() || (brand == 'packwt' && canPack())));
+      // A Shopify-only account may READ the shared lookups (statuses, pictures) but change none of them (2026-10-14).
+      allow write: if brand != 'projoverride' && (replPrivate(brand) ? canReplFull() : ((canRepl() && !shopDataOnly()) || (brand == 'packwt' && canPack())));
     }
     // Manual monthly projections ("SKU|YYYY-MM" -> units). Readable by anyone who uses the app —
     // everyone needs to SEE the numbers the plan is built on — but writable only with canProj().
@@ -325,26 +332,43 @@ service cloud.firestore {
     }
     // The SLIM copy: sku, category, subcat, colour, size and the FBA/AWD stock — nothing else. Anyone
     // who uses the Replenishment app may read it; only somebody who holds the full one writes it.
+    // …except an account whose sections are ALL Shopify ones (2026-10-14): the slim copy carries 30/90-day sales for the
+    // production screens, and such an account reads the replshop copy below instead (the app makes the same test).
     match /replslim/{brand} {
-      allow read: if canRepl();
+      allow read: if canRepl() && !shopDataOnly();
       allow write: if canReplFull();
     }
     match /replslimrows/{doc} {
-      allow read: if canRepl();
+      allow read: if canRepl() && !shopDataOnly();
+      allow write: if canReplFull();
+    }
+    // The SHOPIFY copy (2026-10-14): sku, image, ASINs, colour, size, sub-category, status, warehouse and fulfillable —
+    // no sales, forecast or money. What a Shopify account sees of Replenishment; the full copy above stays shut to it.
+    match /replshop/{brand} {
+      allow read: if canRepl() || canReplShop();
+      allow write: if canReplFull();
+    }
+    match /replshoprows/{doc} {
+      allow read: if canRepl() || canReplShop();
       allow write: if canReplFull();
     }
     // India Stock + In Production lists — uploaded by the user in their own tabs (CSV import).
     // Metadata lives in repl/indiastock + repl/inproduction (covered by repl/{brand} above); these
     // are their row chunks, same pattern as replrows.
+    // (2026-10-14) Read by the Replenishment screens, changed only by the planners who upload them; a Shopify-only
+    // account reads neither — they are planning lists, and it used to be able to rewrite them.
     match /repl_india/{doc} {
-      allow read, write: if canRepl();
+      allow read: if canRepl() && !shopDataOnly();
+      allow write: if canReplFull();
     }
     match /repl_inprod/{doc} {
-      allow read, write: if canRepl();
+      allow read: if canRepl() && !shopDataOnly();
+      allow write: if canReplFull();
     }
-    // Purchase orders.
+    // Purchase orders — the planning screens' own (Ongoing Purchase Order, In Production, the forecast). Any
+    // Replenishment account could read AND change them until 2026-10-14; now admins and planners only.
     match /po/{doc} {
-      allow read, write: if canRepl();
+      allow read, write: if canReplFull();
     }
     // Packing lists — one document per shipment, holding its boxes and their line items. Sized to
     // fit: a few hundred lines of {sku, desc, qty, weight} is far inside Firestore's 1 MB, and a

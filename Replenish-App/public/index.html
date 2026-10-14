@@ -935,6 +935,45 @@
   #soTable tr.so-cancel td.so-keep{text-decoration:none;opacity:1}
   #soTable tr.so-cb td{background:var(--bad-bg)}
   #soTable tr.so-cb td.frz{box-shadow:inset 3px 0 0 var(--bad)}
+  /* THE SHOPIFY TOOLBAR, TIDIED (2026-10-14): find on the first line, status buttons, then actions in small buttons */
+  #paneShop .so-find{gap:8px}
+  #paneShop .so-find #soGo{margin-left:auto}
+  #paneShop .so-acts{gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
+  #paneShop .so-acts button{padding:6px 12px;font-size:12.5px;min-height:0}
+  #paneShop .so-acts select{padding:5px 8px;font-size:12.5px;height:auto}
+  #paneShop .so-sep{width:1px;height:20px;background:var(--line);margin:0 4px}
+  #paneShop .so-grow{flex:1 1 0}
+  #paneShop .so-exp{display:inline-flex;gap:4px;align-items:center}
+  /* the status buttons: one per status, its count beside it; the chosen one is filled */
+  .so-lanes{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+  .so-lb{display:inline-flex;align-items:center;gap:7px;background:var(--card);color:var(--ink);border:1px solid var(--line);
+    box-shadow:none;border-radius:999px;padding:6px 13px;font-size:12.5px;font-weight:600;min-height:0;text-transform:none;letter-spacing:0}
+  .so-lb:hover{background:var(--hover);color:var(--ink)}
+  .so-lb b{font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums}
+  .so-lb.on{background:var(--ink);border-color:var(--ink);color:#fff}
+  .so-lb.on b{color:rgba(255,255,255,.75)}
+  .so-lb.zero{opacity:.45}
+  .so-lb.zero.on{opacity:1}
+  /* the order steps on Shopify orders: plain words with a count, the chosen one a dark pill; its statuses on a quiet second line */
+  .so-steps{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+  .so-st{background:transparent;color:var(--muted);box-shadow:none;border:0;border-radius:999px;padding:6px 14px;font-size:13px;font-weight:600;min-height:0;text-transform:none;letter-spacing:0}
+  .so-st:hover{background:var(--hover);color:var(--ink)}
+  .so-st b{font-weight:600;color:var(--faint);margin-left:3px;font-variant-numeric:tabular-nums}
+  .so-st.on{background:var(--ink);color:#fff}.so-st.on b{color:rgba(255,255,255,.7)}
+  .so-st.zero{opacity:.5}.so-st.zero.on{opacity:1}
+  .so-sub{display:flex;flex-wrap:wrap;gap:14px;margin:8px 0 0 14px;font-size:12.5px}
+  .so-sub button{background:none;box-shadow:none;border:0;padding:2px 0;color:var(--muted);font-weight:500;font-size:12.5px;min-height:0;text-transform:none;letter-spacing:0;border-bottom:2px solid transparent;border-radius:0}
+  .so-sub button:hover{background:none;color:var(--ink)}
+  .so-sub button.on{color:var(--ink);font-weight:700;border-bottom-color:var(--ink)}
+  .so-sub button b{font-weight:600;color:var(--faint)}
+  .so-kept{margin-left:auto;align-self:center;font-size:12px;color:var(--warn-ink,#8A5A12);background:var(--warn-bg,#FFF3D6);border-radius:999px;padding:4px 6px 4px 12px}
+  .so-kept button{background:var(--card);color:var(--ink);box-shadow:none;border:0;border-radius:999px;padding:2px 10px;margin-left:6px;font-size:12px;font-weight:600;min-height:0;text-transform:none;letter-spacing:0}
+  .so-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none}
+  .so-dot-bad{background:var(--bad)} .so-dot-warn{background:#d4a017} .so-dot-ok{background:var(--accent)} .so-dot-mute{background:var(--faint)}
+  #soTable .so-age{display:inline-block;margin-left:4px;padding:0 5px;border-radius:4px;background:var(--hover);color:var(--muted);font-size:10px;font-weight:600}
+  #soTable .so-age.old{background:var(--bad-bg);color:var(--bad)}
+  #srTable .sr-age{display:inline-block;margin-left:4px;padding:0 5px;border-radius:4px;background:var(--hover);color:var(--muted);font-size:10px;font-weight:600}
+  #srTable .sr-age.old{background:var(--bad-bg);color:var(--bad)}
   .ms-btn{width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:9px;
     padding:8px 26px 8px 11px;font:inherit;font-size:13px;color:var(--ink);cursor:pointer;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -1127,7 +1166,7 @@
     <div class="navwrap"><button class="navgrp" id="grpShopify" type="button" data-grp="shopify" data-tabs="shop,adj,shopify">
       <span class="caret">&#9656;</span> Shopify</button>
     <div class="navsec" id="secShopify">
-      <a id="tabShop" class="nav" href="#shop">Shopify Orders</a>
+      <a id="tabShop" class="nav" href="#shop">Shopify Orders <span class="navbadge" style="background:#7c3aed" title="Store switch, order steps, returns &amp; replacements: live in a test phase since 14 Oct 2026 — tell Ravi what is wrong">TEST</span></a>
       <a id="tabAdj" class="nav" href="#adj">Adjustments</a>
       <a id="tabShopify" class="nav" href="#shopify">Shopify Stock</a>
     </div></div>
@@ -2805,14 +2844,23 @@
        stands. One row per order, because a courier label is made from one order at a time. ====== -->
   <div id="paneShop" class="hide">
     <div class="card" style="padding:12px 14px">
-      <div class="toolbar">
+      <!-- THE TOOLBAR, TIDIED (2026-10-14): what to look at on the first line, the status buttons under it, and
+           everything you DO with the orders on the last line. Every control keeps its id, so nothing reading them changes. -->
+      <div class="toolbar so-find">
+        <!-- WHICH STORE'S ORDERS. Narrows what is drawn and the Today / Yesterday figures; the
+             production bucket and the production orders still see both stores. -->
+        <div class="seg" id="soStoreSeg" title="Show Ridhi's orders, CPC's orders, or both.">
+          <button class="segbtn on" data-store="">Both</button>
+          <button class="segbtn" data-store="Ridhi">Ridhi</button>
+          <button class="segbtn" data-store="CPC">CPC</button>
+        </div>
         <input id="soFrom" type="date" style="flex:0 0 150px">
         <span class="muted" style="font-size:13px">to</span>
         <input id="soTo" type="date" style="flex:0 0 150px">
         <!-- EVERY ORDER by default. The sync closes a production row when its order ships, and it
              can only see what the fetch returns — so filtering the shipped ones out is the one
              setting that guarantees nothing ever closes. That is what it was set to. -->
-        <select id="soOpen" style="flex:0 0 180px">
+        <select id="soOpen" data-ftf="Shipped or not" style="flex:0 0 180px">
           <option value="0">Every order</option>
           <option value="1">Not yet shipped</option>
         </select>
@@ -2820,7 +2868,7 @@
              title="Which shop the order came from. Nothing ticked means all of them."></div>
         <div class="ms" id="soMcf" style="flex:0 0 215px"
              title="Where this order can ship from. Tick as many as you like; nothing ticked means all of them."></div>
-        <select id="soState" style="flex:0 0 190px" title="Cancelled comes from Shopify. Chargeback and MCF done are read from the order's tags, its notes, or the status typed here.">
+        <select id="soState" data-ftf="State" style="flex:0 0 190px" title="Cancelled comes from Shopify. Chargeback and MCF done are read from the order's tags, its notes, or the status typed here.">
           <option value="ALL">Any state</option>
           <option value="live">Live only</option>
           <option value="cancel">Cancelled</option>
@@ -2835,13 +2883,21 @@
           <option value="-1">Placed yesterday</option>
           <option value="-7">Last 7 days</option>
         </select>
-        <input id="soFilter" style="flex:1 1 150px;min-width:0" placeholder="Filter order / SKU / name">
-        <button id="soAdj" class="ghost" title="Every shortfall raised, by the day it was raised. Printable, to hand to production.">Adjustments</button>
+        <input id="soFilter" style="flex:1 1 220px;min-width:0" placeholder="Filter order / SKU / name">
+        <button id="soGo">Fetch orders</button>
+      </div>
+      <!-- One button per status, with its count. One click shows that status; All shows everything. -->
+      <div id="soLanes" class="so-lanes"></div>
+      <div class="toolbar so-acts">
         <button id="soBucket" title="Shopify lines that need production and have no production order yet — tick and open them here. Nothing opens by itself.">Production bucket</button>
-        <button id="soDense" class="ghost" title="One page: ten columns that fit the screen, or every column with a sideways scroll.">Full columns</button>
+        <button id="soAdj" class="ghost" title="Every shortfall raised, by the day it was raised. Printable, to hand to production.">Adjustments</button>
         <button id="soReturns" class="ghost" title="Returns, typed by hand: which order, which lines, the return tracking number, and whether it has reached the USA warehouse.">Returns</button>
         <button id="soDays" class="ghost" title="How many days a parcel from the USA warehouse takes to a zip code — an estimate from distance zones, not a carrier quote.">Delivery days</button>
-        <select id="soTmpl" style="flex:0 0 190px" title="Which upload template to write. The column headings and their order match the courier's own workbook exactly.">
+        <span class="so-sep"></span>
+        <button id="soPrintMany" class="ghost"
+                title="Pick sheets, with photos, for the ticked orders — or for everything shown if nothing is ticked.">Print orders</button>
+        <span class="so-exp">
+        <select id="soTmpl" style="flex:0 0 auto;width:auto" title="Which upload template to write. The column headings and their order match the courier's own workbook exactly.">
           <option value="plain">Plain list — one row per line item</option>
           <option value="plainOrder">Plain list — one row per order</option>
           <option value="mcf">Amazon MCF</option>
@@ -2850,8 +2906,7 @@
           <option value="fedex">FedEx</option>
         </select>
         <button id="soExport" class="ghost">Export</button>
-        <button id="soPrintMany" class="ghost"
-                title="Pick sheets, with photos, for the ticked orders — or for everything shown if nothing is ticked.">Print orders</button>
+        </span>
         <button id="soImp" class="ghost"
                 title="Bring in orders from a shop this app has no API key for — CPC Shopify and the Etsy stores.">Import orders</button>
         <button id="soBulkSheet" class="ghost"
@@ -2859,7 +2914,8 @@
         <button id="soBulkPick" class="ghost"
                 title="Read an update sheet back: Location, At location and Line status for many lines at once. A blank cell is left as it is; a - clears it.">Bulk update</button>
         <input id="soBulkFile" type="file" accept=".xlsx,.csv,text/csv" class="hide">
-        <button id="soGo">Fetch orders</button>
+        <span class="so-grow"></span>
+        <button id="soDense" class="ghost" title="One page: ten columns that fit the screen, or every column with a sideways scroll.">Full columns</button>
       </div>
       <div id="soMsg" class="muted" style="margin-top:8px;font-size:13px"></div>
       <div id="soPickMsg" class="muted" style="margin-top:4px;font-size:12px"></div>
@@ -3696,6 +3752,17 @@ onAuthStateChanged(auth, async user => {
   if (ME.admin) { ME.tabs = REPL_TABS.slice(); ME.projEdit = true; ME.prodEdit = true; ME.rateApprove = true; ME.shopAssign = true; ME.b2bAssign = true;
     ME.accEntry = true; ME.accEdit = true; ME.vlogAccept = true; ME.soApprove = true; ME.mdbEdit = true; ME.attendMark = true; ME.vreqApprove = true; ME.rfdApprove = true; ME.rfdSend = true; ME.fgiEdit = true; ME.fgiEntry = true; ME.empEdit = true; ME.hrEmpOnly = false; }
 
+  /* THE SHOPIFY VIEW OF REPLENISHMENT (Ravi, 2026-10-14). An account that works the Shopify screens and holds no planning
+   * screen — and is not an admin — gets Replenishment too, but only as the Shopify view: what a SKU is and what Amazon
+   * holds of it (replenishment.js → renderReplShop). Admins and planners keep the full screen. */
+  ME.replShopView = !ME.admin && ME.tabs.some(t => REPL_SHOP_TABS.includes(t)) && !ME.tabs.some(t => REPL_FULL_TABS.includes(t));
+  /* …and an account whose sections are ALL Shopify ones reads no copy with sales in it at all — not even the slim one
+   * the production screens share. It is the same test the database rules make (firestore.rules → shopDataOnly), so the
+   * app never asks for something it would be refused. */
+  ME.shopDataOnly = !ME.admin && ME.tabsExplicit && ME.tabs.filter(t => t !== 'hr').length > 0
+    && ME.tabs.filter(t => t !== 'hr').every(t => SHOP_DATA_TABS.includes(t));
+  if (ME.replShopView) ME.tabs = ME.tabs.concat('repl');
+
   /* AN UNANSWERED ADDRESS OPENS NOTHING. Emptying the tabs is the whole enforcement: every pane is
    * hidden by the map below and no screen loads, so nothing is read on the way past.
    *
@@ -3812,7 +3879,8 @@ onAuthStateChanged(auth, async user => {
   if (ME.tabs.includes('pbase') && ptCanEdit()) jwCorrLoad().catch(() => {});
   if (ME.tabs.includes('fgi')) ptGet('pt_amzListings').then(idx => { LST.map = lstParse(idx); LST.at = (idx && idx.at) || ''; return lstLoadAlerts(); }).catch(() => {});
   // Background-load POs once so the Follow-ups nav badge shows without opening the tab.
-  if (!FACTORY_ONLY) loadPo().then(() => { PO_LOADED = true; updateFollowBadge(); }).catch(() => {});
+  /* Purchase orders are the planners' (firestore.rules → po, 2026-10-14); anybody else would only be refused. */
+  if (!FACTORY_ONLY && replFull()) loadPo().then(() => { PO_LOADED = true; updateFollowBadge(); }).catch(() => {});
 });
 
 /* ============================== FILE: src/app/core/nav.js ============================== */
@@ -4178,7 +4246,7 @@ function showTab(which) {
   Object.entries(navs).forEach(([k, id]) => $(id).classList.toggle('on', which === k));
   if (SHOP_ONLY() && which === 'ord') { $('pageTitle').textContent = 'Shopify Orders'; }
   const TITLES = { dash: 'Dashboard', repl: 'Replenishment', article: 'Article Review', target: 'Revenue Target', follow: 'Ongoing Purchase Order', top: 'Top ASIN Status', india: 'India Stock', shopify: 'Shopify Stock', prod: 'In Production', pack: 'Packing List', plan: 'Action Plan',
-    att: 'Attendance', pmdb: 'Master Database', mst: 'Masters', pbase: 'Job Work Register', pcut: 'Cutting Data', ppress: 'Press Inventory', qc: 'Quality Control', ord: 'Order Console', so: 'Sales Orders', vord: 'Vendor Orders', vreq: 'Vendor Order Requests', rfd: 'RFD Requirements', vend: 'Vendor Portal', vlog: 'History — what printers have sent', cx: 'Customer Orders', palloc: 'Printer Allocation', fgi: 'Finished Goods', fba: 'FBA Dispatch', fab: 'Fabric Inventory', acc: 'Accessories', rep: 'Reports', pa: 'Production Analysis', ka: 'Karigar Analysis', hr: 'Finance & HR', shop: 'Shopify Orders', adj: 'Adjustments', flow: 'Production flow (test)', gdesk: 'Greige Desk (test)' };
+    att: 'Attendance', pmdb: 'Master Database', mst: 'Masters', pbase: 'Job Work Register', pcut: 'Cutting Data', ppress: 'Press Inventory', qc: 'Quality Control', ord: 'Order Console', so: 'Sales Orders', vord: 'Vendor Orders', vreq: 'Vendor Order Requests', rfd: 'RFD Requirements', vend: 'Vendor Portal', vlog: 'History — what printers have sent', cx: 'Customer Orders', palloc: 'Printer Allocation', fgi: 'Finished Goods', fba: 'FBA Dispatch', fab: 'Fabric Inventory', acc: 'Accessories', rep: 'Reports', pa: 'Production Analysis', ka: 'Karigar Analysis', hr: 'Finance & HR', shop: 'Shopify Orders · TEST phase', adj: 'Adjustments', flow: 'Production flow (test)', gdesk: 'Greige Desk (test)' };
   $('pageTitle').textContent = TITLES[which] || 'Replenishment';
   /* The line under a title, and the button that starts work, for the screens that have them. */
   const SUBS = { pbase: 'Track job work issued to karigars and manage receipts' };
@@ -4468,7 +4536,9 @@ const REPL_FULL_TABS = ['repl', 'article', 'target', 'top', 'prod', 'follow', 'i
  * Amazon ids (Master DB). The full copy is 45 fields and six times the bytes; nothing outside Replenishment needs it. */
 const REPL_SLIM_FIELDS = ['sku', 'category', 'subcat', 'color', 'size', 'totalStock', 'awdAvail', 'awdTransit', 'last90', 'last30', 'asin', 'parent'];
 const REPL_SLIM_CHUNK = 2500;
-const replFull = () => !!(ME.admin || (ME.tabs || []).some(t => REPL_FULL_TABS.includes(t)));
+/* A Shopify-only account sees Replenishment as the Shopify view (ME.replShopView, set at sign-in) — and is never "full",
+ * even though that view put 'repl' in its tabs so the menu shows the screen. */
+const replFull = () => !!(ME.admin || (!ME.replShopView && (ME.tabs || []).some(t => REPL_FULL_TABS.includes(t))));
 const replSlimRow = r => { const o = {}; REPL_SLIM_FIELDS.forEach(k => { if (r && r[k] != null) o[k] = r[k]; }); return o; };
 
 /* WHICH COPY IS IN HAND: '' (none), 'slim' or 'full'. The slim one is read at sign-in by everybody; the full one — 8 MB
@@ -4489,6 +4559,14 @@ async function loadReplCache(wantFull) {
   return p;
 }
 async function loadReplCacheRun(full) {
+  /* A SHOPIFY-ONLY ACCOUNT TAKES THE SHOPIFY COPY AS ITS SNAPSHOT (2026-10-14). What its screens read from a row — SKU,
+   * colour, size, sub-category, ASINs — is all there; the 30/90-day sales of the slim copy are not, and the rules no
+   * longer let this account read them. */
+  if (!full && ME.shopDataOnly) {
+    if (!REPL_SHOP.SP && !REPL_SHOP.CPC) await loadReplShop();
+    ['SP', 'CPC'].forEach(b => { const s = REPL_SHOP[b]; if (s && s.rows && s.rows.length) REPL[b] = { at: s.at, rows: s.rows, recCols: [], catalogSkus: [], mode: 'shop' }; });
+    return;
+  }
   await Promise.all(['SP', 'CPC'].map(async b => {
     try {
       const meta = await getDoc(doc(db, full ? 'repl' : 'replslim', b));
@@ -4504,6 +4582,7 @@ async function loadReplCacheRun(full) {
       /* WHICH COPY THESE ROWS ARE. The rows cache keys on count and time, and the slim and full copies share both —
        * a table built from slim rows stayed on screen after the full ones arrived. */
       REPL[b] = { at: d.at && d.at.toDate ? d.at.toDate() : null, rows, recCols: d.recCols || [], catalogSkus: d.catalogSkus || [], mode: full ? 'full' : 'slim' };
+      if (full) replShopBackfill(b, rows, REPL[b].at);     // the Shopify view's copy, once, if it is missing or older
     } catch (e) {
       // A DENIED read must not look like "there is simply no snapshot" — that sent us hunting in the
       // wrong place. Record it so renderRepl can say what actually happened.
@@ -4529,6 +4608,137 @@ async function saveReplSlim(brand, rows, catalogSkus) {
     await setDoc(doc(db, 'replslimrows', `${brand}_${i}`), { r: slim.slice(i * REPL_SLIM_CHUNK, (i + 1) * REPL_SLIM_CHUNK) });
   }
   await setDoc(doc(db, 'replslim', brand), { chunks, n: slim.length, catalogSkus: catalogSkus || [], at: serverTimestamp() });
+  await saveReplShop(brand, rows);
+}
+
+/* ================= THE SHOPIFY VIEW OF REPLENISHMENT (Ravi, 2026-10-14) =================
+ *
+ * "users that are defined to use the shopify tab except admins can only access that mentioned part": what a SKU is and
+ * what Amazon holds of it — SKU, picture, ASINs, colour, size, sub-category, status, Warehouse and Fulfillable — and
+ * nothing of the plan. The slim copy above will not do: it carries 30- and 90-day sales for the production screens.
+ * So a third copy, written beside the other two, holds only these fields, and the database rules (firestore.rules →
+ * replshop) let a Shopify account read it while the full copy stays shut to it. Hiding columns on the screen alone
+ * would still have sent the sales and forecasts to the browser. */
+const REPL_SHOP_FIELDS = ['sku', 'image', 'asin', 'parent', 'color', 'size', 'subcat', 'status', 'warehouse', 'fulfillable'];
+const REPL_SHOP_CHUNK = 1500;
+const REPL_SHOP_TABS = ['shop', 'adj', 'shopify'];
+/** The sections that make an account "Shopify only" for its data — the same list as firestore.rules → shopDataOnly. */
+const SHOP_DATA_TABS = ['shop', 'adj', 'shopify', 'shopprod'];
+let REPL_SHOP = { SP: null, CPC: null };
+async function saveReplShop(brand, rows, dataAt) {
+  const out = (rows || []).map(r => { const o = {}; REPL_SHOP_FIELDS.forEach(k => { if (r && r[k] != null && r[k] !== '') o[k] = r[k]; }); return o; });
+  const chunks = Math.ceil(out.length / REPL_SHOP_CHUNK) || 1;
+  for (let i = 0; i < chunks; i++) {
+    await setDoc(doc(db, 'replshoprows', `${brand}_${i}`), { r: out.slice(i * REPL_SHOP_CHUNK, (i + 1) * REPL_SHOP_CHUNK) });
+  }
+  /* `dataAt` is WHEN AMAZON'S FIGURES WERE READ — the snapshot's own time, not the moment this copy was written. A copy
+   * written today from last week's snapshot must say last week, or it looks fresher than it is. `ful` is SKU → Fulfillable
+   * on its own (well under 100 KB), so Shopify Orders reads this one record and never the rows. */
+  const ful = {};
+  out.forEach(r => { if (r.sku) ful[r.sku] = Number(r.fulfillable) || 0; });
+  await setDoc(doc(db, 'replshop', brand), { chunks, n: out.length, at: serverTimestamp(), dataAt: dataAt || serverTimestamp(), ful });
+}
+/** When the copy's figures were read from Amazon: `dataAt`, or — for a copy written before it existed — `at`. */
+const replShopAt = d => { const t = (d && (d.dataAt || d.at)) || null; return t && t.toDate ? t.toDate() : null; };
+/** The first time a full account opens Replenishment after this copy was introduced, it is written from the snapshot in
+ *  hand — so the Shopify view does not stay empty until somebody next presses Refresh from sheet. Once only, and
+ *  stamped with the SNAPSHOT's time. */
+async function replShopBackfill(brand, rows, fullAt) {
+  try {
+    const m = await getDoc(doc(db, 'replshop', brand));
+    const at = m.exists() ? replShopAt(m.data()) : null;
+    if (m.exists() && m.data().ful && (!fullAt || (at && at >= fullAt))) return;
+    await saveReplShop(brand, rows, fullAt || null);
+  } catch (e) { /* the next Refresh from sheet writes it anyway */ }
+}
+async function loadReplShop() {
+  await Promise.all(['SP', 'CPC'].map(async b => {
+    try {
+      const meta = await getDoc(doc(db, 'replshop', b));
+      if (!meta.exists()) { REPL_SHOP[b] = { at: null, rows: [] }; return; }
+      const d = meta.data();
+      const got = await Promise.all(Array.from({ length: d.chunks || 0 }, (_, i) => getDoc(doc(db, 'replshoprows', `${b}_${i}`))));
+      let rows = [];
+      got.forEach(s => { if (s.exists()) rows = rows.concat(s.data().r || []); });
+      REPL_SHOP[b] = { at: replShopAt(d), rows };
+    } catch (e) {
+      REPL_SHOP[b] = { at: null, rows: [], err: /permission|insufficient/i.test(e.code || e.message || '') ? 'denied' : (e.message || String(e)) };
+    }
+  }));
+}
+/** Just SKU → Fulfillable and its time, per account — the small record, for Shopify Orders. Rows already in hand are used. */
+async function loadReplShopStock() {
+  const out = {};
+  await Promise.all(['SP', 'CPC'].map(async b => {
+    const s = REPL_SHOP[b];
+    if (s && s.rows && s.rows.length) { out[b] = { at: s.at, ful: Object.fromEntries(s.rows.filter(r => r && r.sku).map(r => [r.sku, Number(r.fulfillable) || 0])) }; return; }
+    try {
+      const m = await getDoc(doc(db, 'replshop', b));
+      if (m.exists() && m.data().ful) out[b] = { at: replShopAt(m.data()), ful: m.data().ful };
+    } catch (e) { /* Sellora's figure stands */ }
+  }));
+  return out;
+}
+let RS = { brand: '', q: '', sort: 'fulfillable', dir: -1, cap: 300 };
+function renderReplShop() {
+  const pane = $('paneRepl'); if (!pane) return;
+  let box = $('rShopView');
+  if (!box) {
+    box = document.createElement('div'); box.id = 'rShopView';
+    box.innerHTML = `<div class="card" style="padding:12px 14px"><div class="toolbar">
+        <div class="seg" id="rsBrand" title="Ridhi's SKUs, CPC's SKUs, or both"><button type="button" class="segbtn" data-rsb="">Both</button><button type="button" class="segbtn" data-rsb="SP">Ridhi</button><button type="button" class="segbtn" data-rsb="CPC">CPC</button></div>
+        <input id="rsQ" style="flex:1 1 240px;min-width:0" placeholder="Search SKU / ASIN / colour / size / sub-category">
+        <span class="muted" id="rsAt" style="font-size:12px"></span><span class="navbadge" style="background:#7c3aed;position:static" title="The Shopify view of Replenishment: live in a test phase since 14 Oct 2026">TEST</span></div></div>
+      <div class="card xlwrap"><table class="xl" id="rsTable"></table></div>`;
+    pane.insertBefore(box, pane.firstChild);
+    $('rsBrand').onclick = e => { const b = e.target.closest('[data-rsb]'); if (!b) return; RS.brand = b.dataset.rsb || ''; RS.cap = 300; renderReplShop(); };
+    $('rsQ').addEventListener('input', debounced(() => { RS.q = $('rsQ').value; RS.cap = 300; renderReplShop(); }));
+    $('rsTable').onclick = e => {
+      const h = e.target.closest('[data-rss]');
+      if (h) { const k = h.dataset.rss; RS.dir = RS.sort === k ? -RS.dir : (['warehouse', 'fulfillable'].includes(k) ? -1 : 1); RS.sort = k; renderReplShop(); return; }
+      if (e.target.closest('#rsMore')) { RS.cap += 300; renderReplShop(); }
+    };
+  }
+  /* Only this view on the screen: the planning toolbar, the reorder summary and the full table stay hidden. */
+  [...pane.children].forEach(c => c.classList.toggle('hide', c !== box));
+  box.querySelectorAll('[data-rsb]').forEach(b => b.classList.toggle('on', (b.dataset.rsb || '') === RS.brand));
+  const brands = (RS.brand ? [RS.brand] : ['SP', 'CPC']).filter(b => REPL_SHOP[b]);
+  if (brands.some(b => REPL_SHOP[b].err === 'denied')) {
+    $('rsTable').innerHTML = '<tbody><tr><td class="muted" style="padding:14px;text-align:left">This account may not read the Amazon stock list yet — ask an admin.</td></tr></tbody>';
+    return;
+  }
+  const at = brands.map(b => REPL_SHOP[b].at).filter(Boolean).sort((a, b) => a - b)[0];
+  $('rsAt').textContent = at ? 'Amazon stock as of ' + at.toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'No stock list yet — it is written the next time Replenishment is refreshed.';
+  const q = RS.q.trim().toLowerCase();
+  /* As the planners see it: a status they set by hand wins over the sheet's, and a SKU they hid (parents, placeholders,
+   * dead codes) is not shown here either — both from repl/prodstatus, read at sign-in. */
+  const ovr = typeof STATUS_OVR === 'object' && STATUS_OVR ? STATUS_OVR : {}, hid = typeof HIDDEN === 'object' && HIDDEN ? HIDDEN : {};
+  let rows = brands.flatMap(b => REPL_SHOP[b].rows.filter(r => !hid[String(r.sku || '').trim().toUpperCase()])
+    .map(r => { const o = Object.assign({ brand: b }, r), k = String(r.sku || '').trim().toUpperCase(); if (ovr[k]) o.status = ovr[k]; return o; }));
+  if (q) rows = rows.filter(r => [r.sku, r.asin, r.parent, r.color, r.size, r.subcat].join(' ').toLowerCase().includes(q));
+  const k = RS.sort, dir = RS.dir;
+  rows.sort((a, b) => (typeof a[k] === 'number' || typeof b[k] === 'number')
+    ? ((Number(a[k]) || 0) - (Number(b[k]) || 0)) * dir : String(a[k] || '').localeCompare(String(b[k] || '')) * dir);
+  const tot = f => rows.reduce((t, r) => t + (Number(r[f]) || 0), 0);
+  const cols = [['sku', 'SKU'], ['image', 'Image'], ['brand', 'Brand'], ['asin', 'ASIN'], ['parent', 'Parent ASIN'], ['color', 'Color'], ['size', 'Size'], ['subcat', 'Sub-Category'], ['status', 'Status'], ['warehouse', 'Warehouse'], ['fulfillable', 'Fulfillable']];
+  const arrow = c => (RS.sort === c ? (RS.dir > 0 ? ' ↑' : ' ↓') : '');
+  const head = '<thead><tr>' + cols.map(([c, t]) => c === 'image' ? '<th>Image</th>'
+    : `<th class="${['warehouse', 'fulfillable'].includes(c) ? 'num' : ''}${c === 'sku' ? ' frz' : ''}" data-rss="${c}" style="cursor:pointer">${t}${arrow(c)}</th>`).join('') + '</tr>'
+    + `<tr><td class="frz muted" style="text-align:left;font-size:12px">${nf(rows.length)} SKUs</td><td colspan="8"></td><td class="num"><b>${nf(tot('warehouse'))}</b></td><td class="num"><b>${nf(tot('fulfillable'))}</b></td></tr></thead>`;
+  const drawn = rows.slice(0, RS.cap);
+  const num = v => (v == null || v === '' ? '<span class="muted">—</span>' : nf(v));
+  const body = drawn.map(r => {
+    const s = String(r.status || '').trim(), cl = /need/i.test(s) ? 'st-need' : /listed/i.test(s) ? 'st-live' : 'st-other';
+    return `<tr><td class="frz">${esc(r.sku)}</td>`
+      + `<td>${r.image ? `<img class="thumb" src="${esc(thumbUrl(r.image))}" loading="lazy" decoding="async" alt="">` : ''}</td>`
+      + `<td>${esc(BRAND_NAME[r.brand] || r.brand)}</td><td style="font-family:ui-monospace,monospace">${esc(r.asin || '—')}</td><td style="font-family:ui-monospace,monospace">${esc(r.parent || '—')}</td>`
+      + `<td>${esc(r.color || '—')}</td><td>${esc(r.size || '—')}</td><td>${esc(r.subcat || '—')}</td>`
+      + `<td>${s ? `<span class="st ${cl}">${esc(s)}</span>` : '<span class="muted">—</span>'}</td>`
+      + `<td class="num">${num(r.warehouse)}</td><td class="num"><b style="color:${(Number(r.fulfillable) || 0) > 0 ? 'inherit' : 'var(--bad)'}">${num(r.fulfillable)}</b></td></tr>`;
+  }).join('');
+  $('rsTable').innerHTML = head + '<tbody>' + (body || `<tr><td colspan="11" class="muted" style="padding:14px;text-align:left">${REPL_SHOP.SP || REPL_SHOP.CPC ? 'Nothing matches that search.' : 'Reading the stock list…'}</td></tr>`)
+    + (rows.length > drawn.length ? `<tr><td colspan="11" style="text-align:left;padding:10px 14px"><span class="muted">Showing ${nf(drawn.length)} of ${nf(rows.length)} — search, or </span><button type="button" class="ghost" id="rsMore" style="padding:4px 12px;font-size:12px">show more</button></td></tr>` : '')
+    + '</tbody>';
 }
 let REPL_LOADED = false;
 // The snapshot and the three side-lists (India stock · status/projection overrides · In Production) are
@@ -4551,6 +4761,8 @@ async function ensureReplData() {
   REPL_LOADED = true;
 }
 async function ensureRepl() {
+  /* A Shopify account sees only the Shopify view — its own small copy, never the full snapshot. */
+  if (ME.replShopView) { renderReplShop(); await Promise.all([(!REPL_SHOP.SP && !REPL_SHOP.CPC) ? loadReplShop() : null, loadProd()]); renderReplShop(); return; }
   if (!REPL_LOADED) {
     rMsg('Loading last snapshot…');
     /* SAID ON THE SCREEN, not only in the small line: since sign-in stopped waiting for the full snapshot (26 Sep) the
@@ -6251,6 +6463,7 @@ function replFillFromMaster() {
  * hidden table is only marked to redraw, and opening the tab draws it once with everything that has landed. */
 let REPL_DIRTY = false;
 function renderRepl() {
+  if (ME.replShopView) return renderReplShop();     // a Shopify account: the Shopify view only (replenishment.js)
   if ($('paneRepl') && $('paneRepl').classList.contains('hide')) { REPL_DIRTY = true; return; }
   REPL_DIRTY = false;
   if (!replMaster()) replMasterLoad(); else replFillFromMaster();
@@ -16122,9 +16335,12 @@ const ptDlgValues = () => (PTD.fields || []).reduce((v, f) => {
   return v;
 }, {});
 
-$('ptDlgClose').onclick = ptDlgClose;
-$('ptDlgCancel').onclick = ptDlgClose;
-$('ptDlg').addEventListener('click', e => { if (e.target === $('ptDlg')) ptDlgClose(); });
+/* Closed WITHOUT saving — ✕, Cancel or a click outside. A dialog opened from another one (a returns case from the
+ * Returns list, 2026-10-14) passes onCancel to go back to where it was opened from; every other dialog has none. */
+function ptDlgCancel() { const back = PTD && PTD.onCancel; ptDlgClose(); if (back) setTimeout(back, 0); }
+$('ptDlgClose').onclick = ptDlgCancel;
+$('ptDlgCancel').onclick = ptDlgCancel;
+$('ptDlg').addEventListener('click', e => { if (e.target === $('ptDlg')) ptDlgCancel(); });
 
 $('ptDlgSave').onclick = async () => {
   if (!PTD) return;
@@ -59023,15 +59239,35 @@ async function saveStockDoc(brand, map) {
 }
 
 let SHOP_STOCK_DENIED = false;
+/* HOW OLD THE AMAZON FIGURES ARE, AND WHICH FIGURE THEY ARE (2026-10-14). Per account: when it was read from Amazon, and
+ * whether it is FULFILLABLE (what Amazon will ship today, from the Replenishment snapshot) or AVAILABLE (Sellora's stock
+ * report, which can count more). The newer of the two is used — and the screen says which, and how old. */
+let SHOP_STOCK_AT = { SP: null, CPC: null }, SHOP_STOCK_SRC = { SP: '', CPC: '' };
 async function loadShopStock() {
   SHOP_STOCK_DENIED = false;
   SHOP_STOCK = {}; SHOP_STOCK_CASE = {};
   SHOP_STOCK_BY = { SP: {}, CPC: {} }; SHOP_STOCK_CASE_BY = { SP: {}, CPC: {} };
+  SHOP_STOCK_AT = { SP: null, CPC: null }; SHOP_STOCK_SRC = { SP: '', CPC: '' };
+  /* The Replenishment snapshot's Fulfillable, from the Shopify copy every Replenishment account may read. A failed read
+   * just leaves Sellora's figure in charge, exactly as before. */
+  let RSS = {};
+  try { if (typeof loadReplShopStock === 'function') RSS = await loadReplShopStock(); } catch (e) { /* Sellora's figure stands */ }
   for (const b of ['SP', 'CPC']) {
     try {
-      const s = await getDoc(doc(db, 'stock', b));
-      if (!s.exists()) continue;
-      Object.entries(s.data().m || {}).forEach(([sku, q]) => {
+      /* Sellora's figure refused is not the end: the Replenishment one below may still answer. */
+      let s = null;
+      try { s = await getDoc(doc(db, 'stock', b)); }
+      catch (e) { if (/permission|insufficient/i.test(String((e && (e.code || e.message)) || ''))) SHOP_STOCK_DENIED = true; }
+      if (!s) s = { exists: () => false, data: () => ({}) };
+      const sAt = s.exists() && s.data().at && s.data().at.toDate ? s.data().at.toDate() : null;
+      const rs = RSS[b] || null;
+      const useFul = !!(rs && rs.ful && Object.keys(rs.ful).length && rs.at && (!sAt || rs.at >= sAt));
+      const map = useFul ? rs.ful
+        : (s.exists() ? (s.data().m || {}) : null);
+      if (!map) continue;
+      SHOP_STOCK_AT[b] = useFul ? rs.at : sAt;
+      SHOP_STOCK_SRC[b] = useFul ? 'fulfillable' : 'available';
+      Object.entries(map).forEach(([sku, q]) => {
         const k = String(sku).trim().toUpperCase();
         SHOP_STOCK[k] = Math.max(SHOP_STOCK[k] || 0, Number(q) || 0);
         if (!SHOP_STOCK_CASE[k]) SHOP_STOCK_CASE[k] = String(sku).trim();
@@ -59047,6 +59283,20 @@ async function loadShopStock() {
   // Loaded means "we asked and got an answer", which is what lets the column say "not in Amazon"
   // instead of "SKU ?". An empty map is NOT an answer — it means nothing was read.
   SHOP_STOCK_LOADED = Object.keys(SHOP_STOCK).length > 0;
+  if (SHOP_STOCK_LOADED) SHOP_STOCK_DENIED = false;    // one source refused, the other answered — nothing to report
+}
+/** "Amazon stock — Ridhi fulfillable 13 Oct 16:05 · CPC available 12 Oct 09:10", amber once a figure is over a day old:
+ *  a "MCF ready" read off yesterday's shelf is how a parcel gets promised that Amazon cannot send. */
+function soStockStamp() {
+  const fmt = d => d.toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  const parts = ['SP', 'CPC'].filter(b => SHOP_STOCK_SRC[b]).map(b => {
+    const at = SHOP_STOCK_AT[b], old = !at || Date.now() - at.getTime() > 24 * 36e5;
+    return `<span style="color:${old ? 'var(--warn-ink,#8A5A12)' : 'inherit'}" title="${SHOP_STOCK_SRC[b] === 'fulfillable'
+        ? 'Fulfillable — what Amazon will ship today, from the Replenishment snapshot'
+        : 'Available — from Sellora\'s stock report, which can count more than Amazon will ship today'}${old ? ' · over a day old: refresh Replenishment or Sellora' : ''}">`
+      + `${soAcctName(b)} ${at ? fmt(at) : '(no date)'}${old ? ' ⚠' : ''}</span>`;
+  });
+  return parts.length ? 'Amazon stock — ' + parts.join(' · ') : '';
 }
 
 
@@ -59596,17 +59846,39 @@ function soDayStats(iso) {
   };
 }
 
+/* THE STORE SWITCH — Both · Ridhi · CPC (2026-10-14). The same rule the bucket sheet uses (shbStore):
+ * CPC is the CPC Shopify feed and any channel with CPC in its name; everything else is Ridhi's.
+ * Remembered on this device, so the screen opens on the store somebody last worked. */
+let SO_STORE = (() => { try { return localStorage.getItem('soStore') || ''; } catch (e) { return ''; } })();
+const soStoreOf = o => (o && (o.shopBrand === 'CPC' || /cpc/i.test(String(o.channel || ''))) ? 'CPC' : 'Ridhi');
+const soInStore = o => !SO_STORE || soStoreOf(o) === SO_STORE;
+function soStoreSegSync() {
+  document.querySelectorAll('#soStoreSeg .segbtn').forEach(b => b.classList.toggle('on', (b.dataset.store || '') === SO_STORE));
+}
+if ($('soStoreSeg')) {
+  $('soStoreSeg').onclick = e => {
+    const b = e.target.closest('.segbtn');
+    if (!b) return;
+    SO_STORE = b.dataset.store || '';
+    try { localStorage.setItem('soStore', SO_STORE); } catch (err) { /* not remembered */ }
+    soStoreSegSync();
+    SO_DENSE_CAP = 200;
+    renderShop();
+  };
+  soStoreSegSync();
+}
+
 /** Is this order in the shop(s) the toolbar is showing? Nothing chosen means all of them.
  *  The chosen list is read from the DOM, so it is read once and reused, not per order. */
 function soInShop(o, chans) {
   const list = chans || msVals('soChan');
-  return !list.length || list.includes(o.channel || 'Shopify');
+  return soInStore(o) && (!list.length || list.includes(o.channel || 'Shopify'));
 }
 
 /** The shops being counted, for the label — "" when it is all of them. */
 function soShopLabel() {
   const chans = msVals('soChan');
-  return chans.length ? chans.join(' + ') : '';
+  return chans.length ? chans.join(' + ') : (SO_STORE || '');
 }
 
 /** Orders older than this are re-fetched when the tab is opened again. */
@@ -59858,6 +60130,7 @@ function soRows() {
   SO_ALL_ROWS = rows;
   rows = rows.slice();          // the filters and the sort below work on a copy; the kept rows stay as built
 
+  if (SO_STORE) rows = rows.filter(soInStore);
   const chanSel = msVals('soChan');
   if (chanSel.length) rows = rows.filter(r => chanSel.includes(r.channel));
 
@@ -59914,6 +60187,12 @@ function soRows() {
       + ' ' + r.shopNote + ' ' + r.note + ' ' + r.status + ' ' + r.trkTxt
       + ' ' + r.items.map(i => i.name).join(' ')).toLowerCase().includes(q));
 
+  /* THE STATUS BUTTONS (Ravi, 2026-10-14: "buttons, not dropdown bars"). Counted AFTER every other filter, so each
+   * button says how many it would show; then only the chosen one is kept. Print and Export follow it. */
+  SO_LANE_N = { '': rows.length };
+  rows.forEach(r => { r.lane = soLane(r); SO_LANE_N[r.lane] = (SO_LANE_N[r.lane] || 0) + 1; });
+  if (SO_GRP || SO_LANE) rows = rows.filter(soLaneKeep);
+
   const k = SHOP_SORT.k, dir = SHOP_SORT.dir;
   rows.sort((a, b) => (typeof a[k] === 'string')
     ? String(a[k] || '').localeCompare(String(b[k] || '')) * dir
@@ -59921,8 +60200,94 @@ function soRows() {
   return rows;
 }
 
+/* THE STATUS BUTTONS above the table, in the order the work flows. One click shows one status; "All" shows every
+ * order. `wait` marks the statuses where the days an order has been waiting matter, so their rows carry the age. */
+const SO_LANES = [
+  { k: 'make', t: 'Needs production', tone: 'bad', wait: 1, tip: 'Neither Amazon nor India can fill it and production has not opened it yet — open it from the Production bucket' },
+  { k: 'prod', t: 'In production', tone: 'warn', wait: 1, tip: 'Production has it open in the Order Console' },
+  { k: 'made', t: 'Production done', tone: 'ok', wait: 1, tip: 'Production has finished or handed it over — ready to pack and ship' },
+  { k: 'india', t: 'Ship from India', tone: 'warn', wait: 1, tip: 'India stock covers it' },
+  { k: 'mcf', t: 'MCF ready', tone: 'ok', wait: 1, tip: 'Amazon FBA stock covers it — send it to Amazon MCF' },
+  { k: 'mcfdone', t: 'MCF done', tone: 'ok', tip: 'Already sent to Amazon — sending again would ship a second parcel' },
+  { k: 'shipped', t: 'Shipped', tone: 'mute', tip: 'Shopify says it has shipped' },
+  { k: 'other', t: 'Closed', tone: 'mute', tip: 'Cancelled, marked done, or nothing left to send — nothing left to do on these' },
+];
+/** Which section an order sits in. Cancelled and shipped first, because nothing else about them matters any more;
+ *  then a parcel already with Amazon; then production's own word; then the route. */
+function soLane(r) {
+  if (r.cancelled) return 'other';
+  if (String(r.ff || '').toLowerCase() === 'fulfilled') return 'shipped';
+  const route = r.route || '';
+  if (/MCF done/i.test(route)) return 'mcfdone';
+  const p = soProdStatus(r);
+  if (p) return p.tone === 'done' ? 'made' : 'prod';
+  if (route === 'Need from production') return 'make';
+  if (route === 'Ship from India') return 'india';
+  if (/MCF ready/i.test(route)) return 'mcf';
+  return 'other';
+}
+/* FIVE STEPS, NOT NINE BUTTONS (Ravi, 2026-10-14: nine statuses in a row "seems a bit more complex in look").
+ * The row shows the steps an order goes through; picking a step that holds more than one status opens a quiet
+ * second line with those statuses, so the detail is one click away and never in the way. */
+const SO_GROUPS = [
+  { k: 'tomake', t: 'To make', lanes: ['make', 'prod'], tip: 'Needs production, or production has it open' },
+  { k: 'ready', t: 'Ready to ship', lanes: ['made', 'india', 'mcf'], tip: 'Production is done, or India / Amazon FBA stock covers it' },
+  { k: 'amz', t: 'With Amazon', lanes: ['mcfdone'], tip: 'Sent to Amazon MCF — sending again would ship a second parcel' },
+  { k: 'shipped', t: 'Shipped', lanes: ['shipped'], tip: 'Shopify says it has shipped' },
+  { k: 'closed', t: 'Closed', lanes: ['other'], tip: 'Cancelled, marked done, or nothing left to send' },
+];
+/** The chosen step ('' = All) and, inside it, the chosen status ('' = the whole step). Remembered on the device. */
+let SO_GRP = (() => { try { return localStorage.getItem('soGrp') || ''; } catch (e) { return ''; } })();
+let SO_LANE = (() => { try { return localStorage.getItem('soLane') || ''; } catch (e) { return ''; } })();
+if (!SO_GROUPS.some(g => g.k === SO_GRP)) SO_GRP = '';
+if (!SO_GRP || !SO_GROUPS.find(g => g.k === SO_GRP).lanes.includes(SO_LANE)) SO_LANE = '';
+/** Is this row inside the chosen step and status? */
+const soLaneKeep = r => (!SO_GRP || SO_GROUPS.find(g => g.k === SO_GRP).lanes.includes(r.lane)) && (!SO_LANE || r.lane === SO_LANE);
+let SO_LANE_N = {};
+function renderSoLanes() {
+  const box = $('soLanes'); if (!box) return;
+  const n = g => g.lanes.reduce((t, k) => t + (SO_LANE_N[k] || 0), 0);
+  const grp = SO_GROUPS.find(g => g.k === SO_GRP);
+  box.innerHTML = '<div class="so-steps">'
+    + `<button type="button" class="so-st${!SO_GRP ? ' on' : ''}" data-grp="" title="Every order the filters above let through">All <b>${nf(SO_LANE_N[''] || 0)}</b></button>`
+    + SO_GROUPS.map(g => `<button type="button" class="so-st${SO_GRP === g.k ? ' on' : ''}${n(g) ? '' : ' zero'}" data-grp="${g.k}" title="${esc(g.tip)}">${g.t} <b>${nf(n(g))}</b></button>`).join('')
+    + '</div>'
+    + (grp && grp.lanes.length > 1 ? '<div class="so-sub">'
+      + `<button type="button" class="${!SO_LANE ? 'on' : ''}" data-sub="">All ${esc(grp.t.toLowerCase())}</button>`
+      + grp.lanes.map(k => { const l = SO_LANES.find(x => x.k === k); return `<button type="button" class="${SO_LANE === k ? 'on' : ''}" data-sub="${k}" title="${esc(l.tip)}">${l.t} <b>${nf(SO_LANE_N[k] || 0)}</b></button>`; }).join('')
+      + '</div>' : '')
+    /* WHAT IS NARROWING THE LIST, said (2026-10-14). The store, step and status are remembered from the last visit, and a
+     * list opened on 'CPC · To make' without saying so reads as orders gone missing. */
+    + ((SO_STORE || grp) ? `<span class="so-kept">Showing ${esc([SO_STORE, grp && grp.t, SO_LANE && (SO_LANES.find(x => x.k === SO_LANE) || {}).t].filter(Boolean).join(' · '))}`
+      + ' <button type="button" data-showall="1">Show all</button></span>' : '');
+}
+if ($('soLanes')) $('soLanes').onclick = e => {
+  if (e.target.closest('[data-showall]')) {
+    SO_GRP = ''; SO_LANE = ''; SO_STORE = '';
+    try { localStorage.setItem('soGrp', ''); localStorage.setItem('soLane', ''); localStorage.setItem('soStore', ''); } catch (err) { /* not remembered */ }
+    soStoreSegSync(); SO_DENSE_CAP = 200; renderShop(); return;
+  }
+  const g = e.target.closest('[data-grp]'), s = e.target.closest('[data-sub]');
+  if (!g && !s) return;
+  if (g) { SO_GRP = g.dataset.grp || ''; SO_LANE = ''; } else SO_LANE = s.dataset.sub || '';
+  try { localStorage.setItem('soGrp', SO_GRP); localStorage.setItem('soLane', SO_LANE); } catch (err) { /* not remembered */ }
+  SO_DENSE_CAP = 200;
+  renderShop();
+};
 let SO_DENSE_CAP = 200;
-const soDense = () => { try { return localStorage.getItem('soDense') !== '0'; } catch (e) { return true; } };
+/** Days since the order was placed, in the store's day. */
+const SO_AGE_OLD = 7;
+function soAgeDays(r, today) {
+  const a = Date.parse(String(r && r.at || '').slice(0, 10)), b = Date.parse(today);
+  return isNaN(a) || isNaN(b) ? 0 : Math.max(0, Math.round((b - a) / 864e5));
+}
+/** The small "3d" after the date — only where waiting matters, red once it is a week old. */
+function soAgeTag(r, lane, today) {
+  if (!lane || !lane.wait) return '';
+  const d = soAgeDays(r, today);
+  return ` <span class="so-age${d >= SO_AGE_OLD ? ' old' : ''}" title="${d} day${d === 1 ? '' : 's'} since it was placed">${d}d</span>`;
+}
+const soDense =() => { try { return localStorage.getItem('soDense') !== '0'; } catch (e) { return true; } };
 /**
  * THE ONE-PAGE TABLE. Ten columns, each carrying what the wide table spread over two: the date under the order, the
  * country under the name, the weight under the value, MCF and India under Ship from, the tracking under Shopify's
@@ -59971,15 +60336,12 @@ function renderShopDense(rows, COLS, arrow, money, esc) {
       ? '<th style="width:28px"><input type="checkbox" id="soAll" title="Tick every order on screen"></th>'
       : '<th class="' + (c.num ? 'num' : '') + (c.frz ? ' frz' : '') + '" data-so-sort="' + c.k + '" style="cursor:pointer"' + (c.tip ? ' title="' + esc(c.tip) + '"' : '') + '>' + c.t + arrow(c.k) + '</th>').join('') + '</tr></thead>';
   const sub = t => (t ? '<span class="sub">' + t + '</span>' : '');
-  /* 200, and the rest by search or "Show more" — 400 rows of three lines each was 550 KB of table to lay out on every
-   * draw, and nobody reads past the first screens without searching. */
-  const SO_DRAW_CAP = SO_DENSE_CAP;
-  const drawn = rows.slice(0, SO_DRAW_CAP);
-  const body = drawn.map(r => '<tr data-so="' + esc(r.id) + '" style="cursor:pointer"'
+  const today = soStoreDay(0);
+  const rowHtml = (r, lane) => '<tr data-so="' + esc(r.id) + '" style="cursor:pointer"'
     + ' class="' + [r.cancelled ? 'so-cancel' : '', r.chargeback ? 'so-cb' : ''].filter(Boolean).join(' ') + '"'
     + (r.cancelled ? ' title="Cancelled ' + esc(r.cancelledAt) + (r.cancelReason ? ' — ' + esc(r.cancelReason) : '') + '"' : '') + '>'
     + '<td><input type="checkbox" class="soPick" data-id="' + esc(r.id) + '"' + (SO_PICKED.has(r.id) ? ' checked' : '') + '></td>'
-    + '<td class="frz tl" style="font-weight:600">' + esc(r.no) + (r.shopNote ? ' <span title="Shopify note: ' + esc(r.shopNote) + '" style="color:#854d0e">&#9998;</span>' : '') + sub(esc(r.at)) + '</td>'
+    + '<td class="frz tl" style="font-weight:600">' + esc(r.no) + (r.shopNote ? ' <span title="Shopify note: ' + esc(r.shopNote) + '" style="color:#854d0e">&#9998;</span>' : '') + sub(esc(r.at) + soAgeTag(r, lane, today)) + '</td>'
     + '<td class="tl" title="' + esc([r.ship.a1, r.ship.a2, r.ship.city, r.ship.state, r.ship.zip].filter(Boolean).join(', ')) + '">' + esc(String(r.ship.name || '').slice(0, 24))
       + sub(esc([r.ship.state, r.ship.country].filter(Boolean).join(', ')) + (r.units ? ' · ' + r.units + ' unit' + (r.units > 1 ? 's' : '') : '')) + '</td>'
     + '<td class="num">' + money(r.total) + sub(r.kg ? r.kg.toFixed(2) + ' kg' : '') + '</td>'
@@ -59997,11 +60359,17 @@ function renderShopDense(rows, COLS, arrow, money, esc) {
     + '<td>' + (r.channel === 'Shopify' ? '<span class="muted">Shopify</span>' : '<span class="st st-draft">' + esc(r.channel) + '</span>') + '</td>'
     + '<td class="wrap" title="' + esc(r.items.map(i => `${i.sku || i.name} × ${i.qty}`).join(' · ')) + '">'
       + esc(r.items.slice(0, 4).map(i => `${i.sku || i.name} × ${i.qty}`).join(' · ')) + (r.items.length > 4 ? ' <span class="muted">+' + (r.items.length - 4) + ' more</span>' : '') + '</td>'
-    + '</tr>').join('');
+    + '</tr>';
+
+  /* 200, and the rest by search or 'show more' — 400 rows of three lines each was 550 KB of table to lay out on every
+   * draw, and nobody reads past the first screens without searching. */
+  const laneOf = new Map(SO_LANES.map(l => [l.k, l]));
+  const drawn = rows.slice(0, SO_DENSE_CAP);
+  const body = drawn.map(r => rowHtml(r, laneOf.get(r.lane))).join('');
   const more = rows.length > drawn.length
     ? `<tr><td colspan="${DC.length}" style="padding:10px 14px;text-align:left"><span class="muted">Showing ${nf(drawn.length)} of ${nf(rows.length)} — search, or </span><button type="button" class="ghost" id="soMore" style="padding:4px 12px;font-size:12px">show ${nf(Math.min(200, rows.length - drawn.length))} more</button></td></tr>` : '';
   $('soTable').innerHTML = head + '<tbody>' + (body
-    || '<tr><td colspan="' + DC.length + '" class="muted" style="padding:14px">Nothing matches that filter.</td></tr>') + more + '</tbody>';
+    || '<tr><td colspan="' + DC.length + '" class="muted" style="padding:14px">Nothing here' + (SO_GRP ? ' — pick another step above, or All' : ' matches that filter') + '.</td></tr>') + more + '</tbody>';
   if ($('soMore')) $('soMore').onclick = e => { e.stopPropagation(); SO_DENSE_CAP += 200; renderShop(); };
   if ($('soAll')) $('soAll').checked = drawn.length > 0 && drawn.every(r => SO_PICKED.has(r.id));
 }
@@ -60011,6 +60379,7 @@ function renderShop() {
   const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
   const money = v => '$' + Math.round(v || 0).toLocaleString('en-US');
   const rows = soRows();
+  renderSoLanes();
   // Before the empty-list bail-out below, so the strip clears itself instead of keeping the previous
   // fetch's numbers on screen next to "no orders loaded".
   renderShopToday();
@@ -60038,7 +60407,7 @@ function renderShop() {
   // The denominator has to be BOTH sources, or a screen full of imported orders reports "12 of 0".
   /* Over every loaded order, and split by day, because "still pending from yesterday" is the
    * question somebody actually walks in with. */
-  const pend = SO_ALL_ROWS.filter(soIsPending);
+  const pend = SO_ALL_ROWS.filter(r => soIsPending(r) && soInStore(r));
   /* THE BUCKET'S COUNT ON ITS BUTTON (2026-09-26). */
   /* ONLY THE ORDERS WAITING ON PRODUCTION are looked at here — the stock-covered half of the bucket is worked out when
    * the bucket is opened, not on every draw of this tab (Ravi, 2026-09-26: "ye lagg ho rha h"). */
@@ -60267,7 +60636,8 @@ function renderShopToday() {
         + 'Store timezone unknown — these two days are counted in PT and may be a day out. '
         + 'Press Fetch orders to pick it up.</div>')
     + (covers(today) && covers(yday) ? '' : '<div style="color:var(--warn);font-size:11.5px;align-self:center">'
-        + 'The date range does not cover both days — widen it before reading these.</div>');
+        + 'The date range does not cover both days — widen it before reading these.</div>')
+    + (soStockStamp() ? `<div class="muted" style="font-size:11.5px;align-self:center;margin-left:auto">${soStockStamp()}</div>` : '');
 }
 
 /* ---------- staged quantity, and what is short ----------
@@ -61847,7 +62217,9 @@ function shpUnseen() {
   const want = new Map();
   const note = (id, d) => {
     id = String(id || ''); d = String(d || '').slice(0, 10);
-    if (!id || seen.has(id)) return;
+    /* A REPLACEMENT's line (returns.js, 2026-10-14) carries "REPL-…", not a Shopify id — Shopify has no such order to
+     * find, and asking for it would only add calls to every sync. It is closed by production like any line. */
+    if (!id || seen.has(id) || /^REPL-/.test(id)) return;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) d = '';
     const had = want.get(id);
     if (had === undefined || (d && (!had || d < had))) want.set(id, d || had || '');
@@ -62088,7 +62460,7 @@ $('adjSave').onclick = () => saveAdj(false);
 if ($('soBucket')) $('soBucket').onclick = () => shpBucketOpen();
 
 /* ============================== FILE: src/app/shopify/returns.js ============================== */
-/* ================= SHOPIFY RETURNS — typed by hand, tracked to the USA warehouse =================
+/* ================= SHOPIFY RETURNS & REPLACEMENTS — typed by hand, tracked to the USA warehouse =================
  *
  * Ravi, 2026-09-26: "koi ek order h jisme 4 line item me order aaya tha but buyer ne usme se 2 return kar diye to
  * m manually feed karu ki konse order return aaye h kis tracking number ki according h — mera usa me warehouse h
@@ -62097,17 +62469,48 @@ if ($('soBucket')) $('soBucket').onclick = () => shpBucketOpen();
  * A return is a record on the ORDER's own entry in audit/shoporders (SHOP_META[orderId].returns[id]) — the one place
  * this tab already writes, with the same rights. It names the lines and how many of each came back, the return's
  * tracking number and carrier, why, and where it has got to: started → on its way → received at the warehouse →
- * closed. No unit can be returned twice: the cap is what the order held less what earlier returns already took. */
-let SR = { tab: 'open', q: '' };
+ * closed. No unit can be returned twice: the cap is what the order held less what earlier returns already took.
+ *
+ * REPLACEMENTS (2026-10-14, from Umesh's returns design, taken into the app as Ravi asked: "integrate its features
+ * into our plan"). A case now says WHAT the customer gets — `what`: return (default, and every record saved before
+ * today), replace (the customer keeps it, a new one goes out) or both. A replacement has its own leg, `rep`:
+ * where it ships from (this order's FBA by MCF, India, or production) and whether it has gone. Sending it uses the
+ * app's own MCF send and production bucket, each under its OWN reference — "<order>-R<n>" — so it can never be
+ * taken for the original order: Amazon would refuse a second MCF order with the original's id, and production
+ * would add the quantity onto the original's line. The Shopify order itself is never touched.
+ *
+ * The screen has the Shopify orders look: the Both / Ridhi / CPC switch and one button per stage. */
+let SR = { lane: '', q: '', store: null };
 const SR_STATUS = {
   started: ['Return started', 'pill-low'], transit: ['On its way to the warehouse', 'pill-low'],
   received: ['Received at the warehouse', 'pill-ok'], closed: ['Closed', 'pill-out'],
 };
 const SR_NEXT = { started: 'transit', transit: 'received', received: 'closed' };
 const SR_CARRIERS = ['USPS', 'UPS', 'FedEx', 'DHL', 'Amazon', 'Other'];
-const SR_REASONS = ['Damaged', 'Wrong item', 'Did not like it', 'Size / fit', 'Arrived late', 'Other'];
+const SR_REASONS = ['Damaged', 'Wrong item', 'Did not like it', 'Size / fit', 'Arrived late', 'Lost in transit', 'Other'];
+const SR_WHAT = { return: 'Return', replace: 'Replacement', both: 'Return + replacement' };
+const SR_FROM = { fba: 'FBA · MCF', india: 'India', prod: 'Production' };
+/** The stage buttons, in the order the work is done: a customer waiting on a replacement comes first. */
+const SR_LANES = [
+  { k: 'send', t: 'Replacement to send', tone: 'bad' },
+  { k: 'started', t: 'Return started', tone: 'warn' },
+  { k: 'transit', t: 'On its way back', tone: 'warn' },
+  { k: 'received', t: 'At the warehouse', tone: 'ok' },
+  { k: 'sent', t: 'Replacement sent', tone: 'ok' },
+  { k: 'closed', t: 'Closed', tone: 'mute' },
+];
 const srOrders = () => (SHOP.orders || []).concat(soImpLive()).filter(o => o && o.id);
 const srOrderOf = oid => srOrders().find(o => String(o.id) === String(oid)) || null;
+const srWhat = r => (SR_WHAT[r && r.what] ? r.what : 'return');
+/** Which store a case belongs to — the same rule as the store switch on Shopify orders. */
+const srStore = r => (/cpc/i.test(String((r && r.shop) || '')) ? 'CPC' : 'Ridhi');
+/** Which stage button a case sits under. */
+function srLane(r) {
+  if (r.status === 'closed') return 'closed';
+  if (r.rep && r.rep.st === 'todo') return 'send';
+  if (srWhat(r) === 'replace') return 'sent';
+  return SR_STATUS[r.status] ? r.status : 'started';
+}
 /** Every return on record, newest first. */
 function srAll() {
   const out = [];
@@ -62132,6 +62535,20 @@ function srLineRoom(o, exceptId) {
     return { lid: it.lid, sku: it.sku, name: it.name, variant: it.variant || '', qty: it.qty, back, room: Math.max(0, (it.qty || 0) - back) };
   });
 }
+/** Stock for one SKU of a case: FBA of the ORDER's own Amazon account (never the other one) and India sellable units.
+ *  null where it is not known yet — the stock is read when Shopify orders are fetched. */
+function srStock(shop, sku) {
+  const brand = /cpc/i.test(String(shop || '')) ? 'CPC' : 'SP';
+  let fba = null, india = null;
+  try { if (SHOP_STOCK_LOADED) { const v = soFbaIn(brand, soAmzKey(sku)); fba = v == null ? 0 : v; } } catch (e) { /* not known */ }
+  try { const i = soIndiaOf(sku); india = i ? Number(i[0]) || 0 : null; } catch (e) { /* not known */ }
+  return { fba, india };
+}
+/** Where a replacement should go from: this order's FBA if it holds enough of every line, else India, else production. */
+function srBestFrom(shop, items) {
+  const all = f => items.length && items.every(it => { const s = srStock(shop, it.sku)[f]; return s != null && s >= (parseInt(it.qty, 10) || 0); });
+  return all('fba') ? 'fba' : all('india') ? 'india' : 'prod';
+}
 /** Write one return (new or edited). Returns '' or why not. */
 async function srSave(orderId, rec, id) {
   const o = srOrderOf(orderId);
@@ -62139,21 +62556,29 @@ async function srSave(orderId, rec, id) {
   const room = srLineRoom(o, id);
   const items = (rec.items || []).map(it => ({ lid: String(it.lid), qty: parseInt(it.qty, 10) || 0 })).filter(it => it.qty > 0)
     .map(it => { const l = room.find(x => String(x.lid) === it.lid); return l ? Object.assign(it, { sku: l.sku, name: l.name, variant: l.variant }) : it; });
-  if (!items.length) return 'Tick at least one line and say how many came back.';
+  if (!items.length) return 'Tick at least one line and say how many.';
   for (const it of items) {
     const l = room.find(x => String(x.lid) === it.lid);
     if (!l) return 'That line is not on the order.';
-    if (it.qty > l.room) return `${l.sku || l.name}: only ${nf(l.room)} of ${nf(l.qty)} can still come back${l.back ? ' — ' + nf(l.back) + ' already on a return' : ''}.`;
+    if (it.qty > l.room) return `${l.sku || l.name}: only ${nf(l.room)} of ${nf(l.qty)} can still go on a case${l.back ? ' — ' + nf(l.back) + ' already on one' : ''}.`;
   }
+  const what = SR_WHAT[rec.what] ? rec.what : 'return';
   const status = SR_STATUS[rec.status] ? rec.status : 'started';
   const now = new Date().toISOString();
   const prev = id ? (((SHOP_META[orderId] || {}).returns || {})[id] || {}) : {};
+  /* The replacement leg. Once it has gone it is not edited from the form — what went, went. */
+  let rep = null;
+  if (what !== 'return') {
+    rep = prev.rep && prev.rep.st === 'sent' ? prev.rep
+      : { st: 'todo', from: SR_FROM[rec.from] ? rec.from : srBestFrom(o.shopBrand, items) };
+  }
   const out = Object.assign({}, prev, {
     orderNo: o.no || '', shop: o.shopBrand || o.chan || '', customer: (o.ship && o.ship.name) || o.name || '', orderAt: o.at || '',
-    items, trk: String(rec.trk || '').trim(), carrier: String(rec.carrier || '').trim(), reason: String(rec.reason || '').trim(),
+    items, what, rep, trk: String(rec.trk || '').trim(), carrier: String(rec.carrier || '').trim(), reason: String(rec.reason || '').trim(),
     note: String(rec.note || '').trim(), status, date: String(rec.date || '').trim() || dToday(),
     at: prev.at || now, by: prev.by || ME.email, updAt: now, updBy: ME.email,
-    log: (prev.log || []).concat([{ at: now, by: ME.email, what: (id ? 'edited' : 'started') + ' · ' + SR_STATUS[status][0] }]),
+    log: (prev.log || []).concat([{ at: now, by: ME.email, what: (id ? 'edited' : 'opened') + ' · ' + SR_WHAT[what]
+      + (what === 'replace' ? '' : ' · ' + SR_STATUS[status][0]) + (rep && rep.st === 'todo' ? ' · replacement from ' + SR_FROM[rep.from] : '') }]),
   });
   const rid = id || ('ret_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5));
   SHOP_META[orderId] = Object.assign({}, SHOP_META[orderId] || {}, { returns: Object.assign({}, (SHOP_META[orderId] || {}).returns || {}, { [rid]: out }) });
@@ -62161,12 +62586,12 @@ async function srSave(orderId, rec, id) {
   return '';
 }
 /** Move a return along: started → on its way → received → closed. */
-async function srSetStatus(orderId, id, status, note) {
+async function srSetStatus(orderId, id, status, note, extra) {
   const r = (((SHOP_META || {})[orderId] || {}).returns || {})[id];
   if (!r) return 'That return is gone — press Refresh.';
   if (!SR_STATUS[status]) return 'Not a stage.';
   const now = new Date().toISOString();
-  const next = Object.assign({}, r, { status, updAt: now, updBy: ME.email, log: (r.log || []).concat([{ at: now, by: ME.email, what: SR_STATUS[status][0] + (note ? ' — ' + note : '') }]) });
+  const next = Object.assign({}, r, extra || {}, { status, updAt: now, updBy: ME.email, log: (r.log || []).concat([{ at: now, by: ME.email, what: SR_STATUS[status][0] + (note ? ' — ' + note : '') }]) });
   if (status === 'received') next.receivedAt = next.receivedAt || dToday();
   if (status === 'closed') next.closedAt = dToday();
   if (note) next.note = [r.note, note].filter(Boolean).join(' · ');
@@ -62174,61 +62599,161 @@ async function srSetStatus(orderId, id, status, note) {
   try { await saveShopMeta(); } catch (e) { return 'Not saved: ' + (e.message || e); }
   return '';
 }
+/** The replacement's own reference: "<order>-R1", "-R2"… one per replacement on that order, never reused. */
+function srRepRef(orderId, id) {
+  const r = (((SHOP_META || {})[orderId] || {}).returns || {})[id] || {};
+  if (r.rep && r.rep.ref) return r.rep.ref;
+  const used = Object.values(((SHOP_META || {})[orderId] || {}).returns || {}).filter(x => x && x.rep && x.rep.ref).length;
+  return String(r.orderNo || orderId).replace(/^#/, '') + '-R' + (used + 1);
+}
+/**
+ * SEND THE REPLACEMENT. Returns '' or why not.
+ *   fba   — an MCF order on THIS order's Amazon account, under the replacement's own reference. The backend makes the
+ *           fulfilment id from that reference, so pressing twice is refused by Amazon as a duplicate, not shipped twice.
+ *           The id sent is not a Shopify id, so the backend leaves the Shopify order alone.
+ *   prod  — a production line under the replacement's own number, opened the way the bucket opens a forced line.
+ *   india — recorded; it is packed from the India shelf like any India order.
+ */
+async function srSendRep(orderId, id, speed) {
+  const r = (((SHOP_META || {})[orderId] || {}).returns || {})[id];
+  if (!r || !r.rep) return 'That case has no replacement.';
+  if (r.rep.st === 'sent') return '';
+  const o = srOrderOf(orderId);
+  if (!o) return 'The order is not loaded — set the dates on Shopify orders to include it, press Fetch, then try again.';
+  const ref = srRepRef(orderId, id), now = new Date().toISOString(), from = r.rep.from;
+  const items = (r.items || []).filter(it => it.sku && (parseInt(it.qty, 10) || 0) > 0);
+  if (!items.length) return 'No line on this case has a SKU.';
+  const rep = Object.assign({}, r.rep, { st: 'sent', ref, sentAt: now, sentBy: ME.email });
+  let said = '';
+  if (from === 'fba') {
+    const brand = o.shopBrand === 'CPC' ? 'CPC' : 'SP';
+    const lines = items.map(it => ({ sku: soAmzSku(it.sku) || it.sku, qty: parseInt(it.qty, 10) || 0 }));
+    for (const l of lines) {
+      const have = soFbaIn(brand, soAmzKey(l.sku));
+      if (have == null || have < l.qty) return `${l.sku}: ${have == null ? 'not in' : 'only ' + have + ' in'} ${soAcctName(brand)} FBA — pick India or Production instead.`;
+    }
+    let d;
+    try {
+      d = await apiPost({ mcf: 'create', order: { no: ref, id: 'REPL-' + o.id, at: dToday(), ship: o.ship, brand,
+        shop: o.shopBrand === 'CPC' ? 'CPC' : '', items: lines, speed: speed || 'Standard',
+        comment: 'Replacement for order ' + o.no + '. Sorry for the trouble.' } });
+    } catch (err) { return 'Not sent — ' + String(mcfErr(err, 'Replacement', { acct: soAcctName(brand), skus: lines.map(l => l.sku) })).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(); }
+    Object.assign(rep, { mcfId: d.mcfId, mcfBrand: brand, speed: speed || 'Standard' });
+    said = (d.already ? 'already with Amazon as ' : 'sent to Amazon as ') + d.mcfId;
+  } else if (from === 'prod') {
+    await ptLoadGates();
+    if (PTG.err) return 'Could not read the production database: ' + PTG.err;
+    const pseudo = { id: 'REPL-' + o.id + '-' + id, no: ref, at: dToday(), items: [] };
+    const no = shpAssignNo(pseudo, shpTakenNumbers());
+    const exists = await Promise.all(items.map(it => ptGet('pt_orderBook/ob_shp_' + no + '_' + obUC(it.sku)).catch(() => null)));
+    if (exists.some(Boolean)) return 'Production already has ' + no + ' open — nothing was opened twice.';
+    const force = new Map(items.map(it => [obUC(it.sku), { qty: parseInt(it.qty, 10) || 0, why: 'replacement for Shopify ' + o.no + (r.reason ? ' · ' + r.reason : ''), name: it.name || '' }]));
+    const p = shpPlanOrder(pseudo, false, no, { only: new Set(), force });
+    if (p.err) return p.err;
+    if (!p.rows.length) return 'Nothing could be opened: ' + (p.skipped || []).map(s => s.sku + ' — ' + s.why).join(' · ');
+    if (SHP_CUSTOM === null) { try { SHP_CUSTOM = ptList(await ptGet('pt_customSkus')); } catch (e) { SHP_CUSTOM = []; } }
+    const haveSku = new Set((SHP_CUSTOM || []).map(x => obUC(x && x.sku)).concat((PTG.mdb || []).map(x => obUC(x && x.sku))));
+    p.needSku.forEach(w => { if (haveSku.has(w.sku)) return; const rec = shpCustomRec(w, w.sku, now); p.patch['pt_customSkus/' + w.sku] = rec; SHP_CUSTOM.push(rec); });
+    try { await ptPatch(p.patch); } catch (e) { return 'Not opened: ' + (e.message || e) + ' — nothing changed.'; }
+    p.rows.forEach(row => { const i = (PTG.ob || []).findIndex(x => x && x.id === row.id); if (i >= 0) PTG.ob[i] = row; else PTG.ob.push(row); });
+    PTG.ob = (PTG.ob || []).slice();
+    if (typeof SOX !== 'undefined' && Array.isArray(SOX.rows)) { SOX.rows = SOX.rows.filter(x => !(x && x._id === p.no)); if (p.rec) SOX.rows.push(p.rec); }
+    Object.assign(rep, { prodNo: no });
+    said = 'opened in production as ' + no;
+  } else {
+    said = 'to be packed from India';
+  }
+  const next = Object.assign({}, r, { rep, updAt: now, updBy: ME.email,
+    log: (r.log || []).concat([{ at: now, by: ME.email, what: 'Replacement ' + ref + ' ' + said }]) });
+  SHOP_META[orderId] = Object.assign({}, SHOP_META[orderId], { returns: Object.assign({}, SHOP_META[orderId].returns, { [id]: next }) });
+  try { await saveShopMeta(); } catch (e) { return 'Sent, but the case could not be updated: ' + (e.message || e) + ' — do NOT press Send again; tell an admin.'; }
+  soMsg('Replacement ' + ref + ' ' + said + '.');
+  return '';
+}
 function srRows() {
   const q = SR.q.trim().toLowerCase();
-  return srAll().filter(r => (SR.tab === 'all' || (SR.tab === 'open' ? (r.status !== 'closed' && r.status !== 'received') : r.status === SR.tab))
-    && (!q || [r.orderNo, r.customer, r.trk, r.carrier, r.reason, r.note].concat((r.items || []).map(i => i.sku + ' ' + i.name)).join(' ').toLowerCase().includes(q)));
+  return srAll().filter(r => (!SR.store || srStore(r) === SR.store)
+    && (!q || [r.orderNo, r.customer, r.trk, r.carrier, r.reason, r.note, r.rep && r.rep.ref].concat((r.items || []).map(i => i.sku + ' ' + i.name)).join(' ').toLowerCase().includes(q)));
 }
+/** Days a case has been open, from its date. */
+const srAge = r => { const a = Date.parse(String(r.date || '').slice(0, 10)), b = Date.parse(dToday()); return isNaN(a) || isNaN(b) ? 0 : Math.max(0, Math.round((b - a) / 864e5)); };
 function srRender() {
-  const all = srAll();
-  const n = st => all.filter(r => r.status === st).length;
-  const lab = { open: `Open · ${nf(all.filter(r => r.status === 'started' || r.status === 'transit').length)}`, received: `At the warehouse · ${nf(n('received'))}`, all: `All · ${nf(all.length)}` };
-  document.querySelectorAll('[data-srtab]').forEach(b => { b.textContent = lab[b.getAttribute('data-srtab')]; b.classList.toggle('on', b.getAttribute('data-srtab') === SR.tab); });
-  const rows = srRows();
-  const head = '<thead><tr>' + ['Order', 'Customer', 'Came back', 'Return tracking', 'Why', 'Stage', 'Started', 'Received', ''].map((h, i) => `<th${i === 0 ? ' class="frz"' : ''}>${h}</th>`).join('') + '</tr></thead>';
-  const body = rows.map(r => { const st = SR_STATUS[r.status] || ['?', 'pill-low']; const nx = SR_NEXT[r.status]; return '<tr>'
-    + `<td class="frz" style="text-align:left"><b>${esc(r.orderNo || r.orderId)}</b><div class="muted" style="font-size:10.5px">${esc(r.shop || '')}${r.orderAt ? ' · ' + esc(r.orderAt) : ''}</div></td>`
-    + `<td style="text-align:left">${esc(r.customer || '—')}</td>`
-    + `<td style="text-align:left;white-space:normal;max-width:260px">${(r.items || []).map(i => `<b>${nf(i.qty)}</b> × ${esc(i.sku || i.name)}${i.sku && i.name ? ' <span class="muted">' + esc(i.name) + '</span>' : ''}`).join('<br>')}</td>`
-    + `<td style="text-align:left;font-family:ui-monospace,monospace">${esc(r.trk || '—')}${r.carrier ? '<div class="muted" style="font-size:10.5px;font-family:inherit">' + esc(r.carrier) + '</div>' : ''}</td>`
-    + `<td style="text-align:left;white-space:normal;max-width:200px">${esc(r.reason || '—')}${r.note ? '<div class="muted" style="font-size:10.5px">' + esc(r.note) + '</div>' : ''}</td>`
+  const pool = srRows();
+  const n = { '': pool.length };
+  pool.forEach(r => { const L = srLane(r); n[L] = (n[L] || 0) + 1; });
+  if ($('srStore')) $('srStore').querySelectorAll('[data-srstore]').forEach(b => b.classList.toggle('on', (b.getAttribute('data-srstore') || '') === (SR.store || '')));
+  if ($('srLanes')) $('srLanes').innerHTML = [{ k: '', t: 'All' }].concat(SR_LANES).map(l =>
+    `<button type="button" class="so-lb${SR.lane === l.k ? ' on' : ''}${n[l.k] ? '' : ' zero'}" data-srlane="${l.k}">${l.tone ? `<i class="so-dot so-dot-${l.tone}"></i>` : ''}${l.t}<b>${nf(n[l.k] || 0)}</b></button>`).join('');
+  const rows = pool.filter(r => !SR.lane || srLane(r) === SR.lane);
+  if ($('srAt')) $('srAt').innerHTML = typeof soStockStamp === 'function' ? soStockStamp() : '';
+  const stockCell = (shop, sku, qty) => { const s = srStock(shop, sku); const c = v => v == null ? '<span class="muted">—</span>' : `<b style="color:${v >= qty ? 'var(--accent)' : 'var(--bad)'}">${nf(v)}</b>`;
+    return `<span class="muted" style="font-size:10.5px;white-space:nowrap">FBA ${c(s.fba)} · India ${c(s.india)}</span>`; };
+  const head = '<thead><tr>' + ['Order', 'Customer · why', 'Items · stock', 'What', 'Stage', ''].map((h, i) => `<th${i === 0 ? ' class="frz"' : ''}>${h}</th>`).join('') + '</tr></thead>';
+  const body = rows.map(r => {
+    const L = srLane(r), what = srWhat(r), age = srAge(r);
+    const st = L === 'send' ? ['Replacement to send', 'pill-out'] : L === 'sent' ? [r.rep && r.rep.from === 'prod' ? 'Replacement in production' : 'Replacement sent', 'pill-ok']
+      : (SR_STATUS[r.status] || ['?', 'pill-low']);
+    const nx = L === 'send' || L === 'closed' ? null : L === 'sent' ? 'closed' : SR_NEXT[r.status];
+    return '<tr>'
+    + `<td class="frz" style="text-align:left"><b>${esc(r.orderNo || r.orderId)}</b><div class="muted" style="font-size:10.5px">${esc(srStore(r))} · ${esc(r.date || '')}`
+      + (L !== 'closed' ? ` <span class="sr-age${age >= 10 ? ' old' : ''}" title="${nf(age)} day(s) open">${nf(age)}d</span>` : '') + '</div></td>'
+    + `<td style="text-align:left;white-space:normal;max-width:200px">${esc(r.customer || '—')}<div class="muted" style="font-size:10.5px">${esc(r.reason || '—')}${r.note ? ' · ' + esc(r.note) : ''}</div></td>`
+    + `<td style="text-align:left;white-space:normal;max-width:240px">${(r.items || []).map(i => `<span style="white-space:nowrap"><b>${nf(i.qty)}</b> × ${esc(i.sku || i.name)}</span>${L !== 'closed' ? '<br>' + stockCell(r.shop, i.sku, parseInt(i.qty, 10) || 0) : ''}`).join('<br>')}</td>`
+    + `<td style="text-align:left;white-space:normal;max-width:260px">${SR_WHAT[what]}${r.rep ? `<div class="muted" style="font-size:10.5px">replacement from ${esc(SR_FROM[r.rep.from] || '')}${r.rep.ref ? ' · ' + esc(r.rep.ref) : ''}${r.rep.mcfId ? ' · ' + esc(r.rep.mcfId) : ''}${r.rep.prodNo ? ' · ' + esc(r.rep.prodNo) : ''}</div>` : ''}<div class="muted" style="font-size:10.5px">${what === 'replace' ? 'customer keeps it' : 'back: ' + (r.trk ? esc(r.carrier ? r.carrier + ' · ' : '') + '<span style="font-family:ui-monospace,monospace">' + esc(r.trk) + '</span>' : 'no tracking yet')}</div></td>`
     + `<td><span class="pill ${st[1]}">${esc(st[0])}</span></td>`
-    + `<td>${esc(r.date || ptIsoDate(r.at) || '')}<div class="muted" style="font-size:10.5px">${esc(String(r.by || '').split('@')[0])}</div></td>`
-    + `<td>${esc(r.receivedAt || '')}</td>`
-    + `<td style="white-space:nowrap">${nx ? `<button type="button" class="jw-btn jw-primary" data-sr-next="${esc(r.orderId)}|${esc(r.id)}|${nx}" style="padding:4px 10px;font-size:12px">${esc(nx === 'transit' ? 'On its way' : nx === 'received' ? 'Received' : 'Close')}</button> ` : ''}`
-    + `<button type="button" class="ghost" data-sr-edit="${esc(r.orderId)}|${esc(r.id)}" style="padding:4px 10px;font-size:12px">Edit</button></td></tr>`; }).join('');
-  if ($('srTable')) $('srTable').innerHTML = head + '<tbody>' + (body || '<tr><td colspan="9" class="muted" style="padding:14px">No return here yet — press + New return.</td></tr>') + '</tbody>';
+    + `<td style="white-space:nowrap">`
+      + (L === 'send' ? `<button type="button" class="jw-btn jw-primary" data-sr-send="${esc(r.orderId)}|${esc(r.id)}" style="padding:4px 10px;font-size:12px">Send replacement</button> ` : '')
+      + (nx ? `<button type="button" class="jw-btn jw-primary" data-sr-next="${esc(r.orderId)}|${esc(r.id)}|${nx}" style="padding:4px 10px;font-size:12px">${esc(nx === 'transit' ? 'On its way' : nx === 'received' ? 'Received' : 'Close')}</button> ` : '')
+      + `<button type="button" class="ghost" data-sr-edit="${esc(r.orderId)}|${esc(r.id)}" style="padding:4px 10px;font-size:12px">Edit</button></td></tr>`;
+  }).join('');
+  if ($('srTable')) $('srTable').innerHTML = head + '<tbody>' + (body || `<tr><td colspan="6" class="muted" style="padding:14px">${SR.lane ? 'Nothing here — pick another stage above, or All.' : 'No case yet — press + New.'}</td></tr>`) + '</tbody>';
 }
 function srOpen() {
   if (!Object.keys(SHOP_META).length) loadShopMeta().then(() => srRender()).catch(() => {});
-  const all = srAll();
+  if (SR.store === null) SR.store = typeof SO_STORE === 'string' ? SO_STORE : '';
+  const all = srAll(), open = all.filter(r => r.status !== 'closed');
   ptOpenDialog({
-    title: 'Returns', wide: true, boxClass: 'vo-band',
-    titleExtra: `<div class="shb-band"><span class="shb-t">Returns — to the USA warehouse</span>
-        <div class="shb-n"><b>${nf(all.filter(r => r.status === 'started' || r.status === 'transit').length)}</b><span>on their way</span></div>
-        <div class="shb-n"><b>${nf(all.filter(r => r.status === 'received').length)}</b><span>at the warehouse</span></div>
-        <div class="shb-n"><b>${nf(all.reduce((a, r) => a + (r.items || []).reduce((x, i) => x + (parseInt(i.qty, 10) || 0), 0), 0))}</b><span>units back, all time</span></div>
-        <button type="button" id="srNew">+ New return</button></div>`,
-    html: `<div class="shb-bar"><div class="seg" role="tablist">
-        <button type="button" class="segbtn" data-srtab="open"></button><button type="button" class="segbtn" data-srtab="received"></button><button type="button" class="segbtn" data-srtab="all"></button></div>
+    /* TEST PHASE on the live app (Ravi, 14 Oct: "deploy as a test phase on the live app"). */
+    title: 'Returns & replacements · TEST', wide: true, boxClass: 'vo-band',
+    titleExtra: `<div class="shb-band"><span class="shb-t">Returns &amp; replacements <span class="navbadge" style="background:#7c3aed;position:static">TEST</span></span>
+        <div class="shb-n"><b>${nf(open.filter(r => srLane(r) === 'send').length)}</b><span>replacements to send</span></div>
+        <div class="shb-n"><b>${nf(open.filter(r => srWhat(r) !== 'replace' && (r.status === 'started' || r.status === 'transit')).length)}</b><span>coming back</span></div>
+        <div class="shb-n"><b>${nf(open.filter(r => srLane(r) === 'received').length)}</b><span>at the warehouse</span></div>
+        <button type="button" id="srNew">+ New</button></div>`,
+    html: `<div class="shb-bar"><div class="seg" id="srStore" title="Show Ridhi's cases, CPC's cases, or both">
+        <button type="button" class="segbtn" data-srstore="">Both</button><button type="button" class="segbtn" data-srstore="Ridhi">Ridhi</button><button type="button" class="segbtn" data-srstore="CPC">CPC</button></div>
         <input id="srQ" placeholder="Search order / customer / tracking / SKU" value="${esc(SR.q)}"></div>
+      <div class="so-lanes" id="srLanes" style="margin:0 0 10px"></div>
+      <div class="muted" id="srAt" style="font-size:11.5px;margin:-4px 0 8px"></div>
       <div class="xlwrap shb-wrap"><table class="xl" id="srTable"></table></div>`,
-    saveLabel: 'Close',
-    onSave: async () => '',
   });
-  document.querySelectorAll('[data-srtab]').forEach(b => { b.onclick = () => { SR.tab = b.getAttribute('data-srtab'); srRender(); }; });
+  if ($('srStore')) $('srStore').onclick = e => { const b = e.target.closest('[data-srstore]'); if (!b) return; SR.store = b.getAttribute('data-srstore') || ''; srRender(); };
+  if ($('srLanes')) $('srLanes').onclick = e => { const b = e.target.closest('[data-srlane]'); if (!b) return; SR.lane = b.getAttribute('data-srlane') || ''; srRender(); };
   let t = null;
   if ($('srQ')) $('srQ').oninput = () => { clearTimeout(t); t = setTimeout(() => { SR.q = $('srQ').value; srRender(); }, 180); };
   if ($('srNew')) $('srNew').onclick = () => srNewOpen('', '');
   if ($('srTable')) $('srTable').onclick = async e => {
+    const sd = e.target.closest('[data-sr-send]');
+    if (sd) { const [oid, id] = sd.getAttribute('data-sr-send').split('|'); return srSendOpen(oid, id); }
     const nx = e.target.closest('[data-sr-next]');
     if (nx) {
       const [oid, id, st] = nx.getAttribute('data-sr-next').split('|');
       if (st === 'closed' || st === 'received') {
-        return ptOpenDialog({ title: st === 'received' ? 'Received at the warehouse' : 'Close this return',
-          fields: [{ key: 'note', label: st === 'received' ? 'Condition / remarks' : 'Why it is closed (refunded, restocked, written off…)', span: true, value: '' }],
-          saveLabel: st === 'received' ? 'Received' : 'Close',
+        return ptOpenDialog({ title: st === 'received' ? 'Received at the warehouse' : 'Close this case',
+          fields: [{ key: 'note', label: st === 'received' ? 'Condition / remarks' : 'Why it is closed (refunded, restocked, written off, replacement delivered…)', span: true, value: '' }],
+          saveLabel: st === 'received' ? 'Received' : 'Close', onCancel: srOpen,
           onSave: async v => { const err = await srSetStatus(oid, id, st, v.note); if (!err) srOpen(); return err; } });
+      }
+      /* ON ITS WAY MEANS A PARCEL WITH A NUMBER (2026-10-14). It used to move the case with no tracking at all, and the
+       * warehouse then had nothing to match the box against. */
+      if (st === 'transit') {
+        const r = (((SHOP_META || {})[oid] || {}).returns || {})[id] || {};
+        return ptOpenDialog({ title: 'On its way back', subtitle: (r.orderNo || '') + ' · ' + (r.customer || ''),
+          fields: [{ key: 'trk', label: 'Return tracking number', value: r.trk || '', span: true },
+            { key: 'carrier', label: 'Carrier', type: 'select', options: SR_CARRIERS, value: r.carrier || 'USPS' }],
+          saveLabel: 'On its way', onCancel: srOpen,
+          onSave: async v => { const t = String(v.trk || '').trim(); if (!t) return 'Type the tracking number from the return label — it is how the warehouse knows the parcel.';
+            const err = await srSetStatus(oid, id, 'transit', '', { trk: t, carrier: v.carrier || 'USPS' }); if (!err) setTimeout(srOpen, 0); return err; } });
       }
       const err = await srSetStatus(oid, id, st, '');
       if (err) soMsg(err, true); else srRender();
@@ -62239,44 +62764,90 @@ function srOpen() {
   };
   srRender();
 }
-/** The form: which order, which lines and how many, the return's tracking, why. */
+/** The last look before a replacement goes: what, from where, to whom. An MCF send is real money and a real parcel. */
+function srSendOpen(orderId, id) {
+  const r = (((SHOP_META || {})[orderId] || {}).returns || {})[id];
+  if (!r || !r.rep) return;
+  const o = srOrderOf(orderId), from = r.rep.from, ref = srRepRef(orderId, id);
+  const to = o && o.ship ? [o.ship.name, o.ship.a1, o.ship.city, o.ship.state, o.ship.zip, o.ship.country].filter(Boolean).join(', ') : '';
+  ptOpenDialog({
+    title: 'Send replacement ' + ref,
+    subtitle: `${r.orderNo || ''} · ${r.customer || ''} · from ${from === 'fba' ? soAcctName(r.shop === 'CPC' ? 'CPC' : 'SP') + ' FBA by MCF' : SR_FROM[from]}`,
+    html: `<div style="font-size:13px;line-height:1.6">
+        ${(r.items || []).map(i => `<div><b>${nf(i.qty)}</b> × ${esc(i.sku || i.name)}</div>`).join('')}
+        ${to ? `<div class="muted" style="margin-top:8px">To: ${esc(to)}</div>` : '<div class="err" style="margin-top:8px">The order is not loaded, so there is no address. Fetch its dates on Shopify orders first.</div>'}
+        ${from === 'fba' ? `<label style="margin-top:10px;max-width:220px">Speed<select id="srSpeed"><option>Standard</option><option>Expedited</option><option>Priority</option></select></label>
+          <div class="warn" style="margin-top:10px">Amazon will pick, pack and ship this as a new order, ${esc(ref)}. It cannot be cancelled from this app. The original Shopify order is not changed.</div>`
+        : from === 'prod' ? `<div class="warn" style="margin-top:10px">Opens a production line under its own number for ${esc(ref)}, so it is never added onto the original order's line.</div>`
+        : '<div class="muted" style="margin-top:10px">Marks it to be packed from the India shelf.</div>'}
+      </div>`,
+    onCancel: srOpen,
+    saveLabel: from === 'fba' ? 'Send by MCF' : from === 'prod' ? 'Open in production' : 'Mark sent from India',
+    onSave: async () => { const err = await srSendRep(orderId, id, ($('srSpeed') || {}).value); if (!err) setTimeout(srOpen, 0); return err; },
+  });
+}
+/** The form: which order, which lines and how many, what the customer gets, the return's tracking, why. */
 function srNewOpen(orderId, id) {
   const orders = srOrders().slice().sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
   const prev = id ? (((SHOP_META[orderId] || {}).returns || {})[id] || {}) : {};
   const o = orderId ? srOrderOf(orderId) : null;
+  const sent = !!(prev.rep && prev.rep.st === 'sent');
   const linesHtml = ord => !ord ? '<div class="muted" style="font-size:12.5px;margin:8px 0">Pick an order above and its lines appear here.</div>'
-    : `<div class="sr-lines"><table class="xl"><thead><tr><th></th><th>SKU</th><th>Item</th><th class="num">Ordered</th><th class="num">Already back</th><th class="num">Came back now</th></tr></thead><tbody>${
-      srLineRoom(ord, id).map(l => { const was = (prev.items || []).find(i => String(i.lid) === String(l.lid)); return `<tr>
+    : `<div class="sr-lines"><table class="xl"><thead><tr><th></th><th>SKU</th><th>Item</th><th class="num">Ordered</th><th class="num">Already on a case</th><th class="num">This case</th><th>Stock</th></tr></thead><tbody>${
+      srLineRoom(ord, id).map(l => { const was = (prev.items || []).find(i => String(i.lid) === String(l.lid)); const s = srStock(ord.shopBrand, l.sku); return `<tr>
         <td><input type="checkbox" data-sr-tick="${esc(l.lid)}"${was ? ' checked' : ''}${l.room <= 0 && !was ? ' disabled' : ''}></td>
         <td style="font-family:ui-monospace,monospace;text-align:left">${esc(l.sku || '—')}</td><td style="text-align:left">${esc(l.name)}${l.variant ? ' <span class="muted">' + esc(l.variant) + '</span>' : ''}</td>
         <td class="num">${nf(l.qty)}</td><td class="num">${l.back ? nf(l.back) : '<span class="muted">—</span>'}</td>
-        <td class="num"><input type="number" min="0" max="${l.room}" step="1" data-sr-qty="${esc(l.lid)}" value="${was ? was.qty : (l.room > 0 ? l.room : 0)}"${l.room <= 0 && !was ? ' disabled' : ''}></td></tr>`; }).join('')
+        <td class="num"><input type="number" min="0" max="${l.room}" step="1" data-sr-qty="${esc(l.lid)}" value="${was ? was.qty : ''}" placeholder="—"${l.room <= 0 && !was ? ' disabled' : ''}></td>
+        <td style="white-space:nowrap;font-size:11.5px">${soAcctName(ord.shopBrand === 'CPC' ? 'CPC' : 'SP')} FBA <b>${s.fba == null ? '—' : nf(s.fba)}</b> · India <b>${s.india == null ? '—' : nf(s.india)}</b></td></tr>`; }).join('')
     }</tbody></table></div>`;
+  const what0 = srWhat(prev), from0 = prev.rep ? prev.rep.from : '';
   ptOpenDialog({
-    title: id ? 'Edit return' : 'New return', wide: true,
-    subtitle: o ? `${o.no} · ${esc((o.ship && o.ship.name) || '')} · ${o.at}` : 'Which order came back?',
+    title: id ? 'Edit case' : 'New return / replacement', wide: true,
+    subtitle: o ? `${o.no} · ${(o.ship && o.ship.name) || ''} · ${o.at}` : 'Which order is it?',
     html: `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;font-size:12.5px">
       <label style="grid-column:1/-1">Order<input id="srOrd" list="srOrdList" placeholder="Type the order number" value="${esc(o ? o.no : '')}" autocomplete="off"${id ? ' readonly' : ''}>
         <datalist id="srOrdList">${orders.slice(0, 1500).map(x => `<option value="${esc(x.no)}">${esc([(x.ship && x.ship.name) || '', x.at, x.shopBrand || ''].filter(Boolean).join(' · '))}</option>`).join('')}</datalist></label>
       <div id="srLines" style="grid-column:1/-1">${linesHtml(o)}</div>
-      <label>Return tracking number<input id="srTrk" value="${esc(prev.trk || '')}" placeholder="from the return label" style="font-family:ui-monospace,monospace"></label>
-      <label>Carrier<select id="srCar">${SR_CARRIERS.map(c => `<option${(prev.carrier || 'USPS') === c ? ' selected' : ''}>${c}</option>`).join('')}</select></label>
+      <label>What does the customer get?<select id="srWhat"${sent ? ' disabled' : ''}>${Object.entries(SR_WHAT).map(([k, v]) => `<option value="${k}"${what0 === k ? ' selected' : ''}>${v}</option>`).join('')}</select></label>
+      <label id="srFromW">Replacement ships from<select id="srFrom"${sent ? ' disabled' : ''}><option value="">Suggest from stock</option>${Object.entries(SR_FROM).map(([k, v]) => `<option value="${k}"${from0 === k ? ' selected' : ''}>${v}</option>`).join('')}</select></label>
       <label>Why<select id="srWhy">${SR_REASONS.map(c => `<option${(prev.reason || '') === c ? ' selected' : ''}>${c}</option>`).join('')}</select></label>
-      <label>Return started on<input id="srDate" type="date" value="${esc(prev.date || dToday())}"></label>
-      <label>Stage<select id="srSt">${Object.entries(SR_STATUS).map(([k, v]) => `<option value="${k}"${(prev.status || 'started') === k ? ' selected' : ''}>${v[0]}</option>`).join('')}</select></label>
+      <label>Case opened on<input id="srDate" type="date" value="${esc(prev.date || dToday())}"></label>
+      <label class="srRet">Return tracking number<input id="srTrk" value="${esc(prev.trk || '')}" placeholder="from the return label — can be added later" style="font-family:ui-monospace,monospace"></label>
+      <label class="srRet">Carrier<select id="srCar">${SR_CARRIERS.map(c => `<option${(prev.carrier || 'USPS') === c ? ' selected' : ''}>${c}</option>`).join('')}</select></label>
+      <label class="srRet">Return stage<select id="srSt">${Object.entries(SR_STATUS).map(([k, v]) => `<option value="${k}"${(prev.status || 'started') === k ? ' selected' : ''}>${v[0]}</option>`).join('')}</select></label>
       <label style="grid-column:1/-1">Remarks<input id="srNote" value="${esc(prev.note || '')}" placeholder="anything the warehouse should know"></label>
     </div>`,
-    saveLabel: id ? 'Save' : 'Record the return',
+    saveLabel: id ? 'Save' : 'Save the case', onCancel: srOpen,
     onSave: async () => {
       const no = ($('srOrd') || {}).value || '';
       const ord = o || orders.find(x => String(x.no).toLowerCase() === no.trim().toLowerCase());
       if (!ord) return 'Pick an order that is loaded on this screen (fetch the date range first).';
       const items = [...document.querySelectorAll('[data-sr-tick]')].filter(t => t.checked).map(t => { const lid = t.getAttribute('data-sr-tick'); const q = document.querySelector('[data-sr-qty="' + lid + '"]'); return { lid, qty: q ? q.value : 0 }; });
-      const err = await srSave(String(ord.id), { items, trk: $('srTrk').value, carrier: $('srCar').value, reason: $('srWhy').value, date: $('srDate').value, status: $('srSt').value, note: $('srNote').value }, id);
+      const what = $('srWhat').value;
+      /* A replacement-only case has no return leg; it is closed, not moved along, once the new one has gone. */
+      const status = what === 'replace' ? (prev.status === 'closed' ? 'closed' : 'started') : $('srSt').value;
+      const err = await srSave(String(ord.id), { items, what, from: $('srFrom').value, trk: what === 'replace' ? '' : $('srTrk').value,
+        carrier: $('srCar').value, reason: $('srWhy').value, date: $('srDate').value, status, note: $('srNote').value }, id);
       if (err) return err;
       setTimeout(srOpen, 0);
       return '';
     },
+  });
+  /* Show only what the choice needs: no return fields for a replacement the customer keeps, no "ships from" for a plain return. */
+  const syncWhat = () => {
+    const w = ($('srWhat') || {}).value || 'return';
+    document.querySelectorAll('.srRet').forEach(el => el.classList.toggle('hide', w === 'replace'));
+    if ($('srFromW')) $('srFromW').classList.toggle('hide', w === 'return');
+  };
+  if ($('srWhat')) $('srWhat').onchange = syncWhat;
+  syncWhat();
+  /* A LINE'S QUANTITY IS BLANK UNTIL IT IS TICKED (2026-10-14): a 1 on every line read as if the whole order were on
+   * the case. Ticking puts 1 in, unticking clears it, and typing a number ticks the line. */
+  if ($('srLines')) $('srLines').addEventListener('change', e => {
+    const t = e.target, tick = t.getAttribute && t.getAttribute('data-sr-tick'), qty = t.getAttribute && t.getAttribute('data-sr-qty');
+    if (tick) { const q = document.querySelector('[data-sr-qty="' + tick + '"]'); if (q) q.value = t.checked ? (Number(q.value) > 0 ? q.value : 1) : ''; }
+    if (qty) { const c = document.querySelector('[data-sr-tick="' + qty + '"]'); if (c && !c.disabled) c.checked = Number(t.value) > 0; }
   });
   /* The lines follow the order typed. */
   if ($('srOrd') && !id) $('srOrd').onchange = () => {
@@ -62285,7 +62856,6 @@ function srNewOpen(orderId, id) {
   };
 }
 if ($('soReturns')) $('soReturns').onclick = () => srOpen();
-
 /* ============================== FILE: src/app/shopify/delivery-days.js ============================== */
 /* ================= DELIVERY DAYS FROM THE USA WAREHOUSE =================
  *

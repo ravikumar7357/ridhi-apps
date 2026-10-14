@@ -397,7 +397,9 @@ function shpUnseen() {
   const want = new Map();
   const note = (id, d) => {
     id = String(id || ''); d = String(d || '').slice(0, 10);
-    if (!id || seen.has(id)) return;
+    /* A REPLACEMENT's line (returns.js, 2026-10-14) carries "REPL-…", not a Shopify id — Shopify has no such order to
+     * find, and asking for it would only add calls to every sync. It is closed by production like any line. */
+    if (!id || seen.has(id) || /^REPL-/.test(id)) return;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) d = '';
     const had = want.get(id);
     if (had === undefined || (d && (!had || d < had))) want.set(id, d || had || '');

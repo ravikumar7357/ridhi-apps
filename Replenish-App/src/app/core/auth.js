@@ -103,6 +103,17 @@ onAuthStateChanged(auth, async user => {
   if (ME.admin) { ME.tabs = REPL_TABS.slice(); ME.projEdit = true; ME.prodEdit = true; ME.rateApprove = true; ME.shopAssign = true; ME.b2bAssign = true;
     ME.accEntry = true; ME.accEdit = true; ME.vlogAccept = true; ME.soApprove = true; ME.mdbEdit = true; ME.attendMark = true; ME.vreqApprove = true; ME.rfdApprove = true; ME.rfdSend = true; ME.fgiEdit = true; ME.fgiEntry = true; ME.empEdit = true; ME.hrEmpOnly = false; }
 
+  /* THE SHOPIFY VIEW OF REPLENISHMENT (Ravi, 2026-10-14). An account that works the Shopify screens and holds no planning
+   * screen — and is not an admin — gets Replenishment too, but only as the Shopify view: what a SKU is and what Amazon
+   * holds of it (replenishment.js → renderReplShop). Admins and planners keep the full screen. */
+  ME.replShopView = !ME.admin && ME.tabs.some(t => REPL_SHOP_TABS.includes(t)) && !ME.tabs.some(t => REPL_FULL_TABS.includes(t));
+  /* …and an account whose sections are ALL Shopify ones reads no copy with sales in it at all — not even the slim one
+   * the production screens share. It is the same test the database rules make (firestore.rules → shopDataOnly), so the
+   * app never asks for something it would be refused. */
+  ME.shopDataOnly = !ME.admin && ME.tabsExplicit && ME.tabs.filter(t => t !== 'hr').length > 0
+    && ME.tabs.filter(t => t !== 'hr').every(t => SHOP_DATA_TABS.includes(t));
+  if (ME.replShopView) ME.tabs = ME.tabs.concat('repl');
+
   /* AN UNANSWERED ADDRESS OPENS NOTHING. Emptying the tabs is the whole enforcement: every pane is
    * hidden by the map below and no screen loads, so nothing is read on the way past.
    *
@@ -219,6 +230,7 @@ onAuthStateChanged(auth, async user => {
   if (ME.tabs.includes('pbase') && ptCanEdit()) jwCorrLoad().catch(() => {});
   if (ME.tabs.includes('fgi')) ptGet('pt_amzListings').then(idx => { LST.map = lstParse(idx); LST.at = (idx && idx.at) || ''; return lstLoadAlerts(); }).catch(() => {});
   // Background-load POs once so the Follow-ups nav badge shows without opening the tab.
-  if (!FACTORY_ONLY) loadPo().then(() => { PO_LOADED = true; updateFollowBadge(); }).catch(() => {});
+  /* Purchase orders are the planners' (firestore.rules → po, 2026-10-14); anybody else would only be refused. */
+  if (!FACTORY_ONLY && replFull()) loadPo().then(() => { PO_LOADED = true; updateFollowBadge(); }).catch(() => {});
 });
 
