@@ -2967,7 +2967,9 @@ const FACTORY_SECTIONS = ['pmdb', 'mst', 'pbase', 'pcut', 'ppress', 'qc', 'qcalt
    * the Amazon backend key and the replenishment snapshot. Found 2026-09-21 on a vendor login. */
   'vlog', 'palloc',
   /* The Greige Desk (test, 2026-10-13): factory screens, so ticking one never sets perms.repl. */
-  'gdesk', 'gdled', 'gdledit', 'gdappr'];
+  'gdesk', 'gdled', 'gdledit', 'gdappr',
+  /* The Production flow's seven buckets (test, 2026-10-14): factory screens too. */
+  'flppc', 'fldem', 'flacc', 'flchl', 'flcut', 'flraw', 'flwip'];
 
 const REPL_SECTIONS = [
   ['repl', 'Replenishment'], ['article', 'Article Review'], ['target', 'Revenue Target'],
@@ -3021,6 +3023,16 @@ const REPL_SECTIONS = [
   ['gdled', 'Greige Desk (test) — see the fabric ledger'],
   ['gdledit', 'Greige Desk (test) — add to and correct the fabric ledger'],
   ['gdappr', 'Greige Desk (test) — approve RFD shrinkage over 5%'],
+  /* THE PRODUCTION FLOW (test link only, 2026-10-14: Ravi, "test window meri IT team ko show ho"). One right per bucket of
+   * Production → PPC · Production flow; any one of them opens the screen, showing only the buckets ticked. On the live app
+   * the flow is switched off, so ticking these there shows nothing. */
+  ['flppc', 'Production flow (test) — PPC and PPC completed'],
+  ['fldem', 'Production flow (test) — Demand: RFD fabric out to printers'],
+  ['flacc', 'Production flow (test) — Demand: accessories'],
+  ['flchl', 'Production flow (test) — printed fabric in · history'],
+  ['flcut', 'Production flow (test) — to cut'],
+  ['flraw', 'Production flow (test) — raw cutting in store'],
+  ['flwip', 'Production flow (test) — WIP with karigars'],
   ['rep', 'Reports'],
   ['pa', 'Production Analysis'],
   ['ka', 'Karigar Analysis'],
@@ -3035,7 +3047,7 @@ const ACCESS_GROUPS = [
   { key: 'shopify', sellora: ['shop', 'adj'], repl: ['shop', 'adj', 'shopify', 'shopprod'] },
   { key: 'plan', repl: ['repl', 'article', 'target', 'top', 'pack'] },
   /* The same order as the Replenishment app's sidebar, which is the order work moves through the floor. */
-  { key: 'prod', repl: ['so', 'ord', 'pcut', 'pbase', 'ppress', 'qc', 'qcalt', 'qcret', 'fgi', 'fba', 'fab', 'acc', 'gdesk', 'gdled', 'gdledit', 'gdappr', 'pmdb', 'mst', 'cx'] },
+  { key: 'prod', repl: ['so', 'ord', 'pcut', 'pbase', 'ppress', 'qc', 'qcalt', 'qcret', 'fgi', 'fba', 'fab', 'acc', 'gdesk', 'gdled', 'gdledit', 'gdappr', 'flppc', 'fldem', 'flacc', 'flchl', 'flcut', 'flraw', 'flwip', 'pmdb', 'mst', 'cx'] },
   { key: 'vendors', repl: ['vreq', 'vord', 'rfd', 'vend', 'vlog', 'palloc'] },
   { key: 'people', repl: ['att', 'hr'] },
   { key: 'reports', repl: ['rep', 'pa', 'ka'] },
