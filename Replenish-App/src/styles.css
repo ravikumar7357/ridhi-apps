@@ -113,6 +113,8 @@
     .navsec.navmega.open{position:fixed;left:50%;transform:translateX(-50%);top:62px;right:auto;
       width:min(1160px,calc(100vw - 32px));box-sizing:border-box;padding:18px;
       display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:14px;align-items:start}   /* as many columns as are shown */
+    /* Store (the preview's menu, nav.js): two columns, so half as wide. */
+    .navsec.navmega.mg-2.open{width:min(600px,calc(100vw - 32px))}
   }
   .mg-col{display:flex;flex-direction:column;gap:2px;min-width:0}
   .mg-h{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:2px 10px 8px}
