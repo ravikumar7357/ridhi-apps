@@ -108,6 +108,8 @@ function stCutting(c) {
 }
 
 /** Every movement of the store, oldest first. Built, never stored. */
+/* By hand only since 14 Oct; localStorage storeAuto = '1' brings the computed movements back on one computer. */
+const ST_MANUAL_ONLY = (() => { try { return localStorage.getItem('storeAuto') !== '1'; } catch (e) { return true; } })();
 function stMoves() {
   const start = stStart();
   const out = [];
@@ -121,6 +123,11 @@ function stMoves() {
       what: r.kind === 'OPENING' ? 'Opening stock' : r.kind === 'OUT' ? 'Taken out by hand' : r.kind === 'ADJUST' ? 'Correction' : 'Taken in by hand',
       date: r.date || day(r.at), at: r.at || '', who: r.by || '', remark: r.remark || '' });
   });
+  /* BY HAND ONLY (Ravi, 14 Oct: "bas store stock balance rahega jo batayega ki mere pas printed fabric kitna pada h jise me
+   * manually chadaunga"). The store is what is typed — opening, in, out, correction — and nothing else: the printers'
+   * deliveries, the cutting table and the karigar issues no longer move it. PPC's "printed stock in the store" reads the
+   * same figure. ST_MANUAL_ONLY = false brings the computed movements back. */
+  if (ST_MANUAL_ONLY) return out.sort((a, b) => String(a.at).localeCompare(String(b.at)));
   /* NO OPENING STOCK IS NOT A REASON TO RECORD NOTHING. Without one, the register still holds
    * everything that has moved — it simply is not the shelf yet, and the screen says so. Movements
    * before the opening stock ARE dropped, because the opening figure already contains them. */
@@ -258,11 +265,14 @@ function stEntryOpen(pre) {
   ptOpenDialog({
     title: 'Store entry',
     subtitle: 'What is on the shelf, and anything the registers cannot know',
-    note: 'Pieces go in by SKU, cloth by fabric and colour. What the printers send, what cutting takes and what '
-      + 'is issued to karigars is counted on its own — those are not typed here.',
+    note: ST_MANUAL_ONLY
+      ? 'Printed cloth goes in by fabric and colour (metres), printed pieces by SKU. The store is only what is typed here: '
+        + 'opening stock, printed fabric in, printed fabric out, or a correction.'
+      : 'Pieces go in by SKU, cloth by fabric and colour. What the printers send, what cutting takes and what '
+        + 'is issued to karigars is counted on its own — those are not typed here.',
     fields: [
       { key: 'kind', label: 'What this is', type: 'select', value: pre.kind || 'OPENING', options: ST_KINDS },
-      { key: 'unit', label: 'Pieces or cloth', type: 'select', value: pre.unit || 'pcs', options: [['pcs', 'Pieces (by SKU)'], ['m', 'Cloth (metres)']] },
+      { key: 'unit', label: 'Pieces or cloth', type: 'select', value: pre.unit || (ST_MANUAL_ONLY ? 'm' : 'pcs'), options: [['pcs', 'Pieces (by SKU)'], ['m', 'Cloth (metres)']] },
       { key: 'sku', label: 'SKU (for pieces)', value: pre.sku || '', list: (PTG.mdb || []).slice(0, 4000).map(r => r.sku) },
       { key: 'fabric', label: 'Fabric (for cloth)', value: pre.fabric || '', list: fabrics },
       { key: 'colour', label: 'Colour (for cloth)', value: pre.colour || '' },
@@ -328,10 +338,49 @@ async function stSheetRun(list) {
 }
 
 /* ---- the screens ---- */
+/* THE STORE, TYPED BY HAND (Ravi, 14 Oct). One line per printed cloth (fabric + colour, in metres) or printed piece (SKU):
+ * what was typed in, typed out, and what is left. "+ Store entry" adds opening stock, In, Out or a correction. */
+function renderStoreHand() {
+  const f = fabFilters();
+  const moves = stMoves().filter(mv => (!f.q || [stName(mv), mv.what, mv.remark, mv.who].join(' ').toLowerCase().includes(f.q))
+    && (!f.d1 || String(mv.date || '') >= f.d1) && (!f.d2 || String(mv.date || '') <= f.d2));
+  const bal = stBalances(moves).slice().sort((a, b) => (a.unit === b.unit ? 0 : a.unit === 'm' ? -1 : 1) || String(a.name).localeCompare(String(b.name)));
+  const met = bal.filter(b => b.unit === 'm'), pcs = bal.filter(b => b.unit === 'pcs');
+  const sum = (l, k) => Math.round(l.reduce((a, b) => a + b[k], 0) * 10) / 10;
+  $('fbKpis').innerHTML = `<div class="kpi" style="flex-basis:100%">
+    <div class="kpihead"><span class="kpiname">Printed fabric in store — entered by hand</span>
+      <span class="kpiwhen">read live${STORE.at ? ' · ' + esc(STORE.at) : ''}</span></div>
+    <div class="metrics">
+      <div class="metric"><div class="v"${sum(met, 'qty') < 0 ? ' style="color:var(--bad)"' : ''}>${nf(sum(met, 'qty'))}</div><div class="l">Printed cloth in store (m)</div><div class="l muted">${nf(met.length)} fabric &amp; colour</div></div>
+      <div class="metric"><div class="v"${sum(pcs, 'qty') < 0 ? ' style="color:var(--bad)"' : ''}>${nf(sum(pcs, 'qty'))}</div><div class="l">Printed pieces in store</div><div class="l muted">${nf(pcs.length)} SKU(s)</div></div>
+      <div class="metric"><div class="v">${nf(moves.length)}</div><div class="l">Entries</div></div>
+    </div></div>`;
+  FAB.shown = bal;
+  $('fbMsg').className = STORE.err ? 'err' : 'muted';
+  $('fbMsg').title = 'The balance is the sum of what was typed — opening, in, out and corrections — never a stored figure.';
+  $('fbMsg').textContent = (bal.length ? `${nf(bal.length)} item(s)` : 'Nothing entered yet')
+    + ' · every figure here was typed by hand — "+ Store entry" adds printed fabric, takes it out, or corrects it'
+    + (STORE.err ? ' · ' + STORE.err : '');
+  if (!bal.length) { ptEmpty('fbTable', 'Nothing in the store yet — press "+ Store entry" to add the printed fabric you have.'); return; }
+  const head = '<thead><tr>' + ['Item', 'Kind', 'In', 'Out', 'Balance', 'Last entry', 'Entries']
+    .map((h, i) => `<th${i === 0 ? ' class="frz"' : ([2, 3, 4, 6].indexOf(i) >= 0 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
+  const drawn = bal.slice(0, ST_MAX_ROWS);
+  const z = v => (v ? nf(Math.round(v * 100) / 100) : '<span class="muted">—</span>');
+  $('fbTable').innerHTML = head + '<tbody>' + drawn.map(b => '<tr>'
+    + `<td class="frz" style="text-align:left">${b.unit === 'pcs' ? ptImgSpan(b.sku, 28) + ' ' : ''}${esc(b.name)}</td>`
+    + `<td>${b.unit === 'pcs' ? 'Pieces' : 'Cloth (m)'}</td>`
+    + `<td class="num" style="color:#166534">${z(b.inQty)}</td>`
+    + `<td class="num" style="color:var(--bad)">${z(b.outQty)}</td>`
+    + `<td class="num" style="font-weight:700${b.qty < 0 ? ';color:var(--bad)' : ''}">${nf(Math.round(b.qty * 100) / 100)}</td>`
+    + `<td style="font-size:12px">${esc(ptIsoDate(b.last) || '')}</td>`
+    + `<td class="num muted">${nf(b.n)}</td></tr>`).join('') + '</tbody>';
+  ptImgFill(drawn.filter(b => b.unit === 'pcs').map(b => b.sku).filter(Boolean), false, ptIfTab('fab', ptImgPatch));
+}
 function renderStore(view) {
   if (STORE.rows === null && !STORE.busy) { ensureStore(); }
   if (STORE.busy) { $('fbMsg').className = 'muted'; $('fbMsg').textContent = 'Reading the store…'; ptEmpty('fbTable', 'Loading…'); $('fbKpis').innerHTML = ''; return; }
   if (view === 'storeord') return renderStoreOrd();
+  if (ST_MANUAL_ONLY) return renderStoreHand();
   const moves = stMoves();
   const start = stStart();
   const f = fabFilters();

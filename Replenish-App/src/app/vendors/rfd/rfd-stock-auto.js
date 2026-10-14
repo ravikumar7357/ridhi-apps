@@ -262,6 +262,15 @@ function renderFabLots(all) {
 
 /** The store has its own buttons; the fabric ledger keeps its own. */
 function fabTools(view) {
+  /* ONE VIEW (Ravi, 14 Oct: "remove all thing bas store stock balance rahega"): the store typed by hand. The view picker and
+   * every greige / RFD / ledger control go; search, dates, "+ Store entry", the template, upload, clear, export and refresh stay. */
+  if (typeof ST_MANUAL_ONLY !== 'undefined' && ST_MANUAL_ONLY) {
+    ['fbView', 'fbState', 'fbTxn', 'fbFab', 'fbCol', 'fbCp', 'fbEntry', 'fbPoNew', 'fbPoSet', 'fbGuide'].forEach(id => { const el = $(id); if (el) el.classList.add('hide'); });
+    if ($('fbStoreNew')) $('fbStoreNew').classList.toggle('hide', !ptCanEdit());
+    if ($('fbTemplate')) $('fbTemplate').textContent = 'Store entry template';
+    if ($('fbImport')) $('fbImport').textContent = 'Upload store entries';
+    return;
+  }
   const store = view === 'store' || view === 'storemov' || view === 'storeord';
   [['fbStoreNew', store && ptCanEdit()], ['fbEntry', !store], ['fbPoNew', false], ['fbPoSet', false]].forEach(([id, on]) => {
     const el = $(id); if (el && id.indexOf('Po') < 0) el.classList.toggle('hide', !on);

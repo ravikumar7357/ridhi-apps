@@ -212,9 +212,13 @@ function renderFab() {
    * thousand-row table and a minute of picture lookups, on a pane nobody could see. Opening the tab
    * draws it; that is the moment it is wanted. */
   if (typeof TAB_NOW !== 'undefined' && TAB_NOW && TAB_NOW !== 'fab') return;
+  /* By hand only (14 Oct): the store needs nothing from the fabric ledger — no waiting for it, no ledger error in the way. */
+  if (typeof ST_MANUAL_ONLY !== 'undefined' && ST_MANUAL_ONLY) { if ($('fbView')) $('fbView').value = 'store'; fabTools('store'); return renderStore('store'); }
   if (FAB.busy) { $('fbMsg').className = 'muted'; $('fbMsg').textContent = 'Reading the fabric ledger…'; ptEmpty('fbTable', 'Loading…'); return; }
   if (FAB.err) { $('fbMsg').className = 'err'; $('fbMsg').textContent = 'Could not read it: ' + FAB.err; ptEmpty('fbTable', 'Nothing to show.'); $('fbKpis').innerHTML = ''; return; }
   /* THE PO VIEW has its own buttons and its own table; the ledger's filters do not apply to it. */
+  /* One view since 14 Oct (ST_MANUAL_ONLY): the store typed by hand, whatever the picker last held. */
+  if (typeof ST_MANUAL_ONLY !== 'undefined' && ST_MANUAL_ONLY && $('fbView') && $('fbView').value !== 'store') $('fbView').value = 'store';
   const view0 = ($('fbView') || {}).value || 'flow';
   fabTools(view0);
   if (view0 === 'flow') return renderFabFlowOne();
