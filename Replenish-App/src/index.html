@@ -80,7 +80,7 @@
       <a id="tabDash" class="nav" href="#dash">Management dashboard</a>
     </div></div>
 
-    <div class="navwrap"><button class="navgrp" id="grpShopify" type="button" data-grp="shopify" data-tabs="shop,adj,shopify">
+    <div class="navwrap"><button class="navgrp" id="grpShopify" type="button" data-grp="shopify" data-tabs="shop,adj,shopify,shopret">
       <span class="caret">&#9656;</span> Shopify</button>
     <div class="navsec" id="secShopify">
       <a id="tabShop" class="nav" href="#shop">Shopify Orders</a>
@@ -1794,6 +1794,8 @@
         </div>
         <div id="soKpis" class="so-figs"></div>
       </div>
+      <!-- THE RETURNS TEAM (15 Oct, shopify/returns-team.js): returns & replacements, delivery days, FBA stock by SKU — nothing else. -->
+      <div id="soRetPanel" class="hide"></div>
       <div class="toolbar so-find">
         <input id="soFrom" type="date" style="flex:0 0 150px">
         <span class="muted" style="font-size:13px">to</span>
@@ -1872,7 +1874,7 @@
       <div id="soToday" style="margin-top:10px;display:flex;gap:22px;flex-wrap:wrap;font-size:13px"></div>
     </div>
 
-    <div class="card" style="padding:0;overflow:auto;max-height:70vh;margin-top:12px">
+    <div id="soTableCard" class="card" style="padding:0;overflow:auto;max-height:70vh;margin-top:12px">
       <table id="soTable" class="xl"></table>
     </div>
   </div><!-- /paneShop -->

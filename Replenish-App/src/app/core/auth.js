@@ -166,6 +166,11 @@ onAuthStateChanged(auth, async user => {
     ['book', 'bookdone'].forEach(k => { const o = $('odView') && $('odView').querySelector('option[value="' + k + '"]'); if (o) o.remove(); });
     if ($('odView')) $('odView').value = 'shopsku';
   }
+  /* THE SHOPIFY RETURNS TEAM (15 Oct): its one screen is Shopify Orders in the narrow form (returns-team.js). */
+  if (typeof SHOP_RET_ONLY === 'function' && SHOP_RET_ONLY()) {
+    const b = $('tabShop');
+    if (b) { b.style.display = ''; const t = b.querySelector && b.querySelector('.nav-t'); (t || b).textContent = 'Returns & delivery'; }
+  }
   syncNavGroups();
   /* The sidebar is now telling the truth, so it can be seen. The data loads below take their own
    * time behind it. */

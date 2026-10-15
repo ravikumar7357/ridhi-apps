@@ -86,6 +86,9 @@ const REPL_SECTIONS = [
    * neither offered nor reachable — every AMZ and B2B order stays shut. Tick this one OR 'Order
    * Console', not both: with both, the account has the whole book. */
   ['shopprod', 'Order Console — Shopify orders only'],
+  /* THE SHOPIFY RETURNS TEAM (Ravi, 15 Oct): Shopify Orders narrowed to returns & replacements, delivery days by zip and
+   * FBA stock by SKU — no orders table, no production. Tick this OR Shopify Orders: with both, the account has the full screen. */
+  ['shopret', 'Shopify returns team — returns & replacements, delivery days, FBA stock'],
   ['pmdb', 'Master Database'],
   ['mst', 'Masters (article types, colours, sizes)'], ['pbase', 'Job Work Register'], ['pcut', 'Cutting Data'],
   ['ppress', 'Press Inventory'],
@@ -144,7 +147,7 @@ const REPL_SECTIONS = [
  * nowhere lands in "Other" — never without a checkbox, which is how a section once became impossible
  * to grant. */
 const ACCESS_GROUPS = [
-  { key: 'shopify', sellora: ['shop', 'adj'], repl: ['shop', 'adj', 'shopify', 'shopprod'] },
+  { key: 'shopify', sellora: ['shop', 'adj'], repl: ['shop', 'adj', 'shopify', 'shopprod', 'shopret'] },
   { key: 'plan', repl: ['repl', 'article', 'target', 'top', 'pack'] },
   /* The same order as the Replenishment app's sidebar, which is the order work moves through the floor. */
   { key: 'prod', repl: ['so', 'ord', 'pcut', 'pbase', 'ppress', 'qc', 'qcalt', 'qcret', 'fgi', 'fba', 'fab', 'acc', 'gdesk', 'gdled', 'gdledit', 'gdappr', 'flppc', 'fldem', 'flacc', 'flchl', 'flcut', 'flraw', 'flwip', 'pmdb', 'mst', 'cx'] },

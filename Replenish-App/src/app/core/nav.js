@@ -416,12 +416,17 @@ const SHOP_ONLY = () => !!(ME.tabs && ME.tabs.includes('shopprod') && !ME.tabs.i
 function showTab(which) {
   // 'shopprod' is not a pane of its own — it is the Order Console, opened at its Shopify views.
   if (which === 'shopprod') which = 'ord';
+  /* 'shopret' (the Shopify returns team, 15 Oct) is the Shopify Orders screen in its narrow form (returns-team.js). */
+  if (which === 'shopret') which = 'shop';
   /* A production-flow bucket right opens the one flow screen; the guard below lets it in for any bucket held. */
   if (FLOW_TABS.includes(which)) which = 'flow';
   if (ME.tabs && ME.tabs.length && !ME.tabs.includes(which)
       && !(which === 'ord' && ME.tabs.includes('shopprod'))
+      && !(which === 'shop' && ME.tabs.includes('shopret'))
       && !(which === 'flow' && FLOW_ON && flowBucketsAllowed().length)
       && !(which === 'gdesk' && FLOW_ON && gdAllowed())) which = FLOW_TABS.includes(ME.tabs[0]) ? 'flow' : ME.tabs[0];
+  if (which === 'shopret') which = 'shop';   // the returns team's only screen, when it is the first one they hold
+  if (which === 'shopprod') which = 'ord';
   const panes = { dash: 'paneDash', repl: 'paneRepl', article: 'paneArticle', target: 'paneTarget', follow: 'paneFollow', top: 'paneTop', india: 'paneIndia', shopify: 'paneShopify', prod: 'paneProd', pack: 'panePack', att: 'paneAtt', pmdb: 'panePmdb', mst: 'paneMst', pbase: 'panePbase', pcut: 'panePcut', ppress: 'panePpress', qc: 'paneQc', ord: 'paneOrd', so: 'paneSo', vord: 'paneVord', vreq: 'paneVreq', rfd: 'paneRfd', vend: 'paneVend', vlog: 'paneVlog', cx: 'paneCx', palloc: 'panePalloc', fgi: 'paneFgi', fba: 'paneFba', fab: 'paneFab', acc: 'paneAcc', rep: 'paneRep', pa: 'panePa', ka: 'paneKa', hr: 'paneHr', shop: 'paneShop', adj: 'paneAdj', flow: 'paneFlow', gdesk: 'paneGdesk' };
   const navs = { dash: 'tabDash', repl: 'tabRepl', article: 'tabArticle', target: 'tabTarget', follow: 'tabFollow', top: 'tabTop', india: 'tabIndia', shopify: 'tabShopify', prod: 'tabProd', pack: 'tabPack', att: 'tabAtt', pmdb: 'tabPmdb', mst: 'tabMst', pbase: 'tabPbase', pcut: 'tabPcut', ppress: 'tabPpress', qc: 'tabQc', ord: 'tabOrd', so: 'tabSo', vord: 'tabVord', vreq: 'tabVreq', rfd: 'tabRfd', vend: 'tabVend', vlog: 'tabVlog', cx: 'tabCx', palloc: 'tabPalloc', fgi: 'tabFgi', fba: 'tabFba', fab: 'tabFab', acc: 'tabAcc', rep: 'tabRep', pa: 'tabPa', ka: 'tabKa', hr: 'tabHr', shop: 'tabShop', adj: 'tabAdj', flow: 'tabFlow', gdesk: 'tabGdesk' };
   /* Before anything is shown: hand back what the screen being left was holding. */

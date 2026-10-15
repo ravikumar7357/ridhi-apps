@@ -1,5 +1,5 @@
 <!-- ================================================================================================
-     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 149 files of src/ joined into one page.
+     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 150 files of src/ joined into one page.
      The real, grouped source: Replenish-App/src/   (map and workflow: src/README.md)
        src/index.html   page markup        src/styles.css   stylesheet        src/app/ORDER   join order
        src/app/<group>/ the code, by group: core, replenishment, masters, production, vendors, orders, shopify, flow, dashboard, people-pay, inventory, reports, shared
@@ -1248,6 +1248,14 @@
 .vpb-n{display:flex;flex-direction:column;align-items:flex-end;font-size:12px;min-width:64px}.vpb-n b{font-size:14px}
 .vpb-raw{color:var(--brand-ink);font-weight:700}.vpb-no{color:var(--warn-ink);font-weight:700}
 .vpb-foot{font-size:11.5px}
+/* SHOPIFY RETURNS TEAM (15 Oct): the Shopify Orders screen narrowed to returns, delivery days and FBA stock. */
+#paneShop.so-ret .so-find,#paneShop.so-ret #soLanes,#paneShop.so-ret #soPickMsg,#paneShop.so-ret #soToday,#paneShop.so-ret #soKpis,#paneShop.so-ret #soTableCard{display:none}
+#soRetPanel{margin-top:12px;display:flex;flex-direction:column;gap:14px}#soRetPanel.hide{display:none}
+.srt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(320px,100%),1fr));gap:12px}
+.srt-tile{width:auto;display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:left;padding:16px 18px;border-radius:16px;border:1px solid var(--line);background:var(--soft);cursor:pointer}
+.srt-tile b{font-size:16px;color:var(--ink)}.srt-tile span{font-size:12.5px;color:var(--muted);font-weight:400}.srt-tile:hover{background:var(--brand-bg)}
+.srt-stock{border:1px solid var(--line);border-radius:16px;padding:14px 16px}.srt-h{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin-bottom:8px}.srt-h b{font-size:15px}
+.srt-search input{width:100%;max-width:520px;border-radius:999px}
 </style>
 
 <!-- ============ LOGIN ============ -->
@@ -1308,7 +1316,7 @@
       <a id="tabDash" class="nav" href="#dash">Management dashboard</a>
     </div></div>
 
-    <div class="navwrap"><button class="navgrp" id="grpShopify" type="button" data-grp="shopify" data-tabs="shop,adj,shopify">
+    <div class="navwrap"><button class="navgrp" id="grpShopify" type="button" data-grp="shopify" data-tabs="shop,adj,shopify,shopret">
       <span class="caret">&#9656;</span> Shopify</button>
     <div class="navsec" id="secShopify">
       <a id="tabShop" class="nav" href="#shop">Shopify Orders</a>
@@ -3022,6 +3030,8 @@
         </div>
         <div id="soKpis" class="so-figs"></div>
       </div>
+      <!-- THE RETURNS TEAM (15 Oct, shopify/returns-team.js): returns & replacements, delivery days, FBA stock by SKU — nothing else. -->
+      <div id="soRetPanel" class="hide"></div>
       <div class="toolbar so-find">
         <input id="soFrom" type="date" style="flex:0 0 150px">
         <span class="muted" style="font-size:13px">to</span>
@@ -3100,7 +3110,7 @@
       <div id="soToday" style="margin-top:10px;display:flex;gap:22px;flex-wrap:wrap;font-size:13px"></div>
     </div>
 
-    <div class="card" style="padding:0;overflow:auto;max-height:70vh;margin-top:12px">
+    <div id="soTableCard" class="card" style="padding:0;overflow:auto;max-height:70vh;margin-top:12px">
       <table id="soTable" class="xl"></table>
     </div>
   </div><!-- /paneShop -->
@@ -3815,7 +3825,7 @@ const REPL_TABS = ['repl', 'article', 'target', 'top', 'shopify', 'pack',
   /* Quality Control is three jobs, not one: 'qc' is the checks, 'qcalt' is sending rejects out for
    * alteration, 'qcret' is taking them back. One tab, three grants. */
   'pmdb', 'mst', 'att', 'pbase', 'pcut', 'ppress', 'qc', 'qcalt', 'qcret', 'ord', 'so', 'vord', 'vreq', 'rfd', 'vend', 'vlog', 'palloc', 'fgi', 'fba', 'fab', 'acc', 'rep', 'pa', 'ka', 'hr',
-  'shop', 'adj', 'shopprod', 'dash',
+  'shop', 'adj', 'shopprod', 'shopret', 'dash',
   /* Production flow (test, 2026-10-10): one right per bucket — the same keys as FLOW_BUCKETS in flow/flow-core.js. */
   'flppc', 'fldem', 'flacc', 'flchl', 'flcut', 'flraw', 'flwip',
   /* Greige Desk (test, 2026-10-13): open it, see the fabric ledger, add to / correct it, approve shrinkage over 5%. */
@@ -3991,6 +4001,11 @@ onAuthStateChanged(auth, async user => {
     if (b) { b.style.display = ''; const t = b.querySelector && b.querySelector('.nav-t'); (t || b).textContent = 'Shopify Orders'; }
     ['book', 'bookdone'].forEach(k => { const o = $('odView') && $('odView').querySelector('option[value="' + k + '"]'); if (o) o.remove(); });
     if ($('odView')) $('odView').value = 'shopsku';
+  }
+  /* THE SHOPIFY RETURNS TEAM (15 Oct): its one screen is Shopify Orders in the narrow form (returns-team.js). */
+  if (typeof SHOP_RET_ONLY === 'function' && SHOP_RET_ONLY()) {
+    const b = $('tabShop');
+    if (b) { b.style.display = ''; const t = b.querySelector && b.querySelector('.nav-t'); (t || b).textContent = 'Returns & delivery'; }
   }
   syncNavGroups();
   /* The sidebar is now telling the truth, so it can be seen. The data loads below take their own
@@ -4479,12 +4494,17 @@ const SHOP_ONLY = () => !!(ME.tabs && ME.tabs.includes('shopprod') && !ME.tabs.i
 function showTab(which) {
   // 'shopprod' is not a pane of its own — it is the Order Console, opened at its Shopify views.
   if (which === 'shopprod') which = 'ord';
+  /* 'shopret' (the Shopify returns team, 15 Oct) is the Shopify Orders screen in its narrow form (returns-team.js). */
+  if (which === 'shopret') which = 'shop';
   /* A production-flow bucket right opens the one flow screen; the guard below lets it in for any bucket held. */
   if (FLOW_TABS.includes(which)) which = 'flow';
   if (ME.tabs && ME.tabs.length && !ME.tabs.includes(which)
       && !(which === 'ord' && ME.tabs.includes('shopprod'))
+      && !(which === 'shop' && ME.tabs.includes('shopret'))
       && !(which === 'flow' && FLOW_ON && flowBucketsAllowed().length)
       && !(which === 'gdesk' && FLOW_ON && gdAllowed())) which = FLOW_TABS.includes(ME.tabs[0]) ? 'flow' : ME.tabs[0];
+  if (which === 'shopret') which = 'shop';   // the returns team's only screen, when it is the first one they hold
+  if (which === 'shopprod') which = 'ord';
   const panes = { dash: 'paneDash', repl: 'paneRepl', article: 'paneArticle', target: 'paneTarget', follow: 'paneFollow', top: 'paneTop', india: 'paneIndia', shopify: 'paneShopify', prod: 'paneProd', pack: 'panePack', att: 'paneAtt', pmdb: 'panePmdb', mst: 'paneMst', pbase: 'panePbase', pcut: 'panePcut', ppress: 'panePpress', qc: 'paneQc', ord: 'paneOrd', so: 'paneSo', vord: 'paneVord', vreq: 'paneVreq', rfd: 'paneRfd', vend: 'paneVend', vlog: 'paneVlog', cx: 'paneCx', palloc: 'panePalloc', fgi: 'paneFgi', fba: 'paneFba', fab: 'paneFab', acc: 'paneAcc', rep: 'paneRep', pa: 'panePa', ka: 'paneKa', hr: 'paneHr', shop: 'paneShop', adj: 'paneAdj', flow: 'paneFlow', gdesk: 'paneGdesk' };
   const navs = { dash: 'tabDash', repl: 'tabRepl', article: 'tabArticle', target: 'tabTarget', follow: 'tabFollow', top: 'tabTop', india: 'tabIndia', shopify: 'tabShopify', prod: 'tabProd', pack: 'tabPack', att: 'tabAtt', pmdb: 'tabPmdb', mst: 'tabMst', pbase: 'tabPbase', pcut: 'tabPcut', ppress: 'tabPpress', qc: 'tabQc', ord: 'tabOrd', so: 'tabSo', vord: 'tabVord', vreq: 'tabVreq', rfd: 'tabRfd', vend: 'tabVend', vlog: 'tabVlog', cx: 'tabCx', palloc: 'tabPalloc', fgi: 'tabFgi', fba: 'tabFba', fab: 'tabFab', acc: 'tabAcc', rep: 'tabRep', pa: 'tabPa', ka: 'tabKa', hr: 'tabHr', shop: 'tabShop', adj: 'tabAdj', flow: 'tabFlow', gdesk: 'tabGdesk' };
   /* Before anything is shown: hand back what the screen being left was holding. */
@@ -61504,6 +61524,8 @@ function renderShop() {
    * the drawing waits. Opening the tab draws it (ensureShop). */
   const pane = $('paneShop');
   if (pane && pane.classList && pane.classList.contains('hide')) { try { soRows(); } catch (e) { /* drawn on the way in */ } return; }
+  /* The returns team (returns-team.js): its three tools, never the orders table. */
+  if (typeof SHOP_RET_ONLY === 'function' && SHOP_RET_ONLY()) { renderShopRet(); return; }
   const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
   const money = v => '$' + Math.round(v || 0).toLocaleString('en-US');
   const rows = soRows();
@@ -63579,6 +63601,8 @@ let SHP_BUSY = false;
  * So a call that arrives mid-run is remembered and made once the run finishes. */
 let SHP_AGAIN = null;
 async function shpSyncSoon(where) {
+  /* The returns team (returns-team.js) looks at orders; it never opens or closes production lines. */
+  if (typeof SHOP_RET_ONLY === 'function' && SHOP_RET_ONLY()) return;
   if (SHP_BUSY) { SHP_AGAIN = where || SHP_AGAIN || ''; return; }
   if (!SHOP_STOCK_LOADED || !SHOP_INDIA_LOADED || SHOP_INDIA_ERR) return;
   if (!(SO_ALL_ROWS || []).length) return;
@@ -64077,6 +64101,67 @@ async function daysEstimate(fromZip, toZip) {
   const miles = Math.round(milesBetween(a, b));
   const zone = zoneOf(miles, b.state);
   return { from: a, to: b, miles, zone, days: ZONE_DAYS[zone], rough: a.src === 'state' || b.src === 'state' };
+}
+/* ============================== FILE: src/app/shopify/returns-team.js ============================== */
+/* ================= SHOPIFY RETURNS TEAM — returns & replacements, delivery days, FBA stock by SKU =================
+ * Ravi, 15 Oct 2026: "me chahta hu ek team sirf shopify ke return & replacement likh pay or dekh pay and zip code par
+ * delivery check kar pay and inventory check kar pay sku wise for fba".
+ *
+ * One right, 'shopret' (Sellora → Access → Shopify → "Shopify returns team"). It opens the Shopify Orders screen in a
+ * narrow form: the title band and the store switch, then three things only — Returns & replacements (returns.js, the
+ * same window the Shopify team uses), Delivery days (india-usa-express.js) and FBA stock by SKU, both Amazon accounts and
+ * India. The orders table, the Production bucket, export, import and the automatic production sync are not there for it:
+ * the orders are still fetched, because a return is raised against one, but nothing is drawn of them and nothing is
+ * opened or closed in production from this account.
+ * An account that also holds Shopify Orders ('shop'), and an admin, get the full screen as before. */
+const SHOP_RET_ONLY = () => !!(typeof ME !== 'undefined' && ME && ME.tabs && ME.tabs.includes('shopret') && !ME.tabs.includes('shop') && !ME.admin);
+let SRT = { q: '' };
+
+/** FBA (each Amazon account) and India for the SKUs asked: exact codes when several are typed, else every SKU holding the text. */
+function srtStockRows(q) {
+  const terms = String(q || '').toUpperCase().split(/[\s,;]+/).map(s => s.trim()).filter(Boolean);
+  if (!terms.length) return [];
+  const all = new Set(Object.keys(SHOP_STOCK || {}).concat(Object.keys((SHOP_STOCK_BY || {}).SP || {}), Object.keys((SHOP_STOCK_BY || {}).CPC || {})));
+  let keys;
+  if (terms.length > 1) keys = terms;
+  else { const t = terms[0], amz = (() => { try { return soAmzKey(t); } catch (e) { return ''; } })();
+    keys = [...new Set([t, amz].filter(Boolean).concat([...all].filter(k => k.includes(t)).sort().slice(0, 60)))]; }
+  return keys.map(k => {
+    let ind = null; try { const i = soIndiaOf(k); ind = i ? Number(i[0]) || 0 : null; } catch (e) { ind = null; }
+    return { sku: k, sp: soFbaIn('SP', k), cpc: soFbaIn('CPC', k), india: ind };
+  });
+}
+function renderShopRet() {
+  const pane = $('paneShop'), box = $('soRetPanel'); if (!pane || !box) return;
+  pane.classList.add('so-ret'); box.classList.remove('hide');
+  const n = v => (v == null ? '<span class="muted">—</span>' : nf(v));
+  const stockAt = typeof SHOP_STOCK_LOADED !== 'undefined' && SHOP_STOCK_LOADED;
+  const rows = srtStockRows(SRT.q);
+  const cases = (() => { try { return srAll(); } catch (e) { return []; } })();
+  const open = cases.filter(r => r.status !== 'closed').length, toSend = cases.filter(r => r.rep && r.rep.st === 'todo').length;
+  box.innerHTML = `<div class="srt-grid">
+      <button type="button" class="srt-tile" data-srt="ret"><b>Returns &amp; replacements</b><span>${nf(open)} open${toSend ? ` · <span style="color:var(--bad)">${nf(toSend)} replacement(s) to send</span>` : ''} — see them, add one, move one on</span></button>
+      <button type="button" class="srt-tile" data-srt="days"><b>Delivery days by zip code</b><span>How long a parcel from the USA warehouse takes to a zip</span></button>
+    </div>
+    <div class="srt-stock">
+      <div class="srt-h"><b>FBA stock by SKU</b><span class="muted">${stockAt ? 'Amazon stock, both accounts, and India' : 'Reading Amazon stock…'}</span></div>
+      <label class="srt-search"><input id="srtQ" type="search" value="${esc(SRT.q)}" placeholder="Type a SKU, or several separated by commas" aria-label="SKU"></label>
+      ${SRT.q ? (rows.length ? `<div class="xlwrap" style="margin-top:8px;max-height:52vh"><table class="xl"><thead><tr><th style="text-align:left">SKU</th><th>FBA · Ridhi</th><th>FBA · CPC</th><th>India</th></tr></thead><tbody>${
+        rows.map(r => `<tr><td style="text-align:left;font-family:ui-monospace,monospace">${esc(r.sku)}</td><td class="num">${n(r.sp)}</td><td class="num">${n(r.cpc)}</td><td class="num">${n(r.india)}</td></tr>`).join('')}</tbody></table></div>`
+        : '<div class="muted" style="margin-top:8px">No SKU like that in the Amazon stock.</div>') : ''}
+    </div>`;
+}
+if ($('soRetPanel') && $('soRetPanel').addEventListener) {
+  $('soRetPanel').addEventListener('click', e => {
+    const t = e.target.closest && e.target.closest('[data-srt]'); if (!t) return;
+    if (t.dataset.srt === 'ret' && typeof srOpen === 'function') srOpen();
+    if (t.dataset.srt === 'days' && typeof daysOpen === 'function') daysOpen();
+  });
+  $('soRetPanel').addEventListener('input', e => {
+    if (e.target.id !== 'srtQ') return;
+    SRT.q = e.target.value; clearTimeout(SRT.t);
+    SRT.t = setTimeout(() => { const pos = e.target.selectionStart; renderShopRet(); const q = $('srtQ'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (er) { /* search box */ } } }, 250);
+  });
 }
 
 /* ####################################################################################################

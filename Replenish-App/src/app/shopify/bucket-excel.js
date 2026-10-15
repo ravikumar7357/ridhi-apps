@@ -598,6 +598,8 @@ let SHP_BUSY = false;
  * So a call that arrives mid-run is remembered and made once the run finishes. */
 let SHP_AGAIN = null;
 async function shpSyncSoon(where) {
+  /* The returns team (returns-team.js) looks at orders; it never opens or closes production lines. */
+  if (typeof SHOP_RET_ONLY === 'function' && SHOP_RET_ONLY()) return;
   if (SHP_BUSY) { SHP_AGAIN = where || SHP_AGAIN || ''; return; }
   if (!SHOP_STOCK_LOADED || !SHOP_INDIA_LOADED || SHOP_INDIA_ERR) return;
   if (!(SO_ALL_ROWS || []).length) return;

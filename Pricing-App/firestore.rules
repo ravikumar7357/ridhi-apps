@@ -68,13 +68,18 @@ service cloud.firestore {
     function canReplShop() {
       return isAdmin() || (hasPerms() && permData().repl == true
         && (!('replTabs' in permData()) || !(permData().replTabs is list) || permData().replTabs.size() == 0
-            || permData().replTabs.hasAny(['shop', 'adj', 'shopify'])));
+            || permData().replTabs.hasAny(['shop', 'adj', 'shopify', 'shopret'])));
+    }
+    // One Replenishment section by name (perms.replTabs). Used for the Shopify returns team (15 Oct), whose right lives
+    // only in the Replenishment app's list.
+    function canReplTab(t) {
+      return isAdmin() || (hasPerms() && permData().repl == true && ('replTabs' in permData()) && permData().replTabs is list && t in permData().replTabs);
     }
     // An account whose Replenishment sections are ONLY Shopify ones — it may not read any copy with sales in it.
     // Same list as the app's SHOP_DATA_TABS (replenishment.js). A legacy grant with no section list is not this.
     function shopDataOnly() {
       return !isAdmin() && hasPerms() && ('replTabs' in permData()) && permData().replTabs is list
-        && permData().replTabs.size() > 0 && permData().replTabs.hasOnly(['shop', 'adj', 'shopify', 'shopprod']);
+        && permData().replTabs.size() > 0 && permData().replTabs.hasOnly(['shop', 'adj', 'shopify', 'shopprod', 'shopret']);
     }
     // Which repl/{doc} documents are planning data rather than shared lookups.
     function replPrivate(d) { return d in ['SP', 'CPC', 'projoverride', 'revtarget']; }
@@ -227,6 +232,8 @@ service cloud.firestore {
     // Splitting them would mean a job could exist on one screen and not the other.
     match /audit/shoporders {
       allow read, write: if can('shop') || can('adj') || can('audit');
+      // The Shopify returns team (15 Oct): returns & replacements are written on the order's own entry here.
+      allow read, write: if canReplTab('shopret');
     }
     // Per-SKU master: shelf bin, HS code, GST rate, invoice rate. Facts about the PRODUCT, written
     // by whoever is picking or preparing the invoice.
@@ -268,13 +275,16 @@ service cloud.firestore {
 
     match /shop/imported {
       allow read, write: if can('shop');
+      allow read: if canReplTab('shopret');   // a return can be raised against an imported order too
     }
     match /shopimp/{doc} {
       allow read, write: if can('shop');
+      allow read: if canReplTab('shopret');
     }
 
     match /audit/skumeta {
       allow read, write: if can('shop') || can('adj') || can('audit');
+      allow read: if canReplTab('shopret');   // the returns team reads the SKU notes (Amazon code, pack), never writes them
     }
     // The bin-only document this replaced. Still read once, to carry old entries over.
     match /audit/skuloc {

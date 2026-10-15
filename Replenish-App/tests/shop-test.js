@@ -194,6 +194,7 @@ const ctx = { AUDIT_OFF: true, BASE_SPLIT_OFF: true,
 };
 const EXPORT = '\n;return {'
   + 'SHOP:()=>SHOP, setSHOP:v=>{SHOP=v}, SHOP_META:()=>SHOP_META, setMETA:v=>{SHOP_META=v},'
+  + 'SHOP_RET_ONLY, renderShopRet, srtStockRows, SRT:()=>SRT,'
   + 'soShipFrom, soWord, srAll, srSave, srSetStatus, srLineRoom, srReturnedQty, srRender, SR:()=>SR, setSR:v=>{SR=v}, zipState, zoneOf, milesBetween, daysEstimate, zipLL, ZONE_DAYS, indiaDaysEstimate, addBizDays, inBandOf,'
   + 'SHOP_STOCK:()=>SHOP_STOCK, setSTOCK:v=>{SHOP_STOCK=v; SHOP_STOCK_BY={SP:{},CPC:{}}}, setSTOCKCASE:v=>{SHOP_STOCK_CASE=v; SHOP_STOCK_CASE_BY={SP:{},CPC:{}}},'
   + 'SHOP_SKU:()=>SHOP_SKU, setSKU:v=>{SHOP_SKU=v}, setINDIA:v=>{SHOP_INDIA=v; SHOP_INDIA_LOADED=true},'
@@ -1971,6 +1972,26 @@ await (async () => {
   ok('India → New York, picked up Monday: 3–4 days, landing Thu–Fri, both services', !r.err && r.dhl.days.join('-') === '3-4' && r.dhl.from === '2026-10-01' && r.dhl.to === '2026-10-02' && r.fedex.to === '2026-10-02', JSON.stringify(r));
   ok('a zip nobody can place is said, not guessed', /not one I can place/.test((await A.indiaDaysEstimate('00000', '2026-09-28')).err || ''));
 })();
+console.log('\n== the Shopify returns team: returns, delivery days, FBA stock by SKU — nothing else (Ravi, 15 Oct) ==');
+{
+  const wasTabs = ME.tabs, wasAdmin = ME.admin;
+  ME.tabs = ['shopret']; ME.admin = false;
+  ok('an account holding only the returns team right is in the narrow form', A.SHOP_RET_ONLY() === true);
+  ME.tabs = ['shopret', 'shop'];
+  ok('…with Shopify Orders as well, it has the full screen', A.SHOP_RET_ONLY() === false);
+  ME.tabs = ['shopret'];
+  A.setSTOCK({ 'RTC327-6060': 12, 'RTC327-60102': 0, 'RPC1-1818': 4 }); A.setINDIA({}); A.setStockLoaded(true);
+  A.SRT().q = 'RTC327';
+  const pane = $('paneShop'); if (pane.classList && pane.classList.remove) pane.classList.remove('hide');
+  A.renderShop();
+  const h = $('soRetPanel').innerHTML;
+  ok('the screen is the three tools: Returns & replacements, Delivery days, FBA stock by SKU — no orders table',
+    /Returns &amp; replacements/.test(h) && /Delivery days by zip code/.test(h) && /FBA stock by SKU/.test(h) && /data-srt="ret"/.test(h) && /data-srt="days"/.test(h), h.slice(0, 300));
+  ok('FBA stock: "RTC327" finds both RTC327 SKUs with their units, and not RPC1', /RTC327-6060<\/td><td class="num">12/.test(h) && /RTC327-60102/.test(h) && !/RPC1-1818/.test(h), h);
+  const rows = A.srtStockRows('RPC1-1818, RTC327-6060');
+  ok('several SKUs typed → exactly those, each with its figure', rows.length === 2 && rows[0].sku === 'RPC1-1818' && rows[0].sp === 4 && rows[1].sp === 12);
+  ME.tabs = wasTabs; ME.admin = wasAdmin;
+}
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exitCode = fail ? 1 : 0;
 })();

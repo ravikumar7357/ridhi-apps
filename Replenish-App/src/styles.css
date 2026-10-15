@@ -1220,3 +1220,11 @@
 .vpb-n{display:flex;flex-direction:column;align-items:flex-end;font-size:12px;min-width:64px}.vpb-n b{font-size:14px}
 .vpb-raw{color:var(--brand-ink);font-weight:700}.vpb-no{color:var(--warn-ink);font-weight:700}
 .vpb-foot{font-size:11.5px}
+/* SHOPIFY RETURNS TEAM (15 Oct): the Shopify Orders screen narrowed to returns, delivery days and FBA stock. */
+#paneShop.so-ret .so-find,#paneShop.so-ret #soLanes,#paneShop.so-ret #soPickMsg,#paneShop.so-ret #soToday,#paneShop.so-ret #soKpis,#paneShop.so-ret #soTableCard{display:none}
+#soRetPanel{margin-top:12px;display:flex;flex-direction:column;gap:14px}#soRetPanel.hide{display:none}
+.srt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(320px,100%),1fr));gap:12px}
+.srt-tile{width:auto;display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:left;padding:16px 18px;border-radius:16px;border:1px solid var(--line);background:var(--soft);cursor:pointer}
+.srt-tile b{font-size:16px;color:var(--ink)}.srt-tile span{font-size:12.5px;color:var(--muted);font-weight:400}.srt-tile:hover{background:var(--brand-bg)}
+.srt-stock{border:1px solid var(--line);border-radius:16px;padding:14px 16px}.srt-h{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin-bottom:8px}.srt-h b{font-size:15px}
+.srt-search input{width:100%;max-width:520px;border-radius:999px}
