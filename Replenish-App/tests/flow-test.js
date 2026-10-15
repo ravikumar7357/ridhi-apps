@@ -1253,6 +1253,17 @@ const K = 'AMZ-1__S1';
     ok('…the line stays in Demand → RFD, marked Partly sent: 40 of 100 sent, 60 still to send', /Partly sent/.test(A.els.flTable.innerHTML) && /40 of 100 pcs sent · 60 still to send/.test(A.els.flTable.innerHTML), A.els.flTable.innerHTML.slice(0, 300));
     A.flowChallanOpen('AMZ-1', 'P1');
     ok('…and the next challan offers the 60 left', /data-chp="0"[^>]*value="60"/.test(A.ctx.__dlg.html));
+    /* A challan already made for all of it is cut down by Edit (Ravi's TRFD-202610-003: 1,00,000 pcs, only part went). */
+    const no = ch.no;
+    A.flowChallanEditOpen(no);
+    ok('Edit challan: the pieces are a box too, at most 40 + the 60 still owed = 100', /data-cep="0"[^>]*max="100"[^>]*value="40"/.test(A.ctx.__dlg.html), A.ctx.__dlg.html.slice(0, 300));
+    const e = { '[data-cek="0"]': { checked: true }, '[data-cem="0"]': { value: '15.8' }, '[data-cep="0"]': { value: '10' } };
+    A.ctx.document.querySelector = sel => e[sel] || null;
+    A.els.flceVen = { value: 'P1' }; A.els.flceDate = { value: '2026-10-15' }; A.els.flceNote = { value: '' };
+    er = await A.ctx.__dlg.onSave();
+    A.setView('drfd'); A.renderFlow();
+    ok('…cut to 10 pcs: the challan says 10, and Demand says 10 of 100 sent, 90 still to send', !er && A.FLOW().ch[no].lines[0].pcs === 10
+      && /10 of 100 pcs sent · 90 still to send/.test(A.els.flTable.innerHTML), er || A.els.flTable.innerHTML.slice(0, 300));
   }
   {
     const C = load({ me: { admin: true }, mdb: { S1: { cons: 1, fab: 'Cotton' } },

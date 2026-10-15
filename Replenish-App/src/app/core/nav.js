@@ -91,6 +91,14 @@ const NAV_PROD_ONLY = (function navProductionOnly() {
    * (backup: Backups/rtdb-full-2026-10-15.json). Printer Allocation moves into the Printing column. */
   const off = document.createElement('div'); off.hidden = true; off.className = 'nav-off';
   ['tabVreq', 'tabVord', 'tabRfd', 'tabVlog'].forEach(id => { const x = $(id); if (x) off.appendChild(x); });
+  /* THE PRINTER'S VIEW, FOR AN ADMIN (Ravi, 15 Oct: "test order place kiya but vendor ko uske portal par show nahi hua").
+   * The Vendors heading is a printer's own since 14 Oct, so an admin had no way left to the portal's "See the portal as
+   * printer". This opens it; syncNavGroups shows it to admins only. */
+  const vpAs = document.createElement('a');
+  vpAs.id = 'tabVpAs'; vpAs.className = 'nav'; vpAs.href = '#vend'; vpAs.style.display = 'none';
+  vpAs.title = 'What a printer sees on its portal — pick the printer at the top (test orders show here too)';
+  vpAs.innerHTML = '<span class="nav-ic">' + SVG('<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>') + '</span><span class="nav-t">Printer\'s portal (view)</span>';
+  vpAs.onclick = e => { e.preventDefault(); showTab('vend'); };
   const cols = [col('1 · PPC · Planning', ['tabFlow']),
     col('2 · Printing', ['tabPalloc']),
     col('3 · Cutting & stitching', ['tabPcut', 'tabPbase', 'tabPpress']),
@@ -98,6 +106,7 @@ const NAV_PROD_ONLY = (function navProductionOnly() {
   const sec = $('secProd');
   sec.textContent = '';
   cols.forEach(c => sec.appendChild(c));
+  cols[1].appendChild(vpAs);
   sec.appendChild(off);
   $('grpProd').dataset.tabs = 'flow,flppc,fldem,flacc,flchl,flcut,flraw,flwip,palloc,pcut,pbase,ppress,qc';
 
@@ -247,6 +256,7 @@ function syncNavGroups() {
     g.head.classList.toggle('hide', dead);
     g.sec.classList.toggle('hide', dead);
   });
+  if ($('tabVpAs')) $('tabVpAs').style.display = ME && ME.admin && !NAV_IS_VENDOR ? '' : 'none';   // the printer's view: admins
 }
 
 /* The hamburger hides the sidebar outright on a wide screen and slides it over the page on a narrow
