@@ -127,34 +127,6 @@ function gdPipeline(name) {
   var ord = (invOnOrder()[k] || {}).m || 0;
   return { order: ord, greige: Math.max(0, e.greigeLeft || 0), proc: Math.max(0, e.withProcessor || 0) };
 }
-function renderPpcLink() {
-  if (typeof flowRfdCover !== 'function') return '<div class="card muted">The production flow is not on this link.</div>';
-  if (!gdFlowReady()) {
-    if (typeof flowEnsureData === 'function' && !GD_FLOW_ASKED) { GD_FLOW_ASKED = true; flowEnsureData().then(function () { if (UI.tab === 'ppc') render(); }, function () { /* told below */ }); }
-    return '<div class="card muted">Reading the PPC plans…</div>';
-  }
-  var cov = flowRfdCover(), rows = Object.keys(cov.fab).map(function (k) { return cov.fab[k]; }).filter(function (f) { return f.need > 0.05; })
-    .sort(function (a, b) { return b.short - a.short || a.name.localeCompare(b.name); });
-  var body = rows.map(function (f) {
-    var gname = fabGreigeOf(f.name), pipe = gdPipeline(f.name), inPipe = pipe.order + pipe.greige + pipe.proc;
-    var toOrder = Math.max(0, f.short - inPipe), greigeM = toOrder > 0.05 ? Math.ceil(toOrder / (1 - GD_LOSS)) : 0;
-    var desk = gdRfdShelf(f.name);
-    return '<tr><td class="frz" style="text-align:left"><b>' + esc(f.name) + '</b><div class="muted" style="font-size:10.5px">' + (gname ? 'bought as ' + esc(gname) : '<span class="err-in">no greige name in Master data</span>') + '</div></td>'
-      + '<td class="num">' + nf(f.need) + '<div class="muted" style="font-size:10.5px">' + plural(f.lines, 'line') + '</div></td>'
-      + '<td class="num">' + nf(Math.max(0, f.free)) + (desk > 0.05 ? '<div class="muted" style="font-size:10.5px">' + nf(desk) + ' m from this desk</div>' : '') + '</td>'
-      + '<td class="num" style="' + (f.short > 0.05 ? 'color:var(--bad);font-weight:700' : '') + '">' + dash(f.short) + '</td>'
-      + '<td class="num">' + dash(pipe.order) + '</td><td class="num">' + dash(pipe.greige) + '</td><td class="num" style="color:var(--proc-ink)">' + dash(pipe.proc) + '</td>'
-      + '<td class="num" style="font-weight:800">' + (greigeM ? nf(greigeM) + ' m' : '<span class="pill pill-ok">covered</span>') + '</td>'
-      + '<td>' + (greigeM && gname ? '<button type="button" class="jw-btn jw-primary" data-ppcpo="' + esc(f.name) + '|' + greigeM + '">Raise greige PO</button>' : '') + '</td></tr>';
-  }).join('');
-  return '<div class="card"><div class="ff-cap">What the PPC plans need in RFD for printing (the production flow’s Demand → RFD), against the RFD free today '
-    + '(the real register and this desk), and what this desk already has on its way. What is still short is the greige to order, with '
-    + Math.round(GD_LOSS * 100) + '% added for what the RFD processor takes.</div>'
-    + '<div class="row" style="margin-bottom:10px"><button type="button" class="ghost" data-gdflow="drfd">Open the flow’s Demand → RFD</button></div>'
-    + '<div class="ff-grid"><table class="xl">'
-    + th(['RFD fabric', 'PPC needs', 'RFD free', 'Short', 'Greige on order', 'Greige in store', 'At RFD processor', 'Greige to order', ''], [1, 2, 3, 4, 5, 6, 7])
-    + '<tbody>' + (body || emptyRow(9, 'No PPC plan is waiting for RFD right now.')) + '</tbody></table></div></div>';
-}
 var GD_FLOW_ASKED = false;
 /* PPC DEMAND ON THE INVENTORY (Ravi, 15 Oct: "Greige for PPC — jo demand aayega ppc se wo greige order se pahle dikhe
  * jisase hum 1 jagah se hi perform kar sake"). The Greige for PPC figures, fabric by fabric, for the Inventory's first
@@ -163,7 +135,7 @@ var GD_FLOW_ASKED = false;
 function gdPpcMap() {
   if (typeof flowRfdCover !== 'function') return null;
   if (!gdFlowReady()) {
-    if (typeof flowEnsureData === 'function' && !GD_FLOW_ASKED) { GD_FLOW_ASKED = true; flowEnsureData().then(function () { if (UI.tab === 'ppc' || UI.tab === 'inv') render(); }, function () { /* the column says so */ }); }
+    if (typeof flowEnsureData === 'function' && !GD_FLOW_ASKED) { GD_FLOW_ASKED = true; flowEnsureData().then(function () { if (UI.tab === 'inv') render(); }, function () { /* the column says so */ }); }
     return { __loading: true };
   }
   var cov = flowRfdCover(), out = {};
@@ -171,7 +143,7 @@ function gdPpcMap() {
     var f = cov.fab[k]; if (!(f.need > 0.05)) return;
     var pipe = gdPipeline(f.name), toOrder = Math.max(0, f.short - (pipe.order + pipe.greige + pipe.proc));
     out[String(f.name).toUpperCase()] = { name: f.name, need: f.need, lines: f.lines, free: Math.max(0, f.free), short: f.short,
-      greigeM: toOrder > 0.05 ? Math.ceil(toOrder / (1 - GD_LOSS)) : 0, greige: fabGreigeOf(f.name) };
+      desk: gdRfdShelf(f.name), onWay: pipe.order + pipe.greige + pipe.proc, greigeM: toOrder > 0.05 ? Math.ceil(toOrder / (1 - GD_LOSS)) : 0, greige: fabGreigeOf(f.name) };
   });
   return out;
 }

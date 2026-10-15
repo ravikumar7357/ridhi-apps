@@ -85,7 +85,7 @@ function renderFlow() {
   if (FLOW_DEMAND.includes(FLOW_VIEW)) FLOW.panel = `<div class="seg" style="display:inline-flex;gap:4px;flex-wrap:wrap;margin-right:14px">${dem.map(([k, l]) =>
     `<button data-fldem="${k}" class="${k === FLOW_VIEW ? '' : 'ghost'}" style="width:auto;padding:5px 14px;font-size:13px">${esc(l)} <b>${nf(n[k] || 0)}</b></button>`).join('')}</div>` + (FLOW.panel || '');
   /* RFD short? The Greige Desk shows the greige to order for it (Ravi, 13 Oct: Greige Desk joined to the PPC flow). */
-  if (FLOW_VIEW === 'drfd' && typeof GD !== 'undefined' && gdAllowed()) FLOW.panel = (FLOW.panel || '') + '<button type="button" class="ghost" data-gdgo="ppc" style="width:auto;padding:5px 14px;font-size:13px;margin-left:10px">Greige Desk · greige for PPC</button>';
+  if (FLOW_VIEW === 'drfd' && typeof GD !== 'undefined' && gdAllowed()) FLOW.panel = (FLOW.panel || '') + '<button type="button" class="ghost" data-gdgo="inv" style="width:auto;padding:5px 14px;font-size:13px;margin-left:10px">Greige Desk · PPC demand</button>';
   $('flPanel').innerHTML = FLOW.panel; $('flPanel').classList.toggle('hide', !FLOW.panel);
   const b = FLOW_BUCKETS.find(x => x[0] === FLOW_VIEW);
   $('flMsg').className = FLOW.err ? 'err' : 'muted';

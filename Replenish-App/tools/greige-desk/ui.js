@@ -1747,13 +1747,21 @@ function renderInv() {
   var ppcCell = function (r) {
     if (ppcMap && ppcMap.__loading) return '<td class="num muted">…</td>';
     var p = r.ppc; if (!p) return '<td class="num">' + dash(0) + '</td>';
-    return '<td class="num"><b>' + nf(p.need) + ' m</b><div class="muted" style="font-size:10.5px">' + plural(p.lines, 'line')
-      + (p.short > 0.05 ? ' · <span style="color:var(--bad);font-weight:700">short ' + nf(p.short) + ' m</span>' : ' · covered') + '</div>'
+    /* What the old Greige for PPC tab showed (Ravi, 15 Oct: "remove this and integrate … under the ppc demand column"):
+     * need, the RFD free against it, short, what is already on its way, and the greige to order. */
+    var sm = 'font-size:10.5px;line-height:1.5';
+    return '<td class="num"><b>' + nf(p.need) + ' m</b><div class="muted" style="' + sm + '">' + plural(p.lines, 'line') + '</div>'
+      + '<div class="muted" style="' + sm + '">RFD free ' + nf(p.free) + ' m' + (p.desk > 0.05 ? ' (' + nf(p.desk) + ' m this desk)' : '') + '</div>'
+      + (p.short > 0.05 ? '<div style="' + sm + ';color:var(--bad);font-weight:700">short ' + nf(p.short) + ' m</div>'
+        + (p.onWay > 0.05 ? '<div class="muted" style="' + sm + '">' + nf(p.onWay) + ' m greige on its way</div>' : '')
+        + (p.greigeM ? '<div style="' + sm + ';font-weight:700">greige to order ' + nf(p.greigeM) + ' m</div>' : '<div style="' + sm + ';color:var(--ok-ink,#166534)">covered by what is on its way</div>')
+        : '<div style="' + sm + ';color:var(--ok-ink,#166534)">covered</div>')
       + (p.greigeM && p.greige ? '<button type="button" class="jw-btn jw-primary" data-ppcpo="' + esc(p.name) + '|' + p.greigeM + '" style="margin-top:4px;padding:3px 10px;font-size:12px">Raise greige PO · ' + nf(p.greigeM) + ' m</button>'
         : p.greigeM ? '<div class="err-in" style="font-size:10.5px">no greige name in Master data</div>' : '') + '</td>';
   };
   var tools = '<div class="row" style="margin:0 0 10px;align-items:center">'
     + (canLedgerEdit() ? '<button type="button" class="ghost" data-act="OPENING_RFD" title="RFD already on the floor: its own lot, so it is issued like any other and never counted as cloth back from a processor.">+ RFD opening stock</button>' : '')
+    + (withPpc ? '<button type="button" class="ghost" data-gdflow="drfd">Open the flow’s Demand → RFD</button>' : '')
     + (withPpc ? '<span class="muted" style="font-size:12px;align-self:center">PPC demand is what the production plans need in RFD; short is after the RFD free today; the PO button orders the greige for it (with ' + Math.round((typeof GD_LOSS !== 'undefined' ? GD_LOSS : 0.05) * 100) + '% for what the processor takes).</span>' : '')
     + '</div>';
   var table = tools + '<div class="card"><div class="ff-grid"><table class="xl">'

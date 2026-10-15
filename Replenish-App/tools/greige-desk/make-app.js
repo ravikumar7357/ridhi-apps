@@ -16,8 +16,6 @@ ui = R(ui, "  $('lmReset').addEventListener('click', function () {\n    if (!arm
   "  $('gdSample').addEventListener('click', function () {\n    if (!armed(this, 'Press again: the test records are replaced by the sample')) return;\n    lmResetSample(); render();\n    lmSay('ok', 'The sample is loaded into the test records.');\n  });\n"
   + "  $('gdClear').addEventListener('click', function () {\n    if (!armed(this, 'Press again to clear every test PO and movement')) return;\n    gdClearAll(); render();\n    lmSay('ok', 'Test POs and movements cleared. Master data is kept.');\n  });");
 ui = R(ui, "  $('meSel').addEventListener('change', function () { DB.me = this.value; lmSaveDb(); render(); lmSay('ok', 'Working as ' + meUser().name + ' · fabric ledger: ' + LEDGER_LABEL[meUser().ledger].toLowerCase() + (meUser().approve ? ' · may approve shrinkage' : '') + '.'); });\n", '');
-ui = R(ui, "  dash: 'Dashboard', po: 'Greige POs &amp; challans', inv: 'Inventory',", "  dash: 'Dashboard', po: 'Greige POs &amp; challans', ppc: 'Greige for PPC', inv: 'Inventory',");
-ui = R(ui, "  var body = UI.tab === 'po' ? renderPo() : UI.tab === 'inv' ? renderInv()", "  var body = UI.tab === 'po' ? renderPo() : UI.tab === 'ppc' ? renderPpcLink() : UI.tab === 'inv' ? renderInv()");
 ui = R(ui, "  try { localStorage.setItem(LM_KEY + '-tab', UI.tab); } catch (e) { /* the tab is a convenience */ }\n", '');
 /* RFD on the shelf goes on to a printer through the flow's Demand */
 ui = R(ui, "        + '<td><button type=\"button\" class=\"jw-btn jw-primary\" data-cut=\"' + esc(g.lot) + '\">Send to cutting</button></td></tr>';",
@@ -51,7 +49,6 @@ css = R(css, 'box-shadow:var(--sh-3);border-left:4px solid var(--brand)}', 'box-
 let html = head.slice(head.indexOf('<div class="shell">'), head.indexOf('<script>'));
 html = R(html, '<div class="brand"><span class="brandname">Ridhi<span class="brandsub">Home &amp; Living</span></span></div>',
   '<div class="brand"><span class="brandname">Greige Desk<span class="brandsub">TEST · separate records</span></span></div>');
-html = R(html, '    <button type="button" class="navgrp" data-tab="po">Greige POs</button>\n', '    <button type="button" class="navgrp" data-tab="po">Greige POs</button>\n    <button type="button" class="navgrp" data-tab="ppc">Greige for PPC</button>\n');
 const sf = html.indexOf('    <div class="sidefoot">'), sfe = html.indexOf('    </div>\n', sf) + '    </div>\n'.length;
 html = html.slice(0, sf) + '    <div class="sidefoot">\n      <span class="lm-tag" title="Saved in the test records only. The real Greige POs and fabric ledger are not touched.">TEST</span>\n'
   + '      <span id="meName" class="muted" style="font-size:12px"></span>\n'
@@ -62,7 +59,7 @@ const out = `/* ================= GREIGE DESK (TEST, 2026-10-13) — built by to
  *
  * Ravi's Greige Desk page (greige POs received bale by bale, issue to RFD by bales, RFD back by thans with a 5% shrinkage
  * approval, inventory with next steps, the fabric ledger and its masters) running inside the app, joined to the PPC flow:
- * "Greige for PPC" shows the greige to buy for what PPC has planned, the flow's Demand → RFD counts this desk's RFD, and
+ * the Inventory's PPC demand column shows the greige to buy for what PPC has planned, the flow's Demand → RFD counts this desk's RFD, and
  * RFD on the shelf goes on to a printer through the flow. Preview link only (FLOW_ON); saves to pt_gdTest only.
  *
  * Sealed: its styles and element ids live in a shadow root on #paneGdesk, its names inside this one closure. Only GD is
