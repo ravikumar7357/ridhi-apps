@@ -106,16 +106,7 @@ ${layer}
     if (!GD_WIRED) { GD_WIRED = true; wireShell(); wirePurchaseOrders(); wireInventory(); wireLedger(); wireMasterData(); wireEntry(); wireUsersRfd(); wireGd(); }
     render();
   }
-  /* Demand → RFD's "By fabric" table (Ravi, 15 Oct: greige in the PPC Demand button): this desk's greige on its way for an
-   * RFD fabric and the greige to order for what is short there (+5% processor loss). null until the desk's records are read. */
-  function greige(name, short) {
-    if (!DB) return null;
-    var pipe = gdPipeline(name), toOrder = Math.max(0, (+short || 0) - (pipe.order + pipe.greige + pipe.proc));
-    return { gname: fabGreigeOf(name), order: pipe.order, store: pipe.greige, proc: pipe.proc, toOrder: toOrder > 0.05 ? Math.ceil(toOrder / (1 - GD_LOSS)) : 0 };
-  }
-  /** The desk's greige PO, its line written from Demand. */
-  async function poFor(rfd, metres) { await open('po'); gdPoFor(rfd, metres); }
-  return { open: open, ensure: function () { return gdLoad(); }, rfdShelf: function (n) { return gdRfdShelf(n); }, greige: greige, poFor: poFor };
+  return { open: open, ensure: function () { return gdLoad(); }, rfdShelf: function (n) { return gdRfdShelf(n); } };
 })();
 `;
 fs.writeFileSync(OUT, out);
