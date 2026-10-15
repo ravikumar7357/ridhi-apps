@@ -80,7 +80,7 @@ function flowFabricOpen(r, s) {
  * does not reach is short by what it misses. */
 const flowFabKey = n => String(n || '').trim().toUpperCase();
 function flowRfdStock(name) {
-  /* On the test link the Greige Desk's RFD on the shelf counts too (its own test records, flow/greige-desk.js). */
+  /* The Greige Desk's RFD on the shelf counts too (its own records, flow/greige-desk.js). */
   let desk = 0; try { desk = FLOW_ON && typeof GD !== 'undefined' ? +GD.rfdShelf(name) || 0 : 0; } catch (e) { desk = 0; }
   try { return Math.max(0, +fabStockOf(name, 'RFD') || 0) + desk; } catch (e) { return desk; }
 }

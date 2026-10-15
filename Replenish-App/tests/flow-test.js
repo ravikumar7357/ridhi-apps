@@ -1102,7 +1102,9 @@ const K = 'AMZ-1__S1';
     ok('the "+ Test order" button and the switch are hidden', B.els.flTest.style.display === 'none');
     const C = load({ ls: { flowTests: null }, me: { admin: true }, db, lines: [L({ sku: 'R2' })] });
     await C.flowLoad(true);
-    ok('on by default: the test under way carries on', Object.keys(C.FLOW().test).join() === TN && Object.keys(C.FLOW().po).length === 2);
+    ok('OFF by default since 15 Oct (real working): no test order is read', !Object.keys(C.FLOW().test).length && !Object.values(C.FLOW().po).some(o => /^TEST-/.test(o.orderNo)), JSON.stringify(Object.values(C.FLOW().po).map(o => o.orderNo)));
+    C.setView('ppc'); C.renderFlow();
+    ok('…and no "+ Test order" button or switch', C.els.flTest.style.display === 'none');
   }
 
   console.log('== a test order made from a sales order (Ravi, 14 Oct) ==');

@@ -71,7 +71,7 @@ const REPL_TABS = ['repl', 'article', 'target', 'top', 'shopify', 'pack',
   'shop', 'adj', 'shopprod', 'shopret', 'dash',
   /* Production flow (test, 2026-10-10): one right per bucket — the same keys as FLOW_BUCKETS in flow/flow-core.js. */
   'flppc', 'fldem', 'flacc', 'flchl', 'flcut', 'flraw', 'flwip',
-  /* Greige Desk (test, 2026-10-13): open it, see the fabric ledger, add to / correct it, approve shrinkage over 5%. */
+  /* Greige Desk (2026-10-13; real since 15 Oct): open it, see the fabric ledger, add to / correct it, approve shrinkage over 5%. */
   'gdesk', 'gdled', 'gdledit', 'gdappr'];   // section keys, gated per-user via perms.replTabs — 'dash' is the admins' dashboard
 let REPL = { SP: null, CPC: null };   // brand → { rows, at }
 let PO = [];                  // purchase orders

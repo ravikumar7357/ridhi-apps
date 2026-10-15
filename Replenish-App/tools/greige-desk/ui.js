@@ -2283,7 +2283,7 @@ function renderMstVenLinked() {
   var body = list.map(function (v) {
     var used = venUsed(v.name);
     return '<tr><td class="frz" style="text-align:left"><b>' + esc(v.name || DASH) + '</b>'
-      + (v.deskOnly ? '<div class="muted" style="font-size:10.5px">only on these test records &mdash; not in the Master Data</div>' : '') + '</td>'
+      + (v.deskOnly ? '<div class="muted" style="font-size:10.5px">only on the Greige Desk &mdash; not in the Master Data</div>' : '') + '</td>'
       + VEN_COLS.map(function (c) {
         var val = v[c[0]] == null ? '' : v[c[0]];
         if (c[0] === 'kind') { var vk = venKind(v); return '<td><span class="pill ' + (vk === 'RFD Processor' ? 'pill-sea' : 'pill-ok') + '">' + esc(vk || DASH) + '</span></td>'; }

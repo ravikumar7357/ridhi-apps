@@ -193,7 +193,7 @@ onAuthStateChanged(auth, async user => {
     /* History and Customer Orders are factory screens too; missing here, a login holding History loaded
      * the Replenishment snapshot at sign-in — a vendor's among them. */
     'vlog', 'cx', ...FLOW_TABS,
-    /* The Greige Desk's four rights (test, 2026-10-13) are factory screens too. */
+    /* The Greige Desk's four rights (2026-10-13) are factory screens too. */
     'gdesk', 'gdled', 'gdledit', 'gdappr'];
   const FACTORY_ONLY = ME.tabs.every(t => FACTORY_TABS.includes(t));
 

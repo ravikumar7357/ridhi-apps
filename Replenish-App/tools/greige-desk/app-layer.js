@@ -1,6 +1,7 @@
-/* ================= GREIGE DESK INSIDE THE REPLENISH APP (TEST, preview link only) =================
+/* ================= GREIGE DESK INSIDE THE REPLENISH APP (real working since 15 Oct) =================
  * Ravi, 13 Oct: "is wale part ko bhi jaise humne PPC test flow me run kiya hua h aise hi run kardo" -- the Greige Desk
- * joined to the PPC flow. Everything it writes goes to its own test node (pt_gdTest); the real Greige POs and the real
+ * joined to the PPC flow. Everything it writes goes to its own node, pt_gdTest (named in its test days; since 15 Oct, Ravi:
+ * "griege ka bhi test window hatao", it holds the real greige POs and movements, RIDHI/PO/GREIG/001 on); the older Greige POs and the
  * fabric ledger are never touched. Its masters start as a copy of the app's own (fabric pairs, suppliers, RFD
  * processors, company); the rights come from the person signed in. */
 var GD_NODE = 'pt_gdTest', GD_SNAP = null, GD_READY = null;
@@ -19,7 +20,7 @@ function lmSaveDb() {
   });
   ['mst', 'ven', 'co'].forEach(function (k) { if (was[k] !== now[k]) patch[GD_NODE + '/' + k] = JSON.parse(now[k]); });
   GD_SNAP = now;
-  if (Object.keys(patch).length) Promise.resolve(ptPatch(patch)).catch(function (e) { lmSay('err', 'Not saved to the test records: ' + (e && e.message || e)); });
+  if (Object.keys(patch).length) Promise.resolve(ptPatch(patch)).catch(function (e) { lmSay('err', 'Not saved: ' + (e && e.message || e)); });
 }
 function gdFromStore(v) {
   var list = function (o) { return Object.keys(o || {}).map(function (k) { var x = o[k]; if (x && !x.id) x.id = k; return x; }).filter(Boolean); };
@@ -56,14 +57,14 @@ function gdSeedMasters() {
   } catch (e) { /* none */ }
   try { ((typeof FAB !== 'undefined' && FAB.rows) || []).forEach(function (r) { if (r.txnType === 'ISSUE_TO_RFD') addVen(r.party, 'RFD Processor'); }); } catch (e) { /* none */ }
   return { mst: mst, ven: ven, co: { name: gdCoName(), addr: '', email: '', gstin: '', iec: '', pan: '', jurisdiction: 'Jaipur',
-    poPrefix: 'TEST/PO/GREIG/', poNext: 1, rfdPrefix: 'TEST/RFD/' } };
+    poPrefix: 'RIDHI/PO/GREIG/', poNext: 1, rfdPrefix: 'RIDHI/RFD/' } };
 }
 function gdSaveAll() {
   var store = { gpo: {}, fab: {}, mst: DB.mst || [], ven: DB.ven || [], co: DB.co || {} };
   (DB.gpo || []).forEach(function (x) { store.gpo[x.id] = x; });
   (DB.fab || []).forEach(function (x) { store.fab[x.id] = x; });
   GD_SNAP = gdSnap();
-  return Promise.resolve(ptPut(GD_NODE, JSON.parse(JSON.stringify(store)))).catch(function (e) { lmSay('err', 'Not saved to the test records: ' + (e && e.message || e)); });
+  return Promise.resolve(ptPut(GD_NODE, JSON.parse(JSON.stringify(store)))).catch(function (e) { lmSay('err', 'Not saved: ' + (e && e.message || e)); });
 }
 function gdLoad() {
   if (GD_READY) return GD_READY;
@@ -78,7 +79,7 @@ function gdLoad() {
   return GD_READY;
 }
 function lmLoad() { if (!DB) DB = { gpo: [], fab: [], mst: [], ven: [], co: {}, users: [], me: '' }; lmMigrate(); }
-/* "Load sample data" -- the model's sample, under TEST numbers, the company's own name on it. */
+/* The model's sample (no button for it in the app since 15 Oct), the company's own name on it. */
 function lmResetSample() { var s = lmSample(); s.co.name = gdCoName(); s.users = []; s.me = ''; DB = s; lmMigrate(); gdSaveAll(); }
 function gdClearAll() { DB.gpo = []; DB.fab = []; gdSaveAll(); }
 
@@ -101,8 +102,6 @@ function meFill() {
   /* NO MASTER DATA TAB IN THE APP (Ravi, 15 Oct: "remove the master data from here, it will come from setup"): the fabrics and
    * the suppliers / RFD processors are Setup -> Master Database's own (gdLinkMasters). */
   [].forEach.call(document.querySelectorAll('.navgrp[data-tab="mst"]'), function (b) { b.hidden = gdLinked(); });
-  var adm = !!((typeof ME !== 'undefined' && ME) || {}).admin;
-  ['gdSample', 'gdClear'].forEach(function (id) { var b = $(id); if (b) b.hidden = !adm; });
 }
 function renderMstUsers() {
   var u = meUser();
