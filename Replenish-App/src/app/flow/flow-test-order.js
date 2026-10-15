@@ -64,6 +64,8 @@ function flowSoChoices() {
   const by = new Map();
   (typeof ordLines === 'function' ? ordLines() : []).forEach(r => {
     const no = obUC(r && r.orderNo); if (!no || flowIsTest(no)) return;
+    /* A Shopify order opened from the bucket runs the flow for real (FLOW_MTO_LIVE) — no test copy of it. */
+    if (flowMtoLive(r)) return;
     const e = by.get(no) || { no, date: String(ptIsoDate(r.orderDate) || ''), src: r.src || no.split('-')[0], lines: [] };
     e.lines.push({ sku: obUC(r.sku), qty: Math.round(+r.qty || 0) });
     by.set(no, e);

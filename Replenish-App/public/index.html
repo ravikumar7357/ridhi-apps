@@ -24404,9 +24404,26 @@ const FLOW_REAL = (() => {
   return FLOW_REAL_DEFAULT;
 })();
 const FLOW_NO_REAL = Object.freeze([]);
+/* SHOPIFY RUNS FOR REAL (Ravi, 15 Oct: "aage se sales order hamara production bucket se order open ho to auto ppc me aana
+ * chahiye, hume test order se 1 bhi order open nahi karna h"). With FLOW_REAL still off, a Shopify / online order put on
+ * the book from FLOW_MTO_FROM on — opened from the Production bucket — is a real flow order: it is in PPC by itself, and the
+ * old screens hand its printing to PPC. Shopify lines opened before, and every Amazon / B2B order, go the old way.
+ * The day is the day the line was OPENED (openIso), not the day the customer ordered: an order opened today from last
+ * week is still new. localStorage flowMto = '0' turns it off on one computer. */
+const FLOW_MTO_FROM = '2026-10-15';
+const FLOW_MTO_LIVE = (() => { try { return localStorage.getItem('flowMto') !== '0'; } catch (e) { return true; } })();
+const flowMtoLive = r => !!(FLOW_MTO_LIVE && r && !r.__t && ordIsMto(obUC(r.orderNo)) && String(r.openIso || '') >= FLOW_MTO_FROM);
+let FLOW_MTO_C = { src: null, rows: FLOW_NO_REAL, nos: new Set() };
+/** The real lines the flow runs while FLOW_REAL is off — the Shopify / online ones opened from FLOW_MTO_FROM. */
+function flowMtoLines() {
+  const src = typeof ordLines === 'function' ? ordLines() : [];
+  if (FLOW_MTO_C.src !== src) { const rows = src.filter(flowMtoLive); FLOW_MTO_C = { src, rows, nos: new Set(rows.map(r => obUC(r.orderNo))) }; }
+  return FLOW_MTO_C.rows;
+}
 /** What the flow's screens say about the phase they are in (14 Oct: the flow is on the live app, so "not on the live app"
  * was no longer true). */
 const flowPhaseTxt = () => FLOW_REAL ? `LIVE — the flow runs the real orders from ${flowFrom()}`
+  : FLOW_MTO_LIVE ? `Shopify LIVE — Shopify / online orders opened from the Production bucket from ${FLOW_MTO_FROM} run here by themselves; Amazon / B2B still go the old way (test orders only)`
   : 'TEST phase — the flow runs test orders only; real orders go the old way';
 /* PPC and Demand apply to orders from this date on: the 2,000 older POs were never planned this way, and putting them
  * all in PPC would bury the new ones. Older lines go straight to the bucket of the step they are really at. */
@@ -24433,7 +24450,8 @@ function flowOwnsOrder(orderNo, date) {
   if (!FLOW_ON) return false;
   const no = obUC(orderNo); if (!no) return false;
   if (/^TEST-/.test(no)) return true;
-  if (!FLOW_REAL) return false;   // test phase: a real order is not the flow's
+  /* test phase: a real order is not the flow's — unless it is a Shopify / online order opened from FLOW_MTO_FROM */
+  if (!FLOW_REAL) return ordIsMto(no) && (flowMtoLines(), FLOW_MTO_C.nos.has(no));
   const iso = String(ptIsoDate(date != null && date !== '' ? date : flowOrderDate(no)) || '');
   return !!iso && iso >= flowFrom();
 }
@@ -24526,7 +24544,9 @@ function flowTestsOn() { try { return localStorage.getItem('flowTests') !== '0';
  * link — plans, fabric ready, reservations, challans, print orders, FG sends — is left out as it is read, so no flow list
  * shows it and no real accessory or RFD figure is held by it. Nothing is deleted. */
 function flowDropReal() {
-  const isTest = (k, v) => /^TEST-/.test(String(k)) || !!(v && (v.test || /^TEST-/.test(obUC(v.orderNo))));
+  /* A Shopify / online order's records are kept: those orders run for real (FLOW_MTO_LIVE). None was written before. */
+  const mto = (k, v) => FLOW_MTO_LIVE && (/^(SHP|ONL)-/.test(String(k)) || /^(SHP|ONL)-/.test(obUC(v && v.orderNo)));
+  const isTest = (k, v) => /^TEST-/.test(String(k)) || !!(v && (v.test || /^TEST-/.test(obUC(v.orderNo)))) || mto(k, v);
   const keep = o => Object.fromEntries(Object.entries(o || {}).filter(([k, v]) => isTest(k, v)));
   FLOW.ppc = keep(FLOW.ppc); FLOW.dem = keep(FLOW.dem); FLOW.res = keep(FLOW.res);
   FLOW.ch = keep(FLOW.ch); FLOW.po = keep(FLOW.po); FLOW.fg = keep(FLOW.fg);
@@ -24584,7 +24604,7 @@ function flowState(r) {
   const k = flowKey(r.orderNo, r.sku), qty = +r.qty || 0;
   const cap = n => Math.max(0, Math.min(qty, +n || 0));
   const p = (FLOW.ppc || {})[k] || null, d = (FLOW.dem || {})[k] || null, res = (FLOW.res || {})[k] || null;
-  const isNew = String(ptIsoDate(r.orderDate) || '') >= flowFrom();
+  const isNew = String(ptIsoDate(r.orderDate) || '') >= flowFrom() || flowMtoLive(r);
   /* A test order (flow-test-order.js) carries its own simulated figures instead of the registers'. */
   const t = r.__t;
   const v = t ? { given: +t.given || 0, back: +t.back || 0 } : ordVendorOf(r.orderNo, r.sku);
@@ -24657,7 +24677,7 @@ function flowState(r) {
 /** Every open line (and every new order's lines) with its state. Cached on the order book and the three nodes. */
 let FLOW_C = { src: null, test: null, ppc: null, dem: null, res: null, rows: null };
 function flowRows() {
-  const real = FLOW_REAL ? ordLines() : FLOW_NO_REAL, test = flowTestLines();
+  const real = FLOW_REAL ? ordLines() : flowMtoLines(), test = flowTestLines();
   if (FLOW_C.rows && FLOW_C.src === real && FLOW_C.test === test && FLOW_C.ppc === FLOW.ppc && FLOW_C.dem === FLOW.dem && FLOW_C.res === FLOW.res && FLOW_C.ch === FLOW.ch && FLOW_C.po === FLOW.po && FLOW_C.fg === FLOW.fg
     && FLOW_C.qc === (typeof QC !== 'undefined' ? QC.checks : null) && FLOW_C.fgi === (typeof FGI !== 'undefined' ? FGI.rows : null)) return FLOW_C.rows;
   const lines = test.length ? real.concat(test) : real;
@@ -25668,6 +25688,8 @@ function flowSoChoices() {
   const by = new Map();
   (typeof ordLines === 'function' ? ordLines() : []).forEach(r => {
     const no = obUC(r && r.orderNo); if (!no || flowIsTest(no)) return;
+    /* A Shopify order opened from the bucket runs the flow for real (FLOW_MTO_LIVE) — no test copy of it. */
+    if (flowMtoLive(r)) return;
     const e = by.get(no) || { no, date: String(ptIsoDate(r.orderDate) || ''), src: r.src || no.split('-')[0], lines: [] };
     e.lines.push({ sku: obUC(r.sku), qty: Math.round(+r.qty || 0) });
     by.set(no, e);
