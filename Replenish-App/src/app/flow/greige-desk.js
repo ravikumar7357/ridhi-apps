@@ -4221,6 +4221,18 @@ function gdRfdShelf(name) {
   var k = String(name || '').trim().toUpperCase(), e = fabFlowRows(DB.fab || []).filter(function (x) { return String(x.fabricType).toUpperCase() === k; })[0];
   return e ? Math.max(0, e.rfdLeft) : 0;
 }
+/* THE DAY THIS DESK COUNTED AN RFD FABRIC (Ravi, 15 Oct: Sheeting 72 shown 21,782 m where the shelf holds 13,600): the
+ * newest OPENING_RFD for it, ISO. PPC takes that count in place of the old fabric ledger up to that day. '' = never counted. */
+function gdRfdOpened(name) {
+  if (!DB) return '';
+  var k = String(name || '').trim().toUpperCase(), d = '';
+  (DB.fab || []).forEach(function (r) {
+    if (!r || r.txnType !== 'OPENING_RFD' || String(r.fabricType || '').trim().toUpperCase() !== k) return;
+    var x = String(r.date || ''), m = x.match(/^(\d{2})-(\d{2})-(\d{4})/); if (m) x = m[3] + '-' + m[2] + '-' + m[1];
+    x = x.slice(0, 10); if (x > d) d = x;
+  });
+  return d;
+}
 function gdPipeline(name) {
   var k = String(name || '').trim().toUpperCase(), e = fabFlowRows(DB.fab || []).filter(function (x) { return String(x.fabricType).toUpperCase() === k; })[0] || {};
   var ord = (invOnOrder()[k] || {}).m || 0;
@@ -4338,5 +4350,5 @@ function wireGd() {
     if (!GD_WIRED) { GD_WIRED = true; wireShell(); wirePurchaseOrders(); wireInventory(); wireLedger(); wireMasterData(); wireEntry(); wireUsersRfd(); wireGd(); }
     render();
   }
-  return { open: open, ensure: function () { return gdLoad(); }, rfdShelf: function (n) { return gdRfdShelf(n); } };
+  return { open: open, ensure: function () { return gdLoad(); }, rfdShelf: function (n) { return gdRfdShelf(n); }, rfdOpened: function (n) { return gdRfdOpened(n); } };
 })();

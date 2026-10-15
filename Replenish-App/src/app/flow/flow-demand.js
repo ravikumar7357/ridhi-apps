@@ -81,8 +81,23 @@ function flowFabricOpen(r, s) {
 const flowFabKey = n => String(n || '').trim().toUpperCase();
 function flowRfdStock(name) {
   /* The Greige Desk's RFD on the shelf counts too (its own records, flow/greige-desk.js). */
-  let desk = 0; try { desk = FLOW_ON && typeof GD !== 'undefined' ? +GD.rfdShelf(name) || 0 : 0; } catch (e) { desk = 0; }
+  let desk = 0, opened = '';
+  try { if (FLOW_ON && typeof GD !== 'undefined') { desk = +GD.rfdShelf(name) || 0; opened = (GD.rfdOpened && GD.rfdOpened(name)) || ''; } } catch (e) { desk = 0; opened = ''; }
+  /* THE DESK'S COUNT REPLACES THE OLD LEDGER'S (Ravi, 15 Oct: "72 sheeting me mere pas 13600 mtr fabric h but yaha show ho
+   * rha h 21,782"). The desk took an opening stock of Sheeting 72 on 15 Oct (13,600 m); the old fabric ledger still held its
+   * 22 Sep opening (8,350 m, less 168 m handed to printers) — added together, 21,782. A fabric the desk has counted is that
+   * count, plus what the old ledger moved AFTER the day of the count; a fabric it never counted is the old ledger, as before. */
+  if (opened) { try { return Math.max(0, desk + flowLedgerAfter(name, opened)); } catch (e) { return desk; } }
   try { return Math.max(0, +fabStockOf(name, 'RFD') || 0) + desk; } catch (e) { return desk; }
+}
+/** RFD the old fabric ledger moved (in +, out −) for one fabric after a day (ISO), the day itself not counted. */
+function flowLedgerAfter(name, day) {
+  const k = flowFabKey(name);
+  return fabAll().reduce((a, r) => {
+    if (!r || flowFabKey(r.fabricType) !== k || fabState(r) !== 'RFD' || !fabKnown(r.txnType)) return a;
+    const d = String(ptIsoDate(r.createdAt || r.date) || '');
+    return d > day ? a + fabMove(r) : a;
+  }, 0);
 }
 function flowRfdCover() {
   const rows = flowRows(), fab = {}, line = {};
