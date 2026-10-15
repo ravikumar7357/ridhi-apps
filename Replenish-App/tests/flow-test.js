@@ -1230,6 +1230,43 @@ const K = 'AMZ-1__S1';
     ok('filters add up: Shopify AND Tablecloth → nothing', !/AMZ-A|SHP-B/.test(F.els.flTable.innerHTML) && F.els.flFiltN.textContent === '2');
   }
 
+  console.log('== a challan for part of the pieces; same SKU, same day orders combined in PPC (15 Oct) ==');
+  {
+    const mdb = { 'RTC327-6060': { color: 'Light Steel Blue', fabric: 'Sheeting 62', consumption: 1.58, cuttingRequired: false } };
+    const pr = { code: 'P1', name: 'Sanganer Prints' };
+    const A = load({ me: { admin: true }, mdb, rfd: { 'SHEETING 62': 9999 }, lines: [L({ sku: 'RTC327-6060', qty: 100 })],
+      ppc: { 'AMZ-1__RTC327-6060': plan({ sku: 'RTC327-6060', qty: 100, printer: pr, fabric: { name: 'Sheeting 62', perPc: 1.58, metres: 158 }, print: { need: true } }) } });
+    A.setView('drfd'); A.renderFlow();
+    A.flowChallanOpen('AMZ-1', 'P1');
+    ok('a line printed on the SKU itself: the pieces are a box, 100 owed', /data-chp="0"[^>]*value="100"/.test(A.ctx.__dlg.html), A.ctx.__dlg.html.slice(0, 200));
+    const q = { '[data-chk="0"]': { checked: true }, '[data-chm="0"]': { value: '63.2' }, '[data-chp="0"]': { value: '40' } };
+    A.ctx.document.querySelector = sel => q[sel] || null;
+    A.els.flcVen = { value: 'P1' }; A.els.flcDate = { value: '2026-10-15' }; A.els.flcNote = { value: '' }; A.ctx.__win = [];
+    q['[data-chp="0"]'].value = '101';
+    let er = await A.ctx.__dlg.onSave();
+    ok('more pieces than owed is refused', /at most the 100 still owed/.test(er || ''), er);
+    q['[data-chp="0"]'].value = '40';
+    er = await A.ctx.__dlg.onSave();
+    const ch = Object.values(A.FLOW().ch)[0];
+    ok('40 of 100 pieces: the challan carries 40 pcs', !er && ch && ch.lines[0].pcs === 40, er || JSON.stringify(ch && ch.lines));
+    A.setView('drfd'); A.renderFlow();
+    ok('…the line stays in Demand → RFD, marked Partly sent: 40 of 100 sent, 60 still to send', /Partly sent/.test(A.els.flTable.innerHTML) && /40 of 100 pcs sent · 60 still to send/.test(A.els.flTable.innerHTML), A.els.flTable.innerHTML.slice(0, 300));
+    A.flowChallanOpen('AMZ-1', 'P1');
+    ok('…and the next challan offers the 60 left', /data-chp="0"[^>]*value="60"/.test(A.ctx.__dlg.html));
+  }
+  {
+    const C = load({ me: { admin: true }, mdb: { S1: { cons: 1, fab: 'Cotton' } },
+      lines: [L({ orderNo: 'AMZ-7', sku: 'S1', qty: 30, orderDate: '2026-10-15' }), L({ orderNo: 'B2B-8', src: 'B2B', sku: 'S1', qty: 20, orderDate: '2026-10-15' }),
+        L({ orderNo: 'AMZ-9', sku: 'S1', qty: 5, orderDate: '2026-10-14' })] });
+    C.setView('ppc'); C.renderFlow();
+    const h = C.els.flTable.innerHTML;
+    ok('PPC: two orders of one day for S1 are one row — Combined · 2 orders, 30 + 20 = 50, Plan together', /Combined · 2 orders/.test(h) && /<b>50<\/b>/.test(h) && /30 \+ 20/.test(h)
+      && /data-flppck="AMZ-7__S1,B2B-8__S1"/.test(h), h.slice(0, 400));
+    ok('…another day\'s order for the same SKU stays a row of its own', /data-flppc="AMZ-9"/.test(h) && (h.match(/Combined ·/g) || []).length === 1);
+    C.flowPpcOpen('', '', ['AMZ-7__S1', 'B2B-8__S1']);
+    ok('Plan together opens one plan for both orders, a card each', /AMZ-7, B2B-8/.test(C.ctx.__dlg.title) && (C.ctx.__dlg.html.match(/class="fpc-h"/g) || []).length === 2, C.ctx.__dlg.title);
+  }
+
   console.log('== a TEST order walks every bucket, end to end ==');
   {
     A = load({ me: { admin: true }, lines: [L({ orderNo: 'AMZ-REAL', sku: 'R1' })], mdb: { S1: { cons: 0.5, fab: 'Cotton', articleSubtype: 'Napkin' }, X1: { cons: 1, fab: 'Cotton' } }, rfd: { COTTON: 999 } });

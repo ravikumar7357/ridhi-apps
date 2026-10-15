@@ -67,7 +67,21 @@ const NAV_PROD_ONLY = (function navProductionOnly() {
   const orders = group('Orders', 'Orders', 'so,ord,cx', [$('tabSo'), $('tabOrd'), $('tabCx')]);
   const store = group('Store', 'Store', 'fab,gdesk,acc,fgi,fba',
     [col('Materials', ['tabFab', 'tabGdesk', 'tabAcc']), col('Finished & dispatch', ['tabFgi', 'tabFba'])], 'mg-2');
-  const setup = group('Setup', 'Setup', 'pmdb,mst', [$('tabPmdb'), $('tabMst')]);
+  /* PO SETTINGS IN SETUP (Ravi, 15 Oct: "haan PO settings setup me laga do"). Its old button sat in the Fabric tab, hidden
+   * since the store went by hand. Not a tab of its own: it opens the same dialog (greige-po.js gpoSettingsOpen). Admins only,
+   * as before. */
+  const poSet = document.createElement('a');
+  poSet.id = 'tabPoSet'; poSet.className = 'nav'; poSet.href = '#poset';
+  poSet.title = 'Company name, address, GSTIN and default terms printed on every PO';
+  poSet.innerHTML = '<span class="nav-ic">' + SVG('<path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6"/><circle cx="12" cy="14" r="2.5"/><path d="M12 10.5v1M12 16.5v1M8.5 14h1M14.5 14h1"/>')
+    + '</span><span class="nav-t">PO settings</span>';
+  poSet.onclick = async e => {
+    e.preventDefault();
+    if (!ME || !ME.admin) { ptOpenDialog({ title: 'PO settings', note: 'Only an admin can change what every PO says about the company.' }); return; }
+    if (typeof ensureGpo === 'function') await ensureGpo();
+    gpoSettingsOpen();
+  };
+  const setup = group('Setup', 'Setup', 'pmdb,mst', [$('tabPmdb'), $('tabMst'), poSet]);
 
   /* The columns are built while the links are still in the page — a link cleared out first can no longer be found. */
   /* THE OLD PRINTING SCREENS ARE OFF THE MENU (Ravi, 15 Oct: "jo hame PPC me chahiye wo hi tab rakho, baki ke delete kardo,

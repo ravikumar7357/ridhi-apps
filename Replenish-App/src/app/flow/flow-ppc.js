@@ -218,9 +218,13 @@ function flowPrinterOpts(code) {
   return vens.filter(v => /print/i.test(String(v.category || ''))).map(v => `<option value="${esc(v.code)}"${String(v.code) === String(code || '') ? ' selected' : ''}>${esc(v.desc || v.name || v.code)}</option>`).join('');
 }
 /** PPC's form for every line of one PO that is still in PPC (or one line). */
-function flowPpcOpen(orderNo, onlySku) {
-  const rows = flowRows().filter(x => x.r.orderNo === orderNo && (onlySku ? obUC(x.r.sku) === obUC(onlySku) : x.s.bucket === 'ppc'));
+function flowPpcOpen(orderNo, onlySku, keys) {
+  /* SAME SKU, SAME DAY, ONE PLAN (Ravi, 15 Oct: "1 SKU ka same day order aay to wo sare order combine hokar dikhe PPC team
+   * ko"): `keys` names lines of several orders, planned in one go — each keeps its own plan, its own print order. */
+  const rows = flowRows().filter(x => keys && keys.length ? keys.includes(x.s.key) && x.s.bucket === 'ppc'
+    : x.r.orderNo === orderNo && (onlySku ? obUC(x.r.sku) === obUC(onlySku) : x.s.bucket === 'ppc'));
   if (!rows.length) return;
+  if (keys && keys.length) orderNo = [...new Set(rows.map(x => x.r.orderNo))].join(', ');
   /* AN OLD PLAN OPENS ON THE MASTER DATA (Ravi, 10 Oct: "main fabric galat select kar raha h"). Plans saved before the
    * fabric came from the master row carry the width calculator's answer (RPC327-1818: Sheeting 82 · 0.13 m/pc, where the
    * master row says Canvas · 0.53). Unless PPC typed that fabric on purpose, the form opens with the master row's and
