@@ -1316,8 +1316,23 @@
       <div class="card" style="padding:12px 14px">
         <div id="flBuckets" class="fl-row"></div>
         <div class="toolbar" style="margin-top:10px">
-          <input id="flQ" placeholder="Find a PO, SKU, colour…" style="max-width:260px">
-          <select id="flSrc" style="max-width:170px"></select>
+          <!-- SEARCH + FILTERS (Ravi, 15 Oct: "add a search bar and filter all action"): one search, and every filter in one
+               Filters panel — platform, article, subtype, colour, size, fabric, printer, order age. -->
+          <span class="fl-search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="flQ" type="search" placeholder="Search PO, SKU, colour, fabric, printer…"></span>
+          <details class="fl-filt" id="flFilt">
+            <summary class="fl-filt-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg> Filters <b id="flFiltN" class="fl-filt-n"></b></summary>
+            <div class="fl-filt-pop">
+              <label>Platform<select id="flSrc"></select></label>
+              <label>Article<select id="flFArt"></select></label>
+              <label>Subtype<select id="flFSub"></select></label>
+              <label>Colour<select id="flFCol"></select></label>
+              <label>Size<select id="flFSize"></select></label>
+              <label>Fabric<select id="flFFab"></select></label>
+              <label>Printer<select id="flFPrn"></select></label>
+              <label>Order age<select id="flFAge"><option value="">Any age</option><option value="3">Over 3 days</option><option value="5">Over 5 days</option><option value="10">Over 10 days</option><option value="20">Over 20 days</option></select></label>
+              <button id="flFClear" type="button" class="ghost">Clear filters</button>
+            </div>
+          </details>
           <button id="flRefresh" class="ghost" style="width:auto">Refresh</button>
           <button id="flTest" style="width:auto;background:#7c3aed;border-color:#7c3aed">+ Test order</button>
           <label style="display:inline-flex;gap:6px;align-items:center;font-size:13px;color:#6d28d9;font-weight:600"><input id="flTestOnly" type="checkbox" style="width:auto"> Only test orders</label>
@@ -1326,7 +1341,7 @@
       </div>
       <div id="flPanel" class="card hide" style="margin-top:12px;padding:10px 14px;overflow-x:auto"></div>
       <div class="card xlwrap jw-table" style="margin-top:12px"><table class="xl" id="flTable"></table></div>
-      <style>.fl-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.fl-b{width:auto;display:flex;flex-direction:column;align-items:center;padding:6px 12px;border:1px solid var(--line);background:var(--card,#fff);color:inherit;border-radius:10px;font-size:12px;line-height:1.25;min-width:84px}.fl-b .fl-n{font-size:18px;font-weight:700}.fl-b.on{background:#4f46e5;color:#fff;border-color:#4f46e5}.fl-arrow{color:#94a3b8;font-size:18px}</style>
+      <style>.fl-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.fl-search{position:relative;display:inline-flex;align-items:center;flex:0 1 340px;min-width:200px}.fl-search svg{position:absolute;left:11px;color:var(--muted,#6b7280);pointer-events:none}.fl-search input{width:100%;padding-left:32px;border-radius:999px}.fl-filt{position:relative}.fl-filt-btn{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;padding:7px 14px;font-size:13px;font-weight:600;border-radius:999px;border:1px solid var(--line,#e5e7eb);background:var(--card,#fff);user-select:none}.fl-filt-btn::-webkit-details-marker{display:none}.fl-filt[open] .fl-filt-btn{background:var(--chip,#eef0f6)}.fl-filt-n:not(:empty){background:#4f46e5;color:#fff;border-radius:999px;padding:0 7px;font-size:11.5px;line-height:18px}.fl-filt-pop{position:absolute;left:0;top:calc(100% + 6px);z-index:60;width:520px;display:grid;grid-template-columns:1fr 1fr;gap:10px 12px;padding:14px;background:var(--card,#fff);border:1px solid var(--line,#e5e7eb);border-radius:12px;box-shadow:0 12px 28px rgba(15,23,42,.14)}.fl-filt-pop label{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:var(--muted,#6b7280)}.fl-filt-pop select{width:100%}.fl-filt-pop #flFClear{grid-column:1 / -1;justify-self:end;width:auto;padding:5px 14px}.fl-b{width:auto;display:flex;flex-direction:column;align-items:center;padding:6px 12px;border:1px solid var(--line);background:var(--card,#fff);color:inherit;border-radius:10px;font-size:12px;line-height:1.25;min-width:84px}.fl-b .fl-n{font-size:18px;font-weight:700}.fl-b.on{background:#4f46e5;color:#fff;border-color:#4f46e5}.fl-arrow{color:#94a3b8;font-size:18px}</style>
     </div>
 
     <!-- ============ QUALITY CONTROL ============ -->

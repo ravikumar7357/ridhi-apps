@@ -1045,7 +1045,7 @@ const K = 'AMZ-1__S1';
     ok('since 14 Oct the switch starts OFF even with a test order there (PPC shows the sales orders)', A.flowTestOnly() === false);
     A.flowTestOnlySet(true);
     A.setView('ppc'); A.renderFlow();
-    ok('PPC holds only the test order, not the real AMZ-1', /TEST-AMZ-10102026-01/.test(A.els.flTable.innerHTML) && !/AMZ-1<\/a>/.test(A.els.flTable.innerHTML) && /SHOWING TEST ORDERS ONLY/.test(A.els.flMsg.textContent));
+    ok('PPC holds only the test order, not the real AMZ-1', /TEST-AMZ-10102026-01/.test(A.els.flTable.innerHTML) && !/AMZ-1<\/a>/.test(A.els.flTable.innerHTML) && /Showing test orders only/.test(A.els.flMsg.textContent));
     ok('the counts are the test order\u2019s: PPC 1 (the real AMZ-1 is not counted); no WIP bucket here', /<span class="fl-n">1<\/span><span>PPC/.test(A.els.flBuckets.innerHTML) && !/data-flb="wip"/.test(A.els.flBuckets.innerHTML), A.els.flBuckets.innerHTML);
     A.setView('dhist'); A.renderFlow();
     ok('Demand history shows only the test challan', /TRFD-202610-001/.test(A.els.flTable.innerHTML) && !/>RFD-202610-001</.test(A.els.flTable.innerHTML) && /Printed fabric in · history <b>1<\/b>/.test(A.els.flPanel.innerHTML));
@@ -1113,7 +1113,7 @@ const K = 'AMZ-1__S1';
     ok('every row has as many cells as there are headings (Qty was there twice)', rows.length === 2 && rows.every(n => n === th), th + ' headings, rows ' + rows.join(','));
     ok('Edit plan sits under its own (last) heading, the second line of the order is named small', /Edit plan/.test(h) && /<div class="muted" style="font-size:11px">AMZ-1<\/div>/.test(h));
     ok('design A: the plan is one thing a line — Route:, Fabric:, Print:', /<div>Route: <b>/.test(h) && /<div>Fabric: <b>Cotton<\/b> · [\d,.]+ m<\/div>/.test(h) && /<div>Print: <b>RBP-Bagru<\/b><\/div>/.test(h), h.slice(0, 1500));
-    ok('design A: the message is one point a line, the bucket first', /^PPC completed: 2 line\(s\)\n• Plan raised/.test(P.els.flMsg.textContent) && /\n• (LIVE|TEST phase) — the flow runs/.test(P.els.flMsg.textContent) && P.els.flMsg.style.whiteSpace === 'pre-line', P.els.flMsg.textContent);
+    ok('no extra lines (Ravi, 15 Oct): nothing to say → the line under the toolbar is empty; the phase is the Refresh tooltip', P.els.flMsg.textContent === '' && /(LIVE|TEST phase) — the flow runs/.test(P.els.flRefresh.title), P.els.flMsg.textContent);
   }
 
   console.log('== test phase on the live app: the flow runs TEST orders only until Ravi says so (14 Oct) ==');
@@ -1184,7 +1184,27 @@ const K = 'AMZ-1__S1';
     const n = D.flowRows().find(x => x.r.orderNo === 'AMZ-NEW');
     ok('…and the re-uploaded order waits in PPC to be planned', !!n && n.s.isNew === true && n.s.bucket === 'ppc', JSON.stringify(n && n.s.bucket));
     D.setView('ppc'); D.renderFlow();
-    ok('the page says it is live, and from which day an upload counts', /LIVE — the flow runs the real orders from 2026-10-10, and every order put on the book from 2026-10-15/.test(D.els.flMsg.textContent), D.els.flMsg.textContent);
+    ok('the page says it is live, and from which day an upload counts', /LIVE — the flow runs the real orders from 2026-10-10, and every order put on the book from 2026-10-15/.test(D.els.flRefresh.title), D.els.flRefresh.title);
+  }
+
+  console.log('== search and filters (Ravi, 15 Oct: "add a search bar and filter all action") ==');
+  {
+    const lines = [
+      L({ orderNo: 'AMZ-A', sku: 'S1', color: 'Blue', size: '60x90', articleType: 'Tablecloth', orderDate: '2026-10-11' }),
+      L({ orderNo: 'SHP-B', sku: 'S2', src: 'SHP', color: 'Red', size: '18x18', articleType: 'Pillow Cover', orderDate: '2026-10-12' }),
+    ];
+    const F = load({ me: { admin: true }, mdb: { S1: { cons: 1, fab: 'Cotton', fabric: 'Cotton' }, S2: { cons: 0.5, fab: 'Canvas', fabric: 'Canvas' } }, lines });
+    F.setView('ppc'); F.renderFlow();
+    ok('nothing narrowed → both lines, and no message', /AMZ-A/.test(F.els.flTable.innerHTML) && /SHP-B/.test(F.els.flTable.innerHTML) && F.els.flMsg.textContent === '' && F.els.flFiltN.textContent === '');
+    F.els.flFCol.value = 'Red'; F.renderFlow();
+    ok('Colour = Red → only the red line; the Filters button counts 1 and the line says what is narrowed',
+      !/AMZ-A/.test(F.els.flTable.innerHTML) && /SHP-B/.test(F.els.flTable.innerHTML) && F.els.flFiltN.textContent === '1' && /Showing 1 of 2 line\(s\) — 1 filter\(s\)/.test(F.els.flMsg.textContent), F.els.flMsg.textContent);
+    F.els.flFCol.value = ''; F.els.flFFab.value = 'Cotton'; F.renderFlow();
+    ok('Fabric = Cotton (from the master data, no plan yet) → only the cotton line', /AMZ-A/.test(F.els.flTable.innerHTML) && !/SHP-B/.test(F.els.flTable.innerHTML));
+    F.els.flFFab.value = ''; F.els.flQ.value = 'canvas'; F.renderFlow();
+    ok('the search finds a line by its fabric too', !/AMZ-A/.test(F.els.flTable.innerHTML) && /SHP-B/.test(F.els.flTable.innerHTML) && /search “canvas”/.test(F.els.flMsg.textContent), F.els.flMsg.textContent);
+    F.els.flQ.value = ''; F.els.flSrc.value = 'SHP'; F.els.flFArt.value = 'Tablecloth'; F.renderFlow();
+    ok('filters add up: Shopify AND Tablecloth → nothing', !/AMZ-A|SHP-B/.test(F.els.flTable.innerHTML) && F.els.flFiltN.textContent === '2');
   }
 
   console.log('== a TEST order walks every bucket, end to end ==');
@@ -1508,11 +1528,11 @@ const K = 'AMZ-1__S1';
   ok('the old line is not in PPC', !/AMZ-0/.test(A.els.flTable.innerHTML));
   A.setView('wip'); A.renderView();
   ok('…it is in WIP, with Receive (issued 100, nothing back yet)', /AMZ-0/.test(A.els.flTable.innerHTML) && /data-flent="recv\|AMZ-0__S1"/.test(A.els.flTable.innerHTML));
-  ok('the page says which phase the flow is in (here, with flowReal on: LIVE)', /LIVE — the flow runs the real orders from 2026-10-10/.test(A.els.flMsg.textContent) && !/not on the live app/.test(A.els.flMsg.textContent), A.els.flMsg.textContent);
+  ok('the page says which phase the flow is in (here, with flowReal on: LIVE)', /LIVE — the flow runs the real orders from 2026-10-10/.test(A.els.flRefresh.title) && !/not on the live app/.test(A.els.flRefresh.title), A.els.flRefresh.title);
   { const TS = load({ ls: { flowReal: '0' }, me: { admin: true } }); TS.setView('ppc'); TS.renderFlow();
-    ok('…in the test phase with Shopify live it says Shopify runs for real from 15 Oct, Amazon / B2B the old way', /Shopify LIVE — Shopify \/ online orders opened from the Production bucket from 2026-10-15/.test(TS.els.flMsg.textContent), TS.els.flMsg.textContent); }
+    ok('…in the test phase with Shopify live it says Shopify runs for real from 15 Oct, Amazon / B2B the old way', /Shopify LIVE — Shopify \/ online orders opened from the Production bucket from 2026-10-15/.test(TS.els.flRefresh.title), TS.els.flRefresh.title); }
   { const TP = load({ ls: { flowReal: '0', flowMto: '0' }, me: { admin: true } }); TP.setView('ppc'); TP.renderFlow();
-    ok('…and in the test phase it says so: test orders only, real orders the old way', /TEST phase — the flow runs test orders only; real orders go the old way/.test(TP.els.flMsg.textContent), TP.els.flMsg.textContent); }
+    ok('…and in the test phase it says so: test orders only, real orders the old way', /TEST phase — the flow runs test orders only; real orders go the old way/.test(TP.els.flRefresh.title), TP.els.flRefresh.title); }
   A = load({ me: { tabs: ['ord'] } });
   A.renderFlow();
   ok('no bucket → says so, draws nothing', /No bucket/.test(A.els.flMsg.textContent) && !A.els.flTable.innerHTML);

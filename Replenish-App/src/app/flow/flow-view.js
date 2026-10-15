@@ -44,9 +44,8 @@ function renderFlow() {
   if (!allowed.some(b => b[0] === FLOW_VIEW)) FLOW_VIEW = allowed.find(b => b[0] === 'ppc') ? 'ppc' : allowed[0][0];
   if (FLOW_DEMAND.includes(FLOW_VIEW)) FLOW.demView = FLOW_VIEW;
   const all = flowRows();
-  const q = String($('flQ').value || '').trim().toLowerCase(), src = $('flSrc').value;
-  const srcs = [...new Set(all.map(x => x.r.src || String(x.r.orderNo).split('-')[0]))].sort();
-  ptFillSelect('flSrc', srcs.map(s => [s, s]), 'Every platform');
+  const q = String($('flQ').value || '').trim().toLowerCase(), ff = flowFiltVals(), src = ff.src;
+  flowFiltFill(all, ff);
   const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly();
   if ($('flTestOnly')) $('flTestOnly').checked = only;
   /* With test orders off (flow-core.js) there is no test order to raise or narrow to: the button and the switch go. */
@@ -54,8 +53,9 @@ function renderFlow() {
   if ($('flTest') && $('flTest').style) $('flTest').style.display = tests ? '' : 'none';
   const tLab = $('flTestOnly') && $('flTestOnly').parentNode;
   if (tLab && tLab.style) tLab.style.display = tests ? '' : 'none';
-  const pass = x => (!only || x.r.__t) && (!src || (x.r.src || String(x.r.orderNo).split('-')[0]) === src)
-    && (!q || [x.r.orderNo, x.r.sku, x.r.color, x.r.size, x.r.articleSubtype, x.r.articleType].join(' ').toLowerCase().includes(q));
+  const pass = x => (!only || x.r.__t) && (!src || flowSrcOf(x) === src) && flowFiltPass(x, ff)
+    && (!q || [x.r.orderNo, x.r.sku, x.r.color, x.r.size, x.r.articleSubtype, x.r.articleType, x.r.shopOrderNo, flowFacet(x).fab, flowFacet(x).prn]
+      .join(' ').toLowerCase().includes(q));
   const shown = all.filter(pass), n = flowCounts(shown);
   /* PPC › Demand › Outsourced — Demand is one bucket with its tabs (flowDemandTabs). */
   const dem = allowed.filter(b => b[4] === 'demand'), bar = [];
@@ -87,18 +87,60 @@ function renderFlow() {
   /* RFD short? The Greige Desk shows the greige to order for it (Ravi, 13 Oct: Greige Desk joined to the PPC flow). */
   if (FLOW_VIEW === 'drfd' && typeof GD !== 'undefined' && gdAllowed()) FLOW.panel = (FLOW.panel || '') + '<button type="button" class="ghost" data-gdgo="inv" style="width:auto;padding:5px 14px;font-size:13px;margin-left:10px">Greige Desk · PPC demand</button>';
   $('flPanel').innerHTML = FLOW.panel; $('flPanel').classList.toggle('hide', !FLOW.panel);
-  const b = FLOW_BUCKETS.find(x => x[0] === FLOW_VIEW);
   $('flMsg').className = FLOW.err ? 'err' : 'muted';
-  /* ONE POINT A LINE (Ravi, 14 Oct, design A): the bucket and its count, then what it means — its sentence cut at each ";" and
-   * "." — then where the rest of the work is, each on a line of its own instead of one long run-on line. */
-  const cap = t => t.replace(/^./, ch => ch.toUpperCase());
-  const pts = String(b[3] || '').split(/;\s+|\.\s+/).map(t => t.trim().replace(/\.$/, '')).filter(Boolean).map(cap);
+  /* ONLY WHAT NEEDS SAYING (Ravi, 15 Oct: "remove the extra lines"). The count is on the bucket button and what the bucket
+   * means is its tooltip, so the line under the toolbar is kept for what is NOT on screen: a failed read, a list cut at
+   * 800, a narrowed list (test orders only, filters, a search). Nothing to say → nothing shown. The phase is in the
+   * Refresh button's tooltip. */
+  const nFilt = flowFiltCount(ff);
+  if ($('flRefresh')) $('flRefresh').title = flowPhaseTxt();
   if ($('flMsg').style) { $('flMsg').style.whiteSpace = 'pre-line'; $('flMsg').style.lineHeight = '1.6'; }
   $('flMsg').textContent = [FLOW.err ? 'Could not read the plans: ' + FLOW.err : '',
-    `${b[1]}: ${FLOW_VIEW === 'dhist' ? nf(n.dhist) + ' open challan(s)' : FLOW_VIEW === 'pord' ? nf(n.pord) + ' print order(s) not finished' : nf(rows.length) + ' line(s)'}${rows.length > 800 ? ' — showing the oldest 800' : ''}`]
-    .concat(pts.map(t => '• ' + t), [`• PPC and Demand apply to orders from ${flowFrom()}`, '• Cutting is in Cutting Data; raw cutting and WIP in the Job Work Register',
-      '• ' + flowPhaseTxt() + ((FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly()) ? ' — SHOWING TEST ORDERS ONLY' : '')])
+    rows.length > 800 ? `${nf(rows.length)} line(s) — showing the oldest 800` : '',
+    (FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly()) ? 'Showing test orders only' : '',
+    (nFilt || q) && shown.length < all.length ? `Showing ${nf(shown.length)} of ${nf(all.length)} line(s) — ${[q ? `search “${q}”` : '', nFilt ? nFilt + ' filter(s)' : ''].filter(Boolean).join(' + ')}` : '']
     .filter(Boolean).join('\n');
+}
+
+/* ---- SEARCH AND FILTERS (Ravi, 15 Oct: "add a search bar and filter all action") ----
+ * One search box, and a Filters button holding one dropdown per thing a line can be narrowed by: platform, article,
+ * subtype, colour, size, fabric, printer and how old the order is. They apply to every bucket alike. Fabric and printer
+ * are the plan's where there is one, else what PPC would suggest — worked out only when the search, those filters or the
+ * Filters panel ask for them, and kept until the lines change. */
+const FLOW_FILT = [['src', 'flSrc', 'Every platform'], ['art', 'flFArt', 'Every article'], ['sub', 'flFSub', 'Every subtype'],
+  ['col', 'flFCol', 'Every colour'], ['size', 'flFSize', 'Every size'], ['fab', 'flFFab', 'Every fabric'], ['prn', 'flFPrn', 'Every printer']];
+const flowSrcOf = x => x.r.src || String(x.r.orderNo).split('-')[0];
+const flowFiltVals = () => { const v = {}; FLOW_FILT.forEach(([k, id]) => { v[k] = $(id) ? String($(id).value || '') : ''; });
+  v.age = $('flFAge') ? String($('flFAge').value || '') : ''; return v; };
+const flowFiltCount = f => Object.values(f).filter(Boolean).length;
+const flowFiltOpen = () => !!($('flFilt') && $('flFilt').open);
+function flowFacet(x) {
+  if (!FLOW.fc || FLOW.fc.src !== FLOW_C.rows) FLOW.fc = { src: FLOW_C.rows, m: new Map() };
+  let f = FLOW.fc.m.get(x.s.key);
+  if (!f) {
+    const p = x.s.plan;
+    let fab = p && p.fabric ? p.fabric.name : '', prn = p && p.printer ? p.printer.name : '';
+    if (!p) { try { const sg = flowSuggest(x.r); fab = sg.fabric.name; prn = sg.print.need ? sg.printer.name : ''; } catch (e) { /* left blank */ } }
+    f = { fab: String(fab || (cutSkuOf(x.r.sku) || {}).fabric || '').trim(), prn: String(prn || '').trim() };
+    FLOW.fc.m.set(x.s.key, f);
+  }
+  return f;
+}
+const flowFiltPass = (x, f) => (!f.art || x.r.articleType === f.art) && (!f.sub || x.r.articleSubtype === f.sub)
+  && (!f.col || x.r.color === f.col) && (!f.size || x.r.size === f.size)
+  && (!f.age || (flowDays(x.r.orderDate) || 0) > +f.age)
+  && (!f.fab || flowFacet(x).fab === f.fab) && (!f.prn || flowFacet(x).prn === f.prn);
+/** The dropdowns hold what the lines actually carry. Fabric and printer are listed once the panel is open. */
+function flowFiltFill(all, f) {
+  const vals = get => [...new Set(all.map(get).filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
+  const facets = flowFiltOpen() || f.fab || f.prn;
+  const by = { src: flowSrcOf, art: x => x.r.articleType, sub: x => x.r.articleSubtype, col: x => x.r.color, size: x => x.r.size,
+    fab: x => (facets ? flowFacet(x).fab : ''), prn: x => (facets ? flowFacet(x).prn : '') };
+  FLOW_FILT.forEach(([k, id, all0]) => { if (!$(id)) return;
+    const list = vals(by[k]); if (f[k] && !list.includes(f[k])) list.push(f[k]);
+    ptFillSelect(id, list.map(v => [v, v]), all0); });
+  const n = flowFiltCount(f);
+  if ($('flFiltN')) $('flFiltN').textContent = n ? String(n) : '';
 }
 
 /* BY PRINTED FABRIC: every line waiting for fabric, across every order, grouped by what the printer prints and the
@@ -310,7 +352,10 @@ $('flPanel').addEventListener('click', e => { const gg = e.target.closest('[data
   const cp = e.target.closest('[data-flchp]'); if (!cp) return;
   const er = flowChallanPrint(cp.dataset.flchp); if (er) { $('flMsg').className = 'err'; $('flMsg').textContent = er; } });
 $('flQ').addEventListener('input', () => { clearTimeout(FLOW.qt); FLOW.qt = setTimeout(renderFlow, 220); });
-$('flSrc').addEventListener('change', renderFlow);
+FLOW_FILT.map(f => f[1]).concat('flFAge').forEach(id => { if ($(id)) $(id).addEventListener('change', renderFlow); });
+if ($('flFilt')) $('flFilt').addEventListener('toggle', () => { if ($('flFilt').open) renderFlow(); });
+if ($('flFClear')) $('flFClear').onclick = () => { FLOW_FILT.map(f => f[1]).concat('flFAge').forEach(id => { if ($(id)) $(id).value = ''; }); renderFlow(); };
+if (document.addEventListener) document.addEventListener('click', e => { const d = $('flFilt'); if (d && d.open && !d.contains(e.target)) d.open = false; });
 $('flTest').onclick = () => flowTestOpen();
 $('flTestOnly').addEventListener('change', () => { flowTestOnlySet($('flTestOnly').checked); renderFlow(); });
 $('flRefresh').onclick = async () => { $('flMsg').textContent = 'Reading again…'; await Promise.all([ptLoadGates(true), flowLoad(true)]); renderFlow(); };
