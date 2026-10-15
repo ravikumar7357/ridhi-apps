@@ -27221,9 +27221,18 @@ function flowTable(view, rows) {
         <td style="white-space:nowrap;vertical-align:top"><div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start">${first ? `<button data-flch="${esc(x.r.orderNo)}" data-pc="${esc(pk)}" style="width:auto;padding:3px 10px;font-size:12px">${pk === '?' ? 'Challan (printer not chosen)' : 'Challan → ' + esc((p.printer && p.printer.name) || pk)}</button>` : ''}${rfirst ? `<button data-flch="${esc(x.r.orderNo)}" data-pc="${esc(ro.printer.code)}" style="width:auto;padding:3px 10px;font-size:12px;background:#7c3aed;border-color:#7c3aed">Ruffle challan → ${esc(ro.printer.name)}</button>` : ''}<button class="ghost" data-flfab="${esc(x.s.key)}" style="width:auto;padding:2px 9px;font-size:11.5px">Mark fabric ready</button></div></td></tr>`; }).join('');
     const fs = Object.values(cv.fab).filter(f => f.need > 0).sort((a, b) => b.short - a.short || a.name.localeCompare(b.name));
     FLOW.byprint = flowByPrintTable(rows);
-    FLOW.stock = `<thead><tr><th style="text-align:left">Fabric</th><th>RFD in stock</th><th>Kept for lines already ready</th><th>These lines need</th><th>Short</th></tr></thead><tbody>`
+    /* The Greige Desk's greige beside it (Ravi, 15 Oct: greige in the PPC Demand button): on order, in store, at the RFD
+     * processor, and the greige to order for what is still short (+5% processor loss), with its PO one click away. */
+    const gd = typeof GD !== 'undefined' && gdAllowed(), m = v => v > 0.05 ? nf(flowR2(v)) + ' m' : '<span class="muted">—</span>';
+    const gcols = f => { if (!gd) return ''; const g = GD.greige(f.name, f.short);
+      if (!g) return '<td colspan="5" class="muted" style="font-size:12px">reading the Greige Desk…</td>';
+      return `<td class="num">${m(g.order)}</td><td class="num">${m(g.store)}</td><td class="num">${m(g.proc)}</td>
+        <td class="num">${g.toOrder ? `<b>${nf(g.toOrder)} m</b>${g.gname ? `<div class="muted" style="font-size:11px">of ${esc(g.gname)}</div>` : ''}` : (f.short ? '<span style="color:#166534">on its way</span>' : '<span style="color:#166534">covered</span>')}</td>
+        <td>${g.toOrder ? (g.gname ? `<button data-flgpo="${esc(f.name)}|${g.toOrder}" style="width:auto;padding:3px 10px;font-size:12px">Raise greige PO · ${nf(g.toOrder)} m</button>`
+          : '<span style="color:#b91c1c;font-size:12px">no greige name in Masters</span>') : ''}</td>`; };
+    FLOW.stock = `<thead><tr><th style="text-align:left">Fabric</th><th>RFD in stock</th><th>Kept for lines already ready</th><th>These lines need</th><th>Short</th>${gd ? '<th>Greige on order</th><th>Greige in store</th><th>At RFD processor</th><th>Greige to order</th><th></th>' : ''}</tr></thead><tbody>`
       + fs.map(f => `<tr${f.short ? ' style="background:#fef2f2"' : ''}><td style="text-align:left"><b>${esc(f.name)}</b></td><td class="num">${nf(flowR2(f.stock))} m</td><td class="num">${nf(flowR2(f.held))} m</td><td class="num">${nf(f.need)} m · ${nf(f.lines)} line(s)</td>
-        <td class="num">${f.short ? `<b style="color:#b91c1c">⚑ ${nf(f.short)} m</b>` : '<span style="color:#166534">—</span>'}</td></tr>`).join('') + (fs.length ? '' : '<tr><td colspan="5" class="muted" style="padding:16px">No line is waiting for fabric.</td></tr>') + '</tbody>';
+        <td class="num">${f.short ? `<b style="color:#b91c1c">⚑ ${nf(f.short)} m</b>` : '<span style="color:#166534">—</span>'}</td>${gcols(f)}</tr>`).join('') + (fs.length ? '' : `<tr><td colspan="${gd ? 10 : 5}" class="muted" style="padding:16px">No line is waiting for fabric.</td></tr>`) + '</tbody>';
   } else if (view === 'dacc') {
     head = ['PO', 'SKU', 'Qty', 'Accessories this line uses', ''];
     const free = flowAccFree();
@@ -27279,6 +27288,8 @@ $('flTestOnly').addEventListener('change', () => { flowTestOnlySet($('flTestOnly
 $('flRefresh').onclick = async () => { $('flMsg').textContent = 'Reading again…'; await Promise.all([ptLoadGates(true), flowLoad(true)]); renderFlow(); };
 /* The bucket table's buttons — on the flow screen, and in its tabs inside Cutting Data and the Job Work Register. */
 async function flowTableClick(e) {
+  const gp = e.target.closest('[data-flgpo]');
+  if (gp) { const [rfd, metres] = gp.dataset.flgpo.split('|'); showTab('gdesk'); GD.poFor(rfd, +metres); return; }
   const sm = e.target.closest('[data-flsim]');
   if (sm) { const [no, sku, view] = sm.dataset.flsim.split('|'); const er = await flowSimulate(no, sku, view);
     $('flMsg').className = er ? 'err' : 'muted'; if (er) $('flMsg').textContent = er; else renderFlow(); return; }
@@ -31661,7 +31672,16 @@ function wireGd() {
     if (!GD_WIRED) { GD_WIRED = true; wireShell(); wirePurchaseOrders(); wireInventory(); wireLedger(); wireMasterData(); wireEntry(); wireUsersRfd(); wireGd(); }
     render();
   }
-  return { open: open, ensure: function () { return gdLoad(); }, rfdShelf: function (n) { return gdRfdShelf(n); } };
+  /* Demand → RFD's "By fabric" table (Ravi, 15 Oct: greige in the PPC Demand button): this desk's greige on its way for an
+   * RFD fabric and the greige to order for what is short there (+5% processor loss). null until the desk's records are read. */
+  function greige(name, short) {
+    if (!DB) return null;
+    var pipe = gdPipeline(name), toOrder = Math.max(0, (+short || 0) - (pipe.order + pipe.greige + pipe.proc));
+    return { gname: fabGreigeOf(name), order: pipe.order, store: pipe.greige, proc: pipe.proc, toOrder: toOrder > 0.05 ? Math.ceil(toOrder / (1 - GD_LOSS)) : 0 };
+  }
+  /** The desk's greige PO, its line written from Demand. */
+  async function poFor(rfd, metres) { await open('po'); gdPoFor(rfd, metres); }
+  return { open: open, ensure: function () { return gdLoad(); }, rfdShelf: function (n) { return gdRfdShelf(n); }, greige: greige, poFor: poFor };
 })();
 
 /* ####################################################################################################
