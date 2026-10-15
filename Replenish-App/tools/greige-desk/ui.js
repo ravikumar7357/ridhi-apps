@@ -54,6 +54,7 @@ var LM_TITLE = {
 function render() {
   if (!LM_TITLE[UI.tab]) UI.tab = 'po';
   if (UI.tab === 'ledger' && !canLedger()) UI.tab = 'po';
+  if (UI.tab === 'mst' && gdIsLinked()) UI.tab = 'po';   // in the app the masters are Setup's (no Master data tab)
   meFill();
   $('lmTitle').innerHTML = LM_TITLE[UI.tab];
   var body = UI.tab === 'inv' ? renderInv()
@@ -994,7 +995,7 @@ function poOpen(editNo) {
   $('lmPoErr').classList.add('hide');
   var co = DB.co || {}, miss = !String(co.addr || '').trim() && !String(co.gstin || '').trim();
   $('poCoNote').classList.toggle('hide', !miss);
-  $('poCoNote').textContent = miss ? 'Your own company details are not filled in yet — Master data → Company. '
+  $('poCoNote').textContent = miss ? 'Your own company details are not filled in yet — ' + (gdIsLinked() ? 'they come from the app\'s PO settings (ask an admin). ' : 'Master data → Company. ')
     + 'The PO will print without your address and GSTIN until they are.' : '';
   $('poSave').textContent = src ? 'Save the changes' : 'Save the PO';
   poDraw(); poMillHint();

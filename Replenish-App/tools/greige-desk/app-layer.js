@@ -98,6 +98,9 @@ function meUser() {
 function meFill() {
   var n = $('meName'); if (n) n.textContent = meUser().name + ' · ledger: ' + LEDGER_LABEL[meUser().ledger].toLowerCase() + (meUser().approve ? ' · approves' : '');
   [].forEach.call(document.querySelectorAll('.navgrp[data-tab="ledger"]'), function (b) { b.hidden = !canLedger(); });
+  /* NO MASTER DATA TAB IN THE APP (Ravi, 15 Oct: "remove the master data from here, it will come from setup"): the fabrics and
+   * the suppliers / RFD processors are Setup -> Master Database's own (gdLinkMasters). */
+  [].forEach.call(document.querySelectorAll('.navgrp[data-tab="mst"]'), function (b) { b.hidden = gdLinked(); });
   var adm = !!((typeof ME !== 'undefined' && ME) || {}).admin;
   ['gdSample', 'gdClear'].forEach(function (id) { var b = $(id); if (b) b.hidden = !adm; });
 }
@@ -201,6 +204,10 @@ function gdLinkMasters() {
   });
   was.forEach(function (v) { if (v && v.name && !names[key(v.name)] && venUsed(v.name) > 0) ven.push(Object.assign({}, v, { deskOnly: true })); });
   DB.ven = ven;
+  /* The company on the PO: the app's own Greige PO settings (no Company page on the desk in the app). The numbering stays the desk's. */
+  var s = (typeof GPO !== 'undefined' && GPO && GPO.settings) || null;
+  if (s) DB.co = Object.assign({}, DB.co || {}, { name: s.company || (DB.co || {}).name || gdCoName(), addr: s.address || (DB.co || {}).addr || '',
+    gstin: s.gstin || (DB.co || {}).gstin || '', email: s.email || (DB.co || {}).email || '', pan: s.pan || (DB.co || {}).pan || '' });
 }
 /** Over to Setup -> Master Database, at its Greige & RFD fabric or its Vendors. */
 function gdOpenMasterData(view) {
