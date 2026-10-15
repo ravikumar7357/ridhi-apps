@@ -156,6 +156,25 @@ function renderPpcLink() {
     + '<tbody>' + (body || emptyRow(9, 'No PPC plan is waiting for RFD right now.')) + '</tbody></table></div></div>';
 }
 var GD_FLOW_ASKED = false;
+/* PPC DEMAND ON THE INVENTORY (Ravi, 15 Oct: "Greige for PPC — jo demand aayega ppc se wo greige order se pahle dikhe
+ * jisase hum 1 jagah se hi perform kar sake"). The Greige for PPC figures, fabric by fabric, for the Inventory's first
+ * column: what PPC needs, what is short after the free RFD, and the greige to order (with what is on its way taken off).
+ * null when the flow is not here; { __loading: true } while the plans are being read. */
+function gdPpcMap() {
+  if (typeof flowRfdCover !== 'function') return null;
+  if (!gdFlowReady()) {
+    if (typeof flowEnsureData === 'function' && !GD_FLOW_ASKED) { GD_FLOW_ASKED = true; flowEnsureData().then(function () { if (UI.tab === 'ppc' || UI.tab === 'inv') render(); }, function () { /* the column says so */ }); }
+    return { __loading: true };
+  }
+  var cov = flowRfdCover(), out = {};
+  Object.keys(cov.fab).forEach(function (k) {
+    var f = cov.fab[k]; if (!(f.need > 0.05)) return;
+    var pipe = gdPipeline(f.name), toOrder = Math.max(0, f.short - (pipe.order + pipe.greige + pipe.proc));
+    out[String(f.name).toUpperCase()] = { name: f.name, need: f.need, lines: f.lines, free: Math.max(0, f.free), short: f.short,
+      greigeM: toOrder > 0.05 ? Math.ceil(toOrder / (1 - GD_LOSS)) : 0, greige: fabGreigeOf(f.name) };
+  });
+  return out;
+}
 /** A greige PO, its line already written from what PPC needs. */
 function gdPoFor(rfd, metres) {
   poOpen();

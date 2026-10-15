@@ -2792,14 +2792,18 @@ function invOnOrder() {
 }
 function invAll() {
   var flow = {}, order = invOnOrder(), names = [];
+  /* PPC's demand, in the app only (gdPpcMap lives in the app layer): a fabric PPC needs is a row even with nothing in stock. */
+  var ppc = typeof gdPpcMap === 'function' ? gdPpcMap() : null;
   fabFlowRows(DB.fab || []).forEach(function (e) { flow[e.fabricType.toUpperCase()] = e; names.push(e.fabricType); });
   Object.keys(order).forEach(function (k) { if (!flow[k]) names.push(order[k].name); });
+  if (ppc && !ppc.__loading) Object.keys(ppc).forEach(function (k) { if (!flow[k] && !order[k]) names.push(ppc[k].name); });
   return uniq(names).map(function (n) {
     var e = flow[n.toUpperCase()] || {}, o = order[n.toUpperCase()];
     var g = e.greigeLeft || 0, p = e.withProcessor || 0, r = e.rfdLeft || 0;
     return { fabric: n, type: invType(n), greige: fabGreigeOf(n), onOrder: o ? o.m : 0,
-      inStoreGreige: g, atProcessor: p, inStoreRfd: r, owned: g + p + r };
-  }).filter(function (x) { return x.owned > 0.05 || x.onOrder > 0.05; })
+      inStoreGreige: g, atProcessor: p, inStoreRfd: r, owned: g + p + r,
+      ppc: ppc && !ppc.__loading ? (ppc[n.toUpperCase()] || null) : null };
+  }).filter(function (x) { return x.owned > 0.05 || x.onOrder > 0.05 || (x.ppc && x.ppc.need > 0.05); })
     .sort(function (a, b) { return a.type.localeCompare(b.type) || a.fabric.localeCompare(b.fabric, undefined, { numeric: true }); });
 }
 function renderInv() {
@@ -2816,20 +2820,39 @@ function renderInv() {
       return '<button type="button" role="tab" aria-selected="' + (UI.inv === t) + '" class="segbtn' + (UI.inv === t ? ' on' : '') + '" data-inv="' + esc(t) + '">'
         + esc(t === 'all' ? 'All' : t) + ' <span class="n">' + count(t) + '</span></button>';
     }).join('') + '</div></div>';
-  var table = '<div class="card"><div class="ff-grid"><table class="xl">'
-    + th(['Fabric', 'Greige order', 'Greige in store', 'At RFD processor', 'RFD on shelf', 'Total'], [1, 2, 3, 4, 5])
+  /* PPC DEMAND FIRST (Ravi, 15 Oct): what PPC needs, before what is on order — and the greige PO for what is short, from
+   * here. And the RFD already on the floor goes in as opening stock from here too. Only in the app (gdPpcMap). */
+  var ppcMap = typeof gdPpcMap === 'function' ? gdPpcMap() : null, withPpc = !!ppcMap;
+  UI.invCols = withPpc ? 7 : 6;
+  var ppcCell = function (r) {
+    if (ppcMap && ppcMap.__loading) return '<td class="num muted">…</td>';
+    var p = r.ppc; if (!p) return '<td class="num">' + dash(0) + '</td>';
+    return '<td class="num"><b>' + nf(p.need) + ' m</b><div class="muted" style="font-size:10.5px">' + plural(p.lines, 'line')
+      + (p.short > 0.05 ? ' · <span style="color:var(--bad);font-weight:700">short ' + nf(p.short) + ' m</span>' : ' · covered') + '</div>'
+      + (p.greigeM && p.greige ? '<button type="button" class="jw-btn jw-primary" data-ppcpo="' + esc(p.name) + '|' + p.greigeM + '" style="margin-top:4px;padding:3px 10px;font-size:12px">Raise greige PO · ' + nf(p.greigeM) + ' m</button>'
+        : p.greigeM ? '<div class="err-in" style="font-size:10.5px">no greige name in Master data</div>' : '') + '</td>';
+  };
+  var tools = '<div class="row" style="margin:0 0 10px;align-items:center">'
+    + (canLedgerEdit() ? '<button type="button" class="ghost" data-act="OPENING_RFD" title="RFD already on the floor: its own lot, so it is issued like any other and never counted as cloth back from a processor.">+ RFD opening stock</button>' : '')
+    + (withPpc ? '<span class="muted" style="font-size:12px;align-self:center">PPC demand is what the production plans need in RFD; short is after the RFD free today; the PO button orders the greige for it (with ' + Math.round((typeof GD_LOSS !== 'undefined' ? GD_LOSS : 0.05) * 100) + '% for what the processor takes).</span>' : '')
+    + '</div>';
+  var table = tools + '<div class="card"><div class="ff-grid"><table class="xl">'
+    + th(withPpc ? ['Fabric', 'PPC demand', 'Greige order', 'Greige in store', 'At RFD processor', 'RFD on shelf', 'Total'] : ['Fabric', 'Greige order', 'Greige in store', 'At RFD processor', 'RFD on shelf', 'Total'],
+      withPpc ? [1, 2, 3, 4, 5, 6] : [1, 2, 3, 4, 5])
     + '<tbody>' + (rows.map(function (r) {
       return '<tr><td class="frz" style="text-align:left"><b>' + esc(r.fabric) + '</b>'
         + (r.greige ? '<div class="muted" style="font-size:10.5px">bought as ' + esc(r.greige) + '</div>' : '') + '</td>'
+        + (withPpc ? ppcCell(r) : '')
         + invCell(r, 'order', r.onOrder, 'color:var(--warn-ink)')
         + invCell(r, 'store', r.inStoreGreige, '')
         + invCell(r, 'proc', r.atProcessor, 'color:var(--proc-ink)')
         + invCell(r, 'rfd', r.inStoreRfd, 'font-weight:700')
         + '<td class="num" style="font-weight:700">' + dash(r.owned) + '</td></tr>'
         + (UI.invOpen.indexOf(r.fabric + '|') === 0 ? invDetail(r, UI.invOpen.split('|')[1]) : '');
-    }).join('') || emptyRow(6, 'Nothing on order or in stock' + (UI.inv === 'all' ? '.' : ' for ' + UI.inv + '.')))
+    }).join('') || emptyRow(UI.invCols, 'Nothing on order or in stock' + (UI.inv === 'all' ? '.' : ' for ' + UI.inv + '.')))
     + '</tbody>'
     + (rows.length > 1 ? '<tfoot><tr><td class="frz" style="text-align:left">Total' + (UI.inv === 'all' ? '' : ' · ' + esc(UI.inv)) + '</td>'
+      + (withPpc ? '<td class="num">' + dash(rows.reduce(function (a, x) { return a + (x.ppc ? x.ppc.need : 0); }, 0)) + '</td>' : '')
       + '<td class="num">' + dash(sum('onOrder')) + '</td><td class="num">' + dash(sum('inStoreGreige')) + '</td><td class="num">' + dash(sum('atProcessor')) + '</td>'
       + '<td class="num">' + dash(sum('inStoreRfd')) + '</td><td class="num">' + dash(sum('owned')) + '</td></tr></tfoot>' : '')
     + '</table></div></div>';
@@ -2909,7 +2932,7 @@ function invDetail(r, col) {
     empty = 'No RFD ' + r.fabric + ' is on the shelf.';
   }
   var title = { order: 'Greige on order', store: 'Greige in the store', proc: 'At the RFD processor', rfd: 'RFD on the shelf' }[col];
-  return '<tr class="invdet"><td colspan="6"><div class="invdrop"><div class="sect">' + esc(title) + ' · ' + esc(r.fabric) + '</div>'
+  return '<tr class="invdet"><td colspan="' + (UI.invCols || 6) + '"><div class="invdrop"><div class="sect">' + esc(title) + ' · ' + esc(r.fabric) + '</div>'
     + (body.length ? '<div class="box scroll"><table class="ct li"><thead><tr>' + head.map(function (x, i) {
         return '<th' + (/^(Ordered|Received|Still due|Sent|Back so far|Still out|In store|Came back|To cutting|Damaged|On shelf|Days out|Sent to RFD)$/.test(x) ? ' class="num"' : '') + '>' + esc(x) + '</th>';
       }).join('') + '</tr></thead><tbody>' + body.join('') + '</tbody></table></div>'
@@ -4177,6 +4200,25 @@ function renderPpcLink() {
     + '<tbody>' + (body || emptyRow(9, 'No PPC plan is waiting for RFD right now.')) + '</tbody></table></div></div>';
 }
 var GD_FLOW_ASKED = false;
+/* PPC DEMAND ON THE INVENTORY (Ravi, 15 Oct: "Greige for PPC — jo demand aayega ppc se wo greige order se pahle dikhe
+ * jisase hum 1 jagah se hi perform kar sake"). The Greige for PPC figures, fabric by fabric, for the Inventory's first
+ * column: what PPC needs, what is short after the free RFD, and the greige to order (with what is on its way taken off).
+ * null when the flow is not here; { __loading: true } while the plans are being read. */
+function gdPpcMap() {
+  if (typeof flowRfdCover !== 'function') return null;
+  if (!gdFlowReady()) {
+    if (typeof flowEnsureData === 'function' && !GD_FLOW_ASKED) { GD_FLOW_ASKED = true; flowEnsureData().then(function () { if (UI.tab === 'ppc' || UI.tab === 'inv') render(); }, function () { /* the column says so */ }); }
+    return { __loading: true };
+  }
+  var cov = flowRfdCover(), out = {};
+  Object.keys(cov.fab).forEach(function (k) {
+    var f = cov.fab[k]; if (!(f.need > 0.05)) return;
+    var pipe = gdPipeline(f.name), toOrder = Math.max(0, f.short - (pipe.order + pipe.greige + pipe.proc));
+    out[String(f.name).toUpperCase()] = { name: f.name, need: f.need, lines: f.lines, free: Math.max(0, f.free), short: f.short,
+      greigeM: toOrder > 0.05 ? Math.ceil(toOrder / (1 - GD_LOSS)) : 0, greige: fabGreigeOf(f.name) };
+  });
+  return out;
+}
 /** A greige PO, its line already written from what PPC needs. */
 function gdPoFor(rfd, metres) {
   poOpen();
