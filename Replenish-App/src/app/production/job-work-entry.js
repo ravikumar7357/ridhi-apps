@@ -162,7 +162,10 @@ function bdGuard(orderNo, sku, qty, exclId, allowExtra) {
       + `(received or not) — at most ${ordered - used} more allowed. Entry blocked.`;
 
   const m = cutSkuOf(sku);
-  const cutReq = !m || m.cuttingRequired !== false;
+  /* PPC SENT IT STRAIGHT TO JOB WORK (Ravi, 15 Oct): the plan's route 'jobwork' skips the cutting table, so pieces are
+   * issued without a cutting entry. The ordered cap above still holds. */
+  const jw = typeof flowPlanRouteOf === 'function' && flowPlanRouteOf(orderNo, sku) === 'jobwork';
+  const cutReq = !jw && (!m || m.cuttingRequired !== false);
   if (cutReq) {
     const cutNet = obCutQty(orderNo, sku);
     // A legacy order with no cutting recorded at all has unknown cut history — the ordered cap still
@@ -500,6 +503,8 @@ async function ensureBdForm() {
   if (!PTG.mdb) { bdFormMsg('Reading the master database and the order book…'); await ptLoadGates(); }
   await ptEnsureCustom();
   if (!PTE.emp) await ptLoadEmp();
+  /* PPC's plans, so a line it sent straight to Job Work is issued without a cutting entry (bdGuard). Quiet when it fails. */
+  if (typeof FLOW_ON !== 'undefined' && FLOW_ON && typeof flowLoad === 'function' && typeof FLOW !== 'undefined' && !FLOW.ppc) { try { await flowLoad(); } catch (e) { /* the cutting rule stands */ } }
   if (PTG.err) { bdFormMsg('Could not read what the checks need: ' + PTG.err, true); return; }
   bdIssueDay();
   renderBdForm();

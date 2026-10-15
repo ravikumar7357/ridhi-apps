@@ -159,10 +159,17 @@ const flowScreenAllowed = () => flowBucketsAllowed().filter(b => b[4] === 'flow'
  *   inhouse   printed by a vendor here, then cut, stitched, QC'd here — every bucket
  *   stitch    no printing: the fabric goes from RFD/store straight to cutting and stitching — skips both printer buckets
  *   outsource made outside and bought finished — no fabric, no accessories; waits in Outsourced until received */
-const FLOW_ROUTES = [['inhouse', 'In-house — printed by a vendor, cut & stitched here', 'In-house'],
-  ['stitch', 'Stitching only — no printing', 'Stitching only'],
+/* WHERE PPC SENDS IT (Ravi, 15 Oct: "PPC karte time ye select kar pau ki ye mujhe printing me bhejna h ya nahi ya direct
+ * cutting department me bhejna h ya direct job work department me bhejna h"). The keys stay as they were (plans already
+ * saved keep their meaning); 'jobwork' is new: no printing, no cutting, no RFD — straight to Raw cutting in store, to be
+ * issued to a karigar. */
+const FLOW_ROUTES = [['inhouse', 'Printing — printed by a vendor, then cut & stitched here', 'Printing'],
+  ['stitch', 'Cutting — no printing, straight to the cutting department', 'Cutting'],
+  ['jobwork', 'Job Work — no printing, no cutting, straight to the karigars', 'Job Work'],
   ['outsource', 'Outsourced — made outside, received finished', 'Outsourced']];
 const flowRouteOf = p => (p && p.route) || (p && p.print && p.print.need === false ? 'stitch' : 'inhouse');
+/** The route PPC planned for an order line, '' when it has no plan (or the plans are not read yet). For the registers. */
+const flowPlanRouteOf = (orderNo, sku) => { try { const p = ((typeof FLOW !== 'undefined' && FLOW && FLOW.ppc) || {})[flowKey(orderNo, sku)]; return p ? flowRouteOf(p) : ''; } catch (e) { return ''; } };
 /** Which list a line is in. Demand is one stop in the walk but two lists; the rest are the bucket itself. */
 /* PART BACK, PART ON (Ravi, 11 Oct: "maine order ke against partially fabric receive kiya, but wo partially fabric cutting
  * me show nahi hua"). A line stays in the bucket of the step it has not finished, and ALSO shows where the part already
@@ -289,12 +296,13 @@ function flowState(r) {
   s.qcRej = p ? flowQcLine(r).rej : 0;
   s.issuedNet = p ? Math.max(0, s.issuedAll - s.qcRej) : s.issued;
   /* what can go on now, while the rest is still on its way (flowInView) */
-  s.cutReq = !!r.cutReq;
-  s.canCut = r.cutReq ? Math.max(0, (printed ? s.back : qty) - s.cut) : 0;
-  s.canIssue = Math.max(0, (r.cutReq ? s.cut : (printed ? s.back : qty)) - s.issuedNet);
+  /* Job Work straight away: whatever the master says about cutting, PPC sent it past the cutting table. */
+  s.cutReq = !!r.cutReq && route !== 'jobwork';
+  s.canCut = s.cutReq ? Math.max(0, (printed ? s.back : qty) - s.cut) : 0;
+  s.canIssue = Math.max(0, (s.cutReq ? s.cut : (printed ? s.back : qty)) - s.issuedNet);
   const accNeed = !!p && route !== 'outsource' && (p.acc || []).some(a => a.code && +a.qty > 0);
   const handReady = !!(d && d.fabricReady && !d.fabricReady.challan);
-  s.needFab = isNew && !!p && route !== 'outsource' && !handReady
+  s.needFab = isNew && !!p && route !== 'outsource' && route !== 'jobwork' && !handReady
     && (route === 'inhouse' ? (s.fabNeed - s.fabSent > 0.01 || (flowPrintExtras(r, p).length > 0 && !(flowRufflePrinter(p) ? flowChIndex()[k + FLOW_RUF] : cx))) : !(d && d.fabricReady));   // the ruffle cloth goes too, on the first challan
   s.needAcc = isNew && accNeed && !res;
   s.bucket =
@@ -304,7 +312,7 @@ function flowState(r) {
     : (s.needFab || s.needAcc) ? 'demand'
     : (printed && s.given < qty) ? 'vendor'
     : (printed && s.back < qty) ? 'fabric'
-    : (r.cutReq && s.cut < qty) ? 'cut'
+    : (s.cutReq && s.cut < qty) ? 'cut'
     /* REJECTED AT QC → BACK IN RAW CUTTING IN STORE (Ravi, 10 Oct: "rejected pcs raw cutting in store me hona chahiye").
      * For a planned line the pieces QC rejected are not "issued" any more: they wait in the store to be issued again. */
     : (s.issuedNet < qty && !(p && flowQcOpen(r, s))) ? 'raw'   // QC work still open comes first

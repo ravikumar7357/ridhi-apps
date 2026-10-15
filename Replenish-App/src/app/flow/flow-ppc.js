@@ -337,6 +337,7 @@ function flowPpcOpen(orderNo, onlySku, keys) {
         p.fabric.fromPrinted = flowR2(cv0.fab || 0); p.fabric.printedUnit = cv0.unit;
         p.extra = (p.extra || []).map((x, j) => Object.assign({}, x, { fromPrinted: flowR2((cv0.extra || {})[j] || 0) }));
         if (p.route === 'outsource') { p.acc = []; p.fabric = Object.assign({}, p.fabric, { metres: 0 }); }
+        if (p.route === 'jobwork') p.fabric = Object.assign({}, p.fabric, { metres: 0, fromPrinted: 0 });   // no cloth raised
         const rec = Object.assign({}, p, { at: now, by: ME.email || '' }); delete rec.gaps;
         patch['pt_ppc/' + flowKey(p.orderNo, p.sku)] = rec;
       });
@@ -420,7 +421,9 @@ function flowPpcOpen(orderNo, onlySku, keys) {
       const w = route === 'inhouse' ? flowPrintWhat(r, cur) : null, xw = route === 'inhouse' ? flowPrintExtras(r, cur) : [];
       const pg = document.querySelector(`[data-pget="${i}"]`);
       if (pg) pg.innerHTML = w ? `<span class="fpc-mode">${esc(w.mode)}</span> ` + flowPrintTxt(w) + flowExtrasTxt(xw) + '<div data-pcov></div>'
-        : `<span class="muted">${route === 'stitch' ? 'Nothing — stitching only, no printing.' : 'Nothing — made outside.'}</span>`;
+        : `<span class="muted">${route === 'stitch' ? 'Nothing — no printing; the RFD goes straight to the cutting department.'
+          : route === 'jobwork' ? 'Nothing — no printing, no cutting; the line goes straight to Raw cutting in store, to be issued to a karigar.'
+          : 'Nothing — made outside.'}</span>`;
       const mat = document.querySelector(`[data-mat="${i}"]`); if (!mat) return;
       if (out) { mat.innerHTML = '<tr><td colspan="4" class="muted" style="text-align:left">Outsourced — nothing is raised from our stock.</td></tr>';
         const ch = document.querySelector(`[data-chips="${i}"]`); if (ch) ch.innerHTML = '<span class="fpc-chip vio">Outsourced</span>'; return; }
@@ -435,10 +438,12 @@ function flowPpcOpen(orderNo, onlySku, keys) {
         run.printed[pk] = flowR2((run.printed[pk] || 0) + use); cover[i].fab = use;
         rfdNeed = w.kind === 'sku' ? flowR2(metres * (1 - (p.qty ? use / p.qty : 0))) : flowR2(metres - use);
       }
-      if (fname) { const k = flowFabKey(fname), before = (com.fab[k] || 0) + (run.fab[k] || 0); names['f|' + k] = fname;
+      /* Job Work straight away: no cloth is raised for it — accessories only. */
+      if (fname && route !== 'jobwork') { const k = flowFabKey(fname), before = (com.fab[k] || 0) + (run.fab[k] || 0); names['f|' + k] = fname;
         h.push(flowMatRow(`RFD · <b>${esc(fname)}</b>${rfdNeed < metres ? ' <span class="muted">(the rest)</span>' : ''}`, rfdNeed, flowRfdStock(fname), before, ' m', flowFabKnown(fname)));
         run.fab[k] = flowR2((run.fab[k] || 0) + rfdNeed); }
       (p.extra || []).forEach((x, j) => {
+        if (route === 'jobwork' && x.unit === 'm') return;   // no cloth for a line going straight to job work
         if (x.unit !== 'm') { h.push(flowMatRow(esc(x.what), +x.qty || 0, 0, 0, ' ' + esc(x.unit || ''), false)); return; }
         const name = String(x.what).replace(/^Ruffle — /, ''), k = flowFabKey(name), ruf = /^Ruffle — /.test(x.what);
         let need = +x.qty || 0;

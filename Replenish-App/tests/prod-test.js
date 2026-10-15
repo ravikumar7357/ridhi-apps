@@ -527,6 +527,16 @@ console.log('\n== the issue gate ==');
       A.bdGuard(no, sku, 50) === '' && A.bdGuard(no, sku, 51) !== '');
     const msg = A.bdGuard(no, sku, 51);
     ok('…and the refusal shows the numbers', /ordered 100/.test(msg) && /already issued 50/.test(msg), msg);
+    /* PPC SENT IT STRAIGHT TO JOB WORK (15 Oct): no cutting entry is needed to issue; the ordered cap still holds. */
+    {
+      const wasCut = A.PT().cut, wasBase = A.PT().base, wasPress = A.PTG().press, wasF = A.FLOW();
+      A.setPT(Object.assign(A.PT(), { base: [], cut: [] })); A.setPTG(Object.assign(A.PTG(), { press: [] }));
+      const before = A.bdGuard(no, sku, 10);
+      A.setFLOW(Object.assign({}, wasF || {}, { ppc: { [no + '__' + sku]: { orderNo: no, sku, qty: 100, route: 'jobwork' } } }));
+      ok('a line PPC sent straight to Job Work is issued with nothing cut; the ordered cap still holds',
+        /Cut more pieces first/.test(before) && A.bdGuard(no, sku, 10) === '' && /at most 100 more/.test(A.bdGuard(no, sku, 101)), before + ' | ' + A.bdGuard(no, sku, 101));
+      A.setFLOW(wasF); A.setPT(Object.assign(A.PT(), { cut: wasCut, base: wasBase })); A.setPTG(Object.assign(A.PTG(), { press: wasPress }));
+    }
     A.setPT(Object.assign(A.PT(), { base: [] }));
     A.setPTG(Object.assign(A.PTG(), { press: [{ orderNo: no, sku, pieces: 30 }] }));
     ok('…but made with nothing issued on record still counts — 30 made leaves 70', A.bdGuard(no, sku, 70) === '' && A.bdGuard(no, sku, 71) !== '');
