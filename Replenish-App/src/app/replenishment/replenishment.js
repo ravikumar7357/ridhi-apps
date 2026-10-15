@@ -174,7 +174,7 @@ function renderReplShop() {
     box.innerHTML = `<div class="card" style="padding:12px 14px"><div class="toolbar">
         <div class="seg" id="rsBrand" title="Ridhi's SKUs, CPC's SKUs, or both"><button type="button" class="segbtn" data-rsb="">Both</button><button type="button" class="segbtn" data-rsb="SP">Ridhi</button><button type="button" class="segbtn" data-rsb="CPC">CPC</button></div>
         <input id="rsQ" style="flex:1 1 240px;min-width:0" placeholder="Search SKU / ASIN / colour / size / sub-category">
-        <span class="muted" id="rsAt" style="font-size:12px"></span><span class="navbadge" style="background:#7c3aed;position:static" title="The Shopify view of Replenishment: live in a test phase since 14 Oct 2026">TEST</span></div></div>
+        <span class="muted" id="rsAt" style="font-size:12px"></span></div></div>
       <div class="card xlwrap"><table class="xl" id="rsTable"></table></div>`;
     pane.insertBefore(box, pane.firstChild);
     $('rsBrand').onclick = e => { const b = e.target.closest('[data-rsb]'); if (!b) return; RS.brand = b.dataset.rsb || ''; RS.cap = 300; renderReplShop(); };

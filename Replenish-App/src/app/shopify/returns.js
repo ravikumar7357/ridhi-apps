@@ -251,9 +251,9 @@ function srOpen() {
   if (SR.store === null) SR.store = typeof SO_STORE === 'string' ? SO_STORE : '';
   const all = srAll(), open = all.filter(r => r.status !== 'closed');
   ptOpenDialog({
-    /* TEST PHASE on the live app (Ravi, 14 Oct: "deploy as a test phase on the live app"). */
-    title: 'Returns & replacements · TEST', wide: true, boxClass: 'vo-band',
-    titleExtra: `<div class="shb-band"><span class="shb-t">Returns &amp; replacements <span class="navbadge" style="background:#7c3aed;position:static">TEST</span></span>
+    /* Live since 15 Oct (Ravi: "shopify ko test se live kardo"); it ran a day as TEST first. */
+    title: 'Returns & replacements', wide: true, boxClass: 'vo-band',
+    titleExtra: `<div class="shb-band"><span class="shb-t">Returns &amp; replacements</span>
         <div class="shb-n"><b>${nf(open.filter(r => srLane(r) === 'send').length)}</b><span>replacements to send</span></div>
         <div class="shb-n"><b>${nf(open.filter(r => srWhat(r) !== 'replace' && (r.status === 'started' || r.status === 'transit')).length)}</b><span>coming back</span></div>
         <div class="shb-n"><b>${nf(open.filter(r => srLane(r) === 'received').length)}</b><span>at the warehouse</span></div>

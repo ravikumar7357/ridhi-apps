@@ -1202,7 +1202,7 @@
     <div class="navwrap"><button class="navgrp" id="grpShopify" type="button" data-grp="shopify" data-tabs="shop,adj,shopify">
       <span class="caret">&#9656;</span> Shopify</button>
     <div class="navsec" id="secShopify">
-      <a id="tabShop" class="nav" href="#shop">Shopify Orders <span class="navbadge" style="background:#7c3aed" title="Store switch, order steps, returns &amp; replacements: live in a test phase since 14 Oct 2026 — tell Ravi what is wrong">TEST</span></a>
+      <a id="tabShop" class="nav" href="#shop">Shopify Orders</a>
       <a id="tabAdj" class="nav" href="#adj">Adjustments</a>
       <a id="tabShopify" class="nav" href="#shopify">Shopify Stock</a>
     </div></div>
@@ -4332,7 +4332,7 @@ function showTab(which) {
   Object.entries(navs).forEach(([k, id]) => $(id).classList.toggle('on', which === k));
   if (SHOP_ONLY() && which === 'ord') { $('pageTitle').textContent = 'Shopify Orders'; }
   const TITLES = { dash: 'Dashboard', repl: 'Replenishment', article: 'Article Review', target: 'Revenue Target', follow: 'Ongoing Purchase Order', top: 'Top ASIN Status', india: 'India Stock', shopify: 'Shopify Stock', prod: 'In Production', pack: 'Packing List', plan: 'Action Plan',
-    att: 'Attendance', pmdb: 'Master Database', mst: 'Masters', pbase: 'Job Work Register', pcut: 'Cutting Data', ppress: 'Press Inventory', qc: 'Quality Control', ord: 'Order Console', so: 'Sales Orders', vord: 'Vendor Orders', vreq: 'Vendor Order Requests', rfd: 'RFD Requirements', vend: 'Vendor Portal', vlog: 'History — what printers have sent', cx: 'Customer Orders', palloc: 'Printer Allocation', fgi: 'Finished Goods', fba: 'FBA Dispatch', fab: 'Fabric Inventory', acc: 'Accessories', rep: 'Reports', pa: 'Production Analysis', ka: 'Karigar Analysis', hr: 'Finance & HR', shop: 'Shopify Orders · TEST phase', adj: 'Adjustments', flow: 'Production flow (test)', gdesk: 'Greige Desk (test)' };
+    att: 'Attendance', pmdb: 'Master Database', mst: 'Masters', pbase: 'Job Work Register', pcut: 'Cutting Data', ppress: 'Press Inventory', qc: 'Quality Control', ord: 'Order Console', so: 'Sales Orders', vord: 'Vendor Orders', vreq: 'Vendor Order Requests', rfd: 'RFD Requirements', vend: 'Vendor Portal', vlog: 'History — what printers have sent', cx: 'Customer Orders', palloc: 'Printer Allocation', fgi: 'Finished Goods', fba: 'FBA Dispatch', fab: 'Fabric Inventory', acc: 'Accessories', rep: 'Reports', pa: 'Production Analysis', ka: 'Karigar Analysis', hr: 'Finance & HR', shop: 'Shopify Orders', adj: 'Adjustments', flow: 'Production flow (test)', gdesk: 'Greige Desk (test)' };
   $('pageTitle').textContent = TITLES[which] || 'Replenishment';
   /* The line under a title, and the button that starts work, for the screens that have them. */
   const SUBS = { pbase: 'Track job work issued to karigars and manage receipts' };
@@ -4782,7 +4782,7 @@ function renderReplShop() {
     box.innerHTML = `<div class="card" style="padding:12px 14px"><div class="toolbar">
         <div class="seg" id="rsBrand" title="Ridhi's SKUs, CPC's SKUs, or both"><button type="button" class="segbtn" data-rsb="">Both</button><button type="button" class="segbtn" data-rsb="SP">Ridhi</button><button type="button" class="segbtn" data-rsb="CPC">CPC</button></div>
         <input id="rsQ" style="flex:1 1 240px;min-width:0" placeholder="Search SKU / ASIN / colour / size / sub-category">
-        <span class="muted" id="rsAt" style="font-size:12px"></span><span class="navbadge" style="background:#7c3aed;position:static" title="The Shopify view of Replenishment: live in a test phase since 14 Oct 2026">TEST</span></div></div>
+        <span class="muted" id="rsAt" style="font-size:12px"></span></div></div>
       <div class="card xlwrap"><table class="xl" id="rsTable"></table></div>`;
     pane.insertBefore(box, pane.firstChild);
     $('rsBrand').onclick = e => { const b = e.target.closest('[data-rsb]'); if (!b) return; RS.brand = b.dataset.rsb || ''; RS.cap = 300; renderReplShop(); };
@@ -63006,9 +63006,9 @@ function srOpen() {
   if (SR.store === null) SR.store = typeof SO_STORE === 'string' ? SO_STORE : '';
   const all = srAll(), open = all.filter(r => r.status !== 'closed');
   ptOpenDialog({
-    /* TEST PHASE on the live app (Ravi, 14 Oct: "deploy as a test phase on the live app"). */
-    title: 'Returns & replacements · TEST', wide: true, boxClass: 'vo-band',
-    titleExtra: `<div class="shb-band"><span class="shb-t">Returns &amp; replacements <span class="navbadge" style="background:#7c3aed;position:static">TEST</span></span>
+    /* Live since 15 Oct (Ravi: "shopify ko test se live kardo"); it ran a day as TEST first. */
+    title: 'Returns & replacements', wide: true, boxClass: 'vo-band',
+    titleExtra: `<div class="shb-band"><span class="shb-t">Returns &amp; replacements</span>
         <div class="shb-n"><b>${nf(open.filter(r => srLane(r) === 'send').length)}</b><span>replacements to send</span></div>
         <div class="shb-n"><b>${nf(open.filter(r => srWhat(r) !== 'replace' && (r.status === 'started' || r.status === 'transit')).length)}</b><span>coming back</span></div>
         <div class="shb-n"><b>${nf(open.filter(r => srLane(r) === 'received').length)}</b><span>at the warehouse</span></div>
