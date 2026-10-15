@@ -120,22 +120,21 @@ const REPL_SECTIONS = [
   ['fba', 'FBA Dispatch (accept, ship or return what the store sent)'],
   ['fab', 'Fabric Inventory'],
   ['acc', 'Accessories'],
-  /* THE GREIGE DESK (test link only, 2026-10-13): greige POs received bale by bale, issue to RFD and RFD back, the fabric
-   * ledger, and the greige to buy for PPC. Its own test records; the real Greige POs and fabric ledger are not touched. */
-  ['gdesk', 'Greige Desk (test) — open it'],
-  ['gdled', 'Greige Desk (test) — see the fabric ledger'],
-  ['gdledit', 'Greige Desk (test) — add to and correct the fabric ledger'],
-  ['gdappr', 'Greige Desk (test) — approve RFD shrinkage over 5%'],
-  /* THE PRODUCTION FLOW (test link only, 2026-10-14: Ravi, "test window meri IT team ko show ho"). One right per bucket of
-   * Production → PPC · Production flow; any one of them opens the screen, showing only the buckets ticked. On the live app
-   * the flow is switched off, so ticking these there shows nothing. */
-  ['flppc', 'Production flow (test) — PPC and PPC completed'],
-  ['fldem', 'Production flow (test) — Demand: RFD fabric out to printers'],
-  ['flacc', 'Production flow (test) — Demand: accessories'],
-  ['flchl', 'Production flow (test) — printed fabric in · history'],
-  ['flcut', 'Production flow (test) — to cut'],
-  ['flraw', 'Production flow (test) — raw cutting in store'],
-  ['flwip', 'Production flow (test) — WIP with karigars'],
+  /* THE GREIGE DESK (2026-10-13; real working since 15 Oct): greige POs received bale by bale, issue to RFD and RFD back, the fabric
+   * ledger, and the greige to buy for PPC. Its own records (pt_gdTest), RIDHI/PO/GREIG/ numbers. */
+  ['gdesk', 'Greige Desk — open it'],
+  ['gdled', 'Greige Desk — see the fabric ledger'],
+  ['gdledit', 'Greige Desk — add to and correct the fabric ledger'],
+  ['gdappr', 'Greige Desk — approve RFD shrinkage over 5%'],
+  /* THE PRODUCTION FLOW (2026-10-14; real orders since 15 Oct, test tools off: "ab test window hata do"). One right per
+   * bucket of Production → PPC · Production flow; any one of them opens the screen, showing only the buckets ticked. */
+  ['flppc', 'Production flow — PPC and PPC completed'],
+  ['fldem', 'Production flow — Demand: RFD fabric out to printers'],
+  ['flacc', 'Production flow — Demand: accessories'],
+  ['flchl', 'Production flow — printed fabric in · history'],
+  ['flcut', 'Production flow — to cut'],
+  ['flraw', 'Production flow — raw cutting in store'],
+  ['flwip', 'Production flow — WIP with karigars'],
   ['rep', 'Reports'],
   ['pa', 'Production Analysis'],
   ['ka', 'Karigar Analysis'],
