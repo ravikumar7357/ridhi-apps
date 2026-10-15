@@ -258,6 +258,8 @@ function flowTable(view, rows) {
      * dikhe PPC team ko"). Two or more orders of one day asking for one SKU are one row: the orders and their quantities,
      * the total, what the plan holds for the total, and "Plan together" — each line still gets its own plan. */
     const grpOf = x => obUC(x.r.sku) + '|' + String(ptIsoDate(x.r.orderDate) || '') + '|' + (x.r.__t ? 'T' : 'R');
+    /* BACK TO THE SALES TEAM (flow-back.js): a line PPC cannot plan goes back with a reason. */
+    const backBtn = g => flowCanBack() && !g.some(x => x.r.__t) ? `<button class="ghost" data-flback="${esc(g.map(x => x.s.key).join(','))}" title="Something is wrong with the order or its master — send it back to the sales team with a reason" style="width:auto;padding:2px 8px;font-size:11.5px;color:#b91c1c;border-color:#fca5a5">Back to sales</button>` : '';
     const grps = new Map(); rows.forEach(x => { const k = grpOf(x); (grps.get(k) || grps.set(k, []).get(k)).push(x); });
     const drawn = new Set();
     const combined = g => { const x0 = g[0], tot = g.reduce((a, x) => a + (+x.r.qty || 0), 0), sg = flowSuggest(Object.assign({}, x0.r, { qty: tot }));
@@ -271,7 +273,8 @@ function flowTable(view, rows) {
         <td style="text-align:left;font-size:13px;line-height:1.55;white-space:normal;min-width:240px;vertical-align:top">
           <div>Fabric: <b>${esc(sg.fabric.name || '?')}</b> · ${sg.fabric.metres ? nf(sg.fabric.metres) + ' m' : '<b style="color:#b91c1c">metres not known</b>'}</div>
           <div>${sg.print.need ? `Print: <b>${esc(sg.printer.name || 'printer not chosen')}</b>` : 'No printing — straight to cutting'}</div></td>
-        <td style="white-space:nowrap;vertical-align:top"><button data-flppck="${esc(g.map(x => x.s.key).join(','))}" style="width:auto;padding:3px 10px;font-size:12px">Plan together · ${nf(g.length)} orders</button></td></tr>`; };
+        <td style="white-space:nowrap;vertical-align:top"><div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start"><button data-flppck="${esc(g.map(x => x.s.key).join(','))}" style="width:auto;padding:3px 10px;font-size:12px">Plan together · ${nf(g.length)} orders</button>
+          ${backBtn(g)}</div></td></tr>`; };
     body = rows.map(x => { const g = grps.get(grpOf(x));
       if (g.length > 1) { const k = grpOf(x); if (drawn.has(k)) return ''; drawn.add(k); return combined(g); }
       const sg = flowSuggest(x.r), first = !seen.has(x.r.orderNo); seen.add(x.r.orderNo);
@@ -281,7 +284,17 @@ function flowTable(view, rows) {
         ${sg.acc.length ? `<div>Accessories: ${sg.acc.map(a => esc(a.code) + ' × ' + nf(a.qty)).join(', ')}</div>` : ''}
         ${sg.gaps.length ? `<div style="font-size:12px;color:#92400e">${esc(sg.gaps[0])}${sg.gaps.length > 1 ? ' (+' + (sg.gaps.length - 1) + ')' : ''}</div>` : ''}</td>
         <td style="white-space:nowrap;vertical-align:top"><div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start">${first ? `<button data-flppc="${esc(x.r.orderNo)}" style="width:auto;padding:3px 10px;font-size:12px">Plan this PO</button>` : ''}
-          <button class="ghost" data-flppc="${esc(x.r.orderNo)}" data-sku="${esc(x.r.sku)}" style="width:auto;padding:2px 8px;font-size:11.5px">This line</button></div></td></tr>`; }).join('');
+          <button class="ghost" data-flppc="${esc(x.r.orderNo)}" data-sku="${esc(x.r.sku)}" style="width:auto;padding:2px 8px;font-size:11.5px">This line</button>
+          ${backBtn([x])}</div></td></tr>`; }).join('');
+  } else if (view === 'back') {
+    /* What PPC sent back, why, and who has it now: the sales team sends it again from Sales Orders (or PPC takes it back). */
+    head = ['PO', 'SKU', 'Qty', 'What is wrong', 'Sent back', ''];
+    body = rows.map(x => { const b = x.r.ppcBack || {};
+      return `<tr>${base(x)}
+        <td style="text-align:left;font-size:13px;line-height:1.5;white-space:normal;min-width:240px;max-width:420px;vertical-align:top"><b style="color:#b91c1c">${esc(flowBackTxt(b.why))}</b>${b.note ? `<div>${esc(b.note)}</div>` : ''}
+          <div class="muted" style="font-size:11.5px">With the sales team — Sales Orders → Sent back by PPC</div></td>
+        <td class="muted" style="text-align:left;font-size:12px;line-height:1.55;vertical-align:top">${esc(String(b.at || '').slice(0, 10))}<br>${esc(String(b.by || '').split('@')[0])}</td>
+        <td style="white-space:nowrap;vertical-align:top">${flowCanAgain() ? `<button class="ghost" data-flagain="${esc(x.r.orderNo + '|' + x.r.sku)}" style="width:auto;padding:2px 8px;font-size:11.5px">Take back into PPC</button>` : ''}</td></tr>`; }).join('');
   } else if (view === 'ppcdone') {
     /* What PPC planned, line by line, where the line is now, and the one place to change it. */
     head = ['PO', 'SKU', 'Qty', 'Planned', 'Now in', 'Raised', ''];
@@ -416,6 +429,7 @@ async function flowTableClick(e) {
   const cp = e.target.closest('[data-flchp]'); if (cp) { e.preventDefault(); const er = flowChallanPrint(cp.dataset.flchp); if (er) { $('flMsg').className = 'err'; $('flMsg').textContent = er; } return; }
   const pk = e.target.closest('[data-flppck]'); if (pk) { flowPpcOpen('', '', String(pk.dataset.flppck || '').split(',').filter(Boolean)); return; }
   const pp = e.target.closest('[data-flppc]'); if (pp) { flowPpcOpen(pp.dataset.flppc, pp.dataset.sku || ''); return; }
+  const bk = e.target.closest('[data-flback]'); if (bk) { flowBackOpen(String(bk.dataset.flback || '').split(',').filter(Boolean)); return; }
   const key = (e.target.closest('[data-flfab],[data-flres],[data-flunres]') || {}).dataset;
   if (!key) return;
   const x = flowRows().find(y => y.s.key === (key.flfab || key.flres || key.flunres)); if (!x) return;

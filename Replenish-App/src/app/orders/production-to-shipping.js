@@ -206,6 +206,8 @@ function ordLinesBuild() {
     if (r.shopDoneAt) { e.shopDoneAt = r.shopDoneAt; e.shopDoneWhy = r.shopDoneWhy || 'fulfilled'; }
     /* WHAT SHOPIFY SAYS about a line still open — told, never acted on. */
     if (r.shopSays) { e.shopSays = r.shopSays; e.shopSaysAt = r.shopSaysAt || ''; }
+    /* SENT BACK BY PPC (flow/flow-back.js): the newest word on any row of the line. */
+    if (r.ppcBack && r.ppcBack.at && (!e.ppcBack || String(r.ppcBack.at) > String(e.ppcBack.at))) e.ppcBack = r.ppcBack;
     /* WHEN IT WAS PUT ON THE BOOK — the newest first on screen. */
     { const ms = ptDtMs(r.openedAt || r.uploadedAt); if (ms > e.addedMs) e.addedMs = ms; }
     /* OPENED IN PRODUCTION — the first time any row of the line was put on the book; the 5 working days run from here. */

@@ -136,6 +136,8 @@ const FLOW_BUCKETS = [
    * hoga, wo PPC se hi edit hoga"): every line PPC has raised and not finished, with what was planned and where it is now.
    * The plan is changed (or undone) here and nowhere else. */
   ['ppcdone', 'PPC completed', 'flppc', 'Plan raised — what was planned and where the line is now. A plan is changed or undone here only.', 'flow'],
+  /* BACK TO THE SALES TEAM (Ravi, 15 Oct, flow-back.js): lines PPC could not plan, waiting for the sales team to put them right. */
+  ['back', 'Back to sales team', 'flppc', 'PPC sent these back with a reason. They come back into PPC when the sales team (Sales Orders) sends them again.', 'flow'],
   ['drfd', 'RFD fabric · out to printers', 'fldem', 'Planned; the fabric is not with the printer yet. RFD in stock against what each line needs — red where it falls short; make the challan to the printer.', 'demand'],
   ['dhist', 'Printed fabric in · history', 'flchl', 'Every RFD challan. Open until the printed fabric comes back against it — receive it here and the lines move to the store.', 'demand'],
   ['dacc', 'Accessories', 'flacc', 'Planned; the accessories are not reserved yet. Free on the shelf against what each line needs.', 'demand'],
@@ -310,7 +312,7 @@ function flowState(r) {
   s.needAcc = isNew && accNeed && !res;
   s.bucket =
       (r.handedAt || r.shopDoneAt) ? 'done'
-    : (isNew && !p) ? 'ppc'
+    : (isNew && !p) ? (flowIsBack(r) ? 'back' : 'ppc')
     : (route === 'outsource') ? (s.india < qty ? 'out' : 'done')
     : (s.needFab || s.needAcc) ? 'demand'
     : (printed && s.given < qty) ? 'vendor'

@@ -2,7 +2,7 @@
  *   node tests/flow-test.js      (FLOW_DIR=<dir> to test another copy — teeth/teeth-flow.js does) */
 const fs = require('fs'), path = require('path');
 const DIR = process.env.FLOW_DIR || path.join(__dirname, '..', 'src', 'app', 'flow');
-const SRC = ['flow-core.js', 'flow-ppc.js', 'flow-demand.js', 'flow-challan.js', 'flow-test-order.js', 'flow-receive.js', 'flow-printorder.js', 'flow-vendor.js', 'flow-edit.js', 'flow-entries.js', 'flow-qcfg.js', 'flow-view.js'].map(f => fs.readFileSync(path.join(DIR, f), 'utf8')).join('\n');
+const SRC = ['flow-core.js', 'flow-ppc.js', 'flow-demand.js', 'flow-challan.js', 'flow-test-order.js', 'flow-receive.js', 'flow-printorder.js', 'flow-vendor.js', 'flow-edit.js', 'flow-back.js', 'flow-entries.js', 'flow-qcfg.js', 'flow-view.js'].map(f => fs.readFileSync(path.join(DIR, f), 'utf8')).join('\n');
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => { if (cond) { pass++; console.log('  PASS ' + name); } else { fail++; console.log('  FAIL ' + name + (extra ? ' — ' + extra : '')); } };
 
@@ -58,7 +58,7 @@ function load(opts) {
     FAB: { rows: opts.fabRows || [] },
     STORE: { rows: opts.store ? [] : null }, stMoves: () => opts.store || [], stBalances: mv => mv, fabKey: v => String(v || '').trim().toUpperCase(), fabAll: () => opts.fabRows || [], ptList: x => x || [], fabAutoLoad: async () => {}, fabStockOf: (name, st) => (st === 'RFD' ? (opts.rfd || {})[String(name).toUpperCase()] || 0 : 0),
   };
-  const api = new Function(...Object.keys(ctx), SRC + '\n;return { FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW_ROUTES, flowPlanRouteOf, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestCutOpen, flowTestIssueOpen, flowTestRecvOpen, flowTestVos, flowVoProgOf, flowVoProgSync, flowVlogRows, flowDocsOf, flowVoExtra, flowVpViewOnly, flowFgAcceptOpen, flowFgAccept, flowFgRejectOpen, flowFgReject, flowFgLines, flowFgRender, flowQcLine, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowCutEntry, flowIssueEntry, flowRecvEntry, flowQcEntry, flowIssuable, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowVoLines, VOrows:()=>VO.rows, setVOrows:v=>{VO.rows=v}, flowUnplan, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v}, flowEmbedRender, FLOW_EMB:()=>FLOW_EMB, flowScreenAllowed, flowOwnsOrder, flowOwnedIn, flowVoIsFlow, flowFgOwns, flowDupViewsOff, renderView:()=>{ if (["cut","raw","wip","new","pord","vendor","fabric"].includes(FLOW_VIEW)) { const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly(); const rows = flowRows().filter(x => (!only || x.r.__t) && (FLOW_VIEW === "new" ? x.recent : flowInView(FLOW_VIEW, x.s))); $("flTable").innerHTML = flowTable(FLOW_VIEW, rows); } else renderFlow(); } };')(...Object.values(ctx));
+  const api = new Function(...Object.keys(ctx), SRC + '\n;return { flowBackOpen, flowAgainOpen, flowIsBack, flowBackLines, flowBackPill, FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW_ROUTES, flowPlanRouteOf, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestCutOpen, flowTestIssueOpen, flowTestRecvOpen, flowTestVos, flowVoProgOf, flowVoProgSync, flowVlogRows, flowDocsOf, flowVoExtra, flowVpViewOnly, flowFgAcceptOpen, flowFgAccept, flowFgRejectOpen, flowFgReject, flowFgLines, flowFgRender, flowQcLine, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowCutEntry, flowIssueEntry, flowRecvEntry, flowQcEntry, flowIssuable, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowVoLines, VOrows:()=>VO.rows, setVOrows:v=>{VO.rows=v}, flowUnplan, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v}, flowEmbedRender, FLOW_EMB:()=>FLOW_EMB, flowScreenAllowed, flowOwnsOrder, flowOwnedIn, flowVoIsFlow, flowFgOwns, flowDupViewsOff, renderView:()=>{ if (["cut","raw","wip","new","pord","vendor","fabric"].includes(FLOW_VIEW)) { const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly(); const rows = flowRows().filter(x => (!only || x.r.__t) && (FLOW_VIEW === "new" ? x.recent : flowInView(FLOW_VIEW, x.s))); $("flTable").innerHTML = flowTable(FLOW_VIEW, rows); } else renderFlow(); } };')(...Object.values(ctx));
   api.setFLOW(Object.assign(api.FLOW(), { ppc: opts.ppc || {}, dem: opts.dem || {}, res: opts.res || {} }));
   return Object.assign(api, { els, writes, W, ctx });
 }
@@ -73,8 +73,8 @@ const K = 'AMZ-1__S1';
 
   console.log('== each bucket its own right ==');
   ok('seven rights — New orders, Print orders, Vendor allocation, Outsourced, QC, Finished Goods and Printed fabric in are gone from the flow', load().FLOW_TABS.length === 7 && new Set(load().FLOW_TABS).size === 7 && !['flnew', 'flpo', 'flven', 'flout', 'flqc', 'flrdy', 'flfg', 'flfab'].some(t => load().FLOW_TABS.includes(t)));
-  ok('an admin sees every bucket', load({ me: { admin: true } }).flowBucketsAllowed().length === 8 && load({ me: { admin: true } }).flowScreenAllowed().map(b => b[0]).join() === 'ppc,ppcdone,drfd,dhist,dacc');
-  ok('PPC staff see PPC and PPC completed only', load({ me: { tabs: ['flppc', 'ord'] } }).flowBucketsAllowed().map(b => b[0]).join() === 'ppc,ppcdone');
+  ok('an admin sees every bucket', load({ me: { admin: true } }).flowBucketsAllowed().length === 9 && load({ me: { admin: true } }).flowScreenAllowed().map(b => b[0]).join() === 'ppc,ppcdone,back,drfd,dhist,dacc');
+  ok('PPC staff see PPC, PPC completed and Back to sales team only', load({ me: { tabs: ['flppc', 'ord'] } }).flowBucketsAllowed().map(b => b[0]).join() === 'ppc,ppcdone,back');
   ok('nobody with no right sees any', load({ me: { tabs: ['ord'] } }).flowBucketsAllowed().length === 0);
   ok('a key is safe for the database (no . # $ [ ] /)', load().flowKey('amz/1.2', 's#1') === 'AMZ_1_2__S_1');
 
@@ -1655,6 +1655,49 @@ const K = 'AMZ-1__S1';
     A.els.pcView = pc2.sel; A.els.pbStatus = pb2.sel;
     A.flowDupViewsOff();
     ok('…but stays for an account without the Raw cutting tab, so nobody loses the list', !pc2.o.removed && pc2.sel.value === 'wait' && pb2.o.removed);
+  }
+
+  console.log('\n== back to the sales team (Ravi, 15 Oct: "back to sale team function bhi add karo yadi order me koi problem h to") ==');
+  {
+    const L1 = L({ orderNo: 'SHP-9', sku: 'RTBX616', qty: 1, orderDate: '2026-10-14', src: 'SHP' }), L2 = L({ orderNo: 'SHP-9', sku: 'R2', qty: 2, orderDate: '2026-10-14', src: 'SHP' });
+    const OB = [{ id: 'ob_shp_SHP-9_RTBX616', orderNo: 'SHP-9', sku: 'RTBX616', qty: 1 }, { id: 'ob_shp_SHP-9_R2', orderNo: 'SHP-9', sku: 'R2', qty: 2 }];
+    const B = load({ me: { tabs: ['flppc'] }, lines: [L1, L2] });
+    B.ctx.PTG.ob = OB;
+    B.setView('ppc'); B.renderFlow();
+    ok('every PPC line has "Back to sales"', (B.els.flTable.innerHTML.match(/data-flback=/g) || []).length === 2);
+    B.flowBackOpen([B.flowKey('SHP-9', 'RTBX616')]);
+    const dlg = B.ctx.__dlg;
+    ok('the dialog asks what is wrong and a note', !!dlg && /flbkWhy/.test(dlg.html) && /flbkNote/.test(dlg.html), dlg && dlg.title);
+    B.els.flbkWhy = { value: 'other' }; B.els.flbkNote = { value: '' };
+    ok('"Other" with no note is refused', /why/i.test(await dlg.onSave()));
+    B.els.flbkWhy = { value: 'master' }; B.els.flbkNote = { value: 'no consumption for 5x4.5x5' };
+    ok('sent back: saved', (await dlg.onSave()) === '');
+    const w = B.writes[B.writes.length - 1] || {}, nb = w['pt_orderBook/ob_shp_SHP-9_RTBX616/ppcBack'];
+    ok('written on that line\'s order-book row only, with why, note, who and a log', !!nb && nb.why === 'master' && nb.note === 'no consumption for 5x4.5x5' && nb.by === 'ppc@x' && nb.log.length === 1 && Object.keys(w).length === 1, JSON.stringify(w));
+    /* What the order book now says comes back through ordLines (production-to-shipping.js carries ppcBack). */
+    const L1b = Object.assign({}, L1, { ppcBack: nb });
+    const B2 = load({ me: { tabs: ['flppc'] }, lines: [L1b, L2] });
+    B2.ctx.PTG.ob = OB.map(r => r.sku === 'RTBX616' ? Object.assign({}, r, { ppcBack: nb }) : r);
+    const st = B2.flowRows().find(x => x.r.sku === 'RTBX616').s;
+    ok('the line leaves PPC for "Back to sales team"', st.bucket === 'back' && !B2.flowInView('ppc', st) && B2.flowInView('back', st));
+    B2.setView('back'); B2.renderFlow();
+    ok('the bucket shows why, the note and "Take back into PPC"', /Master incomplete/.test(B2.els.flTable.innerHTML) && /no consumption for 5x4.5x5/.test(B2.els.flTable.innerHTML) && /Take back into PPC/.test(B2.els.flTable.innerHTML));
+    ok('the other line stays in PPC', B2.flowRows().find(x => x.r.sku === 'R2').s.bucket === 'ppc');
+    ok('Sales Orders lists it', B2.flowBackLines().length === 1 && B2.flowBackLines()[0].sku === 'RTBX616');
+    ok('the Order Console pill says so', /Back with sales/.test(B2.flowBackPill(L1b)));
+    B2.flowAgainOpen([{ orderNo: 'SHP-9', sku: 'RTBX616' }]);
+    const d2 = B2.ctx.__dlg; B2.els.flagNote = { value: '' };
+    ok('sending again needs a note of what was put right', /right/.test(await d2.onSave()));
+    B2.els.flagNote = { value: 'consumption added' };
+    ok('sent to PPC again: saved', (await d2.onSave()) === '');
+    const nb2 = (B2.writes[B2.writes.length - 1] || {})['pt_orderBook/ob_shp_SHP-9_RTBX616/ppcBack'] || {};
+    ok('…kept with its history, closed with who and what was done', nb2.why === 'master' && nb2.doneNote === 'consumption added' && nb2.doneBy === 'ppc@x' && (nb2.log || []).length === 2 && nb2.log[1].act === 'again', JSON.stringify(nb2));
+    const L1c = Object.assign({}, L1, { ppcBack: nb2 });
+    const B3 = load({ me: { tabs: ['flppc'] }, lines: [L1c] });
+    ok('…and the line is back in PPC', B3.flowRows()[0].s.bucket === 'ppc' && !B3.flowIsBack(L1c));
+    const B4 = load({ me: { tabs: ['flcut'] }, lines: [L2] });
+    B4.flowBackOpen([B4.flowKey('SHP-9', 'R2')]);
+    ok('without the PPC right nothing opens', !B4.ctx.__dlg);
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);

@@ -1,5 +1,5 @@
 <!-- ================================================================================================
-     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 150 files of src/ joined into one page.
+     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 151 files of src/ joined into one page.
      The real, grouped source: Replenish-App/src/   (map and workflow: src/README.md)
        src/index.html   page markup        src/styles.css   stylesheet        src/app/ORDER   join order
        src/app/<group>/ the code, by group: core, replenishment, masters, production, vendors, orders, shopify, flow, dashboard, people-pay, inventory, reports, shared
@@ -1885,6 +1885,7 @@
           <button id="sxGo">Refresh</button>
         </div>
         <div id="sxMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
+        <div id="sxBack"></div>
         <div id="sxKpis" class="kpis" style="margin-top:10px"></div>
       </div>
       <div class="card xlwrap" style="margin-top:12px"><table class="xl" id="sxTable"></table></div>
@@ -19958,6 +19959,8 @@ function ordLinesBuild() {
     if (r.shopDoneAt) { e.shopDoneAt = r.shopDoneAt; e.shopDoneWhy = r.shopDoneWhy || 'fulfilled'; }
     /* WHAT SHOPIFY SAYS about a line still open — told, never acted on. */
     if (r.shopSays) { e.shopSays = r.shopSays; e.shopSaysAt = r.shopSaysAt || ''; }
+    /* SENT BACK BY PPC (flow/flow-back.js): the newest word on any row of the line. */
+    if (r.ppcBack && r.ppcBack.at && (!e.ppcBack || String(r.ppcBack.at) > String(e.ppcBack.at))) e.ppcBack = r.ppcBack;
     /* WHEN IT WAS PUT ON THE BOOK — the newest first on screen. */
     { const ms = ptDtMs(r.openedAt || r.uploadedAt); if (ms > e.addedMs) e.addedMs = ms; }
     /* OPENED IN PRODUCTION — the first time any row of the line was put on the book; the 5 working days run from here. */
@@ -21082,7 +21085,9 @@ const SHP_DONE_TXT = why => ({ fulfilled: 'Fulfilled by shipping team', cancelle
 /** Shopify's word on a line production still has open: it changes nothing, so it says what to do. */
 const SHP_SAYS_TXT = why => ({ fulfilled: 'Shopify: shipped — not handed over by production', cancelled: 'Shopify: cancelled — production to decide',
   refunded: 'Shopify: refunded — production to decide', 'marked done': 'Shopify note says DONE / READY — not handed over' })[why] || '';
-function ordStatePill(r) {
+/* A line PPC sent back to the sales team says so first (flow/flow-back.js). */
+function ordStatePill(r) { return (typeof flowBackPill === 'function' && r.open ? flowBackPill(r) : '') + ordStatePill0(r); }
+function ordStatePill0(r) {
   const canC = typeof ordCanClose === 'function' && ordCanClose() && ordIsMto(r.orderNo);
   const key = esc(r.orderNo + '|' + r.sku);
   if (r.open && r.shopSays && SHP_SAYS_TXT(r.shopSays)) return '<span class="jw-st pend" title="Still open: only a hand-over to shipping closes it">' + esc(SHP_SAYS_TXT(r.shopSays)) + '</span> '
@@ -24688,6 +24693,8 @@ const FLOW_BUCKETS = [
    * hoga, wo PPC se hi edit hoga"): every line PPC has raised and not finished, with what was planned and where it is now.
    * The plan is changed (or undone) here and nowhere else. */
   ['ppcdone', 'PPC completed', 'flppc', 'Plan raised — what was planned and where the line is now. A plan is changed or undone here only.', 'flow'],
+  /* BACK TO THE SALES TEAM (Ravi, 15 Oct, flow-back.js): lines PPC could not plan, waiting for the sales team to put them right. */
+  ['back', 'Back to sales team', 'flppc', 'PPC sent these back with a reason. They come back into PPC when the sales team (Sales Orders) sends them again.', 'flow'],
   ['drfd', 'RFD fabric · out to printers', 'fldem', 'Planned; the fabric is not with the printer yet. RFD in stock against what each line needs — red where it falls short; make the challan to the printer.', 'demand'],
   ['dhist', 'Printed fabric in · history', 'flchl', 'Every RFD challan. Open until the printed fabric comes back against it — receive it here and the lines move to the store.', 'demand'],
   ['dacc', 'Accessories', 'flacc', 'Planned; the accessories are not reserved yet. Free on the shelf against what each line needs.', 'demand'],
@@ -24862,7 +24869,7 @@ function flowState(r) {
   s.needAcc = isNew && accNeed && !res;
   s.bucket =
       (r.handedAt || r.shopDoneAt) ? 'done'
-    : (isNew && !p) ? 'ppc'
+    : (isNew && !p) ? (flowIsBack(r) ? 'back' : 'ppc')
     : (route === 'outsource') ? (s.india < qty ? 'out' : 'done')
     : (s.needFab || s.needAcc) ? 'demand'
     : (printed && s.given < qty) ? 'vendor'
@@ -26976,6 +26983,137 @@ async function flowReopen(no) {
   FLOW.ch = Object.assign({}, FLOW.ch, { [no]: nc });
   return '';
 }
+/* ============================== FILE: src/app/flow/flow-back.js ============================== */
+/* ================= BACK TO THE SALES TEAM =================
+ * Ravi, 15 Oct: "back to sale team function bhi add karo yadi order me koi problem h to". PPC finds a line it cannot plan —
+ * the SKU is wrong, the master has no fabric / consumption / colour, the quantity or the details are wrong — and sends it
+ * back with a reason. The line leaves PPC and waits in "Back to sales team" (a bucket of this screen) and on top of Sales
+ * Orders, where the sales team puts the order or the master right and sends it to PPC again. The Order Console says so on
+ * the line too.
+ *
+ * Nothing is deleted. It is written on the line's order-book rows, the way a close is (orders/close-lines.js):
+ *   ppcBack = { at, by, why, note, doneAt?, doneBy?, doneNote?, log: [{ act: 'back' | 'again', why?, note, at, by }] }
+ * A line is with the sales team while ppcBack.at is set and ppcBack.doneAt is not. Only a line PPC has not planned can go
+ * back: a planned one has its plan undone in PPC completed first. */
+const FLOW_BACK_WHY = [
+  ['sku', 'SKU wrong, or not in the master'],
+  ['master', 'Master incomplete — fabric, consumption, colour or size missing'],
+  ['qty', 'Quantity wrong'],
+  ['detail', 'Order details missing or unclear'],
+  ['customer', 'Check with the customer — change or cancel'],
+  ['other', 'Other — write why'],
+];
+const flowBackTxt = w => (FLOW_BACK_WHY.find(x => x[0] === w) || [, w || 'Other'])[1];
+/** Is the line with the sales team now? */
+const flowIsBack = r => !!(r && r.ppcBack && r.ppcBack.at && !r.ppcBack.doneAt);
+/** PPC sends back; the sales team (Sales Orders, Order Console, Shopify Orders) sends again — and PPC may take it back itself. */
+const flowCanBack = () => !!(ME.admin || (ME.tabs || []).includes('flppc'));
+const flowCanAgain = () => !!(ME.admin || ['flppc', 'so', 'ord', 'shop'].some(t => (ME.tabs || []).includes(t)));
+/** Who has it, in a few words, for a pill or a cell. */
+const flowBackSays = b => flowBackTxt(b.why) + (b.note ? ' — ' + b.note : '');
+
+/** Write the new ppcBack on every order-book row of each line. items: [{orderNo, sku}]; mk(old) → the new ppcBack. */
+async function flowBackWrite(items, mk) {
+  const patch = {}, touched = new Map();
+  items.forEach(({ orderNo, sku }) => {
+    (PTG.ob || []).filter(r => r && obUC(r.orderNo) === obUC(orderNo) && obUC(r.sku) === obUC(sku)).forEach(r => {
+      const key = r.id || r._key; if (!key) return;
+      const nb = mk(r.ppcBack || null);
+      patch['pt_orderBook/' + key + '/ppcBack'] = nb; touched.set(key, nb);
+    });
+  });
+  if (!touched.size) return 'Its order-book row is gone — press Refresh.';
+  try { await ptPatch(patch); } catch (e) { return 'Could not save: ' + (e.message || e); }
+  PTG.ob = (PTG.ob || []).map(r => { const k = r && (r.id || r._key); return k && touched.has(k) ? Object.assign({}, r, { ppcBack: touched.get(k) }) : r; });
+  return '';
+}
+
+/** "Back to sales" — the lines picked (ticked in the dialog), one reason and a note for them all. */
+function flowBackOpen(keys) {
+  if (!flowCanBack()) return;
+  const rows = flowRows().filter(x => keys.includes(x.s.key) && x.s.bucket === 'ppc' && !x.r.__t);
+  if (!rows.length) return;
+  ptOpenDialog({
+    title: rows.length > 1 ? `Back to the sales team — ${nf(rows.length)} lines` : `Back to the sales team — ${rows[0].r.orderNo} · ${rows[0].r.sku}`,
+    subtitle: 'The line leaves PPC and waits with the sales team (Sales Orders) until they put it right and send it again.',
+    html: (rows.length > 1 ? `<div style="max-height:220px;overflow:auto;margin-bottom:10px">${rows.map(x =>
+        `<label style="display:flex;gap:8px;align-items:center;font-weight:400"><input type="checkbox" data-flbk="${esc(x.s.key)}" checked style="width:auto"> ${esc(x.r.orderNo)} · <b>${esc(x.r.sku)}</b> · ${nf(x.r.qty)}</label>`).join('')}</div>` : '')
+      + `<label>What is wrong<select id="flbkWhy">${FLOW_BACK_WHY.map(([k, t]) => `<option value="${k}">${esc(t)}</option>`).join('')}</select></label>`
+      + '<label>Note for the sales team<textarea id="flbkNote" rows="3" placeholder="What needs fixing — e.g. no consumption on the master for 5x4.5x5"></textarea></label>',
+    saveLabel: 'Send back',
+    onSave: async () => {
+      const why = $('flbkWhy').value, note = $('flbkNote').value.trim();
+      if (why === 'other' && !note) return 'Write why it goes back.';
+      const picked = rows.length > 1 ? rows.filter(x => { const b = document.querySelector(`[data-flbk="${x.s.key}"]`); return !b || b.checked; }) : rows;
+      if (!picked.length) return 'Tick at least one line.';
+      const at = new Date().toISOString(), by = ME.email || '';
+      const err = await flowBackWrite(picked.map(x => x.r), old => ({ at, by, why, note,
+        log: (old && Array.isArray(old.log) ? old.log.slice(-19) : []).concat([{ act: 'back', why, note, at, by }]) }));
+      if (err) return err;
+      renderFlow();
+      return '';
+    },
+  });
+}
+
+/** "Send to PPC again" — the sales team has put it right (or PPC takes it back). A note says what was done. */
+function flowAgainOpen(items) {
+  if (!flowCanAgain() || !items.length) return;
+  const one = items[0];
+  ptOpenDialog({
+    title: items.length > 1 ? `Send ${nf(items.length)} lines to PPC again` : `Send to PPC again — ${one.orderNo} · ${one.sku}`,
+    subtitle: 'The line goes back into PPC, to be planned. What PPC said stays in its history.',
+    html: '<label>What was done<textarea id="flagNote" rows="3" placeholder="e.g. consumption added on the master; quantity corrected on the sales order"></textarea></label>',
+    saveLabel: 'Send to PPC',
+    onSave: async () => {
+      const note = $('flagNote').value.trim(); if (!note) return 'Say what was put right.';
+      const at = new Date().toISOString(), by = ME.email || '';
+      const err = await flowBackWrite(items, old => Object.assign({}, old || {}, { doneAt: at, doneBy: by, doneNote: note,
+        log: (old && Array.isArray(old.log) ? old.log.slice(-19) : []).concat([{ act: 'again', note, at, by }]) }));
+      if (err) return err;
+      try { if (typeof renderFlow === 'function' && $('flTable')) renderFlow(); } catch (e) { /* the flow is not open */ }
+      try { if (typeof renderSox === 'function' && SOX.rows) renderSox(); } catch (e) { /* the sales orders are not open */ }
+      try { if (typeof renderOrd === 'function') renderOrd(); } catch (e) { /* the console is not open */ }
+      return '';
+    },
+  });
+}
+
+/** Every line with the sales team now, newest first — for Sales Orders. */
+function flowBackLines() {
+  return (typeof ordLines === 'function' ? ordLines() : []).filter(l => l.open !== false && flowIsBack(l))
+    .sort((a, b) => String(b.ppcBack.at).localeCompare(String(a.ppcBack.at)));
+}
+
+/** The card on top of Sales Orders: what PPC sent back, and the button that sends it again. Empty when nothing is back. */
+function flowBackCard() {
+  const rows = flowBackLines();
+  if (!rows.length) return '';
+  const can = flowCanAgain();
+  return `<div class="card" style="border-left:4px solid #b91c1c;margin-top:10px;padding:10px 14px">
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b style="color:#b91c1c">Sent back by PPC · ${nf(rows.length)}</b>
+      <span class="muted" style="font-size:12.5px">PPC cannot plan these. Put the order or the master right, then send the line to PPC again.</span></div>
+    <div class="xlwrap" style="margin-top:8px"><table class="xl xl-dense"><thead><tr><th class="frz">Order</th><th>SKU</th><th class="num">Qty</th><th>What is wrong</th><th>Sent back</th><th></th></tr></thead><tbody>
+    ${rows.map(l => { const b = l.ppcBack, so = (SOX.rows || []).some(o => o && obUC(o._id) === obUC(l.orderNo));
+      return `<tr><td class="frz" style="text-align:left;font-weight:600">${esc(l.orderNo)}</td>
+        <td style="text-align:left"><b style="font-family:ui-monospace,monospace">${esc(l.sku)}</b><div class="muted" style="font-size:11.5px">${esc([l.articleSubtype || l.articleType, l.color, l.size].filter(Boolean).join(' · '))}</div></td>
+        <td class="num">${nf(l.qty)}</td>
+        <td style="text-align:left;white-space:normal;max-width:360px"><b>${esc(flowBackTxt(b.why))}</b>${b.note ? `<div style="font-size:12.5px">${esc(b.note)}</div>` : ''}</td>
+        <td class="muted" style="font-size:12px;white-space:nowrap">${esc(String(b.at).slice(0, 10))}<br>${esc(String(b.by || '').split('@')[0])}</td>
+        <td style="white-space:nowrap">${so ? `<button class="ghost" data-so-open="${esc(l.orderNo)}" style="padding:3px 9px;font-size:12px">Open order</button> ` : ''}${can
+          ? `<button data-flagain="${esc(l.orderNo + '|' + l.sku)}" style="padding:3px 9px;font-size:12px">Fixed — send to PPC</button>` : ''}</td></tr>`; }).join('')}
+    </tbody></table></div></div>`;
+}
+
+/** The pill the Order Console puts in front of a line that is with the sales team. */
+const flowBackPill = r => flowIsBack(r) ? `<span class="pill pill-out" title="${esc('Sent back by ' + String(r.ppcBack.by || '').split('@')[0] + ' on ' + String(r.ppcBack.at).slice(0, 10) + ': ' + flowBackSays(r.ppcBack))}">Back with sales · ${esc(flowBackTxt(r.ppcBack.why))}</span> ` : '';
+
+if (typeof document !== 'undefined' && document.addEventListener) document.addEventListener('click', e => {
+  const a = e.target.closest && e.target.closest('[data-flagain]'); if (!a) return;
+  e.preventDefault();
+  const [orderNo, sku] = String(a.dataset.flagain).split('|');
+  flowAgainOpen([{ orderNo, sku }]);
+});
 /* ============================== FILE: src/app/flow/flow-entries.js ============================== */
 /* ================= PRODUCTION FLOW · THE FACTORY'S OWN ENTRIES, OPENED FOR THE LINE =================
  * Ravi, 10 Oct: the lines move to Cutting by themselves, "then wahan se cutting ki entry ho jise hum abhi individual kar
@@ -27529,6 +27667,8 @@ function flowTable(view, rows) {
      * dikhe PPC team ko"). Two or more orders of one day asking for one SKU are one row: the orders and their quantities,
      * the total, what the plan holds for the total, and "Plan together" — each line still gets its own plan. */
     const grpOf = x => obUC(x.r.sku) + '|' + String(ptIsoDate(x.r.orderDate) || '') + '|' + (x.r.__t ? 'T' : 'R');
+    /* BACK TO THE SALES TEAM (flow-back.js): a line PPC cannot plan goes back with a reason. */
+    const backBtn = g => flowCanBack() && !g.some(x => x.r.__t) ? `<button class="ghost" data-flback="${esc(g.map(x => x.s.key).join(','))}" title="Something is wrong with the order or its master — send it back to the sales team with a reason" style="width:auto;padding:2px 8px;font-size:11.5px;color:#b91c1c;border-color:#fca5a5">Back to sales</button>` : '';
     const grps = new Map(); rows.forEach(x => { const k = grpOf(x); (grps.get(k) || grps.set(k, []).get(k)).push(x); });
     const drawn = new Set();
     const combined = g => { const x0 = g[0], tot = g.reduce((a, x) => a + (+x.r.qty || 0), 0), sg = flowSuggest(Object.assign({}, x0.r, { qty: tot }));
@@ -27542,7 +27682,8 @@ function flowTable(view, rows) {
         <td style="text-align:left;font-size:13px;line-height:1.55;white-space:normal;min-width:240px;vertical-align:top">
           <div>Fabric: <b>${esc(sg.fabric.name || '?')}</b> · ${sg.fabric.metres ? nf(sg.fabric.metres) + ' m' : '<b style="color:#b91c1c">metres not known</b>'}</div>
           <div>${sg.print.need ? `Print: <b>${esc(sg.printer.name || 'printer not chosen')}</b>` : 'No printing — straight to cutting'}</div></td>
-        <td style="white-space:nowrap;vertical-align:top"><button data-flppck="${esc(g.map(x => x.s.key).join(','))}" style="width:auto;padding:3px 10px;font-size:12px">Plan together · ${nf(g.length)} orders</button></td></tr>`; };
+        <td style="white-space:nowrap;vertical-align:top"><div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start"><button data-flppck="${esc(g.map(x => x.s.key).join(','))}" style="width:auto;padding:3px 10px;font-size:12px">Plan together · ${nf(g.length)} orders</button>
+          ${backBtn(g)}</div></td></tr>`; };
     body = rows.map(x => { const g = grps.get(grpOf(x));
       if (g.length > 1) { const k = grpOf(x); if (drawn.has(k)) return ''; drawn.add(k); return combined(g); }
       const sg = flowSuggest(x.r), first = !seen.has(x.r.orderNo); seen.add(x.r.orderNo);
@@ -27552,7 +27693,17 @@ function flowTable(view, rows) {
         ${sg.acc.length ? `<div>Accessories: ${sg.acc.map(a => esc(a.code) + ' × ' + nf(a.qty)).join(', ')}</div>` : ''}
         ${sg.gaps.length ? `<div style="font-size:12px;color:#92400e">${esc(sg.gaps[0])}${sg.gaps.length > 1 ? ' (+' + (sg.gaps.length - 1) + ')' : ''}</div>` : ''}</td>
         <td style="white-space:nowrap;vertical-align:top"><div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start">${first ? `<button data-flppc="${esc(x.r.orderNo)}" style="width:auto;padding:3px 10px;font-size:12px">Plan this PO</button>` : ''}
-          <button class="ghost" data-flppc="${esc(x.r.orderNo)}" data-sku="${esc(x.r.sku)}" style="width:auto;padding:2px 8px;font-size:11.5px">This line</button></div></td></tr>`; }).join('');
+          <button class="ghost" data-flppc="${esc(x.r.orderNo)}" data-sku="${esc(x.r.sku)}" style="width:auto;padding:2px 8px;font-size:11.5px">This line</button>
+          ${backBtn([x])}</div></td></tr>`; }).join('');
+  } else if (view === 'back') {
+    /* What PPC sent back, why, and who has it now: the sales team sends it again from Sales Orders (or PPC takes it back). */
+    head = ['PO', 'SKU', 'Qty', 'What is wrong', 'Sent back', ''];
+    body = rows.map(x => { const b = x.r.ppcBack || {};
+      return `<tr>${base(x)}
+        <td style="text-align:left;font-size:13px;line-height:1.5;white-space:normal;min-width:240px;max-width:420px;vertical-align:top"><b style="color:#b91c1c">${esc(flowBackTxt(b.why))}</b>${b.note ? `<div>${esc(b.note)}</div>` : ''}
+          <div class="muted" style="font-size:11.5px">With the sales team — Sales Orders → Sent back by PPC</div></td>
+        <td class="muted" style="text-align:left;font-size:12px;line-height:1.55;vertical-align:top">${esc(String(b.at || '').slice(0, 10))}<br>${esc(String(b.by || '').split('@')[0])}</td>
+        <td style="white-space:nowrap;vertical-align:top">${flowCanAgain() ? `<button class="ghost" data-flagain="${esc(x.r.orderNo + '|' + x.r.sku)}" style="width:auto;padding:2px 8px;font-size:11.5px">Take back into PPC</button>` : ''}</td></tr>`; }).join('');
   } else if (view === 'ppcdone') {
     /* What PPC planned, line by line, where the line is now, and the one place to change it. */
     head = ['PO', 'SKU', 'Qty', 'Planned', 'Now in', 'Raised', ''];
@@ -27687,6 +27838,7 @@ async function flowTableClick(e) {
   const cp = e.target.closest('[data-flchp]'); if (cp) { e.preventDefault(); const er = flowChallanPrint(cp.dataset.flchp); if (er) { $('flMsg').className = 'err'; $('flMsg').textContent = er; } return; }
   const pk = e.target.closest('[data-flppck]'); if (pk) { flowPpcOpen('', '', String(pk.dataset.flppck || '').split(',').filter(Boolean)); return; }
   const pp = e.target.closest('[data-flppc]'); if (pp) { flowPpcOpen(pp.dataset.flppc, pp.dataset.sku || ''); return; }
+  const bk = e.target.closest('[data-flback]'); if (bk) { flowBackOpen(String(bk.dataset.flback || '').split(',').filter(Boolean)); return; }
   const key = (e.target.closest('[data-flfab],[data-flres],[data-flunres]') || {}).dataset;
   if (!key) return;
   const x = flowRows().find(y => y.s.key === (key.flfab || key.flres || key.flunres)); if (!x) return;
@@ -37559,6 +37711,8 @@ function soSummary(o, w) {
 function renderSox() {
   if (SOX.busy) { $('sxMsg').className = 'muted'; $('sxMsg').textContent = 'Reading the sales orders…'; ptEmpty('sxTable', 'Loading…'); return; }
   if (SOX.err) { $('sxMsg').className = 'err'; $('sxMsg').textContent = 'Could not read it: ' + SOX.err; ptEmpty('sxTable', 'Nothing to show.'); $('sxKpis').innerHTML = ''; return; }
+  /* SENT BACK BY PPC (flow/flow-back.js), above everything: lines PPC cannot plan until this team puts them right. */
+  if ($('sxBack')) { try { $('sxBack').innerHTML = typeof flowBackCard === 'function' ? flowBackCard() : ''; } catch (e) { $('sxBack').innerHTML = ''; } }
   const all = SOX.rows || [];
   if (!all.length) { $('sxMsg').className = 'muted'; $('sxMsg').textContent = ''; $('sxKpis').innerHTML = ''; ptEmpty('sxTable', 'No sales orders.'); return; }
 
@@ -37743,6 +37897,9 @@ $('sxTable').addEventListener('click', e => {
   const o = e.target.closest('[data-so-open]'); if (o) return soOpen(o.getAttribute('data-so-open'));
   const ed = e.target.closest('[data-so-edit]'); if (ed) return soFormOpen(ed.getAttribute('data-so-edit'));
   const rv = e.target.closest('[data-so-review]'); if (rv) return soReview(rv.getAttribute('data-so-review'));
+});
+if ($('sxBack')) $('sxBack').addEventListener('click', e => {
+  const o = e.target.closest('[data-so-open]'); if (o) return soOpen(o.getAttribute('data-so-open'));
 });
 $('sxStatus').addEventListener('change', renderSox);
 if ($('sxChan')) $('sxChan').addEventListener('change', renderSox);

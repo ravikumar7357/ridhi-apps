@@ -67,6 +67,7 @@ flow/flow-receive.js
 flow/flow-printorder.js
 flow/flow-vendor.js
 flow/flow-edit.js
+flow/flow-back.js
 flow/flow-entries.js
 flow/flow-qcfg.js
 flow/flow-view.js

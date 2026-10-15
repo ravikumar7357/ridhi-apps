@@ -94,6 +94,8 @@ function soSummary(o, w) {
 function renderSox() {
   if (SOX.busy) { $('sxMsg').className = 'muted'; $('sxMsg').textContent = 'Reading the sales orders…'; ptEmpty('sxTable', 'Loading…'); return; }
   if (SOX.err) { $('sxMsg').className = 'err'; $('sxMsg').textContent = 'Could not read it: ' + SOX.err; ptEmpty('sxTable', 'Nothing to show.'); $('sxKpis').innerHTML = ''; return; }
+  /* SENT BACK BY PPC (flow/flow-back.js), above everything: lines PPC cannot plan until this team puts them right. */
+  if ($('sxBack')) { try { $('sxBack').innerHTML = typeof flowBackCard === 'function' ? flowBackCard() : ''; } catch (e) { $('sxBack').innerHTML = ''; } }
   const all = SOX.rows || [];
   if (!all.length) { $('sxMsg').className = 'muted'; $('sxMsg').textContent = ''; $('sxKpis').innerHTML = ''; ptEmpty('sxTable', 'No sales orders.'); return; }
 
@@ -278,6 +280,9 @@ $('sxTable').addEventListener('click', e => {
   const o = e.target.closest('[data-so-open]'); if (o) return soOpen(o.getAttribute('data-so-open'));
   const ed = e.target.closest('[data-so-edit]'); if (ed) return soFormOpen(ed.getAttribute('data-so-edit'));
   const rv = e.target.closest('[data-so-review]'); if (rv) return soReview(rv.getAttribute('data-so-review'));
+});
+if ($('sxBack')) $('sxBack').addEventListener('click', e => {
+  const o = e.target.closest('[data-so-open]'); if (o) return soOpen(o.getAttribute('data-so-open'));
 });
 $('sxStatus').addEventListener('change', renderSox);
 if ($('sxChan')) $('sxChan').addEventListener('change', renderSox);
