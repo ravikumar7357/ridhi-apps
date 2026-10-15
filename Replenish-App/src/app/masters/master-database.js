@@ -220,6 +220,8 @@ function pmdbTools(view) {
 }
 
 function renderPmdb() {
+  /* The page in Ravi's format (fabric-master.js) sits above this table; it draws first, and hides the table unless asked for. */
+  if (typeof fmRender === 'function') fmRender();
   if (PT.busy.mdb) { $('ptmMsg').className = 'muted'; $('ptmMsg').textContent = 'Reading the production database…'; ptEmpty('ptmTable', 'Loading…'); return; }
   if (PT.err.mdb) {
     $('ptmMsg').className = 'err'; $('ptmMsg').textContent = 'Could not read it: ' + PT.err.mdb;

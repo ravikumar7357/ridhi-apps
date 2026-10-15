@@ -132,6 +132,7 @@ masters/recipe-bucket.js
 masters/sku-codes.js
 inventory/store.js
 masters/cloth-per-piece.js
+masters/fabric-master.js
 reports/day-by-day-target.js
 shopify/shopify-orders.js
 shopify/orders-to-make.js
