@@ -26342,6 +26342,51 @@ function flowPoProgress(o) {
     return { key, it, need, sent: flowR2(c.sent || 0), back: flowR2(c.recv || 0), done: need <= 0 || ((c.recv || 0) >= need - 0.01) };
   });
 }
+/* WHAT THE PRINTER IS TOLD (Ravi, 15 Oct: the printer sees, against each order, whether the fabric or the cut pieces reached
+ * it and what it has sent back). A printer's sign-in cannot read the flow's challans, so the office side writes a summary
+ * onto the printer's own Vendor Order: pt_vendorOrders/<code>/<id>/flowProg = { unit, given, back, challans:[{no, date,
+ * given, back}], receipts:[{date, qty, challan}], at }. Worked out from the RFD challans of this print order's lines in the
+ * vendor order's unit (running cloth in m, cut pieces in pcs), and written only when it changed (sig on the print order). */
+function flowVoProgOf(o, kind) {
+  const unit = kind === 'cut' ? 'pcs' : 'm', keys = new Set(Object.keys(o.items || {}).filter(k => o.items[k]));
+  const code = String((o.printer && o.printer.code) || ''), challans = [], receipts = [];
+  Object.values(FLOW.ch || {}).forEach(c => {
+    if (!c || c.cancelled || obUC(c.orderNo) !== obUC(o.orderNo) || String((c.vendor && c.vendor.code) || '') !== code) return;
+    const ls = (c.lines || []).filter(l => flowChUnit(l) === unit && (keys.has(l.key) || keys.has(l.key + FLOW_RUF)));
+    if (!ls.length) return;
+    const lk = new Set(ls.map(l => l.key));
+    let back = 0;
+    Object.values(c.receipts || {}).forEach(r => {
+      const q = flowR2(Object.entries((r && r.items) || {}).filter(([k]) => lk.has(k)).reduce((a, [, v]) => a + (+v || 0), 0));
+      if (q > 0) { back += q; receipts.push({ date: r.date || '', qty: q, challan: c.no }); }
+    });
+    challans.push({ no: c.no, date: c.date || '', given: flowR2(ls.reduce((a, l) => a + flowChSent(l), 0)), back: flowR2(back) });
+  });
+  const by = (a, b) => String(a.date).localeCompare(String(b.date)) || String(a.no || a.challan).localeCompare(String(b.no || b.challan));
+  challans.sort(by); receipts.sort(by);
+  return { unit, given: flowR2(challans.reduce((a, c) => a + c.given, 0)), back: flowR2(challans.reduce((a, c) => a + c.back, 0)), challans, receipts };
+}
+let FLOW_VOSYNC_T = null;
+/** Written from the office's screens after they draw — never from a printer's sign-in. Quiet: a failed write waits for the next. */
+function flowVoProgSync() {
+  if (!FLOW_REAL || !FLOW.po || !FLOW.ch || (typeof NAV_IS_VENDOR !== 'undefined' && NAV_IS_VENDOR)) return;
+  clearTimeout(FLOW_VOSYNC_T);
+  FLOW_VOSYNC_T = setTimeout(async () => {
+    const patch = {}, now = new Date().toISOString();
+    Object.entries(FLOW.po || {}).forEach(([no, o]) => {
+      if (!o || o.test || !o.vo || !o.printer) return;
+      ['running', 'cut'].forEach(kind => {
+        const ref = o.vo[kind]; if (!ref || !ref.id || !ref.code) return;
+        const prog = flowVoProgOf(o, kind), sig = JSON.stringify(prog);
+        if (((o.voProg || {})[kind] || {}).sig === sig) return;
+        patch[`pt_vendorOrders/${ref.code}/${ref.id}/flowProg`] = Object.assign({ at: now }, prog);
+        patch[`pt_flowPrintOrders/${no}/voProg/${kind}`] = { sig, at: now };
+        o.voProg = Object.assign({}, o.voProg, { [kind]: { sig, at: now } });
+      });
+    });
+    if (Object.keys(patch).length) { try { await ptPatch(patch); } catch (e) { /* the next draw tries again */ } }
+  }, 1500);
+}
 const flowPoState = o => o.cancelled ? 'cancelled' : flowPoProgress(o).every(x => x.done) ? 'done' : flowPoProgress(o).some(x => x.sent > 0) ? 'part' : 'open';
 
 /** The Print orders bucket: every print order, open first. */
@@ -26566,8 +26611,15 @@ function flowDocsHtml(x) {
  *   An admin can look at the portal AS a printer, on the preview only ("View as printer") — view only throughout.
  * All of it is switched on with the flow (FLOW_ON); the live app is untouched. */
 
-/** View only in the portal: a flow order, or anything while an admin is looking as a printer. */
-const flowVpViewOnly = o => !!(FLOW_ON && o && (o.test || o.demandSource === 'ppc' || (typeof VP !== 'undefined' && VP.viewAs)));
+/* EVERY ORDER IS VIEW ONLY (Ravi, 15 Oct: "vendor sirf order dekh paye aur order ke against me usko fabric ya cut piece mila
+ * h ya nahi wo dekh paye aur usne kya bhej diya wo dekh paye; usko entry nahi krni h, n hi order acknowledge krna h, n hi
+ * production me order lena h; jese hi order place karu direct usko pas show ho jay"). With the flow on, a printer sees
+ * its orders and nothing to press: no Acknowledge, no Start production, no "I am sending", no dates, no RFD asking — old
+ * orders included. What was given and what came back is the office's entry, shown on the order (flowProg). */
+/** vpEntry = '1' on one computer brings the old entries back (read each time, so a test can switch it). */
+const vpViewAll = () => { try { if (localStorage.getItem('vpEntry') === '1') return false; } catch (e) { /* storage blocked */ } return !!FLOW_ON; };
+/** View only in the portal: every order while the flow is on (and anything while an admin is looking as a printer). */
+const flowVpViewOnly = o => !!(o && (vpViewAll() || (FLOW_ON && (o.test || o.demandSource === 'ppc' || (typeof VP !== 'undefined' && VP.viewAs)))));
 const flowDmy = iso => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}/${m[2]}/${m[1]}` : String(iso || ''); };
 
 /** The test print orders as Vendor Orders — built on the fly, never stored. */
@@ -26587,7 +26639,7 @@ function flowTestVos() {
         notes: `TEST — from the PPC plan, ${o.orderNo} (${o.no}). View only: ${FLOW_COMPANY} records the cloth sent and the printed cloth received`
           + ` (so far: sent ${nf(flowR2(sent))}, back ${nf(flowR2(back))}).`,
         lines: lines.map((l, i) => Object.assign({ lineId: 'tl_' + kind + '_' + i }, l)), createdBy: o.by || '', createdAt: o.at || '',
-        demandSource: 'ppc', flowPrintOrder: o.no, test: true, virtual: true });
+        demandSource: 'ppc', flowPrintOrder: o.no, test: true, virtual: true, flowProg: flowVoProgOf(o, kind) });
     });
   });
   return out;
@@ -27181,6 +27233,7 @@ function renderFlow() {
    * means is its tooltip, so the line under the toolbar is kept for what is NOT on screen: a failed read, a list cut at
    * 800, a narrowed list (test orders only, filters, a search). Nothing to say → nothing shown. The phase is in the
    * Refresh button's tooltip. */
+  try { flowVoProgSync(); } catch (e) { /* the printers' orders wait for the next draw */ }
   const nFilt = flowFiltCount(ff);
   if ($('flRefresh')) $('flRefresh').title = flowPhaseTxt();
   if ($('flMsg').style) { $('flMsg').style.whiteSpace = 'pre-line'; $('flMsg').style.lineHeight = '1.6'; }
@@ -42496,8 +42549,11 @@ function renderVp() {
   /* THE RFD TAB SHOWS ONLY WHAT IT USES (Ravi, 2026-09-26: "data too much lag rha h do neet and clean"). */
   /* A vendor's browser is marked, so the full guide at /guide/ sends them to theirs. */
   if (spIsVendor()) { try { localStorage.setItem('guideRole', 'vendor'); } catch (e) { /* nothing to mark */ } }
+  /* View only: no asking for RFD cloth and nothing to record or date — the tab and the bar go (vpViewAll()). */
+  if (vpViewAll() && VP.tab === 'rfd') VP.tab = 'bulk';
+  if ($('vpTabRfd')) $('vpTabRfd').classList.toggle('hide', vpViewAll());
   const rfdTab = VP.tab === 'rfd';
-  ['vpBar2', 'vpBar3'].forEach(id => { if ($(id)) $(id).classList.toggle('hide', rfdTab); });
+  ['vpBar2', 'vpBar3'].forEach(id => { if ($(id)) $(id).classList.toggle('hide', rfdTab || (id === 'vpBar3' && vpViewAll())); });
   ['vpView', 'vpStatus', 'vpType', 'vpQ', 'vpExport'].forEach(id => { if ($(id)) $(id).classList.toggle('hide', rfdTab); });
   if (rfdTab) { vpRfdRender(matched, nag); return; }
 
@@ -42739,11 +42795,26 @@ const VP_BRANDS = { RIDHI: 'Ridhi', RBP: 'Ridhi', CPC: 'CPC' };
 /** The buyer of a B2B line, when its brand box holds one. */
 const vpBuyerOf = l => (/^B2B-/.test(obUC(l && l.shopOrderNo)) && String((l && l.brand) || '').trim() && !VP_BRANDS[obUC(l.brand)]) ? String(l.brand).trim() : '';
 
+/** What Ridhi Home & Living gave the printer for this order and what came back — the office's entries, written onto the
+ * order as flowProg (flow-printorder.js). Nothing for an order the flow did not make. */
+function vpProgHtml(o) {
+  const p = o && o.flowProg; if (!p) return '';
+  const u = p.unit === 'pcs' ? 'pcs' : 'm', q = n => nf(Math.round((+n || 0) * 100) / 100) + ' ' + u;
+  const ch = ptList(p.challans), rc = ptList(p.receipts), given = +p.given || 0, back = +p.back || 0;
+  const day = d => (d ? ' (' + esc(typeof dShow === 'function' ? dShow(d) : d) + ')' : '');
+  return `<div style="margin-top:7px;display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:12.5px;align-items:baseline">
+    <span class="muted">${u === 'pcs' ? 'Cut pieces given to you' : 'Fabric given to you'}</span>
+    <span>${given > 0 ? `<b style="color:#1d4ed8">${q(given)}</b>` : '<b style="color:#92400e">not yet</b>'}${ch.length ? ` <span class="muted">· ${ch.map(c => esc(c.no) + day(c.date)).join(', ')}</span>` : ''}</span>
+    <span class="muted">Received from you</span>
+    <span>${back > 0 ? `<b style="color:#166534">${q(back)}</b>` : '<b class="muted">nothing yet</b>'}${rc.length ? ` <span class="muted">· ${rc.map(r => q(r.qty) + day(r.date)).join(', ')}</span>` : ''}</span>
+    ${given > 0 ? `<span class="muted">Still with you</span><span><b>${q(Math.max(0, given - back))}</b></span>` : ''}</div>`;
+}
 function vpTable(rows, f) {
   /* Ten columns, not thirteen. The colour and the priority moved up into the group heading, and the
-   * order number was on every row of an order whose bar already named it. */
+   * order number was on every row of an order whose bar already named it. View only (vpViewAll()): eight — no date of
+   * the printer's own, nothing being sent. */
   const COLS = ['SKU / fabric', 'Image', 'Article', 'Size', 'Ordered', 'Sent so far',
-    'Balance', 'Wanted by', 'Your date', 'Sending now'];
+    'Balance', 'Wanted by'].concat(vpViewAll() ? [] : ['Your date', 'Sending now']);
   const head = COLS
     .map(h => `<th${['Ordered', 'Sent so far', 'Balance', 'Sending now'].indexOf(h) >= 0 ? ' class="num"' : ''}>${esc(h)}</th>`).join('');
 
@@ -42773,6 +42844,7 @@ function vpTable(rows, f) {
           <span class="pill ${cls}">${esc(st)}</span>
         </div>
         ${o.notes ? `<div class="ptnote" style="margin-top:7px">From the buyer: ${esc(o.notes)}</div>` : ''}
+        ${vpProgHtml(o)}
         ${flow ? `<div style="margin-top:7px">
           <button data-vpflow="${esc(o.id)}">${flow === 'Acknowledged' ? 'Acknowledge this order' : 'Start production'}</button>
         </div>` : ''}
@@ -42809,13 +42881,13 @@ function vpTable(rows, f) {
         + `<td class="num">${dead ? '<span class="pill pill-out">cancelled</span>'
             : (bal > 0 ? `<span style="font-weight:700;color:var(--bad)">${nf(bal)}</span>` : '<span class="pill pill-ok">done</span>')}</td>`
         + `<td class="muted" style="font-size:12px">${voWant(l) ? esc(dShow(voWant(l))) : '—'}</td>`
-        + `<td>${flowVpViewOnly(o) || dead || bal <= 0 ? '<span class="muted">—</span>'
+        + (vpViewAll() ? '</tr>' : `<td>${flowVpViewOnly(o) || dead || bal <= 0 ? '<span class="muted">—</span>'
             : `<input data-vpprom="${esc(o.id)}" data-i="${i}" type="date" value="${esc(voProm(l))}" style="width:146px">`
               + (voMoves(l) ? `<div class="muted" style="font-size:10px">first said ${esc(dShow(voPromFirst(l)))}</div>` : '')}</td>`
         + `<td class="num">${!can || dead || bal <= 0 ? '<span class="muted">—</span>'
             : `<input data-vpsend="${esc(o.id)}" data-i="${i}" type="number" min="0" max="${bal}" step="${run ? '0.01' : '1'}"
                  placeholder="0" style="width:82px;text-align:right">`}</td>`
-        + '</tr>';
+        + '</tr>');
       }).join('');
     }).join('');
     return bar + lines;
@@ -42881,6 +42953,7 @@ function vpCard(o, f) {
       <span style="flex:1"></span><span class="pill ${cls}">${esc(st)}</span>
     </div>
     ${o.notes ? `<div class="ptnote" style="margin-top:8px">From the buyer: ${esc(o.notes)}</div>` : ''}
+    ${vpProgHtml(o)}
     <div class="xlwrap" style="border:1px solid var(--line);border-radius:10px;margin-top:8px">
       <table class="xl"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>
     ${on && keep.length < all.length ? `<div class="muted" style="font-size:12px;margin-top:6px">${

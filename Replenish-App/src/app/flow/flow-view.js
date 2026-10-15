@@ -92,6 +92,7 @@ function renderFlow() {
    * means is its tooltip, so the line under the toolbar is kept for what is NOT on screen: a failed read, a list cut at
    * 800, a narrowed list (test orders only, filters, a search). Nothing to say → nothing shown. The phase is in the
    * Refresh button's tooltip. */
+  try { flowVoProgSync(); } catch (e) { /* the printers' orders wait for the next draw */ }
   const nFilt = flowFiltCount(ff);
   if ($('flRefresh')) $('flRefresh').title = flowPhaseTxt();
   if ($('flMsg').style) { $('flMsg').style.whiteSpace = 'pre-line'; $('flMsg').style.lineHeight = '1.6'; }

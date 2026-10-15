@@ -95,6 +95,51 @@ function flowPoProgress(o) {
     return { key, it, need, sent: flowR2(c.sent || 0), back: flowR2(c.recv || 0), done: need <= 0 || ((c.recv || 0) >= need - 0.01) };
   });
 }
+/* WHAT THE PRINTER IS TOLD (Ravi, 15 Oct: the printer sees, against each order, whether the fabric or the cut pieces reached
+ * it and what it has sent back). A printer's sign-in cannot read the flow's challans, so the office side writes a summary
+ * onto the printer's own Vendor Order: pt_vendorOrders/<code>/<id>/flowProg = { unit, given, back, challans:[{no, date,
+ * given, back}], receipts:[{date, qty, challan}], at }. Worked out from the RFD challans of this print order's lines in the
+ * vendor order's unit (running cloth in m, cut pieces in pcs), and written only when it changed (sig on the print order). */
+function flowVoProgOf(o, kind) {
+  const unit = kind === 'cut' ? 'pcs' : 'm', keys = new Set(Object.keys(o.items || {}).filter(k => o.items[k]));
+  const code = String((o.printer && o.printer.code) || ''), challans = [], receipts = [];
+  Object.values(FLOW.ch || {}).forEach(c => {
+    if (!c || c.cancelled || obUC(c.orderNo) !== obUC(o.orderNo) || String((c.vendor && c.vendor.code) || '') !== code) return;
+    const ls = (c.lines || []).filter(l => flowChUnit(l) === unit && (keys.has(l.key) || keys.has(l.key + FLOW_RUF)));
+    if (!ls.length) return;
+    const lk = new Set(ls.map(l => l.key));
+    let back = 0;
+    Object.values(c.receipts || {}).forEach(r => {
+      const q = flowR2(Object.entries((r && r.items) || {}).filter(([k]) => lk.has(k)).reduce((a, [, v]) => a + (+v || 0), 0));
+      if (q > 0) { back += q; receipts.push({ date: r.date || '', qty: q, challan: c.no }); }
+    });
+    challans.push({ no: c.no, date: c.date || '', given: flowR2(ls.reduce((a, l) => a + flowChSent(l), 0)), back: flowR2(back) });
+  });
+  const by = (a, b) => String(a.date).localeCompare(String(b.date)) || String(a.no || a.challan).localeCompare(String(b.no || b.challan));
+  challans.sort(by); receipts.sort(by);
+  return { unit, given: flowR2(challans.reduce((a, c) => a + c.given, 0)), back: flowR2(challans.reduce((a, c) => a + c.back, 0)), challans, receipts };
+}
+let FLOW_VOSYNC_T = null;
+/** Written from the office's screens after they draw — never from a printer's sign-in. Quiet: a failed write waits for the next. */
+function flowVoProgSync() {
+  if (!FLOW_REAL || !FLOW.po || !FLOW.ch || (typeof NAV_IS_VENDOR !== 'undefined' && NAV_IS_VENDOR)) return;
+  clearTimeout(FLOW_VOSYNC_T);
+  FLOW_VOSYNC_T = setTimeout(async () => {
+    const patch = {}, now = new Date().toISOString();
+    Object.entries(FLOW.po || {}).forEach(([no, o]) => {
+      if (!o || o.test || !o.vo || !o.printer) return;
+      ['running', 'cut'].forEach(kind => {
+        const ref = o.vo[kind]; if (!ref || !ref.id || !ref.code) return;
+        const prog = flowVoProgOf(o, kind), sig = JSON.stringify(prog);
+        if (((o.voProg || {})[kind] || {}).sig === sig) return;
+        patch[`pt_vendorOrders/${ref.code}/${ref.id}/flowProg`] = Object.assign({ at: now }, prog);
+        patch[`pt_flowPrintOrders/${no}/voProg/${kind}`] = { sig, at: now };
+        o.voProg = Object.assign({}, o.voProg, { [kind]: { sig, at: now } });
+      });
+    });
+    if (Object.keys(patch).length) { try { await ptPatch(patch); } catch (e) { /* the next draw tries again */ } }
+  }, 1500);
+}
 const flowPoState = o => o.cancelled ? 'cancelled' : flowPoProgress(o).every(x => x.done) ? 'done' : flowPoProgress(o).some(x => x.sent > 0) ? 'part' : 'open';
 
 /** The Print orders bucket: every print order, open first. */

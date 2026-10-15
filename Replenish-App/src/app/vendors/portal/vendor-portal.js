@@ -378,8 +378,11 @@ function renderVp() {
   /* THE RFD TAB SHOWS ONLY WHAT IT USES (Ravi, 2026-09-26: "data too much lag rha h do neet and clean"). */
   /* A vendor's browser is marked, so the full guide at /guide/ sends them to theirs. */
   if (spIsVendor()) { try { localStorage.setItem('guideRole', 'vendor'); } catch (e) { /* nothing to mark */ } }
+  /* View only: no asking for RFD cloth and nothing to record or date — the tab and the bar go (vpViewAll()). */
+  if (vpViewAll() && VP.tab === 'rfd') VP.tab = 'bulk';
+  if ($('vpTabRfd')) $('vpTabRfd').classList.toggle('hide', vpViewAll());
   const rfdTab = VP.tab === 'rfd';
-  ['vpBar2', 'vpBar3'].forEach(id => { if ($(id)) $(id).classList.toggle('hide', rfdTab); });
+  ['vpBar2', 'vpBar3'].forEach(id => { if ($(id)) $(id).classList.toggle('hide', rfdTab || (id === 'vpBar3' && vpViewAll())); });
   ['vpView', 'vpStatus', 'vpType', 'vpQ', 'vpExport'].forEach(id => { if ($(id)) $(id).classList.toggle('hide', rfdTab); });
   if (rfdTab) { vpRfdRender(matched, nag); return; }
 
@@ -621,11 +624,26 @@ const VP_BRANDS = { RIDHI: 'Ridhi', RBP: 'Ridhi', CPC: 'CPC' };
 /** The buyer of a B2B line, when its brand box holds one. */
 const vpBuyerOf = l => (/^B2B-/.test(obUC(l && l.shopOrderNo)) && String((l && l.brand) || '').trim() && !VP_BRANDS[obUC(l.brand)]) ? String(l.brand).trim() : '';
 
+/** What Ridhi Home & Living gave the printer for this order and what came back — the office's entries, written onto the
+ * order as flowProg (flow-printorder.js). Nothing for an order the flow did not make. */
+function vpProgHtml(o) {
+  const p = o && o.flowProg; if (!p) return '';
+  const u = p.unit === 'pcs' ? 'pcs' : 'm', q = n => nf(Math.round((+n || 0) * 100) / 100) + ' ' + u;
+  const ch = ptList(p.challans), rc = ptList(p.receipts), given = +p.given || 0, back = +p.back || 0;
+  const day = d => (d ? ' (' + esc(typeof dShow === 'function' ? dShow(d) : d) + ')' : '');
+  return `<div style="margin-top:7px;display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:12.5px;align-items:baseline">
+    <span class="muted">${u === 'pcs' ? 'Cut pieces given to you' : 'Fabric given to you'}</span>
+    <span>${given > 0 ? `<b style="color:#1d4ed8">${q(given)}</b>` : '<b style="color:#92400e">not yet</b>'}${ch.length ? ` <span class="muted">· ${ch.map(c => esc(c.no) + day(c.date)).join(', ')}</span>` : ''}</span>
+    <span class="muted">Received from you</span>
+    <span>${back > 0 ? `<b style="color:#166534">${q(back)}</b>` : '<b class="muted">nothing yet</b>'}${rc.length ? ` <span class="muted">· ${rc.map(r => q(r.qty) + day(r.date)).join(', ')}</span>` : ''}</span>
+    ${given > 0 ? `<span class="muted">Still with you</span><span><b>${q(Math.max(0, given - back))}</b></span>` : ''}</div>`;
+}
 function vpTable(rows, f) {
   /* Ten columns, not thirteen. The colour and the priority moved up into the group heading, and the
-   * order number was on every row of an order whose bar already named it. */
+   * order number was on every row of an order whose bar already named it. View only (vpViewAll()): eight — no date of
+   * the printer's own, nothing being sent. */
   const COLS = ['SKU / fabric', 'Image', 'Article', 'Size', 'Ordered', 'Sent so far',
-    'Balance', 'Wanted by', 'Your date', 'Sending now'];
+    'Balance', 'Wanted by'].concat(vpViewAll() ? [] : ['Your date', 'Sending now']);
   const head = COLS
     .map(h => `<th${['Ordered', 'Sent so far', 'Balance', 'Sending now'].indexOf(h) >= 0 ? ' class="num"' : ''}>${esc(h)}</th>`).join('');
 
@@ -655,6 +673,7 @@ function vpTable(rows, f) {
           <span class="pill ${cls}">${esc(st)}</span>
         </div>
         ${o.notes ? `<div class="ptnote" style="margin-top:7px">From the buyer: ${esc(o.notes)}</div>` : ''}
+        ${vpProgHtml(o)}
         ${flow ? `<div style="margin-top:7px">
           <button data-vpflow="${esc(o.id)}">${flow === 'Acknowledged' ? 'Acknowledge this order' : 'Start production'}</button>
         </div>` : ''}
@@ -691,13 +710,13 @@ function vpTable(rows, f) {
         + `<td class="num">${dead ? '<span class="pill pill-out">cancelled</span>'
             : (bal > 0 ? `<span style="font-weight:700;color:var(--bad)">${nf(bal)}</span>` : '<span class="pill pill-ok">done</span>')}</td>`
         + `<td class="muted" style="font-size:12px">${voWant(l) ? esc(dShow(voWant(l))) : '—'}</td>`
-        + `<td>${flowVpViewOnly(o) || dead || bal <= 0 ? '<span class="muted">—</span>'
+        + (vpViewAll() ? '</tr>' : `<td>${flowVpViewOnly(o) || dead || bal <= 0 ? '<span class="muted">—</span>'
             : `<input data-vpprom="${esc(o.id)}" data-i="${i}" type="date" value="${esc(voProm(l))}" style="width:146px">`
               + (voMoves(l) ? `<div class="muted" style="font-size:10px">first said ${esc(dShow(voPromFirst(l)))}</div>` : '')}</td>`
         + `<td class="num">${!can || dead || bal <= 0 ? '<span class="muted">—</span>'
             : `<input data-vpsend="${esc(o.id)}" data-i="${i}" type="number" min="0" max="${bal}" step="${run ? '0.01' : '1'}"
                  placeholder="0" style="width:82px;text-align:right">`}</td>`
-        + '</tr>';
+        + '</tr>');
       }).join('');
     }).join('');
     return bar + lines;
@@ -763,6 +782,7 @@ function vpCard(o, f) {
       <span style="flex:1"></span><span class="pill ${cls}">${esc(st)}</span>
     </div>
     ${o.notes ? `<div class="ptnote" style="margin-top:8px">From the buyer: ${esc(o.notes)}</div>` : ''}
+    ${vpProgHtml(o)}
     <div class="xlwrap" style="border:1px solid var(--line);border-radius:10px;margin-top:8px">
       <table class="xl"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>
     ${on && keep.length < all.length ? `<div class="muted" style="font-size:12px;margin-top:6px">${
