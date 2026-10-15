@@ -70,14 +70,22 @@ const NAV_PROD_ONLY = (function navProductionOnly() {
   const setup = group('Setup', 'Setup', 'pmdb,mst', [$('tabPmdb'), $('tabMst')]);
 
   /* The columns are built while the links are still in the page — a link cleared out first can no longer be found. */
-  const cols = [col('1 · PPC · Planning', ['tabFlow', 'tabPalloc']),
-    col('2 · Printing', ['tabVreq', 'tabVord', 'tabRfd', 'tabVlog']),
+  /* THE OLD PRINTING SCREENS ARE OFF THE MENU (Ravi, 15 Oct: "jo hame PPC me chahiye wo hi tab rakho, baki ke delete kardo,
+   * printer allocation rakhna h"). PPC raises the printer order, the RFD goes on its challan and the printed cloth comes
+   * back on it, so Vendor Order Requests, Vendor Orders, RFD Requirements and History · printed in have no work left.
+   * Their links stay in the page, hidden, so code that badges or opens them still finds them; the data is untouched
+   * (backup: Backups/rtdb-full-2026-10-15.json). Printer Allocation moves into the Printing column. */
+  const off = document.createElement('div'); off.hidden = true; off.className = 'nav-off';
+  ['tabVreq', 'tabVord', 'tabRfd', 'tabVlog'].forEach(id => { const x = $(id); if (x) off.appendChild(x); });
+  const cols = [col('1 · PPC · Planning', ['tabFlow']),
+    col('2 · Printing', ['tabPalloc']),
     col('3 · Cutting & stitching', ['tabPcut', 'tabPbase', 'tabPpress']),
     col('4 · Quality Control', ['tabQc'])];
   const sec = $('secProd');
   sec.textContent = '';
   cols.forEach(c => sec.appendChild(c));
-  $('grpProd').dataset.tabs = 'flow,flppc,fldem,flacc,flchl,flcut,flraw,flwip,palloc,vreq,vord,rfd,vlog,pcut,pbase,ppress,qc';
+  sec.appendChild(off);
+  $('grpProd').dataset.tabs = 'flow,flppc,fldem,flacc,flchl,flcut,flraw,flwip,palloc,pcut,pbase,ppress,qc';
 
   const vend = $('grpVendors');
   if (vend) { vend.dataset.tabs = 'vend'; vend.lastChild.textContent = ' Vendors'; }

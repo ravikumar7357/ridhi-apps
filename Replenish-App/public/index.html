@@ -1231,7 +1231,7 @@
         <div class="mg-h">Orders</div>
         <a id="tabSo" class="nav" href="#so"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg></span><span class="nav-t">Sales Orders</span><span class="nav-bd"><span id="soDelBadge" class="navbadge hide" data-what="to delete" title="Deletion requests waiting for an answer"></span></span></a>
         <a id="tabOrd" class="nav" href="#ord"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg></span><span class="nav-t">Order Console</span><span class="nav-bd"><span id="ordAdjBadge" class="navbadge hide" data-what="qty changed" title="Quantities changed on an order that nobody here has said they have seen" style="background:#b45309"></span></span></a>
-        <a id="tabFlow" class="nav" href="#flow" style="display:none"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="10" y="4" width="5" height="11" rx="1"/><rect x="17" y="4" width="4" height="7" rx="1"/></svg></span><span class="nav-t">PPC · Production flow</span><span class="nav-bd"><span class="navbadge" style="background:#7c3aed" data-what="test">TEST</span></span></a>
+        <a id="tabFlow" class="nav" href="#flow" style="display:none"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="10" y="4" width="5" height="11" rx="1"/><rect x="17" y="4" width="4" height="7" rx="1"/></svg></span><span class="nav-t">PPC · Production flow</span></a>
         <a id="tabCx" class="nav" href="#cx"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span><span class="nav-t">Customer Orders</span></a>
       </div>
       <div class="mg-col">
@@ -4004,14 +4004,22 @@ const NAV_PROD_ONLY = (function navProductionOnly() {
   const setup = group('Setup', 'Setup', 'pmdb,mst', [$('tabPmdb'), $('tabMst')]);
 
   /* The columns are built while the links are still in the page — a link cleared out first can no longer be found. */
-  const cols = [col('1 · PPC · Planning', ['tabFlow', 'tabPalloc']),
-    col('2 · Printing', ['tabVreq', 'tabVord', 'tabRfd', 'tabVlog']),
+  /* THE OLD PRINTING SCREENS ARE OFF THE MENU (Ravi, 15 Oct: "jo hame PPC me chahiye wo hi tab rakho, baki ke delete kardo,
+   * printer allocation rakhna h"). PPC raises the printer order, the RFD goes on its challan and the printed cloth comes
+   * back on it, so Vendor Order Requests, Vendor Orders, RFD Requirements and History · printed in have no work left.
+   * Their links stay in the page, hidden, so code that badges or opens them still finds them; the data is untouched
+   * (backup: Backups/rtdb-full-2026-10-15.json). Printer Allocation moves into the Printing column. */
+  const off = document.createElement('div'); off.hidden = true; off.className = 'nav-off';
+  ['tabVreq', 'tabVord', 'tabRfd', 'tabVlog'].forEach(id => { const x = $(id); if (x) off.appendChild(x); });
+  const cols = [col('1 · PPC · Planning', ['tabFlow']),
+    col('2 · Printing', ['tabPalloc']),
     col('3 · Cutting & stitching', ['tabPcut', 'tabPbase', 'tabPpress']),
     col('4 · Quality Control', ['tabQc'])];
   const sec = $('secProd');
   sec.textContent = '';
   cols.forEach(c => sec.appendChild(c));
-  $('grpProd').dataset.tabs = 'flow,flppc,fldem,flacc,flchl,flcut,flraw,flwip,palloc,vreq,vord,rfd,vlog,pcut,pbase,ppress,qc';
+  sec.appendChild(off);
+  $('grpProd').dataset.tabs = 'flow,flppc,fldem,flacc,flchl,flcut,flraw,flwip,palloc,pcut,pbase,ppress,qc';
 
   const vend = $('grpVendors');
   if (vend) { vend.dataset.tabs = 'vend'; vend.lastChild.textContent = ' Vendors'; }
@@ -24398,7 +24406,9 @@ const FLOW_ON = (() => {
  * alone (made from a sales order with "+ Test order"). Real orders keep going through the screens they always did, which
  * do not refuse them, and the flow's lists hold no real line. Turning this on is the one switch for "move forward":
  * FLOW_REAL_DEFAULT = true (or localStorage flowReal = '1' on one computer to try it). */
-const FLOW_REAL_DEFAULT = false;
+/* ON FOR EVERY ORDER SINCE 15 OCT (Ravi: "sare order delete karunga jo abhi open h, then i will upload new orders", and the
+ * old printing screens came off the menu). localStorage flowReal = '0' puts one computer back in the test phase. */
+const FLOW_REAL_DEFAULT = true;
 const FLOW_REAL = (() => {
   try { const v = localStorage.getItem('flowReal'); if (v === '1') return true; if (v === '0') return false; } catch (e) { /* storage blocked */ }
   return FLOW_REAL_DEFAULT;
@@ -24412,17 +24422,22 @@ const FLOW_NO_REAL = Object.freeze([]);
  * week is still new. localStorage flowMto = '0' turns it off on one computer. */
 const FLOW_MTO_FROM = '2026-10-15';
 const FLOW_MTO_LIVE = (() => { try { return localStorage.getItem('flowMto') !== '0'; } catch (e) { return true; } })();
-const flowMtoLive = r => !!(FLOW_MTO_LIVE && r && !r.__t && ordIsMto(obUC(r.orderNo)) && String(r.openIso || '') >= FLOW_MTO_FROM);
-let FLOW_MTO_C = { src: null, rows: FLOW_NO_REAL, nos: new Set() };
+/** A real line put on the book from FLOW_MTO_FROM on. With FLOW_REAL every such line is new (15 Oct: the open orders were
+ * deleted and uploaded again, many with an order date from before flowFrom() — the day they came onto the book is what
+ * makes them PPC's). */
+const flowOpenNew = r => !!(r && !r.__t && String(r.openIso || '') >= FLOW_MTO_FROM);
+const flowMtoLive = r => !!(FLOW_MTO_LIVE && r && ordIsMto(obUC(r.orderNo)) && flowOpenNew(r));
+let FLOW_MTO_C = { src: null, rows: FLOW_NO_REAL, nos: new Set(), open: new Set() };
 /** The real lines the flow runs while FLOW_REAL is off — the Shopify / online ones opened from FLOW_MTO_FROM. */
 function flowMtoLines() {
   const src = typeof ordLines === 'function' ? ordLines() : [];
-  if (FLOW_MTO_C.src !== src) { const rows = src.filter(flowMtoLive); FLOW_MTO_C = { src, rows, nos: new Set(rows.map(r => obUC(r.orderNo))) }; }
+  if (FLOW_MTO_C.src !== src) { const rows = src.filter(flowMtoLive); FLOW_MTO_C = { src, rows, nos: new Set(rows.map(r => obUC(r.orderNo))),
+    open: new Set(src.filter(flowOpenNew).map(r => obUC(r.orderNo))) }; }
   return FLOW_MTO_C.rows;
 }
 /** What the flow's screens say about the phase they are in (14 Oct: the flow is on the live app, so "not on the live app"
  * was no longer true). */
-const flowPhaseTxt = () => FLOW_REAL ? `LIVE — the flow runs the real orders from ${flowFrom()}`
+const flowPhaseTxt = () => FLOW_REAL ? `LIVE — the flow runs the real orders from ${flowFrom()}, and every order put on the book from ${FLOW_MTO_FROM}`
   : FLOW_MTO_LIVE ? `Shopify LIVE — Shopify / online orders opened from the Production bucket from ${FLOW_MTO_FROM} run here by themselves; Amazon / B2B still go the old way (test orders only)`
   : 'TEST phase — the flow runs test orders only; real orders go the old way';
 /* PPC and Demand apply to orders from this date on: the 2,000 older POs were never planned this way, and putting them
@@ -24452,6 +24467,7 @@ function flowOwnsOrder(orderNo, date) {
   if (/^TEST-/.test(no)) return true;
   /* test phase: a real order is not the flow's — unless it is a Shopify / online order opened from FLOW_MTO_FROM */
   if (!FLOW_REAL) return ordIsMto(no) && (flowMtoLines(), FLOW_MTO_C.nos.has(no));
+  if ((flowMtoLines(), FLOW_MTO_C.open.has(no))) return true;   // put on the book from FLOW_MTO_FROM, whatever its order date
   const iso = String(ptIsoDate(date != null && date !== '' ? date : flowOrderDate(no)) || '');
   return !!iso && iso >= flowFrom();
 }
@@ -24604,7 +24620,7 @@ function flowState(r) {
   const k = flowKey(r.orderNo, r.sku), qty = +r.qty || 0;
   const cap = n => Math.max(0, Math.min(qty, +n || 0));
   const p = (FLOW.ppc || {})[k] || null, d = (FLOW.dem || {})[k] || null, res = (FLOW.res || {})[k] || null;
-  const isNew = String(ptIsoDate(r.orderDate) || '') >= flowFrom() || flowMtoLive(r);
+  const isNew = String(ptIsoDate(r.orderDate) || '') >= flowFrom() || (FLOW_REAL ? flowOpenNew(r) : flowMtoLive(r));
   /* A test order (flow-test-order.js) carries its own simulated figures instead of the registers'. */
   const t = r.__t;
   const v = t ? { given: +t.given || 0, back: +t.back || 0 } : ordVendorOf(r.orderNo, r.sku);
@@ -25689,7 +25705,7 @@ function flowSoChoices() {
   (typeof ordLines === 'function' ? ordLines() : []).forEach(r => {
     const no = obUC(r && r.orderNo); if (!no || flowIsTest(no)) return;
     /* A Shopify order opened from the bucket runs the flow for real (FLOW_MTO_LIVE) — no test copy of it. */
-    if (flowMtoLive(r)) return;
+    if (FLOW_REAL ? flowOpenNew(r) : flowMtoLive(r)) return;
     const e = by.get(no) || { no, date: String(ptIsoDate(r.orderDate) || ''), src: r.src || no.split('-')[0], lines: [] };
     e.lines.push({ sku: obUC(r.sku), qty: Math.round(+r.qty || 0) });
     by.set(no, e);

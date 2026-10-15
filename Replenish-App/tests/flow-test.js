@@ -1125,7 +1125,7 @@ const K = 'AMZ-1__S1';
       pt_flowChallans: { 'TRFD-202610-001': { no: 'TRFD-202610-001', orderNo: TN, lines: [] }, 'RFD-202610-001': { no: 'RFD-202610-001', orderNo: 'AMZ-1', lines: [] } },
       pt_flowDemand: { 'AMZ-1__S1': { fabricReady: { at: '2026-10-12' } } },
     };
-    const P = load({ ls: { flowReal: null }, host: 'fabricrush-replenish.web.app', me: { admin: true }, db, mdb: { S1: { cons: 1, fab: 'Cotton' } }, lines: [L()] });
+    const P = load({ ls: { flowReal: '0' }, host: 'fabricrush-replenish.web.app', me: { admin: true }, db, mdb: { S1: { cons: 1, fab: 'Cotton' } }, lines: [L()] });
     ok('on the live app the flow is on (menu, screens, Greige Desk)', P.FLOW_ON === true);
     ok('a real order dated after 10 Oct is NOT the flow\'s — the old screens take it as they always did', P.flowOwnsOrder('AMZ-1') === false && P.flowOwnsOrder('AMZ-1', '2026-10-12') === false);
     ok('a test order is the flow\'s', P.flowOwnsOrder(TN) === true);
@@ -1151,7 +1151,7 @@ const K = 'AMZ-1__S1';
     ];
     const db = { pt_ppc: { 'SHP-1001__S1': plan({ orderNo: 'SHP-1001', sku: 'S1', qty: 2 }), 'AMZ-1__S1': plan() },
       pt_flowChallans: { 'RFD-202610-009': { no: 'RFD-202610-009', orderNo: 'SHP-1001', lines: [] }, 'RFD-202610-001': { no: 'RFD-202610-001', orderNo: 'AMZ-1', lines: [] } } };
-    const P = load({ ls: { flowReal: null }, host: 'fabricrush-replenish.web.app', me: { admin: true }, db, mdb: { S1: { cons: 1, fab: 'Cotton' } }, lines });
+    const P = load({ ls: { flowReal: '0' }, host: 'fabricrush-replenish.web.app', me: { admin: true }, db, mdb: { S1: { cons: 1, fab: 'Cotton' } }, lines });
     ok('a Shopify order opened from 15 Oct is the flow\'s — its printing is PPC\'s, the old screens hand it over', P.flowOwnsOrder('SHP-1001') === true && P.flowOwnsOrder('ONL-77') === true);
     ok('…one opened before 15 Oct, and every Amazon order, still go the old way', P.flowOwnsOrder('SHP-0900') === false && P.flowOwnsOrder('AMZ-1') === false && P.flowOwnsOrder('AMZ-1', '2026-10-15') === false);
     await P.flowLoad(true);
@@ -1166,9 +1166,25 @@ const K = 'AMZ-1__S1';
     P.flowTestOpen();
     ok('"+ Test order" no longer offers a live Shopify order (it runs for real), still offers the rest',
       !/value="SHP-1001"/.test(P.ctx.__dlg.html) && !/value="ONL-77"/.test(P.ctx.__dlg.html) && /value="SHP-0900"/.test(P.ctx.__dlg.html) && /value="AMZ-1"/.test(P.ctx.__dlg.html));
-    const O = load({ ls: { flowReal: null, flowMto: '0' }, me: { admin: true }, db, mdb: { S1: { cons: 1, fab: 'Cotton' } }, lines });
+    const O = load({ ls: { flowReal: '0', flowMto: '0' }, me: { admin: true }, db, mdb: { S1: { cons: 1, fab: 'Cotton' } }, lines });
     await O.flowLoad(true);
     ok('flowMto = 0 on one computer puts Shopify back on the old way', O.flowOwnsOrder('SHP-1001') === false && O.flowRows().length === 0 && !O.FLOW().ppc['SHP-1001__S1']);
+  }
+
+  console.log('== live for every order (15 Oct): the day an order came onto the book makes it PPC ==');
+  {
+    const lines = [
+      L({ orderNo: 'AMZ-NEW', sku: 'S1', qty: 4, orderDate: '2026-09-20', openIso: '2026-10-15' }),   // re-uploaded today, old order date
+      L({ orderNo: 'B2B-OLD', sku: 'S1', qty: 3, src: 'B2B', orderDate: '2026-09-20', openIso: '2026-09-21' }),
+    ];
+    const D = load({ ls: { flowReal: null }, host: 'fabricrush-replenish.web.app', me: { admin: true }, mdb: { S1: { cons: 1, fab: 'Cotton' } }, lines });
+    ok('with nothing set on the computer, the flow runs the real orders (FLOW_REAL_DEFAULT = true)', D.flowOwnsOrder('AMZ-1', '2026-10-12') === true);
+    ok('an order uploaded on 15 Oct is the flow order even though its order date is 20 Sep', D.flowOwnsOrder('AMZ-NEW') === true && D.flowOwnsOrder('AMZ-NEW', '2026-09-20') === true);
+    ok('…an order put on the book before, with an old date, is not', D.flowOwnsOrder('B2B-OLD') === false);
+    const n = D.flowRows().find(x => x.r.orderNo === 'AMZ-NEW');
+    ok('…and the re-uploaded order waits in PPC to be planned', !!n && n.s.isNew === true && n.s.bucket === 'ppc', JSON.stringify(n && n.s.bucket));
+    D.setView('ppc'); D.renderFlow();
+    ok('the page says it is live, and from which day an upload counts', /LIVE — the flow runs the real orders from 2026-10-10, and every order put on the book from 2026-10-15/.test(D.els.flMsg.textContent), D.els.flMsg.textContent);
   }
 
   console.log('== a TEST order walks every bucket, end to end ==');
@@ -1493,9 +1509,9 @@ const K = 'AMZ-1__S1';
   A.setView('wip'); A.renderView();
   ok('…it is in WIP, with Receive (issued 100, nothing back yet)', /AMZ-0/.test(A.els.flTable.innerHTML) && /data-flent="recv\|AMZ-0__S1"/.test(A.els.flTable.innerHTML));
   ok('the page says which phase the flow is in (here, with flowReal on: LIVE)', /LIVE — the flow runs the real orders from 2026-10-10/.test(A.els.flMsg.textContent) && !/not on the live app/.test(A.els.flMsg.textContent), A.els.flMsg.textContent);
-  { const TS = load({ ls: { flowReal: null }, me: { admin: true } }); TS.setView('ppc'); TS.renderFlow();
+  { const TS = load({ ls: { flowReal: '0' }, me: { admin: true } }); TS.setView('ppc'); TS.renderFlow();
     ok('…in the test phase with Shopify live it says Shopify runs for real from 15 Oct, Amazon / B2B the old way', /Shopify LIVE — Shopify \/ online orders opened from the Production bucket from 2026-10-15/.test(TS.els.flMsg.textContent), TS.els.flMsg.textContent); }
-  { const TP = load({ ls: { flowReal: null, flowMto: '0' }, me: { admin: true } }); TP.setView('ppc'); TP.renderFlow();
+  { const TP = load({ ls: { flowReal: '0', flowMto: '0' }, me: { admin: true } }); TP.setView('ppc'); TP.renderFlow();
     ok('…and in the test phase it says so: test orders only, real orders the old way', /TEST phase — the flow runs test orders only; real orders go the old way/.test(TP.els.flMsg.textContent), TP.els.flMsg.textContent); }
   A = load({ me: { tabs: ['ord'] } });
   A.renderFlow();

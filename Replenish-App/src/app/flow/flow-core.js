@@ -34,7 +34,9 @@ const FLOW_ON = (() => {
  * alone (made from a sales order with "+ Test order"). Real orders keep going through the screens they always did, which
  * do not refuse them, and the flow's lists hold no real line. Turning this on is the one switch for "move forward":
  * FLOW_REAL_DEFAULT = true (or localStorage flowReal = '1' on one computer to try it). */
-const FLOW_REAL_DEFAULT = false;
+/* ON FOR EVERY ORDER SINCE 15 OCT (Ravi: "sare order delete karunga jo abhi open h, then i will upload new orders", and the
+ * old printing screens came off the menu). localStorage flowReal = '0' puts one computer back in the test phase. */
+const FLOW_REAL_DEFAULT = true;
 const FLOW_REAL = (() => {
   try { const v = localStorage.getItem('flowReal'); if (v === '1') return true; if (v === '0') return false; } catch (e) { /* storage blocked */ }
   return FLOW_REAL_DEFAULT;
@@ -48,17 +50,22 @@ const FLOW_NO_REAL = Object.freeze([]);
  * week is still new. localStorage flowMto = '0' turns it off on one computer. */
 const FLOW_MTO_FROM = '2026-10-15';
 const FLOW_MTO_LIVE = (() => { try { return localStorage.getItem('flowMto') !== '0'; } catch (e) { return true; } })();
-const flowMtoLive = r => !!(FLOW_MTO_LIVE && r && !r.__t && ordIsMto(obUC(r.orderNo)) && String(r.openIso || '') >= FLOW_MTO_FROM);
-let FLOW_MTO_C = { src: null, rows: FLOW_NO_REAL, nos: new Set() };
+/** A real line put on the book from FLOW_MTO_FROM on. With FLOW_REAL every such line is new (15 Oct: the open orders were
+ * deleted and uploaded again, many with an order date from before flowFrom() — the day they came onto the book is what
+ * makes them PPC's). */
+const flowOpenNew = r => !!(r && !r.__t && String(r.openIso || '') >= FLOW_MTO_FROM);
+const flowMtoLive = r => !!(FLOW_MTO_LIVE && r && ordIsMto(obUC(r.orderNo)) && flowOpenNew(r));
+let FLOW_MTO_C = { src: null, rows: FLOW_NO_REAL, nos: new Set(), open: new Set() };
 /** The real lines the flow runs while FLOW_REAL is off — the Shopify / online ones opened from FLOW_MTO_FROM. */
 function flowMtoLines() {
   const src = typeof ordLines === 'function' ? ordLines() : [];
-  if (FLOW_MTO_C.src !== src) { const rows = src.filter(flowMtoLive); FLOW_MTO_C = { src, rows, nos: new Set(rows.map(r => obUC(r.orderNo))) }; }
+  if (FLOW_MTO_C.src !== src) { const rows = src.filter(flowMtoLive); FLOW_MTO_C = { src, rows, nos: new Set(rows.map(r => obUC(r.orderNo))),
+    open: new Set(src.filter(flowOpenNew).map(r => obUC(r.orderNo))) }; }
   return FLOW_MTO_C.rows;
 }
 /** What the flow's screens say about the phase they are in (14 Oct: the flow is on the live app, so "not on the live app"
  * was no longer true). */
-const flowPhaseTxt = () => FLOW_REAL ? `LIVE — the flow runs the real orders from ${flowFrom()}`
+const flowPhaseTxt = () => FLOW_REAL ? `LIVE — the flow runs the real orders from ${flowFrom()}, and every order put on the book from ${FLOW_MTO_FROM}`
   : FLOW_MTO_LIVE ? `Shopify LIVE — Shopify / online orders opened from the Production bucket from ${FLOW_MTO_FROM} run here by themselves; Amazon / B2B still go the old way (test orders only)`
   : 'TEST phase — the flow runs test orders only; real orders go the old way';
 /* PPC and Demand apply to orders from this date on: the 2,000 older POs were never planned this way, and putting them
@@ -88,6 +95,7 @@ function flowOwnsOrder(orderNo, date) {
   if (/^TEST-/.test(no)) return true;
   /* test phase: a real order is not the flow's — unless it is a Shopify / online order opened from FLOW_MTO_FROM */
   if (!FLOW_REAL) return ordIsMto(no) && (flowMtoLines(), FLOW_MTO_C.nos.has(no));
+  if ((flowMtoLines(), FLOW_MTO_C.open.has(no))) return true;   // put on the book from FLOW_MTO_FROM, whatever its order date
   const iso = String(ptIsoDate(date != null && date !== '' ? date : flowOrderDate(no)) || '');
   return !!iso && iso >= flowFrom();
 }
@@ -240,7 +248,7 @@ function flowState(r) {
   const k = flowKey(r.orderNo, r.sku), qty = +r.qty || 0;
   const cap = n => Math.max(0, Math.min(qty, +n || 0));
   const p = (FLOW.ppc || {})[k] || null, d = (FLOW.dem || {})[k] || null, res = (FLOW.res || {})[k] || null;
-  const isNew = String(ptIsoDate(r.orderDate) || '') >= flowFrom() || flowMtoLive(r);
+  const isNew = String(ptIsoDate(r.orderDate) || '') >= flowFrom() || (FLOW_REAL ? flowOpenNew(r) : flowMtoLive(r));
   /* A test order (flow-test-order.js) carries its own simulated figures instead of the registers'. */
   const t = r.__t;
   const v = t ? { given: +t.given || 0, back: +t.back || 0 } : ordVendorOf(r.orderNo, r.sku);
