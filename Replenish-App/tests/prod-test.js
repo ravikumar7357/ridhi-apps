@@ -11025,6 +11025,21 @@ console.log('\n== the printer\'s custom orders, combined but still traceable =='
   ok('…and they are put back on the bulk orders rather than left staring at nothing',
      A.VP().tab === 'bulk' && /VPO-260911-BRG/.test(els.vpBody.innerHTML));
 
+  /* A PPC ORDER FOR A SHOPIFY ORDER IS CUSTOM WORK (Ravi, 15 Oct: "shopify wale order custom field me dikhne chahiye"). */
+  const ppcShop = { id: 'vpo_flow_1', orderNo: 'VPO-261015-7D4', orderType: 'cut', status: 'Placed', demandSource: 'ppc', channel: 'Shopify',
+    vendorName: 'RBP-Bagru', orderDate: '15/10/2026', lines: [{ lineId: 'p1', sku: 'RTC14-70108', qty: 1, kind: 'cut', priority: 'P2',
+      color: 'Goldenrod Yellow', size: '70x108', dispatchedQty: 0, forOrders: [{ orderNo: 'SHP-RBP6472', qty: 1 }] }] };
+  const ppcAmz = Object.assign({}, ppcShop, { id: 'vpo_flow_2', orderNo: 'VPO-261015-AMZ', channel: 'Amazon',
+    lines: [Object.assign({}, ppcShop.lines[0], { lineId: 'p2', forOrders: [{ orderNo: 'AMZ-1', qty: 1 }] })] });
+  A.setVP(Object.assign({}, A.VP(), { rows: [bulk, ppcShop, ppcAmz], tab: 'bulk' }));
+  A.renderVp();
+  ok('a PPC order for a Shopify order is counted under Custom orders', /Custom orders \(1\)/.test(els.vpTabShop.textContent) && els.vpTabShop._hidden !== true, els.vpTabShop.textContent);
+  ok('…and is not in Bulk orders, where the Amazon PPC order stays', !/VPO-261015-7D4/.test(els.vpBody.innerHTML) && /VPO-261015-AMZ/.test(els.vpBody.innerHTML));
+  A.setVP(Object.assign({}, A.VP(), { tab: 'shop' }));
+  A.renderVp();
+  ok('…the Custom orders tab draws it (as the other PPC orders are drawn), and not the bulk ones',
+    /VPO-261015-7D4/.test(els.vpBody.innerHTML) && !/VPO-261015-AMZ/.test(els.vpBody.innerHTML) && !/VPO-260911-BRG/.test(els.vpBody.innerHTML));
+
   Object.keys(QS).forEach(k => delete QS[k]);
   A.setVP(wasVP); NET.on = wasNet; ME.admin = wasAdmin;
 }

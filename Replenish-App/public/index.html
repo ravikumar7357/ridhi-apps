@@ -42538,6 +42538,11 @@ function vpHistRows() {
 
 /** Shopify work, which the buyer's side writes as one standing order per printer. */
 const vpIsShop = o => String((o && o.demandSource) || '') === 'shopify';
+/* A PPC ORDER FOR A SHOPIFY / ONLINE ORDER IS CUSTOM WORK TOO (Ravi, 15 Oct: "shopify wale order custom field me dikhne
+ * chahiye"): it sits under Custom orders, not Bulk — drawn the way every PPC order is (colour board, table or cards). */
+const vpIsPpcShop = o => String((o && o.demandSource) || '') === 'ppc' && (/shopify/i.test(String(o.channel || ''))
+  || voLines(o).some(l => (l && l.forOrders || []).some(x => /^(SHP|ONL)-/i.test(String((x && x.orderNo) || '')))));
+const vpIsCustom = o => vpIsShop(o) || vpIsPpcShop(o);
 /* COMPLETED (Ravi, 2026-09-28): a line sent in full, or cancelled, or on an order closed as Received or Cancelled, is
  * done. The Bulk and Custom tabs draw only the lines still to do; the Completed tab draws the rest. VP_PART is set by
  * renderVp for the tab on screen and read by every table and the export, so they always agree. */
@@ -42779,7 +42784,7 @@ function renderVp() {
   const hasOpen = o => voLines(o).some(l => l && !vpLineIsDone(o, l));
   const hasDone = o => voLines(o).some(l => l && vpLineIsDone(o, l));
   const openOrders = matched.filter(hasOpen);
-  const shopN = openOrders.filter(vpIsShop).length, bulkN = openOrders.length - shopN;
+  const shopN = openOrders.filter(vpIsCustom).length, bulkN = openOrders.length - shopN;
   const doneN = matched.reduce((t, o) => t + voLines(o).filter(l => l && vpLineIsDone(o, l)).length, 0);
   const tabs = $('vpTabs');
   if (tabs) {
@@ -42804,7 +42809,7 @@ function renderVp() {
   }
   const doneTab = VP.tab === 'done';
   VP_PART = doneTab ? 'done' : 'open';
-  const rows = doneTab ? matched.filter(hasDone) : openOrders.filter(o => (VP.tab === 'shop') === vpIsShop(o));
+  const rows = doneTab ? matched.filter(hasDone) : openOrders.filter(o => (VP.tab === 'shop') === vpIsCustom(o));
   VP.shown = rows;
   const open = rows.filter(o => ['Received', 'Dispatched'].indexOf(o.status || 'Placed') < 0).length;
   /* Over the live lines of the orders on screen, in one pass: what is still owed, and — the thing
@@ -42895,13 +42900,14 @@ function renderVp() {
     return;
   }
 
+  const vpViewOf = (rs, f) => (($('vpView') || {}).value === 'orders' ? rs.map(o => vpCard(o, f)).join('')
+    : ($('vpView') || {}).value === 'board' ? vpBoard(rs, f) : vpTable(rs, f));
   const empty = `<div class="card" style="padding:34px;text-align:center;color:var(--muted)">${
     all.length ? 'No order matches those filters.' : 'No orders yet.'}</div>`;
   body.innerHTML = nag + (rows.length
     ? doneTab ? (rows.some(o => !vpIsShop(o)) ? vpTable(rows.filter(o => !vpIsShop(o)), f) : '') + (rows.some(vpIsShop) ? vpShopTable(rows.filter(vpIsShop), f) : '')
-    : (VP.tab === 'shop' ? vpShopTable(rows, f)
-      : (($('vpView') || {}).value === 'orders' ? rows.map(o => vpCard(o, f)).join('')
-        : ($('vpView') || {}).value === 'board' ? vpBoard(rows, f) : vpTable(rows, f)))
+    : (VP.tab === 'shop' ? (rows.some(vpIsShop) ? vpShopTable(rows.filter(vpIsShop), f) : '') + (rows.some(vpIsPpcShop) ? vpViewOf(rows.filter(vpIsPpcShop), f) : '')
+      : vpViewOf(rows, f))
     : empty);
   if ($('vpPin')) $('vpPin').onclick = pinOpenChange;
   /* The count, and nothing else. The two paragraphs that used to sit here were written for somebody
