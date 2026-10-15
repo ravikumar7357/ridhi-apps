@@ -13,7 +13,10 @@
  * `fabrics` list holds its fabric. Cutting, zip, ruffle, piping and filler are read through recipeValue (the SKU wins,
  * else its recipe) and never written. Only an admin edits the two new lists — the database allows pt_masters/<list>
  * to admins alone — and the old Master Database table is one click away, unchanged. */
-const FM_VIEWS = [['fabric', 'Greige & RFD fabric'], ['products', 'All products'], ['vendors', 'Vendors'], ['table', 'Master database']];
+/* 15 Oct, second pass (Ravi): "masterdata me all product required nahi h" — All products is gone; the fabric list and the
+ * Master database table sit side by side and open each other (a fabric's app fabric, a SKU), and the Greige Desk reads
+ * its fabrics and vendors from here (tools/greige-desk/app-layer.js gdLinkMasters). */
+const FM_VIEWS = [['fabric', 'Greige & RFD fabric'], ['table', 'Master database'], ['vendors', 'Vendors']];
 const FM_VTYPES = { greige: 'Greige vendor', rfd: 'RFD vendor', quilt: 'Quilt filling vendor', cut: 'Cutting job-worker', run: 'Runner job-worker' };
 const FM_FEAT = [['count', 'Count'], ['constr', 'Construction'], ['gw', 'Greige width (in)', 1], ['rw', 'RFD width (in)', 1], ['gsm', 'GSM'],
   ['hsn', 'HSN code'], ['gr', 'Greige rate (₹/m)', 1], ['rr', 'RFD rate (₹/m)', 1]];
@@ -21,7 +24,7 @@ const FM_VCOLS = [['contact', 'Contact person'], ['phone', 'Phone'], ['city', 'C
   ['pincode', 'Pincode'], ['reg', 'Registration type'], ['tds', 'TDS']];
 const FM_FLT = [['proc', 'Cutting / Runner / Both', ['Cutting', 'Runner', 'Both']], ['cut', 'Cutting required'], ['zip', 'Zip'], ['ruf', 'Ruffle'],
   ['pip', 'Piping dori'], ['fil', 'Filler fabric'], ['emb', 'Embroidery'], ['pack', 'Pack of', null]];
-const FM = { view: null, open: new Set(), allSku: new Set(), q: '', flt: {}, fab: '', pShow: 300, seg: 'all', vOpen: new Set(['greige', 'rfd', 'quilt', 'cut', 'run']), cache: null };
+const FM = { view: null, open: new Set(), allSku: new Set(), q: '', flt: {}, seg: 'all', vOpen: new Set(['greige', 'rfd', 'quilt', 'cut', 'run']), cache: null };
 FM.view = (() => { try { const v = localStorage.getItem('fmView'); return FM_VIEWS.some(x => x[0] === v) ? v : 'fabric'; } catch (e) { return 'fabric'; } })();
 
 const fmYN = v => (v === true || /^(y|yes|true|1)$/i.test(String(v == null ? '' : v).trim()) ? 'Yes' : 'No');
@@ -76,7 +79,7 @@ function fmRender() {
   root.classList.toggle('hide', FM.view === 'table');
   if (FM.view === 'table') return;
   if (!PTG.mdb) { root.innerHTML = '<div class="card fm-card"><div class="fm-empty">Reading the master data…</div></div>'; return; }
-  root.innerHTML = FM.view === 'fabric' ? fmFabricHtml() : FM.view === 'products' ? fmProductsHtml() : fmVendorsHtml();
+  root.innerHTML = FM.view === 'fabric' ? fmFabricHtml() : fmVendorsHtml();
 }
 const fmHead = (crumb, title, sub, btns, count) => `<div class="card fm-card fm-head"><div class="fm-crumb">${esc(crumb)}</div>
   <div class="fm-title"><div><h2>${esc(title)}</h2><p>${esc(sub)}</p></div><div class="fm-hbtns">${btns}<span class="fm-count">${count}</span></div></div></div>`;
@@ -89,6 +92,16 @@ function fmFilterBar(all, extra) {
     return `<label class="fm-fsel"><span>${esc(l)}</span><select data-fmflt="${k}" class="${FM.flt[k] ? 'on' : ''}"><option value="">All</option>${o.map(v =>
       `<option${FM.flt[k] === v ? ' selected' : ''}>${esc(v)}</option>`).join('')}</select></label>`; }).join('')}${extra || ''}
     ${fmFltOn() ? '<button type="button" class="ghost fm-sm" data-fmclear="1">Clear filters</button>' : ''}</div>`;
+}
+/** The Greige Desk reads this page's fabrics and vendors; the way over, for those who may open it. */
+const fmGdBtn = () => (typeof gdAllowed === 'function' && gdAllowed() && typeof GD !== 'undefined'
+  ? '<button type="button" class="ghost fm-sm" data-fmgd="1" title="The Greige Desk uses these fabrics and vendors">Open Greige Desk</button>' : '');
+/** Over to the Master database table, searched for a SKU or a fabric. */
+function fmToTable(q) {
+  fmSetView('table');
+  if ($('ptmView') && $('ptmView').value !== 'master') $('ptmView').value = 'master';
+  if ($('ptmQ')) $('ptmQ').value = q;
+  if (typeof renderPmdb === 'function') renderPmdb();
 }
 const fmCell = (list, id, k, v, num) => (fmAdmin()
   ? `<td class="fm-fc fm-ed${num ? ' num r' : ''}" tabindex="0" data-fmed="${list}|${esc(id)}|${k}" title="Click to change">${v === '' || v == null ? '<span class="fm-add">add</span>' : esc(v)}</td>`
@@ -120,14 +133,14 @@ function fmFabricHtml() {
       items.map(e => { const k2 = key + '|' + e.art + '|' + e.sub, all2 = FM.allSku.has(k2), sk = e.skus.sort();
         return `<tr><td class="fm-it">${esc(e.art || '—')}</td><td>${esc(e.sub || '—')}</td><td><div class="fm-sizes">${[...e.sizes].sort(bySize).map(z => `<span>${esc(z)}</span>`).join('')}</div></td>
           <td class="fm-nw">${['Cutting', 'Runner', 'Both'].filter(x => e.proc[x]).map(x => `<span class="fm-pb fm-${x.toLowerCase()}">${x}${e.proc[x] !== sk.length ? ' ' + nf(e.proc[x]) : ''}</span>`).join(' ')}</td>
-          <td class="r num">${nf(sk.length)}</td><td class="fm-skcell"><div class="fm-skl${all2 ? ' all' : ''}">${(all2 ? sk : sk.slice(0, 8)).map(s => `<span class="fm-skc">${esc(s)}</span>`).join('')}</div>${
+          <td class="r num">${nf(sk.length)}</td><td class="fm-skcell"><div class="fm-skl${all2 ? ' all' : ''}">${(all2 ? sk : sk.slice(0, 8)).map(s => `<button type="button" class="fm-skc fm-lnk" data-fmtab="${esc(s)}" title="Open ${esc(s)} in the Master database">${esc(s)}</button>`).join('')}</div>${
           sk.length > 8 ? `<button type="button" class="fm-skm" data-fmsk="${esc(k2)}">${all2 ? 'Show fewer' : 'All ' + nf(sk.length) + ' SKUs'}</button>` : ''}</td></tr>`; }).join('')}</tbody></table></td></tr>`;
   };
   const head = `<tr><th class="fm-s1">#</th><th class="fm-s2">RFD fabric <span class="muted">(greige)</span></th>${FM_FEAT.map(([, l, n]) => `<th${n ? ' class="r"' : ''}>${esc(l)}</th>`).join('')}<th>App fabric</th><th class="r">Products</th></tr>`;
   const body = rowsF.map(({ f, ps }, i) => { const open = FM.open.has(f.id), items = new Set(ps.map(p => p.art + '|' + p.sub)).size;
     return `<tr class="fm-main${open ? ' open' : ''}"><td class="fm-sn">${i + 1}</td><td class="fm-name"><button type="button" class="fm-tog" data-fmopen="${esc(f.id)}" aria-expanded="${open}">${FM_CHEV}<span>${
       f.rfd ? `<span class="fm-rfd">${esc(f.rfd)}</span>` : '<span class="fm-norfd">No RFD fabric</span>'}<span class="fm-gr">(${esc(f.greige || '—')})</span></span></button></td>${
-      FM_FEAT.map(([k, , n]) => fmCell('greigeRfd', f.id, k, f[k], n)).join('')}<td class="fm-fc fm-small">${esc((Array.isArray(f.fabrics) ? f.fabrics : ptList(f.fabrics)).join(', ') || '—')}</td>
+      FM_FEAT.map(([k, , n]) => fmCell('greigeRfd', f.id, k, f[k], n)).join('')}<td class="fm-fc fm-small">${(Array.isArray(f.fabrics) ? f.fabrics : ptList(f.fabrics)).map(n => `<button type="button" class="fm-lnk" data-fmtab="${esc(n)}" title="Its SKUs in the Master database">${esc(n)}</button>`).join(', ') || '—'}</td>
       <td class="fm-cnt r"><b>${nf(ps.length)}</b> SKUs · ${nf(items)} items</td></tr>${det(f.id, ps)}`; }).join('')
     + (others.length ? `<tr class="fm-ogh"><td colspan="${cols}">Other fabrics <span class="muted">— on the Master Database, not in the greige list</span></td></tr>` : '')
     + others.map(o => { const open = FM.open.has(o.id);
@@ -135,48 +148,12 @@ function fmFabricHtml() {
         <td colspan="${FM_FEAT.length + 1}" class="fm-oth-note">Not in the greige list</td><td class="fm-cnt r"><b>${nf(o.ps.length)}</b> SKUs</td></tr>${det(o.id, o.ps)}`; }).join('');
   const nSku = all.filter(p => p.fab).length;
   return fmHead('Master data / Fabric / Greige & RFD fabric', 'Greige & RFD fabric', 'Each RFD fabric with the greige it is made from, shown in brackets. Open a fabric to see its products from the Master Database.',
-      fmAdmin() ? '<button type="button" class="fm-primary" data-fmadd="fabric">+ Add fabric</button>' : '', `${nf(fabs.length)} fabrics · ${nf(nSku)} SKUs`)
+      fmGdBtn() + (fmAdmin() ? '<button type="button" class="fm-primary" data-fmadd="fabric">+ Add fabric</button>' : ''), `${nf(fabs.length)} fabrics · ${nf(nSku)} SKUs`)
     + `<div class="card fm-card"><div class="fm-tools">${fmSearch('Search fabric, parent, child, SKU or colour')}<span class="fm-grow"></span>
       <button type="button" class="ghost fm-sm" data-fmexp="1">Expand all</button><button type="button" class="ghost fm-sm" data-fmexp="0">Collapse all</button></div>
       ${fmFilterBar(all)}<div class="fm-wrapx"><table class="fm-tab"><thead>${head}</thead><tbody>${body || `<tr><td colspan="${cols}" class="fm-empty">Nothing matches.</td></tr>`}</tbody></table></div>
       <div class="fm-foot"><span>${loose ? `${nf(loose)} SKU(s) have no fabric, or a fabric name that is in neither list — they are in the Master database table.` : 'Every SKU sits under a fabric.'}</span>
       <span>${fmAdmin() ? 'Click a detail to add or change it' : 'Only an admin can change these details'}</span></div></div>`;
-}
-
-/* ---- All products: every SKU of the Master Database in the page's columns ---- */
-function fmProductsRows() {
-  const q = fmKey(FM.q);
-  return fmProducts().filter(p => fmPass(p) && (!FM.fab || p.fab === FM.fab) && (!q || p.hay.includes(q) || fmKey(fmFabLabel(p.fab)).includes(q)))
-    .sort((a, b) => (!a.art - !b.art) || a.art.localeCompare(b.art) || a.sub.localeCompare(b.sub) || a.sku.localeCompare(b.sku));   // blank articles last
-}
-function fmProductsHtml() {
-  const all = fmProducts(), rows = fmProductsRows(), fabs = fmList('greigeRfd');
-  const fabSel = `<label class="fm-fsel"><span>Fabric</span><select data-fmfab="1" class="${FM.fab ? 'on' : ''}"><option value="">All fabrics</option>${
-    fabs.map(f => `<option value="${esc(f.id)}"${FM.fab === f.id ? ' selected' : ''}>${esc(f.rfd || f.greige)}</option>`).join('')}${
-    fmOthers().map(n => `<option value="${esc('O:' + n)}"${FM.fab === 'O:' + n ? ' selected' : ''}>${esc(n)} (other)</option>`).join('')}</select></label>`;
-  const greigeOf = id => { const f = fabs.find(x => x.id === id); return f && f.rfd ? f.greige : ''; };
-  const yn = v => `<span class="fm-yn ${v === 'Yes' ? 'y' : 'n'}">${v}</span>`;
-  const body = rows.slice(0, FM.pShow).map((p, i) => `<tr><td class="fm-sn">${i + 1}</td><td class="fm-nw"><b>${esc(p.sku)}</b></td><td class="fm-pn">${esc(p.art)}<span class="fm-pp">${esc(p.sub)}</span></td>
-    <td class="fm-nw">${esc(p.size)}</td><td>${esc(p.col)}</td><td class="fm-pf">${p.fab ? esc(fmFabLabel(p.fab)) + (greigeOf(p.fab) ? `<span class="fm-gr">(${esc(greigeOf(p.fab))})</span>` : '') : `<span class="muted">${esc(p.fabName || '—')}</span>`}</td>
-    <td class="r num">${esc(p.cons)}</td><td class="r num">${esc(p.pack)}</td><td><span class="fm-pb fm-${p.proc.toLowerCase()}">${p.proc}</span></td><td>${yn(p.cut)}</td>
-    <td class="fm-nw">${yn(p.zip)}${p.zip === 'Yes' && (p.zipQty || p.zipSize) ? ` <span class="muted">${p.zipQty ? esc(p.zipQty) + ' × ' : ''}${p.zipSize ? esc(p.zipSize) + '"' : ''}</span>` : ''}</td>
-    <td class="fm-nw">${yn(p.ruf)}${p.ruf === 'Yes' && (p.rufM || p.rufF) ? ` <span class="muted">${[p.rufM && p.rufM + ' m', p.rufF].filter(Boolean).map(esc).join(' · ')}</span>` : ''}</td>
-    <td class="fm-nw">${yn(p.pip)}${p.pip === 'Yes' && p.pipM ? ` <span class="muted">${esc(p.pipM)} m</span>` : ''}</td><td>${yn(p.fil)}</td></tr>`).join('');
-  return fmHead('Master data / Products / All products', 'All products', 'Every SKU of the Master Database with its fabric, consumption, pack and what it needs. Zip, ruffle, piping and filler are the SKU’s own, else its recipe’s.',
-      '<button type="button" class="ghost fm-sm" data-fmcsv="1">Export</button>', `${nf(rows.length)} of ${nf(all.length)} SKUs`)
-    + `<div class="card fm-card"><div class="fm-tools">${fmSearch('Search SKU, parent, child, colour or fabric')}</div>${fmFilterBar(all, fabSel)}
-      <div class="fm-wrapx fm-pwrap"><table class="fm-tab fm-ptab"><thead><tr><th>#</th><th>SKU</th><th>Product (parent) · child</th><th>Size</th><th>Colour</th><th>Fabric <span class="muted">(greige)</span></th>
-      <th class="r">Consumption (m)</th><th class="r">Pack of</th><th>Process</th><th>Cutting</th><th>Zip</th><th>Ruffle</th><th>Piping dori</th><th>Filler</th></tr></thead>
-      <tbody>${body || '<tr><td colspan="14" class="fm-empty">Nothing matches.</td></tr>'}</tbody></table></div>
-      ${rows.length > FM.pShow ? `<div class="fm-more"><button type="button" class="ghost fm-sm" data-fmmore="1">Show ${nf(Math.min(300, rows.length - FM.pShow))} more · ${nf(rows.length - FM.pShow)} left</button></div>` : ''}</div>`;
-}
-function fmProductsCsv() {
-  const rows = fmProductsRows(), fabs = fmList('greigeRfd');
-  const greigeOf = id => { const f = fabs.find(x => x.id === id); return f ? f.greige || '' : ''; };
-  ptDownload('all-products', [['SKU', 'Product (parent)', 'Child', 'Size', 'Colour', 'RFD fabric', 'Greige fabric', 'App fabric', 'Consumption (m)', 'Pack of', 'Process',
-    'Cutting required', 'Zip', 'Zips per piece', 'Zip size', 'Ruffle', 'Ruffle metres', 'Ruffle fabric', 'Piping dori', 'Piping metres', 'Filler fabric'].map(csvCell).join(',')]
-    .concat(rows.map(p => [p.sku, p.art, p.sub, p.size, p.col, p.fab ? fmFabLabel(p.fab) : '', greigeOf(p.fab), p.fabName, p.cons, p.pack, p.proc,
-      p.cut, p.zip, p.zipQty, p.zipSize, p.ruf, p.rufM, p.rufF, p.pip, p.pipM, p.fil].map(csvCell).join(','))));
 }
 
 /* ---- Vendors: by type, each vendor with its Tally details; the app's own vendor code beside it where the names match ---- */
@@ -199,7 +176,7 @@ function fmVendorsHtml() {
           <td class="fm-nw">${a ? `<span class="fm-skc">${esc(a.code || '')}</span> <span class="muted">${esc(a.category || '')}</span>` : '<span class="muted">not in the app’s vendor list</span>'}</td></tr>`; }).join('')
         : `<tr class="fm-none-row"><td colspan="${ncol}">No ${esc(FM_VTYPES[t].toLowerCase())} yet.</td></tr>`); }).join('');
   return fmHead('Master data / Vendors', 'Vendors', 'Greige, RFD, quilt filling, cutting and runner vendors, with the details from Tally. The app’s own vendor list (Masters → Vendor) is not changed.',
-      fmAdmin() ? '<button type="button" class="fm-primary" data-fmadd="vendor">+ Add vendor</button>' : '', `${nf(list.length)} vendors`)
+      fmGdBtn() + (fmAdmin() ? '<button type="button" class="fm-primary" data-fmadd="vendor">+ Add vendor</button>' : ''), `${nf(list.length)} vendors`)
     + `<div class="card fm-card"><div class="fm-tools"><div class="fm-seg">${seg.map(([k, l]) => `<button type="button" data-fmseg="${k}" aria-pressed="${FM.seg === k}">${esc(l)}<span>${nf(cnt(k))}</span></button>`).join('')}</div>
       <span class="fm-grow"></span>${fmSearch('Search vendor, city, GSTIN or work')}</div>
       <div class="fm-wrapx"><table class="fm-tab fm-vt"><thead><tr><th>#</th><th>Vendor</th>${FM_VCOLS.map(([, l]) => `<th>${esc(l)}</th>`).join('')}<th>In the app</th></tr></thead><tbody>${body}</tbody></table></div>
@@ -311,23 +288,22 @@ if ($('panePmdb') && $('panePmdb').addEventListener) {
     const o = t.closest('[data-fmopen]'); if (o) { const k = o.dataset.fmopen; if (FM.open.has(k)) FM.open.delete(k); else FM.open.add(k); return fmRender(); }
     const x = t.closest('[data-fmexp]'); if (x) { FM.open = x.dataset.fmexp === '1' ? new Set(fmList('greigeRfd').map(f => f.id).concat(fmOthers().map(n => 'O:' + n))) : new Set(); return fmRender(); }
     const s = t.closest('[data-fmsk]'); if (s) { const k = s.dataset.fmsk; if (FM.allSku.has(k)) FM.allSku.delete(k); else FM.allSku.add(k); return fmRender(); }
-    const c = t.closest('[data-fmclear]'); if (c) { FM.flt = {}; FM.pShow = 300; return fmRender(); }
-    const m = t.closest('[data-fmmore]'); if (m) { FM.pShow += 300; return fmRender(); }
+    const c = t.closest('[data-fmclear]'); if (c) { FM.flt = {}; return fmRender(); }
     const g = t.closest('[data-fmseg]'); if (g) { FM.seg = g.dataset.fmseg; return fmRender(); }
     const vt = t.closest('[data-fmvt]'); if (vt) { const k = vt.dataset.fmvt; if (FM.vOpen.has(k)) FM.vOpen.delete(k); else FM.vOpen.add(k); return fmRender(); }
     const a = t.closest('[data-fmadd]'); if (a) return a.dataset.fmadd === 'vendor' ? fmAddVendor() : fmAddFabric();
-    if (t.closest('[data-fmcsv]')) return fmProductsCsv();
+    const tb = t.closest('[data-fmtab]'); if (tb) return fmToTable(tb.dataset.fmtab);
+    if (t.closest('[data-fmgd]')) { showTab('gdesk'); return GD.open('inv'); }
     const ed = t.closest('[data-fmed]'); if (ed && !t.closest('input')) return fmEditStart(ed);
   });
   pane.addEventListener('keydown', e => { const ed = e.target.closest && e.target.closest('[data-fmed]');
     if (ed && e.target === ed && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); fmEditStart(ed); } });
   pane.addEventListener('change', e => {
-    const f = e.target.closest && e.target.closest('[data-fmflt]'); if (f) { FM.flt[f.dataset.fmflt] = f.value; FM.pShow = 300; return fmRender(); }
-    if (e.target.closest && e.target.closest('[data-fmfab]')) { FM.fab = e.target.value; FM.pShow = 300; return fmRender(); }
+    const f = e.target.closest && e.target.closest('[data-fmflt]'); if (f) { FM.flt[f.dataset.fmflt] = f.value; return fmRender(); }
   });
   pane.addEventListener('input', e => {
     if (e.target.id !== 'fmQ') return;
-    FM.q = e.target.value; FM.pShow = 300;
+    FM.q = e.target.value;
     clearTimeout(FM.qt); FM.qt = setTimeout(() => { const pos = e.target.selectionStart; fmRender(); const n = $('fmQ'); if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (er) { /* search inputs */ } } }, 200);
   });
 }

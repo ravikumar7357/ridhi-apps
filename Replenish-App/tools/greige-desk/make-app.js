@@ -100,6 +100,7 @@ ${layer}
     if (tab) UI.tab = tab;
     if (!DB) $('lmPane').innerHTML = '<div class="card muted">Reading the test records…</div>';
     await gdLoad(); lmLoad();
+    if (typeof gdLinkMasters === 'function') gdLinkMasters();   // the Master Data's fabrics and vendors, read fresh each time
     if (!GD_WIRED) { GD_WIRED = true; wireShell(); wirePurchaseOrders(); wireInventory(); wireLedger(); wireMasterData(); wireEntry(); wireUsersRfd(); wireGd(); }
     render();
   }

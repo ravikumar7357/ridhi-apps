@@ -35,7 +35,7 @@ function load(me) {
     mstRows: k => Object.values((D.masters || {})[k] || {}), ptOpenDialog: c => { ctx.__dlg = c; }, ptDlgClose: () => {}, renderPmdb: () => {},
     localStorage: { getItem: () => null, setItem() {} }, setTimeout, clearTimeout,
   };
-  const api = new Function(...Object.keys(ctx), SRC + '\n;return { FM, fmProducts, fmRender, fmSetView, fmList, fmSave, fmProductsRows, fmFabricHtml, fmVendorsHtml, fmAddFabric, fmAddVendor };')(...Object.values(ctx));
+  const api = new Function(...Object.keys(ctx), SRC + '\n;return { FM, fmProducts, fmRender, fmSetView, fmList, fmSave, fmFabricHtml, fmVendorsHtml, fmToTable, fmAddFabric, fmAddVendor };')(...Object.values(ctx));
   return Object.assign(api, { els, writes, ctx, D });
 }
 
@@ -71,14 +71,15 @@ function load(me) {
   A.FM.flt = {}; A.FM.q = 'cambric'; A.fmRender();
   ok('search "cambric" → the Cambric fabric, and only fabrics with something that matches', /60's Cambric 42" RFD 92x80/.test(A.els.fmRoot.innerHTML) && (A.els.fmRoot.innerHTML.match(/class="fm-main/g) || []).length < 16);
 
-  console.log('== All products ==');
-  A.FM.q = ''; A.fmSetView('products');
-  ok('All products: the page\'s columns', /<th>SKU<\/th><th>Product \(parent\) · child<\/th><th>Size<\/th><th>Colour<\/th><th>Fabric/.test(A.els.fmRoot.innerHTML) && /<th>Piping dori<\/th><th>Filler<\/th>/.test(A.els.fmRoot.innerHTML));
-  ok('…the first 300 shown, the rest behind Show more', (A.fmProductsRows().length > 300) === /data-fmmore/.test(A.els.fmRoot.innerHTML));
-  A.FM.fab = 'g07'; A.fmRender();
-  ok('fabric = Cambric → only Cambric SKUs', A.fmProductsRows().length > 0 && A.fmProductsRows().every(p => p.fabName === 'Cambric') || !A.D.real);
-  A.FM.fab = ''; A.fmRender();
-  A.ctx.__csv = null; await (async () => { const r = A.fmProductsRows(); return r; })();
+  console.log('== Greige & RFD fabric and the Master database open each other (15 Oct) ==');
+  A.FM.q = ''; A.fmRender();
+  ok('three pages, no All products: Greige & RFD fabric, Master database, Vendors', (A.els.fmNav.innerHTML.match(/data-fmview="(\w+)"/g) || []).join(',') === 'data-fmview="fabric",data-fmview="table",data-fmview="vendors"');
+  ok('a fabric\'s app fabric opens the Master database', /data-fmtab="Sheeting 62"/.test(A.els.fmRoot.innerHTML));
+  A.FM.open.add('g07'); A.fmRender();
+  ok('…and so does every SKU code under a fabric', /<button type="button" class="fm-skc fm-lnk" data-fmtab="[^"]+"/.test(A.els.fmRoot.innerHTML));
+  A.fmToTable('Cambric');
+  ok('pressed: the Master database table, searched for it', A.FM.view === 'table' && A.els.ptmQ.value === 'Cambric' && A.els.oldCard.style.display === '');
+  A.fmSetView('fabric');
 
   console.log('== Vendors ==');
   A.fmSetView('vendors');
@@ -109,6 +110,27 @@ function load(me) {
   ok('a new fabric gets the next number, g17, with its app fabric', !er && wNew['pt_masters/greigeRfd/g17'] && wNew['pt_masters/greigeRfd/g17'].fabrics[0] === 'Linen' && wNew['pt_masters/greigeRfd/g17'].gw === 58);
   B.fmAddVendor(); er = await B.ctx.__dlg.onSave({ name: 'New Cutter', type: 'cut', phone: '9876543210' });
   ok('a new vendor (Cutting job-worker) is saved as v16', !er && B.writes[B.writes.length - 1]['pt_masters/vendorBook/v16'].type === 'cut');
+
+  console.log('== the Greige Desk reads its fabrics and vendors from the Master Data (15 Oct) ==');
+  {
+    const LAYER = fs.readFileSync(path.join(__dirname, '..', 'tools', 'greige-desk', 'app-layer.js'), 'utf8');
+    const M = load({ admin: true });
+    const run = new Function('PTG', 'fmList', 'venUsed', 'showTab', 'fmSetView', 'DBin', LAYER.replace(/^function lmLoad[^\n]*\n/m, '')
+      + '\n;DB = DBin; gdLinkMasters(); return { DB, linked: gdLinked(), open: gdOpenMasterData };');
+    let DB = null;
+    const tabs = [], views = [];
+    const out = run.call(null, M.ctx.PTG, M.fmList, n => (n === 'Old Mill' ? 2 : 0), t => tabs.push(t), v => views.push(v),
+      { mst: [{ rfd: 'Sheeting 62', greige: '20\'s Sheeting 67" Greige 60x56', warp: '2/20s', weft: '20s' }], ven: [{ name: 'Old Mill', kind: 'Supplier' }, { name: 'Unused', kind: 'Supplier' }], fab: [], gpo: [] });
+    const g = out.DB.mst, v = out.DB.ven;
+    ok('linked: the desk has the Master Data\'s 16 fabrics, called by the app fabric name PPC matches on, the full name as title', out.linked && g.length === 16 && g[0].rfd === 'Sheeting 62' && g[0].title === '20\'s Sheeting 62" RFD 60x56' && g[0].greige === '20\'s Sheeting 67" Greige 60x56');
+    ok('…widths and EPI x PPI from the Master Data (67 / 62 in, 60 x 56); the warp typed on the desk is kept', g[0].greigeWidth === 67 && g[0].rfdWidth === 62 && g[0].epi === 60 && g[0].ppi === 56 && g[0].warp === '2/20s');
+    ok('…a count the desk never had becomes warp and weft (60\'s Cambric → 60s × 60s)', (c => c.warp === '60s' && c.weft === '60s')(g.find(x => /Cambric/.test(x.greige))));
+    ok('suppliers = the greige vendors, RFD processors = the RFD vendors (quilt and runner vendors are not the desk\'s)',
+      v.filter(x => x.kind === 'Supplier' && !x.deskOnly).length === 5 && v.filter(x => x.kind === 'RFD Processor').length === 3 && !v.some(x => /Shama|Royal/.test(x.name)));
+    ok('a supplier only the test records name stays, marked; one nobody uses goes', v.some(x => x.name === 'Old Mill' && x.deskOnly) && !v.some(x => x.name === 'Unused'));
+    out.open('vendors');
+    ok('"Open in Master Data" goes to Setup → Master Database at Vendors', tabs[0] === 'pmdb' && views[0] === 'vendors');
+  }
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);

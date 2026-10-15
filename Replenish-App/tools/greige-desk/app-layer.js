@@ -162,3 +162,49 @@ function gdToFlow(view) {
   try { FLOW_VIEW = view || 'drfd'; } catch (e) { /* the flow picks its own */ }
   if (typeof ensureFlow === 'function') ensureFlow();
 }
+
+/* ---- THE MASTER DATA IS ONE (Ravi, 15 Oct: "greige ka and masterdata ka interlink hona chahiye") ----
+ * In the app the desk's fabrics and its suppliers / RFD processors are Setup -> Master Database's own: Greige & RFD
+ * fabric (pt_masters/greigeRfd) and the greige and RFD vendors of Vendors (pt_masters/vendorBook). They are read fresh on
+ * every open, shown read-only on the desk's Master data, and changed in the Master Data. What the desk alone knows about a
+ * fabric (warp / weft typed here before) is kept where the Master Data says nothing. A supplier the test records name but
+ * the Master Data does not have is kept too, marked, so an old test PO still finds it. */
+function gdLinked() {
+  var m = (typeof PTG !== 'undefined' && PTG && PTG.masters) || {};
+  return !!(m.greigeRfd && Object.keys(m.greigeRfd).some(function (k) { return k.charAt(0) !== '_'; }));
+}
+function gdYarns(count) {
+  var y = function (s) { s = String(s || '').trim().replace(/'s$/i, 's'); return /^\d/.test(s) ? (/s$/i.test(s) ? s : s + 's') : ''; };
+  var p = String(count || '').split(/\s*x\s*/i);
+  return p.length === 2 ? [y(p[0]), y(p[1])] : [y(count), y(count)];
+}
+function gdLinkMasters() {
+  if (!DB || !gdLinked() || typeof fmList !== 'function') return;
+  var key = function (s) { return String(s || '').trim().toLowerCase(); };
+  var old = {}; (DB.mst || []).forEach(function (m) { old[key(m.greige)] = m; });
+  DB.mst = fmList('greigeRfd').filter(function (r) { return String(r.greige || '').trim(); }).map(function (r) {
+    var o = old[key(r.greige)] || {}, yarn = gdYarns(r.count), pc = String(r.constr || '').match(/^\s*(\d+)\s*x\s*(\d+)\s*$/i);
+    var num = function (v, was) { return v === '' || v == null ? (was || '') : v; };
+    /* The RFD is called by the app's own fabric name (Sheeting 62, Cambric): that is the name PPC, the flow's Demand and this
+     * desk's ledger rows all match on. The Master Data's full name rides along as the title. */
+    var app = (Array.isArray(r.fabrics) ? r.fabrics : ptList(r.fabrics))[0];
+    return { rfd: String(app || r.rfd || '').trim(), title: String(r.rfd || '').trim(), greige: String(r.greige).trim(), warp: o.warp || yarn[0], weft: o.weft || yarn[1],
+      epi: pc ? +pc[1] : (o.epi || ''), ppi: pc ? +pc[2] : (o.ppi || ''), greigeWidth: num(r.gw, o.greigeWidth), rfdWidth: num(r.rw, o.rfdWidth),
+      active: true, md: r.id };
+  });
+  var was = DB.ven || [], names = {};
+  var ven = fmList('vendorBook').filter(function (v) { return v.type === 'greige' || v.type === 'rfd'; }).map(function (v) {
+    names[key(v.name)] = 1;
+    var o = was.filter(function (x) { return key(x.name) === key(v.name); })[0] || {};
+    return { name: String(v.name || '').trim(), kind: v.type === 'greige' ? 'Supplier' : 'RFD Processor', phone: v.phone || o.phone || '',
+      email: o.email || '', addr: v.address || o.addr || '', city: v.city || o.city || '', gstin: v.gstin || o.gstin || '', pan: v.pan || '', active: true, md: v.id };
+  });
+  was.forEach(function (v) { if (v && v.name && !names[key(v.name)] && venUsed(v.name) > 0) ven.push(Object.assign({}, v, { deskOnly: true })); });
+  DB.ven = ven;
+}
+/** Over to Setup -> Master Database, at its Greige & RFD fabric or its Vendors. */
+function gdOpenMasterData(view) {
+  if (typeof showTab !== 'function') return;
+  showTab('pmdb');
+  try { if (typeof fmSetView === 'function') fmSetView(view === 'vendors' ? 'vendors' : 'fabric'); } catch (e) { /* the page opens where it was */ }
+}

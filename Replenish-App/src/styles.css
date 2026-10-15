@@ -1196,3 +1196,7 @@
 .fm-vsub{display:block;font-size:12px;font-weight:400;color:var(--muted)}
 .fm-none-row td{color:var(--muted);font-size:12.5px;padding-left:56px;background:var(--soft)}
 .fm-primary{width:auto}
+.fm-lnk{width:auto;background:none;border:0;box-shadow:none;padding:0;margin:0;color:var(--brand);cursor:pointer;font:inherit;text-decoration:underline;text-decoration-color:transparent;text-underline-offset:3px}
+.fm-lnk:hover{background:none;text-decoration-color:currentColor}
+.fm-skc.fm-lnk{background:var(--chip);padding:1px 6px;font-family:ui-monospace,Consolas,monospace;font-size:11px;color:var(--ink);text-decoration:none}
+.fm-skc.fm-lnk:hover{background:var(--brand-bg);color:var(--brand)}

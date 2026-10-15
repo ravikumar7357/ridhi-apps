@@ -46,16 +46,18 @@ function metric(v, l, colour) {
 }
 
 /* ---- the frame ------------------------------------------------------------------------------ */
+/* NO DASHBOARD (Ravi, 15 Oct: "remove the greige dashboard"): the desk opens on the Greige POs. */
 var LM_TITLE = {
-  dash: 'Dashboard', po: 'Greige POs &amp; challans', inv: 'Inventory',
+  po: 'Greige POs &amp; challans', inv: 'Inventory',
   ledger: 'Fabric ledger', mst: 'Master data',
 };
 function render() {
+  if (!LM_TITLE[UI.tab]) UI.tab = 'po';
   if (UI.tab === 'ledger' && !canLedger()) UI.tab = 'po';
   meFill();
   $('lmTitle').innerHTML = LM_TITLE[UI.tab];
-  var body = UI.tab === 'po' ? renderPo() : UI.tab === 'inv' ? renderInv()
-    : UI.tab === 'ledger' ? renderLedger() : UI.tab === 'mst' ? renderMst() : renderFlow();
+  var body = UI.tab === 'inv' ? renderInv()
+    : UI.tab === 'ledger' ? renderLedger() : UI.tab === 'mst' ? renderMst() : renderPo();
   $('lmPane').innerHTML = body;
   [].forEach.call(document.querySelectorAll('.navgrp'), function (b) {
     var on = b.getAttribute('data-tab') === UI.tab;
@@ -88,6 +90,8 @@ function armed(btn, words) {
 /* ---- wiring: the tabs, the search box, closing dialogs, the reset button --------------------------- */
 function wireShell() {
   document.addEventListener('click', function (ev) {
+    var md = ev.target.closest ? ev.target.closest('[data-gdmd]') : null;
+    if (md && typeof gdOpenMasterData === 'function') { gdOpenMasterData(md.getAttribute('data-gdmd')); return; }
     var t = ev.target.closest ? ev.target.closest('[data-tab],[data-go],[data-close]') : null;
     if (!t) return;
     var g = function (k) { return t.getAttribute(k); };
@@ -2117,7 +2121,17 @@ function renderMst() {
   return seg + (UI.mst === 'ven' ? renderMstVen() : UI.mst === 'co' ? renderMstCo() : UI.mst === 'users' ? renderMstUsers() : renderMstFabric());
 }
 
+/* JOINED TO THE APP'S MASTER DATA (Ravi, 15 Oct: "greige ka and masterdata ka interlink hona chahiye"). Inside the app the
+ * fabrics and the suppliers / RFD processors are Setup -> Master Database's own (gdLinked, app-layer.js): shown here,
+ * changed there. The page on its own keeps its own lists, as before. */
+function gdIsLinked() { return typeof gdLinked === 'function' && gdLinked(); }
+function gdLinkedCap(what, view) {
+  return '<div class="ff-cap" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><span>These ' + what + ' are the app\'s <b>Master Data</b> '
+    + '(Setup &rarr; Master Database). They are shown here and changed there, so every screen reads the same names.</span>'
+    + '<button type="button" class="jw-btn jw-primary" data-gdmd="' + view + '">Open in Master Data</button></div>';
+}
 function renderMstVen() {
+  if (gdIsLinked()) return renderMstVenLinked();
   var list = (DB.ven || []).map(function (v, i) { return { v: v, i: i }; })
     .filter(function (x) { return lmMatch(x.v.name) || lmMatch(x.v.city) || lmMatch(x.v.kind); });
 
@@ -2242,7 +2256,46 @@ function renderMstCo() {
     + '</div></div>';
 }
 
+/** The fabric list, read-only: the app's Greige & RFD fabric, with what the desk works out from it. */
+function renderMstFabricLinked() {
+  var head = '<thead><tr><th class="frz">Fabric</th>'
+    + MST_COLS.map(function (c) { return '<th class="num" title="' + esc(c[3]) + '">' + esc(c[1]) + '</th>'; }).join('')
+    + '<th class="num" title="Ends and picks added together">TC</th><th class="num" title="How much width the bleach takes">Width loss</th></tr></thead>';
+  var body = (DB.mst || []).map(function (m) {
+    return '<tr><td class="frz" style="text-align:left">' + (m.rfd ? '<b>' + esc(m.rfd) + '</b>' : '<i class="muted">No RFD fabric</i>')
+      + (m.title && m.title !== m.rfd ? '<div style="font-size:11.5px;color:#4A6A92">' + esc(m.title) + '</div>' : '')
+      + '<div class="muted" style="margin-top:2px">' + esc(m.greige || '') + '</div>'
+      + '<div class="muted mst-spec" style="font-size:10.5px;margin-top:3px">' + esc(mstSpecLine(m)) + '</div></td>'
+      + MST_COLS.map(function (c) { return '<td class="num">' + mstShow(m, c) + '</td>'; }).join('')
+      + '<td class="num mst-tc" style="font-weight:700">' + (mstTC(m) === null ? '<span class="muted">&mdash;</span>' : mstTC(m)) + '</td>'
+      + '<td class="num mst-loss">' + (mstWidthLoss(m) === null ? '<span class="muted">&mdash;</span>' : mstWidthLoss(m) + '%') + '</td></tr>';
+  }).join('') || emptyRow(MST_COLS.length + 3, 'No fabric in the Master Data yet.');
+  return '<div class="card">' + gdLinkedCap('fabrics', 'fabric')
+    + '<div class="ff-grid"><table class="xl xl-dense lm-lines" id="mstTable">' + head + '<tbody>' + body + '</tbody></table></div></div>';
+}
+/** The suppliers and RFD processors, read-only: the app's Vendors (greige and RFD vendors). */
+function renderMstVenLinked() {
+  var list = (DB.ven || []).filter(function (v) { return lmMatch(v.name) || lmMatch(v.city) || lmMatch(v.kind); });
+  var head = '<thead><tr><th class="frz">Name</th>'
+    + VEN_COLS.map(function (c) { return '<th class="num"' + (c[3] ? ' title="' + esc(c[3]) + '"' : '') + '>' + esc(c[1]) + '</th>'; }).join('')
+    + '<th class="num" title="How many rows of the register answer to this name">On record</th></tr></thead>';
+  var body = list.map(function (v) {
+    var used = venUsed(v.name);
+    return '<tr><td class="frz" style="text-align:left"><b>' + esc(v.name || DASH) + '</b>'
+      + (v.deskOnly ? '<div class="muted" style="font-size:10.5px">only on these test records &mdash; not in the Master Data</div>' : '') + '</td>'
+      + VEN_COLS.map(function (c) {
+        var val = v[c[0]] == null ? '' : v[c[0]];
+        if (c[0] === 'kind') { var vk = venKind(v); return '<td><span class="pill ' + (vk === 'RFD Processor' ? 'pill-sea' : 'pill-ok') + '">' + esc(vk || DASH) + '</span></td>'; }
+        if (c[0] === 'gstin' && val) return '<td class="num"><span class="mono">' + esc(val) + '</span></td>';
+        return '<td class="num">' + (val ? esc(val) : MUTED_DASH) + '</td>';
+      }).join('')
+      + '<td class="num">' + (used ? used : MUTED_DASH) + '</td></tr>';
+  }).join('') || emptyRow(VEN_COLS.length + 2, 'No greige or RFD vendor in the Master Data yet.');
+  return '<div class="card">' + gdLinkedCap('suppliers and RFD processors', 'vendors')
+    + '<div class="ff-grid"><table class="xl xl-dense lm-lines" id="venTable">' + head + '<tbody>' + body + '</tbody></table></div></div>';
+}
 function renderMstFabric() {
+  if (gdIsLinked()) return renderMstFabricLinked();
   var head = '<thead><tr><th class="frz">Fabric</th>'
     + MST_COLS.map(function (c) {
       return '<th class="num" title="' + esc(c[3]) + '">' + esc(c[1]) + '</th>';
