@@ -58,7 +58,7 @@ function load(opts) {
     FAB: { rows: opts.fabRows || [] },
     STORE: { rows: opts.store ? [] : null }, stMoves: () => opts.store || [], stBalances: mv => mv, fabKey: v => String(v || '').trim().toUpperCase(), fabAll: () => opts.fabRows || [], ptList: x => x || [], fabAutoLoad: async () => {}, fabStockOf: (name, st) => (st === 'RFD' ? (opts.rfd || {})[String(name).toUpperCase()] || 0 : 0),
   };
-  const api = new Function(...Object.keys(ctx), SRC + '\n;return { flowBackOpen, flowAgainOpen, flowIsBack, flowBackLines, flowBackPill, FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW_ROUTES, flowPlanRouteOf, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestCutOpen, flowTestIssueOpen, flowTestRecvOpen, flowTestVos, flowVoProgOf, flowVoProgSync, flowVlogRows, flowDocsOf, flowVoExtra, flowVpViewOnly, flowFgAcceptOpen, flowFgAccept, flowFgRejectOpen, flowFgReject, flowFgLines, flowFgRender, flowQcLine, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowCutEntry, flowIssueEntry, flowRecvEntry, flowQcEntry, flowIssuable, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowVoLines, VOrows:()=>VO.rows, setVOrows:v=>{VO.rows=v}, flowUnplan, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v}, flowEmbedRender, FLOW_EMB:()=>FLOW_EMB, flowScreenAllowed, flowOwnsOrder, flowOwnedIn, flowVoIsFlow, flowFgOwns, flowDupViewsOff, renderView:()=>{ if (["cut","raw","wip","new","pord","vendor","fabric"].includes(FLOW_VIEW)) { const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly(); const rows = flowRows().filter(x => (!only || x.r.__t) && (FLOW_VIEW === "new" ? x.recent : flowInView(FLOW_VIEW, x.s))); $("flTable").innerHTML = flowTable(FLOW_VIEW, rows); } else renderFlow(); } };')(...Object.values(ctx));
+  const api = new Function(...Object.keys(ctx), SRC + '\n;return { flowPpcDraftSave, flowPpcDraftApply, flowPpcDraftDrop, flowPpcHasDraft, flowBackOpen, flowAgainOpen, flowIsBack, flowBackLines, flowBackPill, FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW_ROUTES, flowPlanRouteOf, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestCutOpen, flowTestIssueOpen, flowTestRecvOpen, flowTestVos, flowVoProgOf, flowVoProgSync, flowVlogRows, flowDocsOf, flowVoExtra, flowVpViewOnly, flowFgAcceptOpen, flowFgAccept, flowFgRejectOpen, flowFgReject, flowFgLines, flowFgRender, flowQcLine, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowCutEntry, flowIssueEntry, flowRecvEntry, flowQcEntry, flowIssuable, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowVoLines, VOrows:()=>VO.rows, setVOrows:v=>{VO.rows=v}, flowUnplan, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v}, flowEmbedRender, FLOW_EMB:()=>FLOW_EMB, flowScreenAllowed, flowOwnsOrder, flowOwnedIn, flowVoIsFlow, flowFgOwns, flowDupViewsOff, renderView:()=>{ if (["cut","raw","wip","new","pord","vendor","fabric"].includes(FLOW_VIEW)) { const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly(); const rows = flowRows().filter(x => (!only || x.r.__t) && (FLOW_VIEW === "new" ? x.recent : flowInView(FLOW_VIEW, x.s))); $("flTable").innerHTML = flowTable(FLOW_VIEW, rows); } else renderFlow(); } };')(...Object.values(ctx));
   api.setFLOW(Object.assign(api.FLOW(), { ppc: opts.ppc || {}, dem: opts.dem || {}, res: opts.res || {} }));
   return Object.assign(api, { els, writes, W, ctx });
 }
@@ -1698,6 +1698,44 @@ const K = 'AMZ-1__S1';
     const B4 = load({ me: { tabs: ['flcut'] }, lines: [L2] });
     B4.flowBackOpen([B4.flowKey('SHP-9', 'R2')]);
     ok('without the PPC right nothing opens', !B4.ctx.__dlg);
+  }
+
+  console.log('\n== PPC drafts: auto-save and "Save as draft" (Ravi, 15 Oct: "window cut ho gyi to save as draft ka option and auto save") ==');
+  {
+    const store = {};
+    const B = load({ me: { tabs: ['flppc'] }, lines: [L({ orderNo: 'AMZ-9', sku: 'S1' }), L({ orderNo: 'AMZ-9', sku: 'S2' })] });
+    B.ctx.localStorage.getItem = k => (k in store ? store[k] : null);
+    B.ctx.localStorage.setItem = (k, v) => { store[k] = String(v); };
+    const box = (fp, k, value, type) => ({ dataset: { fp: String(fp), k }, value, type: type || 'text', checked: false, disabled: false });
+    const form = [box(0, 'fabric.name', 'Sheeting 82'), box(0, 'fabric.perPc', '3.1', 'number'), box(0, 'printer.code', 'P2'),
+      box(1, 'fabric.name', 'Cambric'), box(1, 'dates.cut', '2026-10-18', 'date')];
+    B.ctx.document.querySelectorAll = sel => sel === '[data-fp]' ? form : [];
+    const k0 = B.flowKey('AMZ-9', 'S1'), k1 = B.flowKey('AMZ-9', 'S2');
+    const at = B.flowPpcDraftSave([k0, k1]);
+    const kept = JSON.parse(store.ppcDraft || '{}');
+    ok('what is typed is kept per line, on this computer', !!at && kept[k0].v['fabric.perPc'] === '3.1' && kept[k0].v['printer.code'] === 'P2' && kept[k1].v['dates.cut'] === '2026-10-18' && kept[k0].by === 'ppc@x', store.ppcDraft);
+    ok('…and the PPC list can say "Draft saved" for those lines', B.flowPpcHasDraft(k0) && B.flowPpcHasDraft(k1) && !B.flowPpcHasDraft(B.flowKey('AMZ-9', 'S3')));
+    /* The form opened again, with the suggestion in its boxes: the draft goes back in. */
+    const fresh = [box(0, 'fabric.name', 'Canvas'), box(0, 'fabric.perPc', '0.5', 'number'), box(0, 'printer.code', ''), box(1, 'fabric.name', ''), box(1, 'dates.cut', '')];
+    B.ctx.document.querySelector = sel => { const m = sel.match(/data-fp="(\d+)"\]\[data-k="([^"]+)"/); return m ? fresh.find(b => b.dataset.fp === m[1] && b.dataset.k === m[2]) || null : null; };
+    const back = B.flowPpcDraftApply([k0, k1]);
+    ok('opened again, the draft is put back into the boxes', back === at && fresh[0].value === 'Sheeting 82' && fresh[1].value === '3.1' && fresh[2].value === 'P2' && fresh[3].value === 'Cambric' && fresh[4].value === '2026-10-18');
+    /* One line of that PO opened alone (or combined with another order) still finds its own draft. */
+    const one = [box(0, 'fabric.name', '')];
+    B.ctx.document.querySelector = sel => /data-k="fabric.name"/.test(sel) && /data-fp="0"/.test(sel) ? one[0] : null;
+    B.flowPpcDraftApply([k1]);
+    ok('a line opened on its own finds its own draft', one[0].value === 'Cambric');
+    /* A box PPC may not change (fabric on a challan) is left as it is. */
+    const locked = box(0, 'fabric.name', 'Canvas'); locked.disabled = true;
+    B.ctx.document.querySelector = sel => /data-k="fabric.name"/.test(sel) && /data-fp="0"/.test(sel) ? locked : null;
+    B.flowPpcDraftApply([k0]);
+    ok('a locked box is not overwritten by a draft', locked.value === 'Canvas');
+    B.flowPpcDraftDrop([k0]);
+    ok('raising the plan (or Discard) clears that line\'s draft and keeps the other', !B.flowPpcHasDraft(k0) && B.flowPpcHasDraft(k1));
+    const d = JSON.parse(store.ppcDraft); d[k1].at = '2026-09-01T00:00:00Z'; store.ppcDraft = JSON.stringify(d);
+    ok('a draft older than 14 days is dropped', !B.flowPpcHasDraft(k1));
+    B.ctx.localStorage.setItem = () => { throw new Error('blocked'); };
+    ok('blocked browser storage: no draft, and it says so (empty time)', B.flowPpcDraftSave([k0]) === '');
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);

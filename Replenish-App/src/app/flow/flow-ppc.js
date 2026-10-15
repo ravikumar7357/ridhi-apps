@@ -218,6 +218,52 @@ function flowPrinterOpts(code) {
   return vens.filter(v => /print/i.test(String(v.category || ''))).map(v => `<option value="${esc(v.code)}"${String(v.code) === String(code || '') ? ' selected' : ''}>${esc(v.desc || v.name || v.code)}</option>`).join('');
 }
 /** PPC's form for every line of one PO that is still in PPC (or one line). */
+/* ---- DRAFTS (Ravi, 15 Oct: "mera PO bahut bada h and mene working kar liya aadha but by mistake window cut ho gyi to isme
+ * save as draft ka option and auto save bhi") ----
+ * What is typed in the PPC form is kept on this computer as it is typed (auto-save), and "Save as draft" keeps it and
+ * closes the form. Opening the same lines again puts it all back. Kept per line (its flow key), so a PO opened whole, one
+ * line, or combined with another order finds the same draft. Raising the plan clears it; a draft older than 14 days is
+ * dropped. localStorage ppcDraft = { <line key>: { at, by, v: { <box>: value } } }. Nothing goes to the database. */
+const FLOW_DRAFT_LS = 'ppcDraft', FLOW_DRAFT_DAYS = 14;
+/* Read once per change of what is stored: the PPC list asks for every one of up to 800 lines. A copy is handed out, so a
+ * caller changing it never changes the cache. */
+let FLOW_DRAFT_C = { raw: null, d: {} };
+function flowPpcDrafts() {
+  let raw = ''; try { raw = localStorage.getItem(FLOW_DRAFT_LS) || ''; } catch (e) { raw = ''; }
+  if (raw !== FLOW_DRAFT_C.raw) {
+    let d = {}; try { d = JSON.parse(raw || '{}') || {}; } catch (e) { d = {}; }
+    const old = new Date(Date.now() - FLOW_DRAFT_DAYS * 864e5).toISOString();
+    Object.keys(d).forEach(k => { if (!d[k] || String(d[k].at || '') < old) delete d[k]; });
+    FLOW_DRAFT_C = { raw, d };
+  }
+  return Object.assign({}, FLOW_DRAFT_C.d);
+}
+const flowPpcHasDraftC = key => { flowPpcDrafts(); return !!FLOW_DRAFT_C.d[key]; };
+function flowPpcDraftsPut(d) { try { localStorage.setItem(FLOW_DRAFT_LS, JSON.stringify(d)); return true; } catch (e) { return false; } }
+/** Is a draft kept for this line? (the PPC list says so) */
+const flowPpcHasDraft = key => flowPpcHasDraftC(key);
+/** Every box of the open form, line by line, into the drafts. Returns when it was saved, '' if it could not be. */
+function flowPpcDraftSave(keys) {
+  const d = flowPpcDrafts(), at = new Date().toISOString(), v = {};
+  document.querySelectorAll('[data-fp]').forEach(inp => { const i = +inp.dataset.fp; if (!keys[i] || inp.disabled) return;
+    (v[i] = v[i] || {})[inp.dataset.k] = inp.type === 'checkbox' ? !!inp.checked : String(inp.value == null ? '' : inp.value); });
+  Object.entries(v).forEach(([i, vals]) => { d[keys[i]] = { at, by: ME.email || '', v: vals }; });
+  return flowPpcDraftsPut(d) ? at : '';
+}
+let FLOW_DRAFT_T = null;
+function flowPpcDraftSoon(keys, say) { clearTimeout(FLOW_DRAFT_T); FLOW_DRAFT_T = setTimeout(() => { const at = flowPpcDraftSave(keys); if (say) say(at); }, 600); }
+/** Put a kept draft back into the boxes. Returns the newest time restored, '' when there was none. */
+function flowPpcDraftApply(keys) {
+  const d = flowPpcDrafts(); let at = '';
+  keys.forEach((key, i) => { const x = d[key]; if (!x || !x.v) return;
+    Object.entries(x.v).forEach(([k, val]) => { const el = document.querySelector(`[data-fp="${i}"][data-k="${k}"]`); if (!el || el.disabled) return;
+      if (el.type === 'checkbox') el.checked = !!val; else el.value = val; });
+    if (String(x.at) > at) at = String(x.at); });
+  return at;
+}
+function flowPpcDraftDrop(keys) { const d = flowPpcDrafts(); keys.forEach(k => { delete d[k]; }); flowPpcDraftsPut(d); }
+const flowDraftWhen = at => { const t = new Date(at); return isNaN(t) ? '' : t.toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }); };
+
 function flowPpcOpen(orderNo, onlySku, keys) {
   /* SAME SKU, SAME DAY, ONE PLAN (Ravi, 15 Oct: "1 SKU ka same day order aay to wo sare order combine hokar dikhe PPC team
    * ko"): `keys` names lines of several orders, planned in one go — each keeps its own plan, its own print order. */
@@ -293,11 +339,14 @@ function flowPpcOpen(orderNo, onlySku, keys) {
     title: editing ? `Edit plan — ${orderNo} · ${obUC(rows[0].r.sku)}` : `PPC — ${orderNo}`,
     subtitle: editing ? `Change what was planned and save; the line moves to wherever it now belongs.${locked ? ` Its fabric is on challan ${rows[0].s.challan.no}: fabric, route and printer stay as they are until that challan is cancelled (Demand history).` : ''}`
       : `${nf(rows.length)} line(s). Worked out from cloth per piece, the recipe and the print rules — check, change, save. Saving raises it: the line moves on to Demand by itself.`,
-    html: html + (rows.length > 1 ? '<div class="fpc" data-combo style="padding:12px 14px"></div>' : '') + (editing ? `<label style="display:flex;gap:6px;align-items:center;margin-top:4px;color:#b91c1c"><input id="flpUndo" type="checkbox" style="width:auto"${locked ? ' disabled' : ''}> Undo this plan — send the line back to PPC (its fabric-ready and reservation go too)${locked ? ' · not while its fabric is on a challan' : ''}</label>` : ''),
+    html: `<div id="flpDraft" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 10px;font-size:12.5px"><span id="flpDraftSay" class="muted">Auto-save is on: what you type is kept on this computer.</span>`
+      + `<button type="button" id="flpDraftBtn" class="ghost" style="width:auto;padding:3px 12px;font-size:12.5px">Save as draft</button>`
+      + `<a href="#" id="flpDraftDrop" style="font-size:12px;color:#b91c1c;display:none">Discard draft</a></div>`
+      + html + (rows.length > 1 ? '<div class="fpc" data-combo style="padding:12px 14px"></div>' : '') + (editing ? `<label style="display:flex;gap:6px;align-items:center;margin-top:4px;color:#b91c1c"><input id="flpUndo" type="checkbox" style="width:auto"${locked ? ' disabled' : ''}> Undo this plan — send the line back to PPC (its fabric-ready and reservation go too)${locked ? ' · not while its fabric is on a challan' : ''}</label>` : ''),
     wide: true,
     saveLabel: editing ? 'Save the plan' : rows.length > 1 ? `Raise the plan for ${rows.length} lines` : 'Raise the plan',
     onSave: async () => {
-      if (editing && $('flpUndo') && $('flpUndo').checked) { const er = await flowUnplan(rows[0].s); if (er) return er; renderFlow(); return ''; }
+      if (editing && $('flpUndo') && $('flpUndo').checked) { const er = await flowUnplan(rows[0].s); if (er) return er; flowPpcDraftDrop(rows.map(x => x.s.key)); renderFlow(); return ''; }
       /* A box's value into the plan; a part the plan has lost (a refused save can leave printer null) is made again. */
       const set = (o, path, v) => { const ks = path.split('.'); let t = o; ks.slice(0, -1).forEach(k => { const kk = /^\d+$/.test(k) ? +k : k; if (t[kk] == null) t[kk] = {}; t = t[kk]; }); t[ks[ks.length - 1]] = v; };
       document.querySelectorAll('[data-fp]').forEach(inp => {
@@ -391,6 +440,7 @@ function flowPpcOpen(orderNo, onlySku, keys) {
       /* A new object, so every cache keyed on it knows it changed. */
       FLOW.ppc = Object.assign({}, FLOW.ppc);
       Object.entries(patch).filter(([path]) => path.startsWith('pt_ppc/')).forEach(([path, rec]) => { FLOW.ppc[path.slice('pt_ppc/'.length)] = rec; });
+      flowPpcDraftDrop(rows.map(x => x.s.key));   // raised: its draft is done with
       renderFlow();
       return '';
     },
@@ -487,6 +537,20 @@ function flowPpcOpen(orderNo, onlySku, keys) {
     });
     flowComboPaint(combo, run, com, names, shelf);
   };
-  document.querySelectorAll('[data-fp]').forEach(inp => { inp.addEventListener('input', paint); inp.addEventListener('change', paint); });
+  /* THE DRAFT: put back before the first drawing, then kept as the boxes change. */
+  const dkeys = rows.map(x => x.s.key);
+  const sayD = (t, bad) => { const el = $('flpDraftSay'); if (el) { el.textContent = t; el.className = bad ? 'err' : 'muted'; } };
+  const dropA = $('flpDraftDrop');
+  const restored = flowPpcDraftApply(dkeys);
+  if (restored) { sayD(`Draft put back — saved ${flowDraftWhen(restored)} on this computer. Auto-save is on.`); if (dropA && dropA.style) dropA.style.display = ''; }
+  const said = at => { if (at) { sayD(`Draft auto-saved ${flowDraftWhen(at)} — on this computer.`); if (dropA && dropA.style) dropA.style.display = ''; } else sayD('Could not keep a draft on this computer (browser storage is blocked).', true); };
+  document.querySelectorAll('[data-fp]').forEach(inp => { inp.addEventListener('input', paint); inp.addEventListener('change', paint);
+    inp.addEventListener('input', () => flowPpcDraftSoon(dkeys, said)); inp.addEventListener('change', () => flowPpcDraftSoon(dkeys, said)); });
+  if ($('flpDraftBtn')) $('flpDraftBtn').onclick = () => { clearTimeout(FLOW_DRAFT_T); const at = flowPpcDraftSave(dkeys);
+    if (!at) { sayD('Could not keep a draft on this computer (browser storage is blocked).', true); return; }
+    ptDlgClose(); try { renderFlow(); } catch (e) { /* the list redraws on its next read */ }
+    if ($('flMsg')) { $('flMsg').className = 'muted'; $('flMsg').textContent = `Draft saved for ${orderNo} (${nf(dkeys.length)} line(s)) — open it again to carry on; it is not raised until you raise it.`; } };
+  if (dropA) dropA.onclick = e => { if (e && e.preventDefault) e.preventDefault(); if (!confirm('Throw away the draft and start again from the suggestion?')) return;
+    clearTimeout(FLOW_DRAFT_T); flowPpcDraftDrop(dkeys); ptDlgClose(); flowPpcOpen(keys && keys.length ? '' : orderNo, onlySku, keys); };
   paint();
 }
