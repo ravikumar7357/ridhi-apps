@@ -2537,6 +2537,15 @@ console.log('\n== the vendor portal ==');
     ok('…the order says what was given and what came back, and what is still with the printer',
       /Fabric given to you/.test(h) && /RFD-202610-001/.test(h) && /Received from you/.test(h) && /Still with you/.test(h) && /7 m/.test(h));
     ok('…the "RFD fabric I need" tab and the record / dates bar are gone', els.vpTabRfd._hidden === true && els.vpBar3._hidden === true);
+    /* THE COLOUR BOARD (Ravi, 15 Oct: design D, with pictures) — the default view. */
+    els.vpView.value = 'board';
+    A.renderVp();
+    const bd = els.vpBody.innerHTML;
+    ok('colour board: one card per colour, each line with its picture, ordered, raw and sent; four totals on the card',
+      /class="vpb-card"/.test(bd) && /data-img="/.test(bd) && /vpb-tot/.test(bd) && /<span>Raw<\/span>/.test(bd) && /ordered/.test(bd) && /(sent [\d,.]+|none sent)/.test(bd), bd.slice(0, 400));
+    ok('…a cut line with no RFD sent against its SKU says "no raw yet"', /no raw yet/.test(bd));
+    ok('…no "past your date" in the strip while view only', !/past your date|no date from you/.test(els.vpKpis.innerHTML));
+    els.vpView.value = '';
     delete o0.flowProg;
     global.__kaStore = was;
     A.renderVp();

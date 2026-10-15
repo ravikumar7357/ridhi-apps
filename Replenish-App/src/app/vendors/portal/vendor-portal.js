@@ -359,8 +359,8 @@ function renderVp() {
     <span class="muted">Sent</span> <span style="color:#166534;font-weight:700">${amt(tot.sentPcs, tot.sentM)}</span>
     <span class="sep"></span>
     <span class="muted">Left to send</span> <span style="color:var(--bad);font-weight:700">${amt(tot.owedPcs, tot.owedM)}</span>
-    ${tot.late ? `<span class="sep"></span><span style="color:var(--bad);font-weight:600">${nf(tot.late)} past your date</span>` : ''}
-    ${tot.noDate ? `<span class="sep"></span><span style="color:#7f6000;font-weight:600">${nf(tot.noDate)} with no date from you</span>` : ''}
+    ${vpViewAll() ? '' : (tot.late ? `<span class="sep"></span><span style="color:var(--bad);font-weight:600">${nf(tot.late)} past your date</span>` : '')
+      + (tot.noDate ? `<span class="sep"></span><span style="color:#7f6000;font-weight:600">${nf(tot.noDate)} with no date from you</span>` : '')}
     <span style="flex:1"></span>
     <span class="muted" style="font-size:11px">your orders only${VP.at ? ' · ' + esc(VP.at) : ''}</span>
   </div>`;
@@ -423,7 +423,8 @@ function renderVp() {
   body.innerHTML = nag + (rows.length
     ? doneTab ? (rows.some(o => !vpIsShop(o)) ? vpTable(rows.filter(o => !vpIsShop(o)), f) : '') + (rows.some(vpIsShop) ? vpShopTable(rows.filter(vpIsShop), f) : '')
     : (VP.tab === 'shop' ? vpShopTable(rows, f)
-      : (($('vpView') || {}).value === 'orders' ? rows.map(o => vpCard(o, f)).join('') : vpTable(rows, f)))
+      : (($('vpView') || {}).value === 'orders' ? rows.map(o => vpCard(o, f)).join('')
+        : ($('vpView') || {}).value === 'board' ? vpBoard(rows, f) : vpTable(rows, f)))
     : empty);
   if ($('vpPin')) $('vpPin').onclick = pinOpenChange;
   /* The count, and nothing else. The two paragraphs that used to sit here were written for somebody
@@ -637,6 +638,84 @@ function vpProgHtml(o) {
     <span class="muted">Received from you</span>
     <span>${back > 0 ? `<b style="color:#166534">${q(back)}</b>` : '<b class="muted">nothing yet</b>'}${rc.length ? ` <span class="muted">· ${rc.map(r => q(r.qty) + day(r.date)).join(', ')}</span>` : ''}</span>
     ${given > 0 ? `<span class="muted">Still with you</span><span><b>${q(Math.max(0, given - back))}</b></span>` : ''}</div>`;
+}
+/* ---- THE COLOUR BOARD (Ravi, 15 Oct: design D, "one card per colour", "need picture") ----
+ * The printer's default view: each order, then a card per colour — the way the work is printed — with every SKU's
+ * picture, what was ordered, the RAW cloth or cut pieces Ridhi Home & Living gave for it, what came back, and the balance.
+ * Raw comes from two places: a PPC order's challans (flowProg.items, shared over the vendor-order lines that stand for
+ * each print-order line), or an older order's RFD sends (rfdReqs: a cut order's by SKU; a running order's by fabric, for
+ * the whole order, so it is said once on the order rather than guessed per line). */
+function vpRawCtx(o) {
+  const ctx = { flow: null, bySku: {}, byFab: {} };
+  const items = o && o.flowProg && o.flowProg.items;
+  if (items) {
+    const cnt = {}, keyOf = p => { const [k, part] = String(p || '').split('|'); return part === 'ruffle' ? k + FLOW_RUF : k; };
+    voLines(o).forEach(l => (Array.isArray(l.parts) ? l.parts : (l.flowPart ? [l.flowPart] : [])).forEach(p => { const k = keyOf(p); cnt[k] = (cnt[k] || 0) + 1; }));
+    ctx.flow = { items, cnt, keyOf };
+  }
+  (typeof rfdReqsOf === 'function' ? rfdReqsOf(o) : []).forEach(r => {
+    const sh = r.shown || {}, sends = (Array.isArray(sh.sends) ? sh.sends : []).filter(x => x && +x.qty > 0);
+    const given = sends.length ? sends.reduce((a, x) => a + (+x.qty || 0), 0) : (+sh.sent || 0);
+    if (!(given > 0)) return;
+    const e = { given, dates: sends.map(x => x.date).filter(Boolean) };
+    const add = (map, k) => { if (!k) return; const m = map[k] || (map[k] = { given: 0, dates: [] }); m.given += e.given; m.dates = m.dates.concat(e.dates); };
+    if (r.unit === 'pcs' || r.sku) add(ctx.bySku, obUC(r.sku)); else add(ctx.byFab, String(r.fabric || '').trim());
+  });
+  return ctx;
+}
+/** What a line was given (raw) and what came back. raw null = nothing on record for this line by itself. */
+function vpLineRaw(o, l, ctx) {
+  if (ctx.flow) {
+    let given = 0, back = 0;
+    (Array.isArray(l.parts) ? l.parts : (l.flowPart ? [l.flowPart] : [])).forEach(p => {
+      const k = ctx.flow.keyOf(p), it = ctx.flow.items[k], n = ctx.flow.cnt[k] || 1;
+      if (it) { given += (+it.given || 0) / n; back += (+it.back || 0) / n; }
+    });
+    return { raw: Math.round(given * 100) / 100, sent: Math.round(back * 100) / 100 };
+  }
+  const s = ctx.bySku[obUC(l.sku)];
+  return { raw: s ? s.given : (o.orderType === 'running' ? null : 0), sent: vpDone(l), dates: s ? s.dates : [] };
+}
+function vpBoard(rows, f) {
+  const day = d => esc(typeof dShow === 'function' ? dShow(d) : d);
+  return rows.map(o => {
+    const st = o.status || 'Placed', run = o.orderType === 'running', unit = run ? 'm' : 'pcs';
+    const on = !!(f && vpLineOn(f));
+    const keep = voLines(o).map((l, i) => ({ l, i })).filter(({ l }) => !l.cancelled && (!on || voLineMatches(l, f)) && vpPartOk(o, l));
+    if (!keep.length) return '';
+    const ctx = vpRawCtx(o), q = n => nf(Math.round((+n || 0) * 100) / 100);
+    const wants = keep.map(({ l }) => voWant(l)).filter(Boolean).sort();
+    const cls = st === 'Dispatched' || st === 'Received' ? 'pill-ok' : 'pill-low';
+    const fabPool = Object.entries(ctx.byFab);
+    const head = `<div class="vpb-order"><b style="font-size:15px">${esc(o.orderNo || o.id)}</b>
+      <span class="pill">${run ? 'Running fabric — metres' : 'Cut fabric — pieces'}</span>${o.channel ? ` <span class="pill" style="background:#E9EFF6;color:#3A5573">For ${esc(o.channel)}</span>` : ''}
+      <span class="muted" style="font-size:12px">raised ${esc(o.orderDate) || '—'}${wants.length ? ' · wanted by ' + day(wants[0]) : ''}${o.lastDispatchDate ? ' · last sent ' + esc(o.lastDispatchDate) : ''}</span>
+      <span style="flex:1"></span><span class="pill ${cls}">${esc(st)}</span></div>
+      ${fabPool.length ? `<div class="muted" style="font-size:12.5px;margin:-4px 0 8px">Raw fabric for this whole order: ${fabPool.map(([fab, v]) => `<b style="color:#3A5573">${esc(fab)} ${q(v.given)} m</b>${v.dates.length ? ' (' + v.dates.map(day).join(', ') + ')' : ''}`).join(' · ')}</div>` : ''}`;
+    const cards = vpGroups(keep).map(g => {
+      const lines = g.items.map(({ l }) => Object.assign({ l, ord: vpQty(o, l) }, vpLineRaw(o, l, ctx)));
+      const sum = k => lines.reduce((a, x) => a + (+x[k] || 0), 0);
+      const ord = sum('ord'), sent = sum('sent'), rawKnown = lines.some(x => x.raw != null), raw = sum('raw');
+      const dates = [...new Set(lines.flatMap(x => x.dates || []))];
+      const sends = [...new Set(lines.flatMap(x => (Array.isArray(x.l.deliveries) ? x.l.deliveries : Object.values(x.l.deliveries || {})).filter(Boolean)
+        .map(d => q(parseFloat(d.qty) || 0) + (d.date ? ' on ' + esc(d.date) : ''))))];
+      const rows2 = lines.map(x => {
+        const chip = x.raw == null ? '<span class="muted">—</span>'
+          : x.raw <= 0 ? '<span class="vpb-no">no raw yet</span>'
+          : `<span class="vpb-raw">raw ${q(x.raw)}${x.raw >= x.ord - 0.01 ? ' ✓' : ''}</span>`;
+        const pic = run && x.l.img ? `<img src="${esc(ptImgSrc(x.l.img, 44))}" alt="" loading="lazy" class="vpb-pic">` : ptImgSpan(x.l.sku, 44);
+        return `<div class="vpb-line">${pic}<div class="vpb-what"><span class="vpb-sku">${esc(run ? (x.l.sku || x.l.fabricType) : x.l.sku)}</span>
+          <span class="muted">${esc(run ? [x.l.fabricType, x.l.printDirection].filter(Boolean).join(' · ') : [x.l.articleSubtype || x.l.articleType, x.l.size].filter(Boolean).join(' · '))}</span></div>
+          <div class="vpb-n"><b>${q(x.ord)}</b><span class="muted">ordered</span></div><div class="vpb-n">${chip}<span class="muted">${x.sent > 0 ? 'sent ' + q(x.sent) : 'none sent'}</span></div></div>`;
+      }).join('');
+      return `<div class="vpb-card"><div class="vpb-head"><b>${esc(g.colour) || 'no colour'}</b><span style="flex:1"></span>${g.priority ? `<span class="vpb-pri">${esc(g.priority)}</span>` : ''}</div>
+        <div class="vpb-tot"><div><span>Ordered</span><b>${q(ord)}</b></div><div class="r"><span>Raw</span><b>${rawKnown ? q(raw) : '—'}</b></div>
+          <div class="s"><span>Sent</span><b>${q(sent)}</b></div><div class="b"><span>Balance</span><b>${q(Math.max(0, ord - sent))}</b></div></div>
+        ${rows2}
+        <div class="muted vpb-foot">${unit} · Raw: ${dates.length ? dates.map(day).join(', ') : (rawKnown && raw > 0 ? 'given' : 'not given yet')} · Sent: ${sends.length ? sends.slice(-4).join(', ') + (sends.length > 4 ? ' +' + (sends.length - 4) + ' more' : '') : 'nothing yet'}</div></div>`;
+    }).join('');
+    return `<div class="card vpb-wrap">${head}${vpProgHtml(o)}<div class="vpb-grid">${cards}</div></div>`;
+  }).join('');
 }
 function vpTable(rows, f) {
   /* Ten columns, not thirteen. The colour and the priority moved up into the group heading, and the

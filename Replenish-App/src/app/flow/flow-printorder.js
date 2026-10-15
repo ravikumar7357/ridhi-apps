@@ -102,12 +102,17 @@ function flowPoProgress(o) {
  * vendor order's unit (running cloth in m, cut pieces in pcs), and written only when it changed (sig on the print order). */
 function flowVoProgOf(o, kind) {
   const unit = kind === 'cut' ? 'pcs' : 'm', keys = new Set(Object.keys(o.items || {}).filter(k => o.items[k]));
-  const code = String((o.printer && o.printer.code) || ''), challans = [], receipts = [];
+  const code = String((o.printer && o.printer.code) || ''), challans = [], receipts = [], items = {};
   Object.values(FLOW.ch || {}).forEach(c => {
     if (!c || c.cancelled || obUC(c.orderNo) !== obUC(o.orderNo) || String((c.vendor && c.vendor.code) || '') !== code) return;
     const ls = (c.lines || []).filter(l => flowChUnit(l) === unit && (keys.has(l.key) || keys.has(l.key + FLOW_RUF)));
     if (!ls.length) return;
     const lk = new Set(ls.map(l => l.key));
+    /* per print order line (its key; a ruffle-only line as <key>~ruffle) — the portal shares it out over the vendor-order
+     * lines that stand for it (their parts), so each card line can say what reached the printer for it */
+    const recvOf = flowChRecv(c);
+    ls.forEach(l => { const ik = l.ruffleOnly ? l.key + FLOW_RUF : l.key, e = items[ik] || (items[ik] = { given: 0, back: 0 });
+      e.given = flowR2(e.given + flowChSent(l)); e.back = flowR2(e.back + (recvOf[l.key] || 0)); });
     let back = 0;
     Object.values(c.receipts || {}).forEach(r => {
       const q = flowR2(Object.entries((r && r.items) || {}).filter(([k]) => lk.has(k)).reduce((a, [, v]) => a + (+v || 0), 0));
@@ -117,7 +122,7 @@ function flowVoProgOf(o, kind) {
   });
   const by = (a, b) => String(a.date).localeCompare(String(b.date)) || String(a.no || a.challan).localeCompare(String(b.no || b.challan));
   challans.sort(by); receipts.sort(by);
-  return { unit, given: flowR2(challans.reduce((a, c) => a + c.given, 0)), back: flowR2(challans.reduce((a, c) => a + c.back, 0)), challans, receipts };
+  return { unit, given: flowR2(challans.reduce((a, c) => a + c.given, 0)), back: flowR2(challans.reduce((a, c) => a + c.back, 0)), challans, receipts, items };
 }
 let FLOW_VOSYNC_T = null;
 /** Written from the office's screens after they draw — never from a printer's sign-in. Quiet: a failed write waits for the next. */

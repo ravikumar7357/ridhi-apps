@@ -842,6 +842,7 @@ const K = 'AMZ-1__S1';
         lines: [{ key, sku: 'X', metres: 12 }], receipts: { r1: { date: '2026-10-17', items: { [key]: 5 } } } } } }));
       const pg = C.flowVoProgOf(po, 'running');
       ok('…a challan of 12 m and 5 m back → given 12 m on TRFD-9, received 5 m on 17 Oct', pg.given === 12 && pg.back === 5 && pg.challans[0].no === 'TRFD-9' && pg.receipts[0].date === '2026-10-17' && pg.receipts[0].qty === 5, JSON.stringify(pg));
+      ok('…and per print-order line (items), for the colour board: 12 given, 5 back on that line', pg.items[key] && pg.items[key].given === 12 && pg.items[key].back === 5, JSON.stringify(pg.items));
       ok('…a challan to another printer, or for another order, is not counted', (() => { C.FLOW().ch['TRFD-9'].vendor.code = 'P2'; const x = C.flowVoProgOf(po, 'running'); C.FLOW().ch['TRFD-9'].vendor.code = 'P1'; return x.given === 0; })()); }
     { /* a REAL print order: the office's screen writes the summary onto the printer's vendor order, once */
       const S = load({ me: { admin: true }, mdb, fsCat });
