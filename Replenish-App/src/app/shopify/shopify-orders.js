@@ -1141,26 +1141,29 @@ function shpOldestOpen() {
 }
 
 async function ensureShop_() {
+  soDirectSync();
   if (!$('soFrom').value) {
     // The upper end is TOMORROW, not today. "Today" here is the marketplace's PT date, while the
     // Shopify store keeps its own — and an order placed this evening in the store's zone can
     // already be tomorrow by PT. Reaching a day further costs one page of orders and stops the
     // newest ones, which are the only ones anybody is waiting on, from falling off the end.
     $('soTo').value = sdShift(sdToday(), 1);
-    /* AND THE LOWER END REACHES THE OLDEST UNFINISHED ORDER.
+    /* THE LAST FORTNIGHT, AND THE OLD UNFINISHED ORDERS BY ID (2026-10-15, PLAN.md phase 0).
      *
-     * It used to be a flat thirty days, on the reasoning that older orders have shipped. They have —
-     * and that is exactly why their production rows needed judging, which only happens inside this
-     * window. Six hundred of them sat open because the one thing that would have closed them was
-     * never asked to look.
+     * The lower end used to reach back to the oldest unfinished order (shpOldestOpen), because those
+     * orders' production rows are judged only when the orders are fetched. It did its job — and it
+     * dragged ten weeks and 4,600 orders in on every open for the sake of a few dozen old ones.
      *
-     * So the window is not a guess any more: it starts where the unfinished work starts, and it
-     * shrinks by itself as that work closes. */
-    $('soFrom').value = shpOldestOpen() || sdShift(sdToday(), -30);
+     * Those few are now asked for one by one (soOldOpen → ?ids=), so they are still judged, and the
+     * dates stay short. Widen the dates by hand to see older shipped orders. */
+    $('soFrom').value = sdShift(sdToday(), -SO_COPY.windowDays);
   }
-  if (!Object.keys(SHOP_META).length) await loadShopMeta();
-  if (!Object.keys(SHOP_SKU).length) await loadShopSku();
-  if (!Object.keys(SHOP_STOCK).length) await loadShopStock();
+  /* The three reads at the same time — notes, bins, Amazon stock. Each fills its own map. */
+  await Promise.all([
+    Object.keys(SHOP_META).length ? null : loadShopMeta(),
+    Object.keys(SHOP_SKU).length ? null : loadShopSku(),
+    Object.keys(SHOP_STOCK).length ? null : loadShopStock(),
+  ]);
   /* NOT AWAITED — and that is the point.
    *
    * India stock reads a 4,878-row workbook through Apps Script, which takes seconds. Waiting for it
@@ -1176,40 +1179,88 @@ async function ensureShop_() {
   loadShopImported().then(() => renderShop()).catch(() => {});
   // Re-fetched on the way back in, not only the first time. This is a queue of what has to ship
   // today: showing what Shopify said twenty minutes ago is the same as showing nothing.
-  if (!SHOP.orders.length || Date.now() - SHOP_FETCHED_AT > SHOP_STALE_MS) await fetchShopOrders();
+  if (!SHOP.orders.length || Date.now() - SHOP_FETCHED_AT > SHOP_STALE_MS) {
+    /* COPY MODE: this device's copy on screen at once, what changed since asked for behind it. */
+    if (soCopyMode() === 'copy' && !SHOP.orders.length) {
+      const want = soWant();
+      let shown = false;
+      try { shown = await soCopyOpen(want); } catch (e) { shown = false; }
+      if (shown) {
+        soMsg('Showing this device\'s copy — asking Shopify what has changed…');
+        renderShop();
+        soCopyRefresh(want);
+        return;
+      }
+    }
+    await fetchShopOrders();
+  }
   else renderShop();
 }
 
-async function fetchShopOrders() {
+/** The window the toolbar asks for. */
+const soWant = () => ({ start: $('soFrom').value, end: $('soTo').value, open: $('soOpen').value });
+
+/* "LOAD FROM SHOPIFY DIRECTLY" — ticked is today's way (and shadow, which looks the same). Unticked uses the copy. */
+function soDirectSync() {
+  const el = $('soDirect');
+  if (el) el.checked = soCopyMode() !== 'copy';
+}
+if ($('soDirect')) {
+  $('soDirect').addEventListener('change', () => {
+    soCopySetMode($('soDirect').checked ? 'direct' : 'copy');
+    /* Back to today's way means nothing stays on this device. */
+    if ($('soDirect').checked) soCopyWipe();
+    SHOP.copy = null;
+    SHOP_FETCHED_AT = 0;
+    fetchShopOrders();
+  });
+}
+
+async function fetchShopOrders(opts) {
+  /* COPY MODE: the button asks what CHANGED, not everything again (soCopyRefresh fills the full way by itself when
+   * the dates have moved outside what the copy holds). { live: true } is the fall-back to today's way. */
+  const live = !!(opts && opts.live === true);
+  if (!live && soCopyMode() === 'copy' && SHOP.copy) { soMsg('Asking Shopify what has changed…'); await soCopyRefresh(soWant(), { now: true }); return; }
   const btn = $('soGo');
   btn.disabled = true; btn.innerHTML = '<span class="spin"></span>…';
+  let fetched = false;
   try {
     soMsg('Asking Shopify…');
-    const win = { start: $('soFrom').value, end: $('soTo').value, open: $('soOpen').value };
+    const win = soWant(), liveAt = Date.now();
+    /* The old unfinished orders, by id — see ensureShop_. Asked of both stores; each answers for its own. An old
+     * line with no Shopify id can only be found by date, so for that one the dates stretch back as they used to. */
+    const old = soOldOpen(win.start);
+    const ask = Object.assign({}, win, old.reach && old.reach < win.start ? { start: old.reach } : {});
     /* Two stores, asked at the same time. CPC's own failure must not cost us Ridhi's orders — this
      * screen is the shipping queue, and half of it is worth much more than none of it. */
     const [r, cpc] = await Promise.all([
-      prGet({ shopify: 'orders', ...win }),
-      prGet({ shopify: 'orders', shop: 'CPC', ...win }).catch(e => ({ _err: e.message || String(e) })),
+      soAskStore('SP', ask, old.ids),
+      soAskStore('CPC', ask, old.ids).catch(e => ({ orders: [], err: e.message || String(e) })),
     ]);
-    const mine = (r.orders || []).map(o => Object.assign(o, { shopBrand: 'SP', channel: o.channel || 'Shopify' }));
-    const theirs = (cpc.orders || []).map(o => Object.assign(o, { shopBrand: 'CPC', channel: 'CPC Shopify' }));
-    SHOP = { orders: mine.concat(theirs), from: r.from, to: r.to, tz: r.tz || '', at: soStamp(),
-      cpcErr: cpc._err || '' };
+    SHOP = { orders: r.orders.concat(cpc.orders || []), from: r.from, to: r.to, tz: r.tz || '', at: soStamp(),
+      cpcErr: cpc.err || '' };
+    const cpcErr = cpc.err;
+    fetched = true;
+    /* Shadow and copy mode keep this as the device's copy (shadow compares first). Not awaited, never in the way. */
+    soCopyAfterFetch({ SP: r, CPC: cpc }, ask, liveAt)
+      .then(() => { if (soCopyMode() === 'copy') { SHOP.copy = { from: 'live', at: Date.now(), syncedAt: Date.now() }; soCopyAgeShow(); } }).catch(() => {});
     // Stamped only on SUCCESS. A failed call that marked itself fresh would sit there for two
     // minutes showing nothing and claiming to be up to date.
     SHOP_FETCHED_AT = Date.now();
     soMsg([
       r.more || cpc.more ? `${SHOP.orders.length} orders — Shopify had more than one page could hold; narrow the dates to see the rest.` : '',
-      cpc._err ? `CPC's orders could not be read: ${cpc._err}` : '',
-    ].filter(Boolean).join(' · '), !!cpc._err);
+      cpcErr ? `CPC's orders could not be read: ${cpcErr}` : '',
+    ].filter(Boolean).join(' · '), !!cpcErr);
   } catch (e) {
     soMsg('Could not reach Shopify: ' + (e.message || e), true);
   }
   btn.disabled = false; btn.textContent = 'Fetch orders';
   renderShop();
+  /* PHOTOS AFTER THE ORDERS (phase 0): the list is on screen first; the pictures fill in a moment later. The
+   * production sync waits for them, because it copies each line's photo onto its production row. */
+  if (fetched) soPhotosLoad().catch(() => {}).then(() => { renderShop(); shpSyncSoon(); });
   // And after a fetch, which is the other moment. It does nothing until both stock maps are read.
-  shpSyncSoon();
+  else shpSyncSoon();
 }
 
 let SO_ALL_ROWS = [];      // every order mapped, before any filter — see the note below

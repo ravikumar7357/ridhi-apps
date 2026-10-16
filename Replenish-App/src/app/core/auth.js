@@ -30,7 +30,8 @@ $('resetLink').onclick = async () => {
   }
   $('resetLink').disabled = false;
 };
-$('logoutBtn').onclick = () => signOut(auth);
+/* Sign out wipes this device's copy of the Shopify orders first (shopify/shopify-copy.js) — customer details included. */
+$('logoutBtn').onclick = async () => { try { await soCopyWipe(); } catch (e) { /* nothing kept */ } signOut(auth); };
 
 let AUTH_SEEN = false;
 onAuthStateChanged(auth, async user => {

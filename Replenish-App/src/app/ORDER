@@ -135,6 +135,7 @@ inventory/store.js
 masters/cloth-per-piece.js
 masters/fabric-master.js
 reports/day-by-day-target.js
+shopify/shopify-copy.js
 shopify/shopify-orders.js
 shopify/orders-to-make.js
 shopify/production-bucket.js

@@ -1866,6 +1866,12 @@
           </div>
         </details>
         <button id="soGo">Fetch orders</button>
+        <!-- TODAY'S WAY, as shipped: every open asks Shopify. Untick to open from this device's copy and ask Shopify
+             only for what changed (shopify/shopify-copy.js, docs/shopify-fast-orders/PLAN.md). -->
+        <label class="muted" style="flex:0 0 auto;font-size:13px;display:flex;align-items:center;gap:4px"
+               title="Ticked: every open asks Shopify for all the orders, as before. Unticked: the tab opens from the copy kept on this device and asks Shopify only for what changed since. Sign out wipes the copy.">
+          <input type="checkbox" id="soDirect" checked> Load from Shopify directly</label>
+        <span id="soAge" style="flex:0 0 auto;font-size:13px"></span>
         <button id="soAdj" class="hide" type="button" tabindex="-1" aria-hidden="true">Adjustments</button>
         <input id="soBulkFile" type="file" accept=".xlsx,.csv,text/csv" class="hide">
       </div>

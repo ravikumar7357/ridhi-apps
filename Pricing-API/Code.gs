@@ -175,10 +175,25 @@ function doGet(e) {
     if (p.shopify === 'orders') {
       /* Which store's orders. Absent means Ridhi, which is every call made before today. */
       setShopBrand_(p.shop);
-      var ords = shopifyOrders_(p.start, p.end, p.open === '1');
+      /* since= "changed since" (the browser's copy); ids= the old unfinished orders one by one;
+       * nophoto=1 leaves the photos to ?shopify=photos. None of them = the call as it always was. */
+      var ords = shopifyOrders_(p.start, p.end, p.open === '1', 0, {
+        since: p.since || '', next: p.next || '', ids: p.ids || '', photos: p.nophoto !== '1' });
       ords.shop = shopifyStore_();
       ords.shopBrand = String(p.shop || '').toUpperCase() === 'CPC' ? 'CPC' : 'SP';
       return json_(ords);
+    }
+    /* The photos for the Orders tab, asked for after the orders are on screen. pids = product ids. */
+    if (p.shopify === 'photos') {
+      setShopBrand_(p.shop);
+      return json_(shopifyPhotos_(p.pids));
+    }
+    /* The Refresh button when the shared copy is on (ShopifyCache.gs): sync both stores into Firestore now. */
+    if (p.shopify === 'cacheSync') return json_(shopCacheNow_());
+    /* The order ids per day, for the device copy's daily count check. */
+    if (p.shopify === 'orderIds') {
+      setShopBrand_(p.shop);
+      return json_(shopifyOrderIds_(p.start, p.end, Date.now() + 240000));
     }
     /* One store's per-SKU sales + stock built now, rather than waiting for the night. */
     if (p.shopSkuBuild) return json_(shopSkuBuild_(String(p.shop || ''), Date.now() + 300000));

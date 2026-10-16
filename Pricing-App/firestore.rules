@@ -235,6 +235,18 @@ service cloud.firestore {
       // The Shopify returns team (15 Oct): returns & replacements are written on the order's own entry here.
       allow read, write: if canReplTab('shopret');
     }
+    // THE SHARED COPY OF THE SHOPIFY ORDERS (2026-10-15, Replenish-App docs/shopify-fast-orders/PLAN.md phase 3).
+    // Written ONLY by the Pricing-API timer (ShopifyCache.gs), with its owner's own token — which the rules do not
+    // govern — so no login writes here. Read by the same people who can open the orders: it holds customer
+    // addresses of unshipped orders.
+    match /shopify_cache/{doc} {
+      allow read: if can('shop') || can('adj') || can('audit') || canReplShop();
+      allow write: if false;
+    }
+    match /shopify_cache_days/{doc} {
+      allow read: if can('shop') || can('adj') || can('audit') || canReplShop();
+      allow write: if false;
+    }
     // Per-SKU master: shelf bin, HS code, GST rate, invoice rate. Facts about the PRODUCT, written
     // by whoever is picking or preparing the invoice.
     // Orders IMPORTED from a shop with no API key (CPC Shopify, the Etsy stores). Same audience as
