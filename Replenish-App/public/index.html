@@ -25216,6 +25216,11 @@ function flowPpcDraftApply(keys) {
 function flowPpcDraftDrop(keys) { const d = flowPpcDrafts(); keys.forEach(k => { delete d[k]; }); flowPpcDraftsPut(d); }
 const flowDraftWhen = at => { const t = new Date(at); return isNaN(t) ? '' : t.toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }); };
 
+/* RFD stock comes from the Greige Desk's count (flowRfdStock). Where this computer could not read the desk, the figure
+ * is the old ledger alone — which reads 0 for most fabrics now — so the form says so rather than show a false "short". */
+const flowGdNote = () => { let st = ''; try { st = FLOW_ON && typeof GD !== 'undefined' && GD.state ? GD.state() : 'ok'; } catch (e) { st = ''; }
+  return st === 'ok' ? '' : `<div style="font-size:11.5px;color:#b45309;margin:2px 0 6px">⚠ The Greige Desk's RFD stock ${st ? 'could not be read on this computer' : 'is not read yet'} — RFD below is the old fabric ledger only. Close and press Refresh.</div>`; };
+
 function flowPpcOpen(orderNo, onlySku, keys) {
   /* SAME SKU, SAME DAY, ONE PLAN (Ravi, 15 Oct: "1 SKU ka same day order aay to wo sare order combine hokar dikhe PPC team
    * ko"): `keys` names lines of several orders, planned in one go — each keeps its own plan, its own print order. */
@@ -25277,7 +25282,7 @@ function flowPpcOpen(orderNo, onlySku, keys) {
         <div class="fpc-col">
           <div class="fpc-sec">The printer gets</div>
           <div class="fpc-pget" data-pget="${i}"></div>
-          <div class="fpc-sec">Requirement &amp; stock <small>balance = what is left after every earlier plan</small></div>
+          <div class="fpc-sec">Requirement &amp; stock <small>balance = what is left after every earlier plan</small></div>${flowGdNote()}
           <table class="xl fpc-mat"><thead><tr><th style="text-align:left">Item</th><th>Needs</th><th title="what is left after every earlier plan">Balance</th><th></th></tr></thead><tbody data-mat="${i}"></tbody></table>
           ${(p.gaps || []).length ? `<div class="fpc-gaps">• ${p.gaps.map(esc).join('<br>• ')}</div>` : ''}
         </div>
@@ -32151,7 +32156,7 @@ function lmBoot() {
  * "griege ka bhi test window hatao", it holds the real greige POs and movements, RIDHI/PO/GREIG/001 on); the older Greige POs and the
  * fabric ledger are never touched. Its masters start as a copy of the app's own (fabric pairs, suppliers, RFD
  * processors, company); the rights come from the person signed in. */
-var GD_NODE = 'pt_gdTest', GD_SNAP = null, GD_READY = null;
+var GD_NODE = 'pt_gdTest', GD_SNAP = null, GD_READY = null, GD_STATE = '';   // '' not read · 'ok' · 'err: …'
 function gdKeyed(list) { var o = {}; (list || []).forEach(function (x) { if (x && x.id) o[x.id] = JSON.stringify(x); }); return o; }
 function gdSnap() {
   return { gpo: gdKeyed(DB.gpo), fab: gdKeyed(DB.fab), mst: JSON.stringify(DB.mst || []), ven: JSON.stringify(DB.ven || []), co: JSON.stringify(DB.co || {}) };
@@ -32159,7 +32164,7 @@ function gdSnap() {
 /* WHAT CHANGED IS WHAT IS WRITTEN: one PO or one ledger row at a time, so two people working at once do not
  * overwrite each other's rows. */
 function lmSaveDb() {
-  if (!DB) return;
+  if (!DB || GD_STATE !== 'ok') return;   // never write a desk this screen could not read
   var now = gdSnap(), was = GD_SNAP || { gpo: {}, fab: {}, mst: '', ven: '', co: '' }, patch = {};
   ['gpo', 'fab'].forEach(function (k) {
     Object.keys(now[k]).forEach(function (id) { if (was[k][id] !== now[k][id]) patch[GD_NODE + '/' + k + '/' + id] = JSON.parse(now[k][id]); });
@@ -32207,6 +32212,7 @@ function gdSeedMasters() {
     poPrefix: 'RIDHI/PO/GREIG/', poNext: 1, rfdPrefix: 'RIDHI/RFD/' } };
 }
 function gdSaveAll() {
+  if (GD_STATE && GD_STATE !== 'ok') return Promise.resolve();
   var store = { gpo: {}, fab: {}, mst: DB.mst || [], ven: DB.ven || [], co: DB.co || {} };
   (DB.gpo || []).forEach(function (x) { store.gpo[x.id] = x; });
   (DB.fab || []).forEach(function (x) { store.fab[x.id] = x; });
@@ -32218,10 +32224,16 @@ function gdLoad() {
   GD_READY = (async function () {
     try { if (typeof ptLoadGates === 'function' && !PTG.masters) await ptLoadGates(); } catch (e) { /* masters wait */ }
     try { if (typeof ensureGpo === 'function' && typeof GPO !== 'undefined' && GPO.rows == null) await ensureGpo(); } catch (e) { /* real POs wait */ }
-    var v = null;
-    try { v = await ptGet(GD_NODE); } catch (e) { v = null; }
+    /* A READ THAT FAILED IS NOT AN EMPTY DESK (16 Oct). It used to be taken as one, and the empty desk was then WRITTEN
+     * over the whole node — every greige PO and every movement gone because one read timed out. Now a failed read
+     * writes nothing, says so (GD_STATE), and the next open asks again. Only a read that ANSWERED "nothing here" seeds
+     * the masters and saves them. */
+    var v = null, failed = '';
+    try { v = await ptGet(GD_NODE); } catch (e) { failed = String((e && e.message) || e || 'read failed'); }
+    if (failed) { DB = null; GD_STATE = 'err: ' + failed; GD_READY = null; return; }
     if (v && (v.mst || v.gpo || v.fab)) { DB = gdFromStore(v); lmMigrate(); GD_SNAP = gdSnap(); }
     else { var m = gdSeedMasters(); DB = { gpo: [], fab: [], mst: m.mst, ven: m.ven, co: m.co, users: [], me: '' }; lmMigrate(); await gdSaveAll(); }
+    GD_STATE = 'ok';
   })();
   return GD_READY;
 }
@@ -32395,12 +32407,15 @@ function wireGd() {
     if (!gdMount()) return;
     if (tab) UI.tab = tab;
     if (!DB) $('lmPane').innerHTML = '<div class="card muted">Reading the Greige Desk…</div>';
-    await gdLoad(); lmLoad();
+    await gdLoad();
+    /* The desk could not be read: say so and stop — an empty desk on screen would invite typing over the real one. */
+    if (GD_STATE !== 'ok') { $('lmPane').innerHTML = '<div class="card" style="color:#b91c1c">The Greige Desk could not be read just now (' + esc(GD_STATE.replace(/^err: /, '')) + '). Nothing was changed. Open it again in a moment.</div>'; return; }
+    lmLoad();
     if (typeof gdLinkMasters === 'function') gdLinkMasters();   // the Master Data's fabrics and vendors, read fresh each time
     if (!GD_WIRED) { GD_WIRED = true; wireShell(); wirePurchaseOrders(); wireInventory(); wireLedger(); wireMasterData(); wireEntry(); wireUsersRfd(); wireGd(); }
     render();
   }
-  return { open: open, ensure: function () { return gdLoad(); }, rfdShelf: function (n) { return gdRfdShelf(n); }, rfdOpened: function (n) { return gdRfdOpened(n); } };
+  return { open: open, ensure: function () { return gdLoad(); }, rfdShelf: function (n) { return gdRfdShelf(n); }, rfdOpened: function (n) { return gdRfdOpened(n); }, state: function () { return GD_STATE; } };
 })();
 
 /* ####################################################################################################

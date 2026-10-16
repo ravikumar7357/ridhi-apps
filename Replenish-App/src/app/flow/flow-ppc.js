@@ -264,6 +264,11 @@ function flowPpcDraftApply(keys) {
 function flowPpcDraftDrop(keys) { const d = flowPpcDrafts(); keys.forEach(k => { delete d[k]; }); flowPpcDraftsPut(d); }
 const flowDraftWhen = at => { const t = new Date(at); return isNaN(t) ? '' : t.toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }); };
 
+/* RFD stock comes from the Greige Desk's count (flowRfdStock). Where this computer could not read the desk, the figure
+ * is the old ledger alone — which reads 0 for most fabrics now — so the form says so rather than show a false "short". */
+const flowGdNote = () => { let st = ''; try { st = FLOW_ON && typeof GD !== 'undefined' && GD.state ? GD.state() : 'ok'; } catch (e) { st = ''; }
+  return st === 'ok' ? '' : `<div style="font-size:11.5px;color:#b45309;margin:2px 0 6px">⚠ The Greige Desk's RFD stock ${st ? 'could not be read on this computer' : 'is not read yet'} — RFD below is the old fabric ledger only. Close and press Refresh.</div>`; };
+
 function flowPpcOpen(orderNo, onlySku, keys) {
   /* SAME SKU, SAME DAY, ONE PLAN (Ravi, 15 Oct: "1 SKU ka same day order aay to wo sare order combine hokar dikhe PPC team
    * ko"): `keys` names lines of several orders, planned in one go — each keeps its own plan, its own print order. */
@@ -325,7 +330,7 @@ function flowPpcOpen(orderNo, onlySku, keys) {
         <div class="fpc-col">
           <div class="fpc-sec">The printer gets</div>
           <div class="fpc-pget" data-pget="${i}"></div>
-          <div class="fpc-sec">Requirement &amp; stock <small>balance = what is left after every earlier plan</small></div>
+          <div class="fpc-sec">Requirement &amp; stock <small>balance = what is left after every earlier plan</small></div>${flowGdNote()}
           <table class="xl fpc-mat"><thead><tr><th style="text-align:left">Item</th><th>Needs</th><th title="what is left after every earlier plan">Balance</th><th></th></tr></thead><tbody data-mat="${i}"></tbody></table>
           ${(p.gaps || []).length ? `<div class="fpc-gaps">• ${p.gaps.map(esc).join('<br>• ')}</div>` : ''}
         </div>

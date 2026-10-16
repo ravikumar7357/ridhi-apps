@@ -4,7 +4,7 @@
  * "griege ka bhi test window hatao", it holds the real greige POs and movements, RIDHI/PO/GREIG/001 on); the older Greige POs and the
  * fabric ledger are never touched. Its masters start as a copy of the app's own (fabric pairs, suppliers, RFD
  * processors, company); the rights come from the person signed in. */
-var GD_NODE = 'pt_gdTest', GD_SNAP = null, GD_READY = null;
+var GD_NODE = 'pt_gdTest', GD_SNAP = null, GD_READY = null, GD_STATE = '';   // '' not read · 'ok' · 'err: …'
 function gdKeyed(list) { var o = {}; (list || []).forEach(function (x) { if (x && x.id) o[x.id] = JSON.stringify(x); }); return o; }
 function gdSnap() {
   return { gpo: gdKeyed(DB.gpo), fab: gdKeyed(DB.fab), mst: JSON.stringify(DB.mst || []), ven: JSON.stringify(DB.ven || []), co: JSON.stringify(DB.co || {}) };
@@ -12,7 +12,7 @@ function gdSnap() {
 /* WHAT CHANGED IS WHAT IS WRITTEN: one PO or one ledger row at a time, so two people working at once do not
  * overwrite each other's rows. */
 function lmSaveDb() {
-  if (!DB) return;
+  if (!DB || GD_STATE !== 'ok') return;   // never write a desk this screen could not read
   var now = gdSnap(), was = GD_SNAP || { gpo: {}, fab: {}, mst: '', ven: '', co: '' }, patch = {};
   ['gpo', 'fab'].forEach(function (k) {
     Object.keys(now[k]).forEach(function (id) { if (was[k][id] !== now[k][id]) patch[GD_NODE + '/' + k + '/' + id] = JSON.parse(now[k][id]); });
@@ -60,6 +60,7 @@ function gdSeedMasters() {
     poPrefix: 'RIDHI/PO/GREIG/', poNext: 1, rfdPrefix: 'RIDHI/RFD/' } };
 }
 function gdSaveAll() {
+  if (GD_STATE && GD_STATE !== 'ok') return Promise.resolve();
   var store = { gpo: {}, fab: {}, mst: DB.mst || [], ven: DB.ven || [], co: DB.co || {} };
   (DB.gpo || []).forEach(function (x) { store.gpo[x.id] = x; });
   (DB.fab || []).forEach(function (x) { store.fab[x.id] = x; });
@@ -71,10 +72,16 @@ function gdLoad() {
   GD_READY = (async function () {
     try { if (typeof ptLoadGates === 'function' && !PTG.masters) await ptLoadGates(); } catch (e) { /* masters wait */ }
     try { if (typeof ensureGpo === 'function' && typeof GPO !== 'undefined' && GPO.rows == null) await ensureGpo(); } catch (e) { /* real POs wait */ }
-    var v = null;
-    try { v = await ptGet(GD_NODE); } catch (e) { v = null; }
+    /* A READ THAT FAILED IS NOT AN EMPTY DESK (16 Oct). It used to be taken as one, and the empty desk was then WRITTEN
+     * over the whole node — every greige PO and every movement gone because one read timed out. Now a failed read
+     * writes nothing, says so (GD_STATE), and the next open asks again. Only a read that ANSWERED "nothing here" seeds
+     * the masters and saves them. */
+    var v = null, failed = '';
+    try { v = await ptGet(GD_NODE); } catch (e) { failed = String((e && e.message) || e || 'read failed'); }
+    if (failed) { DB = null; GD_STATE = 'err: ' + failed; GD_READY = null; return; }
     if (v && (v.mst || v.gpo || v.fab)) { DB = gdFromStore(v); lmMigrate(); GD_SNAP = gdSnap(); }
     else { var m = gdSeedMasters(); DB = { gpo: [], fab: [], mst: m.mst, ven: m.ven, co: m.co, users: [], me: '' }; lmMigrate(); await gdSaveAll(); }
+    GD_STATE = 'ok';
   })();
   return GD_READY;
 }

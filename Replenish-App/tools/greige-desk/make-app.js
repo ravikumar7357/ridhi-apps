@@ -96,12 +96,15 @@ ${layer}
     if (!gdMount()) return;
     if (tab) UI.tab = tab;
     if (!DB) $('lmPane').innerHTML = '<div class="card muted">Reading the Greige Desk…</div>';
-    await gdLoad(); lmLoad();
+    await gdLoad();
+    /* The desk could not be read: say so and stop — an empty desk on screen would invite typing over the real one. */
+    if (GD_STATE !== 'ok') { $('lmPane').innerHTML = '<div class="card" style="color:#b91c1c">The Greige Desk could not be read just now (' + esc(GD_STATE.replace(/^err: /, '')) + '). Nothing was changed. Open it again in a moment.</div>'; return; }
+    lmLoad();
     if (typeof gdLinkMasters === 'function') gdLinkMasters();   // the Master Data's fabrics and vendors, read fresh each time
     if (!GD_WIRED) { GD_WIRED = true; wireShell(); wirePurchaseOrders(); wireInventory(); wireLedger(); wireMasterData(); wireEntry(); wireUsersRfd(); wireGd(); }
     render();
   }
-  return { open: open, ensure: function () { return gdLoad(); }, rfdShelf: function (n) { return gdRfdShelf(n); }, rfdOpened: function (n) { return gdRfdOpened(n); } };
+  return { open: open, ensure: function () { return gdLoad(); }, rfdShelf: function (n) { return gdRfdShelf(n); }, rfdOpened: function (n) { return gdRfdOpened(n); }, state: function () { return GD_STATE; } };
 })();
 `;
 fs.writeFileSync(OUT, out);
