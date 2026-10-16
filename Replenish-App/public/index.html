@@ -2825,8 +2825,10 @@ html.mob #paneFgi .toolbar>label,html.mob #fgQ,html.mob #pkSearch{flex:1 1 100%!
             </div>
           </details>
           <button id="flRefresh" class="ghost" style="width:auto">Refresh</button>
-          <button id="flTest" style="width:auto;background:#7c3aed;border-color:#7c3aed">+ Test order</button>
-          <label style="display:inline-flex;gap:6px;align-items:center;font-size:13px;color:#6d28d9;font-weight:600"><input id="flTestOnly" type="checkbox" style="width:auto"> Only test orders</label>
+          <!-- Hidden from the first paint (16 Oct: they showed for two seconds before the flow was read); renderFlow shows them
+               only where test orders are switched on (localStorage flowTests = '1'). -->
+          <button id="flTest" style="width:auto;background:#7c3aed;border-color:#7c3aed;display:none">+ Test order</button>
+          <label style="display:none;gap:6px;align-items:center;font-size:13px;color:#6d28d9;font-weight:600"><input id="flTestOnly" type="checkbox" style="width:auto"> Only test orders</label>
         </div>
         <div id="flMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
       </div>
@@ -28734,7 +28736,7 @@ function renderFlow() {
   const tests = flowTestsOn();
   if ($('flTest') && $('flTest').style) $('flTest').style.display = tests ? '' : 'none';
   const tLab = $('flTestOnly') && $('flTestOnly').parentNode;
-  if (tLab && tLab.style) tLab.style.display = tests ? '' : 'none';
+  if (tLab && tLab.style) tLab.style.display = tests ? 'inline-flex' : 'none';
   const pass = x => (!only || x.r.__t) && (!src || flowSrcOf(x) === src) && flowFiltPass(x, ff)
     && (!q || [x.r.orderNo, x.r.sku, x.r.color, x.r.size, x.r.articleSubtype, x.r.articleType, x.r.shopOrderNo, flowFacet(x).fab, flowFacet(x).prn]
       .join(' ').toLowerCase().includes(q));

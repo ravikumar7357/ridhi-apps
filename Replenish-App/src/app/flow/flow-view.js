@@ -54,7 +54,7 @@ function renderFlow() {
   const tests = flowTestsOn();
   if ($('flTest') && $('flTest').style) $('flTest').style.display = tests ? '' : 'none';
   const tLab = $('flTestOnly') && $('flTestOnly').parentNode;
-  if (tLab && tLab.style) tLab.style.display = tests ? '' : 'none';
+  if (tLab && tLab.style) tLab.style.display = tests ? 'inline-flex' : 'none';
   const pass = x => (!only || x.r.__t) && (!src || flowSrcOf(x) === src) && flowFiltPass(x, ff)
     && (!q || [x.r.orderNo, x.r.sku, x.r.color, x.r.size, x.r.articleSubtype, x.r.articleType, x.r.shopOrderNo, flowFacet(x).fab, flowFacet(x).prn]
       .join(' ').toLowerCase().includes(q));
