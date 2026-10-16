@@ -1517,6 +1517,17 @@ const K = 'AMZ-1__S1';
     const C = load({ me: { tabs: ['flcut'] }, lines: [L()] }); C.ctx.$('panePbase').children = []; C.ctx.$('flSeg_pbase'); C.ctx.$('flEmb_pbase'); C.FLOW_EMB().pbase = 'raw';
     await C.flowEmbedRender('pbase');
     ok('…a tab the account does not hold is not there, and nothing is shown for it', !/data-flemb="raw"/.test(C.els.flSeg_pbase.innerHTML) && C.FLOW_EMB().pbase === '');
+    /* PLATFORM IN THE EMBEDDED LISTS (Ravi, 16 Oct: "to cut wale me filter laga kar check kar saku ki kis platform ka h"). */
+    const K2 = 'SHP-9__S1';
+    const E = load({ me: { admin: true }, ppc: { [K]: plan({ print: { need: false } }), [K2]: plan({ orderNo: 'SHP-9', print: { need: false } }) },
+      dem: { [K]: { fabricReady: { at: 'x' } }, [K2]: { fabricReady: { at: 'x' } } }, lines: [L(), L({ orderNo: 'SHP-9', src: 'SHP' })] });
+    E.ctx.$('panePbase').children = []; E.ctx.$('flSeg_pbase'); E.ctx.$('flEmb_pbase'); E.FLOW_EMB().pbase = 'raw';
+    await E.flowEmbedRender('pbase');
+    ok('both platforms listed before a pick', /AMZ-1/.test(E.els.flEmbT_pbase.innerHTML) && /SHP-9/.test(E.els.flEmbT_pbase.innerHTML));
+    E.els.flEmbSrc_pbase.value = 'SHP'; await E.flowEmbedRender('pbase');
+    ok('platform = SHP → only the Shopify line, and the line under it says 1 of 2', !/AMZ-1/.test(E.els.flEmbT_pbase.innerHTML) && /SHP-9/.test(E.els.flEmbT_pbase.innerHTML) && /1 of 2 line/.test(E.els.flEmbMsg_pbase.textContent), E.els.flEmbMsg_pbase.textContent);
+    E.els.flEmbSrc_pbase.value = ''; E.els.flEmbQ_pbase.value = 'amz-1'; await E.flowEmbedRender('pbase');
+    ok('…and the search finds a PO', /AMZ-1/.test(E.els.flEmbT_pbase.innerHTML) && !/SHP-9/.test(E.els.flEmbT_pbase.innerHTML));
   }
 
   console.log('== every number made for a line, on the line (Ravi, 12 Oct: "isme hi vendor bhi add kar do") ==');

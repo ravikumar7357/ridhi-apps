@@ -498,10 +498,16 @@ function flowEmbedSetup() {
     if (!views.length) { if (seg && seg.remove) { seg.remove(); const b = $('flEmb_' + tab); if (b && b.remove) b.remove(); } FLOW_EMB[tab] = ''; return; }
     if (!seg || !seg.isConnected) {
       pane.insertAdjacentHTML('afterbegin', `<div id="flSeg_${tab}" class="card" style="padding:8px 10px;margin-bottom:12px;display:flex;gap:6px;flex-wrap:wrap;align-items:center"></div>`
-        + `<div id="flEmb_${tab}" class="hide"><div class="card" style="padding:10px 14px"><div id="flEmbMsg_${tab}" class="muted" style="font-size:12.5px"></div></div>`
+        + `<div id="flEmb_${tab}" class="hide"><div class="card" style="padding:10px 14px">`
+        /* PLATFORM AND SEARCH (Ravi, 16 Oct: "to cut wale me filter laga kar check kar saku ki kis platform ka h"). */
+        + `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px"><select id="flEmbSrc_${tab}" style="width:auto;min-width:170px"><option value="">Every platform</option></select>`
+        + `<input id="flEmbQ_${tab}" placeholder="Search PO, SKU, colour…" style="flex:1 1 240px;min-width:0;max-width:420px"></div>`
+        + `<div id="flEmbMsg_${tab}" class="muted" style="font-size:12.5px"></div></div>`
         + `<div class="card xlwrap" style="margin-top:12px"><table class="xl" id="flEmbT_${tab}"></table></div></div>`);
       $('flSeg_' + tab).addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-flemb]'); if (!b) return; FLOW_EMB[tab] = b.dataset.flemb; flowEmbedRender(tab); });
       $('flEmbT_' + tab).addEventListener('click', flowTableClick);
+      if ($('flEmbSrc_' + tab)) $('flEmbSrc_' + tab).addEventListener('change', () => flowEmbedRender(tab));
+      if ($('flEmbQ_' + tab)) $('flEmbQ_' + tab).addEventListener('input', () => flowEmbedRender(tab));
     }
     flowEmbedRender(tab);
   });
@@ -526,11 +532,18 @@ async function flowEmbedRender(tab) {
   const msg = $('flEmbMsg_' + tab), tbl = $('flEmbT_' + tab);
   if (!FLOW.ppc) { msg.textContent = 'Reading the production flow…'; tbl.innerHTML = ''; try { await flowEnsureData(); } catch (e) { msg.textContent = 'Could not read the production flow.'; return; } return flowEmbedRender(tab); }
   const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly();
-  const rows = flowRows().filter(x => (!only || x.r.__t) && flowInView(v, x.s))
+  const inView = flowRows().filter(x => (!only || x.r.__t) && flowInView(v, x.s));
+  /* The platform list is what this bucket's lines carry; the pick survives a redraw. */
+  const srcSel = $('flEmbSrc_' + tab), qBox = $('flEmbQ_' + tab);
+  const src = srcSel ? String(srcSel.value || '') : '', q = qBox ? String(qBox.value || '').trim().toLowerCase() : '';
+  if (srcSel && typeof ptFillSelect === 'function') { const list = [...new Set(inView.map(flowSrcOf).filter(Boolean))].sort(); if (src && !list.includes(src)) list.push(src);
+    ptFillSelect('flEmbSrc_' + tab, list.map(s => [s, s + ' (' + nf(inView.filter(x => flowSrcOf(x) === s).length) + ')']), 'Every platform'); srcSel.value = src; }
+  const rows = inView.filter(x => (!src || flowSrcOf(x) === src)
+      && (!q || [x.r.orderNo, x.r.sku, x.r.color, x.r.size, x.r.articleSubtype, x.r.articleType, x.r.shopOrderNo].join(' ').toLowerCase().includes(q)))
     .sort((a, b) => String(a.r.orderDate || '').localeCompare(String(b.r.orderDate || '')) || String(a.r.orderNo).localeCompare(String(b.r.orderNo)));
   tbl.innerHTML = flowTable(v, rows.slice(0, 800));
   const b = FLOW_BUCKETS.find(x => x[0] === v) || [];
-  msg.textContent = `${b[1]}: ${nf(rows.length)} line(s) — ${b[3]}${only ? ' · SHOWING TEST ORDERS ONLY (switch on the Production flow screen)' : ''} · ${flowPhaseTxt()}`;
+  msg.textContent = `${b[1]}: ${rows.length < inView.length ? `${nf(rows.length)} of ${nf(inView.length)}` : nf(rows.length)} line(s)${src ? ' · ' + src : ''}${q ? ` · search “${q}”` : ''} — ${b[3]}${only ? ' · SHOWING TEST ORDERS ONLY (switch on the Production flow screen)' : ''} · ${flowPhaseTxt()}`;
 }
 /** Finished Goods → From QC — to accept. */
 async function flowFgOpen() {
