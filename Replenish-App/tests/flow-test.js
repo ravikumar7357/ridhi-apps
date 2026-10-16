@@ -58,7 +58,7 @@ function load(opts) {
     FAB: { rows: opts.fabRows || [] },
     STORE: { rows: opts.store ? [] : null }, stMoves: () => opts.store || [], stBalances: mv => mv, fabKey: v => String(v || '').trim().toUpperCase(), fabAll: () => opts.fabRows || [], ptList: x => x || [], fabAutoLoad: async () => {}, GD: opts.gd, fabState: r => String((r && r.state) || (/RFD/.test(String(r && r.txnType)) ? 'RFD' : 'PRINTED')).toUpperCase(), fabKnown: t => ['OPENING_RFD', 'RFD_TO_PRINTER', 'ISSUE_TO_CUTTING', 'RECEIVE_RFD', 'PURCHASE_RFD', 'ADJUST'].includes(t), fabMove: r => (+r.qty || 0) * (['RFD_TO_PRINTER', 'ISSUE_TO_CUTTING'].includes(r.txnType) ? -1 : 1), fabStockOf: (name, st) => (st === 'RFD' ? (opts.rfd || {})[String(name).toUpperCase()] || 0 : 0),
   };
-  const api = new Function(...Object.keys(ctx), SRC + '\n;return { flowRfdStock, flowPpcDraftSave, flowPpcDraftApply, flowPpcDraftDrop, flowPpcHasDraft, flowBackOpen, flowAgainOpen, flowIsBack, flowBackLines, flowBackPill, FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW_ROUTES, flowPlanRouteOf, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestCutOpen, flowTestIssueOpen, flowTestRecvOpen, flowTestVos, flowVoProgOf, flowVoProgSync, flowVlogRows, flowDocsOf, flowVoExtra, flowVpViewOnly, flowFgAcceptOpen, flowFgAccept, flowFgRejectOpen, flowFgReject, flowFgLines, flowFgRender, flowQcLine, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowCutEntry, flowIssueEntry, flowRecvEntry, flowQcEntry, flowIssuable, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowVoLines, VOrows:()=>VO.rows, setVOrows:v=>{VO.rows=v}, flowUnplan, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v}, flowEmbedRender, FLOW_EMB:()=>FLOW_EMB, flowScreenAllowed, flowOwnsOrder, flowOwnedIn, flowVoIsFlow, flowFgOwns, flowDupViewsOff, renderView:()=>{ if (["cut","raw","wip","new","pord","vendor","fabric"].includes(FLOW_VIEW)) { const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly(); const rows = flowRows().filter(x => (!only || x.r.__t) && (FLOW_VIEW === "new" ? x.recent : flowInView(FLOW_VIEW, x.s))); $("flTable").innerHTML = flowTable(FLOW_VIEW, rows); } else renderFlow(); } };')(...Object.values(ctx));
+  const api = new Function(...Object.keys(ctx), SRC + '\n;return { flowRfdStock, flowFabKnown, flowMatRow, flowGdNote, flowPpcDraftSave, flowPpcDraftApply, flowPpcDraftDrop, flowPpcHasDraft, flowBackOpen, flowAgainOpen, flowIsBack, flowBackLines, flowBackPill, FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW_ROUTES, flowPlanRouteOf, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestCutOpen, flowTestIssueOpen, flowTestRecvOpen, flowTestVos, flowVoProgOf, flowVoProgSync, flowVlogRows, flowDocsOf, flowVoExtra, flowVpViewOnly, flowFgAcceptOpen, flowFgAccept, flowFgRejectOpen, flowFgReject, flowFgLines, flowFgRender, flowQcLine, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowCutEntry, flowIssueEntry, flowRecvEntry, flowQcEntry, flowIssuable, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowVoLines, VOrows:()=>VO.rows, setVOrows:v=>{VO.rows=v}, flowUnplan, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v}, flowEmbedRender, FLOW_EMB:()=>FLOW_EMB, flowScreenAllowed, flowOwnsOrder, flowOwnedIn, flowVoIsFlow, flowFgOwns, flowDupViewsOff, renderView:()=>{ if (["cut","raw","wip","new","pord","vendor","fabric"].includes(FLOW_VIEW)) { const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly(); const rows = flowRows().filter(x => (!only || x.r.__t) && (FLOW_VIEW === "new" ? x.recent : flowInView(FLOW_VIEW, x.s))); $("flTable").innerHTML = flowTable(FLOW_VIEW, rows); } else renderFlow(); } };')(...Object.values(ctx));
   api.setFLOW(Object.assign(api.FLOW(), { ppc: opts.ppc || {}, dem: opts.dem || {}, res: opts.res || {} }));
   return Object.assign(api, { els, writes, W, ctx });
 }
@@ -215,12 +215,18 @@ const K = 'AMZ-1__S1';
     const page = (A.ctx.__win || [])[0] || '';
     ok('the challan opens to print: number, order, vendor, the running fabric and its metres (no order lines listed), signatures', /DELIVERY CHALLAN/.test(page) && /RFD-202610-001/.test(page) && /AMZ-1/.test(page) && /Sanganer Prints/.test(page) && /Running fabric — to print/.test(page) && /66 m/.test(page) && !/Square Tablecloth · Almond · 60x60/.test(page) && /Received by/.test(page) && /Ridhi Home/.test(page));
     ok('the next challan that month is 002', A.flowChallanNo('2026-10-20') === 'RFD-202610-002' && A.flowChallanNo('2026-11-01') === 'RFD-202611-001');
+    /* ONE RULE FOR RFD STOCK (Ravi, 16 Oct: "fix it permanent"): the challan's metres come OFF the stock for good — not
+     * held until the printed cloth is back and then counted as stock again. */
     let cv2 = A.flowRfdCover();
-    ok('its metres are kept out of the RFD stock', cv2.fab['SHEETING 62'].held === 66);
+    ok('its metres come off the RFD stock (500 − 66), and are not held a second time', cv2.fab['SHEETING 62'].stock === 434 && cv2.fab['SHEETING 62'].held === 0, JSON.stringify(cv2.fab['SHEETING 62']));
     A.W.vendor['AMZ-1|S1'] = { given: 100, back: 0 }; A.setFLOW(Object.assign(A.FLOW(), { ppc: Object.assign({}, A.FLOW().ppc) }));
-    ok('…still kept once the vendor order is placed (the register has not taken it)', A.flowRfdCover().fab['SHEETING 62'].held === 66);
+    ok('…still off once the vendor order is placed', A.flowRfdCover().fab['SHEETING 62'].stock === 434);
     A.W.vendor['AMZ-1|S1'] = { given: 100, back: 20 }; A.setFLOW(Object.assign(A.FLOW(), { ppc: Object.assign({}, A.FLOW().ppc) }));
-    ok('…let go once printed cloth comes back', A.flowRfdCover().fab['SHEETING 62'].held === 0);
+    ok('…and printed cloth coming back does NOT put the RFD back into stock', A.flowRfdCover().fab['SHEETING 62'].stock === 434 && A.flowRfdCover().fab['SHEETING 62'].held === 0);
+    { const ch = A.FLOW().ch, no = Object.keys(ch)[0];
+      A.setFLOW(Object.assign(A.FLOW(), { ch: Object.assign({}, ch, { [no]: Object.assign({}, ch[no], { cancelled: { at: '2026-10-11', why: 'x' } }) }) }));
+      ok('a cancelled challan gives its metres back', A.flowRfdCover().fab['SHEETING 62'].stock === 500);
+      A.setFLOW(Object.assign(A.FLOW(), { ch })); }
     { const NA = load({ me: { admin: true }, rfd: { 'SHEETING 62': 500 }, lines: A.W.lines, ppc: A.FLOW().ppc, vendor: A.W.vendor }); NA.setFLOW(Object.assign(NA.FLOW(), { ch: A.FLOW().ch, dem: A.FLOW().dem }));
       NA.setView('new'); NA.renderView();
       ok('no "Printed fabric in" bucket — New orders says where the line is: with the printer, received in Demand history, seen in History', !A.FLOW_BUCKETS.some(b => b[0] === 'fabric')
@@ -1753,6 +1759,24 @@ const K = 'AMZ-1__S1';
     ok('a fabric the desk never counted is the old ledger, as before', B.flowRfdStock('Cambric') === 500, String(B.flowRfdStock('Cambric')));
     const C = load({ fabRows, rfd: { 'SHEETING 72': 8142 } });
     ok('with no Greige Desk read, the old ledger alone', C.flowRfdStock('Sheeting 72') === 8142, String(C.flowRfdStock('Sheeting 72')));
+  }
+
+  console.log('\n== RFD stock, one rule (Ravi, 16 Oct: "kal sheeting 72 ke sath bhi aaya tha please fix it permanent") ==');
+  {
+    const gdOk = { state: () => 'ok', rfdShelf: n => ({ 'VOIL 92': 8183 })[String(n).toUpperCase()] || 0, rfdOpened: n => ({ 'VOIL 92': '2026-10-15' })[String(n).toUpperCase()] || '' };
+    const ch = { 'RFD-202610-009': { no: 'RFD-202610-009', date: '2026-10-16', lines: [{ key: 'K1', fabric: 'Voil 92', metres: 300 }] },
+      'RFD-202610-002': { no: 'RFD-202610-002', date: '2026-10-12', lines: [{ key: 'K0', fabric: 'Voil 92', metres: 900 }] },
+      'RFD-202610-010': { no: 'RFD-202610-010', date: '2026-10-16', cancelled: { at: 'x' }, lines: [{ key: 'K2', fabric: 'Voil 92', metres: 50 }] } };
+    const A = load({ gd: gdOk, rfd: { 'VOIL 92': 0 } }); A.setFLOW(Object.assign(A.FLOW(), { ch }));
+    ok('the desk\'s count less what went to printers on challans AFTER the count (8,183 − 300); the earlier challan and the cancelled one take nothing', A.flowRfdStock('Voil 92') === 7883, String(A.flowRfdStock('Voil 92')));
+    const B = load({ gd: { state: () => 'err: timeout', rfdShelf: () => 0, rfdOpened: () => '' }, rfd: { 'VOIL 92': 0 }, fabRows: [{ fabricType: 'Voil 92' }] });
+    ok('the desk not read on this computer: the stock is "not read", never 0 / short', B.flowFabKnown('Voil 92') === 'unread' && /stock not read — Refresh/.test(B.flowMatRow('RFD · Voil 92', 5, 0, 0, ' m', B.flowFabKnown('Voil 92'))) && !/short/.test(B.flowMatRow('RFD · Voil 92', 5, 0, 0, ' m', B.flowFabKnown('Voil 92'))));
+    ok('…and the form says so at the top', /could not be read on this computer/.test(B.flowGdNote()));
+    ok('a fabric the desk counted is known even if the old ledger never had it', A.flowFabKnown('Voil 92') === true);
+    /* An earlier printed line whose print order is placed but whose cloth has not gone on a challan still has to take it. */
+    const C = load({ gd: gdOk, rfd: {}, lines: [L({ orderNo: 'SHP-1', sku: 'V1', qty: 10 })],
+      ppc: { 'SHP-1__V1': plan({ orderNo: 'SHP-1', sku: 'V1', qty: 10, fabric: { name: 'Voil 92', perPc: 5, metres: 50 } }) } });
+    ok('an earlier printed line with no challan yet still holds its 50 m in the balance', C.flowCommitted([]).fab['VOIL 92'] === 50, JSON.stringify(C.flowCommitted([]).fab));
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);

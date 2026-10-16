@@ -86,6 +86,8 @@ function renderFlow() {
     `<button data-fldem="${k}" class="${k === FLOW_VIEW ? '' : 'ghost'}" style="width:auto;padding:5px 14px;font-size:13px">${esc(l)} <b>${nf(n[k] || 0)}</b></button>`).join('')}</div>` + (FLOW.panel || '');
   /* RFD short? The Greige Desk shows the greige to order for it (Ravi, 13 Oct: Greige Desk joined to the PPC flow). */
   if (FLOW_VIEW === 'drfd' && typeof GD !== 'undefined' && gdAllowed()) FLOW.panel = (FLOW.panel || '') + '<button type="button" class="ghost" data-gdgo="inv" style="width:auto;padding:5px 14px;font-size:13px;margin-left:10px">Greige Desk · PPC demand</button>';
+  /* RFD stock is the Greige Desk's count: not read here, the Demand figures say so instead of showing a false "short". */
+  if (FLOW_DEMAND.includes(FLOW_VIEW) && !flowRfdKnown()) FLOW.panel = (FLOW.panel || '') + `<span style="font-size:12.5px;color:#b45309;margin-left:10px">⚠ The Greige Desk's RFD stock could not be read on this computer — the RFD figures here are not complete. Press Refresh.</span>`;
   $('flPanel').innerHTML = FLOW.panel; $('flPanel').classList.toggle('hide', !FLOW.panel);
   $('flMsg').className = FLOW.err ? 'err' : 'muted';
   /* ONLY WHAT NEEDS SAYING (Ravi, 15 Oct: "remove the extra lines"). The count is on the bucket button and what the bucket
@@ -392,7 +394,9 @@ if ($('flFClear')) $('flFClear').onclick = () => { FLOW_FILT.map(f => f[1]).conc
 if (document.addEventListener) document.addEventListener('click', e => { const d = $('flFilt'); if (d && d.open && !d.contains(e.target)) d.open = false; });
 $('flTest').onclick = () => flowTestOpen();
 $('flTestOnly').addEventListener('change', () => { flowTestOnlySet($('flTestOnly').checked); renderFlow(); });
-$('flRefresh').onclick = async () => { $('flMsg').textContent = 'Reading again…'; await Promise.all([ptLoadGates(true), flowLoad(true)]); renderFlow(); };
+$('flRefresh').onclick = async () => { $('flMsg').textContent = 'Reading again…'; await Promise.all([ptLoadGates(true), flowLoad(true),
+  /* the Greige Desk too: the RFD stock is its count (flowRfdStock) */
+  (FLOW_ON && typeof GD !== 'undefined' && GD.reload && gdAllowed() ? GD.reload().catch(() => {}) : null)]); renderFlow(); };
 /* The bucket table's buttons — on the flow screen, and in its tabs inside Cutting Data and the Job Work Register. */
 async function flowTableClick(e) {
   const sm = e.target.closest('[data-flsim]');

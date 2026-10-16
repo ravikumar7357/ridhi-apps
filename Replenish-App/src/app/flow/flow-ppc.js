@@ -86,7 +86,14 @@ function flowCommitted(skipKeys, withTest) {
     (p.acc || []).forEach(a => { if (!a.code || !(+a.qty > 0)) return; const c = accCode(a.code); acc[c] = (acc[c] || 0) + Math.ceil(+a.qty * left); });
     const fr = s.demand && s.demand.fabricReady;
     const unmoved = !s.cut && !s.issued && (fr && fr.challan ? !s.back : !s.given);
-    if (unmoved && p.fabric && p.fabric.name) { const k = flowFabKey(p.fabric.name); fab[k] = flowR2((fab[k] || 0) + flowToPrint(r, p).metres); }
+    /* WHAT AN EARLIER PLAN STILL HAS TO TAKE FROM THE RFD (16 Oct, one rule with flowRfdStock). A printed line: what its
+     * challans have not sent yet — what they sent is already off the stock. Cutting straight from RFD: all of it until
+     * the line is cut or issued. Job Work and outsourced lines take no RFD. */
+    if (p.fabric && p.fabric.name && s.route !== 'jobwork' && !s.cut && !s.issued) {   // cut or issued: its cloth has gone
+      const owed = s.route === 'inhouse' ? flowFabOwed({ qty: +r.qty || 0 }, s).metres
+        : (fr && !fr.challan && +fr.metres > 0 ? +fr.metres : flowToPrint(r, p).metres);
+      if (owed > 0) { const k = flowFabKey(p.fabric.name); fab[k] = flowR2((fab[k] || 0) + owed); }
+    }
     (p.extra || []).forEach(x => { if (x.unit !== 'm' || !x.what) return; const k = flowFabKey(String(x.what).replace(/^Ruffle — /, ''));
       extra[k] = flowR2((extra[k] || 0) + Math.max(0, (+x.qty || 0) - (+x.fromPrinted || 0)) * left); });
     /* Printed stock an earlier plan took, until that line's cloth moves. */
@@ -136,6 +143,8 @@ function flowStoreHold(pk, skipKeys, withTest) {
  * BALANCE left after every earlier plan, enough or short — the stock and what the earlier plans hold are in the tooltip. */
 function flowMatRow(what, need, stock, earlier, unit, known) {
   const bal = flowR2(stock - earlier), ok = bal >= need;
+  if (known === 'unread') return `<tr><td style="text-align:left">${what}</td><td class="num">${nf(flowR2(need))}${unit}</td><td class="num">—</td>`
+    + `<td style="text-align:left"><span class="pill mute" title="The Greige Desk's stock could not be read on this computer — close the form and press Refresh">stock not read — Refresh</span></td></tr>`;
   const st = !(need > 0) ? '<span class="pill mute">not needed</span>'
     : !known ? '<span class="pill mute">stock not kept in the app</span>'
     : ok ? '<span class="pill ok">✓ enough</span>' : `<span class="pill bad">⚑ short ${nf(flowR2(need - Math.max(0, bal)))}${unit}</span>`;
@@ -155,7 +164,12 @@ function flowPrintedStock(w, colour) {
 const flowPrintedRow = (label, qty, unit, use, stock, held, above) => `<tr style="background:rgba(124,58,237,.05)"><td style="text-align:left">Printed in store · ${label}${held > 0 || above > 0 ? `<div class="muted" style="font-size:10.5px">in store ${nf(flowR2(stock || 0))}${unit}${held > 0 ? `, ${nf(flowR2(held))}${unit} of it for earlier orders` : ''}${above > 0 ? `, ${nf(flowR2(above))}${unit} taken by the line(s) above` : ''}</div>` : ''}</td><td class="num">${use ? nf(flowR2(use)) + unit : '—'}</td>
   <td class="num"${stock != null ? ` title="in store ${esc(nf(flowR2(stock)))}${unit}${held > 0 ? `, earlier orders still need ${esc(nf(flowR2(held)))}${unit}` : ''}${above > 0 ? `, the lines above in this order take ${esc(nf(flowR2(above)))}${unit}` : ''}"` : ''}>${qty == null ? '<span class="muted">…</span>' : `<b>${nf(flowR2(Math.max(0, qty)))}${unit}</b>`}</td><td style="text-align:left">${use > 0 ? `<span class="pill ok">✓ covers ${nf(flowR2(use))}${unit}</span>`
     : above > 0 && stock > 0 ? '<span class="pill mute">the line above took it — goes to the printer</span>' : held > 0 && stock > 0 ? '<span class="pill mute">all for earlier orders — goes to the printer</span>' : '<span class="pill mute">none in store</span>'}</td></tr>`;
-function flowFabKnown(name) { const k = flowFabKey(name); try { return fabAll().some(r => flowFabKey(r.fabricType) === k); } catch (e) { return false; } }
+function flowFabKnown(name) {
+  if (!flowRfdKnown()) return 'unread';   // the Greige Desk was not read here: the figure would be the old ledger alone
+  const k = flowFabKey(name);
+  try { if (flowGdState() === 'ok' && GD.rfdOpened && GD.rfdOpened(name)) return true; } catch (e) { /* the ledger decides */ }
+  try { return fabAll().some(r => flowFabKey(r.fabricType) === k); } catch (e) { return false; }
+}
 
 /* The line card's look — scoped to .fpc, so nothing else in the app changes. */
 const FLOW_PPC_CSS = `<style>
@@ -266,8 +280,8 @@ const flowDraftWhen = at => { const t = new Date(at); return isNaN(t) ? '' : t.t
 
 /* RFD stock comes from the Greige Desk's count (flowRfdStock). Where this computer could not read the desk, the figure
  * is the old ledger alone — which reads 0 for most fabrics now — so the form says so rather than show a false "short". */
-const flowGdNote = () => { let st = ''; try { st = FLOW_ON && typeof GD !== 'undefined' && GD.state ? GD.state() : 'ok'; } catch (e) { st = ''; }
-  return st === 'ok' ? '' : `<div style="font-size:11.5px;color:#b45309;margin:2px 0 6px">⚠ The Greige Desk's RFD stock ${st ? 'could not be read on this computer' : 'is not read yet'} — RFD below is the old fabric ledger only. Close and press Refresh.</div>`; };
+const flowGdNote = () => { const st = flowGdState();
+  return st === 'ok' || st === 'none' ? '' : `<div style="font-size:11.5px;color:#b45309;margin:2px 0 6px">⚠ The Greige Desk's RFD stock ${st ? 'could not be read on this computer' : 'is being read'} — the RFD figures wait for it${st ? '; trying again…' : '…'}</div>`; };
 
 function flowPpcOpen(orderNo, onlySku, keys) {
   /* SAME SKU, SAME DAY, ONE PLAN (Ravi, 15 Oct: "1 SKU ka same day order aay to wo sare order combine hokar dikhe PPC team
@@ -330,7 +344,7 @@ function flowPpcOpen(orderNo, onlySku, keys) {
         <div class="fpc-col">
           <div class="fpc-sec">The printer gets</div>
           <div class="fpc-pget" data-pget="${i}"></div>
-          <div class="fpc-sec">Requirement &amp; stock <small>balance = what is left after every earlier plan</small></div>${flowGdNote()}
+          <div class="fpc-sec">Requirement &amp; stock <small>balance = what is left after every earlier plan</small></div><div data-gdnote>${flowGdNote()}</div>
           <table class="xl fpc-mat"><thead><tr><th style="text-align:left">Item</th><th>Needs</th><th title="what is left after every earlier plan">Balance</th><th></th></tr></thead><tbody data-mat="${i}"></tbody></table>
           ${(p.gaps || []).length ? `<div class="fpc-gaps">• ${p.gaps.map(esc).join('<br>• ')}</div>` : ''}
         </div>
@@ -542,6 +556,11 @@ function flowPpcOpen(orderNo, onlySku, keys) {
     });
     flowComboPaint(combo, run, com, names, shelf);
   };
+  /* THE GREIGE DESK NOT READ YET (or the read failed): ask for it now, and draw the stock again once it is here. */
+  if (!flowRfdKnown() && typeof GD !== 'undefined' && GD.ensure && typeof gdAllowed === 'function' && gdAllowed()) {
+    GD.ensure().catch(() => {}).then(() => { if (!PTD) return;
+      document.querySelectorAll('[data-gdnote]').forEach(el => { el.innerHTML = flowGdNote(); }); try { paint(); } catch (e) { /* the form was closed */ } });
+  }
   /* THE DRAFT: put back before the first drawing, then kept as the boxes change. */
   const dkeys = rows.map(x => x.s.key);
   const sayD = (t, bad) => { const el = $('flpDraftSay'); if (el) { el.textContent = t; el.className = bad ? 'err' : 'muted'; } };

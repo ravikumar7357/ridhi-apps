@@ -79,16 +79,43 @@ function flowFabricOpen(r, s) {
  * otherwise two orders would be shown the same metres. The rest is handed out oldest order first; a line the stock
  * does not reach is short by what it misses. */
 const flowFabKey = n => String(n || '').trim().toUpperCase();
+/* ---- RFD STOCK, ONE RULE (Ravi, 16 Oct: "ye problem kal humko sheeting 72 ke sath bhi aaya tha please fix it permanent") ----
+ * Sheeting 72 read 21,782 m on 15 Oct (the old ledger's count added to the desk's) and Voil 92 read 0 on 16 Oct (the desk
+ * not read on that computer, so the old ledger alone, which had sent all of it to printers). And the flow's own RFD
+ * challans to printers took nothing off any stock: the cloth "came back" into stock once it was printed. Now:
+ *   STOCK of a fabric = its count                — the Greige Desk's opening count where the desk counted it, plus what
+ *                                                   the old ledger moved after that day; else the old ledger
+ *                     − what left on the flow's RFD challans to printers since that count (cancelled challans give it
+ *                       back; a challan edited to fewer metres gives the rest back)
+ *   BALANCE (PPC)     = stock − what earlier planned lines still have to take (flowCommitted)
+ *   The desk not read on this computer → the stock is NOT KNOWN (flowRfdKnown) and is said so — never shown as 0 / short.
+ * Worked out each time from the records, never stored. */
+function flowGdState() {
+  try { return FLOW_ON && typeof GD !== 'undefined' ? (GD.state ? GD.state() : 'ok') : 'none'; } catch (e) { return ''; }
+}
+/** Can the RFD stock be trusted on this computer? Only once the Greige Desk has been read (or there is no desk at all). */
+const flowRfdKnown = () => { const st = flowGdState(); return st === 'ok' || st === 'none'; };
+/** The day RFD counting starts for a fabric in the old ledger: its first RFD opening stock, else the first of any. */
+function flowLedgerStart(name) {
+  try { const st = fabRfdStart(FAB.rows || []); return String(ptIsoDate(st.by[fabKey(name)] || st.first) || ''); } catch (e) { return ''; }
+}
+/** RFD that left on the flow's own challans to printers for one fabric, from a day on (that day counted). */
+function flowRfdChallanOut(name, fromDay) {
+  const k = flowFabKey(name); let out = 0;
+  Object.values(FLOW.ch || {}).forEach(c => {
+    if (!c || c.cancelled) return;
+    const d = String(c.date || ptIsoDate(c.at) || '').slice(0, 10);
+    if (fromDay && d < fromDay) return;
+    (c.lines || []).forEach(l => { if (l && flowFabKey(l.fabric) === k) out += +l.metres || 0; });
+  });
+  return flowR2(out);
+}
 function flowRfdStock(name) {
-  /* The Greige Desk's RFD on the shelf counts too (its own records, flow/greige-desk.js). */
+  const known = flowGdState() === 'ok';
   let desk = 0, opened = '';
-  try { if (FLOW_ON && typeof GD !== 'undefined') { desk = +GD.rfdShelf(name) || 0; opened = (GD.rfdOpened && GD.rfdOpened(name)) || ''; } } catch (e) { desk = 0; opened = ''; }
-  /* THE DESK'S COUNT REPLACES THE OLD LEDGER'S (Ravi, 15 Oct: "72 sheeting me mere pas 13600 mtr fabric h but yaha show ho
-   * rha h 21,782"). The desk took an opening stock of Sheeting 72 on 15 Oct (13,600 m); the old fabric ledger still held its
-   * 22 Sep opening (8,350 m, less 168 m handed to printers) — added together, 21,782. A fabric the desk has counted is that
-   * count, plus what the old ledger moved AFTER the day of the count; a fabric it never counted is the old ledger, as before. */
-  if (opened) { try { return Math.max(0, desk + flowLedgerAfter(name, opened)); } catch (e) { return desk; } }
-  try { return Math.max(0, +fabStockOf(name, 'RFD') || 0) + desk; } catch (e) { return desk; }
+  try { if (known) { desk = +GD.rfdShelf(name) || 0; opened = (GD.rfdOpened && GD.rfdOpened(name)) || ''; } } catch (e) { desk = 0; opened = ''; }
+  if (opened) { try { return Math.max(0, flowR2(desk + flowLedgerAfter(name, opened) - flowRfdChallanOut(name, opened))); } catch (e) { return desk; } }
+  try { return Math.max(0, flowR2((+fabStockOf(name, 'RFD') || 0) - flowRfdChallanOut(name, flowLedgerStart(name)))) + desk; } catch (e) { return desk; }
 }
 /** RFD the old fabric ledger moved (in +, out −) for one fabric after a day (ISO), the day itself not counted. */
 function flowLedgerAfter(name, day) {
@@ -104,8 +131,9 @@ function flowRfdCover() {
   const F = name => { const k = flowFabKey(name); return fab[k] || (fab[k] = { name: String(name || '').trim(), stock: flowRfdStock(name), held: 0, need: 0, lines: 0 }); };
   rows.forEach(({ s }) => {
     const fr = s.demand && s.demand.fabricReady, p = s.plan;
-    /* A line on a challan has left the store on paper, not in the register: kept until the printed cloth is back. */
-    if (!fr || !p || s.route === 'outsource' || s.cut || s.issued || (fr.challan ? s.back : s.given)) return;
+    /* A line on a challan has already come off the stock (flowRfdChallanOut) — it is not held a second time. Cloth made
+     * ready by hand (no challan) is held until the line is cut or issued. */
+    if (!fr || !p || fr.challan || s.route === 'outsource' || s.cut || s.issued || s.given) return;
     const name = fr.what || (p.fabric && p.fabric.name); if (!name) return;
     F(name).held += +fr.metres || +(p.fabric && p.fabric.metres) || 0;
   });
