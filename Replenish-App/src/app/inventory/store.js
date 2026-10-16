@@ -165,7 +165,9 @@ function stFlowMoves() {
     const k = stCutting(c);
     if (!k.running || !(k.metres > 0) || !k.fabric) return;
     const key = typeof flowKey === 'function' ? flowKey(c.orderNo || '', c.sku || '') : '', p = (FLOW.ppc || {})[key];
-    if (p && p.route && p.route !== 'inhouse') return;   // PPC sent it to Cutting / Job Work: cut from RFD
+    /* PPC sent it to Cutting / Job Work: cut from RFD — unless PPC said the cloth was printed already and is in hand
+     * (fabric.noRfd): then it is cut from the printed store, and comes off here. */
+    if (p && p.route && p.route !== 'inhouse' && !(p.route === 'stitch' && p.fabric && p.fabric.noRfd)) return;
     const covered = Math.max(0, (took[key] || 0) - (used[key] || 0)), fromPlan = Math.min(covered, k.metres);
     used[key] = (used[key] || 0) + fromPlan;
     const q = Math.round((k.metres - fromPlan) * 100) / 100;

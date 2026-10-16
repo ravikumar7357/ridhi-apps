@@ -72,6 +72,10 @@ console.log('== the production flow moves it by itself since 16 Oct (Ravi: minus
   ok('balance: 120 − 20 typed + 40 received − 15 plan − 5 cut = 120 m', cloth && cloth.qty === 120, cloth && cloth.qty);
   S.renderStore('store');
   ok('the Out cell says where it went (PPC plans · cutting · typed)', /PPC plans: 15 · cutting: 5 · typed out: 20/.test(S.els.fbTable.innerHTML), S.els.fbTable.innerHTML.slice(0, 600));
+  /* Sent to Cutting with the cloth already printed and in hand (16 Oct): its cutting comes off the printed store. */
+  S.ctx.FLOW.ppc['AMZ-2__S2'].fabric.noRfd = true;
+  const mv2 = S.stMoves();
+  ok('a Cutting-route line marked "already printed / in hand" is cut from the printed store (10 m out)', mv2.filter(m => m.src === 'cut').map(m => m.qty).join() === '-5,-10', JSON.stringify(mv2.filter(m => m.src === 'cut').map(m => m.qty)));
 }
 console.log('== storeAuto = 1: the computed movements come back ==');
 {

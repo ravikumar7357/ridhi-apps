@@ -396,6 +396,8 @@ function flowPpcOpen(orderNo, onlySku, keys) {
             ${(p.extra || []).some(x => /^Ruffle — /.test(String(x.what || ''))) ? fld('Ruffle printer', `<select data-fp="${i}" data-k="rufflePrinter.code"><option value="">— same as the printer —</option>${flowPrinterOpts((flowRufflePrinter(p) || {}).code)}</select>`
               + '<small class="fpc-why">the ruffle cloth can go to another printer — its own print order and challan</small>', 'w2') : ''}
             ${fld('Outsource vendor', inp(i, 'outVendor', p.outVendor || '', '', ' placeholder="who makes it"') + '<small class="fpc-why">no fabric or accessories are raised for it</small>', 'w2" data-outrow="' + i)}
+            ${fld('Fabric', `<span style="display:flex;gap:6px;align-items:center;text-transform:none;letter-spacing:0;font-size:13px;color:var(--ink)"><input type="checkbox" data-fp="${i}" data-k="fabric.noRfd"${p.fabric && p.fabric.noRfd ? ' checked' : ''} style="width:auto;margin:0"> Already printed / in hand — take no RFD</span>`
+              + '<small class="fpc-why">the cloth was printed earlier: no RFD is raised or taken, and the line goes straight to Cutting</small>', 'w2" data-nordrow="' + i)}
           </div>
           ${(p.acc || []).length ? `<div class="fpc-sec">Accessories</div><div class="fpc-g">${p.acc.map((a, j) => fld(`${esc(a.what)} <small>code ${esc(a.code)}</small>`, inp(i, 'acc.' + j + '.qty', a.qty, 'number'))).join('')}</div>` : ''}
           <div class="fpc-sec">Planned dates</div>
@@ -475,6 +477,8 @@ function flowPpcOpen(orderNo, onlySku, keys) {
         p.extra = (p.extra || []).map((x, j) => Object.assign({}, x, { fromPrinted: flowR2((cv0.extra || {})[j] || 0) }));
         if (p.route === 'outsource') { p.acc = []; p.fabric = Object.assign({}, p.fabric, { metres: 0 }); }
         if (p.route === 'jobwork') p.fabric = Object.assign({}, p.fabric, { metres: 0, fromPrinted: 0 });   // no cloth raised
+        if (p.route !== 'stitch' && p.fabric) delete p.fabric.noRfd;   // the tick means something on the Cutting route only
+        if (p.route === 'stitch' && p.fabric && p.fabric.noRfd) p.fabric = Object.assign({}, p.fabric, { metres: 0, fromPrinted: 0, noRfd: true });   // in hand: no RFD raised
         const rec = Object.assign({}, p, { at: now, by: ME.email || '' }); delete rec.gaps;
         patch['pt_ppc/' + flowKey(p.orderNo, p.sku)] = rec;
       });
@@ -566,6 +570,11 @@ function flowPpcOpen(orderNo, onlySku, keys) {
       const fname = (val(i, 'fabric.name') ?? p.fabric.name) || '', per = +(val(i, 'fabric.perPc') ?? p.fabric.perPc) || 0, metres = flowR2(per * p.qty);
       const fm = document.querySelector(`[data-fm="${i}"]`); if (fm) fm.textContent = nf(metres);
       document.querySelectorAll(`[data-outrow="${i}"]`).forEach(el => { if (el.style) el.style.display = out ? '' : 'none'; });
+      /* ALREADY PRINTED, NO RFD (Ravi, 16 Oct: "mene rfd se print kara liya h ab mujhe uski printing required nahi h and rfd
+       * fabric bhi kam nahi hoga"): on the Cutting route a tick says the cloth is in hand — nothing is raised or taken. */
+      document.querySelectorAll(`[data-nordrow="${i}"]`).forEach(el => { if (el.style) el.style.display = route === 'stitch' ? '' : 'none'; });
+      const nrEl = document.querySelector(`[data-fp="${i}"][data-k="fabric.noRfd"]`);
+      const noRfd = route === 'stitch' && !!(nrEl ? nrEl.checked : (p.fabric && p.fabric.noRfd));
       const r = rows[i].r, colour = String(((cutSkuOf(r.sku) || {}).color) || r.color || '').trim();
       const cur = Object.assign({}, p, { route, fabric: Object.assign({}, p.fabric, { name: fname, metres }),
         print: Object.assign({}, p.print, { dir: val(i, 'print.dir') ?? flowDirOpts(r, p).cur }) });
@@ -596,7 +605,7 @@ function flowPpcOpen(orderNo, onlySku, keys) {
         rfdNeed = w.kind === 'sku' ? flowR2(metres * (1 - (p.qty ? use / p.qty : 0))) : flowR2(metres - use);
       }
       /* Job Work straight away: no cloth is raised for it — accessories only. */
-      if (fname && route !== 'jobwork') { const k = flowFabKey(fname), before = (com.fab[k] || 0) + (run.fab[k] || 0); names['f|' + k] = fname;
+      if (fname && route !== 'jobwork' && !noRfd) { const k = flowFabKey(fname), before = (com.fab[k] || 0) + (run.fab[k] || 0); names['f|' + k] = fname;
         h.push(flowMatRow(`RFD · <b>${esc(fname)}</b>${rfdNeed < metres ? ' <span class="muted">(the rest)</span>' : ''}`, rfdNeed, flowRfdStock(fname), before, ' m', flowFabKnown(fname)));
         run.fab[k] = flowR2((run.fab[k] || 0) + rfdNeed); }
       (p.extra || []).forEach((x, j) => {

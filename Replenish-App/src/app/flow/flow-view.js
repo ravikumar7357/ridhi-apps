@@ -310,7 +310,7 @@ function flowTable(view, rows) {
       /* One cell per heading (Ravi, 14 Oct: "too hotch potch"): base() already gives Qty — a second Qty cell here pushed every
        * column one to the right of its heading. The long words wrap, so the table fits the screen without scrolling sideways. */
       return `<tr>${base(x)}
-        <td style="text-align:left;font-size:13px;line-height:1.55;white-space:normal;min-width:220px;vertical-align:top"><div>Route: <b>${esc(rt || '')}</b></div>
+        <td style="text-align:left;font-size:13px;line-height:1.55;white-space:normal;min-width:220px;vertical-align:top"><div>Route: <b>${esc(rt || '')}</b>${p.fabric && p.fabric.noRfd ? ' <span class="muted" style="font-size:12px">· printed fabric in hand, no RFD</span>' : ''}</div>
           ${p.fabric && p.fabric.name ? `<div>Fabric: <b>${esc(p.fabric.name)}</b> · ${nf(flowR2(+p.fabric.metres || 0))} m</div>` : ''}
           ${p.printer && p.printer.name ? `<div>Print: <b>${esc(p.printer.name)}</b></div>` : ''}${rp ? `<div>Ruffle: <b>${esc(rp.name)}</b></div>` : ''}
           ${(p.acc || []).filter(a => a.code && +a.qty > 0).map(a => `<div class="muted" style="font-size:12px">${esc(a.what || a.code)} × ${nf(a.qty)}</div>`).join('')}</td>

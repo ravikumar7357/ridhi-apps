@@ -309,7 +309,7 @@ function flowState(r) {
   s.canIssue = Math.max(0, (s.cutReq ? s.cut : (printed ? s.back : qty)) - s.issuedNet);
   const accNeed = !!p && route !== 'outsource' && (p.acc || []).some(a => a.code && +a.qty > 0);
   const handReady = !!(d && d.fabricReady && !d.fabricReady.challan);
-  s.needFab = isNew && !!p && route !== 'outsource' && route !== 'jobwork' && !handReady
+  s.needFab = isNew && !!p && route !== 'outsource' && route !== 'jobwork' && !handReady && !(route === 'stitch' && p.fabric && p.fabric.noRfd)
     && (route === 'inhouse' ? (s.fabNeed - s.fabSent > 0.01 || (flowPrintExtras(r, p).length > 0 && !(flowRufflePrinter(p) ? flowChIndex()[k + FLOW_RUF] : cx))) : !(d && d.fabricReady));   // the ruffle cloth goes too, on the first challan
   s.needAcc = isNew && accNeed && !res;
   s.bucket =

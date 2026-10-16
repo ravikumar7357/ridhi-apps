@@ -1829,6 +1829,28 @@ const K = 'AMZ-1__S1';
     ok('a master row with no consumption but a cloth per piece PPC can work out from the size is NOT a missing BOM — no box, nothing written', !/data-fpms=/.test(C.ctx.__dlg.html));
   }
 
+  console.log('\n== Cutting route, cloth already printed: no RFD (Ravi, 16 Oct: "printing required nahi h and rfd fabric bhi kam nahi hoga") ==');
+  {
+    const mdb = { S1: { cons: 0.25, fab: 'Sheeting 82' } };
+    const A = load({ me: { tabs: ['flppc', 'fldem'] }, mdb, rfd: { 'SHEETING 82': 1000 }, lines: [L({ sku: 'S1', qty: 100 })] });
+    A.flowPpcOpen('AMZ-1');
+    ok('the form has the tick "Already printed / in hand — take no RFD"', /data-k="fabric\.noRfd"/.test(A.ctx.__dlg.html) && /Already printed \/ in hand — take no RFD/.test(A.ctx.__dlg.html));
+    const box = (k, v, type, checked) => ({ addEventListener() {}, dataset: { fp: '0', k }, type: type || 'select-one', value: v, checked: !!checked });
+    A.ctx.document.querySelectorAll = sel => sel === '[data-fp]' ? [box('route', 'stitch'), box('fabric.noRfd', '', 'checkbox', true)] : [];
+    const e = await A.ctx.__dlg.onSave(), p = (A.writes[A.writes.length - 1] || {})['pt_ppc/AMZ-1__S1'];
+    ok('saved: Cutting, fabric kept by name, no RFD metres, marked in hand', !e && p && p.route === 'stitch' && p.fabric.name === 'Sheeting 82' && p.fabric.metres === 0 && p.fabric.noRfd === true, e || JSON.stringify(p && p.fabric));
+    A.setFLOW(Object.assign(A.FLOW(), { ppc: Object.assign({}, A.FLOW().ppc) }));
+    const st = A.flowRows()[0].s;
+    ok('…so it does not wait in Demand → RFD, and goes on to Cutting / the store', !st.needFab && st.bucket !== 'demand' && !A.flowInView('drfd', st), st.bucket);
+    ok('…and holds no RFD for itself in any later plan', !A.flowCommitted([]).fab['SHEETING 82']);
+    const B = load({ me: { tabs: ['flppc'] }, mdb, lines: [L({ sku: 'S1', qty: 100 })] });
+    B.flowPpcOpen('AMZ-1');
+    B.ctx.document.querySelectorAll = sel => sel === '[data-fp]' ? [box('route', 'inhouse'), box('printer.code', 'P1'), box('fabric.noRfd', '', 'checkbox', true)] : [];
+    await B.ctx.__dlg.onSave();
+    const q = (B.writes[B.writes.length - 1] || {})['pt_ppc/AMZ-1__S1'] || {};
+    ok('the tick means nothing on the Printing route: the RFD is raised as usual', q.route === 'inhouse' && !(q.fabric || {}).noRfd && (q.fabric || {}).metres === 25, JSON.stringify(q.fabric));
+  }
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })();
