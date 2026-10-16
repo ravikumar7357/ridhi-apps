@@ -96,8 +96,9 @@ function flowCommitted(skipKeys, withTest) {
     }
     (p.extra || []).forEach(x => { if (x.unit !== 'm' || !x.what) return; const k = flowFabKey(String(x.what).replace(/^Ruffle — /, ''));
       extra[k] = flowR2((extra[k] || 0) + Math.max(0, (+x.qty || 0) - (+x.fromPrinted || 0)) * left); });
-    /* Printed stock an earlier plan took, until that line's cloth moves. */
-    if (unmoved && s.route === 'inhouse') {
+    /* Printed stock an earlier plan took, until that line's cloth moves — unless the store already took it out at the plan
+     * (inventory/store.js, since 16 Oct): then it is off the store's own figure, and holding it here would take it twice. */
+    if (unmoved && s.route === 'inhouse' && !(typeof stPlanTookOut === 'function' && stPlanTookOut(p))) {
       const m = cutSkuOf(r.sku) || {}, colour = String(m.color || r.color || '').trim();
       if (+(p.fabric && p.fabric.fromPrinted) > 0) { const k = flowPrintedKey(flowPrintWhat(r, p), p.fabric.name, colour); printed[k] = flowR2((printed[k] || 0) + (+p.fabric.fromPrinted)); }
       (p.extra || []).forEach(x => { if (!(+x.fromPrinted > 0)) return; const k = 'M|' + fabKey(String(x.what).replace(/^Ruffle — /, '')) + '|' + fabKey(colour); printed[k] = flowR2((printed[k] || 0) + (+x.fromPrinted)); });
@@ -500,7 +501,13 @@ function flowPpcOpen(orderNo, onlySku, keys) {
       let rfdNeed = metres;
       /* PRINTED STOCK FIRST: what is already printed in the store, less what earlier plans and the lines above took. */
       if (w && w.code) {
-        const pu = w.kind === 'sku' ? ' pcs' : ' m', pk = flowPrintedKey(w, fname, colour), ps = flowPrintedStock(Object.assign({ fabric: fname }, w), colour);
+        const pu = w.kind === 'sku' ? ' pcs' : ' m', pk = flowPrintedKey(w, fname, colour), ps0 = flowPrintedStock(Object.assign({ fabric: fname }, w), colour);
+        /* A plan being changed here already took its printed stock out of the store (inventory/store.js): put its own back. */
+        const ps = ps0 == null ? null : flowR2(ps0 + rows.reduce((a, x) => { const op = x.s.plan;
+          if (!op || typeof stPlanTookOut !== 'function' || !stPlanTookOut(op) || !(+(op.fabric && op.fabric.fromPrinted) > 0)) return a;
+          const oc = String(((cutSkuOf(x.r.sku) || {}).color) || x.r.color || '').trim();
+          let ok = ''; try { ok = flowPrintedKey(flowPrintWhat(x.r, op), op.fabric.name, oc); } catch (e) { ok = ''; }
+          return ok === pk ? a + (+op.fabric.fromPrinted) : a; }, 0));
         const held = ps == null ? 0 : hold(pk), pleft = ps == null ? null : ps - held - (com.printed[pk] || 0) - (run.printed[pk] || 0);
         const want = w.kind === 'sku' ? (+p.qty || 0) : metres, use = pleft == null ? 0 : flowR2(Math.max(0, Math.min(want, pleft)));
         h.push(flowPrintedRow(`<b>${esc(w.code)}</b>`, pleft, pu, use, ps, held + (com.printed[pk] || 0), run.printed[pk] || 0));
