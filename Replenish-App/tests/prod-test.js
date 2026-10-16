@@ -41,7 +41,7 @@ const IDS = ('ptmBrand ptmArt ptmSub ptmCol ptmSz ptmCut ptmMaker ptmQ ptmBrandF
   + 'pcView pcUse pcArt pcSub pcWho pcCol pcSz pcOrd pcQ pcD1 pcD2 pcClear pcExport pcGo pcMsg pcKpis pcTable '
   + ''
   + 'tabPa tabKa panePa paneKa paWk paFabWeeks paTarget paBasis paGo paMsg paBody kaMetric kaGroup kaWeeks kaBands kaLevelsBtn kaDept qcwMode qcwAt qcwSub qcwCol qcwSz qcwSkuList kaQ kaExport kaGo kaMsg kaDetail kaTable '
-  + 'cwToggle cwBox cwAt cwSub cwCol cwSz cwSkuNote cwSku cwSkuList cwOrd cwPcs cwFabric cwUsed cwWaste cwWasteW cwFab cwDate cwRemarks cwSave cwWho cwLeft cwMsg '
+  + 'pcPlat cwToggle cwBox cwAt cwSub cwCol cwSz cwSkuNote cwSku cwSkuList cwOrd cwPcs cwFabric cwUsed cwWaste cwWasteW cwFab cwDate cwRemarks cwSave cwWho cwLeft cwMsg '
   + 'bwToggle bwBox bwType bwEmp bwEmpList bwSku bwSkuList2 bwOrd bwPcs bwDate bwRemarks bwSave bwWho bwLeft bwMsg '
   + 'bwMat bwZip bwZipWrap bwZipName bwRuf bwRufWrap bwRufFab bwMatNote bwCustom bwOrdWrap bwAt bwSub bwCol bwColTxt bwSz bwSzTxt bwSkuNote bwClear '
   + 'bdModal bdmClose bdmWho bdmFrozen bdmName bdmType bdmIssue bdmRecv bdmRej bdmRemarks bdmAdminSku bdmSku bdmDatesRead bdmDatesTxt bdmAdminDates bdmIssueDate bdmRecvDate bdmMsg bdmDelete bdmAsk pbApv bdmCancel bdmSave '
@@ -19941,6 +19941,16 @@ console.log('\n== Cutting: how wide the leftover is ==');
   const src = fs.readFileSync(APP, 'utf8');
   ok('the export carries it too', src.includes("'Fabric used (m)', 'Waste (m)', 'Waste width (in)', 'Waste %', 'Remarks', 'Entered by'"));
   ok('an entry can be corrected with it', src.includes("{ key: 'fabricWasteWidth', label: 'Waste width (in)'"));
+  /* THE PLATFORM FILTER (Ravi, 16 Oct: "cutting entry me kis platform ka order h wo filter bhi add kardo"). */
+  const cutRow = (id, orderNo) => ({ id, _key: id, sku: 'RX-' + id, cutDate: '16/10/2026, 10:00', pieces: 5, fabricWidth: 'Sheeting 62', orderNo, addedBy: 'a@x' });
+  A.setPT(Object.assign(A.PT(), { cut: [cutRow('p1', 'AMZ-15102026-01'), cutRow('p2', 'SHP-RBP6472'), cutRow('p3', 'B2B-0001'), cutRow('p4', 'ONL-01102026-01'), cutRow('p5', '')] }));
+  els.pcPlat.value = ''; A.renderPcut();
+  ok('the platform list is read from the order numbers', ['Amazon', 'Shopify', 'B2B', 'Online', 'No order number'].every(t => els.pcPlat.innerHTML.includes('>' + t + '<')), els.pcPlat.innerHTML);
+  els.pcPlat.value = 'Shopify'; A.renderPcut();
+  ok('…and picking Shopify shows only the Shopify cut', /RX-p2/.test(els.pcTable.innerHTML) && !/RX-p1|RX-p3|RX-p4|RX-p5/.test(els.pcTable.innerHTML));
+  els.pcPlat.value = 'Amazon'; A.renderPcut();
+  ok('…and Amazon only the Amazon one', /RX-p1/.test(els.pcTable.innerHTML) && !/RX-p2/.test(els.pcTable.innerHTML));
+  els.pcPlat.value = '';
   A.setPT(Object.assign(A.PT(), { cut: wasCut }));
 }
 console.log('\n== The store: what is on the shelf before stitching ==');

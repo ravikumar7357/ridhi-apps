@@ -210,10 +210,17 @@ function renderMdbFabric() {
 
 async function ensurePcut() { if (PT.cut === null) await ptLoad('cut', 'pt_cuttingData', renderPcut); else renderPcut(); }
 
+/* THE PLATFORM (Ravi, 16 Oct: "cutting entry me kis platform ka order h wo filter bhi add kardo"), read from the order
+ * number the way the rest of the app reads it: AMZ- Amazon, SHP- Shopify, ONL- Online, B2B- B2B. Another prefix is shown as
+ * it is; a cut with no order number says so. */
+const PC_PLAT = { AMZ: 'Amazon', SHP: 'Shopify', SPY: 'Shopify', ONL: 'Online', B2B: 'B2B' };
+const pcPlatOf = r => { const no = String((r && r.orderNo) || '').trim().toUpperCase(); if (!no) return 'No order number';
+  const p = no.split('-')[0]; return PC_PLAT[p] || p; };
+
 function pcutFilters() {
   const v = id => ($(id) || {}).value || '';
   return { art: v('pcArt'), sub: v('pcSub'), col: v('pcCol'), sz: v('pcSz'),
-    ord: v('pcOrd'), q: v('pcQ').trim().toLowerCase(), d1: v('pcD1'), d2: v('pcD2'), who: v('pcWho') };
+    ord: v('pcOrd'), q: v('pcQ').trim().toLowerCase(), d1: v('pcD1'), d2: v('pcD2'), who: v('pcWho'), plat: v('pcPlat') };
 }
 
 function pcutApply(rows, f, skip) {
@@ -223,6 +230,7 @@ function pcutApply(rows, f, skip) {
     if (skip !== 'sub' && f.sub && !ptCi(r.articleSubtype, f.sub)) return false;
     if (skip !== 'col' && f.col && !ptCi(r.color, f.col)) return false;
     if (skip !== 'sz' && f.sz && !ptCi(r.size, f.sz)) return false;
+    if (skip !== 'plat' && f.plat && pcPlatOf(r) !== f.plat) return false;
     if (skip !== 'ord' && f.ord && !ptCi(r.orderNo, f.ord)) return false;
     if (skip !== 'who' && f.who && whoTouched(r).indexOf(String(f.who).toLowerCase()) < 0) return false;
     if (skip !== 'q' && f.q) {
@@ -250,6 +258,7 @@ function renderPcut() {
   ptFill('pcSub', pcutApply(all, f, 'sub').map(r => r.articleSubtype), 'All subtypes');
   ptFill('pcCol', pcutApply(all, f, 'col').map(r => r.color), 'All colors');
   ptFill('pcSz', pcutApply(all, f, 'sz').map(r => r.size), 'All sizes');
+  ptFill('pcPlat', pcutApply(all, f, 'plat').map(pcPlatOf), 'All platforms');
   ptFill('pcOrd', pcutApply(all, f, 'ord').map(r => r.orderNo), 'All orders');
   ptFill('pcWho', whoList(pcutApply(all, f, 'who')), "Anyone's entry");
 
@@ -456,7 +465,7 @@ function renderPcutWait(cutRows) {
 
 ['ptmBrand', 'ptmArt', 'ptmSub', 'ptmCol', 'ptmSz', 'ptmCut', 'ptmMaker'].forEach(id => $(id).addEventListener('change', renderPmdb));
 ['pbType', 'pbEmp', 'pbArt', 'pbSub', 'pbCol', 'pbSz', 'pbStatus', 'pbDBy', 'pbD1', 'pbD2'].forEach(id => $(id).addEventListener('change', renderPbase));
-['pcView', 'pcUse', 'pcArt', 'pcSub', 'pcCol', 'pcSz', 'pcOrd', 'pcD1', 'pcD2'].forEach(id => $(id).addEventListener('change', renderPcut));
+['pcView', 'pcUse', 'pcPlat', 'pcArt', 'pcSub', 'pcCol', 'pcSz', 'pcOrd', 'pcD1', 'pcD2'].forEach(id => $(id).addEventListener('change', renderPcut));
 /* The cloth the cut costs follows the pieces and the SKU as they are typed. renderCutFab, NOT
  * renderCutForm: the form rebuilds four dropdowns off the master list, and doing that on every
  * keystroke of a piece count is what made the Job Work form lag. */
@@ -516,7 +525,7 @@ if ($('pbArchive')) $('pbArchive').onclick = async () => {
 $('pbMore').addEventListener('click', e => { if (!e.target.closest('[data-pbmore]')) return; PB_CAP += PT_CAP_STEP; renderPbase(); });
 $('pcMore').addEventListener('click', e => { if (!e.target.closest('[data-pcmore]')) return; PC_CAP += PT_CAP_STEP; renderPcut(); });
 $('pbClear').onclick = () => { ['pbType', 'pbEmp', 'pbWho', 'pbArt', 'pbSub', 'pbCol', 'pbSz', 'pbStatus', 'pbQ', 'pbDBy', 'pbD1', 'pbD2'].forEach(id => $(id).value = ''); PT_BD_KPI = 'open'; PT_BD_KPI_DEFAULT = true; renderPbase(); };
-$('pcClear').onclick = () => { ['pcArt', 'pcSub', 'pcCol', 'pcSz', 'pcOrd', 'pcWho', 'pcQ', 'pcD1', 'pcD2'].forEach(id => $(id).value = ''); renderPcut(); };
+$('pcClear').onclick = () => { ['pcPlat', 'pcArt', 'pcSub', 'pcCol', 'pcSz', 'pcOrd', 'pcWho', 'pcQ', 'pcD1', 'pcD2'].forEach(id => $(id).value = ''); renderPcut(); };
 
 /* REFRESH READS THE RECIPES TOO (2026-09-25). Ruffle, zip and cloth figures fall back to the recipe; a recipe
  * uploaded after this screen was opened (another tab, another person) was never seen until a full reload. */
