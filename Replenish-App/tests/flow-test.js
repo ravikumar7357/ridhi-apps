@@ -1236,6 +1236,9 @@ const K = 'AMZ-1__S1';
     ok('the search finds a line by its fabric too', !/AMZ-A/.test(F.els.flTable.innerHTML) && /SHP-B/.test(F.els.flTable.innerHTML) && /search “canvas”/.test(F.els.flMsg.textContent), F.els.flMsg.textContent);
     F.els.flQ.value = ''; F.els.flSrc.value = 'SHP'; F.els.flFArt.value = 'Tablecloth'; F.renderFlow();
     ok('filters add up: Shopify AND Tablecloth → nothing', !/AMZ-A|SHP-B/.test(F.els.flTable.innerHTML) && F.els.flFiltN.textContent === '2');
+    F.els.flSrc.value = ''; F.els.flFArt.value = ''; F.els.flFPo.value = 'SHP-B'; F.renderFlow();
+    ok('PO = SHP-B → only that order (Ravi, 16 Oct: "filter me PO add karo")', !/AMZ-A/.test(F.els.flTable.innerHTML) && /SHP-B/.test(F.els.flTable.innerHTML) && F.els.flFiltN.textContent === '1');
+    F.els.flFPo.value = '';
   }
 
   console.log('== PPC sends a line to Printing, straight to Cutting, or straight to Job Work (15 Oct) ==');

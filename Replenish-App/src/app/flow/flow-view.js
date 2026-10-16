@@ -112,7 +112,8 @@ function renderFlow() {
  * subtype, colour, size, fabric, printer and how old the order is. They apply to every bucket alike. Fabric and printer
  * are the plan's where there is one, else what PPC would suggest — worked out only when the search, those filters or the
  * Filters panel ask for them, and kept until the lines change. */
-const FLOW_FILT = [['src', 'flSrc', 'Every platform'], ['art', 'flFArt', 'Every article'], ['sub', 'flFSub', 'Every subtype'],
+/* PO too (Ravi, 16 Oct: "filter me PO add karo"): the order numbers the lines on screen carry. */
+const FLOW_FILT = [['src', 'flSrc', 'Every platform'], ['po', 'flFPo', 'Every PO'], ['art', 'flFArt', 'Every article'], ['sub', 'flFSub', 'Every subtype'],
   ['col', 'flFCol', 'Every colour'], ['size', 'flFSize', 'Every size'], ['fab', 'flFFab', 'Every fabric'], ['prn', 'flFPrn', 'Every printer']];
 const flowSrcOf = x => x.r.src || String(x.r.orderNo).split('-')[0];
 const flowFiltVals = () => { const v = {}; FLOW_FILT.forEach(([k, id]) => { v[k] = $(id) ? String($(id).value || '') : ''; });
@@ -131,7 +132,7 @@ function flowFacet(x) {
   }
   return f;
 }
-const flowFiltPass = (x, f) => (!f.art || x.r.articleType === f.art) && (!f.sub || x.r.articleSubtype === f.sub)
+const flowFiltPass = (x, f) => (!f.po || x.r.orderNo === f.po) && (!f.art || x.r.articleType === f.art) && (!f.sub || x.r.articleSubtype === f.sub)
   && (!f.col || x.r.color === f.col) && (!f.size || x.r.size === f.size)
   && (!f.age || (flowDays(x.r.orderDate) || 0) > +f.age)
   && (!f.fab || flowFacet(x).fab === f.fab) && (!f.prn || flowFacet(x).prn === f.prn);
@@ -139,7 +140,7 @@ const flowFiltPass = (x, f) => (!f.art || x.r.articleType === f.art) && (!f.sub 
 function flowFiltFill(all, f) {
   const vals = get => [...new Set(all.map(get).filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
   const facets = flowFiltOpen() || f.fab || f.prn;
-  const by = { src: flowSrcOf, art: x => x.r.articleType, sub: x => x.r.articleSubtype, col: x => x.r.color, size: x => x.r.size,
+  const by = { src: flowSrcOf, po: x => x.r.orderNo, art: x => x.r.articleType, sub: x => x.r.articleSubtype, col: x => x.r.color, size: x => x.r.size,
     fab: x => (facets ? flowFacet(x).fab : ''), prn: x => (facets ? flowFacet(x).prn : '') };
   FLOW_FILT.forEach(([k, id, all0]) => { if (!$(id)) return;
     const list = vals(by[k]); if (f[k] && !list.includes(f[k])) list.push(f[k]);
