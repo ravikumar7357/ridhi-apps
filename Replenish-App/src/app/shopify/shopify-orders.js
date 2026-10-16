@@ -1766,6 +1766,9 @@ function renderShop() {
   const arrow = k => (SHOP_SORT.k === k ? (SHOP_SORT.dir > 0 ? ' ↑' : ' ↓') : '');
   /* ONE PAGE OR EVERY COLUMN (Ravi, 2026-09-26: "this window looks very long — isko only 1 page par set karo").
    * The tight table is the default; the wide one is a click away and remembered per browser. */
+  /* ON A PHONE, A CARD PER ORDER (core/mobile.js, 2026-10-16). Same rows, same filters, same tick and same tap-to-open. */
+  if ($('soTable')) $('soTable').classList.toggle('so-cards', (typeof mobOn === 'function' && mobOn()));
+  if ((typeof mobOn === 'function' && mobOn())) { soCards(rows, money, esc); soWireTable(); return; }
   const dense = soDense();
   if ($('soTable')) $('soTable').classList.toggle('xl-dense', dense);
   if ($('soDense')) $('soDense').textContent = dense ? 'Full columns' : 'One page';
@@ -1856,6 +1859,46 @@ function renderShop() {
     + more + '</tbody>';
   if ($('soMore')) $('soMore').onclick = e => { e.stopPropagation(); SO_DENSE_CAP += SO_CAP_STEP; renderShop(); };
   soWireTable();
+}
+
+/**
+ * Shopify Orders on a phone: one card per order instead of a 19-column row.
+ *
+ * What a packer needs to decide on, at a glance: the order, the day, who and where, how many pieces and how much, the
+ * shelf bins, where it ships from (the same words and colours as the table's Ship from), what Shopify says, and the
+ * items. Everything else is one tap away inside the order, exactly as on a computer. Each card is a <tr data-so> with
+ * the same .soPick tick, so soWireTable wires it as it wires the table.
+ */
+function soCards(rows, money, esc) {
+  const drawn = rows.slice(0, SO_DENSE_CAP);
+  const route = r => r.route === 'Need from production' ? '<span class="st st-rejected">' + esc(r.route) + '</span>'
+    : r.route === 'Ship from India' ? '<span class="st st-pending">' + esc(r.route) + '</span>'
+    : '<span class="st st-draft">' + esc(r.route) + '</span>';
+  const body = drawn.map(r => '<tr data-so="' + esc(r.id) + '"><td class="so-mc'
+    + (r.cancelled ? ' so-cancel' : '') + (r.chargeback ? ' so-cb' : '') + '">'
+    + '<input type="checkbox" class="soPick" data-id="' + esc(r.id) + '"' + (SO_PICKED.has(r.id) ? ' checked' : '') + ' aria-label="Tick order ' + esc(r.no) + '">'
+    + '<span class="so-mc-no">' + esc(r.no)
+      + (r.shopNote ? ' <span title="Shopify note: ' + esc(r.shopNote) + '" style="color:#854d0e">&#9998;</span>' : '') + '</span>'
+    + '<span class="so-mc-at">' + esc(r.at) + '</span>'
+    + '<span class="so-mc-who">' + esc(r.ship.name || '') + (r.ship.city || r.ship.state || r.ship.country
+        ? ' · ' + esc([r.ship.city, r.ship.state, r.ship.country].filter(Boolean).join(', ')) : '')
+      + (r.channel !== 'Shopify' ? ' · <span class="st st-draft">' + esc(r.channel) + '</span>' : '') + '</span>'
+    + '<span class="so-mc-figs"><span><b>' + r.units + '</b> pcs</span><span><b>' + money(r.total) + '</b></span>'
+      + (r.locTxt ? '<span>Bin <b>' + esc(r.locTxt) + '</b></span>' : '')
+      + (r.makeQty ? '<span class="st st-pending">' + r.makeQty + ' to make</span>' : '') + '</span>'
+    + '<span class="so-mc-tags">' + soProdChip(r) + route(r)
+      + (r.cancelled ? '<span class="st st-rejected">Cancelled</span>' : '')
+      + (r.chargeback ? '<span class="st st-rejected">Chargeback</span>' : '')
+      + (r.mcfDone ? '<span class="st st-approved">Done</span>' : '')
+      + soFfTag(r.ff)
+      + (r.status ? '<span class="muted" style="font-size:12px">' + esc(r.status) + '</span>' : '') + '</span>'
+    + '<span class="so-mc-items">' + esc(r.items.map(i => `${i.sku || i.name} × ${i.qty}`).join(' · ')) + '</span>'
+    + '</td></tr>').join('');
+  const more = rows.length > drawn.length
+    ? '<tr><td><button type="button" class="ghost so-mc-more" id="soMore">Show ' + nf(Math.min(SO_CAP_STEP, rows.length - drawn.length))
+      + ' more · ' + nf(drawn.length) + ' of ' + nf(rows.length) + ' shown</button></td></tr>' : '';
+  $('soTable').innerHTML = '<tbody>' + (body || '<tr><td class="muted" style="padding:14px">Nothing matches that filter.</td></tr>') + more + '</tbody>';
+  if ($('soMore')) $('soMore').onclick = e => { e.stopPropagation(); SO_DENSE_CAP += SO_CAP_STEP; renderShop(); };
 }
 
 /** Sort headings, a click on an order opens it, the ticks — for whichever table is on screen. */

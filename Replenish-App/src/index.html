@@ -3,8 +3,28 @@
      twenty. White rather than transparent on purpose: dark lettering cut out of nothing disappears
      on a dark tab strip. Served from this site; nothing is fetched from outside. -->
 <link rel="icon" href="/logo.png">
-<!-- NO VIEWPORT LINE, ON PURPOSE (Ravi, 2026-09-22: "pahle jese tha besa hi kardo"): a phone draws the
-     desktop layout, scaled to fit, as it always had. -->
+<!-- THE PHONE LAYOUT (Ravi, 2026-10-16: "I want it be a app ... responsive and something that is for mobile users").
+     Until then a phone drew the desktop layout, scaled to fit (Ravi, 2026-09-22: "pahle jese tha besa hi kardo"). Now a
+     phone gets its own screen — a bar of tabs at the bottom, orders as cards (core/mobile.js) — and "Desktop view" under
+     More brings the old scaled layout back on that phone, remembered. A computer, a tablet and a wide window never change.
+     The viewport line is written here, by script, only when the phone layout is on: a fixed one would shrink every phone
+     that chose Desktop view. localStorage mobView = 'on' turns it on anywhere (for checking it on a computer). -->
+<script>
+(function () {
+  try {
+    var pick = '';
+    try { pick = localStorage.getItem('mobView') || ''; } catch (e) { /* private window: the default */ }
+    var phone = Math.min(screen.width, screen.height) <= 600 && window.matchMedia('(pointer:coarse)').matches;
+    if (pick === 'on' || (phone && pick !== 'off')) {
+      var m = document.createElement('meta');
+      m.name = 'viewport';
+      m.content = 'width=device-width, initial-scale=1, viewport-fit=cover';
+      document.head.appendChild(m);
+      document.documentElement.classList.add('mob');
+    }
+  } catch (e) { /* the desktop layout, as before */ }
+})();
+</script>
 <meta name="theme-color" content="#F3F5F8">
 <!-- INSTALLABLE: its own icon, full screen, no browser bar. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">

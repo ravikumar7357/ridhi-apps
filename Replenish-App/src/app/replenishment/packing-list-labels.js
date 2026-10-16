@@ -434,16 +434,40 @@ function renderPack() {
     + '<th>Status</th><th class="num">Boxes</th><th class="num">Total qty</th>'
     + '<th class="num">Net wt (kg)</th><th>By</th><th></th></tr></thead>';
   if (!rows.length) {
-    $('pkTable').innerHTML = head + `<tbody><tr><td colspan="10" class="muted" style="padding:14px">`
+    if ($('pkTable').classList) $('pkTable').classList.toggle('pk-cards', (typeof mobOn === 'function' && mobOn()));
+    $('pkTable').innerHTML = ((typeof mobOn === 'function' && mobOn()) ? '' : head) + `<tbody><tr><td colspan="10" class="muted" style="padding:14px">`
       + (PK.length ? 'No packing list matches these filters.'
         : 'Nothing saved yet \u2014 press \u201cNew from file\u201d and pick your packing sheet (.xlsx or .csv).')
       + '</td></tr></tbody>';
     return;
   }
-  $('pkTable').innerHTML = head + '<tbody>' + rows.map(p => {
+  if ($('pkTable').classList) $('pkTable').classList.toggle('pk-cards', (typeof mobOn === 'function' && mobOn()));
+  $('pkTable').innerHTML = ((typeof mobOn === 'function' && mobOn()) ? '' : head) + '<tbody>' + rows.map(p => {
     const t = pkTotals(p);
     const box = (f, v, w, ph) => `<input class="pkCell" data-id="${esc(p.id)}" data-f="${f}"`
       + ` value="${esc(v || '')}" placeholder="${ph || '\u2014'}" style="width:${w};padding:3px 6px;font-size:12px">`;
+    /* ON A PHONE, A CARD PER LIST (core/mobile.js, 2026-10-16): the same boxes, saved as they are typed, and the same
+     * buttons \u2014 so the wiring below serves both. */
+    if ((typeof mobOn === 'function' && mobOn())) return `<tr><td class="pk-mc">
+      <div class="pk-mc-top">${box('title', p.title, '100%', '(untitled)')}
+        <select class="pkCell" data-id="${esc(p.id)}" data-f="status">`
+        + Object.entries(PK_STATUS).map(([k, lbl]) =>
+            `<option value="${k}"${(p.status || 'progress') === k ? ' selected' : ''}>${lbl}</option>`).join('')
+        + `</select></div>
+      <div class="pk-mc-figs"><span><b>${t.boxes}</b> boxes</span><span><b>${t.qty.toLocaleString('en-US')}</b> pcs</span>
+        <span><b>${t.net.toFixed(2)}</b> kg net</span><span class="muted">${esc((p.by || '').split('@')[0])}</span></div>
+      <div class="pk-mc-row">
+        <label>Date<input class="pkCell" data-id="${esc(p.id)}" data-f="date" type="date" value="${esc(p.date || '')}"></label>
+        <label>Invoice #${box('invoice', p.invoice, '100%')}</label>
+        <label class="pk-mc-wide">FBA account${box('account', p.account, '100%')}</label>
+      </div>
+      <div class="pk-mc-acts">
+        <button class="pkOpen" data-id="${esc(p.id)}">Open</button>
+        <button class="ghost pkPrint" data-id="${esc(p.id)}">Packing list</button>
+        <button class="ghost pkLbl" data-id="${esc(p.id)}">Labels</button>
+        <button class="ghost pkAmz" data-id="${esc(p.id)}">FBA file</button>
+        <button class="ghost pkDel" data-id="${esc(p.id)}" style="color:var(--bad)">Delete</button>
+      </div></td></tr>`;
     return `<tr>
       <td style="padding:2px 4px"><input class="pkCell" data-id="${esc(p.id)}" data-f="date" type="date"
         value="${esc(p.date || '')}" style="width:130px;padding:3px 6px;font-size:12px"></td>

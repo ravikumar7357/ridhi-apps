@@ -21344,7 +21344,12 @@ console.log('\n== the installed app ==');
   /* "mobile me app install kar liya to wo mobile app ki tarah react kare" — 2026-09-22. */
   const src = fs.readFileSync(APP, 'utf8');
   const dir = require('path').dirname(APP);
-  ok('a phone draws the desktop layout, scaled to fit, as before 22 Sep (Ravi asked for it back)', !/<meta name="viewport"/.test(src) && !/mob-fold/.test(src));
+  /* 16 Oct: Ravi asked for a phone layout ("something that is for mobile users"). The 22 Sep rule now holds for everybody
+   * who is not on a phone, and for a phone that picks Desktop view: no fixed viewport line, and the old fold is not back. */
+  ok('no fixed viewport line: a computer, and a phone on Desktop view, draw the desktop layout as before', !/<meta name="viewport"/.test(src) && !/mob-fold/.test(src));
+  ok('a phone gets the phone layout, and Desktop view turns it off and is remembered',
+     /phone && pick !== 'off'/.test(src) && /m\.name = 'viewport'/.test(src) && /localStorage\.setItem\('mobView', 'off'\)/.test(src));
+  ok('the phone layout is only ever under html.mob, so no computer screen changes', !/^\s*#mobBar|^\s*\.mob-tab/m.test(src) && /html\.mob #mobBar/.test(src));
   ok('the manifest is linked', /<link rel="manifest" href="\/manifest\.webmanifest">/.test(src));
   const man = JSON.parse(fs.readFileSync(dir + '/manifest.webmanifest', 'utf8'));
   ok('it opens full screen, from its own icon', man.display === 'standalone' && man.start_url && man.icons.some(i => i.sizes === '512x512')

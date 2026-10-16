@@ -153,3 +153,4 @@ shopify/imported-orders-bulk.js
 core/filter-by.js
 core/installed-app.js
 core/version-check.js
+core/mobile.js
