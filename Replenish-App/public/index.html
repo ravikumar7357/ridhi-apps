@@ -2124,6 +2124,7 @@ html.mob #paneFgi .toolbar>label,html.mob #fgQ,html.mob #pkSearch{flex:1 1 100%!
             <option value="approved">Approved</option>
           </select>
           <select id="sxChan" style="flex:0 0 175px" title="Which sales channel the order came from"><option value="">All channels</option></select>
+          <select id="sxMode" style="flex:0 0 140px" title="How an Amazon order ships — AIR or SEA (the end of its number)"><option value="">AIR or SEA</option><option value="AIR">AIR</option><option value="SEA">SEA</option></select>
           <input id="sxQ" placeholder="Search order / buyer / channel / SKU" style="flex:1 1 220px;min-width:0">
           <span class="muted" style="font-size:12.5px;flex:0 0 auto">Ordered</span>
           <input id="sxD1" type="date" style="flex:0 0 150px" title="Order date from">
@@ -39000,6 +39001,8 @@ async function ensureSox() {
 
 const soLines = o => (Array.isArray(o.lines) ? o.lines : Object.values(o.lines || {})).filter(Boolean);
 const soStatus = o => o.status || 'draft';
+/** AIR / SEA on an Amazon order: kept on it (shipMode), else read off the end of its number. '' for none. */
+const soShipMode = o => String((o && o.shipMode) || (typeof soModeOf === 'function' ? soModeOf(o && o._id) : '') || '').toUpperCase();
 const soCount = x => (Array.isArray(x) ? x.length : Object.keys(x || {}).length);
 
 /** Order + SKU → net cut and pressed, built once. Per-SKU lookups would rescan 4,000 rows 1,200 times. */
@@ -39074,6 +39077,8 @@ function renderSox() {
   const ch = (chSel && chSel.value) || '';
   const base = ch ? all.filter(o => chOf(o) === ch) : all;
   const st = $('sxStatus').value, q = $('sxQ').value.trim().toLowerCase();
+  /* AIR OR SEA (Ravi, 16 Oct: "sales order list me AIR / SEA filter bhi add karo"): the mode kept on the order, else the end of its number. */
+  const md = String(($('sxMode') || {}).value || '');
   /* ON THE ORDER DATE, not on when the order was last touched — that is the date the row shows and
    * the date anybody asking for "September's orders" means. Sales orders carry it two ways, ISO from
    * the new-order form and day-first from the vendor side, which is why this goes through ptInRange
@@ -39081,6 +39086,7 @@ function renderSox() {
   const [sxD1, sxD2] = ptRangeOf('sxD1', 'sxD2');
   const rows = base
     .filter(o => !st || soStatus(o) === st)
+    .filter(o => !md || soShipMode(o) === md)
     .filter(o => ptInRange(o && o.orderDate, sxD1, sxD2))
     .map(o => ({ o, s: soSummary(o, w) }))
     .filter(({ o, s }) => !q || [o._id, o.buyerName, o.buyerEmail, o.channel, soStatus(o)].join(' ').toLowerCase().includes(q)
@@ -39112,7 +39118,7 @@ function renderSox() {
     const done = soStatus(o) === 'approved';
     return '<tr>'
       + `<td class="frz" style="text-align:left;font-weight:600">${esc(o._id)}</td>`
-      + `<td>${esc(o.orderDate)}</td><td>${esc(o.channel)}</td>`
+      + `<td>${esc(o.orderDate)}</td><td>${esc(o.channel)}${soShipMode(o) ? ` <span class="pill" style="font-size:11px">${esc(soShipMode(o))}</span>` : ''}</td>`
       + `<td style="text-align:left">${esc(o.buyerName) || '<span class="muted">—</span>'}</td>`
       + `<td><span class="pill ${sd.cls}">${esc(sd.label)}</span></td>`
       + `<td class="num">${nf(s.skus)}${s.skus !== s.lines ? ` <span class="muted" style="font-size:11px">of ${nf(s.lines)}</span>` : ''}</td>`
@@ -39246,11 +39252,13 @@ if ($('sxBack')) $('sxBack').addEventListener('click', e => {
 });
 $('sxStatus').addEventListener('change', renderSox);
 if ($('sxChan')) $('sxChan').addEventListener('change', renderSox);
+if ($('sxMode')) $('sxMode').addEventListener('change', renderSox);
 ['sxD1', 'sxD2'].forEach(id => $(id).addEventListener('change', renderSox));
 $('sxClear').onclick = () => {
   ['sxQ', 'sxD1', 'sxD2'].forEach(id => $(id).value = '');
   $('sxStatus').value = '';
   if ($('sxChan')) $('sxChan').value = '';
+  if ($('sxMode')) $('sxMode').value = '';
   renderSox();
 };
 ptDebounce('sxQ', renderSox);
