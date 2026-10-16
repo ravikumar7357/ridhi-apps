@@ -26312,7 +26312,7 @@ function flowPpcOpen(orderNo, onlySku, keys) {
         <div class="fpc-t"><div><b class="fpc-sku">${esc(p.sku)}</b><span class="fpc-qty">${nf(p.qty)} pcs</span></div>
           <div class="fpc-sub">${esc([r.articleSubtype || r.articleType, r.color, r.size].filter(Boolean).join(' · '))}</div></div>
         <div class="fpc-chips" data-chips="${i}"></div>
-        ${rows.length > 1 && !rows[i].s.plan ? `<label title="Untick to leave this line in PPC for now — what is typed is kept as a draft" style="display:inline-flex;gap:5px;align-items:center;font-size:12.5px;font-weight:600;white-space:nowrap;margin-left:8px"><input type="checkbox" data-fpick="${i}" checked style="width:auto"> Raise now</label>` : ''}
+        ${rows.length > 1 && !rows[i].s.plan ? `<label title="Untick to leave this line in PPC for now — what is typed is kept as a draft" style="display:inline-flex;gap:5px;align-items:center;font-size:12.5px;font-weight:600;white-space:nowrap;margin-left:8px"><input type="checkbox" data-fpick="${i}" style="width:auto"> Raise now</label>` : ''}
       </div>
       <div class="fpc-b">
         <div class="fpc-col">
@@ -26367,6 +26367,7 @@ function flowPpcOpen(orderNo, onlySku, keys) {
     onSave: async () => {
       /* PART OF A PO (Ravi, 16 Oct: "ppc wale ne 1 po ke against me half line plan kar liya ho to unko to aage raise kar
        * sake"): only the ticked lines are raised; the others stay in PPC, their typed figures kept as a draft. */
+      /* Unticked to start with (Ravi, 16 Oct: "auto raise now tick nahi hona chahiye m khud tick karunga"). */
       const pick = i => { const el = document.querySelector(`[data-fpick="${i}"]`); return !el || !!el.checked; };
       if (rows.length > 1 && !rows.some((x, i) => pick(i))) return 'Tick at least one line to raise — or press Save as draft.';
       if (editing && $('flpUndo') && $('flpUndo').checked) { const er = await flowUnplan(rows[0].s); if (er) return er; flowPpcDraftDrop(rows.map(x => x.s.key)); renderFlow(); return ''; }
@@ -26587,8 +26588,8 @@ function flowPpcOpen(orderNo, onlySku, keys) {
   }
   /* "Raise now" ticks: the save button says how many lines it will raise. */
   if (rows.length > 1) { const relabel = () => { const n = rows.filter((x, i) => { const el = document.querySelector(`[data-fpick="${i}"]`); return !el || el.checked; }).length;
-      if ($('ptDlgSave')) $('ptDlgSave').textContent = n === rows.length ? `Raise the plan for ${rows.length} lines` : `Raise ${n} of ${rows.length} lines`; };
-    document.querySelectorAll('[data-fpick]').forEach(el => el.addEventListener('change', relabel)); }
+      if ($('ptDlgSave')) $('ptDlgSave').textContent = !n ? 'Tick the lines to raise' : n === rows.length ? `Raise the plan for ${rows.length} lines` : `Raise ${n} of ${rows.length} lines`; };
+    document.querySelectorAll('[data-fpick]').forEach(el => el.addEventListener('change', relabel)); relabel(); }
   /* THE DRAFT: put back before the first drawing, then kept as the boxes change. */
   const dkeys = rows.map(x => x.s.key);
   const sayD = (t, bad) => { const el = $('flpDraftSay'); if (el) { el.textContent = t; el.className = bad ? 'err' : 'muted'; } };

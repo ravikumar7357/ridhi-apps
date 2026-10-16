@@ -1784,7 +1784,7 @@ const K = 'AMZ-1__S1';
     const mdb = { S1: { cons: 1, fab: 'Cotton' }, S2: { cons: 1, fab: 'Cotton' } };
     const A = load({ me: { tabs: ['flppc'] }, mdb, lines: [L({ sku: 'S1' }), L({ sku: 'S2' })] });
     A.flowPpcOpen('AMZ-1');
-    ok('each line of a PO has a "Raise now" tick, ticked', (A.ctx.__dlg.html.match(/data-fpick="\d" checked/g) || []).length === 2);
+    ok('each line of a PO has a "Raise now" tick, NOT ticked — PPC ticks what it raises (16 Oct)', (A.ctx.__dlg.html.match(/data-fpick="\d"/g) || []).length === 2 && !/data-fpick="\d" checked/.test(A.ctx.__dlg.html));
     const box = (i, k, v) => ({ addEventListener() {}, dataset: { fp: String(i), k }, type: 'select-one', value: v });
     A.ctx.document.querySelectorAll = sel => sel === '[data-fp]' ? [box(0, 'route', 'stitch'), box(1, 'route', 'stitch')] : [];
     const ticks = { 0: { checked: false }, 1: { checked: false } };
