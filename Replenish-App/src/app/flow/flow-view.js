@@ -115,7 +115,9 @@ function renderFlow() {
 /* PO too (Ravi, 16 Oct: "filter me PO add karo"): the order numbers the lines on screen carry. */
 const FLOW_FILT = [['src', 'flSrc', 'Every platform'], ['po', 'flFPo', 'Every PO'], ['art', 'flFArt', 'Every article'], ['sub', 'flFSub', 'Every subtype'],
   ['col', 'flFCol', 'Every colour'], ['size', 'flFSize', 'Every size'], ['fab', 'flFFab', 'Every fabric'], ['prn', 'flFPrn', 'Every printer']];
-const flowSrcOf = x => x.r.src || String(x.r.orderNo).split('-')[0];
+/* The platform: the order number's own prefix where the line only says it came in on a sales order ("SO", 16 Oct). */
+const flowSrcOf = x => { const s = String(x.r.src || '').trim(), pre = String(x.r.orderNo || '').split('-')[0];
+  return s && s.toUpperCase() !== 'SO' ? s : (pre || s); };
 const flowFiltVals = () => { const v = {}; FLOW_FILT.forEach(([k, id]) => { v[k] = $(id) ? String($(id).value || '') : ''; });
   v.age = $('flFAge') ? String($('flFAge').value || '') : ''; return v; };
 const flowFiltCount = f => Object.values(f).filter(Boolean).length;
@@ -174,7 +176,16 @@ function flowByPrintTable(rows) {
 /* WHAT THE CUTTING DEPARTMENT CUTS FROM, for a planned line: the printed fabric (from the store, or back from the
  * printer), how much, for how many pieces of the order. */
 function flowCutFrom(x) {
-  const p = x.s.plan; if (!p || x.s.route !== 'inhouse') return '<span class="muted">—</span>';
+  const p = x.s.plan;
+  /* THE CUTTING ROUTE (16 Oct: the column said "—"). No printer: the line is cut from RFD — or, ticked "already printed / in
+   * hand", from the printed cloth in the store. Fabric, colour and the metres it takes, from the plan. */
+  if (p && x.s.route === 'stitch' && p.fabric && p.fabric.name) {
+    const colour = String(((cutSkuOf(x.r.sku) || {}).color) || x.r.color || '').trim();
+    const m = flowR2((+p.fabric.metres || 0) || (+p.fabric.perPc || 0) * (+x.r.qty || 0));
+    return `<b>${esc(p.fabric.name)}</b>${p.fabric.noRfd && colour ? ' · ' + esc(colour) : ''} <span class="pill ${p.fabric.noRfd ? 'ok' : 'mute'}" style="font-size:10.5px">${p.fabric.noRfd ? 'printed, in hand' : 'RFD'}</span>`
+      + `<div class="muted" style="font-size:10.5px">${nf(m)} m for ${nf(x.r.qty)} pcs</div>`;
+  }
+  if (!p || x.s.route !== 'inhouse') return '<span class="muted">—</span>';
   const w = flowPrintWhat(x.r, p), m = flowR2(+(p.fabric && p.fabric.metres) || 0), fp = +(p.fabric && p.fabric.fromPrinted) || 0;
   return `${w.kind === 'sku' ? `<b>${esc(w.code)}</b> printed pieces` : flowPrintTxt(w)}<div class="muted" style="font-size:10.5px">${w.kind === 'sku' ? nf(x.r.qty) + ' pcs' : nf(m) + ' m'} for ${nf(x.r.qty)} pcs`
     + (x.s.fromStock ? ' · <b style="color:#166534">all from printed stock in the store</b>' : fp > 0 ? ` · ${nf(fp)} ${p.fabric.printedUnit === 'pcs' ? 'pcs' : 'm'} from printed stock, the rest from the printer` : ' · from the printer') + '</div>'
@@ -229,7 +240,7 @@ function flowTable(view, rows) {
     if (again) return `<div class="muted" style="font-size:11px">${esc(x.r.orderNo)}</div>`;
     return (x.r.__t ? `<b>${esc(x.r.orderNo)}</b> <span class="navbadge" style="background:#7c3aed;position:static">TEST</span>`
       : `<a href="#" data-ordj="${esc(x.r.orderNo)}" style="font-weight:600">${esc(x.r.orderNo)}</a>`)
-      + `<div class="muted" style="font-size:12px">${esc(x.r.src || '')} · ${esc(ptIsoDate(x.r.orderDate) || '')} · ${nf(flowDays(x.r.orderDate) || 0)} d</div>`
+      + `<div class="muted" style="font-size:12px">${esc(flowSrcOf(x))} · ${esc(ptIsoDate(x.r.orderDate) || '')} · ${nf(flowDays(x.r.orderDate) || 0)} d</div>`
       + (x.r.fromSo ? `<div class="muted" style="font-size:12px">Copy of sales order ${esc(x.r.fromSo)}</div>` : '');
   };
   const base = x => { const first = x.r.orderNo !== prevNo, h = poHead(x);

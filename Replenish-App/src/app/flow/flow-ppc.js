@@ -89,7 +89,7 @@ function flowCommitted(skipKeys, withTest) {
     /* WHAT AN EARLIER PLAN STILL HAS TO TAKE FROM THE RFD (16 Oct, one rule with flowRfdStock). A printed line: what its
      * challans have not sent yet — what they sent is already off the stock. Cutting straight from RFD: all of it until
      * the line is cut or issued. Job Work and outsourced lines take no RFD. */
-    if (p.fabric && p.fabric.name && s.route !== 'jobwork' && !s.cut && !s.issued) {   // cut or issued: its cloth has gone
+    if (p.fabric && p.fabric.name && s.route !== 'jobwork' && !(s.route === 'stitch' && p.fabric.noRfd) && !s.cut && !s.issued) {   // cut or issued: its cloth has gone
       const owed = s.route === 'inhouse' ? flowFabOwed({ qty: +r.qty || 0 }, s).metres
         : (fr && !fr.challan && +fr.metres > 0 ? +fr.metres : flowToPrint(r, p).metres);
       if (owed > 0) { const k = flowFabKey(p.fabric.name); fab[k] = flowR2((fab[k] || 0) + owed); }
@@ -478,7 +478,8 @@ function flowPpcOpen(orderNo, onlySku, keys) {
         if (p.route === 'outsource') { p.acc = []; p.fabric = Object.assign({}, p.fabric, { metres: 0 }); }
         if (p.route === 'jobwork') p.fabric = Object.assign({}, p.fabric, { metres: 0, fromPrinted: 0 });   // no cloth raised
         if (p.route !== 'stitch' && p.fabric) delete p.fabric.noRfd;   // the tick means something on the Cutting route only
-        if (p.route === 'stitch' && p.fabric && p.fabric.noRfd) p.fabric = Object.assign({}, p.fabric, { metres: 0, fromPrinted: 0, noRfd: true });   // in hand: no RFD raised
+        /* In hand: no RFD raised — the metres stay, so the cutting table knows what the line takes (16 Oct). */
+        if (p.route === 'stitch' && p.fabric && p.fabric.noRfd) p.fabric = Object.assign({}, p.fabric, { fromPrinted: 0, noRfd: true });
         const rec = Object.assign({}, p, { at: now, by: ME.email || '' }); delete rec.gaps;
         patch['pt_ppc/' + flowKey(p.orderNo, p.sku)] = rec;
       });
