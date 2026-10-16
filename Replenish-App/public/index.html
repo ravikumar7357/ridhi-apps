@@ -2825,10 +2825,8 @@ html.mob #paneFgi .toolbar>label,html.mob #fgQ,html.mob #pkSearch{flex:1 1 100%!
             </div>
           </details>
           <button id="flRefresh" class="ghost" style="width:auto">Refresh</button>
-          <!-- Hidden from the first paint (16 Oct: they showed for two seconds before the flow was read); renderFlow shows them
-               only where test orders are switched on (localStorage flowTests = '1'). -->
-          <button id="flTest" style="width:auto;background:#7c3aed;border-color:#7c3aed;display:none">+ Test order</button>
-          <label style="display:none;gap:6px;align-items:center;font-size:13px;color:#6d28d9;font-weight:600"><input id="flTestOnly" type="checkbox" style="width:auto"> Only test orders</label>
+          <!-- NO TEST ORDERS ANY MORE (Ravi, 16 Oct: "test ab chahiye hi nahi remove test"): the "+ Test order" button and the
+               "Only test orders" switch are gone from the page. -->
         </div>
         <div id="flMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
       </div>
@@ -25802,6 +25800,8 @@ const flowKey = (orderNo, sku) => (obUC(orderNo) + '__' + obUC(sku)).replace(/[.
 /* TEST ORDERS OFF FOR GOOD (Ravi, 15 Oct: "ab test window hata do hum real working karenge"): no "+ Test order", no
  * "Only test orders", no test order on any list. None was left in the database. localStorage flowTests = '1' brings the
  * test tools back on one computer. */
+/* REMOVED FROM THE APP (Ravi, 16 Oct: "test ab chahiye hi nahi remove test"): no button, no switch on the page. The
+ * localStorage key is read only by the automated tests (tests/flow-test.js), which walk the flow on test orders. */
 function flowTestsOn() { try { return localStorage.getItem('flowTests') === '1'; } catch (e) { return false; } }
 /* The other half, for the test phase (FLOW_REAL off): whatever the flow wrote for a REAL order while it ran on the preview
  * link — plans, fabric ready, reservations, challans, print orders, FG sends — is left out as it is read, so no flow list
@@ -28062,7 +28062,7 @@ async function flowVpAfterLoad() {
 async function flowVpBar() {
   if (!FLOW_ON || !ME.admin || !$('vpBody') || $('flVpAs')) return;
   $('vpBody').insertAdjacentHTML('beforebegin', `<div class="card" style="padding:8px 12px;margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;border:1px dashed #7c3aed">
-    <span style="color:#7c3aed;font-weight:600;font-size:12.5px">TEST VIEW</span>
+    <span style="color:#7c3aed;font-weight:600;font-size:12.5px">PRINTER'S VIEW</span>
     <label style="display:flex;gap:6px;align-items:center;margin:0;font-size:12.5px">See the portal as printer
       <select id="flVpAs" style="width:auto;min-width:220px"><option value="">— my own sign-in —</option></select></label>
     <span class="muted" style="font-size:12px">what that printer sees, view only — nothing can be changed from here</span></div>`);
@@ -29076,8 +29076,9 @@ FLOW_FILT.map(f => f[1]).concat('flFAge').forEach(id => { if ($(id)) $(id).addEv
 if ($('flFilt')) $('flFilt').addEventListener('toggle', () => { if ($('flFilt').open) renderFlow(); });
 if ($('flFClear')) $('flFClear').onclick = () => { FLOW_FILT.map(f => f[1]).concat('flFAge').forEach(id => { if ($(id)) $(id).value = ''; }); renderFlow(); };
 if (document.addEventListener) document.addEventListener('click', e => { const d = $('flFilt'); if (d && d.open && !d.contains(e.target)) d.open = false; });
-$('flTest').onclick = () => flowTestOpen();
-$('flTestOnly').addEventListener('change', () => { flowTestOnlySet($('flTestOnly').checked); renderFlow(); });
+/* The test-order button and switch are gone from the page (16 Oct); nothing to wire. */
+if ($('flTest')) $('flTest').onclick = () => flowTestOpen();
+if ($('flTestOnly')) $('flTestOnly').addEventListener('change', () => { flowTestOnlySet($('flTestOnly').checked); renderFlow(); });
 $('flRefresh').onclick = async () => { $('flMsg').textContent = 'Reading again…'; await Promise.all([ptLoadGates(true), flowLoad(true),
   /* the Greige Desk too: the RFD stock is its count (flowRfdStock) */
   (FLOW_ON && typeof GD !== 'undefined' && GD.reload && flowGdReads() ? GD.reload().catch(() => {}) : null)]); renderFlow(); };

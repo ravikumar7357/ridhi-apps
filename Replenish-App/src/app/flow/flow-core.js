@@ -195,6 +195,8 @@ const flowKey = (orderNo, sku) => (obUC(orderNo) + '__' + obUC(sku)).replace(/[.
 /* TEST ORDERS OFF FOR GOOD (Ravi, 15 Oct: "ab test window hata do hum real working karenge"): no "+ Test order", no
  * "Only test orders", no test order on any list. None was left in the database. localStorage flowTests = '1' brings the
  * test tools back on one computer. */
+/* REMOVED FROM THE APP (Ravi, 16 Oct: "test ab chahiye hi nahi remove test"): no button, no switch on the page. The
+ * localStorage key is read only by the automated tests (tests/flow-test.js), which walk the flow on test orders. */
 function flowTestsOn() { try { return localStorage.getItem('flowTests') === '1'; } catch (e) { return false; } }
 /* The other half, for the test phase (FLOW_REAL off): whatever the flow wrote for a REAL order while it ran on the preview
  * link — plans, fabric ready, reservations, challans, print orders, FG sends — is left out as it is read, so no flow list

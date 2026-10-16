@@ -394,8 +394,9 @@ FLOW_FILT.map(f => f[1]).concat('flFAge').forEach(id => { if ($(id)) $(id).addEv
 if ($('flFilt')) $('flFilt').addEventListener('toggle', () => { if ($('flFilt').open) renderFlow(); });
 if ($('flFClear')) $('flFClear').onclick = () => { FLOW_FILT.map(f => f[1]).concat('flFAge').forEach(id => { if ($(id)) $(id).value = ''; }); renderFlow(); };
 if (document.addEventListener) document.addEventListener('click', e => { const d = $('flFilt'); if (d && d.open && !d.contains(e.target)) d.open = false; });
-$('flTest').onclick = () => flowTestOpen();
-$('flTestOnly').addEventListener('change', () => { flowTestOnlySet($('flTestOnly').checked); renderFlow(); });
+/* The test-order button and switch are gone from the page (16 Oct); nothing to wire. */
+if ($('flTest')) $('flTest').onclick = () => flowTestOpen();
+if ($('flTestOnly')) $('flTestOnly').addEventListener('change', () => { flowTestOnlySet($('flTestOnly').checked); renderFlow(); });
 $('flRefresh').onclick = async () => { $('flMsg').textContent = 'Reading again…'; await Promise.all([ptLoadGates(true), flowLoad(true),
   /* the Greige Desk too: the RFD stock is its count (flowRfdStock) */
   (FLOW_ON && typeof GD !== 'undefined' && GD.reload && flowGdReads() ? GD.reload().catch(() => {}) : null)]); renderFlow(); };
