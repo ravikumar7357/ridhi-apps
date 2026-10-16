@@ -16003,6 +16003,16 @@ console.log('\n== what a cut costs in cloth, and what it wastes ==');
   ok('waste is reported against what went in, not against the pieces',
     /waste 1.8 m = 10.0% of what went in/.test(els.cwFab.textContent), els.cwFab.textContent);
 
+  /* THE FABRIC PICKS ITSELF (Ravi, 16 Oct: "cutting entry kiya but isne auto fabric konsa lag raha h wo detect nhi kiya"). */
+  { const sel = els.cwFabric, wasOpt = sel.options;
+    sel.options = [{ value: '' }, { value: 'Cambric' }, { value: 'SHEETING 62' }]; sel.value = ''; sel.dataset.auto = '';
+    A.renderCutFab();
+    ok('the fabric box is set to the cloth the cut works out on (matched whatever its case)', sel.value === 'SHEETING 62', sel.value);
+    sel.value = 'Cambric';
+    A.renderCutFab();
+    ok('…a fabric picked by hand is left alone', sel.value === 'Cambric', sel.value);
+    sel.value = ''; sel.dataset.auto = ''; sel.options = wasOpt; }
+
 
   /* ---- what reaches the saved entry ---- */
   els.cwUsed.value = ''; els.cwWaste.value = '';
