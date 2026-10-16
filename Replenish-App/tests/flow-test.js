@@ -1779,6 +1779,24 @@ const K = 'AMZ-1__S1';
     ok('an earlier printed line with no challan yet still holds its 50 m in the balance', C.flowCommitted([]).fab['VOIL 92'] === 50, JSON.stringify(C.flowCommitted([]).fab));
   }
 
+  console.log('\n== part of a PO raised, the rest left in PPC (Ravi, 16 Oct: "half line plan kar liya ho to unko aage raise kar sake") ==');
+  {
+    const mdb = { S1: { cons: 1, fab: 'Cotton' }, S2: { cons: 1, fab: 'Cotton' } };
+    const A = load({ me: { tabs: ['flppc'] }, mdb, lines: [L({ sku: 'S1' }), L({ sku: 'S2' })] });
+    A.flowPpcOpen('AMZ-1');
+    ok('each line of a PO has a "Raise now" tick, ticked', (A.ctx.__dlg.html.match(/data-fpick="\d" checked/g) || []).length === 2);
+    const box = (i, k, v) => ({ addEventListener() {}, dataset: { fp: String(i), k }, type: 'select-one', value: v });
+    A.ctx.document.querySelectorAll = sel => sel === '[data-fp]' ? [box(0, 'route', 'stitch'), box(1, 'route', 'stitch')] : [];
+    const ticks = { 0: { checked: false }, 1: { checked: false } };
+    A.ctx.document.querySelector = sel => { const m = String(sel).match(/data-fpick="(\d)"/); return m ? ticks[m[1]] : null; };
+    ok('nothing ticked → refused, nothing written', /Tick at least one line/.test(await A.ctx.__dlg.onSave()) && !A.writes.length);
+    ticks[0].checked = true;
+    const e = await A.ctx.__dlg.onSave(), w = A.writes[A.writes.length - 1] || {};
+    ok('only the ticked line is raised; the other stays in PPC', !e && !!w['pt_ppc/AMZ-1__S1'] && !w['pt_ppc/AMZ-1__S2'], e || JSON.stringify(Object.keys(w)));
+    A.setFLOW(Object.assign(A.FLOW(), { ppc: Object.assign({}, A.FLOW().ppc) }));
+    ok('…and it is still in the PPC bucket', A.flowRows().find(x => x.r.sku === 'S2').s.bucket === 'ppc' && A.flowRows().find(x => x.r.sku === 'S1').s.bucket !== 'ppc');
+  }
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })();

@@ -18,7 +18,7 @@ async function flowEnsureData() {
   await Promise.all([flowLoad(), flowFabLoad(), (typeof STORE !== 'undefined' && STORE.rows === null ? ensureStore().catch(() => {}) : null), (PAL.printers === null ? palLoad().catch(() => {}) : null), (typeof ensureVo === 'function' ? ensureVo().catch(() => {}) : null),
     (typeof ensureAcc === 'function' ? ensureAcc().catch(() => {}) : null),
     /* The Greige Desk's RFD counts in Demand → RFD on the test link. */
-    (FLOW_ON && typeof GD !== 'undefined' && gdAllowed() ? GD.ensure().catch(() => {}) : null)]);
+    (FLOW_ON && typeof GD !== 'undefined' && flowGdReads() ? GD.ensure().catch(() => {}) : null)]);
 }
 
 /* The Fabric register, for the RFD stock Demand shows — read here without drawing the Fabric screen. */
@@ -396,7 +396,7 @@ $('flTest').onclick = () => flowTestOpen();
 $('flTestOnly').addEventListener('change', () => { flowTestOnlySet($('flTestOnly').checked); renderFlow(); });
 $('flRefresh').onclick = async () => { $('flMsg').textContent = 'Reading again…'; await Promise.all([ptLoadGates(true), flowLoad(true),
   /* the Greige Desk too: the RFD stock is its count (flowRfdStock) */
-  (FLOW_ON && typeof GD !== 'undefined' && GD.reload && gdAllowed() ? GD.reload().catch(() => {}) : null)]); renderFlow(); };
+  (FLOW_ON && typeof GD !== 'undefined' && GD.reload && flowGdReads() ? GD.reload().catch(() => {}) : null)]); renderFlow(); };
 /* The bucket table's buttons — on the flow screen, and in its tabs inside Cutting Data and the Job Work Register. */
 async function flowTableClick(e) {
   const sm = e.target.closest('[data-flsim]');
@@ -445,6 +445,9 @@ async function flowTableClick(e) {
 $('flTable').addEventListener('click', flowTableClick);
 /* The menu button shows only where the flow is switched on, and only to an account with a bucket. */
 /* The Greige Desk is for anyone holding one of its rights (real working since 15 Oct). */
+/* THE RFD STOCK IS THE GREIGE DESK'S COUNT (flowRfdStock), so whoever works PPC or Demand reads the desk — only reads it;
+ * the Greige Desk menu stays for its own rights (Ravi, 16 Oct: Vikram, PPC without a Greige Desk right, saw "stock not read"). */
+function flowGdReads() { return gdAllowed() || flowScreenAllowed().length > 0; }
 function gdAllowed() { return ['gdesk', 'gdled', 'gdledit', 'gdappr'].some(k => ME.admin || !(ME.tabs && ME.tabs.length) || ME.tabs.includes(k)); }
 function flowNavShow() { if ($('tabGdesk')) $('tabGdesk').style.display = FLOW_ON && gdAllowed() ? '' : 'none'; if ($('tabFlow')) $('tabFlow').style.display = FLOW_ON && flowScreenAllowed().length ? '' : 'none'; flowEmbedSetup(); flowDupViewsOff(); }
 

@@ -315,6 +315,7 @@ function flowPpcOpen(orderNo, onlySku, keys) {
         <div class="fpc-t"><div><b class="fpc-sku">${esc(p.sku)}</b><span class="fpc-qty">${nf(p.qty)} pcs</span></div>
           <div class="fpc-sub">${esc([r.articleSubtype || r.articleType, r.color, r.size].filter(Boolean).join(' · '))}</div></div>
         <div class="fpc-chips" data-chips="${i}"></div>
+        ${rows.length > 1 && !rows[i].s.plan ? `<label title="Untick to leave this line in PPC for now — what is typed is kept as a draft" style="display:inline-flex;gap:5px;align-items:center;font-size:12.5px;font-weight:600;white-space:nowrap;margin-left:8px"><input type="checkbox" data-fpick="${i}" checked style="width:auto"> Raise now</label>` : ''}
       </div>
       <div class="fpc-b">
         <div class="fpc-col">
@@ -366,6 +367,10 @@ function flowPpcOpen(orderNo, onlySku, keys) {
     wide: true,
     saveLabel: editing ? 'Save the plan' : rows.length > 1 ? `Raise the plan for ${rows.length} lines` : 'Raise the plan',
     onSave: async () => {
+      /* PART OF A PO (Ravi, 16 Oct: "ppc wale ne 1 po ke against me half line plan kar liya ho to unko to aage raise kar
+       * sake"): only the ticked lines are raised; the others stay in PPC, their typed figures kept as a draft. */
+      const pick = i => { const el = document.querySelector(`[data-fpick="${i}"]`); return !el || !!el.checked; };
+      if (rows.length > 1 && !rows.some((x, i) => pick(i))) return 'Tick at least one line to raise — or press Save as draft.';
       if (editing && $('flpUndo') && $('flpUndo').checked) { const er = await flowUnplan(rows[0].s); if (er) return er; flowPpcDraftDrop(rows.map(x => x.s.key)); renderFlow(); return ''; }
       /* A box's value into the plan; a part the plan has lost (a refused save can leave printer null) is made again. */
       const set = (o, path, v) => { const ks = path.split('.'); let t = o; ks.slice(0, -1).forEach(k => { const kk = /^\d+$/.test(k) ? +k : k; if (t[kk] == null) t[kk] = {}; t = t[kk]; }); t[ks[ks.length - 1]] = v; };
@@ -381,7 +386,7 @@ function flowPpcOpen(orderNo, onlySku, keys) {
         const rv = p.route === 'inhouse' && p.rufflePrinter && p.rufflePrinter.code ? flowChVendors().find(x => String(x.code) === String(p.rufflePrinter.code)) : null;
         p.rufflePrinter = rv && (!p.printer || String(rv.code) !== String(p.printer.code)) ? { code: rv.code, name: rv.desc || rv.name || rv.code } : null; });
       /* A printed line on a fabric made both ways must say which way — the printer cannot print "either". */
-      const noDir = plans.filter((p, i) => p.route === 'inhouse' && flowPrintWhat(rows[i].r, p).needDir).map(p => p.sku);
+      const noDir = plans.filter((p, i) => pick(i) && p.route === 'inhouse' && flowPrintWhat(rows[i].r, p).needDir).map(p => p.sku);
       if (noDir.length) return `Which way is it printed? Pick the print direction for ${noDir.join(', ')}.`;
       /* The print order goes to the printer now — so a printed line has to say which printer. */
       /* What still goes to a printer once printed stock is taken: the body not covered, or a ruffle cloth not covered. */
@@ -390,14 +395,15 @@ function flowPpcOpen(orderNo, onlySku, keys) {
         const rufLeft = (p.extra || []).some((x, j) => /^Ruffle — /.test(String(x.what || '')) && (+x.qty || 0) - ((c.extra || {})[j] || 0) > 0.01);
         if (which) return bodyLeft > 0.01 ? 'body' : rufLeft ? 'ruffle' : '';   // only the ruffle prints → the ruffle printer is enough
         return bodyLeft > 0.01 || rufLeft; };
-      const noPr = plans.filter((p, i) => p.route === 'inhouse' && printsAt(i) && !(p.printer && p.printer.code) && !(p.rufflePrinter && printsAt(i, true) === 'ruffle')).map(p => p.sku);
+      const noPr = plans.filter((p, i) => pick(i) && p.route === 'inhouse' && printsAt(i) && !(p.printer && p.printer.code) && !(p.rufflePrinter && printsAt(i, true) === 'ruffle')).map(p => p.sku);
       if (noPr.length) return `Which printer? The print order goes to them now — pick it for ${noPr.join(', ')}.`;
-      const noVen = plans.filter(p => p.route === 'outsource' && !String(p.outVendor || '').trim()).map(p => p.sku);
+      const noVen = plans.filter((p, i) => pick(i) && p.route === 'outsource' && !String(p.outVendor || '').trim()).map(p => p.sku);
       if (noVen.length) return `Who makes it? Type the outsource vendor for ${noVen.join(', ')}.`;
       const patch = {}, now = new Date().toISOString();
-      const noFab = plans.filter(p => p.route !== 'outsource' && !String(p.fabric.name || '').trim()).map(p => p.sku);
+      const noFab = plans.filter((p, i) => pick(i) && p.route !== 'outsource' && !String(p.fabric.name || '').trim()).map(p => p.sku);
       if (noFab.length) return `Which fabric? Type it for ${noFab.join(', ')} before raising the plan.`;
       plans.forEach((p, i) => {
+        if (!pick(i)) return;   // left in PPC for now
         p.fabric.metres = flowR2(p.fabric.perPc * p.qty); delete p.fabric.was;
         /* Where the fabric came from: the master row, or PPC typing something else on purpose (kept as PPC's choice). */
         if (String(((cutSkuOf(rows[i].r.sku) || {}).fabric) || '').trim()) p.fabric.how = flowMasterDiff(rows[i].r, p) ? 'typed by PPC' : 'master data';
@@ -433,7 +439,7 @@ function flowPpcOpen(orderNo, onlySku, keys) {
           patch['pt_accReserve/' + x.s.key] = { orderNo: x.r.orderNo, sku: obUC(x.r.sku), items, at: now, by: ME.email || '', auto: true };
           said.push(`${obUC(x.r.sku)}: accessories reserved`); }); }
       /* The print orders, in the same write. */
-      const pos = flowPoSync(rows.map((x, i) => ({ r: x.r, p: patch['pt_ppc/' + x.s.key] })), dToday());
+      const pos = flowPoSync(rows.filter((x, i) => pick(i)).map(x => ({ r: x.r, p: patch['pt_ppc/' + x.s.key] })), dToday());
       Object.assign(patch, pos.patch); said.push(...pos.said);
       /* …and for a real order, the Vendor Order(s) the printer sees — asked first, because the printer sees it at once. */
       const vop = await flowVoPrepare(pos.local, patch, key => patch['pt_ppc/' + key]);
@@ -460,7 +466,11 @@ function flowPpcOpen(orderNo, onlySku, keys) {
       /* A new object, so every cache keyed on it knows it changed. */
       FLOW.ppc = Object.assign({}, FLOW.ppc);
       Object.entries(patch).filter(([path]) => path.startsWith('pt_ppc/')).forEach(([path, rec]) => { FLOW.ppc[path.slice('pt_ppc/'.length)] = rec; });
-      flowPpcDraftDrop(rows.map(x => x.s.key));   // raised: its draft is done with
+      const raised = rows.filter((x, i) => pick(i)), left = rows.length - raised.length;
+      clearTimeout(FLOW_DRAFT_T);   // an auto-save still waiting must not bring a raised line's draft back
+      flowPpcDraftDrop(raised.map(x => x.s.key));   // raised: its draft is done with; the lines left keep theirs
+      if (left) { flowPpcDraftSave(rows.map((x, i) => pick(i) ? '' : x.s.key));
+        setTimeout(() => { $('flMsg').className = 'muted'; $('flMsg').textContent = `${nf(raised.length)} of ${nf(rows.length)} line(s) raised · ${nf(left)} left in PPC with what was typed kept as a draft — open the PO again to raise them`; }, 0); }
       renderFlow();
       return '';
     },
@@ -564,10 +574,14 @@ function flowPpcOpen(orderNo, onlySku, keys) {
     flowComboPaint(combo, run, com, names, shelf);
   };
   /* THE GREIGE DESK NOT READ YET (or the read failed): ask for it now, and draw the stock again once it is here. */
-  if (!flowRfdKnown() && typeof GD !== 'undefined' && GD.ensure && typeof gdAllowed === 'function' && gdAllowed()) {
+  if (!flowRfdKnown() && typeof GD !== 'undefined' && GD.ensure && typeof flowGdReads === 'function' && flowGdReads()) {
     GD.ensure().catch(() => {}).then(() => { if (!PTD) return;
       document.querySelectorAll('[data-gdnote]').forEach(el => { el.innerHTML = flowGdNote(); }); try { paint(); } catch (e) { /* the form was closed */ } });
   }
+  /* "Raise now" ticks: the save button says how many lines it will raise. */
+  if (rows.length > 1) { const relabel = () => { const n = rows.filter((x, i) => { const el = document.querySelector(`[data-fpick="${i}"]`); return !el || el.checked; }).length;
+      if ($('ptDlgSave')) $('ptDlgSave').textContent = n === rows.length ? `Raise the plan for ${rows.length} lines` : `Raise ${n} of ${rows.length} lines`; };
+    document.querySelectorAll('[data-fpick]').forEach(el => el.addEventListener('change', relabel)); }
   /* THE DRAFT: put back before the first drawing, then kept as the boxes change. */
   const dkeys = rows.map(x => x.s.key);
   const sayD = (t, bad) => { const el = $('flpDraftSay'); if (el) { el.textContent = t; el.className = bad ? 'err' : 'muted'; } };
