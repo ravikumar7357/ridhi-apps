@@ -56,7 +56,7 @@ function load(opts) {
     voFabricCatalogue: () => new Map(Object.entries(opts.fsku || {}).map(([k, v]) => { const [fabric, colour, dir, code] = k.split('|'); return [v, { sku: v, fabric, colour, dir, code }]; })
       .concat((opts.fsCat || []).map(c => [c.sku, c]))), ordColCodeOf: sku => (String(sku || '').toUpperCase().match(/^[A-Z]+(\d{1,5})/) || ['', ''])[1],
     FAB: { rows: opts.fabRows || [] },
-    STORE: { rows: opts.store ? [] : null }, stMoves: () => opts.store || [], stBalances: mv => mv, fabKey: v => String(v || '').trim().toUpperCase(), fabAll: () => opts.fabRows || [], ptList: x => x || [], fabAutoLoad: async () => {}, GD: opts.gd, fabState: r => String((r && r.state) || (/RFD/.test(String(r && r.txnType)) ? 'RFD' : 'PRINTED')).toUpperCase(), fabKnown: t => ['OPENING_RFD', 'RFD_TO_PRINTER', 'ISSUE_TO_CUTTING', 'RECEIVE_RFD', 'PURCHASE_RFD', 'ADJUST'].includes(t), fabMove: r => (+r.qty || 0) * (['RFD_TO_PRINTER', 'ISSUE_TO_CUTTING'].includes(r.txnType) ? -1 : 1), fabStockOf: (name, st) => (st === 'RFD' ? (opts.rfd || {})[String(name).toUpperCase()] || 0 : 0),
+    STORE: { rows: opts.store ? [] : null }, stMoves: () => opts.store || [], stBalances: mv => mv, fabKey: v => String(v || '').trim().toUpperCase(), fabAll: () => opts.fabRows || [], ptList: x => x || [], fabAutoLoad: async () => {}, GD: opts.gd, mdbOf: opts.mdbOf, MDBX: opts.mdbx, fabState: r => String((r && r.state) || (/RFD/.test(String(r && r.txnType)) ? 'RFD' : 'PRINTED')).toUpperCase(), fabKnown: t => ['OPENING_RFD', 'RFD_TO_PRINTER', 'ISSUE_TO_CUTTING', 'RECEIVE_RFD', 'PURCHASE_RFD', 'ADJUST'].includes(t), fabMove: r => (+r.qty || 0) * (['RFD_TO_PRINTER', 'ISSUE_TO_CUTTING'].includes(r.txnType) ? -1 : 1), fabStockOf: (name, st) => (st === 'RFD' ? (opts.rfd || {})[String(name).toUpperCase()] || 0 : 0),
   };
   const api = new Function(...Object.keys(ctx), SRC + '\n;return { flowRfdStock, flowFabKnown, flowMatRow, flowGdNote, flowPpcDraftSave, flowPpcDraftApply, flowPpcDraftDrop, flowPpcHasDraft, flowBackOpen, flowAgainOpen, flowIsBack, flowBackLines, flowBackPill, FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW_ROUTES, flowPlanRouteOf, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestCutOpen, flowTestIssueOpen, flowTestRecvOpen, flowTestVos, flowVoProgOf, flowVoProgSync, flowVlogRows, flowDocsOf, flowVoExtra, flowVpViewOnly, flowFgAcceptOpen, flowFgAccept, flowFgRejectOpen, flowFgReject, flowFgLines, flowFgRender, flowQcLine, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowCutEntry, flowIssueEntry, flowRecvEntry, flowQcEntry, flowIssuable, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowVoLines, VOrows:()=>VO.rows, setVOrows:v=>{VO.rows=v}, flowUnplan, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v}, flowEmbedRender, FLOW_EMB:()=>FLOW_EMB, flowScreenAllowed, flowOwnsOrder, flowOwnedIn, flowVoIsFlow, flowFgOwns, flowDupViewsOff, renderView:()=>{ if (["cut","raw","wip","new","pord","vendor","fabric"].includes(FLOW_VIEW)) { const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly(); const rows = flowRows().filter(x => (!only || x.r.__t) && (FLOW_VIEW === "new" ? x.recent : flowInView(FLOW_VIEW, x.s))); $("flTable").innerHTML = flowTable(FLOW_VIEW, rows); } else renderFlow(); } };')(...Object.values(ctx));
   api.setFLOW(Object.assign(api.FLOW(), { ppc: opts.ppc || {}, dem: opts.dem || {}, res: opts.res || {} }));
@@ -1795,6 +1795,35 @@ const K = 'AMZ-1__S1';
     ok('only the ticked line is raised; the other stays in PPC', !e && !!w['pt_ppc/AMZ-1__S1'] && !w['pt_ppc/AMZ-1__S2'], e || JSON.stringify(Object.keys(w)));
     A.setFLOW(Object.assign(A.FLOW(), { ppc: Object.assign({}, A.FLOW().ppc) }));
     ok('…and it is still in the PPC bucket', A.flowRows().find(x => x.r.sku === 'S2').s.bucket === 'ppc' && A.flowRows().find(x => x.r.sku === 'S1').s.bucket !== 'ppc');
+  }
+
+  console.log('\n== the BOM written from PPC into the master (Ravi, 16 Oct: "BOM nahi h to yanhi se likh saku or masterdata me save ho jay") ==');
+  {
+    const custom = [{ _key: 'RTBX616', sku: 'RTBX616', articleType: 'Tissue Box Cover', subtype: '', color: '', size: '5x4.5x5', fabric: '', consumption: 0 }];
+    const master = { _key: 'm9', sku: 'S1', articleType: 'Tablecloth', subtype: 'Square Tablecloth', color: 'Red', size: '60x60', fabric: 'Cotton', consumption: 1.2 };
+    const A = load({ me: { tabs: ['flppc'] }, mdbOf: s => (String(s).toUpperCase() === 'S1' ? master : null), mdbx: { custom },
+      lines: [L({ orderNo: 'SHP-RBP6040', sku: 'RTBX616', qty: 1, src: 'SHP' })] });
+    A.flowPpcOpen('SHP-RBP6040');
+    const h = A.ctx.__dlg.html;
+    ok('a SKU with no BOM gets a Master data box: what is blank, boxes for colour and subtype, "Save to master data" ticked',
+      /Master data/.test(h) && /Custom SKUs list has no fabric, cloth per piece \(m\), colour, subtype/.test(h) && /data-mk="color"/.test(h) && /data-mk="subtype"/.test(h) && !/data-mk="size"/.test(h) && /data-fpms="0" checked/.test(h), h.slice(h.indexOf('Master data') - 40, h.indexOf('Master data') + 500));
+    const box = (k, v) => ({ addEventListener() {}, dataset: { fp: '0', k }, type: 'text', value: v });
+    A.ctx.document.querySelectorAll = sel => sel === '[data-fp]' ? [box('route', 'stitch'), box('fabric.name', 'Canvas'), box('fabric.perPc', '0.6')] : [];
+    const typed = { '[data-fpm="0"][data-mk="color"]': { value: 'Coastal Blue' }, '[data-fpm="0"][data-mk="subtype"]': { value: 'Piping Tissue Box Cover' }, '[data-fpms="0"]': { checked: true } };
+    A.ctx.document.querySelector = sel => typed[sel] || null;
+    const e = await A.ctx.__dlg.onSave();
+    const mw = A.writes.find(w => Object.keys(w).some(k => k.startsWith('pt_customSkus/'))) || {};
+    ok('raised, and the blank fields go to that SKU\'s own row: fabric, m / piece, colour, subtype — the size it had is left alone',
+      !e && mw['pt_customSkus/RTBX616/fabric'] === 'Canvas' && mw['pt_customSkus/RTBX616/consumption'] === 0.6 && mw['pt_customSkus/RTBX616/color'] === 'Coastal Blue'
+      && mw['pt_customSkus/RTBX616/subtype'] === 'Piping Tissue Box Cover' && !('pt_customSkus/RTBX616/size' in mw) && !('pt_customSkus/RTBX616/articleType' in mw), e || JSON.stringify(mw));
+    ok('…and the screen knows it at once', custom[0].fabric === 'Canvas' && custom[0].consumption === 0.6);
+    const B = load({ me: { tabs: ['flppc'] }, mdbOf: s => (String(s).toUpperCase() === 'S1' ? master : null), mdbx: { custom: [] }, lines: [L({ sku: 'S1' })] });
+    B.flowPpcOpen('AMZ-1');
+    ok('a SKU whose master row is complete gets no box', !/data-fpms=/.test(B.ctx.__dlg.html));
+    const m2 = { _key: 'm2', sku: 'S2', articleType: 'Tablecloth', subtype: 'Square Tablecloth', color: 'Red', size: '60x60', fabric: 'Cotton', consumption: 0 };
+    const C = load({ me: { tabs: ['flppc'] }, mdb: { S2: { cons: 1, fab: 'Cotton' } }, mdbOf: s => (String(s).toUpperCase() === 'S2' ? m2 : null), mdbx: { custom: [] }, lines: [L({ sku: 'S2' })] });
+    C.flowPpcOpen('AMZ-1');
+    ok('a master row with no consumption but a cloth per piece PPC can work out from the size is NOT a missing BOM — no box, nothing written', !/data-fpms=/.test(C.ctx.__dlg.html));
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);

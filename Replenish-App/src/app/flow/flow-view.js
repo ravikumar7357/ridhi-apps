@@ -17,6 +17,8 @@ async function flowEnsureData() {
   if (typeof FGI !== 'undefined' && FGI.rows == null && typeof fgiLoad === 'function') { try { await fgiLoad(); } catch (e) { /* India stock waits */ } }
   await Promise.all([flowLoad(), flowFabLoad(), (typeof STORE !== 'undefined' && STORE.rows === null ? ensureStore().catch(() => {}) : null), (PAL.printers === null ? palLoad().catch(() => {}) : null), (typeof ensureVo === 'function' ? ensureVo().catch(() => {}) : null),
     (typeof ensureAcc === 'function' ? ensureAcc().catch(() => {}) : null),
+    /* the Custom SKUs list: a Shopify / B2B SKU that is only there has its BOM written there from PPC (flowMasterBox) */
+    (typeof ptEnsureCustom === 'function' ? ptEnsureCustom().catch(() => {}) : null),
     /* The Greige Desk's RFD counts in Demand → RFD on the test link. */
     (FLOW_ON && typeof GD !== 'undefined' && flowGdReads() ? GD.ensure().catch(() => {}) : null)]);
 }

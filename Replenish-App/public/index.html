@@ -25236,6 +25236,65 @@ const flowDraftWhen = at => { const t = new Date(at); return isNaN(t) ? '' : t.t
 const flowGdNote = () => { const st = flowGdState();
   return st === 'ok' || st === 'none' ? '' : `<div style="font-size:11.5px;color:#b45309;margin:2px 0 6px">⚠ The Greige Desk's RFD stock ${st ? 'could not be read on this computer' : 'is being read'} — the RFD figures wait for it${st ? '; trying again…' : '…'}</div>`; };
 
+/* ---- THE BOM, WRITTEN FROM PPC (Ravi, 16 Oct: "yadi koi aisa order h jiska master data me BOM nahi h to me uska yanhi se
+ * likh saku or masterdata me save ho jay") ----
+ * A line whose SKU's own row (the Master Database, or the Custom SKUs list for one that is only there) has no fabric, no
+ * cloth per piece, no colour, size, article or subtype gets a "Master data" box on its card: the fabric and m / piece are
+ * the plan's own boxes; colour, size, article and subtype are typed there. "Save to master data" (ticked) writes, when the
+ * line is raised, ONLY the fields the row has blank — a figure the master already holds is never overwritten here (the
+ * red "Use the master data" note is for that). A refused write (no right to the master) does not stop the plan. */
+const FLOW_MASTER_FIELDS = [['fabric', 'Fabric'], ['consumption', 'Cloth per piece (m)'], ['color', 'Colour'], ['size', 'Size'], ['articleType', 'Article'], ['subtype', 'Subtype']];
+/** The SKU's own row and what it leaves blank: { node, key, row, missing: [field…] } — null when the SKU has no row at all. */
+function flowMasterGaps(sku) {
+  const u = obUC(sku); let node = '', row = null;
+  try { const m = mdbOf(u); if (m && m._key) { node = 'pt_masterDB'; row = m; } } catch (e) { /* no master read */ }
+  if (!row) { const list = (typeof MDBX !== 'undefined' && MDBX.custom) || []; const c = list.find(x => x && obUC(x.sku) === u);
+    if (c && c._key) { node = 'pt_customSkus'; row = c; } }
+  if (!row) return null;
+  const blank = f => f === 'consumption' ? !(+row.consumption > 0) : !String(row[f] == null ? '' : row[f]).trim();
+  return { node, key: row._key, row, missing: FLOW_MASTER_FIELDS.map(x => x[0]).filter(blank) };
+}
+/** What PPC itself is missing for this line: the blank fields — less the cloth per piece where PPC worked one out from the
+ * size and the roll widths or the recipe (most master rows leave it blank on purpose; that is not a missing BOM). */
+function flowMasterNeed(r, p) {
+  const g = flowMasterGaps(r.sku); if (!g) return null;
+  const worked = p && p.fabric && +p.fabric.perPc > 0 && p.fabric.how && p.fabric.how !== 'master data';
+  return Object.assign({}, g, { missing: g.missing.filter(f => !(f === 'consumption' && worked)) });
+}
+/** The Master data box of one card ('' when the row has everything, or there is no row to write to). */
+function flowMasterBox(i, r, p) {
+  const g = flowMasterNeed(r, p);
+  if (!g) return `<div class="fpc-gaps" style="margin-top:8px">${esc(obUC(r.sku))} is in neither the Master Database nor the Custom SKUs list — add it in Setup → Master Database to keep its BOM.</div>`;
+  if (!g.missing.length) return '';
+  const typed = g.missing.filter(f => !['fabric', 'consumption'].includes(f));
+  const label = f => (FLOW_MASTER_FIELDS.find(x => x[0] === f) || [, f])[1];
+  return `<div class="fpc-sec">Master data <small>${esc(g.node === 'pt_customSkus' ? 'Custom SKUs list' : 'Master Database')} has no ${esc(g.missing.map(label).join(', ').toLowerCase())}</small></div>
+    <div class="fpc-g">${typed.map(f => `<label class="fpc-f"><span>${esc(label(f))}</span><input data-fpm="${i}" data-mk="${f}" value="${esc(r[f === 'subtype' ? 'articleSubtype' : f] || '')}" placeholder="${esc(label(f))}"></label>`).join('')}
+      <label class="fpc-f w3" style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" data-fpms="${i}" checked style="width:auto"> <span style="text-transform:none;letter-spacing:0">Save to master data when this line is raised${g.missing.some(f => ['fabric', 'consumption'].includes(f)) ? ' — the fabric and m / piece above too' : ''}</span></label></div>`;
+}
+/** What to write to the master for the lines being raised: { patch, said }. Only blank fields, only ticked boxes. */
+function flowMasterPatch(rows, plans, pick, need) {
+  const patch = {}, said = [], now = new Date().toISOString();
+  rows.forEach((x, i) => {
+    if (!pick(i)) return;
+    const tick = document.querySelector(`[data-fpms="${i}"]`); if (!tick || !tick.checked) return;
+    const g = need[i]; if (!g || !g.missing.length) return;
+    const p = plans[i], vals = {};
+    g.missing.forEach(f => {
+      let v = '';
+      if (f === 'fabric') v = p.route === 'outsource' ? '' : String((p.fabric && p.fabric.name) || '').trim();
+      else if (f === 'consumption') v = p.route === 'outsource' || p.route === 'jobwork' ? 0 : +(p.fabric && p.fabric.perPc) || 0;
+      else { const el = document.querySelector(`[data-fpm="${i}"][data-mk="${f}"]`); v = el ? String(el.value || '').trim() : ''; }
+      if (f === 'consumption' ? v > 0 : !!v) vals[f] = v;
+    });
+    if (!Object.keys(vals).length) return;
+    Object.entries(vals).forEach(([f, v]) => { patch[`${g.node}/${g.key}/${f}`] = v; });
+    patch[`${g.node}/${g.key}/updatedAt`] = now; patch[`${g.node}/${g.key}/updatedBy`] = (ME.email || '') + ' · PPC';
+    said.push({ sku: obUC(x.r.sku), node: g.node, row: g.row, vals });
+  });
+  return { patch, said };
+}
+
 function flowPpcOpen(orderNo, onlySku, keys) {
   /* SAME SKU, SAME DAY, ONE PLAN (Ravi, 15 Oct: "1 SKU ka same day order aay to wo sare order combine hokar dikhe PPC team
    * ko"): `keys` names lines of several orders, planned in one go — each keeps its own plan, its own print order. */
@@ -25256,6 +25315,7 @@ function flowPpcOpen(orderNo, onlySku, keys) {
   /* THE LINE CARD (Ravi, 10 Oct: "need more design"). A header with what the line is and, as chips, how it is made,
    * the printer and whether everything is there; then two columns — the plan on the left, what it needs and what is in
    * stock on the right — and the dates last. Every box keeps its data-fp / data-k, so saving is unchanged. */
+  const mneed = rows.map((x, i) => { try { return flowMasterNeed(x.r, plans[i]); } catch (e) { return null; } });
   const inp = (i, k, v, type, extra) => `<input data-fp="${i}" data-k="${k}" ${type ? `type="${type}"` : ''} ${type === 'number' ? 'step="0.01"' : ''} value="${esc(v == null ? '' : v)}"${extra || ''}>`;
   const fld = (label, inner, cls) => `<label class="fpc-f${cls ? ' ' + cls : ''}"><span>${label}</span>${inner}</label>`;
   const html = FLOW_PPC_CSS + plans.map((p, i) => {
@@ -25277,6 +25337,7 @@ function flowPpcOpen(orderNo, onlySku, keys) {
             ${fld('Metres / piece', inp(i, 'fabric.perPc', p.fabric.perPc, 'number'))}
             ${fld('Total for ' + nf(p.qty) + ' pcs', `<div class="fpc-tot"><b data-fm="${i}">${nf(p.fabric.metres)}</b> m <small>${esc(p.fabric.how || 'not known — type it')}</small>${p.fabric.was ? `<div style="font-size:10.5px;color:#b45309">old plan had ${esc(p.fabric.was)}</div>` : ''}</div>`)}
           </div>
+          ${flowMasterBox(i, r, p)}
           ${md ? flowMasterDiffTxt(md).replace('</div>', ` <button type="button" class="ghost" data-usem="${i}" data-n="${esc(md.name)}" data-p="${md.perPc}" style="width:auto;padding:1px 8px;font-size:11px">Use the master data</button></div>`) : ''}
           <div class="fpc-sec">Printing</div>
           <div class="fpc-g">
@@ -25414,6 +25475,15 @@ function flowPpcOpen(orderNo, onlySku, keys) {
       if (Object.keys(patch).some(k => k.startsWith('pt_accReserve/'))) { FLOW.res = Object.assign({}, FLOW.res);
         Object.keys(patch).filter(k => k.startsWith('pt_accReserve/')).forEach(k => { if (patch[k]) FLOW.res[k.slice(14)] = patch[k]; else delete FLOW.res[k.slice(14)]; }); }
       Object.keys(patch).filter(k => k.startsWith('pt_flowDemand/')).forEach(k => { const key = k.split('/')[1]; FLOW.dem = Object.assign({}, FLOW.dem, { [key]: Object.assign({}, (FLOW.dem || {})[key], { fabricReady: null }) }); });
+      /* THE BOM INTO THE MASTER (flowMasterPatch): its own write, after the plan — a refusal is said, not a lost plan. */
+      { const mp = flowMasterPatch(rows, plans, pick, mneed);
+        if (mp.said.length) {
+          let er = ''; try { await ptPatch(mp.patch); } catch (e) { er = e.message || String(e); }
+          if (er) setTimeout(() => { $('flMsg').className = 'err'; $('flMsg').textContent = `Plan saved, but the master data was NOT updated for ${mp.said.map(x => x.sku).join(', ')} — ${er}. Ask for the Master Database right, or type it in Setup → Master Database.`; }, 50);
+          else { mp.said.forEach(x => Object.assign(x.row, x.vals));
+            if (typeof CUST_IX !== 'undefined') CUST_IX = { src: null, map: null };
+            said.push(`master data saved for ${mp.said.map(x => x.sku + ' (' + Object.keys(x.vals).join(', ') + ')').join('; ')}`); }
+        } }
       if (said.length) setTimeout(() => { $('flMsg').className = 'muted'; $('flMsg').textContent = 'Plan saved · ' + said.join(' · ') + ' · the fabric team and the accessories team have their demand.'; }, 0);
       /* A new object, so every cache keyed on it knows it changed. */
       FLOW.ppc = Object.assign({}, FLOW.ppc);
@@ -27621,6 +27691,8 @@ async function flowEnsureData() {
   if (typeof FGI !== 'undefined' && FGI.rows == null && typeof fgiLoad === 'function') { try { await fgiLoad(); } catch (e) { /* India stock waits */ } }
   await Promise.all([flowLoad(), flowFabLoad(), (typeof STORE !== 'undefined' && STORE.rows === null ? ensureStore().catch(() => {}) : null), (PAL.printers === null ? palLoad().catch(() => {}) : null), (typeof ensureVo === 'function' ? ensureVo().catch(() => {}) : null),
     (typeof ensureAcc === 'function' ? ensureAcc().catch(() => {}) : null),
+    /* the Custom SKUs list: a Shopify / B2B SKU that is only there has its BOM written there from PPC (flowMasterBox) */
+    (typeof ptEnsureCustom === 'function' ? ptEnsureCustom().catch(() => {}) : null),
     /* The Greige Desk's RFD counts in Demand → RFD on the test link. */
     (FLOW_ON && typeof GD !== 'undefined' && flowGdReads() ? GD.ensure().catch(() => {}) : null)]);
 }
