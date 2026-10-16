@@ -12,11 +12,12 @@ ok('the bar is outside appView, so the sign-in screen shows it too', html.indexO
 const code = html.slice(a, b);
 
 (async () => {
-  let etag = '"build-1"', online = true, hidden = false, reloaded = 0;
+  let etag = '"build-1"', online = true, hidden = false, reloaded = 0, openDlg = null, active = null;
   const bar = { style: { display: 'none' } }, btn = {}, listeners = {}, timers = [];
   const env = {
     window: {}, location: { pathname: '/index.html', reload: () => { reloaded++; } },
     document: { getElementById: id => (id === 'appvBar' ? bar : (id === 'appvReload' ? btn : null)), get hidden() { return hidden; },
+      querySelector: () => openDlg, get activeElement() { return active; },
       addEventListener: (ev, fn) => { (listeners[ev] = listeners[ev] || []).push(fn); } },
     setInterval: (fn, ms) => { timers.push({ fn, ms }); return 1; },
     fetch: async (url, opts) => { if (!online) throw new Error('offline');
@@ -54,6 +55,16 @@ const code = html.slice(a, b);
   await new Promise(r => setTimeout(r, 5));
   ok('…and going AWAY from it does not', V.checks === b2);
 
+  /* A NEW VERSION TAKES ITSELF IN WHEN THE APP COMES BACK TO THE FRONT (Ravi, 16 Oct) — never with something open. */
+  { const r0 = reloaded; openDlg = { id: 'ptDlg' }; hidden = false; (listeners.visibilitychange || []).forEach(fn => fn());
+    await new Promise(r => setTimeout(r, 5));
+    ok('back to the front with a newer build but a dialog open → no reload, the bar stays', reloaded === r0 && bar.style.display === 'block');
+    openDlg = null; active = { tagName: 'INPUT' }; (listeners.visibilitychange || []).forEach(fn => fn());
+    await new Promise(r => setTimeout(r, 5));
+    ok('…nor while a box is being typed in', reloaded === r0);
+    active = null; (listeners.visibilitychange || []).forEach(fn => fn());
+    await new Promise(r => setTimeout(r, 5));
+    ok('…and with nothing open it reloads by itself', reloaded === r0 + 1, String(reloaded - r0)); }
   ok('the two-answers rule on its own', V.isStale('a', 'b') && !V.isStale('a', 'a') && !V.isStale('', 'b') && !V.isStale('a', ''));
   console.log('\n' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);

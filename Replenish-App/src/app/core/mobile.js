@@ -16,8 +16,8 @@
  * WHAT DOES NOT CHANGE: a computer, a tablet, a wide window — <html> never gets .mob there. Every screen still opens
  * through showTab, so access, Back, and the address all behave exactly as on a computer.
  *
- * DESKTOP VIEW: under More. It writes localStorage mobView = 'off' and reloads, and the phone draws the old scaled
- * desktop layout again; "Phone view" at the end of that menu bar undoes it. */
+ * DESKTOP VIEW: under More. Since 16 Oct it lasts this visit only (sessionStorage mobViewOff = '1'): opened again, the phone
+ * is in the phone layout by itself. "Phone view" at the end of that menu bar undoes it at once. */
 
 /** True while the phone layout is on. A declaration, not a const: renderShop asks before this file has run. */
 function mobOn() {
@@ -26,7 +26,11 @@ function mobOn() {
 
 /** The same test the head of the page makes, so "Phone view" is only offered on a phone. */
 function mobIsPhone() {
-  try { return Math.min(screen.width, screen.height) <= 600 && window.matchMedia('(pointer:coarse)').matches; } catch (e) { return false; }
+  try {
+    const small = Math.min(screen.width, screen.height) <= 600;
+    const touch = (window.matchMedia && window.matchMedia('(pointer:coarse)').matches) || (navigator.maxTouchPoints || 0) > 0;
+    return (small && touch) || /Android.+Mobile|iPhone|iPod|Windows Phone|Mobi/i.test(navigator.userAgent || '');
+  } catch (e) { return false; }
 }
 
 const MOB_SVG = p => `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
@@ -155,7 +159,8 @@ function mobAct(a) {
   if (a === 'guide' && $('guideBtn')) $('guideBtn').click();
   if (a === 'install' && $('installBtn')) $('installBtn').click();
   if (a === 'logout' && $('logoutBtn')) $('logoutBtn').click();
-  if (a === 'desktop') { try { localStorage.setItem('mobView', 'off'); } catch (e) { /* nowhere to remember it */ } location.reload(); }
+  /* For this visit only (16 Oct): the next time the app is opened on this phone it is the phone layout again. */
+  if (a === 'desktop') { try { sessionStorage.setItem('mobViewOff', '1'); } catch (e) { /* nowhere to remember it */ } location.reload(); }
 }
 
 /* On a phone that chose Desktop view: the way back, at the end of the menu bar. */
@@ -166,7 +171,7 @@ function mobAct(a) {
   const b = document.createElement('button');
   b.id = 'mobBack'; b.className = 'nav'; b.type = 'button'; b.textContent = 'Phone view';
   b.title = 'Lay this app out for a phone again';
-  b.onclick = () => { try { localStorage.removeItem('mobView'); } catch (e) { /* the default is the phone layout */ } location.reload(); };
+  b.onclick = () => { try { sessionStorage.removeItem('mobViewOff'); localStorage.removeItem('mobView'); } catch (e) { /* the default is the phone layout */ } location.reload(); };
   foot.insertBefore(b, foot.firstChild);
 })();
 

@@ -21348,7 +21348,7 @@ console.log('\n== the installed app ==');
    * who is not on a phone, and for a phone that picks Desktop view: no fixed viewport line, and the old fold is not back. */
   ok('no fixed viewport line: a computer, and a phone on Desktop view, draw the desktop layout as before', !/<meta name="viewport"/.test(src) && !/mob-fold/.test(src));
   ok('a phone gets the phone layout, and Desktop view turns it off and is remembered',
-     /phone && pick !== 'off'/.test(src) && /m\.name = 'viewport'/.test(src) && /localStorage\.setItem\('mobView', 'off'\)/.test(src));
+     /phone && !off/.test(src) && /m\.name = 'viewport'/.test(src) && /sessionStorage\.setItem\('mobViewOff', '1'\)/.test(src));
   ok('the phone layout is only ever under html.mob, so no computer screen changes', !/^\s*#mobBar|^\s*\.mob-tab/m.test(src) && /html\.mob #mobBar/.test(src));
   ok('the manifest is linked', /<link rel="manifest" href="\/manifest\.webmanifest">/.test(src));
   const man = JSON.parse(fs.readFileSync(dir + '/manifest.webmanifest', 'utf8'));

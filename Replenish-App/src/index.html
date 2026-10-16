@@ -12,10 +12,16 @@
 <script>
 (function () {
   try {
-    var pick = '';
-    try { pick = localStorage.getItem('mobView') || ''; } catch (e) { /* private window: the default */ }
-    var phone = Math.min(screen.width, screen.height) <= 600 && window.matchMedia('(pointer:coarse)').matches;
-    if (pick === 'on' || (phone && pick !== 'off')) {
+    /* OPENED ON A PHONE = THE PHONE LAYOUT, EVERY TIME (Ravi, 16 Oct: "jaise hi mobile se chalu karoon toh voh automatically
+     * mobile ke hisab se hi chale"). A phone is a small touch screen, or a browser that says it is a phone. "Desktop view"
+     * lasts for this visit only (sessionStorage); a phone left on the old remembered "off" is let go of. */
+    var pick = '', off = false;
+    try { pick = localStorage.getItem('mobView') || ''; if (pick === 'off') { localStorage.removeItem('mobView'); pick = ''; } } catch (e) { /* private window: the default */ }
+    try { off = sessionStorage.getItem('mobViewOff') === '1'; } catch (e) { off = false; }
+    var small = Math.min(screen.width, screen.height) <= 600;
+    var touch = (window.matchMedia && window.matchMedia('(pointer:coarse)').matches) || (navigator.maxTouchPoints || 0) > 0;
+    var phone = (small && touch) || /Android.+Mobile|iPhone|iPod|Windows Phone|Mobi/i.test(navigator.userAgent || '');
+    if (pick === 'on' || (phone && !off)) {
       var m = document.createElement('meta');
       m.name = 'viewport';
       m.content = 'width=device-width, initial-scale=1, viewport-fit=cover';
