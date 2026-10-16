@@ -63,7 +63,7 @@ const IDS = ('ptmBrand ptmArt ptmSub ptmCol ptmSz ptmCut ptmMaker ptmQ ptmBrandF
   + 'voVendor voStatus voType voQ voExport voGo voMsg voKpis voTable '
   + 'vpRfdPick vpRfdAll tabRfd rfdBadge paneRfd dashMsg dashBody dashGo tabDash paneDash grpDash secDash rfdView rfdStage rfdVendor rfdFab rfdQ rfdD1 rfdD2 rfdClear rfdExport rfdRefuseSel rfdGo fbPoNew fbPoSet fbGuide rfdGuide guideBtn kaMonth kaTgtBtn kaD1 kaD2 pbCorr jwCorrBadge mstTpl mstImp mstFile rfdMsg rfdKpis rfdTable vpTabRfd '
   + 'voView voAttrRow voAt voSub voCol voSz voPri voAttrClear voTableWrap voCards '
-  + 'renTmpl renUp renFile renInfo ptDlgAlt sxNew sof_channel sof_date sof_type sof_delivery sof_legacy sof_id sof_table sof_pager '
+  + 'renTmpl renUp renFile renInfo ptDlgAlt sxNew sof_channel sof_mode sof_modeL sof_date sof_type sof_delivery sof_legacy sof_id sof_table sof_pager '
   + 'sof_add sof_tmpl sof_up sof_file sor_mode sor_date sor_remarks '
   + 'voNew vof_fsku vofFskuList vof_why vrqStatus vrqWork vrqVendor vrqWho vrqQ vrqNew vrqExport vrqSkuTot vrqSkuLines vrqGo vrqMsg vrqKpis vrqTable vreqBadge ptf_filler vof_vendor vof_service vof_fillerWrap vof_filler vofFillerList vof_kr vof_kc vof_tmpl vof_up vof_file vof_form vof_table vof_tot vof_notes '
   + 'vof_fab vof_col vof_pd vof_qty vof_deliv vof_pri vof_lnotes vof_add vof_info vof_sku vof_check '
@@ -2087,6 +2087,20 @@ console.log('\n== placing it, and what the form refuses ==');
     NET.calls.some(c => c.method === 'PATCH' && c.body && c.body['pt_skuPriority/' + realSku] === 'P2'));
   ok('no order-book line was written for a draft',
     !NET.calls.some(c => JSON.stringify(c.body || '').indexOf('pt_orderBook') >= 0));
+
+  /* AIR OR SEA ON AN AMAZON ORDER (Ravi, 16 Oct: AMZ-16102026-01-AIR, Amazon only). */
+  ok('the number takes the mode at the end, and the serial is one count for the day', A.soGenId('AMZ', '2026-10-07', '', 'AIR') === 'AMZ-07102026-01-AIR'
+    && A.soGenId('SPY', '2026-10-07', '', 'AIR') === 'SPY-07102026-01', A.soGenId('AMZ', '2026-10-07', '', 'AIR'));
+  setForm('AMZ', '2026-10-07', [{ sku: realSku, qty: 3, orderTypeKey: 'regular' }]); els.sof_mode.value = '';
+  ok('an Amazon order without AIR or SEA is refused', /AIR or SEA/.test(await A.soFormSave(false)));
+  A.soFormOpen(null); setForm('AMZ', '2026-10-07', [{ sku: realSku, qty: 3, orderTypeKey: 'regular' }]); els.sof_mode.value = 'AIR';
+  ok('…with AIR it saves as AMZ-07102026-01-AIR, the mode kept on the order', (await A.soFormSave(false)) === ''
+    && A.SOX().rows.some(o => o._id === 'AMZ-07102026-01-AIR' && o.shipMode === 'AIR'), A.SOX().rows.map(o => o._id).filter(x => /07102026/.test(x)).join());
+  ok('…and the next one that day by SEA is AMZ-07102026-02-SEA', A.soGenId('AMZ', '2026-10-07', '', 'SEA') === 'AMZ-07102026-02-SEA', A.soGenId('AMZ', '2026-10-07', '', 'SEA'));
+  els.sof_mode.value = '';
+  /* What this check saved leaves again, so the counts below are the counts they were written against. */
+  A.SOX().rows = A.SOX().rows.filter(o => o._id !== 'AMZ-07102026-01-AIR'); NET.calls = NET.calls.filter(c => !/AMZ-07102026-01-AIR/.test(c.url || ''));
+  A.soFormOpen(null);
 
   /* 2026-10-01: SOMEBODY ELSE TOOK THE NUMBER after this screen was read. Their order is in the database but not in
    * SOX.rows, so soGenId offers the same number; the save must move to the next one, not replace theirs. */

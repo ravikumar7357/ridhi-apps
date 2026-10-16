@@ -34,18 +34,26 @@ function soChannels() {
 
 const soDateTag = iso => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? m[3] + m[2] + m[1] : ''; };
 
+/* AIR OR SEA ON AN AMAZON ORDER (Ravi, 16 Oct: "order number me AIR / SEA bhi add krna h" → AMZ-16102026-01-AIR, Amazon
+ * only). The mode rides at the END, so the channel stays the number's first part (every screen reads the platform from
+ * it), and the serial is one count for the channel and day whatever the mode: -01-AIR, then -02-SEA. */
+const SO_MODES = ['AIR', 'SEA'];
+const soNeedsMode = ch => String(ch || '').trim().toUpperCase() === 'AMZ';
+/** The mode a number carries ('AIR' / 'SEA'), '' for none. */
+const soModeOf = id => { const m = String(id || '').toUpperCase().match(/-(AIR|SEA)$/); return m ? m[1] : ''; };
+
 /** The next free number for this channel and date, checked against every order number in use. */
-function soGenId(channel, dateISO, ignoreId) {
+function soGenId(channel, dateISO, ignoreId, mode) {
   const ch = String(channel || '').trim().toUpperCase(), tag = soDateTag(dateISO);
   if (!ch || !tag) return '';
-  const prefix = ch + '-' + tag + '-';
+  const prefix = ch + '-' + tag + '-', suffix = soNeedsMode(ch) && SO_MODES.includes(String(mode || '').toUpperCase()) ? '-' + String(mode).toUpperCase() : '';
   const taken = new Set();
   (SOX.rows || []).forEach(s => { if (s && s._id && s._id !== ignoreId) taken.add(obUC(s._id)); });
   (PTG.ob || []).forEach(r => { if (r && r.orderNo) taken.add(obUC(r.orderNo)); });
   let n = 1;
   taken.forEach(id => { if (id.indexOf(prefix) === 0) { const s = parseInt(id.slice(prefix.length), 10); if (s >= n) n = s + 1; } });
   let id;
-  do { id = prefix + String(n).padStart(2, '0'); n++; } while (taken.has(id));
+  do { id = prefix + String(n).padStart(2, '0') + suffix; n++; } while (taken.has(id));
   return id;
 }
 
@@ -55,14 +63,14 @@ function soGenId(channel, dateISO, ignoreId) {
  * second save replaced the first order without a word. One fresh read of that number moves to the next free one.
  * A failed read keeps the number, as before — it never blocks a save.
  */
-async function soFreeId(id, channel, orderDate, ignoreId) {
+async function soFreeId(id, channel, orderDate, ignoreId, mode) {
   for (let i = 0; i < 20 && id; i++) {
     let there = null;
     try { there = await ptGet('pt_salesOrders/' + id); } catch (e) { return id; }
     if (!there || typeof there !== 'object' || !Object.keys(there).length) return id;
     SOX.rows = SOX.rows || [];
     if (!SOX.rows.some(o => o && o._id === id)) SOX.rows.push(Object.assign({}, there, { _id: id }));
-    id = soGenId(channel, orderDate, ignoreId);
+    id = soGenId(channel, orderDate, ignoreId, mode);
   }
   return id;
 }
@@ -302,6 +310,9 @@ function soFormOpen(id) {
       <option value="">— pick one —</option>
       ${chans.map(c => `<option value="${esc(c.code)}"${o.channel === c.code ? ' selected' : ''}>${esc(c.code)} — ${esc(c.name)}</option>`).join('')}
     </select></label>
+    <label id="sof_modeL"${soNeedsMode(o.channel) ? '' : ' style="display:none"'}>Shipping<select id="sof_mode"${ro}>
+      <option value="">— AIR or SEA —</option>${SO_MODES.map(m => `<option${(o.shipMode || soModeOf(o._id)) === m ? ' selected' : ''}>${m}</option>`).join('')}
+    </select></label>
     <label>Order date<input id="sof_date" type="date" value="${esc(o.orderDate || today)}"${ro}></label>
     <div class="sof-f">Order type<input id="sof_type" type="hidden" value="${nd ? 'newdev' : 'regular'}">
       <div class="sof-seg" role="group" aria-label="Order type">
@@ -350,7 +361,9 @@ function soFormOpen(id) {
   soFormLines();
   soIdPreview();
   if (canEdit) {
-    ['sof_channel', 'sof_date'].forEach(i => $(i).addEventListener('change', soIdPreview));
+    ['sof_channel', 'sof_date', 'sof_mode'].forEach(i => { if ($(i)) $(i).addEventListener('change', soIdPreview); });
+    /* Shipping shows for an Amazon order only. */
+    $('sof_channel').addEventListener('change', () => { if ($('sof_modeL') && $('sof_modeL').style) $('sof_modeL').style.display = soNeedsMode($('sof_channel').value) ? '' : 'none'; });
     /* B2B lines have their own columns: the table follows the channel. */
     $('sof_channel').addEventListener('change', () => soFormLines());
     $('sof_add').onclick = () => { SOF.lines.push({ sku: '', qty: '', deliveryDate: '', orderTypeKey: $('sof_type').value, priority: '' });
@@ -369,12 +382,13 @@ function soIdPreview() {
   const put = (txt, tip, none) => { el.textContent = txt; el.title = tip; el.className = 'sof-no' + (none ? ' none' : ''); };
   if (o && soStatus(o) !== 'draft' && soStatus(o) !== 'returned')
     return put(o._id, 'Fixed now that the order has been placed.');
-  const ch = ($('sof_channel') || {}).value || '', dt = ($('sof_date') || {}).value || '';
+  const ch = ($('sof_channel') || {}).value || '', dt = ($('sof_date') || {}).value || '', mode = ($('sof_mode') || {}).value || '';
   if (!ch || !dt) return put('Order no. —', 'Pick a channel and an order date.', true);
+  if (soNeedsMode(ch) && !mode) return put('Order no. — pick AIR or SEA', 'An Amazon order says how it ships: AIR or SEA. It goes at the end of the number.', true);
   const cur = o ? o._id : '';
   const pfx = ch.toUpperCase() + '-' + soDateTag(dt) + '-';
-  if (cur && obUC(cur).indexOf(pfx) === 0) return put(cur, 'This order\'s number.');
-  put(soGenId(ch, dt, cur), 'Claimed when you save.');
+  if (cur && obUC(cur).indexOf(pfx) === 0 && soModeOf(cur) === (soNeedsMode(ch) ? mode : '')) return put(cur, 'This order\'s number.');
+  put(soGenId(ch, dt, cur, mode), 'Claimed when you save.');
 }
 
 function soFormLines() {
@@ -711,11 +725,15 @@ async function soFormSave(place) {
 
   const oldId = existing ? existing._id : '';
   const mayRenumber = !existing || soStatus(existing) === 'draft' || soStatus(existing) === 'returned';
+  /* AIR or SEA: asked of an Amazon order before it gets a number (16 Oct). */
+  const mode = soNeedsMode(channel) ? String(($('sof_mode') || {}).value || '').toUpperCase() : '';
+  if (soNeedsMode(channel) && !SO_MODES.includes(mode) && mayRenumber) return 'Pick how this Amazon order ships — AIR or SEA. It goes at the end of the order number.';
   const wantPfx = channel + '-' + soDateTag(orderDate) + '-';
-  if (!existing) rec._id = soGenId(channel, orderDate);
-  else if (mayRenumber && obUC(oldId).indexOf(wantPfx) !== 0) rec._id = soGenId(channel, orderDate, oldId);
+  if (!existing) rec._id = soGenId(channel, orderDate, '', mode);
+  else if (mayRenumber && (obUC(oldId).indexOf(wantPfx) !== 0 || soModeOf(oldId) !== mode)) rec._id = soGenId(channel, orderDate, oldId, mode);
   if (!rec._id) return 'Could not work out the order number — check the channel and the order date.';
-  if (rec._id !== oldId) rec._id = await soFreeId(rec._id, channel, orderDate, oldId);
+  if (rec._id !== oldId) rec._id = await soFreeId(rec._id, channel, orderDate, oldId, mode);
+  if (mode) rec.shipMode = mode; else if (mayRenumber) delete rec.shipMode;
 
   rec.channel = channel;
   rec.orderDate = orderDate;
