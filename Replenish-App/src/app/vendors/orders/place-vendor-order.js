@@ -410,7 +410,7 @@ function fsManual() {
     return { manual: true, brand, code: String(r.code || '').trim(), colour: String(r.colour || '').trim(),
       fabric: String(r.fabric || '').trim(), width: String(r.fabric || '').replace(/[^0-9]/g, ''),
       dir: String(r.dir || '').trim(), side: String(r.side || '').trim(), sku: String(r.sku).trim().toUpperCase(),
-      imageUrl: String(r.imageUrl || '').trim(), imageFrom: 'added by hand', alsoCalled: [], note: String(r.note || ''),
+      imageUrl: String(r.imageUrl || '').trim(), imageFrom: 'added by hand', alsoCalled: [], note: String(r.note || ''), at: String(r.editedAt || r.addedAt || ''),
       brandName: (FS_BRANDS.find(b => b.key === brand) || {}).name || brand || '—' };
   });
 }

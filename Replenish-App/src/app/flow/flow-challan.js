@@ -69,9 +69,14 @@ function flowFabHits(fab, colour, dir, cc) {
   const codeOf = c => String(c.code || ordColCodeOf(c.sku) || '');
   const hits = cat.filter(c => lo(c.fabric) === lo(fab) && lo(c.colour) === lo(colour) && (!lo(dir) || !lo(c.dir) || lo(c.dir) === lo(dir))
     && (!cc || codeOf(c) === String(cc) || (num(codeOf(c)) && num(codeOf(c)) === num(cc))));
+  /* TWO ADDED BY HAND FOR THE SAME CLOTH (17 Oct: Apatite Blue cambric 007 is AB and APB, Agate Green 005 is AG and AGTG —
+   * the printer order said "AB APB"): the one added (or changed) last is the decision that stands. The printers were sent
+   * APB and AGTG; AG had been used for Asparagus Green. */
+  const at = c => String(c.at || '');
   const byDir = new Map();
   hits.forEach(c => { const k = lo(c.dir) + '|' + lo(c.side); const e = byDir.get(k);
-    if (!e || (c.manual && !e.some(x => x.manual))) byDir.set(k, [c]); else if (!!c.manual === !!e[0].manual) e.push(c); });
+    if (!e || (c.manual && !e.some(x => x.manual)) || (c.manual && e[0].manual && at(c) > at(e[0]))) byDir.set(k, [c]);
+    else if (!!c.manual === !!e[0].manual && (!c.manual || at(c) === at(e[0]))) e.push(c); });
   return [].concat(...byDir.values());
 }
 const flowFabSku = (fab, colour, dir, cc) => [...new Set(flowFabHits(fab, colour, dir, cc).map(c => c.sku))].join(' ');

@@ -735,6 +735,11 @@ async function soFormSave(place) {
   if (!existing) rec._id = soGenId(channel, orderDate, '', mode);
   else if (mayRenumber && (obUC(oldId).indexOf(wantPfx) !== 0 || soModeOf(oldId) !== mode)) rec._id = soGenId(channel, orderDate, oldId, mode);
   if (!rec._id) return 'Could not work out the order number — check the channel and the order date.';
+  /* ON THE ORDER BOOK, THE NUMBER STAYS (17 Oct: AMZ-17102026-02-AIR became -SEA while its 12 PPC plans, 3 print orders and
+   * 3 vendor orders kept -AIR — every one of them is keyed by the order number). Once any line is on the order book, PPC,
+   * printers and the floor may be working to it; a new number would leave their papers behind. */
+  if (existing && rec._id !== oldId && (PTG.ob || []).some(r => r && obUC(r.orderNo) === obUC(oldId)))
+    return `${oldId} is already on the order book — PPC, the printers and the floor work to that number, so it cannot change now (AIR / SEA, channel and date stay as they are). Ask an admin to move the order and its plans together.`;
   if (rec._id !== oldId) rec._id = await soFreeId(rec._id, channel, orderDate, oldId, mode);
   if (mode) rec.shipMode = mode; else if (mayRenumber) delete rec.shipMode;
 

@@ -962,6 +962,27 @@ const K = 'AMZ-1__S1';
     ok('a built SKU with no hand-added one beside it still counts (RBP327 when LSB is not there)', load({ mdb, fsCat: fsCat.filter(c => !c.manual) }).flowPrintExtras(L({ sku: 'RPC327-1818', qty: 20 }), p1)[0].code === 'RBP327');
   }
 
+  console.log('== lampshades (17 Oct): two codes added by hand for one cloth, and a colour code past a dash ==');
+  {
+    const mdb = { 'CPCLS007': { color: 'Apatite Blue', fabric: 'Cambric', cuttingRequired: true, brand: 'CPC' } };
+    const fsCat = [
+      { sku: 'CPCF007', fabric: 'Cambric', colour: 'Apatite Blue', dir: 'Vertical', code: '007' },
+      { sku: 'AB', fabric: 'Cambric', colour: 'Apatite Blue', dir: 'Vertical', code: '007', manual: true, at: '2026-09-25T08:16:06Z' },
+      { sku: 'APB', fabric: 'Cambric', colour: 'Apatite Blue', dir: 'Vertical', code: '007', manual: true, at: '2026-09-25T08:23:29Z' },
+    ];
+    const p1 = plan({ sku: 'CPCLS007', qty: 500, route: 'inhouse', fabric: { name: 'Cambric', perPc: 0.35, metres: 175 }, print: { need: true } });
+    const w = load({ mdb, fsCat }).flowPrintWhat(L({ sku: 'CPCLS007', qty: 500 }), p1);
+    ok('Apatite Blue cambric → APB, the one added last — not "AB APB"', w.kind === 'fabric' && w.code === 'APB', JSON.stringify(w));
+    const tie = fsCat.map(c => c.manual ? Object.assign({}, c, { at: 'same' }) : c);
+    ok('two added at the same moment are both still named (nobody chose between them)', load({ mdb, fsCat: tie }).flowPrintWhat(L({ sku: 'CPCLS007', qty: 500 }), p1).code === 'AB APB');
+    const cut = load({ mdb: { CPCLS007: Object.assign({}, mdb.CPCLS007, { cuttingRequired: false }) }, fsCat }).flowPrintWhat(L({ sku: 'CPCLS007', qty: 500 }), p1);
+    ok('…and with "cutting required" off in the master it is printed on the SKU (pcs) — the master decides', cut.kind === 'sku' && cut.unit === 'pcs');
+    /* the app's own colour-code reader, from the source */
+    const occ = new Function('return ' + require('fs').readFileSync(require('path').join(__dirname, '../src/app/orders/orders-one-line.js'), 'utf8').match(/^const ordColCodeOf = (.*);\s*$/m)[1])();
+    ok('colour code past a dash: CPCLS-CO-002 → 002, RBP-CANVAS-327 → 327, CPCLS-B-004 → 004', occ('CPCLS-CO-002') === '002' && occ('RBP-CANVAS-327') === '327' && occ('CPCLS-B-004') === '004', [occ('CPCLS-CO-002'), occ('RBP-CANVAS-327'), occ('CPCLS-B-004')].join());
+    ok('…and the plain ones read as before: RQL351-Q → 351, RBPSF9-H-82 → 9, CPCLS002 → 002, RB-MR → ""', occ('RQL351-Q') === '351' && occ('RBPSF9-H-82') === '9' && occ('CPCLS002') === '002' && occ('RB-MR') === '');
+  }
+
   console.log('== a plan saved before the master-data fix is flagged, not hidden ==');
   {
     const mdb = { 'RPC327-1818': { color: 'Light Steel Blue', fabric: 'Canvas', consumption: 0.53, cuttingRequired: true },
