@@ -117,6 +117,9 @@ function shpSheetMatch(rows, storeWant) {
     if (!code) { L.st = 'nosku'; L.why = 'no SKU — type it on the order (' + nm + '), then upload again'; return; }
     L.st = 'noneed'; L.why = 'nothing left to make on it';
   });
+  /* One day earlier than the sheet says: the fetch counts days in the marketplace's zone, the sheet in the store's (17 Oct:
+   * #5575, created 27 Jul 04:50, was not fetched with From = 27 Jul). */
+  if (from) { const t = new Date(from + 'T00:00:00Z'); t.setUTCDate(t.getUTCDate() - 1); from = t.toISOString().slice(0, 10); }
   return { store, from, lines };
 }
 async function shpSheetIn(file) {

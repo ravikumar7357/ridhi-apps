@@ -1778,7 +1778,7 @@ console.log('\n== THE PRODUCTION BUCKET (Ravi, 2026-09-26) ==');
         m.store === 'CPC' && st === 'open,open,dup,nofetch,gone,other', st + ' ' + m.store);
       const g = A.shpSheetMatch([H, ['#1', '', 1, 'a', 'CPC1-1', ''], ['#2', '', 1, 'b', 'CPCN2', ''], ['#3', '', 1, 'c', 'RTC3', '']], '');
       ok('pending sheet: with no store picked, the SKUs say it (mostly CPC… → CPC)', g.store === 'CPC', g.store);
-      ok('pending sheet: a row on an order not fetched says from which date to fetch (an Excel day number read as a date)', m.from === '2025-12-09', m.from);
+      ok('pending sheet: a row on an order not fetched says from which date to fetch (an Excel day number read as a date, one day earlier for the time zones)', m.from === '2025-12-08', m.from);
       ok('pending sheet: the open rows carry the bucket key, old order or not', m.lines[0].key === 's1|RCNBMIX' && m.lines[1].key === 's2|RCNBMIX');
     }
     A.setSHOP({ orders: [mk('b1', '#5001', [['RCNBMIX', 2], ['RCNBRED', 1]])], from: '', to: '', tz: '', at: 'x' });
