@@ -154,4 +154,3 @@ core/filter-by.js
 core/installed-app.js
 core/version-check.js
 core/mobile.js
-core/phone-app.js
