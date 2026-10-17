@@ -80,7 +80,10 @@ const flowFabSku = (fab, colour, dir, cc) => [...new Set(flowFabHits(fab, colour
 /** What the fabric team still owes a line: in its unit (m, or pcs for a SKU printed on itself) and in metres. */
 function flowFabOwed(r, s) {
   const p = s.plan || {}, tp = flowToPrint(r, p), pcsWise = s.fabUnit === 'pcs';
-  const need = pcsWise ? tp.pcs : tp.metres, left = Math.max(0, need - (s.fabSent || 0));
+  /* Never more than the part of the line not yet cut / issued / passed (flowRemFrac, 17 Oct): pieces cut from cloth that
+   * came some other way leave nothing to print for. */
+  const need = pcsWise ? tp.pcs : tp.metres, rem = typeof flowRemFrac === 'function' ? flowRemFrac(r, s) : 1;
+  const left = Math.max(0, Math.min(need - (s.fabSent || 0), need * rem));
   return { unit: pcsWise ? 'pcs' : 'm', need, sent: s.fabSent || 0, left: flowR2(left), metres: pcsWise ? (need ? flowR2(tp.metres * left / need) : 0) : flowR2(left) };
 }
 function flowToPrint(r, p) {

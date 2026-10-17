@@ -258,6 +258,15 @@ async function flowClaim(path, value) {
 /* ---- THE RULE: which bucket a line is in ----
  * Read straight off the registers, in the order the work moves; the first step not finished is the bucket.
  * `printed` for a planned line is what PPC said; for an older line it is what the registers show. */
+/* WHAT IS STILL TO MAKE (Ravi, 17 Oct: "cutting wale bande ne is order ke against me cutting kar li … wo sara track kare
+ * jisase demand jyada generate n ho, and aage ke action me bhi dekhna ki kisi entry ki bajah se demand jyada n bane"). The
+ * share of a line not yet cut, issued or passed — the most any of those registers says is done, never their sum. Every
+ * demand (RFD to send, cloth held for earlier plans, the PPC form's need) is that share of the line, not the whole of it. */
+function flowRemFrac(r, s) {
+  const q = +(r && r.qty) || 0; if (!(q > 0) || !s) return 1;
+  const done = Math.min(q, Math.max(+s.cut || 0, +s.issued || 0, +s.made || 0));
+  return (q - done) / q;
+}
 function flowState(r) {
   const k = flowKey(r.orderNo, r.sku), qty = +r.qty || 0;
   const cap = n => Math.max(0, Math.min(qty, +n || 0));
@@ -310,7 +319,7 @@ function flowState(r) {
   const accNeed = !!p && route !== 'outsource' && (p.acc || []).some(a => a.code && +a.qty > 0);
   const handReady = !!(d && d.fabricReady && !d.fabricReady.challan);
   s.needFab = isNew && !!p && route !== 'outsource' && route !== 'jobwork' && !handReady && !(route === 'stitch' && p.fabric && p.fabric.noRfd)
-    && (route === 'inhouse' ? (s.fabNeed - s.fabSent > 0.01 || (flowPrintExtras(r, p).length > 0 && !(flowRufflePrinter(p) ? flowChIndex()[k + FLOW_RUF] : cx))) : !(d && d.fabricReady));   // the ruffle cloth goes too, on the first challan
+    && (route === 'inhouse' ? (flowFabOwed({ qty }, s).left > 0.01 || (flowPrintExtras(r, p).length > 0 && !(flowRufflePrinter(p) ? flowChIndex()[k + FLOW_RUF] : cx))) : (!(d && d.fabricReady) && flowRemFrac(r, s) > 0));   // the ruffle cloth goes too, on the first challan
   s.needAcc = isNew && accNeed && !res;
   s.bucket =
       (r.handedAt || r.shopDoneAt) ? 'done'

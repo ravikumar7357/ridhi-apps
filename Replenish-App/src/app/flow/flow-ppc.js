@@ -89,9 +89,10 @@ function flowCommitted(skipKeys, withTest) {
     /* WHAT AN EARLIER PLAN STILL HAS TO TAKE FROM THE RFD (16 Oct, one rule with flowRfdStock). A printed line: what its
      * challans have not sent yet — what they sent is already off the stock. Cutting straight from RFD: all of it until
      * the line is cut or issued. Job Work and outsourced lines take no RFD. */
-    if (p.fabric && p.fabric.name && s.route !== 'jobwork' && !(s.route === 'stitch' && p.fabric.noRfd) && !s.cut && !s.issued) {   // cut or issued: its cloth has gone
+    if (p.fabric && p.fabric.name && s.route !== 'jobwork' && !(s.route === 'stitch' && p.fabric.noRfd)) {
+      /* Only the part of the line still to make (flowRemFrac): pieces already cut took their cloth. */
       const owed = s.route === 'inhouse' ? flowFabOwed({ qty: +r.qty || 0 }, s).metres
-        : (fr && !fr.challan && +fr.metres > 0 ? +fr.metres : flowToPrint(r, p).metres);
+        : flowR2((fr && !fr.challan && +fr.metres > 0 ? +fr.metres : flowToPrint(r, p).metres) * flowRemFrac(r, s));
       if (owed > 0) { const k = flowFabKey(p.fabric.name); fab[k] = flowR2((fab[k] || 0) + owed); }
     }
     (p.extra || []).forEach(x => { if (x.unit !== 'm' || !x.what) return; const k = flowFabKey(String(x.what).replace(/^Ruffle — /, ''));
@@ -268,9 +269,12 @@ function flowPpcDraftSave(keys) {
 let FLOW_DRAFT_T = null;
 function flowPpcDraftSoon(keys, say) { clearTimeout(FLOW_DRAFT_T); FLOW_DRAFT_T = setTimeout(() => { const at = flowPpcDraftSave(keys); if (say) say(at); }, 600); }
 /** Put a kept draft back into the boxes. Returns the newest time restored, '' when there was none. */
-function flowPpcDraftApply(keys) {
+function flowPpcDraftApply(keys, plansAt) {
   const d = flowPpcDrafts(); let at = '';
   keys.forEach((key, i) => { const x = d[key]; if (!x || !x.v) return;
+    /* A draft from before the plan was raised (or last changed) is stale: the saved plan wins (17 Oct: an old draft
+     * unticked "already printed" on a plan that had it). */
+    if (plansAt && plansAt[i] && String(plansAt[i]) > String(x.at || '')) return;
     Object.entries(x.v).forEach(([k, val]) => { const el = document.querySelector(`[data-fp="${i}"][data-k="${k}"]`); if (!el || el.disabled) return;
       if (el.type === 'checkbox') el.checked = !!val; else el.value = val; });
     if (String(x.at) > at) at = String(x.at); });
@@ -591,7 +595,10 @@ function flowPpcOpen(orderNo, onlySku, keys) {
       if (out) { mat.innerHTML = '<tr><td colspan="4" class="muted" style="text-align:left">Outsourced — nothing is raised from our stock.</td></tr>';
         const ch = document.querySelector(`[data-chips="${i}"]`); if (ch) ch.innerHTML = '<span class="fpc-chip vio">Outsourced</span>'; return; }
       const h = []; cover[i] = { fab: 0, unit: w && w.kind === 'sku' ? 'pcs' : 'm', extra: {} };
-      let rfdNeed = metres;
+      /* WHAT IS STILL TO MAKE (17 Oct): pieces already cut / issued / passed on this line need no cloth again. */
+      const qtyP = +p.qty || 0, rem = rows[i].s ? flowRemFrac(rows[i].r, rows[i].s) : 1, doneP = Math.round(qtyP * (1 - rem));
+      const remM = flowR2(metres * rem);
+      let rfdNeed = remM;
       /* PRINTED STOCK FIRST: what is already printed in the store, less what earlier plans and the lines above took. */
       /* PRINTED CLOTH IS IN THE STORE BY FABRIC AND COLOUR (Ravi, 17 Oct: "store me agate green ka printed sheeting pada h but
        * yaha kanhi show nahi ho rha h"): the row is shown before a print direction is picked — the store's figure does not
@@ -605,14 +612,14 @@ function flowPpcOpen(orderNo, onlySku, keys) {
           let ok = ''; try { ok = flowPrintedKey(flowPrintWhat(x.r, op), op.fabric.name, oc); } catch (e) { ok = ''; }
           return ok === pk ? a + (+op.fabric.fromPrinted) : a; }, 0));
         const held = ps == null ? 0 : hold(pk), pleft = ps == null ? null : ps - held - (com.printed[pk] || 0) - (run.printed[pk] || 0);
-        const want = w.kind === 'sku' ? (+p.qty || 0) : metres, use = pleft == null ? 0 : flowR2(Math.max(0, Math.min(want, pleft)));
+        const want = w.kind === 'sku' ? Math.max(0, qtyP - doneP) : remM, use = pleft == null ? 0 : flowR2(Math.max(0, Math.min(want, pleft)));
         h.push(flowPrintedRow(w.code ? `<b>${esc(w.code)}</b>` : `<b>${esc(fname)}</b> · ${esc(colour)}`, pleft, pu, use, ps, held + (com.printed[pk] || 0), run.printed[pk] || 0));
         run.printed[pk] = flowR2((run.printed[pk] || 0) + use); cover[i].fab = use;
-        rfdNeed = w.kind === 'sku' ? flowR2(metres * (1 - (p.qty ? use / p.qty : 0))) : flowR2(metres - use);
+        rfdNeed = w.kind === 'sku' ? flowR2(remM * (1 - (want ? use / want : 0))) : flowR2(remM - use);
       }
       /* Job Work straight away: no cloth is raised for it — accessories only. */
       if (fname && route !== 'jobwork' && !noRfd) { const k = flowFabKey(fname), before = (com.fab[k] || 0) + (run.fab[k] || 0); names['f|' + k] = fname;
-        h.push(flowMatRow(`RFD · <b>${esc(fname)}</b>${rfdNeed < metres ? ' <span class="muted">(the rest)</span>' : ''}`, rfdNeed, flowRfdStock(fname), before, ' m', flowFabKnown(fname)));
+        h.push(flowMatRow(`RFD · <b>${esc(fname)}</b>${doneP > 0 ? ` <span class="muted">(${nf(doneP)} pcs already cut — for the other ${nf(qtyP - doneP)})</span>` : rfdNeed < metres ? ' <span class="muted">(the rest)</span>' : ''}`, rfdNeed, flowRfdStock(fname), before, ' m', flowFabKnown(fname)));
         run.fab[k] = flowR2((run.fab[k] || 0) + rfdNeed); }
       (p.extra || []).forEach((x, j) => {
         if (route === 'jobwork' && x.unit === 'm') return;   // no cloth for a line going straight to job work
@@ -672,7 +679,7 @@ function flowPpcOpen(orderNo, onlySku, keys) {
   const dkeys = rows.map(x => x.s.key);
   const sayD = (t, bad) => { const el = $('flpDraftSay'); if (el) { el.textContent = t; el.className = bad ? 'err' : 'muted'; } };
   const dropA = $('flpDraftDrop');
-  const restored = flowPpcDraftApply(dkeys);
+  const restored = flowPpcDraftApply(dkeys, rows.map(x => (x.s.plan && x.s.plan.at) || ''));
   if (restored) { sayD(`Draft put back — saved ${flowDraftWhen(restored)} on this computer. Auto-save is on.`); if (dropA && dropA.style) dropA.style.display = ''; }
   const said = at => { if (at) { sayD(`Draft auto-saved ${flowDraftWhen(at)} — on this computer.`); if (dropA && dropA.style) dropA.style.display = ''; } else sayD('Could not keep a draft on this computer (browser storage is blocked).', true); };
   document.querySelectorAll('[data-fp]').forEach(inp => { inp.addEventListener('input', paint); inp.addEventListener('change', paint);
