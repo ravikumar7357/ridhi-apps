@@ -179,6 +179,16 @@ const K = 'AMZ-1__S1';
   ok('above the lines: only the switch, By line | By fabric — not the stock table', /data-flang="stock"/.test(A.els.flPanel.innerHTML) && !/⚑ 10 m/.test(A.els.flPanel.innerHTML) && /By fabric/.test(A.els.flPanel.innerHTML));
   A.setAngle('drfd', 'stock'); A.renderFlow();
   ok('By fabric: the table IS the stock — in stock, need, short per fabric; the lines are not under it', /⚑ 10 m/.test(A.els.flTable.innerHTML) && /RFD in stock/.test(A.els.flTable.innerHTML) && !/data-flfab=/.test(A.els.flTable.innerHTML));
+  /* By printer, as a pivot (17 Oct): printer down the side, fabric across, totals. */
+  {
+    const P2 = load({ me: { tabs: ['fldem'] }, rfd: { 'SHEETING 58': 500, 'COTTON': 500 }, lines: [L({ sku: 'S1' }), L({ sku: 'S2' }), L({ sku: 'S3', orderNo: 'AMZ-2' })],
+      ppc: { [K]: pl('S1', 60, { printer: { code: 'P1', name: 'Sanganer Prints' } }), 'AMZ-1__S2': pl('S2', 40, { printer: { code: 'P1', name: 'Sanganer Prints' }, fabric: { name: 'Cotton', perPc: 1, metres: 40 } }),
+        'AMZ-2__S3': pl('S3', 25, { printer: { code: 'P2', name: 'Choudhary Hand Block' } }) } });
+    P2.setView('drfd'); P2.setAngle('drfd', 'printer'); P2.renderFlow();
+    const h = P2.els.flTable.innerHTML;
+    ok('By printer: one row per printer, a column per fabric — Sanganer 60 m Sheeting 58 + 40 m Cotton = 100, Choudhary 25, total 125', /Sanganer Prints/.test(h) && /Choudhary Hand Block/.test(h) && /<th>Sheeting 58<\/th>/.test(h) && /<th>Cotton<\/th>/.test(h) && /<b>100<\/b>/.test(h) && /<b>25<\/b>/.test(h) && />125</.test(h), h.slice(0, 1200));
+    ok('…with a Download Excel button beside the switch', /data-flpivxl/.test(P2.els.flPanel.innerHTML) && /data-flang="printer"/.test(P2.els.flPanel.innerHTML));
+  }
   A.setAngle('drfd', 'line'); A.renderFlow();
   ok('accessories are not in the RFD department', !/Reserve/.test(A.els.flTable.innerHTML));
   A = load({ me: { tabs: ['flacc'] }, lines: [L()], ppc: { [K]: pl('S1', 60, { acc: [{ code: '18', qty: 100 }] }) }, shelf: [{ code: '18', name: '18in zip', qty: 70 }] });
