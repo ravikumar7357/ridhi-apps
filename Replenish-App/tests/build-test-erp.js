@@ -72,7 +72,11 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
 /** Replace exactly `count` occurrences of `find` (string or regex) — or stop the build. */
 function must(text, find, repl, count, label) {
   let n = 0;
-  const out = text.replace(find instanceof RegExp ? find : new RegExp(find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), (...m) => { n++; return typeof repl === 'function' ? repl(...m) : repl; });
+  /* A string replacement keeps its $1, $2 … meaning (a callback would otherwise insert them literally). */
+  const out = text.replace(find instanceof RegExp ? find : new RegExp(find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), (...m) => {
+    n++;
+    return typeof repl === 'function' ? repl(...m) : repl.replace(/\$(\d)/g, (_, i) => (m[Number(i)] == null ? '' : m[Number(i)]));
+  });
   if (count != null && n !== count) throw new Error(`${label}: expected ${count} change(s), made ${n}. The source changed — update build-test-erp.js before publishing.`);
   return out;
 }
