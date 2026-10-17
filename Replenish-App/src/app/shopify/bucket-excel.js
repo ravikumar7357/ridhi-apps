@@ -63,6 +63,98 @@ async function shpBucketXlIn(file) {
   } catch (e) { soMsg('Could not read the file: ' + (e.message || e), true); }
 }
 
+/* ================= OPEN A WHOLE PENDING SHEET (Ravi, 17 Oct) =================
+ * "jo sheet di wo actual production required h to … whole sheet production me open karna padega". The team's Shopify export
+ * of unfulfilled lines (Name · Lineitem quantity · Lineitem name · Lineitem sku · Lineitem fulfillment status) IS what has to
+ * be made: every pending line is opened, the stock's opinion aside (reason "on the pending sheet"). Each row is found on the
+ * fetched order by the Shopify SKU, else by the line's own name (the export writes it as Shopify does), and goes through
+ * shpBucketRun — the same duplicate guard read from the database, the same order numbers. What cannot be opened is said,
+ * row by row: an order not fetched (widen From), a line with no SKU to make it against, already open, shipped. */
+const shpNameKey = v => String(v == null ? '' : v).toLowerCase().replace(/&amp;/g, '&').replace(/[^a-z0-9]+/g, '');
+/** rows (with the header) → { store, from, lines:[{row, nm, qty, name, sku, st, key, x, why}] } or { err } */
+function shpSheetMatch(rows, storeWant) {
+  if (!rows || rows.length < 2) return { err: 'That file has no rows.' };
+  const H = rows[0].map(h => String(h == null ? '' : h).replace(/^\uFEFF/, '').trim().toLowerCase());
+  const col = n => H.indexOf(n);
+  const iN = col('name'), iQ = col('lineitem quantity'), iT = col('lineitem name'), iS = col('lineitem sku'), iF = col('lineitem fulfillment status'), iD = col('created at');
+  if (iN < 0 || iT < 0) return { err: 'This is not the Shopify orders export — it needs the "Name" and "Lineitem name" columns.' };
+  const cell = (r, j) => (j >= 0 && r[j] != null ? String(r[j]).trim() : '');
+  const body = rows.slice(1).map((r, k) => ({ r: r || [], row: k + 2 })).filter(x => cell(x.r, iN));
+  /* Which store: the one picked in the bucket, else the SKUs' brand (CPC… is CPC). The two stores both number from 1. */
+  const skus = body.map(x => obUC(cell(x.r, iS))).filter(Boolean);
+  const store = storeWant || (skus.filter(s => /^CPC/.test(s)).length * 2 >= skus.length ? 'CPC' : 'Ridhi');
+  const orders = new Map();
+  (SO_ALL_ROWS || []).forEach(o => { if (o && o.id && shbStore(o) === store) orders.set(shpNameKey(o.no).toUpperCase(), o); });
+  const byKey = new Map(shpBucketAll().map(x => [x.key, x]));
+  const opened = new Set((PTG.ob || []).filter(x => x && x.shopOrderId).map(x => String(x.shopOrderId) + '|' + obUC(x.sku)));
+  const used = new Set(), lines = [];
+  let from = '';
+  body.forEach(({ r, row }) => {
+    const nm = cell(r, iN), no = shpNameKey(nm).toUpperCase(), name = cell(r, iT), sku = obUC(cell(r, iS)), qty = Number(cell(r, iQ)) || 0;
+    const L = { row, nm, qty, name, sku, st: '', key: '', why: '' };
+    lines.push(L);
+    if (/^ful/i.test(cell(r, iF))) { L.st = 'gone'; L.why = 'fulfilled on the sheet'; return; }
+    if (!/^#/.test(nm)) { L.st = 'other'; L.why = nm + ' is not a Shopify order (open it as an Online order)'; return; }
+    const dv = iD >= 0 ? r[iD] : null;
+    /* the export's date: text "2026-09-21 10:00:00 +0530", or an Excel day number once the sheet was saved in Excel */
+    const d = !dv ? '' : dv instanceof Date ? dv.toISOString().slice(0, 10)
+      : /^\d+(\.\d+)?$/.test(String(dv)) ? new Date(Math.round((Number(dv) - 25569) * 86400000)).toISOString().slice(0, 10) : String(dv).slice(0, 10);
+    const o = orders.get(no);
+    if (!o) { L.st = 'nofetch'; L.why = 'order not fetched' + (d ? ' (' + d + ')' : ''); if (/^\d{4}-\d{2}-\d{2}$/.test(d) && (!from || d < from)) from = d; return; }
+    if (o.cancelled) { L.st = 'gone'; L.why = 'cancelled on Shopify'; return; }
+    /* the line on the order: its Shopify SKU, else its name (title + variant, as the export joins them) */
+    const items = o.items || [], nk = shpNameKey(name);
+    const full = i => shpNameKey(String(i.name || '') + ' ' + (i.variant || ''));
+    const it = (sku && items.find(i => obUC(i.sku) === sku)) || (nk && items.find(i => full(i) === nk))
+      || (nk && items.find(i => { const a = full(i), b = shpNameKey(i.name); return a.startsWith(nk) || nk.startsWith(a) || (b.length > 8 && nk.startsWith(b) && !items.some(j => j !== i && shpNameKey(j.name) === b)); }));
+    if (!it) { L.st = 'noline'; L.why = 'no such line on ' + nm; return; }
+    if (shpLineShipped(it)) { L.st = 'gone'; L.why = 'Shopify says this line has shipped'; return; }
+    const code = shpLineCode(o.id, it).sku;
+    const keys = [...new Set([code, obUC(it.sku)].filter(Boolean))].map(s => String(o.id) + '|' + s);
+    const k = keys.find(x => byKey.has(x));
+    if (k) { L.key = k; L.x = byKey.get(k); L.sku = L.x.sku; if (used.has(k)) { L.st = 'dup'; L.why = 'same line as an earlier row'; } else { used.add(k); L.st = 'open'; } return; }
+    if (keys.some(x => opened.has(x))) { L.st = 'already'; L.why = 'already in production'; return; }
+    if (!code) { L.st = 'nosku'; L.why = 'no SKU — type it on the order (' + nm + '), then upload again'; return; }
+    L.st = 'noneed'; L.why = 'nothing left to make on it';
+  });
+  return { store, from, lines };
+}
+async function shpSheetIn(file) {
+  if (!file) return;
+  let rows;
+  try { rows = /\.xlsx$/i.test(file.name) ? await pkReadXlsx(new Uint8Array(await file.arrayBuffer())) : parseCsv(await file.text()); }
+  catch (e) { soMsg('Could not read the file: ' + (e.message || e), true); return; }
+  const m = shpSheetMatch(rows, SHB.store || '');
+  if (m.err) { soMsg(m.err, true); return; }
+  SHB.sheetLast = m;
+  const by = st => m.lines.filter(l => l.st === st), go = by('open');
+  const keys = go.map(l => l.key), why = 'on the pending sheet ' + file.name + ' (' + dToday() + ')';
+  const reasons = new Map(keys.map(k => [k, why]));
+  const grp = (st, label) => { const ls = by(st); return ls.length ? `<div style="margin-top:6px"><b>${nf(ls.length)}</b> ${label}: <span class="muted">${esc(ls.slice(0, 8).map(l => l.nm + ' ' + (l.sku || l.name.slice(0, 40))).join(' · '))}${ls.length > 8 ? ' …' : ''}</span></div>` : ''; };
+  ptOpenDialog({
+    title: 'Open the pending sheet',
+    subtitle: `${file.name} · store ${m.store} · ${nf(m.lines.length)} row(s)`,
+    note: 'Every pending line on the sheet is opened in production — the stock is not asked. A line already open is skipped; nothing else of the orders is touched.',
+    html: '<div style="font-size:12.5px;line-height:1.7">'
+      + `<div><b>${nf(go.length)}</b> line(s) · ${nf(new Set(go.map(l => l.x.id)).size)} order(s) · ${nf(go.reduce((t, l) => t + (l.x.qty || 0), 0))} qty will be opened</div>`
+      + (m.from ? `<div class="err">${nf(by('nofetch').length)} row(s) are on orders not fetched. Put <b>From = ${esc(m.from)}</b>, press Fetch orders, then upload the sheet again.</div>` : '')
+      + grp('nosku', 'with no SKU (type it on the order)') + grp('already', 'already in production') + grp('gone', 'shipped / cancelled / fulfilled')
+      + grp('noline', 'not found on their order') + grp('noneed', 'nothing left to make') + grp('dup', 'repeat a line above') + grp('other', 'not Shopify orders')
+      + '</div>',
+    saveLabel: go.length ? `Open ${nf(go.length)} line(s)` : 'Nothing to open',
+    onSave: async () => {
+      if (!keys.length) return 'Nothing on the sheet can be opened now — see the list.';
+      const err = await shpBucketRun(keys, reasons);
+      if (err) return err;
+      const L = SHP_BUCKET_LAST || {};
+      soMsg(`Pending sheet: opened ${nf(L.lines || 0)} production line(s) · ${nf(L.pcs || 0)} piece(s) across ${nf(L.orders || 0)} order(s).`
+        + ((L.skipped || []).length ? ' Skipped: ' + L.skipped.join(' · ') : ''));
+      try { renderShop(); } catch (e) { /* not on that tab */ }
+      return '';
+    },
+  });
+}
+
 /** The bucket, on screen — design 7, the header band. SHB holds the tab, the filters and what is ticked. */
 let SHB = { tab: 'make', q: '', store: '', date: '', from: '', ship: '', picked: new Set(), rpicked: new Set(), rqty: {} };
 const shbStore = o => (o.shopBrand === 'CPC' || /cpc/i.test(String(o.channel || '')) ? 'CPC' : 'Ridhi');
@@ -215,7 +307,8 @@ function shpBucketOpen() {
         <div class="shb-n"><b>${nf(nMake)}</b><span>need production</span></div>
         <div class="shb-n"><b>${nf(nCov)}</b><span>stock says it can fill</span></div>
         <div class="shb-n"><b>${nf(shbOpenedToday().length)}</b><span>opened today</span></div>
-        <button type="button" id="shbXlOut">Download Excel</button></div>`,
+        <button type="button" id="shbXlOut">Download Excel</button>
+        <button type="button" id="shbSheetIn" title="Upload the team's Shopify export of pending lines — every line on it is opened in production">Open from pending sheet</button><input type="file" id="shbSheetFile" accept=".xlsx,.csv" class="hide"></div>`,
     html: `<div class="shb-bar"><div class="seg" role="tablist">
         <button type="button" class="segbtn" data-shbtab="make"></button><button type="button" class="segbtn" data-shbtab="covered"></button><button type="button" class="segbtn" data-shbtab="done"></button><button type="button" class="segbtn" data-shbtab="recv" title="What production has made and pressed — fill in what arrived and accept"></button><button type="button" class="segbtn" data-shbtab="hand" title="Every hand-over to shipping: the day, the pieces, who took them, and whether Shopify has shipped it"></button></div>
         <input id="shbQ" placeholder="Search order / SKU / item" value="${esc(SHB.q)}">
@@ -255,6 +348,8 @@ function shpBucketOpen() {
   if ($('shbFrom')) $('shbFrom').value = SHB.from;
   if ($('shbDate')) $('shbDate').value = SHB.date;
   if ($('shbXlOut')) $('shbXlOut').onclick = () => shpBucketXlOut();
+  if ($('shbSheetIn')) $('shbSheetIn').onclick = () => $('shbSheetFile').click();
+  if ($('shbSheetFile')) $('shbSheetFile').onchange = e => { const f = e.target.files[0]; e.target.value = ''; shpSheetIn(f); };
   if ($('shbXlIn')) $('shbXlIn').onclick = () => $('shbXlFile').click();
   if ($('shbXlFile')) $('shbXlFile').onchange = e => { const f = e.target.files[0]; e.target.value = ''; shpBucketXlIn(f); };
   let shbT = null;

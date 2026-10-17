@@ -201,7 +201,7 @@ const EXPORT = '\n;return {'
   + 'loadShopStock, loadShopIndia, soGuessBrand, soMcf, soAmzKey, soAmzCase, soLive, soSendQty, soMcfPlan, soBestBrand, soMcfHas, mcfErr, openShopOrder,'
   + 'apiPost, soMcfPayload, renderShop, soRows, SO_ALL_ROWS:()=>SO_ALL_ROWS, ensureShop, soStamp, sdToday, sdShift, soStoreDay,'
   + 'renderAdj, ajRows, soAdjId, soPackOf, soIndiaOf, soLineState, soFlags,'
-  + 'shpSyncAll, shpSyncOrder, shpSyncMsg, shpPlanOrder, shpNeeds, shpLineShipped, shpOldestOpen, shpUnseen, shpCloseShipped, SHP_REACH_MAX_DAYS, shpOrderNo, shpOrderOf, shpWorkDone, adjOpen, shpBucket, shpBucketRun, shpDoneWhy, soProdStatus, soProdChip, shpBucketSheetRows, shpBucketXlRead, SHB_XL_COLS,'
+  + 'shpSyncAll, shpSyncOrder, shpSyncMsg, shpPlanOrder, shpNeeds, shpLineShipped, shpOldestOpen, shpUnseen, shpCloseShipped, SHP_REACH_MAX_DAYS, shpOrderNo, shpOrderOf, shpWorkDone, adjOpen, shpBucket, shpBucketAll, shpSheetMatch, shpBucketRun, shpDoneWhy, soProdStatus, soProdChip, shpBucketSheetRows, shpBucketXlRead, SHB_XL_COLS,'
   + 'setStockLoaded:v=>{SHOP_STOCK_LOADED=v},'
   + 'setIndia:(d,l,e)=>{SHOP_INDIA=d;SHOP_INDIA_LOADED=l;SHOP_INDIA_ERR=e}'
   + ', setCustom:v=>{SHP_CUSTOM=v}'
@@ -1761,12 +1761,26 @@ console.log('\n== THE PRODUCTION BUCKET (Ravi, 2026-09-26) ==');
     A.setSHOP({ orders: [cpcO('s1', '#6169', '2026-08-21'), cpcO('s2', '#6170', '2026-08-21'), cpcO('s3', '#7900', '2026-10-17'),
       mk('s4', '#6170', [['RCNBMIX', 1]], { at: '2026-08-21' }), cpcO('s5', '#X7JZ3NFBBP', '2026-09-01'), cpcO('s6', '#DRAFTNEW', '2026-10-17T10:00:00')], from: '', to: '', tz: '', at: 'x' });
     A.renderShop();
-    const ids = new Set(A.shpBucket().map(x => x.id));
-    ok('pending sheet: CPC #6169 (on the sheet) is in the bucket', ids.has('s1'), [...ids].join());
-    ok('pending sheet: CPC #6170 (old, not on the sheet — went out already) is kept out', !ids.has('s2'));
-    ok('pending sheet: CPC #7900 (after the last number on the sheet, #7887) comes in as a new order', ids.has('s3'));
-    ok('pending sheet: a Ridhi order is not touched (its sheet is still to come)', ids.has('s4'));
-    ok('pending sheet: a name that is not a number — by the list (#X7JZ3NFBBP), else by date (a new one comes in)', ids.has('s5') && ids.has('s6'));
+    const ids = new Set(A.shpBucket().map(x => x.id)), allIds = new Set(A.shpBucketAll().map(x => x.id));
+    ok('bucket: no old CPC order at all — #6169 (the sheet is opened whole instead) and #6170 are kept out', !ids.has('s1') && !ids.has('s2'), [...ids].join());
+    ok('bucket: CPC #7900 (after the last number on the sheet, #7887) comes in as a new order', ids.has('s3'));
+    ok('bucket: a Ridhi order is not touched (its sheet is still to come)', ids.has('s4'));
+    ok('bucket: a name that is not a number is judged by its date (old out, new in)', !ids.has('s5') && ids.has('s6'));
+    ok('…but the full list (an order\u2019s own dialog, a pending sheet) still has the old ones', allIds.has('s1') && allIds.has('s2') && allIds.has('s5'));
+    /* Open the whole pending sheet (17 Oct): the Shopify export rows, matched by SKU, else by the line's name. */
+    {
+      const H = ['Name', 'Created at', 'Lineitem quantity', 'Lineitem name', 'Lineitem sku', 'Lineitem fulfillment status'];
+      const m = A.shpSheetMatch([H, ['#6169', '2026-08-21 05:14:00 +0530', 1, 'RCNBMIX', 'RCNBMIX', 'pending'],
+        ['#6170', '', 1, 'RCNBMIX', '', 'pending'], ['#6169', '', 1, 'RCNBMIX', 'RCNBMIX', 'pending'],
+        ['#5555', 46000.5, 1, 'Something', 'CPC1-1', 'pending'], ['#6170', '', 1, 'Gone', 'X', 'fulfilled'], ['ETSY', '', 1, 'Quilt', '', '']], 'CPC');
+      const st = m.lines.map(l => l.st).join(',');
+      ok('pending sheet (store CPC): each row placed — open by SKU, open by name, repeat, not fetched, fulfilled, Etsy apart',
+        m.store === 'CPC' && st === 'open,open,dup,nofetch,gone,other', st + ' ' + m.store);
+      const g = A.shpSheetMatch([H, ['#1', '', 1, 'a', 'CPC1-1', ''], ['#2', '', 1, 'b', 'CPCN2', ''], ['#3', '', 1, 'c', 'RTC3', '']], '');
+      ok('pending sheet: with no store picked, the SKUs say it (mostly CPC… → CPC)', g.store === 'CPC', g.store);
+      ok('pending sheet: a row on an order not fetched says from which date to fetch (an Excel day number read as a date)', m.from === '2025-12-09', m.from);
+      ok('pending sheet: the open rows carry the bucket key, old order or not', m.lines[0].key === 's1|RCNBMIX' && m.lines[1].key === 's2|RCNBMIX');
+    }
     A.setSHOP({ orders: [mk('b1', '#5001', [['RCNBMIX', 2], ['RCNBRED', 1]])], from: '', to: '', tz: '', at: 'x' });
     A.renderShop();
   }
