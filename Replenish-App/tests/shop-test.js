@@ -1779,6 +1779,16 @@ console.log('\n== THE PRODUCTION BUCKET (Ravi, 2026-09-26) ==');
       const g = A.shpSheetMatch([H, ['#1', '', 1, 'a', 'CPC1-1', ''], ['#2', '', 1, 'b', 'CPCN2', ''], ['#3', '', 1, 'c', 'RTC3', '']], '');
       ok('pending sheet: with no store picked, the SKUs say it (mostly CPC… → CPC)', g.store === 'CPC', g.store);
       ok('pending sheet: a row on an order not fetched says from which date to fetch (an Excel day number read as a date, one day earlier for the time zones)', m.from === '2025-12-08', m.from);
+      /* A line Shopify sent with no SKU: the sheet's own SKU is taken — if the master knows it. */
+      A.setSHOP({ orders: [mk('t1', '#6200', [['', 1]], { shopBrand: 'CPC', at: '2026-08-30' })].map(o => Object.assign(o, { items: [{ sku: '', name: 'Zqx Mystery Cloth', variant: 'Odd', qty: 1, ffl: 'unfulfilled', rq: 0 }] })), from: '', to: '', tz: '', at: 'x' });
+      A.renderShop();
+      const wasMdb = PTG.mdb; PTG.mdb = [{ sku: 'CPC777-04' }];
+      const t = A.shpSheetMatch([H, ['#6200', '', 1, 'Zqx Mystery Cloth - Odd', 'CPC777-04', 'pending'], ['#6200', '', 1, 'Zqx Mystery Cloth - Odd', 'CPC999-99', 'pending'], ['#6200', '', 1, 'Zqx Mystery Cloth - Odd', '', 'pending']], 'CPC');
+      PTG.mdb = wasMdb;
+      ok('pending sheet: no SKU on Shopify — the sheet’s SKU is taken (master knows it), refused if the master does not, asked for if blank',
+        t.lines.map(l => l.st).join(',') === 'type,badsku,nosku', t.lines.map(l => l.st + ':' + l.why).join(' | '));
+      A.setSHOP({ orders: [cpcO('s1', '#6169', '2026-08-21'), cpcO('s2', '#6170', '2026-08-21')], from: '', to: '', tz: '', at: 'x' });
+      A.renderShop();
       ok('pending sheet: the open rows carry the bucket key, old order or not', m.lines[0].key === 's1|RCNBMIX' && m.lines[1].key === 's2|RCNBMIX');
     }
     A.setSHOP({ orders: [mk('b1', '#5001', [['RCNBMIX', 2], ['RCNBRED', 1]])], from: '', to: '', tz: '', at: 'x' });

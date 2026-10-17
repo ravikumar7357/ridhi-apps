@@ -114,7 +114,15 @@ function shpSheetMatch(rows, storeWant) {
     const k = keys.find(x => byKey.has(x));
     if (k) { L.key = k; L.x = byKey.get(k); L.sku = L.x.sku; if (used.has(k)) { L.st = 'dup'; L.why = 'same line as an earlier row'; } else { used.add(k); L.st = 'open'; } return; }
     if (keys.some(x => opened.has(x))) { L.st = 'already'; L.why = 'already in production'; return; }
-    if (!code) { L.st = 'nosku'; L.why = 'no SKU — type it on the order (' + nm + '), then upload again'; return; }
+    /* THE SHEET'S OWN SKU (17 Oct: 98 lines had none on Shopify). Written in "Lineitem sku" for a line Shopify sent without
+     * one, it is typed on the order exactly as the order dialog's box does (SHOP_META[id].mk), then the line opens. Only a
+     * SKU the master database or the custom list knows — a typo is not turned into a product. */
+    if (!code && sku && !obUC(it.sku)) {
+      const known = new Set((PTG.mdb || []).map(x => obUC(x && x.sku)).concat((SHP_CUSTOM || []).map(x => obUC(x && x.sku))));
+      if (known.size && !known.has(sku)) { L.st = 'badsku'; L.why = sku + ' is not in the master database'; return; }
+      L.st = 'type'; L.o = o; L.it = it; L.why = 'SKU from the sheet: ' + sku; return;
+    }
+    if (!code) { L.st = 'nosku'; L.why = 'no SKU — write it in "Lineitem sku" on the sheet (or type it on the order), then upload again'; return; }
     L.st = 'noneed'; L.why = 'nothing left to make on it';
   });
   /* One day earlier than the sheet says: the fetch counts days in the marketplace's zone, the sheet in the store's (17 Oct:
@@ -122,17 +130,29 @@ function shpSheetMatch(rows, storeWant) {
   if (from) { const t = new Date(from + 'T00:00:00Z'); t.setUTCDate(t.getUTCDate() - 1); from = t.toISOString().slice(0, 10); }
   return { store, from, lines };
 }
+/** Every row of the last pending sheet, with what happened to it — to fill the missing SKUs and upload again. */
+function shpSheetListOut(m) {
+  const ST = { open: 'Will open', type: 'Opens with the sheet SKU', nosku: 'No SKU', badsku: 'SKU not in master', already: 'Already in production', gone: 'Shipped / cancelled / fulfilled',
+    noline: 'Not found on the order', noneed: 'Nothing left to make', dup: 'Repeat of a row above', other: 'Not a Shopify order', nofetch: 'Order not fetched' };
+  const rows = [['Name', 'Lineitem quantity', 'Lineitem name', 'Lineitem sku', 'Status', 'Why', 'Sheet row']]
+    .concat(m.lines.map(l => [l.nm, l.qty, l.name, l.st === 'nosku' ? '' : l.sku, ST[l.st] || l.st, l.why || '', l.row]));
+  const bytes = recipeXlsx(rows, { name: 'Pending sheet', freeze: 2, cols: {} });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+  a.download = 'pending-sheet-check-' + dToday() + '.xlsx';
+  a.click(); URL.revokeObjectURL(a.href);
+}
 async function shpSheetIn(file) {
   if (!file) return;
   let rows;
   try { rows = /\.xlsx$/i.test(file.name) ? await pkReadXlsx(new Uint8Array(await file.arrayBuffer())) : parseCsv(await file.text()); }
   catch (e) { soMsg('Could not read the file: ' + (e.message || e), true); return; }
-  const m = shpSheetMatch(rows, SHB.store || '');
+  const storeWant = SHB.store || '';
+  const m = shpSheetMatch(rows, storeWant);
   if (m.err) { soMsg(m.err, true); return; }
   SHB.sheetLast = m;
-  const by = st => m.lines.filter(l => l.st === st), go = by('open');
+  const by = st => m.lines.filter(l => l.st === st), go = by('open'), typed = by('type');
   const keys = go.map(l => l.key), why = 'on the pending sheet ' + file.name + ' (' + dToday() + ')';
-  const reasons = new Map(keys.map(k => [k, why]));
   const grp = (st, label) => { const ls = by(st); return ls.length ? `<div style="margin-top:6px"><b>${nf(ls.length)}</b> ${label}: <span class="muted">${esc(ls.slice(0, 8).map(l => l.nm + ' ' + (l.sku || l.name.slice(0, 40))).join(' · '))}${ls.length > 8 ? ' …' : ''}</span></div>` : ''; };
   ptOpenDialog({
     title: 'Open the pending sheet',
@@ -140,14 +160,25 @@ async function shpSheetIn(file) {
     note: 'Every pending line on the sheet is opened in production — the stock is not asked. A line already open is skipped; nothing else of the orders is touched.',
     html: '<div style="font-size:12.5px;line-height:1.7">'
       + `<div><b>${nf(go.length)}</b> line(s) · ${nf(new Set(go.map(l => l.x.id)).size)} order(s) · ${nf(go.reduce((t, l) => t + (l.x.qty || 0), 0))} qty will be opened</div>`
+      + (typed.length ? `<div><b>${nf(typed.length)}</b> more with the SKU written on the sheet — it is saved on their order, then they open: <span class="muted">${esc(typed.slice(0, 8).map(l => l.nm + ' ' + l.sku).join(' · '))}${typed.length > 8 ? ' …' : ''}</span></div>` : '')
+      + `<div style="margin-top:4px"><button type="button" id="shbSheetList">Download the list (every row and why)</button></div>`
       + (m.from ? `<div class="err">${nf(by('nofetch').length)} row(s) are on orders not fetched. Put <b>From = ${esc(m.from)}</b>, press Fetch orders, then upload the sheet again.</div>` : '')
-      + grp('nosku', 'with no SKU (type it on the order)') + grp('already', 'already in production') + grp('gone', 'shipped / cancelled / fulfilled')
+      + grp('nosku', 'with no SKU (write it in "Lineitem sku" and upload again)') + grp('badsku', 'with a SKU the master does not know') + grp('already', 'already in production') + grp('gone', 'shipped / cancelled / fulfilled')
       + grp('noline', 'not found on their order') + grp('noneed', 'nothing left to make') + grp('dup', 'repeat a line above') + grp('other', 'not Shopify orders')
       + '</div>',
-    saveLabel: go.length ? `Open ${nf(go.length)} line(s)` : 'Nothing to open',
+    saveLabel: go.length + typed.length ? `Open ${nf(go.length + typed.length)} line(s)` : 'Nothing to open',
     onSave: async () => {
-      if (!keys.length) return 'Nothing on the sheet can be opened now — see the list.';
-      const err = await shpBucketRun(keys, reasons);
+      if (!keys.length && !typed.length) return 'Nothing on the sheet can be opened now — see the list.';
+      let all = keys;
+      if (typed.length) {
+        typed.forEach(l => { const meta = SHOP_META[l.o.id] || (SHOP_META[l.o.id] = {}); (meta.mk || (meta.mk = {}))[shpNoSkuKey(l.it)] = l.sku; });
+        try { await saveShopMeta(); } catch (e) { return 'Could not save the SKUs on the orders: ' + (e.message || e) + ' — nothing opened.'; }
+        soApplyTypedSkus(SO_ALL_ROWS);
+        SHP_BUCKET_IX = { sig: null, list: null };
+        const m2 = shpSheetMatch(rows, storeWant);
+        all = m2.err ? keys : m2.lines.filter(l => l.st === 'open').map(l => l.key);
+      }
+      const err = await shpBucketRun(all, new Map(all.map(k => [k, why])));
       if (err) return err;
       const L = SHP_BUCKET_LAST || {};
       soMsg(`Pending sheet: opened ${nf(L.lines || 0)} production line(s) · ${nf(L.pcs || 0)} piece(s) across ${nf(L.orders || 0)} order(s).`
@@ -156,6 +187,7 @@ async function shpSheetIn(file) {
       return '';
     },
   });
+  if ($('shbSheetList')) $('shbSheetList').onclick = () => shpSheetListOut(m);
 }
 
 /** The bucket, on screen — design 7, the header band. SHB holds the tab, the filters and what is ticked. */
