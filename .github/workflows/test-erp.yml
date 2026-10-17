@@ -1,0 +1,47 @@
+# THE TEST ERP: every push to dev publishes the same two apps on GitHub Pages, with saving switched off.
+#   https://ravikumar7357.github.io/ridhi-apps/
+# The real ERP is not touched: it is still deployed from a computer, from main, exactly as before.
+# What the build changes in its own copy (and only there) is explained in Replenish-App/tests/build-test-erp.js.
+name: test ERP
+
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: test-erp
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Pages match their source
+        run: |
+          node Replenish-App/tests/assemble.js --check
+          node Replenish-App/tests/assemble.js --root Pricing-App --check
+      - name: Build the test ERP (saving off)
+        run: node Replenish-App/tests/build-test-erp.js
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

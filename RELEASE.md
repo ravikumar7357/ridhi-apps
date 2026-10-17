@@ -41,21 +41,20 @@ Production is never changed directly. Every change is made on `dev`, checked, re
    ```
    On GitHub: Compare & pull request → base `dev`. The other developer reviews it. GitHub runs the checks. Merge when both are green.
 
-6. **Try it before production.** Every push to `dev` puts both apps on a **preview link** by itself
-   (GitHub → Actions → deploy → the run → the links in its log). Open it and use it.
-   A preview link still reads and writes the **live database**, so look at screens freely, but only save TEST orders.
+6. **See it on the TEST ERP.** Every push to `dev` updates the test ERP by itself in about two minutes:
+   **https://ravikumar7357.github.io/ridhi-apps/** (GitHub → Actions → "test ERP" shows each run).
+   It is the same two apps with the **live data** and **saving switched off**, so it is safe to click anything and
+   to share the link. Compare it side by side with the real ERP. How the test copy is made:
+   `Replenish-App/tests/build-test-erp.js`.
 
 7. **Release.** Open a pull request from `dev` into `main` titled with the date and what is in it. After it is merged,
-   after 7 pm:
-   - **The apps go live from GitHub, never from a computer:** GitHub → Actions → deploy → Run workflow → branch `main`
-     → target `live` → Run. The run refuses any branch but `main`, and runs the same checks again first.
-   - Apps Script (still from a computer, from `main` only): `clasp push -f`, then `clasp create-deployment -i <the existing deployment id>`
-   - Database rules (still from a computer, from `main` only): `node Pricing-App/rules/rules-tool.js deploy`
-     (rolls itself back if any account gets a wrong answer)
+   after 7 pm, deploy **from a computer, from `main` only**, exactly as before:
+   - Replenish: `node Replenish-App/tests/build-dist.js`, then `firebase deploy --only hosting` in `Replenish-App/`
+   - Sellora: `firebase deploy --only hosting` in `Pricing-App/`
+   - Apps Script: `clasp push -f`, then `clasp create-deployment -i <the existing deployment id>`
+   - Database rules: `node Pricing-App/rules/rules-tool.js deploy` (rolls itself back if any account gets a wrong answer)
 
-   **One-time setup for GitHub hosting:** Firebase console → Project settings → Service accounts → create a key for an
-   account with the *Firebase Hosting Admin* role → GitHub → Settings → Secrets and variables → Actions → New
-   repository secret named `FIREBASE_SERVICE_ACCOUNT`, paste the whole JSON. Then delete the downloaded file.
+   Nothing on GitHub deploys the real ERP.
 
 8. **Check the next morning.** Read the ERP health email: errors, freezes, refused saves, slow screens, backups. Reading production logs never changes production.
 
