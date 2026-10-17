@@ -47,7 +47,11 @@ function renderFlow() {
   if (FLOW_DEMAND.includes(FLOW_VIEW)) FLOW.demView = FLOW_VIEW;
   const all = flowRows();
   const q = String($('flQ').value || '').trim().toLowerCase(), ff = flowFiltVals(), src = ff.src;
-  flowFiltFill(all, ff);
+  /* THE LISTS FOLLOW THE BUCKET ON SCREEN (Ravi, 17 Oct: "open PPC window par hu to sirf open po hi dropdown me ho"): the
+   * PO, article, colour… a dropdown offers are those of the lines in this bucket — a pick from another bucket left every
+   * count at 0. The history and print-order lists are not line lists; they keep every line's. */
+  const inBucket = ['pord', 'dhist'].includes(FLOW_VIEW) ? all : all.filter(x => FLOW_VIEW === 'new' ? x.recent : flowInView(FLOW_VIEW, x.s));
+  flowFiltFill(inBucket, ff);
   const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly();
   if ($('flTestOnly')) $('flTestOnly').checked = only;
   /* With test orders off (flow-core.js) there is no test order to raise or narrow to: the button and the switch go. */

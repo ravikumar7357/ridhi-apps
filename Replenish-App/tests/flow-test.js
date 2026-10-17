@@ -31,7 +31,7 @@ function load(opts) {
     bdMaterialsFor: (sku, pcs) => { const m = (opts.mdb || {})[sku]; return m && m.chainLength ? [{ kind: 'zip', what: m.chainLength + '" zip', qty: pcs, unit: 'pcs' }] : []; },
     ptPatch: async p => { if (opts.writeFails) throw new Error('denied'); writes.push(p); },
     ptGet: async node => (opts.db || {})[node] || null,
-    ptOpenDialog: cfg => { ctx.__dlg = cfg; }, ptFillSelect: () => {}, ptImgOf: () => '', ptImgSrc: u => u, showTab: () => {},
+    ptOpenDialog: cfg => { ctx.__dlg = cfg; }, ptFillSelect: (id, pairs) => { (ctx.__fills = ctx.__fills || {})[id] = pairs; }, ptImgOf: () => '', ptImgSrc: u => u, showTab: () => {},
     ptLoadGates: async () => {},
     showTab: t => { (ctx.__tabs = ctx.__tabs || []).push(t); }, ensureCutForm: async () => {}, cutSkuTyped: () => {}, renderCutForm: () => {}, renderCutFab: () => {},
     ensureBdForm: async () => {}, bdSkuTyped: () => {}, renderBdForm: () => {}, bdMatFill: () => {}, qcSkuTyped: () => {}, renderQcCheckForm: () => {},
@@ -1239,6 +1239,14 @@ const K = 'AMZ-1__S1';
     F.els.flSrc.value = ''; F.els.flFArt.value = ''; F.els.flFPo.value = 'SHP-B'; F.renderFlow();
     ok('PO = SHP-B → only that order (Ravi, 16 Oct: "filter me PO add karo")', !/AMZ-A/.test(F.els.flTable.innerHTML) && /SHP-B/.test(F.els.flTable.innerHTML) && F.els.flFiltN.textContent === '1');
     F.els.flFPo.value = '';
+    /* The PO list holds the POs of the bucket on screen only (17 Oct). */
+    const G = load({ me: { admin: true }, mdb: { S1: { cons: 1, fab: 'Cotton' }, S2: { cons: 1, fab: 'Cotton' } }, lines: [L({ orderNo: 'AMZ-A', sku: 'S1' }), L({ orderNo: 'AMZ-P', sku: 'S2' })],
+      ppc: { 'AMZ-P__S2': plan({ orderNo: 'AMZ-P', sku: 'S2' }) } });
+    G.setView('ppc'); G.renderFlow();
+    const poList = () => ((G.ctx.__fills || {}).flFPo || []).map(p => p[0]).join();
+    ok('PPC bucket open → the PO list holds the PPC POs only (AMZ-A, not the planned AMZ-P)', poList() === 'AMZ-A', poList());
+    G.setView('ppcdone'); G.renderFlow();
+    ok('…PPC completed open → its own POs (AMZ-P)', poList() === 'AMZ-P', poList());
   }
 
   console.log('== PPC sends a line to Printing, straight to Cutting, or straight to Job Work (15 Oct) ==');
