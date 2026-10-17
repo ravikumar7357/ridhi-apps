@@ -1364,6 +1364,11 @@
             </div>
           </details>
           <button id="flRefresh" class="ghost" style="width:auto">Refresh</button>
+          <!-- PPC IN EXCEL (Ravi, 17 Oct): the PPC list out, and the plan back in as drafts the form opens with. -->
+          <button id="flXlOut" class="ghost hide" style="width:auto" title="The PPC lines on screen, with what the form would open with">Excel</button>
+          <button id="flXlIn" class="ghost hide" style="width:auto" title="Upload the filled PPC sheet — rows marked Raise = yes open in the form, ready to raise">Import plan</button>
+          <button id="flXlNext" class="hide" style="width:auto"></button>
+          <input id="flXlFile" type="file" accept=".xlsx,.csv" class="hide">
           <!-- NO TEST ORDERS ANY MORE (Ravi, 16 Oct: "test ab chahiye hi nahi remove test"): the "+ Test order" button and the
                "Only test orders" switch are gone from the page. -->
         </div>

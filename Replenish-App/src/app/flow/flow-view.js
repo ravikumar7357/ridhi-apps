@@ -77,6 +77,10 @@ function renderFlow() {
   rows.sort((a, b) => String(a.r.orderDate || '').localeCompare(String(b.r.orderDate || '')) || String(a.r.orderNo).localeCompare(String(b.r.orderNo)));
   FLOW.panel = ''; FLOW.stock = ''; FLOW.byprint = '';
   $('flTable').innerHTML = flowTable(FLOW_VIEW, rows.slice(0, 800));
+  /* PPC in Excel: on the PPC bucket only — the lines on screen are what the sheet holds. */
+  FLOW.shownPpc = FLOW_VIEW === 'ppc' ? rows : [];
+  ['flXlOut', 'flXlIn'].forEach(id => { const b = $(id); if (b && b.classList) b.classList.toggle('hide', FLOW_VIEW !== 'ppc'); });
+  try { flowXlBtn(); } catch (e) { /* not drawn */ }
   /* DEMAND HAS TWO ANGLES (Ravi, 10 Oct: "keep this section in a different angle"): the lines, or the stock by
    * fabric / accessory against them — one at a time, never stacked. */
   if (FLOW.stock) {
@@ -413,6 +417,11 @@ if (document.addEventListener) document.addEventListener('click', e => { const d
 /* The test-order button and switch are gone from the page (16 Oct); nothing to wire. */
 if ($('flTest')) $('flTest').onclick = () => flowTestOpen();
 if ($('flTestOnly')) $('flTestOnly').addEventListener('change', () => { flowTestOnlySet($('flTestOnly').checked); renderFlow(); });
+/* PPC in Excel (flow-ppc.js): out = the PPC lines on screen; in = drafts, then the form. */
+if ($('flXlOut')) $('flXlOut').onclick = () => { try { flowPpcXlOut(FLOW.shownPpc || []); } catch (e) { $('flMsg').className = 'err'; $('flMsg').textContent = 'Could not make the sheet: ' + (e.message || e); } };
+if ($('flXlIn')) $('flXlIn').onclick = () => $('flXlFile').click();
+if ($('flXlFile')) $('flXlFile').onchange = e => { const f = e.target.files[0]; e.target.value = ''; flowPpcXlIn(f); };
+if ($('flXlNext')) $('flXlNext').onclick = () => flowXlOpenNext();
 $('flRefresh').onclick = async () => { $('flMsg').textContent = 'Reading again…'; await Promise.all([ptLoadGates(true), flowLoad(true),
   /* the Greige Desk too: the RFD stock is its count (flowRfdStock) */
   (FLOW_ON && typeof GD !== 'undefined' && GD.reload && flowGdReads() ? GD.reload().catch(() => {}) : null)]); renderFlow(); };

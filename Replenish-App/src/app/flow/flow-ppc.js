@@ -692,3 +692,126 @@ function flowPpcOpen(orderNo, onlySku, keys) {
     clearTimeout(FLOW_DRAFT_T); flowPpcDraftDrop(dkeys); ptDlgClose(); flowPpcOpen(keys && keys.length ? '' : orderNo, onlySku, keys); };
   paint();
 }
+
+/* ================= PPC IN EXCEL (Ravi, 17 Oct: "isme excel se export bhi kar saku or plan bhi import kar saku") =================
+ * Export: the PPC lines on screen, one row each, filled with what the form would open with (the master data's suggestion,
+ * or the draft kept for it). Import: the same sheet back, rows marked Raise = yes. An imported row is NOT written to the
+ * database by itself — it becomes that line's draft (the very draft the form keeps as you type), and the PPC form opens with
+ * those lines ticked. Raising them there is the one save that makes the print order, the vendor order, the RFD and the
+ * accessories — nothing is planned past its checks (direction, printer, fabric, printed stock, the vendor-order question). */
+const FLOW_XL_COLS = ['Line ID', 'PO', 'Order date', 'SKU', 'Item', 'Qty', 'How it is made', 'Fabric', 'Metres / piece', 'Total m', 'Print direction',
+  'Printer', 'Ruffle printer', 'Outsource vendor', 'Already printed — no RFD (yes/no)', 'Cut date', 'QC date', 'Ready date', 'Note', 'Raise (yes/no)', 'Check'];
+/** What the form would open with for one line: the plan or the suggestion, with its kept draft on top. */
+function flowXlPlanOf(x) {
+  const p = Object.assign(flowSuggest(x.r), x.s.plan ? JSON.parse(JSON.stringify(x.s.plan)) : {});
+  const dr = (flowPpcDrafts()[x.s.key] || {}).v || {};
+  const set = (path, v) => { const ks = path.split('.'); let t = p; ks.slice(0, -1).forEach(k => { if (t[k] == null || typeof t[k] !== 'object') t[k] = {}; t = t[k]; }); t[ks[ks.length - 1]] = v; };
+  Object.entries(dr).forEach(([k, v]) => { if (!/^acc\./.test(k)) set(k, v); });
+  return p;
+}
+const flowVenName = code => { if (!code) return ''; let v = null; try { v = flowChVendors().find(y => String(y.code) === String(code)); } catch (e) { v = null; } return v ? (v.desc || v.name || v.code) : String(code); };
+/** The sheet for these lines: [header, ...rows]. */
+function flowPpcXlRows(rows) {
+  return [FLOW_XL_COLS].concat(rows.map(x => {
+    const p = flowXlPlanOf(x), d = flowDirOpts(x.r, p), route = flowRouteOf(p), per = +(p.fabric && p.fabric.perPc) || 0;
+    const chk = [].concat(d.dirs.length > 1 ? ['direction: ' + d.dirs.join(' / ')] : [], (p.gaps || []), flowPpcHasDraft(x.s.key) ? ['draft kept'] : []).join(' · ');
+    return [x.s.key, x.r.orderNo, ptIsoDate(x.r.orderDate) || '', obUC(x.r.sku), [x.r.articleSubtype || x.r.articleType, x.r.color, x.r.size].filter(Boolean).join(' · '),
+      +x.r.qty || 0, (FLOW_ROUTES.find(r => r[0] === route) || [, , route])[2], (p.fabric && p.fabric.name) || '', per, flowR2(per * (+x.r.qty || 0)),
+      (p.print && p.print.dir) || d.cur || '', flowVenName(p.printer && p.printer.code), flowVenName(p.rufflePrinter && p.rufflePrinter.code), p.outVendor || '',
+      p.fabric && p.fabric.noRfd ? 'yes' : '', (p.dates || {}).cut || '', (p.dates || {}).qc || '', (p.dates || {}).ready || '', p.note || '', '', chk];
+  }));
+}
+/** A date as the sheet may hold it — 2026-10-20, 20-10-2026, 20/10/2026 or an Excel day number — as 2026-10-20; '' if none, null if unreadable. */
+function flowXlDate(v) {
+  const s = String(v == null ? '' : v).trim(); if (!s) return '';
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  let m = s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/); if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+  if (/^\d{5}(\.\d+)?$/.test(s)) return new Date(Math.round((Number(s) - 25569) * 86400000)).toISOString().slice(0, 10);
+  return null;
+}
+/** The filled sheet → { drafts: { key: v }, keys, errs, skipped }. Only rows marked Raise = yes, only lines still in PPC. */
+function flowPpcXlRead(sheet) {
+  if (!sheet || sheet.length < 2) return { err: 'That file has no rows.' };
+  const H = sheet[0].map(h => String(h == null ? '' : h).replace(/^\uFEFF/, '').trim().toLowerCase());
+  const at = n => H.indexOf(String(n).toLowerCase()), iK = at('Line ID'), iR = H.findIndex(h => /^raise/.test(h));
+  if (iK < 0 || iR < 0) return { err: 'The file needs the "Line ID" and "Raise (yes/no)" columns — download the PPC list as Excel and fill that one.' };
+  const byKey = new Map(flowRows().filter(x => x.s.bucket === 'ppc').map(x => [x.s.key, x]));
+  let vens = []; try { vens = flowChVendors(); } catch (e) { vens = []; }
+  const venOf = s => { const t = String(s || '').trim().toLowerCase(); if (!t) return '';
+    const v = vens.find(y => String(y.code).toLowerCase() === t) || vens.find(y => String(y.desc || y.name || '').trim().toLowerCase() === t); return v ? String(v.code) : null; };
+  const routeOf = s => { const t = String(s || '').trim().toLowerCase(); if (!t) return '';
+    const r = FLOW_ROUTES.find(y => y[0] === t || String(y[2]).toLowerCase() === t || String(y[1]).toLowerCase().startsWith(t)); return r ? r[0] : null; };
+  const drafts = {}, keys = [], errs = [], skipped = [];
+  for (let i = 1; i < sheet.length; i++) {
+    const row = sheet[i] || [], c = n => { const j = at(n); return j >= 0 && row[j] != null ? String(row[j]).trim() : ''; };
+    const key = c('Line ID'); if (!key || !/^(y|yes|1|true|raise)$/i.test(c(FLOW_XL_COLS[19]) || String(row[iR] == null ? '' : row[iR]).trim())) continue;
+    const x = byKey.get(key), tag = `row ${i + 1} (${c('PO')} ${c('SKU')})`;
+    if (!x) { skipped.push(tag + ': not in PPC any more — planned already, or sent back'); continue; }
+    const bad = [], v = {};
+    const route = routeOf(c('How it is made')); if (route === null) bad.push('"How it is made" must be Printing, Cutting, Job Work or Outsourced'); else v.route = route || flowRouteOf(flowXlPlanOf(x));
+    const fab = c('Fabric'); if (fab) v['fabric.name'] = fab;
+    const per = c('Metres / piece'); if (per !== '') { if (!(Number(per) >= 0)) bad.push('Metres / piece is not a number'); else v['fabric.perPc'] = String(Number(per)); }
+    const dir = c('Print direction'); if (dir) { const d = flowDirOpts(x.r, flowXlPlanOf(x)).dirs, hit = d.find(y => y.toLowerCase() === dir.toLowerCase() || y.toLowerCase()[0] === dir.toLowerCase()[0]);
+      if (d.length > 1 && !hit) bad.push('print direction is ' + d.join(' or ')); else if (hit) v['print.dir'] = hit; }
+    const pr = venOf(c('Printer')); if (pr === null) bad.push(`no printer called "${c('Printer')}"`); else v['printer.code'] = pr;
+    const rp = venOf(c('Ruffle printer')); if (rp === null) bad.push(`no printer called "${c('Ruffle printer')}"`); else if (rp) v['rufflePrinter.code'] = rp;
+    if (c('Outsource vendor')) v.outVendor = c('Outsource vendor');
+    v['fabric.noRfd'] = /^(y|yes|1|true)$/i.test(c(FLOW_XL_COLS[14]));
+    [['Cut date', 'dates.cut'], ['QC date', 'dates.qc'], ['Ready date', 'dates.ready']].forEach(([h, k]) => { const d = flowXlDate(c(h)); if (d === null) bad.push(h + ' is not a date'); else if (d) v[k] = d; });
+    if (c('Note')) v.note = c('Note');
+    if (bad.length) { errs.push(tag + ': ' + bad.join('; ')); continue; }
+    drafts[key] = v; keys.push(key);
+  }
+  return { drafts, keys, errs, skipped };
+}
+/* The imported lines still in PPC, opened in the form a batch at a time. */
+let FLOW_XL_IMP = [];
+const FLOW_XL_BATCH = 40;
+const flowXlLeft = () => { const inPpc = new Set(flowRows().filter(x => x.s.bucket === 'ppc').map(x => x.s.key)); return FLOW_XL_IMP.filter(k => inPpc.has(k)); };
+function flowXlOpenNext() {
+  const left = flowXlLeft(); if (!left.length) { FLOW_XL_IMP = []; return; }
+  const batch = left.slice(0, FLOW_XL_BATCH);
+  flowPpcOpen('', null, batch);
+  /* the imported lines are ticked "Raise now" — that is what the sheet said */
+  document.querySelectorAll('[data-fpick]').forEach(el => { el.checked = true; try { el.dispatchEvent(new Event('change')); } catch (e) { /* no events here */ } });
+}
+function flowPpcXlOut(rows) {
+  const bytes = recipeXlsx(flowPpcXlRows(rows), { name: 'PPC', freeze: 2, cols: {}, list: { name: 'YN', values: ['yes', 'no'], cols: [19, 14] } });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+  a.download = 'ppc-plan-' + dToday() + '.xlsx';
+  a.click(); URL.revokeObjectURL(a.href);
+}
+async function flowPpcXlIn(file) {
+  if (!file) return;
+  let sheet; try { sheet = /\.xlsx$/i.test(file.name) ? await pkReadXlsx(new Uint8Array(await file.arrayBuffer())) : parseCsv(await file.text()); }
+  catch (e) { $('flMsg').className = 'err'; $('flMsg').textContent = 'Could not read the file: ' + (e.message || e); return; }
+  const rd = flowPpcXlRead(sheet);
+  if (rd.err) { $('flMsg').className = 'err'; $('flMsg').textContent = rd.err; return; }
+  const list = (a, n) => a.length ? `<div style="margin-top:6px"><b>${nf(a.length)}</b> ${n}:<div class="muted" style="font-size:12px">${a.slice(0, 12).map(esc).join('<br>')}${a.length > 12 ? '<br>…' : ''}</div></div>` : '';
+  const pos = new Set(rd.keys.map(k => k.split('__')[0]));
+  ptOpenDialog({
+    title: 'Import the PPC plan',
+    subtitle: `${file.name} · ${nf(rd.keys.length)} line(s) to raise · ${nf(pos.size)} PO(s)`,
+    note: 'Nothing is raised from the sheet by itself: each line gets what the sheet says as its draft, and the PPC form opens with those lines ticked — check them and press Raise there. The print orders, vendor orders, RFD and accessories are made by that one save, as always.',
+    html: '<div style="font-size:12.5px;line-height:1.6">'
+      + (rd.keys.length ? `<div><b>${nf(rd.keys.length)}</b> line(s) ready${rd.keys.length > FLOW_XL_BATCH ? ` — the form opens ${FLOW_XL_BATCH} at a time; "Open imported" on the toolbar brings the next` : ''}.</div>` : '<div>No row says Raise = yes.</div>')
+      + list(rd.errs, 'row(s) with a mistake — fix them in the sheet and import again') + list(rd.skipped, 'row(s) left alone') + '</div>',
+    saveLabel: rd.keys.length ? `Open the form for ${nf(Math.min(rd.keys.length, FLOW_XL_BATCH))} line(s)` : 'Close',
+    onSave: async () => {
+      if (!rd.keys.length) return '';
+      const d = flowPpcDrafts(), nowIso = new Date().toISOString();
+      rd.keys.forEach(k => { d[k] = { at: nowIso, by: ME.email || '', v: rd.drafts[k], from: 'excel' }; });
+      if (!flowPpcDraftsPut(d)) return 'This browser would not keep the drafts (storage blocked) — nothing imported.';
+      FLOW_XL_IMP = rd.keys.slice();
+      setTimeout(() => { flowXlOpenNext(); try { flowXlBtn(); } catch (e) { /* toolbar not drawn */ } }, 0);
+      return '';
+    },
+  });
+}
+/** The toolbar's "Open imported (N)" — shown while imported lines wait in PPC. */
+function flowXlBtn() {
+  const b = typeof $ === 'function' ? $('flXlNext') : null; if (!b) return;
+  const n = FLOW_XL_IMP.length ? flowXlLeft().length : 0;
+  b.textContent = `Open imported (${nf(n)})`; if (b.classList) b.classList.toggle('hide', !n);
+}
