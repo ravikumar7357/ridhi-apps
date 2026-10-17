@@ -4,6 +4,8 @@
 !/.gitignore
 !/.gitattributes
 !/README.md
+!/RELEASE.md
+!/.github/
 !/Replenish-App/
 !/Pricing-App/
 !/Pricing-API/
