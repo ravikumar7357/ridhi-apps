@@ -1455,3 +1455,15 @@ html.mob #panePack .toolbar>span[style*="flex:1"]{display:none}
 html.mob #panePack .toolbar>button,html.mob #paneFgi .toolbar>button{flex:1 1 calc(50% - 8px)!important;min-height:44px}
 html.mob #panePack .toolbar>#pkScanBtn,html.mob #paneFgi .toolbar>#fgScan{flex:1 1 100%!important;order:-1}
 html.mob #paneFgi .toolbar>label,html.mob #fgQ,html.mob #pkSearch{flex:1 1 100%!important}
+/* ---- COMPACT CARDS (phone-app-compact-cards zip, 17 Oct): the automatic phone cards — the picture at the left beside the
+   title, short values (ASIN, brand, colour, size, stock) as tiles three to a row, long text and controls on their own line. */
+html.mob table.mob-tcards.mob-tgrid tbody tr:not(.mob-tmsg):not(.mob-tnest){display:grid;grid-template-columns:repeat(3,minmax(0,1fr));column-gap:6px;row-gap:6px;grid-auto-flow:row dense;padding:10px 12px}
+html.mob table.mob-tcards.mob-tgrid tbody tr:not(.mob-tmsg):not(.mob-tnest)>td{grid-column:1/-1;border-bottom:0;padding:3px 0!important}
+html.mob table.mob-tcards.mob-tgrid tbody tr:not(.mob-tmsg):not(.mob-tnest)>td.mob-tshort{grid-column:auto;display:block;min-width:0;padding:5px 8px!important;border-radius:9px;background:var(--chip)!important;font-size:13px;font-weight:700;text-align:left!important;line-height:1.3;overflow-wrap:anywhere}
+html.mob table.mob-tcards.mob-tgrid tbody tr:not(.mob-tmsg):not(.mob-tnest)>td.mob-tshort::before{display:block;max-width:none;font-size:10.5px;font-weight:600;margin:0 0 1px;line-height:1.2}
+html.mob table.mob-tcards.mob-tgrid tbody tr:not(.mob-tmsg):not(.mob-tnest)>td.mob-timg{grid-column:1;grid-row:1/span 2;display:block;padding:0!important;align-self:start}
+html.mob table.mob-tcards.mob-tgrid tbody tr:not(.mob-tmsg):not(.mob-tnest)>td.mob-timg::before{display:none}
+html.mob table.mob-tcards.mob-tgrid tbody tr:not(.mob-tmsg):not(.mob-tnest)>td.mob-timg img,html.mob table.mob-tcards.mob-tgrid tbody tr:not(.mob-tmsg):not(.mob-tnest)>td.mob-timg canvas{width:72px!important;height:72px!important;max-width:none;object-fit:cover;border-radius:12px}
+html.mob table.mob-tcards.mob-tgrid tbody tr:not(.mob-tmsg):not(.mob-tnest):has(>td.mob-timg)>td.mob-tt{grid-column:2/-1;grid-row:1;align-self:end}
+html.mob table.mob-tcards.mob-tgrid tbody tr:not(.mob-tmsg):not(.mob-tnest)>td.mob-tt{font-size:15px;padding-top:0!important}
+html.mob table.mob-tcards.mob-tgrid tbody tr:not(.mob-tmsg):not(.mob-tnest):has(>td.mob-tick)>td.mob-tt{padding-right:34px!important}

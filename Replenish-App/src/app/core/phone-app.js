@@ -142,6 +142,8 @@ function mobCardTable(t) {
   mobTblSwitch(t);
   const cards = mobTblMode(t) === 'cards';
   t.classList.toggle('mob-tcards', cards);
+  /* COMPACT CARDS (phone-app-compact-cards zip, 17 Oct): picture beside the title, short values as tiles three to a row. */
+  t.classList.toggle('mob-tgrid', cards && !t.matches('.fm-tab, .fm-sub, #pkEdBoxes'));
   if (!cards) return;
   const names = mobColNames(t);
   [...t.tBodies, t.tFoot].filter(Boolean).forEach(tb => [...tb.rows].forEach(tr => {
@@ -156,14 +158,18 @@ function mobCardTable(t) {
       td.classList.toggle('mob-sn', names[c] === '#');
       c += td.colSpan || 1;
       const txt = String(td.textContent || '').trim();
-      const live = td.querySelector('input,select,textarea,button,img,svg,a');
+      const live = td.querySelector('input,select,textarea,button,img,svg,a,canvas,[data-img]');
       td.classList.toggle('mob-empty', !live && (!txt || /^[—–-]$/.test(txt)));
       const tick = td.querySelector('input[type=checkbox]') && !txt;
       td.classList.toggle('mob-tick', !!tick);
       /* the card's title: the frozen key column if the table has one, else its first cell with something in it */
-      const isTitle = !title && !tick && names[c - (td.colSpan || 1)] !== '#' && (td.classList.contains('frz') || (!cells.some(x => x.classList.contains('frz')) && txt));
+      const isTitle = !title && !tick && names[c - (td.colSpan || 1)] !== '#' && !!txt && (td.classList.contains('frz') || !cells.some(x => x.classList.contains('frz') && String(x.textContent || '').trim()));
       td.classList.toggle('mob-tt', !!isTitle);
       if (isTitle) title = true;
+      const pic = !txt && !!td.querySelector('img,canvas,[data-img]');
+      td.classList.toggle('mob-timg', pic);
+      const ctl = td.querySelector('input,select,textarea,button');
+      td.classList.toggle('mob-tshort', !isTitle && !pic && !tick && !ctl && !!txt && txt.length <= 22 && !td.classList.contains('mob-empty') && String(names[c - (td.colSpan || 1)] || '').length <= 24);
     });
   }));
 }
