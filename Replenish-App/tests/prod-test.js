@@ -2106,6 +2106,14 @@ console.log('\n== placing it, and what the form refuses ==');
     && A.SOX().rows.some(o => o._id === 'AMZ-07102026-01-AIR' && o.shipMode === 'AIR'), A.SOX().rows.map(o => o._id).filter(x => /07102026/.test(x)).join());
   ok('…and the next one that day by SEA is AMZ-07102026-02-SEA', A.soGenId('AMZ', '2026-10-07', '', 'SEA') === 'AMZ-07102026-02-SEA', A.soGenId('AMZ', '2026-10-07', '', 'SEA'));
   els.sof_mode.value = '';
+  /* A PLACED order keeps the mode its number carries (17 Oct): edited to SEA, an approved -AIR order stays AIR, in both places. */
+  { const o = A.SOX().rows.find(x => x._id === 'AMZ-07102026-01-AIR'); const was = o.status; o.status = 'approved';
+    A.setSOF({ id: o._id, page: 0, lines: [{ sku: realSku, qty: 3, orderTypeKey: 'regular' }] });
+    els.sof_channel.value = 'AMZ'; els.sof_date.value = '2026-10-07'; els.sof_mode.value = 'SEA';
+    await A.soFormSave(false);
+    const after = A.SOX().rows.find(x => x._id === 'AMZ-07102026-01-AIR') || {};
+    ok('an approved -AIR order edited to SEA keeps its number and stays AIR beside it — never one thing in the number and another beside it', !!after._id && after.shipMode === 'AIR', JSON.stringify({ id: after._id, mode: after.shipMode }));
+    const kept = A.SOX().rows.find(x => x._id === 'AMZ-07102026-01-AIR'); if (kept) kept.status = was; els.sof_mode.value = ''; }
   /* What this check saved leaves again, so the counts below are the counts they were written against. */
   A.SOX().rows = A.SOX().rows.filter(o => o._id !== 'AMZ-07102026-01-AIR'); NET.calls = NET.calls.filter(c => !/AMZ-07102026-01-AIR/.test(c.url || ''));
   A.soFormOpen(null);

@@ -41,7 +41,8 @@ async function ensureSox() {
 const soLines = o => (Array.isArray(o.lines) ? o.lines : Object.values(o.lines || {})).filter(Boolean);
 const soStatus = o => o.status || 'draft';
 /** AIR / SEA on an Amazon order: kept on it (shipMode), else read off the end of its number. '' for none. */
-const soShipMode = o => String((o && o.shipMode) || (typeof soModeOf === 'function' ? soModeOf(o && o._id) : '') || '').toUpperCase();
+/* The number is what the factory reads, so its -AIR / -SEA wins over what is kept beside it (17 Oct). */
+const soShipMode = o => String((typeof soModeOf === 'function' ? soModeOf(o && o._id) : '') || (o && o.shipMode) || '').toUpperCase();
 const soCount = x => (Array.isArray(x) ? x.length : Object.keys(x || {}).length);
 
 /** Order + SKU → net cut and pressed, built once. Per-SKU lookups would rescan 4,000 rows 1,200 times. */

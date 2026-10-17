@@ -39006,7 +39006,8 @@ async function ensureSox() {
 const soLines = o => (Array.isArray(o.lines) ? o.lines : Object.values(o.lines || {})).filter(Boolean);
 const soStatus = o => o.status || 'draft';
 /** AIR / SEA on an Amazon order: kept on it (shipMode), else read off the end of its number. '' for none. */
-const soShipMode = o => String((o && o.shipMode) || (typeof soModeOf === 'function' ? soModeOf(o && o._id) : '') || '').toUpperCase();
+/* The number is what the factory reads, so its -AIR / -SEA wins over what is kept beside it (17 Oct). */
+const soShipMode = o => String((typeof soModeOf === 'function' ? soModeOf(o && o._id) : '') || (o && o.shipMode) || '').toUpperCase();
 const soCount = x => (Array.isArray(x) ? x.length : Object.keys(x || {}).length);
 
 /** Order + SKU → net cut and pressed, built once. Per-SKU lookups would rescan 4,000 rows 1,200 times. */
@@ -41582,7 +41583,7 @@ function soFormOpen(id) {
       <option value="">— pick one —</option>
       ${chans.map(c => `<option value="${esc(c.code)}"${o.channel === c.code ? ' selected' : ''}>${esc(c.code)} — ${esc(c.name)}</option>`).join('')}
     </select></label>
-    <label id="sof_modeL"${soNeedsMode(o.channel) ? '' : ' style="display:none"'}>Shipping<select id="sof_mode"${ro}>
+    <label id="sof_modeL"${soNeedsMode(o.channel) ? '' : ' style="display:none"'}${o._id && !['draft', 'returned'].includes(soStatus(o)) ? ' title="Placed: the number is fixed, and AIR / SEA with it"' : ''}>Shipping<select id="sof_mode"${o._id && !['draft', 'returned'].includes(soStatus(o)) ? ' disabled' : ro}>
       <option value="">— AIR or SEA —</option>${SO_MODES.map(m => `<option${(o.shipMode || soModeOf(o._id)) === m ? ' selected' : ''}>${m}</option>`).join('')}
     </select></label>
     <label>Order date<input id="sof_date" type="date" value="${esc(o.orderDate || today)}"${ro}></label>
@@ -41998,7 +41999,10 @@ async function soFormSave(place) {
   const oldId = existing ? existing._id : '';
   const mayRenumber = !existing || soStatus(existing) === 'draft' || soStatus(existing) === 'returned';
   /* AIR or SEA: asked of an Amazon order before it gets a number (16 Oct). */
-  const mode = soNeedsMode(channel) ? String(($('sof_mode') || {}).value || '').toUpperCase() : '';
+  /* A placed order keeps the mode its number carries — the number does not move, so neither does AIR / SEA (17 Oct: an
+   * approved -AIR order edited to SEA kept -AIR in its number but said SEA beside it). */
+  const mode = !soNeedsMode(channel) ? '' : !mayRenumber ? (soModeOf(oldId) || String(existing.shipMode || '').toUpperCase())
+    : String(($('sof_mode') || {}).value || '').toUpperCase();
   if (soNeedsMode(channel) && !SO_MODES.includes(mode) && mayRenumber) return 'Pick how this Amazon order ships — AIR or SEA. It goes at the end of the order number.';
   const wantPfx = channel + '-' + soDateTag(orderDate) + '-';
   if (!existing) rec._id = soGenId(channel, orderDate, '', mode);
