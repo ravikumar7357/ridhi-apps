@@ -47,6 +47,9 @@ function flowSuggest(r) {
   const t = dToday();
   let printer = { code: '', name: '', why: '' };
   if (need) try { printer = flowPrinterFor(r); } catch (e) { /* no planning read yet */ }
+  /* THE CUTTING ROUTE MEANS THE CLOTH IS IN HAND (Ravi, 17 Oct: "direct cutting department me bhej raha hu meaning mujhe RFD ki
+   * required nahi h, wo already mere pas print hokar aa gaya h"): a line on it starts ticked "already printed — take no RFD". */
+  if (!need) fabric.noRfd = true;
   return { orderNo: r.orderNo, sku: obUC(r.sku), qty, route: need ? 'inhouse' : 'stitch', outVendor: '', printer, fabric, acc, extra, print: { need, as },
     dates: { cut: flowAddDays(t, 3), qc: flowAddDays(t, 7), ready: ptIsoDate(r.mtoDue) || flowAddDays(t, 10) }, note: '', gaps };
 }
@@ -623,6 +626,7 @@ function flowPpcOpen(orderNo, onlySku, keys) {
         run.fab[k] = flowR2((run.fab[k] || 0) + rfdNeed); }
       (p.extra || []).forEach((x, j) => {
         if (route === 'jobwork' && x.unit === 'm') return;   // no cloth for a line going straight to job work
+        if (noRfd && x.unit === 'm') { h.push(`<tr><td colspan="4" class="muted" style="text-align:left">${esc(x.what)} · ${nf(+x.qty || 0)} m — in hand with the printed cloth, no RFD</td></tr>`); return; }
         if (x.unit !== 'm') { h.push(flowMatRow(esc(x.what), +x.qty || 0, 0, 0, ' ' + esc(x.unit || ''), false)); return; }
         const name = String(x.what).replace(/^Ruffle — /, ''), k = flowFabKey(name), ruf = /^Ruffle — /.test(x.what);
         let need = +x.qty || 0;
@@ -682,6 +686,8 @@ function flowPpcOpen(orderNo, onlySku, keys) {
   const restored = flowPpcDraftApply(dkeys, rows.map(x => (x.s.plan && x.s.plan.at) || ''));
   if (restored) { sayD(`Draft put back — saved ${flowDraftWhen(restored)} on this computer. Auto-save is on.`); if (dropA && dropA.style) dropA.style.display = ''; }
   const said = at => { if (at) { sayD(`Draft auto-saved ${flowDraftWhen(at)} — on this computer.`); if (dropA && dropA.style) dropA.style.display = ''; } else sayD('Could not keep a draft on this computer (browser storage is blocked).', true); };
+  document.querySelectorAll('[data-fp][data-k="route"]').forEach(sel => sel.addEventListener('change', () => {
+    const nr = document.querySelector(`[data-fp="${sel.dataset.fp}"][data-k="fabric.noRfd"]`); if (nr && sel.value === 'stitch') nr.checked = true; }));
   document.querySelectorAll('[data-fp]').forEach(inp => { inp.addEventListener('input', paint); inp.addEventListener('change', paint);
     inp.addEventListener('input', () => flowPpcDraftSoon(dkeys, said)); inp.addEventListener('change', () => flowPpcDraftSoon(dkeys, said)); });
   if ($('flpDraftBtn')) $('flpDraftBtn').onclick = () => { clearTimeout(FLOW_DRAFT_T); const at = flowPpcDraftSave(dkeys);
@@ -756,7 +762,8 @@ function flowPpcXlRead(sheet) {
     const pr = venOf(c('Printer')); if (pr === null) bad.push(`no printer called "${c('Printer')}"`); else v['printer.code'] = pr;
     const rp = venOf(c('Ruffle printer')); if (rp === null) bad.push(`no printer called "${c('Ruffle printer')}"`); else if (rp) v['rufflePrinter.code'] = rp;
     if (c('Outsource vendor')) v.outVendor = c('Outsource vendor');
-    v['fabric.noRfd'] = /^(y|yes|1|true)$/i.test(c(FLOW_XL_COLS[14]));
+    const nrTxt = c(FLOW_XL_COLS[14]);
+    v['fabric.noRfd'] = /^(y|yes|1|true)$/i.test(nrTxt) || (!nrTxt && v.route === 'stitch');   // the Cutting route: in hand unless the sheet says no
     [['Cut date', 'dates.cut'], ['QC date', 'dates.qc'], ['Ready date', 'dates.ready']].forEach(([h, k]) => { const d = flowXlDate(c(h)); if (d === null) bad.push(h + ' is not a date'); else if (d) v[k] = d; });
     if (c('Note')) v.note = c('Note');
     if (bad.length) { errs.push(tag + ': ' + bad.join('; ')); continue; }

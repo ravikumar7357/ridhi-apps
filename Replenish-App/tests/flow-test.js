@@ -1013,6 +1013,10 @@ const K = 'AMZ-1__S1';
     const v = (rd.drafts || {})[key] || {};
     ok('import: a yes row becomes the line’s draft — route, fabric, m/pc, printer by name → code, date read', rd.keys.length === 1 && v.route === 'stitch' && v['fabric.name'] === 'Sheeting 82' && v['fabric.perPc'] === '0.3' && v['printer.code'] === 'P2' && v['dates.cut'] === '2026-10-20', JSON.stringify(rd));
     ok('import: a wrong route is refused by row, a line not in PPC left alone, a "no" row skipped', rd.errs.length === 1 && /How it is made/.test(rd.errs[0]) && rd.skipped.length === 1, JSON.stringify([rd.errs, rd.skipped]));
+    ok('import: the Cutting route with "already printed" left blank means the cloth is in hand — no RFD', v['fabric.noRfd'] === true, JSON.stringify(v));
+    const Y = load({ mdb: { S9: { color: 'Red', fabric: 'Cotton', consumption: 0.5, noPrint: true } } });
+    const sg = Y.flowSuggest(L({ sku: 'S9', qty: 10 }));
+    ok('a new plan on the Cutting route starts ticked "already printed — take no RFD" (17 Oct)', sg.route === 'stitch' && sg.fabric.noRfd === true, JSON.stringify(sg.fabric));
     ok('import: dates as the sheet may hold them', X.flowXlDate('2026-10-21') === '2026-10-21' && X.flowXlDate('21-10-2026') === '2026-10-21' && X.flowXlDate(46315) === '2026-10-20' && X.flowXlDate('') === '' && X.flowXlDate('soon') === null, X.flowXlDate(46316));
     ok('import: a sheet without Line ID / Raise is refused whole', !!X.flowPpcXlRead([['PO', 'SKU'], ['a', 'b']]).err);
   }
