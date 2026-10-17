@@ -448,6 +448,18 @@ const K = 'AMZ-1__S1';
     A.ctx.document.querySelectorAll = () => [{ addEventListener() {}, dataset: { fp: '0', k: 'print.dir' }, type: 'select-one', value: 'Vertical' }, { addEventListener() {}, dataset: { fp: '0', k: 'printer.code' }, type: 'select-one', value: 'P1' }];
     er = await A.ctx.__dlg.onSave();
     ok('…saved with Vertical; the printer gets RBPSF327-V-82', !er && A.writes[0]['pt_ppc/AMZ-1__RPCRU327-1818'].print.dir === 'Vertical' && A.flowPrintWhat(L({ sku: 'RPCRU327-1818' }), A.writes[0]['pt_ppc/AMZ-1__RPCRU327-1818']).code === 'RBPSF327-V-82', er);
+    /* PRINTED CLOTH IN THE STORE, NO DIRECTION PICKED YET (Ravi, 17 Oct: "store me agate green ka printed sheeting pada h but
+     * yaha kanhi show nahi ho rha h"): the store holds cloth by fabric and colour, so its row shows at once — and cloth all in
+     * the store asks for no direction. */
+    { const sp = {}; const span = sel => sp[sel] || (sp[sel] = { innerHTML: '', textContent: '' });
+      const S = load({ mdb, fsku, lines: [L({ sku: 'RPCRU327-1818', qty: 40 })], store: [{ key: 'M|SHEETING 82|LIGHT STEEL BLUE', qty: 1000 }] });
+      S.ctx.document.querySelector = sel => (/data-mat=|data-fm=|data-pget=|data-chips=/.test(sel) ? span(sel) : null);
+      S.flowPpcOpen('AMZ-1');
+      const mat = (sp['[data-mat="0"]'] || {}).innerHTML || '';
+      ok('no direction picked, yet the printed cloth in the store shows: Sheeting 82 · Light Steel Blue', /Printed in store · <b>Sheeting 82<\/b> · Light Steel Blue/.test(mat), mat.slice(0, 400));
+      S.ctx.document.querySelectorAll = sel => sel === '[data-fp]' ? [{ addEventListener() {}, dataset: { fp: '0', k: 'printer.code' }, type: 'select-one', value: 'P1' }] : [];
+      const er2 = await S.ctx.__dlg.onSave();
+      ok('…and with the body all in the store, the plan saves without asking which way it is printed', !/print direction/.test(er2 || ''), er2); }
     A = load({ mdb, fsku, lines: [L({ sku: 'RPC327-1818' })] });
     A.flowPpcOpen('AMZ-1');
     ok('Canvas offers no direction box (one way only)', !/data-k="print.dir"/.test(A.ctx.__dlg.html));

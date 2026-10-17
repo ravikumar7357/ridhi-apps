@@ -450,8 +450,6 @@ function flowPpcOpen(orderNo, onlySku, keys) {
         const rv = p.route === 'inhouse' && p.rufflePrinter && p.rufflePrinter.code ? flowChVendors().find(x => String(x.code) === String(p.rufflePrinter.code)) : null;
         p.rufflePrinter = rv && (!p.printer || String(rv.code) !== String(p.printer.code)) ? { code: rv.code, name: rv.desc || rv.name || rv.code } : null; });
       /* A printed line on a fabric made both ways must say which way — the printer cannot print "either". */
-      const noDir = plans.filter((p, i) => pick(i) && p.route === 'inhouse' && flowPrintWhat(rows[i].r, p).needDir).map(p => p.sku);
-      if (noDir.length) return `Which way is it printed? Pick the print direction for ${noDir.join(', ')}.`;
       /* The print order goes to the printer now — so a printed line has to say which printer. */
       /* What still goes to a printer once printed stock is taken: the body not covered, or a ruffle cloth not covered. */
       const printsAt = (i, which) => { const c = cover[i] || { fab: 0, unit: 'm', extra: {} }, p = plans[i], qty = +p.qty || 0, m = flowR2((+p.fabric.perPc || 0) * qty);
@@ -459,6 +457,10 @@ function flowPpcOpen(orderNo, onlySku, keys) {
         const rufLeft = (p.extra || []).some((x, j) => /^Ruffle — /.test(String(x.what || '')) && (+x.qty || 0) - ((c.extra || {})[j] || 0) > 0.01);
         if (which) return bodyLeft > 0.01 ? 'body' : rufLeft ? 'ruffle' : '';   // only the ruffle prints → the ruffle printer is enough
         return bodyLeft > 0.01 || rufLeft; };
+      /* Which way it is printed — asked only where something still goes to the printer (17 Oct: cloth all in the store
+       * needs no direction). */
+      const noDir = plans.filter((p, i) => pick(i) && p.route === 'inhouse' && printsAt(i, true) === 'body' && flowPrintWhat(rows[i].r, p).needDir).map(p => p.sku);
+      if (noDir.length) return `Which way is it printed? Pick the print direction for ${noDir.join(', ')}.`;
       const noPr = plans.filter((p, i) => pick(i) && p.route === 'inhouse' && printsAt(i) && !(p.printer && p.printer.code) && !(p.rufflePrinter && printsAt(i, true) === 'ruffle')).map(p => p.sku);
       if (noPr.length) return `Which printer? The print order goes to them now — pick it for ${noPr.join(', ')}.`;
       const noVen = plans.filter((p, i) => pick(i) && p.route === 'outsource' && !String(p.outVendor || '').trim()).map(p => p.sku);
@@ -591,7 +593,10 @@ function flowPpcOpen(orderNo, onlySku, keys) {
       const h = []; cover[i] = { fab: 0, unit: w && w.kind === 'sku' ? 'pcs' : 'm', extra: {} };
       let rfdNeed = metres;
       /* PRINTED STOCK FIRST: what is already printed in the store, less what earlier plans and the lines above took. */
-      if (w && w.code) {
+      /* PRINTED CLOTH IS IN THE STORE BY FABRIC AND COLOUR (Ravi, 17 Oct: "store me agate green ka printed sheeting pada h but
+       * yaha kanhi show nahi ho rha h"): the row is shown before a print direction is picked — the store's figure does not
+       * depend on it. Printed pieces still need their SKU code. */
+      if (w && (w.code || w.kind !== 'sku')) {
         const pu = w.kind === 'sku' ? ' pcs' : ' m', pk = flowPrintedKey(w, fname, colour), ps0 = flowPrintedStock(Object.assign({ fabric: fname }, w), colour);
         /* A plan being changed here already took its printed stock out of the store (inventory/store.js): put its own back. */
         const ps = ps0 == null ? null : flowR2(ps0 + rows.reduce((a, x) => { const op = x.s.plan;
@@ -601,7 +606,7 @@ function flowPpcOpen(orderNo, onlySku, keys) {
           return ok === pk ? a + (+op.fabric.fromPrinted) : a; }, 0));
         const held = ps == null ? 0 : hold(pk), pleft = ps == null ? null : ps - held - (com.printed[pk] || 0) - (run.printed[pk] || 0);
         const want = w.kind === 'sku' ? (+p.qty || 0) : metres, use = pleft == null ? 0 : flowR2(Math.max(0, Math.min(want, pleft)));
-        h.push(flowPrintedRow(`<b>${esc(w.code)}</b>`, pleft, pu, use, ps, held + (com.printed[pk] || 0), run.printed[pk] || 0));
+        h.push(flowPrintedRow(w.code ? `<b>${esc(w.code)}</b>` : `<b>${esc(fname)}</b> · ${esc(colour)}`, pleft, pu, use, ps, held + (com.printed[pk] || 0), run.printed[pk] || 0));
         run.printed[pk] = flowR2((run.printed[pk] || 0) + use); cover[i].fab = use;
         rfdNeed = w.kind === 'sku' ? flowR2(metres * (1 - (p.qty ? use / p.qty : 0))) : flowR2(metres - use);
       }
