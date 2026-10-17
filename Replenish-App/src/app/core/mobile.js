@@ -27,9 +27,8 @@ function mobOn() {
 /** The same test the head of the page makes, so "Phone view" is only offered on a phone. */
 function mobIsPhone() {
   try {
-    const small = Math.min(screen.width, screen.height) <= 600;
     const touch = (window.matchMedia && window.matchMedia('(pointer:coarse)').matches) || (navigator.maxTouchPoints || 0) > 0;
-    return (small && touch) || /Android.+Mobile|iPhone|iPod|Windows Phone|Mobi/i.test(navigator.userAgent || '');
+    return (Math.min(screen.width, screen.height) <= 600 && touch) || /Android.+Mobile|iPhone|iPod|Windows Phone|Mobi/i.test(navigator.userAgent || '');
   } catch (e) { return false; }
 }
 
@@ -195,17 +194,18 @@ function mobAct(a) {
   if (a === 'install' && $('installBtn')) $('installBtn').click();
   if (a === 'logout' && $('logoutBtn')) $('logoutBtn').click();
   if (a === 'alerts') mobAlertsOn();
-  /* For this visit only (16 Oct): the next time the app is opened on this phone it is the phone layout again. */
-  if (a === 'desktop') { try { sessionStorage.setItem('mobViewOff', '1'); } catch (e) { /* nowhere to remember it */ } location.reload(); }
+  /* (the reload waits until the More menu has shut: shutting it steps the phone's history back, which would cancel a
+     reload made at once — 17 Oct) */
+  if (a === 'desktop') { try { sessionStorage.setItem('mobViewOff', '1'); localStorage.removeItem('mobView'); } catch (e) { /* nowhere to remember it */ } setTimeout(() => location.reload(), 300); }
 }
 
 /* On a phone that chose Desktop view: the way back, at the end of the menu bar. */
 (() => {
   if (mobOn() || !mobIsPhone() || typeof document.querySelector !== 'function') return;
   const foot = document.querySelector('.sidefoot');
-  if (!foot || $('mobBack')) return;
+  if (!foot || $('mobPhoneView')) return;
   const b = document.createElement('button');
-  b.id = 'mobBack'; b.className = 'nav'; b.type = 'button'; b.textContent = 'Phone view';
+  b.id = 'mobPhoneView'; b.className = 'nav'; b.type = 'button'; b.textContent = 'Phone view';
   b.title = 'Lay this app out for a phone again';
   b.onclick = () => { try { sessionStorage.removeItem('mobViewOff'); localStorage.removeItem('mobView'); } catch (e) { /* the default is the phone layout */ } location.reload(); };
   foot.insertBefore(b, foot.firstChild);
@@ -221,14 +221,14 @@ function mobAct(a) {
  * differently (CSS on html.mob table.mob-tcards).
  *
  * A Cards | Table switch sits above each table, for the times the rows need to be compared side by side; the choice is
- * remembered per screen on that phone (localStorage mobTbl:<screen>). */
+ * remembered per screen until the app is closed (sessionStorage mobTbl:<screen>). */
 const MOB_OWN_CARDS = ['so-cards', 'fg-cards', 'pk-cards', 'mob-keep'];
 /** The screen a table belongs to — across the Greige Desk's shadow root too, whose tables are not in the page's own tree. */
 const mobPaneOf = t => { const p = t.closest('[id^="pane"]'); if (p) return p; const h = t.getRootNode && t.getRootNode().host; return h ? h.closest('[id^="pane"]') : null; };
 /* a table in a window (the packing list editor, a dialog) keeps its Cards / Table choice under the window's name */
 const MOB_WIN_SEL = '.modal, .ptmodal, [id$="Modal"], #ptDlg';
 const mobTblKey = t => { const p = mobPaneOf(t), m = !p && t.closest(MOB_WIN_SEL); return 'mobTbl:' + (p ? p.id : m && m.id ? m.id : 'page'); };
-function mobTblMode(t) { try { return localStorage.getItem(mobTblKey(t)) || 'cards'; } catch (e) { return 'cards'; } }
+function mobTblMode(t) { try { return sessionStorage.getItem(mobTblKey(t)) || 'cards'; } catch (e) { return 'cards'; } }
 
 /** The name of every column, from the header — merged header cells (rowspan / colspan) included. */
 function mobColNames(t) {
@@ -315,7 +315,7 @@ function mobTblSwitch(t) {
     sw.onclick = e => {
       const b = e.target.closest('[data-mob-tmode]');
       if (!b) return;
-      try { localStorage.setItem(mobTblKey(t), b.dataset.mobTmode); } catch (err) { /* this visit only */ }
+      try { sessionStorage.setItem(mobTblKey(t), b.dataset.mobTmode); } catch (err) { /* this visit only */ }
       mobFitSync();
       mobCardTables();
       mobTableStep(mobPaneOf(t), b.dataset.mobTmode);
@@ -411,7 +411,7 @@ var MOB_HASH0 = (typeof location !== 'undefined' && location.hash) || '';
 const MOBL = { ord: { step: '', src: '', q: '', cap: 50 }, pbase: { q: '', cap: 50 }, repl: { f: 'need', q: '', cap: 50 } };
 const MOB_LIST_PANES = { ord: 'paneOrd', pbase: 'panePbase', repl: 'paneRepl' };
 const mobFullKey = k => 'mobFull:' + k;
-function mobFull(k) { try { return localStorage.getItem(mobFullKey(k)) === '1'; } catch (e) { return false; } }
+function mobFull(k) { try { return sessionStorage.getItem(mobFullKey(k)) === '1'; } catch (e) { return false; } }
 const mobNum = v => (typeof nf === 'function' ? nf(v) : String(v));
 const mobInit = s => String(s || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0] || '').join('').toUpperCase() || '?';
 
@@ -621,11 +621,11 @@ function mobListClick(k, e) {
   const t = e.target, S = MOBL[k];
   const full = t.closest('[data-ml-full]');
   if (full) {
-    try { localStorage.setItem(mobFullKey(k), full.dataset.mlFull); } catch (err) { /* this visit only */ }
-    if (full.dataset.mlFull === '0') { try { localStorage.removeItem(mobFullKey(k)); } catch (err) { /* nothing kept */ } }
+    try { sessionStorage.setItem(mobFullKey(k), full.dataset.mlFull); } catch (err) { /* this visit only */ }
+    if (full.dataset.mlFull === '0') { try { sessionStorage.removeItem(mobFullKey(k)); } catch (err) { /* nothing kept */ } }
     mobListDraw(k); mobFitSync(); window.scrollTo(0, 0);
     /* Full screen is a step: the phone's Back brings the phone list back */
-    if (full.dataset.mlFull === '1') mobStep('full:' + k, () => { try { localStorage.removeItem(mobFullKey(k)); } catch (err) { /* nothing kept */ } mobListDraw(k); mobFitSync(); });
+    if (full.dataset.mlFull === '1') mobStep('full:' + k, () => { try { sessionStorage.removeItem(mobFullKey(k)); } catch (err) { /* nothing kept */ } mobListDraw(k); mobFitSync(); });
     else mobStepDrop('full:' + k);
     return;
   }
@@ -1069,21 +1069,23 @@ if (typeof document.addEventListener === 'function') document.addEventListener('
  * fit button". So Cards stay what a phone shows first. Table — the switch above a table, or "Table view" at the bottom of a
  * screen that has no switch — draws the screen exactly as on a computer (MOB_FIT_W wide), shrunk to the phone's width the
  * way a spreadsheet app opens a sheet; − and + enlarge it (pinch works too), it scrolls sideways once bigger than the
- * screen, and Cards brings the cards back. The choice (localStorage mobTbl:<pane>) and the zoom (mobZoom:<pane>) are
+ * screen, and Cards brings the cards back. The choice (sessionStorage mobTbl:<pane>) and the zoom (mobZoom:<pane>) are
  * remembered per screen on that phone. A phone list's "Full screen" opens the same view. */
 const MOB_OWN_LAYOUT = ['paneShop', 'paneFgi', 'panePack', 'paneMobHome'];
 const MOB_FIT_W = 1100;
 const MOB_LIST_KEY_OF = { paneOrd: 'ord', panePbase: 'pbase', paneRepl: 'repl' };
-function mobZoomOf(id) { try { return parseFloat(localStorage.getItem('mobZoom:' + id)) || 0; } catch (e) { return 0; } }   // 0 = the phone's width
+function mobZoomOf(id) { try { return parseFloat(sessionStorage.getItem('mobZoom:' + id)) || 0; } catch (e) { return 0; } }   // 0 = the phone's width
 function mobFitScale() { const m = document.querySelector('.main'); return Math.max(0.2, Math.min(1, ((m ? m.clientWidth : 375) - 20) / MOB_FIT_W)); }
-function mobPaneMode(id) { try { return localStorage.getItem('mobTbl:' + id) || 'cards'; } catch (e) { return 'cards'; } }
+function mobPaneMode(id) { try { return sessionStorage.getItem('mobTbl:' + id) || 'cards'; } catch (e) { return 'cards'; } }
 /* CARDS FIRST (Ravi, 17 Oct: "make cards as primary"). Table choices left on a phone by the first test days are cleared
  * once, so every screen opens as cards again; a Table picked from now on is remembered as before. */
 (() => {
   try {
-    if (localStorage.getItem('mobCardsFirst') === '1') return;
-    Object.keys(localStorage).filter(k => /^mob(Tbl|Zoom):/.test(k)).forEach(k => localStorage.removeItem(k));
-    localStorage.setItem('mobCardsFirst', '1');
+    /* (17 Oct, evening: "it shows the desktop view on the mobile app" — a Table view or Full screen tapped once stayed for
+       good. They now last only until the app is closed, and what earlier phones kept is cleared, once.) */
+    if (localStorage.getItem('mobCardsFirst2') === '1') return;
+    Object.keys(localStorage).filter(k => /^mob(Tbl|Zoom|Full):/.test(k)).forEach(k => localStorage.removeItem(k));
+    localStorage.setItem('mobCardsFirst2', '1');
   } catch (e) { /* no storage: cards anyway */ }
 })();
 /** 'table' (shrunk, zoomable), 'cards', or '' for a screen with a phone layout of its own (no bar at all). */
@@ -1117,7 +1119,7 @@ function mobFitSync() {
       const p = [...document.querySelectorAll('.main [id^="pane"]')].find(x => !x.classList.contains('hide') && mobPaneView(x));
       const sw = e.target.closest('[data-mz-view]');
       if (!p || !sw) return;
-      try { localStorage.setItem('mobTbl:' + p.id, sw.dataset.mzView); } catch (err) { /* this visit only */ }
+      try { sessionStorage.setItem('mobTbl:' + p.id, sw.dataset.mzView); } catch (err) { /* this visit only */ }
       mobFitSync(); mobCardTables(); window.scrollTo(0, 0);
       mobTableStep(p, sw.dataset.mzView);
       if (sw.dataset.mzView === 'table') mobPinchHint();
@@ -1151,7 +1153,7 @@ function mobZoomTo(p, z, cx, cy) {
 }
 function mobZoomKeep(p, z) {
   const fit = mobFitScale();
-  try { if (z > fit * 1.02) localStorage.setItem('mobZoom:' + p.id, String(z)); else localStorage.removeItem('mobZoom:' + p.id); } catch (e) { /* this visit only */ }
+  try { if (z > fit * 1.02) sessionStorage.setItem('mobZoom:' + p.id, String(z)); else sessionStorage.removeItem('mobZoom:' + p.id); } catch (e) { /* this visit only */ }
 }
 function mobPinchHint() {
   try { if (localStorage.getItem('mobPinchHint')) return; localStorage.setItem('mobPinchHint', '1'); } catch (e) { return; }
@@ -1305,7 +1307,7 @@ function mobBackTap() {
 function mobTableStep(p, mode) {
   if (!p) return;
   const id = 'table:' + p.id;
-  if (mode === 'table' && !mobStepHas(id)) mobStep(id, () => { try { localStorage.setItem('mobTbl:' + p.id, 'cards'); } catch (e) { /* this visit only */ } mobFitSync(); mobCardTables(); });
+  if (mode === 'table' && !mobStepHas(id)) mobStep(id, () => { try { sessionStorage.setItem('mobTbl:' + p.id, 'cards'); } catch (e) { /* this visit only */ } mobFitSync(); mobCardTables(); });
   else if (mode !== 'table') mobStepDrop(id);
 }
 /* Opening another screen starts afresh: the steps of the screen being left are forgotten (its Table view stays chosen).
