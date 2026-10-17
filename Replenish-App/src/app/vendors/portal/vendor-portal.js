@@ -682,6 +682,25 @@ function vpLineRaw(o, l, ctx) {
   const s = ctx.bySku[obUC(l.sku)];
   return { raw: s ? s.given : (o.orderType === 'running' ? null : 0), sent: vpDone(l), dates: s ? s.dates : [] };
 }
+/* THE SWATCH ON A RUNNING LINE (Ravi, 17 Oct: "us fabric swatch laga do jisase pata rhe"). A fabric SKU (CPCF002, APB) has
+ * no photo of its own; what the printer needs to see is the design, and the product being made from that cloth shows it.
+ * The line's own picture first; else the product it is for — picSku, or the SKU in its flow key (ORDER__SKU, every PPC
+ * line has one); else the product the catalogue built that fabric SKU from. */
+function vpPicSku(l) {
+  if (!l) return '';
+  if (l.picSku) return obUC(l.picSku);
+  const fk = String(l.flowKey || ''), i = fk.lastIndexOf('__');
+  if (i > 0) return obUC(fk.slice(i + 2));
+  try { const c = voFabricCatalogue().get(obUC(String(l.sku || '').split(' ')[0])); if (c && c.imageFrom && !c.manual) return obUC(c.imageFrom); } catch (e) { /* no catalogue on this sign-in */ }
+  return '';
+}
+/** The picture for a running line: as a span (board) or a table cell. */
+function vpRunPic(l, px, cell) {
+  if (l.img) return cell ? ptImgCellSrc(l.sku, l.img) : `<img src="${esc(ptImgSrc(l.img, px))}" alt="" loading="lazy" class="vpb-pic">`;
+  const s = vpPicSku(l);
+  if (s) return cell ? ptImgCell(s, px) : ptImgSpan(s, px);
+  return cell ? '<td class="muted">—</td>' : ptImgSpan(l.sku, px);
+}
 function vpBoard(rows, f) {
   const day = d => esc(typeof dShow === 'function' ? dShow(d) : d);
   return rows.map(o => {
@@ -709,7 +728,7 @@ function vpBoard(rows, f) {
         const chip = x.raw == null ? '<span class="muted">—</span>'
           : x.raw <= 0 ? '<span class="vpb-no">no raw yet</span>'
           : `<span class="vpb-raw">raw ${q(x.raw)}${x.raw >= x.ord - 0.01 ? ' ✓' : ''}</span>`;
-        const pic = run && x.l.img ? `<img src="${esc(ptImgSrc(x.l.img, 44))}" alt="" loading="lazy" class="vpb-pic">` : ptImgSpan(x.l.sku, 44);
+        const pic = run ? vpRunPic(x.l, 44) : ptImgSpan(x.l.sku, 44);
         return `<div class="vpb-line">${pic}<div class="vpb-what"><span class="vpb-sku">${esc(run ? (x.l.sku || x.l.fabricType) : x.l.sku)}</span>
           <span class="muted">${esc(run ? [x.l.fabricType, x.l.printDirection].filter(Boolean).join(' · ') : [x.l.articleSubtype || x.l.articleType, x.l.size].filter(Boolean).join(' · '))}</span></div>
           <div class="vpb-n"><b>${q(x.ord)}</b><span class="muted">ordered</span></div><div class="vpb-n">${chip}<span class="muted">${x.sent > 0 ? 'sent ' + q(x.sent) : 'none sent'}</span></div></div>`;
@@ -784,7 +803,7 @@ function vpTable(rows, f) {
       const dels = (Array.isArray(l.deliveries) ? l.deliveries : Object.values(l.deliveries || {})).filter(Boolean);
       return `<tr${dead ? ' style="opacity:.5"' : ''}>`
         + `<td style="text-align:left;font-family:ui-monospace,monospace;font-size:12px">${esc(run ? (l.sku || l.fabricType) : l.sku)}${run && l.sku ? `<div class="muted" style="font-size:10.5px;font-family:inherit">${esc(l.fabricType)}</div>` : ''}</td>`
-        + (run ? (l.img ? ptImgCellSrc(l.sku, l.img) : '<td class="muted">—</td>') : ptImgCell(l.sku))
+        + (run ? vpRunPic(l, 38, true) : ptImgCell(l.sku))
         + `<td style="text-align:left;font-size:12px">${esc(run
             ? (l.printDirection || '')
             : (l.articleSubtype || l.articleType || ''))}</td>`
