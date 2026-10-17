@@ -430,8 +430,16 @@ function flowTable(view, rows) {
     head = ['PO', 'SKU', 'Qty', 'Given to a printer', ''];
     body = rows.map(x => `<tr>${base(x)}<td class="num">${prog(x.s.given, +x.r.qty)}${flowChTag(x.s)}</td><td>${go(view, x)}</td></tr>`).join('');
   } else if (view === 'cut') {
-    head = ['PO', 'SKU', 'Qty', 'Printed fabric to cut', 'Cut', ''];
-    body = rows.map(x => `<tr>${base(x)}<td style="text-align:left;font-size:12px">${flowCutFrom(x)}</td><td class="num">${prog(x.s.cut, +x.r.qty)}${due(x.s.plan && x.s.plan.dates && x.s.plan.dates.cut, 'plan')}</td><td>${go(view, x)}</td></tr>`).join('');
+    /* CUTTING PENDING (Ravi, 17 Oct: "yaha kitne pcs cut krne h wo cutting pending me show ho"): what is still to cut on each
+     * line — the order less what is cut — and, where part is still with the printer, how much of it can be cut today. The
+     * total for the list on top. */
+    head = ['PO', 'SKU', 'Qty', 'Printed fabric to cut', 'Cut', 'Pending to cut', ''];
+    const pend = x => Math.max(0, (+x.r.qty || 0) - (+x.s.cut || 0));
+    const totP = rows.reduce((t, x) => t + pend(x), 0), totNow = rows.reduce((t, x) => t + Math.min(pend(x), +x.s.canCut || 0), 0);
+    body = (rows.length ? `<tr style="background:var(--soft,#f4f6fb)"><td colspan="7" style="text-align:left;font-size:13px">Cutting pending: <b>${nf(totP)} pcs</b> on ${nf(rows.length)} line(s)${totNow < totP ? ` · <b>${nf(totNow)} pcs</b> can be cut now — the rest is still with the printer` : ''}</td></tr>` : '')
+      + rows.map(x => { const pd = pend(x), now = Math.min(pd, +x.s.canCut || 0);
+        return `<tr>${base(x)}<td style="text-align:left;font-size:12px">${flowCutFrom(x)}</td><td class="num">${prog(x.s.cut, +x.r.qty)}${due(x.s.plan && x.s.plan.dates && x.s.plan.dates.cut, 'plan')}</td>`
+          + `<td class="num"><b style="font-size:15px">${nf(pd)}</b> pcs${now < pd ? `<div style="font-size:10.5px;color:#b45309">${nf(now)} can be cut now</div>` : ''}</td><td>${go(view, x)}</td></tr>`; }).join('');
   } else if (view === 'raw') {
     head = ['PO', 'SKU', 'Qty', 'In store, to issue', 'Issued', ''];
     const wr = flowWasteRows();

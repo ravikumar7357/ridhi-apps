@@ -1936,6 +1936,7 @@ const K = 'AMZ-1__S1';
     ok('…and holds no RFD for itself in any later plan', !A.flowCommitted([]).fab['SHEETING 82']);
     const cutHtml = A.flowTable('cut', A.flowRows());
     ok('To cut says what it is cut from: Sheeting 82, printed, in hand, 25 m — not "—"', /<b>Sheeting 82<\/b>/.test(cutHtml) && /printed, in hand/.test(cutHtml) && /25 m for 100 pcs/.test(cutHtml), cutHtml.slice(0, 900));
+    ok('To cut says how many pieces are still to cut — on the line and in a total on top (100 pcs, none cut yet)', /Pending to cut/.test(cutHtml) && /Cutting pending: <b>100 pcs<\/b> on 1 line/.test(cutHtml) && /<b style="font-size:15px">100<\/b> pcs/.test(cutHtml), cutHtml.slice(0, 1200));
     const B = load({ me: { tabs: ['flppc'] }, mdb, lines: [L({ sku: 'S1', qty: 100 })] });
     B.flowPpcOpen('AMZ-1');
     B.ctx.document.querySelectorAll = sel => sel === '[data-fp]' ? [box('route', 'inhouse'), box('printer.code', 'P1'), box('fabric.noRfd', '', 'checkbox', true)] : [];
