@@ -424,6 +424,7 @@ function renderVp() {
   }
 
   const vpViewOf = (rs, f) => (($('vpView') || {}).value === 'orders' ? rs.map(o => vpCard(o, f)).join('')
+    : ($('vpView') || {}).value === 'product' ? vpProductBoard(rs, f)
     : ($('vpView') || {}).value === 'board' ? vpBoard(rs, f) : vpTable(rs, f));
   const empty = `<div class="card" style="padding:34px;text-align:center;color:var(--muted)">${
     all.length ? 'No order matches those filters.' : 'No orders yet.'}</div>`;
@@ -741,6 +742,53 @@ function vpBoard(rows, f) {
     }).join('');
     return `<div class="card vpb-wrap">${head}${vpProgHtml(o)}<div class="vpb-grid">${cards}</div></div>`;
   }).join('');
+}
+/* BY PRODUCT — ONE CARD PER SKU (Ravi, 17 Oct: "1 sku alag alag order me h but wo dikhe 1 jagah combine hokar dropdown me aa
+ * jay ki kis kis order ke against h"). Every open vendor order's lines for the same thing — the SKU for cut pieces; the
+ * fabric SKU, direction and colour for running cloth — make one card: what it is, Ordered / Raw / Sent / Balance added up,
+ * and a dropdown of the vendor orders it stands for (each with its customer order, dates, quantity, raw and sent). Nothing is
+ * merged in the data: every vendor order keeps its own lines, deliveries and payout. Sending stays on By order / Every line. */
+function vpProductBoard(rows, f) {
+  const day = d => esc(typeof dShow === 'function' ? dShow(d) : d), q = n => nf(Math.round((+n || 0) * 100) / 100);
+  const groups = new Map();
+  rows.forEach(o => {
+    const st = o.status || 'Placed', run = o.orderType === 'running', on = !!(f && vpLineOn(f));
+    const keep = voLines(o).map((l, i) => ({ l, i })).filter(({ l }) => !l.cancelled && (!on || voLineMatches(l, f)) && vpPartOk(o, l));
+    if (!keep.length) return;
+    const ctx = vpRawCtx(o);
+    keep.forEach(({ l }) => {
+      const key = (run ? 'R|' + [obUC(l.sku || l.fabricType), String(l.printDirection || '').toLowerCase(), vpColour(l).toLowerCase()].join('|') : 'C|' + obUC(l.sku));
+      const g = groups.get(key) || { key, run, l, items: [], pri: 9, want: '' };
+      const rw = vpLineRaw(o, l, ctx), w = voWant(l);
+      g.items.push({ o, l, st, ord: vpQty(o, l), raw: rw.raw, sent: rw.sent, want: w });
+      g.pri = Math.min(g.pri, vpPriRank(l));
+      if (w && (!g.want || w < g.want)) g.want = w;
+      groups.set(key, g);
+    });
+  });
+  if (!groups.size) return '';
+  const list = [...groups.values()].sort((a, b) => a.pri - b.pri || String(a.want || '9').localeCompare(String(b.want || '9')) || a.key.localeCompare(b.key));
+  const cards = list.map(g => {
+    const l = g.l, run = g.run, unit = run ? 'm' : 'pcs';
+    const sum = k => g.items.reduce((t, x) => t + (+x[k] || 0), 0), ord = sum('ord'), sent = sum('sent'), rawKnown = g.items.some(x => x.raw != null), raw = sum('raw');
+    const orders = [...new Set(g.items.map(x => x.o.orderNo || x.o.id))];
+    const pic = run ? vpRunPic(l, 44) : ptImgSpan(l.sku, 44);
+    const what = run ? [l.fabricType, l.printDirection].filter(Boolean).join(' · ') : [l.articleSubtype || l.articleType, l.size].filter(Boolean).join(' · ');
+    const pri = String(l.priority || '').toUpperCase();
+    const forOf = x => [...new Set((x.l.forOrders || []).map(fo => fo && fo.orderNo).filter(Boolean))].join(', ') || (x.o.channel ? 'For ' + x.o.channel : '');
+    const rowsH = g.items.slice().sort((a, b) => String(a.want || '9').localeCompare(String(b.want || '9')) || String(a.o.orderNo).localeCompare(String(b.o.orderNo))).map(x => {
+      const chip = x.raw == null ? '' : x.raw <= 0 ? '<span class="vpb-no">no raw yet</span>' : `<span class="vpb-raw">raw ${q(x.raw)}</span>`;
+      return `<div class="vpb-line" style="align-items:flex-start"><div class="vpb-what"><b style="font-size:12.5px">${esc(x.o.orderNo || x.o.id)}</b>`
+        + `<span class="muted">${esc(forOf(x))}${forOf(x) ? ' · ' : ''}raised ${esc(x.o.orderDate || '—')}${x.want ? ' · wanted ' + day(x.want) : ''}</span></div>`
+        + `<div class="vpb-n"><b>${q(x.ord)}</b><span class="muted">${x.sent > 0 ? 'sent ' + q(x.sent) : 'none sent'}</span>${chip}</div></div>`;
+    }).join('');
+    return `<div class="vpb-card"><div class="vpb-line" style="border-top:0;padding-top:0">${pic}<div class="vpb-what"><span class="vpb-sku">${esc(run ? (l.sku || l.fabricType) : l.sku)}</span>`
+      + `<span class="muted">${esc(what)}</span><b style="font-size:13.5px">${esc(vpColour(l) || '')}</b></div>${pri ? `<span class="vpb-pri">${esc(pri)}</span>` : ''}</div>`
+      + `<div class="vpb-tot"><div><span>Ordered</span><b>${q(ord)}</b></div><div class="r"><span>Raw</span><b>${rawKnown ? q(raw) : '—'}</b></div>`
+      + `<div class="s"><span>Sent</span><b>${q(sent)}</b></div><div class="b"><span>Balance</span><b>${q(Math.max(0, ord - sent))}</b></div></div>`
+      + `<details${orders.length === 1 ? '' : ''}><summary style="cursor:pointer;font-size:12.5px;font-weight:600;color:var(--brand)">${nf(orders.length)} order${orders.length === 1 ? '' : 's'} · ${unit}${g.want ? ' · first wanted ' + day(g.want) : ''}</summary>${rowsH}</details></div>`;
+  }).join('');
+  return `<div class="card vpb-wrap"><div class="vpb-order"><b style="font-size:15px">By product</b><span class="muted" style="font-size:12px">${nf(list.length)} product(s) across ${nf(rows.length)} order(s) — open a card's list to see which orders it is for.${vpViewAll() ? '' : ' Record a send on "By order" or "Every line".'}</span></div><div class="vpb-grid">${cards}</div></div>`;
 }
 function vpTable(rows, f) {
   /* Ten columns, not thirteen. The colour and the priority moved up into the group heading, and the
