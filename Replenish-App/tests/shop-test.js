@@ -1755,6 +1755,21 @@ console.log('\n== THE PRODUCTION BUCKET (Ravi, 2026-09-26) ==');
   ok('…each line says what FBA and India hold for it', cov && cov.india === 5 && need && (need.fba === null || need.fba === 0), JSON.stringify(cov && { f: cov.fba, i: cov.india }));
   /* Ravi, 2026-09-27: "jo order FBA se fulfill kar rahe uska filter". */
   ok('a stock-covered line says which stock can fill it', cov && cov.from === 'india', JSON.stringify(cov && cov.from));
+  /* Ravi, 17 Oct: CPC's old orders reach the bucket only if the pending sheet lists them; new ones come in as before. */
+  {
+    const cpcO = (id, no, at) => mk(id, no, [['RCNBMIX', 1]], { shopBrand: 'CPC', at });
+    A.setSHOP({ orders: [cpcO('s1', '#6169', '2026-08-21'), cpcO('s2', '#6170', '2026-08-21'), cpcO('s3', '#7900', '2026-10-17'),
+      mk('s4', '#6170', [['RCNBMIX', 1]], { at: '2026-08-21' }), cpcO('s5', '#X7JZ3NFBBP', '2026-09-01'), cpcO('s6', '#DRAFTNEW', '2026-10-17T10:00:00')], from: '', to: '', tz: '', at: 'x' });
+    A.renderShop();
+    const ids = new Set(A.shpBucket().map(x => x.id));
+    ok('pending sheet: CPC #6169 (on the sheet) is in the bucket', ids.has('s1'), [...ids].join());
+    ok('pending sheet: CPC #6170 (old, not on the sheet — went out already) is kept out', !ids.has('s2'));
+    ok('pending sheet: CPC #7900 (after the last number on the sheet, #7887) comes in as a new order', ids.has('s3'));
+    ok('pending sheet: a Ridhi order is not touched (its sheet is still to come)', ids.has('s4'));
+    ok('pending sheet: a name that is not a number — by the list (#X7JZ3NFBBP), else by date (a new one comes in)', ids.has('s5') && ids.has('s6'));
+    A.setSHOP({ orders: [mk('b1', '#5001', [['RCNBMIX', 2], ['RCNBRED', 1]])], from: '', to: '', tz: '', at: 'x' });
+    A.renderShop();
+  }
   {
     const src = require('fs').readFileSync(APP, 'utf8');
     ok('the bucket offers "FBA can fill" / "India can fill" on the stock-covered tab', /<select id="shbFrom"[^>]*><option value="">FBA or India<\/option><option value="fba">FBA can fill \(MCF\)<\/option><option value="india">India can fill<\/option>/.test(src)
