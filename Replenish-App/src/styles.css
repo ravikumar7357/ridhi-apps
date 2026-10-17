@@ -1359,10 +1359,10 @@ html.mob .mob-foot{border-top:1px solid var(--line);padding-top:10px}
 html.mob .mob-out{color:var(--bad)}
 /* Every screen: controls a thumb can hit, and text that does not make iOS zoom in (it zooms on anything under 16px). */
 html.mob input,html.mob select,html.mob textarea{font-size:16px!important}
-html.mob .card{padding:12px;border-radius:14px;max-width:100%;overflow-x:auto}
-html.mob .toolbar{flex-wrap:wrap;gap:8px}
-html.mob .toolbar>input,html.mob .toolbar>select,html.mob .toolbar>.ms{flex:1 1 calc(50% - 8px)!important;min-width:0;width:auto}
-html.mob table.xl{font-size:13px}
+html.mob .main>:not(.mob-fit) .card{padding:12px;border-radius:14px;max-width:100%;overflow-x:auto}
+html.mob .main>:not(.mob-fit) .toolbar{flex-wrap:wrap;gap:8px}
+html.mob .main>:not(.mob-fit) .toolbar>input,html.mob .main>:not(.mob-fit) .toolbar>select,html.mob .main>:not(.mob-fit) .toolbar>.ms{flex:1 1 calc(50% - 8px)!important;min-width:0;width:auto}
+html.mob .main>:not(.mob-fit) table.xl{font-size:13px}
 /* The shared window and the app's other windows: the whole width of the phone, its foot always on screen. */
 html.mob .ptmodal{align-items:flex-end;padding:0}
 html.mob .ptmodal-box,html.mob .ptmodal-box.ptmodal-wide{width:100%!important;max-width:100%;max-height:92vh;border-radius:20px 20px 0 0}
@@ -1416,10 +1416,10 @@ html.mob .so-mc.so-cancel .so-mc-no{text-decoration:line-through}
 html.mob .so-mc.so-cb{box-shadow:inset 3px 0 0 var(--bad),var(--sh-1)}
 html.mob .so-mc-more{display:block;width:100%;min-height:46px}
 /* Finished Goods and Packing List on a phone (finished-goods.js fgiCard, packing-list-labels.js renderPack). */
-html.mob .kpi .metrics{display:grid!important;grid-template-columns:1fr 1fr;gap:6px}
-html.mob .kpi .metric{min-width:0;padding:8px 10px}
-html.mob .kpi .metric .v{font-size:18px}
-html.mob .kpi .metric .l{white-space:normal}
+html.mob .main>:not(.mob-fit) .kpi .metrics{display:grid!important;grid-template-columns:1fr 1fr;gap:6px}
+html.mob .main>:not(.mob-fit) .kpi .metric{min-width:0;padding:8px 10px}
+html.mob .main>:not(.mob-fit) .kpi .metric .v{font-size:18px}
+html.mob .main>:not(.mob-fit) .kpi .metric .l{white-space:normal}
 html.mob .card.xlwrap:has(> table.fg-cards),html.mob .card.xlwrap:has(> table.pk-cards){max-height:none!important;overflow:visible!important;background:none;box-shadow:none;padding:0!important;border:0}
 html.mob table.fg-cards,html.mob table.fg-cards tbody,html.mob table.pk-cards,html.mob table.pk-cards tbody{display:block;width:100%;border:0;background:none}
 html.mob table.fg-cards tr,html.mob table.pk-cards tr{display:block;margin:0 0 8px}
