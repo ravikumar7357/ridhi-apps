@@ -63,7 +63,7 @@ const IDS = ('ptmBrand ptmArt ptmSub ptmCol ptmSz ptmCut ptmMaker ptmQ ptmBrandF
   + 'voVendor voStatus voType voQ voExport voGo voMsg voKpis voTable '
   + 'vpRfdPick vpRfdAll tabRfd rfdBadge paneRfd dashMsg dashBody dashGo tabDash paneDash grpDash secDash rfdView rfdStage rfdVendor rfdFab rfdQ rfdD1 rfdD2 rfdClear rfdExport rfdRefuseSel rfdGo fbPoNew fbPoSet fbGuide rfdGuide guideBtn kaMonth kaTgtBtn kaD1 kaD2 pbCorr jwCorrBadge mstTpl mstImp mstFile rfdMsg rfdKpis rfdTable vpTabRfd '
   + 'voView voAttrRow voAt voSub voCol voSz voPri voAttrClear voTableWrap voCards '
-  + 'renTmpl renUp renFile renInfo ptDlgAlt sxNew sof_channel sof_mode sof_modeL sof_date sof_type sof_delivery sof_legacy sof_id sof_table sof_pager '
+  + 'renTmpl renUp renFile renInfo ptDlgAlt sxNew sof_channel sof_mode sof_modeL sof_date sof_smonth sof_type sof_delivery sof_legacy sof_id sof_table sof_pager '
   + 'sof_add sof_tmpl sof_up sof_file sor_mode sor_date sor_remarks '
   + 'voNew vof_fsku vofFskuList vof_why vrqStatus vrqWork vrqVendor vrqWho vrqQ vrqNew vrqExport vrqSkuTot vrqSkuLines vrqGo vrqMsg vrqKpis vrqTable vreqBadge ptf_filler vof_vendor vof_service vof_fillerWrap vof_filler vofFillerList vof_kr vof_kc vof_tmpl vof_up vof_file vof_form vof_table vof_tot vof_notes '
   + 'vof_fab vof_col vof_pd vof_qty vof_deliv vof_pri vof_lnotes vof_add vof_info vof_sku vof_check '
@@ -2114,6 +2114,12 @@ console.log('\n== placing it, and what the form refuses ==');
     const after = A.SOX().rows.find(x => x._id === 'AMZ-07102026-01-AIR') || {};
     ok('an approved -AIR order edited to SEA keeps its number and stays AIR beside it — never one thing in the number and another beside it', !!after._id && after.shipMode === 'AIR', JSON.stringify({ id: after._id, mode: after.shipMode }));
     const kept = A.SOX().rows.find(x => x._id === 'AMZ-07102026-01-AIR'); if (kept) kept.status = was; els.sof_mode.value = ''; }
+  /* SALE MONTH (18 Oct): the month an order is meant to sell in, kept on the order as YYYY-MM. */
+  { A.soFormOpen(null); setForm('SPY', '2026-10-08', [{ sku: realSku, qty: 2, orderTypeKey: 'regular' }]); els.sof_smonth.value = '2027-01';
+    const er = await A.soFormSave(false); const o = A.SOX().rows.find(x => x.saleMonth === '2027-01' && /^SPY-08102026/.test(x._id));
+    ok('sale month: an order saved with January 2027 keeps saleMonth 2027-01', er === '' && !!o, er || A.SOX().rows.filter(x => /08102026/.test(x._id)).map(x => x._id + ':' + x.saleMonth).join());
+    if (o) { A.SOX().rows = A.SOX().rows.filter(x => x !== o); NET.calls = NET.calls.filter(c => !(c.url || '').includes(o._id)); }
+    els.sof_smonth.value = ''; }
   /* What this check saved leaves again, so the counts below are the counts they were written against. */
   A.SOX().rows = A.SOX().rows.filter(o => o._id !== 'AMZ-07102026-01-AIR'); NET.calls = NET.calls.filter(c => !/AMZ-07102026-01-AIR/.test(c.url || ''));
   A.soFormOpen(null);

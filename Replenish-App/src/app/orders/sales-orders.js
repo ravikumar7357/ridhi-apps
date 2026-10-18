@@ -119,6 +119,7 @@ function renderSox() {
   const st = $('sxStatus').value, q = $('sxQ').value.trim().toLowerCase();
   /* AIR OR SEA (Ravi, 16 Oct: "sales order list me AIR / SEA filter bhi add karo"): the mode kept on the order, else the end of its number. */
   const md = String(($('sxMode') || {}).value || '');
+  const smo = String(($('sxSMonth') || {}).value || '');   // the sale month an order is for (18 Oct)
   /* ON THE ORDER DATE, not on when the order was last touched — that is the date the row shows and
    * the date anybody asking for "September's orders" means. Sales orders carry it two ways, ISO from
    * the new-order form and day-first from the vendor side, which is why this goes through ptInRange
@@ -127,6 +128,7 @@ function renderSox() {
   const rows = base
     .filter(o => !st || soStatus(o) === st)
     .filter(o => !md || soShipMode(o) === md)
+    .filter(o => !smo || o.saleMonth === smo)
     .filter(o => ptInRange(o && o.orderDate, sxD1, sxD2))
     .map(o => ({ o, s: soSummary(o, w) }))
     .filter(({ o, s }) => !q || [o._id, o.buyerName, o.buyerEmail, o.channel, soStatus(o)].join(' ').toLowerCase().includes(q)
@@ -158,7 +160,7 @@ function renderSox() {
     const done = soStatus(o) === 'approved';
     return '<tr>'
       + `<td class="frz" style="text-align:left;font-weight:600">${esc(o._id)}</td>`
-      + `<td>${esc(o.orderDate)}</td><td>${esc(o.channel)}${soShipMode(o) ? ` <span class="pill" style="font-size:11px">${esc(soShipMode(o))}</span>` : ''}</td>`
+      + `<td>${esc(o.orderDate)}${o.saleMonth ? `<div class="muted" style="font-size:11px">for ${esc(soMonthTxt(o.saleMonth))}</div>` : ''}</td><td>${esc(o.channel)}${soShipMode(o) ? ` <span class="pill" style="font-size:11px">${esc(soShipMode(o))}</span>` : ''}</td>`
       + `<td style="text-align:left">${esc(o.buyerName) || '<span class="muted">—</span>'}</td>`
       + `<td><span class="pill ${sd.cls}">${esc(sd.label)}</span></td>`
       + `<td class="num">${nf(s.skus)}${s.skus !== s.lines ? ` <span class="muted" style="font-size:11px">of ${nf(s.lines)}</span>` : ''}</td>`
@@ -293,12 +295,14 @@ if ($('sxBack')) $('sxBack').addEventListener('click', e => {
 $('sxStatus').addEventListener('change', renderSox);
 if ($('sxChan')) $('sxChan').addEventListener('change', renderSox);
 if ($('sxMode')) $('sxMode').addEventListener('change', renderSox);
+if ($('sxSMonth')) $('sxSMonth').addEventListener('change', renderSox);
 ['sxD1', 'sxD2'].forEach(id => $(id).addEventListener('change', renderSox));
 $('sxClear').onclick = () => {
   ['sxQ', 'sxD1', 'sxD2'].forEach(id => $(id).value = '');
   $('sxStatus').value = '';
   if ($('sxChan')) $('sxChan').value = '';
   if ($('sxMode')) $('sxMode').value = '';
+  if ($('sxSMonth')) $('sxSMonth').value = '';
   renderSox();
 };
 ptDebounce('sxQ', renderSox);

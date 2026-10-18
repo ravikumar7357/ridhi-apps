@@ -38,6 +38,8 @@ const soDateTag = iso => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(
  * only). The mode rides at the END, so the channel stays the number's first part (every screen reads the platform from
  * it), and the serial is one count for the channel and day whatever the mode: -01-AIR, then -02-SEA. */
 const SO_MODES = ['AIR', 'SEA'];
+/** "2027-01" → "Jan 2027" (the sale month an order is for); '' for none. */
+const soMonthTxt = ym => { const m = String(ym || '').match(/^(\d{4})-(\d{2})$/); return m ? ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][+m[2] - 1] + ' ' + m[1] : ''; };
 const soNeedsMode = ch => String(ch || '').trim().toUpperCase() === 'AMZ';
 /** The mode a number carries ('AIR' / 'SEA'), '' for none. */
 const soModeOf = id => { const m = String(id || '').toUpperCase().match(/-(AIR|SEA)$/); return m ? m[1] : ''; };
@@ -314,6 +316,7 @@ function soFormOpen(id) {
       <option value="">— AIR or SEA —</option>${SO_MODES.map(m => `<option${(o.shipMode || soModeOf(o._id)) === m ? ' selected' : ''}>${m}</option>`).join('')}
     </select></label>
     <label>Order date<input id="sof_date" type="date" value="${esc(o.orderDate || today)}"${ro}></label>
+    <label title="The month this order is meant to sell in — the sales projection it answers (e.g. January 2027)">Sale month<input id="sof_smonth" type="month" value="${esc(o.saleMonth || '')}"${ro}></label>
     <div class="sof-f">Order type<input id="sof_type" type="hidden" value="${nd ? 'newdev' : 'regular'}">
       <div class="sof-seg" role="group" aria-label="Order type">
         <button type="button" data-softype="regular" class="${nd ? '' : 'on'}"${ro}>Regular</button>
@@ -748,6 +751,8 @@ async function soFormSave(place) {
   rec.legacyOrderId = String($('sof_legacy').value || '').trim();
   rec.orderTypeKey = headerType;
   rec.deliveryDate = $('sof_delivery').value || '';
+  /* SALE MONTH (Ravi, 18 Oct: "kis mahine ke liye sale projection kar rahe h wo bhi add kar sake"): YYYY-MM, or none. */
+  { const sm = String(($('sof_smonth') || {}).value || '').trim(); if (/^\d{4}-\d{2}$/.test(sm)) rec.saleMonth = sm; else delete rec.saleMonth; }
   // A date on any line makes the whole order per-line; the approver confirms it either way.
   rec.deliveryMode = lines.some(l => l.deliveryDate) ? 'lines' : (existing && existing.deliveryMode ? existing.deliveryMode : 'complete');
   rec.lines = lines;
@@ -952,7 +957,7 @@ async function soApproveRun(id) {
       sku: s, articleType: String(m.articleType || ''), articleSubtype: String(m.subtype || ''),
       color: String(m.color || ''), size: String(m.size || l.size || ''), qty,
       remarks: 'From approved Sales Order' + (o.buyerName ? ' · ' + o.buyerName : '') + (b2bBits.length ? ' · ' + b2bBits.join(' · ') : ''), src: 'SO',
-      uploadedBy: ME.email, uploadedAt: now },
+      uploadedBy: ME.email, uploadedAt: now }, o.saleMonth ? { saleMonth: o.saleMonth } : {},
       soIsB2B(o.channel) ? { needsSku: !mdbBy.has(s), shopImg: String(l.img || ''), brand: String(l.brand || ''),
         itemName: String(l.itemName || ''), label: String(l.label || ''), material: String(l.material || ''), customization: String(l.customization || '') } : {}));
   });
