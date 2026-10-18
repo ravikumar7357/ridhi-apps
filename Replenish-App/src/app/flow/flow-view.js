@@ -75,7 +75,7 @@ function renderFlow() {
       <span class="fl-n">${nf(n[k] || 0)}</span><span>${esc(l)}</span></button>`).join('<span class="fl-arrow">›</span>');
   const rows = FLOW_VIEW === 'new' ? shown.filter(x => x.recent) : shown.filter(x => flowInView(FLOW_VIEW, x.s));
   rows.sort((a, b) => String(a.r.orderDate || '').localeCompare(String(b.r.orderDate || '')) || String(a.r.orderNo).localeCompare(String(b.r.orderNo)));
-  FLOW.panel = ''; FLOW.stock = ''; FLOW.byprint = ''; FLOW.byprinter = '';
+  FLOW.panel = ''; FLOW.stock = ''; FLOW.byprint = ''; FLOW.byprinter = ''; FLOW.bysize = '';
   $('flTable').innerHTML = flowTable(FLOW_VIEW, rows.slice(0, 800));
   /* PPC in Excel: on the PPC bucket only — the lines on screen are what the sheet holds. */
   FLOW.shownPpc = FLOW_VIEW === 'ppc' ? rows : [];
@@ -85,13 +85,15 @@ function renderFlow() {
    * fabric / accessory against them — one at a time, never stacked. */
   if (FLOW.stock) {
     const ang = FLOW_ANGLE[FLOW_VIEW] || 'line', what = FLOW_VIEW === 'drfd' ? 'By fabric (RFD stock)' : 'By accessory (shelf stock)';
-    const angles = [['line', 'By line']].concat(FLOW_VIEW === 'drfd' ? [['printer', 'By printer (pivot)'], ['print', 'By printed fabric (all orders)']] : []).concat([['stock', what]]);
+    const angles = [['line', 'By line']].concat(FLOW_VIEW === 'drfd' ? [['printer', 'By printer (pivot)'], ['size', 'By printer × size (pcs)'], ['print', 'By printed fabric (all orders)']] : []).concat([['stock', what]]);
     FLOW.panel = `<div class="seg" style="display:inline-flex;gap:4px">${angles.map(([k, l]) =>
       `<button data-flang="${k}" class="${ang === k ? '' : 'ghost'}" style="width:auto;padding:4px 12px;font-size:12.5px">${l}</button>`).join('')}</div>`;
     if (ang === 'stock') $('flTable').innerHTML = FLOW.stock;
     if (ang === 'print' && FLOW.byprint) $('flTable').innerHTML = FLOW.byprint;
     if (ang === 'printer' && FLOW.byprinter) { $('flTable').innerHTML = FLOW.byprinter;
       FLOW.panel += ' <button type="button" class="ghost" data-flpivxl="1" style="width:auto;padding:4px 12px;font-size:12.5px;margin-left:6px">Download Excel</button>'; }
+    if (ang === 'size' && FLOW.bysize) { $('flTable').innerHTML = FLOW.bysize;
+      FLOW.panel += ' <button type="button" class="ghost" data-flpivxl="size" style="width:auto;padding:4px 12px;font-size:12.5px;margin-left:6px">Download Excel</button>'; }
   }
   /* DEMAND, ONE TAB (Ravi, 12 Oct): its parts as tabs, like Listing Health's — RFD out to printers, printed fabric in, accessories. */
   if (FLOW_DEMAND.includes(FLOW_VIEW)) FLOW.panel = `<div class="seg" style="display:inline-flex;gap:4px;flex-wrap:wrap;margin-right:14px">${dem.map(([k, l]) =>
@@ -205,6 +207,58 @@ function flowByPrinterXl() {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
   a.download = 'rfd-by-printer-' + dToday() + '.xlsx';
+  a.click(); URL.revokeObjectURL(a.href);
+}
+/* BY PRINTER × SIZE, IN PIECES (Ravi, 18 Oct: "pivot mujhe size wise chahiye like 60x60 me kitne pcs chahiye"). The same
+ * lines, as pieces still to make: printer down the side with its articles under it (one size can be a pillow cover and a
+ * napkin), every size across, totals both ways. Sizes are read as written on the line; 60X60 and 60x60 are one. */
+const flowSizeKey = v => String(v || '').trim().toLowerCase().replace(/\s+/g, '').replace(/[×*]/g, 'x');
+const flowSizeSort = (a, b) => { const n = s => (String(s).match(/\d+(\.\d+)?/g) || []).map(Number); const x = n(a), y = n(b);
+  for (let i = 0; i < Math.max(x.length, y.length); i++) { const d = (x[i] || 0) - (y[i] || 0); if (d) return d; } return String(a).localeCompare(String(b)); };
+let FLOW_SIZE_PIVOT = null;
+function flowBySizeData(rows) {
+  const P = new Map(), sizes = new Map(), cell = new Map();
+  rows.forEach(x => {
+    const p = x.s.plan || {}, rem = typeof flowRemFrac === 'function' ? flowRemFrac(x.r, x.s) : 1, pcs = Math.round((+x.r.qty || 0) * rem);
+    if (!(pcs > 0)) return;
+    const m = (typeof cutSkuOf === 'function' && cutSkuOf(x.r.sku)) || {};
+    const size = String(x.r.size || m.size || '').trim() || '(no size)', sk = flowSizeKey(size);
+    const art = String(x.r.articleSubtype || m.subtype || x.r.articleType || m.articleType || '').trim() || '(no article)';
+    const pc = x.s.route === 'stitch' ? '~cut' : (flowPlanPrinter(x.s) || '?');
+    const pname = pc === '~cut' ? 'Cutting department (no printing)' : pc === '?' ? 'Printer not chosen' : ((p.printer && p.printer.name) || pc);
+    if (!sizes.has(sk)) sizes.set(sk, size);
+    const pr = P.get(pc) || { pk: pc, name: pname, pcs: 0, arts: new Map(), orders: new Set() };
+    pr.pcs += pcs; pr.orders.add(x.r.orderNo);
+    const a = pr.arts.get(art) || { name: art, pcs: 0 }; a.pcs += pcs; pr.arts.set(art, a); P.set(pc, pr);
+    [pc + '||' + sk, pc + '|' + art + '|' + sk].forEach(k => cell.set(k, (cell.get(k) || 0) + pcs));
+  });
+  const order = pk => (pk === '~cut' ? 2 : pk === '?' ? 1 : 0);
+  const PL = [...P.values()].sort((a, b) => order(a.pk) - order(b.pk) || b.pcs - a.pcs);
+  const S = [...sizes.entries()].map(([sk, name]) => ({ sk, name, pcs: PL.reduce((t, pr) => t + (cell.get(pr.pk + '||' + sk) || 0), 0) }))
+    .sort((a, b) => flowSizeSort(a.name, b.name));
+  return { P: PL, S, cell, total: PL.reduce((t, pr) => t + pr.pcs, 0) };
+}
+function flowBySizeTable(rows) {
+  const d = FLOW_SIZE_PIVOT = flowBySizeData(rows);
+  if (!d.P.length) return '<tbody><tr><td class="muted" style="padding:16px">No line is waiting.</td></tr></tbody>';
+  const v = n => n ? nf(n) : '<span class="muted">—</span>';
+  return `<thead><tr><th class="frz" style="text-align:left">Printer · article</th>${d.S.map(s => `<th>${esc(s.name)}</th>`).join('')}<th>Total pcs</th><th>Orders</th></tr></thead><tbody>`
+    + d.P.map(pr => `<tr style="background:var(--soft,#f4f6fb)"><td class="frz" style="text-align:left"><b>${esc(pr.name)}</b></td>${d.S.map(s => `<td class="num"><b>${v(d.cell.get(pr.pk + '||' + s.sk) || 0)}</b></td>`).join('')}<td class="num"><b>${nf(pr.pcs)}</b></td><td class="num">${nf(pr.orders.size)}</td></tr>`
+      + [...pr.arts.values()].sort((a, b) => b.pcs - a.pcs).map(a => `<tr><td class="frz" style="text-align:left;padding-left:22px;font-size:12.5px">${esc(a.name)}</td>${d.S.map(s => `<td class="num" style="font-size:12.5px">${v(d.cell.get(pr.pk + '|' + a.name + '|' + s.sk) || 0)}</td>`).join('')}<td class="num" style="font-size:12.5px">${nf(a.pcs)}</td><td></td></tr>`).join('')).join('')
+    + `<tr style="font-weight:700;border-top:2px solid var(--line)"><td class="frz" style="text-align:left">Total</td>${d.S.map(s => `<td class="num">${nf(s.pcs)}</td>`).join('')}<td class="num">${nf(d.total)}</td><td></td></tr></tbody>`;
+}
+function flowBySizeXl() {
+  const d = FLOW_SIZE_PIVOT; if (!d || !d.P.length) return;
+  const out = [['Printer', 'Article'].concat(d.S.map(s => s.name), ['Total pcs'])];
+  d.P.forEach(pr => {
+    out.push([pr.name, 'ALL'].concat(d.S.map(s => d.cell.get(pr.pk + '||' + s.sk) || 0), [pr.pcs]));
+    [...pr.arts.values()].sort((a, b) => b.pcs - a.pcs).forEach(a => out.push([pr.name, a.name].concat(d.S.map(s => d.cell.get(pr.pk + '|' + a.name + '|' + s.sk) || 0), [a.pcs])));
+  });
+  out.push(['Total', ''].concat(d.S.map(s => s.pcs), [d.total]));
+  const bytes = recipeXlsx(out, { name: 'Pieces by size', freeze: 2, cols: {} });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+  a.download = 'pieces-by-printer-size-' + dToday() + '.xlsx';
   a.click(); URL.revokeObjectURL(a.href);
 }
 /* BY PRINTED FABRIC: every line waiting for fabric, across every order, grouped by what the printer prints and the
@@ -407,6 +461,7 @@ function flowTable(view, rows) {
     const fs = Object.values(cv.fab).filter(f => f.need > 0).sort((a, b) => b.short - a.short || a.name.localeCompare(b.name));
     FLOW.byprint = flowByPrintTable(rows);
     FLOW.byprinter = flowByPrinterTable(rows, cv);
+    FLOW.bysize = flowBySizeTable(rows);
     FLOW.stock = `<thead><tr><th style="text-align:left">Fabric</th><th>RFD in stock</th><th>Kept for lines already ready</th><th>These lines need</th><th>Short</th></tr></thead><tbody>`
       + fs.map(f => `<tr${f.short ? ' style="background:#fef2f2"' : ''}><td style="text-align:left"><b>${esc(f.name)}</b></td><td class="num">${nf(flowR2(f.stock))} m</td><td class="num">${nf(flowR2(f.held))} m</td><td class="num">${nf(f.need)} m · ${nf(f.lines)} line(s)</td>
         <td class="num">${f.short ? `<b style="color:#b91c1c">⚑ ${nf(f.short)} m</b>` : '<span style="color:#166534">—</span>'}</td></tr>`).join('') + (fs.length ? '' : '<tr><td colspan="5" class="muted" style="padding:16px">No line is waiting for fabric.</td></tr>') + '</tbody>';
@@ -464,7 +519,7 @@ $('flBuckets').addEventListener('click', e => { const b = e.target.closest('[dat
   FLOW_VIEW = b.dataset.flb === 'demand' ? (FLOW.demView || (flowScreenAllowed().find(x => x[4] === 'demand') || [])[0] || 'drfd') : b.dataset.flb; renderFlow(); });
 $('flPanel').addEventListener('click', e => { const gg = e.target.closest('[data-gdgo]'); if (gg) { showTab('gdesk'); GD.open(gg.dataset.gdgo); return; } const dm = e.target.closest('[data-fldem]'); if (dm) { FLOW_VIEW = dm.dataset.fldem; renderFlow(); return; }
   const an = e.target.closest('[data-flang]'); if (an) { FLOW_ANGLE[FLOW_VIEW] = an.dataset.flang; renderFlow(); return; }
-  if (e.target.closest('[data-flpivxl]')) { try { flowByPrinterXl(); } catch (er) { $('flMsg').className = 'err'; $('flMsg').textContent = 'Could not make the sheet: ' + (er.message || er); } return; }
+  if (e.target.closest('[data-flpivxl]')) { try { if (e.target.closest('[data-flpivxl]').dataset.flpivxl === 'size') flowBySizeXl(); else flowByPrinterXl(); } catch (er) { $('flMsg').className = 'err'; $('flMsg').textContent = 'Could not make the sheet: ' + (er.message || er); } return; }
   const cp = e.target.closest('[data-flchp]'); if (!cp) return;
   const er = flowChallanPrint(cp.dataset.flchp); if (er) { $('flMsg').className = 'err'; $('flMsg').textContent = er; } });
 $('flQ').addEventListener('input', () => { clearTimeout(FLOW.qt); FLOW.qt = setTimeout(renderFlow, 220); });
