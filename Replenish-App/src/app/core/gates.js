@@ -58,6 +58,8 @@ async function ptLoadGatesRun(light) {
       PTG.recipeAt = Date.now();
       PTG.mdb = ptList(mdb).map(mdbYnFix);
       PTG.mdbAt = Date.now();
+      /* Replenishment shows the master's product details (18 Oct): a fresh master is put on its rows at once. */
+      if (typeof replMasterSync === 'function') { try { replMasterSync(); } catch (e) { /* the snapshot's details stay */ } }
     }
     PTG.ob = ptList(ob);
     PTG.press = ptList(press);
