@@ -277,8 +277,12 @@ async function pksCamStart() {
     return;
   }
   try {
-    PKS.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+    /* 1080p where the phone has it: a small FNSKU label is read from further away, where the camera can focus (19 Oct) */
+    PKS.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
   } catch (e) {
+    /* A laptop or desktop with no camera is a hand-scanner station, not a fault: the camera box goes, the code box is
+       ready, and nothing is said in red (19 Oct: "we are going to connect a scanner with our laptop or desktop"). */
+    if (e && (e.name === "NotFoundError" || e.name === "OverconstrainedError")) return pksDeskMode();
     pksSay("The camera did not open (" + (e.name || e.message || e) + "). Allow the camera for this site, or use a hand scanner / type the code.", true);
     return;
   }
@@ -291,7 +295,9 @@ async function pksCamStart() {
   }
   try {
     if ("BarcodeDetector" in window && (await BarcodeDetector.getSupportedFormats()).includes("code_128"))
-      PKS.det = new BarcodeDetector({ formats: ["code_128", "ean_13", "code_39", "upc_a"] });
+      /* Code 128 only — what FNSKU and SKU labels carry. A product's own EAN / UPC in view was read too, and Code 39 has
+         no check digit, so a half-seen bar could come back as another code (19 Oct: "not working accurately"). */
+      PKS.det = new BarcodeDetector({ formats: ["code_128"] });
   } catch (e) {
     PKS.det = null;
   }
@@ -308,6 +314,22 @@ async function pksCamStart() {
   $("pksTorch").classList.toggle("hide", !caps.torch);
   pksSay(PKS.det ? "Point at the FNSKU label" : "Point at the FNSKU label (reader: ZXing)");
   pksLoop();
+}
+/** No camera here: scan with the hand scanner. The screen stays as it is (Ravi, 19 Oct: "the previous UI … showing the
+ * SKU with details"): the camera box says the hand scanner is ready, and a scan shows the same SKU card as the camera.
+ * The code box keeps the focus, so every scan lands in it. */
+function pksDeskMode() {
+  const cam = document.querySelector("#pksOv .pks-cam");
+  if (cam && !cam.querySelector(".pks-deskmsg")) {
+    const m = document.createElement("div");
+    m.className = "pks-deskmsg";
+    m.style.cssText = "position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:#cbd5e1;font-size:15px;text-align:center;padding:12px";
+    m.innerHTML = '<b style="font-size:17px;color:#fff">Hand scanner ready</b><span>Scan a label — its SKU and details show below</span>';
+    cam.appendChild(m);
+  }
+  pksSay("Ready — scan with the hand scanner");
+  const box = $("pksCode");
+  if (box) { box.placeholder = "Scan with the hand scanner (or type the FNSKU and press Enter)"; box.focus(); }
 }
 function pksZxLoad() {
   if (window.ZXing) return Promise.resolve();
@@ -334,23 +356,47 @@ function pksZxRead(v) {
     return null;
   }
 }
-async function pksLoop() {
-  if (!PKS.on || !PKS.stream) return;
+/** Of the labels in view, the one the camera is pointed at: nearest the middle, and inside the middle band — the same
+ * band the ZXing reader looks at. With two labels in view the reader used to take whichever came first, a different one
+ * from frame to frame, so the two frames that must agree before a piece counts seldom did: slow, and now and then the
+ * wrong label (19 Oct). */
+function pksAimed(got, v) {
+  const W = v.videoWidth || 1, H = v.videoHeight || 1;
+  let best = null, bestD = Infinity;
+  (got || []).forEach((x) => {
+    const b = x.boundingBox;
+    if (!x.rawValue || !b) return;
+    const cx = b.x + b.width / 2, cy = b.y + b.height / 2;
+    if (cy < H * 0.25 || cy > H * 0.75) return;
+    const d = Math.hypot((cx - W / 2) / W, (cy - H / 2) / H);
+    if (d < bestD) { bestD = d; best = x.rawValue; }
+  });
+  return best;
+}
+/* each camera start is a new run: a picture callback left from the run before (the app went to the background and came
+   back) ends instead of starting a second reader beside the new one */
+let PKS_RUN = 0;
+async function pksLoop(run) {
+  if (run === undefined) run = ++PKS_RUN;
+  if (!PKS.on || !PKS.stream || run !== PKS_RUN) return;
   const v = $("pksVid");
   let code = null;
   try {
     if (PKS.det) {
-      const got = await PKS.det.detect(v);
-      code = got && got[0] ? got[0].rawValue : null;
+      code = pksAimed(await PKS.det.detect(v), v);
     } else code = pksZxRead(v);
   } catch (e) {
     code = null;
   }
   if (code && pksFrame(obUC(code), Date.now())) pksHit(code, "camera");
-  PKS.timer = setTimeout(pksLoop, PKS.det ? 90 : 140);
+  /* the phone's own reader looks at each new picture as it arrives (no fixed wait), so the two frames that must agree
+     come in sooner; the ZXing reader keeps its pace — it works on the page itself */
+  if (PKS.det && v && typeof v.requestVideoFrameCallback === "function") { PKS.timer = 0; v.requestVideoFrameCallback(() => pksLoop(run)); }
+  else PKS.timer = setTimeout(() => pksLoop(run), PKS.det ? 90 : 140);
 }
 function pksCamStop() {
   clearTimeout(PKS.timer);
+  PKS_RUN++;
   if (PKS.stream) PKS.stream.getTracks().forEach((t) => t.stop());
   PKS.stream = null;
 }
@@ -444,23 +490,32 @@ if (typeof window.addEventListener === "function") window.addEventListener("befo
     e.returnValue = "";
   }
 });
-/* A hand scanner types the code and presses Enter. Read it wherever the focus is — not only in the box — but never take
- * keys meant for another field (box sizes, the account, the hand-over name). */
+/** What a hand scanner typed, as the label says it: without a symbology prefix some scanners add (]C1, ]E0…), control
+ * characters, or spaces around it. */
+function pksClean(c) {
+  return String(c || "").replace(/[\x00-\x1f\x7f]/g, "").trim().replace(/^\][A-Za-z][0-9A-Za-z]/, "").trim();
+}
+/* A drop-down never takes typing here (19 Oct, laptop scanners): left focused after "Pcs / scan" was changed, it swallowed
+ * the scanner's letters — the options jumped and the scan was lost. Text boxes still keep their own keys. */
 if (typeof document.addEventListener === "function") document.addEventListener("keydown", (e) => {
   if (!PKS.on) return;
   const t = e.target, tag = t && t.tagName || "";
-  if (t && t.id === "pksCode") return;
-  if (/^(INPUT|SELECT|TEXTAREA)$/.test(tag) || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (t && t.id === "pksCode") {
+    /* a scanner set to end with Tab finishes the code like Enter */
+    if (e.key === "Tab" && t.value.trim().length >= 4) { e.preventDefault(); t.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })); }
+    return;
+  }
+  if (/^(INPUT|TEXTAREA)$/.test(tag) || e.ctrlKey || e.metaKey || e.altKey) return;
   const now = Date.now();
   if (now - PKS.keyT > 400) PKS.keyBuf = "";
   PKS.keyT = now;
-  if (e.key === "Enter") {
+  if (e.key === "Enter" || (e.key === "Tab" && PKS.keyBuf.trim().length >= 4)) {
     const c = PKS.keyBuf.trim();
     PKS.keyBuf = "";
     if (c.length >= 4) {
       e.preventDefault();
       PKS.seen = null;
-      pksHit(c, "scanner");
+      pksHit(pksClean(c), "scanner");
     }
     return;
   }
@@ -701,7 +756,7 @@ async function pksTrackOpen() {
     const c = $("pksCode").value.trim();
     if (c) {
       PKS.seen = null;
-      pksHit(c, "typed");
+      pksHit(pksClean(c), "typed");
     }
     $("pksCode").value = "";
   };
@@ -816,14 +871,14 @@ function pksShow() {
     pksDraw();
   };
   $("pksPer").onchange = () => {
-    PKS.per = Math.max(1, +$("pksPer").value || 1);
+    PKS.per = Math.max(1, +$("pksPer").value || 1); $("pksPer").blur();
   };
   $("pksNext").onclick = pksNextAsk;
   const go = () => {
     const c = $("pksCode").value.trim();
     if (c) {
       PKS.seen = null;
-      pksHit(c, "typed");
+      pksHit(pksClean(c), "typed");
     }
     $("pksCode").value = "";
   };
