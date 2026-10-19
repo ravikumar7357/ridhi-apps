@@ -1,6 +1,9 @@
 {
   // The three buttons. In VS Code: Terminal -> Run Task… (or Ctrl+Shift+P -> "Run Task") and pick one.
-  // Button 1 is also the default build task: Ctrl+Shift+B.
+  // Shortcuts:  Ctrl+Shift+B = button 1 (check locally).
+  //             Ctrl+Alt+T   = button 2 (send to TEST ERP) — each person adds it once, in their own
+  //             keybindings.json (Ctrl+Shift+P -> "Preferences: Open Keyboard Shortcuts (JSON)"):
+  //             { "key": "ctrl+alt+t", "command": "workbench.action.tasks.runTask", "args": "2 · Send to TEST ERP" }
   "version": "2.0.0",
   "tasks": [
     {
@@ -16,6 +19,7 @@
       "label": "2 · Send to TEST ERP",
       "type": "shell",
       "command": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/send-to-test.ps1",
+      "group": { "kind": "test", "isDefault": true },
       "problemMatcher": [],
       "presentation": { "reveal": "always", "panel": "dedicated", "focus": true, "clear": true }
     },
