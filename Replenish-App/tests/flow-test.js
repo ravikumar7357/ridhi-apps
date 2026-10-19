@@ -1138,7 +1138,7 @@ const K = 'AMZ-1__S1';
     er = await A.ctx.__dlg.onSave();
     ok('cancelled: the number stays, both lines back in Demand · RFD, nothing given', !er && A.FLOW().ch['RFD-202610-001'].cancelled.why === 'wrong printer' && A.flowInView('drfd', A.flowState(L())) && A.flowState(L()).given === 0);
     A.setView('dhist'); A.renderFlow();
-    ok('…shown as cancelled with no buttons but none, not counted open, and its number not reused', /cancelled/.test(A.els.flTable.innerHTML) && !/data-flchr=/.test(A.els.flTable.innerHTML) && /Printed fabric in · history <b>0<\/b>/.test(A.els.flPanel.innerHTML) && A.flowChallanNo('2026-10-12') === 'RFD-202610-002');
+    ok('…not shown in the history at all (19 Oct), not counted open, and its number not reused', !/RFD-202610-001/.test(A.els.flTable.innerHTML) && !/data-flchr=/.test(A.els.flTable.innerHTML) && /Printed fabric in · history <b>0<\/b>/.test(A.els.flPanel.innerHTML) && A.flowChallanNo('2026-10-12') === 'RFD-202610-002');
     A = mk();
     let rq = { '[data-flrm="0"]': { value: '100' }, '[data-flrm="1"]': { value: '50' } };
     A.ctx.document.querySelector = sel => rq[sel] || null;
