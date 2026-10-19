@@ -20,10 +20,14 @@ let QC = { checks: null, issue: null, ret: null, err: '', busy: false, at: '' };
 async function ensureQc() {
   if (QC.checks === null || !PTG.mdb) {
     QC.busy = true; renderQc();
-    if (!PTG.mdb) await ptLoadGates();
-    if (!PTE.emp) await ptLoadEmp();
+    /* The registers with the order book, not after it. The employee list waits for the order book (its masters give
+     * the accessories). A refused read of it left this screen on "Loading…" for good; now it only leaves the names of
+     * who may sign a check empty. */
     try {
-      const [c, i, t] = await Promise.all([ptGet('pt_qcChecks'), ptGet('pt_qcIssuance'), ptGet('pt_qcReturns')]);
+      const [, [c, i, t]] = await Promise.all([
+        (PTG.mdb ? Promise.resolve() : ptLoadGates()).then(() => (PTE.emp ? null : ptLoadEmp().catch(() => {}))),
+        Promise.all([ptGet('pt_qcChecks'), ptGet('pt_qcIssuance'), ptGet('pt_qcReturns')]),
+      ]);
       QC.checks = ptList(c); QC.issue = ptList(i); QC.ret = ptList(t); QC.err = '';
     } catch (e) { QC.err = e.message || String(e); QC.checks = QC.checks || []; QC.issue = QC.issue || []; QC.ret = QC.ret || []; }
     QC.at = ptStamp(); QC.busy = false;
@@ -37,16 +41,31 @@ const qcNorm = v => String(v == null ? '' : v).trim().toUpperCase();
 function qcParts(sku) {
   const m = cutSkuOf(sku);
   if (m) return { at: m.articleType || '', sub: m.subtype || '', col: m.color || '', size: m.size || '', brand: m.brand || '' };
-  const b = (PT.base || []).find(r => qcNorm(r.sku) === qcNorm(sku));
+  const b = QC_IX ? qcIxOf(sku).base : (PT.base || []).find(r => qcNorm(r.sku) === qcNorm(sku));
   return b ? { at: b.articleType || '', sub: b.articleSubtype || '', col: b.color || '', size: b.size || '', brand: '' }
            : { at: '', sub: '', col: '', size: '', brand: '' };
 }
 
-const qcReceived = sku => (PT.base || []).reduce((a, r) => a + (qcNorm(r.sku) === qcNorm(sku) ? ptNum(r.receivedPieces) : 0), 0);
-const qcChecked = sku => (QC.checks || []).reduce((a, r) => a + (qcNorm(r.sku) === qcNorm(sku) ? ptNum(r.checked) : 0), 0);
+/* ONE PASS PER DRAW. Every helper below walked a whole register for one SKU, and the forms ask them for every SKU —
+ * thousands of full passes to draw a picker. While a draw runs (qcWithIx) they read one index made at its start;
+ * outside a draw — a save checking its ceiling — they still walk the registers, so what a save checks is never older
+ * than what is in memory. */
+let QC_IX = null;
+function qcWithIx(fn) {
+  if (QC_IX) return fn();
+  const m = new Map(), g = k => { let o = m.get(k); if (!o) m.set(k, o = { rec: 0, chk: 0, alt: 0, iss: 0, base: null }); return o; };
+  (PT.base || []).forEach(r => { const o = g(qcNorm(r.sku)); o.rec += ptNum(r.receivedPieces); if (!o.base) o.base = r; });
+  (QC.checks || []).forEach(r => { const o = g(qcNorm(r.sku)); o.chk += ptNum(r.checked); o.alt += ptNum(r.forAlteration); });
+  (QC.issue || []).forEach(r => { g(qcNorm(r.sku)).iss += ptNum(r.pieces); });
+  QC_IX = m;
+  try { return fn(); } finally { QC_IX = null; }
+}
+const qcIxOf = sku => QC_IX.get(qcNorm(sku)) || { rec: 0, chk: 0, alt: 0, iss: 0, base: null };
+const qcReceived = sku => (QC_IX ? qcIxOf(sku).rec : (PT.base || []).reduce((a, r) => a + (qcNorm(r.sku) === qcNorm(sku) ? ptNum(r.receivedPieces) : 0), 0));
+const qcChecked = sku => (QC_IX ? qcIxOf(sku).chk : (QC.checks || []).reduce((a, r) => a + (qcNorm(r.sku) === qcNorm(sku) ? ptNum(r.checked) : 0), 0));
 const qcAvailToCheck = sku => qcReceived(sku) - qcChecked(sku);
-const qcAltTotal = sku => (QC.checks || []).reduce((a, r) => a + (qcNorm(r.sku) === qcNorm(sku) ? ptNum(r.forAlteration) : 0), 0);
-const qcIssuedTotal = sku => (QC.issue || []).reduce((a, r) => a + (qcNorm(r.sku) === qcNorm(sku) ? ptNum(r.pieces) : 0), 0);
+const qcAltTotal = sku => (QC_IX ? qcIxOf(sku).alt : (QC.checks || []).reduce((a, r) => a + (qcNorm(r.sku) === qcNorm(sku) ? ptNum(r.forAlteration) : 0), 0));
+const qcIssuedTotal = sku => (QC_IX ? qcIxOf(sku).iss : (QC.issue || []).reduce((a, r) => a + (qcNorm(r.sku) === qcNorm(sku) ? ptNum(r.pieces) : 0), 0));
 const qcAvailToIssue = sku => qcAltTotal(sku) - qcIssuedTotal(sku);
 
 /* ---- what has come back ----
@@ -103,6 +122,7 @@ const qcIssuable = () => [...new Set((QC.checks || []).filter(r => ptNum(r.forAl
 /* ---- the two registers on screen ---- */
 
 function renderQc() {
+  if (!QC_IX) return qcWithIx(renderQc);
   /* THE PICKER HOLDS ONLY WHAT THIS ACCOUNT WAS GIVEN, and qcView() is the second lock: removing an
    * option is not the same as closing a door, and a value left over from a wider grant would
    * otherwise still open it. */
@@ -340,6 +360,7 @@ $('qcrSave').onclick = qcSaveReturn;
 function qcCheckMsg(t, bad) { const m = $('qcwMsg'); m.textContent = t || ''; m.className = bad ? 'err' : 'muted'; }
 
 function renderQcCheckForm() {
+  if (!QC_IX) return qcWithIx(renderQcCheckForm);
   const any = $('qcwSrc').value === 'any';
   const pool = any ? (PTG.mdb || []).map(r => qcNorm(r.sku)).filter(Boolean).slice(0, 6000) : qcCheckable();
   /* LIKE THE JOB WORK REGISTER. Ravi: "quality control ki entry 2 tarah se — SKU wise or article wise",
@@ -487,6 +508,7 @@ $('qcwSave').onclick = async () => {
 function qcIssueMsg(t, bad) { const m = $('qciMsg'); m.textContent = t || ''; m.className = bad ? 'err' : 'muted'; }
 
 function renderQcIssueForm() {
+  if (!QC_IX) return qcWithIx(renderQcIssueForm);
   const cur = $('qciSku').value;
   $('qciSku').innerHTML = '<option value="">— Select a flagged article —</option>'
     + qcIssuable().map(s => `<option value="${esc(s)}">${esc(s)} — ${nf(qcAvailToIssue(s))} to issue</option>`).join('');

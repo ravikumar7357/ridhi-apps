@@ -50,6 +50,10 @@ async function ptLoadGatesRun(light) {
       keepMdb ? Promise.resolve(PTG.masters) : ptGet('pt_masters'), keepMdb ? Promise.resolve(null) : ptGet('pt_masterDB'), ptGet('pt_orderBook'),
       ptGet('pt_pressInventory'), ptGet('pt_cuttingFreezes'), ptGet('pt_cuttingData'), ptGet('pt_baseData'),
       ptGet('pt_shopProd'), ptGet('pt_qcChecks').catch(() => null),
+      /* The pictures already looked up, read with the rest instead of after them. Read here so EVERY screen starts
+       * knowing them — it was read by the Vendor Portal alone, which is why every other screen asked Amazon again
+       * from scratch. A nicety, never a blocker: its failure is swallowed. */
+      ptImgShared().catch(() => {}),
     ]);
     PTG.shopProd = shopProd || {};
     PTG.qc = qcChecks ? ptList(qcChecks) : (PTG.qc || []);
@@ -63,9 +67,6 @@ async function ptLoadGatesRun(light) {
     PTG.press = ptList(press);
     PTG.freeze = freeze || {};
     PT.cut = ptList(cut); PT.at.cut = ptStamp();
-    /* The pictures already looked up. Read here so EVERY screen starts knowing them — it was read
-     * by the Vendor Portal alone, which is why every other screen asked Amazon again from scratch. */
-    try { await ptImgShared(); } catch (e) { /* pictures are a nicety, never a blocker */ }
     PT.base = ptList(base); PT.at.base = ptStamp();
   } catch (e) {
     PTG.err = e.message || String(e);

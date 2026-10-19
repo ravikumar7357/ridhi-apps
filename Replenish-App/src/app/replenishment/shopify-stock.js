@@ -15,8 +15,11 @@ const SH_BY = { SP: SH, CPC: { at: '', from: '', to: '', days: 90, orders: 0, d:
 const shStore = () => (($('shStore') || {}).value === 'CPC' ? 'CPC' : 'SP');
 function shMsg(t, bad) { const m = $('shMsg'); m.innerHTML = t || ''; m.className = bad ? 'err' : 'muted'; }
 
+/* A read already under way — started when the tab was opened, while the snapshot is read (nav.js). */
+let SH_P = null;
+function shopifyStart() { if (!SH.loaded && !SH_P) SH_P = loadShopify().finally(() => { SH_P = null; }); }
 async function ensureShopify() {
-  if (!SH.loaded) await loadShopify();
+  if (!SH.loaded) await (SH_P || loadShopify());
   renderShopify();
   /* The master list names the SKUs (Ravi, 2026-09-29: "i have updated my masterdata please check and fill the blank
    * data"); when it is not in hand yet the table is drawn again once it is. */

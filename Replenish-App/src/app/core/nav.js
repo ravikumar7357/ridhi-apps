@@ -432,11 +432,13 @@ function showTab(which) {
   if (which === 'article') ensureReplData().then(renderArticle, renderArticle);
   if (which === 'target') ensureTarget();
   if (which === 'follow') ensureFollow();
-  /* Top and Shopify: what they need besides the snapshot is asked for at the same time, not after it. */
-  if (which === 'top') Promise.all([ensureReplData().catch(() => {}), loadIndiaStock()]).then(ensureTop, ensureTop);
+  /* Top and Shopify: what they need besides the snapshot is STARTED here, read while the snapshot is — each screen
+   * then finds it under way (both reads share a promise) instead of starting it after the snapshot lands. */
+  if (which === 'top') loadIndiaStock();
+  if (which === 'shopify') { shopifyStart(); if (!PTG.mdb) ptLoadGates(); }
+  if (which === 'top') ensureReplData().then(ensureTop, ensureTop);
   if (which === 'india') ensureIndia();
-  if (which === 'shopify') Promise.all([ensureReplData().catch(() => {}), SH.loaded ? null : loadShopify(),
-    PTG.mdb ? null : ptLoadGates()]).then(ensureShopify, ensureShopify);
+  if (which === 'shopify') ensureReplData().then(ensureShopify, ensureShopify);
   if (which === 'prod') ensureProd();
   if (which === 'pack') ensurePack();
   if (which === 'att') ensureAtt();
@@ -456,9 +458,10 @@ function showTab(which) {
   if (which === 'cx') ensureCx();
   if (which === 'palloc') ensurePal();
   /* The register is re-read every time the tab is opened — Refresh used to do this, and two people
-   * entering stock on the same afternoon have to be able to see each other's work. */
-  if (which === 'fgi') { FGI.rows = null; ensureFgi(); }
-  if (which === 'fba') { FGI.rows = null; ensureFba(); }
+   * entering stock on the same afternoon have to be able to see each other's work. Within two minutes of the last
+   * read it is drawn at once and read again behind the screen (fgiOpen, finished-goods.js). */
+  if (which === 'fgi') fgiOpen('fgi');
+  if (which === 'fba') fgiOpen('fba');
   if (which === 'rep') ensureRep();
   if (which === 'pa' || which === 'ka') ensurePa();
   if (which === 'fab') ensureFab();

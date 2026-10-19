@@ -35,10 +35,11 @@ let ACC = { items: null, ledger: null, err: '', busy: false, at: '', shown: [] }
 async function ensureAcc() {
   if (ACC.items === null) {
     ACC.busy = true; renderAcc();
-    if (!PTG.masters) await ptLoadGates();
     try {
+      /* The ledger with the masters, not after them; the items are taken from the masters once both are in. */
+      const [, led] = await Promise.all([PTG.masters ? null : ptLoadGates(), ptGet('pt_accLedger')]);
       ACC.items = ptList((PTG.masters || {}).accessories);
-      ACC.ledger = ptList(await ptGet('pt_accLedger'));
+      ACC.ledger = ptList(led);
       ACC.err = '';
     } catch (e) { ACC.err = e.message || String(e); ACC.items = ACC.items || []; ACC.ledger = ACC.ledger || []; }
     // The issue gate reads these two, so keep the one copy everything uses.

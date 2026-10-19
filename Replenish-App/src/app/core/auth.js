@@ -192,16 +192,17 @@ onAuthStateChanged(auth, async user => {
     'gdesk', 'gdled', 'gdledit', 'gdappr'];
   const FACTORY_ONLY = ME.tabs.every(t => FACTORY_TABS.includes(t));
 
+  /* The cached snapshot, which every tab EXCEPT the factory ones is built on — started now, read while the two
+   * backend addresses are, since it needs neither. Awaited below, where it always was. */
+  const slim = FACTORY_ONLY ? null : ensureReplSlim();
   if (!FACTORY_ONLY) try {
-    const c = await getDoc(doc(db, 'config', 'replapi'));
+    /* Both addresses at once. The second is separate, and allowed to fail on its own, so a denial there does not
+     * look like the whole app having no backend. India stock and the Shopify tab both depend on it. */
+    const [c, p] = await Promise.all([getDoc(doc(db, 'config', 'replapi')), getDoc(doc(db, 'config', 'api')).catch(() => false)]);
     if (c.exists()) { const d = c.data(); API = { url: String(d.url || '').trim(), key: String(d.key || '').trim() }; }
     else rMsg('⚠️ Backend not configured — create Firestore doc config/replapi with {url, key}.', true);
-    // Separate, and allowed to fail on its own, so a denial here does not look like the whole app
-    // having no backend. India stock and the Shopify tab both depend on it.
-    try {
-      const p = await getDoc(doc(db, 'config', 'api'));
-      if (p.exists()) { const d = p.data(); PRAPI = { url: String(d.url || '').trim(), key: String(d.key || '').trim() }; }
-    } catch (e) { PRAPI = null; }
+    if (p === false) PRAPI = null;
+    else if (p.exists()) { const d = p.data(); PRAPI = { url: String(d.url || '').trim(), key: String(d.key || '').trim() }; }
   } catch (e) {
     // Distinguish "the rules said no" from anything else — a denied read here means this account does
     // not satisfy canRepl() in firestore.rules (perms/<email>.repl must be true, or admin), even though
@@ -212,8 +213,7 @@ onAuthStateChanged(auth, async user => {
     rMsg(ACCESS_ERR, true);
   }
 
-  // The cached snapshot, which every tab EXCEPT the factory ones is built on.
-  if (!FACTORY_ONLY) await ensureReplSlim();
+  if (slim) await slim;
   /* The screen the address names, when this account may open it — a tab opened from a menu link, or a
    * reload. showTab itself sends anything else to the first screen this account has. */
   showTab(navHashTab() || ME.tabs[0]);

@@ -21,8 +21,8 @@ const AJ_STATE = {
 let AJ_PICKED = new Set();
 
 async function ensureAdj() {
-  if (!Object.keys(SHOP_META).length) await loadShopMeta();
-  if (!Object.keys(SHOP_SKU).length) await loadShopSku();
+  /* Read together — both swallow their own failure, and neither needs the other. */
+  await Promise.all([Object.keys(SHOP_META).length ? null : loadShopMeta(), Object.keys(SHOP_SKU).length ? null : loadShopSku()]);
   if (!$('ajFrom').value) {
     // Reaches TOMORROW. A job raised late in the day is the one somebody is chasing, and a window
     // that stops at "today" is exactly where it disappears.

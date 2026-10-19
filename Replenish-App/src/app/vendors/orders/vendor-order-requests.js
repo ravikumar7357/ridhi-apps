@@ -81,14 +81,15 @@ const VRQ_STAGE = {
 async function ensureVrq(force) {
   if (VRQ.rows === null || force) {
     VRQ.busy = true; renderVrq();
-    try {
-      VRQ.rows = ptList(await ptGet('pt_vendorOrderReqs')).filter(r => r && r.id);
-      VRQ.err = '';
-    } catch (e) { VRQ.err = e.message || String(e); VRQ.rows = VRQ.rows || []; }
-    /* The progress column reads the orders the requests became, and the vendor names come from the
-     * master — both are needed before the table can say anything true. */
-    if (VO.rows === null || force) { VO.rows = null; try { await ensureVo(); } catch (e) { /* progress shows as unknown */ } }
-    if (!PTG.mdb) { try { await ptLoadGates(); } catch (e) { /* codes show instead of names */ } }
+    if (force) VO.rows = null;
+    /* Read together. The progress column reads the orders the requests became, and the vendor names come from the
+     * master — both are needed before the table can say anything true, and neither needs the other. */
+    await Promise.all([
+      ptGet('pt_vendorOrderReqs').then(v => { VRQ.rows = ptList(v).filter(r => r && r.id); VRQ.err = ''; },
+        e => { VRQ.err = e.message || String(e); VRQ.rows = VRQ.rows || []; }),
+      VO.rows === null ? ensureVo().catch(() => { /* progress shows as unknown */ }) : null,
+      PTG.mdb ? null : ptLoadGates().catch(() => { /* codes show instead of names */ }),
+    ]);
     VRQ.at = ptStamp(); VRQ.busy = false;
   }
   renderVrq();

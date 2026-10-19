@@ -29,10 +29,13 @@ let SOX = { rows: null, err: '', busy: false, at: '', shown: [] };
 async function ensureSox() {
   if (SOX.rows === null) {
     SOX.busy = true; renderSox();
-    if (!PTG.ob) await ptLoadGates();
-    try { SOX.rows = ptList(await ptGet('pt_salesOrders')); SOX.err = ''; }
-    catch (e) { SOX.err = e.message || String(e); SOX.rows = SOX.rows || []; }
-    await odrLoad(true);
+    /* Read together — none of the three needs another's answer. */
+    await Promise.all([
+      PTG.ob ? null : ptLoadGates(),
+      ptGet('pt_salesOrders').then(v => { SOX.rows = ptList(v); SOX.err = ''; },
+        e => { SOX.err = e.message || String(e); SOX.rows = SOX.rows || []; }),
+      odrLoad(true),
+    ]);
     SOX.at = ptStamp(); SOX.busy = false;
   }
   renderSox();

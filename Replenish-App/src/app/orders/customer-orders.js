@@ -38,10 +38,13 @@ let CX = { rows: null, err: '', busy: false, at: '', shown: [] };
 async function ensureCx() {
   if (CX.rows === null) {
     CX.busy = true; renderCx();
-    if (!PTG.mdb) await ptLoadGates();
-    if (FGI.rows === null) { try { FGI.rows = ptList(await ptGet('pt_fgiLedger')); } catch (e) { FGI.rows = []; } }
-    try { CX.rows = ptList(await ptGet('pt_cxOrders')); CX.err = ''; }
-    catch (e) { CX.err = e.message || String(e); CX.rows = CX.rows || []; }
+    /* Read together: the ledger and the orders need nothing from the order book. */
+    await Promise.all([
+      PTG.mdb ? null : ptLoadGates(),
+      FGI.rows === null && ptGet('pt_fgiLedger').then(v => { FGI.rows = ptList(v); }, () => { FGI.rows = []; }),
+      ptGet('pt_cxOrders').then(v => { CX.rows = ptList(v); CX.err = ''; },
+        e => { CX.err = e.message || String(e); CX.rows = CX.rows || []; }),
+    ]);
     CX.at = ptStamp(); CX.busy = false;
   }
   renderCx();
@@ -77,12 +80,19 @@ function renderCx() {
 
   const open = all.filter(r => (r.status || 'Open') === 'Open');
   const c = s => all.filter(r => (r.status || 'Open') === s).length;
+  /* WORKED OUT ONCE PER DRAW. cxAmz and cxIndia each re-add the whole ledger, rebuild the snapshot map and walk every
+   * order — per line, twice per line. The same answers, from one pass of each. */
+  const stock = fgiStock(), rmap = replRowMap(), taken = new Map();
+  all.forEach(l => { if (l && l.status === 'Fulfilled-Amazon') { const k = obUC(l.sku); taken.set(k, (taken.get(k) || 0) + (parseInt(l.qty, 10) || 0)); } });
+  const amzOf = sku => { const m = rmap[obUC(sku)]; if (!m) return null;
+    return Math.max(0, (Number(m.totalStock != null ? m.totalStock : m.fba) || 0) - (taken.get(obUC(sku)) || 0)); };
+  const indiaOf = sku => (stock.get(obUC(sku)) || { current: 0 }).current;
   /* Of the open lines, how many could go today and from where. */
   let fromAmz = 0, fromIndia = 0, nowhere = 0;
   open.forEach(r => {
     const q0 = parseInt(r.qty, 10) || 0;
-    if ((cxAmz(r.sku) || 0) >= q0) fromAmz++;
-    else if (cxIndia(r.sku) >= q0) fromIndia++;
+    if ((amzOf(r.sku) || 0) >= q0) fromAmz++;
+    else if (indiaOf(r.sku) >= q0) fromIndia++;
     else nowhere++;
   });
   $('cxKpis').innerHTML = `<div class="kpi" style="flex-basis:100%">
@@ -101,7 +111,7 @@ function renderCx() {
     .map((h, i) => `<th${i === 0 ? ' class="frz"' : (i >= 6 && i <= 8 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
   $('cxTable').innerHTML = head + '<tbody>' + (rows.length ? rows.slice(0, 600).map(r => {
     const q0 = parseInt(r.qty, 10) || 0, st = r.status || 'Open';
-    const a = cxAmz(r.sku), i = cxIndia(r.sku);
+    const a = amzOf(r.sku), i = indiaOf(r.sku);
     const cell = (v, need) => v === null ? '<span class="muted">not listed</span>'
       : `<span style="font-weight:700;color:${v >= need ? 'var(--accent)' : (v > 0 ? '#7f6000' : 'var(--muted)')}">${nf(v)}</span>`;
     return `<tr${st === 'Cancelled' ? ' style="opacity:.55"' : ''}>`

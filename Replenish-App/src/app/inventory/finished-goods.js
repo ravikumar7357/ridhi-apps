@@ -39,17 +39,43 @@ async function ensureFgi() {
   renderFgi();
 }
 
-/** Read the ledger, the recipients and the settings. Finished Goods and FBA Dispatch both draw from it. */
-async function fgiLoad() {
-  FGI.busy = true;
-  if (!PTG.mdb) await ptLoadGates();
+/* OPENING THE TAB AGAIN WITHIN TWO MINUTES draws what was read then, at once, and reads the register again behind it —
+ * the table is redrawn when that lands, so two people entering stock the same afternoon still see each other's work
+ * a moment later rather than after a blank wait. Older than that, or filled by another screen (which reads the ledger
+ * alone — no recipients, no settings), it is read before it is drawn, as it always was. */
+const FGI_FRESH_MS = 2 * 60 * 1000;
+let FGI_LOADED_MS = 0, FGI_P = null;
+function fgiOpen(tab) {
+  const draw = tab === 'fba' ? ensureFba : ensureFgi;
+  if (FGI.rows !== null && FGI_LOADED_MS && Date.now() - FGI_LOADED_MS < FGI_FRESH_MS) {
+    draw();
+    /* Not while something is ticked: a read again clears the ticks, and that is not something to do behind somebody. */
+    if (!FGI_PICK.stock.size && !FGI_PICK.ledger.size && !FGI_P) {
+      fgiLoad(true).then(() => { if (TAB_NOW === tab) (tab === 'fba' ? renderFba : renderFgi)(); }, () => {});
+    }
+    return;
+  }
+  FGI.rows = null; draw();
+}
+
+/** Read the ledger, the recipients and the settings. Finished Goods and FBA Dispatch both draw from it.
+ *  One read at a time — the Order Console, Flow and this tab can ask in the same second. quiet: the table stays on
+ *  screen while it reads (the background read above). */
+function fgiLoad(quiet) {
+  return FGI_P || (FGI_P = fgiLoadRun(quiet).finally(() => { FGI_P = null; }));
+}
+async function fgiLoadRun(quiet) {
+  if (!quiet) FGI.busy = true;
   try {
-    const [led, rec, set] = await Promise.all([ptGet('pt_fgiLedger'), ptGet('pt_issueRecipients'), ptGet('pt_fgiSettings')]);
+    /* The ledger with the order book, not after it — nothing below needs the order book's answer. */
+    const [, [led, rec, set]] = await Promise.all([PTG.mdb ? null : ptLoadGates(),
+      Promise.all([ptGet('pt_fgiLedger'), ptGet('pt_issueRecipients'), ptGet('pt_fgiSettings')])]);
     FGI.rows = ptList(led);
     FGI.set = set || {};
     FGI.recips = ptList(rec).filter(r => r && r.active !== false).map(r => r.name).filter(Boolean).sort();
     FGI.err = '';
-  } catch (e) { FGI.err = e.message || String(e); FGI.rows = FGI.rows || []; FGI.recips = FGI.recips || []; }
+    FGI_LOADED_MS = Date.now();
+  } catch (e) { FGI.err = e.message || String(e); FGI.rows = FGI.rows || []; FGI.recips = FGI.recips || []; FGI_LOADED_MS = 0; }
   FGI.at = ptStamp(); FGI.busy = false;
   /* A tick on a row that has just been read again may point at nothing now. */
   FGI_PICK = { stock: new Set(), ledger: new Set() };

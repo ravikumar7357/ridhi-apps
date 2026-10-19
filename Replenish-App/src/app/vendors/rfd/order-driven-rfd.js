@@ -560,16 +560,19 @@ async function ensureRfd(force) {
    * stock - "0 requirements" until somebody pressed Refresh. */
   if (!RFD.loaded || force) {
     RFD.busy = true; renderRfd();
-    try { RFD.decisions = (await ptGet('pt_rfdDecisions')) || {}; RFD.err = ''; }
-    catch (e) { RFD.err = e.message || String(e); RFD.decisions = RFD.decisions || {}; }
-    /* AND WHAT EVERY PRINTER SAYS IS ON THEIR FLOOR. The office has to see it: it is a claim, it
-     * comes off what gets sent, and it is stamped with who said it and when. */
-    try { RFD.stock = (await ptGet('pt_rfdStock')) || {}; }
-    catch (e) { RFD.stock = RFD.stock || {}; }
-    /* The requirements themselves live inside the vendor orders, so there is nothing to show until
-     * those are loaded. */
-    if (VO.rows === null || force) { VO.rows = null; try { await ensureVo(); } catch (e) { /* shown as none */ } }
-    if (!PTG.mdb) { try { await ptLoadGates(); } catch (e) { /* ceilings show as unknown */ } }
+    if (force) VO.rows = null;
+    /* Read together — none needs another's answer; each keeps the fallback it had. */
+    await Promise.all([
+      ptGet('pt_rfdDecisions').then(v => { RFD.decisions = v || {}; RFD.err = ''; },
+        e => { RFD.err = e.message || String(e); RFD.decisions = RFD.decisions || {}; }),
+      /* AND WHAT EVERY PRINTER SAYS IS ON THEIR FLOOR. The office has to see it: it is a claim, it
+       * comes off what gets sent, and it is stamped with who said it and when. */
+      ptGet('pt_rfdStock').then(v => { RFD.stock = v || {}; }, () => { RFD.stock = RFD.stock || {}; }),
+      /* The requirements themselves live inside the vendor orders, so there is nothing to show until
+       * those are loaded. */
+      VO.rows === null ? ensureVo().catch(() => { /* shown as none */ }) : null,
+      PTG.mdb ? null : ptLoadGates().catch(() => { /* ceilings show as unknown */ }),
+    ]);
     RFD.at = ptStamp(); RFD.busy = false; RFD.loaded = true;
   }
   renderRfd();

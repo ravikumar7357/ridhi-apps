@@ -66,9 +66,12 @@ let FAB = { rows: null, err: '', busy: false, at: '', shown: [] };
 async function ensureFab() {
   if (FAB.rows === null) {
     FAB.busy = true; renderFab();
-    try { FAB.rows = ptList(await ptGet('pt_fabInvLedger')); FAB.err = ''; }
-    catch (e) { FAB.err = e.message || String(e); FAB.rows = FAB.rows || []; }
-    await fabAutoLoad();
+    /* The ledger and what is taken off it, read together. */
+    await Promise.all([
+      ptGet('pt_fabInvLedger').then(v => { FAB.rows = ptList(v); FAB.err = ''; },
+        e => { FAB.err = e.message || String(e); FAB.rows = FAB.rows || []; }),
+      fabAutoLoad(),
+    ]);
     FAB.at = ptStamp(); FAB.busy = false;
   }
   renderFab();

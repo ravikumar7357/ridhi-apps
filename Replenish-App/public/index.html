@@ -3889,16 +3889,17 @@ onAuthStateChanged(auth, async user => {
     'gdesk', 'gdled', 'gdledit', 'gdappr'];
   const FACTORY_ONLY = ME.tabs.every(t => FACTORY_TABS.includes(t));
 
+  /* The cached snapshot, which every tab EXCEPT the factory ones is built on — started now, read while the two
+   * backend addresses are, since it needs neither. Awaited below, where it always was. */
+  const slim = FACTORY_ONLY ? null : ensureReplSlim();
   if (!FACTORY_ONLY) try {
-    const c = await getDoc(doc(db, 'config', 'replapi'));
+    /* Both addresses at once. The second is separate, and allowed to fail on its own, so a denial there does not
+     * look like the whole app having no backend. India stock and the Shopify tab both depend on it. */
+    const [c, p] = await Promise.all([getDoc(doc(db, 'config', 'replapi')), getDoc(doc(db, 'config', 'api')).catch(() => false)]);
     if (c.exists()) { const d = c.data(); API = { url: String(d.url || '').trim(), key: String(d.key || '').trim() }; }
     else rMsg('⚠️ Backend not configured — create Firestore doc config/replapi with {url, key}.', true);
-    // Separate, and allowed to fail on its own, so a denial here does not look like the whole app
-    // having no backend. India stock and the Shopify tab both depend on it.
-    try {
-      const p = await getDoc(doc(db, 'config', 'api'));
-      if (p.exists()) { const d = p.data(); PRAPI = { url: String(d.url || '').trim(), key: String(d.key || '').trim() }; }
-    } catch (e) { PRAPI = null; }
+    if (p === false) PRAPI = null;
+    else if (p.exists()) { const d = p.data(); PRAPI = { url: String(d.url || '').trim(), key: String(d.key || '').trim() }; }
   } catch (e) {
     // Distinguish "the rules said no" from anything else — a denied read here means this account does
     // not satisfy canRepl() in firestore.rules (perms/<email>.repl must be true, or admin), even though
@@ -3909,8 +3910,7 @@ onAuthStateChanged(auth, async user => {
     rMsg(ACCESS_ERR, true);
   }
 
-  // The cached snapshot, which every tab EXCEPT the factory ones is built on.
-  if (!FACTORY_ONLY) await ensureReplSlim();
+  if (slim) await slim;
   /* The screen the address names, when this account may open it — a tab opened from a menu link, or a
    * reload. showTab itself sends anything else to the first screen this account has. */
   showTab(navHashTab() || ME.tabs[0]);
@@ -4366,11 +4366,13 @@ function showTab(which) {
   if (which === 'article') ensureReplData().then(renderArticle, renderArticle);
   if (which === 'target') ensureTarget();
   if (which === 'follow') ensureFollow();
-  /* Top and Shopify: what they need besides the snapshot is asked for at the same time, not after it. */
-  if (which === 'top') Promise.all([ensureReplData().catch(() => {}), loadIndiaStock()]).then(ensureTop, ensureTop);
+  /* Top and Shopify: what they need besides the snapshot is STARTED here, read while the snapshot is — each screen
+   * then finds it under way (both reads share a promise) instead of starting it after the snapshot lands. */
+  if (which === 'top') loadIndiaStock();
+  if (which === 'shopify') { shopifyStart(); if (!PTG.mdb) ptLoadGates(); }
+  if (which === 'top') ensureReplData().then(ensureTop, ensureTop);
   if (which === 'india') ensureIndia();
-  if (which === 'shopify') Promise.all([ensureReplData().catch(() => {}), SH.loaded ? null : loadShopify(),
-    PTG.mdb ? null : ptLoadGates()]).then(ensureShopify, ensureShopify);
+  if (which === 'shopify') ensureReplData().then(ensureShopify, ensureShopify);
   if (which === 'prod') ensureProd();
   if (which === 'pack') ensurePack();
   if (which === 'att') ensureAtt();
@@ -4390,9 +4392,10 @@ function showTab(which) {
   if (which === 'cx') ensureCx();
   if (which === 'palloc') ensurePal();
   /* The register is re-read every time the tab is opened — Refresh used to do this, and two people
-   * entering stock on the same afternoon have to be able to see each other's work. */
-  if (which === 'fgi') { FGI.rows = null; ensureFgi(); }
-  if (which === 'fba') { FGI.rows = null; ensureFba(); }
+   * entering stock on the same afternoon have to be able to see each other's work. Within two minutes of the last
+   * read it is drawn at once and read again behind the screen (fgiOpen, finished-goods.js). */
+  if (which === 'fgi') fgiOpen('fgi');
+  if (which === 'fba') fgiOpen('fba');
   if (which === 'rep') ensureRep();
   if (which === 'pa' || which === 'ka') ensurePa();
   if (which === 'fab') ensureFab();
@@ -8020,8 +8023,11 @@ const SH_BY = { SP: SH, CPC: { at: '', from: '', to: '', days: 90, orders: 0, d:
 const shStore = () => (($('shStore') || {}).value === 'CPC' ? 'CPC' : 'SP');
 function shMsg(t, bad) { const m = $('shMsg'); m.innerHTML = t || ''; m.className = bad ? 'err' : 'muted'; }
 
+/* A read already under way — started when the tab was opened, while the snapshot is read (nav.js). */
+let SH_P = null;
+function shopifyStart() { if (!SH.loaded && !SH_P) SH_P = loadShopify().finally(() => { SH_P = null; }); }
 async function ensureShopify() {
-  if (!SH.loaded) await loadShopify();
+  if (!SH.loaded) await (SH_P || loadShopify());
   renderShopify();
   /* The master list names the SKUs (Ravi, 2026-09-29: "i have updated my masterdata please check and fill the blank
    * data"); when it is not in hand yet the table is drawn again once it is. */
@@ -13183,6 +13189,10 @@ async function ptLoadGatesRun(light) {
       keepMdb ? Promise.resolve(PTG.masters) : ptGet('pt_masters'), keepMdb ? Promise.resolve(null) : ptGet('pt_masterDB'), ptGet('pt_orderBook'),
       ptGet('pt_pressInventory'), ptGet('pt_cuttingFreezes'), ptGet('pt_cuttingData'), ptGet('pt_baseData'),
       ptGet('pt_shopProd'), ptGet('pt_qcChecks').catch(() => null),
+      /* The pictures already looked up, read with the rest instead of after them. Read here so EVERY screen starts
+       * knowing them — it was read by the Vendor Portal alone, which is why every other screen asked Amazon again
+       * from scratch. A nicety, never a blocker: its failure is swallowed. */
+      ptImgShared().catch(() => {}),
     ]);
     PTG.shopProd = shopProd || {};
     PTG.qc = qcChecks ? ptList(qcChecks) : (PTG.qc || []);
@@ -13196,9 +13206,6 @@ async function ptLoadGatesRun(light) {
     PTG.press = ptList(press);
     PTG.freeze = freeze || {};
     PT.cut = ptList(cut); PT.at.cut = ptStamp();
-    /* The pictures already looked up. Read here so EVERY screen starts knowing them — it was read
-     * by the Vendor Portal alone, which is why every other screen asked Amazon again from scratch. */
-    try { await ptImgShared(); } catch (e) { /* pictures are a nicety, never a blocker */ }
     PT.base = ptList(base); PT.at.base = ptStamp();
   } catch (e) {
     PTG.err = e.message || String(e);
@@ -16063,8 +16070,13 @@ $('bdmDelete').onclick = async () => {
 let PP = { err: '', busy: false, at: '', freeze: null };
 
 async function ensurePpress() {
-  if (!PTG.mdb) { PP.busy = true; renderPpress(); await ptLoadGates(); PP.busy = false; }
-  if (PP.freeze === null) { try { PP.freeze = (await ptGet('pt_pressFreezes')) || {}; } catch (e) { PP.freeze = {}; } }
+  if (!PTG.mdb) { PP.busy = true; renderPpress(); }
+  /* The freezes with the order book, not after it. */
+  await Promise.all([
+    PTG.mdb ? null : ptLoadGates(),
+    PP.freeze === null ? ptGet('pt_pressFreezes').then(v => { PP.freeze = v || {}; }, () => { PP.freeze = {}; }) : null,
+  ]);
+  PP.busy = false;
   PP.at = ptStamp();
   renderPpress();
 }
@@ -16646,10 +16658,14 @@ let QC = { checks: null, issue: null, ret: null, err: '', busy: false, at: '' };
 async function ensureQc() {
   if (QC.checks === null || !PTG.mdb) {
     QC.busy = true; renderQc();
-    if (!PTG.mdb) await ptLoadGates();
-    if (!PTE.emp) await ptLoadEmp();
+    /* The registers with the order book, not after it. The employee list waits for the order book (its masters give
+     * the accessories). A refused read of it left this screen on "Loading…" for good; now it only leaves the names of
+     * who may sign a check empty. */
     try {
-      const [c, i, t] = await Promise.all([ptGet('pt_qcChecks'), ptGet('pt_qcIssuance'), ptGet('pt_qcReturns')]);
+      const [, [c, i, t]] = await Promise.all([
+        (PTG.mdb ? Promise.resolve() : ptLoadGates()).then(() => (PTE.emp ? null : ptLoadEmp().catch(() => {}))),
+        Promise.all([ptGet('pt_qcChecks'), ptGet('pt_qcIssuance'), ptGet('pt_qcReturns')]),
+      ]);
       QC.checks = ptList(c); QC.issue = ptList(i); QC.ret = ptList(t); QC.err = '';
     } catch (e) { QC.err = e.message || String(e); QC.checks = QC.checks || []; QC.issue = QC.issue || []; QC.ret = QC.ret || []; }
     QC.at = ptStamp(); QC.busy = false;
@@ -16663,16 +16679,31 @@ const qcNorm = v => String(v == null ? '' : v).trim().toUpperCase();
 function qcParts(sku) {
   const m = cutSkuOf(sku);
   if (m) return { at: m.articleType || '', sub: m.subtype || '', col: m.color || '', size: m.size || '', brand: m.brand || '' };
-  const b = (PT.base || []).find(r => qcNorm(r.sku) === qcNorm(sku));
+  const b = QC_IX ? qcIxOf(sku).base : (PT.base || []).find(r => qcNorm(r.sku) === qcNorm(sku));
   return b ? { at: b.articleType || '', sub: b.articleSubtype || '', col: b.color || '', size: b.size || '', brand: '' }
            : { at: '', sub: '', col: '', size: '', brand: '' };
 }
 
-const qcReceived = sku => (PT.base || []).reduce((a, r) => a + (qcNorm(r.sku) === qcNorm(sku) ? ptNum(r.receivedPieces) : 0), 0);
-const qcChecked = sku => (QC.checks || []).reduce((a, r) => a + (qcNorm(r.sku) === qcNorm(sku) ? ptNum(r.checked) : 0), 0);
+/* ONE PASS PER DRAW. Every helper below walked a whole register for one SKU, and the forms ask them for every SKU —
+ * thousands of full passes to draw a picker. While a draw runs (qcWithIx) they read one index made at its start;
+ * outside a draw — a save checking its ceiling — they still walk the registers, so what a save checks is never older
+ * than what is in memory. */
+let QC_IX = null;
+function qcWithIx(fn) {
+  if (QC_IX) return fn();
+  const m = new Map(), g = k => { let o = m.get(k); if (!o) m.set(k, o = { rec: 0, chk: 0, alt: 0, iss: 0, base: null }); return o; };
+  (PT.base || []).forEach(r => { const o = g(qcNorm(r.sku)); o.rec += ptNum(r.receivedPieces); if (!o.base) o.base = r; });
+  (QC.checks || []).forEach(r => { const o = g(qcNorm(r.sku)); o.chk += ptNum(r.checked); o.alt += ptNum(r.forAlteration); });
+  (QC.issue || []).forEach(r => { g(qcNorm(r.sku)).iss += ptNum(r.pieces); });
+  QC_IX = m;
+  try { return fn(); } finally { QC_IX = null; }
+}
+const qcIxOf = sku => QC_IX.get(qcNorm(sku)) || { rec: 0, chk: 0, alt: 0, iss: 0, base: null };
+const qcReceived = sku => (QC_IX ? qcIxOf(sku).rec : (PT.base || []).reduce((a, r) => a + (qcNorm(r.sku) === qcNorm(sku) ? ptNum(r.receivedPieces) : 0), 0));
+const qcChecked = sku => (QC_IX ? qcIxOf(sku).chk : (QC.checks || []).reduce((a, r) => a + (qcNorm(r.sku) === qcNorm(sku) ? ptNum(r.checked) : 0), 0));
 const qcAvailToCheck = sku => qcReceived(sku) - qcChecked(sku);
-const qcAltTotal = sku => (QC.checks || []).reduce((a, r) => a + (qcNorm(r.sku) === qcNorm(sku) ? ptNum(r.forAlteration) : 0), 0);
-const qcIssuedTotal = sku => (QC.issue || []).reduce((a, r) => a + (qcNorm(r.sku) === qcNorm(sku) ? ptNum(r.pieces) : 0), 0);
+const qcAltTotal = sku => (QC_IX ? qcIxOf(sku).alt : (QC.checks || []).reduce((a, r) => a + (qcNorm(r.sku) === qcNorm(sku) ? ptNum(r.forAlteration) : 0), 0));
+const qcIssuedTotal = sku => (QC_IX ? qcIxOf(sku).iss : (QC.issue || []).reduce((a, r) => a + (qcNorm(r.sku) === qcNorm(sku) ? ptNum(r.pieces) : 0), 0));
 const qcAvailToIssue = sku => qcAltTotal(sku) - qcIssuedTotal(sku);
 
 /* ---- what has come back ----
@@ -16729,6 +16760,7 @@ const qcIssuable = () => [...new Set((QC.checks || []).filter(r => ptNum(r.forAl
 /* ---- the two registers on screen ---- */
 
 function renderQc() {
+  if (!QC_IX) return qcWithIx(renderQc);
   /* THE PICKER HOLDS ONLY WHAT THIS ACCOUNT WAS GIVEN, and qcView() is the second lock: removing an
    * option is not the same as closing a door, and a value left over from a wider grant would
    * otherwise still open it. */
@@ -16966,6 +16998,7 @@ $('qcrSave').onclick = qcSaveReturn;
 function qcCheckMsg(t, bad) { const m = $('qcwMsg'); m.textContent = t || ''; m.className = bad ? 'err' : 'muted'; }
 
 function renderQcCheckForm() {
+  if (!QC_IX) return qcWithIx(renderQcCheckForm);
   const any = $('qcwSrc').value === 'any';
   const pool = any ? (PTG.mdb || []).map(r => qcNorm(r.sku)).filter(Boolean).slice(0, 6000) : qcCheckable();
   /* LIKE THE JOB WORK REGISTER. Ravi: "quality control ki entry 2 tarah se — SKU wise or article wise",
@@ -17113,6 +17146,7 @@ $('qcwSave').onclick = async () => {
 function qcIssueMsg(t, bad) { const m = $('qciMsg'); m.textContent = t || ''; m.className = bad ? 'err' : 'muted'; }
 
 function renderQcIssueForm() {
+  if (!QC_IX) return qcWithIx(renderQcIssueForm);
   const cur = $('qciSku').value;
   $('qciSku').innerHTML = '<option value="">— Select a flagged article —</option>'
     + qcIssuable().map(s => `<option value="${esc(s)}">${esc(s)} — ${nf(qcAvailToIssue(s))} to issue</option>`).join('');
@@ -31709,7 +31743,9 @@ async function ensureDash() {
     take('fabric', async () => { if (FAB.rows == null) FAB.rows = ptList(await ptGet('pt_fabInvLedger')); }),
     take('RFD', async () => { if (!RFD.decisions) { const [d, st] = await Promise.all([ptGet('pt_rfdDecisions'), ptGet('pt_rfdStock')]); RFD.decisions = d || {}; RFD.stock = st || {}; } }),
     take('vendor requests', async () => { if (VRQ.rows == null) VRQ.rows = ptList(await ptGet('pt_vendorOrderReqs')).filter(r => r && r.id); }),
-    take('employees', async () => { if (!PTE.emp) await ptLoadEmp(); }),     // the roster the attendance tile counts against
+    /* The roster the attendance tile counts against. After the order book: the employee list takes the accessories from
+     * its masters, and landing first it left them empty for every screen after this one. */
+    take('employees', async () => { if (!PTE.emp) { await ptLoadGates(); await ptLoadEmp(); } }),
   ]);
   DASH.busy = false; DASH.at = ptStamp();
   renderDash();
@@ -34496,9 +34532,12 @@ let FAB = { rows: null, err: '', busy: false, at: '', shown: [] };
 async function ensureFab() {
   if (FAB.rows === null) {
     FAB.busy = true; renderFab();
-    try { FAB.rows = ptList(await ptGet('pt_fabInvLedger')); FAB.err = ''; }
-    catch (e) { FAB.err = e.message || String(e); FAB.rows = FAB.rows || []; }
-    await fabAutoLoad();
+    /* The ledger and what is taken off it, read together. */
+    await Promise.all([
+      ptGet('pt_fabInvLedger').then(v => { FAB.rows = ptList(v); FAB.err = ''; },
+        e => { FAB.err = e.message || String(e); FAB.rows = FAB.rows || []; }),
+      fabAutoLoad(),
+    ]);
     FAB.at = ptStamp(); FAB.busy = false;
   }
   renderFab();
@@ -36174,10 +36213,11 @@ let ACC = { items: null, ledger: null, err: '', busy: false, at: '', shown: [] }
 async function ensureAcc() {
   if (ACC.items === null) {
     ACC.busy = true; renderAcc();
-    if (!PTG.masters) await ptLoadGates();
     try {
+      /* The ledger with the masters, not after them; the items are taken from the masters once both are in. */
+      const [, led] = await Promise.all([PTG.masters ? null : ptLoadGates(), ptGet('pt_accLedger')]);
       ACC.items = ptList((PTG.masters || {}).accessories);
-      ACC.ledger = ptList(await ptGet('pt_accLedger'));
+      ACC.ledger = ptList(led);
       ACC.err = '';
     } catch (e) { ACC.err = e.message || String(e); ACC.items = ACC.items || []; ACC.ledger = ACC.ledger || []; }
     // The issue gate reads these two, so keep the one copy everything uses.
@@ -37052,10 +37092,13 @@ let SOX = { rows: null, err: '', busy: false, at: '', shown: [] };
 async function ensureSox() {
   if (SOX.rows === null) {
     SOX.busy = true; renderSox();
-    if (!PTG.ob) await ptLoadGates();
-    try { SOX.rows = ptList(await ptGet('pt_salesOrders')); SOX.err = ''; }
-    catch (e) { SOX.err = e.message || String(e); SOX.rows = SOX.rows || []; }
-    await odrLoad(true);
+    /* Read together — none of the three needs another's answer. */
+    await Promise.all([
+      PTG.ob ? null : ptLoadGates(),
+      ptGet('pt_salesOrders').then(v => { SOX.rows = ptList(v); SOX.err = ''; },
+        e => { SOX.err = e.message || String(e); SOX.rows = SOX.rows || []; }),
+      odrLoad(true),
+    ]);
     SOX.at = ptStamp(); SOX.busy = false;
   }
   renderSox();
@@ -44099,17 +44142,43 @@ async function ensureFgi() {
   renderFgi();
 }
 
-/** Read the ledger, the recipients and the settings. Finished Goods and FBA Dispatch both draw from it. */
-async function fgiLoad() {
-  FGI.busy = true;
-  if (!PTG.mdb) await ptLoadGates();
+/* OPENING THE TAB AGAIN WITHIN TWO MINUTES draws what was read then, at once, and reads the register again behind it —
+ * the table is redrawn when that lands, so two people entering stock the same afternoon still see each other's work
+ * a moment later rather than after a blank wait. Older than that, or filled by another screen (which reads the ledger
+ * alone — no recipients, no settings), it is read before it is drawn, as it always was. */
+const FGI_FRESH_MS = 2 * 60 * 1000;
+let FGI_LOADED_MS = 0, FGI_P = null;
+function fgiOpen(tab) {
+  const draw = tab === 'fba' ? ensureFba : ensureFgi;
+  if (FGI.rows !== null && FGI_LOADED_MS && Date.now() - FGI_LOADED_MS < FGI_FRESH_MS) {
+    draw();
+    /* Not while something is ticked: a read again clears the ticks, and that is not something to do behind somebody. */
+    if (!FGI_PICK.stock.size && !FGI_PICK.ledger.size && !FGI_P) {
+      fgiLoad(true).then(() => { if (TAB_NOW === tab) (tab === 'fba' ? renderFba : renderFgi)(); }, () => {});
+    }
+    return;
+  }
+  FGI.rows = null; draw();
+}
+
+/** Read the ledger, the recipients and the settings. Finished Goods and FBA Dispatch both draw from it.
+ *  One read at a time — the Order Console, Flow and this tab can ask in the same second. quiet: the table stays on
+ *  screen while it reads (the background read above). */
+function fgiLoad(quiet) {
+  return FGI_P || (FGI_P = fgiLoadRun(quiet).finally(() => { FGI_P = null; }));
+}
+async function fgiLoadRun(quiet) {
+  if (!quiet) FGI.busy = true;
   try {
-    const [led, rec, set] = await Promise.all([ptGet('pt_fgiLedger'), ptGet('pt_issueRecipients'), ptGet('pt_fgiSettings')]);
+    /* The ledger with the order book, not after it — nothing below needs the order book's answer. */
+    const [, [led, rec, set]] = await Promise.all([PTG.mdb ? null : ptLoadGates(),
+      Promise.all([ptGet('pt_fgiLedger'), ptGet('pt_issueRecipients'), ptGet('pt_fgiSettings')])]);
     FGI.rows = ptList(led);
     FGI.set = set || {};
     FGI.recips = ptList(rec).filter(r => r && r.active !== false).map(r => r.name).filter(Boolean).sort();
     FGI.err = '';
-  } catch (e) { FGI.err = e.message || String(e); FGI.rows = FGI.rows || []; FGI.recips = FGI.recips || []; }
+    FGI_LOADED_MS = Date.now();
+  } catch (e) { FGI.err = e.message || String(e); FGI.rows = FGI.rows || []; FGI.recips = FGI.recips || []; FGI_LOADED_MS = 0; }
   FGI.at = ptStamp(); FGI.busy = false;
   /* A tick on a row that has just been read again may point at nothing now. */
   FGI_PICK = { stock: new Set(), ledger: new Set() };
@@ -45573,9 +45642,14 @@ let REP = { view: 'wpr', busy: false, at: '' };
 async function ensureRep() {
   /* PT.base as well as the press: the week-on-week report is built on receipts now, and opening the
    * tab straight onto it would otherwise show an empty report rather than a loading one. */
-  if (!PTG.mdb || !PTG.press || !PT.base) { REP.busy = true; renderRep(); await ptLoadGates(); REP.busy = false; REP.at = ptStamp(); }
-  if (FGI.rows === null && $('repView').value === 'fgval') { try { FGI.rows = ptList(await ptGet('pt_fgiLedger')); } catch (e) { FGI.rows = []; } }
-  if (REP_HEADS === null) { try { REP_HEADS = (await ptGet('pt_contractorHeads')) || {}; } catch (e) { REP_HEADS = {}; } }
+  const gates = !PTG.mdb || !PTG.press || !PT.base;
+  if (gates) { REP.busy = true; renderRep(); }
+  /* Read together: the ledger and the contractor heads need nothing from the registers. */
+  await Promise.all([
+    gates ? ptLoadGates().then(() => { REP.busy = false; REP.at = ptStamp(); }) : null,
+    FGI.rows === null && $('repView').value === 'fgval' ? ptGet('pt_fgiLedger').then(v => { FGI.rows = ptList(v); }, () => { FGI.rows = []; }) : null,
+    REP_HEADS === null ? ptGet('pt_contractorHeads').then(v => { REP_HEADS = v || {}; }, () => { REP_HEADS = {}; }) : null,
+  ]);
   renderRep();
   /* The cut pieces that came from printers are vendor deliveries: read after the report is on screen. */
   if (VO.rows === null && ($('repView') || {}).value === 'wow') { try { await ensureVo(); renderRep(); } catch (e) { /* the tile says it is not read */ } }
@@ -51963,21 +52037,18 @@ async function palLoad() {
   PAL.busy = false; PAL.at = ptStamp();
 }
 async function ensurePal() {
-  if (PAL.printers === null) { PAL.busy = true; renderPal(); await palLoad(); }
-  /* What each colour sold comes from the snapshot rows. A slim copy written before 26 Sep has no last90; until the
-   * next snapshot writes one, an account allowed the full copy reads that instead. */
-  if (replFull() && !['SP', 'CPC'].some(b => REPL[b] && (REPL[b].rows || []).some(r => r && r.last90 != null))) {
-    try { await loadReplCache(true); } catch (e) { /* the designs still draw, without sales */ }
-  }
-  /* Measured capacity comes from the delivery log; this tab never needed it before. */
-  if (!VO.rows) {
-    try {
-      const raw = (await ptGet('pt_vendorOrders')) || {};
-      VO.rows = [];
-      Object.entries(raw).forEach(([code, orders]) => Object.values(orders || {})
-        .forEach(o => { if (o) VO.rows.push(Object.assign({ vendorCode: code }, o)); }));
-    } catch (e) { VO.rows = VO.rows || []; }
-  }
+  if (PAL.printers === null) { PAL.busy = true; renderPal(); }
+  /* Read together: the printers, the snapshot's sales and the delivery log need nothing from each other. */
+  await Promise.all([
+    PAL.printers === null ? palLoad() : null,
+    /* What each colour sold comes from the snapshot rows. A slim copy written before 26 Sep has no last90; until the
+     * next snapshot writes one, an account allowed the full copy reads that instead. */
+    replFull() && !['SP', 'CPC'].some(b => REPL[b] && (REPL[b].rows || []).some(r => r && r.last90 != null))
+      ? loadReplCache(true).catch(() => { /* the designs still draw, without sales */ }) : null,
+    /* Measured capacity comes from the delivery log; this tab never needed it before. Read the one way every screen
+     * reads it, so the vendor map comes with it — filled here by hand, the orders were in and the map never was. */
+    VO.rows === null ? ensureVo().catch(() => { VO.rows = VO.rows || []; }) : null,
+  ]);
   renderPal();
 }
 
@@ -52938,10 +53009,13 @@ let CX = { rows: null, err: '', busy: false, at: '', shown: [] };
 async function ensureCx() {
   if (CX.rows === null) {
     CX.busy = true; renderCx();
-    if (!PTG.mdb) await ptLoadGates();
-    if (FGI.rows === null) { try { FGI.rows = ptList(await ptGet('pt_fgiLedger')); } catch (e) { FGI.rows = []; } }
-    try { CX.rows = ptList(await ptGet('pt_cxOrders')); CX.err = ''; }
-    catch (e) { CX.err = e.message || String(e); CX.rows = CX.rows || []; }
+    /* Read together: the ledger and the orders need nothing from the order book. */
+    await Promise.all([
+      PTG.mdb ? null : ptLoadGates(),
+      FGI.rows === null && ptGet('pt_fgiLedger').then(v => { FGI.rows = ptList(v); }, () => { FGI.rows = []; }),
+      ptGet('pt_cxOrders').then(v => { CX.rows = ptList(v); CX.err = ''; },
+        e => { CX.err = e.message || String(e); CX.rows = CX.rows || []; }),
+    ]);
     CX.at = ptStamp(); CX.busy = false;
   }
   renderCx();
@@ -52977,12 +53051,19 @@ function renderCx() {
 
   const open = all.filter(r => (r.status || 'Open') === 'Open');
   const c = s => all.filter(r => (r.status || 'Open') === s).length;
+  /* WORKED OUT ONCE PER DRAW. cxAmz and cxIndia each re-add the whole ledger, rebuild the snapshot map and walk every
+   * order — per line, twice per line. The same answers, from one pass of each. */
+  const stock = fgiStock(), rmap = replRowMap(), taken = new Map();
+  all.forEach(l => { if (l && l.status === 'Fulfilled-Amazon') { const k = obUC(l.sku); taken.set(k, (taken.get(k) || 0) + (parseInt(l.qty, 10) || 0)); } });
+  const amzOf = sku => { const m = rmap[obUC(sku)]; if (!m) return null;
+    return Math.max(0, (Number(m.totalStock != null ? m.totalStock : m.fba) || 0) - (taken.get(obUC(sku)) || 0)); };
+  const indiaOf = sku => (stock.get(obUC(sku)) || { current: 0 }).current;
   /* Of the open lines, how many could go today and from where. */
   let fromAmz = 0, fromIndia = 0, nowhere = 0;
   open.forEach(r => {
     const q0 = parseInt(r.qty, 10) || 0;
-    if ((cxAmz(r.sku) || 0) >= q0) fromAmz++;
-    else if (cxIndia(r.sku) >= q0) fromIndia++;
+    if ((amzOf(r.sku) || 0) >= q0) fromAmz++;
+    else if (indiaOf(r.sku) >= q0) fromIndia++;
     else nowhere++;
   });
   $('cxKpis').innerHTML = `<div class="kpi" style="flex-basis:100%">
@@ -53001,7 +53082,7 @@ function renderCx() {
     .map((h, i) => `<th${i === 0 ? ' class="frz"' : (i >= 6 && i <= 8 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
   $('cxTable').innerHTML = head + '<tbody>' + (rows.length ? rows.slice(0, 600).map(r => {
     const q0 = parseInt(r.qty, 10) || 0, st = r.status || 'Open';
-    const a = cxAmz(r.sku), i = cxIndia(r.sku);
+    const a = amzOf(r.sku), i = indiaOf(r.sku);
     const cell = (v, need) => v === null ? '<span class="muted">not listed</span>'
       : `<span style="font-weight:700;color:${v >= need ? 'var(--accent)' : (v > 0 ? '#7f6000' : 'var(--muted)')}">${nf(v)}</span>`;
     return `<tr${st === 'Cancelled' ? ' style="opacity:.55"' : ''}>`
@@ -53346,14 +53427,15 @@ const VRQ_STAGE = {
 async function ensureVrq(force) {
   if (VRQ.rows === null || force) {
     VRQ.busy = true; renderVrq();
-    try {
-      VRQ.rows = ptList(await ptGet('pt_vendorOrderReqs')).filter(r => r && r.id);
-      VRQ.err = '';
-    } catch (e) { VRQ.err = e.message || String(e); VRQ.rows = VRQ.rows || []; }
-    /* The progress column reads the orders the requests became, and the vendor names come from the
-     * master — both are needed before the table can say anything true. */
-    if (VO.rows === null || force) { VO.rows = null; try { await ensureVo(); } catch (e) { /* progress shows as unknown */ } }
-    if (!PTG.mdb) { try { await ptLoadGates(); } catch (e) { /* codes show instead of names */ } }
+    if (force) VO.rows = null;
+    /* Read together. The progress column reads the orders the requests became, and the vendor names come from the
+     * master — both are needed before the table can say anything true, and neither needs the other. */
+    await Promise.all([
+      ptGet('pt_vendorOrderReqs').then(v => { VRQ.rows = ptList(v).filter(r => r && r.id); VRQ.err = ''; },
+        e => { VRQ.err = e.message || String(e); VRQ.rows = VRQ.rows || []; }),
+      VO.rows === null ? ensureVo().catch(() => { /* progress shows as unknown */ }) : null,
+      PTG.mdb ? null : ptLoadGates().catch(() => { /* codes show instead of names */ }),
+    ]);
     VRQ.at = ptStamp(); VRQ.busy = false;
   }
   renderVrq();
@@ -55130,16 +55212,19 @@ async function ensureRfd(force) {
    * stock - "0 requirements" until somebody pressed Refresh. */
   if (!RFD.loaded || force) {
     RFD.busy = true; renderRfd();
-    try { RFD.decisions = (await ptGet('pt_rfdDecisions')) || {}; RFD.err = ''; }
-    catch (e) { RFD.err = e.message || String(e); RFD.decisions = RFD.decisions || {}; }
-    /* AND WHAT EVERY PRINTER SAYS IS ON THEIR FLOOR. The office has to see it: it is a claim, it
-     * comes off what gets sent, and it is stamped with who said it and when. */
-    try { RFD.stock = (await ptGet('pt_rfdStock')) || {}; }
-    catch (e) { RFD.stock = RFD.stock || {}; }
-    /* The requirements themselves live inside the vendor orders, so there is nothing to show until
-     * those are loaded. */
-    if (VO.rows === null || force) { VO.rows = null; try { await ensureVo(); } catch (e) { /* shown as none */ } }
-    if (!PTG.mdb) { try { await ptLoadGates(); } catch (e) { /* ceilings show as unknown */ } }
+    if (force) VO.rows = null;
+    /* Read together — none needs another's answer; each keeps the fallback it had. */
+    await Promise.all([
+      ptGet('pt_rfdDecisions').then(v => { RFD.decisions = v || {}; RFD.err = ''; },
+        e => { RFD.err = e.message || String(e); RFD.decisions = RFD.decisions || {}; }),
+      /* AND WHAT EVERY PRINTER SAYS IS ON THEIR FLOOR. The office has to see it: it is a claim, it
+       * comes off what gets sent, and it is stamped with who said it and when. */
+      ptGet('pt_rfdStock').then(v => { RFD.stock = v || {}; }, () => { RFD.stock = RFD.stock || {}; }),
+      /* The requirements themselves live inside the vendor orders, so there is nothing to show until
+       * those are loaded. */
+      VO.rows === null ? ensureVo().catch(() => { /* shown as none */ }) : null,
+      PTG.mdb ? null : ptLoadGates().catch(() => { /* ceilings show as unknown */ }),
+    ]);
     RFD.at = ptStamp(); RFD.busy = false; RFD.loaded = true;
   }
   renderRfd();
@@ -64256,8 +64341,8 @@ const AJ_STATE = {
 let AJ_PICKED = new Set();
 
 async function ensureAdj() {
-  if (!Object.keys(SHOP_META).length) await loadShopMeta();
-  if (!Object.keys(SHOP_SKU).length) await loadShopSku();
+  /* Read together — both swallow their own failure, and neither needs the other. */
+  await Promise.all([Object.keys(SHOP_META).length ? null : loadShopMeta(), Object.keys(SHOP_SKU).length ? null : loadShopSku()]);
   if (!$('ajFrom').value) {
     // Reaches TOMORROW. A job raised late in the day is the one somebody is chasing, and a window
     // that stops at "today" is exactly where it disappears.

@@ -19,9 +19,14 @@ let REP = { view: 'wpr', busy: false, at: '' };
 async function ensureRep() {
   /* PT.base as well as the press: the week-on-week report is built on receipts now, and opening the
    * tab straight onto it would otherwise show an empty report rather than a loading one. */
-  if (!PTG.mdb || !PTG.press || !PT.base) { REP.busy = true; renderRep(); await ptLoadGates(); REP.busy = false; REP.at = ptStamp(); }
-  if (FGI.rows === null && $('repView').value === 'fgval') { try { FGI.rows = ptList(await ptGet('pt_fgiLedger')); } catch (e) { FGI.rows = []; } }
-  if (REP_HEADS === null) { try { REP_HEADS = (await ptGet('pt_contractorHeads')) || {}; } catch (e) { REP_HEADS = {}; } }
+  const gates = !PTG.mdb || !PTG.press || !PT.base;
+  if (gates) { REP.busy = true; renderRep(); }
+  /* Read together: the ledger and the contractor heads need nothing from the registers. */
+  await Promise.all([
+    gates ? ptLoadGates().then(() => { REP.busy = false; REP.at = ptStamp(); }) : null,
+    FGI.rows === null && $('repView').value === 'fgval' ? ptGet('pt_fgiLedger').then(v => { FGI.rows = ptList(v); }, () => { FGI.rows = []; }) : null,
+    REP_HEADS === null ? ptGet('pt_contractorHeads').then(v => { REP_HEADS = v || {}; }, () => { REP_HEADS = {}; }) : null,
+  ]);
   renderRep();
   /* The cut pieces that came from printers are vendor deliveries: read after the report is on screen. */
   if (VO.rows === null && ($('repView') || {}).value === 'wow') { try { await ensureVo(); renderRep(); } catch (e) { /* the tile says it is not read */ } }
