@@ -755,6 +755,15 @@ const K = 'AMZ-1__S1';
     const h = A.els.flTable.innerHTML;
     ok('By printed fabric: RBP-CANVAS-327 for AMZ-1 + AMZ-2 in one row, 7.5 m to print, Sanganer', /RBP-CANVAS-327/.test(h) && /AMZ-1<br>AMZ-2/.test(h) && /<b>7\.5 m<\/b>/.test(h) && /One challan for 2 orders/.test(h), h);
     ok('…the test order is its own row, never mixed with real ones', (h.match(/RBP-CANVAS-327/g) || []).length === 2);
+    /* 19 Oct: 80 of AMZ-2's 100 pcs already with karigars → the row totals only what the challan will offer. */
+    { const A2 = load({ me: { admin: true }, mdb, fsCat, rfd: { CANVAS: 999 },
+        lines: [L({ orderNo: 'AMZ-1', sku: 'RPC327-A' }), L({ orderNo: 'AMZ-2', sku: 'RPC327-B', cutReq: true, cut: 80, issued: 80 })],
+        ppc: { 'AMZ-1__RPC327-A': pp('AMZ-1', 'RPC327-A', 5), 'AMZ-2__RPC327-B': pp('AMZ-2', 'RPC327-B', 2.5) } });
+      A2.flowTestOnlySet(false); A2.setView('drfd'); A2.setAngle('drfd', 'print'); A2.renderFlow();
+      const h2 = A2.els.flTable.innerHTML;
+      ok('By printed fabric counts only what is still owed: 5 m + 20% of 2.5 m = 5.5 m, "of 200 pcs ordered · 80 already made"', /<b>5\.5 m<\/b>/.test(h2) && /of 200 pcs ordered · 80 already made/.test(h2), h2.slice(0, 1500));
+      A2.flowChallanForKeys(['AMZ-1__RPC327-A', 'AMZ-2__RPC327-B']);
+      ok('…and the challan form offers the same 0.5 m for AMZ-2', /value="0\.5"/.test(A2.ctx.__dlg.html), A2.ctx.__dlg.html.slice(0, 2500)); }
     A.flowChallanForKeys(['AMZ-1__RPC327-A', 'TEST-AMZ-9__RPC327-A']);
     ok('a test order and a real one cannot share a challan', /cannot share a challan/.test(A.els.flMsg.textContent));
     A.flowChallanForKeys(['AMZ-1__RPC327-A', 'AMZ-2__RPC327-B']);

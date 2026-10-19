@@ -279,16 +279,20 @@ function flowByPrintTable(rows) {
   const g = new Map();
   rows.filter(x => x.s.route !== 'stitch').forEach(x => {
     const p = x.s.plan || {}, w = flowPrintWhat(x.r, p), tp = flowToPrint(x.r, p), pc = flowPlanPrinter(x.s);
+    /* ONLY WHAT IS STILL OWED (Ravi, 19 Oct: the row said 447 pcs, the challan 47 — 400 were already issued to karigars).
+     * The total is what the challan will offer: the order less what is cut / issued / passed, less fabric already sent. */
+    const o = flowFabOwed(x.r, x.s), rem = flowRemFrac(x.r, x.s), qty = +x.r.qty || 0;
     const k = (x.r.__t ? 'T|' : 'R|') + (pc || '?') + '|' + (w.code || '?' + w.label);
-    const e = g.get(k) || { w, pc, pname: (p.printer && p.printer.name) || '', keys: [], orders: new Set(), metres: 0, pcs: 0, test: !!x.r.__t };
-    e.keys.push(x.s.key); e.orders.add(x.r.orderNo); e.metres += tp.metres; e.pcs += tp.pcs; g.set(k, e);
+    const e = g.get(k) || { w, pc, pname: (p.printer && p.printer.name) || '', keys: [], orders: new Set(), metres: 0, pcs: 0, ord: 0, done: 0, test: !!x.r.__t };
+    e.keys.push(x.s.key); e.orders.add(x.r.orderNo); e.metres += o.metres;
+    e.pcs += x.s.fabUnit === 'pcs' ? o.left : Math.round(tp.pcs * rem); e.ord += qty; e.done += Math.round(qty * (1 - rem)); g.set(k, e);
   });
   FLOW_GROUPS = [...g.values()].sort((a, b) => b.orders.size - a.orders.size || b.metres - a.metres);
   const body = FLOW_GROUPS.map((e, i) => `<tr><td class="frz" style="text-align:left">${e.w.needDir ? '<b style="color:#b91c1c">direction not picked</b>' : e.w.code ? `<b>${esc(e.w.code)}</b>` : '<b style="color:#b91c1c">no fabric SKU</b>'}${e.test ? ' <span class="navbadge" style="background:#7c3aed;position:static">TEST</span>' : ''}
       <div class="muted" style="font-size:10.5px">${esc(e.w.mode)} · ${esc(e.w.label)}</div></td>
     <td style="text-align:left;font-size:12px">${[...e.orders].map(esc).join('<br>')}</td>
     <td class="num">${nf(e.keys.length)}</td>
-    <td class="num"><b>${e.w.kind === 'sku' ? nf(e.pcs) + ' pcs' : nf(flowR2(e.metres)) + ' m'}</b></td>
+    <td class="num"><b>${e.w.kind === 'sku' ? nf(e.pcs) + ' pcs' : nf(flowR2(e.metres)) + ' m'}</b>${e.done > 0 ? `<div class="muted" style="font-size:10.5px">of ${nf(e.ord)} pcs ordered · ${nf(e.done)} already made / with karigars</div>` : ''}</td>
     <td style="text-align:left">${e.pname ? esc(e.pname) : '<span class="muted">not chosen</span>'}</td>
     <td><button data-flchg="${i}" style="width:auto;padding:3px 10px;font-size:12px">${e.orders.size > 1 ? `One challan for ${e.orders.size} orders` : 'Challan'}</button></td></tr>`).join('');
   return `<thead><tr><th class="frz" style="text-align:left">Printed fabric</th><th style="text-align:left">Orders</th><th>Lines</th><th>To print</th><th style="text-align:left">Printer</th><th></th></tr></thead><tbody>`
