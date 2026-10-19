@@ -54,9 +54,8 @@ async function fgiLoad() {
   /* A tick on a row that has just been read again may point at nothing now. */
   FGI_PICK = { stock: new Set(), ledger: new Set() };
   fbaBadge();
-  await lstLoad();
-  await fgiCorrLoad();
-  await fnLoad();
+  /* Three reads that do not wait on each other, read together; each keeps what it had when its own read fails. */
+  await Promise.all([lstLoad(), fgiCorrLoad(), fnLoad()]);
   fgiOverBadge();
   if (typeof FLOW_ON !== 'undefined' && FLOW_ON && typeof flowFgBadgeLoad === 'function') flowFgBadgeLoad();
   lstMaybeRefresh();

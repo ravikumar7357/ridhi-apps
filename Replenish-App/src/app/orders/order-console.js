@@ -29,36 +29,43 @@ function ordMoreBtn(n) {
   $('odMsg').innerHTML += (` <button type="button" data-ordmore style="padding:3px 10px;font-size:12px;margin-left:6px">Show ${nf(Math.min(600, n - ORD_CAP))} more</button>`);
 }
 
+/* ALL AT ONCE. None of these reads needs another's answer except the employee list, which takes the accessories
+ * from the masters the gates bring — so it waits for the gates and nothing else does. One after another they were
+ * fourteen round trips before the table could draw; together the wait is the slowest one. Each keeps the fallback
+ * it always had: a read that fails leaves its column blank and the rest of the screen still opens. */
 async function ensureOrd() {
-  if (!PTG.mdb) { ORD.busy = true; renderOrd(); await ptLoadGates(); }
-  if (!PTE.emp) await ptLoadEmp();
-  if (QC.checks === null) { try { QC.checks = ptList(await ptGet('pt_qcChecks')); QC.issue = ptList(await ptGet('pt_qcIssuance')); } catch (e) { QC.checks = QC.checks || []; QC.issue = QC.issue || []; } }
-  // The per-SKU override that can flip "does this need cutting" for one code. It has never been
-  // written in this data, but the old tool reads it, so this one does too.
-  if (ORD.req === null) { try { ORD.req = (await ptGet('pt_cutRequired')) || {}; } catch (e) { ORD.req = {}; } }
-  /* The last column is "what actually arrived", and that lives in the finished-goods ledger,
-   * keyed by the order number a receipt has carried since 16 Sep. */
-  if (FGI.rows === null) { try { await fgiLoad(); } catch (e) { FGI.rows = FGI.rows || []; } }
-  /* WHAT THE VENDORS HOLD. The Printing column and an order's journey are built from the vendor orders;
-   * a failed read leaves the column saying nothing is with a vendor rather than stopping the tab. */
-  if (VO.rows === null) { try { await ensureVo(); } catch (e) { VO.rows = VO.rows || []; } }
-  /* The priority tag is kept per SKU, not per order line — a sales order writes it there. Read for the
-   * export; a failed read leaves the column blank rather than stopping the screen. */
-  if (!PTE.priority) { try { PTE.priority = (await ptGet('pt_skuPriority')) || {}; } catch (e) { PTE.priority = {}; } }
-  /* THE BRAND OF A B2B LINE. Its item is on the Custom SKUs list, not in the master, and without
-   * this the Brand filter answers nothing for every wholesale order on the screen. A failed read
-   * leaves the column blank rather than stopping the tab. */
-  if (MDBX.custom === null) {
-    try { MDBX.custom = ptList(await ptGet('pt_customSkus')); MDBX.err = ''; }
-    catch (e) { MDBX.err = e.message || String(e); MDBX.custom = []; }
-  }
-  await odrLoad();
-  /* THE QUANTITY CHANGES, which live on the sales orders. A failed read leaves the pills off rather
-   * than stopping the screen — but it is the one thing here that is news, so it says so. */
-  if (SOX.rows === null) {
-    try { SOX.rows = ptList(await ptGet('pt_salesOrders')); }
-    catch (e) { SOX.rows = []; ORD.adjErr = e.message || String(e); }
-  }
+  const need = !PTG.mdb || !PTE.emp || QC.checks === null || ORD.req === null || FGI.rows === null || VO.rows === null
+    || !PTE.priority || MDBX.custom === null || !ODR.rows || SOX.rows === null;
+  if (need) { ORD.busy = true; renderOrd(); }
+  await Promise.all([
+    (PTG.mdb ? Promise.resolve() : ptLoadGates()).then(() => (PTE.emp ? null : ptLoadEmp())),
+    QC.checks === null && Promise.all([
+      ptGet('pt_qcChecks').then(v => { QC.checks = ptList(v); }, () => { QC.checks = QC.checks || []; }),
+      ptGet('pt_qcIssuance').then(v => { QC.issue = ptList(v); }, () => { QC.issue = QC.issue || []; }),
+    ]),
+    // The per-SKU override that can flip "does this need cutting" for one code. It has never been
+    // written in this data, but the old tool reads it, so this one does too.
+    ORD.req === null && ptGet('pt_cutRequired').then(v => { ORD.req = v || {}; }, () => { ORD.req = {}; }),
+    /* The last column is "what actually arrived", and that lives in the finished-goods ledger,
+     * keyed by the order number a receipt has carried since 16 Sep. */
+    FGI.rows === null && fgiLoad().catch(() => { FGI.rows = FGI.rows || []; }),
+    /* WHAT THE VENDORS HOLD. The Printing column and an order's journey are built from the vendor orders;
+     * a failed read leaves the column saying nothing is with a vendor rather than stopping the tab. */
+    VO.rows === null && ensureVo().catch(() => { VO.rows = VO.rows || []; }),
+    /* The priority tag is kept per SKU, not per order line — a sales order writes it there. Read for the
+     * export; a failed read leaves the column blank rather than stopping the screen. */
+    !PTE.priority && ptGet('pt_skuPriority').then(v => { PTE.priority = v || {}; }, () => { PTE.priority = {}; }),
+    /* THE BRAND OF A B2B LINE. Its item is on the Custom SKUs list, not in the master, and without
+     * this the Brand filter answers nothing for every wholesale order on the screen. A failed read
+     * leaves the column blank rather than stopping the tab. */
+    MDBX.custom === null && ptGet('pt_customSkus').then(v => { MDBX.custom = ptList(v); MDBX.err = ''; },
+      e => { MDBX.err = e.message || String(e); MDBX.custom = []; }),
+    odrLoad(),
+    /* THE QUANTITY CHANGES, which live on the sales orders. A failed read leaves the pills off rather
+     * than stopping the screen — but it is the one thing here that is news, so it says so. */
+    SOX.rows === null && ptGet('pt_salesOrders').then(v => { SOX.rows = ptList(v); },
+      e => { SOX.rows = []; ORD.adjErr = e.message || String(e); }),
+  ]);
   ORD.busy = false; ORD.at = ptStamp();
   ordQtyBadge();
   renderOrd();
