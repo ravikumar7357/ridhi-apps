@@ -9710,6 +9710,14 @@ console.log('\n== B2B sales orders: the buyer\'s own columns, and new items on t
      /Row 2: no SKU and no item name/.test(A.soB2BRows([sheet[0], ['X', '', '', '', '', '', '', '5', '', '']]).errors.join(' '))
      && /must be a whole number above 0, not "two"/.test(A.soB2BRows([sheet[0], ['X', '', 'A1', '', '', '', '', 'two', '', '']]).errors.join(' ')));
   ok('a sheet with no Qty is refused', /needs a Qty column/.test(A.soB2BRows([['SKU', 'Item Name'], ['A', 'B']]).err || ''));
+  /* 19 Oct: picture links that are pages. Drive and Dropbox share links become picture links; a kommodo page is flagged. */
+  { const s3 = A.soB2BRows([['SKU', 'Image Link', 'Qty'], ['K1', 'https://kommodo.ai/i/iluRA92n2OTFb5zlzObU', '5'],
+      ['K2', 'https://drive.google.com/file/d/1AbCdEfGhIjKlMnOp/view?usp=sharing', '5'], ['K3', 'https://www.dropbox.com/s/x/a.jpg?dl=0', '5'], ['K4', '(paste the picture here)', '5']]);
+    const L3 = s3.lines;
+    ok('a kommodo share page is flagged as a page, not a picture', L3[0].imgPage === true, JSON.stringify(L3[0]));
+    ok('a Google Drive share link becomes its picture address', L3[1].img === 'https://drive.google.com/thumbnail?id=1AbCdEfGhIjKlMnOp&sz=w800' && !L3[1].imgPage, L3[1].img);
+    ok('a Dropbox link is asked for raw', L3[2].img === 'https://www.dropbox.com/s/x/a.jpg?raw=1', L3[2].img);
+    ok('words in the picture cell are not a link', !L3[3].img); }
   /* 19 Oct: Ravi's new sheet — Article instead of Item Name, and a Color column. The old sheet above still reads. */
   { const s2 = A.soB2BRows([['Brand Name', 'Image Link', 'SKU', 'Article', 'Color', 'Size', 'LABEL', 'Material', 'Qty', 'Customization', 'Delivery Date'],
       ['Crate & Barrel', '', 'NEWB2B-7', 'Square Tablecloth', 'Indigo', '60x60', 'No', 'Cambric', '25', 'No', '']]);

@@ -252,6 +252,24 @@ const SO_B2B_COLS = [
   { k: 'customization', t: 'Customization', alias: ['customization', 'customisation', 'custom', 'customization details', 'customisation details'] },
   { k: 'deliveryDate', t: 'Delivery Date', alias: ['delivery date'] },
 ];
+/* A PICTURE LINK THAT IS A PAGE (Ravi, 19 Oct: kommodo.ai/i/… links showed no picture). A share link opens a web page
+ * with the picture on it, and a page cannot be drawn as a picture. Google Drive and Dropbox share links are turned into
+ * their picture address here; a page that cannot be turned (kommodo, imgur, Google Photos, ibb) is said to be one, so
+ * whoever uploads knows to copy the picture's own address (right-click the picture → Copy image address) or paste the
+ * picture into the sheet. Returns { url, page }. */
+function soImgLink(u) {
+  const s = String(u || '').trim();
+  if (!s) return { url: '', page: false };
+  let m = s.match(/^https?:\/\/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:[^#]*&)?id=)([A-Za-z0-9_-]{10,})/);
+  if (m) return { url: 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w800', page: false };
+  if (/^https?:\/\/(www\.)?dropbox\.com\//i.test(s)) {
+    const t = s.replace(/([?&])dl=0\b/, '$1raw=1');
+    return { url: /[?&](raw=1|dl=1)\b/.test(t) ? t : t + (t.includes('?') ? '&' : '?') + 'raw=1', page: false };
+  }
+  const page = /^https?:\/\/(www\.)?kommodo\.ai\/i\//i.test(s) || /^https?:\/\/(www\.)?imgur\.com\/(?!.*\.(png|jpe?g|gif|webp)$)/i.test(s)
+    || /^https?:\/\/(photos\.app\.goo\.gl|photos\.google\.com)\//i.test(s) || /^https?:\/\/(www\.)?ibb\.co\//i.test(s);
+  return { url: s, page };
+}
 /** A code for a B2B item that has none: the brand's initials, CUST, the date, a free number. */
 function soB2BMint(brand, taken) {
   const words = String(brand || '').toUpperCase().replace(/[^A-Z0-9 ]/g, ' ').split(/\s+/).filter(Boolean);
@@ -419,7 +437,8 @@ function soFormLines() {
         return `<tr><td class="muted">${i + 1}</td>`
           + `<td style="padding:3px 6px">${(() => { const pic = String(l.img || '').trim() || l.imgData || B2BIMG.map[obUC(l.sku)] || '';
             return pic ? `<img src="${esc(pic)}" alt="" loading="lazy" style="width:40px;height:40px;object-fit:cover;border-radius:6px;display:block;margin-bottom:2px">` : ''; })()}`
-          + `${!String(l.img || '').trim() && (l.imgData || B2BIMG.map[obUC(l.sku)]) ? '<div class="muted" style="font-size:10px">picture from the sheet</div>' : ''}${inp(i, 'img', l, 110, 'image link')}</td>`
+          + `${!String(l.img || '').trim() && (l.imgData || B2BIMG.map[obUC(l.sku)]) ? '<div class="muted" style="font-size:10px">picture from the sheet</div>' : ''}`
+          + `${soImgLink(l.img).page ? '<div style="font-size:10px;color:var(--bad);max-width:120px;white-space:normal">a page link, not a picture — copy the picture\'s own address</div>' : ''}${inp(i, 'img', l, 110, 'image link')}</td>`
           + `<td>${inp(i, 'brand', l, 110, 'brand')}</td>`
           + `<td><input data-sof="sku" data-i="${i}" value="${esc(l.sku)}" placeholder="blank = new code"${d} style="width:140px;font-family:ui-monospace,monospace;text-transform:uppercase">`
           + `<div id="sof_meta_${i}" style="font-size:10.5px;text-align:left">${soB2BMeta(l.sku)}</div></td>`
@@ -673,6 +692,7 @@ function soB2BRows(rows) {
     if (r.r) line.__row = r.r;          // the sheet's row number: a picture in that row belongs to this line
     ['brand', 'img', 'itemName', 'color', 'label', 'material', 'size', 'customization'].forEach(k => { const v = cell(k); if (v) line[k] = v; });
     if (line.img && !/^(https?:|data:)/i.test(line.img)) delete line.img;    // words in the picture cell are not a link
+    if (line.img) { const lk = soImgLink(line.img); line.img = lk.url; if (lk.page) line.imgPage = true; }
     if (Object.keys(extra).length) line.extra = extra;
     lines.push(line);
   });
@@ -697,9 +717,9 @@ async function soB2BFile(file, rows) {
       picLoose = [...byRow.keys()].filter(r => !lineRows.has(r)).length;
       for (const l of got.lines) {
         const p = l.__row && byRow.get(l.__row);
-        if (!p || String(l.img || '').trim()) continue;
+        if (!p || (String(l.img || '').trim() && !l.imgPage)) continue;     // a real link wins; a page link gives way to the picture
         const d = await soImgShrink(p.bytes, p.ext);
-        if (d) { l.imgData = d; picN++; } else picBad++;
+        if (d) { l.imgData = d; picN++; if (l.imgPage) { l.img = ''; delete l.imgPage; } } else picBad++;
       }
     }
   }
@@ -713,7 +733,9 @@ async function soB2BFile(file, rows) {
   ptDlgMsg(`Loaded ${nf(got.lines.length)} line(s) from ${file.name}.` + (fresh ? ` ${nf(fresh)} are not in the Master Database and go on the Custom SKUs list when you save.` : '')
     + (picN ? ` ${nf(picN)} picture(s) taken from the sheet — they are kept when you save.` : '')
     + (picBad ? ` ${nf(picBad)} picture(s) could not be read — paste them as JPG or PNG.` : '')
-    + (picLoose ? ` ${nf(picLoose)} picture(s) sit on a row with no order line and were left out.` : ''), !!picBad);
+    + (picLoose ? ` ${nf(picLoose)} picture(s) sit on a row with no order line and were left out.` : '')
+    + (got.lines.some(l => l.imgPage) ? ` ${nf(got.lines.filter(l => l.imgPage).length)} Image Link(s) open a web page, not a picture (e.g. kommodo.ai/i/…) — they will show no picture. Open one, right-click the picture → Copy image address, and put that in the sheet instead (or paste the picture itself into the row).` : ''),
+    !!picBad || got.lines.some(l => l.imgPage));
 }
 
 /* ---- saving ---- */
