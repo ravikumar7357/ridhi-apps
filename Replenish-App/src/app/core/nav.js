@@ -432,9 +432,11 @@ function showTab(which) {
   if (which === 'article') ensureReplData().then(renderArticle, renderArticle);
   if (which === 'target') ensureTarget();
   if (which === 'follow') ensureFollow();
-  if (which === 'top') ensureReplData().then(ensureTop, ensureTop);
+  /* Top and Shopify: what they need besides the snapshot is asked for at the same time, not after it. */
+  if (which === 'top') Promise.all([ensureReplData().catch(() => {}), loadIndiaStock()]).then(ensureTop, ensureTop);
   if (which === 'india') ensureIndia();
-  if (which === 'shopify') ensureReplData().then(ensureShopify, ensureShopify);
+  if (which === 'shopify') Promise.all([ensureReplData().catch(() => {}), SH.loaded ? null : loadShopify(),
+    PTG.mdb ? null : ptLoadGates()]).then(ensureShopify, ensureShopify);
   if (which === 'prod') ensureProd();
   if (which === 'pack') ensurePack();
   if (which === 'att') ensureAtt();
