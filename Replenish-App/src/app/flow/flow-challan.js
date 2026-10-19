@@ -274,12 +274,34 @@ function flowChallanHtml(ch) {
     + `<div style="font-size:11px">RFD fabric for job work — not for sale</div>`
     + `<div style="font-size:12px;margin-top:4px">Challan No: <b>${e(ch.no)}</b></div><div style="font-size:12px">Date: ${e(dmy(ch.date))}</div>`
     + `<div style="font-size:12px">Order: <b>${e(ch.orderNo)}</b></div></td></tr></table>`
-    + `<div style="margin:16px 0 8px;font-size:12px"><b>To</b><br>${e(ch.vendor && ch.vendor.name)}${ch.vendor && ch.vendor.code ? ` <span style="color:#666">(${e(ch.vendor.code)})</span>` : ''}</div>`
+    /* PRINTER AND DATE, SAID PLAINLY (Ravi, 19 Oct: "challan me printer ka naam aur date bhi print ho"): one box across the top. */
+    + `<table style="width:100%;border-collapse:collapse;margin:16px 0 10px"><tr>`
+    + `<td style="border:2px solid #111;padding:8px 12px;width:70%"><div style="font-size:11px;color:#555">Printer (To)</div><div style="font-size:17px;font-weight:bold">${e(ch.vendor && ch.vendor.name)}${ch.vendor && ch.vendor.code ? ` <span style="font-size:12px;font-weight:normal;color:#666">(${e(ch.vendor.code)})</span>` : ''}</div></td>`
+    + `<td style="border:2px solid #111;border-left:0;padding:8px 12px"><div style="font-size:11px;color:#555">Date</div><div style="font-size:17px;font-weight:bold">${e(dmy(ch.date))}</div></td></tr></table>`
+    + flowChSizeHtml(ch.lines || [], cell)
     + flowPrintSheetHtml(ch.lines || [], cell, true)
     + (ch.note ? `<div style="margin-top:10px;font-size:11px"><b>Note:</b> ${e(ch.note)}</div>` : '')
     + `<table style="width:100%;margin-top:50px;font-size:11px"><tr><td>Issued by<br><br><br>${e(String(ch.by || '').split('@')[0])}</td>`
     + `<td style="text-align:right">Received by (${e(ch.vendor && ch.vendor.name)})<br><br><br>Signature &amp; date</td></tr></table>`
     + '</body></html>';
+}
+/* THE RFD BY SIZE ON THE CHALLAN (19 Oct): what cloth goes, as Fabric · Size · Pieces · Metres — every colour of a size in one
+ * row, as the challan by size was made. Said only when the lines carry sizes. */
+function flowChSizeHtml(lines, cell) {
+  const e = v => esc(v == null ? '' : String(v)), by = new Map();
+  (lines || []).filter(l => l && !l.ruffleOnly).forEach(l => {
+    let m = {}; try { m = cutSkuOf(l.sku) || {}; } catch (er) { m = {}; }
+    const b = String(l.item || '').split(' · '), size = String(m.size || (b.length > 2 ? b[b.length - 1] : '') || '').trim();
+    if (!size) return;
+    const k = String(l.fabric || '').toUpperCase() + '|' + (typeof flowSizeKey === 'function' ? flowSizeKey(size) : size.toLowerCase());
+    const g = by.get(k) || { fabric: l.fabric || '—', size, pcs: 0, metres: 0 }; g.pcs += +l.pcs || 0; g.metres += +l.metres || 0; by.set(k, g);
+  });
+  if (!by.size) return '';
+  const gs = [...by.values()].sort((a, b) => String(a.fabric).localeCompare(String(b.fabric)) || (typeof flowSizeSort === 'function' ? flowSizeSort(a.size, b.size) : 0));
+  const th = h => `<th style="${cell};text-align:${/Pieces|Metres/.test(h) ? 'right' : 'left'};background:#f0f0f0">${h}</th>`;
+  return `<div style="font-size:12px;font-weight:bold;margin:6px 0 4px">RFD by size</div><table style="width:100%;border-collapse:collapse;margin-bottom:12px"><tr>${['Fabric (RFD)', 'Size', 'Pieces', 'Metres'].map(th).join('')}</tr>`
+    + gs.map(g => `<tr><td style="${cell}">${e(g.fabric)}</td><td style="${cell}"><b>${e(g.size)}</b></td><td style="${cell};text-align:right">${nf(g.pcs)}</td><td style="${cell};text-align:right">${nf(flowR2(g.metres))}</td></tr>`).join('')
+    + `<tr><td style="${cell}" colspan="2"><b>Total</b></td><td style="${cell};text-align:right"><b>${nf(gs.reduce((t, g) => t + g.pcs, 0))}</b></td><td style="${cell};text-align:right"><b>${nf(flowR2(gs.reduce((t, g) => t + g.metres, 0)))}</b></td></tr></table>`;
 }
 /* WHAT THE PRINTER IS TOLD (Ravi, 11 Oct: "vendor ko jab cut piece ke alawa running me order de to sirf usko challan me
  * dikhana chahiye: print SKU, fabric, colour name, and ek saath combine jitna metre print karna h — abhi 52 aur 184 alag
