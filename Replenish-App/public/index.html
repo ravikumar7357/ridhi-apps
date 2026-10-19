@@ -43461,6 +43461,18 @@ async function soB2BFile(file, rows) {
       }
     }
   }
+  /* PAGE LINKS → PICTURES (19 Oct): the backend reads a kommodo / imgur / ibb page and hands back the picture on it. */
+  let pageFixed = 0;
+  const pages = [...new Set(got.lines.filter(l => l.imgPage && l.img).map(l => l.img))];
+  if (pages.length && typeof prGet === 'function' && typeof PRAPI !== 'undefined' && PRAPI && PRAPI.url) {
+    ptDlgMsg(`Finding the pictures behind ${nf(pages.length)} page link(s)…`);
+    for (let i = 0; i < pages.length; i += 40) {
+      try {
+        const d = await prGet({ piclinks: pages.slice(i, i + 40).join('|') });
+        got.lines.forEach(l => { const to = l.imgPage && d && d.d && d.d[l.img]; if (to) { l.img = to; delete l.imgPage; pageFixed++; } });
+      } catch (e) { /* left as page links; the message below says so */ }
+    }
+  }
   const real = SOF.lines.filter(l => String(l.sku || l.itemName || '').trim()).length;
   SOF.lines = real && confirm(`Add ${nf(got.lines.length)} line(s) to the ${nf(real)} already here?\n\nOK adds them. Cancel replaces everything.`)
     ? SOF.lines.filter(l => String(l.sku || l.itemName || '').trim()).concat(got.lines) : got.lines;
@@ -43472,6 +43484,7 @@ async function soB2BFile(file, rows) {
     + (picN ? ` ${nf(picN)} picture(s) taken from the sheet — they are kept when you save.` : '')
     + (picBad ? ` ${nf(picBad)} picture(s) could not be read — paste them as JPG or PNG.` : '')
     + (picLoose ? ` ${nf(picLoose)} picture(s) sit on a row with no order line and were left out.` : '')
+    + (pageFixed ? ` ${nf(pageFixed)} page link(s) were turned into their picture.` : '')
     + (got.lines.some(l => l.imgPage) ? ` ${nf(got.lines.filter(l => l.imgPage).length)} Image Link(s) open a web page, not a picture (e.g. kommodo.ai/i/…) — they will show no picture. Open one, right-click the picture → Copy image address, and put that in the sheet instead (or paste the picture itself into the row).` : ''),
     !!picBad || got.lines.some(l => l.imgPage));
 }
