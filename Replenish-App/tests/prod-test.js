@@ -9710,6 +9710,12 @@ console.log('\n== B2B sales orders: the buyer\'s own columns, and new items on t
      /Row 2: no SKU and no item name/.test(A.soB2BRows([sheet[0], ['X', '', '', '', '', '', '', '5', '', '']]).errors.join(' '))
      && /must be a whole number above 0, not "two"/.test(A.soB2BRows([sheet[0], ['X', '', 'A1', '', '', '', '', 'two', '', '']]).errors.join(' ')));
   ok('a sheet with no Qty is refused', /needs a Qty column/.test(A.soB2BRows([['SKU', 'Item Name'], ['A', 'B']]).err || ''));
+  /* 19 Oct: Ravi's new sheet — Article instead of Item Name, and a Color column. The old sheet above still reads. */
+  { const s2 = A.soB2BRows([['Brand Name', 'Image Link', 'SKU', 'Article', 'Color', 'Size', 'LABEL', 'Material', 'Qty', 'Customization', 'Delivery Date'],
+      ['Crate & Barrel', '', 'NEWB2B-7', 'Square Tablecloth', 'Indigo', '60x60', 'No', 'Cambric', '25', 'No', '']]);
+    const l7 = s2.lines && s2.lines[0];
+    ok('the new B2B sheet: Article goes in as the item, Color as the colour name, nothing left over as an extra column',
+      s2.errors.length === 0 && l7 && l7.itemName === 'Square Tablecloth' && l7.color === 'Indigo' && l7.size === '60x60' && l7.qty === 25 && !l7.extra, JSON.stringify(s2)); }
 
   /* A NEW CODE FOR AN ITEM WITH NONE: the brand's initials. */
   ok('a blank SKU is given the brand\'s code', /^CB-CUST-\d{6}-01$/.test(A.soB2BMint('Crate & Barrel', [])), A.soB2BMint('Crate & Barrel', []));
@@ -9747,6 +9753,8 @@ console.log('\n== B2B sales orders: the buyer\'s own columns, and new items on t
      && /Customization: Yes - logo in corner/.test(bRow.remarks) && bRow.size === '20x20' && bRow.qty === 120, JSON.stringify(bRow));
   const kRow = A.PTG().ob.find(r => r.orderNo === order._id && r.sku === known);
   ok('…while a known SKU takes its article from the master', kRow && kRow.needsSku === false && !/Label:/.test(kRow.remarks));
+  A.soFormOpen(null); els.sof_channel.value = 'B2B'; A.setSOF({ id: null, page: 0, lines: [{ sku: 'NEWB2B-7', qty: 5, color: 'Indigo', itemName: 'Square Tablecloth' }] }); A.soFormLines();
+  ok('the B2B form has Article and Color columns, the colour filled in', /<th>Article<\/th><th>Color<\/th>/.test(els.sof_table.innerHTML) && /data-sof="color"[^>]*value="Indigo"/.test(els.sof_table.innerHTML), els.sof_table.innerHTML.slice(0, 400));
 
   NET.on = wasNet; ME.admin = wasAdmin;
 }

@@ -235,16 +235,19 @@ function soGuessOf(sku) {
     color: g.color || '', size: g.size || '' };
 }
 /** What a B2B line carries beyond SKU and quantity. */
-const SO_B2B_KEYS = ['brand', 'img', 'itemName', 'label', 'material', 'size', 'customization', 'extra'];
-/** Ravi's sheet, column by column, with the names people actually type. */
+const SO_B2B_KEYS = ['brand', 'img', 'itemName', 'color', 'label', 'material', 'size', 'customization', 'extra'];
+/** Ravi's sheet, column by column, with the names people actually type. 19 Oct: "Item Name" is now "Article", and the
+ * colour name has a column of its own (Brand Name · Image Link · SKU · Article · Color · Size · LABEL · Material · Qty ·
+ * Customization · Delivery Date). An old sheet with Item Name still reads. */
 const SO_B2B_COLS = [
   { k: 'brand', t: 'Brand Name', alias: ['brand name', 'brand'] },
   { k: 'img', t: 'Image Link', alias: ['image link', 'image', 'image url', 'photo', 'picture'] },
   { k: 'sku', t: 'SKU', alias: ['sku'] },
-  { k: 'itemName', t: 'Item Name', alias: ['item name', 'item', 'product name', 'product'] },
+  { k: 'itemName', t: 'Article', alias: ['article', 'article name', 'item name', 'item', 'product name', 'product'] },
+  { k: 'color', t: 'Color', alias: ['color', 'colour', 'color name', 'colour name'] },
+  { k: 'size', t: 'Size', alias: ['size'] },
   { k: 'label', t: 'LABEL', alias: ['label', 'label details'] },
   { k: 'material', t: 'Material', alias: ['material', 'fabric'] },
-  { k: 'size', t: 'Size', alias: ['size'] },
   { k: 'qty', t: 'Qty', alias: ['qty', 'quantity'] },
   { k: 'customization', t: 'Customization', alias: ['customization', 'customisation', 'custom', 'customization details', 'customisation details'] },
   { k: 'deliveryDate', t: 'Delivery Date', alias: ['delivery date'] },
@@ -408,7 +411,7 @@ function soFormLines() {
   if (soIsB2B(($('sof_channel') || {}).value)) {
     const inp = (i, f, l, w, ph) => `<input data-sof="${f}" data-i="${i}" value="${esc(l[f] == null ? '' : l[f])}" placeholder="${ph || ''}"${d} style="width:${w}px">`;
     $('sof_table').innerHTML = '<thead><tr>'
-      + ['#', 'Image', 'Brand', 'SKU', 'Item name', 'Label', 'Material', 'Size', 'Customization', 'Qty', 'Delivery', ''].map((h, i) =>
+      + ['#', 'Image', 'Brand', 'SKU', 'Article', 'Color', 'Size', 'Label', 'Material', 'Qty', 'Customization', 'Delivery', ''].map((h, i) =>
         `<th${i === 9 ? ' class="num"' : ''}>${h}</th>`).join('') + '</tr></thead><tbody>'
       + slice.map((l, k) => {
         const i = from + k;
@@ -418,12 +421,13 @@ function soFormLines() {
           + `<td>${inp(i, 'brand', l, 110, 'brand')}</td>`
           + `<td><input data-sof="sku" data-i="${i}" value="${esc(l.sku)}" placeholder="blank = new code"${d} style="width:140px;font-family:ui-monospace,monospace;text-transform:uppercase">`
           + `<div id="sof_meta_${i}" style="font-size:10.5px;text-align:left">${soB2BMeta(l.sku)}</div></td>`
-          + `<td>${inp(i, 'itemName', l, 160, 'item name')}</td>`
+          + `<td>${inp(i, 'itemName', l, 160, 'article')}</td>`
+          + `<td>${inp(i, 'color', l, 110, 'color name')}</td>`
+          + `<td>${inp(i, 'size', l, 80, 'size')}</td>`
           + `<td>${inp(i, 'label', l, 120, 'No, or the details')}</td>`
           + `<td>${inp(i, 'material', l, 100, 'material')}</td>`
-          + `<td>${inp(i, 'size', l, 80, 'size')}</td>`
-          + `<td>${inp(i, 'customization', l, 140, 'No, or the details')}${extra ? `<div class="muted" style="font-size:10.5px;max-width:160px;white-space:normal">${esc(extra)}</div>` : ''}</td>`
           + `<td class="num"><input data-sof="qty" data-i="${i}" type="number" step="1" min="0" value="${esc(l.qty)}"${d} style="width:80px;text-align:right"></td>`
+          + `<td>${inp(i, 'customization', l, 140, 'No, or the details')}${extra ? `<div class="muted" style="font-size:10.5px;max-width:160px;white-space:normal">${esc(extra)}</div>` : ''}</td>`
           + `<td><input data-sof="deliveryDate" data-i="${i}" type="date" value="${esc(l.deliveryDate)}"${d}></td>`
           + `<td>${ro ? '' : `<button class="ghost" data-sofdel="${i}" style="padding:2px 8px;color:var(--bad)">✕</button>`}</td></tr>`;
       }).join('') + '</tbody>';
@@ -521,8 +525,8 @@ function soTemplate() {
   if (soIsB2B(($('sof_channel') || {}).value)) {
     ptDownload('b2b-order-lines', [
       SO_B2B_COLS.map(c => c.t).map(csvCell).join(','),
-      ['Crate & Barrel', 'https://example.com/photo.jpg', 'RTC23-6060', 'Square Tablecloth Indigo', 'Yes - woven brand label at hem', 'Cotton cambric', '60x60', 120, 'No', '10-11-2026'].map(csvCell).join(','),
-      ['Crate & Barrel', '', '', 'Napkin set of 4 with embroidery', 'No', 'Linen', '20x20', 300, 'Yes - logo embroidered in corner', ''].map(csvCell).join(','),
+      ['Crate & Barrel', 'https://example.com/photo.jpg', 'RTC23-6060', 'Square Tablecloth', 'Indigo', '60x60', 'Yes - woven brand label at hem', 'Cotton cambric', 120, 'No', '10-11-2026'].map(csvCell).join(','),
+      ['Crate & Barrel', '', '', 'Napkin set of 4 with embroidery', 'Natural', '20x20', 'No', 'Linen', 300, 'Yes - logo embroidered in corner', ''].map(csvCell).join(','),
       [].join(','),
       ['A SKU not in the Master Database goes on the Custom SKUs list with its brand. A blank SKU is given a code.'].map(csvCell).join(','),
       ['Label and Customization: write No, or the details. Any other column you add is kept on the line.'].map(csvCell).join(','),
@@ -643,7 +647,7 @@ function soB2BRows(rows) {
     if (i >= 0) at[c.k] = i;
   });
   if (at.qty == null || (at.sku == null && at.itemName == null))
-    return { err: 'That file needs a Qty column and a SKU or Item Name column. Download the B2B template to see the shape.' };
+    return { err: 'That file needs a Qty column and a SKU or Article column. Download the B2B template to see the shape.' };
   const used = new Set(Object.values(at));
   const extraCols = head.map((h, i) => [h, i]).filter(([h, i]) => h && !used.has(i));
   const lines = [], errors = [];
@@ -660,7 +664,7 @@ function soB2BRows(rows) {
     const extra = {};
     extraCols.forEach(([h, i]) => { const v = String(r[i] == null ? '' : r[i]).trim(); if (v) extra[h] = v; });
     const line = { sku, qty, deliveryDate: dd || '', orderTypeKey: ($('sof_type') || {}).value || 'regular', priority: '' };
-    ['brand', 'img', 'itemName', 'label', 'material', 'size', 'customization'].forEach(k => { const v = cell(k); if (v) line[k] = v; });
+    ['brand', 'img', 'itemName', 'color', 'label', 'material', 'size', 'customization'].forEach(k => { const v = cell(k); if (v) line[k] = v; });
     if (Object.keys(extra).length) line.extra = extra;
     lines.push(line);
   });
@@ -795,7 +799,7 @@ async function soFormSave(place) {
         try { was = await ptGet('pt_customSkus/' + sku); } catch (e) { customUnread++; continue; }
         if (was && typeof was === 'object' && Object.keys(was).length) continue;
         patch['pt_customSkus/' + sku] = {
-          sku, articleType: '', subtype: '', color: '', size: l.size || '',
+          sku, articleType: '', subtype: '', color: l.color || '', size: l.size || '',
           brand: l.brand || '', packOf: '', fabric: '', cuttingRequired: true, consumption: 0,
           isZip: false, chainLength: null, zipQty: null, isRuffle: false, ruffleMeters: null, ruffleFabric: '',
           fillerFabricRequired: false, standardFillingQty: null, inventoryValuationPrice: 0,
@@ -880,10 +884,10 @@ function soReview(id) {
           value="${esc(o.saRemarks || '')}" placeholder="Required to send it back; optional to approve"></label>
       </div>
       <div class="xlwrap" style="max-height:34vh;border:1px solid var(--line);border-radius:10px;margin-top:10px">
-        <table class="xl"><thead><tr><th>SKU</th><th>Image</th>${soIsB2B(o.channel) ? '<th>Brand</th><th>Item</th><th>Label</th><th>Material</th><th>Size</th><th>Customization</th>' : ''}<th class="num">Qty</th><th>Delivery</th><th>In order book</th></tr></thead>
+        <table class="xl"><thead><tr><th>SKU</th><th>Image</th>${soIsB2B(o.channel) ? '<th>Brand</th><th>Article</th><th>Color</th><th>Size</th><th>Label</th><th>Material</th><th>Customization</th>' : ''}<th class="num">Qty</th><th>Delivery</th><th>In order book</th></tr></thead>
         <tbody>${s.groups.slice(0, 300).map(g => { const bl = soIsB2B(o.channel) ? (soLines(o).find(x => obUC(x.sku) === obUC(g.sku)) || {}) : null; return `<tr><td style="font-family:ui-monospace,monospace;text-align:left">${esc(g.sku)}${bl && !(PTG.mdb || []).some(m => obUC(m.sku) === obUC(g.sku)) ? '<div style="font-size:10px;color:#7f6000">custom SKU</div>' : ''}</td>`
           + (bl && bl.img ? ptImgCellSrc(g.sku, bl.img) : ptImgCell(g.sku))
-          + (bl ? ['brand', 'itemName', 'label', 'material', 'size', 'customization'].map(k => `<td style="text-align:left;white-space:normal;max-width:180px;font-size:12px">${esc(bl[k] || '') || '<span class="muted">—</span>'}</td>`).join('') : '')
+          + (bl ? ['brand', 'itemName', 'color', 'size', 'label', 'material', 'customization'].map(k => `<td style="text-align:left;white-space:normal;max-width:180px;font-size:12px">${esc(bl[k] || '') || '<span class="muted">—</span>'}</td>`).join('') : '')
           + `<td class="num" style="font-weight:700">${nf(g.qty)}</td>`
           + `<td>${esc(g.delivery) || '<span class="muted">—</span>'}</td>`
           + `<td>${g.inBook ? '<span class="pill pill-ok">already</span>' : '<span class="muted">will be added</span>'}</td></tr>`; }).join('')}</tbody>
@@ -955,7 +959,7 @@ async function soApproveRun(id) {
       l.customization && !/^no$/i.test(l.customization) && 'Customization: ' + l.customization].filter(Boolean) : [];
     recs.push(Object.assign({ id: 'ob_so_' + obUC(o._id) + '_' + s, orderNo: o._id, orderDate: o.orderDate || now.slice(0, 10),
       sku: s, articleType: String(m.articleType || ''), articleSubtype: String(m.subtype || ''),
-      color: String(m.color || ''), size: String(m.size || l.size || ''), qty,
+      color: String(m.color || (soIsB2B(o.channel) ? l.color : '') || ''), size: String(m.size || l.size || ''), qty,
       remarks: 'From approved Sales Order' + (o.buyerName ? ' · ' + o.buyerName : '') + (b2bBits.length ? ' · ' + b2bBits.join(' · ') : ''), src: 'SO',
       uploadedBy: ME.email, uploadedAt: now }, o.saleMonth ? { saleMonth: o.saleMonth } : {},
       soIsB2B(o.channel) ? { needsSku: !mdbBy.has(s), shopImg: String(l.img || ''), brand: String(l.brand || ''),
