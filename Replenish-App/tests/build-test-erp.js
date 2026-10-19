@@ -62,12 +62,19 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
   document.addEventListener('DOMContentLoaded', function () {
     var s = document.createElement('style'); s.textContent = css; document.head.appendChild(s);
     var l = document.createElement('div'); l.id = 'testErpLabel';
-    l.textContent = 'TEST ERP \\u00b7 live data, saving off \\u00b7 ' + window.__TEST_ERP.branch + ' @ ' + window.__TEST_ERP.sha;
+    l.textContent = 'R1 \\u00b7 test ERP \\u00b7 live data, saving off \\u00b7 ' + window.__TEST_ERP.branch + ' @ ' + window.__TEST_ERP.sha;
     document.body.appendChild(l);
-    if (document.title.indexOf('TEST') !== 0) document.title = 'TEST \\u00b7 ' + document.title;
   });
 })();
 </script>`;
+
+/* ---- R1, the test ERP's mark ---- */
+const R1_ICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#14161a"/>
+<text x="32" y="43" text-anchor="middle" font-family="Georgia,'Times New Roman',serif" font-size="30" font-weight="700" fill="#ffffff">R1</text>
+<rect x="14" y="51" width="36" height="4" rx="2" fill="#d97706"/></svg>`;
+const R1_LOGO = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 228" width="560" height="228">
+<text x="280" y="150" text-anchor="middle" font-family="Georgia,'Times New Roman',serif" font-size="150" letter-spacing="14" fill="#14161a">R1</text>
+<text x="280" y="204" text-anchor="middle" font-family="'Segoe UI',Arial,sans-serif" font-size="26" font-weight="600" letter-spacing="12" fill="#b45309">TEST ERP</text></svg>`;
 
 /** Replace exactly `count` occurrences of `find` (string or regex) — or stop the build. */
 function must(text, find, repl, count, label) {
@@ -129,11 +136,23 @@ fs.writeFileSync(path.join(OUT, '.nojekyll'), '');
   });
   html = must(html, "navigator.serviceWorker.register('/sw.js')", 'Promise.resolve()', 1, 'factory ERP service worker');
   html = must(html, "fetch('/', { method: 'HEAD'", "fetch('./', { method: 'HEAD'", 1, 'factory ERP version check');
+  /* R1: the test ERP's own name and mark, so nobody mistakes it for the real one. Screens only: documents (POs,
+   * challans) keep the company name, which is what a vendor must see. */
+  html = must(html, '<title>Ridhi Home &amp; Living</title>', '<title>R1</title>', 1, 'factory ERP title');
+  html = must(html, '<link rel="icon" href="logo.png">', '<link rel="icon" href="r1-icon.svg" type="image/svg+xml">', 1, 'factory ERP tab icon');
+  html = must(html, '<link rel="apple-touch-icon" href="apple-touch-icon.png">', '<link rel="apple-touch-icon" href="r1-icon.svg">', 1, 'factory ERP phone icon');
+  html = must(html, 'src="wordmark.png" alt="Ridhi Home &amp; Living"', 'src="r1-logo.svg" alt="R1 test ERP"', 1, 'factory ERP sign-in logo');
+  html = must(html, '<span class="brandname">Ridhi<span class="brandsub">Home &amp; Living</span></span>',
+    '<span class="brandname">R1<span class="brandsub">Test ERP</span></span>', 1, 'factory ERP header name');
+  html = must(html, "+ 'Ridhi Home & Living'; } catch (e) { /* nothing depends on it */ }",
+    "+ 'R1'; } catch (e) { /* nothing depends on it */ }", 1, 'factory ERP tab name');
   fs.writeFileSync(path.join(dst, 'index.html'), html);
+  fs.writeFileSync(path.join(dst, 'r1-icon.svg'), R1_ICON);
+  fs.writeFileSync(path.join(dst, 'r1-logo.svg'), R1_LOGO);
   /* the install manifest: relative to the test folder */
   const mf = JSON.parse(fs.readFileSync(path.join(src, 'manifest.webmanifest'), 'utf8'));
-  mf.name = 'TEST ' + mf.name; mf.short_name = 'TEST ' + mf.short_name; mf.start_url = './?source=app'; mf.scope = './';
-  mf.icons = (mf.icons || []).map(i => Object.assign({}, i, { src: String(i.src).replace(/^\//, '') }));
+  mf.name = 'R1 test ERP'; mf.short_name = 'R1'; mf.start_url = './?source=app'; mf.scope = './';
+  mf.icons = [{ src: 'r1-icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }];
   fs.writeFileSync(path.join(dst, 'manifest.webmanifest'), JSON.stringify(mf, null, 2));
 }
 
@@ -151,12 +170,13 @@ fs.writeFileSync(path.join(OUT, '.nojekyll'), '');
 
 /* The front page of the test ERP */
 fs.writeFileSync(path.join(OUT, 'index.html'), `<!doctype html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Ridhi TEST ERP</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>R1 · test ERP</title>
+<link rel="icon" href="replenish/r1-icon.svg" type="image/svg+xml">
 <style>body{margin:0;font:16px/1.5 system-ui,sans-serif;background:#f6f7f9;color:#15171a;display:grid;place-items:center;min-height:100vh;padding:16px}
 main{max-width:520px;width:100%;display:grid;gap:14px}h1{margin:0;font-size:28px}.tag{display:inline-block;background:#b45309;color:#fff;font-weight:700;font-size:12px;padding:3px 8px;border-radius:6px}
 a.card{display:block;background:#fff;border:1px solid #e2e4e8;border-radius:12px;padding:16px 18px;text-decoration:none;color:inherit}a.card:hover{border-color:#2b3a8c}
 a.card b{display:block;font-size:18px}small,p{color:#5d636b}@media(prefers-color-scheme:dark){body{background:#111214;color:#e9eaec}a.card{background:#18191c;border-color:#2a2c30}small,p{color:#a0a4ab}}</style></head>
-<body><main><span class="tag">TEST ERP</span><h1>Ridhi test ERP</h1>
+<body><main><img src="replenish/r1-logo.svg" alt="R1" width="200" style="justify-self:start"><span class="tag">TEST ERP</span><h1>R1 · the test ERP</h1>
 <p>The same apps as the real ERP, built from the <b>${BRANCH}</b> branch on GitHub. They show the <b>live data</b>, and <b>saving is switched off</b>, so nothing here can change the real ERP.</p>
 <a class="card" href="replenish/"><b>Factory ERP</b><small>Replenishment, production, vendors, stock</small></a>
 <a class="card" href="sellora/"><b>Sellora</b><small>Research, sales, listings, advertising</small></a>

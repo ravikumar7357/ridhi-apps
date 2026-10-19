@@ -10,7 +10,7 @@ const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '
 
 if (!fs.existsSync(ROOT)) { console.error('No _site/ yet — run tools/check-local.ps1 (button 1) first.'); process.exit(1); }
 
-http.createServer((req, res) => {
+const server = http.createServer((req, res) => {
   let p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
   let file = path.normalize(path.join(ROOT, p));
   if (!file.startsWith(ROOT)) { res.writeHead(403); return res.end('no'); }
@@ -23,7 +23,17 @@ http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': TYPES[path.extname(file).toLowerCase()] || 'application/octet-stream', 'Cache-Control': 'no-store' });
     res.end(data);
   });
-}).listen(PORT, () => {
+});
+/* Already running (an earlier button 1 is still open)? That one serves the same _site/ folder, so the new build is
+ * already there: say so instead of failing. */
+server.on('error', e => {
+  if (e.code === 'EADDRINUSE') {
+    console.log(`The local test ERP is already running on http://localhost:${PORT}/ and now has this build. Just reload the page.`);
+    process.exit(0);
+  }
+  throw e;
+});
+server.listen(PORT, () => {
   console.log(`Local test ERP (saving off): http://localhost:${PORT}/`);
   console.log('Press Ctrl+C here to stop it.');
 });

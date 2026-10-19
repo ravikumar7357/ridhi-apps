@@ -2,6 +2,8 @@
 # Checks everything, asks for one line saying what changed, saves it to the dev branch and pushes.
 # The test link https://ravikumar7357.github.io/ridhi-apps/ updates about 2 minutes later.
 # Stops before saving anything if a check fails. Never touches main or the real ERP.
+# Optional: -Message "what changed" skips the question (for running it from a script).
+param([string]$Message = '')
 # 'Continue': git and node write progress to stderr; each step's exit code decides, not the stream it wrote to.
 $ErrorActionPreference = 'Continue'
 Set-Location (Join-Path $PSScriptRoot '..')
@@ -34,7 +36,7 @@ git add -A
 $changed = git diff --cached --name-only
 if (-not $changed) { Write-Host "Nothing changed since the last send, so there is nothing to do.`n" -ForegroundColor Yellow; exit 0 }
 $changed | ForEach-Object { Write-Host "  $_" }
-$msg = Read-Host "`nIn one line, what did you change (for example: Order Console shows the printer name)"
+$msg = if ($Message.Trim()) { $Message } else { Read-Host "`nIn one line, what did you change (for example: Order Console shows the printer name)" }
 if (-not $msg.Trim()) { git reset -q; Stop-With "no description given." }
 git commit -q -m $msg
 if ($LASTEXITCODE -ne 0) { Stop-With "the save (commit) failed." }
