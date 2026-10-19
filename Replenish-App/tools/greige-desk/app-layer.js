@@ -1,9 +1,10 @@
-/* ================= GREIGE DESK INSIDE THE REPLENISH APP (TEST, preview link only) =================
+/* ================= GREIGE DESK INSIDE THE REPLENISH APP (real working since 15 Oct) =================
  * Ravi, 13 Oct: "is wale part ko bhi jaise humne PPC test flow me run kiya hua h aise hi run kardo" -- the Greige Desk
- * joined to the PPC flow. Everything it writes goes to its own test node (pt_gdTest); the real Greige POs and the real
+ * joined to the PPC flow. Everything it writes goes to its own node, pt_gdTest (named in its test days; since 15 Oct, Ravi:
+ * "griege ka bhi test window hatao", it holds the real greige POs and movements, RIDHI/PO/GREIG/001 on); the older Greige POs and the
  * fabric ledger are never touched. Its masters start as a copy of the app's own (fabric pairs, suppliers, RFD
  * processors, company); the rights come from the person signed in. */
-var GD_NODE = 'pt_gdTest', GD_SNAP = null, GD_READY = null;
+var GD_NODE = 'pt_gdTest', GD_SNAP = null, GD_READY = null, GD_STATE = '';   // '' not read · 'ok' · 'err: …'
 function gdKeyed(list) { var o = {}; (list || []).forEach(function (x) { if (x && x.id) o[x.id] = JSON.stringify(x); }); return o; }
 function gdSnap() {
   return { gpo: gdKeyed(DB.gpo), fab: gdKeyed(DB.fab), mst: JSON.stringify(DB.mst || []), ven: JSON.stringify(DB.ven || []), co: JSON.stringify(DB.co || {}) };
@@ -11,7 +12,7 @@ function gdSnap() {
 /* WHAT CHANGED IS WHAT IS WRITTEN: one PO or one ledger row at a time, so two people working at once do not
  * overwrite each other's rows. */
 function lmSaveDb() {
-  if (!DB) return;
+  if (!DB || GD_STATE !== 'ok') return;   // never write a desk this screen could not read
   var now = gdSnap(), was = GD_SNAP || { gpo: {}, fab: {}, mst: '', ven: '', co: '' }, patch = {};
   ['gpo', 'fab'].forEach(function (k) {
     Object.keys(now[k]).forEach(function (id) { if (was[k][id] !== now[k][id]) patch[GD_NODE + '/' + k + '/' + id] = JSON.parse(now[k][id]); });
@@ -19,7 +20,7 @@ function lmSaveDb() {
   });
   ['mst', 'ven', 'co'].forEach(function (k) { if (was[k] !== now[k]) patch[GD_NODE + '/' + k] = JSON.parse(now[k]); });
   GD_SNAP = now;
-  if (Object.keys(patch).length) Promise.resolve(ptPatch(patch)).catch(function (e) { lmSay('err', 'Not saved to the test records: ' + (e && e.message || e)); });
+  if (Object.keys(patch).length) Promise.resolve(ptPatch(patch)).catch(function (e) { lmSay('err', 'Not saved: ' + (e && e.message || e)); });
 }
 function gdFromStore(v) {
   var list = function (o) { return Object.keys(o || {}).map(function (k) { var x = o[k]; if (x && !x.id) x.id = k; return x; }).filter(Boolean); };
@@ -56,29 +57,36 @@ function gdSeedMasters() {
   } catch (e) { /* none */ }
   try { ((typeof FAB !== 'undefined' && FAB.rows) || []).forEach(function (r) { if (r.txnType === 'ISSUE_TO_RFD') addVen(r.party, 'RFD Processor'); }); } catch (e) { /* none */ }
   return { mst: mst, ven: ven, co: { name: gdCoName(), addr: '', email: '', gstin: '', iec: '', pan: '', jurisdiction: 'Jaipur',
-    poPrefix: 'TEST/PO/GREIG/', poNext: 1, rfdPrefix: 'TEST/RFD/' } };
+    poPrefix: 'RIDHI/PO/GREIG/', poNext: 1, rfdPrefix: 'RIDHI/RFD/' } };
 }
 function gdSaveAll() {
+  if (GD_STATE && GD_STATE !== 'ok') return Promise.resolve();
   var store = { gpo: {}, fab: {}, mst: DB.mst || [], ven: DB.ven || [], co: DB.co || {} };
   (DB.gpo || []).forEach(function (x) { store.gpo[x.id] = x; });
   (DB.fab || []).forEach(function (x) { store.fab[x.id] = x; });
   GD_SNAP = gdSnap();
-  return Promise.resolve(ptPut(GD_NODE, JSON.parse(JSON.stringify(store)))).catch(function (e) { lmSay('err', 'Not saved to the test records: ' + (e && e.message || e)); });
+  return Promise.resolve(ptPut(GD_NODE, JSON.parse(JSON.stringify(store)))).catch(function (e) { lmSay('err', 'Not saved: ' + (e && e.message || e)); });
 }
 function gdLoad() {
   if (GD_READY) return GD_READY;
   GD_READY = (async function () {
     try { if (typeof ptLoadGates === 'function' && !PTG.masters) await ptLoadGates(); } catch (e) { /* masters wait */ }
     try { if (typeof ensureGpo === 'function' && typeof GPO !== 'undefined' && GPO.rows == null) await ensureGpo(); } catch (e) { /* real POs wait */ }
-    var v = null;
-    try { v = await ptGet(GD_NODE); } catch (e) { v = null; }
+    /* A READ THAT FAILED IS NOT AN EMPTY DESK (16 Oct). It used to be taken as one, and the empty desk was then WRITTEN
+     * over the whole node — every greige PO and every movement gone because one read timed out. Now a failed read
+     * writes nothing, says so (GD_STATE), and the next open asks again. Only a read that ANSWERED "nothing here" seeds
+     * the masters and saves them. */
+    var v = null, failed = '';
+    try { v = await ptGet(GD_NODE); } catch (e) { failed = String((e && e.message) || e || 'read failed'); }
+    if (failed) { DB = null; GD_STATE = 'err: ' + failed; GD_READY = null; return; }
     if (v && (v.mst || v.gpo || v.fab)) { DB = gdFromStore(v); lmMigrate(); GD_SNAP = gdSnap(); }
     else { var m = gdSeedMasters(); DB = { gpo: [], fab: [], mst: m.mst, ven: m.ven, co: m.co, users: [], me: '' }; lmMigrate(); await gdSaveAll(); }
+    GD_STATE = 'ok';
   })();
   return GD_READY;
 }
 function lmLoad() { if (!DB) DB = { gpo: [], fab: [], mst: [], ven: [], co: {}, users: [], me: '' }; lmMigrate(); }
-/* "Load sample data" -- the model's sample, under TEST numbers, the company's own name on it. */
+/* The model's sample (no button for it in the app since 15 Oct), the company's own name on it. */
 function lmResetSample() { var s = lmSample(); s.co.name = gdCoName(); s.users = []; s.me = ''; DB = s; lmMigrate(); gdSaveAll(); }
 function gdClearAll() { DB.gpo = []; DB.fab = []; gdSaveAll(); }
 
@@ -98,8 +106,9 @@ function meUser() {
 function meFill() {
   var n = $('meName'); if (n) n.textContent = meUser().name + ' · ledger: ' + LEDGER_LABEL[meUser().ledger].toLowerCase() + (meUser().approve ? ' · approves' : '');
   [].forEach.call(document.querySelectorAll('.navgrp[data-tab="ledger"]'), function (b) { b.hidden = !canLedger(); });
-  var adm = !!((typeof ME !== 'undefined' && ME) || {}).admin;
-  ['gdSample', 'gdClear'].forEach(function (id) { var b = $(id); if (b) b.hidden = !adm; });
+  /* NO MASTER DATA TAB IN THE APP (Ravi, 15 Oct: "remove the master data from here, it will come from setup"): the fabrics and
+   * the suppliers / RFD processors are Setup -> Master Database's own (gdLinkMasters). */
+  [].forEach.call(document.querySelectorAll('.navgrp[data-tab="mst"]'), function (b) { b.hidden = gdLinked(); });
 }
 function renderMstUsers() {
   var u = meUser();
@@ -122,38 +131,22 @@ function gdRfdShelf(name) {
   var k = String(name || '').trim().toUpperCase(), e = fabFlowRows(DB.fab || []).filter(function (x) { return String(x.fabricType).toUpperCase() === k; })[0];
   return e ? Math.max(0, e.rfdLeft) : 0;
 }
+/* THE DAY THIS DESK COUNTED AN RFD FABRIC (Ravi, 15 Oct: Sheeting 72 shown 21,782 m where the shelf holds 13,600): the
+ * newest OPENING_RFD for it, ISO. PPC takes that count in place of the old fabric ledger up to that day. '' = never counted. */
+function gdRfdOpened(name) {
+  if (!DB) return '';
+  var k = String(name || '').trim().toUpperCase(), d = '';
+  (DB.fab || []).forEach(function (r) {
+    if (!r || r.txnType !== 'OPENING_RFD' || String(r.fabricType || '').trim().toUpperCase() !== k) return;
+    var x = String(r.date || ''), m = x.match(/^(\d{2})-(\d{2})-(\d{4})/); if (m) x = m[3] + '-' + m[2] + '-' + m[1];
+    x = x.slice(0, 10); if (x > d) d = x;
+  });
+  return d;
+}
 function gdPipeline(name) {
   var k = String(name || '').trim().toUpperCase(), e = fabFlowRows(DB.fab || []).filter(function (x) { return String(x.fabricType).toUpperCase() === k; })[0] || {};
   var ord = (invOnOrder()[k] || {}).m || 0;
   return { order: ord, greige: Math.max(0, e.greigeLeft || 0), proc: Math.max(0, e.withProcessor || 0) };
-}
-function renderPpcLink() {
-  if (typeof flowRfdCover !== 'function') return '<div class="card muted">The production flow is not on this link.</div>';
-  if (!gdFlowReady()) {
-    if (typeof flowEnsureData === 'function' && !GD_FLOW_ASKED) { GD_FLOW_ASKED = true; flowEnsureData().then(function () { if (UI.tab === 'ppc') render(); }, function () { /* told below */ }); }
-    return '<div class="card muted">Reading the PPC plans…</div>';
-  }
-  var cov = flowRfdCover(), rows = Object.keys(cov.fab).map(function (k) { return cov.fab[k]; }).filter(function (f) { return f.need > 0.05; })
-    .sort(function (a, b) { return b.short - a.short || a.name.localeCompare(b.name); });
-  var body = rows.map(function (f) {
-    var gname = fabGreigeOf(f.name), pipe = gdPipeline(f.name), inPipe = pipe.order + pipe.greige + pipe.proc;
-    var toOrder = Math.max(0, f.short - inPipe), greigeM = toOrder > 0.05 ? Math.ceil(toOrder / (1 - GD_LOSS)) : 0;
-    var desk = gdRfdShelf(f.name);
-    return '<tr><td class="frz" style="text-align:left"><b>' + esc(f.name) + '</b><div class="muted" style="font-size:10.5px">' + (gname ? 'bought as ' + esc(gname) : '<span class="err-in">no greige name in Master data</span>') + '</div></td>'
-      + '<td class="num">' + nf(f.need) + '<div class="muted" style="font-size:10.5px">' + plural(f.lines, 'line') + '</div></td>'
-      + '<td class="num">' + nf(Math.max(0, f.free)) + (desk > 0.05 ? '<div class="muted" style="font-size:10.5px">' + nf(desk) + ' m from this desk</div>' : '') + '</td>'
-      + '<td class="num" style="' + (f.short > 0.05 ? 'color:var(--bad);font-weight:700' : '') + '">' + dash(f.short) + '</td>'
-      + '<td class="num">' + dash(pipe.order) + '</td><td class="num">' + dash(pipe.greige) + '</td><td class="num" style="color:var(--proc-ink)">' + dash(pipe.proc) + '</td>'
-      + '<td class="num" style="font-weight:800">' + (greigeM ? nf(greigeM) + ' m' : '<span class="pill pill-ok">covered</span>') + '</td>'
-      + '<td>' + (greigeM && gname ? '<button type="button" class="jw-btn jw-primary" data-ppcpo="' + esc(f.name) + '|' + greigeM + '">Raise greige PO</button>' : '') + '</td></tr>';
-  }).join('');
-  return '<div class="card"><div class="ff-cap">What the PPC plans need in RFD for printing (the production flow’s Demand → RFD), against the RFD free today '
-    + '(the real register and this desk), and what this desk already has on its way. What is still short is the greige to order, with '
-    + Math.round(GD_LOSS * 100) + '% added for what the RFD processor takes.</div>'
-    + '<div class="row" style="margin-bottom:10px"><button type="button" class="ghost" data-gdflow="drfd">Open the flow’s Demand → RFD</button></div>'
-    + '<div class="ff-grid"><table class="xl">'
-    + th(['RFD fabric', 'PPC needs', 'RFD free', 'Short', 'Greige on order', 'Greige in store', 'At RFD processor', 'Greige to order', ''], [1, 2, 3, 4, 5, 6, 7])
-    + '<tbody>' + (body || emptyRow(9, 'No PPC plan is waiting for RFD right now.')) + '</tbody></table></div></div>';
 }
 var GD_FLOW_ASKED = false;
 /* PPC DEMAND ON THE INVENTORY (Ravi, 15 Oct: "Greige for PPC — jo demand aayega ppc se wo greige order se pahle dikhe
@@ -163,7 +156,7 @@ var GD_FLOW_ASKED = false;
 function gdPpcMap() {
   if (typeof flowRfdCover !== 'function') return null;
   if (!gdFlowReady()) {
-    if (typeof flowEnsureData === 'function' && !GD_FLOW_ASKED) { GD_FLOW_ASKED = true; flowEnsureData().then(function () { if (UI.tab === 'ppc' || UI.tab === 'inv') render(); }, function () { /* the column says so */ }); }
+    if (typeof flowEnsureData === 'function' && !GD_FLOW_ASKED) { GD_FLOW_ASKED = true; flowEnsureData().then(function () { if (UI.tab === 'inv') render(); }, function () { /* the column says so */ }); }
     return { __loading: true };
   }
   var cov = flowRfdCover(), out = {};
@@ -171,7 +164,7 @@ function gdPpcMap() {
     var f = cov.fab[k]; if (!(f.need > 0.05)) return;
     var pipe = gdPipeline(f.name), toOrder = Math.max(0, f.short - (pipe.order + pipe.greige + pipe.proc));
     out[String(f.name).toUpperCase()] = { name: f.name, need: f.need, lines: f.lines, free: Math.max(0, f.free), short: f.short,
-      greigeM: toOrder > 0.05 ? Math.ceil(toOrder / (1 - GD_LOSS)) : 0, greige: fabGreigeOf(f.name) };
+      desk: gdRfdShelf(f.name), onWay: pipe.order + pipe.greige + pipe.proc, greigeM: toOrder > 0.05 ? Math.ceil(toOrder / (1 - GD_LOSS)) : 0, greige: fabGreigeOf(f.name) };
   });
   return out;
 }
@@ -189,4 +182,54 @@ function gdToFlow(view) {
   showTab('flow');
   try { FLOW_VIEW = view || 'drfd'; } catch (e) { /* the flow picks its own */ }
   if (typeof ensureFlow === 'function') ensureFlow();
+}
+
+/* ---- THE MASTER DATA IS ONE (Ravi, 15 Oct: "greige ka and masterdata ka interlink hona chahiye") ----
+ * In the app the desk's fabrics and its suppliers / RFD processors are Setup -> Master Database's own: Greige & RFD
+ * fabric (pt_masters/greigeRfd) and the greige and RFD vendors of Vendors (pt_masters/vendorBook). They are read fresh on
+ * every open, shown read-only on the desk's Master data, and changed in the Master Data. What the desk alone knows about a
+ * fabric (warp / weft typed here before) is kept where the Master Data says nothing. A supplier the test records name but
+ * the Master Data does not have is kept too, marked, so an old test PO still finds it. */
+function gdLinked() {
+  var m = (typeof PTG !== 'undefined' && PTG && PTG.masters) || {};
+  return !!(m.greigeRfd && Object.keys(m.greigeRfd).some(function (k) { return k.charAt(0) !== '_'; }));
+}
+function gdYarns(count) {
+  var y = function (s) { s = String(s || '').trim().replace(/'s$/i, 's'); return /^\d/.test(s) ? (/s$/i.test(s) ? s : s + 's') : ''; };
+  var p = String(count || '').split(/\s*x\s*/i);
+  return p.length === 2 ? [y(p[0]), y(p[1])] : [y(count), y(count)];
+}
+function gdLinkMasters() {
+  if (!DB || !gdLinked() || typeof fmList !== 'function') return;
+  var key = function (s) { return String(s || '').trim().toLowerCase(); };
+  var old = {}; (DB.mst || []).forEach(function (m) { old[key(m.greige)] = m; });
+  DB.mst = fmList('greigeRfd').filter(function (r) { return String(r.greige || '').trim(); }).map(function (r) {
+    var o = old[key(r.greige)] || {}, yarn = gdYarns(r.count), pc = String(r.constr || '').match(/^\s*(\d+)\s*x\s*(\d+)\s*$/i);
+    var num = function (v, was) { return v === '' || v == null ? (was || '') : v; };
+    /* The RFD is called by the app's own fabric name (Sheeting 62, Cambric): that is the name PPC, the flow's Demand and this
+     * desk's ledger rows all match on. The Master Data's full name rides along as the title. */
+    var app = (Array.isArray(r.fabrics) ? r.fabrics : ptList(r.fabrics))[0];
+    return { rfd: String(app || r.rfd || '').trim(), title: String(r.rfd || '').trim(), greige: String(r.greige).trim(), warp: o.warp || yarn[0], weft: o.weft || yarn[1],
+      epi: pc ? +pc[1] : (o.epi || ''), ppi: pc ? +pc[2] : (o.ppi || ''), greigeWidth: num(r.gw, o.greigeWidth), rfdWidth: num(r.rw, o.rfdWidth),
+      active: true, md: r.id };
+  });
+  var was = DB.ven || [], names = {};
+  var ven = fmList('vendorBook').filter(function (v) { return v.type === 'greige' || v.type === 'rfd'; }).map(function (v) {
+    names[key(v.name)] = 1;
+    var o = was.filter(function (x) { return key(x.name) === key(v.name); })[0] || {};
+    return { name: String(v.name || '').trim(), kind: v.type === 'greige' ? 'Supplier' : 'RFD Processor', phone: v.phone || o.phone || '',
+      email: o.email || '', addr: v.address || o.addr || '', city: v.city || o.city || '', gstin: v.gstin || o.gstin || '', pan: v.pan || '', active: true, md: v.id };
+  });
+  was.forEach(function (v) { if (v && v.name && !names[key(v.name)] && venUsed(v.name) > 0) ven.push(Object.assign({}, v, { deskOnly: true })); });
+  DB.ven = ven;
+  /* The company on the PO: the app's own Greige PO settings (no Company page on the desk in the app). The numbering stays the desk's. */
+  var s = (typeof GPO !== 'undefined' && GPO && GPO.settings) || null;
+  if (s) DB.co = Object.assign({}, DB.co || {}, { name: s.company || (DB.co || {}).name || gdCoName(), addr: s.address || (DB.co || {}).addr || '',
+    gstin: s.gstin || (DB.co || {}).gstin || '', email: s.email || (DB.co || {}).email || '', pan: s.pan || (DB.co || {}).pan || '' });
+}
+/** Over to Setup -> Master Database, at its Greige & RFD fabric or its Vendors. */
+function gdOpenMasterData(view) {
+  if (typeof showTab !== 'function') return;
+  showTab('pmdb');
+  try { if (typeof fmSetView === 'function') fmSetView(view === 'vendors' ? 'vendors' : 'fabric'); } catch (e) { /* the page opens where it was */ }
 }

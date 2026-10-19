@@ -34,15 +34,39 @@ const FLOW_ON = (() => {
  * alone (made from a sales order with "+ Test order"). Real orders keep going through the screens they always did, which
  * do not refuse them, and the flow's lists hold no real line. Turning this on is the one switch for "move forward":
  * FLOW_REAL_DEFAULT = true (or localStorage flowReal = '1' on one computer to try it). */
-const FLOW_REAL_DEFAULT = false;
+/* ON FOR EVERY ORDER SINCE 15 OCT (Ravi: "sare order delete karunga jo abhi open h, then i will upload new orders", and the
+ * old printing screens came off the menu). localStorage flowReal = '0' puts one computer back in the test phase. */
+const FLOW_REAL_DEFAULT = true;
 const FLOW_REAL = (() => {
   try { const v = localStorage.getItem('flowReal'); if (v === '1') return true; if (v === '0') return false; } catch (e) { /* storage blocked */ }
   return FLOW_REAL_DEFAULT;
 })();
 const FLOW_NO_REAL = Object.freeze([]);
+/* SHOPIFY RUNS FOR REAL (Ravi, 15 Oct: "aage se sales order hamara production bucket se order open ho to auto ppc me aana
+ * chahiye, hume test order se 1 bhi order open nahi karna h"). With FLOW_REAL still off, a Shopify / online order put on
+ * the book from FLOW_MTO_FROM on — opened from the Production bucket — is a real flow order: it is in PPC by itself, and the
+ * old screens hand its printing to PPC. Shopify lines opened before, and every Amazon / B2B order, go the old way.
+ * The day is the day the line was OPENED (openIso), not the day the customer ordered: an order opened today from last
+ * week is still new. localStorage flowMto = '0' turns it off on one computer. */
+const FLOW_MTO_FROM = '2026-10-15';
+const FLOW_MTO_LIVE = (() => { try { return localStorage.getItem('flowMto') !== '0'; } catch (e) { return true; } })();
+/** A real line put on the book from FLOW_MTO_FROM on. With FLOW_REAL every such line is new (15 Oct: the open orders were
+ * deleted and uploaded again, many with an order date from before flowFrom() — the day they came onto the book is what
+ * makes them PPC's). */
+const flowOpenNew = r => !!(r && !r.__t && String(r.openIso || '') >= FLOW_MTO_FROM);
+const flowMtoLive = r => !!(FLOW_MTO_LIVE && r && ordIsMto(obUC(r.orderNo)) && flowOpenNew(r));
+let FLOW_MTO_C = { src: null, rows: FLOW_NO_REAL, nos: new Set(), open: new Set() };
+/** The real lines the flow runs while FLOW_REAL is off — the Shopify / online ones opened from FLOW_MTO_FROM. */
+function flowMtoLines() {
+  const src = typeof ordLines === 'function' ? ordLines() : [];
+  if (FLOW_MTO_C.src !== src) { const rows = src.filter(flowMtoLive); FLOW_MTO_C = { src, rows, nos: new Set(rows.map(r => obUC(r.orderNo))),
+    open: new Set(src.filter(flowOpenNew).map(r => obUC(r.orderNo))) }; }
+  return FLOW_MTO_C.rows;
+}
 /** What the flow's screens say about the phase they are in (14 Oct: the flow is on the live app, so "not on the live app"
  * was no longer true). */
-const flowPhaseTxt = () => FLOW_REAL ? `LIVE — the flow runs the real orders from ${flowFrom()}`
+const flowPhaseTxt = () => FLOW_REAL ? `LIVE — the flow runs the real orders from ${flowFrom()}, and every order put on the book from ${FLOW_MTO_FROM}`
+  : FLOW_MTO_LIVE ? `Shopify LIVE — Shopify / online orders opened from the Production bucket from ${FLOW_MTO_FROM} run here by themselves; Amazon / B2B still go the old way (test orders only)`
   : 'TEST phase — the flow runs test orders only; real orders go the old way';
 /* PPC and Demand apply to orders from this date on: the 2,000 older POs were never planned this way, and putting them
  * all in PPC would bury the new ones. Older lines go straight to the bucket of the step they are really at. */
@@ -69,7 +93,9 @@ function flowOwnsOrder(orderNo, date) {
   if (!FLOW_ON) return false;
   const no = obUC(orderNo); if (!no) return false;
   if (/^TEST-/.test(no)) return true;
-  if (!FLOW_REAL) return false;   // test phase: a real order is not the flow's
+  /* test phase: a real order is not the flow's — unless it is a Shopify / online order opened from FLOW_MTO_FROM */
+  if (!FLOW_REAL) return ordIsMto(no) && (flowMtoLines(), FLOW_MTO_C.nos.has(no));
+  if ((flowMtoLines(), FLOW_MTO_C.open.has(no))) return true;   // put on the book from FLOW_MTO_FROM, whatever its order date
   const iso = String(ptIsoDate(date != null && date !== '' ? date : flowOrderDate(no)) || '');
   return !!iso && iso >= flowFrom();
 }
@@ -110,6 +136,8 @@ const FLOW_BUCKETS = [
    * hoga, wo PPC se hi edit hoga"): every line PPC has raised and not finished, with what was planned and where it is now.
    * The plan is changed (or undone) here and nowhere else. */
   ['ppcdone', 'PPC completed', 'flppc', 'Plan raised — what was planned and where the line is now. A plan is changed or undone here only.', 'flow'],
+  /* BACK TO THE SALES TEAM (Ravi, 15 Oct, flow-back.js): lines PPC could not plan, waiting for the sales team to put them right. */
+  ['back', 'Back to sales team', 'flppc', 'PPC sent these back with a reason. They come back into PPC when the sales team (Sales Orders) sends them again.', 'flow'],
   ['drfd', 'RFD fabric · out to printers', 'fldem', 'Planned; the fabric is not with the printer yet. RFD in stock against what each line needs — red where it falls short; make the challan to the printer.', 'demand'],
   ['dhist', 'Printed fabric in · history', 'flchl', 'Every RFD challan. Open until the printed fabric comes back against it — receive it here and the lines move to the store.', 'demand'],
   ['dacc', 'Accessories', 'flacc', 'Planned; the accessories are not reserved yet. Free on the shelf against what each line needs.', 'demand'],
@@ -133,10 +161,17 @@ const flowScreenAllowed = () => flowBucketsAllowed().filter(b => b[4] === 'flow'
  *   inhouse   printed by a vendor here, then cut, stitched, QC'd here — every bucket
  *   stitch    no printing: the fabric goes from RFD/store straight to cutting and stitching — skips both printer buckets
  *   outsource made outside and bought finished — no fabric, no accessories; waits in Outsourced until received */
-const FLOW_ROUTES = [['inhouse', 'In-house — printed by a vendor, cut & stitched here', 'In-house'],
-  ['stitch', 'Stitching only — no printing', 'Stitching only'],
+/* WHERE PPC SENDS IT (Ravi, 15 Oct: "PPC karte time ye select kar pau ki ye mujhe printing me bhejna h ya nahi ya direct
+ * cutting department me bhejna h ya direct job work department me bhejna h"). The keys stay as they were (plans already
+ * saved keep their meaning); 'jobwork' is new: no printing, no cutting, no RFD — straight to Raw cutting in store, to be
+ * issued to a karigar. */
+const FLOW_ROUTES = [['inhouse', 'Printing — printed by a vendor, then cut & stitched here', 'Printing'],
+  ['stitch', 'Cutting — no printing, straight to the cutting department', 'Cutting'],
+  ['jobwork', 'Job Work — no printing, no cutting, straight to the karigars', 'Job Work'],
   ['outsource', 'Outsourced — made outside, received finished', 'Outsourced']];
 const flowRouteOf = p => (p && p.route) || (p && p.print && p.print.need === false ? 'stitch' : 'inhouse');
+/** The route PPC planned for an order line, '' when it has no plan (or the plans are not read yet). For the registers. */
+const flowPlanRouteOf = (orderNo, sku) => { try { const p = ((typeof FLOW !== 'undefined' && FLOW && FLOW.ppc) || {})[flowKey(orderNo, sku)]; return p ? flowRouteOf(p) : ''; } catch (e) { return ''; } };
 /** Which list a line is in. Demand is one stop in the walk but two lists; the rest are the bucket itself. */
 /* PART BACK, PART ON (Ravi, 11 Oct: "maine order ke against partially fabric receive kiya, but wo partially fabric cutting
  * me show nahi hua"). A line stays in the bucket of the step it has not finished, and ALSO shows where the part already
@@ -157,12 +192,19 @@ const flowKey = (orderNo, sku) => (obUC(orderNo) + '__' + obUC(sku)).replace(/[.
  * (flow-test-order.js), its lines copied from the order book. PPC holds the real sales orders from flowFrom() on beside them.
  * localStorage flowTests = '0' takes every test order out of the screen as it is read: its plan, demand, reservations, print
  * orders, challans and FG sends too, so a test reservation holds no real accessories. Nothing is deleted from the database. */
-function flowTestsOn() { try { return localStorage.getItem('flowTests') !== '0'; } catch (e) { return true; } }
+/* TEST ORDERS OFF FOR GOOD (Ravi, 15 Oct: "ab test window hata do hum real working karenge"): no "+ Test order", no
+ * "Only test orders", no test order on any list. None was left in the database. localStorage flowTests = '1' brings the
+ * test tools back on one computer. */
+/* REMOVED FROM THE APP (Ravi, 16 Oct: "test ab chahiye hi nahi remove test"): no button, no switch on the page. The
+ * localStorage key is read only by the automated tests (tests/flow-test.js), which walk the flow on test orders. */
+function flowTestsOn() { try { return localStorage.getItem('flowTests') === '1'; } catch (e) { return false; } }
 /* The other half, for the test phase (FLOW_REAL off): whatever the flow wrote for a REAL order while it ran on the preview
  * link — plans, fabric ready, reservations, challans, print orders, FG sends — is left out as it is read, so no flow list
  * shows it and no real accessory or RFD figure is held by it. Nothing is deleted. */
 function flowDropReal() {
-  const isTest = (k, v) => /^TEST-/.test(String(k)) || !!(v && (v.test || /^TEST-/.test(obUC(v.orderNo))));
+  /* A Shopify / online order's records are kept: those orders run for real (FLOW_MTO_LIVE). None was written before. */
+  const mto = (k, v) => FLOW_MTO_LIVE && (/^(SHP|ONL)-/.test(String(k)) || /^(SHP|ONL)-/.test(obUC(v && v.orderNo)));
+  const isTest = (k, v) => /^TEST-/.test(String(k)) || !!(v && (v.test || /^TEST-/.test(obUC(v.orderNo)))) || mto(k, v);
   const keep = o => Object.fromEntries(Object.entries(o || {}).filter(([k, v]) => isTest(k, v)));
   FLOW.ppc = keep(FLOW.ppc); FLOW.dem = keep(FLOW.dem); FLOW.res = keep(FLOW.res);
   FLOW.ch = keep(FLOW.ch); FLOW.po = keep(FLOW.po); FLOW.fg = keep(FLOW.fg);
@@ -216,11 +258,20 @@ async function flowClaim(path, value) {
 /* ---- THE RULE: which bucket a line is in ----
  * Read straight off the registers, in the order the work moves; the first step not finished is the bucket.
  * `printed` for a planned line is what PPC said; for an older line it is what the registers show. */
+/* WHAT IS STILL TO MAKE (Ravi, 17 Oct: "cutting wale bande ne is order ke against me cutting kar li … wo sara track kare
+ * jisase demand jyada generate n ho, and aage ke action me bhi dekhna ki kisi entry ki bajah se demand jyada n bane"). The
+ * share of a line not yet cut, issued or passed — the most any of those registers says is done, never their sum. Every
+ * demand (RFD to send, cloth held for earlier plans, the PPC form's need) is that share of the line, not the whole of it. */
+function flowRemFrac(r, s) {
+  const q = +(r && r.qty) || 0; if (!(q > 0) || !s) return 1;
+  const done = Math.min(q, Math.max(+s.cut || 0, +s.issued || 0, +s.made || 0));
+  return (q - done) / q;
+}
 function flowState(r) {
   const k = flowKey(r.orderNo, r.sku), qty = +r.qty || 0;
   const cap = n => Math.max(0, Math.min(qty, +n || 0));
   const p = (FLOW.ppc || {})[k] || null, d = (FLOW.dem || {})[k] || null, res = (FLOW.res || {})[k] || null;
-  const isNew = String(ptIsoDate(r.orderDate) || '') >= flowFrom();
+  const isNew = String(ptIsoDate(r.orderDate) || '') >= flowFrom() || (FLOW_REAL ? flowOpenNew(r) : flowMtoLive(r));
   /* A test order (flow-test-order.js) carries its own simulated figures instead of the registers'. */
   const t = r.__t;
   const v = t ? { given: +t.given || 0, back: +t.back || 0 } : ordVendorOf(r.orderNo, r.sku);
@@ -261,22 +312,23 @@ function flowState(r) {
   s.qcRej = p ? flowQcLine(r).rej : 0;
   s.issuedNet = p ? Math.max(0, s.issuedAll - s.qcRej) : s.issued;
   /* what can go on now, while the rest is still on its way (flowInView) */
-  s.cutReq = !!r.cutReq;
-  s.canCut = r.cutReq ? Math.max(0, (printed ? s.back : qty) - s.cut) : 0;
-  s.canIssue = Math.max(0, (r.cutReq ? s.cut : (printed ? s.back : qty)) - s.issuedNet);
+  /* Job Work straight away: whatever the master says about cutting, PPC sent it past the cutting table. */
+  s.cutReq = !!r.cutReq && route !== 'jobwork';
+  s.canCut = s.cutReq ? Math.max(0, (printed ? s.back : qty) - s.cut) : 0;
+  s.canIssue = Math.max(0, (s.cutReq ? s.cut : (printed ? s.back : qty)) - s.issuedNet);
   const accNeed = !!p && route !== 'outsource' && (p.acc || []).some(a => a.code && +a.qty > 0);
   const handReady = !!(d && d.fabricReady && !d.fabricReady.challan);
-  s.needFab = isNew && !!p && route !== 'outsource' && !handReady
-    && (route === 'inhouse' ? (s.fabNeed - s.fabSent > 0.01 || (flowPrintExtras(r, p).length > 0 && !(flowRufflePrinter(p) ? flowChIndex()[k + FLOW_RUF] : cx))) : !(d && d.fabricReady));   // the ruffle cloth goes too, on the first challan
+  s.needFab = isNew && !!p && route !== 'outsource' && route !== 'jobwork' && !handReady && !(route === 'stitch' && p.fabric && p.fabric.noRfd)
+    && (route === 'inhouse' ? (flowFabOwed({ qty }, s).left > 0.01 || (flowPrintExtras(r, p).length > 0 && !(flowRufflePrinter(p) ? flowChIndex()[k + FLOW_RUF] : cx))) : (!(d && d.fabricReady) && flowRemFrac(r, s) > 0));   // the ruffle cloth goes too, on the first challan
   s.needAcc = isNew && accNeed && !res;
   s.bucket =
       (r.handedAt || r.shopDoneAt) ? 'done'
-    : (isNew && !p) ? 'ppc'
+    : (isNew && !p) ? (flowIsBack(r) ? 'back' : 'ppc')
     : (route === 'outsource') ? (s.india < qty ? 'out' : 'done')
     : (s.needFab || s.needAcc) ? 'demand'
     : (printed && s.given < qty) ? 'vendor'
     : (printed && s.back < qty) ? 'fabric'
-    : (r.cutReq && s.cut < qty) ? 'cut'
+    : (s.cutReq && s.cut < qty) ? 'cut'
     /* REJECTED AT QC → BACK IN RAW CUTTING IN STORE (Ravi, 10 Oct: "rejected pcs raw cutting in store me hona chahiye").
      * For a planned line the pieces QC rejected are not "issued" any more: they wait in the store to be issued again. */
     : (s.issuedNet < qty && !(p && flowQcOpen(r, s))) ? 'raw'   // QC work still open comes first
@@ -293,7 +345,7 @@ function flowState(r) {
 /** Every open line (and every new order's lines) with its state. Cached on the order book and the three nodes. */
 let FLOW_C = { src: null, test: null, ppc: null, dem: null, res: null, rows: null };
 function flowRows() {
-  const real = FLOW_REAL ? ordLines() : FLOW_NO_REAL, test = flowTestLines();
+  const real = FLOW_REAL ? ordLines() : flowMtoLines(), test = flowTestLines();
   if (FLOW_C.rows && FLOW_C.src === real && FLOW_C.test === test && FLOW_C.ppc === FLOW.ppc && FLOW_C.dem === FLOW.dem && FLOW_C.res === FLOW.res && FLOW_C.ch === FLOW.ch && FLOW_C.po === FLOW.po && FLOW_C.fg === FLOW.fg
     && FLOW_C.qc === (typeof QC !== 'undefined' ? QC.checks : null) && FLOW_C.fgi === (typeof FGI !== 'undefined' ? FGI.rows : null)) return FLOW_C.rows;
   const lines = test.length ? real.concat(test) : real;

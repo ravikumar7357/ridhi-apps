@@ -20,8 +20,10 @@ async function flowEnsureData() {
     (typeof FGI !== 'undefined' && FGI.rows == null && typeof fgiLoad === 'function' ? fgiLoad().catch(() => { /* India stock waits */ }) : null),
     flowLoad(), flowFabLoad(), (typeof STORE !== 'undefined' && STORE.rows === null ? ensureStore().catch(() => {}) : null), (PAL.printers === null ? palLoad().catch(() => {}) : null), (typeof ensureVo === 'function' ? ensureVo().catch(() => {}) : null),
     (typeof ensureAcc === 'function' ? ensureAcc().catch(() => {}) : null),
+    /* the Custom SKUs list: a Shopify / B2B SKU that is only there has its BOM written there from PPC (flowMasterBox) */
+    (typeof ptEnsureCustom === 'function' ? ptEnsureCustom().catch(() => {}) : null),
     /* The Greige Desk's RFD counts in Demand → RFD on the test link. */
-    (FLOW_ON && typeof GD !== 'undefined' && gdAllowed() ? GD.ensure().catch(() => {}) : null)]);
+    (FLOW_ON && typeof GD !== 'undefined' && flowGdReads() ? GD.ensure().catch(() => {}) : null)]);
 }
 
 /* The Fabric register, for the RFD stock Demand shows — read here without drawing the Fabric screen. */
@@ -48,18 +50,22 @@ function renderFlow() {
   if (!allowed.some(b => b[0] === FLOW_VIEW)) FLOW_VIEW = allowed.find(b => b[0] === 'ppc') ? 'ppc' : allowed[0][0];
   if (FLOW_DEMAND.includes(FLOW_VIEW)) FLOW.demView = FLOW_VIEW;
   const all = flowRows();
-  const q = String($('flQ').value || '').trim().toLowerCase(), src = $('flSrc').value;
-  const srcs = [...new Set(all.map(x => x.r.src || String(x.r.orderNo).split('-')[0]))].sort();
-  ptFillSelect('flSrc', srcs.map(s => [s, s]), 'Every platform');
+  const q = String($('flQ').value || '').trim().toLowerCase(), ff = flowFiltVals(), src = ff.src;
+  /* THE LISTS FOLLOW THE BUCKET ON SCREEN (Ravi, 17 Oct: "open PPC window par hu to sirf open po hi dropdown me ho"): the
+   * PO, article, colour… a dropdown offers are those of the lines in this bucket — a pick from another bucket left every
+   * count at 0. The history and print-order lists are not line lists; they keep every line's. */
+  const inBucket = ['pord', 'dhist'].includes(FLOW_VIEW) ? all : all.filter(x => FLOW_VIEW === 'new' ? x.recent : flowInView(FLOW_VIEW, x.s));
+  flowFiltFill(inBucket, ff);
   const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly();
   if ($('flTestOnly')) $('flTestOnly').checked = only;
   /* With test orders off (flow-core.js) there is no test order to raise or narrow to: the button and the switch go. */
   const tests = flowTestsOn();
   if ($('flTest') && $('flTest').style) $('flTest').style.display = tests ? '' : 'none';
   const tLab = $('flTestOnly') && $('flTestOnly').parentNode;
-  if (tLab && tLab.style) tLab.style.display = tests ? '' : 'none';
-  const pass = x => (!only || x.r.__t) && (!src || (x.r.src || String(x.r.orderNo).split('-')[0]) === src)
-    && (!q || [x.r.orderNo, x.r.sku, x.r.color, x.r.size, x.r.articleSubtype, x.r.articleType].join(' ').toLowerCase().includes(q));
+  if (tLab && tLab.style) tLab.style.display = tests ? 'inline-flex' : 'none';
+  const pass = x => (!only || x.r.__t) && (!src || flowSrcOf(x) === src) && flowFiltPass(x, ff)
+    && (!q || [x.r.orderNo, x.r.sku, x.r.color, x.r.size, x.r.articleSubtype, x.r.articleType, x.r.shopOrderNo, flowFacet(x).fab, flowFacet(x).prn]
+      .join(' ').toLowerCase().includes(q));
   const shown = all.filter(pass), n = flowCounts(shown);
   /* PPC › Demand › Outsourced — Demand is one bucket with its tabs (flowDemandTabs). */
   const dem = allowed.filter(b => b[4] === 'demand'), bar = [];
@@ -73,38 +79,203 @@ function renderFlow() {
       <span class="fl-n">${nf(n[k] || 0)}</span><span>${esc(l)}</span></button>`).join('<span class="fl-arrow">›</span>');
   const rows = FLOW_VIEW === 'new' ? shown.filter(x => x.recent) : shown.filter(x => flowInView(FLOW_VIEW, x.s));
   rows.sort((a, b) => String(a.r.orderDate || '').localeCompare(String(b.r.orderDate || '')) || String(a.r.orderNo).localeCompare(String(b.r.orderNo)));
-  FLOW.panel = ''; FLOW.stock = ''; FLOW.byprint = '';
+  FLOW.panel = ''; FLOW.stock = ''; FLOW.byprint = ''; FLOW.bysize = '';
   $('flTable').innerHTML = flowTable(FLOW_VIEW, rows.slice(0, 800));
+  /* PPC in Excel: on the PPC bucket only — the lines on screen are what the sheet holds. */
+  FLOW.shownPpc = FLOW_VIEW === 'ppc' ? rows : [];
+  ['flXlOut', 'flXlIn'].forEach(id => { const b = $(id); if (b && b.classList) b.classList.toggle('hide', FLOW_VIEW !== 'ppc'); });
+  try { flowXlBtn(); } catch (e) { /* not drawn */ }
   /* DEMAND HAS TWO ANGLES (Ravi, 10 Oct: "keep this section in a different angle"): the lines, or the stock by
    * fabric / accessory against them — one at a time, never stacked. */
   if (FLOW.stock) {
+    if (FLOW_ANGLE[FLOW_VIEW] === 'printer') FLOW_ANGLE[FLOW_VIEW] = 'size';   // the metres pivot was taken out (18 Oct)
     const ang = FLOW_ANGLE[FLOW_VIEW] || 'line', what = FLOW_VIEW === 'drfd' ? 'By fabric (RFD stock)' : 'By accessory (shelf stock)';
-    const angles = [['line', 'By line']].concat(FLOW_VIEW === 'drfd' ? [['print', 'By printed fabric (all orders)']] : []).concat([['stock', what]]);
+    const angles = [['line', 'By line']].concat(FLOW_VIEW === 'drfd' ? [['size', 'Challan by size (pcs)'], ['print', 'By printed fabric (all orders)']] : []).concat([['stock', what]]);
     FLOW.panel = `<div class="seg" style="display:inline-flex;gap:4px">${angles.map(([k, l]) =>
       `<button data-flang="${k}" class="${ang === k ? '' : 'ghost'}" style="width:auto;padding:4px 12px;font-size:12.5px">${l}</button>`).join('')}</div>`;
     if (ang === 'stock') $('flTable').innerHTML = FLOW.stock;
     if (ang === 'print' && FLOW.byprint) $('flTable').innerHTML = FLOW.byprint;
+    if (ang === 'size' && FLOW.bysize) { $('flTable').innerHTML = FLOW.bysize;
+      FLOW.panel += ' <button type="button" class="ghost" data-flpivxl="size" style="width:auto;padding:4px 12px;font-size:12.5px;margin-left:6px">Download Excel</button>'; }
   }
   /* DEMAND, ONE TAB (Ravi, 12 Oct): its parts as tabs, like Listing Health's — RFD out to printers, printed fabric in, accessories. */
   if (FLOW_DEMAND.includes(FLOW_VIEW)) FLOW.panel = `<div class="seg" style="display:inline-flex;gap:4px;flex-wrap:wrap;margin-right:14px">${dem.map(([k, l]) =>
     `<button data-fldem="${k}" class="${k === FLOW_VIEW ? '' : 'ghost'}" style="width:auto;padding:5px 14px;font-size:13px">${esc(l)} <b>${nf(n[k] || 0)}</b></button>`).join('')}</div>` + (FLOW.panel || '');
   /* RFD short? The Greige Desk shows the greige to order for it (Ravi, 13 Oct: Greige Desk joined to the PPC flow). */
-  if (FLOW_VIEW === 'drfd' && typeof GD !== 'undefined' && gdAllowed()) FLOW.panel = (FLOW.panel || '') + '<button type="button" class="ghost" data-gdgo="ppc" style="width:auto;padding:5px 14px;font-size:13px;margin-left:10px">Greige Desk · greige for PPC</button>';
+  if (FLOW_VIEW === 'drfd' && typeof GD !== 'undefined' && gdAllowed()) FLOW.panel = (FLOW.panel || '') + '<button type="button" class="ghost" data-gdgo="inv" style="width:auto;padding:5px 14px;font-size:13px;margin-left:10px">Greige Desk · PPC demand</button>';
+  /* RFD stock is the Greige Desk's count: not read here, the Demand figures say so instead of showing a false "short". */
+  if (FLOW_DEMAND.includes(FLOW_VIEW) && !flowRfdKnown()) FLOW.panel = (FLOW.panel || '') + `<span style="font-size:12.5px;color:#b45309;margin-left:10px">⚠ The Greige Desk's RFD stock could not be read on this computer — the RFD figures here are not complete. Press Refresh.</span>`;
   $('flPanel').innerHTML = FLOW.panel; $('flPanel').classList.toggle('hide', !FLOW.panel);
-  const b = FLOW_BUCKETS.find(x => x[0] === FLOW_VIEW);
   $('flMsg').className = FLOW.err ? 'err' : 'muted';
-  /* ONE POINT A LINE (Ravi, 14 Oct, design A): the bucket and its count, then what it means — its sentence cut at each ";" and
-   * "." — then where the rest of the work is, each on a line of its own instead of one long run-on line. */
-  const cap = t => t.replace(/^./, ch => ch.toUpperCase());
-  const pts = String(b[3] || '').split(/;\s+|\.\s+/).map(t => t.trim().replace(/\.$/, '')).filter(Boolean).map(cap);
+  /* ONLY WHAT NEEDS SAYING (Ravi, 15 Oct: "remove the extra lines"). The count is on the bucket button and what the bucket
+   * means is its tooltip, so the line under the toolbar is kept for what is NOT on screen: a failed read, a list cut at
+   * 800, a narrowed list (test orders only, filters, a search). Nothing to say → nothing shown. The phase is in the
+   * Refresh button's tooltip. */
+  try { flowVoProgSync(); } catch (e) { /* the printers' orders wait for the next draw */ }
+  const nFilt = flowFiltCount(ff);
+  if ($('flRefresh')) $('flRefresh').title = flowPhaseTxt();
   if ($('flMsg').style) { $('flMsg').style.whiteSpace = 'pre-line'; $('flMsg').style.lineHeight = '1.6'; }
   $('flMsg').textContent = [FLOW.err ? 'Could not read the plans: ' + FLOW.err : '',
-    `${b[1]}: ${FLOW_VIEW === 'dhist' ? nf(n.dhist) + ' open challan(s)' : FLOW_VIEW === 'pord' ? nf(n.pord) + ' print order(s) not finished' : nf(rows.length) + ' line(s)'}${rows.length > 800 ? ' — showing the oldest 800' : ''}`]
-    .concat(pts.map(t => '• ' + t), [`• PPC and Demand apply to orders from ${flowFrom()}`, '• Cutting is in Cutting Data; raw cutting and WIP in the Job Work Register',
-      '• ' + flowPhaseTxt() + ((FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly()) ? ' — SHOWING TEST ORDERS ONLY' : '')])
+    rows.length > 800 ? `${nf(rows.length)} line(s) — showing the oldest 800` : '',
+    (FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly()) ? 'Showing test orders only' : '',
+    (nFilt || q) && shown.length < all.length ? `Showing ${nf(shown.length)} of ${nf(all.length)} line(s) — ${[q ? `search “${q}”` : '', nFilt ? nFilt + ' filter(s)' : ''].filter(Boolean).join(' + ')}` : '']
     .filter(Boolean).join('\n');
 }
 
+/* ---- SEARCH AND FILTERS (Ravi, 15 Oct: "add a search bar and filter all action") ----
+ * One search box, and a Filters button holding one dropdown per thing a line can be narrowed by: platform, article,
+ * subtype, colour, size, fabric, printer and how old the order is. They apply to every bucket alike. Fabric and printer
+ * are the plan's where there is one, else what PPC would suggest — worked out only when the search, those filters or the
+ * Filters panel ask for them, and kept until the lines change. */
+/* PO too (Ravi, 16 Oct: "filter me PO add karo"): the order numbers the lines on screen carry. */
+const FLOW_FILT = [['src', 'flSrc', 'Every platform'], ['po', 'flFPo', 'Every PO'], ['art', 'flFArt', 'Every article'], ['sub', 'flFSub', 'Every subtype'],
+  ['col', 'flFCol', 'Every colour'], ['size', 'flFSize', 'Every size'], ['fab', 'flFFab', 'Every fabric'], ['prn', 'flFPrn', 'Every printer']];
+/* The platform: the order number's own prefix where the line only says it came in on a sales order ("SO", 16 Oct). */
+const flowSrcOf = x => { const s = String(x.r.src || '').trim(), pre = String(x.r.orderNo || '').split('-')[0];
+  return s && s.toUpperCase() !== 'SO' ? s : (pre || s); };
+const flowFiltVals = () => { const v = {}; FLOW_FILT.forEach(([k, id]) => { v[k] = $(id) ? String($(id).value || '') : ''; });
+  v.age = $('flFAge') ? String($('flFAge').value || '') : ''; return v; };
+const flowFiltCount = f => Object.values(f).filter(Boolean).length;
+const flowFiltOpen = () => !!($('flFilt') && $('flFilt').open);
+function flowFacet(x) {
+  if (!FLOW.fc || FLOW.fc.src !== FLOW_C.rows) FLOW.fc = { src: FLOW_C.rows, m: new Map() };
+  let f = FLOW.fc.m.get(x.s.key);
+  if (!f) {
+    const p = x.s.plan;
+    let fab = p && p.fabric ? p.fabric.name : '', prn = p && p.printer ? p.printer.name : '';
+    if (!p) { try { const sg = flowSuggest(x.r); fab = sg.fabric.name; prn = sg.print.need ? sg.printer.name : ''; } catch (e) { /* left blank */ } }
+    f = { fab: String(fab || (cutSkuOf(x.r.sku) || {}).fabric || '').trim(), prn: String(prn || '').trim() };
+    FLOW.fc.m.set(x.s.key, f);
+  }
+  return f;
+}
+const flowFiltPass = (x, f) => (!f.po || x.r.orderNo === f.po) && (!f.art || x.r.articleType === f.art) && (!f.sub || x.r.articleSubtype === f.sub)
+  && (!f.col || x.r.color === f.col) && (!f.size || x.r.size === f.size)
+  && (!f.age || (flowDays(x.r.orderDate) || 0) > +f.age)
+  && (!f.fab || flowFacet(x).fab === f.fab) && (!f.prn || flowFacet(x).prn === f.prn);
+/** The dropdowns hold what the lines actually carry. Fabric and printer are listed once the panel is open. */
+function flowFiltFill(all, f) {
+  const vals = get => [...new Set(all.map(get).filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
+  const facets = flowFiltOpen() || f.fab || f.prn;
+  const by = { src: flowSrcOf, po: x => x.r.orderNo, art: x => x.r.articleType, sub: x => x.r.articleSubtype, col: x => x.r.color, size: x => x.r.size,
+    fab: x => (facets ? flowFacet(x).fab : ''), prn: x => (facets ? flowFacet(x).prn : '') };
+  FLOW_FILT.forEach(([k, id, all0]) => { if (!$(id)) return;
+    const list = vals(by[k]); if (f[k] && !list.includes(f[k])) list.push(f[k]);
+    ptFillSelect(id, list.map(v => [v, v]), all0); });
+  const n = flowFiltCount(f);
+  if ($('flFiltN')) $('flFiltN').textContent = n ? String(n) : '';
+}
+
+/* BY PRINTER × SIZE, IN PIECES (Ravi, 18 Oct: "pivot mujhe size wise chahiye like 60x60 me kitne pcs chahiye"). The same
+ * lines, as pieces still to make: printer down the side with its articles under it (one size can be a pillow cover and a
+ * napkin), every size across, totals both ways. Sizes are read as written on the line; 60X60 and 60x60 are one. */
+const flowSizeKey = v => String(v || '').trim().toLowerCase().replace(/\s+/g, '').replace(/[×*]/g, 'x');
+const flowSizeSort = (a, b) => { const n = s => (String(s).match(/\d+(\.\d+)?/g) || []).map(Number); const x = n(a), y = n(b);
+  for (let i = 0; i < Math.max(x.length, y.length); i++) { const d = (x[i] || 0) - (y[i] || 0); if (d) return d; } return String(a).localeCompare(String(b)); };
+/* DEMAND IN CHALLAN FORM, BY SIZE — AND THE CHALLAN MADE FIFO (Ravi, 18 Oct: "ye mujhe challan ke format me dikhe … 1 order me
+ * alag alag color me 1 size me (60x60) 20 pcs ka order h then mujhe dikhe total 60x60 ke 20 pcs and jab challan banau to auto
+ * FIFO method se order demand complete ho jay, same for Shopify"). RFD is plain cloth — the printer gives it its colour — so
+ * every colour of one fabric and size is one line: the pieces still owed and their metres, and the orders they are for,
+ * oldest first (Amazon and Shopify alike). "Make challan" asks how many pieces of each size go now, fills the oldest orders
+ * first, and opens the ordinary challan form with those lines and figures in it: the challan is saved the one way it always
+ * is. Lines on the Cutting route (no printer) and lines with no printer chosen are listed apart, with no challan button. */
+let FLOW_SIZE_PIVOT = null;
+const flowFifoSort = (a, b) => String(a.x.r.orderDate || '').localeCompare(String(b.x.r.orderDate || '')) || String(a.x.r.orderNo).localeCompare(String(b.x.r.orderNo)) || String(a.x.s.key).localeCompare(String(b.x.s.key));
+/** What one line still owes, in pieces and metres, and metres per piece. */
+function flowSizeOwed(x) {
+  const p = x.s.plan || {}, o = flowFabOwed(x.r, x.s);
+  if (x.s.fabUnit === 'pcs') { const pcs = Math.max(0, Math.round(o.left)); return { pcs, metres: o.metres, mpp: pcs ? o.metres / pcs : 0 }; }
+  const per = +(p.fabric && p.fabric.perPc) || ((+x.r.qty || 0) ? (+(p.fabric && p.fabric.metres) || 0) / (+x.r.qty || 1) : 0);
+  return { pcs: per ? Math.round(o.metres / per) : 0, metres: o.metres, mpp: per };
+}
+function flowBySizeData(rows) {
+  const P = new Map();
+  rows.forEach(x => {
+    const p = x.s.plan || {}, w = flowSizeOwed(x);
+    if (!(w.pcs > 0) && !(w.metres > 0.01)) return;
+    const m = (typeof cutSkuOf === 'function' && cutSkuOf(x.r.sku)) || {};
+    const size = String(x.r.size || m.size || '').trim() || '(no size)', sk = flowSizeKey(size);
+    const fab = String((p.fabric && p.fabric.name) || '').trim() || '(no fabric)';
+    const pc = x.s.route === 'stitch' ? '~cut' : (flowPlanPrinter(x.s) || '?');
+    const pname = pc === '~cut' ? 'Cutting department (no printing)' : pc === '?' ? 'Printer not chosen' : ((p.printer && p.printer.name) || pc);
+    const pr = P.get(pc) || { pk: pc, name: pname, pcs: 0, metres: 0, groups: new Map(), orders: new Set() };
+    const gk = fabKey(fab) + '|' + sk, g = pr.groups.get(gk) || { gk, fab, size, pcs: 0, metres: 0, lines: [] };
+    g.pcs += w.pcs; g.metres += w.metres; g.lines.push({ x, w }); pr.groups.set(gk, g);
+    pr.pcs += w.pcs; pr.metres += w.metres; pr.orders.add(x.r.orderNo); P.set(pc, pr);
+  });
+  const order = pk => (pk === '~cut' ? 2 : pk === '?' ? 1 : 0);
+  const PL = [...P.values()].sort((a, b) => order(a.pk) - order(b.pk) || b.pcs - a.pcs);
+  PL.forEach(pr => { pr.list = [...pr.groups.values()].sort((a, b) => a.fab.localeCompare(b.fab) || flowSizeSort(a.size, b.size)); pr.list.forEach(g => g.lines.sort(flowFifoSort)); });
+  return { P: PL, total: PL.reduce((t, pr) => t + pr.pcs, 0) };
+}
+const flowOrdersTxt = (lines, n) => { const by = new Map(); lines.forEach(({ x, w }) => by.set(x.r.orderNo, (by.get(x.r.orderNo) || 0) + w.pcs));
+  const arr = [...by.entries()]; return arr.slice(0, n || 3).map(([o, q]) => `${esc(o)} · ${nf(q)}`).join(', ') + (arr.length > (n || 3) ? ` <span class="muted">+${nf(arr.length - (n || 3))} more</span>` : ''); };
+function flowBySizeTable(rows) {
+  const d = FLOW_SIZE_PIVOT = flowBySizeData(rows);
+  if (!d.P.length) return '<tbody><tr><td class="muted" style="padding:16px">No line is waiting for RFD.</td></tr></tbody>';
+  return '<tbody>' + d.P.map(pr => {
+    const can = pr.pk !== '~cut' && pr.pk !== '?';
+    return `<tr style="background:var(--soft,#f4f6fb)"><td colspan="5" style="text-align:left;padding:9px 10px"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <b style="font-size:14px">${esc(pr.name)}</b><span class="muted" style="font-size:12px">${nf(pr.orders.size)} order(s) · ${nf(pr.pcs)} pcs · ${nf(flowR2(pr.metres))} m</span><span style="flex:1"></span>
+        ${can ? `<button type="button" data-flszch="${esc(pr.pk)}" style="width:auto;padding:4px 14px;font-size:12.5px">Make challan</button>`
+          : `<span class="muted" style="font-size:11.5px">${pr.pk === '~cut' ? 'RFD goes to the cutting department — "Mark fabric ready" on By line' : 'Pick the printer in the plan first'}</span>`}</div></td></tr>`
+      + `<tr><th style="text-align:left">Fabric (RFD)</th><th style="text-align:left">Size</th><th>Pcs</th><th>Metres</th><th style="text-align:left">Orders (oldest first)</th></tr>`
+      + pr.list.map(g => `<tr><td style="text-align:left">${esc(g.fab)}</td><td style="text-align:left"><b>${esc(g.size)}</b></td><td class="num"><b>${nf(g.pcs)}</b></td><td class="num">${nf(flowR2(g.metres))}</td><td style="text-align:left;font-size:12px">${flowOrdersTxt(g.lines)}</td></tr>`).join('');
+  }).join('') + `<tr style="font-weight:700"><td colspan="2" style="text-align:left">Total</td><td class="num">${nf(d.total)}</td><td></td><td></td></tr></tbody>`;
+}
+function flowBySizeXl() {
+  const d = FLOW_SIZE_PIVOT; if (!d || !d.P.length) return;
+  const out = [['Printer', 'Fabric (RFD)', 'Size', 'Pcs', 'Metres', 'Order', 'Order date', 'SKU', 'Colour', 'Pcs for this order']];
+  d.P.forEach(pr => pr.list.forEach(g => g.lines.forEach(({ x, w }, k) => out.push([pr.name, g.fab, g.size, k ? '' : g.pcs, k ? '' : flowR2(g.metres), x.r.orderNo, ptIsoDate(x.r.orderDate) || '', obUC(x.r.sku), x.r.color || '', w.pcs]))));
+  const bytes = recipeXlsx(out, { name: 'RFD by size', freeze: 2, cols: {} });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+  a.download = 'rfd-challan-by-size-' + dToday() + '.xlsx';
+  a.click(); URL.revokeObjectURL(a.href);
+}
+/** FIFO: pieces to send per size group → { key: {pcs, metres} }, oldest orders filled first. */
+function flowSizeFifo(groups, send) {
+  const pre = new Map();
+  groups.forEach(g => {
+    let n = Math.max(0, Math.round(+send[g.gk] || 0));
+    g.lines.forEach(({ x, w }) => { if (n <= 0 || !(w.pcs > 0)) return; const take = Math.min(n, w.pcs); n -= take;
+      pre.set(x.s.key, { pcs: take, metres: take === w.pcs ? flowR2(w.metres) : flowR2(take * w.mpp), orderNo: x.r.orderNo, of: w.pcs }); });
+  });
+  return pre;
+}
+function flowSizeChallanOpen(pcode) {
+  /* worked out again now, from the lines as they are — never from a table drawn minutes ago */
+  const d = flowBySizeData(flowRows().filter(x => flowInView('drfd', x.s))), pr = d.P.find(p => p.pk === pcode); if (!pr) return;
+  const groups = pr.list.filter(g => g.pcs > 0), send = {};
+  groups.forEach(g => { send[g.gk] = g.pcs; });
+  const preview = () => { const pre = flowSizeFifo(groups, send);
+    return groups.map(g => { const ls = g.lines.filter(({ x }) => pre.has(x.s.key)); if (!ls.length) return '';
+      return `<div style="margin-top:6px"><b>${esc(g.fab)} · ${esc(g.size)}</b>: ` + ls.map(({ x, w }) => { const t = pre.get(x.s.key);
+        return `${esc(x.r.orderNo)} <span class="muted">(${esc(ptIsoDate(x.r.orderDate) || '')}${x.r.color ? ' · ' + esc(x.r.color) : ''})</span> ${nf(t.pcs)}${t.pcs < w.pcs ? ` <span style="color:#b45309">of ${nf(w.pcs)}</span>` : ' <span style="color:#166534">✓</span>'}`; }).join(' · ') + '</div>'; }).join('') || '<span class="muted">Nothing to send.</span>'; };
+  ptOpenDialog({
+    title: `Challan by size → ${pr.name}`,
+    subtitle: 'How many pieces of each size go now. The oldest orders are filled first (Amazon and Shopify alike); what is not sent stays in Demand.',
+    html: `<table class="xl" style="width:100%"><thead><tr><th style="text-align:left">Fabric (RFD)</th><th style="text-align:left">Size</th><th>Needed</th><th>Send now (pcs)</th><th>Metres</th></tr></thead><tbody>`
+      + groups.map(g => `<tr><td style="text-align:left">${esc(g.fab)}</td><td style="text-align:left"><b>${esc(g.size)}</b></td><td class="num">${nf(g.pcs)}</td>`
+        + `<td class="num"><input data-szq="${esc(g.gk)}" type="number" min="0" step="1" max="${g.pcs}" value="${g.pcs}" style="width:90px;padding:3px 6px;font-size:12px"></td><td class="num" data-szm="${esc(g.gk)}">${nf(flowR2(g.metres))}</td></tr>`).join('')
+      + `</tbody></table><div style="margin-top:10px;font-size:12.5px"><b>These pieces go to (oldest first):</b><div id="flSzPrev">${preview()}</div></div>`,
+    saveLabel: 'Review challan →',
+    onSave: async () => {
+      const bad = groups.filter(g => !(send[g.gk] >= 0 && send[g.gk] <= g.pcs && send[g.gk] === Math.round(send[g.gk])));
+      if (bad.length) return bad.map(g => `${g.fab} ${g.size}: whole pieces, at most ${nf(g.pcs)}`).join(' · ');
+      const pre = flowSizeFifo(groups, send);
+      if (!pre.size) return 'Type how many pieces go now.';
+      const rows = groups.flatMap(g => g.lines.map(l => l.x)).filter(x => pre.has(x.s.key));
+      setTimeout(() => flowChallanDialog(rows, pcode, [], pre), 0);
+      return '';
+    },
+  });
+  document.querySelectorAll('[data-szq]').forEach(inp => inp.addEventListener('input', () => {
+    const g = groups.find(y => y.gk === inp.dataset.szq); send[g.gk] = Math.max(0, Math.min(g.pcs, Math.round(+inp.value || 0)));
+    const pre = flowSizeFifo([g], send), m = [...pre.values()].reduce((t, v) => t + v.metres, 0);
+    const mc = document.querySelector(`[data-szm="${g.gk}"]`); if (mc) mc.textContent = nf(flowR2(m));
+    const pv = $('flSzPrev'); if (pv) pv.innerHTML = preview(); }));
+}
 /* BY PRINTED FABRIC: every line waiting for fabric, across every order, grouped by what the printer prints and the
  * printer PPC planned — the total to print, the orders it is for, and one challan for all of it. */
 let FLOW_GROUPS = [];
@@ -130,7 +301,16 @@ function flowByPrintTable(rows) {
 /* WHAT THE CUTTING DEPARTMENT CUTS FROM, for a planned line: the printed fabric (from the store, or back from the
  * printer), how much, for how many pieces of the order. */
 function flowCutFrom(x) {
-  const p = x.s.plan; if (!p || x.s.route !== 'inhouse') return '<span class="muted">—</span>';
+  const p = x.s.plan;
+  /* THE CUTTING ROUTE (16 Oct: the column said "—"). No printer: the line is cut from RFD — or, ticked "already printed / in
+   * hand", from the printed cloth in the store. Fabric, colour and the metres it takes, from the plan. */
+  if (p && x.s.route === 'stitch' && p.fabric && p.fabric.name) {
+    const colour = String(((cutSkuOf(x.r.sku) || {}).color) || x.r.color || '').trim();
+    const m = flowR2((+p.fabric.metres || 0) || (+p.fabric.perPc || 0) * (+x.r.qty || 0));
+    return `<b>${esc(p.fabric.name)}</b>${p.fabric.noRfd && colour ? ' · ' + esc(colour) : ''} <span class="pill ${p.fabric.noRfd ? 'ok' : 'mute'}" style="font-size:10.5px">${p.fabric.noRfd ? 'printed, in hand' : 'RFD'}</span>`
+      + `<div class="muted" style="font-size:10.5px">${nf(m)} m for ${nf(x.r.qty)} pcs</div>`;
+  }
+  if (!p || x.s.route !== 'inhouse') return '<span class="muted">—</span>';
   const w = flowPrintWhat(x.r, p), m = flowR2(+(p.fabric && p.fabric.metres) || 0), fp = +(p.fabric && p.fabric.fromPrinted) || 0;
   return `${w.kind === 'sku' ? `<b>${esc(w.code)}</b> printed pieces` : flowPrintTxt(w)}<div class="muted" style="font-size:10.5px">${w.kind === 'sku' ? nf(x.r.qty) + ' pcs' : nf(m) + ' m'} for ${nf(x.r.qty)} pcs`
     + (x.s.fromStock ? ' · <b style="color:#166534">all from printed stock in the store</b>' : fp > 0 ? ` · ${nf(fp)} ${p.fabric.printedUnit === 'pcs' ? 'pcs' : 'm'} from printed stock, the rest from the printer` : ' · from the printer') + '</div>'
@@ -185,7 +365,7 @@ function flowTable(view, rows) {
     if (again) return `<div class="muted" style="font-size:11px">${esc(x.r.orderNo)}</div>`;
     return (x.r.__t ? `<b>${esc(x.r.orderNo)}</b> <span class="navbadge" style="background:#7c3aed;position:static">TEST</span>`
       : `<a href="#" data-ordj="${esc(x.r.orderNo)}" style="font-weight:600">${esc(x.r.orderNo)}</a>`)
-      + `<div class="muted" style="font-size:12px">${esc(x.r.src || '')} · ${esc(ptIsoDate(x.r.orderDate) || '')} · ${nf(flowDays(x.r.orderDate) || 0)} d</div>`
+      + `<div class="muted" style="font-size:12px">${esc(flowSrcOf(x))} · ${esc(ptIsoDate(x.r.orderDate) || '')} · ${nf(flowDays(x.r.orderDate) || 0)} d</div>`
       + (x.r.fromSo ? `<div class="muted" style="font-size:12px">Copy of sales order ${esc(x.r.fromSo)}</div>` : '');
   };
   const base = x => { const first = x.r.orderNo !== prevNo, h = poHead(x);
@@ -215,14 +395,47 @@ function flowTable(view, rows) {
   } else if (view === 'ppc') {
     head = ['PO', 'SKU', 'Qty', 'What the plan will hold', ''];
     const seen = new Set();
-    body = rows.map(x => { const sg = flowSuggest(x.r), first = !seen.has(x.r.orderNo); seen.add(x.r.orderNo);
+    /* SAME SKU, SAME DAY, COMBINED (Ravi, 15 Oct: "yadi mere pas 1 SKU ka same day order aay to wo sare order combine hokar
+     * dikhe PPC team ko"). Two or more orders of one day asking for one SKU are one row: the orders and their quantities,
+     * the total, what the plan holds for the total, and "Plan together" — each line still gets its own plan. */
+    const grpOf = x => obUC(x.r.sku) + '|' + String(ptIsoDate(x.r.orderDate) || '') + '|' + (x.r.__t ? 'T' : 'R');
+    /* BACK TO THE SALES TEAM (flow-back.js): a line PPC cannot plan goes back with a reason. */
+    const backBtn = g => flowCanBack() && !g.some(x => x.r.__t) ? `<button class="ghost" data-flback="${esc(g.map(x => x.s.key).join(','))}" title="Something is wrong with the order or its master — send it back to the sales team with a reason" style="width:auto;padding:2px 8px;font-size:11.5px;color:#b91c1c;border-color:#fca5a5">Back to sales</button>` : '';
+    const grps = new Map(); rows.forEach(x => { const k = grpOf(x); (grps.get(k) || grps.set(k, []).get(k)).push(x); });
+    const drawn = new Set();
+    const combined = g => { const x0 = g[0], tot = g.reduce((a, x) => a + (+x.r.qty || 0), 0), sg = flowSuggest(Object.assign({}, x0.r, { qty: tot }));
+      prevNo = null;
+      return `<tr style="background:#f5f3ff"><td class="frz" style="text-align:left;width:250px;max-width:250px;white-space:normal;vertical-align:top">
+          <span class="jw-st prog">Combined · ${nf(g.length)} orders</span><div class="muted" style="font-size:12px;margin-top:3px">same SKU, ordered ${esc(ptIsoDate(x0.r.orderDate) || '')}</div>
+          ${g.map(x => `<div style="font-size:12.5px">${x.r.__t ? `<b>${esc(x.r.orderNo)}</b>` : `<a href="#" data-ordj="${esc(x.r.orderNo)}">${esc(x.r.orderNo)}</a>`} · <b>${nf(x.r.qty)}</b> <span class="muted">${esc(x.r.src || '')}</span></div>`).join('')}</td>
+        <td style="text-align:left;white-space:nowrap;vertical-align:top"><div style="display:flex;gap:8px;align-items:flex-start">${pic(x0.r.sku)}<div style="line-height:1.5">
+          <b style="font-family:ui-monospace,monospace">${esc(x0.r.sku)}</b>${[x0.r.articleSubtype || x0.r.articleType, x0.r.color, x0.r.size].filter(Boolean).map(t => `<div class="muted" style="font-size:12px">${esc(t)}</div>`).join('')}</div></div></td>
+        <td class="num" style="vertical-align:top"><b>${nf(tot)}</b><div class="muted" style="font-size:11px">${g.map(x => nf(x.r.qty)).join(' + ')}</div></td>
+        <td style="text-align:left;font-size:13px;line-height:1.55;white-space:normal;min-width:240px;vertical-align:top">
+          <div>Fabric: <b>${esc(sg.fabric.name || '?')}</b> · ${sg.fabric.metres ? nf(sg.fabric.metres) + ' m' : '<b style="color:#b91c1c">metres not known</b>'}</div>
+          <div>${sg.print.need ? `Print: <b>${esc(sg.printer.name || 'printer not chosen')}</b>` : 'No printing — straight to cutting'}</div></td>
+        <td style="white-space:nowrap;vertical-align:top"><div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start"><button data-flppck="${esc(g.map(x => x.s.key).join(','))}" style="width:auto;padding:3px 10px;font-size:12px">Plan together · ${nf(g.length)} orders</button>
+          ${backBtn(g)}</div></td></tr>`; };
+    body = rows.map(x => { const g = grps.get(grpOf(x));
+      if (g.length > 1) { const k = grpOf(x); if (drawn.has(k)) return ''; drawn.add(k); return combined(g); }
+      const sg = flowSuggest(x.r), first = !seen.has(x.r.orderNo); seen.add(x.r.orderNo);
       return `<tr>${base(x)}<td style="text-align:left;font-size:13px;line-height:1.55;white-space:normal;min-width:240px;vertical-align:top">
         <div>Fabric: <b>${esc(sg.fabric.name || '?')}</b> · ${sg.fabric.metres ? nf(sg.fabric.metres) + ' m' : '<b style="color:#b91c1c">metres not known</b>'}</div>
-        <div>${sg.print.need ? `Print: <b>${esc(sg.printer.name || 'printer not chosen')}</b>${sg.printer.why ? `<div class="muted" style="font-size:12px">${esc(sg.printer.why)}</div>` : ''}` : 'Stitching only, no printing'}</div>
+        <div>${sg.print.need ? `Print: <b>${esc(sg.printer.name || 'printer not chosen')}</b>${sg.printer.why ? `<div class="muted" style="font-size:12px">${esc(sg.printer.why)}</div>` : ''}` : 'No printing — straight to cutting'}</div>
         ${sg.acc.length ? `<div>Accessories: ${sg.acc.map(a => esc(a.code) + ' × ' + nf(a.qty)).join(', ')}</div>` : ''}
         ${sg.gaps.length ? `<div style="font-size:12px;color:#92400e">${esc(sg.gaps[0])}${sg.gaps.length > 1 ? ' (+' + (sg.gaps.length - 1) + ')' : ''}</div>` : ''}</td>
-        <td style="white-space:nowrap;vertical-align:top"><div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start">${first ? `<button data-flppc="${esc(x.r.orderNo)}" style="width:auto;padding:3px 10px;font-size:12px">Plan this PO</button>` : ''}
-          <button class="ghost" data-flppc="${esc(x.r.orderNo)}" data-sku="${esc(x.r.sku)}" style="width:auto;padding:2px 8px;font-size:11.5px">This line</button></div></td></tr>`; }).join('');
+        <td style="white-space:nowrap;vertical-align:top"><div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start">${flowPpcHasDraft(x.s.key) ? '<span class="jw-st prog" title="Started in PPC and saved as a draft on this computer — open it to carry on">Draft saved</span>' : ''}${first ? `<button data-flppc="${esc(x.r.orderNo)}" style="width:auto;padding:3px 10px;font-size:12px">Plan this PO</button>` : ''}
+          <button class="ghost" data-flppc="${esc(x.r.orderNo)}" data-sku="${esc(x.r.sku)}" style="width:auto;padding:2px 8px;font-size:11.5px">This line</button>
+          ${backBtn([x])}</div></td></tr>`; }).join('');
+  } else if (view === 'back') {
+    /* What PPC sent back, why, and who has it now: the sales team sends it again from Sales Orders (or PPC takes it back). */
+    head = ['PO', 'SKU', 'Qty', 'What is wrong', 'Sent back', ''];
+    body = rows.map(x => { const b = x.r.ppcBack || {};
+      return `<tr>${base(x)}
+        <td style="text-align:left;font-size:13px;line-height:1.5;white-space:normal;min-width:240px;max-width:420px;vertical-align:top"><b style="color:#b91c1c">${esc(flowBackTxt(b.why))}</b>${b.note ? `<div>${esc(b.note)}</div>` : ''}
+          <div class="muted" style="font-size:11.5px">With the sales team — Sales Orders → Sent back by PPC</div></td>
+        <td class="muted" style="text-align:left;font-size:12px;line-height:1.55;vertical-align:top">${esc(String(b.at || '').slice(0, 10))}<br>${esc(String(b.by || '').split('@')[0])}</td>
+        <td style="white-space:nowrap;vertical-align:top">${flowCanAgain() ? `<button class="ghost" data-flagain="${esc(x.r.orderNo + '|' + x.r.sku)}" style="width:auto;padding:2px 8px;font-size:11.5px">Take back into PPC</button>` : ''}</td></tr>`; }).join('');
   } else if (view === 'ppcdone') {
     /* What PPC planned, line by line, where the line is now, and the one place to change it. */
     head = ['PO', 'SKU', 'Qty', 'Planned', 'Now in', 'Raised', ''];
@@ -233,7 +446,7 @@ function flowTable(view, rows) {
       /* One cell per heading (Ravi, 14 Oct: "too hotch potch"): base() already gives Qty — a second Qty cell here pushed every
        * column one to the right of its heading. The long words wrap, so the table fits the screen without scrolling sideways. */
       return `<tr>${base(x)}
-        <td style="text-align:left;font-size:13px;line-height:1.55;white-space:normal;min-width:220px;vertical-align:top"><div>Route: <b>${esc(rt || '')}</b></div>
+        <td style="text-align:left;font-size:13px;line-height:1.55;white-space:normal;min-width:220px;vertical-align:top"><div>Route: <b>${esc(rt || '')}</b>${p.fabric && p.fabric.noRfd ? ' <span class="muted" style="font-size:12px">· printed fabric in hand, no RFD</span>' : ''}</div>
           ${p.fabric && p.fabric.name ? `<div>Fabric: <b>${esc(p.fabric.name)}</b> · ${nf(flowR2(+p.fabric.metres || 0))} m</div>` : ''}
           ${p.printer && p.printer.name ? `<div>Print: <b>${esc(p.printer.name)}</b></div>` : ''}${rp ? `<div>Ruffle: <b>${esc(rp.name)}</b></div>` : ''}
           ${(p.acc || []).filter(a => a.code && +a.qty > 0).map(a => `<div class="muted" style="font-size:12px">${esc(a.what || a.code)} × ${nf(a.qty)}</div>`).join('')}</td>
@@ -256,12 +469,13 @@ function flowTable(view, rows) {
       const on = cut < 0 ? pt : pt.slice(0, cut) + `</div><div class="muted" style="font-size:12px">${pt.slice(cut + 3).replace(/^./, ch => ch.toUpperCase())}`;
       const td = 'text-align:left;font-size:13px;line-height:1.55;white-space:normal;vertical-align:top';
       return `<tr${c.short ? ' style="background:#fef2f2"' : ''}>${base(x)}
-        <td style="${td};min-width:220px">${x.s.route === 'stitch' ? 'Stitching only' : `<div>Print: <b>${esc((p.printer && p.printer.name) || '—')}</b></div><div style="color:#4338ca">On: ${on}</div>${flowExtrasTxt(flowPrintExtras(x.r, p))}${flowRufflePrinter(p) ? `<div style="font-size:12px;color:#5b21b6">ruffle → <b>${esc(flowRufflePrinter(p).name)}</b>${ro ? '' : ' · sent'}</div>` : ''}`}</td>
-        <td style="${td};min-width:170px">${p.fabric ? `<div><b>${esc(p.fabric.name)}</b></div><div>To send: ${nf(c.need)} m</div>` : '—'}${ro ? `<div style="font-size:12px;color:#5b21b6">ruffle: ${esc(ro.fabric)} · ${nf(ro.metres)} m to ${esc(ro.printer.name)}</div>` : ''}${x.s.fabSent > 0 ? `<div class="muted" style="font-size:12px">${nf(x.s.fabSent)} of ${nf(x.s.fabNeed)} ${x.s.fabUnit} sent</div>` : ''}${flowMasterDiffTxt(flowMasterDiff(x.r, p))}</td>
+        <td style="${td};min-width:220px">${x.s.route === 'stitch' ? 'No printing — straight to cutting' : `<div>Print: <b>${esc((p.printer && p.printer.name) || '—')}</b></div><div style="color:#4338ca">On: ${on}</div>${flowExtrasTxt(flowPrintExtras(x.r, p))}${flowRufflePrinter(p) ? `<div style="font-size:12px;color:#5b21b6">ruffle → <b>${esc(flowRufflePrinter(p).name)}</b>${ro ? '' : ' · sent'}</div>` : ''}`}</td>
+        <td style="${td};min-width:170px">${p.fabric ? `<div><b>${esc(p.fabric.name)}</b></div><div>To send: ${nf(c.need)} m</div>` : '—'}${ro ? `<div style="font-size:12px;color:#5b21b6">ruffle: ${esc(ro.fabric)} · ${nf(ro.metres)} m to ${esc(ro.printer.name)}</div>` : ''}${x.s.fabSent > 0 ? `<div style="margin-top:3px"><span class="jw-st prog" title="Sent on a challan in part — the rest is still to send">Partly sent</span> <span style="font-size:12px">${nf(x.s.fabSent)} of ${nf(x.s.fabNeed)} ${x.s.fabUnit} sent · ${nf(flowR2(Math.max(0, x.s.fabNeed - x.s.fabSent)))} still to send</span></div>` : ''}${flowMasterDiffTxt(flowMasterDiff(x.r, p))}</td>
         <td style="${td};min-width:150px">${c.short ? `<span class="jw-st" style="background:#fee2e2;color:#b91c1c;font-weight:700">⚑ Short: ${nf(c.short)} m</span>` : `<span class="jw-st done">covered</span>`}<div class="muted">In stock: ${nf(c.avail)} m</div></td>
         <td style="white-space:nowrap;vertical-align:top"><div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start">${first ? `<button data-flch="${esc(x.r.orderNo)}" data-pc="${esc(pk)}" style="width:auto;padding:3px 10px;font-size:12px">${pk === '?' ? 'Challan (printer not chosen)' : 'Challan → ' + esc((p.printer && p.printer.name) || pk)}</button>` : ''}${rfirst ? `<button data-flch="${esc(x.r.orderNo)}" data-pc="${esc(ro.printer.code)}" style="width:auto;padding:3px 10px;font-size:12px;background:#7c3aed;border-color:#7c3aed">Ruffle challan → ${esc(ro.printer.name)}</button>` : ''}<button class="ghost" data-flfab="${esc(x.s.key)}" style="width:auto;padding:2px 9px;font-size:11.5px">Mark fabric ready</button></div></td></tr>`; }).join('');
     const fs = Object.values(cv.fab).filter(f => f.need > 0).sort((a, b) => b.short - a.short || a.name.localeCompare(b.name));
     FLOW.byprint = flowByPrintTable(rows);
+    FLOW.bysize = flowBySizeTable(rows);
     FLOW.stock = `<thead><tr><th style="text-align:left">Fabric</th><th>RFD in stock</th><th>Kept for lines already ready</th><th>These lines need</th><th>Short</th></tr></thead><tbody>`
       + fs.map(f => `<tr${f.short ? ' style="background:#fef2f2"' : ''}><td style="text-align:left"><b>${esc(f.name)}</b></td><td class="num">${nf(flowR2(f.stock))} m</td><td class="num">${nf(flowR2(f.held))} m</td><td class="num">${nf(f.need)} m · ${nf(f.lines)} line(s)</td>
         <td class="num">${f.short ? `<b style="color:#b91c1c">⚑ ${nf(f.short)} m</b>` : '<span style="color:#166534">—</span>'}</td></tr>`).join('') + (fs.length ? '' : '<tr><td colspan="5" class="muted" style="padding:16px">No line is waiting for fabric.</td></tr>') + '</tbody>';
@@ -285,8 +499,16 @@ function flowTable(view, rows) {
     head = ['PO', 'SKU', 'Qty', 'Given to a printer', ''];
     body = rows.map(x => `<tr>${base(x)}<td class="num">${prog(x.s.given, +x.r.qty)}${flowChTag(x.s)}</td><td>${go(view, x)}</td></tr>`).join('');
   } else if (view === 'cut') {
-    head = ['PO', 'SKU', 'Qty', 'Printed fabric to cut', 'Cut', ''];
-    body = rows.map(x => `<tr>${base(x)}<td style="text-align:left;font-size:12px">${flowCutFrom(x)}</td><td class="num">${prog(x.s.cut, +x.r.qty)}${due(x.s.plan && x.s.plan.dates && x.s.plan.dates.cut, 'plan')}</td><td>${go(view, x)}</td></tr>`).join('');
+    /* CUTTING PENDING (Ravi, 17 Oct: "yaha kitne pcs cut krne h wo cutting pending me show ho"): what is still to cut on each
+     * line — the order less what is cut — and, where part is still with the printer, how much of it can be cut today. The
+     * total for the list on top. */
+    head = ['PO', 'SKU', 'Qty', 'Printed fabric to cut', 'Cut', 'Pending to cut', ''];
+    const pend = x => Math.max(0, (+x.r.qty || 0) - (+x.s.cut || 0));
+    const totP = rows.reduce((t, x) => t + pend(x), 0), totNow = rows.reduce((t, x) => t + Math.min(pend(x), +x.s.canCut || 0), 0);
+    body = (rows.length ? `<tr style="background:var(--soft,#f4f6fb)"><td colspan="7" style="text-align:left;font-size:13px">Cutting pending: <b>${nf(totP)} pcs</b> on ${nf(rows.length)} line(s)${totNow < totP ? ` · <b>${nf(totNow)} pcs</b> can be cut now — the rest is still with the printer` : ''}</td></tr>` : '')
+      + rows.map(x => { const pd = pend(x), now = Math.min(pd, +x.s.canCut || 0);
+        return `<tr>${base(x)}<td style="text-align:left;font-size:12px">${flowCutFrom(x)}</td><td class="num">${prog(x.s.cut, +x.r.qty)}${due(x.s.plan && x.s.plan.dates && x.s.plan.dates.cut, 'plan')}</td>`
+          + `<td class="num"><b style="font-size:15px">${nf(pd)}</b> pcs${now < pd ? `<div style="font-size:10.5px;color:#b45309">${nf(now)} can be cut now</div>` : ''}</td><td>${go(view, x)}</td></tr>`; }).join('');
   } else if (view === 'raw') {
     head = ['PO', 'SKU', 'Qty', 'In store, to issue', 'Issued', ''];
     const wr = flowWasteRows();
@@ -311,13 +533,25 @@ $('flBuckets').addEventListener('click', e => { const b = e.target.closest('[dat
   FLOW_VIEW = b.dataset.flb === 'demand' ? (FLOW.demView || (flowScreenAllowed().find(x => x[4] === 'demand') || [])[0] || 'drfd') : b.dataset.flb; renderFlow(); });
 $('flPanel').addEventListener('click', e => { const gg = e.target.closest('[data-gdgo]'); if (gg) { showTab('gdesk'); GD.open(gg.dataset.gdgo); return; } const dm = e.target.closest('[data-fldem]'); if (dm) { FLOW_VIEW = dm.dataset.fldem; renderFlow(); return; }
   const an = e.target.closest('[data-flang]'); if (an) { FLOW_ANGLE[FLOW_VIEW] = an.dataset.flang; renderFlow(); return; }
+  if (e.target.closest('[data-flpivxl]')) { try { flowBySizeXl(); } catch (er) { $('flMsg').className = 'err'; $('flMsg').textContent = 'Could not make the sheet: ' + (er.message || er); } return; }
   const cp = e.target.closest('[data-flchp]'); if (!cp) return;
   const er = flowChallanPrint(cp.dataset.flchp); if (er) { $('flMsg').className = 'err'; $('flMsg').textContent = er; } });
 $('flQ').addEventListener('input', () => { clearTimeout(FLOW.qt); FLOW.qt = setTimeout(renderFlow, 220); });
-$('flSrc').addEventListener('change', renderFlow);
-$('flTest').onclick = () => flowTestOpen();
-$('flTestOnly').addEventListener('change', () => { flowTestOnlySet($('flTestOnly').checked); renderFlow(); });
-$('flRefresh').onclick = async () => { $('flMsg').textContent = 'Reading again…'; await Promise.all([ptLoadGates(true), flowLoad(true)]); renderFlow(); };
+FLOW_FILT.map(f => f[1]).concat('flFAge').forEach(id => { if ($(id)) $(id).addEventListener('change', renderFlow); });
+if ($('flFilt')) $('flFilt').addEventListener('toggle', () => { if ($('flFilt').open) renderFlow(); });
+if ($('flFClear')) $('flFClear').onclick = () => { FLOW_FILT.map(f => f[1]).concat('flFAge').forEach(id => { if ($(id)) $(id).value = ''; }); renderFlow(); };
+if (document.addEventListener) document.addEventListener('click', e => { const d = $('flFilt'); if (d && d.open && !d.contains(e.target)) d.open = false; });
+/* The test-order button and switch are gone from the page (16 Oct); nothing to wire. */
+if ($('flTest')) $('flTest').onclick = () => flowTestOpen();
+if ($('flTestOnly')) $('flTestOnly').addEventListener('change', () => { flowTestOnlySet($('flTestOnly').checked); renderFlow(); });
+/* PPC in Excel (flow-ppc.js): out = the PPC lines on screen; in = drafts, then the form. */
+if ($('flXlOut')) $('flXlOut').onclick = () => { try { flowPpcXlOut(FLOW.shownPpc || []); } catch (e) { $('flMsg').className = 'err'; $('flMsg').textContent = 'Could not make the sheet: ' + (e.message || e); } };
+if ($('flXlIn')) $('flXlIn').onclick = () => $('flXlFile').click();
+if ($('flXlFile')) $('flXlFile').onchange = e => { const f = e.target.files[0]; e.target.value = ''; flowPpcXlIn(f); };
+if ($('flXlNext')) $('flXlNext').onclick = () => flowXlOpenNext();
+$('flRefresh').onclick = async () => { $('flMsg').textContent = 'Reading again…'; await Promise.all([ptLoadGates(true), flowLoad(true),
+  /* the Greige Desk too: the RFD stock is its count (flowRfdStock) */
+  (FLOW_ON && typeof GD !== 'undefined' && GD.reload && flowGdReads() ? GD.reload().catch(() => {}) : null)]); renderFlow(); };
 /* The bucket table's buttons — on the flow screen, and in its tabs inside Cutting Data and the Job Work Register. */
 async function flowTableClick(e) {
   const sm = e.target.closest('[data-flsim]');
@@ -337,6 +571,7 @@ async function flowTableClick(e) {
     $('flMsg').className = er ? 'err' : 'muted'; if (er) $('flMsg').textContent = er; else renderFlow(); return; }
   const cs = e.target.closest('[data-flchc]'); if (cs) { flowCloseShortOpen(cs.dataset.flchc); return; }
   const ch = e.target.closest('[data-flch]'); if (ch) { flowChallanOpen(ch.dataset.flch, ch.dataset.pc); return; }
+  const sz = e.target.closest('[data-flszch]'); if (sz) { flowSizeChallanOpen(sz.dataset.flszch); return; }
   const qb = e.target.closest('[data-flqb]');
   if (qb) { const [what, key] = qb.dataset.flqb.split('|'), x = flowRows().find(y => y.s.key === key); if (!x) return;
     if (what === 'qc') flowQcEntry(x.r); else if (what === 'fg') flowFgOpen(); else if (what === 'recv') flowRecvEntry(x.r); else if (what === 'issue') flowIssueEntry(x.r, x.s);
@@ -352,7 +587,9 @@ async function flowTableClick(e) {
   const pop = e.target.closest('[data-flpop]'); if (pop) { const er = flowPoPrint(pop.dataset.flpop); if (er) { $('flMsg').className = 'err'; $('flMsg').textContent = er; } return; }
   const cg = e.target.closest('[data-flchg]'); if (cg) { const grp = FLOW_GROUPS[+cg.dataset.flchg]; if (grp) flowChallanForKeys(grp.keys); return; }
   const cp = e.target.closest('[data-flchp]'); if (cp) { e.preventDefault(); const er = flowChallanPrint(cp.dataset.flchp); if (er) { $('flMsg').className = 'err'; $('flMsg').textContent = er; } return; }
+  const pk = e.target.closest('[data-flppck]'); if (pk) { flowPpcOpen('', '', String(pk.dataset.flppck || '').split(',').filter(Boolean)); return; }
   const pp = e.target.closest('[data-flppc]'); if (pp) { flowPpcOpen(pp.dataset.flppc, pp.dataset.sku || ''); return; }
+  const bk = e.target.closest('[data-flback]'); if (bk) { flowBackOpen(String(bk.dataset.flback || '').split(',').filter(Boolean)); return; }
   const key = (e.target.closest('[data-flfab],[data-flres],[data-flunres]') || {}).dataset;
   if (!key) return;
   const x = flowRows().find(y => y.s.key === (key.flfab || key.flres || key.flunres)); if (!x) return;
@@ -363,7 +600,10 @@ async function flowTableClick(e) {
 }
 $('flTable').addEventListener('click', flowTableClick);
 /* The menu button shows only where the flow is switched on, and only to an account with a bucket. */
-/* The Greige Desk (test) is for anyone holding one of its rights, on the test link only. */
+/* The Greige Desk is for anyone holding one of its rights (real working since 15 Oct). */
+/* THE RFD STOCK IS THE GREIGE DESK'S COUNT (flowRfdStock), so whoever works PPC or Demand reads the desk — only reads it;
+ * the Greige Desk menu stays for its own rights (Ravi, 16 Oct: Vikram, PPC without a Greige Desk right, saw "stock not read"). */
+function flowGdReads() { return gdAllowed() || flowScreenAllowed().length > 0; }
 function gdAllowed() { return ['gdesk', 'gdled', 'gdledit', 'gdappr'].some(k => ME.admin || !(ME.tabs && ME.tabs.length) || ME.tabs.includes(k)); }
 function flowNavShow() { if ($('tabGdesk')) $('tabGdesk').style.display = FLOW_ON && gdAllowed() ? '' : 'none'; if ($('tabFlow')) $('tabFlow').style.display = FLOW_ON && flowScreenAllowed().length ? '' : 'none'; flowEmbedSetup(); flowDupViewsOff(); }
 
@@ -399,10 +639,16 @@ function flowEmbedSetup() {
     if (!views.length) { if (seg && seg.remove) { seg.remove(); const b = $('flEmb_' + tab); if (b && b.remove) b.remove(); } FLOW_EMB[tab] = ''; return; }
     if (!seg || !seg.isConnected) {
       pane.insertAdjacentHTML('afterbegin', `<div id="flSeg_${tab}" class="card" style="padding:8px 10px;margin-bottom:12px;display:flex;gap:6px;flex-wrap:wrap;align-items:center"></div>`
-        + `<div id="flEmb_${tab}" class="hide"><div class="card" style="padding:10px 14px"><div id="flEmbMsg_${tab}" class="muted" style="font-size:12.5px"></div></div>`
+        + `<div id="flEmb_${tab}" class="hide"><div class="card" style="padding:10px 14px">`
+        /* PLATFORM AND SEARCH (Ravi, 16 Oct: "to cut wale me filter laga kar check kar saku ki kis platform ka h"). */
+        + `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px"><select id="flEmbSrc_${tab}" style="width:auto;min-width:170px"><option value="">Every platform</option></select>`
+        + `<input id="flEmbQ_${tab}" placeholder="Search PO, SKU, colour…" style="flex:1 1 240px;min-width:0;max-width:420px"></div>`
+        + `<div id="flEmbMsg_${tab}" class="muted" style="font-size:12.5px"></div></div>`
         + `<div class="card xlwrap" style="margin-top:12px"><table class="xl" id="flEmbT_${tab}"></table></div></div>`);
       $('flSeg_' + tab).addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-flemb]'); if (!b) return; FLOW_EMB[tab] = b.dataset.flemb; flowEmbedRender(tab); });
       $('flEmbT_' + tab).addEventListener('click', flowTableClick);
+      if ($('flEmbSrc_' + tab)) $('flEmbSrc_' + tab).addEventListener('change', () => flowEmbedRender(tab));
+      if ($('flEmbQ_' + tab)) $('flEmbQ_' + tab).addEventListener('input', () => flowEmbedRender(tab));
     }
     flowEmbedRender(tab);
   });
@@ -420,18 +666,25 @@ async function flowEmbedRender(tab) {
     return String(flowRows().filter(x => (!only || x.r.__t) && flowInView(k, x.s)).length); } catch (e) { return ''; } };
   seg.innerHTML = [['', cfg.own]].concat(views.map(k => [k, label(k)])).map(([k, l]) => { const c = k ? count(k) : '';
     return `<button type="button" data-flemb="${k}" class="${k === v ? '' : 'ghost'}" style="width:auto;padding:6px 16px;font-size:13.5px">${esc(l)}${c !== '' ? ` <b style="margin-left:4px">${c}</b>` : ''}</button>`; }).join('')
-    + (views.length ? '<span class="navbadge" style="background:#7c3aed;position:static;margin-left:auto">TEST · Production flow</span>' : '');
+    + '';
   [...pane.children].forEach(ch => { if (ch !== seg && ch !== box && ch.classList) ch.classList.toggle('fl-embhide', !!v); });
   box.classList.toggle('hide', !v);
   if (!v) return;
   const msg = $('flEmbMsg_' + tab), tbl = $('flEmbT_' + tab);
   if (!FLOW.ppc) { msg.textContent = 'Reading the production flow…'; tbl.innerHTML = ''; try { await flowEnsureData(); } catch (e) { msg.textContent = 'Could not read the production flow.'; return; } return flowEmbedRender(tab); }
   const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly();
-  const rows = flowRows().filter(x => (!only || x.r.__t) && flowInView(v, x.s))
+  const inView = flowRows().filter(x => (!only || x.r.__t) && flowInView(v, x.s));
+  /* The platform list is what this bucket's lines carry; the pick survives a redraw. */
+  const srcSel = $('flEmbSrc_' + tab), qBox = $('flEmbQ_' + tab);
+  const src = srcSel ? String(srcSel.value || '') : '', q = qBox ? String(qBox.value || '').trim().toLowerCase() : '';
+  if (srcSel && typeof ptFillSelect === 'function') { const list = [...new Set(inView.map(flowSrcOf).filter(Boolean))].sort(); if (src && !list.includes(src)) list.push(src);
+    ptFillSelect('flEmbSrc_' + tab, list.map(s => [s, s + ' (' + nf(inView.filter(x => flowSrcOf(x) === s).length) + ')']), 'Every platform'); srcSel.value = src; }
+  const rows = inView.filter(x => (!src || flowSrcOf(x) === src)
+      && (!q || [x.r.orderNo, x.r.sku, x.r.color, x.r.size, x.r.articleSubtype, x.r.articleType, x.r.shopOrderNo].join(' ').toLowerCase().includes(q)))
     .sort((a, b) => String(a.r.orderDate || '').localeCompare(String(b.r.orderDate || '')) || String(a.r.orderNo).localeCompare(String(b.r.orderNo)));
   tbl.innerHTML = flowTable(v, rows.slice(0, 800));
   const b = FLOW_BUCKETS.find(x => x[0] === v) || [];
-  msg.textContent = `${b[1]}: ${nf(rows.length)} line(s) — ${b[3]}${only ? ' · SHOWING TEST ORDERS ONLY (switch on the Production flow screen)' : ''} · ${flowPhaseTxt()}`;
+  msg.textContent = `${b[1]}: ${rows.length < inView.length ? `${nf(rows.length)} of ${nf(inView.length)}` : nf(rows.length)} line(s)${src ? ' · ' + src : ''}${q ? ` · search “${q}”` : ''} — ${b[3]}${only ? ' · SHOWING TEST ORDERS ONLY (switch on the Production flow screen)' : ''} · ${flowPhaseTxt()}`;
 }
 /** Finished Goods → From QC — to accept. */
 async function flowFgOpen() {

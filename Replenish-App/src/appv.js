@@ -24,6 +24,20 @@
   });
   APPV.tick();
   setInterval(APPV.tick, 5 * 60 * 1000);
-  document.addEventListener('visibilitychange', function () { if (!document.hidden) APPV.tick(); });
+  /* NEW VERSION, TAKEN IN BY ITSELF (Ravi, 16 Oct: "jaise hi mai koi bhi update laoon … update ho jaye"). When the app comes
+   * back to the front and a newer build is live, it reloads — but only with nothing open: no dialog, no form being typed
+   * in. Otherwise the bar stays and says so, as before. Never in the middle of an entry. */
+  APPV.safe = function () {
+    try {
+      var d = document; if (typeof d.querySelector !== 'function') return false;
+      if (d.querySelector('#ptDlg:not(.hide), .modal:not(.hide), .ptmodal:not(.hide), #mobMoreModal:not(.hide)')) return false;
+      var ae = d.activeElement; if (ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName || '')) return false;
+      return true;
+    } catch (e) { return false; }
+  };
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) return;
+    APPV.tick().then(function () { if (APPV.stale && APPV.safe()) location.reload(); });
+  });
 })();
 /* ==== END APP VERSION ==== */

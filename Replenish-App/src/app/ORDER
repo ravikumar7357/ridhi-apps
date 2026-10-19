@@ -67,6 +67,7 @@ flow/flow-receive.js
 flow/flow-printorder.js
 flow/flow-vendor.js
 flow/flow-edit.js
+flow/flow-back.js
 flow/flow-entries.js
 flow/flow-qcfg.js
 flow/flow-view.js
@@ -132,13 +133,16 @@ masters/recipe-bucket.js
 masters/sku-codes.js
 inventory/store.js
 masters/cloth-per-piece.js
+masters/fabric-master.js
 reports/day-by-day-target.js
+shopify/shopify-copy.js
 shopify/shopify-orders.js
 shopify/orders-to-make.js
 shopify/production-bucket.js
 shopify/bucket-excel.js
 shopify/returns.js
 shopify/delivery-days.js
+shopify/returns-team.js
 replenishment/india-usa-express.js
 @shared/adjustments.js
 @shared/courier-templates.js
@@ -149,3 +153,4 @@ shopify/imported-orders-bulk.js
 core/filter-by.js
 core/installed-app.js
 core/version-check.js
+core/mobile.js

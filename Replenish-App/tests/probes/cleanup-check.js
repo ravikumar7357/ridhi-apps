@@ -1,0 +1,13 @@
+const fs = require('fs');
+const { lines, B } = require('./cleanup-plan.js');
+const P = JSON.parse(fs.readFileSync(process.argv[3], 'utf8'));
+const U = s => String(s == null ? '' : s).trim().toUpperCase();
+const delSo = Object.keys(P).filter(k => /^pt_salesOrders\/[^/]+$/.test(k) && P[k] === null).map(k => k.split('/')[1]);
+const keep = new Set(lines.filter(l => !l.open || (+l.cut || 0) + (+l.issued || 0) + (+l.received || 0) + (+l.made || 0) + (+l.pressed || 0) > 0).map(l => U(l.orderNo)));
+const bad = delSo.filter(no => keep.has(U(no)));
+console.log('SOs deleted', delSo.length, '· of them with a kept line on the book:', bad.length, bad.slice(0, 5));
+const pend = new Set(lines.filter(l => l.open && !((+l.cut || 0) + (+l.issued || 0) + (+l.received || 0) + (+l.made || 0) + (+l.pressed || 0) > 0)).map(l => U(l.orderNo)));
+const onlyPend = [...pend].filter(o => !keep.has(o));
+console.log('orders with only pending lines', onlyPend.length, '· SOs deleted not in that set:', delSo.filter(n => !onlyPend.includes(U(n))).slice(0, 8));
+const keyMismatch = delSo.filter(n => U(n) !== n);
+console.log('SO keys not upper-case:', keyMismatch.length);

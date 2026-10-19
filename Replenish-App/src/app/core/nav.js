@@ -67,17 +67,48 @@ const NAV_PROD_ONLY = (function navProductionOnly() {
   const orders = group('Orders', 'Orders', 'so,ord,cx', [$('tabSo'), $('tabOrd'), $('tabCx')]);
   const store = group('Store', 'Store', 'fab,gdesk,acc,fgi,fba',
     [col('Materials', ['tabFab', 'tabGdesk', 'tabAcc']), col('Finished & dispatch', ['tabFgi', 'tabFba'])], 'mg-2');
-  const setup = group('Setup', 'Setup', 'pmdb,mst', [$('tabPmdb'), $('tabMst')]);
+  /* PO SETTINGS IN SETUP (Ravi, 15 Oct: "haan PO settings setup me laga do"). Its old button sat in the Fabric tab, hidden
+   * since the store went by hand. Not a tab of its own: it opens the same dialog (greige-po.js gpoSettingsOpen). Admins only,
+   * as before. */
+  const poSet = document.createElement('a');
+  poSet.id = 'tabPoSet'; poSet.className = 'nav'; poSet.href = '#poset';
+  poSet.title = 'Company name, address, GSTIN and default terms printed on every PO';
+  poSet.innerHTML = '<span class="nav-ic">' + SVG('<path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6"/><circle cx="12" cy="14" r="2.5"/><path d="M12 10.5v1M12 16.5v1M8.5 14h1M14.5 14h1"/>')
+    + '</span><span class="nav-t">PO settings</span>';
+  poSet.onclick = async e => {
+    e.preventDefault();
+    if (!ME || !ME.admin) { ptOpenDialog({ title: 'PO settings', note: 'Only an admin can change what every PO says about the company.' }); return; }
+    if (typeof ensureGpo === 'function') await ensureGpo();
+    gpoSettingsOpen();
+  };
+  const setup = group('Setup', 'Setup', 'pmdb,mst', [$('tabPmdb'), $('tabMst'), poSet]);
 
   /* The columns are built while the links are still in the page — a link cleared out first can no longer be found. */
-  const cols = [col('1 · PPC · Planning', ['tabFlow', 'tabPalloc']),
-    col('2 · Printing', ['tabVreq', 'tabVord', 'tabRfd', 'tabVlog']),
+  /* THE OLD PRINTING SCREENS ARE OFF THE MENU (Ravi, 15 Oct: "jo hame PPC me chahiye wo hi tab rakho, baki ke delete kardo,
+   * printer allocation rakhna h"). PPC raises the printer order, the RFD goes on its challan and the printed cloth comes
+   * back on it, so Vendor Order Requests, Vendor Orders, RFD Requirements and History · printed in have no work left.
+   * Their links stay in the page, hidden, so code that badges or opens them still finds them; the data is untouched
+   * (backup: Backups/rtdb-full-2026-10-15.json). Printer Allocation moves into the Printing column. */
+  const off = document.createElement('div'); off.hidden = true; off.className = 'nav-off';
+  ['tabVreq', 'tabVord', 'tabRfd', 'tabVlog'].forEach(id => { const x = $(id); if (x) off.appendChild(x); });
+  /* THE PRINTER'S VIEW, FOR AN ADMIN (Ravi, 15 Oct: "test order place kiya but vendor ko uske portal par show nahi hua").
+   * The Vendors heading is a printer's own since 14 Oct, so an admin had no way left to the portal's "See the portal as
+   * printer". This opens it; syncNavGroups shows it to admins only. */
+  const vpAs = document.createElement('a');
+  vpAs.id = 'tabVpAs'; vpAs.className = 'nav'; vpAs.href = '#vend'; vpAs.style.display = 'none';
+  vpAs.title = 'What a printer sees on its portal — pick the printer at the top (test orders show here too)';
+  vpAs.innerHTML = '<span class="nav-ic">' + SVG('<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>') + '</span><span class="nav-t">Printer\'s portal (view)</span>';
+  vpAs.onclick = e => { e.preventDefault(); showTab('vend'); };
+  const cols = [col('1 · PPC · Planning', ['tabFlow']),
+    col('2 · Printing', ['tabPalloc']),
     col('3 · Cutting & stitching', ['tabPcut', 'tabPbase', 'tabPpress']),
     col('4 · Quality Control', ['tabQc'])];
   const sec = $('secProd');
   sec.textContent = '';
   cols.forEach(c => sec.appendChild(c));
-  $('grpProd').dataset.tabs = 'flow,flppc,fldem,flacc,flchl,flcut,flraw,flwip,palloc,vreq,vord,rfd,vlog,pcut,pbase,ppress,qc';
+  cols[1].appendChild(vpAs);
+  sec.appendChild(off);
+  $('grpProd').dataset.tabs = 'flow,flppc,fldem,flacc,flchl,flcut,flraw,flwip,palloc,pcut,pbase,ppress,qc';
 
   const vend = $('grpVendors');
   if (vend) { vend.dataset.tabs = 'vend'; vend.lastChild.textContent = ' Vendors'; }
@@ -225,6 +256,7 @@ function syncNavGroups() {
     g.head.classList.toggle('hide', dead);
     g.sec.classList.toggle('hide', dead);
   });
+  if ($('tabVpAs')) $('tabVpAs').style.display = ME && ME.admin && !NAV_IS_VENDOR ? '' : 'none';   // the printer's view: admins
 }
 
 /* The hamburger hides the sidebar outright on a wide screen and slides it over the page on a narrow
@@ -384,12 +416,17 @@ const SHOP_ONLY = () => !!(ME.tabs && ME.tabs.includes('shopprod') && !ME.tabs.i
 function showTab(which) {
   // 'shopprod' is not a pane of its own — it is the Order Console, opened at its Shopify views.
   if (which === 'shopprod') which = 'ord';
+  /* 'shopret' (the Shopify returns team, 15 Oct) is the Shopify Orders screen in its narrow form (returns-team.js). */
+  if (which === 'shopret') which = 'shop';
   /* A production-flow bucket right opens the one flow screen; the guard below lets it in for any bucket held. */
   if (FLOW_TABS.includes(which)) which = 'flow';
   if (ME.tabs && ME.tabs.length && !ME.tabs.includes(which)
       && !(which === 'ord' && ME.tabs.includes('shopprod'))
+      && !(which === 'shop' && ME.tabs.includes('shopret'))
       && !(which === 'flow' && FLOW_ON && flowBucketsAllowed().length)
       && !(which === 'gdesk' && FLOW_ON && gdAllowed())) which = FLOW_TABS.includes(ME.tabs[0]) ? 'flow' : ME.tabs[0];
+  if (which === 'shopret') which = 'shop';   // the returns team's only screen, when it is the first one they hold
+  if (which === 'shopprod') which = 'ord';
   const panes = { dash: 'paneDash', repl: 'paneRepl', article: 'paneArticle', target: 'paneTarget', follow: 'paneFollow', top: 'paneTop', india: 'paneIndia', shopify: 'paneShopify', prod: 'paneProd', pack: 'panePack', att: 'paneAtt', pmdb: 'panePmdb', mst: 'paneMst', pbase: 'panePbase', pcut: 'panePcut', ppress: 'panePpress', qc: 'paneQc', ord: 'paneOrd', so: 'paneSo', vord: 'paneVord', vreq: 'paneVreq', rfd: 'paneRfd', vend: 'paneVend', vlog: 'paneVlog', cx: 'paneCx', palloc: 'panePalloc', fgi: 'paneFgi', fba: 'paneFba', fab: 'paneFab', acc: 'paneAcc', rep: 'paneRep', pa: 'panePa', ka: 'paneKa', hr: 'paneHr', shop: 'paneShop', adj: 'paneAdj', flow: 'paneFlow', gdesk: 'paneGdesk' };
   const navs = { dash: 'tabDash', repl: 'tabRepl', article: 'tabArticle', target: 'tabTarget', follow: 'tabFollow', top: 'tabTop', india: 'tabIndia', shopify: 'tabShopify', prod: 'tabProd', pack: 'tabPack', att: 'tabAtt', pmdb: 'tabPmdb', mst: 'tabMst', pbase: 'tabPbase', pcut: 'tabPcut', ppress: 'tabPpress', qc: 'tabQc', ord: 'tabOrd', so: 'tabSo', vord: 'tabVord', vreq: 'tabVreq', rfd: 'tabRfd', vend: 'tabVend', vlog: 'tabVlog', cx: 'tabCx', palloc: 'tabPalloc', fgi: 'tabFgi', fba: 'tabFba', fab: 'tabFab', acc: 'tabAcc', rep: 'tabRep', pa: 'tabPa', ka: 'tabKa', hr: 'tabHr', shop: 'tabShop', adj: 'tabAdj', flow: 'tabFlow', gdesk: 'tabGdesk' };
   /* Before anything is shown: hand back what the screen being left was holding. */
@@ -398,7 +435,7 @@ function showTab(which) {
   Object.entries(navs).forEach(([k, id]) => $(id).classList.toggle('on', which === k));
   if (SHOP_ONLY() && which === 'ord') { $('pageTitle').textContent = 'Shopify Orders'; }
   const TITLES = { dash: 'Dashboard', repl: 'Replenishment', article: 'Article Review', target: 'Revenue Target', follow: 'Ongoing Purchase Order', top: 'Top ASIN Status', india: 'India Stock', shopify: 'Shopify Stock', prod: 'In Production', pack: 'Packing List', plan: 'Action Plan',
-    att: 'Attendance', pmdb: 'Master Database', mst: 'Masters', pbase: 'Job Work Register', pcut: 'Cutting Data', ppress: 'Press Inventory', qc: 'Quality Control', ord: 'Order Console', so: 'Sales Orders', vord: 'Vendor Orders', vreq: 'Vendor Order Requests', rfd: 'RFD Requirements', vend: 'Vendor Portal', vlog: 'History — what printers have sent', cx: 'Customer Orders', palloc: 'Printer Allocation', fgi: 'Finished Goods', fba: 'FBA Dispatch', fab: 'Fabric Inventory', acc: 'Accessories', rep: 'Reports', pa: 'Production Analysis', ka: 'Karigar Analysis', hr: 'Finance & HR', shop: 'Shopify Orders', adj: 'Adjustments', flow: 'Production flow (test)', gdesk: 'Greige Desk (test)' };
+    att: 'Attendance', pmdb: 'Master Database', mst: 'Masters', pbase: 'Job Work Register', pcut: 'Cutting Data', ppress: 'Press Inventory', qc: 'Quality Control', ord: 'Order Console', so: 'Sales Orders', vord: 'Vendor Orders', vreq: 'Vendor Order Requests', rfd: 'RFD Requirements', vend: 'Vendor Portal', vlog: 'History — what printers have sent', cx: 'Customer Orders', palloc: 'Printer Allocation', fgi: 'Finished Goods', fba: 'FBA Dispatch', fab: 'Fabric Inventory', acc: 'Accessories', rep: 'Reports', pa: 'Production Analysis', ka: 'Karigar Analysis', hr: 'Finance & HR', shop: 'Shopify Orders', adj: 'Adjustments', flow: 'Production flow', gdesk: 'Greige Desk (test)' };
   $('pageTitle').textContent = TITLES[which] || 'Replenishment';
   /* The line under a title, and the button that starts work, for the screens that have them. */
   const SUBS = { pbase: 'Track job work issued to karigars and manage receipts' };
@@ -421,6 +458,8 @@ function showTab(which) {
   /* Nothing left up there on most screens — so there is no row. The ones that put their own line or
    * their own button there keep it. */
   topbarSync();
+  /* On a phone: the tab bar lights this screen, and the header carries its name (core/mobile.js). */
+  if (typeof mobSync === 'function') mobSync(which);
   /* The screen's name where a name belongs when it is not on the page: the browser tab. */
   try { document.title = ($('pageTitle').textContent || '') + ($('pageTitle').textContent ? ' · ' : '') + 'Ridhi Home & Living'; } catch (e) { /* nothing depends on it */ }
   /* There is no drawer to close any more: the menu is the bar across the top, on every width. */

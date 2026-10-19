@@ -14,14 +14,40 @@ function shpStockOf(o, sku) {
   } catch (e) { /* not known */ }
   return { fba, india };
 }
+/* THE PENDING SHEET DECIDES THE OLD ORDERS (Ravi, 17 Oct: "production bucket me bahut sare order aise h jo ki hamari side se
+ * bhej diye but fir bhi production bucket me h … production bucket me cpc shopify ke ye hi order chahiye or aage se production
+ * bucket me sirf … new order aay jo real production se required h"). Shopify still calls many old orders unfulfilled although
+ * they went out. Per store, from the team's pending sheet: an order up to the sheet's last number reaches the bucket only if
+ * the sheet lists it; every order after it comes in as before (make / stock-covered, the usual judgement). A name that is not
+ * a number is judged by the sheet's list, else by its date against the sheet's. A store with no sheet is not touched.
+ * Ridhi's sheet is still to come (Ravi will send it). */
+const SHP_BUCKET_SHEETS = {
+  /* 17 Oct, Ravi: "jo sheet di wo actual production required h … whole sheet production me open karna h, production bucket me
+   * jo entry h unko hatana h and abhi se jo actual me production se required rahega wo hi production bucket me aana chahiye".
+   * The sheet is opened whole with "Open from pending sheet" (bucket-excel.js); the bucket keeps no old CPC order at all. */
+  CPC: { file: 'SHEET NEW ALL PENDING ORDERS WORK 2 (1).xlsx', upto: 7887, at: '2026-10-16T09:46:08', keep: '' },
+};
+const SHP_SHEET_SETS = {};
+/** Whether an order may reach the Production bucket, by its store's pending sheet. */
+function shpSheetAllows(o) {
+  const st = soStoreOf(o), r = SHP_BUCKET_SHEETS[st]; if (!r) return true;
+  const keep = SHP_SHEET_SETS[st] || (SHP_SHEET_SETS[st] = new Set(r.keep.split(/\s+/).filter(Boolean)));
+  const name = String((o && o.no) || '').replace(/[^A-Za-z0-9]+/g, '').toUpperCase();
+  if (keep.has(name)) return true;
+  if (/^\d+$/.test(name)) return +name > r.upto;
+  return String((o && o.at) || '') > r.at;
+}
 let SHP_BUCKET_IX = { sig: null, list: null };
 function shpBucket() {
   const sig = [SO_ALL_ROWS, (SO_ALL_ROWS || []).length, PTG.ob, (PTG.ob || []).length, SHOP_STOCK_LOADED, SHOP_INDIA_LOADED, SHOP_INDIA_ERR, SO_INDIA_TAKEN, SHOP_META];
   if (SHP_BUCKET_IX.list && SHP_BUCKET_IX.sig.every((x, i) => x === sig[i])) return SHP_BUCKET_IX.list;
-  const list = shpBucketBuild();
-  SHP_BUCKET_IX = { sig, list };
+  const all = shpBucketBuild({ all: true }), list = all.filter(x => x.sheetOk && !x.allOnly);
+  SHP_BUCKET_IX = { sig, list, all };
   return list;
 }
+/** Every line that could be opened, whatever the store's pending sheet says — for a deliberate open of one order (its own
+ * dialog) or of a whole pending sheet. The bucket on screen is shpBucket(). */
+function shpBucketAll() { shpBucket(); return SHP_BUCKET_IX.all || []; }
 const SHOP_STOCK_DENIED_TXT = 'This account is not allowed to read the Amazon stock, so nothing can be judged — ask an admin to tick "Shopify" for it in Sellora → Access.';
 /** The "needs production" half only, from the orders already routed to production — cheap enough for every draw. */
 function shpBucketMake() {
@@ -29,27 +55,30 @@ function shpBucketMake() {
   const opened = new Set((PTG.ob || []).filter(x => x && x.shopOrderId).map(x => String(x.shopOrderId) + '|' + obUC(x.sku)));
   const out = [];
   (SO_ALL_ROWS || []).forEach(o => {
-    if (!o || !o.id || o.cancelled || o.shipped || !(o.handled || soIsPending(o))) return;
+    if (!o || !o.id || o.cancelled || o.shipped || !(o.handled || soIsPending(o)) || !shpSheetAllows(o)) return;
     shpNeeds(o, undefined, { evenHandled: true }).forEach(w => { if (!opened.has(String(o.id) + '|' + w.sku)) out.push({ id: String(o.id), sku: w.sku, kind: 'make' }); });
   });
   return out;
 }
-function shpBucketBuild() {
-  const out = [];
+function shpBucketBuild(opts) {
+  const out = [], all = !!(opts && opts.all);
   if (!SHOP_STOCK_LOADED || !SHOP_INDIA_LOADED || SHOP_INDIA_ERR) return out;
   const opened = new Set((PTG.ob || []).filter(x => x && x.shopOrderId).map(x => String(x.shopOrderId) + '|' + obUC(x.sku)));
   (SO_ALL_ROWS || []).forEach(o => {
     if (!o || !o.id || o.cancelled || o.shipped) return;
+    const sheetOk = shpSheetAllows(o);
+    if (!sheetOk && !all) return;
     const id = String(o.id), isOpen = sku => opened.has(id + '|' + sku);
     const mine = new Set();
     const noted = o.handled ? ' · the order is marked done (' + (o.handledWhy || 'a note says so') + ') — check it is not already made before opening' : '';
     shpNeeds(o, undefined, { evenHandled: true }).forEach(w => {
       mine.add(w.sku);
-      if (!isOpen(w.sku)) out.push(Object.assign({ o, id, key: id + '|' + w.sku, sku: w.sku, qty: w.qty, pcs: w.pcs, shopQty: w.shopQty, kind: 'make',
+      if (!isOpen(w.sku)) out.push(Object.assign({ o, id, sheetOk, key: id + '|' + w.sku, sku: w.sku, qty: w.qty, pcs: w.pcs, shopQty: w.shopQty, kind: 'make',
         why: (w.why || []).join(' + ') + noted, noted: !!noted, name: w.name || '', img: w.img || '', adj: w.adjId || '' }, shpStockOf(o, w.sku)));
     });
     /* A marked-done order's stock-covered lines are the shipping team's business, not production's. */
-    if (o.handled) return;
+    /* (A pending sheet may still open them: in the full list only, never on the bucket's screen.) */
+    if (o.handled && !all) return;
     (o.items || []).forEach(i => {
       if (shpLineShipped(i)) return;
       const sku = obUC(i && i.sku);
@@ -60,8 +89,8 @@ function shpBucketBuild() {
       if (!(qty > 0)) return;
       const fit = soPackFit(sku), split = !!(fit && fit.ok);
       mine.add(sku);
-      out.push(Object.assign({ o, id, key: id + '|' + sku, sku, qty, pcs: split ? qty * fit.pack : qty * obPcsPerPack(sku), shopQty: split ? Math.round(qty / fit.factor) : qty,
-        kind: 'covered', from: st.v, why: st.label + ' — ' + st.why, name: String(i.name || '') + (i.variant ? ' · ' + i.variant : ''), img: i.img || i.image || '' }, shpStockOf(o, sku)));
+      out.push(Object.assign({ o, id, sheetOk, key: id + '|' + sku, sku, qty, pcs: split ? qty * fit.pack : qty * obPcsPerPack(sku), shopQty: split ? Math.round(qty / fit.factor) : qty,
+        kind: 'covered', from: st.v, why: st.label + ' — ' + st.why, allOnly: !!o.handled, name: String(i.name || '') + (i.variant ? ' · ' + i.variant : ''), img: i.img || i.image || '' }, shpStockOf(o, sku)));
     });
   });
   return out.sort((a, b) => String(a.o.at || '').localeCompare(String(b.o.at || '')) || a.key.localeCompare(b.key));
@@ -73,7 +102,7 @@ function shpBucketBuild() {
  */
 async function shpBucketRun(keys, reason) {
   if (!SHOP_STOCK_LOADED || !SHOP_INDIA_LOADED || SHOP_INDIA_ERR) return 'Stock has not been read yet — press Fetch orders, then open the bucket again.';
-  const by = new Map(shpBucket().map(x => [x.key, x]));
+  const by = new Map(shpBucketAll().map(x => [x.key, x]));   // the order's dialog and a pending sheet may open past the bucket's rule
   const picks = [...new Set(keys || [])].map(k => by.get(k)).filter(Boolean);
   if (!picks.length) return 'Tick at least one line.';
   /* One reason for all (the dialog), or one per line (the Excel): Map key → reason. */
@@ -132,7 +161,7 @@ let SHP_BUCKET_LAST = null;
  */
 function soProdBucketOf(o) {
   const stockOk = SHOP_STOCK_LOADED && SHOP_INDIA_LOADED && !SHOP_INDIA_ERR;
-  return stockOk ? shpBucket().filter(b => b.id === String(o && o.id)) : null;
+  return stockOk ? shpBucketAll().filter(b => b.id === String(o && o.id)) : null;   // a deliberate open of this one order
 }
 /** The line's bucket entry or open production row, by the Shopify code or the Amazon one. */
 function soProdLineOf(o, i, mine) {

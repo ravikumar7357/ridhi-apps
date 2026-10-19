@@ -363,22 +363,10 @@ async function replMasterLoad() {
   REPL_MDB_BUSY = true;
   try { REPL_MDB = ptList(await ptGet('pt_masterDB')).map(mdbYnFix); } catch (e) { REPL_MDB = []; }
   REPL_MDB_BUSY = false;
-  if (REPL_MDB.length) { try { renderRepl(); } catch (e) { /* not on that tab */ } }
+  if (REPL_MDB.length) { try { replMasterSync(); renderRepl(); } catch (e) { /* not on that tab */ } }
 }
-function replFillFromMaster() {
-  const src = replMaster();
-  if (!src || !src.length) return 0;
-  const by = new Map(src.filter(Boolean).map(m => [String(m.sku || '').trim().toUpperCase(), m]));
-  let n = 0;
-  ['SP', 'CPC'].forEach(b => ((REPL[b] && REPL[b].rows) || []).forEach(r => {
-    const m = r && by.get(String(r.sku || '').trim().toUpperCase()); if (!m) return;
-    const blank = v => !String(v == null ? '' : v).trim();
-    if (blank(r.color) && m.color) { r.color = m.color; r.fromMaster = true; n++; }
-    if (blank(r.size) && m.size) { r.size = m.size; r.fromMaster = true; n++; }
-    if (blank(r.subcat) && (m.subtype || m.articleType)) { r.subcat = m.subtype || m.articleType; r.fromMaster = true; n++; }
-  }));
-  return n;
-}
+/* Since 18 Oct the master no longer only fills blanks: it IS the product detail (replenishment.js replMasterSync). */
+function replFillFromMaster() { return replMasterSync() ? 1 : 0; }
 /* NOT DRAWN WHILE NOBODY IS LOOKING (Ravi, 2026-09-27: "Page Unresponsive" moving from Replenishment to Shopify
  * Orders). Six background loads — India stock (cache, then live), the master, the US-listing set, production notes —
  * each ended by redrawing this 4,700-SKU table whether or not it was on screen, and each changed the rows signature,

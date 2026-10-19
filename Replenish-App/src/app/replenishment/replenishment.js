@@ -40,7 +40,7 @@ async function loadReplCache(wantFull) {
    * bhi nahi") — the table then drew a snapshot with no image, status or warehouse figures. */
   if (REPL_LOADING) { try { await REPL_LOADING.p; } catch (e) { /* the full read below stands on its own */ } }
   if (REPL_MODE === 'full') return;
-  const p = loadReplCacheRun(full).then(() => { REPL_MODE = full ? 'full' : 'slim'; }).finally(() => { if (REPL_LOADING && REPL_LOADING.p === p) REPL_LOADING = null; });
+  const p = loadReplCacheRun(full).then(() => { REPL_MODE = full ? 'full' : 'slim'; try { replMasterSync(); } catch (e) { /* the snapshot's details stay */ } }).finally(() => { if (REPL_LOADING && REPL_LOADING.p === p) REPL_LOADING = null; });
   REPL_LOADING = { full, p };
   return p;
 }
@@ -77,6 +77,41 @@ async function loadReplCacheRun(full) {
       }
     }
   }));
+}
+/* PRODUCT DETAILS FROM THE MASTER DATABASE (Ravi, 18 Oct: "replenish me product detail picture sab master data base se aana
+ * chahiye"). The snapshot carries what the Amazon reports said — RPC72-2020 showed RPC212's Parent ASIN and an old colour.
+ * Every Replenishment screen now shows the master row's picture, ASIN, Parent ASIN, colour, size and subtype; a field the
+ * master leaves blank keeps the snapshot's. The snapshot itself is never changed or saved back: the rows on screen are
+ * copies (X.rowsSnap holds what was read), made again whenever the master or the snapshot changes. */
+/* The master as revenue-target.js reads it for this tab (replMaster(): the gates' copy, else REPL_MDB read once). */
+let REPL_MDB_IX = { src: null, map: null };
+const replMasterRow = sku => {
+  const k = obUC(sku);
+  if (PTG.mdb && PTG.mdb.length) return mdbOf(k);
+  const src = typeof REPL_MDB !== 'undefined' ? REPL_MDB : null; if (!src || !src.length) return null;
+  if (REPL_MDB_IX.src !== src) { const m = new Map(); src.forEach(r => { if (r && r.sku) { const kk = obUC(r.sku); if (!m.has(kk)) m.set(kk, r); } }); REPL_MDB_IX = { src, map: m }; }
+  return REPL_MDB_IX.map.get(k);
+};
+function replMasterSync() {
+  let changed = false;
+  const sig = [PTG.mdb, (PTG.mdb || []).length, typeof REPL_MDB !== 'undefined' ? REPL_MDB : null, typeof MDBIMG !== 'undefined' ? MDBIMG.map : null, typeof PTIMG !== 'undefined' ? PTIMG.map : null];
+  const pick = (a, b) => (String(a == null ? '' : a).trim() || b || '');
+  const fix = X => {
+    if (!X || !Array.isArray(X.rows) || !X.rows.length) return;
+    const src = X.rowsSnap && X.rowsMaster === X.rows ? X.rowsSnap : X.rows;
+    if (X.rowsMaster === X.rows && X.mdbSig && X.mdbSig.every((v, i) => v === sig[i])) return;
+    const out = src.map(r => {
+      const m = r && r.sku ? replMasterRow(r.sku) : null;
+      if (!m) return r;
+      let img = String(m.imageUrl || '').trim();
+      if (!img && typeof ptImgOf === 'function') { try { img = ptImgOf(r.sku) || ''; } catch (e) { img = ''; } }
+      return Object.assign({}, r, { asin: pick(m.asin, r.asin), parent: pick(m.parentAsin, r.parent), color: pick(m.color, r.color),
+        size: pick(m.size, r.size), subcat: pick(m.subtype, r.subcat), image: img || r.image || '' });
+    });
+    X.rowsSnap = src; X.rows = out; X.rowsMaster = out; X.mdbSig = sig; changed = true;
+  };
+  ['SP', 'CPC'].forEach(b => { fix(REPL[b]); if (typeof REPL_SHOP !== 'undefined') fix(REPL_SHOP[b]); });
+  return changed;
 }
 async function saveReplCache(brand, rows, recCols, catalogSkus) {
   const chunks = Math.ceil(rows.length / REPL_CHUNK) || 1;
@@ -168,6 +203,7 @@ async function loadReplShopStock() {
 let RS = { brand: '', q: '', sort: 'fulfillable', dir: -1, cap: 300 };
 function renderReplShop() {
   const pane = $('paneRepl'); if (!pane) return;
+  try { replMasterSync(); } catch (e) { /* the snapshot's details stay */ }
   let box = $('rShopView');
   if (!box) {
     box = document.createElement('div'); box.id = 'rShopView';

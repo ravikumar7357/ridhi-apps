@@ -137,8 +137,8 @@ async function soQtyBulkRun(plan) {
 $('sxExport').onclick = () => {
   const rows = SOX.shown || []; if (!rows.length) return;
   const w = soWork();
-  const lines = [['Order', 'Date', 'Channel', 'Buyer', 'Status', 'SKU', 'Lines merged', 'Qty', 'Cut', 'Made', 'Owed', 'Delivery', 'Priority', 'In order book'].map(csvCell).join(',')];
-  rows.forEach(({ o }) => soSkus(o, w).forEach(g => lines.push([o._id, o.orderDate, o.channel, o.buyerName, soStatus(o),
+  const lines = [['Order', 'Date', 'Sale month', 'Channel', 'Buyer', 'Status', 'SKU', 'Lines merged', 'Qty', 'Cut', 'Made', 'Owed', 'Delivery', 'Priority', 'In order book'].map(csvCell).join(',')];
+  rows.forEach(({ o }) => soSkus(o, w).forEach(g => lines.push([o._id, o.orderDate, o.saleMonth || '', o.channel, o.buyerName, soStatus(o),
     g.sku, g.lines, g.qty, g.cut, g.press, Math.max(0, g.qty - g.press), g.delivery, g.priority,
     g.inBook ? 'yes' : 'no'].map(csvCell).join(','))));
   ptDownload('sales-orders', lines);

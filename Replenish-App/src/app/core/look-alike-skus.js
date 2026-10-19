@@ -468,10 +468,36 @@ function cutFabPlan() {
  * Fill the used box and say what the figures mean. Cheap: it runs on every keystroke in the pieces
  * box, so it must not rebuild the form.
  */
+/**
+ * THE FABRIC PICKS ITSELF (Ravi, 16 Oct: "cutting entry kiya but isne auto fabric konsa lag raha h wo detect nhi kiya").
+ * The line's PPC plan says which fabric, else the master row's cloth (the one "Worked out" names). Matched to the list
+ * without minding case; a fabric the list lacks is added, so the entry still carries it. A fabric somebody picked by hand
+ * is left alone — only an empty box, or one this filled in itself, is set.
+ */
+function cutAutoFabric(f) {
+  const sel = $('cwFabric'); if (!sel || !sel.options) return;
+  const sku = ($('cwSku').value || '').trim(), orderNo = ($('cwOrd').value || '').trim();
+  let want = '';
+  try {
+    if (orderNo && sku && typeof FLOW !== 'undefined' && FLOW && FLOW.ppc && typeof flowKey === 'function') {
+      const p = FLOW.ppc[flowKey(orderNo, sku)]; want = String((p && p.fabric && p.fabric.name) || '').trim();
+    }
+  } catch (e) { want = ''; }
+  if (!want && f && f.plan) want = String(f.plan.fabric || '').trim();
+  if (!want && sku) { const m = cutSkuOf(sku); want = String((m && m.fabric) || '').trim(); }
+  const auto = sel.dataset.auto || '';
+  if (sel.value && sel.value !== auto) return;   // picked by hand
+  if (!want) { if (sel.value && sel.value === auto) { sel.value = ''; sel.dataset.auto = ''; } return; }
+  let opt = [...sel.options].find(o => o.value.toLowerCase() === want.toLowerCase());
+  if (!opt) { opt = document.createElement('option'); opt.value = want; opt.textContent = want; sel.appendChild(opt); }
+  sel.value = opt.value; sel.dataset.auto = opt.value;
+}
+
 function renderCutFab() {
   const el = $('cwFab');
   if (!el) return;
   const f = cutFabPlan();
+  try { cutAutoFabric(f); } catch (e) { /* the box stays as it is; the fabric can still be picked */ }
   if (!f) { el.classList.add('hide'); el.textContent = ''; return; }
   el.classList.remove('hide');
   if (f.why) {

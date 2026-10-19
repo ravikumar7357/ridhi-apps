@@ -57,7 +57,9 @@ const SHP_DONE_TXT = why => ({ fulfilled: 'Fulfilled by shipping team', cancelle
 /** Shopify's word on a line production still has open: it changes nothing, so it says what to do. */
 const SHP_SAYS_TXT = why => ({ fulfilled: 'Shopify: shipped — not handed over by production', cancelled: 'Shopify: cancelled — production to decide',
   refunded: 'Shopify: refunded — production to decide', 'marked done': 'Shopify note says DONE / READY — not handed over' })[why] || '';
-function ordStatePill(r) {
+/* A line PPC sent back to the sales team says so first (flow/flow-back.js). */
+function ordStatePill(r) { return (typeof flowBackPill === 'function' && r.open ? flowBackPill(r) : '') + ordStatePill0(r); }
+function ordStatePill0(r) {
   const canC = typeof ordCanClose === 'function' && ordCanClose() && ordIsMto(r.orderNo);
   const key = esc(r.orderNo + '|' + r.sku);
   if (r.open && r.shopSays && SHP_SAYS_TXT(r.shopSays)) return '<span class="jw-st pend" title="Still open: only a hand-over to shipping closes it">' + esc(SHP_SAYS_TXT(r.shopSays)) + '</span> '

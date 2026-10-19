@@ -1143,8 +1143,9 @@ function shpOldestOpen() {
 }
 
 async function ensureShop_() {
-  /* THE NOTES BEFORE THE DATES. The window below reaches back to the oldest order still owing a replacement, and
-   * those are found in the notes — worked out before they were read, the first open of a session never saw them. */
+  soDirectSync();
+  /* THE NOTES FIRST, on their own: the old unfinished orders asked for by id (soOldOpen) are found in them, so the
+   * Shopify call below needs them. The bins and the stock do not, and are read while Shopify is asked. */
   if (!Object.keys(SHOP_META).length) await loadShopMeta();
   if (!$('soFrom').value) {
     // The upper end is TOMORROW, not today. "Today" here is the marketplace's PT date, while the
@@ -1152,19 +1153,18 @@ async function ensureShop_() {
     // already be tomorrow by PT. Reaching a day further costs one page of orders and stops the
     // newest ones, which are the only ones anybody is waiting on, from falling off the end.
     $('soTo').value = sdShift(sdToday(), 1);
-    /* AND THE LOWER END REACHES THE OLDEST UNFINISHED ORDER.
+    /* THE LAST FORTNIGHT, AND THE OLD UNFINISHED ORDERS BY ID (2026-10-15, PLAN.md phase 0).
      *
-     * It used to be a flat thirty days, on the reasoning that older orders have shipped. They have —
-     * and that is exactly why their production rows needed judging, which only happens inside this
-     * window. Six hundred of them sat open because the one thing that would have closed them was
-     * never asked to look.
+     * The lower end used to reach back to the oldest unfinished order (shpOldestOpen), because those
+     * orders' production rows are judged only when the orders are fetched. It did its job — and it
+     * dragged ten weeks and 4,600 orders in on every open for the sake of a few dozen old ones.
      *
-     * So the window is not a guess any more: it starts where the unfinished work starts, and it
-     * shrinks by itself as that work closes. */
-    $('soFrom').value = shpOldestOpen() || sdShift(sdToday(), -30);
+     * Those few are now asked for one by one (soOldOpen → ?ids=), so they are still judged, and the
+     * dates stay short. Widen the dates by hand to see older shipped orders. */
+    $('soFrom').value = sdShift(sdToday(), -SO_COPY.windowDays);
   }
-  /* THE BINS AND THE STOCK ARE READ WHILE SHOPIFY IS ASKED, not before it. Shopify is the long wait and needs only
-   * the dates; the fetched orders are drawn, and the sync asked, once these two are in as well. */
+  /* THE BINS AND THE STOCK ARE READ WHILE SHOPIFY IS ASKED, not before it. Shopify is the long wait; the fetched
+   * orders are drawn, and the sync asked, once these two are in as well. */
   const side = Promise.all([
     Object.keys(SHOP_SKU).length ? null : loadShopSku(),
     Object.keys(SHOP_STOCK).length ? null : loadShopStock(),
@@ -1184,48 +1184,98 @@ async function ensureShop_() {
   loadShopImported().then(() => renderShop()).catch(() => {});
   // Re-fetched on the way back in, not only the first time. This is a queue of what has to ship
   // today: showing what Shopify said twenty minutes ago is the same as showing nothing.
-  /* What was fetched a few minutes ago stays on screen while the new list is asked for — a blank tab for those
-   * seconds told nobody anything. The sync still waits for the fresh orders: it is run only after a fetch. */
   if (!SHOP.orders.length || Date.now() - SHOP_FETCHED_AT > SHOP_STALE_MS) {
+    /* COPY MODE: this device's copy on screen at once, what changed since asked for behind it. */
+    if (soCopyMode() === 'copy' && !SHOP.orders.length) {
+      const want = soWant();
+      let shown = false;
+      try { await side.catch(() => {}); shown = await soCopyOpen(want); } catch (e) { shown = false; }
+      if (shown) {
+        soMsg('Showing this device\'s copy — asking Shopify what has changed…');
+        renderShop();
+        soCopyRefresh(want);
+        return;
+      }
+    }
+    /* What was fetched a few minutes ago stays on screen while the new list is asked for — a blank tab for those
+     * seconds told nobody anything. The sync still waits for the fresh orders: it is run only after a fetch. */
     if (SHOP.orders.length) renderShop();
-    await fetchShopOrders(side);
+    await fetchShopOrders({ ready: side });
   } else { await side; renderShop(); }
 }
 
-/* ready: what has to be in before the fetched orders are drawn (the bins and the stock, read alongside). */
-async function fetchShopOrders(ready) {
+/** The window the toolbar asks for. */
+const soWant = () => ({ start: $('soFrom').value, end: $('soTo').value, open: $('soOpen').value });
+
+/* "LOAD FROM SHOPIFY DIRECTLY" — ticked is today's way (and shadow, which looks the same). Unticked uses the copy. */
+function soDirectSync() {
+  const el = $('soDirect');
+  if (el) el.checked = soCopyMode() !== 'copy';
+}
+if ($('soDirect')) {
+  $('soDirect').addEventListener('change', () => {
+    soCopySetMode($('soDirect').checked ? 'direct' : 'copy');
+    /* Back to today's way means nothing stays on this device. */
+    if ($('soDirect').checked) soCopyWipe();
+    SHOP.copy = null;
+    SHOP_FETCHED_AT = 0;
+    fetchShopOrders();
+  });
+}
+
+async function fetchShopOrders(opts) {
+  /* COPY MODE: the button asks what CHANGED, not everything again (soCopyRefresh fills the full way by itself when
+   * the dates have moved outside what the copy holds). { live: true } is the fall-back to today's way. */
+  const live = !!(opts && opts.live === true);
+  /* ready: what has to be in before the fetched orders are drawn (the bins and the stock, read alongside). */
+  const ready = opts && opts.ready;
+  if (!live && soCopyMode() === 'copy' && SHOP.copy) {
+    if (ready) await ready.catch(() => {});
+    soMsg('Asking Shopify what has changed…'); await soCopyRefresh(soWant(), { now: true }); return;
+  }
   const btn = $('soGo');
   btn.disabled = true; btn.innerHTML = '<span class="spin"></span>…';
+  let fetched = false;
   try {
     soMsg('Asking Shopify…');
-    const win = { start: $('soFrom').value, end: $('soTo').value, open: $('soOpen').value };
+    const win = soWant(), liveAt = Date.now();
+    /* The old unfinished orders, by id — see ensureShop_. Asked of both stores; each answers for its own. An old
+     * line with no Shopify id can only be found by date, so for that one the dates stretch back as they used to. */
+    const old = soOldOpen(win.start);
+    const ask = Object.assign({}, win, old.reach && old.reach < win.start ? { start: old.reach } : {});
     /* Two stores, asked at the same time. CPC's own failure must not cost us Ridhi's orders — this
      * screen is the shipping queue, and half of it is worth much more than none of it. */
     /* NINETY SECONDS, then it says so. Apps Script that never answers left "Asking Shopify…" on screen for good. */
     const lim = { timeoutMs: 90000 };
     const [r, cpc] = await Promise.all([
-      prGet({ shopify: 'orders', ...win }, lim),
-      prGet({ shopify: 'orders', shop: 'CPC', ...win }, lim).catch(e => ({ _err: e.message || String(e) })),
+      soAskStore('SP', ask, old.ids, lim),
+      soAskStore('CPC', ask, old.ids, lim).catch(e => ({ orders: [], err: e.message || String(e) })),
     ]);
-    const mine = (r.orders || []).map(o => Object.assign(o, { shopBrand: 'SP', channel: o.channel || 'Shopify' }));
-    const theirs = (cpc.orders || []).map(o => Object.assign(o, { shopBrand: 'CPC', channel: 'CPC Shopify' }));
-    SHOP = { orders: mine.concat(theirs), from: r.from, to: r.to, tz: r.tz || '', at: soStamp(),
-      cpcErr: cpc._err || '' };
+    SHOP = { orders: r.orders.concat(cpc.orders || []), from: r.from, to: r.to, tz: r.tz || '', at: soStamp(),
+      cpcErr: cpc.err || '' };
+    const cpcErr = cpc.err;
+    fetched = true;
+    /* Shadow and copy mode keep this as the device's copy (shadow compares first). Not awaited, never in the way. */
+    soCopyAfterFetch({ SP: r, CPC: cpc }, ask, liveAt)
+      .then(() => { if (soCopyMode() === 'copy') { SHOP.copy = { from: 'live', at: Date.now(), syncedAt: Date.now() }; soCopyAgeShow(); } }).catch(() => {});
     // Stamped only on SUCCESS. A failed call that marked itself fresh would sit there for two
     // minutes showing nothing and claiming to be up to date.
     SHOP_FETCHED_AT = Date.now();
     soMsg([
       r.more || cpc.more ? `${SHOP.orders.length} orders — Shopify had more than one page could hold; narrow the dates to see the rest.` : '',
-      cpc._err ? `CPC's orders could not be read: ${cpc._err}` : '',
-    ].filter(Boolean).join(' · '), !!cpc._err);
+      cpcErr ? `CPC's orders could not be read: ${cpcErr}` : '',
+    ].filter(Boolean).join(' · '), !!cpcErr);
   } catch (e) {
     soMsg('Could not reach Shopify: ' + (e.message || e), true);
   }
   btn.disabled = false; btn.textContent = 'Fetch orders';
   if (ready) await ready.catch(() => {});
   renderShop();
+  /* PHOTOS AFTER THE ORDERS (phase 0): the list is on screen first; the pictures fill in a moment later. The
+   * production sync waits for them, because it copies each line's photo onto its production row. */
+  if (fetched) soPhotosLoad().catch(() => {}).then(() => { renderShop(); shpSyncSoon(); });
   // And after a fetch, which is the other moment. It does nothing until both stock maps are read.
-  shpSyncSoon();
+  else shpSyncSoon();
 }
 
 let SO_ALL_ROWS = [];      // every order mapped, before any filter — see the note below
@@ -1616,6 +1666,8 @@ function renderShop() {
    * the drawing waits. Opening the tab draws it (ensureShop). */
   const pane = $('paneShop');
   if (pane && pane.classList && pane.classList.contains('hide')) { try { soRows(); } catch (e) { /* drawn on the way in */ } return; }
+  /* The returns team (returns-team.js): its three tools, never the orders table. */
+  if (typeof SHOP_RET_ONLY === 'function' && SHOP_RET_ONLY()) { renderShopRet(); return; }
   const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
   const money = v => '$' + Math.round(v || 0).toLocaleString('en-US');
   const rows = soRows();
@@ -1729,6 +1781,9 @@ function renderShop() {
   const arrow = k => (SHOP_SORT.k === k ? (SHOP_SORT.dir > 0 ? ' ↑' : ' ↓') : '');
   /* ONE PAGE OR EVERY COLUMN (Ravi, 2026-09-26: "this window looks very long — isko only 1 page par set karo").
    * The tight table is the default; the wide one is a click away and remembered per browser. */
+  /* ON A PHONE, A CARD PER ORDER (core/mobile.js, 2026-10-16). Same rows, same filters, same tick and same tap-to-open. */
+  if ($('soTable')) $('soTable').classList.toggle('so-cards', (typeof mobOn === 'function' && mobOn()));
+  if ((typeof mobOn === 'function' && mobOn())) { soCards(rows, money, esc); soWireTable(); return; }
   const dense = soDense();
   if ($('soTable')) $('soTable').classList.toggle('xl-dense', dense);
   if ($('soDense')) $('soDense').textContent = dense ? 'Full columns' : 'One page';
@@ -1819,6 +1874,46 @@ function renderShop() {
     + more + '</tbody>';
   if ($('soMore')) $('soMore').onclick = e => { e.stopPropagation(); SO_DENSE_CAP += SO_CAP_STEP; renderShop(); };
   soWireTable();
+}
+
+/**
+ * Shopify Orders on a phone: one card per order instead of a 19-column row.
+ *
+ * What a packer needs to decide on, at a glance: the order, the day, who and where, how many pieces and how much, the
+ * shelf bins, where it ships from (the same words and colours as the table's Ship from), what Shopify says, and the
+ * items. Everything else is one tap away inside the order, exactly as on a computer. Each card is a <tr data-so> with
+ * the same .soPick tick, so soWireTable wires it as it wires the table.
+ */
+function soCards(rows, money, esc) {
+  const drawn = rows.slice(0, SO_DENSE_CAP);
+  const route = r => r.route === 'Need from production' ? '<span class="st st-rejected">' + esc(r.route) + '</span>'
+    : r.route === 'Ship from India' ? '<span class="st st-pending">' + esc(r.route) + '</span>'
+    : '<span class="st st-draft">' + esc(r.route) + '</span>';
+  const body = drawn.map(r => '<tr data-so="' + esc(r.id) + '"><td class="so-mc'
+    + (r.cancelled ? ' so-cancel' : '') + (r.chargeback ? ' so-cb' : '') + '">'
+    + '<input type="checkbox" class="soPick" data-id="' + esc(r.id) + '"' + (SO_PICKED.has(r.id) ? ' checked' : '') + ' aria-label="Tick order ' + esc(r.no) + '">'
+    + '<span class="so-mc-no">' + esc(r.no)
+      + (r.shopNote ? ' <span title="Shopify note: ' + esc(r.shopNote) + '" style="color:#854d0e">&#9998;</span>' : '') + '</span>'
+    + '<span class="so-mc-at">' + esc(r.at) + '</span>'
+    + '<span class="so-mc-who">' + esc(r.ship.name || '') + (r.ship.city || r.ship.state || r.ship.country
+        ? ' · ' + esc([r.ship.city, r.ship.state, r.ship.country].filter(Boolean).join(', ')) : '')
+      + (r.channel !== 'Shopify' ? ' · <span class="st st-draft">' + esc(r.channel) + '</span>' : '') + '</span>'
+    + '<span class="so-mc-figs"><span><b>' + r.units + '</b> pcs</span><span><b>' + money(r.total) + '</b></span>'
+      + (r.locTxt ? '<span>Bin <b>' + esc(r.locTxt) + '</b></span>' : '')
+      + (r.makeQty ? '<span class="st st-pending">' + r.makeQty + ' to make</span>' : '') + '</span>'
+    + '<span class="so-mc-tags">' + soProdChip(r) + route(r)
+      + (r.cancelled ? '<span class="st st-rejected">Cancelled</span>' : '')
+      + (r.chargeback ? '<span class="st st-rejected">Chargeback</span>' : '')
+      + (r.mcfDone ? '<span class="st st-approved">Done</span>' : '')
+      + soFfTag(r.ff)
+      + (r.status ? '<span class="muted" style="font-size:12px">' + esc(r.status) + '</span>' : '') + '</span>'
+    + '<span class="so-mc-items">' + esc(r.items.map(i => `${i.sku || i.name} × ${i.qty}`).join(' · ')) + '</span>'
+    + '</td></tr>').join('');
+  const more = rows.length > drawn.length
+    ? '<tr><td><button type="button" class="ghost so-mc-more" id="soMore">Show ' + nf(Math.min(SO_CAP_STEP, rows.length - drawn.length))
+      + ' more · ' + nf(drawn.length) + ' of ' + nf(rows.length) + ' shown</button></td></tr>' : '';
+  $('soTable').innerHTML = '<tbody>' + (body || '<tr><td class="muted" style="padding:14px">Nothing matches that filter.</td></tr>') + more + '</tbody>';
+  if ($('soMore')) $('soMore').onclick = e => { e.stopPropagation(); SO_DENSE_CAP += SO_CAP_STEP; renderShop(); };
 }
 
 /** Sort headings, a click on an order opens it, the ticks — for whichever table is on screen. */

@@ -549,7 +549,9 @@ function shpPlanOrder(o, full, assigned, opts) {
       /* THE PHOTO THE ORDER WAS PLACED AGAINST — the variant's where Shopify has one. The master
        * database's picture is a different photo of a different listing, and on a SKU nobody has
        * catalogued yet there is none at all. */
-      shopImg: String(g.img || ''),
+      /* The photo is asked for after the orders (2026-10-15): a sync that runs before it lands, or a photo call that
+       * failed, keeps the photo the row already has rather than blanking it and rewriting the row. */
+      shopImg: String(g.img || (was && was.shopImg) || ''),
       uploadedBy: ME.email, uploadedAt: was ? (was.uploadedAt || now) : now,
     };
     /* WHO OPENED IT, AND WHETHER THE STOCK SAID NOT TO (2026-09-26). */

@@ -30,7 +30,8 @@ $('resetLink').onclick = async () => {
   }
   $('resetLink').disabled = false;
 };
-$('logoutBtn').onclick = () => signOut(auth);
+/* Sign out wipes this device's copy of the Shopify orders first (shopify/shopify-copy.js) — customer details included. */
+$('logoutBtn').onclick = async () => { try { await soCopyWipe(); } catch (e) { /* nothing kept */ } signOut(auth); };
 
 let AUTH_SEEN = false;
 onAuthStateChanged(auth, async user => {
@@ -166,6 +167,11 @@ onAuthStateChanged(auth, async user => {
     ['book', 'bookdone'].forEach(k => { const o = $('odView') && $('odView').querySelector('option[value="' + k + '"]'); if (o) o.remove(); });
     if ($('odView')) $('odView').value = 'shopsku';
   }
+  /* THE SHOPIFY RETURNS TEAM (15 Oct): its one screen is Shopify Orders in the narrow form (returns-team.js). */
+  if (typeof SHOP_RET_ONLY === 'function' && SHOP_RET_ONLY()) {
+    const b = $('tabShop');
+    if (b) { b.style.display = ''; const t = b.querySelector && b.querySelector('.nav-t'); (t || b).textContent = 'Returns & delivery'; }
+  }
   syncNavGroups();
   /* The sidebar is now telling the truth, so it can be seen. The data loads below take their own
    * time behind it. */
@@ -188,7 +194,7 @@ onAuthStateChanged(auth, async user => {
     /* History and Customer Orders are factory screens too; missing here, a login holding History loaded
      * the Replenishment snapshot at sign-in — a vendor's among them. */
     'vlog', 'cx', ...FLOW_TABS,
-    /* The Greige Desk's four rights (test, 2026-10-13) are factory screens too. */
+    /* The Greige Desk's four rights (2026-10-13) are factory screens too. */
     'gdesk', 'gdled', 'gdledit', 'gdappr'];
   const FACTORY_ONLY = ME.tabs.every(t => FACTORY_TABS.includes(t));
 

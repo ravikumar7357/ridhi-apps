@@ -194,13 +194,14 @@ const ctx = { AUDIT_OFF: true, BASE_SPLIT_OFF: true,
 };
 const EXPORT = '\n;return {'
   + 'SHOP:()=>SHOP, setSHOP:v=>{SHOP=v}, SHOP_META:()=>SHOP_META, setMETA:v=>{SHOP_META=v},'
+  + 'SHOP_RET_ONLY, renderShopRet, srtStockRows, SRT:()=>SRT,'
   + 'soShipFrom, soWord, srAll, srSave, srSetStatus, srLineRoom, srReturnedQty, srRender, SR:()=>SR, setSR:v=>{SR=v}, zipState, zoneOf, milesBetween, daysEstimate, zipLL, ZONE_DAYS, indiaDaysEstimate, addBizDays, inBandOf,'
   + 'SHOP_STOCK:()=>SHOP_STOCK, setSTOCK:v=>{SHOP_STOCK=v; SHOP_STOCK_BY={SP:{},CPC:{}}}, setSTOCKCASE:v=>{SHOP_STOCK_CASE=v; SHOP_STOCK_CASE_BY={SP:{},CPC:{}}},'
   + 'SHOP_SKU:()=>SHOP_SKU, setSKU:v=>{SHOP_SKU=v}, setINDIA:v=>{SHOP_INDIA=v; SHOP_INDIA_LOADED=true},'
   + 'loadShopStock, loadShopIndia, soGuessBrand, soMcf, soAmzKey, soAmzCase, soLive, soSendQty, soMcfPlan, soBestBrand, soMcfHas, mcfErr, openShopOrder,'
   + 'apiPost, soMcfPayload, renderShop, soRows, SO_ALL_ROWS:()=>SO_ALL_ROWS, ensureShop, soStamp, sdToday, sdShift, soStoreDay,'
   + 'renderAdj, ajRows, soAdjId, soPackOf, soIndiaOf, soLineState, soFlags,'
-  + 'shpSyncAll, shpSyncOrder, shpSyncMsg, shpPlanOrder, shpNeeds, shpLineShipped, shpOldestOpen, shpUnseen, shpCloseShipped, SHP_REACH_MAX_DAYS, shpOrderNo, shpOrderOf, shpWorkDone, adjOpen, shpBucket, shpBucketRun, shpDoneWhy, soProdStatus, soProdChip, shpBucketSheetRows, shpBucketXlRead, SHB_XL_COLS,'
+  + 'shpSyncAll, shpSyncOrder, shpSyncMsg, shpPlanOrder, shpNeeds, shpLineShipped, shpOldestOpen, shpUnseen, shpCloseShipped, SHP_REACH_MAX_DAYS, shpOrderNo, shpOrderOf, shpWorkDone, adjOpen, shpBucket, shpBucketAll, shpSheetMatch, shpBucketRun, shpDoneWhy, soProdStatus, soProdChip, shpBucketSheetRows, shpBucketXlRead, SHB_XL_COLS,'
   + 'setStockLoaded:v=>{SHOP_STOCK_LOADED=v},'
   + 'setIndia:(d,l,e)=>{SHOP_INDIA=d;SHOP_INDIA_LOADED=l;SHOP_INDIA_ERR=e}'
   + ', setCustom:v=>{SHP_CUSTOM=v}'
@@ -1754,6 +1755,45 @@ console.log('\n== THE PRODUCTION BUCKET (Ravi, 2026-09-26) ==');
   ok('…each line says what FBA and India hold for it', cov && cov.india === 5 && need && (need.fba === null || need.fba === 0), JSON.stringify(cov && { f: cov.fba, i: cov.india }));
   /* Ravi, 2026-09-27: "jo order FBA se fulfill kar rahe uska filter". */
   ok('a stock-covered line says which stock can fill it', cov && cov.from === 'india', JSON.stringify(cov && cov.from));
+  /* Ravi, 17 Oct: CPC's old orders reach the bucket only if the pending sheet lists them; new ones come in as before. */
+  {
+    const cpcO = (id, no, at) => mk(id, no, [['RCNBMIX', 1]], { shopBrand: 'CPC', at });
+    A.setSHOP({ orders: [cpcO('s1', '#6169', '2026-08-21'), cpcO('s2', '#6170', '2026-08-21'), cpcO('s3', '#7900', '2026-10-17'),
+      mk('s4', '#6170', [['RCNBMIX', 1]], { at: '2026-08-21' }), cpcO('s5', '#X7JZ3NFBBP', '2026-09-01'), cpcO('s6', '#DRAFTNEW', '2026-10-17T10:00:00')], from: '', to: '', tz: '', at: 'x' });
+    A.renderShop();
+    const ids = new Set(A.shpBucket().map(x => x.id)), allIds = new Set(A.shpBucketAll().map(x => x.id));
+    ok('bucket: no old CPC order at all — #6169 (the sheet is opened whole instead) and #6170 are kept out', !ids.has('s1') && !ids.has('s2'), [...ids].join());
+    ok('bucket: CPC #7900 (after the last number on the sheet, #7887) comes in as a new order', ids.has('s3'));
+    ok('bucket: a Ridhi order is not touched (its sheet is still to come)', ids.has('s4'));
+    ok('bucket: a name that is not a number is judged by its date (old out, new in)', !ids.has('s5') && ids.has('s6'));
+    ok('…but the full list (an order\u2019s own dialog, a pending sheet) still has the old ones', allIds.has('s1') && allIds.has('s2') && allIds.has('s5'));
+    /* Open the whole pending sheet (17 Oct): the Shopify export rows, matched by SKU, else by the line's name. */
+    {
+      const H = ['Name', 'Created at', 'Lineitem quantity', 'Lineitem name', 'Lineitem sku', 'Lineitem fulfillment status'];
+      const m = A.shpSheetMatch([H, ['#6169', '2026-08-21 05:14:00 +0530', 1, 'RCNBMIX', 'RCNBMIX', 'pending'],
+        ['#6170', '', 1, 'RCNBMIX', '', 'pending'], ['#6169', '', 1, 'RCNBMIX', 'RCNBMIX', 'pending'],
+        ['#5555', 46000.5, 1, 'Something', 'CPC1-1', 'pending'], ['#6170', '', 1, 'Gone', 'X', 'fulfilled'], ['ETSY', '', 1, 'Quilt', '', '']], 'CPC');
+      const st = m.lines.map(l => l.st).join(',');
+      ok('pending sheet (store CPC): each row placed — open by SKU, open by name, repeat, not fetched, fulfilled, Etsy apart',
+        m.store === 'CPC' && st === 'open,open,dup,nofetch,gone,other', st + ' ' + m.store);
+      const g = A.shpSheetMatch([H, ['#1', '', 1, 'a', 'CPC1-1', ''], ['#2', '', 1, 'b', 'CPCN2', ''], ['#3', '', 1, 'c', 'RTC3', '']], '');
+      ok('pending sheet: with no store picked, the SKUs say it (mostly CPC… → CPC)', g.store === 'CPC', g.store);
+      ok('pending sheet: a row on an order not fetched says from which date to fetch (an Excel day number read as a date, one day earlier for the time zones)', m.from === '2025-12-08', m.from);
+      /* A line Shopify sent with no SKU: the sheet's own SKU is taken — if the master knows it. */
+      A.setSHOP({ orders: [mk('t1', '#6200', [['', 1]], { shopBrand: 'CPC', at: '2026-08-30' })].map(o => Object.assign(o, { items: [{ sku: '', name: 'Zqx Mystery Cloth', variant: 'Odd', qty: 1, ffl: 'unfulfilled', rq: 0 }] })), from: '', to: '', tz: '', at: 'x' });
+      A.renderShop();
+      const wasMdb = PTG.mdb; PTG.mdb = [{ sku: 'CPC777-04' }];
+      const t = A.shpSheetMatch([H, ['#6200', '', 1, 'Zqx Mystery Cloth - Odd', 'CPC777-04', 'pending'], ['#6200', '', 1, 'Zqx Mystery Cloth - Odd', 'CPC999-99', 'pending'], ['#6200', '', 1, 'Zqx Mystery Cloth - Odd', '', 'pending']], 'CPC');
+      PTG.mdb = wasMdb;
+      ok('pending sheet: no SKU on Shopify — the sheet’s SKU is taken (master knows it), refused if the master does not, asked for if blank',
+        t.lines.map(l => l.st).join(',') === 'type,badsku,nosku', t.lines.map(l => l.st + ':' + l.why).join(' | '));
+      A.setSHOP({ orders: [cpcO('s1', '#6169', '2026-08-21'), cpcO('s2', '#6170', '2026-08-21')], from: '', to: '', tz: '', at: 'x' });
+      A.renderShop();
+      ok('pending sheet: the open rows carry the bucket key, old order or not', m.lines[0].key === 's1|RCNBMIX' && m.lines[1].key === 's2|RCNBMIX');
+    }
+    A.setSHOP({ orders: [mk('b1', '#5001', [['RCNBMIX', 2], ['RCNBRED', 1]])], from: '', to: '', tz: '', at: 'x' });
+    A.renderShop();
+  }
   {
     const src = require('fs').readFileSync(APP, 'utf8');
     ok('the bucket offers "FBA can fill" / "India can fill" on the stock-covered tab', /<select id="shbFrom"[^>]*><option value="">FBA or India<\/option><option value="fba">FBA can fill \(MCF\)<\/option><option value="india">India can fill<\/option>/.test(src)
@@ -1971,6 +2011,26 @@ await (async () => {
   ok('India → New York, picked up Monday: 3–4 days, landing Thu–Fri, both services', !r.err && r.dhl.days.join('-') === '3-4' && r.dhl.from === '2026-10-01' && r.dhl.to === '2026-10-02' && r.fedex.to === '2026-10-02', JSON.stringify(r));
   ok('a zip nobody can place is said, not guessed', /not one I can place/.test((await A.indiaDaysEstimate('00000', '2026-09-28')).err || ''));
 })();
+console.log('\n== the Shopify returns team: returns, delivery days, FBA stock by SKU — nothing else (Ravi, 15 Oct) ==');
+{
+  const wasTabs = ME.tabs, wasAdmin = ME.admin;
+  ME.tabs = ['shopret']; ME.admin = false;
+  ok('an account holding only the returns team right is in the narrow form', A.SHOP_RET_ONLY() === true);
+  ME.tabs = ['shopret', 'shop'];
+  ok('…with Shopify Orders as well, it has the full screen', A.SHOP_RET_ONLY() === false);
+  ME.tabs = ['shopret'];
+  A.setSTOCK({ 'RTC327-6060': 12, 'RTC327-60102': 0, 'RPC1-1818': 4 }); A.setINDIA({}); A.setStockLoaded(true);
+  A.SRT().q = 'RTC327';
+  const pane = $('paneShop'); if (pane.classList && pane.classList.remove) pane.classList.remove('hide');
+  A.renderShop();
+  const h = $('soRetPanel').innerHTML;
+  ok('the screen is the three tools: Returns & replacements, Delivery days, FBA stock by SKU — no orders table',
+    /Returns &amp; replacements/.test(h) && /Delivery days by zip code/.test(h) && /FBA stock by SKU/.test(h) && /data-srt="ret"/.test(h) && /data-srt="days"/.test(h), h.slice(0, 300));
+  ok('FBA stock: "RTC327" finds both RTC327 SKUs with their units, and not RPC1', /RTC327-6060<\/td><td class="num">12/.test(h) && /RTC327-60102/.test(h) && !/RPC1-1818/.test(h), h);
+  const rows = A.srtStockRows('RPC1-1818, RTC327-6060');
+  ok('several SKUs typed → exactly those, each with its figure', rows.length === 2 && rows[0].sku === 'RPC1-1818' && rows[0].sp === 4 && rows[1].sp === 12);
+  ME.tabs = wasTabs; ME.admin = wasAdmin;
+}
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exitCode = fail ? 1 : 0;
 })();

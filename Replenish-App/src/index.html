@@ -1,10 +1,37 @@
+<meta charset="utf-8">
 <title>Ridhi Home &amp; Living</title>
 <!-- The Ridhi Home & Living wordmark on a white square, so the tab is recognisable in a strip of
      twenty. White rather than transparent on purpose: dark lettering cut out of nothing disappears
      on a dark tab strip. Served from this site; nothing is fetched from outside. -->
 <link rel="icon" href="/logo.png">
-<!-- NO VIEWPORT LINE, ON PURPOSE (Ravi, 2026-09-22: "pahle jese tha besa hi kardo"): a phone draws the
-     desktop layout, scaled to fit, as it always had. -->
+<!-- THE PHONE LAYOUT (Ravi, 2026-10-16: "I want it be a app ... responsive and something that is for mobile users").
+     Until then a phone drew the desktop layout, scaled to fit (Ravi, 2026-09-22: "pahle jese tha besa hi kardo"). Now a
+     phone gets its own screen — a bar of tabs at the bottom, orders as cards (core/mobile.js) — and "Desktop view" under
+     More brings the old scaled layout back on that phone, remembered. A computer, a tablet and a wide window never change.
+     The viewport line is written here, by script, only when the phone layout is on: a fixed one would shrink every phone
+     that chose Desktop view. localStorage mobView = 'on' turns it on anywhere (for checking it on a computer). -->
+<script>
+(function () {
+  try {
+    /* OPENED ON A PHONE = THE PHONE LAYOUT, EVERY TIME (Ravi, 16 Oct: "jaise hi mobile se chalu karoon toh voh automatically
+     * mobile ke hisab se hi chale"). A phone is a small touch screen, or a browser that says it is a phone. "Desktop view"
+     * lasts for this visit only (sessionStorage); a phone left on the old remembered "off" is let go of. */
+    var pick = '', off = false;
+    try { pick = localStorage.getItem('mobView') || ''; if (pick === 'off') { localStorage.removeItem('mobView'); pick = ''; } } catch (e) { /* private window: the default */ }
+    try { off = sessionStorage.getItem('mobViewOff') === '1'; } catch (e) { off = false; }
+    var small = Math.min(screen.width, screen.height) <= 600;
+    var touch = (window.matchMedia && window.matchMedia('(pointer:coarse)').matches) || (navigator.maxTouchPoints || 0) > 0;
+    var phone = (small && touch) || /Android.+Mobile|iPhone|iPod|Windows Phone|Mobi/i.test(navigator.userAgent || '');
+    if (pick === 'on' || (phone && !off)) {
+      var m = document.createElement('meta');
+      m.name = 'viewport';
+      m.content = 'width=device-width, initial-scale=1, viewport-fit=cover';
+      document.head.appendChild(m);
+      document.documentElement.classList.add('mob');
+    }
+  } catch (e) { /* the desktop layout, as before */ }
+})();
+</script>
 <meta name="theme-color" content="#F3F5F8">
 <!-- INSTALLABLE: its own icon, full screen, no browser bar. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -80,7 +107,7 @@
       <a id="tabDash" class="nav" href="#dash">Management dashboard</a>
     </div></div>
 
-    <div class="navwrap"><button class="navgrp" id="grpShopify" type="button" data-grp="shopify" data-tabs="shop,adj,shopify">
+    <div class="navwrap"><button class="navgrp" id="grpShopify" type="button" data-grp="shopify" data-tabs="shop,adj,shopify,shopret">
       <span class="caret">&#9656;</span> Shopify</button>
     <div class="navsec" id="secShopify">
       <a id="tabShop" class="nav" href="#shop">Shopify Orders</a>
@@ -112,7 +139,7 @@
         <div class="mg-h">Orders</div>
         <a id="tabSo" class="nav" href="#so"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg></span><span class="nav-t">Sales Orders</span><span class="nav-bd"><span id="soDelBadge" class="navbadge hide" data-what="to delete" title="Deletion requests waiting for an answer"></span></span></a>
         <a id="tabOrd" class="nav" href="#ord"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg></span><span class="nav-t">Order Console</span><span class="nav-bd"><span id="ordAdjBadge" class="navbadge hide" data-what="qty changed" title="Quantities changed on an order that nobody here has said they have seen" style="background:#b45309"></span></span></a>
-        <a id="tabFlow" class="nav" href="#flow" style="display:none"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="10" y="4" width="5" height="11" rx="1"/><rect x="17" y="4" width="4" height="7" rx="1"/></svg></span><span class="nav-t">PPC · Production flow</span><span class="nav-bd"><span class="navbadge" style="background:#7c3aed" data-what="test">TEST</span></span></a>
+        <a id="tabFlow" class="nav" href="#flow" style="display:none"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="10" y="4" width="5" height="11" rx="1"/><rect x="17" y="4" width="4" height="7" rx="1"/></svg></span><span class="nav-t">PPC · Production flow</span></a>
         <a id="tabCx" class="nav" href="#cx"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span><span class="nav-t">Customer Orders</span></a>
       </div>
       <div class="mg-col">
@@ -131,7 +158,7 @@
         <div class="mg-h">Materials</div>
         <a id="tabFab" class="nav" href="#fab"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3v12c0 1.7-3.6 3-8 3s-8-1.3-8-3z"/><path d="M4 6c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg></span><span class="nav-t">Fabric Inventory</span></a>
         <a id="tabAcc" class="nav" href="#acc"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 11-8.5 8.5a5 5 0 0 1-7-7L14 4a3.3 3.3 0 0 1 4.7 4.7L10.2 17a1.7 1.7 0 0 1-2.4-2.4L15.5 7"/></svg></span><span class="nav-t">Accessories</span></a>
-        <a id="tabGdesk" class="nav" href="#gdesk" style="display:none"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h18M3 12h18M3 17h18"/><path d="M7 4v16"/></svg></span><span class="nav-t">Greige Desk</span><span class="nav-bd"><span class="navbadge" style="background:#7c3aed" data-what="test">TEST</span></span></a>
+        <a id="tabGdesk" class="nav" href="#gdesk" style="display:none"><span class="nav-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h18M3 12h18M3 17h18"/><path d="M7 4v16"/></svg></span><span class="nav-t">Greige Desk</span></a>
       </div>
       <div class="mg-col">
         <div class="mg-h">Setup</div>
@@ -635,6 +662,8 @@
             <option value="approved">Approved</option>
           </select>
           <select id="sxChan" style="flex:0 0 175px" title="Which sales channel the order came from"><option value="">All channels</option></select>
+          <select id="sxMode" style="flex:0 0 140px" title="How an Amazon order ships — AIR or SEA (the end of its number)"><option value="">AIR or SEA</option><option value="AIR">AIR</option><option value="SEA">SEA</option></select>
+          <input id="sxSMonth" type="month" style="flex:0 0 160px" title="Sale month — the month the order is meant to sell in">
           <input id="sxQ" placeholder="Search order / buyer / channel / SKU" style="flex:1 1 220px;min-width:0">
           <span class="muted" style="font-size:12.5px;flex:0 0 auto">Ordered</span>
           <input id="sxD1" type="date" style="flex:0 0 150px" title="Order date from">
@@ -649,6 +678,7 @@
           <button id="sxGo">Refresh</button>
         </div>
         <div id="sxMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
+        <div id="sxBack"></div>
         <div id="sxKpis" class="kpis" style="margin-top:10px"></div>
       </div>
       <div class="card xlwrap" style="margin-top:12px"><table class="xl" id="sxTable"></table></div>
@@ -672,6 +702,8 @@
         </div>
         <div class="toolbar" id="vpBar1">
           <select id="vpView" style="flex:0 0 210px" title="One table puts every order's lines together, with nothing to scroll inside. By order gives each one its own card.">
+            <option value="product" selected>By product &mdash; one card per SKU</option>
+            <option value="board">Colour board &mdash; one card per colour</option>
             <option value="lines">Every line &mdash; one table</option>
             <option value="orders">By order &mdash; one card each</option>
           </select>
@@ -1316,17 +1348,38 @@
       <div class="card" style="padding:12px 14px">
         <div id="flBuckets" class="fl-row"></div>
         <div class="toolbar" style="margin-top:10px">
-          <input id="flQ" placeholder="Find a PO, SKU, colour…" style="max-width:260px">
-          <select id="flSrc" style="max-width:170px"></select>
+          <!-- SEARCH + FILTERS (Ravi, 15 Oct: "add a search bar and filter all action"): one search, and every filter in one
+               Filters panel — platform, article, subtype, colour, size, fabric, printer, order age. -->
+          <span class="fl-search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="flQ" type="search" placeholder="Search PO, SKU, colour, fabric, printer…"></span>
+          <details class="fl-filt" id="flFilt">
+            <summary class="fl-filt-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg> Filters <b id="flFiltN" class="fl-filt-n"></b></summary>
+            <div class="fl-filt-pop">
+              <label>Platform<select id="flSrc"></select></label>
+              <label>PO<select id="flFPo"></select></label>
+              <label>Article<select id="flFArt"></select></label>
+              <label>Subtype<select id="flFSub"></select></label>
+              <label>Colour<select id="flFCol"></select></label>
+              <label>Size<select id="flFSize"></select></label>
+              <label>Fabric<select id="flFFab"></select></label>
+              <label>Printer<select id="flFPrn"></select></label>
+              <label>Order age<select id="flFAge"><option value="">Any age</option><option value="3">Over 3 days</option><option value="5">Over 5 days</option><option value="10">Over 10 days</option><option value="20">Over 20 days</option></select></label>
+              <button id="flFClear" type="button" class="ghost">Clear filters</button>
+            </div>
+          </details>
           <button id="flRefresh" class="ghost" style="width:auto">Refresh</button>
-          <button id="flTest" style="width:auto;background:#7c3aed;border-color:#7c3aed">+ Test order</button>
-          <label style="display:inline-flex;gap:6px;align-items:center;font-size:13px;color:#6d28d9;font-weight:600"><input id="flTestOnly" type="checkbox" style="width:auto"> Only test orders</label>
+          <!-- PPC IN EXCEL (Ravi, 17 Oct): the PPC list out, and the plan back in as drafts the form opens with. -->
+          <button id="flXlOut" class="ghost hide" style="width:auto" title="The PPC lines on screen, with what the form would open with">Excel</button>
+          <button id="flXlIn" class="ghost hide" style="width:auto" title="Upload the filled PPC sheet — rows marked Raise = yes open in the form, ready to raise">Import plan</button>
+          <button id="flXlNext" class="hide" style="width:auto"></button>
+          <input id="flXlFile" type="file" accept=".xlsx,.csv" class="hide">
+          <!-- NO TEST ORDERS ANY MORE (Ravi, 16 Oct: "test ab chahiye hi nahi remove test"): the "+ Test order" button and the
+               "Only test orders" switch are gone from the page. -->
         </div>
         <div id="flMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
       </div>
       <div id="flPanel" class="card hide" style="margin-top:12px;padding:10px 14px;overflow-x:auto"></div>
       <div class="card xlwrap jw-table" style="margin-top:12px"><table class="xl" id="flTable"></table></div>
-      <style>.fl-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.fl-b{width:auto;display:flex;flex-direction:column;align-items:center;padding:6px 12px;border:1px solid var(--line);background:var(--card,#fff);color:inherit;border-radius:10px;font-size:12px;line-height:1.25;min-width:84px}.fl-b .fl-n{font-size:18px;font-weight:700}.fl-b.on{background:#4f46e5;color:#fff;border-color:#4f46e5}.fl-arrow{color:#94a3b8;font-size:18px}</style>
+      <style>.fl-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.fl-search{position:relative;display:inline-flex;align-items:center;flex:0 1 340px;min-width:200px}.fl-search svg{position:absolute;left:11px;color:var(--muted,#6b7280);pointer-events:none}.fl-search input{width:100%;padding-left:32px;border-radius:999px}.fl-filt{position:relative}.fl-filt-btn{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;padding:7px 14px;font-size:13px;font-weight:600;border-radius:999px;border:1px solid var(--line,#e5e7eb);background:var(--card,#fff);user-select:none}.fl-filt-btn::-webkit-details-marker{display:none}.fl-filt[open] .fl-filt-btn{background:var(--chip,#eef0f6)}.fl-filt-n:not(:empty){background:#4f46e5;color:#fff;border-radius:999px;padding:0 7px;font-size:11.5px;line-height:18px}.fl-filt-pop{position:absolute;left:0;top:calc(100% + 6px);z-index:60;width:520px;display:grid;grid-template-columns:1fr 1fr;gap:10px 12px;padding:14px;background:var(--card,#fff);border:1px solid var(--line,#e5e7eb);border-radius:12px;box-shadow:0 12px 28px rgba(15,23,42,.14)}.fl-filt-pop label{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:var(--muted,#6b7280)}.fl-filt-pop select{width:100%}.fl-filt-pop #flFClear{grid-column:1 / -1;justify-self:end;width:auto;padding:5px 14px}.fl-b{width:auto;display:flex;flex-direction:column;align-items:center;padding:6px 12px;border:1px solid var(--line);background:var(--card,#fff);color:inherit;border-radius:10px;font-size:12px;line-height:1.25;min-width:84px}.fl-b .fl-n{font-size:18px;font-weight:700}.fl-b.on{background:#4f46e5;color:#fff;border-color:#4f46e5}.fl-arrow{color:#94a3b8;font-size:18px}</style>
     </div>
 
     <!-- ============ QUALITY CONTROL ============ -->
@@ -1515,6 +1568,10 @@
          still writes these records, and two writers with two halves of the validation rules is how
          a second version of the truth gets made. See the PT_URL comment in the script. -->
     <div id="panePmdb" class="hide">
+      <!-- MASTER DATA IN RAVI'S FORMAT (15 Oct): Greige & RFD fabric | All products | Vendors, drawn by masters/fabric-master.js;
+           "Master database" shows the table below exactly as before. -->
+      <nav id="fmNav" class="fm-nav" aria-label="Master data pages"></nav>
+      <div id="fmRoot" class="hide"></div>
       <div class="card" style="padding:12px 14px">
         <div class="toolbar">
           <select id="ptmBrand" style="flex:0 0 130px"><option value="">All brands</option></select>
@@ -1694,6 +1751,7 @@
             <option value="">Cutting entries</option><option value="wait">Cut, not yet issued</option></select>
           <select id="pcUse" style="flex:0 0 170px" title="Has this cutting gone to a karigar? The order's issues fill its cutting oldest first.">
             <option value="">Used or not</option><option value="unused">Unused</option><option value="part">Partly used</option><option value="used">Used</option></select>
+          <select id="pcPlat" style="flex:0 0 160px" title="Which platform the order is for — Amazon, Shopify, Online, B2B — read from the order number"><option value="">All platforms</option></select>
           <select id="pcOrd" style="flex:0 0 190px"><option value="">All orders</option></select>
           <select id="pcArt" style="flex:0 0 150px"><option value="">All articles</option></select>
           <select id="pcSub" style="flex:0 0 180px"><option value="">All subtypes</option></select>
@@ -1774,6 +1832,8 @@
         </div>
         <div id="soKpis" class="so-figs"></div>
       </div>
+      <!-- THE RETURNS TEAM (15 Oct, shopify/returns-team.js): returns & replacements, delivery days, FBA stock by SKU — nothing else. -->
+      <div id="soRetPanel" class="hide"></div>
       <div class="toolbar so-find">
         <input id="soFrom" type="date" style="flex:0 0 150px">
         <span class="muted" style="font-size:13px">to</span>
@@ -1842,6 +1902,12 @@
           </div>
         </details>
         <button id="soGo">Fetch orders</button>
+        <!-- TODAY'S WAY, as shipped: every open asks Shopify. Untick to open from this device's copy and ask Shopify
+             only for what changed (shopify/shopify-copy.js, docs/shopify-fast-orders/PLAN.md). -->
+        <label class="muted" style="flex:0 0 auto;font-size:13px;display:flex;align-items:center;gap:4px"
+               title="Ticked: every open asks Shopify for all the orders, as before. Unticked: the tab opens from the copy kept on this device and asks Shopify only for what changed since. Sign out wipes the copy.">
+          <input type="checkbox" id="soDirect" checked> Load from Shopify directly</label>
+        <span id="soAge" style="flex:0 0 auto;font-size:13px"></span>
         <button id="soAdj" class="hide" type="button" tabindex="-1" aria-hidden="true">Adjustments</button>
         <input id="soBulkFile" type="file" accept=".xlsx,.csv,text/csv" class="hide">
       </div>
@@ -1852,7 +1918,7 @@
       <div id="soToday" style="margin-top:10px;display:flex;gap:22px;flex-wrap:wrap;font-size:13px"></div>
     </div>
 
-    <div class="card" style="padding:0;overflow:auto;max-height:70vh;margin-top:12px">
+    <div id="soTableCard" class="card" style="padding:0;overflow:auto;max-height:70vh;margin-top:12px">
       <table id="soTable" class="xl"></table>
     </div>
   </div><!-- /paneShop -->
@@ -2463,6 +2529,663 @@
 <script>
 <!--@include appv.js-->
 </script>
+<style>
+/* PHONE APP, 17 Oct 2026 (phone-app-release zip): the phone layout styles — Home, the phone lists, tables as cards */
+/* Every other table on a phone, as cards (core/mobile.js mobCardTable, 2026-10-17): one card per row, the first cell as the
+   title, each other value on its own line with its column's name; empty values left out. "Table" above it undoes it. */
+html.mob .mob-tsw{display:flex;justify-content:flex-end;gap:0;margin:10px 0 6px}
+html.mob .mob-tsw button{min-height:34px;padding:0 14px;font-size:12.5px;font-weight:700;background:var(--card);color:var(--muted);
+  border:1px solid var(--line);box-shadow:none;border-radius:0;width:auto}
+html.mob .mob-tsw button:first-child{border-radius:999px 0 0 999px}
+html.mob .mob-tsw button:last-child{border-radius:0 999px 999px 0;border-left:0}
+html.mob .mob-tsw button.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+html.mob .card:has(> table.mob-tcards),html.mob .xlwrap:has(> table.mob-tcards){max-height:none!important;overflow:visible!important;background:none;box-shadow:none;padding:0!important;border:0}
+html.mob table.mob-tcards,html.mob table.mob-tcards tbody,html.mob table.mob-tcards tfoot{display:block;width:100%;min-width:0!important;border:0;background:none}
+html.mob table.mob-tcards thead{display:none}
+html.mob table.mob-tcards tr{display:block;background:var(--card);border-radius:14px;box-shadow:var(--sh-1);padding:6px 12px;margin:0 0 8px;position:relative}
+html.mob table.mob-tcards tfoot tr{background:var(--brand-bg)}
+html.mob table.mob-tcards td,html.mob table.mob-tcards th{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:6px 0!important;
+  border:0;border-bottom:1px solid var(--line);text-align:right!important;white-space:normal!important;max-width:none!important;width:auto!important;
+  position:static!important;background:none!important;font-size:13.5px;min-height:0;overflow:visible!important;text-overflow:clip!important}
+html.mob table.mob-tcards td:last-child,html.mob table.mob-tcards th:last-child{border-bottom:0}
+html.mob table.mob-tcards td::before,html.mob table.mob-tcards th::before{content:attr(data-th);flex:none;max-width:46%;text-align:left;
+  color:var(--muted);font-size:12px;font-weight:600}
+html.mob table.mob-tcards td[data-th=""]::before{display:none}
+html.mob table.mob-tcards td[data-th=""]{justify-content:flex-end}
+/* the title line: the key of the row, larger, no label */
+html.mob table.mob-tcards td.mob-tt{justify-content:flex-start;text-align:left!important;font-size:15.5px;font-weight:800;padding-top:8px!important}
+html.mob table.mob-tcards td.mob-tt::before{display:none}
+html.mob table.mob-tcards td.mob-empty{display:none}
+/* a tick box goes to the card's corner instead of a line of its own */
+html.mob table.mob-tcards td.mob-tick{position:absolute!important;top:6px;right:8px;border:0;padding:4px!important}
+html.mob table.mob-tcards td.mob-tick::before{display:none}
+html.mob table.mob-tcards td.mob-tick input{width:22px;height:22px}
+html.mob table.mob-tcards tr:has(> td.mob-tick) td.mob-tt{padding-right:36px!important}
+/* values that are buttons or boxes keep a thumb-sized height */
+html.mob table.mob-tcards td button{min-height:36px}
+html.mob table.mob-tcards td img{max-width:64px;height:auto}
+/* a row that is only a message ("Nothing matches", "Show more") */
+html.mob table.mob-tcards tr.mob-tmsg{background:none;box-shadow:none;padding:4px 0}
+html.mob table.mob-tcards tr.mob-tmsg>td{border:0;justify-content:center;text-align:center!important}
+html.mob table.mob-tcards tr.mob-tmsg>td::before{display:none}
+/* The phone lists and Home (core/mobile.js, 2026-10-17): the site's own surfaces, type and colours, laid out the way phone
+   apps lay out records — one slim line each, chips to narrow, a tap for everything about it. */
+html.mob .mob-listed>:not(.mob-list):not(#bwCard){display:none!important}
+html.mob .mob-list-off{margin-bottom:10px}
+html.mob .mob-list{display:flex;flex-direction:column;gap:8px;padding-bottom:6px}
+html.mob .ml-search{display:flex;align-items:center;gap:8px;background:var(--card);border-radius:14px;padding:0 12px;box-shadow:var(--sh-1);color:var(--faint)}
+html.mob .ml-search input{border:0!important;box-shadow:none!important;background:transparent;padding:11px 0;min-height:0;flex:1;min-width:0;width:auto}
+html.mob .ml-chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:0 -10px;padding:0 10px}
+html.mob .ml-chips::-webkit-scrollbar{display:none}
+html.mob .ml-chip{flex:none;min-height:34px;padding:0 13px;border-radius:999px;background:var(--card);color:var(--muted);border:0;box-shadow:var(--sh-1);
+  font-size:13px;font-weight:600;width:auto;transform:none}
+html.mob .ml-chip b{color:var(--ink);font-weight:800;margin-left:2px}
+html.mob .ml-chip.on{background:var(--brand);color:#fff}
+html.mob .ml-chip.on b{color:#fff}
+html.mob .ml-sum{font-size:12px;color:var(--muted);padding:0 4px}
+html.mob .ml-group{background:var(--card);border-radius:18px;box-shadow:var(--sh-1);overflow:hidden}
+html.mob .ml-row{display:flex;align-items:center;gap:11px;width:100%;min-height:60px;padding:10px 14px;margin:0;border:0;border-top:1px solid var(--line);
+  border-radius:0;background:var(--card);color:var(--ink);box-shadow:none;text-align:left;font-weight:400;transform:none;cursor:pointer}
+html.mob .ml-group>.ml-row:first-child{border-top:0}
+html.mob .ml-row:active{background:var(--hover)}
+html.mob .ml-dot{width:9px;height:9px;border-radius:50%;flex:none}
+html.mob .ml-m{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+html.mob .ml-m b{font-size:14.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html.mob .ml-m small{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html.mob .ml-soft{color:var(--faint);font-weight:500}
+html.mob .ml-r{flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:3px;text-align:right}
+html.mob .ml-r>b{font-size:17px;font-weight:800;font-variant-numeric:tabular-nums}
+html.mob .ml-r small{font-size:11.5px;color:var(--muted);white-space:nowrap}
+html.mob .ml-chev{flex:none;color:var(--faint);font-size:22px;line-height:1}
+html.mob .ml-pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:11.5px;font-weight:700;white-space:nowrap}
+html.mob .ml-ok{background:var(--accent-bg);color:var(--accent)}
+html.mob .ml-air{background:#E7EBFC;color:#3D47B8}
+html.mob .ml-sea{background:#E4F1FC;color:#2B7FD4}
+html.mob .ml-mute{background:var(--chip);color:var(--muted)}
+html.mob .ml-sends{display:flex;gap:4px;flex-wrap:wrap;margin-top:3px}
+html.mob .ml-bad{color:var(--bad)!important;font-style:normal}
+html.mob .ml-warn{color:var(--warn-ink)!important;font-style:normal}
+html.mob .ml-okt{color:var(--accent)!important}
+html.mob .ml-av{width:38px;height:38px;border-radius:50%;flex:none;background:var(--brand-bg);color:var(--brand-ink);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800}
+html.mob .ml-img{width:44px;height:44px;border-radius:10px;flex:none;object-fit:cover;background:var(--soft)}
+html.mob .ml-act{display:inline-flex;align-items:center;min-height:38px;padding:0 16px;border-radius:12px;background:var(--brand);color:#fff;font-size:13.5px;font-weight:700}
+html.mob .ml-primary,html.mob .ml-more,html.mob .ml-full,html.mob .ml-fullback{width:100%;min-height:46px;margin:0;border-radius:14px;font-weight:700;transform:none}
+html.mob .ml-primary{background:var(--brand);color:#fff;box-shadow:var(--sh-1)}
+html.mob .ml-more{background:var(--card);color:var(--brand-ink);box-shadow:var(--sh-1)}
+html.mob .ml-full,html.mob .ml-fullback{background:transparent;color:var(--muted);box-shadow:none;border:1px dashed var(--line);font-weight:600;font-size:13px}
+html.mob .ml-empty{padding:22px 14px;text-align:center;color:var(--muted);font-size:13.5px}
+html.mob .ml-allgood{background:var(--accent-bg);color:var(--accent);border-radius:18px;padding:16px;text-align:center;font-weight:700}
+/* Home */
+html.mob #paneMobHome .mob-list{padding-top:4px}
+html.mob .ml-hello{display:flex;flex-direction:column;gap:2px;padding:4px 4px 6px}
+html.mob .ml-hello b{font-family:var(--serif);font-weight:400;font-size:24px;letter-spacing:-.01em}
+html.mob .ml-hello small{color:var(--muted);font-size:13px}
+html.mob .ml-sec{font-size:11.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);padding:10px 4px 2px}
+/* the detail sheet (Replenishment) */
+html.mob .ml-shsub{display:block;font-size:12.5px;color:var(--muted);font-weight:400}
+html.mob .ml-big{display:block;width:100%;max-height:220px;object-fit:contain;background:var(--soft);border-radius:14px;margin:4px 0 10px}
+html.mob .ml-figs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:6px}
+html.mob .ml-figs div{background:var(--soft);border-radius:12px;padding:9px 10px}
+html.mob .ml-figs small{display:block;font-size:11.5px;color:var(--muted)}
+html.mob .ml-figs b{font-size:18px;font-weight:800}
+html.mob .ml-kv{display:flex;justify-content:space-between;gap:12px;padding:10px 2px;border-bottom:1px solid var(--line);font-size:14px}
+html.mob .ml-kv span{color:var(--muted)}
+html.mob #mobDetailModal .ml-sec{padding-top:14px}
+html.mob .ml-m small.ml-wrap{white-space:normal}
+html.mob .ml-row .ml-act{min-height:36px;padding:0 13px}
+/* Every other screen, shrunk to fit and zoomable (core/mobile.js mobFitSync, 2026-10-17): the computer layout at --mobw,
+   scaled by --mobz; it scrolls sideways once zoomed past the phone's width. */
+html.mob .main>.mob-fit{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -10px;padding:0 10px 8px}
+html.mob .main>.mob-fit>:not(.mob-list):not(.mob-tsw){width:var(--mobw,1100px)!important;max-width:none!important;zoom:var(--mobz,.32)}
+html.mob .main>.mob-fit .mob-tsw{display:none!important}
+html.mob .main>.mob-fit .xlwrap{max-height:none!important;overflow:visible!important}
+html.mob #mobZoomBar{position:fixed;right:12px;bottom:calc(76px + env(safe-area-inset-bottom));z-index:890;display:flex;align-items:center;
+  background:var(--card);border-radius:999px;box-shadow:var(--sh-2);padding:3px}
+html.mob #mobZoomBar button{min-height:40px;min-width:44px;padding:0 10px;margin:0;border:0;border-radius:999px;background:transparent;color:var(--brand-ink);
+  font-size:20px;font-weight:700;box-shadow:none;width:auto;transform:none}
+/* Table view: − + Cards. Cards: one button, Table view (only on a screen with no Cards | Table switch of its own). */
+html.mob #mobZoomBar .mz-v{font-size:13px;min-width:0;padding:0 14px;background:var(--brand);color:#fff}
+html.mob #mobZoomBar:not(.mz-table) [data-mz-view="cards"]{display:none}
+html.mob #mobZoomBar.mz-table [data-mz-view="table"],html.mob #mobZoomBar.mz-list [data-mz-view="cards"]{display:none}
+html.mob #mobZoomBar.mz-table [data-mz-view="cards"]{background:var(--brand-bg);color:var(--brand-ink);margin-left:2px}
+html:not(.mob) #mobZoomBar{display:none}
+html.mob .main>.mob-fit>.mob-list{position:sticky;left:0;width:calc(100vw - 20px)}
+/* pinch and double-tap zoom in Table view (mobile.js): the table takes two-finger gestures, the page keeps its own scrolling */
+html.mob .main>.mob-fit{touch-action:pan-x pan-y}
+html.mob .mob-hint{position:fixed;left:50%;bottom:calc(132px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:960;background:rgba(20,24,31,.86);color:#fff;
+  font-size:13px;font-weight:600;padding:9px 14px;border-radius:999px;white-space:nowrap;pointer-events:none;animation:mobhint 3.5s forwards}
+@keyframes mobhint{0%,80%{opacity:1}100%{opacity:0}}
+/* Home search, one-tap actions, floating +, pull to refresh, offline line, alerts (core/mobile.js, 2026-10-17) */
+html.mob .ml-bigsearch{padding:0 6px 0 14px;min-height:50px;box-shadow:var(--sh-2)}
+html.mob .ml-bigsearch input{font-size:16px!important}
+html.mob .ml-scanbtn{flex:none;width:40px;height:40px;min-height:0;padding:0;margin:0;border-radius:12px;background:var(--brand-bg);color:var(--brand-ink);
+  box-shadow:none;display:flex;align-items:center;justify-content:center;transform:none}
+html.mob .ml-acts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+html.mob .ml-actbtn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;min-height:78px;margin:0;padding:8px 4px;
+  border-radius:16px;background:var(--card);color:var(--brand-ink);box-shadow:var(--sh-1);font-size:12px;font-weight:700;text-align:center;line-height:1.2;transform:none;width:auto}
+html.mob .ml-actbtn svg{width:24px;height:24px}
+html.mob .ml-actbtn:active{background:var(--brand-bg)}
+html.mob #mobFab{position:fixed;right:14px;bottom:calc(78px + env(safe-area-inset-bottom));z-index:880;display:flex;align-items:center;gap:6px;
+  min-height:52px;padding:0 18px 0 14px;margin:0;border-radius:999px;background:var(--brand);color:#fff;font-size:14.5px;font-weight:700;
+  box-shadow:0 8px 22px rgba(74,106,146,.38);width:auto;transform:none}
+html.mob #mobFab svg{width:22px;height:22px}
+html:not(.mob) #mobFab{display:none}
+html.mob #mobZoomBar{right:auto;left:12px}
+html.mob .mob-list{padding-bottom:70px}
+html.mob #mobPull{position:fixed;left:50%;top:calc(58px + env(safe-area-inset-top));z-index:870;transform:translate(-50%,0);background:var(--card);color:var(--brand-ink);
+  font-size:12.5px;font-weight:700;padding:7px 14px;border-radius:999px;box-shadow:var(--sh-2);opacity:0;pointer-events:none;transition:opacity .15s}
+html.mob #mobPull.on{opacity:1}
+html:not(.mob) #mobPull{display:none}
+html.mob .ml-row[data-ml-jw]{transition:transform .12s;position:relative}
+html.mob .ml-row.ml-swiping{background:var(--accent-bg)}
+html.mob #mobNet{flex-basis:100%;font-size:12px;font-weight:700;color:var(--warn-ink);background:var(--warn-bg);border-radius:8px;padding:4px 10px;margin-top:6px}
+html.mob #mobHead{flex-wrap:wrap}
+html.mob .mob-tab{position:relative}
+html.mob .mob-badge{position:absolute;top:2px;left:calc(50% + 6px);min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--bad);color:#fff;
+  font-style:normal;font-size:10.5px;font-weight:800;line-height:18px;text-align:center}
+html.mob .mob-toast{position:fixed;left:12px;right:12px;top:calc(62px + env(safe-area-inset-top));z-index:9998;background:var(--ink);color:#fff;font-size:13.5px;font-weight:600;
+  padding:12px 14px;border-radius:14px;box-shadow:var(--sh-3);animation:mobtoast 5s forwards}
+@keyframes mobtoast{0%{transform:translateY(-20px);opacity:0}6%,88%{transform:none;opacity:1}100%{opacity:0}}
+/* An opened detail inside a card table (a fabric's products, a lot's movements): the inner table is cards of its own,
+   set in a little from the card above it; the running number (#) is not shown. (17 Oct) */
+html.mob table.mob-tcards tr.mob-tnest{background:none;box-shadow:none;padding:0 0 0 12px;margin-top:-4px;border-left:3px solid var(--brand-bg);border-radius:0}
+html.mob table.mob-tcards tr.mob-tnest>td{display:block;padding:0!important;border:0}
+html.mob table.mob-tcards tr.mob-tnest>td::before{display:none}
+html.mob table.mob-tcards td.mob-sn{display:none}
+html.mob table.mob-tcards td .fm-tog{display:flex;align-items:center;gap:6px;width:100%;text-align:left;min-height:40px}
+
+/* Master Database, fabric view on a phone: the filters two to a row, the sizes and SKU codes wrap and stay tappable */
+html.mob .fm-wrapx:has(> table.mob-tcards){overflow:visible!important;max-height:none!important}
+html.mob .fm-fbar{display:grid!important;grid-template-columns:1fr 1fr;gap:8px}
+html.mob .fm-fbar .fm-fsel{min-width:0}
+html.mob .fm-fbar select{width:100%;min-height:42px}
+html.mob .fm-tools,html.mob .fm-title,html.mob .fm-hbtns{flex-wrap:wrap;gap:8px}
+html.mob .fm-search{flex:1 1 100%;min-height:44px}
+html.mob .fm-seg{overflow-x:auto;flex-wrap:nowrap;max-width:100%;scrollbar-width:none}
+html.mob .fm-sizes,html.mob .fm-skl{display:flex!important;flex-wrap:wrap!important;gap:6px;justify-content:flex-end;max-width:none!important;white-space:normal!important}
+html.mob .fm-sizes span{padding:4px 9px;border-radius:999px;background:var(--chip)}
+html.mob .fm-skl button,html.mob .fm-skc{min-height:34px;padding:0 10px}
+html.mob .fm-ed{min-height:36px}
+/* Master Database table view: the toolbar's buttons two to a row, the search on its own line */
+html.mob #panePmdb .toolbar>button{flex:1 1 calc(50% - 8px)!important;min-height:42px}
+html.mob #ptmQ{flex:1 1 100%!important}
+
+/* Reports on a phone: every row of figures one tile wide, the charts one under another, the editable boxes full size */
+html.mob #repKpis [style*="repeat(4,minmax(0,1fr))"]{grid-template-columns:1fr!important}
+html.mob #repKpis .kpi{padding:12px}
+html.mob #repKpis label{flex-wrap:wrap}
+html.mob #repKpis input[data-rephead]{min-height:40px}
+html.mob .repcharts{grid-template-columns:1fr!important}
+html.mob .repchart svg{width:100%;height:auto}
+html.mob #paneRep .toolbar>button{flex:1 1 calc(50% - 8px)!important;min-height:42px}
+html.mob table.mob-tcards td.mob-tt{display:block!important}
+html.mob table.mob-tcards td.mob-tt .muted{display:block;font-size:12.5px;font-weight:500;margin-top:2px}
+
+/* ---- THE PHONE'S BACK AND THE APP FEEL (core/mobile.js, 17 Oct) ----
+   The header's ← (one step back, as the phone's Back), a screen that slides in, a press that answers under the finger,
+   no grey flash on a tap, no browser pull-to-reload fighting the app's own, no double-tap zoom on buttons. */
+html.mob #mobHead .mob-back{flex:none;width:38px;height:38px;min-height:0;padding:0;margin:0 2px 0 -6px;border-radius:12px;background:none;color:var(--brand-ink);
+  box-shadow:none;display:flex;align-items:center;justify-content:center;transform:none}
+html.mob #mobHead .mob-back.hide{display:none}
+html.mob #mobHead .mob-back:active{background:var(--brand-bg)}
+html.mob #mobHead.mob-hasback .mob-brand{display:none}
+html:not(.mob) .mob-back{display:none}
+html.mob,html.mob body{overscroll-behavior-y:none}
+html.mob{-webkit-tap-highlight-color:transparent}
+html.mob button,html.mob a,html.mob select,html.mob label,html.mob [data-mob],html.mob .ml-row{touch-action:manipulation}
+html.mob #mobBar,html.mob #mobHead,html.mob .ml-chip,html.mob .ml-actbtn,html.mob #mobFab,html.mob .mob-tsw{-webkit-user-select:none;user-select:none}
+html.mob .main>.mob-in{animation:mobin .2s ease-out}
+@keyframes mobin{from{opacity:.4;transform:translateY(10px)}to{opacity:1;transform:none}}
+html.mob .mob-sheet:not(.hide) .mob-sheet-in{animation:mobsheet .22s cubic-bezier(.2,.8,.3,1)}
+@keyframes mobsheet{from{transform:translateY(40px);opacity:.6}to{transform:none;opacity:1}}
+html.mob .ml-row,html.mob .ml-chip,html.mob .ml-actbtn,html.mob #mobFab,html.mob .mob-tab,html.mob .ml-primary,html.mob .ml-more,
+html.mob table.mob-tcards tr:not(.mob-tnest):not(.mob-tmsg){transition:transform .08s ease,background-color .12s}
+html.mob .ml-row:active,html.mob .ml-actbtn:active,html.mob .ml-primary:active,html.mob .ml-more:active,html.mob #mobFab:active{transform:scale(.97)}
+html.mob .ml-chip:active,html.mob .mob-tab:active{transform:scale(.93)}
+html.mob table.mob-tcards tr:not(.mob-tnest):not(.mob-tmsg):active{transform:scale(.99)}
+@media (prefers-reduced-motion:reduce){html.mob .main>.mob-in,html.mob .mob-sheet:not(.hide) .mob-sheet-in{animation:none}}
+
+/* Master Database fabric cards: the eight details are small tiles two to a row, not eight lines. An empty detail
+   (an admin's "add") shows only when the fabric is opened. App fabric and the count take the full width. */
+html.mob table.mob-tcards tr.fm-main{display:grid;grid-template-columns:1fr 1fr;column-gap:6px;row-gap:6px;padding:8px 10px 10px}
+html.mob table.mob-tcards tr.fm-main>td{grid-column:1/-1;border-bottom:0}
+html.mob table.mob-tcards tr.fm-main>td.fm-fc:not(.fm-small){grid-column:auto;display:block;min-width:0;padding:5px 8px!important;border-radius:9px;background:var(--chip);
+  font-size:13px;font-weight:700;text-align:left!important;line-height:1.3;overflow-wrap:anywhere}
+html.mob table.mob-tcards tr.fm-main>td.fm-fc:not(.fm-small)::before{display:block;max-width:none;font-size:10.5px;font-weight:600;color:var(--muted);margin:0 0 1px;letter-spacing:0}
+html.mob table.mob-tcards tr.fm-main:not(.open)>td.fm-fc:has(.fm-add){display:none}
+html.mob table.mob-tcards tr.fm-main>td.fm-fc .fm-add{color:var(--brand);font-weight:600}
+html.mob table.mob-tcards tr.fm-main>td.fm-name{padding:2px 0!important}
+html.mob table.mob-tcards tr.fm-main>td.fm-cnt{justify-content:flex-start;gap:8px;padding:2px 2px 0!important;font-size:12.5px;color:var(--muted)}
+html.mob table.mob-tcards tr.fm-main>td.fm-cnt::before{display:none}
+html.mob table.mob-tcards tr.fm-main>td.fm-small{padding:4px 2px!important}
+/* the sizes: chips that look tappable (a tap opens that size's SKUs) */
+html.mob .fm-sizes span{display:inline-flex;align-items:center;min-height:32px;padding:0 11px;border-radius:999px;background:var(--brand-bg);color:var(--brand-ink);
+  font-weight:700;cursor:pointer;-webkit-user-select:none;user-select:none;transition:transform .08s}
+html.mob .fm-sizes span:active{transform:scale(.93);background:var(--brand);color:#fff}
+html.mob .mob-szchips{display:flex;gap:6px;overflow-x:auto;padding:2px 2px 10px;scrollbar-width:none}
+html.mob .mob-szchips .ml-chip{flex:none}
+html.mob #mobHead.mob-hasback{align-items:center}
+/* Master Database filters folded behind one button on a phone (mobFmFilters) */
+html.mob .fm-fbar.mob-fmf-shut{display:none!important}
+html:not(.mob) .mob-fmf{display:none}
+html.mob .mob-fmf{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;margin:8px 0;padding:0 14px;border-radius:12px;background:var(--chip);color:var(--brand-ink);font-weight:700;box-shadow:none;transform:none}
+html.mob .mob-fmf span:first-of-type{flex:1;text-align:left}
+html.mob .mob-fmf.on{background:var(--brand-bg)}
+html.mob .mob-fmf svg{width:18px;height:18px}
+/* Packing list window on a phone: the two long explanation notes (how weights are worked out, what the per-SKU table is) are
+   left out; every box and button stays. (Ravi, 17 Oct) */
+html.mob #pkEditModal .modalbox>.muted{display:none}
+/* Error sweep, 17 Oct: every button a thumb can hit — the window close ×, Expand / Collapse all and Open Greige Desk on the
+   Master Database, the SKU buttons on Finished Goods; inputs in a window's cards take the card's width */
+html.mob #ptDlgClose{min-width:42px;min-height:42px;font-size:22px}
+html.mob .fm-sm{min-height:38px;padding:0 12px}
+html.mob #paneFgi button.ghost{min-height:34px}
+html.mob table.mob-tcards td input:not([type=checkbox]):not([type=radio]),html.mob table.mob-tcards td select{max-width:62%;min-height:38px}
+/* Packing list window, box cards: L W H side by side, then net, gross and volume weight side by side */
+html.mob #pkEdBoxes.mob-tcards tbody tr:not(.mob-tmsg){display:grid;grid-template-columns:repeat(3,1fr);column-gap:8px}
+html.mob #pkEdBoxes.mob-tcards tbody tr>td{grid-column:1/-1}
+html.mob #pkEdBoxes.mob-tcards tbody tr>td:is([data-th="L"],[data-th="W"],[data-th="H"],[data-th="Net"],[data-th="Gross"],[data-th="Vol wt"]){grid-column:auto;display:block;border-bottom:0;text-align:left!important}
+html.mob #pkEdBoxes.mob-tcards tbody tr>td:is([data-th="L"],[data-th="W"],[data-th="H"],[data-th="Net"],[data-th="Gross"],[data-th="Vol wt"])::before{display:block;max-width:none;font-size:11px;margin-bottom:2px}
+html.mob #pkEdBoxes.mob-tcards tbody tr>td:is([data-th="L"],[data-th="W"],[data-th="H"],[data-th="Gross"]) input{width:100%!important;max-width:none}
+/* ---- CONTENT FIRST on Orders and Stock (mobToolsSync, 17 Oct) ----
+   Orders: store switch and figures in one strip, then search, Filters, Bucket, More tools, Fetch orders.
+   Stock: the view, search, Scan in / out and Pack & verify, then More tools; the figures scroll sideways, stock first. */
+html.mob .mob-toolsbtn{display:inline-flex}
+html:not(.mob) .mob-toolsbtn{display:none}
+html.mob .mob-fabbed{display:none!important}
+html.mob #paneShop.mob-tools:not(.mob-tools-open) :is(#soFrom,#soTo,#soStockAt,#soMoreMenu,.so-find>span.muted,.so-find>label){display:none!important}
+html.mob #paneShop .so-find{display:flex!important;flex-wrap:wrap;gap:8px}
+html.mob #paneShop .so-find>#soFilter{order:-5;flex:1 1 100%!important}
+html.mob #paneShop .so-find>.ftwrap{order:-4;flex:1 1 0}
+html.mob #paneShop .so-find>#soBucket{order:-3;flex:1 1 0}
+html.mob #paneShop .so-find>.mob-toolsbtn{order:-2;flex:1 1 0;justify-content:center}
+html.mob #paneShop .so-find>#soGo{order:-1;flex:1 1 100%}
+html.mob #paneShop .so-band{gap:8px}
+html.mob #paneShop .so-figs{display:flex!important;flex-wrap:nowrap!important;overflow-x:auto;gap:8px!important;scrollbar-width:none;margin:0 -2px}
+html.mob #paneShop .so-figs .so-fig{flex:0 0 auto;min-width:118px}
+html.mob #paneFgi.mob-tools:not(.mob-tools-open) :is(#fgBrand,#fgZeroWrap,#fgOpening,#fgExport,.card>.toolbar>.ftwrap){display:none!important}
+html.mob #paneFgi .card>.toolbar{display:flex!important;flex-wrap:wrap;gap:8px}
+html.mob #paneFgi .card>.toolbar>#fgView{order:-6;flex:1 1 0}
+html.mob #paneFgi .card>.toolbar>#fgPendBadge{order:-5;align-self:center}
+html.mob #paneFgi .card>.toolbar>#fgQ{order:-4;flex:1 1 100%!important}
+html.mob #paneFgi .card>.toolbar>#fgScan{order:-3;flex:1 1 0}
+html.mob #paneFgi .card>.toolbar>#fgPack{order:-2;flex:1 1 0}
+html.mob #paneFgi .card>.toolbar>.mob-toolsbtn{order:-1;flex:1 1 100%;justify-content:center}
+html.mob #fgMsg{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+html.mob #fgKpis .metrics{display:flex!important;flex-wrap:nowrap!important;overflow-x:auto;gap:8px;scrollbar-width:none}
+html.mob #fgKpis .metric{flex:0 0 112px!important}
+html.mob #fgKpis .metric[data-fgkpi="stock"]{order:-1}
+/* the More menu: a search on top, the screens used last under it */
+html.mob .mob-moreq{position:sticky;top:0;z-index:2;margin:0 0 10px;background:var(--card)}
+html.mob .mob-moreq input{font-size:16px!important}
+html.mob .mob-recent .mob-grp-h{color:var(--brand)}
+</style>
+<style>
+/* PHONE APP, 17 Oct 2026 (phone-app-order-pictures zip): the whole phone layout as it now stands — repeats the styles
+   above and adds per-person bar, Order Console pictures, compact cards. Later than the blocks above, so it wins. */
+html.mob body{font-size:15px;-webkit-tap-highlight-color:transparent;overscroll-behavior-y:none}
+html.mob .side,html.mob #navScrim,html.mob .topbar{display:none!important}
+html.mob .shell{display:block;min-height:100vh}
+html.mob .main{padding:0 10px calc(84px + env(safe-area-inset-bottom));min-width:0;overflow-x:clip}
+html.mob #mobHead{position:sticky;top:0;z-index:70;display:flex;align-items:baseline;gap:10px;margin:0 -10px 10px;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;background:var(--bg);border-bottom:1px solid var(--line)}
+html.mob .mob-brand{font-family:var(--serif);font-size:15px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+html.mob #mobTitle{font-size:18px;font-weight:800;letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+html.mob #mobBar{position:fixed;left:0;right:0;bottom:0;z-index:900;display:flex;background:var(--card);border-top:1px solid var(--line);box-shadow:0 -4px 16px rgba(20,24,31,.06);padding:4px 4px calc(4px + env(safe-area-inset-bottom))}
+html.mob .mob-tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;min-height:54px;padding:6px 0 4px;margin:0;background:none;border:0;border-radius:12px;color:var(--faint);font-size:11px;font-weight:600;box-shadow:none;width:auto}
+html.mob .mob-tab.on{color:var(--brand)}
+html.mob .mob-tab.on svg{stroke-width:2.3}
+html.mob .mob-tab:active{background:var(--hover)}
+html.mob .mob-sheet{position:fixed;inset:0;z-index:960;background:rgba(15,23,42,.45);display:flex;align-items:flex-end}
+html.mob .mob-sheet-in{background:var(--card);width:100%;max-height:86vh;overflow-y:auto;border-radius:20px 20px 0 0;padding:6px 14px calc(18px + env(safe-area-inset-bottom))}
+html.mob .mob-sheet-h{position:sticky;top:0;background:var(--card);display:flex;align-items:center;justify-content:space-between;padding:12px 2px 8px;font-size:17px}
+html.mob .mob-x{background:var(--chip);border:0;border-radius:999px;width:36px;height:36px;min-height:0;padding:0;font-size:16px;color:var(--muted)}
+html.mob .mob-grp{margin:6px 0 12px}
+html.mob .mob-grp-h{font-size:11.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);padding:6px 4px}
+html.mob .mob-link{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:48px;margin:0;padding:0 12px;background:var(--soft);border:0;border-radius:12px;margin-bottom:4px;color:var(--ink);font-size:15px;font-weight:600;text-align:left;box-shadow:none}
+html.mob .mob-link.on{background:var(--brand-bg);color:var(--brand-ink)}
+html.mob .mob-bd{background:var(--bad);color:#fff;border-radius:999px;padding:1px 8px;font-size:11.5px;font-weight:700}
+html.mob .mob-foot{border-top:1px solid var(--line);padding-top:10px}
+html.mob .mob-out{color:var(--bad)}
+html.mob input,html.mob select,html.mob textarea{font-size:16px!important}
+html.mob .main>:not(.mob-fit) .card{padding:12px;border-radius:14px;max-width:100%;overflow-x:auto}
+html.mob .main>:not(.mob-fit) .toolbar{flex-wrap:wrap;gap:8px}
+html.mob .main>:not(.mob-fit) .toolbar>input,html.mob .main>:not(.mob-fit) .toolbar>select,html.mob .main>:not(.mob-fit) .toolbar>.ms{flex:1 1 calc(50% - 8px)!important;min-width:0;width:auto}
+html.mob .main>:not(.mob-fit) table.xl{font-size:13px}
+html.mob .ptmodal{align-items:flex-end;padding:0}
+html.mob .ptmodal-box,html.mob .ptmodal-box.ptmodal-wide{width:100%!important;max-width:100%;max-height:92vh;border-radius:20px 20px 0 0}
+html.mob .ptmodal-foot{padding-bottom:calc(12px + env(safe-area-inset-bottom));flex-wrap:wrap}
+html.mob .ptmodal-foot button{flex:1 1 auto;min-height:46px;white-space:normal}
+html.mob .ptmodal-foot>span[style*="flex:1"]{display:none}
+html.mob #ptDlgAlt{flex-basis:100%;order:-1}
+html.mob .ptgrid{grid-template-columns:1fr!important}
+html.mob .modal{z-index:950;padding:0;align-items:flex-end}
+html.mob .modalbox,html.mob .modal .modal-box{width:100%!important;max-width:100%!important;max-height:94vh;border-radius:20px 20px 0 0;padding:16px 14px calc(16px + env(safe-area-inset-bottom))}
+html.mob .so-grid{grid-template-columns:1fr}
+html.mob .so-foot{position:sticky;bottom:calc(-16px - env(safe-area-inset-bottom));z-index:2;background:var(--card);flex-wrap:wrap;margin:12px -14px calc(-16px - env(safe-area-inset-bottom));padding:10px 14px calc(10px + env(safe-area-inset-bottom));border-top:1px solid var(--line)}
+html.mob .so-foot button{flex:1;min-height:46px}
+html.mob .pks{padding-top:calc(2vw + env(safe-area-inset-top));padding-bottom:calc(8vw + env(safe-area-inset-bottom))}
+html.mob #paneShop .so-card{padding:0;border:0;background:transparent;box-shadow:none;overflow:visible}
+html.mob #paneShop .so-band{margin:0 0 8px;padding:12px 14px;gap:10px;border-radius:14px}
+html.mob #paneShop .so-figs{margin-left:0;width:100%;display:grid;grid-template-columns:1fr 1fr;gap:8px 0}
+html.mob #paneShop .so-find>label{flex:1 1 100%!important}
+html.mob #paneShop .so-fig{padding:0 10px 0 0;border-left:0}
+html.mob #paneShop .so-fig span{white-space:normal}
+html.mob input[type=checkbox],html.mob input[type=radio]{width:auto;flex:none}
+html.mob #paneShop .card:has(> #soTable){max-height:none!important;overflow:visible!important;background:none;box-shadow:none;padding:0!important}
+html.mob #paneShop .so-find>input[type=date]{flex:1 1 calc(50% - 20px)!important}
+html.mob #paneShop .so-find #soGo,html.mob #paneShop .so-find .so-more{margin-left:0;flex:1 1 100%;min-height:44px}
+html.mob #paneShop .so-acts{overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch}
+html.mob #paneShop .so-acts>*{flex:none}
+html.mob #soTable.so-cards,html.mob #soTable.so-cards tbody{display:block;width:100%;border:0;background:none}
+html.mob #soTable.so-cards tr{display:block;margin:0 0 8px}
+html.mob #soTable.so-cards td{display:block;padding:0;border:0;white-space:normal;max-width:none}
+html.mob #soTable.so-cards td.so-mc{text-align:left;background:var(--card);border-radius:14px;box-shadow:var(--sh-1);padding:12px 12px 10px;display:grid;grid-template-columns:28px 1fr auto;gap:2px 8px;align-items:start}
+html.mob .so-mc:active{background:var(--hover)}
+html.mob .so-mc .soPick{width:22px;height:22px;margin:2px 0 0}
+html.mob .so-mc-no{font-weight:800;font-size:16px}
+html.mob .so-mc-at{color:var(--muted);font-size:12.5px;text-align:right;white-space:nowrap}
+html.mob .so-mc-who{grid-column:2/4;color:var(--muted);font-size:13.5px}
+html.mob .so-mc-figs{grid-column:2/4;display:flex;gap:14px;font-size:13px;font-variant-numeric:tabular-nums;margin-top:4px}
+html.mob .so-mc-figs b{font-weight:700}
+html.mob .so-mc-tags{grid-column:2/4;display:flex;flex-wrap:wrap;gap:4px 6px;margin-top:6px;align-items:center}
+html.mob .so-mc-tags .st{font-size:11px;padding:2px 9px}
+html.mob .so-mc-tags>*,html.mob .so-mc-tags .st{max-width:100%;white-space:normal}
+html.mob .so-mc-items{grid-column:2/4;font-size:12.5px;color:var(--muted);margin-top:6px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+html.mob .so-mc.so-cancel{opacity:.6}
+html.mob .so-mc.so-cancel .so-mc-no{text-decoration:line-through}
+html.mob .so-mc.so-cb{box-shadow:inset 3px 0 0 var(--bad),var(--sh-1)}
+html.mob .so-mc-more{display:block;width:100%;min-height:46px}
+html.mob .main>:not(.mob-fit) .kpi .metrics{display:grid!important;grid-template-columns:1fr 1fr;gap:6px}
+html.mob .main>:not(.mob-fit) .kpi .metric{min-width:0;padding:8px 10px}
+html.mob .main>:not(.mob-fit) .kpi .metric .v{font-size:18px}
+html.mob .main>:not(.mob-fit) .kpi .metric .l{white-space:normal}
+html.mob .card.xlwrap:has(> table.fg-cards),html.mob .card.xlwrap:has(> table.pk-cards){max-height:none!important;overflow:visible!important;background:none;box-shadow:none;padding:0!important;border:0}
+html.mob table.fg-cards,html.mob table.fg-cards tbody,html.mob table.pk-cards,html.mob table.pk-cards tbody{display:block;width:100%;border:0;background:none}
+html.mob table.fg-cards tr,html.mob table.pk-cards tr{display:block;margin:0 0 8px}
+html.mob table.fg-cards td,html.mob table.pk-cards td{display:block;padding:0;border:0;white-space:normal;max-width:none;text-align:left}
+html.mob table.fg-cards td.fg-mc{display:grid;grid-template-columns:auto 64px minmax(0,1fr) auto;gap:4px 10px;align-items:start;background:var(--card);border-radius:14px;box-shadow:var(--sh-1);padding:12px}
+html.mob .fg-mc>input[type=checkbox]{width:22px;height:22px;margin:2px 0 0}
+html.mob .fg-mc-img{width:64px;height:64px;border-radius:10px;overflow:hidden;background:var(--soft)}
+html.mob .fg-mc-img img{width:64px!important;height:64px!important;object-fit:cover}
+html.mob .fg-mc-main{min-width:0}
+html.mob .fg-mc-sku{font-family:ui-monospace,monospace;font-size:14px;font-weight:700;padding:0;min-height:0;border:0;background:none;box-shadow:none;color:var(--brand-ink);text-align:left;width:auto;word-break:break-all}
+html.mob .fg-mc-what{font-size:13px;color:var(--muted);margin-top:2px}
+html.mob .fg-mc-tags{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;margin-top:6px;font-size:12px}
+html.mob .fg-mc-qty{font-size:24px;font-weight:800;line-height:1;text-align:right;font-variant-numeric:tabular-nums}
+html.mob .fg-mc-qty small{display:block;font-size:11px;font-weight:600;color:var(--muted);margin-top:3px}
+html.mob .fg-mc-figs{grid-column:3/5;display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+html.mob .fg-mc-figs b{color:var(--ink)}
+html.mob .fg-mc-acts,html.mob .pk-mc-acts{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+html.mob .fg-mc-acts button,html.mob .pk-mc-acts button{flex:1 1 0;min-height:42px;padding:0 10px;font-size:13.5px;width:auto}
+html.mob table.pk-cards td.pk-mc{background:var(--card);border-radius:14px;box-shadow:var(--sh-1);padding:12px}
+html.mob .pk-mc-top{display:flex;gap:8px}
+html.mob .pk-mc-top input{flex:1;min-width:0;font-weight:700;padding:8px 10px!important}
+html.mob .pk-mc-top select{flex:0 0 auto;width:auto;padding:8px!important}
+html.mob .pk-mc-figs{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;margin:8px 0;font-variant-numeric:tabular-nums}
+html.mob .pk-mc-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+html.mob .pk-mc-row label{display:flex;flex-direction:column;gap:3px;font-size:11.5px;color:var(--muted);margin:0}
+html.mob .pk-mc-row input{width:100%!important;padding:8px 10px!important}
+html.mob .pk-mc-wide{grid-column:1/-1}
+html.mob .pk-mc-acts .pkOpen{flex:1 1 100%}
+html.mob #panePack .toolbar>span[style*="flex:1"]{display:none}
+html.mob #panePack .toolbar>button,html.mob #paneFgi .toolbar>button{flex:1 1 calc(50% - 8px)!important;min-height:44px}
+html.mob #panePack .toolbar>#pkScanBtn,html.mob #paneFgi .toolbar>#fgScan{flex:1 1 100%!important;order:-1}
+html.mob #paneFgi .toolbar>label,html.mob #fgQ,html.mob #pkSearch{flex:1 1 100%!important}
+html.mob .mob-tsw{display:flex;justify-content:flex-end;gap:0;margin:10px 0 6px}
+html.mob .mob-tsw button{min-height:34px;padding:0 14px;font-size:12.5px;font-weight:700;background:var(--card);color:var(--muted);border:1px solid var(--line);box-shadow:none;border-radius:0;width:auto}
+html.mob .mob-tsw button:first-child{border-radius:999px 0 0 999px}
+html.mob .mob-tsw button:last-child{border-radius:0 999px 999px 0;border-left:0}
+html.mob .mob-tsw button.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+html.mob .card:has(> table.mob-tcards),html.mob .xlwrap:has(> table.mob-tcards){max-height:none!important;overflow:visible!important;background:none;box-shadow:none;padding:0!important;border:0}
+html.mob table.mob-tcards,html.mob table.mob-tcards tbody,html.mob table.mob-tcards tfoot{display:block;width:100%;min-width:0!important;border:0;background:none}
+html.mob table.mob-tcards thead{display:none}
+html.mob table.mob-tcards tr{display:block;background:var(--card);border-radius:14px;box-shadow:var(--sh-1);padding:6px 12px;margin:0 0 8px;position:relative}
+html.mob table.mob-tcards tfoot tr{background:var(--brand-bg)}
+html.mob table.mob-tcards td,html.mob table.mob-tcards th{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:6px 0!important;border:0;border-bottom:1px solid var(--line);text-align:right!important;white-space:normal!important;max-width:none!important;width:auto!important;position:static!important;background:none!important;font-size:13.5px;min-height:0;overflow:visible!important;text-overflow:clip!important}
+html.mob table.mob-tcards td:last-child,html.mob table.mob-tcards th:last-child{border-bottom:0}
+html.mob table.mob-tcards td::before,html.mob table.mob-tcards th::before{content:attr(data-th);flex:none;max-width:46%;text-align:left;color:var(--muted);font-size:12px;font-weight:600}
+html.mob table.mob-tcards td[data-th=""]::before{display:none}
+html.mob table.mob-tcards td[data-th=""]{justify-content:flex-end}
+html.mob table.mob-tcards td.mob-tt{justify-content:flex-start;text-align:left!important;font-size:15.5px;font-weight:800;padding-top:8px!important}
+html.mob table.mob-tcards td.mob-tt::before{display:none}
+html.mob table.mob-tcards td.mob-empty{display:none}
+html.mob table.mob-tcards td.mob-tick{position:absolute!important;top:6px;right:8px;border:0;padding:4px!important}
+html.mob table.mob-tcards td.mob-tick::before{display:none}
+html.mob table.mob-tcards td.mob-tick input{width:22px;height:22px}
+html.mob table.mob-tcards tr:has(> td.mob-tick) td.mob-tt{padding-right:36px!important}
+html.mob table.mob-tcards td button{min-height:36px}
+html.mob table.mob-tcards td img{max-width:64px;height:auto}
+html.mob table.mob-tcards tr.mob-tmsg{background:none;box-shadow:none;padding:4px 0}
+html.mob table.mob-tcards tr.mob-tmsg>td{border:0;justify-content:center;text-align:center!important}
+html.mob table.mob-tcards tr.mob-tmsg>td::before{display:none}
+html.mob .mob-listed>:not(.mob-list):not(#bwCard){display:none!important}
+html.mob .mob-list-off{margin-bottom:10px}
+html.mob .mob-list{display:flex;flex-direction:column;gap:8px;padding-bottom:6px}
+html.mob .ml-search{display:flex;align-items:center;gap:8px;background:var(--card);border-radius:14px;padding:0 12px;box-shadow:var(--sh-1);color:var(--faint)}
+html.mob .ml-search input{border:0!important;box-shadow:none!important;background:transparent;padding:11px 0;min-height:0;flex:1;min-width:0;width:auto}
+html.mob .ml-chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:0 -10px;padding:0 10px}
+html.mob .ml-chips::-webkit-scrollbar{display:none}
+html.mob .ml-chip{flex:none;min-height:34px;padding:0 13px;border-radius:999px;background:var(--card);color:var(--muted);border:0;box-shadow:var(--sh-1);font-size:13px;font-weight:600;width:auto;transform:none}
+html.mob .ml-chip b{color:var(--ink);font-weight:800;margin-left:2px}
+html.mob .ml-chip.on{background:var(--brand);color:#fff}
+html.mob .ml-chip.on b{color:#fff}
+html.mob .ml-sum{font-size:12px;color:var(--muted);padding:0 4px}
+html.mob .ml-group{background:var(--card);border-radius:18px;box-shadow:var(--sh-1);overflow:hidden}
+html.mob .ml-row{display:flex;align-items:center;gap:11px;width:100%;min-height:60px;padding:10px 14px;margin:0;border:0;border-top:1px solid var(--line);border-radius:0;background:var(--card);color:var(--ink);box-shadow:none;text-align:left;font-weight:400;transform:none;cursor:pointer}
+html.mob .ml-group>.ml-row:first-child{border-top:0}
+html.mob .ml-row:active{background:var(--hover)}
+html.mob .ml-dot{width:9px;height:9px;border-radius:50%;flex:none}
+html.mob .ml-m{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+html.mob .ml-m b{font-size:14.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html.mob .ml-m small{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html.mob .ml-soft{color:var(--faint);font-weight:500}
+html.mob .ml-r{flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:3px;text-align:right}
+html.mob .ml-r>b{font-size:17px;font-weight:800;font-variant-numeric:tabular-nums}
+html.mob .ml-r small{font-size:11.5px;color:var(--muted);white-space:nowrap}
+html.mob .ml-chev{flex:none;color:var(--faint);font-size:22px;line-height:1}
+html.mob .ml-pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:11.5px;font-weight:700;white-space:nowrap}
+html.mob .ml-ok{background:var(--accent-bg);color:var(--accent)}
+html.mob .ml-air{background:#E7EBFC;color:#3D47B8}
+html.mob .ml-sea{background:#E4F1FC;color:#2B7FD4}
+html.mob .ml-mute{background:var(--chip);color:var(--muted)}
+html.mob .ml-sends{display:flex;gap:4px;flex-wrap:wrap;margin-top:3px}
+html.mob .ml-bad{color:var(--bad)!important;font-style:normal}
+html.mob .ml-warn{color:var(--warn-ink)!important;font-style:normal}
+html.mob .ml-okt{color:var(--accent)!important}
+html.mob .ml-av{width:38px;height:38px;border-radius:50%;flex:none;background:var(--brand-bg);color:var(--brand-ink);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800}
+html.mob .ml-img{width:44px;height:44px;border-radius:10px;flex:none;object-fit:cover;background:var(--soft)}
+html.mob .ml-act{display:inline-flex;align-items:center;min-height:38px;padding:0 16px;border-radius:12px;background:var(--brand);color:#fff;font-size:13.5px;font-weight:700}
+html.mob .ml-primary,html.mob .ml-more,html.mob .ml-full,html.mob .ml-fullback{width:100%;min-height:46px;margin:0;border-radius:14px;font-weight:700;transform:none}
+html.mob .ml-primary{background:var(--brand);color:#fff;box-shadow:var(--sh-1)}
+html.mob .ml-more{background:var(--card);color:var(--brand-ink);box-shadow:var(--sh-1)}
+html.mob .ml-full,html.mob .ml-fullback{background:transparent;color:var(--muted);box-shadow:none;border:1px dashed var(--line);font-weight:600;font-size:13px}
+html.mob .ml-empty{padding:22px 14px;text-align:center;color:var(--muted);font-size:13.5px}
+html.mob .ml-allgood{background:var(--accent-bg);color:var(--accent);border-radius:18px;padding:16px;text-align:center;font-weight:700}
+html.mob #paneMobHome .mob-list{padding-top:4px}
+html.mob .ml-hello{display:flex;flex-direction:column;gap:2px;padding:4px 4px 6px}
+html.mob .ml-hello b{font-family:var(--serif);font-weight:400;font-size:24px;letter-spacing:-.01em}
+html.mob .ml-hello small{color:var(--muted);font-size:13px}
+html.mob .ml-sec{font-size:11.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);padding:10px 4px 2px}
+html.mob .ml-shsub{display:block;font-size:12.5px;color:var(--muted);font-weight:400}
+html.mob .ml-big{display:block;width:100%;max-height:220px;object-fit:contain;background:var(--soft);border-radius:14px;margin:4px 0 10px}
+html.mob .ml-figs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:6px}
+html.mob .ml-figs div{background:var(--soft);border-radius:12px;padding:9px 10px}
+html.mob .ml-figs small{display:block;font-size:11.5px;color:var(--muted)}
+html.mob .ml-figs b{font-size:18px;font-weight:800}
+html.mob .ml-kv{display:flex;justify-content:space-between;gap:12px;padding:10px 2px;border-bottom:1px solid var(--line);font-size:14px}
+html.mob .ml-kv span{color:var(--muted)}
+html.mob #mobDetailModal .ml-sec{padding-top:14px}
+html.mob .ml-m small.ml-wrap{white-space:normal}
+html.mob .ml-row .ml-act{min-height:36px;padding:0 13px}
+html.mob .main>.mob-fit{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -10px;padding:0 10px 8px}
+html.mob .main>.mob-fit>:not(.mob-list):not(.mob-tsw){width:var(--mobw,1100px)!important;max-width:none!important;zoom:var(--mobz,.32)}
+html.mob .main>.mob-fit .mob-tsw{display:none!important}
+html.mob .main>.mob-fit .xlwrap{max-height:none!important;overflow:visible!important}
+html.mob #mobZoomBar{position:fixed;right:12px;bottom:calc(76px + env(safe-area-inset-bottom));z-index:890;display:flex;align-items:center;background:var(--card);border-radius:999px;box-shadow:var(--sh-2);padding:3px}
+html.mob #mobZoomBar button{min-height:40px;min-width:44px;padding:0 10px;margin:0;border:0;border-radius:999px;background:transparent;color:var(--brand-ink);font-size:20px;font-weight:700;box-shadow:none;width:auto;transform:none}
+html.mob #mobZoomBar .mz-v{font-size:13px;min-width:0;padding:0 14px;background:var(--brand);color:#fff}
+html.mob #mobZoomBar:not(.mz-table) [data-mz-view="cards"]{display:none}
+html.mob #mobZoomBar.mz-table [data-mz-view="table"],html.mob #mobZoomBar.mz-list [data-mz-view="cards"]{display:none}
+html.mob #mobZoomBar.mz-table [data-mz-view="cards"]{background:var(--brand-bg);color:var(--brand-ink);margin-left:2px}
+html:not(.mob) #mobZoomBar{display:none}
+html.mob .main>.mob-fit>.mob-list{position:sticky;left:0;width:calc(100vw - 20px)}
+html.mob .main>.mob-fit{touch-action:pan-x pan-y}
+html.mob .mob-hint{position:fixed;left:50%;bottom:calc(132px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:960;background:rgba(20,24,31,.86);color:#fff;font-size:13px;font-weight:600;padding:9px 14px;border-radius:999px;white-space:nowrap;pointer-events:none;animation:mobhint 3.5s forwards}
+@keyframes mobhint{0%,80%{opacity:1}
+100%{opacity:0}
+}
+html.mob .ml-bigsearch{padding:0 6px 0 14px;min-height:50px;box-shadow:var(--sh-2)}
+html.mob .ml-bigsearch input{font-size:16px!important}
+html.mob .ml-scanbtn{flex:none;width:40px;height:40px;min-height:0;padding:0;margin:0;border-radius:12px;background:var(--brand-bg);color:var(--brand-ink);box-shadow:none;display:flex;align-items:center;justify-content:center;transform:none}
+html.mob .ml-acts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+html.mob .ml-actbtn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;min-height:78px;margin:0;padding:8px 4px;border-radius:16px;background:var(--card);color:var(--brand-ink);box-shadow:var(--sh-1);font-size:12px;font-weight:700;text-align:center;line-height:1.2;transform:none;width:auto}
+html.mob .ml-actbtn svg{width:24px;height:24px}
+html.mob .ml-actbtn:active{background:var(--brand-bg)}
+html.mob #mobFab{position:fixed;right:14px;bottom:calc(78px + env(safe-area-inset-bottom));z-index:880;display:flex;align-items:center;gap:6px;min-height:52px;padding:0 18px 0 14px;margin:0;border-radius:999px;background:var(--brand);color:#fff;font-size:14.5px;font-weight:700;box-shadow:0 8px 22px rgba(74,106,146,.38);width:auto;transform:none}
+html.mob #mobFab svg{width:22px;height:22px}
+html:not(.mob) #mobFab{display:none}
+html.mob #mobZoomBar{right:auto;left:12px}
+html.mob .mob-list{padding-bottom:70px}
+html.mob #mobPull{position:fixed;left:50%;top:calc(58px + env(safe-area-inset-top));z-index:870;transform:translate(-50%,0);background:var(--card);color:var(--brand-ink);font-size:12.5px;font-weight:700;padding:7px 14px;border-radius:999px;box-shadow:var(--sh-2);opacity:0;pointer-events:none;transition:opacity .15s}
+html.mob #mobPull.on{opacity:1}
+html:not(.mob) #mobPull{display:none}
+html.mob .ml-row[data-ml-jw]{transition:transform .12s;position:relative}
+html.mob .ml-row.ml-swiping{background:var(--accent-bg)}
+html.mob #mobNet{flex-basis:100%;font-size:12px;font-weight:700;color:var(--warn-ink);background:var(--warn-bg);border-radius:8px;padding:4px 10px;margin-top:6px}
+html.mob #mobHead{flex-wrap:wrap}
+html.mob .mob-tab{position:relative}
+html.mob .mob-badge{position:absolute;top:2px;left:calc(50% + 6px);min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--bad);color:#fff;font-style:normal;font-size:10.5px;font-weight:800;line-height:18px;text-align:center}
+html.mob .mob-toast{position:fixed;left:12px;right:12px;top:calc(62px + env(safe-area-inset-top));z-index:9998;background:var(--ink);color:#fff;font-size:13.5px;font-weight:600;padding:12px 14px;border-radius:14px;box-shadow:var(--sh-3);animation:mobtoast 5s forwards}
+@keyframes mobtoast{0%{transform:translateY(-20px);opacity:0}
+6%,88%{transform:none;opacity:1}
+100%{opacity:0}
+}
+html.mob table.mob-tcards tr.mob-tnest{background:none;box-shadow:none;padding:0 0 0 12px;margin-top:-4px;border-left:3px solid var(--brand-bg);border-radius:0}
+html.mob table.mob-tcards tr.mob-tnest>td{display:block;padding:0!important;border:0}
+html.mob table.mob-tcards tr.mob-tnest>td::before{display:none}
+html.mob table.mob-tcards td.mob-sn{display:none}
+html.mob table.mob-tcards td .fm-tog{display:flex;align-items:center;gap:6px;width:100%;text-align:left;min-height:40px}
+html.mob .fm-wrapx:has(> table.mob-tcards){overflow:visible!important;max-height:none!important}
+html.mob .fm-fbar{display:grid!important;grid-template-columns:1fr 1fr;gap:8px}
+html.mob .fm-fbar .fm-fsel{min-width:0}
+html.mob .fm-fbar select{width:100%;min-height:42px}
+html.mob .fm-tools,html.mob .fm-title,html.mob .fm-hbtns{flex-wrap:wrap;gap:8px}
+html.mob .fm-search{flex:1 1 100%;min-height:44px}
+html.mob .fm-seg{overflow-x:auto;flex-wrap:nowrap;max-width:100%;scrollbar-width:none}
+html.mob .fm-sizes,html.mob .fm-skl{display:flex!important;flex-wrap:wrap!important;gap:6px;justify-content:flex-end;max-width:none!important;white-space:normal!important}
+html.mob .fm-sizes span{padding:4px 9px;border-radius:999px;background:var(--chip)}
+html.mob .fm-skl button,html.mob .fm-skc{min-height:34px;padding:0 10px}
+html.mob .fm-ed{min-height:36px}
+html.mob #panePmdb .toolbar>button{flex:1 1 calc(50% - 8px)!important;min-height:42px}
+html.mob #ptmQ{flex:1 1 100%!important}
+html.mob #repKpis [style*="repeat(4,minmax(0,1fr))"]{grid-template-columns:1fr!important}
+html.mob #repKpis .kpi{padding:12px}
+html.mob #repKpis label{flex-wrap:wrap}
+html.mob #repKpis input[data-rephead]{min-height:40px}
+html.mob .repcharts{grid-template-columns:1fr!important}
+html.mob .repchart svg{width:100%;height:auto}
+html.mob #paneRep .toolbar>button{flex:1 1 calc(50% - 8px)!important;min-height:42px}
+html.mob table.mob-tcards td.mob-tt{display:block!important}
+html.mob table.mob-tcards td.mob-tt .muted{display:block;font-size:12.5px;font-weight:500;margin-top:2px}
+html.mob #mobHead .mob-back{flex:none;width:38px;height:38px;min-height:0;padding:0;margin:0 2px 0 -6px;border-radius:12px;background:none;color:var(--brand-ink);box-shadow:none;display:flex;align-items:center;justify-content:center;transform:none}
+html.mob #mobHead .mob-back.hide{display:none}
+html.mob #mobHead .mob-back:active{background:var(--brand-bg)}
+html.mob #mobHead.mob-hasback .mob-brand{display:none}
+html:not(.mob) .mob-back{display:none}
+html.mob,html.mob body{overscroll-behavior-y:none}
+html.mob{-webkit-tap-highlight-color:transparent}
+html.mob button,html.mob a,html.mob select,html.mob label,html.mob [data-mob],html.mob .ml-row{touch-action:manipulation}
+html.mob #mobBar,html.mob #mobHead,html.mob .ml-chip,html.mob .ml-actbtn,html.mob #mobFab,html.mob .mob-tsw{-webkit-user-select:none;user-select:none}
+html.mob .main>.mob-in{animation:mobin .2s ease-out}
+@keyframes mobin{from{opacity:.4;transform:translateY(10px)}
+to{opacity:1;transform:none}
+}
+html.mob .mob-sheet:not(.hide) .mob-sheet-in{animation:mobsheet .22s cubic-bezier(.2,.8,.3,1)}
+@keyframes mobsheet{from{transform:translateY(40px);opacity:.6}
+to{transform:none;opacity:1}
+}
+html.mob .ml-row,html.mob .ml-chip,html.mob .ml-actbtn,html.mob #mobFab,html.mob .mob-tab,html.mob .ml-primary,html.mob .ml-more,html.mob table.mob-tcards tr:not(.mob-tnest):not(.mob-tmsg){transition:transform .08s ease,background-color .12s}
+html.mob .ml-row:active,html.mob .ml-actbtn:active,html.mob .ml-primary:active,html.mob .ml-more:active,html.mob #mobFab:active{transform:scale(.97)}
+html.mob .ml-chip:active,html.mob .mob-tab:active{transform:scale(.93)}
+html.mob table.mob-tcards tr:not(.mob-tnest):not(.mob-tmsg):active{transform:scale(.99)}
+@media (prefers-reduced-motion:reduce){html.mob .main>.mob-in,html.mob .mob-sheet:not(.hide) .mob-sheet-in{animation:none}
+}
+html.mob table.mob-tcards tr.fm-main{display:grid;grid-template-columns:1fr 1fr;column-gap:6px;row-gap:6px;padding:8px 10px 10px}
+html.mob table.mob-tcards tr.fm-main>td{grid-column:1/-1;border-bottom:0}
+html.mob table.mob-tcards tr.fm-main>td.fm-fc:not(.fm-small){grid-column:auto;display:block;min-width:0;padding:5px 8px!important;border-radius:9px;background:var(--chip)!important;font-size:13px;font-weight:700;text-align:left!important;line-height:1.3;overflow-wrap:anywhere}
+html.mob table.mob-tcards tr.fm-main>td.fm-fc:not(.fm-small)::before{display:block;max-width:none;font-size:10.5px;font-weight:600;color:var(--muted);margin:0 0 1px;letter-spacing:0}
+html.mob table.mob-tcards tr.fm-main:not(.open)>td.fm-fc:has(.fm-add){display:none}
+html.mob table.mob-tcards tr.fm-main>td.fm-fc .fm-add{color:var(--brand);font-weight:600}
+html.mob table.mob-tcards tr.fm-main>td.fm-name{padding:2px 0!important}
+html.mob table.mob-tcards tr.fm-main>td.fm-cnt{justify-content:flex-start;gap:8px;padding:2px 2px 0!important;font-size:12.5px;color:var(--muted)}
+html.mob table.mob-tcards tr.fm-main>td.fm-cnt::before{display:none}
+html.mob table.mob-tcards tr.fm-main>td.fm-small{padding:4px 2px!important}
+html.mob .fm-sizes span{display:inline-flex;align-items:center;min-height:32px;padding:0 11px;border-radius:999px;background:var(--brand-bg);color:var(--brand-ink);font-weight:700;cursor:pointer;-webkit-user-select:none;user-select:none;transition:transform .08s}
+html.mob .fm-sizes span:active{transform:scale(.93);background:var(--brand);color:#fff}
+html.mob .mob-szchips{display:flex;gap:6px;overflow-x:auto;padding:2px 2px 10px;scrollbar-width:none}
+html.mob .mob-szchips .ml-chip{flex:none}
+html.mob #mobHead.mob-hasback{align-items:center}
+html.mob .fm-fbar.mob-fmf-shut{display:none!important}
+html:not(.mob) .mob-fmf{display:none}
+html.mob .mob-fmf{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;margin:8px 0;padding:0 14px;border-radius:12px;background:var(--chip);color:var(--brand-ink);font-weight:700;box-shadow:none;transform:none}
+html.mob .mob-fmf span:first-of-type{flex:1;text-align:left}
+html.mob .mob-fmf.on{background:var(--brand-bg)}
+html.mob .mob-fmf svg{width:18px;height:18px}
+html.mob #pkEditModal .modalbox>.muted{display:none}
+html.mob #ptDlgClose{min-width:42px;min-height:42px;font-size:22px}
+html.mob .fm-sm{min-height:38px;padding:0 12px}
+html.mob #paneFgi button.ghost{min-height:34px}
+html.mob table.mob-tcards td input:not([type=checkbox]):not([type=radio]),html.mob table.mob-tcards td select{max-width:62%;min-height:38px}
+html.mob #pkEdBoxes.mob-tcards tbody tr:not(.mob-tmsg){display:grid;grid-template-columns:repeat(3,1fr);column-gap:8px}
+html.mob #pkEdBoxes.mob-tcards tbody tr>td{grid-column:1/-1}
+html.mob #pkEdBoxes.mob-tcards tbody tr>td:is([data-th="L"],[data-th="W"],[data-th="H"],[data-th="Net"],[data-th="Gross"],[data-th="Vol wt"]){grid-column:auto;display:block;border-bottom:0;text-align:left!important}
+html.mob #pkEdBoxes.mob-tcards tbody tr>td:is([data-th="L"],[data-th="W"],[data-th="H"],[data-th="Net"],[data-th="Gross"],[data-th="Vol wt"])::before{display:block;max-width:none;font-size:11px;margin-bottom:2px}
+html.mob #pkEdBoxes.mob-tcards tbody tr>td:is([data-th="L"],[data-th="W"],[data-th="H"],[data-th="Gross"]) input{width:100%!important;max-width:none}
+html.mob .mob-toolsbtn{display:inline-flex}
+html:not(.mob) .mob-toolsbtn{display:none}
+html.mob .mob-fabbed{display:none!important}
+html.mob #paneShop.mob-tools:not(.mob-tools-open) :is(#soFrom,#soTo,#soStockAt,#soMoreMenu,.so-find>span.muted,.so-find>label){display:none!important}
+html.mob #paneShop .so-find{display:flex!important;flex-wrap:wrap;gap:8px}
+html.mob #paneShop .so-find>#soFilter{order:-5;flex:1 1 100%!important}
+html.mob #paneShop .so-find>.ftwrap{order:-4;flex:1 1 0}
+html.mob #paneShop .so-find>#soBucket{order:-3;flex:1 1 0}
+html.mob #paneShop .so-find>.mob-toolsbtn{order:-2;flex:1 1 0;justify-content:center}
+html.mob #paneShop .so-find>#soGo{order:-1;flex:1 1 100%}
+html.mob #paneShop .so-band{gap:8px}
+html.mob #paneShop .so-figs{display:flex!important;flex-wrap:nowrap!important;overflow-x:auto;gap:8px!important;scrollbar-width:none;margin:0 -2px}
+html.mob #paneShop .so-figs .so-fig{flex:0 0 auto;min-width:118px}
+html.mob #paneFgi.mob-tools:not(.mob-tools-open) :is(#fgBrand,#fgZeroWrap,#fgOpening,#fgExport,.card>.toolbar>.ftwrap){display:none!important}
+html.mob #paneFgi .card>.toolbar{display:flex!important;flex-wrap:wrap;gap:8px}
+html.mob #paneFgi .card>.toolbar>#fgView{order:-6;flex:1 1 0}
+html.mob #paneFgi .card>.toolbar>#fgPendBadge{order:-5;align-self:center}
+html.mob #paneFgi .card>.toolbar>#fgQ{order:-4;flex:1 1 100%!important}
+html.mob #paneFgi .card>.toolbar>#fgScan{order:-3;flex:1 1 0}
+html.mob #paneFgi .card>.toolbar>#fgPack{order:-2;flex:1 1 0}
+html.mob #paneFgi .card>.toolbar>.mob-toolsbtn{order:-1;flex:1 1 100%;justify-content:center}
+html.mob #fgMsg{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+html.mob #fgKpis .metrics{display:flex!important;flex-wrap:nowrap!important;overflow-x:auto;gap:8px;scrollbar-width:none}
+html.mob #fgKpis .metric{flex:0 0 112px!important}
+html.mob #fgKpis .metric[data-fgkpi="stock"]{order:-1}
+html.mob .mob-moreq{position:sticky;top:0;z-index:2;margin:0 0 10px;background:var(--card)}
+html.mob .mob-moreq input{font-size:16px!important}
+html.mob .mob-recent .mob-grp-h{color:var(--brand)}
+html.mob table.mob-tcards.mob-tgrid tbody tr:not(.mob-tmsg):not(.mob-tnest){display:grid;grid-template-columns:repeat(3,minmax(0,1fr));column-gap:6px;row-gap:6px;grid-auto-flow:row dense;padding:10px 12px}
+html.mob table.mob-tcards.mob-tgrid tbody tr:not(.mob-tmsg):not(.mob-tnest)>td{grid-column:1/-1;border-bottom:0;padding:3px 0!important}
+html.mob table.mob-tcards.mob-tgrid tbody tr:not(.mob-tmsg):not(.mob-tnest)>td.mob-tshort{grid-column:auto;display:block;min-width:0;padding:5px 8px!important;border-radius:9px;background:var(--chip)!important;font-size:13px;font-weight:700;text-align:left!important;line-height:1.3;overflow-wrap:anywhere}
+html.mob table.mob-tcards.mob-tgrid tbody tr:not(.mob-tmsg):not(.mob-tnest)>td.mob-tshort::before{display:block;max-width:none;font-size:10.5px;font-weight:600;margin:0 0 1px;line-height:1.2}
+html.mob table.mob-tcards.mob-tgrid tbody tr:not(.mob-tmsg):not(.mob-tnest)>td.mob-timg{grid-column:1;grid-row:1/span 2;display:block;padding:0!important;align-self:start}
+html.mob table.mob-tcards.mob-tgrid tbody tr:not(.mob-tmsg):not(.mob-tnest)>td.mob-timg::before{display:none}
+html.mob table.mob-tcards.mob-tgrid tbody tr:not(.mob-tmsg):not(.mob-tnest)>td.mob-timg img,html.mob table.mob-tcards.mob-tgrid tbody tr:not(.mob-tmsg):not(.mob-tnest)>td.mob-timg canvas{width:72px!important;height:72px!important;max-width:none;object-fit:cover;border-radius:12px}
+html.mob table.mob-tcards.mob-tgrid tbody tr:not(.mob-tmsg):not(.mob-tnest):has(>td.mob-timg)>td.mob-tt{grid-column:2/-1;grid-row:1;align-self:end}
+html.mob table.mob-tcards.mob-tgrid tbody tr:not(.mob-tmsg):not(.mob-tnest)>td.mob-tt{font-size:15px;padding-top:0!important}
+html.mob table.mob-tcards.mob-tgrid tbody tr:not(.mob-tmsg):not(.mob-tnest):has(>td.mob-tick)>td.mob-tt{padding-right:34px!important}
+html.mob .mob-nosearch .ml-bigsearch{display:none}
+html.mob .ml-pic{position:relative;flex:none;width:48px;height:48px}
+html.mob .ml-pic .ml-img{width:48px;height:48px;display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:10px;background:var(--soft)}
+html.mob .ml-pic .ml-img img{width:48px!important;height:48px!important;border:0!important;border-radius:10px!important;object-fit:cover}
+html.mob .ml-pic .ml-dot{position:absolute;top:-3px;left:-3px;width:12px;height:12px;border:2px solid var(--card);margin:0}
+html.mob .ml-pic .ml-more-n{position:absolute;right:-4px;bottom:-4px;min-width:20px;height:18px;padding:0 4px;border-radius:999px;background:var(--brand);color:#fff;font-style:normal;font-size:10.5px;font-weight:800;line-height:18px;text-align:center;border:2px solid var(--card)}
+</style>
 <script type="module">
 <!--@include app/-->
 </script>

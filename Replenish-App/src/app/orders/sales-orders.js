@@ -43,6 +43,9 @@ async function ensureSox() {
 
 const soLines = o => (Array.isArray(o.lines) ? o.lines : Object.values(o.lines || {})).filter(Boolean);
 const soStatus = o => o.status || 'draft';
+/** AIR / SEA on an Amazon order: kept on it (shipMode), else read off the end of its number. '' for none. */
+/* The number is what the factory reads, so its -AIR / -SEA wins over what is kept beside it (17 Oct). */
+const soShipMode = o => String((typeof soModeOf === 'function' ? soModeOf(o && o._id) : '') || (o && o.shipMode) || '').toUpperCase();
 const soCount = x => (Array.isArray(x) ? x.length : Object.keys(x || {}).length);
 
 /** Order + SKU → net cut and pressed, built once. Per-SKU lookups would rescan 4,000 rows 1,200 times. */
@@ -97,6 +100,8 @@ function soSummary(o, w) {
 function renderSox() {
   if (SOX.busy) { $('sxMsg').className = 'muted'; $('sxMsg').textContent = 'Reading the sales orders…'; ptEmpty('sxTable', 'Loading…'); return; }
   if (SOX.err) { $('sxMsg').className = 'err'; $('sxMsg').textContent = 'Could not read it: ' + SOX.err; ptEmpty('sxTable', 'Nothing to show.'); $('sxKpis').innerHTML = ''; return; }
+  /* SENT BACK BY PPC (flow/flow-back.js), above everything: lines PPC cannot plan until this team puts them right. */
+  if ($('sxBack')) { try { $('sxBack').innerHTML = typeof flowBackCard === 'function' ? flowBackCard() : ''; } catch (e) { $('sxBack').innerHTML = ''; } }
   const all = SOX.rows || [];
   if (!all.length) { $('sxMsg').className = 'muted'; $('sxMsg').textContent = ''; $('sxKpis').innerHTML = ''; ptEmpty('sxTable', 'No sales orders.'); return; }
 
@@ -115,6 +120,9 @@ function renderSox() {
   const ch = (chSel && chSel.value) || '';
   const base = ch ? all.filter(o => chOf(o) === ch) : all;
   const st = $('sxStatus').value, q = $('sxQ').value.trim().toLowerCase();
+  /* AIR OR SEA (Ravi, 16 Oct: "sales order list me AIR / SEA filter bhi add karo"): the mode kept on the order, else the end of its number. */
+  const md = String(($('sxMode') || {}).value || '');
+  const smo = String(($('sxSMonth') || {}).value || '');   // the sale month an order is for (18 Oct)
   /* ON THE ORDER DATE, not on when the order was last touched — that is the date the row shows and
    * the date anybody asking for "September's orders" means. Sales orders carry it two ways, ISO from
    * the new-order form and day-first from the vendor side, which is why this goes through ptInRange
@@ -122,6 +130,8 @@ function renderSox() {
   const [sxD1, sxD2] = ptRangeOf('sxD1', 'sxD2');
   const rows = base
     .filter(o => !st || soStatus(o) === st)
+    .filter(o => !md || soShipMode(o) === md)
+    .filter(o => !smo || o.saleMonth === smo)
     .filter(o => ptInRange(o && o.orderDate, sxD1, sxD2))
     .map(o => ({ o, s: soSummary(o, w) }))
     .filter(({ o, s }) => !q || [o._id, o.buyerName, o.buyerEmail, o.channel, soStatus(o)].join(' ').toLowerCase().includes(q)
@@ -153,7 +163,7 @@ function renderSox() {
     const done = soStatus(o) === 'approved';
     return '<tr>'
       + `<td class="frz" style="text-align:left;font-weight:600">${esc(o._id)}</td>`
-      + `<td>${esc(o.orderDate)}</td><td>${esc(o.channel)}</td>`
+      + `<td>${esc(o.orderDate)}${o.saleMonth ? `<div class="muted" style="font-size:11px">for ${esc(soMonthTxt(o.saleMonth))}</div>` : ''}</td><td>${esc(o.channel)}${soShipMode(o) ? ` <span class="pill" style="font-size:11px">${esc(soShipMode(o))}</span>` : ''}</td>`
       + `<td style="text-align:left">${esc(o.buyerName) || '<span class="muted">—</span>'}</td>`
       + `<td><span class="pill ${sd.cls}">${esc(sd.label)}</span></td>`
       + `<td class="num">${nf(s.skus)}${s.skus !== s.lines ? ` <span class="muted" style="font-size:11px">of ${nf(s.lines)}</span>` : ''}</td>`
@@ -282,13 +292,20 @@ $('sxTable').addEventListener('click', e => {
   const ed = e.target.closest('[data-so-edit]'); if (ed) return soFormOpen(ed.getAttribute('data-so-edit'));
   const rv = e.target.closest('[data-so-review]'); if (rv) return soReview(rv.getAttribute('data-so-review'));
 });
+if ($('sxBack')) $('sxBack').addEventListener('click', e => {
+  const o = e.target.closest('[data-so-open]'); if (o) return soOpen(o.getAttribute('data-so-open'));
+});
 $('sxStatus').addEventListener('change', renderSox);
 if ($('sxChan')) $('sxChan').addEventListener('change', renderSox);
+if ($('sxMode')) $('sxMode').addEventListener('change', renderSox);
+if ($('sxSMonth')) $('sxSMonth').addEventListener('change', renderSox);
 ['sxD1', 'sxD2'].forEach(id => $(id).addEventListener('change', renderSox));
 $('sxClear').onclick = () => {
   ['sxQ', 'sxD1', 'sxD2'].forEach(id => $(id).value = '');
   $('sxStatus').value = '';
   if ($('sxChan')) $('sxChan').value = '';
+  if ($('sxMode')) $('sxMode').value = '';
+  if ($('sxSMonth')) $('sxSMonth').value = '';
   renderSox();
 };
 ptDebounce('sxQ', renderSox);

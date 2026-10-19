@@ -45,6 +45,12 @@ async function flowUnplan(s) {
 /* ---- challans ---- */
 const flowChHasRecv = c => Object.keys(c.receipts || {}).length > 0;
 
+/** The most pieces a challan line can say: what it holds now and what its order line still owes besides. */
+function flowChEditMaxPcs(l) {
+  let x = null; try { x = flowRows().find(y => y.s.key === l.key); } catch (e) { x = null; }
+  const left = x ? (+flowFabOwed(x.r, x.s).left || 0) : 0;
+  return Math.max(+l.pcs || 0, (+l.pcs || 0) + left);
+}
 function flowChallanEditOpen(no) {
   const c = (FLOW.ch || {})[no]; if (!c) return;
   if (flowChHasRecv(c)) { $('flMsg').className = 'err'; $('flMsg').textContent = `${no} has fabric received against it — undo the receipt first.`; return; }
@@ -55,17 +61,26 @@ function flowChallanEditOpen(no) {
     html: `<div class="ptgrid" style="grid-template-columns:2fr 1fr">
         <label>Vendor<select id="flceVen">${vens.map(v => `<option value="${esc(v.code)}"${String(v.code) === String(c.vendor && c.vendor.code) ? ' selected' : ''}>${esc((v.desc || v.name || v.code) + (v.category ? ' · ' + v.category : ''))}</option>`).join('')}</select></label>
         <label>Date<input id="flceDate" type="date" value="${esc(c.date || dToday())}"></label></div>
-      <table class="xl" style="margin-top:10px;width:100%"><thead><tr><th></th><th style="text-align:left">SKU</th><th style="text-align:left">Fabric</th><th>Metres</th></tr></thead><tbody>
+      <table class="xl" style="margin-top:10px;width:100%"><thead><tr><th></th><th style="text-align:left">SKU</th><th style="text-align:left">Fabric</th><th>Pcs</th><th>Metres</th></tr></thead><tbody>
       ${(c.lines || []).map((l, i) => `<tr><td><input type="checkbox" data-cek="${i}" checked style="width:auto"></td><td style="text-align:left"><b>${esc(l.sku)}</b></td><td style="text-align:left">${esc(l.fabric)}</td>
+        <td class="num">${flowChUnit(l) === 'pcs' && !l.ruffleOnly
+          /* PART OF IT (Ravi, 15 Oct): a challan already made for all the pieces can be cut down to what really went; the rest
+           * goes back to Demand → RFD, marked Partly sent. At most what the line still owes plus what this challan holds. */
+          ? `<input data-cep="${i}" type="number" min="1" step="1" max="${flowChEditMaxPcs(l)}" value="${esc(l.pcs)}" title="Pieces that really went on this challan" style="width:84px;padding:3px 6px;font-size:12px">`
+          : (l.pcs ? nf(l.pcs) : '—')}</td>
         <td class="num"><input data-cem="${i}" type="number" step="0.01" value="${esc(l.metres)}" style="width:90px;padding:3px 6px;font-size:12px"></td></tr>`).join('')}
       </tbody></table><label style="display:block;margin-top:8px">Note<input id="flceNote" value="${esc(c.note || '')}"></label>`,
     saveLabel: 'Save the challan',
     onSave: async () => {
       const v = vens.find(x => String(x.code) === String($('flceVen').value)); if (!v) return 'Pick the vendor.';
       const keep = [], drop = [];
+      const badP = [];
       (c.lines || []).forEach((l, i) => { const on = (document.querySelector(`[data-cek="${i}"]`) || {}).checked;
         const m = flowR2(+((document.querySelector(`[data-cem="${i}"]`) || {}).value || 0));
-        (on ? keep : drop).push(Object.assign({}, l, { metres: on ? m : l.metres })); });
+        const pe = document.querySelector(`[data-cep="${i}"]`), pc = pe ? +pe.value : null;
+        if (on && pc != null && !(pc >= 1 && pc === Math.round(pc) && pc <= flowChEditMaxPcs(l))) badP.push(`${l.sku}: pieces are whole, 1 to ${nf(flowChEditMaxPcs(l))}`);
+        (on ? keep : drop).push(Object.assign({}, l, { metres: on ? m : l.metres }, on && pc != null ? { pcs: pc } : {})); });
+      if (badP.length) return badP.join(' · ');
       if (!keep.length) return 'Every line is unticked — use Cancel to cancel the whole challan.';
       /* Same rule as making it: a line goes to the printer PPC planned for it. */
       const pOf = l => { const pl = (FLOW.ppc || {})[l.key]; return l.ruffleOnly ? flowRufflePrinter(pl) : (pl && pl.printer); };
@@ -88,6 +103,12 @@ function flowChallanEditOpen(no) {
       renderFlow();
       return '';
     },
+  });
+  /* Fewer pieces → the cloth for those pieces, in the same proportion (the metres box can still be typed over). */
+  (c.lines || []).forEach((l, i) => {
+    const pi = document.querySelector(`[data-cep="${i}"]`), mi = document.querySelector(`[data-cem="${i}"]`);
+    if (!pi || !mi || !pi.addEventListener || !(+l.pcs > 0)) return;
+    pi.addEventListener('input', () => { const n = Math.max(0, +pi.value || 0); mi.value = flowR2((+l.metres || 0) * n / (+l.pcs)); });
   });
 }
 

@@ -13,8 +13,15 @@
  *   An admin can look at the portal AS a printer, on the preview only ("View as printer") — view only throughout.
  * All of it is switched on with the flow (FLOW_ON); the live app is untouched. */
 
-/** View only in the portal: a flow order, or anything while an admin is looking as a printer. */
-const flowVpViewOnly = o => !!(FLOW_ON && o && (o.test || o.demandSource === 'ppc' || (typeof VP !== 'undefined' && VP.viewAs)));
+/* EVERY ORDER IS VIEW ONLY (Ravi, 15 Oct: "vendor sirf order dekh paye aur order ke against me usko fabric ya cut piece mila
+ * h ya nahi wo dekh paye aur usne kya bhej diya wo dekh paye; usko entry nahi krni h, n hi order acknowledge krna h, n hi
+ * production me order lena h; jese hi order place karu direct usko pas show ho jay"). With the flow on, a printer sees
+ * its orders and nothing to press: no Acknowledge, no Start production, no "I am sending", no dates, no RFD asking — old
+ * orders included. What was given and what came back is the office's entry, shown on the order (flowProg). */
+/** vpEntry = '1' on one computer brings the old entries back (read each time, so a test can switch it). */
+const vpViewAll = () => { try { if (localStorage.getItem('vpEntry') === '1') return false; } catch (e) { /* storage blocked */ } return !!FLOW_ON; };
+/** View only in the portal: every order while the flow is on (and anything while an admin is looking as a printer). */
+const flowVpViewOnly = o => !!(o && (vpViewAll() || (FLOW_ON && (o.test || o.demandSource === 'ppc' || (typeof VP !== 'undefined' && VP.viewAs)))));
 const flowDmy = iso => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}/${m[2]}/${m[1]}` : String(iso || ''); };
 
 /** The test print orders as Vendor Orders — built on the fly, never stored. */
@@ -34,7 +41,7 @@ function flowTestVos() {
         notes: `TEST — from the PPC plan, ${o.orderNo} (${o.no}). View only: ${FLOW_COMPANY} records the cloth sent and the printed cloth received`
           + ` (so far: sent ${nf(flowR2(sent))}, back ${nf(flowR2(back))}).`,
         lines: lines.map((l, i) => Object.assign({ lineId: 'tl_' + kind + '_' + i }, l)), createdBy: o.by || '', createdAt: o.at || '',
-        demandSource: 'ppc', flowPrintOrder: o.no, test: true, virtual: true });
+        demandSource: 'ppc', flowPrintOrder: o.no, test: true, virtual: true, flowProg: flowVoProgOf(o, kind) });
     });
   });
   return out;
@@ -68,7 +75,7 @@ async function flowVpAfterLoad() {
 async function flowVpBar() {
   if (!FLOW_ON || !ME.admin || !$('vpBody') || $('flVpAs')) return;
   $('vpBody').insertAdjacentHTML('beforebegin', `<div class="card" style="padding:8px 12px;margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;border:1px dashed #7c3aed">
-    <span style="color:#7c3aed;font-weight:600;font-size:12.5px">TEST VIEW</span>
+    <span style="color:#7c3aed;font-weight:600;font-size:12.5px">PRINTER'S VIEW</span>
     <label style="display:flex;gap:6px;align-items:center;margin:0;font-size:12.5px">See the portal as printer
       <select id="flVpAs" style="width:auto;min-width:220px"><option value="">— my own sign-in —</option></select></label>
     <span class="muted" style="font-size:12px">what that printer sees, view only — nothing can be changed from here</span></div>`);

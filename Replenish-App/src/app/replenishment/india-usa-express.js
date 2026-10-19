@@ -893,6 +893,8 @@ async function soMcfStatus() {
         shop: (SHOP.orders.find(x => x.id === SHOP_EDIT) || {}).shopBrand === 'CPC' ? 'CPC' : '' });
       meta.shopFulfilled = 1;
       await saveShopMeta();
+      /* The device copy learns it now, not at the next sync (shopify/shopify-copy.js). */
+      if (!f.already) soCopyTouch(SHOP_EDIT, { ff: 'fulfilled', trk: (d.trk || []).slice() });
       // Amazon can hand back several tracking numbers; the write-back sends the first only. Saying
       // "the customer notified" after a partial write is the lie that matters — the customer is
       // waiting on a parcel nobody told them about, and the order reads as fully handled here.

@@ -44,8 +44,11 @@ const FLOW_NODES = ['pt_accLedger', 'pt_accReserve', 'pt_amzListings', 'pt_appro
   'pt_qcReturns', 'pt_rfdDecisions', 'pt_rfdStock', 'pt_shopProd', 'pt_skuImages', 'pt_storeChecks', 'pt_storeLedger',
   'pt_vendorMap', 'pt_vendorOrders'];
 FLOW_NODES.forEach(n => { const h = BY_HAND[n] || (BY_HAND[n] = {}); h.tabs = (h.tabs || []).concat(FLOW_RIGHTS, GD_RIGHTS); });
-/* The Greige Desk's own test records: read by its four rights; written by staff through $other, as every register is. */
-BY_HAND.pt_gdTest = { tabs: GD_RIGHTS.slice() };
+/* The Greige Desk's records: read by its four rights — and, since 16 Oct, by the Production flow's rights too: PPC and
+ * Demand show the RFD stock as the desk's count (Replenish flow/flow-demand.js flowRfdStock), and Vikram (PPC, no Greige
+ * Desk right) saw "stock not read". Reading only — the Greige Desk menu stays with its own rights. Written by staff through
+ * $other, as every register is. */
+BY_HAND.pt_gdTest = { tabs: GD_RIGHTS.concat(FLOW_RIGHTS) };
 
 /* "CAN ADD AND DELETE EMPLOYEES" OPENS FINANCE & HR WITHOUT THE TAB (hrEmpOnly): the employee list, the extra
  * hours that count where a name is used, and the shared plumbing every factory screen loads. ensureHr

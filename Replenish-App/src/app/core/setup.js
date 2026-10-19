@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/fireba
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail,
   sendEmailVerification }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, collectionGroup, addDoc, getDocs, serverTimestamp }
+import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, collectionGroup, addDoc, getDocs, serverTimestamp, onSnapshot }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 // Same Firebase project as the Sellora app — so the login accounts and the access list
@@ -68,10 +68,10 @@ const REPL_TABS = ['repl', 'article', 'target', 'top', 'shopify', 'pack',
   /* Quality Control is three jobs, not one: 'qc' is the checks, 'qcalt' is sending rejects out for
    * alteration, 'qcret' is taking them back. One tab, three grants. */
   'pmdb', 'mst', 'att', 'pbase', 'pcut', 'ppress', 'qc', 'qcalt', 'qcret', 'ord', 'so', 'vord', 'vreq', 'rfd', 'vend', 'vlog', 'palloc', 'fgi', 'fba', 'fab', 'acc', 'rep', 'pa', 'ka', 'hr',
-  'shop', 'adj', 'shopprod', 'dash',
+  'shop', 'adj', 'shopprod', 'shopret', 'dash',
   /* Production flow (test, 2026-10-10): one right per bucket — the same keys as FLOW_BUCKETS in flow/flow-core.js. */
   'flppc', 'fldem', 'flacc', 'flchl', 'flcut', 'flraw', 'flwip',
-  /* Greige Desk (test, 2026-10-13): open it, see the fabric ledger, add to / correct it, approve shrinkage over 5%. */
+  /* Greige Desk (2026-10-13; real since 15 Oct): open it, see the fabric ledger, add to / correct it, approve shrinkage over 5%. */
   'gdesk', 'gdled', 'gdledit', 'gdappr'];   // section keys, gated per-user via perms.replTabs — 'dash' is the admins' dashboard
 let REPL = { SP: null, CPC: null };   // brand → { rows, at }
 let PO = [];                  // purchase orders

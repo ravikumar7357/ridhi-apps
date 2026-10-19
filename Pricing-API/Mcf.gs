@@ -343,10 +343,20 @@ function shopifyInProgressTest() {
 function shopifyAttachImages_(orders, deadlineMs) {
   var ids = {}, list = [];
   orders.forEach(function (o) {
-    o.items.forEach(function (i) { if (i.pid && !ids[i.pid]) { ids[i.pid] = 1; list.push(i.pid); } });
+    (o.items || []).forEach(function (i) { if (i.pid && !ids[i.pid]) { ids[i.pid] = 1; list.push(i.pid); } });
   });
   if (!list.length) return;
+  var m = shopifyPhotoMap_(list, deadlineMs);
+  orders.forEach(function (o) {
+    (o.items || []).forEach(function (it) {
+      it.img = (it.vid && m.byVariant[it.vid]) || (it.pid && m.byProduct[it.pid]) || '';
+    });
+  });
+}
 
+/** The photos of these products: { byVariant, byProduct }. Split out of shopifyAttachImages_ on 2026-10-15 so
+ *  the Orders tab can ask for them on their own, after the orders are on screen (?shopify=photos). */
+function shopifyPhotoMap_(list, deadlineMs) {
   var byVariant = {}, byProduct = {};
   for (var i = 0; i < list.length; i += 100) {
     if (deadlineMs && Date.now() > deadlineMs) break;
@@ -365,11 +375,6 @@ function shopifyAttachImages_(orders, deadlineMs) {
       });
     } catch (e) { /* photos are a nicety â€” an order still ships without one */ }
   }
-
-  orders.forEach(function (o) {
-    o.items.forEach(function (it) {
-      it.img = (it.vid && byVariant[it.vid]) || (it.pid && byProduct[it.pid]) || '';
-    });
-  });
+  return { byVariant: byVariant, byProduct: byProduct };
 }
 

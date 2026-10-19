@@ -14,6 +14,7 @@
     "ShopifySkuSales.gs",
     "SearchTerms.gs",
     "Shopify.gs",
+    "ShopifyCache.gs",
     "Mcf.gs",
     "OrderAudits.gs",
     "Nightly.gs",

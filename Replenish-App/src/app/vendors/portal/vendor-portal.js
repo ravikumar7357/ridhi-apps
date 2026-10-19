@@ -61,6 +61,11 @@ function vpHistRows() {
 
 /** Shopify work, which the buyer's side writes as one standing order per printer. */
 const vpIsShop = o => String((o && o.demandSource) || '') === 'shopify';
+/* A PPC ORDER FOR A SHOPIFY / ONLINE ORDER IS CUSTOM WORK TOO (Ravi, 15 Oct: "shopify wale order custom field me dikhne
+ * chahiye"): it sits under Custom orders, not Bulk — drawn the way every PPC order is (colour board, table or cards). */
+const vpIsPpcShop = o => String((o && o.demandSource) || '') === 'ppc' && (/shopify/i.test(String(o.channel || ''))
+  || voLines(o).some(l => (l && l.forOrders || []).some(x => /^(SHP|ONL)-/i.test(String((x && x.orderNo) || '')))));
+const vpIsCustom = o => vpIsShop(o) || vpIsPpcShop(o);
 /* COMPLETED (Ravi, 2026-09-28): a line sent in full, or cancelled, or on an order closed as Received or Cancelled, is
  * done. The Bulk and Custom tabs draw only the lines still to do; the Completed tab draws the rest. VP_PART is set by
  * renderVp for the tab on screen and read by every table and the export, so they always agree. */
@@ -302,7 +307,7 @@ function renderVp() {
   const hasOpen = o => voLines(o).some(l => l && !vpLineIsDone(o, l));
   const hasDone = o => voLines(o).some(l => l && vpLineIsDone(o, l));
   const openOrders = matched.filter(hasOpen);
-  const shopN = openOrders.filter(vpIsShop).length, bulkN = openOrders.length - shopN;
+  const shopN = openOrders.filter(vpIsCustom).length, bulkN = openOrders.length - shopN;
   const doneN = matched.reduce((t, o) => t + voLines(o).filter(l => l && vpLineIsDone(o, l)).length, 0);
   const tabs = $('vpTabs');
   if (tabs) {
@@ -327,7 +332,7 @@ function renderVp() {
   }
   const doneTab = VP.tab === 'done';
   VP_PART = doneTab ? 'done' : 'open';
-  const rows = doneTab ? matched.filter(hasDone) : openOrders.filter(o => (VP.tab === 'shop') === vpIsShop(o));
+  const rows = doneTab ? matched.filter(hasDone) : openOrders.filter(o => (VP.tab === 'shop') === vpIsCustom(o));
   VP.shown = rows;
   const open = rows.filter(o => ['Received', 'Dispatched'].indexOf(o.status || 'Placed') < 0).length;
   /* Over the live lines of the orders on screen, in one pass: what is still owed, and — the thing
@@ -359,8 +364,8 @@ function renderVp() {
     <span class="muted">Sent</span> <span style="color:#166534;font-weight:700">${amt(tot.sentPcs, tot.sentM)}</span>
     <span class="sep"></span>
     <span class="muted">Left to send</span> <span style="color:var(--bad);font-weight:700">${amt(tot.owedPcs, tot.owedM)}</span>
-    ${tot.late ? `<span class="sep"></span><span style="color:var(--bad);font-weight:600">${nf(tot.late)} past your date</span>` : ''}
-    ${tot.noDate ? `<span class="sep"></span><span style="color:#7f6000;font-weight:600">${nf(tot.noDate)} with no date from you</span>` : ''}
+    ${vpViewAll() ? '' : (tot.late ? `<span class="sep"></span><span style="color:var(--bad);font-weight:600">${nf(tot.late)} past your date</span>` : '')
+      + (tot.noDate ? `<span class="sep"></span><span style="color:#7f6000;font-weight:600">${nf(tot.noDate)} with no date from you</span>` : '')}
     <span style="flex:1"></span>
     <span class="muted" style="font-size:11px">your orders only${VP.at ? ' · ' + esc(VP.at) : ''}</span>
   </div>`;
@@ -378,8 +383,11 @@ function renderVp() {
   /* THE RFD TAB SHOWS ONLY WHAT IT USES (Ravi, 2026-09-26: "data too much lag rha h do neet and clean"). */
   /* A vendor's browser is marked, so the full guide at /guide/ sends them to theirs. */
   if (spIsVendor()) { try { localStorage.setItem('guideRole', 'vendor'); } catch (e) { /* nothing to mark */ } }
+  /* View only: no asking for RFD cloth and nothing to record or date — the tab and the bar go (vpViewAll()). */
+  if (vpViewAll() && VP.tab === 'rfd') VP.tab = 'bulk';
+  if ($('vpTabRfd')) $('vpTabRfd').classList.toggle('hide', vpViewAll());
   const rfdTab = VP.tab === 'rfd';
-  ['vpBar2', 'vpBar3'].forEach(id => { if ($(id)) $(id).classList.toggle('hide', rfdTab); });
+  ['vpBar2', 'vpBar3'].forEach(id => { if ($(id)) $(id).classList.toggle('hide', rfdTab || (id === 'vpBar3' && vpViewAll())); });
   ['vpView', 'vpStatus', 'vpType', 'vpQ', 'vpExport'].forEach(id => { if ($(id)) $(id).classList.toggle('hide', rfdTab); });
   if (rfdTab) { vpRfdRender(matched, nag); return; }
 
@@ -415,12 +423,15 @@ function renderVp() {
     return;
   }
 
+  const vpViewOf = (rs, f) => (($('vpView') || {}).value === 'orders' ? rs.map(o => vpCard(o, f)).join('')
+    : ($('vpView') || {}).value === 'product' ? vpProductBoard(rs, f)
+    : ($('vpView') || {}).value === 'board' ? vpBoard(rs, f) : vpTable(rs, f));
   const empty = `<div class="card" style="padding:34px;text-align:center;color:var(--muted)">${
     all.length ? 'No order matches those filters.' : 'No orders yet.'}</div>`;
   body.innerHTML = nag + (rows.length
     ? doneTab ? (rows.some(o => !vpIsShop(o)) ? vpTable(rows.filter(o => !vpIsShop(o)), f) : '') + (rows.some(vpIsShop) ? vpShopTable(rows.filter(vpIsShop), f) : '')
-    : (VP.tab === 'shop' ? vpShopTable(rows, f)
-      : (($('vpView') || {}).value === 'orders' ? rows.map(o => vpCard(o, f)).join('') : vpTable(rows, f)))
+    : (VP.tab === 'shop' ? (rows.some(vpIsShop) ? vpShopTable(rows.filter(vpIsShop), f) : '') + (rows.some(vpIsPpcShop) ? vpViewOf(rows.filter(vpIsPpcShop), f) : '')
+      : vpViewOf(rows, f))
     : empty);
   if ($('vpPin')) $('vpPin').onclick = pinOpenChange;
   /* The count, and nothing else. The two paragraphs that used to sit here were written for somebody
@@ -621,11 +632,170 @@ const VP_BRANDS = { RIDHI: 'Ridhi', RBP: 'Ridhi', CPC: 'CPC' };
 /** The buyer of a B2B line, when its brand box holds one. */
 const vpBuyerOf = l => (/^B2B-/.test(obUC(l && l.shopOrderNo)) && String((l && l.brand) || '').trim() && !VP_BRANDS[obUC(l.brand)]) ? String(l.brand).trim() : '';
 
+/** What Ridhi Home & Living gave the printer for this order and what came back — the office's entries, written onto the
+ * order as flowProg (flow-printorder.js). Nothing for an order the flow did not make. */
+function vpProgHtml(o) {
+  const p = o && o.flowProg; if (!p) return '';
+  const u = p.unit === 'pcs' ? 'pcs' : 'm', q = n => nf(Math.round((+n || 0) * 100) / 100) + ' ' + u;
+  const ch = ptList(p.challans), rc = ptList(p.receipts), given = +p.given || 0, back = +p.back || 0;
+  const day = d => (d ? ' (' + esc(typeof dShow === 'function' ? dShow(d) : d) + ')' : '');
+  return `<div style="margin-top:7px;display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:12.5px;align-items:baseline">
+    <span class="muted">${u === 'pcs' ? 'Cut pieces given to you' : 'Fabric given to you'}</span>
+    <span>${given > 0 ? `<b style="color:#1d4ed8">${q(given)}</b>` : '<b style="color:#92400e">not yet</b>'}${ch.length ? ` <span class="muted">· ${ch.map(c => esc(c.no) + day(c.date)).join(', ')}</span>` : ''}</span>
+    <span class="muted">Received from you</span>
+    <span>${back > 0 ? `<b style="color:#166534">${q(back)}</b>` : '<b class="muted">nothing yet</b>'}${rc.length ? ` <span class="muted">· ${rc.map(r => q(r.qty) + day(r.date)).join(', ')}</span>` : ''}</span>
+    ${given > 0 ? `<span class="muted">Still with you</span><span><b>${q(Math.max(0, given - back))}</b></span>` : ''}</div>`;
+}
+/* ---- THE COLOUR BOARD (Ravi, 15 Oct: design D, "one card per colour", "need picture") ----
+ * The printer's default view: each order, then a card per colour — the way the work is printed — with every SKU's
+ * picture, what was ordered, the RAW cloth or cut pieces Ridhi Home & Living gave for it, what came back, and the balance.
+ * Raw comes from two places: a PPC order's challans (flowProg.items, shared over the vendor-order lines that stand for
+ * each print-order line), or an older order's RFD sends (rfdReqs: a cut order's by SKU; a running order's by fabric, for
+ * the whole order, so it is said once on the order rather than guessed per line). */
+function vpRawCtx(o) {
+  const ctx = { flow: null, bySku: {}, byFab: {} };
+  const items = o && o.flowProg && o.flowProg.items;
+  if (items) {
+    const cnt = {}, keyOf = p => { const [k, part] = String(p || '').split('|'); return part === 'ruffle' ? k + FLOW_RUF : k; };
+    voLines(o).forEach(l => (Array.isArray(l.parts) ? l.parts : (l.flowPart ? [l.flowPart] : [])).forEach(p => { const k = keyOf(p); cnt[k] = (cnt[k] || 0) + 1; }));
+    ctx.flow = { items, cnt, keyOf };
+  }
+  (typeof rfdReqsOf === 'function' ? rfdReqsOf(o) : []).forEach(r => {
+    const sh = r.shown || {}, sends = (Array.isArray(sh.sends) ? sh.sends : []).filter(x => x && +x.qty > 0);
+    const given = sends.length ? sends.reduce((a, x) => a + (+x.qty || 0), 0) : (+sh.sent || 0);
+    if (!(given > 0)) return;
+    const e = { given, dates: sends.map(x => x.date).filter(Boolean) };
+    const add = (map, k) => { if (!k) return; const m = map[k] || (map[k] = { given: 0, dates: [] }); m.given += e.given; m.dates = m.dates.concat(e.dates); };
+    if (r.unit === 'pcs' || r.sku) add(ctx.bySku, obUC(r.sku)); else add(ctx.byFab, String(r.fabric || '').trim());
+  });
+  return ctx;
+}
+/** What a line was given (raw) and what came back. raw null = nothing on record for this line by itself. */
+function vpLineRaw(o, l, ctx) {
+  if (ctx.flow) {
+    let given = 0, back = 0;
+    (Array.isArray(l.parts) ? l.parts : (l.flowPart ? [l.flowPart] : [])).forEach(p => {
+      const k = ctx.flow.keyOf(p), it = ctx.flow.items[k], n = ctx.flow.cnt[k] || 1;
+      if (it) { given += (+it.given || 0) / n; back += (+it.back || 0) / n; }
+    });
+    return { raw: Math.round(given * 100) / 100, sent: Math.round(back * 100) / 100 };
+  }
+  const s = ctx.bySku[obUC(l.sku)];
+  return { raw: s ? s.given : (o.orderType === 'running' ? null : 0), sent: vpDone(l), dates: s ? s.dates : [] };
+}
+/* THE SWATCH ON A RUNNING LINE (Ravi, 17 Oct: "us fabric swatch laga do jisase pata rhe"). A fabric SKU (CPCF002, APB) has
+ * no photo of its own; what the printer needs to see is the design, and the product being made from that cloth shows it.
+ * The line's own picture first; else the product it is for — picSku, or the SKU in its flow key (ORDER__SKU, every PPC
+ * line has one); else the product the catalogue built that fabric SKU from. */
+function vpPicSku(l) {
+  if (!l) return '';
+  if (l.picSku) return obUC(l.picSku);
+  const fk = String(l.flowKey || ''), i = fk.lastIndexOf('__');
+  if (i > 0) return obUC(fk.slice(i + 2));
+  try { const c = voFabricCatalogue().get(obUC(String(l.sku || '').split(' ')[0])); if (c && c.imageFrom && !c.manual) return obUC(c.imageFrom); } catch (e) { /* no catalogue on this sign-in */ }
+  return '';
+}
+/** The picture for a running line: as a span (board) or a table cell. */
+function vpRunPic(l, px, cell) {
+  if (l.img) return cell ? ptImgCellSrc(l.sku, l.img) : `<img src="${esc(ptImgSrc(l.img, px))}" alt="" loading="lazy" class="vpb-pic">`;
+  const s = vpPicSku(l);
+  if (s) return cell ? ptImgCell(s, px) : ptImgSpan(s, px);
+  return cell ? '<td class="muted">—</td>' : ptImgSpan(l.sku, px);
+}
+function vpBoard(rows, f) {
+  const day = d => esc(typeof dShow === 'function' ? dShow(d) : d);
+  return rows.map(o => {
+    const st = o.status || 'Placed', run = o.orderType === 'running', unit = run ? 'm' : 'pcs';
+    const on = !!(f && vpLineOn(f));
+    const keep = voLines(o).map((l, i) => ({ l, i })).filter(({ l }) => !l.cancelled && (!on || voLineMatches(l, f)) && vpPartOk(o, l));
+    if (!keep.length) return '';
+    const ctx = vpRawCtx(o), q = n => nf(Math.round((+n || 0) * 100) / 100);
+    const wants = keep.map(({ l }) => voWant(l)).filter(Boolean).sort();
+    const cls = st === 'Dispatched' || st === 'Received' ? 'pill-ok' : 'pill-low';
+    const fabPool = Object.entries(ctx.byFab);
+    const head = `<div class="vpb-order"><b style="font-size:15px">${esc(o.orderNo || o.id)}</b>
+      <span class="pill">${run ? 'Running fabric — metres' : 'Cut fabric — pieces'}</span>${o.channel ? ` <span class="pill" style="background:#E9EFF6;color:#3A5573">For ${esc(o.channel)}</span>` : ''}
+      <span class="muted" style="font-size:12px">raised ${esc(o.orderDate) || '—'}${wants.length ? ' · wanted by ' + day(wants[0]) : ''}${o.lastDispatchDate ? ' · last sent ' + esc(o.lastDispatchDate) : ''}</span>
+      <span style="flex:1"></span><span class="pill ${cls}">${esc(st)}</span></div>
+      ${fabPool.length ? `<div class="muted" style="font-size:12.5px;margin:-4px 0 8px">Raw fabric for this whole order: ${fabPool.map(([fab, v]) => `<b style="color:#3A5573">${esc(fab)} ${q(v.given)} m</b>${v.dates.length ? ' (' + v.dates.map(day).join(', ') + ')' : ''}`).join(' · ')}</div>` : ''}`;
+    const cards = vpGroups(keep).map(g => {
+      const lines = g.items.map(({ l }) => Object.assign({ l, ord: vpQty(o, l) }, vpLineRaw(o, l, ctx)));
+      const sum = k => lines.reduce((a, x) => a + (+x[k] || 0), 0);
+      const ord = sum('ord'), sent = sum('sent'), rawKnown = lines.some(x => x.raw != null), raw = sum('raw');
+      const dates = [...new Set(lines.flatMap(x => x.dates || []))];
+      const sends = [...new Set(lines.flatMap(x => (Array.isArray(x.l.deliveries) ? x.l.deliveries : Object.values(x.l.deliveries || {})).filter(Boolean)
+        .map(d => q(parseFloat(d.qty) || 0) + (d.date ? ' on ' + esc(d.date) : ''))))];
+      const rows2 = lines.map(x => {
+        const chip = x.raw == null ? '<span class="muted">—</span>'
+          : x.raw <= 0 ? '<span class="vpb-no">no raw yet</span>'
+          : `<span class="vpb-raw">raw ${q(x.raw)}${x.raw >= x.ord - 0.01 ? ' ✓' : ''}</span>`;
+        const pic = run ? vpRunPic(x.l, 44) : ptImgSpan(x.l.sku, 44);
+        return `<div class="vpb-line">${pic}<div class="vpb-what"><span class="vpb-sku">${esc(run ? (x.l.sku || x.l.fabricType) : x.l.sku)}</span>
+          <span class="muted">${esc(run ? [x.l.fabricType, x.l.printDirection].filter(Boolean).join(' · ') : [x.l.articleSubtype || x.l.articleType, x.l.size].filter(Boolean).join(' · '))}</span></div>
+          <div class="vpb-n"><b>${q(x.ord)}</b><span class="muted">ordered</span></div><div class="vpb-n">${chip}<span class="muted">${x.sent > 0 ? 'sent ' + q(x.sent) : 'none sent'}</span></div></div>`;
+      }).join('');
+      return `<div class="vpb-card"><div class="vpb-head"><b>${esc(g.colour) || 'no colour'}</b><span style="flex:1"></span>${g.priority ? `<span class="vpb-pri">${esc(g.priority)}</span>` : ''}</div>
+        <div class="vpb-tot"><div><span>Ordered</span><b>${q(ord)}</b></div><div class="r"><span>Raw</span><b>${rawKnown ? q(raw) : '—'}</b></div>
+          <div class="s"><span>Sent</span><b>${q(sent)}</b></div><div class="b"><span>Balance</span><b>${q(Math.max(0, ord - sent))}</b></div></div>
+        ${rows2}
+        <div class="muted vpb-foot">${unit} · Raw: ${dates.length ? dates.map(day).join(', ') : (rawKnown && raw > 0 ? 'given' : 'not given yet')} · Sent: ${sends.length ? sends.slice(-4).join(', ') + (sends.length > 4 ? ' +' + (sends.length - 4) + ' more' : '') : 'nothing yet'}</div></div>`;
+    }).join('');
+    return `<div class="card vpb-wrap">${head}${vpProgHtml(o)}<div class="vpb-grid">${cards}</div></div>`;
+  }).join('');
+}
+/* BY PRODUCT — ONE CARD PER SKU (Ravi, 17 Oct: "1 sku alag alag order me h but wo dikhe 1 jagah combine hokar dropdown me aa
+ * jay ki kis kis order ke against h"). Every open vendor order's lines for the same thing — the SKU for cut pieces; the
+ * fabric SKU, direction and colour for running cloth — make one card: what it is, Ordered / Raw / Sent / Balance added up,
+ * and a dropdown of the vendor orders it stands for (each with its customer order, dates, quantity, raw and sent). Nothing is
+ * merged in the data: every vendor order keeps its own lines, deliveries and payout. Sending stays on By order / Every line. */
+function vpProductBoard(rows, f) {
+  const day = d => esc(typeof dShow === 'function' ? dShow(d) : d), q = n => nf(Math.round((+n || 0) * 100) / 100);
+  const groups = new Map();
+  rows.forEach(o => {
+    const st = o.status || 'Placed', run = o.orderType === 'running', on = !!(f && vpLineOn(f));
+    const keep = voLines(o).map((l, i) => ({ l, i })).filter(({ l }) => !l.cancelled && (!on || voLineMatches(l, f)) && vpPartOk(o, l));
+    if (!keep.length) return;
+    const ctx = vpRawCtx(o);
+    keep.forEach(({ l }) => {
+      const key = (run ? 'R|' + [obUC(l.sku || l.fabricType), String(l.printDirection || '').toLowerCase(), vpColour(l).toLowerCase()].join('|') : 'C|' + obUC(l.sku));
+      const g = groups.get(key) || { key, run, l, items: [], pri: 9, want: '' };
+      const rw = vpLineRaw(o, l, ctx), w = voWant(l);
+      g.items.push({ o, l, st, ord: vpQty(o, l), raw: rw.raw, sent: rw.sent, want: w });
+      g.pri = Math.min(g.pri, vpPriRank(l));
+      if (w && (!g.want || w < g.want)) g.want = w;
+      groups.set(key, g);
+    });
+  });
+  if (!groups.size) return '';
+  const list = [...groups.values()].sort((a, b) => a.pri - b.pri || String(a.want || '9').localeCompare(String(b.want || '9')) || a.key.localeCompare(b.key));
+  const cards = list.map(g => {
+    const l = g.l, run = g.run, unit = run ? 'm' : 'pcs';
+    const sum = k => g.items.reduce((t, x) => t + (+x[k] || 0), 0), ord = sum('ord'), sent = sum('sent'), rawKnown = g.items.some(x => x.raw != null), raw = sum('raw');
+    const orders = [...new Set(g.items.map(x => x.o.orderNo || x.o.id))];
+    const pic = run ? vpRunPic(l, 44) : ptImgSpan(l.sku, 44);
+    const what = run ? [l.fabricType, l.printDirection].filter(Boolean).join(' · ') : [l.articleSubtype || l.articleType, l.size].filter(Boolean).join(' · ');
+    const pri = String(l.priority || '').toUpperCase();
+    const forOf = x => [...new Set((x.l.forOrders || []).map(fo => fo && fo.orderNo).filter(Boolean))].join(', ') || (x.o.channel ? 'For ' + x.o.channel : '');
+    const rowsH = g.items.slice().sort((a, b) => String(a.want || '9').localeCompare(String(b.want || '9')) || String(a.o.orderNo).localeCompare(String(b.o.orderNo))).map(x => {
+      const chip = x.raw == null ? '' : x.raw <= 0 ? '<span class="vpb-no">no raw yet</span>' : `<span class="vpb-raw">raw ${q(x.raw)}</span>`;
+      return `<div class="vpb-line" style="align-items:flex-start"><div class="vpb-what"><b style="font-size:12.5px">${esc(x.o.orderNo || x.o.id)}</b>`
+        + `<span class="muted">${esc(forOf(x))}${forOf(x) ? ' · ' : ''}raised ${esc(x.o.orderDate || '—')}${x.want ? ' · wanted ' + day(x.want) : ''}</span></div>`
+        + `<div class="vpb-n"><b>${q(x.ord)}</b><span class="muted">${x.sent > 0 ? 'sent ' + q(x.sent) : 'none sent'}</span>${chip}</div></div>`;
+    }).join('');
+    return `<div class="vpb-card"><div class="vpb-line" style="border-top:0;padding-top:0">${pic}<div class="vpb-what"><span class="vpb-sku">${esc(run ? (l.sku || l.fabricType) : l.sku)}</span>`
+      + `<span class="muted">${esc(what)}</span><b style="font-size:13.5px">${esc(vpColour(l) || '')}</b></div>${pri ? `<span class="vpb-pri">${esc(pri)}</span>` : ''}</div>`
+      + `<div class="vpb-tot"><div><span>Ordered</span><b>${q(ord)}</b></div><div class="r"><span>Raw</span><b>${rawKnown ? q(raw) : '—'}</b></div>`
+      + `<div class="s"><span>Sent</span><b>${q(sent)}</b></div><div class="b"><span>Balance</span><b>${q(Math.max(0, ord - sent))}</b></div></div>`
+      + `<details${orders.length === 1 ? '' : ''}><summary style="cursor:pointer;font-size:12.5px;font-weight:600;color:var(--brand)">${nf(orders.length)} order${orders.length === 1 ? '' : 's'} · ${unit}${g.want ? ' · first wanted ' + day(g.want) : ''}</summary>${rowsH}</details></div>`;
+  }).join('');
+  return `<div class="card vpb-wrap"><div class="vpb-order"><b style="font-size:15px">By product</b><span class="muted" style="font-size:12px">${nf(list.length)} product(s) across ${nf(rows.length)} order(s) — open a card's list to see which orders it is for.${vpViewAll() ? '' : ' Record a send on "By order" or "Every line".'}</span></div><div class="vpb-grid">${cards}</div></div>`;
+}
 function vpTable(rows, f) {
   /* Ten columns, not thirteen. The colour and the priority moved up into the group heading, and the
-   * order number was on every row of an order whose bar already named it. */
+   * order number was on every row of an order whose bar already named it. View only (vpViewAll()): eight — no date of
+   * the printer's own, nothing being sent. */
   const COLS = ['SKU / fabric', 'Image', 'Article', 'Size', 'Ordered', 'Sent so far',
-    'Balance', 'Wanted by', 'Your date', 'Sending now'];
+    'Balance', 'Wanted by'].concat(vpViewAll() ? [] : ['Your date', 'Sending now']);
   const head = COLS
     .map(h => `<th${['Ordered', 'Sent so far', 'Balance', 'Sending now'].indexOf(h) >= 0 ? ' class="num"' : ''}>${esc(h)}</th>`).join('');
 
@@ -655,6 +825,7 @@ function vpTable(rows, f) {
           <span class="pill ${cls}">${esc(st)}</span>
         </div>
         ${o.notes ? `<div class="ptnote" style="margin-top:7px">From the buyer: ${esc(o.notes)}</div>` : ''}
+        ${vpProgHtml(o)}
         ${flow ? `<div style="margin-top:7px">
           <button data-vpflow="${esc(o.id)}">${flow === 'Acknowledged' ? 'Acknowledge this order' : 'Start production'}</button>
         </div>` : ''}
@@ -680,7 +851,7 @@ function vpTable(rows, f) {
       const dels = (Array.isArray(l.deliveries) ? l.deliveries : Object.values(l.deliveries || {})).filter(Boolean);
       return `<tr${dead ? ' style="opacity:.5"' : ''}>`
         + `<td style="text-align:left;font-family:ui-monospace,monospace;font-size:12px">${esc(run ? (l.sku || l.fabricType) : l.sku)}${run && l.sku ? `<div class="muted" style="font-size:10.5px;font-family:inherit">${esc(l.fabricType)}</div>` : ''}</td>`
-        + (run ? (l.img ? ptImgCellSrc(l.sku, l.img) : '<td class="muted">—</td>') : ptImgCell(l.sku))
+        + (run ? vpRunPic(l, 38, true) : ptImgCell(l.sku))
         + `<td style="text-align:left;font-size:12px">${esc(run
             ? (l.printDirection || '')
             : (l.articleSubtype || l.articleType || ''))}</td>`
@@ -691,13 +862,13 @@ function vpTable(rows, f) {
         + `<td class="num">${dead ? '<span class="pill pill-out">cancelled</span>'
             : (bal > 0 ? `<span style="font-weight:700;color:var(--bad)">${nf(bal)}</span>` : '<span class="pill pill-ok">done</span>')}</td>`
         + `<td class="muted" style="font-size:12px">${voWant(l) ? esc(dShow(voWant(l))) : '—'}</td>`
-        + `<td>${flowVpViewOnly(o) || dead || bal <= 0 ? '<span class="muted">—</span>'
+        + (vpViewAll() ? '</tr>' : `<td>${flowVpViewOnly(o) || dead || bal <= 0 ? '<span class="muted">—</span>'
             : `<input data-vpprom="${esc(o.id)}" data-i="${i}" type="date" value="${esc(voProm(l))}" style="width:146px">`
               + (voMoves(l) ? `<div class="muted" style="font-size:10px">first said ${esc(dShow(voPromFirst(l)))}</div>` : '')}</td>`
         + `<td class="num">${!can || dead || bal <= 0 ? '<span class="muted">—</span>'
             : `<input data-vpsend="${esc(o.id)}" data-i="${i}" type="number" min="0" max="${bal}" step="${run ? '0.01' : '1'}"
                  placeholder="0" style="width:82px;text-align:right">`}</td>`
-        + '</tr>';
+        + '</tr>');
       }).join('');
     }).join('');
     return bar + lines;
@@ -763,6 +934,7 @@ function vpCard(o, f) {
       <span style="flex:1"></span><span class="pill ${cls}">${esc(st)}</span>
     </div>
     ${o.notes ? `<div class="ptnote" style="margin-top:8px">From the buyer: ${esc(o.notes)}</div>` : ''}
+    ${vpProgHtml(o)}
     <div class="xlwrap" style="border:1px solid var(--line);border-radius:10px;margin-top:8px">
       <table class="xl"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>
     ${on && keep.length < all.length ? `<div class="muted" style="font-size:12px;margin-top:6px">${

@@ -1,0 +1,13 @@
+const fs = require('fs');
+const { lines, B } = require('./cleanup-plan.js');
+const act = l => (+l.cut || 0) + (+l.issued || 0) + (+l.received || 0) + (+l.made || 0) + (+l.pressed || 0);
+const cls = l => !l.open ? 'Complete (keep)' : act(l) > 0 ? 'In hand (keep)' : 'Pending (delete)';
+const c = v => { const s = String(v == null ? '' : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+const head = ['Group', 'Order no', 'Order date', 'Source', 'SKU', 'Item', 'Colour', 'Size', 'Qty', 'Cut', 'Issued', 'Received', 'QC passed / made', 'Handed / done'];
+const rows = lines.map(l => [cls(l), l.orderNo, l.orderDate, l.src, l.sku, l.articleSubtype || l.articleType || l.itemName, l.color, l.size, l.qty, l.cut, l.issued, l.received, l.made, l.handedAt || l.shopDoneAt || '']);
+rows.sort((a, b) => a[0].localeCompare(b[0]) || String(a[1]).localeCompare(String(b[1])));
+const out = process.argv[3];
+fs.writeFileSync(out, '\ufeff' + [head].concat(rows).map(r => r.map(c).join(',')).join('\r\n'));
+const vo = []; Object.entries(B.pt_vendorOrders || {}).forEach(([code, m]) => Object.entries(m || {}).forEach(([id, o]) => { if (o && typeof o === 'object' && (o.lines || o.status) && ['Received', 'Cancelled'].indexOf(o.status || 'Placed') < 0) vo.push([o.orderNo, o.vendorName || code, o.orderType, o.orderDate, o.status || 'Placed', (Array.isArray(o.lines) ? o.lines : Object.values(o.lines || {})).filter(Boolean).length]); }));
+fs.writeFileSync(out.replace(/\.csv$/, '-vendor-orders.csv'), '\ufeff' + [['Vendor order', 'Vendor', 'Type', 'Raised', 'Status now', 'Lines']].concat(vo).map(r => r.map(c).join(',')).join('\r\n'));
+console.log('rows', rows.length, 'vendor orders', vo.length);

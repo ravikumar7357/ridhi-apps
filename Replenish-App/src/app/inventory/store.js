@@ -68,10 +68,14 @@ async function ensureStoreRead() {
   await Promise.all([
     ptGet('pt_storeLedger').then(v => { STORE.rows = ptList(v); }, e => { errs[0] = 'the store book (' + (e.message || e) + ')'; STORE.rows = STORE.rows || []; }),
     ptGet('pt_storeChecks').then(v => { STORE.checks = v || {}; }, () => { STORE.checks = STORE.checks || {}; }),
-    /* The Job Work Register after the order book, as before: the order book reads the same register, and the second
-     * read can then be answered from the copy the first one left. */
+    /* The Job Work Register and the cutting table after the order book, as before: the order book reads both, and
+     * a second read is then answered from what the first one left (or skipped, when it filled them). */
     (PTG.mdb ? Promise.resolve() : ptLoadGates().catch(() => { errs[1] = 'the master database'; }))
-      .then(() => (PT.base ? null : ptGet('pt_baseData').then(v => { PT.base = ptList(v); }, () => { errs[2] = 'the Job Work Register'; }))),
+      .then(() => Promise.all([
+        PT.base ? null : ptGet('pt_baseData').then(v => { PT.base = ptList(v); }, () => { errs[2] = 'the Job Work Register'; }),
+        /* The cutting table: a printed-cloth cut takes from the store (stFlowMoves). */
+        PT.cut == null ? ptGet('pt_cuttingData').then(v => { PT.cut = ptList(v); }, () => { errs[5] = 'the cutting entries'; }) : null,
+      ])),
     VO.rows === null ? ensureVo().catch(() => { errs[3] = 'the printers\' orders'; }) : null,
     typeof FLOW_ON !== 'undefined' && FLOW_ON && typeof flowLoad === 'function' ? flowLoad().catch(() => { /* the flow's receipts wait */ }) : null,
   ]);
@@ -117,6 +121,71 @@ function stCutting(c) {
 /** Every movement of the store, oldest first. Built, never stored. */
 /* By hand only since 14 Oct; localStorage storeAuto = '1' brings the computed movements back on one computer. */
 const ST_MANUAL_ONLY = (() => { try { return localStorage.getItem('storeAuto') !== '1'; } catch (e) { return true; } })();
+/* THE STORE MOVES BY ITSELF AGAIN — FROM THE PRODUCTION FLOW (Ravi, 16 Oct: "now ye fabric kese auto kam hoga" → minus on
+ * "PPC plan or cutting entry", plus "receive par"). On top of what is typed, and only from ST_AUTO_FROM on (everything
+ * before it is in the figures typed by hand):
+ *   IN   printed cloth received on a flow RFD challan (Demand → Printed fabric in), fabric + colour, in metres
+ *   OUT  a PPC plan that takes printed cloth / pieces from the store (plan.fabric.fromPrinted, a ruffle's fromPrinted) —
+ *        at the plan; undo or change the plan and it follows
+ *   OUT  a cutting entry of a printed-cloth SKU (the metres used, else worked out) — less what that line's own PPC plan
+ *        already took from the store, so the same cloth never comes off twice. A line PPC sent to Cutting / Job Work
+ *        (no printing) is cut from RFD, not from here.
+ * Built, never stored. Pieces received on a challan go to Raw cutting in store (the flow), not here. */
+const ST_AUTO_FROM = '2026-10-16T08:15:00Z';
+/** Did this PPC plan's printed stock already come off the store (the store took it at the plan)? */
+const stPlanTookOut = p => !!(ST_MANUAL_ONLY && p && String(p.at || '') >= ST_AUTO_FROM);
+/** The flow's movements of the store since ST_AUTO_FROM. */
+function stFlowMoves() {
+  const out = [];
+  if (typeof FLOW_ON === 'undefined' || !FLOW_ON || typeof FLOW === 'undefined' || !FLOW) return out;
+  const day = at => ptIsoDate(at) || String(at || '').slice(0, 10);
+  const colOf = sku => { let m = {}; try { m = cutSkuOf(sku) || {}; } catch (e) { m = {}; } return String(m.color || '').trim(); };
+  /* IN — printed cloth received on a challan */
+  try {
+    flowVlogRows().forEach(r => {
+      if (r.test || r.unit !== 'm' || !r.fabric || !(r.qty > 0) || String(r.at || '') < ST_AUTO_FROM) return;
+      out.push({ src: 'printer', id: r.key2, unit: 'm', sku: '', fabric: r.fabric, colour: r.colour || '', printer: r.vendor || '',
+        qty: r.qty, what: 'Received from ' + (r.vendor || 'the printer') + ' · ' + r.id, date: r.day || day(r.at), at: r.at, who: r.by || '', remark: r.orderNo || '' });
+    });
+  } catch (e) { /* the challans wait */ }
+  /* OUT — what each PPC plan took from the store, and what it took per line (for the cutting below) */
+  const took = {};
+  Object.entries(FLOW.ppc || {}).forEach(([key, p]) => {
+    if (!stPlanTookOut(p) || /^TEST-/.test(String(p.orderNo || '')) || (p.route && p.route !== 'inhouse')) return;
+    const colour = colOf(p.sku), fp = +(p.fabric && p.fabric.fromPrinted) || 0;
+    const base = { src: 'plan', date: day(p.at), at: p.at, who: p.by || '', remark: (p.orderNo || '') + ' · ' + (p.sku || '') };
+    if (fp > 0) {
+      if (p.fabric.printedUnit === 'pcs') {
+        let code = ''; try { code = flowPrintWhat({ sku: p.sku, qty: p.qty, orderNo: p.orderNo }, p).code || ''; } catch (e) { code = ''; }
+        if (code) out.push(Object.assign({ id: 'plan-' + key, unit: 'pcs', sku: obUC(code), fabric: '', colour: '', qty: -fp, what: 'Taken by the PPC plan' }, base));
+      } else if (p.fabric.name) {
+        out.push(Object.assign({ id: 'plan-' + key, unit: 'm', sku: '', fabric: p.fabric.name, colour, qty: -fp, what: 'Taken by the PPC plan' }, base));
+        took[key] = fp;
+      }
+    }
+    (p.extra || []).forEach((x, j) => { const q = +x.fromPrinted || 0; if (!(q > 0) || !/^Ruffle — /.test(String(x.what || ''))) return;
+      out.push(Object.assign({ id: 'plan-' + key + '-x' + j, unit: 'm', sku: '', fabric: String(x.what).replace(/^Ruffle — /, ''), colour, qty: -q, what: 'Taken by the PPC plan (ruffle)' }, base)); });
+  });
+  /* OUT — the cutting table, for printed cloth */
+  const used = {};
+  (PT.cut || []).slice().sort((a, b) => String(a.addedAt || '').localeCompare(String(b.addedAt || ''))).forEach(c => {
+    const at = String(c.addedAt || '');
+    if (!at || at < ST_AUTO_FROM || /^TEST-/.test(String(c.orderNo || ''))) return;
+    const k = stCutting(c);
+    if (!k.running || !(k.metres > 0) || !k.fabric) return;
+    const key = typeof flowKey === 'function' ? flowKey(c.orderNo || '', c.sku || '') : '', p = (FLOW.ppc || {})[key];
+    /* PPC sent it to Cutting / Job Work: cut from RFD — unless PPC said the cloth was printed already and is in hand
+     * (fabric.noRfd): then it is cut from the printed store, and comes off here. */
+    if (p && p.route && p.route !== 'inhouse' && !(p.route === 'stitch' && p.fabric && p.fabric.noRfd)) return;
+    const covered = Math.max(0, (took[key] || 0) - (used[key] || 0)), fromPlan = Math.min(covered, k.metres);
+    used[key] = (used[key] || 0) + fromPlan;
+    const q = Math.round((k.metres - fromPlan) * 100) / 100;
+    if (!(q > 0)) return;
+    out.push({ src: 'cut', id: 'cut-' + c.id, unit: 'm', fabric: k.fabric, colour: k.colour, sku: '', qty: -q,
+      what: 'Cut ' + nf(k.pcs) + ' × ' + (c.articleSubtype || c.sku || ''), date: ptIsoDate(c.cutDate) || day(at), at, who: c.addedBy || '', remark: c.orderNo || '' });
+  });
+  return out;
+}
 function stMoves() {
   const start = stStart();
   const out = [];
@@ -134,7 +203,7 @@ function stMoves() {
    * manually chadaunga"). The store is what is typed — opening, in, out, correction — and nothing else: the printers'
    * deliveries, the cutting table and the karigar issues no longer move it. PPC's "printed stock in the store" reads the
    * same figure. ST_MANUAL_ONLY = false brings the computed movements back. */
-  if (ST_MANUAL_ONLY) return out.sort((a, b) => String(a.at).localeCompare(String(b.at)));
+  if (ST_MANUAL_ONLY) return out.concat(stFlowMoves()).sort((a, b) => String(a.at).localeCompare(String(b.at)));
   /* NO OPENING STOCK IS NOT A REASON TO RECORD NOTHING. Without one, the register still holds
    * everything that has moved — it simply is not the shelf yet, and the screen says so. Movements
    * before the opening stock ARE dropped, because the opening figure already contains them. */
@@ -203,6 +272,7 @@ function stBalances(moves) {
     else if (mv.src === 'waste') e.cutIn += mv.qty;
     else if (mv.src === 'jobwork') e.issued += -mv.qty;
     else if (mv.src === 'typed') e.typed += mv.qty;
+    else if (mv.src === 'plan') e.planOut = (e.planOut || 0) - mv.qty;
     if (String(mv.at) > e.last) e.last = String(mv.at);
     if (!e.sku && mv.sku) e.sku = mv.sku;
   });
@@ -273,8 +343,9 @@ function stEntryOpen(pre) {
     title: 'Store entry',
     subtitle: 'What is on the shelf, and anything the registers cannot know',
     note: ST_MANUAL_ONLY
-      ? 'Printed cloth goes in by fabric and colour (metres), printed pieces by SKU. The store is only what is typed here: '
-        + 'opening stock, printed fabric in, printed fabric out, or a correction.'
+      ? 'Printed cloth goes in by fabric and colour (metres), printed pieces by SKU. Typed here: opening stock, printed fabric '
+        + 'in, printed fabric out, or a correction. Since 16 Oct the flow also moves it by itself — printed cloth received on a '
+        + 'challan comes in; a PPC plan or a cutting entry that takes it goes out — so do not type those again.'
       : 'Pieces go in by SKU, cloth by fabric and colour. What the printers send, what cutting takes and what '
         + 'is issued to karigars is counted on its own — those are not typed here.',
     fields: [
@@ -355,7 +426,7 @@ function renderStoreHand() {
   const met = bal.filter(b => b.unit === 'm'), pcs = bal.filter(b => b.unit === 'pcs');
   const sum = (l, k) => Math.round(l.reduce((a, b) => a + b[k], 0) * 10) / 10;
   $('fbKpis').innerHTML = `<div class="kpi" style="flex-basis:100%">
-    <div class="kpihead"><span class="kpiname">Printed fabric in store — entered by hand</span>
+    <div class="kpihead"><span class="kpiname">Printed fabric in store — by hand, and from the production flow since 16 Oct</span>
       <span class="kpiwhen">read live${STORE.at ? ' · ' + esc(STORE.at) : ''}</span></div>
     <div class="metrics">
       <div class="metric"><div class="v"${sum(met, 'qty') < 0 ? ' style="color:var(--bad)"' : ''}>${nf(sum(met, 'qty'))}</div><div class="l">Printed cloth in store (m)</div><div class="l muted">${nf(met.length)} fabric &amp; colour</div></div>
@@ -364,9 +435,9 @@ function renderStoreHand() {
     </div></div>`;
   FAB.shown = bal;
   $('fbMsg').className = STORE.err ? 'err' : 'muted';
-  $('fbMsg').title = 'The balance is the sum of what was typed — opening, in, out and corrections — never a stored figure.';
+  $('fbMsg').title = 'The balance is the sum of what was typed by hand and, since 16 Oct, what the production flow moved: printed cloth received on a challan (in), PPC plans and cutting entries that take it (out). Never a stored figure.';
   $('fbMsg').textContent = (bal.length ? `${nf(bal.length)} item(s)` : 'Nothing entered yet')
-    + ' · every figure here was typed by hand — "+ Store entry" adds printed fabric, takes it out, or corrects it'
+    + ' · typed by hand, plus since 16 Oct by itself: in when printed cloth is received on a challan, out when a PPC plan or a cutting entry takes it'
     + (STORE.err ? ' · ' + STORE.err : '');
   if (!bal.length) { ptEmpty('fbTable', 'Nothing in the store yet — press "+ Store entry" to add the printed fabric you have.'); return; }
   const head = '<thead><tr>' + ['Item', 'Kind', 'In', 'Out', 'Balance', 'Last entry', 'Entries']
@@ -376,8 +447,8 @@ function renderStoreHand() {
   $('fbTable').innerHTML = head + '<tbody>' + drawn.map(b => '<tr>'
     + `<td class="frz" style="text-align:left">${b.unit === 'pcs' ? ptImgSpan(b.sku, 28) + ' ' : ''}${esc(b.name)}</td>`
     + `<td>${b.unit === 'pcs' ? 'Pieces' : 'Cloth (m)'}</td>`
-    + `<td class="num" style="color:#166534">${z(b.inQty)}</td>`
-    + `<td class="num" style="color:var(--bad)">${z(b.outQty)}</td>`
+    + `<td class="num" style="color:#166534" title="${esc('typed in: ' + nf(Math.max(0, b.inQty - (b.fromPrinter || 0))) + ' · received on challans: ' + nf(b.fromPrinter || 0))}">${z(b.inQty)}</td>`
+    + `<td class="num" style="color:var(--bad)" title="${esc('PPC plans: ' + nf(b.planOut || 0) + ' · cutting: ' + nf(b.cutOut || 0) + ' · typed out: ' + nf(Math.max(0, b.outQty - (b.planOut || 0) - (b.cutOut || 0))))}">${z(b.outQty)}</td>`
     + `<td class="num" style="font-weight:700${b.qty < 0 ? ';color:var(--bad)' : ''}">${nf(Math.round(b.qty * 100) / 100)}</td>`
     + `<td style="font-size:12px">${esc(ptIsoDate(b.last) || '')}</td>`
     + `<td class="num muted">${nf(b.n)}</td></tr>`).join('') + '</tbody>';

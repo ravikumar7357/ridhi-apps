@@ -95,6 +95,56 @@ function flowPoProgress(o) {
     return { key, it, need, sent: flowR2(c.sent || 0), back: flowR2(c.recv || 0), done: need <= 0 || ((c.recv || 0) >= need - 0.01) };
   });
 }
+/* WHAT THE PRINTER IS TOLD (Ravi, 15 Oct: the printer sees, against each order, whether the fabric or the cut pieces reached
+ * it and what it has sent back). A printer's sign-in cannot read the flow's challans, so the office side writes a summary
+ * onto the printer's own Vendor Order: pt_vendorOrders/<code>/<id>/flowProg = { unit, given, back, challans:[{no, date,
+ * given, back}], receipts:[{date, qty, challan}], at }. Worked out from the RFD challans of this print order's lines in the
+ * vendor order's unit (running cloth in m, cut pieces in pcs), and written only when it changed (sig on the print order). */
+function flowVoProgOf(o, kind) {
+  const unit = kind === 'cut' ? 'pcs' : 'm', keys = new Set(Object.keys(o.items || {}).filter(k => o.items[k]));
+  const code = String((o.printer && o.printer.code) || ''), challans = [], receipts = [], items = {};
+  Object.values(FLOW.ch || {}).forEach(c => {
+    if (!c || c.cancelled || obUC(c.orderNo) !== obUC(o.orderNo) || String((c.vendor && c.vendor.code) || '') !== code) return;
+    const ls = (c.lines || []).filter(l => flowChUnit(l) === unit && (keys.has(l.key) || keys.has(l.key + FLOW_RUF)));
+    if (!ls.length) return;
+    const lk = new Set(ls.map(l => l.key));
+    /* per print order line (its key; a ruffle-only line as <key>~ruffle) — the portal shares it out over the vendor-order
+     * lines that stand for it (their parts), so each card line can say what reached the printer for it */
+    const recvOf = flowChRecv(c);
+    ls.forEach(l => { const ik = l.ruffleOnly ? l.key + FLOW_RUF : l.key, e = items[ik] || (items[ik] = { given: 0, back: 0 });
+      e.given = flowR2(e.given + flowChSent(l)); e.back = flowR2(e.back + (recvOf[l.key] || 0)); });
+    let back = 0;
+    Object.values(c.receipts || {}).forEach(r => {
+      const q = flowR2(Object.entries((r && r.items) || {}).filter(([k]) => lk.has(k)).reduce((a, [, v]) => a + (+v || 0), 0));
+      if (q > 0) { back += q; receipts.push({ date: r.date || '', qty: q, challan: c.no }); }
+    });
+    challans.push({ no: c.no, date: c.date || '', given: flowR2(ls.reduce((a, l) => a + flowChSent(l), 0)), back: flowR2(back) });
+  });
+  const by = (a, b) => String(a.date).localeCompare(String(b.date)) || String(a.no || a.challan).localeCompare(String(b.no || b.challan));
+  challans.sort(by); receipts.sort(by);
+  return { unit, given: flowR2(challans.reduce((a, c) => a + c.given, 0)), back: flowR2(challans.reduce((a, c) => a + c.back, 0)), challans, receipts, items };
+}
+let FLOW_VOSYNC_T = null;
+/** Written from the office's screens after they draw — never from a printer's sign-in. Quiet: a failed write waits for the next. */
+function flowVoProgSync() {
+  if (!FLOW_REAL || !FLOW.po || !FLOW.ch || (typeof NAV_IS_VENDOR !== 'undefined' && NAV_IS_VENDOR)) return;
+  clearTimeout(FLOW_VOSYNC_T);
+  FLOW_VOSYNC_T = setTimeout(async () => {
+    const patch = {}, now = new Date().toISOString();
+    Object.entries(FLOW.po || {}).forEach(([no, o]) => {
+      if (!o || o.test || !o.vo || !o.printer) return;
+      ['running', 'cut'].forEach(kind => {
+        const ref = o.vo[kind]; if (!ref || !ref.id || !ref.code) return;
+        const prog = flowVoProgOf(o, kind), sig = JSON.stringify(prog);
+        if (((o.voProg || {})[kind] || {}).sig === sig) return;
+        patch[`pt_vendorOrders/${ref.code}/${ref.id}/flowProg`] = Object.assign({ at: now }, prog);
+        patch[`pt_flowPrintOrders/${no}/voProg/${kind}`] = { sig, at: now };
+        o.voProg = Object.assign({}, o.voProg, { [kind]: { sig, at: now } });
+      });
+    });
+    if (Object.keys(patch).length) { try { await ptPatch(patch); } catch (e) { /* the next draw tries again */ } }
+  }, 1500);
+}
 const flowPoState = o => o.cancelled ? 'cancelled' : flowPoProgress(o).every(x => x.done) ? 'done' : flowPoProgress(o).some(x => x.sent > 0) ? 'part' : 'open';
 
 /** The Print orders bucket: every print order, open first. */
@@ -154,6 +204,21 @@ function flowChannelOf(r, m) {
   if (/SHP|ONL/.test(s)) return /CPC/i.test(String((m && m.brand) || '')) ? 'CPC Shopify' : 'Shopify';
   return '';
 }
+/* THE SWATCH (Ravi, 17 Oct: "us fabric swatch laga do jisase pata rhe"). A printed fabric SKU has no photo of its own, so
+ * the printer is shown the design: the photo of the product being made from the cloth, else of the catalogue's product for
+ * that fabric SKU (a code added by hand borrows the built one of the same brand and colour code), else of any product in
+ * the same colour code. Saved on the line as img — a printer's sign-in cannot look pictures up. */
+function flowSwatchOf(productSku, fabSku) {
+  const pic = s => { try { return s ? ptImgOf(s) || '' : ''; } catch (e) { return ''; } };
+  let u = pic(productSku); if (u) return u;
+  let cat = null; try { cat = voFabricCatalogue(); } catch (e) { cat = null; }
+  const c = cat && cat.get(obUC(String(fabSku || '').split(' ')[0]));
+  if (c && c.imageUrl) return c.imageUrl;
+  const k = typeof fsCodeOf === 'function' ? fsCodeOf(productSku) : null;
+  if (cat && c && c.manual) for (const x of cat.values()) if (!x.manual && x.imageUrl && x.brand === c.brand && String(x.code) === String(c.code)) return x.imageUrl;
+  if (k) for (const r of (PTG.mdb || [])) { const kk = r && fsCodeOf(r.sku); if (kk && kk.family === k.family && kk.code === k.code && (u = pic(r.sku))) return u; }
+  return '';
+}
 /** The vendor-order lines a flow print order stands for: { running: [...], cut: [...], channel }. */
 function flowVoLines(o, planOf) {
   const out = { running: [], cut: [], channel: '' };
@@ -166,7 +231,8 @@ function flowVoLines(o, planOf) {
     const m = cutSkuOf(it.sku) || {}, w = it.print || {}, lk = key.endsWith(FLOW_RUF) ? key.slice(0, -FLOW_RUF.length) : key;
     if (!out.channel) out.channel = flowChannelOf(r, m);
     const base = { brand: m.brand || '', color: String(m.color || r.color || '').trim(), deliveryDate: (p.dates && p.dates.cut) || '', dispatchedQty: 0,
-      notes: `${o.orderNo} · ${it.sku} (PPC ${o.no})`, priority: 'P2', forOrders: [{ orderNo: o.orderNo, qty: +r.qty || it.pcs || 0 }], flowKey: lk };
+      notes: `${o.orderNo} · ${it.sku} (PPC ${o.no})`, priority: 'P2', forOrders: [{ orderNo: o.orderNo, qty: +r.qty || it.pcs || 0 }], flowKey: lk,
+      picSku: obUC(it.sku) };   // the product made from the cloth: its photo is the swatch the printer sees (17 Oct)
     if (it.ruffle) { /* the ruffle cloth alone — its lines below */ } else if (w.kind === 'sku') {
       if (it.pcs > 0) out.cut.push(Object.assign({}, base, { kind: 'cut', sku: it.sku, qty: it.pcs, articleType: m.articleType || '',
         articleSubtype: m.subtype || m.articleSubtype || '', size: m.size || '', flowPart: key + '|sku' }));
@@ -174,10 +240,10 @@ function flowVoLines(o, planOf) {
       const fab = String((p.fabric && p.fabric.name) || m.fabric || '').trim(), dir = (p.print && p.print.dir) || String(w.label || '').split(' · ')[2] || '';
       const parts = w.sides && w.sides.length ? w.sides.map(sd => ({ sku: sd.code, meters: flowR2(it.metres / w.sides.length), part: sd.side }))
         : [{ sku: w.code, meters: it.metres, part: 'body' }];
-      parts.forEach(pt => { if (pt.meters > 0) out.running.push(Object.assign({}, base, { kind: 'running', sku: pt.sku, fabricType: fab, printDirection: dir, meters: pt.meters, flowPart: key + '|' + pt.part })); });
+      parts.forEach(pt => { if (pt.meters > 0) out.running.push(Object.assign({}, base, { kind: 'running', sku: pt.sku, fabricType: fab, printDirection: dir, meters: pt.meters, flowPart: key + '|' + pt.part, img: flowSwatchOf(it.sku, pt.sku) })); });
     }
     (it.extras || []).forEach(x => { if (+x.metres > 0) out.running.push(Object.assign({}, base, { kind: 'running', sku: x.code, fabricType: String(x.label || '').split(' · ')[1] || '',
-      printDirection: String(x.label || '').split(' · ')[2] || '', meters: flowR2(+x.metres), notes: base.notes + ' · ruffle', flowPart: lk + '|ruffle' })); });
+      printDirection: String(x.label || '').split(' · ')[2] || '', meters: flowR2(+x.metres), notes: base.notes + ' · ruffle', flowPart: lk + '|ruffle', img: flowSwatchOf(it.sku, x.code) })); });
   });
   /* COMBINED (Ravi, 11 Oct): one vendor-order line per printed fabric (fabric, colour, direction) and per printed SKU, across
    * the order's lines — the printer prints RBPSF9-H-82 once, for both pillow sizes. flowPart names every part it stands for. */
@@ -186,7 +252,7 @@ function flowVoLines(o, planOf) {
       if (!e) { m.set(k, Object.assign({}, l, { forOrders: (l.forOrders || []).map(f => Object.assign({}, f)), parts: [l.flowPart], skus: [String(l.notes || '').split(' · ')[1] || ''] })); return; }
       e[qty] = qty === 'meters' ? flowR2((+e[qty] || 0) + (+l[qty] || 0)) : (+e[qty] || 0) + (+l[qty] || 0);
       (l.forOrders || []).forEach(f => { const o = e.forOrders.find(x => x.orderNo === f.orderNo); if (o) o.qty = (+o.qty || 0) + (+f.qty || 0); else e.forOrders.push(Object.assign({}, f)); });
-      e.parts.push(l.flowPart); e.skus.push(String(l.notes || '').split(' · ')[1] || '');
+      e.parts.push(l.flowPart); e.skus.push(String(l.notes || '').split(' · ')[1] || ''); if (!e.img && l.img) e.img = l.img;
       if (l.deliveryDate && (!e.deliveryDate || l.deliveryDate < e.deliveryDate)) e.deliveryDate = l.deliveryDate; });
     return [...m.values()].map(e => { const { parts, skus, ...l } = e; const u = [...new Set(skus.map(x => x.replace(/ \(PPC.*$/, '')).filter(Boolean))];
       return Object.assign(l, { flowPart: parts.slice().sort().join('+'), ...(parts.length > 1 ? { notes: `${o.orderNo} · ${u.join(', ')} (PPC ${o.no})${/· ruffle$/.test(l.notes || '') ? ' · ruffle' : ''}`, forOrders: l.forOrders } : {}) }); }); };

@@ -436,8 +436,10 @@ function ordBookCsv(rows) {
   return lines;
 }
 
-/** The colour code in a SKU: the digits after the leading letters — RQL351-Q → "351", RQL0009-Q-Front → "0009". */
-const ordColCodeOf = sku => (String(sku || '').toUpperCase().match(/^[A-Z]+(\d{1,5})/) || ['', ''])[1];
+/** The colour code in a SKU: the digits after the leading letters — RQL351-Q → "351", RQL0009-Q-Front → "0009".
+ * Letter groups joined by dashes count as the letters (17 Oct: CPCLS-CO-002 read "" and so matched the Olive Green cambric
+ * of every brand — CPCF002 CPCF009 RBP195 — on its printer order): CPCLS-CO-002 → "002", RBP-CANVAS-327 → "327". */
+const ordColCodeOf = sku => (String(sku || '').toUpperCase().match(/^[A-Z]+(?:-[A-Z]+)*-?(\d{1,5})/) || ['', ''])[1];
 /** The catalogue lines for a fabric, colour, print direction (when given) and colour code (when given — the exact code,
  * else the same number: 009 and 0009). */
 function ordFabHits(fabric, colour, dir, code) {

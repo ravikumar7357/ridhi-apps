@@ -191,6 +191,8 @@ function renderFgi() {
   $('fgPack').classList.toggle('hide', !fgiCanEntry());
   $('fgOpening').classList.toggle('hide', !fgiCanEdit());
   fgiPickCount();
+  /* Cards are drawn by the India Store and the waiting list only; every other view is a table, on a phone too. */
+  if ($('fgTable').classList) $('fgTable').classList.remove('fg-cards');
   if (view === 'ledger') return fgiRenderLedger();
   if (view === 'pending') return fgiRenderPending();
   if (view === 'alerts') return lstRenderAlerts();
@@ -240,7 +242,11 @@ function fgiRenderStock(stock) {
     + ['SKU', 'Image', 'Brand', 'Item', 'Colour', 'Size', 'Opening', 'Received',
     'Issued', 'To FBA', 'In stock', 'Amazon', 'Tag', 'Rate', 'Value', '']
     .map((h, i) => `<th${i === 0 ? ' class="frz"' : (i >= 6 && i <= 10 ? ' class="num"' : (i === 13 || i === 14 ? ' class="num"' : ''))}>${h}</th>`).join('') + '</tr></thead>';
-  $('fgTable').innerHTML = head + '<tbody>' + rows.slice(0, 600).map(r => '<tr>'
+  /* ON A PHONE, A CARD PER SKU (core/mobile.js, 2026-10-16): the same rows and the same buttons, read top to bottom. */
+  if ($('fgTable').classList) $('fgTable').classList.toggle('fg-cards', (typeof mobOn === 'function' && mobOn()));
+  if ((typeof mobOn === 'function' && mobOn())) $('fgTable').innerHTML = '<tbody>' + (rows.length ? rows.slice(0, 600).map(r => fgiCard(r, canEd)).join('')
+    : '<tr><td class="muted" style="padding:14px">No SKU matches these filters.</td></tr>') + '</tbody>';
+  else $('fgTable').innerHTML = head + '<tbody>' + rows.slice(0, 600).map(r => '<tr>'
     + (canEd ? `<td><input type="checkbox" data-fgpick="${esc(r.sku)}"${FGI_PICK.stock.has(r.sku) ? ' checked' : ''}></td>` : '')
     + `<td class="frz" style="text-align:left"><button class="ghost" data-fgmoves="${esc(r.sku)}" title="Every movement of this SKU"
         style="font-family:ui-monospace,monospace;padding:2px 7px;font-size:12.5px">${esc(r.sku)}</button></td>`
@@ -279,6 +285,35 @@ function fgiRenderStock(stock) {
     + (neg.length ? ` · ${nf(neg.length)} SKU(s) are NEGATIVE, meaning more has gone out than ever came in` : '')
     + ' · stock is opening plus what came in, less what went out — pieces still in transit from press are not stock';
   ptImgFill(rows.slice(0, 600).map(r => r.sku), false, ptImgPatch);
+}
+
+/**
+ * One SKU of the India Store on a phone: its picture, what it is, the pieces in stock in large type, and the same
+ * buttons as the row on a computer (Movements = the SKU itself, Entry, Edit, Delete). The data-* names are the row's
+ * own, so the one click handler on #fgTable answers both.
+ */
+function fgiCard(r, canEd) {
+  const tone = r.current > 0 ? 'var(--accent)' : (r.current < 0 ? 'var(--bad)' : 'var(--muted)');
+  const st = lstOf(r.sku);
+  const btn = (attr, label, extra) => `<button class="ghost" ${attr}="${esc(r.sku)}"${extra || ''}>${label}</button>`;
+  return '<tr><td class="fg-mc">'
+    + (canEd ? `<input type="checkbox" data-fgpick="${esc(r.sku)}"${FGI_PICK.stock.has(r.sku) ? ' checked' : ''} aria-label="Tick ${esc(r.sku)}">` : '<span></span>')
+    + `<div class="fg-mc-img" data-img="${esc(obUC(r.sku))}" data-imgpx="64">${ptImgInner(r.sku, 64)}</div>`
+    + '<div class="fg-mc-main">'
+      + `<button class="ghost fg-mc-sku" data-fgmoves="${esc(r.sku)}" title="Every movement of this SKU">${esc(r.sku)}</button>`
+      + `<div class="fg-mc-what">${esc([r.subtype || r.articleType, r.color, r.size].filter(Boolean).join(' · ')) || '<span class="muted">not in the master DB</span>'}</div>`
+      + `<div class="fg-mc-tags">${st.st === 'unknown' ? '' : `<span class="pill ${LST_PILL[st.st][0]}">${LST_PILL[st.st][1]}</span>`}`
+        + (r.brand ? `<span class="muted">${esc(r.brand)}</span>` : '')
+        + (r.remark ? `<span class="pill">${esc(r.remark)}</span>` : '')
+        + (r.pending > 0 ? `<span class="pill pill-low">${nf(r.pending)} from press</span>` : '') + '</div>'
+    + '</div>'
+    + `<div class="fg-mc-qty" style="color:${tone}">${nf(r.current)}<small>in stock</small></div>`
+    + `<div class="fg-mc-figs"><span>In <b>${nf(r.opening + r.received)}</b></span><span>Out <b>${nf(r.issued)}</b></span>`
+      + `<span>FBA <b>${nf(r.fba)}</b></span>${r.value === null ? '' : `<span>₹ <b>${nf(Math.round(r.value))}</b></span>`}</div>`
+    + ((fgiCanEntry() || canEd) ? '<div class="fg-mc-acts">'
+      + (fgiCanEntry() ? btn('data-fgentry', 'Entry') : '')
+      + (canEd ? btn('data-fgskued', 'Edit') + btn('data-fgskudel', 'Delete', ' style="color:var(--bad)"') : '') + '</div>' : '')
+    + '</td></tr>';
 }
 
 /** Which tile is open, and which movements it counts. '' is everything.
@@ -359,7 +394,19 @@ function fgiRenderPending() {
   FGI.shown = rows;
   const head = '<thead><tr>' + ['Sent', 'SKU', 'Image', 'Item', 'Pieces sent', 'Sent by', 'Remarks', '']
     .map((h, i) => `<th${i === 0 ? ' class="frz"' : (i === 4 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
-  $('fgTable').innerHTML = head + '<tbody>' + (rows.length ? rows.map(r => '<tr>'
+  /* On a phone, a card per transfer with its Count it in button (core/mobile.js). */
+  if ($('fgTable').classList) $('fgTable').classList.toggle('fg-cards', (typeof mobOn === 'function' && mobOn()));
+  if ((typeof mobOn === 'function' && mobOn())) $('fgTable').innerHTML = '<tbody>' + (rows.length ? rows.map(r => '<tr><td class="fg-mc">'
+    + '<span></span>'
+    + `<div class="fg-mc-img" data-img="${esc(obUC(r.sku))}" data-imgpx="64">${ptImgInner(r.sku, 64)}</div>`
+    + `<div class="fg-mc-main"><div class="fg-mc-sku">${esc(r.sku)}</div>`
+      + `<div class="fg-mc-what">${esc([fgiMaster(r.sku).subtype, fgiMaster(r.sku).color, fgiMaster(r.sku).size].filter(Boolean).join(' · '))}</div>`
+      + `<div class="fg-mc-what">${esc(String(r.createdAt || '').slice(0, 16).replace('T', ' '))} · ${esc(String(r.createdBy || '').split('@')[0])}</div>`
+      + (r.remarks ? `<div class="fg-mc-what">${esc(r.remarks)}</div>` : '') + '</div>'
+    + `<div class="fg-mc-qty">${nf(fgiNum(r.qty))}<small>pcs sent</small></div>`
+    + (fgiCanEdit() ? `<div class="fg-mc-acts"><button data-fgrcv="${esc(r._id || r.id)}">Count it in</button></div>` : '')
+    + '</td></tr>').join('') : '<tr><td class="muted" style="padding:16px">Nothing is waiting to be counted in.</td></tr>') + '</tbody>';
+  else $('fgTable').innerHTML = head + '<tbody>' + (rows.length ? rows.map(r => '<tr>'
     + `<td class="frz">${esc(String(r.createdAt || '').slice(0, 16).replace('T', ' '))}</td>`
     + `<td style="font-family:ui-monospace,monospace;text-align:left">${esc(r.sku)}</td>`
     + ptImgCell(r.sku)

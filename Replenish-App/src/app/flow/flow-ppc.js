@@ -47,6 +47,9 @@ function flowSuggest(r) {
   const t = dToday();
   let printer = { code: '', name: '', why: '' };
   if (need) try { printer = flowPrinterFor(r); } catch (e) { /* no planning read yet */ }
+  /* THE CUTTING ROUTE MEANS THE CLOTH IS IN HAND (Ravi, 17 Oct: "direct cutting department me bhej raha hu meaning mujhe RFD ki
+   * required nahi h, wo already mere pas print hokar aa gaya h"): a line on it starts ticked "already printed — take no RFD". */
+  if (!need) fabric.noRfd = true;
   return { orderNo: r.orderNo, sku: obUC(r.sku), qty, route: need ? 'inhouse' : 'stitch', outVendor: '', printer, fabric, acc, extra, print: { need, as },
     dates: { cut: flowAddDays(t, 3), qc: flowAddDays(t, 7), ready: ptIsoDate(r.mtoDue) || flowAddDays(t, 10) }, note: '', gaps };
 }
@@ -86,11 +89,20 @@ function flowCommitted(skipKeys, withTest) {
     (p.acc || []).forEach(a => { if (!a.code || !(+a.qty > 0)) return; const c = accCode(a.code); acc[c] = (acc[c] || 0) + Math.ceil(+a.qty * left); });
     const fr = s.demand && s.demand.fabricReady;
     const unmoved = !s.cut && !s.issued && (fr && fr.challan ? !s.back : !s.given);
-    if (unmoved && p.fabric && p.fabric.name) { const k = flowFabKey(p.fabric.name); fab[k] = flowR2((fab[k] || 0) + flowToPrint(r, p).metres); }
+    /* WHAT AN EARLIER PLAN STILL HAS TO TAKE FROM THE RFD (16 Oct, one rule with flowRfdStock). A printed line: what its
+     * challans have not sent yet — what they sent is already off the stock. Cutting straight from RFD: all of it until
+     * the line is cut or issued. Job Work and outsourced lines take no RFD. */
+    if (p.fabric && p.fabric.name && s.route !== 'jobwork' && !(s.route === 'stitch' && p.fabric.noRfd)) {
+      /* Only the part of the line still to make (flowRemFrac): pieces already cut took their cloth. */
+      const owed = s.route === 'inhouse' ? flowFabOwed({ qty: +r.qty || 0 }, s).metres
+        : flowR2((fr && !fr.challan && +fr.metres > 0 ? +fr.metres : flowToPrint(r, p).metres) * flowRemFrac(r, s));
+      if (owed > 0) { const k = flowFabKey(p.fabric.name); fab[k] = flowR2((fab[k] || 0) + owed); }
+    }
     (p.extra || []).forEach(x => { if (x.unit !== 'm' || !x.what) return; const k = flowFabKey(String(x.what).replace(/^Ruffle — /, ''));
       extra[k] = flowR2((extra[k] || 0) + Math.max(0, (+x.qty || 0) - (+x.fromPrinted || 0)) * left); });
-    /* Printed stock an earlier plan took, until that line's cloth moves. */
-    if (unmoved && s.route === 'inhouse') {
+    /* Printed stock an earlier plan took, until that line's cloth moves — unless the store already took it out at the plan
+     * (inventory/store.js, since 16 Oct): then it is off the store's own figure, and holding it here would take it twice. */
+    if (unmoved && s.route === 'inhouse' && !(typeof stPlanTookOut === 'function' && stPlanTookOut(p))) {
       const m = cutSkuOf(r.sku) || {}, colour = String(m.color || r.color || '').trim();
       if (+(p.fabric && p.fabric.fromPrinted) > 0) { const k = flowPrintedKey(flowPrintWhat(r, p), p.fabric.name, colour); printed[k] = flowR2((printed[k] || 0) + (+p.fabric.fromPrinted)); }
       (p.extra || []).forEach(x => { if (!(+x.fromPrinted > 0)) return; const k = 'M|' + fabKey(String(x.what).replace(/^Ruffle — /, '')) + '|' + fabKey(colour); printed[k] = flowR2((printed[k] || 0) + (+x.fromPrinted)); });
@@ -136,6 +148,8 @@ function flowStoreHold(pk, skipKeys, withTest) {
  * BALANCE left after every earlier plan, enough or short — the stock and what the earlier plans hold are in the tooltip. */
 function flowMatRow(what, need, stock, earlier, unit, known) {
   const bal = flowR2(stock - earlier), ok = bal >= need;
+  if (known === 'unread') return `<tr><td style="text-align:left">${what}</td><td class="num">${nf(flowR2(need))}${unit}</td><td class="num">—</td>`
+    + `<td style="text-align:left"><span class="pill mute" title="The Greige Desk's stock could not be read on this computer — close the form and press Refresh">stock not read — Refresh</span></td></tr>`;
   const st = !(need > 0) ? '<span class="pill mute">not needed</span>'
     : !known ? '<span class="pill mute">stock not kept in the app</span>'
     : ok ? '<span class="pill ok">✓ enough</span>' : `<span class="pill bad">⚑ short ${nf(flowR2(need - Math.max(0, bal)))}${unit}</span>`;
@@ -155,7 +169,12 @@ function flowPrintedStock(w, colour) {
 const flowPrintedRow = (label, qty, unit, use, stock, held, above) => `<tr style="background:rgba(124,58,237,.05)"><td style="text-align:left">Printed in store · ${label}${held > 0 || above > 0 ? `<div class="muted" style="font-size:10.5px">in store ${nf(flowR2(stock || 0))}${unit}${held > 0 ? `, ${nf(flowR2(held))}${unit} of it for earlier orders` : ''}${above > 0 ? `, ${nf(flowR2(above))}${unit} taken by the line(s) above` : ''}</div>` : ''}</td><td class="num">${use ? nf(flowR2(use)) + unit : '—'}</td>
   <td class="num"${stock != null ? ` title="in store ${esc(nf(flowR2(stock)))}${unit}${held > 0 ? `, earlier orders still need ${esc(nf(flowR2(held)))}${unit}` : ''}${above > 0 ? `, the lines above in this order take ${esc(nf(flowR2(above)))}${unit}` : ''}"` : ''}>${qty == null ? '<span class="muted">…</span>' : `<b>${nf(flowR2(Math.max(0, qty)))}${unit}</b>`}</td><td style="text-align:left">${use > 0 ? `<span class="pill ok">✓ covers ${nf(flowR2(use))}${unit}</span>`
     : above > 0 && stock > 0 ? '<span class="pill mute">the line above took it — goes to the printer</span>' : held > 0 && stock > 0 ? '<span class="pill mute">all for earlier orders — goes to the printer</span>' : '<span class="pill mute">none in store</span>'}</td></tr>`;
-function flowFabKnown(name) { const k = flowFabKey(name); try { return fabAll().some(r => flowFabKey(r.fabricType) === k); } catch (e) { return false; } }
+function flowFabKnown(name) {
+  if (!flowRfdKnown()) return 'unread';   // the Greige Desk was not read here: the figure would be the old ledger alone
+  const k = flowFabKey(name);
+  try { if (flowGdState() === 'ok' && GD.rfdOpened && GD.rfdOpened(name)) return true; } catch (e) { /* the ledger decides */ }
+  try { return fabAll().some(r => flowFabKey(r.fabricType) === k); } catch (e) { return false; }
+}
 
 /* The line card's look — scoped to .fpc, so nothing else in the app changes. */
 const FLOW_PPC_CSS = `<style>
@@ -218,9 +237,126 @@ function flowPrinterOpts(code) {
   return vens.filter(v => /print/i.test(String(v.category || ''))).map(v => `<option value="${esc(v.code)}"${String(v.code) === String(code || '') ? ' selected' : ''}>${esc(v.desc || v.name || v.code)}</option>`).join('');
 }
 /** PPC's form for every line of one PO that is still in PPC (or one line). */
-function flowPpcOpen(orderNo, onlySku) {
-  const rows = flowRows().filter(x => x.r.orderNo === orderNo && (onlySku ? obUC(x.r.sku) === obUC(onlySku) : x.s.bucket === 'ppc'));
+/* ---- DRAFTS (Ravi, 15 Oct: "mera PO bahut bada h and mene working kar liya aadha but by mistake window cut ho gyi to isme
+ * save as draft ka option and auto save bhi") ----
+ * What is typed in the PPC form is kept on this computer as it is typed (auto-save), and "Save as draft" keeps it and
+ * closes the form. Opening the same lines again puts it all back. Kept per line (its flow key), so a PO opened whole, one
+ * line, or combined with another order finds the same draft. Raising the plan clears it; a draft older than 14 days is
+ * dropped. localStorage ppcDraft = { <line key>: { at, by, v: { <box>: value } } }. Nothing goes to the database. */
+const FLOW_DRAFT_LS = 'ppcDraft', FLOW_DRAFT_DAYS = 14;
+/* Read once per change of what is stored: the PPC list asks for every one of up to 800 lines. A copy is handed out, so a
+ * caller changing it never changes the cache. */
+let FLOW_DRAFT_C = { raw: null, d: {} };
+function flowPpcDrafts() {
+  let raw = ''; try { raw = localStorage.getItem(FLOW_DRAFT_LS) || ''; } catch (e) { raw = ''; }
+  if (raw !== FLOW_DRAFT_C.raw) {
+    let d = {}; try { d = JSON.parse(raw || '{}') || {}; } catch (e) { d = {}; }
+    const old = new Date(Date.now() - FLOW_DRAFT_DAYS * 864e5).toISOString();
+    Object.keys(d).forEach(k => { if (!d[k] || String(d[k].at || '') < old) delete d[k]; });
+    FLOW_DRAFT_C = { raw, d };
+  }
+  return Object.assign({}, FLOW_DRAFT_C.d);
+}
+const flowPpcHasDraftC = key => { flowPpcDrafts(); return !!FLOW_DRAFT_C.d[key]; };
+function flowPpcDraftsPut(d) { try { localStorage.setItem(FLOW_DRAFT_LS, JSON.stringify(d)); return true; } catch (e) { return false; } }
+/** Is a draft kept for this line? (the PPC list says so) */
+const flowPpcHasDraft = key => flowPpcHasDraftC(key);
+/** Every box of the open form, line by line, into the drafts. Returns when it was saved, '' if it could not be. */
+function flowPpcDraftSave(keys) {
+  const d = flowPpcDrafts(), at = new Date().toISOString(), v = {};
+  document.querySelectorAll('[data-fp]').forEach(inp => { const i = +inp.dataset.fp; if (!keys[i] || inp.disabled) return;
+    (v[i] = v[i] || {})[inp.dataset.k] = inp.type === 'checkbox' ? !!inp.checked : String(inp.value == null ? '' : inp.value); });
+  Object.entries(v).forEach(([i, vals]) => { d[keys[i]] = { at, by: ME.email || '', v: vals }; });
+  return flowPpcDraftsPut(d) ? at : '';
+}
+let FLOW_DRAFT_T = null;
+function flowPpcDraftSoon(keys, say) { clearTimeout(FLOW_DRAFT_T); FLOW_DRAFT_T = setTimeout(() => { const at = flowPpcDraftSave(keys); if (say) say(at); }, 600); }
+/** Put a kept draft back into the boxes. Returns the newest time restored, '' when there was none. */
+function flowPpcDraftApply(keys, plansAt) {
+  const d = flowPpcDrafts(); let at = '';
+  keys.forEach((key, i) => { const x = d[key]; if (!x || !x.v) return;
+    /* A draft from before the plan was raised (or last changed) is stale: the saved plan wins (17 Oct: an old draft
+     * unticked "already printed" on a plan that had it). */
+    if (plansAt && plansAt[i] && String(plansAt[i]) > String(x.at || '')) return;
+    Object.entries(x.v).forEach(([k, val]) => { const el = document.querySelector(`[data-fp="${i}"][data-k="${k}"]`); if (!el || el.disabled) return;
+      if (el.type === 'checkbox') el.checked = !!val; else el.value = val; });
+    if (String(x.at) > at) at = String(x.at); });
+  return at;
+}
+function flowPpcDraftDrop(keys) { const d = flowPpcDrafts(); keys.forEach(k => { delete d[k]; }); flowPpcDraftsPut(d); }
+const flowDraftWhen = at => { const t = new Date(at); return isNaN(t) ? '' : t.toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }); };
+
+/* RFD stock comes from the Greige Desk's count (flowRfdStock). Where this computer could not read the desk, the figure
+ * is the old ledger alone — which reads 0 for most fabrics now — so the form says so rather than show a false "short". */
+const flowGdNote = () => { const st = flowGdState();
+  return st === 'ok' || st === 'none' ? '' : `<div style="font-size:11.5px;color:#b45309;margin:2px 0 6px">⚠ The Greige Desk's RFD stock ${st ? 'could not be read on this computer' : 'is being read'} — the RFD figures wait for it${st ? '; trying again…' : '…'}</div>`; };
+
+/* ---- THE BOM, WRITTEN FROM PPC (Ravi, 16 Oct: "yadi koi aisa order h jiska master data me BOM nahi h to me uska yanhi se
+ * likh saku or masterdata me save ho jay") ----
+ * A line whose SKU's own row (the Master Database, or the Custom SKUs list for one that is only there) has no fabric, no
+ * cloth per piece, no colour, size, article or subtype gets a "Master data" box on its card: the fabric and m / piece are
+ * the plan's own boxes; colour, size, article and subtype are typed there. "Save to master data" (ticked) writes, when the
+ * line is raised, ONLY the fields the row has blank — a figure the master already holds is never overwritten here (the
+ * red "Use the master data" note is for that). A refused write (no right to the master) does not stop the plan. */
+const FLOW_MASTER_FIELDS = [['fabric', 'Fabric'], ['consumption', 'Cloth per piece (m)'], ['color', 'Colour'], ['size', 'Size'], ['articleType', 'Article'], ['subtype', 'Subtype']];
+/** The SKU's own row and what it leaves blank: { node, key, row, missing: [field…] } — null when the SKU has no row at all. */
+function flowMasterGaps(sku) {
+  const u = obUC(sku); let node = '', row = null;
+  try { const m = mdbOf(u); if (m && m._key) { node = 'pt_masterDB'; row = m; } } catch (e) { /* no master read */ }
+  if (!row) { const list = (typeof MDBX !== 'undefined' && MDBX.custom) || []; const c = list.find(x => x && obUC(x.sku) === u);
+    if (c && c._key) { node = 'pt_customSkus'; row = c; } }
+  if (!row) return null;
+  const blank = f => f === 'consumption' ? !(+row.consumption > 0) : !String(row[f] == null ? '' : row[f]).trim();
+  return { node, key: row._key, row, missing: FLOW_MASTER_FIELDS.map(x => x[0]).filter(blank) };
+}
+/** What PPC itself is missing for this line: the blank fields — less the cloth per piece where PPC worked one out from the
+ * size and the roll widths or the recipe (most master rows leave it blank on purpose; that is not a missing BOM). */
+function flowMasterNeed(r, p) {
+  const g = flowMasterGaps(r.sku); if (!g) return null;
+  const worked = p && p.fabric && +p.fabric.perPc > 0 && p.fabric.how && p.fabric.how !== 'master data';
+  return Object.assign({}, g, { missing: g.missing.filter(f => !(f === 'consumption' && worked)) });
+}
+/** The Master data box of one card ('' when the row has everything, or there is no row to write to). */
+function flowMasterBox(i, r, p) {
+  const g = flowMasterNeed(r, p);
+  if (!g) return `<div class="fpc-gaps" style="margin-top:8px">${esc(obUC(r.sku))} is in neither the Master Database nor the Custom SKUs list — add it in Setup → Master Database to keep its BOM.</div>`;
+  if (!g.missing.length) return '';
+  const typed = g.missing.filter(f => !['fabric', 'consumption'].includes(f));
+  const label = f => (FLOW_MASTER_FIELDS.find(x => x[0] === f) || [, f])[1];
+  return `<div class="fpc-sec">Master data <small>${esc(g.node === 'pt_customSkus' ? 'Custom SKUs list' : 'Master Database')} has no ${esc(g.missing.map(label).join(', ').toLowerCase())}</small></div>
+    <div class="fpc-g">${typed.map(f => `<label class="fpc-f"><span>${esc(label(f))}</span><input data-fpm="${i}" data-mk="${f}" value="${esc(r[f === 'subtype' ? 'articleSubtype' : f] || '')}" placeholder="${esc(label(f))}"></label>`).join('')}
+      <label class="fpc-f w3" style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" data-fpms="${i}" checked style="width:auto"> <span style="text-transform:none;letter-spacing:0">Save to master data when this line is raised${g.missing.some(f => ['fabric', 'consumption'].includes(f)) ? ' — the fabric and m / piece above too' : ''}</span></label></div>`;
+}
+/** What to write to the master for the lines being raised: { patch, said }. Only blank fields, only ticked boxes. */
+function flowMasterPatch(rows, plans, pick, need) {
+  const patch = {}, said = [], now = new Date().toISOString();
+  rows.forEach((x, i) => {
+    if (!pick(i)) return;
+    const tick = document.querySelector(`[data-fpms="${i}"]`); if (!tick || !tick.checked) return;
+    const g = need[i]; if (!g || !g.missing.length) return;
+    const p = plans[i], vals = {};
+    g.missing.forEach(f => {
+      let v = '';
+      if (f === 'fabric') v = p.route === 'outsource' ? '' : String((p.fabric && p.fabric.name) || '').trim();
+      else if (f === 'consumption') v = p.route === 'outsource' || p.route === 'jobwork' ? 0 : +(p.fabric && p.fabric.perPc) || 0;
+      else { const el = document.querySelector(`[data-fpm="${i}"][data-mk="${f}"]`); v = el ? String(el.value || '').trim() : ''; }
+      if (f === 'consumption' ? v > 0 : !!v) vals[f] = v;
+    });
+    if (!Object.keys(vals).length) return;
+    Object.entries(vals).forEach(([f, v]) => { patch[`${g.node}/${g.key}/${f}`] = v; });
+    patch[`${g.node}/${g.key}/updatedAt`] = now; patch[`${g.node}/${g.key}/updatedBy`] = (ME.email || '') + ' · PPC';
+    said.push({ sku: obUC(x.r.sku), node: g.node, row: g.row, vals });
+  });
+  return { patch, said };
+}
+
+function flowPpcOpen(orderNo, onlySku, keys) {
+  /* SAME SKU, SAME DAY, ONE PLAN (Ravi, 15 Oct: "1 SKU ka same day order aay to wo sare order combine hokar dikhe PPC team
+   * ko"): `keys` names lines of several orders, planned in one go — each keeps its own plan, its own print order. */
+  const rows = flowRows().filter(x => keys && keys.length ? keys.includes(x.s.key) && x.s.bucket === 'ppc'
+    : x.r.orderNo === orderNo && (onlySku ? obUC(x.r.sku) === obUC(onlySku) : x.s.bucket === 'ppc'));
   if (!rows.length) return;
+  if (keys && keys.length) orderNo = [...new Set(rows.map(x => x.r.orderNo))].join(', ');
   /* AN OLD PLAN OPENS ON THE MASTER DATA (Ravi, 10 Oct: "main fabric galat select kar raha h"). Plans saved before the
    * fabric came from the master row carry the width calculator's answer (RPC327-1818: Sheeting 82 · 0.13 m/pc, where the
    * master row says Canvas · 0.53). Unless PPC typed that fabric on purpose, the form opens with the master row's and
@@ -234,6 +370,7 @@ function flowPpcOpen(orderNo, onlySku) {
   /* THE LINE CARD (Ravi, 10 Oct: "need more design"). A header with what the line is and, as chips, how it is made,
    * the printer and whether everything is there; then two columns — the plan on the left, what it needs and what is in
    * stock on the right — and the dates last. Every box keeps its data-fp / data-k, so saving is unchanged. */
+  const mneed = rows.map((x, i) => { try { return flowMasterNeed(x.r, plans[i]); } catch (e) { return null; } });
   const inp = (i, k, v, type, extra) => `<input data-fp="${i}" data-k="${k}" ${type ? `type="${type}"` : ''} ${type === 'number' ? 'step="0.01"' : ''} value="${esc(v == null ? '' : v)}"${extra || ''}>`;
   const fld = (label, inner, cls) => `<label class="fpc-f${cls ? ' ' + cls : ''}"><span>${label}</span>${inner}</label>`;
   const html = FLOW_PPC_CSS + plans.map((p, i) => {
@@ -245,6 +382,7 @@ function flowPpcOpen(orderNo, onlySku) {
         <div class="fpc-t"><div><b class="fpc-sku">${esc(p.sku)}</b><span class="fpc-qty">${nf(p.qty)} pcs</span></div>
           <div class="fpc-sub">${esc([r.articleSubtype || r.articleType, r.color, r.size].filter(Boolean).join(' · '))}</div></div>
         <div class="fpc-chips" data-chips="${i}"></div>
+        ${rows.length > 1 && !rows[i].s.plan ? `<label title="Untick to leave this line in PPC for now — what is typed is kept as a draft" style="display:inline-flex;gap:5px;align-items:center;font-size:12.5px;font-weight:600;white-space:nowrap;margin-left:8px"><input type="checkbox" data-fpick="${i}" style="width:auto"> Raise now</label>` : ''}
       </div>
       <div class="fpc-b">
         <div class="fpc-col">
@@ -254,6 +392,7 @@ function flowPpcOpen(orderNo, onlySku) {
             ${fld('Metres / piece', inp(i, 'fabric.perPc', p.fabric.perPc, 'number'))}
             ${fld('Total for ' + nf(p.qty) + ' pcs', `<div class="fpc-tot"><b data-fm="${i}">${nf(p.fabric.metres)}</b> m <small>${esc(p.fabric.how || 'not known — type it')}</small>${p.fabric.was ? `<div style="font-size:10.5px;color:#b45309">old plan had ${esc(p.fabric.was)}</div>` : ''}</div>`)}
           </div>
+          ${flowMasterBox(i, r, p)}
           ${md ? flowMasterDiffTxt(md).replace('</div>', ` <button type="button" class="ghost" data-usem="${i}" data-n="${esc(md.name)}" data-p="${md.perPc}" style="width:auto;padding:1px 8px;font-size:11px">Use the master data</button></div>`) : ''}
           <div class="fpc-sec">Printing</div>
           <div class="fpc-g">
@@ -264,6 +403,8 @@ function flowPpcOpen(orderNo, onlySku) {
             ${(p.extra || []).some(x => /^Ruffle — /.test(String(x.what || ''))) ? fld('Ruffle printer', `<select data-fp="${i}" data-k="rufflePrinter.code"><option value="">— same as the printer —</option>${flowPrinterOpts((flowRufflePrinter(p) || {}).code)}</select>`
               + '<small class="fpc-why">the ruffle cloth can go to another printer — its own print order and challan</small>', 'w2') : ''}
             ${fld('Outsource vendor', inp(i, 'outVendor', p.outVendor || '', '', ' placeholder="who makes it"') + '<small class="fpc-why">no fabric or accessories are raised for it</small>', 'w2" data-outrow="' + i)}
+            ${fld('Fabric', `<span style="display:flex;gap:6px;align-items:center;text-transform:none;letter-spacing:0;font-size:13px;color:var(--ink)"><input type="checkbox" data-fp="${i}" data-k="fabric.noRfd"${p.fabric && p.fabric.noRfd ? ' checked' : ''} style="width:auto;margin:0"> Already printed / in hand — take no RFD</span>`
+              + '<small class="fpc-why">the cloth was printed earlier: no RFD is raised or taken, and the line goes straight to Cutting</small>', 'w2" data-nordrow="' + i)}
           </div>
           ${(p.acc || []).length ? `<div class="fpc-sec">Accessories</div><div class="fpc-g">${p.acc.map((a, j) => fld(`${esc(a.what)} <small>code ${esc(a.code)}</small>`, inp(i, 'acc.' + j + '.qty', a.qty, 'number'))).join('')}</div>` : ''}
           <div class="fpc-sec">Planned dates</div>
@@ -275,7 +416,7 @@ function flowPpcOpen(orderNo, onlySku) {
         <div class="fpc-col">
           <div class="fpc-sec">The printer gets</div>
           <div class="fpc-pget" data-pget="${i}"></div>
-          <div class="fpc-sec">Requirement &amp; stock <small>balance = what is left after every earlier plan</small></div>
+          <div class="fpc-sec">Requirement &amp; stock <small>balance = what is left after every earlier plan</small></div><div data-gdnote>${flowGdNote()}</div>
           <table class="xl fpc-mat"><thead><tr><th style="text-align:left">Item</th><th>Needs</th><th title="what is left after every earlier plan">Balance</th><th></th></tr></thead><tbody data-mat="${i}"></tbody></table>
           ${(p.gaps || []).length ? `<div class="fpc-gaps">• ${p.gaps.map(esc).join('<br>• ')}</div>` : ''}
         </div>
@@ -289,11 +430,19 @@ function flowPpcOpen(orderNo, onlySku) {
     title: editing ? `Edit plan — ${orderNo} · ${obUC(rows[0].r.sku)}` : `PPC — ${orderNo}`,
     subtitle: editing ? `Change what was planned and save; the line moves to wherever it now belongs.${locked ? ` Its fabric is on challan ${rows[0].s.challan.no}: fabric, route and printer stay as they are until that challan is cancelled (Demand history).` : ''}`
       : `${nf(rows.length)} line(s). Worked out from cloth per piece, the recipe and the print rules — check, change, save. Saving raises it: the line moves on to Demand by itself.`,
-    html: html + (rows.length > 1 ? '<div class="fpc" data-combo style="padding:12px 14px"></div>' : '') + (editing ? `<label style="display:flex;gap:6px;align-items:center;margin-top:4px;color:#b91c1c"><input id="flpUndo" type="checkbox" style="width:auto"${locked ? ' disabled' : ''}> Undo this plan — send the line back to PPC (its fabric-ready and reservation go too)${locked ? ' · not while its fabric is on a challan' : ''}</label>` : ''),
+    html: `<div id="flpDraft" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 10px;font-size:12.5px"><span id="flpDraftSay" class="muted">Auto-save is on: what you type is kept on this computer.</span>`
+      + `<button type="button" id="flpDraftBtn" class="ghost" style="width:auto;padding:3px 12px;font-size:12.5px">Save as draft</button>`
+      + `<a href="#" id="flpDraftDrop" style="font-size:12px;color:#b91c1c;display:none">Discard draft</a></div>`
+      + html + (rows.length > 1 ? '<div class="fpc" data-combo style="padding:12px 14px"></div>' : '') + (editing ? `<label style="display:flex;gap:6px;align-items:center;margin-top:4px;color:#b91c1c"><input id="flpUndo" type="checkbox" style="width:auto"${locked ? ' disabled' : ''}> Undo this plan — send the line back to PPC (its fabric-ready and reservation go too)${locked ? ' · not while its fabric is on a challan' : ''}</label>` : ''),
     wide: true,
     saveLabel: editing ? 'Save the plan' : rows.length > 1 ? `Raise the plan for ${rows.length} lines` : 'Raise the plan',
     onSave: async () => {
-      if (editing && $('flpUndo') && $('flpUndo').checked) { const er = await flowUnplan(rows[0].s); if (er) return er; renderFlow(); return ''; }
+      /* PART OF A PO (Ravi, 16 Oct: "ppc wale ne 1 po ke against me half line plan kar liya ho to unko to aage raise kar
+       * sake"): only the ticked lines are raised; the others stay in PPC, their typed figures kept as a draft. */
+      /* Unticked to start with (Ravi, 16 Oct: "auto raise now tick nahi hona chahiye m khud tick karunga"). */
+      const pick = i => { const el = document.querySelector(`[data-fpick="${i}"]`); return !el || !!el.checked; };
+      if (rows.length > 1 && !rows.some((x, i) => pick(i))) return 'Tick at least one line to raise — or press Save as draft.';
+      if (editing && $('flpUndo') && $('flpUndo').checked) { const er = await flowUnplan(rows[0].s); if (er) return er; flowPpcDraftDrop(rows.map(x => x.s.key)); renderFlow(); return ''; }
       /* A box's value into the plan; a part the plan has lost (a refused save can leave printer null) is made again. */
       const set = (o, path, v) => { const ks = path.split('.'); let t = o; ks.slice(0, -1).forEach(k => { const kk = /^\d+$/.test(k) ? +k : k; if (t[kk] == null) t[kk] = {}; t = t[kk]; }); t[ks[ks.length - 1]] = v; };
       document.querySelectorAll('[data-fp]').forEach(inp => {
@@ -308,8 +457,6 @@ function flowPpcOpen(orderNo, onlySku) {
         const rv = p.route === 'inhouse' && p.rufflePrinter && p.rufflePrinter.code ? flowChVendors().find(x => String(x.code) === String(p.rufflePrinter.code)) : null;
         p.rufflePrinter = rv && (!p.printer || String(rv.code) !== String(p.printer.code)) ? { code: rv.code, name: rv.desc || rv.name || rv.code } : null; });
       /* A printed line on a fabric made both ways must say which way — the printer cannot print "either". */
-      const noDir = plans.filter((p, i) => p.route === 'inhouse' && flowPrintWhat(rows[i].r, p).needDir).map(p => p.sku);
-      if (noDir.length) return `Which way is it printed? Pick the print direction for ${noDir.join(', ')}.`;
       /* The print order goes to the printer now — so a printed line has to say which printer. */
       /* What still goes to a printer once printed stock is taken: the body not covered, or a ruffle cloth not covered. */
       const printsAt = (i, which) => { const c = cover[i] || { fab: 0, unit: 'm', extra: {} }, p = plans[i], qty = +p.qty || 0, m = flowR2((+p.fabric.perPc || 0) * qty);
@@ -317,14 +464,19 @@ function flowPpcOpen(orderNo, onlySku) {
         const rufLeft = (p.extra || []).some((x, j) => /^Ruffle — /.test(String(x.what || '')) && (+x.qty || 0) - ((c.extra || {})[j] || 0) > 0.01);
         if (which) return bodyLeft > 0.01 ? 'body' : rufLeft ? 'ruffle' : '';   // only the ruffle prints → the ruffle printer is enough
         return bodyLeft > 0.01 || rufLeft; };
-      const noPr = plans.filter((p, i) => p.route === 'inhouse' && printsAt(i) && !(p.printer && p.printer.code) && !(p.rufflePrinter && printsAt(i, true) === 'ruffle')).map(p => p.sku);
+      /* Which way it is printed — asked only where something still goes to the printer (17 Oct: cloth all in the store
+       * needs no direction). */
+      const noDir = plans.filter((p, i) => pick(i) && p.route === 'inhouse' && printsAt(i, true) === 'body' && flowPrintWhat(rows[i].r, p).needDir).map(p => p.sku);
+      if (noDir.length) return `Which way is it printed? Pick the print direction for ${noDir.join(', ')}.`;
+      const noPr = plans.filter((p, i) => pick(i) && p.route === 'inhouse' && printsAt(i) && !(p.printer && p.printer.code) && !(p.rufflePrinter && printsAt(i, true) === 'ruffle')).map(p => p.sku);
       if (noPr.length) return `Which printer? The print order goes to them now — pick it for ${noPr.join(', ')}.`;
-      const noVen = plans.filter(p => p.route === 'outsource' && !String(p.outVendor || '').trim()).map(p => p.sku);
+      const noVen = plans.filter((p, i) => pick(i) && p.route === 'outsource' && !String(p.outVendor || '').trim()).map(p => p.sku);
       if (noVen.length) return `Who makes it? Type the outsource vendor for ${noVen.join(', ')}.`;
       const patch = {}, now = new Date().toISOString();
-      const noFab = plans.filter(p => p.route !== 'outsource' && !String(p.fabric.name || '').trim()).map(p => p.sku);
+      const noFab = plans.filter((p, i) => pick(i) && p.route !== 'outsource' && !String(p.fabric.name || '').trim()).map(p => p.sku);
       if (noFab.length) return `Which fabric? Type it for ${noFab.join(', ')} before raising the plan.`;
       plans.forEach((p, i) => {
+        if (!pick(i)) return;   // left in PPC for now
         p.fabric.metres = flowR2(p.fabric.perPc * p.qty); delete p.fabric.was;
         /* Where the fabric came from: the master row, or PPC typing something else on purpose (kept as PPC's choice). */
         if (String(((cutSkuOf(rows[i].r.sku) || {}).fabric) || '').trim()) p.fabric.how = flowMasterDiff(rows[i].r, p) ? 'typed by PPC' : 'master data';
@@ -333,6 +485,10 @@ function flowPpcOpen(orderNo, onlySku) {
         p.fabric.fromPrinted = flowR2(cv0.fab || 0); p.fabric.printedUnit = cv0.unit;
         p.extra = (p.extra || []).map((x, j) => Object.assign({}, x, { fromPrinted: flowR2((cv0.extra || {})[j] || 0) }));
         if (p.route === 'outsource') { p.acc = []; p.fabric = Object.assign({}, p.fabric, { metres: 0 }); }
+        if (p.route === 'jobwork') p.fabric = Object.assign({}, p.fabric, { metres: 0, fromPrinted: 0 });   // no cloth raised
+        if (p.route !== 'stitch' && p.fabric) delete p.fabric.noRfd;   // the tick means something on the Cutting route only
+        /* In hand: no RFD raised — the metres stay, so the cutting table knows what the line takes (16 Oct). */
+        if (p.route === 'stitch' && p.fabric && p.fabric.noRfd) p.fabric = Object.assign({}, p.fabric, { fromPrinted: 0, noRfd: true });
         const rec = Object.assign({}, p, { at: now, by: ME.email || '' }); delete rec.gaps;
         patch['pt_ppc/' + flowKey(p.orderNo, p.sku)] = rec;
       });
@@ -359,7 +515,7 @@ function flowPpcOpen(orderNo, onlySku) {
           patch['pt_accReserve/' + x.s.key] = { orderNo: x.r.orderNo, sku: obUC(x.r.sku), items, at: now, by: ME.email || '', auto: true };
           said.push(`${obUC(x.r.sku)}: accessories reserved`); }); }
       /* The print orders, in the same write. */
-      const pos = flowPoSync(rows.map((x, i) => ({ r: x.r, p: patch['pt_ppc/' + x.s.key] })), dToday());
+      const pos = flowPoSync(rows.filter((x, i) => pick(i)).map(x => ({ r: x.r, p: patch['pt_ppc/' + x.s.key] })), dToday());
       Object.assign(patch, pos.patch); said.push(...pos.said);
       /* …and for a real order, the Vendor Order(s) the printer sees — asked first, because the printer sees it at once. */
       const vop = await flowVoPrepare(pos.local, patch, key => patch['pt_ppc/' + key]);
@@ -382,10 +538,24 @@ function flowPpcOpen(orderNo, onlySku) {
       if (Object.keys(patch).some(k => k.startsWith('pt_accReserve/'))) { FLOW.res = Object.assign({}, FLOW.res);
         Object.keys(patch).filter(k => k.startsWith('pt_accReserve/')).forEach(k => { if (patch[k]) FLOW.res[k.slice(14)] = patch[k]; else delete FLOW.res[k.slice(14)]; }); }
       Object.keys(patch).filter(k => k.startsWith('pt_flowDemand/')).forEach(k => { const key = k.split('/')[1]; FLOW.dem = Object.assign({}, FLOW.dem, { [key]: Object.assign({}, (FLOW.dem || {})[key], { fabricReady: null }) }); });
+      /* THE BOM INTO THE MASTER (flowMasterPatch): its own write, after the plan — a refusal is said, not a lost plan. */
+      { const mp = flowMasterPatch(rows, plans, pick, mneed);
+        if (mp.said.length) {
+          let er = ''; try { await ptPatch(mp.patch); } catch (e) { er = e.message || String(e); }
+          if (er) setTimeout(() => { $('flMsg').className = 'err'; $('flMsg').textContent = `Plan saved, but the master data was NOT updated for ${mp.said.map(x => x.sku).join(', ')} — ${er}. Ask for the Master Database right, or type it in Setup → Master Database.`; }, 50);
+          else { mp.said.forEach(x => Object.assign(x.row, x.vals));
+            if (typeof CUST_IX !== 'undefined') CUST_IX = { src: null, map: null };
+            said.push(`master data saved for ${mp.said.map(x => x.sku + ' (' + Object.keys(x.vals).join(', ') + ')').join('; ')}`); }
+        } }
       if (said.length) setTimeout(() => { $('flMsg').className = 'muted'; $('flMsg').textContent = 'Plan saved · ' + said.join(' · ') + ' · the fabric team and the accessories team have their demand.'; }, 0);
       /* A new object, so every cache keyed on it knows it changed. */
       FLOW.ppc = Object.assign({}, FLOW.ppc);
       Object.entries(patch).filter(([path]) => path.startsWith('pt_ppc/')).forEach(([path, rec]) => { FLOW.ppc[path.slice('pt_ppc/'.length)] = rec; });
+      const raised = rows.filter((x, i) => pick(i)), left = rows.length - raised.length;
+      clearTimeout(FLOW_DRAFT_T);   // an auto-save still waiting must not bring a raised line's draft back
+      flowPpcDraftDrop(raised.map(x => x.s.key));   // raised: its draft is done with; the lines left keep theirs
+      if (left) { flowPpcDraftSave(rows.map((x, i) => pick(i) ? '' : x.s.key));
+        setTimeout(() => { $('flMsg').className = 'muted'; $('flMsg').textContent = `${nf(raised.length)} of ${nf(rows.length)} line(s) raised · ${nf(left)} left in PPC with what was typed kept as a draft — open the PO again to raise them`; }, 0); }
       renderFlow();
       return '';
     },
@@ -410,31 +580,53 @@ function flowPpcOpen(orderNo, onlySku) {
       const fname = (val(i, 'fabric.name') ?? p.fabric.name) || '', per = +(val(i, 'fabric.perPc') ?? p.fabric.perPc) || 0, metres = flowR2(per * p.qty);
       const fm = document.querySelector(`[data-fm="${i}"]`); if (fm) fm.textContent = nf(metres);
       document.querySelectorAll(`[data-outrow="${i}"]`).forEach(el => { if (el.style) el.style.display = out ? '' : 'none'; });
+      /* ALREADY PRINTED, NO RFD (Ravi, 16 Oct: "mene rfd se print kara liya h ab mujhe uski printing required nahi h and rfd
+       * fabric bhi kam nahi hoga"): on the Cutting route a tick says the cloth is in hand — nothing is raised or taken. */
+      document.querySelectorAll(`[data-nordrow="${i}"]`).forEach(el => { if (el.style) el.style.display = route === 'stitch' ? '' : 'none'; });
+      const nrEl = document.querySelector(`[data-fp="${i}"][data-k="fabric.noRfd"]`);
+      const noRfd = route === 'stitch' && !!(nrEl ? nrEl.checked : (p.fabric && p.fabric.noRfd));
       const r = rows[i].r, colour = String(((cutSkuOf(r.sku) || {}).color) || r.color || '').trim();
       const cur = Object.assign({}, p, { route, fabric: Object.assign({}, p.fabric, { name: fname, metres }),
         print: Object.assign({}, p.print, { dir: val(i, 'print.dir') ?? flowDirOpts(r, p).cur }) });
       const w = route === 'inhouse' ? flowPrintWhat(r, cur) : null, xw = route === 'inhouse' ? flowPrintExtras(r, cur) : [];
       const pg = document.querySelector(`[data-pget="${i}"]`);
       if (pg) pg.innerHTML = w ? `<span class="fpc-mode">${esc(w.mode)}</span> ` + flowPrintTxt(w) + flowExtrasTxt(xw) + '<div data-pcov></div>'
-        : `<span class="muted">${route === 'stitch' ? 'Nothing — stitching only, no printing.' : 'Nothing — made outside.'}</span>`;
+        : `<span class="muted">${route === 'stitch' ? 'Nothing — no printing; the RFD goes straight to the cutting department.'
+          : route === 'jobwork' ? 'Nothing — no printing, no cutting; the line goes straight to Raw cutting in store, to be issued to a karigar.'
+          : 'Nothing — made outside.'}</span>`;
       const mat = document.querySelector(`[data-mat="${i}"]`); if (!mat) return;
       if (out) { mat.innerHTML = '<tr><td colspan="4" class="muted" style="text-align:left">Outsourced — nothing is raised from our stock.</td></tr>';
         const ch = document.querySelector(`[data-chips="${i}"]`); if (ch) ch.innerHTML = '<span class="fpc-chip vio">Outsourced</span>'; return; }
       const h = []; cover[i] = { fab: 0, unit: w && w.kind === 'sku' ? 'pcs' : 'm', extra: {} };
-      let rfdNeed = metres;
+      /* WHAT IS STILL TO MAKE (17 Oct): pieces already cut / issued / passed on this line need no cloth again. */
+      const qtyP = +p.qty || 0, rem = rows[i].s ? flowRemFrac(rows[i].r, rows[i].s) : 1, doneP = Math.round(qtyP * (1 - rem));
+      const remM = flowR2(metres * rem);
+      let rfdNeed = remM;
       /* PRINTED STOCK FIRST: what is already printed in the store, less what earlier plans and the lines above took. */
-      if (w && w.code) {
-        const pu = w.kind === 'sku' ? ' pcs' : ' m', pk = flowPrintedKey(w, fname, colour), ps = flowPrintedStock(Object.assign({ fabric: fname }, w), colour);
+      /* PRINTED CLOTH IS IN THE STORE BY FABRIC AND COLOUR (Ravi, 17 Oct: "store me agate green ka printed sheeting pada h but
+       * yaha kanhi show nahi ho rha h"): the row is shown before a print direction is picked — the store's figure does not
+       * depend on it. Printed pieces still need their SKU code. */
+      if (w && (w.code || w.kind !== 'sku')) {
+        const pu = w.kind === 'sku' ? ' pcs' : ' m', pk = flowPrintedKey(w, fname, colour), ps0 = flowPrintedStock(Object.assign({ fabric: fname }, w), colour);
+        /* A plan being changed here already took its printed stock out of the store (inventory/store.js): put its own back. */
+        const ps = ps0 == null ? null : flowR2(ps0 + rows.reduce((a, x) => { const op = x.s.plan;
+          if (!op || typeof stPlanTookOut !== 'function' || !stPlanTookOut(op) || !(+(op.fabric && op.fabric.fromPrinted) > 0)) return a;
+          const oc = String(((cutSkuOf(x.r.sku) || {}).color) || x.r.color || '').trim();
+          let ok = ''; try { ok = flowPrintedKey(flowPrintWhat(x.r, op), op.fabric.name, oc); } catch (e) { ok = ''; }
+          return ok === pk ? a + (+op.fabric.fromPrinted) : a; }, 0));
         const held = ps == null ? 0 : hold(pk), pleft = ps == null ? null : ps - held - (com.printed[pk] || 0) - (run.printed[pk] || 0);
-        const want = w.kind === 'sku' ? (+p.qty || 0) : metres, use = pleft == null ? 0 : flowR2(Math.max(0, Math.min(want, pleft)));
-        h.push(flowPrintedRow(`<b>${esc(w.code)}</b>`, pleft, pu, use, ps, held + (com.printed[pk] || 0), run.printed[pk] || 0));
+        const want = w.kind === 'sku' ? Math.max(0, qtyP - doneP) : remM, use = pleft == null ? 0 : flowR2(Math.max(0, Math.min(want, pleft)));
+        h.push(flowPrintedRow(w.code ? `<b>${esc(w.code)}</b>` : `<b>${esc(fname)}</b> · ${esc(colour)}`, pleft, pu, use, ps, held + (com.printed[pk] || 0), run.printed[pk] || 0));
         run.printed[pk] = flowR2((run.printed[pk] || 0) + use); cover[i].fab = use;
-        rfdNeed = w.kind === 'sku' ? flowR2(metres * (1 - (p.qty ? use / p.qty : 0))) : flowR2(metres - use);
+        rfdNeed = w.kind === 'sku' ? flowR2(remM * (1 - (want ? use / want : 0))) : flowR2(remM - use);
       }
-      if (fname) { const k = flowFabKey(fname), before = (com.fab[k] || 0) + (run.fab[k] || 0); names['f|' + k] = fname;
-        h.push(flowMatRow(`RFD · <b>${esc(fname)}</b>${rfdNeed < metres ? ' <span class="muted">(the rest)</span>' : ''}`, rfdNeed, flowRfdStock(fname), before, ' m', flowFabKnown(fname)));
+      /* Job Work straight away: no cloth is raised for it — accessories only. */
+      if (fname && route !== 'jobwork' && !noRfd) { const k = flowFabKey(fname), before = (com.fab[k] || 0) + (run.fab[k] || 0); names['f|' + k] = fname;
+        h.push(flowMatRow(`RFD · <b>${esc(fname)}</b>${doneP > 0 ? ` <span class="muted">(${nf(doneP)} pcs already cut — for the other ${nf(qtyP - doneP)})</span>` : rfdNeed < metres ? ' <span class="muted">(the rest)</span>' : ''}`, rfdNeed, flowRfdStock(fname), before, ' m', flowFabKnown(fname)));
         run.fab[k] = flowR2((run.fab[k] || 0) + rfdNeed); }
       (p.extra || []).forEach((x, j) => {
+        if (route === 'jobwork' && x.unit === 'm') return;   // no cloth for a line going straight to job work
+        if (noRfd && x.unit === 'm') { h.push(`<tr><td colspan="4" class="muted" style="text-align:left">${esc(x.what)} · ${nf(+x.qty || 0)} m — in hand with the printed cloth, no RFD</td></tr>`); return; }
         if (x.unit !== 'm') { h.push(flowMatRow(esc(x.what), +x.qty || 0, 0, 0, ' ' + esc(x.unit || ''), false)); return; }
         const name = String(x.what).replace(/^Ruffle — /, ''), k = flowFabKey(name), ruf = /^Ruffle — /.test(x.what);
         let need = +x.qty || 0;
@@ -478,6 +670,155 @@ function flowPpcOpen(orderNo, onlySku) {
     });
     flowComboPaint(combo, run, com, names, shelf);
   };
-  document.querySelectorAll('[data-fp]').forEach(inp => { inp.addEventListener('input', paint); inp.addEventListener('change', paint); });
+  /* THE GREIGE DESK NOT READ YET (or the read failed): ask for it now, and draw the stock again once it is here. */
+  if (!flowRfdKnown() && typeof GD !== 'undefined' && GD.ensure && typeof flowGdReads === 'function' && flowGdReads()) {
+    GD.ensure().catch(() => {}).then(() => { if (!PTD) return;
+      document.querySelectorAll('[data-gdnote]').forEach(el => { el.innerHTML = flowGdNote(); }); try { paint(); } catch (e) { /* the form was closed */ } });
+  }
+  /* "Raise now" ticks: the save button says how many lines it will raise. */
+  if (rows.length > 1) { const relabel = () => { const n = rows.filter((x, i) => { const el = document.querySelector(`[data-fpick="${i}"]`); return !el || el.checked; }).length;
+      if ($('ptDlgSave')) $('ptDlgSave').textContent = !n ? 'Tick the lines to raise' : n === rows.length ? `Raise the plan for ${rows.length} lines` : `Raise ${n} of ${rows.length} lines`; };
+    document.querySelectorAll('[data-fpick]').forEach(el => el.addEventListener('change', relabel)); relabel(); }
+  /* THE DRAFT: put back before the first drawing, then kept as the boxes change. */
+  const dkeys = rows.map(x => x.s.key);
+  const sayD = (t, bad) => { const el = $('flpDraftSay'); if (el) { el.textContent = t; el.className = bad ? 'err' : 'muted'; } };
+  const dropA = $('flpDraftDrop');
+  const restored = flowPpcDraftApply(dkeys, rows.map(x => (x.s.plan && x.s.plan.at) || ''));
+  if (restored) { sayD(`Draft put back — saved ${flowDraftWhen(restored)} on this computer. Auto-save is on.`); if (dropA && dropA.style) dropA.style.display = ''; }
+  const said = at => { if (at) { sayD(`Draft auto-saved ${flowDraftWhen(at)} — on this computer.`); if (dropA && dropA.style) dropA.style.display = ''; } else sayD('Could not keep a draft on this computer (browser storage is blocked).', true); };
+  document.querySelectorAll('[data-fp][data-k="route"]').forEach(sel => sel.addEventListener('change', () => {
+    const nr = document.querySelector(`[data-fp="${sel.dataset.fp}"][data-k="fabric.noRfd"]`); if (nr && sel.value === 'stitch') nr.checked = true; }));
+  document.querySelectorAll('[data-fp]').forEach(inp => { inp.addEventListener('input', paint); inp.addEventListener('change', paint);
+    inp.addEventListener('input', () => flowPpcDraftSoon(dkeys, said)); inp.addEventListener('change', () => flowPpcDraftSoon(dkeys, said)); });
+  if ($('flpDraftBtn')) $('flpDraftBtn').onclick = () => { clearTimeout(FLOW_DRAFT_T); const at = flowPpcDraftSave(dkeys);
+    if (!at) { sayD('Could not keep a draft on this computer (browser storage is blocked).', true); return; }
+    ptDlgClose(); try { renderFlow(); } catch (e) { /* the list redraws on its next read */ }
+    if ($('flMsg')) { $('flMsg').className = 'muted'; $('flMsg').textContent = `Draft saved for ${orderNo} (${nf(dkeys.length)} line(s)) — open it again to carry on; it is not raised until you raise it.`; } };
+  if (dropA) dropA.onclick = e => { if (e && e.preventDefault) e.preventDefault(); if (!confirm('Throw away the draft and start again from the suggestion?')) return;
+    clearTimeout(FLOW_DRAFT_T); flowPpcDraftDrop(dkeys); ptDlgClose(); flowPpcOpen(keys && keys.length ? '' : orderNo, onlySku, keys); };
   paint();
+}
+
+/* ================= PPC IN EXCEL (Ravi, 17 Oct: "isme excel se export bhi kar saku or plan bhi import kar saku") =================
+ * Export: the PPC lines on screen, one row each, filled with what the form would open with (the master data's suggestion,
+ * or the draft kept for it). Import: the same sheet back, rows marked Raise = yes. An imported row is NOT written to the
+ * database by itself — it becomes that line's draft (the very draft the form keeps as you type), and the PPC form opens with
+ * those lines ticked. Raising them there is the one save that makes the print order, the vendor order, the RFD and the
+ * accessories — nothing is planned past its checks (direction, printer, fabric, printed stock, the vendor-order question). */
+const FLOW_XL_COLS = ['Line ID', 'PO', 'Order date', 'SKU', 'Item', 'Qty', 'How it is made', 'Fabric', 'Metres / piece', 'Total m', 'Print direction',
+  'Printer', 'Ruffle printer', 'Outsource vendor', 'Already printed — no RFD (yes/no)', 'Cut date', 'QC date', 'Ready date', 'Note', 'Raise (yes/no)', 'Check'];
+/** What the form would open with for one line: the plan or the suggestion, with its kept draft on top. */
+function flowXlPlanOf(x) {
+  const p = Object.assign(flowSuggest(x.r), x.s.plan ? JSON.parse(JSON.stringify(x.s.plan)) : {});
+  const dr = (flowPpcDrafts()[x.s.key] || {}).v || {};
+  const set = (path, v) => { const ks = path.split('.'); let t = p; ks.slice(0, -1).forEach(k => { if (t[k] == null || typeof t[k] !== 'object') t[k] = {}; t = t[k]; }); t[ks[ks.length - 1]] = v; };
+  Object.entries(dr).forEach(([k, v]) => { if (!/^acc\./.test(k)) set(k, v); });
+  return p;
+}
+const flowVenName = code => { if (!code) return ''; let v = null; try { v = flowChVendors().find(y => String(y.code) === String(code)); } catch (e) { v = null; } return v ? (v.desc || v.name || v.code) : String(code); };
+/** The sheet for these lines: [header, ...rows]. */
+function flowPpcXlRows(rows) {
+  return [FLOW_XL_COLS].concat(rows.map(x => {
+    const p = flowXlPlanOf(x), d = flowDirOpts(x.r, p), route = flowRouteOf(p), per = +(p.fabric && p.fabric.perPc) || 0;
+    const chk = [].concat(d.dirs.length > 1 ? ['direction: ' + d.dirs.join(' / ')] : [], (p.gaps || []), flowPpcHasDraft(x.s.key) ? ['draft kept'] : []).join(' · ');
+    return [x.s.key, x.r.orderNo, ptIsoDate(x.r.orderDate) || '', obUC(x.r.sku), [x.r.articleSubtype || x.r.articleType, x.r.color, x.r.size].filter(Boolean).join(' · '),
+      +x.r.qty || 0, (FLOW_ROUTES.find(r => r[0] === route) || [, , route])[2], (p.fabric && p.fabric.name) || '', per, flowR2(per * (+x.r.qty || 0)),
+      (p.print && p.print.dir) || d.cur || '', flowVenName(p.printer && p.printer.code), flowVenName(p.rufflePrinter && p.rufflePrinter.code), p.outVendor || '',
+      p.fabric && p.fabric.noRfd ? 'yes' : '', (p.dates || {}).cut || '', (p.dates || {}).qc || '', (p.dates || {}).ready || '', p.note || '', '', chk];
+  }));
+}
+/** A date as the sheet may hold it — 2026-10-20, 20-10-2026, 20/10/2026 or an Excel day number — as 2026-10-20; '' if none, null if unreadable. */
+function flowXlDate(v) {
+  const s = String(v == null ? '' : v).trim(); if (!s) return '';
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  let m = s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/); if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+  if (/^\d{5}(\.\d+)?$/.test(s)) return new Date(Math.round((Number(s) - 25569) * 86400000)).toISOString().slice(0, 10);
+  return null;
+}
+/** The filled sheet → { drafts: { key: v }, keys, errs, skipped }. Only rows marked Raise = yes, only lines still in PPC. */
+function flowPpcXlRead(sheet) {
+  if (!sheet || sheet.length < 2) return { err: 'That file has no rows.' };
+  const H = sheet[0].map(h => String(h == null ? '' : h).replace(/^\uFEFF/, '').trim().toLowerCase());
+  const at = n => H.indexOf(String(n).toLowerCase()), iK = at('Line ID'), iR = H.findIndex(h => /^raise/.test(h));
+  if (iK < 0 || iR < 0) return { err: 'The file needs the "Line ID" and "Raise (yes/no)" columns — download the PPC list as Excel and fill that one.' };
+  const byKey = new Map(flowRows().filter(x => x.s.bucket === 'ppc').map(x => [x.s.key, x]));
+  let vens = []; try { vens = flowChVendors(); } catch (e) { vens = []; }
+  const venOf = s => { const t = String(s || '').trim().toLowerCase(); if (!t) return '';
+    const v = vens.find(y => String(y.code).toLowerCase() === t) || vens.find(y => String(y.desc || y.name || '').trim().toLowerCase() === t); return v ? String(v.code) : null; };
+  const routeOf = s => { const t = String(s || '').trim().toLowerCase(); if (!t) return '';
+    const r = FLOW_ROUTES.find(y => y[0] === t || String(y[2]).toLowerCase() === t || String(y[1]).toLowerCase().startsWith(t)); return r ? r[0] : null; };
+  const drafts = {}, keys = [], errs = [], skipped = [];
+  for (let i = 1; i < sheet.length; i++) {
+    const row = sheet[i] || [], c = n => { const j = at(n); return j >= 0 && row[j] != null ? String(row[j]).trim() : ''; };
+    const key = c('Line ID'); if (!key || !/^(y|yes|1|true|raise)$/i.test(c(FLOW_XL_COLS[19]) || String(row[iR] == null ? '' : row[iR]).trim())) continue;
+    const x = byKey.get(key), tag = `row ${i + 1} (${c('PO')} ${c('SKU')})`;
+    if (!x) { skipped.push(tag + ': not in PPC any more — planned already, or sent back'); continue; }
+    const bad = [], v = {};
+    const route = routeOf(c('How it is made')); if (route === null) bad.push('"How it is made" must be Printing, Cutting, Job Work or Outsourced'); else v.route = route || flowRouteOf(flowXlPlanOf(x));
+    const fab = c('Fabric'); if (fab) v['fabric.name'] = fab;
+    const per = c('Metres / piece'); if (per !== '') { if (!(Number(per) >= 0)) bad.push('Metres / piece is not a number'); else v['fabric.perPc'] = String(Number(per)); }
+    const dir = c('Print direction'); if (dir) { const d = flowDirOpts(x.r, flowXlPlanOf(x)).dirs, hit = d.find(y => y.toLowerCase() === dir.toLowerCase() || y.toLowerCase()[0] === dir.toLowerCase()[0]);
+      if (d.length > 1 && !hit) bad.push('print direction is ' + d.join(' or ')); else if (hit) v['print.dir'] = hit; }
+    const pr = venOf(c('Printer')); if (pr === null) bad.push(`no printer called "${c('Printer')}"`); else v['printer.code'] = pr;
+    const rp = venOf(c('Ruffle printer')); if (rp === null) bad.push(`no printer called "${c('Ruffle printer')}"`); else if (rp) v['rufflePrinter.code'] = rp;
+    if (c('Outsource vendor')) v.outVendor = c('Outsource vendor');
+    const nrTxt = c(FLOW_XL_COLS[14]);
+    v['fabric.noRfd'] = /^(y|yes|1|true)$/i.test(nrTxt) || (!nrTxt && v.route === 'stitch');   // the Cutting route: in hand unless the sheet says no
+    [['Cut date', 'dates.cut'], ['QC date', 'dates.qc'], ['Ready date', 'dates.ready']].forEach(([h, k]) => { const d = flowXlDate(c(h)); if (d === null) bad.push(h + ' is not a date'); else if (d) v[k] = d; });
+    if (c('Note')) v.note = c('Note');
+    if (bad.length) { errs.push(tag + ': ' + bad.join('; ')); continue; }
+    drafts[key] = v; keys.push(key);
+  }
+  return { drafts, keys, errs, skipped };
+}
+/* The imported lines still in PPC, opened in the form a batch at a time. */
+let FLOW_XL_IMP = [];
+const FLOW_XL_BATCH = 40;
+const flowXlLeft = () => { const inPpc = new Set(flowRows().filter(x => x.s.bucket === 'ppc').map(x => x.s.key)); return FLOW_XL_IMP.filter(k => inPpc.has(k)); };
+function flowXlOpenNext() {
+  const left = flowXlLeft(); if (!left.length) { FLOW_XL_IMP = []; return; }
+  const batch = left.slice(0, FLOW_XL_BATCH);
+  flowPpcOpen('', null, batch);
+  /* the imported lines are ticked "Raise now" — that is what the sheet said */
+  document.querySelectorAll('[data-fpick]').forEach(el => { el.checked = true; try { el.dispatchEvent(new Event('change')); } catch (e) { /* no events here */ } });
+}
+function flowPpcXlOut(rows) {
+  const bytes = recipeXlsx(flowPpcXlRows(rows), { name: 'PPC', freeze: 2, cols: {}, list: { name: 'YN', values: ['yes', 'no'], cols: [19, 14] } });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+  a.download = 'ppc-plan-' + dToday() + '.xlsx';
+  a.click(); URL.revokeObjectURL(a.href);
+}
+async function flowPpcXlIn(file) {
+  if (!file) return;
+  let sheet; try { sheet = /\.xlsx$/i.test(file.name) ? await pkReadXlsx(new Uint8Array(await file.arrayBuffer())) : parseCsv(await file.text()); }
+  catch (e) { $('flMsg').className = 'err'; $('flMsg').textContent = 'Could not read the file: ' + (e.message || e); return; }
+  const rd = flowPpcXlRead(sheet);
+  if (rd.err) { $('flMsg').className = 'err'; $('flMsg').textContent = rd.err; return; }
+  const list = (a, n) => a.length ? `<div style="margin-top:6px"><b>${nf(a.length)}</b> ${n}:<div class="muted" style="font-size:12px">${a.slice(0, 12).map(esc).join('<br>')}${a.length > 12 ? '<br>…' : ''}</div></div>` : '';
+  const pos = new Set(rd.keys.map(k => k.split('__')[0]));
+  ptOpenDialog({
+    title: 'Import the PPC plan',
+    subtitle: `${file.name} · ${nf(rd.keys.length)} line(s) to raise · ${nf(pos.size)} PO(s)`,
+    note: 'Nothing is raised from the sheet by itself: each line gets what the sheet says as its draft, and the PPC form opens with those lines ticked — check them and press Raise there. The print orders, vendor orders, RFD and accessories are made by that one save, as always.',
+    html: '<div style="font-size:12.5px;line-height:1.6">'
+      + (rd.keys.length ? `<div><b>${nf(rd.keys.length)}</b> line(s) ready${rd.keys.length > FLOW_XL_BATCH ? ` — the form opens ${FLOW_XL_BATCH} at a time; "Open imported" on the toolbar brings the next` : ''}.</div>` : '<div>No row says Raise = yes.</div>')
+      + list(rd.errs, 'row(s) with a mistake — fix them in the sheet and import again') + list(rd.skipped, 'row(s) left alone') + '</div>',
+    saveLabel: rd.keys.length ? `Open the form for ${nf(Math.min(rd.keys.length, FLOW_XL_BATCH))} line(s)` : 'Close',
+    onSave: async () => {
+      if (!rd.keys.length) return '';
+      const d = flowPpcDrafts(), nowIso = new Date().toISOString();
+      rd.keys.forEach(k => { d[k] = { at: nowIso, by: ME.email || '', v: rd.drafts[k], from: 'excel' }; });
+      if (!flowPpcDraftsPut(d)) return 'This browser would not keep the drafts (storage blocked) — nothing imported.';
+      FLOW_XL_IMP = rd.keys.slice();
+      setTimeout(() => { flowXlOpenNext(); try { flowXlBtn(); } catch (e) { /* toolbar not drawn */ } }, 0);
+      return '';
+    },
+  });
+}
+/** The toolbar's "Open imported (N)" — shown while imported lines wait in PPC. */
+function flowXlBtn() {
+  const b = typeof $ === 'function' ? $('flXlNext') : null; if (!b) return;
+  const n = FLOW_XL_IMP.length ? flowXlLeft().length : 0;
+  b.textContent = `Open imported (${nf(n)})`; if (b.classList) b.classList.toggle('hide', !n);
 }

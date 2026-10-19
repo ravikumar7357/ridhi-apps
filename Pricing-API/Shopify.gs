@@ -64,7 +64,9 @@ function shopifyGet_(pathQuery) {
     if (code === 429) { Utilities.sleep(2500); continue; }
     if (code >= 300) throw new Error('Shopify ' + code + ': ' + resp.getContentText().slice(0, 300));
     var h = resp.getHeaders();
-    return { json: JSON.parse(resp.getContentText() || '{}'), link: h['Link'] || h['link'] || '' };
+    // `date` is Shopify's own clock — the "changed since" cursor is taken from it, never from ours.
+    return { json: JSON.parse(resp.getContentText() || '{}'), link: h['Link'] || h['link'] || '',
+      date: h['Date'] || h['date'] || '' };
   }
   throw new Error('Shopify: too many 429s (rate limit) â€” try again.');
 }
@@ -199,7 +201,29 @@ function shopTz_() {
   return SHOP_TZ_CACHE;
 }
 
-function shopifyOrders_(fromIso, toIso, unfulfilled, deadlineMs) {
+/* THREE WAYS TO ASK FOR ORDERS (2026-10-15, docs/shopify-fast-orders/PLAN.md phases 0 and 1).
+ *
+ *   by date    — what the tab has always done: every order PLACED between two dates. With "Not yet
+ *                shipped" Shopify itself now leaves the shipped ones out (fulfillment_status=unfulfilled
+ *                means null or partial — the same two the filter below keeps), so they are no longer
+ *                downloaded only to be thrown away.
+ *   by id      — opts.ids, "1,2,3": the old unfinished orders, asked for one by one rather than by
+ *                stretching the whole date range back to August for the sake of a handful.
+ *   changed since — opts.since, an ISO time: every order Shopify has CHANGED since then, whenever it was
+ *                placed. That is what catches a refund, a cancellation, an edit or a tracking number on
+ *                an old order. Nothing is trimmed and nothing is filtered: the browser holds the copy
+ *                and needs to know that an order shipped as much as that one arrived. A voided order
+ *                comes back as { id, gone: 'voided' } so the copy can drop it.
+ *
+ * Every answer carries `cursor`: where the NEXT "changed since" should start, on SHOPIFY's clock —
+ * the time on its first reply, or the newest updated_at it sent if that is earlier. Never this
+ * script's clock and never the device's: a phone five minutes wrong must not skip a change.
+ * `customer` is no longer asked for: email, phone and the address were already taken from their own
+ * fields, and the customer record was the heaviest thing on every order.
+ * The photo pass runs only when asked (opts.photos) — the tab now asks for photos separately, after
+ * the orders are on screen (?shopify=photos). Calls made before today get them as they always did. */
+function shopifyOrders_(fromIso, toIso, unfulfilled, deadlineMs, opts) {
+  opts = opts || {};
   // `fulfillments` carries the tracking numbers. `fulfillment_status` alone only says whether
   // something shipped, never what it shipped on â€” and "shipped" without a tracking number is not an
   // answer anybody can give a customer.
@@ -211,19 +235,58 @@ function shopifyOrders_(fromIso, toIso, unfulfilled, deadlineMs) {
   // line_item_id. Without it a refunded line looks exactly like a live one: it keeps its order in
   // "Need from production" for ever and it goes into an MCF parcel that nobody is owed.
   var fields = 'id,name,order_number,created_at,cancelled_at,cancel_reason,'
-    + 'financial_status,fulfillment_status,currency,'
-    + 'total_price,shipping_address,customer,email,phone,note,line_items,tags,fulfillments,refunds';
-  var base = '/orders.json?status=any&limit=250&fields=' + fields + shopWindow_(fromIso, toIso);
-  var out = [], pageInfo = null, guard = 0;
-  do {
+    + 'financial_status,fulfillment_status,currency,updated_at,'
+    + 'total_price,shipping_address,email,phone,note,line_items,tags,fulfillments,refunds';
+  var mode = opts.since ? 'since' : (opts.ids ? 'ids' : 'dates');
+  /* The first page of each request. By id: 250 ids a request, which is Shopify's page size. */
+  var firsts;
+  if (mode === 'since') {
+    firsts = ['/orders.json?status=any&limit=250&fields=' + fields
+      + '&updated_at_min=' + encodeURIComponent(String(opts.since))];
+  } else if (mode === 'ids') {
+    var idList = String(opts.ids).split(',').map(function (x) { return x.trim(); })
+      .filter(function (x) { return /^\d+$/.test(x); });
+    firsts = [];
+    for (var c = 0; c < idList.length; c += 250) {
+      firsts.push('/orders.json?status=any&limit=250&fields=' + fields + '&ids=' + idList.slice(c, c + 250).join(','));
+    }
+  } else {
+    firsts = ['/orders.json?status=any&limit=250&fields=' + fields
+      + (unfulfilled ? '&fulfillment_status=unfulfilled' : '') + shopWindow_(fromIso, toIso)];
+  }
+  /* A "changed since" that ran out of time hands back where it stopped (`next`), and the browser asks
+   * again from there — the cursor of the FIRST page still stands, so nothing in between is lost. */
+  if (mode === 'since' && opts.next) firsts = [null];
+  var out = [], pageInfo = opts.next && mode === 'since' ? String(opts.next) : null, guard = 0;
+  var shopNow = 0, newest = 0;
+  var noteClock = function (r, orders) {
+    var d = Date.parse(r.date || '');
+    if (d && !shopNow) shopNow = d;
+    (orders || []).forEach(function (o) {
+      var u = Date.parse(o.updated_at || '');
+      if (u && u > newest) newest = u;
+    });
+  };
+  for (var fi = 0; fi < firsts.length; fi++) {
+   if (fi > 0) pageInfo = null;
+   do {
     var r = shopifyGet_(pageInfo
       ? '/orders.json?limit=250&fields=' + fields + '&page_info=' + encodeURIComponent(pageInfo)
-      : base);
+      : firsts[fi]);
+    noteClock(r, r.json.orders);
     (r.json.orders || []).forEach(function (o) {
-      if (!shopInWindow_(o, fromIso, toIso)) return;      // trimmed on the STORE's date
-      var ff = String(o.fulfillment_status || '').toLowerCase();
-      if (unfulfilled && ff === 'fulfilled') return;
-      if (String(o.financial_status || '').toLowerCase() === 'voided') return;
+      if (mode === 'since') {
+        if (String(o.financial_status || '').toLowerCase() === 'voided') {
+          // `at` says which day's copy it has to leave (the shared copy is kept by day placed).
+          out.push({ id: String(o.id), upd: String(o.updated_at || ''), at: shopDayOf_(o), gone: 'voided' });
+          return;
+        }
+      } else {
+        if (mode === 'dates' && !shopInWindow_(o, fromIso, toIso)) return;      // trimmed on the STORE's date
+        var ff = String(o.fulfillment_status || '').toLowerCase();
+        if (unfulfilled && ff === 'fulfilled') return;
+        if (String(o.financial_status || '').toLowerCase() === 'voided') return;
+      }
       var a = o.shipping_address || {};
       // Refunded units per line, added up across every refund on the order.
       var refBy = {};
@@ -289,6 +352,8 @@ function shopifyOrders_(fromIso, toIso, unfulfilled, deadlineMs) {
 
       out.push({
         id: String(o.id),
+        // When Shopify last changed it — what the browser's copy keeps the newer of.
+        upd: String(o.updated_at || ''),
         no: o.name || ('#' + o.order_number),
         at: String(o.created_at || '').slice(0, 10),
         // Empty for a live order. Kept as a DATE rather than a boolean so the app can say when.
@@ -319,10 +384,49 @@ function shopifyOrders_(fromIso, toIso, unfulfilled, deadlineMs) {
     });
     pageInfo = shopifyNextPageInfo_(r.link);
     guard++;
-  } while (pageInfo && guard < 300 && (!deadlineMs || Date.now() < deadlineMs));
+   } while (pageInfo && guard < 300 && (!deadlineMs || Date.now() < deadlineMs));
+   if (pageInfo) break;      // out of time: say so rather than start the next batch of ids
+  }
 
-  shopifyAttachImages_(out, deadlineMs);
-  return { ok: true, from: fromIso, to: toIso, tz: shopTz_(),
-    n: out.length, more: !!pageInfo, orders: out };
+  if (opts.photos !== false) shopifyAttachImages_(out, deadlineMs);
+  /* Shopify's clock, never ours: its first reply's time, or the newest change it sent if earlier. */
+  var cur = shopNow && newest ? Math.min(shopNow, newest) : (shopNow || newest);
+  var res = { ok: true, mode: mode, from: fromIso, to: toIso,
+    // The store's timezone only for the dated ask — the other two are merged into one that has it.
+    tz: mode === 'dates' ? shopTz_() : '',
+    n: out.length, more: !!pageInfo, orders: out,
+    cursor: cur ? new Date(cur).toISOString() : '' };
+  if (mode === 'since' && pageInfo) res.next = pageInfo;
+  return res;
+}
+
+/** ?shopify=orderIds — the order ids Shopify has for each day placed, for the copy's count check (PLAN.md phase 4):
+ *  { ok, mode: 'orderIds', days: { 'YYYY-MM-DD': [id, …] }, more }. Voided orders are left out, as everywhere. Only
+ *  three small fields an order, so a fortnight is a couple of pages. */
+function shopifyOrderIds_(fromIso, toIso, deadlineMs) {
+  var fields = 'id,created_at,financial_status';
+  var base = '/orders.json?status=any&limit=250&fields=' + fields + shopWindow_(fromIso, toIso);
+  var days = {}, pageInfo = null, guard = 0;
+  do {
+    var r = shopifyGet_(pageInfo ? '/orders.json?limit=250&fields=' + fields + '&page_info=' + encodeURIComponent(pageInfo) : base);
+    (r.json.orders || []).forEach(function (o) {
+      if (!shopInWindow_(o, fromIso, toIso)) return;
+      if (String(o.financial_status || '').toLowerCase() === 'voided') return;
+      var d = shopDayOf_(o);
+      (days[d] = days[d] || []).push(String(o.id));
+    });
+    pageInfo = shopifyNextPageInfo_(r.link);
+    guard++;
+  } while (pageInfo && guard < 100 && (!deadlineMs || Date.now() < deadlineMs));
+  return { ok: true, mode: 'orderIds', from: fromIso, to: toIso, days: days, more: !!pageInfo };
+}
+
+/** ?shopify=photos — the photo of every product asked for, variant's own first (see shopifyAttachImages_).
+ *  { ok, v: { variantId: url }, p: { productId: url } }. Asked for AFTER the orders are on screen. */
+function shopifyPhotos_(pidsCsv, deadlineMs) {
+  var list = String(pidsCsv || '').split(',').map(function (x) { return x.trim(); })
+    .filter(function (x) { return /^\d+$/.test(x); });
+  var m = shopifyPhotoMap_(list, deadlineMs);
+  return { ok: true, n: list.length, v: m.byVariant, p: m.byProduct };
 }
 

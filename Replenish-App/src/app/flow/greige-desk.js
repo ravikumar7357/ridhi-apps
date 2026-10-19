@@ -1,9 +1,9 @@
-/* ================= GREIGE DESK (TEST, 2026-10-13) — built by tools/greige-desk/make-app.js, do not edit by hand =================
+/* ================= GREIGE DESK (2026-10-13; real working since 15 Oct) — built by tools/greige-desk/make-app.js, do not edit by hand =================
  *
  * Ravi's Greige Desk page (greige POs received bale by bale, issue to RFD by bales, RFD back by thans with a 5% shrinkage
  * approval, inventory with next steps, the fabric ledger and its masters) running inside the app, joined to the PPC flow:
- * "Greige for PPC" shows the greige to buy for what PPC has planned, the flow's Demand → RFD counts this desk's RFD, and
- * RFD on the shelf goes on to a printer through the flow. Preview link only (FLOW_ON); saves to pt_gdTest only.
+ * the Inventory's PPC demand column shows the greige to buy for what PPC has planned, the flow's Demand → RFD counts this desk's RFD, and
+ * RFD on the shelf goes on to a printer through the flow. On while FLOW_ON; saves to pt_gdTest only.
  *
  * Sealed: its styles and element ids live in a shadow root on #paneGdesk, its names inside this one closure. Only GD is
  * seen by the rest of the app. */
@@ -22,7 +22,7 @@ const GD = (function () {
   };
   var localStorage = { getItem: function () { return null; }, setItem: function () {} };
   var GD_CSS = "[hidden]{display:none!important} img{max-width:100%} \n/* Layout: the Replenish app's own frame -- a bar of screens across the top, soft cards on a tinted\n   ground -- with the greige work at its centre: each PO opens into its challans, each challan into its\n   bales, and receiving is a drawer from the right, opened from the PO itself. */\n:host{display:block;\n  --bg:#F3F5F8; --card:#ffffff; --soft:#F7F9FB; --chip:#EFF2F6; --hover:#EFF2F6; --zebra:#FBFCFE; --line:#E8EDF3;\n  --ink:#14181F; --muted:#5A6472; --faint:#98A1AE;\n  --brand:#4A6A92; --brand-bg:#E9EFF6; --brand-ink:#3A5573; --on-brand:#ffffff;\n  --accent:#4A5A3C; --accent-bg:#EDF0E7; --ok-ink:#2F6B33;\n  --bad:#9B1C1C; --bad-bg:#FBE9E9; --bad-line:#EBB9B9;\n  --warn-ink:#8A5A12; --warn-bg:#FFF3D6; --proc-ink:#7F6000;\n  --pink:#9B3F86; --pink-bg:#F7E8F3;\n  --c-greige:#9A6410; --c-proc:#2F6DB5; --c-rfd:#3F7D3A; --wa:#128C3E;\n  --scrim:rgba(15,23,42,.45); --toast-bg:#14181F; --toast-fg:#ffffff;\n  --sh-1:0 2px 10px rgba(20,24,31,.05); --sh-2:0 4px 16px rgba(20,24,31,.09); --sh-3:0 24px 64px rgba(20,24,31,.22);\n  --ring:0 0 0 3px rgba(110,144,181,.32); --ring-line:#6E90B5;\n  --r-card:18px; --r-ctl:12px; --r-sm:10px; --r-pill:999px; --ctl:40px;\n  --sans:\"Plus Jakarta Sans\",ui-sans-serif,system-ui,-apple-system,\"Segoe UI\",sans-serif;\n  --serif:\"Libre Caslon Text\",\"Iowan Old Style\",Baskerville,\"Times New Roman\",serif;\n  --mono:ui-monospace,\"Cascadia Mono\",Consolas,\"Courier New\",monospace;\n}\n\n\n\n*{box-sizing:border-box}\n.gdroot{background:var(--bg);color:var(--ink);font:14px/1.45 var(--sans);-webkit-font-smoothing:antialiased;border-radius:18px}\n.pill,.tnum,.metric .v,.dfig,.gk-v,.num,.prog,.pc-m,.pc input,.pr input{font-variant-numeric:tabular-nums}\nh1,h2{letter-spacing:-.02em;text-wrap:balance}\n.muted{color:var(--muted)} .b{font-weight:700} .sub{font-size:12px;color:var(--muted)} .grow{flex:1}\n.mono{font-family:var(--mono);font-size:12.5px} .hide{display:none!important}\n.sel{user-select:text}\n\n/* ---- the frame ---- */\n.shell{display:flex;flex-direction:column;min-height:100%}\n.side{position:static;border-radius:18px 18px 0 0;display:flex;align-items:center;gap:2px;flex-wrap:wrap;\n  background:var(--card);box-shadow:var(--sh-1);padding:8px 16px}\n.brand{padding:0 14px 0 2px}\n.brandname{font-family:var(--serif);font-size:16px;letter-spacing:.06em;text-transform:uppercase;display:flex;flex-direction:column;line-height:1}\n.brandsub{font-family:var(--sans);font-size:7.5px;font-weight:600;letter-spacing:.22em;color:var(--muted);margin-top:3px}\n.navgrp{background:transparent;color:var(--muted);box-shadow:none;border:0;font:inherit;font-size:13px;font-weight:600;padding:8px 12px;border-radius:var(--r-sm);cursor:pointer}\n.navgrp:hover{color:var(--ink);background:var(--hover)}\n.navgrp.here{color:var(--brand);background:var(--brand-bg);font-weight:800}\n.sidefoot{margin-left:auto;display:flex;align-items:center;gap:8px}\n.lm-tag{display:inline-block;padding:2px 9px;border-radius:var(--r-pill);background:var(--warn-bg);color:var(--warn-ink);font-size:10.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}\n.main{flex:1;min-width:0;width:100%;max-width:1560px;margin:0 auto;padding-inline:22px;padding-block:18px 48px}\n@media (max-width:640px){.main{padding-inline:16px}.side{padding:8px 12px;position:static}.brandsub{display:none}.frow select{flex:1 1 100%}}\n.topbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 14px}\n.lm-h{font-family:var(--serif);font-weight:400;font-size:25px;margin:0}\n.topacts{margin-left:auto;display:flex;gap:8px;min-width:0;flex:0 1 280px}\n.topacts input{width:100%}\n\n/* ---- controls ---- */\nlabel{display:block;font-size:12.5px;font-weight:600;color:var(--muted);margin-bottom:5px}\ninput,select,textarea{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:var(--r-ctl);padding:9px 12px;width:100%;min-width:0}\ninput:focus,select:focus,textarea:focus{outline:none;border-color:var(--ring-line);box-shadow:var(--ring)}\ninput[readonly]{background:var(--soft);color:var(--muted)}\ninput::placeholder,textarea::placeholder{color:var(--faint)}\nbutton{font:inherit;font-weight:700;cursor:pointer;border:0;border-radius:var(--r-ctl);padding:10px 18px;background:var(--brand);color:var(--on-brand);\n  box-shadow:0 4px 12px rgba(74,106,146,.25);transition:background .12s,box-shadow .12s,transform .06s;white-space:nowrap}\nbutton:hover{background:var(--brand-ink)}\nbutton:active{transform:translateY(1px);box-shadow:none}\nbutton:focus-visible,a:focus-visible{outline:none;box-shadow:var(--ring)}\nbutton.ghost{background:var(--card);color:var(--muted);font-weight:600;box-shadow:var(--sh-1)}\nbutton.ghost:hover{color:var(--ink);box-shadow:var(--sh-2)}\nbutton.armed,button.ghost.armed{background:var(--bad);color:#fff}\n.btnlink{display:inline-flex;align-items:center;padding:10px 18px;border-radius:var(--r-ctl);background:var(--card);color:var(--brand-ink);font-weight:700;text-decoration:none;box-shadow:var(--sh-1)}\n.btnlink:hover{box-shadow:var(--sh-2)}\n.btnlink{gap:7px}\n.btnlink.wa,.jw-btn.wa{color:var(--wa)}\n.jw-btn.ico{width:32px;padding:0;display:inline-grid;place-items:center}\na.jw-btn{text-decoration:none}\n.frozen{padding:8px 11px;border-radius:var(--r-ctl);background:var(--soft);color:var(--ink);font-size:12.5px;min-width:200px}\n@media print{body *{visibility:hidden}#docPaper,#docPaper *{visibility:visible}#docPaper{position:absolute;left:0;top:0;box-shadow:none;margin:0;padding:0}}\n.jw-btn{height:32px;padding:0 13px;font-size:12.5px;border-radius:var(--r-sm);background:var(--chip);color:var(--muted);font-weight:700;box-shadow:none}\n.jw-btn:hover{background:var(--line);color:var(--ink)}\n.jw-btn.jw-primary{background:var(--brand-bg);color:var(--brand-ink)}\n.jw-btn.jw-wa{background:var(--accent-bg);color:var(--accent)}\n.row{display:flex;gap:10px;flex-wrap:wrap}\n.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}\n.seg{display:inline-flex;background:var(--chip);border-radius:var(--r-sm);padding:3px;gap:2px}\n.segbtn{background:transparent;color:var(--muted);box-shadow:none;border-radius:8px;padding:6px 14px;font-size:12.5px;font-weight:600}\n.segbtn:hover{background:transparent;color:var(--ink)}\n.segbtn.on{background:var(--card);color:var(--ink);box-shadow:var(--sh-1)}\n.segbtn .n{color:var(--faint);font-weight:500;margin-left:3px}\n\n/* ---- cards, figures, tables ---- */\n.card{background:var(--card);border-radius:var(--r-card);padding:16px 18px;margin-bottom:14px;box-shadow:var(--sh-1);min-width:0}\n.kpis{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:10px}\n.kpi{flex:1 1 300px;background:var(--card);border-radius:var(--r-card);padding:13px 16px;box-shadow:var(--sh-1)}\n.kpihead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:8px;flex-wrap:wrap}\n.kpiname{font-size:13px;font-weight:700} .kpiwhen{font-size:11px;color:var(--muted)}\n.metrics{display:flex;gap:24px;flex-wrap:wrap;justify-content:space-between}\n.metric .v{font-size:19px;font-weight:700;line-height:1.2} .metric .l{font-size:11px;color:var(--muted);margin-top:2px}\n.ff-cap{font-size:12.5px;color:var(--muted);margin:0 0 8px;line-height:1.5;max-width:110ch}\n.ff-grid,.scroll{overflow-x:auto}\n.ok{background:var(--accent-bg);color:var(--accent);padding:11px 14px;border-radius:var(--r-sm);font-size:13.5px;border-left:3px solid var(--accent)}\n.err{background:var(--bad-bg);color:var(--bad);padding:10px 14px;border-radius:var(--r-sm);font-size:13px;border-left:3px solid var(--bad);margin-bottom:10px;line-height:1.5}\n.warn{background:var(--warn-bg);color:var(--warn-ink);padding:10px 14px;border-radius:var(--r-sm);font-size:13px;border-left:3px solid var(--warn-ink)}\ntable.xl{border-collapse:separate;border-spacing:0;width:100%;font-size:13.5px}\ntable.xl th,table.xl td{border-bottom:1px solid var(--line);padding:9px 11px;white-space:nowrap;background:var(--card);text-align:center;vertical-align:middle}\ntable.xl thead th{position:sticky;top:0;z-index:2;font-size:11px;font-weight:700;letter-spacing:.03em;color:var(--faint);text-transform:uppercase}\ntable.xl .frz{position:sticky;left:0;z-index:1;border-right:1px solid var(--line)}\ntable.xl thead th.frz{z-index:3}\ntable.xl tbody tr:nth-child(even) td{background:var(--zebra)}\ntable.xl tbody tr:hover td{background:var(--soft)}\ntable.xl tfoot td{background:var(--soft);font-weight:800}\ntable.xl.xl-dense th,table.xl.xl-dense td{padding:6px 8px;font-size:12.5px}\n.pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:var(--r-pill);font-size:11.5px;font-weight:700;line-height:17px;white-space:nowrap}\n.pill-ok{background:var(--accent-bg);color:var(--accent)} .pill-low{background:var(--warn-bg);color:var(--warn-ink)}\n.pill-out{background:var(--bad-bg);color:var(--bad)} .pill-sea{background:var(--brand-bg);color:var(--brand-ink)} .pill-mute{background:var(--chip);color:var(--muted)}\n.lm-note{font-size:12.5px;color:var(--muted);margin:0 0 10px;line-height:1.5}\n.lm-why{font-size:12px;color:var(--muted);line-height:1.55;margin-top:8px}\n.lm-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:12px}\n.lm-lines td{padding:5px 6px} .lm-lines input,.lm-lines select{padding:6px 8px;font-size:12.5px}\n.lm-x{background:transparent;color:var(--bad);box-shadow:none;padding:4px 8px;font-size:15px}\n.lm-x:hover{background:var(--bad-bg)}\n\n/* ---- the dashboard ---- */\n.dashcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(228px,1fr));gap:14px;margin-bottom:14px}\n.dcard{display:block;width:100%;text-align:left;background:var(--card);color:var(--ink);border-radius:var(--r-card);box-shadow:var(--sh-1);padding:14px 16px;font-weight:400;white-space:normal}\n.dcard:hover{background:var(--card);box-shadow:var(--sh-2)}\n.dhead{display:flex;align-items:center;gap:8px;margin-bottom:9px}\n.dicon{width:22px;height:22px;border-radius:7px;background:var(--chip);color:var(--brand-ink);display:inline-flex;align-items:center;justify-content:center;flex:none}\n.dtitle{font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}\n.dchip{margin-left:auto;font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:var(--r-pill);background:var(--accent-bg);color:var(--accent);white-space:nowrap}\n.dfig{font-size:26px;font-weight:800;line-height:1.1;letter-spacing:-.01em}\n.dsub{font-size:12px;color:var(--muted);margin-top:2px}\n.dsplit{display:flex;gap:30px;flex-wrap:wrap}\n.dnote{font-size:12px;color:var(--muted);margin-left:auto;padding-bottom:3px}\n.dash2col{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(380px,100%),1fr));gap:14px;align-items:stretch;margin-bottom:14px}\n\n/* ---- Greige POs: the figures, each one a filter ---- */\n.pobar{display:flex;gap:10px;flex-wrap:wrap;margin:-4px 0 14px}\n.gk-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:14px}\n.gk{display:grid;grid-template-columns:1fr auto;grid-template-rows:auto auto auto;column-gap:8px;text-align:left;background:var(--card);color:var(--ink);\n  border-radius:var(--r-card);box-shadow:var(--sh-1);padding:14px 16px;font-weight:400;white-space:normal;outline:1.5px solid transparent}\n.gk:hover{background:var(--card);box-shadow:var(--sh-2)}\n.gk.on{outline-color:var(--brand)}\n.gk-ic{grid-column:2;grid-row:1/3;width:34px;height:34px;border-radius:10px;display:grid;place-items:center}\n.gk-v{grid-column:1;font-size:21px;font-weight:800;letter-spacing:-.01em}\n.gk-l{grid-column:1;font-size:12.5px;color:var(--muted);font-weight:600}\n.gk-s{grid-column:1/-1;font-size:12px;color:var(--muted);margin-top:9px}\n.tone-blue{background:var(--brand-bg);color:var(--brand-ink)} .tone-amber{background:var(--warn-bg);color:var(--warn-ink)}\n.tone-green{background:var(--accent-bg);color:var(--accent)} .tone-red{background:var(--bad-bg);color:var(--bad)}\n.filters{padding:12px 14px;display:flex;flex-direction:column;gap:10px}\n.frow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}\n.frow select{flex:0 1 200px;width:auto;height:38px;padding-block:0}\n.pair{display:inline-flex;align-items:center;gap:6px;flex:0 1 auto;min-width:0}\n.frow input[type=date]{width:160px;max-width:100%;height:38px;padding-block:0}\nlabel.inl{margin:0;font-size:12px}\n.frow2{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}\n.count{font-size:12.5px}\n.tablecard{padding:0;overflow:hidden}\n.t{width:100%;min-width:1080px;border-collapse:collapse}\n.t > thead th,.ct > thead th{font-size:11px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--faint);text-align:left;padding:12px 10px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--card)}\n.t > tbody > tr > td{padding:12px 10px;border-bottom:1px solid var(--line);vertical-align:middle}\nth.num,td.num{text-align:right;white-space:nowrap} th.ra{text-align:right} td.tl,th.tl{text-align:left}\n.xrow{cursor:pointer}\n.xrow:hover > td,.xrow.open > td{background:var(--soft)}\n.plus{color:var(--muted);font-weight:600}\n.w-chev{width:40px;padding-left:12px!important;padding-right:0!important}\n.chev{width:26px;height:26px;padding:0;background:transparent;box-shadow:none;border-radius:7px;display:grid;place-items:center;color:var(--muted)}\n.chev:hover{background:var(--line);color:var(--ink)}\n.chev svg{transition:transform .15s ease}\n.open > td .chev svg{transform:rotate(90deg)}\n.mill{display:flex;gap:10px;align-items:center}\n.av{width:32px;height:32px;flex:none;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:800}\n.av-a{background:var(--brand-bg);color:var(--brand-ink)} .av-b{background:var(--pink-bg);color:var(--pink)}\n.av-c{background:var(--accent-bg);color:var(--accent)} .av-d{background:var(--warn-bg);color:var(--warn-ink)}\n.prog{display:flex;align-items:center;gap:8px;font-weight:700}\n.actions{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;min-width:230px}\n.plate{font-family:var(--mono);font-size:12px;border:1px solid var(--line);border-radius:5px;padding:1px 7px;background:var(--card);white-space:nowrap}\n.detail > td{padding:0!important;background:var(--soft);border-bottom:1px solid var(--line)}\n.panel{padding:6px 18px 18px 52px;display:flex;flex-direction:column;gap:12px}\n@media (max-width:640px){.panel{padding-left:14px}}\n.panel-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}\n.panel-foot{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12.5px}\n.lsum{display:flex;gap:10px;flex-wrap:wrap}\n.lchip{background:var(--card);border-radius:12px;padding:10px 13px;min-width:min(270px,100%);box-shadow:var(--sh-1)}\n.lchip .top2{display:flex;justify-content:space-between;gap:12px;font-size:13px}\n.lchip .due{color:var(--warn-ink)}\n.bar{height:5px;background:var(--line);border-radius:3px;margin-top:8px;overflow:hidden}\n.bar i{display:block;height:100%;background:var(--brand);border-radius:3px}\n.bar i.full{background:var(--accent)}\n.ct.li th{background:var(--card)}\n.ct.li td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}\n.ct.li tr.tot td{border-bottom:0;font-weight:700;background:var(--soft)}\n.bar.sm{height:4px;margin-top:5px;min-width:70px}\n.box{background:var(--card);border-radius:12px;overflow:hidden;box-shadow:var(--sh-1)}\n.ct{width:100%;border-collapse:collapse}\n.ct > tbody > tr > td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}\n.ct .xrow:hover > td,.ct .xrow.open > td{background:var(--brand-bg)}\n.empty{padding:18px;color:var(--muted);font-size:13.5px}\n.pieces{padding:12px 14px 14px;display:flex;flex-direction:column;gap:12px;background:var(--soft)}\n.pieces-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}\n.pl-h{font-size:13px;margin-bottom:7px}\n.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:8px}\n.pc{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:7px 9px;display:flex;flex-direction:column;gap:3px}\n.pc.short{border-color:var(--bad-line);background:var(--bad-bg)}\n.pc-top{display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted)}\n.pc-m{font-weight:700}\n.pc input{padding:4px 7px;font-size:13px;border-radius:7px}\n.pc-lab{font-size:11px;font-weight:500;color:var(--faint);margin:0}\n.d{font-weight:700} .d.short{color:var(--bad)} .d.extra{color:var(--ok-ink)} .d.ok{color:var(--faint);font-weight:500}\n.foot{font-size:12.5px;color:var(--muted);max-width:90ch;margin:4px 2px 0;line-height:1.55}\n\n/* ---- the receive drawer ---- */\n.scrim{position:fixed;inset:0;background:var(--scrim);z-index:1010}\n.drawer{position:fixed;top:0;right:0;bottom:0;width:min(640px,100%);background:var(--card);z-index:1011;display:flex;flex-direction:column;box-shadow:var(--sh-3);\n  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}\n.dr-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:16px 22px;border-bottom:1px solid var(--line)}\n.dr-head h2{font-size:19px;margin:2px 0 0}\n.crumb{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}\n.dr-body{flex:1;overflow:auto;padding:18px 22px;display:flex;flex-direction:column;gap:16px}\n.dr-foot{border-top:1px solid var(--line);padding:14px 22px;display:flex;flex-direction:column;gap:10px}\n@media (max-width:520px){.dr-head,.dr-body,.dr-foot{padding-inline:16px}}\n.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}\n@media (max-width:520px){.grid2{grid-template-columns:1fr}}\n.fld{display:flex;flex-direction:column;gap:5px;font-size:12.5px;font-weight:600;color:var(--muted);margin:0}\n.fld small{font-weight:400;font-size:12px}\n.fld.wide{grid-column:1/-1}\n.sect{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}\n.sect span{font-weight:500;letter-spacing:0;text-transform:none}\n.dl{border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;background:var(--soft)}\n.prh,.pr{display:grid;grid-template-columns:24px minmax(0,1fr) minmax(0,1fr) 32px;gap:8px;align-items:center}\n.prh{font-size:11.5px;color:var(--faint);font-weight:600}\n.pr input{padding:7px 10px}\n.pr-i{font-size:12px;color:var(--faint);text-align:right}\n.x{width:32px;height:32px;padding:0;background:transparent;box-shadow:none;color:var(--muted);font-size:18px;line-height:1;border-radius:8px}\n.x:hover{background:var(--line);color:var(--ink)}\n.dl-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}\n.dl-sum{margin-left:auto;font-weight:700;font-size:13px}\n.link{background:none;box-shadow:none;color:var(--brand-ink);font-size:13px;font-weight:700;padding:2px 0}\n.link:hover{background:none;text-decoration:underline}\n.paste{display:flex;flex-direction:column;gap:8px}\n.paste textarea{min-height:84px;resize:vertical;font-family:var(--mono);font-size:13px}\n.warnline{font-size:12.5px;color:var(--warn-ink)}\n.note{font-size:12.5px;color:var(--muted)}\n.empty-sm{border:1px dashed var(--line);border-radius:12px;padding:16px;color:var(--muted);font-size:13.5px}\n.pohead{background:var(--soft);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}\n.pohead-top{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}\n.ct.mini th{padding:7px 8px;background:transparent}\n.ct.mini td{padding:7px 8px;font-size:12.5px}\n.ct.mini tr.tot td{border-bottom:0;font-weight:700}\n.due{color:var(--warn-ink)}\n.dl-top{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}\n.lotf{flex:0 0 150px}\n.lotf input{font-family:var(--mono);font-weight:700}\n.supline{background:var(--brand-bg);color:var(--brand-ink);padding:10px 12px;border-radius:var(--r-sm);font-size:12.5px;line-height:1.55}\n.cellbtn{background:transparent;box-shadow:none;color:inherit;font:inherit;font-weight:inherit;padding:4px 8px;border-radius:8px;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}\n.cellbtn:hover,.cellbtn.on{background:var(--brand-bg);color:var(--brand-ink);text-decoration:none}\n.cellbtn .caret{font-size:10px;opacity:.7}\ntr.invdet > td{background:var(--soft)!important;padding:4px 12px 14px!important;white-space:normal!important;text-align:left!important}\n.invdrop{display:flex;flex-direction:column;gap:8px}\n.balegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}\n.bale{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:0;padding:7px 9px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font-size:12.5px;font-weight:600;cursor:pointer}\n.bale input{width:15px;height:15px;flex:none}.bale b{margin-left:auto;font-variant-numeric:tabular-nums}\n.bale.on{border-color:var(--brand);background:var(--brand-bg);color:var(--brand-ink)}\n.okline{background:var(--accent-bg);color:var(--accent);padding:8px 12px;border-radius:var(--r-sm);font-size:12.5px}\n.approvals{border-left:4px solid var(--warn-ink)}\n.closeline{display:flex;align-items:center;gap:9px;margin:0;font-size:13px;font-weight:600;color:var(--ink);background:var(--warn-bg);border-radius:var(--r-sm);padding:9px 12px}\n.closeline input{width:16px;height:16px;flex:none}\n.dr-total{display:flex;justify-content:space-between;gap:12px;font-weight:700;flex-wrap:wrap}\n.dr-btns{display:flex;justify-content:flex-end;gap:8px}\n\n/* ---- dialogs ---- */\n.modal{position:fixed;inset:0;background:var(--scrim);display:flex;align-items:center;justify-content:center;z-index:1000;padding:16px}\n.modalbox{background:var(--card);border-radius:var(--r-card);padding:20px;width:min(720px,100%);max-height:92vh;overflow:auto;box-shadow:var(--sh-3)}\n.en-groups{display:flex;flex-direction:column;gap:7px;margin:4px 0 16px}\n.en-group{display:flex;align-items:center;gap:6px;flex-wrap:wrap}\n.en-gname{font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);width:82px;flex:none}\n.en-chip{display:inline-flex;align-items:center;gap:7px;background:var(--chip);color:var(--ink);box-shadow:none;border-radius:var(--r-pill);padding:6px 13px;font-size:12.5px;font-weight:600}\n.en-chip:hover{background:var(--line);color:var(--ink)}\n.en-chip.on{background:var(--card);box-shadow:inset 0 0 0 1.5px var(--ink),var(--sh-1);font-weight:800}\n.en-dot{width:8px;height:8px;border-radius:50%;flex:none}\n.en-after{background:var(--brand-bg);color:var(--brand-ink);border-radius:var(--r-sm);padding:10px 14px;font-size:13px;line-height:1.7;margin-bottom:10px}\n.en-after-h{font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;opacity:.75;margin-bottom:2px}\n.en-after .bad{color:var(--bad)}\n.docbox{width:min(860px,100%)}\n.docpaper{background:#ffffff;color:#000000;border-radius:8px;padding:16px;overflow-x:auto;box-shadow:inset 0 0 0 1px var(--line);margin:12px 0 16px}\n.mailbox{background:var(--soft);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;font-size:13px;margin:8px 0 12px}\n.mailbox pre{margin:6px 0 0;white-space:pre-wrap;font:13px/1.5 var(--sans);color:var(--ink)}\n.err-in{color:var(--bad);font-weight:600}\n\n.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--toast-bg);color:var(--toast-fg);\n  padding:11px 16px;border-radius:12px;font-size:13.5px;z-index:80;width:max-content;max-width:calc(100% - 32px);box-shadow:var(--sh-3);border-left:4px solid var(--brand);z-index:1100}\n.toast.ok{border-left-color:var(--c-rfd)} .toast.warn{border-left-color:var(--c-greige)} .toast.err{border-left-color:var(--bad)}\n@media (prefers-reduced-motion: reduce){*{transition:none!important}}\n";
-  var GD_HTML = "<div class=\"shell\">\n  <div class=\"side\">\n    <div class=\"brand\"><span class=\"brandname\">Greige Desk<span class=\"brandsub\">TEST · separate records</span></span></div>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"dash\">Dashboard</button>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"po\">Greige POs</button>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"ppc\">Greige for PPC</button>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"inv\">Inventory</button>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"ledger\">Fabric ledger</button>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"mst\">Master data</button>\n    <div class=\"sidefoot\">\n      <span class=\"lm-tag\" title=\"Saved in the test records only. The real Greige POs and fabric ledger are not touched.\">TEST</span>\n      <span id=\"meName\" class=\"muted\" style=\"font-size:12px\"></span>\n      <button type=\"button\" class=\"ghost\" id=\"gdSample\" style=\"padding:7px 12px;font-size:12.5px\">Load sample data</button>\n      <button type=\"button\" class=\"ghost\" id=\"gdClear\" style=\"padding:7px 12px;font-size:12.5px\">Clear test data</button>\n    </div>\n  </div>\n\n  <div class=\"main\">\n    <div class=\"topbar\">\n      <h1 class=\"lm-h\" id=\"lmTitle\">Greige POs</h1>\n      <div class=\"topacts\"><input id=\"lmQ\" type=\"search\" placeholder=\"Search PO, supplier, challan, lot, LR…\" aria-label=\"Search\"></div>\n    </div>\n    <div id=\"lmPane\"></div>\n  </div>\n</div>\n\n<!-- ENTRY. One dialog for every movement: the kind decides which fields matter. -->\n<div class=\"modal hide\" id=\"lmEntry\">\n  <div class=\"modalbox\">\n    <h2 style=\"margin:0 0 4px;font-size:18px\" id=\"lmEnTitle\">Fabric entry</h2>\n    <div class=\"lm-note\" id=\"lmEnNote\"></div>\n    <div id=\"lmEnErr\" class=\"err hide\"></div>\n    <div id=\"enChips\" class=\"en-groups\"></div>\n    <select id=\"enKind\" class=\"hide\" aria-label=\"Movement\"></select>\n    <div class=\"lm-fields\">\n      <div><label for=\"enLot\">Lot *</label><input id=\"enLot\" list=\"enLots\" placeholder=\"LOT-005\"><datalist id=\"enLots\"></datalist></div>\n      <div><label for=\"enDate\">Date *</label><input type=\"date\" id=\"enDate\"></div>\n      <div><label for=\"enFab\">Fabric *</label><input id=\"enFab\" list=\"enFabs\" placeholder=\"Greige Sheeting 67\"><datalist id=\"enFabs\"></datalist></div>\n      <div><label for=\"enQty\">Metres *</label><input id=\"enQty\" type=\"number\" step=\"0.01\" placeholder=\"1200\"></div>\n      <div><label id=\"enPartyL\" for=\"enParty\">Party</label><input id=\"enParty\" list=\"enParties\" placeholder=\"Shri Balaji Mills\"><datalist id=\"enParties\"></datalist></div>\n      <div><label for=\"enBill\" id=\"enBillL\">Bill / challan</label><input id=\"enBill\" placeholder=\"Optional\"></div>\n      <div id=\"enFinalWrap\"><label>Is that the lot?</label>\n        <label style=\"display:flex;align-items:center;gap:8px;font-weight:500;color:var(--ink);margin:0;height:var(--ctl)\">\n          <input type=\"checkbox\" id=\"enFinal\" checked style=\"width:16px;height:16px\">\n          <span>Yes, close the lot</span></label></div>\n      <div id=\"enReturnedWrap\"><label for=\"enReturned\">Sent back (optional)</label>\n        <input id=\"enReturned\" type=\"number\" step=\"0.01\" placeholder=\"0\" title=\"Metres refused at the door and returned\"></div>\n      <div id=\"enPoWrap\"><label for=\"enPo\">Against greige PO</label><input id=\"enPo\" list=\"enPos\" placeholder=\"Optional\"><datalist id=\"enPos\"></datalist></div>\n    </div>\n    <div style=\"margin-bottom:12px\"><label id=\"enRemarkL\" for=\"enRemark\">Remark (optional)</label>\n      <input id=\"enRemark\" placeholder=\"Anything worth remembering about this entry\"></div>\n    <div id=\"enAfter\" class=\"en-after hide\"></div>\n    <div class=\"lm-why hide\" id=\"enSpec\" style=\"background:var(--soft);border-radius:var(--r-sm);padding:9px 11px\"></div>\n    <div class=\"lm-why\" id=\"lmEnWhy\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\">\n      <button type=\"button\" class=\"ghost hide\" id=\"enDelete\" style=\"color:var(--bad);margin-right:auto\">Remove this entry</button>\n      <button type=\"button\" class=\"ghost\" data-close=\"lmEntry\">Cancel</button>\n      <button type=\"button\" id=\"enSave\">Save the entry</button>\n    </div>\n  </div>\n</div>\n\n<!-- A GREIGE PO. Written in the greige name, priced per line. -->\n<div class=\"modal hide\" id=\"lmPo\">\n  <div class=\"modalbox\" style=\"width:min(1060px,100%)\">\n    <h2 style=\"margin:0 0 4px;font-size:18px\" id=\"poTitle\">New greige PO</h2>\n    <div class=\"lm-note\">The cloth is ordered by its <b>greige</b> name, because greige comes wider than the RFD it becomes.\n      Each line’s description is written from Master data and can be changed by hand.</div>\n    <div id=\"lmPoErr\" class=\"err hide\"></div>\n    <div id=\"poCoNote\" class=\"warn hide\" style=\"margin-bottom:12px\"></div>\n    <div class=\"lm-fields\">\n      <div><label for=\"poNo\">PO number</label><input id=\"poNo\" readonly></div>\n      <div><label for=\"poDate\">Date</label><input type=\"date\" id=\"poDate\" readonly title=\"The day the PO is raised; it is not changed\"></div>\n      <div><label for=\"poMill\">Supplier *</label><input id=\"poMill\" list=\"poMills\" placeholder=\"Shri Balaji Mills\"><datalist id=\"poMills\"></datalist>\n        <div id=\"poMillNote\" class=\"muted\" style=\"font-size:11px;margin-top:4px\"></div><div id=\"poMillLock\" class=\"muted\" style=\"font-size:11px\"></div></div>\n    </div>\n    <details id=\"poMore\" style=\"margin:0 0 12px\">\n      <summary style=\"cursor:pointer;font-size:12.5px;font-weight:700;color:var(--muted)\">Payment, dispatch &amp; delivery terms (optional)</summary>\n      <div class=\"lm-fields\" style=\"margin-top:10px\">\n        <div><label for=\"poPay\">Mode / terms of payment</label><input id=\"poPay\" placeholder=\"e.g. 30 days\"></div>\n        <div><label for=\"poDisp\">Dispatched through</label><input id=\"poDisp\" placeholder=\"Transporter\"></div>\n        <div><label for=\"poDest\">Destination</label><input id=\"poDest\" placeholder=\"Jaipur\"></div>\n        <div><label for=\"poOther\">Other references</label><input id=\"poOther\"></div>\n      </div>\n      <div><label for=\"poTerms\">Terms of delivery</label><input id=\"poTerms\" placeholder=\"Delivered to our godown, freight paid\"></div>\n    </details>\n    <div class=\"ff-grid\"><table class=\"xl lm-lines\" id=\"poLines\"></table></div>\n    <div class=\"row\" style=\"margin-top:8px\"><button type=\"button\" class=\"ghost\" id=\"poAdd\">+ Add a line</button></div>\n    <div id=\"poTot\" class=\"lm-why\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\">\n      <button type=\"button\" class=\"ghost\" data-close=\"lmPo\">Cancel</button>\n      <button type=\"button\" class=\"ghost\" id=\"poSaveDoc\">Save &amp; open the PO</button>\n      <button type=\"button\" id=\"poSave\">Save the PO</button>\n    </div>\n  </div>\n</div>\n\n<!-- ISSUE TO RFD: from a PO, its lots with greige in the store, to one RFD processor. -->\n<div class=\"modal hide\" id=\"lmIss\">\n  <div class=\"modalbox\" style=\"width:min(900px,100%)\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Issue to RFD</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"issTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmIss\" aria-label=\"Close\">×</button>\n    </div>\n    <div id=\"issErr\" class=\"err hide\" style=\"margin-top:12px\"></div>\n    <div class=\"lm-fields\" style=\"margin-top:12px\">\n      <div><label for=\"issProc\">RFD processor *</label><select id=\"issProc\"></select></div>\n      <div><label for=\"issDate\">Date</label><input type=\"date\" id=\"issDate\" readonly title=\"Today\"></div>\n      <div><label for=\"issNo\">Our RFD challan no.</label><input id=\"issNo\" readonly title=\"Given automatically, in its own series\"></div>\n      <div><label for=\"issRem\">Remark</label><input id=\"issRem\" autocomplete=\"off\" placeholder=\"Optional\"></div>\n    </div>\n    <div class=\"sect\">Bales going out</div>\n    <div id=\"issLots\" style=\"display:flex;flex-direction:column;gap:12px;margin-top:8px\"></div>\n    <div id=\"issTot\" class=\"lm-why\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\"><button type=\"button\" class=\"ghost\" data-close=\"lmIss\">Cancel</button><button type=\"button\" id=\"issSave\">Issue to RFD</button></div>\n  </div>\n</div>\n\n<!-- SEND TO CUTTING: RFD thans of one lot, off the shelf to the cutting table. -->\n<div class=\"modal hide\" id=\"lmCut\">\n  <div class=\"modalbox\" style=\"width:min(820px,100%)\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Send to cutting</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"cutTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmCut\" aria-label=\"Close\">×</button>\n    </div>\n    <div id=\"cutErr\" class=\"err hide\" style=\"margin-top:12px\"></div>\n    <div class=\"lm-fields\" style=\"margin-top:12px\">\n      <div><label for=\"cutTo\">Cutting master / table</label><input id=\"cutTo\" autocomplete=\"off\" placeholder=\"Optional\"></div>\n      <div><label for=\"cutDate\">Date</label><input type=\"date\" id=\"cutDate\" readonly title=\"Today\"></div>\n      <div><label for=\"cutRem\">Remark</label><input id=\"cutRem\" autocomplete=\"off\" placeholder=\"Optional\"></div>\n    </div>\n    <div class=\"sect\">Thans going to cutting</div>\n    <div id=\"cutBody\" style=\"display:flex;flex-direction:column;gap:12px;margin-top:8px\"></div>\n    <div id=\"cutTot\" class=\"lm-why\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\"><button type=\"button\" class=\"ghost\" data-close=\"lmCut\">Cancel</button><button type=\"button\" id=\"cutSave\">Send to cutting</button></div>\n  </div>\n</div>\n\n<!-- RECEIVE RFD: thans back from the RFD processor, against the lots of one PO. -->\n<div class=\"modal hide\" id=\"lmRr\">\n  <div class=\"modalbox\" style=\"width:min(820px,100%)\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Receive RFD</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"rrTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmRr\" aria-label=\"Close\">×</button>\n    </div>\n    <div id=\"rrErr\" class=\"err hide\" style=\"margin-top:12px\"></div>\n    <div class=\"lm-fields\" style=\"margin-top:12px\">\n      <div><label for=\"rrNo\">Processor’s challan no. *</label><input id=\"rrNo\" autocomplete=\"off\" placeholder=\"As printed on their challan\"></div>\n      <div><label for=\"rrDate\">Date</label><input type=\"date\" id=\"rrDate\" readonly title=\"Today\"></div>\n    </div>\n    <div class=\"sect\">Thans back <span>Enter in a metres box adds the next than. More than 5% shrinkage on a closed lot needs approval.</span></div>\n    <div id=\"rrLots\" style=\"display:flex;flex-direction:column;gap:12px;margin-top:8px\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\"><button type=\"button\" class=\"ghost\" data-close=\"lmRr\">Cancel</button><button type=\"button\" id=\"rrSave\">Save the receipt</button></div>\n  </div>\n</div>\n\n<!-- THE PO AS PAPER, and the mail that goes with it. -->\n<div class=\"modal hide\" id=\"lmDoc\">\n  <div class=\"modalbox docbox\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Purchase order</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"docTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmDoc\" aria-label=\"Close\">×</button>\n    </div>\n    <div class=\"docpaper\" id=\"docPaper\"></div>\n    <div id=\"docMail\"></div>\n  </div>\n</div>\n\n<!-- RECEIVE GREIGE: opened from an open PO; the whole PO, then the supplier's challan bale by bale. -->\n<div class=\"scrim\" id=\"scrim\" hidden data-close=\"drawer\"></div>\n<aside class=\"drawer\" id=\"drawer\" hidden role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"drTitle\">\n  <div class=\"dr-head\">\n    <div><div class=\"crumb\">Receive greige</div><h2 id=\"drTitle\">New challan</h2></div>\n    <button type=\"button\" class=\"x\" data-close=\"drawer\" aria-label=\"Close\">×</button>\n  </div>\n  <div class=\"dr-body\">\n    <div id=\"dPo\"></div>\n    <div class=\"sect\">The supplier’s challan</div>\n    <div class=\"grid2\">\n      <label class=\"fld\" for=\"dNo\"><span>Challan no. *</span><input id=\"dNo\" autocomplete=\"off\" placeholder=\"As printed on the challan\"></label>\n      <label class=\"fld\" for=\"dDate\"><span>Challan date *</span><input id=\"dDate\" type=\"date\"></label>\n      <label class=\"fld\" for=\"dInv\"><span>Invoice no.</span><input id=\"dInv\" autocomplete=\"off\" placeholder=\"The supplier’s bill, if it came with the goods\"></label>\n      <label class=\"fld\" for=\"dTrn\"><span>Transporter name</span><input id=\"dTrn\" autocomplete=\"off\" placeholder=\"e.g. VRL Logistics\"></label>\n      <label class=\"fld wide\" for=\"dLr\"><span>LR no.</span><input id=\"dLr\" autocomplete=\"off\" placeholder=\"Optional\"></label>\n    </div>\n    <div class=\"sect\">Bales on this challan <span>Enter in a metres box adds the next bale</span></div>\n    <div id=\"dLines\"></div>\n  </div>\n  <div class=\"dr-foot\">\n    <div class=\"dr-total\" id=\"dTotal\"></div>\n    <label class=\"closeline\" id=\"dCloseWrap\" for=\"dClose\" hidden><input type=\"checkbox\" id=\"dClose\"><span id=\"dCloseTxt\"></span></label>\n    <div class=\"err\" id=\"dErr\" hidden></div>\n    <div class=\"dr-btns\">\n      <button type=\"button\" class=\"ghost\" data-close=\"drawer\">Cancel</button>\n      <button type=\"button\" id=\"dSave\" data-dr=\"save\">Save challan</button>\n    </div>\n  </div>\n</aside>\n<div class=\"toast\" id=\"toast\" hidden role=\"status\"></div>\n\n";
+  var GD_HTML = "<div class=\"shell\">\n  <div class=\"side\">\n    <div class=\"brand\"><span class=\"brandname\">Greige Desk<span class=\"brandsub\">Greige · RFD · POs</span></span></div>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"po\">Greige POs</button>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"inv\">Inventory</button>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"ledger\">Fabric ledger</button>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"mst\">Master data</button>\n    <div class=\"sidefoot\">\n      <span id=\"meName\" class=\"muted\" style=\"font-size:12px\"></span>\n    </div>\n  </div>\n\n  <div class=\"main\">\n    <div class=\"topbar\">\n      <h1 class=\"lm-h\" id=\"lmTitle\">Greige POs</h1>\n      <div class=\"topacts\"><input id=\"lmQ\" type=\"search\" placeholder=\"Search PO, supplier, challan, lot, LR…\" aria-label=\"Search\"></div>\n    </div>\n    <div id=\"lmPane\"></div>\n  </div>\n</div>\n\n<!-- ENTRY. One dialog for every movement: the kind decides which fields matter. -->\n<div class=\"modal hide\" id=\"lmEntry\">\n  <div class=\"modalbox\">\n    <h2 style=\"margin:0 0 4px;font-size:18px\" id=\"lmEnTitle\">Fabric entry</h2>\n    <div class=\"lm-note\" id=\"lmEnNote\"></div>\n    <div id=\"lmEnErr\" class=\"err hide\"></div>\n    <div id=\"enChips\" class=\"en-groups\"></div>\n    <select id=\"enKind\" class=\"hide\" aria-label=\"Movement\"></select>\n    <div class=\"lm-fields\">\n      <div><label for=\"enLot\">Lot *</label><input id=\"enLot\" list=\"enLots\" placeholder=\"LOT-005\"><datalist id=\"enLots\"></datalist></div>\n      <div><label for=\"enDate\">Date *</label><input type=\"date\" id=\"enDate\"></div>\n      <div><label for=\"enFab\">Fabric *</label><input id=\"enFab\" list=\"enFabs\" placeholder=\"Greige Sheeting 67\"><datalist id=\"enFabs\"></datalist></div>\n      <div><label for=\"enQty\">Metres *</label><input id=\"enQty\" type=\"number\" step=\"0.01\" placeholder=\"1200\"></div>\n      <div><label id=\"enPartyL\" for=\"enParty\">Party</label><input id=\"enParty\" list=\"enParties\" placeholder=\"Shri Balaji Mills\"><datalist id=\"enParties\"></datalist></div>\n      <div><label for=\"enBill\" id=\"enBillL\">Bill / challan</label><input id=\"enBill\" placeholder=\"Optional\"></div>\n      <div id=\"enFinalWrap\"><label>Is that the lot?</label>\n        <label style=\"display:flex;align-items:center;gap:8px;font-weight:500;color:var(--ink);margin:0;height:var(--ctl)\">\n          <input type=\"checkbox\" id=\"enFinal\" checked style=\"width:16px;height:16px\">\n          <span>Yes, close the lot</span></label></div>\n      <div id=\"enReturnedWrap\"><label for=\"enReturned\">Sent back (optional)</label>\n        <input id=\"enReturned\" type=\"number\" step=\"0.01\" placeholder=\"0\" title=\"Metres refused at the door and returned\"></div>\n      <div id=\"enPoWrap\"><label for=\"enPo\">Against greige PO</label><input id=\"enPo\" list=\"enPos\" placeholder=\"Optional\"><datalist id=\"enPos\"></datalist></div>\n    </div>\n    <div style=\"margin-bottom:12px\"><label id=\"enRemarkL\" for=\"enRemark\">Remark (optional)</label>\n      <input id=\"enRemark\" placeholder=\"Anything worth remembering about this entry\"></div>\n    <div id=\"enAfter\" class=\"en-after hide\"></div>\n    <div class=\"lm-why hide\" id=\"enSpec\" style=\"background:var(--soft);border-radius:var(--r-sm);padding:9px 11px\"></div>\n    <div class=\"lm-why\" id=\"lmEnWhy\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\">\n      <button type=\"button\" class=\"ghost hide\" id=\"enDelete\" style=\"color:var(--bad);margin-right:auto\">Remove this entry</button>\n      <button type=\"button\" class=\"ghost\" data-close=\"lmEntry\">Cancel</button>\n      <button type=\"button\" id=\"enSave\">Save the entry</button>\n    </div>\n  </div>\n</div>\n\n<!-- A GREIGE PO. Written in the greige name, priced per line. -->\n<div class=\"modal hide\" id=\"lmPo\">\n  <div class=\"modalbox\" style=\"width:min(1060px,100%)\">\n    <h2 style=\"margin:0 0 4px;font-size:18px\" id=\"poTitle\">New greige PO</h2>\n    <div class=\"lm-note\">The cloth is ordered by its <b>greige</b> name, because greige comes wider than the RFD it becomes.\n      Each line’s description is written from Master data and can be changed by hand.</div>\n    <div id=\"lmPoErr\" class=\"err hide\"></div>\n    <div id=\"poCoNote\" class=\"warn hide\" style=\"margin-bottom:12px\"></div>\n    <div class=\"lm-fields\">\n      <div><label for=\"poNo\">PO number</label><input id=\"poNo\" readonly></div>\n      <div><label for=\"poDate\">Date</label><input type=\"date\" id=\"poDate\" readonly title=\"The day the PO is raised; it is not changed\"></div>\n      <div><label for=\"poMill\">Supplier *</label><input id=\"poMill\" list=\"poMills\" placeholder=\"Shri Balaji Mills\"><datalist id=\"poMills\"></datalist>\n        <div id=\"poMillNote\" class=\"muted\" style=\"font-size:11px;margin-top:4px\"></div><div id=\"poMillLock\" class=\"muted\" style=\"font-size:11px\"></div></div>\n    </div>\n    <details id=\"poMore\" style=\"margin:0 0 12px\">\n      <summary style=\"cursor:pointer;font-size:12.5px;font-weight:700;color:var(--muted)\">Payment, dispatch &amp; delivery terms (optional)</summary>\n      <div class=\"lm-fields\" style=\"margin-top:10px\">\n        <div><label for=\"poPay\">Mode / terms of payment</label><input id=\"poPay\" placeholder=\"e.g. 30 days\"></div>\n        <div><label for=\"poDisp\">Dispatched through</label><input id=\"poDisp\" placeholder=\"Transporter\"></div>\n        <div><label for=\"poDest\">Destination</label><input id=\"poDest\" placeholder=\"Jaipur\"></div>\n        <div><label for=\"poOther\">Other references</label><input id=\"poOther\"></div>\n      </div>\n      <div><label for=\"poTerms\">Terms of delivery</label><input id=\"poTerms\" placeholder=\"Delivered to our godown, freight paid\"></div>\n    </details>\n    <div class=\"ff-grid\"><table class=\"xl lm-lines\" id=\"poLines\"></table></div>\n    <div class=\"row\" style=\"margin-top:8px\"><button type=\"button\" class=\"ghost\" id=\"poAdd\">+ Add a line</button></div>\n    <div id=\"poTot\" class=\"lm-why\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\">\n      <button type=\"button\" class=\"ghost\" data-close=\"lmPo\">Cancel</button>\n      <button type=\"button\" class=\"ghost\" id=\"poSaveDoc\">Save &amp; open the PO</button>\n      <button type=\"button\" id=\"poSave\">Save the PO</button>\n    </div>\n  </div>\n</div>\n\n<!-- ISSUE TO RFD: from a PO, its lots with greige in the store, to one RFD processor. -->\n<div class=\"modal hide\" id=\"lmIss\">\n  <div class=\"modalbox\" style=\"width:min(900px,100%)\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Issue to RFD</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"issTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmIss\" aria-label=\"Close\">×</button>\n    </div>\n    <div id=\"issErr\" class=\"err hide\" style=\"margin-top:12px\"></div>\n    <div class=\"lm-fields\" style=\"margin-top:12px\">\n      <div><label for=\"issProc\">RFD processor *</label><select id=\"issProc\"></select></div>\n      <div><label for=\"issDate\">Date</label><input type=\"date\" id=\"issDate\" readonly title=\"Today\"></div>\n      <div><label for=\"issNo\">Our RFD challan no.</label><input id=\"issNo\" readonly title=\"Given automatically, in its own series\"></div>\n      <div><label for=\"issRem\">Remark</label><input id=\"issRem\" autocomplete=\"off\" placeholder=\"Optional\"></div>\n    </div>\n    <div class=\"sect\">Bales going out</div>\n    <div id=\"issLots\" style=\"display:flex;flex-direction:column;gap:12px;margin-top:8px\"></div>\n    <div id=\"issTot\" class=\"lm-why\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\"><button type=\"button\" class=\"ghost\" data-close=\"lmIss\">Cancel</button><button type=\"button\" id=\"issSave\">Issue to RFD</button></div>\n  </div>\n</div>\n\n<!-- SEND TO CUTTING: RFD thans of one lot, off the shelf to the cutting table. -->\n<div class=\"modal hide\" id=\"lmCut\">\n  <div class=\"modalbox\" style=\"width:min(820px,100%)\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Send to cutting</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"cutTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmCut\" aria-label=\"Close\">×</button>\n    </div>\n    <div id=\"cutErr\" class=\"err hide\" style=\"margin-top:12px\"></div>\n    <div class=\"lm-fields\" style=\"margin-top:12px\">\n      <div><label for=\"cutTo\">Cutting master / table</label><input id=\"cutTo\" autocomplete=\"off\" placeholder=\"Optional\"></div>\n      <div><label for=\"cutDate\">Date</label><input type=\"date\" id=\"cutDate\" readonly title=\"Today\"></div>\n      <div><label for=\"cutRem\">Remark</label><input id=\"cutRem\" autocomplete=\"off\" placeholder=\"Optional\"></div>\n    </div>\n    <div class=\"sect\">Thans going to cutting</div>\n    <div id=\"cutBody\" style=\"display:flex;flex-direction:column;gap:12px;margin-top:8px\"></div>\n    <div id=\"cutTot\" class=\"lm-why\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\"><button type=\"button\" class=\"ghost\" data-close=\"lmCut\">Cancel</button><button type=\"button\" id=\"cutSave\">Send to cutting</button></div>\n  </div>\n</div>\n\n<!-- RECEIVE RFD: thans back from the RFD processor, against the lots of one PO. -->\n<div class=\"modal hide\" id=\"lmRr\">\n  <div class=\"modalbox\" style=\"width:min(820px,100%)\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Receive RFD</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"rrTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmRr\" aria-label=\"Close\">×</button>\n    </div>\n    <div id=\"rrErr\" class=\"err hide\" style=\"margin-top:12px\"></div>\n    <div class=\"lm-fields\" style=\"margin-top:12px\">\n      <div><label for=\"rrNo\">Processor’s challan no. *</label><input id=\"rrNo\" autocomplete=\"off\" placeholder=\"As printed on their challan\"></div>\n      <div><label for=\"rrDate\">Date</label><input type=\"date\" id=\"rrDate\" readonly title=\"Today\"></div>\n    </div>\n    <div class=\"sect\">Thans back <span>Enter in a metres box adds the next than. More than 5% shrinkage on a closed lot needs approval.</span></div>\n    <div id=\"rrLots\" style=\"display:flex;flex-direction:column;gap:12px;margin-top:8px\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\"><button type=\"button\" class=\"ghost\" data-close=\"lmRr\">Cancel</button><button type=\"button\" id=\"rrSave\">Save the receipt</button></div>\n  </div>\n</div>\n\n<!-- THE PO AS PAPER, and the mail that goes with it. -->\n<div class=\"modal hide\" id=\"lmDoc\">\n  <div class=\"modalbox docbox\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Purchase order</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"docTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmDoc\" aria-label=\"Close\">×</button>\n    </div>\n    <div class=\"docpaper\" id=\"docPaper\"></div>\n    <div id=\"docMail\"></div>\n  </div>\n</div>\n\n<!-- RECEIVE GREIGE: opened from an open PO; the whole PO, then the supplier's challan bale by bale. -->\n<div class=\"scrim\" id=\"scrim\" hidden data-close=\"drawer\"></div>\n<aside class=\"drawer\" id=\"drawer\" hidden role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"drTitle\">\n  <div class=\"dr-head\">\n    <div><div class=\"crumb\">Receive greige</div><h2 id=\"drTitle\">New challan</h2></div>\n    <button type=\"button\" class=\"x\" data-close=\"drawer\" aria-label=\"Close\">×</button>\n  </div>\n  <div class=\"dr-body\">\n    <div id=\"dPo\"></div>\n    <div class=\"sect\">The supplier’s challan</div>\n    <div class=\"grid2\">\n      <label class=\"fld\" for=\"dNo\"><span>Challan no. *</span><input id=\"dNo\" autocomplete=\"off\" placeholder=\"As printed on the challan\"></label>\n      <label class=\"fld\" for=\"dDate\"><span>Challan date *</span><input id=\"dDate\" type=\"date\"></label>\n      <label class=\"fld\" for=\"dInv\"><span>Invoice no.</span><input id=\"dInv\" autocomplete=\"off\" placeholder=\"The supplier’s bill, if it came with the goods\"></label>\n      <label class=\"fld\" for=\"dTrn\"><span>Transporter name</span><input id=\"dTrn\" autocomplete=\"off\" placeholder=\"e.g. VRL Logistics\"></label>\n      <label class=\"fld wide\" for=\"dLr\"><span>LR no.</span><input id=\"dLr\" autocomplete=\"off\" placeholder=\"Optional\"></label>\n    </div>\n    <div class=\"sect\">Bales on this challan <span>Enter in a metres box adds the next bale</span></div>\n    <div id=\"dLines\"></div>\n  </div>\n  <div class=\"dr-foot\">\n    <div class=\"dr-total\" id=\"dTotal\"></div>\n    <label class=\"closeline\" id=\"dCloseWrap\" for=\"dClose\" hidden><input type=\"checkbox\" id=\"dClose\"><span id=\"dCloseTxt\"></span></label>\n    <div class=\"err\" id=\"dErr\" hidden></div>\n    <div class=\"dr-btns\">\n      <button type=\"button\" class=\"ghost\" data-close=\"drawer\">Cancel</button>\n      <button type=\"button\" id=\"dSave\" data-dr=\"save\">Save challan</button>\n    </div>\n  </div>\n</aside>\n<div class=\"toast\" id=\"toast\" hidden role=\"status\"></div>\n\n";
 
 /* core/util.js -- Small shared helpers: escaping, number and date formatting, ids, lists in words.
  * An ES module. Its imports are worked out from the code by the split script. */
@@ -260,9 +260,9 @@ function lmSample() {
         greigeWidth: 46, rfdWidth: 44, active: true },
     ],
     /* The company's own details start empty and are filled in once, in this browser -- see the
-     * Company page. Only the series is set, so the next PO carries on from TEST/PO/GREIG/003. */
+     * Company page. Only the series is set, so the next PO carries on from RIDHI/PO/GREIG/003. */
     co: { name: 'RIDHI', addr: '', email: '', gstin: '', iec: '', pan: '', jurisdiction: 'Jaipur',
-      poPrefix: 'TEST/PO/GREIG/', poNext: 1, rfdPrefix: 'TEST/RFD/' },
+      poPrefix: 'RIDHI/PO/GREIG/', poNext: 1, rfdPrefix: 'RIDHI/RFD/' },
     /* Who works on this page, and what each may do (Users & access). */
     users: [
       { id: 'u1', name: 'Ravi', role: 'Admin', ledger: 'edit', approve: true, active: true },
@@ -277,29 +277,29 @@ function lmSample() {
       { name: 'Maa Tara Processors', kind: 'RFD Processor', phone: '94140 99001', email: '', city: 'Jaipur', active: true },
     ],
     gpo: [
-      { id: 'g1', poNo: 'TEST/PO/GREIG/001', date: '2026-09-21', mill: 'Shri Balaji Mills', sent: { at: '2026-09-21' },
+      { id: 'g1', poNo: 'RIDHI/PO/GREIG/001', date: '2026-09-21', mill: 'Shri Balaji Mills', sent: { at: '2026-09-21' },
         lines: [{ rfd: 'Sheeting 62', greige: 'Greige Sheeting 67', metres: 1200, rate: 58 },
           { rfd: 'Cambric 44', greige: 'Greige Cambric 48', metres: 1000, rate: 44 }] },
-      { id: 'g2', poNo: 'TEST/PO/GREIG/002', date: '2026-09-28', mill: 'Maa Textiles', sent: { at: '2026-09-28' },
+      { id: 'g2', poNo: 'RIDHI/PO/GREIG/002', date: '2026-09-28', mill: 'Maa Textiles', sent: { at: '2026-09-28' },
         lines: [{ rfd: 'Poplin 58', greige: 'Greige Poplin 63', metres: 1500, rate: 52 }] },
-      { id: 'g3', poNo: 'TEST/PO/GREIG/003', date: '2026-10-01', mill: 'Shri Balaji Mills', sent: { at: '2026-10-01' },
+      { id: 'g3', poNo: 'RIDHI/PO/GREIG/003', date: '2026-10-01', mill: 'Shri Balaji Mills', sent: { at: '2026-10-01' },
         lines: [{ rfd: 'Rayon 44', greige: 'Greige Rayon 46', metres: 900, rate: 71 }] },
     ],
     fab: [
       /* a lot that went the whole way: 1,200 out, 1,118 back -- 6.8% left in the bleach */
-      { id: 'f1', chId: 'ch1', date: '2026-09-23', lot: 'LOT-001', fabricType: 'Greige Sheeting 67', txnType: 'RECEIVE_GREIGE', qty: 1200, party: 'Shri Balaji Mills', bill: 'SBM/1187', orderNo: 'TEST/PO/GREIG/001',
+      { id: 'f1', chId: 'ch1', date: '2026-09-23', lot: 'LOT-001', fabricType: 'Greige Sheeting 67', txnType: 'RECEIVE_GREIGE', qty: 1200, party: 'Shri Balaji Mills', bill: 'SBM/1187', orderNo: 'RIDHI/PO/GREIG/001',
         lr: '', pieces: lmPieces(2301, 28, 1200, 37, 'all') },
-      { id: 'f2', date: '2026-09-24', lot: 'LOT-001', fabricType: 'Greige Sheeting 67', txnType: 'ISSUE_TO_RFD', qty: 1200, party: 'Gayatri Processors', bill: 'TEST/RFD/001', orderNo: '' },
+      { id: 'f2', date: '2026-09-24', lot: 'LOT-001', fabricType: 'Greige Sheeting 67', txnType: 'ISSUE_TO_RFD', qty: 1200, party: 'Gayatri Processors', bill: 'RIDHI/RFD/001', orderNo: '' },
       { id: 'f3', date: '2026-09-30', lot: 'LOT-001', fabricType: 'Sheeting 62', txnType: 'RECEIVE_RFD', qty: 1118, party: 'Gayatri Processors', bill: 'GP/R/1187', orderNo: '', final: true, pieces: lmPieces(9101, 26, 1118, 71, 0) },
       { id: 'f4', date: '2026-10-01', lot: 'LOT-001', fabricType: 'Sheeting 62', txnType: 'ISSUE_TO_CUTTING', qty: 620, party: 'Cutting', bill: '', orderNo: '' },
       /* part on the shelf, part at the processor -- the lot nobody could see before */
-      { id: 'f5', chId: 'ch2', date: '2026-09-25', lot: 'LOT-002', fabricType: 'Greige Cambric 48', txnType: 'RECEIVE_GREIGE', qty: 800, party: 'Shri Balaji Mills', bill: 'SBM/1203', orderNo: 'TEST/PO/GREIG/001',
+      { id: 'f5', chId: 'ch2', date: '2026-09-25', lot: 'LOT-002', fabricType: 'Greige Cambric 48', txnType: 'RECEIVE_GREIGE', qty: 800, party: 'Shri Balaji Mills', bill: 'SBM/1203', orderNo: 'RIDHI/PO/GREIG/001',
         lr: '', pieces: lmPieces(2340, 20, 800, 41, 9) },
-      { id: 'f6', date: '2026-09-27', lot: 'LOT-002', fabricType: 'Greige Cambric 48', txnType: 'ISSUE_TO_RFD', qty: 500, party: 'Gayatri Processors', bill: 'TEST/RFD/002', orderNo: '' },
+      { id: 'f6', date: '2026-09-27', lot: 'LOT-002', fabricType: 'Greige Cambric 48', txnType: 'ISSUE_TO_RFD', qty: 500, party: 'Gayatri Processors', bill: 'RIDHI/RFD/002', orderNo: '' },
       /* and a lot that came back 14% lighter -- the same job, a different processor */
-      { id: 'f7', chId: 'ch3', date: '2026-09-29', lot: 'LOT-003', fabricType: 'Greige Poplin 63', txnType: 'RECEIVE_GREIGE', qty: 1500, party: 'Maa Textiles', bill: 'MT/CH/412', orderNo: 'TEST/PO/GREIG/002',
+      { id: 'f7', chId: 'ch3', date: '2026-09-29', lot: 'LOT-003', fabricType: 'Greige Poplin 63', txnType: 'RECEIVE_GREIGE', qty: 1500, party: 'Maa Textiles', bill: 'MT/CH/412', orderNo: 'RIDHI/PO/GREIG/002',
         lr: 'VRL 558120', pieces: lmPieces(4501, 35, 1500, 11, 'all', [0, 0, 0, 0, 0, 0.1, -0.4, -0.8, -1.5, 0]) },
-      { id: 'f8', date: '2026-09-30', lot: 'LOT-003', fabricType: 'Greige Poplin 63', txnType: 'ISSUE_TO_RFD', qty: 1500, party: 'Maa Tara Processors', bill: 'TEST/RFD/003', orderNo: '' },
+      { id: 'f8', date: '2026-09-30', lot: 'LOT-003', fabricType: 'Greige Poplin 63', txnType: 'ISSUE_TO_RFD', qty: 1500, party: 'Maa Tara Processors', bill: 'RIDHI/RFD/003', orderNo: '' },
       { id: 'f9', date: '2026-10-02', lot: 'LOT-003', fabricType: 'Poplin 58', txnType: 'RECEIVE_RFD', qty: 1290, party: 'Maa Tara Processors', bill: 'MTP/R/0412', orderNo: '', final: true, pieces: lmPieces(9201, 30, 1290, 83, 0) },
       /* A stain down one edge, found on the table. It is still in the building and it will never be
        * cut, so it comes off the lot. */
@@ -307,7 +307,7 @@ function lmSample() {
       /* RFD already on the floor the day this started -- its own lot, so it can be issued like any
        * other, and kept apart from "RFD back" so it never makes up a processing loss */
       /* The last of the Cambric on PO/68, in this week -- four thans nobody has measured yet. */
-      { id: 'f12', chId: 'ch4', date: '2026-10-10', lot: 'LOT-004', fabricType: 'Greige Cambric 48', txnType: 'RECEIVE_GREIGE', qty: 150, party: 'Shri Balaji Mills', bill: 'SBM/1241', orderNo: 'TEST/PO/GREIG/001',
+      { id: 'f12', chId: 'ch4', date: '2026-10-10', lot: 'LOT-004', fabricType: 'Greige Cambric 48', txnType: 'RECEIVE_GREIGE', qty: 150, party: 'Shri Balaji Mills', bill: 'SBM/1241', orderNo: 'RIDHI/PO/GREIG/001',
         lr: '', pieces: lmPieces(2360, 4, 150, 53, 0) },
       { id: 'f10', date: '2026-09-22', lot: 'LOT-OPEN-01', fabricType: 'Rayon 44', txnType: 'OPENING_RFD', qty: 400, party: '', bill: '', orderNo: '' },
     ],
@@ -325,14 +325,14 @@ function lmLoad() {
  * (a count and a fold each); they are one box now, written the way a sales note writes it. */
 function lmMigrate() {
   if (!DB.users || !DB.users.length) { DB.users = lmSample().users; DB.me = 'u1'; }
-  if (DB.co && !DB.co.rfdPrefix) DB.co.rfdPrefix = 'TEST/RFD/';
+  if (DB.co && !DB.co.rfdPrefix) DB.co.rfdPrefix = 'RIDHI/RFD/';
   /* A PO line's description used to repeat the greige; it now says what the greige becomes. */
   (DB.gpo || []).forEach(function (po) { (po.lines || []).forEach(function (l) {
     if (l.desc && poDesc(l.rfd) === l.desc) l.desc = 'RFD ready: ' + l.rfd;
   }); });
   if (!DB.co) {
     DB.co = { name: 'RIDHI', addr: '', email: '', gstin: '', iec: '', pan: '', jurisdiction: 'Jaipur',
-      poPrefix: 'TEST/PO/GREIG/', poNext: 1, rfdPrefix: 'TEST/RFD/' };
+      poPrefix: 'RIDHI/PO/GREIG/', poNext: 1, rfdPrefix: 'RIDHI/RFD/' };
   }
   (DB.mst || []).forEach(function (m) {
     if (m.warp == null && (m.warpCount || m.warpFold)) {
@@ -777,11 +777,11 @@ function gpoStatus(po) {
   if (p.received > 0) return 'part';
   return 'sent';
 }
-/* THE PO NUMBER CARRIES ON ITS OWN SERIES -- TEST/PO/GREIG/001, /002, /003 (Ravi, 13 Oct) -- so a PO raised here
+/* THE PO NUMBER CARRIES ON ITS OWN SERIES -- RIDHI/PO/GREIG/001, /002, /003 (Ravi, 13 Oct) -- so a PO raised here
  * and one raised in the accounts never share a number. The next is one more than the highest the
  * series has reached, and never lower than the starting point set on the Company page. */
 function gpoNewNo() {
-  var co = DB.co || {}, pre = co.poPrefix || 'TEST/PO/GREIG/', max = 0;
+  var co = DB.co || {}, pre = co.poPrefix || 'RIDHI/PO/GREIG/', max = 0;
   (DB.gpo || []).forEach(function (p) {
     var no = String(p.poNo || '');
     if (no.toUpperCase().indexOf(pre.toUpperCase()) !== 0) return;
@@ -792,10 +792,10 @@ function gpoNewNo() {
   while (n.length < 3) n = '0' + n;
   return pre + n;
 }
-/* OUR RFD CHALLAN NUMBER, IN ITS OWN SERIES LIKE THE PO (Ravi, 13 Oct): TEST/RFD/001, /002 ... -- one more than the
+/* OUR RFD CHALLAN NUMBER, IN ITS OWN SERIES LIKE THE PO (Ravi, 13 Oct): RIDHI/RFD/001, /002 ... -- one more than the
  * highest the series has reached. Given by the page, never typed. */
 function rfdChNewNo() {
-  var pre = (DB.co && DB.co.rfdPrefix) || 'TEST/RFD/', max = 0;
+  var pre = (DB.co && DB.co.rfdPrefix) || 'RIDHI/RFD/', max = 0;
   (DB.fab || []).forEach(function (r) {
     if (r.txnType !== 'ISSUE_TO_RFD') return;
     var no = String(r.bill || '');
@@ -1122,16 +1122,19 @@ function metric(v, l, colour) {
 }
 
 /* ---- the frame ------------------------------------------------------------------------------ */
+/* NO DASHBOARD (Ravi, 15 Oct: "remove the greige dashboard"): the desk opens on the Greige POs. */
 var LM_TITLE = {
-  dash: 'Dashboard', po: 'Greige POs &amp; challans', ppc: 'Greige for PPC', inv: 'Inventory',
+  po: 'Greige POs &amp; challans', inv: 'Inventory',
   ledger: 'Fabric ledger', mst: 'Master data',
 };
 function render() {
+  if (!LM_TITLE[UI.tab]) UI.tab = 'po';
   if (UI.tab === 'ledger' && !canLedger()) UI.tab = 'po';
+  if (UI.tab === 'mst' && gdIsLinked()) UI.tab = 'po';   // in the app the masters are Setup's (no Master data tab)
   meFill();
   $('lmTitle').innerHTML = LM_TITLE[UI.tab];
-  var body = UI.tab === 'po' ? renderPo() : UI.tab === 'ppc' ? renderPpcLink() : UI.tab === 'inv' ? renderInv()
-    : UI.tab === 'ledger' ? renderLedger() : UI.tab === 'mst' ? renderMst() : renderFlow();
+  var body = UI.tab === 'inv' ? renderInv()
+    : UI.tab === 'ledger' ? renderLedger() : UI.tab === 'mst' ? renderMst() : renderPo();
   $('lmPane').innerHTML = body;
   [].forEach.call(document.querySelectorAll('.navgrp'), function (b) {
     var on = b.getAttribute('data-tab') === UI.tab;
@@ -1163,6 +1166,8 @@ function armed(btn, words) {
 /* ---- wiring: the tabs, the search box, closing dialogs, the reset button --------------------------- */
 function wireShell() {
   document.addEventListener('click', function (ev) {
+    var md = ev.target.closest ? ev.target.closest('[data-gdmd]') : null;
+    if (md && typeof gdOpenMasterData === 'function') { gdOpenMasterData(md.getAttribute('data-gdmd')); return; }
     var t = ev.target.closest ? ev.target.closest('[data-tab],[data-go],[data-close]') : null;
     if (!t) return;
     var g = function (k) { return t.getAttribute(k); };
@@ -1195,16 +1200,7 @@ function wireShell() {
     if (RD) closeDrawer();
   });
   $('lmQ').addEventListener('input', function () { UI.q = this.value.trim().toLowerCase(); render(); });
-  $('gdSample').addEventListener('click', function () {
-    if (!armed(this, 'Press again: the test records are replaced by the sample')) return;
-    lmResetSample(); render();
-    lmSay('ok', 'The sample is loaded into the test records.');
-  });
-  $('gdClear').addEventListener('click', function () {
-    if (!armed(this, 'Press again to clear every test PO and movement')) return;
-    gdClearAll(); render();
-    lmSay('ok', 'Test POs and movements cleared. Master data is kept.');
-  });
+
 }
 
 /* ui/dashboard.js -- The Dashboard screen.
@@ -1502,7 +1498,7 @@ var PO_DRAFT = null;
  * NOTHING HERE IS STORED TWICE. A challan is the "Greige received" rows of the fabric ledger that
  * came on one paper (they share a chId). Its pieces ride on those rows. Received, still due, lot,
  * stock and the dashboard all read the same rows. */
-var PV = { view: 'po', st: '', mill: '', from: '', to: '', openPo: { 'TEST/PO/GREIG/001': true }, openCh: { ch4: true } };
+var PV = { view: 'po', st: '', mill: '', from: '', to: '', openPo: { 'RIDHI/PO/GREIG/001': true }, openCh: { ch4: true } };
 
 var I = {
   chev: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3l5 5-5 5"/></svg>',
@@ -2038,7 +2034,7 @@ function poCloseToggle(no, btn) {
 
 /* ---- THE PO DIALOG: A NEW PO, OR AN OPEN ONE EDITED ----------------------------------------- *
  *
- * Ravi, 13 Oct: the PO number runs TEST/PO/GREIG/001 and on; the date is the day it is raised and is never
+ * Ravi, 13 Oct: the PO number runs RIDHI/PO/GREIG/001 and on; the date is the day it is raised and is never
  * changed; no discount; the RFD a line becomes comes from Master data and is not typed; the PO can be edited
  * from the list. What an edit may not do is undo what has already happened: a line that has received greige
  * keeps its fabric and cannot go below what came, and the supplier stays once anything has come from them. */
@@ -2070,7 +2066,7 @@ function poOpen(editNo) {
   $('lmPoErr').classList.add('hide');
   var co = DB.co || {}, miss = !String(co.addr || '').trim() && !String(co.gstin || '').trim();
   $('poCoNote').classList.toggle('hide', !miss);
-  $('poCoNote').textContent = miss ? 'Your own company details are not filled in yet — Master data → Company. '
+  $('poCoNote').textContent = miss ? 'Your own company details are not filled in yet — ' + (gdIsLinked() ? 'they come from the app\'s PO settings (ask an admin). ' : 'Master data → Company. ')
     + 'The PO will print without your address and GSTIN until they are.' : '';
   $('poSave').textContent = src ? 'Save the changes' : 'Save the PO';
   poDraw(); poMillHint();
@@ -2827,13 +2823,21 @@ function renderInv() {
   var ppcCell = function (r) {
     if (ppcMap && ppcMap.__loading) return '<td class="num muted">…</td>';
     var p = r.ppc; if (!p) return '<td class="num">' + dash(0) + '</td>';
-    return '<td class="num"><b>' + nf(p.need) + ' m</b><div class="muted" style="font-size:10.5px">' + plural(p.lines, 'line')
-      + (p.short > 0.05 ? ' · <span style="color:var(--bad);font-weight:700">short ' + nf(p.short) + ' m</span>' : ' · covered') + '</div>'
+    /* What the old Greige for PPC tab showed (Ravi, 15 Oct: "remove this and integrate … under the ppc demand column"):
+     * need, the RFD free against it, short, what is already on its way, and the greige to order. */
+    var sm = 'font-size:10.5px;line-height:1.5';
+    return '<td class="num"><b>' + nf(p.need) + ' m</b><div class="muted" style="' + sm + '">' + plural(p.lines, 'line') + '</div>'
+      + '<div class="muted" style="' + sm + '">RFD free ' + nf(p.free) + ' m' + (p.desk > 0.05 ? ' (' + nf(p.desk) + ' m this desk)' : '') + '</div>'
+      + (p.short > 0.05 ? '<div style="' + sm + ';color:var(--bad);font-weight:700">short ' + nf(p.short) + ' m</div>'
+        + (p.onWay > 0.05 ? '<div class="muted" style="' + sm + '">' + nf(p.onWay) + ' m greige on its way</div>' : '')
+        + (p.greigeM ? '<div style="' + sm + ';font-weight:700">greige to order ' + nf(p.greigeM) + ' m</div>' : '<div style="' + sm + ';color:var(--ok-ink,#166534)">covered by what is on its way</div>')
+        : '<div style="' + sm + ';color:var(--ok-ink,#166534)">covered</div>')
       + (p.greigeM && p.greige ? '<button type="button" class="jw-btn jw-primary" data-ppcpo="' + esc(p.name) + '|' + p.greigeM + '" style="margin-top:4px;padding:3px 10px;font-size:12px">Raise greige PO · ' + nf(p.greigeM) + ' m</button>'
         : p.greigeM ? '<div class="err-in" style="font-size:10.5px">no greige name in Master data</div>' : '') + '</td>';
   };
   var tools = '<div class="row" style="margin:0 0 10px;align-items:center">'
     + (canLedgerEdit() ? '<button type="button" class="ghost" data-act="OPENING_RFD" title="RFD already on the floor: its own lot, so it is issued like any other and never counted as cloth back from a processor.">+ RFD opening stock</button>' : '')
+    + (withPpc ? '<button type="button" class="ghost" data-gdflow="drfd">Open the flow’s Demand → RFD</button>' : '')
     + (withPpc ? '<span class="muted" style="font-size:12px;align-self:center">PPC demand is what the production plans need in RFD; short is after the RFD free today; the PO button orders the greige for it (with ' + Math.round((typeof GD_LOSS !== 'undefined' ? GD_LOSS : 0.05) * 100) + '% for what the processor takes).</span>' : '')
     + '</div>';
   var table = tools + '<div class="card"><div class="ff-grid"><table class="xl">'
@@ -3190,7 +3194,17 @@ function renderMst() {
   return seg + (UI.mst === 'ven' ? renderMstVen() : UI.mst === 'co' ? renderMstCo() : UI.mst === 'users' ? renderMstUsers() : renderMstFabric());
 }
 
+/* JOINED TO THE APP'S MASTER DATA (Ravi, 15 Oct: "greige ka and masterdata ka interlink hona chahiye"). Inside the app the
+ * fabrics and the suppliers / RFD processors are Setup -> Master Database's own (gdLinked, app-layer.js): shown here,
+ * changed there. The page on its own keeps its own lists, as before. */
+function gdIsLinked() { return typeof gdLinked === 'function' && gdLinked(); }
+function gdLinkedCap(what, view) {
+  return '<div class="ff-cap" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><span>These ' + what + ' are the app\'s <b>Master Data</b> '
+    + '(Setup &rarr; Master Database). They are shown here and changed there, so every screen reads the same names.</span>'
+    + '<button type="button" class="jw-btn jw-primary" data-gdmd="' + view + '">Open in Master Data</button></div>';
+}
 function renderMstVen() {
+  if (gdIsLinked()) return renderMstVenLinked();
   var list = (DB.ven || []).map(function (v, i) { return { v: v, i: i }; })
     .filter(function (x) { return lmMatch(x.v.name) || lmMatch(x.v.city) || lmMatch(x.v.kind); });
 
@@ -3279,8 +3293,8 @@ var CO_FIELDS = [
   ['iec', 'IEC', 'text', 'Import-export code'],
   ['pan', 'PAN', 'text', ''],
   ['jurisdiction', 'Jurisdiction', 'text', '"Subject to ___ jurisdiction"'],
-  ['poPrefix', 'PO number prefix', 'text', 'TEST/PO/GREIG/'],
-  ['rfdPrefix', 'RFD challan prefix', 'text', 'TEST/RFD/ -- our challan to the RFD processor, numbered 001 on'],
+  ['poPrefix', 'PO number prefix', 'text', 'RIDHI/PO/GREIG/'],
+  ['rfdPrefix', 'RFD challan prefix', 'text', 'RIDHI/RFD/ -- our challan to the RFD processor, numbered 001 on'],
   ['poNext', 'Next PO number', 'text', 'The series carries on from this, or from the last PO raised, whichever is higher']
 ];
 var CO_EDIT = false, CO_SNAP = null;
@@ -3315,7 +3329,46 @@ function renderMstCo() {
     + '</div></div>';
 }
 
+/** The fabric list, read-only: the app's Greige & RFD fabric, with what the desk works out from it. */
+function renderMstFabricLinked() {
+  var head = '<thead><tr><th class="frz">Fabric</th>'
+    + MST_COLS.map(function (c) { return '<th class="num" title="' + esc(c[3]) + '">' + esc(c[1]) + '</th>'; }).join('')
+    + '<th class="num" title="Ends and picks added together">TC</th><th class="num" title="How much width the bleach takes">Width loss</th></tr></thead>';
+  var body = (DB.mst || []).map(function (m) {
+    return '<tr><td class="frz" style="text-align:left">' + (m.rfd ? '<b>' + esc(m.rfd) + '</b>' : '<i class="muted">No RFD fabric</i>')
+      + (m.title && m.title !== m.rfd ? '<div style="font-size:11.5px;color:#4A6A92">' + esc(m.title) + '</div>' : '')
+      + '<div class="muted" style="margin-top:2px">' + esc(m.greige || '') + '</div>'
+      + '<div class="muted mst-spec" style="font-size:10.5px;margin-top:3px">' + esc(mstSpecLine(m)) + '</div></td>'
+      + MST_COLS.map(function (c) { return '<td class="num">' + mstShow(m, c) + '</td>'; }).join('')
+      + '<td class="num mst-tc" style="font-weight:700">' + (mstTC(m) === null ? '<span class="muted">&mdash;</span>' : mstTC(m)) + '</td>'
+      + '<td class="num mst-loss">' + (mstWidthLoss(m) === null ? '<span class="muted">&mdash;</span>' : mstWidthLoss(m) + '%') + '</td></tr>';
+  }).join('') || emptyRow(MST_COLS.length + 3, 'No fabric in the Master Data yet.');
+  return '<div class="card">' + gdLinkedCap('fabrics', 'fabric')
+    + '<div class="ff-grid"><table class="xl xl-dense lm-lines" id="mstTable">' + head + '<tbody>' + body + '</tbody></table></div></div>';
+}
+/** The suppliers and RFD processors, read-only: the app's Vendors (greige and RFD vendors). */
+function renderMstVenLinked() {
+  var list = (DB.ven || []).filter(function (v) { return lmMatch(v.name) || lmMatch(v.city) || lmMatch(v.kind); });
+  var head = '<thead><tr><th class="frz">Name</th>'
+    + VEN_COLS.map(function (c) { return '<th class="num"' + (c[3] ? ' title="' + esc(c[3]) + '"' : '') + '>' + esc(c[1]) + '</th>'; }).join('')
+    + '<th class="num" title="How many rows of the register answer to this name">On record</th></tr></thead>';
+  var body = list.map(function (v) {
+    var used = venUsed(v.name);
+    return '<tr><td class="frz" style="text-align:left"><b>' + esc(v.name || DASH) + '</b>'
+      + (v.deskOnly ? '<div class="muted" style="font-size:10.5px">only on the Greige Desk &mdash; not in the Master Data</div>' : '') + '</td>'
+      + VEN_COLS.map(function (c) {
+        var val = v[c[0]] == null ? '' : v[c[0]];
+        if (c[0] === 'kind') { var vk = venKind(v); return '<td><span class="pill ' + (vk === 'RFD Processor' ? 'pill-sea' : 'pill-ok') + '">' + esc(vk || DASH) + '</span></td>'; }
+        if (c[0] === 'gstin' && val) return '<td class="num"><span class="mono">' + esc(val) + '</span></td>';
+        return '<td class="num">' + (val ? esc(val) : MUTED_DASH) + '</td>';
+      }).join('')
+      + '<td class="num">' + (used ? used : MUTED_DASH) + '</td></tr>';
+  }).join('') || emptyRow(VEN_COLS.length + 2, 'No greige or RFD vendor in the Master Data yet.');
+  return '<div class="card">' + gdLinkedCap('suppliers and RFD processors', 'vendors')
+    + '<div class="ff-grid"><table class="xl xl-dense lm-lines" id="venTable">' + head + '<tbody>' + body + '</tbody></table></div></div>';
+}
 function renderMstFabric() {
+  if (gdIsLinked()) return renderMstFabricLinked();
   var head = '<thead><tr><th class="frz">Fabric</th>'
     + MST_COLS.map(function (c) {
       return '<th class="num" title="' + esc(c[3]) + '">' + esc(c[1]) + '</th>';
@@ -4042,12 +4095,13 @@ function lmBoot() {
 }
 
 
-/* ================= GREIGE DESK INSIDE THE REPLENISH APP (TEST, preview link only) =================
+/* ================= GREIGE DESK INSIDE THE REPLENISH APP (real working since 15 Oct) =================
  * Ravi, 13 Oct: "is wale part ko bhi jaise humne PPC test flow me run kiya hua h aise hi run kardo" -- the Greige Desk
- * joined to the PPC flow. Everything it writes goes to its own test node (pt_gdTest); the real Greige POs and the real
+ * joined to the PPC flow. Everything it writes goes to its own node, pt_gdTest (named in its test days; since 15 Oct, Ravi:
+ * "griege ka bhi test window hatao", it holds the real greige POs and movements, RIDHI/PO/GREIG/001 on); the older Greige POs and the
  * fabric ledger are never touched. Its masters start as a copy of the app's own (fabric pairs, suppliers, RFD
  * processors, company); the rights come from the person signed in. */
-var GD_NODE = 'pt_gdTest', GD_SNAP = null, GD_READY = null;
+var GD_NODE = 'pt_gdTest', GD_SNAP = null, GD_READY = null, GD_STATE = '';   // '' not read · 'ok' · 'err: …'
 function gdKeyed(list) { var o = {}; (list || []).forEach(function (x) { if (x && x.id) o[x.id] = JSON.stringify(x); }); return o; }
 function gdSnap() {
   return { gpo: gdKeyed(DB.gpo), fab: gdKeyed(DB.fab), mst: JSON.stringify(DB.mst || []), ven: JSON.stringify(DB.ven || []), co: JSON.stringify(DB.co || {}) };
@@ -4055,7 +4109,7 @@ function gdSnap() {
 /* WHAT CHANGED IS WHAT IS WRITTEN: one PO or one ledger row at a time, so two people working at once do not
  * overwrite each other's rows. */
 function lmSaveDb() {
-  if (!DB) return;
+  if (!DB || GD_STATE !== 'ok') return;   // never write a desk this screen could not read
   var now = gdSnap(), was = GD_SNAP || { gpo: {}, fab: {}, mst: '', ven: '', co: '' }, patch = {};
   ['gpo', 'fab'].forEach(function (k) {
     Object.keys(now[k]).forEach(function (id) { if (was[k][id] !== now[k][id]) patch[GD_NODE + '/' + k + '/' + id] = JSON.parse(now[k][id]); });
@@ -4063,7 +4117,7 @@ function lmSaveDb() {
   });
   ['mst', 'ven', 'co'].forEach(function (k) { if (was[k] !== now[k]) patch[GD_NODE + '/' + k] = JSON.parse(now[k]); });
   GD_SNAP = now;
-  if (Object.keys(patch).length) Promise.resolve(ptPatch(patch)).catch(function (e) { lmSay('err', 'Not saved to the test records: ' + (e && e.message || e)); });
+  if (Object.keys(patch).length) Promise.resolve(ptPatch(patch)).catch(function (e) { lmSay('err', 'Not saved: ' + (e && e.message || e)); });
 }
 function gdFromStore(v) {
   var list = function (o) { return Object.keys(o || {}).map(function (k) { var x = o[k]; if (x && !x.id) x.id = k; return x; }).filter(Boolean); };
@@ -4100,29 +4154,36 @@ function gdSeedMasters() {
   } catch (e) { /* none */ }
   try { ((typeof FAB !== 'undefined' && FAB.rows) || []).forEach(function (r) { if (r.txnType === 'ISSUE_TO_RFD') addVen(r.party, 'RFD Processor'); }); } catch (e) { /* none */ }
   return { mst: mst, ven: ven, co: { name: gdCoName(), addr: '', email: '', gstin: '', iec: '', pan: '', jurisdiction: 'Jaipur',
-    poPrefix: 'TEST/PO/GREIG/', poNext: 1, rfdPrefix: 'TEST/RFD/' } };
+    poPrefix: 'RIDHI/PO/GREIG/', poNext: 1, rfdPrefix: 'RIDHI/RFD/' } };
 }
 function gdSaveAll() {
+  if (GD_STATE && GD_STATE !== 'ok') return Promise.resolve();
   var store = { gpo: {}, fab: {}, mst: DB.mst || [], ven: DB.ven || [], co: DB.co || {} };
   (DB.gpo || []).forEach(function (x) { store.gpo[x.id] = x; });
   (DB.fab || []).forEach(function (x) { store.fab[x.id] = x; });
   GD_SNAP = gdSnap();
-  return Promise.resolve(ptPut(GD_NODE, JSON.parse(JSON.stringify(store)))).catch(function (e) { lmSay('err', 'Not saved to the test records: ' + (e && e.message || e)); });
+  return Promise.resolve(ptPut(GD_NODE, JSON.parse(JSON.stringify(store)))).catch(function (e) { lmSay('err', 'Not saved: ' + (e && e.message || e)); });
 }
 function gdLoad() {
   if (GD_READY) return GD_READY;
   GD_READY = (async function () {
     try { if (typeof ptLoadGates === 'function' && !PTG.masters) await ptLoadGates(); } catch (e) { /* masters wait */ }
     try { if (typeof ensureGpo === 'function' && typeof GPO !== 'undefined' && GPO.rows == null) await ensureGpo(); } catch (e) { /* real POs wait */ }
-    var v = null;
-    try { v = await ptGet(GD_NODE); } catch (e) { v = null; }
+    /* A READ THAT FAILED IS NOT AN EMPTY DESK (16 Oct). It used to be taken as one, and the empty desk was then WRITTEN
+     * over the whole node — every greige PO and every movement gone because one read timed out. Now a failed read
+     * writes nothing, says so (GD_STATE), and the next open asks again. Only a read that ANSWERED "nothing here" seeds
+     * the masters and saves them. */
+    var v = null, failed = '';
+    try { v = await ptGet(GD_NODE); } catch (e) { failed = String((e && e.message) || e || 'read failed'); }
+    if (failed) { DB = null; GD_STATE = 'err: ' + failed; GD_READY = null; return; }
     if (v && (v.mst || v.gpo || v.fab)) { DB = gdFromStore(v); lmMigrate(); GD_SNAP = gdSnap(); }
     else { var m = gdSeedMasters(); DB = { gpo: [], fab: [], mst: m.mst, ven: m.ven, co: m.co, users: [], me: '' }; lmMigrate(); await gdSaveAll(); }
+    GD_STATE = 'ok';
   })();
   return GD_READY;
 }
 function lmLoad() { if (!DB) DB = { gpo: [], fab: [], mst: [], ven: [], co: {}, users: [], me: '' }; lmMigrate(); }
-/* "Load sample data" -- the model's sample, under TEST numbers, the company's own name on it. */
+/* The model's sample (no button for it in the app since 15 Oct), the company's own name on it. */
 function lmResetSample() { var s = lmSample(); s.co.name = gdCoName(); s.users = []; s.me = ''; DB = s; lmMigrate(); gdSaveAll(); }
 function gdClearAll() { DB.gpo = []; DB.fab = []; gdSaveAll(); }
 
@@ -4142,8 +4203,9 @@ function meUser() {
 function meFill() {
   var n = $('meName'); if (n) n.textContent = meUser().name + ' · ledger: ' + LEDGER_LABEL[meUser().ledger].toLowerCase() + (meUser().approve ? ' · approves' : '');
   [].forEach.call(document.querySelectorAll('.navgrp[data-tab="ledger"]'), function (b) { b.hidden = !canLedger(); });
-  var adm = !!((typeof ME !== 'undefined' && ME) || {}).admin;
-  ['gdSample', 'gdClear'].forEach(function (id) { var b = $(id); if (b) b.hidden = !adm; });
+  /* NO MASTER DATA TAB IN THE APP (Ravi, 15 Oct: "remove the master data from here, it will come from setup"): the fabrics and
+   * the suppliers / RFD processors are Setup -> Master Database's own (gdLinkMasters). */
+  [].forEach.call(document.querySelectorAll('.navgrp[data-tab="mst"]'), function (b) { b.hidden = gdLinked(); });
 }
 function renderMstUsers() {
   var u = meUser();
@@ -4166,38 +4228,22 @@ function gdRfdShelf(name) {
   var k = String(name || '').trim().toUpperCase(), e = fabFlowRows(DB.fab || []).filter(function (x) { return String(x.fabricType).toUpperCase() === k; })[0];
   return e ? Math.max(0, e.rfdLeft) : 0;
 }
+/* THE DAY THIS DESK COUNTED AN RFD FABRIC (Ravi, 15 Oct: Sheeting 72 shown 21,782 m where the shelf holds 13,600): the
+ * newest OPENING_RFD for it, ISO. PPC takes that count in place of the old fabric ledger up to that day. '' = never counted. */
+function gdRfdOpened(name) {
+  if (!DB) return '';
+  var k = String(name || '').trim().toUpperCase(), d = '';
+  (DB.fab || []).forEach(function (r) {
+    if (!r || r.txnType !== 'OPENING_RFD' || String(r.fabricType || '').trim().toUpperCase() !== k) return;
+    var x = String(r.date || ''), m = x.match(/^(\d{2})-(\d{2})-(\d{4})/); if (m) x = m[3] + '-' + m[2] + '-' + m[1];
+    x = x.slice(0, 10); if (x > d) d = x;
+  });
+  return d;
+}
 function gdPipeline(name) {
   var k = String(name || '').trim().toUpperCase(), e = fabFlowRows(DB.fab || []).filter(function (x) { return String(x.fabricType).toUpperCase() === k; })[0] || {};
   var ord = (invOnOrder()[k] || {}).m || 0;
   return { order: ord, greige: Math.max(0, e.greigeLeft || 0), proc: Math.max(0, e.withProcessor || 0) };
-}
-function renderPpcLink() {
-  if (typeof flowRfdCover !== 'function') return '<div class="card muted">The production flow is not on this link.</div>';
-  if (!gdFlowReady()) {
-    if (typeof flowEnsureData === 'function' && !GD_FLOW_ASKED) { GD_FLOW_ASKED = true; flowEnsureData().then(function () { if (UI.tab === 'ppc') render(); }, function () { /* told below */ }); }
-    return '<div class="card muted">Reading the PPC plans…</div>';
-  }
-  var cov = flowRfdCover(), rows = Object.keys(cov.fab).map(function (k) { return cov.fab[k]; }).filter(function (f) { return f.need > 0.05; })
-    .sort(function (a, b) { return b.short - a.short || a.name.localeCompare(b.name); });
-  var body = rows.map(function (f) {
-    var gname = fabGreigeOf(f.name), pipe = gdPipeline(f.name), inPipe = pipe.order + pipe.greige + pipe.proc;
-    var toOrder = Math.max(0, f.short - inPipe), greigeM = toOrder > 0.05 ? Math.ceil(toOrder / (1 - GD_LOSS)) : 0;
-    var desk = gdRfdShelf(f.name);
-    return '<tr><td class="frz" style="text-align:left"><b>' + esc(f.name) + '</b><div class="muted" style="font-size:10.5px">' + (gname ? 'bought as ' + esc(gname) : '<span class="err-in">no greige name in Master data</span>') + '</div></td>'
-      + '<td class="num">' + nf(f.need) + '<div class="muted" style="font-size:10.5px">' + plural(f.lines, 'line') + '</div></td>'
-      + '<td class="num">' + nf(Math.max(0, f.free)) + (desk > 0.05 ? '<div class="muted" style="font-size:10.5px">' + nf(desk) + ' m from this desk</div>' : '') + '</td>'
-      + '<td class="num" style="' + (f.short > 0.05 ? 'color:var(--bad);font-weight:700' : '') + '">' + dash(f.short) + '</td>'
-      + '<td class="num">' + dash(pipe.order) + '</td><td class="num">' + dash(pipe.greige) + '</td><td class="num" style="color:var(--proc-ink)">' + dash(pipe.proc) + '</td>'
-      + '<td class="num" style="font-weight:800">' + (greigeM ? nf(greigeM) + ' m' : '<span class="pill pill-ok">covered</span>') + '</td>'
-      + '<td>' + (greigeM && gname ? '<button type="button" class="jw-btn jw-primary" data-ppcpo="' + esc(f.name) + '|' + greigeM + '">Raise greige PO</button>' : '') + '</td></tr>';
-  }).join('');
-  return '<div class="card"><div class="ff-cap">What the PPC plans need in RFD for printing (the production flow’s Demand → RFD), against the RFD free today '
-    + '(the real register and this desk), and what this desk already has on its way. What is still short is the greige to order, with '
-    + Math.round(GD_LOSS * 100) + '% added for what the RFD processor takes.</div>'
-    + '<div class="row" style="margin-bottom:10px"><button type="button" class="ghost" data-gdflow="drfd">Open the flow’s Demand → RFD</button></div>'
-    + '<div class="ff-grid"><table class="xl">'
-    + th(['RFD fabric', 'PPC needs', 'RFD free', 'Short', 'Greige on order', 'Greige in store', 'At RFD processor', 'Greige to order', ''], [1, 2, 3, 4, 5, 6, 7])
-    + '<tbody>' + (body || emptyRow(9, 'No PPC plan is waiting for RFD right now.')) + '</tbody></table></div></div>';
 }
 var GD_FLOW_ASKED = false;
 /* PPC DEMAND ON THE INVENTORY (Ravi, 15 Oct: "Greige for PPC — jo demand aayega ppc se wo greige order se pahle dikhe
@@ -4207,7 +4253,7 @@ var GD_FLOW_ASKED = false;
 function gdPpcMap() {
   if (typeof flowRfdCover !== 'function') return null;
   if (!gdFlowReady()) {
-    if (typeof flowEnsureData === 'function' && !GD_FLOW_ASKED) { GD_FLOW_ASKED = true; flowEnsureData().then(function () { if (UI.tab === 'ppc' || UI.tab === 'inv') render(); }, function () { /* the column says so */ }); }
+    if (typeof flowEnsureData === 'function' && !GD_FLOW_ASKED) { GD_FLOW_ASKED = true; flowEnsureData().then(function () { if (UI.tab === 'inv') render(); }, function () { /* the column says so */ }); }
     return { __loading: true };
   }
   var cov = flowRfdCover(), out = {};
@@ -4215,7 +4261,7 @@ function gdPpcMap() {
     var f = cov.fab[k]; if (!(f.need > 0.05)) return;
     var pipe = gdPipeline(f.name), toOrder = Math.max(0, f.short - (pipe.order + pipe.greige + pipe.proc));
     out[String(f.name).toUpperCase()] = { name: f.name, need: f.need, lines: f.lines, free: Math.max(0, f.free), short: f.short,
-      greigeM: toOrder > 0.05 ? Math.ceil(toOrder / (1 - GD_LOSS)) : 0, greige: fabGreigeOf(f.name) };
+      desk: gdRfdShelf(f.name), onWay: pipe.order + pipe.greige + pipe.proc, greigeM: toOrder > 0.05 ? Math.ceil(toOrder / (1 - GD_LOSS)) : 0, greige: fabGreigeOf(f.name) };
   });
   return out;
 }
@@ -4233,6 +4279,56 @@ function gdToFlow(view) {
   showTab('flow');
   try { FLOW_VIEW = view || 'drfd'; } catch (e) { /* the flow picks its own */ }
   if (typeof ensureFlow === 'function') ensureFlow();
+}
+
+/* ---- THE MASTER DATA IS ONE (Ravi, 15 Oct: "greige ka and masterdata ka interlink hona chahiye") ----
+ * In the app the desk's fabrics and its suppliers / RFD processors are Setup -> Master Database's own: Greige & RFD
+ * fabric (pt_masters/greigeRfd) and the greige and RFD vendors of Vendors (pt_masters/vendorBook). They are read fresh on
+ * every open, shown read-only on the desk's Master data, and changed in the Master Data. What the desk alone knows about a
+ * fabric (warp / weft typed here before) is kept where the Master Data says nothing. A supplier the test records name but
+ * the Master Data does not have is kept too, marked, so an old test PO still finds it. */
+function gdLinked() {
+  var m = (typeof PTG !== 'undefined' && PTG && PTG.masters) || {};
+  return !!(m.greigeRfd && Object.keys(m.greigeRfd).some(function (k) { return k.charAt(0) !== '_'; }));
+}
+function gdYarns(count) {
+  var y = function (s) { s = String(s || '').trim().replace(/'s$/i, 's'); return /^\d/.test(s) ? (/s$/i.test(s) ? s : s + 's') : ''; };
+  var p = String(count || '').split(/\s*x\s*/i);
+  return p.length === 2 ? [y(p[0]), y(p[1])] : [y(count), y(count)];
+}
+function gdLinkMasters() {
+  if (!DB || !gdLinked() || typeof fmList !== 'function') return;
+  var key = function (s) { return String(s || '').trim().toLowerCase(); };
+  var old = {}; (DB.mst || []).forEach(function (m) { old[key(m.greige)] = m; });
+  DB.mst = fmList('greigeRfd').filter(function (r) { return String(r.greige || '').trim(); }).map(function (r) {
+    var o = old[key(r.greige)] || {}, yarn = gdYarns(r.count), pc = String(r.constr || '').match(/^\s*(\d+)\s*x\s*(\d+)\s*$/i);
+    var num = function (v, was) { return v === '' || v == null ? (was || '') : v; };
+    /* The RFD is called by the app's own fabric name (Sheeting 62, Cambric): that is the name PPC, the flow's Demand and this
+     * desk's ledger rows all match on. The Master Data's full name rides along as the title. */
+    var app = (Array.isArray(r.fabrics) ? r.fabrics : ptList(r.fabrics))[0];
+    return { rfd: String(app || r.rfd || '').trim(), title: String(r.rfd || '').trim(), greige: String(r.greige).trim(), warp: o.warp || yarn[0], weft: o.weft || yarn[1],
+      epi: pc ? +pc[1] : (o.epi || ''), ppi: pc ? +pc[2] : (o.ppi || ''), greigeWidth: num(r.gw, o.greigeWidth), rfdWidth: num(r.rw, o.rfdWidth),
+      active: true, md: r.id };
+  });
+  var was = DB.ven || [], names = {};
+  var ven = fmList('vendorBook').filter(function (v) { return v.type === 'greige' || v.type === 'rfd'; }).map(function (v) {
+    names[key(v.name)] = 1;
+    var o = was.filter(function (x) { return key(x.name) === key(v.name); })[0] || {};
+    return { name: String(v.name || '').trim(), kind: v.type === 'greige' ? 'Supplier' : 'RFD Processor', phone: v.phone || o.phone || '',
+      email: o.email || '', addr: v.address || o.addr || '', city: v.city || o.city || '', gstin: v.gstin || o.gstin || '', pan: v.pan || '', active: true, md: v.id };
+  });
+  was.forEach(function (v) { if (v && v.name && !names[key(v.name)] && venUsed(v.name) > 0) ven.push(Object.assign({}, v, { deskOnly: true })); });
+  DB.ven = ven;
+  /* The company on the PO: the app's own Greige PO settings (no Company page on the desk in the app). The numbering stays the desk's. */
+  var s = (typeof GPO !== 'undefined' && GPO && GPO.settings) || null;
+  if (s) DB.co = Object.assign({}, DB.co || {}, { name: s.company || (DB.co || {}).name || gdCoName(), addr: s.address || (DB.co || {}).addr || '',
+    gstin: s.gstin || (DB.co || {}).gstin || '', email: s.email || (DB.co || {}).email || '', pan: s.pan || (DB.co || {}).pan || '' });
+}
+/** Over to Setup -> Master Database, at its Greige & RFD fabric or its Vendors. */
+function gdOpenMasterData(view) {
+  if (typeof showTab !== 'function') return;
+  showTab('pmdb');
+  try { if (typeof fmSetView === 'function') fmSetView(view === 'vendors' ? 'vendors' : 'fabric'); } catch (e) { /* the page opens where it was */ }
 }
 
 function wireGd() {
@@ -4255,10 +4351,16 @@ function wireGd() {
   async function open(tab) {
     if (!gdMount()) return;
     if (tab) UI.tab = tab;
-    if (!DB) $('lmPane').innerHTML = '<div class="card muted">Reading the test records…</div>';
-    await gdLoad(); lmLoad();
+    if (!DB) $('lmPane').innerHTML = '<div class="card muted">Reading the Greige Desk…</div>';
+    await gdLoad();
+    /* The desk could not be read: say so and stop — an empty desk on screen would invite typing over the real one. */
+    if (GD_STATE !== 'ok') { $('lmPane').innerHTML = '<div class="card" style="color:#b91c1c">The Greige Desk could not be read just now (' + esc(GD_STATE.replace(/^err: /, '')) + '). Nothing was changed. Open it again in a moment.</div>'; return; }
+    lmLoad();
+    if (typeof gdLinkMasters === 'function') gdLinkMasters();   // the Master Data's fabrics and vendors, read fresh each time
     if (!GD_WIRED) { GD_WIRED = true; wireShell(); wirePurchaseOrders(); wireInventory(); wireLedger(); wireMasterData(); wireEntry(); wireUsersRfd(); wireGd(); }
     render();
   }
-  return { open: open, ensure: function () { return gdLoad(); }, rfdShelf: function (n) { return gdRfdShelf(n); } };
+  return { open: open, ensure: function () { return gdLoad(); }, rfdShelf: function (n) { return gdRfdShelf(n); }, rfdOpened: function (n) { return gdRfdOpened(n); }, state: function () { return GD_STATE; },
+    /* Read the desk again (the flow's Refresh): what is on screen stays until the new read answers. */
+    reload: function () { if (GD_READY) { var was = GD_READY; GD_READY = null; return was.then(function () { GD_READY = null; return gdLoad(); }); } return gdLoad(); } };
 })();

@@ -1,23 +1,21 @@
 /* Builds src/app/flow/greige-desk.js from the Greige Desk page's own source (core.js, ui.js, head.html) plus the
  * in-app layer (app-layer.js). The page runs sealed inside the Replenish app: its own styles and element ids in a
- * shadow root, its own names inside one closure, saving to the test node pt_gdTest.
+ * shadow root, its own names inside one closure, saving to its own node pt_gdTest (the name is from its test days; the
+ * Firestore/RTDB rights are written for it, so it keeps it).
  *   node tools/greige-desk/make-app.js */
 const fs = require('fs'), path = require('path');
 const D = __dirname, OUT = path.join(D, '..', '..', 'src', 'app', 'flow', 'greige-desk.js');
 const read = f => fs.readFileSync(path.join(D, f), 'utf8').replace(/\r\n/g, '\n');
 const R = (s, a, b) => { const n = s.split(a).length - 1; if (n !== 1) throw new Error('anchor x' + n + ': ' + a.slice(0, 90)); return s.replace(a, b); };
-const testNos = s => s.split('RIDHI/PO/GREIG/').join('TEST/PO/GREIG/').split('RIDHI/RFD/').join('TEST/RFD/');
-
-let core = testNos(read('core.js')), ui = testNos(read('ui.js')), head = read('head.html'), layer = read('app-layer.js');
+/* REAL WORKING SINCE 15 OCT (Ravi: "griege ka bhi test window hatao"): the page's own numbers, RIDHI/PO/GREIG/001 and
+ * RIDHI/RFD/001, no TEST tag, no sample / clear buttons. */
+let core = read('core.js'), ui = read('ui.js'), head = read('head.html'), layer = read('app-layer.js');
 
 /* ---- the screen code: no start-up of its own, no reset button, no "working as" picker ---- */
 ui = ui.replace(/\/\* Started at once when the page is already parsed[^\n]*\n[^\n]*lmBoot\(\);\s*$/, '');
 ui = R(ui, "  $('lmReset').addEventListener('click', function () {\n    if (!armed(this, 'Press again to wipe what you typed')) return;\n    lmResetSample(); render();\n    lmSay('ok', 'The sample registers are back.');\n  });",
-  "  $('gdSample').addEventListener('click', function () {\n    if (!armed(this, 'Press again: the test records are replaced by the sample')) return;\n    lmResetSample(); render();\n    lmSay('ok', 'The sample is loaded into the test records.');\n  });\n"
-  + "  $('gdClear').addEventListener('click', function () {\n    if (!armed(this, 'Press again to clear every test PO and movement')) return;\n    gdClearAll(); render();\n    lmSay('ok', 'Test POs and movements cleared. Master data is kept.');\n  });");
+  '');
 ui = R(ui, "  $('meSel').addEventListener('change', function () { DB.me = this.value; lmSaveDb(); render(); lmSay('ok', 'Working as ' + meUser().name + ' · fabric ledger: ' + LEDGER_LABEL[meUser().ledger].toLowerCase() + (meUser().approve ? ' · may approve shrinkage' : '') + '.'); });\n", '');
-ui = R(ui, "  dash: 'Dashboard', po: 'Greige POs &amp; challans', inv: 'Inventory',", "  dash: 'Dashboard', po: 'Greige POs &amp; challans', ppc: 'Greige for PPC', inv: 'Inventory',");
-ui = R(ui, "  var body = UI.tab === 'po' ? renderPo() : UI.tab === 'inv' ? renderInv()", "  var body = UI.tab === 'po' ? renderPo() : UI.tab === 'ppc' ? renderPpcLink() : UI.tab === 'inv' ? renderInv()");
 ui = R(ui, "  try { localStorage.setItem(LM_KEY + '-tab', UI.tab); } catch (e) { /* the tab is a convenience */ }\n", '');
 /* RFD on the shelf goes on to a printer through the flow's Demand */
 ui = R(ui, "        + '<td><button type=\"button\" class=\"jw-btn jw-primary\" data-cut=\"' + esc(g.lot) + '\">Send to cutting</button></td></tr>';",
@@ -47,23 +45,19 @@ css = R(css, '.scrim{position:fixed;inset:0;background:var(--scrim);z-index:60}'
 css = R(css, 'width:min(640px,100%);background:var(--card);z-index:61;', 'width:min(640px,100%);background:var(--card);z-index:1011;');
 css = R(css, 'box-shadow:var(--sh-3);border-left:4px solid var(--brand)}', 'box-shadow:var(--sh-3);border-left:4px solid var(--brand);z-index:1100}');
 
-/* ---- the markup: its own bar, a TEST tag, admin-only sample / clear ---- */
+/* ---- the markup: its own bar and who is working ---- */
 let html = head.slice(head.indexOf('<div class="shell">'), head.indexOf('<script>'));
 html = R(html, '<div class="brand"><span class="brandname">Ridhi<span class="brandsub">Home &amp; Living</span></span></div>',
-  '<div class="brand"><span class="brandname">Greige Desk<span class="brandsub">TEST · separate records</span></span></div>');
-html = R(html, '    <button type="button" class="navgrp" data-tab="po">Greige POs</button>\n', '    <button type="button" class="navgrp" data-tab="po">Greige POs</button>\n    <button type="button" class="navgrp" data-tab="ppc">Greige for PPC</button>\n');
+  '<div class="brand"><span class="brandname">Greige Desk<span class="brandsub">Greige · RFD · POs</span></span></div>');
 const sf = html.indexOf('    <div class="sidefoot">'), sfe = html.indexOf('    </div>\n', sf) + '    </div>\n'.length;
-html = html.slice(0, sf) + '    <div class="sidefoot">\n      <span class="lm-tag" title="Saved in the test records only. The real Greige POs and fabric ledger are not touched.">TEST</span>\n'
-  + '      <span id="meName" class="muted" style="font-size:12px"></span>\n'
-  + '      <button type="button" class="ghost" id="gdSample" style="padding:7px 12px;font-size:12.5px">Load sample data</button>\n'
-  + '      <button type="button" class="ghost" id="gdClear" style="padding:7px 12px;font-size:12.5px">Clear test data</button>\n    </div>\n' + html.slice(sfe);
+html = html.slice(0, sf) + '    <div class="sidefoot">\n      <span id="meName" class="muted" style="font-size:12px"></span>\n    </div>\n' + html.slice(sfe);
 
-const out = `/* ================= GREIGE DESK (TEST, 2026-10-13) — built by tools/greige-desk/make-app.js, do not edit by hand =================
+const out = `/* ================= GREIGE DESK (2026-10-13; real working since 15 Oct) — built by tools/greige-desk/make-app.js, do not edit by hand =================
  *
  * Ravi's Greige Desk page (greige POs received bale by bale, issue to RFD by bales, RFD back by thans with a 5% shrinkage
  * approval, inventory with next steps, the fabric ledger and its masters) running inside the app, joined to the PPC flow:
- * "Greige for PPC" shows the greige to buy for what PPC has planned, the flow's Demand → RFD counts this desk's RFD, and
- * RFD on the shelf goes on to a printer through the flow. Preview link only (FLOW_ON); saves to pt_gdTest only.
+ * the Inventory's PPC demand column shows the greige to buy for what PPC has planned, the flow's Demand → RFD counts this desk's RFD, and
+ * RFD on the shelf goes on to a printer through the flow. On while FLOW_ON; saves to pt_gdTest only.
  *
  * Sealed: its styles and element ids live in a shadow root on #paneGdesk, its names inside this one closure. Only GD is
  * seen by the rest of the app. */
@@ -101,12 +95,18 @@ ${layer}
   async function open(tab) {
     if (!gdMount()) return;
     if (tab) UI.tab = tab;
-    if (!DB) $('lmPane').innerHTML = '<div class="card muted">Reading the test records…</div>';
-    await gdLoad(); lmLoad();
+    if (!DB) $('lmPane').innerHTML = '<div class="card muted">Reading the Greige Desk…</div>';
+    await gdLoad();
+    /* The desk could not be read: say so and stop — an empty desk on screen would invite typing over the real one. */
+    if (GD_STATE !== 'ok') { $('lmPane').innerHTML = '<div class="card" style="color:#b91c1c">The Greige Desk could not be read just now (' + esc(GD_STATE.replace(/^err: /, '')) + '). Nothing was changed. Open it again in a moment.</div>'; return; }
+    lmLoad();
+    if (typeof gdLinkMasters === 'function') gdLinkMasters();   // the Master Data's fabrics and vendors, read fresh each time
     if (!GD_WIRED) { GD_WIRED = true; wireShell(); wirePurchaseOrders(); wireInventory(); wireLedger(); wireMasterData(); wireEntry(); wireUsersRfd(); wireGd(); }
     render();
   }
-  return { open: open, ensure: function () { return gdLoad(); }, rfdShelf: function (n) { return gdRfdShelf(n); } };
+  return { open: open, ensure: function () { return gdLoad(); }, rfdShelf: function (n) { return gdRfdShelf(n); }, rfdOpened: function (n) { return gdRfdOpened(n); }, state: function () { return GD_STATE; },
+    /* Read the desk again (the flow's Refresh): what is on screen stays until the new read answers. */
+    reload: function () { if (GD_READY) { var was = GD_READY; GD_READY = null; return was.then(function () { GD_READY = null; return gdLoad(); }); } return gdLoad(); } };
 })();
 `;
 fs.writeFileSync(OUT, out);
