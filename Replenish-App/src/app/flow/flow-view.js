@@ -86,7 +86,7 @@ function renderFlow() {
   if (FLOW.stock) {
     if (FLOW_ANGLE[FLOW_VIEW] === 'printer') FLOW_ANGLE[FLOW_VIEW] = 'size';   // the metres pivot was taken out (18 Oct)
     const ang = FLOW_ANGLE[FLOW_VIEW] || 'line', what = FLOW_VIEW === 'drfd' ? 'By fabric (RFD stock)' : 'By accessory (shelf stock)';
-    const angles = [['line', 'By line']].concat(FLOW_VIEW === 'drfd' ? [['size', 'By printer × size (pcs)'], ['print', 'By printed fabric (all orders)']] : []).concat([['stock', what]]);
+    const angles = [['line', 'By line']].concat(FLOW_VIEW === 'drfd' ? [['size', 'Challan by size (pcs)'], ['print', 'By printed fabric (all orders)']] : []).concat([['stock', what]]);
     FLOW.panel = `<div class="seg" style="display:inline-flex;gap:4px">${angles.map(([k, l]) =>
       `<button data-flang="${k}" class="${ang === k ? '' : 'ghost'}" style="width:auto;padding:4px 12px;font-size:12.5px">${l}</button>`).join('')}</div>`;
     if (ang === 'stock') $('flTable').innerHTML = FLOW.stock;
@@ -168,51 +168,109 @@ function flowFiltFill(all, f) {
 const flowSizeKey = v => String(v || '').trim().toLowerCase().replace(/\s+/g, '').replace(/[×*]/g, 'x');
 const flowSizeSort = (a, b) => { const n = s => (String(s).match(/\d+(\.\d+)?/g) || []).map(Number); const x = n(a), y = n(b);
   for (let i = 0; i < Math.max(x.length, y.length); i++) { const d = (x[i] || 0) - (y[i] || 0); if (d) return d; } return String(a).localeCompare(String(b)); };
+/* DEMAND IN CHALLAN FORM, BY SIZE — AND THE CHALLAN MADE FIFO (Ravi, 18 Oct: "ye mujhe challan ke format me dikhe … 1 order me
+ * alag alag color me 1 size me (60x60) 20 pcs ka order h then mujhe dikhe total 60x60 ke 20 pcs and jab challan banau to auto
+ * FIFO method se order demand complete ho jay, same for Shopify"). RFD is plain cloth — the printer gives it its colour — so
+ * every colour of one fabric and size is one line: the pieces still owed and their metres, and the orders they are for,
+ * oldest first (Amazon and Shopify alike). "Make challan" asks how many pieces of each size go now, fills the oldest orders
+ * first, and opens the ordinary challan form with those lines and figures in it: the challan is saved the one way it always
+ * is. Lines on the Cutting route (no printer) and lines with no printer chosen are listed apart, with no challan button. */
 let FLOW_SIZE_PIVOT = null;
+const flowFifoSort = (a, b) => String(a.x.r.orderDate || '').localeCompare(String(b.x.r.orderDate || '')) || String(a.x.r.orderNo).localeCompare(String(b.x.r.orderNo)) || String(a.x.s.key).localeCompare(String(b.x.s.key));
+/** What one line still owes, in pieces and metres, and metres per piece. */
+function flowSizeOwed(x) {
+  const p = x.s.plan || {}, o = flowFabOwed(x.r, x.s);
+  if (x.s.fabUnit === 'pcs') { const pcs = Math.max(0, Math.round(o.left)); return { pcs, metres: o.metres, mpp: pcs ? o.metres / pcs : 0 }; }
+  const per = +(p.fabric && p.fabric.perPc) || ((+x.r.qty || 0) ? (+(p.fabric && p.fabric.metres) || 0) / (+x.r.qty || 1) : 0);
+  return { pcs: per ? Math.round(o.metres / per) : 0, metres: o.metres, mpp: per };
+}
 function flowBySizeData(rows) {
-  const P = new Map(), sizes = new Map(), cell = new Map();
+  const P = new Map();
   rows.forEach(x => {
-    const p = x.s.plan || {}, rem = typeof flowRemFrac === 'function' ? flowRemFrac(x.r, x.s) : 1, pcs = Math.round((+x.r.qty || 0) * rem);
-    if (!(pcs > 0)) return;
+    const p = x.s.plan || {}, w = flowSizeOwed(x);
+    if (!(w.pcs > 0) && !(w.metres > 0.01)) return;
     const m = (typeof cutSkuOf === 'function' && cutSkuOf(x.r.sku)) || {};
     const size = String(x.r.size || m.size || '').trim() || '(no size)', sk = flowSizeKey(size);
-    const art = String(x.r.articleSubtype || m.subtype || x.r.articleType || m.articleType || '').trim() || '(no article)';
+    const fab = String((p.fabric && p.fabric.name) || '').trim() || '(no fabric)';
     const pc = x.s.route === 'stitch' ? '~cut' : (flowPlanPrinter(x.s) || '?');
     const pname = pc === '~cut' ? 'Cutting department (no printing)' : pc === '?' ? 'Printer not chosen' : ((p.printer && p.printer.name) || pc);
-    if (!sizes.has(sk)) sizes.set(sk, size);
-    const pr = P.get(pc) || { pk: pc, name: pname, pcs: 0, arts: new Map(), orders: new Set() };
-    pr.pcs += pcs; pr.orders.add(x.r.orderNo);
-    const a = pr.arts.get(art) || { name: art, pcs: 0 }; a.pcs += pcs; pr.arts.set(art, a); P.set(pc, pr);
-    [pc + '||' + sk, pc + '|' + art + '|' + sk].forEach(k => cell.set(k, (cell.get(k) || 0) + pcs));
+    const pr = P.get(pc) || { pk: pc, name: pname, pcs: 0, metres: 0, groups: new Map(), orders: new Set() };
+    const gk = fabKey(fab) + '|' + sk, g = pr.groups.get(gk) || { gk, fab, size, pcs: 0, metres: 0, lines: [] };
+    g.pcs += w.pcs; g.metres += w.metres; g.lines.push({ x, w }); pr.groups.set(gk, g);
+    pr.pcs += w.pcs; pr.metres += w.metres; pr.orders.add(x.r.orderNo); P.set(pc, pr);
   });
   const order = pk => (pk === '~cut' ? 2 : pk === '?' ? 1 : 0);
   const PL = [...P.values()].sort((a, b) => order(a.pk) - order(b.pk) || b.pcs - a.pcs);
-  const S = [...sizes.entries()].map(([sk, name]) => ({ sk, name, pcs: PL.reduce((t, pr) => t + (cell.get(pr.pk + '||' + sk) || 0), 0) }))
-    .sort((a, b) => flowSizeSort(a.name, b.name));
-  return { P: PL, S, cell, total: PL.reduce((t, pr) => t + pr.pcs, 0) };
+  PL.forEach(pr => { pr.list = [...pr.groups.values()].sort((a, b) => a.fab.localeCompare(b.fab) || flowSizeSort(a.size, b.size)); pr.list.forEach(g => g.lines.sort(flowFifoSort)); });
+  return { P: PL, total: PL.reduce((t, pr) => t + pr.pcs, 0) };
 }
+const flowOrdersTxt = (lines, n) => { const by = new Map(); lines.forEach(({ x, w }) => by.set(x.r.orderNo, (by.get(x.r.orderNo) || 0) + w.pcs));
+  const arr = [...by.entries()]; return arr.slice(0, n || 3).map(([o, q]) => `${esc(o)} · ${nf(q)}`).join(', ') + (arr.length > (n || 3) ? ` <span class="muted">+${nf(arr.length - (n || 3))} more</span>` : ''); };
 function flowBySizeTable(rows) {
   const d = FLOW_SIZE_PIVOT = flowBySizeData(rows);
-  if (!d.P.length) return '<tbody><tr><td class="muted" style="padding:16px">No line is waiting.</td></tr></tbody>';
-  const v = n => n ? nf(n) : '<span class="muted">—</span>';
-  return `<thead><tr><th class="frz" style="text-align:left">Printer · article</th>${d.S.map(s => `<th>${esc(s.name)}</th>`).join('')}<th>Total pcs</th><th>Orders</th></tr></thead><tbody>`
-    + d.P.map(pr => `<tr style="background:var(--soft,#f4f6fb)"><td class="frz" style="text-align:left"><b>${esc(pr.name)}</b></td>${d.S.map(s => `<td class="num"><b>${v(d.cell.get(pr.pk + '||' + s.sk) || 0)}</b></td>`).join('')}<td class="num"><b>${nf(pr.pcs)}</b></td><td class="num">${nf(pr.orders.size)}</td></tr>`
-      + [...pr.arts.values()].sort((a, b) => b.pcs - a.pcs).map(a => `<tr><td class="frz" style="text-align:left;padding-left:22px;font-size:12.5px">${esc(a.name)}</td>${d.S.map(s => `<td class="num" style="font-size:12.5px">${v(d.cell.get(pr.pk + '|' + a.name + '|' + s.sk) || 0)}</td>`).join('')}<td class="num" style="font-size:12.5px">${nf(a.pcs)}</td><td></td></tr>`).join('')).join('')
-    + `<tr style="font-weight:700;border-top:2px solid var(--line)"><td class="frz" style="text-align:left">Total</td>${d.S.map(s => `<td class="num">${nf(s.pcs)}</td>`).join('')}<td class="num">${nf(d.total)}</td><td></td></tr></tbody>`;
+  if (!d.P.length) return '<tbody><tr><td class="muted" style="padding:16px">No line is waiting for RFD.</td></tr></tbody>';
+  return '<tbody>' + d.P.map(pr => {
+    const can = pr.pk !== '~cut' && pr.pk !== '?';
+    return `<tr style="background:var(--soft,#f4f6fb)"><td colspan="5" style="text-align:left;padding:9px 10px"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <b style="font-size:14px">${esc(pr.name)}</b><span class="muted" style="font-size:12px">${nf(pr.orders.size)} order(s) · ${nf(pr.pcs)} pcs · ${nf(flowR2(pr.metres))} m</span><span style="flex:1"></span>
+        ${can ? `<button type="button" data-flszch="${esc(pr.pk)}" style="width:auto;padding:4px 14px;font-size:12.5px">Make challan</button>`
+          : `<span class="muted" style="font-size:11.5px">${pr.pk === '~cut' ? 'RFD goes to the cutting department — "Mark fabric ready" on By line' : 'Pick the printer in the plan first'}</span>`}</div></td></tr>`
+      + `<tr><th style="text-align:left">Fabric (RFD)</th><th style="text-align:left">Size</th><th>Pcs</th><th>Metres</th><th style="text-align:left">Orders (oldest first)</th></tr>`
+      + pr.list.map(g => `<tr><td style="text-align:left">${esc(g.fab)}</td><td style="text-align:left"><b>${esc(g.size)}</b></td><td class="num"><b>${nf(g.pcs)}</b></td><td class="num">${nf(flowR2(g.metres))}</td><td style="text-align:left;font-size:12px">${flowOrdersTxt(g.lines)}</td></tr>`).join('');
+  }).join('') + `<tr style="font-weight:700"><td colspan="2" style="text-align:left">Total</td><td class="num">${nf(d.total)}</td><td></td><td></td></tr></tbody>`;
 }
 function flowBySizeXl() {
   const d = FLOW_SIZE_PIVOT; if (!d || !d.P.length) return;
-  const out = [['Printer', 'Article'].concat(d.S.map(s => s.name), ['Total pcs'])];
-  d.P.forEach(pr => {
-    out.push([pr.name, 'ALL'].concat(d.S.map(s => d.cell.get(pr.pk + '||' + s.sk) || 0), [pr.pcs]));
-    [...pr.arts.values()].sort((a, b) => b.pcs - a.pcs).forEach(a => out.push([pr.name, a.name].concat(d.S.map(s => d.cell.get(pr.pk + '|' + a.name + '|' + s.sk) || 0), [a.pcs])));
-  });
-  out.push(['Total', ''].concat(d.S.map(s => s.pcs), [d.total]));
-  const bytes = recipeXlsx(out, { name: 'Pieces by size', freeze: 2, cols: {} });
+  const out = [['Printer', 'Fabric (RFD)', 'Size', 'Pcs', 'Metres', 'Order', 'Order date', 'SKU', 'Colour', 'Pcs for this order']];
+  d.P.forEach(pr => pr.list.forEach(g => g.lines.forEach(({ x, w }, k) => out.push([pr.name, g.fab, g.size, k ? '' : g.pcs, k ? '' : flowR2(g.metres), x.r.orderNo, ptIsoDate(x.r.orderDate) || '', obUC(x.r.sku), x.r.color || '', w.pcs]))));
+  const bytes = recipeXlsx(out, { name: 'RFD by size', freeze: 2, cols: {} });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
-  a.download = 'pieces-by-printer-size-' + dToday() + '.xlsx';
+  a.download = 'rfd-challan-by-size-' + dToday() + '.xlsx';
   a.click(); URL.revokeObjectURL(a.href);
+}
+/** FIFO: pieces to send per size group → { key: {pcs, metres} }, oldest orders filled first. */
+function flowSizeFifo(groups, send) {
+  const pre = new Map();
+  groups.forEach(g => {
+    let n = Math.max(0, Math.round(+send[g.gk] || 0));
+    g.lines.forEach(({ x, w }) => { if (n <= 0 || !(w.pcs > 0)) return; const take = Math.min(n, w.pcs); n -= take;
+      pre.set(x.s.key, { pcs: take, metres: take === w.pcs ? flowR2(w.metres) : flowR2(take * w.mpp), orderNo: x.r.orderNo, of: w.pcs }); });
+  });
+  return pre;
+}
+function flowSizeChallanOpen(pcode) {
+  /* worked out again now, from the lines as they are — never from a table drawn minutes ago */
+  const d = flowBySizeData(flowRows().filter(x => flowInView('drfd', x.s))), pr = d.P.find(p => p.pk === pcode); if (!pr) return;
+  const groups = pr.list.filter(g => g.pcs > 0), send = {};
+  groups.forEach(g => { send[g.gk] = g.pcs; });
+  const preview = () => { const pre = flowSizeFifo(groups, send);
+    return groups.map(g => { const ls = g.lines.filter(({ x }) => pre.has(x.s.key)); if (!ls.length) return '';
+      return `<div style="margin-top:6px"><b>${esc(g.fab)} · ${esc(g.size)}</b>: ` + ls.map(({ x, w }) => { const t = pre.get(x.s.key);
+        return `${esc(x.r.orderNo)} <span class="muted">(${esc(ptIsoDate(x.r.orderDate) || '')}${x.r.color ? ' · ' + esc(x.r.color) : ''})</span> ${nf(t.pcs)}${t.pcs < w.pcs ? ` <span style="color:#b45309">of ${nf(w.pcs)}</span>` : ' <span style="color:#166534">✓</span>'}`; }).join(' · ') + '</div>'; }).join('') || '<span class="muted">Nothing to send.</span>'; };
+  ptOpenDialog({
+    title: `Challan by size → ${pr.name}`,
+    subtitle: 'How many pieces of each size go now. The oldest orders are filled first (Amazon and Shopify alike); what is not sent stays in Demand.',
+    html: `<table class="xl" style="width:100%"><thead><tr><th style="text-align:left">Fabric (RFD)</th><th style="text-align:left">Size</th><th>Needed</th><th>Send now (pcs)</th><th>Metres</th></tr></thead><tbody>`
+      + groups.map(g => `<tr><td style="text-align:left">${esc(g.fab)}</td><td style="text-align:left"><b>${esc(g.size)}</b></td><td class="num">${nf(g.pcs)}</td>`
+        + `<td class="num"><input data-szq="${esc(g.gk)}" type="number" min="0" step="1" max="${g.pcs}" value="${g.pcs}" style="width:90px;padding:3px 6px;font-size:12px"></td><td class="num" data-szm="${esc(g.gk)}">${nf(flowR2(g.metres))}</td></tr>`).join('')
+      + `</tbody></table><div style="margin-top:10px;font-size:12.5px"><b>These pieces go to (oldest first):</b><div id="flSzPrev">${preview()}</div></div>`,
+    saveLabel: 'Review challan →',
+    onSave: async () => {
+      const bad = groups.filter(g => !(send[g.gk] >= 0 && send[g.gk] <= g.pcs && send[g.gk] === Math.round(send[g.gk])));
+      if (bad.length) return bad.map(g => `${g.fab} ${g.size}: whole pieces, at most ${nf(g.pcs)}`).join(' · ');
+      const pre = flowSizeFifo(groups, send);
+      if (!pre.size) return 'Type how many pieces go now.';
+      const rows = groups.flatMap(g => g.lines.map(l => l.x)).filter(x => pre.has(x.s.key));
+      setTimeout(() => flowChallanDialog(rows, pcode, [], pre), 0);
+      return '';
+    },
+  });
+  document.querySelectorAll('[data-szq]').forEach(inp => inp.addEventListener('input', () => {
+    const g = groups.find(y => y.gk === inp.dataset.szq); send[g.gk] = Math.max(0, Math.min(g.pcs, Math.round(+inp.value || 0)));
+    const pre = flowSizeFifo([g], send), m = [...pre.values()].reduce((t, v) => t + v.metres, 0);
+    const mc = document.querySelector(`[data-szm="${g.gk}"]`); if (mc) mc.textContent = nf(flowR2(m));
+    const pv = $('flSzPrev'); if (pv) pv.innerHTML = preview(); }));
 }
 /* BY PRINTED FABRIC: every line waiting for fabric, across every order, grouped by what the printer prints and the
  * printer PPC planned — the total to print, the orders it is for, and one challan for all of it. */
@@ -509,6 +567,7 @@ async function flowTableClick(e) {
     $('flMsg').className = er ? 'err' : 'muted'; if (er) $('flMsg').textContent = er; else renderFlow(); return; }
   const cs = e.target.closest('[data-flchc]'); if (cs) { flowCloseShortOpen(cs.dataset.flchc); return; }
   const ch = e.target.closest('[data-flch]'); if (ch) { flowChallanOpen(ch.dataset.flch, ch.dataset.pc); return; }
+  const sz = e.target.closest('[data-flszch]'); if (sz) { flowSizeChallanOpen(sz.dataset.flszch); return; }
   const qb = e.target.closest('[data-flqb]');
   if (qb) { const [what, key] = qb.dataset.flqb.split('|'), x = flowRows().find(y => y.s.key === key); if (!x) return;
     if (what === 'qc') flowQcEntry(x.r); else if (what === 'fg') flowFgOpen(); else if (what === 'recv') flowRecvEntry(x.r); else if (what === 'issue') flowIssueEntry(x.r, x.s);
