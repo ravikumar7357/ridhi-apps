@@ -1,5 +1,5 @@
 {
-  // The three buttons. In VS Code: Terminal -> Run Task… (or Ctrl+Shift+P -> "Run Task") and pick one.
+  // The four buttons. In VS Code: Terminal -> Run Task… (or Ctrl+Shift+P -> "Run Task") and pick one.
   // Shortcuts:  Ctrl+Shift+B = button 1 (check locally).
   //             Ctrl+Alt+T   = button 2 (send to TEST ERP) — each person adds it once, in their own
   //             keybindings.json (Ctrl+Shift+P -> "Preferences: Open Keyboard Shortcuts (JSON)"):
@@ -29,6 +29,14 @@
       "command": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/send-to-main.ps1",
       "problemMatcher": [],
       "presentation": { "reveal": "always", "panel": "dedicated", "clear": true }
+    },
+    {
+      // Reads only: is the real ERP the code on main, is R1 the code on dev, and what R1 has that the real ERP has not.
+      "label": "4 · Compare REAL ERP with GitHub (reads only)",
+      "type": "shell",
+      "command": "node tools/compare-real.js",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated", "focus": true, "clear": true }
     }
   ]
 }
