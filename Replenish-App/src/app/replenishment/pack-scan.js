@@ -39,7 +39,7 @@ const PKS = {
   track: null,      // Track order scan: { last, recent }
   panel: ""         // "dims" or "finish" while that panel is open: a save landing must not redraw it away
 };
-const PKS_GAP_MS = 700;
+const PKS_GAP_MS = 400;
 const PKS_AGREE = 2;
 const PKS_RETRY_MS = 15000;
 const PKS_HIST_KEEP = 80;
@@ -69,12 +69,19 @@ function pksBoxOf(p, n) {
   }
   return b;
 }
+/** One read of `code` at time `t`: true when it counts as a new piece. Two reads must agree, and the same label counts
+ * again only after it has been out of sight. Only a STEADY run of reads keeps a label "in sight": a lone read while the
+ * packer swaps pieces (19 Oct) used to keep the old label in sight, so the next identical piece never counted. The waits
+ * follow how fast this phone reads (st.frameMs), so a slow phone holding a label still does not count it twice. */
 function pksFrame(code, t, st) {
   st = st || PKS;
+  const f = st.frameMs || 0, gap = Math.max(PKS_GAP_MS, 4.5 * f), steady = Math.max(150, 2.5 * f);
   const s = st.seen;
-  if (!s || s.code !== code || t - s.last > PKS_GAP_MS) st.seen = { code, last: t, hits: 1, counted: false };
+  /* a new piece: the label was out of sight long enough, and this read does not carry on from the read just before */
+  if (!s || s.code !== code || (t - s.last > gap && t - s.prev > steady)) st.seen = { code, last: t, prev: t, hits: 1, counted: false };
   else {
-    s.last = t;
+    if (t - s.prev <= steady) s.last = t;
+    s.prev = t;
     s.hits++;
   }
   if (!st.seen.counted && st.seen.hits >= PKS_AGREE) {
@@ -139,7 +146,7 @@ function pksCount(code, via) {
       pksSaveSoon();
       return { ok: false, kind: "wrong", code: obUC(code), sku: r.sku, why: r.sku + " is not on any order of this list." };
     }
-    if (a.kind === "full") return { ok: false, kind: "full", code: obUC(code), sku: r.sku, why: a.why === "store" ? "The India Store holds no more " + r.sku + " for these orders — receive it in Finished Goods first." : "Every order line for " + r.sku + " is already packed." };
+    if (a.kind === "full") return { ok: false, kind: "full", store: a.why === "store", code: obUC(code), sku: r.sku, why: a.why === "store" ? "The India Store holds no more " + r.sku + " for these orders — receive it in Finished Goods first." : "Every order line for " + r.sku + " is already packed." };
     n = a.taken;
     parts = a.parts;
     left = a.left;
@@ -312,6 +319,8 @@ async function pksCamStart() {
   const track = PKS.stream.getVideoTracks()[0];
   const caps = track && track.getCapabilities ? track.getCapabilities() : {};
   $("pksTorch").classList.toggle("hide", !caps.torch);
+  PKS.hasTorch = !!caps.torch;
+  PKS.torch = false; PKS.torchAuto = false; PKS.torchHand = false; PKS.darkSaid = false; PKS.lightAt = 0;
   pksSay(PKS.det ? "Point at the FNSKU label" : "Point at the FNSKU label (reader: ZXing)");
   pksLoop();
 }
@@ -388,7 +397,12 @@ async function pksLoop(run) {
   } catch (e) {
     code = null;
   }
-  if (code && pksFrame(obUC(code), Date.now())) pksHit(code, "camera");
+  /* how fast this phone reads: the pksFrame waits follow it */
+  const now = Date.now();
+  if (PKS.loopAt && now - PKS.loopAt < 2000) PKS.frameMs = PKS.frameMs ? PKS.frameMs * 0.8 + (now - PKS.loopAt) * 0.2 : now - PKS.loopAt;
+  PKS.loopAt = now;
+  if (code && pksFrame(obUC(code), now)) pksHit(code, "camera");
+  if (v) pksLightCheck(v, PKS.hasTorch);
   /* the phone's own reader looks at each new picture as it arrives (no fixed wait), so the two frames that must agree
      come in sooner; the ZXing reader keeps its pace — it works on the page itself */
   if (PKS.det && v && typeof v.requestVideoFrameCallback === "function") { PKS.timer = 0; v.requestVideoFrameCallback(() => pksLoop(run)); }
@@ -400,13 +414,68 @@ function pksCamStop() {
   if (PKS.stream) PKS.stream.getTracks().forEach((t) => t.stop());
   PKS.stream = null;
 }
-/** Ask the camera to keep focusing by itself, where the phone allows it (labels are read close up). */
+/** Ask the camera to keep focusing, and to keep setting its brightness and colour, by itself, where the phone allows it
+ * (labels are read close up, and a shadow or a dim corner moves with the hand). */
 async function pksFocus() {
   try {
     const t = PKS.stream && PKS.stream.getVideoTracks()[0], caps = t && t.getCapabilities ? t.getCapabilities() : {};
-    if ((caps.focusMode || []).includes("continuous")) await t.applyConstraints({ advanced: [{ focusMode: "continuous" }] });
+    const want = {};
+    if ((caps.focusMode || []).includes("continuous")) want.focusMode = "continuous";
+    if ((caps.exposureMode || []).includes("continuous")) want.exposureMode = "continuous";
+    if ((caps.whiteBalanceMode || []).includes("continuous")) want.whiteBalanceMode = "continuous";
+    if (Object.keys(want).length) await t.applyConstraints({ advanced: [want] });
   } catch (e) {
   }
+}
+
+/* ---- DARK AND SHADOW (Ravi, 19 Oct: "scan in dark … in shadows … accurately") ----
+ * Once a second the middle of the picture is weighed (a 32 × 18 copy, nothing heavy). Too dark for a label: the torch
+ * comes on by itself — it also fills the shadow of a hand or the phone over the label — and goes off again once the
+ * light is back. A torch pressed by hand is left as the packer set it. A phone with no torch is told to find light. */
+const PKS_DARK = 55, PKS_LIGHT = 95;     // average grey (0–255) of the middle of the picture: on below, off above
+/** What to do with the torch, from the brightness now: "on", "off" or "" (leave it). Pure, for the tests. */
+function pksLightStep(mean, torchOn, auto, hasTorch) {
+  if (!hasTorch || mean == null) return "";
+  if (!torchOn && mean < PKS_DARK) return "on";
+  if (torchOn && auto && mean > PKS_LIGHT + 60) return "off";   // lit by the torch itself reads brighter: off only when the room is truly light
+  return "";
+}
+function pksMean(v) {
+  const W = v.videoWidth, H = v.videoHeight;
+  if (!W || !H) return null;
+  const c = PKS.lc || (PKS.lc = document.createElement("canvas"));
+  c.width = 32; c.height = 18;
+  const g = c.getContext("2d", { willReadFrequently: true });
+  g.drawImage(v, W * 0.2, H * 0.25, W * 0.6, H * 0.5, 0, 0, 32, 18);
+  const d = g.getImageData(0, 0, 32, 18).data;
+  let s = 0;
+  for (let i = 0; i < d.length; i += 4) s += d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114;
+  return s / (d.length / 4);
+}
+async function pksTorchSet(on, auto) {
+  try {
+    const t = PKS.stream && PKS.stream.getVideoTracks()[0];
+    if (!t) return;
+    await t.applyConstraints({ advanced: [{ torch: on }] });
+    PKS.torch = on;
+    PKS.torchAuto = on && auto;
+    if ($("pksTorch")) $("pksTorch").classList.toggle("on", on);
+  } catch (e) {
+  }
+}
+function pksLightCheck(v, hasTorch) {
+  const now = Date.now();
+  if (now - (PKS.lightAt || 0) < 1000) return;
+  PKS.lightAt = now;
+  let mean = null;
+  try { mean = pksMean(v); } catch (e) { mean = null; }
+  if (mean == null) return;
+  if (PKS.torchHand) return;                          // the packer chose; leave it
+  const step = pksLightStep(mean, !!PKS.torch, !!PKS.torchAuto, hasTorch);
+  if (step === "on") { pksTorchSet(true, true); pksSay("Low light — torch on"); }
+  else if (step === "off") pksTorchSet(false, false);
+  else if (!hasTorch && mean < PKS_DARK && !PKS.darkSaid) { PKS.darkSaid = true; pksSay("Too dark to read — move the label into more light", true); }
+  else if (mean >= PKS_DARK && PKS.darkSaid) { PKS.darkSaid = false; pksSay("Point at the FNSKU label"); }
 }
 let PKS_AC = null;
 /** good: one short high beep · bad: a low buzz · done: two rising beeps. */
@@ -543,7 +612,7 @@ function pksHit(code, via) {
   const r = pksCount(code, via);
   if (!r.ok) {
     PKS.bad = r;
-    PKS.hold = r.kind !== "none";
+    PKS.hold = r.kind !== "none" && !(r.kind === "unknown" && via === "camera");
     pksBeep(false);
     pksFlash(false);
     pksSay(r.kind === "wrong" ? "Wrong article — not counted" : r.kind === "full" ? "Not counted — the orders want no more of it" : "Not counted — unknown label", true);
@@ -606,6 +675,7 @@ async function pksStart(mode) {
   await Promise.all([loadPkWt(), PK_LOADED ? null : loadPk().catch(() => {
   }), fnLoad(), typeof ptImgShared === "function" ? ptImgShared().catch(() => {
   }) : null]);
+  if (pksQcMay()) pksQcReady().then((ok) => { if (ok && PKS.on) { if (PKS.mode === "track") pksTrackDraw(); else if (!PKS.panel) pksDraw(); } });
   if (mode === "track") return pksTrackOpen();
   const byOrder = mode === "order";
   /* Each way offers only its own lists: a box list never turns into an order list half way, nor the other way round. */
@@ -769,10 +839,7 @@ async function pksTrackOpen() {
   };
   $("pksTorch").onclick = async () => {
     try {
-      const t = PKS.stream.getVideoTracks()[0];
-      PKS.torch = !PKS.torch;
-      await t.applyConstraints({ advanced: [{ torch: PKS.torch }] });
-      $("pksTorch").classList.toggle("on", PKS.torch);
+      PKS.torchHand = true; await pksTorchSet(!PKS.torch, false);
     } catch (e) {
     }
   };
@@ -822,6 +889,7 @@ function pksTrackDraw() {
       <div class="pks-desc">${esc(info.desc || "")}</div>
       <div class="pks-want${left ? "" : " pks-want-none"}"><b>${nf(left)}</b> ${left ? "more wanted by open orders" : "— no open order wants this piece"}</div>
       <div class="pks-facts"><span>India Store <b>${nf(store)}</b></span>${left && store < left ? `<span class="pks-warn">${nf(left - store)} short in the store</span>` : ""}</div>
+      ${pksQcHtml(sku, pksQcWaiting(sku).pcs, "Accept {n} into Finished Goods")}
       ${rows.length ? `<div class="pks-wtab">${rows.map((x) => `<div class="pks-wrow${x.left ? "" : " pks-wrow-done"}"><span><b>${esc(x.no)}</b><small>${esc(x.what)}</small></span><span>wants ${nf(x.qty)}</span><span>packed ${nf(x.got)}</span><span class="pks-wleft">${x.left ? nf(x.left) + " left" : "✓ done"}</span></div>`).join("")}</div>` : ""}
     </div>`;
   }
@@ -891,10 +959,7 @@ function pksShow() {
   };
   $("pksTorch").onclick = async () => {
     try {
-      const t = PKS.stream.getVideoTracks()[0];
-      PKS.torch = !PKS.torch;
-      await t.applyConstraints({ advanced: [{ torch: PKS.torch }] });
-      $("pksTorch").classList.toggle("on", PKS.torch);
+      PKS.torchHand = true; await pksTorchSet(!PKS.torch, false);
     } catch (e) {
     }
   };
@@ -993,6 +1058,7 @@ function pksDraw() {
     card.innerHTML = `<div class="pks-badcard${k === "full" ? " pks-fullcard" : ""}"><div class="pks-badicon">${k === "full" ? "■" : "✕"}</div><div class="pks-big">${title}</div><div class="pks-code">${esc(PKS.bad.sku || PKS.bad.code)}</div>
       ${img ? `<img class="pks-img pks-img-sm" src="${esc(img)}" alt="">` : ""}
       <div class="pks-sub">${esc(PKS.bad.why)} ${k === "unknown" ? "Check its label." : "Do not put it in the box."}</div>
+      ${k === "full" && PKS.bad.store ? pksQcHtml(PKS.bad.sku, pksOrdersWant(PKS.bad.sku) || PKS.per, "Accept {n} from QC and count this piece") : ""}
       ${PKS.hold ? '<button id="pksAside" class="pks-aside">✓ Kept aside — carry on</button>' : ""}</div>`;
   } else if (PKS.allDone) {
     card.innerHTML = `<div class="pks-donecard"><div class="pks-badicon">✓</div><div class="pks-big">Everything on the orders is packed</div>
@@ -1020,6 +1086,124 @@ function pksOrdersHtml(p) {
   const wrong = (p.scan.wrong || []).length;
   return `<div class="pks-list-h">Orders ${esc((p.scan.orders || []).join(", "))}${p.scan.planNo ? (p.scan.orders.length ? " + " : "") + "Amazon plan" : ""} — left to pack${wrong ? ` · <span class="pks-warn">${nf(wrong)} wrong article scan(s)</span>` : ""}</div>` + (rows.length ? rows.map((r) => `<div class="pks-row pks-row-ord${r.left ? "" : " pks-row-done"}"><div><b>${esc(r.sku)}</b><div class="pks-sub">packed ${nf(r.got)} of ${nf(r.qty)}</div></div><div class="pks-q">${r.left ? nf(r.left) : "✓"}</div></div>`).join("") : '<div class="pks-sub">The orders have no pieces of their SKUs in the India Store — receive them in Finished Goods first.</div>');
 }
+/* ---- PIECES STILL WAITING IN QC (Ravi, 19 Oct: "if the product is still in QC according to the site and the scanner is
+ * scanning the product, give the function of approving it so that it can be accepted to finished goods") ----
+ * A piece in the packer's hand can still be on the books as "passed QC, not in India stock yet" (Finished Goods → From QC
+ * — to accept). Then Finish refuses ("not enough stock") and Pack by order stops it. The scanner now says how many are
+ * waiting and, for whoever may accept on the Finished Goods screen (flowMayFg), accepts them right here — the same
+ * accept as that screen (flowFgAccept: a RECEIVE row in the India store, "Received from: QC", logged) — and carries on.
+ * Test orders are left to the Finished Goods screen. */
+const pksQcOn = () => typeof FLOW_ON !== "undefined" && FLOW_ON && typeof flowFgLines === "function" && typeof flowFgAccept === "function";
+const pksQcMay = () => pksQcOn() && typeof flowMayFg === "function" && flowMayFg();
+async function pksQcReady() {
+  if (!pksQcOn()) return false;
+  try {
+    const w = typeof flowFgEnsure === "function" ? flowFgEnsure() : null;
+    if (w) await w;
+  } catch (e) {
+    return false;
+  }
+  return true;
+}
+/** What of this SKU passed QC and is not in India stock yet: the pieces, and the order lines they sit on. */
+let PKS_QC_C = { at: 0, fgi: null, all: [] };     // worked out at most every 3 s (or when the stock changes), not on every scan
+function pksQcWaiting(sku) {
+  if (!pksQcOn() || typeof FLOW === "undefined" || !FLOW.ppc || typeof QC === "undefined" || QC.checks == null) return { pcs: 0, lines: [] };
+  const fgi = typeof FGI !== "undefined" ? FGI.rows : null;
+  if (Date.now() - PKS_QC_C.at > 3000 || PKS_QC_C.fgi !== fgi) {
+    let all = [];
+    try {
+      all = flowFgLines().filter((x) => !x.r.__t);
+    } catch (e) {
+      all = [];
+    }
+    PKS_QC_C = { at: Date.now(), fgi, all };
+  }
+  const lines = PKS_QC_C.all.filter((x) => obUC(x.r.sku) === obUC(sku));
+  return { pcs: lines.reduce((s, x) => s + flowFgToAccept(x.r, x.s), 0), lines };
+}
+/** Accept up to `want` pieces of this SKU from QC into the India store, line by line. */
+async function pksQcAccept(sku, want) {
+  let left = want, got = 0;
+  for (const x of pksQcWaiting(sku).lines) {
+    if (left <= 0) break;
+    const n = Math.min(left, flowFgToAccept(x.r, x.s));
+    if (n <= 0) continue;
+    const err = await flowFgAccept(x, n, "accepted from Scan to pack");
+    if (err) return { got, err };
+    got += n;
+    left -= n;
+  }
+  return { got, err: "" };
+}
+/** How many more of this SKU the list's orders want (Pack by order). */
+function pksOrdersWant(sku) {
+  const p = PKS.p;
+  if (!p || !packGuarded(p)) return 0;
+  const r = PACK_CORE.leftBySku(pksOrderLines(), p.scan.packed).find((x) => obUC(x.sku) === obUC(sku));
+  return r ? Math.max(0, (+r.qty || 0) - (+r.got || 0)) : 0;
+}
+/** The SKUs on this list that the India store holds fewer of than are packed. */
+function pksShort(p) {
+  const need = new Map();
+  (p.boxes || []).forEach((b) => (b.items || []).forEach((it) => need.set(obUC(it.sku), (need.get(obUC(it.sku)) || 0) + pkNum(it.qty))));
+  return [...need].map(([sku, qty]) => ({ sku, qty, have: Math.max(0, +fgiOf(sku).current || 0) })).filter((r) => r.qty > r.have);
+}
+/** One line under a refusal: how many wait in QC, and the button to accept them. */
+function pksQcHtml(sku, want, label) {
+  const w = pksQcWaiting(sku);
+  if (!w.pcs) return "";
+  const n = Math.min(w.pcs, want);
+  return `<div class="pks-qcrow" style="margin-top:10px;padding:10px 12px;border-radius:10px;background:#dcfce7;border:1px solid #86efac;color:#14532d;text-align:left">
+    <div style="margin:0 0 8px;font-size:14px;line-height:1.35;color:#14532d"><b>${nf(w.pcs)}</b> of ${esc(sku)} passed QC and ${w.pcs === 1 ? "is" : "are"} waiting to be accepted into Finished Goods.${w.pcs < want ? ` That covers ${nf(w.pcs)} of the ${nf(want)} needed.` : ""}</div>
+    ${pksQcMay() ? `<button type="button" data-pks-qc="${esc(sku)}" data-pks-qcn="${n}" style="width:100%">${esc(label.replace("{n}", nf(n)))}</button>`
+      : '<div style="margin:0;font-size:13px;color:#14532d">Ask the Finished Goods team to accept them (Finished Goods → From QC — to accept).</div>'}</div>`;
+}
+/** Done refused for stock: say what waits in QC under the Finish panel, with Accept buttons. */
+async function pksQcOffer() {
+  const p = PKS.p;
+  if (!p || !(await pksQcReady()) || PKS.panel !== "finish") return;
+  const box = document.querySelector("#pksCard .pks-dims");
+  if (!box) return;
+  const shorts = pksShort(p), all = shorts.every((r) => pksQcWaiting(r.sku).pcs >= r.qty - r.have);
+  const html = shorts.map((r) => pksQcHtml(r.sku, r.qty - r.have, all && shorts.length === 1 ? "Accept {n} from QC and finish" : "Accept {n} from QC")).join("");
+  let el = $("pksQcBox");
+  if (!el) { el = document.createElement("div"); el.id = "pksQcBox"; box.appendChild(el); }
+  el.innerHTML = html;
+}
+/** Accept pressed: under the Finish panel (then Done again once nothing is short), on a refused piece (then it counts),
+ * or on the Track card (then the card shows the new stock). */
+async function pksQcPress(btn) {
+  const sku = btn.dataset.pksQc, n = +btn.dataset.pksQcn || 0;
+  if (!sku || !(n > 0) || btn.disabled) return;
+  btn.disabled = true;
+  btn.textContent = "Accepting…";
+  const r = await pksQcAccept(sku, n);
+  if (r.err) {
+    btn.disabled = false;
+    btn.textContent = "Try again";
+    pksSay((r.got ? `${nf(r.got)} accepted, then: ` : "Not accepted: ") + r.err, true);
+    return;
+  }
+  pksBeep(true);
+  pksSay(`${nf(r.got)} of ${sku} accepted from QC into Finished Goods — India stock`);
+  if (PKS.mode === "track") return pksTrackDraw();
+  if (PKS.panel === "finish") {
+    if (!pksShort(PKS.p).length) return pksDone();       // nothing short any more: finish, as was asked
+    return pksQcOffer();
+  }
+  if (PKS.bad && PKS.bad.kind === "full" && PKS.bad.store) {   // the refused piece: now there is stock for it
+    const code = PKS.bad.code;
+    PKS.hold = false;
+    PKS.bad = null;
+    PKS.seen = null;
+    pksHit(code, "qc");
+  }
+}
+if (typeof document.addEventListener === "function") document.addEventListener("click", (e) => {
+  const b = PKS.on && e.target && e.target.closest && e.target.closest("[data-pks-qc]");
+  if (b) { e.preventDefault(); pksQcPress(b); }
+});
 function pksFinishAsk() {
   if (PKS.hold) return pksSay('Tap "Kept aside" first.', true);
   const p = PKS.p, card = $("pksCard");
@@ -1060,6 +1244,7 @@ async function pksDone() {
   }
   if (res.err) {
     pksSay("Not done — " + res.err, true);
+    pksQcOffer();
     return;
   }
   PKS.dirty = true;
