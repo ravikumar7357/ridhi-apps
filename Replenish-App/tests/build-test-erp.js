@@ -16,6 +16,7 @@
  *      A stopped save shows "Saving is off in the TEST ERP — nothing was saved" and fails, so no screen pretends it saved.
  *   3. Paths that assumed the site's root ("/logo.png") are made relative, because the test ERP lives in a sub-folder.
  *   4. The offline service worker is not installed, so a phone never keeps an old test version.
+ *   5. A speed log (the "⏱ Speed" button): how long each screen took to open in this browser, and how much it downloaded.
  *
  * The build stops with an error if any of these cannot be applied exactly — a test ERP that might write is worse than
  * no test ERP. */
@@ -53,17 +54,122 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
     else if (/identitytoolkit\\.googleapis\\.com\\/v1\\/accounts:(signUp|update|delete|sendOobCode|setAccountInfo)/.test(url)) { write = true; what = 'login change'; }
     else if (/script\\.google(usercontent)?\\.com/.test(url) && (method !== 'GET' || BACKEND_GET_WRITES.test(url))) { write = true; what = 'backend ' + method; }
     if (write) return window.__testErpBlock(what + ' ' + url.replace(/[?#].*$/, '').slice(0, 120));
-    return origFetch.apply(this, arguments);
+    if (url.indexOf('accounts:signInWithPassword') >= 0) slStart('sign-in');
+    /* Firestore's listen / write channels stay open for good: not waited for, or no screen would ever be "done". */
+    var held = url.indexOf('/channel') < 0;
+    if (held) SL.inflight++;
+    slAct();
+    var p = origFetch.apply(this, arguments);
+    if (held) p.then(function () { SL.inflight--; slAct(); }, function () { SL.inflight--; slAct(); });
+    return p;
   };
+
+  /* ---- R1 SPEED LOG (test ERP only) ----
+   * How long each screen takes to open, measured in this browser: from the click (or the sign-in) to the moment the
+   * network goes quiet for a second — the last answer in, and the drawing after it (a busy page shows as a gap in the
+   * clock below). Counts what came in: the live database (its WebSocket) and every ordinary request. "first" = the
+   * first open of that screen since the page was loaded; "again" = it had its data already. Kept in this browser. */
+  var SL = { cur: null, last: Date.now(), inflight: 0, ws: 0, http: 0, reqs: 0, seen: {}, tick: Date.now() };
+  var SL_KEY = 'r1SpeedLog';
+  function slAct() { SL.last = Date.now(); }
+  function slRows() { try { return JSON.parse(localStorage.getItem(SL_KEY) || '[]'); } catch (e) { return []; } }
+  function slSave(rows) { try { localStorage.setItem(SL_KEY, JSON.stringify(rows.slice(-300))); } catch (e) {} }
+  function slStart(name) {
+    if (SL.cur && (SL.cur.name === 'sign-in' || SL.cur.name === 'page load') && name !== 'sign-in' && !SL.cur.hashed) { SL.cur.hashed = true; return; }
+    if (SL.cur) slEnd(true);
+    SL.cur = { name: name, t0: Date.now(), ws0: SL.ws, http0: SL.http, req0: SL.reqs };
+    slAct();
+  }
+  function slEnd(cut) {
+    var c = SL.cur; if (!c) return; SL.cur = null;
+    var title = ''; try { title = String((document.getElementById('pageTitle') || {}).textContent || '').trim(); } catch (e) {}
+    var key = c.name === 'sign-in' || c.name === 'page load' ? c.name : (title || c.name);
+    var again = !!SL.seen[key]; SL.seen[key] = 1;
+    var rows = slRows();
+    rows.push({ at: new Date().toTimeString().slice(0, 8), what: c.name === 'sign-in' ? 'Sign-in \\u2192 ' + (title || 'first screen')
+        : c.name === 'page load' ? 'Page load \\u2192 ' + (title || 'first screen') : (title || c.name),
+      open: again ? 'again' : 'first', s: Math.round(Math.max(0, SL.last - c.t0) / 100) / 10,
+      mb: Math.round((SL.ws - c.ws0 + SL.http - c.http0) / 1e5) / 10, reqs: SL.reqs - c.req0, cut: !!cut,
+      build: window.__TEST_ERP.sha });
+    slSave(rows);
+    slDraw();
+  }
+  setInterval(function () {
+    var now = Date.now();
+    if (now - SL.tick > 400) SL.last = now;          // the page was busy (drawing): that is part of the wait
+    SL.tick = now;
+    var c = SL.cur;
+    if (c && ((SL.inflight <= 0 && now - SL.last > 1000 && now - c.t0 > 300) || now - c.t0 > 180000)) slEnd(false);
+  }, 100);
+  try {
+    new PerformanceObserver(function (list) {
+      list.getEntries().forEach(function (e) { SL.http += e.transferSize || e.encodedBodySize || 0; SL.reqs++; });
+      slAct();
+    }).observe({ type: 'resource', buffered: false });
+  } catch (e) {}
+  try {
+    var OWS = window.WebSocket;
+    if (OWS) {
+      var W = function (u, p) {
+        var s = p === undefined ? new OWS(u) : new OWS(u, p);
+        s.addEventListener('message', function (ev) { var d = ev.data; SL.ws += typeof d === 'string' ? d.length : ((d && (d.byteLength || d.size)) || 0); slAct(); });
+        return s;
+      };
+      W.prototype = OWS.prototype; W.CONNECTING = 0; W.OPEN = 1; W.CLOSING = 2; W.CLOSED = 3;
+      window.WebSocket = W;
+    }
+  } catch (e) {}
+  try {
+    var oSend = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.send = function () { this.addEventListener('progress', slAct); this.addEventListener('loadend', slAct); slAct(); return oSend.apply(this, arguments); };
+  } catch (e) {}
+  window.addEventListener('hashchange', function () { slStart(String(location.hash || '').slice(1) || 'home'); });
+  slStart('page load');
+  function esc(s) { return String(s == null ? '' : s).split('&').join('&amp;').split('<').join('&lt;').split('>').join('&gt;'); }
+  function slDraw() {
+    var b = document.getElementById('r1SpeedPanel'); if (!b || b.style.display === 'none') return;
+    var rows = slRows().slice().reverse();
+    var firsts = {};
+    rows.forEach(function (r) { if (r.open === 'first' && !r.cut) (firsts[r.what] = firsts[r.what] || []).push(r.s); });
+    var sum = Object.keys(firsts).map(function (k) { var a = firsts[k].slice().sort(function (x, y) { return x - y; }); return [k, a[Math.floor(a.length / 2)], a.length]; })
+      .sort(function (x, y) { return y[1] - x[1]; });
+    var h = '<div class="r1h"><b>R1 speed log</b> <span>first opens, slowest first (middle of your tries)</span>'
+      + '<button id="r1SpCopy">Copy</button><button id="r1SpClear">Clear</button><button id="r1SpClose">Close</button></div>'
+      + '<table><tr><th>Screen</th><th>s</th><th>tries</th></tr>'
+      + sum.map(function (x) { return '<tr><td>' + esc(x[0]) + '</td><td class="n">' + x[1] + '</td><td class="n">' + x[2] + '</td></tr>'; }).join('')
+      + '</table><div class="r1h"><b>Every open</b> <span>newest first \\u00b7 again = data already loaded</span></div>'
+      + '<table><tr><th>Time</th><th>Screen</th><th>Open</th><th>s</th><th>MB</th><th>Req</th></tr>'
+      + rows.slice(0, 120).map(function (r) { return '<tr><td>' + esc(r.at) + '</td><td>' + esc(r.what) + (r.cut ? ' <i>(left early)</i>' : '') + '</td><td>' + esc(r.open)
+        + '</td><td class="n">' + r.s + '</td><td class="n">' + r.mb + '</td><td class="n">' + r.reqs + '</td></tr>'; }).join('') + '</table>';
+    b.innerHTML = h;
+    document.getElementById('r1SpClose').onclick = function () { b.style.display = 'none'; };
+    document.getElementById('r1SpClear').onclick = function () { slSave([]); SL.seen = {}; slDraw(); };
+    document.getElementById('r1SpCopy').onclick = function () {
+      var t = ['time\\tscreen\\topen\\tseconds\\tMB\\trequests\\tbuild'].concat(slRows().map(function (r) {
+        return [r.at, r.what + (r.cut ? ' (left early)' : ''), r.open, r.s, r.mb, r.reqs, r.build].join('\\t'); })).join('\\n');
+      try { navigator.clipboard.writeText(t); this.textContent = 'Copied'; } catch (e) { window.prompt('Copy this', t); }
+    };
+  }
   var css = '#testErpLabel{position:fixed;left:10px;bottom:10px;z-index:2147483647;background:#b45309;color:#fff;'
     + 'font:600 12px/1.3 system-ui,sans-serif;padding:6px 10px;border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,.25);pointer-events:none}'
     + '#testErpToast{display:none;position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:2147483647;background:#7f1d1d;color:#fff;'
-    + 'font:600 14px/1.4 system-ui,sans-serif;padding:10px 16px;border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.3)}';
+    + 'font:600 14px/1.4 system-ui,sans-serif;padding:10px 16px;border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.3)}'
+    + '#r1SpeedBtn{position:fixed;right:10px;bottom:10px;z-index:2147483647;background:#14161a;color:#fff;border:0;'
+    + 'font:600 12px/1.3 system-ui,sans-serif;padding:7px 11px;border-radius:8px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.25)}'
+    + '#r1SpeedPanel{display:none;position:fixed;right:10px;bottom:48px;z-index:2147483647;width:min(560px,calc(100vw - 20px));max-height:70vh;overflow:auto;'
+    + 'background:#fff;color:#15171a;border:1px solid #d6d9de;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.25);font:12.5px/1.4 system-ui,sans-serif;padding:10px}'
+    + '#r1SpeedPanel table{width:100%;border-collapse:collapse;margin:4px 0 10px}#r1SpeedPanel th,#r1SpeedPanel td{text-align:left;padding:3px 6px;border-bottom:1px solid #eceef1}'
+    + '#r1SpeedPanel td.n{text-align:right;font-variant-numeric:tabular-nums}#r1SpeedPanel .r1h{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:2px 0}'
+    + '#r1SpeedPanel .r1h span{color:#5d636b;flex:1}#r1SpeedPanel button{all:revert;font:600 12px system-ui,sans-serif;color:#15171a;padding:3px 9px;border:1px solid #c9ccd2;border-radius:6px;background:#f6f7f9;cursor:pointer}';
   document.addEventListener('DOMContentLoaded', function () {
     var s = document.createElement('style'); s.textContent = css; document.head.appendChild(s);
     var l = document.createElement('div'); l.id = 'testErpLabel';
     l.textContent = 'R1 \\u00b7 test ERP \\u00b7 live data, saving off \\u00b7 ' + window.__TEST_ERP.branch + ' @ ' + window.__TEST_ERP.sha;
     document.body.appendChild(l);
+    var pb = document.createElement('div'); pb.id = 'r1SpeedPanel'; document.body.appendChild(pb);
+    var sb = document.createElement('button'); sb.id = 'r1SpeedBtn'; sb.type = 'button'; sb.textContent = '\\u23f1 Speed';
+    sb.onclick = function () { pb.style.display = pb.style.display === 'block' ? 'none' : 'block'; slDraw(); };
+    document.body.appendChild(sb);
   });
 })();
 </script>`;
