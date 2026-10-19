@@ -11727,7 +11727,7 @@ const PKS = {
   track: null,      // Track order scan: { last, recent }
   panel: ""         // "dims" or "finish" while that panel is open: a save landing must not redraw it away
 };
-const PKS_GAP_MS = 700;
+const PKS_GAP_MS = 400;
 const PKS_AGREE = 2;
 const PKS_RETRY_MS = 15000;
 const PKS_HIST_KEEP = 80;
@@ -11757,12 +11757,19 @@ function pksBoxOf(p, n) {
   }
   return b;
 }
+/** One read of `code` at time `t`: true when it counts as a new piece. Two reads must agree, and the same label counts
+ * again only after it has been out of sight. Only a STEADY run of reads keeps a label "in sight": a lone read while the
+ * packer swaps pieces (19 Oct) used to keep the old label in sight, so the next identical piece never counted. The waits
+ * follow how fast this phone reads (st.frameMs), so a slow phone holding a label still does not count it twice. */
 function pksFrame(code, t, st) {
   st = st || PKS;
+  const f = st.frameMs || 0, gap = Math.max(PKS_GAP_MS, 4.5 * f), steady = Math.max(150, 2.5 * f);
   const s = st.seen;
-  if (!s || s.code !== code || t - s.last > PKS_GAP_MS) st.seen = { code, last: t, hits: 1, counted: false };
+  /* a new piece: the label was out of sight long enough, and this read does not carry on from the read just before */
+  if (!s || s.code !== code || (t - s.last > gap && t - s.prev > steady)) st.seen = { code, last: t, prev: t, hits: 1, counted: false };
   else {
-    s.last = t;
+    if (t - s.prev <= steady) s.last = t;
+    s.prev = t;
     s.hits++;
   }
   if (!st.seen.counted && st.seen.hits >= PKS_AGREE) {
@@ -11827,7 +11834,7 @@ function pksCount(code, via) {
       pksSaveSoon();
       return { ok: false, kind: "wrong", code: obUC(code), sku: r.sku, why: r.sku + " is not on any order of this list." };
     }
-    if (a.kind === "full") return { ok: false, kind: "full", code: obUC(code), sku: r.sku, why: a.why === "store" ? "The India Store holds no more " + r.sku + " for these orders — receive it in Finished Goods first." : "Every order line for " + r.sku + " is already packed." };
+    if (a.kind === "full") return { ok: false, kind: "full", store: a.why === "store", code: obUC(code), sku: r.sku, why: a.why === "store" ? "The India Store holds no more " + r.sku + " for these orders — receive it in Finished Goods first." : "Every order line for " + r.sku + " is already packed." };
     n = a.taken;
     parts = a.parts;
     left = a.left;
@@ -11965,8 +11972,12 @@ async function pksCamStart() {
     return;
   }
   try {
-    PKS.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+    /* 1080p where the phone has it: a small FNSKU label is read from further away, where the camera can focus (19 Oct) */
+    PKS.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
   } catch (e) {
+    /* A laptop or desktop with no camera is a hand-scanner station, not a fault: the camera box goes, the code box is
+       ready, and nothing is said in red (19 Oct: "we are going to connect a scanner with our laptop or desktop"). */
+    if (e && (e.name === "NotFoundError" || e.name === "OverconstrainedError")) return pksDeskMode();
     pksSay("The camera did not open (" + (e.name || e.message || e) + "). Allow the camera for this site, or use a hand scanner / type the code.", true);
     return;
   }
@@ -11979,7 +11990,9 @@ async function pksCamStart() {
   }
   try {
     if ("BarcodeDetector" in window && (await BarcodeDetector.getSupportedFormats()).includes("code_128"))
-      PKS.det = new BarcodeDetector({ formats: ["code_128", "ean_13", "code_39", "upc_a"] });
+      /* Code 128 only — what FNSKU and SKU labels carry. A product's own EAN / UPC in view was read too, and Code 39 has
+         no check digit, so a half-seen bar could come back as another code (19 Oct: "not working accurately"). */
+      PKS.det = new BarcodeDetector({ formats: ["code_128"] });
   } catch (e) {
     PKS.det = null;
   }
@@ -11994,8 +12007,26 @@ async function pksCamStart() {
   const track = PKS.stream.getVideoTracks()[0];
   const caps = track && track.getCapabilities ? track.getCapabilities() : {};
   $("pksTorch").classList.toggle("hide", !caps.torch);
+  PKS.hasTorch = !!caps.torch;
+  PKS.torch = false; PKS.torchAuto = false; PKS.torchHand = false; PKS.darkSaid = false; PKS.lightAt = 0;
   pksSay(PKS.det ? "Point at the FNSKU label" : "Point at the FNSKU label (reader: ZXing)");
   pksLoop();
+}
+/** No camera here: scan with the hand scanner. The screen stays as it is (Ravi, 19 Oct: "the previous UI … showing the
+ * SKU with details"): the camera box says the hand scanner is ready, and a scan shows the same SKU card as the camera.
+ * The code box keeps the focus, so every scan lands in it. */
+function pksDeskMode() {
+  const cam = document.querySelector("#pksOv .pks-cam");
+  if (cam && !cam.querySelector(".pks-deskmsg")) {
+    const m = document.createElement("div");
+    m.className = "pks-deskmsg";
+    m.style.cssText = "position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:#cbd5e1;font-size:15px;text-align:center;padding:12px";
+    m.innerHTML = '<b style="font-size:17px;color:#fff">Hand scanner ready</b><span>Scan a label — its SKU and details show below</span>';
+    cam.appendChild(m);
+  }
+  pksSay("Ready — scan with the hand scanner");
+  const box = $("pksCode");
+  if (box) { box.placeholder = "Scan with the hand scanner (or type the FNSKU and press Enter)"; box.focus(); }
 }
 function pksZxLoad() {
   if (window.ZXing) return Promise.resolve();
@@ -12022,33 +12053,117 @@ function pksZxRead(v) {
     return null;
   }
 }
-async function pksLoop() {
-  if (!PKS.on || !PKS.stream) return;
+/** Of the labels in view, the one the camera is pointed at: nearest the middle, and inside the middle band — the same
+ * band the ZXing reader looks at. With two labels in view the reader used to take whichever came first, a different one
+ * from frame to frame, so the two frames that must agree before a piece counts seldom did: slow, and now and then the
+ * wrong label (19 Oct). */
+function pksAimed(got, v) {
+  const W = v.videoWidth || 1, H = v.videoHeight || 1;
+  let best = null, bestD = Infinity;
+  (got || []).forEach((x) => {
+    const b = x.boundingBox;
+    if (!x.rawValue || !b) return;
+    const cx = b.x + b.width / 2, cy = b.y + b.height / 2;
+    if (cy < H * 0.25 || cy > H * 0.75) return;
+    const d = Math.hypot((cx - W / 2) / W, (cy - H / 2) / H);
+    if (d < bestD) { bestD = d; best = x.rawValue; }
+  });
+  return best;
+}
+/* each camera start is a new run: a picture callback left from the run before (the app went to the background and came
+   back) ends instead of starting a second reader beside the new one */
+let PKS_RUN = 0;
+async function pksLoop(run) {
+  if (run === undefined) run = ++PKS_RUN;
+  if (!PKS.on || !PKS.stream || run !== PKS_RUN) return;
   const v = $("pksVid");
   let code = null;
   try {
     if (PKS.det) {
-      const got = await PKS.det.detect(v);
-      code = got && got[0] ? got[0].rawValue : null;
+      code = pksAimed(await PKS.det.detect(v), v);
     } else code = pksZxRead(v);
   } catch (e) {
     code = null;
   }
-  if (code && pksFrame(obUC(code), Date.now())) pksHit(code, "camera");
-  PKS.timer = setTimeout(pksLoop, PKS.det ? 90 : 140);
+  /* how fast this phone reads: the pksFrame waits follow it */
+  const now = Date.now();
+  if (PKS.loopAt && now - PKS.loopAt < 2000) PKS.frameMs = PKS.frameMs ? PKS.frameMs * 0.8 + (now - PKS.loopAt) * 0.2 : now - PKS.loopAt;
+  PKS.loopAt = now;
+  if (code && pksFrame(obUC(code), now)) pksHit(code, "camera");
+  if (v) pksLightCheck(v, PKS.hasTorch);
+  /* the phone's own reader looks at each new picture as it arrives (no fixed wait), so the two frames that must agree
+     come in sooner; the ZXing reader keeps its pace — it works on the page itself */
+  if (PKS.det && v && typeof v.requestVideoFrameCallback === "function") { PKS.timer = 0; v.requestVideoFrameCallback(() => pksLoop(run)); }
+  else PKS.timer = setTimeout(() => pksLoop(run), PKS.det ? 90 : 140);
 }
 function pksCamStop() {
   clearTimeout(PKS.timer);
+  PKS_RUN++;
   if (PKS.stream) PKS.stream.getTracks().forEach((t) => t.stop());
   PKS.stream = null;
 }
-/** Ask the camera to keep focusing by itself, where the phone allows it (labels are read close up). */
+/** Ask the camera to keep focusing, and to keep setting its brightness and colour, by itself, where the phone allows it
+ * (labels are read close up, and a shadow or a dim corner moves with the hand). */
 async function pksFocus() {
   try {
     const t = PKS.stream && PKS.stream.getVideoTracks()[0], caps = t && t.getCapabilities ? t.getCapabilities() : {};
-    if ((caps.focusMode || []).includes("continuous")) await t.applyConstraints({ advanced: [{ focusMode: "continuous" }] });
+    const want = {};
+    if ((caps.focusMode || []).includes("continuous")) want.focusMode = "continuous";
+    if ((caps.exposureMode || []).includes("continuous")) want.exposureMode = "continuous";
+    if ((caps.whiteBalanceMode || []).includes("continuous")) want.whiteBalanceMode = "continuous";
+    if (Object.keys(want).length) await t.applyConstraints({ advanced: [want] });
   } catch (e) {
   }
+}
+
+/* ---- DARK AND SHADOW (Ravi, 19 Oct: "scan in dark … in shadows … accurately") ----
+ * Once a second the middle of the picture is weighed (a 32 × 18 copy, nothing heavy). Too dark for a label: the torch
+ * comes on by itself — it also fills the shadow of a hand or the phone over the label — and goes off again once the
+ * light is back. A torch pressed by hand is left as the packer set it. A phone with no torch is told to find light. */
+const PKS_DARK = 55, PKS_LIGHT = 95;     // average grey (0–255) of the middle of the picture: on below, off above
+/** What to do with the torch, from the brightness now: "on", "off" or "" (leave it). Pure, for the tests. */
+function pksLightStep(mean, torchOn, auto, hasTorch) {
+  if (!hasTorch || mean == null) return "";
+  if (!torchOn && mean < PKS_DARK) return "on";
+  if (torchOn && auto && mean > PKS_LIGHT + 60) return "off";   // lit by the torch itself reads brighter: off only when the room is truly light
+  return "";
+}
+function pksMean(v) {
+  const W = v.videoWidth, H = v.videoHeight;
+  if (!W || !H) return null;
+  const c = PKS.lc || (PKS.lc = document.createElement("canvas"));
+  c.width = 32; c.height = 18;
+  const g = c.getContext("2d", { willReadFrequently: true });
+  g.drawImage(v, W * 0.2, H * 0.25, W * 0.6, H * 0.5, 0, 0, 32, 18);
+  const d = g.getImageData(0, 0, 32, 18).data;
+  let s = 0;
+  for (let i = 0; i < d.length; i += 4) s += d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114;
+  return s / (d.length / 4);
+}
+async function pksTorchSet(on, auto) {
+  try {
+    const t = PKS.stream && PKS.stream.getVideoTracks()[0];
+    if (!t) return;
+    await t.applyConstraints({ advanced: [{ torch: on }] });
+    PKS.torch = on;
+    PKS.torchAuto = on && auto;
+    if ($("pksTorch")) $("pksTorch").classList.toggle("on", on);
+  } catch (e) {
+  }
+}
+function pksLightCheck(v, hasTorch) {
+  const now = Date.now();
+  if (now - (PKS.lightAt || 0) < 1000) return;
+  PKS.lightAt = now;
+  let mean = null;
+  try { mean = pksMean(v); } catch (e) { mean = null; }
+  if (mean == null) return;
+  if (PKS.torchHand) return;                          // the packer chose; leave it
+  const step = pksLightStep(mean, !!PKS.torch, !!PKS.torchAuto, hasTorch);
+  if (step === "on") { pksTorchSet(true, true); pksSay("Low light — torch on"); }
+  else if (step === "off") pksTorchSet(false, false);
+  else if (!hasTorch && mean < PKS_DARK && !PKS.darkSaid) { PKS.darkSaid = true; pksSay("Too dark to read — move the label into more light", true); }
+  else if (mean >= PKS_DARK && PKS.darkSaid) { PKS.darkSaid = false; pksSay("Point at the FNSKU label"); }
 }
 let PKS_AC = null;
 /** good: one short high beep · bad: a low buzz · done: two rising beeps. */
@@ -12132,23 +12247,32 @@ if (typeof window.addEventListener === "function") window.addEventListener("befo
     e.returnValue = "";
   }
 });
-/* A hand scanner types the code and presses Enter. Read it wherever the focus is — not only in the box — but never take
- * keys meant for another field (box sizes, the account, the hand-over name). */
+/** What a hand scanner typed, as the label says it: without a symbology prefix some scanners add (]C1, ]E0…), control
+ * characters, or spaces around it. */
+function pksClean(c) {
+  return String(c || "").replace(/[\x00-\x1f\x7f]/g, "").trim().replace(/^\][A-Za-z][0-9A-Za-z]/, "").trim();
+}
+/* A drop-down never takes typing here (19 Oct, laptop scanners): left focused after "Pcs / scan" was changed, it swallowed
+ * the scanner's letters — the options jumped and the scan was lost. Text boxes still keep their own keys. */
 if (typeof document.addEventListener === "function") document.addEventListener("keydown", (e) => {
   if (!PKS.on) return;
   const t = e.target, tag = t && t.tagName || "";
-  if (t && t.id === "pksCode") return;
-  if (/^(INPUT|SELECT|TEXTAREA)$/.test(tag) || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (t && t.id === "pksCode") {
+    /* a scanner set to end with Tab finishes the code like Enter */
+    if (e.key === "Tab" && t.value.trim().length >= 4) { e.preventDefault(); t.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })); }
+    return;
+  }
+  if (/^(INPUT|TEXTAREA)$/.test(tag) || e.ctrlKey || e.metaKey || e.altKey) return;
   const now = Date.now();
   if (now - PKS.keyT > 400) PKS.keyBuf = "";
   PKS.keyT = now;
-  if (e.key === "Enter") {
+  if (e.key === "Enter" || (e.key === "Tab" && PKS.keyBuf.trim().length >= 4)) {
     const c = PKS.keyBuf.trim();
     PKS.keyBuf = "";
     if (c.length >= 4) {
       e.preventDefault();
       PKS.seen = null;
-      pksHit(c, "scanner");
+      pksHit(pksClean(c), "scanner");
     }
     return;
   }
@@ -12176,7 +12300,7 @@ function pksHit(code, via) {
   const r = pksCount(code, via);
   if (!r.ok) {
     PKS.bad = r;
-    PKS.hold = r.kind !== "none";
+    PKS.hold = r.kind !== "none" && !(r.kind === "unknown" && via === "camera");
     pksBeep(false);
     pksFlash(false);
     pksSay(r.kind === "wrong" ? "Wrong article — not counted" : r.kind === "full" ? "Not counted — the orders want no more of it" : "Not counted — unknown label", true);
@@ -12239,6 +12363,7 @@ async function pksStart(mode) {
   await Promise.all([loadPkWt(), PK_LOADED ? null : loadPk().catch(() => {
   }), fnLoad(), typeof ptImgShared === "function" ? ptImgShared().catch(() => {
   }) : null]);
+  if (pksQcMay()) pksQcReady().then((ok) => { if (ok && PKS.on) { if (PKS.mode === "track") pksTrackDraw(); else if (!PKS.panel) pksDraw(); } });
   if (mode === "track") return pksTrackOpen();
   const byOrder = mode === "order";
   /* Each way offers only its own lists: a box list never turns into an order list half way, nor the other way round. */
@@ -12389,7 +12514,7 @@ async function pksTrackOpen() {
     const c = $("pksCode").value.trim();
     if (c) {
       PKS.seen = null;
-      pksHit(c, "typed");
+      pksHit(pksClean(c), "typed");
     }
     $("pksCode").value = "";
   };
@@ -12402,10 +12527,7 @@ async function pksTrackOpen() {
   };
   $("pksTorch").onclick = async () => {
     try {
-      const t = PKS.stream.getVideoTracks()[0];
-      PKS.torch = !PKS.torch;
-      await t.applyConstraints({ advanced: [{ torch: PKS.torch }] });
-      $("pksTorch").classList.toggle("on", PKS.torch);
+      PKS.torchHand = true; await pksTorchSet(!PKS.torch, false);
     } catch (e) {
     }
   };
@@ -12455,6 +12577,7 @@ function pksTrackDraw() {
       <div class="pks-desc">${esc(info.desc || "")}</div>
       <div class="pks-want${left ? "" : " pks-want-none"}"><b>${nf(left)}</b> ${left ? "more wanted by open orders" : "— no open order wants this piece"}</div>
       <div class="pks-facts"><span>India Store <b>${nf(store)}</b></span>${left && store < left ? `<span class="pks-warn">${nf(left - store)} short in the store</span>` : ""}</div>
+      ${pksQcHtml(sku, pksQcWaiting(sku).pcs, "Accept {n} into Finished Goods")}
       ${rows.length ? `<div class="pks-wtab">${rows.map((x) => `<div class="pks-wrow${x.left ? "" : " pks-wrow-done"}"><span><b>${esc(x.no)}</b><small>${esc(x.what)}</small></span><span>wants ${nf(x.qty)}</span><span>packed ${nf(x.got)}</span><span class="pks-wleft">${x.left ? nf(x.left) + " left" : "✓ done"}</span></div>`).join("")}</div>` : ""}
     </div>`;
   }
@@ -12504,14 +12627,14 @@ function pksShow() {
     pksDraw();
   };
   $("pksPer").onchange = () => {
-    PKS.per = Math.max(1, +$("pksPer").value || 1);
+    PKS.per = Math.max(1, +$("pksPer").value || 1); $("pksPer").blur();
   };
   $("pksNext").onclick = pksNextAsk;
   const go = () => {
     const c = $("pksCode").value.trim();
     if (c) {
       PKS.seen = null;
-      pksHit(c, "typed");
+      pksHit(pksClean(c), "typed");
     }
     $("pksCode").value = "";
   };
@@ -12524,10 +12647,7 @@ function pksShow() {
   };
   $("pksTorch").onclick = async () => {
     try {
-      const t = PKS.stream.getVideoTracks()[0];
-      PKS.torch = !PKS.torch;
-      await t.applyConstraints({ advanced: [{ torch: PKS.torch }] });
-      $("pksTorch").classList.toggle("on", PKS.torch);
+      PKS.torchHand = true; await pksTorchSet(!PKS.torch, false);
     } catch (e) {
     }
   };
@@ -12626,6 +12746,7 @@ function pksDraw() {
     card.innerHTML = `<div class="pks-badcard${k === "full" ? " pks-fullcard" : ""}"><div class="pks-badicon">${k === "full" ? "■" : "✕"}</div><div class="pks-big">${title}</div><div class="pks-code">${esc(PKS.bad.sku || PKS.bad.code)}</div>
       ${img ? `<img class="pks-img pks-img-sm" src="${esc(img)}" alt="">` : ""}
       <div class="pks-sub">${esc(PKS.bad.why)} ${k === "unknown" ? "Check its label." : "Do not put it in the box."}</div>
+      ${k === "full" && PKS.bad.store ? pksQcHtml(PKS.bad.sku, pksOrdersWant(PKS.bad.sku) || PKS.per, "Accept {n} from QC and count this piece") : ""}
       ${PKS.hold ? '<button id="pksAside" class="pks-aside">✓ Kept aside — carry on</button>' : ""}</div>`;
   } else if (PKS.allDone) {
     card.innerHTML = `<div class="pks-donecard"><div class="pks-badicon">✓</div><div class="pks-big">Everything on the orders is packed</div>
@@ -12653,6 +12774,124 @@ function pksOrdersHtml(p) {
   const wrong = (p.scan.wrong || []).length;
   return `<div class="pks-list-h">Orders ${esc((p.scan.orders || []).join(", "))}${p.scan.planNo ? (p.scan.orders.length ? " + " : "") + "Amazon plan" : ""} — left to pack${wrong ? ` · <span class="pks-warn">${nf(wrong)} wrong article scan(s)</span>` : ""}</div>` + (rows.length ? rows.map((r) => `<div class="pks-row pks-row-ord${r.left ? "" : " pks-row-done"}"><div><b>${esc(r.sku)}</b><div class="pks-sub">packed ${nf(r.got)} of ${nf(r.qty)}</div></div><div class="pks-q">${r.left ? nf(r.left) : "✓"}</div></div>`).join("") : '<div class="pks-sub">The orders have no pieces of their SKUs in the India Store — receive them in Finished Goods first.</div>');
 }
+/* ---- PIECES STILL WAITING IN QC (Ravi, 19 Oct: "if the product is still in QC according to the site and the scanner is
+ * scanning the product, give the function of approving it so that it can be accepted to finished goods") ----
+ * A piece in the packer's hand can still be on the books as "passed QC, not in India stock yet" (Finished Goods → From QC
+ * — to accept). Then Finish refuses ("not enough stock") and Pack by order stops it. The scanner now says how many are
+ * waiting and, for whoever may accept on the Finished Goods screen (flowMayFg), accepts them right here — the same
+ * accept as that screen (flowFgAccept: a RECEIVE row in the India store, "Received from: QC", logged) — and carries on.
+ * Test orders are left to the Finished Goods screen. */
+const pksQcOn = () => typeof FLOW_ON !== "undefined" && FLOW_ON && typeof flowFgLines === "function" && typeof flowFgAccept === "function";
+const pksQcMay = () => pksQcOn() && typeof flowMayFg === "function" && flowMayFg();
+async function pksQcReady() {
+  if (!pksQcOn()) return false;
+  try {
+    const w = typeof flowFgEnsure === "function" ? flowFgEnsure() : null;
+    if (w) await w;
+  } catch (e) {
+    return false;
+  }
+  return true;
+}
+/** What of this SKU passed QC and is not in India stock yet: the pieces, and the order lines they sit on. */
+let PKS_QC_C = { at: 0, fgi: null, all: [] };     // worked out at most every 3 s (or when the stock changes), not on every scan
+function pksQcWaiting(sku) {
+  if (!pksQcOn() || typeof FLOW === "undefined" || !FLOW.ppc || typeof QC === "undefined" || QC.checks == null) return { pcs: 0, lines: [] };
+  const fgi = typeof FGI !== "undefined" ? FGI.rows : null;
+  if (Date.now() - PKS_QC_C.at > 3000 || PKS_QC_C.fgi !== fgi) {
+    let all = [];
+    try {
+      all = flowFgLines().filter((x) => !x.r.__t);
+    } catch (e) {
+      all = [];
+    }
+    PKS_QC_C = { at: Date.now(), fgi, all };
+  }
+  const lines = PKS_QC_C.all.filter((x) => obUC(x.r.sku) === obUC(sku));
+  return { pcs: lines.reduce((s, x) => s + flowFgToAccept(x.r, x.s), 0), lines };
+}
+/** Accept up to `want` pieces of this SKU from QC into the India store, line by line. */
+async function pksQcAccept(sku, want) {
+  let left = want, got = 0;
+  for (const x of pksQcWaiting(sku).lines) {
+    if (left <= 0) break;
+    const n = Math.min(left, flowFgToAccept(x.r, x.s));
+    if (n <= 0) continue;
+    const err = await flowFgAccept(x, n, "accepted from Scan to pack");
+    if (err) return { got, err };
+    got += n;
+    left -= n;
+  }
+  return { got, err: "" };
+}
+/** How many more of this SKU the list's orders want (Pack by order). */
+function pksOrdersWant(sku) {
+  const p = PKS.p;
+  if (!p || !packGuarded(p)) return 0;
+  const r = PACK_CORE.leftBySku(pksOrderLines(), p.scan.packed).find((x) => obUC(x.sku) === obUC(sku));
+  return r ? Math.max(0, (+r.qty || 0) - (+r.got || 0)) : 0;
+}
+/** The SKUs on this list that the India store holds fewer of than are packed. */
+function pksShort(p) {
+  const need = new Map();
+  (p.boxes || []).forEach((b) => (b.items || []).forEach((it) => need.set(obUC(it.sku), (need.get(obUC(it.sku)) || 0) + pkNum(it.qty))));
+  return [...need].map(([sku, qty]) => ({ sku, qty, have: Math.max(0, +fgiOf(sku).current || 0) })).filter((r) => r.qty > r.have);
+}
+/** One line under a refusal: how many wait in QC, and the button to accept them. */
+function pksQcHtml(sku, want, label) {
+  const w = pksQcWaiting(sku);
+  if (!w.pcs) return "";
+  const n = Math.min(w.pcs, want);
+  return `<div class="pks-qcrow" style="margin-top:10px;padding:10px 12px;border-radius:10px;background:#dcfce7;border:1px solid #86efac;color:#14532d;text-align:left">
+    <div style="margin:0 0 8px;font-size:14px;line-height:1.35;color:#14532d"><b>${nf(w.pcs)}</b> of ${esc(sku)} passed QC and ${w.pcs === 1 ? "is" : "are"} waiting to be accepted into Finished Goods.${w.pcs < want ? ` That covers ${nf(w.pcs)} of the ${nf(want)} needed.` : ""}</div>
+    ${pksQcMay() ? `<button type="button" data-pks-qc="${esc(sku)}" data-pks-qcn="${n}" style="width:100%">${esc(label.replace("{n}", nf(n)))}</button>`
+      : '<div style="margin:0;font-size:13px;color:#14532d">Ask the Finished Goods team to accept them (Finished Goods → From QC — to accept).</div>'}</div>`;
+}
+/** Done refused for stock: say what waits in QC under the Finish panel, with Accept buttons. */
+async function pksQcOffer() {
+  const p = PKS.p;
+  if (!p || !(await pksQcReady()) || PKS.panel !== "finish") return;
+  const box = document.querySelector("#pksCard .pks-dims");
+  if (!box) return;
+  const shorts = pksShort(p), all = shorts.every((r) => pksQcWaiting(r.sku).pcs >= r.qty - r.have);
+  const html = shorts.map((r) => pksQcHtml(r.sku, r.qty - r.have, all && shorts.length === 1 ? "Accept {n} from QC and finish" : "Accept {n} from QC")).join("");
+  let el = $("pksQcBox");
+  if (!el) { el = document.createElement("div"); el.id = "pksQcBox"; box.appendChild(el); }
+  el.innerHTML = html;
+}
+/** Accept pressed: under the Finish panel (then Done again once nothing is short), on a refused piece (then it counts),
+ * or on the Track card (then the card shows the new stock). */
+async function pksQcPress(btn) {
+  const sku = btn.dataset.pksQc, n = +btn.dataset.pksQcn || 0;
+  if (!sku || !(n > 0) || btn.disabled) return;
+  btn.disabled = true;
+  btn.textContent = "Accepting…";
+  const r = await pksQcAccept(sku, n);
+  if (r.err) {
+    btn.disabled = false;
+    btn.textContent = "Try again";
+    pksSay((r.got ? `${nf(r.got)} accepted, then: ` : "Not accepted: ") + r.err, true);
+    return;
+  }
+  pksBeep(true);
+  pksSay(`${nf(r.got)} of ${sku} accepted from QC into Finished Goods — India stock`);
+  if (PKS.mode === "track") return pksTrackDraw();
+  if (PKS.panel === "finish") {
+    if (!pksShort(PKS.p).length) return pksDone();       // nothing short any more: finish, as was asked
+    return pksQcOffer();
+  }
+  if (PKS.bad && PKS.bad.kind === "full" && PKS.bad.store) {   // the refused piece: now there is stock for it
+    const code = PKS.bad.code;
+    PKS.hold = false;
+    PKS.bad = null;
+    PKS.seen = null;
+    pksHit(code, "qc");
+  }
+}
+if (typeof document.addEventListener === "function") document.addEventListener("click", (e) => {
+  const b = PKS.on && e.target && e.target.closest && e.target.closest("[data-pks-qc]");
+  if (b) { e.preventDefault(); pksQcPress(b); }
+});
 function pksFinishAsk() {
   if (PKS.hold) return pksSay('Tap "Kept aside" first.', true);
   const p = PKS.p, card = $("pksCard");
@@ -12693,6 +12932,7 @@ async function pksDone() {
   }
   if (res.err) {
     pksSay("Not done — " + res.err, true);
+    pksQcOffer();
     return;
   }
   PKS.dirty = true;
@@ -27824,6 +28064,11 @@ function flowChallanForKeys(keys) {
   const pcs = [...new Set(rows.map(x => flowPlanPrinter(x.s)).filter(Boolean))];
   return flowChallanDialog(rows, pcs.length === 1 ? pcs[0] : null);
 }
+/** Under a challan line: "of 446 · 400 already made / with karigars" when part of the order needs no fabric (19 Oct). */
+function flowDoneTxt(x) {
+  const q = +x.r.qty || 0, d = Math.round(q * (1 - flowRemFrac(x.r, x.s)));
+  return d > 0 ? `<div class="muted" style="font-size:10px;white-space:nowrap">of ${nf(q)} · ${nf(d)} already made / with karigars</div>` : '';
+}
 function flowChallanDialog(rows, pcode, rufRows, pre) {
   /* pre (18 Oct, the size challan): what to send on each line, worked out FIFO — those lines come ticked with those figures. */
   const preOf = x => (pre && x && x.s ? pre.get(x.s.key) : null);
@@ -27851,7 +28096,7 @@ function flowChallanDialog(rows, pcode, rufRows, pre) {
       <td class="num">${x.s.fabUnit === 'pcs'
         /* PART OF IT FOR NOW (Ravi, 15 Oct: "order ke 100 pcs h but me bhej 50 hi raha hu to wo partially challan bana saku"):
          * the pieces can be fewer than are owed; the rest stays in Demand → RFD, and the line says it went in part. */
-        ? `<input data-chp="${i}" type="number" min="1" step="1" max="${flowFabOwed(x.r, x.s).left}" value="${pr ? pr.pcs : flowFabOwed(x.r, x.s).left}" title="Send fewer pieces for now — the rest stays in Demand" style="width:84px;padding:3px 6px;font-size:12px">`
+        ? `<input data-chp="${i}" type="number" min="1" step="1" max="${flowFabOwed(x.r, x.s).left}" value="${pr ? pr.pcs : flowFabOwed(x.r, x.s).left}" title="Send fewer pieces for now — the rest stays in Demand" style="width:84px;padding:3px 6px;font-size:12px">${flowDoneTxt(x)}`
         : (pr ? `${nf(pr.pcs)} <span class="muted" style="font-size:10px">of ${nf(x.r.qty)}</span>` : nf(x.r.qty))}</td>
       <td class="num"><input data-chm="${i}" type="number" step="0.01" value="${esc((pr ? pr.metres : flowFabOwed(x.r, x.s).metres) || '')}" style="width:90px;padding:3px 6px;font-size:12px">${x.s.fabSent > 0 ? `<div class="muted" style="font-size:10px">${nf(x.s.fabSent)} ${x.s.fabUnit} sent already</div>` : ''}${+(p.fabric && p.fabric.fromPrinted) ? `<div class="muted" style="font-size:10px">${nf(p.fabric.fromPrinted)} ${p.fabric.printedUnit === 'pcs' ? 'pcs' : 'm'} from printed stock</div>` : ''}</td>
       <td style="font-size:11px">${c.short ? `<b style="color:#b91c1c">⚑ short ${nf(c.short)} m</b>` : '<span style="color:#166534">covered</span>'}</td></tr>`; }).join('') + rufHtml;
@@ -29879,16 +30124,20 @@ function flowByPrintTable(rows) {
   const g = new Map();
   rows.filter(x => x.s.route !== 'stitch').forEach(x => {
     const p = x.s.plan || {}, w = flowPrintWhat(x.r, p), tp = flowToPrint(x.r, p), pc = flowPlanPrinter(x.s);
+    /* ONLY WHAT IS STILL OWED (Ravi, 19 Oct: the row said 447 pcs, the challan 47 — 400 were already issued to karigars).
+     * The total is what the challan will offer: the order less what is cut / issued / passed, less fabric already sent. */
+    const o = flowFabOwed(x.r, x.s), rem = flowRemFrac(x.r, x.s), qty = +x.r.qty || 0;
     const k = (x.r.__t ? 'T|' : 'R|') + (pc || '?') + '|' + (w.code || '?' + w.label);
-    const e = g.get(k) || { w, pc, pname: (p.printer && p.printer.name) || '', keys: [], orders: new Set(), metres: 0, pcs: 0, test: !!x.r.__t };
-    e.keys.push(x.s.key); e.orders.add(x.r.orderNo); e.metres += tp.metres; e.pcs += tp.pcs; g.set(k, e);
+    const e = g.get(k) || { w, pc, pname: (p.printer && p.printer.name) || '', keys: [], orders: new Set(), metres: 0, pcs: 0, ord: 0, done: 0, test: !!x.r.__t };
+    e.keys.push(x.s.key); e.orders.add(x.r.orderNo); e.metres += o.metres;
+    e.pcs += x.s.fabUnit === 'pcs' ? o.left : Math.round(tp.pcs * rem); e.ord += qty; e.done += Math.round(qty * (1 - rem)); g.set(k, e);
   });
   FLOW_GROUPS = [...g.values()].sort((a, b) => b.orders.size - a.orders.size || b.metres - a.metres);
   const body = FLOW_GROUPS.map((e, i) => `<tr><td class="frz" style="text-align:left">${e.w.needDir ? '<b style="color:#b91c1c">direction not picked</b>' : e.w.code ? `<b>${esc(e.w.code)}</b>` : '<b style="color:#b91c1c">no fabric SKU</b>'}${e.test ? ' <span class="navbadge" style="background:#7c3aed;position:static">TEST</span>' : ''}
       <div class="muted" style="font-size:10.5px">${esc(e.w.mode)} · ${esc(e.w.label)}</div></td>
     <td style="text-align:left;font-size:12px">${[...e.orders].map(esc).join('<br>')}</td>
     <td class="num">${nf(e.keys.length)}</td>
-    <td class="num"><b>${e.w.kind === 'sku' ? nf(e.pcs) + ' pcs' : nf(flowR2(e.metres)) + ' m'}</b></td>
+    <td class="num"><b>${e.w.kind === 'sku' ? nf(e.pcs) + ' pcs' : nf(flowR2(e.metres)) + ' m'}</b>${e.done > 0 ? `<div class="muted" style="font-size:10.5px">of ${nf(e.ord)} pcs ordered · ${nf(e.done)} already made / with karigars</div>` : ''}</td>
     <td style="text-align:left">${e.pname ? esc(e.pname) : '<span class="muted">not chosen</span>'}</td>
     <td><button data-flchg="${i}" style="width:auto;padding:3px 10px;font-size:12px">${e.orders.size > 1 ? `One challan for ${e.orders.size} orders` : 'Challan'}</button></td></tr>`).join('');
   return `<thead><tr><th class="frz" style="text-align:left">Printed fabric</th><th style="text-align:left">Orders</th><th>Lines</th><th>To print</th><th style="text-align:left">Printer</th><th></th></tr></thead><tbody>`
@@ -42551,16 +42800,19 @@ function soGuessOf(sku) {
     color: g.color || '', size: g.size || '' };
 }
 /** What a B2B line carries beyond SKU and quantity. */
-const SO_B2B_KEYS = ['brand', 'img', 'itemName', 'label', 'material', 'size', 'customization', 'extra'];
-/** Ravi's sheet, column by column, with the names people actually type. */
+const SO_B2B_KEYS = ['brand', 'img', 'itemName', 'color', 'label', 'material', 'size', 'customization', 'extra'];
+/** Ravi's sheet, column by column, with the names people actually type. 19 Oct: "Item Name" is now "Article", and the
+ * colour name has a column of its own (Brand Name · Image Link · SKU · Article · Color · Size · LABEL · Material · Qty ·
+ * Customization · Delivery Date). An old sheet with Item Name still reads. */
 const SO_B2B_COLS = [
   { k: 'brand', t: 'Brand Name', alias: ['brand name', 'brand'] },
   { k: 'img', t: 'Image Link', alias: ['image link', 'image', 'image url', 'photo', 'picture'] },
   { k: 'sku', t: 'SKU', alias: ['sku'] },
-  { k: 'itemName', t: 'Item Name', alias: ['item name', 'item', 'product name', 'product'] },
+  { k: 'itemName', t: 'Article', alias: ['article', 'article name', 'item name', 'item', 'product name', 'product'] },
+  { k: 'color', t: 'Color', alias: ['color', 'colour', 'color name', 'colour name'] },
+  { k: 'size', t: 'Size', alias: ['size'] },
   { k: 'label', t: 'LABEL', alias: ['label', 'label details'] },
   { k: 'material', t: 'Material', alias: ['material', 'fabric'] },
-  { k: 'size', t: 'Size', alias: ['size'] },
   { k: 'qty', t: 'Qty', alias: ['qty', 'quantity'] },
   { k: 'customization', t: 'Customization', alias: ['customization', 'customisation', 'custom', 'customization details', 'customisation details'] },
   { k: 'deliveryDate', t: 'Delivery Date', alias: ['delivery date'] },
@@ -42724,7 +42976,7 @@ function soFormLines() {
   if (soIsB2B(($('sof_channel') || {}).value)) {
     const inp = (i, f, l, w, ph) => `<input data-sof="${f}" data-i="${i}" value="${esc(l[f] == null ? '' : l[f])}" placeholder="${ph || ''}"${d} style="width:${w}px">`;
     $('sof_table').innerHTML = '<thead><tr>'
-      + ['#', 'Image', 'Brand', 'SKU', 'Item name', 'Label', 'Material', 'Size', 'Customization', 'Qty', 'Delivery', ''].map((h, i) =>
+      + ['#', 'Image', 'Brand', 'SKU', 'Article', 'Color', 'Size', 'Label', 'Material', 'Qty', 'Customization', 'Delivery', ''].map((h, i) =>
         `<th${i === 9 ? ' class="num"' : ''}>${h}</th>`).join('') + '</tr></thead><tbody>'
       + slice.map((l, k) => {
         const i = from + k;
@@ -42734,12 +42986,13 @@ function soFormLines() {
           + `<td>${inp(i, 'brand', l, 110, 'brand')}</td>`
           + `<td><input data-sof="sku" data-i="${i}" value="${esc(l.sku)}" placeholder="blank = new code"${d} style="width:140px;font-family:ui-monospace,monospace;text-transform:uppercase">`
           + `<div id="sof_meta_${i}" style="font-size:10.5px;text-align:left">${soB2BMeta(l.sku)}</div></td>`
-          + `<td>${inp(i, 'itemName', l, 160, 'item name')}</td>`
+          + `<td>${inp(i, 'itemName', l, 160, 'article')}</td>`
+          + `<td>${inp(i, 'color', l, 110, 'color name')}</td>`
+          + `<td>${inp(i, 'size', l, 80, 'size')}</td>`
           + `<td>${inp(i, 'label', l, 120, 'No, or the details')}</td>`
           + `<td>${inp(i, 'material', l, 100, 'material')}</td>`
-          + `<td>${inp(i, 'size', l, 80, 'size')}</td>`
-          + `<td>${inp(i, 'customization', l, 140, 'No, or the details')}${extra ? `<div class="muted" style="font-size:10.5px;max-width:160px;white-space:normal">${esc(extra)}</div>` : ''}</td>`
           + `<td class="num"><input data-sof="qty" data-i="${i}" type="number" step="1" min="0" value="${esc(l.qty)}"${d} style="width:80px;text-align:right"></td>`
+          + `<td>${inp(i, 'customization', l, 140, 'No, or the details')}${extra ? `<div class="muted" style="font-size:10.5px;max-width:160px;white-space:normal">${esc(extra)}</div>` : ''}</td>`
           + `<td><input data-sof="deliveryDate" data-i="${i}" type="date" value="${esc(l.deliveryDate)}"${d}></td>`
           + `<td>${ro ? '' : `<button class="ghost" data-sofdel="${i}" style="padding:2px 8px;color:var(--bad)">✕</button>`}</td></tr>`;
       }).join('') + '</tbody>';
@@ -42837,8 +43090,8 @@ function soTemplate() {
   if (soIsB2B(($('sof_channel') || {}).value)) {
     ptDownload('b2b-order-lines', [
       SO_B2B_COLS.map(c => c.t).map(csvCell).join(','),
-      ['Crate & Barrel', 'https://example.com/photo.jpg', 'RTC23-6060', 'Square Tablecloth Indigo', 'Yes - woven brand label at hem', 'Cotton cambric', '60x60', 120, 'No', '10-11-2026'].map(csvCell).join(','),
-      ['Crate & Barrel', '', '', 'Napkin set of 4 with embroidery', 'No', 'Linen', '20x20', 300, 'Yes - logo embroidered in corner', ''].map(csvCell).join(','),
+      ['Crate & Barrel', 'https://example.com/photo.jpg', 'RTC23-6060', 'Square Tablecloth', 'Indigo', '60x60', 'Yes - woven brand label at hem', 'Cotton cambric', 120, 'No', '10-11-2026'].map(csvCell).join(','),
+      ['Crate & Barrel', '', '', 'Napkin set of 4 with embroidery', 'Natural', '20x20', 'No', 'Linen', 300, 'Yes - logo embroidered in corner', ''].map(csvCell).join(','),
       [].join(','),
       ['A SKU not in the Master Database goes on the Custom SKUs list with its brand. A blank SKU is given a code.'].map(csvCell).join(','),
       ['Label and Customization: write No, or the details. Any other column you add is kept on the line.'].map(csvCell).join(','),
@@ -42959,7 +43212,7 @@ function soB2BRows(rows) {
     if (i >= 0) at[c.k] = i;
   });
   if (at.qty == null || (at.sku == null && at.itemName == null))
-    return { err: 'That file needs a Qty column and a SKU or Item Name column. Download the B2B template to see the shape.' };
+    return { err: 'That file needs a Qty column and a SKU or Article column. Download the B2B template to see the shape.' };
   const used = new Set(Object.values(at));
   const extraCols = head.map((h, i) => [h, i]).filter(([h, i]) => h && !used.has(i));
   const lines = [], errors = [];
@@ -42976,7 +43229,7 @@ function soB2BRows(rows) {
     const extra = {};
     extraCols.forEach(([h, i]) => { const v = String(r[i] == null ? '' : r[i]).trim(); if (v) extra[h] = v; });
     const line = { sku, qty, deliveryDate: dd || '', orderTypeKey: ($('sof_type') || {}).value || 'regular', priority: '' };
-    ['brand', 'img', 'itemName', 'label', 'material', 'size', 'customization'].forEach(k => { const v = cell(k); if (v) line[k] = v; });
+    ['brand', 'img', 'itemName', 'color', 'label', 'material', 'size', 'customization'].forEach(k => { const v = cell(k); if (v) line[k] = v; });
     if (Object.keys(extra).length) line.extra = extra;
     lines.push(line);
   });
@@ -43111,7 +43364,7 @@ async function soFormSave(place) {
         try { was = await ptGet('pt_customSkus/' + sku); } catch (e) { customUnread++; continue; }
         if (was && typeof was === 'object' && Object.keys(was).length) continue;
         patch['pt_customSkus/' + sku] = {
-          sku, articleType: '', subtype: '', color: '', size: l.size || '',
+          sku, articleType: '', subtype: '', color: l.color || '', size: l.size || '',
           brand: l.brand || '', packOf: '', fabric: '', cuttingRequired: true, consumption: 0,
           isZip: false, chainLength: null, zipQty: null, isRuffle: false, ruffleMeters: null, ruffleFabric: '',
           fillerFabricRequired: false, standardFillingQty: null, inventoryValuationPrice: 0,
@@ -43196,10 +43449,10 @@ function soReview(id) {
           value="${esc(o.saRemarks || '')}" placeholder="Required to send it back; optional to approve"></label>
       </div>
       <div class="xlwrap" style="max-height:34vh;border:1px solid var(--line);border-radius:10px;margin-top:10px">
-        <table class="xl"><thead><tr><th>SKU</th><th>Image</th>${soIsB2B(o.channel) ? '<th>Brand</th><th>Item</th><th>Label</th><th>Material</th><th>Size</th><th>Customization</th>' : ''}<th class="num">Qty</th><th>Delivery</th><th>In order book</th></tr></thead>
+        <table class="xl"><thead><tr><th>SKU</th><th>Image</th>${soIsB2B(o.channel) ? '<th>Brand</th><th>Article</th><th>Color</th><th>Size</th><th>Label</th><th>Material</th><th>Customization</th>' : ''}<th class="num">Qty</th><th>Delivery</th><th>In order book</th></tr></thead>
         <tbody>${s.groups.slice(0, 300).map(g => { const bl = soIsB2B(o.channel) ? (soLines(o).find(x => obUC(x.sku) === obUC(g.sku)) || {}) : null; return `<tr><td style="font-family:ui-monospace,monospace;text-align:left">${esc(g.sku)}${bl && !(PTG.mdb || []).some(m => obUC(m.sku) === obUC(g.sku)) ? '<div style="font-size:10px;color:#7f6000">custom SKU</div>' : ''}</td>`
           + (bl && bl.img ? ptImgCellSrc(g.sku, bl.img) : ptImgCell(g.sku))
-          + (bl ? ['brand', 'itemName', 'label', 'material', 'size', 'customization'].map(k => `<td style="text-align:left;white-space:normal;max-width:180px;font-size:12px">${esc(bl[k] || '') || '<span class="muted">—</span>'}</td>`).join('') : '')
+          + (bl ? ['brand', 'itemName', 'color', 'size', 'label', 'material', 'customization'].map(k => `<td style="text-align:left;white-space:normal;max-width:180px;font-size:12px">${esc(bl[k] || '') || '<span class="muted">—</span>'}</td>`).join('') : '')
           + `<td class="num" style="font-weight:700">${nf(g.qty)}</td>`
           + `<td>${esc(g.delivery) || '<span class="muted">—</span>'}</td>`
           + `<td>${g.inBook ? '<span class="pill pill-ok">already</span>' : '<span class="muted">will be added</span>'}</td></tr>`; }).join('')}</tbody>
@@ -43271,7 +43524,7 @@ async function soApproveRun(id) {
       l.customization && !/^no$/i.test(l.customization) && 'Customization: ' + l.customization].filter(Boolean) : [];
     recs.push(Object.assign({ id: 'ob_so_' + obUC(o._id) + '_' + s, orderNo: o._id, orderDate: o.orderDate || now.slice(0, 10),
       sku: s, articleType: String(m.articleType || ''), articleSubtype: String(m.subtype || ''),
-      color: String(m.color || ''), size: String(m.size || l.size || ''), qty,
+      color: String(m.color || (soIsB2B(o.channel) ? l.color : '') || ''), size: String(m.size || l.size || ''), qty,
       remarks: 'From approved Sales Order' + (o.buyerName ? ' · ' + o.buyerName : '') + (b2bBits.length ? ' · ' + b2bBits.join(' · ') : ''), src: 'SO',
       uploadedBy: ME.email, uploadedAt: now }, o.saleMonth ? { saleMonth: o.saleMonth } : {},
       soIsB2B(o.channel) ? { needsSku: !mdbBy.has(s), shopImg: String(l.img || ''), brand: String(l.brand || ''),
@@ -70756,7 +71009,9 @@ function mobSync(which) {
    * named a screen (a link, a reload). */
   mobHistInit();
   if ($('paneMobHome')) $('paneMobHome').classList.add('hide');
-  if (!MOB_HOME_SEEN && which) { MOB_HOME_SEEN = true; if (!MOB_HASH0) setTimeout(() => { mobHomeShow(); mobMarkHome(); }, 0); }
+  /* (not when Home was already opened by hand: the screen just pressed stays in front — 19 Oct, Home came back over
+     Orders on the first press after Home) */
+  if (!MOB_HOME_SEEN && which) { MOB_HOME_SEEN = true; if (!MOB_HASH0 && !$('paneMobHome')) setTimeout(() => { mobHomeShow(); mobMarkHome(); }, 0); }
   mobPaneIn(document.querySelector('.main > [id^="pane"]:not(.hide)'));
   if ($('mobTitle')) $('mobTitle').textContent = ($('pageTitle') && $('pageTitle').textContent) || '';
   mobUserTabs();
@@ -70771,16 +71026,40 @@ function mobSync(which) {
 }
 
 /** Every screen this account has, under the menu's own group names, drawn from the menu itself so the two never differ. */
+/* these two show their menu link only to whoever may open them, under a key of their own */
+const MOB_SELF_GATED = ['flow', 'gdesk'];
+/** A menu link this account may open. */
+const mobLinkOk = a => {
+  const k = String(a.getAttribute('href') || '').replace(/^#/, '');
+  if (!k || a.classList.contains('hide') || a.style.display === 'none') return false;
+  /* the Vendors group is hidden on purpose for production accounts (nav.js, NAV_PROD_ONLY): it stays hidden here too */
+  const g = a.closest('.navwrap') && a.closest('.navwrap').querySelector('.navgrp');
+  if (g && g.dataset.grp === 'vendors' && g.classList.contains('hide')) return false;
+  return mobMay(k) || MOB_SELF_GATED.includes(k);
+};
+const mobLinkName = a => String(a.querySelector('.nav-t') ? a.querySelector('.nav-t').textContent : [...a.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent).join('')).trim();
+/** Every screen this account can open, in the menu's order, with the menu's name (the dashboard is Home itself). */
+function mobMyScreens() {
+  const seen = new Set();
+  /* by each screen's own access, not its menu group's: the Production group counts only production screens (its
+     data-tabs), so an account with just the vendor screens kept in it had the whole group hidden — 19 Oct */
+  return [...document.querySelectorAll('.side .navwrap a.nav')].filter(mobLinkOk)
+    .map(a => ({ k: a.getAttribute('href').replace(/^#/, ''), name: mobLinkName(a), a }))
+    .filter(x => x.k !== 'dash' && !seen.has(x.k) && seen.add(x.k));
+}
+/** One line under a screen's name on Home, for the screens Home has no figure for. */
+const MOB_SUB = { pcut: 'cutting entries', ppress: 'pressing entries', qc: 'checks, alteration, returns', vord: 'orders with printers and vendors',
+  vreq: 'raise and approve vendor requests', rfd: 'fabric asked for by printers', vlog: 'what vendors sent', vend: 'what a printer sees',
+  palloc: 'fabric given to printers', fab: 'fabric stock', acc: 'zips, labels and the rest', fba: 'shipments to Amazon', so: 'B2B sales orders',
+  pmdb: 'every SKU and its fabric', mst: 'vendors, rates, masters', hr: 'people and pay', rep: 'the week in figures', pa: 'production figures',
+  ka: 'each karigar\'s work', top: 'best sellers on Amazon', article: 'articles to review', target: 'monthly targets', adj: 'Shopify stock changes',
+  shopify: 'Shopify stock', flow: 'every order through the factory', gdesk: 'greige fabric in and out' };
 function mobMoreOpen() {
-  const may = a => {
-    const k = String(a.getAttribute('href') || '').replace(/^#/, '');
-    if (!k || a.classList.contains('hide') || a.style.display === 'none') return false;
-    return mobMay(k) || k === 'flow' || k === 'gdesk';     // these two show their link only to whoever may open them
-  };
+  const may = mobLinkOk;
   const groups = [...document.querySelectorAll('.side .navwrap')].map(w => {
     const head = w.querySelector('.navgrp');
-    if (!head || head.classList.contains('hide')) return '';
-    const links = [...w.querySelectorAll('a.nav')].filter(may);
+    if (!head) return '';
+    const links = [...w.querySelectorAll('a.nav')].filter(may);     // a hidden group still lists the screens this account has (mobMyScreens)
     if (!links.length) return '';
     const name = String(head.textContent || '').replace(/[▸▾]/g, '').trim();
     return `<div class="mob-grp"><div class="mob-grp-h">${mobEsc(name)}</div>` + links.map(a => {
@@ -70791,7 +71070,9 @@ function mobMoreOpen() {
       return `<button type="button" class="mob-link${k === TAB_NOW ? ' on' : ''}" data-mob-tab="${mobEsc(k)}"><span>${mobEsc(String(t).trim())}</span>${bd}</button>`;
     }).join('') + '</div>';
   }).join('');
-  const install = $('installBtn') && !$('installBtn').classList.contains('hide');
+  /* Install app is offered until the app is opened from the home screen. The browser's own window comes up only on
+     Android Chrome; an iPhone never offers one, so there the button shows how (mobInstallHow). — 19 Oct */
+  const install = !mobInstalled();
   $('mobMoreList').innerHTML = '<div class="ml-search mob-moreq"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="mobMoreQ" type="search" placeholder="Find a screen" autocomplete="off"></div>'
     + groups
     + '<div class="mob-grp mob-foot">'
@@ -70823,12 +71104,30 @@ function mobMoreShut() { if ($('mobMoreModal')) $('mobMoreModal').classList.add(
 function mobAct(a) {
   mobMoreShut();
   if (a === 'guide' && $('guideBtn')) $('guideBtn').click();
-  if (a === 'install' && $('installBtn')) $('installBtn').click();
+  if (a === 'install') {
+    if ($('installBtn') && !$('installBtn').classList.contains('hide')) $('installBtn').click();
+    else mobInstallHow();
+  }
   if (a === 'logout' && $('logoutBtn')) $('logoutBtn').click();
   if (a === 'alerts') mobAlertsOn();
   /* (the reload waits until the More menu has shut: shutting it steps the phone's history back, which would cancel a
      reload made at once — 17 Oct) */
   if (a === 'desktop') { try { sessionStorage.setItem('mobViewOff', '1'); localStorage.removeItem('mobView'); } catch (e) { /* nowhere to remember it */ } setTimeout(() => location.reload(), 300); }
+}
+
+/** Opened from the home screen already (Android and iPhone each say so their own way). */
+function mobInstalled() {
+  try { return !!((window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone); } catch (e) { return false; }
+}
+/** How to put the app on the home screen, when the browser has no window of its own for it (iPhone, or Chrome not ready). */
+function mobInstallHow() {
+  const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+  const step = (n, t) => `<div class="ml-kv"><span>${n}</span><b>${t}</b></div>`;
+  const how = ios
+    ? step('1', 'Open this site in Safari') + step('2', 'Tap Share (the square with the arrow) at the bottom') + step('3', 'Tap “Add to Home Screen”, then Add')
+    : step('1', 'Open this site in Chrome') + step('2', 'Tap ⋮ at the top right') + step('3', 'Tap “Install app” or “Add to Home screen”');
+  mobSheet('Install app', 'Ridhi on your home screen, full screen', `<div class="ml-sec">${ios ? 'iPhone' : 'Android'}</div>${how}`
+    + '<p class="muted" style="margin:12px 4px 0;font-size:13px">The Ridhi icon then opens the app straight away, like any other app. Sign in once inside it.</p>');
 }
 
 /* On a phone that chose Desktop view: the way back, at the end of the menu bar. */
@@ -71463,7 +71762,7 @@ function mobHomeDraw() {
   const p = mobHomePane();
   const who = String((typeof ME !== 'undefined' && (ME.name || ME.email)) || '').split('@')[0];
   const hr = new Date().getHours(), hi = hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : 'Good evening';
-  const row = (tab, label, sub, num, tone, act) => mobMay(tab) ? `<button type="button" class="ml-row" ${act ? `data-home-act="${act}"` : `data-home-go="${tab}"`}><span class="ml-m"><b>${mobEsc(label)}</b>${sub ? `<small>${mobEsc(sub)}</small>` : ''}</span>`
+  const row = (tab, label, sub, num, tone, act) => mobMay(tab) || MOB_SELF_GATED.includes(tab) ?`<button type="button" class="ml-row" ${act ? `data-home-act="${act}"` : `data-home-go="${tab}"`}><span class="ml-m"><b>${mobEsc(label)}</b>${sub ? `<small>${mobEsc(sub)}</small>` : ''}</span>`
     + `<span class="ml-r">${num == null ? '' : `<b class="${tone || ''}">${num}</b>`}</span><span class="ml-chev">›</span></button>` : '';
   const sec = (name, rows) => rows.replace(/\s/g, '') ? `<div class="ml-sec">${mobEsc(name)}</div><div class="ml-group">${rows}</div>` : '';
   /* keep what is being typed while Home redraws under it */
@@ -71519,15 +71818,14 @@ function mobHomeDraw() {
       fgPend ? row('fgi', 'Transfers to count in', 'sent from press, not yet stock', mobNum(fgPend), 'ml-warn', 'fgpend') : '',
     ].join('');
     body += need ? sec('Needs you', need) : '';
-    body += sec('Your work', [
-      row('shop', 'Shopify Orders', 'not yet shipped', shopOpen == null ? null : mobNum(shopOpen)),
-      row('pbase', 'Job Work Register', 'issue and receive', null),
-      row('pack', 'Packing List', 'scan to pack, labels, FBA file', null),
-      row('fgi', 'Finished Goods', 'the India store', null),
-      row('ord', 'Order Console', 'every order, the step it is at', null),
-      row('repl', 'Replenishment', 'what to send, Air or Sea', null),
-      row('att', 'Attendance', 'today', null),
-    ].join('')) + `<div class="ml-sum" style="text-align:center">Every other screen you can open is under More.</div>`;
+    /* EVERY screen this person has, in the menu's order (19 Oct, Ravi: "show every screen that person has (Cutting,
+       Pressing, QC, Vendor screens and so on)"). The ones with a figure or a known job carry it; the rest show their name. */
+    const known = { shop: ['Shopify Orders', 'not yet shipped', shopOpen == null ? null : mobNum(shopOpen)], pbase: ['Job Work Register', 'issue and receive'],
+      pack: ['Packing List', 'scan to pack, labels, FBA file'], fgi: ['Finished Goods', 'the India store'], ord: ['Order Console', 'every order, the step it is at'],
+      repl: ['Replenishment', 'what to send, Air or Sea'], att: ['Attendance', 'today'] };
+    const mine = mobMyScreens();
+    body += sec('Your work', mine.map(x => { const k = known[x.k]; return row(x.k, k ? k[0] : x.name, k ? k[1] : (MOB_SUB[x.k] || ''), k ? k[2] : null); }).join(''))
+      + (mine.length ? '' : `<div class="ml-sum" style="text-align:center">No screens are open to this account yet — ask an admin.</div>`);
     mobAlertCheck(Object.assign(lateN == null ? {} : { late: lateN }, pend == null ? {} : { receive: pend }, fgPend == null ? {} : { fgpend: fgPend }));
   }
   p.innerHTML = `<div class="mob-list">${head}<div id="mobHomeBody">${body}</div></div>`;
@@ -72099,6 +72397,37 @@ const MOB_GRID_IC = MOB_SVG('<rect x="4" y="4" width="7" height="7" rx="1.5"/><r
 /** A screen's name short enough for a tab: its first two words ("Job Work Register" → "Job Work"), never ending on "&"
  * ("Finance & HR" stays whole). */
 const mobShortName = n => { const w = String(n || '').trim().split(/\s+/); const k = /^(&|and)$/i.test(w[1] || '') ? 3 : 2; return w.slice(0, k).join(' '); };
+/* A slot taken by another screen carries that screen's own picture, not a grid (19 Oct: "customised according to the
+   user access" — an attendance clerk's bar shows a calendar, a cutter's shows scissors). */
+const MOB_SCREEN_IC = (() => {
+  const S = MOB_SVG, cal = S('<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>'),
+    cut = S('<circle cx="6" cy="7" r="2.5"/><circle cx="6" cy="17" r="2.5"/><path d="M8 8.5 20 18M8 15.5 20 6"/>'),
+    chk = S('<path d="M4 12.5 9 17.5 20 6.5"/>'), list = S('<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>'),
+    chart = S('<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>'), truck = S('<path d="M3 7h11v9H3zM14 10h4l3 3v3h-7"/><circle cx="7" cy="18" r="1.8"/><circle cx="17" cy="18" r="1.8"/>'),
+    people = S('<circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0"/><circle cx="17" cy="9" r="2.4"/><path d="M15.5 14.2A5 5 0 0 1 21 19"/>'),
+    sync = S('<path d="M20 11a8 8 0 0 0-14.6-4.5L4 8M4 13a8 8 0 0 0 14.6 4.5L20 16"/><path d="M4 4v4h4M20 20v-4h-4"/>'),
+    roll = S('<ellipse cx="7" cy="12" rx="3" ry="7"/><path d="M7 5h11a3 7 0 0 1 0 14H7"/>'),
+    iron = S('<path d="M3 17h17v-3a6 6 0 0 0-6-6H8"/><path d="M3 17l2-6h9"/>'),
+    doc = S('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/>'),
+    rupee = S('<path d="M7 4h10M7 9h10M7 4c6 0 6 10 0 10l8 6"/>'), flow = S('<path d="M4 6h10M4 12h16M4 18h7"/><path d="m17 3 3 3-3 3"/>');
+  return { att: cal, hr: rupee, pbase: people, pcut: cut, ppress: iron, qc: chk, qcalt: chk, qcret: chk, ord: list, so: doc,
+    vord: truck, vreq: truck, vend: truck, vlog: truck, rfd: roll, fab: roll, gdesk: roll, gdled: roll, palloc: roll,
+    repl: sync, fba: truck, rep: chart, pa: chart, ka: chart, top: chart, article: list, target: chart,
+    pmdb: list, mst: list, acc: list, adj: sync, shopify: list, shopprod: list, india: MOB_TABS[3].ic,
+    flppc: flow, fldem: flow, flacc: flow, flchl: flow, flcut: flow, flraw: flow, flwip: flow };
+})();
+/** Short tab names for the screens whose menu names are too long for a phone tab, or too alike side by side. */
+const MOB_SHORT = { vreq: 'Requests', vord: 'Vendor', rfd: 'RFD', vlog: 'Vendor log', qc: 'QC', qcalt: 'Alteration', qcret: 'QC return',
+  pcut: 'Cutting', ppress: 'Pressing', pbase: 'Job Work', repl: 'Replenish', fba: 'FBA', rep: 'Reports', pa: 'Production', ka: 'Karigars',
+  pmdb: 'Masters', mst: 'Masters', att: 'Attendance', hr: 'HR', ord: 'Console', so: 'Sales', top: 'Top ASIN', gdesk: 'Greige', acc: 'Accessories' };
+/** The screens this account opened last time (the More menu's Recent list) — they fill an empty slot first. Read once when
+ * the app opens, so the bar does not move while it is being used. */
+let MOB_USED0 = null;
+const mobUsedMost = () => {
+  if (MOB_USED0) return MOB_USED0;
+  try { const r = JSON.parse(localStorage.getItem(MOB_RECENT) || '[]'); MOB_USED0 = Array.isArray(r) ? r : []; } catch (e) { MOB_USED0 = []; }
+  return MOB_USED0;
+};
 function mobUserTabs() {
   const bar = $('mobBar');
   if (!bar) return;
@@ -72111,8 +72440,13 @@ function mobUserTabs() {
     if (!MOB_TAB_FALLBACK[x.k]) return;
     const own = MOB_TAB_FALLBACK[x.k].find(t => mobMay(t) && !used.has(t));
     let pick = null;
-    if (own) pick = { tab: own, t: own === d.tab ? d.t : mobShortName(name(own)), ic: d.ic };
-    else { const next = mine.find(m => !used.has(m.k) && !Object.values(MOB_TAB_FALLBACK).some(f => f[0] === m.k && mobMay(m.k))); if (next) pick = { tab: next.k, t: mobShortName(name(next.k)), ic: MOB_GRID_IC }; }
+    if (own) pick = { tab: own, t: own === d.tab ? d.t : MOB_SHORT[own] || mobShortName(name(own)), ic: d.ic };
+    else {
+      const free = m => !used.has(m.k) && !Object.values(MOB_TAB_FALLBACK).some(f => f[0] === m.k && mobMay(m.k));
+      /* the screens this person opens most come first, then the menu's order */
+      const next = mobUsedMost().map(k => mine.find(m => m.k === k)).find(m => m && free(m)) || mine.find(free);
+      if (next) pick = { tab: next.k, t: MOB_SHORT[next.k] || mobShortName(name(next.k)), ic: MOB_SCREEN_IC[next.k] || MOB_GRID_IC };
+    }
     if (pick) { used.add(pick.tab); Object.assign(x, pick); } else Object.assign(x, { tab: d.tab, t: d.t, ic: d.ic });
     const b = bar.querySelector('[data-mob="' + x.k + '"]');
     if (b) {
