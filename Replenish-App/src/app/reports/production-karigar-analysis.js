@@ -34,21 +34,19 @@ async function ensurePa() {
   if (need) {
     PA.busy = true; renderPa(); renderKa();
     try {
-      await ptLoadGates();
-      if (!PTE.emp) await ptLoadEmp();
-      if (HR.rate === null) HR.rate = ptList(await ptGet('pt_rateList')).map(hrRow).filter(x => x.length && x[1]);
-      if (ATT.rows === null) { ATT.rows = ptList(await ptGet('pt_attend')); ATT.at = ptStamp(); }
-      if (PA.team === null) PA.team = (await ptGet('pt_teamSize')) || {};
-      if (!KA.levels) KA.levels = (await ptGet('pt_articleLevel')) || {};
-      /* Its own try: a refused read means no targets, never a Karigar screen that will not open. */
-      if (!KA.targets) { try { KA.targets = (await ptGet('pt_kaTargets')) || {}; } catch (e) { KA.targets = {}; } }
-      /* The delivery log is where printer capacity actually lives. */
-      if (!VO.rows) {
-        const raw = (await ptGet('pt_vendorOrders')) || {};
-        VO.rows = [];
-        Object.entries(raw).forEach(([code, orders]) => Object.values(orders || {})
-          .forEach(o => { if (o) VO.rows.push(Object.assign({ vendorCode: code }, o)); }));
-      }
+      /* ALL AT ONCE. Only the employee list waits for the order book (it takes the accessories from its masters). */
+      await Promise.all([
+        ptLoadGates().then(() => (PTE.emp ? null : ptLoadEmp())),
+        HR.rate === null && ptGet('pt_rateList').then(v => { HR.rate = ptList(v).map(hrRow).filter(x => x.length && x[1]); }),
+        ATT.rows === null && ptGet('pt_attend').then(v => { ATT.rows = ptList(v); ATT.at = ptStamp(); }),
+        PA.team === null && ptGet('pt_teamSize').then(v => { PA.team = v || {}; }),
+        !KA.levels && ptGet('pt_articleLevel').then(v => { KA.levels = v || {}; }),
+        /* Its own catch: a refused read means no targets, never a Karigar screen that will not open. */
+        !KA.targets && ptGet('pt_kaTargets').then(v => { KA.targets = v || {}; }, () => { KA.targets = {}; }),
+        /* The delivery log is where printer capacity actually lives. Read the one way every screen reads it, so the
+         * vendor map comes with it — filled here by hand, the orders were in and the map never was. */
+        VO.rows === null && ensureVo(),
+      ]);
       PA.err = PTG.err || '';
     } catch (e) { PA.err = e.message || String(e); }
     PA.busy = false; PA.at = ptStamp();
