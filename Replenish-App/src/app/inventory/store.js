@@ -62,14 +62,21 @@ async function ensureStore(force) {
 async function ensureStoreRead() {
   STORE.busy = true;                       // BEFORE anything is drawn — see above
   renderFab();
+  /* Read together — none of these needs another's answer. Each failure keeps its place in the message (errs[i]),
+   * so it reads in the same order it always did. */
   const errs = [];
-  try { STORE.rows = ptList(await ptGet('pt_storeLedger')); } catch (e) { errs.push('the store book (' + (e.message || e) + ')'); STORE.rows = STORE.rows || []; }
-  try { STORE.checks = (await ptGet('pt_storeChecks')) || {}; } catch (e) { STORE.checks = STORE.checks || {}; }
-  if (!PTG.mdb) { try { await ptLoadGates(); } catch (e) { errs.push('the master database'); } }
-  if (!PT.base) { try { PT.base = ptList(await ptGet('pt_baseData')); } catch (e) { errs.push('the Job Work Register'); } }
-  if (VO.rows === null) { try { await ensureVo(); } catch (e) { errs.push('the printers\' orders'); } }
-  if (typeof FLOW_ON !== 'undefined' && FLOW_ON && typeof flowLoad === 'function') { try { await flowLoad(); } catch (e) { /* the flow's receipts wait */ } }
-  STORE.err = errs.length ? 'Could not read ' + errs.join(' or ') + '.' : '';
+  await Promise.all([
+    ptGet('pt_storeLedger').then(v => { STORE.rows = ptList(v); }, e => { errs[0] = 'the store book (' + (e.message || e) + ')'; STORE.rows = STORE.rows || []; }),
+    ptGet('pt_storeChecks').then(v => { STORE.checks = v || {}; }, () => { STORE.checks = STORE.checks || {}; }),
+    /* The Job Work Register after the order book, as before: the order book reads the same register, and the second
+     * read can then be answered from the copy the first one left. */
+    (PTG.mdb ? Promise.resolve() : ptLoadGates().catch(() => { errs[1] = 'the master database'; }))
+      .then(() => (PT.base ? null : ptGet('pt_baseData').then(v => { PT.base = ptList(v); }, () => { errs[2] = 'the Job Work Register'; }))),
+    VO.rows === null ? ensureVo().catch(() => { errs[3] = 'the printers\' orders'; }) : null,
+    typeof FLOW_ON !== 'undefined' && FLOW_ON && typeof flowLoad === 'function' ? flowLoad().catch(() => { /* the flow's receipts wait */ }) : null,
+  ]);
+  const said = errs.filter(Boolean);
+  STORE.err = said.length ? 'Could not read ' + said.join(' or ') + '.' : '';
   STORE.at = ptStamp(); STORE.busy = false;
   renderFab();
 }

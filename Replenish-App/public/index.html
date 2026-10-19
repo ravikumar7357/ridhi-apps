@@ -26967,14 +26967,17 @@ const FLOW_ANGLE = {};   // per Demand view: 'line' or 'stock'
 async function ensureFlow() { await flowEnsureData(); renderFlow(); }
 /** Everything the lines are worked out from — also read by the Finished Goods screen's "From QC — to accept". */
 async function flowEnsureData() {
-  if (!PTG.mdb) { if ($('flMsg')) $('flMsg').textContent = 'Reading the order book…'; await ptLoadGates(); }
+  if (!PTG.mdb && $('flMsg')) $('flMsg').textContent = 'Reading the order book…';
+  /* ALL AT ONCE, the order book with the rest. Everything below that needs the order book waits for it by itself (each
+   * asks ptLoadGates, which reads it once for all of them); nothing else waited for anything. */
   /* Printer Allocation too: PPC's printer is suggested from it. */
   /* The store too: the printed stock PPC sees beside the RFD balance (Store Stock Balance; its Job Work and cutting
    * registers are the ones the order book has already read). */
   /* QC checks and the Finished Goods ledger: the QC bucket and the hand-over read them. */
-  if (typeof QC !== 'undefined' && QC.checks == null) { try { QC.checks = ptList(await ptGet('pt_qcChecks')); } catch (e) { /* the QC bucket waits */ } }
-  if (typeof FGI !== 'undefined' && FGI.rows == null && typeof fgiLoad === 'function') { try { await fgiLoad(); } catch (e) { /* India stock waits */ } }
-  await Promise.all([flowLoad(), flowFabLoad(), (typeof STORE !== 'undefined' && STORE.rows === null ? ensureStore().catch(() => {}) : null), (PAL.printers === null ? palLoad().catch(() => {}) : null), (typeof ensureVo === 'function' ? ensureVo().catch(() => {}) : null),
+  await Promise.all([PTG.mdb ? null : ptLoadGates(),
+    (typeof QC !== 'undefined' && QC.checks == null ? ptGet('pt_qcChecks').then(v => { QC.checks = ptList(v); }, () => { /* the QC bucket waits */ }) : null),
+    (typeof FGI !== 'undefined' && FGI.rows == null && typeof fgiLoad === 'function' ? fgiLoad().catch(() => { /* India stock waits */ }) : null),
+    flowLoad(), flowFabLoad(), (typeof STORE !== 'undefined' && STORE.rows === null ? ensureStore().catch(() => {}) : null), (PAL.printers === null ? palLoad().catch(() => {}) : null), (typeof ensureVo === 'function' ? ensureVo().catch(() => {}) : null),
     (typeof ensureAcc === 'function' ? ensureAcc().catch(() => {}) : null),
     /* The Greige Desk's RFD counts in Demand → RFD on the test link. */
     (FLOW_ON && typeof GD !== 'undefined' && gdAllowed() ? GD.ensure().catch(() => {}) : null)]);
@@ -26983,7 +26986,8 @@ async function flowEnsureData() {
 /* The Fabric register, for the RFD stock Demand shows — read here without drawing the Fabric screen. */
 async function flowFabLoad() {
   if (FAB.rows) return;
-  try { FAB.rows = ptList(await ptGet('pt_fabInvLedger')); await fabAutoLoad(); } catch (e) { FAB.rows = FAB.rows || []; }
+  /* The ledger and what is taken off it, read together. */
+  try { const [v] = await Promise.all([ptGet('pt_fabInvLedger'), fabAutoLoad()]); FAB.rows = ptList(v); } catch (e) { FAB.rows = FAB.rows || []; }
 }
 function flowCounts(rows) {
   const n = {}; FLOW_BUCKETS.forEach(b => { n[b[0]] = 0; });
@@ -57037,14 +57041,21 @@ async function ensureStore(force) {
 async function ensureStoreRead() {
   STORE.busy = true;                       // BEFORE anything is drawn — see above
   renderFab();
+  /* Read together — none of these needs another's answer. Each failure keeps its place in the message (errs[i]),
+   * so it reads in the same order it always did. */
   const errs = [];
-  try { STORE.rows = ptList(await ptGet('pt_storeLedger')); } catch (e) { errs.push('the store book (' + (e.message || e) + ')'); STORE.rows = STORE.rows || []; }
-  try { STORE.checks = (await ptGet('pt_storeChecks')) || {}; } catch (e) { STORE.checks = STORE.checks || {}; }
-  if (!PTG.mdb) { try { await ptLoadGates(); } catch (e) { errs.push('the master database'); } }
-  if (!PT.base) { try { PT.base = ptList(await ptGet('pt_baseData')); } catch (e) { errs.push('the Job Work Register'); } }
-  if (VO.rows === null) { try { await ensureVo(); } catch (e) { errs.push('the printers\' orders'); } }
-  if (typeof FLOW_ON !== 'undefined' && FLOW_ON && typeof flowLoad === 'function') { try { await flowLoad(); } catch (e) { /* the flow's receipts wait */ } }
-  STORE.err = errs.length ? 'Could not read ' + errs.join(' or ') + '.' : '';
+  await Promise.all([
+    ptGet('pt_storeLedger').then(v => { STORE.rows = ptList(v); }, e => { errs[0] = 'the store book (' + (e.message || e) + ')'; STORE.rows = STORE.rows || []; }),
+    ptGet('pt_storeChecks').then(v => { STORE.checks = v || {}; }, () => { STORE.checks = STORE.checks || {}; }),
+    /* The Job Work Register after the order book, as before: the order book reads the same register, and the second
+     * read can then be answered from the copy the first one left. */
+    (PTG.mdb ? Promise.resolve() : ptLoadGates().catch(() => { errs[1] = 'the master database'; }))
+      .then(() => (PT.base ? null : ptGet('pt_baseData').then(v => { PT.base = ptList(v); }, () => { errs[2] = 'the Job Work Register'; }))),
+    VO.rows === null ? ensureVo().catch(() => { errs[3] = 'the printers\' orders'; }) : null,
+    typeof FLOW_ON !== 'undefined' && FLOW_ON && typeof flowLoad === 'function' ? flowLoad().catch(() => { /* the flow's receipts wait */ }) : null,
+  ]);
+  const said = errs.filter(Boolean);
+  STORE.err = said.length ? 'Could not read ' + said.join(' or ') + '.' : '';
   STORE.at = ptStamp(); STORE.busy = false;
   renderFab();
 }

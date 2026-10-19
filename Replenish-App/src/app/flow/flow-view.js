@@ -8,14 +8,17 @@ const FLOW_ANGLE = {};   // per Demand view: 'line' or 'stock'
 async function ensureFlow() { await flowEnsureData(); renderFlow(); }
 /** Everything the lines are worked out from — also read by the Finished Goods screen's "From QC — to accept". */
 async function flowEnsureData() {
-  if (!PTG.mdb) { if ($('flMsg')) $('flMsg').textContent = 'Reading the order book…'; await ptLoadGates(); }
+  if (!PTG.mdb && $('flMsg')) $('flMsg').textContent = 'Reading the order book…';
+  /* ALL AT ONCE, the order book with the rest. Everything below that needs the order book waits for it by itself (each
+   * asks ptLoadGates, which reads it once for all of them); nothing else waited for anything. */
   /* Printer Allocation too: PPC's printer is suggested from it. */
   /* The store too: the printed stock PPC sees beside the RFD balance (Store Stock Balance; its Job Work and cutting
    * registers are the ones the order book has already read). */
   /* QC checks and the Finished Goods ledger: the QC bucket and the hand-over read them. */
-  if (typeof QC !== 'undefined' && QC.checks == null) { try { QC.checks = ptList(await ptGet('pt_qcChecks')); } catch (e) { /* the QC bucket waits */ } }
-  if (typeof FGI !== 'undefined' && FGI.rows == null && typeof fgiLoad === 'function') { try { await fgiLoad(); } catch (e) { /* India stock waits */ } }
-  await Promise.all([flowLoad(), flowFabLoad(), (typeof STORE !== 'undefined' && STORE.rows === null ? ensureStore().catch(() => {}) : null), (PAL.printers === null ? palLoad().catch(() => {}) : null), (typeof ensureVo === 'function' ? ensureVo().catch(() => {}) : null),
+  await Promise.all([PTG.mdb ? null : ptLoadGates(),
+    (typeof QC !== 'undefined' && QC.checks == null ? ptGet('pt_qcChecks').then(v => { QC.checks = ptList(v); }, () => { /* the QC bucket waits */ }) : null),
+    (typeof FGI !== 'undefined' && FGI.rows == null && typeof fgiLoad === 'function' ? fgiLoad().catch(() => { /* India stock waits */ }) : null),
+    flowLoad(), flowFabLoad(), (typeof STORE !== 'undefined' && STORE.rows === null ? ensureStore().catch(() => {}) : null), (PAL.printers === null ? palLoad().catch(() => {}) : null), (typeof ensureVo === 'function' ? ensureVo().catch(() => {}) : null),
     (typeof ensureAcc === 'function' ? ensureAcc().catch(() => {}) : null),
     /* The Greige Desk's RFD counts in Demand → RFD on the test link. */
     (FLOW_ON && typeof GD !== 'undefined' && gdAllowed() ? GD.ensure().catch(() => {}) : null)]);
@@ -24,7 +27,8 @@ async function flowEnsureData() {
 /* The Fabric register, for the RFD stock Demand shows — read here without drawing the Fabric screen. */
 async function flowFabLoad() {
   if (FAB.rows) return;
-  try { FAB.rows = ptList(await ptGet('pt_fabInvLedger')); await fabAutoLoad(); } catch (e) { FAB.rows = FAB.rows || []; }
+  /* The ledger and what is taken off it, read together. */
+  try { const [v] = await Promise.all([ptGet('pt_fabInvLedger'), fabAutoLoad()]); FAB.rows = ptList(v); } catch (e) { FAB.rows = FAB.rows || []; }
 }
 function flowCounts(rows) {
   const n = {}; FLOW_BUCKETS.forEach(b => { n[b[0]] = 0; });
