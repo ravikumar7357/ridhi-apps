@@ -444,6 +444,66 @@ function ptImgOwn() {
   _imgOwnMap = m; _imgOwnFor = PTG.mdb;
   return m;
 }
+/* B2B PICTURES (Ravi, 19 Oct: a picture pasted in the B2B order sheet, no link). This project has no file storage on its
+ * plan, so each one is kept small (400 px JPEG, a few tens of KB) in Firestore b2bimg/<SKU>, with b2bimg/_index naming the
+ * SKUs that have one — one read tells a screen which of its SKUs to fetch, and each is fetched once a visit. */
+const B2BIMG = { map: {}, idx: null, idxAt: 0, asked: new Set() };
+const b2bImgId = sku => obUC(sku).replace(/[\/.#$\[\]]/g, '_');
+async function b2bImgIdx() {
+  if (B2BIMG.idx && Date.now() - B2BIMG.idxAt < 600000) return B2BIMG.idx;
+  if (typeof getDoc !== 'function' || typeof db === 'undefined') return {};
+  try { const s = await getDoc(doc(db, 'b2bimg', '_index')); B2BIMG.idx = (s.exists() && s.data().skus) || {}; }
+  catch (e) { B2BIMG.idx = B2BIMG.idx || {}; }
+  B2BIMG.idxAt = Date.now();
+  return B2BIMG.idx;
+}
+/** Fetch the B2B pictures of these SKUs that exist and are not here yet; patches the picture cells. Returns how many came. */
+async function b2bImgLoad(skus) {
+  const idx = await b2bImgIdx();
+  const want = [...new Set((skus || []).map(obUC))].filter(s => s && idx[b2bImgId(s)] && !B2BIMG.asked.has(s));
+  if (!want.length) return 0;
+  want.forEach(s => B2BIMG.asked.add(s));
+  let got = 0;
+  for (let i = 0; i < want.length; i += 8) {
+    await Promise.all(want.slice(i, i + 8).map(async s => {
+      try { const d = await getDoc(doc(db, 'b2bimg', b2bImgId(s))); if (d.exists() && d.data().d) { B2BIMG.map[s] = d.data().d; got++; } }
+      catch (e) { /* not this one; the rest still come */ }
+    }));
+  }
+  if (got && typeof document !== 'undefined' && document.querySelectorAll) ptImgPatch();
+  return got;
+}
+/** Keep pictures read from a B2B sheet: [{ sku, d (data URL) }]. Returns { saved, failed, ok: Set of SKUs }. */
+async function b2bImgSave(list, orderNo) {
+  const ok = new Set(); let failed = 0;
+  if (typeof setDoc !== 'function' || typeof db === 'undefined') return { saved: 0, failed: list.length, ok };
+  const at = new Date().toISOString(), idx = {};
+  for (const x of list) {
+    const id = b2bImgId(x.sku);
+    try {
+      await setDoc(doc(db, 'b2bimg', id), { sku: obUC(x.sku), d: x.d, order: orderNo || '', by: ME.email || '', at });
+      ok.add(obUC(x.sku)); idx[id] = at; B2BIMG.map[obUC(x.sku)] = x.d; B2BIMG.asked.add(obUC(x.sku));
+    } catch (e) { failed++; }
+  }
+  if (ok.size) {
+    try { await setDoc(doc(db, 'b2bimg', '_index'), { skus: idx }, { merge: true }); if (B2BIMG.idx) Object.assign(B2BIMG.idx, idx); }
+    catch (e) { failed += ok.size; ok.clear(); }
+  }
+  return { saved: ok.size, failed, ok };
+}
+/** A picture from the sheet, made small enough to keep: 400 px on its long side, JPEG on white. '' when the browser
+ * cannot draw it (an EMF / WMF drawing). */
+async function soImgShrink(bytes, ext) {
+  const type = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp' }[String(ext || '').toLowerCase()];
+  if (!type || typeof createImageBitmap !== 'function' || typeof document === 'undefined') return '';
+  try {
+    const bmp = await createImageBitmap(new Blob([bytes], { type }));
+    const k = Math.min(1, 400 / Math.max(bmp.width, bmp.height)), w = Math.max(1, Math.round(bmp.width * k)), h = Math.max(1, Math.round(bmp.height * k));
+    const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+    const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, w, h); g.drawImage(bmp, 0, 0, w, h);
+    return cv.toDataURL('image/jpeg', 0.82);
+  } catch (e) { return ''; }
+}
 function ptImgOf(sku) {
   const k = obUC(sku);
   if (!k) return undefined;
@@ -451,6 +511,7 @@ function ptImgOf(sku) {
    * gets the freshest answer, and one that has neither still gets a picture. */
   const own = ptImgOwn().get(k);
   if (own) return own;
+  if (B2BIMG.map[k]) return B2BIMG.map[k];       // the buyer's own picture, from the B2B sheet
   if (MDBIMG.map[k]) return MDBIMG.map[k];
   const shared = PTIMG.map[k];
   if (shared === IMG_NONE) return '';        // asked, and Amazon has none — not a picture
@@ -550,6 +611,7 @@ const ptIfTab = (tab, fn) => () => {
 };
 
 async function ptImgFill(skus, force, after) {
+  b2bImgLoad(skus).catch(() => {});     // B2B pictures from the order sheet — patched into the cells when they land
   if (MDBIMG.busy) return;
   await mdbImgCacheLoad();
   const own = new Set((PTG.mdb || []).filter(r => r.imageUrl).map(r => obUC(r.sku)));

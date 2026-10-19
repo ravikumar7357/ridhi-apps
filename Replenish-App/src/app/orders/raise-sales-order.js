@@ -405,7 +405,7 @@ function soFormLines() {
   const ro = !soCanEdit((SOX.rows || []).find(x => x._id === SOF.id) || null);
   const d = ro ? ' disabled' : '';
   if ($('sof_up')) $('sof_up').title = soIsB2B(($('sof_channel') || {}).value)
-    ? 'B2B: Template gives the buyer columns. A SKU not in the Master Database, or a blank one, goes on the Custom SKUs list with its brand. Any extra column in the file is kept on the line.'
+    ? 'B2B: Template gives the buyer columns (Excel). No image link? Paste the picture into its row in the .xlsx — it is read and kept. A SKU not in the Master Database, or a blank one, goes on the Custom SKUs list with its brand. Any extra column in the file is kept on the line.'
     : 'A file replaces or adds to the lines below. One unknown SKU rejects the whole file. A negative quantity subtracts from what is already on order.';
   soFormTotals();
   if (soIsB2B(($('sof_channel') || {}).value)) {
@@ -417,7 +417,9 @@ function soFormLines() {
         const i = from + k;
         const extra = l.extra && Object.keys(l.extra).length ? Object.entries(l.extra).map(([a, b]) => a + ': ' + b).join(' · ') : '';
         return `<tr><td class="muted">${i + 1}</td>`
-          + `<td style="padding:3px 6px">${l.img ? `<img src="${esc(l.img)}" alt="" loading="lazy" style="width:40px;height:40px;object-fit:cover;border-radius:6px;display:block;margin-bottom:2px">` : ''}${inp(i, 'img', l, 110, 'image link')}</td>`
+          + `<td style="padding:3px 6px">${(() => { const pic = String(l.img || '').trim() || l.imgData || B2BIMG.map[obUC(l.sku)] || '';
+            return pic ? `<img src="${esc(pic)}" alt="" loading="lazy" style="width:40px;height:40px;object-fit:cover;border-radius:6px;display:block;margin-bottom:2px">` : ''; })()}`
+          + `${!String(l.img || '').trim() && (l.imgData || B2BIMG.map[obUC(l.sku)]) ? '<div class="muted" style="font-size:10px">picture from the sheet</div>' : ''}${inp(i, 'img', l, 110, 'image link')}</td>`
           + `<td>${inp(i, 'brand', l, 110, 'brand')}</td>`
           + `<td><input data-sof="sku" data-i="${i}" value="${esc(l.sku)}" placeholder="blank = new code"${d} style="width:140px;font-family:ui-monospace,monospace;text-transform:uppercase">`
           + `<div id="sof_meta_${i}" style="font-size:10.5px;text-align:left">${soB2BMeta(l.sku)}</div></td>`
@@ -434,6 +436,8 @@ function soFormLines() {
     $('sof_pager').innerHTML = pages > 1 ? `Showing ${nf(from + 1)}–${nf(Math.min(total, from + SOF_PAGE))} of ${nf(total)}
           <button class="ghost" data-sofpg="-1" style="padding:2px 10px"${SOF.page ? '' : ' disabled'}>Back</button>
           <button class="ghost" data-sofpg="1" style="padding:2px 10px"${SOF.page >= pages - 1 ? ' disabled' : ''}>Next</button>` : '';
+    /* a saved order opened again: its pictures from the sheet come from Firestore, once each */
+    b2bImgLoad(slice.map(l => l.sku)).then(n => { if (n && $('sof_table')) soFormLines(); }).catch(() => {});
     return;
   }
   /* ONE ROW PER LINE THAT FITS: the picture, the SKU and what it is share a cell, so nothing is left
@@ -523,15 +527,17 @@ $('ptDlgBody').addEventListener('click', e => {
 /* ---- lines from a file ---- */
 function soTemplate() {
   if (soIsB2B(($('sof_channel') || {}).value)) {
-    ptDownload('b2b-order-lines', [
-      SO_B2B_COLS.map(c => c.t).map(csvCell).join(','),
-      ['Crate & Barrel', 'https://example.com/photo.jpg', 'RTC23-6060', 'Square Tablecloth', 'Indigo', '60x60', 'Yes - woven brand label at hem', 'Cotton cambric', 120, 'No', '10-11-2026'].map(csvCell).join(','),
-      ['Crate & Barrel', '', '', 'Napkin set of 4 with embroidery', 'Natural', '20x20', 'No', 'Linen', 300, 'Yes - logo embroidered in corner', ''].map(csvCell).join(','),
-      [].join(','),
-      ['A SKU not in the Master Database goes on the Custom SKUs list with its brand. A blank SKU is given a code.'].map(csvCell).join(','),
-      ['Label and Customization: write No, or the details. Any other column you add is kept on the line.'].map(csvCell).join(','),
-      ['Order date, order type and channel are picked on the form; Delivery Date is optional, DD-MM-YYYY.'].map(csvCell).join(','),
-    ]);
+    /* AN EXCEL FILE (19 Oct), so a picture can be pasted straight into the Image Link cell of its row — CSV holds no
+     * pictures. The two example rows are examples: replace them. A blank SKU is given a code; Label and Customization
+     * are No or the details; Delivery Date is DD-MM-YYYY. */
+    const bytes = recipeXlsx([SO_B2B_COLS.map(c => c.t),
+      ['Crate & Barrel', 'https://example.com/photo.jpg', 'RTC23-6060', 'Square Tablecloth', 'Indigo', '60x60', 'Yes - woven brand label at hem', 'Cotton cambric', 120, 'No', '10-11-2026'],
+      ['Crate & Barrel', '(paste the picture here)', '', 'Napkin set of 4 with embroidery', 'Natural', '20x20', 'No', 'Linen', 300, 'Yes - logo embroidered in corner', '']],
+      { name: 'B2B order', freeze: 3, cols: {} });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+    a.download = 'b2b-order-lines.xlsx';
+    a.click(); URL.revokeObjectURL(a.href);
     return;
   }
   ptDownload('sales-order-lines', [
@@ -664,17 +670,39 @@ function soB2BRows(rows) {
     const extra = {};
     extraCols.forEach(([h, i]) => { const v = String(r[i] == null ? '' : r[i]).trim(); if (v) extra[h] = v; });
     const line = { sku, qty, deliveryDate: dd || '', orderTypeKey: ($('sof_type') || {}).value || 'regular', priority: '' };
+    if (r.r) line.__row = r.r;          // the sheet's row number: a picture in that row belongs to this line
     ['brand', 'img', 'itemName', 'color', 'label', 'material', 'size', 'customization'].forEach(k => { const v = cell(k); if (v) line[k] = v; });
+    if (line.img && !/^(https?:|data:)/i.test(line.img)) delete line.img;    // words in the picture cell are not a link
     if (Object.keys(extra).length) line.extra = extra;
     lines.push(line);
   });
-  return { lines, errors };
+  return { lines, errors, imgCol: at.img };
 }
 async function soB2BFile(file, rows) {
   const got = soB2BRows(rows);
   if (got.err) { ptDlgMsg(got.err, true); return; }
   if (got.errors.length) { ptDlgMsg('Nothing was loaded. ' + got.errors.slice(0, 6).join(' ') + (got.errors.length > 6 ? ' …and ' + nf(got.errors.length - 6) + ' more problem(s).' : ''), true); return; }
   if (!got.lines.length) { ptDlgMsg('That file has no usable rows.', true); return; }
+  /* PICTURES PASTED IN THE SHEET (Ravi, 19 Oct): a line with no Image Link takes the picture in its own row. One per
+   * row; two in a row, the one in the Image Link column wins. They are saved with the order (b2bImgSave). */
+  let picN = 0, picBad = 0, picLoose = 0;
+  if (/\.xlsx$/i.test(file.name || '') && typeof pkXlsxPictures === 'function' && file.arrayBuffer) {
+    let pics = [];
+    try { pics = await pkXlsxPictures(new Uint8Array(await file.arrayBuffer())); } catch (e) { pics = []; }
+    if (pics.length) {
+      ptDlgMsg(`Reading ${nf(pics.length)} picture(s) from the sheet…`);
+      const byRow = new Map();
+      pics.forEach(p => { const was = byRow.get(p.row); if (!was || (got.imgCol != null && p.col === got.imgCol && was.col !== got.imgCol)) byRow.set(p.row, p); });
+      const lineRows = new Set(got.lines.map(l => l.__row));
+      picLoose = [...byRow.keys()].filter(r => !lineRows.has(r)).length;
+      for (const l of got.lines) {
+        const p = l.__row && byRow.get(l.__row);
+        if (!p || String(l.img || '').trim()) continue;
+        const d = await soImgShrink(p.bytes, p.ext);
+        if (d) { l.imgData = d; picN++; } else picBad++;
+      }
+    }
+  }
   const real = SOF.lines.filter(l => String(l.sku || l.itemName || '').trim()).length;
   SOF.lines = real && confirm(`Add ${nf(got.lines.length)} line(s) to the ${nf(real)} already here?\n\nOK adds them. Cancel replaces everything.`)
     ? SOF.lines.filter(l => String(l.sku || l.itemName || '').trim()).concat(got.lines) : got.lines;
@@ -682,7 +710,10 @@ async function soB2BFile(file, rows) {
   soFormLines(); soIdPreview();
   const known = new Set((PTG.mdb || []).map(r => obUC(r.sku)));
   const fresh = got.lines.filter(l => !l.sku || !known.has(l.sku)).length;
-  ptDlgMsg(`Loaded ${nf(got.lines.length)} line(s) from ${file.name}.` + (fresh ? ` ${nf(fresh)} are not in the Master Database and go on the Custom SKUs list when you save.` : ''));
+  ptDlgMsg(`Loaded ${nf(got.lines.length)} line(s) from ${file.name}.` + (fresh ? ` ${nf(fresh)} are not in the Master Database and go on the Custom SKUs list when you save.` : '')
+    + (picN ? ` ${nf(picN)} picture(s) taken from the sheet — they are kept when you save.` : '')
+    + (picBad ? ` ${nf(picBad)} picture(s) could not be read — paste them as JPG or PNG.` : '')
+    + (picLoose ? ` ${nf(picLoose)} picture(s) sit on a row with no order line and were left out.` : ''), !!picBad);
 }
 
 /* ---- saving ---- */
@@ -815,6 +846,17 @@ async function soFormSave(place) {
       }
     }
   }
+  /* PICTURES FROM THE SHEET (19 Oct): kept once per SKU in Firestore (b2bImgSave). A line with an Image Link keeps its link. */
+  let picSaved = 0, picFail = 0;
+  if (b2b) {
+    const inOrder = new Set(lines.map(l => l.sku));
+    const todo = SOF.lines.filter(l => l.imgData && !l.imgSaved && inOrder.has(obUC(l.sku)) && !String(l.img || '').trim());
+    if (todo.length) {
+      const r = await b2bImgSave(todo.map(l => ({ sku: obUC(l.sku), d: l.imgData })), rec._id);
+      picSaved = r.saved; picFail = r.failed;
+      todo.forEach(l => { if (r.ok.has(obUC(l.sku))) l.imgSaved = true; });
+    }
+  }
   /* NEW ONLINE ITEMS go on the Custom SKUs list the same way, described by their look-alikes. */
   if (onl) {
     const fresh = [...new Set(lines.filter(l => !known.has(l.sku)).map(l => l.sku))];
@@ -844,6 +886,8 @@ async function soFormSave(place) {
     : `${rec._id} saved as a draft. It is not in production until it is placed and approved.`;
   if (customAdded > 0) $('sxMsg').textContent += ` ${nf(customAdded)} new item(s) went on the Custom SKUs list${onl ? '' : ' with their brand'} — complete them in Master Database → Custom SKUs.`;
   if (customAdded < 0 || customUnread) { $('sxMsg').className = 'err'; $('sxMsg').textContent += ' The new items could NOT be put on the Custom SKUs list — save again to retry.'; }
+  if (picSaved) $('sxMsg').textContent += ` ${nf(picSaved)} picture(s) from the sheet kept.`;
+  if (picFail) { $('sxMsg').className = 'err'; $('sxMsg').textContent += ` ${nf(picFail)} picture(s) could NOT be kept — save again to retry.`; }
   return '';
 }
 

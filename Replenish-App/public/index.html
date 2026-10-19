@@ -10407,9 +10407,97 @@ async function pkReadXlsx(bytes) {
       while (cells.length < at) cells.push('');
       cells[at] = v;
     }
+    /* the row's own number as Excel counts it (blank rows are absent from the XML): a picture is matched to it */
+    cells.r = +((rm[0].match(/^<row\b[^>]*\br="(\d+)"/) || [])[1]) || rows.length + 1;
     rows.push(cells);
   }
   return rows;
+}
+/** "../media/image1.png" seen from "xl/drawings/" → "xl/media/image1.png". */
+function pkPathJoin(dir, t) {
+  if (t.charAt(0) === '/') return t.slice(1);
+  const out = [];
+  (dir + t).split('/').forEach(p => { if (p === '..') out.pop(); else if (p && p !== '.') out.push(p); });
+  return out.join('/');
+}
+/* PICTURES IN THE SHEET (Ravi, 19 Oct: "i don't have image link i have only picture"). Excel keeps a picture two ways:
+ * placed over the cells (a drawing, anchored between rows — it belongs to the row its middle is in), or Insert → Pictures
+ * → Place in Cell (a cell whose value points at the picture). Both come back as { row (as Excel numbers it), col, bytes, ext }. */
+async function pkXlsxPictures(bytes) {
+  const files = await pkUnzip(bytes, n => /^xl\/worksheets\/(_rels\/)?sheet\d+\.xml(\.rels)?$/.test(n)
+    || /^xl\/drawings\/(_rels\/)?drawing\d+\.xml(\.rels)?$/.test(n) || /^xl\/media\//.test(n) || n === 'xl/metadata.xml' || /^xl\/richData\//.test(n));
+  const T = n => (files[n] ? PK_TD.decode(files[n]) : '');
+  const sheet = Object.keys(files).filter(n => /^xl\/worksheets\/sheet\d+\.xml$/.test(n)).sort()[0];
+  if (!sheet) return [];
+  const rels = path => {
+    const dir = path.slice(0, path.lastIndexOf('/') + 1), name = path.slice(path.lastIndexOf('/') + 1), m = {};
+    for (const r of T(dir + '_rels/' + name + '.rels').matchAll(/<Relationship\b[^>]*>/g)) {
+      const id = (r[0].match(/\bId="([^"]+)"/) || [])[1], tg = (r[0].match(/\bTarget="([^"]+)"/) || [])[1];
+      if (id && tg) m[id] = pkPathJoin(dir, tg);
+    }
+    return m;
+  };
+  const extOf = p => ((p.match(/\.([a-z0-9]+)$/i) || [])[1] || '').toLowerCase();
+  const sx = T(sheet), sRels = rels(sheet), out = [];
+  /* 1. placed over the cells. Row heights decide which row a picture's middle sits in. */
+  const defH = +((sx.match(/<sheetFormatPr\b[^>]*\bdefaultRowHeight="([\d.]+)"/) || [])[1]) || 15;
+  const hts = {};
+  for (const r of sx.matchAll(/<row\b[^>]*>/g)) {
+    const n = +((r[0].match(/\br="(\d+)"/) || [])[1]), h = (r[0].match(/\bht="([\d.]+)"/) || [])[1];
+    if (n && h) hts[n - 1] = +h;
+  }
+  const tops = [0];
+  const rowTop = r0 => { while (tops.length <= r0) { const i = tops.length - 1; tops.push(tops[i] + (hts[i] != null ? hts[i] : defH) * 12700); } return tops[r0]; };
+  for (const dm of sx.matchAll(/<drawing\b[^>]*r:id="([^"]+)"/g)) {
+    const dp = sRels[dm[1]]; if (!dp || !files[dp]) continue;
+    const dx = T(dp), dRels = rels(dp);
+    /* Excel writes xdr:twoCellAnchor; other tools write the same with another prefix or none — so no prefix is assumed. */
+    for (const am of dx.matchAll(/<((?:\w+:)?)(twoCellAnchor|oneCellAnchor)\b[\s\S]*?<\/\1\2>/g)) {
+      const a = am[0];
+      const blip = (a.match(/<(?:\w+:)?blip\b[^>]*\b(?:\w+:)?embed="([^"]+)"/) || [])[1], mp = blip && dRels[blip];
+      if (!mp || !files[mp]) continue;
+      const pos = tag => {
+        const m = a.match(new RegExp('<(?:\\w+:)?' + tag + '>([\\s\\S]*?)</(?:\\w+:)?' + tag + '>')); if (!m) return null;
+        const g = k => +((m[1].match(new RegExp('<(?:\\w+:)?' + k + '>(-?\\d+)</(?:\\w+:)?' + k + '>')) || [])[1] || 0);
+        return { col: g('col'), row: g('row'), rowOff: g('rowOff') };
+      };
+      const f = pos('from'), t = pos('to'); if (!f) continue;
+      const y0 = rowTop(f.row) + f.rowOff;
+      const y1 = t ? rowTop(t.row) + t.rowOff : y0 + +((a.match(/<(?:\w+:)?ext\b[^>]*\bcy="(\d+)"/) || [])[1] || 0);
+      const mid = (y0 + y1) / 2;
+      let row = f.row;
+      while (row < f.row + 500 && rowTop(row + 1) <= mid) row++;
+      out.push({ row: row + 1, col: f.col, bytes: files[mp], ext: extOf(mp), how: 'over' });
+    }
+  }
+  /* 2. placed in the cell: vm → valueMetadata → XLRICHVALUE block → rich value → its picture. */
+  const meta = T('xl/metadata.xml');
+  if (meta && files['xl/richData/rdrichvalue.xml']) {
+    const fut = (meta.match(/<futureMetadata\b[^>]*name="XLRICHVALUE"[^>]*>([\s\S]*?)<\/futureMetadata>/) || [])[1] || '';
+    const rvb = [...fut.matchAll(/<bk>([\s\S]*?)<\/bk>/g)].map(b => +((b[1].match(/rvb\b[^>]*\bi="(\d+)"/) || [])[1]));
+    const vmd = (meta.match(/<valueMetadata\b[^>]*>([\s\S]*?)<\/valueMetadata>/) || [])[1] || '';
+    const vmBk = [...vmd.matchAll(/<bk>([\s\S]*?)<\/bk>/g)].map(b => +((b[1].match(/<rc\b[^>]*\bv="(\d+)"/) || [])[1]));
+    const st = [...T('xl/richData/rdrichvaluestructure.xml').matchAll(/<s\b[^>]*>([\s\S]*?)<\/s>/g)]
+      .map(s => [...s[1].matchAll(/<k\b[^>]*\bn="([^"]+)"/g)].map(k => k[1]));
+    const rvs = [...T('xl/richData/rdrichvalue.xml').matchAll(/<rv\b([^>]*)>([\s\S]*?)<\/rv>/g)]
+      .map(r => ({ s: +((r[1].match(/\bs="(\d+)"/) || [])[1] || 0), v: [...r[2].matchAll(/<v\b[^>]*>([\s\S]*?)<\/v>/g)].map(v => v[1]) }));
+    const relIds = [...T('xl/richData/richValueRel.xml').matchAll(/<rel\b[^>]*r:id="([^"]+)"/g)].map(m => m[1]);
+    const rvRels = rels('xl/richData/richValueRel.xml');
+    const picOf = vm => {
+      const fi = vmBk[vm - 1]; if (!(fi >= 0)) return null;
+      const rv = rvs[rvb[fi]]; if (!rv) return null;
+      let ki = (st[rv.s] || []).indexOf('_rvRel:LocalImageIdentifier'); if (ki < 0) ki = 0;
+      const rel = relIds[+rv.v[ki]], p = rel && rvRels[rel];
+      return p && files[p] ? p : null;
+    };
+    for (const cm of sx.matchAll(/<c\b([^>]*)>/g)) {
+      const vm = +((cm[1].match(/\bvm="(\d+)"/) || [])[1] || 0); if (!vm) continue;
+      const ref = cm[1].match(/\br="([A-Z]+)(\d+)"/); if (!ref) continue;
+      const p = picOf(vm); if (!p) continue;
+      out.push({ row: +ref[2], col: pkColIx(ref[1]), bytes: files[p], ext: extOf(p), how: 'cell' });
+    }
+  }
+  return out;
 }
 async function pkReadFile(file) {
   if (/\.xlsx$/i.test(file.name)) return pkReadXlsx(new Uint8Array(await file.arrayBuffer()));
@@ -21144,6 +21232,66 @@ function ptImgOwn() {
   _imgOwnMap = m; _imgOwnFor = PTG.mdb;
   return m;
 }
+/* B2B PICTURES (Ravi, 19 Oct: a picture pasted in the B2B order sheet, no link). This project has no file storage on its
+ * plan, so each one is kept small (400 px JPEG, a few tens of KB) in Firestore b2bimg/<SKU>, with b2bimg/_index naming the
+ * SKUs that have one — one read tells a screen which of its SKUs to fetch, and each is fetched once a visit. */
+const B2BIMG = { map: {}, idx: null, idxAt: 0, asked: new Set() };
+const b2bImgId = sku => obUC(sku).replace(/[\/.#$\[\]]/g, '_');
+async function b2bImgIdx() {
+  if (B2BIMG.idx && Date.now() - B2BIMG.idxAt < 600000) return B2BIMG.idx;
+  if (typeof getDoc !== 'function' || typeof db === 'undefined') return {};
+  try { const s = await getDoc(doc(db, 'b2bimg', '_index')); B2BIMG.idx = (s.exists() && s.data().skus) || {}; }
+  catch (e) { B2BIMG.idx = B2BIMG.idx || {}; }
+  B2BIMG.idxAt = Date.now();
+  return B2BIMG.idx;
+}
+/** Fetch the B2B pictures of these SKUs that exist and are not here yet; patches the picture cells. Returns how many came. */
+async function b2bImgLoad(skus) {
+  const idx = await b2bImgIdx();
+  const want = [...new Set((skus || []).map(obUC))].filter(s => s && idx[b2bImgId(s)] && !B2BIMG.asked.has(s));
+  if (!want.length) return 0;
+  want.forEach(s => B2BIMG.asked.add(s));
+  let got = 0;
+  for (let i = 0; i < want.length; i += 8) {
+    await Promise.all(want.slice(i, i + 8).map(async s => {
+      try { const d = await getDoc(doc(db, 'b2bimg', b2bImgId(s))); if (d.exists() && d.data().d) { B2BIMG.map[s] = d.data().d; got++; } }
+      catch (e) { /* not this one; the rest still come */ }
+    }));
+  }
+  if (got && typeof document !== 'undefined' && document.querySelectorAll) ptImgPatch();
+  return got;
+}
+/** Keep pictures read from a B2B sheet: [{ sku, d (data URL) }]. Returns { saved, failed, ok: Set of SKUs }. */
+async function b2bImgSave(list, orderNo) {
+  const ok = new Set(); let failed = 0;
+  if (typeof setDoc !== 'function' || typeof db === 'undefined') return { saved: 0, failed: list.length, ok };
+  const at = new Date().toISOString(), idx = {};
+  for (const x of list) {
+    const id = b2bImgId(x.sku);
+    try {
+      await setDoc(doc(db, 'b2bimg', id), { sku: obUC(x.sku), d: x.d, order: orderNo || '', by: ME.email || '', at });
+      ok.add(obUC(x.sku)); idx[id] = at; B2BIMG.map[obUC(x.sku)] = x.d; B2BIMG.asked.add(obUC(x.sku));
+    } catch (e) { failed++; }
+  }
+  if (ok.size) {
+    try { await setDoc(doc(db, 'b2bimg', '_index'), { skus: idx }, { merge: true }); if (B2BIMG.idx) Object.assign(B2BIMG.idx, idx); }
+    catch (e) { failed += ok.size; ok.clear(); }
+  }
+  return { saved: ok.size, failed, ok };
+}
+/** A picture from the sheet, made small enough to keep: 400 px on its long side, JPEG on white. '' when the browser
+ * cannot draw it (an EMF / WMF drawing). */
+async function soImgShrink(bytes, ext) {
+  const type = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp' }[String(ext || '').toLowerCase()];
+  if (!type || typeof createImageBitmap !== 'function' || typeof document === 'undefined') return '';
+  try {
+    const bmp = await createImageBitmap(new Blob([bytes], { type }));
+    const k = Math.min(1, 400 / Math.max(bmp.width, bmp.height)), w = Math.max(1, Math.round(bmp.width * k)), h = Math.max(1, Math.round(bmp.height * k));
+    const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+    const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, w, h); g.drawImage(bmp, 0, 0, w, h);
+    return cv.toDataURL('image/jpeg', 0.82);
+  } catch (e) { return ''; }
+}
 function ptImgOf(sku) {
   const k = obUC(sku);
   if (!k) return undefined;
@@ -21151,6 +21299,7 @@ function ptImgOf(sku) {
    * gets the freshest answer, and one that has neither still gets a picture. */
   const own = ptImgOwn().get(k);
   if (own) return own;
+  if (B2BIMG.map[k]) return B2BIMG.map[k];       // the buyer's own picture, from the B2B sheet
   if (MDBIMG.map[k]) return MDBIMG.map[k];
   const shared = PTIMG.map[k];
   if (shared === IMG_NONE) return '';        // asked, and Amazon has none — not a picture
@@ -21250,6 +21399,7 @@ const ptIfTab = (tab, fn) => () => {
 };
 
 async function ptImgFill(skus, force, after) {
+  b2bImgLoad(skus).catch(() => {});     // B2B pictures from the order sheet — patched into the cells when they land
   if (MDBIMG.busy) return;
   await mdbImgCacheLoad();
   const own = new Set((PTG.mdb || []).filter(r => r.imageUrl).map(r => obUC(r.sku)));
@@ -42970,7 +43120,7 @@ function soFormLines() {
   const ro = !soCanEdit((SOX.rows || []).find(x => x._id === SOF.id) || null);
   const d = ro ? ' disabled' : '';
   if ($('sof_up')) $('sof_up').title = soIsB2B(($('sof_channel') || {}).value)
-    ? 'B2B: Template gives the buyer columns. A SKU not in the Master Database, or a blank one, goes on the Custom SKUs list with its brand. Any extra column in the file is kept on the line.'
+    ? 'B2B: Template gives the buyer columns (Excel). No image link? Paste the picture into its row in the .xlsx — it is read and kept. A SKU not in the Master Database, or a blank one, goes on the Custom SKUs list with its brand. Any extra column in the file is kept on the line.'
     : 'A file replaces or adds to the lines below. One unknown SKU rejects the whole file. A negative quantity subtracts from what is already on order.';
   soFormTotals();
   if (soIsB2B(($('sof_channel') || {}).value)) {
@@ -42982,7 +43132,9 @@ function soFormLines() {
         const i = from + k;
         const extra = l.extra && Object.keys(l.extra).length ? Object.entries(l.extra).map(([a, b]) => a + ': ' + b).join(' · ') : '';
         return `<tr><td class="muted">${i + 1}</td>`
-          + `<td style="padding:3px 6px">${l.img ? `<img src="${esc(l.img)}" alt="" loading="lazy" style="width:40px;height:40px;object-fit:cover;border-radius:6px;display:block;margin-bottom:2px">` : ''}${inp(i, 'img', l, 110, 'image link')}</td>`
+          + `<td style="padding:3px 6px">${(() => { const pic = String(l.img || '').trim() || l.imgData || B2BIMG.map[obUC(l.sku)] || '';
+            return pic ? `<img src="${esc(pic)}" alt="" loading="lazy" style="width:40px;height:40px;object-fit:cover;border-radius:6px;display:block;margin-bottom:2px">` : ''; })()}`
+          + `${!String(l.img || '').trim() && (l.imgData || B2BIMG.map[obUC(l.sku)]) ? '<div class="muted" style="font-size:10px">picture from the sheet</div>' : ''}${inp(i, 'img', l, 110, 'image link')}</td>`
           + `<td>${inp(i, 'brand', l, 110, 'brand')}</td>`
           + `<td><input data-sof="sku" data-i="${i}" value="${esc(l.sku)}" placeholder="blank = new code"${d} style="width:140px;font-family:ui-monospace,monospace;text-transform:uppercase">`
           + `<div id="sof_meta_${i}" style="font-size:10.5px;text-align:left">${soB2BMeta(l.sku)}</div></td>`
@@ -42999,6 +43151,8 @@ function soFormLines() {
     $('sof_pager').innerHTML = pages > 1 ? `Showing ${nf(from + 1)}–${nf(Math.min(total, from + SOF_PAGE))} of ${nf(total)}
           <button class="ghost" data-sofpg="-1" style="padding:2px 10px"${SOF.page ? '' : ' disabled'}>Back</button>
           <button class="ghost" data-sofpg="1" style="padding:2px 10px"${SOF.page >= pages - 1 ? ' disabled' : ''}>Next</button>` : '';
+    /* a saved order opened again: its pictures from the sheet come from Firestore, once each */
+    b2bImgLoad(slice.map(l => l.sku)).then(n => { if (n && $('sof_table')) soFormLines(); }).catch(() => {});
     return;
   }
   /* ONE ROW PER LINE THAT FITS: the picture, the SKU and what it is share a cell, so nothing is left
@@ -43088,15 +43242,17 @@ $('ptDlgBody').addEventListener('click', e => {
 /* ---- lines from a file ---- */
 function soTemplate() {
   if (soIsB2B(($('sof_channel') || {}).value)) {
-    ptDownload('b2b-order-lines', [
-      SO_B2B_COLS.map(c => c.t).map(csvCell).join(','),
-      ['Crate & Barrel', 'https://example.com/photo.jpg', 'RTC23-6060', 'Square Tablecloth', 'Indigo', '60x60', 'Yes - woven brand label at hem', 'Cotton cambric', 120, 'No', '10-11-2026'].map(csvCell).join(','),
-      ['Crate & Barrel', '', '', 'Napkin set of 4 with embroidery', 'Natural', '20x20', 'No', 'Linen', 300, 'Yes - logo embroidered in corner', ''].map(csvCell).join(','),
-      [].join(','),
-      ['A SKU not in the Master Database goes on the Custom SKUs list with its brand. A blank SKU is given a code.'].map(csvCell).join(','),
-      ['Label and Customization: write No, or the details. Any other column you add is kept on the line.'].map(csvCell).join(','),
-      ['Order date, order type and channel are picked on the form; Delivery Date is optional, DD-MM-YYYY.'].map(csvCell).join(','),
-    ]);
+    /* AN EXCEL FILE (19 Oct), so a picture can be pasted straight into the Image Link cell of its row — CSV holds no
+     * pictures. The two example rows are examples: replace them. A blank SKU is given a code; Label and Customization
+     * are No or the details; Delivery Date is DD-MM-YYYY. */
+    const bytes = recipeXlsx([SO_B2B_COLS.map(c => c.t),
+      ['Crate & Barrel', 'https://example.com/photo.jpg', 'RTC23-6060', 'Square Tablecloth', 'Indigo', '60x60', 'Yes - woven brand label at hem', 'Cotton cambric', 120, 'No', '10-11-2026'],
+      ['Crate & Barrel', '(paste the picture here)', '', 'Napkin set of 4 with embroidery', 'Natural', '20x20', 'No', 'Linen', 300, 'Yes - logo embroidered in corner', '']],
+      { name: 'B2B order', freeze: 3, cols: {} });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+    a.download = 'b2b-order-lines.xlsx';
+    a.click(); URL.revokeObjectURL(a.href);
     return;
   }
   ptDownload('sales-order-lines', [
@@ -43229,17 +43385,39 @@ function soB2BRows(rows) {
     const extra = {};
     extraCols.forEach(([h, i]) => { const v = String(r[i] == null ? '' : r[i]).trim(); if (v) extra[h] = v; });
     const line = { sku, qty, deliveryDate: dd || '', orderTypeKey: ($('sof_type') || {}).value || 'regular', priority: '' };
+    if (r.r) line.__row = r.r;          // the sheet's row number: a picture in that row belongs to this line
     ['brand', 'img', 'itemName', 'color', 'label', 'material', 'size', 'customization'].forEach(k => { const v = cell(k); if (v) line[k] = v; });
+    if (line.img && !/^(https?:|data:)/i.test(line.img)) delete line.img;    // words in the picture cell are not a link
     if (Object.keys(extra).length) line.extra = extra;
     lines.push(line);
   });
-  return { lines, errors };
+  return { lines, errors, imgCol: at.img };
 }
 async function soB2BFile(file, rows) {
   const got = soB2BRows(rows);
   if (got.err) { ptDlgMsg(got.err, true); return; }
   if (got.errors.length) { ptDlgMsg('Nothing was loaded. ' + got.errors.slice(0, 6).join(' ') + (got.errors.length > 6 ? ' …and ' + nf(got.errors.length - 6) + ' more problem(s).' : ''), true); return; }
   if (!got.lines.length) { ptDlgMsg('That file has no usable rows.', true); return; }
+  /* PICTURES PASTED IN THE SHEET (Ravi, 19 Oct): a line with no Image Link takes the picture in its own row. One per
+   * row; two in a row, the one in the Image Link column wins. They are saved with the order (b2bImgSave). */
+  let picN = 0, picBad = 0, picLoose = 0;
+  if (/\.xlsx$/i.test(file.name || '') && typeof pkXlsxPictures === 'function' && file.arrayBuffer) {
+    let pics = [];
+    try { pics = await pkXlsxPictures(new Uint8Array(await file.arrayBuffer())); } catch (e) { pics = []; }
+    if (pics.length) {
+      ptDlgMsg(`Reading ${nf(pics.length)} picture(s) from the sheet…`);
+      const byRow = new Map();
+      pics.forEach(p => { const was = byRow.get(p.row); if (!was || (got.imgCol != null && p.col === got.imgCol && was.col !== got.imgCol)) byRow.set(p.row, p); });
+      const lineRows = new Set(got.lines.map(l => l.__row));
+      picLoose = [...byRow.keys()].filter(r => !lineRows.has(r)).length;
+      for (const l of got.lines) {
+        const p = l.__row && byRow.get(l.__row);
+        if (!p || String(l.img || '').trim()) continue;
+        const d = await soImgShrink(p.bytes, p.ext);
+        if (d) { l.imgData = d; picN++; } else picBad++;
+      }
+    }
+  }
   const real = SOF.lines.filter(l => String(l.sku || l.itemName || '').trim()).length;
   SOF.lines = real && confirm(`Add ${nf(got.lines.length)} line(s) to the ${nf(real)} already here?\n\nOK adds them. Cancel replaces everything.`)
     ? SOF.lines.filter(l => String(l.sku || l.itemName || '').trim()).concat(got.lines) : got.lines;
@@ -43247,7 +43425,10 @@ async function soB2BFile(file, rows) {
   soFormLines(); soIdPreview();
   const known = new Set((PTG.mdb || []).map(r => obUC(r.sku)));
   const fresh = got.lines.filter(l => !l.sku || !known.has(l.sku)).length;
-  ptDlgMsg(`Loaded ${nf(got.lines.length)} line(s) from ${file.name}.` + (fresh ? ` ${nf(fresh)} are not in the Master Database and go on the Custom SKUs list when you save.` : ''));
+  ptDlgMsg(`Loaded ${nf(got.lines.length)} line(s) from ${file.name}.` + (fresh ? ` ${nf(fresh)} are not in the Master Database and go on the Custom SKUs list when you save.` : '')
+    + (picN ? ` ${nf(picN)} picture(s) taken from the sheet — they are kept when you save.` : '')
+    + (picBad ? ` ${nf(picBad)} picture(s) could not be read — paste them as JPG or PNG.` : '')
+    + (picLoose ? ` ${nf(picLoose)} picture(s) sit on a row with no order line and were left out.` : ''), !!picBad);
 }
 
 /* ---- saving ---- */
@@ -43380,6 +43561,17 @@ async function soFormSave(place) {
       }
     }
   }
+  /* PICTURES FROM THE SHEET (19 Oct): kept once per SKU in Firestore (b2bImgSave). A line with an Image Link keeps its link. */
+  let picSaved = 0, picFail = 0;
+  if (b2b) {
+    const inOrder = new Set(lines.map(l => l.sku));
+    const todo = SOF.lines.filter(l => l.imgData && !l.imgSaved && inOrder.has(obUC(l.sku)) && !String(l.img || '').trim());
+    if (todo.length) {
+      const r = await b2bImgSave(todo.map(l => ({ sku: obUC(l.sku), d: l.imgData })), rec._id);
+      picSaved = r.saved; picFail = r.failed;
+      todo.forEach(l => { if (r.ok.has(obUC(l.sku))) l.imgSaved = true; });
+    }
+  }
   /* NEW ONLINE ITEMS go on the Custom SKUs list the same way, described by their look-alikes. */
   if (onl) {
     const fresh = [...new Set(lines.filter(l => !known.has(l.sku)).map(l => l.sku))];
@@ -43409,6 +43601,8 @@ async function soFormSave(place) {
     : `${rec._id} saved as a draft. It is not in production until it is placed and approved.`;
   if (customAdded > 0) $('sxMsg').textContent += ` ${nf(customAdded)} new item(s) went on the Custom SKUs list${onl ? '' : ' with their brand'} — complete them in Master Database → Custom SKUs.`;
   if (customAdded < 0 || customUnread) { $('sxMsg').className = 'err'; $('sxMsg').textContent += ' The new items could NOT be put on the Custom SKUs list — save again to retry.'; }
+  if (picSaved) $('sxMsg').textContent += ` ${nf(picSaved)} picture(s) from the sheet kept.`;
+  if (picFail) { $('sxMsg').className = 'err'; $('sxMsg').textContent += ` ${nf(picFail)} picture(s) could NOT be kept — save again to retry.`; }
   return '';
 }
 
