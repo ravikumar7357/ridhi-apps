@@ -120,7 +120,9 @@ async function replPieces(brand, meta, say) {
 
 /* The Price Research backend. Both the Shopify tab AND India stock come through it: the Shopify
  * connection and the warehouse-workbook access live only in that script, not in this app's own. */
-async function prGet(params) {
+/* opt.timeoutMs: give up after this long, with a message that says so. Without it a call waits as long as Apps Script
+ * does — which is what every caller but the Shopify orders tab still wants. */
+async function prGet(params, opt) {
   if (!PRAPI || !PRAPI.url) {
     throw new Error('No access to the Price Research backend. Its address lives in Firestore '
       + 'config/api, and this account has to be allowed to read it — ask an admin to re-save your access.');
@@ -128,8 +130,17 @@ async function prGet(params) {
   const u = new URL(PRAPI.url);
   u.searchParams.set('key', PRAPI.key);
   Object.entries(params).forEach(([k, v]) => { if (v != null && v !== '') u.searchParams.set(k, v); });
-  const r = await fetch(u, { redirect: 'follow' });
-  const text = await r.text();
+  const ms = opt && opt.timeoutMs;
+  const ctl = ms ? new AbortController() : null;
+  const t = ctl ? setTimeout(() => ctl.abort(), ms) : 0;
+  let r, text;
+  try {
+    r = await fetch(u, ctl ? { redirect: 'follow', signal: ctl.signal } : { redirect: 'follow' });
+    text = await r.text();
+  } catch (e) {
+    if (ctl && ctl.signal.aborted) throw new Error(`the backend took longer than ${Math.round(ms / 1000)} s — press the button to try again.`);
+    throw e;
+  } finally { clearTimeout(t); }
   let d;
   try { d = JSON.parse(text); }
   catch (e) { throw new Error(`The Price Research backend returned a web page, not data (HTTP ${r.status}).`); }

@@ -457,14 +457,16 @@ async function loadShopStock() {
   SHOP_STOCK_AT = { SP: null, CPC: null }; SHOP_STOCK_SRC = { SP: '', CPC: '' };
   /* The Replenishment snapshot's Fulfillable, from the Shopify copy every Replenishment account may read. A failed read
    * just leaves Sellora's figure in charge, exactly as before. */
-  let RSS = {};
-  try { if (typeof loadReplShopStock === 'function') RSS = await loadReplShopStock(); } catch (e) { /* Sellora's figure stands */ }
-  for (const b of ['SP', 'CPC']) {
+  /* All three read at once — none needs another's answer; each is weighed against the others only below. */
+  const denied = e => { if (/permission|insufficient/i.test(String((e && (e.code || e.message)) || ''))) SHOP_STOCK_DENIED = true; };
+  const [RSS, docs] = await Promise.all([
+    (async () => { try { return typeof loadReplShopStock === 'function' ? await loadReplShopStock() : {}; } catch (e) { return {}; /* Sellora's figure stands */ } })(),
+    /* Sellora's figure refused is not the end: the Replenishment one may still answer. */
+    Promise.all(['SP', 'CPC'].map(b => getDoc(doc(db, 'stock', b)).catch(e => { denied(e); return null; }))),
+  ]);
+  for (const [i, b] of ['SP', 'CPC'].entries()) {
     try {
-      /* Sellora's figure refused is not the end: the Replenishment one below may still answer. */
-      let s = null;
-      try { s = await getDoc(doc(db, 'stock', b)); }
-      catch (e) { if (/permission|insufficient/i.test(String((e && (e.code || e.message)) || ''))) SHOP_STOCK_DENIED = true; }
+      let s = docs[i];
       if (!s) s = { exists: () => false, data: () => ({}) };
       const sAt = s.exists() && s.data().at && s.data().at.toDate ? s.data().at.toDate() : null;
       const rs = RSS[b] || null;
@@ -1141,6 +1143,9 @@ function shpOldestOpen() {
 }
 
 async function ensureShop_() {
+  /* THE NOTES BEFORE THE DATES. The window below reaches back to the oldest order still owing a replacement, and
+   * those are found in the notes — worked out before they were read, the first open of a session never saw them. */
+  if (!Object.keys(SHOP_META).length) await loadShopMeta();
   if (!$('soFrom').value) {
     // The upper end is TOMORROW, not today. "Today" here is the marketplace's PT date, while the
     // Shopify store keeps its own — and an order placed this evening in the store's zone can
@@ -1158,9 +1163,12 @@ async function ensureShop_() {
      * shrinks by itself as that work closes. */
     $('soFrom').value = shpOldestOpen() || sdShift(sdToday(), -30);
   }
-  if (!Object.keys(SHOP_META).length) await loadShopMeta();
-  if (!Object.keys(SHOP_SKU).length) await loadShopSku();
-  if (!Object.keys(SHOP_STOCK).length) await loadShopStock();
+  /* THE BINS AND THE STOCK ARE READ WHILE SHOPIFY IS ASKED, not before it. Shopify is the long wait and needs only
+   * the dates; the fetched orders are drawn, and the sync asked, once these two are in as well. */
+  const side = Promise.all([
+    Object.keys(SHOP_SKU).length ? null : loadShopSku(),
+    Object.keys(SHOP_STOCK).length ? null : loadShopStock(),
+  ]);
   /* NOT AWAITED — and that is the point.
    *
    * India stock reads a 4,878-row workbook through Apps Script, which takes seconds. Waiting for it
@@ -1176,11 +1184,16 @@ async function ensureShop_() {
   loadShopImported().then(() => renderShop()).catch(() => {});
   // Re-fetched on the way back in, not only the first time. This is a queue of what has to ship
   // today: showing what Shopify said twenty minutes ago is the same as showing nothing.
-  if (!SHOP.orders.length || Date.now() - SHOP_FETCHED_AT > SHOP_STALE_MS) await fetchShopOrders();
-  else renderShop();
+  /* What was fetched a few minutes ago stays on screen while the new list is asked for — a blank tab for those
+   * seconds told nobody anything. The sync still waits for the fresh orders: it is run only after a fetch. */
+  if (!SHOP.orders.length || Date.now() - SHOP_FETCHED_AT > SHOP_STALE_MS) {
+    if (SHOP.orders.length) renderShop();
+    await fetchShopOrders(side);
+  } else { await side; renderShop(); }
 }
 
-async function fetchShopOrders() {
+/* ready: what has to be in before the fetched orders are drawn (the bins and the stock, read alongside). */
+async function fetchShopOrders(ready) {
   const btn = $('soGo');
   btn.disabled = true; btn.innerHTML = '<span class="spin"></span>…';
   try {
@@ -1188,9 +1201,11 @@ async function fetchShopOrders() {
     const win = { start: $('soFrom').value, end: $('soTo').value, open: $('soOpen').value };
     /* Two stores, asked at the same time. CPC's own failure must not cost us Ridhi's orders — this
      * screen is the shipping queue, and half of it is worth much more than none of it. */
+    /* NINETY SECONDS, then it says so. Apps Script that never answers left "Asking Shopify…" on screen for good. */
+    const lim = { timeoutMs: 90000 };
     const [r, cpc] = await Promise.all([
-      prGet({ shopify: 'orders', ...win }),
-      prGet({ shopify: 'orders', shop: 'CPC', ...win }).catch(e => ({ _err: e.message || String(e) })),
+      prGet({ shopify: 'orders', ...win }, lim),
+      prGet({ shopify: 'orders', shop: 'CPC', ...win }, lim).catch(e => ({ _err: e.message || String(e) })),
     ]);
     const mine = (r.orders || []).map(o => Object.assign(o, { shopBrand: 'SP', channel: o.channel || 'Shopify' }));
     const theirs = (cpc.orders || []).map(o => Object.assign(o, { shopBrand: 'CPC', channel: 'CPC Shopify' }));
@@ -1207,6 +1222,7 @@ async function fetchShopOrders() {
     soMsg('Could not reach Shopify: ' + (e.message || e), true);
   }
   btn.disabled = false; btn.textContent = 'Fetch orders';
+  if (ready) await ready.catch(() => {});
   renderShop();
   // And after a fetch, which is the other moment. It does nothing until both stock maps are read.
   shpSyncSoon();
