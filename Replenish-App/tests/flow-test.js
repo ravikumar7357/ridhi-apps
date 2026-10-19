@@ -630,6 +630,8 @@ const K = 'AMZ-1__S1';
     ok('cut pieces: per SKU — what, colour, size — in pieces, with the cloth that goes for them', /Cut pieces — print on the SKU/.test(page) && /<b>CPC-01<\/b>/.test(page) && /<b>40 pcs<\/b>/.test(page) && /94 m/.test(page)
       && /<td[^>]*>Tablecloth<\/td><td[^>]*><b>Agate Green<\/b><\/td><td[^>]*><b>60x60<\/b><\/td>/.test(page), page.slice(page.indexOf('Cut pieces'), page.indexOf('Cut pieces') + 700));
     ok('the printer and the date stand in one box at the top (19 Oct)', /Printer \(To\)<\/div><div[^>]*>RBP-Bagru/.test(page) && /Date<\/div><div[^>]*>11\/10\/2026/.test(page), page.slice(page.indexOf('Printer (To)') - 200, page.indexOf('Printer (To)') + 400));
+    { const sz = page.slice(page.indexOf('RFD by size'), page.indexOf('Running fabric'));
+      ok('RFD by size lists only the cut pieces (19 Oct: a running napkin showed there too, as if it went twice)', /RFD by size — cut pieces/.test(sz) && /Sheeting 62/.test(sz) && !/Sheeting 82/.test(sz), sz.slice(0, 600)); }
   }
 
   { const S2 = load({ me: { admin: true } }); S2.ctx.GPO.settings = {};

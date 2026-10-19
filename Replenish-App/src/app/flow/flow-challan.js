@@ -296,6 +296,10 @@ function flowChSizeHtml(lines, cell) {
   const e = v => esc(v == null ? '' : String(v)), by = new Map();
   (lines || []).filter(l => l && !l.ruffleOnly).forEach(l => {
     let m = {}; try { m = cutSkuOf(l.sku) || {}; } catch (er) { m = {}; }
+    /* ONLY THE CUT PIECES (Ravi, 19 Oct: "napkin ka alag se print par kyo gya jabki running me hum de rahe h"). A line
+     * given as running fabric is in "Running fabric — to print" in metres; listing it here too, in pieces by size, read as
+     * a second lot going to print. */
+    if (l.print ? l.print.kind !== 'sku' : m.cuttingRequired !== false) return;
     const b = String(l.item || '').split(' · '), size = String(m.size || (b.length > 2 ? b[b.length - 1] : '') || '').trim();
     if (!size) return;
     const k = String(l.fabric || '').toUpperCase() + '|' + (typeof flowSizeKey === 'function' ? flowSizeKey(size) : size.toLowerCase());
@@ -304,7 +308,7 @@ function flowChSizeHtml(lines, cell) {
   if (!by.size) return '';
   const gs = [...by.values()].sort((a, b) => String(a.fabric).localeCompare(String(b.fabric)) || (typeof flowSizeSort === 'function' ? flowSizeSort(a.size, b.size) : 0));
   const th = h => `<th style="${cell};text-align:${/Pieces|Metres/.test(h) ? 'right' : 'left'};background:#f0f0f0">${h}</th>`;
-  return `<div style="font-size:12px;font-weight:bold;margin:6px 0 4px">RFD by size</div><table style="width:100%;border-collapse:collapse;margin-bottom:12px"><tr>${['Fabric (RFD)', 'Size', 'Pieces', 'Metres'].map(th).join('')}</tr>`
+  return `<div style="font-size:12px;font-weight:bold;margin:6px 0 4px">RFD by size — cut pieces</div><table style="width:100%;border-collapse:collapse;margin-bottom:12px"><tr>${['Fabric (RFD)', 'Size', 'Pieces', 'Metres'].map(th).join('')}</tr>`
     + gs.map(g => `<tr><td style="${cell}">${e(g.fabric)}</td><td style="${cell}"><b>${e(g.size)}</b></td><td style="${cell};text-align:right">${nf(g.pcs)}</td><td style="${cell};text-align:right">${nf(flowR2(g.metres))}</td></tr>`).join('')
     + `<tr><td style="${cell}" colspan="2"><b>Total</b></td><td style="${cell};text-align:right"><b>${nf(gs.reduce((t, g) => t + g.pcs, 0))}</b></td><td style="${cell};text-align:right"><b>${nf(flowR2(gs.reduce((t, g) => t + g.metres, 0)))}</b></td></tr></table>`;
 }
