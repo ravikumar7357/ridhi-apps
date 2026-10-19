@@ -16174,6 +16174,27 @@ function cutFormMsg(t, bad) { const m = $('cwMsg'); m.textContent = t || ''; m.c
  * order is saved and is not in the master. What the list leaves blank (a wholesale file often has no article type) is
  * read from the master SKUs it looks like. The record says _custom, so the forms skip the master-list checks for it. */
 let CUST_IX = { src: null, map: null };
+/* TABLECLOTHS (Ravi, 19 Oct: "mera ruffle tablecloth and scallop piping tablecloth hi running fabric me se banta h baki
+ * tablecloth cut piece me hi banta h chah b2b order ho chah shopify"). Only a ruffle or scallop tablecloth is cut from
+ * running fabric (cutting required); every other tablecloth is printed as a cut piece (no cutting). The master already
+ * says so; a SKU on the Custom SKUs list (B2B, Shopify, Online) was written "cutting required" by default and is read by
+ * this rule instead. true / false for a tablecloth, null for anything else. */
+function ptTcCutReq(articleType, subtype) {
+  const t = String(articleType || '') + ' ' + String(subtype || '');
+  if (!/table\s*cloth/i.test(t)) return null;
+  return /ruffle|scallop/i.test(t);
+}
+/** A B2B item's Article as the buyer wrote it ("Tablecloth"), when it is one of the master's article types. */
+let CUST_ARTS = { src: null, map: null };
+function ptArticleNamed(name) {
+  const src = PTG.mdb || PT_NONE;
+  if (CUST_ARTS.src !== src || !CUST_ARTS.map) {
+    const map = new Map();
+    src.forEach(m => { if (m && m.articleType) map.set(String(m.articleType).trim().toLowerCase(), m.articleType); });
+    CUST_ARTS = { src, map };
+  }
+  return CUST_ARTS.map.get(String(name || '').trim().toLowerCase()) || '';
+}
 function ptCustomOf(sku) {
   const list = (typeof MDBX !== 'undefined' && MDBX.custom) || (typeof PTE !== 'undefined' && PTE.custom) || null;
   if (!list || !sku) return null;
@@ -16185,9 +16206,11 @@ function ptCustomOf(sku) {
    * subtype alone are also read from the master SKUs with the same letters in front (RPCRU → Ruffle Pillow Cover). */
   const pa = (!r.articleType || !r.subtype) && !(g && g.articleType) ? ptCustomPrefixArt(sku) : null;
   const pick = (a, b) => String(a == null ? '' : a).trim() || (b || '');
-  return Object.assign({}, r, { _custom: true,
-    articleType: pick(r.articleType, (g && g.articleType) || (pa && pa.articleType)), subtype: pick(r.subtype, (g && g.subtype) || (pa && pa.subtype)),
-    color: pick(r.color, g && g.color), size: pick(r.size, g && g.size) });
+  const articleType = pick(r.articleType, (g && g.articleType) || (pa && pa.articleType) || ptArticleNamed(r.shopName));
+  const subtype = pick(r.subtype, (g && g.subtype) || (pa && pa.subtype));
+  const tc = ptTcCutReq(articleType, subtype || r.shopName);
+  return Object.assign({}, r, { _custom: true, articleType, subtype,
+    color: pick(r.color, g && g.color), size: pick(r.size, g && g.size) }, tc == null ? {} : { cuttingRequired: tc });
 }
 /** { articleType, subtype } that 80% or more of the master SKUs with the same letters in front agree on, else null. */
 let CUST_PRE = { src: null, map: null };
@@ -43566,9 +43589,11 @@ async function soFormSave(place) {
         let was = null;
         try { was = await ptGet('pt_customSkus/' + sku); } catch (e) { customUnread++; continue; }
         if (was && typeof was === 'object' && Object.keys(was).length) continue;
+        const art = typeof ptArticleNamed === 'function' ? ptArticleNamed(l.itemName) : '';
+        const tcCut = typeof ptTcCutReq === 'function' ? ptTcCutReq(art || l.itemName, l.itemName) : null;
         patch['pt_customSkus/' + sku] = {
-          sku, articleType: '', subtype: '', color: l.color || '', size: l.size || '',
-          brand: l.brand || '', packOf: '', fabric: '', cuttingRequired: true, consumption: 0,
+          sku, articleType: art, subtype: '', color: l.color || '', size: l.size || '',
+          brand: l.brand || '', packOf: '', fabric: '', cuttingRequired: tcCut == null ? true : tcCut, consumption: 0,
           isZip: false, chainLength: null, zipQty: null, isRuffle: false, ruffleMeters: null, ruffleFabric: '',
           fillerFabricRequired: false, standardFillingQty: null, inventoryValuationPrice: 0,
           imageUrl: l.img || '', isCustom: true,

@@ -9764,6 +9764,21 @@ console.log('\n== B2B sales orders: the buyer\'s own columns, and new items on t
   A.soFormOpen(null); els.sof_channel.value = 'B2B'; A.setSOF({ id: null, page: 0, lines: [{ sku: 'NEWB2B-7', qty: 5, color: 'Indigo', itemName: 'Square Tablecloth' }] }); A.soFormLines();
   ok('the B2B form has Article and Color columns, the colour filled in', /<th>Article<\/th><th>Color<\/th>/.test(els.sof_table.innerHTML) && /data-sof="color"[^>]*value="Indigo"/.test(els.sof_table.innerHTML), els.sof_table.innerHTML.slice(0, 400));
 
+  /* 19 Oct: only a ruffle or scallop tablecloth is cut from running fabric; any other tablecloth on the Custom SKUs list
+   * (written "cutting required" by default) is a cut piece. The buyer's Article ("Tablecloth") names it when nothing else does. */
+  { const wasX = A.MDBX();
+    A.setMDBX(Object.assign({}, wasX, { custom: [
+      { sku: 'STCX01-6090', articleType: '', subtype: '', shopName: 'Tablecloth', cuttingRequired: true },
+      { sku: 'STCX02-6090', articleType: 'Tablecloth', subtype: 'Ruffle Rectangular Tablecloth', cuttingRequired: true },
+      { sku: 'STCX03-6090', articleType: '', subtype: '', shopName: 'Piping Scallop Tablecloth', cuttingRequired: true },
+      { sku: 'SMCNX01', articleType: '', subtype: '', shopName: 'Metered Corner Napkin', cuttingRequired: true }] }));
+    const c = s => A.ptCustomOf(s) || {};
+    ok('a custom tablecloth (Article "Tablecloth") is a cut piece: cutting required no', c('STCX01-6090').cuttingRequired === false && c('STCX01-6090').articleType === 'Tablecloth', JSON.stringify(c('STCX01-6090')));
+    ok('…a ruffle tablecloth stays running fabric (cutting required)', c('STCX02-6090').cuttingRequired === true);
+    ok('…a piping scallop tablecloth too', c('STCX03-6090').cuttingRequired === true);
+    ok('…and a napkin is left as it was written', c('SMCNX01').cuttingRequired === true);
+    A.setMDBX(wasX); }
+
   NET.on = wasNet; ME.admin = wasAdmin;
 }
 

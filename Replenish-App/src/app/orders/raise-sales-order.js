@@ -851,9 +851,11 @@ async function soFormSave(place) {
         let was = null;
         try { was = await ptGet('pt_customSkus/' + sku); } catch (e) { customUnread++; continue; }
         if (was && typeof was === 'object' && Object.keys(was).length) continue;
+        const art = typeof ptArticleNamed === 'function' ? ptArticleNamed(l.itemName) : '';
+        const tcCut = typeof ptTcCutReq === 'function' ? ptTcCutReq(art || l.itemName, l.itemName) : null;
         patch['pt_customSkus/' + sku] = {
-          sku, articleType: '', subtype: '', color: l.color || '', size: l.size || '',
-          brand: l.brand || '', packOf: '', fabric: '', cuttingRequired: true, consumption: 0,
+          sku, articleType: art, subtype: '', color: l.color || '', size: l.size || '',
+          brand: l.brand || '', packOf: '', fabric: '', cuttingRequired: tcCut == null ? true : tcCut, consumption: 0,
           isZip: false, chainLength: null, zipQty: null, isRuffle: false, ruffleMeters: null, ruffleFabric: '',
           fillerFabricRequired: false, standardFillingQty: null, inventoryValuationPrice: 0,
           imageUrl: l.img || '', isCustom: true,
