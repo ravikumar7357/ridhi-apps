@@ -69,7 +69,19 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
    * network goes quiet for a second — the last answer in, and the drawing after it (a busy page shows as a gap in the
    * clock below). Counts what came in: the live database (its WebSocket) and every ordinary request. "first" = the
    * first open of that screen since the page was loaded; "again" = it had its data already. Kept in this browser. */
-  var SL = { cur: null, last: Date.now(), inflight: 0, ws: 0, http: 0, reqs: 0, seen: {}, tick: Date.now() };
+  var SL = { cur: null, last: Date.now(), inflight: 0, ws: 0, http: 0, reqs: 0, seen: {}, tick: Date.now(), res: [] };
+  /* A request, in a few words: which service, and what was asked. */
+  function slName(u) {
+    try {
+      var x = new URL(u, location.href), h = x.hostname, k = '';
+      if (h.indexOf('firebasedatabase') >= 0 || h.indexOf('firebaseio') >= 0) k = 'database ' + x.pathname.replace('.json', '').slice(1);
+      else if (h.indexOf('firestore') >= 0) k = 'firestore';
+      else if (h.indexOf('script.google') >= 0) { var q = []; x.searchParams.forEach(function (v, n) { if (n !== 'key' && q.length < 2) q.push(n + '=' + v.slice(0, 20)); }); k = 'backend ' + q.join(' '); }
+      else if (h.indexOf('identitytoolkit') >= 0 || h.indexOf('securetoken') >= 0) k = 'sign-in';
+      else k = h.replace('www.', '') + x.pathname.slice(0, 30);
+      return k;
+    } catch (e) { return String(u).slice(0, 40); }
+  }
   var SL_KEY = 'r1SpeedLog';
   function slAct() { SL.last = Date.now(); }
   function slRows() { try { return JSON.parse(localStorage.getItem(SL_KEY) || '[]'); } catch (e) { return []; } }
@@ -77,7 +89,7 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
   function slStart(name) {
     if (SL.cur && (SL.cur.name === 'sign-in' || SL.cur.name === 'page load') && name !== 'sign-in' && !SL.cur.hashed) { SL.cur.hashed = true; return; }
     if (SL.cur) slEnd(true);
-    SL.cur = { name: name, t0: Date.now(), ws0: SL.ws, http0: SL.http, req0: SL.reqs };
+    SL.cur = { name: name, t0: Date.now(), ws0: SL.ws, http0: SL.http, req0: SL.reqs, busy: 0 };
     slAct();
   }
   function slEnd(cut) {
@@ -86,7 +98,10 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
     var key = c.name === 'sign-in' || c.name === 'page load' ? c.name : (title || c.name);
     var again = !!SL.seen[key]; SL.seen[key] = 1;
     var rows = slRows();
-    rows.push({ at: new Date().toTimeString().slice(0, 8), what: c.name === 'sign-in' ? 'Sign-in \\u2192 ' + (title || 'first screen')
+    /* The three slowest requests of this open — where the wait was, when it was the network. */
+    var slow = SL.res.filter(function (r) { return r.s >= c.t0 - 50; }).sort(function (a, b) { return b.d - a.d; }).slice(0, 3)
+      .map(function (r) { return r.n + ' ' + (Math.round(r.d / 100) / 10) + 's'; }).join(' \\u00b7 ');
+    rows.push({ busy: Math.round(c.busy / 100) / 10, slow: slow, at: new Date().toTimeString().slice(0, 8), what: c.name === 'sign-in' ? 'Sign-in \\u2192 ' + (title || 'first screen')
         : c.name === 'page load' ? 'Page load \\u2192 ' + (title || 'first screen') : (title || c.name),
       open: again ? 'again' : 'first', s: Math.round(Math.max(0, SL.last - c.t0) / 100) / 10,
       mb: Math.round((SL.ws - c.ws0 + SL.http - c.http0) / 1e5) / 10, reqs: SL.reqs - c.req0, cut: !!cut,
@@ -96,14 +111,18 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
   }
   setInterval(function () {
     var now = Date.now();
-    if (now - SL.tick > 400) SL.last = now;          // the page was busy (drawing): that is part of the wait
+    if (now - SL.tick > 400) { SL.last = now; if (SL.cur) SL.cur.busy += now - SL.tick; }   // the page was busy (drawing): part of the wait
     SL.tick = now;
     var c = SL.cur;
     if (c && ((SL.inflight <= 0 && now - SL.last > 1000 && now - c.t0 > 300) || now - c.t0 > 180000)) slEnd(false);
   }, 100);
   try {
     new PerformanceObserver(function (list) {
-      list.getEntries().forEach(function (e) { SL.http += e.transferSize || e.encodedBodySize || 0; SL.reqs++; });
+      list.getEntries().forEach(function (e) {
+        SL.http += e.transferSize || e.encodedBodySize || 0; SL.reqs++;
+        if (e.name.indexOf('/channel') < 0) SL.res.push({ n: slName(e.name), d: e.duration, s: performance.timeOrigin + e.startTime });
+      });
+      if (SL.res.length > 800) SL.res = SL.res.slice(-500);
       slAct();
     }).observe({ type: 'resource', buffered: false });
   } catch (e) {}
@@ -125,6 +144,7 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
   } catch (e) {}
   window.addEventListener('hashchange', function () { slStart(String(location.hash || '').slice(1) || 'home'); });
   slStart('page load');
+  try { SL.cur.t0 = Math.round(performance.timeOrigin); } catch (e) {}   // from the moment the browser asked for the page
   function esc(s) { return String(s == null ? '' : s).split('&').join('&amp;').split('<').join('&lt;').split('>').join('&gt;'); }
   function slDraw() {
     var b = document.getElementById('r1SpeedPanel'); if (!b || b.style.display === 'none') return;
@@ -138,15 +158,16 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
       + '<table><tr><th>Screen</th><th>s</th><th>tries</th></tr>'
       + sum.map(function (x) { return '<tr><td>' + esc(x[0]) + '</td><td class="n">' + x[1] + '</td><td class="n">' + x[2] + '</td></tr>'; }).join('')
       + '</table><div class="r1h"><b>Every open</b> <span>newest first \\u00b7 again = data already loaded</span></div>'
-      + '<table><tr><th>Time</th><th>Screen</th><th>Open</th><th>s</th><th>MB</th><th>Req</th></tr>'
-      + rows.slice(0, 120).map(function (r) { return '<tr><td>' + esc(r.at) + '</td><td>' + esc(r.what) + (r.cut ? ' <i>(left early)</i>' : '') + '</td><td>' + esc(r.open)
-        + '</td><td class="n">' + r.s + '</td><td class="n">' + r.mb + '</td><td class="n">' + r.reqs + '</td></tr>'; }).join('') + '</table>';
+      + '<table><tr><th>Time</th><th>Screen</th><th>Open</th><th>s</th><th title="seconds the page was busy drawing or working out figures">draw s</th><th>MB</th><th>Req</th></tr>'
+      + rows.slice(0, 120).map(function (r) { return '<tr><td>' + esc(r.at) + '</td><td>' + esc(r.what) + (r.cut ? ' <i>(left early)</i>' : '')
+        + (r.slow ? '<div style="color:#5d636b;font-size:11px">slowest: ' + esc(r.slow) + '</div>' : '') + '</td><td>' + esc(r.open)
+        + '</td><td class="n">' + r.s + '</td><td class="n">' + (r.busy == null ? '' : r.busy) + '</td><td class="n">' + r.mb + '</td><td class="n">' + r.reqs + '</td></tr>'; }).join('') + '</table>';
     b.innerHTML = h;
     document.getElementById('r1SpClose').onclick = function () { b.style.display = 'none'; };
     document.getElementById('r1SpClear').onclick = function () { slSave([]); SL.seen = {}; slDraw(); };
     document.getElementById('r1SpCopy').onclick = function () {
-      var t = ['time\\tscreen\\topen\\tseconds\\tMB\\trequests\\tbuild'].concat(slRows().map(function (r) {
-        return [r.at, r.what + (r.cut ? ' (left early)' : ''), r.open, r.s, r.mb, r.reqs, r.build].join('\\t'); })).join('\\n');
+      var t = ['time\\tscreen\\topen\\tseconds\\tdraw s\\tMB\\trequests\\tbuild\\tslowest requests'].concat(slRows().map(function (r) {
+        return [r.at, r.what + (r.cut ? ' (left early)' : ''), r.open, r.s, r.busy == null ? '' : r.busy, r.mb, r.reqs, r.build, r.slow || ''].join('\\t'); })).join('\\n');
       try { navigator.clipboard.writeText(t); this.textContent = 'Copied'; } catch (e) { window.prompt('Copy this', t); }
     };
   }
