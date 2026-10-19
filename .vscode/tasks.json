@@ -1,0 +1,30 @@
+{
+  // The three buttons. In VS Code: Terminal -> Run Task… (or Ctrl+Shift+P -> "Run Task") and pick one.
+  // Button 1 is also the default build task: Ctrl+Shift+B.
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "1 · Check locally (saving off)",
+      "type": "shell",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/check-local.ps1",
+      "group": { "kind": "build", "isDefault": true },
+      "isBackground": false,
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true }
+    },
+    {
+      "label": "2 · Send to TEST ERP",
+      "type": "shell",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/send-to-test.ps1",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated", "focus": true, "clear": true }
+    },
+    {
+      "label": "3 · Send to REAL (main): open the release page",
+      "type": "shell",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/send-to-main.ps1",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true }
+    }
+  ]
+}

@@ -6,6 +6,8 @@
 !/README.md
 !/RELEASE.md
 !/.github/
+!/tools/
+!/.vscode/
 !/Replenish-App/
 !/Pricing-App/
 !/Pricing-API/
