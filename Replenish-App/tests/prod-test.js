@@ -21477,6 +21477,15 @@ console.log('\n== Reports: Shopify dispatch ==');
      top.art === 'Cotton Block Print Tablecloth' && top.pcs === 4 && top.orders === 2 && top.SP === 3 && top.CPC === 1 && top.oldest === '2026-09-01',
      JSON.stringify(d.arts));
   ok('…a cancelled or refunded order adds nothing to pending', d.arts.reduce((t, a) => t + a.pcs, 0) === 5, JSON.stringify(d.arts));
+  /* 20 Oct: pending by age, a week to a bucket — 0–7, 8–14, 15–21, 22–28 … days since the order was placed */
+  { const g = A.repShopDispatch(O, id => meta[id], '2026-09-22').ages;
+    ok('pending by age: order 6 (7 Sep) is 15 days old → 15–21; order 7 (1 Sep) is 21 days → 15–21 as well', g.length === 3 && g[2].label === '15–21 days'
+      && g[2].orders.SP === 1 && g[2].orders.CPC === 1 && g[0].orders.SP + g[0].orders.CPC === 0 && g[2].pcs.SP === 4 && g[2].pcs.CPC === 1, JSON.stringify(g.map(x => [x.label, x.orders, x.pcs])));
+    const g2 = A.repShopDispatch(O, id => meta[id], '2026-09-30').ages;
+    ok('…a week later they are 23 and 29 days old → 22–28 and 29–35, each with its own articles', g2[3].label === '22–28 days' && g2[3].orders.SP === 1 && g2[4].label === '29–35 days' && g2[4].orders.CPC === 1
+      && g2[4].arts[0].art === 'Cotton Block Print Tablecloth' && g2[4].arts[0].pcs === 1, JSON.stringify(g2.map(x => [x.label, x.orders])));
+    const g3 = A.repShopDispatch(O, id => meta[id], '2026-09-14').ages;
+    ok('…and 7 days old is still in 0–7', g3[0].label === '0–7 days' && g3[0].orders.SP === 1, JSON.stringify(g3.map(x => [x.label, x.orders]))); }
   const src = fs.readFileSync(APP, 'utf8');
   ok('Reports offers it', /<option value="shpd">Shopify dispatch<\/option>/.test(src));
   /* 28 Sep: five views — Ravi crossed out the rest. */
