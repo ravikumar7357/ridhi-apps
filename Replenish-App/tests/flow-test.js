@@ -9,6 +9,14 @@ const ok = (name, cond, extra) => { if (cond) { pass++; console.log('  PASS ' + 
 const obUC = s => String(s == null ? '' : s).trim().toUpperCase();
 const L = (o) => Object.assign({ orderNo: 'AMZ-1', sku: 'S1', qty: 100, orderDate: '2026-10-12', src: 'AMZ', cutReq: false, cut: 0, issued: 0, received: 0, pressed: 0,
   printer: '', printed: 0, open: true, handedAt: '', shopDoneAt: '' }, o);
+/* The flow code's clock, pinned to the day the test data lives in (dToday / ptNow below): flowRows() keeps a done line only
+ * while its order is from the last 7 days, so on the real clock the fixed dates above fall out of the window as time goes
+ * by. It still ticks, so ids built from Date.now() stay unique. */
+const FLOW_T0 = Date.parse('2026-10-13T10:00:00Z'), REAL_T0 = Date.now();
+class FlowDate extends Date {
+  constructor(...a) { if (a.length) super(...a); else super(FlowDate.now()); }
+  static now() { return FLOW_T0 + (Date.now() - REAL_T0); }
+}
 
 function load(opts) {
   opts = opts || {};
@@ -16,7 +24,7 @@ function load(opts) {
   const el = id => els[id] || (els[id] = { id, value: '', textContent: '', innerHTML: '', className: '', style: {}, dataset: {}, classList: { toggle() {}, add() {}, remove() {}, contains: () => false }, addEventListener() {}, onclick: null });
   const W = { lines: opts.lines || [], vendor: opts.vendor || {}, qc: opts.qc || {}, fg: opts.fg || {}, shelf: opts.shelf || [] };
   const ctx = {
-    $: el, document: { querySelectorAll: () => [], querySelector: () => null }, localStorage: { getItem: k => Object.assign({ flowTests: '1', flowReal: '1' }, opts.ls || {})[k] ?? null },
+    $: el, Date: FlowDate, document: { querySelectorAll: () => [], querySelector: () => null }, localStorage: { getItem: k => Object.assign({ flowTests: '1', flowReal: '1' }, opts.ls || {})[k] ?? null },
     location: { hostname: opts.host || 'price-research-48ff3--flow-abc.web.app' },
     ME: Object.assign({ email: 'ppc@x', admin: false, tabs: [] }, opts.me || {}),
     obUC, esc: s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c])), nf: v => String(v),
