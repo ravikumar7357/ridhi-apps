@@ -9777,6 +9777,10 @@ console.log('\n== B2B sales orders: the buyer\'s own columns, and new items on t
     ok('…a ruffle tablecloth stays running fabric (cutting required)', c('STCX02-6090').cuttingRequired === true);
     ok('…a piping scallop tablecloth too', c('STCX03-6090').cuttingRequired === true);
     ok('…and a napkin is left as it was written', c('SMCNX01').cuttingRequired === true);
+    /* 20 Oct: a custom item's own picture (imageUrl) is its picture everywhere; a kommodo share page is not a picture */
+    A.setMDBX(Object.assign({}, wasX, { custom: [{ sku: 'STCX05-6090', imageUrl: 'https://x.komododecks.com/202610/18/ab/image.jpg' }, { sku: 'STCX06-6090', imageUrl: 'https://kommodo.ai/i/abc' }] }));
+    ok('a custom SKU shows the picture it came with', A.ptImgOf('STCX05-6090') === 'https://x.komododecks.com/202610/18/ab/image.jpg', String(A.ptImgOf('STCX05-6090')));
+    ok('…but not a share-page link', A.ptImgOf('STCX06-6090') !== 'https://kommodo.ai/i/abc');
     A.setMDBX(wasX); }
 
   NET.on = wasNet; ME.admin = wasAdmin;

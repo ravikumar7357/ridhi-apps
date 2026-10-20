@@ -504,6 +504,20 @@ async function soImgShrink(bytes, ext) {
     return cv.toDataURL('image/jpeg', 0.82);
   } catch (e) { return ''; }
 }
+/* PICTURES THAT CAME WITH THE ORDER (Ravi, 20 Oct: the RFD receive window said "none" for the B2B tablecloths). A SKU
+ * that is not in the master — a B2B or Shopify item — has its picture on its Custom SKUs record (imageUrl) and on its
+ * order-book line (shopImg), not with Amazon. sku -> that picture; rebuilt only when either list changes. */
+let _imgLineMap = null, _imgLineFor = null;
+function ptImgLines() {
+  const cust = (typeof MDBX !== 'undefined' && MDBX.custom) || null, ob = PTG.ob || null;
+  if (_imgLineMap && _imgLineFor && _imgLineFor[0] === cust && _imgLineFor[1] === ob) return _imgLineMap;
+  const m = new Map();
+  const pic = u => /^(https?:|data:)/i.test(u || '') && !/kommodo\.ai\/i\//i.test(u);     // a share page is not a picture
+  (ob || []).forEach(r => { if (r && pic(r.shopImg)) m.set(obUC(r.sku), r.shopImg); });
+  (cust || []).forEach(r => { if (r && pic(r.imageUrl)) m.set(obUC(r.sku), r.imageUrl); });
+  _imgLineMap = m; _imgLineFor = [cust, ob];
+  return m;
+}
 function ptImgOf(sku) {
   const k = obUC(sku);
   if (!k) return undefined;
@@ -512,6 +526,8 @@ function ptImgOf(sku) {
   const own = ptImgOwn().get(k);
   if (own) return own;
   if (B2BIMG.map[k]) return B2BIMG.map[k];       // the buyer's own picture, from the B2B sheet
+  const line = ptImgLines().get(k);
+  if (line) return line;                          // a B2B / Shopify item's own picture (Custom SKUs list, order-book line)
   if (MDBIMG.map[k]) return MDBIMG.map[k];
   const shared = PTIMG.map[k];
   if (shared === IMG_NONE) return '';        // asked, and Amazon has none — not a picture
