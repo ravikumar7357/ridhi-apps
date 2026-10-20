@@ -28,11 +28,32 @@ function ordItemCell(r, img, extra, frz) {
     + '<div class="jw-sub">' + (esc(what) || '—') + '</div>'
     + '<div class="jw-sku">' + esc(r.sku) + '</div>' + (extra || '') + '</div></div></td>';
 }
+/* THE BUYER OF A B2B ORDER (Ravi, 20 Oct: "b2b orders me buyer ka name bhi add krdo order number me" — shown beside the
+ * number, the number itself unchanged). The buyer is the Brand Name on the order's lines ("Insa", "Kymberly"); the sales
+ * order's buyerName holds who raised it, not the buyer. Read from the order book, else the sales order. '' for any other
+ * channel. Shown on the factory's own screens only — not on papers that go to a printer or vendor. */
+let ORD_BUYER_IX = { ob: null, sox: null, map: null };
+function ordBuyerOf(orderNo) {
+  const no = obUC(orderNo);
+  if (!/^B2B-/.test(no)) return '';
+  const ob = (typeof PTG !== 'undefined' && PTG.ob) || null, sox = (typeof SOX !== 'undefined' && SOX.rows) || null;
+  if (!ORD_BUYER_IX.map || ORD_BUYER_IX.ob !== ob || ORD_BUYER_IX.sox !== sox) {
+    const seen = new Map();
+    const add = (o, b) => { const k = obUC(o), v = String(b || '').trim(); if (!k || !v) return; const s = seen.get(k) || []; if (!s.includes(v)) s.push(v); seen.set(k, s); };
+    (sox || []).forEach(o => { if (o && /^B2B-/i.test(String(o._id || ''))) (Array.isArray(o.lines) ? o.lines : Object.values(o.lines || {})).forEach(l => add(o._id, l && l.brand)); });
+    (ob || []).forEach(r => { if (r && /^B2B-/i.test(String(r.orderNo || ''))) add(r.orderNo, r.brand); });
+    const map = new Map(); seen.forEach((v, k) => map.set(k, v.slice(0, 2).join(' / ') + (v.length > 2 ? ' +' + (v.length - 2) : '')));
+    ORD_BUYER_IX = { ob, sox, map };
+  }
+  return ORD_BUYER_IX.map.get(no) || '';
+}
 /** The order: its number, what raised it, and when. */
 function ordOrderCell(r, frz) {
+  const buyer = ordBuyerOf(r.orderNo);
   return '<td' + (frz ? ' class="frz"' : '') + ' style="text-align:left">'
     + '<a href="#" data-ordj="' + esc(r.orderNo) + '" title="This order, start to finish"'
     + ' style="color:inherit;text-decoration:underline dotted;font-weight:600">' + esc(r.orderNo) + '</a>'
+    + (buyer ? '<div class="jw-sub" style="font-weight:600;color:var(--ink,#1f2937)">' + esc(buyer) + '</div>' : '')
     + (r.shopOrderNo ? '<div class="jw-sub">' + esc(r.shopOrderNo) + '</div>' : '')
     + (r.adjId ? '<div class="jw-sku">' + esc(r.adjId) + '</div>' : '')
     + (r.orderDate ? '<div class="jw-t">' + esc(r.orderDate) + '</div>' : '') + '</td>';

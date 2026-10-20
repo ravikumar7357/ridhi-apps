@@ -362,9 +362,11 @@ function flowTable(view, rows) {
    * order, then its date, then one paper a line, the delete link last; the SKU, then its item, colour and size. */
   const poHead = x => {
     const again = x.r.orderNo === prevNo; prevNo = x.r.orderNo;
-    if (again) return `<div class="muted" style="font-size:11px">${esc(x.r.orderNo)}</div>`;
+    const buyer = typeof ordBuyerOf === 'function' ? ordBuyerOf(x.r.orderNo) : '';
+    if (again) return `<div class="muted" style="font-size:11px">${esc(x.r.orderNo)}${buyer ? ' · ' + esc(buyer) : ''}</div>`;
     return (x.r.__t ? `<b>${esc(x.r.orderNo)}</b> <span class="navbadge" style="background:#7c3aed;position:static">TEST</span>`
       : `<a href="#" data-ordj="${esc(x.r.orderNo)}" style="font-weight:600">${esc(x.r.orderNo)}</a>`)
+      + (buyer ? `<div style="font-size:13px;font-weight:600">${esc(buyer)}</div>` : '')
       + `<div class="muted" style="font-size:12px">${esc(flowSrcOf(x))} · ${esc(ptIsoDate(x.r.orderDate) || '')} · ${nf(flowDays(x.r.orderDate) || 0)} d</div>`
       + (x.r.fromSo ? `<div class="muted" style="font-size:12px">Copy of sales order ${esc(x.r.fromSo)}</div>` : '');
   };

@@ -23238,11 +23238,32 @@ function ordItemCell(r, img, extra, frz) {
     + '<div class="jw-sub">' + (esc(what) || '—') + '</div>'
     + '<div class="jw-sku">' + esc(r.sku) + '</div>' + (extra || '') + '</div></div></td>';
 }
+/* THE BUYER OF A B2B ORDER (Ravi, 20 Oct: "b2b orders me buyer ka name bhi add krdo order number me" — shown beside the
+ * number, the number itself unchanged). The buyer is the Brand Name on the order's lines ("Insa", "Kymberly"); the sales
+ * order's buyerName holds who raised it, not the buyer. Read from the order book, else the sales order. '' for any other
+ * channel. Shown on the factory's own screens only — not on papers that go to a printer or vendor. */
+let ORD_BUYER_IX = { ob: null, sox: null, map: null };
+function ordBuyerOf(orderNo) {
+  const no = obUC(orderNo);
+  if (!/^B2B-/.test(no)) return '';
+  const ob = (typeof PTG !== 'undefined' && PTG.ob) || null, sox = (typeof SOX !== 'undefined' && SOX.rows) || null;
+  if (!ORD_BUYER_IX.map || ORD_BUYER_IX.ob !== ob || ORD_BUYER_IX.sox !== sox) {
+    const seen = new Map();
+    const add = (o, b) => { const k = obUC(o), v = String(b || '').trim(); if (!k || !v) return; const s = seen.get(k) || []; if (!s.includes(v)) s.push(v); seen.set(k, s); };
+    (sox || []).forEach(o => { if (o && /^B2B-/i.test(String(o._id || ''))) (Array.isArray(o.lines) ? o.lines : Object.values(o.lines || {})).forEach(l => add(o._id, l && l.brand)); });
+    (ob || []).forEach(r => { if (r && /^B2B-/i.test(String(r.orderNo || ''))) add(r.orderNo, r.brand); });
+    const map = new Map(); seen.forEach((v, k) => map.set(k, v.slice(0, 2).join(' / ') + (v.length > 2 ? ' +' + (v.length - 2) : '')));
+    ORD_BUYER_IX = { ob, sox, map };
+  }
+  return ORD_BUYER_IX.map.get(no) || '';
+}
 /** The order: its number, what raised it, and when. */
 function ordOrderCell(r, frz) {
+  const buyer = ordBuyerOf(r.orderNo);
   return '<td' + (frz ? ' class="frz"' : '') + ' style="text-align:left">'
     + '<a href="#" data-ordj="' + esc(r.orderNo) + '" title="This order, start to finish"'
     + ' style="color:inherit;text-decoration:underline dotted;font-weight:600">' + esc(r.orderNo) + '</a>'
+    + (buyer ? '<div class="jw-sub" style="font-weight:600;color:var(--ink,#1f2937)">' + esc(buyer) + '</div>' : '')
     + (r.shopOrderNo ? '<div class="jw-sub">' + esc(r.shopOrderNo) + '</div>' : '')
     + (r.adjId ? '<div class="jw-sku">' + esc(r.adjId) + '</div>' : '')
     + (r.orderDate ? '<div class="jw-t">' + esc(r.orderDate) + '</div>' : '') + '</td>';
@@ -28865,7 +28886,7 @@ function flowHistTable(q, testOnly) {
   const body = list.map(c => { const recv = flowChRecv(c), st = flowChState(c);
     const sent = flowMixTxt((c.lines || []).map(l => [flowChSent(l), flowChUnit(l)])), got = flowMixTxt((c.lines || []).map(l => [recv[l.key] || 0, flowChUnit(l)]));
     return `<tr><td class="frz" style="text-align:left"><b>${esc(c.no)}</b>${flowIsTest(c.orderNo) ? ' <span class="navbadge" style="background:#7c3aed;position:static">TEST</span>' : ''}<div class="muted" style="font-size:10.5px">${esc(c.date || '')}</div></td>
-      <td style="text-align:left">${esc(c.orderNo)}</td><td style="text-align:left"><b>${esc(c.vendor && c.vendor.name)}</b></td>
+      <td style="text-align:left">${esc(c.orderNo)}${(c.orders || [c.orderNo]).map(o => typeof ordBuyerOf === 'function' ? ordBuyerOf(o) : '').filter(Boolean).filter((b, i, a) => a.indexOf(b) === i).map(b => `<div style="font-size:12px;font-weight:600">${esc(b)}</div>`).join('')}</td><td style="text-align:left"><b>${esc(c.vendor && c.vendor.name)}</b></td>
       <td style="text-align:left;font-size:11.5px">${(c.lines || []).map(l => `${esc(l.sku)} · ${flowQtyTxt(flowChSent(l), flowChUnit(l))}${recv[l.key] ? ` <span style="color:#166534">(${flowQtyTxt(recv[l.key], flowChUnit(l))} back)</span>` : ''}`).join('<br>')}</td>
       <td class="num">${sent}</td><td class="num">${got}</td>
       <td>${pill(st)}${(c.cancelled || c.closed) && (c.cancelled || c.closed).why ? `<div class="muted" style="font-size:10.5px">${esc((c.cancelled || c.closed).why)}</div>` : ''}</td>
@@ -30453,9 +30474,11 @@ function flowTable(view, rows) {
    * order, then its date, then one paper a line, the delete link last; the SKU, then its item, colour and size. */
   const poHead = x => {
     const again = x.r.orderNo === prevNo; prevNo = x.r.orderNo;
-    if (again) return `<div class="muted" style="font-size:11px">${esc(x.r.orderNo)}</div>`;
+    const buyer = typeof ordBuyerOf === 'function' ? ordBuyerOf(x.r.orderNo) : '';
+    if (again) return `<div class="muted" style="font-size:11px">${esc(x.r.orderNo)}${buyer ? ' · ' + esc(buyer) : ''}</div>`;
     return (x.r.__t ? `<b>${esc(x.r.orderNo)}</b> <span class="navbadge" style="background:#7c3aed;position:static">TEST</span>`
       : `<a href="#" data-ordj="${esc(x.r.orderNo)}" style="font-weight:600">${esc(x.r.orderNo)}</a>`)
+      + (buyer ? `<div style="font-size:13px;font-weight:600">${esc(buyer)}</div>` : '')
       + `<div class="muted" style="font-size:12px">${esc(flowSrcOf(x))} · ${esc(ptIsoDate(x.r.orderDate) || '')} · ${nf(flowDays(x.r.orderDate) || 0)} d</div>`
       + (x.r.fromSo ? `<div class="muted" style="font-size:12px">Copy of sales order ${esc(x.r.fromSo)}</div>` : '');
   };

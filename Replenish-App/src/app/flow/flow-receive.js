@@ -82,7 +82,7 @@ function flowHistTable(q, testOnly) {
   const body = list.map(c => { const recv = flowChRecv(c), st = flowChState(c);
     const sent = flowMixTxt((c.lines || []).map(l => [flowChSent(l), flowChUnit(l)])), got = flowMixTxt((c.lines || []).map(l => [recv[l.key] || 0, flowChUnit(l)]));
     return `<tr><td class="frz" style="text-align:left"><b>${esc(c.no)}</b>${flowIsTest(c.orderNo) ? ' <span class="navbadge" style="background:#7c3aed;position:static">TEST</span>' : ''}<div class="muted" style="font-size:10.5px">${esc(c.date || '')}</div></td>
-      <td style="text-align:left">${esc(c.orderNo)}</td><td style="text-align:left"><b>${esc(c.vendor && c.vendor.name)}</b></td>
+      <td style="text-align:left">${esc(c.orderNo)}${(c.orders || [c.orderNo]).map(o => typeof ordBuyerOf === 'function' ? ordBuyerOf(o) : '').filter(Boolean).filter((b, i, a) => a.indexOf(b) === i).map(b => `<div style="font-size:12px;font-weight:600">${esc(b)}</div>`).join('')}</td><td style="text-align:left"><b>${esc(c.vendor && c.vendor.name)}</b></td>
       <td style="text-align:left;font-size:11.5px">${(c.lines || []).map(l => `${esc(l.sku)} · ${flowQtyTxt(flowChSent(l), flowChUnit(l))}${recv[l.key] ? ` <span style="color:#166534">(${flowQtyTxt(recv[l.key], flowChUnit(l))} back)</span>` : ''}`).join('<br>')}</td>
       <td class="num">${sent}</td><td class="num">${got}</td>
       <td>${pill(st)}${(c.cancelled || c.closed) && (c.cancelled || c.closed).why ? `<div class="muted" style="font-size:10.5px">${esc((c.cancelled || c.closed).why)}</div>` : ''}</td>
