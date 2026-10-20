@@ -21486,6 +21486,11 @@ console.log('\n== Reports: Shopify dispatch ==');
       && g2[4].arts[0].art === 'Cotton Block Print Tablecloth' && g2[4].arts[0].pcs === 1, JSON.stringify(g2.map(x => [x.label, x.orders])));
     const g3 = A.repShopDispatch(O, id => meta[id], '2026-09-14').ages;
     ok('…and 7 days old is still in 0–7', g3[0].label === '0–7 days' && g3[0].orders.SP === 1, JSON.stringify(g3.map(x => [x.label, x.orders]))); }
+  /* 20 Oct: each article carries its orders — Shopify number, shop, date, pieces — oldest first, for the Orders dropdown */
+  { const o6 = Object.assign({}, O[5], { no: '#1006' }), o7 = Object.assign({}, O[6], { no: '#2007' });
+    const t = A.repShopDispatch([o6, o7], () => null, '2026-09-22').arts.find(x => x.art === 'Cotton Block Print Tablecloth');
+    ok('the article lists its orders: CPC #2007 (1 Sep, 1 pc) before Ridhi #1006 (7 Sep, 3 pcs)', t && t.ords.length === 2 && t.ords[0].no === '#2007' && t.ords[0].brand === 'CPC' && t.ords[0].pcs === 1
+      && t.ords[1].no === '#1006' && t.ords[1].brand === 'SP' && t.ords[1].pcs === 3 && t.ords[1].id === '6', JSON.stringify(t && t.ords)); }
   const src = fs.readFileSync(APP, 'utf8');
   ok('Reports offers it', /<option value="shpd">Shopify dispatch<\/option>/.test(src));
   /* 28 Sep: five views — Ravi crossed out the rest. */
