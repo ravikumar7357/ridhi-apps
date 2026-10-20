@@ -27,6 +27,28 @@ function flowReplanSide(old, nu, s) {
   return { patch, said };
 }
 
+/* RESYNC THE PRINTER'S PAPERS (20 Oct). The print order and the printer's Vendor Order(s) are written when a plan is
+ * saved. When a plan is changed outside the form, or a rule changes what a line is (19 Oct: plain tablecloths became cut
+ * pieces), the papers can lag behind the plan. This rebuilds them for one order from its plans as they are now, through
+ * the same code the PPC form's save uses, and asks before the printer's Vendor Order changes. Admins only. */
+async function flowPoResync(orderNo) {
+  if (!ME.admin) return 'Only an admin can resync printer orders.';
+  const rows = flowRows().filter(x => !x.r.__t && x.r.orderNo === orderNo && x.s.plan);
+  if (!rows.length) return `Nothing is planned on ${orderNo}.`;
+  const pos = flowPoSync(rows.map(x => ({ r: x.r, p: x.s.plan })), dToday());
+  const patch = Object.assign({}, pos.patch);
+  const vop = await flowVoPrepare(pos.local, patch, key => (FLOW.ppc || {})[key]);
+  if (!Object.keys(patch).length) { vop.undo(); flowPoResync.said = `${orderNo}: the papers already matched the plans.`; return ''; }
+  if (vop.ask && !confirm(vop.ask)) { vop.undo(); return 'Not changed — the Vendor Order was left as it is.'; }
+  for (const k of Object.keys(patch).filter(k => /^pt_flowPrintOrders\/[^/]+$/.test(k) && !(FLOW.po || {})[k.split('/')[1]])) {
+    let er = ''; try { er = await flowClaim(k, patch[k]); } catch (e) { er = e.message || String(e); }
+    if (er) { vop.undo(); return `Print order ${k.split('/')[1]} was raised by somebody else at the same moment — press Resync again.`; }
+  }
+  try { await ptPatch(patch); } catch (e) { vop.undo(); return 'Could not save: ' + (e.message || e); }
+  FLOW.po = pos.local; flowVoAfter(vop.placed);
+  flowPoResync.said = `${orderNo}: printer orders resynced — ${[...pos.said, ...vop.said].join('; ') || 'the papers already matched the plans'}.`;
+  return '';
+}
 /** Undo a plan: the line goes back to PPC. Not while its fabric is on a challan. */
 async function flowUnplan(s) {
   if (flowFabLocked(s)) return `Its fabric is on challan ${s.challan.no} — cancel that challan first (Demand history).`;
