@@ -166,6 +166,23 @@ function flowDoneTxt(x) {
   const q = +x.r.qty || 0, d = Math.round(q * (1 - flowRemFrac(x.r, x.s)));
   return d > 0 ? `<div class="muted" style="font-size:10px;white-space:nowrap">of ${nf(q)} · ${nf(d)} already made / with karigars</div>` : '';
 }
+/** "8 lines · 82 pcs · 227.58 m" — what is ticked on the challan form now (n = how many lines it has). */
+function flowChTotals(n) {
+  if (typeof document === 'undefined' || typeof document.querySelector !== 'function') return '';
+  let lines = 0, pcs = 0, m = 0;
+  for (let i = 0; i < n; i++) {
+    const chk = document.querySelector(`[data-chk="${i}"]`);
+    if (chk && !chk.checked) continue;
+    if (!chk) continue;
+    lines++; pcs += +((document.querySelector(`[data-chp="${i}"]`) || {}).value || 0); m += +((document.querySelector(`[data-chm="${i}"]`) || {}).value || 0);
+  }
+  return `Ticked: ${nf(lines)} line(s)${pcs ? ` · ${nf(pcs)} pcs` : ''} · ${nf(flowR2(m))} m`;
+}
+let FLOW_CH_N = 0;
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') ['input', 'change'].forEach(ev => document.addEventListener(ev, e => {
+  const t = e.target; if (!t || !t.closest || !t.closest('[data-chk],[data-chp],[data-chm]')) return;
+  const box = document.getElementById && document.getElementById('flcTot'); if (box) box.textContent = flowChTotals(FLOW_CH_N);
+}));
 function flowChallanDialog(rows, pcode, rufRows, pre) {
   /* pre (18 Oct, the size challan): what to send on each line, worked out FIFO — those lines come ticked with those figures. */
   const preOf = x => (pre && x && x.s ? pre.get(x.s.key) : null);
@@ -177,33 +194,37 @@ function flowChallanDialog(rows, pcode, rufRows, pre) {
     return `<tr><td><input type="checkbox" data-chk="${i}" checked style="width:auto"></td>
       <td style="text-align:left"><b style="font-family:ui-monospace,monospace">${esc(obUC(x.r.sku))}</b> <span class="fpc-mode" style="background:rgba(124,58,237,.14);color:#5b21b6;border-radius:6px;padding:0 6px;font-size:10.5px">ruffle only</span><div class="muted" style="font-size:10.5px">${esc(flowChItem(x.r))}</div>${flowExtrasTxt(o.extras)}</td>
       <td style="text-align:left">${esc(o.fabric || '—')}</td><td class="num">—</td>
-      <td class="num"><input data-chm="${i}" type="number" step="0.01" value="${esc(o.metres || '')}" style="width:90px;padding:3px 6px;font-size:12px"></td>
+      <td class="num"><input data-chm="${i}" type="number" step="0.01" value="${esc(o.metres || '')}" style="width:72px;padding:3px 6px;font-size:12px"></td>
       <td style="font-size:11px"><span class="muted">ruffle cloth</span></td></tr>`; }).join('');
-  rows = rows.concat(rufRows); const isRuf = i => i >= nM;
+  rows = rows.concat(rufRows); const isRuf = i => i >= nM; FLOW_CH_N = rows.length;
   const orders = [...new Set(rows.map(x => x.r.orderNo))], orderNo = orders.join(', '), isTest = rows.every(x => !!x.r.__t);
   const vens = flowChVendors();
   /* The printer PPC planned for these lines comes ready picked. */
   const planned = (pcode && pcode !== '?' ? pcode : rows.map(x => flowPlanPrinter(x.s)).find(Boolean)) || '';
   const lineHtml = rows.slice(0, nM).map((x, i) => { const p = x.s.plan || {}, c = cv.line[x.s.key] || {}, sepR = !!flowRufflePrinter(p);
     const pr = preOf(x), on = pre ? !!pr : (flowFabOwed(x.r, x.s).metres > 0 || (!sepR && !x.s.fabSent && flowPrintExtras(x.r, p).length));
+    /* DESIGN A (Ravi, 20 Oct): the photo and the SKU share one cell, the figures sit side by side, nothing runs off the
+     * right of the window; covered / short is a pill; the totals of what is ticked stand under the table (flowChTotals). */
     return `<tr><td><input type="checkbox" data-chk="${i}"${on ? ' checked' : ''} style="width:auto"></td>
-      <td style="text-align:left"><b style="font-family:ui-monospace,monospace">${esc(obUC(x.r.sku))}</b>${orders.length > 1 ? ` <span class="muted" style="font-size:10.5px">· ${esc(x.r.orderNo)}</span>` : ''}<div class="muted" style="font-size:10.5px">${esc(flowChItem(x.r))}</div>
-        <div style="font-size:11px;color:#4338ca">Print: ${flowPrintTxt(flowPrintWhat(x.r, p))}</div>${sepR ? `<div class="muted" style="font-size:10.5px">ruffle → ${esc(flowRufflePrinter(p).name)} (its own challan)</div>` : flowExtrasTxt(flowPrintExtras(x.r, p))}</td>
-      <td style="text-align:left">${esc((p.fabric && p.fabric.name) || '—')}</td>
+      <td style="text-align:left;white-space:normal"><div style="display:flex;gap:10px;align-items:center;min-width:0">${typeof ptImgSpan === 'function' ? ptImgSpan(obUC(x.r.sku), 40) : ''}<div style="min-width:0"><b style="font-family:ui-monospace,monospace">${esc(obUC(x.r.sku))}</b>${orders.length > 1 ? ` <span class="muted" style="font-size:10.5px">· ${esc(x.r.orderNo)}</span>` : ''}<div class="muted" style="font-size:10.5px">${esc(flowChItem(x.r))}</div>
+        <div style="font-size:11px;color:#4338ca">Print: ${flowPrintTxt(flowPrintWhat(x.r, p))}</div>${sepR ? `<div class="muted" style="font-size:10.5px">ruffle → ${esc(flowRufflePrinter(p).name)} (its own challan)</div>` : flowExtrasTxt(flowPrintExtras(x.r, p))}</div></div></td>
+      <td style="text-align:left;white-space:normal">${esc((p.fabric && p.fabric.name) || '—')}</td>
       <td class="num">${x.s.fabUnit === 'pcs'
         /* PART OF IT FOR NOW (Ravi, 15 Oct: "order ke 100 pcs h but me bhej 50 hi raha hu to wo partially challan bana saku"):
          * the pieces can be fewer than are owed; the rest stays in Demand → RFD, and the line says it went in part. */
-        ? `<input data-chp="${i}" type="number" min="1" step="1" max="${flowFabOwed(x.r, x.s).left}" value="${pr ? pr.pcs : flowFabOwed(x.r, x.s).left}" title="Send fewer pieces for now — the rest stays in Demand" style="width:84px;padding:3px 6px;font-size:12px">${flowDoneTxt(x)}`
+        ? `<input data-chp="${i}" type="number" min="1" step="1" max="${flowFabOwed(x.r, x.s).left}" value="${pr ? pr.pcs : flowFabOwed(x.r, x.s).left}" title="Send fewer pieces for now — the rest stays in Demand" style="width:60px;padding:3px 6px;font-size:12px">${flowDoneTxt(x)}`
         : (pr ? `${nf(pr.pcs)} <span class="muted" style="font-size:10px">of ${nf(x.r.qty)}</span>` : nf(x.r.qty))}</td>
-      <td class="num"><input data-chm="${i}" type="number" step="0.01" value="${esc((pr ? pr.metres : flowFabOwed(x.r, x.s).metres) || '')}" style="width:90px;padding:3px 6px;font-size:12px">${x.s.fabSent > 0 ? `<div class="muted" style="font-size:10px">${nf(x.s.fabSent)} ${x.s.fabUnit} sent already</div>` : ''}${+(p.fabric && p.fabric.fromPrinted) ? `<div class="muted" style="font-size:10px">${nf(p.fabric.fromPrinted)} ${p.fabric.printedUnit === 'pcs' ? 'pcs' : 'm'} from printed stock</div>` : ''}</td>
-      <td style="font-size:11px">${c.short ? `<b style="color:#b91c1c">⚑ short ${nf(c.short)} m</b>` : '<span style="color:#166534">covered</span>'}</td></tr>`; }).join('') + rufHtml;
+      <td class="num" style="white-space:normal"><input data-chm="${i}" type="number" step="0.01" value="${esc((pr ? pr.metres : flowFabOwed(x.r, x.s).metres) || '')}" style="width:72px;padding:3px 6px;font-size:12px">${x.s.fabSent > 0 ? `<div class="muted" style="font-size:10px">${nf(x.s.fabSent)} ${x.s.fabUnit} sent already</div>` : ''}${+(p.fabric && p.fabric.fromPrinted) ? `<div class="muted" style="font-size:10px">${nf(p.fabric.fromPrinted)} ${p.fabric.printedUnit === 'pcs' ? 'pcs' : 'm'} from printed stock</div>` : ''}</td>
+      <td style="font-size:11px;white-space:normal">${c.short ? `<span style="display:inline-block;padding:2px 9px;border-radius:999px;background:#fde8e8;color:#b42318;font-weight:700">short ${nf(c.short)} m</span>` : '<span style="display:inline-block;padding:2px 9px;border-radius:999px;background:#e7f5ec;color:#166534;font-weight:700">covered</span>'}</td></tr>`; }).join('') + rufHtml;
   ptOpenDialog({
     title: `RFD challan — ${orderNo}${pcode && pcode !== '?' ? ' → ' + ((vens.find(v => String(v.code) === String(pcode)) || {}).desc || ((rows[0].s.plan.printer || {}).name) || pcode) : ''}`,
     subtitle: (orders.length > 1 ? `${orders.length} orders, one printed fabric, one vendor. ` : 'The fabric of this order, to one vendor. ') + 'Saving numbers the challan, opens it to print, and marks these lines\' fabric as given — they leave Demand by themselves.',
     html: `<div class="ptgrid" style="grid-template-columns:2fr 1fr">
         <label>Vendor<select id="flcVen"><option value="">— pick the vendor —</option>${vens.map(v => `<option value="${esc(v.code)}"${String(v.code) === String(planned) ? ' selected' : ''}>${esc((v.desc || v.name || v.code) + (v.category ? ' · ' + v.category : ''))}</option>`).join('')}</select></label>
         <label>Date<input id="flcDate" type="date" value="${esc(dToday())}"></label></div>
-      <table class="xl" style="margin-top:10px;width:100%"><thead><tr><th></th><th style="text-align:left">SKU</th><th style="text-align:left">Fabric</th><th>Pcs</th><th>Metres</th><th>RFD</th></tr></thead><tbody>${lineHtml}</tbody></table>
+      <table class="xl" style="margin-top:10px;width:100%;table-layout:fixed"><colgroup><col style="width:34px"><col><col style="width:100px"><col style="width:84px"><col style="width:92px"><col style="width:104px"></colgroup>
+        <thead><tr><th></th><th style="text-align:left">Item</th><th style="text-align:left">Fabric</th><th>Pcs</th><th>Metres</th><th>RFD</th></tr></thead><tbody>${lineHtml}</tbody></table>
+      <div id="flcTot" style="margin-top:8px;font-size:13px;font-weight:600"></div>
       <label style="display:block;margin-top:8px">Note (vehicle, who carried it…)<input id="flcNote"></label>`,
     saveLabel: 'Make the challan',
     onSave: async () => {
@@ -262,6 +283,9 @@ function flowChallanDialog(rows, pcode, rufRows, pre) {
     const o = flowFabOwed(x.r, x.s);
     pi.addEventListener('input', () => { const n = Math.max(0, Math.min(+pi.value || 0, o.left)); if (o.left > 0) mi.value = flowR2(o.metres * n / o.left); });
   });
+  /* design A: the totals of what is ticked, and each line's photo */
+  const tot = document.getElementById && document.getElementById('flcTot'); if (tot) tot.textContent = flowChTotals(rows.length);
+  if (typeof ptImgFill === 'function') ptImgFill(rows.map(x => obUC(x.r.sku)), false, typeof ptImgPatch === 'function' ? ptImgPatch : null);
 }
 
 function flowChallanHtml(ch) {
