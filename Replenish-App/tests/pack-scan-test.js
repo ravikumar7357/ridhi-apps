@@ -57,6 +57,23 @@ function load(opts) {
   ok('a different label counts after two frames, no gap needed', A.pksFrame('X003ZK2Q9L', t0 + 4200) === false && A.pksFrame('X003ZK2Q9L', t0 + 4300) === true);
   ok('one stray frame of a misread is never counted', A.pksFrame('X0045G8P38', t0 + 9000) === false && A.pksFrame('X003ZK2Q9L', t0 + 9100) === false);
 
+  console.log('== 21 Oct: a held label read now and then is still one piece ==');
+  A = load();
+  /* a blurry label held still, read every 0.2–0.4 s with misses in between: counted 7–10 times before */
+  let n = 0, t = 2e6;
+  for (const gap of [0, 300, 250, 400, 200, 350, 300, 400, 250, 300, 380, 220]) { t += gap; if (A.pksFrame('X0045G8P3B', t, A.PKS, 1)) n++; }
+  ok('a label held still and read every 0.2–0.4 s counts once', n === 1, String(n));
+  ok('taken away for more than 0.9 s and the next piece shown, it counts again', A.pksFrame('X0045G8P3B', t + 1500, A.PKS, 1) === true);
+  A = load(); A.PKS.frameMs = 400;
+  ok('a slow phone (a picture every 0.4 s) waits longer before a piece has gone', A.pksFrame('X003ZK2Q9L', 3e6, A.PKS, 1) === true && A.pksFrame('X003ZK2Q9L', 3e6 + 1800, A.PKS, 1) === false);
+  A = load();
+  ok('a known code counts on one read', A.pksFrame('X0045G8P3B', 4e6, A.PKS, 1) === true);
+  ok('an unknown code still needs two', A.pksFrame('X00UNKNOWN', 5e6) === false && A.pksFrame('X00UNKNOWN', 5e6 + 100) === true);
+  ok('the camera reads a known code with one read (pksLoop)', /pksFrame\(c, now, PKS, pksResolve\(c\)\.sku \? 1 : PKS_AGREE\)/.test(SRC));
+  const body = name => (SRC.replace(/\r\n/g, '\n').match(new RegExp('function ' + name + '\\([\\s\\S]*?\\n}\\n')) || [''])[0];
+  ok('changing box, keeping a piece aside, or a QC accept do not forget the label in view (no second count)',
+    ['pksGoBox', 'pksNextBox', 'pksKeptAside'].every(f => body(f) && !body(f).includes('PKS.seen = null')) && /pksSeenNow\(code\);[^\n]*\n\s*pksHit\(code, "qc"\)/.test(SRC.replace(/\r\n/g, '\n')));
+
   console.log('== counting into the box ==');
   A = load();
   let r = A.pksCount('X0045G8P3B');

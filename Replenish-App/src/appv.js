@@ -31,6 +31,8 @@
     try {
       var d = document; if (typeof d.querySelector !== 'function') return false;
       if (d.querySelector('#ptDlg:not(.hide), .modal:not(.hide), .ptmodal:not(.hide), #mobMoreModal:not(.hide)')) return false;
+      /* never in the middle of a scan (21 Oct): a reload tore the session down and lost the "kept aside" stop */
+      if (d.querySelector('#pksOv, .pkvcam')) return false;
       var ae = d.activeElement; if (ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName || '')) return false;
       return true;
     } catch (e) { return false; }
