@@ -7,16 +7,7 @@ let pass = 0, fail = 0;
 const ok = (name, cond, extra) => { if (cond) { pass++; console.log('  PASS ' + name); } else { fail++; console.log('  FAIL ' + name + (extra ? ' — ' + extra : '')); } };
 
 const obUC = s => String(s == null ? '' : s).trim().toUpperCase();
-/* THE TEST'S OWN CLOCK (2026-10-21). The stubs say today is 13 Oct (dToday, ptNow) and the lines are dated around it,
- * but a few flow rules read the real clock (Date.now(): "a new order = the last 7 days"). Once the real date moved a
- * week past 13 Oct those checks failed although nothing had changed. The flow code now sees a clock that starts at
- * 13 Oct 10:00 UTC and keeps ticking, so every check answers the same on any day. */
-const TEST_NOW = Date.parse('2026-10-13T10:00:00Z'), REAL_T0 = Date.now();
-class TestDate extends Date {
-  constructor(...a) { if (a.length) super(...a); else super(TEST_NOW + (Date.now() - REAL_T0)); }
-  static now() { return TEST_NOW + (Date.now() - REAL_T0); }
-}
-const L =(o) => Object.assign({ orderNo: 'AMZ-1', sku: 'S1', qty: 100, orderDate: '2026-10-12', src: 'AMZ', cutReq: false, cut: 0, issued: 0, received: 0, pressed: 0,
+const L = (o) => Object.assign({ orderNo: 'AMZ-1', sku: 'S1', qty: 100, orderDate: '2026-10-12', src: 'AMZ', cutReq: false, cut: 0, issued: 0, received: 0, pressed: 0,
   printer: '', printed: 0, open: true, handedAt: '', shopDoneAt: '' }, o);
 /* The flow code's clock, pinned to the day the test data lives in (dToday / ptNow below): flowRows() keeps a done line only
  * while its order is from the last 7 days, so on the real clock the fixed dates above fall out of the window as time goes
@@ -37,7 +28,7 @@ function load(opts) {
     location: { hostname: opts.host || 'price-research-48ff3--flow-abc.web.app' },
     ME: Object.assign({ email: 'ppc@x', admin: false, tabs: [] }, opts.me || {}),
     obUC, esc: s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c])), nf: v => String(v),
-    Date: TestDate, dToday: () => '2026-10-13', ptIsoDate: v => String(v || '').slice(0, 10),
+    dToday: () => '2026-10-13', ptIsoDate: v => String(v || '').slice(0, 10),
     ordLines: () => W.lines, ordVendorOf: (o, s) => W.vendor[o + '|' + s] || null, ordQcOf: (o, s) => W.qc[o + '|' + s] || null,
     ordFgAt: (o, s) => W.fg[o + '|' + s] || null, ordWaitingAt: () => '', ordIsMto: no => /^(SHP|ONL)-/.test(no), ordJourney: () => {},
     accBalances: () => W.shelf, accCode: c => String(c == null ? '' : c).trim().toUpperCase(),
