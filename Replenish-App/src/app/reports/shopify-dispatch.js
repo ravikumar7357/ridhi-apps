@@ -38,29 +38,56 @@ function repShopArt(i) {
   const n = String((i && i.name) || '').split(/\s[-–—]\s/)[0].trim();
   return n || '(no name)';
 }
+/* HOW OLD THE PENDING ORDERS ARE (Ravi, 20 Oct: "shopify pending order report bucket wise chahiye like 0-7 days, 8-14
+ * days, 15-21 days, 22-28 days ...."): a week to a bucket, counted in whole days from the day the order was placed to
+ * today — 0–7, 8–14, 15–21, … up to the oldest open order. */
+const repShopAgeDays = (at, today) => {
+  const a = Date.parse(String(at || '').slice(0, 10) + 'T00:00:00Z'), t = Date.parse(String(today || '').slice(0, 10) + 'T00:00:00Z');
+  return isNaN(a) || isNaN(t) ? null : Math.max(0, Math.round((t - a) / 86400000));
+};
+const repShopAgeIdx = d => (d <= 7 ? 0 : Math.ceil((d - 7) / 7));
+const repShopAgeLabel = i => (i === 0 ? '0–7 days' : `${7 * i + 1}–${7 * i + 7} days`);
+const repShopArtList = arts => [...arts.values()].map(a => ({ art: a.art, pcs: a.pcs, SP: a.SP, CPC: a.CPC, orders: a.ids.size, oldest: a.oldest,
+  ords: [...a.ords.values()].sort((x, y) => String(x.at).localeCompare(String(y.at)) || String(x.no).localeCompare(String(y.no))) }))
+  .sort((x, y) => y.pcs - x.pcs || y.orders - x.orders || x.art.localeCompare(y.art));
+/* THE ORDER ITSELF (Ravi, 20 Oct: "orders me real order id aani chahiye dropdown me and click krne par apne shopify order me
+ * le jana chahiye"): each order of an article, its Shopify number, opening that order in the store's own Shopify admin. */
+const REP_SHOP_ADMIN = { SP: 'ridhiblockprint', CPC: 'liquidationfashion' };
+const repShopOrderUrl = (brand, id) => (id && /^\d+$/.test(String(id)) ? `https://admin.shopify.com/store/${REP_SHOP_ADMIN[brand === 'CPC' ? 'CPC' : 'SP']}/orders/${id}` : '');
 /** Counts for one list of orders. metaOf(id) → the app's own record of that order (MCF id, carrier). */
-function repShopDispatch(orders, metaOf) {
+function repShopDispatch(orders, metaOf, today) {
   const z = () => ({ SP: 0, CPC: 0 });
   const via = {}; REP_SHIP_VIA.forEach(k => { via[k] = z(); });
   const st = { placed: z(), shipped: z(), pending: z(), cancelled: z(), closed: z() };
-  const arts = new Map();
+  const arts = new Map(), ages = [];
+  const day = today || (typeof dToday === 'function' ? dToday() : new Date().toISOString().slice(0, 10));
+  const addArt = (map, art, n, b, o) => {
+    let a = map.get(art);
+    if (!a) map.set(art, a = { art, pcs: 0, SP: 0, CPC: 0, ids: new Set(), ords: new Map(), oldest: '' });
+    a.pcs += n; a[b] += n; a.ids.add(o.id);
+    const ok = b + '|' + o.id, was = a.ords.get(ok);
+    a.ords.set(ok, { id: o.id, no: o.no || ('#' + o.id), brand: b, at: String(o.at || '').slice(0, 10), pcs: (was ? was.pcs : 0) + n });
+    if (o.at && (!a.oldest || o.at < a.oldest)) a.oldest = o.at;
+  };
   (orders || []).forEach(o => {
     const b = o.shopBrand === 'CPC' ? 'CPC' : 'SP', k = repShopState(o);
     st.placed[b]++; st[k][b]++;
     if (k === 'shipped') via[repShipVia(o, metaOf ? metaOf(o.id) : null)][b]++;
     if (k !== 'pending') return;
+    const d = repShopAgeDays(o.at, day), ai = d == null ? null : repShopAgeIdx(d);
+    let g = null;
+    if (ai != null) {
+      for (let i = ages.length; i <= ai; i++) ages[i] = { idx: i, label: repShopAgeLabel(i), orders: z(), pcs: z(), arts: new Map() };
+      g = ages[ai]; g.orders[b]++;
+    }
     (o.items || []).forEach(i => {
       const n = repShopLeft(i); if (!n) return;
       const art = repShopArt(i);
-      let a = arts.get(art);
-      if (!a) arts.set(art, a = { art, pcs: 0, SP: 0, CPC: 0, ids: new Set(), oldest: '' });
-      a.pcs += n; a[b] += n; a.ids.add(o.id);
-      if (o.at && (!a.oldest || o.at < a.oldest)) a.oldest = o.at;
+      addArt(arts, art, n, b, o);
+      if (g) { g.pcs[b] += n; addArt(g.arts, art, n, b, o); }
     });
   });
-  const list = [...arts.values()].map(a => ({ art: a.art, pcs: a.pcs, SP: a.SP, CPC: a.CPC, orders: a.ids.size, oldest: a.oldest }))
-    .sort((x, y) => y.pcs - x.pcs || y.orders - x.orders || x.art.localeCompare(y.art));
-  return { via, st, arts: list };
+  return { via, st, arts: repShopArtList(arts), ages: ages.map(g => Object.assign({}, g, { arts: repShopArtList(g.arts) })) };
 }
 /** Both stores, one window. A store that fails is named, never silently left out of the totals. */
 async function repShopFetch(win) {
@@ -118,19 +145,51 @@ function repRenderShopDispatch() {
     <div class="kpi" style="flex-basis:100%">
     <div class="kpihead"><span class="kpiname">Pending right now — every open order of the last 120 days</span><span class="kpiwhen">not yet dispatched</span></div>
     <div class="metrics">${tile(tot(n.st.pending), 'Pending orders', split(n.st.pending), 'var(--bad)')}${tile(pendPcs, 'Pieces to send', 'on those orders')}`
-    + `<div class="metric"><div class="v" style="font-size:18px">${esc(oldest || '—')}</div><div class="l">Oldest pending order</div></div></div></div>`;
-  if (!n.arts.length) { ptEmpty('repTable', 'Nothing is pending.'); return; }
-  const top = n.arts[0].pcs || 1;
-  $('repTable').innerHTML = '<thead><tr><th style="text-align:left">Article — most pending first</th><th class="num">Pending pieces</th><th class="num">Orders</th>'
+    + `<div class="metric"><div class="v" style="font-size:18px">${esc(oldest || '—')}</div><div class="l">Oldest pending order</div></div></div></div>`
+    + repShopAgeCard(n);
+  const pick = REP.shdAge != null && n.ages && n.ages[REP.shdAge] ? n.ages[REP.shdAge] : null;
+  const arts = pick ? pick.arts : n.arts;
+  if (!arts.length) { ptEmpty('repTable', pick ? 'Nothing pending in ' + pick.label + '.' : 'Nothing is pending.'); return; }
+  const top = arts[0].pcs || 1;
+  $('repTable').innerHTML = '<thead><tr><th style="text-align:left">Article — most pending first' + (pick ? ' · ' + esc(pick.label) + ' old' : '') + '</th><th class="num">Pending pieces</th><th class="num">Orders</th>'
     + '<th class="num">Ridhi</th><th class="num">CPC</th><th>Oldest order</th><th style="width:30%"></th></tr></thead><tbody>'
-    + n.arts.slice(0, 200).map(a => '<tr><td style="text-align:left;font-weight:600">' + esc(a.art) + '</td>'
-      + '<td class="num" style="font-weight:700">' + nf(a.pcs) + '</td><td class="num">' + nf(a.orders) + '</td>'
+    + arts.slice(0, 200).map(a => '<tr><td style="text-align:left;font-weight:600">' + esc(a.art) + '</td>'
+      + '<td class="num" style="font-weight:700">' + nf(a.pcs) + '</td><td class="num">' + repShopOrdersCell(a) + '</td>'
       + '<td class="num">' + (a.SP ? nf(a.SP) : '<span class="muted">—</span>') + '</td><td class="num">' + (a.CPC ? nf(a.CPC) : '<span class="muted">—</span>') + '</td>'
       + '<td>' + esc(a.oldest || '') + '</td>'
       + '<td><div style="height:8px;border-radius:4px;background:var(--bad);opacity:.75;width:' + Math.max(2, Math.round(a.pcs / top * 100)) + '%"></div></td></tr>').join('')
     + '</tbody>';
 }
 
+/** The Orders cell: the count, opening a list of the orders — each its Shopify number, linked to that order in Shopify. */
+function repShopOrdersCell(a) {
+  const list = (a.ords || []).map(o => { const u = repShopOrderUrl(o.brand, o.id);
+    return `<div style="white-space:nowrap;padding:2px 0">${u ? `<a href="${esc(u)}" target="_blank" rel="noopener" title="Open this order in Shopify">${esc(o.no)}</a>` : esc(o.no)}`
+      + ` <span class="muted" style="font-size:11px">${o.brand === 'CPC' ? 'CPC' : 'Ridhi'} · ${esc(o.at)} · ${nf(o.pcs)} pcs</span></div>`; }).join('');
+  return list ? `<details style="display:inline-block;text-align:left"><summary style="cursor:pointer;list-style-position:inside">${nf(a.orders)}</summary>`
+    + `<div style="max-height:220px;overflow:auto;padding:4px 0">${list}</div></details>` : nf(a.orders);
+}
+/** Pending by age: one tile a week, orders big, pieces and shops under; a tile narrows the article table to it. */
+function repShopAgeCard(n) {
+  const ages = (n && n.ages) || [];
+  if (!ages.length) return '';
+  const sel = REP.shdAge;
+  const tile = g => { const o = g.orders.SP + g.orders.CPC, p = g.pcs.SP + g.pcs.CPC, on = sel === g.idx, old = g.idx >= 2;
+    return `<button type="button" class="metric" data-shdage="${g.idx}" title="Show only the articles of orders ${esc(g.label)} old"
+      style="text-align:left;cursor:pointer;color:var(--ink,#1f2937);border:${on ? '2px solid var(--accent)' : '1px solid var(--line)'};background:${on ? 'var(--soft,#eef3f9)' : 'transparent'};border-radius:12px;padding:8px 12px;min-width:120px;width:auto">
+      <div class="l" style="font-weight:700">${esc(g.label)}</div><div class="v" style="color:${o && old ? 'var(--bad)' : 'var(--ink,#1f2937)'}">${nf(o)}</div>
+      <div class="muted" style="font-size:11px">orders · ${nf(p)} pcs</div><div class="muted" style="font-size:11px">Ridhi ${nf(g.orders.SP)} · CPC ${nf(g.orders.CPC)}</div></button>`; };
+  return `<div class="kpi" style="flex-basis:100%">
+    <div class="kpihead"><span class="kpiname">Pending by age — days since the order was placed</span><span class="kpiwhen">${sel != null ? '<a href="#" data-shdage="all">show all ages</a>' : 'tap a week to see its articles'}</span></div>
+    <div class="metrics" style="gap:8px;flex-wrap:wrap">${ages.map(tile).join('')}</div></div>`;
+}
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('click', e => {
+  const b = e.target && e.target.closest && e.target.closest('[data-shdage]'); if (!b) return;
+  e.preventDefault();
+  const v = b.getAttribute('data-shdage');
+  REP.shdAge = v === 'all' || +v === REP.shdAge ? null : +v;
+  if (REP.view === 'shpd' || ($('repView') && $('repView').value === 'shpd')) repRenderShopDispatch();
+});
 function renderRep() {
   if (REP.busy) { $('repMsg').className = 'muted'; $('repMsg').textContent = 'Reading…'; ptEmpty('repTable', 'Loading…'); return; }
   const v = $('repView').value;
@@ -188,8 +247,11 @@ $('repExport').onclick = () => {
     ['placed', 'shipped', 'pending', 'cancelled', 'closed'].forEach(k => out.push(['Orders placed in ' + REP.shd.ym, k,
       d.st[k].SP, d.st[k].CPC, d.st[k].SP + d.st[k].CPC].map(csvCell).join(',')));
     out.push('');
-    out.push(['Article (pending now)', 'Pending pieces', 'Orders', 'Ridhi pieces', 'CPC pieces', 'Oldest order'].map(csvCell).join(','));
-    REP.shd.now.arts.forEach(a => out.push([a.art, a.pcs, a.orders, a.SP, a.CPC, a.oldest].map(csvCell).join(',')));
+    out.push(['Pending by age', 'Orders', 'Ridhi orders', 'CPC orders', 'Pieces', 'Ridhi pieces', 'CPC pieces'].map(csvCell).join(','));
+    (REP.shd.now.ages || []).forEach(g => out.push([g.label, g.orders.SP + g.orders.CPC, g.orders.SP, g.orders.CPC, g.pcs.SP + g.pcs.CPC, g.pcs.SP, g.pcs.CPC].map(csvCell).join(',')));
+    out.push('');
+    out.push(['Article (pending now)', 'Pending pieces', 'Orders', 'Ridhi pieces', 'CPC pieces', 'Oldest order', 'Order numbers'].map(csvCell).join(','));
+    REP.shd.now.arts.forEach(a => out.push([a.art, a.pcs, a.orders, a.SP, a.CPC, a.oldest, (a.ords || []).map(o => (o.brand === 'CPC' ? 'CPC ' : '') + o.no).join(' ')].map(csvCell).join(',')));
     return ptDownload('shopify-dispatch-' + REP.shd.ym, out);
   }
   if ($('repView').value === 'wow') {

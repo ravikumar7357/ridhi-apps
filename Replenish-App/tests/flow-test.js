@@ -18,6 +18,14 @@ class TestDate extends Date {
 }
 const L =(o) => Object.assign({ orderNo: 'AMZ-1', sku: 'S1', qty: 100, orderDate: '2026-10-12', src: 'AMZ', cutReq: false, cut: 0, issued: 0, received: 0, pressed: 0,
   printer: '', printed: 0, open: true, handedAt: '', shopDoneAt: '' }, o);
+/* The flow code's clock, pinned to the day the test data lives in (dToday / ptNow below): flowRows() keeps a done line only
+ * while its order is from the last 7 days, so on the real clock the fixed dates above fall out of the window as time goes
+ * by. It still ticks, so ids built from Date.now() stay unique. */
+const FLOW_T0 = Date.parse('2026-10-13T10:00:00Z'), REAL_T0 = Date.now();
+class FlowDate extends Date {
+  constructor(...a) { if (a.length) super(...a); else super(FlowDate.now()); }
+  static now() { return FLOW_T0 + (Date.now() - REAL_T0); }
+}
 
 function load(opts) {
   opts = opts || {};
@@ -25,7 +33,7 @@ function load(opts) {
   const el = id => els[id] || (els[id] = { id, value: '', textContent: '', innerHTML: '', className: '', style: {}, dataset: {}, classList: { toggle() {}, add() {}, remove() {}, contains: () => false }, addEventListener() {}, onclick: null });
   const W = { lines: opts.lines || [], vendor: opts.vendor || {}, qc: opts.qc || {}, fg: opts.fg || {}, shelf: opts.shelf || [] };
   const ctx = {
-    $: el, document: { querySelectorAll: () => [], querySelector: () => null }, localStorage: { getItem: k => Object.assign({ flowTests: '1', flowReal: '1' }, opts.ls || {})[k] ?? null },
+    $: el, Date: FlowDate, document: { querySelectorAll: () => [], querySelector: () => null }, localStorage: { getItem: k => Object.assign({ flowTests: '1', flowReal: '1' }, opts.ls || {})[k] ?? null },
     location: { hostname: opts.host || 'price-research-48ff3--flow-abc.web.app' },
     ME: Object.assign({ email: 'ppc@x', admin: false, tabs: [] }, opts.me || {}),
     obUC, esc: s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c])), nf: v => String(v),
@@ -67,7 +75,7 @@ function load(opts) {
     FAB: { rows: opts.fabRows || [] },
     STORE: { rows: opts.store ? [] : null }, stMoves: () => opts.store || [], stBalances: mv => mv, fabKey: v => String(v || '').trim().toUpperCase(), fabAll: () => opts.fabRows || [], ptList: x => x || [], fabAutoLoad: async () => {}, GD: opts.gd, mdbOf: opts.mdbOf, MDBX: opts.mdbx, fabState: r => String((r && r.state) || (/RFD/.test(String(r && r.txnType)) ? 'RFD' : 'PRINTED')).toUpperCase(), fabKnown: t => ['OPENING_RFD', 'RFD_TO_PRINTER', 'ISSUE_TO_CUTTING', 'RECEIVE_RFD', 'PURCHASE_RFD', 'ADJUST'].includes(t), fabMove: r => (+r.qty || 0) * (['RFD_TO_PRINTER', 'ISSUE_TO_CUTTING'].includes(r.txnType) ? -1 : 1), fabStockOf: (name, st) => (st === 'RFD' ? (opts.rfd || {})[String(name).toUpperCase()] || 0 : 0),
   };
-  const api = new Function(...Object.keys(ctx), SRC + '\n;return { flowFabOwed, flowRfdStock, flowFabKnown, flowMatRow, flowGdNote, flowPpcDraftSave, flowPpcDraftApply, flowPpcDraftDrop, flowPpcHasDraft, flowBackOpen, flowAgainOpen, flowIsBack, flowBackLines, flowBackPill, FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW_ROUTES, flowPlanRouteOf, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestCutOpen, flowTestIssueOpen, flowTestRecvOpen, flowTestVos, flowVoProgOf, flowVoProgSync, flowVlogRows, flowDocsOf, flowVoExtra, flowVpViewOnly, flowFgAcceptOpen, flowFgAccept, flowFgRejectOpen, flowFgReject, flowFgLines, flowFgRender, flowQcLine, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowCutEntry, flowIssueEntry, flowRecvEntry, flowQcEntry, flowIssuable, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowVoLines, flowSwatchOf, flowSizeFifo, flowSizeChallanOpen, flowBySizeData, flowPpcXlRows, flowPpcXlRead, flowXlDate, FLOW_XL_COLS, VOrows:()=>VO.rows, setVOrows:v=>{VO.rows=v}, flowUnplan, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v}, flowEmbedRender, FLOW_EMB:()=>FLOW_EMB, flowScreenAllowed, flowOwnsOrder, flowOwnedIn, flowVoIsFlow, flowFgOwns, flowDupViewsOff, renderView:()=>{ if (["cut","raw","wip","new","pord","vendor","fabric"].includes(FLOW_VIEW)) { const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly(); const rows = flowRows().filter(x => (!only || x.r.__t) && (FLOW_VIEW === "new" ? x.recent : flowInView(FLOW_VIEW, x.s))); $("flTable").innerHTML = flowTable(FLOW_VIEW, rows); } else renderFlow(); } };')(...Object.values(ctx));
+  const api = new Function(...Object.keys(ctx), SRC + '\n;return { flowFabOwed, flowRfdStock, flowFabKnown, flowMatRow, flowGdNote, flowPpcDraftSave, flowPpcDraftApply, flowPpcDraftDrop, flowPpcHasDraft, flowBackOpen, flowAgainOpen, flowIsBack, flowBackLines, flowBackPill, FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW_ROUTES, flowPlanRouteOf, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChTotals, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestCutOpen, flowTestIssueOpen, flowTestRecvOpen, flowTestVos, flowVoProgOf, flowVoProgSync, flowVlogRows, flowDocsOf, flowVoExtra, flowVpViewOnly, flowFgAcceptOpen, flowFgAccept, flowFgRejectOpen, flowFgReject, flowFgLines, flowFgRender, flowQcLine, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowRecvCross, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowCutEntry, flowIssueEntry, flowRecvEntry, flowQcEntry, flowIssuable, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowVoLines, flowSwatchOf, flowSizeFifo, flowSizeChallanOpen, flowBySizeData, flowPpcXlRows, flowPpcXlRead, flowXlDate, FLOW_XL_COLS, VOrows:()=>VO.rows, setVOrows:v=>{VO.rows=v}, flowUnplan, flowPoResync, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v}, flowEmbedRender, FLOW_EMB:()=>FLOW_EMB, flowScreenAllowed, flowOwnsOrder, flowOwnedIn, flowVoIsFlow, flowFgOwns, flowDupViewsOff, renderView:()=>{ if (["cut","raw","wip","new","pord","vendor","fabric"].includes(FLOW_VIEW)) { const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly(); const rows = flowRows().filter(x => (!only || x.r.__t) && (FLOW_VIEW === "new" ? x.recent : flowInView(FLOW_VIEW, x.s))); $("flTable").innerHTML = flowTable(FLOW_VIEW, rows); } else renderFlow(); } };')(...Object.values(ctx));
   api.setFLOW(Object.assign(api.FLOW(), { ppc: opts.ppc || {}, dem: opts.dem || {}, res: opts.res || {} }));
   return Object.assign(api, { els, writes, W, ctx });
 }
@@ -312,6 +320,19 @@ const K = 'AMZ-1__S1';
     ok('close short needs a reason', /Say why/.test(await A.ctx.__dlg.onSave()) && !A.writes.length);
     A.els.flcWhy.value = 'printer damaged 10 m';
     ok('closed short → the lines move on with what came', !(await A.ctx.__dlg.onSave()) && A.writes[0]['pt_flowChallans/RFD-202610-001/closed'].short && A.flowState(L()).bucket === 'raw');
+    /* 20 Oct (design A): ✕ marks a line Not received for this receipt only — it stays on the challan, still owed. */
+    A = load(base); A.setFLOW(Object.assign(A.FLOW(), { ch: JSON.parse(JSON.stringify(chs)) }));
+    QS = { '[data-flrm="0"]': { value: '100' }, '[data-flrm="1"]': { value: '50' } };
+    A.ctx.document.querySelector = sel => QS[sel] || null;
+    A.flowReceiveOpen('RFD-202610-001'); A.els.flrDate = { value: '2026-10-20' }; A.els.flrNote = { value: '' };
+    ok('the receive window shows a picture column and a cross on each line still owed', /<th[^>]*>Photo<\/th>/.test(A.ctx.__dlg.html) && /data-flrx="0"/.test(A.ctx.__dlg.html) && /data-flrx="1"/.test(A.ctx.__dlg.html), A.ctx.__dlg.html.slice(0, 600));
+    A.flowRecvCross(1);
+    { const er = await A.ctx.__dlg.onSave(), w = A.writes[0] || {}, rk = Object.keys(w).find(k => /receipts\//.test(k)), rc = rk && w[rk];
+      ok('S2 crossed: this receipt has S1 only, names S2 as not received, and the challan stays open', !er && rc && rc.items[K] === 100 && !('AMZ-1__S2' in rc.items) && (rc.notCame || []).join() === 'AMZ-1__S2' && !Object.keys(w).some(k => /closed/.test(k)), JSON.stringify(w));
+      ok('…S2 is still owed and can be received next time', A.flowState(L({ sku: 'S2', qty: 40 })).back === 0 && A.flowState(L({ sku: 'S2', qty: 40 })).bucket === 'fabric'); }
+    QS = { '[data-flrm="0"]': { value: '' }, '[data-flrm="1"]': { value: '50' } };
+    A.flowReceiveOpen('RFD-202610-001'); A.flowRecvCross(1); A.flowRecvCross(1);
+    ok('a cross taken back (↶) counts the line again', !(await A.ctx.__dlg.onSave()));
   }
 
   console.log('== received in the form it was given: pieces back as pieces (CPC-02 tablecloth) ==');
@@ -639,6 +660,8 @@ const K = 'AMZ-1__S1';
     ok('cut pieces: per SKU — what, colour, size — in pieces, with the cloth that goes for them', /Cut pieces — print on the SKU/.test(page) && /<b>CPC-01<\/b>/.test(page) && /<b>40 pcs<\/b>/.test(page) && /94 m/.test(page)
       && /<td[^>]*>Tablecloth<\/td><td[^>]*><b>Agate Green<\/b><\/td><td[^>]*><b>60x60<\/b><\/td>/.test(page), page.slice(page.indexOf('Cut pieces'), page.indexOf('Cut pieces') + 700));
     ok('the printer and the date stand in one box at the top (19 Oct)', /Printer \(To\)<\/div><div[^>]*>RBP-Bagru/.test(page) && /Date<\/div><div[^>]*>11\/10\/2026/.test(page), page.slice(page.indexOf('Printer (To)') - 200, page.indexOf('Printer (To)') + 400));
+    { const sz = page.slice(page.indexOf('RFD by size'), page.indexOf('Running fabric'));
+      ok('RFD by size lists only the cut pieces (19 Oct: a running napkin showed there too, as if it went twice)', /RFD by size — cut pieces/.test(sz) && /Sheeting 62/.test(sz) && !/Sheeting 82/.test(sz), sz.slice(0, 600)); }
   }
 
   { const S2 = load({ me: { admin: true } }); S2.ctx.GPO.settings = {};
@@ -750,6 +773,18 @@ const K = 'AMZ-1__S1';
     ok('"To print": RQL327-Q-Front 25 m and RQL327-Q-Back 25 m (5 m a quilt = 2.5 + 2.5)', gs.length === 2 && gs.find(g => g.code === 'RQL327-Q-Front').metres === 25 && gs.find(g => g.code === 'RQL327-Q-Back').metres === 25, JSON.stringify(gs));
   }
 
+  console.log('== Resync printer orders (20 Oct): a plan changed outside the form gets its print order ==');
+  {
+    const pr = { code: 'P1', name: 'Sanganer Prints' };
+    const mdbR = { 'RPC9-A': { color: 'Basil Green', fabric: 'Cotton', cuttingRequired: true } };
+    const R = load({ me: { admin: true }, mdb: mdbR, lines: [L({ orderNo: 'AMZ-55', sku: 'RPC9-A' })], ppc: { 'AMZ-55__RPC9-A': plan({ orderNo: 'AMZ-55', sku: 'RPC9-A', route: 'inhouse', printer: pr, fabric: { name: 'Cotton', perPc: 0.5, metres: 50 } }) } });
+    R.flowTestOnlySet(false);
+    const er = await R.flowPoResync('AMZ-55'), w = Object.assign({}, ...R.writes);
+    ok('resync: an order planned to a printer with no print order gets one, through the same code as the PPC save', er === '' && Object.keys(w).some(k => /^pt_flowPrintOrders\//.test(k)), er + ' ' + JSON.stringify(Object.keys(w)));
+    const N = load({ me: { admin: false }, mdb: mdbR, lines: [L({ orderNo: 'AMZ-55', sku: 'RPC9-A' })], ppc: { 'AMZ-55__RPC9-A': plan({ orderNo: 'AMZ-55', sku: 'RPC9-A', route: 'inhouse', printer: pr }) } });
+    ok('…only an admin may resync', /Only an admin/.test(await N.flowPoResync('AMZ-55')) && !N.writes.length);
+  }
+
   console.log('== one printed fabric, several orders → one challan ==');
   {
     const mdb = { 'RPC327-A': { color: 'Light Steel Blue', fabric: 'Canvas', consumption: 0.5, cuttingRequired: true }, 'RPC327-B': { color: 'Light Steel Blue', fabric: 'Canvas', consumption: 0.25, cuttingRequired: true } };
@@ -764,10 +799,24 @@ const K = 'AMZ-1__S1';
     const h = A.els.flTable.innerHTML;
     ok('By printed fabric: RBP-CANVAS-327 for AMZ-1 + AMZ-2 in one row, 7.5 m to print, Sanganer', /RBP-CANVAS-327/.test(h) && /AMZ-1<br>AMZ-2/.test(h) && /<b>7\.5 m<\/b>/.test(h) && /One challan for 2 orders/.test(h), h);
     ok('…the test order is its own row, never mixed with real ones', (h.match(/RBP-CANVAS-327/g) || []).length === 2);
+    /* 19 Oct: 80 of AMZ-2's 100 pcs already with karigars → the row totals only what the challan will offer. */
+    { const A2 = load({ me: { admin: true }, mdb, fsCat, rfd: { CANVAS: 999 },
+        lines: [L({ orderNo: 'AMZ-1', sku: 'RPC327-A' }), L({ orderNo: 'AMZ-2', sku: 'RPC327-B', cutReq: true, cut: 80, issued: 80 })],
+        ppc: { 'AMZ-1__RPC327-A': pp('AMZ-1', 'RPC327-A', 5), 'AMZ-2__RPC327-B': pp('AMZ-2', 'RPC327-B', 2.5) } });
+      A2.flowTestOnlySet(false); A2.setView('drfd'); A2.setAngle('drfd', 'print'); A2.renderFlow();
+      const h2 = A2.els.flTable.innerHTML;
+      ok('By printed fabric counts only what is still owed: 5 m + 20% of 2.5 m = 5.5 m, "of 200 pcs ordered · 80 already made"', /<b>5\.5 m<\/b>/.test(h2) && /of 200 pcs ordered · 80 already made/.test(h2), h2.slice(0, 1500));
+      A2.flowChallanForKeys(['AMZ-1__RPC327-A', 'AMZ-2__RPC327-B']);
+      ok('…and the challan form offers the same 0.5 m for AMZ-2', /value="0\.5"/.test(A2.ctx.__dlg.html), A2.ctx.__dlg.html.slice(0, 2500)); }
     A.flowChallanForKeys(['AMZ-1__RPC327-A', 'TEST-AMZ-9__RPC327-A']);
     ok('a test order and a real one cannot share a challan', /cannot share a challan/.test(A.els.flMsg.textContent));
     A.flowChallanForKeys(['AMZ-1__RPC327-A', 'AMZ-2__RPC327-B']);
     ok('one challan form with both orders\u2019 lines', /AMZ-1/.test(A.ctx.__dlg.html) && /AMZ-2/.test(A.ctx.__dlg.html) && /2 orders, one printed fabric, one vendor/.test(A.ctx.__dlg.subtitle));
+    ok('design A: the challan form fits (fixed columns), shows an Item column with the photo and a totals line', /table-layout:fixed/.test(A.ctx.__dlg.html) && /<th[^>]*>Item<\/th>/.test(A.ctx.__dlg.html) && /id="flcTot"/.test(A.ctx.__dlg.html));
+    { const q = { '[data-chk="0"]': { checked: true }, '[data-chm="0"]': { value: '5' }, '[data-chk="1"]': { checked: false }, '[data-chm="1"]': { value: '2.5' } }, was = A.ctx.document.querySelector;
+      A.ctx.document.querySelector = s => q[s] || null;
+      ok('…the totals count only what is ticked: 1 line · 5 m', A.flowChTotals(2) === 'Ticked: 1 line(s) · 5 m', A.flowChTotals(2));
+      A.ctx.document.querySelector = was; }
     A.ctx.document.querySelector = q => ({ '[data-chk="0"]': { checked: true }, '[data-chm="0"]': { value: '5' }, '[data-chk="1"]': { checked: true }, '[data-chm="1"]': { value: '2.5' } })[q] || null;
     A.els.flcVen = { value: 'P1' }; A.els.flcDate = { value: '2026-10-10' }; A.els.flcNote = { value: '' }; A.ctx.__win = [];
     const er = await A.ctx.__dlg.onSave(); const ch = A.FLOW().ch['RFD-202610-001'];

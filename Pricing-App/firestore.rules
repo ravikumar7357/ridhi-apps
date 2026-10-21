@@ -398,5 +398,14 @@ service cloud.firestore {
     match /packlist/{doc} {
       allow read, write: if canPack();
     }
+
+    // B2B PICTURES (19 Oct 2026): a picture pasted into a B2B sales-order sheet, kept small (a 400 px JPEG as a data URL),
+    // one document per SKU, plus b2bimg/_index naming the SKUs that have one. Any account with access reads them (they
+    // are product pictures, shown on every screen with that SKU); whoever holds Sales Orders (replTabs 'so') or an admin
+    // writes them. Nothing else lives here.
+    match /b2bimg/{sku} {
+      allow read: if hasPerms() || isAdmin();
+      allow write: if isAdmin() || (hasPerms() && permData().replTabs is list && 'so' in permData().replTabs);
+    }
   }
 }

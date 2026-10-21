@@ -138,3 +138,36 @@ function skuImgTest() {
   Object.keys(r.d).forEach(function (k) { Logger.log('   ' + k + ': ' + String(r.d[k]).slice(0, 90)); });
 }
 
+/* ===================== A share page → the picture on it (19 Oct 2026) =====================
+ *
+ * A B2B order sheet came with kommodo.ai/i/<id> links. Those open a web page with the picture on it, and a page cannot
+ * be drawn as a picture; the browser cannot read the page either (no CORS). So the page is read here and the picture's
+ * own address handed back. Only the hosts named below are fetched — this is not a general fetcher.
+ *   ?piclinks=url1|url2|…   (at most 60)   →   { d: { url: pictureUrl }, n }
+ * kommodo: the page carries https://<x>.komododecks.com/<YYYYMM>/<DD>/<id>/image.jpg (its og:image is the site's own logo,
+ * so it is not used). imgur / ibb: the page's og:image is the picture.
+ */
+function pictureLinks_(list) {
+  var urls = String(list || '').split('|').map(function (s) { return s.trim(); })
+    .filter(function (s) { return /^https:\/\/(www\.)?(kommodo\.ai\/i\/|imgur\.com\/|ibb\.co\/)/i.test(s); }).slice(0, 60);
+  var out = {};
+  if (!urls.length) return { d: out, n: 0 };
+  var res = UrlFetchApp.fetchAll(urls.map(function (u) {
+    return { url: u, muteHttpExceptions: true, followRedirects: true, headers: { 'User-Agent': 'Mozilla/5.0' } };
+  }));
+  res.forEach(function (r, i) {
+    var u = urls[i], html = '';
+    try { html = r.getResponseCode() === 200 ? r.getContentText() : ''; } catch (e) { html = ''; }
+    if (!html) return;
+    var id = (u.match(/kommodo\.ai\/i\/([A-Za-z0-9_-]+)/i) || [])[1], pic = '';
+    if (id) {
+      var m = html.match(new RegExp('https://[a-z0-9-]+\\.komododecks\\.com/\\d{6}/\\d{2}/' + id + '/image\\.(?:jpg|jpeg|png|webp)'));
+      pic = m ? m[0] : '';
+    } else {
+      var og = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i) || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
+      pic = og ? og[1] : '';
+    }
+    if (/^https:\/\//i.test(pic)) out[u] = pic;
+  });
+  return { d: out, n: Object.keys(out).length };
+}

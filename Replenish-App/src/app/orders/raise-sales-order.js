@@ -235,20 +235,41 @@ function soGuessOf(sku) {
     color: g.color || '', size: g.size || '' };
 }
 /** What a B2B line carries beyond SKU and quantity. */
-const SO_B2B_KEYS = ['brand', 'img', 'itemName', 'label', 'material', 'size', 'customization', 'extra'];
-/** Ravi's sheet, column by column, with the names people actually type. */
+const SO_B2B_KEYS = ['brand', 'img', 'itemName', 'color', 'label', 'material', 'size', 'customization', 'extra'];
+/** Ravi's sheet, column by column, with the names people actually type. 19 Oct: "Item Name" is now "Article", and the
+ * colour name has a column of its own (Brand Name · Image Link · SKU · Article · Color · Size · LABEL · Material · Qty ·
+ * Customization · Delivery Date). An old sheet with Item Name still reads. */
 const SO_B2B_COLS = [
   { k: 'brand', t: 'Brand Name', alias: ['brand name', 'brand'] },
   { k: 'img', t: 'Image Link', alias: ['image link', 'image', 'image url', 'photo', 'picture'] },
   { k: 'sku', t: 'SKU', alias: ['sku'] },
-  { k: 'itemName', t: 'Item Name', alias: ['item name', 'item', 'product name', 'product'] },
+  { k: 'itemName', t: 'Article', alias: ['article', 'article name', 'item name', 'item', 'product name', 'product'] },
+  { k: 'color', t: 'Color', alias: ['color', 'colour', 'color name', 'colour name'] },
+  { k: 'size', t: 'Size', alias: ['size'] },
   { k: 'label', t: 'LABEL', alias: ['label', 'label details'] },
   { k: 'material', t: 'Material', alias: ['material', 'fabric'] },
-  { k: 'size', t: 'Size', alias: ['size'] },
   { k: 'qty', t: 'Qty', alias: ['qty', 'quantity'] },
   { k: 'customization', t: 'Customization', alias: ['customization', 'customisation', 'custom', 'customization details', 'customisation details'] },
   { k: 'deliveryDate', t: 'Delivery Date', alias: ['delivery date'] },
 ];
+/* A PICTURE LINK THAT IS A PAGE (Ravi, 19 Oct: kommodo.ai/i/… links showed no picture). A share link opens a web page
+ * with the picture on it, and a page cannot be drawn as a picture. Google Drive and Dropbox share links are turned into
+ * their picture address here; a page that cannot be turned (kommodo, imgur, Google Photos, ibb) is said to be one, so
+ * whoever uploads knows to copy the picture's own address (right-click the picture → Copy image address) or paste the
+ * picture into the sheet. Returns { url, page }. */
+function soImgLink(u) {
+  const s = String(u || '').trim();
+  if (!s) return { url: '', page: false };
+  let m = s.match(/^https?:\/\/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:[^#]*&)?id=)([A-Za-z0-9_-]{10,})/);
+  if (m) return { url: 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w800', page: false };
+  if (/^https?:\/\/(www\.)?dropbox\.com\//i.test(s)) {
+    const t = s.replace(/([?&])dl=0\b/, '$1raw=1');
+    return { url: /[?&](raw=1|dl=1)\b/.test(t) ? t : t + (t.includes('?') ? '&' : '?') + 'raw=1', page: false };
+  }
+  const page = /^https?:\/\/(www\.)?kommodo\.ai\/i\//i.test(s) || /^https?:\/\/(www\.)?imgur\.com\/(?!.*\.(png|jpe?g|gif|webp)$)/i.test(s)
+    || /^https?:\/\/(photos\.app\.goo\.gl|photos\.google\.com)\//i.test(s) || /^https?:\/\/(www\.)?ibb\.co\//i.test(s);
+  return { url: s, page };
+}
 /** A code for a B2B item that has none: the brand's initials, CUST, the date, a free number. */
 function soB2BMint(brand, taken) {
   const words = String(brand || '').toUpperCase().replace(/[^A-Z0-9 ]/g, ' ').split(/\s+/).filter(Boolean);
@@ -402,34 +423,40 @@ function soFormLines() {
   const ro = !soCanEdit((SOX.rows || []).find(x => x._id === SOF.id) || null);
   const d = ro ? ' disabled' : '';
   if ($('sof_up')) $('sof_up').title = soIsB2B(($('sof_channel') || {}).value)
-    ? 'B2B: Template gives the buyer columns. A SKU not in the Master Database, or a blank one, goes on the Custom SKUs list with its brand. Any extra column in the file is kept on the line.'
+    ? 'B2B: Template gives the buyer columns (Excel). No image link? Paste the picture into its row in the .xlsx — it is read and kept. A SKU not in the Master Database, or a blank one, goes on the Custom SKUs list with its brand. Any extra column in the file is kept on the line.'
     : 'A file replaces or adds to the lines below. One unknown SKU rejects the whole file. A negative quantity subtracts from what is already on order.';
   soFormTotals();
   if (soIsB2B(($('sof_channel') || {}).value)) {
     const inp = (i, f, l, w, ph) => `<input data-sof="${f}" data-i="${i}" value="${esc(l[f] == null ? '' : l[f])}" placeholder="${ph || ''}"${d} style="width:${w}px">`;
     $('sof_table').innerHTML = '<thead><tr>'
-      + ['#', 'Image', 'Brand', 'SKU', 'Item name', 'Label', 'Material', 'Size', 'Customization', 'Qty', 'Delivery', ''].map((h, i) =>
+      + ['#', 'Image', 'Brand', 'SKU', 'Article', 'Color', 'Size', 'Label', 'Material', 'Qty', 'Customization', 'Delivery', ''].map((h, i) =>
         `<th${i === 9 ? ' class="num"' : ''}>${h}</th>`).join('') + '</tr></thead><tbody>'
       + slice.map((l, k) => {
         const i = from + k;
         const extra = l.extra && Object.keys(l.extra).length ? Object.entries(l.extra).map(([a, b]) => a + ': ' + b).join(' · ') : '';
         return `<tr><td class="muted">${i + 1}</td>`
-          + `<td style="padding:3px 6px">${l.img ? `<img src="${esc(l.img)}" alt="" loading="lazy" style="width:40px;height:40px;object-fit:cover;border-radius:6px;display:block;margin-bottom:2px">` : ''}${inp(i, 'img', l, 110, 'image link')}</td>`
+          + `<td style="padding:3px 6px">${(() => { const pic = String(l.img || '').trim() || l.imgData || B2BIMG.map[obUC(l.sku)] || '';
+            return pic ? `<img src="${esc(pic)}" alt="" loading="lazy" style="width:40px;height:40px;object-fit:cover;border-radius:6px;display:block;margin-bottom:2px">` : ''; })()}`
+          + `${!String(l.img || '').trim() && (l.imgData || B2BIMG.map[obUC(l.sku)]) ? '<div class="muted" style="font-size:10px">picture from the sheet</div>' : ''}`
+          + `${soImgLink(l.img).page ? '<div style="font-size:10px;color:var(--bad);max-width:120px;white-space:normal">a page link, not a picture — copy the picture\'s own address</div>' : ''}${inp(i, 'img', l, 110, 'image link')}</td>`
           + `<td>${inp(i, 'brand', l, 110, 'brand')}</td>`
           + `<td><input data-sof="sku" data-i="${i}" value="${esc(l.sku)}" placeholder="blank = new code"${d} style="width:140px;font-family:ui-monospace,monospace;text-transform:uppercase">`
           + `<div id="sof_meta_${i}" style="font-size:10.5px;text-align:left">${soB2BMeta(l.sku)}</div></td>`
-          + `<td>${inp(i, 'itemName', l, 160, 'item name')}</td>`
+          + `<td>${inp(i, 'itemName', l, 160, 'article')}</td>`
+          + `<td>${inp(i, 'color', l, 110, 'color name')}</td>`
+          + `<td>${inp(i, 'size', l, 80, 'size')}</td>`
           + `<td>${inp(i, 'label', l, 120, 'No, or the details')}</td>`
           + `<td>${inp(i, 'material', l, 100, 'material')}</td>`
-          + `<td>${inp(i, 'size', l, 80, 'size')}</td>`
-          + `<td>${inp(i, 'customization', l, 140, 'No, or the details')}${extra ? `<div class="muted" style="font-size:10.5px;max-width:160px;white-space:normal">${esc(extra)}</div>` : ''}</td>`
           + `<td class="num"><input data-sof="qty" data-i="${i}" type="number" step="1" min="0" value="${esc(l.qty)}"${d} style="width:80px;text-align:right"></td>`
+          + `<td>${inp(i, 'customization', l, 140, 'No, or the details')}${extra ? `<div class="muted" style="font-size:10.5px;max-width:160px;white-space:normal">${esc(extra)}</div>` : ''}</td>`
           + `<td><input data-sof="deliveryDate" data-i="${i}" type="date" value="${esc(l.deliveryDate)}"${d}></td>`
           + `<td>${ro ? '' : `<button class="ghost" data-sofdel="${i}" style="padding:2px 8px;color:var(--bad)">✕</button>`}</td></tr>`;
       }).join('') + '</tbody>';
     $('sof_pager').innerHTML = pages > 1 ? `Showing ${nf(from + 1)}–${nf(Math.min(total, from + SOF_PAGE))} of ${nf(total)}
           <button class="ghost" data-sofpg="-1" style="padding:2px 10px"${SOF.page ? '' : ' disabled'}>Back</button>
           <button class="ghost" data-sofpg="1" style="padding:2px 10px"${SOF.page >= pages - 1 ? ' disabled' : ''}>Next</button>` : '';
+    /* a saved order opened again: its pictures from the sheet come from Firestore, once each */
+    b2bImgLoad(slice.map(l => l.sku)).then(n => { if (n && $('sof_table')) soFormLines(); }).catch(() => {});
     return;
   }
   /* ONE ROW PER LINE THAT FITS: the picture, the SKU and what it is share a cell, so nothing is left
@@ -519,15 +546,17 @@ $('ptDlgBody').addEventListener('click', e => {
 /* ---- lines from a file ---- */
 function soTemplate() {
   if (soIsB2B(($('sof_channel') || {}).value)) {
-    ptDownload('b2b-order-lines', [
-      SO_B2B_COLS.map(c => c.t).map(csvCell).join(','),
-      ['Crate & Barrel', 'https://example.com/photo.jpg', 'RTC23-6060', 'Square Tablecloth Indigo', 'Yes - woven brand label at hem', 'Cotton cambric', '60x60', 120, 'No', '10-11-2026'].map(csvCell).join(','),
-      ['Crate & Barrel', '', '', 'Napkin set of 4 with embroidery', 'No', 'Linen', '20x20', 300, 'Yes - logo embroidered in corner', ''].map(csvCell).join(','),
-      [].join(','),
-      ['A SKU not in the Master Database goes on the Custom SKUs list with its brand. A blank SKU is given a code.'].map(csvCell).join(','),
-      ['Label and Customization: write No, or the details. Any other column you add is kept on the line.'].map(csvCell).join(','),
-      ['Order date, order type and channel are picked on the form; Delivery Date is optional, DD-MM-YYYY.'].map(csvCell).join(','),
-    ]);
+    /* AN EXCEL FILE (19 Oct), so a picture can be pasted straight into the Image Link cell of its row — CSV holds no
+     * pictures. The two example rows are examples: replace them. A blank SKU is given a code; Label and Customization
+     * are No or the details; Delivery Date is DD-MM-YYYY. */
+    const bytes = recipeXlsx([SO_B2B_COLS.map(c => c.t),
+      ['Crate & Barrel', 'https://example.com/photo.jpg', 'RTC23-6060', 'Square Tablecloth', 'Indigo', '60x60', 'Yes - woven brand label at hem', 'Cotton cambric', 120, 'No', '10-11-2026'],
+      ['Crate & Barrel', '(paste the picture here)', '', 'Napkin set of 4 with embroidery', 'Natural', '20x20', 'No', 'Linen', 300, 'Yes - logo embroidered in corner', '']],
+      { name: 'B2B order', freeze: 3, cols: {} });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+    a.download = 'b2b-order-lines.xlsx';
+    a.click(); URL.revokeObjectURL(a.href);
     return;
   }
   ptDownload('sales-order-lines', [
@@ -643,7 +672,7 @@ function soB2BRows(rows) {
     if (i >= 0) at[c.k] = i;
   });
   if (at.qty == null || (at.sku == null && at.itemName == null))
-    return { err: 'That file needs a Qty column and a SKU or Item Name column. Download the B2B template to see the shape.' };
+    return { err: 'That file needs a Qty column and a SKU or Article column. Download the B2B template to see the shape.' };
   const used = new Set(Object.values(at));
   const extraCols = head.map((h, i) => [h, i]).filter(([h, i]) => h && !used.has(i));
   const lines = [], errors = [];
@@ -660,17 +689,52 @@ function soB2BRows(rows) {
     const extra = {};
     extraCols.forEach(([h, i]) => { const v = String(r[i] == null ? '' : r[i]).trim(); if (v) extra[h] = v; });
     const line = { sku, qty, deliveryDate: dd || '', orderTypeKey: ($('sof_type') || {}).value || 'regular', priority: '' };
-    ['brand', 'img', 'itemName', 'label', 'material', 'size', 'customization'].forEach(k => { const v = cell(k); if (v) line[k] = v; });
+    if (r.r) line.__row = r.r;          // the sheet's row number: a picture in that row belongs to this line
+    ['brand', 'img', 'itemName', 'color', 'label', 'material', 'size', 'customization'].forEach(k => { const v = cell(k); if (v) line[k] = v; });
+    if (line.img && !/^(https?:|data:)/i.test(line.img)) delete line.img;    // words in the picture cell are not a link
+    if (line.img) { const lk = soImgLink(line.img); line.img = lk.url; if (lk.page) line.imgPage = true; }
     if (Object.keys(extra).length) line.extra = extra;
     lines.push(line);
   });
-  return { lines, errors };
+  return { lines, errors, imgCol: at.img };
 }
 async function soB2BFile(file, rows) {
   const got = soB2BRows(rows);
   if (got.err) { ptDlgMsg(got.err, true); return; }
   if (got.errors.length) { ptDlgMsg('Nothing was loaded. ' + got.errors.slice(0, 6).join(' ') + (got.errors.length > 6 ? ' …and ' + nf(got.errors.length - 6) + ' more problem(s).' : ''), true); return; }
   if (!got.lines.length) { ptDlgMsg('That file has no usable rows.', true); return; }
+  /* PICTURES PASTED IN THE SHEET (Ravi, 19 Oct): a line with no Image Link takes the picture in its own row. One per
+   * row; two in a row, the one in the Image Link column wins. They are saved with the order (b2bImgSave). */
+  let picN = 0, picBad = 0, picLoose = 0;
+  if (/\.xlsx$/i.test(file.name || '') && typeof pkXlsxPictures === 'function' && file.arrayBuffer) {
+    let pics = [];
+    try { pics = await pkXlsxPictures(new Uint8Array(await file.arrayBuffer())); } catch (e) { pics = []; }
+    if (pics.length) {
+      ptDlgMsg(`Reading ${nf(pics.length)} picture(s) from the sheet…`);
+      const byRow = new Map();
+      pics.forEach(p => { const was = byRow.get(p.row); if (!was || (got.imgCol != null && p.col === got.imgCol && was.col !== got.imgCol)) byRow.set(p.row, p); });
+      const lineRows = new Set(got.lines.map(l => l.__row));
+      picLoose = [...byRow.keys()].filter(r => !lineRows.has(r)).length;
+      for (const l of got.lines) {
+        const p = l.__row && byRow.get(l.__row);
+        if (!p || (String(l.img || '').trim() && !l.imgPage)) continue;     // a real link wins; a page link gives way to the picture
+        const d = await soImgShrink(p.bytes, p.ext);
+        if (d) { l.imgData = d; picN++; if (l.imgPage) { l.img = ''; delete l.imgPage; } } else picBad++;
+      }
+    }
+  }
+  /* PAGE LINKS → PICTURES (19 Oct): the backend reads a kommodo / imgur / ibb page and hands back the picture on it. */
+  let pageFixed = 0;
+  const pages = [...new Set(got.lines.filter(l => l.imgPage && l.img).map(l => l.img))];
+  if (pages.length && typeof prGet === 'function' && typeof PRAPI !== 'undefined' && PRAPI && PRAPI.url) {
+    ptDlgMsg(`Finding the pictures behind ${nf(pages.length)} page link(s)…`);
+    for (let i = 0; i < pages.length; i += 40) {
+      try {
+        const d = await prGet({ piclinks: pages.slice(i, i + 40).join('|') });
+        got.lines.forEach(l => { const to = l.imgPage && d && d.d && d.d[l.img]; if (to) { l.img = to; delete l.imgPage; pageFixed++; } });
+      } catch (e) { /* left as page links; the message below says so */ }
+    }
+  }
   const real = SOF.lines.filter(l => String(l.sku || l.itemName || '').trim()).length;
   SOF.lines = real && confirm(`Add ${nf(got.lines.length)} line(s) to the ${nf(real)} already here?\n\nOK adds them. Cancel replaces everything.`)
     ? SOF.lines.filter(l => String(l.sku || l.itemName || '').trim()).concat(got.lines) : got.lines;
@@ -678,7 +742,13 @@ async function soB2BFile(file, rows) {
   soFormLines(); soIdPreview();
   const known = new Set((PTG.mdb || []).map(r => obUC(r.sku)));
   const fresh = got.lines.filter(l => !l.sku || !known.has(l.sku)).length;
-  ptDlgMsg(`Loaded ${nf(got.lines.length)} line(s) from ${file.name}.` + (fresh ? ` ${nf(fresh)} are not in the Master Database and go on the Custom SKUs list when you save.` : ''));
+  ptDlgMsg(`Loaded ${nf(got.lines.length)} line(s) from ${file.name}.` + (fresh ? ` ${nf(fresh)} are not in the Master Database and go on the Custom SKUs list when you save.` : '')
+    + (picN ? ` ${nf(picN)} picture(s) taken from the sheet — they are kept when you save.` : '')
+    + (picBad ? ` ${nf(picBad)} picture(s) could not be read — paste them as JPG or PNG.` : '')
+    + (picLoose ? ` ${nf(picLoose)} picture(s) sit on a row with no order line and were left out.` : '')
+    + (pageFixed ? ` ${nf(pageFixed)} page link(s) were turned into their picture.` : '')
+    + (got.lines.some(l => l.imgPage) ? ` ${nf(got.lines.filter(l => l.imgPage).length)} Image Link(s) open a web page, not a picture (e.g. kommodo.ai/i/…) — they will show no picture. Open one, right-click the picture → Copy image address, and put that in the sheet instead (or paste the picture itself into the row).` : ''),
+    !!picBad || got.lines.some(l => l.imgPage));
 }
 
 /* ---- saving ---- */
@@ -794,9 +864,11 @@ async function soFormSave(place) {
         let was = null;
         try { was = await ptGet('pt_customSkus/' + sku); } catch (e) { customUnread++; continue; }
         if (was && typeof was === 'object' && Object.keys(was).length) continue;
+        const art = typeof ptArticleNamed === 'function' ? ptArticleNamed(l.itemName) : '';
+        const tcCut = typeof ptTcCutReq === 'function' ? ptTcCutReq(art || l.itemName, l.itemName) : null;
         patch['pt_customSkus/' + sku] = {
-          sku, articleType: '', subtype: '', color: '', size: l.size || '',
-          brand: l.brand || '', packOf: '', fabric: '', cuttingRequired: true, consumption: 0,
+          sku, articleType: art, subtype: '', color: l.color || '', size: l.size || '',
+          brand: l.brand || '', packOf: '', fabric: '', cuttingRequired: tcCut == null ? true : tcCut, consumption: 0,
           isZip: false, chainLength: null, zipQty: null, isRuffle: false, ruffleMeters: null, ruffleFabric: '',
           fillerFabricRequired: false, standardFillingQty: null, inventoryValuationPrice: 0,
           imageUrl: l.img || '', isCustom: true,
@@ -809,6 +881,17 @@ async function soFormSave(place) {
         try { await ptPatch(patch); customAdded = Object.keys(patch).length; }
         catch (e) { /* the order is saved; say so below rather than lose it */ customAdded = -1; }
       }
+    }
+  }
+  /* PICTURES FROM THE SHEET (19 Oct): kept once per SKU in Firestore (b2bImgSave). A line with an Image Link keeps its link. */
+  let picSaved = 0, picFail = 0;
+  if (b2b) {
+    const inOrder = new Set(lines.map(l => l.sku));
+    const todo = SOF.lines.filter(l => l.imgData && !l.imgSaved && inOrder.has(obUC(l.sku)) && !String(l.img || '').trim());
+    if (todo.length) {
+      const r = await b2bImgSave(todo.map(l => ({ sku: obUC(l.sku), d: l.imgData })), rec._id);
+      picSaved = r.saved; picFail = r.failed;
+      todo.forEach(l => { if (r.ok.has(obUC(l.sku))) l.imgSaved = true; });
     }
   }
   /* NEW ONLINE ITEMS go on the Custom SKUs list the same way, described by their look-alikes. */
@@ -840,6 +923,8 @@ async function soFormSave(place) {
     : `${rec._id} saved as a draft. It is not in production until it is placed and approved.`;
   if (customAdded > 0) $('sxMsg').textContent += ` ${nf(customAdded)} new item(s) went on the Custom SKUs list${onl ? '' : ' with their brand'} — complete them in Master Database → Custom SKUs.`;
   if (customAdded < 0 || customUnread) { $('sxMsg').className = 'err'; $('sxMsg').textContent += ' The new items could NOT be put on the Custom SKUs list — save again to retry.'; }
+  if (picSaved) $('sxMsg').textContent += ` ${nf(picSaved)} picture(s) from the sheet kept.`;
+  if (picFail) { $('sxMsg').className = 'err'; $('sxMsg').textContent += ` ${nf(picFail)} picture(s) could NOT be kept — save again to retry.`; }
   return '';
 }
 
@@ -880,10 +965,10 @@ function soReview(id) {
           value="${esc(o.saRemarks || '')}" placeholder="Required to send it back; optional to approve"></label>
       </div>
       <div class="xlwrap" style="max-height:34vh;border:1px solid var(--line);border-radius:10px;margin-top:10px">
-        <table class="xl"><thead><tr><th>SKU</th><th>Image</th>${soIsB2B(o.channel) ? '<th>Brand</th><th>Item</th><th>Label</th><th>Material</th><th>Size</th><th>Customization</th>' : ''}<th class="num">Qty</th><th>Delivery</th><th>In order book</th></tr></thead>
+        <table class="xl"><thead><tr><th>SKU</th><th>Image</th>${soIsB2B(o.channel) ? '<th>Brand</th><th>Article</th><th>Color</th><th>Size</th><th>Label</th><th>Material</th><th>Customization</th>' : ''}<th class="num">Qty</th><th>Delivery</th><th>In order book</th></tr></thead>
         <tbody>${s.groups.slice(0, 300).map(g => { const bl = soIsB2B(o.channel) ? (soLines(o).find(x => obUC(x.sku) === obUC(g.sku)) || {}) : null; return `<tr><td style="font-family:ui-monospace,monospace;text-align:left">${esc(g.sku)}${bl && !(PTG.mdb || []).some(m => obUC(m.sku) === obUC(g.sku)) ? '<div style="font-size:10px;color:#7f6000">custom SKU</div>' : ''}</td>`
           + (bl && bl.img ? ptImgCellSrc(g.sku, bl.img) : ptImgCell(g.sku))
-          + (bl ? ['brand', 'itemName', 'label', 'material', 'size', 'customization'].map(k => `<td style="text-align:left;white-space:normal;max-width:180px;font-size:12px">${esc(bl[k] || '') || '<span class="muted">—</span>'}</td>`).join('') : '')
+          + (bl ? ['brand', 'itemName', 'color', 'size', 'label', 'material', 'customization'].map(k => `<td style="text-align:left;white-space:normal;max-width:180px;font-size:12px">${esc(bl[k] || '') || '<span class="muted">—</span>'}</td>`).join('') : '')
           + `<td class="num" style="font-weight:700">${nf(g.qty)}</td>`
           + `<td>${esc(g.delivery) || '<span class="muted">—</span>'}</td>`
           + `<td>${g.inBook ? '<span class="pill pill-ok">already</span>' : '<span class="muted">will be added</span>'}</td></tr>`; }).join('')}</tbody>
@@ -955,7 +1040,7 @@ async function soApproveRun(id) {
       l.customization && !/^no$/i.test(l.customization) && 'Customization: ' + l.customization].filter(Boolean) : [];
     recs.push(Object.assign({ id: 'ob_so_' + obUC(o._id) + '_' + s, orderNo: o._id, orderDate: o.orderDate || now.slice(0, 10),
       sku: s, articleType: String(m.articleType || ''), articleSubtype: String(m.subtype || ''),
-      color: String(m.color || ''), size: String(m.size || l.size || ''), qty,
+      color: String(m.color || (soIsB2B(o.channel) ? l.color : '') || ''), size: String(m.size || l.size || ''), qty,
       remarks: 'From approved Sales Order' + (o.buyerName ? ' · ' + o.buyerName : '') + (b2bBits.length ? ' · ' + b2bBits.join(' · ') : ''), src: 'SO',
       uploadedBy: ME.email, uploadedAt: now }, o.saleMonth ? { saleMonth: o.saleMonth } : {},
       soIsB2B(o.channel) ? { needsSku: !mdbBy.has(s), shopImg: String(l.img || ''), brand: String(l.brand || ''),

@@ -265,9 +265,97 @@ async function pkReadXlsx(bytes) {
       while (cells.length < at) cells.push('');
       cells[at] = v;
     }
+    /* the row's own number as Excel counts it (blank rows are absent from the XML): a picture is matched to it */
+    cells.r = +((rm[0].match(/^<row\b[^>]*\br="(\d+)"/) || [])[1]) || rows.length + 1;
     rows.push(cells);
   }
   return rows;
+}
+/** "../media/image1.png" seen from "xl/drawings/" → "xl/media/image1.png". */
+function pkPathJoin(dir, t) {
+  if (t.charAt(0) === '/') return t.slice(1);
+  const out = [];
+  (dir + t).split('/').forEach(p => { if (p === '..') out.pop(); else if (p && p !== '.') out.push(p); });
+  return out.join('/');
+}
+/* PICTURES IN THE SHEET (Ravi, 19 Oct: "i don't have image link i have only picture"). Excel keeps a picture two ways:
+ * placed over the cells (a drawing, anchored between rows — it belongs to the row its middle is in), or Insert → Pictures
+ * → Place in Cell (a cell whose value points at the picture). Both come back as { row (as Excel numbers it), col, bytes, ext }. */
+async function pkXlsxPictures(bytes) {
+  const files = await pkUnzip(bytes, n => /^xl\/worksheets\/(_rels\/)?sheet\d+\.xml(\.rels)?$/.test(n)
+    || /^xl\/drawings\/(_rels\/)?drawing\d+\.xml(\.rels)?$/.test(n) || /^xl\/media\//.test(n) || n === 'xl/metadata.xml' || /^xl\/richData\//.test(n));
+  const T = n => (files[n] ? PK_TD.decode(files[n]) : '');
+  const sheet = Object.keys(files).filter(n => /^xl\/worksheets\/sheet\d+\.xml$/.test(n)).sort()[0];
+  if (!sheet) return [];
+  const rels = path => {
+    const dir = path.slice(0, path.lastIndexOf('/') + 1), name = path.slice(path.lastIndexOf('/') + 1), m = {};
+    for (const r of T(dir + '_rels/' + name + '.rels').matchAll(/<Relationship\b[^>]*>/g)) {
+      const id = (r[0].match(/\bId="([^"]+)"/) || [])[1], tg = (r[0].match(/\bTarget="([^"]+)"/) || [])[1];
+      if (id && tg) m[id] = pkPathJoin(dir, tg);
+    }
+    return m;
+  };
+  const extOf = p => ((p.match(/\.([a-z0-9]+)$/i) || [])[1] || '').toLowerCase();
+  const sx = T(sheet), sRels = rels(sheet), out = [];
+  /* 1. placed over the cells. Row heights decide which row a picture's middle sits in. */
+  const defH = +((sx.match(/<sheetFormatPr\b[^>]*\bdefaultRowHeight="([\d.]+)"/) || [])[1]) || 15;
+  const hts = {};
+  for (const r of sx.matchAll(/<row\b[^>]*>/g)) {
+    const n = +((r[0].match(/\br="(\d+)"/) || [])[1]), h = (r[0].match(/\bht="([\d.]+)"/) || [])[1];
+    if (n && h) hts[n - 1] = +h;
+  }
+  const tops = [0];
+  const rowTop = r0 => { while (tops.length <= r0) { const i = tops.length - 1; tops.push(tops[i] + (hts[i] != null ? hts[i] : defH) * 12700); } return tops[r0]; };
+  for (const dm of sx.matchAll(/<drawing\b[^>]*r:id="([^"]+)"/g)) {
+    const dp = sRels[dm[1]]; if (!dp || !files[dp]) continue;
+    const dx = T(dp), dRels = rels(dp);
+    /* Excel writes xdr:twoCellAnchor; other tools write the same with another prefix or none — so no prefix is assumed. */
+    for (const am of dx.matchAll(/<((?:\w+:)?)(twoCellAnchor|oneCellAnchor)\b[\s\S]*?<\/\1\2>/g)) {
+      const a = am[0];
+      const blip = (a.match(/<(?:\w+:)?blip\b[^>]*\b(?:\w+:)?embed="([^"]+)"/) || [])[1], mp = blip && dRels[blip];
+      if (!mp || !files[mp]) continue;
+      const pos = tag => {
+        const m = a.match(new RegExp('<(?:\\w+:)?' + tag + '>([\\s\\S]*?)</(?:\\w+:)?' + tag + '>')); if (!m) return null;
+        const g = k => +((m[1].match(new RegExp('<(?:\\w+:)?' + k + '>(-?\\d+)</(?:\\w+:)?' + k + '>')) || [])[1] || 0);
+        return { col: g('col'), row: g('row'), rowOff: g('rowOff') };
+      };
+      const f = pos('from'), t = pos('to'); if (!f) continue;
+      const y0 = rowTop(f.row) + f.rowOff;
+      const y1 = t ? rowTop(t.row) + t.rowOff : y0 + +((a.match(/<(?:\w+:)?ext\b[^>]*\bcy="(\d+)"/) || [])[1] || 0);
+      const mid = (y0 + y1) / 2;
+      let row = f.row;
+      while (row < f.row + 500 && rowTop(row + 1) <= mid) row++;
+      out.push({ row: row + 1, col: f.col, bytes: files[mp], ext: extOf(mp), how: 'over' });
+    }
+  }
+  /* 2. placed in the cell: vm → valueMetadata → XLRICHVALUE block → rich value → its picture. */
+  const meta = T('xl/metadata.xml');
+  if (meta && files['xl/richData/rdrichvalue.xml']) {
+    const fut = (meta.match(/<futureMetadata\b[^>]*name="XLRICHVALUE"[^>]*>([\s\S]*?)<\/futureMetadata>/) || [])[1] || '';
+    const rvb = [...fut.matchAll(/<bk>([\s\S]*?)<\/bk>/g)].map(b => +((b[1].match(/rvb\b[^>]*\bi="(\d+)"/) || [])[1]));
+    const vmd = (meta.match(/<valueMetadata\b[^>]*>([\s\S]*?)<\/valueMetadata>/) || [])[1] || '';
+    const vmBk = [...vmd.matchAll(/<bk>([\s\S]*?)<\/bk>/g)].map(b => +((b[1].match(/<rc\b[^>]*\bv="(\d+)"/) || [])[1]));
+    const st = [...T('xl/richData/rdrichvaluestructure.xml').matchAll(/<s\b[^>]*>([\s\S]*?)<\/s>/g)]
+      .map(s => [...s[1].matchAll(/<k\b[^>]*\bn="([^"]+)"/g)].map(k => k[1]));
+    const rvs = [...T('xl/richData/rdrichvalue.xml').matchAll(/<rv\b([^>]*)>([\s\S]*?)<\/rv>/g)]
+      .map(r => ({ s: +((r[1].match(/\bs="(\d+)"/) || [])[1] || 0), v: [...r[2].matchAll(/<v\b[^>]*>([\s\S]*?)<\/v>/g)].map(v => v[1]) }));
+    const relIds = [...T('xl/richData/richValueRel.xml').matchAll(/<rel\b[^>]*r:id="([^"]+)"/g)].map(m => m[1]);
+    const rvRels = rels('xl/richData/richValueRel.xml');
+    const picOf = vm => {
+      const fi = vmBk[vm - 1]; if (!(fi >= 0)) return null;
+      const rv = rvs[rvb[fi]]; if (!rv) return null;
+      let ki = (st[rv.s] || []).indexOf('_rvRel:LocalImageIdentifier'); if (ki < 0) ki = 0;
+      const rel = relIds[+rv.v[ki]], p = rel && rvRels[rel];
+      return p && files[p] ? p : null;
+    };
+    for (const cm of sx.matchAll(/<c\b([^>]*)>/g)) {
+      const vm = +((cm[1].match(/\bvm="(\d+)"/) || [])[1] || 0); if (!vm) continue;
+      const ref = cm[1].match(/\br="([A-Z]+)(\d+)"/); if (!ref) continue;
+      const p = picOf(vm); if (!p) continue;
+      out.push({ row: +ref[2], col: pkColIx(ref[1]), bytes: files[p], ext: extOf(p), how: 'cell' });
+    }
+  }
+  return out;
 }
 async function pkReadFile(file) {
   if (/\.xlsx$/i.test(file.name)) return pkReadXlsx(new Uint8Array(await file.arrayBuffer()));

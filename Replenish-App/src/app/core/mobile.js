@@ -124,7 +124,9 @@ function mobSync(which) {
    * named a screen (a link, a reload). */
   mobHistInit();
   if ($('paneMobHome')) $('paneMobHome').classList.add('hide');
-  if (!MOB_HOME_SEEN && which) { MOB_HOME_SEEN = true; if (!MOB_HASH0) setTimeout(() => { mobHomeShow(); mobMarkHome(); }, 0); }
+  /* (not when Home was already opened by hand: the screen just pressed stays in front — 19 Oct, Home came back over
+     Orders on the first press after Home) */
+  if (!MOB_HOME_SEEN && which) { MOB_HOME_SEEN = true; if (!MOB_HASH0 && !$('paneMobHome')) setTimeout(() => { mobHomeShow(); mobMarkHome(); }, 0); }
   mobPaneIn(document.querySelector('.main > [id^="pane"]:not(.hide)'));
   if ($('mobTitle')) $('mobTitle').textContent = ($('pageTitle') && $('pageTitle').textContent) || '';
   mobUserTabs();
@@ -139,16 +141,40 @@ function mobSync(which) {
 }
 
 /** Every screen this account has, under the menu's own group names, drawn from the menu itself so the two never differ. */
+/* these two show their menu link only to whoever may open them, under a key of their own */
+const MOB_SELF_GATED = ['flow', 'gdesk'];
+/** A menu link this account may open. */
+const mobLinkOk = a => {
+  const k = String(a.getAttribute('href') || '').replace(/^#/, '');
+  if (!k || a.classList.contains('hide') || a.style.display === 'none') return false;
+  /* the Vendors group is hidden on purpose for production accounts (nav.js, NAV_PROD_ONLY): it stays hidden here too */
+  const g = a.closest('.navwrap') && a.closest('.navwrap').querySelector('.navgrp');
+  if (g && g.dataset.grp === 'vendors' && g.classList.contains('hide')) return false;
+  return mobMay(k) || MOB_SELF_GATED.includes(k);
+};
+const mobLinkName = a => String(a.querySelector('.nav-t') ? a.querySelector('.nav-t').textContent : [...a.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent).join('')).trim();
+/** Every screen this account can open, in the menu's order, with the menu's name (the dashboard is Home itself). */
+function mobMyScreens() {
+  const seen = new Set();
+  /* by each screen's own access, not its menu group's: the Production group counts only production screens (its
+     data-tabs), so an account with just the vendor screens kept in it had the whole group hidden — 19 Oct */
+  return [...document.querySelectorAll('.side .navwrap a.nav')].filter(mobLinkOk)
+    .map(a => ({ k: a.getAttribute('href').replace(/^#/, ''), name: mobLinkName(a), a }))
+    .filter(x => x.k !== 'dash' && !seen.has(x.k) && seen.add(x.k));
+}
+/** One line under a screen's name on Home, for the screens Home has no figure for. */
+const MOB_SUB = { pcut: 'cutting entries', ppress: 'pressing entries', qc: 'checks, alteration, returns', vord: 'orders with printers and vendors',
+  vreq: 'raise and approve vendor requests', rfd: 'fabric asked for by printers', vlog: 'what vendors sent', vend: 'what a printer sees',
+  palloc: 'fabric given to printers', fab: 'fabric stock', acc: 'zips, labels and the rest', fba: 'shipments to Amazon', so: 'B2B sales orders',
+  pmdb: 'every SKU and its fabric', mst: 'vendors, rates, masters', hr: 'people and pay', rep: 'the week in figures', pa: 'production figures',
+  ka: 'each karigar\'s work', top: 'best sellers on Amazon', article: 'articles to review', target: 'monthly targets', adj: 'Shopify stock changes',
+  shopify: 'Shopify stock', flow: 'every order through the factory', gdesk: 'greige fabric in and out' };
 function mobMoreOpen() {
-  const may = a => {
-    const k = String(a.getAttribute('href') || '').replace(/^#/, '');
-    if (!k || a.classList.contains('hide') || a.style.display === 'none') return false;
-    return mobMay(k) || k === 'flow' || k === 'gdesk';     // these two show their link only to whoever may open them
-  };
+  const may = mobLinkOk;
   const groups = [...document.querySelectorAll('.side .navwrap')].map(w => {
     const head = w.querySelector('.navgrp');
-    if (!head || head.classList.contains('hide')) return '';
-    const links = [...w.querySelectorAll('a.nav')].filter(may);
+    if (!head) return '';
+    const links = [...w.querySelectorAll('a.nav')].filter(may);     // a hidden group still lists the screens this account has (mobMyScreens)
     if (!links.length) return '';
     const name = String(head.textContent || '').replace(/[▸▾]/g, '').trim();
     return `<div class="mob-grp"><div class="mob-grp-h">${mobEsc(name)}</div>` + links.map(a => {
@@ -159,7 +185,9 @@ function mobMoreOpen() {
       return `<button type="button" class="mob-link${k === TAB_NOW ? ' on' : ''}" data-mob-tab="${mobEsc(k)}"><span>${mobEsc(String(t).trim())}</span>${bd}</button>`;
     }).join('') + '</div>';
   }).join('');
-  const install = $('installBtn') && !$('installBtn').classList.contains('hide');
+  /* Install app is offered until the app is opened from the home screen. The browser's own window comes up only on
+     Android Chrome; an iPhone never offers one, so there the button shows how (mobInstallHow). — 19 Oct */
+  const install = !mobInstalled();
   $('mobMoreList').innerHTML = '<div class="ml-search mob-moreq"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="mobMoreQ" type="search" placeholder="Find a screen" autocomplete="off"></div>'
     + groups
     + '<div class="mob-grp mob-foot">'
@@ -191,12 +219,30 @@ function mobMoreShut() { if ($('mobMoreModal')) $('mobMoreModal').classList.add(
 function mobAct(a) {
   mobMoreShut();
   if (a === 'guide' && $('guideBtn')) $('guideBtn').click();
-  if (a === 'install' && $('installBtn')) $('installBtn').click();
+  if (a === 'install') {
+    if ($('installBtn') && !$('installBtn').classList.contains('hide')) $('installBtn').click();
+    else mobInstallHow();
+  }
   if (a === 'logout' && $('logoutBtn')) $('logoutBtn').click();
   if (a === 'alerts') mobAlertsOn();
   /* (the reload waits until the More menu has shut: shutting it steps the phone's history back, which would cancel a
      reload made at once — 17 Oct) */
   if (a === 'desktop') { try { sessionStorage.setItem('mobViewOff', '1'); localStorage.removeItem('mobView'); } catch (e) { /* nowhere to remember it */ } setTimeout(() => location.reload(), 300); }
+}
+
+/** Opened from the home screen already (Android and iPhone each say so their own way). */
+function mobInstalled() {
+  try { return !!((window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone); } catch (e) { return false; }
+}
+/** How to put the app on the home screen, when the browser has no window of its own for it (iPhone, or Chrome not ready). */
+function mobInstallHow() {
+  const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+  const step = (n, t) => `<div class="ml-kv"><span>${n}</span><b>${t}</b></div>`;
+  const how = ios
+    ? step('1', 'Open this site in Safari') + step('2', 'Tap Share (the square with the arrow) at the bottom') + step('3', 'Tap “Add to Home Screen”, then Add')
+    : step('1', 'Open this site in Chrome') + step('2', 'Tap ⋮ at the top right') + step('3', 'Tap “Install app” or “Add to Home screen”');
+  mobSheet('Install app', 'Ridhi on your home screen, full screen', `<div class="ml-sec">${ios ? 'iPhone' : 'Android'}</div>${how}`
+    + '<p class="muted" style="margin:12px 4px 0;font-size:13px">The Ridhi icon then opens the app straight away, like any other app. Sign in once inside it.</p>');
 }
 
 /* On a phone that chose Desktop view: the way back, at the end of the menu bar. */
@@ -831,7 +877,7 @@ function mobHomeDraw() {
   const p = mobHomePane();
   const who = String((typeof ME !== 'undefined' && (ME.name || ME.email)) || '').split('@')[0];
   const hr = new Date().getHours(), hi = hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : 'Good evening';
-  const row = (tab, label, sub, num, tone, act) => mobMay(tab) ? `<button type="button" class="ml-row" ${act ? `data-home-act="${act}"` : `data-home-go="${tab}"`}><span class="ml-m"><b>${mobEsc(label)}</b>${sub ? `<small>${mobEsc(sub)}</small>` : ''}</span>`
+  const row = (tab, label, sub, num, tone, act) => mobMay(tab) || MOB_SELF_GATED.includes(tab) ?`<button type="button" class="ml-row" ${act ? `data-home-act="${act}"` : `data-home-go="${tab}"`}><span class="ml-m"><b>${mobEsc(label)}</b>${sub ? `<small>${mobEsc(sub)}</small>` : ''}</span>`
     + `<span class="ml-r">${num == null ? '' : `<b class="${tone || ''}">${num}</b>`}</span><span class="ml-chev">›</span></button>` : '';
   const sec = (name, rows) => rows.replace(/\s/g, '') ? `<div class="ml-sec">${mobEsc(name)}</div><div class="ml-group">${rows}</div>` : '';
   /* keep what is being typed while Home redraws under it */
@@ -887,15 +933,14 @@ function mobHomeDraw() {
       fgPend ? row('fgi', 'Transfers to count in', 'sent from press, not yet stock', mobNum(fgPend), 'ml-warn', 'fgpend') : '',
     ].join('');
     body += need ? sec('Needs you', need) : '';
-    body += sec('Your work', [
-      row('shop', 'Shopify Orders', 'not yet shipped', shopOpen == null ? null : mobNum(shopOpen)),
-      row('pbase', 'Job Work Register', 'issue and receive', null),
-      row('pack', 'Packing List', 'scan to pack, labels, FBA file', null),
-      row('fgi', 'Finished Goods', 'the India store', null),
-      row('ord', 'Order Console', 'every order, the step it is at', null),
-      row('repl', 'Replenishment', 'what to send, Air or Sea', null),
-      row('att', 'Attendance', 'today', null),
-    ].join('')) + `<div class="ml-sum" style="text-align:center">Every other screen you can open is under More.</div>`;
+    /* EVERY screen this person has, in the menu's order (19 Oct, Ravi: "show every screen that person has (Cutting,
+       Pressing, QC, Vendor screens and so on)"). The ones with a figure or a known job carry it; the rest show their name. */
+    const known = { shop: ['Shopify Orders', 'not yet shipped', shopOpen == null ? null : mobNum(shopOpen)], pbase: ['Job Work Register', 'issue and receive'],
+      pack: ['Packing List', 'scan to pack, labels, FBA file'], fgi: ['Finished Goods', 'the India store'], ord: ['Order Console', 'every order, the step it is at'],
+      repl: ['Replenishment', 'what to send, Air or Sea'], att: ['Attendance', 'today'] };
+    const mine = mobMyScreens();
+    body += sec('Your work', mine.map(x => { const k = known[x.k]; return row(x.k, k ? k[0] : x.name, k ? k[1] : (MOB_SUB[x.k] || ''), k ? k[2] : null); }).join(''))
+      + (mine.length ? '' : `<div class="ml-sum" style="text-align:center">No screens are open to this account yet — ask an admin.</div>`);
     mobAlertCheck(Object.assign(lateN == null ? {} : { late: lateN }, pend == null ? {} : { receive: pend }, fgPend == null ? {} : { fgpend: fgPend }));
   }
   p.innerHTML = `<div class="mob-list">${head}<div id="mobHomeBody">${body}</div></div>`;
@@ -1467,6 +1512,37 @@ const MOB_GRID_IC = MOB_SVG('<rect x="4" y="4" width="7" height="7" rx="1.5"/><r
 /** A screen's name short enough for a tab: its first two words ("Job Work Register" → "Job Work"), never ending on "&"
  * ("Finance & HR" stays whole). */
 const mobShortName = n => { const w = String(n || '').trim().split(/\s+/); const k = /^(&|and)$/i.test(w[1] || '') ? 3 : 2; return w.slice(0, k).join(' '); };
+/* A slot taken by another screen carries that screen's own picture, not a grid (19 Oct: "customised according to the
+   user access" — an attendance clerk's bar shows a calendar, a cutter's shows scissors). */
+const MOB_SCREEN_IC = (() => {
+  const S = MOB_SVG, cal = S('<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>'),
+    cut = S('<circle cx="6" cy="7" r="2.5"/><circle cx="6" cy="17" r="2.5"/><path d="M8 8.5 20 18M8 15.5 20 6"/>'),
+    chk = S('<path d="M4 12.5 9 17.5 20 6.5"/>'), list = S('<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>'),
+    chart = S('<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>'), truck = S('<path d="M3 7h11v9H3zM14 10h4l3 3v3h-7"/><circle cx="7" cy="18" r="1.8"/><circle cx="17" cy="18" r="1.8"/>'),
+    people = S('<circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0"/><circle cx="17" cy="9" r="2.4"/><path d="M15.5 14.2A5 5 0 0 1 21 19"/>'),
+    sync = S('<path d="M20 11a8 8 0 0 0-14.6-4.5L4 8M4 13a8 8 0 0 0 14.6 4.5L20 16"/><path d="M4 4v4h4M20 20v-4h-4"/>'),
+    roll = S('<ellipse cx="7" cy="12" rx="3" ry="7"/><path d="M7 5h11a3 7 0 0 1 0 14H7"/>'),
+    iron = S('<path d="M3 17h17v-3a6 6 0 0 0-6-6H8"/><path d="M3 17l2-6h9"/>'),
+    doc = S('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/>'),
+    rupee = S('<path d="M7 4h10M7 9h10M7 4c6 0 6 10 0 10l8 6"/>'), flow = S('<path d="M4 6h10M4 12h16M4 18h7"/><path d="m17 3 3 3-3 3"/>');
+  return { att: cal, hr: rupee, pbase: people, pcut: cut, ppress: iron, qc: chk, qcalt: chk, qcret: chk, ord: list, so: doc,
+    vord: truck, vreq: truck, vend: truck, vlog: truck, rfd: roll, fab: roll, gdesk: roll, gdled: roll, palloc: roll,
+    repl: sync, fba: truck, rep: chart, pa: chart, ka: chart, top: chart, article: list, target: chart,
+    pmdb: list, mst: list, acc: list, adj: sync, shopify: list, shopprod: list, india: MOB_TABS[3].ic,
+    flppc: flow, fldem: flow, flacc: flow, flchl: flow, flcut: flow, flraw: flow, flwip: flow };
+})();
+/** Short tab names for the screens whose menu names are too long for a phone tab, or too alike side by side. */
+const MOB_SHORT = { vreq: 'Requests', vord: 'Vendor', rfd: 'RFD', vlog: 'Vendor log', qc: 'QC', qcalt: 'Alteration', qcret: 'QC return',
+  pcut: 'Cutting', ppress: 'Pressing', pbase: 'Job Work', repl: 'Replenish', fba: 'FBA', rep: 'Reports', pa: 'Production', ka: 'Karigars',
+  pmdb: 'Masters', mst: 'Masters', att: 'Attendance', hr: 'HR', ord: 'Console', so: 'Sales', top: 'Top ASIN', gdesk: 'Greige', acc: 'Accessories' };
+/** The screens this account opened last time (the More menu's Recent list) — they fill an empty slot first. Read once when
+ * the app opens, so the bar does not move while it is being used. */
+let MOB_USED0 = null;
+const mobUsedMost = () => {
+  if (MOB_USED0) return MOB_USED0;
+  try { const r = JSON.parse(localStorage.getItem(MOB_RECENT) || '[]'); MOB_USED0 = Array.isArray(r) ? r : []; } catch (e) { MOB_USED0 = []; }
+  return MOB_USED0;
+};
 function mobUserTabs() {
   const bar = $('mobBar');
   if (!bar) return;
@@ -1479,8 +1555,13 @@ function mobUserTabs() {
     if (!MOB_TAB_FALLBACK[x.k]) return;
     const own = MOB_TAB_FALLBACK[x.k].find(t => mobMay(t) && !used.has(t));
     let pick = null;
-    if (own) pick = { tab: own, t: own === d.tab ? d.t : mobShortName(name(own)), ic: d.ic };
-    else { const next = mine.find(m => !used.has(m.k) && !Object.values(MOB_TAB_FALLBACK).some(f => f[0] === m.k && mobMay(m.k))); if (next) pick = { tab: next.k, t: mobShortName(name(next.k)), ic: MOB_GRID_IC }; }
+    if (own) pick = { tab: own, t: own === d.tab ? d.t : MOB_SHORT[own] || mobShortName(name(own)), ic: d.ic };
+    else {
+      const free = m => !used.has(m.k) && !Object.values(MOB_TAB_FALLBACK).some(f => f[0] === m.k && mobMay(m.k));
+      /* the screens this person opens most come first, then the menu's order */
+      const next = mobUsedMost().map(k => mine.find(m => m.k === k)).find(m => m && free(m)) || mine.find(free);
+      if (next) pick = { tab: next.k, t: MOB_SHORT[next.k] || mobShortName(name(next.k)), ic: MOB_SCREEN_IC[next.k] || MOB_GRID_IC };
+    }
     if (pick) { used.add(pick.tab); Object.assign(x, pick); } else Object.assign(x, { tab: d.tab, t: d.t, ic: d.ic });
     const b = bar.querySelector('[data-mob="' + x.k + '"]');
     if (b) {

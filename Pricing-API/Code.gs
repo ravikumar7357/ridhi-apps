@@ -209,6 +209,8 @@ function doGet(e) {
     // these apps again (Ravi). India stock is the Replenish app's own Finished Goods.
     // Pictures for imported orders, resolved from the SKU. Asked for once, at import.
     if (p.imgsku) return json_(skuImages_(p.imgsku));
+    // A share page's picture (kommodo / imgur / ibb), for B2B order sheets whose Image Link is a page (SkuPictures.gs).
+    if (p.piclinks) return json_(pictureLinks_(p.piclinks));
     // What a listing currently IS — title, bullets, description, image slots — for the optimiser.
     // Image stack of one listing (ListingImages.gs): catalogue + our listing, and the change log.
     if (p.limg === 'get') return json_(limgGet_(p));

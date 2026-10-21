@@ -283,16 +283,20 @@ function flowByPrintTable(rows) {
   const g = new Map();
   rows.filter(x => x.s.route !== 'stitch').forEach(x => {
     const p = x.s.plan || {}, w = flowPrintWhat(x.r, p), tp = flowToPrint(x.r, p), pc = flowPlanPrinter(x.s);
+    /* ONLY WHAT IS STILL OWED (Ravi, 19 Oct: the row said 447 pcs, the challan 47 — 400 were already issued to karigars).
+     * The total is what the challan will offer: the order less what is cut / issued / passed, less fabric already sent. */
+    const o = flowFabOwed(x.r, x.s), rem = flowRemFrac(x.r, x.s), qty = +x.r.qty || 0;
     const k = (x.r.__t ? 'T|' : 'R|') + (pc || '?') + '|' + (w.code || '?' + w.label);
-    const e = g.get(k) || { w, pc, pname: (p.printer && p.printer.name) || '', keys: [], orders: new Set(), metres: 0, pcs: 0, test: !!x.r.__t };
-    e.keys.push(x.s.key); e.orders.add(x.r.orderNo); e.metres += tp.metres; e.pcs += tp.pcs; g.set(k, e);
+    const e = g.get(k) || { w, pc, pname: (p.printer && p.printer.name) || '', keys: [], orders: new Set(), metres: 0, pcs: 0, ord: 0, done: 0, test: !!x.r.__t };
+    e.keys.push(x.s.key); e.orders.add(x.r.orderNo); e.metres += o.metres;
+    e.pcs += x.s.fabUnit === 'pcs' ? o.left : Math.round(tp.pcs * rem); e.ord += qty; e.done += Math.round(qty * (1 - rem)); g.set(k, e);
   });
   FLOW_GROUPS = [...g.values()].sort((a, b) => b.orders.size - a.orders.size || b.metres - a.metres);
   const body = FLOW_GROUPS.map((e, i) => `<tr><td class="frz" style="text-align:left">${e.w.needDir ? '<b style="color:#b91c1c">direction not picked</b>' : e.w.code ? `<b>${esc(e.w.code)}</b>` : '<b style="color:#b91c1c">no fabric SKU</b>'}${e.test ? ' <span class="navbadge" style="background:#7c3aed;position:static">TEST</span>' : ''}
       <div class="muted" style="font-size:10.5px">${esc(e.w.mode)} · ${esc(e.w.label)}</div></td>
     <td style="text-align:left;font-size:12px">${[...e.orders].map(esc).join('<br>')}</td>
     <td class="num">${nf(e.keys.length)}</td>
-    <td class="num"><b>${e.w.kind === 'sku' ? nf(e.pcs) + ' pcs' : nf(flowR2(e.metres)) + ' m'}</b></td>
+    <td class="num"><b>${e.w.kind === 'sku' ? nf(e.pcs) + ' pcs' : nf(flowR2(e.metres)) + ' m'}</b>${e.done > 0 ? `<div class="muted" style="font-size:10.5px">of ${nf(e.ord)} pcs ordered · ${nf(e.done)} already made / with karigars</div>` : ''}</td>
     <td style="text-align:left">${e.pname ? esc(e.pname) : '<span class="muted">not chosen</span>'}</td>
     <td><button data-flchg="${i}" style="width:auto;padding:3px 10px;font-size:12px">${e.orders.size > 1 ? `One challan for ${e.orders.size} orders` : 'Challan'}</button></td></tr>`).join('');
   return `<thead><tr><th class="frz" style="text-align:left">Printed fabric</th><th style="text-align:left">Orders</th><th>Lines</th><th>To print</th><th style="text-align:left">Printer</th><th></th></tr></thead><tbody>`
@@ -362,9 +366,11 @@ function flowTable(view, rows) {
    * order, then its date, then one paper a line, the delete link last; the SKU, then its item, colour and size. */
   const poHead = x => {
     const again = x.r.orderNo === prevNo; prevNo = x.r.orderNo;
-    if (again) return `<div class="muted" style="font-size:11px">${esc(x.r.orderNo)}</div>`;
+    const buyer = typeof ordBuyerOf === 'function' ? ordBuyerOf(x.r.orderNo) : '';
+    if (again) return `<div class="muted" style="font-size:11px">${esc(x.r.orderNo)}${buyer ? ' · ' + esc(buyer) : ''}</div>`;
     return (x.r.__t ? `<b>${esc(x.r.orderNo)}</b> <span class="navbadge" style="background:#7c3aed;position:static">TEST</span>`
       : `<a href="#" data-ordj="${esc(x.r.orderNo)}" style="font-weight:600">${esc(x.r.orderNo)}</a>`)
+      + (buyer ? `<div style="font-size:13px;font-weight:600">${esc(buyer)}</div>` : '')
       + `<div class="muted" style="font-size:12px">${esc(flowSrcOf(x))} · ${esc(ptIsoDate(x.r.orderDate) || '')} · ${nf(flowDays(x.r.orderDate) || 0)} d</div>`
       + (x.r.fromSo ? `<div class="muted" style="font-size:12px">Copy of sales order ${esc(x.r.fromSo)}</div>` : '');
   };
@@ -439,6 +445,7 @@ function flowTable(view, rows) {
   } else if (view === 'ppcdone') {
     /* What PPC planned, line by line, where the line is now, and the one place to change it. */
     head = ['PO', 'SKU', 'Qty', 'Planned', 'Now in', 'Raised', ''];
+    const resyncSeen = new Set();     // one "Resync printer orders" per order, on its first line
     const now = s => s.bucket === 'demand' ? [s.needFab && 'Demand · RFD fabric', s.needAcc && 'Demand · Accessories'].filter(Boolean).join(' + ')
       : FLOW_ELSEWHERE[s.bucket] || (FLOW_BUCKETS.find(b => b[0] === s.bucket) || [, s.bucket])[1];
     body = rows.map(x => { const p = x.s.plan || {}, rp = flowRufflePrinter(p), rt = (FLOW_ROUTES.find(r => r[0] === flowRouteOf(p)) || [, , flowRouteOf(p)])[2];
@@ -453,7 +460,7 @@ function flowTable(view, rows) {
         <td style="text-align:left;font-size:13px;white-space:normal;min-width:160px;max-width:240px;vertical-align:top">${esc(now(x.s))}</td>
         <td style="text-align:left;font-size:12px;line-height:1.55;vertical-align:top" class="muted">${esc(String(p.at || '').slice(0, 10))}${p.by ? '<br>' + esc(String(p.by).split('@')[0]) : ''}</td>
         <td style="white-space:normal;max-width:170px;vertical-align:top">${x.r.__t && x.s.bucket === 'ship'
-          ? `<button data-flsim="${esc(x.r.orderNo)}|${esc(x.r.sku)}|ship" title="Stands in for: ${esc(FLOW_SIM.ship[1])}" style="width:auto;padding:3px 10px;font-size:12px;margin-bottom:6px;background:#7c3aed;border-color:#7c3aed">${esc(FLOW_SIM.ship[0])}</button><br>` : ''}<button data-flplan="${esc(x.r.orderNo)}|${esc(x.r.sku)}" style="width:auto;padding:3px 10px;font-size:12px" title="Change or undo what PPC planned">Edit plan</button>
+          ? `<button data-flsim="${esc(x.r.orderNo)}|${esc(x.r.sku)}|ship" title="Stands in for: ${esc(FLOW_SIM.ship[1])}" style="width:auto;padding:3px 10px;font-size:12px;margin-bottom:6px;background:#7c3aed;border-color:#7c3aed">${esc(FLOW_SIM.ship[0])}</button><br>` : ''}<button data-flplan="${esc(x.r.orderNo)}|${esc(x.r.sku)}" style="width:auto;padding:3px 10px;font-size:12px" title="Change or undo what PPC planned">Edit plan</button>${ME.admin && !x.r.__t && !resyncSeen.has(x.r.orderNo) && resyncSeen.add(x.r.orderNo) ? `<br><button class="ghost" data-flposync="${esc(x.r.orderNo)}" style="width:auto;padding:2px 8px;font-size:11px;margin-top:6px" title="Rebuild this order's print order and the printer's Vendor Order from the plans as they are now">Resync printer orders</button>` : ''}
           ${locked ? `<div class="muted" style="font-size:10.5px;margin-top:3px" title="The fabric went on ${esc(x.s.challan.no)}: fabric, route and printer can no longer change">fabric sent · ${esc(x.s.challan.no)}</div>` : ''}</td></tr>`; }).join('');
   } else if (view === 'drfd') {
     head = ['PO', 'SKU', 'Qty', 'Made as', 'Fabric this line uses', 'RFD left for it', ''];
@@ -564,6 +571,8 @@ async function flowTableClick(e) {
   const g = e.target.closest('[data-flgo]'); if (g) { showTab(g.dataset.flgo); return; }
   const rv = e.target.closest('[data-flchr]'); if (rv) { flowReceiveOpen(rv.dataset.flchr); return; }
   const pl = e.target.closest('[data-flplan]'); if (pl) { e.preventDefault(); const [no, sku] = pl.dataset.flplan.split('|'); flowPpcOpen(no, sku); return; }
+  const rs = e.target.closest('[data-flposync]');
+  if (rs) { e.preventDefault(); const er = await flowPoResync(rs.dataset.flposync); if (er) { $('flMsg').className = 'err'; $('flMsg').textContent = er; } else { renderFlow(); $('flMsg').className = 'muted'; $('flMsg').textContent = flowPoResync.said || ''; } return; }
   const ce = e.target.closest('[data-flche]'); if (ce) { flowChallanEditOpen(ce.dataset.flche); return; }
   const cx = e.target.closest('[data-flchx]'); if (cx) { flowChallanCancelOpen(cx.dataset.flchx); return; }
   const cu = e.target.closest('[data-flchu],[data-flcho]');

@@ -82,7 +82,7 @@ function flowHistTable(q, testOnly) {
   const body = list.map(c => { const recv = flowChRecv(c), st = flowChState(c);
     const sent = flowMixTxt((c.lines || []).map(l => [flowChSent(l), flowChUnit(l)])), got = flowMixTxt((c.lines || []).map(l => [recv[l.key] || 0, flowChUnit(l)]));
     return `<tr><td class="frz" style="text-align:left"><b>${esc(c.no)}</b>${flowIsTest(c.orderNo) ? ' <span class="navbadge" style="background:#7c3aed;position:static">TEST</span>' : ''}<div class="muted" style="font-size:10.5px">${esc(c.date || '')}</div></td>
-      <td style="text-align:left">${esc(c.orderNo)}</td><td style="text-align:left"><b>${esc(c.vendor && c.vendor.name)}</b></td>
+      <td style="text-align:left">${esc(c.orderNo)}${(c.orders || [c.orderNo]).map(o => typeof ordBuyerOf === 'function' ? ordBuyerOf(o) : '').filter(Boolean).filter((b, i, a) => a.indexOf(b) === i).map(b => `<div style="font-size:12px;font-weight:600">${esc(b)}</div>`).join('')}</td><td style="text-align:left"><b>${esc(c.vendor && c.vendor.name)}</b></td>
       <td style="text-align:left;font-size:11.5px">${(c.lines || []).map(l => `${esc(l.sku)} · ${flowQtyTxt(flowChSent(l), flowChUnit(l))}${recv[l.key] ? ` <span style="color:#166534">(${flowQtyTxt(recv[l.key], flowChUnit(l))} back)</span>` : ''}`).join('<br>')}</td>
       <td class="num">${sent}</td><td class="num">${got}</td>
       <td>${pill(st)}${(c.cancelled || c.closed) && (c.cancelled || c.closed).why ? `<div class="muted" style="font-size:10.5px">${esc((c.cancelled || c.closed).why)}</div>` : ''}</td>
@@ -103,26 +103,54 @@ function flowChActions(c, st) {
   out.push(b('data-flchp', 'Print'));
   return out.join(' ');
 }
+/* NOT RECEIVED THIS TIME (Ravi, 20 Oct, design A): a ✕ at the end of a line marks it "Not received" for this receipt
+ * only — the line stays on the challan, still owed, and comes up again next time. ↶ undoes it. The lines crossed are kept
+ * on the receipt (notCame) so the history says what was missing that day. */
+let FLOW_RX = new Set();
+const FLOW_RX_WAS = new Map();     // what was typed before the cross, put back by ↶
+function flowRecvCross(i) {
+  const on = !FLOW_RX.has(i);
+  if (on) FLOW_RX.add(i); else FLOW_RX.delete(i);
+  if (typeof document === 'undefined' || typeof document.querySelector !== 'function') return;
+  const q = s => document.querySelector(s);
+  const inp = q(`[data-flrm="${i}"]`), box = q(`[data-flrin="${i}"]`), pill = q(`[data-flrno="${i}"]`), tr = q(`[data-flrrow="${i}"]`), b = q(`[data-flrx="${i}"]`);
+  if (inp) { if (on) { FLOW_RX_WAS.set(i, inp.value); inp.value = ''; } else if (FLOW_RX_WAS.has(i)) inp.value = FLOW_RX_WAS.get(i); }
+  if (box) box.style.display = on ? 'none' : '';
+  if (pill) pill.style.display = on ? '' : 'none';
+  if (tr) tr.style.opacity = on ? '0.55' : '';
+  if (b) { b.textContent = on ? '↶' : '✕'; b.title = on ? 'Undo — it came after all' : 'Not received this time — the line stays on the challan'; }
+}
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('click', e => {
+  const b = e.target && e.target.closest && e.target.closest('[data-flrx]');
+  if (b) { e.preventDefault(); flowRecvCross(+b.dataset.flrx); }
+});
 /** Printed fabric back from the printer against a challan: metres per line. Closes by itself when all of it is back. */
 function flowReceiveOpen(no) {
   const c = (FLOW.ch || {})[no]; if (!c) return;
   const recv = flowChRecv(c);
+  FLOW_RX = new Set(); FLOW_RX_WAS.clear();
+  /* the picture of each line (20 Oct), from wherever the app has it — master, Shopify, the B2B sheet */
+  const pic = sku => (typeof ptImgSpan === 'function' ? ptImgSpan(sku, 40) : '');
   ptOpenDialog({
     title: `Receive against ${no}`,
     subtitle: `${c.orderNo} · ${c.vendor && c.vendor.name}. Type what came back now, in the form it was given: printed cloth in metres, pieces printed on the SKU in pieces. When every line is back the challan closes and the lines move to the store by themselves.`,
     html: `<label>Date<input id="flrDate" type="date" value="${esc(dToday())}"></label>
-      <table class="xl" style="margin-top:8px;width:100%"><thead><tr><th style="text-align:left">SKU</th><th>Given as</th><th>Sent</th><th>Back so far</th><th>Received now</th></tr></thead><tbody>
+      <table class="xl" style="margin-top:8px;width:100%"><thead><tr><th style="width:52px">Photo</th><th style="text-align:left">SKU</th><th>Given as</th><th>Sent</th><th>Back so far</th><th>Received now</th></tr></thead><tbody>
       ${(c.lines || []).map((l, i) => { const u = flowChUnit(l), left = flowR2(Math.max(0, flowChSent(l) - (recv[l.key] || 0)));
-        return `<tr><td style="text-align:left"><b>${esc(l.sku)}</b><div class="muted" style="font-size:10.5px">${esc(l.item || '')}</div></td>
+        return `<tr data-flrrow="${i}"><td>${pic(l.sku)}</td><td style="text-align:left"><b>${esc(l.sku)}</b><div class="muted" style="font-size:10.5px">${esc(l.item || '')}</div></td>
           <td style="text-align:left;font-size:11.5px">${u === 'pcs' ? 'Cut pieces' : l.ruffleOnly ? 'Printed ruffle cloth' : 'Printed cloth'}</td>
           <td class="num"><b>${flowQtyTxt(flowChSent(l), u)}</b>${u === 'pcs' ? `<div class="muted" style="font-size:10.5px">${flowQtyTxt(l.metres, 'm')} cloth</div>` : ''}</td><td class="num">${flowQtyTxt(recv[l.key] || 0, u)}</td>
-          <td class="num"><input data-flrm="${i}" type="number" step="${u === 'pcs' ? '1' : '0.01'}" min="0" value="${left > 0 ? esc(left) : ''}" ${left > 0 ? '' : 'disabled'} style="width:85px;padding:3px 6px;font-size:12px"> ${u}</td></tr>`; }).join('')}
+          <td class="num"><span data-flrin="${i}"><input data-flrm="${i}" type="number" step="${u === 'pcs' ? '1' : '0.01'}" min="0" value="${left > 0 ? esc(left) : ''}" ${left > 0 ? '' : 'disabled'} style="width:85px;padding:3px 6px;font-size:12px"> ${u}</span>`
+          + `<span data-flrno="${i}" class="pill bad" style="display:none;font-size:11px">Not received</span>`
+          /* the ✕ sits in the same cell as the figure: a column of its own ran off the right of the window (20 Oct) */
+          + `${left > 0 ? ` <button type="button" class="ghost" data-flrx="${i}" title="Not received this time — the line stays on the challan" style="width:auto;padding:2px 9px;font-size:13px;margin-left:4px">✕</button>` : ''}</td></tr>`; }).join('')}
       </tbody></table><label style="display:block;margin-top:8px">Note (lot, vehicle, quality…)<input id="flrNote"></label>`,
     saveLabel: 'Received',
     onSave: async () => {
       const items = {};
       const frac = [];
-      (c.lines || []).forEach((l, i) => { const m = +((document.querySelector(`[data-flrm="${i}"]`) || {}).value || 0);
+      (c.lines || []).forEach((l, i) => { if (FLOW_RX.has(i)) return;       // not received this time
+        const m = +((document.querySelector(`[data-flrm="${i}"]`) || {}).value || 0);
         if (m > 0) { items[l.key] = flowR2(m); if (flowChUnit(l) === 'pcs' && m !== Math.round(m)) frac.push(l.sku); } });
       if (!Object.keys(items).length) return 'Type what came back for at least one line.';
       if (frac.length) return `Pieces are whole: ${frac.join(', ')}.`;
@@ -132,6 +160,8 @@ function flowReceiveOpen(no) {
       const g = await flowGuard('ch_' + no); if (g) return g;   // two people receiving on one challan at once
       const now = new Date().toISOString(), id = 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
       const rc = { date: $('flrDate').value || dToday(), items, note: $('flrNote').value.trim(), at: now, by: ME.email || '' };
+      const notCame = (c.lines || []).filter((l, i) => FLOW_RX.has(i)).map(l => l.key);
+      if (notCame.length) rc.notCame = notCame;
       const allBack = (c.lines || []).every(l => (recv[l.key] || 0) + (items[l.key] || 0) >= flowChSent(l) - 0.01);
       const patch = { [`pt_flowChallans/${no}/receipts/${id}`]: rc };
       if (allBack) patch[`pt_flowChallans/${no}/closed`] = { at: now, by: ME.email || '', why: 'all received' };
@@ -143,6 +173,7 @@ function flowReceiveOpen(no) {
       return '';
     },
   });
+  if (typeof ptImgFill === 'function') ptImgFill((c.lines || []).map(l => l.sku), false, typeof ptImgPatch === 'function' ? ptImgPatch : null);
 }
 /** Close a challan that will not come back in full — the reason is kept, and its lines move on with what came. */
 function flowCloseShortOpen(no) {

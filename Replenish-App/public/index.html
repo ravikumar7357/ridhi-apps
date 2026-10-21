@@ -10436,9 +10436,97 @@ async function pkReadXlsx(bytes) {
       while (cells.length < at) cells.push('');
       cells[at] = v;
     }
+    /* the row's own number as Excel counts it (blank rows are absent from the XML): a picture is matched to it */
+    cells.r = +((rm[0].match(/^<row\b[^>]*\br="(\d+)"/) || [])[1]) || rows.length + 1;
     rows.push(cells);
   }
   return rows;
+}
+/** "../media/image1.png" seen from "xl/drawings/" → "xl/media/image1.png". */
+function pkPathJoin(dir, t) {
+  if (t.charAt(0) === '/') return t.slice(1);
+  const out = [];
+  (dir + t).split('/').forEach(p => { if (p === '..') out.pop(); else if (p && p !== '.') out.push(p); });
+  return out.join('/');
+}
+/* PICTURES IN THE SHEET (Ravi, 19 Oct: "i don't have image link i have only picture"). Excel keeps a picture two ways:
+ * placed over the cells (a drawing, anchored between rows — it belongs to the row its middle is in), or Insert → Pictures
+ * → Place in Cell (a cell whose value points at the picture). Both come back as { row (as Excel numbers it), col, bytes, ext }. */
+async function pkXlsxPictures(bytes) {
+  const files = await pkUnzip(bytes, n => /^xl\/worksheets\/(_rels\/)?sheet\d+\.xml(\.rels)?$/.test(n)
+    || /^xl\/drawings\/(_rels\/)?drawing\d+\.xml(\.rels)?$/.test(n) || /^xl\/media\//.test(n) || n === 'xl/metadata.xml' || /^xl\/richData\//.test(n));
+  const T = n => (files[n] ? PK_TD.decode(files[n]) : '');
+  const sheet = Object.keys(files).filter(n => /^xl\/worksheets\/sheet\d+\.xml$/.test(n)).sort()[0];
+  if (!sheet) return [];
+  const rels = path => {
+    const dir = path.slice(0, path.lastIndexOf('/') + 1), name = path.slice(path.lastIndexOf('/') + 1), m = {};
+    for (const r of T(dir + '_rels/' + name + '.rels').matchAll(/<Relationship\b[^>]*>/g)) {
+      const id = (r[0].match(/\bId="([^"]+)"/) || [])[1], tg = (r[0].match(/\bTarget="([^"]+)"/) || [])[1];
+      if (id && tg) m[id] = pkPathJoin(dir, tg);
+    }
+    return m;
+  };
+  const extOf = p => ((p.match(/\.([a-z0-9]+)$/i) || [])[1] || '').toLowerCase();
+  const sx = T(sheet), sRels = rels(sheet), out = [];
+  /* 1. placed over the cells. Row heights decide which row a picture's middle sits in. */
+  const defH = +((sx.match(/<sheetFormatPr\b[^>]*\bdefaultRowHeight="([\d.]+)"/) || [])[1]) || 15;
+  const hts = {};
+  for (const r of sx.matchAll(/<row\b[^>]*>/g)) {
+    const n = +((r[0].match(/\br="(\d+)"/) || [])[1]), h = (r[0].match(/\bht="([\d.]+)"/) || [])[1];
+    if (n && h) hts[n - 1] = +h;
+  }
+  const tops = [0];
+  const rowTop = r0 => { while (tops.length <= r0) { const i = tops.length - 1; tops.push(tops[i] + (hts[i] != null ? hts[i] : defH) * 12700); } return tops[r0]; };
+  for (const dm of sx.matchAll(/<drawing\b[^>]*r:id="([^"]+)"/g)) {
+    const dp = sRels[dm[1]]; if (!dp || !files[dp]) continue;
+    const dx = T(dp), dRels = rels(dp);
+    /* Excel writes xdr:twoCellAnchor; other tools write the same with another prefix or none — so no prefix is assumed. */
+    for (const am of dx.matchAll(/<((?:\w+:)?)(twoCellAnchor|oneCellAnchor)\b[\s\S]*?<\/\1\2>/g)) {
+      const a = am[0];
+      const blip = (a.match(/<(?:\w+:)?blip\b[^>]*\b(?:\w+:)?embed="([^"]+)"/) || [])[1], mp = blip && dRels[blip];
+      if (!mp || !files[mp]) continue;
+      const pos = tag => {
+        const m = a.match(new RegExp('<(?:\\w+:)?' + tag + '>([\\s\\S]*?)</(?:\\w+:)?' + tag + '>')); if (!m) return null;
+        const g = k => +((m[1].match(new RegExp('<(?:\\w+:)?' + k + '>(-?\\d+)</(?:\\w+:)?' + k + '>')) || [])[1] || 0);
+        return { col: g('col'), row: g('row'), rowOff: g('rowOff') };
+      };
+      const f = pos('from'), t = pos('to'); if (!f) continue;
+      const y0 = rowTop(f.row) + f.rowOff;
+      const y1 = t ? rowTop(t.row) + t.rowOff : y0 + +((a.match(/<(?:\w+:)?ext\b[^>]*\bcy="(\d+)"/) || [])[1] || 0);
+      const mid = (y0 + y1) / 2;
+      let row = f.row;
+      while (row < f.row + 500 && rowTop(row + 1) <= mid) row++;
+      out.push({ row: row + 1, col: f.col, bytes: files[mp], ext: extOf(mp), how: 'over' });
+    }
+  }
+  /* 2. placed in the cell: vm → valueMetadata → XLRICHVALUE block → rich value → its picture. */
+  const meta = T('xl/metadata.xml');
+  if (meta && files['xl/richData/rdrichvalue.xml']) {
+    const fut = (meta.match(/<futureMetadata\b[^>]*name="XLRICHVALUE"[^>]*>([\s\S]*?)<\/futureMetadata>/) || [])[1] || '';
+    const rvb = [...fut.matchAll(/<bk>([\s\S]*?)<\/bk>/g)].map(b => +((b[1].match(/rvb\b[^>]*\bi="(\d+)"/) || [])[1]));
+    const vmd = (meta.match(/<valueMetadata\b[^>]*>([\s\S]*?)<\/valueMetadata>/) || [])[1] || '';
+    const vmBk = [...vmd.matchAll(/<bk>([\s\S]*?)<\/bk>/g)].map(b => +((b[1].match(/<rc\b[^>]*\bv="(\d+)"/) || [])[1]));
+    const st = [...T('xl/richData/rdrichvaluestructure.xml').matchAll(/<s\b[^>]*>([\s\S]*?)<\/s>/g)]
+      .map(s => [...s[1].matchAll(/<k\b[^>]*\bn="([^"]+)"/g)].map(k => k[1]));
+    const rvs = [...T('xl/richData/rdrichvalue.xml').matchAll(/<rv\b([^>]*)>([\s\S]*?)<\/rv>/g)]
+      .map(r => ({ s: +((r[1].match(/\bs="(\d+)"/) || [])[1] || 0), v: [...r[2].matchAll(/<v\b[^>]*>([\s\S]*?)<\/v>/g)].map(v => v[1]) }));
+    const relIds = [...T('xl/richData/richValueRel.xml').matchAll(/<rel\b[^>]*r:id="([^"]+)"/g)].map(m => m[1]);
+    const rvRels = rels('xl/richData/richValueRel.xml');
+    const picOf = vm => {
+      const fi = vmBk[vm - 1]; if (!(fi >= 0)) return null;
+      const rv = rvs[rvb[fi]]; if (!rv) return null;
+      let ki = (st[rv.s] || []).indexOf('_rvRel:LocalImageIdentifier'); if (ki < 0) ki = 0;
+      const rel = relIds[+rv.v[ki]], p = rel && rvRels[rel];
+      return p && files[p] ? p : null;
+    };
+    for (const cm of sx.matchAll(/<c\b([^>]*)>/g)) {
+      const vm = +((cm[1].match(/\bvm="(\d+)"/) || [])[1] || 0); if (!vm) continue;
+      const ref = cm[1].match(/\br="([A-Z]+)(\d+)"/); if (!ref) continue;
+      const p = picOf(vm); if (!p) continue;
+      out.push({ row: +ref[2], col: pkColIx(ref[1]), bytes: files[p], ext: extOf(p), how: 'cell' });
+    }
+  }
+  return out;
 }
 async function pkReadFile(file) {
   if (/\.xlsx$/i.test(file.name)) return pkReadXlsx(new Uint8Array(await file.arrayBuffer()));
@@ -11756,7 +11844,7 @@ const PKS = {
   track: null,      // Track order scan: { last, recent }
   panel: ""         // "dims" or "finish" while that panel is open: a save landing must not redraw it away
 };
-const PKS_GAP_MS = 700;
+const PKS_GAP_MS = 400;
 const PKS_AGREE = 2;
 const PKS_RETRY_MS = 15000;
 const PKS_HIST_KEEP = 80;
@@ -11786,12 +11874,19 @@ function pksBoxOf(p, n) {
   }
   return b;
 }
+/** One read of `code` at time `t`: true when it counts as a new piece. Two reads must agree, and the same label counts
+ * again only after it has been out of sight. Only a STEADY run of reads keeps a label "in sight": a lone read while the
+ * packer swaps pieces (19 Oct) used to keep the old label in sight, so the next identical piece never counted. The waits
+ * follow how fast this phone reads (st.frameMs), so a slow phone holding a label still does not count it twice. */
 function pksFrame(code, t, st) {
   st = st || PKS;
+  const f = st.frameMs || 0, gap = Math.max(PKS_GAP_MS, 4.5 * f), steady = Math.max(150, 2.5 * f);
   const s = st.seen;
-  if (!s || s.code !== code || t - s.last > PKS_GAP_MS) st.seen = { code, last: t, hits: 1, counted: false };
+  /* a new piece: the label was out of sight long enough, and this read does not carry on from the read just before */
+  if (!s || s.code !== code || (t - s.last > gap && t - s.prev > steady)) st.seen = { code, last: t, prev: t, hits: 1, counted: false };
   else {
-    s.last = t;
+    if (t - s.prev <= steady) s.last = t;
+    s.prev = t;
     s.hits++;
   }
   if (!st.seen.counted && st.seen.hits >= PKS_AGREE) {
@@ -11856,7 +11951,7 @@ function pksCount(code, via) {
       pksSaveSoon();
       return { ok: false, kind: "wrong", code: obUC(code), sku: r.sku, why: r.sku + " is not on any order of this list." };
     }
-    if (a.kind === "full") return { ok: false, kind: "full", code: obUC(code), sku: r.sku, why: a.why === "store" ? "The India Store holds no more " + r.sku + " for these orders — receive it in Finished Goods first." : "Every order line for " + r.sku + " is already packed." };
+    if (a.kind === "full") return { ok: false, kind: "full", store: a.why === "store", code: obUC(code), sku: r.sku, why: a.why === "store" ? "The India Store holds no more " + r.sku + " for these orders — receive it in Finished Goods first." : "Every order line for " + r.sku + " is already packed." };
     n = a.taken;
     parts = a.parts;
     left = a.left;
@@ -11994,8 +12089,12 @@ async function pksCamStart() {
     return;
   }
   try {
-    PKS.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+    /* 1080p where the phone has it: a small FNSKU label is read from further away, where the camera can focus (19 Oct) */
+    PKS.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
   } catch (e) {
+    /* A laptop or desktop with no camera is a hand-scanner station, not a fault: the camera box goes, the code box is
+       ready, and nothing is said in red (19 Oct: "we are going to connect a scanner with our laptop or desktop"). */
+    if (e && (e.name === "NotFoundError" || e.name === "OverconstrainedError")) return pksDeskMode();
     pksSay("The camera did not open (" + (e.name || e.message || e) + "). Allow the camera for this site, or use a hand scanner / type the code.", true);
     return;
   }
@@ -12008,7 +12107,9 @@ async function pksCamStart() {
   }
   try {
     if ("BarcodeDetector" in window && (await BarcodeDetector.getSupportedFormats()).includes("code_128"))
-      PKS.det = new BarcodeDetector({ formats: ["code_128", "ean_13", "code_39", "upc_a"] });
+      /* Code 128 only — what FNSKU and SKU labels carry. A product's own EAN / UPC in view was read too, and Code 39 has
+         no check digit, so a half-seen bar could come back as another code (19 Oct: "not working accurately"). */
+      PKS.det = new BarcodeDetector({ formats: ["code_128"] });
   } catch (e) {
     PKS.det = null;
   }
@@ -12023,8 +12124,26 @@ async function pksCamStart() {
   const track = PKS.stream.getVideoTracks()[0];
   const caps = track && track.getCapabilities ? track.getCapabilities() : {};
   $("pksTorch").classList.toggle("hide", !caps.torch);
+  PKS.hasTorch = !!caps.torch;
+  PKS.torch = false; PKS.torchAuto = false; PKS.torchHand = false; PKS.darkSaid = false; PKS.lightAt = 0;
   pksSay(PKS.det ? "Point at the FNSKU label" : "Point at the FNSKU label (reader: ZXing)");
   pksLoop();
+}
+/** No camera here: scan with the hand scanner. The screen stays as it is (Ravi, 19 Oct: "the previous UI … showing the
+ * SKU with details"): the camera box says the hand scanner is ready, and a scan shows the same SKU card as the camera.
+ * The code box keeps the focus, so every scan lands in it. */
+function pksDeskMode() {
+  const cam = document.querySelector("#pksOv .pks-cam");
+  if (cam && !cam.querySelector(".pks-deskmsg")) {
+    const m = document.createElement("div");
+    m.className = "pks-deskmsg";
+    m.style.cssText = "position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:#cbd5e1;font-size:15px;text-align:center;padding:12px";
+    m.innerHTML = '<b style="font-size:17px;color:#fff">Hand scanner ready</b><span>Scan a label — its SKU and details show below</span>';
+    cam.appendChild(m);
+  }
+  pksSay("Ready — scan with the hand scanner");
+  const box = $("pksCode");
+  if (box) { box.placeholder = "Scan with the hand scanner (or type the FNSKU and press Enter)"; box.focus(); }
 }
 function pksZxLoad() {
   if (window.ZXing) return Promise.resolve();
@@ -12051,33 +12170,117 @@ function pksZxRead(v) {
     return null;
   }
 }
-async function pksLoop() {
-  if (!PKS.on || !PKS.stream) return;
+/** Of the labels in view, the one the camera is pointed at: nearest the middle, and inside the middle band — the same
+ * band the ZXing reader looks at. With two labels in view the reader used to take whichever came first, a different one
+ * from frame to frame, so the two frames that must agree before a piece counts seldom did: slow, and now and then the
+ * wrong label (19 Oct). */
+function pksAimed(got, v) {
+  const W = v.videoWidth || 1, H = v.videoHeight || 1;
+  let best = null, bestD = Infinity;
+  (got || []).forEach((x) => {
+    const b = x.boundingBox;
+    if (!x.rawValue || !b) return;
+    const cx = b.x + b.width / 2, cy = b.y + b.height / 2;
+    if (cy < H * 0.25 || cy > H * 0.75) return;
+    const d = Math.hypot((cx - W / 2) / W, (cy - H / 2) / H);
+    if (d < bestD) { bestD = d; best = x.rawValue; }
+  });
+  return best;
+}
+/* each camera start is a new run: a picture callback left from the run before (the app went to the background and came
+   back) ends instead of starting a second reader beside the new one */
+let PKS_RUN = 0;
+async function pksLoop(run) {
+  if (run === undefined) run = ++PKS_RUN;
+  if (!PKS.on || !PKS.stream || run !== PKS_RUN) return;
   const v = $("pksVid");
   let code = null;
   try {
     if (PKS.det) {
-      const got = await PKS.det.detect(v);
-      code = got && got[0] ? got[0].rawValue : null;
+      code = pksAimed(await PKS.det.detect(v), v);
     } else code = pksZxRead(v);
   } catch (e) {
     code = null;
   }
-  if (code && pksFrame(obUC(code), Date.now())) pksHit(code, "camera");
-  PKS.timer = setTimeout(pksLoop, PKS.det ? 90 : 140);
+  /* how fast this phone reads: the pksFrame waits follow it */
+  const now = Date.now();
+  if (PKS.loopAt && now - PKS.loopAt < 2000) PKS.frameMs = PKS.frameMs ? PKS.frameMs * 0.8 + (now - PKS.loopAt) * 0.2 : now - PKS.loopAt;
+  PKS.loopAt = now;
+  if (code && pksFrame(obUC(code), now)) pksHit(code, "camera");
+  if (v) pksLightCheck(v, PKS.hasTorch);
+  /* the phone's own reader looks at each new picture as it arrives (no fixed wait), so the two frames that must agree
+     come in sooner; the ZXing reader keeps its pace — it works on the page itself */
+  if (PKS.det && v && typeof v.requestVideoFrameCallback === "function") { PKS.timer = 0; v.requestVideoFrameCallback(() => pksLoop(run)); }
+  else PKS.timer = setTimeout(() => pksLoop(run), PKS.det ? 90 : 140);
 }
 function pksCamStop() {
   clearTimeout(PKS.timer);
+  PKS_RUN++;
   if (PKS.stream) PKS.stream.getTracks().forEach((t) => t.stop());
   PKS.stream = null;
 }
-/** Ask the camera to keep focusing by itself, where the phone allows it (labels are read close up). */
+/** Ask the camera to keep focusing, and to keep setting its brightness and colour, by itself, where the phone allows it
+ * (labels are read close up, and a shadow or a dim corner moves with the hand). */
 async function pksFocus() {
   try {
     const t = PKS.stream && PKS.stream.getVideoTracks()[0], caps = t && t.getCapabilities ? t.getCapabilities() : {};
-    if ((caps.focusMode || []).includes("continuous")) await t.applyConstraints({ advanced: [{ focusMode: "continuous" }] });
+    const want = {};
+    if ((caps.focusMode || []).includes("continuous")) want.focusMode = "continuous";
+    if ((caps.exposureMode || []).includes("continuous")) want.exposureMode = "continuous";
+    if ((caps.whiteBalanceMode || []).includes("continuous")) want.whiteBalanceMode = "continuous";
+    if (Object.keys(want).length) await t.applyConstraints({ advanced: [want] });
   } catch (e) {
   }
+}
+
+/* ---- DARK AND SHADOW (Ravi, 19 Oct: "scan in dark … in shadows … accurately") ----
+ * Once a second the middle of the picture is weighed (a 32 × 18 copy, nothing heavy). Too dark for a label: the torch
+ * comes on by itself — it also fills the shadow of a hand or the phone over the label — and goes off again once the
+ * light is back. A torch pressed by hand is left as the packer set it. A phone with no torch is told to find light. */
+const PKS_DARK = 55, PKS_LIGHT = 95;     // average grey (0–255) of the middle of the picture: on below, off above
+/** What to do with the torch, from the brightness now: "on", "off" or "" (leave it). Pure, for the tests. */
+function pksLightStep(mean, torchOn, auto, hasTorch) {
+  if (!hasTorch || mean == null) return "";
+  if (!torchOn && mean < PKS_DARK) return "on";
+  if (torchOn && auto && mean > PKS_LIGHT + 60) return "off";   // lit by the torch itself reads brighter: off only when the room is truly light
+  return "";
+}
+function pksMean(v) {
+  const W = v.videoWidth, H = v.videoHeight;
+  if (!W || !H) return null;
+  const c = PKS.lc || (PKS.lc = document.createElement("canvas"));
+  c.width = 32; c.height = 18;
+  const g = c.getContext("2d", { willReadFrequently: true });
+  g.drawImage(v, W * 0.2, H * 0.25, W * 0.6, H * 0.5, 0, 0, 32, 18);
+  const d = g.getImageData(0, 0, 32, 18).data;
+  let s = 0;
+  for (let i = 0; i < d.length; i += 4) s += d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114;
+  return s / (d.length / 4);
+}
+async function pksTorchSet(on, auto) {
+  try {
+    const t = PKS.stream && PKS.stream.getVideoTracks()[0];
+    if (!t) return;
+    await t.applyConstraints({ advanced: [{ torch: on }] });
+    PKS.torch = on;
+    PKS.torchAuto = on && auto;
+    if ($("pksTorch")) $("pksTorch").classList.toggle("on", on);
+  } catch (e) {
+  }
+}
+function pksLightCheck(v, hasTorch) {
+  const now = Date.now();
+  if (now - (PKS.lightAt || 0) < 1000) return;
+  PKS.lightAt = now;
+  let mean = null;
+  try { mean = pksMean(v); } catch (e) { mean = null; }
+  if (mean == null) return;
+  if (PKS.torchHand) return;                          // the packer chose; leave it
+  const step = pksLightStep(mean, !!PKS.torch, !!PKS.torchAuto, hasTorch);
+  if (step === "on") { pksTorchSet(true, true); pksSay("Low light — torch on"); }
+  else if (step === "off") pksTorchSet(false, false);
+  else if (!hasTorch && mean < PKS_DARK && !PKS.darkSaid) { PKS.darkSaid = true; pksSay("Too dark to read — move the label into more light", true); }
+  else if (mean >= PKS_DARK && PKS.darkSaid) { PKS.darkSaid = false; pksSay("Point at the FNSKU label"); }
 }
 let PKS_AC = null;
 /** good: one short high beep · bad: a low buzz · done: two rising beeps. */
@@ -12161,23 +12364,32 @@ if (typeof window.addEventListener === "function") window.addEventListener("befo
     e.returnValue = "";
   }
 });
-/* A hand scanner types the code and presses Enter. Read it wherever the focus is — not only in the box — but never take
- * keys meant for another field (box sizes, the account, the hand-over name). */
+/** What a hand scanner typed, as the label says it: without a symbology prefix some scanners add (]C1, ]E0…), control
+ * characters, or spaces around it. */
+function pksClean(c) {
+  return String(c || "").replace(/[\x00-\x1f\x7f]/g, "").trim().replace(/^\][A-Za-z][0-9A-Za-z]/, "").trim();
+}
+/* A drop-down never takes typing here (19 Oct, laptop scanners): left focused after "Pcs / scan" was changed, it swallowed
+ * the scanner's letters — the options jumped and the scan was lost. Text boxes still keep their own keys. */
 if (typeof document.addEventListener === "function") document.addEventListener("keydown", (e) => {
   if (!PKS.on) return;
   const t = e.target, tag = t && t.tagName || "";
-  if (t && t.id === "pksCode") return;
-  if (/^(INPUT|SELECT|TEXTAREA)$/.test(tag) || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (t && t.id === "pksCode") {
+    /* a scanner set to end with Tab finishes the code like Enter */
+    if (e.key === "Tab" && t.value.trim().length >= 4) { e.preventDefault(); t.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })); }
+    return;
+  }
+  if (/^(INPUT|TEXTAREA)$/.test(tag) || e.ctrlKey || e.metaKey || e.altKey) return;
   const now = Date.now();
   if (now - PKS.keyT > 400) PKS.keyBuf = "";
   PKS.keyT = now;
-  if (e.key === "Enter") {
+  if (e.key === "Enter" || (e.key === "Tab" && PKS.keyBuf.trim().length >= 4)) {
     const c = PKS.keyBuf.trim();
     PKS.keyBuf = "";
     if (c.length >= 4) {
       e.preventDefault();
       PKS.seen = null;
-      pksHit(c, "scanner");
+      pksHit(pksClean(c), "scanner");
     }
     return;
   }
@@ -12205,7 +12417,7 @@ function pksHit(code, via) {
   const r = pksCount(code, via);
   if (!r.ok) {
     PKS.bad = r;
-    PKS.hold = r.kind !== "none";
+    PKS.hold = r.kind !== "none" && !(r.kind === "unknown" && via === "camera");
     pksBeep(false);
     pksFlash(false);
     pksSay(r.kind === "wrong" ? "Wrong article — not counted" : r.kind === "full" ? "Not counted — the orders want no more of it" : "Not counted — unknown label", true);
@@ -12268,6 +12480,7 @@ async function pksStart(mode) {
   await Promise.all([loadPkWt(), PK_LOADED ? null : loadPk().catch(() => {
   }), fnLoad(), typeof ptImgShared === "function" ? ptImgShared().catch(() => {
   }) : null]);
+  if (pksQcMay()) pksQcReady().then((ok) => { if (ok && PKS.on) { if (PKS.mode === "track") pksTrackDraw(); else if (!PKS.panel) pksDraw(); } });
   if (mode === "track") return pksTrackOpen();
   const byOrder = mode === "order";
   /* Each way offers only its own lists: a box list never turns into an order list half way, nor the other way round. */
@@ -12418,7 +12631,7 @@ async function pksTrackOpen() {
     const c = $("pksCode").value.trim();
     if (c) {
       PKS.seen = null;
-      pksHit(c, "typed");
+      pksHit(pksClean(c), "typed");
     }
     $("pksCode").value = "";
   };
@@ -12431,10 +12644,7 @@ async function pksTrackOpen() {
   };
   $("pksTorch").onclick = async () => {
     try {
-      const t = PKS.stream.getVideoTracks()[0];
-      PKS.torch = !PKS.torch;
-      await t.applyConstraints({ advanced: [{ torch: PKS.torch }] });
-      $("pksTorch").classList.toggle("on", PKS.torch);
+      PKS.torchHand = true; await pksTorchSet(!PKS.torch, false);
     } catch (e) {
     }
   };
@@ -12484,6 +12694,7 @@ function pksTrackDraw() {
       <div class="pks-desc">${esc(info.desc || "")}</div>
       <div class="pks-want${left ? "" : " pks-want-none"}"><b>${nf(left)}</b> ${left ? "more wanted by open orders" : "— no open order wants this piece"}</div>
       <div class="pks-facts"><span>India Store <b>${nf(store)}</b></span>${left && store < left ? `<span class="pks-warn">${nf(left - store)} short in the store</span>` : ""}</div>
+      ${pksQcHtml(sku, pksQcWaiting(sku).pcs, "Accept {n} into Finished Goods")}
       ${rows.length ? `<div class="pks-wtab">${rows.map((x) => `<div class="pks-wrow${x.left ? "" : " pks-wrow-done"}"><span><b>${esc(x.no)}</b><small>${esc(x.what)}</small></span><span>wants ${nf(x.qty)}</span><span>packed ${nf(x.got)}</span><span class="pks-wleft">${x.left ? nf(x.left) + " left" : "✓ done"}</span></div>`).join("")}</div>` : ""}
     </div>`;
   }
@@ -12533,14 +12744,14 @@ function pksShow() {
     pksDraw();
   };
   $("pksPer").onchange = () => {
-    PKS.per = Math.max(1, +$("pksPer").value || 1);
+    PKS.per = Math.max(1, +$("pksPer").value || 1); $("pksPer").blur();
   };
   $("pksNext").onclick = pksNextAsk;
   const go = () => {
     const c = $("pksCode").value.trim();
     if (c) {
       PKS.seen = null;
-      pksHit(c, "typed");
+      pksHit(pksClean(c), "typed");
     }
     $("pksCode").value = "";
   };
@@ -12553,10 +12764,7 @@ function pksShow() {
   };
   $("pksTorch").onclick = async () => {
     try {
-      const t = PKS.stream.getVideoTracks()[0];
-      PKS.torch = !PKS.torch;
-      await t.applyConstraints({ advanced: [{ torch: PKS.torch }] });
-      $("pksTorch").classList.toggle("on", PKS.torch);
+      PKS.torchHand = true; await pksTorchSet(!PKS.torch, false);
     } catch (e) {
     }
   };
@@ -12655,6 +12863,7 @@ function pksDraw() {
     card.innerHTML = `<div class="pks-badcard${k === "full" ? " pks-fullcard" : ""}"><div class="pks-badicon">${k === "full" ? "■" : "✕"}</div><div class="pks-big">${title}</div><div class="pks-code">${esc(PKS.bad.sku || PKS.bad.code)}</div>
       ${img ? `<img class="pks-img pks-img-sm" src="${esc(img)}" alt="">` : ""}
       <div class="pks-sub">${esc(PKS.bad.why)} ${k === "unknown" ? "Check its label." : "Do not put it in the box."}</div>
+      ${k === "full" && PKS.bad.store ? pksQcHtml(PKS.bad.sku, pksOrdersWant(PKS.bad.sku) || PKS.per, "Accept {n} from QC and count this piece") : ""}
       ${PKS.hold ? '<button id="pksAside" class="pks-aside">✓ Kept aside — carry on</button>' : ""}</div>`;
   } else if (PKS.allDone) {
     card.innerHTML = `<div class="pks-donecard"><div class="pks-badicon">✓</div><div class="pks-big">Everything on the orders is packed</div>
@@ -12682,6 +12891,124 @@ function pksOrdersHtml(p) {
   const wrong = (p.scan.wrong || []).length;
   return `<div class="pks-list-h">Orders ${esc((p.scan.orders || []).join(", "))}${p.scan.planNo ? (p.scan.orders.length ? " + " : "") + "Amazon plan" : ""} — left to pack${wrong ? ` · <span class="pks-warn">${nf(wrong)} wrong article scan(s)</span>` : ""}</div>` + (rows.length ? rows.map((r) => `<div class="pks-row pks-row-ord${r.left ? "" : " pks-row-done"}"><div><b>${esc(r.sku)}</b><div class="pks-sub">packed ${nf(r.got)} of ${nf(r.qty)}</div></div><div class="pks-q">${r.left ? nf(r.left) : "✓"}</div></div>`).join("") : '<div class="pks-sub">The orders have no pieces of their SKUs in the India Store — receive them in Finished Goods first.</div>');
 }
+/* ---- PIECES STILL WAITING IN QC (Ravi, 19 Oct: "if the product is still in QC according to the site and the scanner is
+ * scanning the product, give the function of approving it so that it can be accepted to finished goods") ----
+ * A piece in the packer's hand can still be on the books as "passed QC, not in India stock yet" (Finished Goods → From QC
+ * — to accept). Then Finish refuses ("not enough stock") and Pack by order stops it. The scanner now says how many are
+ * waiting and, for whoever may accept on the Finished Goods screen (flowMayFg), accepts them right here — the same
+ * accept as that screen (flowFgAccept: a RECEIVE row in the India store, "Received from: QC", logged) — and carries on.
+ * Test orders are left to the Finished Goods screen. */
+const pksQcOn = () => typeof FLOW_ON !== "undefined" && FLOW_ON && typeof flowFgLines === "function" && typeof flowFgAccept === "function";
+const pksQcMay = () => pksQcOn() && typeof flowMayFg === "function" && flowMayFg();
+async function pksQcReady() {
+  if (!pksQcOn()) return false;
+  try {
+    const w = typeof flowFgEnsure === "function" ? flowFgEnsure() : null;
+    if (w) await w;
+  } catch (e) {
+    return false;
+  }
+  return true;
+}
+/** What of this SKU passed QC and is not in India stock yet: the pieces, and the order lines they sit on. */
+let PKS_QC_C = { at: 0, fgi: null, all: [] };     // worked out at most every 3 s (or when the stock changes), not on every scan
+function pksQcWaiting(sku) {
+  if (!pksQcOn() || typeof FLOW === "undefined" || !FLOW.ppc || typeof QC === "undefined" || QC.checks == null) return { pcs: 0, lines: [] };
+  const fgi = typeof FGI !== "undefined" ? FGI.rows : null;
+  if (Date.now() - PKS_QC_C.at > 3000 || PKS_QC_C.fgi !== fgi) {
+    let all = [];
+    try {
+      all = flowFgLines().filter((x) => !x.r.__t);
+    } catch (e) {
+      all = [];
+    }
+    PKS_QC_C = { at: Date.now(), fgi, all };
+  }
+  const lines = PKS_QC_C.all.filter((x) => obUC(x.r.sku) === obUC(sku));
+  return { pcs: lines.reduce((s, x) => s + flowFgToAccept(x.r, x.s), 0), lines };
+}
+/** Accept up to `want` pieces of this SKU from QC into the India store, line by line. */
+async function pksQcAccept(sku, want) {
+  let left = want, got = 0;
+  for (const x of pksQcWaiting(sku).lines) {
+    if (left <= 0) break;
+    const n = Math.min(left, flowFgToAccept(x.r, x.s));
+    if (n <= 0) continue;
+    const err = await flowFgAccept(x, n, "accepted from Scan to pack");
+    if (err) return { got, err };
+    got += n;
+    left -= n;
+  }
+  return { got, err: "" };
+}
+/** How many more of this SKU the list's orders want (Pack by order). */
+function pksOrdersWant(sku) {
+  const p = PKS.p;
+  if (!p || !packGuarded(p)) return 0;
+  const r = PACK_CORE.leftBySku(pksOrderLines(), p.scan.packed).find((x) => obUC(x.sku) === obUC(sku));
+  return r ? Math.max(0, (+r.qty || 0) - (+r.got || 0)) : 0;
+}
+/** The SKUs on this list that the India store holds fewer of than are packed. */
+function pksShort(p) {
+  const need = new Map();
+  (p.boxes || []).forEach((b) => (b.items || []).forEach((it) => need.set(obUC(it.sku), (need.get(obUC(it.sku)) || 0) + pkNum(it.qty))));
+  return [...need].map(([sku, qty]) => ({ sku, qty, have: Math.max(0, +fgiOf(sku).current || 0) })).filter((r) => r.qty > r.have);
+}
+/** One line under a refusal: how many wait in QC, and the button to accept them. */
+function pksQcHtml(sku, want, label) {
+  const w = pksQcWaiting(sku);
+  if (!w.pcs) return "";
+  const n = Math.min(w.pcs, want);
+  return `<div class="pks-qcrow" style="margin-top:10px;padding:10px 12px;border-radius:10px;background:#dcfce7;border:1px solid #86efac;color:#14532d;text-align:left">
+    <div style="margin:0 0 8px;font-size:14px;line-height:1.35;color:#14532d"><b>${nf(w.pcs)}</b> of ${esc(sku)} passed QC and ${w.pcs === 1 ? "is" : "are"} waiting to be accepted into Finished Goods.${w.pcs < want ? ` That covers ${nf(w.pcs)} of the ${nf(want)} needed.` : ""}</div>
+    ${pksQcMay() ? `<button type="button" data-pks-qc="${esc(sku)}" data-pks-qcn="${n}" style="width:100%">${esc(label.replace("{n}", nf(n)))}</button>`
+      : '<div style="margin:0;font-size:13px;color:#14532d">Ask the Finished Goods team to accept them (Finished Goods → From QC — to accept).</div>'}</div>`;
+}
+/** Done refused for stock: say what waits in QC under the Finish panel, with Accept buttons. */
+async function pksQcOffer() {
+  const p = PKS.p;
+  if (!p || !(await pksQcReady()) || PKS.panel !== "finish") return;
+  const box = document.querySelector("#pksCard .pks-dims");
+  if (!box) return;
+  const shorts = pksShort(p), all = shorts.every((r) => pksQcWaiting(r.sku).pcs >= r.qty - r.have);
+  const html = shorts.map((r) => pksQcHtml(r.sku, r.qty - r.have, all && shorts.length === 1 ? "Accept {n} from QC and finish" : "Accept {n} from QC")).join("");
+  let el = $("pksQcBox");
+  if (!el) { el = document.createElement("div"); el.id = "pksQcBox"; box.appendChild(el); }
+  el.innerHTML = html;
+}
+/** Accept pressed: under the Finish panel (then Done again once nothing is short), on a refused piece (then it counts),
+ * or on the Track card (then the card shows the new stock). */
+async function pksQcPress(btn) {
+  const sku = btn.dataset.pksQc, n = +btn.dataset.pksQcn || 0;
+  if (!sku || !(n > 0) || btn.disabled) return;
+  btn.disabled = true;
+  btn.textContent = "Accepting…";
+  const r = await pksQcAccept(sku, n);
+  if (r.err) {
+    btn.disabled = false;
+    btn.textContent = "Try again";
+    pksSay((r.got ? `${nf(r.got)} accepted, then: ` : "Not accepted: ") + r.err, true);
+    return;
+  }
+  pksBeep(true);
+  pksSay(`${nf(r.got)} of ${sku} accepted from QC into Finished Goods — India stock`);
+  if (PKS.mode === "track") return pksTrackDraw();
+  if (PKS.panel === "finish") {
+    if (!pksShort(PKS.p).length) return pksDone();       // nothing short any more: finish, as was asked
+    return pksQcOffer();
+  }
+  if (PKS.bad && PKS.bad.kind === "full" && PKS.bad.store) {   // the refused piece: now there is stock for it
+    const code = PKS.bad.code;
+    PKS.hold = false;
+    PKS.bad = null;
+    PKS.seen = null;
+    pksHit(code, "qc");
+  }
+}
+if (typeof document.addEventListener === "function") document.addEventListener("click", (e) => {
+  const b = PKS.on && e.target && e.target.closest && e.target.closest("[data-pks-qc]");
+  if (b) { e.preventDefault(); pksQcPress(b); }
+});
 function pksFinishAsk() {
   if (PKS.hold) return pksSay('Tap "Kept aside" first.', true);
   const p = PKS.p, card = $("pksCard");
@@ -12722,6 +13049,7 @@ async function pksDone() {
   }
   if (res.err) {
     pksSay("Not done — " + res.err, true);
+    pksQcOffer();
     return;
   }
   PKS.dirty = true;
@@ -16009,6 +16337,27 @@ function cutFormMsg(t, bad) { const m = $('cwMsg'); m.textContent = t || ''; m.c
  * order is saved and is not in the master. What the list leaves blank (a wholesale file often has no article type) is
  * read from the master SKUs it looks like. The record says _custom, so the forms skip the master-list checks for it. */
 let CUST_IX = { src: null, map: null };
+/* TABLECLOTHS (Ravi, 19 Oct: "mera ruffle tablecloth and scallop piping tablecloth hi running fabric me se banta h baki
+ * tablecloth cut piece me hi banta h chah b2b order ho chah shopify"). Only a ruffle or scallop tablecloth is cut from
+ * running fabric (cutting required); every other tablecloth is printed as a cut piece (no cutting). The master already
+ * says so; a SKU on the Custom SKUs list (B2B, Shopify, Online) was written "cutting required" by default and is read by
+ * this rule instead. true / false for a tablecloth, null for anything else. */
+function ptTcCutReq(articleType, subtype) {
+  const t = String(articleType || '') + ' ' + String(subtype || '');
+  if (!/table\s*cloth/i.test(t)) return null;
+  return /ruffle|scallop/i.test(t);
+}
+/** A B2B item's Article as the buyer wrote it ("Tablecloth"), when it is one of the master's article types. */
+let CUST_ARTS = { src: null, map: null };
+function ptArticleNamed(name) {
+  const src = PTG.mdb || PT_NONE;
+  if (CUST_ARTS.src !== src || !CUST_ARTS.map) {
+    const map = new Map();
+    src.forEach(m => { if (m && m.articleType) map.set(String(m.articleType).trim().toLowerCase(), m.articleType); });
+    CUST_ARTS = { src, map };
+  }
+  return CUST_ARTS.map.get(String(name || '').trim().toLowerCase()) || '';
+}
 function ptCustomOf(sku) {
   const list = (typeof MDBX !== 'undefined' && MDBX.custom) || (typeof PTE !== 'undefined' && PTE.custom) || null;
   if (!list || !sku) return null;
@@ -16020,9 +16369,11 @@ function ptCustomOf(sku) {
    * subtype alone are also read from the master SKUs with the same letters in front (RPCRU → Ruffle Pillow Cover). */
   const pa = (!r.articleType || !r.subtype) && !(g && g.articleType) ? ptCustomPrefixArt(sku) : null;
   const pick = (a, b) => String(a == null ? '' : a).trim() || (b || '');
-  return Object.assign({}, r, { _custom: true,
-    articleType: pick(r.articleType, (g && g.articleType) || (pa && pa.articleType)), subtype: pick(r.subtype, (g && g.subtype) || (pa && pa.subtype)),
-    color: pick(r.color, g && g.color), size: pick(r.size, g && g.size) });
+  const articleType = pick(r.articleType, (g && g.articleType) || (pa && pa.articleType) || ptArticleNamed(r.shopName));
+  const subtype = pick(r.subtype, (g && g.subtype) || (pa && pa.subtype));
+  const tc = ptTcCutReq(articleType, subtype || r.shopName);
+  return Object.assign({}, r, { _custom: true, articleType, subtype,
+    color: pick(r.color, g && g.color), size: pick(r.size, g && g.size) }, tc == null ? {} : { cuttingRequired: tc });
 }
 /** { articleType, subtype } that 80% or more of the master SKUs with the same letters in front agree on, else null. */
 let CUST_PRE = { src: null, map: null };
@@ -21094,6 +21445,80 @@ function ptImgOwn() {
   _imgOwnMap = m; _imgOwnFor = PTG.mdb;
   return m;
 }
+/* B2B PICTURES (Ravi, 19 Oct: a picture pasted in the B2B order sheet, no link). This project has no file storage on its
+ * plan, so each one is kept small (400 px JPEG, a few tens of KB) in Firestore b2bimg/<SKU>, with b2bimg/_index naming the
+ * SKUs that have one — one read tells a screen which of its SKUs to fetch, and each is fetched once a visit. */
+const B2BIMG = { map: {}, idx: null, idxAt: 0, asked: new Set() };
+const b2bImgId = sku => obUC(sku).replace(/[\/.#$\[\]]/g, '_');
+async function b2bImgIdx() {
+  if (B2BIMG.idx && Date.now() - B2BIMG.idxAt < 600000) return B2BIMG.idx;
+  if (typeof getDoc !== 'function' || typeof db === 'undefined') return {};
+  try { const s = await getDoc(doc(db, 'b2bimg', '_index')); B2BIMG.idx = (s.exists() && s.data().skus) || {}; }
+  catch (e) { B2BIMG.idx = B2BIMG.idx || {}; }
+  B2BIMG.idxAt = Date.now();
+  return B2BIMG.idx;
+}
+/** Fetch the B2B pictures of these SKUs that exist and are not here yet; patches the picture cells. Returns how many came. */
+async function b2bImgLoad(skus) {
+  const idx = await b2bImgIdx();
+  const want = [...new Set((skus || []).map(obUC))].filter(s => s && idx[b2bImgId(s)] && !B2BIMG.asked.has(s));
+  if (!want.length) return 0;
+  want.forEach(s => B2BIMG.asked.add(s));
+  let got = 0;
+  for (let i = 0; i < want.length; i += 8) {
+    await Promise.all(want.slice(i, i + 8).map(async s => {
+      try { const d = await getDoc(doc(db, 'b2bimg', b2bImgId(s))); if (d.exists() && d.data().d) { B2BIMG.map[s] = d.data().d; got++; } }
+      catch (e) { /* not this one; the rest still come */ }
+    }));
+  }
+  if (got && typeof document !== 'undefined' && document.querySelectorAll) ptImgPatch();
+  return got;
+}
+/** Keep pictures read from a B2B sheet: [{ sku, d (data URL) }]. Returns { saved, failed, ok: Set of SKUs }. */
+async function b2bImgSave(list, orderNo) {
+  const ok = new Set(); let failed = 0;
+  if (typeof setDoc !== 'function' || typeof db === 'undefined') return { saved: 0, failed: list.length, ok };
+  const at = new Date().toISOString(), idx = {};
+  for (const x of list) {
+    const id = b2bImgId(x.sku);
+    try {
+      await setDoc(doc(db, 'b2bimg', id), { sku: obUC(x.sku), d: x.d, order: orderNo || '', by: ME.email || '', at });
+      ok.add(obUC(x.sku)); idx[id] = at; B2BIMG.map[obUC(x.sku)] = x.d; B2BIMG.asked.add(obUC(x.sku));
+    } catch (e) { failed++; }
+  }
+  if (ok.size) {
+    try { await setDoc(doc(db, 'b2bimg', '_index'), { skus: idx }, { merge: true }); if (B2BIMG.idx) Object.assign(B2BIMG.idx, idx); }
+    catch (e) { failed += ok.size; ok.clear(); }
+  }
+  return { saved: ok.size, failed, ok };
+}
+/** A picture from the sheet, made small enough to keep: 400 px on its long side, JPEG on white. '' when the browser
+ * cannot draw it (an EMF / WMF drawing). */
+async function soImgShrink(bytes, ext) {
+  const type = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp' }[String(ext || '').toLowerCase()];
+  if (!type || typeof createImageBitmap !== 'function' || typeof document === 'undefined') return '';
+  try {
+    const bmp = await createImageBitmap(new Blob([bytes], { type }));
+    const k = Math.min(1, 400 / Math.max(bmp.width, bmp.height)), w = Math.max(1, Math.round(bmp.width * k)), h = Math.max(1, Math.round(bmp.height * k));
+    const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+    const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, w, h); g.drawImage(bmp, 0, 0, w, h);
+    return cv.toDataURL('image/jpeg', 0.82);
+  } catch (e) { return ''; }
+}
+/* PICTURES THAT CAME WITH THE ORDER (Ravi, 20 Oct: the RFD receive window said "none" for the B2B tablecloths). A SKU
+ * that is not in the master — a B2B or Shopify item — has its picture on its Custom SKUs record (imageUrl) and on its
+ * order-book line (shopImg), not with Amazon. sku -> that picture; rebuilt only when either list changes. */
+let _imgLineMap = null, _imgLineFor = null;
+function ptImgLines() {
+  const cust = (typeof MDBX !== 'undefined' && MDBX.custom) || null, ob = PTG.ob || null;
+  if (_imgLineMap && _imgLineFor && _imgLineFor[0] === cust && _imgLineFor[1] === ob) return _imgLineMap;
+  const m = new Map();
+  const pic = u => /^(https?:|data:)/i.test(u || '') && !/kommodo\.ai\/i\//i.test(u);     // a share page is not a picture
+  (ob || []).forEach(r => { if (r && pic(r.shopImg)) m.set(obUC(r.sku), r.shopImg); });
+  (cust || []).forEach(r => { if (r && pic(r.imageUrl)) m.set(obUC(r.sku), r.imageUrl); });
+  _imgLineMap = m; _imgLineFor = [cust, ob];
+  return m;
+}
 function ptImgOf(sku) {
   const k = obUC(sku);
   if (!k) return undefined;
@@ -21101,6 +21526,9 @@ function ptImgOf(sku) {
    * gets the freshest answer, and one that has neither still gets a picture. */
   const own = ptImgOwn().get(k);
   if (own) return own;
+  if (B2BIMG.map[k]) return B2BIMG.map[k];       // the buyer's own picture, from the B2B sheet
+  const line = ptImgLines().get(k);
+  if (line) return line;                          // a B2B / Shopify item's own picture (Custom SKUs list, order-book line)
   if (MDBIMG.map[k]) return MDBIMG.map[k];
   const shared = PTIMG.map[k];
   if (shared === IMG_NONE) return '';        // asked, and Amazon has none — not a picture
@@ -21200,6 +21628,7 @@ const ptIfTab = (tab, fn) => () => {
 };
 
 async function ptImgFill(skus, force, after) {
+  b2bImgLoad(skus).catch(() => {});     // B2B pictures from the order sheet — patched into the cells when they land
   if (MDBIMG.busy) return;
   await mdbImgCacheLoad();
   const own = new Set((PTG.mdb || []).filter(r => r.imageUrl).map(r => obUC(r.sku)));
@@ -23006,11 +23435,32 @@ function ordItemCell(r, img, extra, frz) {
     + '<div class="jw-sub">' + (esc(what) || '—') + '</div>'
     + '<div class="jw-sku">' + esc(r.sku) + '</div>' + (extra || '') + '</div></div></td>';
 }
+/* THE BUYER OF A B2B ORDER (Ravi, 20 Oct: "b2b orders me buyer ka name bhi add krdo order number me" — shown beside the
+ * number, the number itself unchanged). The buyer is the Brand Name on the order's lines ("Insa", "Kymberly"); the sales
+ * order's buyerName holds who raised it, not the buyer. Read from the order book, else the sales order. '' for any other
+ * channel. Shown on the factory's own screens only — not on papers that go to a printer or vendor. */
+let ORD_BUYER_IX = { ob: null, sox: null, map: null };
+function ordBuyerOf(orderNo) {
+  const no = obUC(orderNo);
+  if (!/^B2B-/.test(no)) return '';
+  const ob = (typeof PTG !== 'undefined' && PTG.ob) || null, sox = (typeof SOX !== 'undefined' && SOX.rows) || null;
+  if (!ORD_BUYER_IX.map || ORD_BUYER_IX.ob !== ob || ORD_BUYER_IX.sox !== sox) {
+    const seen = new Map();
+    const add = (o, b) => { const k = obUC(o), v = String(b || '').trim(); if (!k || !v) return; const s = seen.get(k) || []; if (!s.includes(v)) s.push(v); seen.set(k, s); };
+    (sox || []).forEach(o => { if (o && /^B2B-/i.test(String(o._id || ''))) (Array.isArray(o.lines) ? o.lines : Object.values(o.lines || {})).forEach(l => add(o._id, l && l.brand)); });
+    (ob || []).forEach(r => { if (r && /^B2B-/i.test(String(r.orderNo || ''))) add(r.orderNo, r.brand); });
+    const map = new Map(); seen.forEach((v, k) => map.set(k, v.slice(0, 2).join(' / ') + (v.length > 2 ? ' +' + (v.length - 2) : '')));
+    ORD_BUYER_IX = { ob, sox, map };
+  }
+  return ORD_BUYER_IX.map.get(no) || '';
+}
 /** The order: its number, what raised it, and when. */
 function ordOrderCell(r, frz) {
+  const buyer = ordBuyerOf(r.orderNo);
   return '<td' + (frz ? ' class="frz"' : '') + ' style="text-align:left">'
     + '<a href="#" data-ordj="' + esc(r.orderNo) + '" title="This order, start to finish"'
     + ' style="color:inherit;text-decoration:underline dotted;font-weight:600">' + esc(r.orderNo) + '</a>'
+    + (buyer ? '<div class="jw-sub" style="font-weight:600;color:var(--ink,#1f2937)">' + esc(buyer) + '</div>' : '')
     + (r.shopOrderNo ? '<div class="jw-sub">' + esc(r.shopOrderNo) + '</div>' : '')
     + (r.adjId ? '<div class="jw-sku">' + esc(r.adjId) + '</div>' : '')
     + (r.orderDate ? '<div class="jw-t">' + esc(r.orderDate) + '</div>' : '') + '</td>';
@@ -28021,6 +28471,28 @@ function flowChallanForKeys(keys) {
   const pcs = [...new Set(rows.map(x => flowPlanPrinter(x.s)).filter(Boolean))];
   return flowChallanDialog(rows, pcs.length === 1 ? pcs[0] : null);
 }
+/** Under a challan line: "of 446 · 400 already made / with karigars" when part of the order needs no fabric (19 Oct). */
+function flowDoneTxt(x) {
+  const q = +x.r.qty || 0, d = Math.round(q * (1 - flowRemFrac(x.r, x.s)));
+  return d > 0 ? `<div class="muted" style="font-size:10px;white-space:nowrap">of ${nf(q)} · ${nf(d)} already made / with karigars</div>` : '';
+}
+/** "8 lines · 82 pcs · 227.58 m" — what is ticked on the challan form now (n = how many lines it has). */
+function flowChTotals(n) {
+  if (typeof document === 'undefined' || typeof document.querySelector !== 'function') return '';
+  let lines = 0, pcs = 0, m = 0;
+  for (let i = 0; i < n; i++) {
+    const chk = document.querySelector(`[data-chk="${i}"]`);
+    if (chk && !chk.checked) continue;
+    if (!chk) continue;
+    lines++; pcs += +((document.querySelector(`[data-chp="${i}"]`) || {}).value || 0); m += +((document.querySelector(`[data-chm="${i}"]`) || {}).value || 0);
+  }
+  return `Ticked: ${nf(lines)} line(s)${pcs ? ` · ${nf(pcs)} pcs` : ''} · ${nf(flowR2(m))} m`;
+}
+let FLOW_CH_N = 0;
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') ['input', 'change'].forEach(ev => document.addEventListener(ev, e => {
+  const t = e.target; if (!t || !t.closest || !t.closest('[data-chk],[data-chp],[data-chm]')) return;
+  const box = document.getElementById && document.getElementById('flcTot'); if (box) box.textContent = flowChTotals(FLOW_CH_N);
+}));
 function flowChallanDialog(rows, pcode, rufRows, pre) {
   /* pre (18 Oct, the size challan): what to send on each line, worked out FIFO — those lines come ticked with those figures. */
   const preOf = x => (pre && x && x.s ? pre.get(x.s.key) : null);
@@ -28032,33 +28504,37 @@ function flowChallanDialog(rows, pcode, rufRows, pre) {
     return `<tr><td><input type="checkbox" data-chk="${i}" checked style="width:auto"></td>
       <td style="text-align:left"><b style="font-family:ui-monospace,monospace">${esc(obUC(x.r.sku))}</b> <span class="fpc-mode" style="background:rgba(124,58,237,.14);color:#5b21b6;border-radius:6px;padding:0 6px;font-size:10.5px">ruffle only</span><div class="muted" style="font-size:10.5px">${esc(flowChItem(x.r))}</div>${flowExtrasTxt(o.extras)}</td>
       <td style="text-align:left">${esc(o.fabric || '—')}</td><td class="num">—</td>
-      <td class="num"><input data-chm="${i}" type="number" step="0.01" value="${esc(o.metres || '')}" style="width:90px;padding:3px 6px;font-size:12px"></td>
+      <td class="num"><input data-chm="${i}" type="number" step="0.01" value="${esc(o.metres || '')}" style="width:72px;padding:3px 6px;font-size:12px"></td>
       <td style="font-size:11px"><span class="muted">ruffle cloth</span></td></tr>`; }).join('');
-  rows = rows.concat(rufRows); const isRuf = i => i >= nM;
+  rows = rows.concat(rufRows); const isRuf = i => i >= nM; FLOW_CH_N = rows.length;
   const orders = [...new Set(rows.map(x => x.r.orderNo))], orderNo = orders.join(', '), isTest = rows.every(x => !!x.r.__t);
   const vens = flowChVendors();
   /* The printer PPC planned for these lines comes ready picked. */
   const planned = (pcode && pcode !== '?' ? pcode : rows.map(x => flowPlanPrinter(x.s)).find(Boolean)) || '';
   const lineHtml = rows.slice(0, nM).map((x, i) => { const p = x.s.plan || {}, c = cv.line[x.s.key] || {}, sepR = !!flowRufflePrinter(p);
     const pr = preOf(x), on = pre ? !!pr : (flowFabOwed(x.r, x.s).metres > 0 || (!sepR && !x.s.fabSent && flowPrintExtras(x.r, p).length));
+    /* DESIGN A (Ravi, 20 Oct): the photo and the SKU share one cell, the figures sit side by side, nothing runs off the
+     * right of the window; covered / short is a pill; the totals of what is ticked stand under the table (flowChTotals). */
     return `<tr><td><input type="checkbox" data-chk="${i}"${on ? ' checked' : ''} style="width:auto"></td>
-      <td style="text-align:left"><b style="font-family:ui-monospace,monospace">${esc(obUC(x.r.sku))}</b>${orders.length > 1 ? ` <span class="muted" style="font-size:10.5px">· ${esc(x.r.orderNo)}</span>` : ''}<div class="muted" style="font-size:10.5px">${esc(flowChItem(x.r))}</div>
-        <div style="font-size:11px;color:#4338ca">Print: ${flowPrintTxt(flowPrintWhat(x.r, p))}</div>${sepR ? `<div class="muted" style="font-size:10.5px">ruffle → ${esc(flowRufflePrinter(p).name)} (its own challan)</div>` : flowExtrasTxt(flowPrintExtras(x.r, p))}</td>
-      <td style="text-align:left">${esc((p.fabric && p.fabric.name) || '—')}</td>
+      <td style="text-align:left;white-space:normal"><div style="display:flex;gap:10px;align-items:center;min-width:0">${typeof ptImgSpan === 'function' ? ptImgSpan(obUC(x.r.sku), 40) : ''}<div style="min-width:0"><b style="font-family:ui-monospace,monospace">${esc(obUC(x.r.sku))}</b>${orders.length > 1 ? ` <span class="muted" style="font-size:10.5px">· ${esc(x.r.orderNo)}</span>` : ''}<div class="muted" style="font-size:10.5px">${esc(flowChItem(x.r))}</div>
+        <div style="font-size:11px;color:#4338ca">Print: ${flowPrintTxt(flowPrintWhat(x.r, p))}</div>${sepR ? `<div class="muted" style="font-size:10.5px">ruffle → ${esc(flowRufflePrinter(p).name)} (its own challan)</div>` : flowExtrasTxt(flowPrintExtras(x.r, p))}</div></div></td>
+      <td style="text-align:left;white-space:normal">${esc((p.fabric && p.fabric.name) || '—')}</td>
       <td class="num">${x.s.fabUnit === 'pcs'
         /* PART OF IT FOR NOW (Ravi, 15 Oct: "order ke 100 pcs h but me bhej 50 hi raha hu to wo partially challan bana saku"):
          * the pieces can be fewer than are owed; the rest stays in Demand → RFD, and the line says it went in part. */
-        ? `<input data-chp="${i}" type="number" min="1" step="1" max="${flowFabOwed(x.r, x.s).left}" value="${pr ? pr.pcs : flowFabOwed(x.r, x.s).left}" title="Send fewer pieces for now — the rest stays in Demand" style="width:84px;padding:3px 6px;font-size:12px">`
+        ? `<input data-chp="${i}" type="number" min="1" step="1" max="${flowFabOwed(x.r, x.s).left}" value="${pr ? pr.pcs : flowFabOwed(x.r, x.s).left}" title="Send fewer pieces for now — the rest stays in Demand" style="width:60px;padding:3px 6px;font-size:12px">${flowDoneTxt(x)}`
         : (pr ? `${nf(pr.pcs)} <span class="muted" style="font-size:10px">of ${nf(x.r.qty)}</span>` : nf(x.r.qty))}</td>
-      <td class="num"><input data-chm="${i}" type="number" step="0.01" value="${esc((pr ? pr.metres : flowFabOwed(x.r, x.s).metres) || '')}" style="width:90px;padding:3px 6px;font-size:12px">${x.s.fabSent > 0 ? `<div class="muted" style="font-size:10px">${nf(x.s.fabSent)} ${x.s.fabUnit} sent already</div>` : ''}${+(p.fabric && p.fabric.fromPrinted) ? `<div class="muted" style="font-size:10px">${nf(p.fabric.fromPrinted)} ${p.fabric.printedUnit === 'pcs' ? 'pcs' : 'm'} from printed stock</div>` : ''}</td>
-      <td style="font-size:11px">${c.short ? `<b style="color:#b91c1c">⚑ short ${nf(c.short)} m</b>` : '<span style="color:#166534">covered</span>'}</td></tr>`; }).join('') + rufHtml;
+      <td class="num" style="white-space:normal"><input data-chm="${i}" type="number" step="0.01" value="${esc((pr ? pr.metres : flowFabOwed(x.r, x.s).metres) || '')}" style="width:72px;padding:3px 6px;font-size:12px">${x.s.fabSent > 0 ? `<div class="muted" style="font-size:10px">${nf(x.s.fabSent)} ${x.s.fabUnit} sent already</div>` : ''}${+(p.fabric && p.fabric.fromPrinted) ? `<div class="muted" style="font-size:10px">${nf(p.fabric.fromPrinted)} ${p.fabric.printedUnit === 'pcs' ? 'pcs' : 'm'} from printed stock</div>` : ''}</td>
+      <td style="font-size:11px;white-space:normal">${c.short ? `<span style="display:inline-block;padding:2px 9px;border-radius:999px;background:#fde8e8;color:#b42318;font-weight:700">short ${nf(c.short)} m</span>` : '<span style="display:inline-block;padding:2px 9px;border-radius:999px;background:#e7f5ec;color:#166534;font-weight:700">covered</span>'}</td></tr>`; }).join('') + rufHtml;
   ptOpenDialog({
     title: `RFD challan — ${orderNo}${pcode && pcode !== '?' ? ' → ' + ((vens.find(v => String(v.code) === String(pcode)) || {}).desc || ((rows[0].s.plan.printer || {}).name) || pcode) : ''}`,
     subtitle: (orders.length > 1 ? `${orders.length} orders, one printed fabric, one vendor. ` : 'The fabric of this order, to one vendor. ') + 'Saving numbers the challan, opens it to print, and marks these lines\' fabric as given — they leave Demand by themselves.',
     html: `<div class="ptgrid" style="grid-template-columns:2fr 1fr">
         <label>Vendor<select id="flcVen"><option value="">— pick the vendor —</option>${vens.map(v => `<option value="${esc(v.code)}"${String(v.code) === String(planned) ? ' selected' : ''}>${esc((v.desc || v.name || v.code) + (v.category ? ' · ' + v.category : ''))}</option>`).join('')}</select></label>
         <label>Date<input id="flcDate" type="date" value="${esc(dToday())}"></label></div>
-      <table class="xl" style="margin-top:10px;width:100%"><thead><tr><th></th><th style="text-align:left">SKU</th><th style="text-align:left">Fabric</th><th>Pcs</th><th>Metres</th><th>RFD</th></tr></thead><tbody>${lineHtml}</tbody></table>
+      <table class="xl" style="margin-top:10px;width:100%;table-layout:fixed"><colgroup><col style="width:34px"><col><col style="width:100px"><col style="width:84px"><col style="width:92px"><col style="width:104px"></colgroup>
+        <thead><tr><th></th><th style="text-align:left">Item</th><th style="text-align:left">Fabric</th><th>Pcs</th><th>Metres</th><th>RFD</th></tr></thead><tbody>${lineHtml}</tbody></table>
+      <div id="flcTot" style="margin-top:8px;font-size:13px;font-weight:600"></div>
       <label style="display:block;margin-top:8px">Note (vehicle, who carried it…)<input id="flcNote"></label>`,
     saveLabel: 'Make the challan',
     onSave: async () => {
@@ -28117,6 +28593,9 @@ function flowChallanDialog(rows, pcode, rufRows, pre) {
     const o = flowFabOwed(x.r, x.s);
     pi.addEventListener('input', () => { const n = Math.max(0, Math.min(+pi.value || 0, o.left)); if (o.left > 0) mi.value = flowR2(o.metres * n / o.left); });
   });
+  /* design A: the totals of what is ticked, and each line's photo */
+  const tot = document.getElementById && document.getElementById('flcTot'); if (tot) tot.textContent = flowChTotals(rows.length);
+  if (typeof ptImgFill === 'function') ptImgFill(rows.map(x => obUC(x.r.sku)), false, typeof ptImgPatch === 'function' ? ptImgPatch : null);
 }
 
 function flowChallanHtml(ch) {
@@ -28151,6 +28630,10 @@ function flowChSizeHtml(lines, cell) {
   const e = v => esc(v == null ? '' : String(v)), by = new Map();
   (lines || []).filter(l => l && !l.ruffleOnly).forEach(l => {
     let m = {}; try { m = cutSkuOf(l.sku) || {}; } catch (er) { m = {}; }
+    /* ONLY THE CUT PIECES (Ravi, 19 Oct: "napkin ka alag se print par kyo gya jabki running me hum de rahe h"). A line
+     * given as running fabric is in "Running fabric — to print" in metres; listing it here too, in pieces by size, read as
+     * a second lot going to print. */
+    if (l.print ? l.print.kind !== 'sku' : m.cuttingRequired !== false) return;
     const b = String(l.item || '').split(' · '), size = String(m.size || (b.length > 2 ? b[b.length - 1] : '') || '').trim();
     if (!size) return;
     const k = String(l.fabric || '').toUpperCase() + '|' + (typeof flowSizeKey === 'function' ? flowSizeKey(size) : size.toLowerCase());
@@ -28159,7 +28642,7 @@ function flowChSizeHtml(lines, cell) {
   if (!by.size) return '';
   const gs = [...by.values()].sort((a, b) => String(a.fabric).localeCompare(String(b.fabric)) || (typeof flowSizeSort === 'function' ? flowSizeSort(a.size, b.size) : 0));
   const th = h => `<th style="${cell};text-align:${/Pieces|Metres/.test(h) ? 'right' : 'left'};background:#f0f0f0">${h}</th>`;
-  return `<div style="font-size:12px;font-weight:bold;margin:6px 0 4px">RFD by size</div><table style="width:100%;border-collapse:collapse;margin-bottom:12px"><tr>${['Fabric (RFD)', 'Size', 'Pieces', 'Metres'].map(th).join('')}</tr>`
+  return `<div style="font-size:12px;font-weight:bold;margin:6px 0 4px">RFD by size — cut pieces</div><table style="width:100%;border-collapse:collapse;margin-bottom:12px"><tr>${['Fabric (RFD)', 'Size', 'Pieces', 'Metres'].map(th).join('')}</tr>`
     + gs.map(g => `<tr><td style="${cell}">${e(g.fabric)}</td><td style="${cell}"><b>${e(g.size)}</b></td><td style="${cell};text-align:right">${nf(g.pcs)}</td><td style="${cell};text-align:right">${nf(flowR2(g.metres))}</td></tr>`).join('')
     + `<tr><td style="${cell}" colspan="2"><b>Total</b></td><td style="${cell};text-align:right"><b>${nf(gs.reduce((t, g) => t + g.pcs, 0))}</b></td><td style="${cell};text-align:right"><b>${nf(flowR2(gs.reduce((t, g) => t + g.metres, 0)))}</b></td></tr></table>`;
 }
@@ -28624,7 +29107,7 @@ function flowHistTable(q, testOnly) {
   const body = list.map(c => { const recv = flowChRecv(c), st = flowChState(c);
     const sent = flowMixTxt((c.lines || []).map(l => [flowChSent(l), flowChUnit(l)])), got = flowMixTxt((c.lines || []).map(l => [recv[l.key] || 0, flowChUnit(l)]));
     return `<tr><td class="frz" style="text-align:left"><b>${esc(c.no)}</b>${flowIsTest(c.orderNo) ? ' <span class="navbadge" style="background:#7c3aed;position:static">TEST</span>' : ''}<div class="muted" style="font-size:10.5px">${esc(c.date || '')}</div></td>
-      <td style="text-align:left">${esc(c.orderNo)}</td><td style="text-align:left"><b>${esc(c.vendor && c.vendor.name)}</b></td>
+      <td style="text-align:left">${esc(c.orderNo)}${(c.orders || [c.orderNo]).map(o => typeof ordBuyerOf === 'function' ? ordBuyerOf(o) : '').filter(Boolean).filter((b, i, a) => a.indexOf(b) === i).map(b => `<div style="font-size:12px;font-weight:600">${esc(b)}</div>`).join('')}</td><td style="text-align:left"><b>${esc(c.vendor && c.vendor.name)}</b></td>
       <td style="text-align:left;font-size:11.5px">${(c.lines || []).map(l => `${esc(l.sku)} · ${flowQtyTxt(flowChSent(l), flowChUnit(l))}${recv[l.key] ? ` <span style="color:#166534">(${flowQtyTxt(recv[l.key], flowChUnit(l))} back)</span>` : ''}`).join('<br>')}</td>
       <td class="num">${sent}</td><td class="num">${got}</td>
       <td>${pill(st)}${(c.cancelled || c.closed) && (c.cancelled || c.closed).why ? `<div class="muted" style="font-size:10.5px">${esc((c.cancelled || c.closed).why)}</div>` : ''}</td>
@@ -28645,26 +29128,54 @@ function flowChActions(c, st) {
   out.push(b('data-flchp', 'Print'));
   return out.join(' ');
 }
+/* NOT RECEIVED THIS TIME (Ravi, 20 Oct, design A): a ✕ at the end of a line marks it "Not received" for this receipt
+ * only — the line stays on the challan, still owed, and comes up again next time. ↶ undoes it. The lines crossed are kept
+ * on the receipt (notCame) so the history says what was missing that day. */
+let FLOW_RX = new Set();
+const FLOW_RX_WAS = new Map();     // what was typed before the cross, put back by ↶
+function flowRecvCross(i) {
+  const on = !FLOW_RX.has(i);
+  if (on) FLOW_RX.add(i); else FLOW_RX.delete(i);
+  if (typeof document === 'undefined' || typeof document.querySelector !== 'function') return;
+  const q = s => document.querySelector(s);
+  const inp = q(`[data-flrm="${i}"]`), box = q(`[data-flrin="${i}"]`), pill = q(`[data-flrno="${i}"]`), tr = q(`[data-flrrow="${i}"]`), b = q(`[data-flrx="${i}"]`);
+  if (inp) { if (on) { FLOW_RX_WAS.set(i, inp.value); inp.value = ''; } else if (FLOW_RX_WAS.has(i)) inp.value = FLOW_RX_WAS.get(i); }
+  if (box) box.style.display = on ? 'none' : '';
+  if (pill) pill.style.display = on ? '' : 'none';
+  if (tr) tr.style.opacity = on ? '0.55' : '';
+  if (b) { b.textContent = on ? '↶' : '✕'; b.title = on ? 'Undo — it came after all' : 'Not received this time — the line stays on the challan'; }
+}
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('click', e => {
+  const b = e.target && e.target.closest && e.target.closest('[data-flrx]');
+  if (b) { e.preventDefault(); flowRecvCross(+b.dataset.flrx); }
+});
 /** Printed fabric back from the printer against a challan: metres per line. Closes by itself when all of it is back. */
 function flowReceiveOpen(no) {
   const c = (FLOW.ch || {})[no]; if (!c) return;
   const recv = flowChRecv(c);
+  FLOW_RX = new Set(); FLOW_RX_WAS.clear();
+  /* the picture of each line (20 Oct), from wherever the app has it — master, Shopify, the B2B sheet */
+  const pic = sku => (typeof ptImgSpan === 'function' ? ptImgSpan(sku, 40) : '');
   ptOpenDialog({
     title: `Receive against ${no}`,
     subtitle: `${c.orderNo} · ${c.vendor && c.vendor.name}. Type what came back now, in the form it was given: printed cloth in metres, pieces printed on the SKU in pieces. When every line is back the challan closes and the lines move to the store by themselves.`,
     html: `<label>Date<input id="flrDate" type="date" value="${esc(dToday())}"></label>
-      <table class="xl" style="margin-top:8px;width:100%"><thead><tr><th style="text-align:left">SKU</th><th>Given as</th><th>Sent</th><th>Back so far</th><th>Received now</th></tr></thead><tbody>
+      <table class="xl" style="margin-top:8px;width:100%"><thead><tr><th style="width:52px">Photo</th><th style="text-align:left">SKU</th><th>Given as</th><th>Sent</th><th>Back so far</th><th>Received now</th></tr></thead><tbody>
       ${(c.lines || []).map((l, i) => { const u = flowChUnit(l), left = flowR2(Math.max(0, flowChSent(l) - (recv[l.key] || 0)));
-        return `<tr><td style="text-align:left"><b>${esc(l.sku)}</b><div class="muted" style="font-size:10.5px">${esc(l.item || '')}</div></td>
+        return `<tr data-flrrow="${i}"><td>${pic(l.sku)}</td><td style="text-align:left"><b>${esc(l.sku)}</b><div class="muted" style="font-size:10.5px">${esc(l.item || '')}</div></td>
           <td style="text-align:left;font-size:11.5px">${u === 'pcs' ? 'Cut pieces' : l.ruffleOnly ? 'Printed ruffle cloth' : 'Printed cloth'}</td>
           <td class="num"><b>${flowQtyTxt(flowChSent(l), u)}</b>${u === 'pcs' ? `<div class="muted" style="font-size:10.5px">${flowQtyTxt(l.metres, 'm')} cloth</div>` : ''}</td><td class="num">${flowQtyTxt(recv[l.key] || 0, u)}</td>
-          <td class="num"><input data-flrm="${i}" type="number" step="${u === 'pcs' ? '1' : '0.01'}" min="0" value="${left > 0 ? esc(left) : ''}" ${left > 0 ? '' : 'disabled'} style="width:85px;padding:3px 6px;font-size:12px"> ${u}</td></tr>`; }).join('')}
+          <td class="num"><span data-flrin="${i}"><input data-flrm="${i}" type="number" step="${u === 'pcs' ? '1' : '0.01'}" min="0" value="${left > 0 ? esc(left) : ''}" ${left > 0 ? '' : 'disabled'} style="width:85px;padding:3px 6px;font-size:12px"> ${u}</span>`
+          + `<span data-flrno="${i}" class="pill bad" style="display:none;font-size:11px">Not received</span>`
+          /* the ✕ sits in the same cell as the figure: a column of its own ran off the right of the window (20 Oct) */
+          + `${left > 0 ? ` <button type="button" class="ghost" data-flrx="${i}" title="Not received this time — the line stays on the challan" style="width:auto;padding:2px 9px;font-size:13px;margin-left:4px">✕</button>` : ''}</td></tr>`; }).join('')}
       </tbody></table><label style="display:block;margin-top:8px">Note (lot, vehicle, quality…)<input id="flrNote"></label>`,
     saveLabel: 'Received',
     onSave: async () => {
       const items = {};
       const frac = [];
-      (c.lines || []).forEach((l, i) => { const m = +((document.querySelector(`[data-flrm="${i}"]`) || {}).value || 0);
+      (c.lines || []).forEach((l, i) => { if (FLOW_RX.has(i)) return;       // not received this time
+        const m = +((document.querySelector(`[data-flrm="${i}"]`) || {}).value || 0);
         if (m > 0) { items[l.key] = flowR2(m); if (flowChUnit(l) === 'pcs' && m !== Math.round(m)) frac.push(l.sku); } });
       if (!Object.keys(items).length) return 'Type what came back for at least one line.';
       if (frac.length) return `Pieces are whole: ${frac.join(', ')}.`;
@@ -28674,6 +29185,8 @@ function flowReceiveOpen(no) {
       const g = await flowGuard('ch_' + no); if (g) return g;   // two people receiving on one challan at once
       const now = new Date().toISOString(), id = 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
       const rc = { date: $('flrDate').value || dToday(), items, note: $('flrNote').value.trim(), at: now, by: ME.email || '' };
+      const notCame = (c.lines || []).filter((l, i) => FLOW_RX.has(i)).map(l => l.key);
+      if (notCame.length) rc.notCame = notCame;
       const allBack = (c.lines || []).every(l => (recv[l.key] || 0) + (items[l.key] || 0) >= flowChSent(l) - 0.01);
       const patch = { [`pt_flowChallans/${no}/receipts/${id}`]: rc };
       if (allBack) patch[`pt_flowChallans/${no}/closed`] = { at: now, by: ME.email || '', why: 'all received' };
@@ -28685,6 +29198,7 @@ function flowReceiveOpen(no) {
       return '';
     },
   });
+  if (typeof ptImgFill === 'function') ptImgFill((c.lines || []).map(l => l.sku), false, typeof ptImgPatch === 'function' ? ptImgPatch : null);
 }
 /** Close a challan that will not come back in full — the reason is kept, and its lines move on with what came. */
 function flowCloseShortOpen(no) {
@@ -29235,6 +29749,28 @@ function flowReplanSide(old, nu, s) {
   return { patch, said };
 }
 
+/* RESYNC THE PRINTER'S PAPERS (20 Oct). The print order and the printer's Vendor Order(s) are written when a plan is
+ * saved. When a plan is changed outside the form, or a rule changes what a line is (19 Oct: plain tablecloths became cut
+ * pieces), the papers can lag behind the plan. This rebuilds them for one order from its plans as they are now, through
+ * the same code the PPC form's save uses, and asks before the printer's Vendor Order changes. Admins only. */
+async function flowPoResync(orderNo) {
+  if (!ME.admin) return 'Only an admin can resync printer orders.';
+  const rows = flowRows().filter(x => !x.r.__t && x.r.orderNo === orderNo && x.s.plan);
+  if (!rows.length) return `Nothing is planned on ${orderNo}.`;
+  const pos = flowPoSync(rows.map(x => ({ r: x.r, p: x.s.plan })), dToday());
+  const patch = Object.assign({}, pos.patch);
+  const vop = await flowVoPrepare(pos.local, patch, key => (FLOW.ppc || {})[key]);
+  if (!Object.keys(patch).length) { vop.undo(); flowPoResync.said = `${orderNo}: the papers already matched the plans.`; return ''; }
+  if (vop.ask && !confirm(vop.ask)) { vop.undo(); return 'Not changed — the Vendor Order was left as it is.'; }
+  for (const k of Object.keys(patch).filter(k => /^pt_flowPrintOrders\/[^/]+$/.test(k) && !(FLOW.po || {})[k.split('/')[1]])) {
+    let er = ''; try { er = await flowClaim(k, patch[k]); } catch (e) { er = e.message || String(e); }
+    if (er) { vop.undo(); return `Print order ${k.split('/')[1]} was raised by somebody else at the same moment — press Resync again.`; }
+  }
+  try { await ptPatch(patch); } catch (e) { vop.undo(); return 'Could not save: ' + (e.message || e); }
+  FLOW.po = pos.local; flowVoAfter(vop.placed);
+  flowPoResync.said = `${orderNo}: printer orders resynced — ${[...pos.said, ...vop.said].join('; ') || 'the papers already matched the plans'}.`;
+  return '';
+}
 /** Undo a plan: the line goes back to PPC. Not while its fabric is on a challan. */
 async function flowUnplan(s) {
   if (flowFabLocked(s)) return `Its fabric is on challan ${s.challan.no} — cancel that challan first (Demand history).`;
@@ -30080,16 +30616,20 @@ function flowByPrintTable(rows) {
   const g = new Map();
   rows.filter(x => x.s.route !== 'stitch').forEach(x => {
     const p = x.s.plan || {}, w = flowPrintWhat(x.r, p), tp = flowToPrint(x.r, p), pc = flowPlanPrinter(x.s);
+    /* ONLY WHAT IS STILL OWED (Ravi, 19 Oct: the row said 447 pcs, the challan 47 — 400 were already issued to karigars).
+     * The total is what the challan will offer: the order less what is cut / issued / passed, less fabric already sent. */
+    const o = flowFabOwed(x.r, x.s), rem = flowRemFrac(x.r, x.s), qty = +x.r.qty || 0;
     const k = (x.r.__t ? 'T|' : 'R|') + (pc || '?') + '|' + (w.code || '?' + w.label);
-    const e = g.get(k) || { w, pc, pname: (p.printer && p.printer.name) || '', keys: [], orders: new Set(), metres: 0, pcs: 0, test: !!x.r.__t };
-    e.keys.push(x.s.key); e.orders.add(x.r.orderNo); e.metres += tp.metres; e.pcs += tp.pcs; g.set(k, e);
+    const e = g.get(k) || { w, pc, pname: (p.printer && p.printer.name) || '', keys: [], orders: new Set(), metres: 0, pcs: 0, ord: 0, done: 0, test: !!x.r.__t };
+    e.keys.push(x.s.key); e.orders.add(x.r.orderNo); e.metres += o.metres;
+    e.pcs += x.s.fabUnit === 'pcs' ? o.left : Math.round(tp.pcs * rem); e.ord += qty; e.done += Math.round(qty * (1 - rem)); g.set(k, e);
   });
   FLOW_GROUPS = [...g.values()].sort((a, b) => b.orders.size - a.orders.size || b.metres - a.metres);
   const body = FLOW_GROUPS.map((e, i) => `<tr><td class="frz" style="text-align:left">${e.w.needDir ? '<b style="color:#b91c1c">direction not picked</b>' : e.w.code ? `<b>${esc(e.w.code)}</b>` : '<b style="color:#b91c1c">no fabric SKU</b>'}${e.test ? ' <span class="navbadge" style="background:#7c3aed;position:static">TEST</span>' : ''}
       <div class="muted" style="font-size:10.5px">${esc(e.w.mode)} · ${esc(e.w.label)}</div></td>
     <td style="text-align:left;font-size:12px">${[...e.orders].map(esc).join('<br>')}</td>
     <td class="num">${nf(e.keys.length)}</td>
-    <td class="num"><b>${e.w.kind === 'sku' ? nf(e.pcs) + ' pcs' : nf(flowR2(e.metres)) + ' m'}</b></td>
+    <td class="num"><b>${e.w.kind === 'sku' ? nf(e.pcs) + ' pcs' : nf(flowR2(e.metres)) + ' m'}</b>${e.done > 0 ? `<div class="muted" style="font-size:10.5px">of ${nf(e.ord)} pcs ordered · ${nf(e.done)} already made / with karigars</div>` : ''}</td>
     <td style="text-align:left">${e.pname ? esc(e.pname) : '<span class="muted">not chosen</span>'}</td>
     <td><button data-flchg="${i}" style="width:auto;padding:3px 10px;font-size:12px">${e.orders.size > 1 ? `One challan for ${e.orders.size} orders` : 'Challan'}</button></td></tr>`).join('');
   return `<thead><tr><th class="frz" style="text-align:left">Printed fabric</th><th style="text-align:left">Orders</th><th>Lines</th><th>To print</th><th style="text-align:left">Printer</th><th></th></tr></thead><tbody>`
@@ -30159,9 +30699,11 @@ function flowTable(view, rows) {
    * order, then its date, then one paper a line, the delete link last; the SKU, then its item, colour and size. */
   const poHead = x => {
     const again = x.r.orderNo === prevNo; prevNo = x.r.orderNo;
-    if (again) return `<div class="muted" style="font-size:11px">${esc(x.r.orderNo)}</div>`;
+    const buyer = typeof ordBuyerOf === 'function' ? ordBuyerOf(x.r.orderNo) : '';
+    if (again) return `<div class="muted" style="font-size:11px">${esc(x.r.orderNo)}${buyer ? ' · ' + esc(buyer) : ''}</div>`;
     return (x.r.__t ? `<b>${esc(x.r.orderNo)}</b> <span class="navbadge" style="background:#7c3aed;position:static">TEST</span>`
       : `<a href="#" data-ordj="${esc(x.r.orderNo)}" style="font-weight:600">${esc(x.r.orderNo)}</a>`)
+      + (buyer ? `<div style="font-size:13px;font-weight:600">${esc(buyer)}</div>` : '')
       + `<div class="muted" style="font-size:12px">${esc(flowSrcOf(x))} · ${esc(ptIsoDate(x.r.orderDate) || '')} · ${nf(flowDays(x.r.orderDate) || 0)} d</div>`
       + (x.r.fromSo ? `<div class="muted" style="font-size:12px">Copy of sales order ${esc(x.r.fromSo)}</div>` : '');
   };
@@ -30236,6 +30778,7 @@ function flowTable(view, rows) {
   } else if (view === 'ppcdone') {
     /* What PPC planned, line by line, where the line is now, and the one place to change it. */
     head = ['PO', 'SKU', 'Qty', 'Planned', 'Now in', 'Raised', ''];
+    const resyncSeen = new Set();     // one "Resync printer orders" per order, on its first line
     const now = s => s.bucket === 'demand' ? [s.needFab && 'Demand · RFD fabric', s.needAcc && 'Demand · Accessories'].filter(Boolean).join(' + ')
       : FLOW_ELSEWHERE[s.bucket] || (FLOW_BUCKETS.find(b => b[0] === s.bucket) || [, s.bucket])[1];
     body = rows.map(x => { const p = x.s.plan || {}, rp = flowRufflePrinter(p), rt = (FLOW_ROUTES.find(r => r[0] === flowRouteOf(p)) || [, , flowRouteOf(p)])[2];
@@ -30250,7 +30793,7 @@ function flowTable(view, rows) {
         <td style="text-align:left;font-size:13px;white-space:normal;min-width:160px;max-width:240px;vertical-align:top">${esc(now(x.s))}</td>
         <td style="text-align:left;font-size:12px;line-height:1.55;vertical-align:top" class="muted">${esc(String(p.at || '').slice(0, 10))}${p.by ? '<br>' + esc(String(p.by).split('@')[0]) : ''}</td>
         <td style="white-space:normal;max-width:170px;vertical-align:top">${x.r.__t && x.s.bucket === 'ship'
-          ? `<button data-flsim="${esc(x.r.orderNo)}|${esc(x.r.sku)}|ship" title="Stands in for: ${esc(FLOW_SIM.ship[1])}" style="width:auto;padding:3px 10px;font-size:12px;margin-bottom:6px;background:#7c3aed;border-color:#7c3aed">${esc(FLOW_SIM.ship[0])}</button><br>` : ''}<button data-flplan="${esc(x.r.orderNo)}|${esc(x.r.sku)}" style="width:auto;padding:3px 10px;font-size:12px" title="Change or undo what PPC planned">Edit plan</button>
+          ? `<button data-flsim="${esc(x.r.orderNo)}|${esc(x.r.sku)}|ship" title="Stands in for: ${esc(FLOW_SIM.ship[1])}" style="width:auto;padding:3px 10px;font-size:12px;margin-bottom:6px;background:#7c3aed;border-color:#7c3aed">${esc(FLOW_SIM.ship[0])}</button><br>` : ''}<button data-flplan="${esc(x.r.orderNo)}|${esc(x.r.sku)}" style="width:auto;padding:3px 10px;font-size:12px" title="Change or undo what PPC planned">Edit plan</button>${ME.admin && !x.r.__t && !resyncSeen.has(x.r.orderNo) && resyncSeen.add(x.r.orderNo) ? `<br><button class="ghost" data-flposync="${esc(x.r.orderNo)}" style="width:auto;padding:2px 8px;font-size:11px;margin-top:6px" title="Rebuild this order's print order and the printer's Vendor Order from the plans as they are now">Resync printer orders</button>` : ''}
           ${locked ? `<div class="muted" style="font-size:10.5px;margin-top:3px" title="The fabric went on ${esc(x.s.challan.no)}: fabric, route and printer can no longer change">fabric sent · ${esc(x.s.challan.no)}</div>` : ''}</td></tr>`; }).join('');
   } else if (view === 'drfd') {
     head = ['PO', 'SKU', 'Qty', 'Made as', 'Fabric this line uses', 'RFD left for it', ''];
@@ -30361,6 +30904,8 @@ async function flowTableClick(e) {
   const g = e.target.closest('[data-flgo]'); if (g) { showTab(g.dataset.flgo); return; }
   const rv = e.target.closest('[data-flchr]'); if (rv) { flowReceiveOpen(rv.dataset.flchr); return; }
   const pl = e.target.closest('[data-flplan]'); if (pl) { e.preventDefault(); const [no, sku] = pl.dataset.flplan.split('|'); flowPpcOpen(no, sku); return; }
+  const rs = e.target.closest('[data-flposync]');
+  if (rs) { e.preventDefault(); const er = await flowPoResync(rs.dataset.flposync); if (er) { $('flMsg').className = 'err'; $('flMsg').textContent = er; } else { renderFlow(); $('flMsg').className = 'muted'; $('flMsg').textContent = flowPoResync.said || ''; } return; }
   const ce = e.target.closest('[data-flche]'); if (ce) { flowChallanEditOpen(ce.dataset.flche); return; }
   const cx = e.target.closest('[data-flchx]'); if (cx) { flowChallanCancelOpen(cx.dataset.flchx); return; }
   const cu = e.target.closest('[data-flchu],[data-flcho]');
@@ -42761,20 +43306,41 @@ function soGuessOf(sku) {
     color: g.color || '', size: g.size || '' };
 }
 /** What a B2B line carries beyond SKU and quantity. */
-const SO_B2B_KEYS = ['brand', 'img', 'itemName', 'label', 'material', 'size', 'customization', 'extra'];
-/** Ravi's sheet, column by column, with the names people actually type. */
+const SO_B2B_KEYS = ['brand', 'img', 'itemName', 'color', 'label', 'material', 'size', 'customization', 'extra'];
+/** Ravi's sheet, column by column, with the names people actually type. 19 Oct: "Item Name" is now "Article", and the
+ * colour name has a column of its own (Brand Name · Image Link · SKU · Article · Color · Size · LABEL · Material · Qty ·
+ * Customization · Delivery Date). An old sheet with Item Name still reads. */
 const SO_B2B_COLS = [
   { k: 'brand', t: 'Brand Name', alias: ['brand name', 'brand'] },
   { k: 'img', t: 'Image Link', alias: ['image link', 'image', 'image url', 'photo', 'picture'] },
   { k: 'sku', t: 'SKU', alias: ['sku'] },
-  { k: 'itemName', t: 'Item Name', alias: ['item name', 'item', 'product name', 'product'] },
+  { k: 'itemName', t: 'Article', alias: ['article', 'article name', 'item name', 'item', 'product name', 'product'] },
+  { k: 'color', t: 'Color', alias: ['color', 'colour', 'color name', 'colour name'] },
+  { k: 'size', t: 'Size', alias: ['size'] },
   { k: 'label', t: 'LABEL', alias: ['label', 'label details'] },
   { k: 'material', t: 'Material', alias: ['material', 'fabric'] },
-  { k: 'size', t: 'Size', alias: ['size'] },
   { k: 'qty', t: 'Qty', alias: ['qty', 'quantity'] },
   { k: 'customization', t: 'Customization', alias: ['customization', 'customisation', 'custom', 'customization details', 'customisation details'] },
   { k: 'deliveryDate', t: 'Delivery Date', alias: ['delivery date'] },
 ];
+/* A PICTURE LINK THAT IS A PAGE (Ravi, 19 Oct: kommodo.ai/i/… links showed no picture). A share link opens a web page
+ * with the picture on it, and a page cannot be drawn as a picture. Google Drive and Dropbox share links are turned into
+ * their picture address here; a page that cannot be turned (kommodo, imgur, Google Photos, ibb) is said to be one, so
+ * whoever uploads knows to copy the picture's own address (right-click the picture → Copy image address) or paste the
+ * picture into the sheet. Returns { url, page }. */
+function soImgLink(u) {
+  const s = String(u || '').trim();
+  if (!s) return { url: '', page: false };
+  let m = s.match(/^https?:\/\/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:[^#]*&)?id=)([A-Za-z0-9_-]{10,})/);
+  if (m) return { url: 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w800', page: false };
+  if (/^https?:\/\/(www\.)?dropbox\.com\//i.test(s)) {
+    const t = s.replace(/([?&])dl=0\b/, '$1raw=1');
+    return { url: /[?&](raw=1|dl=1)\b/.test(t) ? t : t + (t.includes('?') ? '&' : '?') + 'raw=1', page: false };
+  }
+  const page = /^https?:\/\/(www\.)?kommodo\.ai\/i\//i.test(s) || /^https?:\/\/(www\.)?imgur\.com\/(?!.*\.(png|jpe?g|gif|webp)$)/i.test(s)
+    || /^https?:\/\/(photos\.app\.goo\.gl|photos\.google\.com)\//i.test(s) || /^https?:\/\/(www\.)?ibb\.co\//i.test(s);
+  return { url: s, page };
+}
 /** A code for a B2B item that has none: the brand's initials, CUST, the date, a free number. */
 function soB2BMint(brand, taken) {
   const words = String(brand || '').toUpperCase().replace(/[^A-Z0-9 ]/g, ' ').split(/\s+/).filter(Boolean);
@@ -42928,34 +43494,40 @@ function soFormLines() {
   const ro = !soCanEdit((SOX.rows || []).find(x => x._id === SOF.id) || null);
   const d = ro ? ' disabled' : '';
   if ($('sof_up')) $('sof_up').title = soIsB2B(($('sof_channel') || {}).value)
-    ? 'B2B: Template gives the buyer columns. A SKU not in the Master Database, or a blank one, goes on the Custom SKUs list with its brand. Any extra column in the file is kept on the line.'
+    ? 'B2B: Template gives the buyer columns (Excel). No image link? Paste the picture into its row in the .xlsx — it is read and kept. A SKU not in the Master Database, or a blank one, goes on the Custom SKUs list with its brand. Any extra column in the file is kept on the line.'
     : 'A file replaces or adds to the lines below. One unknown SKU rejects the whole file. A negative quantity subtracts from what is already on order.';
   soFormTotals();
   if (soIsB2B(($('sof_channel') || {}).value)) {
     const inp = (i, f, l, w, ph) => `<input data-sof="${f}" data-i="${i}" value="${esc(l[f] == null ? '' : l[f])}" placeholder="${ph || ''}"${d} style="width:${w}px">`;
     $('sof_table').innerHTML = '<thead><tr>'
-      + ['#', 'Image', 'Brand', 'SKU', 'Item name', 'Label', 'Material', 'Size', 'Customization', 'Qty', 'Delivery', ''].map((h, i) =>
+      + ['#', 'Image', 'Brand', 'SKU', 'Article', 'Color', 'Size', 'Label', 'Material', 'Qty', 'Customization', 'Delivery', ''].map((h, i) =>
         `<th${i === 9 ? ' class="num"' : ''}>${h}</th>`).join('') + '</tr></thead><tbody>'
       + slice.map((l, k) => {
         const i = from + k;
         const extra = l.extra && Object.keys(l.extra).length ? Object.entries(l.extra).map(([a, b]) => a + ': ' + b).join(' · ') : '';
         return `<tr><td class="muted">${i + 1}</td>`
-          + `<td style="padding:3px 6px">${l.img ? `<img src="${esc(l.img)}" alt="" loading="lazy" style="width:40px;height:40px;object-fit:cover;border-radius:6px;display:block;margin-bottom:2px">` : ''}${inp(i, 'img', l, 110, 'image link')}</td>`
+          + `<td style="padding:3px 6px">${(() => { const pic = String(l.img || '').trim() || l.imgData || B2BIMG.map[obUC(l.sku)] || '';
+            return pic ? `<img src="${esc(pic)}" alt="" loading="lazy" style="width:40px;height:40px;object-fit:cover;border-radius:6px;display:block;margin-bottom:2px">` : ''; })()}`
+          + `${!String(l.img || '').trim() && (l.imgData || B2BIMG.map[obUC(l.sku)]) ? '<div class="muted" style="font-size:10px">picture from the sheet</div>' : ''}`
+          + `${soImgLink(l.img).page ? '<div style="font-size:10px;color:var(--bad);max-width:120px;white-space:normal">a page link, not a picture — copy the picture\'s own address</div>' : ''}${inp(i, 'img', l, 110, 'image link')}</td>`
           + `<td>${inp(i, 'brand', l, 110, 'brand')}</td>`
           + `<td><input data-sof="sku" data-i="${i}" value="${esc(l.sku)}" placeholder="blank = new code"${d} style="width:140px;font-family:ui-monospace,monospace;text-transform:uppercase">`
           + `<div id="sof_meta_${i}" style="font-size:10.5px;text-align:left">${soB2BMeta(l.sku)}</div></td>`
-          + `<td>${inp(i, 'itemName', l, 160, 'item name')}</td>`
+          + `<td>${inp(i, 'itemName', l, 160, 'article')}</td>`
+          + `<td>${inp(i, 'color', l, 110, 'color name')}</td>`
+          + `<td>${inp(i, 'size', l, 80, 'size')}</td>`
           + `<td>${inp(i, 'label', l, 120, 'No, or the details')}</td>`
           + `<td>${inp(i, 'material', l, 100, 'material')}</td>`
-          + `<td>${inp(i, 'size', l, 80, 'size')}</td>`
-          + `<td>${inp(i, 'customization', l, 140, 'No, or the details')}${extra ? `<div class="muted" style="font-size:10.5px;max-width:160px;white-space:normal">${esc(extra)}</div>` : ''}</td>`
           + `<td class="num"><input data-sof="qty" data-i="${i}" type="number" step="1" min="0" value="${esc(l.qty)}"${d} style="width:80px;text-align:right"></td>`
+          + `<td>${inp(i, 'customization', l, 140, 'No, or the details')}${extra ? `<div class="muted" style="font-size:10.5px;max-width:160px;white-space:normal">${esc(extra)}</div>` : ''}</td>`
           + `<td><input data-sof="deliveryDate" data-i="${i}" type="date" value="${esc(l.deliveryDate)}"${d}></td>`
           + `<td>${ro ? '' : `<button class="ghost" data-sofdel="${i}" style="padding:2px 8px;color:var(--bad)">✕</button>`}</td></tr>`;
       }).join('') + '</tbody>';
     $('sof_pager').innerHTML = pages > 1 ? `Showing ${nf(from + 1)}–${nf(Math.min(total, from + SOF_PAGE))} of ${nf(total)}
           <button class="ghost" data-sofpg="-1" style="padding:2px 10px"${SOF.page ? '' : ' disabled'}>Back</button>
           <button class="ghost" data-sofpg="1" style="padding:2px 10px"${SOF.page >= pages - 1 ? ' disabled' : ''}>Next</button>` : '';
+    /* a saved order opened again: its pictures from the sheet come from Firestore, once each */
+    b2bImgLoad(slice.map(l => l.sku)).then(n => { if (n && $('sof_table')) soFormLines(); }).catch(() => {});
     return;
   }
   /* ONE ROW PER LINE THAT FITS: the picture, the SKU and what it is share a cell, so nothing is left
@@ -43045,15 +43617,17 @@ $('ptDlgBody').addEventListener('click', e => {
 /* ---- lines from a file ---- */
 function soTemplate() {
   if (soIsB2B(($('sof_channel') || {}).value)) {
-    ptDownload('b2b-order-lines', [
-      SO_B2B_COLS.map(c => c.t).map(csvCell).join(','),
-      ['Crate & Barrel', 'https://example.com/photo.jpg', 'RTC23-6060', 'Square Tablecloth Indigo', 'Yes - woven brand label at hem', 'Cotton cambric', '60x60', 120, 'No', '10-11-2026'].map(csvCell).join(','),
-      ['Crate & Barrel', '', '', 'Napkin set of 4 with embroidery', 'No', 'Linen', '20x20', 300, 'Yes - logo embroidered in corner', ''].map(csvCell).join(','),
-      [].join(','),
-      ['A SKU not in the Master Database goes on the Custom SKUs list with its brand. A blank SKU is given a code.'].map(csvCell).join(','),
-      ['Label and Customization: write No, or the details. Any other column you add is kept on the line.'].map(csvCell).join(','),
-      ['Order date, order type and channel are picked on the form; Delivery Date is optional, DD-MM-YYYY.'].map(csvCell).join(','),
-    ]);
+    /* AN EXCEL FILE (19 Oct), so a picture can be pasted straight into the Image Link cell of its row — CSV holds no
+     * pictures. The two example rows are examples: replace them. A blank SKU is given a code; Label and Customization
+     * are No or the details; Delivery Date is DD-MM-YYYY. */
+    const bytes = recipeXlsx([SO_B2B_COLS.map(c => c.t),
+      ['Crate & Barrel', 'https://example.com/photo.jpg', 'RTC23-6060', 'Square Tablecloth', 'Indigo', '60x60', 'Yes - woven brand label at hem', 'Cotton cambric', 120, 'No', '10-11-2026'],
+      ['Crate & Barrel', '(paste the picture here)', '', 'Napkin set of 4 with embroidery', 'Natural', '20x20', 'No', 'Linen', 300, 'Yes - logo embroidered in corner', '']],
+      { name: 'B2B order', freeze: 3, cols: {} });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+    a.download = 'b2b-order-lines.xlsx';
+    a.click(); URL.revokeObjectURL(a.href);
     return;
   }
   ptDownload('sales-order-lines', [
@@ -43169,7 +43743,7 @@ function soB2BRows(rows) {
     if (i >= 0) at[c.k] = i;
   });
   if (at.qty == null || (at.sku == null && at.itemName == null))
-    return { err: 'That file needs a Qty column and a SKU or Item Name column. Download the B2B template to see the shape.' };
+    return { err: 'That file needs a Qty column and a SKU or Article column. Download the B2B template to see the shape.' };
   const used = new Set(Object.values(at));
   const extraCols = head.map((h, i) => [h, i]).filter(([h, i]) => h && !used.has(i));
   const lines = [], errors = [];
@@ -43186,17 +43760,52 @@ function soB2BRows(rows) {
     const extra = {};
     extraCols.forEach(([h, i]) => { const v = String(r[i] == null ? '' : r[i]).trim(); if (v) extra[h] = v; });
     const line = { sku, qty, deliveryDate: dd || '', orderTypeKey: ($('sof_type') || {}).value || 'regular', priority: '' };
-    ['brand', 'img', 'itemName', 'label', 'material', 'size', 'customization'].forEach(k => { const v = cell(k); if (v) line[k] = v; });
+    if (r.r) line.__row = r.r;          // the sheet's row number: a picture in that row belongs to this line
+    ['brand', 'img', 'itemName', 'color', 'label', 'material', 'size', 'customization'].forEach(k => { const v = cell(k); if (v) line[k] = v; });
+    if (line.img && !/^(https?:|data:)/i.test(line.img)) delete line.img;    // words in the picture cell are not a link
+    if (line.img) { const lk = soImgLink(line.img); line.img = lk.url; if (lk.page) line.imgPage = true; }
     if (Object.keys(extra).length) line.extra = extra;
     lines.push(line);
   });
-  return { lines, errors };
+  return { lines, errors, imgCol: at.img };
 }
 async function soB2BFile(file, rows) {
   const got = soB2BRows(rows);
   if (got.err) { ptDlgMsg(got.err, true); return; }
   if (got.errors.length) { ptDlgMsg('Nothing was loaded. ' + got.errors.slice(0, 6).join(' ') + (got.errors.length > 6 ? ' …and ' + nf(got.errors.length - 6) + ' more problem(s).' : ''), true); return; }
   if (!got.lines.length) { ptDlgMsg('That file has no usable rows.', true); return; }
+  /* PICTURES PASTED IN THE SHEET (Ravi, 19 Oct): a line with no Image Link takes the picture in its own row. One per
+   * row; two in a row, the one in the Image Link column wins. They are saved with the order (b2bImgSave). */
+  let picN = 0, picBad = 0, picLoose = 0;
+  if (/\.xlsx$/i.test(file.name || '') && typeof pkXlsxPictures === 'function' && file.arrayBuffer) {
+    let pics = [];
+    try { pics = await pkXlsxPictures(new Uint8Array(await file.arrayBuffer())); } catch (e) { pics = []; }
+    if (pics.length) {
+      ptDlgMsg(`Reading ${nf(pics.length)} picture(s) from the sheet…`);
+      const byRow = new Map();
+      pics.forEach(p => { const was = byRow.get(p.row); if (!was || (got.imgCol != null && p.col === got.imgCol && was.col !== got.imgCol)) byRow.set(p.row, p); });
+      const lineRows = new Set(got.lines.map(l => l.__row));
+      picLoose = [...byRow.keys()].filter(r => !lineRows.has(r)).length;
+      for (const l of got.lines) {
+        const p = l.__row && byRow.get(l.__row);
+        if (!p || (String(l.img || '').trim() && !l.imgPage)) continue;     // a real link wins; a page link gives way to the picture
+        const d = await soImgShrink(p.bytes, p.ext);
+        if (d) { l.imgData = d; picN++; if (l.imgPage) { l.img = ''; delete l.imgPage; } } else picBad++;
+      }
+    }
+  }
+  /* PAGE LINKS → PICTURES (19 Oct): the backend reads a kommodo / imgur / ibb page and hands back the picture on it. */
+  let pageFixed = 0;
+  const pages = [...new Set(got.lines.filter(l => l.imgPage && l.img).map(l => l.img))];
+  if (pages.length && typeof prGet === 'function' && typeof PRAPI !== 'undefined' && PRAPI && PRAPI.url) {
+    ptDlgMsg(`Finding the pictures behind ${nf(pages.length)} page link(s)…`);
+    for (let i = 0; i < pages.length; i += 40) {
+      try {
+        const d = await prGet({ piclinks: pages.slice(i, i + 40).join('|') });
+        got.lines.forEach(l => { const to = l.imgPage && d && d.d && d.d[l.img]; if (to) { l.img = to; delete l.imgPage; pageFixed++; } });
+      } catch (e) { /* left as page links; the message below says so */ }
+    }
+  }
   const real = SOF.lines.filter(l => String(l.sku || l.itemName || '').trim()).length;
   SOF.lines = real && confirm(`Add ${nf(got.lines.length)} line(s) to the ${nf(real)} already here?\n\nOK adds them. Cancel replaces everything.`)
     ? SOF.lines.filter(l => String(l.sku || l.itemName || '').trim()).concat(got.lines) : got.lines;
@@ -43204,7 +43813,13 @@ async function soB2BFile(file, rows) {
   soFormLines(); soIdPreview();
   const known = new Set((PTG.mdb || []).map(r => obUC(r.sku)));
   const fresh = got.lines.filter(l => !l.sku || !known.has(l.sku)).length;
-  ptDlgMsg(`Loaded ${nf(got.lines.length)} line(s) from ${file.name}.` + (fresh ? ` ${nf(fresh)} are not in the Master Database and go on the Custom SKUs list when you save.` : ''));
+  ptDlgMsg(`Loaded ${nf(got.lines.length)} line(s) from ${file.name}.` + (fresh ? ` ${nf(fresh)} are not in the Master Database and go on the Custom SKUs list when you save.` : '')
+    + (picN ? ` ${nf(picN)} picture(s) taken from the sheet — they are kept when you save.` : '')
+    + (picBad ? ` ${nf(picBad)} picture(s) could not be read — paste them as JPG or PNG.` : '')
+    + (picLoose ? ` ${nf(picLoose)} picture(s) sit on a row with no order line and were left out.` : '')
+    + (pageFixed ? ` ${nf(pageFixed)} page link(s) were turned into their picture.` : '')
+    + (got.lines.some(l => l.imgPage) ? ` ${nf(got.lines.filter(l => l.imgPage).length)} Image Link(s) open a web page, not a picture (e.g. kommodo.ai/i/…) — they will show no picture. Open one, right-click the picture → Copy image address, and put that in the sheet instead (or paste the picture itself into the row).` : ''),
+    !!picBad || got.lines.some(l => l.imgPage));
 }
 
 /* ---- saving ---- */
@@ -43320,9 +43935,11 @@ async function soFormSave(place) {
         let was = null;
         try { was = await ptGet('pt_customSkus/' + sku); } catch (e) { customUnread++; continue; }
         if (was && typeof was === 'object' && Object.keys(was).length) continue;
+        const art = typeof ptArticleNamed === 'function' ? ptArticleNamed(l.itemName) : '';
+        const tcCut = typeof ptTcCutReq === 'function' ? ptTcCutReq(art || l.itemName, l.itemName) : null;
         patch['pt_customSkus/' + sku] = {
-          sku, articleType: '', subtype: '', color: '', size: l.size || '',
-          brand: l.brand || '', packOf: '', fabric: '', cuttingRequired: true, consumption: 0,
+          sku, articleType: art, subtype: '', color: l.color || '', size: l.size || '',
+          brand: l.brand || '', packOf: '', fabric: '', cuttingRequired: tcCut == null ? true : tcCut, consumption: 0,
           isZip: false, chainLength: null, zipQty: null, isRuffle: false, ruffleMeters: null, ruffleFabric: '',
           fillerFabricRequired: false, standardFillingQty: null, inventoryValuationPrice: 0,
           imageUrl: l.img || '', isCustom: true,
@@ -43335,6 +43952,17 @@ async function soFormSave(place) {
         try { await ptPatch(patch); customAdded = Object.keys(patch).length; }
         catch (e) { /* the order is saved; say so below rather than lose it */ customAdded = -1; }
       }
+    }
+  }
+  /* PICTURES FROM THE SHEET (19 Oct): kept once per SKU in Firestore (b2bImgSave). A line with an Image Link keeps its link. */
+  let picSaved = 0, picFail = 0;
+  if (b2b) {
+    const inOrder = new Set(lines.map(l => l.sku));
+    const todo = SOF.lines.filter(l => l.imgData && !l.imgSaved && inOrder.has(obUC(l.sku)) && !String(l.img || '').trim());
+    if (todo.length) {
+      const r = await b2bImgSave(todo.map(l => ({ sku: obUC(l.sku), d: l.imgData })), rec._id);
+      picSaved = r.saved; picFail = r.failed;
+      todo.forEach(l => { if (r.ok.has(obUC(l.sku))) l.imgSaved = true; });
     }
   }
   /* NEW ONLINE ITEMS go on the Custom SKUs list the same way, described by their look-alikes. */
@@ -43366,6 +43994,8 @@ async function soFormSave(place) {
     : `${rec._id} saved as a draft. It is not in production until it is placed and approved.`;
   if (customAdded > 0) $('sxMsg').textContent += ` ${nf(customAdded)} new item(s) went on the Custom SKUs list${onl ? '' : ' with their brand'} — complete them in Master Database → Custom SKUs.`;
   if (customAdded < 0 || customUnread) { $('sxMsg').className = 'err'; $('sxMsg').textContent += ' The new items could NOT be put on the Custom SKUs list — save again to retry.'; }
+  if (picSaved) $('sxMsg').textContent += ` ${nf(picSaved)} picture(s) from the sheet kept.`;
+  if (picFail) { $('sxMsg').className = 'err'; $('sxMsg').textContent += ` ${nf(picFail)} picture(s) could NOT be kept — save again to retry.`; }
   return '';
 }
 
@@ -43406,10 +44036,10 @@ function soReview(id) {
           value="${esc(o.saRemarks || '')}" placeholder="Required to send it back; optional to approve"></label>
       </div>
       <div class="xlwrap" style="max-height:34vh;border:1px solid var(--line);border-radius:10px;margin-top:10px">
-        <table class="xl"><thead><tr><th>SKU</th><th>Image</th>${soIsB2B(o.channel) ? '<th>Brand</th><th>Item</th><th>Label</th><th>Material</th><th>Size</th><th>Customization</th>' : ''}<th class="num">Qty</th><th>Delivery</th><th>In order book</th></tr></thead>
+        <table class="xl"><thead><tr><th>SKU</th><th>Image</th>${soIsB2B(o.channel) ? '<th>Brand</th><th>Article</th><th>Color</th><th>Size</th><th>Label</th><th>Material</th><th>Customization</th>' : ''}<th class="num">Qty</th><th>Delivery</th><th>In order book</th></tr></thead>
         <tbody>${s.groups.slice(0, 300).map(g => { const bl = soIsB2B(o.channel) ? (soLines(o).find(x => obUC(x.sku) === obUC(g.sku)) || {}) : null; return `<tr><td style="font-family:ui-monospace,monospace;text-align:left">${esc(g.sku)}${bl && !(PTG.mdb || []).some(m => obUC(m.sku) === obUC(g.sku)) ? '<div style="font-size:10px;color:#7f6000">custom SKU</div>' : ''}</td>`
           + (bl && bl.img ? ptImgCellSrc(g.sku, bl.img) : ptImgCell(g.sku))
-          + (bl ? ['brand', 'itemName', 'label', 'material', 'size', 'customization'].map(k => `<td style="text-align:left;white-space:normal;max-width:180px;font-size:12px">${esc(bl[k] || '') || '<span class="muted">—</span>'}</td>`).join('') : '')
+          + (bl ? ['brand', 'itemName', 'color', 'size', 'label', 'material', 'customization'].map(k => `<td style="text-align:left;white-space:normal;max-width:180px;font-size:12px">${esc(bl[k] || '') || '<span class="muted">—</span>'}</td>`).join('') : '')
           + `<td class="num" style="font-weight:700">${nf(g.qty)}</td>`
           + `<td>${esc(g.delivery) || '<span class="muted">—</span>'}</td>`
           + `<td>${g.inBook ? '<span class="pill pill-ok">already</span>' : '<span class="muted">will be added</span>'}</td></tr>`; }).join('')}</tbody>
@@ -43481,7 +44111,7 @@ async function soApproveRun(id) {
       l.customization && !/^no$/i.test(l.customization) && 'Customization: ' + l.customization].filter(Boolean) : [];
     recs.push(Object.assign({ id: 'ob_so_' + obUC(o._id) + '_' + s, orderNo: o._id, orderDate: o.orderDate || now.slice(0, 10),
       sku: s, articleType: String(m.articleType || ''), articleSubtype: String(m.subtype || ''),
-      color: String(m.color || ''), size: String(m.size || l.size || ''), qty,
+      color: String(m.color || (soIsB2B(o.channel) ? l.color : '') || ''), size: String(m.size || l.size || ''), qty,
       remarks: 'From approved Sales Order' + (o.buyerName ? ' · ' + o.buyerName : '') + (b2bBits.length ? ' · ' + b2bBits.join(' · ') : ''), src: 'SO',
       uploadedBy: ME.email, uploadedAt: now }, o.saleMonth ? { saleMonth: o.saleMonth } : {},
       soIsB2B(o.channel) ? { needsSku: !mdbBy.has(s), shopImg: String(l.img || ''), brand: String(l.brand || ''),
@@ -50458,29 +51088,56 @@ function repShopArt(i) {
   const n = String((i && i.name) || '').split(/\s[-–—]\s/)[0].trim();
   return n || '(no name)';
 }
+/* HOW OLD THE PENDING ORDERS ARE (Ravi, 20 Oct: "shopify pending order report bucket wise chahiye like 0-7 days, 8-14
+ * days, 15-21 days, 22-28 days ...."): a week to a bucket, counted in whole days from the day the order was placed to
+ * today — 0–7, 8–14, 15–21, … up to the oldest open order. */
+const repShopAgeDays = (at, today) => {
+  const a = Date.parse(String(at || '').slice(0, 10) + 'T00:00:00Z'), t = Date.parse(String(today || '').slice(0, 10) + 'T00:00:00Z');
+  return isNaN(a) || isNaN(t) ? null : Math.max(0, Math.round((t - a) / 86400000));
+};
+const repShopAgeIdx = d => (d <= 7 ? 0 : Math.ceil((d - 7) / 7));
+const repShopAgeLabel = i => (i === 0 ? '0–7 days' : `${7 * i + 1}–${7 * i + 7} days`);
+const repShopArtList = arts => [...arts.values()].map(a => ({ art: a.art, pcs: a.pcs, SP: a.SP, CPC: a.CPC, orders: a.ids.size, oldest: a.oldest,
+  ords: [...a.ords.values()].sort((x, y) => String(x.at).localeCompare(String(y.at)) || String(x.no).localeCompare(String(y.no))) }))
+  .sort((x, y) => y.pcs - x.pcs || y.orders - x.orders || x.art.localeCompare(y.art));
+/* THE ORDER ITSELF (Ravi, 20 Oct: "orders me real order id aani chahiye dropdown me and click krne par apne shopify order me
+ * le jana chahiye"): each order of an article, its Shopify number, opening that order in the store's own Shopify admin. */
+const REP_SHOP_ADMIN = { SP: 'ridhiblockprint', CPC: 'liquidationfashion' };
+const repShopOrderUrl = (brand, id) => (id && /^\d+$/.test(String(id)) ? `https://admin.shopify.com/store/${REP_SHOP_ADMIN[brand === 'CPC' ? 'CPC' : 'SP']}/orders/${id}` : '');
 /** Counts for one list of orders. metaOf(id) → the app's own record of that order (MCF id, carrier). */
-function repShopDispatch(orders, metaOf) {
+function repShopDispatch(orders, metaOf, today) {
   const z = () => ({ SP: 0, CPC: 0 });
   const via = {}; REP_SHIP_VIA.forEach(k => { via[k] = z(); });
   const st = { placed: z(), shipped: z(), pending: z(), cancelled: z(), closed: z() };
-  const arts = new Map();
+  const arts = new Map(), ages = [];
+  const day = today || (typeof dToday === 'function' ? dToday() : new Date().toISOString().slice(0, 10));
+  const addArt = (map, art, n, b, o) => {
+    let a = map.get(art);
+    if (!a) map.set(art, a = { art, pcs: 0, SP: 0, CPC: 0, ids: new Set(), ords: new Map(), oldest: '' });
+    a.pcs += n; a[b] += n; a.ids.add(o.id);
+    const ok = b + '|' + o.id, was = a.ords.get(ok);
+    a.ords.set(ok, { id: o.id, no: o.no || ('#' + o.id), brand: b, at: String(o.at || '').slice(0, 10), pcs: (was ? was.pcs : 0) + n });
+    if (o.at && (!a.oldest || o.at < a.oldest)) a.oldest = o.at;
+  };
   (orders || []).forEach(o => {
     const b = o.shopBrand === 'CPC' ? 'CPC' : 'SP', k = repShopState(o);
     st.placed[b]++; st[k][b]++;
     if (k === 'shipped') via[repShipVia(o, metaOf ? metaOf(o.id) : null)][b]++;
     if (k !== 'pending') return;
+    const d = repShopAgeDays(o.at, day), ai = d == null ? null : repShopAgeIdx(d);
+    let g = null;
+    if (ai != null) {
+      for (let i = ages.length; i <= ai; i++) ages[i] = { idx: i, label: repShopAgeLabel(i), orders: z(), pcs: z(), arts: new Map() };
+      g = ages[ai]; g.orders[b]++;
+    }
     (o.items || []).forEach(i => {
       const n = repShopLeft(i); if (!n) return;
       const art = repShopArt(i);
-      let a = arts.get(art);
-      if (!a) arts.set(art, a = { art, pcs: 0, SP: 0, CPC: 0, ids: new Set(), oldest: '' });
-      a.pcs += n; a[b] += n; a.ids.add(o.id);
-      if (o.at && (!a.oldest || o.at < a.oldest)) a.oldest = o.at;
+      addArt(arts, art, n, b, o);
+      if (g) { g.pcs[b] += n; addArt(g.arts, art, n, b, o); }
     });
   });
-  const list = [...arts.values()].map(a => ({ art: a.art, pcs: a.pcs, SP: a.SP, CPC: a.CPC, orders: a.ids.size, oldest: a.oldest }))
-    .sort((x, y) => y.pcs - x.pcs || y.orders - x.orders || x.art.localeCompare(y.art));
-  return { via, st, arts: list };
+  return { via, st, arts: repShopArtList(arts), ages: ages.map(g => Object.assign({}, g, { arts: repShopArtList(g.arts) })) };
 }
 /** Both stores, one window. A store that fails is named, never silently left out of the totals. */
 async function repShopFetch(win) {
@@ -50538,19 +51195,51 @@ function repRenderShopDispatch() {
     <div class="kpi" style="flex-basis:100%">
     <div class="kpihead"><span class="kpiname">Pending right now — every open order of the last 120 days</span><span class="kpiwhen">not yet dispatched</span></div>
     <div class="metrics">${tile(tot(n.st.pending), 'Pending orders', split(n.st.pending), 'var(--bad)')}${tile(pendPcs, 'Pieces to send', 'on those orders')}`
-    + `<div class="metric"><div class="v" style="font-size:18px">${esc(oldest || '—')}</div><div class="l">Oldest pending order</div></div></div></div>`;
-  if (!n.arts.length) { ptEmpty('repTable', 'Nothing is pending.'); return; }
-  const top = n.arts[0].pcs || 1;
-  $('repTable').innerHTML = '<thead><tr><th style="text-align:left">Article — most pending first</th><th class="num">Pending pieces</th><th class="num">Orders</th>'
+    + `<div class="metric"><div class="v" style="font-size:18px">${esc(oldest || '—')}</div><div class="l">Oldest pending order</div></div></div></div>`
+    + repShopAgeCard(n);
+  const pick = REP.shdAge != null && n.ages && n.ages[REP.shdAge] ? n.ages[REP.shdAge] : null;
+  const arts = pick ? pick.arts : n.arts;
+  if (!arts.length) { ptEmpty('repTable', pick ? 'Nothing pending in ' + pick.label + '.' : 'Nothing is pending.'); return; }
+  const top = arts[0].pcs || 1;
+  $('repTable').innerHTML = '<thead><tr><th style="text-align:left">Article — most pending first' + (pick ? ' · ' + esc(pick.label) + ' old' : '') + '</th><th class="num">Pending pieces</th><th class="num">Orders</th>'
     + '<th class="num">Ridhi</th><th class="num">CPC</th><th>Oldest order</th><th style="width:30%"></th></tr></thead><tbody>'
-    + n.arts.slice(0, 200).map(a => '<tr><td style="text-align:left;font-weight:600">' + esc(a.art) + '</td>'
-      + '<td class="num" style="font-weight:700">' + nf(a.pcs) + '</td><td class="num">' + nf(a.orders) + '</td>'
+    + arts.slice(0, 200).map(a => '<tr><td style="text-align:left;font-weight:600">' + esc(a.art) + '</td>'
+      + '<td class="num" style="font-weight:700">' + nf(a.pcs) + '</td><td class="num">' + repShopOrdersCell(a) + '</td>'
       + '<td class="num">' + (a.SP ? nf(a.SP) : '<span class="muted">—</span>') + '</td><td class="num">' + (a.CPC ? nf(a.CPC) : '<span class="muted">—</span>') + '</td>'
       + '<td>' + esc(a.oldest || '') + '</td>'
       + '<td><div style="height:8px;border-radius:4px;background:var(--bad);opacity:.75;width:' + Math.max(2, Math.round(a.pcs / top * 100)) + '%"></div></td></tr>').join('')
     + '</tbody>';
 }
 
+/** The Orders cell: the count, opening a list of the orders — each its Shopify number, linked to that order in Shopify. */
+function repShopOrdersCell(a) {
+  const list = (a.ords || []).map(o => { const u = repShopOrderUrl(o.brand, o.id);
+    return `<div style="white-space:nowrap;padding:2px 0">${u ? `<a href="${esc(u)}" target="_blank" rel="noopener" title="Open this order in Shopify">${esc(o.no)}</a>` : esc(o.no)}`
+      + ` <span class="muted" style="font-size:11px">${o.brand === 'CPC' ? 'CPC' : 'Ridhi'} · ${esc(o.at)} · ${nf(o.pcs)} pcs</span></div>`; }).join('');
+  return list ? `<details style="display:inline-block;text-align:left"><summary style="cursor:pointer;list-style-position:inside">${nf(a.orders)}</summary>`
+    + `<div style="max-height:220px;overflow:auto;padding:4px 0">${list}</div></details>` : nf(a.orders);
+}
+/** Pending by age: one tile a week, orders big, pieces and shops under; a tile narrows the article table to it. */
+function repShopAgeCard(n) {
+  const ages = (n && n.ages) || [];
+  if (!ages.length) return '';
+  const sel = REP.shdAge;
+  const tile = g => { const o = g.orders.SP + g.orders.CPC, p = g.pcs.SP + g.pcs.CPC, on = sel === g.idx, old = g.idx >= 2;
+    return `<button type="button" class="metric" data-shdage="${g.idx}" title="Show only the articles of orders ${esc(g.label)} old"
+      style="text-align:left;cursor:pointer;color:var(--ink,#1f2937);border:${on ? '2px solid var(--accent)' : '1px solid var(--line)'};background:${on ? 'var(--soft,#eef3f9)' : 'transparent'};border-radius:12px;padding:8px 12px;min-width:120px;width:auto">
+      <div class="l" style="font-weight:700">${esc(g.label)}</div><div class="v" style="color:${o && old ? 'var(--bad)' : 'var(--ink,#1f2937)'}">${nf(o)}</div>
+      <div class="muted" style="font-size:11px">orders · ${nf(p)} pcs</div><div class="muted" style="font-size:11px">Ridhi ${nf(g.orders.SP)} · CPC ${nf(g.orders.CPC)}</div></button>`; };
+  return `<div class="kpi" style="flex-basis:100%">
+    <div class="kpihead"><span class="kpiname">Pending by age — days since the order was placed</span><span class="kpiwhen">${sel != null ? '<a href="#" data-shdage="all">show all ages</a>' : 'tap a week to see its articles'}</span></div>
+    <div class="metrics" style="gap:8px;flex-wrap:wrap">${ages.map(tile).join('')}</div></div>`;
+}
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('click', e => {
+  const b = e.target && e.target.closest && e.target.closest('[data-shdage]'); if (!b) return;
+  e.preventDefault();
+  const v = b.getAttribute('data-shdage');
+  REP.shdAge = v === 'all' || +v === REP.shdAge ? null : +v;
+  if (REP.view === 'shpd' || ($('repView') && $('repView').value === 'shpd')) repRenderShopDispatch();
+});
 function renderRep() {
   if (REP.busy) { $('repMsg').className = 'muted'; $('repMsg').textContent = 'Reading…'; ptEmpty('repTable', 'Loading…'); return; }
   const v = $('repView').value;
@@ -50608,8 +51297,11 @@ $('repExport').onclick = () => {
     ['placed', 'shipped', 'pending', 'cancelled', 'closed'].forEach(k => out.push(['Orders placed in ' + REP.shd.ym, k,
       d.st[k].SP, d.st[k].CPC, d.st[k].SP + d.st[k].CPC].map(csvCell).join(',')));
     out.push('');
-    out.push(['Article (pending now)', 'Pending pieces', 'Orders', 'Ridhi pieces', 'CPC pieces', 'Oldest order'].map(csvCell).join(','));
-    REP.shd.now.arts.forEach(a => out.push([a.art, a.pcs, a.orders, a.SP, a.CPC, a.oldest].map(csvCell).join(',')));
+    out.push(['Pending by age', 'Orders', 'Ridhi orders', 'CPC orders', 'Pieces', 'Ridhi pieces', 'CPC pieces'].map(csvCell).join(','));
+    (REP.shd.now.ages || []).forEach(g => out.push([g.label, g.orders.SP + g.orders.CPC, g.orders.SP, g.orders.CPC, g.pcs.SP + g.pcs.CPC, g.pcs.SP, g.pcs.CPC].map(csvCell).join(',')));
+    out.push('');
+    out.push(['Article (pending now)', 'Pending pieces', 'Orders', 'Ridhi pieces', 'CPC pieces', 'Oldest order', 'Order numbers'].map(csvCell).join(','));
+    REP.shd.now.arts.forEach(a => out.push([a.art, a.pcs, a.orders, a.SP, a.CPC, a.oldest, (a.ords || []).map(o => (o.brand === 'CPC' ? 'CPC ' : '') + o.no).join(' ')].map(csvCell).join(',')));
     return ptDownload('shopify-dispatch-' + REP.shd.ym, out);
   }
   if ($('repView').value === 'wow') {
@@ -71034,7 +71726,9 @@ function mobSync(which) {
    * named a screen (a link, a reload). */
   mobHistInit();
   if ($('paneMobHome')) $('paneMobHome').classList.add('hide');
-  if (!MOB_HOME_SEEN && which) { MOB_HOME_SEEN = true; if (!MOB_HASH0) setTimeout(() => { mobHomeShow(); mobMarkHome(); }, 0); }
+  /* (not when Home was already opened by hand: the screen just pressed stays in front — 19 Oct, Home came back over
+     Orders on the first press after Home) */
+  if (!MOB_HOME_SEEN && which) { MOB_HOME_SEEN = true; if (!MOB_HASH0 && !$('paneMobHome')) setTimeout(() => { mobHomeShow(); mobMarkHome(); }, 0); }
   mobPaneIn(document.querySelector('.main > [id^="pane"]:not(.hide)'));
   if ($('mobTitle')) $('mobTitle').textContent = ($('pageTitle') && $('pageTitle').textContent) || '';
   mobUserTabs();
@@ -71049,16 +71743,40 @@ function mobSync(which) {
 }
 
 /** Every screen this account has, under the menu's own group names, drawn from the menu itself so the two never differ. */
+/* these two show their menu link only to whoever may open them, under a key of their own */
+const MOB_SELF_GATED = ['flow', 'gdesk'];
+/** A menu link this account may open. */
+const mobLinkOk = a => {
+  const k = String(a.getAttribute('href') || '').replace(/^#/, '');
+  if (!k || a.classList.contains('hide') || a.style.display === 'none') return false;
+  /* the Vendors group is hidden on purpose for production accounts (nav.js, NAV_PROD_ONLY): it stays hidden here too */
+  const g = a.closest('.navwrap') && a.closest('.navwrap').querySelector('.navgrp');
+  if (g && g.dataset.grp === 'vendors' && g.classList.contains('hide')) return false;
+  return mobMay(k) || MOB_SELF_GATED.includes(k);
+};
+const mobLinkName = a => String(a.querySelector('.nav-t') ? a.querySelector('.nav-t').textContent : [...a.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent).join('')).trim();
+/** Every screen this account can open, in the menu's order, with the menu's name (the dashboard is Home itself). */
+function mobMyScreens() {
+  const seen = new Set();
+  /* by each screen's own access, not its menu group's: the Production group counts only production screens (its
+     data-tabs), so an account with just the vendor screens kept in it had the whole group hidden — 19 Oct */
+  return [...document.querySelectorAll('.side .navwrap a.nav')].filter(mobLinkOk)
+    .map(a => ({ k: a.getAttribute('href').replace(/^#/, ''), name: mobLinkName(a), a }))
+    .filter(x => x.k !== 'dash' && !seen.has(x.k) && seen.add(x.k));
+}
+/** One line under a screen's name on Home, for the screens Home has no figure for. */
+const MOB_SUB = { pcut: 'cutting entries', ppress: 'pressing entries', qc: 'checks, alteration, returns', vord: 'orders with printers and vendors',
+  vreq: 'raise and approve vendor requests', rfd: 'fabric asked for by printers', vlog: 'what vendors sent', vend: 'what a printer sees',
+  palloc: 'fabric given to printers', fab: 'fabric stock', acc: 'zips, labels and the rest', fba: 'shipments to Amazon', so: 'B2B sales orders',
+  pmdb: 'every SKU and its fabric', mst: 'vendors, rates, masters', hr: 'people and pay', rep: 'the week in figures', pa: 'production figures',
+  ka: 'each karigar\'s work', top: 'best sellers on Amazon', article: 'articles to review', target: 'monthly targets', adj: 'Shopify stock changes',
+  shopify: 'Shopify stock', flow: 'every order through the factory', gdesk: 'greige fabric in and out' };
 function mobMoreOpen() {
-  const may = a => {
-    const k = String(a.getAttribute('href') || '').replace(/^#/, '');
-    if (!k || a.classList.contains('hide') || a.style.display === 'none') return false;
-    return mobMay(k) || k === 'flow' || k === 'gdesk';     // these two show their link only to whoever may open them
-  };
+  const may = mobLinkOk;
   const groups = [...document.querySelectorAll('.side .navwrap')].map(w => {
     const head = w.querySelector('.navgrp');
-    if (!head || head.classList.contains('hide')) return '';
-    const links = [...w.querySelectorAll('a.nav')].filter(may);
+    if (!head) return '';
+    const links = [...w.querySelectorAll('a.nav')].filter(may);     // a hidden group still lists the screens this account has (mobMyScreens)
     if (!links.length) return '';
     const name = String(head.textContent || '').replace(/[▸▾]/g, '').trim();
     return `<div class="mob-grp"><div class="mob-grp-h">${mobEsc(name)}</div>` + links.map(a => {
@@ -71069,7 +71787,9 @@ function mobMoreOpen() {
       return `<button type="button" class="mob-link${k === TAB_NOW ? ' on' : ''}" data-mob-tab="${mobEsc(k)}"><span>${mobEsc(String(t).trim())}</span>${bd}</button>`;
     }).join('') + '</div>';
   }).join('');
-  const install = $('installBtn') && !$('installBtn').classList.contains('hide');
+  /* Install app is offered until the app is opened from the home screen. The browser's own window comes up only on
+     Android Chrome; an iPhone never offers one, so there the button shows how (mobInstallHow). — 19 Oct */
+  const install = !mobInstalled();
   $('mobMoreList').innerHTML = '<div class="ml-search mob-moreq"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="mobMoreQ" type="search" placeholder="Find a screen" autocomplete="off"></div>'
     + groups
     + '<div class="mob-grp mob-foot">'
@@ -71101,12 +71821,30 @@ function mobMoreShut() { if ($('mobMoreModal')) $('mobMoreModal').classList.add(
 function mobAct(a) {
   mobMoreShut();
   if (a === 'guide' && $('guideBtn')) $('guideBtn').click();
-  if (a === 'install' && $('installBtn')) $('installBtn').click();
+  if (a === 'install') {
+    if ($('installBtn') && !$('installBtn').classList.contains('hide')) $('installBtn').click();
+    else mobInstallHow();
+  }
   if (a === 'logout' && $('logoutBtn')) $('logoutBtn').click();
   if (a === 'alerts') mobAlertsOn();
   /* (the reload waits until the More menu has shut: shutting it steps the phone's history back, which would cancel a
      reload made at once — 17 Oct) */
   if (a === 'desktop') { try { sessionStorage.setItem('mobViewOff', '1'); localStorage.removeItem('mobView'); } catch (e) { /* nowhere to remember it */ } setTimeout(() => location.reload(), 300); }
+}
+
+/** Opened from the home screen already (Android and iPhone each say so their own way). */
+function mobInstalled() {
+  try { return !!((window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone); } catch (e) { return false; }
+}
+/** How to put the app on the home screen, when the browser has no window of its own for it (iPhone, or Chrome not ready). */
+function mobInstallHow() {
+  const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+  const step = (n, t) => `<div class="ml-kv"><span>${n}</span><b>${t}</b></div>`;
+  const how = ios
+    ? step('1', 'Open this site in Safari') + step('2', 'Tap Share (the square with the arrow) at the bottom') + step('3', 'Tap “Add to Home Screen”, then Add')
+    : step('1', 'Open this site in Chrome') + step('2', 'Tap ⋮ at the top right') + step('3', 'Tap “Install app” or “Add to Home screen”');
+  mobSheet('Install app', 'Ridhi on your home screen, full screen', `<div class="ml-sec">${ios ? 'iPhone' : 'Android'}</div>${how}`
+    + '<p class="muted" style="margin:12px 4px 0;font-size:13px">The Ridhi icon then opens the app straight away, like any other app. Sign in once inside it.</p>');
 }
 
 /* On a phone that chose Desktop view: the way back, at the end of the menu bar. */
@@ -71741,7 +72479,7 @@ function mobHomeDraw() {
   const p = mobHomePane();
   const who = String((typeof ME !== 'undefined' && (ME.name || ME.email)) || '').split('@')[0];
   const hr = new Date().getHours(), hi = hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : 'Good evening';
-  const row = (tab, label, sub, num, tone, act) => mobMay(tab) ? `<button type="button" class="ml-row" ${act ? `data-home-act="${act}"` : `data-home-go="${tab}"`}><span class="ml-m"><b>${mobEsc(label)}</b>${sub ? `<small>${mobEsc(sub)}</small>` : ''}</span>`
+  const row = (tab, label, sub, num, tone, act) => mobMay(tab) || MOB_SELF_GATED.includes(tab) ?`<button type="button" class="ml-row" ${act ? `data-home-act="${act}"` : `data-home-go="${tab}"`}><span class="ml-m"><b>${mobEsc(label)}</b>${sub ? `<small>${mobEsc(sub)}</small>` : ''}</span>`
     + `<span class="ml-r">${num == null ? '' : `<b class="${tone || ''}">${num}</b>`}</span><span class="ml-chev">›</span></button>` : '';
   const sec = (name, rows) => rows.replace(/\s/g, '') ? `<div class="ml-sec">${mobEsc(name)}</div><div class="ml-group">${rows}</div>` : '';
   /* keep what is being typed while Home redraws under it */
@@ -71797,15 +72535,14 @@ function mobHomeDraw() {
       fgPend ? row('fgi', 'Transfers to count in', 'sent from press, not yet stock', mobNum(fgPend), 'ml-warn', 'fgpend') : '',
     ].join('');
     body += need ? sec('Needs you', need) : '';
-    body += sec('Your work', [
-      row('shop', 'Shopify Orders', 'not yet shipped', shopOpen == null ? null : mobNum(shopOpen)),
-      row('pbase', 'Job Work Register', 'issue and receive', null),
-      row('pack', 'Packing List', 'scan to pack, labels, FBA file', null),
-      row('fgi', 'Finished Goods', 'the India store', null),
-      row('ord', 'Order Console', 'every order, the step it is at', null),
-      row('repl', 'Replenishment', 'what to send, Air or Sea', null),
-      row('att', 'Attendance', 'today', null),
-    ].join('')) + `<div class="ml-sum" style="text-align:center">Every other screen you can open is under More.</div>`;
+    /* EVERY screen this person has, in the menu's order (19 Oct, Ravi: "show every screen that person has (Cutting,
+       Pressing, QC, Vendor screens and so on)"). The ones with a figure or a known job carry it; the rest show their name. */
+    const known = { shop: ['Shopify Orders', 'not yet shipped', shopOpen == null ? null : mobNum(shopOpen)], pbase: ['Job Work Register', 'issue and receive'],
+      pack: ['Packing List', 'scan to pack, labels, FBA file'], fgi: ['Finished Goods', 'the India store'], ord: ['Order Console', 'every order, the step it is at'],
+      repl: ['Replenishment', 'what to send, Air or Sea'], att: ['Attendance', 'today'] };
+    const mine = mobMyScreens();
+    body += sec('Your work', mine.map(x => { const k = known[x.k]; return row(x.k, k ? k[0] : x.name, k ? k[1] : (MOB_SUB[x.k] || ''), k ? k[2] : null); }).join(''))
+      + (mine.length ? '' : `<div class="ml-sum" style="text-align:center">No screens are open to this account yet — ask an admin.</div>`);
     mobAlertCheck(Object.assign(lateN == null ? {} : { late: lateN }, pend == null ? {} : { receive: pend }, fgPend == null ? {} : { fgpend: fgPend }));
   }
   p.innerHTML = `<div class="mob-list">${head}<div id="mobHomeBody">${body}</div></div>`;
@@ -72377,6 +73114,37 @@ const MOB_GRID_IC = MOB_SVG('<rect x="4" y="4" width="7" height="7" rx="1.5"/><r
 /** A screen's name short enough for a tab: its first two words ("Job Work Register" → "Job Work"), never ending on "&"
  * ("Finance & HR" stays whole). */
 const mobShortName = n => { const w = String(n || '').trim().split(/\s+/); const k = /^(&|and)$/i.test(w[1] || '') ? 3 : 2; return w.slice(0, k).join(' '); };
+/* A slot taken by another screen carries that screen's own picture, not a grid (19 Oct: "customised according to the
+   user access" — an attendance clerk's bar shows a calendar, a cutter's shows scissors). */
+const MOB_SCREEN_IC = (() => {
+  const S = MOB_SVG, cal = S('<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>'),
+    cut = S('<circle cx="6" cy="7" r="2.5"/><circle cx="6" cy="17" r="2.5"/><path d="M8 8.5 20 18M8 15.5 20 6"/>'),
+    chk = S('<path d="M4 12.5 9 17.5 20 6.5"/>'), list = S('<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>'),
+    chart = S('<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>'), truck = S('<path d="M3 7h11v9H3zM14 10h4l3 3v3h-7"/><circle cx="7" cy="18" r="1.8"/><circle cx="17" cy="18" r="1.8"/>'),
+    people = S('<circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0"/><circle cx="17" cy="9" r="2.4"/><path d="M15.5 14.2A5 5 0 0 1 21 19"/>'),
+    sync = S('<path d="M20 11a8 8 0 0 0-14.6-4.5L4 8M4 13a8 8 0 0 0 14.6 4.5L20 16"/><path d="M4 4v4h4M20 20v-4h-4"/>'),
+    roll = S('<ellipse cx="7" cy="12" rx="3" ry="7"/><path d="M7 5h11a3 7 0 0 1 0 14H7"/>'),
+    iron = S('<path d="M3 17h17v-3a6 6 0 0 0-6-6H8"/><path d="M3 17l2-6h9"/>'),
+    doc = S('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/>'),
+    rupee = S('<path d="M7 4h10M7 9h10M7 4c6 0 6 10 0 10l8 6"/>'), flow = S('<path d="M4 6h10M4 12h16M4 18h7"/><path d="m17 3 3 3-3 3"/>');
+  return { att: cal, hr: rupee, pbase: people, pcut: cut, ppress: iron, qc: chk, qcalt: chk, qcret: chk, ord: list, so: doc,
+    vord: truck, vreq: truck, vend: truck, vlog: truck, rfd: roll, fab: roll, gdesk: roll, gdled: roll, palloc: roll,
+    repl: sync, fba: truck, rep: chart, pa: chart, ka: chart, top: chart, article: list, target: chart,
+    pmdb: list, mst: list, acc: list, adj: sync, shopify: list, shopprod: list, india: MOB_TABS[3].ic,
+    flppc: flow, fldem: flow, flacc: flow, flchl: flow, flcut: flow, flraw: flow, flwip: flow };
+})();
+/** Short tab names for the screens whose menu names are too long for a phone tab, or too alike side by side. */
+const MOB_SHORT = { vreq: 'Requests', vord: 'Vendor', rfd: 'RFD', vlog: 'Vendor log', qc: 'QC', qcalt: 'Alteration', qcret: 'QC return',
+  pcut: 'Cutting', ppress: 'Pressing', pbase: 'Job Work', repl: 'Replenish', fba: 'FBA', rep: 'Reports', pa: 'Production', ka: 'Karigars',
+  pmdb: 'Masters', mst: 'Masters', att: 'Attendance', hr: 'HR', ord: 'Console', so: 'Sales', top: 'Top ASIN', gdesk: 'Greige', acc: 'Accessories' };
+/** The screens this account opened last time (the More menu's Recent list) — they fill an empty slot first. Read once when
+ * the app opens, so the bar does not move while it is being used. */
+let MOB_USED0 = null;
+const mobUsedMost = () => {
+  if (MOB_USED0) return MOB_USED0;
+  try { const r = JSON.parse(localStorage.getItem(MOB_RECENT) || '[]'); MOB_USED0 = Array.isArray(r) ? r : []; } catch (e) { MOB_USED0 = []; }
+  return MOB_USED0;
+};
 function mobUserTabs() {
   const bar = $('mobBar');
   if (!bar) return;
@@ -72389,8 +73157,13 @@ function mobUserTabs() {
     if (!MOB_TAB_FALLBACK[x.k]) return;
     const own = MOB_TAB_FALLBACK[x.k].find(t => mobMay(t) && !used.has(t));
     let pick = null;
-    if (own) pick = { tab: own, t: own === d.tab ? d.t : mobShortName(name(own)), ic: d.ic };
-    else { const next = mine.find(m => !used.has(m.k) && !Object.values(MOB_TAB_FALLBACK).some(f => f[0] === m.k && mobMay(m.k))); if (next) pick = { tab: next.k, t: mobShortName(name(next.k)), ic: MOB_GRID_IC }; }
+    if (own) pick = { tab: own, t: own === d.tab ? d.t : MOB_SHORT[own] || mobShortName(name(own)), ic: d.ic };
+    else {
+      const free = m => !used.has(m.k) && !Object.values(MOB_TAB_FALLBACK).some(f => f[0] === m.k && mobMay(m.k));
+      /* the screens this person opens most come first, then the menu's order */
+      const next = mobUsedMost().map(k => mine.find(m => m.k === k)).find(m => m && free(m)) || mine.find(free);
+      if (next) pick = { tab: next.k, t: MOB_SHORT[next.k] || mobShortName(name(next.k)), ic: MOB_SCREEN_IC[next.k] || MOB_GRID_IC };
+    }
     if (pick) { used.add(pick.tab); Object.assign(x, pick); } else Object.assign(x, { tab: d.tab, t: d.t, ic: d.ic });
     const b = bar.querySelector('[data-mob="' + x.k + '"]');
     if (b) {
