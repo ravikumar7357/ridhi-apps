@@ -186,7 +186,7 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
   const t = e.target; if (!t || !t.closest || !t.closest('[data-chk],[data-chp],[data-chm]')) return;
   const box = document.getElementById && document.getElementById('flcTot'); if (box) box.textContent = flowChTotals(FLOW_CH_N);
 }));
-function flowChallanDialog(rows, pcode, rufRows, pre) {
+function flowChallanDialog(rows, pcode, rufRows, pre, after) {
   /* pre (18 Oct, the size challan): what to send on each line, worked out FIFO — those lines come ticked with those figures. */
   const preOf = x => (pre && x && x.s ? pre.get(x.s.key) : null);
   const cv = flowRfdCover();
@@ -276,6 +276,7 @@ function flowChallanDialog(rows, pcode, rufRows, pre) {
       renderFlow();
       const err = flowChallanPrint(no);
       if (err) { $('flMsg').className = 'err'; $('flMsg').textContent = `Challan ${no} saved. ${err}`; }
+      if (typeof after === 'function') setTimeout(after, 0);   // the next challan of a bulk run (flowChQueue)
       return '';
     },
   });

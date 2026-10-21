@@ -94,7 +94,9 @@ function renderFlow() {
     if (ang === 'print' && FLOW.byprint) $('flTable').innerHTML = FLOW.byprint;
     /* RFD BY LINE IN EXCEL (Ravi, 21 Oct: "need export button here") */
     if (ang === 'line' && FLOW_VIEW === 'drfd')
-      FLOW.panel += ' <button type="button" class="ghost" data-flpivxl="line" style="width:auto;padding:4px 12px;font-size:12.5px;margin-left:6px">Download Excel</button>';
+      FLOW.panel += ' <button type="button" class="ghost" data-flpivxl="line" style="width:auto;padding:4px 12px;font-size:12.5px;margin-left:6px">Download Excel</button>'
+        + ' <button type="button" class="ghost" data-flchxl="1" style="width:auto;padding:4px 12px;font-size:12.5px" title="The Download Excel sheet with Make challan = yes on the lines to send">Challans from Excel</button>'
+        + ` <button type="button" data-flchpick="1" style="width:auto;padding:4px 12px;font-size:12.5px"${FLOW_CHPICK.size ? '' : ' disabled'}>Challan for ticked (${nf(FLOW_CHPICK.size)})</button>`;
     if (ang === 'size' && FLOW.bysize) { $('flTable').innerHTML = FLOW.bysize;
       FLOW.panel += ' <button type="button" class="ghost" data-flpivxl="size" style="width:auto;padding:4px 12px;font-size:12.5px;margin-left:6px">Download Excel</button>'; }
   }
@@ -241,7 +243,7 @@ function flowDrfdLineRows(rows) {
   const what = w => w.kind === 'sku' ? [w.code, w.label] : w.sides ? [w.sides.map(x => x.side + ' ' + x.code).join(' + '), w.label + ' (half the cloth each)']
     : w.needDir ? ['', 'pick the print direction · ' + w.label] : [w.code || '', w.code ? w.label : 'no fabric SKU in the catalogue · ' + w.label];
   const out = [['PO', 'Order date', 'Days old', 'SKU', 'Item', 'Colour', 'Size', 'Qty', 'Route', 'Printer', 'Print on', 'What is printed',
-    'Fabric', 'To send (m)', 'Ruffle fabric', 'Ruffle (m)', 'Ruffle printer', 'RFD', 'Short (m)', 'In stock (m)', 'Print order', 'Vendor order', 'RFD challan']];
+    'Fabric', 'To send (m)', 'Ruffle fabric', 'Ruffle (m)', 'Ruffle printer', 'RFD', 'Short (m)', 'In stock (m)', 'Print order', 'Vendor order', 'RFD challan'].concat(FLOW_CHXL_COLS)];
   rows.forEach(x => {
     const p = x.s.plan || {}, c = cv.line[x.s.key] || { need: 0, avail: 0, short: 0 }, stitch = x.s.route === 'stitch';
     const [on, lab] = stitch ? ['', 'No printing — straight to cutting'] : what(flowPrintWhat(x.r, p)), ro = flowRuffleOwed(x);
@@ -250,9 +252,98 @@ function flowDrfdLineRows(rows) {
     out.push([x.r.orderNo, ptIsoDate(x.r.orderDate) || '', days(ptIsoDate(x.r.orderDate)), x.r.sku, x.r.articleSubtype || x.r.articleType || '', x.r.color || '', x.r.size || '',
       +x.r.qty || 0, route, stitch ? '' : ((p.printer && p.printer.name) || ''), on, lab, (p.fabric && p.fabric.name) || '', p.fabric ? c.need : '',
       ro ? ro.fabric : '', ro ? ro.metres : '', ro ? ro.printer.name : '', c.short ? 'Short' : 'Covered', c.short || '', c.avail,
-      kind(/^Print order/), kind(/^Vendor order/), kind(/challan/i)]);
+      kind(/^Print order/), kind(/^Vendor order/), kind(/challan/i)].concat(stitch ? ['', '', 'no — cutting, no printer', x.s.key]
+      : [x.s.fabUnit === 'pcs' ? flowFabOwed(x.r, x.s).left : '', flowFabOwed(x.r, x.s).metres, '', x.s.key]));
   });
   return out;
+}
+/* ================= MANY ORDERS, ONE CHALLAN — by ticks, or from Excel =================
+ * Ravi, 21 Oct: "yaha me bulk me challan bhi bana saku excel se and multiple order ko 1 hi challan me bhej saku".
+ * Tick lines of any orders (or mark them "yes" in the Download Excel sheet, with the pieces / metres to send now): they go
+ * on ONE challan per printer — each the printer PPC planned for the line — however many orders they come from. The forms
+ * open one after another, filled in; nothing is saved until each is saved, with every check the single challan has. */
+const FLOW_CHPICK = new Set();
+const FLOW_CHXL_COLS = ['Send now (pcs)', 'Send now (m)', 'Make challan (yes/no)', 'Line ID'];
+/** The ticked / imported lines, as challan forms: one per planned printer, lines oldest order first. */
+function flowChGroups(keys, pre) {
+  const want = new Set(keys), out = new Map(), skipped = [];
+  flowRows().filter(x => want.has(x.s.key)).forEach(x => {
+    if (!flowInView('drfd', x.s)) { skipped.push(`${x.r.orderNo} ${obUC(x.r.sku)}: its fabric is not waiting any more`); return; }
+    if (x.s.route === 'stitch') { skipped.push(`${x.r.orderNo} ${obUC(x.r.sku)}: Cutting route — no printer, use Mark fabric ready`); return; }
+    const pc = flowPlanPrinter(x.s) || '?', g = out.get(pc) || { pcode: pc, rows: [] }; g.rows.push(x); out.set(pc, g);
+  });
+  const groups = [...out.values()].map(g => Object.assign(g, { pre: pre || null,
+    rows: g.rows.sort((a, b) => String(a.r.orderDate || '').localeCompare(String(b.r.orderDate || '')) || String(a.r.orderNo).localeCompare(String(b.r.orderNo))) }));
+  return { groups, skipped };
+}
+/** Open the challan forms one after another. */
+function flowChQueue(groups, done) {
+  const list = groups.slice(), total = list.length;
+  const next = () => { const g = list.shift(); if (!g) { if (done) done(); return; }
+    flowChallanDialog(g.rows, g.pcode, [], g.pre, next);
+    if ($('flMsg')) { $('flMsg').className = 'muted'; $('flMsg').textContent = `Challan ${total - list.length} of ${total}${list.length ? ' — the next opens when this one is saved' : ''}.`; } };
+  next();
+}
+function flowChPickOpen() {
+  if (!FLOW_CHPICK.size) return;
+  const { groups, skipped } = flowChGroups([...FLOW_CHPICK]);
+  if (skipped.length) { $('flMsg').className = 'err'; $('flMsg').textContent = 'Left out: ' + skipped.join(' · '); }
+  if (!groups.length) return;
+  flowChQueue(groups, () => { FLOW_CHPICK.clear(); renderFlow(); });
+}
+/** The sheet back: the rows marked yes → { keys, pre: Map(key → {pcs, metres}), errs, skipped }. */
+function flowChXlRead(sheet) {
+  if (!sheet || sheet.length < 2) return { err: 'That file has no rows.' };
+  const H = sheet[0].map(h => String(h == null ? '' : h).replace(/^\uFEFF/, '').trim().toLowerCase()), at = n => H.indexOf(n.toLowerCase());
+  const iK = at('Line ID'), iY = at('Make challan (yes/no)');
+  if (iK < 0 || iY < 0) return { err: 'The file needs the "Line ID" and "Make challan (yes/no)" columns — press Download Excel here and fill that sheet.' };
+  const byKey = new Map(flowRows().filter(x => flowInView('drfd', x.s)).map(x => [x.s.key, x]));
+  const keys = [], pre = new Map(), errs = [], skipped = [];
+  for (let i = 1; i < sheet.length; i++) {
+    const row = sheet[i] || [], c = n => { const j = at(n); return j >= 0 && row[j] != null ? String(row[j]).trim() : ''; };
+    if (!/^(y|yes|1|true)$/i.test(c('Make challan (yes/no)'))) continue;
+    const key = c('Line ID'), tag = `row ${i + 1} (${c('PO')} ${c('SKU')})`, x = byKey.get(key);
+    if (!x) { skipped.push(tag + ': not waiting for fabric any more — sent already, or the plan changed'); continue; }
+    if (x.s.route === 'stitch') { skipped.push(tag + ': Cutting route — no printer'); continue; }
+    const o = flowFabOwed(x.r, x.s), pcsWise = x.s.fabUnit === 'pcs';
+    const pcsT = c('Send now (pcs)'), mT = c('Send now (m)');
+    let pcs = pcsWise ? (pcsT === '' ? o.left : Number(pcsT)) : 0, m = mT === '' ? null : Number(mT);
+    if (pcsWise && !(pcs >= 1 && pcs === Math.round(pcs) && pcs <= o.left)) { errs.push(`${tag}: pieces are whole, at least 1 and at most the ${nf(o.left)} still owed`); continue; }
+    if (m == null) m = pcsWise ? (o.left ? flowR2(o.metres * pcs / o.left) : 0) : o.metres;
+    if (!(m > 0)) { errs.push(`${tag}: how many metres? "Send now (m)" is not a number above 0`); continue; }
+    keys.push(x.s.key); pre.set(x.s.key, { pcs: pcsWise ? pcs : +x.r.qty || 0, metres: flowR2(m), orderNo: x.r.orderNo, of: +x.r.qty || 0 });
+  }
+  return { keys, pre, errs, skipped };
+}
+async function flowChXlIn(file) {
+  if (!file) return;
+  let sheet; try { sheet = /\.xlsx$/i.test(file.name) ? await pkReadXlsx(new Uint8Array(await file.arrayBuffer())) : parseCsv(await file.text()); }
+  catch (e) { $('flMsg').className = 'err'; $('flMsg').textContent = 'Could not read the file: ' + (e.message || e); return; }
+  const rd = flowChXlRead(sheet);
+  if (rd.err) { $('flMsg').className = 'err'; $('flMsg').textContent = rd.err; return; }
+  const { groups, skipped } = flowChGroups(rd.keys, rd.pre);
+  const list = (a, n) => a.length ? `<div style="margin-top:6px"><b>${nf(a.length)}</b> ${n}:<div class="muted" style="font-size:12px">${a.slice(0, 12).map(esc).join('<br>')}${a.length > 12 ? '<br>…' : ''}</div></div>` : '';
+  const pname = g => g.pcode === '?' ? 'printer not chosen' : ((g.rows[0].s.plan.printer || {}).name || g.pcode);
+  ptOpenDialog({
+    title: 'Challans from Excel',
+    subtitle: `${file.name} · ${nf(rd.keys.length)} line(s) marked yes`,
+    note: 'Nothing is saved from the sheet by itself: one challan form opens per printer, filled in from the sheet — check it and press Make the challan; the next opens after it.',
+    html: '<div style="font-size:12.5px;line-height:1.6">'
+      + (groups.length ? `<div><b>${nf(groups.length)}</b> challan(s):</div>` + groups.map(g => `<div>· ${esc(pname(g))} — ${nf(g.rows.length)} line(s) of ${nf(new Set(g.rows.map(x => x.r.orderNo)).size)} order(s)</div>`).join('') : '<div>No line to send.</div>')
+      + list(rd.errs, 'row(s) with a mistake — fix them in the sheet and import again') + list(rd.skipped.concat(skipped), 'row(s) left alone') + '</div>',
+    saveLabel: groups.length ? `Open ${nf(groups.length)} challan form(s)` : 'Close',
+    onSave: async () => { if (groups.length) setTimeout(() => flowChQueue(groups), 0); return ''; },
+  });
+}
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+  document.addEventListener('change', e => { const t = e.target; if (!t || !t.dataset || !t.dataset.flchk) return;
+    if (t.checked) FLOW_CHPICK.add(t.dataset.flchk); else FLOW_CHPICK.delete(t.dataset.flchk);
+    const b = document.querySelector && document.querySelector('[data-flchpick]');
+    if (b) { b.textContent = `Challan for ticked (${nf(FLOW_CHPICK.size)})`; b.disabled = !FLOW_CHPICK.size; } });
+  document.addEventListener('click', e => { const t = e.target; if (!t || !t.closest) return;
+    if (t.closest('[data-flchpick]')) { e.preventDefault(); flowChPickOpen(); return; }
+    if (t.closest('[data-flchxl]')) { e.preventDefault();
+      const f = document.createElement('input'); f.type = 'file'; f.accept = '.xlsx,.csv'; f.onchange = () => flowChXlIn(f.files && f.files[0]); f.click(); } });
 }
 function flowDrfdLineXl(rows) {
   if (!rows.length) { $('flMsg').className = 'err'; $('flMsg').textContent = 'No line to put in the sheet.'; return; }
@@ -513,7 +604,7 @@ function flowTable(view, rows) {
         <td style="${td};min-width:220px">${x.s.route === 'stitch' ? 'No printing — straight to cutting' : `<div>Print: <b>${esc((p.printer && p.printer.name) || '—')}</b></div><div style="color:#4338ca">On: ${on}</div>${flowExtrasTxt(flowPrintExtras(x.r, p))}${flowRufflePrinter(p) ? `<div style="font-size:12px;color:#5b21b6">ruffle → <b>${esc(flowRufflePrinter(p).name)}</b>${ro ? '' : ' · sent'}</div>` : ''}`}</td>
         <td style="${td};min-width:170px">${p.fabric ? `<div><b>${esc(p.fabric.name)}</b></div><div>To send: ${nf(c.need)} m</div>` : '—'}${ro ? `<div style="font-size:12px;color:#5b21b6">ruffle: ${esc(ro.fabric)} · ${nf(ro.metres)} m to ${esc(ro.printer.name)}</div>` : ''}${x.s.fabSent > 0 ? `<div style="margin-top:3px"><span class="jw-st prog" title="Sent on a challan in part — the rest is still to send">Partly sent</span> <span style="font-size:12px">${nf(x.s.fabSent)} of ${nf(x.s.fabNeed)} ${x.s.fabUnit} sent · ${nf(flowR2(Math.max(0, x.s.fabNeed - x.s.fabSent)))} still to send</span></div>` : ''}${flowMasterDiffTxt(flowMasterDiff(x.r, p))}</td>
         <td style="${td};min-width:150px">${c.short ? `<span class="jw-st" style="background:#fee2e2;color:#b91c1c;font-weight:700">⚑ Short: ${nf(c.short)} m</span>` : `<span class="jw-st done">covered</span>`}<div class="muted">In stock: ${nf(c.avail)} m</div></td>
-        <td style="white-space:nowrap;vertical-align:top"><div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start">${first ? `<button data-flch="${esc(x.r.orderNo)}" data-pc="${esc(pk)}" style="width:auto;padding:3px 10px;font-size:12px">${pk === '?' ? 'Challan (printer not chosen)' : 'Challan → ' + esc((p.printer && p.printer.name) || pk)}</button>` : ''}${rfirst ? `<button data-flch="${esc(x.r.orderNo)}" data-pc="${esc(ro.printer.code)}" style="width:auto;padding:3px 10px;font-size:12px;background:#7c3aed;border-color:#7c3aed">Ruffle challan → ${esc(ro.printer.name)}</button>` : ''}<button class="ghost" data-flfab="${esc(x.s.key)}" style="width:auto;padding:2px 9px;font-size:11.5px">Mark fabric ready</button></div></td></tr>`; }).join('');
+        <td style="white-space:nowrap;vertical-align:top"><div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start">${x.s.route !== 'stitch' ? `<label style="display:inline-flex;gap:5px;align-items:center;font-size:11.5px;cursor:pointer" title="Tick lines of any orders — one challan per printer"><input type="checkbox" data-flchk="${esc(x.s.key)}"${FLOW_CHPICK.has(x.s.key) ? ' checked' : ''} style="width:auto;margin:0"> pick</label>` : ''}${first ? `<button data-flch="${esc(x.r.orderNo)}" data-pc="${esc(pk)}" style="width:auto;padding:3px 10px;font-size:12px">${pk === '?' ? 'Challan (printer not chosen)' : 'Challan → ' + esc((p.printer && p.printer.name) || pk)}</button>` : ''}${rfirst ? `<button data-flch="${esc(x.r.orderNo)}" data-pc="${esc(ro.printer.code)}" style="width:auto;padding:3px 10px;font-size:12px;background:#7c3aed;border-color:#7c3aed">Ruffle challan → ${esc(ro.printer.name)}</button>` : ''}<button class="ghost" data-flfab="${esc(x.s.key)}" style="width:auto;padding:2px 9px;font-size:11.5px">Mark fabric ready</button></div></td></tr>`; }).join('');
     const fs = Object.values(cv.fab).filter(f => f.need > 0).sort((a, b) => b.short - a.short || a.name.localeCompare(b.name));
     FLOW.byprint = flowByPrintTable(rows);
     FLOW.bysize = flowBySizeTable(rows);
