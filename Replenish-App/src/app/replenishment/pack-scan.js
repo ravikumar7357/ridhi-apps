@@ -351,7 +351,9 @@ async function pksCamStart() {
   if ($("pksTorch")) $("pksTorch").classList.toggle("hide", !caps.torch);
   PKS.hasTorch = !!caps.torch;
   PKS.torch = false; PKS.torchAuto = false; PKS.torchHand = false; PKS.darkSaid = false; PKS.lightAt = 0;
-  PKS.fit = null; PKS.zxN = 0; PKS.readAt = Date.now(); PKS.frameMs = 0; PKS.loopAt = 0;
+  PKS.fit = null; PKS.zxN = 0; PKS.readAt = Date.now(); PKS.frameMs = 0; PKS.loopAt = 0; PKS.detErr = 0;
+  /* the better reader is fetched now on every phone, not after 2.5 s of nothing: ready when the phone's own one misses */
+  if (PKS.det) pksWzLoad().catch(() => {});
   pksSay("Point at the FNSKU label");
   pksLoop();
 }
@@ -490,6 +492,11 @@ function pksAimed(got, v) {
   const W = v.videoWidth || 1, H = v.videoHeight || 1;
   /* only a label that shows in the box on screen (21 Oct: one the packer could not see was counted) */
   const r = pksSeenRect(v), mx = r.x + r.w / 2, my = r.y + r.h / 2;
+  /* ONE LABEL IN VIEW IS THAT LABEL (21 Oct, Ravi's S24 video: a clear label in the box, nothing read for 20 s). Where a
+     phone's reader puts a label is not the same on every phone, so a lone label is never refused for where it is; the
+     box on screen only decides between two or more. */
+  const all = (got || []).filter((x) => x.rawValue);
+  if (all.length === 1) return all[0].rawValue;
   let best = null, bestD = Infinity;
   (got || []).forEach((x) => {
     const b = x.boundingBox;
@@ -501,6 +508,27 @@ function pksAimed(got, v) {
   });
   return best;
 }
+/* WHAT THE SCANNER SEES, for finding out why a phone does not read (21 Oct): open the app with ?scandebug=1 and a
+   line over the camera picture shows the reader, the picture sizes, labels found, the last read and the last error. */
+const PKS_DEBUG = typeof location !== "undefined" && /[?&]scandebug=1/.test(location.search || "");
+function pksDebugShow(v, code) {
+  if (code) PKS.dbgLast = code;
+  if (Date.now() - (PKS.dbgAt || 0) < 300) return;
+  PKS.dbgAt = Date.now();
+  const cam = v.parentNode;
+  if (!cam) return;
+  let el = cam.querySelector(".pks-dbg");
+  if (!el) {
+    el = document.createElement("div");
+    el.className = "pks-dbg";
+    el.style.cssText = "position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.65);color:#fde68a;font:11px/1.35 monospace;padding:3px 6px;pointer-events:none;white-space:pre-wrap";
+    cam.appendChild(el);
+  }
+  const r = pksSeenRect(v);
+  el.textContent = `reader ${PKS.det ? "phone" : PKS.wz ? "zxing-cpp" : window.ZXing ? "zxing-js" : "none"}${PKS.wz ? " +cpp" : PKS.wzP ? " (cpp loading)" : ""}`
+    + ` · video ${v.videoWidth}x${v.videoHeight} · box ${v.clientWidth}x${v.clientHeight} · seen ${Math.round(r.x)},${Math.round(r.y)} ${Math.round(r.w)}x${Math.round(r.h)}`
+    + ` · ${Math.round(PKS.frameMs || 0)} ms/picture · found ${PKS.dbgN == null ? "-" : PKS.dbgN} · last ${PKS.dbgLast || "-"}${PKS.dbgErr ? " · error " + PKS.dbgErr : ""}`;
+}
 /* each camera start is a new run: a picture callback left from the run before (the app went to the background and came
    back) ends instead of starting a second reader beside the new one */
 let PKS_RUN = 0;
@@ -511,15 +539,27 @@ async function pksLoop(run) {
   let code = null;
   try {
     if (PKS.det) {
-      code = pksAimed(await PKS.det.detect(v), v);
-      /* SOME PHONES' OWN READER SEES LITTLE (21 Oct: "kai phonon main scan bhi nahi"): nothing read for 2.5 s with the
-         camera running → every other picture is also given to ZXing, until the phone's reader reads again. */
-      if (!code && Date.now() - (PKS.readAt || 0) > 2500 && (PKS.zxN = (PKS.zxN || 0) + 1) % 2 === 0) {
+      /* A PHONE'S OWN READER THAT FAILS ON EVERY PICTURE ("Barcode detection service unavailable" on some Androids):
+         before, every picture was lost and the other reader never ran. Five failures in a row and it is set aside. */
+      let got = null;
+      try {
+        got = await PKS.det.detect(v);
+        PKS.detErr = 0;
+      } catch (e) {
+        PKS.dbgErr = (e && (e.name + ": " + e.message)) || String(e);
+        if (++PKS.detErr >= 5) { PKS.det = null; pksWzLoad().catch(() => pksZxLoad().catch(() => {})); }
+      }
+      if (got) PKS.dbgN = got.length;
+      code = got ? pksAimed(got, v) : null;
+      /* SOME PHONES' OWN READER SEES LITTLE (21 Oct: "kai phonon main scan bhi nahi"): a picture it reads nothing in,
+         every other one, goes to the better reader too */
+      if (!code && (PKS.zxN = (PKS.zxN || 0) + 1) % 2 === 0) {
         if (PKS.wz) code = await pksWzRead(v);
         else if (!PKS.wzP && Date.now() - (PKS.wzFailAt || 0) > 30000) pksWzLoad().catch(() => {});
       }
-    } else code = PKS.wz ? await pksWzRead(v) : pksZxRead(v);
+    } else code = PKS.wz ? await pksWzRead(v) : window.ZXing ? pksZxRead(v) : null;
   } catch (e) {
+    PKS.dbgErr = (e && (e.name + ": " + e.message)) || String(e);
     code = null;
   }
   if (run !== PKS_RUN || !PKS.on) return;     // the camera was closed while this picture was being read
@@ -534,6 +574,7 @@ async function pksLoop(run) {
     if (pksFrame(c, now, PKS, pksResolve(c).sku ? 1 : PKS_AGREE)) pksHit(code, "camera");
   }
   if (v) pksLightCheck(v, PKS.hasTorch);
+  if (PKS_DEBUG && v) pksDebugShow(v, code);
   /* the phone's own reader looks at each new picture as it arrives; the other readers take the next picture as soon as
      they are done with this one (it waited 140 ms before — 21 Oct, "scanning delayed") */
   if (PKS.det && v && typeof v.requestVideoFrameCallback === "function") { PKS.timer = 0; v.requestVideoFrameCallback(() => pksLoop(run)); }

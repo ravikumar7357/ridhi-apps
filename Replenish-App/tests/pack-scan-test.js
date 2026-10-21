@@ -33,7 +33,7 @@ function load(opts) {
     fgiNewId: p => p + '-' + Math.random().toString(36).slice(2, 7).toUpperCase(), ptPatch: async patch => { patches.push(patch); }, fbaBadge: () => {}, fgiOverBadge: () => {}, lstAlertFor: async () => '',
     renderPack: () => {}, renderFgi: () => {},
   };
-  const api = new Function(...Object.keys(ctx), SRC + '\n;return { PKS, pksResolve, pksFrame, pksCount, pksUndo, pksNextBox, pksSaveNow, pksImg, pksHit, pksDone, pksFinishAsk, packScanNew };')(...Object.values(ctx));
+  const api = new Function(...Object.keys(ctx), SRC + '\n;return { PKS, pksAimed, pksResolve, pksFrame, pksCount, pksUndo, pksNextBox, pksSaveNow, pksImg, pksHit, pksDone, pksFinishAsk, packScanNew };')(...Object.values(ctx));
   api.PKS.p = { id: 'PKT', title: 'T', account: 'Ridhi FBA', date: '2026-10-10', boxes: [] }; api.PKS.box = 1; api.PKS.per = 1;
   if (opts.orders) api.PKS.p.scan = api.packScanNew(opts.orders, [], '', '');
   return Object.assign(api, { saved, els, patches });
@@ -73,6 +73,18 @@ function load(opts) {
   const body = name => (SRC.replace(/\r\n/g, '\n').match(new RegExp('function ' + name + '\\([\\s\\S]*?\\n}\\n')) || [''])[0];
   ok('changing box, keeping a piece aside, or a QC accept do not forget the label in view (no second count)',
     ['pksGoBox', 'pksNextBox', 'pksKeptAside'].every(f => body(f) && !body(f).includes('PKS.seen = null')) && /pksSeenNow\(code\);[^\n]*\n\s*pksHit\(code, "qc"\)/.test(SRC.replace(/\r\n/g, '\n')));
+
+  console.log('== 21 Oct, S24 video: a clear label in the box, nothing read ==');
+  A = load();
+  const vid = { videoWidth: 1080, videoHeight: 1920, clientWidth: 400, clientHeight: 190 };
+  const at = (code, x, y) => ({ rawValue: code, boundingBox: { x: x - 100, y: y - 30, width: 200, height: 60 } });
+  ok('one label in view is read wherever the phone says it is', A.pksAimed([at('X003W2O642', 960, 540)], vid) === 'X003W2O642');
+  ok('of two, the one in the box on screen', A.pksAimed([at('X0045G8P3B', 540, 300), at('X003ZK2Q9L', 540, 960)], vid) === 'X003ZK2Q9L');
+  ok('nothing found is nothing', A.pksAimed([], vid) === null && A.pksAimed([{ rawValue: '' }], vid) === null);
+  const flat = SRC.replace(/\r\n/g, '\n');
+  ok('a phone reader that fails on every picture is set aside after five, and the other reader takes over', /catch \(e\) \{[\s\S]{0,200}if \(\+\+PKS\.detErr >= 5\) \{ PKS\.det = null; pksWzLoad\(\)/.test(flat));
+  ok('the phone reader missing a picture hands every other one to the better reader at once (no 2.5 s wait)', /if \(!code && \(PKS\.zxN = \(PKS\.zxN \|\| 0\) \+ 1\) % 2 === 0\) \{\n\s*if \(PKS\.wz\) code = await pksWzRead\(v\)/.test(flat));
+  ok('the better reader is fetched when the camera opens', /if \(PKS\.det\) pksWzLoad\(\)\.catch/.test(flat));
 
   console.log('== counting into the box ==');
   A = load();
