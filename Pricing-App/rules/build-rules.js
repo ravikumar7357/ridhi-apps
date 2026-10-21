@@ -54,6 +54,20 @@ const { readersOf, NODES } = require('./read-model');
 const readExpr = node => { const r = readersOf(node);
   return `auth != null && ${NOT_VENDOR} && (${[ADMIN].concat(r.tabs.map(tab), r.rights.map(right)).join(' || ')})`; };
 
+/* PHASE 5 (2026-10-17) — THE CORE REGISTERS ARE WRITTEN ONLY BY THOSE WHOSE SCREENS WORK ON THEM.
+ *
+ * Until now any of the staff accounts could write the stock, order book, cutting, job work, press and QC registers
+ * directly, whatever screens they held; an approval was a button the app showed or hid. A screen that writes a
+ * register always reads it first, so the people who may READ a register (read-model.js) are the widest set that can
+ * need to write it. Writing is narrowed to them — staff who never open a screen touching the register lose a write
+ * they never used. Anything the model misses shows up in pt_monitor as "save refused (401/403)" (core/monitor.js),
+ * and rules-tool.js puts the old rules back by itself if the replay finds one wrong answer. */
+const writeExpr = node => { const r = readersOf(node);
+  return `${STAFF} && (${[ADMIN].concat(r.tabs.map(tab), r.rights.map(right)).join(' || ')})`; };
+const lockedIndexed = (node, ix) => (ix ? { '.write': writeExpr(node), '.indexOn': ix } : { '.write': writeExpr(node) });
+/* ADD-ONLY: a new line may be written; an existing one can be neither changed nor deleted, by anybody. */
+const ADD_ONLY = `${STAFF} && !data.exists()`;
+
 const rules = {
 
   pt_perms: { '.write': any(ADMIN) },
@@ -100,23 +114,33 @@ const rules = {
     $emailKey: { '.read': OWN_ROW, '.write': `${OWN_ROW} && newData.hasChildren(['changedAt'])` },
   },
 
-  pt_vendorOrders: { '.write': STAFF, $code: { '.read': OWN_BRANCH, '.write': OWN_BRANCH } },
+  pt_vendorOrders: { '.write': writeExpr('pt_vendorOrders'), $code: { '.read': OWN_BRANCH, '.write': OWN_BRANCH } },
 
   /* WHAT A PRINTER SAYS IS ALREADY ON THEIR FLOOR, per size, so the factory stops sending cloth they
    * have. Their own branch and nobody else's, exactly as their orders are — one printer must not be
    * able to read, still less edit, what another one is holding. It comes off what gets sent, so it
    * is a claim the office has to be able to see: staff read and write the lot. */
-  pt_rfdStock: { '.write': STAFF, $code: { '.read': OWN_BRANCH, '.write': OWN_BRANCH } },
+  pt_rfdStock: { '.write': writeExpr('pt_rfdStock'), $code: { '.read': OWN_BRANCH, '.write': OWN_BRANCH } },
 
-  pt_baseData: staffIndexed(['sku', 'empName', 'issueDate', 'frozen']),
-  /* Job Work's completed entries, by month (2026-10-01): the same staff write as pt_baseData; the read mirrors it (read-model.js). */
-  pt_baseDone: { '.write': STAFF },
-  pt_cuttingData: staffIndexed(['sku', 'orderNo', 'cutDate']),
-  pt_pressInventory: staffIndexed(['sku', 'orderNo', 'entryDate']),
-  pt_orderBook: staffIndexed(['sku', 'orderNo', 'orderDate']),
+  pt_baseData: lockedIndexed('pt_baseData', ['sku', 'empName', 'issueDate', 'frozen']),
+  /* Job Work's completed entries, by month (2026-10-01): the same write as pt_baseData; the read mirrors it (read-model.js). */
+  pt_baseDone: lockedIndexed('pt_baseDone'),
+  pt_cuttingData: lockedIndexed('pt_cuttingData', ['sku', 'orderNo', 'cutDate']),
+  pt_pressInventory: lockedIndexed('pt_pressInventory', ['sku', 'orderNo', 'entryDate']),
+  pt_orderBook: lockedIndexed('pt_orderBook', ['sku', 'orderNo', 'orderDate']),
+  pt_fgiLedger: lockedIndexed('pt_fgiLedger'),
+
+  /* THE HISTORY CANNOT BE REWRITTEN (2026-10-17). Who changed what (pt_audit/<month>/<id>), what was deleted
+   * (pt_trash/<id>) and what went wrong in the browser (pt_monitor/<day>/<id>) take new lines only. Until now they
+   * fell under "$other", so any staff account could edit or wipe them. An admin may still mark a deleted record as
+   * restored (core/history.js auditRestore). Only admins read them. */
+  pt_audit: { '.read': any(ADMIN), $ym: { $id: { '.write': ADD_ONLY } } },
+  pt_trash: { '.read': any(ADMIN), $id: { '.write': ADD_ONLY,
+    restoredAt: { '.write': any(ADMIN) }, restoredBy: { '.write': any(ADMIN) } } },
+  pt_monitor: { '.read': any(ADMIN), $day: { $id: { '.write': ADD_ONLY } } },
   pt_customSkus: staffIndexed(['sku', 'brand', 'articleType']),
   pt_fabInvLedger: staffIndexed(['orderNo', 'date', 'fabricType']),
-  pt_qcChecks: staffIndexed(['sku', 'date']),
+  pt_qcChecks: lockedIndexed('pt_qcChecks', ['sku', 'date']),
   pt_qcIssuance: staffIndexed(['sku', 'date', 'employee']),
   pt_extraHours: staffIndexed(['date', 'empName', 'status']),
   pt_salesOrders: staffIndexed(['orderNo', 'orderDate', 'channel']),

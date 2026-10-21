@@ -444,6 +444,7 @@ function showTab(which) {
   VEND_WAS_ON = (which === 'vend');
   const TAB_PREV = TAB_NOW;
   TAB_NOW = which;
+  if (typeof monScreen === 'function') monScreen(which);
   /* THE ADDRESS SAYS THE SCREEN, so a link to it — a new tab, a reload — opens here again. Since 14 Oct it is pushed when
    * you move from one screen to another, so Back goes to the screen before instead of out of the app. */
   /* Back returns to the screen before (14 Oct): a screen picked here is a new step — except the first one shown, and one

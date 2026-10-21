@@ -208,7 +208,7 @@ onAuthStateChanged(auth, async user => {
     if (c.exists()) { const d = c.data(); API = { url: String(d.url || '').trim(), key: String(d.key || '').trim() }; }
     else rMsg('⚠️ Backend not configured — create Firestore doc config/replapi with {url, key}.', true);
     if (p === false) PRAPI = null;
-    else if (p.exists()) { const d = p.data(); PRAPI = { url: String(d.url || '').trim(), key: String(d.key || '').trim() }; }
+    else if (p.exists()) { const d = p.data(); PRAPI = { url: String(d.url || '').trim(), key: String(d.key || '').trim(), writeKey: String(d.writeKey || '').trim() }; }
   } catch (e) {
     // Distinguish "the rules said no" from anything else — a denied read here means this account does
     // not satisfy canRepl() in firestore.rules (perms/<email>.repl must be true, or admin), even though

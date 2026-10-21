@@ -117,18 +117,20 @@ function doGet(e) {
     // Trim the incoming key: a stray space/newline picked up when pasting it into Firestore is
     // invisible but breaks the match, and the resulting "Unauthorized" looks like a real auth fault.
     var sent = String(p.key || '').trim();
-    if (sent !== key) {
-      return json_({ ok: false, error: 'Unauthorized.' +
-        (sent ? ' (sent a ' + sent.length + '-char key; backend expects ' + key.length + ')' : ' (no key sent)') });
-    }
+    /* 2026-10-17: the answer no longer says how long the expected key is — that told a guesser half of what
+     * they needed. "No key sent" stays, because it is the common setup mistake and gives nothing away. */
+    if (sent !== key) return json_({ ok: false, error: 'Unauthorized.' + (sent ? '' : ' (no key sent)') });
 
-    /* ---- can we actually do MCF and write tracking back? A question, not a change. ---- */
-    /* Names only, never values: enough to spot a property saved under a slightly different name. */
-    /* A real read, not just a scope list: what the store actually has waiting to be shipped. */
-    if (p.shoptest) return json_(shopTest_(String(p.shop || '')));
-    if (p.propnames) return json_({ ok: true, names: PropertiesService.getScriptProperties().getKeys().filter(function (k) { return /SHOPIFY/i.test(k); }).map(function (k) { return JSON.stringify(k); }) });
-    if (p.mcfdiag) return json_(mcfDiag_(String(p.brand || 'SP').toUpperCase(), String(p.shop || '')));
-    if (p.fuldiag) return json_(fulfilDiag_(p.days));
+    /* ---- DIAGNOSTIC ROUTES: OFF unless Script Property DEBUG_ROUTES = 1 (2026-10-17) ----
+     * They were open to anyone holding the read key, and mcfdiag answered with the first characters of the
+     * Shopify token. Nothing in either app calls them. Turn them on for a debugging session, then off again. */
+    if (p.shoptest || p.propnames || p.mcfdiag || p.fuldiag) {
+      if (prop_('DEBUG_ROUTES') !== '1') return json_({ ok: false, error: 'Diagnostic routes are switched off (Script Property DEBUG_ROUTES).' });
+      if (p.shoptest) return json_(shopTest_(String(p.shop || '')));
+      if (p.propnames) return json_({ ok: true, names: PropertiesService.getScriptProperties().getKeys().filter(function (k) { return /SHOPIFY/i.test(k); }).map(function (k) { return JSON.stringify(k); }) });
+      if (p.mcfdiag) return json_(mcfDiag_(String(p.brand || 'SP').toUpperCase(), String(p.shop || '')));
+      if (p.fuldiag) return json_(fulfilDiag_(p.days));
+    }
 
     if (p.ping) {
       getToken_();                                  // throws if the credentials are wrong
@@ -332,9 +334,21 @@ function doPost(e) {
     var p = {};
     try { p = JSON.parse(raw); } catch (x) { return json_({ ok: false, error: 'Body was not JSON.' }); }
 
-    var key = prop_('API_KEY');
-    if (!key) return json_({ ok: false, error: 'API_KEY is not set on the backend.' });
-    if (String(p.key || '').trim() !== key) return json_({ ok: false, error: 'Unauthorized.' });
+    /* WRITES HAVE THEIR OWN KEY, AND A NAME (2026-10-17).
+     * WRITE_KEY, when set, is the only key a POST accepts; until it is set the old API_KEY still works, so this can
+     * be deployed before the apps carry the new key. Every write also carries the signed-in person's Firebase ID
+     * token: it is checked with Google and the person must have rights on record (Firestore perms/<email>, read
+     * with their own token, so the script holds no database credential). REQUIRE_SIGNIN = 1 refuses a write that
+     * fails that check; until then the failure is only written to the log, so nothing breaks on the day of deploy. */
+    var wkey = prop_('WRITE_KEY') || prop_('API_KEY');
+    if (!wkey) return json_({ ok: false, error: 'WRITE_KEY / API_KEY is not set on the backend.' });
+    if (String(p.key || '').trim() !== wkey) return json_({ ok: false, error: 'Unauthorized.' });
+    var who = writerOf_(p.idToken);
+    var act = p.mail || p.limg || p.lfix || p.mcf || p.shopify || '?';
+    console.log('POST ' + act + ' by ' + (who.email || '(no signed-in person: ' + who.why + ')'));
+    if (!who.email && prop_('REQUIRE_SIGNIN') === '1')
+      return json_({ ok: false, error: 'Sign in again before saving — the backend could not confirm who you are (' + who.why + ').' });
+    delete p.idToken;
 
     if (p.mail === 'po') return json_(mailPo_(p));
     if (p.limg === 'patch') return json_(limgPatch_(p));
@@ -352,5 +366,37 @@ function doPost(e) {
   } catch (err) {
     return json_({ ok: false, error: String(err && err.message || err).slice(0, 400) });
   }
+}
+
+/**
+ * Who is writing: { email } for a valid Firebase ID token whose owner has rights on record, else { why }.
+ * FIREBASE_WEB_KEY (Script Property) is the apps' public web key — it only lets Google say whose token this is.
+ * Cached for ten minutes per token, so a burst of saves costs one check.
+ */
+function writerOf_(idToken) {
+  idToken = String(idToken || '');
+  if (!idToken) return { why: 'no token sent' };
+  var webKey = prop_('FIREBASE_WEB_KEY');
+  if (!webKey) return { why: 'FIREBASE_WEB_KEY not set' };
+  var cache = CacheService.getScriptCache(), ck = 'who_' + Utilities.base64EncodeWebSafe(
+    Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, idToken)).slice(0, 40);
+  var hit = cache.get(ck);
+  if (hit) return JSON.parse(hit);
+  var out;
+  try {
+    var r = UrlFetchApp.fetch('https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=' + encodeURIComponent(webKey), {
+      method: 'post', contentType: 'application/json', payload: JSON.stringify({ idToken: idToken }), muteHttpExceptions: true });
+    var u = r.getResponseCode() === 200 ? (JSON.parse(r.getContentText()).users || [])[0] : null;
+    var email = u && String(u.email || '').toLowerCase();
+    if (!email) out = { why: 'token not accepted (' + r.getResponseCode() + ')' };
+    else {
+      var f = UrlFetchApp.fetch('https://firestore.googleapis.com/v1/projects/price-research-48ff3/databases/(default)/documents/perms/'
+        + encodeURIComponent(email), { headers: { Authorization: 'Bearer ' + idToken }, muteHttpExceptions: true });
+      out = (f.getResponseCode() === 200 || email === 'ravi@thefabricrush.com') ? { email: email }
+        : { why: email + ' has no rights on record (' + f.getResponseCode() + ')' };
+    }
+  } catch (e) { out = { why: 'check failed: ' + String(e && e.message || e).slice(0, 80) }; }
+  cache.put(ck, JSON.stringify(out), 600);
+  return out;
 }
 

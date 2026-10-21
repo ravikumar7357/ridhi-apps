@@ -2785,7 +2785,7 @@ onAuthStateChanged(auth, async user => {
     const c = await getDoc(doc(db, 'config', 'api'));
     // Trim both: a stray space/newline pasted into the Firestore fields is invisible but would
     // break the key match (or the URL) with a confusing "Unauthorized".
-    if (c.exists()) { const d = c.data(); API = { url: String(d.url || '').trim(), key: String(d.key || '').trim() }; }
+    if (c.exists()) { const d = c.data(); API = { url: String(d.url || '').trim(), key: String(d.key || '').trim(), writeKey: String(d.writeKey || '').trim() }; }
     else { API_ERR = 'the Firestore document config/api does not exist'; showMsg('⚠️ Backend not configured — create the Firestore doc config/api with {url, key}.', true); }
   } catch (e) {
     // KEPT, not just shown. showMsg puts this at the top of the page, and every tab that later
@@ -14482,8 +14482,11 @@ const imEsc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&
 async function imPost(body) {
   if (!API || !API.url) throw new Error('Backend not configured — ' + (API_ERR || 'config/api was not read'));
   // text/plain keeps it a simple request: Apps Script cannot answer a CORS preflight.
+  /* A write carries its own key (config/api writeKey, once set) and the signed-in person's token (2026-10-17). */
+  let idToken = '';
+  try { if (auth.currentUser) idToken = await auth.currentUser.getIdToken(); } catch (e) { /* the backend says so if it needs it */ }
   const r = await fetch(API.url, { method: 'POST', headers: { 'Content-Type': 'text/plain' },
-    body: JSON.stringify(Object.assign({ key: API.key }, body)), redirect: 'follow' });
+    body: JSON.stringify(Object.assign({ key: API.writeKey || API.key, idToken }, body)), redirect: 'follow' });
   const text = await r.text();
   try { return JSON.parse(text); } catch (e) { throw new Error('The backend did not answer with data: ' + text.slice(0, 120)); }
 }

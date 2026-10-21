@@ -67,8 +67,11 @@ const imEsc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&
 async function imPost(body) {
   if (!API || !API.url) throw new Error('Backend not configured — ' + (API_ERR || 'config/api was not read'));
   // text/plain keeps it a simple request: Apps Script cannot answer a CORS preflight.
+  /* A write carries its own key (config/api writeKey, once set) and the signed-in person's token (2026-10-17). */
+  let idToken = '';
+  try { if (auth.currentUser) idToken = await auth.currentUser.getIdToken(); } catch (e) { /* the backend says so if it needs it */ }
   const r = await fetch(API.url, { method: 'POST', headers: { 'Content-Type': 'text/plain' },
-    body: JSON.stringify(Object.assign({ key: API.key }, body)), redirect: 'follow' });
+    body: JSON.stringify(Object.assign({ key: API.writeKey || API.key, idToken }, body)), redirect: 'follow' });
   const text = await r.text();
   try { return JSON.parse(text); } catch (e) { throw new Error('The backend did not answer with data: ' + text.slice(0, 120)); }
 }

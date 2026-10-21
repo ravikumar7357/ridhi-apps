@@ -635,10 +635,14 @@ async function apiPost(body) {
     + 'lives. Its address is in Firestore config/api, and this account has to be allowed to read it.');
   // text/plain deliberately: application/json would trigger a CORS preflight that an Apps Script
   // web app cannot answer. The content is still JSON.
+  /* A write carries its own key (config/api writeKey, once set) and the signed-in person's token, so the backend
+   * knows who sent the parcel or the mail (Pricing-API/Code.gs doPost, 2026-10-17). */
+  let idToken = '';
+  try { if (auth.currentUser) idToken = await auth.currentUser.getIdToken(); } catch (e) { /* the backend says so if it needs it */ }
   const r = await fetch(PRAPI.url, {
     method: 'POST', redirect: 'follow',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ ...body, key: PRAPI.key }),
+    body: JSON.stringify({ ...body, key: PRAPI.writeKey || PRAPI.key, idToken }),
   });
   // Same trap as prGet: a visitor the deployment will not run for gets a Google HTML page.
   const text = await r.text();

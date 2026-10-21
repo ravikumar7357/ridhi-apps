@@ -499,7 +499,7 @@ function mcfDiag_(brand, shopBrand) {
    * together, or a paste that brought a space with it. Never print the token itself. */
   var tk = prop_(SHOP_PREFIX + 'SHOPIFY_TOKEN') || '';
   out.config = { storeProp: prop_(SHOP_PREFIX + 'SHOPIFY_STORE') || '(not set)',
-    tokenLen: tk.length, tokenStarts: tk.slice(0, 6), tokenHasSpace: /s/.test(tk) };
+    tokenLen: tk.length, tokenHasSpace: /\s/.test(tk) };   // never any part of the token itself (2026-10-17)
 
   try {
     var scRes = UrlFetchApp.fetch('https://' + shopifyStore_() + '/admin/oauth/access_scopes.json', {

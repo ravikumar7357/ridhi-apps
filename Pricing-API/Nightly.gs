@@ -442,6 +442,7 @@ function nightlyTickLocked_() {
     }
   } catch (e) {
     st.lastErrorAt = nowStamp_(); st.lastError = String(e.message || e).slice(0, 300);
+    jobAlert_('Pricing-API nightly (' + (st.phase || '?') + ')', st.lastError);
   }
   nSaveState_(st);
 }
@@ -453,6 +454,7 @@ function nPhaseOrders_(st, kind) {
     : weeklySalesChunk_(st.book, st.row, NIGHTLY_ROWS, 26, true);   // true: also bucket by day
   if (!r.ok) {
     st.lastErrorAt = nowStamp_(); st.lastError = r.error;
+    jobAlert_('Pricing-API nightly orders scan (' + kind + ')', r.error);
     st.phase = (kind === 'daily') ? 'weekly' : 'adsAsk'; st.book = 0; st.row = 2;
     return true;
   }

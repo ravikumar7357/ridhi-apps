@@ -288,7 +288,8 @@ function refreshChain_(fresh) {
     state.runs = (state.runs || 0) + 1;
     // Runaway guard: never let the self-continuation loop go on forever.
     if (state.runs > 40) { props.deleteProperty(REFRESH_STATE_KEY); removeContinuationTriggers_();
-      Logger.log('refreshChain: aborting — exceeded 40 continuations.'); return; }
+      Logger.log('refreshChain: aborting — exceeded 40 continuations.');
+      jobAlert_('Repl-API-CPC refresh chain', 'Stopped after 40 continuations without finishing — the refresh did not complete.'); return; }
 
     var prevSilent = SILENT_RUN; SILENT_RUN = true;
     var softDeadline = Date.now() + REFRESH_SOFT_MS;
@@ -301,7 +302,8 @@ function refreshChain_(fresh) {
       if (Date.now() > softDeadline - ph.min * 60 * 1000) break;
       try { ss.toast('Step ' + (state.i + 1) + '/' + PHASES.length + ': ' + ph.name + '…', '♻️ Auto-Refresh', 30); } catch (e) {}
       try { ph.fn(); state.log.push('✅ ' + ph.name); }
-      catch (e) { state.log.push('⚠️ ' + ph.name + ': ' + (e.message || e)); Logger.log('refreshChain ' + ph.name + ': ' + e); }
+      catch (e) { state.log.push('⚠️ ' + ph.name + ': ' + (e.message || e)); Logger.log('refreshChain ' + ph.name + ': ' + e);
+        jobAlert_('Repl-API-CPC refresh: ' + ph.name, e && (e.stack || e.message) || e); }
       state.i++;
       props.setProperty(REFRESH_STATE_KEY, JSON.stringify(state));   // checkpoint
     }
@@ -385,13 +387,14 @@ function hourlyRefresh() {
     // NOTE: the Orders pull was removed 2026-07-07 (Orders module is being rebuilt from scratch).
     // 1) Daily Performance — LIGHT refresh: re-synthesise TODAY's live days from the Orders tab
     //    (whatever data it holds; no Amazon report call). Heavy report refresh is in the daily chain.
-    brands.forEach(function (b) { try { refreshDailyPerfLive_(b.pfx, b.dpTab, b.ordTab); } catch (e) { Logger.log('hourly ' + b.label + ' DP: ' + e); } });
+    var fail = function (what, e) { Logger.log(what + ': ' + e); jobAlert_('Repl-API-CPC ' + what, e && (e.stack || e.message) || e); };
+    brands.forEach(function (b) { try { refreshDailyPerfLive_(b.pfx, b.dpTab, b.ordTab); } catch (e) { fail('hourly ' + b.label + ' DP', e); } });
     // 2) Sync the sales-side docs to Firebase (all recompute from Orders / the DP tab).
     if (prop_('FIREBASE_PROJECT_ID')) {
       brands.forEach(function (b) {
-        try { syncDailyPerformance_(b.pfx, b.key, b.label); } catch (e) { Logger.log('hourly DP sync ' + b.label + ': ' + e); }
-        try { syncSalesAnalysis_(b.pfx, b.key, b.label); }    catch (e) { Logger.log('hourly SA sync ' + b.label + ': ' + e); }
-        try { syncParentWoW_(b.pfx, b.key, b.label); }        catch (e) { Logger.log('hourly PW sync ' + b.label + ': ' + e); }
+        try { syncDailyPerformance_(b.pfx, b.key, b.label); } catch (e) { fail('hourly DP sync ' + b.label, e); }
+        try { syncSalesAnalysis_(b.pfx, b.key, b.label); }    catch (e) { fail('hourly SA sync ' + b.label, e); }
+        try { syncParentWoW_(b.pfx, b.key, b.label); }        catch (e) { fail('hourly PW sync ' + b.label, e); }
       });
     }
   } finally {
@@ -885,6 +888,27 @@ function prop_(k) {
   var v = PropertiesService.getScriptProperties().getProperty(k);
   return v ? String(v).trim() : '';
 }
+
+/**
+ * A BACKGROUND JOB FAILED — tell a person (2026-10-17). Failures used to go only to Logger, which nobody reads.
+ * Mails ALERT_TO (Script Property; comma-separated) or the account the script runs as. The same job and message
+ * mail at most once every six hours. Never throws. Needs the mail permission once (run testJobAlert from the editor).
+ */
+function jobAlert_(job, msg) {
+  try {
+    var text = String(msg || '').slice(0, 1500);
+    var ck = 'alert_' + Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, job + '|' + text.slice(0, 200)));
+    var cache = CacheService.getScriptCache();
+    if (cache.get(ck)) return;
+    cache.put(ck, '1', 6 * 3600);
+    var to = prop_('ALERT_TO') || Session.getEffectiveUser().getEmail();
+    if (!to) return;
+    MailApp.sendEmail(to, 'ERP job failed: ' + job, job + ' failed at ' + new Date().toISOString() + '\n\n' + text
+      + '\n\nThis mail repeats at most once every 6 hours for the same problem. Apps Script → Executions has the full log.');
+  } catch (e) { Logger.log('jobAlert_ could not send: ' + (e.message || e)); }
+}
+/** Run once from the editor: grants the mail permission and proves the alert reaches you. */
+function testJobAlert() { jobAlert_('test (' + SpreadsheetApp.getActiveSpreadsheet().getName() + ')', 'If you can read this, job alerts work.'); }
 function marketplaceId_() {
   return prop_(ACTIVE_PREFIX + '_MARKETPLACE_ID') || prop_('SP_MARKETPLACE_ID') || 'ATVPDKIKX0DER';
 }

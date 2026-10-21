@@ -93,7 +93,7 @@ onAuthStateChanged(auth, async user => {
     const c = await getDoc(doc(db, 'config', 'api'));
     // Trim both: a stray space/newline pasted into the Firestore fields is invisible but would
     // break the key match (or the URL) with a confusing "Unauthorized".
-    if (c.exists()) { const d = c.data(); API = { url: String(d.url || '').trim(), key: String(d.key || '').trim() }; }
+    if (c.exists()) { const d = c.data(); API = { url: String(d.url || '').trim(), key: String(d.key || '').trim(), writeKey: String(d.writeKey || '').trim() }; }
     else { API_ERR = 'the Firestore document config/api does not exist'; showMsg('⚠️ Backend not configured — create the Firestore doc config/api with {url, key}.', true); }
   } catch (e) {
     // KEPT, not just shown. showMsg puts this at the top of the page, and every tab that later

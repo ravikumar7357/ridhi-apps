@@ -5,6 +5,27 @@
 /* ===================== Notifications ===================== */
 
 /**
+ * A BACKGROUND JOB FAILED — tell a person (2026-10-17).
+ * Until now a failure was written to the job's own state (lastError) and the Executions log, which nobody reads,
+ * so a broken nightly was found days later by somebody noticing old numbers. This mails ALERT_TO (Script
+ * Property; comma-separated) or, if unset, the account the script runs as. The same job and message mail at most
+ * once every six hours, so a job failing every ten minutes does not fill the inbox. Never throws.
+ */
+function jobAlert_(job, msg) {
+  try {
+    var text = String(msg || '').slice(0, 1500);
+    var ck = 'alert_' + Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, job + '|' + text.slice(0, 200)));
+    var cache = CacheService.getScriptCache();
+    if (cache.get(ck)) return;
+    cache.put(ck, '1', 6 * 3600);
+    var to = prop_('ALERT_TO') || Session.getEffectiveUser().getEmail();
+    if (!to) return;
+    MailApp.sendEmail(to, 'ERP job failed: ' + job, job + ' failed at ' + new Date().toISOString() + '\n\n' + text
+      + '\n\nThis mail repeats at most once every 6 hours for the same problem. Apps Script → Executions has the full log.');
+  } catch (e) { Logger.log('jobAlert_ could not send: ' + (e.message || e)); }
+}
+
+/**
  * Email the approvers that something is waiting for them. Sent from the account this script runs as.
  *
  * BEST EFFORT ON PURPOSE. The approval queue in the app is the source of truth; this is only a nudge.

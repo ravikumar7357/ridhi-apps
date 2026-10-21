@@ -52,6 +52,14 @@ async function auditTrash(paths, why) {
   try { await ptAuditWrite(patch); } catch (e) { return 0; }
   return Object.keys(patch).length;
 }
+/** A save the database refused, for the monitor (core/monitor.js). Which registers, not the values. Never throws. */
+function ptSaveFailed(kind, paths, status) {
+  try {
+    if (typeof monLog !== 'function') return;
+    const regs = [...new Set((paths || []).map(p => String(p).split('/')[0]))].slice(0, 6).join(', ');
+    monLog('save', `${kind} refused (${status}) on ${regs}`, { status, n: (paths || []).length });
+  } catch (e) { /* never in the way of the error the caller is about to throw */ }
+}
 /** A plain REST read of one path — not the live listener, which may be a moment behind a write just made. */
 async function ptGetFresh(path) {
   const r = await fetch(`${PT_URL}/${ptPath(path)}.json` + await ptAuthQuery());
@@ -202,6 +210,7 @@ async function ptPut(path, value) {
     method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(value),
   });
   ptLiveWrote([path]);
+  if (!r.ok) ptSaveFailed('put', [path], r.status);
   if (r.status === 401 || r.status === 403)
     throw new Error('The production database refused the write (permission denied). Sign out and '
       + 'sign in again; if it keeps happening, this account is not allowed to change production data.');
@@ -229,6 +238,7 @@ async function ptCas(path, expect, next) {
   const r = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'if-match': tag }, body: JSON.stringify(next) });
   ptLiveWrote([path]);
   if (r.status === 412) return 'changed';
+  if (!r.ok) ptSaveFailed('put', [path], r.status);
   if (r.status === 401 || r.status === 403)
     throw new Error('The production database refused the change — this account does not hold the right it needs.');
   if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
@@ -258,6 +268,7 @@ async function ptPatch(updates, opts) {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates),
   });
   ptLiveWrote(Object.keys(updates || {}));
+  if (!r.ok) ptSaveFailed('patch', Object.keys(updates || {}), r.status);
   if (r.status === 401 || r.status === 403)
     throw new Error('The production database refused the change — this account does not hold the right '
       + 'it needs. If the right was only just given, sign out and in again; otherwise ask an admin.');
@@ -280,6 +291,7 @@ async function ptDelete(path) {
   ptLiveWrote([path]);
   const r = await fetch(`${PT_URL}/${ptPath(path)}.json` + await ptAuthQuery(), { method: 'DELETE' });
   ptLiveWrote([path]);
+  if (!r.ok) ptSaveFailed('delete', [path], r.status);
   if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
   auditLog('delete', { [path]: null });
   ptSyncNote([path], true);

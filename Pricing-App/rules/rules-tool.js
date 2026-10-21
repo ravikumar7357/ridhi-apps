@@ -7,6 +7,8 @@
  *   node rules-tool.js check p1   …expecting phase 1 (the money nodes)
  *   node rules-tool.js check p4   …expecting phase 4: every node READ only by the tabs (or rights) that need it
  *   node rules-tool.js check p3   …expecting phase 3: a login with no rights on record reads and writes NOTHING
+ *   node rules-tool.js check p5   …expecting phase 5: the core registers written only by those who may read them;
+ *                                 the history (pt_audit, pt_trash, pt_monitor) takes new lines only
  *   node rules-tool.js check p2   …expecting phase 2 (rates by the row, the master lists, vendor identity) — what ../database.rules.next.json promises
  *   node rules-tool.js deploy     seed → save the live rules → put the new ones → check new →
  *                                 PUT THE OLD ONES BACK BY ITSELF if a single answer is not the expected one
@@ -149,7 +151,15 @@ const NODES = ['pt_perms', 'pt_payoutFreezes', 'pt_printerRates', 'pt_rateList',
   'pt_masters/ruffleRule', 'pt_masters/recipe', 'pt_masters/zz_someOtherList', 'pt_vendorByEmail', 'pt_loginDir',
   'pt_vendorMap', 'pt_vendorPin', 'pt_baseData', 'pt_orderBook', 'pt_salesOrders', 'pt_accLedger', 'zz_unnamedNode',
   /* delta sync (2026-10-09): staff write the change register, like the registers themselves */
-  'pt_sync/pt_orderBook', 'pt_sync/pt_masterDB', 'pt_sync/_reset'];
+  'pt_sync/pt_orderBook', 'pt_sync/pt_masterDB', 'pt_sync/_reset',
+  /* phase 5 (2026-10-17): the core registers, written only by those whose screens work on them */
+  'pt_baseDone', 'pt_cuttingData', 'pt_pressInventory', 'pt_fgiLedger', 'pt_qcChecks',
+  /* …and the history, which takes new lines only: a line that does not exist yet may be written by staff */
+  'pt_audit/2026-10/zz_ruletest_line', 'pt_trash/zz_ruletest_line', 'pt_monitor/2026-10-17/zz_ruletest_line'];
+/* PHASE 5: the registers whose write is narrowed to the people who may read them (build-rules.js writeExpr). */
+const P5_LOCKED = ['pt_baseData', 'pt_baseDone', 'pt_cuttingData', 'pt_pressInventory', 'pt_orderBook', 'pt_fgiLedger',
+  'pt_qcChecks', 'pt_vendorOrders', 'pt_rfdStock'];
+const P5_ADD_ONLY = /^pt_(audit|trash|monitor)\//;
 /* Filled in by check(): the path of a rate that is APPROVED today, so that "may somebody without the
  * right touch an approved rate" is asked of a real one. */
 let APPROVED_ROW = '';
@@ -158,12 +168,19 @@ function expectWrite(who, node, mode) {
   /* A printer writes their own branch of either node, and nothing else anywhere. */
   if (who.kind === 'vendor') return node === 'pt_vendorOrders/' + who.code || node === 'pt_rfdStock/' + who.code;
   /* PHASE 3: signed in is not enough. Anybody can sign themselves up; only rights on record make staff. */
-  if ((mode === 'p3' || mode === 'p4') && !who.p) return false;
+  if ((mode === 'p3' || mode === 'p4' || mode === 'p5') && !who.p) return false;
+  const p = who.p || { admin: false, r: {}, t: {} };
+  if (mode === 'p5') {
+    /* A history line that does not exist yet: any staff with rights on record (the "delete" of a missing key the
+     * check sends is judged as a write of a new line). The line itself is never left behind. */
+    if (P5_ADD_ONLY.test(node)) return true;
+    const reg = node.split('/')[0];
+    if (P5_LOCKED.indexOf(reg) >= 0) return READS.mayRead(p, reg);
+  }
   // staff write every vendor branch of both vendor-keyed nodes
   if (node.indexOf('pt_vendorOrders/') === 0 || node.indexOf('pt_rfdStock/') === 0) return true;
   if (mode === 'p0') return true;                                    // before any of this: any staff, anything
-  const p = who.p || { admin: false, r: {}, t: {} };
-  if (mode === 'p2' || mode === 'p3' || mode === 'p4') {
+  if (mode === 'p2' || mode === 'p3' || mode === 'p4' || mode === 'p5') {
     if (APPROVED_ROW && node === APPROVED_ROW) return p.admin || !!p.r.rateApprove;   // an approved rate: approvers only
     if (node === 'pt_printerRates') return p.admin || !!p.r.rateApprove || !!p.t.hr;     // a new row: whoever holds Finance & HR
     if (node === 'pt_masters/accessories') return p.admin || !!p.r.accEdit;
@@ -210,7 +227,7 @@ async function check(mode) {
     if (APPROVED_ROW) nodes.push(APPROVED_ROW);
     nodes.forEach(n => jobs.push({ w, n, as, what: 'write', want: expectWrite(w, n, mode) }));
     /* And reading: staff read everything, a vendor reads its own branch only, nobody reads nothing. */
-    if (mode === 'p4') {
+    if (mode === 'p4' || mode === 'p5') {
       /* EVERY node the app reads, for EVERY person: allowed exactly where the model says their tabs or
        * rights need it. A vendor and a stranger read none of them; a node nobody named is admins-only. */
       READS.NODES.concat(['pt_perms', 'pt_loginDir', 'zz_unnamedNode']).forEach(n => jobs.push({ w, n, as, what: 'read',
@@ -253,7 +270,7 @@ const putRules = text => req('PUT', '.settings/rules', text, undefined, true);
   if (cmd === 'drift') return void await drift(true);
   if (cmd === 'ghosts') return void await ghosts();
   if (cmd === 'seed') { await seed(); return void await drift(true); }
-  if (cmd === 'check') return void await check(['p0', 'p1', 'p2', 'p3', 'p4'].indexOf(arg) >= 0 ? arg : 'p4');
+  if (cmd === 'check') return void await check(['p0', 'p1', 'p2', 'p3', 'p4', 'p5'].indexOf(arg) >= 0 ? arg : 'p5');
   if (cmd === 'rollback') {
     const r = await putRules(fs.readFileSync(arg, 'utf8'));
     if (r.status === 200) fs.copyFileSync(arg, LIVE_FILE);
@@ -270,7 +287,7 @@ const putRules = text => req('PUT', '.settings/rules', text, undefined, true);
     if (r.status !== 200) throw new Error('the new rules were refused, nothing changed: ' + r.status + ' ' + r.body.slice(0, 300));
     console.log('new rules are live — checking every account now…');
     let wrong;
-    try { wrong = await check('p4'); } catch (e) { wrong = ['the check itself failed: ' + (e.message || e)]; }
+    try { wrong = await check('p5'); } catch (e) { wrong = ['the check itself failed: ' + (e.message || e)]; }
     if (wrong.length) {
       const back = await putRules(before);
       console.log('\nROLLED BACK (' + back.status + '). The old rules are live again. Nothing above was acceptable.');
@@ -280,5 +297,5 @@ const putRules = text => req('PUT', '.settings/rules', text, undefined, true);
     return void console.log('\nDEPLOYED, and database.rules.json now says what is live.'
       + '\nTo undo:  node rules-tool.js rollback "' + keep + '"   (and restore database.rules.json from it)');
   }
-  console.log('usage: node rules-tool.js drift | seed | ghosts | check p0|p1|p2|p3|p4 | deploy | rollback <file>');
+  console.log('usage: node rules-tool.js drift | seed | ghosts | check p0|p1|p2|p3|p4|p5 | deploy | rollback <file>');
 })().catch(e => { console.error('FAILED', e && (e.stack || e.message || e)); process.exit(1); });
