@@ -46,7 +46,7 @@ function flowPoItem(r, p, part) {
 const flowPoItemPrints = it => (it.unit === 'pcs' ? it.pcs > 0 : it.metres > 0.01) || (it.extras || []).length > 0;
 /** What one planned line puts on print orders: [{ part: '' | '~ruffle', printer, item }]. */
 function flowPoParts(r, p) {
-  if (!p || flowRouteOf(p) !== 'inhouse' || !flowPrintsSomething(r, p)) return [];
+  if (!p || !flowPrinted(flowRouteOf(p)) || !flowPrintsSomething(r, p)) return [];
   const rp = flowRufflePrinter(p), out = [], body = flowPoItem(r, p, rp ? 'body' : '');
   if (flowPoItemPrints(body)) out.push({ part: '', printer: p.printer || null, item: body });
   if (rp) { const ruf = flowPoItem(r, p, 'ruffle'); if (ruf.extras.length) out.push({ part: FLOW_RUF, printer: rp, item: ruf }); }

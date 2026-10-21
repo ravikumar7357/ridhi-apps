@@ -20298,6 +20298,19 @@ console.log('\n== Waiting for QC: received pieces go to QC, which accepts all or
   els.qcView.value = 'inbox';
   A.renderQc();
   ok('the screen says nothing is waiting', /Nothing waiting/.test(els.qcTable.innerHTML), els.qcTable.innerHTML.slice(0, 200));
+  /* 21 Oct (Ravi: "pahle fabric print then embroidery then cut and then Q.C"): embroidered pieces have no karigar — the
+   * cutting entry marked qcDirect waits here by itself; an ordinary cutting entry does not. */
+  {
+    const keep = A.PT();
+    A.setPT(Object.assign({}, keep, { cut: (keep.cut || []).concat([{ id: 'cq1', sku: 'E-1', orderNo: 'EO-1', pieces: 9, cutDate: '21/10/2026, 10:00', qcDirect: true },
+      { id: 'cq2', sku: 'E-2', orderNo: 'EO-2', pieces: 5, cutDate: '21/10/2026, 10:00' }]) }));
+    const w = A.qcInboxRows();
+    ok('pieces cut after embroidery (qcDirect) wait for QC with no karigar — an ordinary cut does not', w.some(x => x.r.id === 'cq1' && x.wait === 9 && x.r.fromCut) && !w.some(x => x.r.id === 'cq2'),
+      JSON.stringify(w.map(x => [x.r.id, x.wait])));
+    ok('…QC accepts them against the cutting entry, for the order', (await A.qcInboxAccept('cq1', 9)) === '' && !A.qcInboxRows().some(x => x.r.id === 'cq1')
+      && ((A.QC().checks || []).find(c => c.baseId === 'cq1') || {}).orderNo === 'EO-1');
+    A.setPT(keep);
+  }
   A.setPT(wasPT); A.setQC(wasQC); NET.on = wasNet; ME.admin = wasAdmin;
 }
 console.log('\n== QC: spotting, touching and the day-wise ledger (2026-10-06) ==');

@@ -680,6 +680,16 @@ function qcInboxRows() {
     if (!(wait > 0)) return;
     out.push({ r, since, accepted, wait, last });
   });
+  /* EMBROIDERED, CUT, STRAIGHT TO QC (Ravi, 21 Oct): a Production flow line on Printing + Embroidery has no karigar, so its
+   * pieces come here from the cutting entry (marked qcDirect) — one row per entry, taken off it the way a karigar's are. */
+  (PT.cut || []).forEach(c => {
+    const id = c && (c.id || c._key); if (!id || !c.qcDirect || !c.orderNo) return;
+    const ms = ptDtMs(c.cutDate) || ptDtMs(c.addedAt) || 0; if (ms && ms < from) return;
+    const pcs = ptNum(c.pieces), accepted = took.get(id) || 0, wait = pcs - accepted;
+    if (!(wait > 0)) return;
+    out.push({ r: { id, sku: c.sku, orderNo: c.orderNo, articleType: c.articleType || '', articleSubtype: c.articleSubtype || '', color: c.color || '', size: c.size || '',
+      empName: 'Cut after embroidery', empType: 'no karigar — straight to QC', receivedPieces: pcs, fromCut: true }, since: pcs, accepted, wait, last: ms || Date.now() });
+  });
   out.sort((a, b) => a.last - b.last);
   /* CHECKED ON THE OLD FORM: a check that names the order and SKU but no Job Work entry (the Checks form) has already
    * looked at pieces of that order — from QC_INBOX_FROM on, they come off its waiting entries, oldest first. Without this

@@ -3,7 +3,7 @@
  * which is what Demand reserves), whether it is printed, and the planned dates. Worked out from what the app already
  * knows — cloth per piece (ptConsPlan), the recipe, the print rules, the Job Work materials planner — and shown for PPC
  * to check and change before saving. Saving IS raising: the line leaves PPC for Demand by itself.
- *   pt_ppc/<line> = { orderNo, sku, qty, route (inhouse|stitch|outsource), outVendor, fabric:{name, perPc, metres, how}, extra:[{what, qty, unit}],
+ *   pt_ppc/<line> = { orderNo, sku, qty, route (inhouse|emb|stitch|jobwork|outsource), emb:{code, name} (emb only), outVendor, fabric:{name, perPc, metres, how}, extra:[{what, qty, unit}],
  *                     acc:[{code, what, qty}], print:{need, as}, dates:{cut, qc, ready}, note, at, by } */
 
 const flowR2 = n => Math.round((+n || 0) * 100) / 100;
@@ -50,7 +50,9 @@ function flowSuggest(r) {
   /* THE CUTTING ROUTE MEANS THE CLOTH IS IN HAND (Ravi, 17 Oct: "direct cutting department me bhej raha hu meaning mujhe RFD ki
    * required nahi h, wo already mere pas print hokar aa gaya h"): a line on it starts ticked "already printed — take no RFD". */
   if (!need) fabric.noRfd = true;
-  return { orderNo: r.orderNo, sku: obUC(r.sku), qty, route: need ? 'inhouse' : 'stitch', outVendor: '', printer, fabric, acc, extra, print: { need, as },
+  const emb = need && flowIsEmbSku(m);
+  return { orderNo: r.orderNo, sku: obUC(r.sku), qty, route: need ? (emb ? 'emb' : 'inhouse') : 'stitch', ...(emb ? { emb: Object.assign({}, FLOW_EMB_DEPT) } : {}),
+    outVendor: '', printer, fabric, acc, extra, print: { need, as },
     dates: { cut: flowAddDays(t, 3), qc: flowAddDays(t, 7), ready: ptIsoDate(r.mtoDue) || flowAddDays(t, 10) }, note: '', gaps };
 }
 /* A SAVED PLAN THAT NO LONGER MATCHES THE MASTER ROW (Ravi, 10 Oct: "it is only showing Sheeting 82 — is it canvas or
@@ -94,7 +96,7 @@ function flowCommitted(skipKeys, withTest) {
      * the line is cut or issued. Job Work and outsourced lines take no RFD. */
     if (p.fabric && p.fabric.name && s.route !== 'jobwork' && !(s.route === 'stitch' && p.fabric.noRfd)) {
       /* Only the part of the line still to make (flowRemFrac): pieces already cut took their cloth. */
-      const owed = s.route === 'inhouse' ? flowFabOwed({ qty: +r.qty || 0 }, s).metres
+      const owed = flowPrinted(s.route) ? flowFabOwed({ qty: +r.qty || 0 }, s).metres
         : flowR2((fr && !fr.challan && +fr.metres > 0 ? +fr.metres : flowToPrint(r, p).metres) * flowRemFrac(r, s));
       if (owed > 0) { const k = flowFabKey(p.fabric.name); fab[k] = flowR2((fab[k] || 0) + owed); }
     }
@@ -102,7 +104,7 @@ function flowCommitted(skipKeys, withTest) {
       extra[k] = flowR2((extra[k] || 0) + Math.max(0, (+x.qty || 0) - (+x.fromPrinted || 0)) * left); });
     /* Printed stock an earlier plan took, until that line's cloth moves — unless the store already took it out at the plan
      * (inventory/store.js, since 16 Oct): then it is off the store's own figure, and holding it here would take it twice. */
-    if (unmoved && s.route === 'inhouse' && !(typeof stPlanTookOut === 'function' && stPlanTookOut(p))) {
+    if (unmoved && flowPrinted(s.route) && !(typeof stPlanTookOut === 'function' && stPlanTookOut(p))) {
       const m = cutSkuOf(r.sku) || {}, colour = String(m.color || r.color || '').trim();
       if (+(p.fabric && p.fabric.fromPrinted) > 0) { const k = flowPrintedKey(flowPrintWhat(r, p), p.fabric.name, colour); printed[k] = flowR2((printed[k] || 0) + (+p.fabric.fromPrinted)); }
       (p.extra || []).forEach(x => { if (!(+x.fromPrinted > 0)) return; const k = 'M|' + fabKey(String(x.what).replace(/^Ruffle — /, '')) + '|' + fabKey(colour); printed[k] = flowR2((printed[k] || 0) + (+x.fromPrinted)); });
@@ -137,7 +139,7 @@ function flowStoreHold(pk, skipKeys, withTest) {
     if (!p && typeof ptPrintNeeded === 'function' && !ptPrintNeeded(m)) return;
     const pl = p || flowSuggest(r), fab = (pl.fabric && pl.fabric.name) || '';
     if ('M|' + fabKey(fab) + '|' + fabKey(colour) !== pk) return;
-    if (p && (s.route !== 'inhouse' || flowPrintWhat(r, p).kind === 'sku')) return;
+    if (p && (!flowPrinted(s.route) || flowPrintWhat(r, p).kind === 'sku')) return;
     held += Math.max(0, qty - (s.cut || 0)) * (+(pl.fabric && pl.fabric.perPc) || 0);
   });
   return flowR2(held);
@@ -402,6 +404,8 @@ function flowPpcOpen(orderNo, onlySku, keys) {
               + `<small class="fpc-why">${esc((p.printer || {}).why || '')}</small>`, 'w2')}
             ${(p.extra || []).some(x => /^Ruffle — /.test(String(x.what || ''))) ? fld('Ruffle printer', `<select data-fp="${i}" data-k="rufflePrinter.code"><option value="">— same as the printer —</option>${flowPrinterOpts((flowRufflePrinter(p) || {}).code)}</select>`
               + '<small class="fpc-why">the ruffle cloth can go to another printer — its own print order and challan</small>', 'w2') : ''}
+            ${fld('Embroidery by', `<select data-fp="${i}" data-k="emb.code">${flowEmbOpts((p.emb || {}).code)}</select>`
+              + '<small class="fpc-why">the printed cloth goes here in metres and comes back as pieces — then Cutting, then QC</small>', 'w2" data-embrow="' + i)}
             ${fld('Outsource vendor', inp(i, 'outVendor', p.outVendor || '', '', ' placeholder="who makes it"') + '<small class="fpc-why">no fabric or accessories are raised for it</small>', 'w2" data-outrow="' + i)}
             ${fld('Fabric', `<span style="display:flex;gap:6px;align-items:center;text-transform:none;letter-spacing:0;font-size:13px;color:var(--ink)"><input type="checkbox" data-fp="${i}" data-k="fabric.noRfd"${p.fabric && p.fabric.noRfd ? ' checked' : ''} style="width:auto;margin:0"> Already printed / in hand — take no RFD</span>`
               + '<small class="fpc-why">the cloth was printed earlier: no RFD is raised or taken, and the line goes straight to Cutting</small>', 'w2" data-nordrow="' + i)}
@@ -450,11 +454,13 @@ function flowPpcOpen(orderNo, onlySku, keys) {
         set(p, k, inp.type === 'checkbox' ? inp.checked : inp.type === 'number' ? (+inp.value || 0) : inp.value.trim());
       });
       /* The route decides printing; an outsourced line raises no cloth and no accessories, and must name who makes it. */
-      plans.forEach(p => { p.route = p.route || 'inhouse'; p.print = Object.assign({}, p.print, { need: p.route === 'inhouse' });
+      plans.forEach(p => { p.route = p.route || 'inhouse'; p.print = Object.assign({}, p.print, { need: flowPrinted(p.route) });
+        /* Who embroiders: kept by code and name on an embroidery line, our own department when nobody is picked. */
+        p.emb = p.route === 'emb' ? flowEmbWho(p.emb && p.emb.code) : null;
         /* The printer is kept by code and name; a line not printed has none. */
-        const v = p.route === 'inhouse' && p.printer && p.printer.code ? flowChVendors().find(x => String(x.code) === String(p.printer.code)) : null;
+        const v = flowPrinted(p.route) && p.printer && p.printer.code ? flowChVendors().find(x => String(x.code) === String(p.printer.code)) : null;
         p.printer = v ? { code: v.code, name: v.desc || v.name || v.code, why: p.printer.why || '' } : null;
-        const rv = p.route === 'inhouse' && p.rufflePrinter && p.rufflePrinter.code ? flowChVendors().find(x => String(x.code) === String(p.rufflePrinter.code)) : null;
+        const rv = flowPrinted(p.route) && p.rufflePrinter && p.rufflePrinter.code ? flowChVendors().find(x => String(x.code) === String(p.rufflePrinter.code)) : null;
         p.rufflePrinter = rv && (!p.printer || String(rv.code) !== String(p.printer.code)) ? { code: rv.code, name: rv.desc || rv.name || rv.code } : null; });
       /* A printed line on a fabric made both ways must say which way — the printer cannot print "either". */
       /* The print order goes to the printer now — so a printed line has to say which printer. */
@@ -466,9 +472,9 @@ function flowPpcOpen(orderNo, onlySku, keys) {
         return bodyLeft > 0.01 || rufLeft; };
       /* Which way it is printed — asked only where something still goes to the printer (17 Oct: cloth all in the store
        * needs no direction). */
-      const noDir = plans.filter((p, i) => pick(i) && p.route === 'inhouse' && printsAt(i, true) === 'body' && flowPrintWhat(rows[i].r, p).needDir).map(p => p.sku);
+      const noDir = plans.filter((p, i) => pick(i) && flowPrinted(p.route) && printsAt(i, true) === 'body' && flowPrintWhat(rows[i].r, p).needDir).map(p => p.sku);
       if (noDir.length) return `Which way is it printed? Pick the print direction for ${noDir.join(', ')}.`;
-      const noPr = plans.filter((p, i) => pick(i) && p.route === 'inhouse' && printsAt(i) && !(p.printer && p.printer.code) && !(p.rufflePrinter && printsAt(i, true) === 'ruffle')).map(p => p.sku);
+      const noPr = plans.filter((p, i) => pick(i) && flowPrinted(p.route) && printsAt(i) && !(p.printer && p.printer.code) && !(p.rufflePrinter && printsAt(i, true) === 'ruffle')).map(p => p.sku);
       if (noPr.length) return `Which printer? The print order goes to them now — pick it for ${noPr.join(', ')}.`;
       const noVen = plans.filter((p, i) => pick(i) && p.route === 'outsource' && !String(p.outVendor || '').trim()).map(p => p.sku);
       if (noVen.length) return `Who makes it? Type the outsource vendor for ${noVen.join(', ')}.`;
@@ -580,6 +586,7 @@ function flowPpcOpen(orderNo, onlySku, keys) {
       const fname = (val(i, 'fabric.name') ?? p.fabric.name) || '', per = +(val(i, 'fabric.perPc') ?? p.fabric.perPc) || 0, metres = flowR2(per * p.qty);
       const fm = document.querySelector(`[data-fm="${i}"]`); if (fm) fm.textContent = nf(metres);
       document.querySelectorAll(`[data-outrow="${i}"]`).forEach(el => { if (el.style) el.style.display = out ? '' : 'none'; });
+      document.querySelectorAll(`[data-embrow="${i}"]`).forEach(el => { if (el.style) el.style.display = route === 'emb' ? '' : 'none'; });
       /* ALREADY PRINTED, NO RFD (Ravi, 16 Oct: "mene rfd se print kara liya h ab mujhe uski printing required nahi h and rfd
        * fabric bhi kam nahi hoga"): on the Cutting route a tick says the cloth is in hand — nothing is raised or taken. */
       document.querySelectorAll(`[data-nordrow="${i}"]`).forEach(el => { if (el.style) el.style.display = route === 'stitch' ? '' : 'none'; });
@@ -588,9 +595,11 @@ function flowPpcOpen(orderNo, onlySku, keys) {
       const r = rows[i].r, colour = String(((cutSkuOf(r.sku) || {}).color) || r.color || '').trim();
       const cur = Object.assign({}, p, { route, fabric: Object.assign({}, p.fabric, { name: fname, metres }),
         print: Object.assign({}, p.print, { dir: val(i, 'print.dir') ?? flowDirOpts(r, p).cur }) });
-      const w = route === 'inhouse' ? flowPrintWhat(r, cur) : null, xw = route === 'inhouse' ? flowPrintExtras(r, cur) : [];
+      const w = flowPrinted(route) ? flowPrintWhat(r, cur) : null, xw = flowPrinted(route) ? flowPrintExtras(r, cur) : [];
       const pg = document.querySelector(`[data-pget="${i}"]`);
-      if (pg) pg.innerHTML = w ? `<span class="fpc-mode">${esc(w.mode)}</span> ` + flowPrintTxt(w) + flowExtrasTxt(xw) + '<div data-pcov></div>'
+      const embTo = route === 'emb' ? flowEmbWho(val(i, 'emb.code') ?? (p.emb && p.emb.code)).name : '';
+      if (pg) pg.innerHTML = w ? `<span class="fpc-mode">${esc(w.mode)}</span> ` + flowPrintTxt(w) + flowExtrasTxt(xw)
+        + (embTo ? `<div style="font-size:11.5px;color:#5b21b6;margin-top:3px">then embroidery → <b>${esc(embTo)}</b> → cutting → QC</div>` : '') + '<div data-pcov></div>'
         : `<span class="muted">${route === 'stitch' ? 'Nothing — no printing; the RFD goes straight to the cutting department.'
           : route === 'jobwork' ? 'Nothing — no printing, no cutting; the line goes straight to Raw cutting in store, to be issued to a karigar.'
           : 'Nothing — made outside.'}</span>`;
@@ -665,7 +674,8 @@ function flowPpcOpen(orderNo, onlySku, keys) {
       if (ch) { const pc = val(i, 'printer.code'), pv = pc ? flowChVendors().find(v => String(v.code) === String(pc)) : null;
         const short = /pill bad/.test(mat.innerHTML);
         ch.innerHTML = `<span class="fpc-chip vio">${esc((FLOW_ROUTES.find(x => x[0] === route) || [, , route])[2])}</span>`
-          + (route === 'inhouse' ? `<span class="fpc-chip">${pv ? '🖨 ' + esc(pv.desc || pv.name || pv.code) : 'printer not chosen'}</span>` : '')
+          + (flowPrinted(route) ? `<span class="fpc-chip">${pv ? '🖨 ' + esc(pv.desc || pv.name || pv.code) : 'printer not chosen'}</span>` : '')
+          + (route === 'emb' ? `<span class="fpc-chip vio">🧵 ${esc(flowEmbWho(val(i, 'emb.code')).name)}</span>` : '')
           + `<span class="fpc-chip ${short ? 'bad' : 'ok'}">${short ? '⚑ something is short' : '✓ all in stock'}</span>`; }
     });
     flowComboPaint(combo, run, com, names, shelf);
@@ -754,7 +764,7 @@ function flowPpcXlRead(sheet) {
     const x = byKey.get(key), tag = `row ${i + 1} (${c('PO')} ${c('SKU')})`;
     if (!x) { skipped.push(tag + ': not in PPC any more — planned already, or sent back'); continue; }
     const bad = [], v = {};
-    const route = routeOf(c('How it is made')); if (route === null) bad.push('"How it is made" must be Printing, Cutting, Job Work or Outsourced'); else v.route = route || flowRouteOf(flowXlPlanOf(x));
+    const route = routeOf(c('How it is made')); if (route === null) bad.push('"How it is made" must be Printing, Embroidery, Cutting, Job Work or Outsourced'); else v.route = route || flowRouteOf(flowXlPlanOf(x));
     const fab = c('Fabric'); if (fab) v['fabric.name'] = fab;
     const per = c('Metres / piece'); if (per !== '') { if (!(Number(per) >= 0)) bad.push('Metres / piece is not a number'); else v['fabric.perPc'] = String(Number(per)); }
     const dir = c('Print direction'); if (dir) { const d = flowDirOpts(x.r, flowXlPlanOf(x)).dirs, hit = d.find(y => y.toLowerCase() === dir.toLowerCase() || y.toLowerCase()[0] === dir.toLowerCase()[0]);

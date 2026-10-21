@@ -22,7 +22,10 @@
  * sheeting or voil with no direction chosen says so — it is never shown as both. */
 function flowPrintWhat(r, plan) {
   const m = cutSkuOf(r.sku) || {};
-  if (m.cuttingRequired === false)
+  /* EMBROIDERY IS DONE ON THE RUNNING CLOTH (Ravi, 21 Oct): a line on Printing + Embroidery is printed as fabric, whatever the
+   * master says about cutting — the pieces are cut out after the embroidery. */
+  const emb = !!plan && flowRouteOf(plan) === 'emb';
+  if (m.cuttingRequired === false && !emb)
     return { kind: 'sku', code: obUC(r.sku), mode: 'Cut pieces', label: 'printed on the SKU itself (no cutting)', unit: 'pcs' };
   const fab = String((plan && plan.fabric && plan.fabric.name) || m.fabric || '').trim();
   const colour = String(m.color || r.color || '').trim(), cc = ordColCodeOf(r.sku);
@@ -30,7 +33,7 @@ function flowPrintWhat(r, plan) {
   let dir = (plan && plan.print && plan.print.dir) || flowDirDefault(m, fab);
   if (!dir && dirs.length === 1) dir = dirs[0];
   let rule = ''; try { rule = ptPrintIssueAs(m) || ''; } catch (e) { rule = ''; }
-  const mode = rule === 'cut' ? 'Cut pieces (cut here from the printed fabric)' : 'Running fabric';
+  const mode = emb ? 'Running fabric — for embroidery' : rule === 'cut' ? 'Cut pieces (cut here from the printed fabric)' : 'Running fabric';
   if (!dir && dirs.length > 1)
     return { kind: 'fabric', code: '', needDir: true, mode, label: [colour, fab].filter(Boolean).join(' · '), unit: 'm' };
   /* FRONT AND BACK (Ravi, 10 Oct: "quilt ka total 5 m, 2.5 front aur 2.5 back"). A voil comes as a Front SKU and a Back
@@ -48,7 +51,7 @@ function flowPrintWhat(r, plan) {
  * plan's "Ruffle — <fabric>", from the master row / recipe / ruffle rule) goes to the same printer as the body: its
  * printed fabric SKU, in metres. Only for a printed line. */
 function flowPrintExtras(r, plan) {
-  if (!plan || flowRouteOf(plan) !== 'inhouse') return [];
+  if (!plan || !flowPrinted(flowRouteOf(plan))) return [];
   const m = cutSkuOf(r.sku) || {}, colour = String(m.color || r.color || '').trim(), cc = ordColCodeOf(r.sku);
   return (plan.extra || []).filter(x => x.unit === 'm' && /^Ruffle — /.test(String(x.what || '')) && +x.qty > 0).map(x => {
     const fab = String(x.what).replace(/^Ruffle — /, '').trim(), dirs = flowFabDirs(fab, colour, cc);
@@ -100,7 +103,7 @@ function flowToPrint(r, p) {
  * aaya tha"). The printed fabric SKU(s) a line is cut from — '' when nothing is printed as cloth for it (stitching only,
  * or the SKU itself is printed). A quilt names its Front and Back. */
 function flowCutFabricOf(r, p) {
-  if (!p || flowRouteOf(p) !== 'inhouse') return { code: '', label: '' };
+  if (!p || !flowPrinted(flowRouteOf(p))) return { code: '', label: '' };
   let w = null; try { w = flowPrintWhat(r, p); } catch (e) { w = null; }
   if (!w || w.kind === 'sku') return { code: '', label: '' };
   return { code: w.sides && w.sides.length ? w.sides.map(sd => sd.code).join(' + ') : (w.code || ''), label: w.label || '', w };
@@ -138,7 +141,7 @@ const flowChVendors = () => {
 const flowPlanPrinter = s => (s.plan && s.plan.printer && s.plan.printer.code) || '';
 /** A line's ruffle going to its own printer, not sent yet: { printer, extras, metres, fabric } or null. */
 function flowRuffleOwed(x) {
-  const p = x.s.plan, rp = flowRufflePrinter(p); if (!rp || x.s.route !== 'inhouse') return null;
+  const p = x.s.plan, rp = flowRufflePrinter(p); if (!rp || !flowPrinted(x.s.route)) return null;
   if (flowChIndex()[x.s.key + FLOW_RUF]) return null;   // sent already
   const xs = flowPrintExtras(x.r, p); if (!xs.length) return null;
   const ruf = (p.extra || []).find(e => /^Ruffle — /.test(String(e.what || '')));

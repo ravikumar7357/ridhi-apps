@@ -2,7 +2,7 @@
  *   node tests/flow-test.js      (FLOW_DIR=<dir> to test another copy — teeth/teeth-flow.js does) */
 const fs = require('fs'), path = require('path');
 const DIR = process.env.FLOW_DIR || path.join(__dirname, '..', 'src', 'app', 'flow');
-const SRC = ['flow-core.js', 'flow-ppc.js', 'flow-demand.js', 'flow-challan.js', 'flow-test-order.js', 'flow-receive.js', 'flow-printorder.js', 'flow-vendor.js', 'flow-edit.js', 'flow-back.js', 'flow-entries.js', 'flow-qcfg.js', 'flow-view.js'].map(f => fs.readFileSync(path.join(DIR, f), 'utf8')).join('\n');
+const SRC = ['flow-core.js', 'flow-ppc.js', 'flow-demand.js', 'flow-challan.js', 'flow-test-order.js', 'flow-receive.js', 'flow-printorder.js', 'flow-vendor.js', 'flow-edit.js', 'flow-back.js', 'flow-entries.js', 'flow-qcfg.js', 'flow-emb.js', 'flow-view.js'].map(f => fs.readFileSync(path.join(DIR, f), 'utf8')).join('\n');
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => { if (cond) { pass++; console.log('  PASS ' + name); } else { fail++; console.log('  FAIL ' + name + (extra ? ' — ' + extra : '')); } };
 
@@ -66,7 +66,7 @@ function load(opts) {
     FAB: { rows: opts.fabRows || [] },
     STORE: { rows: opts.store ? [] : null }, stMoves: () => opts.store || [], stBalances: mv => mv, fabKey: v => String(v || '').trim().toUpperCase(), fabAll: () => opts.fabRows || [], ptList: x => x || [], fabAutoLoad: async () => {}, GD: opts.gd, mdbOf: opts.mdbOf, MDBX: opts.mdbx, fabState: r => String((r && r.state) || (/RFD/.test(String(r && r.txnType)) ? 'RFD' : 'PRINTED')).toUpperCase(), fabKnown: t => ['OPENING_RFD', 'RFD_TO_PRINTER', 'ISSUE_TO_CUTTING', 'RECEIVE_RFD', 'PURCHASE_RFD', 'ADJUST'].includes(t), fabMove: r => (+r.qty || 0) * (['RFD_TO_PRINTER', 'ISSUE_TO_CUTTING'].includes(r.txnType) ? -1 : 1), fabStockOf: (name, st) => (st === 'RFD' ? (opts.rfd || {})[String(name).toUpperCase()] || 0 : 0),
   };
-  const api = new Function(...Object.keys(ctx), SRC + '\n;return { flowDrfdLineRows, flowFabOwed, flowRfdStock, flowFabKnown, flowMatRow, flowGdNote, flowPpcDraftSave, flowPpcDraftApply, flowPpcDraftDrop, flowPpcHasDraft, flowBackOpen, flowAgainOpen, flowIsBack, flowBackLines, flowBackPill, FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW_ROUTES, flowPlanRouteOf, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChTotals, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestCutOpen, flowTestIssueOpen, flowTestRecvOpen, flowTestVos, flowVoProgOf, flowVoProgSync, flowVlogRows, flowDocsOf, flowVoExtra, flowVpViewOnly, flowFgAcceptOpen, flowFgAccept, flowFgRejectOpen, flowFgReject, flowFgLines, flowFgRender, flowQcLine, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowRecvCross, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowCutEntry, flowIssueEntry, flowRecvEntry, flowQcEntry, flowIssuable, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowVoLines, flowSwatchOf, flowSizeFifo, flowSizeChallanOpen, flowBySizeData, flowPpcXlRows, flowPpcXlRead, flowXlDate, FLOW_XL_COLS, VOrows:()=>VO.rows, setVOrows:v=>{VO.rows=v}, flowUnplan, flowPoResync, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v}, flowEmbedRender, FLOW_EMB:()=>FLOW_EMB, flowScreenAllowed, flowOwnsOrder, flowOwnedIn, flowVoIsFlow, flowFgOwns, flowDupViewsOff, renderView:()=>{ if (["cut","raw","wip","new","pord","vendor","fabric"].includes(FLOW_VIEW)) { const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly(); const rows = flowRows().filter(x => (!only || x.r.__t) && (FLOW_VIEW === "new" ? x.recent : flowInView(FLOW_VIEW, x.s))); $("flTable").innerHTML = flowTable(FLOW_VIEW, rows); } else renderFlow(); } };')(...Object.values(ctx));
+  const api = new Function(...Object.keys(ctx), SRC + '\n;return { flowDrfdLineRows, flowFabOwed, flowRfdStock, flowFabKnown, flowMatRow, flowGdNote, flowPpcDraftSave, flowPpcDraftApply, flowPpcDraftDrop, flowPpcHasDraft, flowBackOpen, flowAgainOpen, flowIsBack, flowBackLines, flowBackPill, FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW_ROUTES, flowPlanRouteOf, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChTotals, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestCutOpen, flowTestIssueOpen, flowTestRecvOpen, flowTestVos, flowVoProgOf, flowVoProgSync, flowVlogRows, flowDocsOf, flowVoExtra, flowVpViewOnly, flowFgAcceptOpen, flowFgAccept, flowFgRejectOpen, flowFgReject, flowFgLines, flowFgRender, flowQcLine, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowRecvCross, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowCutEntry, flowIssueEntry, flowRecvEntry, flowQcEntry, flowIssuable, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowVoLines, flowSwatchOf, flowSizeFifo, flowSizeChallanOpen, flowBySizeData, flowPpcXlRows, flowPpcXlRead, flowXlDate, FLOW_XL_COLS, VOrows:()=>VO.rows, setVOrows:v=>{VO.rows=v}, flowUnplan, flowPoResync, flowEmbIndex, flowEmbCells, flowEmbSendOpen, flowEmbRecvOpen, flowEmbWho, flowEmbCancel, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v}, flowEmbedRender, FLOW_EMB:()=>FLOW_EMB, flowScreenAllowed, flowOwnsOrder, flowOwnedIn, flowVoIsFlow, flowFgOwns, flowDupViewsOff, renderView:()=>{ if (["cut","raw","wip","new","pord","vendor","fabric"].includes(FLOW_VIEW)) { const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly(); const rows = flowRows().filter(x => (!only || x.r.__t) && (FLOW_VIEW === "new" ? x.recent : flowInView(FLOW_VIEW, x.s))); $("flTable").innerHTML = flowTable(FLOW_VIEW, rows); } else renderFlow(); } };')(...Object.values(ctx));
   api.setFLOW(Object.assign(api.FLOW(), { ppc: opts.ppc || {}, dem: opts.dem || {}, res: opts.res || {} }));
   return Object.assign(api, { els, writes, W, ctx });
 }
@@ -81,7 +81,7 @@ const K = 'AMZ-1__S1';
 
   console.log('== each bucket its own right ==');
   ok('seven rights — New orders, Print orders, Vendor allocation, Outsourced, QC, Finished Goods and Printed fabric in are gone from the flow', load().FLOW_TABS.length === 7 && new Set(load().FLOW_TABS).size === 7 && !['flnew', 'flpo', 'flven', 'flout', 'flqc', 'flrdy', 'flfg', 'flfab'].some(t => load().FLOW_TABS.includes(t)));
-  ok('an admin sees every bucket', load({ me: { admin: true } }).flowBucketsAllowed().length === 9 && load({ me: { admin: true } }).flowScreenAllowed().map(b => b[0]).join() === 'ppc,ppcdone,back,drfd,dhist,dacc');
+  ok('an admin sees every bucket', load({ me: { admin: true } }).flowBucketsAllowed().length === 10 && load({ me: { admin: true } }).flowScreenAllowed().map(b => b[0]).join() === 'ppc,ppcdone,back,drfd,demb,dhist,dacc');
   ok('PPC staff see PPC, PPC completed and Back to sales team only', load({ me: { tabs: ['flppc', 'ord'] } }).flowBucketsAllowed().map(b => b[0]).join() === 'ppc,ppcdone,back');
   ok('nobody with no right sees any', load({ me: { tabs: ['ord'] } }).flowBucketsAllowed().length === 0);
   ok('a key is safe for the database (no . # $ [ ] /)', load().flowKey('amz/1.2', 's#1') === 'AMZ_1_2__S_1');
@@ -2036,6 +2036,76 @@ const K = 'AMZ-1__S1';
     ok('Printing route, 110 cut from cloth that came another way → only 1,090 pcs of cloth still to send (272.5 m)', B.flowFabOwed({ qty: 1200 }, B.flowRows()[0].s).metres === 272.5, JSON.stringify(B.flowFabOwed({ qty: 1200 }, B.flowRows()[0].s)));
     const C = load({ me: { admin: true }, mdb, lines: [L({ sku: 'S1', qty: 1200, cutReq: true, cut: 1200 })], ppc: { 'AMZ-1__S1': pl('stitch') } });
     ok('all cut → nothing waits in Demand → RFD', !C.flowRows()[0].s.needFab && C.flowRows()[0].s.bucket !== 'demand');
+  }
+
+  console.log('\n== embroidery (Ravi, 21 Oct: "pahle fabric print then embroidery then cut and then Q.C") ==');
+  {
+    const mdb = { RCNE1: { subtype: 'Embroidery Napkin', cuttingRequired: false, fabric: 'Sheeting 82', consumption: 0.13, color: 'Ruby Red' },
+      RCN2: { subtype: 'Napkin', cuttingRequired: false, fabric: 'Sheeting 82', consumption: 0.13, color: 'Ruby Red' } };
+    const fsku = { 'Sheeting 82|Ruby Red||1': 'RBP-SH82-RR' }, K = 'AMZ-1__RCNE1';
+    const line = o => L(Object.assign({ sku: 'RCNE1', qty: 10, cutReq: false }, o));
+    const pe = plan({ sku: 'RCNE1', qty: 10, route: 'emb', emb: { code: 'EMBDEPT', name: 'Embroidery department (in-house)' }, printer: { code: 'P1', name: 'Sanganer Prints' },
+      fabric: { name: 'Sheeting 82', perPc: 0.13, metres: 1.3 }, print: { need: true } });
+    const rfdCh = { 'RFD-202610-001': { no: 'RFD-202610-001', orderNo: 'AMZ-1', vendor: { code: 'P1', name: 'Sanganer Prints' }, lines: [{ key: K, sku: 'RCNE1', metres: 1.3, print: { kind: 'fabric', code: 'RBP-SH82-RR' } }],
+      receipts: { r1: { items: { [K]: 1.3 } } }, closed: { at: 'x' } } };
+    const embCh = (back, extra) => ({ 'EMB-202610-001': Object.assign({ no: 'EMB-202610-001', kind: 'emb', orderNo: 'AMZ-1', vendor: { code: 'EMBDEPT', name: 'Embroidery department (in-house)' },
+      lines: [{ key: K, sku: 'RCNE1', metres: 1.3, pcs: 10 }], receipts: back ? { a: { items: { [K]: back } } } : {} }, extra || {}) });
+    const at = (o, ch, emb) => { const F = load(Object.assign({ me: { admin: true }, mdb, fsku, lines: [line(o && o.line)], ppc: { [K]: pe } }, o && o.opts)); F.setFLOW(Object.assign(F.FLOW(), { ch: ch || {}, emb: emb || {} })); return F; };
+
+    const S = load({ me: { admin: true }, mdb, fsku });
+    const sg = S.flowSuggest(line()), sn = S.flowSuggest(L({ sku: 'RCN2', qty: 10 }));
+    ok('an Embroidery subtype starts on Printing + Embroidery, embroidered by our own department; a plain napkin stays on Printing', sg.route === 'emb' && sg.emb && sg.emb.code === 'EMBDEPT' && sn.route === 'inhouse' && !sn.emb, JSON.stringify([sg.route, sg.emb, sn.route]));
+    ok('the route is offered in PPC as "Embroidery"', S.FLOW_ROUTES.some(r => r[0] === 'emb' && r[2] === 'Embroidery'));
+    ok('embroidery is done on the running cloth: the printer prints the fabric SKU even where the master says no cutting', S.flowPrintWhat(line(), pe).kind === 'fabric' && S.flowPrintWhat(line(), pe).code === 'RBP-SH82-RR'
+      && S.flowPrintWhat(line(), Object.assign({}, pe, { route: 'inhouse' })).kind === 'sku', JSON.stringify(S.flowPrintWhat(line(), pe)));
+
+    let F = at();
+    ok('planned, cloth not given → Demand → RFD, like any printed line', F.flowRows()[0].s.bucket === 'demand' && F.flowInView('drfd', F.flowRows()[0].s));
+    F = at(null, rfdCh);
+    let s = F.flowRows()[0].s;
+    ok('printed cloth back on its challan → Demand → Embroidery, 1.3 m to send, nothing to cut yet', s.bucket === 'emb' && F.flowInView('demb', s) && s.embCanSend === 1.3 && !F.flowInView('cut', s) && !F.flowInView('raw', s), JSON.stringify([s.bucket, s.embCanSend, s.fabHave]));
+    ok('…its row offers "Send to embroidery"', /data-flembs="AMZ-1"/.test(F.flowEmbCells(F.flowRows()[0], true)));
+
+    /* sending: the dialog's boxes, as the fabric team fills them */
+    F.ctx.document.querySelector = q => /data-emk/.test(q) ? { checked: true } : /data-emm/.test(q) ? { value: '1.3' } : /data-emp/.test(q) ? { value: '10' } : null;
+    F.flowEmbSendOpen('AMZ-1');
+    ok('Send to embroidery opens the challan form for the order', /Embroidery challan — AMZ-1/.test((F.ctx.__dlg || {}).title || ''));
+    let er = await F.ctx.__dlg.onSave();
+    const w = F.writes.find(x => x['pt_flowChallans/EMB-202610-001']) || {}, ch = w['pt_flowChallans/EMB-202610-001'] || {};
+    ok('…saved as EMB-202610-001 in the challans node, kind emb, 1.3 m and 10 pcs to our department', er === '' && ch.kind === 'emb' && ch.lines[0].metres === 1.3 && ch.lines[0].pcs === 10 && ch.vendor.code === 'EMBDEPT', er || JSON.stringify(F.writes));
+    ok('…the challan opens to print as an EMBROIDERY CHALLAN', (F.ctx.__win || []).some(h => /EMBROIDERY CHALLAN/.test(h) && /EMB-202610-001/.test(h)));
+    s = F.flowRows()[0].s;
+    ok('…the line stays in Embroidery with nothing more to send, waiting for the pieces', s.bucket === 'emb' && s.embSent === 1.3 && s.embCanSend === 0 && s.embBack === 0, JSON.stringify([s.bucket, s.embSent, s.embCanSend]));
+    ok('…and no RFD challan list sees it', !Object.keys(F.FLOW().ch).some(k => /^EMB/.test(k)) && Object.keys(F.FLOW().emb).includes('EMB-202610-001'));
+
+    /* receiving part */
+    F.ctx.document.querySelector = q => /data-emr/.test(q) ? { value: '6' } : null;
+    F.flowEmbRecvOpen('EMB-202610-001');
+    er = await F.ctx.__dlg.onSave();
+    s = F.flowRows()[0].s;
+    ok('6 of 10 embroidered pieces back → 6 ready to cut, the line still in Embroidery for the rest', er === '' && s.embBack === 6 && s.canCut === 6 && s.bucket === 'emb' && F.flowInView('cut', s) && F.flowInView('demb', s), er || JSON.stringify([s.embBack, s.canCut, s.bucket]));
+    ok('…the challan stays open', !F.FLOW().emb['EMB-202610-001'].closed);
+    F.ctx.document.querySelector = q => /data-emr/.test(q) ? { value: '4' } : null;
+    F.flowEmbRecvOpen('EMB-202610-001'); er = await F.ctx.__dlg.onSave();
+    s = F.flowRows()[0].s;
+    ok('all 10 back → the challan closes by itself and the line moves to Cutting', er === '' && !!F.FLOW().emb['EMB-202610-001'].closed && s.bucket === 'cut' && s.canCut === 10, er || JSON.stringify([s.bucket, s.canCut]));
+
+    F = at({ line: { cut: 10 } }, rfdCh, embCh(10, { closed: { at: 'x' } }));
+    s = F.flowRows()[0].s;
+    ok('cut 10 → straight to QC (no karigar, never in Raw cutting): 10 waiting for QC', s.bucket === 'qcb' && !F.flowInView('raw', s) && s.receivedAll === 10 && s.canIssue === 0, JSON.stringify([s.bucket, s.receivedAll, s.canIssue]));
+    F = at({ line: { cut: 10 }, opts: { qcChecks: [{ orderNo: 'AMZ-1', sku: 'RCNE1', checked: 10, ok: 8, rejected: 2 }], qc: { 'AMZ-1|RCNE1': { ok: 8 } } } }, rfdCh, embCh(10, { closed: { at: 'x' } }));
+    s = F.flowRows()[0].s;
+    ok('QC passes 8 and rejects 2 → the 2 are embroidered again: the line is back in Embroidery', s.bucket === 'emb' && s.embOk === 8 && s.qcRej === 2, JSON.stringify([s.bucket, s.embOk, s.qcRej]));
+    F = at({ line: { cut: 10 }, opts: { qcChecks: [{ orderNo: 'AMZ-1', sku: 'RCNE1', checked: 10, ok: 10, rejected: 0 }], qc: { 'AMZ-1|RCNE1': { ok: 10 } } } }, rfdCh, embCh(10, { closed: { at: 'x' } }));
+    ok('QC passes all 10 → Ready → India stock (Finished Goods accepts)', F.flowRows()[0].s.bucket === 'fgin', F.flowRows()[0].s.bucket);
+
+    /* the two kinds of challan are kept apart as they are read */
+    const G = load({ me: { admin: true }, mdb, fsku, lines: [line()], ppc: { [K]: pe }, db: { pt_ppc: { [K]: pe }, pt_flowChallans: Object.assign({}, rfdCh, embCh(0)) } });
+    await G.flowLoad(true);
+    ok('read from the database: RFD challans in FLOW.ch, embroidery challans in FLOW.emb', Object.keys(G.FLOW().ch).join() === 'RFD-202610-001' && Object.keys(G.FLOW().emb).join() === 'EMB-202610-001',
+      JSON.stringify([Object.keys(G.FLOW().ch), Object.keys(G.FLOW().emb || {})]));
+    ok('a cancelled embroidery challan gave nothing', at(null, rfdCh, embCh(0, { cancelled: { at: 'x' } })).flowRows()[0].s.embCanSend === 1.3);
+    ok('who embroiders: our department, or a vendor whose category says Embroidery', S.flowEmbWho('').code === 'EMBDEPT' && S.flowEmbWho('P1').name === 'Sanganer Prints');
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);

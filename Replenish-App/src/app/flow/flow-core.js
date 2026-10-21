@@ -139,6 +139,9 @@ const FLOW_BUCKETS = [
   /* BACK TO THE SALES TEAM (Ravi, 15 Oct, flow-back.js): lines PPC could not plan, waiting for the sales team to put them right. */
   ['back', 'Back to sales team', 'flppc', 'PPC sent these back with a reason. They come back into PPC when the sales team (Sales Orders) sends them again.', 'flow'],
   ['drfd', 'RFD fabric · out to printers', 'fldem', 'Planned; the fabric is not with the printer yet. RFD in stock against what each line needs — red where it falls short; make the challan to the printer.', 'demand'],
+  /* EMBROIDERY (Ravi, 21 Oct): the printed cloth of a line PPC sent to embroidery goes out in metres and comes back as
+   * pieces — the fabric team's, on its own challans (flow-emb.js). */
+  ['demb', 'Embroidery', 'flchl', 'Printed fabric back for lines PPC sent to embroidery: send it (metres) to the embroidery department or vendor, and receive the embroidered pieces — they go on to Cutting, then straight to QC.', 'demand'],
   ['dhist', 'Printed fabric in · history', 'flchl', 'Every RFD challan. Open until the printed fabric comes back against it — receive it here and the lines move to the store.', 'demand'],
   ['dacc', 'Accessories', 'flacc', 'Planned; the accessories are not reserved yet. Free on the shelf against what each line needs.', 'demand'],
   ['cut', 'To cut · Production flow', 'flcut', 'Lines that need cutting and have printed fabric back. The cutting entry puts the pieces in the store.', 'pcut'],
@@ -151,9 +154,9 @@ const FLOW_TABS = [...new Set(FLOW_BUCKETS.map(b => b[2]))];   // one right can 
  * Control, 'fgin' waiting for the Finished Goods team — but no bucket of this screen lists it: the work is done there. */
 /* Printed fabric in, too (Ravi, 11 Oct: "dekhne ke liye hum History tab use karenge, Printed fabric in ko hata dete h"):
  * received on its challan in Demand history, seen in Vendors & printers → History (flowVlogRows). */
-const FLOW_ELSEWHERE = { ship: 'Ready — hand to shipping (Order Console → Production to shipping)', qcb: 'Quality Control (QC screen)',fgin: 'Finished Goods — to accept (Finished Goods screen)', fabric: 'With the printer — receive in Demand → Printed fabric in, see Vendors & printers → History',
+const FLOW_ELSEWHERE = { emb: 'Embroidery (Demand → Embroidery)', ship: 'Ready — hand to shipping (Order Console → Production to shipping)', qcb: 'Quality Control (QC screen)',fgin: 'Finished Goods — to accept (Finished Goods screen)', fabric: 'With the printer — receive in Demand → Printed fabric in, see Vendors & printers → History',
   vendor: 'Vendor Orders — not given to a printer yet', out: 'Made outside — received into Finished Goods', cut: 'Cutting Data → To cut', raw: 'Job Work Register → Raw cutting in store', wip: 'Job Work Register → WIP' };
-const FLOW_DEMAND = ['drfd', 'dhist', 'dacc'];
+const FLOW_DEMAND = ['drfd', 'demb', 'dhist', 'dacc'];
 /** The buckets of the Production flow screen itself (its own, and the Demand tabs), this account may open. */
 const flowScreenAllowed = () => flowBucketsAllowed().filter(b => b[4] === 'flow' || b[4] === 'demand');
 /* How a line is made — PPC chooses (Ravi, 10 Oct: "mere yaha sirf stitching hoga … printing wala part nahi hoga", and
@@ -165,11 +168,21 @@ const flowScreenAllowed = () => flowBucketsAllowed().filter(b => b[4] === 'flow'
  * cutting department me bhejna h ya direct job work department me bhejna h"). The keys stay as they were (plans already
  * saved keep their meaning); 'jobwork' is new: no printing, no cutting, no RFD — straight to Raw cutting in store, to be
  * issued to a karigar. */
+/* PRINTING + EMBROIDERY (Ravi, 21 Oct: "ppc plan me 1 section embroidery ka bhi add krna padega … pahle fabric print then
+ * embroidery then cut and then Q.C"): printed as running cloth, sent in metres to the embroidery department or an embroidery
+ * vendor (picked per line — plan.emb), back as pieces, cut (the cloth round the embroidery is trimmed), then QC — no
+ * karigar. A SKU whose subtype says Embroidery starts on it. */
 const FLOW_ROUTES = [['inhouse', 'Printing — printed by a vendor, then cut & stitched here', 'Printing'],
+  ['emb', 'Printing + Embroidery — printed, embroidered, cut, then QC', 'Embroidery'],
   ['stitch', 'Cutting — no printing, straight to the cutting department', 'Cutting'],
   ['jobwork', 'Job Work — no printing, no cutting, straight to the karigars', 'Job Work'],
   ['outsource', 'Outsourced — made outside, received finished', 'Outsourced']];
 const flowRouteOf = p => (p && p.route) || (p && p.print && p.print.need === false ? 'stitch' : 'inhouse');
+/** A route the printer prints for: Printing, and Printing + Embroidery. */
+const flowPrinted = route => route === 'inhouse' || route === 'emb';
+/** Our own embroidery department — picked like a vendor, never on the vendor list. */
+const FLOW_EMB_DEPT = Object.freeze({ code: 'EMBDEPT', name: 'Embroidery department (in-house)' });
+const flowIsEmbSku = m => /embroid/i.test(String((m && (m.subtype || m.articleSubtype)) || ''));
 /** The route PPC planned for an order line, '' when it has no plan (or the plans are not read yet). For the registers. */
 const flowPlanRouteOf = (orderNo, sku) => { try { const p = ((typeof FLOW !== 'undefined' && FLOW && FLOW.ppc) || {})[flowKey(orderNo, sku)]; return p ? flowRouteOf(p) : ''; } catch (e) { return ''; } };
 /** Which list a line is in. Demand is one stop in the walk but two lists; the rest are the bucket itself. */
@@ -179,7 +192,8 @@ const flowPlanRouteOf = (orderNo, sku) => { try { const p = ((typeof FLOW !== 'u
  * (or cut) and not issued → Raw cutting in store, for what can be issued now. */
 const flowInView = (view, s) => view === 'drfd' ? s.bucket === 'demand' && s.needFab
   : view === 'dacc' ? s.bucket === 'demand' && s.needAcc
-  : view === 'cut' ? s.bucket === 'cut' || (s.bucket === 'fabric' && s.cutReq && s.canCut > 0)
+  : view === 'cut' ? s.bucket === 'cut' || (['fabric', 'emb'].includes(s.bucket) && s.cutReq && s.canCut > 0)
+  : view === 'demb' ? s.bucket === 'emb' || (s.bucket === 'fabric' && s.route === 'emb' && s.embCanSend > 0)
   : view === 'raw' ? s.bucket === 'raw' || (['fabric', 'cut'].includes(s.bucket) && s.canIssue > 0)
   : view === 'ppcdone' ? !!s.plan && s.bucket !== 'done'
   : s.bucket === view;
@@ -207,18 +221,26 @@ function flowDropReal() {
   const isTest = (k, v) => /^TEST-/.test(String(k)) || !!(v && (v.test || /^TEST-/.test(obUC(v.orderNo)))) || mto(k, v);
   const keep = o => Object.fromEntries(Object.entries(o || {}).filter(([k, v]) => isTest(k, v)));
   FLOW.ppc = keep(FLOW.ppc); FLOW.dem = keep(FLOW.dem); FLOW.res = keep(FLOW.res);
-  FLOW.ch = keep(FLOW.ch); FLOW.po = keep(FLOW.po); FLOW.fg = keep(FLOW.fg);
+  FLOW.ch = keep(FLOW.ch); FLOW.po = keep(FLOW.po); FLOW.fg = keep(FLOW.fg); FLOW.emb = keep(FLOW.emb);
+}
+/* EMBROIDERY CHALLANS (flow-emb.js) are written to pt_flowChallans — the node the fabric team already writes and the flow's
+ * rights already read — with kind 'emb'. As they are read they go to FLOW.emb, so every RFD challan list, total and index
+ * (FLOW.ch) stays exactly what it was. */
+function flowEmbSplit() {
+  const ch = {}, emb = {};
+  Object.entries(FLOW.ch || {}).forEach(([k, v]) => { (v && v.kind === 'emb' ? emb : ch)[k] = v; });
+  FLOW.ch = ch; FLOW.emb = emb;
 }
 function flowDropTests() {
   const isTest = (k, v) => /^TEST-/.test(String(k)) || !!(v && (v.test || /^TEST-/.test(obUC(v.orderNo))));
   const keep = o => Object.fromEntries(Object.entries(o || {}).filter(([k, v]) => !isTest(k, v)));
   FLOW.test = {};
   FLOW.ppc = keep(FLOW.ppc); FLOW.dem = keep(FLOW.dem); FLOW.res = keep(FLOW.res);
-  FLOW.ch = keep(FLOW.ch); FLOW.po = keep(FLOW.po); FLOW.fg = keep(FLOW.fg);
+  FLOW.ch = keep(FLOW.ch); FLOW.po = keep(FLOW.po); FLOW.fg = keep(FLOW.fg); FLOW.emb = keep(FLOW.emb);
 }
 
 /* ---- the data ---- */
-let FLOW ={ ppc: null, dem: null, res: null, ch: null, test: null, po: null, fg: null, rev: null, at: 0, busy: null, err: '' };
+let FLOW ={ ppc: null, dem: null, res: null, ch: null, emb: null, test: null, po: null, fg: null, rev: null, at: 0, busy: null, err: '' };
 async function flowLoad(force) {
   if (FLOW.busy) return FLOW.busy;
   if (FLOW.ppc && !force && Date.now() - FLOW.at < 60e3) return;
@@ -226,9 +248,10 @@ async function flowLoad(force) {
     try {
       const [ppc, dem, res, ch, test, po, fg, rev] = await Promise.all([ptGet('pt_ppc'), ptGet('pt_flowDemand'), ptGet('pt_accReserve'), ptGet('pt_flowChallans'), ptGet('pt_flowTest'), ptGet('pt_flowPrintOrders'), ptGet('pt_flowFgSend'), ptGet('pt_flowRev')]);
       FLOW.ppc = ppc || {}; FLOW.dem = dem || {}; FLOW.res = res || {}; FLOW.ch = ch || {}; FLOW.test = test || {}; FLOW.po = po || {}; FLOW.fg = fg || {}; FLOW.rev = rev || {}; FLOW.err = '';
+      flowEmbSplit();
       if (!flowTestsOn()) flowDropTests();
       if (!FLOW_REAL) flowDropReal();
-    } catch (e) { FLOW.err = e.message || String(e); FLOW.ppc = FLOW.ppc || {}; FLOW.dem = FLOW.dem || {}; FLOW.res = FLOW.res || {}; FLOW.ch = FLOW.ch || {}; FLOW.test = FLOW.test || {}; FLOW.po = FLOW.po || {}; FLOW.fg = FLOW.fg || {}; }
+    } catch (e) { FLOW.err = e.message || String(e); FLOW.ppc = FLOW.ppc || {}; FLOW.dem = FLOW.dem || {}; FLOW.res = FLOW.res || {}; FLOW.ch = FLOW.ch || {}; FLOW.emb = FLOW.emb || {}; FLOW.test = FLOW.test || {}; FLOW.po = FLOW.po || {}; FLOW.fg = FLOW.fg || {}; }
     FLOW.at = Date.now(); FLOW.busy = null;
   })();
   return FLOW.busy;
@@ -277,7 +300,7 @@ function flowState(r) {
   const v = t ? { given: +t.given || 0, back: +t.back || 0 } : ordVendorOf(r.orderNo, r.sku);
   const q = t ? { ok: flowQcLine(r).ok } : ordQcOf(r.orderNo, r.sku), g = t ? { in: +t.fgIn || 0 } : (ordFgAt(r.orderNo, r.sku) || {});
   const route = p ? flowRouteOf(p) : '';
-  const printed = p ? route === 'inhouse' : !!(r.printer || (v && v.given > 0) || (!t && /^Vendor/.test(ordWaitingAt(r) || '')));
+  const printed = p ? flowPrinted(route) : !!(r.printer || (v && v.given > 0) || (!t && /^Vendor/.test(ordWaitingAt(r) || '')));
   const s = {
     key: k, isNew, plan: p, demand: d, res, printed, route,
     given: r.printer ? qty : (v ? cap(v.given) : 0), back: r.printer ? cap(r.printed) : (v ? cap(v.back) : 0),
@@ -296,10 +319,11 @@ function flowState(r) {
   if (cx) s.challan = cx;
   if (po) s.po = po;
   s.fabNeed = 0; s.fabSent = 0;
-  if (p && route === 'inhouse') {
+  if (p && flowPrinted(route)) {
     const pcsWise = flowPrintWhat(r, p).kind === 'sku', tp = flowToPrint(r, p), fp = +(p.fabric && p.fabric.fromPrinted) || 0;
     s.fabUnit = pcsWise ? 'pcs' : 'm'; s.fabNeed = pcsWise ? tp.pcs : tp.metres; s.fabSent = cx ? flowR2(cx.sent) : 0;
     const total = pcsWise ? qty : flowR2(+(p.fabric && p.fabric.metres) || 0), have = fp + (cx ? cx.recv : 0);
+    s.fabHave = flowR2(have); s.fabTotal = total;
     /* ALL FROM PRINTED STOCK: nothing to print, nothing to send — given and back in full, straight to Cutting. */
     s.fromStock = !flowPrintsSomething(r, p);
     if (s.fromStock) { s.given = qty; s.back = qty; }
@@ -316,10 +340,24 @@ function flowState(r) {
   s.cutReq = !!r.cutReq && route !== 'jobwork';
   s.canCut = s.cutReq ? Math.max(0, (printed ? s.back : qty) - s.cut) : 0;
   s.canIssue = Math.max(0, (s.cutReq ? s.cut : (printed ? s.back : qty)) - s.issuedNet);
+  /* EMBROIDERED, THEN CUT, THEN QC (Ravi, 21 Oct). The printed cloth goes to embroidery in metres and comes back as pieces
+   * (flow-emb.js); those are cut — the cloth left round the embroidery trimmed — and the cut pieces wait for QC: no karigar,
+   * so "issued" and "received" are the pieces cut. A piece QC rejects is embroidered again (it leaves the embroidered count). */
+  if (route === 'emb') {
+    const e = (typeof flowEmbIndex === 'function' ? flowEmbIndex()[k] : null) || { sent: 0, back: 0 }, cutAll = Math.max(0, +r.cut || 0);
+    s.embSent = flowR2(e.sent || 0); s.embBack = Math.max(0, +e.back || 0); s.embTo = e.to || ''; s.embNos = e.nos || [];
+    s.embOk = Math.max(0, s.embBack - s.qcRej);
+    s.embCanSend = flowR2(Math.max(0, (s.fabHave || 0) - s.embSent));
+    s.cutReq = true; s.cut = cap(cutAll); s.cutAll = cutAll;
+    s.canCut = Math.max(0, s.embBack - cutAll);
+    s.issued = s.cut; s.issuedAll = cutAll; s.issuedNet = Math.max(0, cutAll - s.qcRej);
+    s.received = cap(cutAll); s.receivedAll = cutAll;
+    s.canIssue = 0;
+  }
   const accNeed = !!p && route !== 'outsource' && (p.acc || []).some(a => a.code && +a.qty > 0);
   const handReady = !!(d && d.fabricReady && !d.fabricReady.challan);
   s.needFab = isNew && !!p && route !== 'outsource' && route !== 'jobwork' && !handReady && !(route === 'stitch' && p.fabric && p.fabric.noRfd)
-    && (route === 'inhouse' ? (flowFabOwed({ qty }, s).left > 0.01 || (flowPrintExtras(r, p).length > 0 && !(flowRufflePrinter(p) ? flowChIndex()[k + FLOW_RUF] : cx))) : (!(d && d.fabricReady) && flowRemFrac(r, s) > 0));   // the ruffle cloth goes too, on the first challan
+    && (flowPrinted(route) ? (flowFabOwed({ qty }, s).left > 0.01 || (flowPrintExtras(r, p).length > 0 && !(flowRufflePrinter(p) ? flowChIndex()[k + FLOW_RUF] : cx))) : (!(d && d.fabricReady) && flowRemFrac(r, s) > 0));   // the ruffle cloth goes too, on the first challan
   s.needAcc = isNew && accNeed && !res;
   s.bucket =
       (r.handedAt || r.shopDoneAt) ? 'done'
@@ -328,12 +366,14 @@ function flowState(r) {
     : (s.needFab || s.needAcc) ? 'demand'
     : (printed && s.given < qty) ? 'vendor'
     : (printed && s.back < qty) ? 'fabric'
+    : (route === 'emb' && s.embOk < qty) ? 'emb'
+    : (route === 'emb' && s.issuedNet < qty) ? 'cut'
     : (s.cutReq && s.cut < qty) ? 'cut'
     /* REJECTED AT QC → BACK IN RAW CUTTING IN STORE (Ravi, 10 Oct: "rejected pcs raw cutting in store me hona chahiye").
      * For a planned line the pieces QC rejected are not "issued" any more: they wait in the store to be issued again. */
     : (s.issuedNet < qty && !(p && flowQcOpen(r, s))) ? 'raw'   // QC work still open comes first
     /* QC (flow-qcfg.js), for a planned line: anything still with Quality Control (waiting, spotting / touching, alteration). */
-    : (s.made < qty) ? (p && flowQcOpen(r, s) ? 'qcb' : 'wip')
+    : (s.made < qty) ? (p && (flowQcOpen(r, s) || route === 'emb') ? 'qcb' : 'wip')
     /* …a Shopify / online line is made to order: passed QC, it waits to be handed to the shipping team (14 Oct). */
     : (flowIsMto(r) && (p || isNew || r.open)) ? 'ship'
     /* …then Ready → India stock: passed and not in India stock — the Finished Goods team accepts it on its own screen. */
@@ -346,7 +386,7 @@ function flowState(r) {
 let FLOW_C = { src: null, test: null, ppc: null, dem: null, res: null, rows: null };
 function flowRows() {
   const real = FLOW_REAL ? ordLines() : flowMtoLines(), test = flowTestLines();
-  if (FLOW_C.rows && FLOW_C.src === real && FLOW_C.test === test && FLOW_C.ppc === FLOW.ppc && FLOW_C.dem === FLOW.dem && FLOW_C.res === FLOW.res && FLOW_C.ch === FLOW.ch && FLOW_C.po === FLOW.po && FLOW_C.fg === FLOW.fg
+  if (FLOW_C.rows && FLOW_C.src === real && FLOW_C.test === test && FLOW_C.ppc === FLOW.ppc && FLOW_C.dem === FLOW.dem && FLOW_C.res === FLOW.res && FLOW_C.ch === FLOW.ch && FLOW_C.emb === FLOW.emb && FLOW_C.po === FLOW.po && FLOW_C.fg === FLOW.fg
     && FLOW_C.qc === (typeof QC !== 'undefined' ? QC.checks : null) && FLOW_C.fgi === (typeof FGI !== 'undefined' ? FGI.rows : null)) return FLOW_C.rows;
   const lines = test.length ? real.concat(test) : real;
   const since = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10);
@@ -357,6 +397,6 @@ function flowRows() {
     if (s.bucket === 'done' && !recent) return;
     rows.push({ r, s, recent });
   });
-  FLOW_C = { src: real, test, ppc: FLOW.ppc, dem: FLOW.dem, res: FLOW.res, ch: FLOW.ch, po: FLOW.po, fg: FLOW.fg, qc: (typeof QC !== 'undefined' ? QC.checks : null), fgi: (typeof FGI !== 'undefined' ? FGI.rows : null), rows };
+  FLOW_C = { src: real, test, ppc: FLOW.ppc, dem: FLOW.dem, res: FLOW.res, ch: FLOW.ch, emb: FLOW.emb, po: FLOW.po, fg: FLOW.fg, qc: (typeof QC !== 'undefined' ? QC.checks : null), fgi: (typeof FGI !== 'undefined' ? FGI.rows : null), rows };
   return rows;
 }

@@ -546,6 +546,7 @@ async function spCutReal(orderNo, sku, pcs, date, fabric, remarks, extraReason) 
     pieces: q, cutDate: ptStampDate(d), fabricWidth: String(fabric || '').trim(),
     orderNo: obUC(orderNo), remarks: [extra ? 'Extra: ' + extra : '', String(remarks || '').trim()].filter(Boolean).join(' · '),
     extraPcs: extra ? q : 0, extraReason: extra,
+    ...(typeof flowPlanRouteOf === 'function' && flowPlanRouteOf(orderNo, sku) === 'emb' ? { qcDirect: true } : {}),   // embroidered: straight to QC
     addedBy: ME.email, addedAt: new Date().toISOString(),
   };
   try { await ptPut('pt_cuttingData/' + entry.id, entry); }
