@@ -79,6 +79,7 @@ function renderFlow() {
   $('flTable').innerHTML = flowTable(FLOW_VIEW, rows.slice(0, 800));
   /* PPC in Excel: on the PPC bucket only — the lines on screen are what the sheet holds. */
   FLOW.shownPpc = FLOW_VIEW === 'ppc' ? rows : [];
+  FLOW.shownDrfd = FLOW_VIEW === 'drfd' ? rows : [];     // every line the filters let through, not only the 800 drawn
   ['flXlOut', 'flXlIn'].forEach(id => { const b = $(id); if (b && b.classList) b.classList.toggle('hide', FLOW_VIEW !== 'ppc'); });
   try { flowXlBtn(); } catch (e) { /* not drawn */ }
   /* DEMAND HAS TWO ANGLES (Ravi, 10 Oct: "keep this section in a different angle"): the lines, or the stock by
@@ -91,6 +92,9 @@ function renderFlow() {
       `<button data-flang="${k}" class="${ang === k ? '' : 'ghost'}" style="width:auto;padding:4px 12px;font-size:12.5px">${l}</button>`).join('')}</div>`;
     if (ang === 'stock') $('flTable').innerHTML = FLOW.stock;
     if (ang === 'print' && FLOW.byprint) $('flTable').innerHTML = FLOW.byprint;
+    /* RFD BY LINE IN EXCEL (Ravi, 21 Oct: "need export button here") */
+    if (ang === 'line' && FLOW_VIEW === 'drfd')
+      FLOW.panel += ' <button type="button" class="ghost" data-flpivxl="line" style="width:auto;padding:4px 12px;font-size:12.5px;margin-left:6px">Download Excel</button>';
     if (ang === 'size' && FLOW.bysize) { $('flTable').innerHTML = FLOW.bysize;
       FLOW.panel += ' <button type="button" class="ghost" data-flpivxl="size" style="width:auto;padding:4px 12px;font-size:12.5px;margin-left:6px">Download Excel</button>'; }
   }
@@ -227,6 +231,35 @@ function flowBySizeXl() {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
   a.download = 'rfd-challan-by-size-' + dToday() + '.xlsx';
+  a.click(); URL.revokeObjectURL(a.href);
+}
+/** Demand · RFD fabric, By line, as a sheet: the lines on screen (search and filters applied), one row each, with what the
+ * table shows — printer, what is printed, fabric and metres to send, covered / short, stock — and the papers raised. */
+function flowDrfdLineRows(rows) {
+  const cv = flowRfdCover(), today = dToday();
+  const days = iso => { const a = Date.parse(String(iso || '').slice(0, 10)), b = Date.parse(today); return isNaN(a) || isNaN(b) ? '' : Math.max(0, Math.round((b - a) / 864e5)); };
+  const what = w => w.kind === 'sku' ? [w.code, w.label] : w.sides ? [w.sides.map(x => x.side + ' ' + x.code).join(' + '), w.label + ' (half the cloth each)']
+    : w.needDir ? ['', 'pick the print direction · ' + w.label] : [w.code || '', w.code ? w.label : 'no fabric SKU in the catalogue · ' + w.label];
+  const out = [['PO', 'Order date', 'Days old', 'SKU', 'Item', 'Colour', 'Size', 'Qty', 'Route', 'Printer', 'Print on', 'What is printed',
+    'Fabric', 'To send (m)', 'Ruffle fabric', 'Ruffle (m)', 'Ruffle printer', 'RFD', 'Short (m)', 'In stock (m)', 'Print order', 'Vendor order', 'RFD challan']];
+  rows.forEach(x => {
+    const p = x.s.plan || {}, c = cv.line[x.s.key] || { need: 0, avail: 0, short: 0 }, stitch = x.s.route === 'stitch';
+    const [on, lab] = stitch ? ['', 'No printing — straight to cutting'] : what(flowPrintWhat(x.r, p)), ro = flowRuffleOwed(x);
+    const docs = flowDocsOf(x), kind = re => docs.filter(d => re.test(d.kind)).map(d => d.no + (d.closed ? ' (closed)' : '')).join(', ');
+    const route = (FLOW_ROUTES.find(r => r[0] === flowRouteOf(p)) || [, , flowRouteOf(p)])[2] || '';
+    out.push([x.r.orderNo, ptIsoDate(x.r.orderDate) || '', days(ptIsoDate(x.r.orderDate)), x.r.sku, x.r.articleSubtype || x.r.articleType || '', x.r.color || '', x.r.size || '',
+      +x.r.qty || 0, route, stitch ? '' : ((p.printer && p.printer.name) || ''), on, lab, (p.fabric && p.fabric.name) || '', p.fabric ? c.need : '',
+      ro ? ro.fabric : '', ro ? ro.metres : '', ro ? ro.printer.name : '', c.short ? 'Short' : 'Covered', c.short || '', c.avail,
+      kind(/^Print order/), kind(/^Vendor order/), kind(/challan/i)]);
+  });
+  return out;
+}
+function flowDrfdLineXl(rows) {
+  if (!rows.length) { $('flMsg').className = 'err'; $('flMsg').textContent = 'No line to put in the sheet.'; return; }
+  const bytes = recipeXlsx(flowDrfdLineRows(rows), { name: 'RFD by line', freeze: 2, cols: {} });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+  a.download = 'rfd-demand-by-line-' + dToday() + '.xlsx';
   a.click(); URL.revokeObjectURL(a.href);
 }
 /** FIFO: pieces to send per size group → { key: {pcs, metres} }, oldest orders filled first. */
@@ -536,7 +569,8 @@ $('flBuckets').addEventListener('click', e => { const b = e.target.closest('[dat
   FLOW_VIEW = b.dataset.flb === 'demand' ? (FLOW.demView || (flowScreenAllowed().find(x => x[4] === 'demand') || [])[0] || 'drfd') : b.dataset.flb; renderFlow(); });
 $('flPanel').addEventListener('click', e => { const gg = e.target.closest('[data-gdgo]'); if (gg) { showTab('gdesk'); GD.open(gg.dataset.gdgo); return; } const dm = e.target.closest('[data-fldem]'); if (dm) { FLOW_VIEW = dm.dataset.fldem; renderFlow(); return; }
   const an = e.target.closest('[data-flang]'); if (an) { FLOW_ANGLE[FLOW_VIEW] = an.dataset.flang; renderFlow(); return; }
-  if (e.target.closest('[data-flpivxl]')) { try { flowBySizeXl(); } catch (er) { $('flMsg').className = 'err'; $('flMsg').textContent = 'Could not make the sheet: ' + (er.message || er); } return; }
+  const xl = e.target.closest('[data-flpivxl]');
+  if (xl) { try { if (xl.dataset.flpivxl === 'line') flowDrfdLineXl(FLOW.shownDrfd || []); else flowBySizeXl(); } catch (er) { $('flMsg').className = 'err'; $('flMsg').textContent = 'Could not make the sheet: ' + (er.message || er); } return; }
   const cp = e.target.closest('[data-flchp]'); if (!cp) return;
   const er = flowChallanPrint(cp.dataset.flchp); if (er) { $('flMsg').className = 'err'; $('flMsg').textContent = er; } });
 $('flQ').addEventListener('input', () => { clearTimeout(FLOW.qt); FLOW.qt = setTimeout(renderFlow, 220); });
