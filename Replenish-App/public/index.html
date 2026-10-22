@@ -28641,9 +28641,30 @@ function flowChTotals(n) {
   return `Ticked: ${nf(lines)} line(s)${pcs ? ` · ${nf(pcs)} pcs` : ''} · ${nf(flowR2(m))} m`;
 }
 let FLOW_CH_N = 0;
+/* THE REVIEW, BY SIZE (Ravi, 22 Oct: "yaha jab ham challan ka review kare tab size combine hokar dikhe"): what is ticked on the
+ * form, added up by fabric and size — pieces and metres — as it will go; it changes as a line is ticked or a figure typed.
+ * FLOW_CH_SZ[i] = { fabric, size } for the form's line i (a ruffle line has no size). */
+let FLOW_CH_SZ = [];
+function flowChSizeLive(n) {
+  if (typeof document === 'undefined' || typeof document.querySelector !== 'function') return '';
+  const by = new Map();
+  for (let i = 0; i < n; i++) {
+    const chk = document.querySelector(`[data-chk="${i}"]`); if (!chk || !chk.checked) continue;
+    const z = FLOW_CH_SZ[i] || {}, pcs = +((document.querySelector(`[data-chp="${i}"]`) || {}).value || 0) || +z.pcs || 0, m = +((document.querySelector(`[data-chm="${i}"]`) || {}).value || 0);
+    const k = String(z.fabric || '').toUpperCase() + '|' + (typeof flowSizeKey === 'function' ? flowSizeKey(z.size) : String(z.size || '').toLowerCase());
+    const g = by.get(k) || { fabric: z.fabric || '—', size: z.size || (z.ruffle ? 'ruffle cloth' : '—'), lines: 0, pcs: 0, m: 0 };
+    g.lines++; g.pcs += z.ruffle ? 0 : pcs; g.m = flowR2(g.m + m); by.set(k, g);
+  }
+  const list = [...by.values()].sort((a, b) => a.fabric.localeCompare(b.fabric) || (typeof flowSizeSort === 'function' ? flowSizeSort(a.size, b.size) : String(a.size).localeCompare(String(b.size))));
+  if (!list.length) return '';
+  return `<div style="font-size:12px;font-weight:700;margin:2px 0 4px">By size — what goes on this challan</div><table class="xl" style="width:auto"><thead><tr><th style="text-align:left">Fabric</th><th style="text-align:left">Size</th><th>Lines</th><th>Pcs</th><th>Metres</th></tr></thead><tbody>`
+    + list.map(g => `<tr><td style="text-align:left">${esc(g.fabric)}</td><td style="text-align:left"><b>${esc(g.size)}</b></td><td class="num">${nf(g.lines)}</td><td class="num"><b>${g.pcs ? nf(g.pcs) : '—'}</b></td><td class="num">${nf(g.m)}</td></tr>`).join('')
+    + `</tbody></table>`;
+}
 if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') ['input', 'change'].forEach(ev => document.addEventListener(ev, e => {
   const t = e.target; if (!t || !t.closest || !t.closest('[data-chk],[data-chp],[data-chm]')) return;
   const box = document.getElementById && document.getElementById('flcTot'); if (box) box.textContent = flowChTotals(FLOW_CH_N);
+  const sz = document.getElementById && document.getElementById('flcSize'); if (sz) sz.innerHTML = flowChSizeLive(FLOW_CH_N);
 }));
 function flowChallanDialog(rows, pcode, rufRows, pre, after) {
   /* pre (18 Oct, the size challan): what to send on each line, worked out FIFO — those lines come ticked with those figures. */
@@ -28659,6 +28680,9 @@ function flowChallanDialog(rows, pcode, rufRows, pre, after) {
       <td class="num"><input data-chm="${i}" type="number" step="0.01" value="${esc(o.metres || '')}" style="width:72px;padding:3px 6px;font-size:12px"></td>
       <td style="font-size:11px"><span class="muted">ruffle cloth</span></td></tr>`; }).join('');
   rows = rows.concat(rufRows); const isRuf = i => i >= nM; FLOW_CH_N = rows.length;
+  FLOW_CH_SZ = rows.map((x, i) => { let m = {}; try { m = cutSkuOf(x.r.sku) || {}; } catch (e) { m = {}; }
+    return isRuf(i) ? { fabric: (flowRuffleOwed(x) || {}).fabric || '', size: '', ruffle: true }
+      : { fabric: (x.s.plan && x.s.plan.fabric && x.s.plan.fabric.name) || '', size: String(m.size || x.r.size || '').trim(), pcs: x.s.fabUnit === 'pcs' ? 0 : (+x.r.qty || 0) }; });
   const orders = [...new Set(rows.map(x => x.r.orderNo))], orderNo = orders.join(', '), isTest = rows.every(x => !!x.r.__t);
   const vens = flowChVendors();
   /* The printer PPC planned for these lines comes ready picked. */
@@ -28687,6 +28711,7 @@ function flowChallanDialog(rows, pcode, rufRows, pre, after) {
       <table class="xl" style="margin-top:10px;width:100%;table-layout:fixed"><colgroup><col style="width:34px"><col><col style="width:100px"><col style="width:84px"><col style="width:92px"><col style="width:104px"></colgroup>
         <thead><tr><th></th><th style="text-align:left">Item</th><th style="text-align:left">Fabric</th><th>Pcs</th><th>Metres</th><th>RFD</th></tr></thead><tbody>${lineHtml}</tbody></table>
       <div id="flcTot" style="margin-top:8px;font-size:13px;font-weight:600"></div>
+      <div id="flcSize" style="margin-top:8px"></div>
       <label style="display:block;margin-top:8px">Note (vehicle, who carried it…)<input id="flcNote"></label>`,
     saveLabel: 'Make the challan',
     onSave: async () => {
@@ -28748,6 +28773,7 @@ function flowChallanDialog(rows, pcode, rufRows, pre, after) {
   });
   /* design A: the totals of what is ticked, and each line's photo */
   const tot = document.getElementById && document.getElementById('flcTot'); if (tot) tot.textContent = flowChTotals(rows.length);
+  const szb = document.getElementById && document.getElementById('flcSize'); if (szb) szb.innerHTML = flowChSizeLive(rows.length);
   if (typeof ptImgFill === 'function') ptImgFill(rows.map(x => obUC(x.r.sku)), false, typeof ptImgPatch === 'function' ? ptImgPatch : null);
 }
 
