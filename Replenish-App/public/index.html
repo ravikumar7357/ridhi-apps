@@ -30513,7 +30513,7 @@ function flowBackLines() {
 function flowBackCard() {
   const rows = flowBackLines();
   if (!rows.length) return '';
-  const can = flowCanAgain();
+  const can = flowCanAgain(), canDel = typeof odrCanAnswer === 'function' && odrCanAnswer();
   return `<div class="card" style="border-left:4px solid #b91c1c;margin-top:10px;padding:10px 14px">
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b style="color:#b91c1c">Sent back by PPC · ${nf(rows.length)}</b>
       <span class="muted" style="font-size:12.5px">PPC cannot plan these. Put the order or the master right, then send the line to PPC again.</span></div>
@@ -30525,13 +30525,47 @@ function flowBackCard() {
         <td style="text-align:left;white-space:normal;max-width:360px"><b>${esc(flowBackTxt(b.why))}</b>${b.note ? `<div style="font-size:12.5px">${esc(b.note)}</div>` : ''}</td>
         <td class="muted" style="font-size:12px;white-space:nowrap">${esc(String(b.at).slice(0, 10))}<br>${esc(String(b.by || '').split('@')[0])}</td>
         <td style="white-space:nowrap">${so ? `<button class="ghost" data-so-open="${esc(l.orderNo)}" style="padding:3px 9px;font-size:12px">Open order</button> ` : ''}${can
-          ? `<button data-flagain="${esc(l.orderNo + '|' + l.sku)}" style="padding:3px 9px;font-size:12px">Fixed — send to PPC</button>` : ''}</td></tr>`; }).join('')}
+          ? `<button data-flagain="${esc(l.orderNo + '|' + l.sku)}" style="padding:3px 9px;font-size:12px">Fixed — send to PPC</button>` : ''}${canDel
+          ? ` <button class="ghost" data-flbdel="${esc(l.orderNo + '|' + l.sku)}" style="padding:3px 9px;font-size:12px;color:var(--bad,#b91c1c);border-color:var(--bad,#b91c1c)">Delete</button>` : ''}</td></tr>`; }).join('')}
     </tbody></table></div></div>`;
 }
 
 /** The pill the Order Console puts in front of a line that is with the sales team. */
 const flowBackPill = r => flowIsBack(r) ? `<span class="pill pill-out" title="${esc('Sent back by ' + String(r.ppcBack.by || '').split('@')[0] + ' on ' + String(r.ppcBack.at).slice(0, 10) + ': ' + flowBackSays(r.ppcBack))}">Back with sales · ${esc(flowBackTxt(r.ppcBack.why))}</span> ` : '';
 
+/* DELETE IT FROM HERE (Ravi, 22 Oct: "need delete option here" — lines PPC sent back that are not to be made at all: already
+ * fulfilled by MCF, a duplicate, "delete this"). The sales team's own delete (orders/delete-requests.js): the line comes off the
+ * order book and off its sales order, so approving the order again cannot bring it back; work booked against it stays. It is
+ * filed as an answered deletion request, so Deletion requests keeps the record of who deleted it and why. */
+function flowBackDelOpen(orderNo, sku) {
+  if (typeof odrCanAnswer !== 'function' || !odrCanAnswer()) return;
+  const l = flowBackLines().find(x => x.orderNo === obUC(orderNo) && x.sku === obUC(sku)); if (!l) return;
+  const w = odrWork(l), b = l.ppcBack || {};
+  ptOpenDialog({
+    title: `Delete ${l.orderNo} · ${l.sku}`,
+    subtitle: `${nf(l.qty)} pcs · ${[l.articleSubtype || l.articleType, l.color, l.size].filter(Boolean).join(' · ')}`,
+    note: 'The line comes off the order book and off its sales order, so approving the order again will not bring it back. Work already booked against it stays where it is.',
+    html: `<div style="font-size:12.5px">PPC sent it back: <b>${esc(flowBackSays(b))}</b></div>`
+      + (w.any ? `<div class="err" style="margin-top:6px">Work is booked against it: ${esc(w.text)} — that work stays, it just stops counting against an order.</div>` : '')
+      + `<label style="display:block;margin-top:8px">Why delete it?<input id="flbdWhy" type="text" value="${esc(b.note || flowBackTxt(b.why))}"></label>`,
+    saveLabel: 'Delete the line',
+    onSave: async () => {
+      const why = String(($('flbdWhy') || {}).value || '').trim(); if (!why) return 'Say why it goes.';
+      const id = odrId(l.orderNo, l.sku), now = new Date().toISOString();
+      const rec = { id, status: 'pending', orderNo: l.orderNo, sku: l.sku, qty: l.qty, orderDate: l.orderDate || '',
+        articleType: l.articleType || '', articleSubtype: l.articleSubtype || '', color: l.color || '', size: l.size || '', src: l.src || '',
+        work: { cut: l.cut || 0, issued: l.issued || 0, received: l.received || 0, pressed: l.pressed || 0 },
+        why: 'Sent back by PPC (' + flowBackSays(b) + ') — ' + why, by: ME.email, at: now, from: 'ppcBack' };
+      try { await ptPatch({ ['pt_obDeleteReqs/' + id]: rec }); } catch (e) { return 'Could not save: ' + (e.message || e); }
+      const er = await odrDeleteRun([id]); if (er) return er;
+      return '';
+    },
+  });
+}
+if (typeof document !== 'undefined' && document.addEventListener) document.addEventListener('click', e => {
+  const d = e.target.closest && e.target.closest('[data-flbdel]'); if (!d) return;
+  e.preventDefault(); const [orderNo, sku] = String(d.dataset.flbdel).split('|'); flowBackDelOpen(orderNo, sku);
+});
 if (typeof document !== 'undefined' && document.addEventListener) document.addEventListener('click', e => {
   const a = e.target.closest && e.target.closest('[data-flagain]'); if (!a) return;
   e.preventDefault();
