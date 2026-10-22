@@ -405,7 +405,7 @@ function flowPpcOpen(orderNo, onlySku, keys) {
             ${(p.extra || []).some(x => /^Ruffle — /.test(String(x.what || ''))) ? fld('Ruffle printer', `<select data-fp="${i}" data-k="rufflePrinter.code"><option value="">— same as the printer —</option>${flowPrinterOpts((flowRufflePrinter(p) || {}).code)}</select>`
               + '<small class="fpc-why">the ruffle cloth can go to another printer — its own print order and challan</small>', 'w2') : ''}
             ${fld('Embroidery by', `<select data-fp="${i}" data-k="emb.code">${flowEmbOpts((p.emb || {}).code)}</select>`
-              + '<small class="fpc-why">the printed cloth goes here in metres and comes back as pieces — then Cutting, then QC</small>', 'w2" data-embrow="' + i)}
+              + '<small class="fpc-why">our department: cut first, then issued to the embroidery karigar on Job Work, then QC · a vendor: the printed cloth goes on an embroidery challan in metres, back as pieces, then cutting, then QC</small>', 'w2" data-embrow="' + i)}
             ${fld('Outsource vendor', inp(i, 'outVendor', p.outVendor || '', '', ' placeholder="who makes it"') + '<small class="fpc-why">no fabric or accessories are raised for it</small>', 'w2" data-outrow="' + i)}
             ${fld('Fabric', `<span style="display:flex;gap:6px;align-items:center;text-transform:none;letter-spacing:0;font-size:13px;color:var(--ink)"><input type="checkbox" data-fp="${i}" data-k="fabric.noRfd"${p.fabric && p.fabric.noRfd ? ' checked' : ''} style="width:auto;margin:0"> Already printed / in hand — take no RFD</span>`
               + '<small class="fpc-why">the cloth was printed earlier: no RFD is raised or taken, nothing goes to a printer, and the line goes straight to Cutting — or, on Printing + Embroidery, straight to Embroidery</small>', 'w2" data-nordrow="' + i)}
@@ -600,9 +600,10 @@ function flowPpcOpen(orderNo, onlySku, keys) {
       const w = flowPrinted(route) && !noRfd ? flowPrintWhat(r, cur) : null, xw = flowPrinted(route) && !noRfd ? flowPrintExtras(r, cur) : [];
       const pg = document.querySelector(`[data-pget="${i}"]`);
       const embTo = route === 'emb' ? flowEmbWho(val(i, 'emb.code') ?? (p.emb && p.emb.code)).name : '';
+      const embDeptOn = route === 'emb' && flowEmbWho(val(i, 'emb.code') ?? (p.emb && p.emb.code)).code === FLOW_EMB_DEPT.code;
       if (pg) pg.innerHTML = w ? `<span class="fpc-mode">${esc(w.mode)}</span> ` + flowPrintTxt(w) + flowExtrasTxt(xw)
-        + (embTo ? `<div style="font-size:11.5px;color:#5b21b6;margin-top:3px">then embroidery → <b>${esc(embTo)}</b> → cutting → QC</div>` : '') + '<div data-pcov></div>'
-        : `<span class="muted">${route === 'emb' ? `Nothing — the printed cloth is in hand; it goes straight to embroidery${embTo ? ' → ' + esc(embTo) : ''}, then cutting, then QC.`
+        + (embTo ? `<div style="font-size:11.5px;color:#5b21b6;margin-top:3px">${embDeptOn ? 'then cutting → <b>embroidery karigar</b> (Job Work issue / receive) → QC' : `then embroidery → <b>${esc(embTo)}</b> → cutting → QC`}</div>` : '') + '<div data-pcov></div>'
+        : `<span class="muted">${route === 'emb' ? (embDeptOn ? 'Nothing — the printed cloth is in hand; it goes to cutting, then to the embroidery karigar (Job Work), then QC.' : `Nothing — the printed cloth is in hand; it goes straight to embroidery${embTo ? ' → ' + esc(embTo) : ''}, then cutting, then QC.`)
           : route === 'stitch' ? 'Nothing — no printing; the RFD goes straight to the cutting department.'
           : route === 'jobwork' ? 'Nothing — no printing, no cutting; the line goes straight to Raw cutting in store, to be issued to a karigar.'
           : 'Nothing — made outside.'}</span>`;

@@ -23,7 +23,7 @@ async function flowCutEntry(r, s) {
     flowEmbedOff('pcut'); showTab('pcut'); await flowOpenBox('cwBox', 'cwToggle'); if (typeof ensureCutForm === 'function') await ensureCutForm();
     $('cwSku').value = obUC(r.sku); cutSkuTyped(); renderCutForm();
     $('cwOrd').value = r.orderNo; renderCutForm();
-    $('cwPcs').value = s.route === 'emb' ? (s.canCut || 0)   // only what came back from embroidery
+    $('cwPcs').value = s.route === 'emb' && !s.embDept ? (s.canCut || 0)   // only what came back from the embroidery vendor
       : Math.max(0, Math.min(+r.qty || 0, s.printed ? (s.back || 0) : (+r.qty || 0)) - (s.cut || 0));   // only what is back to cut
     const fab = s.plan && s.plan.fabric && s.plan.fabric.name, sel = $('cwFabric');
     if (fab && sel && [...sel.options].some(o => o.value === fab)) sel.value = fab;

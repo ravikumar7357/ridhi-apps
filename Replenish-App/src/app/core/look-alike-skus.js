@@ -428,7 +428,7 @@ $('cwSave').onclick = async () => {
     remarks: $('cwRemarks').value.trim(),
     /* EMBROIDERED PIECES GO STRAIGHT TO QC (Ravi, 21 Oct): a Production flow line on Printing + Embroidery has no karigar —
      * the entry says so, and Quality Control lists its pieces in Waiting for QC (quality-control.js qcInboxRows). */
-    ...(typeof flowPlanRouteOf === 'function' && flowPlanRouteOf(orderNo, sku) === 'emb' ? { qcDirect: true } : {}),
+    ...(typeof flowPlanQcDirect === 'function' && flowPlanQcDirect(orderNo, sku) ? { qcDirect: true } : {}),
     addedBy: ME.email, addedAt: new Date().toISOString(),
   };
 

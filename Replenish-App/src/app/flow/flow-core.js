@@ -184,10 +184,17 @@ const flowPrinted = route => route === 'inhouse' || route === 'emb';
  * hu"): the plan's tick fabric.noRfd — nothing goes to a printer, no RFD is raised; on Embroidery the cloth goes straight to the
  * embroiderer (all of the plan's metres are ready to send). */
 const flowInHand = p => !!(p && p.fabric && p.fabric.noRfd && ['stitch', 'emb'].includes(flowRouteOf(p)));
+/* OUR OWN EMBROIDERY IS KARIGAR WORK (Ravi, 22 Oct: "embroidery department bhi mere karigar banate h isko job work me hi shift
+ * krna padega … iska flow bhi karigar issue receive se hi chalega" — "cutt need h isme"). Embroidered in-house: print → cut →
+ * issued to the embroidery karigar on Job Work → received → QC, the way any karigar line goes (only cut always, the cloth being
+ * printed running). An embroidery VENDOR still goes on the embroidery challan (flow-emb.js): out in metres, pieces back, cut, QC. */
+const flowEmbByVendor = p => !!(p && flowRouteOf(p) === 'emb' && p.emb && p.emb.code && p.emb.code !== FLOW_EMB_DEPT.code);
 /** Our own embroidery department — picked like a vendor, never on the vendor list. */
 const FLOW_EMB_DEPT = Object.freeze({ code: 'EMBDEPT', name: 'Embroidery department (in-house)' });
 const flowIsEmbSku = m => /embroid/i.test(String((m && (m.subtype || m.articleSubtype)) || ''));
 /** The route PPC planned for an order line, '' when it has no plan (or the plans are not read yet). For the registers. */
+/** A cutting entry for this line goes straight to QC — an embroidery VENDOR's line (no karigar after the cut). */
+const flowPlanQcDirect = (orderNo, sku) => { try { return flowEmbByVendor(((typeof FLOW !== 'undefined' && FLOW && FLOW.ppc) || {})[flowKey(orderNo, sku)]); } catch (e) { return false; } };
 const flowPlanRouteOf = (orderNo, sku) => { try { const p = ((typeof FLOW !== 'undefined' && FLOW && FLOW.ppc) || {})[flowKey(orderNo, sku)]; return p ? flowRouteOf(p) : ''; } catch (e) { return ''; } };
 /** Which list a line is in. Demand is one stop in the walk but two lists; the rest are the bucket itself. */
 /* PART BACK, PART ON (Ravi, 11 Oct: "maine order ke against partially fabric receive kiya, but wo partially fabric cutting
@@ -328,7 +335,7 @@ function flowState(r) {
     s.fabUnit = pcsWise ? 'pcs' : 'm'; s.fabNeed = pcsWise ? tp.pcs : tp.metres; s.fabSent = cx ? flowR2(cx.sent) : 0;
     const total = pcsWise ? qty : flowR2(+(p.fabric && p.fabric.metres) || 0), have = fp + (cx ? cx.recv : 0);
     s.fabHave = flowR2(have); s.fabTotal = total;
-    if (route === 'emb' && flowInHand(p)) s.fabHave = flowR2(+(p.fabric && p.fabric.metres) || 0);   // in hand: all of it, for embroidery
+    if (route === 'emb' && flowInHand(p) && flowEmbByVendor(p)) s.fabHave = flowR2(+(p.fabric && p.fabric.metres) || 0);   // in hand: all of it, for embroidery
     /* ALL FROM PRINTED STOCK: nothing to print, nothing to send — given and back in full, straight to Cutting. */
     s.fromStock = !flowPrintsSomething(r, p);
     if (s.fromStock) { s.given = qty; s.back = qty; }
@@ -348,7 +355,14 @@ function flowState(r) {
   /* EMBROIDERED, THEN CUT, THEN QC (Ravi, 21 Oct). The printed cloth goes to embroidery in metres and comes back as pieces
    * (flow-emb.js); those are cut — the cloth left round the embroidery trimmed — and the cut pieces wait for QC: no karigar,
    * so "issued" and "received" are the pieces cut. A piece QC rejects is embroidered again (it leaves the embroidered count). */
-  if (route === 'emb') {
+  if (route === 'emb' && !flowEmbByVendor(p)) {
+    /* in-house: cut always, then the karigar on Job Work, as Printing goes */
+    const cutAll = Math.max(0, +r.cut || 0);
+    s.cutReq = true; s.cut = cap(cutAll); s.cutAll = cutAll; s.embDept = true;
+    s.canCut = Math.max(0, (printed ? s.back : qty) - s.cut);
+    s.canIssue = Math.max(0, s.cut - s.issuedNet);
+  }
+  if (route === 'emb' && flowEmbByVendor(p)) {
     const e = (typeof flowEmbIndex === 'function' ? flowEmbIndex()[k] : null) || { sent: 0, back: 0 }, cutAll = Math.max(0, +r.cut || 0);
     s.embSent = flowR2(e.sent || 0); s.embBack = Math.max(0, +e.back || 0); s.embTo = e.to || ''; s.embNos = e.nos || [];
     s.embOk = Math.max(0, s.embBack - s.qcRej);
@@ -371,14 +385,14 @@ function flowState(r) {
     : (s.needFab || s.needAcc) ? 'demand'
     : (printed && s.given < qty) ? 'vendor'
     : (printed && s.back < qty) ? 'fabric'
-    : (route === 'emb' && s.embOk < qty) ? 'emb'
-    : (route === 'emb' && s.issuedNet < qty) ? 'cut'
+    : (route === 'emb' && !s.embDept && s.embOk < qty) ? 'emb'
+    : (route === 'emb' && !s.embDept && s.issuedNet < qty) ? 'cut'
     : (s.cutReq && s.cut < qty) ? 'cut'
     /* REJECTED AT QC → BACK IN RAW CUTTING IN STORE (Ravi, 10 Oct: "rejected pcs raw cutting in store me hona chahiye").
      * For a planned line the pieces QC rejected are not "issued" any more: they wait in the store to be issued again. */
     : (s.issuedNet < qty && !(p && flowQcOpen(r, s))) ? 'raw'   // QC work still open comes first
     /* QC (flow-qcfg.js), for a planned line: anything still with Quality Control (waiting, spotting / touching, alteration). */
-    : (s.made < qty) ? (p && (flowQcOpen(r, s) || route === 'emb') ? 'qcb' : 'wip')
+    : (s.made < qty) ? (p && (flowQcOpen(r, s) || (route === 'emb' && !s.embDept)) ? 'qcb' : 'wip')
     /* …a Shopify / online line is made to order: passed QC, it waits to be handed to the shipping team (14 Oct). */
     : (flowIsMto(r) && (p || isNew || r.open)) ? 'ship'
     /* …then Ready → India stock: passed and not in India stock — the Finished Goods team accepts it on its own screen. */
