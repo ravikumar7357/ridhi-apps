@@ -771,6 +771,29 @@ const flowPendingToWip = () => (flowEmbedViews('pbase').includes('wip') ? (FLOW_
  * same buttons as before. Only where the flow is switched on, and only the tabs this account may open. */
 const FLOW_EMBED = { pcut: { pane: 'panePcut', own: 'Cutting Data', views: ['cut'] }, pbase: { pane: 'panePbase', own: 'Job Work Register', views: ['raw', 'wip'] } };
 const FLOW_EMB = { pcut: '', pbase: '' };
+const FLOW_EMB_SHOWN = {};
+/** The lines on screen in an embedded flow list (every one the filters let through, not only the 800 drawn), as a sheet. */
+function flowEmbedRows(view, rows) {
+  const days = iso => { const a = Date.parse(String(iso || '').slice(0, 10)), b = Date.parse(dToday()); return isNaN(a) || isNaN(b) ? '' : Math.max(0, Math.round((b - a) / 864e5)); };
+  const out = [['PO', 'Platform', 'Order date', 'Days old', 'SKU', 'Article', 'Subtype', 'Colour', 'Size', 'Qty', 'Printed fabric', 'Cut', 'Pending to cut', 'Can cut now',
+    'Issued', 'Received', 'QC passed', 'In store, to issue', 'Planned cut date']];
+  rows.forEach(x => {
+    const q = +x.r.qty || 0, pend = Math.max(0, q - (+x.s.cut || 0)), pf = (() => { try { const f = flowCutFabricOf(x.r, x.s.plan); return [f.code, f.label].filter(Boolean).join(' · '); } catch (e) { return ''; } })();
+    out.push([x.r.orderNo, flowSrcOf(x) || '', ptIsoDate(x.r.orderDate) || '', days(ptIsoDate(x.r.orderDate)), x.r.sku, x.r.articleType || '', x.r.articleSubtype || '', x.r.color || '', x.r.size || '', q, pf,
+      +x.s.cut || 0, x.s.cutReq ? pend : '', x.s.cutReq ? Math.min(pend, +x.s.canCut || 0) : '', +x.s.issuedNet || +x.s.issued || 0, +x.s.received || 0, +x.s.made || 0, +x.s.canIssue || 0,
+      (x.s.plan && x.s.plan.dates && x.s.plan.dates.cut) || '']);
+  });
+  return out;
+}
+function flowEmbedXl(tab) {
+  const sh = FLOW_EMB_SHOWN[tab]; if (!sh || !sh.rows.length) { const m = $('flEmbMsg_' + tab); if (m) m.textContent = 'No line to put in the sheet.'; return; }
+  const name = ((FLOW_BUCKETS.find(b => b[0] === sh.view) || [, sh.view])[1] || sh.view).replace(/[^\w]+/g, '-').replace(/^-|-$/g, '').toLowerCase();
+  const bytes = recipeXlsx(flowEmbedRows(sh.view, sh.rows), { name: 'Lines', freeze: 2, cols: {} });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+  a.download = name + '-' + dToday() + '.xlsx';
+  a.click(); URL.revokeObjectURL(a.href);
+}
 function flowEmbedViews(tab) { const mine = new Set(flowBucketsAllowed().map(b => b[0])); return FLOW_ON ? FLOW_EMBED[tab].views.filter(v => mine.has(v)) : []; }
 function flowEmbedSetup() {
   Object.keys(FLOW_EMBED).forEach(tab => {
@@ -782,12 +805,18 @@ function flowEmbedSetup() {
         + `<div id="flEmb_${tab}" class="hide"><div class="card" style="padding:10px 14px">`
         /* PLATFORM AND SEARCH (Ravi, 16 Oct: "to cut wale me filter laga kar check kar saku ki kis platform ka h"). */
         + `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px"><select id="flEmbSrc_${tab}" style="width:auto;min-width:170px"><option value="">Every platform</option></select>`
-        + `<input id="flEmbQ_${tab}" placeholder="Search PO, SKU, colour…" style="flex:1 1 240px;min-width:0;max-width:420px"></div>`
+        /* ARTICLE, SUBTYPE, COLOUR AND EXCEL (Ravi, 22 Oct: "yaha par bhi export button ho and filter me color article subtype add krdo") */
+        + `<select id="flEmbAt_${tab}" style="width:auto;min-width:150px"><option value="">Every article</option></select>`
+        + `<select id="flEmbSub_${tab}" style="width:auto;min-width:170px"><option value="">Every subtype</option></select>`
+        + `<select id="flEmbCol_${tab}" style="width:auto;min-width:150px"><option value="">Every colour</option></select>`
+        + `<input id="flEmbQ_${tab}" placeholder="Search PO, SKU, colour…" style="flex:1 1 240px;min-width:0;max-width:420px">`
+        + `<button type="button" class="ghost" id="flEmbXl_${tab}" style="width:auto;padding:6px 14px;font-size:13px">Download Excel</button></div>`
         + `<div id="flEmbMsg_${tab}" class="muted" style="font-size:12.5px"></div></div>`
         + `<div class="card xlwrap" style="margin-top:12px"><table class="xl" id="flEmbT_${tab}"></table></div></div>`);
       $('flSeg_' + tab).addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-flemb]'); if (!b) return; FLOW_EMB[tab] = b.dataset.flemb; flowEmbedRender(tab); });
       $('flEmbT_' + tab).addEventListener('click', flowTableClick);
-      if ($('flEmbSrc_' + tab)) $('flEmbSrc_' + tab).addEventListener('change', () => flowEmbedRender(tab));
+      ['flEmbSrc_', 'flEmbAt_', 'flEmbSub_', 'flEmbCol_'].forEach(id => { if ($(id + tab)) $(id + tab).addEventListener('change', () => flowEmbedRender(tab)); });
+      if ($('flEmbXl_' + tab)) $('flEmbXl_' + tab).addEventListener('click', () => { try { flowEmbedXl(tab); } catch (e) { const m = $('flEmbMsg_' + tab); if (m) m.textContent = 'Could not make the sheet: ' + (e.message || e); } });
       if ($('flEmbQ_' + tab)) $('flEmbQ_' + tab).addEventListener('input', () => flowEmbedRender(tab));
     }
     flowEmbedRender(tab);
@@ -819,10 +848,20 @@ async function flowEmbedRender(tab) {
   const src = srcSel ? String(srcSel.value || '') : '', q = qBox ? String(qBox.value || '').trim().toLowerCase() : '';
   if (srcSel && typeof ptFillSelect === 'function') { const list = [...new Set(inView.map(flowSrcOf).filter(Boolean))].sort(); if (src && !list.includes(src)) list.push(src);
     ptFillSelect('flEmbSrc_' + tab, list.map(s => [s, s + ' (' + nf(inView.filter(x => flowSrcOf(x) === s).length) + ')']), 'Every platform'); srcSel.value = src; }
-  const rows = inView.filter(x => (!src || flowSrcOf(x) === src)
+  /* article, subtype and colour: each list is what the lines left by the other picks carry; a pick survives a redraw */
+  const pick = id => String(($(id + tab) || {}).value || ''), at = pick('flEmbAt_'), sub = pick('flEmbSub_'), col = pick('flEmbCol_');
+  const fAt = x => String(x.r.articleType || '').trim(), fSub = x => String(x.r.articleSubtype || '').trim(), fCol = x => String(x.r.color || '').trim();
+  const pass = (x, skip) => (!src || flowSrcOf(x) === src) && (skip === 'at' || !at || fAt(x) === at) && (skip === 'sub' || !sub || fSub(x) === sub) && (skip === 'col' || !col || fCol(x) === col);
+  [['flEmbAt_', 'at', fAt, at, 'Every article'], ['flEmbSub_', 'sub', fSub, sub, 'Every subtype'], ['flEmbCol_', 'col', fCol, col, 'Every colour']].forEach(([id, k, fn, cur, all]) => {
+    if (!$(id + tab) || typeof ptFillSelect !== 'function') return;
+    const these = inView.filter(x => pass(x, k)), list = [...new Set(these.map(fn).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    if (cur && !list.includes(cur)) list.push(cur);
+    ptFillSelect(id + tab, list.map(s => [s, s + ' (' + nf(these.filter(x => fn(x) === s).length) + ')']), all); $(id + tab).value = cur; });
+  const rows = inView.filter(x => pass(x)
       && (!q || [x.r.orderNo, x.r.sku, x.r.color, x.r.size, x.r.articleSubtype, x.r.articleType, x.r.shopOrderNo].join(' ').toLowerCase().includes(q)))
     .sort((a, b) => String(a.r.orderDate || '').localeCompare(String(b.r.orderDate || '')) || String(a.r.orderNo).localeCompare(String(b.r.orderNo)));
   tbl.innerHTML = flowTable(v, rows.slice(0, 800));
+  FLOW_EMB_SHOWN[tab] = { view: v, rows };
   const b = FLOW_BUCKETS.find(x => x[0] === v) || [];
   msg.textContent = `${b[1]}: ${rows.length < inView.length ? `${nf(rows.length)} of ${nf(inView.length)}` : nf(rows.length)} line(s)${src ? ' · ' + src : ''}${q ? ` · search “${q}”` : ''} — ${b[3]}${only ? ' · SHOWING TEST ORDERS ONLY (switch on the Production flow screen)' : ''} · ${flowPhaseTxt()}`;
 }
