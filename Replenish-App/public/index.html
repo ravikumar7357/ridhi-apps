@@ -29461,6 +29461,88 @@ function flowHistTable(q, testOnly) {
     + (body || '<tr><td colspan="8" class="muted" style="padding:16px">No challan yet — they are made in Demand · RFD fabric.</td></tr>') + '</tbody>';
 }
 
+/* RECEIVED BY DATE (Ravi, 22 Oct: "yaha date wise printing history bhi ban jay jisme dekhle ki aaj ki date me ye goods received
+ * hua h"). Every receipt line on an RFD challan, on the date typed when it was received: what came, from which printer, on
+ * which challan and order, how much and who took it in. A day, or a span of days; today when opened. */
+const FLOW_HD = { from: '', to: '' };
+function flowRecvRows(q, testOnly) {
+  const out = [];
+  Object.values(FLOW.ch || {}).forEach(c => {
+    if (!c || c.cancelled || (testOnly && !flowIsTest(c.orderNo))) return;
+    Object.entries(c.receipts || {}).forEach(([rid, rc]) => Object.entries((rc && rc.items) || {}).forEach(([key, v]) => {
+      const qty = +v || 0, l = (c.lines || []).find(x => x.key === key); if (!(qty > 0) || !l) return;
+      const p = l.print || {}, code = l.ruffleOnly ? (l.extras || []).map(x => x.code).filter(Boolean).join(' + ')
+        : p.sides && p.sides.length ? p.sides.map(sd => sd.side + ' ' + sd.code).join(' + ') : (p.code || '');
+      const day = String(rc.date || String(rc.at || '').slice(0, 10)).slice(0, 10);
+      let time = ''; try { time = rc.at ? new Date(rc.at).toTimeString().slice(0, 5) : ''; } catch (e) { time = ''; }
+      const orderNo = l.orderNo || String(key).split('__')[0] || c.orderNo || '';
+      out.push({ day, time, at: String(rc.at || ''), rid, no: c.no, printer: (c.vendor && c.vendor.name) || '', orderNo, sku: obUC(l.sku), code, fabric: l.fabric || '',
+        l, unit: flowChUnit(l), qty: flowR2(qty), by: String(rc.by || '').split('@')[0], note: rc.note || '', test: flowIsTest(c.orderNo) });
+    }));
+  });
+  const hay = r => [r.no, r.printer, r.orderNo, r.sku, r.code, r.fabric, r.note].join(' ').toLowerCase();
+  return out.filter(r => !q || hay(r).includes(q))
+    .sort((a, b) => b.day.localeCompare(a.day) || b.at.localeCompare(a.at) || a.no.localeCompare(b.no));
+}
+const flowHdSpan = () => { const t = dToday(), f = FLOW_HD.from || t, to = FLOW_HD.to || f; return f <= to ? [f, to] : [to, f]; };
+const flowHdShift = (iso, d) => { const x = new Date(iso + 'T00:00:00'); x.setDate(x.getDate() + d);
+  return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); };
+/** The controls over the list: the span, a day back / on, the last days anything came, Excel. */
+function flowRecvDayBar(q, testOnly) {
+  const [f, t] = flowHdSpan(), all = flowRecvRows(q, testOnly), days = new Map();
+  all.forEach(r => days.set(r.day, (days.get(r.day) || 0) + 1));
+  const btn = (attr, label, tip) => `<button type="button" class="ghost" ${attr} title="${esc(tip || '')}" style="width:auto;padding:3px 9px;font-size:12px">${label}</button>`;
+  return `<span style="display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap;margin-left:10px">`
+    + btn('data-flhdgo="-1"', '‹', 'A day back') + `<label style="font-size:12px">From <input type="date" data-flhd="from" value="${esc(f)}" style="width:auto;padding:2px 6px"></label>`
+    + `<label style="font-size:12px">To <input type="date" data-flhd="to" value="${esc(t)}" style="width:auto;padding:2px 6px"></label>` + btn('data-flhdgo="1"', '›', 'A day on')
+    + btn('data-flhdgo="0"', 'Today') + btn('data-flhdxl="1"', 'Download Excel', 'The receipts of the days shown')
+    + `</span><div style="flex-basis:100%;font-size:11.5px;margin-top:4px" class="muted">Last days something came: ${[...days.entries()].slice(0, 10).map(([d, n]) =>
+      `<a href="#" data-flhdday="${esc(d)}" style="margin-right:8px${d >= f && d <= t ? ';font-weight:700' : ''}">${esc(d.slice(8, 10) + '-' + d.slice(5, 7))} (${nf(n)})</a>`).join('') || 'nothing yet'}</div>`;
+}
+function flowRecvDayTable(q, testOnly) {
+  const [f, t] = flowHdSpan(), rows = flowRecvRows(q, testOnly).filter(r => r.day >= f && r.day <= t);
+  const by = new Map(); rows.forEach(r => { const e = by.get(r.printer) || by.set(r.printer, { parts: [], ch: new Set() }).get(r.printer); e.parts.push([r.qty, r.unit]); e.ch.add(r.no); });
+  const span = f === t ? f : f + ' to ' + t;
+  const sum = rows.length ? `<tr><td colspan="8" style="text-align:left;background:#f0fdf4;font-size:12.5px;white-space:normal"><b>${esc(span)}</b> — ${flowMixTxt(rows.map(r => [r.qty, r.unit]))} received on ${nf(new Set(rows.map(r => r.no)).size)} challan(s): `
+    + [...by.entries()].map(([p, e]) => `<b>${esc(p || '—')}</b> ${flowMixTxt(e.parts)} (${nf(e.ch.size)})`).join(' · ') + '</td></tr>' : '';
+  const body = rows.map(r => `<tr><td class="frz" style="text-align:left;white-space:nowrap">${esc(r.day)}<div class="muted" style="font-size:10.5px">${esc(r.time)}</div></td>
+    <td style="text-align:left"><a href="#" data-flchp="${esc(r.no)}" title="Print the challan"><b>${esc(r.no)}</b></a>${r.test ? ' <span class="navbadge" style="background:#7c3aed;position:static">TEST</span>' : ''}</td>
+    <td style="text-align:left"><b>${esc(r.printer)}</b></td><td style="text-align:left">${esc(r.orderNo)}</td>
+    <td style="text-align:left;font-size:12px;white-space:normal;min-width:220px">${flowChLineWhat(r.l)}</td>
+    <td class="num"><b>${flowQtyTxt(r.qty, r.unit)}</b></td><td style="text-align:left">${esc(r.by)}</td>
+    <td style="text-align:left;font-size:11.5px;white-space:normal;max-width:200px">${esc(r.note)}</td></tr>`).join('');
+  return `<thead><tr><th class="frz" style="text-align:left">Received on</th><th style="text-align:left">Challan</th><th style="text-align:left">Printer</th><th style="text-align:left">Order</th>`
+    + `<th style="text-align:left">What came</th><th>Qty</th><th style="text-align:left">Taken in by</th><th style="text-align:left">Note</th></tr></thead><tbody>` + sum
+    + (body || `<tr><td colspan="8" class="muted" style="padding:16px">Nothing was received on ${esc(span)}${q ? ` for “${esc(q)}”` : ''}.</td></tr>`) + '</tbody>';
+}
+function flowRecvDayXl(q, testOnly) {
+  const [f, t] = flowHdSpan(), rows = flowRecvRows(q, testOnly).filter(r => r.day >= f && r.day <= t);
+  if (!rows.length) return 'Nothing was received on those days.';
+  const colour = r => { const p = r.l.print || {}; let m = {}; try { m = cutSkuOf(r.l.sku) || {}; } catch (e) { m = {}; }
+    return String((p.kind === 'fabric' && String(p.label || '').split(' · ')[0]) || m.color || String(r.l.item || '').split(' · ')[1] || '').trim(); };
+  const out = [['Received on', 'Time', 'Challan', 'Printer', 'Order', 'For SKU', 'Printed fabric SKU', 'Colour', 'Fabric', 'Qty', 'Unit', 'Taken in by', 'Note']];
+  rows.forEach(r => out.push([r.day, r.time, r.no, r.printer, r.orderNo, r.sku, r.unit === 'm' ? r.code : '', colour(r), r.fabric, r.qty, r.unit, r.by, r.note]));
+  const bytes = recipeXlsx(out, { name: 'Printed fabric in', freeze: 1, cols: {} });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+  a.download = 'printed-fabric-in-' + (f === t ? f : f + '-to-' + t) + '.xlsx';
+  a.click(); URL.revokeObjectURL(a.href);
+  return '';
+}
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+  document.addEventListener('change', e => { const t = e.target; if (!t || !t.dataset || !t.dataset.flhd) return;
+    FLOW_HD[t.dataset.flhd] = t.value || ''; if (t.dataset.flhd === 'from' && FLOW_HD.to && FLOW_HD.to < FLOW_HD.from) FLOW_HD.to = FLOW_HD.from; renderFlow(); });
+  document.addEventListener('click', e => { const t = e.target; if (!t || !t.closest) return;
+    const g = t.closest('[data-flhdgo]'), d = t.closest('[data-flhdday]'), x = t.closest('[data-flhdxl]'); if (!g && !d && !x) return;
+    e.preventDefault();
+    if (x) { const er = flowRecvDayXl(String($('flQ').value || '').trim().toLowerCase(), FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly());
+      if (er) { $('flMsg').className = 'err'; $('flMsg').textContent = er; } return; }
+    if (d) { FLOW_HD.from = FLOW_HD.to = d.dataset.flhdday; renderFlow(); return; }
+    const step = +g.dataset.flhdgo;
+    if (!step) { FLOW_HD.from = FLOW_HD.to = dToday(); } else { const [f, to] = flowHdSpan(); FLOW_HD.from = flowHdShift(f, step); FLOW_HD.to = flowHdShift(to, step); }
+    renderFlow(); });
+}
+
 /** What can be done to a challan in its state — and, to put a mistake right, Edit / Cancel / Undo receipt / Reopen. */
 function flowChActions(c, st) {
   const b = (attr, label, main) => `<button ${main ? '' : 'class="ghost" '}${attr}="${esc(c.no)}" style="width:auto;padding:${main ? '3px 10px;font-size:12px' : '2px 8px;font-size:11.5px'}">${label}</button>`;
@@ -31078,7 +31160,9 @@ function renderFlow() {
   /* DEMAND, ONE TAB (Ravi, 12 Oct): its parts as tabs, like Listing Health's — RFD out to printers, printed fabric in, accessories. */
   if (FLOW_DEMAND.includes(FLOW_VIEW)) FLOW.panel = `<div class="seg" style="display:inline-flex;gap:4px;flex-wrap:wrap;margin-right:14px">${dem.map(([k, l]) =>
     `<button data-fldem="${k}" class="${k === FLOW_VIEW ? '' : 'ghost'}" style="width:auto;padding:5px 14px;font-size:13px">${esc(l)} <b>${nf(n[k] || 0)}</b></button>`).join('')}</div>` + (FLOW.panel || '')
-    + (FLOW_VIEW === 'dhist' ? flowStandingHtml() : '');
+    + (FLOW_VIEW === 'dhist' ? `<div class="seg" style="display:inline-flex;gap:4px">${[['challan', 'By challan'], ['day', 'Received by date']].map(([k, l]) =>
+      `<button data-flang="${k}" class="${(FLOW_ANGLE.dhist || 'challan') === k ? '' : 'ghost'}" style="width:auto;padding:4px 12px;font-size:12.5px">${l}</button>`).join('')}</div>`
+      + (FLOW_ANGLE.dhist === 'day' ? flowRecvDayBar(q, only) : '') + flowStandingHtml() : '');
   /* RFD short? The Greige Desk shows the greige to order for it (Ravi, 13 Oct: Greige Desk joined to the PPC flow). */
   if (FLOW_VIEW === 'drfd' && typeof GD !== 'undefined' && gdAllowed()) FLOW.panel = (FLOW.panel || '') + '<button type="button" class="ghost" data-gdgo="inv" style="width:auto;padding:5px 14px;font-size:13px;margin-left:10px">Greige Desk · PPC demand</button>';
   /* RFD stock is the Greige Desk's count: not read here, the Demand figures say so instead of showing a false "short". */
@@ -31493,6 +31577,7 @@ function flowTable(view, rows) {
   const due = (iso, label) => iso ? `<div class="muted" style="font-size:10.5px${flowLate(iso) ? ';color:#b91c1c;font-weight:600' : ''}">${label} ${esc(iso.slice(5))}${flowLate(iso) ? ' · late' : ''}</div>` : '';
   let head = '', body = '';
   if (view === 'pord') return flowPoTable(String($('flQ').value || '').trim().toLowerCase(), FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly());
+  if (view === 'dhist' && FLOW_ANGLE.dhist === 'day') return flowRecvDayTable(String($('flQ').value || '').trim().toLowerCase(), FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly());
   if (view === 'dhist') return flowHistTable(String($('flQ').value || '').trim().toLowerCase(), FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly());
   if (view === 'new') {
     head = ['PO', 'SKU', 'Qty', 'Now in'];
