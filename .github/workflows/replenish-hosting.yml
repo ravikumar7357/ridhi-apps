@@ -8,6 +8,8 @@
 # Nothing is deployed when a test fails. The key is the repository secret FIREBASE_SERVICE_ACCOUNT, or the
 # FIREBASE_SERVICE_ACCOUNT_PRICE_RESEARCH_48FF3 that `firebase init hosting:github` makes; without one the tests and the
 # build still run and say so, and nothing is deployed.
+# Set up 22 Oct by `firebase init hosting:github`: service account github-action-1397622174 (Firebase Hosting Admin), its key in
+# the secret FIREBASE_SERVICE_ACCOUNT_PRICE_RESEARCH_48FF3. The workflow file that command writes is not used — this one is.
 name: Replenish app — test, build, deploy
 
 on:
