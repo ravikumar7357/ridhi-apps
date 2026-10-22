@@ -93,12 +93,19 @@ function flowHistOrders(c) {
   return `<div style="font-size:11.5px;color:var(--muted,#64748b)">${nf(os.length)} orders</div>` + flowHistMore(os.map(o => esc(o)), 3, 'order');
 }
 /** Every cloth standing with a printer: given on a challan against an order line that has since gone to another printer. */
-function flowStanding() {
+/* SETTLING IT (Ravi, 22 Oct: "is fabric ka sattlement bhi kar saku" — back to the store, or used for another order; admins
+ * only). moved/<key>/settles/<id> = { at, by, how: 'store' | 'order', qty (in the line's unit), metres (cloth), as: 'rfd' |
+ * 'printed' (store), toNo, toKey (order), note }. Part of it may be settled at a time; what is left still stands. */
+const flowStandSettled = m => flowR2(Object.values((m && m.settles) || {}).reduce((a, x) => a + (+(x && x.qty) || 0), 0));
+function flowStanding(all) {
   const out = [];
   Object.values(FLOW.ch || {}).forEach(c => {
     if (!c || c.cancelled || !c.moved) return;
     (c.lines || []).forEach(l => { const m = flowChMoved(c, l) ? c.moved[l.key] : null; if (!m) return;
-      out.push({ printer: (c.vendor && c.vendor.name) || '', code: (c.vendor && c.vendor.code) || '', fabric: l.fabric || m.fabric || '', qty: +m.metres || flowChSent(l), unit: m.unit || flowChUnit(l),
+      const qty = +m.metres || flowChSent(l), settled = flowStandSettled(m), left = flowR2(Math.max(0, qty - settled));
+      if (!all && left <= 0) return;
+      out.push({ printer: (c.vendor && c.vendor.name) || '', code: (c.vendor && c.vendor.code) || '', fabric: l.fabric || m.fabric || '', qty: left, total: qty, settled, unit: m.unit || flowChUnit(l),
+        clothPer: qty > 0 ? (+l.metres || 0) / qty : 0, key: l.key, line: l,
         no: c.no, orderNo: m.orderNo || String(l.key).split('__')[0], sku: l.sku, to: (m.to && m.to.name) || '', at: String(m.at || '').slice(0, 10), why: m.why || '' }); });
   });
   return out.sort((a, b) => a.printer.localeCompare(b.printer) || a.fabric.localeCompare(b.fabric) || b.at.localeCompare(a.at));
@@ -108,11 +115,99 @@ function flowStandingHtml() {
   const tot = new Map(); st.forEach(x => { const k = x.printer + '|' + x.fabric + '|' + x.unit; tot.set(k, flowR2((tot.get(k) || 0) + x.qty)); });
   return `<details style="margin-top:8px;flex-basis:100%"><summary style="cursor:pointer;font-weight:600;color:#b45309">Standing with printers — ${[...tot.entries()].map(([k, q]) => { const [p, f, u] = k.split('|'); return `${esc(p)}: ${esc(f || '—')} ${flowQtyTxt(q, u)}`; }).join(' · ')}</summary>`
     + `<div class="muted" style="font-size:12px;margin:4px 0">Cloth given to a printer against an order line that was then moved to another printer. It is still with them.</div>`
-    + `<table class="xl" style="width:auto"><thead><tr><th style="text-align:left">Printer</th><th style="text-align:left">Fabric</th><th>Standing</th><th style="text-align:left">Given on</th><th style="text-align:left">Order · SKU</th><th style="text-align:left">Moved to</th><th>On</th></tr></thead><tbody>`
-    + st.map(x => `<tr><td style="text-align:left"><b>${esc(x.printer)}</b></td><td style="text-align:left">${esc(x.fabric || '—')}</td><td class="num">${flowQtyTxt(x.qty, x.unit)}</td>`
-      + `<td style="text-align:left"><a href="#" data-flchp="${esc(x.no)}">${esc(x.no)}</a></td><td style="text-align:left">${esc(x.orderNo)} · ${esc(x.sku)}</td><td style="text-align:left" title="${esc(x.why)}">${esc(x.to)}</td><td>${esc(x.at)}</td></tr>`).join('')
+    + `<table class="xl" style="width:auto"><thead><tr><th style="text-align:left">Printer</th><th style="text-align:left">Fabric</th><th>Standing</th><th style="text-align:left">Given on</th><th style="text-align:left">Order · SKU</th><th style="text-align:left">Moved to</th><th>On</th>${ME.admin ? '<th>Settle</th>' : ''}</tr></thead><tbody>`
+    + st.map(x => `<tr><td style="text-align:left"><b>${esc(x.printer)}</b></td><td style="text-align:left">${esc(x.fabric || '—')}</td><td class="num">${flowQtyTxt(x.qty, x.unit)}${x.settled ? `<div class="muted" style="font-size:10.5px">of ${flowQtyTxt(x.total, x.unit)} · ${flowQtyTxt(x.settled, x.unit)} settled</div>` : ''}</td>`
+      + `<td style="text-align:left"><a href="#" data-flchp="${esc(x.no)}">${esc(x.no)}</a></td><td style="text-align:left">${esc(x.orderNo)} · ${esc(x.sku)}</td><td style="text-align:left" title="${esc(x.why)}">${esc(x.to)}</td><td>${esc(x.at)}</td>`
+      + (ME.admin ? `<td style="white-space:nowrap"><button class="ghost" data-flstb="${esc(x.no + '|' + x.key)}" style="width:auto;padding:2px 8px;font-size:11.5px" title="The printer sent it back to the store">Back to store</button> `
+        + `<button class="ghost" data-flstu="${esc(x.no + '|' + x.key)}" style="width:auto;padding:2px 8px;font-size:11.5px" title="Give it to another order line of this printer and fabric — no RFD leaves the store">Use for another order</button></td>` : '') + '</tr>').join('')
     + '</tbody></table></details>';
 }
+const flowStandOf = (no, key) => flowStanding().find(x => x.no === no && x.key === key) || null;
+/** Write one settlement on the moved line (and whatever goes with it). */
+async function flowStandWrite(x, rec, extra) {
+  const id = 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), path = `pt_flowChallans/${x.no}/moved/${x.key}/settles/${id}`;
+  const patch = Object.assign({ [path]: rec }, extra || {});
+  try { await ptPatch(patch); } catch (e) { return 'Could not save: ' + (e.message || e); }
+  const c = FLOW.ch[x.no], m = c.moved[x.key];
+  FLOW.ch = Object.assign({}, FLOW.ch, { [x.no]: Object.assign({}, c, { moved: Object.assign({}, c.moved, { [x.key]: Object.assign({}, m, { settles: Object.assign({}, m.settles, { [id]: rec }) }) }) }) });
+  return '';
+}
+/** Back to the store: unprinted → RFD again (the RFD count adds it back); printed → recorded, put in Store stock by hand. */
+async function flowStandBack(no, key, qty, as, note) {
+  if (!ME.admin) return 'Only an admin can settle standing cloth.';
+  const x = flowStandOf(no, key); if (!x) return 'That standing cloth is not here any more — press Refresh.';
+  const q = flowR2(+qty || 0);
+  if (!(q > 0) || q > x.qty + 1e-9) return `Type how much came back — at most the ${flowQtyTxt(x.qty, x.unit)} still standing.`;
+  if (x.unit === 'pcs' && q !== Math.round(q)) return 'Pieces are whole.';
+  return flowStandWrite(x, { at: new Date().toISOString(), by: ME.email || '', how: 'store', as: as === 'printed' ? 'printed' : 'rfd', qty: q, metres: flowR2(x.unit === 'pcs' ? q * x.clothPer : q), note: note || '' });
+}
+/** The order lines this standing cloth can go to: waiting for RFD, planned to this printer, the same fabric and unit. */
+function flowStandTargets(x) {
+  return flowRows().filter(y => flowInView('drfd', y.s) && y.s.route !== 'stitch' && String(flowPlanPrinter(y.s)) === String(x.code)
+    && flowFabKey((y.s.plan && y.s.plan.fabric && y.s.plan.fabric.name) || '') === flowFabKey(x.fabric) && (y.s.fabUnit || 'm') === x.unit && flowFabOwed(y.r, y.s).left > 0);
+}
+/** Used for another order: a challan to the same printer for that line, made from the standing cloth — nothing leaves the store. */
+async function flowStandUse(no, key, toKey, qty, note) {
+  if (!ME.admin) return 'Only an admin can settle standing cloth.';
+  const x = flowStandOf(no, key); if (!x) return 'That standing cloth is not here any more — press Refresh.';
+  const y = flowStandTargets(x).find(z => z.s.key === toKey); if (!y) return 'Pick the order line it goes to.';
+  const o = flowFabOwed(y.r, y.s), q = flowR2(+qty || 0), most = flowR2(Math.min(x.qty, o.left));
+  if (!(q > 0) || q > most + 1e-9) return `Type how much — at most ${flowQtyTxt(most, x.unit)} (what stands, and what the line still needs).`;
+  if (x.unit === 'pcs' && q !== Math.round(q)) return 'Pieces are whole.';
+  const now = new Date().toISOString(), date = dToday(), metres = flowR2(x.unit === 'pcs' ? (o.left ? o.metres * q / o.left : 0) : q);
+  let cno = flowChallanNo(date, false);
+  const ch = { no: cno, date, orderNo: y.r.orderNo, orders: [y.r.orderNo], vendor: { code: x.code, name: x.printer }, at: now, by: ME.email || '',
+    standing: { from: no, key, sku: x.sku }, note: `From cloth standing with ${x.printer} (${no}, ${x.orderNo} · ${x.sku})${note ? ' — ' + note : ''}`,
+    lines: [{ key: y.s.key, sku: obUC(y.r.sku), item: flowChItem(y.r), print: flowPrintWhat(y.r, y.s.plan), extras: [], fabric: (y.s.plan.fabric && y.s.plan.fabric.name) || x.fabric, pcs: x.unit === 'pcs' ? q : +y.r.qty || 0, metres }] };
+  for (let k = 0, taken = []; ; k++) {
+    let er = ''; try { er = await flowClaim('pt_flowChallans/' + cno, ch); } catch (e) { return 'Could not save: ' + (e.message || e); }
+    if (!er) break;
+    if (k >= 15) return 'Could not get a free challan number — press Refresh and try again.';
+    taken.push(cno); cno = flowChallanNo(date, false, taken); ch.no = cno;
+  }
+  const extra = typeof ptCas === 'function' ? {} : { ['pt_flowChallans/' + cno]: ch };
+  extra[`pt_flowDemand/${y.s.key}/fabricReady`] = { at: now, by: ME.email || '', what: ch.lines[0].fabric, metres, note: `Challan ${cno} — standing cloth with ${x.printer}`, challan: cno, vendor: x.printer };
+  const er = await flowStandWrite(x, { at: now, by: ME.email || '', how: 'order', qty: q, metres, toNo: cno, toKey: y.s.key, toOrder: y.r.orderNo, note: note || '' }, extra);
+  if (er) return er;
+  FLOW.ch = Object.assign({}, FLOW.ch, { [cno]: ch });
+  FLOW.dem = Object.assign({}, FLOW.dem, { [y.s.key]: Object.assign({}, (FLOW.dem || {})[y.s.key], { fabricReady: extra[`pt_flowDemand/${y.s.key}/fabricReady`] }) });
+  flowStandUse.no = cno;
+  return '';
+}
+function flowStandBackOpen(no, key) {
+  const x = flowStandOf(no, key); if (!x) return;
+  ptOpenDialog({
+    title: `Back to store — ${x.printer}`,
+    subtitle: `${x.fabric} · ${flowQtyTxt(x.qty, x.unit)} standing (${no}, ${x.orderNo} · ${x.sku}). Unprinted cloth is RFD again; printed cloth is recorded here — put it in Store stock by hand.`,
+    html: `<div class="ptgrid" style="grid-template-columns:1fr 1fr 2fr"><label>Came back (${esc(x.unit)})<input id="flstQ" type="number" min="0" step="${x.unit === 'pcs' ? 1 : 0.01}" value="${esc(x.qty)}"></label>
+      <label>As<select id="flstAs"><option value="rfd">Unprinted RFD — back in RFD stock</option><option value="printed">Printed — put it in Store stock by hand</option></select></label>
+      <label>Note<input id="flstN" placeholder="challan / vehicle"></label></div>`,
+    saveLabel: 'Settle',
+    onSave: async () => { const er = await flowStandBack(no, key, $('flstQ').value, $('flstAs').value, ($('flstN').value || '').trim()); if (er) return er; renderFlow(); return ''; },
+  });
+}
+function flowStandUseOpen(no, key) {
+  const x = flowStandOf(no, key); if (!x) return;
+  const ts = flowStandTargets(x);
+  if (!ts.length) { $('flMsg').className = 'err'; $('flMsg').textContent = `No order line waits for ${x.fabric} with ${x.printer} in Demand · RFD — plan one to this printer first.`; return; }
+  ptOpenDialog({
+    title: `Use for another order — ${x.printer}`,
+    subtitle: `${x.fabric} · ${flowQtyTxt(x.qty, x.unit)} standing (${no}). A challan to ${x.printer} is made for the line picked — from the cloth they already have; nothing leaves the store.`,
+    html: `<label>Order line<select id="flstT">${ts.map(y => `<option value="${esc(y.s.key)}">${esc(y.r.orderNo)} · ${esc(obUC(y.r.sku))} — needs ${esc(flowQtyTxt(flowFabOwed(y.r, y.s).left, x.unit))}</option>`).join('')}</select></label>
+      <div class="ptgrid" style="grid-template-columns:1fr 2fr;margin-top:8px"><label>How much (${esc(x.unit)})<input id="flstQ" type="number" min="0" step="${x.unit === 'pcs' ? 1 : 0.01}" value="${esc(Math.min(x.qty, flowFabOwed(ts[0].r, ts[0].s).left))}"></label>
+      <label>Note<input id="flstN"></label></div>`,
+    saveLabel: 'Make the challan',
+    onSave: async () => { const er = await flowStandUse(no, key, $('flstT').value, $('flstQ').value, ($('flstN').value || '').trim()); if (er) return er;
+      renderFlow(); $('flMsg').className = 'muted'; $('flMsg').textContent = `Challan ${flowStandUse.no} made from the standing cloth — the line has its fabric with ${x.printer}.`; return ''; },
+  });
+}
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('click', e => {
+  const t = e.target; if (!t || !t.closest) return;
+  const b = t.closest('[data-flstb]'), u = t.closest('[data-flstu]'); if (!b && !u) return;
+  e.preventDefault(); const [no, key] = (b || u).getAttribute(b ? 'data-flstb' : 'data-flstu').split('|');
+  if (b) flowStandBackOpen(no, key); else flowStandUseOpen(no, key);
+});
+/* (end of standing cloth) */
 function flowHistTable(q, testOnly) {
   /* A cancelled challan is not shown (Ravi, 19 Oct: "cancel order yaha show hi n ho") — it moved nothing and owes nothing. */
   const list = Object.values(FLOW.ch || {}).filter(c => c && !c.cancelled && (!testOnly || flowIsTest(c.orderNo)))

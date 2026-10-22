@@ -106,7 +106,11 @@ function flowRfdChallanOut(name, fromDay) {
     if (!c || c.cancelled) return;
     const d = String(c.date || ptIsoDate(c.at) || '').slice(0, 10);
     if (fromDay && d < fromDay) return;
-    (c.lines || []).forEach(l => { if (l && flowFabKey(l.fabric) === k) out += +l.metres || 0; });
+    /* a challan made from cloth already standing with the printer took nothing from the store (flowStandUseOpen) */
+    if (!c.standing) (c.lines || []).forEach(l => { if (l && flowFabKey(l.fabric) === k) out += +l.metres || 0; });
+    /* standing cloth that came back to the store unprinted is RFD again (flowStandBackOpen) */
+    Object.values(c.moved || {}).forEach(m => Object.values((m && m.settles) || {}).forEach(x => {
+      if (x && x.how === 'store' && x.as === 'rfd' && flowFabKey(m.fabric) === k) out -= +x.metres || 0; }));
   });
   return flowR2(out);
 }
