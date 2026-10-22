@@ -11,7 +11,8 @@
  *                               metres, unit} }, at, by, cancelled? }  */
 
 /** Whether a planned line still sends anything to a printer once printed stock is taken: body or ruffle cloth. */
-const flowPrintsSomething = (r, p) => { const w = flowPrintWhat(r, p), tp = flowToPrint(r, p);
+const flowPrintsSomething = (r, p) => { if (flowInHand(p)) return false;   // printed cloth in hand: nothing goes to a printer
+  const w = flowPrintWhat(r, p), tp = flowToPrint(r, p);
   return (w.kind === 'sku' ? tp.pcs > 0 : tp.metres > 0.01) || flowPrintExtras(r, p).length > 0; };
 /** Which print order holds each line: { lineKey: no } — cached on FLOW.po. */
 let FLOW_POX = { src: null, map: {} };

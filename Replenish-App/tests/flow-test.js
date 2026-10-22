@@ -2247,6 +2247,13 @@ const K = 'AMZ-1__S1';
     ok('read from the database: RFD challans in FLOW.ch, embroidery challans in FLOW.emb', Object.keys(G.FLOW().ch).join() === 'RFD-202610-001' && Object.keys(G.FLOW().emb).join() === 'EMB-202610-001',
       JSON.stringify([Object.keys(G.FLOW().ch), Object.keys(G.FLOW().emb || {})]));
     ok('a cancelled embroidery challan gave nothing', at(null, rfdCh, embCh(0, { cancelled: { at: 'x' } })).flowRows()[0].s.embCanSend === 1.3);
+    /* 22 Oct ("mere pas fabric h m direct embroidery me bhejna chahta hu"): printed cloth in hand → no printer, straight to Embroidery */
+    const peH = Object.assign({}, pe, { printer: null, fabric: { name: 'Sheeting 82', perPc: 0.13, metres: 1.3, noRfd: true } });
+    const H = load({ me: { admin: true }, mdb, fsku, lines: [line()], ppc: { [K]: peH } });
+    H.setFLOW(Object.assign(H.FLOW(), { ch: {}, emb: {} }));
+    const sH = H.flowRows()[0].s;
+    ok('in hand: no RFD, no printer — straight to Demand → Embroidery with all 1.3 m to send', sH.bucket === 'emb' && !sH.needFab && sH.embCanSend === 1.3 && H.flowInView('demb', sH) && !H.flowInView('drfd', sH), JSON.stringify([sH.bucket, sH.needFab, sH.embCanSend]));
+    ok('…and no print order is made for it', !Object.keys(H.flowPoSync([{ r: H.W.lines[0], p: peH }], '2026-10-22').patch).some(k => /^pt_flowPrintOrders\//.test(k) && H.flowPoSync([{ r: H.W.lines[0], p: peH }], '2026-10-22').patch[k]));
     ok('who embroiders: our department, or a vendor whose category says Embroidery', S.flowEmbWho('').code === 'EMBDEPT' && S.flowEmbWho('P1').name === 'Sanganer Prints');
   }
 

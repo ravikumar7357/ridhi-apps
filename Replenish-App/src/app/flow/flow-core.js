@@ -180,6 +180,10 @@ const FLOW_ROUTES = [['inhouse', 'Printing — printed by a vendor, then cut & s
 const flowRouteOf = p => (p && p.route) || (p && p.print && p.print.need === false ? 'stitch' : 'inhouse');
 /** A route the printer prints for: Printing, and Printing + Embroidery. */
 const flowPrinted = route => route === 'inhouse' || route === 'emb';
+/* PRINTED CLOTH IN HAND (Ravi, 16 Oct for Cutting; 22 Oct for Embroidery: "mere pas fabric h m direct embroidery me bhejna chahta
+ * hu"): the plan's tick fabric.noRfd — nothing goes to a printer, no RFD is raised; on Embroidery the cloth goes straight to the
+ * embroiderer (all of the plan's metres are ready to send). */
+const flowInHand = p => !!(p && p.fabric && p.fabric.noRfd && ['stitch', 'emb'].includes(flowRouteOf(p)));
 /** Our own embroidery department — picked like a vendor, never on the vendor list. */
 const FLOW_EMB_DEPT = Object.freeze({ code: 'EMBDEPT', name: 'Embroidery department (in-house)' });
 const flowIsEmbSku = m => /embroid/i.test(String((m && (m.subtype || m.articleSubtype)) || ''));
@@ -324,6 +328,7 @@ function flowState(r) {
     s.fabUnit = pcsWise ? 'pcs' : 'm'; s.fabNeed = pcsWise ? tp.pcs : tp.metres; s.fabSent = cx ? flowR2(cx.sent) : 0;
     const total = pcsWise ? qty : flowR2(+(p.fabric && p.fabric.metres) || 0), have = fp + (cx ? cx.recv : 0);
     s.fabHave = flowR2(have); s.fabTotal = total;
+    if (route === 'emb' && flowInHand(p)) s.fabHave = flowR2(+(p.fabric && p.fabric.metres) || 0);   // in hand: all of it, for embroidery
     /* ALL FROM PRINTED STOCK: nothing to print, nothing to send — given and back in full, straight to Cutting. */
     s.fromStock = !flowPrintsSomething(r, p);
     if (s.fromStock) { s.given = qty; s.back = qty; }
@@ -356,7 +361,7 @@ function flowState(r) {
   }
   const accNeed = !!p && route !== 'outsource' && (p.acc || []).some(a => a.code && +a.qty > 0);
   const handReady = !!(d && d.fabricReady && !d.fabricReady.challan);
-  s.needFab = isNew && !!p && route !== 'outsource' && route !== 'jobwork' && !handReady && !(route === 'stitch' && p.fabric && p.fabric.noRfd)
+  s.needFab = isNew && !!p && route !== 'outsource' && route !== 'jobwork' && !handReady && !flowInHand(p)
     && (flowPrinted(route) ? (flowFabOwed({ qty }, s).left > 0.01 || (flowPrintExtras(r, p).length > 0 && !(flowRufflePrinter(p) ? flowChIndex()[k + FLOW_RUF] : cx))) : (!(d && d.fabricReady) && flowRemFrac(r, s) > 0));   // the ruffle cloth goes too, on the first challan
   s.needAcc = isNew && accNeed && !res;
   s.bucket =
