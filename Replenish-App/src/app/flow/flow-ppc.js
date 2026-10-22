@@ -715,8 +715,11 @@ function flowPpcOpen(orderNo, onlySku, keys) {
  * database by itself — it becomes that line's draft (the very draft the form keeps as you type), and the PPC form opens with
  * those lines ticked. Raising them there is the one save that makes the print order, the vendor order, the RFD and the
  * accessories — nothing is planned past its checks (direction, printer, fabric, printed stock, the vendor-order question). */
+/* WHICH DEPARTMENT (Ravi, 22 Oct: "is tamplate me mujhe ye decide nahi ho rha h ki ye order kis dapartment me bhejna h like
+ * cutting job work … and embroidery"): "How it is made" is a dropdown of the departments (Printing, Embroidery, Cutting, Job
+ * Work, Outsourced), the printers and the embroiderer too; "Embroidery by" says who embroiders a line on Embroidery. */
 const FLOW_XL_COLS = ['Line ID', 'PO', 'Order date', 'SKU', 'Item', 'Qty', 'How it is made', 'Fabric', 'Metres / piece', 'Total m', 'Print direction',
-  'Printer', 'Ruffle printer', 'Outsource vendor', 'Already printed — no RFD (yes/no)', 'Cut date', 'QC date', 'Ready date', 'Note', 'Raise (yes/no)', 'Check'];
+  'Printer', 'Ruffle printer', 'Embroidery by', 'Outsource vendor', 'Already printed — no RFD (yes/no)', 'Cut date', 'QC date', 'Ready date', 'Note', 'Raise (yes/no)', 'Check'];
 /** What the form would open with for one line: the plan or the suggestion, with its kept draft on top. */
 function flowXlPlanOf(x) {
   const p = Object.assign(flowSuggest(x.r), x.s.plan ? JSON.parse(JSON.stringify(x.s.plan)) : {});
@@ -733,7 +736,8 @@ function flowPpcXlRows(rows) {
     const chk = [].concat(d.dirs.length > 1 ? ['direction: ' + d.dirs.join(' / ')] : [], (p.gaps || []), flowPpcHasDraft(x.s.key) ? ['draft kept'] : []).join(' · ');
     return [x.s.key, x.r.orderNo, ptIsoDate(x.r.orderDate) || '', obUC(x.r.sku), [x.r.articleSubtype || x.r.articleType, x.r.color, x.r.size].filter(Boolean).join(' · '),
       +x.r.qty || 0, (FLOW_ROUTES.find(r => r[0] === route) || [, , route])[2], (p.fabric && p.fabric.name) || '', per, flowR2(per * (+x.r.qty || 0)),
-      (p.print && p.print.dir) || d.cur || '', flowVenName(p.printer && p.printer.code), flowVenName(p.rufflePrinter && p.rufflePrinter.code), p.outVendor || '',
+      (p.print && p.print.dir) || d.cur || '', flowVenName(p.printer && p.printer.code), flowVenName(p.rufflePrinter && p.rufflePrinter.code),
+      route === 'emb' ? flowEmbWho(p.emb && p.emb.code).name : '', p.outVendor || '',
       p.fabric && p.fabric.noRfd ? 'yes' : '', (p.dates || {}).cut || '', (p.dates || {}).qc || '', (p.dates || {}).ready || '', p.note || '', '', chk];
   }));
 }
@@ -760,7 +764,7 @@ function flowPpcXlRead(sheet) {
   const drafts = {}, keys = [], errs = [], skipped = [];
   for (let i = 1; i < sheet.length; i++) {
     const row = sheet[i] || [], c = n => { const j = at(n); return j >= 0 && row[j] != null ? String(row[j]).trim() : ''; };
-    const key = c('Line ID'); if (!key || !/^(y|yes|1|true|raise)$/i.test(c(FLOW_XL_COLS[19]) || String(row[iR] == null ? '' : row[iR]).trim())) continue;
+    const key = c('Line ID'); if (!key || !/^(y|yes|1|true|raise)$/i.test(c('Raise (yes/no)') || String(row[iR] == null ? '' : row[iR]).trim())) continue;
     const x = byKey.get(key), tag = `row ${i + 1} (${c('PO')} ${c('SKU')})`;
     if (!x) { skipped.push(tag + ': not in PPC any more — planned already, or sent back'); continue; }
     const bad = [], v = {};
@@ -772,7 +776,12 @@ function flowPpcXlRead(sheet) {
     const pr = venOf(c('Printer')); if (pr === null) bad.push(`no printer called "${c('Printer')}"`); else v['printer.code'] = pr;
     const rp = venOf(c('Ruffle printer')); if (rp === null) bad.push(`no printer called "${c('Ruffle printer')}"`); else if (rp) v['rufflePrinter.code'] = rp;
     if (c('Outsource vendor')) v.outVendor = c('Outsource vendor');
-    const nrTxt = c(FLOW_XL_COLS[14]);
+    const nrTxt = c('Already printed — no RFD (yes/no)');
+    /* who embroiders — our department or a vendor, by name or code; blank keeps what the plan has (our department) */
+    const embT = c('Embroidery by');
+    if (embT && (v.route || '') === 'emb') { const t = embT.toLowerCase(), hit = flowEmbVendors().find(y => String(y.code).toLowerCase() === t || String(y.dept ? y.name : (y.desc || y.name || '')).trim().toLowerCase() === t)
+        || (/department|in-?house|dept/i.test(embT) ? flowEmbVendors()[0] : null);
+      if (!hit) bad.push(`"Embroidery by" ${embT} is not our department or a vendor`); else v['emb.code'] = String(hit.code); }
     v['fabric.noRfd'] = /^(y|yes|1|true)$/i.test(nrTxt) || (!nrTxt && v.route === 'stitch');   // the Cutting route: in hand unless the sheet says no
     [['Cut date', 'dates.cut'], ['QC date', 'dates.qc'], ['Ready date', 'dates.ready']].forEach(([h, k]) => { const d = flowXlDate(c(h)); if (d === null) bad.push(h + ' is not a date'); else if (d) v[k] = d; });
     if (c('Note')) v.note = c('Note');
@@ -793,7 +802,14 @@ function flowXlOpenNext() {
   document.querySelectorAll('[data-fpick]').forEach(el => { el.checked = true; try { el.dispatchEvent(new Event('change')); } catch (e) { /* no events here */ } });
 }
 function flowPpcXlOut(rows) {
-  const bytes = recipeXlsx(flowPpcXlRows(rows), { name: 'PPC', freeze: 2, cols: {}, list: { name: 'YN', values: ['yes', 'no'], cols: [19, 14] } });
+  const col = n => FLOW_XL_COLS.indexOf(n);
+  let prn = []; try { prn = [...new Set(flowChVendors().map(v => v.desc || v.name || v.code).filter(Boolean))]; } catch (e) { prn = []; }
+  let emb = []; try { emb = flowEmbVendors().map(v => v.dept ? v.name : (v.desc || v.name || v.code)); } catch (e) { emb = []; }
+  const bytes = recipeXlsx(flowPpcXlRows(rows), { name: 'PPC', freeze: 2, cols: {}, lists: [
+    { name: 'YN', values: ['yes', 'no'], cols: [col('Raise (yes/no)'), col('Already printed — no RFD (yes/no)')] },
+    { name: 'Department', values: FLOW_ROUTES.map(r => r[2]), cols: [col('How it is made')] },
+    { name: 'Printers', values: prn, cols: [col('Printer'), col('Ruffle printer')] },
+    { name: 'Embroiderers', values: emb, cols: [col('Embroidery by')] }] });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
   a.download = 'ppc-plan-' + dToday() + '.xlsx';

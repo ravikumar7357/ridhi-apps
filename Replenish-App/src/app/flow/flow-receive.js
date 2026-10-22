@@ -18,13 +18,19 @@ const flowMixTxt = parts => { const t = { m: 0, pcs: 0 }; parts.forEach(([q, u])
   return [t.m ? flowQtyTxt(t.m, 'm') : '', t.pcs ? flowQtyTxt(t.pcs, 'pcs') : ''].filter(Boolean).join(' · ') || '0'; };
 /** Every challan's lines, by line key: { no, vendor, sent, recv, closed } — cached on FLOW.ch. */
 let FLOW_CHX = { src: null, map: {} };
+/* MOVED TO ANOTHER PRINTER (Ravi, 22 Oct: "me yaha printer change kar saku … us fabric ko stand dikhay ki ye order diya tha
+ * ab cancel ho gya but fabric abhi stand h"). pt_flowChallans/<no>/moved/<line key> = { at, by, from, to, metres, unit,
+ * fabric, sku, orderNo, why }: the line is off that challan — the order line goes back to Demand · RFD for its new printer —
+ * and the cloth it took stays with the old printer, STANDING: given against an order that no longer has it (flowStanding). */
+const flowChMoved = (c, l) => !!(c && l && !l.ruffleOnly && c.moved && c.moved[l.key]);
 function flowChIndex() {
   if (FLOW_CHX.src === FLOW.ch) return FLOW_CHX.map;
   const map = {};
   Object.values(FLOW.ch || {}).forEach(c => {
     if (c.cancelled) return;   // a cancelled challan gave nothing to anybody
     const recv = flowChRecv(c);
-    (c.lines || []).forEach(l => { const k = l.ruffleOnly ? l.key + FLOW_RUF : l.key, e = map[k] || (map[k] = { no: c.no, vendor: c.vendor && c.vendor.name, sent: 0, recv: 0, closed: true });
+    (c.lines || []).forEach(l => { if (flowChMoved(c, l)) return;
+      const k = l.ruffleOnly ? l.key + FLOW_RUF : l.key, e = map[k] || (map[k] = { no: c.no, vendor: c.vendor && c.vendor.name, sent: 0, recv: 0, closed: true });
       e.no = c.no; e.vendor = c.vendor && c.vendor.name; e.sent += flowChSent(l); e.recv += recv[l.key] || 0; e.closed = e.closed && !!c.closed; });
   });
   FLOW_CHX = { src: FLOW.ch, map };
@@ -86,6 +92,27 @@ function flowHistOrders(c) {
   if (os.length <= 1) return esc(os[0] || c.orderNo || '');
   return `<div style="font-size:11.5px;color:var(--muted,#64748b)">${nf(os.length)} orders</div>` + flowHistMore(os.map(o => esc(o)), 3, 'order');
 }
+/** Every cloth standing with a printer: given on a challan against an order line that has since gone to another printer. */
+function flowStanding() {
+  const out = [];
+  Object.values(FLOW.ch || {}).forEach(c => {
+    if (!c || c.cancelled || !c.moved) return;
+    (c.lines || []).forEach(l => { const m = flowChMoved(c, l) ? c.moved[l.key] : null; if (!m) return;
+      out.push({ printer: (c.vendor && c.vendor.name) || '', code: (c.vendor && c.vendor.code) || '', fabric: l.fabric || m.fabric || '', qty: +m.metres || flowChSent(l), unit: m.unit || flowChUnit(l),
+        no: c.no, orderNo: m.orderNo || String(l.key).split('__')[0], sku: l.sku, to: (m.to && m.to.name) || '', at: String(m.at || '').slice(0, 10), why: m.why || '' }); });
+  });
+  return out.sort((a, b) => a.printer.localeCompare(b.printer) || a.fabric.localeCompare(b.fabric) || b.at.localeCompare(a.at));
+}
+function flowStandingHtml() {
+  const st = flowStanding(); if (!st.length) return '';
+  const tot = new Map(); st.forEach(x => { const k = x.printer + '|' + x.fabric + '|' + x.unit; tot.set(k, flowR2((tot.get(k) || 0) + x.qty)); });
+  return `<details style="margin-top:8px;flex-basis:100%"><summary style="cursor:pointer;font-weight:600;color:#b45309">Standing with printers — ${[...tot.entries()].map(([k, q]) => { const [p, f, u] = k.split('|'); return `${esc(p)}: ${esc(f || '—')} ${flowQtyTxt(q, u)}`; }).join(' · ')}</summary>`
+    + `<div class="muted" style="font-size:12px;margin:4px 0">Cloth given to a printer against an order line that was then moved to another printer. It is still with them.</div>`
+    + `<table class="xl" style="width:auto"><thead><tr><th style="text-align:left">Printer</th><th style="text-align:left">Fabric</th><th>Standing</th><th style="text-align:left">Given on</th><th style="text-align:left">Order · SKU</th><th style="text-align:left">Moved to</th><th>On</th></tr></thead><tbody>`
+    + st.map(x => `<tr><td style="text-align:left"><b>${esc(x.printer)}</b></td><td style="text-align:left">${esc(x.fabric || '—')}</td><td class="num">${flowQtyTxt(x.qty, x.unit)}</td>`
+      + `<td style="text-align:left"><a href="#" data-flchp="${esc(x.no)}">${esc(x.no)}</a></td><td style="text-align:left">${esc(x.orderNo)} · ${esc(x.sku)}</td><td style="text-align:left" title="${esc(x.why)}">${esc(x.to)}</td><td>${esc(x.at)}</td></tr>`).join('')
+    + '</tbody></table></details>';
+}
 function flowHistTable(q, testOnly) {
   /* A cancelled challan is not shown (Ravi, 19 Oct: "cancel order yaha show hi n ho") — it moved nothing and owes nothing. */
   const list = Object.values(FLOW.ch || {}).filter(c => c && !c.cancelled && (!testOnly || flowIsTest(c.orderNo)))
@@ -96,7 +123,8 @@ function flowHistTable(q, testOnly) {
     const sent = flowMixTxt((c.lines || []).map(l => [flowChSent(l), flowChUnit(l)])), got = flowMixTxt((c.lines || []).map(l => [recv[l.key] || 0, flowChUnit(l)]));
     return `<tr><td class="frz" style="text-align:left"><b>${esc(c.no)}</b>${flowIsTest(c.orderNo) ? ' <span class="navbadge" style="background:#7c3aed;position:static">TEST</span>' : ''}<div class="muted" style="font-size:10.5px">${esc(c.date || '')}</div></td>
       <td style="text-align:left;white-space:normal;min-width:150px;max-width:240px;vertical-align:top">${flowHistOrders(c)}${(c.orders || [c.orderNo]).map(o => typeof ordBuyerOf === 'function' ? ordBuyerOf(o) : '').filter(Boolean).filter((b, i, a) => a.indexOf(b) === i).map(b => `<div style="font-size:12px;font-weight:600">${esc(b)}</div>`).join('')}</td><td style="text-align:left"><b>${esc(c.vendor && c.vendor.name)}</b></td>
-      <td style="text-align:left;font-size:11.5px;white-space:normal;min-width:200px;vertical-align:top">${flowHistMore((c.lines || []).map(l => `${esc(l.sku)} · ${flowQtyTxt(flowChSent(l), flowChUnit(l))}${recv[l.key] ? ` <span style="color:#166534">(${flowQtyTxt(recv[l.key], flowChUnit(l))} back)</span>` : ''}`), 5, 'line')}</td>
+      <td style="text-align:left;font-size:11.5px;white-space:normal;min-width:200px;vertical-align:top">${flowHistMore((c.lines || []).map(l => `${esc(l.sku)} · ${flowQtyTxt(flowChSent(l), flowChUnit(l))}${recv[l.key] ? ` <span style="color:#166534">(${flowQtyTxt(recv[l.key], flowChUnit(l))} back)</span>` : ''}`
+        + (flowChMoved(c, l) ? ` <span style="color:#b45309" title="${esc((c.moved[l.key] || {}).why || '')}">· order moved to ${esc(((c.moved[l.key] || {}).to || {}).name || '')} — cloth standing</span>` : '')), 5, 'line')}</td>
       <td class="num">${sent}</td><td class="num">${got}</td>
       <td>${pill(st)}${(c.cancelled || c.closed) && (c.cancelled || c.closed).why ? `<div class="muted" style="font-size:10.5px">${esc((c.cancelled || c.closed).why)}</div>` : ''}</td>
       <td style="white-space:nowrap">${flowChActions(c, st)}</td></tr>`; }).join('');
@@ -151,12 +179,13 @@ function flowReceiveOpen(no) {
       <table class="xl" style="margin-top:8px;width:100%"><thead><tr><th style="width:52px">Photo</th><th style="text-align:left">SKU</th><th>Given as</th><th>Sent</th><th>Back so far</th><th>Received now</th></tr></thead><tbody>
       ${/* STARTS AT 0 (Ravi, 22 Oct: "received now me auto 0 aana chahiye jisase cross krne ki need hi n pade jisme aayega usme qty
          fill kar denge"): only the lines typed in are received; a line left at 0 stays owed on the challan. */ ''}
-      ${(c.lines || []).map((l, i) => { const u = flowChUnit(l), left = flowR2(Math.max(0, flowChSent(l) - (recv[l.key] || 0)));
+      ${(c.lines || []).map((l, i) => { const u = flowChUnit(l), left = flowChMoved(c, l) ? 0 : flowR2(Math.max(0, flowChSent(l) - (recv[l.key] || 0)));
         return `<tr data-flrrow="${i}"><td>${pic(l.sku)}</td><td style="text-align:left"><b>${esc(l.sku)}</b><div class="muted" style="font-size:10.5px">${esc(l.item || '')}</div></td>
           <td style="text-align:left;font-size:11.5px">${u === 'pcs' ? 'Cut pieces' : l.ruffleOnly ? 'Printed ruffle cloth' : 'Printed cloth'}</td>
           <td class="num"><b>${flowQtyTxt(flowChSent(l), u)}</b>${u === 'pcs' ? `<div class="muted" style="font-size:10.5px">${flowQtyTxt(l.metres, 'm')} cloth</div>` : ''}</td><td class="num">${flowQtyTxt(recv[l.key] || 0, u)}</td>
           <td class="num"><span data-flrin="${i}"><input data-flrm="${i}" type="number" step="${u === 'pcs' ? '1' : '0.01'}" min="0" value="${left > 0 ? '0' : ''}" ${left > 0 ? `title="still to come: ${esc(flowQtyTxt(left, u))}" onfocus="this.select()"` : 'disabled'} style="width:85px;padding:3px 6px;font-size:12px"> ${u}</span>`
           + `<span data-flrno="${i}" class="pill bad" style="display:none;font-size:11px">Not received</span>`
+          + (flowChMoved(c, l) ? ` <span class="pill" style="font-size:11px" title="the printer was changed — the cloth stands with ${esc(c.vendor && c.vendor.name)}">moved → ${esc(((c.moved[l.key] || {}).to || {}).name || '')}</span>` : '')
           /* the ✕ sits in the same cell as the figure: a column of its own ran off the right of the window (20 Oct) */
           + `${left > 0 ? ` <button type="button" class="ghost" data-flrx="${i}" title="Not received this time — the line stays on the challan" style="width:auto;padding:2px 9px;font-size:13px;margin-left:4px">✕</button>` : ''}</td></tr>`; }).join('')}
       </tbody></table><label style="display:block;margin-top:8px">Note (lot, vehicle, quality…)<input id="flrNote"></label>`,
@@ -164,7 +193,7 @@ function flowReceiveOpen(no) {
     onSave: async () => {
       const items = {};
       const frac = [];
-      (c.lines || []).forEach((l, i) => { if (FLOW_RX.has(i)) return;       // not received this time
+      (c.lines || []).forEach((l, i) => { if (FLOW_RX.has(i) || flowChMoved(c, l)) return;       // not received this time / moved
         const m = +((document.querySelector(`[data-flrm="${i}"]`) || {}).value || 0);
         if (m > 0) { items[l.key] = flowR2(m); if (flowChUnit(l) === 'pcs' && m !== Math.round(m)) frac.push(l.sku); } });
       if (!Object.keys(items).length) return 'Type what came back for at least one line.';
@@ -177,7 +206,7 @@ function flowReceiveOpen(no) {
       const rc = { date: $('flrDate').value || dToday(), items, note: $('flrNote').value.trim(), at: now, by: ME.email || '' };
       const notCame = (c.lines || []).filter((l, i) => FLOW_RX.has(i)).map(l => l.key);
       if (notCame.length) rc.notCame = notCame;
-      const allBack = (c.lines || []).every(l => (recv[l.key] || 0) + (items[l.key] || 0) >= flowChSent(l) - 0.01);
+      const allBack = (c.lines || []).every(l => flowChMoved(c, l) || (recv[l.key] || 0) + (items[l.key] || 0) >= flowChSent(l) - 0.01);
       const patch = { [`pt_flowChallans/${no}/receipts/${id}`]: rc };
       if (allBack) patch[`pt_flowChallans/${no}/closed`] = { at: now, by: ME.email || '', why: 'all received' };
       try { await ptPatch(patch); } catch (e) { return 'Could not save: ' + (e.message || e); }

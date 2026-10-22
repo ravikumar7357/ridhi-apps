@@ -346,6 +346,7 @@ function flowDocsOf(x) {
   Object.values(FLOW.ch || {}).forEach(c => {
     if (!c || c.cancelled) return;
     const mine = (c.lines || []).filter(l => l && l.key === key); if (!mine.length) return;
+    if (mine.every(l => flowChMoved(c, l))) return;   // moved to another printer: no longer this line's paper
     out.push({ kind: mine.every(l => l.ruffleOnly) ? 'Ruffle challan' : 'RFD challan', no: c.no, who: (c.vendor && c.vendor.name) || '', link: 'ch', closed: !!c.closed });
   });
   return out;

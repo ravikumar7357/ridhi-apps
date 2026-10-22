@@ -102,7 +102,8 @@ function renderFlow() {
   }
   /* DEMAND, ONE TAB (Ravi, 12 Oct): its parts as tabs, like Listing Health's — RFD out to printers, printed fabric in, accessories. */
   if (FLOW_DEMAND.includes(FLOW_VIEW)) FLOW.panel = `<div class="seg" style="display:inline-flex;gap:4px;flex-wrap:wrap;margin-right:14px">${dem.map(([k, l]) =>
-    `<button data-fldem="${k}" class="${k === FLOW_VIEW ? '' : 'ghost'}" style="width:auto;padding:5px 14px;font-size:13px">${esc(l)} <b>${nf(n[k] || 0)}</b></button>`).join('')}</div>` + (FLOW.panel || '');
+    `<button data-fldem="${k}" class="${k === FLOW_VIEW ? '' : 'ghost'}" style="width:auto;padding:5px 14px;font-size:13px">${esc(l)} <b>${nf(n[k] || 0)}</b></button>`).join('')}</div>` + (FLOW.panel || '')
+    + (FLOW_VIEW === 'dhist' ? flowStandingHtml() : '');
   /* RFD short? The Greige Desk shows the greige to order for it (Ravi, 13 Oct: Greige Desk joined to the PPC flow). */
   if (FLOW_VIEW === 'drfd' && typeof GD !== 'undefined' && gdAllowed()) FLOW.panel = (FLOW.panel || '') + '<button type="button" class="ghost" data-gdgo="inv" style="width:auto;padding:5px 14px;font-size:13px;margin-left:10px">Greige Desk · PPC demand</button>';
   /* RFD stock is the Greige Desk's count: not read here, the Demand figures say so instead of showing a false "short". */
@@ -581,7 +582,8 @@ function flowTable(view, rows) {
         <td style="text-align:left;font-size:12px;line-height:1.55;vertical-align:top" class="muted">${esc(String(p.at || '').slice(0, 10))}${p.by ? '<br>' + esc(String(p.by).split('@')[0]) : ''}</td>
         <td style="white-space:normal;max-width:170px;vertical-align:top">${x.r.__t && x.s.bucket === 'ship'
           ? `<button data-flsim="${esc(x.r.orderNo)}|${esc(x.r.sku)}|ship" title="Stands in for: ${esc(FLOW_SIM.ship[1])}" style="width:auto;padding:3px 10px;font-size:12px;margin-bottom:6px;background:#7c3aed;border-color:#7c3aed">${esc(FLOW_SIM.ship[0])}</button><br>` : ''}<button data-flplan="${esc(x.r.orderNo)}|${esc(x.r.sku)}" style="width:auto;padding:3px 10px;font-size:12px" title="Change or undo what PPC planned">Edit plan</button>${ME.admin && !x.r.__t && !resyncSeen.has(x.r.orderNo) && resyncSeen.add(x.r.orderNo) ? `<br><button class="ghost" data-flposync="${esc(x.r.orderNo)}" style="width:auto;padding:2px 8px;font-size:11px;margin-top:6px" title="Rebuild this order's print order and the printer's Vendor Order from the plans as they are now">Resync printer orders</button>` : ''}
-          ${locked ? `<div class="muted" style="font-size:10.5px;margin-top:3px" title="The fabric went on ${esc(x.s.challan.no)}: fabric, route and printer can no longer change">fabric sent · ${esc(x.s.challan.no)}</div>` : ''}</td></tr>`; }).join('');
+          ${locked ? `<div class="muted" style="font-size:10.5px;margin-top:3px" title="The fabric went on ${esc(x.s.challan.no)}: fabric and route can no longer change">fabric sent · ${esc(x.s.challan.no)}</div>` : ''}
+          ${locked && flowPrinted(x.s.route) && !x.r.__t && flowBucketsAllowed().some(b => b[0] === 'ppcdone') ? `<button class="ghost" data-flchpr="${esc(x.s.key)}" title="Give this line to another printer — the cloth already given stays with the old printer, shown as standing" style="width:auto;padding:2px 8px;font-size:11.5px;margin-top:4px">Change printer</button>` : ''}</td></tr>`; }).join('');
   } else if (view === 'demb') {
     /* EMBROIDERY (Ravi, 21 Oct; flow-emb.js): the printed cloth back for each line, what the embroiderer has, Send / Receive. */
     head = ['PO', 'SKU', 'Qty', 'Printed fabric', 'Embroidery', ''];
@@ -697,6 +699,7 @@ async function flowTableClick(e) {
   const g = e.target.closest('[data-flgo]'); if (g) { showTab(g.dataset.flgo); return; }
   const rv = e.target.closest('[data-flchr]'); if (rv) { flowReceiveOpen(rv.dataset.flchr); return; }
   const pl = e.target.closest('[data-flplan]'); if (pl) { e.preventDefault(); const [no, sku] = pl.dataset.flplan.split('|'); flowPpcOpen(no, sku); return; }
+  const cpr = e.target.closest('[data-flchpr]'); if (cpr) { e.preventDefault(); flowChangePrinterOpen(cpr.dataset.flchpr); return; }
   const rs = e.target.closest('[data-flposync]');
   if (rs) { e.preventDefault(); const er = await flowPoResync(rs.dataset.flposync); if (er) { $('flMsg').className = 'err'; $('flMsg').textContent = er; } else { renderFlow(); $('flMsg').className = 'muted'; $('flMsg').textContent = flowPoResync.said || ''; } return; }
   const ce = e.target.closest('[data-flche]'); if (ce) { flowChallanEditOpen(ce.dataset.flche); return; }
