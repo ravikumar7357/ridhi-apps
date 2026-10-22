@@ -141,7 +141,7 @@ function flowEmbRecvOpen(no) {
       <table class="xl" style="margin-top:10px;width:100%"><thead><tr><th style="text-align:left">Item</th><th>Metres sent</th><th>Pieces</th><th>Back already</th><th>Back today</th></tr></thead><tbody>${lines.map((l, i) =>
         `<tr><td style="text-align:left"><b style="font-family:ui-monospace,monospace">${esc(l.sku)}</b><div class="muted" style="font-size:11px">${esc(l.item || '')}</div></td>
           <td class="num">${nf(l.metres)}</td><td class="num">${nf(l.pcs)}</td><td class="num">${nf(got[l.key] || 0)}</td>
-          <td class="num"><input data-emr="${i}" type="number" min="0" step="1" value="${left(l) || ''}" style="width:72px;padding:3px 6px;font-size:12px"></td></tr>`).join('')}</tbody></table>
+          <td class="num"><input data-emr="${i}" type="number" min="0" step="1" value="0" title="still to come: ${nf(left(l))} pcs" onfocus="this.select()" style="width:72px;padding:3px 6px;font-size:12px"></td></tr>`).join('')}</tbody></table>
       <label style="display:flex;gap:6px;align-items:center;margin-top:8px"><input id="flerClose" type="checkbox" style="width:auto"> Nothing more is coming on this challan — close it</label>`,
     saveLabel: 'Receive',
     onSave: async () => {

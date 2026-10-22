@@ -149,11 +149,13 @@ function flowReceiveOpen(no) {
     subtitle: `${c.orderNo} · ${c.vendor && c.vendor.name}. Type what came back now, in the form it was given: printed cloth in metres, pieces printed on the SKU in pieces. When every line is back the challan closes and the lines move to the store by themselves.`,
     html: `<label>Date<input id="flrDate" type="date" value="${esc(dToday())}"></label>
       <table class="xl" style="margin-top:8px;width:100%"><thead><tr><th style="width:52px">Photo</th><th style="text-align:left">SKU</th><th>Given as</th><th>Sent</th><th>Back so far</th><th>Received now</th></tr></thead><tbody>
+      ${/* STARTS AT 0 (Ravi, 22 Oct: "received now me auto 0 aana chahiye jisase cross krne ki need hi n pade jisme aayega usme qty
+         fill kar denge"): only the lines typed in are received; a line left at 0 stays owed on the challan. */ ''}
       ${(c.lines || []).map((l, i) => { const u = flowChUnit(l), left = flowR2(Math.max(0, flowChSent(l) - (recv[l.key] || 0)));
         return `<tr data-flrrow="${i}"><td>${pic(l.sku)}</td><td style="text-align:left"><b>${esc(l.sku)}</b><div class="muted" style="font-size:10.5px">${esc(l.item || '')}</div></td>
           <td style="text-align:left;font-size:11.5px">${u === 'pcs' ? 'Cut pieces' : l.ruffleOnly ? 'Printed ruffle cloth' : 'Printed cloth'}</td>
           <td class="num"><b>${flowQtyTxt(flowChSent(l), u)}</b>${u === 'pcs' ? `<div class="muted" style="font-size:10.5px">${flowQtyTxt(l.metres, 'm')} cloth</div>` : ''}</td><td class="num">${flowQtyTxt(recv[l.key] || 0, u)}</td>
-          <td class="num"><span data-flrin="${i}"><input data-flrm="${i}" type="number" step="${u === 'pcs' ? '1' : '0.01'}" min="0" value="${left > 0 ? esc(left) : ''}" ${left > 0 ? '' : 'disabled'} style="width:85px;padding:3px 6px;font-size:12px"> ${u}</span>`
+          <td class="num"><span data-flrin="${i}"><input data-flrm="${i}" type="number" step="${u === 'pcs' ? '1' : '0.01'}" min="0" value="${left > 0 ? '0' : ''}" ${left > 0 ? `title="still to come: ${esc(flowQtyTxt(left, u))}" onfocus="this.select()"` : 'disabled'} style="width:85px;padding:3px 6px;font-size:12px"> ${u}</span>`
           + `<span data-flrno="${i}" class="pill bad" style="display:none;font-size:11px">Not received</span>`
           /* the ✕ sits in the same cell as the figure: a column of its own ran off the right of the window (20 Oct) */
           + `${left > 0 ? ` <button type="button" class="ghost" data-flrx="${i}" title="Not received this time — the line stays on the challan" style="width:auto;padding:2px 9px;font-size:13px;margin-left:4px">✕</button>` : ''}</td></tr>`; }).join('')}
