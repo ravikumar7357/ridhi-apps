@@ -31,8 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      # the key: ours, or the one `firebase init hosting:github` makes for the project
-      FB_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT || secrets.FIREBASE_SERVICE_ACCOUNT_PRICE_RESEARCH_48FF3 }}
+      # only WHETHER a key is there — the key itself goes to the deploy steps alone, never into the install or test steps
       HAS_KEY: ${{ (secrets.FIREBASE_SERVICE_ACCOUNT || secrets.FIREBASE_SERVICE_ACCOUNT_PRICE_RESEARCH_48FF3) != '' }}
     defaults:
       run:
@@ -68,7 +67,7 @@ jobs:
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ env.FB_KEY }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT || secrets.FIREBASE_SERVICE_ACCOUNT_PRICE_RESEARCH_48FF3 }}
           projectId: price-research-48ff3
           channelId: live
           entryPoint: Replenish-App
@@ -83,7 +82,7 @@ jobs:
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ env.FB_KEY }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT || secrets.FIREBASE_SERVICE_ACCOUNT_PRICE_RESEARCH_48FF3 }}
           projectId: price-research-48ff3
           channelId: ${{ steps.ch.outputs.name }}
           expires: 7d
