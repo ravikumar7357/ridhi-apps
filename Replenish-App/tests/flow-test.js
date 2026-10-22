@@ -231,6 +231,16 @@ const K = 'AMZ-1__S1';
     const bad = shY.map(r => r.slice()); bad[1][cY('Make challan (yes/no)')] = 'yes'; bad[1][cY('Send now (m)')] = 'abc';
     ok('…a row with a mistake is named, not sent', F.flowChXlRead(bad).errs.length === 1, JSON.stringify(F.flowChXlRead(bad).errs));
     ok('…a sheet without the columns is refused', !!F.flowChXlRead([['PO', 'SKU'], ['A', 'B']]).err);
+    { /* 22 Oct ("dono ka jaha se bhi assign karu bahi se sahi ho"): the Printer typed in the sheet is the printer */
+      const shP = shY.map(r => r.slice()), cP = cY('Printer');
+      shP.slice(1).forEach(r => { r[cY('Make challan (yes/no)')] = 'yes'; if (r[0] === 'AMZ-7') r[cP] = 'choudhary hand block'; });
+      const rdP = F.flowChXlRead(shP), mv = rdP.pre.get('AMZ-7__T3') || {};
+      ok('a Printer changed in the sheet is a change of printer: AMZ-7 → Choudhary Hand Block (P2), from Sanganer Prints', mv.to && mv.to.code === 'P2' && mv.to.from === 'Sanganer Prints' && !rdP.pre.get('AMZ-5__T2').to, JSON.stringify([...rdP.pre]));
+      const grP = F.flowChGroups(rdP.keys, rdP.pre).groups;
+      ok('…so it goes on the Choudhary challan, not the plan\'s printer\'s', grP.length === 2 && grP.find(g => g.pcode === 'P2').rows.map(x => x.r.orderNo).join() === 'AMZ-7' && grP.find(g => g.pcode === 'P1').rows.length === 2, JSON.stringify(grP.map(g => [g.pcode, g.rows.map(x => x.r.orderNo)])));
+      shP.forEach(r => { if (r[0] === 'AMZ-7') r[cP] = 'Nobody Prints'; });
+      ok('…a printer the vendor list has not got is named, and that row is not sent', F.flowChXlRead(shP).errs.length === 1 && /Nobody Prints/.test(F.flowChXlRead(shP).errs[0]) && !F.flowChXlRead(shP).keys.includes('AMZ-7__T3'));
+    }
     F.ctx.document.querySelector = q => /data-chk/.test(q) ? { checked: true } : /data-chm="(\d+)"/.test(q) ? { value: '15' } : null;
     F.els.flcVen = Object.assign(F.els.flcVen || {}, { value: 'P1' });
     let opened = 0; F.flowChQueue(F.flowChGroups(rdY.keys, rdY.pre).groups, () => { opened++; });

@@ -280,7 +280,8 @@ function flowChGroups(keys, pre) {
   flowRows().filter(x => want.has(x.s.key)).forEach(x => {
     if (!flowInView('drfd', x.s)) { skipped.push(`${x.r.orderNo} ${obUC(x.r.sku)}: its fabric is not waiting any more`); return; }
     if (x.s.route === 'stitch') { skipped.push(`${x.r.orderNo} ${obUC(x.r.sku)}: Cutting route — no printer, use Mark fabric ready`); return; }
-    const pc = flowPlanPrinter(x.s) || '?', g = out.get(pc) || { pcode: pc, rows: [] }; g.rows.push(x); out.set(pc, g);
+    const to = pre && pre.get && (pre.get(x.s.key) || {}).to;
+    const pc = (to && String(to.code)) || flowPlanPrinter(x.s) || '?', g = out.get(pc) || { pcode: pc, rows: [] }; g.rows.push(x); out.set(pc, g);
   });
   const groups = [...out.values()].map(g => Object.assign(g, { pre: pre || null,
     rows: g.rows.sort((a, b) => String(a.r.orderDate || '').localeCompare(String(b.r.orderDate || '')) || String(a.r.orderNo).localeCompare(String(b.r.orderNo))) }));
@@ -321,7 +322,18 @@ function flowChXlRead(sheet) {
     if (pcsWise && !(pcs >= 1 && pcs === Math.round(pcs) && pcs <= o.left)) { errs.push(`${tag}: pieces are whole, at least 1 and at most the ${nf(o.left)} still owed`); continue; }
     if (m == null) m = pcsWise ? (o.left ? flowR2(o.metres * pcs / o.left) : 0) : o.metres;
     if (!(m > 0)) { errs.push(`${tag}: how many metres? "Send now (m)" is not a number above 0`); continue; }
-    keys.push(x.s.key); pre.set(x.s.key, { pcs: pcsWise ? pcs : +x.r.qty || 0, metres: flowR2(m), orderNo: x.r.orderNo, of: +x.r.qty || 0 });
+    /* THE PRINTER THE SHEET NAMES (Ravi, 22 Oct: "mene tamplate me bhavya ko sirf 3 order place kiye but in real or bhi order gye h
+     * vendor ko" — 11 lines he gave to other printers in the sheet went to Bhavya, the printer of their plan; "dono ka jaha se bhi
+     * assign karu bahi se sahi ho"). A Printer typed in the sheet that is not the plan's is a change of printer: the plan, the print
+     * order and the Vendor Order move to it (flowChangePrinterSave) before the challan forms open. */
+    const pName = c('Printer'), cur = (x.s.plan && x.s.plan.printer) || {}, nk = t => String(t || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    let to = null;
+    if (pName && nk(pName) !== nk(cur.name) && nk(pName) !== nk(cur.code)) {
+      const v = flowChVendors().find(y => [y.desc, y.name, y.code].some(t => t && nk(t) === nk(pName)));
+      if (!v) { errs.push(`${tag}: no vendor is called "${pName}" — type the printer as the vendor list has it`); continue; }
+      if (String(v.code) !== String(cur.code || '')) to = { code: String(v.code), name: v.desc || v.name || String(v.code), from: cur.name || cur.code || '' };
+    }
+    keys.push(x.s.key); pre.set(x.s.key, Object.assign({ pcs: pcsWise ? pcs : +x.r.qty || 0, metres: flowR2(m), orderNo: x.r.orderNo, sku: obUC(x.r.sku), of: +x.r.qty || 0 }, to ? { to } : {}));
   }
   return { keys, pre, errs, skipped };
 }
@@ -333,16 +345,26 @@ async function flowChXlIn(file) {
   if (rd.err) { $('flMsg').className = 'err'; $('flMsg').textContent = rd.err; return; }
   const { groups, skipped } = flowChGroups(rd.keys, rd.pre);
   const list = (a, n) => a.length ? `<div style="margin-top:6px"><b>${nf(a.length)}</b> ${n}:<div class="muted" style="font-size:12px">${a.slice(0, 12).map(esc).join('<br>')}${a.length > 12 ? '<br>…' : ''}</div></div>` : '';
-  const pname = g => g.pcode === '?' ? 'printer not chosen' : ((g.rows[0].s.plan.printer || {}).name || g.pcode);
+  const pname = g => g.pcode === '?' ? 'printer not chosen' : (((rd.pre.get(g.rows[0].s.key) || {}).to || {}).name || (g.rows[0].s.plan.printer || {}).name || g.pcode);
+  const moves = rd.keys.map(k => [k, rd.pre.get(k)]).filter(([, p]) => p && p.to);
   ptOpenDialog({
     title: 'Challans from Excel',
     subtitle: `${file.name} · ${nf(rd.keys.length)} line(s) marked yes`,
     note: 'Nothing is saved from the sheet by itself: one challan form opens per printer, filled in from the sheet — check it and press Make the challan; the next opens after it.',
     html: '<div style="font-size:12.5px;line-height:1.6">'
       + (groups.length ? `<div><b>${nf(groups.length)}</b> challan(s):</div>` + groups.map(g => `<div>· ${esc(pname(g))} — ${nf(g.rows.length)} line(s) of ${nf(new Set(g.rows.map(x => x.r.orderNo)).size)} order(s)</div>`).join('') : '<div>No line to send.</div>')
+      + (moves.length ? `<div style="margin-top:6px;color:#b45309"><b>${nf(moves.length)}</b> line(s) get the printer the sheet names — their plan, print order and Vendor Order move to it:<div style="font-size:12px">${moves.slice(0, 15).map(([, p]) => `${esc(p.orderNo)} ${esc(p.sku)}: ${esc(p.to.from || '—')} → <b>${esc(p.to.name)}</b>`).join('<br>')}${moves.length > 15 ? '<br>…' : ''}</div></div>` : '')
       + list(rd.errs, 'row(s) with a mistake — fix them in the sheet and import again') + list(rd.skipped.concat(skipped), 'row(s) left alone') + '</div>',
     saveLabel: groups.length ? `Open ${nf(groups.length)} challan form(s)` : 'Close',
-    onSave: async () => { if (groups.length) setTimeout(() => flowChQueue(groups), 0); return ''; },
+    onSave: async () => {
+      if (!groups.length) return '';
+      for (const [k, p] of moves) {
+        const er = await flowChangePrinterSave(k, p.to.code, 'printer given in the Challans from Excel sheet');
+        if (er) return `${p.orderNo} ${p.sku}: ${er}`;
+      }
+      const again = moves.length ? flowChGroups(rd.keys, rd.pre).groups : groups;
+      if (moves.length) renderFlow();
+      setTimeout(() => flowChQueue(again), 0); return ''; },
   });
 }
 if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
