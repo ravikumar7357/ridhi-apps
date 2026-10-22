@@ -51,10 +51,12 @@ jobs:
       - name: The page is what src/ makes
         run: node tests/assemble.js --check
 
+      # prod-test is not here: it reads a backup of the live production data (C:/AMAZON/backups/…), which never goes to
+      # GitHub — this repository is public. It is run on the office computer before every push to main.
       - name: Tests
         run: |
           set -e
-          for t in flow prod shop pack-scan pack-verify pack-core barcode-read barcode-wasm appv b2b-pictures; do
+          for t in flow shop pack-scan pack-verify pack-core barcode-read barcode-wasm appv b2b-pictures; do
             if node "tests/$t-test.js" > "/tmp/$t.log" 2>&1; then echo "$t: $(tail -1 /tmp/$t.log)"
             else echo "::error::$t-test failed"; grep -E "FAIL|Error" "/tmp/$t.log" | head -40; tail -5 "/tmp/$t.log"; exit 1; fi
           done
