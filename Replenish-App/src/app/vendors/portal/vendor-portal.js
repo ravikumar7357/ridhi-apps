@@ -261,6 +261,18 @@ const vpF = () => ({
   pri: ($('vpPri') || {}).value || '',
 });
 const vpLineOn = f => !!(f.at || f.sub || f.col || f.sz || f.pri);
+/* A SEARCH NARROWS THE LINES TOO (Ravi, 22 Oct: "mene particular sku search kiya but result me bahut kuch dikha rha h" —
+ * CPC007-5454 found 2 orders and showed all 65 of their products). When the words are found in some lines of an order, only
+ * those lines are shown and counted; an order found by its own number or note shows all of its lines. */
+const vpLineHay = l => [l.sku, l.fabricType, l.color, l.printDirection, l.articleType, l.articleSubtype, l.size].filter(Boolean).join(' ').toLowerCase();
+let VP_QX = { q: null, map: new WeakMap() };
+function vpQOk(o, l, f) {
+  const q = f && f.q; if (!q || !o) return true;
+  if (VP_QX.q !== q) VP_QX = { q, map: new WeakMap() };
+  let hits = VP_QX.map.get(o);
+  if (!hits) { hits = new Set(voLines(o).filter(x => x && vpLineHay(x).includes(q))); VP_QX.map.set(o, hits); }
+  return !hits.size || hits.has(l);
+}
 /** Does this order survive the order-level filters? */
 function vpOrderMatches(o, f) {
   if (f.status && String(o.status || 'Placed') !== f.status) return false;
@@ -338,10 +350,10 @@ function renderVp() {
   /* Over the live lines of the orders on screen, in one pass: what is still owed, and — the thing
    * this strip never said — what has already gone out. A printer wants to know what they have got
    * through as much as what is left. */
-  const tot = { owedPcs: 0, owedM: 0, sentPcs: 0, sentM: 0, late: 0, noDate: 0 };
+  const tot = { owedPcs: 0, owedM: 0, sentPcs: 0, sentM: 0, late: 0, noDate: 0 }, fq = vpF();
   rows.forEach(o => {
     const run = o.orderType === 'running';
-    voLines(o).filter(l => !l.cancelled && vpPartOk(o, l)).forEach(l => {
+    voLines(o).filter(l => !l.cancelled && vpPartOk(o, l) && vpQOk(o, l, fq)).forEach(l => {
       const left = Math.max(0, vpQty(o, l) - vpDone(l));
       if (run) { tot.owedM += left; tot.sentM += vpDone(l); }
       else { tot.owedPcs += left; tot.sentPcs += vpDone(l); }
@@ -527,7 +539,7 @@ function vpShopTable(rows, f) {
     const st = o.status || 'Placed';
     const can = !flowVpViewOnly(o) && VP_CAN_DELIVER.indexOf(st) >= 0;
     const on = !!(f && vpLineOn(f));
-    const keep = voLines(o).map((l, i) => ({ l, i })).filter(({ l }) => (!on || voLineMatches(l, f)) && vpPartOk(o, l));
+    const keep = voLines(o).map((l, i) => ({ l, i })).filter(({ l }) => (!on || voLineMatches(l, f)) && vpPartOk(o, l) && vpQOk(o, l, f));
     if (!keep.length) return '';
     const flow = flowVpViewOnly(o) ? null : VP_FLOW[st];
     const cls = st === 'Cancelled' ? 'pill-out' : (st === 'Dispatched' || st === 'Received' ? 'pill-ok' : 'pill-low');
@@ -707,7 +719,7 @@ function vpBoard(rows, f) {
   return rows.map(o => {
     const st = o.status || 'Placed', run = o.orderType === 'running', unit = run ? 'm' : 'pcs';
     const on = !!(f && vpLineOn(f));
-    const keep = voLines(o).map((l, i) => ({ l, i })).filter(({ l }) => !l.cancelled && (!on || voLineMatches(l, f)) && vpPartOk(o, l));
+    const keep = voLines(o).map((l, i) => ({ l, i })).filter(({ l }) => !l.cancelled && (!on || voLineMatches(l, f)) && vpPartOk(o, l) && vpQOk(o, l, f));
     if (!keep.length) return '';
     const ctx = vpRawCtx(o), q = n => nf(Math.round((+n || 0) * 100) / 100);
     const wants = keep.map(({ l }) => voWant(l)).filter(Boolean).sort();
@@ -753,7 +765,7 @@ function vpProductBoard(rows, f) {
   const groups = new Map();
   rows.forEach(o => {
     const st = o.status || 'Placed', run = o.orderType === 'running', on = !!(f && vpLineOn(f));
-    const keep = voLines(o).map((l, i) => ({ l, i })).filter(({ l }) => !l.cancelled && (!on || voLineMatches(l, f)) && vpPartOk(o, l));
+    const keep = voLines(o).map((l, i) => ({ l, i })).filter(({ l }) => !l.cancelled && (!on || voLineMatches(l, f)) && vpPartOk(o, l) && vpQOk(o, l, f));
     if (!keep.length) return;
     const ctx = vpRawCtx(o);
     keep.forEach(({ l }) => {
@@ -806,7 +818,7 @@ function vpTable(rows, f) {
     const unit = run ? 'm' : 'pcs';
     const all = voLines(o);
     const on = !!(f && vpLineOn(f));
-    const keep = all.map((l, i) => ({ l, i })).filter(({ l }) => (!on || voLineMatches(l, f)) && vpPartOk(o, l));
+    const keep = all.map((l, i) => ({ l, i })).filter(({ l }) => (!on || voLineMatches(l, f)) && vpPartOk(o, l) && vpQOk(o, l, f));
     if (!keep.length) return '';
     const flow = flowVpViewOnly(o) ? null : VP_FLOW[st];
     const cls = st === 'Cancelled' ? 'pill-out' : (st === 'Dispatched' || st === 'Received' ? 'pill-ok' : 'pill-low');
@@ -889,7 +901,7 @@ function vpCard(o, f) {
   /* The filters narrow the LINES, so a printer looking for one colour sees that colour — but the row
    * index has to stay the real one, or what they type lands on a different line. */
   const on = !!(f && vpLineOn(f));
-  const keep = all.map((l, i) => ({ l, i })).filter(({ l }) => (!on || voLineMatches(l, f)) && vpPartOk(o, l));
+  const keep = all.map((l, i) => ({ l, i })).filter(({ l }) => (!on || voLineMatches(l, f)) && vpPartOk(o, l) && vpQOk(o, l, f));
   const lines = all;
   /* WANTED BY was not on this screen at all — the vendor was being asked to hit a date nobody had
    * shown them. It is here now, next to the box where they answer it. */
@@ -1219,7 +1231,7 @@ function vpExportRows(rows, f) {
   const on = !!(f && vpLineOn(f));
   rows.forEach(o => {
     const run = o.orderType === 'running';
-    const keep = voLines(o).map((l, i) => ({ l, i })).filter(({ l }) => (!on || voLineMatches(l, f)) && vpPartOk(o, l));
+    const keep = voLines(o).map((l, i) => ({ l, i })).filter(({ l }) => (!on || voLineMatches(l, f)) && vpPartOk(o, l) && vpQOk(o, l, f));
     vpGroups(keep).forEach(g => g.items.forEach(({ l }) => {
       const ord = vpQty(o, l), done = vpDone(l);
       const dels = (Array.isArray(l.deliveries) ? l.deliveries : Object.values(l.deliveries || {})).filter(Boolean);

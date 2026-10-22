@@ -2669,6 +2669,10 @@ console.log('\n== by product: one card per SKU, the orders in a dropdown (17 Oct
   const o1 = { id: 'p1', vendorCode: 'VND002', orderNo: 'VPO-261017-MES', orderType: 'cut', status: 'Placed', orderDate: '17/10/2026', channel: 'CPC Shopify', lines: [ln('CPC014-60102', 1, 'SHP-7801')] };
   const o2 = { id: 'p2', vendorCode: 'VND002', orderNo: 'VPO-261017-X9T', orderType: 'cut', status: 'Placed', orderDate: '17/10/2026', channel: 'CPC Shopify', lines: [ln('CPC014-60102', 1, 'SHP-7802'), ln('CPC014-60120', 2, 'SHP-7802')] };
   const h = A.vpProductBoard([o1, o2]);
+  /* 22 Oct ("mene particular sku search kiya but result me bahut kuch dikha rha h"): a SKU searched shows only its card */
+  const hq = A.vpProductBoard([o2], { q: 'cpc014-60120' });   // the orders the search found (vpOrderMatches): only o2 has it
+  ok('search CPC014-60120 → only that SKU\'s card, not every product of the orders it is on', (hq.match(/class="vpb-card"/g) || []).length === 1 && /CPC014-60120/.test(hq) && !/CPC014-60102/.test(hq), hq.slice(0, 400));
+  ok('…an order searched by its number still shows all its lines', (A.vpProductBoard([o2], { q: 'vpo-261017-x9t' }).match(/class="vpb-card"/g) || []).length === 2);
   const cards = (h.match(/class="vpb-card"/g) || []).length;
   ok('by product: the same SKU on two vendor orders is ONE card; another SKU its own — 2 cards', cards === 2, h.slice(0, 600));
   ok('…the card adds them up (Ordered 2) and its dropdown names both vendor orders and their customer orders', /<span>Ordered<\/span><b>2<\/b>/.test(h) && /2 orders/.test(h) && /VPO-261017-MES/.test(h) && /VPO-261017-X9T/.test(h) && /SHP-7801/.test(h) && /SHP-7802/.test(h) && /<details/.test(h), h.slice(0, 1500));
