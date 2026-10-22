@@ -1506,6 +1506,14 @@ const K = 'AMZ-1__S1';
     F.els.flSrc.value = ''; F.els.flFArt.value = ''; F.els.flFPo.value = 'SHP-B'; F.renderFlow();
     ok('PO = SHP-B → only that order (Ravi, 16 Oct: "filter me PO add karo")', !/AMZ-A/.test(F.els.flTable.innerHTML) && /SHP-B/.test(F.els.flTable.innerHTML) && F.els.flFiltN.textContent === '1');
     F.els.flFPo.value = '';
+    /* 22 Oct ("jese humne SHP par filter lagaya to SHP me jitne article h sirf bahi dikhne chahiye all nahi") */
+    const artList = () => ((F.ctx.__fills || {}).flFArt || []).map(p => p[0]).join();
+    F.els.flQ.value = 'shp'; F.renderFlow();
+    ok('search "shp" → the Article list holds only the Shopify line\'s article (Pillow Cover), with its count', artList() === 'Pillow Cover' && /\(1\)/.test(((F.ctx.__fills || {}).flFArt || [])[0][1]), artList());
+    F.els.flQ.value = ''; F.els.flSrc.value = 'SHP'; F.renderFlow();
+    ok('…the same with the platform picked: SHP → Pillow Cover only; the platform list itself still offers both', artList() === 'Pillow Cover' && ((F.ctx.__fills || {}).flSrc || []).length === 2, artList());
+    F.els.flSrc.value = ''; F.renderFlow();
+    ok('…nothing picked → every article again', artList() === 'Pillow Cover,Tablecloth', artList());
     /* The PO list holds the POs of the bucket on screen only (17 Oct). */
     const G = load({ me: { admin: true }, mdb: { S1: { cons: 1, fab: 'Cotton' }, S2: { cons: 1, fab: 'Cotton' } }, lines: [L({ orderNo: 'AMZ-A', sku: 'S1' }), L({ orderNo: 'AMZ-P', sku: 'S2' })],
       ppc: { 'AMZ-P__S2': plan({ orderNo: 'AMZ-P', sku: 'S2' }) } });

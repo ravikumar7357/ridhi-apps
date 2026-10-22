@@ -51,7 +51,7 @@ function renderFlow() {
    * PO, article, colour… a dropdown offers are those of the lines in this bucket — a pick from another bucket left every
    * count at 0. The history and print-order lists are not line lists; they keep every line's. */
   const inBucket = ['pord', 'dhist'].includes(FLOW_VIEW) ? all : all.filter(x => FLOW_VIEW === 'new' ? x.recent : flowInView(FLOW_VIEW, x.s));
-  flowFiltFill(inBucket, ff);
+  flowFiltFill(inBucket, ff, q);
   const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly();
   if ($('flTestOnly')) $('flTestOnly').checked = only;
   /* With test orders off (flow-core.js) there is no test order to raise or narrow to: the button and the switch go. */
@@ -157,14 +157,21 @@ const flowFiltPass = (x, f) => (!f.po || x.r.orderNo === f.po) && (!f.art || x.r
   && (!f.age || (flowDays(x.r.orderDate) || 0) > +f.age)
   && (!f.fab || flowFacet(x).fab === f.fab) && (!f.prn || flowFacet(x).prn === f.prn);
 /** The dropdowns hold what the lines actually carry. Fabric and printer are listed once the panel is open. */
-function flowFiltFill(all, f) {
-  const vals = get => [...new Set(all.map(get).filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
+/* EACH LIST FOLLOWS THE OTHER PICKS AND THE SEARCH (Ravi, 22 Oct: "jese humne SHP par filter lagaya to SHP me jitne article h sirf
+ * bahi dikhne chahiye all nahi"): a dropdown offers what the lines left by the search and every OTHER filter carry — never
+ * its own pick, so it can still be changed. */
+function flowFiltFill(all, f, q) {
+  const vals = list => [...new Set(list)].filter(Boolean).sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
   const facets = flowFiltOpen() || f.fab || f.prn;
   const by = { src: flowSrcOf, po: x => x.r.orderNo, art: x => x.r.articleType, sub: x => x.r.articleSubtype, col: x => x.r.color, size: x => x.r.size,
     fab: x => (facets ? flowFacet(x).fab : ''), prn: x => (facets ? flowFacet(x).prn : '') };
+  const qOk = x => !q || [x.r.orderNo, x.r.sku, x.r.color, x.r.size, x.r.articleSubtype, x.r.articleType, x.r.shopOrderNo, flowFacet(x).fab, flowFacet(x).prn].join(' ').toLowerCase().includes(q);
+  const live = q ? all.filter(qOk) : all;
   FLOW_FILT.forEach(([k, id, all0]) => { if (!$(id)) return;
-    const list = vals(by[k]); if (f[k] && !list.includes(f[k])) list.push(f[k]);
-    ptFillSelect(id, list.map(v => [v, v]), all0); });
+    const g = Object.assign({}, f, { [k]: '' });
+    const lines = live.filter(x => (!g.src || flowSrcOf(x) === g.src) && flowFiltPass(x, g));
+    const list = vals(lines.map(by[k])); if (f[k] && !list.includes(f[k])) list.push(f[k]);
+    ptFillSelect(id, list.map(v => [v, v + ' (' + nf(lines.filter(x => by[k](x) === v).length) + ')']), all0); });
   const n = flowFiltCount(f);
   if ($('flFiltN')) $('flFiltN').textContent = n ? String(n) : '';
 }
