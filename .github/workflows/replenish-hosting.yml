@@ -5,8 +5,9 @@
 #   preview/<x>   a branch named preview/something gets its own test link (7 days), the live site untouched — the way
 #                 a feature waits for Ravi's "live karo". Merging it into main puts it live.
 #
-# Nothing is deployed when a test fails. The key is the repository secret FIREBASE_SERVICE_ACCOUNT (a Google service
-# account with Firebase Hosting Admin); without it the tests and the build still run and say so, and nothing is deployed.
+# Nothing is deployed when a test fails. The key is the repository secret FIREBASE_SERVICE_ACCOUNT, or the
+# FIREBASE_SERVICE_ACCOUNT_PRICE_RESEARCH_48FF3 that `firebase init hosting:github` makes; without one the tests and the
+# build still run and say so, and nothing is deployed.
 name: Replenish app — test, build, deploy
 
 on:
@@ -30,7 +31,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      HAS_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT != '' }}
+      # the key: ours, or the one `firebase init hosting:github` makes for the project
+      FB_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT || secrets.FIREBASE_SERVICE_ACCOUNT_PRICE_RESEARCH_48FF3 }}
+      HAS_KEY: ${{ (secrets.FIREBASE_SERVICE_ACCOUNT || secrets.FIREBASE_SERVICE_ACCOUNT_PRICE_RESEARCH_48FF3) != '' }}
     defaults:
       run:
         working-directory: Replenish-App
@@ -65,7 +68,7 @@ jobs:
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          firebaseServiceAccount: ${{ env.FB_KEY }}
           projectId: price-research-48ff3
           channelId: live
           entryPoint: Replenish-App
@@ -80,7 +83,7 @@ jobs:
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          firebaseServiceAccount: ${{ env.FB_KEY }}
           projectId: price-research-48ff3
           channelId: ${{ steps.ch.outputs.name }}
           expires: 7d
@@ -88,4 +91,4 @@ jobs:
 
       - name: No deploy key yet
         if: env.HAS_KEY != 'true'
-        run: echo "::warning::The FIREBASE_SERVICE_ACCOUNT secret is not set — the tests and the build ran, nothing was deployed."
+        run: echo "::warning::No Firebase key secret is set — the tests and the build ran, nothing was deployed."
