@@ -164,6 +164,63 @@ function flowChallanForKeys(keys) {
   const pcs = [...new Set(rows.map(x => flowPlanPrinter(x.s)).filter(Boolean))];
   return flowChallanDialog(rows, pcs.length === 1 ? pcs[0] : null);
 }
+/* CLOTH GIVEN EARLIER, WITHOUT A CHALLAN (Ravi, 22 Oct, AMZ-15102026-01 · CPC007-04: "400 pcs already made against this order but
+ * mene abhi fabric nahi bheja mujhe fabric bhejkar old entry close karni h" — the 400 are real; their cloth went to the printer
+ * before the flow had a challan for it). A RECORD-ONLY challan says so: that cloth, to that printer, on the day it went, already
+ * printed and back (the pieces are made) — closed as it is made. It takes nothing off the RFD count unless asked (the cloth
+ * left the store then), and the line's fabric is then counted in full: only what is truly still owed is offered. */
+/** What of a line was made from cloth no challan records: { qty (in the line's unit), pcs, metres } — 0s when nothing. */
+function flowEarlierOf(x) {
+  const s = x.s, p = s.plan || {}; if (!p || !flowPrinted(s.route)) return { qty: 0, pcs: 0, metres: 0 };
+  const q = +x.r.qty || 0, done = Math.round(q * (1 - flowRemFrac(x.r, s))), per = +(p.fabric && p.fabric.perPc) || 0;
+  const pcsWise = s.fabUnit === 'pcs', need = s.fabNeed || 0, sent = s.fabSent || 0;
+  const doneU = pcsWise ? done : flowR2(done * per), qty = flowR2(Math.max(0, Math.min(doneU, need - sent)));
+  const pcs = pcsWise ? qty : (per ? Math.round(qty / per) : 0);
+  return { qty, pcs, metres: flowR2(pcsWise ? pcs * per : qty) };
+}
+async function flowRecordEarlier(key, o) {
+  const x = flowRows().find(y => y.s.key === key); if (!x) return 'That line is not here any more — press Refresh.';
+  const e = flowEarlierOf(x), pcsWise = x.s.fabUnit === 'pcs', p = x.s.plan || {}, per = +(p.fabric && p.fabric.perPc) || 0;
+  const pcs = Math.round(+o.pcs || 0);
+  if (!(pcs >= 1) || pcs > (pcsWise ? e.qty : e.pcs)) return `Type the pieces made from that cloth — at most ${nf(pcsWise ? e.qty : e.pcs)}.`;
+  const pr = (p.printer && p.printer.code) ? p.printer : null; if (!pr) return 'This line has no printer planned — pick it with "edit plan" first.';
+  const metres = flowR2(+o.metres > 0 ? +o.metres : pcs * per), qty = pcsWise ? pcs : metres, now = new Date().toISOString(), date = o.date || dToday();
+  let no = flowChallanNo(dToday(), !!x.r.__t);
+  const ch = { no, date, orderNo: x.r.orderNo, orders: [x.r.orderNo], vendor: { code: pr.code, name: pr.name }, at: now, by: ME.email || '',
+    recordOnly: true, deduct: !!o.deduct, note: `Given earlier without a challan — record only. ${nf(pcs)} pcs made already${o.note ? ' · ' + o.note : ''}`,
+    lines: [{ key, sku: obUC(x.r.sku), item: flowChItem(x.r), print: flowPrintWhat(x.r, p), extras: [], fabric: (p.fabric && p.fabric.name) || '', pcs, metres }],
+    receipts: { r0: { date, at: now, by: ME.email || '', items: { [key]: qty }, note: 'made already — the cloth was given earlier' } },
+    closed: { at: now, by: ME.email || '', why: 'given earlier, already made — record only' } };
+  for (let k = 0, taken = []; ; k++) {
+    let er = ''; try { er = await flowClaim('pt_flowChallans/' + no, ch); } catch (err) { return 'Could not save: ' + (err.message || err); }
+    if (!er) break;
+    if (k >= 15) return 'Could not get a free challan number — press Refresh and try again.';
+    taken.push(no); no = flowChallanNo(dToday(), !!x.r.__t, taken); ch.no = no;
+  }
+  if (typeof ptCas !== 'function') { try { await ptPatch({ ['pt_flowChallans/' + no]: ch }); } catch (err) { return 'Could not save: ' + (err.message || err); } }
+  FLOW.ch = Object.assign({}, FLOW.ch, { [no]: ch });
+  flowRecordEarlier.no = no;
+  return '';
+}
+function flowRecordEarlierOpen(key) {
+  const x = flowRows().find(y => y.s.key === key); if (!x) return;
+  const e = flowEarlierOf(x), pcsWise = x.s.fabUnit === 'pcs', p = x.s.plan || {};
+  ptOpenDialog({
+    title: `Record cloth given earlier — ${x.r.orderNo} · ${obUC(x.r.sku)}`,
+    subtitle: `${nf(e.pcs)} pcs of this line are made, but no challan says their cloth went to ${(p.printer && p.printer.name) || 'the printer'}. This records it — closed at once, the pieces being made — so only what is truly still owed stays in Demand.`,
+    html: `<div class="ptgrid" style="grid-template-columns:1fr 1fr 1fr"><label>Pieces made from it<input id="flreP" type="number" min="1" step="1" value="${esc(e.pcs)}"></label>
+      <label>Metres of cloth<input id="flreM" type="number" min="0" step="0.01" value="${esc(e.metres)}"></label>
+      <label>Given on<input id="flreD" type="date" value="${esc(dToday())}"></label></div>
+      <label style="display:flex;gap:6px;align-items:center;margin-top:8px"><input id="flreX" type="checkbox" style="width:auto"> Also take it off the RFD stock now (only if the store still counts that cloth)</label>
+      <label style="display:block;margin-top:8px">Note<input id="flreN" placeholder="e.g. given on the old process"></label>`,
+    saveLabel: 'Record it',
+    onSave: async () => {
+      const er = await flowRecordEarlier(key, { pcs: $('flreP').value, metres: $('flreM').value, date: $('flreD').value, deduct: !!$('flreX').checked, note: ($('flreN').value || '').trim() });
+      if (er) return er;
+      renderFlow(); $('flMsg').className = 'muted'; $('flMsg').textContent = `Recorded on ${flowRecordEarlier.no} (closed) — the line now owes only what is still to make.`; return '';
+    },
+  });
+}
 /** Under a challan line: "of 446 · 400 already made / with karigars" when part of the order needs no fabric (19 Oct). */
 function flowDoneTxt(x) {
   const q = +x.r.qty || 0, d = Math.round(q * (1 - flowRemFrac(x.r, x.s)));

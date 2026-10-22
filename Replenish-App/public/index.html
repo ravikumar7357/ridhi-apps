@@ -28333,7 +28333,8 @@ function flowRfdChallanOut(name, fromDay) {
     const d = String(c.date || ptIsoDate(c.at) || '').slice(0, 10);
     if (fromDay && d < fromDay) return;
     /* a challan made from cloth already standing with the printer took nothing from the store (flowStandUseOpen) */
-    if (!c.standing) (c.lines || []).forEach(l => { if (l && flowFabKey(l.fabric) === k) out += +l.metres || 0; });
+    /* …nor a record of cloth given earlier without a challan (flowRecordEarlier) — it left the store then — unless asked to */
+    if (!c.standing && !(c.recordOnly && !c.deduct)) (c.lines || []).forEach(l => { if (l && flowFabKey(l.fabric) === k) out += +l.metres || 0; });
     /* standing cloth that came back to the store unprinted is RFD again (flowStandBackOpen) */
     Object.values(c.moved || {}).forEach(m => Object.values((m && m.settles) || {}).forEach(x => {
       if (x && x.how === 'store' && x.as === 'rfd' && flowFabKey(m.fabric) === k) out -= +x.metres || 0; }));
@@ -28556,6 +28557,63 @@ function flowChallanForKeys(keys) {
   if (rows.some(x => !!x.r.__t) && rows.some(x => !x.r.__t)) { $('flMsg').className = 'err'; $('flMsg').textContent = 'A test order and a real one cannot share a challan.'; return; }
   const pcs = [...new Set(rows.map(x => flowPlanPrinter(x.s)).filter(Boolean))];
   return flowChallanDialog(rows, pcs.length === 1 ? pcs[0] : null);
+}
+/* CLOTH GIVEN EARLIER, WITHOUT A CHALLAN (Ravi, 22 Oct, AMZ-15102026-01 · CPC007-04: "400 pcs already made against this order but
+ * mene abhi fabric nahi bheja mujhe fabric bhejkar old entry close karni h" — the 400 are real; their cloth went to the printer
+ * before the flow had a challan for it). A RECORD-ONLY challan says so: that cloth, to that printer, on the day it went, already
+ * printed and back (the pieces are made) — closed as it is made. It takes nothing off the RFD count unless asked (the cloth
+ * left the store then), and the line's fabric is then counted in full: only what is truly still owed is offered. */
+/** What of a line was made from cloth no challan records: { qty (in the line's unit), pcs, metres } — 0s when nothing. */
+function flowEarlierOf(x) {
+  const s = x.s, p = s.plan || {}; if (!p || !flowPrinted(s.route)) return { qty: 0, pcs: 0, metres: 0 };
+  const q = +x.r.qty || 0, done = Math.round(q * (1 - flowRemFrac(x.r, s))), per = +(p.fabric && p.fabric.perPc) || 0;
+  const pcsWise = s.fabUnit === 'pcs', need = s.fabNeed || 0, sent = s.fabSent || 0;
+  const doneU = pcsWise ? done : flowR2(done * per), qty = flowR2(Math.max(0, Math.min(doneU, need - sent)));
+  const pcs = pcsWise ? qty : (per ? Math.round(qty / per) : 0);
+  return { qty, pcs, metres: flowR2(pcsWise ? pcs * per : qty) };
+}
+async function flowRecordEarlier(key, o) {
+  const x = flowRows().find(y => y.s.key === key); if (!x) return 'That line is not here any more — press Refresh.';
+  const e = flowEarlierOf(x), pcsWise = x.s.fabUnit === 'pcs', p = x.s.plan || {}, per = +(p.fabric && p.fabric.perPc) || 0;
+  const pcs = Math.round(+o.pcs || 0);
+  if (!(pcs >= 1) || pcs > (pcsWise ? e.qty : e.pcs)) return `Type the pieces made from that cloth — at most ${nf(pcsWise ? e.qty : e.pcs)}.`;
+  const pr = (p.printer && p.printer.code) ? p.printer : null; if (!pr) return 'This line has no printer planned — pick it with "edit plan" first.';
+  const metres = flowR2(+o.metres > 0 ? +o.metres : pcs * per), qty = pcsWise ? pcs : metres, now = new Date().toISOString(), date = o.date || dToday();
+  let no = flowChallanNo(dToday(), !!x.r.__t);
+  const ch = { no, date, orderNo: x.r.orderNo, orders: [x.r.orderNo], vendor: { code: pr.code, name: pr.name }, at: now, by: ME.email || '',
+    recordOnly: true, deduct: !!o.deduct, note: `Given earlier without a challan — record only. ${nf(pcs)} pcs made already${o.note ? ' · ' + o.note : ''}`,
+    lines: [{ key, sku: obUC(x.r.sku), item: flowChItem(x.r), print: flowPrintWhat(x.r, p), extras: [], fabric: (p.fabric && p.fabric.name) || '', pcs, metres }],
+    receipts: { r0: { date, at: now, by: ME.email || '', items: { [key]: qty }, note: 'made already — the cloth was given earlier' } },
+    closed: { at: now, by: ME.email || '', why: 'given earlier, already made — record only' } };
+  for (let k = 0, taken = []; ; k++) {
+    let er = ''; try { er = await flowClaim('pt_flowChallans/' + no, ch); } catch (err) { return 'Could not save: ' + (err.message || err); }
+    if (!er) break;
+    if (k >= 15) return 'Could not get a free challan number — press Refresh and try again.';
+    taken.push(no); no = flowChallanNo(dToday(), !!x.r.__t, taken); ch.no = no;
+  }
+  if (typeof ptCas !== 'function') { try { await ptPatch({ ['pt_flowChallans/' + no]: ch }); } catch (err) { return 'Could not save: ' + (err.message || err); } }
+  FLOW.ch = Object.assign({}, FLOW.ch, { [no]: ch });
+  flowRecordEarlier.no = no;
+  return '';
+}
+function flowRecordEarlierOpen(key) {
+  const x = flowRows().find(y => y.s.key === key); if (!x) return;
+  const e = flowEarlierOf(x), pcsWise = x.s.fabUnit === 'pcs', p = x.s.plan || {};
+  ptOpenDialog({
+    title: `Record cloth given earlier — ${x.r.orderNo} · ${obUC(x.r.sku)}`,
+    subtitle: `${nf(e.pcs)} pcs of this line are made, but no challan says their cloth went to ${(p.printer && p.printer.name) || 'the printer'}. This records it — closed at once, the pieces being made — so only what is truly still owed stays in Demand.`,
+    html: `<div class="ptgrid" style="grid-template-columns:1fr 1fr 1fr"><label>Pieces made from it<input id="flreP" type="number" min="1" step="1" value="${esc(e.pcs)}"></label>
+      <label>Metres of cloth<input id="flreM" type="number" min="0" step="0.01" value="${esc(e.metres)}"></label>
+      <label>Given on<input id="flreD" type="date" value="${esc(dToday())}"></label></div>
+      <label style="display:flex;gap:6px;align-items:center;margin-top:8px"><input id="flreX" type="checkbox" style="width:auto"> Also take it off the RFD stock now (only if the store still counts that cloth)</label>
+      <label style="display:block;margin-top:8px">Note<input id="flreN" placeholder="e.g. given on the old process"></label>`,
+    saveLabel: 'Record it',
+    onSave: async () => {
+      const er = await flowRecordEarlier(key, { pcs: $('flreP').value, metres: $('flreM').value, date: $('flreD').value, deduct: !!$('flreX').checked, note: ($('flreN').value || '').trim() });
+      if (er) return er;
+      renderFlow(); $('flMsg').className = 'muted'; $('flMsg').textContent = `Recorded on ${flowRecordEarlier.no} (closed) — the line now owes only what is still to make.`; return '';
+    },
+  });
 }
 /** Under a challan line: "of 446 · 400 already made / with karigars" when part of the order needs no fabric (19 Oct). */
 function flowDoneTxt(x) {
@@ -29167,7 +29225,7 @@ function flowVlogRows() {
         : l.print && l.print.sides && l.print.sides.length ? l.print.sides.map(sd => sd.code).join(' + ') : ((l.print && l.print.code) || '');
       const day = voDayOf(rc.date || String(rc.at || '').slice(0, 10)), test = /^T/.test(String(c.no));
       out.push({ day, key: voDayKey(day), raw: String(rc.date || ''), li: -1, di: -1, del: { qty, date: rc.date, by: rc.by || '', at: rc.at || '' },
-        ok: { qty, at: rc.at || '', by: rc.by || '', note: (test ? 'TEST · ' : '') + 'received on challan ' + c.no + (rc.note ? ' · ' + rc.note : '') },
+        ok: { qty, at: rc.at || '', by: rc.by || '', note: (test ? 'TEST · ' : '') + (c.recordOnly ? 'record of cloth given earlier · ' : '') + 'received on challan ' + c.no + (rc.note ? ' · ' + rc.note : '') },
         key2: 'flow/' + c.no + '/' + rid + '/' + key, vendorCode: (c.vendor && c.vendor.code) || '', vendor: (c.vendor && c.vendor.name) || '',
         orderNo: (test ? 'TEST · ' : '') + c.no + ' · ' + (l.orderNo || c.orderNo || ''), id: c.no, run, unit: u, printing: true,
         sku: run ? code : obUC(l.sku), fabric: run ? (l.fabric || '') : '', colour,
@@ -31458,7 +31516,8 @@ function flowTable(view, rows) {
         <td style="${td};min-width:220px">${x.s.route === 'stitch' ? 'No printing — straight to cutting' : `<div>Print: <b>${esc((p.printer && p.printer.name) || '—')}</b></div><div style="color:#4338ca">On: ${on}</div>${flowExtrasTxt(flowPrintExtras(x.r, p))}${flowRufflePrinter(p) ? `<div style="font-size:12px;color:#5b21b6">ruffle → <b>${esc(flowRufflePrinter(p).name)}</b>${ro ? '' : ' · sent'}</div>` : ''}`}</td>
         <td style="${td};min-width:170px">${p.fabric ? `<div><b>${esc(p.fabric.name)}</b></div><div>To send: ${nf(c.need)} m</div>` : '—'}${ro ? `<div style="font-size:12px;color:#5b21b6">ruffle: ${esc(ro.fabric)} · ${nf(ro.metres)} m to ${esc(ro.printer.name)}</div>` : ''}${x.s.fabSent > 0 ? `<div style="margin-top:3px"><span class="jw-st prog" title="Sent on a challan in part — the rest is still to send">Partly sent</span> <span style="font-size:12px">${nf(x.s.fabSent)} of ${nf(x.s.fabNeed)} ${x.s.fabUnit} sent · ${nf(flowR2(Math.max(0, x.s.fabNeed - x.s.fabSent)))} still to send</span></div>` : ''}${flowMasterDiffTxt(flowMasterDiff(x.r, p))}</td>
         <td style="${td};min-width:150px">${c.short ? `<span class="jw-st" style="background:#fee2e2;color:#b91c1c;font-weight:700">⚑ Short: ${nf(c.short)} m</span>` : `<span class="jw-st done">covered</span>`}<div class="muted">In stock: ${nf(c.avail)} m</div></td>
-        <td style="white-space:nowrap;vertical-align:top"><div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start">${x.s.route !== 'stitch' ? `<label style="display:inline-flex;gap:5px;align-items:center;font-size:11.5px;cursor:pointer" title="Tick lines of any orders — one challan per printer"><input type="checkbox" data-flchk="${esc(x.s.key)}"${FLOW_CHPICK.has(x.s.key) ? ' checked' : ''} style="width:auto;margin:0"> pick</label>` : ''}${first ? `<button data-flch="${esc(x.r.orderNo)}" data-pc="${esc(pk)}" style="width:auto;padding:3px 10px;font-size:12px">${pk === '?' ? 'Challan (printer not chosen)' : 'Challan → ' + esc((p.printer && p.printer.name) || pk)}</button>` : ''}${rfirst ? `<button data-flch="${esc(x.r.orderNo)}" data-pc="${esc(ro.printer.code)}" style="width:auto;padding:3px 10px;font-size:12px;background:#7c3aed;border-color:#7c3aed">Ruffle challan → ${esc(ro.printer.name)}</button>` : ''}<button class="ghost" data-flfab="${esc(x.s.key)}" style="width:auto;padding:2px 9px;font-size:11.5px">Mark fabric ready</button></div></td></tr>`; }).join('');
+        <td style="white-space:nowrap;vertical-align:top"><div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start">${(() => { const e = x.r.__t ? null : flowEarlierOf(x);
+          return e && e.pcs > 0 ? `<button class="ghost" data-flrec="${esc(x.s.key)}" title="${nf(e.pcs)} pcs are made but no challan says their cloth went — record it (closed at once)" style="width:auto;padding:2px 8px;font-size:11.5px;color:#b45309;border-color:#f59e0b">Record cloth given earlier (${nf(e.pcs)} pcs)</button>` : ''; })()}${x.s.route !== 'stitch' ? `<label style="display:inline-flex;gap:5px;align-items:center;font-size:11.5px;cursor:pointer" title="Tick lines of any orders — one challan per printer"><input type="checkbox" data-flchk="${esc(x.s.key)}"${FLOW_CHPICK.has(x.s.key) ? ' checked' : ''} style="width:auto;margin:0"> pick</label>` : ''}${first ? `<button data-flch="${esc(x.r.orderNo)}" data-pc="${esc(pk)}" style="width:auto;padding:3px 10px;font-size:12px">${pk === '?' ? 'Challan (printer not chosen)' : 'Challan → ' + esc((p.printer && p.printer.name) || pk)}</button>` : ''}${rfirst ? `<button data-flch="${esc(x.r.orderNo)}" data-pc="${esc(ro.printer.code)}" style="width:auto;padding:3px 10px;font-size:12px;background:#7c3aed;border-color:#7c3aed">Ruffle challan → ${esc(ro.printer.name)}</button>` : ''}<button class="ghost" data-flfab="${esc(x.s.key)}" style="width:auto;padding:2px 9px;font-size:11.5px">Mark fabric ready</button></div></td></tr>`; }).join('');
     const fs = Object.values(cv.fab).filter(f => f.need > 0).sort((a, b) => b.short - a.short || a.name.localeCompare(b.name));
     FLOW.byprint = flowByPrintTable(rows);
     FLOW.bysize = flowBySizeTable(rows);
@@ -31551,6 +31610,7 @@ async function flowTableClick(e) {
   const g = e.target.closest('[data-flgo]'); if (g) { showTab(g.dataset.flgo); return; }
   const rv = e.target.closest('[data-flchr]'); if (rv) { flowReceiveOpen(rv.dataset.flchr); return; }
   const pl = e.target.closest('[data-flplan]'); if (pl) { e.preventDefault(); const [no, sku] = pl.dataset.flplan.split('|'); flowPpcOpen(no, sku); return; }
+  const rec = e.target.closest('[data-flrec]'); if (rec) { e.preventDefault(); flowRecordEarlierOpen(rec.dataset.flrec); return; }
   const cpr = e.target.closest('[data-flchpr]'); if (cpr) { e.preventDefault(); flowChangePrinterOpen(cpr.dataset.flchpr); return; }
   const rs = e.target.closest('[data-flposync]');
   if (rs) { e.preventDefault(); const er = await flowPoResync(rs.dataset.flposync); if (er) { $('flMsg').className = 'err'; $('flMsg').textContent = er; } else { renderFlow(); $('flMsg').className = 'muted'; $('flMsg').textContent = flowPoResync.said || ''; } return; }
