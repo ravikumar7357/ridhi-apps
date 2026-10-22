@@ -4907,9 +4907,12 @@ console.log('\n== a percentage needs something to be a percentage of ==');
     /new/.test(A.repPctCell(w.rows[0])) && !/Infinity|NaN|%/.test(A.repPctCell(w.rows[0])),
     A.repPctCell(w.rows[0]));
 
-  /* And on screen, the whole report must not carry an Infinity anywhere. */
+  /* And on screen, the whole report must not carry an Infinity anywhere. Since 11 Oct the weekly report counts what QC
+   * passed, so the screen is given a QC pass in the week picked (the receipts above feed repWow's own figures). */
+  const wasQcW = A.QC();
+  A.setQC(Object.assign({}, wasQcW, { checks: (wasQcW.checks || []).concat([{ id: 'qwow1', date: '31/08/2026, 10:00', sku: 'N1', articleType: 'Runner', orderNo: 'WOW-1', checked: 320, ok: 320, rejected: 0, forAlteration: 0 }]) }));
   els.repView.value = 'wow'; els.repBrand.value = '';
-  A.renderRep();
+  A.renderRep(); els.repWk.value = '2026-08-30'; A.renderRep();
   const h = els.repTable.innerHTML + els.repKpis.innerHTML;
   ok('nothing on the screen says Infinity or NaN', !/Infinity|NaN/.test(h), h.slice(0, 200));
   ok('the week picker offers finished weeks only, newest first',
@@ -4931,6 +4934,7 @@ console.log('\n== a percentage needs something to be a percentage of ==');
     ok('every header has one cell under it', th > 0 && th === td, th + ' headers vs ' + td + ' cells');
     ok('and the totals row lines up too', th === ftd, th + ' headers vs ' + ftd + ' total cells');
   }
+  A.setQC(wasQcW);
 }
 
 console.log('\n== two weeks with nothing in them ==');
@@ -11512,6 +11516,9 @@ console.log('\n== karigar article mix: easy / medium / hard as Ravi sets them ==
   /* "article wise kis karigar ne kitne pcs banaye ... kaun easy, kaun hard, uska %" — and "not just mark
    * easy article, I will let you know which is easy or hard." */
   const D = __dirname + '/mix/';
+  /* The live pull in tests/mix/ never goes to GitHub (employee names and rates): without it this part is skipped, as the
+   * tests/pa/ part above is (22 Oct, deploying from GitHub). */
+  if (!fs.existsSync(D + 'pt_baseData.json')) console.log('  skipped — no live pull in tests/mix/ on this computer'); else {
   const raw = JSON.parse(fs.readFileSync(D + 'pt_baseData.json', 'utf8'));
   const base = (Array.isArray(raw) ? raw : Object.values(raw)).filter(Boolean);
   const emp = JSON.parse(fs.readFileSync(D + 'pt_empList.json', 'utf8')).filter(Boolean);
@@ -11573,6 +11580,7 @@ console.log('\n== karigar article mix: easy / medium / hard as Ravi sets them ==
 
   A.setPT(wasPT); A.setPTE(wasPTE); A.setHR(wasHR); A.setPA(wasPA); Object.assign(A.KA(), { levels: wasKA.levels, mixSort: null });
   NET.on = wasNet; ME.admin = wasAdmin;
+  }
 }
 
 console.log('\n== quality control: item pickers and an SKU box, like the Job Work Register ==');

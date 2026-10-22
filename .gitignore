@@ -10,6 +10,7 @@
 !/Repl-API/
 !/Repl-API-CPC/
 !/shared/
+!/.github/
 
 # Firebase's local deploy cache, and anything installed.
 .firebase/
