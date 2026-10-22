@@ -48,6 +48,13 @@ jobs:
       - name: Install
         run: npm ci
 
+      # shop-test opens the Excel the app writes with a real spreadsheet library (openpyxl)
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install openpyxl
+        run: python3 -m pip install --quiet openpyxl
+
       - name: The page is what src/ makes
         run: node tests/assemble.js --check
 
