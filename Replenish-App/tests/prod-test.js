@@ -20323,6 +20323,18 @@ console.log('\n== Waiting for QC: received pieces go to QC, which accepts all or
       && ((A.QC().checks || []).find(c => c.baseId === 'cq1') || {}).orderNo === 'EO-1');
     A.setPT(keep);
   }
+  /* 22 Oct (Ravi: "unko ham khali khola dete h wo sirf usme cotton fill karte h … seat pad chair cushion"): a seat pad's khol
+   * back from the karigar waits for QC only as far as the filling vendor sent it back filled. */
+  {
+    const keep = A.PT();
+    A.setPT(Object.assign({}, keep, { base: (keep.base || []).concat([
+      { id: 'fq1', sku: 'SP-1', orderNo: 'FO-1', empName: 'Ramesh', issuePieces: 8, receivedPieces: 8, receivingDate: '22/10/2026, 11:00', fillNeed: true },
+      { id: 'fq2', sku: 'SP-2', orderNo: 'FO-2', empName: 'Ramesh', issuePieces: 8, receivedPieces: 8, receivingDate: '22/10/2026, 11:00', fillNeed: true, fillIn: { r1: { qty: 5, ch: 'FIL-202610-001' } } }]) }));
+    const w = A.qcInboxRows();
+    ok('khol back from the karigar, not filled yet → not waiting for QC; 5 of 8 filled → 5 waiting, on the karigar\'s entry', !w.some(x => x.r.id === 'fq1') && w.some(x => x.r.id === 'fq2' && x.wait === 5),
+      JSON.stringify(w.filter(x => /^fq/.test(x.r.id)).map(x => [x.r.id, x.wait])));
+    A.setPT(keep);
+  }
   A.setPT(wasPT); A.setQC(wasQC); NET.on = wasNet; ME.admin = wasAdmin;
 }
 console.log('\n== QC: spotting, touching and the day-wise ledger (2026-10-06) ==');

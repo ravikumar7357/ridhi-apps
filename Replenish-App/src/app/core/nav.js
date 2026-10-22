@@ -90,7 +90,9 @@ const NAV_PROD_ONLY = (function navProductionOnly() {
    * Their links stay in the page, hidden, so code that badges or opens them still finds them; the data is untouched
    * (backup: Backups/rtdb-full-2026-10-15.json). Printer Allocation moves into the Printing column. */
   const off = document.createElement('div'); off.hidden = true; off.className = 'nav-off';
-  ['tabVreq', 'tabVord', 'tabRfd', 'tabVlog'].forEach(id => { const x = $(id); if (x) off.appendChild(x); });
+  /* VENDOR ORDER REQUESTS COME BACK (Ravi, 22 Oct: "mujhe only filling vendor order request chahiye") — for the filling
+   * vendors only (place-vendor-order.js narrows the form); printers stay with PPC. */
+  ['tabVord', 'tabRfd', 'tabVlog'].forEach(id => { const x = $(id); if (x) off.appendChild(x); });
   /* THE PRINTER'S VIEW, FOR AN ADMIN (Ravi, 15 Oct: "test order place kiya but vendor ko uske portal par show nahi hua").
    * The Vendors heading is a printer's own since 14 Oct, so an admin had no way left to the portal's "See the portal as
    * printer". This opens it; syncNavGroups shows it to admins only. */

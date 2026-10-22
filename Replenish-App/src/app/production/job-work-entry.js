@@ -609,6 +609,9 @@ $('bwSave').onclick = async () => {
     ...bdMatEntry(),
     frozen: false,
     isCustom: custom || (cm ? true : undefined),
+    /* A SEAT PAD / CHAIR CUSHION (Ravi, 22 Oct): the karigar stitches the empty khol — it goes to the filling vendor before
+     * QC (flow-fill.js); Waiting for QC shows it only as it comes back filled. */
+    ...(typeof ptIsFillSku === 'function' && ptIsFillSku(sku) ? { fillNeed: true } : {}),
     addedBy: ME.email, addedAt: new Date().toISOString(),
   };
 

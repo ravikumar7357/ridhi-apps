@@ -466,6 +466,7 @@ async function spIssueReal(orderNo, sku, type, name, pcs, date, remarks, extraRe
     color: line.color || meta.color || '', size: line.size || meta.size || '',
     orderNo: obUC(orderNo),
     issuePieces: q, issueDate: ptStampDate(d),
+    ...(typeof ptIsFillSku === 'function' && ptIsFillSku(sku) ? { fillNeed: true } : {}),   // khol for the filling vendor (flow-fill.js)
     receivedPieces: 0, rejectionPieces: 0, receivingDate: '', pendingPieces: q,
     remarks: [extra ? 'Extra: ' + extra : '', String(remarks || '').trim()].filter(Boolean).join(' · '),
     extraPcs: extra ? q : 0, extraReason: extra,

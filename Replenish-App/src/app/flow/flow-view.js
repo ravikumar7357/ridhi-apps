@@ -594,6 +594,11 @@ function flowTable(view, rows) {
           ? `<button data-flsim="${esc(x.r.orderNo)}|${esc(x.r.sku)}|ship" title="Stands in for: ${esc(FLOW_SIM.ship[1])}" style="width:auto;padding:3px 10px;font-size:12px;margin-bottom:6px;background:#7c3aed;border-color:#7c3aed">${esc(FLOW_SIM.ship[0])}</button><br>` : ''}<button data-flplan="${esc(x.r.orderNo)}|${esc(x.r.sku)}" style="width:auto;padding:3px 10px;font-size:12px" title="Change or undo what PPC planned">Edit plan</button>${ME.admin && !x.r.__t && !resyncSeen.has(x.r.orderNo) && resyncSeen.add(x.r.orderNo) ? `<br><button class="ghost" data-flposync="${esc(x.r.orderNo)}" style="width:auto;padding:2px 8px;font-size:11px;margin-top:6px" title="Rebuild this order's print order and the printer's Vendor Order from the plans as they are now">Resync printer orders</button>` : ''}
           ${locked ? `<div class="muted" style="font-size:10.5px;margin-top:3px" title="The fabric went on ${esc(x.s.challan.no)}: fabric and route can no longer change">fabric sent · ${esc(x.s.challan.no)}</div>` : ''}
           ${locked && flowPrinted(x.s.route) && !x.r.__t && flowBucketsAllowed().some(b => b[0] === 'ppcdone') ? `<button class="ghost" data-flchpr="${esc(x.s.key)}" title="Give this line to another printer — the cloth already given stays with the old printer, shown as standing" style="width:auto;padding:2px 8px;font-size:11.5px;margin-top:4px">Change printer</button>` : ''}</td></tr>`; }).join('');
+  } else if (view === 'dfill') {
+    /* FILLING (Ravi, 22 Oct; flow-fill.js): the khol back from the karigars, what the filling vendor has, Send / Receive. */
+    head = ['PO', 'SKU', 'Qty', 'Khol', 'Filling', ''];
+    const seenF = new Set();
+    body = rows.map(x => { const first = !seenF.has(x.r.orderNo); seenF.add(x.r.orderNo); return `<tr>${base(x)}${flowFillCells(x, first)}</tr>`; }).join('');
   } else if (view === 'demb') {
     /* EMBROIDERY (Ravi, 21 Oct; flow-emb.js): the printed cloth back for each line, what the embroiderer has, Send / Receive. */
     head = ['PO', 'SKU', 'Qty', 'Printed fabric', 'Embroidery', ''];

@@ -193,7 +193,10 @@ async function voFormOpen(mode) {
   const asking = VOF.mode === 'request';
   /* EVERY vendor. Job work goes out to filling firms and fabricators as much as printing goes to
    * printers, and an order is the only way to tell them what is coming. */
-  const vends = voAllVendors();
+  let vends = voAllVendors();
+  /* A REQUEST IS FOR A FILLING VENDOR (Ravi, 22 Oct): printers get their orders from PPC; a request now asks a filling vendor
+   * to fill khol — cut pieces, in pieces. */
+  if (asking && typeof FLOW_ON !== 'undefined' && FLOW_ON) { const fv = vends.filter(v => /fill/i.test(String(v.category || ''))); if (fv.length) { vends = fv; VOF.kind = 'cut'; } }
   /* DESIGN 10 — the header band (Ravi, 2026-09-25). The vendor, the work and running-or-cut sit in the band;
    * the long note that opened the form is gone — the cap is said where it bites, on the line. */
   ptOpenDialog({

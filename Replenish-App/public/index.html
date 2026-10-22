@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <!-- ================================================================================================
-     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 154 files of src/ joined into one page.
+     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 155 files of src/ joined into one page.
      The real, grouped source: Replenish-App/src/   (map and workflow: src/README.md)
        src/index.html   page markup        src/styles.css   stylesheet        src/app/ORDER   join order
        src/app/<group>/ the code, by group: core, replenishment, masters, production, vendors, orders, shopify, flow, dashboard, people-pay, inventory, reports, shared
@@ -5125,7 +5125,9 @@ const NAV_PROD_ONLY = (function navProductionOnly() {
    * Their links stay in the page, hidden, so code that badges or opens them still finds them; the data is untouched
    * (backup: Backups/rtdb-full-2026-10-15.json). Printer Allocation moves into the Printing column. */
   const off = document.createElement('div'); off.hidden = true; off.className = 'nav-off';
-  ['tabVreq', 'tabVord', 'tabRfd', 'tabVlog'].forEach(id => { const x = $(id); if (x) off.appendChild(x); });
+  /* VENDOR ORDER REQUESTS COME BACK (Ravi, 22 Oct: "mujhe only filling vendor order request chahiye") — for the filling
+   * vendors only (place-vendor-order.js narrows the form); printers stay with PPC. */
+  ['tabVord', 'tabRfd', 'tabVlog'].forEach(id => { const x = $(id); if (x) off.appendChild(x); });
   /* THE PRINTER'S VIEW, FOR AN ADMIN (Ravi, 15 Oct: "test order place kiya but vendor ko uske portal par show nahi hua").
    * The Vendors heading is a printer's own since 14 Oct, so an admin had no way left to the portal's "See the portal as
    * printer". This opens it; syncNavGroups shows it to admins only. */
@@ -17396,6 +17398,9 @@ $('bwSave').onclick = async () => {
     ...bdMatEntry(),
     frozen: false,
     isCustom: custom || (cm ? true : undefined),
+    /* A SEAT PAD / CHAIR CUSHION (Ravi, 22 Oct): the karigar stitches the empty khol — it goes to the filling vendor before
+     * QC (flow-fill.js); Waiting for QC shows it only as it comes back filled. */
+    ...(typeof ptIsFillSku === 'function' && ptIsFillSku(sku) ? { fillNeed: true } : {}),
     addedBy: ME.email, addedAt: new Date().toISOString(),
   };
 
@@ -19772,6 +19777,9 @@ function qcInboxRows() {
     repRecvParts(r).forEach(p => { if (p.ms >= from) { since += p.pcs; if (p.ms > last) last = p.ms; } });
     /* Never more than the row says came back — a correction may have lowered it after the receipt was logged. */
     since = Math.min(since, ptNum(r.receivedPieces));
+    /* KHOL FOR FILLING (Ravi, 22 Oct): a seat pad's khol from the karigar waits here only as far as the filling vendor has
+     * sent it back filled (fillIn, written by flow-fill.js on the receipt). */
+    if (r.fillNeed) since = Math.min(since, Object.values(r.fillIn || {}).reduce((a, x) => a + ptNum(x && x.qty), 0));
     const accepted = took.get(r.id) || 0, wait = since - accepted;
     if (!(wait > 0)) return;
     out.push({ r, since, accepted, wait, last });
@@ -23885,6 +23893,7 @@ async function spIssueReal(orderNo, sku, type, name, pcs, date, remarks, extraRe
     color: line.color || meta.color || '', size: line.size || meta.size || '',
     orderNo: obUC(orderNo),
     issuePieces: q, issueDate: ptStampDate(d),
+    ...(typeof ptIsFillSku === 'function' && ptIsFillSku(sku) ? { fillNeed: true } : {}),   // khol for the filling vendor (flow-fill.js)
     receivedPieces: 0, rejectionPieces: 0, receivingDate: '', pendingPieces: q,
     remarks: [extra ? 'Extra: ' + extra : '', String(remarks || '').trim()].filter(Boolean).join(' · '),
     extraPcs: extra ? q : 0, extraReason: extra,
@@ -27114,6 +27123,8 @@ const FLOW_BUCKETS = [
   /* EMBROIDERY (Ravi, 21 Oct): the printed cloth of a line PPC sent to embroidery goes out in metres and comes back as
    * pieces — the fabric team's, on its own challans (flow-emb.js). */
   ['demb', 'Embroidery', 'flchl', 'Printed fabric back for lines PPC sent to embroidery: send it (metres) to the embroidery department or vendor, and receive the embroidered pieces — they go on to Cutting, then straight to QC.', 'demand'],
+  /* FILLING (Ravi, 22 Oct; flow-fill.js): seat pads and chair cushions — the karigar's khol to a filling vendor, filled back. */
+  ['dfill', 'Filling', 'flchl', 'Seat pads and chair cushions: the empty khol back from the karigars goes to the filling vendor (they put in the cotton); the filled pieces come back and go to QC.', 'demand'],
   ['dhist', 'Printed fabric in · history', 'flchl', 'Every RFD challan. Open until the printed fabric comes back against it — receive it here and the lines move to the store.', 'demand'],
   ['dacc', 'Accessories', 'flacc', 'Planned; the accessories are not reserved yet. Free on the shelf against what each line needs.', 'demand'],
   ['cut', 'To cut · Production flow', 'flcut', 'Lines that need cutting and have printed fabric back. The cutting entry puts the pieces in the store.', 'pcut'],
@@ -27126,9 +27137,9 @@ const FLOW_TABS = [...new Set(FLOW_BUCKETS.map(b => b[2]))];   // one right can 
  * Control, 'fgin' waiting for the Finished Goods team — but no bucket of this screen lists it: the work is done there. */
 /* Printed fabric in, too (Ravi, 11 Oct: "dekhne ke liye hum History tab use karenge, Printed fabric in ko hata dete h"):
  * received on its challan in Demand history, seen in Vendors & printers → History (flowVlogRows). */
-const FLOW_ELSEWHERE = { emb: 'Embroidery (Demand → Embroidery)', ship: 'Ready — hand to shipping (Order Console → Production to shipping)', qcb: 'Quality Control (QC screen)',fgin: 'Finished Goods — to accept (Finished Goods screen)', fabric: 'With the printer — receive in Demand → Printed fabric in, see Vendors & printers → History',
+const FLOW_ELSEWHERE = { emb: 'Embroidery (Demand → Embroidery)', fill: 'Filling vendor (Demand → Filling)', ship: 'Ready — hand to shipping (Order Console → Production to shipping)', qcb: 'Quality Control (QC screen)',fgin: 'Finished Goods — to accept (Finished Goods screen)', fabric: 'With the printer — receive in Demand → Printed fabric in, see Vendors & printers → History',
   vendor: 'Vendor Orders — not given to a printer yet', out: 'Made outside — received into Finished Goods', cut: 'Cutting Data → To cut', raw: 'Job Work Register → Raw cutting in store', wip: 'Job Work Register → WIP' };
-const FLOW_DEMAND = ['drfd', 'demb', 'dhist', 'dacc'];
+const FLOW_DEMAND = ['drfd', 'demb', 'dfill', 'dhist', 'dacc'];
 /** The buckets of the Production flow screen itself (its own, and the Demand tabs), this account may open. */
 const flowScreenAllowed = () => flowBucketsAllowed().filter(b => b[4] === 'flow' || b[4] === 'demand');
 /* How a line is made — PPC chooses (Ravi, 10 Oct: "mere yaha sirf stitching hoga … printing wala part nahi hoga", and
@@ -27164,6 +27175,11 @@ const flowEmbByVendor = p => !!(p && flowRouteOf(p) === 'emb' && p.emb && p.emb.
 /** Our own embroidery department — picked like a vendor, never on the vendor list. */
 const FLOW_EMB_DEPT = Object.freeze({ code: 'EMBDEPT', name: 'Embroidery department (in-house)' });
 const flowIsEmbSku = m => /embroid/i.test(String((m && (m.subtype || m.articleSubtype)) || ''));
+/** A seat pad or chair cushion: its khol is filled by a filling vendor before QC (flow-fill.js). Read by Job Work and QC too. */
+function ptIsFillSku(sku) {
+  let m = null; try { m = typeof cutSkuOf === 'function' ? cutSkuOf(sku) : null; } catch (e) { m = null; }
+  return /seat\s*pad|chair\s*cushion/i.test(String((m && m.articleType) || '') + ' ' + String((m && (m.subtype || m.articleSubtype)) || ''));
+}
 /** The route PPC planned for an order line, '' when it has no plan (or the plans are not read yet). For the registers. */
 /** A cutting entry for this line goes straight to QC — an embroidery VENDOR's line (no karigar after the cut). */
 const flowPlanQcDirect = (orderNo, sku) => { try { return flowEmbByVendor(((typeof FLOW !== 'undefined' && FLOW && FLOW.ppc) || {})[flowKey(orderNo, sku)]); } catch (e) { return false; } };
@@ -27177,6 +27193,7 @@ const flowInView = (view, s) => view === 'drfd' ? s.bucket === 'demand' && s.nee
   : view === 'dacc' ? s.bucket === 'demand' && s.needAcc
   : view === 'cut' ? s.bucket === 'cut' || (['fabric', 'emb'].includes(s.bucket) && s.cutReq && s.canCut > 0)
   : view === 'demb' ? s.bucket === 'emb' || (s.bucket === 'fabric' && s.route === 'emb' && s.embCanSend > 0)
+  : view === 'dfill' ? !!s.fill && (s.bucket === 'fill' || s.fillCanSend > 0 || s.fillOut > 0)
   : view === 'raw' ? s.bucket === 'raw' || (['fabric', 'cut'].includes(s.bucket) && s.canIssue > 0)
   : view === 'ppcdone' ? !!s.plan && s.bucket !== 'done'
   : s.bucket === view;
@@ -27204,26 +27221,26 @@ function flowDropReal() {
   const isTest = (k, v) => /^TEST-/.test(String(k)) || !!(v && (v.test || /^TEST-/.test(obUC(v.orderNo)))) || mto(k, v);
   const keep = o => Object.fromEntries(Object.entries(o || {}).filter(([k, v]) => isTest(k, v)));
   FLOW.ppc = keep(FLOW.ppc); FLOW.dem = keep(FLOW.dem); FLOW.res = keep(FLOW.res);
-  FLOW.ch = keep(FLOW.ch); FLOW.po = keep(FLOW.po); FLOW.fg = keep(FLOW.fg); FLOW.emb = keep(FLOW.emb);
+  FLOW.ch = keep(FLOW.ch); FLOW.po = keep(FLOW.po); FLOW.fg = keep(FLOW.fg); FLOW.emb = keep(FLOW.emb); FLOW.fill = keep(FLOW.fill);
 }
 /* EMBROIDERY CHALLANS (flow-emb.js) are written to pt_flowChallans — the node the fabric team already writes and the flow's
  * rights already read — with kind 'emb'. As they are read they go to FLOW.emb, so every RFD challan list, total and index
  * (FLOW.ch) stays exactly what it was. */
 function flowEmbSplit() {
-  const ch = {}, emb = {};
-  Object.entries(FLOW.ch || {}).forEach(([k, v]) => { (v && v.kind === 'emb' ? emb : ch)[k] = v; });
-  FLOW.ch = ch; FLOW.emb = emb;
+  const ch = {}, emb = {}, fill = {};
+  Object.entries(FLOW.ch || {}).forEach(([k, v]) => { (v && v.kind === 'emb' ? emb : v && v.kind === 'fill' ? fill : ch)[k] = v; });
+  FLOW.ch = ch; FLOW.emb = emb; FLOW.fill = fill;
 }
 function flowDropTests() {
   const isTest = (k, v) => /^TEST-/.test(String(k)) || !!(v && (v.test || /^TEST-/.test(obUC(v.orderNo))));
   const keep = o => Object.fromEntries(Object.entries(o || {}).filter(([k, v]) => !isTest(k, v)));
   FLOW.test = {};
   FLOW.ppc = keep(FLOW.ppc); FLOW.dem = keep(FLOW.dem); FLOW.res = keep(FLOW.res);
-  FLOW.ch = keep(FLOW.ch); FLOW.po = keep(FLOW.po); FLOW.fg = keep(FLOW.fg); FLOW.emb = keep(FLOW.emb);
+  FLOW.ch = keep(FLOW.ch); FLOW.po = keep(FLOW.po); FLOW.fg = keep(FLOW.fg); FLOW.emb = keep(FLOW.emb); FLOW.fill = keep(FLOW.fill);
 }
 
 /* ---- the data ---- */
-let FLOW ={ ppc: null, dem: null, res: null, ch: null, emb: null, test: null, po: null, fg: null, rev: null, at: 0, busy: null, err: '' };
+let FLOW ={ ppc: null, dem: null, res: null, ch: null, emb: null, fill: null, test: null, po: null, fg: null, rev: null, at: 0, busy: null, err: '' };
 async function flowLoad(force) {
   if (FLOW.busy) return FLOW.busy;
   if (FLOW.ppc && !force && Date.now() - FLOW.at < 60e3) return;
@@ -27234,7 +27251,7 @@ async function flowLoad(force) {
       flowEmbSplit();
       if (!flowTestsOn()) flowDropTests();
       if (!FLOW_REAL) flowDropReal();
-    } catch (e) { FLOW.err = e.message || String(e); FLOW.ppc = FLOW.ppc || {}; FLOW.dem = FLOW.dem || {}; FLOW.res = FLOW.res || {}; FLOW.ch = FLOW.ch || {}; FLOW.emb = FLOW.emb || {}; FLOW.test = FLOW.test || {}; FLOW.po = FLOW.po || {}; FLOW.fg = FLOW.fg || {}; }
+    } catch (e) { FLOW.err = e.message || String(e); FLOW.ppc = FLOW.ppc || {}; FLOW.dem = FLOW.dem || {}; FLOW.res = FLOW.res || {}; FLOW.ch = FLOW.ch || {}; FLOW.emb = FLOW.emb || {}; FLOW.fill = FLOW.fill || {}; FLOW.test = FLOW.test || {}; FLOW.po = FLOW.po || {}; FLOW.fg = FLOW.fg || {}; }
     FLOW.at = Date.now(); FLOW.busy = null;
   })();
   return FLOW.busy;
@@ -27345,6 +27362,15 @@ function flowState(r) {
     s.received = cap(cutAll); s.receivedAll = cutAll;
     s.canIssue = 0;
   }
+  /* FILLED BY A VENDOR (Ravi, 22 Oct, flow-fill.js): a seat pad's khol back from the karigar is not finished — it goes to the
+   * filling vendor, and only what comes back filled waits for QC. Khol from karigar rows not marked fillNeed (issued before
+   * filling was set up) goes to QC as it did. */
+  if (p && route !== 'outsource' && !r.__t && typeof flowFillIndex === 'function' && ptIsFillSku(r.sku)) {
+    const fi = flowFillIndex()[k] || { sent: 0, back: 0 }, kh = flowKholIn(r);
+    s.fill = true; s.kholIn = kh; s.fillSent = fi.sent; s.fillBack = fi.back; s.fillTo = fi.to || ''; s.fillNos = fi.nos || [];
+    s.fillCanSend = Math.max(0, kh - fi.sent); s.fillOut = Math.max(0, fi.sent - fi.back);
+    s.receivedAll = Math.max(0, s.receivedAll - kh) + fi.back;
+  }
   const accNeed = !!p && route !== 'outsource' && (p.acc || []).some(a => a.code && +a.qty > 0);
   const handReady = !!(d && d.fabricReady && !d.fabricReady.challan);
   s.needFab = isNew && !!p && route !== 'outsource' && route !== 'jobwork' && !handReady && !flowInHand(p)
@@ -27364,7 +27390,8 @@ function flowState(r) {
      * For a planned line the pieces QC rejected are not "issued" any more: they wait in the store to be issued again. */
     : (s.issuedNet < qty && !(p && flowQcOpen(r, s))) ? 'raw'   // QC work still open comes first
     /* QC (flow-qcfg.js), for a planned line: anything still with Quality Control (waiting, spotting / touching, alteration). */
-    : (s.made < qty) ? (p && (flowQcOpen(r, s) || (route === 'emb' && !s.embDept)) ? 'qcb' : 'wip')
+    : (s.fill && s.kholIn > s.fillBack && s.fillBack < qty && !flowQcOpen(r, s)) ? 'fill'
+    : (s.made < qty) ? (p && (flowQcOpen(r, s) || (route === 'emb' && !s.embDept)) ? 'qcb' : s.fill && s.kholIn > s.fillBack ? 'fill' : 'wip')
     /* …a Shopify / online line is made to order: passed QC, it waits to be handed to the shipping team (14 Oct). */
     : (flowIsMto(r) && (p || isNew || r.open)) ? 'ship'
     /* …then Ready → India stock: passed and not in India stock — the Finished Goods team accepts it on its own screen. */
@@ -27377,7 +27404,7 @@ function flowState(r) {
 let FLOW_C = { src: null, test: null, ppc: null, dem: null, res: null, rows: null };
 function flowRows() {
   const real = FLOW_REAL ? ordLines() : flowMtoLines(), test = flowTestLines();
-  if (FLOW_C.rows && FLOW_C.src === real && FLOW_C.test === test && FLOW_C.ppc === FLOW.ppc && FLOW_C.dem === FLOW.dem && FLOW_C.res === FLOW.res && FLOW_C.ch === FLOW.ch && FLOW_C.emb === FLOW.emb && FLOW_C.po === FLOW.po && FLOW_C.fg === FLOW.fg
+  if (FLOW_C.rows && FLOW_C.src === real && FLOW_C.test === test && FLOW_C.ppc === FLOW.ppc && FLOW_C.dem === FLOW.dem && FLOW_C.res === FLOW.res && FLOW_C.ch === FLOW.ch && FLOW_C.emb === FLOW.emb && FLOW_C.fill === FLOW.fill && FLOW_C.base === (typeof PT !== 'undefined' ? PT.base : null) && FLOW_C.po === FLOW.po && FLOW_C.fg === FLOW.fg
     && FLOW_C.qc === (typeof QC !== 'undefined' ? QC.checks : null) && FLOW_C.fgi === (typeof FGI !== 'undefined' ? FGI.rows : null)) return FLOW_C.rows;
   const lines = test.length ? real.concat(test) : real;
   const since = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10);
@@ -27388,7 +27415,7 @@ function flowRows() {
     if (s.bucket === 'done' && !recent) return;
     rows.push({ r, s, recent });
   });
-  FLOW_C = { src: real, test, ppc: FLOW.ppc, dem: FLOW.dem, res: FLOW.res, ch: FLOW.ch, emb: FLOW.emb, po: FLOW.po, fg: FLOW.fg, qc: (typeof QC !== 'undefined' ? QC.checks : null), fgi: (typeof FGI !== 'undefined' ? FGI.rows : null), rows };
+  FLOW_C = { src: real, test, ppc: FLOW.ppc, dem: FLOW.dem, res: FLOW.res, ch: FLOW.ch, emb: FLOW.emb, fill: FLOW.fill, base: (typeof PT !== 'undefined' ? PT.base : null), po: FLOW.po, fg: FLOW.fg, qc: (typeof QC !== 'undefined' ? QC.checks : null), fgi: (typeof FGI !== 'undefined' ? FGI.rows : null), rows };
   return rows;
 }
 /* ============================== FILE: src/app/flow/flow-ppc.js ============================== */
@@ -31054,6 +31081,219 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
   if (cx) return flowEmbCancel(cx.dataset.flembx);
   const er = flowEmbPrint(pr.dataset.flembp); if (er) flowSay(er, true);
 });
+/* ============================== FILE: src/app/flow/flow-fill.js ============================== */
+/* ================= PRODUCTION FLOW · FILLING — the khol out to a filling vendor, filled pieces back =================
+ * Ravi, 22 Oct: "filling vendor ki own bucket diffrent hoti printer se … unko ham khali khol dete h wo sirf usme cotton fill
+ * karte h same seat pad chair cushion ke liye". His answers: print → cut → the karigar stitches the khol → filling vendor
+ * (the vendor puts in the cotton) → QC; the order to the vendor goes by Vendor Order Request (Filling vendors only), and the
+ * vendor only looks, as a printer does.
+ *
+ *   Which lines  a Seat Pad / Chair Cushion (ptIsFillSku), planned, not outsourced.
+ *   The khol     a karigar's Job Work issue of such a SKU is marked fillNeed (job-work-entry.js, order-console-table.js);
+ *                what the karigar sends back on it is khol, not finished — Quality Control does not see it yet.
+ *   Filling      Demand → Filling (bucket 'dfill', the fabric team's right flchl): the khol goes out on a filling challan,
+ *                  pt_flowChallans/FIL-YYYYMM-NNN = { no, kind: 'fill', date, orderNo, vendor:{code, name},
+ *                    lines:[{ key, sku, item, pcs }], receipts:{ <id>: { at, date, by, items:{ <key>: pcs } } }, closed, cancelled }
+ *                and the filled pieces are received against it. Kept beside the RFD challans and split off as read
+ *                (flowEmbSplit), so no RFD list sees one.
+ *   QC           a receipt writes fillIn on the karigar's Job Work rows the khol came from (oldest first):
+ *                  pt_baseData/<id>/fillIn/<receipt id> = { at, qty, ch, vendor }
+ *                and Waiting for QC lists a fillNeed row only up to what has been filled (quality-control.js). The QC
+ *                check stays on the karigar's entry, so his work is still his. */
+
+/** Per line: khol sent to filling, filled pieces back, the vendor, the challans. */
+let FLOW_FILLX = { src: null, map: {} };
+function flowFillIndex() {
+  if (FLOW_FILLX.src === FLOW.fill && FLOW_FILLX.src) return FLOW_FILLX.map;
+  const map = {};
+  Object.values(FLOW.fill || {}).forEach(c => {
+    if (!c || c.cancelled) return;
+    const back = flowEmbRecv(c);
+    (c.lines || []).forEach(l => {
+      const e = map[l.key] || (map[l.key] = { sent: 0, back: 0, nos: [], to: '' });
+      e.sent += +l.pcs || 0; e.back += back[l.key] || 0; e.nos.push(c.no); e.to = (c.vendor && c.vendor.name) || e.to;
+    });
+  });
+  FLOW_FILLX = { src: FLOW.fill, map };
+  return map;
+}
+/** The karigars' Job Work rows of a line whose khol is to be filled. */
+const flowKholRows = r => (typeof PT !== 'undefined' && PT.base || []).filter(b => b && b.fillNeed && obUC(b.orderNo) === obUC(r.orderNo) && obUC(b.sku) === obUC(r.sku));
+const flowFillInOf = b => Object.values((b && b.fillIn) || {}).reduce((a, x) => a + (+(x && x.qty) || 0), 0);
+/** Khol back from the karigars on rows marked for filling. */
+const flowKholIn = r => flowKholRows(r).reduce((a, b) => a + Math.max(0, +b.receivedPieces || 0), 0);
+/** The filling vendors (category Filling); every vendor when none is marked so. */
+function flowFillVendors() {
+  let all = []; try { all = voAllVendors(); } catch (e) { all = []; }
+  const fv = all.filter(v => /fill/i.test(String(v.category || '')));
+  return fv.length ? fv : all;
+}
+function flowFillNo(date, taken) {
+  const pre = 'FIL-' + String(date || dToday()).slice(0, 7).replace('-', '') + '-';
+  const used = Object.keys(FLOW.fill || {}).concat(taken || []).filter(k => k.startsWith(pre)).map(k => +k.slice(-3) || 0);
+  return pre + String((used.length ? Math.max(...used) : 0) + 1).padStart(3, '0');
+}
+
+/* ---- Demand → Filling, one row a line ---- */
+function flowFillCells(x, first) {
+  const s = x.s, q = +x.r.qty || 0, td = 'text-align:left;font-size:13px;line-height:1.55;white-space:normal;vertical-align:top';
+  const open = (s.fillNos || []).filter(no => { const c = (FLOW.fill || {})[no]; return c && !c.closed && !c.cancelled; });
+  return `<td style="${td};min-width:170px"><div>Khol back from karigars: <b>${nf(s.kholIn || 0)} / ${nf(q)}</b></div>`
+      + (s.fillCanSend > 0 ? `<div class="muted" style="font-size:12px">${nf(s.fillCanSend)} pcs to send for filling</div>` : '') + '</td>'
+    + `<td style="${td};min-width:230px"><div>${s.fillTo ? `To: <b>${esc(s.fillTo)}</b>` : '<span class="muted">not sent yet</span>'}</div>`
+      + `<div>Sent: <b>${nf(s.fillSent || 0)} pcs</b> · filled back: <b>${nf(s.fillBack || 0)} pcs</b></div>`
+      + open.map(no => `<div style="font-size:12px;margin-top:2px"><a href="#" data-flfilp="${esc(no)}">${esc(no)}</a> · <a href="#" data-flfilrx="${esc(no)}">Receive filled</a>`
+        + (Object.keys(((FLOW.fill || {})[no] || {}).receipts || {}).length ? '' : ` · <a href="#" data-flfilx="${esc(no)}" style="color:#b91c1c">cancel</a>`) + '</div>').join('') + '</td>'
+    + `<td style="white-space:nowrap;vertical-align:top">${first && flowMay('flchl') ? `<button data-flfils="${esc(x.r.orderNo)}" style="width:auto;padding:3px 10px;font-size:12px">Send to filling</button>` : ''}</td>`;
+}
+
+/* ---- sending the khol: one PO, one filling vendor ---- */
+function flowFillSendOpen(orderNo) {
+  if (!flowMay('flchl')) return flowSay('Filling is the fabric team\'s — this account has no "Printed fabric in" right.', true);
+  const rows = flowRows().filter(x => obUC(x.r.orderNo) === obUC(orderNo) && x.s.fill && x.s.fillCanSend > 0);
+  if (!rows.length) return flowSay(`Nothing of ${orderNo} is waiting to go for filling — no khol is back from the karigars yet, or it went already.`, true);
+  const vens = flowFillVendors(), last = rows.map(x => x.s.fillTo).find(Boolean);
+  const lineHtml = rows.map((x, i) => `<tr><td><input type="checkbox" data-flk="${i}" checked style="width:auto"></td>
+      <td style="text-align:left;white-space:normal"><b style="font-family:ui-monospace,monospace">${esc(obUC(x.r.sku))}</b><div class="muted" style="font-size:11px">${esc(flowChItem(x.r))}</div></td>
+      <td class="num">${nf(x.s.kholIn)} / ${nf(x.r.qty)}</td>
+      <td class="num"><input data-flp="${i}" type="number" step="1" min="0" value="${esc(x.s.fillCanSend)}" style="width:72px;padding:3px 6px;font-size:12px"></td></tr>`).join('');
+  ptOpenDialog({
+    title: `Filling challan — ${orderNo}`,
+    subtitle: 'The empty khol of this order to the filling vendor — they put in the cotton. Saving numbers the challan and opens it to print; the filled pieces are received against it.',
+    html: `<div class="ptgrid" style="grid-template-columns:2fr 1fr">
+        <label>Filling vendor<select id="flfVen"><option value="">— pick —</option>${vens.map(v => `<option value="${esc(v.code)}"${(v.desc || v.name) === last ? ' selected' : ''}>${esc((v.desc || v.name || v.code) + (v.category ? ' · ' + v.category : ''))}</option>`).join('')}</select></label>
+        <label>Date<input id="flfDate" type="date" value="${esc(dToday())}"></label></div>
+      <table class="xl" style="margin-top:10px;width:100%"><thead><tr><th></th><th style="text-align:left">Item</th><th>Khol back</th><th>Pieces to fill</th></tr></thead><tbody>${lineHtml}</tbody></table>
+      <label style="display:block;margin-top:8px">Note (who carried it…)<input id="flfNote"></label>`,
+    saveLabel: 'Make the challan',
+    onSave: async () => {
+      const v = vens.find(y => String(y.code) === String($('flfVen').value)); if (!v) return 'Which filling vendor? Pick one.';
+      const date = $('flfDate').value || dToday();
+      const picked = rows.map((x, i) => ({ x, on: !!(document.querySelector(`[data-flk="${i}"]`) || {}).checked, pc: +((document.querySelector(`[data-flp="${i}"]`) || {}).value || 0) })).filter(y => y.on);
+      if (!picked.length) return 'Tick at least one line.';
+      const bad = picked.filter(y => !(y.pc >= 1 && y.pc === Math.round(y.pc) && y.pc <= y.x.s.fillCanSend));
+      if (bad.length) return bad.map(y => `${obUC(y.x.r.sku)}: pieces are whole, at least 1 and at most the ${nf(y.x.s.fillCanSend)} khol back and not sent`).join(' · ');
+      const now = new Date().toISOString();
+      let no = flowFillNo(date);
+      const ch = { no, kind: 'fill', date, orderNo: obUC(orderNo), vendor: { code: String(v.code), name: v.desc || v.name || v.code }, note: $('flfNote').value.trim(), at: now, by: ME.email || '',
+        lines: picked.map(({ x, pc }) => ({ key: x.s.key, sku: obUC(x.r.sku), item: flowChItem(x.r), pcs: pc })) };
+      for (let k = 0, taken = []; ; k++) {
+        let er = ''; try { er = await flowClaim('pt_flowChallans/' + no, ch); } catch (e) { return 'Could not save: ' + (e.message || e); }
+        if (!er) break;
+        if (k >= 15) return 'Could not get a free challan number — press Refresh and try again.';
+        taken.push(no); no = flowFillNo(date, taken); ch.no = no;
+      }
+      if (typeof ptCas !== 'function') { try { await ptPatch({ ['pt_flowChallans/' + no]: ch }); } catch (e) { return 'Could not save: ' + (e.message || e); } }
+      FLOW.fill = Object.assign({}, FLOW.fill, { [no]: ch });
+      renderFlow();
+      const er = flowFillPrint(no); if (er) flowSay(`Challan ${no} saved. ${er}`, true);
+      return '';
+    },
+  });
+}
+
+/** The receipt's writes onto the karigars' rows the khol came from, oldest first: { patch, rows } or { err }. */
+function flowFillAlloc(r, qty, rid, at, ch, vendor) {
+  const ms = b => ptDtMs(b.issueDate) || ptDtMs(b.addedAt) || 0;
+  const rows = flowKholRows(r).slice().sort((a, b) => ms(a) - ms(b));
+  const room = rows.reduce((a, b) => a + Math.max(0, (+b.receivedPieces || 0) - flowFillInOf(b)), 0);
+  if (qty > room) return { err: `${obUC(r.sku)}: only ${nf(room)} khol of ${r.orderNo} are back from the karigars and not filled yet — receive the karigar's entry first.` };
+  const patch = {}, touched = new Map(); let left = qty;
+  rows.forEach(b => { if (left <= 0) return; const id = b.id || b._key, take = Math.min(left, Math.max(0, (+b.receivedPieces || 0) - flowFillInOf(b))); if (!take || !id) return;
+    const rec = { at, qty: take, ch, vendor }; patch[`pt_baseData/${id}/fillIn/${rid}`] = rec; touched.set(b, rec); left -= take; });
+  return { patch, touched };
+}
+function flowFillRecvOpen(no) {
+  if (!flowMay('flchl')) return flowSay('Filling is the fabric team\'s — this account has no "Printed fabric in" right.', true);
+  const c = (FLOW.fill || {})[no]; if (!c || c.cancelled) return flowSay('That filling challan is not here — press Refresh.', true);
+  const got = flowEmbRecv(c), lines = c.lines || [], left = l => Math.max(0, (+l.pcs || 0) - (got[l.key] || 0));
+  ptOpenDialog({
+    title: `Receive filled pieces — ${no}`,
+    subtitle: `${c.vendor && c.vendor.name ? c.vendor.name + ' · ' : ''}${c.orderNo}. Type the filled pieces that came back; they go to Quality Control. The rest stays open on the challan.`,
+    html: `<label style="display:block;max-width:220px">Date<input id="flfrDate" type="date" value="${esc(dToday())}"></label>
+      <table class="xl" style="margin-top:10px;width:100%"><thead><tr><th style="text-align:left">Item</th><th>Sent</th><th>Back already</th><th>Back today</th></tr></thead><tbody>${lines.map((l, i) =>
+        `<tr><td style="text-align:left"><b style="font-family:ui-monospace,monospace">${esc(l.sku)}</b><div class="muted" style="font-size:11px">${esc(l.item || '')}</div></td>
+          <td class="num">${nf(l.pcs)}</td><td class="num">${nf(got[l.key] || 0)}</td>
+          <td class="num"><input data-flr="${i}" type="number" min="0" step="1" value="0" title="still to come: ${nf(left(l))} pcs" onfocus="this.select()" ${left(l) ? '' : 'disabled'} style="width:72px;padding:3px 6px;font-size:12px"></td></tr>`).join('')}</tbody></table>
+      <label style="display:flex;gap:6px;align-items:center;margin-top:8px"><input id="flfrClose" type="checkbox" style="width:auto"> Nothing more is coming on this challan — close it</label>`,
+    saveLabel: 'Receive',
+    onSave: async () => {
+      const items = {};
+      lines.forEach((l, i) => { const n = Math.round(+((document.querySelector(`[data-flr="${i}"]`) || {}).value || 0)); if (n > 0) items[l.key] = (items[l.key] || 0) + n; });
+      const closeIt = !!($('flfrClose') && $('flfrClose').checked);
+      if (!Object.keys(items).length && !closeIt) return 'Type the filled pieces that came back.';
+      const over = lines.filter(l => (items[l.key] || 0) > left(l)).map(l => l.sku);
+      if (over.length) return `More came back than was sent for ${over.join(', ')} — check the figure.`;
+      const date = $('flfrDate').value || dToday(), now = new Date().toISOString(), rid = 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), patch = {}, touched = [];
+      for (const [key, n] of Object.entries(items)) {
+        const x = flowRows().find(y => y.s.key === key); if (!x) return 'A line of this challan is no longer on the order book — press Refresh.';
+        const al = flowFillAlloc(x.r, n, rid, now, no, (c.vendor && c.vendor.name) || ''); if (al.err) return al.err;
+        Object.assign(patch, al.patch); touched.push(...al.touched);
+      }
+      if (Object.keys(items).length) patch[`pt_flowChallans/${no}/receipts/${rid}`] = { at: now, date, by: ME.email || '', items };
+      const after = Object.assign({}, got); Object.entries(items).forEach(([k, n]) => { after[k] = (after[k] || 0) + n; });
+      const full = lines.every(l => (after[l.key] || 0) >= (+l.pcs || 0));
+      if (full || closeIt) patch[`pt_flowChallans/${no}/closed`] = { at: now, by: ME.email || '', short: !full };
+      try { await ptPatch(patch); } catch (e) { return 'Could not save: ' + (e.message || e); }
+      if (touched.length) PT.base = (PT.base || []).map(b => { const t = touched.find(([bb]) => bb === b); return t ? Object.assign({}, b, { fillIn: Object.assign({}, b.fillIn, { [rid]: t[1] }) }) : b; });
+      const nc = Object.assign({}, c, { receipts: Object.assign({}, c.receipts) });
+      if (patch[`pt_flowChallans/${no}/receipts/${rid}`]) nc.receipts[rid] = patch[`pt_flowChallans/${no}/receipts/${rid}`];
+      if (patch[`pt_flowChallans/${no}/closed`]) nc.closed = patch[`pt_flowChallans/${no}/closed`];
+      FLOW.fill = Object.assign({}, FLOW.fill, { [no]: nc });
+      renderFlow();
+      flowSay(`${no}: ${nf(Object.values(items).reduce((a, n) => a + n, 0))} filled pcs received${nc.closed ? ' · challan closed' : ''} — they are in Quality Control → Waiting for QC.`);
+      return '';
+    },
+  });
+}
+async function flowFillCancel(no) {
+  const c = (FLOW.fill || {})[no]; if (!c || c.cancelled) return;
+  if (Object.keys(c.receipts || {}).length) return flowSay(`${no} has pieces received on it — it cannot be cancelled.`, true);
+  if (!confirm(`Cancel filling challan ${no}? The khol on it counts as not sent again.`)) return;
+  const v = { at: new Date().toISOString(), by: ME.email || '' };
+  try { await ptPatch({ [`pt_flowChallans/${no}/cancelled`]: v }); } catch (e) { return flowSay('Could not cancel: ' + (e.message || e), true); }
+  FLOW.fill = Object.assign({}, FLOW.fill, { [no]: Object.assign({}, c, { cancelled: v }) });
+  renderFlow();
+}
+function flowFillHtml(c) {
+  let st = {}; try { st = (GPO && GPO.settings) || {}; } catch (e) { st = {}; }
+  const e = v => esc(v == null ? '' : String(v)), cell = 'border:1px solid #999;padding:6px 8px;font-size:12px';
+  const dmy = d => { const m = String(d || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}/${m[2]}/${m[1]}` : d; };
+  const lines = c.lines || [], tp = lines.reduce((a, l) => a + (+l.pcs || 0), 0);
+  return '<!doctype html><html><head><meta charset="utf-8"><title>' + e(c.no) + '</title></head><body style="font-family:Arial,Helvetica,sans-serif;color:#111;margin:24px">'
+    + `<table style="width:100%;border-collapse:collapse"><tr><td style="vertical-align:top"><div style="font-size:18px;font-weight:bold">${e(st.company || FLOW_COMPANY)}</div>`
+    + `<div style="font-size:11px;white-space:pre-line">${e(st.address)}</div>${st.gstin ? `<div style="font-size:11px">GSTIN: ${e(st.gstin)}</div>` : ''}</td>`
+    + `<td style="vertical-align:top;text-align:right"><div style="font-size:20px;font-weight:bold">FILLING CHALLAN</div><div style="font-size:11px">Khol (empty covers) for filling job work — not for sale</div>`
+    + `<div style="font-size:12px;margin-top:4px">Challan No: <b>${e(c.no)}</b></div><div style="font-size:12px">Order: <b>${e(c.orderNo)}</b></div></td></tr></table>`
+    + `<table style="width:100%;border-collapse:collapse;margin:16px 0 10px"><tr><td style="border:2px solid #111;padding:8px 12px;width:70%"><div style="font-size:11px;color:#555">Filling vendor (To)</div>`
+    + `<div style="font-size:17px;font-weight:bold">${e(c.vendor && c.vendor.name)}</div></td><td style="border:2px solid #111;border-left:0;padding:8px 12px"><div style="font-size:11px;color:#555">Date</div><div style="font-size:17px;font-weight:bold">${e(dmy(c.date))}</div></td></tr></table>`
+    + `<table style="width:100%;border-collapse:collapse"><thead><tr>${['#', 'SKU', 'Item', 'Khol to fill (pcs)'].map(h => `<th style="${cell};background:#eee;text-align:left">${h}</th>`).join('')}</tr></thead><tbody>`
+    + lines.map((l, i) => `<tr><td style="${cell}">${i + 1}</td><td style="${cell}"><b>${e(l.sku)}</b></td><td style="${cell}">${e(l.item)}</td><td style="${cell};text-align:right">${e(nf(l.pcs))}</td></tr>`).join('')
+    + `<tr><td style="${cell}" colspan="3"><b>Total</b></td><td style="${cell};text-align:right"><b>${e(nf(tp))} pcs</b></td></tr></tbody></table>`
+    + (c.note ? `<div style="margin-top:10px;font-size:11px"><b>Note:</b> ${e(c.note)}</div>` : '')
+    + `<table style="width:100%;margin-top:50px;font-size:11px"><tr><td>Issued by<br><br><br>${e(String(c.by || '').split('@')[0])}</td>`
+    + `<td style="text-align:right">Received by (${e(c.vendor && c.vendor.name)})<br><br><br>Signature &amp; date</td></tr></table></body></html>`;
+}
+function flowFillPrint(no) {
+  const c = (FLOW.fill || {})[no]; if (!c) return 'That challan is not here — press Refresh.';
+  const html = flowFillHtml(c);
+  const w = window.open('', '_blank');
+  if (!w || !w.document) return 'The browser blocked the new window. Allow pop-ups for this site and press the challan number again.';
+  w.document.open();
+  w.document.write(html.replace('</body>', '<div style="margin-top:24px;text-align:center" class="noprint"><button onclick="window.print()" style="padding:8px 20px">Print / Save as PDF</button></div><style>@media print{.noprint{display:none}}</style></body>'));
+  w.document.close();
+  return '';
+}
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('click', e => {
+  const t = e.target; if (!t || !t.closest) return;
+  const s = t.closest('[data-flfils]'), rx = t.closest('[data-flfilrx]'), pr = t.closest('[data-flfilp]'), cx = t.closest('[data-flfilx]');
+  if (!s && !rx && !pr && !cx) return;
+  e.preventDefault();
+  if (s) return flowFillSendOpen(s.dataset.flfils);
+  if (rx) return flowFillRecvOpen(rx.dataset.flfilrx);
+  if (cx) return flowFillCancel(cx.dataset.flfilx);
+  const er = flowFillPrint(pr.dataset.flfilp); if (er) flowSay(er, true);
+});
 /* ============================== FILE: src/app/flow/flow-view.js ============================== */
 /* ================= PRODUCTION FLOW · THE SCREEN =================
  * The bucket buttons across the top (each with how many lines are in it; only the buckets this account may open), and
@@ -31651,6 +31891,11 @@ function flowTable(view, rows) {
           ? `<button data-flsim="${esc(x.r.orderNo)}|${esc(x.r.sku)}|ship" title="Stands in for: ${esc(FLOW_SIM.ship[1])}" style="width:auto;padding:3px 10px;font-size:12px;margin-bottom:6px;background:#7c3aed;border-color:#7c3aed">${esc(FLOW_SIM.ship[0])}</button><br>` : ''}<button data-flplan="${esc(x.r.orderNo)}|${esc(x.r.sku)}" style="width:auto;padding:3px 10px;font-size:12px" title="Change or undo what PPC planned">Edit plan</button>${ME.admin && !x.r.__t && !resyncSeen.has(x.r.orderNo) && resyncSeen.add(x.r.orderNo) ? `<br><button class="ghost" data-flposync="${esc(x.r.orderNo)}" style="width:auto;padding:2px 8px;font-size:11px;margin-top:6px" title="Rebuild this order's print order and the printer's Vendor Order from the plans as they are now">Resync printer orders</button>` : ''}
           ${locked ? `<div class="muted" style="font-size:10.5px;margin-top:3px" title="The fabric went on ${esc(x.s.challan.no)}: fabric and route can no longer change">fabric sent · ${esc(x.s.challan.no)}</div>` : ''}
           ${locked && flowPrinted(x.s.route) && !x.r.__t && flowBucketsAllowed().some(b => b[0] === 'ppcdone') ? `<button class="ghost" data-flchpr="${esc(x.s.key)}" title="Give this line to another printer — the cloth already given stays with the old printer, shown as standing" style="width:auto;padding:2px 8px;font-size:11.5px;margin-top:4px">Change printer</button>` : ''}</td></tr>`; }).join('');
+  } else if (view === 'dfill') {
+    /* FILLING (Ravi, 22 Oct; flow-fill.js): the khol back from the karigars, what the filling vendor has, Send / Receive. */
+    head = ['PO', 'SKU', 'Qty', 'Khol', 'Filling', ''];
+    const seenF = new Set();
+    body = rows.map(x => { const first = !seenF.has(x.r.orderNo); seenF.add(x.r.orderNo); return `<tr>${base(x)}${flowFillCells(x, first)}</tr>`; }).join('');
   } else if (view === 'demb') {
     /* EMBROIDERY (Ravi, 21 Oct; flow-emb.js): the printed cloth back for each line, what the embroiderer has, Send / Receive. */
     head = ['PO', 'SKU', 'Qty', 'Printed fabric', 'Embroidery', ''];
@@ -45245,7 +45490,10 @@ async function voFormOpen(mode) {
   const asking = VOF.mode === 'request';
   /* EVERY vendor. Job work goes out to filling firms and fabricators as much as printing goes to
    * printers, and an order is the only way to tell them what is coming. */
-  const vends = voAllVendors();
+  let vends = voAllVendors();
+  /* A REQUEST IS FOR A FILLING VENDOR (Ravi, 22 Oct): printers get their orders from PPC; a request now asks a filling vendor
+   * to fill khol — cut pieces, in pieces. */
+  if (asking && typeof FLOW_ON !== 'undefined' && FLOW_ON) { const fv = vends.filter(v => /fill/i.test(String(v.category || ''))); if (fv.length) { vends = fv; VOF.kind = 'cut'; } }
   /* DESIGN 10 — the header band (Ravi, 2026-09-25). The vendor, the work and running-or-cut sit in the band;
    * the long note that opened the form is gone — the cap is said where it bites, on the line. */
   ptOpenDialog({

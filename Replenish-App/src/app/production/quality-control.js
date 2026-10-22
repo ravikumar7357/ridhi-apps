@@ -676,6 +676,9 @@ function qcInboxRows() {
     repRecvParts(r).forEach(p => { if (p.ms >= from) { since += p.pcs; if (p.ms > last) last = p.ms; } });
     /* Never more than the row says came back — a correction may have lowered it after the receipt was logged. */
     since = Math.min(since, ptNum(r.receivedPieces));
+    /* KHOL FOR FILLING (Ravi, 22 Oct): a seat pad's khol from the karigar waits here only as far as the filling vendor has
+     * sent it back filled (fillIn, written by flow-fill.js on the receipt). */
+    if (r.fillNeed) since = Math.min(since, Object.values(r.fillIn || {}).reduce((a, x) => a + ptNum(x && x.qty), 0));
     const accepted = took.get(r.id) || 0, wait = since - accepted;
     if (!(wait > 0)) return;
     out.push({ r, since, accepted, wait, last });

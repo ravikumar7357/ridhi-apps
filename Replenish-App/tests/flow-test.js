@@ -2,7 +2,7 @@
  *   node tests/flow-test.js      (FLOW_DIR=<dir> to test another copy — teeth/teeth-flow.js does) */
 const fs = require('fs'), path = require('path');
 const DIR = process.env.FLOW_DIR || path.join(__dirname, '..', 'src', 'app', 'flow');
-const SRC = ['flow-core.js', 'flow-ppc.js', 'flow-demand.js', 'flow-challan.js', 'flow-test-order.js', 'flow-receive.js', 'flow-printorder.js', 'flow-vendor.js', 'flow-edit.js', 'flow-back.js', 'flow-entries.js', 'flow-qcfg.js', 'flow-emb.js', 'flow-view.js'].map(f => fs.readFileSync(path.join(DIR, f), 'utf8')).join('\n');
+const SRC = ['flow-core.js', 'flow-ppc.js', 'flow-demand.js', 'flow-challan.js', 'flow-test-order.js', 'flow-receive.js', 'flow-printorder.js', 'flow-vendor.js', 'flow-edit.js', 'flow-back.js', 'flow-entries.js', 'flow-qcfg.js', 'flow-emb.js', 'flow-fill.js', 'flow-view.js'].map(f => fs.readFileSync(path.join(DIR, f), 'utf8')).join('\n');
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => { if (cond) { pass++; console.log('  PASS ' + name); } else { fail++; console.log('  FAIL ' + name + (extra ? ' — ' + extra : '')); } };
 
@@ -66,7 +66,7 @@ function load(opts) {
     FAB: { rows: opts.fabRows || [] },
     STORE: { rows: opts.store ? [] : null }, stMoves: () => opts.store || [], stBalances: mv => mv, fabKey: v => String(v || '').trim().toUpperCase(), fabAll: () => opts.fabRows || [], ptList: x => x || [], fabAutoLoad: async () => {}, GD: opts.gd, mdbOf: opts.mdbOf, MDBX: opts.mdbx, fabState: r => String((r && r.state) || (/RFD/.test(String(r && r.txnType)) ? 'RFD' : 'PRINTED')).toUpperCase(), fabKnown: t => ['OPENING_RFD', 'RFD_TO_PRINTER', 'ISSUE_TO_CUTTING', 'RECEIVE_RFD', 'PURCHASE_RFD', 'ADJUST'].includes(t), fabMove: r => (+r.qty || 0) * (['RFD_TO_PRINTER', 'ISSUE_TO_CUTTING'].includes(r.txnType) ? -1 : 1), fabStockOf: (name, st) => (st === 'RFD' ? (opts.rfd || {})[String(name).toUpperCase()] || 0 : 0),
   };
-  const api = new Function(...Object.keys(ctx), SRC + '\n;return { flowDrfdLineRows, flowFabOwed, flowRfdStock, flowFabKnown, flowMatRow, flowGdNote, flowPpcDraftSave, flowPpcDraftApply, flowPpcDraftDrop, flowPpcHasDraft, flowBackOpen, flowAgainOpen, flowIsBack, flowBackLines, flowBackPill, FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW_ROUTES, flowPlanRouteOf, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChTotals, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestCutOpen, flowTestIssueOpen, flowTestRecvOpen, flowTestVos, flowVoProgOf, flowVoProgSync, flowVlogRows, flowDocsOf, flowVoExtra, flowVpViewOnly, flowFgAcceptOpen, flowFgAccept, flowFgRejectOpen, flowFgReject, flowFgLines, flowFgRender, flowQcLine, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowRecvCross, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowCutEntry, flowIssueEntry, flowRecvEntry, flowQcEntry, flowIssuable, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowVoLines, flowSwatchOf, flowSizeFifo, flowSizeChallanOpen, flowBySizeData, flowPpcXlRows, flowPpcXlRead, flowXlDate, FLOW_XL_COLS, VOrows:()=>VO.rows, setVOrows:v=>{VO.rows=v}, flowUnplan, flowPoResync, flowPlanQcDirect, flowChSizeLive, flowEmbedRows, FLOW_EMB_SHOWN:()=>FLOW_EMB_SHOWN, flowChLineWhat, flowRecvRows, flowRecvDayTable, FLOW_HD, flowEarlierOf, flowRecordEarlier, flowChangePrinterSave, flowStanding, flowStandBack, flowStandUse, flowStandTargets, flowRfdChallanOut, flowHistTable, flowChGroups, flowChXlRead, flowChQueue, flowEmbIndex, flowEmbCells, flowEmbSendOpen, flowEmbRecvOpen, flowEmbWho, flowEmbCancel, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v}, flowEmbedRender, FLOW_EMB:()=>FLOW_EMB, flowScreenAllowed, flowOwnsOrder, flowOwnedIn, flowVoIsFlow, flowFgOwns, flowDupViewsOff, renderView:()=>{ if (["cut","raw","wip","new","pord","vendor","fabric"].includes(FLOW_VIEW)) { const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly(); const rows = flowRows().filter(x => (!only || x.r.__t) && (FLOW_VIEW === "new" ? x.recent : flowInView(FLOW_VIEW, x.s))); $("flTable").innerHTML = flowTable(FLOW_VIEW, rows); } else renderFlow(); } };')(...Object.values(ctx));
+  const api = new Function(...Object.keys(ctx), SRC + '\n;return { flowDrfdLineRows, flowFabOwed, flowRfdStock, flowFabKnown, flowMatRow, flowGdNote, flowPpcDraftSave, flowPpcDraftApply, flowPpcDraftDrop, flowPpcHasDraft, flowBackOpen, flowAgainOpen, flowIsBack, flowBackLines, flowBackPill, FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW_ROUTES, flowPlanRouteOf, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChTotals, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestCutOpen, flowTestIssueOpen, flowTestRecvOpen, flowTestVos, flowVoProgOf, flowVoProgSync, flowVlogRows, flowDocsOf, flowVoExtra, flowVpViewOnly, flowFgAcceptOpen, flowFgAccept, flowFgRejectOpen, flowFgReject, flowFgLines, flowFgRender, flowQcLine, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowRecvCross, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowCutEntry, flowIssueEntry, flowRecvEntry, flowQcEntry, flowIssuable, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowVoLines, flowSwatchOf, flowSizeFifo, flowSizeChallanOpen, flowBySizeData, flowPpcXlRows, flowPpcXlRead, flowXlDate, FLOW_XL_COLS, VOrows:()=>VO.rows, setVOrows:v=>{VO.rows=v}, flowUnplan, flowPoResync, ptIsFillSku, flowFillCells, flowFillSendOpen, flowFillRecvOpen, flowPlanQcDirect, flowChSizeLive, flowEmbedRows, FLOW_EMB_SHOWN:()=>FLOW_EMB_SHOWN, flowChLineWhat, flowRecvRows, flowRecvDayTable, FLOW_HD, flowEarlierOf, flowRecordEarlier, flowChangePrinterSave, flowStanding, flowStandBack, flowStandUse, flowStandTargets, flowRfdChallanOut, flowHistTable, flowChGroups, flowChXlRead, flowChQueue, flowEmbIndex, flowEmbCells, flowEmbSendOpen, flowEmbRecvOpen, flowEmbWho, flowEmbCancel, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v}, flowEmbedRender, FLOW_EMB:()=>FLOW_EMB, flowScreenAllowed, flowOwnsOrder, flowOwnedIn, flowVoIsFlow, flowFgOwns, flowDupViewsOff, renderView:()=>{ if (["cut","raw","wip","new","pord","vendor","fabric"].includes(FLOW_VIEW)) { const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly(); const rows = flowRows().filter(x => (!only || x.r.__t) && (FLOW_VIEW === "new" ? x.recent : flowInView(FLOW_VIEW, x.s))); $("flTable").innerHTML = flowTable(FLOW_VIEW, rows); } else renderFlow(); } };')(...Object.values(ctx));
   api.setFLOW(Object.assign(api.FLOW(), { ppc: opts.ppc || {}, dem: opts.dem || {}, res: opts.res || {} }));
   return Object.assign(api, { els, writes, W, ctx });
 }
@@ -81,7 +81,7 @@ const K = 'AMZ-1__S1';
 
   console.log('== each bucket its own right ==');
   ok('seven rights — New orders, Print orders, Vendor allocation, Outsourced, QC, Finished Goods and Printed fabric in are gone from the flow', load().FLOW_TABS.length === 7 && new Set(load().FLOW_TABS).size === 7 && !['flnew', 'flpo', 'flven', 'flout', 'flqc', 'flrdy', 'flfg', 'flfab'].some(t => load().FLOW_TABS.includes(t)));
-  ok('an admin sees every bucket', load({ me: { admin: true } }).flowBucketsAllowed().length === 10 && load({ me: { admin: true } }).flowScreenAllowed().map(b => b[0]).join() === 'ppc,ppcdone,back,drfd,demb,dhist,dacc');
+  ok('an admin sees every bucket', load({ me: { admin: true } }).flowBucketsAllowed().length === 11 && load({ me: { admin: true } }).flowScreenAllowed().map(b => b[0]).join() === 'ppc,ppcdone,back,drfd,demb,dfill,dhist,dacc');
   ok('PPC staff see PPC, PPC completed and Back to sales team only', load({ me: { tabs: ['flppc', 'ord'] } }).flowBucketsAllowed().map(b => b[0]).join() === 'ppc,ppcdone,back');
   ok('nobody with no right sees any', load({ me: { tabs: ['ord'] } }).flowBucketsAllowed().length === 0);
   ok('a key is safe for the database (no . # $ [ ] /)', load().flowKey('amz/1.2', 's#1') === 'AMZ_1_2__S_1');
@@ -919,6 +919,48 @@ const K = 'AMZ-1__S1';
     E = mkE(); er = await E.flowRecordEarlier(KE, { pcs: 400, deduct: true });
     ok('asked to, it does take it off the RFD stock', er === '' && Math.abs(E.flowRfdChallanOut('Sheeting 62', '') - (out0 + 632)) < 0.01, er + ' ' + E.flowRfdChallanOut('Sheeting 62', '') + ' vs ' + (out0 + 632));
     ok('more pieces than were made without cloth is refused', /at most 400/.test(await mkE().flowRecordEarlier(KE, { pcs: 401 })));
+  }
+
+  console.log('== filling (22 Oct: "unko ham khali khola dete h wo sirf usme cotton fill karte h … seat pad chair cushion") ==');
+  {
+    const mdbF = { 'RSP1-A': { articleType: 'Seat Pad', subtype: 'Seat Pad', color: 'Red', fabric: 'Cotton', cuttingRequired: true } }, KF = 'AMZ-70__RSP1-A';
+    const base = (recv, fillIn) => [{ id: 'bdF1', sku: 'RSP1-A', orderNo: 'AMZ-70', empName: 'Ramesh', issuePieces: 10, receivedPieces: recv, issueDate: '22/10/2026, 10:00', fillNeed: true, ...(fillIn ? { fillIn } : {}) }];
+    const mkF = (recv, o) => { const F = load(Object.assign({ me: { admin: true }, mdb: mdbF, base: base(recv),
+        lines: [L({ orderNo: 'AMZ-70', sku: 'RSP1-A', qty: 10, cutReq: true, cut: 10, issued: 10, received: recv })],
+        ppc: { [KF]: plan({ orderNo: 'AMZ-70', sku: 'RSP1-A', qty: 10, route: 'stitch', print: { need: false }, fabric: { name: 'Cotton', perPc: 0.5, metres: 5, noRfd: true } }) } }, o || {}));
+      F.setFLOW(Object.assign(F.FLOW(), { fill: {} })); return F; };
+    const S0 = load({ mdb: mdbF });
+    ok('a Seat Pad / Chair Cushion is filled by a vendor; a napkin is not', S0.ptIsFillSku('RSP1-A') && !S0.ptIsFillSku('NOPE'));
+    let F = mkF(10), s = F.flowRows()[0].s;
+    ok('khol back from the karigar (10) → Demand → Filling, 10 to send, nothing waiting for QC', s.fill && s.bucket === 'fill' && F.flowInView('dfill', s) && s.fillCanSend === 10 && s.receivedAll === 0, JSON.stringify([s.bucket, s.fillCanSend, s.receivedAll]));
+    ok('…its row offers "Send to filling"', /data-flfils="AMZ-70"/.test(F.flowFillCells(F.flowRows()[0], true)));
+    F.ctx.document.querySelector = q => /data-flk/.test(q) ? { checked: true } : /data-flp/.test(q) ? { value: '10' } : null;
+    F.els.flfVen = { value: 'V9' };
+    F.flowFillSendOpen('AMZ-70');
+    let er = await F.ctx.__dlg.onSave();
+    const fc = F.FLOW().fill['FIL-202610-001'] || {};
+    ok('sent: FIL-202610-001 to the filling vendor, 10 khol, printed as a FILLING CHALLAN', er === '' && fc.kind === 'fill' && fc.lines[0].pcs === 10 && fc.vendor.code === 'V9' && (F.ctx.__win || []).some(h => /FILLING CHALLAN/.test(h)), er + JSON.stringify(fc));
+    ok('…kept out of the RFD challans', !Object.keys(F.FLOW().ch || {}).length);
+    F.ctx.document.querySelector = q => /data-flr=/.test(q) ? { value: '6' } : null;
+    F.flowFillRecvOpen('FIL-202610-001'); er = await F.ctx.__dlg.onSave();
+    const wF = Object.assign({}, ...F.writes), fi = Object.entries(wF).find(([k]) => /^pt_baseData\/bdF1\/fillIn\//.test(k));
+    s = F.flowRows()[0].s;
+    ok('6 filled back → written on the karigar\'s Job Work row (fillIn 6), 6 waiting for QC', er === '' && fi && fi[1].qty === 6 && s.fillBack === 6 && s.receivedAll === 6 && F.flowInView('dfill', s), er + JSON.stringify([fi, s.fillBack, s.receivedAll]));
+    F.ctx.document.querySelector = q => /data-flr=/.test(q) ? { value: '5' } : null;
+    F.flowFillRecvOpen('FIL-202610-001');
+    ok('…more than is still out is refused', /More came back/.test(await F.ctx.__dlg.onSave()));
+    F.ctx.document.querySelector = q => /data-flr=/.test(q) ? { value: '4' } : null;
+    F.flowFillRecvOpen('FIL-202610-001'); er = await F.ctx.__dlg.onSave();
+    ok('all 10 filled → the challan closes, 10 wait for QC, nothing left in Filling', er === '' && !!F.FLOW().fill['FIL-202610-001'].closed && F.flowRows()[0].s.receivedAll === 10 && !F.flowInView('dfill', F.flowRows()[0].s), er);
+    F = mkF(3);
+    F.setFLOW(Object.assign(F.FLOW(), { fill: { 'FIL-202610-009': { no: 'FIL-202610-009', kind: 'fill', orderNo: 'AMZ-70', vendor: { code: 'V9', name: 'Kalu Mill' }, lines: [{ key: KF, sku: 'RSP1-A', pcs: 5 }], receipts: {} } } }));
+    F.ctx.document.querySelector = q => /data-flr=/.test(q) ? { value: '5' } : null;
+    F.flowFillRecvOpen('FIL-202610-009'); er = await F.ctx.__dlg.onSave();
+    ok('receiving more filled pieces than the karigars sent back khol is refused (only 3 back)', /only 3 khol/.test(er) && !F.writes.length, er);
+    const G = load({ me: { admin: true }, mdb: mdbF, base: [{ id: 'old', sku: 'RSP1-A', orderNo: 'AMZ-70', issuePieces: 10, receivedPieces: 10 }], lines: [L({ orderNo: 'AMZ-70', sku: 'RSP1-A', qty: 10, issued: 10, received: 10 })],
+      ppc: { [KF]: plan({ orderNo: 'AMZ-70', sku: 'RSP1-A', qty: 10, route: 'stitch', print: { need: false }, fabric: { name: 'Cotton', perPc: 0.5, metres: 5, noRfd: true } }) } });
+    G.setFLOW(Object.assign(G.FLOW(), { fill: {} }));
+    ok('a karigar row issued before filling was set up (no fillNeed) goes to QC as before', G.flowRows()[0].s.receivedAll === 10 && G.flowRows()[0].s.bucket !== 'fill', JSON.stringify([G.flowRows()[0].s.bucket, G.flowRows()[0].s.receivedAll]));
   }
 
   console.log('== one printed fabric, several orders → one challan ==');
