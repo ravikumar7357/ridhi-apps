@@ -5,22 +5,44 @@
 let FLOW_VIEW = '';
 const FLOW_ANGLE = {};   // per Demand view: 'line' or 'stock'
 
-async function ensureFlow() { await flowEnsureData(); renderFlow(); }
+async function ensureFlow() { try { await flowEnsureData(); } finally { renderFlow(); } }
+/* WHAT IS STILL BEING READ (Ravi, 23 Oct: "data load hone me bahut jyada time lag raha h" — the screen sat on "Reading again…"
+ * with nothing to say what it waited for, and a read that failed left it there for good, the screen never drawn). Each read
+ * is named; the line under the toolbar says which are still coming and for how long; one that fails is said (FLOW.readErr)
+ * and the screen is drawn with what did come. */
+async function flowReads(parts) {
+  const t0 = Date.now(), left = new Set(), errs = [];
+  const say = () => { const el = typeof $ === 'function' && $('flMsg'); if (!el || !left.size) return;
+    el.className = 'muted'; el.textContent = `Reading ${[...left].join(', ')}… ${Math.round((Date.now() - t0) / 1000)} s`; };
+  const run = parts.filter(p => p && p[1]).map(([n, p]) => { left.add(n);
+    return Promise.resolve(p).catch(e => { errs.push(`${n} (${(e && e.message) || e})`); }).then(() => { left.delete(n); say(); }); });
+  say(); const tick = setInterval(say, 1000);
+  try { await Promise.all(run); } finally { clearInterval(tick); }
+  return errs;
+}
 /** Everything the lines are worked out from — also read by the Finished Goods screen's "From QC — to accept". */
 async function flowEnsureData() {
-  if (!PTG.mdb) { if ($('flMsg')) $('flMsg').textContent = 'Reading the order book…'; await ptLoadGates(); }
+  const errs = [];
+  if (!PTG.mdb) errs.push(...await flowReads([['the order book and registers', ptLoadGates()]]));
   /* Printer Allocation too: PPC's printer is suggested from it. */
   /* The store too: the printed stock PPC sees beside the RFD balance (Store Stock Balance; its Job Work and cutting
    * registers are the ones the order book has already read). */
-  /* QC checks and the Finished Goods ledger: the QC bucket and the hand-over read them. */
-  if (typeof QC !== 'undefined' && QC.checks == null) { try { QC.checks = ptList(await ptGet('pt_qcChecks')); } catch (e) { /* the QC bucket waits */ } }
-  if (typeof FGI !== 'undefined' && FGI.rows == null && typeof fgiLoad === 'function') { try { await fgiLoad(); } catch (e) { /* India stock waits */ } }
-  await Promise.all([flowLoad(), flowFabLoad(), (typeof STORE !== 'undefined' && STORE.rows === null ? ensureStore().catch(() => {}) : null), (PAL.printers === null ? palLoad().catch(() => {}) : null), (typeof ensureVo === 'function' ? ensureVo().catch(() => {}) : null),
-    (typeof ensureAcc === 'function' ? ensureAcc().catch(() => {}) : null),
+  /* QC checks and the Finished Goods ledger: the QC bucket and the hand-over read them. All at once now — they were read
+   * one after the other before the rest (23 Oct); the QC checks the gates have just read are not read a second time. */
+  if (typeof QC !== 'undefined' && QC.checks == null && PTG.qc && PTG.qc.length) QC.checks = PTG.qc;
+  errs.push(...await flowReads([
+    ['QC checks', typeof QC !== 'undefined' && QC.checks == null ? ptGet('pt_qcChecks').then(v => { QC.checks = ptList(v); }) : null],
+    ['Finished Goods', typeof FGI !== 'undefined' && FGI.rows == null && typeof fgiLoad === 'function' ? fgiLoad() : null],
+    ['plans and challans', flowLoad()], ['the fabric register', flowFabLoad()],
+    ['store stock', typeof STORE !== 'undefined' && STORE.rows === null ? ensureStore() : null],
+    ['printer allocation', PAL.printers === null ? palLoad() : null],
+    ['vendor orders', typeof ensureVo === 'function' ? ensureVo() : null],
+    ['accessories', typeof ensureAcc === 'function' ? ensureAcc() : null],
     /* the Custom SKUs list: a Shopify / B2B SKU that is only there has its BOM written there from PPC (flowMasterBox) */
-    (typeof ptEnsureCustom === 'function' ? ptEnsureCustom().catch(() => {}) : null),
+    ['custom SKUs', typeof ptEnsureCustom === 'function' ? ptEnsureCustom() : null],
     /* The Greige Desk's RFD counts in Demand → RFD on the test link. */
-    (FLOW_ON && typeof GD !== 'undefined' && flowGdReads() ? GD.ensure().catch(() => {}) : null)]);
+    ['the Greige Desk', FLOW_ON && typeof GD !== 'undefined' && flowGdReads() ? GD.ensure() : null]]));
+  FLOW.readErr = errs;
 }
 
 /* The Fabric register, for the RFD stock Demand shows — read here without drawing the Fabric screen. */
@@ -112,7 +134,7 @@ function renderFlow() {
   /* RFD stock is the Greige Desk's count: not read here, the Demand figures say so instead of showing a false "short". */
   if (FLOW_DEMAND.includes(FLOW_VIEW) && !flowRfdKnown()) FLOW.panel = (FLOW.panel || '') + `<span style="font-size:12.5px;color:#b45309;margin-left:10px">⚠ The Greige Desk's RFD stock could not be read on this computer — the RFD figures here are not complete. Press Refresh.</span>`;
   $('flPanel').innerHTML = FLOW.panel; $('flPanel').classList.toggle('hide', !FLOW.panel);
-  $('flMsg').className = FLOW.err ? 'err' : 'muted';
+  $('flMsg').className = FLOW.err || (FLOW.readErr || []).length || PTG.err ? 'err' : 'muted';
   /* ONLY WHAT NEEDS SAYING (Ravi, 15 Oct: "remove the extra lines"). The count is on the bucket button and what the bucket
    * means is its tooltip, so the line under the toolbar is kept for what is NOT on screen: a failed read, a list cut at
    * 800, a narrowed list (test orders only, filters, a search). Nothing to say → nothing shown. The phase is in the
@@ -122,6 +144,8 @@ function renderFlow() {
   if ($('flRefresh')) $('flRefresh').title = flowPhaseTxt();
   if ($('flMsg').style) { $('flMsg').style.whiteSpace = 'pre-line'; $('flMsg').style.lineHeight = '1.6'; }
   $('flMsg').textContent = [FLOW.err ? 'Could not read the plans: ' + FLOW.err : '',
+    (FLOW.readErr || []).length ? 'Could not read ' + FLOW.readErr.join(', ') + ' — press Refresh' : '',
+    PTG.err ? 'Could not read the order book: ' + PTG.err : '',
     rows.length > 800 ? `${nf(rows.length)} line(s) — showing the oldest 800` : '',
     (FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly()) ? 'Showing test orders only' : '',
     (nFilt || q) && shown.length < all.length ? `Showing ${nf(shown.length)} of ${nf(all.length)} line(s) — ${[q ? `search “${q}”` : '', nFilt ? nFilt + ' filter(s)' : ''].filter(Boolean).join(' + ')}` : '']
@@ -720,9 +744,13 @@ if ($('flXlOut')) $('flXlOut').onclick = () => { try { flowPpcXlOut(FLOW.shownPp
 if ($('flXlIn')) $('flXlIn').onclick = () => $('flXlFile').click();
 if ($('flXlFile')) $('flXlFile').onchange = e => { const f = e.target.files[0]; e.target.value = ''; flowPpcXlIn(f); };
 if ($('flXlNext')) $('flXlNext').onclick = () => flowXlOpenNext();
-$('flRefresh').onclick = async () => { $('flMsg').textContent = 'Reading again…'; await Promise.all([ptLoadGates(true), flowLoad(true),
-  /* the Greige Desk too: the RFD stock is its count (flowRfdStock) */
-  (FLOW_ON && typeof GD !== 'undefined' && GD.reload && flowGdReads() ? GD.reload().catch(() => {}) : null)]); renderFlow(); };
+$('flRefresh').onclick = async () => {
+  try {
+    FLOW.readErr = await flowReads([['the order book and registers', ptLoadGates(true)], ['plans and challans', flowLoad(true)],
+      /* the Greige Desk too: the RFD stock is its count (flowRfdStock) */
+      ['the Greige Desk', FLOW_ON && typeof GD !== 'undefined' && GD.reload && flowGdReads() ? GD.reload() : null]]);
+  } finally { renderFlow(); }
+};
 /* The bucket table's buttons — on the flow screen, and in its tabs inside Cutting Data and the Job Work Register. */
 async function flowTableClick(e) {
   const sm = e.target.closest('[data-flsim]');
