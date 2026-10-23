@@ -24,7 +24,7 @@
  * and this page's own read-only copy of the finished-goods ledger (fgiLoad is not used: it can rewrite the Amazon
  * listings index). */
 
-const FR = { built: false, shown: false, sel: 0, items: [], fg: null, at: '', loading: false, cards: [] };
+const FR = { built: false, shown: false, sel: 0, items: [], fg: null, at: '', loading: false, cards: [], tick: new Set(), subOpen: new Set() };
 const frMay = tab => !!(ME && (ME.admin || (ME.tabs || []).includes(tab)));
 const frTry = (f, d) => { try { return f(); } catch (e) { return d; } };
 const frNum = v => Number(v) || 0;
@@ -191,6 +191,7 @@ function frAskAll(list) {
         try { if (c.act.prep) await c.act.prep(); const e = await c.act.run(); if (e) bad.push(`${c.title}: ${e}`); }
         catch (e) { bad.push(`${c.title}: ${e.message || e}`); }
       }
+      list.forEach(c => FR.tick.delete(c.key));
       frDone(`${list.length - bad.length} of ${list.length} approved`);
       return bad.length ? `${list.length - bad.length} done. Not done:\n${bad.join('\n')}` : '';
     } });
@@ -203,6 +204,17 @@ function frDone(msg) {
 /* ---------- the screen ---------- */
 
 const FR_GROUPS = [['approve', 'Needs your approval', 'fr-warn', '✓'], ['wait', 'Waiting for you', 'fr-go', '⏳'], ['bad', 'Problems', 'fr-bad', '!']];
+/* APPROVALS IN GROUPS (Ravi, 23 Oct: "need your approval … better like grouping, approve at once in a single go"):
+ * one group per kind of approval, each with its own "Approve all N"; tick boxes pick any set, across the groups, for
+ * one "Approve N ticked". A long group shows its first few, with "Show all". Deleting lines and the kinds that open
+ * the screen's own window have no tick box — they are never approved in a batch. */
+const FR_SUBS = [[/^Job work correction/, 'Job work corrections'], [/^Quantity change/, 'Order quantity changes'],
+  [/^Extra hours/, 'Extra hours to authorise'], [/^Printer rate/, 'Printer rates'], [/^Sales order/, 'Sales orders to review'],
+  [/^Finished goods correction/, 'Finished goods corrections'], [/^Delete /, 'Lines asked to be deleted']];
+const FR_SUB_SHOW = 4;
+const frSub = c => { const i = FR_SUBS.findIndex(s => s[0].test(c.title)); return i < 0 ? FR_SUBS.length : i; };
+const frSubName = i => (FR_SUBS[i] || [0, 'Other approvals'])[1];
+const frTickable = c => c.grp === 'approve' && c.act && c.act.bulk;
 /* VIEWING AS (admins): the page as one of the roles (roles.js — R-one's own menu groups and permissions) would see
  * it. A card shows when the role holds its screen, and an approval only when the role also holds the
  * permission that approval needs. It only filters this page; the admin's own access stays the same. */
@@ -249,7 +261,10 @@ function frFinished() {
 function frDraw() {
   if (!FR.shown) return;
   const all0 = frCards().filter(frInView), later = all0.filter(frIsLater);
-  const cards = FR.cards = all0.filter(c => !frIsLater(c)), g = k => cards.filter(c => c.grp === k);
+  const shown = all0.filter(c => !frIsLater(c));
+  /* approvals kind by kind (a stable sort keeps each kind's own order), so J/K walk them as they are drawn */
+  const cards = FR.cards = shown.filter(c => c.grp === 'approve').map((c, i) => [c, i]).sort((a, b) => (frSub(a[0]) - frSub(b[0])) || (a[1] - b[1])).map(x => x[0])
+    .concat(shown.filter(c => c.grp !== 'approve')), g = k => cards.filter(c => c.grp === k);
   const n = k => g(k).reduce((s, c) => s + c.n, 0);
   const name = (ME.name || (ME.email || '').split('@')[0] || '').replace(/[._].*$/, '').replace(/^\w/, c => c.toUpperCase());
   const h = new Date().getHours(), hello = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
@@ -257,6 +272,8 @@ function frDraw() {
   const bulk = g('approve').filter(c => c.act && c.act.bulk);
   const fresh = new Set(frNew(cards).map(c => c.key));
   const scr = t => (frScreens().find(s => s.tab === t) || {}).name || '';
+  FR.tick = new Set([...FR.tick].filter(k => bulk.some(c => c.key === k)));   // gone or approved: no longer ticked
+  const ticked = bulk.filter(c => FR.tick.has(c.key)), card = c => frCardHtml(c, cards, fresh, scr);
   $('frHome').innerHTML = `
     <div class="fr-head2"><div><h1>${esc(hello)}${name ? ', ' + esc(name) : ''}</h1>
       <div class="fr-sub2">${total ? `${total} thing${total > 1 ? 's' : ''} need${total > 1 ? '' : 's'} you today.${n('approve') ? ' Start with the approvals.' : ''}` : FR.loading ? 'Checking what is waiting…' : 'Nothing is waiting for you right now.'}</div>
@@ -264,31 +281,67 @@ function frDraw() {
       <div class="fr-hright">${ME.admin ? `<label class="fr-view" title="What this page shows to one role — your own access stays the same">Viewing as <select data-fr-view>${FR_VIEWS.map(v => `<option value="${v[0]}"${(FR.view || '') === v[0] ? ' selected' : ''}>${v[1]}</option>`).join('')}</select></label>` : ''}
         ${ME.admin ? '<button type="button" class="fr-how" data-fr-roles title="Ready-made roles: what each one gets in R-one">Roles</button>' : ''}
         <button type="button" class="fr-how" data-fr-how>How this page works</button></div></div>
+    ${frAlertCan() && !frAlertOn() && Notification.permission !== 'denied' && !FR.alertHide ? `<div class="fr-alertask"><span>🔔 <b>Get a desktop alert</b> when something new needs you — even when R-one is behind other windows.</span><button type="button" class="fr-yes" data-fr-alert-on>Turn on</button><button type="button" class="fr-later" data-fr-alert-no>Not now</button></div>` : ''}
     <div class="fr-stats">
       <button type="button" class="fr-stat fr-warn" data-fr-jump="approve"><b>${n('approve')}</b><span>Need your approval</span></button>
       <button type="button" class="fr-stat" data-fr-jump="wait"><b>${n('wait').toLocaleString('en-IN')}</b><span>Waiting for you</span></button>
       <button type="button" class="fr-stat fr-bad" data-fr-jump="bad"><b>${n('bad').toLocaleString('en-IN')}</b><span>Problems</span></button>
       <div class="fr-stat fr-done"><b>${frFinished()}</b><span>Finished this week</span></div>
     </div>
-    ${FR_GROUPS.map(([k, title, cls, icon]) => g(k).length ? `<div class="fr-grp" data-fr-grp="${k}"><h3><span>${title} · ${n(k).toLocaleString('en-IN')}</span>${k === 'approve' && bulk.length > 1 ? `<button type="button" class="fr-all" data-fr-all>Approve all ${bulk.length}</button>` : ''}</h3>${g(k).map(c => `
-      <div class="fr-card${cards.indexOf(c) === FR.k ? ' fr-kf' : ''}" data-fr-i="${cards.indexOf(c)}"><div class="fr-dot ${cls}">${icon}</div>
-        <div class="fr-body"><b>${esc(c.title)}${fresh.has(c.key) ? '<i class="fr-new">NEW</i>' : ''}</b>${c.detail ? `<span>${esc(c.detail)}</span>` : ''}${(c.lines || []).map(l => `<span>${esc(l)}</span>`).join('')}${c.more ? `<span class="fr-more">+ ${c.more.toLocaleString('en-IN')} more</span>` : ''}<em>${esc(scr(c.tab))}</em></div>
-        <div class="fr-acts">${c.act ? `<button type="button" class="fr-yes${c.act.danger ? ' fr-danger' : ''}" data-fr-act="${cards.indexOf(c)}">${esc(c.act.label)}</button>` : ''}
-          <button type="button" class="fr-go" data-fr-open="${cards.indexOf(c)}">${c.grp === 'approve' ? 'Open →' : 'Open list →'}</button>
-          <button type="button" class="fr-later" data-fr-later="${cards.indexOf(c)}" title="Hide it from this page until ${frLaterTxt()}">Later</button></div></div>`).join('')}</div>` : '').join('')}
+    ${FR_GROUPS.map(([k, title, cls, icon]) => g(k).length ? `<div class="fr-grp" data-fr-grp="${k}"><h3><span>${title} · ${n(k).toLocaleString('en-IN')}</span>${k === 'approve' && bulk.length > 1 ? `<button type="button" class="fr-all" data-fr-all>Approve all ${bulk.length}</button>` : ''}</h3>${k === 'approve' ? frSubsHtml(g(k), card, ticked) : g(k).map(card).join('')}</div>` : '').join('')}
     ${total ? '' : `<div class="fr-empty">${FR.loading ? '' : '✓'}</div>`}
     ${later.length ? `<div class="fr-snz">${later.length} moved to later · <button type="button" data-fr-unlater>Show them now</button></div>` : ''}
-    <div class="fr-tip2">Approve runs the same approve as the screen itself, after showing what will change. Looking for something else? Press <kbd>Ctrl</kbd> <kbd>K</kbd>. Keys: <kbd>J</kbd> <kbd>K</kbd> move · <kbd>A</kbd> approve · <kbd>O</kbd> open · <kbd>L</kbd> later · <kbd>H</kbd> all keys</div>`;
-  $('frHome').querySelectorAll('[data-fr-open]').forEach(b => b.onclick = () => cards[+b.dataset.frOpen].open());
-  $('frHome').querySelectorAll('[data-fr-act]').forEach(b => b.onclick = () => frAsk(cards[+b.dataset.frAct]));
-  const all = $('frHome').querySelector('[data-fr-all]'); if (all) all.onclick = () => frAskAll(bulk);
-  $('frHome').querySelectorAll('[data-fr-jump]').forEach(b => b.onclick = () => { const s = $('frHome').querySelector(`[data-fr-grp="${b.dataset.frJump}"]`); if (s) s.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
-  $('frHome').querySelector('[data-fr-ref]').onclick = () => frLoad(true);
-  $('frHome').querySelector('[data-fr-how]').onclick = frHow;
-  const rl = $('frHome').querySelector('[data-fr-roles]'); if (rl) rl.onclick = frRoles;
-  $('frHome').querySelectorAll('[data-fr-later]').forEach(b => b.onclick = () => frLater(cards[+b.dataset.frLater]));
-  const un = $('frHome').querySelector('[data-fr-unlater]'); if (un) un.onclick = () => { frLaterSave({}); frDraw(); };
-  const vw = $('frHome').querySelector('[data-fr-view]'); if (vw) vw.onchange = () => { FR.view = vw.value; frDraw(); };
+    <div class="fr-tip2">Approve runs the same approve as the screen itself, after showing what will change. Tick several to approve them in one go. Looking for something else? Press <kbd>Ctrl</kbd> <kbd>K</kbd>. Keys: <kbd>J</kbd> <kbd>K</kbd> move · <kbd>A</kbd> approve · <kbd>O</kbd> open · <kbd>L</kbd> later · <kbd>H</kbd> all keys</div>
+    <div class="fr-tickbar${ticked.length ? '' : ' hide'}"><b>${ticked.length} ticked</b><button type="button" class="fr-yes" data-fr-tickgo>Approve ${ticked.length} ticked</button><button type="button" class="fr-later" data-fr-tickclr>Clear</button></div>`;
+  frWire(cards, bulk, ticked);
+}
+/** One card. An approval that can go in a batch has a tick box where the others have their mark. */
+function frCardHtml(c, cards, fresh, scr) {
+  const [, , cls, icon] = FR_GROUPS.find(x => x[0] === c.grp), i = cards.indexOf(c);
+  return `
+      <div class="fr-card${i === FR.k ? ' fr-kf' : ''}${FR.tick.has(c.key) ? ' fr-ticked' : ''}" data-fr-i="${i}">${frTickable(c) ? `<label class="fr-tick" title="Tick to approve together with others"><input type="checkbox" data-fr-tick="${i}"${FR.tick.has(c.key) ? ' checked' : ''}></label>` : `<div class="fr-dot ${cls}">${icon}</div>`}
+        <div class="fr-body"><b>${esc(c.title)}${fresh.has(c.key) ? '<i class="fr-new">NEW</i>' : ''}</b>${c.detail ? `<span>${esc(c.detail)}</span>` : ''}${(c.lines || []).map(l => `<span>${esc(l)}</span>`).join('')}${c.more ? `<span class="fr-more">+ ${c.more.toLocaleString('en-IN')} more</span>` : ''}<em>${esc(scr(c.tab))}</em></div>
+        <div class="fr-acts">${c.act ? `<button type="button" class="fr-yes${c.act.danger ? ' fr-danger' : ''}" data-fr-act="${i}">${esc(c.act.label)}</button>` : ''}
+          <button type="button" class="fr-go" data-fr-open="${i}">${c.grp === 'approve' ? 'Open →' : 'Open list →'}</button>
+          <button type="button" class="fr-later" data-fr-later="${i}" title="Hide it from this page until ${frLaterTxt()}">Later</button></div></div>`;
+}
+/** The approvals, kind by kind: a heading with a tick-all box and "Approve all N", then the cards (the first few of a
+ *  long kind, and "Show all"). */
+function frSubsHtml(list, card, ticked) {
+  const subs = [...new Set(list.map(frSub))];
+  return subs.map(s => {
+    const mine = list.filter(c => frSub(c) === s), tk = mine.filter(frTickable), open = FR.subOpen.has(s) || mine.length <= FR_SUB_SHOW + 1;
+    const all = tk.length && tk.every(c => FR.tick.has(c.key));
+    return `<div class="fr-sub" data-fr-sub="${s}"><div class="fr-subh">${tk.length ? `<label class="fr-tick" title="Tick all ${tk.length}"><input type="checkbox" data-fr-subtick="${s}"${all ? ' checked' : ''}></label>` : ''}
+        <b>${esc(frSubName(s))}</b><span class="fr-subn">${mine.length}</span>${tk.length > 1 ? `<button type="button" class="fr-suball" data-fr-suball="${s}">Approve all ${tk.length}</button>` : ''}</div>
+      ${(open ? mine : mine.slice(0, FR_SUB_SHOW)).map(card).join('')}${open ? '' : `<button type="button" class="fr-showall" data-fr-subopen="${s}">Show all ${mine.length} ${esc(frSubName(s).toLowerCase())}</button>`}</div>`;
+  }).join('');
+}
+/** The page's buttons and tick boxes. */
+function frWire(cards, bulk, ticked) {
+  const H = $('frHome');
+  H.querySelectorAll('[data-fr-tick]').forEach(b => b.onchange = () => { const c = cards[+b.dataset.frTick]; b.checked ? FR.tick.add(c.key) : FR.tick.delete(c.key); frDraw(); });
+  H.querySelectorAll('[data-fr-subtick]').forEach(b => b.onchange = () => {
+    const s = +b.dataset.frSubtick; cards.filter(c => frTickable(c) && frSub(c) === s).forEach(c => b.checked ? FR.tick.add(c.key) : FR.tick.delete(c.key));
+    if (b.checked) FR.subOpen.add(s);   // what is ticked is on show
+    frDraw();
+  });
+  H.querySelectorAll('[data-fr-suball]').forEach(b => b.onclick = () => frAskAll(bulk.filter(c => frSub(c) === +b.dataset.frSuball)));
+  H.querySelectorAll('[data-fr-subopen]').forEach(b => b.onclick = () => { FR.subOpen.add(+b.dataset.frSubopen); frDraw(); });
+  const go = H.querySelector('[data-fr-tickgo]'); if (go) go.onclick = () => frAskAll(ticked);
+  const clr = H.querySelector('[data-fr-tickclr]'); if (clr) clr.onclick = () => { FR.tick.clear(); frDraw(); };
+  H.querySelectorAll('[data-fr-open]').forEach(b => b.onclick = () => cards[+b.dataset.frOpen].open());
+  H.querySelectorAll('[data-fr-act]').forEach(b => b.onclick = () => frAsk(cards[+b.dataset.frAct]));
+  const all = H.querySelector('[data-fr-all]'); if (all) all.onclick = () => frAskAll(bulk);
+  H.querySelectorAll('[data-fr-jump]').forEach(b => b.onclick = () => { const s = H.querySelector(`[data-fr-grp="${b.dataset.frJump}"]`); if (s) s.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+  H.querySelector('[data-fr-ref]').onclick = () => frLoad(true);
+  H.querySelector('[data-fr-how]').onclick = frHow;
+  const rl = H.querySelector('[data-fr-roles]'); if (rl) rl.onclick = frRoles;
+  H.querySelectorAll('[data-fr-later]').forEach(b => b.onclick = () => frLater(cards[+b.dataset.frLater]));
+  const un = H.querySelector('[data-fr-unlater]'); if (un) un.onclick = () => { frLaterSave({}); frDraw(); };
+  const ao = H.querySelector('[data-fr-alert-on]'); if (ao) ao.onclick = () => frAlertSet(true);
+  const an = H.querySelector('[data-fr-alert-no]'); if (an) an.onclick = () => { FR.alertHide = true; frDraw(); };
+  const vw = H.querySelector('[data-fr-view]'); if (vw) vw.onchange = () => { FR.view = vw.value; frDraw(); };
 }
 
 /* ROLES (admins) — the ready-made roles (roles.js, made from R-one's own access): each one's screens and permissions,
@@ -445,6 +498,7 @@ function frKeys(e) {
   const move = d => {
     if (!cards.length) return;
     FR.k = Math.max(0, Math.min(cards.length - 1, (FR.k == null ? -1 : FR.k) + d));
+    if (!document.querySelector(`#frHome .fr-card[data-fr-i="${FR.k}"]`) && cards[FR.k].grp === 'approve') { FR.subOpen.add(frSub(cards[FR.k])); frDraw(); }   // behind "Show all"
     document.querySelectorAll('#frHome .fr-card').forEach(el => el.classList.toggle('fr-kf', +el.dataset.frI === FR.k));
     const el = document.querySelector(`#frHome .fr-card[data-fr-i="${FR.k}"]`); if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   };
@@ -463,13 +517,14 @@ function frKeys(e) {
 
 /* ---------- new-work pop-ups ---------- */
 
-/* Every 5 minutes, while the site is open and in front, the small approval lists are read again with the screens'
+/* Every 5 minutes, while the site is open (in front or not), the small approval lists are read again with the screens'
  * own loaders (corrections, deletion requests, finished-goods corrections, vendor requests). Anything that was not
  * there before pops up at the bottom with Open. The big lists are not re-read; Refresh does that. */
 const FR_POLL_MS = 5 * 60 * 1000;
 function frKnown() { return new Set(frCards().filter(c => c.grp === 'approve').map(c => c.key)); }
 async function frPoll() {
-  if (document.visibilityState !== 'visible' || !ME || !ME.email || $('appView').classList.contains('hide')) return;
+  /* also while R-one is behind other windows or minimised: that is when a desktop alert is wanted (Ravi, 23 Oct) */
+  if (!ME || !ME.email || $('appView').classList.contains('hide')) return;
   const before = FR.known || frKnown(), jobs = [];
   if (frMay('pbase') && frTry(ptCanEdit, false)) jobs.push(jwCorrLoad());
   if (frMay('so') && frTry(odrCanAnswer, false)) jobs.push(odrLoad(true));
@@ -477,9 +532,43 @@ async function frPoll() {
   await Promise.all(jobs.map(p => Promise.resolve(p).catch(() => {})));
   const now = frCards().filter(c => c.grp === 'approve'), fresh = now.filter(c => !before.has(c.key));
   FR.known = new Set(now.map(c => c.key));
-  fresh.slice(0, 3).forEach(c => frToast(`New: ${c.title}`, { label: 'Open', run: () => c.open() }, 12000));
-  if (fresh.length > 3) frToast(`${fresh.length - 3} more new items on My work today`, { label: 'Show', run: frHomeShow }, 12000);
+  if (fresh.length) frAlert(fresh);
+  if (document.visibilityState === 'visible') {
+    fresh.slice(0, 3).forEach(c => frToast(`New: ${c.title}`, { label: 'Open', run: () => c.open() }, 12000));
+    if (fresh.length > 3) frToast(`${fresh.length - 3} more new items on My work today`, { label: 'Show', run: frHomeShow }, 12000);
+  }
   frCount(); frDraw();
+}
+
+/* DESKTOP ALERTS (Ravi, 23 Oct: "most of our users are laptop and desktop users … a notification reaches them
+ * whenever there is something new"): the computer's own notification, in the corner of the screen, when a new
+ * approval arrives — while R-one is open in a tab, even behind other windows or minimised (not when the browser is
+ * closed: that would need the server to send it). Each person switches it on once (the browser asks "Allow"); kept
+ * per person in this browser. Clicking the alert brings R-one forward and opens the item. */
+const frAlertKey = () => 'frAlerts:' + ((ME && ME.email) || 'anon');
+const frAlertCan = () => typeof Notification !== 'undefined';
+function frAlertOn() {
+  let v = ''; try { v = localStorage.getItem(frAlertKey()) || ''; } catch (e) { /* none */ }
+  return frAlertCan() && Notification.permission === 'granted' && v !== 'off';
+}
+async function frAlertSet(on) {
+  if (!frAlertCan()) { frToast('This browser cannot show desktop alerts.', null, 5000); return false; }
+  if (on && Notification.permission !== 'granted') {
+    if (Notification.permission === 'denied') { frToast('Alerts are blocked for this site — allow them from the lock icon left of the address.', null, 9000); return false; }
+    if (await Notification.requestPermission() !== 'granted') return false;
+  }
+  try { localStorage.setItem(frAlertKey(), on ? 'on' : 'off'); } catch (e) { /* this visit only */ }
+  if (on) { const n = new Notification('R-one desktop alerts are on', { body: 'New approvals will show here, even when R-one is behind other windows.', icon: '/icon-192.png', tag: 'r1-alert-on' }); setTimeout(() => n.close(), 6000); }
+  frDraw();
+  return true;
+}
+function frAlert(fresh) {
+  if (!frAlertOn() || (document.visibilityState === 'visible' && document.hasFocus())) return;   // in front: the pop-ups say it
+  const one = fresh.length === 1, c = fresh[0];
+  const n = new Notification(one ? 'R-one · new approval' : `R-one · ${fresh.length} new approvals`, {
+    body: one ? c.title : fresh.slice(0, 4).map(x => '• ' + x.title).join('\n') + (fresh.length > 4 ? `\n… and ${fresh.length - 4} more` : ''),
+    icon: '/icon-192.png', tag: 'r1-' + (one ? c.key : 'many'), renotify: true });
+  n.onclick = () => { window.focus(); n.close(); if (one) c.open(); else frHomeShow(); };
 }
 
 /* ---------- search everything ---------- */
@@ -548,6 +637,12 @@ function frBuild() {
   const brand = document.querySelector('.side .brand');
   if (brand && brand.parentNode) brand.parentNode.insertBefore(nav, brand.nextSibling); else document.querySelector('.side').prepend(nav);
   nav.onclick = frHomeShow;
+  /* Search, beside it (the top bar's Search button is hidden). */
+  const find = document.createElement('button');
+  find.type = 'button'; find.id = 'frFindNav'; find.className = 'fr-findnav'; find.title = 'Search screens, orders, SKUs — Ctrl K';
+  find.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span>Search</span>';
+  nav.parentNode.insertBefore(find, nav.nextSibling);
+  find.onclick = () => frPalOpen();
   /* The screen itself, in the page beside the app's own screens. */
   const home = document.createElement('section');
   home.id = 'frHome'; home.className = 'hide';
@@ -605,3 +700,66 @@ function frBuild() {
   }, 600);
 }
 frBuild();
+
+/* ---------- Meera, R-one's way ---------- */
+
+/* Ravi, 23 Oct: "a circle in the bottom right of the screen to ask Meera"; while she walks a screen, "if we click
+ * anywhere else except the box then it closes"; and "instead of turn helper off make a skip button to skip the box
+ * slide". So: a round button with her face opens Ask Meera (the top bar's own Ask Meera button is hidden, friendly.css);
+ * a click outside her box ends the walk-round (the click itself does nothing on the page, as before); and her box's
+ * small link is Skip — this step — where it said "Turn helper off". The Helper switch in the top bar still turns
+ * her off. Meera's own files are not changed: this wraps guideShow, the one function that draws each step. */
+function frMeera() {
+  if (typeof guideAskOpen !== 'function' || typeof guideShow !== 'function' || $('frMeeraFab')) return;
+  const fab = document.createElement('button');
+  fab.type = 'button'; fab.id = 'frMeeraFab';
+  fab.title = 'Ask Meera — English, Hindi or Hinglish'; fab.setAttribute('aria-label', 'Ask Meera');
+  fab.innerHTML = GUIDE_FACE + '<span class="fr-fab-tip">Ask Meera</span>';
+  document.body.appendChild(fab);
+  /* Ravi, 23 Oct, of the top bar's bell, My work, Search, Show me and Helper On: "remove these things too". They are
+   * hidden (friendly.css); My work today is the menu's first item, Search sits beside it and in this menu (Ctrl K
+   * still opens it), and Meera's own buttons live here. The bell's news stays as the NEW tags and the pop-ups. */
+  const menu = document.createElement('div');
+  menu.id = 'frMeeraMenu'; menu.className = 'hide'; menu.setAttribute('role', 'menu');
+  document.body.appendChild(menu);
+  const close = () => menu.classList.add('hide');
+  const draw = () => {
+    const on = typeof guideIsOn === 'function' && guideIsOn();
+    menu.innerHTML = `<button type="button" data-m="ask">💬<span><b>Ask Meera</b><small>English, Hindi or Hinglish</small></span></button>`
+      + `<button type="button" data-m="show">🧭<span><b>Show me this screen</b><small>A walk round, step by step</small></span></button>`
+      + `<button type="button" data-m="find">🔍<span><b>Search</b><small>Screens, orders, SKUs · Ctrl K</small></span></button>`
+      + (frAlertCan() ? `<button type="button" data-m="alerts" role="switch" aria-checked="${frAlertOn()}"><i class="fr-sw${frAlertOn() ? ' on' : ''}"></i><span><b>Desktop alerts ${frAlertOn() ? 'on' : 'off'}</b><small>A notification when something new comes</small></span></button>` : '')
+      + `<button type="button" data-m="help" role="switch" aria-checked="${on}"><i class="fr-sw${on ? ' on' : ''}"></i><span><b>Helper ${on ? 'on' : 'off'}</b><small>${on ? 'Walks new screens with you' : 'Only when you ask'}</small></span></button>`;
+  };
+  fab.onclick = e => { e.stopPropagation(); if (menu.classList.contains('hide')) { draw(); menu.classList.remove('hide'); } else close(); };
+  menu.onclick = e => {
+    const b = e.target.closest('[data-m]'); if (!b) return;
+    const m = b.dataset.m;
+    if (m === 'help') { if ($('gdSwitch')) $('gdSwitch').click(); draw(); return; }
+    if (m === 'alerts') { frAlertSet(!frAlertOn()).then(draw); return; }
+    close();
+    if (m === 'ask') guideAskOpen();
+    else if (m === 'show') { if ($('gdShow')) $('gdShow').click(); }
+    else if (m === 'find') frPalOpen();
+  };
+  document.addEventListener('click', e => { if (!menu.classList.contains('hide') && !e.target.closest('#frMeeraMenu, #frMeeraFab')) close(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+  const show = guideShow;
+  guideShow = function () { const r = show.apply(this, arguments); frSkipDraw(); return r; };
+  document.addEventListener('click', e => {
+    if (typeof GUIDE === 'undefined' || !GUIDE.tour || GUIDE.selfClick || !e.isTrusted) return;
+    const t = e.target;
+    if (t.closest && t.closest('#gdBubble, #gdAsk, #gdCtl, #gdResume, #frMeeraFab, #frMeeraMenu, #ptDlg')) return;
+    if (GUIDE.live && GUIDE.el && GUIDE.el.contains(t)) return;   // a "your turn" step: the lit box is hers to use
+    guideClose();
+  }, true);
+}
+/** "Skip" in place of "Turn helper off": the next step, or the end on the last one. */
+function frSkipDraw() {
+  const b = $('gdOff'); if (!b) return;
+  b.textContent = typeof guideLang === 'function' && guideLang() === 'hi' ? 'छोड़ें' : 'Skip';
+  b.title = 'Skip this step';
+  b.classList.add('fr-skip');
+  b.onclick = () => guideGo(1);
+}
+frWhen(() => $('gdRoot') && typeof guideAskOpen === 'function', frMeera, 150);

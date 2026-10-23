@@ -1806,6 +1806,66 @@ html.mob #frCtl button{height:30px;padding:0 9px}
 #grpDash,#secDash,#tabDash{display:none!important}
 .side .navwrap:has(> #grpDash){display:none!important}
 
+/* Approvals in groups: a group per kind, each with a tick-all box and "Approve all N"; tick boxes on the cards; a bar
+   at the bottom for "Approve N ticked". */
+.fr-sub{background:var(--card,#fff);border-radius:16px;box-shadow:var(--sh-1,0 2px 10px rgba(20,24,31,.05));padding:4px 6px 6px;margin-bottom:12px}
+.fr-sub .fr-card{box-shadow:none;border-radius:12px;margin:0;padding:10px 10px;border-top:1px solid var(--line,#E8EDF3)}
+.fr-sub .fr-card:hover{background:var(--soft,#F7F9FB)}
+.fr-sub .fr-card.fr-ticked{background:var(--brand-bg,#E9EFF6)}
+.fr-sub .fr-card.fr-kf{box-shadow:0 0 0 2px var(--brand,#4A6A92)}
+.fr-subh{display:flex;align-items:center;gap:10px;padding:8px 10px}
+.fr-subh b{font-size:14px}
+.fr-subn{background:var(--warn-bg,#FFF3D6);color:var(--warn-ink,#8A5A12);border-radius:999px;padding:0 8px;font-size:12px;font-weight:700;line-height:20px}
+.fr-suball{margin-left:auto;border:1px solid var(--accent,#4A5A3C);background:#fff;color:var(--accent,#4A5A3C);border-radius:10px;height:30px;padding:0 12px;font-weight:700;font-size:12.5px;cursor:pointer;white-space:nowrap}
+.fr-suball:hover{background:var(--accent,#4A5A3C);color:#fff}
+.fr-tick{width:34px;height:34px;display:grid;place-items:center;flex:0 0 auto;cursor:pointer}
+.fr-subh .fr-tick{width:22px;height:22px}
+.fr-tick input{width:18px;height:18px;margin:0;cursor:pointer;accent-color:var(--brand,#4A6A92)}
+.fr-showall{display:block;width:100%;border:0;border-top:1px solid var(--line,#E8EDF3);background:none;color:var(--brand-ink,#3A5573);font-weight:700;font-size:13px;padding:10px;cursor:pointer;border-radius:0 0 12px 12px}
+.fr-showall:hover{background:var(--soft,#F7F9FB)}
+.fr-tickbar{position:sticky;bottom:16px;z-index:5;display:flex;align-items:center;gap:12px;margin:14px auto 0;width:max-content;max-width:100%;background:#14181F;color:#fff;border-radius:14px;padding:8px 10px 8px 18px;box-shadow:0 12px 32px rgba(20,24,31,.25)}
+.fr-tickbar.hide{display:none}
+.fr-tickbar .fr-later{color:#C9D2DE}
+.fr-tickbar .fr-later:hover{color:#fff}
+@media (max-width:760px){.fr-suball{margin-left:0}.fr-subh{flex-wrap:wrap}.fr-sub .fr-acts{padding-left:46px}}
+
+/* Meera: the round Ask Meera button at the bottom right (in place of the top bar's), and "Skip" in her box. */
+#gdAskBtn{display:none!important}
+#frMeeraFab{position:fixed;right:22px;bottom:22px;z-index:10050;width:58px;height:58px;border-radius:50%;padding:0;border:3px solid #fff;background:var(--brand,#4A6A92);
+  box-shadow:0 8px 24px rgba(20,24,31,.25);cursor:pointer;display:grid;place-items:center;transition:transform .15s ease}
+#frMeeraFab:hover{transform:scale(1.06)}
+#frMeeraFab .gd-face{width:100%;height:100%;border-radius:50%;box-shadow:none}
+.fr-fab-tip{position:absolute;right:66px;top:50%;transform:translateY(-50%);background:#14181F;color:#fff;font-size:12.5px;font-weight:700;border-radius:8px;padding:5px 10px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .15s ease}
+#frMeeraFab:hover .fr-fab-tip{opacity:1}
+html.mob #frMeeraFab{bottom:84px;right:14px;width:50px;height:50px}
+#gdBubble .gd-link.fr-skip{border:1px solid var(--line,#E8EDF3);border-radius:8px;padding:0 12px;height:30px;min-height:30px;font-weight:600;color:var(--muted,#5A6472);text-decoration:none}
+#gdBubble .gd-link.fr-skip:hover{background:var(--soft,#F7F9FB);color:var(--ink,#14181F)}
+
+/* The top bar's own buttons are taken away (Ravi, 23 Oct: "remove these things too"): the bell, My work, Search,
+   Show me and Helper On. Search sits beside My work today in the menu; Meera's buttons are in her round button's menu. */
+#frCtl,#gdCtl{display:none!important}
+.fr-findnav{display:flex;align-items:center;gap:6px;border:1px solid var(--line,#E8EDF3);background:#fff;color:var(--muted,#5A6472);font-weight:600;
+  border-radius:var(--r-pill,999px);padding:7px 12px;margin-right:6px;cursor:pointer;white-space:nowrap;font-size:13px}
+.fr-findnav:hover{color:var(--ink,#14181F);border-color:var(--muted,#5A6472)}
+#frMeeraMenu{position:fixed;right:22px;bottom:92px;z-index:10055;width:270px;background:#fff;border-radius:14px;box-shadow:0 16px 40px rgba(20,24,31,.22);padding:6px;display:flex;flex-direction:column}
+#frMeeraMenu.hide{display:none}
+#frMeeraMenu button{display:flex;align-items:center;gap:12px;border:0;background:none;text-align:left;padding:9px 10px;border-radius:10px;cursor:pointer;font:inherit;font-size:16px}
+#frMeeraMenu button:hover{background:var(--soft,#F7F9FB)}
+#frMeeraMenu span{display:flex;flex-direction:column;gap:1px}
+#frMeeraMenu b{font-size:13.5px;color:var(--ink,#14181F)}
+#frMeeraMenu small{font-size:12px;color:var(--muted,#5A6472)}
+#frMeeraMenu button + button{border-top:1px solid var(--line,#E8EDF3);border-radius:0}
+.fr-sw{position:relative;width:30px;height:18px;border-radius:999px;background:#C9D2DE;flex:0 0 auto}
+.fr-sw::after{content:'';position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:left .15s ease}
+.fr-sw.on{background:var(--accent,#4A5A3C)}
+.fr-sw.on::after{left:14px}
+html.mob #frMeeraMenu{right:14px;bottom:144px}
+
+/* Desktop alerts: the one-time "Turn on" line on My work today. */
+.fr-alertask{display:flex;align-items:center;gap:12px;background:var(--brand-bg,#E9EFF6);color:var(--brand-ink,#3A5573);border-radius:14px;padding:10px 12px 10px 16px;margin-bottom:14px;flex-wrap:wrap}
+.fr-alertask span{flex:1;min-width:220px}
+.fr-alertask .fr-yes{background:var(--brand,#4A6A92)}
+
 /* R-one (brand.py): the wordmark where the name was. */
 .r1-brand img{height:26px;width:auto;display:block}
 .side .r1-brand img{height:22px}
