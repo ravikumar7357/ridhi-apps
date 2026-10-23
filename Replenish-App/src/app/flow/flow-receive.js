@@ -310,7 +310,62 @@ function flowRecvDayXl(q, testOnly) {
   a.click(); URL.revokeObjectURL(a.href);
   return '';
 }
+/* COMING FROM THE PRINTERS (Ravi, 23 Oct: "yaha challan wale bande ko always pata rahe ki printing se ye mal aane wala h chah rfd
+ * wala band bheje ya n bheje"). Every order line PPC gave to a printer and not yet back in full — whether the cloth went on a
+ * challan or the RFD team has not sent it yet — so whoever takes printed goods in knows what each printer owes. Printed
+ * stock taken and cloth already in hand are not owed by anybody, so they are not here. */
+function flowDueRows(q, testOnly) {
+  const out = [];
+  flowRows().forEach(({ r, s }) => {
+    const p = s.plan; if (!p || !flowPrinted(s.route) || s.fromStock || flowInHand(p) || (testOnly && !r.__t)) return;
+    const pr = p.printer || {}; if (!pr.code && !pr.name) return;
+    const qty = +r.qty || 0; if (s.back >= qty) return;
+    const cx = s.challan || null, need = flowR2(+s.fabNeed || 0), sent = flowR2(+s.fabSent || 0), back = flowR2(cx ? +cx.recv || 0 : 0);
+    const left = flowR2(need - back); if (!(left > 0.001)) return;
+    const l = { key: s.key, sku: obUC(r.sku), item: flowChItem(r), print: flowPrintWhat(r, p), fabric: (p.fabric && p.fabric.name) || '' };
+    out.push({ printer: pr.name || String(pr.code), code: String(pr.code || ''), orderNo: r.orderNo, sku: obUC(r.sku), orderDate: ptIsoDate(r.orderDate) || '', l,
+      unit: s.fabUnit || 'm', need, sent, back, left, withPrinter: flowR2(Math.max(0, sent - back)), notSent: flowR2(Math.max(0, need - Math.max(sent, back))),
+      challan: cx ? cx.no : '', po: s.po || '', test: !!r.__t });
+  });
+  const hay = x => [x.printer, x.orderNo, x.sku, x.challan, x.po, x.l.fabric, (x.l.print && x.l.print.code) || ''].join(' ').toLowerCase();
+  return out.filter(x => !q || hay(x).includes(q))
+    .sort((a, b) => a.printer.localeCompare(b.printer) || String(a.orderDate).localeCompare(String(b.orderDate)) || a.orderNo.localeCompare(b.orderNo));
+}
+function flowDueTable(q, testOnly) {
+  const rows = flowDueRows(q, testOnly);
+  const by = new Map(); rows.forEach(x => { const e = by.get(x.printer) || by.set(x.printer, { w: [], n: [], lines: 0 }).get(x.printer); e.lines++; if (x.withPrinter) e.w.push([x.withPrinter, x.unit]); if (x.notSent) e.n.push([x.notSent, x.unit]); });
+  const sum = rows.length ? `<tr><td colspan="9" style="text-align:left;background:#eff6ff;font-size:12.5px;white-space:normal"><b>Owed by the printers</b> — `
+    + [...by.entries()].map(([p, e]) => `<b>${esc(p)}</b> ${nf(e.lines)} line(s): ${e.w.length ? flowMixTxt(e.w) + ' cloth with them' : ''}${e.w.length && e.n.length ? ' · ' : ''}${e.n.length ? `<span style="color:#b45309">${flowMixTxt(e.n)} RFD not sent yet</span>` : ''}`).join(' &nbsp;|&nbsp; ') + '</td></tr>' : '';
+  let prev = '';
+  const body = rows.map(x => { const head = x.printer !== prev; prev = x.printer;
+    return `<tr${head ? ' style="border-top:2px solid #cbd5e1"' : ''}><td class="frz" style="text-align:left"><b>${head ? esc(x.printer) : ''}</b></td>
+    <td style="text-align:left">${esc(x.orderNo)}${x.test ? ' <span class="navbadge" style="background:#7c3aed;position:static">TEST</span>' : ''}<div class="muted" style="font-size:10.5px">${esc(x.orderDate)}</div></td>
+    <td style="text-align:left;font-size:12px;white-space:normal;min-width:220px">${flowChLineWhat(x.l)}</td>
+    <td class="num">${flowQtyTxt(x.need, x.unit)}</td>
+    <td class="num">${x.withPrinter ? `<b>${flowQtyTxt(x.withPrinter, x.unit)}</b>` : '<span class="muted">—</span>'}${x.challan ? `<div style="font-size:10.5px"><a href="#" data-flchp="${esc(x.challan)}">${esc(x.challan)}</a></div>` : ''}</td>
+    <td class="num">${x.notSent ? `<b style="color:#b45309">${flowQtyTxt(x.notSent, x.unit)}</b><div class="muted" style="font-size:10.5px">RFD not sent yet</div>` : '<span class="muted">—</span>'}</td>
+    <td class="num">${x.back ? flowQtyTxt(x.back, x.unit) : '<span class="muted">0</span>'}</td>
+    <td class="num"><b>${flowQtyTxt(x.left, x.unit)}</b></td>
+    <td style="text-align:left;font-size:11.5px">${esc(x.po)}</td></tr>`; }).join('');
+  return `<thead><tr><th class="frz" style="text-align:left">Printer</th><th style="text-align:left">Order</th><th style="text-align:left">What comes back</th><th>To print</th>`
+    + `<th>Cloth with printer</th><th>Not sent yet</th><th>Back so far</th><th>Still to come</th><th style="text-align:left">Print order</th></tr></thead><tbody>` + sum
+    + (body || `<tr><td colspan="9" class="muted" style="padding:16px">Nothing is owed by a printer${q ? ` for “${esc(q)}”` : ''}.</td></tr>`) + '</tbody>';
+}
+function flowDueXl(q, testOnly) {
+  const rows = flowDueRows(q, testOnly); if (!rows.length) return 'Nothing is owed by a printer.';
+  const out = [['Printer', 'Order', 'Order date', 'For SKU', 'Printed fabric SKU', 'Fabric', 'Unit', 'To print', 'Cloth with printer', 'RFD not sent yet', 'Back so far', 'Still to come', 'Challan', 'Print order']];
+  rows.forEach(x => out.push([x.printer, x.orderNo, x.orderDate, x.sku, x.unit === 'm' ? ((x.l.print && x.l.print.code) || '') : '', x.l.fabric, x.unit, x.need, x.withPrinter, x.notSent, x.back, x.left, x.challan, x.po]));
+  const bytes = recipeXlsx(out, { name: 'Coming from printers', freeze: 1, cols: {} });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+  a.download = 'coming-from-printers-' + dToday() + '.xlsx';
+  a.click(); URL.revokeObjectURL(a.href);
+  return '';
+}
 if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+  document.addEventListener('click', e => { const t = e.target; if (!t || !t.closest || !t.closest('[data-fldxl]')) return; e.preventDefault();
+    const er = flowDueXl(String($('flQ').value || '').trim().toLowerCase(), FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly());
+    if (er) { $('flMsg').className = 'err'; $('flMsg').textContent = er; } });
   document.addEventListener('change', e => { const t = e.target; if (!t || !t.dataset || !t.dataset.flhd) return;
     FLOW_HD[t.dataset.flhd] = t.value || ''; if (t.dataset.flhd === 'from' && FLOW_HD.to && FLOW_HD.to < FLOW_HD.from) FLOW_HD.to = FLOW_HD.from; renderFlow(); });
   document.addEventListener('click', e => { const t = e.target; if (!t || !t.closest) return;
