@@ -122,8 +122,8 @@ function vlFind(r) {
  */
 async function vlAcceptWrite(rows, qtyFor, note, rejFor, ordersFor) {
   if (!vlCanAccept()) return VLOG_NO_ACCEPT;
-  /* A FLOW ORDER'S PRINTED FABRIC IS RECEIVED ON ITS CHALLAN (PPC · Production flow → Demand → Printed fabric in · history), never here. */
-  if (rows.some(r => flowVoIsFlow({ id: r.id }))) return 'Not accepted — a Production flow order is received on its RFD challan: PPC · Production flow → Demand → Printed fabric in · history.';
+  /* A FLOW ORDER'S PRINTED FABRIC IS RECEIVED ON ITS CHALLAN (PPC · Production flow → Demand → Printed fabric in), never here. */
+  if (rows.some(r => flowVoIsFlow({ id: r.id }))) return 'Not accepted — a Production flow order is received on its RFD challan: PPC · Production flow → Demand → Printed fabric in.';
   if (!rows.length) return '';
   const now = new Date().toISOString();
   /* Grouped by order: one write each, however many of its deliveries are being accepted. */
@@ -307,7 +307,7 @@ function vlAcceptOne(rowKey) {
 async function vlNoWrite(r, note, undo) {
   if (!vlCanAccept()) return VLOG_NO_ACCEPT;
   /* A flow order's deliveries are its challan receipts — nothing here to mark. */
-  if (flowVoIsFlow({ id: r.id })) return 'Not changed — a Production flow order is received on its RFD challan: PPC · Production flow → Demand → Printed fabric in · history.';
+  if (flowVoIsFlow({ id: r.id })) return 'Not changed — a Production flow order is received on its RFD challan: PPC · Production flow → Demand → Printed fabric in.';
   const found = vlFind(r);
   if (!found) return 'That delivery is no longer there — press Refresh.';
   const lines = found.lines.map(l => Object.assign({}, l));

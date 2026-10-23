@@ -323,7 +323,8 @@ function flowDueRows(q, testOnly) {
     const cx = s.challan || null, need = flowR2(+s.fabNeed || 0), sent = flowR2(+s.fabSent || 0), back = flowR2(cx ? +cx.recv || 0 : 0);
     const left = flowR2(need - back); if (!(left > 0.001)) return;
     const l = { key: s.key, sku: obUC(r.sku), item: flowChItem(r), print: flowPrintWhat(r, p), fabric: (p.fabric && p.fabric.name) || '' };
-    out.push({ printer: pr.name || String(pr.code), code: String(pr.code || ''), orderNo: r.orderNo, sku: obUC(r.sku), orderDate: ptIsoDate(r.orderDate) || '', l,
+    const tp = flowToPrint(r, p), mPerPc = tp.pcs ? flowR2(tp.metres / tp.pcs) : (+(p.fabric && p.fabric.perPc) || 0);
+    out.push({ printer: pr.name || String(pr.code), code: String(pr.code || ''), orderNo: r.orderNo, sku: obUC(r.sku), orderDate: ptIsoDate(r.orderDate) || '', l, r, mPerPc,
       unit: s.fabUnit || 'm', need, sent, back, left, withPrinter: flowR2(Math.max(0, sent - back)), notSent: flowR2(Math.max(0, need - Math.max(sent, back))),
       challan: cx ? cx.no : '', po: s.po || '', test: !!r.__t });
   });
@@ -338,7 +339,7 @@ function flowDueTable(q, testOnly) {
     + [...by.entries()].map(([p, e]) => `<b>${esc(p)}</b> ${nf(e.lines)} line(s): ${e.w.length ? flowMixTxt(e.w) + ' cloth with them' : ''}${e.w.length && e.n.length ? ' · ' : ''}${e.n.length ? `<span style="color:#b45309">${flowMixTxt(e.n)} RFD not sent yet</span>` : ''}`).join(' &nbsp;|&nbsp; ') + '</td></tr>' : '';
   let prev = '';
   const body = rows.map(x => { const head = x.printer !== prev; prev = x.printer;
-    return `<tr${head ? ' style="border-top:2px solid #cbd5e1"' : ''}><td class="frz" style="text-align:left"><b>${head ? esc(x.printer) : ''}</b></td>
+    return `<tr${head ? ' style="border-top:2px solid #cbd5e1"' : ''}><td class="frz" style="text-align:left;vertical-align:top">${head ? `<b>${esc(x.printer)}</b><div><button data-fldrc="${esc(x.code || x.printer)}" style="width:auto;padding:3px 10px;font-size:12px;margin-top:4px">Receive</button></div>` : ''}</td>
     <td style="text-align:left">${esc(x.orderNo)}${x.test ? ' <span class="navbadge" style="background:#7c3aed;position:static">TEST</span>' : ''}<div class="muted" style="font-size:10.5px">${esc(x.orderDate)}</div></td>
     <td style="text-align:left;font-size:12px;white-space:normal;min-width:220px">${flowChLineWhat(x.l)}</td>
     <td class="num">${flowQtyTxt(x.need, x.unit)}</td>
@@ -351,6 +352,94 @@ function flowDueTable(q, testOnly) {
     + `<th>Cloth with printer</th><th>Not sent yet</th><th>Back so far</th><th>Still to come</th><th style="text-align:left">Print order</th></tr></thead><tbody>` + sum
     + (body || `<tr><td colspan="9" class="muted" style="padding:16px">Nothing is owed by a printer${q ? ` for “${esc(q)}”` : ''}.</td></tr>`) + '</tbody>';
 }
+/* RECEIVED HERE, AGAINST THE ORDER (Ravi, 23 Oct: "printed fabric in me wo sare order dikhne chahiye jo mene printero ko order
+ * kiye hue h and bahi par challan wala banda receiving le"). Receive from a printer: every line it owes, each starting at 0.
+ * What came is put on the line's open challans, oldest first, up to what each still owes. What came beyond the cloth on
+ * challans — the RFD team never made one — goes on ONE record challan for that printer (noChallan): its cloth given and
+ * received in the same breath, closed, and taken off RFD stock unless the box is cleared. */
+const flowDueOf = key => flowDueRows('', false).filter(x => (x.code || x.printer) === key);
+function flowDueOpenChs(lineKey) {
+  return Object.values(FLOW.ch || {}).filter(c => c && !c.cancelled && !c.closed).map(c => {
+    const l = (c.lines || []).find(y => y.key === lineKey && !y.ruffleOnly && !flowChMoved(c, y)); if (!l) return null;
+    return { c, l, rem: flowR2(Math.max(0, flowChSent(l) - (flowChRecv(c)[lineKey] || 0))) };
+  }).filter(y => y && y.rem > 0).sort((a, b) => String(a.c.date || '').localeCompare(String(b.c.date || '')) || String(a.c.no).localeCompare(String(b.c.no)));
+}
+async function flowDueRecvSave(key, got, o) {
+  const rows = flowDueOf(key); if (!rows.length) return 'Nothing is owed by that printer any more — press Refresh.';
+  const date = (o && o.date) || dToday(), note = (o && o.note) || '', deduct = !(o && o.deduct === false), now = new Date().toISOString();
+  const per = new Map(), extra = [], bad = [];
+  rows.forEach(x => {
+    const q = flowR2(+got[x.l.key] || 0); if (!(q > 0)) return;
+    if (x.unit === 'pcs' && q !== Math.round(q)) return bad.push(`${x.sku}: pieces are whole`);
+    if (q > (x.unit === 'pcs' ? x.left : x.left * 1.1) + 1e-9) return bad.push(`${x.orderNo} ${x.sku}: ${flowQtyTxt(q, x.unit)} is more than the ${flowQtyTxt(x.left, x.unit)} still to come`);
+    let rest = q;
+    flowDueOpenChs(x.l.key).forEach(({ c, rem }) => { if (rest <= 0) return; const t = flowR2(Math.min(rest, rem)); rest = flowR2(rest - t);
+      const e = per.get(c.no) || per.set(c.no, {}).get(c.no); e[x.l.key] = flowR2((e[x.l.key] || 0) + t); });
+    if (rest > 0) extra.push({ x, q: rest });
+  });
+  if (bad.length) return bad.join(' · ');
+  if (!per.size && !extra.length) return 'Type what came back for at least one line.';
+  for (const no of per.keys()) { const g = await flowGuard('ch_' + no); if (g) return g; }
+  const patch = {}, made = [], chNew = Object.assign({}, FLOW.ch);
+  per.forEach((items, no) => {
+    const c = FLOW.ch[no], recv = flowChRecv(c), id = 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const rc = { date, items, note, at: now, by: ME.email || '', via: 'printed fabric in' };
+    patch[`pt_flowChallans/${no}/receipts/${id}`] = rc;
+    const allBack = (c.lines || []).every(l => flowChMoved(c, l) || (recv[l.key] || 0) + (items[l.key] || 0) >= flowChSent(l) - 0.01);
+    const nc = Object.assign({}, c, { receipts: Object.assign({}, c.receipts, { [id]: rc }) });
+    if (allBack) { nc.closed = patch[`pt_flowChallans/${no}/closed`] = { at: now, by: ME.email || '', why: 'all received' }; }
+    chNew[no] = nc;
+  });
+  if (extra.length) {
+    const x0 = extra[0].x, test = extra.every(e => e.x.test), orders = [...new Set(extra.map(e => e.x.orderNo))];
+    const lines = extra.map(({ x, q }) => Object.assign({}, x.l, { orderNo: x.orderNo, extras: [], pcs: x.unit === 'pcs' ? q : (x.mPerPc ? Math.round(q / x.mPerPc) : 0), metres: flowR2(x.unit === 'pcs' ? q * x.mPerPc : q) }));
+    let no = flowChallanNo(date, test);
+    const ch = { no, date, orderNo: orders.join(', '), orders, vendor: { code: x0.code, name: x0.printer }, at: now, by: ME.email || '',
+      recordOnly: true, noChallan: true, deduct, note: 'Printed goods received with no RFD challan — the cloth went without one' + (note ? ' · ' + note : ''),
+      lines, receipts: { r0: { date, at: now, by: ME.email || '', items: Object.fromEntries(extra.map(({ x, q }) => [x.l.key, q])), note, via: 'printed fabric in' } },
+      closed: { at: now, by: ME.email || '', why: 'received with no RFD challan — record' } };
+    for (let k = 0, taken = []; ; k++) {
+      let er = ''; try { er = await flowClaim('pt_flowChallans/' + no, ch); } catch (e) { return 'Could not save: ' + (e.message || e); }
+      if (!er) break;
+      if (k >= 15) return 'Could not get a free challan number — press Refresh and try again.';
+      taken.push(no); no = flowChallanNo(date, test, taken); ch.no = no;
+    }
+    if (typeof ptCas !== 'function') patch['pt_flowChallans/' + no] = ch;
+    chNew[no] = ch; made.push(no);
+  }
+  try { if (Object.keys(patch).length) await ptPatch(patch); } catch (e) { return 'Could not save: ' + (e.message || e); }
+  FLOW.ch = chNew;
+  flowDueRecvSave.said = `Received from ${rows[0].printer}${per.size ? ` on ${[...per.keys()].join(', ')}` : ''}${made.length ? `${per.size ? '; ' : ' — '}no RFD challan for some of it, recorded on ${made.join(', ')}` : ''}.`;
+  return '';
+}
+function flowDueRecvOpen(key) {
+  const rows = flowDueOf(key); if (!rows.length) return;
+  const pic = sku => (typeof ptImgSpan === 'function' ? ptImgSpan(sku, 40) : '');
+  ptOpenDialog({
+    title: `Receive from ${rows[0].printer}`,
+    subtitle: `${nf(rows.length)} line(s) this printer owes. Type what came now, in the form it was given — printed cloth in metres, pieces printed on the SKU in pieces. A line left at 0 stays owed.`,
+    html: `<label>Date<input id="fldrDate" type="date" value="${esc(dToday())}"></label>
+      <div class="xlwrap" style="max-height:52vh;margin-top:8px"><table class="xl" style="width:100%"><thead><tr><th style="width:52px">Photo</th><th style="text-align:left">Order · what comes back</th><th>Cloth with printer</th><th>RFD not sent</th><th>Still to come</th><th>Received now</th></tr></thead><tbody>
+      ${rows.map((x, i) => `<tr><td>${pic(x.sku)}</td><td style="text-align:left;white-space:normal"><b>${esc(x.orderNo)}</b> · ${flowChLineWhat(x.l, true)}</td>
+        <td class="num">${x.withPrinter ? flowQtyTxt(x.withPrinter, x.unit) : '—'}</td><td class="num">${x.notSent ? `<span style="color:#b45309">${flowQtyTxt(x.notSent, x.unit)}</span>` : '—'}</td>
+        <td class="num"><b>${flowQtyTxt(x.left, x.unit)}</b></td>
+        <td class="num"><input data-fldq="${i}" type="number" min="0" step="${x.unit === 'pcs' ? 1 : 0.01}" value="0" onfocus="this.select()" style="width:85px;padding:3px 6px;font-size:12px"> ${x.unit}</td></tr>`).join('')}
+      </tbody></table></div>
+      <label style="display:flex;gap:6px;align-items:center;margin-top:8px"><input id="fldrDed" type="checkbox" checked style="width:auto"> Where no RFD challan was made, take that cloth off RFD stock (it left the store without one)</label>
+      <label style="display:block;margin-top:8px">Note (lot, vehicle, quality…)<input id="fldrNote"></label>`,
+    saveLabel: 'Received',
+    onSave: async () => {
+      const got = {}; rows.forEach((x, i) => { const v = +((document.querySelector(`[data-fldq="${i}"]`) || {}).value || 0); if (v > 0) got[x.l.key] = v; });
+      const er = await flowDueRecvSave(key, got, { date: $('fldrDate').value, note: ($('fldrNote').value || '').trim(), deduct: !!$('fldrDed').checked });
+      if (er) return er;
+      renderFlow(); $('flMsg').className = 'muted'; $('flMsg').textContent = flowDueRecvSave.said; return '';
+    },
+  });
+  if (typeof ptImgFill === 'function') ptImgFill(rows.map(x => x.sku), false, typeof ptImgPatch === 'function' ? ptImgPatch : null);
+}
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('click', e => {
+  const t = e.target; const b = t && t.closest && t.closest('[data-fldrc]'); if (!b) return; e.preventDefault(); flowDueRecvOpen(b.getAttribute('data-fldrc'));
+});
 function flowDueXl(q, testOnly) {
   const rows = flowDueRows(q, testOnly); if (!rows.length) return 'Nothing is owed by a printer.';
   const out = [['Printer', 'Order', 'Order date', 'For SKU', 'Printed fabric SKU', 'Fabric', 'Unit', 'To print', 'Cloth with printer', 'RFD not sent yet', 'Back so far', 'Still to come', 'Challan', 'Print order']];
