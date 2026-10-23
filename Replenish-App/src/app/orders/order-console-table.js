@@ -454,6 +454,10 @@ async function spIssueReal(orderNo, sku, type, name, pcs, date, remarks, extraRe
    * rows with no article, subtype or size have no rate, so karigar pay could not be worked out (104 rows, 13-28 Sep).
    * What that list's own record says fills what the line leaves empty — never a guess, so a wrong rate cannot
    * slip in quietly; what the line does say is kept. */
+  /* WhatsApp is opened now, while this is still the click — see waPreOpen. Not during a bulk entry: one window
+   * per line of a sheet would be a pile of windows nobody asked for, and the 💬 on each row is still there. */
+  SP_WA_NOTE = '';
+  const waWin = SP_QUIET ? null : waPreOpen({ empName: emp[1], issueDate: ptStampDate(d) });
   let meta = {};
   if (!mdbOf(obUC(sku)) && typeof MDBX !== 'undefined') {
     try { await ptEnsureCustom(); } catch (e) { /* the line alone, as before */ }
@@ -475,8 +479,9 @@ async function spIssueReal(orderNo, sku, type, name, pcs, date, remarks, extraRe
     addedBy: ME.email, addedAt: new Date().toISOString(),
   };
   try { await ptPut('pt_baseData/' + entry.id, entry); }
-  catch (e) { return 'Not saved: ' + (e.message || e); }
+  catch (e) { waPreClose(waWin); return 'Not saved: ' + (e.message || e); }
   PT.base = (PT.base || []).concat([Object.assign({ _key: entry.id }, entry)]);
+  if (!SP_QUIET) SP_WA_NOTE = await waAfterIssue(waWin, entry);
   /* WHAT GOES WITH THE PIECES, as the form does it: the zippers, and a ruffle's fabric. Both are keyed
    * on this row, so they can never be taken twice, and deleting the issue gives them back. The issue
    * itself is saved by now, so a failure here is reported rather than returned — returning it would
@@ -507,11 +512,18 @@ async function spReceiveReal(orderNo, sku, pcs, date, fromName) {
   const pend = open.reduce((a, r) => a + ptNum(r.pendingPieces), 0);
   if (left > pend) return `Only ${nf(pend)} piece(s) are out with ${from ? fromName : 'the karigars'} on this line.`;
   const d = String(date || '').trim() || dToday();
+  /* WHATSAPP FOR THE RECEIPT, opened while this is still the click (see waPreOpen). Only when ONE issue takes the
+   * pieces: one window holds one message, and the 💬 on each row is there when several close at once. */
+  SP_WA_NOTE = '';
+  let waLeft = left; const waRows = open.filter(r => { const t = waLeft > 0; waLeft -= ptNum(r.pendingPieces); return t; });
+  const waOne = !SP_QUIET && waRows.length === 1 ? waRows[0] : null;
+  const waWin = waOne ? waPreOpen(waReceiptRow(waOne, left, ptStampDate(d)), 'receive') : null;
+  if (!SP_QUIET && waRows.length > 1) SP_WA_NOTE = ` ${nf(waRows.length)} issues took these pieces, so WhatsApp did not open by itself — use 💬 on each row.`;
   for (const row of open) {
     if (left <= 0) break;
     const take = Math.min(left, ptNum(row.pendingPieces));
     const res = bdApplyRecv(row, take, ptStampDate(d));      // the receipt is dated the day the goods came in
-    if (res.err) return res.err;
+    if (res.err) { waPreClose(waWin); return res.err; }
     /* THE ROW IS CLOSED THE WAY THE BASE DATA SCREEN CLOSES IT. Payroll pays a row once it carries a
      * receiving date, and Base Data stamps that date only when the last piece is back. Stamping it on
      * every receipt paid a half-finished Shopify issue that an ordinary one would not have been paid
@@ -520,7 +532,8 @@ async function spReceiveReal(orderNo, sku, pcs, date, fromName) {
     /* Only a row closing for the FIRST time takes the day that was picked; one that already carries
      * a receiving date keeps it, admin's override apart. */
     if (res.row.frozen && !row.receivingDate) res.row.receivingDate = ptStampDate(d);
-    try { await bdSaveRow(res.row); } catch (e) { return 'Not saved: ' + (e.message || e); }
+    try { await bdSaveRow(res.row); } catch (e) { waPreClose(waWin); return 'Not saved: ' + (e.message || e); }
+    if (waOne && row.id === waOne.id) SP_WA_NOTE = await waAfterSave(waWin, waReceiptRow(res.row, take, ptStampDate(d)), 'receive');
     left -= take;
   }
   if (!SP_QUIET) renderOrd();

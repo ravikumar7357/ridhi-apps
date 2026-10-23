@@ -12,11 +12,12 @@
  * tool has the same limit. It is called "opened" wherever this app has room to say so.
  */
 const WA_CUTOFF_DEFAULT = '2026-06-01';
-/* The tracker's own wording, used when pt_waTemplates is unset — which it is, so these are the
- * messages that have actually been going out. */
+/* IN HINDI (Ravi, 2026-10-22), used when pt_waTemplates is unset — which it is, so these are the messages that go
+ * out. The tracker's English wording was: "Hello {empName}, you have been issued {issuePieces} pieces of …". The SKU,
+ * item and colour stay as the master writes them: that is what is on the tag the karigar is matching. */
 const WA_TPL_DEFAULT = {
-  issue: 'Hello {empName}, you have been issued {issuePieces} pieces of {articleType} ({subtype}) — {color} {size} on {issueDate}. SKU: {sku}. — {ridhi}',
-  receive: 'Hello {empName}, we have received {receivedPieces} pieces of {articleType} ({subtype}) — {color} {size} from you on {recvDate}. Thank you! — {ridhi}',
+  issue: 'नमस्ते {empName} जी, {issueDate} को आपको {articleType} ({subtype}) — {color} {size} के {issuePieces} पीस दिए गए हैं। SKU: {sku}।{labelLine} — {ridhi}',
+  receive: 'नमस्ते {empName} जी, {recvDate} को आपसे {articleType} ({subtype}) — {color} {size} के {nowPieces} पीस मिले।{rejLine} {totalLine} धन्यवाद! — {ridhi}',
 };
 let WA = { cutoff: null, tpl: null, loaded: false };
 
@@ -40,21 +41,58 @@ const waEmp = name => {
 };
 const waPhoneOf = name => { const e = waEmp(name); return e ? waNum(e[3]) : ''; };
 
-/** {placeholder} → value, exactly the tracker's map. */
+/**
+ * WHICH LABEL GOES ON THE PIECES (Ravi, 2026-10-22: "work is of ridhi then the lable should be of ridhi, cpc
+ * then cpc"). The brand the SKU is under — the master first, then the Custom SKUs list — and only when neither
+ * says, the code itself: CPC… is CPC's, R… is Ridhi's. A B2B buyer's own brand comes through as that name.
+ * '' when nothing says, and then the message says nothing about a label rather than guessing one.
+ */
+const WA_LABELS = { RBP: 'Ridhi', RIDHI: 'Ridhi', CPC: 'CPC' };
+function waLabelOf(row) {
+  const sku = obUC(row && row.sku);
+  let b = '';
+  try { b = typeof ordBrandOf === 'function' ? obUC(ordBrandOf(sku)) : ''; } catch (e) { b = ''; }
+  if (b) return WA_LABELS[b] || b.charAt(0) + b.slice(1).toLowerCase();
+  return /^CPC/.test(sku) ? 'CPC' : /^R/.test(sku) ? 'Ridhi' : '';
+}
+
+/* SIGNED BY THE BRAND THE WORK IS FOR (Ravi, 2026-10-22): a CPC job comes from CPC, everything else — a B2B buyer's
+ * label included, since we make those — from Ridhi Block Print. {ridhi} keeps its name so a saved template still works. */
+const waSenderOf = label => (label === 'CPC' ? 'CPC' : 'Ridhi Block Print');
+
+/**
+ * {placeholder} → value: the tracker's map, and what the Hindi messages add. A receipt made just now carries _nowPcs and
+ * _nowAt (waReceiptRow), so the message says what came back TODAY; a row without them speaks of everything received.
+ */
 function waSubstitute(tpl, row) {
   const safe = v => (v === null || v === undefined) ? '' : String(v);
+  const label = waLabelOf(row);
+  const issued = ptNum(row.issuePieces), recv = ptNum(row.receivedPieces), rej = ptNum(row.rejectionPieces);
+  const pend = Math.max(0, issued - recv - rej);
   const map = {
     empName: safe(row.empName), sku: safe(row.sku),
     articleType: safe(row.articleType), subtype: safe(row.articleSubtype),
     color: safe(row.color), size: safe(row.size),
     issuePieces: safe(row.issuePieces), issueDate: safe((row.issueDate || '').toString().slice(0, 10)),
-    receivedPieces: safe(row.receivedPieces || 0), recvDate: safe((row.receivingDate || '').toString().slice(0, 10)),
+    receivedPieces: safe(row.receivedPieces || 0),
+    recvDate: safe((row._nowAt || row.receivingDate || '').toString().slice(0, 10)),
     rejectionPieces: safe(row.rejectionPieces || 0), pendingPieces: safe(row.pendingPieces),
-    date: new Date().toLocaleDateString('en-GB'), ridhi: 'Ridhi Block Print',
+    date: new Date().toLocaleDateString('en-GB'), ridhi: waSenderOf(label),
+    label,
+    labelLine: label ? ` इन पर *${label}* का लेबल लगाना है।` : '',
+    nowPieces: safe(row._nowPcs != null ? row._nowPcs : recv),
+    rejLine: rej > 0 ? ` रिजेक्ट: ${rej} पीस।` : '',
+    totalLine: pend > 0 ? `कुल मिले ${recv}/${issued} पीस, बाकी ${pend} पीस।` : `सारे ${issued} पीस का हिसाब पूरा।`,
   };
   return String(tpl || '').replace(/\{(\w+)\}/g, (m, k) => (k in map ? map[k] : m));
 }
-const waMsg = (row, kind) => waSubstitute(waTpl(kind), row);
+/* A template saved in pt_waTemplates before the label existed has no place for it, so the issue message gets the
+ * label line on the end rather than going out without it. */
+const waMsg = (row, kind) => {
+  const tpl = waTpl(kind);
+  const lacks = kind === 'issue' && !/\{label(Line)?\}/.test(tpl);
+  return waSubstitute(lacks ? tpl + '{labelLine}' : tpl, row);
+};
 
 /**
  * Why this row cannot be messaged, in the words the button will carry — '' when it can. Returning
@@ -128,6 +166,53 @@ async function waSendRow(id, kind) {
   $('pbMsg').textContent = `WhatsApp opened for ${r.empName} — press Send there.`;
   renderPbase();
 }
+
+/*
+ * WHATSAPP OPENS BY ITSELF WHEN WORK IS ISSUED (Ravi, 2026-10-22). Saving an issue opens WhatsApp on the karigar's
+ * number with the message written; the person still presses Send there — there is no API, so nothing can send it
+ * for them. The window is opened BLANK at the click, before the save, because a browser only lets a click open a
+ * window, and the save's wait used up the click. It is pointed at WhatsApp once the issue is saved, and closed again
+ * if the save fails — a karigar is never told about pieces the register does not have.
+ */
+/*
+ * AND WHEN PIECES COME BACK (Ravi, 2026-10-22), the same way: every receipt, not only the one that closes the row — the
+ * karigar is told what came in today, what was rejected and what is still with them. The one-shot rule is the 💬
+ * button's, for a message somebody chooses to send; a receipt is new news every time, so it does not apply here.
+ */
+/** Why this issue or receipt cannot open WhatsApp by itself — '' when it can. `when` is the day it happened. */
+function waAutoWhy(r, kind) {
+  if (!waPhoneOf(r && r.empName)) return 'No WhatsApp number on file for ' + ((r && r.empName) || 'this employee');
+  if (kind === 'receive' && !(ptNum(r._nowPcs) > 0)) return 'No pieces came back';
+  const ms = ptDtMs(kind === 'issue' ? r.issueDate : r._nowAt);
+  if (!ms) return 'No date';
+  if (ms < waCutoffMs()) return 'Dated before the WhatsApp cutoff (' + (WA.cutoff || WA_CUTOFF_DEFAULT) + ')';
+  return '';
+}
+/** The row as the receipt message reads it: the saved row, and what came back this time. */
+const waReceiptRow = (row, pcs, at) => Object.assign({}, row, { _nowPcs: ptNum(pcs), _nowAt: at || ptNow() });
+
+function waPreOpen(probe, kind = 'issue') {
+  if (typeof window === 'undefined' || typeof window.open !== 'function') return null;
+  if (waAutoWhy(probe, kind)) return null;
+  try { return window.open('about:blank', 'erpWhatsApp'); } catch (e) { return null; }
+}
+/** After the save: the message into the open window, and the row marked. Returns a note for the screen. */
+async function waAfterSave(win, row, kind = 'issue') {
+  if (!win) {
+    const why = waAutoWhy(row, kind);
+    return why ? ' WhatsApp not opened: ' + why + '.' : ' The browser blocked the WhatsApp window — allow pop-ups for this site.';
+  }
+  try { win.location.href = 'https://wa.me/' + waPhoneOf(row.empName) + '?text=' + encodeURIComponent(waMsg(row, kind)); }
+  catch (e) { return ' WhatsApp could not be opened.'; }
+  const field = kind === 'issue' ? 'waIssueSentAt' : 'waRecvSentAt';
+  const stamp = new Date().toISOString();
+  try { await ptPut('pt_baseData/' + row.id + '/' + field, stamp); }
+  catch (e) { return ' WhatsApp opened, but the row could not be marked: ' + (e.message || e); }
+  PT.base = (PT.base || []).map(x => (x && x.id === row.id ? Object.assign({}, x, { [field]: stamp }) : x));
+  return ` WhatsApp opened for ${row.empName} — press Send there.`;
+}
+const waAfterIssue = (win, entry) => waAfterSave(win, entry, 'issue');
+const waPreClose = win => { try { if (win && !win.closed) win.close(); } catch (e) { /* already gone */ } };
 
 /* The 💬 buttons are redrawn with the table, so they are caught by delegation rather than bound. */
 $('pbTable').addEventListener('click', e => {
@@ -481,10 +566,15 @@ function jwRecvOpen(id) {
         if (next.frozen && !row.frozen && parseInt(newRej, 10) > ptNum(next.rejectionPieces)) return 'Received plus rejected would be more than was issued.';
         const b = bdApplyRej(Object.assign({}, next, { frozen: false }), newRej); if (b.err) return b.err; next = b.row;
       }
-      try { await bdSaveRow(next); } catch (e) { return 'Not saved: ' + (e.message || e); }
+      /* Only pieces coming back tell the karigar anything — a changed reject count alone does not open WhatsApp. */
+      const told = addRecv ? waReceiptRow(next, addRecv) : null;
+      const waWin = told ? waPreOpen(told, 'receive') : null;
+      try { await bdSaveRow(next); } catch (e) { waPreClose(waWin); return 'Not saved: ' + (e.message || e); }
+      const waNote = told ? await waAfterSave(waWin, told, 'receive') : '';
       $('pbMsg').className = 'muted';
-      $('pbMsg').textContent = next.frozen ? `${obUC(row.sku)} · ${row.empName}: complete, nothing pending.`
-        : `${obUC(row.sku)} · ${row.empName}: ${nf(next.pendingPieces)} still pending.`;
+      $('pbMsg').textContent = (next.frozen ? `${obUC(row.sku)} · ${row.empName}: complete, nothing pending.`
+        : `${obUC(row.sku)} · ${row.empName}: ${nf(next.pendingPieces)} still pending.`) + waNote;
+      if (told) renderPbase();
       return '';
     },
   });

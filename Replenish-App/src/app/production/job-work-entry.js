@@ -624,9 +624,12 @@ This would be a SECOND, identical issue — and a second payment. OK saves it an
 
   $('bwSave').disabled = true;
   bdFormMsg('Saving…');
+  /* WhatsApp is opened now, while this is still the click — see waPreOpen. */
+  const waWin = waPreOpen(entry);
   try {
     await ptPut('pt_baseData/' + entry.id, entry);
     PT.base = (PT.base || []).concat(Object.assign({ _key: entry.id }, entry));
+    const waNote = await waAfterIssue(waWin, entry);
     // A zip SKU spends zippers. Posting it here keeps the accessory ledger honest without a second step.
     let zipNote = '', rufNote = '';
     try { zipNote = await ptConsumeZippers(entry); } catch (e) { zipNote = 'The zipper deduction did not save: ' + (e.message || e); }
@@ -636,8 +639,9 @@ This would be a SECOND, identical issue — and a second payment. OK saves it an
     renderPbase();
     const matNote = (zipNote + rufNote).trim();
     bdFormMsg(`Issued — ${nf(pcs)} piece(s) of ${obUC(sku)} to ${emp[1]}${orderNo ? ' against ' + orderNo : ' (custom order)'}.`
-      + (matNote ? ' ' + matNote : ''), /NOT|could not|did not/.test(matNote));
+      + (matNote ? ' ' + matNote : '') + waNote, /NOT|could not|did not/.test(matNote));
   } catch (e) {
+    waPreClose(waWin);
     bdFormMsg('Not saved: ' + (e.message || e), true);
   }
   $('bwSave').disabled = false;
