@@ -418,12 +418,17 @@ function flowDueRecvOpen(key) {
   ptOpenDialog({
     title: `Receive from ${rows[0].printer}`,
     subtitle: `${nf(rows.length)} line(s) this printer owes. Type what came now, in the form it was given — printed cloth in metres, pieces printed on the SKU in pieces. A line left at 0 stays owed.`,
-    html: `<label>Date<input id="fldrDate" type="date" value="${esc(dToday())}"></label>
-      <div class="xlwrap" style="max-height:52vh;margin-top:8px"><table class="xl" style="width:100%"><thead><tr><th style="width:52px">Photo</th><th style="text-align:left">Order · what comes back</th><th>Cloth with printer</th><th>RFD not sent</th><th>Still to come</th><th>Received now</th></tr></thead><tbody>
-      ${rows.map((x, i) => `<tr><td>${pic(x.sku)}</td><td style="text-align:left;white-space:normal"><b>${esc(x.orderNo)}</b> · ${flowChLineWhat(x.l, true)}</td>
-        <td class="num">${x.withPrinter ? flowQtyTxt(x.withPrinter, x.unit) : '—'}</td><td class="num">${x.notSent ? `<span style="color:#b45309">${flowQtyTxt(x.notSent, x.unit)}</span>` : '—'}</td>
-        <td class="num"><b>${flowQtyTxt(x.left, x.unit)}</b></td>
-        <td class="num"><input data-fldq="${i}" type="number" min="0" step="${x.unit === 'pcs' ? 1 : 0.01}" value="0" onfocus="this.select()" style="width:85px;padding:3px 6px;font-size:12px"> ${x.unit}</td></tr>`).join('')}
+    /* SEARCH (Ravi, 23 Oct: "add search bar in this bucket jisase sku ya color name dal kar receiving qty add kar sake abhi scroll
+     * karke dekhna padega"): typing hides the lines that do not match — what was typed in a hidden line stays and is saved. The
+     * figures sit in one column so the box to type in is on screen without scrolling sideways. */
+    html: `<div class="ptgrid" style="grid-template-columns:1fr 2fr"><label>Date<input id="fldrDate" type="date" value="${esc(dToday())}"></label>
+      <label>Search<input id="fldrQ" type="search" placeholder="SKU, colour, order, printed fabric…" autocomplete="off"></label></div>
+      <div id="fldrN" class="muted" style="font-size:12px;margin-top:6px">${nf(rows.length)} line(s)</div>
+      <div class="xlwrap" style="max-height:52vh;margin-top:4px"><table class="xl" style="width:100%;table-layout:fixed"><colgroup><col style="width:52px"><col><col style="width:130px"><col style="width:120px"></colgroup>
+      <thead><tr><th>Photo</th><th style="text-align:left">Order · what comes back</th><th>Still to come</th><th>Received now</th></tr></thead><tbody>
+      ${rows.map((x, i) => `<tr data-fldrow="${i}" data-hay="${esc(flowDueHay(x))}"><td>${pic(x.sku)}</td><td style="text-align:left;white-space:normal"><b>${esc(x.orderNo)}</b> · ${flowChLineWhat(x.l, true)}</td>
+        <td class="num"><b>${flowQtyTxt(x.left, x.unit)}</b>${x.withPrinter ? `<div class="muted" style="font-size:10.5px">${flowQtyTxt(x.withPrinter, x.unit)} cloth with printer</div>` : ''}${x.notSent ? `<div style="font-size:10.5px;color:#b45309">${flowQtyTxt(x.notSent, x.unit)} RFD not sent</div>` : ''}</td>
+        <td class="num"><input data-fldq="${i}" type="number" min="0" step="${x.unit === 'pcs' ? 1 : 0.01}" value="0" onfocus="this.select()" style="width:72px;padding:3px 6px;font-size:12px"> ${x.unit}</td></tr>`).join('')}
       </tbody></table></div>
       <label style="display:flex;gap:6px;align-items:center;margin-top:8px"><input id="fldrDed" type="checkbox" checked style="width:auto"> Where no RFD challan was made, take that cloth off RFD stock (it left the store without one)</label>
       <label style="display:block;margin-top:8px">Note (lot, vehicle, quality…)<input id="fldrNote"></label>`,
@@ -435,8 +440,27 @@ function flowDueRecvOpen(key) {
       renderFlow(); $('flMsg').className = 'muted'; $('flMsg').textContent = flowDueRecvSave.said; return '';
     },
   });
+  const qb = typeof document !== 'undefined' && document.getElementById && document.getElementById('fldrQ');
+  if (qb && qb.addEventListener) { qb.addEventListener('input', () => flowDueRecvFilter(qb.value)); try { qb.focus(); } catch (e) { /* no focus */ } }
   if (typeof ptImgFill === 'function') ptImgFill(rows.map(x => x.sku), false, typeof ptImgPatch === 'function' ? ptImgPatch : null);
 }
+/** What a receive line is found by: order, SKU, colour, printed fabric SKU, fabric, item. */
+function flowDueHay(x) {
+  const p = (x.l && x.l.print) || {}; let m = {}; try { m = cutSkuOf(x.sku) || {}; } catch (e) { m = {}; }
+  return [x.orderNo, x.sku, m.color, x.l && x.l.item, p.code, (p.sides || []).map(sd => sd.code).join(' '), p.label, x.l && x.l.fabric].filter(Boolean).join(' ').toLowerCase();
+}
+/** Show only the lines matching every word typed; the count says how many, and how many have a figure typed. */
+function flowDueRecvFilter(q) {
+  if (typeof document === 'undefined' || !document.querySelectorAll) return;
+  const words = String(q || '').toLowerCase().split(/\s+/).filter(Boolean); let shown = 0, typed = 0, all = 0;
+  document.querySelectorAll('[data-fldrow]').forEach(tr => { all++;
+    const on = words.every(w => String(tr.getAttribute('data-hay') || '').includes(w)); tr.style.display = on ? '' : 'none'; if (on) shown++;
+    const inp = tr.querySelector && tr.querySelector('[data-fldq]'); if (inp && +inp.value > 0) typed++; });
+  const n = document.getElementById('fldrN'); if (n) n.textContent = (words.length ? `${nf(shown)} of ${nf(all)} line(s)` : `${nf(all)} line(s)`) + (typed ? ` · ${nf(typed)} with a figure typed` : '');
+}
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('input', e => {
+  const t = e.target; if (t && t.dataset && t.dataset.fldq != null) { const q = document.getElementById && document.getElementById('fldrQ'); flowDueRecvFilter(q ? q.value : ''); }
+});
 if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('click', e => {
   const t = e.target; const b = t && t.closest && t.closest('[data-fldrc]'); if (!b) return; e.preventDefault(); flowDueRecvOpen(b.getAttribute('data-fldrc'));
 });
