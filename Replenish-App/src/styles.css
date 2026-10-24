@@ -1986,5 +1986,51 @@ html.mob #frMeeraMenu{right:14px;bottom:144px}
 #p1Home .lg-add.on{background:var(--brand);color:#fff;box-shadow:0 0 0 2px var(--brand),var(--sh-2)}
 #p1Home .lg-wait{border-top:4px solid var(--brand)}
 #p1Home .lg-waith{display:flex;align-items:center;gap:8px;font-size:13px}
+/* Production view — the Greige Desk's Inventory look (its own rules, scoped here) */
+#p1Home .p1-head{display:flex;align-items:center;gap:16px;margin:2px 0 14px;flex-wrap:wrap}
+#p1Home .lm-h{font-family:var(--serif);font-weight:400;font-size:28px;margin:0;letter-spacing:0}
+#p1Home .p1-q{margin-left:auto;height:40px;width:300px;border:1px solid var(--line);border-radius:12px;padding:0 14px;font:inherit;background:#fff}
+#p1Home .p1-segrow{margin:0 0 12px}
+#p1Home .seg{display:inline-flex;background:var(--chip);border-radius:var(--r-sm,10px);padding:3px;gap:2px;flex-wrap:wrap}
+#p1Home .segbtn{background:transparent;color:var(--muted);border-radius:8px;padding:6px 14px;font-size:12.5px;font-weight:600}
+#p1Home .segbtn:hover{color:var(--ink)}
+#p1Home .segbtn.on{background:var(--card,#fff);color:var(--ink);box-shadow:var(--sh-1)}
+#p1Home .segbtn .n{color:var(--faint);font-weight:500;margin-left:3px}
+#p1Home .p1-tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 12px}
+#p1Home button.ghost{background:var(--card,#fff);color:var(--muted);font-weight:600;box-shadow:var(--sh-1);height:38px;padding:0 16px;border-radius:12px}
+#p1Home button.ghost:hover{color:var(--ink)}
+#p1Home .card{background:var(--card,#fff);border-radius:var(--r-card,18px);box-shadow:var(--sh-1);margin-bottom:14px}
+#p1Home .ff-grid{overflow:auto;max-height:calc(100vh - 290px)}
+#p1Home table.xl{border-collapse:separate;border-spacing:0;width:100%;font-size:13.5px}
+#p1Home table.xl > thead > tr > th,#p1Home table.xl > tbody > tr > td,#p1Home table.xl > tfoot > tr > td{border-bottom:1px solid var(--line);padding:10px 12px;white-space:nowrap;background:var(--card,#fff);text-align:center;vertical-align:middle;text-transform:none;letter-spacing:normal}
+#p1Home table.xl > thead > tr > th{position:sticky;top:0;z-index:2;font-size:11px;font-weight:700;letter-spacing:.03em;color:var(--faint);text-transform:uppercase;padding:14px 12px}
+#p1Home table.xl .frz{position:sticky;left:0;z-index:1;border-right:1px solid var(--line);min-width:220px}
+#p1Home table.xl thead th.frz{z-index:3}
+#p1Home table.xl > tbody > tr:nth-child(even) > td{background:#FBFCFE}
+#p1Home table.xl > tbody > tr:not(.invdet):hover > td{background:var(--soft)}
+#p1Home table.xl > tfoot > tr > td{background:var(--soft);font-weight:800;position:sticky;bottom:0}
+#p1Home .cellbtn{background:transparent;color:inherit;font:inherit;font-weight:inherit;padding:4px 8px;border-radius:8px;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
+#p1Home .cellbtn:hover,#p1Home .cellbtn.on{background:var(--brand-bg);color:var(--brand-ink);text-decoration:none}
+#p1Home .cellbtn .caret{font-size:10px;opacity:.7}
+#p1Home .linkb{color:var(--ink);text-align:left}
+#p1Home .linkb:hover b{color:var(--brand-ink);text-decoration:underline}
+#p1Home .pill-new{font-size:9.5px;font-weight:800;background:var(--brand);color:#fff;border-radius:999px;padding:1px 6px;vertical-align:2px}
+#p1Home .jw-btn{height:32px;padding:0 13px;font-size:12.5px;border-radius:10px;background:var(--chip);color:var(--muted);font-weight:700;white-space:nowrap}
+#p1Home .jw-btn:hover{filter:brightness(.95)}
+#p1Home .jw-primary{background:var(--brand-bg);color:var(--brand-ink)}
+#p1Home tr.invdet > td{background:var(--soft)!important;padding:4px 12px 14px!important;white-space:normal!important;text-align:left!important}
+#p1Home .invdrop{display:flex;flex-direction:column;gap:8px}
+#p1Home .sect{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding-top:8px}
+#p1Home .box{background:var(--card,#fff);border-radius:12px;overflow:hidden;box-shadow:var(--sh-1)}
+#p1Home .scroll{overflow-x:auto}
+#p1Home table.ct{width:100%;border-collapse:collapse;font-size:13px}
+#p1Home table.ct td,#p1Home table.ct th{background:var(--card,#fff);white-space:nowrap}
+#p1Home table.ct > thead th{font-size:11px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--faint);text-align:left;padding:11px 10px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--card,#fff)}
+#p1Home table.ct > thead th.num{text-align:right}
+#p1Home table.ct > tbody > tr > td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle;text-transform:none;letter-spacing:normal}
+#p1Home table.ct td.num{text-align:right;font-variant-numeric:tabular-nums}
+#p1Home .tl{text-align:left} #p1Home .b{font-weight:700}
+#p1Home .actions{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
+#p1Home .p1-views{margin-right:4px}
 /* The old PPC link is off the menu: this page is "PPC" now (its screen and code stay — the Demand buttons open it). */
 #tabFlow{display:none!important}
