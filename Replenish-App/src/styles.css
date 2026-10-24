@@ -2033,5 +2033,36 @@ html.mob #frMeeraMenu{right:14px;bottom:144px}
 #p1Home .actions{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
 #p1Home .p1-views{margin-right:4px}
 #p1Home .p1-cdo{margin-top:5px;height:26px;padding:0 10px;font-size:11.5px}
+/* Production, simple: a line per SKU */
+#p1Home .p1-stages{display:flex;gap:10px;align-items:stretch;flex-wrap:wrap;margin:0 0 14px}
+#p1Home .p1-stages .st{display:flex;flex-direction:column;align-items:flex-start;gap:1px;background:#fff;border-radius:14px;box-shadow:var(--sh-1);padding:10px 16px;min-width:120px;text-align:left}
+#p1Home .p1-stages .st b{font-size:22px;font-weight:800;line-height:1.1}
+#p1Home .p1-stages .st span{font-size:12px;color:var(--muted);font-weight:600}
+#p1Home .p1-stages .st:hover{box-shadow:var(--sh-2)}
+#p1Home .p1-stages .st.on{background:var(--brand);color:#fff}
+#p1Home .p1-stages .st.on span{color:#D6E1EE}
+#p1Home .p1-read{margin-left:auto;align-self:center;font-size:12px;color:var(--faint)}
+#p1Home .p1-read a{color:var(--brand-ink);font-weight:600;cursor:pointer}
+#p1Home .p1-list{padding:0;overflow:hidden}
+#p1Home table.p1t{width:100%;border-collapse:collapse;font-size:13.5px}
+#p1Home table.p1t > thead > tr > th{text-align:left;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);padding:14px 16px;border-bottom:1px solid var(--line);background:#fff;position:sticky;top:0;z-index:2}
+#p1Home table.p1t > tbody > tr.p1r > td{padding:14px 16px;border-bottom:1px solid var(--line);vertical-align:middle;text-transform:none;letter-spacing:normal}
+#p1Home tr.p1r{cursor:pointer}
+#p1Home tr.p1r:hover > td{background:var(--soft)}
+#p1Home tr.p1r.open > td{background:var(--brand-bg)}
+#p1Home tr.p1r.late > td:first-child{box-shadow:inset 4px 0 0 var(--bad)}
+#p1Home .sku{font-size:14px}
+#p1Home .sm{font-size:11.5px}
+#p1Home td.ord{white-space:nowrap}
+#p1Home td.where{min-width:320px}
+#p1Home .hold{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:600;margin:2px 6px 2px 0;white-space:nowrap}
+#p1Home .hold.late{box-shadow:0 0 0 1.5px var(--bad)}
+#p1Home td.due{white-space:nowrap;font-weight:600}
+#p1Home td.due.over{color:var(--bad)}
+#p1Home td.nx{text-align:right;white-space:nowrap}
+#p1Home .p1-go{background:var(--accent);color:#fff;border-radius:10px;height:36px;padding:0 16px;font-weight:700;font-size:13px}
+#p1Home .p1-go:hover{filter:brightness(.92)}
+#p1Home tr.p1x > td{background:var(--soft);padding:6px 14px 14px}
+#p1Home tr.p1x .lg-skucard{margin:6px 0 0;box-shadow:var(--sh-2)}
 /* The old PPC link is off the menu: this page is "PPC" now (its screen and code stay — the Demand buttons open it). */
 #tabFlow{display:none!important}

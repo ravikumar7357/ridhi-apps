@@ -6,9 +6,10 @@
  * production … and a completed tab which tells which product was in production and when, and lets us analyse the
  * frequency of the product".
  *
- * PRODUCTION, LIKE THE GREIGE DESK'S INVENTORY (Ravi, 24 Oct, of the movement ledger: "really poorly implemented — look
- * at the Inventory, how clean simple and properly implemented"): a row per SKU, a column per stage, each figure opening
- * what makes it up with its next step (p1DrawInv). The movement ledger below is the second view, "PPC ledger".
+ * PRODUCTION, SIMPLE (Ravi, 24 Oct: after a Greige-Inventory-style table, "not refined — easy to use, all information on
+ * a page, less complex but still actionable"): one line per SKU — ordered, where its pieces are and who has them (with
+ * days), due, and ONE next-step button; a stage filter across the top; a line opens the SKU's card (p1DrawInv). The
+ * movement ledger is the second view, "PPC ledger".
  *
  * THE LEDGER (Ravi, 24 Oct, after a board was drawn: "I want ledger format only"; of the five-view page: "looks plain,
  * hard to act on, too confusing"). One page, like the Greige Desk's fabric ledger:
@@ -25,7 +26,7 @@
  * checks (date · checkedBy), press, Finished Goods ledger (createdAt · createdBy), the shipping hand-over register.
  * The old PPC link is off the menu (ppc-one.css); its screen and code stay — the Demand buttons here open it. */
 const P1 = { shown: false, built: false, loading: false, q: '',
-  f: { from: '', to: '', kind: '', sku: '', ord: '', party: '' }, lim: 300, at: '', openAt: -1, act: '', view: 'inv', art: 'all', inv: '' };
+  f: { from: '', to: '', kind: '', sku: '', ord: '', party: '' }, lim: 300, at: '', openAt: -1, act: '', view: 'inv', inv: '', stage: '' };
 const P1_MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const p1N = v => (Math.round(+v || 0)).toLocaleString('en-IN');
 const p1Day = d => d ? (+String(d).slice(8, 10)) + ' ' + P1_MON[+String(d).slice(5, 7) - 1] + (String(d).slice(0, 4) !== String(new Date().getFullYear()) ? ' ' + String(d).slice(2, 4) : '') : '—';
@@ -193,12 +194,7 @@ function p1SkuCard(sku, ev) {
       ${acts.length ? `<div class="sk-acts"><div class="lg-h">Next for this SKU</div>${acts.map(a => `<button type="button" class="lg-yes" data-p1add="${a[0]}" data-p1add-sku="${esc(sku)}">${esc(a[1])}</button>`).join('')}</div>` : ''}</div></div>`;
 }
 
-/* ---------- PRODUCTION: SKU by SKU, a column per stage (Ravi, 24 Oct, of the movement ledger: "really poorly implemented —
- * look at the [Greige Desk] Inventory, how clean, simple and properly implemented") ----------
- * Drawn the way the Greige Desk's Inventory is: a row per SKU, a column per place its pieces can be, a figure in each
- * that opens — under its row — what makes it up, line by line, each with the button for its next step. The movement
- * ledger stays one press away (PPC ledger). */
-const P1_COLS = [['dem', 'Orders'], ['fab', 'Fabric & printer'], ['cut', 'To cut'], ['raw', 'To give a karigar'], ['kar', 'With karigars'], ['qc', 'QC'], ['ready', 'Ready'], ['tot', 'Total in production']];
+/* ---------- PRODUCTION: the open lines, SKU by SKU ---------- */
 const p1Art = r => String(r.articleType || String(r.articleSubtype || r.itemName || '').split(/\s+/)[0] || 'Other').trim() || 'Other';
 /** The open lines, SKU by SKU, with what sits in each column. */
 function p1Inv() {
@@ -225,133 +221,69 @@ function p1Inv() {
   return [...by.values()].map(e => Object.assign(e, { fg: typeof fgiOf === 'function' ? Math.max(0, fgiOf(e.sku).current || 0) : 0, tot: e.fab + e.cut + e.raw + e.kar + e.qc + e.ready }))
     .sort((a, b) => (b.notPlanned > 0) - (a.notPlanned > 0) || b.tot - a.tot || b.ordered - a.ordered || a.sku.localeCompare(b.sku));
 }
-/** A figure that opens what makes it up, and under it the button for its next step (Ravi, 24 Oct: "its not actionable"). */
-const P1_CELLDO = { fab: ['RFD', 'Make challan'], cut: ['CUT', 'Enter cutting'], raw: ['ISS', 'Give to karigar'], kar: ['REC', 'Receive'], qc: ['QC', 'Check in QC'], ready: ['FG', 'Accept'] };
-function p1Cell(r, col, v, style, unit) {
-  if (!(v > 0.05)) return `<td class="num"><span class="muted">—</span></td>`;
-  const on = P1.inv === r.sku + '|' + col, act = p1CellAct(r, col);
-  return `<td class="num"><button type="button" class="cellbtn${on ? ' on' : ''}" data-p1inv="${esc(r.sku)}|${col}"${style ? ` style="${style}"` : ''} title="Show what makes this up">${p1N(v)}${unit || ''} <span class="caret">${on ? '▴' : '▾'}</span></button>
-    ${act ? `<div><button type="button" class="jw-btn jw-primary p1-cdo" data-p1cdo="${esc(r.sku)}|${col}">${esc(act[1])}${act[2] > 1 ? ' · ' + act[2] : ''}</button></div>` : ''}</td>`;
-}
-/** The next step for a figure: [movement, label, how many lines wait for it] — fabric that is out already says Receive printed. */
-function p1CellAct(r, col) {
-  const d = P1_CELLDO[col]; if (!d) return null;
-  const a = P1_ADD.find(x => x[0] === d[0]); if (!a || !p1MayTab(a[2])) return null;
-  if (col === 'fab') { const need = r.lines.filter(x => x.s.needFab && x.s.route !== 'stitch');
-    if (need.length) return ['RFD', 'Make challan', need.length];
-    const out = r.lines.filter(x => x.s.printed && x.s.given > 0 && x.s.back < (+x.r.qty || 0));
-    return out.length && p1MayTab('flchl') ? ['PRN', 'Receive printed', out.length] : null; }
-  if (col === 'kar') { const n = r.lines.filter(x => flowOpenIssues(x.r).length).length; return n ? ['REC', 'Receive', n] : null; }
-  const n = r.lines.filter(x => a[3](x)).length;
-  return n ? [d[0], d[1], n] : null;
-}
-/** The Orders cell: what is ordered, what is not planned yet, finished goods in store, and Plan. */
-function p1DemCell(r) {
-  const sm = 'font-size:10.5px;line-height:1.5', ppc = r.lines.filter(x => x.s.bucket === 'ppc');
-  return `<td class="num"><b>${p1N(r.ordered)} pcs</b><div class="muted" style="${sm}">${r.orders.size} order${r.orders.size > 1 ? 's' : ''}</div>
-    ${r.notPlanned ? `<div style="${sm};color:var(--bad);font-weight:700">not planned ${p1N(r.notPlanned)}</div>` : `<div style="${sm};color:var(--accent)">all planned</div>`}
-    ${r.fg ? `<div class="muted" style="${sm}">${p1N(r.fg)} in Finished Goods</div>` : ''}${r.short > 0.05 ? `<div style="${sm};color:var(--bad)">RFD short ${p1N(r.short)} m</div>` : ''}
-    ${ppc.length && flowCanBack() ? `<button type="button" class="jw-btn jw-primary" data-p1plan="${esc(r.sku)}" style="margin-top:4px;padding:3px 10px;font-size:12px;height:auto">Plan · ${p1N(ppc.reduce((t, x) => t + (+x.r.qty || 0), 0))} pcs</button>` : ''}</td>`;
-}
-const p1Btn = (label, attr, primary) => `<button type="button" class="jw-btn${primary ? ' jw-primary' : ''}" ${attr}>${esc(label)}</button>`;
-/** What makes a figure up, under its row — line by line, with the next step. */
-function p1InvDetail(r, col, ncols) {
-  const ls = r.lines, d = v => v ? p1Day(v) : '—', days = v => { const n = p1Days(v); return n == null ? '—' : `<span${n > 7 ? ' style="color:var(--bad);font-weight:700"' : ''}>${n}</span>`; };
-  const ev = p1Events(), last = (k, o) => { for (let i = ev.length - 1; i >= 0; i--) { const e = ev[i]; if (e.k === k && e.sku === r.sku && e.orderNo === o) return e; } return null; };
-  let title = '', head = [], body = [];
-  const li = x => ls.indexOf(x);
-  if (col === 'dem') {
-    title = 'Orders'; head = ['Order', 'Pcs', 'Came in', 'Where it is', 'Planned', 'Ready by', 'Next step'];
-    body = ls.map(x => { const p = x.s.plan, inn = last('IN', obUC(x.r.orderNo));
-      return `<tr><td class="tl b">${esc(x.r.orderNo)}</td><td class="num">${p1N(x.r.qty)}</td><td class="tl">${d(inn ? inn.day : x.r.openIso)}</td><td class="tl">${esc(P1_WORD[x.s.bucket] || x.s.bucket)}</td>
-        <td class="tl">${p && p.at ? esc(p1Who(p.by)) + ' · ' + d(p1Iso(p.at)) : '—'}</td><td class="tl">${d((p && p.dates && p.dates.ready) || x.r.mtoDue)}</td>
-        <td class="tl"><div class="actions">${x.s.bucket === 'ppc' && flowCanBack() ? p1Btn('Plan', `data-p1do1="PLAN|${li(x)}"`, true) + p1Btn('Send back', `data-p1do1="BACK|${li(x)}"`) : p && flowCanBack() ? p1Btn('Edit plan', `data-p1do1="EDIT|${li(x)}"`) : ''}</div></td></tr>`; });
-  } else if (col === 'fab') {
-    title = 'Fabric & printer'; head = ['Order', 'Printer', 'Fabric', 'Sent', 'Back', 'Still out', 'Since', 'Days', 'Next step'];
-    body = ls.filter(x => x.s.needFab || x.s.bucket === 'vendor' || (x.s.printed && x.s.given > 0 && x.s.back < (+x.r.qty || 0))).map(x => { const s = x.s, c = s.challan, u = s.fabUnit || 'm', snd = last('RFD', obUC(x.r.orderNo));
-      return `<tr><td class="tl b">${esc(x.r.orderNo)}</td><td class="tl b">${esc((c && c.vendor) || (s.plan && s.plan.printer) || '—')}</td><td class="tl">${esc((s.plan && s.plan.fabric && s.plan.fabric.name) || '—')}</td>
-        <td class="num">${c ? p1N(c.sent) + ' ' + u : '—'}</td><td class="num">${c ? p1N(c.recv) + ' ' + u : '—'}</td><td class="num b">${c ? p1N(Math.max(0, c.sent - c.recv)) + ' ' + u : s.needFab ? 'not sent' : '—'}</td>
-        <td class="tl">${snd ? d(snd.day) : '—'}</td><td class="num">${snd ? days(snd.day) : '—'}</td>
-        <td class="tl"><div class="actions">${s.needFab ? p1Btn('Make challan', `data-p1do1="RFD|${li(x)}"`, true) : c ? p1Btn('Receive printed', `data-p1do1="PRN|${li(x)}"`, true) : p1Btn('Give to printer', `data-p1do1="PRN|${li(x)}"`)}</div></td></tr>`; });
-  } else if (col === 'cut') {
-    title = 'To cut'; head = ['Order', 'To cut', 'Cut so far', 'Fabric back on', 'Days', 'Next step'];
-    body = ls.filter(x => x.s.canCut > 0 && ['cut', 'fabric', 'emb'].includes(x.s.bucket)).map(x => { const b = last('PRN', obUC(x.r.orderNo));
-      return `<tr><td class="tl b">${esc(x.r.orderNo)}</td><td class="num b">${p1N(x.s.canCut)}</td><td class="num">${p1N(x.s.cut)}</td><td class="tl">${b ? d(b.day) : '—'}</td><td class="num">${b ? days(b.day) : '—'}</td>
-        <td class="tl"><div class="actions">${p1Btn('Enter cutting', `data-p1do1="CUT|${li(x)}"`, true)}</div></td></tr>`; });
-  } else if (col === 'raw') {
-    title = 'Cut, to give a karigar'; head = ['Order', 'Ready to issue', 'Issued so far', 'Cut on', 'Days', 'Next step'];
-    body = ls.filter(x => !['ppc', 'back', 'demand', 'vendor'].includes(x.s.bucket) && flowIssuable(x.r, x.s) > 0).map(x => { const c = last('CUT', obUC(x.r.orderNo));
-      return `<tr><td class="tl b">${esc(x.r.orderNo)}</td><td class="num b">${p1N(flowIssuable(x.r, x.s))}</td><td class="num">${p1N(x.s.issuedNet)}</td><td class="tl">${c ? d(c.day) : '—'}</td><td class="num">${c ? days(c.day) : '—'}</td>
-        <td class="tl"><div class="actions">${p1Btn('Give to karigar', `data-p1do1="ISS|${li(x)}"`, true)}</div></td></tr>`; });
-  } else if (col === 'kar') {
-    title = 'With karigars'; head = ['Karigar', 'Order', 'Issued', 'Back', 'Still out', 'Issued on', 'Days', 'Issued by', 'Next step'];
-    const open = (PT.base || []).filter(b => b && !b.frozen && obUC(b.sku) === r.sku && r.orders.has(obUC(b.orderNo)) && ptNum(b.issuePieces) - ptNum(b.receivedPieces) - ptNum(b.rejectionPieces) > 0)
-      .sort((a, b) => String(a.issueDate || '').localeCompare(String(b.issueDate || '')));
-    body = open.map(b => { const x = ls.find(y => obUC(y.r.orderNo) === obUC(b.orderNo)), out = ptNum(b.issuePieces) - ptNum(b.receivedPieces) - ptNum(b.rejectionPieces);
-      return `<tr><td class="tl b">${esc(b.empName || '—')}</td><td class="tl">${esc(b.orderNo || '—')}</td><td class="num">${p1N(b.issuePieces)}</td><td class="num">${p1N(b.receivedPieces)}</td><td class="num b">${p1N(out)}</td>
-        <td class="tl">${d(p1Iso(b.issueDate || b.addedAt))}</td><td class="num">${days(p1Iso(b.issueDate || b.addedAt))}</td><td class="tl">${esc(p1Who(b.addedBy))}</td>
-        <td class="tl"><div class="actions">${x ? p1Btn('Receive', `data-p1rcv="${esc(b.id || '')}" data-p1li="${li(x)}"`, true) : ''}</div></td></tr>`; });
-  } else if (col === 'qc') {
-    title = 'With QC'; head = ['Order', 'Back from karigars', 'Checked', 'Passed', 'Rejected', 'To check', 'Back on', 'Next step'];
-    body = ls.map(x => { let w = 0, q = { checked: 0, ok: 0, rej: 0 }; try { w = flowQcWaiting(x.r, x.s) + flowQcLine(x.r).altOpen + flowQcLine(x.r).deptOpen; q = flowQcLine(x.r); } catch (e) { /* not read */ }
-      if (!(w > 0)) return ''; const b = last('REC', obUC(x.r.orderNo));
-      return `<tr><td class="tl b">${esc(x.r.orderNo)}</td><td class="num">${p1N(x.s.receivedAll != null ? x.s.receivedAll : x.s.received)}</td><td class="num">${p1N(q.checked)}</td><td class="num">${p1N(q.ok)}</td><td class="num">${p1N(q.rej)}</td><td class="num b">${p1N(w)}</td>
-        <td class="tl">${b ? d(b.day) : '—'}</td><td class="tl"><div class="actions">${p1Btn('Check in QC', `data-p1do1="QC|${li(x)}"`, true)}</div></td></tr>`; }).filter(Boolean);
-  } else if (col === 'ready') {
-    title = 'Ready'; head = ['Order', 'Passed QC', 'In Finished Goods', 'To accept / hand over', 'Passed on', 'Next step'];
-    body = ls.filter(x => x.s.bucket === 'fgin' || x.s.bucket === 'ship').map(x => { const p = last('QC', obUC(x.r.orderNo)), ship = x.s.bucket === 'ship';
-      return `<tr><td class="tl b">${esc(x.r.orderNo)}</td><td class="num">${p1N(x.s.made)}</td><td class="num">${p1N(x.s.india)}</td><td class="num b">${p1N(ship ? x.r.qty : Math.max(0, x.s.made - x.s.india))}</td>
-        <td class="tl">${p ? d(p.day) : '—'}</td><td class="tl"><div class="actions">${p1Btn(ship ? 'Hand to shipping' : 'Accept in Finished Goods', `data-p1do1="${ship ? 'SHIP' : 'FG'}|${li(x)}"`, true)}</div></td></tr>`; });
-  } else if (col === 'jour') {
-    title = 'Journey — every step, who and when'; head = ['When', 'Order', 'Step', 'Qty', 'Party', 'Reference', 'By'];
-    body = ev.filter(e => e.sku === r.sku).slice(-80).reverse().map(e => `<tr><td class="tl">${d(e.day)}${e.t ? ' ' + new Date(e.ms).toTimeString().slice(0, 5) : ''}</td><td class="tl">${esc(e.orderNo || '—')}</td><td class="tl">${p1Mv(e)}</td>
-      <td class="num b">${p1N(e.pcs)}${e.unit === 'm' ? ' m' : ''}</td><td class="tl">${esc(e.party || '—')}</td><td class="tl muted">${esc(e.ref)}</td><td class="tl">${esc(e.by || '—')}</td></tr>`);
+/* ---------- PRODUCTION, SIMPLE (Ravi, 24 Oct: "it's not refined — make it refined, easy to use, with all information on
+ * a page, and less complex but still actionable") ----------
+ * One line per SKU and four things on it: what is ordered, where its pieces are right now and who has them (with days),
+ * when it is due, and ONE button — its next step. A filter of stages across the top. Click a line for the SKU's card
+ * (its figures, every place it is, every next step) under it. */
+const P1_STEPS = [['plan', 'To plan', 'PLAN'], ['fab', 'Fabric & printer', 'RFD'], ['cut', 'Cutting', 'CUT'], ['kar', 'With karigars', 'REC'], ['qc', 'QC', 'QC'], ['ready', 'Ready', 'FG']];
+const P1_STAGE_OF = { Printer: 'fab', Embroidery: 'fab', Cutting: 'cut', 'Raw cutting in store': 'cut', 'With karigar': 'kar', QC: 'qc', 'Finished Goods to accept': 'ready', 'To hand to shipping': 'ready' };
+const P1_STAGE_INK = { fab: ['#EEEAFB', '#5B3FD0'], cut: ['#FFF3D6', '#8A5A12'], kar: ['#FDECE2', '#9A4B16'], qc: ['#E3F4F1', '#1F6F5C'], ready: ['#EDF0E7', '#4A5A3C'] };
+/** The one next step of a SKU: the first that is waiting, in the order the work goes — [movement, label, lines]. */
+function p1NextOf(r) {
+  const n = k => { const a = P1_ADD.find(x => x[0] === k); return a && p1MayTab(a[2]) ? r.lines.filter(x => a[3](x)) : []; };
+  for (const [k, label] of [['PLAN', 'Plan'], ['RFD', 'Make challan'], ['PRN', 'Receive printed'], ['CUT', 'Enter cutting'], ['ISS', 'Give to karigar'], ['REC', 'Receive from karigar'], ['QC', 'Check in QC'], ['FG', 'Accept in FG']]) {
+    const ls = n(k); if (ls.length) return [k, label, ls];
   }
-  return `<tr class="invdet"><td colspan="${ncols}"><div class="invdrop"><div class="sect">${esc(title)} · ${esc(r.sku)}</div>
-    ${body.length ? `<div class="box scroll"><table class="ct li"><thead><tr>${head.map(h => `<th${/^(Pcs|Sent|Back|Still out|Days|To cut|Cut so far|Ready to issue|Issued so far|Issued|Back from karigars|Checked|Passed|Rejected|To check|Passed QC|In Finished Goods|To accept \/ hand over|Qty)$/.test(h) ? ' class="num"' : ''}>${esc(h)}</th>`).join('')}</tr></thead><tbody>${body.join('')}</tbody></table></div>`
-      : '<div class="empty">Nothing here.</div>'}</div></td></tr>`;
+  return null;
 }
-const P1_WORD = { ppc: 'to plan', back: 'sent back to sales', demand: 'fabric / accessories to arrange', vendor: 'print order to give', fabric: 'with the printer', emb: 'at embroidery', cut: 'to cut',
-  raw: 'cut, to give a karigar', wip: 'with karigars', out: 'made outside', qcb: 'with QC', ship: 'to hand to shipping', fgin: 'Finished Goods to accept' };
 function p1DrawInv() {
   const el = $('p1Home');
-  let all = [];
-  try { all = p1Inv(); } catch (e) { el.innerHTML = `<div class="p1-head"><h1 class="lm-h">PPC</h1></div><div class="card"><div class="empty" style="color:var(--bad)">Could not read the lines: ${esc(e.message || e)}</div></div>`; return; }
-  const arts = [...new Set(all.map(r => r.art))].sort(), q = P1.q.trim().toUpperCase();
-  if (P1.art !== 'all' && !arts.includes(P1.art)) P1.art = 'all';
-  const rows = all.filter(r => (P1.art === 'all' || r.art === P1.art) && (!q || (r.sku + ' ' + r.what + ' ' + [...r.orders].join(' ')).toUpperCase().includes(q)));
-  const shown = rows.slice(0, P1.lim), sum = k => rows.reduce((t, r) => t + r[k], 0), nc = P1_COLS.length + 1;
-  el.innerHTML = `<div class="p1-head"><h1 class="lm-h">PPC</h1>${p1ViewSeg()}<input type="search" class="p1-q" id="p1Q" placeholder="Search SKU, article, order…" value="${esc(P1.q)}"></div>
-    <div class="p1-segrow"><div class="seg">${['all'].concat(arts).map(a => `<button type="button" class="segbtn${P1.art === a ? ' on' : ''}" data-p1art="${esc(a)}">${esc(a === 'all' ? 'All' : a)} <span class="n">${all.filter(r => a === 'all' || r.art === a).length}</span></button>`).join('')}</div></div>
-    <div class="row p1-tools"><button type="button" class="ghost" data-p1go="drfd">Open the flow's Demand → RFD</button><button type="button" class="ghost" data-p1view="ledger">PPC ledger — every step</button>
-      <span class="muted" style="font-size:12px;align-self:center">Planned by SKU — every open order of a SKU together. Each figure opens what makes it up, line by line, with its next step. ${P1.loading ? 'Reading…' : 'Read ' + (P1.at || '—')} · <a data-p1r style="cursor:pointer;color:var(--brand-ink);font-weight:600">↻ Refresh</a></span></div>
-    <div class="card" style="padding:0;overflow:hidden"><div class="ff-grid"><table class="xl"><thead><tr><th class="frz" style="text-align:left">SKU</th>${P1_COLS.map(c => `<th>${esc(c[1])}</th>`).join('')}</tr></thead><tbody>
-    ${shown.map(r => `<tr><td class="frz" style="text-align:left"><button type="button" class="linkb" data-p1inv="${esc(r.sku)}|jour" title="Every step of this SKU"><b>${esc(r.sku)}</b></button>${r.isNew ? ' <span class="pill-new">NEW</span>' : ''}<div class="muted" style="font-size:10.5px">${esc(r.what)}</div></td>
-      ${p1DemCell(r)}${p1Cell(r, 'fab', r.fab, 'color:#5B3FD0')}${p1Cell(r, 'cut', r.cut, 'color:var(--warn-ink)')}${p1Cell(r, 'raw', r.raw, '')}${p1Cell(r, 'kar', r.kar, 'color:#9A4B16')}${p1Cell(r, 'qc', r.qc, 'color:#1F6F5C')}${p1Cell(r, 'ready', r.ready, 'font-weight:700;color:var(--accent)')}
-      <td class="num" style="font-weight:700">${r.tot ? p1N(r.tot) : '<span class="muted">—</span>'}</td></tr>
-      ${P1.inv.indexOf(r.sku + '|') === 0 ? p1InvDetail(r, P1.inv.split('|')[1], nc) : ''}`).join('') || `<tr><td colspan="${nc}" class="empty">Nothing in production${P1.art === 'all' ? '.' : ' for ' + esc(P1.art) + '.'}</td></tr>`}
-    </tbody>${rows.length > 1 ? `<tfoot><tr><td class="frz" style="text-align:left">Total${P1.art === 'all' ? '' : ' · ' + esc(P1.art)}</td><td class="num">${p1N(sum('ordered'))}</td><td class="num">${p1N(sum('fab'))}</td><td class="num">${p1N(sum('cut'))}</td><td class="num">${p1N(sum('raw'))}</td><td class="num">${p1N(sum('kar'))}</td><td class="num">${p1N(sum('qc'))}</td><td class="num">${p1N(sum('ready'))}</td><td class="num">${p1N(sum('tot'))}</td></tr></tfoot>` : ''}</table></div>
-    ${rows.length > P1.lim ? `<button type="button" class="lg-more" data-p1lim>Show all ${p1N(rows.length)} SKUs</button>` : ''}</div>`;
-  const on = (sel, fn, ev = 'onclick') => el.querySelectorAll(sel).forEach(b => { b[ev] = e => fn(b, e); });
+  let all = [], wip = [];
+  try { all = p1Inv(); wip = p1Wip(); } catch (e) { el.innerHTML = `<div class="p1-head"><h1 class="lm-h">PPC</h1></div><div class="card"><div class="empty" style="color:var(--bad)">Could not read the lines: ${esc(e.message || e)}</div></div>`; return; }
+  const holds = new Map(); wip.forEach(w => { (holds.get(w.sku) || holds.set(w.sku, []).get(w.sku)).push(w); });
+  all.forEach(r => { r.holds = (holds.get(r.sku) || []).sort((a, b) => String(a.since || '9').localeCompare(String(b.since || '9')));
+    r.stages = new Set(r.holds.map(w => P1_STAGE_OF[w.stage]).filter(Boolean)); if (r.notPlanned) r.stages.add('plan');
+    r.next = p1NextOf(r); r.late = r.holds.some(w => (p1Days(w.since) || 0) > 7);
+    r.due = r.lines.map(x => String((x.s.plan && x.s.plan.dates && x.s.plan.dates.ready) || x.r.mtoDue || '')).filter(Boolean).sort()[0] || ''; });
+  const q = P1.q.trim().toUpperCase();
+  const rows = all.filter(r => (!P1.stage || r.stages.has(P1.stage)) && (!q || (r.sku + ' ' + r.what + ' ' + [...r.orders].join(' ') + ' ' + r.holds.map(w => w.who).join(' ')).toUpperCase().includes(q)))
+    .sort((a, b) => (b.late - a.late) || String(a.due || '9').localeCompare(String(b.due || '9')) || b.ordered - a.ordered);
+  const shown = rows.slice(0, P1.lim), today = new Date().toISOString().slice(0, 10), ev = p1Events();
+  const chip = w => { const st = P1_STAGE_OF[w.stage] || 'cut', c = P1_STAGE_INK[st], d = p1Days(w.since);
+    return `<span class="hold${d != null && d > 7 ? ' late' : ''}" style="background:${c[0]};color:${c[1]}"><b>${p1N(w.pcs)}${w.unit === 'm' ? ' m' : ''}</b> ${esc(w.stage === 'With karigar' ? w.who : w.stage === 'Printer' ? w.who : w.stage)}${d != null ? ` · ${d}d` : ''}</span>`; };
+  el.innerHTML = `<div class="p1-head"><h1 class="lm-h">PPC</h1>${p1ViewSeg()}<input type="search" class="p1-q" id="p1Q" placeholder="Search SKU, order, karigar, printer…" value="${esc(P1.q)}"></div>
+    <div class="p1-stages"><button type="button" class="st${!P1.stage ? ' on' : ''}" data-p1st=""><b>${p1N(all.length)}</b><span>All SKUs</span></button>${P1_STEPS.map(s => { const n = all.filter(r => r.stages.has(s[0])).length;
+      return `<button type="button" class="st${P1.stage === s[0] ? ' on' : ''}" data-p1st="${s[0]}"><b>${p1N(n)}</b><span>${esc(s[1])}</span></button>`; }).join('')}
+      <span class="p1-read">${P1.loading ? 'Reading…' : 'Read ' + (P1.at || '—')} · <a data-p1r>↻ Refresh</a></span></div>
+    <div class="card p1-list"><table class="p1t"><thead><tr><th>SKU</th><th>Orders</th><th>Where it is now — and who has it</th><th>Due</th><th>Next step</th></tr></thead><tbody>
+    ${shown.map(r => { const open = P1.inv === r.sku, nx = r.next, more = r.holds.length - 4;
+      return `<tr class="p1r${open ? ' open' : ''}${r.late ? ' late' : ''}" data-p1row="${esc(r.sku)}">
+        <td><b class="sku">${esc(r.sku)}</b>${r.isNew ? ' <span class="pill-new">NEW</span>' : ''}<div class="muted sm">${esc(r.what)}</div></td>
+        <td class="ord"><b>${p1N(r.ordered)}</b> pcs · ${r.orders.size} order${r.orders.size > 1 ? 's' : ''}<div class="sm">${r.notPlanned ? `<span style="color:var(--bad);font-weight:700">${p1N(r.notPlanned)} not planned</span>` : '<span style="color:var(--accent)">all planned</span>'}${r.fg ? ` · <span class="muted">${p1N(r.fg)} in FG</span>` : ''}</div></td>
+        <td class="where">${r.holds.slice(0, 4).map(chip).join('')}${more > 0 ? `<span class="muted sm">+${more} more</span>` : ''}${!r.holds.length ? `<span class="muted sm">${r.notPlanned ? 'not started' : '—'}</span>` : ''}</td>
+        <td class="due${r.due && r.due < today ? ' over' : ''}">${r.due ? p1Day(r.due) : '<span class="muted">—</span>'}</td>
+        <td class="nx">${nx ? `<button type="button" class="p1-go" data-p1next="${esc(r.sku)}">${esc(nx[1])}${nx[0] === 'PLAN' ? ' · ' + p1N(nx[2].reduce((t, x) => t + (+x.r.qty || 0), 0)) : ''}</button>` : '<span class="muted sm">nothing waiting</span>'}</td></tr>
+        ${open ? `<tr class="p1x"><td colspan="5">${p1SkuCard(r.sku, ev)}</td></tr>` : ''}`; }).join('') || `<tr><td colspan="5" class="empty">Nothing here.</td></tr>`}
+    </tbody></table>${rows.length > P1.lim ? `<button type="button" class="lg-more" data-p1lim>Show all ${p1N(rows.length)} SKUs</button>` : ''}</div>`;
+  const on = (sel, fn, ev2 = 'onclick') => el.querySelectorAll(sel).forEach(b => { b[ev2] = e => fn(b, e); });
   const R = sku => all.find(r => r.sku === sku);
-  on('[data-p1art]', b => { P1.art = b.dataset.p1art; P1.inv = ''; P1.lim = 300; p1Draw(); });
-  on('[data-p1inv]', b => { P1.inv = P1.inv === b.dataset.p1inv ? '' : b.dataset.p1inv; p1Draw(); });
-  on('[data-p1cdo]', b => { const [sku, col] = b.dataset.p1cdo.split('|'), r = R(sku), act = r && p1CellAct(r, col); if (!act) return;
-    const a = P1_ADD.find(x => x[0] === act[0]), ls = r.lines.filter(x => act[0] === 'REC' ? flowOpenIssues(x.r).length : a[3](x));
-    if (act[0] === 'RFD') return p1Do('RFD', ls);                                        // one challan for the SKU's waiting lines
-    if (ls.length === 1 || ['QC', 'FG', 'PRN'].includes(act[0])) return p1Do(act[0], ls);   // one line, or a screen of its own: straight there
-    P1.inv = sku + '|' + col; p1Draw(); });                                              // several lines: the list under the row, each with its button
-  on('[data-p1plan]', b => { const r = R(b.dataset.p1plan); if (r) p1Do('PLAN', r.lines.filter(x => x.s.bucket === 'ppc')); });
-  on('[data-p1do1]', b => { const [k, i] = b.dataset.p1do1.split('|'), r = R(P1.inv.split('|')[0]), x = r && r.lines[+i]; if (!x) return;
-    if (k === 'BACK') flowBackOpen([x.s.key]); else if (k === 'EDIT') flowPpcOpen(x.r.orderNo, x.r.sku);
-    else if (k === 'SHIP') { p1Hide(); setTimeout(() => showTab('ord'), 30); } else p1Do(k, [x]); });
-  on('[data-p1rcv]', b => { const id = b.dataset.p1rcv; if (id && typeof jwRecvOpen === 'function') jwRecvOpen(id); else { const r = R(P1.inv.split('|')[0]), x = r && r.lines[+b.dataset.p1li]; if (x) flowRecvEntry(x.r); } });
-  on('[data-p1go]', b => { p1Hide(); FLOW_VIEW = b.dataset.p1go; showTab('flow'); });
+  on('[data-p1st]', b => { P1.stage = b.dataset.p1st; P1.inv = ''; P1.lim = 300; p1Draw(); });
+  on('[data-p1row]', (b, e) => { if (e.target.closest('button')) return; P1.inv = P1.inv === b.dataset.p1row ? '' : b.dataset.p1row; p1Draw(); });
+  on('[data-p1next]', b => { const r = R(b.dataset.p1next), nx = r && r.next; if (!nx) return;
+    if (nx[0] === 'PLAN' || nx[0] === 'RFD' || nx[2].length === 1 || ['QC', 'FG', 'PRN'].includes(nx[0])) return p1Do(nx[0], nx[2]);
+    P1.inv = r.sku; p1Draw(); });                                    // several lines for one step: the SKU's card, each line there
+  /* the SKU card's own buttons */
+  on('[data-p1add]', b => { const k = b.dataset.p1add, sku = b.dataset.p1addSku || '', gs = p1Groups(k, sku);
+    if (gs.length) p1Do(k, k === 'PLAN' || k === 'RFD' ? gs.reduce((a, g) => a.concat(g[1]), []) : gs[0][1]); });
+  on('[data-p1close]', () => { P1.inv = ''; p1Draw(); });
+  on('[data-p1only]', b => { P1.view = 'ledger'; P1.f.sku = b.dataset.p1only; P1.lim = 300; p1Draw(); window.scrollTo(0, 0); });
   on('[data-p1view]', b => { P1.view = b.dataset.p1view; P1.lim = 300; p1Draw(); window.scrollTo(0, 0); });
   on('[data-p1lim]', () => { P1.lim += 700; p1Draw(); });
   on('[data-p1r]', (b, e) => { e.preventDefault(); p1Load(true); });
   const qi = el.querySelector('#p1Q'); if (qi) qi.oninput = () => { P1.q = qi.value; clearTimeout(P1.qt); P1.qt = setTimeout(() => { P1.lim = 300; p1Draw(); const n = $('p1Q'); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } }, 300); };
 }
+
 const p1ViewSeg = () => `<div class="seg p1-views">${[['inv', 'Production'], ['ledger', 'PPC ledger']].map(v => `<button type="button" class="segbtn${P1.view === v[0] ? ' on' : ''}" data-p1view="${v[0]}">${v[1]}</button>`).join('')}</div>`;
 
 function p1Draw() {
