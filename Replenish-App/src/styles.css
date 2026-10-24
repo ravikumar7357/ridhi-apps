@@ -1983,5 +1983,8 @@ html.mob #frMeeraMenu{right:14px;bottom:144px}
 @media (max-width:1100px){#p1Home .sk-tiles{grid-template-columns:repeat(3,1fr)}#p1Home .sk-row{grid-template-columns:1fr}}
 #p1Home .lg-sku.on{color:#fff;background:var(--brand);border-radius:6px;padding:1px 6px;text-decoration:none}
 #p1Home tr.lg-exp > td .lg-skucard{margin:4px 0;box-shadow:var(--sh-2)}
+#p1Home .lg-add.on{background:var(--brand);color:#fff;box-shadow:0 0 0 2px var(--brand),var(--sh-2)}
+#p1Home .lg-wait{border-top:4px solid var(--brand)}
+#p1Home .lg-waith{display:flex;align-items:center;gap:8px;font-size:13px}
 /* The old PPC link is off the menu: this page is "PPC" now (its screen and code stay — the Demand buttons open it). */
 #tabFlow{display:none!important}
