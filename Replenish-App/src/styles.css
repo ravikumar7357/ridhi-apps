@@ -1870,3 +1870,110 @@ html.mob #frMeeraMenu{right:14px;bottom:144px}
 .r1-brand img{height:26px;width:auto;display:block}
 .side .r1-brand img{height:22px}
 .r1-mob{height:20px;width:auto;vertical-align:middle;display:inline-block}
+
+/* PPC on one page (ppc-one.js) — R-one's own tokens and My work today's card look. */
+.main.p1-on > *:not(.topbar):not(#p1Home){display:none!important}
+#p1Home{max-width:1280px;margin:0 auto;padding:6px 0 60px}
+#p1Home .px-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin:4px 0 14px;flex-wrap:wrap}
+#p1Home .px-head h1{font-size:24px;margin:0;letter-spacing:-.02em}
+#p1Home .px-sub{color:var(--muted);margin-top:4px}
+#p1Home .px-when{font-size:12px;color:var(--faint);margin-top:6px}
+#p1Home .px-hr{display:flex;gap:10px;align-items:center}
+#p1Home .px-search{height:38px;width:280px;border:1px solid var(--line);border-radius:12px;padding:0 14px;font:inherit;background:#fff}
+#p1Home .px-how{color:var(--ink);height:38px;border-radius:12px;border:1px solid var(--line);background:#fff;padding:0 16px;font-weight:600;cursor:pointer;box-shadow:var(--sh-1)}
+/* tiles */
+#p1Home .px-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}
+#p1Home .px-stat{background:var(--card);border-radius:var(--r-card);box-shadow:var(--sh-1);padding:14px 16px;border:0;text-align:left;display:flex;align-items:center;gap:12px;cursor:pointer;font:inherit;color:var(--ink)}
+#p1Home .px-stat:hover{box-shadow:var(--sh-2)}
+#p1Home .px-stat.on{box-shadow:0 0 0 2px var(--brand),var(--sh-2)}
+#p1Home .px-stat .ic{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;font-size:18px;flex:0 0 auto}
+#p1Home .px-stat b{display:block;font-size:24px;font-weight:800;line-height:1.1}
+#p1Home .px-stat span{color:var(--muted);font-size:12.5px}
+#p1Home .px-stat .go{margin-left:auto;font-weight:700;color:var(--brand-ink);font-size:12.5px}
+/* stage pills */
+#p1Home .px-stages{display:flex;gap:6px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+#p1Home .px-pill{display:flex;align-items:center;gap:7px;height:36px;border-radius:999px;border:0;background:#fff;box-shadow:var(--sh-1);padding:0 14px;font-weight:700;font-size:13px;cursor:pointer;color:var(--ink)}
+#p1Home .px-pill i{font-style:normal;background:var(--chip);color:var(--muted);border-radius:999px;padding:0 7px;font-size:11.5px;line-height:19px}
+#p1Home .px-pill.on{background:var(--brand);color:#fff}
+#p1Home .px-pill.on i{background:rgba(255,255,255,.22);color:#fff}
+#p1Home .px-arr{color:#C3CBD6;font-weight:800}
+/* layout */
+#p1Home .px-cols{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start}
+#p1Home .px-grp{background:var(--card);border-radius:16px;box-shadow:var(--sh-1);padding:4px 6px 6px;margin-bottom:14px}
+#p1Home .px-gh{display:flex;align-items:center;gap:10px;padding:10px 10px 8px}
+#p1Home .px-gh b{font-size:14.5px}
+#p1Home .px-gh .n{background:var(--warn-bg);color:var(--warn-ink);border-radius:999px;padding:0 8px;font-size:12px;font-weight:700;line-height:20px}
+#p1Home .px-gh small{color:var(--muted)}
+#p1Home .px-all{margin-left:auto;border:1px solid var(--accent);background:#fff;color:var(--accent);border-radius:10px;height:30px;padding:0 12px;font-weight:700;font-size:12.5px;cursor:pointer}
+#p1Home .px-all:hover{background:var(--accent);color:#fff}
+#p1Home .px-tick{width:22px;display:grid;place-items:center;flex:0 0 auto}
+#p1Home .px-tick input{width:18px;height:18px;margin:0;accent-color:var(--brand);cursor:pointer}
+/* order card */
+#p1Home .px-card{border-top:1px solid var(--line);border-radius:12px}
+#p1Home .px-row{display:flex;align-items:center;gap:12px;padding:12px 10px}
+#p1Home .px-card:hover{background:var(--soft)}
+#p1Home .px-card.open{background:#fff;box-shadow:0 0 0 2px var(--brand-bg)}
+#p1Home .px-card.ticked{background:var(--brand-bg)}
+#p1Home .px-body{flex:1;min-width:0}
+#p1Home .px-t{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+#p1Home .px-t b{font-size:14.5px}
+#p1Home .px-d{color:var(--muted);font-size:12.5px;margin-top:2px}
+#p1Home .px-steps{display:flex;align-items:center;gap:4px;margin-top:8px}
+#p1Home .px-steps span{display:flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:var(--faint)}
+#p1Home .px-steps span i{width:16px;height:16px;border-radius:50%;background:var(--chip);display:grid;place-items:center;font-style:normal;font-size:9px;color:var(--muted)}
+#p1Home .px-steps span.d{color:var(--accent)} #p1Home .px-steps span.d i{background:var(--accent);color:#fff}
+#p1Home .px-steps span.c{color:var(--warn-ink)} #p1Home .px-steps span.c i{background:#E0A21B;color:#fff}
+#p1Home .px-steps em{width:14px;height:2px;background:var(--line)}
+#p1Home .px-tag{font-style:normal;font-size:10.5px;font-weight:800;border-radius:999px;padding:1px 8px}
+#p1Home .t-new{background:var(--brand);color:#fff}#p1Home .t-late{background:var(--bad);color:#fff}#p1Home .t-risk{background:var(--warn-bg);color:var(--warn-ink)}
+#p1Home .t-in{background:var(--accent-bg);color:var(--accent)}#p1Home .t-exp{background:#EEEAFB;color:#5B3FD0}#p1Home .t-na{background:var(--bad-bg);color:var(--bad)}
+#p1Home .px-due{text-align:right;flex:0 0 auto;font-size:12px;color:var(--muted);min-width:70px}
+#p1Home .px-due b{display:block;font-size:13.5px;color:var(--ink)}
+#p1Home .px-due.late b{color:var(--bad)}
+#p1Home .px-who{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);flex:0 0 auto;min-width:96px}
+#p1Home .av{width:26px;height:26px;border-radius:50%;background:var(--brand-bg);color:var(--brand-ink);display:inline-grid;place-items:center;font-size:10.5px;font-weight:800;flex:0 0 auto}
+#p1Home .px-acts{display:flex;gap:6px;align-items:center;flex:0 0 auto}
+#p1Home .px-yes{border:0;background:var(--accent);color:#fff;border-radius:10px;height:34px;padding:0 14px;font-weight:700;cursor:pointer;white-space:nowrap}
+#p1Home .px-yes.blue{background:var(--brand)}
+#p1Home .px-yes:hover{filter:brightness(.92)}
+#p1Home .px-go{border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:10px;height:34px;padding:0 12px;font-weight:700;cursor:pointer;white-space:nowrap}
+#p1Home .px-later{border:0;background:none;color:var(--muted);font-weight:600;font-size:12.5px;cursor:pointer;padding:0 4px}
+/* inline detail */
+#p1Home .px-more{padding:0 12px 14px 44px}
+#p1Home .px-tabs{display:flex;gap:4px;margin-bottom:12px;border-bottom:1px solid var(--line)}
+#p1Home .px-tabs button{border:0;background:none;padding:8px 10px;font-weight:700;color:var(--muted);border-bottom:2px solid transparent;cursor:pointer;font-size:13px}
+#p1Home .px-tabs button.on{color:var(--brand-ink);border-bottom-color:var(--brand)}
+#p1Home table.px{width:100%;border-collapse:collapse;font-size:13px}
+#p1Home table.px th{text-align:left;font-size:11.5px;color:var(--faint);font-weight:700;padding:6px 8px;border-bottom:1px solid var(--line)}
+#p1Home table.px td{padding:8px;border-bottom:1px solid var(--line)}
+#p1Home table.px tr:last-child td{border-bottom:0}
+#p1Home .px-route{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+#p1Home .px-route span{border-radius:999px;padding:5px 12px;background:var(--chip);color:var(--muted);font-weight:600;font-size:12.5px}
+#p1Home .px-route span.on{background:var(--brand);color:#fff}
+#p1Home .px-path{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:12px;font-size:12px;color:var(--faint)}
+#p1Home .px-path b{background:var(--soft);border-radius:10px;padding:4px 10px;color:var(--ink);font-weight:600}
+#p1Home .px-bar{display:flex;height:7px;border-radius:4px;overflow:hidden;background:var(--chip);width:100px}
+#p1Home .px-bar i{height:100%}
+#p1Home .px-mini{border:1px dashed var(--brand);background:#fff;color:var(--brand-ink);border-radius:9px;height:28px;padding:0 10px;font-weight:700;font-size:12px;cursor:pointer}
+#p1Home .px-diff{font-size:12px;margin-top:2px}
+#p1Home .px-old{background:var(--bad-bg);color:var(--bad);text-decoration:line-through;border-radius:6px;padding:0 6px}
+#p1Home .px-new{background:var(--accent-bg);color:var(--accent);border-radius:6px;padding:0 6px;font-weight:700}
+/* side cards */
+#p1Home .px-side{display:flex;flex-direction:column;gap:14px;position:sticky;top:12px}
+#p1Home .px-sc{background:var(--card);border-radius:16px;box-shadow:var(--sh-1);padding:12px 14px}
+#p1Home .px-sc h3{margin:0 0 8px;font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);display:flex;justify-content:space-between;align-items:center}
+#p1Home .px-sc h3 button{white-space:nowrap;text-transform:none;letter-spacing:0;border:0;background:none;color:var(--brand-ink);font-weight:700;cursor:pointer;font-size:12.5px}
+#p1Home .px-st{padding:8px 0;border-top:1px solid var(--line)}
+#p1Home .px-st:first-of-type{border-top:0}
+#p1Home .px-st .a{display:flex;align-items:center;gap:6px;font-size:13px}
+#p1Home .px-st .a b{font-weight:700}
+#p1Home .px-st .a span{margin-left:auto;font-weight:800}
+#p1Home .px-st .c{font-size:11.5px;color:var(--muted);margin-top:3px;display:flex;justify-content:space-between;align-items:center}
+#p1Home .px-fd{display:flex;gap:10px;padding:8px 0;border-top:1px solid var(--line);font-size:12.5px;line-height:1.45}
+#p1Home .px-fd:first-of-type{border-top:0}
+#p1Home .px-fd small{display:block;color:var(--faint)}
+#p1Home .px-fd .av{width:24px;height:24px;font-size:9.5px}
+#p1Home .px-tickbar{position:sticky;bottom:16px;z-index:5;display:flex;align-items:center;gap:12px;margin:14px auto 0;width:max-content;background:#14181F;color:#fff;border-radius:14px;padding:8px 10px 8px 18px;box-shadow:0 12px 32px rgba(20,24,31,.25)}
+#p1Home .px-tickbar .px-go{background:transparent;color:#fff;border-color:rgba(255,255,255,.3)}
+/* The old PPC link is off the menu: this page is "PPC" now (its screen and code stay — the Demand buttons open it). */
+#tabFlow{display:none!important}
