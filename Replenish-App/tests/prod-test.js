@@ -22230,7 +22230,7 @@ console.log('\n== custom-order codes onto real SKUs, and no more Custom Order (R
   ok('a merge moves every register row and the order book to the real SKU', upd['pt_baseData/b9/sku'] === 'RTCS12-6060' && upd['pt_pressInventory/p9/sku'] === 'RTCS12-6060' && upd['pt_orderBook/o9/sku'] === 'RTCS12-6060' && upd['pt_baseData/b9/skuWas'] === 'TC-CUST-260820-09', JSON.stringify(upd));
   ok('…and marks the custom master row merged — it is not deleted', upd['pt_masterDB/m1/mergedInto'] === 'RTCS12-6060' && !Object.keys(upd).some(k => upd[k] === null) && upd['pt_masterDB/m1/sku'] === undefined);
   const src = require('fs').readFileSync(APP, 'utf8');
-  ok('the Job Work form no longer offers Custom Order', /<label class="hide" style="display:none;[^"]*">\s*<input type="checkbox" id="bwCustom" style="width:auto" disabled>/.test(src.replace(/\r\n/g, '\n')));
+  ok('the Job Work form offers Custom Order again (24 Oct), unticked until somebody ticks it', /<label style="display:flex;[^"]*">\s*<input type="checkbox" id="bwCustom" style="width:auto">/.test(src.replace(/\r\n/g, '\n')));
   A.setPTG(wasPTG); A.setPT_(wasPT);
 }
 console.log('\n== from production to shipping, by itself (Ravi, 28 Sep: "auto handed over … shipping team sirf accept kare or qty fill kare")');

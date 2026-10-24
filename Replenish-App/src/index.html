@@ -1653,11 +1653,11 @@
         <div id="bwBox" class="hide" style="margin-top:12px;border:1px solid var(--line);border-radius:10px;padding:12px">
           <!-- One-off item with no existing SKU: colour and size become free text, no Order ID is
                needed, and a disposable SKU is minted (or an existing match reused). -->
-          <!-- Taken off the form on 2026-09-28 (Ravi: "remove the custom order"). The box stays in the page, hidden and
-               never ticked, so the code that reads it keeps working; every entry needs a real SKU now. -->
-          <label class="hide" style="display:none;align-items:center;gap:8px;font-size:12.5px;margin-bottom:10px;
+          <!-- Taken off the form on 2026-09-28 (Ravi: "remove the custom order"); BACK on 2026-10-24 (Ravi: "custom order entry
+               pahle hum karte the kya wo abhi bhi aa sakta h" — "job work regester me"). -->
+          <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;margin-bottom:10px;
                         background:var(--hover,#f1f5f9);padding:8px 10px;border-radius:8px">
-            <input type="checkbox" id="bwCustom" style="width:auto" disabled>
+            <input type="checkbox" id="bwCustom" style="width:auto">
             <span><b>Custom Order</b> — one-off item with no existing SKU (colour &amp; size become free text, a disposable SKU is generated)</span>
           </label>
           <div class="toolbar">
