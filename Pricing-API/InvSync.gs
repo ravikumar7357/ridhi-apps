@@ -754,6 +754,9 @@ function invSeed_() {
 
 /** Install the recurring 10-minute tick (once). */
 function invInstall() {
+  // Google's granular consent can leave a scope ungranted without asking again (24 Oct: the token had
+  // Drive/Sheets but never datastore). This makes the editor show the consent screen for whatever is missing.
+  ScriptApp.requireScopes(ScriptApp.AuthMode.FULL, ['https://www.googleapis.com/auth/datastore']);
   ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'invTick') ScriptApp.deleteTrigger(t); });
   ScriptApp.newTrigger('invTick').timeBased().everyMinutes(10).create();
   return 'invTick every 10 minutes';
@@ -763,6 +766,12 @@ function invInstall() {
 
 function invRoute_(p) {
   var what = String(p.inv || '');
+  if (what === 'scopes') {                      // which scopes the running token really carries (diagnosis)
+    var ti = UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?access_token=' + ScriptApp.getOAuthToken(), { muteHttpExceptions: true });
+    var j = JSON.parse(ti.getContentText() || '{}');
+    return { ok: true, scope: j.scope || '', email: j.email || '', err: j.error_description || '',
+      triggers: ScriptApp.getProjectTriggers().map(function (t) { return t.getHandlerFunction(); }) };
+  }
   if (what === 'status') return { ok: true, status: invStatus_(), job: invGet_('work/job') };
   if (what === 'run') {
     var steps = invStepsFor_(String(p.job || 'refresh'), String(p.brand || 'all').toUpperCase());
