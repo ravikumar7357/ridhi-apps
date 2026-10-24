@@ -17015,10 +17015,14 @@ function ptCustomPrefix(articleType) {
   const initials = key.split(/\s+/).filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 3);
   return initials || 'CU';
 }
+/* A CUSTOM CODE LIVES IN THE REGISTERS, NOT THE MASTER (24 Oct, Custom Order back on the form): a save writes the Job Work
+ * row only, so the next number and the "same item again?" check read the registers too — on the master alone, two different
+ * custom items issued the same day both came out …-CUST-<day>-01, and the same item issued twice got two codes. */
+const ptCustomRows = () => [].concat(PTG.mdb || [], PT.base || [], PT.cut || [], PTG.press || []);
 function ptNextCustomSeq(prefix, dateStr) {
   const re = new RegExp('^' + prefix + '-CUST-' + dateStr + '-(\\d+)$', 'i');
   let max = 0;
-  (PTG.mdb || []).forEach(r => { const m = re.exec(String((r && r.sku) || '')); if (m) { const n = parseInt(m[1], 10); if (n > max) max = n; } });
+  ptCustomRows().forEach(r => { const m = re.exec(String((r && r.sku) || '')); if (m) { const n = parseInt(m[1], 10); if (n > max) max = n; } });
   return String(max + 1).padStart(2, '0');
 }
 function ptGenCustomSku(articleType) {
@@ -17034,7 +17038,11 @@ function ptFindExistingSku(at, sub, col, sz) {
   const key = [at, sub, col, sz].map(ptNorm).join('|');
   const hit = (PTG.mdb || []).find(r => r && r.sku
     && [r.articleType, r.subtype, r.color, r.size].map(ptNorm).join('|') === key);
-  return hit ? String(hit.sku) : null;
+  if (hit) return String(hit.sku);
+  /* …or a custom code an earlier Custom Order entry made for exactly this item */
+  const cu = (PT.base || []).find(r => r && /-CUST-/i.test(r.sku || '')
+    && [r.articleType, r.articleSubtype || r.subtype, r.color, r.size].map(ptNorm).join('|') === key);
+  return cu ? String(cu.sku) : null;
 }
 
 /** Orders with an open balance for issuing, oldest first. */

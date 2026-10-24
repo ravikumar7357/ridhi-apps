@@ -791,6 +791,16 @@ console.log('\n== the order list follows the typed SKU ==');
   els.bwSku.value = '';
   els.bwSku.dataset.typed = '';
 
+  { /* 24 Oct: a custom code lives in the Job Work register, not the master — the next one counts it, the same item reuses it */
+    const wasBase = A.PT().base, d = new Date(), day = String(d.getFullYear()).slice(2) + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
+    const first = A.ptGenCustomSku('Table Cloth');
+    A.setPT(Object.assign(A.PT(), { base: (wasBase || []).concat([{ id: 'cu1', sku: first, articleType: 'Table Cloth', articleSubtype: 'Printed', color: 'Teal', size: '9x9', isCustom: true }]) }));
+    const second = A.ptGenCustomSku('Table Cloth');
+    ok('a second custom item the same day gets the next number, not the first one again', first !== second && second.endsWith('-02') && first.includes('-CUST-' + day + '-'), first + ' ' + second);
+    ok('…and the same item again reuses its code', A.ptFindExistingSku('Table Cloth', 'Printed', 'teal', '9X9') === first, String(A.ptFindExistingSku('Table Cloth', 'Printed', 'teal', '9X9')));
+    A.setPT(Object.assign(A.PT(), { base: wasBase }));
+  }
+
   /* CLEAR. Until now the only way to empty this form was to close and reopen it, and even that left
    * the line underneath standing. */
   els.bwCustom.checked = true;
