@@ -1871,7 +1871,7 @@ html.mob #frMeeraMenu{right:14px;bottom:144px}
 .side .r1-brand img{height:22px}
 .r1-mob{height:20px;width:auto;vertical-align:middle;display:inline-block}
 
-/* PPC (ppc-one.js) — planned by SKU, kept as a ledger: R-one's tokens, the Greige Desk's ledger look. */
+/* PPC (ppc-one.js) — the PPC ledger: R-one's tokens, the Greige Desk's ledger look. */
 .main.p1-on > *:not(.topbar):not(#p1Home){display:none!important}
 #p1Home{max-width:1400px;margin:0 auto;padding:4px 0 60px;font-size:13px;color:var(--ink)}
 #p1Home button{background:none;border:0;color:inherit;height:auto;min-height:0;width:auto;padding:0;box-shadow:none;font:inherit;cursor:pointer;margin:0}
@@ -1956,5 +1956,30 @@ html.mob #frMeeraMenu{right:14px;bottom:144px}
 #p1Home .tl-b .sub b{color:var(--ink)}
 #p1Home .lg-t td,#p1Home .lg-t th,#p1Home .sub,#p1Home .lg-mv,#p1Home .tl-b{text-transform:none;letter-spacing:normal}
 @media (max-width:1100px){#p1Home .lg-two{grid-template-columns:1fr}#p1Home .lg-kpi{grid-template-columns:repeat(2,1fr)}}
+#p1Home .lg-addrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 12px}
+#p1Home .lg-add{display:inline-flex;align-items:center;gap:6px;height:36px;border-radius:999px;background:#fff;box-shadow:var(--sh-1);padding:0 14px 0 6px;font-weight:700;color:var(--ink)}
+#p1Home .lg-add:hover{box-shadow:0 0 0 2px var(--brand),var(--sh-2)}
+#p1Home .lg-add i{font-style:normal;background:var(--bad);color:#fff;border-radius:999px;padding:0 7px;font-size:11px;line-height:18px}
+#p1Home .lg-range{display:flex;background:var(--soft);border-radius:999px;padding:3px}
+#p1Home .lg-range button{padding:5px 12px;border-radius:999px;font-weight:700;font-size:12px;color:var(--muted)}
+#p1Home .lg-range button.on{background:var(--brand);color:#fff}
+#p1Home .lg-t tr.lg-day td{background:#F3F6FA;padding:7px 10px;font-size:12.5px;position:sticky;top:34px;z-index:1}
+#p1Home .lg-t tr.lg-day span{color:var(--muted);margin-left:10px;font-size:12px}
+#p1Home .lg-sku,#p1Home .lg-ord{font-weight:700;color:var(--ink);cursor:pointer;text-decoration:none}
+#p1Home .lg-sku:hover,#p1Home .lg-ord:hover{color:var(--brand-ink);text-decoration:underline}
+#p1Home .q-in{color:var(--brand-ink)} #p1Home .q-out{color:var(--accent)}
+#p1Home .av{width:22px;height:22px;border-radius:50%;background:var(--brand-bg);color:var(--brand-ink);display:inline-grid;place-items:center;font-size:9px;font-weight:800;vertical-align:middle}
+#p1Home .lg-skucard{padding:16px 18px;border-top:4px solid var(--brand)}
+#p1Home .sk-h{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+#p1Home .sk-h h2{margin:0;font-size:22px}
+#p1Home .sk-crumb{font-size:11px;font-weight:800;color:var(--faint);letter-spacing:.06em}
+#p1Home .sk-tiles{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin:14px 0}
+#p1Home .sk-tiles div{background:var(--soft);border-radius:12px;padding:9px 10px}
+#p1Home .sk-tiles b{display:block;font-size:20px;font-weight:800}
+#p1Home .sk-tiles span{font-size:11.5px;color:var(--muted)}
+#p1Home .sk-row{display:grid;grid-template-columns:1fr 240px;gap:18px}
+#p1Home .sk-acts{display:flex;flex-direction:column;gap:6px}
+#p1Home .sk-acts .lg-yes{width:100%}
+@media (max-width:1100px){#p1Home .sk-tiles{grid-template-columns:repeat(3,1fr)}#p1Home .sk-row{grid-template-columns:1fr}}
 /* The old PPC link is off the menu: this page is "PPC" now (its screen and code stay — the Demand buttons open it). */
 #tabFlow{display:none!important}

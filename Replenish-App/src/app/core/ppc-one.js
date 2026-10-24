@@ -6,20 +6,20 @@
  * production … and a completed tab which tells which product was in production and when, and lets us analyse the
  * frequency of the product".
  *
- * Five views, one page, nothing new stored — every figure is read from the registers the floor already fills:
- *   SKU plan     every open order of a SKU added up: ordered, not planned yet, finished goods in store, in production,
- *                made; "Plan" plans all the SKU's waiting lines together (the PPC plan form's own same-SKU plan).
- *   Where it is  every piece in production right now, with whom and since when: the printer (flow challans), the
- *                cutting table, each karigar (Job Work issues not yet received), QC, Finished Goods to accept, shipping.
- *   Journey      one SKU (or one order of it) from the order coming in to leaving production, each step with who and when.
- *   PPC ledger   every movement, newest first, with the SKU's running balance — like the Greige Desk's fabric ledger.
- *   Completed    what was made and when, SKU by SKU: how many times, how many pieces, how long it took, how often it comes.
+ * THE LEDGER ONLY (Ravi, 24 Oct, after a board was drawn: "I want ledger format only"; of the five-view page: "looks plain,
+ * hard to act on, too confusing"). One page, like the Greige Desk's fabric ledger:
+ *   - "Add a movement" — Plan, Fabric to printer, Printed back, Cut, Give to karigar, Back from karigar, QC check, Into
+ *     Finished Goods — each lists the lines waiting for that step and opens the real entry form (the PPC plan form, the
+ *     fabric challan, Cutting Data, the Job Work issue and receipt, QC, Finished Goods), filled in;
+ *   - every movement, newest first and grouped by day, with who and when, and the SKU's running balance;
+ *   - click a SKU and a card above the ledger shows its balance, where its pieces are, who has them and since when.
+ * Planned by SKU: Plan and Fabric to printer take all of a SKU's waiting order lines together.
  * Where the steps come from: order book (order in), pt_ppc (planned, by whom), flow challans (fabric to the printer and
  * printed back), Cutting Data (cutDate · addedBy), Job Work (issueDate / receivingDate · the karigar · addedBy), QC
  * checks (date · checkedBy), press, Finished Goods ledger (createdAt · createdBy), the shipping hand-over register.
  * The old PPC link is off the menu (ppc-one.css); its screen and code stay — the Demand buttons here open it. */
-const P1 = { shown: false, built: false, loading: false, tab: 'sku', seg: 'all', open: '', q: '', jsku: '', jord: '', wseg: '',
-  f: { from: '', to: '', kind: '', sku: '' }, lim: 300, cp: '90', copen: '', at: '' };
+const P1 = { shown: false, built: false, loading: false, q: '',
+  f: { from: '', to: '', kind: '', sku: '', ord: '', party: '' }, lim: 300, at: '' };
 const P1_MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const p1N = v => (Math.round(+v || 0)).toLocaleString('en-IN');
 const p1Day = d => d ? (+String(d).slice(8, 10)) + ' ' + P1_MON[+String(d).slice(5, 7) - 1] + (String(d).slice(0, 4) !== String(new Date().getFullYear()) ? ' ' + String(d).slice(2, 4) : '') : '—';
@@ -27,9 +27,6 @@ const p1Who = v => String(v || '').split('@')[0];
 const p1Iso = v => String(ptIsoDate(v) || '').slice(0, 10);
 const p1Days = d => d ? Math.max(0, Math.round((Date.now() - Date.parse(d + 'T00:00:00')) / 864e5)) : null;
 const p1May = () => !!(ME && (ME.admin || (typeof flowScreenAllowed === 'function' && flowScreenAllowed().length)));
-const P1_OF = { ppc: 0, back: 0, demand: 1, vendor: 2, fabric: 2, emb: 2, cut: 2, raw: 2, wip: 2, out: 2, qcb: 3, ship: 4, fgin: 4 };
-const P1_SAYS = { ppc: 'to plan', back: 'sent back to sales', demand: 'fabric / accessories to arrange', vendor: 'print order to give', fabric: 'with the printer',
-  emb: 'at embroidery', cut: 'to cut', raw: 'cut, to give a karigar', wip: 'with karigars', out: 'made outside', qcb: 'with QC', ship: 'to hand to shipping', fgin: 'Finished Goods to accept', done: 'done' };
 /* the movements of the ledger: label, colour class, which way the SKU's balance moves */
 const P1_MV = { IN: ['Order in', 'mv-in'], PLAN: ['Planned', 'mv-plan'], BACK: ['Sent back to sales', 'mv-bad'], RFD: ['Fabric to printer', 'mv-mat'], PRN: ['Printed back', 'mv-mat'],
   CUT: ['Cut', 'mv-make'], ISS: ['Given to karigar', 'mv-make'], REC: ['Back from karigar', 'mv-make'], QC: ['QC passed', 'mv-qc'], REJ: ['QC rejected', 'mv-bad'],
@@ -83,27 +80,6 @@ function p1Events() {
   return out;
 }
 
-/** The open lines with their state, grouped by SKU. */
-function p1Skus() {
-  let rc = { line: {} }; try { rc = flowRfdCover(); } catch (e) { /* not loaded */ }
-  const by = new Map();
-  flowRows().forEach(x => {
-    if (x.r.__t || x.s.bucket === 'done') return;
-    const k = obUC(x.r.sku), q = +x.r.qty || 0;
-    const e = by.get(k) || { sku: k, what: [x.r.articleSubtype || x.r.articleType || x.r.itemName, x.r.color, x.r.size].filter(Boolean).join(' · '), lines: [], orders: new Set(), ordered: 0, notPlanned: 0, inMake: 0, made: 0, short: false, due: '', isNew: false };
-    e.lines.push(x); e.orders.add(x.r.orderNo); e.ordered += q;
-    if (x.s.bucket === 'ppc' || x.s.bucket === 'back') e.notPlanned += q; else e.inMake += Math.max(0, q - x.s.qc);
-    e.made += Math.min(q, x.s.qc || 0);
-    if (rc.line[x.s.key] && rc.line[x.s.key].short > 0) e.short = true;
-    if (x.s.bucket === 'ppc' && x.recent) e.isNew = true;
-    const d = String((x.s.plan && x.s.plan.dates && x.s.plan.dates.ready) || x.r.mtoDue || ''); if (d && (!e.due || d < e.due)) e.due = d;
-    by.set(k, e);
-  });
-  return [...by.values()].map(e => { const fg = typeof fgiOf === 'function' ? Math.max(0, fgiOf(e.sku).current || 0) : 0;
-    return Object.assign(e, { fg, toMake: Math.max(0, e.notPlanned - fg), stage: Math.min(...e.lines.map(x => P1_OF[x.s.bucket] ?? 9)) }); })
-    .sort((a, b) => (b.notPlanned > 0) - (a.notPlanned > 0) || b.notPlanned - a.notPlanned || b.inMake - a.inMake || a.sku.localeCompare(b.sku));
-}
-
 /** Every piece in production right now: { stage, sku, orderNo, pcs, unit, who, since, ref }. */
 function p1Wip() {
   const out = [], rows = flowRows().filter(x => !x.r.__t && x.s.bucket !== 'done'), open = new Set(rows.map(x => obUC(x.r.orderNo) + '|' + obUC(x.r.sku)));
@@ -128,170 +104,132 @@ function p1Wip() {
     if (left > 0 && !b.frozen) out.push({ stage: 'With karigar', sku: k, orderNo: o, pcs: left, unit: 'pcs', who: b.empName || '—', since: p1Iso(b.issueDate || b.addedAt), ref: 'issued by ' + p1Who(b.addedBy) }); });
   return out.filter(w => w.pcs > 0);
 }
-const P1_WSTAGES = ['Printer', 'Embroidery', 'Cutting', 'Raw cutting in store', 'With karigar', 'QC', 'Finished Goods to accept', 'To hand to shipping'];
 
 /* ---------- the views ---------- */
 
+/* ---------- the page: the ledger, and only the ledger (Ravi, 24 Oct: "I want ledger format only") ----------
+ * Like the Greige Desk's fabric ledger: "Add a movement" buttons across the top (each opens the real entry form for a
+ * line that is waiting for that step), a filter card, then every movement grouped by day with the SKU's running balance.
+ * Pick a SKU (click it anywhere) and a card above the ledger shows its balance, where its pieces are and who has them. */
 const p1Mv = e => `<span class="pl ${P1_MV[e.k][1]}">${P1_MV[e.k][0]}</span>`;
-function p1SkuTab(skus) {
-  const segs = [['all', 'All', () => true], ['plan', 'To plan', s => s.notPlanned > 0], ['make', 'In production', s => s.inMake > 0], ['short', 'RFD short', s => s.short]];
-  const q = P1.q.trim().toUpperCase(), seg = segs.find(x => x[0] === P1.seg) || segs[0];
-  const rows = skus.filter(s => seg[2](s) && (!q || (s.sku + ' ' + s.what + ' ' + [...s.orders].join(' ')).toUpperCase().includes(q)));
-  const tot = k => rows.reduce((a, s) => a + s[k], 0);
-  return `<div class="lg-seg">${segs.map(x => `<button type="button" class="${P1.seg === x[0] ? 'on' : ''}" data-p1seg="${x[0]}">${x[1]} <span>${p1N(skus.filter(x[2]).length)}</span></button>`).join('')}
-      <span class="lg-note">Planned by SKU — every open order of the SKU added together.</span></div>
-    <div class="lg-card"><div class="lg-cap">${p1N(rows.length)} SKUs · <b>${p1N(tot('ordered'))}</b> pcs on open orders · <b style="color:var(--bad)">${p1N(tot('notPlanned'))}</b> not planned · <b>${p1N(tot('inMake'))}</b> in production · <b>${p1N(tot('made'))}</b> made. Every figure is worked out from the registers.</div>
-    <div class="lg-scroll"><table class="lg-t"><thead><tr><th>SKU · article</th><th>Open orders</th><th class="num">Ordered</th><th class="num">Not planned</th><th class="num" title="Finished Goods stock of this SKU in the store now">FG in store</th><th class="num">In production</th><th class="num">Made</th><th>Where</th><th></th></tr></thead><tbody>
-    ${rows.slice(0, P1.lim).map(s => { const open = P1.open === s.sku, words = [...new Set(s.lines.map(x => P1_SAYS[x.s.bucket] || x.s.bucket))].join(', ');
-      return `<tr class="${open ? 'on' : ''}" data-p1open="${esc(s.sku)}"><td><b>${esc(s.sku)}</b>${s.isNew ? ' <span class="pl mv-in">NEW</span>' : ''}${s.short ? ' <span class="pl pl-bad">RFD short</span>' : ''}<div class="sub">${esc(s.what)}</div></td>
-        <td>${s.orders.size} <span class="sub" style="display:inline">${esc([...s.orders].slice(0, 2).join(', '))}${s.orders.size > 2 ? '…' : ''}</span></td>
-        <td class="num">${p1N(s.ordered)}</td><td class="num"><b style="color:${s.notPlanned ? 'var(--bad)' : 'var(--accent)'}">${s.notPlanned ? p1N(s.notPlanned) : '✓ 0'}</b></td>
-        <td class="num">${s.fg ? p1N(s.fg) : '<span class="muted">—</span>'}</td><td class="num">${s.inMake ? p1N(s.inMake) : '<span class="muted">—</span>'}</td><td class="num">${s.made ? p1N(s.made) : '<span class="muted">—</span>'}</td>
-        <td><span class="sub" style="margin:0">${esc(words)}</span></td>
-        <td style="white-space:nowrap">${s.notPlanned && flowCanBack() && s.lines.some(x => x.s.bucket === 'ppc') ? `<button type="button" class="lg-yes" data-p1plan="${esc(s.sku)}">Plan ${p1N(s.notPlanned)} pcs</button>` : ''} <button type="button" class="lg-go" data-p1jour="${esc(s.sku)}">Journey</button></td></tr>
-        ${open ? `<tr class="lg-exp"><td colspan="9">${p1SkuMore(s)}</td></tr>` : ''}`; }).join('') || '<tr><td colspan="9" class="empty">Nothing here.</td></tr>'}
-    </tbody></table></div>${rows.length > P1.lim ? `<button type="button" class="lg-more" data-p1lim>Show all ${p1N(rows.length)}</button>` : ''}</div>`;
+const P1_ADD = [
+  ['PLAN', 'Plan', 'flppc', x => x.s.bucket === 'ppc'],
+  ['RFD', 'Fabric to printer', 'fldem', x => x.s.needFab && x.s.route !== 'stitch'],
+  ['PRN', 'Printed back', 'flchl', x => x.s.printed && x.s.given > 0 && x.s.back < (+x.r.qty || 0)],
+  ['CUT', 'Cut', 'pcut', x => x.s.canCut > 0 && ['cut', 'fabric', 'emb'].includes(x.s.bucket)],
+  ['ISS', 'Give to karigar', 'pbase', x => typeof flowIssuable === 'function' && flowIssuable(x.r, x.s) > 0 && !['ppc', 'back', 'demand', 'vendor'].includes(x.s.bucket)],
+  ['REC', 'Back from karigar', 'pbase', x => typeof flowOpenIssues === 'function' && flowOpenIssues(x.r).length > 0],
+  ['QC', 'QC check', 'qc', x => { try { return flowQcWaiting(x.r, x.s) > 0; } catch (e) { return false; } }],
+  ['FG', 'Into Finished Goods', 'fgi', x => x.s.bucket === 'fgin']];
+const p1MayTab = t => !!(ME && (ME.admin || (ME.tabs || []).includes(t)));
+function p1Waiting(k) { const a = P1_ADD.find(x => x[0] === k); return a ? flowRows().filter(x => !x.r.__t && x.s.bucket !== 'done' && a[3](x)) : []; }
+
+/** "Add a movement": the lines waiting for that step; picking one opens its real entry form. */
+function p1AddOpen(k, sku) {
+  const a = P1_ADD.find(x => x[0] === k); if (!a) return;
+  const ws = p1Waiting(k).filter(x => !sku || obUC(x.r.sku) === sku);
+  const leave = fn => { ptDlgClose(); p1Hide(); setTimeout(fn, 30); };
+  if (k === 'QC') return leave(() => showTab('qc'));
+  if (k === 'FG') return leave(() => { if (typeof frFgView === 'function') frFgView('pending'); else showTab('fgi'); });
+  if (k === 'PRN') return leave(() => { FLOW_VIEW = 'dhist'; showTab('flow'); });
+  if (!ws.length) return ptOpenDialog({ title: a[1], note: sku ? `Nothing of ${sku} is waiting for this step.` : 'Nothing is waiting for this step right now.', saveLabel: 'OK', onSave: () => '' });
+  /* Plan and fabric go SKU by SKU (all the SKU's waiting lines in one plan / one challan); the rest line by line */
+  const bySku = k === 'PLAN' || k === 'RFD';
+  const groups = bySku ? [...ws.reduce((m, x) => { const s = obUC(x.r.sku); (m.get(s) || m.set(s, []).get(s)).push(x); return m; }, new Map())] : ws.map(x => [obUC(x.r.sku), [x]]);
+  const pcs = x => k === 'CUT' ? x.s.canCut : k === 'ISS' ? flowIssuable(x.r, x.s) : k === 'REC' ? flowOpenIssues(x.r).reduce((t, b) => t + ptNum(b.issuePieces) - ptNum(b.receivedPieces) - ptNum(b.rejectionPieces), 0) : +x.r.qty || 0;
+  ptOpenDialog({
+    title: a[1] + (sku ? ' — ' + sku : ''), subtitle: bySku ? 'Waiting, SKU by SKU — every waiting order of the SKU goes together.' : 'Waiting, line by line — the form opens filled in.',
+    html: `<div style="max-height:56vh;overflow:auto">${groups.slice(0, 300).map(([s, xs], i) => `<button type="button" class="ghost" data-p1pick="${i}" style="display:flex;width:100%;gap:10px;align-items:center;text-align:left;margin:4px 0;padding:9px 12px">
+        <b style="min-width:150px">${esc(s)}</b><span style="flex:1;color:var(--muted)">${esc(xs.map(x => x.r.orderNo).join(', '))}${k === 'REC' ? ' · ' + esc(flowOpenIssues(xs[0].r).map(b => b.empName).join(', ')) : ''}</span><b>${p1N(xs.reduce((t, x) => t + pcs(x), 0))} pcs</b></button>`).join('')}</div>`,
+    saveLabel: 'Close', onSave: () => '' });
+  document.querySelectorAll('[data-p1pick]').forEach(b => { b.onclick = () => { const xs = groups[+b.dataset.p1pick][1], x = xs[0];
+    if (k === 'PLAN') { ptDlgClose(); setTimeout(() => flowPpcOpen(null, null, xs.map(y => y.s.key)), 30); }
+    else if (k === 'RFD') { ptDlgClose(); setTimeout(() => flowChallanForKeys(xs.map(y => y.s.key)), 30); }
+    else if (k === 'CUT') leave(() => flowCutEntry(x.r, x.s));
+    else if (k === 'ISS') leave(() => flowIssueEntry(x.r, x.s));
+    else if (k === 'REC') { ptDlgClose(); setTimeout(() => flowRecvEntry(x.r), 30); } }; });
 }
-function p1SkuMore(s) {
-  const wip = p1Wip().filter(w => w.sku === s.sku), ev = p1Events().filter(e => e.sku === s.sku).slice(-6).reverse();
-  return `<div class="lg-two"><div><div class="lg-h">Orders that make up the ${p1N(s.ordered)} pcs</div>
-      <table class="lg-t lg-in"><tr><th>Order</th><th class="num">Pcs</th><th>Where</th><th>Planned</th><th>Ready by</th><th></th></tr>${s.lines.map(x => `<tr><td><b>${esc(x.r.orderNo)}</b></td><td class="num">${p1N(x.r.qty)}</td>
-        <td>${esc(P1_SAYS[x.s.bucket] || x.s.bucket)}</td><td>${x.s.plan && x.s.plan.at ? esc(p1Who(x.s.plan.by)) + ' · ' + p1Day(p1Iso(x.s.plan.at)) : '<span class="muted">—</span>'}</td>
-        <td>${p1Day((x.s.plan && x.s.plan.dates && x.s.plan.dates.ready) || x.r.mtoDue || '')}</td><td>${x.s.plan && flowCanBack() ? `<button type="button" class="lg-go sm" data-p1edit="${esc(x.r.orderNo)}|${esc(x.r.sku)}">Edit plan</button>` : ''}</td></tr>`).join('')}</table>
-      <div class="lg-sum">Ordered <b>${p1N(s.ordered)}</b> · not planned <b style="color:var(--bad)">${p1N(s.notPlanned)}</b> · Finished Goods in store <b>${p1N(s.fg)}</b>${s.notPlanned ? ` · to make after stock <b>${p1N(s.toMake)}</b>` : ''}</div></div>
-    <div><div class="lg-h">Where it is now</div>${wip.map(w => `<div class="lg-mv"><span class="pl mv-make">${esc(w.stage)}</span><b>${p1N(w.pcs)}${w.unit === 'm' ? ' m' : ''}</b><span>${esc(w.who)}</span><span class="muted" style="margin-left:auto">${esc(w.orderNo)}${w.since ? ' · since ' + p1Day(w.since) : ''}</span></div>`).join('') || '<div class="muted">Nothing is in production yet.</div>'}
-      <div class="lg-h" style="margin-top:12px">Latest steps</div>${ev.map(e => `<div class="lg-mv">${p1Mv(e)}<b>${p1N(e.pcs)}${e.unit === 'm' ? ' m' : ''}</b><span class="muted">${esc(e.orderNo)}${e.party ? ' · ' + esc(e.party) : ''}${e.by ? ' · by ' + esc(e.by) : ''}</span><span class="muted" style="margin-left:auto">${p1Day(e.day)}</span></div>`).join('') || '<div class="muted">No step yet.</div>'}
-      <button type="button" class="lg-go" style="margin-top:8px" data-p1jour="${esc(s.sku)}">Whole journey ›</button></div></div>`;
+
+/** The SKU's card above the ledger: its balance, where its pieces are and who has them, and its next steps. */
+function p1SkuCard(sku, ev) {
+  const mine = ev.filter(e => e.sku === sku && e.unit !== 'm'), sum = ks => mine.filter(e => ks.includes(e.k)).reduce((t, e) => t + e.pcs, 0);
+  const rows = flowRows().filter(x => !x.r.__t && obUC(x.r.sku) === sku && x.s.bucket !== 'done');
+  const np = rows.filter(x => x.s.bucket === 'ppc' || x.s.bucket === 'back').reduce((t, x) => t + (+x.r.qty || 0), 0);
+  const mk = rows.filter(x => !['ppc', 'back'].includes(x.s.bucket)).reduce((t, x) => t + Math.max(0, (+x.r.qty || 0) - x.s.qc), 0);
+  const rd = rows.reduce((t, x) => t + Math.max(0, Math.min(+x.r.qty || 0, x.s.qc) - x.s.india), 0);
+  const wip = p1Wip().filter(w => w.sku === sku), what = rows[0] ? [rows[0].r.articleSubtype || rows[0].r.articleType || rows[0].r.itemName, rows[0].r.color, rows[0].r.size].filter(Boolean).join(' · ') : '';
+  const fg = typeof fgiOf === 'function' ? Math.max(0, fgiOf(sku).current || 0) : 0;
+  const acts = P1_ADD.filter(a => p1MayTab(a[2]) && rows.some(x => a[3](x)));
+  return `<div class="lg-card lg-skucard"><div class="sk-h"><div><div class="sk-crumb">SKU</div><h2>${esc(sku)}</h2><div class="muted">${esc(what)}${rows.length ? ' · ' + new Set(rows.map(x => x.r.orderNo)).size + ' open order(s)' : ''}</div></div>
+      <button type="button" class="lg-go" data-p1f-clear-sku>× Show every SKU</button></div>
+    <div class="sk-tiles">${[['Ordered (all time)', sum(['IN']), ''], ['Not planned', np, 'var(--bad)'], ['In production', mk, ''], ['Passed QC, not in FG', rd, 'var(--accent)'], ['Finished Goods in store', fg, ''], ['Sent from production', sum(['FBA', 'SHIP']), 'var(--accent)']]
+      .map(t => `<div><b style="${t[2] ? 'color:' + t[2] : ''}">${p1N(t[1])}</b><span>${t[0]}</span></div>`).join('')}</div>
+    <div class="sk-row"><div class="sk-where"><div class="lg-h">Where it is now — and who has it</div>${wip.map(w => { const d = p1Days(w.since);
+        return `<div class="lg-mv"><span class="pl mv-make">${esc(w.stage)}</span><b>${p1N(w.pcs)}${w.unit === 'm' ? ' m' : ''}</b><span>${esc(w.who)}</span><span class="muted">${esc(w.orderNo)}</span><span class="muted" style="margin-left:auto${d != null && d > 7 ? ';color:var(--bad);font-weight:700' : ''}">${w.since ? p1Day(w.since) + ' · ' + d + ' d' : ''}</span></div>`; }).join('') || '<div class="muted">Nothing of it is in production now.</div>'}</div>
+      ${acts.length ? `<div class="sk-acts"><div class="lg-h">Next for this SKU</div>${acts.map(a => `<button type="button" class="lg-yes" data-p1add="${a[0]}" data-p1add-sku="${esc(sku)}">${esc(a[1])}</button>`).join('')}</div>` : ''}</div></div>`;
 }
-function p1WipTab() {
-  const all = p1Wip(), q = P1.q.trim().toUpperCase(), rows = all.filter(w => (!P1.wseg || w.stage === P1.wseg) && (!q || (w.sku + ' ' + w.orderNo + ' ' + w.who).toUpperCase().includes(q)));
-  const st = P1_WSTAGES.filter(s => all.some(w => w.stage === s));
-  return `<div class="lg-seg"><button type="button" class="${!P1.wseg ? 'on' : ''}" data-p1w="">All <span>${p1N(all.length)}</span></button>${st.map(s => `<button type="button" class="${P1.wseg === s ? 'on' : ''}" data-p1w="${esc(s)}">${esc(s)} <span>${p1N(all.filter(w => w.stage === s).reduce((a, w) => a + (w.unit === 'm' ? 0 : w.pcs), 0))}</span></button>`).join('')}</div>
-    <div class="lg-info">Every piece in production right now and who has it — the printer from its challan, each karigar from the Job Work issues not yet received, QC from what came back and is not checked.</div>
-    ${(P1.wseg ? [P1.wseg] : st).map(s => { const rs = rows.filter(w => w.stage === s).sort((a, b) => String(a.since || '9').localeCompare(String(b.since || '9'))); if (!rs.length) return '';
-      return `<div class="lg-card"><div class="lg-cap"><b>${esc(s)}</b> · ${p1N(rs.length)} line(s) · ${p1N(rs.filter(w => w.unit !== 'm').reduce((a, w) => a + w.pcs, 0))} pcs${rs.some(w => w.unit === 'm') ? ' · ' + p1N(rs.filter(w => w.unit === 'm').reduce((a, w) => a + w.pcs, 0)) + ' m of cloth' : ''}</div>
-        <div class="lg-scroll"><table class="lg-t"><thead><tr><th>With whom</th><th>SKU</th><th>Order</th><th class="num">Pcs</th><th>Since</th><th class="num">Days</th><th>Reference</th><th></th></tr></thead><tbody>
-        ${rs.slice(0, 400).map(w => { const d = p1Days(w.since); return `<tr><td><b>${esc(w.who)}</b></td><td>${esc(w.sku)}</td><td>${esc(w.orderNo)}</td><td class="num"><b>${p1N(w.pcs)}</b>${w.unit === 'm' ? ' m' : ''}</td><td>${p1Day(w.since)}</td>
-          <td class="num"${d != null && d > 7 ? ' style="color:var(--bad);font-weight:700"' : ''}>${d == null ? '—' : d}</td><td class="muted">${esc(w.ref)}</td><td><button type="button" class="lg-go sm" data-p1jour="${esc(w.sku)}" data-p1jo="${esc(w.orderNo)}">Journey</button></td></tr>`; }).join('')}</tbody></table></div></div>`; }).join('') || '<div class="lg-card"><div class="empty">Nothing is in production.</div></div>'}`;
-}
-function p1JourTab() {
-  const ev = p1Events(), skus = [...new Set(ev.map(e => e.sku))].sort();
-  if (!P1.jsku) return `<div class="lg-card lg-filt"><label>SKU<input list="p1Skl" data-p1js placeholder="Type a SKU" style="width:260px"></label><datalist id="p1Skl">${skus.slice(0, 3000).map(s => `<option value="${esc(s)}">`).join('')}</datalist></div><div class="lg-card"><div class="empty">Pick a SKU to see its whole journey — or press <b>Journey</b> on any row.</div></div>`;
-  const mine = ev.filter(e => e.sku === P1.jsku && (!P1.jord || e.orderNo === P1.jord || e.orderNo.split(/ \+ /).includes(P1.jord)));
-  const orders = [...new Set(ev.filter(e => e.sku === P1.jsku).map(e => e.orderNo).filter(Boolean))];
-  const wip = p1Wip().filter(w => w.sku === P1.jsku && (!P1.jord || w.orderNo === P1.jord));
-  const sum = k => mine.filter(e => e.k === k && e.unit !== 'm').reduce((a, e) => a + e.pcs, 0);
-  const tiles = [['Ordered', sum('IN')], ['Planned', sum('PLAN')], ['Cut', sum('CUT')], ['Given to karigars', sum('ISS')], ['Back', sum('REC')], ['QC passed', sum('QC')], ['Into FG', sum('FG')], ['Sent from production', sum('FBA') + sum('SHIP')]];
-  return `<div class="lg-card lg-filt"><label>SKU<input list="p1Skl" data-p1js value="${esc(P1.jsku)}" style="width:240px"></label><datalist id="p1Skl">${skus.slice(0, 3000).map(s => `<option value="${esc(s)}">`).join('')}</datalist>
-      <label>Order<select data-p1jo2><option value="">All orders</option>${orders.map(o => `<option${o === P1.jord ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select></label>
-      <button type="button" class="lg-go" data-p1ledg="${esc(P1.jsku)}">See it in the ledger</button></div>
-    <div class="lg-tiles">${tiles.map(([l, v], i) => `<div><b${i && v < tiles[0][1] ? '' : ' style="color:var(--accent)"'}>${p1N(v)}</b><span>${l}</span></div>`).join('<i>›</i>')}</div>
-    <div class="lg-two"><div class="lg-card" style="padding:14px 16px"><div class="lg-h">The journey · oldest first</div>
-      <div class="tl">${mine.map(e => `<div class="tl-i${P1_END.has(e.k) ? ' end' : ''}"><span class="tl-d"></span><div class="tl-b"><div>${p1Mv(e)} <b>${p1N(e.pcs)}${e.unit === 'm' ? ' m' : ''}</b>${e.party ? ' · ' + esc(e.party) : ''}</div>
-        <div class="sub">${p1Day(e.day)}${e.t ? ' ' + new Date(e.ms).toTimeString().slice(0, 5) : ''}${e.by ? ' · by <b>' + esc(e.by) + '</b>' : ''} · ${esc(e.orderNo || '—')}${e.ref ? ' · ' + esc(e.ref) : ''}</div></div></div>`).join('') || '<div class="muted">Nothing on record for this SKU yet.</div>'}</div></div>
-      <div class="lg-card" style="padding:14px 16px;align-self:start"><div class="lg-h">Where it is now</div>${wip.map(w => `<div class="lg-mv"><span class="pl mv-make">${esc(w.stage)}</span><b>${p1N(w.pcs)}${w.unit === 'm' ? ' m' : ''}</b><span>${esc(w.who)}</span><span class="muted" style="margin-left:auto">${w.since ? 'since ' + p1Day(w.since) : ''}</span></div>`).join('') || '<div class="muted">Nothing of it is in production now.</div>'}</div></div>`;
-}
-function p1LedgerTab() {
-  const ev = p1Events(), f = P1.f, q = P1.q.trim().toUpperCase();
+
+function p1Draw() {
+  const el = $('p1Home'); if (!el || !P1.shown) return;
+  if (P1.loading && !P1.built) { el.innerHTML = '<div class="lg-top"><h1>PPC ledger</h1><span class="lg-note">Reading the order book, plans and registers…</span></div>'; return; }
+  let ev = [];
+  try { ev = p1Events(); } catch (e) { el.innerHTML = `<div class="lg-top"><h1>PPC ledger</h1></div><div class="lg-card"><div class="empty" style="color:var(--bad)">Could not read the registers: ${esc(e.message || e)}</div></div>`; return; }
+  const f = P1.f, q = P1.q.trim().toUpperCase();
   /* the SKU's balance after each step: not planned (ordered, no plan yet), in production (planned, not passed QC), ready (passed, not gone) */
   const bal = {}, after = new Array(ev.length);
   ev.forEach((e, i) => { if (e.unit === 'm') { after[i] = null; return; } const b = bal[e.sku] || (bal[e.sku] = { np: 0, mk: 0, rd: 0 });
     if (e.k === 'IN') b.np += e.pcs; else if (e.k === 'BACK') b.np -= e.pcs; else if (e.k === 'PLAN') { b.np -= e.pcs; b.mk += e.pcs; }
     else if (e.k === 'QC') { b.mk -= e.pcs; b.rd += e.pcs; } else if (P1_END.has(e.k)) b.rd -= e.pcs;
     after[i] = { np: Math.max(0, b.np), mk: Math.max(0, b.mk), rd: Math.max(0, b.rd) }; });
-  const idx = []; for (let i = ev.length - 1; i >= 0; i--) { const e = ev[i];
-    if ((f.kind && e.k !== f.kind) || (f.sku && e.sku !== f.sku) || (f.from && e.day < f.from) || (f.to && e.day > f.to)) continue;
-    if (q && !(e.sku + ' ' + e.orderNo + ' ' + e.party + ' ' + e.by + ' ' + e.ref).toUpperCase().includes(q)) continue; idx.push(i); }
+  const idx = [];
+  for (let i = ev.length - 1; i >= 0; i--) { const e = ev[i];
+    if ((f.kind && e.k !== f.kind) || (f.sku && e.sku !== f.sku) || (f.ord && e.orderNo !== f.ord) || (f.from && e.day < f.from) || (f.to && e.day > f.to)) continue;
+    if (f.party && !(e.party + ' ' + e.by).toUpperCase().includes(f.party.toUpperCase())) continue;
+    if (q && !(e.sku + ' ' + e.orderNo + ' ' + e.party + ' ' + e.by + ' ' + e.ref).toUpperCase().includes(q)) continue;
+    idx.push(i); }
   const inP = idx.reduce((a, i) => a + (ev[i].k === 'IN' ? ev[i].pcs : 0), 0), outP = idx.reduce((a, i) => a + (P1_END.has(ev[i].k) ? ev[i].pcs : 0), 0);
-  return `<div class="lg-info">Every step of every SKU, newest first. The steps are entered on their own screens (order book, PPC, Demand, Cutting Data, Job Work, QC, Finished Goods) — this ledger reads them all.</div>
-    <div class="lg-card lg-filt"><label>From<input type="date" data-p1f="from" value="${f.from}"></label><label>To<input type="date" data-p1f="to" value="${f.to}"></label>
+  const shown = idx.slice(0, P1.lim);
+  let lastDay = '', body = '';
+  shown.forEach(i => { const e = ev[i], b = after[i], sign = e.k === 'IN' ? '+' : P1_END.has(e.k) || e.k === 'BACK' ? '−' : '';
+    if (e.day !== lastDay) { lastDay = e.day; const dayN = idx.filter(j => ev[j].day === e.day).length;
+      body += `<tr class="lg-day"><td colspan="11"><b>${e.day ? new Date(e.day + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) : 'No date'}</b><span>${dayN} movement${dayN > 1 ? 's' : ''}</span></td></tr>`; }
+    body += `<tr><td class="nw muted">${e.t ? new Date(e.ms).toTimeString().slice(0, 5) : ''}</td><td><a class="lg-sku" data-p1sku="${esc(e.sku)}">${esc(e.sku)}</a></td><td>${e.orderNo ? `<a class="lg-ord" data-p1ord="${esc(e.orderNo)}">${esc(e.orderNo)}</a>` : '<span class="muted">—</span>'}</td><td>${p1Mv(e)}</td>
+      <td class="num"><b class="${sign === '+' ? 'q-in' : sign === '−' ? 'q-out' : ''}">${sign}${p1N(e.pcs)}</b>${e.unit === 'm' ? ' m' : ''}</td><td>${e.party ? esc(e.party) : '<span class="muted">—</span>'}</td><td class="muted">${esc(e.ref)}</td><td>${e.by ? `<span class="av">${esc(e.by.slice(0, 2).toUpperCase())}</span> ${esc(e.by)}` : '<span class="muted">—</span>'}</td>
+      ${b ? `<td class="num bal">${p1N(b.np)}</td><td class="num bal">${p1N(b.mk)}</td><td class="num bal">${p1N(b.rd)}</td>` : '<td class="bal" colspan="3"></td>'}</tr>`; });
+  const skus = [...new Set(ev.map(e => e.sku))].sort(), today = new Date().toISOString().slice(0, 10), ago = d => new Date(Date.now() - d * 864e5).toISOString().slice(0, 10);
+  const range = [['Today', today, today], ['7 days', ago(7), ''], ['30 days', ago(30), ''], ['All', '', '']];
+  el.innerHTML = `<div class="lg-top"><div><h1>PPC ledger</h1><div class="lg-note" style="margin:2px 0 0">Every step of every SKU — from the order coming in to leaving production — with who did it and when.</div></div>
+      <input class="lg-q" id="p1Q" placeholder="Search SKU, order, karigar, printer, person…" value="${esc(P1.q)}"><span class="lg-when">${P1.loading ? 'Reading…' : 'Read ' + (P1.at || '—')} · <a data-p1r>↻ Refresh</a></span></div>
+    <div class="lg-addrow"><span class="lg-note" style="margin:0">Add a movement:</span>${P1_ADD.filter(a => p1MayTab(a[2])).map(a => { const n = ['QC', 'FG', 'PRN'].includes(a[0]) ? p1Waiting(a[0]).length : new Set(p1Waiting(a[0]).map(x => a[0] === 'PLAN' || a[0] === 'RFD' ? obUC(x.r.sku) : x.s.key)).size;
+      return `<button type="button" class="lg-add" data-p1add="${a[0]}"><span class="pl ${P1_MV[a[0]][1]}" style="padding:0 6px">+</span>${esc(a[1])}${n ? ` <i>${p1N(n)}</i>` : ''}</button>`; }).join('')}</div>
+    ${f.sku ? p1SkuCard(f.sku, ev) : ''}
+    <div class="lg-card lg-filt"><div class="lg-range">${range.map(r => `<button type="button" class="${f.from === r[1] && f.to === r[2] ? 'on' : ''}" data-p1rg="${r[1]}|${r[2]}">${r[0]}</button>`).join('')}</div>
+      <label>From<input type="date" data-p1f="from" value="${f.from}"></label><label>To<input type="date" data-p1f="to" value="${f.to}"></label>
       <label>Movement<select data-p1f="kind"><option value="">All</option>${Object.entries(P1_MV).map(([k, v]) => `<option value="${k}"${f.kind === k ? ' selected' : ''}>${v[0]}</option>`).join('')}</select></label>
-      <label>SKU<input list="p1Skl2" data-p1f="sku" value="${esc(f.sku)}" placeholder="All" style="width:200px"></label><datalist id="p1Skl2">${[...new Set(ev.map(e => e.sku))].sort().slice(0, 3000).map(s => `<option value="${esc(s)}">`).join('')}</datalist>
-      ${f.from || f.to || f.kind || f.sku ? '<button type="button" class="lg-go" data-p1fclr>Clear the filter</button>' : ''}</div>
-    <div class="lg-card"><div class="lg-cap"><b>${p1N(idx.length)}</b> of ${p1N(ev.length)} movements · <b style="color:var(--brand-ink)">${p1N(inP)}</b> pcs ordered in · <b style="color:var(--accent)">${p1N(outP)}</b> pcs sent from production. The three right-hand columns are the SKU's balance after each step.</div>
-    <div class="lg-scroll"><table class="lg-t"><thead><tr><th>Date</th><th>SKU</th><th>Order</th><th>Movement</th><th class="num">Qty</th><th>Party</th><th>Reference</th><th>By</th><th class="num">Not planned</th><th class="num">In production</th><th class="num">Ready</th></tr></thead><tbody>
-    ${idx.slice(0, P1.lim).map(i => { const e = ev[i], b = after[i], sign = e.k === 'IN' ? '+' : P1_END.has(e.k) || e.k === 'BACK' ? '−' : '';
-      return `<tr><td class="nw">${p1Day(e.day)} <span class="muted">${e.t ? new Date(e.ms).toTimeString().slice(0, 5) : ''}</span></td><td><b>${esc(e.sku)}</b></td><td>${esc(e.orderNo || '—')}</td><td>${p1Mv(e)}</td>
-        <td class="num"><b>${sign}${p1N(e.pcs)}</b>${e.unit === 'm' ? ' m' : ''}</td><td>${e.party ? esc(e.party) : '<span class="muted">—</span>'}</td><td class="muted">${esc(e.ref)}</td><td>${e.by ? esc(e.by) : '<span class="muted">—</span>'}</td>
-        ${b ? `<td class="num bal">${p1N(b.np)}</td><td class="num bal">${p1N(b.mk)}</td><td class="num bal">${p1N(b.rd)}</td>` : '<td class="bal" colspan="3"></td>'}</tr>`; }).join('') || '<tr><td colspan="11" class="empty">No movement matches the filter.</td></tr>'}
-    </tbody></table></div>${idx.length > P1.lim ? `<button type="button" class="lg-more" data-p1lim>Show ${p1N(Math.min(idx.length, P1.lim + 700) - P1.lim)} more</button>` : ''}</div>`;
+      <label>SKU<input list="p1Skl2" data-p1f="sku" value="${esc(f.sku)}" placeholder="All" style="width:170px"></label><datalist id="p1Skl2">${skus.slice(0, 3000).map(s => `<option value="${esc(s)}">`).join('')}</datalist>
+      <label>Order<input data-p1f="ord" value="${esc(f.ord || '')}" placeholder="All" style="width:130px"></label>
+      <label>Karigar / printer / person<input data-p1f="party" value="${esc(f.party || '')}" placeholder="All" style="width:150px"></label>
+      ${f.from || f.to || f.kind || f.sku || f.ord || f.party ? '<button type="button" class="lg-go" data-p1fclr>Clear the filter</button>' : ''}</div>
+    <div class="lg-card"><div class="lg-cap"><b>${p1N(idx.length)}</b> of ${p1N(ev.length)} movements · <b class="q-in">+${p1N(inP)}</b> pcs ordered in · <b class="q-out">−${p1N(outP)}</b> pcs sent from production.
+      The three right-hand columns are the SKU's balance after each step. Nothing here is a stored total — every figure is read from the registers.</div>
+    <div class="lg-scroll"><table class="lg-t"><thead><tr><th>Time</th><th>SKU</th><th>Order</th><th>Movement</th><th class="num">Qty</th><th>Party</th><th>Reference</th><th>By</th><th class="num">Not planned</th><th class="num">In production</th><th class="num">Ready</th></tr></thead><tbody>
+    ${body || '<tr><td colspan="11" class="empty">No movement matches the filter.</td></tr>'}</tbody></table></div>
+    ${idx.length > P1.lim ? `<button type="button" class="lg-more" data-p1lim>Show ${p1N(Math.min(idx.length, P1.lim + 700) - P1.lim)} more</button>` : ''}</div>`;
+  p1Wire(el);
 }
-/** Completed: the order lines that left production, SKU by SKU — when, how long, how often. */
-function p1DoneTab() {
-  const ev = p1Events(), since = P1.cp === 'all' ? '' : new Date(Date.now() - (+P1.cp) * 864e5).toISOString().slice(0, 10);
-  const first = new Map(), last = new Map();
-  ev.forEach(e => { const k = e.orderNo + '|' + e.sku; if (e.k === 'IN' && !first.has(k)) first.set(k, e.day); if (P1_END.has(e.k)) last.set(k, e); });
-  let lines = []; try { lines = ordLines(); } catch (e) { lines = []; }
-  const done = [];
-  lines.forEach(l => { const k = l.orderNo + '|' + l.sku, end = last.get(k); if (l.open && !end) return;
-    const day = end ? end.day : p1Iso(l.handedAt || l.shopDoneAt); if (!day || (since && day < since)) return; if (l.open && (!end || end.pcs < l.qty * 0.5)) return;
-    const start = first.get(k) || p1Iso(l.openIso || l.orderDate);
-    done.push({ sku: l.sku, orderNo: l.orderNo, pcs: l.qty, what: [l.articleSubtype || l.articleType || l.itemName, l.color, l.size].filter(Boolean).join(' · '), start, day, how: end ? P1_MV[end.k][0] : (l.handedAt ? 'Handed over' : 'Closed'),
-      lead: start && day ? Math.max(0, Math.round((Date.parse(day) - Date.parse(start)) / 864e5)) : null }); });
-  const by = new Map();
-  done.forEach(d => { const e = by.get(d.sku) || { sku: d.sku, what: d.what, list: [] }; e.list.push(d); by.set(d.sku, e); });
-  const q = P1.q.trim().toUpperCase();
-  const skus = [...by.values()].filter(e => !q || (e.sku + ' ' + e.what).toUpperCase().includes(q)).map(e => {
-    const ds = e.list.map(d => d.day).sort(), gaps = []; for (let i = 1; i < ds.length; i++) gaps.push((Date.parse(ds[i]) - Date.parse(ds[i - 1])) / 864e5);
-    const leads = e.list.map(d => d.lead).filter(v => v != null), span = ds.length > 1 ? Math.max(1, (Date.parse(ds[ds.length - 1]) - Date.parse(ds[0])) / 864e5) : 0;
-    return Object.assign(e, { times: e.list.length, orders: new Set(e.list.map(d => d.orderNo)).size, pcs: e.list.reduce((a, d) => a + d.pcs, 0), first: ds[0], last: ds[ds.length - 1],
-      lead: leads.length ? Math.round(leads.reduce((a, v) => a + v, 0) / leads.length) : null, every: gaps.length ? Math.round(gaps.reduce((a, v) => a + v, 0) / gaps.length) : null,
-      perMonth: span ? +(e.list.length / span * 30).toFixed(1) : null }); })
-    .sort((a, b) => b.times - a.times || b.pcs - a.pcs);
-  const tot = done.reduce((a, d) => a + d.pcs, 0), leads = done.map(d => d.lead).filter(v => v != null);
-  return `<div class="lg-seg">${[['30', 'Last 30 days'], ['90', 'Last 90 days'], ['365', 'Last year'], ['all', 'All']].map(x => `<button type="button" class="${P1.cp === x[0] ? 'on' : ''}" data-p1cp="${x[0]}">${x[1]}</button>`).join('')}
-      <span class="lg-note">${p1N(done.length)} order lines left production · ${p1N(tot)} pcs · ${p1N(skus.length)} SKUs${leads.length ? ' · ' + Math.round(leads.reduce((a, v) => a + v, 0) / leads.length) + ' days order-to-done on average' : ''}</span></div>
-    <div class="lg-card"><div class="lg-cap">Made, SKU by SKU — <b>how many times</b> it was made, how many pieces, how long it took from the order coming in, and <b>how often</b> it comes back. Most-made first.</div>
-    <div class="lg-scroll"><table class="lg-t"><thead><tr><th>SKU · article</th><th class="num">Times made</th><th class="num">Orders</th><th class="num">Pcs</th><th>First</th><th>Last</th><th class="num">Avg days to make</th><th class="num">Comes every</th><th class="num">Per month</th><th></th></tr></thead><tbody>
-    ${skus.slice(0, P1.lim).map(s => { const open = P1.copen === s.sku;
-      return `<tr class="${open ? 'on' : ''}" data-p1copen="${esc(s.sku)}"><td><b>${esc(s.sku)}</b><div class="sub">${esc(s.what)}</div></td><td class="num"><b>${s.times}</b></td><td class="num">${s.orders}</td><td class="num">${p1N(s.pcs)}</td>
-        <td>${p1Day(s.first)}</td><td>${p1Day(s.last)}</td><td class="num">${s.lead == null ? '—' : s.lead + ' d'}</td><td class="num">${s.every == null ? '<span class="muted">once</span>' : s.every + ' days'}</td><td class="num">${s.perMonth == null ? '—' : s.perMonth}</td>
-        <td><button type="button" class="lg-go sm" data-p1jour="${esc(s.sku)}">Journey</button></td></tr>
-        ${open ? `<tr class="lg-exp"><td colspan="10"><table class="lg-t lg-in"><tr><th>Order</th><th class="num">Pcs</th><th>Order in</th><th>Left production</th><th>How</th><th class="num">Days</th></tr>${s.list.sort((a, b) => b.day.localeCompare(a.day)).map(d => `<tr><td><b>${esc(d.orderNo)}</b></td><td class="num">${p1N(d.pcs)}</td><td>${p1Day(d.start)}</td><td>${p1Day(d.day)}</td><td>${esc(d.how)}</td><td class="num">${d.lead == null ? '—' : d.lead}</td></tr>`).join('')}</table></td></tr>` : ''}`; }).join('') || '<tr><td colspan="10" class="empty">Nothing completed in this period.</td></tr>'}
-    </tbody></table></div>${skus.length > P1.lim ? `<button type="button" class="lg-more" data-p1lim>Show all ${p1N(skus.length)}</button>` : ''}</div>`;
-}
-
-function p1Draw() {
-  const el = $('p1Home'); if (!el || !P1.shown) return;
-  if (P1.loading && !P1.built) { el.innerHTML = '<div class="lg-top"><h1>PPC</h1><span class="lg-note">Reading the order book, plans and registers…</span></div>'; return; }
-  let skus = [], body = '';
-  try {
-    skus = p1Skus();
-    body = P1.tab === 'wip' ? p1WipTab() : P1.tab === 'jour' ? p1JourTab() : P1.tab === 'ledger' ? p1LedgerTab() : P1.tab === 'done' ? p1DoneTab() : p1SkuTab(skus);
-  } catch (e) { body = `<div class="lg-card"><div class="empty" style="color:var(--bad)">Could not read the registers: ${esc(e.message || e)}</div></div>`; }
-  const T = [['sku', 'SKU plan'], ['wip', 'Where it is'], ['jour', 'Journey'], ['ledger', 'PPC ledger'], ['done', 'Completed']];
-  const tp = skus.reduce((a, s) => a + s.notPlanned, 0), mk = skus.reduce((a, s) => a + s.inMake, 0);
-  el.innerHTML = `<div class="lg-top"><h1>PPC</h1><div class="lg-tabs">${T.map(t => `<button type="button" class="${P1.tab === t[0] ? 'on' : ''}" data-p1tab="${t[0]}">${t[1]}</button>`).join('')}</div>
-      <input class="lg-q" id="p1Q" placeholder="Search SKU, article, order, karigar…" value="${esc(P1.q)}"><span class="lg-when">${P1.loading ? 'Reading…' : 'Read ' + (P1.at || '—')} · <a data-p1r>↻ Refresh</a></span></div>
-    <div class="lg-kpi"><div data-p1k="plan"><small>Not planned</small><b style="color:var(--bad)">${p1N(tp)} pcs</b><span>${p1N(skus.filter(s => s.notPlanned).length)} SKUs</span></div>
-      <div data-p1k="make"><small>In production</small><b>${p1N(mk)} pcs</b><span>${p1N(skus.filter(s => s.inMake).length)} SKUs</span></div>
-      <div data-p1k="short"><small>RFD fabric short</small><b style="color:var(--warn-ink)">${p1N(skus.filter(s => s.short).length)} SKUs</b><span>after earlier plans</span></div>
-      <div data-p1k="new"><small>New this week</small><b style="color:var(--brand-ink)">${p1N(skus.filter(s => s.isNew).length)} SKUs</b><span>with a new order</span></div></div>
-    ${body}`;
-  p1Wire(el, skus);
-}
-function p1Wire(el, skus) {
+function p1Wire(el) {
   const on = (sel, fn, ev = 'onclick') => el.querySelectorAll(sel).forEach(b => { b[ev] = e => fn(b, e); });
-  const go = (tab, extra) => { P1.tab = tab; P1.lim = 300; Object.assign(P1, extra || {}); p1Draw(); window.scrollTo(0, 0); };
-  on('[data-p1tab]', b => go(b.dataset.p1tab));
-  on('[data-p1k]', b => go('sku', { seg: b.dataset.p1k === 'new' ? 'all' : b.dataset.p1k }));
-  on('[data-p1seg]', b => { P1.seg = b.dataset.p1seg; P1.lim = 300; p1Draw(); });
-  on('[data-p1open]', (b, e) => { if (e.target.closest('button')) return; P1.open = P1.open === b.dataset.p1open ? '' : b.dataset.p1open; p1Draw(); });
-  on('[data-p1copen]', (b, e) => { if (e.target.closest('button')) return; P1.copen = P1.copen === b.dataset.p1copen ? '' : b.dataset.p1copen; p1Draw(); });
+  const redraw = () => { P1.lim = 300; p1Draw(); };
+  on('[data-p1add]', b => p1AddOpen(b.dataset.p1add, b.dataset.p1addSku || ''));
+  on('[data-p1sku]', b => { P1.f.sku = b.dataset.p1sku; redraw(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
+  on('[data-p1ord]', b => { P1.f.ord = b.dataset.p1ord; redraw(); });
+  on('[data-p1f-clear-sku]', () => { P1.f.sku = ''; redraw(); });
+  on('[data-p1rg]', b => { const [a, z] = b.dataset.p1rg.split('|'); P1.f.from = a; P1.f.to = z; redraw(); });
+  on('[data-p1f]', b => { const k = b.dataset.p1f; P1.f[k] = k === 'sku' || k === 'ord' ? obUC(b.value) : b.value; redraw(); }, 'onchange');
+  on('[data-p1fclr]', () => { P1.f = { from: '', to: '', kind: '', sku: '', ord: '', party: '' }; redraw(); });
   on('[data-p1lim]', () => { P1.lim += 700; p1Draw(); });
-  on('[data-p1plan]', b => { const s = skus.find(x => x.sku === b.dataset.p1plan); if (!s) return;
-    const keys = s.lines.filter(x => x.s.bucket === 'ppc').map(x => x.s.key); if (keys.length) flowPpcOpen(null, null, keys); });
-  on('[data-p1edit]', b => { const [o, k] = b.dataset.p1edit.split('|'); flowPpcOpen(o, k); });
-  on('[data-p1jour]', b => go('jour', { jsku: b.dataset.p1jour, jord: b.dataset.p1jo || '' }));
-  on('[data-p1ledg]', b => go('ledger', { f: Object.assign({}, P1.f, { sku: b.dataset.p1ledg }) }));
-  on('[data-p1w]', b => { P1.wseg = b.dataset.p1w; p1Draw(); });
-  on('[data-p1cp]', b => { P1.cp = b.dataset.p1cp; p1Draw(); });
-  on('[data-p1js]', b => { P1.jsku = obUC(b.value); P1.jord = ''; p1Draw(); }, 'onchange');
-  on('[data-p1jo2]', b => { P1.jord = b.value; p1Draw(); }, 'onchange');
-  on('[data-p1f]', b => { P1.f[b.dataset.p1f] = b.dataset.p1f === 'sku' ? obUC(b.value) : b.value; P1.lim = 300; p1Draw(); }, 'onchange');
-  on('[data-p1fclr]', () => { P1.f = { from: '', to: '', kind: '', sku: '' }; p1Draw(); });
   on('[data-p1r]', (b, e) => { e.preventDefault(); p1Load(true); });
-  const q = el.querySelector('#p1Q'); if (q) q.oninput = () => { P1.q = q.value; clearTimeout(P1.qt); P1.qt = setTimeout(() => { P1.lim = 300; p1Draw(); const n = $('p1Q'); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } }, 300); };
+  const q = el.querySelector('#p1Q'); if (q) q.oninput = () => { P1.q = q.value; clearTimeout(P1.qt); P1.qt = setTimeout(() => { redraw(); const n = $('p1Q'); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } }, 300); };
 }
 async function p1Load(force) {
   if (P1.loading) return;
@@ -337,6 +275,8 @@ function p1Build() {
   document.addEventListener('click', e => { const n = P1.shown && e.target.closest && e.target.closest('.side a.nav[href^="#"], #frHomeNav'); if (n) p1Hide(); }, true);
   /* My work today shown from anywhere else (the bell, a pop-up): this page steps aside */
   if (typeof frHomeShow === 'function') { const fh = frHomeShow; frHomeShow = function () { p1Hide(); return fh.apply(this, arguments); }; }
+  /* a form opened from here (plan, challan, receipt) saved: the ledger reads the registers again */
+  const dlg = $('ptDlg'); if (dlg && typeof MutationObserver !== 'undefined') new MutationObserver(() => { if (P1.shown && dlg.classList.contains('hide')) setTimeout(p1Draw, 300); }).observe(dlg, { attributes: true, attributeFilter: ['class'] });
   const may = () => { a.style.display = p1May() ? '' : 'none'; };
   const t = setInterval(() => { if (ME && ME.email) { may(); clearInterval(t); } }, 1000);
 }
