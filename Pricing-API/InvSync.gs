@@ -264,7 +264,7 @@ function invTick() {
 /** Idle: queue whatever the auto schedule says is due. Runs inside invTick (lock held). */
 function invScheduleDue_() {
   var st = invStatus_(), last = st.last || {}, sched = st.sched || {};
-  if (sched.off) return;
+  if (sched.off || !st.seeded) return;            // nothing runs by itself before the one-time copy from the sheets
   var now = new Date(), steps = [];
   var tz = 'Asia/Kolkata', today = Utilities.formatDate(now, tz, 'yyyy-MM-dd'), hour = Number(Utilities.formatDate(now, tz, 'H'));
   function slotMs(h) { return new Date(today + 'T' + ('0' + h).slice(-2) + ':00:00+05:30').getTime(); }
@@ -670,6 +670,8 @@ INV_STEPS.inv = function (b, st, deadline) {
 /* ===================== Catalog ===================== */
 
 INV_STEPS.cat = function (b, st, deadline) {
+  // Before the one-time copy the hand-typed values are only in the sheets; a catalogue built now would lose them.
+  if (!invStatus_().seeded) return { done: true, err: 'Copy Catalog + Settings from the sheets first (Settings tab) — the hand-typed values are still only there.' };
   var body = function (t) { return { reportType: t, marketplaceIds: [marketplaceId_()] }; };
   if (!st.listings) {
     st.r1 = st.r1 || {};
@@ -746,6 +748,7 @@ function invSeed_() {
   invPut_('meta/settings', { air: n('Air Transit Days', 15), sea: n('Sea Transit Days', 80), awd: n('AWD Transit Days', 7),
     cutoff: n('Month Cutoff Day', 20), safety: n('Safety Stock Days', 30), growth: n('YoY Growth %', 0), from: 'sheet ' + new Date().toISOString() });
   invPut_('config/backend', { url: ScriptApp.getService().getUrl(), key: prop_('API_KEY') });
+  invSetStatus_({ seeded: Date.now() });
   return done;
 }
 
