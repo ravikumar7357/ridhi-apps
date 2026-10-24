@@ -527,6 +527,12 @@ function bdSkuTyped() {
     $('bwAt').value = m.articleType || ''; $('bwSub').value = m.subtype || '';
     $('bwCol').value = m.color || ''; $('bwSz').value = m.size || '';
   }
+  /* …and in Custom Order too (Ravi, 24 Oct: "sku id dalte hi auto fatch hona chahiye"): a SKU the master or the Custom SKUs
+   * list knows fills the four typed boxes; a SKU nobody knows leaves them for typing. */
+  if (m && bdIsCustom()) {
+    if ($('bwAtTxt')) $('bwAtTxt').value = m.articleType || ''; if ($('bwSubTxt')) $('bwSubTxt').value = m.subtype || '';
+    $('bwColTxt').value = m.color || ''; $('bwSzTxt').value = m.size || '';
+  }
   /* The REST of the form — the order list and five dropdowns rebuilt from the master database and
    * the order book — waits until the typing stops. Doing it per character is what made a five-letter
    * SKU take five rebuilds of everything, and none of the first four were ever looked at. */

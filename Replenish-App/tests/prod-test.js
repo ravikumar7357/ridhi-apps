@@ -817,6 +817,13 @@ console.log('\n== the order list follows the typed SKU ==');
     ok('custom: the article and subtype typed in another case take the master\'s spelling, and a new SKU is made for the new colour', /-CUST-/.test(els.bwSku.value), els.bwSku.value);
     ok('…the boxes offer the master\'s articles to pick from', /value="Table Cloth"/.test(els.bwAtList.innerHTML));
     const sku = els.bwSku.value;
+    { /* "sku id dalte hi auto fatch hona chahiye": a known SKU typed in Custom Order fills the four boxes */
+      const keep = [els.bwAtTxt.value, els.bwSubTxt.value, els.bwColTxt.value, els.bwSzTxt.value];
+      els.bwSku.value = 'tc-1'; A.bdSkuTyped();
+      ok('custom: typing a SKU the master knows fills article, subtype, colour and size', els.bwAtTxt.value === 'Table Cloth' && els.bwSubTxt.value === 'Printed' && els.bwColTxt.value === 'Blue' && els.bwSzTxt.value === '60x60',
+        [els.bwAtTxt.value, els.bwSubTxt.value, els.bwColTxt.value, els.bwSzTxt.value].join('|'));
+      [els.bwAtTxt.value, els.bwSubTxt.value, els.bwColTxt.value, els.bwSzTxt.value] = keep; els.bwSku.value = sku; els.bwSku.dataset.typed = '';
+    }
     els.bwPcs.value = '5';
     await els.bwSave.onclick();
     const bd = Object.entries(NET.store).find(([k]) => /^pt_baseData\//.test(k)), md = Object.entries(NET.store).find(([k]) => /^pt_masterDB\//.test(k));
@@ -9849,6 +9856,13 @@ console.log('\n== B2B sales orders: the buyer\'s own columns, and new items on t
   const ls = A.ordLines(), leg = ls.find(l => l.orderNo === 'LEG-17102026-01'), amz = ls.find(l => l.orderNo === 'AMZ-01102026-01');
   ok('a legacy order line made on the floor owes no cutting (was "15 to cut" for ever); an ordinary order of the same SKU still does', leg && leg.pendingCut === 0 && amz && amz.pendingCut === 15,
     JSON.stringify([leg && leg.pendingCut, amz && amz.pendingCut]));
+  /* …and its pieces back before QC began (5 Oct) still wait for QC — they were never listed, so the lines stayed open */
+  const wasQC = A.QC(); A.setQC(Object.assign({}, wasQC, { checks: [] }));
+  A.setPT(Object.assign(A.PT(), { base: [{ id: 'b1', orderNo: 'LEG-17102026-01', sku: 'AEDB909-1220', issuePieces: 15, receivedPieces: 15, issueDate: '02/10/2026, 10:00', receivingDate: '02/10/2026, 18:00', receipts: [{ at: '02/10/2026, 18:00', qty: 15 }] },
+    { id: 'b2', orderNo: 'AMZ-01102026-01', sku: 'AEDB909-1220', issuePieces: 5, receivedPieces: 5, issueDate: '02/10/2026, 10:00', receivingDate: '02/10/2026, 18:00', receipts: [{ at: '02/10/2026, 18:00', qty: 5 }] }] }));
+  const qw = A.qcInboxRows();
+  ok('a legacy order\'s pieces received 2 Oct wait for QC; an ordinary order\'s from before 5 Oct still do not', qw.some(x => x.r.id === 'b1' && x.wait === 15) && !qw.some(x => x.r.id === 'b2'), JSON.stringify(qw.map(x => [x.r.id, x.wait])));
+  A.setQC(wasQC);
   A.setPTG(wasPTG); A.setPT(Object.assign(wasPT, { base: wasBase, cut: wasCut }));
 }
 console.log('\n== a Shopify order is packs, the factory makes pieces ==');
