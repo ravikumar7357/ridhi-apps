@@ -4,9 +4,12 @@ rules_version = '2';
 // may correct catalogue values (catedit); only Ravi changes Settings.
 service cloud.firestore {
   match /databases/{db}/documents {
+    // A verified email (Google, or a password account whose owner clicked the verification link).
     function signedIn() { return request.auth != null && request.auth.token.email_verified == true; }
     function email() { return request.auth.token.email.lower(); }
-    function isAdmin() { return signedIn() && email() == 'ravi@thefabricrush.com'; }
+    // Ravi signs in with email + password. His account is trusted by its fixed user id, so it needs no
+    // verification; an email alone is never enough for an unverified account.
+    function isAdmin() { return request.auth != null && (request.auth.uid == '3oxH3eaZuvfyYfmCLKR9f2SJ4vb2' || (signedIn() && email() == 'ravi@thefabricrush.com')); }
     function isUser() { return isAdmin() || (signedIn() && exists(/databases/$(db)/documents/users/$(email()))); }
 
     match /users/{e} {

@@ -54,8 +54,14 @@ td[contenteditable]{outline:1px dashed var(--line);text-align:left;min-width:80p
 <div id="login" class="login hide">
   <h2 style="margin-top:0">FabriCrush Inventory</h2>
   <p class="mute">Amazon inventory, shipments and orders — straight from Amazon, no Google Sheets.</p>
-  <button id="signin" class="btn pri">Sign in with Google</button>
+  <form id="pwForm" style="display:grid;gap:8px;text-align:left">
+    <div class="field"><label>Email</label><input id="em" type="email" autocomplete="username" required></div>
+    <div class="field"><label>Password</label><input id="pw" type="password" autocomplete="current-password" required></div>
+    <button class="btn pri" type="submit">Sign in</button>
+  </form>
+  <p class="small"><a href="#" id="forgot">Forgot password?</a> · <a href="#" id="signin">Sign in with Google</a></p>
   <p id="loginMsg" class="err small"></p>
+  <p id="verifyBox" class="small hide"><button class="btn" id="sendVerify">Send verification email</button> <button class="btn" id="signout2">Use another account</button></p>
 </div>
 
 <div id="app" class="hide">
@@ -79,7 +85,7 @@ td[contenteditable]{outline:1px dashed var(--line);text-align:left;min-width:80p
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, deleteDoc, onSnapshot, collection, getDocs, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const fb = initializeApp({ apiKey: "AIzaSyCcR9PG1wTMq3StEOGKhXE37hJXg6BjIyc", authDomain: "fabricrush-inventory.firebaseapp.com",
@@ -101,8 +107,26 @@ const SETS = {};          // name -> { idx, rows }
 const unsubs = [];
 
 /* ---------- sign-in ---------- */
-$('signin').onclick = async () => {
-  $('loginMsg').textContent = '';
+const AUTH_MSG = { 'auth/invalid-credential': 'Wrong email or password.', 'auth/wrong-password': 'Wrong email or password.', 'auth/user-not-found': 'No account with that email. Ask Ravi to add you.',
+  'auth/too-many-requests': 'Too many tries. Wait a few minutes, or use "Forgot password?".', 'auth/invalid-email': 'That email address is not valid.' };
+$('pwForm').onsubmit = async e => {
+  e.preventDefault(); $('loginMsg').textContent = '';
+  try { await signInWithEmailAndPassword(auth, $('em').value.trim(), $('pw').value); }
+  catch (err) { $('loginMsg').textContent = AUTH_MSG[err.code] || err.message; }
+};
+$('forgot').onclick = async e => {
+  e.preventDefault(); const em = $('em').value.trim();
+  if (!em) { $('loginMsg').textContent = 'Type your email first, then press "Forgot password?".'; return; }
+  try { await sendPasswordResetEmail(auth, em); $('loginMsg').textContent = 'A password reset link has been sent to ' + em + '.'; }
+  catch (err) { $('loginMsg').textContent = AUTH_MSG[err.code] || err.message; }
+};
+$('sendVerify').onclick = async () => {
+  try { await sendEmailVerification(auth.currentUser); $('loginMsg').textContent = 'Verification email sent to ' + auth.currentUser.email + '. Click the link in it, then sign in again.'; }
+  catch (err) { $('loginMsg').textContent = err.message; }
+};
+$('signout2').onclick = () => signOut(auth);
+$('signin').onclick = async e => {
+  e.preventDefault(); $('loginMsg').textContent = '';
   try { await signInWithPopup(auth, new GoogleAuthProvider()); }
   catch (e) { $('loginMsg').textContent = e.code === 'auth/operation-not-allowed' || e.code === 'auth/configuration-not-found'
       ? 'Google sign-in is not switched on for this project yet (Firebase console → Authentication → Google).' : (e.message || e); }
@@ -110,12 +134,15 @@ $('signin').onclick = async () => {
 $('signout').onclick = () => signOut(auth);
 onAuthStateChanged(auth, async user => {
   unsubs.splice(0).forEach(u => u());
+  $('verifyBox').classList.add('hide'); $('pwForm').classList.toggle('hide', !!user);
   if (!user) { $('app').classList.add('hide'); $('login').classList.remove('hide'); return; }
   ME = (user.email || '').toLowerCase(); isAdmin = ME === ADMIN;
   try { await getDoc(doc(db, 'meta', 'status')); }
   catch (e) {
     $('app').classList.add('hide'); $('login').classList.remove('hide');
-    $('loginMsg').textContent = ME + ' does not have access yet. Ask Ravi to add you in Access.';
+    // Only Ravi's own account is let in unverified; everybody else must click the link in the verification email.
+    if (!user.emailVerified && !isAdmin) { $('loginMsg').textContent = ME + ': please verify your email first.'; $('verifyBox').classList.remove('hide'); return; }
+    $('loginMsg').textContent = ME + ' does not have access yet. Ask Ravi to add you in Access.'; $('verifyBox').classList.remove('hide');
     return;
   }
   $('login').classList.add('hide'); $('app').classList.remove('hide');
@@ -409,8 +436,11 @@ function renderSet() {
 async function renderAccAsync() {
   const snap = await getDocs(collection(db, 'users'));
   const list = snap.docs.map(d => d.id).sort();
+  // A new person: Firebase console → Authentication → Add user (email + password), then add the email here.
+  // They sign in, press "Send verification email" once, click the link, and sign in again.
   $('view').innerHTML = `<div class="bar"><input type="search" id="newUser" placeholder="name@thefabricrush.com" style="min-width:280px"><button class="btn pri" id="addUser">Give access</button></div>
     <p class="small mute">People here can see everything and correct Catalog values. Only ${ADMIN} changes settings and access.</p>
+    <p class="note small">To add someone: <b>1.</b> Firebase console → Authentication → Add user (their email + a password). <b>2.</b> Add the same email here. <b>3.</b> They sign in, press <i>Send verification email</i>, click the link in that email, and sign in again.</p>
     <table><tr><th class="l">Email</th><th></th></tr>${list.map(e => `<tr><td class="l">${esc(e)}</td><td><button class="btn" data-del="${esc(e)}">Remove</button></td></tr>`).join('') || '<tr><td class="l mute">Nobody else yet.</td><td></td></tr>'}</table>`;
   $('addUser').onclick = async () => { const e = $('newUser').value.trim().toLowerCase(); if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) return alert('Type a full email address.');
     await setDoc(doc(db, 'users', e), { by: ME, at: Date.now() }); renderAccAsync(); };
