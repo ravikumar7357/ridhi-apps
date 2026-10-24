@@ -22464,7 +22464,12 @@ function ordLinesBuild() {
     const b = obBaseIndex().get(obKeyOf(l.orderNo, l.sku));
     const issued = Math.max(own('issued'), b ? b.issued : 0);
     const received = Math.max(own('received'), b ? b.received : 0);
-    const cutReq = ordCutReq(l.sku);
+    /* NO CUTTING OWED (Ravi, 24 Oct: "legacy order se entry ki thi kareegaro ki usme bhi koi glitch"): a legacy order is pieces
+     * already made on the floor before the app had an order for them (LEG-17102026-01, 1–15 Oct) — 59 of its lines, all made,
+     * read "to cut" for ever because no cutting entry was ever made for them; and a line PPC sent straight to Job Work skips the
+     * cutting table by its plan (bdGuard reads the same route). */
+    const cutReq = ordCutReq(l.sku) && !/^LEG-/i.test(l.orderNo)
+      && !(typeof flowPlanRouteOf === 'function' && flowPlanRouteOf(l.orderNo, l.sku) === 'jobwork');
     const cutPct = l.qty > 0 ? (cut / l.qty) * 100 : 0;
     const cutDone = !cutReq || cutPct >= ORD_THRESHOLD(l.qty);
     /* MADE IS WHAT CAME BACK — the received figure from Base Data, and nothing else.

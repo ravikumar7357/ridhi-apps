@@ -9839,6 +9839,16 @@ console.log('\n== B2B sales orders: the buyer\'s own columns, and new items on t
   ok('a sales-order SKU the master has with an R names it', A.soSkuHint('RTCR296-110', K) === ' — the master has RTCR296-110R', A.soSkuHint('RTCR296-110', K));
   ok('…one whose size is not there names the sizes that are', A.soSkuHint('RTC296-5454', K) === ' — the master has RTC296 in 5270, 6060', A.soSkuHint('RTC296-5454', K));
   ok('…and an unknown product says nothing more', A.soSkuHint('ZZZ1-10', K) === ''); }
+{ /* 24 Oct ("legacy order se entry ki thi kareegaro ki usme bhi koi glitch"): a legacy order owes no cutting */
+  const wasPTG = A.PTG(), wasPT = A.PT(), wasBase = A.PT().base, wasCut = A.PT().cut;
+  A.setPTG(Object.assign({}, wasPTG, { press: [], shopProd: {}, mdb: [{ sku: 'AEDB909-1220', articleType: 'Pillow Cover', subtype: 'Piping', size: '12x20', cuttingRequired: true, packOf: '1' }],
+    ob: [{ id: 'l1', orderNo: 'LEG-17102026-01', sku: 'AEDB909-1220', qty: 15, src: 'LEG', orderDate: '2026-10-17' }, { id: 'l2', orderNo: 'AMZ-01102026-01', sku: 'AEDB909-1220', qty: 15, src: 'SO', orderDate: '2026-10-01' }] }));
+  A.setPT(Object.assign(A.PT(), { cut: [], base: [{ id: 'b1', orderNo: 'LEG-17102026-01', sku: 'AEDB909-1220', issuePieces: 15, receivedPieces: 15, issueDate: '08/10/2026, 10:00', receivingDate: '08/10/2026, 16:00' }] }));
+  const ls = A.ordLines(), leg = ls.find(l => l.orderNo === 'LEG-17102026-01'), amz = ls.find(l => l.orderNo === 'AMZ-01102026-01');
+  ok('a legacy order line made on the floor owes no cutting (was "15 to cut" for ever); an ordinary order of the same SKU still does', leg && leg.pendingCut === 0 && amz && amz.pendingCut === 15,
+    JSON.stringify([leg && leg.pendingCut, amz && amz.pendingCut]));
+  A.setPTG(wasPTG); A.setPT(Object.assign(wasPT, { base: wasBase, cut: wasCut }));
+}
 console.log('\n== a Shopify order is packs, the factory makes pieces ==');
 {
   /* "pillow cover always pack of 2 me bante h but abhi dikha rha h 1 pcs ... napkin me sku ke peeche
