@@ -9813,6 +9813,8 @@ console.log('\n== a Shopify order is packs, the factory makes pieces ==');
     { sku: 'CPCCRU045-1220', articleType: 'Pillow Cover', subtype: 'Ruffle Pillow Cover', size: '12x20', packOf: '1' },
     { sku: 'RCNE502-6', articleType: 'Napkin', subtype: 'Embroidery Napkin', size: '18x18', packOf: '6' },
     { sku: 'RCNB9-20', articleType: 'Napkin', subtype: 'Border Napkin', size: '20x20', packOf: '4' },
+    { sku: 'R-CP-327', articleType: 'Seat Pad', size: '16x16', packOf: '2' },
+    { sku: 'R-CC-327', articleType: 'Bag', size: '10x6x6', packOf: '' },
   ], ob: [
     { id: 'p1', orderNo: 'SHP-3408', sku: 'RPCRU212-2424', qty: 1, src: 'SHP', orderDate: '2026-09-10', shopOrderNo: '#3408', articleType: 'Pillow Cover' },
     { id: 'p2', orderNo: 'SHP-3500', sku: 'RCNB374-12', qty: 2, src: 'SHP', orderDate: '2026-09-10', shopOrderNo: '#3500' },
@@ -9831,6 +9833,8 @@ console.log('\n== a Shopify order is packs, the factory makes pieces ==');
      A.obPcsPerPack('RPCRU34-1220', 'Pillow Cover') === 1, String(A.obPcsPerPack('RPCRU34-1220', 'Pillow Cover')));
   ok('a pillow cover nobody has listed is a pack of 2',A.obPcsPerPack('RPCZZ9-1818', 'Pillow Cover') === 2);
   ok('a tablecloth is one piece', A.obPcsPerPack('RTC23-6060', 'Tablecloth') === 1);
+  ok('a Ridhi cosmetic bag is one piece — not a pair because the seat pad of its colour is (24 Oct, R-CC-327: 66 ordered, 132 shown)',
+    A.obPcsPerPack('R-CC-327', 'Bag') === 1 && A.obPcsPerPack('R-CP-327', 'Seat Pad') === 2 && A.obPcsPerPack('RPCRU34-2424') === 2, String(A.obPcsPerPack('R-CC-327', 'Bag')));
 
   ok('one pack of 2 is owed as 2 pieces', A.obOrderedQty('SHP-3408', 'RPCRU212-2424') === 2);
   ok('two sets of 12 napkins are 24 pieces', A.obOrderedQty('SHP-3500', 'RCNB374-12') === 24);
