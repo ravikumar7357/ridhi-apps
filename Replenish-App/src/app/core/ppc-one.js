@@ -225,11 +225,25 @@ function p1Inv() {
   return [...by.values()].map(e => Object.assign(e, { fg: typeof fgiOf === 'function' ? Math.max(0, fgiOf(e.sku).current || 0) : 0, tot: e.fab + e.cut + e.raw + e.kar + e.qc + e.ready }))
     .sort((a, b) => (b.notPlanned > 0) - (a.notPlanned > 0) || b.tot - a.tot || b.ordered - a.ordered || a.sku.localeCompare(b.sku));
 }
-/** A figure that opens what makes it up, or a dash. */
+/** A figure that opens what makes it up, and under it the button for its next step (Ravi, 24 Oct: "its not actionable"). */
+const P1_CELLDO = { fab: ['RFD', 'Make challan'], cut: ['CUT', 'Enter cutting'], raw: ['ISS', 'Give to karigar'], kar: ['REC', 'Receive'], qc: ['QC', 'Check in QC'], ready: ['FG', 'Accept'] };
 function p1Cell(r, col, v, style, unit) {
   if (!(v > 0.05)) return `<td class="num"><span class="muted">—</span></td>`;
-  const on = P1.inv === r.sku + '|' + col;
-  return `<td class="num"><button type="button" class="cellbtn${on ? ' on' : ''}" data-p1inv="${esc(r.sku)}|${col}"${style ? ` style="${style}"` : ''} title="Show what makes this up">${p1N(v)}${unit || ''} <span class="caret">${on ? '▴' : '▾'}</span></button></td>`;
+  const on = P1.inv === r.sku + '|' + col, act = p1CellAct(r, col);
+  return `<td class="num"><button type="button" class="cellbtn${on ? ' on' : ''}" data-p1inv="${esc(r.sku)}|${col}"${style ? ` style="${style}"` : ''} title="Show what makes this up">${p1N(v)}${unit || ''} <span class="caret">${on ? '▴' : '▾'}</span></button>
+    ${act ? `<div><button type="button" class="jw-btn jw-primary p1-cdo" data-p1cdo="${esc(r.sku)}|${col}">${esc(act[1])}${act[2] > 1 ? ' · ' + act[2] : ''}</button></div>` : ''}</td>`;
+}
+/** The next step for a figure: [movement, label, how many lines wait for it] — fabric that is out already says Receive printed. */
+function p1CellAct(r, col) {
+  const d = P1_CELLDO[col]; if (!d) return null;
+  const a = P1_ADD.find(x => x[0] === d[0]); if (!a || !p1MayTab(a[2])) return null;
+  if (col === 'fab') { const need = r.lines.filter(x => x.s.needFab && x.s.route !== 'stitch');
+    if (need.length) return ['RFD', 'Make challan', need.length];
+    const out = r.lines.filter(x => x.s.printed && x.s.given > 0 && x.s.back < (+x.r.qty || 0));
+    return out.length && p1MayTab('flchl') ? ['PRN', 'Receive printed', out.length] : null; }
+  if (col === 'kar') { const n = r.lines.filter(x => flowOpenIssues(x.r).length).length; return n ? ['REC', 'Receive', n] : null; }
+  const n = r.lines.filter(x => a[3](x)).length;
+  return n ? [d[0], d[1], n] : null;
 }
 /** The Orders cell: what is ordered, what is not planned yet, finished goods in store, and Plan. */
 function p1DemCell(r) {
@@ -322,6 +336,11 @@ function p1DrawInv() {
   const R = sku => all.find(r => r.sku === sku);
   on('[data-p1art]', b => { P1.art = b.dataset.p1art; P1.inv = ''; P1.lim = 300; p1Draw(); });
   on('[data-p1inv]', b => { P1.inv = P1.inv === b.dataset.p1inv ? '' : b.dataset.p1inv; p1Draw(); });
+  on('[data-p1cdo]', b => { const [sku, col] = b.dataset.p1cdo.split('|'), r = R(sku), act = r && p1CellAct(r, col); if (!act) return;
+    const a = P1_ADD.find(x => x[0] === act[0]), ls = r.lines.filter(x => act[0] === 'REC' ? flowOpenIssues(x.r).length : a[3](x));
+    if (act[0] === 'RFD') return p1Do('RFD', ls);                                        // one challan for the SKU's waiting lines
+    if (ls.length === 1 || ['QC', 'FG', 'PRN'].includes(act[0])) return p1Do(act[0], ls);   // one line, or a screen of its own: straight there
+    P1.inv = sku + '|' + col; p1Draw(); });                                              // several lines: the list under the row, each with its button
   on('[data-p1plan]', b => { const r = R(b.dataset.p1plan); if (r) p1Do('PLAN', r.lines.filter(x => x.s.bucket === 'ppc')); });
   on('[data-p1do1]', b => { const [k, i] = b.dataset.p1do1.split('|'), r = R(P1.inv.split('|')[0]), x = r && r.lines[+i]; if (!x) return;
     if (k === 'BACK') flowBackOpen([x.s.key]); else if (k === 'EDIT') flowPpcOpen(x.r.orderNo, x.r.sku);
