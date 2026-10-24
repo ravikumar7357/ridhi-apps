@@ -1,0 +1,26 @@
+rules_version = '2';
+// FabriCrush Inventory. The data is written ONLY by the Pricing-API Apps Script (as the project owner,
+// which bypasses these rules). People in the app may read; Ravi adds people in Access; anyone allowed
+// may correct catalogue values (catedit); only Ravi changes Settings.
+service cloud.firestore {
+  match /databases/{db}/documents {
+    function signedIn() { return request.auth != null && request.auth.token.email_verified == true; }
+    function email() { return request.auth.token.email.lower(); }
+    function isAdmin() { return signedIn() && email() == 'ravi@thefabricrush.com'; }
+    function isUser() { return isAdmin() || (signedIn() && exists(/databases/$(db)/documents/users/$(email()))); }
+
+    match /users/{e} {
+      allow read: if isAdmin() || (signedIn() && e == email());
+      allow write: if isAdmin();
+    }
+    match /catedit/{b} {
+      allow read, write: if isUser() && b in ['SP', 'CPC'];
+    }
+    match /meta/settings {
+      allow write: if isAdmin();
+    }
+    match /{coll}/{doc} {
+      allow read: if isUser() && coll in ['inv', 'ship', 'cat', 'ord', 'idx', 'meta', 'config', 'work'];
+    }
+  }
+}

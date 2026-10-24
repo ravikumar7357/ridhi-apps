@@ -10,6 +10,7 @@
 !/Repl-API/
 !/Repl-API-CPC/
 !/shared/
+!/Inventory-App/
 !/.github/
 
 # Firebase's local deploy cache, and anything installed.

@@ -26,6 +26,7 @@
     "SalesAnalysis.gs",
     "ListingHealth.gs",
     "Research.gs",
+    "InvSync.gs",
     "Setup.gs"
   ]
 }
