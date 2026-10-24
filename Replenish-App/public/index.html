@@ -3139,15 +3139,25 @@ html.mob table.mob-tcards.mob-tgrid tbody tr:not(.mob-tmsg):not(.mob-tnest):has(
             <span id="bwOrdWrap" style="flex:0 0 240px">
               <select id="bwOrd" style="width:100%"><option value="">— Select Order ID —</option></select>
             </span>
+            <!-- Custom Order's own Order ID (Ravi, 24 Oct: "order id m khud likhu ya dropdown me etsy, shopify, B2B, online") -->
+            <input id="bwCustOrd" class="hide" list="bwCustOrdList" placeholder="Order ID — type it, or ETSY / SHOPIFY / B2B / ONLINE" style="flex:0 0 260px" autocomplete="off">
+            <datalist id="bwCustOrdList"><option value="ETSY"><option value="SHOPIFY"><option value="B2B"><option value="ONLINE"></datalist>
             <select id="bwType" style="flex:0 0 160px"><option value="">Employment type…</option></select>
             <input id="bwEmp" list="bwEmpList" placeholder="Employee name" style="flex:0 0 170px">
             <datalist id="bwEmpList"></datalist>
             <select id="bwAt" style="flex:0 0 150px"><option value="">-- Article type --</option></select>
+            <!-- Custom Order: article and subtype picked from the master's OR typed (Ravi, 24 Oct: "dropdown and manual dono") -->
+            <input id="bwAtTxt" class="hide" list="bwAtList" placeholder="Article type (pick or type)" style="flex:0 0 170px" autocomplete="off">
+            <datalist id="bwAtList"></datalist>
             <select id="bwSub" style="flex:0 0 175px"><option value="">-- Subtype --</option></select>
+            <input id="bwSubTxt" class="hide" list="bwSubList" placeholder="Subtype (pick or type)" style="flex:0 0 175px" autocomplete="off">
+            <datalist id="bwSubList"></datalist>
             <select id="bwCol" style="flex:0 0 150px"><option value="">-- Colour --</option></select>
-            <input id="bwColTxt" class="hide" placeholder="Colour (free text)" style="flex:0 0 150px">
+            <input id="bwColTxt" class="hide" list="bwColList" placeholder="Colour (pick or type)" style="flex:0 0 150px" autocomplete="off">
+            <datalist id="bwColList"></datalist>
             <select id="bwSz" style="flex:0 0 120px"><option value="">-- Size --</option></select>
-            <input id="bwSzTxt" class="hide" placeholder="Size (free text)" style="flex:0 0 120px">
+            <input id="bwSzTxt" class="hide" list="bwSzList" placeholder="Size (pick or type)" style="flex:0 0 120px" autocomplete="off">
+            <datalist id="bwSzList"></datalist>
             <input id="bwSku" list="bwSkuList2" placeholder="SKU (auto-matched)" style="flex:0 0 185px;font-family:ui-monospace,monospace"
                    title="Filled in from the item above. Typing a SKU here works too and fills the item fields back.">
             <datalist id="bwSkuList2"></datalist>
@@ -17057,6 +17067,47 @@ function bdOpenOrders() {
 }
 
 const bdIsCustom = () => $('bwCustom').checked === true;
+/* CUSTOM ORDER, IN FULL (Ravi, 24 Oct: "order id m khud likhu ya dropdown me etsy, shopify, B2B, online and proper detail dalu
+ * like article subtype color size, sku auto match or yadi masterdata me nahi h to auto masterdata me save (dropdown and manual
+ * dono) and ye mera data production meeting me kam aata h"). The Order ID is typed or picked (ETSY / SHOPIFY / B2B / ONLINE)
+ * and kept on the entry as custOrder — never as orderNo, which would make it an order-book line the book has not got. The four
+ * details are picked from the master's own spellings or typed; a typed article that the master spells another way takes the
+ * master's spelling. A SKU the master has is reused; a new one is minted and written to the master on Issue (bdCustomMaster). */
+const BD_CUST_CHANNELS = ['ETSY', 'SHOPIFY', 'B2B', 'ONLINE'];
+const bdCustChannel = t => { const u = String(t || '').trim().toUpperCase();
+  return BD_CUST_CHANNELS.find(c => u === c || u.startsWith(c + ' ') || u.startsWith(c + '-') || u.startsWith(c + '#'))
+    || (/^SHP-/.test(u) ? 'SHOPIFY' : /^ONL-/.test(u) ? 'ONLINE' : /^B2B-/.test(u) ? 'B2B' : ''); };
+/** A typed value in the master's own spelling when the master has it under another case or spacing. */
+const bdMasterSpelling = (list, v) => { const t = String(v || '').trim(); if (!t) return ''; const k = ptNorm(t);
+  return list.find(x => ptNorm(x) === k) || t; };
+const bdCustAt = () => bdMasterSpelling([...new Set((PTG.mdb || []).map(r => r && r.articleType).filter(Boolean))], $('bwAtTxt') ? $('bwAtTxt').value : '');
+const bdCustSub = () => { const at = ptNorm(bdCustAt());
+  return bdMasterSpelling([...new Set((PTG.mdb || []).filter(r => r && ptNorm(r.articleType) === at).map(r => r.subtype).filter(Boolean))], $('bwSubTxt') ? $('bwSubTxt').value : ''); };
+/** The suggestion lists under the four boxes: the master's articles; that article's subtypes; that pair's colours and sizes. */
+function bdCustomLists() {
+  const mdb = PTG.mdb || [], at = ptNorm(bdCustAt()), sub = ptNorm(bdCustSub());
+  const opts = vals => [...new Set(vals.filter(Boolean).map(v => String(v).trim()))].sort((a, b) => a.localeCompare(b)).slice(0, 400).map(v => `<option value="${esc(v)}">`).join('');
+  const of = (f, keep) => opts(mdb.filter(r => r && keep(r)).map(r => r[f]));
+  if ($('bwAtList')) $('bwAtList').innerHTML = of('articleType', () => true);
+  if ($('bwSubList')) $('bwSubList').innerHTML = of('subtype', r => !at || ptNorm(r.articleType) === at);
+  if ($('bwColList')) $('bwColList').innerHTML = of('color', r => (!at || ptNorm(r.articleType) === at) && (!sub || ptNorm(r.subtype) === sub));
+  if ($('bwSzList')) $('bwSzList').innerHTML = of('size', r => (!at || ptNorm(r.articleType) === at) && (!sub || ptNorm(r.subtype) === sub));
+}
+/** A new custom SKU into the master — or, for somebody the master is closed to, onto the Custom SKUs list the forms also read. */
+async function bdCustomMaster(e) {
+  if (!e || !e.sku || mdbOf(e.sku) || (typeof ptCustomOf === 'function' && ptCustomOf(e.sku))) return '';
+  const tc = typeof ptTcCutReq === 'function' ? ptTcCutReq(e.articleType, e.articleSubtype) : null;
+  const rec = { sku: e.sku, articleType: e.articleType, subtype: e.articleSubtype, color: e.color, size: e.size, brand: '', packOf: '',
+    cuttingRequired: tc == null ? true : tc, isCustom: true, customOrder: e.custOrder || '', source: 'Custom Order (Job Work)',
+    addedBy: ME.email || '', addedAt: new Date().toISOString() };
+  const master = (typeof mdbCanEdit === 'function' && mdbCanEdit()) || !!ME.prodEdit;
+  try {
+    if (master) { const key = 'mdb_' + Date.now(); await ptPut('pt_masterDB/' + key, rec); PTG.mdb = (PTG.mdb || []).concat(Object.assign({ _key: key }, rec)); return ` ${e.sku} added to the master database.`; }
+    await ptPut('pt_customSkus/' + e.sku, rec);
+    if (typeof MDBX !== 'undefined') MDBX.custom = (MDBX.custom || []).concat(Object.assign({ _key: e.sku }, rec));
+    return ` ${e.sku} added to the Custom SKUs list (the master database needs that permission).`;
+  } catch (er) { return ` ${e.sku} could NOT be added to the master: ${er.message || er}.`; }
+}
 
 /** The master rows in play: everything in Custom mode, otherwise only what the picked order needs. */
 function bdScope() {
@@ -17089,6 +17140,10 @@ function renderBdForm() {
   $('bwSz').classList.toggle('hide', custom);
   $('bwColTxt').classList.toggle('hide', !custom);
   $('bwSzTxt').classList.toggle('hide', !custom);
+  /* …and since 24 Oct its own Order ID, and the article and subtype picked from the master or typed */
+  ['bwCustOrd', 'bwAtTxt', 'bwSubTxt'].forEach(id => { if ($(id)) $(id).classList.toggle('hide', !custom); });
+  ['bwAt', 'bwSub'].forEach(id => $(id).classList.toggle('hide', custom));
+  if (custom) bdCustomLists();
 
   bdFill('bwType', ptEmpTypes(), 'Employment type…');
   $('bwEmpList').innerHTML = ptEmpsOfType($('bwType').value).map(e => `<option value="${esc(e[1])}">`).join('');
@@ -17112,7 +17167,7 @@ function renderBdForm() {
   }
 
   const scope = bdScope();
-  const at = $('bwAt').value, sub = $('bwSub').value;
+  const at = custom ? bdCustAt() : $('bwAt').value, sub = custom ? bdCustSub() : $('bwSub').value;
   const col = custom ? $('bwColTxt').value.trim() : $('bwCol').value;
   const sz = custom ? $('bwSzTxt').value.trim() : $('bwSz').value;
 
@@ -17282,6 +17337,8 @@ let BD_FORM_T = null;
 
 function bdClearForm() {
   ['bwEmp', 'bwSku', 'bwPcs', 'bwRemarks', 'bwColTxt', 'bwSzTxt'].forEach(id => { $(id).value = ''; });
+  /* the custom Order ID and article stay for the next piece of the same custom order; colour and size are cleared */
+  if (!bdIsCustom()) ['bwCustOrd', 'bwAtTxt', 'bwSubTxt'].forEach(id => { if ($(id)) $(id).value = ''; });
   ['bwOrd', 'bwAt', 'bwSub', 'bwCol', 'bwSz'].forEach(id => { $(id).value = ''; });
   $('bwSku').dataset.typed = '';
   $('bwSkuNote').textContent = '';
@@ -17320,10 +17377,11 @@ $('bwToggle').onclick = async () => {
  * must not: it also runs after a save, and a run of custom entries would re-tick it every time. */
 $('bwClear').onclick = () => {
   $('bwCustom').checked = false;
+  ['bwCustOrd', 'bwAtTxt', 'bwSubTxt'].forEach(id => { if ($(id)) $(id).value = ''; });
   bdClearForm();
   bdFormMsg('Cleared — nothing was saved.');
 };
-['bwCustom', 'bwOrd', 'bwType', 'bwAt', 'bwSub', 'bwCol', 'bwSz', 'bwColTxt', 'bwSzTxt'].forEach(id => {
+['bwCustom', 'bwOrd', 'bwType', 'bwAt', 'bwSub', 'bwCol', 'bwSz', 'bwColTxt', 'bwSzTxt', 'bwAtTxt', 'bwSubTxt'].filter(id => $(id)).forEach(id => {
   // Changing anything above the SKU means the typed SKU no longer stands.
   const reset = () => { if (id !== 'bwType') $('bwSku').dataset.typed = ''; renderBdForm(); };
   $(id).addEventListener('change', reset);
@@ -17361,10 +17419,12 @@ $('bwSave').onclick = async () => {
   /* On the Custom SKUs list and not in the master: what it is comes off the list (its selects cannot hold a size like
    * "40*40 cm" that no master row has). */
   const cm = !custom && sku && !mdbOf(sku) ? ptCustomOf(sku) : null;
-  const at = $('bwAt').value || (cm ? cm.articleType : ''), sub = $('bwSub').value || (cm ? cm.subtype : '');
+  const at = custom ? bdCustAt() : ($('bwAt').value || (cm ? cm.articleType : '')), sub = custom ? bdCustSub() : ($('bwSub').value || (cm ? cm.subtype : ''));
+  const custOrder = custom && $('bwCustOrd') ? $('bwCustOrd').value.trim() : '';
   const col = custom ? $('bwColTxt').value.trim() : ($('bwCol').value || (cm ? cm.color : ''));
   const sz = custom ? $('bwSzTxt').value.trim() : ($('bwSz').value || (cm ? cm.size : ''));
 
+  if (custom && !custOrder) return bdFormMsg('Type the Order ID, or pick ETSY / SHOPIFY / B2B / ONLINE.', true);
   if (!type) return bdFormMsg('Select the employment type.', true);
   if (!name) return bdFormMsg('Enter the employee.', true);
   const emp = ptEmpsOfType(type).find(e => String(e[1]).trim().toLowerCase() === name.toLowerCase());
@@ -17408,6 +17468,7 @@ $('bwSave').onclick = async () => {
     ...bdMatEntry(),
     frozen: false,
     isCustom: custom || (cm ? true : undefined),
+    ...(custom ? { custOrder, custChannel: bdCustChannel(custOrder) } : {}),
     addedBy: ME.email, addedAt: new Date().toISOString(),
   };
 
@@ -17431,10 +17492,11 @@ This would be a SECOND, identical issue — and a second payment. OK saves it an
     try { zipNote = await ptConsumeZippers(entry); } catch (e) { zipNote = 'The zipper deduction did not save: ' + (e.message || e); }
     /* THE RUFFLE GOES WITH IT, the way the zipper does — a ruffle tablecloth takes both. */
     try { rufNote = await ptConsumeRuffle(entry); } catch (e) { rufNote = ' The ruffle fabric deduction did not save: ' + (e.message || e); }
+    const mdbNote = custom ? await bdCustomMaster(entry) : '';
     bdClearForm();
     renderPbase();
-    const matNote = (zipNote + rufNote).trim();
-    bdFormMsg(`Issued — ${nf(pcs)} piece(s) of ${obUC(sku)} to ${emp[1]}${orderNo ? ' against ' + orderNo : ' (custom order)'}.`
+    const matNote = (zipNote + rufNote + mdbNote).trim();
+    bdFormMsg(`Issued — ${nf(pcs)} piece(s) of ${obUC(sku)} to ${emp[1]}${orderNo ? ' against ' + orderNo : ` (custom order ${custOrder})`}.`
       + (matNote ? ' ' + matNote : ''), /NOT|could not|did not/.test(matNote));
   } catch (e) {
     bdFormMsg('Not saved: ' + (e.message || e), true);
@@ -17762,7 +17824,7 @@ function jwRow(r) {
     + `<td style="text-align:left"><div class="jw-item">${ptImgSpan(r.sku, 42)}<div style="min-width:0">`
     + `<div style="font-weight:600">${esc(r.articleSubtype || r.articleType || '')}</div>`
     + `<div class="jw-sub">${[r.color, r.size].filter(Boolean).map(esc).join(' • ')}</div>`
-    + `<div class="jw-sku">${esc(r.sku)}${r.orderNo ? ' · ' + esc(r.orderNo) : ''}</div></div></div></td>`
+    + `<div class="jw-sku">${esc(r.sku)}${r.orderNo ? ' · ' + esc(r.orderNo) : r.custOrder ? ` · ${esc(r.custOrder)} <span class="pill" style="font-size:10px">custom</span>` : ''}</div></div></div></td>`
     + `<td class="num">${nf(ptNum(r.issuePieces))} <span class="jw-u">pcs</span></td>`
     + `<td class="num">${nf(ptNum(r.receivedPieces))} <span class="jw-u">pcs</span></td>`
     + `<td>${jwRing(r)}</td>`
@@ -52613,7 +52675,7 @@ function mtgProduction(wk, brand) {
   let waiting = 0; try { waiting = qcInboxRows().reduce((t, x) => t + x.wait, 0); } catch (e) { /* QC not readable */ }
   QC.checks = wasChecks;
   const d = Q.ok - Qp.ok;
-  const html = mtgMetrics([
+  let html = mtgMetrics([
     ['QC passed — production', nf(Q.ok), '#166534', `${d >= 0 ? '▲' : '▼'} ${nf(Math.abs(d))} vs last week (${nf(Qp.ok)})`],
     ['Of the ' + nf(tgt) + ' target', pc(Q.ok, tgt), Q.ok >= tgt ? '#166534' : 'var(--bad)', nf(Math.max(0, tgt - Q.ok)) + ' short'],
     ['Made (received from karigars)', nf(Math.round(madeTot)), '', 'passed ' + pc(Q.ok, madeTot) + ' of made'],
@@ -52625,9 +52687,38 @@ function mtgProduction(wk, brand) {
     + mtgTable(['Karigar (QC passed)', 'Pcs'], [...kar.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12).map(([k, v]) => [esc(k), nf(v)]),
       'only pieces taken from Waiting for QC carry the karigar') + '</div>'
     + repManpowerCard(wk, brand);
-  return { html, text: `1) Production (QC passed): ${nf(Q.ok)} pcs (${d >= 0 ? '+' : '−'}${nf(Math.abs(d))} vs last week) · ${pc(Q.ok, tgt)} of ${nf(tgt)} · made ${nf(Math.round(madeTot))} · rejected ${nf(Q.rej)}, alteration ${nf(Q.alt)} · waiting for QC ${nf(waiting)}`,
+  const CU = mtgCustom(wk, brand);
+  html += CU.html;
+  return { html, text: `1) Production (QC passed): ${nf(Q.ok)} pcs (${d >= 0 ? '+' : '−'}${nf(Math.abs(d))} vs last week) · ${pc(Q.ok, tgt)} of ${nf(tgt)} · made ${nf(Math.round(madeTot))} · rejected ${nf(Q.rej)}, alteration ${nf(Q.alt)} · waiting for QC ${nf(waiting)}` + (CU.text ? ' · ' + CU.text : ''),
     csv: [['Production', 'QC passed', Q.ok], ['Production', 'QC passed last week', Qp.ok], ['Production', 'Made', Math.round(madeTot)], ['Production', 'Rejected', Q.rej], ['Production', 'For alteration', Q.alt], ['Production', 'Waiting for QC', waiting]]
-      .concat(arts.map(x => ['Production by article', x.a, x.qc, Math.round(x.made), x.prev])) };
+      .concat(arts.map(x => ['Production by article', x.a, x.qc, Math.round(x.made), x.prev])).concat(CU.csv) };
+}
+/* CUSTOM ORDERS (Ravi, 24 Oct: "ye mera data production meeting me kam aata h to report me data fatch hona chahiye"). Job Work's
+ * Custom Order entries — no order-book line, an Order ID of their own (custOrder: typed, or ETSY / SHOPIFY / B2B / ONLINE) — by
+ * that Order ID: issued this week, back from the karigars this week, QC passed this week, and what is still with karigars. An
+ * older custom entry (a -CUST- code, before the Order ID box) is counted under "no Order ID". */
+function mtgCustom(wk, brand) {
+  const from = mtgMs(wk), to = from + 7 * 864e5, by = new Map(), ofRow = new Map();
+  (PT.base || []).forEach(r => {
+    if (!r || r.orderNo || !(r.custOrder || (r.isCustom && /-CUST-/i.test(r.sku || '')))) return;
+    if (brand && repBrand(r.sku) !== brand) return;
+    const k = String(r.custOrder || '').trim().toUpperCase() || '(no Order ID)', e = by.get(k) || { k, ch: r.custChannel || '', skus: new Set(), iss: 0, recv: 0, qc: 0, out: 0 };
+    e.skus.add(r.sku);
+    if (mtgIn(ptDtMs(r.issueDate), from)) e.iss += ptNum(r.issuePieces);
+    repRecvParts(r).forEach(x => { if (x.ms >= from && x.ms < to) e.recv += x.pcs; });
+    e.out += r.pendingPieces != null ? ptNum(r.pendingPieces) : Math.max(0, ptNum(r.issuePieces) - ptNum(r.receivedPieces) - ptNum(r.rejectionPieces));
+    by.set(k, e); if (r.id) ofRow.set(r.id, e);
+  });
+  repQcRows().forEach(c => { const e = c && ofRow.get(c.baseId); if (e && mtgIn(ptDtMs(c.date), from)) e.qc += ptNum(c.ok); });
+  const rows = [...by.values()].filter(e => e.iss || e.recv || e.qc || e.out).sort((a, b) => (b.iss + b.recv + b.qc) - (a.iss + a.recv + a.qc) || b.out - a.out);
+  const T = rows.reduce((t, e) => ({ iss: t.iss + e.iss, recv: t.recv + e.recv, qc: t.qc + e.qc, out: t.out + e.out }), { iss: 0, recv: 0, qc: 0, out: 0 });
+  const html = '<div style="margin-top:10px"><div style="font-weight:700;margin:4px 0">Custom orders (Job Work, no order-book line)</div>'
+    + mtgTable(['Custom order', 'Channel', 'SKUs', 'Issued', 'Back from karigars', 'QC passed', 'Still with karigars'],
+      rows.slice(0, 40).map(e => [esc(e.k), esc(e.ch || ''), nf(e.skus.size), nf(e.iss), nf(e.recv), `<b>${nf(e.qc)}</b>`, nf(e.out)])
+        .concat(rows.length ? [['<b>Total</b>', '', '', `<b>${nf(T.iss)}</b>`, `<b>${nf(T.recv)}</b>`, `<b>${nf(T.qc)}</b>`, `<b>${nf(T.out)}</b>`]] : []),
+      'issued, back and QC passed in this week; still with karigars as it stands now') + '</div>';
+  return { html, text: rows.length ? `Custom orders: issued ${nf(T.iss)}, back ${nf(T.recv)}, QC passed ${nf(T.qc)}, still with karigars ${nf(T.out)}` : '',
+    csv: rows.map(e => ['Custom order', e.k, e.ch || '', e.iss, e.recv, e.qc, e.out]) };
 }
 
 function mtgPeople(wk, brand) {

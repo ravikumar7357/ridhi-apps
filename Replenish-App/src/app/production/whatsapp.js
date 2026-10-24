@@ -317,7 +317,7 @@ function jwRow(r) {
     + `<td style="text-align:left"><div class="jw-item">${ptImgSpan(r.sku, 42)}<div style="min-width:0">`
     + `<div style="font-weight:600">${esc(r.articleSubtype || r.articleType || '')}</div>`
     + `<div class="jw-sub">${[r.color, r.size].filter(Boolean).map(esc).join(' • ')}</div>`
-    + `<div class="jw-sku">${esc(r.sku)}${r.orderNo ? ' · ' + esc(r.orderNo) : ''}</div></div></div></td>`
+    + `<div class="jw-sku">${esc(r.sku)}${r.orderNo ? ' · ' + esc(r.orderNo) : r.custOrder ? ` · ${esc(r.custOrder)} <span class="pill" style="font-size:10px">custom</span>` : ''}</div></div></div></td>`
     + `<td class="num">${nf(ptNum(r.issuePieces))} <span class="jw-u">pcs</span></td>`
     + `<td class="num">${nf(ptNum(r.receivedPieces))} <span class="jw-u">pcs</span></td>`
     + `<td>${jwRing(r)}</td>`
