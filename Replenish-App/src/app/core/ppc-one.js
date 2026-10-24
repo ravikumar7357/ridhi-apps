@@ -12,14 +12,15 @@
  *     Finished Goods — each lists the lines waiting for that step and opens the real entry form (the PPC plan form, the
  *     fabric challan, Cutting Data, the Job Work issue and receipt, QC, Finished Goods), filled in;
  *   - every movement, newest first and grouped by day, with who and when, and the SKU's running balance;
- *   - click a SKU and a card above the ledger shows its balance, where its pieces are, who has them and since when.
+ *   - click a SKU and its card opens right under that row (Ravi, 24 Oct: "open when I click on the sku but down there only"):
+ *     its balance, where its pieces are, who has them and since when, and its next steps.
  * Planned by SKU: Plan and Fabric to printer take all of a SKU's waiting order lines together.
  * Where the steps come from: order book (order in), pt_ppc (planned, by whom), flow challans (fabric to the printer and
  * printed back), Cutting Data (cutDate · addedBy), Job Work (issueDate / receivingDate · the karigar · addedBy), QC
  * checks (date · checkedBy), press, Finished Goods ledger (createdAt · createdBy), the shipping hand-over register.
  * The old PPC link is off the menu (ppc-one.css); its screen and code stay — the Demand buttons here open it. */
 const P1 = { shown: false, built: false, loading: false, q: '',
-  f: { from: '', to: '', kind: '', sku: '', ord: '', party: '' }, lim: 300, at: '' };
+  f: { from: '', to: '', kind: '', sku: '', ord: '', party: '' }, lim: 300, at: '', openAt: -1 };
 const P1_MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const p1N = v => (Math.round(+v || 0)).toLocaleString('en-IN');
 const p1Day = d => d ? (+String(d).slice(8, 10)) + ' ' + P1_MON[+String(d).slice(5, 7) - 1] + (String(d).slice(0, 4) !== String(new Date().getFullYear()) ? ' ' + String(d).slice(2, 4) : '') : '—';
@@ -161,7 +162,7 @@ function p1SkuCard(sku, ev) {
   const fg = typeof fgiOf === 'function' ? Math.max(0, fgiOf(sku).current || 0) : 0;
   const acts = P1_ADD.filter(a => p1MayTab(a[2]) && rows.some(x => a[3](x)));
   return `<div class="lg-card lg-skucard"><div class="sk-h"><div><div class="sk-crumb">SKU</div><h2>${esc(sku)}</h2><div class="muted">${esc(what)}${rows.length ? ' · ' + new Set(rows.map(x => x.r.orderNo)).size + ' open order(s)' : ''}</div></div>
-      <button type="button" class="lg-go" data-p1f-clear-sku>× Show every SKU</button></div>
+      <span style="display:flex;gap:8px">${P1.f.sku === sku ? '' : `<button type="button" class="lg-go" data-p1only="${esc(sku)}">Only this SKU in the ledger</button>`}<button type="button" class="lg-go" data-p1close>× Close</button></span></div>
     <div class="sk-tiles">${[['Ordered (all time)', sum(['IN']), ''], ['Not planned', np, 'var(--bad)'], ['In production', mk, ''], ['Passed QC, not in FG', rd, 'var(--accent)'], ['Finished Goods in store', fg, ''], ['Sent from production', sum(['FBA', 'SHIP']), 'var(--accent)']]
       .map(t => `<div><b style="${t[2] ? 'color:' + t[2] : ''}">${p1N(t[1])}</b><span>${t[0]}</span></div>`).join('')}</div>
     <div class="sk-row"><div class="sk-where"><div class="lg-h">Where it is now — and who has it</div>${wip.map(w => { const d = p1Days(w.since);
@@ -193,16 +194,16 @@ function p1Draw() {
   shown.forEach(i => { const e = ev[i], b = after[i], sign = e.k === 'IN' ? '+' : P1_END.has(e.k) || e.k === 'BACK' ? '−' : '';
     if (e.day !== lastDay) { lastDay = e.day; const dayN = idx.filter(j => ev[j].day === e.day).length;
       body += `<tr class="lg-day"><td colspan="11"><b>${e.day ? new Date(e.day + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) : 'No date'}</b><span>${dayN} movement${dayN > 1 ? 's' : ''}</span></td></tr>`; }
-    body += `<tr><td class="nw muted">${e.t ? new Date(e.ms).toTimeString().slice(0, 5) : ''}</td><td><a class="lg-sku" data-p1sku="${esc(e.sku)}">${esc(e.sku)}</a></td><td>${e.orderNo ? `<a class="lg-ord" data-p1ord="${esc(e.orderNo)}">${esc(e.orderNo)}</a>` : '<span class="muted">—</span>'}</td><td>${p1Mv(e)}</td>
+    body += `<tr><td class="nw muted">${e.t ? new Date(e.ms).toTimeString().slice(0, 5) : ''}</td><td><a class="lg-sku${P1.openAt === i ? ' on' : ''}" data-p1sku="${esc(e.sku)}" data-p1at="${i}">${esc(e.sku)}</a></td><td>${e.orderNo ? `<a class="lg-ord" data-p1ord="${esc(e.orderNo)}">${esc(e.orderNo)}</a>` : '<span class="muted">—</span>'}</td><td>${p1Mv(e)}</td>
       <td class="num"><b class="${sign === '+' ? 'q-in' : sign === '−' ? 'q-out' : ''}">${sign}${p1N(e.pcs)}</b>${e.unit === 'm' ? ' m' : ''}</td><td>${e.party ? esc(e.party) : '<span class="muted">—</span>'}</td><td class="muted">${esc(e.ref)}</td><td>${e.by ? `<span class="av">${esc(e.by.slice(0, 2).toUpperCase())}</span> ${esc(e.by)}` : '<span class="muted">—</span>'}</td>
-      ${b ? `<td class="num bal">${p1N(b.np)}</td><td class="num bal">${p1N(b.mk)}</td><td class="num bal">${p1N(b.rd)}</td>` : '<td class="bal" colspan="3"></td>'}</tr>`; });
+      ${b ? `<td class="num bal">${p1N(b.np)}</td><td class="num bal">${p1N(b.mk)}</td><td class="num bal">${p1N(b.rd)}</td>` : '<td class="bal" colspan="3"></td>'}</tr>`;
+    if (P1.openAt === i) body += `<tr class="lg-exp"><td colspan="11">${p1SkuCard(e.sku, ev)}</td></tr>`; });
   const skus = [...new Set(ev.map(e => e.sku))].sort(), today = new Date().toISOString().slice(0, 10), ago = d => new Date(Date.now() - d * 864e5).toISOString().slice(0, 10);
   const range = [['Today', today, today], ['7 days', ago(7), ''], ['30 days', ago(30), ''], ['All', '', '']];
   el.innerHTML = `<div class="lg-top"><div><h1>PPC ledger</h1><div class="lg-note" style="margin:2px 0 0">Every step of every SKU — from the order coming in to leaving production — with who did it and when.</div></div>
       <input class="lg-q" id="p1Q" placeholder="Search SKU, order, karigar, printer, person…" value="${esc(P1.q)}"><span class="lg-when">${P1.loading ? 'Reading…' : 'Read ' + (P1.at || '—')} · <a data-p1r>↻ Refresh</a></span></div>
     <div class="lg-addrow"><span class="lg-note" style="margin:0">Add a movement:</span>${P1_ADD.filter(a => p1MayTab(a[2])).map(a => { const n = ['QC', 'FG', 'PRN'].includes(a[0]) ? p1Waiting(a[0]).length : new Set(p1Waiting(a[0]).map(x => a[0] === 'PLAN' || a[0] === 'RFD' ? obUC(x.r.sku) : x.s.key)).size;
       return `<button type="button" class="lg-add" data-p1add="${a[0]}"><span class="pl ${P1_MV[a[0]][1]}" style="padding:0 6px">+</span>${esc(a[1])}${n ? ` <i>${p1N(n)}</i>` : ''}</button>`; }).join('')}</div>
-    ${f.sku ? p1SkuCard(f.sku, ev) : ''}
     <div class="lg-card lg-filt"><div class="lg-range">${range.map(r => `<button type="button" class="${f.from === r[1] && f.to === r[2] ? 'on' : ''}" data-p1rg="${r[1]}|${r[2]}">${r[0]}</button>`).join('')}</div>
       <label>From<input type="date" data-p1f="from" value="${f.from}"></label><label>To<input type="date" data-p1f="to" value="${f.to}"></label>
       <label>Movement<select data-p1f="kind"><option value="">All</option>${Object.entries(P1_MV).map(([k, v]) => `<option value="${k}"${f.kind === k ? ' selected' : ''}>${v[0]}</option>`).join('')}</select></label>
@@ -219,11 +220,12 @@ function p1Draw() {
 }
 function p1Wire(el) {
   const on = (sel, fn, ev = 'onclick') => el.querySelectorAll(sel).forEach(b => { b[ev] = e => fn(b, e); });
-  const redraw = () => { P1.lim = 300; p1Draw(); };
+  const redraw = () => { P1.lim = 300; P1.openAt = -1; p1Draw(); };
   on('[data-p1add]', b => p1AddOpen(b.dataset.p1add, b.dataset.p1addSku || ''));
-  on('[data-p1sku]', b => { P1.f.sku = b.dataset.p1sku; redraw(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
+  on('[data-p1sku]', b => { const i = +b.dataset.p1at; P1.openAt = P1.openAt === i ? -1 : i; p1Draw(); });   // the card opens under this row; the ledger stays as it is
   on('[data-p1ord]', b => { P1.f.ord = b.dataset.p1ord; redraw(); });
-  on('[data-p1f-clear-sku]', () => { P1.f.sku = ''; redraw(); });
+  on('[data-p1close]', () => { P1.openAt = -1; p1Draw(); });
+  on('[data-p1only]', b => { P1.f.sku = b.dataset.p1only; P1.openAt = -1; redraw(); });
   on('[data-p1rg]', b => { const [a, z] = b.dataset.p1rg.split('|'); P1.f.from = a; P1.f.to = z; redraw(); });
   on('[data-p1f]', b => { const k = b.dataset.p1f; P1.f[k] = k === 'sku' || k === 'ord' ? obUC(b.value) : b.value; redraw(); }, 'onchange');
   on('[data-p1fclr]', () => { P1.f = { from: '', to: '', kind: '', sku: '', ord: '', party: '' }; redraw(); });
