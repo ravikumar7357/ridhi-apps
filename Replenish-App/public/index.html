@@ -44246,6 +44246,15 @@ $('voExport').onclick = () => {
 
 const SO_RESERVED_PREFIXES = ['LEG', 'PRD', 'ADJ', 'SO', 'ORD', 'SHP'];
 
+/** " — the master has RTCR296-110R", or " — the master has RTC296 in 5270, 6060…", or "" — for a SKU the master lacks. */
+function soSkuHint(sku, known) {
+  const s = obUC(sku), near = [s + 'R', s.replace(/R$/, ''), s.replace(/\s+/g, '')].filter(x => x && x !== s && known.has(x));
+  if (near.length) return ` — the master has ${near[0]}`;
+  const cut = s.lastIndexOf('-'); if (cut <= 0) return '';
+  const base = s.slice(0, cut + 1), sizes = [...known].filter(k => k.startsWith(base)).map(k => k.slice(base.length)).sort();
+  return sizes.length ? ` — the master has ${s.slice(0, cut)} in ${sizes.slice(0, 8).join(', ')}${sizes.length > 8 ? '…' : ''}` : '';
+}
+
 /** The channels an order can be raised on. The master is empty today, so the tool's own fallback. */
 function soChannels() {
   const rows = ((PTG.masters && PTG.masters.orderChannel) || []).filter(r => r && r.active !== false && (r.code || r.desc));
@@ -44857,7 +44866,10 @@ async function soBulkFile(file) {
     const dd = soParseDMY(ddRaw);
     if (!dd) { errors.push(row + 'the delivery date must be DD-MM-YYYY for ' + sku + (ddRaw ? ', not "' + ddRaw + '".' : ', and it is blank.')); return; }
     /* ONLINE takes a SKU the master lacks — it goes on the Custom SKUs list when the order is saved (2026-09-30). */
-    if (!known.has(sku) && !onl) { errors.push(row + sku + ' is not in the master database.'); return; }
+    /* SAY WHAT THE MASTER HAS INSTEAD (Ravi, 24 Oct: "ye sabhi sku master data me h but it's showing not available" — the sheet
+     * had RTCR296-110, the master RTCR296-110R; a round cloth's SKU ends in R). The near spelling is named, or the product's
+     * sizes that are there; nothing is changed by itself — a wrong guess would order the wrong product. */
+    if (!known.has(sku) && !onl) { errors.push(row + sku + ' is not in the master database' + soSkuHint(sku, known) + '.'); return; }
     if (!known.has(sku)) newSkus.add(sku);
     if (qty < 0 && soCurrentNetQty(sku, ot) <= 0) { errors.push(row + sku + ' has nothing on order to subtract from.'); return; }
     dates.add(od);
