@@ -1926,180 +1926,91 @@ html.mob #frMeeraMenu{right:14px;bottom:144px}
 .side .r1-brand img{height:22px}
 .r1-mob{height:20px;width:auto;vertical-align:middle;display:inline-block}
 
-/* PPC (ppc-one.js) — the layout Ravi chose (ppc-one-page-mock-v4.html), drawn with R-one's own colours and font. */
+/* PPC (ppc-one.js) — planned by SKU, kept as a ledger: R-one's tokens, the Greige Desk's ledger look. */
 .main.p1-on > *:not(.topbar):not(#p1Home){display:none!important}
-#p1Home{--ok:var(--accent);--ok-bg:var(--accent-bg);--warn:#E0A21B;max-width:1440px;margin:0 auto;padding:4px 0 50px;font-size:13px;color:var(--ink)}
+#p1Home{max-width:1400px;margin:0 auto;padding:4px 0 60px;font-size:13px;color:var(--ink)}
 #p1Home button{background:none;border:0;color:inherit;height:auto;min-height:0;width:auto;padding:0;box-shadow:none;font:inherit;cursor:pointer;margin:0}
-#p1Home input[type=checkbox]{width:16px;height:16px;margin:0;accent-color:var(--brand)}
-#p1Home .p1-top{display:flex;align-items:flex-end;gap:12px;margin:0 0 12px;flex-wrap:wrap}
-#p1Home .p1-top h1{margin:0;font-size:24px;letter-spacing:-.02em}
-#p1Home .p1-top .sub0{color:var(--muted)}
-#p1Home .p1-top .when{font-size:12px;color:var(--faint);margin-left:auto}
-#p1Home .p1-top .when a{color:var(--brand-ink);font-weight:600;text-decoration:none;cursor:pointer}
+#p1Home .lg-top{display:flex;align-items:center;gap:16px;margin-bottom:12px;flex-wrap:wrap}
+#p1Home .lg-top h1{margin:0;font-size:24px;letter-spacing:-.02em}
+#p1Home .lg-tabs{display:flex;background:#fff;border-radius:999px;box-shadow:var(--sh-1);padding:4px;gap:2px}
+#p1Home .lg-tabs button{padding:7px 16px;border-radius:999px;font-weight:700;color:var(--muted)}
+#p1Home .lg-tabs button.on{background:var(--brand);color:#fff}
+#p1Home .lg-q{margin-left:auto;height:38px;width:300px;border:1px solid var(--line);border-radius:12px;padding:0 14px;font:inherit;background:#fff}
+#p1Home .lg-kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px}
+#p1Home .lg-kpi div{background:#fff;border-radius:16px;box-shadow:var(--sh-1);padding:12px 16px;display:flex;flex-direction:column;gap:2px}
+#p1Home .lg-kpi small{color:var(--muted);font-weight:600}
+#p1Home .lg-kpi b{font-size:22px;font-weight:800}
+#p1Home .lg-kpi span{color:var(--muted);font-size:12px}
+#p1Home .lg-seg{display:flex;align-items:center;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+#p1Home .lg-seg button{height:34px;border-radius:999px;background:#fff;box-shadow:var(--sh-1);padding:0 14px;font-weight:700}
+#p1Home .lg-seg button span{background:var(--chip);color:var(--muted);border-radius:999px;padding:0 7px;font-size:11.5px;margin-left:4px}
+#p1Home .lg-seg button.on{background:var(--brand);color:#fff}
+#p1Home .lg-seg button.on span{background:rgba(255,255,255,.22);color:#fff}
+#p1Home .lg-note,#p1Home .lg-info{color:var(--muted);font-size:12.5px}
+#p1Home .lg-note{margin-left:8px}
+#p1Home .lg-info{margin:0 0 10px}
+#p1Home .lg-card{background:#fff;border-radius:16px;box-shadow:var(--sh-1);overflow:hidden;margin-bottom:12px}
+#p1Home .lg-cap{padding:10px 14px;color:var(--muted);font-size:12.5px;border-bottom:1px solid var(--line)}
+#p1Home .lg-cap b{color:var(--ink)}
+#p1Home .lg-filt{display:flex;gap:14px;align-items:center;padding:10px 14px;flex-wrap:wrap}
+#p1Home .lg-filt label{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);margin:0;font-weight:600;text-transform:none;letter-spacing:0}
+#p1Home .lg-filt input,#p1Home .lg-filt select{height:32px;width:auto;font-size:12.5px;border:1px solid var(--line);border-radius:9px;padding:0 8px;background:#fff}
+#p1Home table.lg-t{width:100%;border-collapse:collapse}
+#p1Home .lg-t th{text-align:left;font-size:11.5px;color:var(--faint);font-weight:700;padding:9px 10px;background:var(--soft);border-bottom:1px solid var(--line);white-space:nowrap;text-transform:none;letter-spacing:0}
+#p1Home .lg-t td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle;text-transform:none}
+#p1Home .lg-t tbody tr[data-lgopen]{cursor:pointer}
+#p1Home .lg-t tbody tr[data-lgopen]:hover{background:var(--soft)}
+#p1Home .lg-t tr.on{background:var(--brand-bg)}
+#p1Home .lg-t .num{text-align:right;font-variant-numeric:tabular-nums}
+#p1Home .lg-t .bal{background:#FAFBFD;color:var(--ink2,#344054);font-weight:600}
+#p1Home .lg-t .nw{white-space:nowrap}
+#p1Home .sub{color:var(--muted);font-size:11.5px;margin-top:2px}
+#p1Home .muted{color:var(--muted)}
+#p1Home .pl{display:inline-block;font-size:11px;font-weight:700;border-radius:999px;padding:2px 9px;white-space:nowrap}
+#p1Home .pl-ok,#p1Home .mv-done{background:var(--accent-bg);color:var(--accent)}
+#p1Home .pl-bad,#p1Home .mv-bad{background:var(--bad-bg);color:var(--bad)}
+#p1Home .pl-exp{background:#EEEAFB;color:#5B3FD0}
+#p1Home .pl-mute{background:var(--chip);color:var(--muted)}
+#p1Home .mv-in{background:var(--brand);color:#fff}
+#p1Home .mv-plan{background:var(--brand-bg);color:var(--brand-ink)}
+#p1Home .mv-mat{background:#EEEAFB;color:#5B3FD0}
+#p1Home .mv-make{background:var(--warn-bg);color:var(--warn-ink)}
+#p1Home .mv-qc{background:#E3F4F1;color:#1F6F5C}
+#p1Home .lg-yes{background:var(--accent);color:#fff;border-radius:10px;height:32px;padding:0 14px;font-weight:700}
+#p1Home .lg-go{border:1px solid var(--line);background:#fff;border-radius:10px;height:32px;padding:0 12px;font-weight:700}
+#p1Home tr.lg-exp > td{background:#FBFCFE;padding:14px 16px}
+#p1Home .lg-two{display:grid;grid-template-columns:1.2fr 1fr;gap:20px}
+#p1Home .lg-h{font-size:11.5px;font-weight:700;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}
+#p1Home table.lg-in{background:#fff;border-radius:10px;overflow:hidden}
+#p1Home .lg-sum{margin-top:10px;background:var(--brand-bg);border-radius:10px;padding:8px 12px;color:var(--brand-ink)}
+#p1Home .lg-mv{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);font-size:12.5px}
+#p1Home .lg-prog{display:flex;gap:3px;width:150px}
+#p1Home .lg-prog i{flex:1;height:6px;border-radius:3px;background:#E3E8EF}
+#p1Home .lg-prog i.d{background:var(--accent)}#p1Home .lg-prog i.c{background:#E0A21B}
+#p1Home input[type=date],#p1Home input[list],#p1Home select{color:var(--ink)}
+#p1Home .lg-when{font-size:12px;color:var(--faint)}
+#p1Home .lg-when a{color:var(--brand-ink);font-weight:600;cursor:pointer}
+#p1Home .lg-q{margin-left:auto}
+#p1Home .lg-kpi div{cursor:pointer}
+#p1Home .lg-kpi div:hover{box-shadow:var(--sh-2)}
+#p1Home .lg-scroll{max-height:calc(100vh - 300px);overflow:auto}
+#p1Home .lg-scroll thead th{position:sticky;top:0;z-index:1}
+#p1Home .lg-more{display:block;width:100%;padding:10px;color:var(--brand-ink);font-weight:700;border-top:1px solid var(--line)}
+#p1Home .lg-go.sm{height:26px;font-size:12px;padding:0 9px}
 #p1Home .empty{padding:24px;text-align:center;color:var(--muted)}
-#p1Home .cnt{background:var(--bad);color:#fff;border-radius:999px;padding:0 6px;line-height:17px;font-size:10.5px;font-weight:700;min-width:18px;text-align:center;display:inline-block}
-#p1Home .now{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:10px}
-#p1Home .nc{display:flex;align-items:center;gap:12px;border:0;background:var(--card);border-radius:14px;padding:11px 14px;box-shadow:0 1px 6px rgba(20,24,31,.05);text-align:left}
-#p1Home .nc:hover{box-shadow:0 0 0 1.5px var(--brand)}
-#p1Home .nc.on{box-shadow:0 0 0 2px var(--brand)}
-#p1Home .nc .ic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-size:16px;flex:0 0 auto}
-#p1Home .nc em{font-style:normal;font-size:22px;font-weight:700;line-height:1}
-#p1Home .nc span{display:flex;flex-direction:column;gap:2px}
-#p1Home .nc small{color:var(--muted);font-size:12px}
-#p1Home .nc .go{margin-left:auto;color:var(--brand-ink);font-weight:700;font-size:12px;white-space:nowrap}
-#p1Home .strip{display:flex;background:var(--card);border-radius:14px;box-shadow:0 1px 6px rgba(20,24,31,.05);padding:5px;margin-bottom:12px;gap:4px}
-#p1Home .sg{flex:1;display:flex;align-items:center;gap:10px;border:0;background:none;border-radius:10px;padding:7px 12px;text-align:left;position:relative}
-#p1Home .sg:hover{background:var(--soft)}
-#p1Home .sg .n{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--brand-bg);color:var(--brand-ink);font-weight:700;font-size:11.5px;flex:0 0 auto}
-#p1Home .sg b{font-size:13px;white-space:nowrap}
-#p1Home .sg em{font-style:normal;margin-left:auto;font-size:17px;font-weight:700}
-#p1Home .sg .rk{font-size:10.5px;font-weight:700;color:var(--warn-ink);background:var(--warn-bg);border-radius:999px;padding:0 6px;margin-left:6px}
-#p1Home .sg.on{background:var(--brand);color:#fff}
-#p1Home .sg.on .n{background:#fff}
-#p1Home .sg + .sg::before{content:'›';position:absolute;left:-8px;top:50%;transform:translateY(-55%);color:#C3CBD6;font-size:18px;font-weight:700}
-#p1Home .panes{display:grid;grid-template-columns:420px 1fr;gap:12px;align-items:start}
-#p1Home .box{background:var(--card);border-radius:14px;box-shadow:0 1px 6px rgba(20,24,31,.05);overflow:hidden}
-#p1Home .tabs{display:flex;border-bottom:1px solid var(--line)}
-#p1Home .tabs button{flex:1;border:0;background:none;padding:11px;font-weight:700;color:var(--muted);border-bottom:2px solid transparent}
-#p1Home .tabs button.on{color:var(--brand-ink);border-bottom-color:var(--brand)}
-#p1Home .lh{display:flex;gap:8px;padding:10px;border-bottom:1px solid var(--line);align-items:center}
-#p1Home .lh input[type=search]{flex:1;height:32px;border:1px solid var(--line);border-radius:9px;padding:0 10px;font:inherit}
-#p1Home .lh select{height:32px;border:1px solid var(--line);border-radius:9px;padding:0 8px;font:inherit;background:#fff}
-#p1Home .ord{display:flex;gap:10px;width:100%;border:0;background:none;text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);align-items:flex-start}
-#p1Home .ord:hover{background:var(--soft)}
-#p1Home .ord.on{background:var(--brand-bg);box-shadow:inset 3px 0 0 var(--brand)}
-#p1Home .ord input{margin-top:3px;width:16px;height:16px;accent-color:var(--brand)}
-#p1Home .ord .bd{flex:1;min-width:0}
-#p1Home .r1{display:flex;align-items:center;gap:7px}
-#p1Home .r1 b{font-size:13.5px}
-#p1Home .r1 small{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#p1Home .r1 .due{margin-left:auto;font-size:11.5px;color:var(--muted);white-space:nowrap}
-#p1Home .flag{font-size:10px;font-weight:700;border-radius:999px;padding:1px 7px;white-space:nowrap}
-#p1Home .f-new{background:var(--brand);color:#fff}
-#p1Home .f-late{background:var(--bad);color:#fff}
-#p1Home .f-risk{background:var(--warn-bg);color:var(--warn-ink)}
-#p1Home .f-short{background:var(--bad-bg);color:var(--bad)}
-#p1Home .prog{display:flex;gap:3px;margin:7px 0 4px}
-#p1Home .prog i{flex:1;height:6px;border-radius:3px;background:#E3E8EF}
-#p1Home .prog i.d{background:var(--ok)}
-#p1Home .prog i.c{background:var(--warn)}
-#p1Home .r3{font-size:11.5px;color:var(--muted);display:flex;gap:6px;align-items:center}
-#p1Home .r3 .av{margin-left:auto}
-#p1Home .av{width:20px;height:20px;border-radius:50%;background:var(--brand-bg);color:var(--brand-ink);display:inline-grid;place-items:center;font-size:9.5px;font-weight:700;flex:0 0 auto}
-#p1Home .bulk{position:sticky;bottom:0;display:flex;gap:6px;align-items:center;background:#14181F;color:#fff;padding:9px 12px}
-#p1Home .bulk b{margin-right:auto}
-#p1Home .bulk button{border:1px solid rgba(255,255,255,.3);background:none;color:#fff;border-radius:8px;height:28px;padding:0 10px;font-weight:700;font-size:12px}
-#p1Home .bulk button.pri{background:#fff;color:var(--ink);border:0}
-#p1Home .dh{display:flex;align-items:center;gap:10px;padding:14px 16px 10px;flex-wrap:wrap}
-#p1Home .dh h2{margin:0;font-size:19px}
-#p1Home .dh .meta{color:var(--muted)}
-#p1Home .dh .sp{flex:1}
-#p1Home .btn{height:32px;border-radius:9px;border:1px solid var(--line);background:#fff;font-weight:700;padding:0 12px}
-#p1Home .btn.pri{background:var(--brand);color:#fff;border:0}
-#p1Home .btn.okb{background:var(--ok);color:#fff;border:0}
-#p1Home .next{margin:0 16px 12px;display:flex;align-items:center;gap:12px;background:var(--brand-bg);border-radius:12px;padding:10px 12px}
-#p1Home .next .t{display:flex;flex-direction:column}
-#p1Home .next .t small{color:var(--brand-ink);font-weight:700;font-size:11px;letter-spacing:.05em;text-transform:uppercase}
-#p1Home .next .t b{font-size:14px}
-#p1Home .next .sp{flex:1}
-#p1Home .lines{margin:0 16px 10px}
-#p1Home table{width:100%;border-collapse:collapse}
-#p1Home th{text-align:left;font-size:11px;color:var(--faint);font-weight:700;letter-spacing:.03em;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
-#p1Home td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
-#p1Home tr:last-child td{border-bottom:0}
-#p1Home .mini{display:flex;gap:2px}
-#p1Home .mini i{width:22px;height:5px;border-radius:3px;background:#E3E8EF}
-#p1Home .mini i.d{background:var(--ok)}
-#p1Home .mini i.c{background:var(--warn)}
-#p1Home .sec{border-top:1px solid var(--line)}
-#p1Home .sh{display:flex;align-items:center;gap:10px;padding:11px 16px;width:100%;border:0;background:none;text-align:left}
-#p1Home .sh .n{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:12px;background:#E3E8EF;color:var(--muted);flex:0 0 auto}
-#p1Home .sh.d .n{background:var(--ok);color:#fff}
-#p1Home .sh.c .n{background:var(--warn);color:#fff}
-#p1Home .sh b{font-size:14px}
-#p1Home .sh .st{font-size:12px;color:var(--muted)}
-#p1Home .sh .own{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
-#p1Home .tag{font-size:11px;font-weight:700;border-radius:999px;padding:2px 9px}
-#p1Home .tag.d{background:var(--ok-bg);color:var(--ok)}
-#p1Home .tag.c{background:var(--warn-bg);color:var(--warn-ink)}
-#p1Home .tag.w{background:#EEF1F5;color:var(--muted)}
-#p1Home .sb{padding:0 16px 14px 50px}
-#p1Home .sec.shut .sb{display:none}
-#p1Home .pill{font-size:11px;font-weight:700;border-radius:999px;padding:1px 8px;white-space:nowrap}
-#p1Home .p-ok{background:var(--ok-bg);color:var(--ok)}
-#p1Home .p-short{background:var(--bad-bg);color:var(--bad)}
-#p1Home .p-w{background:var(--warn-bg);color:var(--warn-ink)}
-#p1Home .p-n{background:#EEF1F5;color:var(--muted)}
-#p1Home .route{display:flex;gap:4px;flex-wrap:wrap;margin:2px 0 8px}
-#p1Home .route span{border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-weight:600;color:var(--muted)}
-#p1Home .route span.on{border-color:var(--brand);background:var(--brand-bg);color:var(--brand-ink)}
-#p1Home .path{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0 0 10px;color:var(--muted);font-size:12px}
-#p1Home .path b{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:3px 8px;color:var(--ink);font-weight:600}
-#p1Home .lab{font-size:11px;font-weight:700;color:var(--faint);letter-spacing:.05em;text-transform:uppercase;margin:12px 0 4px}
-#p1Home select.as{height:26px;border:1px solid var(--line);border-radius:7px;font:inherit;font-size:12px;padding:0 4px;background:#fff}
-#p1Home .acts{display:flex;gap:8px;margin-top:10px}
-#p1Home .foot{font-size:11.5px;color:var(--muted);margin-top:8px}
-#p1Home .log{margin:0 16px 14px;border-top:1px solid var(--line);padding-top:10px}
-#p1Home .log div{display:flex;gap:10px;font-size:12px;color:var(--muted);padding:3px 0}
-#p1Home .log div b{color:var(--ink);font-weight:600}
-#p1Home .log time{width:92px;flex:0 0 auto;color:var(--faint)}
-#p1Home .mat td:first-child{font-weight:600}
-#p1Home .av-pill{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;border-radius:999px;padding:1px 8px;white-space:nowrap}
-#p1Home .av-pill::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor}
-#p1Home .a-in{background:var(--ok-bg);color:var(--ok)}
-#p1Home .a-exp{background:#EFEBFF;color:#5B3FD0}
-#p1Home .a-na{background:var(--bad-bg);color:var(--bad)}
-#p1Home .ord .grip{color:#C3CBD6;cursor:grab;font-size:11px;line-height:1;padding-top:4px;letter-spacing:-2px}
-#p1Home .plus{width:24px;height:24px;border-radius:7px;border:1px dashed var(--brand);background:#fff;color:var(--brand-ink);font-weight:700;line-height:1}
-#p1Home .plus:hover{background:var(--brand-bg)}
-#p1Home .sbar{display:flex;height:6px;border-radius:3px;overflow:hidden;background:#EEF1F5;width:110px}
-#p1Home .sbar i{height:100%}
-#p1Home .stk{padding:9px 12px;border-bottom:1px solid var(--line)}
-#p1Home .stk .a{display:flex;align-items:center;gap:8px}
-#p1Home .stk .a b{font-weight:700}
-#p1Home .stk .a .q{margin-left:auto;font-weight:700}
-#p1Home .stk .a .q small{color:var(--muted);font-weight:600}
-#p1Home .stk .c{display:flex;gap:12px;font-size:11.5px;color:var(--muted);margin-top:4px}
-#p1Home .stk .c b{color:var(--ink)}
-#p1Home .stk.hl{background:#FFFBEF}
-#p1Home .sgh{padding:10px 12px 4px;font-size:11px;font-weight:700;color:var(--faint);letter-spacing:.05em;text-transform:uppercase}
-#p1Home .gantt{display:grid;grid-template-columns:120px 1fr;gap:6px 10px;align-items:center;margin-top:4px}
-#p1Home .gantt .gl{font-size:12px;color:var(--ink);font-weight:600}
-#p1Home .gantt .gl small{display:block;color:var(--muted);font-weight:500;font-size:11px}
-#p1Home .gtrack{position:relative;height:22px;background:#F4F6F9;border-radius:6px}
-#p1Home .gb{position:absolute;top:4px;height:14px;border-radius:7px}
-#p1Home .gb.d{background:var(--ok)}
-#p1Home .gb.c{background:var(--warn)}
-#p1Home .gb.p{background:#CBD5E1}
-#p1Home .today{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--bad)}
-#p1Home .gdays{display:flex;justify-content:space-between;font-size:10.5px;color:var(--faint);grid-column:2}
-#p1Home .hist{margin:0 16px 16px;border-top:1px solid var(--line);padding-top:4px}
-#p1Home .hi{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
-#p1Home .hi:last-child{border-bottom:0}
-#p1Home .hi .dot{width:24px;flex:0 0 auto}
-#p1Home .hi p{margin:0;line-height:1.5}
-#p1Home .hi p small{color:var(--faint)}
-#p1Home .hi .df{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12px;margin-top:2px}
-#p1Home .o-old{background:var(--bad-bg);color:var(--bad);text-decoration:line-through;border-radius:5px;padding:0 6px}
-#p1Home .o-new{background:var(--ok-bg);color:var(--ok);border-radius:5px;padding:0 6px;font-weight:700}
-#p1Home .feed{max-height:620px;overflow:auto}
-#p1Home .legend{display:flex;gap:14px;margin-top:8px;color:var(--muted);font-size:11.5px}
-#p1Home .legend i{display:inline-block;width:14px;height:6px;border-radius:3px;vertical-align:1px;margin-right:4px}
-#p1Home .panes{grid-template-columns:440px 1fr}
-#p1Home .btn{height:32px;border-radius:9px;border:1px solid var(--line);background:#fff;font-weight:700;padding:0 12px;color:var(--ink)}
-#p1Home .btn.pri{background:var(--brand);color:#fff;border:0}
-#p1Home .btn.okb{background:var(--accent);color:#fff;border:0}
-#p1Home .tabs button{flex:1;padding:11px;font-weight:700;color:var(--muted);border-bottom:2px solid transparent}
-#p1Home .tabs button.on{color:var(--brand-ink);border-bottom-color:var(--brand)}
-#p1Home .bulk button{border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:8px;height:28px;padding:0 10px;font-weight:700;font-size:12px}
-#p1Home .bulk button.pri{background:#fff;color:var(--ink);border:0}
-#p1Home .nc{border:0;background:var(--card);border-radius:14px;padding:11px 14px;box-shadow:var(--sh-1);text-align:left}
-#p1Home .ord{cursor:pointer}
-#p1Home .ol{max-height:calc(100vh - 290px);min-height:300px;overflow:auto}
-#p1Home .sh{padding:11px 16px;width:100%;text-align:left}
-#p1Home .more{display:block;width:100%;padding:10px;color:var(--brand-ink);font-weight:700;border-top:1px solid var(--line)}
-@media (max-width:1100px){#p1Home .panes{grid-template-columns:1fr}#p1Home .now{grid-template-columns:repeat(2,1fr)}}
-#p1Home .sb :not(.lab),#p1Home .lines *,#p1Home .route span,#p1Home .path b{text-transform:none;letter-spacing:normal}
+#p1Home .lg-tiles{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:12px}
+#p1Home .lg-tiles div{flex:1 1 100px;background:#fff;border-radius:12px;box-shadow:var(--sh-1);padding:8px 10px;text-align:center}
+#p1Home .lg-tiles b{display:block;font-size:18px;font-weight:800}
+#p1Home .lg-tiles span{font-size:11.5px;color:var(--muted)}
+#p1Home .lg-tiles i{font-style:normal;color:#C3CBD6;font-weight:800}
+#p1Home .tl{position:relative;padding-left:18px}
+#p1Home .tl::before{content:'';position:absolute;left:5px;top:6px;bottom:6px;width:2px;background:var(--line)}
+#p1Home .tl-i{position:relative;padding:6px 0 10px}
+#p1Home .tl-d{position:absolute;left:-18px;top:10px;width:12px;height:12px;border-radius:50%;background:#fff;border:2px solid var(--brand)}
+#p1Home .tl-i.end .tl-d{background:var(--accent);border-color:var(--accent)}
+#p1Home .tl-b .sub b{color:var(--ink)}
+#p1Home .lg-t td,#p1Home .lg-t th,#p1Home .sub,#p1Home .lg-mv,#p1Home .tl-b{text-transform:none;letter-spacing:normal}
+@media (max-width:1100px){#p1Home .lg-two{grid-template-columns:1fr}#p1Home .lg-kpi{grid-template-columns:repeat(2,1fr)}}
 /* The old PPC link is off the menu: this page is "PPC" now (its screen and code stay — the Demand buttons open it). */
 #tabFlow{display:none!important}
 </style>
@@ -78450,281 +78361,306 @@ function frSkipDraw() {
 }
 frWhen(() => $('gdRoot') && typeof guideAskOpen === 'function', frMeera, 150);
 /* ============================== FILE: src/app/core/ppc-one.js ============================== */
-/* ================= PPC ON ONE PAGE (R-one add-on, 24 Oct) =================
+/* ================= PPC — PLANNED BY SKU, KEPT AS A LEDGER (R-one add-on, 24 Oct) =================
  *
- * Ravi, 24 Oct: "orders and its progress … when a new order is received the PPC page has a notification … after which
- * comes the requirement … then the allotment and PR … then QC … then the shipment phase … with minimum page changing, best
- * in a single page" — and, of the design, "haan, yeh sahi lag raha hai, aage badho".
+ * Ravi, 24 Oct: "I want a ledger like system like we had created in the greige inventory … we don't plan according to the
+ * order, we plan according to the article or SKU" — and then: "add where it actually is, work in progress at which stage,
+ * and worked by whom, like the greige … by whom and when … the complete journey of the product till it is sent from the
+ * production … and a completed tab which tells which product was in production and when, and lets us analyse the
+ * frequency of the product".
  *
- * Every order in PPC on one page, by stage, each with the button for its next step. It is built on the Production flow's
- * own figures and buttons — nothing new is stored:
- *   - the lines and where each is: flowRows() / flowState() (flow-core.js), the same the PPC screen reads;
- *   - the five stages are the flow's buckets put together: Orders = ppc + back, Requirement = demand, Allotment & making
- *     = vendor, fabric, emb, cut, raw, wip, out, QC = qcb, Shipping = ship + fgin;
- *   - Plan opens the PPC plan form (flowPpcOpen), Send back the flow's own box (flowBackOpen); the other steps open the
- *     screen where that work is entered (Demand, Cutting Data, Job Work, QC, Finished Goods, Order Console);
- *   - Requirement shows the plan's fabric against the RFD cover (flowRfdCover) and its accessories against the shelf
- *     (flowAccFree); the side card adds up what the waiting lines need (flowRfdCover / flowAccCover);
- *   - Journey opens the order's own journey (ordJourney).
- * Not here yet (each needs new records, so Ravi decides first): an "Accept into PPC" step, purchase requisitions, an
- * owner per step, a change history with old → new values, and "in transit".
- * THE ONLY PPC IN THE MENU (Ravi, 24 Oct: "remove the old ppc from the new one"): today's PPC link (#tabFlow) is hidden
- * (ppc-one.css) and this page takes its place as "PPC". The old screen and its code stay: the buttons here still open its
- * Demand tabs (RFD fabric, accessories, printed fabric in, embroidery), where that work is entered. */
-const P1 = { shown: false, built: false, stage: -1, tile: '', sel: '', lt: 'o', secs: new Set(), all: false, tick: new Set(), loading: false };
-const P1_STAGES = [['Orders', 'to plan, or sent back'], ['Requirement', 'fabric and accessories to arrange'], ['Allotment & making', 'printer, cutting, karigars'],
-  ['QC', 'with Quality Control'], ['Shipping', 'to hand over or accept']];
-const P1_OF = { ppc: 0, back: 0, demand: 1, vendor: 2, fabric: 2, emb: 2, cut: 2, raw: 2, wip: 2, out: 2, qcb: 3, ship: 4, fgin: 4 };
-const P1_SAYS = { ppc: 'to plan', back: 'sent back to sales', vendor: 'print order to give', fabric: 'with the printer', emb: 'at embroidery', cut: 'to cut',
-  raw: 'to issue to a karigar', wip: 'with karigars', out: 'made outside', qcb: 'with QC', ship: 'to hand to shipping', fgin: 'Finished Goods to accept' };
-const p1N = v => (+v || 0).toLocaleString('en-IN');
-const p1Today = () => new Date().toISOString().slice(0, 10);
+ * Five views, one page, nothing new stored — every figure is read from the registers the floor already fills:
+ *   SKU plan     every open order of a SKU added up: ordered, not planned yet, finished goods in store, in production,
+ *                made; "Plan" plans all the SKU's waiting lines together (the PPC plan form's own same-SKU plan).
+ *   Where it is  every piece in production right now, with whom and since when: the printer (flow challans), the
+ *                cutting table, each karigar (Job Work issues not yet received), QC, Finished Goods to accept, shipping.
+ *   Journey      one SKU (or one order of it) from the order coming in to leaving production, each step with who and when.
+ *   PPC ledger   every movement, newest first, with the SKU's running balance — like the Greige Desk's fabric ledger.
+ *   Completed    what was made and when, SKU by SKU: how many times, how many pieces, how long it took, how often it comes.
+ * Where the steps come from: order book (order in), pt_ppc (planned, by whom), flow challans (fabric to the printer and
+ * printed back), Cutting Data (cutDate · addedBy), Job Work (issueDate / receivingDate · the karigar · addedBy), QC
+ * checks (date · checkedBy), press, Finished Goods ledger (createdAt · createdBy), the shipping hand-over register.
+ * The old PPC link is off the menu (ppc-one.css); its screen and code stay — the Demand buttons here open it. */
+const P1 = { shown: false, built: false, loading: false, tab: 'sku', seg: 'all', open: '', q: '', jsku: '', jord: '', wseg: '',
+  f: { from: '', to: '', kind: '', sku: '' }, lim: 300, cp: '90', copen: '', at: '' };
+const P1_MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const p1N = v => (Math.round(+v || 0)).toLocaleString('en-IN');
+const p1Day = d => d ? (+String(d).slice(8, 10)) + ' ' + P1_MON[+String(d).slice(5, 7) - 1] + (String(d).slice(0, 4) !== String(new Date().getFullYear()) ? ' ' + String(d).slice(2, 4) : '') : '—';
+const p1Who = v => String(v || '').split('@')[0];
+const p1Iso = v => String(ptIsoDate(v) || '').slice(0, 10);
+const p1Days = d => d ? Math.max(0, Math.round((Date.now() - Date.parse(d + 'T00:00:00')) / 864e5)) : null;
 const p1May = () => !!(ME && (ME.admin || (typeof flowScreenAllowed === 'function' && flowScreenAllowed().length)));
+const P1_OF = { ppc: 0, back: 0, demand: 1, vendor: 2, fabric: 2, emb: 2, cut: 2, raw: 2, wip: 2, out: 2, qcb: 3, ship: 4, fgin: 4 };
+const P1_SAYS = { ppc: 'to plan', back: 'sent back to sales', demand: 'fabric / accessories to arrange', vendor: 'print order to give', fabric: 'with the printer',
+  emb: 'at embroidery', cut: 'to cut', raw: 'cut, to give a karigar', wip: 'with karigars', out: 'made outside', qcb: 'with QC', ship: 'to hand to shipping', fgin: 'Finished Goods to accept', done: 'done' };
+/* the movements of the ledger: label, colour class, which way the SKU's balance moves */
+const P1_MV = { IN: ['Order in', 'mv-in'], PLAN: ['Planned', 'mv-plan'], BACK: ['Sent back to sales', 'mv-bad'], RFD: ['Fabric to printer', 'mv-mat'], PRN: ['Printed back', 'mv-mat'],
+  CUT: ['Cut', 'mv-make'], ISS: ['Given to karigar', 'mv-make'], REC: ['Back from karigar', 'mv-make'], QC: ['QC passed', 'mv-qc'], REJ: ['QC rejected', 'mv-bad'],
+  PRESS: ['Pressed', 'mv-qc'], FG: ['Into Finished Goods', 'mv-done'], FBA: ['Dispatched to FBA', 'mv-done'], SHIP: ['Handed to shipping', 'mv-done'] };
+const P1_END = new Set(['FG', 'FBA', 'SHIP']);
 
-/** One line's words: where it is, what it waits for. */
-function p1Says(s) {
-  if (s.bucket === 'demand') return s.needFab && s.needAcc ? 'RFD fabric to send, accessories to reserve' : s.needFab ? 'RFD fabric to send' : 'accessories to reserve';
-  return P1_SAYS[s.bucket] || s.bucket;
+/* ---------- reading the registers ---------- */
+
+/** Every step on record, oldest first: { k, ms, day, orderNo, sku, pcs, unit, by, party, ref }. Cached on its sources. */
+let P1_EV = { key: null, list: [] };
+function p1Events() {
+  const src = [PTG.ob, PT.cut, PT.base, PTG.press, FLOW.ppc, FLOW.ch, typeof QC !== 'undefined' ? QC.checks : null, typeof FGI !== 'undefined' ? FGI.rows : null, PTG.shopProd];
+  if (P1_EV.key && src.every((s, i) => s === P1_EV.key[i])) return P1_EV.list;
+  const out = [], add = (k, at, r, pcs, by, party, ref, unit) => {
+    const q = +pcs || 0; if (!(q > 0)) return;
+    const ms = ptDtMs(at) || 0, day = p1Iso(at) || (ms ? new Date(ms).toISOString().slice(0, 10) : '');
+    out.push({ k, ms: ms || (day ? Date.parse(day + 'T12:00:00') : 0), t: /\d:\d\d/.test(String(at || '')), day, orderNo: obUC(r.orderNo || ''), sku: obUC(r.sku || ''), pcs: q, unit: unit || 'pcs', by: p1Who(by), party: String(party || '').trim(), ref: ref || '' });
+  };
+  /* order in — one per order book row; sent back to sales */
+  (PTG.ob || []).forEach(r => { if (!r) return; add('IN', r.openedAt || r.uploadedAt || r.orderDate, r, typeof obPieces === 'function' ? obPieces(r) : r.qty, r.uploadedBy || r.addedBy || '', r.buyerName || (r.src === 'SHP' ? 'Shopify' : r.src || ''), r.shopOrderNo ? 'Shopify ' + r.shopOrderNo : r.src === 'SHP' ? 'Shopify order' : 'Order book');
+    if (r.ppcBack && r.ppcBack.at) add('BACK', r.ppcBack.at, r, typeof obPieces === 'function' ? obPieces(r) : r.qty, r.ppcBack.by, '', r.ppcBack.note ? '“' + r.ppcBack.note + '”' : 'sent back'); });
+  /* planned — the plan record, keyed by line */
+  const lineOf = new Map(); try { ordLines().forEach(l => lineOf.set(flowKey(l.orderNo, l.sku), l)); } catch (e) { /* no order book yet */ }
+  Object.entries(FLOW.ppc || {}).forEach(([k, p]) => { const l = lineOf.get(k); if (!p || !l || !p.at) return;
+    const rt = (FLOW_ROUTES.find(r => r[0] === flowRouteOf(p)) || [])[2] || '';
+    add('PLAN', p.at, l, l.qty, p.by, p.printer || (p.emb && p.emb.name) || p.outVendor || '', 'Plan · ' + rt + (p.dates && p.dates.ready ? ' · ready by ' + p1Day(p.dates.ready) : '')); });
+  /* fabric to the printer and printed back — the flow challans */
+  Object.values(FLOW.ch || {}).forEach(c => { if (!c || c.cancelled) return;
+    (c.lines || []).forEach(l => { if (l.ruffleOnly) return; const u = flowChUnit(l);
+      add('RFD', c.at || c.date, { orderNo: l.orderNo || c.orderNo, sku: l.sku }, flowChSent(l), c.by, c.vendor && c.vendor.name, 'Challan ' + c.no + (u === 'm' && l.fabric ? ' · ' + l.fabric : ''), u); });
+    Object.values(c.receipts || {}).forEach(rc => Object.entries((rc && rc.items) || {}).forEach(([key, q]) => { const l = (c.lines || []).find(x => x.key === key); if (!l || l.ruffleOnly) return;
+      add('PRN', rc.at || rc.date, { orderNo: l.orderNo || c.orderNo, sku: l.sku }, q, rc.by, c.vendor && c.vendor.name, 'Challan ' + c.no + (rc.note ? ' · ' + rc.note : ''), flowChUnit(l)); })); });
+  /* cutting, job work, press */
+  (PT.cut || []).forEach(r => { if (!r) return; add('CUT', r.cutDate || r.addedAt, r, (parseInt(r.pieces, 10) || 0) - (r.rejected === true ? parseInt(r.rejPieces, 10) || 0 : 0), r.addedBy, 'Cutting', 'Cutting Data'); });
+  (PT.base || []).forEach(r => { if (!r) return;
+    add('ISS', r.issueDate || r.addedAt, r, ptNum(r.issuePieces), r.addedBy, r.empName, 'Job Work · issue');
+    if (r.receivingDate) add('REC', r.receivingDate, r, ptNum(r.receivedPieces), r.recvBy || r.lastEditedBy || '', r.empName, 'Job Work · receipt' + (ptNum(r.rejectionPieces) ? ' · ' + p1N(r.rejectionPieces) + ' rejected' : '')); });
+  (PTG.press || []).forEach(r => { if (r) add('PRESS', r.entryDate || r.addedAt, r, r.pieces, r.addedBy, 'Press', 'Press'); });
+  /* QC */
+  ((typeof QC !== 'undefined' && QC.checks) || PTG.qc || []).forEach(c => { if (!c || c.refId) return;
+    add('QC', c.date || c.addedAt, c, c.ok, c.checkedBy || c.addedBy, c.checkedBy || '', 'QC check' + (+c.forAlteration ? ' · ' + p1N(c.forAlteration) + ' for alteration' : ''));
+    add('REJ', c.date || c.addedAt, c, c.rejected, c.checkedBy || c.addedBy, '', 'QC check · back to the karigar'); });
+  /* Finished Goods: received (from QC, a transfer counted in) and dispatched to FBA */
+  ((typeof FGI !== 'undefined' && FGI.rows) || []).forEach(r => { if (!r || r.test) return; const t = r.txnType;
+    if (t === 'RECEIVE' || (t === 'TRANSFER_IN' && r.confirmed === true && r.reversed !== true)) add('FG', r.createdAt || r.date, r, r.qty, r.createdBy, r.receivedFrom || '', 'Finished Goods ' + (r._id || ''));
+    else if (t === 'FBA') add('FBA', r.createdAt || r.date, r, r.qty, r.createdBy, 'Amazon FBA', (r.shipmentId ? 'Shipment ' + r.shipmentId : 'FBA dispatch')); });
+  /* hand-overs to the shipping team (made-to-order lines) */
+  try { shpHandRegister().forEach(h => add('SHIP', h.at, h, h.pcs, h.acceptedBy || h.by, 'Shipping team', h.shop ? 'Shopify ' + h.shop : 'Hand-over')); } catch (e) { /* not loaded */ }
+  out.sort((a, b) => a.ms - b.ms);
+  P1_EV = { key: src, list: out };
+  return out;
 }
-/** The day a line is due: the plan's ready date, or a made-to-order line's five working days. */
-const p1Due = x => String((x.s.plan && x.s.plan.dates && x.s.plan.dates.ready) || x.r.mtoDue || '');
 
-/** The orders, each with its lines, its stage (the earliest of its open lines) and its due day (the earliest). */
-function p1Orders() {
-  let rc = null; try { rc = flowRfdCover(); } catch (e) { rc = null; }
+/** The open lines with their state, grouped by SKU. */
+function p1Skus() {
+  let rc = { line: {} }; try { rc = flowRfdCover(); } catch (e) { /* not loaded */ }
   const by = new Map();
   flowRows().forEach(x => {
-    const st = P1_OF[x.s.bucket]; if (st == null || x.r.__t) return;
-    const o = by.get(x.r.orderNo) || { no: x.r.orderNo, lines: [], stage: 9, due: '', isNew: false, short: false, pcs: 0 };
-    o.lines.push(x); o.stage = Math.min(o.stage, st); o.pcs += +x.r.qty || 0;
-    if (x.s.bucket === 'ppc' && x.recent) o.isNew = true;
-    const d = p1Due(x); if (d && (!o.due || d < o.due)) o.due = d;
-    if (rc && rc.line[x.s.key] && rc.line[x.s.key].short > 0) o.short = true;
-    by.set(x.r.orderNo, o);
+    if (x.r.__t || x.s.bucket === 'done') return;
+    const k = obUC(x.r.sku), q = +x.r.qty || 0;
+    const e = by.get(k) || { sku: k, what: [x.r.articleSubtype || x.r.articleType || x.r.itemName, x.r.color, x.r.size].filter(Boolean).join(' · '), lines: [], orders: new Set(), ordered: 0, notPlanned: 0, inMake: 0, made: 0, short: false, due: '', isNew: false };
+    e.lines.push(x); e.orders.add(x.r.orderNo); e.ordered += q;
+    if (x.s.bucket === 'ppc' || x.s.bucket === 'back') e.notPlanned += q; else e.inMake += Math.max(0, q - x.s.qc);
+    e.made += Math.min(q, x.s.qc || 0);
+    if (rc.line[x.s.key] && rc.line[x.s.key].short > 0) e.short = true;
+    if (x.s.bucket === 'ppc' && x.recent) e.isNew = true;
+    const d = String((x.s.plan && x.s.plan.dates && x.s.plan.dates.ready) || x.r.mtoDue || ''); if (d && (!e.due || d < e.due)) e.due = d;
+    by.set(k, e);
   });
-  const today = p1Today();
-  return [...by.values()].map(o => Object.assign(o, { late: !!(o.due && o.due < today), buyer: p1Buyer(o) }))
-    .sort((a, b) => (a.stage - b.stage) || String(a.due || '9').localeCompare(String(b.due || '9')) || String(a.no).localeCompare(String(b.no)));
-}
-function p1Buyer(o) {
-  const r = o.lines[0].r;
-  const so = typeof SOX !== 'undefined' && SOX.rows ? SOX.rows.find(x => x && (x._id || x.id) === o.no) : null;
-  return (so && (so.buyerName || so.buyerEmail)) || (r.shopOrderNo ? 'Shopify ' + r.shopOrderNo : '') || r.src || '';
+  return [...by.values()].map(e => { const fg = typeof fgiOf === 'function' ? Math.max(0, fgiOf(e.sku).current || 0) : 0;
+    return Object.assign(e, { fg, toMake: Math.max(0, e.notPlanned - fg), stage: Math.min(...e.lines.map(x => P1_OF[x.s.bucket] ?? 9)) }); })
+    .sort((a, b) => (b.notPlanned > 0) - (a.notPlanned > 0) || b.notPlanned - a.notPlanned || b.inMake - a.inMake || a.sku.localeCompare(b.sku));
 }
 
-const P1_TILES = [['new', '🔔', 'var(--brand-bg)', 'New orders', 'reached PPC this week', o => o.isNew],
-  ['plan', '📋', 'var(--chip)', 'To plan', 'or sent back to sales', o => o.stage === 0],
-  ['short', '🧵', 'var(--warn-bg)', 'Short of RFD fabric', 'after earlier plans', o => o.short],
-  ['late', '⏰', 'var(--bad-bg)', 'Past their ready date', 'need a push today', o => o.late]];
-
-/** The button for an order's next step, and where it goes. */
-function p1Next(o) {
-  const ls = o.lines.filter(x => P1_OF[x.s.bucket] === o.stage), bk = ls[0].s.bucket;
-  const go = (tab, view) => () => { p1Hide(); if (view) FLOW_VIEW = view; showTab(tab); };
-  if (o.stage === 0) return ls.some(x => x.s.bucket === 'ppc') && flowCanBack() ? ['Plan', 'blue', () => flowPpcOpen(o.no)] : ['Open Sales Orders', '', go('so')];
-  if (o.stage === 1) return ls.some(x => x.s.needFab) ? ['Send RFD fabric', '', go('flow', 'drfd')] : ['Reserve accessories', '', go('flow', 'dacc')];
-  if (o.stage === 2) return { vendor: ['Give to printer', '', go('flow', 'dhist')], fabric: ['Receive printed', '', go('flow', 'dhist')], emb: ['Open Embroidery', '', go('flow', 'demb')],
-    cut: ['Open Cutting', '', go('pcut')], raw: ['Issue to karigar', '', go('pbase')], wip: ['Open Job Work', '', go('pbase')], out: ['Open Finished Goods', '', go('fgi')] }[bk] || ['Open PPC', '', go('flow')];
-  if (o.stage === 3) return ['Open QC', 'blue', go('qc')];
-  return ls.some(x => x.s.bucket === 'ship') ? ['Hand to shipping', '', go('ord')] : ['Accept in Finished Goods', '', go('fgi')];
+/** Every piece in production right now: { stage, sku, orderNo, pcs, unit, who, since, ref }. */
+function p1Wip() {
+  const out = [], rows = flowRows().filter(x => !x.r.__t && x.s.bucket !== 'done'), open = new Set(rows.map(x => obUC(x.r.orderNo) + '|' + obUC(x.r.sku)));
+  const lastOf = (k, o, s) => { const ev = p1Events(); for (let i = ev.length - 1; i >= 0; i--) { const e = ev[i]; if (e.k === k && e.orderNo === o && e.sku === s) return e; } return null; };
+  /* with the printer: what each open challan has sent and not had back */
+  Object.values(FLOW.ch || {}).forEach(c => { if (!c || c.cancelled || c.closed) return; const recv = flowChRecv(c);
+    (c.lines || []).forEach(l => { if (l.ruffleOnly || flowChMoved(c, l)) return; const left = flowR2(flowChSent(l) - (recv[l.key] || 0));
+      if (left > 0.01) out.push({ stage: 'Printer', sku: obUC(l.sku), orderNo: obUC(l.orderNo || c.orderNo), pcs: left, unit: flowChUnit(l), who: (c.vendor && c.vendor.name) || '—', since: p1Iso(c.at || c.date), ref: 'Challan ' + c.no }); }); });
+  rows.forEach(x => { const s = x.s, r = x.r, q = +r.qty || 0, o = obUC(r.orderNo), k = obUC(r.sku);
+    if (s.bucket === 'vendor') { const p = lastOf('PLAN', o, k); out.push({ stage: 'Printer', sku: k, orderNo: o, pcs: q, unit: 'pcs', who: (s.plan && s.plan.printer) || 'printer not given yet', since: p ? p.day : '', ref: 'print order to give' }); }
+    if (s.bucket === 'emb') out.push({ stage: 'Embroidery', sku: k, orderNo: o, pcs: Math.max(0, q - (s.embOk || 0)), unit: 'pcs', who: s.embTo || (s.plan && s.plan.emb && s.plan.emb.name) || 'Embroidery', since: '', ref: '' });
+    if (s.canCut > 0 && (s.bucket === 'cut' || s.bucket === 'fabric')) { const p = lastOf('PRN', o, k); out.push({ stage: 'Cutting', sku: k, orderNo: o, pcs: s.canCut, unit: 'pcs', who: 'Cutting department', since: p ? p.day : '', ref: 'to cut' }); }
+    if (s.canIssue > 0 && ['raw', 'cut', 'wip', 'qcb'].includes(s.bucket)) { const p = lastOf('CUT', o, k); out.push({ stage: 'Raw cutting in store', sku: k, orderNo: o, pcs: s.canIssue, unit: 'pcs', who: 'Store — to give a karigar', since: p ? p.day : '', ref: '' }); }
+    let qcw = 0; try { qcw = flowQcWaiting(r, s) + flowQcLine(r).altOpen + flowQcLine(r).deptOpen; } catch (e) { qcw = 0; }
+    if (qcw > 0) { const p = lastOf('REC', o, k); out.push({ stage: 'QC', sku: k, orderNo: o, pcs: qcw, unit: 'pcs', who: 'Quality Control', since: p ? p.day : '', ref: 'to check / alteration' }); }
+    if (s.bucket === 'fgin') { const p = lastOf('QC', o, k); out.push({ stage: 'Finished Goods to accept', sku: k, orderNo: o, pcs: Math.max(0, s.made - s.india), unit: 'pcs', who: 'Finished Goods team', since: p ? p.day : '', ref: 'passed QC' }); }
+    if (s.bucket === 'ship') { const p = lastOf('QC', o, k); out.push({ stage: 'To hand to shipping', sku: k, orderNo: o, pcs: q, unit: 'pcs', who: 'Shipping team', since: p ? p.day : '', ref: 'made, to hand over' }); }
+  });
+  /* with each karigar: Job Work issues of open lines not yet fully received */
+  (PT.base || []).forEach(b => { if (!b) return; const o = obUC(b.orderNo), k = obUC(b.sku); if (!open.has(o + '|' + k)) return;
+    const left = ptNum(b.issuePieces) - ptNum(b.receivedPieces) - ptNum(b.rejectionPieces);
+    if (left > 0 && !b.frozen) out.push({ stage: 'With karigar', sku: k, orderNo: o, pcs: left, unit: 'pcs', who: b.empName || '—', since: p1Iso(b.issueDate || b.addedAt), ref: 'issued by ' + p1Who(b.addedBy) }); });
+  return out.filter(w => w.pcs > 0);
 }
+const P1_WSTAGES = ['Printer', 'Embroidery', 'Cutting', 'Raw cutting in store', 'With karigar', 'QC', 'Finished Goods to accept', 'To hand to shipping'];
 
-/* ---------- the page: the layout Ravi chose (ppc-one-page-mock-v4.html, 24 Oct: "its nothing same on the test site") ----------
- * Four boxes and the five stages across the top; on the left the orders (with Materials, Stock and Activity beside them);
- * on the right the chosen order: its next step, each SKU, then the five stages, each opening to what is known about it. */
-const P1_MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const p1Day = d => d ? (+String(d).slice(8, 10)) + ' ' + P1_MON[+String(d).slice(5, 7) - 1] : '';
-const p1Who = v => String(v || '').split('@')[0];
-const p1Ini = v => (p1Who(v) || 'R1').slice(0, 2).toUpperCase();
-const p1Route = s => s.route ? ((FLOW_ROUTES.find(r => r[0] === s.route) || [])[2] || s.route) : '';
-function p1Cover() { try { return flowRfdCover(); } catch (e) { return { fab: {}, line: {} }; } }
-function p1Acc() { try { return flowAccFree(); } catch (e) { return {}; } }
-/** Material for an order: in stock (planned and nothing short), short (RFD or accessories short), or not planned yet. */
-function p1Mat(o, rc, acc) {
-  if (!o.lines.some(x => x.s.plan)) return ['a-exp', 'Not planned'];
-  const short = o.lines.some(x => (rc.line[x.s.key] && rc.line[x.s.key].short > 0)
-    || (x.s.needAcc && ((x.s.plan && x.s.plan.acc) || []).some(a => { const f = acc[typeof accCode === 'function' ? accCode(a.code) : a.code]; return f && +a.qty > Math.max(0, f.free); })));
-  return short ? ['a-na', 'Material short'] : ['a-in', 'Material ok'];
-}
-function p1Bar(st) { return P1_STAGES.map((s, i) => `<i class="${i < st ? 'd' : i === st ? 'c' : ''}"></i>`).join(''); }
-function p1Flags(o) {
-  return (o.isNew ? '<span class="flag f-new">NEW</span>' : '') + (o.late ? '<span class="flag f-late">LATE</span>' : '')
-    + (o.lines.some(x => x.s.bucket === 'back') ? '<span class="flag f-risk">SENT BACK</span>' : '');
-}
+/* ---------- the views ---------- */
 
-function p1LeftH(all, list, rc, acc) {
-  const T = [['o', 'Orders'], ['m', 'Materials'], ['s', 'Stock'], ['a', 'Activity']];
-  const tabs = `<div class="tabs">${T.map(t => `<button type="button" data-p1l="${t[0]}" class="${P1.lt === t[0] ? 'on' : ''}">${t[1]}</button>`).join('')}</div>`;
-  if (P1.lt === 'm') {
-    const fab = Object.values(rc.fab).filter(f => f.need > 0).sort((a, b) => b.short - a.short || b.need - a.need);
-    let ac = []; try { ac = flowAccCover().filter(a => a.need > 0).sort((a, b) => b.short - a.short); } catch (e) { ac = []; }
-    const row = (nm, need, free, short, u) => `<tr><td>${esc(nm)}</td><td>${p1N(need)} ${u}</td><td>${p1N(free)} ${u}</td><td>${short > 0 ? `<span class="pill p-short">${p1N(short)} ${u}</span>` : '<span class="pill p-ok">enough</span>'}</td></tr>`;
-    return tabs + `<div class="lh" style="color:var(--muted)">What the waiting lines need, added up — against free store stock</div>
-      <table class="mat"><tr><th>RFD fabric</th><th>Need</th><th>Free</th><th>Short</th></tr>${fab.map(f => row(f.name, f.need, f.free, f.short, 'm')).join('') || '<tr><td colspan="4" style="color:var(--muted)">No line waits for fabric.</td></tr>'}</table>
-      <table class="mat"><tr><th>Accessory</th><th>Need</th><th>Free</th><th>Short</th></tr>${ac.map(a => row(a.name || a.code, a.need, a.free, a.short, '')).join('') || '<tr><td colspan="4" style="color:var(--muted)">No line waits for accessories.</td></tr>'}</table>
-      <div class="bulk"><b>${fab.filter(f => f.short > 0).length + ac.filter(a => a.short > 0).length} short</b><button type="button" class="pri" data-p1go="drfd">Open Demand</button></div>`;
-  }
-  if (P1.lt === 's') {
-    const o = all.find(x => x.no === P1.sel), used = new Set();
-    if (o) o.lines.forEach(x => { const p = x.s.plan; if (!p) return; if (p.fabric && p.fabric.name) used.add(String(p.fabric.name).toUpperCase()); (p.acc || []).forEach(a => used.add(String(a.code).toUpperCase())); });
-    const fab = Object.values(rc.fab).sort((a, b) => a.name.localeCompare(b.name));
-    const accs = Object.entries(acc).filter(([, f]) => f && (f.shelf > 0 || f.held > 0)).sort((a, b) => String(a[1].name || a[0]).localeCompare(String(b[1].name || b[0]))).slice(0, 60);
-    const it = (nm, key, u, on, held, free) => { const tot = Math.max(1, on); const hl = used.has(String(key).toUpperCase());
-      return `<div class="stk${hl ? ' hl' : ''}"><div class="a"><b>${esc(nm)}</b>${hl ? `<span class="flag f-risk">${esc(o.no)}</span>` : ''}<span class="q">${p1N(free)} <small>${u} free</small></span></div>
-        <div class="sbar" style="width:100%;margin-top:6px"><i style="width:${Math.max(0, free) / tot * 100}%;background:var(--ok)"></i><i style="width:${Math.min(on, held) / tot * 100}%;background:#F6B93B"></i></div>
-        <div class="c"><span>in store <b>${p1N(on)}</b></span><span>held for plans <b>${p1N(held)}</b></span></div></div>`; };
-    return tabs + `<div class="lh" style="color:var(--muted)">Store stock${o ? ' · the items ' + esc(o.no) + ' uses are lit' : ''}</div>
-      <div class="ol"><div class="sgh">RFD fabric (Greige Desk and store)</div>${fab.map(f => it(f.name, f.name, 'm', f.stock, f.held, f.free)).join('') || '<div class="empty">No RFD fabric is needed by a waiting line.</div>'}
-      <div class="sgh">Accessories</div>${accs.map(([c, f]) => it(f.name || c, c, '', f.shelf, f.held, f.free)).join('') || '<div class="empty">No accessories on the shelf.</div>'}</div>
-      <div class="legend" style="padding:8px 12px 12px"><span><i style="background:var(--ok)"></i>free</span><span><i style="background:#F6B93B"></i>held for earlier plans</span></div>`;
-  }
-  if (P1.lt === 'a') {
-    const ev = [];
-    all.forEach(o => o.lines.forEach(x => {
-      const p = x.s.plan, b = x.r.ppcBack;
-      if (p && p.at) ev.push([String(p.at), p.by, `planned <b>${esc(x.r.sku)}</b> of ${esc(o.no)}${p1Route(x.s) ? ' · ' + esc(p1Route(x.s)) : ''}`, o.no]);
-      if (b && b.at) ev.push([String(b.at), b.by, `sent <b>${esc(x.r.sku)}</b> of ${esc(o.no)} back to sales${b.note ? ' · “' + esc(b.note) + '”' : ''}`, o.no]);
-    }));
-    ev.sort((a, b) => b[0].localeCompare(a[0]));
-    return tabs + '<div class="lh" style="color:var(--muted)">Latest in PPC — plans and send-backs</div><div class="feed">'
-      + (ev.slice(0, 60).map(e => `<div class="hi" style="padding:9px 12px;cursor:pointer" data-p1sel="${esc(e[3])}"><span class="dot"><span class="av">${esc(p1Ini(e[1]))}</span></span><p>${e[1] ? '<b>' + esc(p1Who(e[1])) + '</b> ' : ''}${e[2]}<br><small>${esc(e[0].replace('T', ' ').slice(0, 16))}</small></p></div>`).join('') || '<div class="empty">Nothing yet.</div>') + '</div>';
-  }
-  const q = (P1.q || '').trim().toUpperCase();
-  const rows0 = q ? list.filter(o => o.no.includes(q) || o.lines.some(x => String(x.r.sku).includes(q))) : list;
-  const rows = P1.all || q ? rows0 : rows0.slice(0, 80);
-  const tile = P1_TILES.find(t => t[0] === P1.tile);
-  return tabs + `<div class="lh"><input type="search" id="p1Q" placeholder="Order or SKU…" value="${esc(P1.q || '')}"></div>
-    ${P1.tile || P1.stage >= 0 ? `<div class="lh" style="font-size:12px;color:var(--muted)">Showing: <b style="color:var(--ink)">${esc(tile ? tile[3] : P1_STAGES[P1.stage][0])}</b> · ${p1N(rows0.length)} <button type="button" class="btn" style="height:24px;margin-left:auto;font-size:11.5px" data-p1clr>Show all</button></div>` : ''}
-    <div class="ol">${rows.map(o => { const m = p1Mat(o, rc, acc), by = (o.lines.find(x => x.s.plan && x.s.plan.by) || {}).s;
-      return `<div class="ord${o.no === P1.sel ? ' on' : ''}" data-p1sel="${esc(o.no)}"><input type="checkbox" data-p1k="${esc(o.no)}"${P1.tick.has(o.no) ? ' checked' : ''}><div class="bd">
-        <div class="r1"><b>${esc(o.no)}</b>${p1Flags(o)}<span class="due" style="${o.late ? 'color:var(--bad);font-weight:700' : ''}">${o.due ? p1Day(o.due) : ''}</span></div>
-        <div class="r1"><small>${o.buyer ? esc(o.buyer) + ' · ' : ''}${p1N(o.pcs)} pcs${o.lines.length > 1 ? ' · ' + o.lines.length + ' SKUs' : ''}</small></div>
-        <div class="prog">${p1Bar(o.stage)}</div>
-        <div class="r3">At <b style="color:var(--ink)">${esc(P1_STAGES[o.stage][0])}</b> · <span class="av-pill ${m[0]}">${m[1]}</span>${by ? `<span class="av" title="planned by ${esc(p1Who(by.plan.by))}">${esc(p1Ini(by.plan.by))}</span>${esc(p1Who(by.plan.by))}` : ''}</div></div></div>`; }).join('') || '<div class="empty">Nothing here ✓</div>'}
-    ${rows.length < rows0.length ? `<button type="button" class="more" data-p1all>Show all ${p1N(rows0.length)}</button>` : ''}</div>
-    ${P1.tick.size ? `<div class="bulk"><b>${P1.tick.size} ticked</b>${flowCanBack() ? '<button type="button" class="pri" data-p1tp>Plan together</button><button type="button" data-p1tb>Send back</button>' : ''}<button type="button" data-p1tc>Clear</button></div>` : ''}`;
+const p1Mv = e => `<span class="pl ${P1_MV[e.k][1]}">${P1_MV[e.k][0]}</span>`;
+function p1SkuTab(skus) {
+  const segs = [['all', 'All', () => true], ['plan', 'To plan', s => s.notPlanned > 0], ['make', 'In production', s => s.inMake > 0], ['short', 'RFD short', s => s.short]];
+  const q = P1.q.trim().toUpperCase(), seg = segs.find(x => x[0] === P1.seg) || segs[0];
+  const rows = skus.filter(s => seg[2](s) && (!q || (s.sku + ' ' + s.what + ' ' + [...s.orders].join(' ')).toUpperCase().includes(q)));
+  const tot = k => rows.reduce((a, s) => a + s[k], 0);
+  return `<div class="lg-seg">${segs.map(x => `<button type="button" class="${P1.seg === x[0] ? 'on' : ''}" data-p1seg="${x[0]}">${x[1]} <span>${p1N(skus.filter(x[2]).length)}</span></button>`).join('')}
+      <span class="lg-note">Planned by SKU — every open order of the SKU added together.</span></div>
+    <div class="lg-card"><div class="lg-cap">${p1N(rows.length)} SKUs · <b>${p1N(tot('ordered'))}</b> pcs on open orders · <b style="color:var(--bad)">${p1N(tot('notPlanned'))}</b> not planned · <b>${p1N(tot('inMake'))}</b> in production · <b>${p1N(tot('made'))}</b> made. Every figure is worked out from the registers.</div>
+    <div class="lg-scroll"><table class="lg-t"><thead><tr><th>SKU · article</th><th>Open orders</th><th class="num">Ordered</th><th class="num">Not planned</th><th class="num" title="Finished Goods stock of this SKU in the store now">FG in store</th><th class="num">In production</th><th class="num">Made</th><th>Where</th><th></th></tr></thead><tbody>
+    ${rows.slice(0, P1.lim).map(s => { const open = P1.open === s.sku, words = [...new Set(s.lines.map(x => P1_SAYS[x.s.bucket] || x.s.bucket))].join(', ');
+      return `<tr class="${open ? 'on' : ''}" data-p1open="${esc(s.sku)}"><td><b>${esc(s.sku)}</b>${s.isNew ? ' <span class="pl mv-in">NEW</span>' : ''}${s.short ? ' <span class="pl pl-bad">RFD short</span>' : ''}<div class="sub">${esc(s.what)}</div></td>
+        <td>${s.orders.size} <span class="sub" style="display:inline">${esc([...s.orders].slice(0, 2).join(', '))}${s.orders.size > 2 ? '…' : ''}</span></td>
+        <td class="num">${p1N(s.ordered)}</td><td class="num"><b style="color:${s.notPlanned ? 'var(--bad)' : 'var(--accent)'}">${s.notPlanned ? p1N(s.notPlanned) : '✓ 0'}</b></td>
+        <td class="num">${s.fg ? p1N(s.fg) : '<span class="muted">—</span>'}</td><td class="num">${s.inMake ? p1N(s.inMake) : '<span class="muted">—</span>'}</td><td class="num">${s.made ? p1N(s.made) : '<span class="muted">—</span>'}</td>
+        <td><span class="sub" style="margin:0">${esc(words)}</span></td>
+        <td style="white-space:nowrap">${s.notPlanned && flowCanBack() && s.lines.some(x => x.s.bucket === 'ppc') ? `<button type="button" class="lg-yes" data-p1plan="${esc(s.sku)}">Plan ${p1N(s.notPlanned)} pcs</button>` : ''} <button type="button" class="lg-go" data-p1jour="${esc(s.sku)}">Journey</button></td></tr>
+        ${open ? `<tr class="lg-exp"><td colspan="9">${p1SkuMore(s)}</td></tr>` : ''}`; }).join('') || '<tr><td colspan="9" class="empty">Nothing here.</td></tr>'}
+    </tbody></table></div>${rows.length > P1.lim ? `<button type="button" class="lg-more" data-p1lim>Show all ${p1N(rows.length)}</button>` : ''}</div>`;
 }
-
-/** The chosen order. */
-function p1DetailH(o, rc, acc) {
-  if (!o) return '<div class="empty" style="padding:60px 20px">Pick an order on the left.</div>';
-  const at = o.stage, nx = p1Next(o), L = o.lines;
-  const sec = (i, title, sum, body) => `<div class="sec${P1.secs.has(i) || (i === at && !P1.secs.has(-1 - i)) ? '' : ' shut'}"><button type="button" class="sh ${i < at ? 'd' : i === at ? 'c' : ''}" data-p1sec="${i}"><span class="n">${i < at ? '✓' : i + 1}</span><span><b>${esc(title)}</b><br><span class="st">${sum}</span></span><span class="own">${i < at ? '<span class="tag d">Done</span>' : i === at ? '<span class="tag c">Now</span>' : '<span class="tag w">To come</span>'}</span></button><div class="sb">${body}</div></div>`;
-  const plan0 = (L.find(x => x.s.plan) || {}).s;
-  const route = plan0 ? plan0.route : '';
-  /* 1 Orders */
-  const s1 = `<table><tr><th>SKU</th><th>Pcs</th><th>On the book</th><th>Order date</th></tr>${L.map(x => `<tr><td>${esc(x.r.sku)}</td><td>${p1N(x.r.qty)}</td><td>${esc(p1Day(x.r.openIso) || '—')}</td><td>${esc(p1Day(ptIsoDate(x.r.orderDate)) || '—')}</td></tr>`).join('')}</table>
-    ${L.some(x => x.r.ppcBack && x.s.bucket === 'back') ? `<div class="foot">Sent back to sales${L.find(x => x.r.ppcBack).r.ppcBack.note ? ': “' + esc(L.find(x => x.r.ppcBack).r.ppcBack.note) + '”' : ''} — it comes back here when sales send it again.</div>` : ''}
-    ${at === 0 && L.some(x => x.s.bucket === 'ppc') && flowCanBack() ? '<div class="acts"><button type="button" class="btn pri" data-p1do="plan">Plan</button><button type="button" class="btn" data-p1do="back">Send back to sales</button></div>' : ''}`;
-  /* 2 Requirement: the plan's fabric and accessories against free store stock */
-  const mats = [];
-  L.forEach(x => { const p = x.s.plan; if (!p) return; const f = rc.line[x.s.key];
-    if (p.fabric && p.fabric.name) mats.push([x.r.sku, p.fabric.name + ' (RFD)', f ? f.need : +p.fabric.metres || 0, f ? f.avail : null, 'm', f ? f.short : 0, x.s.needFab]);
-    (p.acc || []).filter(a => a.code && +a.qty > 0).forEach(a => { const c = typeof accCode === 'function' ? accCode(a.code) : a.code, fr = acc[c];
-      mats.push([x.r.sku, (fr && fr.name) || a.code, +a.qty, fr ? fr.free : null, '', x.s.needAcc && fr ? Math.max(0, +a.qty - Math.max(0, fr.free)) : 0, x.s.needAcc]); }); });
-  const s2 = `<div class="lab">Route</div><div class="route">${FLOW_ROUTES.map(r => `<span class="${r[0] === route ? 'on' : ''}">${esc(r[2])}</span>`).join('')}</div>
-    ${route ? `<div class="path">${(flowPrinted(route) ? ['RFD fabric', 'Printer'] : []).concat(route === 'emb' ? ['Embroidery'] : []).concat(route === 'jobwork' || route === 'outsource' ? [] : ['Cutting']).concat(route === 'outsource' ? ['Made outside'] : ['Karigar']).concat(['QC', 'Finished goods']).map(s => `<b>${s}</b>`).join('›')}</div>` : ''}
-    ${mats.length ? `<table><tr><th>SKU</th><th>Material</th><th>Need</th><th>Free in store</th><th>Cover</th><th>Availability</th></tr>${mats.map(m => { const f = m[3] == null ? 0 : Math.min(100, Math.max(0, m[3]) / Math.max(1, m[2]) * 100);
-        return `<tr><td>${esc(m[0])}</td><td><b>${esc(m[1])}</b></td><td>${p1N(m[2])} ${m[4]}</td><td>${m[3] == null ? '—' : p1N(m[3]) + ' ' + m[4]}</td><td><div class="sbar"><i style="width:${m[6] ? f : 100}%;background:var(--ok)"></i></div></td>
-        <td>${!m[6] ? '<span class="av-pill a-in">arranged</span>' : m[5] > 0 ? `<span class="av-pill a-na">short ${p1N(m[5])} ${m[4]}</span>` : '<span class="av-pill a-in">in stock</span>'}</td></tr>`; }).join('')}</table>
-      <div class="foot">Free = store stock less what earlier plans hold — the same figures PPC and Demand use. Arranged = the fabric has gone to the printer / the accessories are reserved.</div>`
-      : '<div class="foot">No plan yet — <b>Plan</b> works out the fabric and accessories this order needs and checks them against the store.</div>'}
-    ${at <= 1 ? `<div class="acts">${L.some(x => x.s.bucket === 'ppc') && flowCanBack() ? '<button type="button" class="btn pri" data-p1do="plan">Plan</button>' : ''}${plan0 && flowCanBack() ? '<button type="button" class="btn" data-p1do="edit">Edit plan</button>' : ''}${L.some(x => x.s.needFab) ? '<button type="button" class="btn" data-p1go="drfd">Send RFD fabric</button>' : ''}${L.some(x => x.s.needAcc) ? '<button type="button" class="btn" data-p1go="dacc">Reserve accessories</button>' : ''}</div>` : ''}`;
-  /* 3 Allotment & making: who has it, and the plan's dates */
-  const steps = [];
-  L.forEach(x => { const s = x.s, p = s.plan || {}, q = +x.r.qty || 0;
-    if (s.printed) steps.push([x.r.sku, 'Printing', p.printer || (s.po && s.po.printer) || '—', s.back >= q ? 'back in full' : s.given > 0 ? `with printer · ${p1N(s.back)} of ${p1N(q)} back` : 'print order to give']);
-    if (s.route === 'emb') steps.push([x.r.sku, 'Embroidery', (p.emb && p.emb.name) || 'Embroidery dept', `${p1N(s.embOk || s.embBack || 0)} of ${p1N(q)} back`]);
-    if (s.cutReq) steps.push([x.r.sku, 'Cutting', 'Cutting department', `${p1N(s.cut)} of ${p1N(q)} cut`]);
-    if (s.route === 'outsource') steps.push([x.r.sku, 'Made outside', p.outVendor || '—', `${p1N(s.india)} of ${p1N(q)} received`]);
-    else steps.push([x.r.sku, 'Stitching', 'Karigars', `${p1N(s.issuedNet)} issued · ${p1N(s.received)} back`]); });
-  const d0 = plan0 && plan0.plan.at ? String(plan0.plan.at).slice(0, 10) : '', dt = plan0 ? plan0.plan.dates || {} : {};
-  let gantt = '';
-  if (d0 && dt.ready) {
-    const ms = d => Date.parse(d + 'T00:00:00'), a = ms(d0), z = Math.max(ms(dt.ready), Date.now()) + 864e5, span = Math.max(1, z - a), pos = d => Math.max(0, Math.min(100, (ms(d) - a) / span * 100));
-    const today = new Date().toISOString().slice(0, 10), bar = (from, to, done) => `<span class="gb ${done ? 'd' : from <= today && today <= to ? 'c' : 'p'}" style="left:${pos(from)}%;width:${Math.max(2, pos(to) - pos(from))}%"></span>`;
-    const G = [['Fabric & printing', d0, dt.cut || dt.qc || dt.ready, at > 2 || L.every(x => !x.s.printed || x.s.back >= +x.r.qty)], ['Cutting & stitching', dt.cut || d0, dt.qc || dt.ready, at > 2], ['QC & ready', dt.qc || dt.cut || d0, dt.ready, at > 3]];
-    gantt = `<div class="lab">Schedule — from the plan's dates</div><div class="gantt">${G.map(g => `<div class="gl">${g[0]}<small>${p1Day(g[1])} → ${p1Day(g[2])}</small></div><div class="gtrack">${bar(g[1], g[2], g[3])}<span class="today" style="left:${pos(today)}%"></span></div>`).join('')}</div>
-      <div class="legend"><span><i style="background:var(--ok)"></i>done</span><span><i style="background:var(--warn)"></i>in progress</span><span><i style="background:#CBD5E1"></i>planned</span><span><i style="background:var(--bad);width:2px"></i>today</span></div>`;
-  }
-  const s3 = gantt + `<div class="lab">Who has it</div><table><tr><th>SKU</th><th>Step</th><th>Given to</th><th>Where it is</th></tr>${steps.map(r => `<tr><td>${esc(r[0])}</td><td><b>${r[1]}</b></td><td>${esc(r[2])}</td><td>${esc(r[3])}</td></tr>`).join('') || '<tr><td colspan="4" style="color:var(--muted)">After the plan.</td></tr>'}</table>
-    ${at === 2 ? `<div class="acts"><button type="button" class="btn pri" data-p1do="next">${esc(nx[0])}</button></div>` : ''}`;
-  /* 4 QC */
-  const s4 = `<table><tr><th>SKU</th><th>Pcs</th><th>Back from karigars</th><th>QC passed</th><th>Rejected</th><th>Left</th></tr>${L.map(x => `<tr><td>${esc(x.r.sku)}</td><td>${p1N(x.r.qty)}</td><td>${p1N(x.s.received)}</td><td>${p1N(x.s.qc)}</td><td>${p1N(x.s.qcRej)}</td><td><b>${p1N(Math.max(0, (+x.r.qty || 0) - x.s.qc))}</b></td></tr>`).join('')}</table>
-    ${at === 3 ? '<div class="acts"><button type="button" class="btn pri" data-p1do="next">Open QC</button></div>' : ''}`;
-  /* 5 Shipping */
-  const s5 = `<table><tr><th>SKU</th><th>Into Finished Goods</th><th>Handed to shipping</th></tr>${L.map(x => `<tr><td>${esc(x.r.sku)}</td><td>${p1N(x.s.india)} of ${p1N(x.r.qty)}</td><td>${x.r.handedAt ? esc(p1Day(ptIsoDate(x.r.handedAt))) + (x.r.handedBy ? ' · ' + esc(p1Who(x.r.handedBy)) : '') : '—'}</td></tr>`).join('')}</table>
-    ${at === 4 ? `<div class="acts"><button type="button" class="btn okb" data-p1do="next">${esc(nx[0])}</button></div>` : ''}`;
-  const ev = [];
-  L.forEach(x => { const p = x.s.plan, b = x.r.ppcBack;
-    if (p && p.at) ev.push([String(p.at), p.by, `planned <b>${esc(x.r.sku)}</b>${p1Route(x.s) ? ' · ' + esc(p1Route(x.s)) : ''}${p.printer ? ' · ' + esc(p.printer) : ''}${p.dates && p.dates.ready ? ' · ready by ' + esc(p1Day(p.dates.ready)) : ''}`]);
-    if (b && b.at) ev.push([String(b.at), b.by, `sent <b>${esc(x.r.sku)}</b> back to sales${b.note ? ' · “' + esc(b.note) + '”' : ''}`]);
-    (b && b.log || []).forEach(l => l && l.at && ev.push([String(l.at), l.by, esc(l.what || l.why || 'sent again')]));
-    if (x.r.handedAt) ev.push([String(x.r.handedAt), x.r.handedBy, `handed <b>${esc(x.r.sku)}</b> to shipping`]);
-    if (x.r.openIso) ev.push([x.r.openIso, '', `<b>${esc(x.r.sku)}</b> came on the order book`]); });
-  ev.sort((a, b) => b[0].localeCompare(a[0]));
-  const m = p1Mat(o, rc, acc);
-  return `<div class="dh"><h2>${esc(o.no)}</h2>${p1Flags(o)}<span class="av-pill ${m[0]}">${m[1]}</span><span class="meta">${o.buyer ? esc(o.buyer) + ' · ' : ''}${p1N(o.pcs)} pcs${o.due ? ' · ready by ' + esc(p1Day(o.due)) : ''}</span><span class="sp"></span><button type="button" class="btn" data-p1j>Full journey</button></div>
-    <div class="next"><span class="t"><small>Next step</small><b>${esc(nx[0])}</b></span><span class="sp"></span><span style="font-size:12px;color:var(--brand-ink)">${esc(P1_STAGES[at][1])}</span><button type="button" class="btn pri" data-p1do="next">${esc(nx[0])}</button></div>
-    <div class="lines"><table><tr><th>SKU</th><th>Pcs</th><th>Where this line is</th><th></th><th>Route</th></tr>${L.map(x => { const st = P1_OF[x.s.bucket];
-      return `<tr><td>${esc(x.r.sku)}</td><td>${p1N(x.r.qty)}</td><td><div class="mini">${p1Bar(st)}</div></td><td style="color:var(--muted)">${esc(p1Says(x.s))}</td><td style="color:var(--muted)">${esc(p1Route(x.s) || '—')}</td></tr>`; }).join('')}</table></div>
-    ${sec(0, 'Orders', at > 0 ? 'Planned' + (plan0 && plan0.plan.by ? ' by ' + esc(p1Who(plan0.plan.by)) : '') : L.some(x => x.s.bucket === 'back') ? 'Sent back to sales' : 'Waiting for a plan', s1)}
-    ${sec(1, 'Requirement', at > 1 ? 'Fabric and accessories arranged' : plan0 ? 'Fabric or accessories still to arrange' : 'Stock vs need, and the route', s2)}
-    ${sec(2, 'Allotment & making', at > 2 ? 'Made' : at === 2 ? esc([...new Set(L.filter(x => P1_OF[x.s.bucket] === 2).map(x => p1Says(x.s)))].join(', ')) : 'Printer, cutting, karigars', s3)}
-    ${sec(3, 'QC', at > 3 ? 'Passed' : at === 3 ? `${p1N(L.reduce((s, x) => s + x.s.qc, 0))} of ${p1N(o.pcs)} passed` : 'After the karigars', s4)}
-    ${sec(4, 'Shipping', at === 4 ? esc([...new Set(L.filter(x => P1_OF[x.s.bucket] === 4).map(x => p1Says(x.s)))].join(', ')) : 'After QC', s5)}
-    <div class="hist"><div class="lab">On record</div>${ev.map(h => `<div class="hi"><span class="dot"><span class="av">${esc(p1Ini(h[1]))}</span></span><p>${h[1] ? '<b>' + esc(p1Who(h[1])) + '</b> ' : ''}${h[2]} <small>· ${esc(h[0].replace('T', ' ').slice(0, 16))}</small></p></div>`).join('') || '<div class="foot">Nothing on record yet.</div>'}</div>`;
+function p1SkuMore(s) {
+  const wip = p1Wip().filter(w => w.sku === s.sku), ev = p1Events().filter(e => e.sku === s.sku).slice(-6).reverse();
+  return `<div class="lg-two"><div><div class="lg-h">Orders that make up the ${p1N(s.ordered)} pcs</div>
+      <table class="lg-t lg-in"><tr><th>Order</th><th class="num">Pcs</th><th>Where</th><th>Planned</th><th>Ready by</th><th></th></tr>${s.lines.map(x => `<tr><td><b>${esc(x.r.orderNo)}</b></td><td class="num">${p1N(x.r.qty)}</td>
+        <td>${esc(P1_SAYS[x.s.bucket] || x.s.bucket)}</td><td>${x.s.plan && x.s.plan.at ? esc(p1Who(x.s.plan.by)) + ' · ' + p1Day(p1Iso(x.s.plan.at)) : '<span class="muted">—</span>'}</td>
+        <td>${p1Day((x.s.plan && x.s.plan.dates && x.s.plan.dates.ready) || x.r.mtoDue || '')}</td><td>${x.s.plan && flowCanBack() ? `<button type="button" class="lg-go sm" data-p1edit="${esc(x.r.orderNo)}|${esc(x.r.sku)}">Edit plan</button>` : ''}</td></tr>`).join('')}</table>
+      <div class="lg-sum">Ordered <b>${p1N(s.ordered)}</b> · not planned <b style="color:var(--bad)">${p1N(s.notPlanned)}</b> · Finished Goods in store <b>${p1N(s.fg)}</b>${s.notPlanned ? ` · to make after stock <b>${p1N(s.toMake)}</b>` : ''}</div></div>
+    <div><div class="lg-h">Where it is now</div>${wip.map(w => `<div class="lg-mv"><span class="pl mv-make">${esc(w.stage)}</span><b>${p1N(w.pcs)}${w.unit === 'm' ? ' m' : ''}</b><span>${esc(w.who)}</span><span class="muted" style="margin-left:auto">${esc(w.orderNo)}${w.since ? ' · since ' + p1Day(w.since) : ''}</span></div>`).join('') || '<div class="muted">Nothing is in production yet.</div>'}
+      <div class="lg-h" style="margin-top:12px">Latest steps</div>${ev.map(e => `<div class="lg-mv">${p1Mv(e)}<b>${p1N(e.pcs)}${e.unit === 'm' ? ' m' : ''}</b><span class="muted">${esc(e.orderNo)}${e.party ? ' · ' + esc(e.party) : ''}${e.by ? ' · by ' + esc(e.by) : ''}</span><span class="muted" style="margin-left:auto">${p1Day(e.day)}</span></div>`).join('') || '<div class="muted">No step yet.</div>'}
+      <button type="button" class="lg-go" style="margin-top:8px" data-p1jour="${esc(s.sku)}">Whole journey ›</button></div></div>`;
+}
+function p1WipTab() {
+  const all = p1Wip(), q = P1.q.trim().toUpperCase(), rows = all.filter(w => (!P1.wseg || w.stage === P1.wseg) && (!q || (w.sku + ' ' + w.orderNo + ' ' + w.who).toUpperCase().includes(q)));
+  const st = P1_WSTAGES.filter(s => all.some(w => w.stage === s));
+  return `<div class="lg-seg"><button type="button" class="${!P1.wseg ? 'on' : ''}" data-p1w="">All <span>${p1N(all.length)}</span></button>${st.map(s => `<button type="button" class="${P1.wseg === s ? 'on' : ''}" data-p1w="${esc(s)}">${esc(s)} <span>${p1N(all.filter(w => w.stage === s).reduce((a, w) => a + (w.unit === 'm' ? 0 : w.pcs), 0))}</span></button>`).join('')}</div>
+    <div class="lg-info">Every piece in production right now and who has it — the printer from its challan, each karigar from the Job Work issues not yet received, QC from what came back and is not checked.</div>
+    ${(P1.wseg ? [P1.wseg] : st).map(s => { const rs = rows.filter(w => w.stage === s).sort((a, b) => String(a.since || '9').localeCompare(String(b.since || '9'))); if (!rs.length) return '';
+      return `<div class="lg-card"><div class="lg-cap"><b>${esc(s)}</b> · ${p1N(rs.length)} line(s) · ${p1N(rs.filter(w => w.unit !== 'm').reduce((a, w) => a + w.pcs, 0))} pcs${rs.some(w => w.unit === 'm') ? ' · ' + p1N(rs.filter(w => w.unit === 'm').reduce((a, w) => a + w.pcs, 0)) + ' m of cloth' : ''}</div>
+        <div class="lg-scroll"><table class="lg-t"><thead><tr><th>With whom</th><th>SKU</th><th>Order</th><th class="num">Pcs</th><th>Since</th><th class="num">Days</th><th>Reference</th><th></th></tr></thead><tbody>
+        ${rs.slice(0, 400).map(w => { const d = p1Days(w.since); return `<tr><td><b>${esc(w.who)}</b></td><td>${esc(w.sku)}</td><td>${esc(w.orderNo)}</td><td class="num"><b>${p1N(w.pcs)}</b>${w.unit === 'm' ? ' m' : ''}</td><td>${p1Day(w.since)}</td>
+          <td class="num"${d != null && d > 7 ? ' style="color:var(--bad);font-weight:700"' : ''}>${d == null ? '—' : d}</td><td class="muted">${esc(w.ref)}</td><td><button type="button" class="lg-go sm" data-p1jour="${esc(w.sku)}" data-p1jo="${esc(w.orderNo)}">Journey</button></td></tr>`; }).join('')}</tbody></table></div></div>`; }).join('') || '<div class="lg-card"><div class="empty">Nothing is in production.</div></div>'}`;
+}
+function p1JourTab() {
+  const ev = p1Events(), skus = [...new Set(ev.map(e => e.sku))].sort();
+  if (!P1.jsku) return `<div class="lg-card lg-filt"><label>SKU<input list="p1Skl" data-p1js placeholder="Type a SKU" style="width:260px"></label><datalist id="p1Skl">${skus.slice(0, 3000).map(s => `<option value="${esc(s)}">`).join('')}</datalist></div><div class="lg-card"><div class="empty">Pick a SKU to see its whole journey — or press <b>Journey</b> on any row.</div></div>`;
+  const mine = ev.filter(e => e.sku === P1.jsku && (!P1.jord || e.orderNo === P1.jord || e.orderNo.split(/ \+ /).includes(P1.jord)));
+  const orders = [...new Set(ev.filter(e => e.sku === P1.jsku).map(e => e.orderNo).filter(Boolean))];
+  const wip = p1Wip().filter(w => w.sku === P1.jsku && (!P1.jord || w.orderNo === P1.jord));
+  const sum = k => mine.filter(e => e.k === k && e.unit !== 'm').reduce((a, e) => a + e.pcs, 0);
+  const tiles = [['Ordered', sum('IN')], ['Planned', sum('PLAN')], ['Cut', sum('CUT')], ['Given to karigars', sum('ISS')], ['Back', sum('REC')], ['QC passed', sum('QC')], ['Into FG', sum('FG')], ['Sent from production', sum('FBA') + sum('SHIP')]];
+  return `<div class="lg-card lg-filt"><label>SKU<input list="p1Skl" data-p1js value="${esc(P1.jsku)}" style="width:240px"></label><datalist id="p1Skl">${skus.slice(0, 3000).map(s => `<option value="${esc(s)}">`).join('')}</datalist>
+      <label>Order<select data-p1jo2><option value="">All orders</option>${orders.map(o => `<option${o === P1.jord ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select></label>
+      <button type="button" class="lg-go" data-p1ledg="${esc(P1.jsku)}">See it in the ledger</button></div>
+    <div class="lg-tiles">${tiles.map(([l, v], i) => `<div><b${i && v < tiles[0][1] ? '' : ' style="color:var(--accent)"'}>${p1N(v)}</b><span>${l}</span></div>`).join('<i>›</i>')}</div>
+    <div class="lg-two"><div class="lg-card" style="padding:14px 16px"><div class="lg-h">The journey · oldest first</div>
+      <div class="tl">${mine.map(e => `<div class="tl-i${P1_END.has(e.k) ? ' end' : ''}"><span class="tl-d"></span><div class="tl-b"><div>${p1Mv(e)} <b>${p1N(e.pcs)}${e.unit === 'm' ? ' m' : ''}</b>${e.party ? ' · ' + esc(e.party) : ''}</div>
+        <div class="sub">${p1Day(e.day)}${e.t ? ' ' + new Date(e.ms).toTimeString().slice(0, 5) : ''}${e.by ? ' · by <b>' + esc(e.by) + '</b>' : ''} · ${esc(e.orderNo || '—')}${e.ref ? ' · ' + esc(e.ref) : ''}</div></div></div>`).join('') || '<div class="muted">Nothing on record for this SKU yet.</div>'}</div></div>
+      <div class="lg-card" style="padding:14px 16px;align-self:start"><div class="lg-h">Where it is now</div>${wip.map(w => `<div class="lg-mv"><span class="pl mv-make">${esc(w.stage)}</span><b>${p1N(w.pcs)}${w.unit === 'm' ? ' m' : ''}</b><span>${esc(w.who)}</span><span class="muted" style="margin-left:auto">${w.since ? 'since ' + p1Day(w.since) : ''}</span></div>`).join('') || '<div class="muted">Nothing of it is in production now.</div>'}</div></div>`;
+}
+function p1LedgerTab() {
+  const ev = p1Events(), f = P1.f, q = P1.q.trim().toUpperCase();
+  /* the SKU's balance after each step: not planned (ordered, no plan yet), in production (planned, not passed QC), ready (passed, not gone) */
+  const bal = {}, after = new Array(ev.length);
+  ev.forEach((e, i) => { if (e.unit === 'm') { after[i] = null; return; } const b = bal[e.sku] || (bal[e.sku] = { np: 0, mk: 0, rd: 0 });
+    if (e.k === 'IN') b.np += e.pcs; else if (e.k === 'BACK') b.np -= e.pcs; else if (e.k === 'PLAN') { b.np -= e.pcs; b.mk += e.pcs; }
+    else if (e.k === 'QC') { b.mk -= e.pcs; b.rd += e.pcs; } else if (P1_END.has(e.k)) b.rd -= e.pcs;
+    after[i] = { np: Math.max(0, b.np), mk: Math.max(0, b.mk), rd: Math.max(0, b.rd) }; });
+  const idx = []; for (let i = ev.length - 1; i >= 0; i--) { const e = ev[i];
+    if ((f.kind && e.k !== f.kind) || (f.sku && e.sku !== f.sku) || (f.from && e.day < f.from) || (f.to && e.day > f.to)) continue;
+    if (q && !(e.sku + ' ' + e.orderNo + ' ' + e.party + ' ' + e.by + ' ' + e.ref).toUpperCase().includes(q)) continue; idx.push(i); }
+  const inP = idx.reduce((a, i) => a + (ev[i].k === 'IN' ? ev[i].pcs : 0), 0), outP = idx.reduce((a, i) => a + (P1_END.has(ev[i].k) ? ev[i].pcs : 0), 0);
+  return `<div class="lg-info">Every step of every SKU, newest first. The steps are entered on their own screens (order book, PPC, Demand, Cutting Data, Job Work, QC, Finished Goods) — this ledger reads them all.</div>
+    <div class="lg-card lg-filt"><label>From<input type="date" data-p1f="from" value="${f.from}"></label><label>To<input type="date" data-p1f="to" value="${f.to}"></label>
+      <label>Movement<select data-p1f="kind"><option value="">All</option>${Object.entries(P1_MV).map(([k, v]) => `<option value="${k}"${f.kind === k ? ' selected' : ''}>${v[0]}</option>`).join('')}</select></label>
+      <label>SKU<input list="p1Skl2" data-p1f="sku" value="${esc(f.sku)}" placeholder="All" style="width:200px"></label><datalist id="p1Skl2">${[...new Set(ev.map(e => e.sku))].sort().slice(0, 3000).map(s => `<option value="${esc(s)}">`).join('')}</datalist>
+      ${f.from || f.to || f.kind || f.sku ? '<button type="button" class="lg-go" data-p1fclr>Clear the filter</button>' : ''}</div>
+    <div class="lg-card"><div class="lg-cap"><b>${p1N(idx.length)}</b> of ${p1N(ev.length)} movements · <b style="color:var(--brand-ink)">${p1N(inP)}</b> pcs ordered in · <b style="color:var(--accent)">${p1N(outP)}</b> pcs sent from production. The three right-hand columns are the SKU's balance after each step.</div>
+    <div class="lg-scroll"><table class="lg-t"><thead><tr><th>Date</th><th>SKU</th><th>Order</th><th>Movement</th><th class="num">Qty</th><th>Party</th><th>Reference</th><th>By</th><th class="num">Not planned</th><th class="num">In production</th><th class="num">Ready</th></tr></thead><tbody>
+    ${idx.slice(0, P1.lim).map(i => { const e = ev[i], b = after[i], sign = e.k === 'IN' ? '+' : P1_END.has(e.k) || e.k === 'BACK' ? '−' : '';
+      return `<tr><td class="nw">${p1Day(e.day)} <span class="muted">${e.t ? new Date(e.ms).toTimeString().slice(0, 5) : ''}</span></td><td><b>${esc(e.sku)}</b></td><td>${esc(e.orderNo || '—')}</td><td>${p1Mv(e)}</td>
+        <td class="num"><b>${sign}${p1N(e.pcs)}</b>${e.unit === 'm' ? ' m' : ''}</td><td>${e.party ? esc(e.party) : '<span class="muted">—</span>'}</td><td class="muted">${esc(e.ref)}</td><td>${e.by ? esc(e.by) : '<span class="muted">—</span>'}</td>
+        ${b ? `<td class="num bal">${p1N(b.np)}</td><td class="num bal">${p1N(b.mk)}</td><td class="num bal">${p1N(b.rd)}</td>` : '<td class="bal" colspan="3"></td>'}</tr>`; }).join('') || '<tr><td colspan="11" class="empty">No movement matches the filter.</td></tr>'}
+    </tbody></table></div>${idx.length > P1.lim ? `<button type="button" class="lg-more" data-p1lim>Show ${p1N(Math.min(idx.length, P1.lim + 700) - P1.lim)} more</button>` : ''}</div>`;
+}
+/** Completed: the order lines that left production, SKU by SKU — when, how long, how often. */
+function p1DoneTab() {
+  const ev = p1Events(), since = P1.cp === 'all' ? '' : new Date(Date.now() - (+P1.cp) * 864e5).toISOString().slice(0, 10);
+  const first = new Map(), last = new Map();
+  ev.forEach(e => { const k = e.orderNo + '|' + e.sku; if (e.k === 'IN' && !first.has(k)) first.set(k, e.day); if (P1_END.has(e.k)) last.set(k, e); });
+  let lines = []; try { lines = ordLines(); } catch (e) { lines = []; }
+  const done = [];
+  lines.forEach(l => { const k = l.orderNo + '|' + l.sku, end = last.get(k); if (l.open && !end) return;
+    const day = end ? end.day : p1Iso(l.handedAt || l.shopDoneAt); if (!day || (since && day < since)) return; if (l.open && (!end || end.pcs < l.qty * 0.5)) return;
+    const start = first.get(k) || p1Iso(l.openIso || l.orderDate);
+    done.push({ sku: l.sku, orderNo: l.orderNo, pcs: l.qty, what: [l.articleSubtype || l.articleType || l.itemName, l.color, l.size].filter(Boolean).join(' · '), start, day, how: end ? P1_MV[end.k][0] : (l.handedAt ? 'Handed over' : 'Closed'),
+      lead: start && day ? Math.max(0, Math.round((Date.parse(day) - Date.parse(start)) / 864e5)) : null }); });
+  const by = new Map();
+  done.forEach(d => { const e = by.get(d.sku) || { sku: d.sku, what: d.what, list: [] }; e.list.push(d); by.set(d.sku, e); });
+  const q = P1.q.trim().toUpperCase();
+  const skus = [...by.values()].filter(e => !q || (e.sku + ' ' + e.what).toUpperCase().includes(q)).map(e => {
+    const ds = e.list.map(d => d.day).sort(), gaps = []; for (let i = 1; i < ds.length; i++) gaps.push((Date.parse(ds[i]) - Date.parse(ds[i - 1])) / 864e5);
+    const leads = e.list.map(d => d.lead).filter(v => v != null), span = ds.length > 1 ? Math.max(1, (Date.parse(ds[ds.length - 1]) - Date.parse(ds[0])) / 864e5) : 0;
+    return Object.assign(e, { times: e.list.length, orders: new Set(e.list.map(d => d.orderNo)).size, pcs: e.list.reduce((a, d) => a + d.pcs, 0), first: ds[0], last: ds[ds.length - 1],
+      lead: leads.length ? Math.round(leads.reduce((a, v) => a + v, 0) / leads.length) : null, every: gaps.length ? Math.round(gaps.reduce((a, v) => a + v, 0) / gaps.length) : null,
+      perMonth: span ? +(e.list.length / span * 30).toFixed(1) : null }); })
+    .sort((a, b) => b.times - a.times || b.pcs - a.pcs);
+  const tot = done.reduce((a, d) => a + d.pcs, 0), leads = done.map(d => d.lead).filter(v => v != null);
+  return `<div class="lg-seg">${[['30', 'Last 30 days'], ['90', 'Last 90 days'], ['365', 'Last year'], ['all', 'All']].map(x => `<button type="button" class="${P1.cp === x[0] ? 'on' : ''}" data-p1cp="${x[0]}">${x[1]}</button>`).join('')}
+      <span class="lg-note">${p1N(done.length)} order lines left production · ${p1N(tot)} pcs · ${p1N(skus.length)} SKUs${leads.length ? ' · ' + Math.round(leads.reduce((a, v) => a + v, 0) / leads.length) + ' days order-to-done on average' : ''}</span></div>
+    <div class="lg-card"><div class="lg-cap">Made, SKU by SKU — <b>how many times</b> it was made, how many pieces, how long it took from the order coming in, and <b>how often</b> it comes back. Most-made first.</div>
+    <div class="lg-scroll"><table class="lg-t"><thead><tr><th>SKU · article</th><th class="num">Times made</th><th class="num">Orders</th><th class="num">Pcs</th><th>First</th><th>Last</th><th class="num">Avg days to make</th><th class="num">Comes every</th><th class="num">Per month</th><th></th></tr></thead><tbody>
+    ${skus.slice(0, P1.lim).map(s => { const open = P1.copen === s.sku;
+      return `<tr class="${open ? 'on' : ''}" data-p1copen="${esc(s.sku)}"><td><b>${esc(s.sku)}</b><div class="sub">${esc(s.what)}</div></td><td class="num"><b>${s.times}</b></td><td class="num">${s.orders}</td><td class="num">${p1N(s.pcs)}</td>
+        <td>${p1Day(s.first)}</td><td>${p1Day(s.last)}</td><td class="num">${s.lead == null ? '—' : s.lead + ' d'}</td><td class="num">${s.every == null ? '<span class="muted">once</span>' : s.every + ' days'}</td><td class="num">${s.perMonth == null ? '—' : s.perMonth}</td>
+        <td><button type="button" class="lg-go sm" data-p1jour="${esc(s.sku)}">Journey</button></td></tr>
+        ${open ? `<tr class="lg-exp"><td colspan="10"><table class="lg-t lg-in"><tr><th>Order</th><th class="num">Pcs</th><th>Order in</th><th>Left production</th><th>How</th><th class="num">Days</th></tr>${s.list.sort((a, b) => b.day.localeCompare(a.day)).map(d => `<tr><td><b>${esc(d.orderNo)}</b></td><td class="num">${p1N(d.pcs)}</td><td>${p1Day(d.start)}</td><td>${p1Day(d.day)}</td><td>${esc(d.how)}</td><td class="num">${d.lead == null ? '—' : d.lead}</td></tr>`).join('')}</table></td></tr>` : ''}`; }).join('') || '<tr><td colspan="10" class="empty">Nothing completed in this period.</td></tr>'}
+    </tbody></table></div>${skus.length > P1.lim ? `<button type="button" class="lg-more" data-p1lim>Show all ${p1N(skus.length)}</button>` : ''}</div>`;
 }
 
 function p1Draw() {
   const el = $('p1Home'); if (!el || !P1.shown) return;
-  if (P1.loading && !P1.built) { el.innerHTML = '<div class="p1-top"><h1>PPC</h1><span class="sub0">Reading the order book, plans and store…</span></div>'; return; }
-  let all = [];
-  try { all = p1Orders(); } catch (e) { el.innerHTML = `<div class="p1-top"><h1>PPC</h1><span class="sub0" style="color:var(--bad)">Could not read the lines: ${esc(e.message || e)}</span></div>`; return; }
-  const rc = p1Cover(), acc = p1Acc();
-  all.forEach(o => { o.short = o.short || p1Mat(o, rc, acc)[0] === 'a-na'; });
-  const tile = P1_TILES.find(t => t[0] === P1.tile);
-  const list = P1.list = all.filter(o => (P1.stage < 0 || o.stage === P1.stage) && (!tile || tile[5](o)));
-  if (!all.some(o => o.no === P1.sel)) P1.sel = list[0] ? list[0].no : '';
-  const cur = all.find(o => o.no === P1.sel);
-  el.innerHTML = `<div class="p1-top"><h1>PPC</h1><span class="sub0">${p1N(all.length)} orders in production · ${p1N(all.reduce((s, o) => s + o.pcs, 0))} pcs</span>
-      <span class="when">${P1.loading ? 'Reading…' : 'Last read ' + (P1.at || '—')} · <a data-p1r>↻ Refresh</a></span></div>
-    <div class="now">${P1_TILES.map(t => `<button type="button" class="nc${P1.tile === t[0] ? ' on' : ''}" data-p1s="${t[0]}"><span class="ic" style="background:${t[2]}">${t[1]}</span><span><em>${p1N(all.filter(t[5]).length)}</em><small><b style="color:var(--ink)">${t[3]}</b> · ${t[4]}</small></span><span class="go">See ›</span></button>`).join('')}</div>
-    <div class="strip">${P1_STAGES.map((s, i) => { const os = all.filter(o => o.stage === i), lt = os.filter(o => o.late).length;
-      return `<button type="button" class="sg${P1.stage === i ? ' on' : ''}" data-p1g="${i}" title="${esc(s[1])}"><span class="n">${i + 1}</span><b>${esc(s[0])}</b>${lt ? `<span class="rk">${lt} late</span>` : ''}<em>${p1N(os.length)}</em></button>`; }).join('')}</div>
-    <div class="panes"><div class="box">${p1LeftH(all, list, rc, acc)}</div><div class="box">${p1DetailH(cur, rc, acc)}</div></div>`;
-  p1Wire(el, all, cur);
+  if (P1.loading && !P1.built) { el.innerHTML = '<div class="lg-top"><h1>PPC</h1><span class="lg-note">Reading the order book, plans and registers…</span></div>'; return; }
+  let skus = [], body = '';
+  try {
+    skus = p1Skus();
+    body = P1.tab === 'wip' ? p1WipTab() : P1.tab === 'jour' ? p1JourTab() : P1.tab === 'ledger' ? p1LedgerTab() : P1.tab === 'done' ? p1DoneTab() : p1SkuTab(skus);
+  } catch (e) { body = `<div class="lg-card"><div class="empty" style="color:var(--bad)">Could not read the registers: ${esc(e.message || e)}</div></div>`; }
+  const T = [['sku', 'SKU plan'], ['wip', 'Where it is'], ['jour', 'Journey'], ['ledger', 'PPC ledger'], ['done', 'Completed']];
+  const tp = skus.reduce((a, s) => a + s.notPlanned, 0), mk = skus.reduce((a, s) => a + s.inMake, 0);
+  el.innerHTML = `<div class="lg-top"><h1>PPC</h1><div class="lg-tabs">${T.map(t => `<button type="button" class="${P1.tab === t[0] ? 'on' : ''}" data-p1tab="${t[0]}">${t[1]}</button>`).join('')}</div>
+      <input class="lg-q" id="p1Q" placeholder="Search SKU, article, order, karigar…" value="${esc(P1.q)}"><span class="lg-when">${P1.loading ? 'Reading…' : 'Read ' + (P1.at || '—')} · <a data-p1r>↻ Refresh</a></span></div>
+    <div class="lg-kpi"><div data-p1k="plan"><small>Not planned</small><b style="color:var(--bad)">${p1N(tp)} pcs</b><span>${p1N(skus.filter(s => s.notPlanned).length)} SKUs</span></div>
+      <div data-p1k="make"><small>In production</small><b>${p1N(mk)} pcs</b><span>${p1N(skus.filter(s => s.inMake).length)} SKUs</span></div>
+      <div data-p1k="short"><small>RFD fabric short</small><b style="color:var(--warn-ink)">${p1N(skus.filter(s => s.short).length)} SKUs</b><span>after earlier plans</span></div>
+      <div data-p1k="new"><small>New this week</small><b style="color:var(--brand-ink)">${p1N(skus.filter(s => s.isNew).length)} SKUs</b><span>with a new order</span></div></div>
+    ${body}`;
+  p1Wire(el, skus);
 }
-function p1Wire(el, all, cur) {
-  const keysOf = (os, bucket) => [].concat(...os.map(o => o.lines.filter(x => x.s.bucket === bucket).map(x => x.s.key)));
-  const ticked = () => all.filter(o => P1.tick.has(o.no));
+function p1Wire(el, skus) {
   const on = (sel, fn, ev = 'onclick') => el.querySelectorAll(sel).forEach(b => { b[ev] = e => fn(b, e); });
-  on('[data-p1s]', b => { P1.tile = P1.tile === b.dataset.p1s ? '' : b.dataset.p1s; P1.stage = -1; P1.lt = 'o'; p1Draw(); });
-  on('[data-p1g]', b => { P1.stage = P1.stage === +b.dataset.p1g ? -1 : +b.dataset.p1g; P1.tile = ''; P1.lt = 'o'; p1Draw(); });
-  on('[data-p1l]', b => { P1.lt = b.dataset.p1l; p1Draw(); });
-  on('[data-p1clr]', () => { P1.tile = ''; P1.stage = -1; p1Draw(); });
-  on('[data-p1all]', () => { P1.all = true; p1Draw(); });
-  on('[data-p1sel]', (b, e) => { if (e.target.matches('input')) return; P1.sel = b.dataset.p1sel; P1.secs = new Set(); if (P1.lt === 'a') P1.lt = 'o'; p1Draw(); });
-  on('[data-p1k]', b => { b.checked ? P1.tick.add(b.dataset.p1k) : P1.tick.delete(b.dataset.p1k); p1Draw(); }, 'onchange');
-  on('[data-p1sec]', b => { const i = +b.dataset.p1sec, open = !b.parentNode.classList.contains('shut');
-    P1.secs.delete(i); P1.secs.delete(-1 - i); if (open) P1.secs.add(-1 - i); else P1.secs.add(i); b.parentNode.classList.toggle('shut'); });
-  on('[data-p1go]', b => { p1Hide(); FLOW_VIEW = b.dataset.p1go; showTab('flow'); });
-  on('[data-p1j]', () => cur && ordJourney(cur.no));
-  on('[data-p1do]', b => { if (!cur) return; const d = b.dataset.p1do;
-    if (d === 'next') p1Next(cur)[2]();
-    else if (d === 'plan') flowPpcOpen(cur.no);
-    else if (d === 'edit') { const x = cur.lines.find(l => l.s.plan); if (x) flowPpcOpen(cur.no, x.r.sku); }
-    else if (d === 'back') flowBackOpen(keysOf([cur], 'ppc')); });
-  on('[data-p1tp]', () => { const k = keysOf(ticked(), 'ppc'); if (k.length) flowPpcOpen(null, null, k); else ptOpenDialog({ title: 'Nothing to plan', note: 'None of the ticked orders has a line waiting for a plan.', saveLabel: 'OK', onSave: () => '' }); });
-  on('[data-p1tb]', () => { const k = keysOf(ticked(), 'ppc'); if (k.length) flowBackOpen(k); });
-  on('[data-p1tc]', () => { P1.tick.clear(); p1Draw(); });
+  const go = (tab, extra) => { P1.tab = tab; P1.lim = 300; Object.assign(P1, extra || {}); p1Draw(); window.scrollTo(0, 0); };
+  on('[data-p1tab]', b => go(b.dataset.p1tab));
+  on('[data-p1k]', b => go('sku', { seg: b.dataset.p1k === 'new' ? 'all' : b.dataset.p1k }));
+  on('[data-p1seg]', b => { P1.seg = b.dataset.p1seg; P1.lim = 300; p1Draw(); });
+  on('[data-p1open]', (b, e) => { if (e.target.closest('button')) return; P1.open = P1.open === b.dataset.p1open ? '' : b.dataset.p1open; p1Draw(); });
+  on('[data-p1copen]', (b, e) => { if (e.target.closest('button')) return; P1.copen = P1.copen === b.dataset.p1copen ? '' : b.dataset.p1copen; p1Draw(); });
+  on('[data-p1lim]', () => { P1.lim += 700; p1Draw(); });
+  on('[data-p1plan]', b => { const s = skus.find(x => x.sku === b.dataset.p1plan); if (!s) return;
+    const keys = s.lines.filter(x => x.s.bucket === 'ppc').map(x => x.s.key); if (keys.length) flowPpcOpen(null, null, keys); });
+  on('[data-p1edit]', b => { const [o, k] = b.dataset.p1edit.split('|'); flowPpcOpen(o, k); });
+  on('[data-p1jour]', b => go('jour', { jsku: b.dataset.p1jour, jord: b.dataset.p1jo || '' }));
+  on('[data-p1ledg]', b => go('ledger', { f: Object.assign({}, P1.f, { sku: b.dataset.p1ledg }) }));
+  on('[data-p1w]', b => { P1.wseg = b.dataset.p1w; p1Draw(); });
+  on('[data-p1cp]', b => { P1.cp = b.dataset.p1cp; p1Draw(); });
+  on('[data-p1js]', b => { P1.jsku = obUC(b.value); P1.jord = ''; p1Draw(); }, 'onchange');
+  on('[data-p1jo2]', b => { P1.jord = b.value; p1Draw(); }, 'onchange');
+  on('[data-p1f]', b => { P1.f[b.dataset.p1f] = b.dataset.p1f === 'sku' ? obUC(b.value) : b.value; P1.lim = 300; p1Draw(); }, 'onchange');
+  on('[data-p1fclr]', () => { P1.f = { from: '', to: '', kind: '', sku: '' }; p1Draw(); });
   on('[data-p1r]', (b, e) => { e.preventDefault(); p1Load(true); });
-  const q = el.querySelector('#p1Q'); if (q) q.oninput = () => { P1.q = q.value; clearTimeout(P1.qt); P1.qt = setTimeout(() => { p1Draw(); const n = $('p1Q'); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } }, 250); };
+  const q = el.querySelector('#p1Q'); if (q) q.oninput = () => { P1.q = q.value; clearTimeout(P1.qt); P1.qt = setTimeout(() => { P1.lim = 300; p1Draw(); const n = $('p1Q'); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } }, 300); };
 }
 async function p1Load(force) {
   if (P1.loading) return;
   P1.loading = true; p1Draw();
-  try { if (force && typeof flowLoad === 'function') await flowLoad(true); await flowEnsureData(); P1.built = true; P1.at = new Date().toTimeString().slice(0, 5); }
+  try { if (force && typeof flowLoad === 'function') await flowLoad(true); await flowEnsureData(); if (typeof QC !== 'undefined' && QC.checks == null && typeof ensureQc === 'function') await ensureQc();
+    P1.built = true; P1.at = new Date().toTimeString().slice(0, 5); }
   catch (e) { P1.err = e.message || String(e); }
   finally { P1.loading = false; p1Draw(); }
 }
@@ -78751,7 +78687,7 @@ function p1Build() {
   P1.wired = true;
   const home = document.createElement('section'); home.id = 'p1Home';
   const top = document.querySelector('main.main > .topbar'); top.parentNode.insertBefore(home, top.nextSibling);
-  /* the menu: right under today's PPC, for whoever may open the flow (no address of its own, so the browser's Back
+  /* the menu: in place of today's PPC link, for whoever may open the flow (no address of its own, so the browser's Back
    * and the app's hash routing never meet it) */
   const a = document.createElement('a');
   a.id = 'tabP1'; a.className = 'nav'; a.setAttribute('role', 'button'); a.style.display = 'none'; a.style.cursor = 'pointer';
