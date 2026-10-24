@@ -572,10 +572,12 @@ console.log('\n== the issue gate ==');
     // A legacy order with NO cutting at all: unknown history, so the cut rule must not freeze it.
     A.setPTG(Object.assign(A.PTG(), { ob: [{ orderNo: 'LEG-77', sku, qty: 100 }], press: [] }));
     A.setPT(Object.assign(A.PT(), { base: [], cut: [] }));
-    ok('a LEG- order with no cutting recorded is not frozen by the cut rule', A.bdGuard('LEG-77', sku, 100) === '');
-    ok('…but the ordered cap still holds it', A.bdGuard('LEG-77', sku, 101) !== '');
-    A.setPT(Object.assign(A.PT(), { cut: [{ orderNo: 'LEG-77', sku, pieces: 5 }] }));
-    ok('once ANY cutting exists on a LEG- order, the cut rule applies again', A.bdGuard('LEG-77', sku, 6) !== '');
+    /* 24 Oct (Ravi: "leg order sirf humne pahli pending entry complete krne ke liye kiya tha"): a legacy order takes no new
+     * issue or cutting at all — 56 quilts cut for new orders had landed on LEG-17102026-01. Editing a row already on it still works. */
+    ok('a LEG- order takes no new issue', /legacy order/.test(A.bdGuard('LEG-77', sku, 1)), A.bdGuard('LEG-77', sku, 1));
+    ok('…nor new cutting', /legacy order/.test(A.cutGuard('LEG-77', sku, 1)), A.cutGuard('LEG-77', sku, 1));
+    ok('…and no cutting or issue form offers it', !A.cutOrdersFor(sku).some(o => o.orderNo === 'LEG-77') && !A.bdOrdersFor(sku).some(o => o.orderNo === 'LEG-77'));
+    ok('…but a row already on it can still be corrected', !/legacy order/.test(A.bdGuard('LEG-77', sku, 1, 'some-row')));
   }
 
   A.setPTG(Object.assign(A.PTG(), { ob, mdb, press: A.ptList(db.pt_pressInventory) }));

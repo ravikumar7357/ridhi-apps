@@ -152,6 +152,7 @@ function ptZipCheck(sku, qty, zipsIssued) {
 
 /** The old tool's obGuard('bd'), number for number. */
 function bdGuard(orderNo, sku, qty, exclId, allowExtra) {
+  if (typeof obIsLegacy === 'function' && obIsLegacy(orderNo) && !exclId) return OB_LEGACY_SHUT(orderNo);
   const ordered = obOrderedQty(orderNo, sku);
   if (!ordered) return `Order ${orderNo} has no line for SKU ${obUC(sku)} — pick the correct Order ID.`;
   const used = obIssueUsed(orderNo, sku, exclId);
@@ -186,7 +187,7 @@ function bdGuard(orderNo, sku, qty, exclId, allowExtra) {
 function bdOrdersFor(sku) {
   if (!sku) return [];
   const seen = new Set();
-  return obLines().filter(l => l.sku === obUC(sku)).filter(l => {
+  return obLines().filter(l => l.sku === obUC(sku) && !(typeof obIsLegacy === 'function' && obIsLegacy(l.orderNo))).filter(l => {
     if (seen.has(l.orderNo)) return false; seen.add(l.orderNo); return true;
   }).map(l => {
     const ordered = obOrderedQty(l.orderNo, sku), used = obIssueUsed(l.orderNo, sku);
@@ -257,7 +258,7 @@ function ptFindExistingSku(at, sub, col, sz) {
 /** Orders with an open balance for issuing, oldest first. */
 function bdOpenOrders() {
   const m = {};
-  obLines().forEach(l => { (m[l.orderNo] = m[l.orderNo] || { skus: new Set(), date: l.date }).skus.add(l.sku); });
+  obLines().forEach(l => { if (typeof obIsLegacy === 'function' && obIsLegacy(l.orderNo)) return; (m[l.orderNo] = m[l.orderNo] || { skus: new Set(), date: l.date }).skus.add(l.sku); });
   return Object.keys(m).map(no => {
     const skus = [...m[no].skus];
     const bal = skus.reduce((a, s) => a + Math.max(0, obOrderedQty(no, s) - obIssueUsed(no, s)), 0);
