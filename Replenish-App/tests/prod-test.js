@@ -19934,6 +19934,20 @@ console.log('\n== SKU codes: a new colour\'s SKUs ==');
   ok('a base code used twice is refused', /already the base code/.test(await A.skcSaveRow('', { article: 'Tablecloth', subtype: 'X', size: '1x1', base: 'RTC-6060' })));
   A.setPTG(wasPTG); ME.prodEdit = wasEdit; ME.admin = wasAdmin; ME.mdbEdit = wasMdbEdit; NET.on = wasNet; NET.store = {}; NET.calls.length = 0;
 }
+console.log('\n== Cutting Data: an entry with no Order ID gets one from Edit (24 Oct, the cuttings taken off LEG-17102026-01) ==');
+{
+  const wasPTG = A.PTG(), wasPT = A.PT(), wasCut = A.PT().cut, wasNet = NET.on, wasAdmin = ME.admin, wasEdit = ME.prodEdit;
+  ME.admin = true; ME.prodEdit = true; NET.on = true; NET.store = {};
+  A.setPTG(Object.assign({}, wasPTG, { press: [], ob: [{ id: 'o1', orderNo: 'AMZ-1', sku: 'RQL327-Q', qty: 10, src: 'SO', orderDate: '2026-10-20' }, { id: 'o2', orderNo: 'LEG-17102026-01', sku: 'RQL327-Q', qty: 56, src: 'LEG', orderDate: '2026-10-17' }] }));
+  A.setPT(Object.assign(A.PT(), { cut: [{ id: 'c1', _key: 'c1', orderNo: '', orderWas: 'LEG-17102026-01', sku: 'RQL327-Q', pieces: 6, fabricWidth: 'Voil 92', cutDate: '23/10/2026, 22:12' }] }));
+  A.cutEdit('c1');
+  const f = (A.PTD_().fields || []).find(x => x.key === 'orderNo') || {};
+  ok('the Edit box offers the SKU\'s orders with room — never the legacy order', f.type === 'select' && f.options.some(o => o[0] === 'AMZ-1') && !f.options.some(o => o[0] === 'LEG-17102026-01'), JSON.stringify(f.options));
+  ok('…more pieces than the order has room for is refused', /already cut|at most|ordered/i.test(await A.PTD_().onSave({ orderNo: 'AMZ-1', pieces: 11, fabricWidth: 'Voil 92' })));
+  ok('…and picking it puts the entry on that order, saying where it was', (await A.PTD_().onSave({ orderNo: 'AMZ-1', pieces: 6, fabricWidth: 'Voil 92' })) === ''
+    && NET.store['pt_cuttingData/c1'] && NET.store['pt_cuttingData/c1'].orderNo === 'AMZ-1' && NET.store['pt_cuttingData/c1'].orderWas === '', JSON.stringify(NET.store['pt_cuttingData/c1']));
+  A.setPTG(wasPTG); A.setPT(Object.assign(wasPT, { cut: wasCut })); NET.on = wasNet; ME.admin = wasAdmin; ME.prodEdit = wasEdit;
+}
 console.log('\n== Job Work: Custom Order with its own Order ID, the master spelling and a master row (24 Oct) ==');
 await global.custOrderTest();
 console.log('\n== Job Work: the date range, by issue or by receipt ==');

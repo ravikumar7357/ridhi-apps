@@ -19106,6 +19106,14 @@ function pressEdit(id) {
 }
 
 /* ---- Cutting Data: edit ---- */
+/** [value, label] for the Order ID box: the entry's own order, and the orders of its SKU with room left to cut. */
+function cutOrderOptions(r) {
+  const out = [['', r.orderNo ? '— pick the order —' : '— no Order ID yet — pick one —']];
+  if (r.orderNo) out.push([r.orderNo, r.orderNo + ' (now)']);
+  (typeof cutOrdersFor === 'function' ? cutOrdersFor(r.sku) : []).filter(o => o.orderNo !== r.orderNo && o.left > 0)
+    .forEach(o => out.push([o.orderNo, `${o.orderNo} — ${nf(o.left)} left to cut of ${nf(o.ordered)}`]));
+  return out;
+}
 function cutEdit(id) {
   const r = (PT.cut || []).find(x => x.id === id);
   if (!r) return;
@@ -19117,6 +19125,9 @@ function cutEdit(id) {
     msg: `${r.articleType || ''} · ${r.articleSubtype || ''} · ${r.color || ''} · ${r.size || ''}`,
     fields: [
       { key: 'sku', label: 'SKU', value: r.sku, readonly: true },
+      /* THE ORDER CAN BE PUT RIGHT HERE (Ravi, 24 Oct: the 23 cuttings that went onto LEG-17102026-01 were taken off it —
+       * "hum unko unke open order me assign karenge"). The orders of this SKU with room to cut, and the one it is on now. */
+      { key: 'orderNo', label: 'Order ID', type: 'select', value: r.orderNo || '', options: cutOrderOptions(r) },
       { key: 'pieces', label: 'Pieces', type: 'number', min: 1, step: 1, value: ptNum(r.pieces) },
       { key: 'fabricWidth', label: 'Fabric', value: r.fabricWidth || '' },
       { key: 'fabricUsed', label: 'Fabric used (m)', type: 'number', step: '0.01', min: 0, value: r.fabricUsed == null ? '' : r.fabricUsed },
@@ -19132,13 +19143,17 @@ function cutEdit(id) {
       const pcs = parseInt(v.pieces, 10);
       if (!pcs || pcs < 1) return 'Pieces must be at least 1.';
       if (!String(v.fabricWidth || '').trim()) return 'Enter the fabric.';
-      if (r.orderNo) {
-        const g = cutGuard(r.orderNo, r.sku, pcs, r.id);
+      const ord = String(v.orderNo == null ? (r.orderNo || '') : v.orderNo).trim();
+      if (!ord && r.orderNo) return 'Pick the Order ID these pieces were cut for.';
+      if (ord) {
+        /* a new order checks its own room; the order it already is on, its room with this entry left out */
+        const g = cutGuard(ord, r.sku, pcs, ord === r.orderNo ? r.id : undefined);
         if (g) return g;
       }
       const date = v.cutDate || ptIsoDate(r.cutDate);
       if (cutMonthFrozen(date)) return `${ptMonthKey(date)} is frozen — cutting entries for that month are locked.`;
       const next = Object.assign({}, r, {
+        orderNo: ord, ...(ord !== (r.orderNo || '') ? { orderWas: r.orderNo || '', orderSetBy: ME.email, orderSetAt: new Date().toISOString() } : {}),
         pieces: pcs, fabricWidth: String(v.fabricWidth || '').trim(),
         remarks: String(v.remarks || '').trim(),
         cutDate: v.cutDate ? ptStampFrom(r.cutDate, v.cutDate) : r.cutDate,
