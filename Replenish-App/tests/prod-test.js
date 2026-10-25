@@ -8871,7 +8871,7 @@ console.log('\n== the fabric on a cutting entry is picked from the master ==');
     /* AND THE COLOUR-BEARING FIELDS ARE UNTOUCHED — this changed two fields, not the form. */
     ok('the rest of the form is as it was',
        fieldOf(null, 'consumption').type === 'number' && fieldOf(null, 'cuttingRequired').type === 'select'
-       && (A.mdbFields(null) || []).length === 28, String((A.mdbFields(null) || []).length) + ' fields');   // + manufacturer, piping fabric, packing, its material (2026-10-10)   // + piping dori, its metres (2026-09-22); + ASIN, Parent ASIN (2026-09-26)
+       && (A.mdbFields(null) || []).length === 29, String((A.mdbFields(null) || []).length) + ' fields');   // + listing status (2026-10-25)   // + manufacturer, piping fabric, packing, its material (2026-10-10)   // + piping dori, its metres (2026-09-22); + ASIN, Parent ASIN (2026-09-26)
     A.setPTG(Object.assign({}, A.PTG(), { masters: wasM }));
   }
 
@@ -20046,8 +20046,13 @@ console.log('\n== Piping dori on the master ==');
   ok('the form asks for it', (A.mdbFields(null) || []).some(f => f.key === 'isPiping') && (A.mdbFields(null) || []).some(f => f.key === 'pipingMeters'));
   const src = fs.readFileSync(APP, 'utf8');
   ok('the template and the export carry it — and the export now has Filling qty and Valuation price, so an export uploaded again blanks nothing',
-     /'Ruffle fabric', 'Piping dori', 'Piping dori metres', 'Filler fabric', 'Filling qty', 'Valuation price', 'Image', 'ASIN', 'Parent ASIN',\s*'Manufacturer', 'Piping fabric', 'Packing type', 'Packing material'\]/.test(src)
-     && /'Piping dori', 'Piping dori metres',\s*'Filler fabric', 'Filling qty', 'Valuation price', 'Image', 'ASIN', 'Parent ASIN', 'Manufacturer', 'Piping fabric', 'Packing type', 'Packing material'\]\.map\(csvCell\)/.test(src));
+     /'Ruffle fabric', 'Piping dori', 'Piping dori metres', 'Filler fabric', 'Filling qty', 'Valuation price', 'Image', 'ASIN', 'Parent ASIN',\s*'Manufacturer', 'Piping fabric', 'Packing type', 'Packing material', 'Listing status'\]/.test(src)
+     && /'Piping dori', 'Piping dori metres',\s*'Filler fabric', 'Filling qty', 'Valuation price', 'Image', 'ASIN', 'Parent ASIN', 'Manufacturer', 'Piping fabric', 'Packing type', 'Packing material', 'Listing status'\]\.map\(csvCell\)/.test(src));
+  { /* 25 Oct ("master data base me set karenge"): the India listing status is a master field, kept by an edit and an import */
+    const r1 = A.mdbRecord(Object.assign({}, base, { listingStatus: 'discontinued' }), false);
+    ok('the master keeps the listing status, in the spelling of the list', r1.listingStatus === 'Discontinue' && A.mdbRecord(Object.assign({}, base, { listingStatus: 'use in mix' }), false).listingStatus === 'Use In Mix'
+      && A.mdbRecord(base, false).listingStatus === '' && (A.mdbFields(null) || []).some(f => f.key === 'listingStatus' && f.type === 'select'), JSON.stringify(r1.listingStatus));
+  }
   const ix = { sku: 0, piping: -1, pipingm: -1 };
   ok('a file with no piping column says nothing about it', A.mdbFromCsv(['PD-1'], ix).isPiping === undefined);
   ok('…and the import keeps what the SKU had', A.mdbMerge({ isPiping: undefined, fabric: 'Cambric' },

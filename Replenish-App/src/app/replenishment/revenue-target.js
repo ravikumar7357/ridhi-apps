@@ -138,7 +138,7 @@ function renderTarget() {
     $('tgTable').innerHTML = '';
     $('tgMsg').innerHTML = ACCESS_ERR
       ? `<span class="err">${esc(ACCESS_ERR)}</span>`
-      : 'No snapshot yet — hit “Refresh from sheet” on the Replenishment tab first.';
+      : 'No snapshot yet — it is built by itself from FabriCrush Inventory every three hours.';
     return;
   }
   const P = tgPlan(brands, pick, mk);
@@ -387,7 +387,7 @@ function renderRepl() {
   if (!brands.length) {
     $('rKpis').innerHTML = ACCESS_ERR
       ? `<div class="kpi"><div class="kpiname" style="color:var(--bad)">No access to the data</div><div style="margin-top:6px;font-size:13px">${esc(ACCESS_ERR)}</div></div>`
-      : '<div class="kpi"><div class="kpiname">No snapshot yet</div><div class="muted" style="margin-top:6px">Hit “Refresh from sheet” to pull the current replenishment plan.</div></div>';
+      : '<div class="kpi"><div class="kpiname">No snapshot yet</div><div class="muted" style="margin-top:6px">It is built by itself from FabriCrush Inventory every three hours.</div></div>';
     $('rTable').innerHTML = ''; return;
   }
   fillReplFilters(brands);   // keep the Sub-Category / Color / Status option lists in sync with the data
@@ -668,7 +668,7 @@ function renderRepl() {
     defs.push(
       { k: `fc${i}oh`, t: `${p.label} · On Hand`, num: 1, map: r => r._fc[i].oh, tip: ohTip },
       { k: `fc${i}proj`, t: `${p.label} · Proj${p.partial ? ` (${p.days}d left)` : ''}`, num: 1, map: r => r._fc[i].proj,
-        tip: `Projected sales = Avg/day × ${dayNote}. CLICK a cell to type your own number — a manual projection is kept until you change it (a "Refresh from sheet" never overwrites it).`,
+        tip: `Projected sales = Avg/day × ${dayNote}. CLICK a cell to type your own number — a manual projection is kept until you change it (a refresh never overwrites it).`,
         cell: r => { const f = r._fc[i];
           return `<span class="projcell${f.manual ? ' projman' : ''}" data-sku="${esc(r.sku)}" data-mk="${p.key}" data-auto="${f.auto}"`
             + ` title="${f.manual ? `Manually set to ${nf(f.proj)} — calculated was ${nf(f.auto)}. Click to change, clear the box to go back to auto.` : 'Click to type your own projection'}">`

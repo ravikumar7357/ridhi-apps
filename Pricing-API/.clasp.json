@@ -27,6 +27,7 @@
     "ListingHealth.gs",
     "Research.gs",
     "InvSync.gs",
+    "ReplSnap.gs",
     "Setup.gs"
   ]
 }

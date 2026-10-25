@@ -1739,8 +1739,8 @@ html.mob table.mob-tcards.mob-tgrid tbody tr:not(.mob-tmsg):not(.mob-tnest):has(
           <button id="rProj" class="ghost" title="Upload a month's projection from Excel (SKU + QTY)">Projection</button>
           <button id="rCsv" class="ghost">Export</button>
           <button id="rPo" class="ghost">Create PO from view</button>
-          <button id="rHide" class="ghost" title="SKUs kept out of this tool entirely — parents, placeholders, dead codes. They survive a Refresh from sheet.">Hidden SKUs</button>
-          <button id="rGo">Refresh from sheet</button>
+          <button id="rHide" class="ghost" title="SKUs kept out of this tool entirely — parents, placeholders, dead codes. They survive every refresh.">Hidden SKUs</button>
+          <button id="rGo" title="The table updates by itself from FabriCrush Inventory every three hours; this asks for a fresh round now">Refresh</button>
         </div>
         <div class="toolbar" style="margin-top:8px">
           <div class="ms" id="rCat" style="flex:0 0 130px"></div>
@@ -3969,7 +3969,7 @@ html.mob table.mob-tcards.mob-tgrid tbody tr:not(.mob-tmsg):not(.mob-tnest):has(
     <div class="muted" style="font-size:12px;margin-bottom:12px">
       Excel/CSV with two columns — <b>SKU</b> and <b>QTY</b>. The QTY becomes that SKU's projection for
       the month you pick, exactly as if you had typed it in the cell (yellow = manual). It stays until
-      you change it; “Refresh from sheet” never overwrites it.
+      you change it; a refresh never overwrites it.
     </div>
     <div class="sec">Month</div>
     <select id="pjMonth" style="width:100%;margin-bottom:4px"></select>
@@ -5798,7 +5798,10 @@ async function loadReplCache(wantFull) {
    * bhi nahi") — the table then drew a snapshot with no image, status or warehouse figures. */
   if (REPL_LOADING) { try { await REPL_LOADING.p; } catch (e) { /* the full read below stands on its own */ } }
   if (REPL_MODE === 'full') return;
-  const p = loadReplCacheRun(full).then(() => { REPL_MODE = full ? 'full' : 'slim'; try { replMasterSync(); } catch (e) { /* the snapshot's details stay */ } }).finally(() => { if (REPL_LOADING && REPL_LOADING.p === p) REPL_LOADING = null; });
+  const p = loadReplCacheRun(full).then(() => { REPL_MODE = full ? 'full' : 'slim'; try { replMasterSync(); } catch (e) { /* the snapshot's details stay */ }
+    /* a full read after a slim one listens to the full header instead */
+    try { if (REPL_WATCH && full) { REPL_WATCH.forEach(u => { try { u(); } catch (e) {} }); REPL_WATCH = null; } replWatch(); }
+    catch (e) { /* no listening (or a test page without it): the next read is fresh anyway */ } }).finally(() => { if (REPL_LOADING && REPL_LOADING.p === p) REPL_LOADING = null; });
   REPL_LOADING = { full, p };
   return p;
 }
@@ -5863,8 +5866,13 @@ function replMasterSync() {
       if (!m) return r;
       let img = String(m.imageUrl || '').trim();
       if (!img && typeof ptImgOf === 'function') { try { img = ptImgOf(r.sku) || ''; } catch (e) { img = ''; } }
+      /* THE LISTING STATUS IS THE MASTER'S (Ravi, 25 Oct: "master data base me set karenge") — the India Stock tab of the
+       * sheet is gone. Discontinue / Use In Mix stops the SKU; a manual override (applyStatus) still wins over it. */
+      const ls = String(m.listingStatus || '').trim();
+      const st = ls ? { status: ls, stopped: REPL_STOP_RE.test(ls) || (!!r.stopped && /not stocked in India/.test(r.stopReason || '')),
+        stopReason: REPL_STOP_RE.test(ls) ? `Master Database: listing status "${ls}"` : (r.stopped && /not stocked in India/.test(r.stopReason || '') ? r.stopReason : '') } : {};
       return Object.assign({}, r, { asin: pick(m.asin, r.asin), parent: pick(m.parentAsin, r.parent), color: pick(m.color, r.color),
-        size: pick(m.size, r.size), subcat: pick(m.subtype, r.subcat), image: img || r.image || '' });
+        size: pick(m.size, r.size), subcat: pick(m.subtype, r.subcat), image: img || r.image || '' }, st);
     });
     X.rowsSnap = src; X.rows = out; X.rowsMaster = out; X.mdbSig = sig; changed = true;
   };
@@ -6064,40 +6072,44 @@ async function ensureRepl() {
   renderRepl();
 }
 
+/* FROM FABRICRUSH INVENTORY, BY ITSELF (Ravi, 25 Oct: "abhi jo inventory google sheet se aati h usase data na lekar is firebase
+ * app se lena h and sab jagah auto karna h manual kuch nahi"). The snapshot is no longer read from the sheet and saved by this
+ * page: the backend (Pricing-API ReplSnap.gs) builds it from FabriCrush Inventory after every inventory refresh — every three
+ * hours — and writes it here; replWatch() redraws the moment it lands. Refresh only asks for a fresh round now. */
 $('rGo').onclick = async () => {
   const btn = $('rGo'); btn.disabled = true; btn.innerHTML = '<span class="spin"></span>…';
-  const failed = [], statusNote = [];
-  for (const b of ['SP', 'CPC']) {
-    try {
-      rMsg(`${BRAND_NAME[b]}: reading the Inventory sheet…`);
-      const say = t => rMsg(`${BRAND_NAME[b]}: ${t}`);
-      let d;
-      try { d = await replPull(b, say); }
-      catch (e) {
-        /* The backend could not keep the read in its cache (it says so by name). Then — and only
-         * then — the old one-piece read is tried. */
-        if (!(e.data && e.data.cacheFull)) throw e;
-        say('reading the sheet in one piece…');
-        d = await apiGetRetry({ repl: 'list', brand: b }, 3,
-          (n, of) => say(`Google lost the answer — asking again (${n} of ${of})…`), 150000);
-      }
-      REPL[b] = { at: new Date(), rows: d.rows || [], recCols: d.recCols || [], catalogSkus: d.catalogSkus || [] };
-      console.info(`[repl] ${b}: ${(d.rows || []).length} rows · status filled ${d.statusN ?? '?'} · stopped ${d.stoppedN ?? '?'}`);
-      statusNote.push(`${BRAND_NAME[b]} status ${d.statusN ?? '?'}/${(d.rows || []).length}`);
-      /* The year sales history feeds the out-of-stock rate. When it stops short of today, say so here —
-       * on 15 Sep it had silently been six weeks old. */
-      const hd = d.histDiag || {};
-      if (hd.histCurrent === false) {
-        failed.push(`${BRAND_NAME[b]}: the year sales history ends ${hd.histEnd ? hd.histEnd.slice(0, 10) : '(unknown)'}, so out-of-stock SKUs are rated on old sales. Rebuild it from the Amazon Report menu (“Rebuild sales-history cache”).`);
-      }
-      renderRepl();                                   // show immediately, then cache in chunks
-      await saveReplCache(b, d.rows || [], d.recCols || [], d.catalogSkus || []);
-    } catch (e) { failed.push(`${BRAND_NAME[b]}: ${e.message || e}`); }
-  }
-  REPL_LOADED = true; REPL_MODE = 'full';
-  rMsg(failed.length ? failed.join('  ·  ') : `Updated from the sheet. (${statusNote.join(' · ')})`, failed.length > 0);
-  btn.disabled = false; btn.textContent = 'Refresh from sheet';
+  try {
+    await prGet({ inv: 'run', job: 'refresh', brand: 'all', by: ME.email || '' });
+    rMsg('Asked FabriCrush Inventory for fresh Amazon figures — orders, shipments, inventory, then this table. It takes a few minutes; the table updates by itself when it is ready.');
+    REPL_ASKED_AT = Date.now();
+  } catch (e) { rMsg('Could not ask for a refresh: ' + (e.message || e) + ' — the table still updates by itself every three hours.', true); }
+  btn.disabled = false; btn.textContent = 'Refresh';
 };
+let REPL_ASKED_AT = 0;
+/** Listen to the snapshot's header documents; a newer one is read and drawn at once. Started after the first read. */
+let REPL_WATCH = null;
+function replWatch() {
+  if (REPL_WATCH || typeof onSnapshot !== 'function') return;
+  const coll = REPL_MODE === 'full' ? 'repl' : REPL_MODE === 'shop' || ME.shopDataOnly ? 'replshop' : 'replslim';
+  REPL_WATCH = ['SP', 'CPC'].map(b => onSnapshot(doc(db, coll, b), snap => {
+    if (!snap.exists()) return;
+    const d = snap.data(), at = d.at && d.at.toDate ? d.at.toDate() : null, have = REPL[b] && REPL[b].at;
+    if (!at || (have && at <= have)) return;
+    replReload(coll);
+  }, () => { /* no right to listen: the next sign-in reads the newest anyway */ }));
+}
+let REPL_RELOAD_T = null;
+function replReload(coll) {
+  clearTimeout(REPL_RELOAD_T);
+  REPL_RELOAD_T = setTimeout(async () => {
+    const full = REPL_MODE === 'full';
+    if (coll === 'replshop') { REPL_SHOP = { SP: null, CPC: null }; }
+    REPL_MODE = '';
+    try { await loadReplCache(full); } catch (e) { return; }
+    if (REPL_ASKED_AT) { rMsg('Updated from FabriCrush Inventory.'); REPL_ASKED_AT = 0; }
+    try { renderRepl(); } catch (e) { /* drawn when the tab is next opened */ }
+  }, 1500);
+}
 
 // Typing in a filter box fires per keystroke, and every render walks the whole snapshot — so the SKU
 // boxes on all four tabs go through this. 200ms is below the "did it hear me" threshold and collapses
@@ -7124,7 +7136,7 @@ function renderArticle() {
       + (ACCESS_ERR ? esc(ACCESS_ERR)
         // "No snapshot yet" would be a lie when the snapshot is fine and every SKU in it is stopped.
         : AR_STOPPED ? `Every SKU here is discontinued or use-in-mix (${nf(AR_STOPPED)}), so there is nothing to review. They are still on the Replenishment grid, tagged “Stopped”.`
-        : 'No snapshot yet — open Replenishment and hit “Refresh from sheet”.') + '</td></tr></tbody>';
+        : 'No snapshot yet — it is built by itself from FabriCrush Inventory every three hours.') + '</td></tr></tbody>';
     $('arMsg').textContent = '';
     return;
   }
@@ -7495,7 +7507,7 @@ function renderTarget() {
     $('tgTable').innerHTML = '';
     $('tgMsg').innerHTML = ACCESS_ERR
       ? `<span class="err">${esc(ACCESS_ERR)}</span>`
-      : 'No snapshot yet — hit “Refresh from sheet” on the Replenishment tab first.';
+      : 'No snapshot yet — it is built by itself from FabriCrush Inventory every three hours.';
     return;
   }
   const P = tgPlan(brands, pick, mk);
@@ -7744,7 +7756,7 @@ function renderRepl() {
   if (!brands.length) {
     $('rKpis').innerHTML = ACCESS_ERR
       ? `<div class="kpi"><div class="kpiname" style="color:var(--bad)">No access to the data</div><div style="margin-top:6px;font-size:13px">${esc(ACCESS_ERR)}</div></div>`
-      : '<div class="kpi"><div class="kpiname">No snapshot yet</div><div class="muted" style="margin-top:6px">Hit “Refresh from sheet” to pull the current replenishment plan.</div></div>';
+      : '<div class="kpi"><div class="kpiname">No snapshot yet</div><div class="muted" style="margin-top:6px">It is built by itself from FabriCrush Inventory every three hours.</div></div>';
     $('rTable').innerHTML = ''; return;
   }
   fillReplFilters(brands);   // keep the Sub-Category / Color / Status option lists in sync with the data
@@ -8025,7 +8037,7 @@ function renderRepl() {
     defs.push(
       { k: `fc${i}oh`, t: `${p.label} · On Hand`, num: 1, map: r => r._fc[i].oh, tip: ohTip },
       { k: `fc${i}proj`, t: `${p.label} · Proj${p.partial ? ` (${p.days}d left)` : ''}`, num: 1, map: r => r._fc[i].proj,
-        tip: `Projected sales = Avg/day × ${dayNote}. CLICK a cell to type your own number — a manual projection is kept until you change it (a "Refresh from sheet" never overwrites it).`,
+        tip: `Projected sales = Avg/day × ${dayNote}. CLICK a cell to type your own number — a manual projection is kept until you change it (a refresh never overwrites it).`,
         cell: r => { const f = r._fc[i];
           return `<span class="projcell${f.manual ? ' projman' : ''}" data-sku="${esc(r.sku)}" data-mk="${p.key}" data-auto="${f.auto}"`
             + ` title="${f.manual ? `Manually set to ${nf(f.proj)} — calculated was ${nf(f.auto)}. Click to change, clear the box to go back to auto.` : 'Click to type your own projection'}">`
@@ -8988,7 +9000,7 @@ function renderTop() {
   const loaded = ['SP', 'CPC'].some(x => REPL[x]);
   if (!loaded) {
     $('topKpis').innerHTML = '';
-    $('topTable').innerHTML = `<tbody><tr><td class="muted" style="padding:14px">Open the Replenishment tab and hit “Refresh from sheet” first — this list is built from that data.</td></tr></tbody>`;
+    $('topTable').innerHTML = `<tbody><tr><td class="muted" style="padding:14px">No snapshot yet — it is built by itself from FabriCrush Inventory every three hours, and this list is built from it.</td></tr></tbody>`;
     return;
   }
   const all = topAsinRows(b);
@@ -9584,7 +9596,7 @@ function indiaProjRows() {
 
 function renderIndiaProj() {
   if (!FC_PLAN.length) {
-    $('inProjTable').innerHTML = '<tbody><tr><td class="muted" style="padding:14px">No forecast yet — open Replenishment and hit “Refresh from sheet” first.</td></tr></tbody>';
+    $('inProjTable').innerHTML = '<tbody><tr><td class="muted" style="padding:14px">No forecast yet — it is built by itself from FabriCrush Inventory every three hours.</td></tr></tbody>';
     return;
   }
   const rows = indiaProjRows();
@@ -9653,7 +9665,7 @@ function renderIndiaProj() {
   }).join('');
 
   $('inProjTable').innerHTML = head + '<tbody>' + (sub + body
-    || `<tr><td colspan="${cols.length}" class="muted" style="padding:14px">Nothing to project — nothing in Finished Goods, or run “Refresh from sheet” on Replenishment.</td></tr>`)
+    || `<tr><td colspan="${cols.length}" class="muted" style="padding:14px">Nothing to project — nothing in Finished Goods, or the snapshot from FabriCrush Inventory has not been built yet.</td></tr>`)
     + '</tbody>';
   $('inMsg').textContent = rows.length > 300
     ? `showing first 300 of ${nf(rows.length)} — filter to narrow (subtotal and KPIs cover all ${nf(rows.length)})`
@@ -9993,7 +10005,7 @@ function renderProd() {
   const brands = (b === 'ALL' ? ['SP', 'CPC'] : [b]).filter(x => REPL[x]);
   if (!brands.length) {
     $('pdKpis').innerHTML = '';
-    $('pdTable').innerHTML = '<tbody><tr><td class="muted" style="padding:14px">No snapshot yet — open Replenishment and hit “Refresh from sheet” first.</td></tr></tbody>';
+    $('pdTable').innerHTML = '<tbody><tr><td class="muted" style="padding:14px">No snapshot yet — it is built by itself from FabriCrush Inventory every three hours.</td></tr></tbody>';
     return;
   }
   fillBasis();
@@ -15177,7 +15189,7 @@ $('ptmExport').onclick = () => {
   const rows = PT._pmdbRows || []; if (!rows.length) return;
   const lines = [['SKU', 'Brand', 'Article', 'Subtype', 'Color', 'Size', 'Fabric', 'Consumption', 'Pack of',
     'Cutting required', 'Zip', 'Zips per piece', 'Zip size', 'Ruffle', 'Ruffle metres', 'Ruffle fabric', 'Piping dori', 'Piping dori metres',
-    'Filler fabric', 'Filling qty', 'Valuation price', 'Image', 'ASIN', 'Parent ASIN', 'Manufacturer', 'Piping fabric', 'Packing type', 'Packing material'].map(csvCell).join(',')];
+    'Filler fabric', 'Filling qty', 'Valuation price', 'Image', 'ASIN', 'Parent ASIN', 'Manufacturer', 'Piping fabric', 'Packing type', 'Packing material', 'Listing status'].map(csvCell).join(',')];
   const b = v => v ? 'Yes' : 'No';
   rows.forEach(r => lines.push([r.sku, r.brand, r.articleType, r.subtype, r.color, r.size, r.fabric,
     mdbM2(r.consumption), r.packOf, b(r.cuttingRequired),
@@ -15186,7 +15198,7 @@ $('ptmExport').onclick = () => {
     b(r.isPiping), r.isPiping ? r.pipingMeters : '',
     b(r.fillerFabricRequired), r.fillerFabricRequired && r.standardFillingQty != null ? r.standardFillingQty : '',
     r.inventoryValuationPrice == null ? '' : r.inventoryValuationPrice, r.imageUrl || MDBIMG.map[obUC(r.sku)] || '',
-    r.asin || '', r.parentAsin || '', r.manufacturer || '', r.pipingFabric || '', r.packType || '', r.packMaterial || '']
+    r.asin || '', r.parentAsin || '', r.manufacturer || '', r.pipingFabric || '', r.packType || '', r.packMaterial || '', r.listingStatus || '']
     .map(csvCell).join(',')));
   ptDownload('master-database', lines);
 };
@@ -20270,6 +20282,7 @@ function mdbRecord(v, isCustom) {
     /* AMAZON'S IDS (Ravi, 2026-09-26). An edit and an import both write the WHOLE record, so a field left out of
      * here is a field every edit wipes. */
     asin: obUC(v.asin), parentAsin: obUC(v.parentAsin),
+    listingStatus: mdbListing(v.listingStatus),
     isCustom: !!isCustom,
   };
 }
@@ -20307,6 +20320,11 @@ const YESNO = ['yes', 'no'];
 /** The Fabric Type master, with whatever this row already says kept at the top of it. */
 const fabListOr = cur => [...new Set([String(cur || '').trim()].filter(Boolean).concat(cutFabrics()))];
 /** The dialog's fields, shared by add and edit so the two cannot drift. */
+const MDB_LISTING = ['', 'Listed', 'Need Listing', 'Discontinue', 'Use In Mix'];
+/** A typed status in the list's own spelling ("discontinued" → Discontinue); '' when it is none of them. */
+const mdbListing = v => { const t = String(v == null ? '' : v).trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!t) return ''; if (/discontinu/.test(t)) return 'Discontinue'; if (/use ?in ?mix/.test(t)) return 'Use In Mix';
+  if (/need/.test(t)) return 'Need Listing'; if (/list/.test(t)) return 'Listed'; return ''; };
 function mdbFields(r) {
   const m = (k, d) => (r ? (r[k] == null ? d : r[k]) : d);
   const yn = b => (b ? 'yes' : 'no');
@@ -20320,6 +20338,9 @@ function mdbFields(r) {
       list: ['Ridhi'].concat((PTG.mdb || []).map(x => String((x && x.manufacturer) || '').trim())) },
     { key: 'asin', label: 'ASIN', value: m('asin', '') },
     { key: 'parentAsin', label: 'Parent ASIN', value: m('parentAsin', '') },
+    /* THE INDIA LISTING STATUS (Ravi, 25 Oct: "master data base me set karenge") — it was the sheet's India Stock tab.
+     * Discontinue or Use In Mix stops the SKU in Replenishment: nothing more is planned for it. */
+    { key: 'listingStatus', label: 'Listing status', type: 'select', value: m('listingStatus', ''), options: MDB_LISTING },
     { key: 'articleType', label: 'Article type', type: 'select', value: m('articleType', ''),
       options: [''].concat(listOr('articleType', m('articleType', ''))) },
     { key: 'subtype', label: 'Article subtype', type: 'select', value: m('subtype', ''),
@@ -20640,7 +20661,7 @@ $('ptmImgs').onclick = () => mdbImgFill(true);
 const MDB_IMPORT_COLS = ['SKU', 'Brand', 'Article', 'Subtype', 'Color', 'Size', 'Fabric', 'Consumption',
   'Pack of', 'Cutting required', 'Zip', 'Zips per piece', 'Zip size', 'Ruffle', 'Ruffle metres',
   'Ruffle fabric', 'Piping dori', 'Piping dori metres', 'Filler fabric', 'Filling qty', 'Valuation price', 'Image', 'ASIN', 'Parent ASIN',
-  'Manufacturer', 'Piping fabric', 'Packing type', 'Packing material'];
+  'Manufacturer', 'Piping fabric', 'Packing type', 'Packing material', 'Listing status'];
 
 /** The recipe template: every combination, its recipe so far, and what its SKUs say. */
 function recipeTemplateDownload() {
@@ -20952,6 +20973,7 @@ function mdbFromCsv(row, ix) {
     inventoryValuationPrice: g('valprice'), imageUrl: g('image'),
     asin: g('asin'), parentAsin: g('parent'),
     manufacturer: g('maker'), pipingFabric: g('pipingfab'), packType: g('packtype'), packMaterial: g('packmat'),
+    listingStatus: g('listing'),
   };
 }
 
@@ -20980,7 +21002,8 @@ function mdbFormOf(r) {
     fillerFabricRequired: yn(r.fillerFabricRequired), standardFillingQty: s(r.standardFillingQty),
     inventoryValuationPrice: s(r.inventoryValuationPrice), imageUrl: s(r.imageUrl),
     asin: s(r.asin), parentAsin: s(r.parentAsin),
-    manufacturer: s(r.manufacturer), pipingFabric: s(r.pipingFabric), packType: s(r.packType), packMaterial: s(r.packMaterial) };
+    manufacturer: s(r.manufacturer), pipingFabric: s(r.pipingFabric), packType: s(r.packType), packMaterial: s(r.packMaterial),
+    listingStatus: s(r.listingStatus) };
 }
 /** What the file says, over what the SKU already says. */
 function mdbMerge(v, existing) {
@@ -21027,6 +21050,7 @@ $('ptmFile').onchange = async e => {
       pipingfab: colIdx(head, ['piping fabric']),
       packtype: colIdx(head, ['packing type', 'packing', 'pack type']),
       packmat: colIdx(head, ['packing material', 'polythene / box used', 'polythene', 'box', 'packing item']),
+      listing: colIdx(head, ['listing status', 'india status', 'status']),
     };
     if (ix.sku < 0) {
       $('ptmMsg').className = 'err';

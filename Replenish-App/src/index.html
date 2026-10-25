@@ -264,8 +264,8 @@
           <button id="rProj" class="ghost" title="Upload a month's projection from Excel (SKU + QTY)">Projection</button>
           <button id="rCsv" class="ghost">Export</button>
           <button id="rPo" class="ghost">Create PO from view</button>
-          <button id="rHide" class="ghost" title="SKUs kept out of this tool entirely — parents, placeholders, dead codes. They survive a Refresh from sheet.">Hidden SKUs</button>
-          <button id="rGo">Refresh from sheet</button>
+          <button id="rHide" class="ghost" title="SKUs kept out of this tool entirely — parents, placeholders, dead codes. They survive every refresh.">Hidden SKUs</button>
+          <button id="rGo" title="The table updates by itself from FabriCrush Inventory every three hours; this asks for a fresh round now">Refresh</button>
         </div>
         <div class="toolbar" style="margin-top:8px">
           <div class="ms" id="rCat" style="flex:0 0 130px"></div>
@@ -2494,7 +2494,7 @@
     <div class="muted" style="font-size:12px;margin-bottom:12px">
       Excel/CSV with two columns — <b>SKU</b> and <b>QTY</b>. The QTY becomes that SKU's projection for
       the month you pick, exactly as if you had typed it in the cell (yellow = manual). It stays until
-      you change it; “Refresh from sheet” never overwrites it.
+      you change it; a refresh never overwrites it.
     </div>
     <div class="sec">Month</div>
     <select id="pjMonth" style="width:100%;margin-bottom:4px"></select>

@@ -65,7 +65,7 @@ jobs:
       - name: Tests
         run: |
           set -e
-          for t in flow shop pack-scan pack-verify pack-core barcode-read barcode-wasm appv b2b-pictures; do
+          for t in flow shop pack-scan pack-verify pack-core barcode-read barcode-wasm appv b2b-pictures repl-master replsnap; do
             if node "tests/$t-test.js" > "/tmp/$t.log" 2>&1; then echo "$t: $(tail -1 /tmp/$t.log)"
             else echo "::error::$t-test failed"; grep -E "FAIL|Error" "/tmp/$t.log" | head -40; tail -5 "/tmp/$t.log"; exit 1; fi
           done
