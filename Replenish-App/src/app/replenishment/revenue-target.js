@@ -419,7 +419,7 @@ function renderRepl() {
     fcMonths(), PROJ_VER, R_VER,
     LEAD.prod, LEAD.disp, LEAD.air, LEAD.sea,
     ($('rMarket') || {}).value, ($('rSupply') || {}).value,
-    Object.keys(HIDDEN).length,
+    Object.keys(HIDDEN).length, REPL_SHOW_HIDDEN ? 'H' : '-',
     INDIA_LOADED ? 'i' + String(INDIA_AT || '') : '-',
     PROD_LOADED ? 'p' : '-',
     /* Not just how many batches are in production — how much is in them. A quantity edited on
@@ -439,7 +439,9 @@ function renderRepl() {
     // Applied at the one place rows enter the view, so the buckets, the reorder summary, the
     // top-seller maths, Export and Create-PO all agree without any of them knowing this list exists.
     // Filtering later, per feature, is how a SKU ends up hidden in the table and still in the totals.
-    rows = dropOutOfScope(rows);
+    /* THE HIDDEN SKUs, IN THE SAME TABLE (Ravi, 25 Oct: "hidden sku par click karu to same table open ho jo other sku ke liye
+     * hoti h becuase usme bhi real inventory h"): the Hidden SKUs button shows them — and only them — with every column. */
+    rows = REPL_SHOW_HIDDEN ? rows.filter(r => isHiddenSku(r.sku)) : dropOutOfScope(rows);
     markTopSellers(rows);
     rows.forEach(r => {
       applyStatus(r);

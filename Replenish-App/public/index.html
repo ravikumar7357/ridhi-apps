@@ -1739,7 +1739,8 @@ html.mob table.mob-tcards.mob-tgrid tbody tr:not(.mob-tmsg):not(.mob-tnest):has(
           <button id="rProj" class="ghost" title="Upload a month's projection from Excel (SKU + QTY)">Projection</button>
           <button id="rCsv" class="ghost">Export</button>
           <button id="rPo" class="ghost">Create PO from view</button>
-          <button id="rHide" class="ghost" title="SKUs kept out of this tool entirely — parents, placeholders, dead codes. They survive every refresh.">Hidden SKUs</button>
+          <button id="rHide" class="ghost" title="Show the hidden SKUs in this table, with their real stock and sales — press again for all SKUs">Hidden SKUs</button>
+          <button id="rHideEdit" class="ghost" style="padding:4px 10px;font-size:12px" title="SKUs kept out of this tool — parents, placeholders, dead codes. Add or unhide them here.">Edit hidden list</button>
           <button id="rGo" title="The table updates by itself from FabriCrush Inventory every three hours; this asks for a fresh round now">Refresh</button>
         </div>
         <div class="toolbar" style="margin-top:8px">
@@ -7020,7 +7021,19 @@ async function saveHidden(patch) {
   }
 }
 
-$('rHide').onclick = () => { $('hidePaste').value = ''; $('hideMsg').textContent = ''; renderHideList(); $('hideModal').classList.remove('hide'); };
+let REPL_SHOW_HIDDEN = false;
+/* The Hidden SKUs button now opens them in the Replenishment table itself (Ravi, 25 Oct) — pressed again, back to all SKUs. The
+ * list of hidden SKUs is kept and edited from "Edit hidden list". */
+$('rHide').onclick = () => {
+  REPL_SHOW_HIDDEN = !REPL_SHOW_HIDDEN;
+  const n = Object.keys(HIDDEN).filter(k => HIDDEN[k]).length;
+  $('rHide').textContent = REPL_SHOW_HIDDEN ? '← All SKUs' : 'Hidden SKUs';
+  $('rHide').classList.toggle('ghost', !REPL_SHOW_HIDDEN);
+  R_VER++;
+  renderRepl();
+  rMsg(REPL_SHOW_HIDDEN ? `Showing the ${nf(n)} hidden SKU(s), with their real stock and sales. They are still kept out of everything else — press "← All SKUs" to go back.` : '');
+};
+$('rHideEdit').onclick = () => { $('hidePaste').value = ''; $('hideMsg').textContent = ''; renderHideList(); $('hideModal').classList.remove('hide'); };
 $('hideClose').onclick = () => $('hideModal').classList.add('hide');
 $('hideAdd').onclick = async () => {
   const raw = $('hidePaste').value.split(/[\n,;\t]+/).map(x => skuKey(x)).filter(Boolean);
@@ -7788,7 +7801,7 @@ function renderRepl() {
     fcMonths(), PROJ_VER, R_VER,
     LEAD.prod, LEAD.disp, LEAD.air, LEAD.sea,
     ($('rMarket') || {}).value, ($('rSupply') || {}).value,
-    Object.keys(HIDDEN).length,
+    Object.keys(HIDDEN).length, REPL_SHOW_HIDDEN ? 'H' : '-',
     INDIA_LOADED ? 'i' + String(INDIA_AT || '') : '-',
     PROD_LOADED ? 'p' : '-',
     /* Not just how many batches are in production — how much is in them. A quantity edited on
@@ -7808,7 +7821,9 @@ function renderRepl() {
     // Applied at the one place rows enter the view, so the buckets, the reorder summary, the
     // top-seller maths, Export and Create-PO all agree without any of them knowing this list exists.
     // Filtering later, per feature, is how a SKU ends up hidden in the table and still in the totals.
-    rows = dropOutOfScope(rows);
+    /* THE HIDDEN SKUs, IN THE SAME TABLE (Ravi, 25 Oct: "hidden sku par click karu to same table open ho jo other sku ke liye
+     * hoti h becuase usme bhi real inventory h"): the Hidden SKUs button shows them — and only them — with every column. */
+    rows = REPL_SHOW_HIDDEN ? rows.filter(r => isHiddenSku(r.sku)) : dropOutOfScope(rows);
     markTopSellers(rows);
     rows.forEach(r => {
       applyStatus(r);
