@@ -72406,6 +72406,8 @@ $('soImpFile').onchange = async e => {
     const cellOf = (row, k) => (at[k] == null ? '' : String(row[at[k]] == null ? '' : row[at[k]]).trim());
     const byNo = new Map();
     let skipped = 0;
+    const dateOrder = soImpDateOrder(rows.slice(1).map(row => cellOf(row, 'at')));
+    const badDate = [];
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i];
       const no = cellOf(row, 'no');
@@ -72417,7 +72419,7 @@ $('soImpFile').onchange = async e => {
         o = {
           id: 'IMP-' + chan.replace(/[^A-Za-z0-9]+/g, '') + '-' + no.replace(/[^A-Za-z0-9]+/g, ''),
           no: no, channel: chan, imported: 1,
-          at: soImpDate(cellOf(row, 'at')),
+          at: soImpDate(cellOf(row, 'at'), dateOrder),
           cancelledAt: '', cancelReason: '', fin: 'paid', ff: 'unfulfilled',
           trk: [], trkCo: '', trkUrl: '', shippedAt: '',
           cur: cellOf(row, 'cur') || 'USD',
@@ -72433,6 +72435,7 @@ $('soImpFile').onchange = async e => {
           email: cellOf(row, 'email'),
           items: [],
         };
+        if (cellOf(row, 'at') && !o.at) badDate.push(no + ' "' + cellOf(row, 'at') + '"');
         byNo.set(no, o);
       } else {
         // Fill anything the first row left blank — some exports put the address on the LAST line.
@@ -72471,6 +72474,8 @@ $('soImpFile').onchange = async e => {
       `<div><b>${list.length} order(s)</b>, ${lines} line(s), for <b>${esc0(chan)}</b>.</div>`
       + `<div class="muted" style="font-size:12px;margin-top:4px">`
       + `Matched columns: ${SO_IMP_COLS.filter(c => at[c.k] != null).map(c => esc0(c.t)).join(', ')}.</div>`
+      + `<div class="muted" style="font-size:12px;margin-top:4px">Dates read ${dateOrder === 'dmy' ? 'day first (25/10/2026 = 25 Oct)' : 'month first (10/25/2026 = 25 Oct)'}.</div>`
+      + (badDate.length ? `<div style="color:var(--bad);font-size:12px;margin-top:4px">${badDate.length} order(s) have a date that is not a real day (${badDate.slice(0, 3).map(esc0).join(', ')}${badDate.length > 3 ? '…' : ''}). They import with NO date — fix the date in the file and import again.</div>` : '')
       + (skipped ? `<div style="color:var(--bad);font-size:12px;margin-top:4px">${skipped} row(s) had a line but no order number — those lines are lost. Check the file.</div>` : '')
       + (badAddr.length ? `<div style="color:var(--bad);font-size:12px;margin-top:4px">${badAddr.length} order(s) have an incomplete address (${badAddr.slice(0, 3).map(o => esc0(o.no)).join(', ')}${badAddr.length > 3 ? '…' : ''}). They will import, but MCF must not be used on them until the address is fixed.</div>` : '')
       + (noSku.length ? `<div style="color:var(--bad);font-size:12px;margin-top:4px">${noSku.length} order(s) have no SKU at all — nothing can be shipped or costed for them.</div>` : '')
@@ -72481,18 +72486,41 @@ $('soImpFile').onchange = async e => {
 };
 
 /** Dates arrive in every shape a spreadsheet can produce. Anything unreadable stays BLANK rather
- *  than becoming today — a made-up date would put the order in the wrong day's counts. */
-function soImpDate(v) {
+ *  than becoming today — a made-up date would put the order in the wrong day's counts.
+ *  `order` is how the file writes 05/10/2026: 'mdy' (Shopify's and Etsy's own exports) or 'dmy' (a sheet typed here). */
+function soImpDate(v, order) {
   const t = String(v || '').trim();
   if (!t) return '';
-  let m = t.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (m) return m[1] + '-' + m[2] + '-' + m[3];
-  m = t.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
-  // Ambiguous by nature. Shopify and Etsy both export month first, so that is the reading — and the
-  // day/month pair only matters at the edges of a month, where being wrong is at most a day out.
-  if (m) return m[3] + '-' + String(m[1]).padStart(2, '0') + '-' + String(m[2]).padStart(2, '0');
+  /* A REAL DAY OR NOTHING (Ravi, 26 Oct: Etsy order 4212444076 came in as 2026-25-10 — "25/10/2026" read month first —
+   * and production could not work it). Month 25 is no date; it is not saved as one. */
+  const ymd = (y, mo, d) => {
+    const iso = y + '-' + String(mo).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+    const dt = new Date(iso + 'T00:00:00Z');
+    return !isNaN(dt.getTime()) && dt.toISOString().slice(0, 10) === iso ? iso : '';
+  };
+  let m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return ymd(m[1], +m[2], +m[3]) || ymd(m[1], +m[3], +m[2]);   // 2026-25-10 is 25 Oct written day first
+  m = t.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/);
+  if (m) {
+    const a = +m[1], b = +m[2];
+    /* Ambiguous by nature. A number over 12 settles it; otherwise the way the whole file is written does (soImpDateOrder). */
+    if (a > 12) return ymd(m[3], b, a);
+    if (b > 12) return ymd(m[3], a, b);
+    return order === 'dmy' ? ymd(m[3], b, a) : ymd(m[3], a, b);
+  }
   const d = new Date(t);
   return isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
+}
+/** How a file writes its dates: day first if any date in it can only be read that way (25/10/2026), else month first. */
+function soImpDateOrder(vals) {
+  let dmy = false, mdy = false;
+  vals.forEach(v => {
+    const m = String(v || '').trim().match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/);
+    if (!m) return;
+    if (+m[1] > 12) dmy = true;
+    if (+m[2] > 12) mdy = true;
+  });
+  return dmy && !mdy ? 'dmy' : 'mdy';
 }
 
 const esc0 = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
