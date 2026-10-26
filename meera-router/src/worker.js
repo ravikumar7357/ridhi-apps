@@ -45,6 +45,7 @@ const plain = h => String(h || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').
 const pick = (o, lang) => (o ? o[lang] || o.en || '' : '');
 export function notes(entries, lang) {
   return entries.map((e, i) => {
+    if (e.p) return `[${i + 1}] Screen: ${e.tab || 'any'}\nPart: ${e.p[0]} (${e.p[1]})\nWhat it does: ${e.p[2]}`;   // a part of the app, compact
     const st = e.steps ? pick(e.steps, 'en') : [];
     return `[${i + 1}] Screen: ${e.tab || 'any'}\nQ: ${pick(e.q, 'en')[0] || ''}\nA: ${plain(pick(e.a, 'en'))}`
       + (e.why ? `\nWhy: ${plain(pick(e.why, 'en'))}` : '') + (st && st.length ? `\nSteps: ${st.map(plain).join(' | ')}` : '');
