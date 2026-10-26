@@ -333,25 +333,68 @@ function pageOrders() {
 }
 
 /* ============================== ONE ORDER (opens over the list, as live) ============================== */
-function linesCard(o) {
-  const u = undecided(o), ch = CHOICE[o.no] || (CHOICE[o.no] = {});
+/* HOW THIS ORDER SHIPS (Ravi, 26 Oct: "the order can divide itself into sections — what needs MCF goes to the MCF
+ * section by itself — and we accept it"). Every line not yet on its way is put in a section from the stock:
+ * Amazon FBA has it → MCF; else India has it → India stock (shipped by DHL / FedEx from Bulk order); else Production.
+ * Any line can be moved to another section it has stock for; "Accept" does every section at once. */
+const SECTIONS = [
+  { k: 'mcf', name: 'Amazon MCF', how: 'Ships from Amazon FBA in the US', go: 'Send to MCF…', can: it => (it.fba || 0) >= it.q, stock: it => `FBA ${it.fba || 0}` },
+  { k: 'india', name: 'India stock', how: 'Packed in India · DHL or FedEx from Bulk order', go: 'Ship now…', can: it => (it.india || 0) >= it.q, stock: it => `India ${it.india || 0}` },
+  { k: 'make', name: 'Production', how: 'Made in the factory, then shipped from India', go: 'Send to production…', can: () => true, stock: () => 'to make' },
+];
+const suggest = it => SECTIONS.find(s => s.can(it)).k;
+/** Each undecided line's section: the person's move if it still has stock, else the suggestion. */
+function planOf(o) {
+  const ch = CHOICE[o.no] || (CHOICE[o.no] = {}), u = undecided(o), out = {};
   Object.keys(ch).forEach(k => { if (!u.includes(+k)) delete ch[k]; });
-  const R = [['mcf', 'MCF', i => o.items[i].fba >= o.items[i].q], ['make', 'Make', () => true], ['india', 'India', i => o.items[i].india >= o.items[i].q]];
-  const rows = o.items.map((it, i) => {
-    const pk = it.pk != null ? o.pkgs[it.pk] : null;
-    const route = pk ? st(pk.src === 'make' ? 'To produce' : pk.route === 'mcf' ? 'MCF' : 'From India', pk.src === 'make' ? 'pending' : 'draft') + sub(srcName(pk))
-      : `<div class="s-route3" role="group" aria-label="Route ${esc(it.t)}">${R.map(r => `<button class="s-r ${ch[i] === r[0] ? 'on' : ''}" type="button" data-pick="${i}|${r[0]}" ${r[2](i) ? '' : 'disabled'} title="${r[2](i) ? '' : 'Not enough in stock'}">${r[1]}</button>`).join('')}</div>`;
-    return `<tr data-line="${i}"><td class="tl">${prodCell(it, '')}<span class="s-sku">${esc(it.sku || 'no SKU')}</span></td><td>× ${it.q}</td><td>${money(it.price)}</td>
-      <td>${it.fba >= it.q ? it.fba : st('only ' + (it.fba || 0), 'rejected')}</td><td>${it.india >= it.q ? it.india : st('only ' + (it.india || 0), 'rejected')}</td><td>${route}</td><td>${pk ? stPill(pk) : st('Not routed', 'pending')}</td></tr>`;
-  });
-  const pick = k => u.filter(i => ch[i] === k);
-  const m = pick('mcf'), mk = pick('make'), ind = pick('india'), left = u.length - m.length - mk.length - ind.length;
-  const bar = u.length ? `<footer class="s-cf" id="decide-bar"><span class="s-muted">${left ? `${linesOf(left)} not routed — you choose, the stock is shown` : 'Every line routed'}</span>
-      ${m.length ? `<button class="s-btn" type="button" data-go="mcf">Send ${linesOf(m.length)} to Amazon (MCF)</button>` : ''}
-      ${mk.length ? `<button class="s-btn" type="button" data-go="make">Open production (${mk.length})</button>` : ''}
-      ${ind.length ? `<button class="s-btn" type="button" data-go="india">Ship ${linesOf(ind.length)} from India</button>` : ''}</footer>` : '';
-  return `<div class="s-panel" id="lines">${table([['Product'], ['Ordered'], ['Price'], ['FBA'], ['India'], ['Route'], ['Line status']], rows)}${bar}</div>`;
+  u.forEach(i => { const it = o.items[i], mine = SECTIONS.find(s => s.k === ch[i]); out[i] = mine && mine.can(it) ? mine.k : suggest(it); });
+  return out;
 }
+function linesCard(o) {
+  const u = undecided(o); if (!u.length) return '';
+  const P = planOf(o), moved = i => (CHOICE[o.no] || {})[i] === P[i] && P[i] !== suggest(o.items[i]);
+  const secs = SECTIONS.map(s => ({ s, lines: u.filter(i => P[i] === s.k) })).filter(x => x.lines.length);
+  return `<div class="s-panel pl" id="lines">
+    <div class="s-ph pl-head"><div><b>How this order ships</b><span class="s-muted s-sm"> · sorted by stock — move any item if you want</span></div>
+      <button class="s-btn" type="button" id="plAccept" data-plan="accept">Accept${secs.length > 1 ? ' all ' + secs.length + ' sections' : ''}</button></div>
+    ${secs.map(({ s, lines }) => `<div class="pl-sec pl-${s.k}" id="pl-${s.k}">
+      <div class="pl-h"><i class="pl-dot"></i><b>${s.name}</b><span class="s-muted s-sm">${s.how} · ${linesOf(lines.length)}</span>
+        <button class="s-link" type="button" data-go="${s.k}">${s.go}</button></div>
+      ${lines.map(i => { const it = o.items[i];
+        return `<div class="pl-ln" data-line="${i}">${prodCell(it, [it.v, it.sku].filter(Boolean).join(' · '))}<span class="pl-q">× ${it.q}</span>
+          <span class="pl-stock s-sm s-muted">${SECTIONS.map(x => x.k === 'make' ? '' : x.stock(it)).filter(Boolean).join(' · ')}</span>
+          <span class="pl-move" role="group" aria-label="Section for ${esc(it.t)}">${SECTIONS.map(x => `<button class="s-r ${P[i] === x.k ? 'on' : ''}" type="button" data-pick="${i}|${x.k}" ${x.can(it) ? '' : 'disabled'} title="${x.can(it) ? x.name : 'Not enough in stock'}">${x.k === 'mcf' ? 'MCF' : x.k === 'india' ? 'India' : 'Make'}</button>`).join('')}</span>
+          ${moved(i) ? '<span class="s-sm s-muted">moved</span>' : ''}</div>`; }).join('')}</div>`).join('')}
+    <footer class="s-cf" id="decide-bar"><span class="s-muted s-sm">${secs.map(x => `${x.s.name}: ${x.lines.length}`).join(' · ')}</span></footer></div>`;
+}
+/* Accept: one window with what each section will do (MCF speed and fee, production priority), then everything at once. */
+async function planDlg(o) {
+  const P = planOf(o), by = k => undecided(o).filter(i => P[i] === k), mcf = by('mcf'), make = by('make'), india = by('india');
+  let opts = [], k = 0, rush = false;
+  if (mcf.length) {
+    try { opts = (await call('/api/mcf-preview', { no: o.no, lines: mcf })).options.filter(x => x.ok); } catch (e) { return toast(e.message, true); }
+    if (!opts.length) return toast('Amazon cannot ship the MCF items — move them to India or Production.', true);
+  }
+  const names = l => esc(l.map(i => o.items[i].t + (o.items[i].q > 1 ? ' × ' + o.items[i].q : '')).join(', '));
+  const draw = () => dialog(`Accept · #${o.no}`, `<div class="pl-acc">
+      ${mcf.length ? `<div class="pl-a pl-mcf"><div><b>Amazon MCF</b> · ${names(mcf)}</div>
+        <div class="s-route">${opts.map((s, i) => `<button class="s-ro ${k === i ? 'on' : ''}" type="button" data-sp="${i}"><b>${esc(s.speed)}</b><span>${esc(s.by)} · ${money(s.fee)}</span></button>`).join('')}</div>
+        <span class="s-sm s-muted">${live(o) && S.settings.realMcf ? '<b class="s-bad">Places a REAL Amazon order and costs the fee.</b>' : 'Simulated — no real Amazon order is placed.'}</span></div>` : ''}
+      ${make.length ? `<div class="pl-a pl-make"><div><b>Production</b> · ${names(make)}</div>
+        <label class="s-check"><input type="checkbox" id="plRush" ${rush ? 'checked' : ''}> Rush — the customer is waiting</label></div>` : ''}
+      ${india.length ? `<div class="pl-a pl-india"><div><b>India stock</b> · ${names(india)}</div><span class="s-sm s-muted">Picked now; ships from <b>Bulk order</b> with DHL or FedEx.</span></div>` : ''}
+      <span class="s-sm s-muted">${live(o) ? 'Shopify is told as each part moves (split for MCF, "In production" tag, then the tracking number).' : 'Temp test order — nothing is sent to Shopify.'}</span></div>`,
+    `<button class="s-btn" type="button" id="go">Accept${mcf.length ? ' · MCF ' + money(opts[k].fee) : ''}</button>`, () => {
+      document.querySelectorAll('#dlg [data-sp]').forEach(b => b.addEventListener('click', () => { k = +b.dataset.sp; draw(); }));
+      if ($('plRush')) $('plRush').addEventListener('change', e => { rush = e.target.checked; });
+      $('go').addEventListener('click', () => act('plan', { no: o.no, mcf, make, india, speed: mcf.length ? opts[k].speed : '', rush }));
+    });
+  draw();
+}
+/* A part at a glance: Being made → Packing → On its way → Out for delivery → Delivered (no "Being made" for stock). */
+const STRIP = ['Being made', 'Packing', 'On its way', 'Out for delivery', 'Delivered'];
+const strip = (pk, f) => { const ph = phaseOf(pk); return `<ol class="pp-strip">${STRIP.map((t, i) => i === 0 && pk.src !== 'make' ? '' :
+  `<li class="${i < ph || ph === 4 ? 'd' : i === ph ? (f || pk.block ? 'c bad' : 'c') : ''}">${t}</li>`).join('')}</ol>`; };
 const fxDocs = f => `${f.label ? `<a class="s-btn" href="/${esc(f.label)}" target="_blank" rel="noopener">Print label</a>` : ''}${f.invoice ? ` <a class="s-btn ghost" href="/${esc(f.invoice)}" target="_blank" rel="noopener">Invoice</a>` : ''}`;
 /* One part of the order, the way Shopify shows a fulfilment on its order: every step with its place and time —
  * production stages with how long each took against its target — the carrier and tracking, the carrier's own scans,
@@ -390,7 +433,8 @@ function partPanel(o, pk, n) {
   const scans = (pk.scans || []).map(s => `<tr><td class="s-nowrap s-muted">${fmt(s.at)}</td><td class="tl">${esc(s.text)}</td><td class="s-muted">${esc(s.place)}</td></tr>`);
   return `<div class="s-panel s-part ${FLASH.has(o.no) ? 's-flash' : ''}" id="pk${n}">
     <div class="s-ph s-pph"><b>Part ${n + 1}</b><span class="s-muted">${srcName(pk)}${pk.rush ? ' · rush' : ''}</span>${stPill(pk)}<span class="r">${btn.join('')}</span></div>
-    <div class="s-pbody"><div class="s-tl">${table([[''], ['Step', 'tl'], ['Place'], ['Date']], rows)}</div>
+    <div class="s-pbody"><div class="s-tl">${strip(pk, f)}
+      <details class="pp-steps" ${phaseOf(pk) === 0 || f ? 'open' : ''}><summary>All steps · ${esc(stText(pk))}</summary>${table([[''], ['Step', 'tl'], ['Place'], ['Date']], rows)}</details></div>
       <div><dl class="s-kv"><dt>Items</dt><dd>${pk.items.map(i => esc(o.items[i].t) + ' × ' + o.items[i].q).join('<br>')}</dd>
         <dt>Carrier</dt><dd>${pk.route ? esc(carName(pk)) + (pk.mcfId ? ` · ${esc(pk.mcfId)}${pk.mcfReal ? '' : ' (simulated)'}` : '') : 'Chosen at dispatch'}</dd>
         <dt>Tracking</dt><dd>${pk.trk.length ? pk.trk.map(t => `<span class="s-trk">${esc(t)}</span> <button class="s-link" type="button" data-copy="${esc(t)}">Copy</button>${url ? `<a class="s-link" href="${esc(url(t))}" target="_blank" rel="noopener">Open ↗</a>` : ''}`).join('<br>') : pk.route ? 'Issued when Amazon ships' : '—'}</dd>
@@ -1374,9 +1418,10 @@ function render() {
   if (r === 'order') {
     const o = find(a);
     if (o) {
-      on('[data-pick]', b => { const [i, k] = b.dataset.pick.split('|'), ch = CHOICE[o.no] || (CHOICE[o.no] = {}); ch[i] = ch[i] === k ? undefined : k; if (!ch[i]) delete ch[i]; render(); });
+      on('[data-pick]', b => { const [i, k] = b.dataset.pick.split('|'), ch = CHOICE[o.no] || (CHOICE[o.no] = {}); ch[i] = k; render(); });
+      on('[data-plan]', () => planDlg(o));
       on('[data-go]', b => {
-        const k = b.dataset.go, lines = undecided(o).filter(i => (CHOICE[o.no] || {})[i] === k);
+        const k = b.dataset.go, P = planOf(o), lines = undecided(o).filter(i => P[i] === k);
         if (k === 'mcf') mcfDlg(o, lines); else if (k === 'make') prodDlg(o, lines); else shipDlg(o, { lines });
       });
       on('[data-do]', b => {

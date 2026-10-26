@@ -1191,6 +1191,28 @@ async function decide(db, a) {
   throw new Error('Unknown route.');
 }
 
+/* The order's plan, accepted in one go (Ravi, 26 Oct: "the order can divide itself into sections … and we accept it").
+ * The page suggests each line's section from stock (FBA → MCF, else India stock → India, else Production); here:
+ * MCF lines go to Amazon (first: the one step that can be refused), production lines are requested, and India lines are
+ * picked — a part "ready to ship" that waits in Bulk order / Dispatch for its DHL or FedEx box. */
+async function plan(db, a) {
+  const o = find(db, a.no), pick = k => (Array.isArray(a[k]) ? a[k] : []).map(Number);
+  const mcf = pick('mcf'), make = pick('make'), india = pick('india'), all = mcf.concat(make, india);
+  checkLines(o, all);
+  if (new Set(all).size !== all.length) throw new Error('A line is in two sections.');
+  india.forEach(i => { if ((o.items[i].india || 0) < o.items[i].q) throw new Error(`India does not have ${o.items[i].q} of ${o.items[i].t}.`); });
+  const done = [];
+  if (mcf.length) done.push(await decide(db, { no: o.no, route: 'mcf', lines: mcf, speed: a.speed || 'Standard' }));
+  if (make.length) done.push(await decide(db, { no: o.no, route: 'make', lines: make, rush: !!a.rush, note: a.note }));
+  if (india.length) {
+    if (!mcf.length && !make.length) await freshCheck(o);
+    newPart(o, 'india', india);
+    note(o, 'APP', `Picked from India stock: ${india.map(i => o.items[i].t).join(', ')} — waiting in Bulk order for its box`);
+    done.push(`${india.length} from India stock, ready to ship`);
+  }
+  return done.join(' · ');
+}
+
 /* ---------------- production ---------------- */
 function stage(db, a) {
   const o = find(db, a.no), pk = o.pkgs[a.part];
@@ -1567,7 +1589,7 @@ async function mcfPreview(db, a) {
   return { real: false, options: [{ speed: 'Standard', ok: true, fee: 8.40, by: '4–5 days' }, { speed: 'Expedited', ok: true, fee: 13.10, by: '2–3 days' }, { speed: 'Priority', ok: true, fee: 21.75, by: '1–2 days' }] };
 }
 
-module.exports = { cleanNo, decide, stage, block, unblock, ship, fedexRates, fedexShip, fedexCancel, dispatchMake, dispatchAwb, dispatchForget, markStep, returnStart, returnStep, comment, bulkNote, chase, importOrders, importFromPricing, testOrder, mcfPreview, note, advance, find, H };
+module.exports = { cleanNo, decide, plan, stage, block, unblock, ship, fedexRates, fedexShip, fedexCancel, dispatchMake, dispatchAwb, dispatchForget, markStep, returnStart, returnStep, comment, bulkNote, chase, importOrders, importFromPricing, testOrder, mcfPreview, note, advance, find, H };
 
 });
 
@@ -1933,7 +1955,7 @@ setInterval(() => {
 
 /* ---------------- the API ---------------- */
 const ACTIONS = {
-  decide: actions.decide, stage: actions.stage, block: actions.block, unblock: actions.unblock, ship: actions.ship,
+  decide: actions.decide, plan: actions.plan, stage: actions.stage, block: actions.block, unblock: actions.unblock, ship: actions.ship,
   returnStart: actions.returnStart, returnStep: actions.returnStep, comment: actions.comment,
   fedexShip: actions.fedexShip, fedexCancel: actions.fedexCancel, bulkNote: actions.bulkNote, chase: actions.chase,
   dispatchAwb: actions.dispatchAwb, dispatchForget: actions.dispatchForget, markStep: actions.markStep,

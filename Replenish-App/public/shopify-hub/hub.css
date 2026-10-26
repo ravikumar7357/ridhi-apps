@@ -17,6 +17,33 @@ body.busy button{pointer-events:none;opacity:.6}
 .s-part.s-flash{animation:s-flashp 2.4s ease}
 @keyframes s-flashp{0%,30%{box-shadow:0 0 0 3px #CDEBD5}100%{}}
 
+/* How this order ships: one section per way out (MCF / India stock / Production), each line movable, Accept does all */
+.pl-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.pl-sec{border-top:1px solid var(--line);padding:10px 16px 12px}
+.pl-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.pl-h .s-link{margin-left:auto}
+.pl-dot{width:10px;height:10px;border-radius:50%;flex:none;background:var(--muted)}
+.pl-mcf .pl-dot{background:#E5A33B}
+.pl-india .pl-dot{background:var(--brand)}
+.pl-make .pl-dot{background:var(--accent)}
+.pl-ln{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;gap:6px 14px;align-items:center;padding:6px 0 6px 18px;border-top:1px dashed var(--line)}
+.pl-ln:first-of-type{border-top:0}
+.pl-q{font-weight:700}
+.pl-move{display:inline-flex;gap:4px}
+.pl-acc{display:flex;flex-direction:column;gap:10px}
+.pl-a{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;border-left-width:4px}
+.pl-a.pl-mcf{border-left-color:#E5A33B}
+.pl-a.pl-india{border-left-color:var(--brand)}
+.pl-a.pl-make{border-left-color:var(--accent)}
+/* A part at a glance, the full step list folded under it */
+.pp-strip{display:flex;gap:4px;list-style:none;margin:0;padding:12px 14px 10px;flex-wrap:wrap}
+.pp-strip li{flex:1 1 0;min-width:76px;font-size:11.5px;font-weight:600;color:var(--muted);padding-top:8px;border-top:4px solid var(--line)}
+.pp-strip li.d{border-top-color:var(--accent);color:var(--ink)}
+.pp-strip li.c{border-top-color:var(--brand);color:var(--brand)}
+.pp-strip li.c.bad{border-top-color:var(--bad);color:var(--bad)}
+.pp-steps summary{padding:6px 14px 10px;cursor:pointer;font-size:12.5px;font-weight:600;color:var(--brand)}
+@media (max-width:760px){ .pl-ln{grid-template-columns:minmax(0,1fr) auto;padding-left:0} .pl-stock{grid-column:1/-1} .pl-move{grid-column:1/-1} }
+
 /* Present mode: the caption panel above the bottom, the highlighted part of the screen */
 .s-tour{z-index:400;bottom:18px}
 .s-tour p{color:var(--ink);font-size:15px;line-height:1.55}
