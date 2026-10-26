@@ -1058,6 +1058,7 @@ function guideAskOpen(q) {
   guideAskBuild();
   if (GUIDE.tour && GUIDE.tour.kind !== 'task') guideClose();   // a walk-round gives way to a question; a task guide stays
   $('gdAsk').classList.remove('hide');
+  if ($('gdLaunch')) $('gdLaunch').classList.add('hide');   // the box opens where the launcher sits
   gaChipsDraw();
   if (!GA.greeted) {
     GA.greeted = true;
@@ -1069,7 +1070,7 @@ function guideAskOpen(q) {
   if (q) gaAsk(q);
   setTimeout(() => { try { $('gaQ').focus(); } catch (e) { /* closed again */ } }, 30);
 }
-function guideAskClose() { if ($('gdAsk')) $('gdAsk').classList.add('hide'); }
+function guideAskClose() { if ($('gdAsk')) $('gdAsk').classList.add('hide'); if ($('gdLaunch')) $('gdLaunch').classList.remove('hide'); }
 /** Suggestions for the screen open now: its jobs first, then the usual trouble. */
 function gaChipsDraw() {
   const hi = guideLang() === 'hi', tab = gaHere();

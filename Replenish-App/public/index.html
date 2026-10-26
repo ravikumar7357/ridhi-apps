@@ -1733,6 +1733,19 @@ html.mob #gdAsk{right:8px;left:8px;width:auto;bottom:72px;max-height:calc(100vh 
 #gdAsk .ga-fbb{height:26px;width:30px;padding:0;border:1px solid var(--line);border-radius:8px;background:#fff;cursor:pointer;box-shadow:none;font-size:13px}
 #gdAsk .ga-fbb:hover{border-color:var(--brand)}
 #gdAsk .ga-miss{max-height:220px;overflow:auto;font-size:12px}
+/* Ask Meera as a launcher (26 Oct): her face bottom-right, a dark label beside it; the top-bar button gives way to it */
+#gdAskBtn{display:none!important}
+#gdLaunch{position:fixed;right:20px;bottom:20px;z-index:10055;display:flex;align-items:center;gap:10px;padding:0;border:0;background:none;box-shadow:none;cursor:pointer}
+#gdLaunch.hide{display:none}
+#gdRoot:not(.hide) ~ #gdLaunch{display:none}   /* a walk-round or a lesson has the corner */
+#gdLaunch .gd-lab{background:#111827;color:#fff;font-size:13px;font-weight:600;line-height:1;padding:8px 12px;border-radius:8px;box-shadow:0 4px 14px rgba(15,23,42,.25);white-space:nowrap}
+#gdLaunch .gd-face{width:52px;height:52px;border:3px solid #fff;box-shadow:0 6px 18px rgba(15,23,42,.28);transition:transform .15s}
+#gdLaunch:hover .gd-face{transform:scale(1.06)}
+#gdLaunch:focus-visible .gd-face{outline:3px solid var(--brand);outline-offset:2px}
+html.mob #gdLaunch{right:12px;bottom:76px}
+html.mob #gdLaunch .gd-lab{font-size:12px;padding:7px 10px}
+html.mob #gdLaunch .gd-face{width:46px;height:46px}
+@media print{#gdLaunch{display:none}}
 </style>
 
 <!-- ============ LOGIN ============ -->
@@ -75083,6 +75096,15 @@ function guideBuild() {
   $('gdShow').onclick = () => guideStart(typeof gaHere === 'function' ? gaHere() : typeof TAB_NOW !== 'undefined' ? TAB_NOW : '', true);
   $('gdSwitch').onclick = () => guideSwitch(!guideIsOn());
   $('gdAskBtn').onclick = () => guideAskOpen();
+  /* THE LAUNCHER: her face, bottom-right, with "Ask Meera" beside it — the way in to Ask Meera on every screen */
+  const go = document.createElement('button');
+  go.type = 'button';
+  go.id = 'gdLaunch';
+  go.title = 'Ask Meera anything — English, Hindi or Hinglish (or press ?)';
+  go.setAttribute('aria-label', 'Ask Meera');
+  go.innerHTML = `<span class="gd-lab">Ask Meera</span>${GUIDE_FACE}`;
+  go.onclick = () => guideAskOpen();
+  document.body.appendChild(go);
   guideSwitchDraw();
   guideWatch();
 }
@@ -77226,6 +77248,7 @@ function guideAskOpen(q) {
   guideAskBuild();
   if (GUIDE.tour && GUIDE.tour.kind !== 'task') guideClose();   // a walk-round gives way to a question; a task guide stays
   $('gdAsk').classList.remove('hide');
+  if ($('gdLaunch')) $('gdLaunch').classList.add('hide');   // the box opens where the launcher sits
   gaChipsDraw();
   if (!GA.greeted) {
     GA.greeted = true;
@@ -77237,7 +77260,7 @@ function guideAskOpen(q) {
   if (q) gaAsk(q);
   setTimeout(() => { try { $('gaQ').focus(); } catch (e) { /* closed again */ } }, 30);
 }
-function guideAskClose() { if ($('gdAsk')) $('gdAsk').classList.add('hide'); }
+function guideAskClose() { if ($('gdAsk')) $('gdAsk').classList.add('hide'); if ($('gdLaunch')) $('gdLaunch').classList.remove('hide'); }
 /** Suggestions for the screen open now: its jobs first, then the usual trouble. */
 function gaChipsDraw() {
   const hi = guideLang() === 'hi', tab = gaHere();

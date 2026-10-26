@@ -111,6 +111,15 @@ function guideBuild() {
   $('gdShow').onclick = () => guideStart(typeof gaHere === 'function' ? gaHere() : typeof TAB_NOW !== 'undefined' ? TAB_NOW : '', true);
   $('gdSwitch').onclick = () => guideSwitch(!guideIsOn());
   $('gdAskBtn').onclick = () => guideAskOpen();
+  /* THE LAUNCHER: her face, bottom-right, with "Ask Meera" beside it — the way in to Ask Meera on every screen */
+  const go = document.createElement('button');
+  go.type = 'button';
+  go.id = 'gdLaunch';
+  go.title = 'Ask Meera anything — English, Hindi or Hinglish (or press ?)';
+  go.setAttribute('aria-label', 'Ask Meera');
+  go.innerHTML = `<span class="gd-lab">Ask Meera</span>${GUIDE_FACE}`;
+  go.onclick = () => guideAskOpen();
+  document.body.appendChild(go);
   guideSwitchDraw();
   guideWatch();
 }
