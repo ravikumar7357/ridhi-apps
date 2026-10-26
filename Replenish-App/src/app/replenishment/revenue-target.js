@@ -329,7 +329,10 @@ $('tgCsv').onclick = () => {
 $('tgClear').onclick = async () => {
   const pick = $('tgBrand').value, mk = $('tgMonth').value;
   const plan = FC_PLAN.find(p => p.key === mk), lbl = plan ? plan.label : mk;
-  const keys = Object.keys(REV_TGT).filter(k => k.endsWith('|' + mk) && REV_TGT[k] != null);
+  // Only the brand(s) on screen. Clearing SP's month must leave CPC's article targets alone.
+  const brands = pick === 'ALL' ? ['SP', 'CPC'] : [pick];
+  const keys = Object.keys(REV_TGT).filter(k => k.endsWith('|' + mk) && REV_TGT[k] != null
+    && brands.includes(k.slice(0, k.indexOf('|'))));
   const tk = tgTotKey(pick, mk), hasTot = REV_TOT[tk] != null;
   if (!keys.length && !hasTot) { $('tgMsg').textContent = `Nothing to clear for ${lbl}.`; return; }
   const what = [hasTot ? `the ${lbl} month target` : '', keys.length ? `${keys.length} article override(s)` : '']

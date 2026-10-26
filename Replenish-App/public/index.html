@@ -3262,8 +3262,12 @@ html.mob #gdMenu{right:14px;bottom:144px}
           <button id="ppGo">Refresh</button>
         </div>
         <div id="ppMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
+        <!-- PRESSING IS NO LONGER RECORDED (since 5 Oct 2026) and Save refuses every entry, so the form is
+             not offered: it only let people fill every box and be turned away at the end. The button and
+             the form stay in the page, hidden, because the code and the tests still reach them by id. -->
         <div style="margin-top:10px">
-          <button id="pwToggle" class="ghost">+ New press entry</button>
+          <button id="pwToggle" class="ghost hide">+ New press entry</button>
+          <div class="muted" style="font-size:12.5px">Pressing is no longer recorded (since 5 Oct 2026) — a piece counts as made once QC passes it. Record it in Quality Control.</div>
         </div>
         <div id="pwBox" class="hide" style="margin-top:10px;border:1px solid var(--line);border-radius:10px;padding:12px">
           <div class="toolbar">
@@ -3760,8 +3764,11 @@ html.mob #gdMenu{right:14px;bottom:144px}
            per-SKU HS code / GST rate / invoice rate are stored against the SKU. Removing the
            elements would throw on a null and take the whole order panel down with it; hiding them
            keeps every one of them answering and leaves what is already saved untouched.
-           To bring it back: delete the `hide` class on the wrapper below. Nothing else. -->
-      <div id="soCustomsBlock" class="hide">
+           SHOWN AGAIN (2026-10-26): the DHL Hybrid and DHL CSV exports refuse to write a file until
+           every order has one complete invoice pair and every SKU an HS code, and tell the person to
+           "fill them under Invoice & customs". With this block hidden there was nowhere to fill them,
+           so a DHL file could never be written. -->
+      <div id="soCustomsBlock">
       <!-- Every field DHL and FedEx call mandatory that Shopify cannot supply. -->
       <div class="sec">Invoice &amp; customs</div>
       <div class="row" style="gap:8px">
@@ -6710,12 +6717,28 @@ function msInit(id, label, opts) {
     + '<div class="ms-list"></div></div>';
   el.querySelector('.ms-btn').onclick = e => { e.stopPropagation(); msToggle(id); };
   el.querySelector('.ms-search').oninput = () => msPaint(id);
-  el.querySelector('.ms-all').onclick = () => { MS[id].sel = new Set(); msPaint(id); msChanged(id); };
-  el.querySelector('.ms-none').onclick = () => { MS[id].sel = new Set(MS[id].opts); msPaint(id); msChanged(id); };
+  el.querySelector('.ms-all').onclick = () => msAllNone(id, true);
+  el.querySelector('.ms-none').onclick = () => msAllNone(id, false);
   // Clicks inside the panel must not reach the document handler that closes it.
   el.querySelector('.ms-panel').onclick = e => e.stopPropagation();
   msPaint(id);
 }
+
+/* ALL AND NONE WORK ON WHAT THE LIST IS SHOWING. With a search typed, All ticks every value the
+ * search found and None unticks them, the way Excel's filter does — so "red" then All picks every red.
+ * With no search, both start the filter over: nothing ticked, which here means everything is shown.
+ * (None used to tick every box, which read as a filter on and still showed everything.) */
+function msAllNone(id, all) {
+  const m = MS[id], el = $(id);
+  const q = (el.querySelector('.ms-search').value || '').trim().toLowerCase();
+  if (!q) m.sel = new Set();
+  else m.opts.filter(o => o.toLowerCase().includes(q)).forEach(o => (all ? m.sel.add(o) : m.sel.delete(o)));
+  msTidy(m);
+  msPaint(id); msChanged(id);
+}
+/* Every value ticked is the same as none ticked — kept as none, so the button says "All" and does not
+ * show as a filter that is on when nothing is being left out. */
+function msTidy(m) { if (m.sel.size && m.opts.length && m.opts.every(o => m.sel.has(o))) m.sel = new Set(); }
 
 function msToggle(id, force) {
   const open = force != null ? force : !MS[id].open;
@@ -7960,7 +7983,10 @@ $('tgCsv').onclick = () => {
 $('tgClear').onclick = async () => {
   const pick = $('tgBrand').value, mk = $('tgMonth').value;
   const plan = FC_PLAN.find(p => p.key === mk), lbl = plan ? plan.label : mk;
-  const keys = Object.keys(REV_TGT).filter(k => k.endsWith('|' + mk) && REV_TGT[k] != null);
+  // Only the brand(s) on screen. Clearing SP's month must leave CPC's article targets alone.
+  const brands = pick === 'ALL' ? ['SP', 'CPC'] : [pick];
+  const keys = Object.keys(REV_TGT).filter(k => k.endsWith('|' + mk) && REV_TGT[k] != null
+    && brands.includes(k.slice(0, k.indexOf('|'))));
   const tk = tgTotKey(pick, mk), hasTot = REV_TOT[tk] != null;
   if (!keys.length && !hasTot) { $('tgMsg').textContent = `Nothing to clear for ${lbl}.`; return; }
   const what = [hasTot ? `the ${lbl} month target` : '', keys.length ? `${keys.length} article override(s)` : '']
@@ -18877,7 +18903,12 @@ async function apvAnswer(key, approve, note) {
   if (approve) {
     const live = (PT.base || []).find(x => x && x.id === id);
     if (!live) { await apvDrop(key); return 'That entry is already gone. The request has been cleared.'; }
-    try { await ptDelete('pt_baseData/' + id); }
+    try {
+      await ptDelete('pt_baseData/' + id);
+      // Same as the Delete button: the zippers and ruffle cloth it spent go back to stock with it.
+      await ptUnconsumeZippers(id);
+      await ptUnconsumeRuffle(id);
+    }
     catch (e) { return 'Not deleted: ' + (e.message || e); }
     PT.base = (PT.base || []).filter(x => x && x.id !== id);
   }
@@ -30036,10 +30067,16 @@ async function flowDueRecvSave(key, got, o) {
     const q = flowR2(+got[x.l.key] || 0); if (!(q > 0)) return;
     if (x.unit === 'pcs' && q !== Math.round(q)) return bad.push(`${x.sku}: pieces are whole`);
     if (q > (x.unit === 'pcs' ? x.left : x.left * 1.1) + 1e-9) return bad.push(`${x.orderNo} ${x.sku}: ${flowQtyTxt(q, x.unit)} is more than the ${flowQtyTxt(x.left, x.unit)} still to come`);
-    let rest = q;
-    flowDueOpenChs(x.l.key).forEach(({ c, rem }) => { if (rest <= 0) return; const t = flowR2(Math.min(rest, rem)); rest = flowR2(rest - t);
+    let rest = q, last = '';
+    flowDueOpenChs(x.l.key).forEach(({ c, rem }) => { last = c.no; if (rest <= 0) return; const t = flowR2(Math.min(rest, rem)); rest = flowR2(rest - t);
       const e = per.get(c.no) || per.set(c.no, {}).get(c.no); e[x.l.key] = flowR2((e[x.l.key] || 0) + t); });
-    if (rest > 0) extra.push({ x, q: rest });
+    /* ONLY CLOTH THAT NEVER WENT ON A CHALLAN IS "NO RFD CHALLAN". The up-to-10% over on cloth that did go on one
+     * (shrinkage, roll ends) is that challan's: its cloth already left RFD stock with the challan, and putting the over
+     * on a no-challan record took it off RFD stock a second time. */
+    const noCh = flowR2(Math.min(rest, x.notSent)), over = flowR2(rest - noCh);
+    if (over > 0 && last) { const e = per.get(last) || per.set(last, {}).get(last); e[x.l.key] = flowR2((e[x.l.key] || 0) + over); }
+    const ex = flowR2(noCh + (over > 0 && !last ? over : 0));
+    if (ex > 0) extra.push({ x, q: ex });
   });
   if (bad.length) return bad.join(' · ');
   if (!per.size && !extra.length) return 'Type what came back for at least one line.';
@@ -31558,7 +31595,8 @@ function flowEmbCells(x, first) {
     + `<td style="${td};min-width:230px"><div>To: <b>${esc(s.embTo || who)}</b></div>`
       + `<div>Sent: <b>${nf(s.embSent || 0)} m</b>${s.embCanSend > 0 ? ` <span class="muted">· ${nf(s.embCanSend)} m to send</span>` : ''}</div>`
       + `<div>Back: <b>${nf(s.embBack || 0)} / ${nf(q)} pcs</b>${s.qcRej ? ` <span style="color:#b91c1c">· ${nf(s.qcRej)} rejected at QC — embroider again</span>` : ''}</div>`
-      + open.map(no => `<div style="font-size:12px;margin-top:2px"><a href="#" data-flembp="${esc(no)}">${esc(no)}</a> · <a href="#" data-flembrx="${esc(no)}">Receive pieces</a></div>`).join('') + '</td>'
+      + open.map(no => `<div style="font-size:12px;margin-top:2px"><a href="#" data-flembp="${esc(no)}">${esc(no)}</a> · <a href="#" data-flembrx="${esc(no)}">Receive pieces</a>`
+        + (flowMay('flchl') && !Object.keys(((FLOW.emb || {})[no] || {}).receipts || {}).length ? ` · <a href="#" data-flembx="${esc(no)}" style="color:#b91c1c">Cancel</a>` : '') + '</div>').join('') + '</td>'
     + `<td style="white-space:nowrap;vertical-align:top">${first && flowMay('flchl') ? `<button data-flembs="${esc(x.r.orderNo)}" style="width:auto;padding:3px 10px;font-size:12px">Send to embroidery</button>` : ''}`
       + (s.canCut > 0 ? `<div class="muted" style="font-size:11px;margin-top:4px">${nf(s.canCut)} pcs ready to cut</div>` : '') + '</td>';
 }
@@ -31655,6 +31693,7 @@ function flowEmbRecvOpen(no) {
 }
 /** A challan sent by mistake: cancelled (its number kept) while nothing has come back on it. */
 async function flowEmbCancel(no) {
+  if (!flowMay('flchl')) return flowSay('Embroidery is the fabric team\'s — this account has no "Printed fabric in" right.', true);
   const c = (FLOW.emb || {})[no]; if (!c || c.cancelled) return;
   if (Object.keys(c.receipts || {}).length) return flowSay(`${no} has pieces received on it — it cannot be cancelled.`, true);
   if (!confirm(`Cancel embroidery challan ${no}? The cloth on it counts as not sent again.`)) return;
@@ -31807,6 +31846,8 @@ function renderFlow() {
   const rows = FLOW_VIEW === 'new' ? shown.filter(x => x.recent) : shown.filter(x => flowInView(FLOW_VIEW, x.s));
   rows.sort((a, b) => String(a.r.orderDate || '').localeCompare(String(b.r.orderDate || '')) || String(a.r.orderNo).localeCompare(String(b.r.orderNo)));
   FLOW.panel = ''; FLOW.stock = ''; FLOW.byprint = ''; FLOW.bysize = '';
+  // The Accessories tab also lists what is reserved and not issued, so a reservation can be let go (flowTable, 'dacc').
+  FLOW.held = FLOW_VIEW === 'dacc' ? shown.filter(x => x.s.res && !x.s.issued && x.s.bucket !== 'done') : [];
   $('flTable').innerHTML = flowTable(FLOW_VIEW, rows.slice(0, 800));
   /* PPC in Excel: on the PPC bucket only — the lines on screen are what the sheet holds. */
   FLOW.shownPpc = FLOW_VIEW === 'ppc' ? rows : [];
@@ -32390,6 +32431,15 @@ function flowTable(view, rows) {
       return `<tr${short ? ' style="background:#fef2f2"' : ''}>${base(x)}<td style="text-align:left">${acc.map(a => { const f = free[accCode(a.code)]; const ok = f && f.free >= a.qty;
           return `<div style="font-size:12px"><b>${esc(a.code)}</b> ${esc(a.what || '')} × ${nf(a.qty)} <span style="color:${ok ? '#166534' : '#b91c1c'};font-weight:600">${f ? nf(Math.max(0, f.free)) + ' free' : 'not on the shelf'}${ok ? '' : ' · ⚑ short ' + nf(a.qty - Math.max(0, f ? f.free : 0))}</span></div>`; }).join('')}</td>
         <td><button data-flres="${esc(x.s.key)}" style="width:auto;padding:3px 10px;font-size:12px">Reserve</button></td></tr>`; }).join('');
+    /* RESERVED, NOT ISSUED YET — RELEASE IS HERE. A reserved line leaves the list above, and the only Release button sat on
+     * a view no tab opens, so a reservation made by mistake held the zips for good. Under the lines to reserve, the ones
+     * holding accessories that have not gone to a karigar, each with Release: the accessories go back to the shelf. */
+    const held = (FLOW.held || []).slice().sort((a, b) => String(a.r.orderNo).localeCompare(String(b.r.orderNo)));
+    prevNo = null;
+    if (held.length) body = (body || '<tr><td colspan="5" class="muted" style="padding:16px">No line is waiting to be reserved.</td></tr>')
+      + `<tr><td colspan="5" style="text-align:left;background:#f8fafc;font-weight:600;font-size:12.5px;padding:8px 10px">Reserved, not issued yet · ${nf(held.length)} line(s) — Release puts the accessories back on the shelf</td></tr>`
+      + held.map(x => `<tr>${base(x)}<td style="text-align:left">${Object.entries((x.s.res && x.s.res.items) || {}).map(([c, q]) => `<div style="font-size:12px"><b>${esc(c)}</b> × ${nf(q)} <span class="muted">reserved</span></div>`).join('')}</td>
+        <td><button class="ghost" data-flunres="${esc(x.s.key)}" style="width:auto;padding:3px 10px;font-size:12px">Release accessories</button></td></tr>`).join('');
     const ac = flowAccCover();
     FLOW.stock = `<thead><tr><th style="text-align:left">Code</th><th>On the shelf</th><th>Reserved already</th><th>These lines need</th><th>Short</th></tr></thead><tbody>`
       + ac.map(a => `<tr${a.short ? ' style="background:#fef2f2"' : ''}><td style="text-align:left"><b>${esc(a.code)}</b> <span class="muted">${esc(a.name !== a.code ? a.name : '')}</span></td><td class="num">${nf(a.shelf)}</td><td class="num">${nf(a.held)}</td><td class="num">${nf(a.need)}</td>
@@ -36594,6 +36644,9 @@ function entrySave() {
     done: prev ? !!prev.done : false };
   /* A RECEIPT THAT CAME ON A CHALLAN KEEPS IT: the paper, the truck and the pieces ride on the row. */
   if (prev) ['chId', 'vehicle', 'lr', 'pieces'].forEach(function (k) { if (prev[k] != null) row[k] = prev[k]; });
+  /* A SHRINKAGE HOLD SURVIVES A CORRECTION. Fixing the metres or the date of an RFD receipt that is
+   * waiting for approval (or was turned down) must not slip it into stock without anyone approving it. */
+  if (prev && prev.approval && kind === 'RECEIVE_RFD') row.approval = prev.approval;
   if (kind === 'RECEIVE_RFD') row.final = !!$('enFinal').checked;
   /* WHAT STAYED IS WHAT THE LEDGER COUNTS. The challan figure and what went back are kept on the
    * row so the mill can be answered later, but the stock only ever sees the difference. */
@@ -36837,9 +36890,12 @@ function gdClearAll() { DB.gpo = []; DB.fab = []; gdSaveAll(); }
  * gdesk opens the desk; gdled shows the fabric ledger; gdledit lets them add and correct it; gdappr approves an RFD
  * receipt that shrank more than 5%. An admin holds all four. */
 var GD_RIGHTS = [['gdesk', 'Open the Greige Desk'], ['gdled', 'See the fabric ledger'], ['gdledit', 'Add to and correct the fabric ledger'], ['gdappr', 'Approve an RFD receipt that shrank more than 5%']];
+/* AN EMPTY TABS LIST IS NO ACCESS, as it is everywhere else in the app (auth.js: a failed or empty perms read
+ * gives nothing). It used to hand all four rights to such an account. Only the desk run on its own, with no
+ * app login at all, still opens with every right. */
 function gdHas(k) {
-  var me = (typeof ME !== 'undefined' && ME) || {}, tabs = me.tabs || [];
-  return !!me.admin || !tabs.length || tabs.indexOf(k) >= 0;
+  if (typeof ME === 'undefined' || !ME) return true;
+  return !!ME.admin || (ME.tabs || []).indexOf(k) >= 0;
 }
 function meUser() {
   var me = (typeof ME !== 'undefined' && ME) || {};
@@ -42085,6 +42141,8 @@ function accEditTxn(id) {
       const err = accTxnCheck(v, r._id); if (err) return err;
       const next = Object.assign({}, r, { txnType: v.txnType, itemCode: String(v.itemCode).trim(),
         qty: parseFloat(v.qty), date: v.date, ref: String(v.ref || '').trim(),
+        /* The name typed in the dialog is the name kept — a correction to who has it must stick. */
+        issuedTo: String(v.issuedTo || '').trim(),
         remarks: String(v.remarks || '').trim(), editedBy: ME.email, editedAt: new Date().toISOString() });
       delete next._key;
       await ptPut('pt_accLedger/' + r._id, next);
@@ -42636,8 +42694,12 @@ function soQtyOpen(id, sku) {
       if (err) return err;
       renderSox();
       $('sxMsg').className = 'muted';
-      $('sxMsg').textContent = sku + ' on ' + o._id + ' is now ' + nf(parseFloat(v.qty) || 0)
-        + ' piece(s), and the order book says the same.';
+      /* ASKED, NOT CHANGED. soQtyRun only writes the request; the order and the order book stay
+       * where they are until it is approved in the Order Console. Saying "is now" here sent people
+       * to the floor with a figure nobody had agreed to yet. */
+      $('sxMsg').textContent = 'Asked: ' + sku + ' on ' + o._id + ' from ' + nf(now) + ' to '
+        + nf(parseFloat(v.qty) || 0) + ' piece(s). The order and the order book stay at ' + nf(now)
+        + ' until it is approved in the Order Console.';
       return '';
     },
   });
@@ -49970,7 +50032,9 @@ function renderFgi() {
 
   const view = $('fgView').value;
   ['fgD1', 'fgD2'].forEach(i => $(i).classList.toggle('hide', view !== 'ledger'));
-  ['fgBrand', 'fgStat', 'fgTag', 'fgAmz'].forEach(i => $(i).classList.toggle('hide', view !== 'stock'));
+  ['fgBrand', 'fgTag', 'fgAmz'].forEach(i => $(i).classList.toggle('hide', view !== 'stock'));
+  // Status also narrows Every movement: the movements of the SKUs that are in stock, low or out now.
+  $('fgStat').classList.toggle('hide', view !== 'stock' && view !== 'ledger');
   $('fgLstRefresh').classList.toggle('hide', !lstCanRefresh());
   $('fgLstRefresh').disabled = !!LST.busy;
   // The label has its own id rather than being reached through the checkbox's parent — a wrapper
@@ -50131,10 +50195,11 @@ function fgiRenderLedger() {
   const from = d1 ? new Date(d1 + 'T00:00:00').getTime() : 0;
   const to = d2 ? new Date(d2 + 'T23:59:59').getTime() : Infinity;
   const kpi = FGI_KPI_ROWS[FGI_KPI];
+  const fStat = $('fgStat').value;
   const rows = (FGI.rows || [])
     .filter(r => !kpi || kpi.is(r))
     .filter(r => { const m = ms(r); return !m || (m >= from && m <= to); })
-    .filter(r => !$('fgStat').value || true)
+    .filter(r => !fStat || fgiStatus(r.sku, fgiOf(r.sku).current).txt === fStat)
     .filter(r => !q || [r.sku, r.txnType, r.issuedFor, r.receivedFrom, r.reason, r.remarks, r.createdBy].join(' ').toLowerCase().includes(q))
     .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
   FGI.shown = rows;
@@ -50492,7 +50557,7 @@ $('fgTable').addEventListener('click', e => {
     /* One SKU, everything that ever happened to it — the question this screen is opened with. */
     $('fgView').value = 'ledger';
     $('fgQ').value = mv.getAttribute('data-fgmoves');
-    $('fgD1').value = ''; $('fgD2').value = '';
+    $('fgD1').value = ''; $('fgD2').value = ''; $('fgStat').value = '';
     return renderFgi();
   }
   const n = e.target.closest('[data-fgentry]'); if (n) return fgiEntryOpen('ISSUE', n.getAttribute('data-fgentry'));
@@ -50948,6 +51013,9 @@ function renderMst() {
     return renderPrintRules();
   }
   ['mstNew', 'mstOffWrap'].forEach(id => { const el = $(id); if (el) el.classList.remove('hide'); });
+  /* + Add is for an admin, like Edit on each row: the save refuses anybody else, so showing it only
+   * opened a form that could not be saved. */
+  $('mstNew').classList.toggle('hide', !ME.admin);
 
   const def = mstDef(cur);
   const rows = mstRows(cur);
@@ -54785,8 +54853,9 @@ async function fgiBulkEditSave() {
   return '';
 }
 
-/** The confirmation for anything more than one row: what goes, what it does, and what cannot go. */
-function fgiDeleteConfirm(plan, title) {
+/** The confirmation for anything more than one row: what goes, what it does, and what cannot go.
+ *  `cleared` lets go of the ticks — only once the delete has gone through. Cancel keeps them. */
+function fgiDeleteConfirm(plan, title, cleared) {
   const neg = plan.skus.filter(s => s.after < 0 && s.after < s.before);
   const inStock = plan.skus.reduce((s, x) => s + Math.abs(x.after - x.before), 0);
   const press = [...plan.pressBack.values()].reduce((s, q) => s + q, 0);
@@ -54810,6 +54879,7 @@ function fgiDeleteConfirm(plan, title) {
     onSave: async () => {
       const why = await fgiDeleteRun(plan);
       if (why) return why;
+      if (cleared) cleared();
       renderFgi();
       $('fgMsg').className = 'muted';
       $('fgMsg').textContent = `Deleted ${nf(plan.gone.length)} movement(s) across ${nf(plan.skus.length)} SKU(s)`
@@ -54824,8 +54894,8 @@ function fgiDeleteConfirm(plan, title) {
 function fgiBulkDeleteAsk() {
   if (!fgiCanEdit()) return;
   const plan = fgiDeletePlan([...FGI_PICK.ledger]);
-  FGI_PICK.ledger = new Set();
-  fgiDeleteConfirm(plan, 'Delete the ticked movements');
+  // The ticks stay until the delete is done: Cancel on the confirm must not cost the person their picking.
+  fgiDeleteConfirm(plan, 'Delete the ticked movements', () => { FGI_PICK.ledger = new Set(); });
 }
 
 /* ---- the stock view: a SKU, or many ---- */
@@ -54949,8 +55019,9 @@ function fgiSkuDeleteAsk(skus) {
   const want = new Set(skus.map(obUC));
   const ids = (FGI.rows || []).filter(r => r && want.has(obUC(r.sku))).map(fgiRowId);
   const plan = fgiDeletePlan(ids);
-  FGI_PICK.stock = new Set();
-  fgiDeleteConfirm(plan, want.size === 1 ? `Delete ${[...want][0]} from the store` : `Delete ${nf(want.size)} SKU(s) from the store`);
+  // Only the SKUs deleted lose their tick, and only once they are gone — Cancel keeps every tick.
+  fgiDeleteConfirm(plan, want.size === 1 ? `Delete ${[...want][0]} from the store` : `Delete ${nf(want.size)} SKU(s) from the store`,
+    () => { want.forEach(s => FGI_PICK.stock.delete(s)); });
 }
 
 /* ============================== FILE: src/app/inventory/fba-dispatch.js ============================== */
@@ -55333,6 +55404,7 @@ async function fbaShipSave(ids) {
     if (shipQty < s.open) {
       const back = s.open - shipQty;
       const rec = fbaReturnRec(row, back, v('fbsReason'), 'not shipped in ' + shipment);
+      rec.fbaShipBack = shipment;   // the shipment that left these behind — undoing it takes this row back out
       updates['pt_fgiLedger/' + rec._id] = rec;
       set.fbaReturned = s.returned + back;
       backs.push(rec);
@@ -55427,16 +55499,34 @@ async function fbaUndo(id) {
   const [{ row }] = await fbaFresh([id]);
   if (!row) { fbaForget([{ id, row: null }]); renderFba(); return 'That dispatch was deleted from the store.'; }
   const s = fbaState(row), updates = {};
-  let what = '';
+  let what = '', backs = [];
   if (s.st === 'shipped') {
+    /* A PART-SHIPMENT TAKES ITS LEFTOVER RETURN WITH IT. Shipping fewer pieces than were open wrote a
+     * return row for the rest; undoing the shipment without it left those pieces back in the store and
+     * the dispatch short by the same figure. Rows written before the tag are known by their note. */
+    const ship = String(row.fbaShipment || '');
+    backs = (FGI.rows || []).filter(x => x && x.txnType === 'FBA_RETURN' && x.linkedFbaId === id
+      && (x.fbaShipBack != null ? x.fbaShipBack === ship : x.remarks === 'not shipped in ' + ship));
+    const back = backs.reduce((t, x) => t + fgiNum(x.qty), 0);
+    if (back) {
+      const left = fgiOf(row.sku).current - back;
+      if (left < 0) return `${obUC(row.sku)}: the ${nf(back)} piece(s) that came back when this shipment went have left the store `
+        + `since (it would read ${nf(left)}). Take out the movement that sent them away first.`;
+      backs.forEach(x => { updates['pt_fgiLedger/' + fgiRowId(x)] = null; });
+      updates['pt_fgiLedger/' + id + '/fbaReturned'] = Math.max(0, fgiNum(row.fbaReturned) - back);
+    }
     ['fbaShippedAt', 'fbaShippedBy', 'fbaShipment', 'fbaShipDate'].forEach(f => { updates['pt_fgiLedger/' + id + '/' + f] = null; });
-    what = 'no longer shipped — back to accepted';
+    what = 'no longer shipped — back to accepted' + (back ? `, and the ${nf(back)} piece(s) it left behind are with the FBA team again` : '');
   } else if (s.st === 'accepted') {
     ['fbaAcceptedAt', 'fbaAcceptedBy'].forEach(f => { updates['pt_fgiLedger/' + id + '/' + f] = null; });
     what = 'no longer accepted — back to waiting';
   } else return `This dispatch is ${FBA_PILL[s.st][1]}; there is no step to undo here.`;
   await ptPatch(updates);
-  Object.keys(updates).forEach(p => { delete row[p.split('/').pop()]; });
+  Object.keys(updates).forEach(p => {
+    const k = p.split('/');
+    if (k.length === 3 && k[1] === id) { if (updates[p] == null) delete row[k[2]]; else row[k[2]] = updates[p]; }
+  });
+  if (backs.length) { const gone = new Set(backs.map(fgiRowId)); FGI.rows = (FGI.rows || []).filter(x => !gone.has(fgiRowId(x))); }
   renderFba();
   $('fbaMsg').className = 'muted';
   $('fbaMsg').textContent = `${obUC(row.sku)}: ${what}.`;
@@ -55788,7 +55878,8 @@ $('sxQtyFile').onchange = async e => {
       title: 'Change these quantities?',
       subtitle: `${nf(plan.ok.length)} line(s) · ${nf(up.length)} up · ${nf(down.length)} down`,
       /* THE ORDER BOOK MOVES WITH THEM — said here, because that is the part that reaches the floor. */
-      note: 'The order book moves with the sales order, in the same write. A line the order book never '
+      note: 'Each row is sent for approval — nothing changes until it is approved in the Order Console. '
+        + 'Then the order book moves with the sales order, in the same write; a line the order book never '
         + 'got changes on the order only. Nothing goes below what has already been cut, received or pressed.',
       html: '<div class="muted" style="font-size:12.5px;line-height:1.7">'
         + (up.length ? `<b style="color:#166534">Going up</b><br>${show(up)}`
@@ -55805,7 +55896,8 @@ $('sxQtyFile').onchange = async e => {
         renderSox();
         if (out.err) return out.err;
         $('sxMsg').className = 'muted';
-        $('sxMsg').textContent = `${nf(out.done)} quantit${out.done > 1 ? 'ies' : 'y'} changed, and the order book says the same.`
+        /* ASKED, NOT CHANGED — soQtyBulkRun writes requests only, like the Change qty button. */
+        $('sxMsg').textContent = `${nf(out.done)} quantity change${out.done > 1 ? 's' : ''} asked. The orders and the order book stay as they are until each is approved in the Order Console.`
           + (plan.skip.length ? ` ${nf(plan.skip.length)} row(s) were refused and left alone.` : '');
         return '';
       },

@@ -306,7 +306,20 @@ const K = 'AMZ-1__S1';
       && rec.lines.length === 1 && rec.lines[0].key === 'AMZ-7__T3' && rec.receipts.r0.items['AMZ-7__T3'] === 3 && DU.flowRfdChallanOut('Sheeting 62') > out0, JSON.stringify(rec).slice(0, 400));
     const a7b = DU.flowDueRows('', false).find(x => x.orderNo === 'AMZ-7') || {};
     ok('…and the line owes 3 less', Math.abs(a7b.left - (a7.left - 3)) < 0.01 && a7b.back === 3, JSON.stringify([a7.left, a7b.left, a7b.back]));
-    ok('…it shows in Received by date on its day', DU.flowRecvRows('', false).filter(x => x.day === '2026-10-23').length === 2); }
+    ok('…it shows in Received by date on its day', DU.flowRecvRows('', false).filter(x => x.day === '2026-10-23').length === 2);
+    { /* 26 Oct: the up-to-10% over on cloth that went on a challan is that challan's — it left RFD stock once already */
+      const DV = load({ me: { admin: true }, rfd: { 'SHEETING 62': 500 }, lines: [L({ orderNo: 'AMZ-5', sku: 'T2', qty: 10 })],
+        ppc: { 'AMZ-5__T2': Object.assign(plS('T2'), { orderNo: 'AMZ-5' }) } });
+      DV.setFLOW(Object.assign(DV.FLOW(), { ch: { 'RFD-9': { no: 'RFD-9', orderNo: 'AMZ-5', vendor: { code: 'P1', name: 'Sanganer Prints' },
+        lines: [{ key: 'AMZ-5__T2', sku: 'T2', pcs: 10, metres: 15, print: DV.flowPrintWhat(DV.flowRows()[0].r, DV.FLOW().ppc['AMZ-5__T2']), fabric: 'Sheeting 62' }],
+        receipts: { r1: { date: '2026-10-22', items: { 'AMZ-5__T2': 5 } } } } } }));
+      const v5 = DV.flowDueRows('', false)[0] || {}, outV = DV.flowRfdChallanOut('Sheeting 62'), q = Math.round(v5.left * 1.05 * 100) / 100;
+      const erV = await DV.flowDueRecvSave('P1', { 'AMZ-5__T2': q }, { date: '2026-10-26' });
+      const rV = Object.values(DV.FLOW().ch['RFD-9'].receipts || {}).find(x => x.date === '2026-10-26') || {};
+      ok('…a little over on a line on a challan is received on that challan, not a no-RFD record, and RFD stock is not taken twice',
+        erV === '' && !Object.values(DV.FLOW().ch).some(c => c.noChallan) && rV.items && Math.abs(rV.items['AMZ-5__T2'] - q) < 0.01 && DV.flowRfdChallanOut('Sheeting 62') === outV,
+        (erV || '') + JSON.stringify([v5.left, v5.notSent, q, rV.items, outV, DV.flowRfdChallanOut('Sheeting 62')])); }
+  }
   }
   { /* 23 Oct ("data load hone me bahut jyada time lag raha h"): what is still being read is said, and a failed read never leaves the screen stuck */
     const RD = load({ me: { admin: true } });

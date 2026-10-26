@@ -1539,8 +1539,12 @@
           <button id="ppGo">Refresh</button>
         </div>
         <div id="ppMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
+        <!-- PRESSING IS NO LONGER RECORDED (since 5 Oct 2026) and Save refuses every entry, so the form is
+             not offered: it only let people fill every box and be turned away at the end. The button and
+             the form stay in the page, hidden, because the code and the tests still reach them by id. -->
         <div style="margin-top:10px">
-          <button id="pwToggle" class="ghost">+ New press entry</button>
+          <button id="pwToggle" class="ghost hide">+ New press entry</button>
+          <div class="muted" style="font-size:12.5px">Pressing is no longer recorded (since 5 Oct 2026) — a piece counts as made once QC passes it. Record it in Quality Control.</div>
         </div>
         <div id="pwBox" class="hide" style="margin-top:10px;border:1px solid var(--line);border-radius:10px;padding:12px">
           <div class="toolbar">
@@ -2037,8 +2041,11 @@
            per-SKU HS code / GST rate / invoice rate are stored against the SKU. Removing the
            elements would throw on a null and take the whole order panel down with it; hiding them
            keeps every one of them answering and leaves what is already saved untouched.
-           To bring it back: delete the `hide` class on the wrapper below. Nothing else. -->
-      <div id="soCustomsBlock" class="hide">
+           SHOWN AGAIN (2026-10-26): the DHL Hybrid and DHL CSV exports refuse to write a file until
+           every order has one complete invoice pair and every SKU an HS code, and tell the person to
+           "fill them under Invoice & customs". With this block hidden there was nowhere to fill them,
+           so a DHL file could never be written. -->
+      <div id="soCustomsBlock">
       <!-- Every field DHL and FedEx call mandatory that Shopify cannot supply. -->
       <div class="sec">Invoice &amp; customs</div>
       <div class="row" style="gap:8px">

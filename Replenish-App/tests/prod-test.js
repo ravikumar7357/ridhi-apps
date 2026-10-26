@@ -12888,6 +12888,11 @@ console.log('\n== FBA Dispatch ==');
   ok('…and a return on it cannot be deleted from the store', A.fgiDeletePlan([back.split('/')[1]]).gone.length === 0);
 
   ok('undo takes a shipment back to accepted', (await A.fbaUndo('f1')) === '' && st('f1').st === 'accepted' && !A.FGI().rows.find(r => r._id === 'f1').fbaShipment);
+  p = NET.calls.filter(c => c.method === 'PATCH').pop().body;
+  ok('…and takes the 3 it left behind out of the store again, in the same write',
+    p[back] === null && p['pt_fgiLedger/f1/fbaReturned'] === 5 && !A.FGI().rows.find(r => r._id === back.split('/')[1]));
+  ok('…so f1 has 15 open again and the store is where it was before the shipment',
+    st('f1').open === 15 && A.fgiOf(SKU).current === stockBefore + 5);
   sync();
   ok('…then to waiting', (await A.fbaUndo('f1')) === '' && st('f1').st === 'waiting');
   sync();

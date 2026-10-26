@@ -370,6 +370,9 @@ function renderMst() {
     return renderPrintRules();
   }
   ['mstNew', 'mstOffWrap'].forEach(id => { const el = $(id); if (el) el.classList.remove('hide'); });
+  /* + Add is for an admin, like Edit on each row: the save refuses anybody else, so showing it only
+   * opened a form that could not be saved. */
+  $('mstNew').classList.toggle('hide', !ME.admin);
 
   const def = mstDef(cur);
   const rows = mstRows(cur);

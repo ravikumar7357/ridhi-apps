@@ -372,10 +372,16 @@ async function flowDueRecvSave(key, got, o) {
     const q = flowR2(+got[x.l.key] || 0); if (!(q > 0)) return;
     if (x.unit === 'pcs' && q !== Math.round(q)) return bad.push(`${x.sku}: pieces are whole`);
     if (q > (x.unit === 'pcs' ? x.left : x.left * 1.1) + 1e-9) return bad.push(`${x.orderNo} ${x.sku}: ${flowQtyTxt(q, x.unit)} is more than the ${flowQtyTxt(x.left, x.unit)} still to come`);
-    let rest = q;
-    flowDueOpenChs(x.l.key).forEach(({ c, rem }) => { if (rest <= 0) return; const t = flowR2(Math.min(rest, rem)); rest = flowR2(rest - t);
+    let rest = q, last = '';
+    flowDueOpenChs(x.l.key).forEach(({ c, rem }) => { last = c.no; if (rest <= 0) return; const t = flowR2(Math.min(rest, rem)); rest = flowR2(rest - t);
       const e = per.get(c.no) || per.set(c.no, {}).get(c.no); e[x.l.key] = flowR2((e[x.l.key] || 0) + t); });
-    if (rest > 0) extra.push({ x, q: rest });
+    /* ONLY CLOTH THAT NEVER WENT ON A CHALLAN IS "NO RFD CHALLAN". The up-to-10% over on cloth that did go on one
+     * (shrinkage, roll ends) is that challan's: its cloth already left RFD stock with the challan, and putting the over
+     * on a no-challan record took it off RFD stock a second time. */
+    const noCh = flowR2(Math.min(rest, x.notSent)), over = flowR2(rest - noCh);
+    if (over > 0 && last) { const e = per.get(last) || per.set(last, {}).get(last); e[x.l.key] = flowR2((e[x.l.key] || 0) + over); }
+    const ex = flowR2(noCh + (over > 0 && !last ? over : 0));
+    if (ex > 0) extra.push({ x, q: ex });
   });
   if (bad.length) return bad.join(' · ');
   if (!per.size && !extra.length) return 'Type what came back for at least one line.';

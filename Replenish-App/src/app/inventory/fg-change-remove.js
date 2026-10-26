@@ -286,8 +286,9 @@ async function fgiBulkEditSave() {
   return '';
 }
 
-/** The confirmation for anything more than one row: what goes, what it does, and what cannot go. */
-function fgiDeleteConfirm(plan, title) {
+/** The confirmation for anything more than one row: what goes, what it does, and what cannot go.
+ *  `cleared` lets go of the ticks — only once the delete has gone through. Cancel keeps them. */
+function fgiDeleteConfirm(plan, title, cleared) {
   const neg = plan.skus.filter(s => s.after < 0 && s.after < s.before);
   const inStock = plan.skus.reduce((s, x) => s + Math.abs(x.after - x.before), 0);
   const press = [...plan.pressBack.values()].reduce((s, q) => s + q, 0);
@@ -311,6 +312,7 @@ function fgiDeleteConfirm(plan, title) {
     onSave: async () => {
       const why = await fgiDeleteRun(plan);
       if (why) return why;
+      if (cleared) cleared();
       renderFgi();
       $('fgMsg').className = 'muted';
       $('fgMsg').textContent = `Deleted ${nf(plan.gone.length)} movement(s) across ${nf(plan.skus.length)} SKU(s)`
@@ -325,8 +327,8 @@ function fgiDeleteConfirm(plan, title) {
 function fgiBulkDeleteAsk() {
   if (!fgiCanEdit()) return;
   const plan = fgiDeletePlan([...FGI_PICK.ledger]);
-  FGI_PICK.ledger = new Set();
-  fgiDeleteConfirm(plan, 'Delete the ticked movements');
+  // The ticks stay until the delete is done: Cancel on the confirm must not cost the person their picking.
+  fgiDeleteConfirm(plan, 'Delete the ticked movements', () => { FGI_PICK.ledger = new Set(); });
 }
 
 /* ---- the stock view: a SKU, or many ---- */
@@ -450,7 +452,8 @@ function fgiSkuDeleteAsk(skus) {
   const want = new Set(skus.map(obUC));
   const ids = (FGI.rows || []).filter(r => r && want.has(obUC(r.sku))).map(fgiRowId);
   const plan = fgiDeletePlan(ids);
-  FGI_PICK.stock = new Set();
-  fgiDeleteConfirm(plan, want.size === 1 ? `Delete ${[...want][0]} from the store` : `Delete ${nf(want.size)} SKU(s) from the store`);
+  // Only the SKUs deleted lose their tick, and only once they are gone — Cancel keeps every tick.
+  fgiDeleteConfirm(plan, want.size === 1 ? `Delete ${[...want][0]} from the store` : `Delete ${nf(want.size)} SKU(s) from the store`,
+    () => { want.forEach(s => FGI_PICK.stock.delete(s)); });
 }
 
