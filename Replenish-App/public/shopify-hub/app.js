@@ -338,11 +338,11 @@ function pageOrders() {
  * Amazon FBA has it → MCF; else India has it → India stock (shipped by DHL / FedEx from Bulk order); else Production.
  * Any line can be moved to another section it has stock for; "Accept" does every section at once. */
 const SECTIONS = [
-  { k: 'mcf', name: 'Amazon MCF', how: 'ships from FBA in the US', foot: 'Amazon ships in 4–5 days · the fee shows before you send', go: 'Send to MCF',
+  { k: 'mcf', name: 'MCF', how: 'Amazon FBA has it · ships from the US', foot: 'Amazon ships in 4–5 days · the fee shows before you send', go: 'Send to MCF',
     can: it => (it.fba || 0) >= it.q, stock: it => `FBA ${it.fba || 0}` },
-  { k: 'india', name: 'Ship from India', how: 'DHL or FedEx', foot: 'Goes in the next DHL / FedEx file', go: 'Add to Bulk order',
+  { k: 'india', name: 'India', how: 'India stock has it · DHL or FedEx', foot: 'Goes in the next DHL / FedEx file', go: 'Add to Bulk order',
     can: it => (it.india || 0) >= it.q, stock: it => `India ${it.india || 0}` },
-  { k: 'make', name: 'Production', how: 'no stock to send', foot: 'Cut, print, press, QC · about 6 days', go: 'Send to production',
+  { k: 'make', name: 'Production', how: 'no stock anywhere · to be made', foot: 'Cut, print, press, QC · about 6 days', go: 'Send to production',
     can: () => true, stock: () => 'to make' },
 ];
 const suggest = it => SECTIONS.find(s => s.can(it)).k;
@@ -382,12 +382,12 @@ async function planDlg(o) {
   }
   const names = l => esc(l.map(i => o.items[i].t + (o.items[i].q > 1 ? ' × ' + o.items[i].q : '')).join(', '));
   const draw = () => dialog(`Accept · #${o.no}`, `<div class="pl-acc">
-      ${mcf.length ? `<div class="pl-a pl-mcf"><div><b>Amazon MCF</b> · ${names(mcf)}</div>
+      ${mcf.length ? `<div class="pl-a pl-mcf"><div><b>MCF</b> · ${names(mcf)}</div>
         <div class="s-route">${opts.map((s, i) => `<button class="s-ro ${k === i ? 'on' : ''}" type="button" data-sp="${i}"><b>${esc(s.speed)}</b><span>${esc(s.by)} · ${money(s.fee)}</span></button>`).join('')}</div>
         <span class="s-sm s-muted">${live(o) && S.settings.realMcf ? '<b class="s-bad">Places a REAL Amazon order and costs the fee.</b>' : 'Simulated — no real Amazon order is placed.'}</span></div>` : ''}
       ${make.length ? `<div class="pl-a pl-make"><div><b>Production</b> · ${names(make)}</div>
         <label class="s-check"><input type="checkbox" id="plRush" ${rush ? 'checked' : ''}> Rush — the customer is waiting</label></div>` : ''}
-      ${india.length ? `<div class="pl-a pl-india"><div><b>India stock</b> · ${names(india)}</div><span class="s-sm s-muted">Picked now; ships from <b>Bulk order</b> with DHL or FedEx.</span></div>` : ''}
+      ${india.length ? `<div class="pl-a pl-india"><div><b>India</b> · ${names(india)}</div><span class="s-sm s-muted">Picked now; ships from <b>Bulk order</b> with DHL or FedEx.</span></div>` : ''}
       <span class="s-sm s-muted">${live(o) ? 'Shopify is told as each part moves (split for MCF, "In production" tag, then the tracking number).' : 'Temp test order — nothing is sent to Shopify.'}</span></div>`,
     `<button class="s-btn" type="button" id="go">Accept${mcf.length ? ' · MCF ' + money(opts[k].fee) : ''}</button>`, () => {
       document.querySelectorAll('#dlg [data-sp]').forEach(b => b.addEventListener('click', () => { k = +b.dataset.sp; draw(); }));
@@ -437,8 +437,8 @@ function partPanel(o, pk, n) {
   const url = CARRIER_URL[carName(pk)];
   const scans = (pk.scans || []).map(s => `<tr><td class="s-nowrap s-muted">${fmt(s.at)}</td><td class="tl">${esc(s.text)}</td><td class="s-muted">${esc(s.place)}</td></tr>`);
   /* The card's badge says what this part is now, in one or two words, in its section's colour. */
-  const done = phaseOf(pk) === 4, badge = isProd ? (pk.block ? ['On hold', 'bad'] : ['Production', 'make']) : isMcf(pk) ? ['Amazon MCF', 'mcf']
-    : !pk.route ? [pk.src === 'make' ? 'Made · ready to ship' : 'Ship from India', 'india'] : [done ? 'Delivered' : 'Shipped · ' + carName(pk), f ? 'bad' : 'done'];
+  const done = phaseOf(pk) === 4, badge = isProd ? (pk.block ? ['Production · on hold', 'bad'] : ['Production', 'make']) : isMcf(pk) ? ['MCF', 'mcf']
+    : !pk.route ? [pk.src === 'make' ? 'Production · made' : 'India', pk.src === 'make' ? 'make' : 'india'] : [done ? 'Delivered' : 'Shipped · ' + carName(pk), f ? 'bad' : 'done'];
   const facts = [
     pk.trk.length ? pk.trk.map(t => `<span class="s-trk">${esc(t)}</span> <button class="s-link" type="button" data-copy="${esc(t)}">Copy</button>${url ? ` <a class="s-link" href="${esc(url(t))}" target="_blank" rel="noopener">Open ↗</a>` : ''}`).join(' ') : '',
     pk.mcfId ? `${esc(pk.mcfId)}${pk.mcfReal ? '' : ' (simulated)'}` : '',

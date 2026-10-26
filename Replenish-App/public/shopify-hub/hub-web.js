@@ -631,6 +631,7 @@ function build() {
   };
   const list = [], add = o => (list.push(o), o);
 
+  list.push(sixItems(NOW));
   add(O('T4876', 'Ridhi', ago(0, 2), C('Emily Carter', 'emily.carter@example.com', '+1 512 555 0142', 2), A('1802 Oakmont Dr', 'Austin', 'TX', '78704'), 0,
     [I('Kantha quilt, Queen', 'Indigo', 'RH-KQ-Q-IND', 129, 14, 3), I('Cushion cover set', 'Indigo', 'RH-CC-SET-IND', 45, 6, 25), I('Block-print throw', 'Rust', 'RH-BT-RST', 40, 0, 0)],
     { note: 'Gift — please leave out the invoice.' }));
@@ -679,8 +680,29 @@ function build() {
   P(o7880, 'fba', [0], 7, { route: 'mcf', trk: ['TBA314871102214'], since: 5 });
   o4844.rets.push({ items: [1], why: 'Wrong size', what: 'return', pos: 1, car: 'USPS', trk: '9205590164917312345', rep: null, at: ago(2) });
   o7880.rets.push({ items: [0], why: 'Arrived damaged', what: 'both', pos: 0, car: '', trk: '', rep: null, at: ago(0, 16) });
-  list.forEach(o => o.tl.push({ t: o.at, who: 'SHOPIFY', m: 'Order placed (temp test order)' }));
+  list.forEach(o => { if (!o.tl.length) o.tl.push({ t: o.at, who: 'SHOPIFY', m: 'Order placed (temp test order)' }); });
   return list;
+}
+
+/* SIX ITEMS, THREE WAYS OUT (Ravi, 26 Oct): two that Amazon FBA has (→ MCF), two that only India has (→ India), two that
+ * nobody has (→ Production) — the order to try the cards on. MCF wins when FBA has it, India when only India has it. */
+function sixItems(now) {
+  now = now || Date.now();
+  const I = (t, v, sku, price, fba, india, q) => ({ lid: null, t, v, sku, price, q: q || 1, fba, india, pk: null });
+  const o = { no: 'T4900', store: 'Ridhi', at: now - 15 * 60000, source: 'test', gid: null,
+    cust: { n: 'Rachel Owens', e: 'rachel.o@example.com', ph: '+1 512 555 0164', k: 3 },
+    addr: { a1: '1500 S Lamar Blvd', a2: '', city: 'Austin', state: 'TX', zip: '78704', country: 'US', phone: '' },
+    ship: 0, note: 'Six items: two from Amazon FBA, two from India, two to make.', pkgs: [], tl: [], rets: [],
+    items: [
+      I('Kantha quilt, Queen', 'Indigo', 'RH-KQ-Q-IND', 129, 14, 3),
+      I('Pillow shams, pair', 'Sage', 'RH-PS-SGE', 39, 11, 2),
+      I('Duvet cover, Queen', 'Sage', 'RH-DC-Q-SGE', 139, 0, 6),
+      I('Quilted bedspread, Queen', 'Mustard', 'RH-QB-Q-MST', 119, 0, 3),
+      I('Block-print throw', 'Rust', 'RH-BT-RST', 40, 0, 0),
+      I('Bedspread, King', 'Indigo', 'RH-BS-K-IND', 139, 0, 0),
+    ] };
+  o.tl.push({ t: o.at, who: 'SHOPIFY', m: 'Order placed (temp test order)' });
+  return o;
 }
 
 /* The order Present mode tells its story with: a fresh Shopify-style order, half of it in India stock (ships now by
@@ -711,7 +733,7 @@ const STOCK = [
   ['Placemats, set of 4', 'Mustard', 'CPC-PM4-MST', 'CPC', 26, 40, 12, 20], ['Apron', 'Mustard', 'CPC-APR-MST', 'CPC', 9, 0, 6, 4],
 ].map(r => ({ t: r[0], v: r[1], sku: r[2], store: r[3], shop: r[4], fba: r[5], india: r[6], sold: r[7] }));
 
-module.exports = { build, STOCK, demoOrder };
+module.exports = { build, STOCK, demoOrder, sixItems };
 
 });
 
@@ -1908,6 +1930,8 @@ const db = () => store.get();
   store.save();
   console.log(`Tidied ${Object.keys(map).length} order number(s) (removed the space after "#")`);
 })();
+/* The six-item test order (T4900, 26 Oct) for data made before it existed — added once; "Reset temp orders" keeps it. */
+if (!db().orders.some(o => o.no === 'T4900')) { db().orders.unshift(seed.sixItems()); store.save(); }
 /* A part booked in a dispatch file and still waiting for its tracking number is at "Packed" (one step past ready).
  * One version of 24 Oct moved India-stock parts two steps; put any such part back to "Packed". */
 (function tidyBookedParts() {
