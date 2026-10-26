@@ -1872,6 +1872,10 @@ html.mob #frMeeraMenu{right:14px;bottom:144px}
 .r1-mob{height:20px;width:auto;vertical-align:middle;display:inline-block}
 
 /* PPC (ppc-one.js) — the PPC ledger: R-one's tokens, the Greige Desk's ledger look. */
+/* The page shows only while PPC is open (Ravi, 26 Oct: "do pages ek saath screen pe khule hain" — it stayed on screen,
+   under the next screen, after leaving PPC). */
+#p1Home{display:none}
+.main.p1-on > #p1Home{display:block}
 .main.p1-on > *:not(.topbar):not(#p1Home){display:none!important}
 #p1Home{max-width:1400px;margin:0 auto;padding:4px 0 60px;font-size:13px;color:var(--ink)}
 #p1Home button{background:none;border:0;color:inherit;height:auto;min-height:0;width:auto;padding:0;box-shadow:none;font:inherit;cursor:pointer;margin:0}

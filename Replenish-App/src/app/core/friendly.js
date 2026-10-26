@@ -150,6 +150,8 @@ async function frLoad(force) {
   FR.loading = true; frDraw();
   const jobs = [];
   if ((frMay('ord') || frMay('so')) && (force || !SOX.rows)) jobs.push(() => ptGet('pt_salesOrders').then(v => { SOX.rows = ptList(v); }));
+  /* the Finished Goods ledger is the biggest read: when the app has it already (FGI.rows), it is not read a second time */
+  if ((frMay('fba') || frMay('fgi')) && !force && !FR.fg && typeof FGI !== 'undefined' && FGI.rows) FR.fg = FGI.rows;
   if ((frMay('fba') || frMay('fgi')) && (force || !FR.fg)) jobs.push(() => ptGet('pt_fgiLedger').then(v => { FR.fg = ptList(v); }));
   if (force) {
     if (frMay('pbase') && frTry(ptCanEdit, false)) jobs.push(() => jwCorrLoad());
@@ -417,7 +419,10 @@ function frHomeShow() {
   if ($('pageTitle')) $('pageTitle').textContent = 'My work today';
   frDraw();
   /* The first time, the big lists wait 3 s for the site to finish opening; after that they load straight away. */
-  if (FR.started) frLoad(false); else { FR.started = true; setTimeout(() => frLoad(false), 3000); }
+  /* SLOW TO OPEN (Ravi, 26 Oct: "app bohot slow load ho raha hai"): the big lists waited a fixed 3 s and then competed with the
+   * app's own first reads. Now they start once the browser is idle (at the latest 8 s after sign-in). */
+  if (FR.started) frLoad(false);
+  else { FR.started = true; const go = () => frLoad(false); if (typeof requestIdleCallback === 'function') requestIdleCallback(go, { timeout: 8000 }); else setTimeout(go, 5000); }
   window.scrollTo({ top: 0 });
   if (typeof guideIsOn === 'function' && guideIsOn() && !guideSeen().includes('mywork'))
     setTimeout(() => { if (FR.shown && !(GUIDE && GUIDE.tour)) { guideMarkSeen('mywork'); guideStart('mywork', false); } }, 2500);

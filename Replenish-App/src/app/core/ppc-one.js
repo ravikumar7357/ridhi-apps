@@ -602,7 +602,11 @@ function p1Build() {
   if (typeof frHomeShow === 'function') { const fh = frHomeShow; frHomeShow = function () { p1Hide(); return fh.apply(this, arguments); }; }
   /* a form opened from here (plan, challan, receipt) saved: the ledger reads the registers again */
   const dlg = $('ptDlg'); if (dlg && typeof MutationObserver !== 'undefined') new MutationObserver(() => { if (P1.shown && dlg.classList.contains('hide')) setTimeout(p1Draw, 300); }).observe(dlg, { attributes: true, attributeFilter: ['class'] });
+  /* THE MENU ITEM FOLLOWS THE PERSON'S ACCESS (Ravi, 26 Oct: "app pe PPC kabhi dikh nahi raha"): it was decided once, the
+   * first second a person was known — often before their screens had arrived, so it stayed hidden. Now it is decided
+   * again whenever the menu is (syncNavGroups), and every 2 s for the first minute. */
   const may = () => { a.style.display = p1May() ? '' : 'none'; };
-  const t = setInterval(() => { if (ME && ME.email) { may(); clearInterval(t); } }, 1000);
+  if (typeof syncNavGroups === 'function') { const sync = syncNavGroups; syncNavGroups = function () { const r = sync.apply(this, arguments); may(); return r; }; }
+  let tries = 0; const t = setInterval(() => { if (ME && ME.email) may(); if (++tries > 30) clearInterval(t); }, 2000);
 }
 (function p1Start(n) { if (document.querySelector('main.main') && typeof $ === 'function' && $('tabFlow')) p1Build(); else if (n > 0) setTimeout(() => p1Start(n - 1), 300); })(60);

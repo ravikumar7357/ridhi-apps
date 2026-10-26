@@ -1927,6 +1927,10 @@ html.mob #frMeeraMenu{right:14px;bottom:144px}
 .r1-mob{height:20px;width:auto;vertical-align:middle;display:inline-block}
 
 /* PPC (ppc-one.js) — the PPC ledger: R-one's tokens, the Greige Desk's ledger look. */
+/* The page shows only while PPC is open (Ravi, 26 Oct: "do pages ek saath screen pe khule hain" — it stayed on screen,
+   under the next screen, after leaving PPC). */
+#p1Home{display:none}
+.main.p1-on > #p1Home{display:block}
 .main.p1-on > *:not(.topbar):not(#p1Home){display:none!important}
 #p1Home{max-width:1400px;margin:0 auto;padding:4px 0 60px;font-size:13px;color:var(--ink)}
 #p1Home button{background:none;border:0;color:inherit;height:auto;min-height:0;width:auto;padding:0;box-shadow:none;font:inherit;cursor:pointer;margin:0}
@@ -77923,6 +77927,8 @@ async function frLoad(force) {
   FR.loading = true; frDraw();
   const jobs = [];
   if ((frMay('ord') || frMay('so')) && (force || !SOX.rows)) jobs.push(() => ptGet('pt_salesOrders').then(v => { SOX.rows = ptList(v); }));
+  /* the Finished Goods ledger is the biggest read: when the app has it already (FGI.rows), it is not read a second time */
+  if ((frMay('fba') || frMay('fgi')) && !force && !FR.fg && typeof FGI !== 'undefined' && FGI.rows) FR.fg = FGI.rows;
   if ((frMay('fba') || frMay('fgi')) && (force || !FR.fg)) jobs.push(() => ptGet('pt_fgiLedger').then(v => { FR.fg = ptList(v); }));
   if (force) {
     if (frMay('pbase') && frTry(ptCanEdit, false)) jobs.push(() => jwCorrLoad());
@@ -78190,7 +78196,10 @@ function frHomeShow() {
   if ($('pageTitle')) $('pageTitle').textContent = 'My work today';
   frDraw();
   /* The first time, the big lists wait 3 s for the site to finish opening; after that they load straight away. */
-  if (FR.started) frLoad(false); else { FR.started = true; setTimeout(() => frLoad(false), 3000); }
+  /* SLOW TO OPEN (Ravi, 26 Oct: "app bohot slow load ho raha hai"): the big lists waited a fixed 3 s and then competed with the
+   * app's own first reads. Now they start once the browser is idle (at the latest 8 s after sign-in). */
+  if (FR.started) frLoad(false);
+  else { FR.started = true; const go = () => frLoad(false); if (typeof requestIdleCallback === 'function') requestIdleCallback(go, { timeout: 8000 }); else setTimeout(go, 5000); }
   window.scrollTo({ top: 0 });
   if (typeof guideIsOn === 'function' && guideIsOn() && !guideSeen().includes('mywork'))
     setTimeout(() => { if (FR.shown && !(GUIDE && GUIDE.tour)) { guideMarkSeen('mywork'); guideStart('mywork', false); } }, 2500);
@@ -79141,8 +79150,12 @@ function p1Build() {
   if (typeof frHomeShow === 'function') { const fh = frHomeShow; frHomeShow = function () { p1Hide(); return fh.apply(this, arguments); }; }
   /* a form opened from here (plan, challan, receipt) saved: the ledger reads the registers again */
   const dlg = $('ptDlg'); if (dlg && typeof MutationObserver !== 'undefined') new MutationObserver(() => { if (P1.shown && dlg.classList.contains('hide')) setTimeout(p1Draw, 300); }).observe(dlg, { attributes: true, attributeFilter: ['class'] });
+  /* THE MENU ITEM FOLLOWS THE PERSON'S ACCESS (Ravi, 26 Oct: "app pe PPC kabhi dikh nahi raha"): it was decided once, the
+   * first second a person was known — often before their screens had arrived, so it stayed hidden. Now it is decided
+   * again whenever the menu is (syncNavGroups), and every 2 s for the first minute. */
   const may = () => { a.style.display = p1May() ? '' : 'none'; };
-  const t = setInterval(() => { if (ME && ME.email) { may(); clearInterval(t); } }, 1000);
+  if (typeof syncNavGroups === 'function') { const sync = syncNavGroups; syncNavGroups = function () { const r = sync.apply(this, arguments); may(); return r; }; }
+  let tries = 0; const t = setInterval(() => { if (ME && ME.email) may(); if (++tries > 30) clearInterval(t); }, 2000);
 }
 (function p1Start(n) { if (document.querySelector('main.main') && typeof $ === 'function' && $('tabFlow')) p1Build(); else if (n > 0) setTimeout(() => p1Start(n - 1), 300); })(60);
 </script>
