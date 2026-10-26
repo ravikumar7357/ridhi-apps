@@ -72,7 +72,8 @@ function flowEmbCells(x, first) {
     + `<td style="${td};min-width:230px"><div>To: <b>${esc(s.embTo || who)}</b></div>`
       + `<div>Sent: <b>${nf(s.embSent || 0)} m</b>${s.embCanSend > 0 ? ` <span class="muted">· ${nf(s.embCanSend)} m to send</span>` : ''}</div>`
       + `<div>Back: <b>${nf(s.embBack || 0)} / ${nf(q)} pcs</b>${s.qcRej ? ` <span style="color:#b91c1c">· ${nf(s.qcRej)} rejected at QC — embroider again</span>` : ''}</div>`
-      + open.map(no => `<div style="font-size:12px;margin-top:2px"><a href="#" data-flembp="${esc(no)}">${esc(no)}</a> · <a href="#" data-flembrx="${esc(no)}">Receive pieces</a></div>`).join('') + '</td>'
+      + open.map(no => `<div style="font-size:12px;margin-top:2px"><a href="#" data-flembp="${esc(no)}">${esc(no)}</a> · <a href="#" data-flembrx="${esc(no)}">Receive pieces</a>`
+        + (flowMay('flchl') && !Object.keys(((FLOW.emb || {})[no] || {}).receipts || {}).length ? ` · <a href="#" data-flembx="${esc(no)}" style="color:#b91c1c">Cancel</a>` : '') + '</div>').join('') + '</td>'
     + `<td style="white-space:nowrap;vertical-align:top">${first && flowMay('flchl') ? `<button data-flembs="${esc(x.r.orderNo)}" style="width:auto;padding:3px 10px;font-size:12px">Send to embroidery</button>` : ''}`
       + (s.canCut > 0 ? `<div class="muted" style="font-size:11px;margin-top:4px">${nf(s.canCut)} pcs ready to cut</div>` : '') + '</td>';
 }
@@ -169,6 +170,7 @@ function flowEmbRecvOpen(no) {
 }
 /** A challan sent by mistake: cancelled (its number kept) while nothing has come back on it. */
 async function flowEmbCancel(no) {
+  if (!flowMay('flchl')) return flowSay('Embroidery is the fabric team\'s — this account has no "Printed fabric in" right.', true);
   const c = (FLOW.emb || {})[no]; if (!c || c.cancelled) return;
   if (Object.keys(c.receipts || {}).length) return flowSay(`${no} has pieces received on it — it cannot be cancelled.`, true);
   if (!confirm(`Cancel embroidery challan ${no}? The cloth on it counts as not sent again.`)) return;

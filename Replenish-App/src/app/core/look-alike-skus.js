@@ -101,7 +101,14 @@ function obCutQty(orderNo, sku, exclId) {
 }
 
 /** The tool's own guard, for kind 'cut'. Same numbers, same wording. */
+/* A LEGACY ORDER TAKES NO NEW WORK (Ravi, 24 Oct: "ye quilt ki cutting mene new orders ke liye cutt kiya tha but ye direct
+ * LEG-17102026 me chali gyi but leg order sirf humne pahli pending entry complete krne ke liye kiya tha"). LEG-… holds the pieces
+ * made on the floor 1–15 Oct with no order of their own; it had no cutting entries, so every one of its lines looked like room
+ * to cut — 56 quilts cut on 23 Oct for new orders landed there. It is offered by no cutting or Job Work form, and refused. */
+const obIsLegacy = no => /^LEG-/i.test(String(no || '').trim());
+const OB_LEGACY_SHUT = no => `${obUC(no)} is the legacy order — it only holds the pieces made before 15 Oct and takes no new cutting or issue. Pick the order these pieces are for.`;
 function cutGuard(orderNo, sku, qty, exclId, allowExtra) {
+  if (obIsLegacy(orderNo) && !exclId) return OB_LEGACY_SHUT(orderNo);
   const ordered = obOrderedQty(orderNo, sku);
   if (!ordered) return `Order ${orderNo} has no line for SKU ${obUC(sku)} — pick the correct Order ID.`;
   /* Extra, with a reason recorded on the row: the ordered cap is the thing being knowingly passed. */
@@ -220,7 +227,7 @@ const cutSkuOf = sku => mdbOf(sku) || ptCustomOf(sku) || null;
 function cutOrdersFor(sku) {
   if (!sku) return [];
   const seen = new Set();
-  return obLines().filter(l => l.sku === obUC(sku)).filter(l => {
+  return obLines().filter(l => l.sku === obUC(sku) && !obIsLegacy(l.orderNo)).filter(l => {
     if (seen.has(l.orderNo)) return false; seen.add(l.orderNo); return true;
   }).map(l => {
     const ordered = obOrderedQty(l.orderNo, sku), used = obCutQty(l.orderNo, sku);

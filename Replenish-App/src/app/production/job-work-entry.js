@@ -152,6 +152,7 @@ function ptZipCheck(sku, qty, zipsIssued) {
 
 /** The old tool's obGuard('bd'), number for number. */
 function bdGuard(orderNo, sku, qty, exclId, allowExtra) {
+  if (typeof obIsLegacy === 'function' && obIsLegacy(orderNo) && !exclId) return OB_LEGACY_SHUT(orderNo);
   const ordered = obOrderedQty(orderNo, sku);
   if (!ordered) return `Order ${orderNo} has no line for SKU ${obUC(sku)} — pick the correct Order ID.`;
   const used = obIssueUsed(orderNo, sku, exclId);
@@ -186,7 +187,7 @@ function bdGuard(orderNo, sku, qty, exclId, allowExtra) {
 function bdOrdersFor(sku) {
   if (!sku) return [];
   const seen = new Set();
-  return obLines().filter(l => l.sku === obUC(sku)).filter(l => {
+  return obLines().filter(l => l.sku === obUC(sku) && !(typeof obIsLegacy === 'function' && obIsLegacy(l.orderNo))).filter(l => {
     if (seen.has(l.orderNo)) return false; seen.add(l.orderNo); return true;
   }).map(l => {
     const ordered = obOrderedQty(l.orderNo, sku), used = obIssueUsed(l.orderNo, sku);
@@ -224,10 +225,14 @@ function ptCustomPrefix(articleType) {
   const initials = key.split(/\s+/).filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 3);
   return initials || 'CU';
 }
+/* A CUSTOM CODE LIVES IN THE REGISTERS, NOT THE MASTER (24 Oct, Custom Order back on the form): a save writes the Job Work
+ * row only, so the next number and the "same item again?" check read the registers too — on the master alone, two different
+ * custom items issued the same day both came out …-CUST-<day>-01, and the same item issued twice got two codes. */
+const ptCustomRows = () => [].concat(PTG.mdb || [], PT.base || [], PT.cut || [], PTG.press || []);
 function ptNextCustomSeq(prefix, dateStr) {
   const re = new RegExp('^' + prefix + '-CUST-' + dateStr + '-(\\d+)$', 'i');
   let max = 0;
-  (PTG.mdb || []).forEach(r => { const m = re.exec(String((r && r.sku) || '')); if (m) { const n = parseInt(m[1], 10); if (n > max) max = n; } });
+  ptCustomRows().forEach(r => { const m = re.exec(String((r && r.sku) || '')); if (m) { const n = parseInt(m[1], 10); if (n > max) max = n; } });
   return String(max + 1).padStart(2, '0');
 }
 function ptGenCustomSku(articleType) {
@@ -243,13 +248,17 @@ function ptFindExistingSku(at, sub, col, sz) {
   const key = [at, sub, col, sz].map(ptNorm).join('|');
   const hit = (PTG.mdb || []).find(r => r && r.sku
     && [r.articleType, r.subtype, r.color, r.size].map(ptNorm).join('|') === key);
-  return hit ? String(hit.sku) : null;
+  if (hit) return String(hit.sku);
+  /* …or a custom code an earlier Custom Order entry made for exactly this item */
+  const cu = (PT.base || []).find(r => r && /-CUST-/i.test(r.sku || '')
+    && [r.articleType, r.articleSubtype || r.subtype, r.color, r.size].map(ptNorm).join('|') === key);
+  return cu ? String(cu.sku) : null;
 }
 
 /** Orders with an open balance for issuing, oldest first. */
 function bdOpenOrders() {
   const m = {};
-  obLines().forEach(l => { (m[l.orderNo] = m[l.orderNo] || { skus: new Set(), date: l.date }).skus.add(l.sku); });
+  obLines().forEach(l => { if (typeof obIsLegacy === 'function' && obIsLegacy(l.orderNo)) return; (m[l.orderNo] = m[l.orderNo] || { skus: new Set(), date: l.date }).skus.add(l.sku); });
   return Object.keys(m).map(no => {
     const skus = [...m[no].skus];
     const bal = skus.reduce((a, s) => a + Math.max(0, obOrderedQty(no, s) - obIssueUsed(no, s)), 0);
@@ -258,6 +267,47 @@ function bdOpenOrders() {
 }
 
 const bdIsCustom = () => $('bwCustom').checked === true;
+/* CUSTOM ORDER, IN FULL (Ravi, 24 Oct: "order id m khud likhu ya dropdown me etsy, shopify, B2B, online and proper detail dalu
+ * like article subtype color size, sku auto match or yadi masterdata me nahi h to auto masterdata me save (dropdown and manual
+ * dono) and ye mera data production meeting me kam aata h"). The Order ID is typed or picked (ETSY / SHOPIFY / B2B / ONLINE)
+ * and kept on the entry as custOrder — never as orderNo, which would make it an order-book line the book has not got. The four
+ * details are picked from the master's own spellings or typed; a typed article that the master spells another way takes the
+ * master's spelling. A SKU the master has is reused; a new one is minted and written to the master on Issue (bdCustomMaster). */
+const BD_CUST_CHANNELS = ['ETSY', 'SHOPIFY', 'B2B', 'ONLINE'];
+const bdCustChannel = t => { const u = String(t || '').trim().toUpperCase();
+  return BD_CUST_CHANNELS.find(c => u === c || u.startsWith(c + ' ') || u.startsWith(c + '-') || u.startsWith(c + '#'))
+    || (/^SHP-/.test(u) ? 'SHOPIFY' : /^ONL-/.test(u) ? 'ONLINE' : /^B2B-/.test(u) ? 'B2B' : ''); };
+/** A typed value in the master's own spelling when the master has it under another case or spacing. */
+const bdMasterSpelling = (list, v) => { const t = String(v || '').trim(); if (!t) return ''; const k = ptNorm(t);
+  return list.find(x => ptNorm(x) === k) || t; };
+const bdCustAt = () => bdMasterSpelling([...new Set((PTG.mdb || []).map(r => r && r.articleType).filter(Boolean))], $('bwAtTxt') ? $('bwAtTxt').value : '');
+const bdCustSub = () => { const at = ptNorm(bdCustAt());
+  return bdMasterSpelling([...new Set((PTG.mdb || []).filter(r => r && ptNorm(r.articleType) === at).map(r => r.subtype).filter(Boolean))], $('bwSubTxt') ? $('bwSubTxt').value : ''); };
+/** The suggestion lists under the four boxes: the master's articles; that article's subtypes; that pair's colours and sizes. */
+function bdCustomLists() {
+  const mdb = PTG.mdb || [], at = ptNorm(bdCustAt()), sub = ptNorm(bdCustSub());
+  const opts = vals => [...new Set(vals.filter(Boolean).map(v => String(v).trim()))].sort((a, b) => a.localeCompare(b)).slice(0, 400).map(v => `<option value="${esc(v)}">`).join('');
+  const of = (f, keep) => opts(mdb.filter(r => r && keep(r)).map(r => r[f]));
+  if ($('bwAtList')) $('bwAtList').innerHTML = of('articleType', () => true);
+  if ($('bwSubList')) $('bwSubList').innerHTML = of('subtype', r => !at || ptNorm(r.articleType) === at);
+  if ($('bwColList')) $('bwColList').innerHTML = of('color', r => (!at || ptNorm(r.articleType) === at) && (!sub || ptNorm(r.subtype) === sub));
+  if ($('bwSzList')) $('bwSzList').innerHTML = of('size', r => (!at || ptNorm(r.articleType) === at) && (!sub || ptNorm(r.subtype) === sub));
+}
+/** A new custom SKU into the master — or, for somebody the master is closed to, onto the Custom SKUs list the forms also read. */
+async function bdCustomMaster(e) {
+  if (!e || !e.sku || mdbOf(e.sku) || (typeof ptCustomOf === 'function' && ptCustomOf(e.sku))) return '';
+  const tc = typeof ptTcCutReq === 'function' ? ptTcCutReq(e.articleType, e.articleSubtype) : null;
+  const rec = { sku: e.sku, articleType: e.articleType, subtype: e.articleSubtype, color: e.color, size: e.size, brand: '', packOf: '',
+    cuttingRequired: tc == null ? true : tc, isCustom: true, customOrder: e.custOrder || '', source: 'Custom Order (Job Work)',
+    addedBy: ME.email || '', addedAt: new Date().toISOString() };
+  const master = (typeof mdbCanEdit === 'function' && mdbCanEdit()) || !!ME.prodEdit;
+  try {
+    if (master) { const key = 'mdb_' + Date.now(); await ptPut('pt_masterDB/' + key, rec); PTG.mdb = (PTG.mdb || []).concat(Object.assign({ _key: key }, rec)); return ` ${e.sku} added to the master database.`; }
+    await ptPut('pt_customSkus/' + e.sku, rec);
+    if (typeof MDBX !== 'undefined') MDBX.custom = (MDBX.custom || []).concat(Object.assign({ _key: e.sku }, rec));
+    return ` ${e.sku} added to the Custom SKUs list (the master database needs that permission).`;
+  } catch (er) { return ` ${e.sku} could NOT be added to the master: ${er.message || er}.`; }
+}
 
 /** The master rows in play: everything in Custom mode, otherwise only what the picked order needs. */
 function bdScope() {
@@ -290,6 +340,10 @@ function renderBdForm() {
   $('bwSz').classList.toggle('hide', custom);
   $('bwColTxt').classList.toggle('hide', !custom);
   $('bwSzTxt').classList.toggle('hide', !custom);
+  /* …and since 24 Oct its own Order ID, and the article and subtype picked from the master or typed */
+  ['bwCustOrd', 'bwAtTxt', 'bwSubTxt'].forEach(id => { if ($(id)) $(id).classList.toggle('hide', !custom); });
+  ['bwAt', 'bwSub'].forEach(id => $(id).classList.toggle('hide', custom));
+  if (custom) bdCustomLists();
 
   bdFill('bwType', ptEmpTypes(), 'Employment type…');
   $('bwEmpList').innerHTML = ptEmpsOfType($('bwType').value).map(e => `<option value="${esc(e[1])}">`).join('');
@@ -313,7 +367,7 @@ function renderBdForm() {
   }
 
   const scope = bdScope();
-  const at = $('bwAt').value, sub = $('bwSub').value;
+  const at = custom ? bdCustAt() : $('bwAt').value, sub = custom ? bdCustSub() : $('bwSub').value;
   const col = custom ? $('bwColTxt').value.trim() : $('bwCol').value;
   const sz = custom ? $('bwSzTxt').value.trim() : $('bwSz').value;
 
@@ -473,6 +527,12 @@ function bdSkuTyped() {
     $('bwAt').value = m.articleType || ''; $('bwSub').value = m.subtype || '';
     $('bwCol').value = m.color || ''; $('bwSz').value = m.size || '';
   }
+  /* …and in Custom Order too (Ravi, 24 Oct: "sku id dalte hi auto fatch hona chahiye"): a SKU the master or the Custom SKUs
+   * list knows fills the four typed boxes; a SKU nobody knows leaves them for typing. */
+  if (m && bdIsCustom()) {
+    if ($('bwAtTxt')) $('bwAtTxt').value = m.articleType || ''; if ($('bwSubTxt')) $('bwSubTxt').value = m.subtype || '';
+    $('bwColTxt').value = m.color || ''; $('bwSzTxt').value = m.size || '';
+  }
   /* The REST of the form — the order list and five dropdowns rebuilt from the master database and
    * the order book — waits until the typing stops. Doing it per character is what made a five-letter
    * SKU take five rebuilds of everything, and none of the first four were ever looked at. */
@@ -483,6 +543,8 @@ let BD_FORM_T = null;
 
 function bdClearForm() {
   ['bwEmp', 'bwSku', 'bwPcs', 'bwRemarks', 'bwColTxt', 'bwSzTxt'].forEach(id => { $(id).value = ''; });
+  /* the custom Order ID and article stay for the next piece of the same custom order; colour and size are cleared */
+  if (!bdIsCustom()) ['bwCustOrd', 'bwAtTxt', 'bwSubTxt'].forEach(id => { if ($(id)) $(id).value = ''; });
   ['bwOrd', 'bwAt', 'bwSub', 'bwCol', 'bwSz'].forEach(id => { $(id).value = ''; });
   $('bwSku').dataset.typed = '';
   $('bwSkuNote').textContent = '';
@@ -521,10 +583,11 @@ $('bwToggle').onclick = async () => {
  * must not: it also runs after a save, and a run of custom entries would re-tick it every time. */
 $('bwClear').onclick = () => {
   $('bwCustom').checked = false;
+  ['bwCustOrd', 'bwAtTxt', 'bwSubTxt'].forEach(id => { if ($(id)) $(id).value = ''; });
   bdClearForm();
   bdFormMsg('Cleared — nothing was saved.');
 };
-['bwCustom', 'bwOrd', 'bwType', 'bwAt', 'bwSub', 'bwCol', 'bwSz', 'bwColTxt', 'bwSzTxt'].forEach(id => {
+['bwCustom', 'bwOrd', 'bwType', 'bwAt', 'bwSub', 'bwCol', 'bwSz', 'bwColTxt', 'bwSzTxt', 'bwAtTxt', 'bwSubTxt'].filter(id => $(id)).forEach(id => {
   // Changing anything above the SKU means the typed SKU no longer stands.
   const reset = () => { if (id !== 'bwType') $('bwSku').dataset.typed = ''; renderBdForm(); };
   $(id).addEventListener('change', reset);
@@ -562,10 +625,12 @@ $('bwSave').onclick = async () => {
   /* On the Custom SKUs list and not in the master: what it is comes off the list (its selects cannot hold a size like
    * "40*40 cm" that no master row has). */
   const cm = !custom && sku && !mdbOf(sku) ? ptCustomOf(sku) : null;
-  const at = $('bwAt').value || (cm ? cm.articleType : ''), sub = $('bwSub').value || (cm ? cm.subtype : '');
+  const at = custom ? bdCustAt() : ($('bwAt').value || (cm ? cm.articleType : '')), sub = custom ? bdCustSub() : ($('bwSub').value || (cm ? cm.subtype : ''));
+  const custOrder = custom && $('bwCustOrd') ? $('bwCustOrd').value.trim() : '';
   const col = custom ? $('bwColTxt').value.trim() : ($('bwCol').value || (cm ? cm.color : ''));
   const sz = custom ? $('bwSzTxt').value.trim() : ($('bwSz').value || (cm ? cm.size : ''));
 
+  if (custom && !custOrder) return bdFormMsg('Type the Order ID, or pick ETSY / SHOPIFY / B2B / ONLINE.', true);
   if (!type) return bdFormMsg('Select the employment type.', true);
   if (!name) return bdFormMsg('Enter the employee.', true);
   const emp = ptEmpsOfType(type).find(e => String(e[1]).trim().toLowerCase() === name.toLowerCase());
@@ -609,6 +674,7 @@ $('bwSave').onclick = async () => {
     ...bdMatEntry(),
     frozen: false,
     isCustom: custom || (cm ? true : undefined),
+    ...(custom ? { custOrder, custChannel: bdCustChannel(custOrder) } : {}),
     addedBy: ME.email, addedAt: new Date().toISOString(),
   };
 
@@ -635,10 +701,11 @@ This would be a SECOND, identical issue — and a second payment. OK saves it an
     try { zipNote = await ptConsumeZippers(entry); } catch (e) { zipNote = 'The zipper deduction did not save: ' + (e.message || e); }
     /* THE RUFFLE GOES WITH IT, the way the zipper does — a ruffle tablecloth takes both. */
     try { rufNote = await ptConsumeRuffle(entry); } catch (e) { rufNote = ' The ruffle fabric deduction did not save: ' + (e.message || e); }
+    const mdbNote = custom ? await bdCustomMaster(entry) : '';
     bdClearForm();
     renderPbase();
-    const matNote = (zipNote + rufNote).trim();
-    bdFormMsg(`Issued — ${nf(pcs)} piece(s) of ${obUC(sku)} to ${emp[1]}${orderNo ? ' against ' + orderNo : ' (custom order)'}.`
+    const matNote = (zipNote + rufNote + mdbNote).trim();
+    bdFormMsg(`Issued — ${nf(pcs)} piece(s) of ${obUC(sku)} to ${emp[1]}${orderNo ? ' against ' + orderNo : ` (custom order ${custOrder})`}.`
       + (matNote ? ' ' + matNote : '') + waNote, /NOT|could not|did not/.test(matNote));
   } catch (e) {
     waPreClose(waWin);

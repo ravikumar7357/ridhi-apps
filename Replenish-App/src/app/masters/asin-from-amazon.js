@@ -217,6 +217,7 @@ function mdbFromCsv(row, ix) {
     inventoryValuationPrice: g('valprice'), imageUrl: g('image'),
     asin: g('asin'), parentAsin: g('parent'),
     manufacturer: g('maker'), pipingFabric: g('pipingfab'), packType: g('packtype'), packMaterial: g('packmat'),
+    listingStatus: g('listing'),
   };
 }
 
@@ -245,7 +246,8 @@ function mdbFormOf(r) {
     fillerFabricRequired: yn(r.fillerFabricRequired), standardFillingQty: s(r.standardFillingQty),
     inventoryValuationPrice: s(r.inventoryValuationPrice), imageUrl: s(r.imageUrl),
     asin: s(r.asin), parentAsin: s(r.parentAsin),
-    manufacturer: s(r.manufacturer), pipingFabric: s(r.pipingFabric), packType: s(r.packType), packMaterial: s(r.packMaterial) };
+    manufacturer: s(r.manufacturer), pipingFabric: s(r.pipingFabric), packType: s(r.packType), packMaterial: s(r.packMaterial),
+    listingStatus: s(r.listingStatus) };
 }
 /** What the file says, over what the SKU already says. */
 function mdbMerge(v, existing) {
@@ -292,6 +294,7 @@ $('ptmFile').onchange = async e => {
       pipingfab: colIdx(head, ['piping fabric']),
       packtype: colIdx(head, ['packing type', 'packing', 'pack type']),
       packmat: colIdx(head, ['packing material', 'polythene / box used', 'polythene', 'box', 'packing item']),
+      listing: colIdx(head, ['listing status', 'india status', 'status']),
     };
     if (ix.sku < 0) {
       $('ptmMsg').className = 'err';

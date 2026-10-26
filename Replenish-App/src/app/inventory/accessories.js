@@ -610,6 +610,8 @@ function accEditTxn(id) {
       const err = accTxnCheck(v, r._id); if (err) return err;
       const next = Object.assign({}, r, { txnType: v.txnType, itemCode: String(v.itemCode).trim(),
         qty: parseFloat(v.qty), date: v.date, ref: String(v.ref || '').trim(),
+        /* The name typed in the dialog is the name kept — a correction to who has it must stick. */
+        issuedTo: String(v.issuedTo || '').trim(),
         remarks: String(v.remarks || '').trim(), editedBy: ME.email, editedAt: new Date().toISOString() });
       delete next._key;
       await ptPut('pt_accLedger/' + r._id, next);

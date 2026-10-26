@@ -172,7 +172,7 @@ function renderTop() {
   const loaded = ['SP', 'CPC'].some(x => REPL[x]);
   if (!loaded) {
     $('topKpis').innerHTML = '';
-    $('topTable').innerHTML = `<tbody><tr><td class="muted" style="padding:14px">Open the Replenishment tab and hit “Refresh from sheet” first — this list is built from that data.</td></tr></tbody>`;
+    $('topTable').innerHTML = `<tbody><tr><td class="muted" style="padding:14px">No snapshot yet — it is built by itself from FabriCrush Inventory every three hours, and this list is built from it.</td></tr></tbody>`;
     return;
   }
   const all = topAsinRows(b);

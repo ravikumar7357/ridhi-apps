@@ -277,8 +277,12 @@ function soQtyOpen(id, sku) {
       if (err) return err;
       renderSox();
       $('sxMsg').className = 'muted';
-      $('sxMsg').textContent = sku + ' on ' + o._id + ' is now ' + nf(parseFloat(v.qty) || 0)
-        + ' piece(s), and the order book says the same.';
+      /* ASKED, NOT CHANGED. soQtyRun only writes the request; the order and the order book stay
+       * where they are until it is approved in the Order Console. Saying "is now" here sent people
+       * to the floor with a figure nobody had agreed to yet. */
+      $('sxMsg').textContent = 'Asked: ' + sku + ' on ' + o._id + ' from ' + nf(now) + ' to '
+        + nf(parseFloat(v.qty) || 0) + ' piece(s). The order and the order book stay at ' + nf(now)
+        + ' until it is approved in the Order Console.';
       return '';
     },
   });

@@ -1302,12 +1302,22 @@
 .vpb-card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:10px}
 .vpb-head{display:flex;align-items:center;gap:8px;font-size:15px}
 .vpb-pri{font-size:12px;font-weight:700;color:var(--accent)}
-.vpb-tot{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;text-align:center}
+.vpb-tot{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;text-align:center}
 .vpb-tot>div{background:var(--soft);border-radius:10px;padding:6px 4px;display:flex;flex-direction:column}
 .vpb-tot span{font-size:10.5px;color:var(--muted)}.vpb-tot b{font-variant-numeric:tabular-nums}
 .vpb-tot .r{background:var(--brand-bg)}.vpb-tot .r span,.vpb-tot .r b{color:var(--brand-ink)}
 .vpb-tot .s{background:var(--accent-bg)}.vpb-tot .s span,.vpb-tot .s b{color:var(--accent)}
 .vpb-tot .b{background:var(--bad-bg)}.vpb-tot .b span,.vpb-tot .b b{color:var(--bad)}
+/* the printer's own "Vendor sent" (26 Oct): a tile, and a strip under each line with its batches and the box to add one */
+.vpb-tot .v{background:#f3e8ff}.vpb-tot .v span,.vpb-tot .v b{color:#6b21a8}
+.vpb-vs{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12px;margin:4px 0 2px 54px}.vpb-vs>b{color:#6b21a8}
+.vpb-vs details{font-size:11.5px}.vpb-vs summary{cursor:pointer;color:var(--brand)}
+.vpb-vs input{width:78px;text-align:right;padding:3px 6px}.vpb-vs button{width:auto;padding:3px 10px;font-size:12px}
+.vpb-vsb{display:flex;gap:8px;align-items:baseline;padding:1px 0}.vpb-vsb.off{text-decoration:line-through;opacity:.6}
+.vpb-vs.flat{margin-left:0}.vpvs-add{display:inline-flex;gap:4px;align-items:center}
+.vpvs-td{text-align:right;font-size:12px;white-space:nowrap}.vpvs-td>b{color:#6b21a8}.vpvs-td details{font-size:11px;text-align:left}
+.vpvs-td summary{cursor:pointer;color:var(--brand)}.vpvs-td .vpvs-add{display:flex;margin-top:3px;justify-content:flex-end}
+.vpvs-td input{width:70px;text-align:right;padding:3px 6px}.vpvs-td button{width:auto;padding:3px 8px;font-size:12px}
 .vpb-line{display:flex;gap:10px;align-items:center;border-top:1px solid var(--line);padding-top:8px}
 .vpb-pic,.vpb-line [data-img] img{width:44px;height:44px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
 .vpb-what{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;font-size:12.5px}
@@ -1678,6 +1688,33 @@ html.mob #gdAsk{right:8px;left:8px;width:auto;bottom:72px;max-height:calc(100vh 
 #gdAsk .ga-fbb{height:26px;width:30px;padding:0;border:1px solid var(--line);border-radius:8px;background:#fff;cursor:pointer;box-shadow:none;font-size:13px}
 #gdAsk .ga-fbb:hover{border-color:var(--brand)}
 #gdAsk .ga-miss{max-height:220px;overflow:auto;font-size:12px}
+/* Meera's round button and its menu (26 Oct, R-one's way): bottom-right, "Ask Meera" on hover; the top bar's
+   Ask Meera / Show me / Helper give way to it (the menu has all three); "Skip" in her box */
+#gdAskBtn,#gdCtl{display:none!important}
+#gdLaunch{position:fixed;right:22px;bottom:22px;z-index:10050;width:58px;height:58px;border-radius:50%;padding:0;border:3px solid #fff;background:var(--brand,#4A6A92);
+  box-shadow:0 8px 24px rgba(20,24,31,.25);cursor:pointer;display:grid;place-items:center;transition:transform .15s ease}
+#gdLaunch.hide{display:none}
+#gdLaunch:hover{transform:scale(1.06)}
+#gdLaunch .gd-face{width:100%;height:100%;border-radius:50%;box-shadow:none}
+#gdLaunch .gd-lab{position:absolute;right:66px;top:50%;transform:translateY(-50%);background:#14181F;color:#fff;font-size:12.5px;font-weight:700;border-radius:8px;padding:5px 10px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .15s ease}
+#gdLaunch:hover .gd-lab,#gdLaunch:focus-visible .gd-lab{opacity:1}
+html.mob #gdLaunch{bottom:84px;right:14px;width:50px;height:50px}
+#gdMenu{position:fixed;right:22px;bottom:92px;z-index:10055;width:270px;background:#fff;border-radius:14px;box-shadow:0 16px 40px rgba(20,24,31,.22);padding:6px;display:flex;flex-direction:column}
+#gdMenu.hide{display:none}
+#gdMenu button{display:flex;align-items:center;gap:12px;border:0;background:none;text-align:left;padding:9px 10px;border-radius:10px;cursor:pointer;font:inherit;font-size:16px;box-shadow:none;height:auto}
+#gdMenu button:hover{background:var(--soft,#F7F9FB)}
+#gdMenu span{display:flex;flex-direction:column;gap:1px}
+#gdMenu b{font-size:13.5px;color:var(--ink,#14181F)}
+#gdMenu small{font-size:12px;color:var(--muted,#5A6472)}
+#gdMenu button + button{border-top:1px solid var(--line,#E8EDF3);border-radius:0}
+.gd-sw{position:relative;width:30px;height:18px;border-radius:999px;background:#C9D2DE;flex:0 0 auto}
+.gd-sw::after{content:'';position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:left .15s ease}
+.gd-sw.on{background:var(--accent,#4A5A3C)}
+.gd-sw.on::after{left:14px}
+html.mob #gdMenu{right:14px;bottom:144px}
+#gdBubble #gdOff{border:1px solid var(--line,#E8EDF3);border-radius:8px;padding:0 12px;height:30px;min-height:30px;font-weight:600;color:var(--muted,#5A6472);text-decoration:none}
+#gdBubble #gdOff:hover{background:var(--soft,#F7F9FB);color:var(--ink,#14181F)}
+@media print{#gdLaunch,#gdMenu{display:none}}
 
 /* ================= MY WORK TODAY + SEARCH EVERYTHING (friendly add-on, friendly.js) ================= */
 /* The menu's first item. */

@@ -3948,6 +3948,9 @@ function entrySave() {
     done: prev ? !!prev.done : false };
   /* A RECEIPT THAT CAME ON A CHALLAN KEEPS IT: the paper, the truck and the pieces ride on the row. */
   if (prev) ['chId', 'vehicle', 'lr', 'pieces'].forEach(function (k) { if (prev[k] != null) row[k] = prev[k]; });
+  /* A SHRINKAGE HOLD SURVIVES A CORRECTION. Fixing the metres or the date of an RFD receipt that is
+   * waiting for approval (or was turned down) must not slip it into stock without anyone approving it. */
+  if (prev && prev.approval && kind === 'RECEIVE_RFD') row.approval = prev.approval;
   if (kind === 'RECEIVE_RFD') row.final = !!$('enFinal').checked;
   /* WHAT STAYED IS WHAT THE LEDGER COUNTS. The challan figure and what went back are kept on the
    * row so the mill can be answered later, but the stock only ever sees the difference. */
@@ -4191,9 +4194,12 @@ function gdClearAll() { DB.gpo = []; DB.fab = []; gdSaveAll(); }
  * gdesk opens the desk; gdled shows the fabric ledger; gdledit lets them add and correct it; gdappr approves an RFD
  * receipt that shrank more than 5%. An admin holds all four. */
 var GD_RIGHTS = [['gdesk', 'Open the Greige Desk'], ['gdled', 'See the fabric ledger'], ['gdledit', 'Add to and correct the fabric ledger'], ['gdappr', 'Approve an RFD receipt that shrank more than 5%']];
+/* AN EMPTY TABS LIST IS NO ACCESS, as it is everywhere else in the app (auth.js: a failed or empty perms read
+ * gives nothing). It used to hand all four rights to such an account. Only the desk run on its own, with no
+ * app login at all, still opens with every right. */
 function gdHas(k) {
-  var me = (typeof ME !== 'undefined' && ME) || {}, tabs = me.tabs || [];
-  return !!me.admin || !tabs.length || tabs.indexOf(k) >= 0;
+  if (typeof ME === 'undefined' || !ME) return true;
+  return !!ME.admin || (ME.tabs || []).indexOf(k) >= 0;
 }
 function meUser() {
   var me = (typeof ME !== 'undefined' && ME) || {};

@@ -43,9 +43,10 @@ var INV = {
     SP:  { key: 'ridhi', label: 'Ridhi', sheet: '1QPTz69Q128OWAm2ewe13jkciXOC9CUfkmVEJMA-iKKo', catTab: 'Catalog' },
     CPC: { key: 'cpc',   label: 'CPC',   sheet: '1UHHVMqUu3Q2vfLQRKvbOnesjvjL_YdKg2KCh-G084fg', catTab: 'CPC Catalog' },
   },
-  // Auto schedule (Asia/Kolkata): orders every 6 h; shipments + inventory at 9:00 and 17:00; catalogue at 6:00.
+  // Auto schedule (Asia/Kolkata): orders every 6 h; shipments + inventory + the Replenish snapshot every 3 hours (Ravi,
+  // 25 Oct: "har 3 ghante" — the old sheets' rhythm); catalogue at 6:00.
   ordEveryMs: 6 * 3600 * 1000,
-  invSlots: [9, 17],
+  invSlots: [0, 3, 6, 9, 12, 15, 18, 21],
   catSlot: 6,
 };
 var INV_SHIP_KEEP = { WORKING: 'Working', READY_TO_SHIP: 'Ready to Ship', SHIPPED: 'Shipped', IN_TRANSIT: 'In Transit', CHECKED_IN: 'Checked In' };
@@ -173,8 +174,9 @@ function invSettings_() {
 /** Steps for a named job. brand: 'SP' | 'CPC' | 'all'. */
 function invStepsFor_(what, brand) {
   var bs = (brand === 'SP' || brand === 'CPC') ? [brand] : ['SP', 'CPC'];
-  var fns = { refresh: ['ord', 'ship', 'inv'], orders: ['ord'], shipments: ['ship', 'inv'], inventory: ['inv'],
-              catalog: ['cat'], history: ['hist', 'inv'], stockday: ['ship', 'inv'] }[what];
+  /* every job that rebuilds inventory ends with the Replenish app's snapshot (ReplSnap.gs) — nothing is pressed by hand */
+  var fns = { refresh: ['ord', 'ship', 'inv', 'repl'], orders: ['ord'], shipments: ['ship', 'inv', 'repl'], inventory: ['inv', 'repl'],
+              catalog: ['cat'], history: ['hist', 'inv', 'repl'], stockday: ['ship', 'inv', 'repl'], repl: ['repl'] }[what];
   if (!fns) throw new Error('Unknown job "' + what + '"');
   var steps = [];
   fns.forEach(function (fn) { bs.forEach(function (b) { steps.push({ fn: fn, b: b, st: {} }); }); });
@@ -272,7 +274,7 @@ function invScheduleDue_() {
     if (!last['ord_' + b] || Date.now() - last['ord_' + b] >= INV.ordEveryMs) steps.push({ fn: 'ord', b: b, st: {} });
   });
   var invDue = INV.invSlots.some(function (h) { return hour >= h && (last['inv_SP'] || 0) < slotMs(h); });
-  if (invDue) ['ship', 'inv'].forEach(function (fn) { ['SP', 'CPC'].forEach(function (b) { steps.push({ fn: fn, b: b, st: {} }); }); });
+  if (invDue) ['ship', 'inv', 'repl'].forEach(function (fn) { ['SP', 'CPC'].forEach(function (b) { steps.push({ fn: fn, b: b, st: {} }); }); });
   if (hour >= INV.catSlot && (last['cat_SP'] || 0) < slotMs(INV.catSlot)) ['SP', 'CPC'].forEach(function (b) { steps.push({ fn: 'cat', b: b, st: {} }); });
   if (!steps.length) return;
   var job = { id: Date.now(), by: 'schedule', steps: steps, i: 0, started: Date.now(), log: [] };
@@ -566,6 +568,9 @@ INV_STEPS.inv = function (b, st, deadline) {
   // 1) FBA summaries, page by page. A page is retried; if it still fails the step stops and the
   //    previous inventory stays as it is (rule 3 — the sheet wrote zeros for every SKU after it).
   st.rows = st.rows || {}; st.pages = st.pages || 0;
+  // Amazon's nextToken does not survive the pause between two runs (24 Oct: page 16 answered 400 after
+  // a one-minute gap), so the whole list is read inside ONE run: start only with 3+ minutes in hand.
+  if (!st.fbaDone && !st.token && deadline - Date.now() < 3 * 60 * 1000) return { done: false, st: st, msg: 'waiting for a fresh run to read the FBA list in one go' };
   if (!st.fbaDone) {
     while (Date.now() < deadline - 40000) {
       var path = '/fba/inventory/v1/summaries?details=true&granularityType=Marketplace&granularityId=' + marketplaceId_() + '&marketplaceIds=' + marketplaceId_() +
@@ -573,6 +578,10 @@ INV_STEPS.inv = function (b, st, deadline) {
       var res = null, lastErr = '';
       for (var a = 0; a < 4 && !res; a++) {
         try { res = spRetry_(path, 'get'); } catch (e) { lastErr = String(e.message || e); Utilities.sleep(3000 * (a + 1)); }
+      }
+      if (!res && st.token && / 400 /.test(lastErr) && !st.restarted) {   // expired page token → read the list again from page 1
+        st.rows = {}; st.pages = 0; st.token = null; st.restarted = true;
+        return { done: false, st: st, msg: 'Amazon page token expired — reading the FBA list again from the start' };
       }
       if (!res) throw new Error('FBA inventory page ' + (st.pages + 1) + ' failed 4 times — old inventory kept. ' + lastErr.slice(0, 200));
       ((res.payload && res.payload.inventorySummaries) || []).forEach(function (it) {
@@ -762,6 +771,84 @@ function invInstall() {
   return 'invTick every 10 minutes';
 }
 
+/* ===================== Check against the old sheets (read-only) ===================== */
+
+/** Side by side: the sheet's Inventory totals vs ours, and order lines/units per month. Never writes a sheet. */
+function invCompare_(b) {
+  var B = INV.brands[b], out = { brand: b, inventory: {}, orders: {} };
+  var tab = b === 'CPC' ? 'CPC Inventory' : 'Inventory';
+  var sh = SpreadsheetApp.openById(B.sheet).getSheetByName(tab);
+  var want = ['Total Stock', 'warehouse', 'fulfillable', 'Unsellable', 'reserved', 'inbound_working', 'inbound_shipped', 'inbound_receiving',
+    'reserved_orders', 'AWD Available', 'AWD Transit', 'Last 7 Days', 'Last 30 Days', 'Last 90 Days', 'Last 90 Days $'];
+  var mine = invReadSet_('inv', b, 'inv_' + b), cols = (mine.idx || {}).cols || [];
+  if (sh && sh.getLastRow() > 2) {
+    var vals = sh.getRange(1, 1, sh.getLastRow(), sh.getLastColumn()).getValues(), head = vals[0].map(String);
+    var upd = head.indexOf('UpdatedAt');
+    out.inventory.sheetBuilt = upd >= 0 && vals[2][upd] instanceof Date ? vals[2][upd].getTime() : 0;
+    out.inventory.appBuilt = (mine.idx || {}).at || 0;
+    out.inventory.skus = { sheet: vals.length - 2, app: mine.rows.length };
+    want.forEach(function (h) {
+      var i = head.indexOf(h), j = cols.indexOf(h), a = 0, m = 0;
+      for (var r = 2; r < vals.length; r++) a += Number(vals[r][i]) || 0;
+      mine.rows.forEach(function (row) { m += Number(row[j]) || 0; });
+      out.inventory[h] = { sheet: i < 0 ? null : Math.round(a), app: j < 0 ? null : Math.round(m) };
+    });
+    var recS = head.filter(function (h) { return / Rec\.$/.test(h); }), recA = cols.filter(function (h) { return / Rec\.$/.test(h); });
+    out.inventory.recMonths = { sheet: recS, app: recA };
+    recS.concat(recA).filter(function (h, k, arr) { return arr.indexOf(h) === k; }).forEach(function (h) {
+      var i = head.indexOf(h), j = cols.indexOf(h), a = 0, m = 0;
+      if (i >= 0) for (var r = 2; r < vals.length; r++) a += Number(vals[r][i]) || 0;
+      if (j >= 0) mine.rows.forEach(function (row) { m += Number(row[j]) || 0; });
+      out.inventory[h] = { sheet: i < 0 ? null : a, app: j < 0 ? null : m };
+    });
+  }
+  var osh = SpreadsheetApp.openById(b === 'CPC' ? '1jjDNWNF327mVQTKfmcadioB5AO5A9BP_9M1CC9t4L2o' : '1OLIo0mYIgClBuABrfivPoLG-M1xS_rLwkQpFRAF_0kA')
+    .getSheetByName(b === 'CPC' ? 'CPC Orders' : 'Orders');
+  if (osh && osh.getLastRow() > 1) {
+    var ov = osh.getRange(2, 3, osh.getLastRow() - 1, 4).getValues();            // C Date, D SKU, E ASIN, F Units
+    ov.forEach(function (r) {
+      var d = r[0] instanceof Date ? Utilities.formatDate(r[0], osh.getParent().getSpreadsheetTimeZone(), 'yyyy-MM') : String(r[0]).slice(0, 7);
+      var o = out.orders[d] || (out.orders[d] = { sheetLines: 0, sheetUnits: 0, appLines: 0, appUnits: 0 });
+      o.sheetLines++; o.sheetUnits += Number(r[3]) || 0;
+    });
+  }
+  var sum = invGet_('idx/ord_' + b) || { months: {} };
+  Object.keys(sum.months).forEach(function (ym) {
+    var o = out.orders[ym] || (out.orders[ym] = { sheetLines: 0, sheetUnits: 0, appLines: 0, appUnits: 0 });
+    invReadSet_('ord', b + '_' + ym, 'ord_' + b + '_' + ym).rows.forEach(function (r) { o.appLines++; o.appUnits += Number(r[5]) || 0; });
+  });
+  return out;
+}
+
+/** One month, line by line: which Order ID + SKU the sheet has and the app does not, and the reverse.
+ *  Also shows raw Date-cell samples from across the sheet, to see how the dates are stored. Read-only. */
+function invDiag_(b, ym) {
+  var osh = SpreadsheetApp.openById(b === 'CPC' ? '1jjDNWNF327mVQTKfmcadioB5AO5A9BP_9M1CC9t4L2o' : '1OLIo0mYIgClBuABrfivPoLG-M1xS_rLwkQpFRAF_0kA')
+    .getSheetByName(b === 'CPC' ? 'CPC Orders' : 'Orders');
+  var n = osh.getLastRow(), tz = osh.getParent().getSpreadsheetTimeZone(), out = { lastRow: n, tabs: osh.getParent().getSheets().map(function (x) { return x.getName() + ':' + x.getLastRow(); }), samples: [] };
+  [2, 3, Math.floor(n / 4), Math.floor(n / 2), Math.floor(3 * n / 4), n - 1, n].forEach(function (r) {
+    if (r < 2) return;
+    var v = osh.getRange(r, 1, 1, 10).getValues()[0];
+    out.samples.push({ row: r, raw: v.map(function (x) { return x instanceof Date ? 'DATE:' + Utilities.formatDate(x, tz, 'yyyy-MM-dd HH:mm') : String(x); }) });
+  });
+  if (ym) {
+    var vals = osh.getRange(2, 1, n - 1, 10).getValues(), sheet = {}, app = {};
+    vals.forEach(function (r) {
+      var d = r[2] instanceof Date ? Utilities.formatDate(r[2], tz, 'yyyy-MM-dd') : String(r[2]).slice(0, 10);
+      if (d.slice(0, 7) === ym) { var k = r[0] + '|' + r[3]; sheet[k] = (sheet[k] || 0) + 1; }
+    });
+    invReadSet_('ord', b + '_' + ym, 'ord_' + b + '_' + ym).rows.forEach(function (r) { var k = r[0] + '|' + r[3]; app[k] = (app[k] || 0) + 1; });
+    var onlySheet = Object.keys(sheet).filter(function (k) { return !app[k]; }), onlyApp = Object.keys(app).filter(function (k) { return !sheet[k]; });
+    var dupSheet = Object.keys(sheet).filter(function (k) { return sheet[k] > 1; });
+    out.month = { ym: ym, sheetKeys: Object.keys(sheet).length, appKeys: Object.keys(app).length, onlySheet: onlySheet.length, onlyApp: onlyApp.length,
+      sheetDupKeys: dupSheet.length, onlySheetSample: onlySheet.slice(0, 15), onlyAppSample: onlyApp.slice(0, 15), dupSample: dupSheet.slice(0, 5) };
+    var pick = {}; onlySheet.slice(0, 15).forEach(function (k) { pick[k] = 1; });
+    out.month.onlySheetRows = vals.filter(function (r) { return pick[r[0] + '|' + r[3]]; }).slice(0, 15).map(function (r) {
+      return r.map(function (x) { return x instanceof Date ? Utilities.formatDate(x, tz, 'yyyy-MM-dd HH:mm') : String(x); }); });
+  }
+  return out;
+}
+
 /* ===================== Web route: ?inv=… (behind the API key in doGet) ===================== */
 
 function invRoute_(p) {
@@ -772,6 +859,8 @@ function invRoute_(p) {
     return { ok: true, scope: j.scope || '', email: j.email || '', err: j.error_description || '',
       triggers: ScriptApp.getProjectTriggers().map(function (t) { return t.getHandlerFunction(); }) };
   }
+  if (what === 'compare') return { ok: true, compare: invCompare_(String(p.brand || 'SP').toUpperCase() === 'CPC' ? 'CPC' : 'SP') };
+  if (what === 'diag') return { ok: true, diag: invDiag_(String(p.brand || 'SP').toUpperCase() === 'CPC' ? 'CPC' : 'SP', String(p.month || '')) };
   if (what === 'status') return { ok: true, status: invStatus_(), job: invGet_('work/job') };
   if (what === 'run') {
     var steps = invStepsFor_(String(p.job || 'refresh'), String(p.brand || 'all').toUpperCase());

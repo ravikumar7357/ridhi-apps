@@ -37,7 +37,7 @@ function renderArticle() {
       + (ACCESS_ERR ? esc(ACCESS_ERR)
         // "No snapshot yet" would be a lie when the snapshot is fine and every SKU in it is stopped.
         : AR_STOPPED ? `Every SKU here is discontinued or use-in-mix (${nf(AR_STOPPED)}), so there is nothing to review. They are still on the Replenishment grid, tagged “Stopped”.`
-        : 'No snapshot yet — open Replenishment and hit “Refresh from sheet”.') + '</td></tr></tbody>';
+        : 'No snapshot yet — it is built by itself from FabriCrush Inventory every three hours.') + '</td></tr></tbody>';
     $('arMsg').textContent = '';
     return;
   }

@@ -98,6 +98,8 @@ function renderFlow() {
   const rows = FLOW_VIEW === 'new' ? shown.filter(x => x.recent) : shown.filter(x => flowInView(FLOW_VIEW, x.s));
   rows.sort((a, b) => String(a.r.orderDate || '').localeCompare(String(b.r.orderDate || '')) || String(a.r.orderNo).localeCompare(String(b.r.orderNo)));
   FLOW.panel = ''; FLOW.stock = ''; FLOW.byprint = ''; FLOW.bysize = '';
+  // The Accessories tab also lists what is reserved and not issued, so a reservation can be let go (flowTable, 'dacc').
+  FLOW.held = FLOW_VIEW === 'dacc' ? shown.filter(x => x.s.res && !x.s.issued && x.s.bucket !== 'done') : [];
   $('flTable').innerHTML = flowTable(FLOW_VIEW, rows.slice(0, 800));
   /* PPC in Excel: on the PPC bucket only — the lines on screen are what the sheet holds. */
   FLOW.shownPpc = FLOW_VIEW === 'ppc' ? rows : [];
@@ -681,6 +683,15 @@ function flowTable(view, rows) {
       return `<tr${short ? ' style="background:#fef2f2"' : ''}>${base(x)}<td style="text-align:left">${acc.map(a => { const f = free[accCode(a.code)]; const ok = f && f.free >= a.qty;
           return `<div style="font-size:12px"><b>${esc(a.code)}</b> ${esc(a.what || '')} × ${nf(a.qty)} <span style="color:${ok ? '#166534' : '#b91c1c'};font-weight:600">${f ? nf(Math.max(0, f.free)) + ' free' : 'not on the shelf'}${ok ? '' : ' · ⚑ short ' + nf(a.qty - Math.max(0, f ? f.free : 0))}</span></div>`; }).join('')}</td>
         <td><button data-flres="${esc(x.s.key)}" style="width:auto;padding:3px 10px;font-size:12px">Reserve</button></td></tr>`; }).join('');
+    /* RESERVED, NOT ISSUED YET — RELEASE IS HERE. A reserved line leaves the list above, and the only Release button sat on
+     * a view no tab opens, so a reservation made by mistake held the zips for good. Under the lines to reserve, the ones
+     * holding accessories that have not gone to a karigar, each with Release: the accessories go back to the shelf. */
+    const held = (FLOW.held || []).slice().sort((a, b) => String(a.r.orderNo).localeCompare(String(b.r.orderNo)));
+    prevNo = null;
+    if (held.length) body = (body || '<tr><td colspan="5" class="muted" style="padding:16px">No line is waiting to be reserved.</td></tr>')
+      + `<tr><td colspan="5" style="text-align:left;background:#f8fafc;font-weight:600;font-size:12.5px;padding:8px 10px">Reserved, not issued yet · ${nf(held.length)} line(s) — Release puts the accessories back on the shelf</td></tr>`
+      + held.map(x => `<tr>${base(x)}<td style="text-align:left">${Object.entries((x.s.res && x.s.res.items) || {}).map(([c, q]) => `<div style="font-size:12px"><b>${esc(c)}</b> × ${nf(q)} <span class="muted">reserved</span></div>`).join('')}</td>
+        <td><button class="ghost" data-flunres="${esc(x.s.key)}" style="width:auto;padding:3px 10px;font-size:12px">Release accessories</button></td></tr>`).join('');
     const ac = flowAccCover();
     FLOW.stock = `<thead><tr><th style="text-align:left">Code</th><th>On the shelf</th><th>Reserved already</th><th>These lines need</th><th>Short</th></tr></thead><tbody>`
       + ac.map(a => `<tr${a.short ? ' style="background:#fef2f2"' : ''}><td style="text-align:left"><b>${esc(a.code)}</b> <span class="muted">${esc(a.name !== a.code ? a.name : '')}</span></td><td class="num">${nf(a.shelf)}</td><td class="num">${nf(a.held)}</td><td class="num">${nf(a.need)}</td>

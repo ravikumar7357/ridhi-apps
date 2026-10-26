@@ -1357,12 +1357,22 @@
 .vpb-card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:10px}
 .vpb-head{display:flex;align-items:center;gap:8px;font-size:15px}
 .vpb-pri{font-size:12px;font-weight:700;color:var(--accent)}
-.vpb-tot{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;text-align:center}
+.vpb-tot{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;text-align:center}
 .vpb-tot>div{background:var(--soft);border-radius:10px;padding:6px 4px;display:flex;flex-direction:column}
 .vpb-tot span{font-size:10.5px;color:var(--muted)}.vpb-tot b{font-variant-numeric:tabular-nums}
 .vpb-tot .r{background:var(--brand-bg)}.vpb-tot .r span,.vpb-tot .r b{color:var(--brand-ink)}
 .vpb-tot .s{background:var(--accent-bg)}.vpb-tot .s span,.vpb-tot .s b{color:var(--accent)}
 .vpb-tot .b{background:var(--bad-bg)}.vpb-tot .b span,.vpb-tot .b b{color:var(--bad)}
+/* the printer's own "Vendor sent" (26 Oct): a tile, and a strip under each line with its batches and the box to add one */
+.vpb-tot .v{background:#f3e8ff}.vpb-tot .v span,.vpb-tot .v b{color:#6b21a8}
+.vpb-vs{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12px;margin:4px 0 2px 54px}.vpb-vs>b{color:#6b21a8}
+.vpb-vs details{font-size:11.5px}.vpb-vs summary{cursor:pointer;color:var(--brand)}
+.vpb-vs input{width:78px;text-align:right;padding:3px 6px}.vpb-vs button{width:auto;padding:3px 10px;font-size:12px}
+.vpb-vsb{display:flex;gap:8px;align-items:baseline;padding:1px 0}.vpb-vsb.off{text-decoration:line-through;opacity:.6}
+.vpb-vs.flat{margin-left:0}.vpvs-add{display:inline-flex;gap:4px;align-items:center}
+.vpvs-td{text-align:right;font-size:12px;white-space:nowrap}.vpvs-td>b{color:#6b21a8}.vpvs-td details{font-size:11px;text-align:left}
+.vpvs-td summary{cursor:pointer;color:var(--brand)}.vpvs-td .vpvs-add{display:flex;margin-top:3px;justify-content:flex-end}
+.vpvs-td input{width:70px;text-align:right;padding:3px 6px}.vpvs-td button{width:auto;padding:3px 8px;font-size:12px}
 .vpb-line{display:flex;gap:10px;align-items:center;border-top:1px solid var(--line);padding-top:8px}
 .vpb-pic,.vpb-line [data-img] img{width:44px;height:44px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
 .vpb-what{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;font-size:12.5px}
@@ -1733,6 +1743,33 @@ html.mob #gdAsk{right:8px;left:8px;width:auto;bottom:72px;max-height:calc(100vh 
 #gdAsk .ga-fbb{height:26px;width:30px;padding:0;border:1px solid var(--line);border-radius:8px;background:#fff;cursor:pointer;box-shadow:none;font-size:13px}
 #gdAsk .ga-fbb:hover{border-color:var(--brand)}
 #gdAsk .ga-miss{max-height:220px;overflow:auto;font-size:12px}
+/* Meera's round button and its menu (26 Oct, R-one's way): bottom-right, "Ask Meera" on hover; the top bar's
+   Ask Meera / Show me / Helper give way to it (the menu has all three); "Skip" in her box */
+#gdAskBtn,#gdCtl{display:none!important}
+#gdLaunch{position:fixed;right:22px;bottom:22px;z-index:10050;width:58px;height:58px;border-radius:50%;padding:0;border:3px solid #fff;background:var(--brand,#4A6A92);
+  box-shadow:0 8px 24px rgba(20,24,31,.25);cursor:pointer;display:grid;place-items:center;transition:transform .15s ease}
+#gdLaunch.hide{display:none}
+#gdLaunch:hover{transform:scale(1.06)}
+#gdLaunch .gd-face{width:100%;height:100%;border-radius:50%;box-shadow:none}
+#gdLaunch .gd-lab{position:absolute;right:66px;top:50%;transform:translateY(-50%);background:#14181F;color:#fff;font-size:12.5px;font-weight:700;border-radius:8px;padding:5px 10px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .15s ease}
+#gdLaunch:hover .gd-lab,#gdLaunch:focus-visible .gd-lab{opacity:1}
+html.mob #gdLaunch{bottom:84px;right:14px;width:50px;height:50px}
+#gdMenu{position:fixed;right:22px;bottom:92px;z-index:10055;width:270px;background:#fff;border-radius:14px;box-shadow:0 16px 40px rgba(20,24,31,.22);padding:6px;display:flex;flex-direction:column}
+#gdMenu.hide{display:none}
+#gdMenu button{display:flex;align-items:center;gap:12px;border:0;background:none;text-align:left;padding:9px 10px;border-radius:10px;cursor:pointer;font:inherit;font-size:16px;box-shadow:none;height:auto}
+#gdMenu button:hover{background:var(--soft,#F7F9FB)}
+#gdMenu span{display:flex;flex-direction:column;gap:1px}
+#gdMenu b{font-size:13.5px;color:var(--ink,#14181F)}
+#gdMenu small{font-size:12px;color:var(--muted,#5A6472)}
+#gdMenu button + button{border-top:1px solid var(--line,#E8EDF3);border-radius:0}
+.gd-sw{position:relative;width:30px;height:18px;border-radius:999px;background:#C9D2DE;flex:0 0 auto}
+.gd-sw::after{content:'';position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:left .15s ease}
+.gd-sw.on{background:var(--accent,#4A5A3C)}
+.gd-sw.on::after{left:14px}
+html.mob #gdMenu{right:14px;bottom:144px}
+#gdBubble #gdOff{border:1px solid var(--line,#E8EDF3);border-radius:8px;padding:0 12px;height:30px;min-height:30px;font-weight:600;color:var(--muted,#5A6472);text-decoration:none}
+#gdBubble #gdOff:hover{background:var(--soft,#F7F9FB);color:var(--ink,#14181F)}
+@media print{#gdLaunch,#gdMenu{display:none}}
 
 /* ================= MY WORK TODAY + SEARCH EVERYTHING (friendly add-on, friendly.js) ================= */
 /* The menu's first item. */
@@ -2361,8 +2398,9 @@ html.mob #frMeeraMenu{right:14px;bottom:144px}
           <button id="rProj" class="ghost" title="Upload a month's projection from Excel (SKU + QTY)">Projection</button>
           <button id="rCsv" class="ghost">Export</button>
           <button id="rPo" class="ghost">Create PO from view</button>
-          <button id="rHide" class="ghost" title="SKUs kept out of this tool entirely — parents, placeholders, dead codes. They survive a Refresh from sheet.">Hidden SKUs</button>
-          <button id="rGo">Refresh from sheet</button>
+          <button id="rHide" class="ghost" title="Show the hidden SKUs in this table, with their real stock and sales — press again for all SKUs">Hidden SKUs</button>
+          <button id="rHideEdit" class="ghost" style="padding:4px 10px;font-size:12px" title="SKUs kept out of this tool — parents, placeholders, dead codes. Add or unhide them here.">Edit hidden list</button>
+          <button id="rGo" title="The table updates by itself from FabriCrush Inventory every three hours; this asks for a fresh round now">Refresh</button>
         </div>
         <div class="toolbar" style="margin-top:8px">
           <div class="ms" id="rCat" style="flex:0 0 130px"></div>
@@ -3635,8 +3673,12 @@ html.mob #frMeeraMenu{right:14px;bottom:144px}
           <button id="ppGo">Refresh</button>
         </div>
         <div id="ppMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
+        <!-- PRESSING IS NO LONGER RECORDED (since 5 Oct 2026) and Save refuses every entry, so the form is
+             not offered: it only let people fill every box and be turned away at the end. The button and
+             the form stay in the page, hidden, because the code and the tests still reach them by id. -->
         <div style="margin-top:10px">
-          <button id="pwToggle" class="ghost">+ New press entry</button>
+          <button id="pwToggle" class="ghost hide">+ New press entry</button>
+          <div class="muted" style="font-size:12.5px">Pressing is no longer recorded (since 5 Oct 2026) — a piece counts as made once QC passes it. Record it in Quality Control.</div>
         </div>
         <div id="pwBox" class="hide" style="margin-top:10px;border:1px solid var(--line);border-radius:10px;padding:12px">
           <div class="toolbar">
@@ -3750,26 +3792,36 @@ html.mob #frMeeraMenu{right:14px;bottom:144px}
         <div id="bwBox" class="hide" style="margin-top:12px;border:1px solid var(--line);border-radius:10px;padding:12px">
           <!-- One-off item with no existing SKU: colour and size become free text, no Order ID is
                needed, and a disposable SKU is minted (or an existing match reused). -->
-          <!-- Taken off the form on 2026-09-28 (Ravi: "remove the custom order"). The box stays in the page, hidden and
-               never ticked, so the code that reads it keeps working; every entry needs a real SKU now. -->
-          <label class="hide" style="display:none;align-items:center;gap:8px;font-size:12.5px;margin-bottom:10px;
+          <!-- Taken off the form on 2026-09-28 (Ravi: "remove the custom order"); BACK on 2026-10-24 (Ravi: "custom order entry
+               pahle hum karte the kya wo abhi bhi aa sakta h" — "job work regester me"). -->
+          <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;margin-bottom:10px;
                         background:var(--hover,#f1f5f9);padding:8px 10px;border-radius:8px">
-            <input type="checkbox" id="bwCustom" style="width:auto" disabled>
+            <input type="checkbox" id="bwCustom" style="width:auto">
             <span><b>Custom Order</b> — one-off item with no existing SKU (colour &amp; size become free text, a disposable SKU is generated)</span>
           </label>
           <div class="toolbar">
             <span id="bwOrdWrap" style="flex:0 0 240px">
               <select id="bwOrd" style="width:100%"><option value="">— Select Order ID —</option></select>
             </span>
+            <!-- Custom Order's own Order ID (Ravi, 24 Oct: "order id m khud likhu ya dropdown me etsy, shopify, B2B, online") -->
+            <input id="bwCustOrd" class="hide" list="bwCustOrdList" placeholder="Order ID — type it, or ETSY / SHOPIFY / B2B / ONLINE" style="flex:0 0 260px" autocomplete="off">
+            <datalist id="bwCustOrdList"><option value="ETSY"><option value="SHOPIFY"><option value="B2B"><option value="ONLINE"></datalist>
             <select id="bwType" style="flex:0 0 160px"><option value="">Employment type…</option></select>
             <input id="bwEmp" list="bwEmpList" placeholder="Employee name" style="flex:0 0 170px">
             <datalist id="bwEmpList"></datalist>
             <select id="bwAt" style="flex:0 0 150px"><option value="">-- Article type --</option></select>
+            <!-- Custom Order: article and subtype picked from the master's OR typed (Ravi, 24 Oct: "dropdown and manual dono") -->
+            <input id="bwAtTxt" class="hide" list="bwAtList" placeholder="Article type (pick or type)" style="flex:0 0 170px" autocomplete="off">
+            <datalist id="bwAtList"></datalist>
             <select id="bwSub" style="flex:0 0 175px"><option value="">-- Subtype --</option></select>
+            <input id="bwSubTxt" class="hide" list="bwSubList" placeholder="Subtype (pick or type)" style="flex:0 0 175px" autocomplete="off">
+            <datalist id="bwSubList"></datalist>
             <select id="bwCol" style="flex:0 0 150px"><option value="">-- Colour --</option></select>
-            <input id="bwColTxt" class="hide" placeholder="Colour (free text)" style="flex:0 0 150px">
+            <input id="bwColTxt" class="hide" list="bwColList" placeholder="Colour (pick or type)" style="flex:0 0 150px" autocomplete="off">
+            <datalist id="bwColList"></datalist>
             <select id="bwSz" style="flex:0 0 120px"><option value="">-- Size --</option></select>
-            <input id="bwSzTxt" class="hide" placeholder="Size (free text)" style="flex:0 0 120px">
+            <input id="bwSzTxt" class="hide" list="bwSzList" placeholder="Size (pick or type)" style="flex:0 0 120px" autocomplete="off">
+            <datalist id="bwSzList"></datalist>
             <input id="bwSku" list="bwSkuList2" placeholder="SKU (auto-matched)" style="flex:0 0 185px;font-family:ui-monospace,monospace"
                    title="Filled in from the item above. Typing a SKU here works too and fills the item fields back.">
             <datalist id="bwSkuList2"></datalist>
@@ -4123,8 +4175,11 @@ html.mob #frMeeraMenu{right:14px;bottom:144px}
            per-SKU HS code / GST rate / invoice rate are stored against the SKU. Removing the
            elements would throw on a null and take the whole order panel down with it; hiding them
            keeps every one of them answering and leaves what is already saved untouched.
-           To bring it back: delete the `hide` class on the wrapper below. Nothing else. -->
-      <div id="soCustomsBlock" class="hide">
+           SHOWN AGAIN (2026-10-26): the DHL Hybrid and DHL CSV exports refuse to write a file until
+           every order has one complete invoice pair and every SKU an HS code, and tell the person to
+           "fill them under Invoice & customs". With this block hidden there was nowhere to fill them,
+           so a DHL file could never be written. -->
+      <div id="soCustomsBlock">
       <!-- Every field DHL and FedEx call mandatory that Shopify cannot supply. -->
       <div class="sec">Invoice &amp; customs</div>
       <div class="row" style="gap:8px">
@@ -4581,7 +4636,7 @@ html.mob #frMeeraMenu{right:14px;bottom:144px}
     <div class="muted" style="font-size:12px;margin-bottom:12px">
       Excel/CSV with two columns — <b>SKU</b> and <b>QTY</b>. The QTY becomes that SKU's projection for
       the month you pick, exactly as if you had typed it in the cell (yellow = manual). It stays until
-      you change it; “Refresh from sheet” never overwrites it.
+      you change it; a refresh never overwrites it.
     </div>
     <div class="sec">Month</div>
     <select id="pjMonth" style="width:100%;margin-bottom:4px"></select>
@@ -6411,7 +6466,10 @@ async function loadReplCache(wantFull) {
    * bhi nahi") — the table then drew a snapshot with no image, status or warehouse figures. */
   if (REPL_LOADING) { try { await REPL_LOADING.p; } catch (e) { /* the full read below stands on its own */ } }
   if (REPL_MODE === 'full') return;
-  const p = loadReplCacheRun(full).then(() => { REPL_MODE = full ? 'full' : 'slim'; try { replMasterSync(); } catch (e) { /* the snapshot's details stay */ } }).finally(() => { if (REPL_LOADING && REPL_LOADING.p === p) REPL_LOADING = null; });
+  const p = loadReplCacheRun(full).then(() => { REPL_MODE = full ? 'full' : 'slim'; try { replMasterSync(); } catch (e) { /* the snapshot's details stay */ }
+    /* a full read after a slim one listens to the full header instead */
+    try { if (REPL_WATCH && full) { REPL_WATCH.forEach(u => { try { u(); } catch (e) {} }); REPL_WATCH = null; } replWatch(); }
+    catch (e) { /* no listening (or a test page without it): the next read is fresh anyway */ } }).finally(() => { if (REPL_LOADING && REPL_LOADING.p === p) REPL_LOADING = null; });
   REPL_LOADING = { full, p };
   return p;
 }
@@ -6476,8 +6534,13 @@ function replMasterSync() {
       if (!m) return r;
       let img = String(m.imageUrl || '').trim();
       if (!img && typeof ptImgOf === 'function') { try { img = ptImgOf(r.sku) || ''; } catch (e) { img = ''; } }
+      /* THE LISTING STATUS IS THE MASTER'S (Ravi, 25 Oct: "master data base me set karenge") — the India Stock tab of the
+       * sheet is gone. Discontinue / Use In Mix stops the SKU; a manual override (applyStatus) still wins over it. */
+      const ls = String(m.listingStatus || '').trim();
+      const st = ls ? { status: ls, stopped: REPL_STOP_RE.test(ls) || (!!r.stopped && /not stocked in India/.test(r.stopReason || '')),
+        stopReason: REPL_STOP_RE.test(ls) ? `Master Database: listing status "${ls}"` : (r.stopped && /not stocked in India/.test(r.stopReason || '') ? r.stopReason : '') } : {};
       return Object.assign({}, r, { asin: pick(m.asin, r.asin), parent: pick(m.parentAsin, r.parent), color: pick(m.color, r.color),
-        size: pick(m.size, r.size), subcat: pick(m.subtype, r.subcat), image: img || r.image || '' });
+        size: pick(m.size, r.size), subcat: pick(m.subtype, r.subcat), image: img || r.image || '' }, st);
     });
     X.rowsSnap = src; X.rows = out; X.rowsMaster = out; X.mdbSig = sig; changed = true;
   };
@@ -6677,40 +6740,44 @@ async function ensureRepl() {
   renderRepl();
 }
 
+/* FROM FABRICRUSH INVENTORY, BY ITSELF (Ravi, 25 Oct: "abhi jo inventory google sheet se aati h usase data na lekar is firebase
+ * app se lena h and sab jagah auto karna h manual kuch nahi"). The snapshot is no longer read from the sheet and saved by this
+ * page: the backend (Pricing-API ReplSnap.gs) builds it from FabriCrush Inventory after every inventory refresh — every three
+ * hours — and writes it here; replWatch() redraws the moment it lands. Refresh only asks for a fresh round now. */
 $('rGo').onclick = async () => {
   const btn = $('rGo'); btn.disabled = true; btn.innerHTML = '<span class="spin"></span>…';
-  const failed = [], statusNote = [];
-  for (const b of ['SP', 'CPC']) {
-    try {
-      rMsg(`${BRAND_NAME[b]}: reading the Inventory sheet…`);
-      const say = t => rMsg(`${BRAND_NAME[b]}: ${t}`);
-      let d;
-      try { d = await replPull(b, say); }
-      catch (e) {
-        /* The backend could not keep the read in its cache (it says so by name). Then — and only
-         * then — the old one-piece read is tried. */
-        if (!(e.data && e.data.cacheFull)) throw e;
-        say('reading the sheet in one piece…');
-        d = await apiGetRetry({ repl: 'list', brand: b }, 3,
-          (n, of) => say(`Google lost the answer — asking again (${n} of ${of})…`), 150000);
-      }
-      REPL[b] = { at: new Date(), rows: d.rows || [], recCols: d.recCols || [], catalogSkus: d.catalogSkus || [] };
-      console.info(`[repl] ${b}: ${(d.rows || []).length} rows · status filled ${d.statusN ?? '?'} · stopped ${d.stoppedN ?? '?'}`);
-      statusNote.push(`${BRAND_NAME[b]} status ${d.statusN ?? '?'}/${(d.rows || []).length}`);
-      /* The year sales history feeds the out-of-stock rate. When it stops short of today, say so here —
-       * on 15 Sep it had silently been six weeks old. */
-      const hd = d.histDiag || {};
-      if (hd.histCurrent === false) {
-        failed.push(`${BRAND_NAME[b]}: the year sales history ends ${hd.histEnd ? hd.histEnd.slice(0, 10) : '(unknown)'}, so out-of-stock SKUs are rated on old sales. Rebuild it from the Amazon Report menu (“Rebuild sales-history cache”).`);
-      }
-      renderRepl();                                   // show immediately, then cache in chunks
-      await saveReplCache(b, d.rows || [], d.recCols || [], d.catalogSkus || []);
-    } catch (e) { failed.push(`${BRAND_NAME[b]}: ${e.message || e}`); }
-  }
-  REPL_LOADED = true; REPL_MODE = 'full';
-  rMsg(failed.length ? failed.join('  ·  ') : `Updated from the sheet. (${statusNote.join(' · ')})`, failed.length > 0);
-  btn.disabled = false; btn.textContent = 'Refresh from sheet';
+  try {
+    await prGet({ inv: 'run', job: 'refresh', brand: 'all', by: ME.email || '' });
+    rMsg('Asked FabriCrush Inventory for fresh Amazon figures — orders, shipments, inventory, then this table. It takes a few minutes; the table updates by itself when it is ready.');
+    REPL_ASKED_AT = Date.now();
+  } catch (e) { rMsg('Could not ask for a refresh: ' + (e.message || e) + ' — the table still updates by itself every three hours.', true); }
+  btn.disabled = false; btn.textContent = 'Refresh';
 };
+let REPL_ASKED_AT = 0;
+/** Listen to the snapshot's header documents; a newer one is read and drawn at once. Started after the first read. */
+let REPL_WATCH = null;
+function replWatch() {
+  if (REPL_WATCH || typeof onSnapshot !== 'function') return;
+  const coll = REPL_MODE === 'full' ? 'repl' : REPL_MODE === 'shop' || ME.shopDataOnly ? 'replshop' : 'replslim';
+  REPL_WATCH = ['SP', 'CPC'].map(b => onSnapshot(doc(db, coll, b), snap => {
+    if (!snap.exists()) return;
+    const d = snap.data(), at = d.at && d.at.toDate ? d.at.toDate() : null, have = REPL[b] && REPL[b].at;
+    if (!at || (have && at <= have)) return;
+    replReload(coll);
+  }, () => { /* no right to listen: the next sign-in reads the newest anyway */ }));
+}
+let REPL_RELOAD_T = null;
+function replReload(coll) {
+  clearTimeout(REPL_RELOAD_T);
+  REPL_RELOAD_T = setTimeout(async () => {
+    const full = REPL_MODE === 'full';
+    if (coll === 'replshop') { REPL_SHOP = { SP: null, CPC: null }; }
+    REPL_MODE = '';
+    try { await loadReplCache(full); } catch (e) { return; }
+    if (REPL_ASKED_AT) { rMsg('Updated from FabriCrush Inventory.'); REPL_ASKED_AT = 0; }
+    try { renderRepl(); } catch (e) { /* drawn when the tab is next opened */ }
+  }, 1500);
+}
 
 // Typing in a filter box fires per keystroke, and every render walks the whole snapshot — so the SKU
 // boxes on all four tabs go through this. 200ms is below the "did it hear me" threshold and collapses
@@ -7061,12 +7128,28 @@ function msInit(id, label, opts) {
     + '<div class="ms-list"></div></div>';
   el.querySelector('.ms-btn').onclick = e => { e.stopPropagation(); msToggle(id); };
   el.querySelector('.ms-search').oninput = () => msPaint(id);
-  el.querySelector('.ms-all').onclick = () => { MS[id].sel = new Set(); msPaint(id); msChanged(id); };
-  el.querySelector('.ms-none').onclick = () => { MS[id].sel = new Set(MS[id].opts); msPaint(id); msChanged(id); };
+  el.querySelector('.ms-all').onclick = () => msAllNone(id, true);
+  el.querySelector('.ms-none').onclick = () => msAllNone(id, false);
   // Clicks inside the panel must not reach the document handler that closes it.
   el.querySelector('.ms-panel').onclick = e => e.stopPropagation();
   msPaint(id);
 }
+
+/* ALL AND NONE WORK ON WHAT THE LIST IS SHOWING. With a search typed, All ticks every value the
+ * search found and None unticks them, the way Excel's filter does — so "red" then All picks every red.
+ * With no search, both start the filter over: nothing ticked, which here means everything is shown.
+ * (None used to tick every box, which read as a filter on and still showed everything.) */
+function msAllNone(id, all) {
+  const m = MS[id], el = $(id);
+  const q = (el.querySelector('.ms-search').value || '').trim().toLowerCase();
+  if (!q) m.sel = new Set();
+  else m.opts.filter(o => o.toLowerCase().includes(q)).forEach(o => (all ? m.sel.add(o) : m.sel.delete(o)));
+  msTidy(m);
+  msPaint(id); msChanged(id);
+}
+/* Every value ticked is the same as none ticked — kept as none, so the button says "All" and does not
+ * show as a filter that is on when nothing is being left out. */
+function msTidy(m) { if (m.sel.size && m.opts.length && m.opts.every(o => m.sel.has(o))) m.sel = new Set(); }
 
 function msToggle(id, force) {
   const open = force != null ? force : !MS[id].open;
@@ -7621,7 +7704,19 @@ async function saveHidden(patch) {
   }
 }
 
-$('rHide').onclick = () => { $('hidePaste').value = ''; $('hideMsg').textContent = ''; renderHideList(); $('hideModal').classList.remove('hide'); };
+let REPL_SHOW_HIDDEN = false;
+/* The Hidden SKUs button now opens them in the Replenishment table itself (Ravi, 25 Oct) — pressed again, back to all SKUs. The
+ * list of hidden SKUs is kept and edited from "Edit hidden list". */
+$('rHide').onclick = () => {
+  REPL_SHOW_HIDDEN = !REPL_SHOW_HIDDEN;
+  const n = Object.keys(HIDDEN).filter(k => HIDDEN[k]).length;
+  $('rHide').textContent = REPL_SHOW_HIDDEN ? '← All SKUs' : 'Hidden SKUs';
+  $('rHide').classList.toggle('ghost', !REPL_SHOW_HIDDEN);
+  R_VER++;
+  renderRepl();
+  rMsg(REPL_SHOW_HIDDEN ? `Showing the ${nf(n)} hidden SKU(s), with their real stock and sales. They are still kept out of everything else — press "← All SKUs" to go back.` : '');
+};
+$('rHideEdit').onclick = () => { $('hidePaste').value = ''; $('hideMsg').textContent = ''; renderHideList(); $('hideModal').classList.remove('hide'); };
 $('hideClose').onclick = () => $('hideModal').classList.add('hide');
 $('hideAdd').onclick = async () => {
   const raw = $('hidePaste').value.split(/[\n,;\t]+/).map(x => skuKey(x)).filter(Boolean);
@@ -7737,7 +7832,7 @@ function renderArticle() {
       + (ACCESS_ERR ? esc(ACCESS_ERR)
         // "No snapshot yet" would be a lie when the snapshot is fine and every SKU in it is stopped.
         : AR_STOPPED ? `Every SKU here is discontinued or use-in-mix (${nf(AR_STOPPED)}), so there is nothing to review. They are still on the Replenishment grid, tagged “Stopped”.`
-        : 'No snapshot yet — open Replenishment and hit “Refresh from sheet”.') + '</td></tr></tbody>';
+        : 'No snapshot yet — it is built by itself from FabriCrush Inventory every three hours.') + '</td></tr></tbody>';
     $('arMsg').textContent = '';
     return;
   }
@@ -8108,7 +8203,7 @@ function renderTarget() {
     $('tgTable').innerHTML = '';
     $('tgMsg').innerHTML = ACCESS_ERR
       ? `<span class="err">${esc(ACCESS_ERR)}</span>`
-      : 'No snapshot yet — hit “Refresh from sheet” on the Replenishment tab first.';
+      : 'No snapshot yet — it is built by itself from FabriCrush Inventory every three hours.';
     return;
   }
   const P = tgPlan(brands, pick, mk);
@@ -8299,7 +8394,10 @@ $('tgCsv').onclick = () => {
 $('tgClear').onclick = async () => {
   const pick = $('tgBrand').value, mk = $('tgMonth').value;
   const plan = FC_PLAN.find(p => p.key === mk), lbl = plan ? plan.label : mk;
-  const keys = Object.keys(REV_TGT).filter(k => k.endsWith('|' + mk) && REV_TGT[k] != null);
+  // Only the brand(s) on screen. Clearing SP's month must leave CPC's article targets alone.
+  const brands = pick === 'ALL' ? ['SP', 'CPC'] : [pick];
+  const keys = Object.keys(REV_TGT).filter(k => k.endsWith('|' + mk) && REV_TGT[k] != null
+    && brands.includes(k.slice(0, k.indexOf('|'))));
   const tk = tgTotKey(pick, mk), hasTot = REV_TOT[tk] != null;
   if (!keys.length && !hasTot) { $('tgMsg').textContent = `Nothing to clear for ${lbl}.`; return; }
   const what = [hasTot ? `the ${lbl} month target` : '', keys.length ? `${keys.length} article override(s)` : '']
@@ -8357,7 +8455,7 @@ function renderRepl() {
   if (!brands.length) {
     $('rKpis').innerHTML = ACCESS_ERR
       ? `<div class="kpi"><div class="kpiname" style="color:var(--bad)">No access to the data</div><div style="margin-top:6px;font-size:13px">${esc(ACCESS_ERR)}</div></div>`
-      : '<div class="kpi"><div class="kpiname">No snapshot yet</div><div class="muted" style="margin-top:6px">Hit “Refresh from sheet” to pull the current replenishment plan.</div></div>';
+      : '<div class="kpi"><div class="kpiname">No snapshot yet</div><div class="muted" style="margin-top:6px">It is built by itself from FabriCrush Inventory every three hours.</div></div>';
     $('rTable').innerHTML = ''; return;
   }
   fillReplFilters(brands);   // keep the Sub-Category / Color / Status option lists in sync with the data
@@ -8389,7 +8487,7 @@ function renderRepl() {
     fcMonths(), PROJ_VER, R_VER,
     LEAD.prod, LEAD.disp, LEAD.air, LEAD.sea,
     ($('rMarket') || {}).value, ($('rSupply') || {}).value,
-    Object.keys(HIDDEN).length,
+    Object.keys(HIDDEN).length, REPL_SHOW_HIDDEN ? 'H' : '-',
     INDIA_LOADED ? 'i' + String(INDIA_AT || '') : '-',
     PROD_LOADED ? 'p' : '-',
     /* Not just how many batches are in production — how much is in them. A quantity edited on
@@ -8409,7 +8507,9 @@ function renderRepl() {
     // Applied at the one place rows enter the view, so the buckets, the reorder summary, the
     // top-seller maths, Export and Create-PO all agree without any of them knowing this list exists.
     // Filtering later, per feature, is how a SKU ends up hidden in the table and still in the totals.
-    rows = dropOutOfScope(rows);
+    /* THE HIDDEN SKUs, IN THE SAME TABLE (Ravi, 25 Oct: "hidden sku par click karu to same table open ho jo other sku ke liye
+     * hoti h becuase usme bhi real inventory h"): the Hidden SKUs button shows them — and only them — with every column. */
+    rows = REPL_SHOW_HIDDEN ? rows.filter(r => isHiddenSku(r.sku)) : dropOutOfScope(rows);
     markTopSellers(rows);
     rows.forEach(r => {
       applyStatus(r);
@@ -8638,7 +8738,7 @@ function renderRepl() {
     defs.push(
       { k: `fc${i}oh`, t: `${p.label} · On Hand`, num: 1, map: r => r._fc[i].oh, tip: ohTip },
       { k: `fc${i}proj`, t: `${p.label} · Proj${p.partial ? ` (${p.days}d left)` : ''}`, num: 1, map: r => r._fc[i].proj,
-        tip: `Projected sales = Avg/day × ${dayNote}. CLICK a cell to type your own number — a manual projection is kept until you change it (a "Refresh from sheet" never overwrites it).`,
+        tip: `Projected sales = Avg/day × ${dayNote}. CLICK a cell to type your own number — a manual projection is kept until you change it (a refresh never overwrites it).`,
         cell: r => { const f = r._fc[i];
           return `<span class="projcell${f.manual ? ' projman' : ''}" data-sku="${esc(r.sku)}" data-mk="${p.key}" data-auto="${f.auto}"`
             + ` title="${f.manual ? `Manually set to ${nf(f.proj)} — calculated was ${nf(f.auto)}. Click to change, clear the box to go back to auto.` : 'Click to type your own projection'}">`
@@ -9601,7 +9701,7 @@ function renderTop() {
   const loaded = ['SP', 'CPC'].some(x => REPL[x]);
   if (!loaded) {
     $('topKpis').innerHTML = '';
-    $('topTable').innerHTML = `<tbody><tr><td class="muted" style="padding:14px">Open the Replenishment tab and hit “Refresh from sheet” first — this list is built from that data.</td></tr></tbody>`;
+    $('topTable').innerHTML = `<tbody><tr><td class="muted" style="padding:14px">No snapshot yet — it is built by itself from FabriCrush Inventory every three hours, and this list is built from it.</td></tr></tbody>`;
     return;
   }
   const all = topAsinRows(b);
@@ -10197,7 +10297,7 @@ function indiaProjRows() {
 
 function renderIndiaProj() {
   if (!FC_PLAN.length) {
-    $('inProjTable').innerHTML = '<tbody><tr><td class="muted" style="padding:14px">No forecast yet — open Replenishment and hit “Refresh from sheet” first.</td></tr></tbody>';
+    $('inProjTable').innerHTML = '<tbody><tr><td class="muted" style="padding:14px">No forecast yet — it is built by itself from FabriCrush Inventory every three hours.</td></tr></tbody>';
     return;
   }
   const rows = indiaProjRows();
@@ -10266,7 +10366,7 @@ function renderIndiaProj() {
   }).join('');
 
   $('inProjTable').innerHTML = head + '<tbody>' + (sub + body
-    || `<tr><td colspan="${cols.length}" class="muted" style="padding:14px">Nothing to project — nothing in Finished Goods, or run “Refresh from sheet” on Replenishment.</td></tr>`)
+    || `<tr><td colspan="${cols.length}" class="muted" style="padding:14px">Nothing to project — nothing in Finished Goods, or the snapshot from FabriCrush Inventory has not been built yet.</td></tr>`)
     + '</tbody>';
   $('inMsg').textContent = rows.length > 300
     ? `showing first 300 of ${nf(rows.length)} — filter to narrow (subtotal and KPIs cover all ${nf(rows.length)})`
@@ -10606,7 +10706,7 @@ function renderProd() {
   const brands = (b === 'ALL' ? ['SP', 'CPC'] : [b]).filter(x => REPL[x]);
   if (!brands.length) {
     $('pdKpis').innerHTML = '';
-    $('pdTable').innerHTML = '<tbody><tr><td class="muted" style="padding:14px">No snapshot yet — open Replenishment and hit “Refresh from sheet” first.</td></tr></tbody>';
+    $('pdTable').innerHTML = '<tbody><tr><td class="muted" style="padding:14px">No snapshot yet — it is built by itself from FabriCrush Inventory every three hours.</td></tr></tbody>';
     return;
   }
   fillBasis();
@@ -15835,7 +15935,7 @@ $('ptmExport').onclick = () => {
   const rows = PT._pmdbRows || []; if (!rows.length) return;
   const lines = [['SKU', 'Brand', 'Article', 'Subtype', 'Color', 'Size', 'Fabric', 'Consumption', 'Pack of',
     'Cutting required', 'Zip', 'Zips per piece', 'Zip size', 'Ruffle', 'Ruffle metres', 'Ruffle fabric', 'Piping dori', 'Piping dori metres',
-    'Filler fabric', 'Filling qty', 'Valuation price', 'Image', 'ASIN', 'Parent ASIN', 'Manufacturer', 'Piping fabric', 'Packing type', 'Packing material'].map(csvCell).join(',')];
+    'Filler fabric', 'Filling qty', 'Valuation price', 'Image', 'ASIN', 'Parent ASIN', 'Manufacturer', 'Piping fabric', 'Packing type', 'Packing material', 'Listing status'].map(csvCell).join(',')];
   const b = v => v ? 'Yes' : 'No';
   rows.forEach(r => lines.push([r.sku, r.brand, r.articleType, r.subtype, r.color, r.size, r.fabric,
     mdbM2(r.consumption), r.packOf, b(r.cuttingRequired),
@@ -15844,7 +15944,7 @@ $('ptmExport').onclick = () => {
     b(r.isPiping), r.isPiping ? r.pipingMeters : '',
     b(r.fillerFabricRequired), r.fillerFabricRequired && r.standardFillingQty != null ? r.standardFillingQty : '',
     r.inventoryValuationPrice == null ? '' : r.inventoryValuationPrice, r.imageUrl || MDBIMG.map[obUC(r.sku)] || '',
-    r.asin || '', r.parentAsin || '', r.manufacturer || '', r.pipingFabric || '', r.packType || '', r.packMaterial || '']
+    r.asin || '', r.parentAsin || '', r.manufacturer || '', r.pipingFabric || '', r.packType || '', r.packMaterial || '', r.listingStatus || '']
     .map(csvCell).join(',')));
   ptDownload('master-database', lines);
 };
@@ -16991,7 +17091,14 @@ function obCutQty(orderNo, sku, exclId) {
 }
 
 /** The tool's own guard, for kind 'cut'. Same numbers, same wording. */
+/* A LEGACY ORDER TAKES NO NEW WORK (Ravi, 24 Oct: "ye quilt ki cutting mene new orders ke liye cutt kiya tha but ye direct
+ * LEG-17102026 me chali gyi but leg order sirf humne pahli pending entry complete krne ke liye kiya tha"). LEG-… holds the pieces
+ * made on the floor 1–15 Oct with no order of their own; it had no cutting entries, so every one of its lines looked like room
+ * to cut — 56 quilts cut on 23 Oct for new orders landed there. It is offered by no cutting or Job Work form, and refused. */
+const obIsLegacy = no => /^LEG-/i.test(String(no || '').trim());
+const OB_LEGACY_SHUT = no => `${obUC(no)} is the legacy order — it only holds the pieces made before 15 Oct and takes no new cutting or issue. Pick the order these pieces are for.`;
 function cutGuard(orderNo, sku, qty, exclId, allowExtra) {
+  if (obIsLegacy(orderNo) && !exclId) return OB_LEGACY_SHUT(orderNo);
   const ordered = obOrderedQty(orderNo, sku);
   if (!ordered) return `Order ${orderNo} has no line for SKU ${obUC(sku)} — pick the correct Order ID.`;
   /* Extra, with a reason recorded on the row: the ordered cap is the thing being knowingly passed. */
@@ -17110,7 +17217,7 @@ const cutSkuOf = sku => mdbOf(sku) || ptCustomOf(sku) || null;
 function cutOrdersFor(sku) {
   if (!sku) return [];
   const seen = new Set();
-  return obLines().filter(l => l.sku === obUC(sku)).filter(l => {
+  return obLines().filter(l => l.sku === obUC(sku) && !obIsLegacy(l.orderNo)).filter(l => {
     if (seen.has(l.orderNo)) return false; seen.add(l.orderNo); return true;
   }).map(l => {
     const ordered = obOrderedQty(l.orderNo, sku), used = obCutQty(l.orderNo, sku);
@@ -17611,6 +17718,7 @@ function ptZipCheck(sku, qty, zipsIssued) {
 
 /** The old tool's obGuard('bd'), number for number. */
 function bdGuard(orderNo, sku, qty, exclId, allowExtra) {
+  if (typeof obIsLegacy === 'function' && obIsLegacy(orderNo) && !exclId) return OB_LEGACY_SHUT(orderNo);
   const ordered = obOrderedQty(orderNo, sku);
   if (!ordered) return `Order ${orderNo} has no line for SKU ${obUC(sku)} — pick the correct Order ID.`;
   const used = obIssueUsed(orderNo, sku, exclId);
@@ -17645,7 +17753,7 @@ function bdGuard(orderNo, sku, qty, exclId, allowExtra) {
 function bdOrdersFor(sku) {
   if (!sku) return [];
   const seen = new Set();
-  return obLines().filter(l => l.sku === obUC(sku)).filter(l => {
+  return obLines().filter(l => l.sku === obUC(sku) && !(typeof obIsLegacy === 'function' && obIsLegacy(l.orderNo))).filter(l => {
     if (seen.has(l.orderNo)) return false; seen.add(l.orderNo); return true;
   }).map(l => {
     const ordered = obOrderedQty(l.orderNo, sku), used = obIssueUsed(l.orderNo, sku);
@@ -17683,10 +17791,14 @@ function ptCustomPrefix(articleType) {
   const initials = key.split(/\s+/).filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 3);
   return initials || 'CU';
 }
+/* A CUSTOM CODE LIVES IN THE REGISTERS, NOT THE MASTER (24 Oct, Custom Order back on the form): a save writes the Job Work
+ * row only, so the next number and the "same item again?" check read the registers too — on the master alone, two different
+ * custom items issued the same day both came out …-CUST-<day>-01, and the same item issued twice got two codes. */
+const ptCustomRows = () => [].concat(PTG.mdb || [], PT.base || [], PT.cut || [], PTG.press || []);
 function ptNextCustomSeq(prefix, dateStr) {
   const re = new RegExp('^' + prefix + '-CUST-' + dateStr + '-(\\d+)$', 'i');
   let max = 0;
-  (PTG.mdb || []).forEach(r => { const m = re.exec(String((r && r.sku) || '')); if (m) { const n = parseInt(m[1], 10); if (n > max) max = n; } });
+  ptCustomRows().forEach(r => { const m = re.exec(String((r && r.sku) || '')); if (m) { const n = parseInt(m[1], 10); if (n > max) max = n; } });
   return String(max + 1).padStart(2, '0');
 }
 function ptGenCustomSku(articleType) {
@@ -17702,13 +17814,17 @@ function ptFindExistingSku(at, sub, col, sz) {
   const key = [at, sub, col, sz].map(ptNorm).join('|');
   const hit = (PTG.mdb || []).find(r => r && r.sku
     && [r.articleType, r.subtype, r.color, r.size].map(ptNorm).join('|') === key);
-  return hit ? String(hit.sku) : null;
+  if (hit) return String(hit.sku);
+  /* …or a custom code an earlier Custom Order entry made for exactly this item */
+  const cu = (PT.base || []).find(r => r && /-CUST-/i.test(r.sku || '')
+    && [r.articleType, r.articleSubtype || r.subtype, r.color, r.size].map(ptNorm).join('|') === key);
+  return cu ? String(cu.sku) : null;
 }
 
 /** Orders with an open balance for issuing, oldest first. */
 function bdOpenOrders() {
   const m = {};
-  obLines().forEach(l => { (m[l.orderNo] = m[l.orderNo] || { skus: new Set(), date: l.date }).skus.add(l.sku); });
+  obLines().forEach(l => { if (typeof obIsLegacy === 'function' && obIsLegacy(l.orderNo)) return; (m[l.orderNo] = m[l.orderNo] || { skus: new Set(), date: l.date }).skus.add(l.sku); });
   return Object.keys(m).map(no => {
     const skus = [...m[no].skus];
     const bal = skus.reduce((a, s) => a + Math.max(0, obOrderedQty(no, s) - obIssueUsed(no, s)), 0);
@@ -17717,6 +17833,47 @@ function bdOpenOrders() {
 }
 
 const bdIsCustom = () => $('bwCustom').checked === true;
+/* CUSTOM ORDER, IN FULL (Ravi, 24 Oct: "order id m khud likhu ya dropdown me etsy, shopify, B2B, online and proper detail dalu
+ * like article subtype color size, sku auto match or yadi masterdata me nahi h to auto masterdata me save (dropdown and manual
+ * dono) and ye mera data production meeting me kam aata h"). The Order ID is typed or picked (ETSY / SHOPIFY / B2B / ONLINE)
+ * and kept on the entry as custOrder — never as orderNo, which would make it an order-book line the book has not got. The four
+ * details are picked from the master's own spellings or typed; a typed article that the master spells another way takes the
+ * master's spelling. A SKU the master has is reused; a new one is minted and written to the master on Issue (bdCustomMaster). */
+const BD_CUST_CHANNELS = ['ETSY', 'SHOPIFY', 'B2B', 'ONLINE'];
+const bdCustChannel = t => { const u = String(t || '').trim().toUpperCase();
+  return BD_CUST_CHANNELS.find(c => u === c || u.startsWith(c + ' ') || u.startsWith(c + '-') || u.startsWith(c + '#'))
+    || (/^SHP-/.test(u) ? 'SHOPIFY' : /^ONL-/.test(u) ? 'ONLINE' : /^B2B-/.test(u) ? 'B2B' : ''); };
+/** A typed value in the master's own spelling when the master has it under another case or spacing. */
+const bdMasterSpelling = (list, v) => { const t = String(v || '').trim(); if (!t) return ''; const k = ptNorm(t);
+  return list.find(x => ptNorm(x) === k) || t; };
+const bdCustAt = () => bdMasterSpelling([...new Set((PTG.mdb || []).map(r => r && r.articleType).filter(Boolean))], $('bwAtTxt') ? $('bwAtTxt').value : '');
+const bdCustSub = () => { const at = ptNorm(bdCustAt());
+  return bdMasterSpelling([...new Set((PTG.mdb || []).filter(r => r && ptNorm(r.articleType) === at).map(r => r.subtype).filter(Boolean))], $('bwSubTxt') ? $('bwSubTxt').value : ''); };
+/** The suggestion lists under the four boxes: the master's articles; that article's subtypes; that pair's colours and sizes. */
+function bdCustomLists() {
+  const mdb = PTG.mdb || [], at = ptNorm(bdCustAt()), sub = ptNorm(bdCustSub());
+  const opts = vals => [...new Set(vals.filter(Boolean).map(v => String(v).trim()))].sort((a, b) => a.localeCompare(b)).slice(0, 400).map(v => `<option value="${esc(v)}">`).join('');
+  const of = (f, keep) => opts(mdb.filter(r => r && keep(r)).map(r => r[f]));
+  if ($('bwAtList')) $('bwAtList').innerHTML = of('articleType', () => true);
+  if ($('bwSubList')) $('bwSubList').innerHTML = of('subtype', r => !at || ptNorm(r.articleType) === at);
+  if ($('bwColList')) $('bwColList').innerHTML = of('color', r => (!at || ptNorm(r.articleType) === at) && (!sub || ptNorm(r.subtype) === sub));
+  if ($('bwSzList')) $('bwSzList').innerHTML = of('size', r => (!at || ptNorm(r.articleType) === at) && (!sub || ptNorm(r.subtype) === sub));
+}
+/** A new custom SKU into the master — or, for somebody the master is closed to, onto the Custom SKUs list the forms also read. */
+async function bdCustomMaster(e) {
+  if (!e || !e.sku || mdbOf(e.sku) || (typeof ptCustomOf === 'function' && ptCustomOf(e.sku))) return '';
+  const tc = typeof ptTcCutReq === 'function' ? ptTcCutReq(e.articleType, e.articleSubtype) : null;
+  const rec = { sku: e.sku, articleType: e.articleType, subtype: e.articleSubtype, color: e.color, size: e.size, brand: '', packOf: '',
+    cuttingRequired: tc == null ? true : tc, isCustom: true, customOrder: e.custOrder || '', source: 'Custom Order (Job Work)',
+    addedBy: ME.email || '', addedAt: new Date().toISOString() };
+  const master = (typeof mdbCanEdit === 'function' && mdbCanEdit()) || !!ME.prodEdit;
+  try {
+    if (master) { const key = 'mdb_' + Date.now(); await ptPut('pt_masterDB/' + key, rec); PTG.mdb = (PTG.mdb || []).concat(Object.assign({ _key: key }, rec)); return ` ${e.sku} added to the master database.`; }
+    await ptPut('pt_customSkus/' + e.sku, rec);
+    if (typeof MDBX !== 'undefined') MDBX.custom = (MDBX.custom || []).concat(Object.assign({ _key: e.sku }, rec));
+    return ` ${e.sku} added to the Custom SKUs list (the master database needs that permission).`;
+  } catch (er) { return ` ${e.sku} could NOT be added to the master: ${er.message || er}.`; }
+}
 
 /** The master rows in play: everything in Custom mode, otherwise only what the picked order needs. */
 function bdScope() {
@@ -17749,6 +17906,10 @@ function renderBdForm() {
   $('bwSz').classList.toggle('hide', custom);
   $('bwColTxt').classList.toggle('hide', !custom);
   $('bwSzTxt').classList.toggle('hide', !custom);
+  /* …and since 24 Oct its own Order ID, and the article and subtype picked from the master or typed */
+  ['bwCustOrd', 'bwAtTxt', 'bwSubTxt'].forEach(id => { if ($(id)) $(id).classList.toggle('hide', !custom); });
+  ['bwAt', 'bwSub'].forEach(id => $(id).classList.toggle('hide', custom));
+  if (custom) bdCustomLists();
 
   bdFill('bwType', ptEmpTypes(), 'Employment type…');
   $('bwEmpList').innerHTML = ptEmpsOfType($('bwType').value).map(e => `<option value="${esc(e[1])}">`).join('');
@@ -17772,7 +17933,7 @@ function renderBdForm() {
   }
 
   const scope = bdScope();
-  const at = $('bwAt').value, sub = $('bwSub').value;
+  const at = custom ? bdCustAt() : $('bwAt').value, sub = custom ? bdCustSub() : $('bwSub').value;
   const col = custom ? $('bwColTxt').value.trim() : $('bwCol').value;
   const sz = custom ? $('bwSzTxt').value.trim() : $('bwSz').value;
 
@@ -17932,6 +18093,12 @@ function bdSkuTyped() {
     $('bwAt').value = m.articleType || ''; $('bwSub').value = m.subtype || '';
     $('bwCol').value = m.color || ''; $('bwSz').value = m.size || '';
   }
+  /* …and in Custom Order too (Ravi, 24 Oct: "sku id dalte hi auto fatch hona chahiye"): a SKU the master or the Custom SKUs
+   * list knows fills the four typed boxes; a SKU nobody knows leaves them for typing. */
+  if (m && bdIsCustom()) {
+    if ($('bwAtTxt')) $('bwAtTxt').value = m.articleType || ''; if ($('bwSubTxt')) $('bwSubTxt').value = m.subtype || '';
+    $('bwColTxt').value = m.color || ''; $('bwSzTxt').value = m.size || '';
+  }
   /* The REST of the form — the order list and five dropdowns rebuilt from the master database and
    * the order book — waits until the typing stops. Doing it per character is what made a five-letter
    * SKU take five rebuilds of everything, and none of the first four were ever looked at. */
@@ -17942,6 +18109,8 @@ let BD_FORM_T = null;
 
 function bdClearForm() {
   ['bwEmp', 'bwSku', 'bwPcs', 'bwRemarks', 'bwColTxt', 'bwSzTxt'].forEach(id => { $(id).value = ''; });
+  /* the custom Order ID and article stay for the next piece of the same custom order; colour and size are cleared */
+  if (!bdIsCustom()) ['bwCustOrd', 'bwAtTxt', 'bwSubTxt'].forEach(id => { if ($(id)) $(id).value = ''; });
   ['bwOrd', 'bwAt', 'bwSub', 'bwCol', 'bwSz'].forEach(id => { $(id).value = ''; });
   $('bwSku').dataset.typed = '';
   $('bwSkuNote').textContent = '';
@@ -17980,10 +18149,11 @@ $('bwToggle').onclick = async () => {
  * must not: it also runs after a save, and a run of custom entries would re-tick it every time. */
 $('bwClear').onclick = () => {
   $('bwCustom').checked = false;
+  ['bwCustOrd', 'bwAtTxt', 'bwSubTxt'].forEach(id => { if ($(id)) $(id).value = ''; });
   bdClearForm();
   bdFormMsg('Cleared — nothing was saved.');
 };
-['bwCustom', 'bwOrd', 'bwType', 'bwAt', 'bwSub', 'bwCol', 'bwSz', 'bwColTxt', 'bwSzTxt'].forEach(id => {
+['bwCustom', 'bwOrd', 'bwType', 'bwAt', 'bwSub', 'bwCol', 'bwSz', 'bwColTxt', 'bwSzTxt', 'bwAtTxt', 'bwSubTxt'].filter(id => $(id)).forEach(id => {
   // Changing anything above the SKU means the typed SKU no longer stands.
   const reset = () => { if (id !== 'bwType') $('bwSku').dataset.typed = ''; renderBdForm(); };
   $(id).addEventListener('change', reset);
@@ -18021,10 +18191,12 @@ $('bwSave').onclick = async () => {
   /* On the Custom SKUs list and not in the master: what it is comes off the list (its selects cannot hold a size like
    * "40*40 cm" that no master row has). */
   const cm = !custom && sku && !mdbOf(sku) ? ptCustomOf(sku) : null;
-  const at = $('bwAt').value || (cm ? cm.articleType : ''), sub = $('bwSub').value || (cm ? cm.subtype : '');
+  const at = custom ? bdCustAt() : ($('bwAt').value || (cm ? cm.articleType : '')), sub = custom ? bdCustSub() : ($('bwSub').value || (cm ? cm.subtype : ''));
+  const custOrder = custom && $('bwCustOrd') ? $('bwCustOrd').value.trim() : '';
   const col = custom ? $('bwColTxt').value.trim() : ($('bwCol').value || (cm ? cm.color : ''));
   const sz = custom ? $('bwSzTxt').value.trim() : ($('bwSz').value || (cm ? cm.size : ''));
 
+  if (custom && !custOrder) return bdFormMsg('Type the Order ID, or pick ETSY / SHOPIFY / B2B / ONLINE.', true);
   if (!type) return bdFormMsg('Select the employment type.', true);
   if (!name) return bdFormMsg('Enter the employee.', true);
   const emp = ptEmpsOfType(type).find(e => String(e[1]).trim().toLowerCase() === name.toLowerCase());
@@ -18068,6 +18240,7 @@ $('bwSave').onclick = async () => {
     ...bdMatEntry(),
     frozen: false,
     isCustom: custom || (cm ? true : undefined),
+    ...(custom ? { custOrder, custChannel: bdCustChannel(custOrder) } : {}),
     addedBy: ME.email, addedAt: new Date().toISOString(),
   };
 
@@ -18094,10 +18267,11 @@ This would be a SECOND, identical issue — and a second payment. OK saves it an
     try { zipNote = await ptConsumeZippers(entry); } catch (e) { zipNote = 'The zipper deduction did not save: ' + (e.message || e); }
     /* THE RUFFLE GOES WITH IT, the way the zipper does — a ruffle tablecloth takes both. */
     try { rufNote = await ptConsumeRuffle(entry); } catch (e) { rufNote = ' The ruffle fabric deduction did not save: ' + (e.message || e); }
+    const mdbNote = custom ? await bdCustomMaster(entry) : '';
     bdClearForm();
     renderPbase();
-    const matNote = (zipNote + rufNote).trim();
-    bdFormMsg(`Issued — ${nf(pcs)} piece(s) of ${obUC(sku)} to ${emp[1]}${orderNo ? ' against ' + orderNo : ' (custom order)'}.`
+    const matNote = (zipNote + rufNote + mdbNote).trim();
+    bdFormMsg(`Issued — ${nf(pcs)} piece(s) of ${obUC(sku)} to ${emp[1]}${orderNo ? ' against ' + orderNo : ` (custom order ${custOrder})`}.`
       + (matNote ? ' ' + matNote : '') + waNote, /NOT|could not|did not/.test(matNote));
   } catch (e) {
     waPreClose(waWin);
@@ -18511,7 +18685,7 @@ function jwRow(r) {
     + `<td style="text-align:left"><div class="jw-item">${ptImgSpan(r.sku, 42)}<div style="min-width:0">`
     + `<div style="font-weight:600">${esc(r.articleSubtype || r.articleType || '')}</div>`
     + `<div class="jw-sub">${[r.color, r.size].filter(Boolean).map(esc).join(' • ')}</div>`
-    + `<div class="jw-sku">${esc(r.sku)}${r.orderNo ? ' · ' + esc(r.orderNo) : ''}</div></div></div></td>`
+    + `<div class="jw-sku">${esc(r.sku)}${r.orderNo ? ' · ' + esc(r.orderNo) : r.custOrder ? ` · ${esc(r.custOrder)} <span class="pill" style="font-size:10px">custom</span>` : ''}</div></div></div></td>`
     + `<td class="num">${nf(ptNum(r.issuePieces))} <span class="jw-u">pcs</span></td>`
     + `<td class="num">${nf(ptNum(r.receivedPieces))} <span class="jw-u">pcs</span></td>`
     + `<td>${jwRing(r)}</td>`
@@ -19234,7 +19408,12 @@ async function apvAnswer(key, approve, note) {
   if (approve) {
     const live = (PT.base || []).find(x => x && x.id === id);
     if (!live) { await apvDrop(key); return 'That entry is already gone. The request has been cleared.'; }
-    try { await ptDelete('pt_baseData/' + id); }
+    try {
+      await ptDelete('pt_baseData/' + id);
+      // Same as the Delete button: the zippers and ruffle cloth it spent go back to stock with it.
+      await ptUnconsumeZippers(id);
+      await ptUnconsumeRuffle(id);
+    }
     catch (e) { return 'Not deleted: ' + (e.message || e); }
     PT.base = (PT.base || []).filter(x => x && x.id !== id);
   }
@@ -19790,6 +19969,14 @@ function pressEdit(id) {
 }
 
 /* ---- Cutting Data: edit ---- */
+/** [value, label] for the Order ID box: the entry's own order, and the orders of its SKU with room left to cut. */
+function cutOrderOptions(r) {
+  const out = [['', r.orderNo ? '— pick the order —' : '— no Order ID yet — pick one —']];
+  if (r.orderNo) out.push([r.orderNo, r.orderNo + ' (now)']);
+  (typeof cutOrdersFor === 'function' ? cutOrdersFor(r.sku) : []).filter(o => o.orderNo !== r.orderNo && o.left > 0)
+    .forEach(o => out.push([o.orderNo, `${o.orderNo} — ${nf(o.left)} left to cut of ${nf(o.ordered)}`]));
+  return out;
+}
 function cutEdit(id) {
   const r = (PT.cut || []).find(x => x.id === id);
   if (!r) return;
@@ -19801,6 +19988,9 @@ function cutEdit(id) {
     msg: `${r.articleType || ''} · ${r.articleSubtype || ''} · ${r.color || ''} · ${r.size || ''}`,
     fields: [
       { key: 'sku', label: 'SKU', value: r.sku, readonly: true },
+      /* THE ORDER CAN BE PUT RIGHT HERE (Ravi, 24 Oct: the 23 cuttings that went onto LEG-17102026-01 were taken off it —
+       * "hum unko unke open order me assign karenge"). The orders of this SKU with room to cut, and the one it is on now. */
+      { key: 'orderNo', label: 'Order ID', type: 'select', value: r.orderNo || '', options: cutOrderOptions(r) },
       { key: 'pieces', label: 'Pieces', type: 'number', min: 1, step: 1, value: ptNum(r.pieces) },
       { key: 'fabricWidth', label: 'Fabric', value: r.fabricWidth || '' },
       { key: 'fabricUsed', label: 'Fabric used (m)', type: 'number', step: '0.01', min: 0, value: r.fabricUsed == null ? '' : r.fabricUsed },
@@ -19816,13 +20006,17 @@ function cutEdit(id) {
       const pcs = parseInt(v.pieces, 10);
       if (!pcs || pcs < 1) return 'Pieces must be at least 1.';
       if (!String(v.fabricWidth || '').trim()) return 'Enter the fabric.';
-      if (r.orderNo) {
-        const g = cutGuard(r.orderNo, r.sku, pcs, r.id);
+      const ord = String(v.orderNo == null ? (r.orderNo || '') : v.orderNo).trim();
+      if (!ord && r.orderNo) return 'Pick the Order ID these pieces were cut for.';
+      if (ord) {
+        /* a new order checks its own room; the order it already is on, its room with this entry left out */
+        const g = cutGuard(ord, r.sku, pcs, ord === r.orderNo ? r.id : undefined);
         if (g) return g;
       }
       const date = v.cutDate || ptIsoDate(r.cutDate);
       if (cutMonthFrozen(date)) return `${ptMonthKey(date)} is frozen — cutting entries for that month are locked.`;
       const next = Object.assign({}, r, {
+        orderNo: ord, ...(ord !== (r.orderNo || '') ? { orderWas: r.orderNo || '', orderSetBy: ME.email, orderSetAt: new Date().toISOString() } : {}),
         pieces: pcs, fabricWidth: String(v.fabricWidth || '').trim(),
         remarks: String(v.remarks || '').trim(),
         cutDate: v.cutDate ? ptStampFrom(r.cutDate, v.cutDate) : r.cutDate,
@@ -20535,7 +20729,11 @@ function qcInboxRows() {
      * receipts do not cover on the receiving date. Pieces received through Edit carried no receipt and never showed
      * here (2026-10-08, Ravi: "5 OCT KE BAD WALI ENTRY ABHI DIRECT WAITING FOR QC ME SHOW NAHI HO RHA H") — 70 entries. */
     let since = 0, last = 0;
-    repRecvParts(r).forEach(p => { if (p.ms >= from) { since += p.pcs; if (p.ms > last) last = p.ms; } });
+    /* THE LEGACY ORDER'S PIECES WAIT TOO (Ravi, 24 Oct: "Legacy order ki 88 lines (1,423 pcs) pending show nhi ho rhi h"):
+     * LEG-… holds the pieces made on the floor before the app had orders for them; 1,207 of them came back 1–4 Oct, before QC
+     * began, so the date line kept them out of here for good and their lines open for ever. Every receipt of theirs counts. */
+    const legacy = /^LEG-/i.test(String(r.orderNo || ''));
+    repRecvParts(r).forEach(p => { if (legacy || p.ms >= from) { since += p.pcs; if (p.ms > last) last = p.ms; } });
     /* Never more than the row says came back — a correction may have lowered it after the receipt was logged. */
     since = Math.min(since, ptNum(r.receivedPieces));
     const accepted = took.get(r.id) || 0, wait = since - accepted;
@@ -20929,6 +21127,7 @@ function mdbRecord(v, isCustom) {
     /* AMAZON'S IDS (Ravi, 2026-09-26). An edit and an import both write the WHOLE record, so a field left out of
      * here is a field every edit wipes. */
     asin: obUC(v.asin), parentAsin: obUC(v.parentAsin),
+    listingStatus: mdbListing(v.listingStatus),
     isCustom: !!isCustom,
   };
 }
@@ -20966,6 +21165,11 @@ const YESNO = ['yes', 'no'];
 /** The Fabric Type master, with whatever this row already says kept at the top of it. */
 const fabListOr = cur => [...new Set([String(cur || '').trim()].filter(Boolean).concat(cutFabrics()))];
 /** The dialog's fields, shared by add and edit so the two cannot drift. */
+const MDB_LISTING = ['', 'Listed', 'Need Listing', 'Discontinue', 'Use In Mix'];
+/** A typed status in the list's own spelling ("discontinued" → Discontinue); '' when it is none of them. */
+const mdbListing = v => { const t = String(v == null ? '' : v).trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!t) return ''; if (/discontinu/.test(t)) return 'Discontinue'; if (/use ?in ?mix/.test(t)) return 'Use In Mix';
+  if (/need/.test(t)) return 'Need Listing'; if (/list/.test(t)) return 'Listed'; return ''; };
 function mdbFields(r) {
   const m = (k, d) => (r ? (r[k] == null ? d : r[k]) : d);
   const yn = b => (b ? 'yes' : 'no');
@@ -20979,6 +21183,9 @@ function mdbFields(r) {
       list: ['Ridhi'].concat((PTG.mdb || []).map(x => String((x && x.manufacturer) || '').trim())) },
     { key: 'asin', label: 'ASIN', value: m('asin', '') },
     { key: 'parentAsin', label: 'Parent ASIN', value: m('parentAsin', '') },
+    /* THE INDIA LISTING STATUS (Ravi, 25 Oct: "master data base me set karenge") — it was the sheet's India Stock tab.
+     * Discontinue or Use In Mix stops the SKU in Replenishment: nothing more is planned for it. */
+    { key: 'listingStatus', label: 'Listing status', type: 'select', value: m('listingStatus', ''), options: MDB_LISTING },
     { key: 'articleType', label: 'Article type', type: 'select', value: m('articleType', ''),
       options: [''].concat(listOr('articleType', m('articleType', ''))) },
     { key: 'subtype', label: 'Article subtype', type: 'select', value: m('subtype', ''),
@@ -21299,7 +21506,7 @@ $('ptmImgs').onclick = () => mdbImgFill(true);
 const MDB_IMPORT_COLS = ['SKU', 'Brand', 'Article', 'Subtype', 'Color', 'Size', 'Fabric', 'Consumption',
   'Pack of', 'Cutting required', 'Zip', 'Zips per piece', 'Zip size', 'Ruffle', 'Ruffle metres',
   'Ruffle fabric', 'Piping dori', 'Piping dori metres', 'Filler fabric', 'Filling qty', 'Valuation price', 'Image', 'ASIN', 'Parent ASIN',
-  'Manufacturer', 'Piping fabric', 'Packing type', 'Packing material'];
+  'Manufacturer', 'Piping fabric', 'Packing type', 'Packing material', 'Listing status'];
 
 /** The recipe template: every combination, its recipe so far, and what its SKUs say. */
 function recipeTemplateDownload() {
@@ -21611,6 +21818,7 @@ function mdbFromCsv(row, ix) {
     inventoryValuationPrice: g('valprice'), imageUrl: g('image'),
     asin: g('asin'), parentAsin: g('parent'),
     manufacturer: g('maker'), pipingFabric: g('pipingfab'), packType: g('packtype'), packMaterial: g('packmat'),
+    listingStatus: g('listing'),
   };
 }
 
@@ -21639,7 +21847,8 @@ function mdbFormOf(r) {
     fillerFabricRequired: yn(r.fillerFabricRequired), standardFillingQty: s(r.standardFillingQty),
     inventoryValuationPrice: s(r.inventoryValuationPrice), imageUrl: s(r.imageUrl),
     asin: s(r.asin), parentAsin: s(r.parentAsin),
-    manufacturer: s(r.manufacturer), pipingFabric: s(r.pipingFabric), packType: s(r.packType), packMaterial: s(r.packMaterial) };
+    manufacturer: s(r.manufacturer), pipingFabric: s(r.pipingFabric), packType: s(r.packType), packMaterial: s(r.packMaterial),
+    listingStatus: s(r.listingStatus) };
 }
 /** What the file says, over what the SKU already says. */
 function mdbMerge(v, existing) {
@@ -21686,6 +21895,7 @@ $('ptmFile').onchange = async e => {
       pipingfab: colIdx(head, ['piping fabric']),
       packtype: colIdx(head, ['packing type', 'packing', 'pack type']),
       packmat: colIdx(head, ['packing material', 'polythene / box used', 'polythene', 'box', 'packing item']),
+      listing: colIdx(head, ['listing status', 'india status', 'status']),
     };
     if (ix.sku < 0) {
       $('ptmMsg').className = 'err';
@@ -23156,7 +23366,12 @@ function ordLinesBuild() {
     const b = obBaseIndex().get(obKeyOf(l.orderNo, l.sku));
     const issued = Math.max(own('issued'), b ? b.issued : 0);
     const received = Math.max(own('received'), b ? b.received : 0);
-    const cutReq = ordCutReq(l.sku);
+    /* NO CUTTING OWED (Ravi, 24 Oct: "legacy order se entry ki thi kareegaro ki usme bhi koi glitch"): a legacy order is pieces
+     * already made on the floor before the app had an order for them (LEG-17102026-01, 1–15 Oct) — 59 of its lines, all made,
+     * read "to cut" for ever because no cutting entry was ever made for them; and a line PPC sent straight to Job Work skips the
+     * cutting table by its plan (bdGuard reads the same route). */
+    const cutReq = ordCutReq(l.sku) && !/^LEG-/i.test(l.orderNo)
+      && !(typeof flowPlanRouteOf === 'function' && flowPlanRouteOf(l.orderNo, l.sku) === 'jobwork');
     const cutPct = l.qty > 0 ? (cut / l.qty) * 100 : 0;
     const cutDone = !cutReq || cutPct >= ORD_THRESHOLD(l.qty);
     /* MADE IS WHAT CAME BACK — the received figure from Base Data, and nothing else.
@@ -30371,10 +30586,16 @@ async function flowDueRecvSave(key, got, o) {
     const q = flowR2(+got[x.l.key] || 0); if (!(q > 0)) return;
     if (x.unit === 'pcs' && q !== Math.round(q)) return bad.push(`${x.sku}: pieces are whole`);
     if (q > (x.unit === 'pcs' ? x.left : x.left * 1.1) + 1e-9) return bad.push(`${x.orderNo} ${x.sku}: ${flowQtyTxt(q, x.unit)} is more than the ${flowQtyTxt(x.left, x.unit)} still to come`);
-    let rest = q;
-    flowDueOpenChs(x.l.key).forEach(({ c, rem }) => { if (rest <= 0) return; const t = flowR2(Math.min(rest, rem)); rest = flowR2(rest - t);
+    let rest = q, last = '';
+    flowDueOpenChs(x.l.key).forEach(({ c, rem }) => { last = c.no; if (rest <= 0) return; const t = flowR2(Math.min(rest, rem)); rest = flowR2(rest - t);
       const e = per.get(c.no) || per.set(c.no, {}).get(c.no); e[x.l.key] = flowR2((e[x.l.key] || 0) + t); });
-    if (rest > 0) extra.push({ x, q: rest });
+    /* ONLY CLOTH THAT NEVER WENT ON A CHALLAN IS "NO RFD CHALLAN". The up-to-10% over on cloth that did go on one
+     * (shrinkage, roll ends) is that challan's: its cloth already left RFD stock with the challan, and putting the over
+     * on a no-challan record took it off RFD stock a second time. */
+    const noCh = flowR2(Math.min(rest, x.notSent)), over = flowR2(rest - noCh);
+    if (over > 0 && last) { const e = per.get(last) || per.set(last, {}).get(last); e[x.l.key] = flowR2((e[x.l.key] || 0) + over); }
+    const ex = flowR2(noCh + (over > 0 && !last ? over : 0));
+    if (ex > 0) extra.push({ x, q: ex });
   });
   if (bad.length) return bad.join(' · ');
   if (!per.size && !extra.length) return 'Type what came back for at least one line.';
@@ -30883,6 +31104,9 @@ function flowVoLines(o, planOf) {
   out.cut = merge(out.cut, l => obUC(l.sku), 'qty');
   return out;
 }
+/* AN ORDER ALREADY PLACED IS CHANGED FIELD BY FIELD (26 Oct): the printer writes onto it too — what they say they sent
+ * (vSent, vendor-portal.js) — and a whole-record write from the office would wipe a batch entered since this screen read it. */
+const voFieldWrites = (patch, o, fields) => fields.forEach(k => { patch[`pt_vendorOrders/${o.vendorCode}/${o.id}/${k}`] = o[k]; });
 /**
  * The Vendor Order writes for the flow print orders `nos` (already updated in `local`). Mutates `local[no].vo` and puts the
  * link into `patch` the safe way (inside a whole-record write when the same save writes the whole record).
@@ -30901,7 +31125,7 @@ function flowVoSync(local, nos, patch, planOf) {
       if (!lines.length) {
         if (existing && existing.status !== 'Cancelled') {
           const c = Object.assign({}, existing, { status: 'Cancelled', staffUpdatedAt: now });
-          patch[`pt_vendorOrders/${ref.code}/${ref.id}`] = c; placed.push(c); said.push(`${existing.orderNo} cancelled`); }
+          voFieldWrites(patch, c, ['status', 'staffUpdatedAt']); placed.push(c); said.push(`${existing.orderNo} cancelled`); }
         return;
       }
       const prev = {}; if (existing) voLines(existing).forEach(l => { if (l.flowPart) prev[l.flowPart] = l; });
@@ -30911,7 +31135,9 @@ function flowVoSync(local, nos, patch, planOf) {
         : { id: 'vpo_flow_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7), orderNo: voNewOrderNo(), vendorCode: o.printer.code, vendorName: o.printer.name,
             service: 'Block print', ...(want.channel ? { channel: want.channel } : {}), orderType: kind, orderDate: voTodayDMY(), status: 'Placed',
             notes: `From the PPC plan — ${o.orderNo} (${o.no})`, lines: ln, createdBy: ME.email || '', createdAt: now, demandSource: 'ppc', flowPrintOrder: o.no };
-      patch[`pt_vendorOrders/${order.vendorCode}/${order.id}`] = order; placed.push(order);
+      if (existing) voFieldWrites(patch, order, ['lines', 'status', 'staffUpdatedAt']);
+      else patch[`pt_vendorOrders/${order.vendorCode}/${order.id}`] = order;
+      placed.push(order);
       vo[kind] = { code: order.vendorCode, id: order.id, orderNo: order.orderNo };
       if (!existing) VO.rows = (VO.rows || []).concat([order]);   // so the next number drawn this save is a different one
       said.push(existing ? `${order.orderNo} updated` : `Vendor Order ${order.orderNo} placed with ${o.printer.name}`);
@@ -31888,7 +32114,8 @@ function flowEmbCells(x, first) {
     + `<td style="${td};min-width:230px"><div>To: <b>${esc(s.embTo || who)}</b></div>`
       + `<div>Sent: <b>${nf(s.embSent || 0)} m</b>${s.embCanSend > 0 ? ` <span class="muted">· ${nf(s.embCanSend)} m to send</span>` : ''}</div>`
       + `<div>Back: <b>${nf(s.embBack || 0)} / ${nf(q)} pcs</b>${s.qcRej ? ` <span style="color:#b91c1c">· ${nf(s.qcRej)} rejected at QC — embroider again</span>` : ''}</div>`
-      + open.map(no => `<div style="font-size:12px;margin-top:2px"><a href="#" data-flembp="${esc(no)}">${esc(no)}</a> · <a href="#" data-flembrx="${esc(no)}">Receive pieces</a></div>`).join('') + '</td>'
+      + open.map(no => `<div style="font-size:12px;margin-top:2px"><a href="#" data-flembp="${esc(no)}">${esc(no)}</a> · <a href="#" data-flembrx="${esc(no)}">Receive pieces</a>`
+        + (flowMay('flchl') && !Object.keys(((FLOW.emb || {})[no] || {}).receipts || {}).length ? ` · <a href="#" data-flembx="${esc(no)}" style="color:#b91c1c">Cancel</a>` : '') + '</div>').join('') + '</td>'
     + `<td style="white-space:nowrap;vertical-align:top">${first && flowMay('flchl') ? `<button data-flembs="${esc(x.r.orderNo)}" style="width:auto;padding:3px 10px;font-size:12px">Send to embroidery</button>` : ''}`
       + (s.canCut > 0 ? `<div class="muted" style="font-size:11px;margin-top:4px">${nf(s.canCut)} pcs ready to cut</div>` : '') + '</td>';
 }
@@ -31985,6 +32212,7 @@ function flowEmbRecvOpen(no) {
 }
 /** A challan sent by mistake: cancelled (its number kept) while nothing has come back on it. */
 async function flowEmbCancel(no) {
+  if (!flowMay('flchl')) return flowSay('Embroidery is the fabric team\'s — this account has no "Printed fabric in" right.', true);
   const c = (FLOW.emb || {})[no]; if (!c || c.cancelled) return;
   if (Object.keys(c.receipts || {}).length) return flowSay(`${no} has pieces received on it — it cannot be cancelled.`, true);
   if (!confirm(`Cancel embroidery challan ${no}? The cloth on it counts as not sent again.`)) return;
@@ -32137,6 +32365,8 @@ function renderFlow() {
   const rows = FLOW_VIEW === 'new' ? shown.filter(x => x.recent) : shown.filter(x => flowInView(FLOW_VIEW, x.s));
   rows.sort((a, b) => String(a.r.orderDate || '').localeCompare(String(b.r.orderDate || '')) || String(a.r.orderNo).localeCompare(String(b.r.orderNo)));
   FLOW.panel = ''; FLOW.stock = ''; FLOW.byprint = ''; FLOW.bysize = '';
+  // The Accessories tab also lists what is reserved and not issued, so a reservation can be let go (flowTable, 'dacc').
+  FLOW.held = FLOW_VIEW === 'dacc' ? shown.filter(x => x.s.res && !x.s.issued && x.s.bucket !== 'done') : [];
   $('flTable').innerHTML = flowTable(FLOW_VIEW, rows.slice(0, 800));
   /* PPC in Excel: on the PPC bucket only — the lines on screen are what the sheet holds. */
   FLOW.shownPpc = FLOW_VIEW === 'ppc' ? rows : [];
@@ -32720,6 +32950,15 @@ function flowTable(view, rows) {
       return `<tr${short ? ' style="background:#fef2f2"' : ''}>${base(x)}<td style="text-align:left">${acc.map(a => { const f = free[accCode(a.code)]; const ok = f && f.free >= a.qty;
           return `<div style="font-size:12px"><b>${esc(a.code)}</b> ${esc(a.what || '')} × ${nf(a.qty)} <span style="color:${ok ? '#166534' : '#b91c1c'};font-weight:600">${f ? nf(Math.max(0, f.free)) + ' free' : 'not on the shelf'}${ok ? '' : ' · ⚑ short ' + nf(a.qty - Math.max(0, f ? f.free : 0))}</span></div>`; }).join('')}</td>
         <td><button data-flres="${esc(x.s.key)}" style="width:auto;padding:3px 10px;font-size:12px">Reserve</button></td></tr>`; }).join('');
+    /* RESERVED, NOT ISSUED YET — RELEASE IS HERE. A reserved line leaves the list above, and the only Release button sat on
+     * a view no tab opens, so a reservation made by mistake held the zips for good. Under the lines to reserve, the ones
+     * holding accessories that have not gone to a karigar, each with Release: the accessories go back to the shelf. */
+    const held = (FLOW.held || []).slice().sort((a, b) => String(a.r.orderNo).localeCompare(String(b.r.orderNo)));
+    prevNo = null;
+    if (held.length) body = (body || '<tr><td colspan="5" class="muted" style="padding:16px">No line is waiting to be reserved.</td></tr>')
+      + `<tr><td colspan="5" style="text-align:left;background:#f8fafc;font-weight:600;font-size:12.5px;padding:8px 10px">Reserved, not issued yet · ${nf(held.length)} line(s) — Release puts the accessories back on the shelf</td></tr>`
+      + held.map(x => `<tr>${base(x)}<td style="text-align:left">${Object.entries((x.s.res && x.s.res.items) || {}).map(([c, q]) => `<div style="font-size:12px"><b>${esc(c)}</b> × ${nf(q)} <span class="muted">reserved</span></div>`).join('')}</td>
+        <td><button class="ghost" data-flunres="${esc(x.s.key)}" style="width:auto;padding:3px 10px;font-size:12px">Release accessories</button></td></tr>`).join('');
     const ac = flowAccCover();
     FLOW.stock = `<thead><tr><th style="text-align:left">Code</th><th>On the shelf</th><th>Reserved already</th><th>These lines need</th><th>Short</th></tr></thead><tbody>`
       + ac.map(a => `<tr${a.short ? ' style="background:#fef2f2"' : ''}><td style="text-align:left"><b>${esc(a.code)}</b> <span class="muted">${esc(a.name !== a.code ? a.name : '')}</span></td><td class="num">${nf(a.shelf)}</td><td class="num">${nf(a.held)}</td><td class="num">${nf(a.need)}</td>
@@ -36924,6 +37163,9 @@ function entrySave() {
     done: prev ? !!prev.done : false };
   /* A RECEIPT THAT CAME ON A CHALLAN KEEPS IT: the paper, the truck and the pieces ride on the row. */
   if (prev) ['chId', 'vehicle', 'lr', 'pieces'].forEach(function (k) { if (prev[k] != null) row[k] = prev[k]; });
+  /* A SHRINKAGE HOLD SURVIVES A CORRECTION. Fixing the metres or the date of an RFD receipt that is
+   * waiting for approval (or was turned down) must not slip it into stock without anyone approving it. */
+  if (prev && prev.approval && kind === 'RECEIVE_RFD') row.approval = prev.approval;
   if (kind === 'RECEIVE_RFD') row.final = !!$('enFinal').checked;
   /* WHAT STAYED IS WHAT THE LEDGER COUNTS. The challan figure and what went back are kept on the
    * row so the mill can be answered later, but the stock only ever sees the difference. */
@@ -37167,9 +37409,12 @@ function gdClearAll() { DB.gpo = []; DB.fab = []; gdSaveAll(); }
  * gdesk opens the desk; gdled shows the fabric ledger; gdledit lets them add and correct it; gdappr approves an RFD
  * receipt that shrank more than 5%. An admin holds all four. */
 var GD_RIGHTS = [['gdesk', 'Open the Greige Desk'], ['gdled', 'See the fabric ledger'], ['gdledit', 'Add to and correct the fabric ledger'], ['gdappr', 'Approve an RFD receipt that shrank more than 5%']];
+/* AN EMPTY TABS LIST IS NO ACCESS, as it is everywhere else in the app (auth.js: a failed or empty perms read
+ * gives nothing). It used to hand all four rights to such an account. Only the desk run on its own, with no
+ * app login at all, still opens with every right. */
 function gdHas(k) {
-  var me = (typeof ME !== 'undefined' && ME) || {}, tabs = me.tabs || [];
-  return !!me.admin || !tabs.length || tabs.indexOf(k) >= 0;
+  if (typeof ME === 'undefined' || !ME) return true;
+  return !!ME.admin || (ME.tabs || []).indexOf(k) >= 0;
 }
 function meUser() {
   var me = (typeof ME !== 'undefined' && ME) || {};
@@ -42415,6 +42660,8 @@ function accEditTxn(id) {
       const err = accTxnCheck(v, r._id); if (err) return err;
       const next = Object.assign({}, r, { txnType: v.txnType, itemCode: String(v.itemCode).trim(),
         qty: parseFloat(v.qty), date: v.date, ref: String(v.ref || '').trim(),
+        /* The name typed in the dialog is the name kept — a correction to who has it must stick. */
+        issuedTo: String(v.issuedTo || '').trim(),
         remarks: String(v.remarks || '').trim(), editedBy: ME.email, editedAt: new Date().toISOString() });
       delete next._key;
       await ptPut('pt_accLedger/' + r._id, next);
@@ -42966,8 +43213,12 @@ function soQtyOpen(id, sku) {
       if (err) return err;
       renderSox();
       $('sxMsg').className = 'muted';
-      $('sxMsg').textContent = sku + ' on ' + o._id + ' is now ' + nf(parseFloat(v.qty) || 0)
-        + ' piece(s), and the order book says the same.';
+      /* ASKED, NOT CHANGED. soQtyRun only writes the request; the order and the order book stay
+       * where they are until it is approved in the Order Console. Saying "is now" here sent people
+       * to the floor with a figure nobody had agreed to yet. */
+      $('sxMsg').textContent = 'Asked: ' + sku + ' on ' + o._id + ' from ' + nf(now) + ' to '
+        + nf(parseFloat(v.qty) || 0) + ' piece(s). The order and the order book stay at ' + nf(now)
+        + ' until it is approved in the Order Console.';
       return '';
     },
   });
@@ -45022,6 +45273,15 @@ $('voExport').onclick = () => {
 
 const SO_RESERVED_PREFIXES = ['LEG', 'PRD', 'ADJ', 'SO', 'ORD', 'SHP'];
 
+/** " — the master has RTCR296-110R", or " — the master has RTC296 in 5270, 6060…", or "" — for a SKU the master lacks. */
+function soSkuHint(sku, known) {
+  const s = obUC(sku), near = [s + 'R', s.replace(/R$/, ''), s.replace(/\s+/g, '')].filter(x => x && x !== s && known.has(x));
+  if (near.length) return ` — the master has ${near[0]}`;
+  const cut = s.lastIndexOf('-'); if (cut <= 0) return '';
+  const base = s.slice(0, cut + 1), sizes = [...known].filter(k => k.startsWith(base)).map(k => k.slice(base.length)).sort();
+  return sizes.length ? ` — the master has ${s.slice(0, cut)} in ${sizes.slice(0, 8).join(', ')}${sizes.length > 8 ? '…' : ''}` : '';
+}
+
 /** The channels an order can be raised on. The master is empty today, so the tool's own fallback. */
 function soChannels() {
   const rows = ((PTG.masters && PTG.masters.orderChannel) || []).filter(r => r && r.active !== false && (r.code || r.desc));
@@ -45633,7 +45893,10 @@ async function soBulkFile(file) {
     const dd = soParseDMY(ddRaw);
     if (!dd) { errors.push(row + 'the delivery date must be DD-MM-YYYY for ' + sku + (ddRaw ? ', not "' + ddRaw + '".' : ', and it is blank.')); return; }
     /* ONLINE takes a SKU the master lacks — it goes on the Custom SKUs list when the order is saved (2026-09-30). */
-    if (!known.has(sku) && !onl) { errors.push(row + sku + ' is not in the master database.'); return; }
+    /* SAY WHAT THE MASTER HAS INSTEAD (Ravi, 24 Oct: "ye sabhi sku master data me h but it's showing not available" — the sheet
+     * had RTCR296-110, the master RTCR296-110R; a round cloth's SKU ends in R). The near spelling is named, or the product's
+     * sizes that are there; nothing is changed by itself — a wrong guess would order the wrong product. */
+    if (!known.has(sku) && !onl) { errors.push(row + sku + ' is not in the master database' + soSkuHint(sku, known) + '.'); return; }
     if (!known.has(sku)) newSkus.add(sku);
     if (qty < 0 && soCurrentNetQty(sku, ot) <= 0) { errors.push(row + sku + ' has nothing on order to subtract from.'); return; }
     dates.add(od);
@@ -48210,7 +48473,7 @@ function vpShopTable(rows, f) {
   const COLS = ['SKU', 'Image', 'Article', 'Size', 'Customer orders', 'Ordered', 'Sent so far',
     'Balance', 'Your date', 'Sending now'];
   const head = COLS
-    .map(h => `<th${['Ordered', 'Sent so far', 'Balance', 'Sending now'].indexOf(h) >= 0 ? ' class="num"' : ''}>${esc(h)}</th>`).join('');
+    .map(h => `<th${['Ordered', 'Sent so far', 'Vendor sent', 'Balance', 'Sending now'].indexOf(h) >= 0 ? ' class="num"' : ''}>${esc(h)}</th>`).join('');
 
   const body = rows.map(o => {
     const st = o.status || 'Placed';
@@ -48372,6 +48635,90 @@ function vpLineRaw(o, l, ctx) {
   const s = ctx.bySku[obUC(l.sku)];
   return { raw: s ? s.given : (o.orderType === 'running' ? null : 0), sent: vpDone(l), dates: s ? s.dates : [] };
 }
+/* WHAT THE PRINTER SAYS IT SENT (Ravi, 26 Oct: "sent ki side me 1 column or add ho vendor sent ka jisme vendor apni qty
+ * mention kar sake and date and time and qty batch dekh saku or download kare"). The printer's own word, kept apart from
+ * Sent (what the office received) and from deliveries[] (which a PPC re-plan respects as "started"): every entry is a
+ * batch with its date and time, on the order itself —
+ *   pt_vendorOrders/<code>/<id>/vSent/<key> = { lineId, sku, color, fabricType, printDirection, qty, unit, at, by, removed? }
+ * A printer's sign-in may write its own branch, so the rules need nothing new; the office writes an order it already
+ * placed field by field (voFieldWrites), so a re-plan never wipes a batch. A batch finds its line by lineId, else by what
+ * the line is — a re-plan that merges another SKU onto a cloth line gives that line a new id. Capped at what was ordered,
+ * like a delivery. A wrong batch is struck off (removed), never deleted, so the download still shows it. */
+const vpVsKey = (run, l) => run ? [obUC(l.sku), fabKey(l.fabricType), String(l.printDirection || '').toLowerCase(), fabKey(l.color)].join('|') : obUC(l.sku);
+const vpVsAll = o => Object.entries((o && o.vSent) || {}).filter(([, b]) => b && +b.qty > 0).map(([key, b]) => Object.assign({ key }, b))
+  .sort((a, b) => String(a.at).localeCompare(String(b.at)));
+function vpVsOf(o, l) {
+  const run = o.orderType === 'running', ids = new Set(voLines(o).map(x => x && x.lineId).filter(Boolean)), k = vpVsKey(run, l);
+  return vpVsAll(o).filter(b => (b.lineId && b.lineId === l.lineId) || (!ids.has(b.lineId) && vpVsKey(run, b) === k));
+}
+const vpVsSum = list => Math.round(list.filter(b => !b.removed).reduce((a, b) => a + (+b.qty || 0), 0) * 100) / 100;
+/** Only the printer's own sign-in records — an admin looking "as printer" sees it, view only. */
+const vpVsCan = () => !!(VP.code && !VP.viewAs && spIsVendor());
+const vpVsWhen = (iso, year) => { const d = new Date(iso); if (isNaN(d)) return String(iso || '');
+  return d.toLocaleDateString('en-GB', Object.assign({ day: '2-digit', month: 'short' }, year ? { year: 'numeric' } : {})) + ', ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); };
+/** What the printer said it sent for a line, its batches, and (their own sign-in) a box to add one. shape: '' a strip under
+ * a board line · 'td' a table cell (table and cards views) · 'flat' a strip with no picture beside it (By product). */
+function vpVsHtml(o, l, i, ord, unit, shape) {
+  const list = vpVsOf(o, l), vs = vpVsSum(list), left = Math.max(0, Math.round((ord - vs) * 100) / 100), q = n => nf(Math.round((+n || 0) * 100) / 100);
+  const me = String(ME.email || '').toLowerCase();
+  const batches = list.map(b => `<div class="vpb-vsb${b.removed ? ' off' : ''}"><span>${esc(vpVsWhen(b.at))}</span><b>${q(b.qty)} ${unit}</b>`
+    + (b.removed ? '<span class="muted">struck off</span>' : vpVsCan() && String(b.by || '').toLowerCase() === me ? `<a href="#" data-vsdel="${esc(o.id)}" data-k="${esc(b.key)}">strike off</a>` : '')
+    + '</div>').join('');
+  const live = list.filter(b => !b.removed).length, td = shape === 'td';
+  return (td ? '<td class="vpvs-td">' : `<div class="vpb-vs${shape === 'flat' ? ' flat' : ''}">`)
+    + (td ? `<b>${vs > 0 ? q(vs) : '<span class="muted">—</span>'}</b>` : `<span class="muted">Vendor sent</span> <b>${vs > 0 ? q(vs) + ' ' + unit : '—'}</b>`)
+    + (list.length ? ` <details><summary>${nf(live)} batch${live === 1 ? '' : 'es'}</summary>${batches}</details>` : '')
+    + (vpVsCan() && left > 0 && !l.cancelled ? `${td ? '' : '<span style="flex:1"></span>'}<span class="vpvs-add"><input data-vsq="${esc(o.id)}" data-i="${i}" type="number" min="0" max="${left}" step="${unit === 'm' ? '0.01' : '1'}" placeholder="qty" aria-label="Quantity sent">`
+      + `<button class="ghost" data-vsadd="${esc(o.id)}" data-i="${i}">Add</button></span>` : '') + (td ? '</td>' : '</div>');
+}
+async function vpVsAdd(id, i) {
+  const o = (VP.rows || []).find(x => x && x.id === id), l = o && voLines(o)[+i];
+  const el = document.querySelector(`[data-vsq="${id}"][data-i="${i}"]`);
+  if (!o || !l || !el || !vpVsCan()) return;
+  const run = o.orderType === 'running', unit = run ? 'm' : 'pcs', typed = parseFloat(el.value);
+  if (!(typed > 0)) return vpSay(id, 'Type how much you are sending first.', true);
+  const left = Math.max(0, Math.round((vpQty(o, l) - vpVsSum(vpVsOf(o, l))) * 100) / 100);
+  const qty = run ? Math.round(Math.min(typed, left) * 100) / 100 : Math.min(Math.floor(typed), Math.floor(left));
+  if (!(qty > 0)) return vpSay(id, left > 0 ? 'Pieces are whole numbers — type 1 or more.' : 'You have already said all of it is sent.', true);
+  const key = 'vs_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+  const rec = { lineId: l.lineId || '', sku: l.sku || '', color: l.color || '', fabricType: l.fabricType || '', printDirection: l.printDirection || '',
+    qty, unit, at: new Date().toISOString(), by: ME.email || '' };
+  el.disabled = true;
+  try { await ptPut('pt_vendorOrders/' + VP.code + '/' + o.id + '/vSent/' + key, rec); }
+  catch (e) { el.disabled = false; return vpSay(id, 'Could not save: ' + (e.message || e), true); }
+  o.vSent = Object.assign({}, o.vSent, { [key]: rec });
+  renderVp();
+  vpSay(id, `${nf(qty)} ${unit} of ${l.sku || l.fabricType} recorded as sent, ${vpVsWhen(rec.at)}.` + (qty < typed ? ` Only ${nf(left)} ${unit} was left on the order, so ${nf(qty)} was recorded.` : ''));
+}
+async function vpVsDel(id, key) {
+  const o = (VP.rows || []).find(x => x && x.id === id), b = o && o.vSent && o.vSent[key];
+  if (!b || b.removed || !vpVsCan() || !confirm(`Strike off ${nf(+b.qty || 0)} ${b.unit || ''} of ${b.sku || ''} sent ${vpVsWhen(b.at)}?`)) return;
+  const removed = { at: new Date().toISOString(), by: ME.email || '' };
+  try { await ptPut('pt_vendorOrders/' + VP.code + '/' + o.id + '/vSent/' + key + '/removed', removed); }
+  catch (e) { return vpSay(id, 'Could not save: ' + (e.message || e), true); }
+  o.vSent = Object.assign({}, o.vSent, { [key]: Object.assign({}, b, { removed }) });
+  renderVp(); vpSay(id, 'Struck off — it stays in the download, marked.');
+}
+/** Every batch of the orders given, one row each — the download. */
+function vpVsRows(rows) {
+  const out = [['Order', 'For order(s)', 'SKU / fabric', 'Fabric', 'Direction', 'Colour', 'Size', 'Date', 'Time', 'Qty', 'Unit', 'Entered by', 'Struck off']];
+  rows.forEach(o => {
+    const ls = voLines(o);
+    vpVsAll(o).forEach(b => {
+      const l = ls.find(x => x && vpVsOf(o, x).some(y => y.key === b.key)) || b, d = new Date(b.at), ok = !isNaN(d);
+      out.push([o.orderNo || o.id, [...new Set((l.forOrders || []).map(f => f && f.orderNo).filter(Boolean))].join(' '), b.sku || '', b.fabricType || '', b.printDirection || '',
+        b.color || '', l.size || '', ok ? d.toLocaleDateString('en-GB') : '', ok ? d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '', +b.qty || 0, b.unit || '',
+        b.by || '', b.removed ? 'yes, ' + vpVsWhen(b.removed.at, true) : '']);
+    });
+  });
+  return out;
+}
+function vpVsDownload(id) {
+  const rows = id ? (VP.rows || []).filter(o => o && o.id === id) : (VP.shown || []);
+  const out = vpVsRows(rows);
+  if (out.length < 2) return id ? vpSay(id, 'Nothing recorded as sent on this order yet.') : null;
+  ptDownload('vendor-sent-' + String(id ? (rows[0].orderNo || id) : (VP.code || 'all')).replace(/[^\w-]+/g, ''), out.map(r => r.map(csvCell).join(',')));
+}
 /* THE SWATCH ON A RUNNING LINE (Ravi, 17 Oct: "us fabric swatch laga do jisase pata rhe"). A fabric SKU (CPCF002, APB) has
  * no photo of its own; what the printer needs to see is the design, and the product being made from that cloth shows it.
  * The line's own picture first; else the product it is for — picSku, or the SKU in its flow key (ORDER__SKU, every PPC
@@ -48405,12 +48752,13 @@ function vpBoard(rows, f) {
     const head = `<div class="vpb-order"><b style="font-size:15px">${esc(o.orderNo || o.id)}</b>
       <span class="pill">${run ? 'Running fabric — metres' : 'Cut fabric — pieces'}</span>${o.channel ? ` <span class="pill" style="background:#E9EFF6;color:#3A5573">For ${esc(o.channel)}</span>` : ''}
       <span class="muted" style="font-size:12px">raised ${esc(o.orderDate) || '—'}${wants.length ? ' · wanted by ' + day(wants[0]) : ''}${o.lastDispatchDate ? ' · last sent ' + esc(o.lastDispatchDate) : ''}</span>
-      <span style="flex:1"></span><span class="pill ${cls}">${esc(st)}</span></div>
+      <span style="flex:1"></span>${vpVsAll(o).length ? `<button class="ghost" data-vsdl="${esc(o.id)}" style="width:auto;padding:2px 10px;font-size:12px" title="Every batch the printer recorded as sent on this order, with date and time">Download vendor sent</button>` : ''}<span class="pill ${cls}">${esc(st)}</span></div>
+      <div data-vpmsg="${esc(o.id)}" class="muted" style="font-size:12.5px"></div>
       ${fabPool.length ? `<div class="muted" style="font-size:12.5px;margin:-4px 0 8px">Raw fabric for this whole order: ${fabPool.map(([fab, v]) => `<b style="color:#3A5573">${esc(fab)} ${q(v.given)} m</b>${v.dates.length ? ' (' + v.dates.map(day).join(', ') + ')' : ''}`).join(' · ')}</div>` : ''}`;
     const cards = vpGroups(keep).map(g => {
-      const lines = g.items.map(({ l }) => Object.assign({ l, ord: vpQty(o, l) }, vpLineRaw(o, l, ctx)));
+      const lines = g.items.map(({ l, i }) => Object.assign({ l, i, ord: vpQty(o, l), vs: vpVsSum(vpVsOf(o, l)) }, vpLineRaw(o, l, ctx)));
       const sum = k => lines.reduce((a, x) => a + (+x[k] || 0), 0);
-      const ord = sum('ord'), sent = sum('sent'), rawKnown = lines.some(x => x.raw != null), raw = sum('raw');
+      const ord = sum('ord'), sent = sum('sent'), vs = sum('vs'), rawKnown = lines.some(x => x.raw != null), raw = sum('raw');
       const dates = [...new Set(lines.flatMap(x => x.dates || []))];
       const sends = [...new Set(lines.flatMap(x => (Array.isArray(x.l.deliveries) ? x.l.deliveries : Object.values(x.l.deliveries || {})).filter(Boolean)
         .map(d => q(parseFloat(d.qty) || 0) + (d.date ? ' on ' + esc(d.date) : ''))))];
@@ -48421,11 +48769,11 @@ function vpBoard(rows, f) {
         const pic = run ? vpRunPic(x.l, 44) : ptImgSpan(x.l.sku, 44);
         return `<div class="vpb-line">${pic}<div class="vpb-what"><span class="vpb-sku">${esc(run ? (x.l.sku || x.l.fabricType) : x.l.sku)}</span>
           <span class="muted">${esc(run ? [x.l.fabricType, x.l.printDirection].filter(Boolean).join(' · ') : [x.l.articleSubtype || x.l.articleType, x.l.size].filter(Boolean).join(' · '))}</span></div>
-          <div class="vpb-n"><b>${q(x.ord)}</b><span class="muted">ordered</span></div><div class="vpb-n">${chip}<span class="muted">${x.sent > 0 ? 'sent ' + q(x.sent) : 'none sent'}</span></div></div>`;
+          <div class="vpb-n"><b>${q(x.ord)}</b><span class="muted">ordered</span></div><div class="vpb-n">${chip}<span class="muted">${x.sent > 0 ? 'sent ' + q(x.sent) : 'none sent'}</span></div></div>${vpVsHtml(o, x.l, x.i, x.ord, unit)}`;
       }).join('');
       return `<div class="vpb-card"><div class="vpb-head"><b>${esc(g.colour) || 'no colour'}</b><span style="flex:1"></span>${g.priority ? `<span class="vpb-pri">${esc(g.priority)}</span>` : ''}</div>
         <div class="vpb-tot"><div><span>Ordered</span><b>${q(ord)}</b></div><div class="r"><span>Raw</span><b>${rawKnown ? q(raw) : '—'}</b></div>
-          <div class="s"><span>Sent</span><b>${q(sent)}</b></div><div class="b"><span>Balance</span><b>${q(Math.max(0, ord - sent))}</b></div></div>
+          <div class="s"><span>Sent</span><b>${q(sent)}</b></div><div class="v"><span>Vendor sent</span><b>${q(vs)}</b></div><div class="b"><span>Balance</span><b>${q(Math.max(0, ord - sent))}</b></div></div>
         ${rows2}
         <div class="muted vpb-foot">${unit} · Raw: ${dates.length ? dates.map(day).join(', ') : (rawKnown && raw > 0 ? 'given' : 'not given yet')} · Sent: ${sends.length ? sends.slice(-4).join(', ') + (sends.length > 4 ? ' +' + (sends.length - 4) + ' more' : '') : 'nothing yet'}</div></div>`;
     }).join('');
@@ -48445,11 +48793,11 @@ function vpProductBoard(rows, f) {
     const keep = voLines(o).map((l, i) => ({ l, i })).filter(({ l }) => !l.cancelled && (!on || voLineMatches(l, f)) && vpPartOk(o, l) && vpQOk(o, l, f));
     if (!keep.length) return;
     const ctx = vpRawCtx(o);
-    keep.forEach(({ l }) => {
+    keep.forEach(({ l, i }) => {
       const key = (run ? 'R|' + [obUC(l.sku || l.fabricType), String(l.printDirection || '').toLowerCase(), vpColour(l).toLowerCase()].join('|') : 'C|' + obUC(l.sku));
       const g = groups.get(key) || { key, run, l, items: [], pri: 9, want: '' };
       const rw = vpLineRaw(o, l, ctx), w = voWant(l);
-      g.items.push({ o, l, st, ord: vpQty(o, l), raw: rw.raw, sent: rw.sent, want: w });
+      g.items.push({ o, l, i, st, ord: vpQty(o, l), raw: rw.raw, sent: rw.sent, vs: vpVsSum(vpVsOf(o, l)), want: w });
       g.pri = Math.min(g.pri, vpPriRank(l));
       if (w && (!g.want || w < g.want)) g.want = w;
       groups.set(key, g);
@@ -48459,7 +48807,7 @@ function vpProductBoard(rows, f) {
   const list = [...groups.values()].sort((a, b) => a.pri - b.pri || String(a.want || '9').localeCompare(String(b.want || '9')) || a.key.localeCompare(b.key));
   const cards = list.map(g => {
     const l = g.l, run = g.run, unit = run ? 'm' : 'pcs';
-    const sum = k => g.items.reduce((t, x) => t + (+x[k] || 0), 0), ord = sum('ord'), sent = sum('sent'), rawKnown = g.items.some(x => x.raw != null), raw = sum('raw');
+    const sum = k => g.items.reduce((t, x) => t + (+x[k] || 0), 0), ord = sum('ord'), sent = sum('sent'), vs = sum('vs'), rawKnown = g.items.some(x => x.raw != null), raw = sum('raw');
     const orders = [...new Set(g.items.map(x => x.o.orderNo || x.o.id))];
     const pic = run ? vpRunPic(l, 44) : ptImgSpan(l.sku, 44);
     const what = run ? [l.fabricType, l.printDirection].filter(Boolean).join(' · ') : [l.articleSubtype || l.articleType, l.size].filter(Boolean).join(' · ');
@@ -48469,12 +48817,13 @@ function vpProductBoard(rows, f) {
       const chip = x.raw == null ? '' : x.raw <= 0 ? '<span class="vpb-no">no raw yet</span>' : `<span class="vpb-raw">raw ${q(x.raw)}</span>`;
       return `<div class="vpb-line" style="align-items:flex-start"><div class="vpb-what"><b style="font-size:12.5px">${esc(x.o.orderNo || x.o.id)}</b>`
         + `<span class="muted">${esc(forOf(x))}${forOf(x) ? ' · ' : ''}raised ${esc(x.o.orderDate || '—')}${x.want ? ' · wanted ' + day(x.want) : ''}</span></div>`
-        + `<div class="vpb-n"><b>${q(x.ord)}</b><span class="muted">${x.sent > 0 ? 'sent ' + q(x.sent) : 'none sent'}</span>${chip}</div></div>`;
+        + `<div class="vpb-n"><b>${q(x.ord)}</b><span class="muted">${x.sent > 0 ? 'sent ' + q(x.sent) : 'none sent'}</span>${chip}</div></div>`
+        + vpVsHtml(x.o, x.l, x.i, x.ord, unit, 'flat');
     }).join('');
     return `<div class="vpb-card"><div class="vpb-line" style="border-top:0;padding-top:0">${pic}<div class="vpb-what"><span class="vpb-sku">${esc(run ? (l.sku || l.fabricType) : l.sku)}</span>`
       + `<span class="muted">${esc(what)}</span><b style="font-size:13.5px">${esc(vpColour(l) || '')}</b></div>${pri ? `<span class="vpb-pri">${esc(pri)}</span>` : ''}</div>`
       + `<div class="vpb-tot"><div><span>Ordered</span><b>${q(ord)}</b></div><div class="r"><span>Raw</span><b>${rawKnown ? q(raw) : '—'}</b></div>`
-      + `<div class="s"><span>Sent</span><b>${q(sent)}</b></div><div class="b"><span>Balance</span><b>${q(Math.max(0, ord - sent))}</b></div></div>`
+      + `<div class="s"><span>Sent</span><b>${q(sent)}</b></div><div class="v"><span>Vendor sent</span><b>${q(vs)}</b></div><div class="b"><span>Balance</span><b>${q(Math.max(0, ord - sent))}</b></div></div>`
       + `<details${orders.length === 1 ? '' : ''}><summary style="cursor:pointer;font-size:12.5px;font-weight:600;color:var(--brand)">${nf(orders.length)} order${orders.length === 1 ? '' : 's'} · ${unit}${g.want ? ' · first wanted ' + day(g.want) : ''}</summary>${rowsH}</details></div>`;
   }).join('');
   return `<div class="card vpb-wrap"><div class="vpb-order"><b style="font-size:15px">By product</b><span class="muted" style="font-size:12px">${nf(list.length)} product(s) across ${nf(rows.length)} order(s) — open a card's list to see which orders it is for.${vpViewAll() ? '' : ' Record a send on "By order" or "Every line".'}</span></div><div class="vpb-grid">${cards}</div></div>`;
@@ -48483,10 +48832,10 @@ function vpTable(rows, f) {
   /* Ten columns, not thirteen. The colour and the priority moved up into the group heading, and the
    * order number was on every row of an order whose bar already named it. View only (vpViewAll()): eight — no date of
    * the printer's own, nothing being sent. */
-  const COLS = ['SKU / fabric', 'Image', 'Article', 'Size', 'Ordered', 'Sent so far',
+  const COLS = ['SKU / fabric', 'Image', 'Article', 'Size', 'Ordered', 'Sent so far', 'Vendor sent',
     'Balance', 'Wanted by'].concat(vpViewAll() ? [] : ['Your date', 'Sending now']);
   const head = COLS
-    .map(h => `<th${['Ordered', 'Sent so far', 'Balance', 'Sending now'].indexOf(h) >= 0 ? ' class="num"' : ''}>${esc(h)}</th>`).join('');
+    .map(h => `<th${['Ordered', 'Sent so far', 'Vendor sent', 'Balance', 'Sending now'].indexOf(h) >= 0 ? ' class="num"' : ''}>${esc(h)}</th>`).join('');
 
   const body = rows.map(o => {
     const st = o.status || 'Placed';
@@ -48548,6 +48897,7 @@ function vpTable(rows, f) {
         + `<td class="num" style="font-weight:700">${nf(ord)} <span class="muted" style="font-weight:400;font-size:10px">${unit}</span></td>`
         + `<td class="num" style="color:#166534">${done ? nf(done) : '<span class="muted">—</span>'}`
           + `${dels.length ? `<div class="muted" style="font-size:10px">${dels.map(d => nf(parseFloat(d.qty) || 0) + (d.date ? ' @ ' + esc(d.date) : '')).join(' · ')}</div>` : ''}</td>`
+        + vpVsHtml(o, l, i, ord, unit, 'td')
         + `<td class="num">${dead ? '<span class="pill pill-out">cancelled</span>'
             : (bal > 0 ? `<span style="font-weight:700;color:var(--bad)">${nf(bal)}</span>` : '<span class="pill pill-ok">done</span>')}</td>`
         + `<td class="muted" style="font-size:12px">${voWant(l) ? esc(dShow(voWant(l))) : '—'}</td>`
@@ -48583,9 +48933,9 @@ function vpCard(o, f) {
   /* WANTED BY was not on this screen at all — the vendor was being asked to hit a date nobody had
    * shown them. It is here now, next to the box where they answer it. */
   const head = (run ? ['Fabric', 'Colour', 'Print'] : ['SKU', 'Image', 'Item'])
-    .concat(['Priority', 'Ordered', 'Sent so far', 'Balance', 'Wanted by', 'Your date'])
+    .concat(['Priority', 'Ordered', 'Sent so far', 'Vendor sent', 'Balance', 'Wanted by', 'Your date'])
     .concat(can ? ['Sending now'] : [])
-    .map(h => `<th${['Ordered', 'Sent so far', 'Balance', 'Sending now'].indexOf(h) >= 0 ? ' class="num"' : ''}>${h}</th>`).join('');
+    .map(h => `<th${['Ordered', 'Sent so far', 'Vendor sent', 'Balance', 'Sending now'].indexOf(h) >= 0 ? ' class="num"' : ''}>${h}</th>`).join('');
   const body = keep.map(({ l, i }) => {
     const ord = vpQty(o, l), done = vpDone(l), bal = Math.max(0, ord - done);
     const dead = l.cancelled === true;
@@ -48600,6 +48950,7 @@ function vpCard(o, f) {
       + `<td class="num" style="color:#166534">${done ? nf(done) : '<span class="muted">—</span>'}`
       /* The rounds themselves, so a vendor can see what they have already told us. */
       + `${dels.length ? `<div class="muted" style="font-size:10px">${dels.map(d => nf(parseFloat(d.qty) || 0) + (d.date ? ' @ ' + esc(d.date) : '')).join(' · ')}</div>` : ''}</td>`
+      + vpVsHtml(o, l, i, ord, unit, 'td')
       + `<td class="num">${dead ? '<span class="pill pill-out">cancelled</span>'
         : (bal > 0 ? `<span style="font-weight:700;color:var(--bad)">${nf(bal)}</span>` : '<span class="pill pill-ok">done</span>')}</td>`
       /* What the buyer asked for, and the box where this vendor says what they can really do. */
@@ -48635,7 +48986,7 @@ function vpCard(o, f) {
   </div>`;
 }
 
-const vpSay = (id, msg, bad) => { const el = document.querySelector(`[data-vpmsg="${id}"]`);
+const vpSay = (id, msg, bad) => { const el = document.querySelector(`[data-vpmsg="${id}"]`) || $('vpMsg');   // By product has no line of its own per order
   if (el) { el.className = bad ? 'err' : 'muted'; el.textContent = msg; } };
 
 /** Write the order back to its own branch, and keep the copy this screen holds in step. */
@@ -48866,6 +49217,9 @@ async function vpPromiseAll() {
 }
 
 $('vpBody').addEventListener('click', e => {
+  const va = e.target.closest('[data-vsadd]'); if (va) return vpVsAdd(va.getAttribute('data-vsadd'), va.getAttribute('data-i'));
+  const vd = e.target.closest('[data-vsdel]'); if (vd) { e.preventDefault(); return vpVsDel(vd.getAttribute('data-vsdel'), vd.getAttribute('data-k')); }
+  const vl = e.target.closest('[data-vsdl]'); if (vl) return vpVsDownload(vl.getAttribute('data-vsdl'));
   const f = e.target.closest('[data-vpflow]'); if (f) return vpFlow(f.getAttribute('data-vpflow'));
   const d = e.target.closest('[data-vpdeliver]'); if (d) return vpDeliver(d.getAttribute('data-vpdeliver'));
   const p = e.target.closest('[data-vpsaveprom]'); if (p) return vpPromise(p.getAttribute('data-vpsaveprom'));
@@ -48904,7 +49258,7 @@ $('vpPinBtn').onclick = pinOpenChange;
  */
 function vpExportRows(rows, f) {
   const out = [['Order', 'Type', 'Raised', 'Status', 'Priority', 'SKU / fabric', 'Article', 'Colour',
-    'Size', 'Line', 'Ordered', 'Unit', 'Sent so far', 'Balance', 'Wanted by', 'Your date', 'Rounds']];
+    'Size', 'Line', 'Ordered', 'Unit', 'Sent so far', 'Balance', 'Wanted by', 'Your date', 'Rounds', 'Vendor sent', 'Vendor sent batches']];
   const on = !!(f && vpLineOn(f));
   rows.forEach(o => {
     const run = o.orderType === 'running';
@@ -48921,7 +49275,8 @@ function vpExportRows(rows, f) {
         l.cancelled ? 'cancelled' : 'active', ord, run ? 'm' : 'pcs',
         done, l.cancelled ? 0 : Math.max(0, ord - done),
         voWant(l), voProm(l),
-        dels.map(x => x.date + ':' + x.qty).join(' | ')]);
+        dels.map(x => x.date + ':' + x.qty).join(' | '),
+        vpVsSum(vpVsOf(o, l)), vpVsOf(o, l).filter(b => !b.removed).map(b => vpVsWhen(b.at, true) + ' = ' + b.qty).join(' | ')]);
     }));
   });
   return out;
@@ -50196,7 +50551,9 @@ function renderFgi() {
 
   const view = $('fgView').value;
   ['fgD1', 'fgD2'].forEach(i => $(i).classList.toggle('hide', view !== 'ledger'));
-  ['fgBrand', 'fgStat', 'fgTag', 'fgAmz'].forEach(i => $(i).classList.toggle('hide', view !== 'stock'));
+  ['fgBrand', 'fgTag', 'fgAmz'].forEach(i => $(i).classList.toggle('hide', view !== 'stock'));
+  // Status also narrows Every movement: the movements of the SKUs that are in stock, low or out now.
+  $('fgStat').classList.toggle('hide', view !== 'stock' && view !== 'ledger');
   $('fgLstRefresh').classList.toggle('hide', !lstCanRefresh());
   $('fgLstRefresh').disabled = !!LST.busy;
   // The label has its own id rather than being reached through the checkbox's parent — a wrapper
@@ -50357,10 +50714,11 @@ function fgiRenderLedger() {
   const from = d1 ? new Date(d1 + 'T00:00:00').getTime() : 0;
   const to = d2 ? new Date(d2 + 'T23:59:59').getTime() : Infinity;
   const kpi = FGI_KPI_ROWS[FGI_KPI];
+  const fStat = $('fgStat').value;
   const rows = (FGI.rows || [])
     .filter(r => !kpi || kpi.is(r))
     .filter(r => { const m = ms(r); return !m || (m >= from && m <= to); })
-    .filter(r => !$('fgStat').value || true)
+    .filter(r => !fStat || fgiStatus(r.sku, fgiOf(r.sku).current).txt === fStat)
     .filter(r => !q || [r.sku, r.txnType, r.issuedFor, r.receivedFrom, r.reason, r.remarks, r.createdBy].join(' ').toLowerCase().includes(q))
     .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
   FGI.shown = rows;
@@ -50718,7 +51076,7 @@ $('fgTable').addEventListener('click', e => {
     /* One SKU, everything that ever happened to it — the question this screen is opened with. */
     $('fgView').value = 'ledger';
     $('fgQ').value = mv.getAttribute('data-fgmoves');
-    $('fgD1').value = ''; $('fgD2').value = '';
+    $('fgD1').value = ''; $('fgD2').value = ''; $('fgStat').value = '';
     return renderFgi();
   }
   const n = e.target.closest('[data-fgentry]'); if (n) return fgiEntryOpen('ISSUE', n.getAttribute('data-fgentry'));
@@ -51174,6 +51532,9 @@ function renderMst() {
     return renderPrintRules();
   }
   ['mstNew', 'mstOffWrap'].forEach(id => { const el = $(id); if (el) el.classList.remove('hide'); });
+  /* + Add is for an admin, like Edit on each row: the save refuses anybody else, so showing it only
+   * opened a form that could not be saved. */
+  $('mstNew').classList.toggle('hide', !ME.admin);
 
   const def = mstDef(cur);
   const rows = mstRows(cur);
@@ -53369,7 +53730,7 @@ function mtgProduction(wk, brand) {
   let waiting = 0; try { waiting = qcInboxRows().reduce((t, x) => t + x.wait, 0); } catch (e) { /* QC not readable */ }
   QC.checks = wasChecks;
   const d = Q.ok - Qp.ok;
-  const html = mtgMetrics([
+  let html = mtgMetrics([
     ['QC passed — production', nf(Q.ok), '#166534', `${d >= 0 ? '▲' : '▼'} ${nf(Math.abs(d))} vs last week (${nf(Qp.ok)})`],
     ['Of the ' + nf(tgt) + ' target', pc(Q.ok, tgt), Q.ok >= tgt ? '#166534' : 'var(--bad)', nf(Math.max(0, tgt - Q.ok)) + ' short'],
     ['Made (received from karigars)', nf(Math.round(madeTot)), '', 'passed ' + pc(Q.ok, madeTot) + ' of made'],
@@ -53381,9 +53742,38 @@ function mtgProduction(wk, brand) {
     + mtgTable(['Karigar (QC passed)', 'Pcs'], [...kar.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12).map(([k, v]) => [esc(k), nf(v)]),
       'only pieces taken from Waiting for QC carry the karigar') + '</div>'
     + repManpowerCard(wk, brand);
-  return { html, text: `1) Production (QC passed): ${nf(Q.ok)} pcs (${d >= 0 ? '+' : '−'}${nf(Math.abs(d))} vs last week) · ${pc(Q.ok, tgt)} of ${nf(tgt)} · made ${nf(Math.round(madeTot))} · rejected ${nf(Q.rej)}, alteration ${nf(Q.alt)} · waiting for QC ${nf(waiting)}`,
+  const CU = mtgCustom(wk, brand);
+  html += CU.html;
+  return { html, text: `1) Production (QC passed): ${nf(Q.ok)} pcs (${d >= 0 ? '+' : '−'}${nf(Math.abs(d))} vs last week) · ${pc(Q.ok, tgt)} of ${nf(tgt)} · made ${nf(Math.round(madeTot))} · rejected ${nf(Q.rej)}, alteration ${nf(Q.alt)} · waiting for QC ${nf(waiting)}` + (CU.text ? ' · ' + CU.text : ''),
     csv: [['Production', 'QC passed', Q.ok], ['Production', 'QC passed last week', Qp.ok], ['Production', 'Made', Math.round(madeTot)], ['Production', 'Rejected', Q.rej], ['Production', 'For alteration', Q.alt], ['Production', 'Waiting for QC', waiting]]
-      .concat(arts.map(x => ['Production by article', x.a, x.qc, Math.round(x.made), x.prev])) };
+      .concat(arts.map(x => ['Production by article', x.a, x.qc, Math.round(x.made), x.prev])).concat(CU.csv) };
+}
+/* CUSTOM ORDERS (Ravi, 24 Oct: "ye mera data production meeting me kam aata h to report me data fatch hona chahiye"). Job Work's
+ * Custom Order entries — no order-book line, an Order ID of their own (custOrder: typed, or ETSY / SHOPIFY / B2B / ONLINE) — by
+ * that Order ID: issued this week, back from the karigars this week, QC passed this week, and what is still with karigars. An
+ * older custom entry (a -CUST- code, before the Order ID box) is counted under "no Order ID". */
+function mtgCustom(wk, brand) {
+  const from = mtgMs(wk), to = from + 7 * 864e5, by = new Map(), ofRow = new Map();
+  (PT.base || []).forEach(r => {
+    if (!r || r.orderNo || !(r.custOrder || (r.isCustom && /-CUST-/i.test(r.sku || '')))) return;
+    if (brand && repBrand(r.sku) !== brand) return;
+    const k = String(r.custOrder || '').trim().toUpperCase() || '(no Order ID)', e = by.get(k) || { k, ch: r.custChannel || '', skus: new Set(), iss: 0, recv: 0, qc: 0, out: 0 };
+    e.skus.add(r.sku);
+    if (mtgIn(ptDtMs(r.issueDate), from)) e.iss += ptNum(r.issuePieces);
+    repRecvParts(r).forEach(x => { if (x.ms >= from && x.ms < to) e.recv += x.pcs; });
+    e.out += r.pendingPieces != null ? ptNum(r.pendingPieces) : Math.max(0, ptNum(r.issuePieces) - ptNum(r.receivedPieces) - ptNum(r.rejectionPieces));
+    by.set(k, e); if (r.id) ofRow.set(r.id, e);
+  });
+  repQcRows().forEach(c => { const e = c && ofRow.get(c.baseId); if (e && mtgIn(ptDtMs(c.date), from)) e.qc += ptNum(c.ok); });
+  const rows = [...by.values()].filter(e => e.iss || e.recv || e.qc || e.out).sort((a, b) => (b.iss + b.recv + b.qc) - (a.iss + a.recv + a.qc) || b.out - a.out);
+  const T = rows.reduce((t, e) => ({ iss: t.iss + e.iss, recv: t.recv + e.recv, qc: t.qc + e.qc, out: t.out + e.out }), { iss: 0, recv: 0, qc: 0, out: 0 });
+  const html = '<div style="margin-top:10px"><div style="font-weight:700;margin:4px 0">Custom orders (Job Work, no order-book line)</div>'
+    + mtgTable(['Custom order', 'Channel', 'SKUs', 'Issued', 'Back from karigars', 'QC passed', 'Still with karigars'],
+      rows.slice(0, 40).map(e => [esc(e.k), esc(e.ch || ''), nf(e.skus.size), nf(e.iss), nf(e.recv), `<b>${nf(e.qc)}</b>`, nf(e.out)])
+        .concat(rows.length ? [['<b>Total</b>', '', '', `<b>${nf(T.iss)}</b>`, `<b>${nf(T.recv)}</b>`, `<b>${nf(T.qc)}</b>`, `<b>${nf(T.out)}</b>`]] : []),
+      'issued, back and QC passed in this week; still with karigars as it stands now') + '</div>';
+  return { html, text: rows.length ? `Custom orders: issued ${nf(T.iss)}, back ${nf(T.recv)}, QC passed ${nf(T.qc)}, still with karigars ${nf(T.out)}` : '',
+    csv: rows.map(e => ['Custom order', e.k, e.ch || '', e.iss, e.recv, e.qc, e.out]) };
 }
 
 function mtgPeople(wk, brand) {
@@ -54982,8 +55372,9 @@ async function fgiBulkEditSave() {
   return '';
 }
 
-/** The confirmation for anything more than one row: what goes, what it does, and what cannot go. */
-function fgiDeleteConfirm(plan, title) {
+/** The confirmation for anything more than one row: what goes, what it does, and what cannot go.
+ *  `cleared` lets go of the ticks — only once the delete has gone through. Cancel keeps them. */
+function fgiDeleteConfirm(plan, title, cleared) {
   const neg = plan.skus.filter(s => s.after < 0 && s.after < s.before);
   const inStock = plan.skus.reduce((s, x) => s + Math.abs(x.after - x.before), 0);
   const press = [...plan.pressBack.values()].reduce((s, q) => s + q, 0);
@@ -55007,6 +55398,7 @@ function fgiDeleteConfirm(plan, title) {
     onSave: async () => {
       const why = await fgiDeleteRun(plan);
       if (why) return why;
+      if (cleared) cleared();
       renderFgi();
       $('fgMsg').className = 'muted';
       $('fgMsg').textContent = `Deleted ${nf(plan.gone.length)} movement(s) across ${nf(plan.skus.length)} SKU(s)`
@@ -55021,8 +55413,8 @@ function fgiDeleteConfirm(plan, title) {
 function fgiBulkDeleteAsk() {
   if (!fgiCanEdit()) return;
   const plan = fgiDeletePlan([...FGI_PICK.ledger]);
-  FGI_PICK.ledger = new Set();
-  fgiDeleteConfirm(plan, 'Delete the ticked movements');
+  // The ticks stay until the delete is done: Cancel on the confirm must not cost the person their picking.
+  fgiDeleteConfirm(plan, 'Delete the ticked movements', () => { FGI_PICK.ledger = new Set(); });
 }
 
 /* ---- the stock view: a SKU, or many ---- */
@@ -55146,8 +55538,9 @@ function fgiSkuDeleteAsk(skus) {
   const want = new Set(skus.map(obUC));
   const ids = (FGI.rows || []).filter(r => r && want.has(obUC(r.sku))).map(fgiRowId);
   const plan = fgiDeletePlan(ids);
-  FGI_PICK.stock = new Set();
-  fgiDeleteConfirm(plan, want.size === 1 ? `Delete ${[...want][0]} from the store` : `Delete ${nf(want.size)} SKU(s) from the store`);
+  // Only the SKUs deleted lose their tick, and only once they are gone — Cancel keeps every tick.
+  fgiDeleteConfirm(plan, want.size === 1 ? `Delete ${[...want][0]} from the store` : `Delete ${nf(want.size)} SKU(s) from the store`,
+    () => { want.forEach(s => FGI_PICK.stock.delete(s)); });
 }
 
 /* ============================== FILE: src/app/inventory/fba-dispatch.js ============================== */
@@ -55530,6 +55923,7 @@ async function fbaShipSave(ids) {
     if (shipQty < s.open) {
       const back = s.open - shipQty;
       const rec = fbaReturnRec(row, back, v('fbsReason'), 'not shipped in ' + shipment);
+      rec.fbaShipBack = shipment;   // the shipment that left these behind — undoing it takes this row back out
       updates['pt_fgiLedger/' + rec._id] = rec;
       set.fbaReturned = s.returned + back;
       backs.push(rec);
@@ -55624,16 +56018,34 @@ async function fbaUndo(id) {
   const [{ row }] = await fbaFresh([id]);
   if (!row) { fbaForget([{ id, row: null }]); renderFba(); return 'That dispatch was deleted from the store.'; }
   const s = fbaState(row), updates = {};
-  let what = '';
+  let what = '', backs = [];
   if (s.st === 'shipped') {
+    /* A PART-SHIPMENT TAKES ITS LEFTOVER RETURN WITH IT. Shipping fewer pieces than were open wrote a
+     * return row for the rest; undoing the shipment without it left those pieces back in the store and
+     * the dispatch short by the same figure. Rows written before the tag are known by their note. */
+    const ship = String(row.fbaShipment || '');
+    backs = (FGI.rows || []).filter(x => x && x.txnType === 'FBA_RETURN' && x.linkedFbaId === id
+      && (x.fbaShipBack != null ? x.fbaShipBack === ship : x.remarks === 'not shipped in ' + ship));
+    const back = backs.reduce((t, x) => t + fgiNum(x.qty), 0);
+    if (back) {
+      const left = fgiOf(row.sku).current - back;
+      if (left < 0) return `${obUC(row.sku)}: the ${nf(back)} piece(s) that came back when this shipment went have left the store `
+        + `since (it would read ${nf(left)}). Take out the movement that sent them away first.`;
+      backs.forEach(x => { updates['pt_fgiLedger/' + fgiRowId(x)] = null; });
+      updates['pt_fgiLedger/' + id + '/fbaReturned'] = Math.max(0, fgiNum(row.fbaReturned) - back);
+    }
     ['fbaShippedAt', 'fbaShippedBy', 'fbaShipment', 'fbaShipDate'].forEach(f => { updates['pt_fgiLedger/' + id + '/' + f] = null; });
-    what = 'no longer shipped — back to accepted';
+    what = 'no longer shipped — back to accepted' + (back ? `, and the ${nf(back)} piece(s) it left behind are with the FBA team again` : '');
   } else if (s.st === 'accepted') {
     ['fbaAcceptedAt', 'fbaAcceptedBy'].forEach(f => { updates['pt_fgiLedger/' + id + '/' + f] = null; });
     what = 'no longer accepted — back to waiting';
   } else return `This dispatch is ${FBA_PILL[s.st][1]}; there is no step to undo here.`;
   await ptPatch(updates);
-  Object.keys(updates).forEach(p => { delete row[p.split('/').pop()]; });
+  Object.keys(updates).forEach(p => {
+    const k = p.split('/');
+    if (k.length === 3 && k[1] === id) { if (updates[p] == null) delete row[k[2]]; else row[k[2]] = updates[p]; }
+  });
+  if (backs.length) { const gone = new Set(backs.map(fgiRowId)); FGI.rows = (FGI.rows || []).filter(x => !gone.has(fgiRowId(x))); }
   renderFba();
   $('fbaMsg').className = 'muted';
   $('fbaMsg').textContent = `${obUC(row.sku)}: ${what}.`;
@@ -55985,7 +56397,8 @@ $('sxQtyFile').onchange = async e => {
       title: 'Change these quantities?',
       subtitle: `${nf(plan.ok.length)} line(s) · ${nf(up.length)} up · ${nf(down.length)} down`,
       /* THE ORDER BOOK MOVES WITH THEM — said here, because that is the part that reaches the floor. */
-      note: 'The order book moves with the sales order, in the same write. A line the order book never '
+      note: 'Each row is sent for approval — nothing changes until it is approved in the Order Console. '
+        + 'Then the order book moves with the sales order, in the same write; a line the order book never '
         + 'got changes on the order only. Nothing goes below what has already been cut, received or pressed.',
       html: '<div class="muted" style="font-size:12.5px;line-height:1.7">'
         + (up.length ? `<b style="color:#166534">Going up</b><br>${show(up)}`
@@ -56002,7 +56415,8 @@ $('sxQtyFile').onchange = async e => {
         renderSox();
         if (out.err) return out.err;
         $('sxMsg').className = 'muted';
-        $('sxMsg').textContent = `${nf(out.done)} quantit${out.done > 1 ? 'ies' : 'y'} changed, and the order book says the same.`
+        /* ASKED, NOT CHANGED — soQtyBulkRun writes requests only, like the Change qty button. */
+        $('sxMsg').textContent = `${nf(out.done)} quantity change${out.done > 1 ? 's' : ''} asked. The orders and the order book stay as they are until each is approved in the Order Console.`
           + (plan.skip.length ? ` ${nf(plan.skip.length)} row(s) were refused and left alone.` : '');
         return '';
       },
@@ -69808,7 +70222,21 @@ function shpHandXlOut(rows) {
   a.download = 'handed-over-' + dToday() + '.xlsx';
   a.click(); URL.revokeObjectURL(a.href);
 }
-function shpBucketOpen() {
+async function shpBucketOpen() {
+  /* THE ORDER BOOK FIRST (Ravi, 24 Oct: "refresh karte hai need production qty grow ho jati hai"). "Already open" is
+   * read from the order book, and the Shopify tab never reads it — so after a page refresh the bucket counted every
+   * line production already has as still needing production, and From production / Handed over / Opened today read 0.
+   * Read once here (the same read "Open ticked production lines" makes); a wrong count is never shown in its place. */
+  if (!PTG.ob) {
+    const btn = $('soBucket');
+    if (btn && btn.disabled) return;
+    if (btn) btn.disabled = true;
+    soMsg('Reading the production order book…');
+    try { await ptLoadGates(); } catch (e) { PTG.err = PTG.err || e.message || String(e); }
+    if (btn) btn.disabled = false;
+    if (!PTG.ob || PTG.err) { soMsg('The production order book could not be read, so the bucket cannot say what is already open: ' + (PTG.err || 'nothing came back') + '. Try again.', true); return; }
+    soMsg('');
+  }
   /* TAKING GOODS FROM PRODUCTION NEEDS NO STOCK (2026-09-28): without the stock read, the bucket still opens on its
    * From production tab; only the two tabs that judge stock wait for it. */
   const stockOk = SHOP_STOCK_LOADED && SHOP_INDIA_LOADED && !SHOP_INDIA_ERR;
@@ -72696,6 +73124,8 @@ $('soImpFile').onchange = async e => {
     const cellOf = (row, k) => (at[k] == null ? '' : String(row[at[k]] == null ? '' : row[at[k]]).trim());
     const byNo = new Map();
     let skipped = 0;
+    const dateOrder = soImpDateOrder(rows.slice(1).map(row => cellOf(row, 'at')));
+    const badDate = [];
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i];
       const no = cellOf(row, 'no');
@@ -72707,7 +73137,7 @@ $('soImpFile').onchange = async e => {
         o = {
           id: 'IMP-' + chan.replace(/[^A-Za-z0-9]+/g, '') + '-' + no.replace(/[^A-Za-z0-9]+/g, ''),
           no: no, channel: chan, imported: 1,
-          at: soImpDate(cellOf(row, 'at')),
+          at: soImpDate(cellOf(row, 'at'), dateOrder),
           cancelledAt: '', cancelReason: '', fin: 'paid', ff: 'unfulfilled',
           trk: [], trkCo: '', trkUrl: '', shippedAt: '',
           cur: cellOf(row, 'cur') || 'USD',
@@ -72723,6 +73153,7 @@ $('soImpFile').onchange = async e => {
           email: cellOf(row, 'email'),
           items: [],
         };
+        if (cellOf(row, 'at') && !o.at) badDate.push(no + ' "' + cellOf(row, 'at') + '"');
         byNo.set(no, o);
       } else {
         // Fill anything the first row left blank — some exports put the address on the LAST line.
@@ -72761,6 +73192,8 @@ $('soImpFile').onchange = async e => {
       `<div><b>${list.length} order(s)</b>, ${lines} line(s), for <b>${esc0(chan)}</b>.</div>`
       + `<div class="muted" style="font-size:12px;margin-top:4px">`
       + `Matched columns: ${SO_IMP_COLS.filter(c => at[c.k] != null).map(c => esc0(c.t)).join(', ')}.</div>`
+      + `<div class="muted" style="font-size:12px;margin-top:4px">Dates read ${dateOrder === 'dmy' ? 'day first (25/10/2026 = 25 Oct)' : 'month first (10/25/2026 = 25 Oct)'}.</div>`
+      + (badDate.length ? `<div style="color:var(--bad);font-size:12px;margin-top:4px">${badDate.length} order(s) have a date that is not a real day (${badDate.slice(0, 3).map(esc0).join(', ')}${badDate.length > 3 ? '…' : ''}). They import with NO date — fix the date in the file and import again.</div>` : '')
       + (skipped ? `<div style="color:var(--bad);font-size:12px;margin-top:4px">${skipped} row(s) had a line but no order number — those lines are lost. Check the file.</div>` : '')
       + (badAddr.length ? `<div style="color:var(--bad);font-size:12px;margin-top:4px">${badAddr.length} order(s) have an incomplete address (${badAddr.slice(0, 3).map(o => esc0(o.no)).join(', ')}${badAddr.length > 3 ? '…' : ''}). They will import, but MCF must not be used on them until the address is fixed.</div>` : '')
       + (noSku.length ? `<div style="color:var(--bad);font-size:12px;margin-top:4px">${noSku.length} order(s) have no SKU at all — nothing can be shipped or costed for them.</div>` : '')
@@ -72771,18 +73204,41 @@ $('soImpFile').onchange = async e => {
 };
 
 /** Dates arrive in every shape a spreadsheet can produce. Anything unreadable stays BLANK rather
- *  than becoming today — a made-up date would put the order in the wrong day's counts. */
-function soImpDate(v) {
+ *  than becoming today — a made-up date would put the order in the wrong day's counts.
+ *  `order` is how the file writes 05/10/2026: 'mdy' (Shopify's and Etsy's own exports) or 'dmy' (a sheet typed here). */
+function soImpDate(v, order) {
   const t = String(v || '').trim();
   if (!t) return '';
-  let m = t.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (m) return m[1] + '-' + m[2] + '-' + m[3];
-  m = t.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
-  // Ambiguous by nature. Shopify and Etsy both export month first, so that is the reading — and the
-  // day/month pair only matters at the edges of a month, where being wrong is at most a day out.
-  if (m) return m[3] + '-' + String(m[1]).padStart(2, '0') + '-' + String(m[2]).padStart(2, '0');
+  /* A REAL DAY OR NOTHING (Ravi, 26 Oct: Etsy order 4212444076 came in as 2026-25-10 — "25/10/2026" read month first —
+   * and production could not work it). Month 25 is no date; it is not saved as one. */
+  const ymd = (y, mo, d) => {
+    const iso = y + '-' + String(mo).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+    const dt = new Date(iso + 'T00:00:00Z');
+    return !isNaN(dt.getTime()) && dt.toISOString().slice(0, 10) === iso ? iso : '';
+  };
+  let m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return ymd(m[1], +m[2], +m[3]) || ymd(m[1], +m[3], +m[2]);   // 2026-25-10 is 25 Oct written day first
+  m = t.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/);
+  if (m) {
+    const a = +m[1], b = +m[2];
+    /* Ambiguous by nature. A number over 12 settles it; otherwise the way the whole file is written does (soImpDateOrder). */
+    if (a > 12) return ymd(m[3], b, a);
+    if (b > 12) return ymd(m[3], a, b);
+    return order === 'dmy' ? ymd(m[3], b, a) : ymd(m[3], a, b);
+  }
   const d = new Date(t);
   return isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
+}
+/** How a file writes its dates: day first if any date in it can only be read that way (25/10/2026), else month first. */
+function soImpDateOrder(vals) {
+  let dmy = false, mdy = false;
+  vals.forEach(v => {
+    const m = String(v || '').trim().match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/);
+    if (!m) return;
+    if (+m[1] > 12) dmy = true;
+    if (+m[2] > 12) mdy = true;
+  });
+  return dmy && !mdy ? 'dmy' : 'mdy';
 }
 
 const esc0 = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
@@ -75368,7 +75824,7 @@ function guideBuild() {
   $('gdNext').onclick = () => guideGo(1);
   $('gdBack').onclick = () => guideGo(-1);
   $('gdTry').onclick = () => guideTry();
-  $('gdOff').onclick = () => { guideClose(); guideSwitch(false); };
+  $('gdOff').onclick = () => guideGo(1);   // Skip this step (the Helper switch is in her round button's menu)
   $('gdText').onclick = () => guideTypeAll();
   root.querySelectorAll('[data-gd-lang]').forEach(b => b.onclick = () => {
     try { localStorage.setItem('guideLang', b.dataset.gdLang); } catch (e) { /* this visit only */ }
@@ -75400,6 +75856,46 @@ function guideBuild() {
   $('gdShow').onclick = () => guideStart(typeof gaHere === 'function' ? gaHere() : typeof TAB_NOW !== 'undefined' ? TAB_NOW : '', true);
   $('gdSwitch').onclick = () => guideSwitch(!guideIsOn());
   $('gdAskBtn').onclick = () => guideAskOpen();
+  /* HER ROUND BUTTON, bottom-right ("Ask Meera" on hover), and its menu: Ask Meera, Show me this screen, Helper on/off.
+   * The top bar's own buttons give way to it (styles.css); they stay in the page, and the menu presses them. */
+  const go = document.createElement('button');
+  go.type = 'button';
+  go.id = 'gdLaunch';
+  go.title = 'Ask Meera — English, Hindi or Hinglish (or press ?)';
+  go.setAttribute('aria-label', 'Ask Meera');
+  go.innerHTML = `${GUIDE_FACE}<span class="gd-lab">Ask Meera</span>`;
+  document.body.appendChild(go);
+  const menu = document.createElement('div');
+  menu.id = 'gdMenu';
+  menu.className = 'hide';
+  menu.setAttribute('role', 'menu');
+  document.body.appendChild(menu);
+  const shut = () => menu.classList.add('hide');
+  const draw = () => {
+    const hi = guideLang() === 'hi', on = guideIsOn();
+    menu.innerHTML = `<button type="button" data-m="ask">💬<span><b>Ask Meera</b><small>${hi ? 'इंग्लिश, हिंदी या हिंग्लिश' : 'English, Hindi or Hinglish'}</small></span></button>`
+      + `<button type="button" data-m="show">🧭<span><b>${hi ? 'यह स्क्रीन दिखाओ' : 'Show me this screen'}</b><small>${hi ? 'एक-एक स्टेप, घुमाकर' : 'A walk round, step by step'}</small></span></button>`
+      + `<button type="button" data-m="help" role="switch" aria-checked="${on}"><i class="gd-sw${on ? ' on' : ''}"></i><span><b>Helper ${on ? 'on' : 'off'}</b><small>${on ? (hi ? 'नई स्क्रीन पर साथ चलती है' : 'Walks new screens with you') : (hi ? 'सिर्फ़ पूछने पर' : 'Only when you ask')}</small></span></button>`;
+  };
+  go.onclick = e => { e.stopPropagation(); if (menu.classList.contains('hide')) { draw(); menu.classList.remove('hide'); } else shut(); };
+  menu.onclick = e => {
+    const b = e.target.closest('[data-m]'); if (!b) return;
+    if (b.dataset.m === 'help') { guideSwitch(!guideIsOn()); draw(); return; }
+    shut();
+    if (b.dataset.m === 'ask') guideAskOpen();
+    else $('gdShow').click();
+  };
+  document.addEventListener('click', e => { if (!menu.classList.contains('hide') && !e.target.closest('#gdMenu, #gdLaunch')) shut(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') shut(); });
+  /* A click outside her box ends a walk-round (the click itself still does nothing on the page, as before). A "your
+   * turn" step keeps its lit box usable, and a lesson or a task guide stays until it is finished or closed. */
+  document.addEventListener('click', e => {
+    if (!GUIDE.tour || GUIDE.tour.kind !== 'tour' || GUIDE.selfClick || !e.isTrusted) return;
+    const t = e.target;
+    if (t.closest && t.closest('#gdBubble, #gdAsk, #gdCtl, #gdResume, #gdLaunch, #gdMenu, #ptDlg')) return;
+    if (GUIDE.live && GUIDE.el && GUIDE.el.contains(t)) return;
+    guideClose();
+  }, true);
   guideSwitchDraw();
   guideWatch();
 }
@@ -75605,7 +76101,8 @@ function guideShow() {
   $('gdNext').textContent = lesson ? (hi ? 'समझ गया' : 'Got it') : last ? (hi ? 'हो गया' : 'Done') : (hi ? 'आगे' : 'Next');
   $('gdNext').classList.toggle('ghost', lesson && tryIt);
   guideDoDraw();
-  $('gdOff').textContent = hi ? 'हेल्पर बंद करें' : 'Turn helper off';
+  $('gdOff').textContent = hi ? 'छोड़ें' : 'Skip';
+  $('gdOff').title = hi ? 'यह स्टेप छोड़ें' : 'Skip this step';
   if (typeof guideFillOffer === 'function') guideFillOffer(s, el, task);   // the choices as buttons, before the bubble is measured
   $('gdText').innerHTML = (GUIDE.note ? '<div class="gd-note' + (GUIDE.noteOk ? ' gd-ok' : '') + '">' + GUIDE.note + '</div>' : '') + (hi ? s.hi : s.en);   // measured whole; guideType then writes it out again
   $('gdBubble').classList.remove('gd-up');
@@ -75812,7 +76309,7 @@ function guideTypeAll() {
 
 /** What the person was working in: the last box they typed in or chose from, and the last button they pressed. */
 function guideWatch() {
-  const ours = el => el.closest && el.closest('#gdRoot, #gdCtl, #gdResume, #gdAsk');
+  const ours = el => el.closest && el.closest('#gdRoot, #gdCtl, #gdResume, #gdAsk, #gdLaunch, #gdMenu');
   const inBox = el => GUIDE.live && GUIDE.el && GUIDE.el.contains(el);
   /* A press outside the lit box does nothing while a "your turn" step waits (the dim no longer catches it). */
   const hold = e => { if (GUIDE.tour && GUIDE.live && !ours(e.target) && !inBox(e.target)) { e.preventDefault(); e.stopPropagation(); } };
@@ -75893,12 +76390,13 @@ guideBuild();
 /* EVERY ERROR THE ERP CAN SHOW (2026-10-22), for Meera: [the message's longest fixed piece, lower case; the screen it
  * belongs to]. Read off the screens' own code (every red message line, and every rule a form checks before it saves), so
  * when someone pastes or asks about a message, Meera knows which screen it is from and why it happens (gaWhy in
- * guide-ask.js). 568 messages. Made by a script from the source; when screens change, it is made again. */
+ * guide-ask.js). 586 messages. Made by a script from the source; when screens change, it is made again. */
 const GUIDE_ERRS = [
   ["⚠️ backend not configured — create firestore doc config/replapi with {url, key}.", ""],
   ["not deleted", ""],
   ["pieces must be at least 1.", ""],
   ["enter the fabric.", ""],
+  ["pick the order id these pieces were cut for.", ""],
   ["only an admin can restore a deleted record.", ""],
   ["that entry is not in the recycle bin.", ""],
   ["already restored on", ""],
@@ -75914,9 +76412,13 @@ const GUIDE_ERRS = [
   ["write why it goes back.", "flow"],
   ["tick at least one line.", "flow"],
   ["say what was put right.", "flow"],
+  ["say why it goes.", "flow"],
+  ["that line is not here any more — press refresh.", "flow"],
+  ["type the pieces made from that cloth — at most", "flow"],
+  ["this line has no printer planned — pick it with \"edit plan\" first.", "flow"],
+  ["could not get a free challan number — press refresh and try again.", "flow"],
   ["which vendor is the fabric going to? pick one.", "flow"],
   ["how many metres? type them for", "flow"],
-  ["could not get a free challan number — press refresh and try again.", "flow"],
   ["is saved, but the lines could not be marked (", "flow"],
   ["that challan is not here — press refresh.", "flow"],
   ["the browser blocked the new window. allow pop-ups for this site and press print again.", "flow"],
@@ -75927,6 +76429,7 @@ const GUIDE_ERRS = [
   ["nothing is planned on", "flow"],
   ["not changed — the vendor order was left as it is.", "flow"],
   ["was raised by somebody else at the same moment — press resync again.", "flow"],
+  ["was raised by somebody else at the same moment — try again.", "flow"],
   ["cancel that challan first (demand history).", "flow"],
   ["not undone — the vendor order was left as it is.", "flow"],
   ["pick the vendor.", "flow"],
@@ -75965,7 +76468,16 @@ const GUIDE_ERRS = [
   ["how many are rejected?", "qc"],
   ["are waiting.", "qc"],
   ["say why they are rejected.", "qc"],
+  ["only an admin can settle standing cloth.", "flow"],
+  ["that standing cloth is not here any more — press refresh.", "flow"],
+  ["type how much came back — at most the", "flow"],
+  ["pieces are whole.", "flow"],
+  ["pick the order line it goes to.", "flow"],
+  ["(what stands, and what the line still needs).", "flow"],
+  ["nothing was received on those days.", "flow"],
+  ["nothing is owed by that printer any more — press refresh.", "flow"],
   ["type what came back for at least one line.", "flow"],
+  ["nothing is owed by a printer.", "flow"],
   ["pieces are whole", "flow"],
   ["more came back than was given for", "flow"],
   ["say why it is closed short.", "flow"],
@@ -76107,6 +76619,7 @@ const GUIDE_ERRS = [
   ["piping dori metres are required when piping dori is yes.", "pmdb"],
   ["standard filling quantity is required when filler fabric is yes.", "pmdb"],
   ["inventory valuation price must be a number that is not negative.", "pmdb"],
+  ["need listing", "pmdb"],
   ["pick the article, subtype and size — the recipe for them fills the rest in.", "pmdb"],
   ["none of these rows has a key to write to.", "pmdb"],
   ["only an admin can change a master list.", "mst"],
@@ -76262,6 +76775,7 @@ const GUIDE_ERRS = [
   ["somebody has already asked for this one.", "pbase"],
   ["only an admin can answer a deletion request.", "pbase"],
   ["that entry is already gone. the request has been cleared.", "pbase"],
+  ["type the order id, or pick etsy / shopify / b2b / online.", "pbase"],
   ["select the article subtype.", "pbase"],
   ["no sku — pick the item, or type the sku directly.", "pbase"],
   ["enter how many pieces are being issued.", "pbase"],
@@ -76299,7 +76813,6 @@ const GUIDE_ERRS = [
   ["row not found", ""],
   ["nothing received on this row yet", ""],
   ["already sent — only an admin can re-send", ""],
-  ["no pieces came back", ""],
   ["type the pieces that came back, or change the rejects.", ""],
   ["received plus rejected would be more than was issued.", ""],
   ["that list has no boxes in it yet.", "pack"],
@@ -76324,6 +76837,7 @@ const GUIDE_ERRS = [
   ["could not read the saved packing lists", "pack"],
   ["could not save that", "pack"],
   ["could not load pos", "repl"],
+  ["could not ask for a refresh", "repl"],
   ["could not save status", "repl"],
   ["could not save the projection", "repl"],
   ["you do not have permission to change projections — ask an admin for “edit projections”.", "repl"],
@@ -76345,6 +76859,7 @@ const GUIDE_ERRS = [
   ["no row in that file says open = yes", "shop"],
   ["could not read the file", "shop"],
   ["nothing on the sheet can be opened now — see the list.", "shop"],
+  ["the production order book could not be read, so the bucket cannot say what is already open", "shop"],
   ["nothing was sent to production.", "shop"],
   ["only a quilt goes to the quilt team.", "shop"],
   ["it is already with the quilt team.", "shop"],
@@ -76586,9 +77101,14 @@ const GUIDE_STOP = new Set(('a an the is are was were be to of in on at for by i
   'kar karna karu karun kare karo karte karta karti krna kr kro kiya kiye raha rahi rahe rha rhi rhe hota hoti hote hua hui gaya gayi gya gyi ' +
   'do does did get want need use using kindly just aa aata aati aate rha ' +
   'please plz pls sir ji bhai yaar aur ya par pe bhi abhi kuch koi ek sab toh to sakta sakti sakte skta chahiye chahta chahti ' +
-  'है हैं था थी का की के को से में मैं मुझे यह वह कर करना करें करो रहा रही हो गया गई भी और या कुछ कोई').split(/\s+/));
+  'है हैं था थी का की के को से में मैं मुझे यह वह कर करना करें करो रहा रही हो गया गई भी और या कुछ कोई ' +
+  'here am yahan yaha yahaan idhar idar यहाँ यहां इधर').split(/\s+/));
+/* A question about the screen in front: "filter here", "is page pe", "yahan ka button". Its answers lean to that screen. */
+const GA_HERE_RE = /\b(here|yahan|yaha|yahaan|idhar|idar|(this|is|ye|yeh|iss) (screen|page|pej)|is pe|is par|isme|is me)\b|यहाँ|यहां|इधर|इस (स्क्रीन|पेज)|इसमें/i;
+/* "Which page am I on?" — answered with the screen's name, never with a guess from the bank. */
+const GA_WHEREAMI_RE = /\b(which|what|kaun ?s[ia]|kaunsi|konsi|kis)\s+(page|screen|pej)\b.*\b(am i|i am|i'?m|hoon|hu|hun|hai|h|on)\b|\b(page|screen)\s+(i am|i'?m|im)\s+on\b|\bwhere am i\b|\b(main|mai|me)\s+(kahan|kaha|kidhar)\s+(hoon|hu|hun)\b|मैं कहाँ हूँ|कौन सी (स्क्रीन|पेज)|किस (स्क्रीन|पेज) पर/i;
 /* Hinglish is told from English by these: a question with one of them in Latin letters is answered in Hinglish. */
-const GUIDE_HG = new Set('kaise kese kya kyu kyun nahi nahin nhi hai ho karna kar ko ka ki ke mein me kahan kaha raha rahi de dena wapas vapas bata batao mujhe kaun kon aap tum ji bhai yaar galat galti theek thik dikh dikhta khul khulta band karu kare hota hua gaya gayi dhanyavad dhanyawad shukriya banaye banana lagana sakti'.split(' '));
+const GUIDE_HG = new Set('kaise kese kya kyu kyun nahi nahin nhi hai ho karna kar ko ka ki ke mein me kahan kaha raha rahi de dena wapas vapas bata batao mujhe kaun kon aap tum ji bhai yaar galat galti theek thik dikh dikhta khul khulta band karu kare hota hua gaya gayi dhanyavad dhanyawad shukriya banaye banana lagana sakti hoon hu hun kis par pe kahan kaha kaunsi konsi kaise kese'.split(' '));
 
 /* ---------- everyday trouble with the site ---------- */
 const GUIDE_FAQ = [
@@ -77118,6 +77638,55 @@ function gaGuideFind(means) {
 }
 
 /** The answer to one question: { html, acts: [{t:'task'|'tour'|'open'|'guide', id|tab, label}] }. */
+/* ---------- a line on the screen ("what is this 92 Dark Salmon Pink", "ye RQL354-K wali line kya hai") ----------
+ * Only what the person already sees: the visible rows of the screen in front. A row is taken when the question's own
+ * words — the ones that are not everyday ERP words — are found in it, a number exactly, a word by its start ("pin" in
+ * "Pink"), and they make up most of what was asked. */
+const GA_ROW_SKIP = new Set(['line', 'row', 'item', 'entry', 'wali', 'wala', 'vala', 'wale', 'ye', 'yeh', 'this', 'that', 'is', 'kya', 'what', 'matlab', 'mean', 'meaning', 'about', 'batao', 'bataiye', 'tell', 'me', 'hai', 'h', 'ka', 'ki', 'ke', 'here', 'yahan', 'yaha', 'screen', 'page']);
+function gaRowFind(q) {
+  const here = gaHere();
+  const root = (here === 'mywork' && $('frHome')) || (typeof guidePane === 'function' && guidePane(here)) || null;
+  if (!root) return null;
+  const B = GA_BANK;
+  const words = gaWords(q).filter(w => !GUIDE_STOP.has(w) && !GA_ROW_SKIP.has(w) && w.length >= 2);
+  if (!words.length) return null;
+  /* at least one word that names a thing, not the ERP: a number, or a word the answers hardly use */
+  const own = w => /\d/.test(w) || !B || (B.df.get(gaMean(w)) || 0) <= 3;
+  if (!words.some(own)) return null;
+  const rows = [...root.querySelectorAll('tbody tr, .ml-row')].filter(x => x.offsetParent !== null).slice(0, 4000);
+  let best = null, bs = 0, bown = 0, ties = [];
+  for (const row of rows) {
+    const t = ' ' + (row.textContent || '').toLowerCase().replace(/[^\p{L}\p{M}\p{N}]+/gu, ' ') + ' ';
+    let hit = 0, hitOwn = 0;
+    for (const w of words) if (/^\d+$/.test(w) ? t.includes(' ' + w + ' ') : t.includes(' ' + w)) { hit++; if (own(w)) hitOwn++; }
+    if (hit > bs || (hit === bs && hitOwn > bown)) { bs = hit; bown = hitOwn; best = row; ties = [row]; }
+    else if (hit && hit === bs && hitOwn === bown) ties.push(row);
+  }
+  if (!best || !bown || bs < Math.min(2, words.length) || bs / words.length < 0.6) return null;
+  best.gaTies = ties;
+  return best;
+}
+function gaRowAnswer(row, lang, L) {
+  const name = esc(gaTabName(gaHere()));
+  const ties = row.gaTies || [row];
+  if (ties.length > 1) {
+    const first = x => ((x.tagName === 'TR' ? x.children[0] : x) || x).textContent.replace(/\s+/g, ' ').trim().slice(0, 60);
+    const names = [...new Set(ties.map(first))];
+    if (names.length > 1) return { html: L(`${ties.length} lines on <b>${name}</b> fit that. Which one do you mean? Ask again with its full name, for example:`, `<b>${name}</b> की ${ties.length} लाइनें इससे मिलती हैं। कौन-सी? उसका पूरा नाम लिखकर फिर पूछें, जैसे:`, `<b>${name}</b> ki ${ties.length} lines isse milti hain. Kaunsi? Uska poora naam likh kar phir poochiye, jaise:`)
+      + gaNearHtml(names.slice(0, 4).map(n => ({ e: { q: { en: [n], hi: [n], hg: [n] } } })), lang, ''), acts: [], row: true };
+  }
+  const table = row.closest('table');
+  const heads = table ? [...table.querySelectorAll('thead th')].map(th => th.textContent.replace(/\s+/g, ' ').trim()) : [];
+  const cells = row.tagName === 'TR' ? [...row.children].map(td => td.textContent.replace(/\s+/g, ' ').trim()) : [row.textContent.replace(/\s+/g, ' ').trim()];
+  const lead = cells.find(c => c && !/^[\d\s.,—–-]*$/.test(c)) || cells[0] || '';
+  const parts = cells.map((c, i) => (c && c !== lead ? (heads[i] ? `<li><b>${esc(heads[i])}</b>: ${esc(c)}</li>` : `<li>${esc(c)}</li>`) : '')).filter(Boolean);
+  const tour = GUIDE_TOURS[gaHere()], intro = tour && tour[0] && !tour[0].sel ? (lang === 'hi' ? tour[0].hi : tour[0].en) : '';
+  GA.fix = [row];
+  return { html: L(`That is a line on <b>${name}</b>: <b>${esc(lead)}</b>.`, `यह <b>${name}</b> की एक लाइन है: <b>${esc(lead)}</b>।`, `Ye <b>${name}</b> ki ek line hai: <b>${esc(lead)}</b>.`)
+      + (parts.length ? `<div class="ga-do"><b>${L('What it shows', 'इसमें क्या है', 'Isme kya hai')}</b><ul>${parts.slice(0, 10).join('')}</ul></div>` : '')
+      + (intro ? `<div class="ga-why"><b>${L('This screen', 'यह स्क्रीन', 'Ye screen')}</b>${intro}</div>` : ''),
+    acts: [{ t: 'fixel', id: '0', label: L('Show me the line', 'लाइन दिखाएँ', 'Line dikhaiye') }], row: true };
+}
 async function gaAnswer(q) {
   const { lang, means, words } = gaRead(q);
   const L = (en, hi, hg) => (lang === 'hi' ? hi : lang === 'hg' ? (hg || en) : en);
@@ -77125,6 +77694,8 @@ async function gaAnswer(q) {
     'माफ़ कीजिए, साइट या मैं कैसे बनी हूँ, या कंपनी की पॉलिसी (जैसे प्राइवेसी) के बारे में मैं बात नहीं कर सकती। इसके लिए एडमिन या मैनेजमेंट से पूछें। ERP चलाने में — कोई भी स्क्रीन, कोई भी काम, कोई भी दिक्कत — मैं खुशी से मदद करूँगी।',
     'Sorry, site ya main kaise bani hoon, ya company ki policy (jaise privacy) ke baare me main baat nahi kar sakti. Iske liye admin ya management se poochiye. ERP chalane me — koi bhi screen, koi bhi kaam, koi bhi dikkat — main khushi se help karungi.'), acts: [] };
   if (/^(meera\s+)?(unanswered|missed|miss)(\s+(questions|list))?\s*$/i.test(q.trim())) return gaMissList(L);
+  await gaBankLoad();
+  { const row = gaRowFind(q); if (row) return gaRowAnswer(row, lang, L); }
   if (!means.length) return { html: L('Tell me a little more — what are you trying to do?', 'थोड़ा और बताइए — आप क्या करना चाहते हैं?', 'Thoda aur bataiye — aap kya karna chahte hain?'), acts: [] };
   /* "why isn't it saving / error kyu / kaam pura nahi ho raha": the screen itself is the best answer */
   /* Only a question that names no topic of its own reads the screen ("error kyu", "problem hai", "save nahi ho raha"):
@@ -77154,8 +77725,18 @@ async function gaAnswer(q) {
   await gaBankLoad();
   if (GA_W === null) await Promise.race([gaWordsLoad(), new Promise(ok => setTimeout(ok, 1500))]);
   const hits = gaBankFind(means, words, q);
-  if (!(top && top.kind === 'talk' && top.s >= 1.4) && hits[0] && hits[0].s >= (GA_W ? GA_BANK_SURE_SEM : GA_BANK_SURE))
+  if (!(top && top.kind === 'talk' && top.s >= 1.4) && hits[0] && hits[0].s >= (GA_W ? GA_BANK_SURE_SEM : GA_BANK_SURE)) {
+    /* two answers fit almost equally ("short by kya hai": the screen, or its Short by column): ask which, never guess */
+    if (hits[1] && hits[0].s - hits[1].s < GA_BANK_GAP && hits[1].e.id !== hits[0].e.id)
+      return { html: L('Your question fits more than one answer. Which one do you mean?', 'आपका सवाल एक से ज़्यादा जवाबों से मिलता है। आप कौन-सा पूछ रहे हैं?', 'Aapka sawaal ek se zyada jawaabon se milta hai. Aap kaunsa poochh rahe hain?')
+        + gaNearHtml(hits.slice(0, 3).filter(h => h.s >= GA_BANK_NEAR), lang, ''), acts: [] };
     return gaBankAnswer(hits[0].e, lang, L, hits.slice(1, 3).filter(h => h.s >= GA_BANK_NEAR));
+  }
+  /* Close, but not sure enough: the bank's nearest answers are offered before the older word lists and the written guide,
+   * which lag behind the screens (24 Oct: they answered "Vendor Orders" and "+recv" questions with retired steps). */
+  if (!(top && top.kind === 'talk' && top.s >= 1.4) && hits[0] && hits[0].s >= GA_BANK_ASK)
+    return { html: L('I\'m not fully sure what you mean. Is it one of these?', 'मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं?', 'Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain?')
+      + gaNearHtml(hits.slice(0, 3).filter(h => h.s >= GA_BANK_NEAR), lang, ''), acts: [], miss: 'near' };
   if (top && top.s >= 1.4 && (top.kind === 'task' || top.kind === 'faq')) {
     const covered = new Set([...(top.e.k || []), ...(top.e.need || []), ...GA_ASKWORDS]);
     const extra = means.filter(m => !covered.has(m));
@@ -77240,6 +77821,7 @@ function gaBankLoad() {
   if (GA_BANK) return Promise.resolve(GA_BANK);
   if (!GA_BANK_P) GA_BANK_P = fetch('/guide/meera-bank.json', { cache: 'no-cache' })
     .then(r => (r.ok ? r.json() : [])).catch(() => [])
+    .then(list => (typeof gaAiLearned === 'function' ? gaAiLearned(Array.isArray(list) ? list : []) : list))
     .then(list => (GA_BANK = gaBankIndex(Array.isArray(list) ? list : [])))
     .then(b => { gaWordsLoad().then(() => setTimeout(gaSemIndex, 0)); return b; });
   return GA_BANK_P;
@@ -77317,8 +77899,20 @@ function gaSemScores(q) {
   return best;
 }
 /** Each answer's ways of asking, as meanings; and how rare each meaning is across the bank (a rare one decides more). */
+/* Every part of the app (a button, column, box, option or hover note) comes compact — [label, kind, en, hi, hg, sel] —
+ * and is opened out here: its ways of asking made from its own label, its answer from its one line. */
+const GA_PART_KIND = { button: ['button', 'बटन', 'button'], column: ['column', 'कॉलम', 'column'], box: ['box', 'बॉक्स', 'box'], option: ['option', 'विकल्प', 'option'], note: ['note', 'जानकारी', 'note'] };
+function gaPartOpen(e) {
+  const [L, kind, en, hi, hg, sel] = e.p, K = GA_PART_KIND[kind] || ['part', 'हिस्सा', 'part'], scr = e.tab ? gaTabName(e.tab) : '';
+  e.q = { en: [L, `what is ${L}`, `what does ${L} do`, `${L} meaning`, `${L} ${K[0]}`], hi: [`${L} क्या है`, `${L} का मतलब`, `${L} क्या करता है`],
+    hg: [`${L} kya hai`, `${L} kya karta hai`, `${L} ka matlab`, `${L} ${K[2]}`] };
+  const where = { en: scr ? ` — ${K[0]} on ${scr}` : '', hi: scr ? ` — ${scr} पर ${K[1]}` : '', hg: scr ? ` — ${scr} par ${K[2]}` : '' };
+  e.a = { en: `<b>${esc(L)}</b>${esc(where.en)}: ${esc(en)}`, hi: `<b>${esc(L)}</b>${esc(where.hi)}: ${esc(hi || en)}`, hg: `<b>${esc(L)}</b>${esc(where.hg)}: ${esc(hg || en)}` };
+  if (sel) e.sel = sel;
+}
 function gaBankIndex(list) {
   const df = new Map();
+  list.forEach(e => { if (e.p && !e.q) gaPartOpen(e); });
   gaSkelAdd(Object.keys(GUIDE_SYN));
   list.forEach(e => { const q = e.q || {}; gaSkelAdd([].concat(q.en || [], q.hg || [], gaPlain((e.a || {}).en)).flatMap(t => gaWords(t))); });
   GA_MEAN.clear();
@@ -77329,9 +77923,14 @@ function gaBankIndex(list) {
     e.body = gaMeans(gaPlain((e.a || {}).en) + ' ' + gaPlain((e.a || {}).hg));
     e.raw = new Set([].concat(q.en || [], q.hi || [], q.hg || []).flatMap(t => gaWords(t)));
     e.all.forEach(m => df.set(m, (df.get(m) || 0) + 1));
+    if (e.p) { e.pn = ' ' + gaWords(e.p[0]).join(' ') + ' '; e.pw = new Set(gaWords(e.p[0])); }
   });
   return { list, df, n: list.length || 1 };
 }
+/* The words that only make a question of a part's name: "<label> kya karta hai", "what happens if I press <label>". */
+const GA_PART_ASK = new Set(('what does do happens happen press click tap mean meaning means show shows kya karta karti hai kis kaam ka ke liye kisliye ' +
+  'kyun kyu ye yeh is ka matlab hota hoti dabane dabau dabaun dabaya par pe se button column box option note field tab ' +
+  'क्या करता करती है किस काम का के लिए किसलिए मतलब होता यह ये दबाने बटन कॉलम').split(' '));
 /* The screens by what people call them: a question that names one leans to that screen's answers. */
 const GA_TAB_SAY = [['ord', /order console/], ['pbase', /job ?work|jobwork|जॉब वर्क/], ['ppress', /\bpress\b|प्रेस/], ['pack', /packing|scan to pack|\bpack\b/],
   ['qc', /\bqc\b|quality|क्यूसी/], ['att', /attendance|hajri|haziri|हाजिरी/], ['pcut', /cutting|कटिंग/], ['fgi', /finished goods|\bfg\b/], ['fba', /\bfba\b/],
@@ -77348,6 +77947,12 @@ function gaBankFind(means, words, q) {
   const qW = means.reduce((a, m) => a + w(m), 0);
   const tab = gaHere();
   const said = gaTabsSaid(q);
+  if (GA_HERE_RE.test(String(q || ''))) said.add(tab);
+  /* A question that is a part's name and nothing more ("SKU kya karta hai") is about that part — the one on this screen
+   * first, and the longest name that fits ("Placed today", not "Placed"). */
+  const qw = gaWords(q), qn = ' ' + qw.join(' ') + ' ';
+  let longest = 0;
+  for (const e of B.list) if (e.pn && e.pn.length > longest && qn.includes(e.pn)) longest = e.pn.length;
   const out = [];
   for (let ei = 0; ei < B.list.length; ei++) {
     const e = B.list[ei];
@@ -77359,7 +77964,13 @@ function gaBankFind(means, words, q) {
       if (inter) best = Math.max(best, inter / Math.sqrt(qW * pW));
     }
     const near = sem ? sem[ei] : 0;
-    if (!best && near < 0.5) continue;
+    let named = 0;
+    if (longest && e.pn && e.pn.length === longest && qn.includes(e.pn)) {
+      const rest = qw.filter(x => !e.pw.has(x) && !GA_PART_ASK.has(x) && !GUIDE_STOP.has(x)).length;
+      named = rest === 0 ? 0.35 : rest === 1 ? 0.12 : 0;
+      if (named && e.tab && e.tab === tab) named += 0.12;
+    }
+    if (!best && !named && near < 0.5) continue;
     /* a word not in any way of asking, but in the answer itself, still counts a little */
     best += 0.04 * means.filter(m => !e.all.has(m) && e.body.has(m)).length;
     if (e.tab && e.tab === tab) best += 0.05;
@@ -77367,7 +77978,7 @@ function gaBankFind(means, words, q) {
     best += 0.015 * (words || []).filter(x => !GUIDE_STOP.has(x) && e.raw.has(x)).length;
     /* meaning: added on top of the word match, so a question in other words still finds it */
     if (sem) best = (best + GA_SEM_W * near) / (1 + GA_SEM_W * 0.6);
-    out.push({ e, s: best });
+    out.push({ e, s: best + named });
   }
   return out.sort((a, b) => b.s - a.s).slice(0, GA_TOPK);
 }
@@ -77375,6 +77986,10 @@ function gaBankFind(means, words, q) {
  * higher, so the bar is higher); and how close an answer must be to be offered as "did you mean". */
 let GA_TOPK = 4;
 let GA_BANK_SURE = 0.65, GA_BANK_SURE_SEM = 0.75, GA_BANK_NEAR = 0.32;
+/* how far ahead the best answer must be to be given outright (set on 389 test questions, 24 Oct: wrong answers halved) */
+let GA_BANK_GAP = 0.04;
+/* from here up, a not-sure question gets the bank's nearest answers to choose from rather than the older lists */
+let GA_BANK_ASK = 0.5;
 const gaL3 = (o, lang) => (o ? (lang === 'hi' ? o.hi : lang === 'hg' ? (o.hg || o.en) : o.en) || o.en || '' : '');
 const gaAskOf = (e, lang) => { const q = e.q || {}; return ((lang === 'hi' ? q.hi : lang === 'hg' ? q.hg : q.en) || q.en || [])[0] || ''; };
 /** One answer from the bank: the answer, why, what to do, and the buttons that do it. */
@@ -77454,6 +78069,7 @@ function guideAskOpen(q) {
   guideAskBuild();
   if (GUIDE.tour && GUIDE.tour.kind !== 'task') guideClose();   // a walk-round gives way to a question; a task guide stays
   $('gdAsk').classList.remove('hide');
+  if ($('gdLaunch')) $('gdLaunch').classList.add('hide');   // the box opens where the launcher sits
   gaChipsDraw();
   if (!GA.greeted) {
     GA.greeted = true;
@@ -77465,7 +78081,7 @@ function guideAskOpen(q) {
   if (q) gaAsk(q);
   setTimeout(() => { try { $('gaQ').focus(); } catch (e) { /* closed again */ } }, 30);
 }
-function guideAskClose() { if ($('gdAsk')) $('gdAsk').classList.add('hide'); }
+function guideAskClose() { if ($('gdAsk')) $('gdAsk').classList.add('hide'); if ($('gdLaunch')) $('gdLaunch').classList.remove('hide'); }
 /** Suggestions for the screen open now: its jobs first, then the usual trouble. */
 function gaChipsDraw() {
   const hi = guideLang() === 'hi', tab = gaHere();
@@ -77484,7 +78100,14 @@ function gaSay(html, acts, after) {
 }
 async function gaAsk(q) {
   gaMine(q);
+  if (typeof gaAiCommand === 'function' && await gaAiCommand(q)) return;
   GA.lastQ = q;
+  if (GA_WHEREAMI_RE.test(q) && gaHere()) {
+    const lg = gaRead(q).lang, LL = (en, hi, hg) => (lg === 'hi' ? hi : lg === 'hg' ? (hg || en) : en), name = esc(gaTabName(gaHere()));
+    const a = gaScreenAnswer(gaHere(), lg, LL);
+    gaSay(LL(`You are on <b>${name}</b>.`, `आप <b>${name}</b> पर हैं।`, `Aap <b>${name}</b> par hain.`) + '<br>' + a.html, a.acts);
+    return;
+  }
   /* "this screen" means the one open now — when that is all the question asks ("ye screen kya hai"), not "keyboard
    * shortcut kya hai is page ke", which has an answer of its own */
   const rest = gaRead(q).means.filter(m => !['what', 'screen', 'show', 'help', 'about', 'how'].includes(m) && !/^(page|pej|पेज|about|samjha|samjhao|batao|bataiye|tell|explain)$/.test(m));
@@ -77493,10 +78116,14 @@ async function gaAsk(q) {
   if (r.miss) gaMissKeep(q, r.miss === true ? 'none' : r.miss);
   const lg = gaRead(q).lang, LL = (en, hi, hg) => (lg === 'hi' ? hi : lg === 'hg' ? hg : en);
   const fb = r.bank ? `<div class="ga-fb"><span>${LL('Did this help?', 'क्या इससे मदद मिली?', 'Kya isse madad mili?')}</span><button type="button" class="ga-fbb" data-ga="fb" data-id="up:${esc(r.bank)}" aria-label="Yes">👍</button><button type="button" class="ga-fbb" data-ga="fb" data-id="down:${esc(r.bank)}" aria-label="No">👎</button></div>` : '';
-  gaSay(r.html, r.acts, (r.after || '') + fb);
+  const ai = r.miss && typeof gaAiOn === 'function' && gaAiOn() ? [{ t: 'ai', label: LL('Ask AI', 'AI से पूछें', 'AI se poochhiye') }] : [];
+  gaSay(r.html, ai.concat(r.acts || []), (r.after || '') + fb);
   if (r.miss) gaChipsDraw();
 }
 function gaAct(t, id, tab) {
+  if (t === 'ai') { gaAiAsk(GA.lastQ || ''); return; }
+  if (t === 'aifb') { gaAiFeedback(id); return; }
+  if (t === 'aians') { gaAiAnswer(id); return; }
   if (t === 'fb') {
     const up = id.startsWith('up:'), lg = gaRead(GA.lastQ || '').lang, LL = (en, hi, hg) => (lg === 'hi' ? hi : lg === 'hg' ? hg : en);
     if (!up) gaMissKeep(GA.lastQ || '', 'not-helpful ' + id.slice(5));

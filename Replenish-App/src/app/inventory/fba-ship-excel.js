@@ -171,6 +171,7 @@ async function fbaShipSave(ids) {
     if (shipQty < s.open) {
       const back = s.open - shipQty;
       const rec = fbaReturnRec(row, back, v('fbsReason'), 'not shipped in ' + shipment);
+      rec.fbaShipBack = shipment;   // the shipment that left these behind — undoing it takes this row back out
       updates['pt_fgiLedger/' + rec._id] = rec;
       set.fbaReturned = s.returned + back;
       backs.push(rec);
@@ -265,16 +266,34 @@ async function fbaUndo(id) {
   const [{ row }] = await fbaFresh([id]);
   if (!row) { fbaForget([{ id, row: null }]); renderFba(); return 'That dispatch was deleted from the store.'; }
   const s = fbaState(row), updates = {};
-  let what = '';
+  let what = '', backs = [];
   if (s.st === 'shipped') {
+    /* A PART-SHIPMENT TAKES ITS LEFTOVER RETURN WITH IT. Shipping fewer pieces than were open wrote a
+     * return row for the rest; undoing the shipment without it left those pieces back in the store and
+     * the dispatch short by the same figure. Rows written before the tag are known by their note. */
+    const ship = String(row.fbaShipment || '');
+    backs = (FGI.rows || []).filter(x => x && x.txnType === 'FBA_RETURN' && x.linkedFbaId === id
+      && (x.fbaShipBack != null ? x.fbaShipBack === ship : x.remarks === 'not shipped in ' + ship));
+    const back = backs.reduce((t, x) => t + fgiNum(x.qty), 0);
+    if (back) {
+      const left = fgiOf(row.sku).current - back;
+      if (left < 0) return `${obUC(row.sku)}: the ${nf(back)} piece(s) that came back when this shipment went have left the store `
+        + `since (it would read ${nf(left)}). Take out the movement that sent them away first.`;
+      backs.forEach(x => { updates['pt_fgiLedger/' + fgiRowId(x)] = null; });
+      updates['pt_fgiLedger/' + id + '/fbaReturned'] = Math.max(0, fgiNum(row.fbaReturned) - back);
+    }
     ['fbaShippedAt', 'fbaShippedBy', 'fbaShipment', 'fbaShipDate'].forEach(f => { updates['pt_fgiLedger/' + id + '/' + f] = null; });
-    what = 'no longer shipped — back to accepted';
+    what = 'no longer shipped — back to accepted' + (back ? `, and the ${nf(back)} piece(s) it left behind are with the FBA team again` : '');
   } else if (s.st === 'accepted') {
     ['fbaAcceptedAt', 'fbaAcceptedBy'].forEach(f => { updates['pt_fgiLedger/' + id + '/' + f] = null; });
     what = 'no longer accepted — back to waiting';
   } else return `This dispatch is ${FBA_PILL[s.st][1]}; there is no step to undo here.`;
   await ptPatch(updates);
-  Object.keys(updates).forEach(p => { delete row[p.split('/').pop()]; });
+  Object.keys(updates).forEach(p => {
+    const k = p.split('/');
+    if (k.length === 3 && k[1] === id) { if (updates[p] == null) delete row[k[2]]; else row[k[2]] = updates[p]; }
+  });
+  if (backs.length) { const gone = new Set(backs.map(fgiRowId)); FGI.rows = (FGI.rows || []).filter(x => !gone.has(fgiRowId(x))); }
   renderFba();
   $('fbaMsg').className = 'muted';
   $('fbaMsg').textContent = `${obUC(row.sku)}: ${what}.`;

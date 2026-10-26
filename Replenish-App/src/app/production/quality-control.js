@@ -673,7 +673,11 @@ function qcInboxRows() {
      * receipts do not cover on the receiving date. Pieces received through Edit carried no receipt and never showed
      * here (2026-10-08, Ravi: "5 OCT KE BAD WALI ENTRY ABHI DIRECT WAITING FOR QC ME SHOW NAHI HO RHA H") — 70 entries. */
     let since = 0, last = 0;
-    repRecvParts(r).forEach(p => { if (p.ms >= from) { since += p.pcs; if (p.ms > last) last = p.ms; } });
+    /* THE LEGACY ORDER'S PIECES WAIT TOO (Ravi, 24 Oct: "Legacy order ki 88 lines (1,423 pcs) pending show nhi ho rhi h"):
+     * LEG-… holds the pieces made on the floor before the app had orders for them; 1,207 of them came back 1–4 Oct, before QC
+     * began, so the date line kept them out of here for good and their lines open for ever. Every receipt of theirs counts. */
+    const legacy = /^LEG-/i.test(String(r.orderNo || ''));
+    repRecvParts(r).forEach(p => { if (legacy || p.ms >= from) { since += p.pcs; if (p.ms > last) last = p.ms; } });
     /* Never more than the row says came back — a correction may have lowered it after the receipt was logged. */
     since = Math.min(since, ptNum(r.receivedPieces));
     const accepted = took.get(r.id) || 0, wait = since - accepted;

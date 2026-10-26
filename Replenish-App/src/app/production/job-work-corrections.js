@@ -390,7 +390,12 @@ async function apvAnswer(key, approve, note) {
   if (approve) {
     const live = (PT.base || []).find(x => x && x.id === id);
     if (!live) { await apvDrop(key); return 'That entry is already gone. The request has been cleared.'; }
-    try { await ptDelete('pt_baseData/' + id); }
+    try {
+      await ptDelete('pt_baseData/' + id);
+      // Same as the Delete button: the zippers and ruffle cloth it spent go back to stock with it.
+      await ptUnconsumeZippers(id);
+      await ptUnconsumeRuffle(id);
+    }
     catch (e) { return 'Not deleted: ' + (e.message || e); }
     PT.base = (PT.base || []).filter(x => x && x.id !== id);
   }

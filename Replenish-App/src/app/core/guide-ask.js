@@ -119,9 +119,14 @@ const GUIDE_STOP = new Set(('a an the is are was were be to of in on at for by i
   'kar karna karu karun kare karo karte karta karti krna kr kro kiya kiye raha rahi rahe rha rhi rhe hota hoti hote hua hui gaya gayi gya gyi ' +
   'do does did get want need use using kindly just aa aata aati aate rha ' +
   'please plz pls sir ji bhai yaar aur ya par pe bhi abhi kuch koi ek sab toh to sakta sakti sakte skta chahiye chahta chahti ' +
-  'है हैं था थी का की के को से में मैं मुझे यह वह कर करना करें करो रहा रही हो गया गई भी और या कुछ कोई').split(/\s+/));
+  'है हैं था थी का की के को से में मैं मुझे यह वह कर करना करें करो रहा रही हो गया गई भी और या कुछ कोई ' +
+  'here am yahan yaha yahaan idhar idar यहाँ यहां इधर').split(/\s+/));
+/* A question about the screen in front: "filter here", "is page pe", "yahan ka button". Its answers lean to that screen. */
+const GA_HERE_RE = /\b(here|yahan|yaha|yahaan|idhar|idar|(this|is|ye|yeh|iss) (screen|page|pej)|is pe|is par|isme|is me)\b|यहाँ|यहां|इधर|इस (स्क्रीन|पेज)|इसमें/i;
+/* "Which page am I on?" — answered with the screen's name, never with a guess from the bank. */
+const GA_WHEREAMI_RE = /\b(which|what|kaun ?s[ia]|kaunsi|konsi|kis)\s+(page|screen|pej)\b.*\b(am i|i am|i'?m|hoon|hu|hun|hai|h|on)\b|\b(page|screen)\s+(i am|i'?m|im)\s+on\b|\bwhere am i\b|\b(main|mai|me)\s+(kahan|kaha|kidhar)\s+(hoon|hu|hun)\b|मैं कहाँ हूँ|कौन सी (स्क्रीन|पेज)|किस (स्क्रीन|पेज) पर/i;
 /* Hinglish is told from English by these: a question with one of them in Latin letters is answered in Hinglish. */
-const GUIDE_HG = new Set('kaise kese kya kyu kyun nahi nahin nhi hai ho karna kar ko ka ki ke mein me kahan kaha raha rahi de dena wapas vapas bata batao mujhe kaun kon aap tum ji bhai yaar galat galti theek thik dikh dikhta khul khulta band karu kare hota hua gaya gayi dhanyavad dhanyawad shukriya banaye banana lagana sakti'.split(' '));
+const GUIDE_HG = new Set('kaise kese kya kyu kyun nahi nahin nhi hai ho karna kar ko ka ki ke mein me kahan kaha raha rahi de dena wapas vapas bata batao mujhe kaun kon aap tum ji bhai yaar galat galti theek thik dikh dikhta khul khulta band karu kare hota hua gaya gayi dhanyavad dhanyawad shukriya banaye banana lagana sakti hoon hu hun kis par pe kahan kaha kaunsi konsi kaise kese'.split(' '));
 
 /* ---------- everyday trouble with the site ---------- */
 const GUIDE_FAQ = [
@@ -651,6 +656,55 @@ function gaGuideFind(means) {
 }
 
 /** The answer to one question: { html, acts: [{t:'task'|'tour'|'open'|'guide', id|tab, label}] }. */
+/* ---------- a line on the screen ("what is this 92 Dark Salmon Pink", "ye RQL354-K wali line kya hai") ----------
+ * Only what the person already sees: the visible rows of the screen in front. A row is taken when the question's own
+ * words — the ones that are not everyday ERP words — are found in it, a number exactly, a word by its start ("pin" in
+ * "Pink"), and they make up most of what was asked. */
+const GA_ROW_SKIP = new Set(['line', 'row', 'item', 'entry', 'wali', 'wala', 'vala', 'wale', 'ye', 'yeh', 'this', 'that', 'is', 'kya', 'what', 'matlab', 'mean', 'meaning', 'about', 'batao', 'bataiye', 'tell', 'me', 'hai', 'h', 'ka', 'ki', 'ke', 'here', 'yahan', 'yaha', 'screen', 'page']);
+function gaRowFind(q) {
+  const here = gaHere();
+  const root = (here === 'mywork' && $('frHome')) || (typeof guidePane === 'function' && guidePane(here)) || null;
+  if (!root) return null;
+  const B = GA_BANK;
+  const words = gaWords(q).filter(w => !GUIDE_STOP.has(w) && !GA_ROW_SKIP.has(w) && w.length >= 2);
+  if (!words.length) return null;
+  /* at least one word that names a thing, not the ERP: a number, or a word the answers hardly use */
+  const own = w => /\d/.test(w) || !B || (B.df.get(gaMean(w)) || 0) <= 3;
+  if (!words.some(own)) return null;
+  const rows = [...root.querySelectorAll('tbody tr, .ml-row')].filter(x => x.offsetParent !== null).slice(0, 4000);
+  let best = null, bs = 0, bown = 0, ties = [];
+  for (const row of rows) {
+    const t = ' ' + (row.textContent || '').toLowerCase().replace(/[^\p{L}\p{M}\p{N}]+/gu, ' ') + ' ';
+    let hit = 0, hitOwn = 0;
+    for (const w of words) if (/^\d+$/.test(w) ? t.includes(' ' + w + ' ') : t.includes(' ' + w)) { hit++; if (own(w)) hitOwn++; }
+    if (hit > bs || (hit === bs && hitOwn > bown)) { bs = hit; bown = hitOwn; best = row; ties = [row]; }
+    else if (hit && hit === bs && hitOwn === bown) ties.push(row);
+  }
+  if (!best || !bown || bs < Math.min(2, words.length) || bs / words.length < 0.6) return null;
+  best.gaTies = ties;
+  return best;
+}
+function gaRowAnswer(row, lang, L) {
+  const name = esc(gaTabName(gaHere()));
+  const ties = row.gaTies || [row];
+  if (ties.length > 1) {
+    const first = x => ((x.tagName === 'TR' ? x.children[0] : x) || x).textContent.replace(/\s+/g, ' ').trim().slice(0, 60);
+    const names = [...new Set(ties.map(first))];
+    if (names.length > 1) return { html: L(`${ties.length} lines on <b>${name}</b> fit that. Which one do you mean? Ask again with its full name, for example:`, `<b>${name}</b> की ${ties.length} लाइनें इससे मिलती हैं। कौन-सी? उसका पूरा नाम लिखकर फिर पूछें, जैसे:`, `<b>${name}</b> ki ${ties.length} lines isse milti hain. Kaunsi? Uska poora naam likh kar phir poochiye, jaise:`)
+      + gaNearHtml(names.slice(0, 4).map(n => ({ e: { q: { en: [n], hi: [n], hg: [n] } } })), lang, ''), acts: [], row: true };
+  }
+  const table = row.closest('table');
+  const heads = table ? [...table.querySelectorAll('thead th')].map(th => th.textContent.replace(/\s+/g, ' ').trim()) : [];
+  const cells = row.tagName === 'TR' ? [...row.children].map(td => td.textContent.replace(/\s+/g, ' ').trim()) : [row.textContent.replace(/\s+/g, ' ').trim()];
+  const lead = cells.find(c => c && !/^[\d\s.,—–-]*$/.test(c)) || cells[0] || '';
+  const parts = cells.map((c, i) => (c && c !== lead ? (heads[i] ? `<li><b>${esc(heads[i])}</b>: ${esc(c)}</li>` : `<li>${esc(c)}</li>`) : '')).filter(Boolean);
+  const tour = GUIDE_TOURS[gaHere()], intro = tour && tour[0] && !tour[0].sel ? (lang === 'hi' ? tour[0].hi : tour[0].en) : '';
+  GA.fix = [row];
+  return { html: L(`That is a line on <b>${name}</b>: <b>${esc(lead)}</b>.`, `यह <b>${name}</b> की एक लाइन है: <b>${esc(lead)}</b>।`, `Ye <b>${name}</b> ki ek line hai: <b>${esc(lead)}</b>.`)
+      + (parts.length ? `<div class="ga-do"><b>${L('What it shows', 'इसमें क्या है', 'Isme kya hai')}</b><ul>${parts.slice(0, 10).join('')}</ul></div>` : '')
+      + (intro ? `<div class="ga-why"><b>${L('This screen', 'यह स्क्रीन', 'Ye screen')}</b>${intro}</div>` : ''),
+    acts: [{ t: 'fixel', id: '0', label: L('Show me the line', 'लाइन दिखाएँ', 'Line dikhaiye') }], row: true };
+}
 async function gaAnswer(q) {
   const { lang, means, words } = gaRead(q);
   const L = (en, hi, hg) => (lang === 'hi' ? hi : lang === 'hg' ? (hg || en) : en);
@@ -658,6 +712,8 @@ async function gaAnswer(q) {
     'माफ़ कीजिए, साइट या मैं कैसे बनी हूँ, या कंपनी की पॉलिसी (जैसे प्राइवेसी) के बारे में मैं बात नहीं कर सकती। इसके लिए एडमिन या मैनेजमेंट से पूछें। ERP चलाने में — कोई भी स्क्रीन, कोई भी काम, कोई भी दिक्कत — मैं खुशी से मदद करूँगी।',
     'Sorry, site ya main kaise bani hoon, ya company ki policy (jaise privacy) ke baare me main baat nahi kar sakti. Iske liye admin ya management se poochiye. ERP chalane me — koi bhi screen, koi bhi kaam, koi bhi dikkat — main khushi se help karungi.'), acts: [] };
   if (/^(meera\s+)?(unanswered|missed|miss)(\s+(questions|list))?\s*$/i.test(q.trim())) return gaMissList(L);
+  await gaBankLoad();
+  { const row = gaRowFind(q); if (row) return gaRowAnswer(row, lang, L); }
   if (!means.length) return { html: L('Tell me a little more — what are you trying to do?', 'थोड़ा और बताइए — आप क्या करना चाहते हैं?', 'Thoda aur bataiye — aap kya karna chahte hain?'), acts: [] };
   /* "why isn't it saving / error kyu / kaam pura nahi ho raha": the screen itself is the best answer */
   /* Only a question that names no topic of its own reads the screen ("error kyu", "problem hai", "save nahi ho raha"):
@@ -687,8 +743,18 @@ async function gaAnswer(q) {
   await gaBankLoad();
   if (GA_W === null) await Promise.race([gaWordsLoad(), new Promise(ok => setTimeout(ok, 1500))]);
   const hits = gaBankFind(means, words, q);
-  if (!(top && top.kind === 'talk' && top.s >= 1.4) && hits[0] && hits[0].s >= (GA_W ? GA_BANK_SURE_SEM : GA_BANK_SURE))
+  if (!(top && top.kind === 'talk' && top.s >= 1.4) && hits[0] && hits[0].s >= (GA_W ? GA_BANK_SURE_SEM : GA_BANK_SURE)) {
+    /* two answers fit almost equally ("short by kya hai": the screen, or its Short by column): ask which, never guess */
+    if (hits[1] && hits[0].s - hits[1].s < GA_BANK_GAP && hits[1].e.id !== hits[0].e.id)
+      return { html: L('Your question fits more than one answer. Which one do you mean?', 'आपका सवाल एक से ज़्यादा जवाबों से मिलता है। आप कौन-सा पूछ रहे हैं?', 'Aapka sawaal ek se zyada jawaabon se milta hai. Aap kaunsa poochh rahe hain?')
+        + gaNearHtml(hits.slice(0, 3).filter(h => h.s >= GA_BANK_NEAR), lang, ''), acts: [] };
     return gaBankAnswer(hits[0].e, lang, L, hits.slice(1, 3).filter(h => h.s >= GA_BANK_NEAR));
+  }
+  /* Close, but not sure enough: the bank's nearest answers are offered before the older word lists and the written guide,
+   * which lag behind the screens (24 Oct: they answered "Vendor Orders" and "+recv" questions with retired steps). */
+  if (!(top && top.kind === 'talk' && top.s >= 1.4) && hits[0] && hits[0].s >= GA_BANK_ASK)
+    return { html: L('I\'m not fully sure what you mean. Is it one of these?', 'मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं?', 'Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain?')
+      + gaNearHtml(hits.slice(0, 3).filter(h => h.s >= GA_BANK_NEAR), lang, ''), acts: [], miss: 'near' };
   if (top && top.s >= 1.4 && (top.kind === 'task' || top.kind === 'faq')) {
     const covered = new Set([...(top.e.k || []), ...(top.e.need || []), ...GA_ASKWORDS]);
     const extra = means.filter(m => !covered.has(m));
@@ -773,6 +839,7 @@ function gaBankLoad() {
   if (GA_BANK) return Promise.resolve(GA_BANK);
   if (!GA_BANK_P) GA_BANK_P = fetch('/guide/meera-bank.json', { cache: 'no-cache' })
     .then(r => (r.ok ? r.json() : [])).catch(() => [])
+    .then(list => (typeof gaAiLearned === 'function' ? gaAiLearned(Array.isArray(list) ? list : []) : list))
     .then(list => (GA_BANK = gaBankIndex(Array.isArray(list) ? list : [])))
     .then(b => { gaWordsLoad().then(() => setTimeout(gaSemIndex, 0)); return b; });
   return GA_BANK_P;
@@ -850,8 +917,20 @@ function gaSemScores(q) {
   return best;
 }
 /** Each answer's ways of asking, as meanings; and how rare each meaning is across the bank (a rare one decides more). */
+/* Every part of the app (a button, column, box, option or hover note) comes compact — [label, kind, en, hi, hg, sel] —
+ * and is opened out here: its ways of asking made from its own label, its answer from its one line. */
+const GA_PART_KIND = { button: ['button', 'बटन', 'button'], column: ['column', 'कॉलम', 'column'], box: ['box', 'बॉक्स', 'box'], option: ['option', 'विकल्प', 'option'], note: ['note', 'जानकारी', 'note'] };
+function gaPartOpen(e) {
+  const [L, kind, en, hi, hg, sel] = e.p, K = GA_PART_KIND[kind] || ['part', 'हिस्सा', 'part'], scr = e.tab ? gaTabName(e.tab) : '';
+  e.q = { en: [L, `what is ${L}`, `what does ${L} do`, `${L} meaning`, `${L} ${K[0]}`], hi: [`${L} क्या है`, `${L} का मतलब`, `${L} क्या करता है`],
+    hg: [`${L} kya hai`, `${L} kya karta hai`, `${L} ka matlab`, `${L} ${K[2]}`] };
+  const where = { en: scr ? ` — ${K[0]} on ${scr}` : '', hi: scr ? ` — ${scr} पर ${K[1]}` : '', hg: scr ? ` — ${scr} par ${K[2]}` : '' };
+  e.a = { en: `<b>${esc(L)}</b>${esc(where.en)}: ${esc(en)}`, hi: `<b>${esc(L)}</b>${esc(where.hi)}: ${esc(hi || en)}`, hg: `<b>${esc(L)}</b>${esc(where.hg)}: ${esc(hg || en)}` };
+  if (sel) e.sel = sel;
+}
 function gaBankIndex(list) {
   const df = new Map();
+  list.forEach(e => { if (e.p && !e.q) gaPartOpen(e); });
   gaSkelAdd(Object.keys(GUIDE_SYN));
   list.forEach(e => { const q = e.q || {}; gaSkelAdd([].concat(q.en || [], q.hg || [], gaPlain((e.a || {}).en)).flatMap(t => gaWords(t))); });
   GA_MEAN.clear();
@@ -862,9 +941,14 @@ function gaBankIndex(list) {
     e.body = gaMeans(gaPlain((e.a || {}).en) + ' ' + gaPlain((e.a || {}).hg));
     e.raw = new Set([].concat(q.en || [], q.hi || [], q.hg || []).flatMap(t => gaWords(t)));
     e.all.forEach(m => df.set(m, (df.get(m) || 0) + 1));
+    if (e.p) { e.pn = ' ' + gaWords(e.p[0]).join(' ') + ' '; e.pw = new Set(gaWords(e.p[0])); }
   });
   return { list, df, n: list.length || 1 };
 }
+/* The words that only make a question of a part's name: "<label> kya karta hai", "what happens if I press <label>". */
+const GA_PART_ASK = new Set(('what does do happens happen press click tap mean meaning means show shows kya karta karti hai kis kaam ka ke liye kisliye ' +
+  'kyun kyu ye yeh is ka matlab hota hoti dabane dabau dabaun dabaya par pe se button column box option note field tab ' +
+  'क्या करता करती है किस काम का के लिए किसलिए मतलब होता यह ये दबाने बटन कॉलम').split(' '));
 /* The screens by what people call them: a question that names one leans to that screen's answers. */
 const GA_TAB_SAY = [['ord', /order console/], ['pbase', /job ?work|jobwork|जॉब वर्क/], ['ppress', /\bpress\b|प्रेस/], ['pack', /packing|scan to pack|\bpack\b/],
   ['qc', /\bqc\b|quality|क्यूसी/], ['att', /attendance|hajri|haziri|हाजिरी/], ['pcut', /cutting|कटिंग/], ['fgi', /finished goods|\bfg\b/], ['fba', /\bfba\b/],
@@ -881,6 +965,12 @@ function gaBankFind(means, words, q) {
   const qW = means.reduce((a, m) => a + w(m), 0);
   const tab = gaHere();
   const said = gaTabsSaid(q);
+  if (GA_HERE_RE.test(String(q || ''))) said.add(tab);
+  /* A question that is a part's name and nothing more ("SKU kya karta hai") is about that part — the one on this screen
+   * first, and the longest name that fits ("Placed today", not "Placed"). */
+  const qw = gaWords(q), qn = ' ' + qw.join(' ') + ' ';
+  let longest = 0;
+  for (const e of B.list) if (e.pn && e.pn.length > longest && qn.includes(e.pn)) longest = e.pn.length;
   const out = [];
   for (let ei = 0; ei < B.list.length; ei++) {
     const e = B.list[ei];
@@ -892,7 +982,13 @@ function gaBankFind(means, words, q) {
       if (inter) best = Math.max(best, inter / Math.sqrt(qW * pW));
     }
     const near = sem ? sem[ei] : 0;
-    if (!best && near < 0.5) continue;
+    let named = 0;
+    if (longest && e.pn && e.pn.length === longest && qn.includes(e.pn)) {
+      const rest = qw.filter(x => !e.pw.has(x) && !GA_PART_ASK.has(x) && !GUIDE_STOP.has(x)).length;
+      named = rest === 0 ? 0.35 : rest === 1 ? 0.12 : 0;
+      if (named && e.tab && e.tab === tab) named += 0.12;
+    }
+    if (!best && !named && near < 0.5) continue;
     /* a word not in any way of asking, but in the answer itself, still counts a little */
     best += 0.04 * means.filter(m => !e.all.has(m) && e.body.has(m)).length;
     if (e.tab && e.tab === tab) best += 0.05;
@@ -900,7 +996,7 @@ function gaBankFind(means, words, q) {
     best += 0.015 * (words || []).filter(x => !GUIDE_STOP.has(x) && e.raw.has(x)).length;
     /* meaning: added on top of the word match, so a question in other words still finds it */
     if (sem) best = (best + GA_SEM_W * near) / (1 + GA_SEM_W * 0.6);
-    out.push({ e, s: best });
+    out.push({ e, s: best + named });
   }
   return out.sort((a, b) => b.s - a.s).slice(0, GA_TOPK);
 }
@@ -908,6 +1004,10 @@ function gaBankFind(means, words, q) {
  * higher, so the bar is higher); and how close an answer must be to be offered as "did you mean". */
 let GA_TOPK = 4;
 let GA_BANK_SURE = 0.65, GA_BANK_SURE_SEM = 0.75, GA_BANK_NEAR = 0.32;
+/* how far ahead the best answer must be to be given outright (set on 389 test questions, 24 Oct: wrong answers halved) */
+let GA_BANK_GAP = 0.04;
+/* from here up, a not-sure question gets the bank's nearest answers to choose from rather than the older lists */
+let GA_BANK_ASK = 0.5;
 const gaL3 = (o, lang) => (o ? (lang === 'hi' ? o.hi : lang === 'hg' ? (o.hg || o.en) : o.en) || o.en || '' : '');
 const gaAskOf = (e, lang) => { const q = e.q || {}; return ((lang === 'hi' ? q.hi : lang === 'hg' ? q.hg : q.en) || q.en || [])[0] || ''; };
 /** One answer from the bank: the answer, why, what to do, and the buttons that do it. */
@@ -987,6 +1087,7 @@ function guideAskOpen(q) {
   guideAskBuild();
   if (GUIDE.tour && GUIDE.tour.kind !== 'task') guideClose();   // a walk-round gives way to a question; a task guide stays
   $('gdAsk').classList.remove('hide');
+  if ($('gdLaunch')) $('gdLaunch').classList.add('hide');   // the box opens where the launcher sits
   gaChipsDraw();
   if (!GA.greeted) {
     GA.greeted = true;
@@ -998,7 +1099,7 @@ function guideAskOpen(q) {
   if (q) gaAsk(q);
   setTimeout(() => { try { $('gaQ').focus(); } catch (e) { /* closed again */ } }, 30);
 }
-function guideAskClose() { if ($('gdAsk')) $('gdAsk').classList.add('hide'); }
+function guideAskClose() { if ($('gdAsk')) $('gdAsk').classList.add('hide'); if ($('gdLaunch')) $('gdLaunch').classList.remove('hide'); }
 /** Suggestions for the screen open now: its jobs first, then the usual trouble. */
 function gaChipsDraw() {
   const hi = guideLang() === 'hi', tab = gaHere();
@@ -1017,7 +1118,14 @@ function gaSay(html, acts, after) {
 }
 async function gaAsk(q) {
   gaMine(q);
+  if (typeof gaAiCommand === 'function' && await gaAiCommand(q)) return;
   GA.lastQ = q;
+  if (GA_WHEREAMI_RE.test(q) && gaHere()) {
+    const lg = gaRead(q).lang, LL = (en, hi, hg) => (lg === 'hi' ? hi : lg === 'hg' ? (hg || en) : en), name = esc(gaTabName(gaHere()));
+    const a = gaScreenAnswer(gaHere(), lg, LL);
+    gaSay(LL(`You are on <b>${name}</b>.`, `आप <b>${name}</b> पर हैं।`, `Aap <b>${name}</b> par hain.`) + '<br>' + a.html, a.acts);
+    return;
+  }
   /* "this screen" means the one open now — when that is all the question asks ("ye screen kya hai"), not "keyboard
    * shortcut kya hai is page ke", which has an answer of its own */
   const rest = gaRead(q).means.filter(m => !['what', 'screen', 'show', 'help', 'about', 'how'].includes(m) && !/^(page|pej|पेज|about|samjha|samjhao|batao|bataiye|tell|explain)$/.test(m));
@@ -1026,10 +1134,14 @@ async function gaAsk(q) {
   if (r.miss) gaMissKeep(q, r.miss === true ? 'none' : r.miss);
   const lg = gaRead(q).lang, LL = (en, hi, hg) => (lg === 'hi' ? hi : lg === 'hg' ? hg : en);
   const fb = r.bank ? `<div class="ga-fb"><span>${LL('Did this help?', 'क्या इससे मदद मिली?', 'Kya isse madad mili?')}</span><button type="button" class="ga-fbb" data-ga="fb" data-id="up:${esc(r.bank)}" aria-label="Yes">👍</button><button type="button" class="ga-fbb" data-ga="fb" data-id="down:${esc(r.bank)}" aria-label="No">👎</button></div>` : '';
-  gaSay(r.html, r.acts, (r.after || '') + fb);
+  const ai = r.miss && typeof gaAiOn === 'function' && gaAiOn() ? [{ t: 'ai', label: LL('Ask AI', 'AI से पूछें', 'AI se poochhiye') }] : [];
+  gaSay(r.html, ai.concat(r.acts || []), (r.after || '') + fb);
   if (r.miss) gaChipsDraw();
 }
 function gaAct(t, id, tab) {
+  if (t === 'ai') { gaAiAsk(GA.lastQ || ''); return; }
+  if (t === 'aifb') { gaAiFeedback(id); return; }
+  if (t === 'aians') { gaAiAnswer(id); return; }
   if (t === 'fb') {
     const up = id.startsWith('up:'), lg = gaRead(GA.lastQ || '').lang, LL = (en, hi, hg) => (lg === 'hi' ? hi : lg === 'hg' ? hg : en);
     if (!up) gaMissKeep(GA.lastQ || '', 'not-helpful ' + id.slice(5));

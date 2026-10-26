@@ -79,7 +79,7 @@ function guideBuild() {
   $('gdNext').onclick = () => guideGo(1);
   $('gdBack').onclick = () => guideGo(-1);
   $('gdTry').onclick = () => guideTry();
-  $('gdOff').onclick = () => { guideClose(); guideSwitch(false); };
+  $('gdOff').onclick = () => guideGo(1);   // Skip this step (the Helper switch is in her round button's menu)
   $('gdText').onclick = () => guideTypeAll();
   root.querySelectorAll('[data-gd-lang]').forEach(b => b.onclick = () => {
     try { localStorage.setItem('guideLang', b.dataset.gdLang); } catch (e) { /* this visit only */ }
@@ -111,6 +111,46 @@ function guideBuild() {
   $('gdShow').onclick = () => guideStart(typeof gaHere === 'function' ? gaHere() : typeof TAB_NOW !== 'undefined' ? TAB_NOW : '', true);
   $('gdSwitch').onclick = () => guideSwitch(!guideIsOn());
   $('gdAskBtn').onclick = () => guideAskOpen();
+  /* HER ROUND BUTTON, bottom-right ("Ask Meera" on hover), and its menu: Ask Meera, Show me this screen, Helper on/off.
+   * The top bar's own buttons give way to it (styles.css); they stay in the page, and the menu presses them. */
+  const go = document.createElement('button');
+  go.type = 'button';
+  go.id = 'gdLaunch';
+  go.title = 'Ask Meera — English, Hindi or Hinglish (or press ?)';
+  go.setAttribute('aria-label', 'Ask Meera');
+  go.innerHTML = `${GUIDE_FACE}<span class="gd-lab">Ask Meera</span>`;
+  document.body.appendChild(go);
+  const menu = document.createElement('div');
+  menu.id = 'gdMenu';
+  menu.className = 'hide';
+  menu.setAttribute('role', 'menu');
+  document.body.appendChild(menu);
+  const shut = () => menu.classList.add('hide');
+  const draw = () => {
+    const hi = guideLang() === 'hi', on = guideIsOn();
+    menu.innerHTML = `<button type="button" data-m="ask">💬<span><b>Ask Meera</b><small>${hi ? 'इंग्लिश, हिंदी या हिंग्लिश' : 'English, Hindi or Hinglish'}</small></span></button>`
+      + `<button type="button" data-m="show">🧭<span><b>${hi ? 'यह स्क्रीन दिखाओ' : 'Show me this screen'}</b><small>${hi ? 'एक-एक स्टेप, घुमाकर' : 'A walk round, step by step'}</small></span></button>`
+      + `<button type="button" data-m="help" role="switch" aria-checked="${on}"><i class="gd-sw${on ? ' on' : ''}"></i><span><b>Helper ${on ? 'on' : 'off'}</b><small>${on ? (hi ? 'नई स्क्रीन पर साथ चलती है' : 'Walks new screens with you') : (hi ? 'सिर्फ़ पूछने पर' : 'Only when you ask')}</small></span></button>`;
+  };
+  go.onclick = e => { e.stopPropagation(); if (menu.classList.contains('hide')) { draw(); menu.classList.remove('hide'); } else shut(); };
+  menu.onclick = e => {
+    const b = e.target.closest('[data-m]'); if (!b) return;
+    if (b.dataset.m === 'help') { guideSwitch(!guideIsOn()); draw(); return; }
+    shut();
+    if (b.dataset.m === 'ask') guideAskOpen();
+    else $('gdShow').click();
+  };
+  document.addEventListener('click', e => { if (!menu.classList.contains('hide') && !e.target.closest('#gdMenu, #gdLaunch')) shut(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') shut(); });
+  /* A click outside her box ends a walk-round (the click itself still does nothing on the page, as before). A "your
+   * turn" step keeps its lit box usable, and a lesson or a task guide stays until it is finished or closed. */
+  document.addEventListener('click', e => {
+    if (!GUIDE.tour || GUIDE.tour.kind !== 'tour' || GUIDE.selfClick || !e.isTrusted) return;
+    const t = e.target;
+    if (t.closest && t.closest('#gdBubble, #gdAsk, #gdCtl, #gdResume, #gdLaunch, #gdMenu, #ptDlg')) return;
+    if (GUIDE.live && GUIDE.el && GUIDE.el.contains(t)) return;
+    guideClose();
+  }, true);
   guideSwitchDraw();
   guideWatch();
 }
@@ -316,7 +356,8 @@ function guideShow() {
   $('gdNext').textContent = lesson ? (hi ? 'समझ गया' : 'Got it') : last ? (hi ? 'हो गया' : 'Done') : (hi ? 'आगे' : 'Next');
   $('gdNext').classList.toggle('ghost', lesson && tryIt);
   guideDoDraw();
-  $('gdOff').textContent = hi ? 'हेल्पर बंद करें' : 'Turn helper off';
+  $('gdOff').textContent = hi ? 'छोड़ें' : 'Skip';
+  $('gdOff').title = hi ? 'यह स्टेप छोड़ें' : 'Skip this step';
   if (typeof guideFillOffer === 'function') guideFillOffer(s, el, task);   // the choices as buttons, before the bubble is measured
   $('gdText').innerHTML = (GUIDE.note ? '<div class="gd-note' + (GUIDE.noteOk ? ' gd-ok' : '') + '">' + GUIDE.note + '</div>' : '') + (hi ? s.hi : s.en);   // measured whole; guideType then writes it out again
   $('gdBubble').classList.remove('gd-up');
@@ -523,7 +564,7 @@ function guideTypeAll() {
 
 /** What the person was working in: the last box they typed in or chose from, and the last button they pressed. */
 function guideWatch() {
-  const ours = el => el.closest && el.closest('#gdRoot, #gdCtl, #gdResume, #gdAsk');
+  const ours = el => el.closest && el.closest('#gdRoot, #gdCtl, #gdResume, #gdAsk, #gdLaunch, #gdMenu');
   const inBox = el => GUIDE.live && GUIDE.el && GUIDE.el.contains(el);
   /* A press outside the lit box does nothing while a "your turn" step waits (the dim no longer catches it). */
   const hold = e => { if (GUIDE.tour && GUIDE.live && !ours(e.target) && !inBox(e.target)) { e.preventDefault(); e.stopPropagation(); } };

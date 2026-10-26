@@ -253,7 +253,7 @@ function renderProd() {
   const brands = (b === 'ALL' ? ['SP', 'CPC'] : [b]).filter(x => REPL[x]);
   if (!brands.length) {
     $('pdKpis').innerHTML = '';
-    $('pdTable').innerHTML = '<tbody><tr><td class="muted" style="padding:14px">No snapshot yet — open Replenishment and hit “Refresh from sheet” first.</td></tr></tbody>';
+    $('pdTable').innerHTML = '<tbody><tr><td class="muted" style="padding:14px">No snapshot yet — it is built by itself from FabriCrush Inventory every three hours.</td></tr></tbody>';
     return;
   }
   fillBasis();

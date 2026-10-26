@@ -264,8 +264,9 @@
           <button id="rProj" class="ghost" title="Upload a month's projection from Excel (SKU + QTY)">Projection</button>
           <button id="rCsv" class="ghost">Export</button>
           <button id="rPo" class="ghost">Create PO from view</button>
-          <button id="rHide" class="ghost" title="SKUs kept out of this tool entirely — parents, placeholders, dead codes. They survive a Refresh from sheet.">Hidden SKUs</button>
-          <button id="rGo">Refresh from sheet</button>
+          <button id="rHide" class="ghost" title="Show the hidden SKUs in this table, with their real stock and sales — press again for all SKUs">Hidden SKUs</button>
+          <button id="rHideEdit" class="ghost" style="padding:4px 10px;font-size:12px" title="SKUs kept out of this tool — parents, placeholders, dead codes. Add or unhide them here.">Edit hidden list</button>
+          <button id="rGo" title="The table updates by itself from FabriCrush Inventory every three hours; this asks for a fresh round now">Refresh</button>
         </div>
         <div class="toolbar" style="margin-top:8px">
           <div class="ms" id="rCat" style="flex:0 0 130px"></div>
@@ -1538,8 +1539,12 @@
           <button id="ppGo">Refresh</button>
         </div>
         <div id="ppMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
+        <!-- PRESSING IS NO LONGER RECORDED (since 5 Oct 2026) and Save refuses every entry, so the form is
+             not offered: it only let people fill every box and be turned away at the end. The button and
+             the form stay in the page, hidden, because the code and the tests still reach them by id. -->
         <div style="margin-top:10px">
-          <button id="pwToggle" class="ghost">+ New press entry</button>
+          <button id="pwToggle" class="ghost hide">+ New press entry</button>
+          <div class="muted" style="font-size:12.5px">Pressing is no longer recorded (since 5 Oct 2026) — a piece counts as made once QC passes it. Record it in Quality Control.</div>
         </div>
         <div id="pwBox" class="hide" style="margin-top:10px;border:1px solid var(--line);border-radius:10px;padding:12px">
           <div class="toolbar">
@@ -1653,26 +1658,36 @@
         <div id="bwBox" class="hide" style="margin-top:12px;border:1px solid var(--line);border-radius:10px;padding:12px">
           <!-- One-off item with no existing SKU: colour and size become free text, no Order ID is
                needed, and a disposable SKU is minted (or an existing match reused). -->
-          <!-- Taken off the form on 2026-09-28 (Ravi: "remove the custom order"). The box stays in the page, hidden and
-               never ticked, so the code that reads it keeps working; every entry needs a real SKU now. -->
-          <label class="hide" style="display:none;align-items:center;gap:8px;font-size:12.5px;margin-bottom:10px;
+          <!-- Taken off the form on 2026-09-28 (Ravi: "remove the custom order"); BACK on 2026-10-24 (Ravi: "custom order entry
+               pahle hum karte the kya wo abhi bhi aa sakta h" — "job work regester me"). -->
+          <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;margin-bottom:10px;
                         background:var(--hover,#f1f5f9);padding:8px 10px;border-radius:8px">
-            <input type="checkbox" id="bwCustom" style="width:auto" disabled>
+            <input type="checkbox" id="bwCustom" style="width:auto">
             <span><b>Custom Order</b> — one-off item with no existing SKU (colour &amp; size become free text, a disposable SKU is generated)</span>
           </label>
           <div class="toolbar">
             <span id="bwOrdWrap" style="flex:0 0 240px">
               <select id="bwOrd" style="width:100%"><option value="">— Select Order ID —</option></select>
             </span>
+            <!-- Custom Order's own Order ID (Ravi, 24 Oct: "order id m khud likhu ya dropdown me etsy, shopify, B2B, online") -->
+            <input id="bwCustOrd" class="hide" list="bwCustOrdList" placeholder="Order ID — type it, or ETSY / SHOPIFY / B2B / ONLINE" style="flex:0 0 260px" autocomplete="off">
+            <datalist id="bwCustOrdList"><option value="ETSY"><option value="SHOPIFY"><option value="B2B"><option value="ONLINE"></datalist>
             <select id="bwType" style="flex:0 0 160px"><option value="">Employment type…</option></select>
             <input id="bwEmp" list="bwEmpList" placeholder="Employee name" style="flex:0 0 170px">
             <datalist id="bwEmpList"></datalist>
             <select id="bwAt" style="flex:0 0 150px"><option value="">-- Article type --</option></select>
+            <!-- Custom Order: article and subtype picked from the master's OR typed (Ravi, 24 Oct: "dropdown and manual dono") -->
+            <input id="bwAtTxt" class="hide" list="bwAtList" placeholder="Article type (pick or type)" style="flex:0 0 170px" autocomplete="off">
+            <datalist id="bwAtList"></datalist>
             <select id="bwSub" style="flex:0 0 175px"><option value="">-- Subtype --</option></select>
+            <input id="bwSubTxt" class="hide" list="bwSubList" placeholder="Subtype (pick or type)" style="flex:0 0 175px" autocomplete="off">
+            <datalist id="bwSubList"></datalist>
             <select id="bwCol" style="flex:0 0 150px"><option value="">-- Colour --</option></select>
-            <input id="bwColTxt" class="hide" placeholder="Colour (free text)" style="flex:0 0 150px">
+            <input id="bwColTxt" class="hide" list="bwColList" placeholder="Colour (pick or type)" style="flex:0 0 150px" autocomplete="off">
+            <datalist id="bwColList"></datalist>
             <select id="bwSz" style="flex:0 0 120px"><option value="">-- Size --</option></select>
-            <input id="bwSzTxt" class="hide" placeholder="Size (free text)" style="flex:0 0 120px">
+            <input id="bwSzTxt" class="hide" list="bwSzList" placeholder="Size (pick or type)" style="flex:0 0 120px" autocomplete="off">
+            <datalist id="bwSzList"></datalist>
             <input id="bwSku" list="bwSkuList2" placeholder="SKU (auto-matched)" style="flex:0 0 185px;font-family:ui-monospace,monospace"
                    title="Filled in from the item above. Typing a SKU here works too and fills the item fields back.">
             <datalist id="bwSkuList2"></datalist>
@@ -2026,8 +2041,11 @@
            per-SKU HS code / GST rate / invoice rate are stored against the SKU. Removing the
            elements would throw on a null and take the whole order panel down with it; hiding them
            keeps every one of them answering and leaves what is already saved untouched.
-           To bring it back: delete the `hide` class on the wrapper below. Nothing else. -->
-      <div id="soCustomsBlock" class="hide">
+           SHOWN AGAIN (2026-10-26): the DHL Hybrid and DHL CSV exports refuse to write a file until
+           every order has one complete invoice pair and every SKU an HS code, and tell the person to
+           "fill them under Invoice & customs". With this block hidden there was nowhere to fill them,
+           so a DHL file could never be written. -->
+      <div id="soCustomsBlock">
       <!-- Every field DHL and FedEx call mandatory that Shopify cannot supply. -->
       <div class="sec">Invoice &amp; customs</div>
       <div class="row" style="gap:8px">
@@ -2484,7 +2502,7 @@
     <div class="muted" style="font-size:12px;margin-bottom:12px">
       Excel/CSV with two columns — <b>SKU</b> and <b>QTY</b>. The QTY becomes that SKU's projection for
       the month you pick, exactly as if you had typed it in the cell (yellow = manual). It stays until
-      you change it; “Refresh from sheet” never overwrites it.
+      you change it; a refresh never overwrites it.
     </div>
     <div class="sec">Month</div>
     <select id="pjMonth" style="width:100%;margin-bottom:4px"></select>

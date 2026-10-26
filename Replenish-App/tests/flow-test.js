@@ -306,7 +306,20 @@ const K = 'AMZ-1__S1';
       && rec.lines.length === 1 && rec.lines[0].key === 'AMZ-7__T3' && rec.receipts.r0.items['AMZ-7__T3'] === 3 && DU.flowRfdChallanOut('Sheeting 62') > out0, JSON.stringify(rec).slice(0, 400));
     const a7b = DU.flowDueRows('', false).find(x => x.orderNo === 'AMZ-7') || {};
     ok('…and the line owes 3 less', Math.abs(a7b.left - (a7.left - 3)) < 0.01 && a7b.back === 3, JSON.stringify([a7.left, a7b.left, a7b.back]));
-    ok('…it shows in Received by date on its day', DU.flowRecvRows('', false).filter(x => x.day === '2026-10-23').length === 2); }
+    ok('…it shows in Received by date on its day', DU.flowRecvRows('', false).filter(x => x.day === '2026-10-23').length === 2);
+    { /* 26 Oct: the up-to-10% over on cloth that went on a challan is that challan's — it left RFD stock once already */
+      const DV = load({ me: { admin: true }, rfd: { 'SHEETING 62': 500 }, lines: [L({ orderNo: 'AMZ-5', sku: 'T2', qty: 10 })],
+        ppc: { 'AMZ-5__T2': Object.assign(plS('T2'), { orderNo: 'AMZ-5' }) } });
+      DV.setFLOW(Object.assign(DV.FLOW(), { ch: { 'RFD-9': { no: 'RFD-9', orderNo: 'AMZ-5', vendor: { code: 'P1', name: 'Sanganer Prints' },
+        lines: [{ key: 'AMZ-5__T2', sku: 'T2', pcs: 10, metres: 15, print: DV.flowPrintWhat(DV.flowRows()[0].r, DV.FLOW().ppc['AMZ-5__T2']), fabric: 'Sheeting 62' }],
+        receipts: { r1: { date: '2026-10-22', items: { 'AMZ-5__T2': 5 } } } } } }));
+      const v5 = DV.flowDueRows('', false)[0] || {}, outV = DV.flowRfdChallanOut('Sheeting 62'), q = Math.round(v5.left * 1.05 * 100) / 100;
+      const erV = await DV.flowDueRecvSave('P1', { 'AMZ-5__T2': q }, { date: '2026-10-26' });
+      const rV = Object.values(DV.FLOW().ch['RFD-9'].receipts || {}).find(x => x.date === '2026-10-26') || {};
+      ok('…a little over on a line on a challan is received on that challan, not a no-RFD record, and RFD stock is not taken twice',
+        erV === '' && !Object.values(DV.FLOW().ch).some(c => c.noChallan) && rV.items && Math.abs(rV.items['AMZ-5__T2'] - q) < 0.01 && DV.flowRfdChallanOut('Sheeting 62') === outV,
+        (erV || '') + JSON.stringify([v5.left, v5.notSent, q, rV.items, outV, DV.flowRfdChallanOut('Sheeting 62')])); }
+  }
   }
   { /* 23 Oct ("data load hone me bahut jyada time lag raha h"): what is still being read is said, and a failed read never leaves the screen stuck */
     const RD = load({ me: { admin: true } });
@@ -1095,14 +1108,15 @@ const K = 'AMZ-1__S1';
     A.ctx.document.querySelectorAll = () => [{ addEventListener() {}, dataset: { fp: '0', k: 'fabric.perPc' }, type: 'number', value: '0.6' }, PRF(0, 'P1')];
     A.els.flpUndo = { checked: false };
     er = await A.ctx.__dlg.onSave(); w = A.writes[1] || {};
-    const run2 = w['pt_vendorOrders/P1/' + run.id];
-    ok('re-plan (0.6 m/pc): the SAME vendor order is updated — 6 m, its line id kept', !er && run2 && run2.orderNo === run.orderNo && run2.lines.find(l => l.sku === 'RBP-CANVAS-327').meters === 6 && run2.lines.find(l => l.sku === 'RBP-CANVAS-327').lineId === lid, er);
+    const run2 = w['pt_vendorOrders/P1/' + run.id + '/lines'];
+    ok('re-plan (0.6 m/pc): the SAME vendor order is updated — 6 m, its line id kept', !er && run2 && !w['pt_vendorOrders/P1/' + run.id] && run2.find(l => l.sku === 'RBP-CANVAS-327').meters === 6 && run2.find(l => l.sku === 'RBP-CANVAS-327').lineId === lid, er);
+    ok('…field by field (lines, status, staffUpdatedAt) — never the whole order, so the printer’s own "Vendor sent" batches stay', Object.keys(w).filter(k => k.startsWith('pt_vendorOrders/P1/' + run.id)).sort().join() === ['lines', 'staffUpdatedAt', 'status'].map(k => 'pt_vendorOrders/P1/' + run.id + '/' + k).join(), Object.keys(w).join());
     /* the printer has started: never rewritten from here */
     A.setVOrows(A.VOrows().map(o => o.id === run.id ? Object.assign({}, o, { lines: o.lines.map((l, i) => i === 0 ? Object.assign({}, l, { deliveries: [{ qty: 2 }] }) : l) }) : o));
     A.flowPpcOpen('AMZ-1', 'RPC327-1818');
     A.ctx.document.querySelectorAll = () => [{ addEventListener() {}, dataset: { fp: '0', k: 'fabric.perPc' }, type: 'number', value: '0.7' }, PRF(0, 'P1')];
     er = await A.ctx.__dlg.onSave(); w = A.writes[2] || {};
-    ok('once the printer has delivered on it, the vendor order is left alone — said', !er && !w['pt_vendorOrders/P1/' + run.id] && /has deliveries already/.test(A.els.flMsg.textContent + ' ' + JSON.stringify(A.ctx.__said || '')) || !w['pt_vendorOrders/P1/' + run.id]);
+    ok('once the printer has delivered on it, the vendor order is left alone — said', !er && !Object.keys(w).some(k => k.startsWith('pt_vendorOrders/P1/' + run.id)));
     /* declined: nothing at all is written */
     const B = mk({ confirmNo: true });
     B.flowPpcOpen('AMZ-1'); B.ctx.document.querySelectorAll = () => [PRF(0, 'P1'), PRF(1, 'P1'), PRF(2, 'P1')];
@@ -1156,10 +1170,10 @@ const K = 'AMZ-1__S1';
     D.flowPpcOpen('AMZ-1', 'CPC-02'); D.ctx.document.querySelectorAll = () => [PRF(0, 'P2')]; D.els.flpUndo = { checked: false };
     er = await D.ctx.__dlg.onSave(); w = D.writes[1] || {};
     const p2 = Object.keys(w).filter(k => /^pt_vendorOrders\/P2\//.test(k)).map(k => w[k])[0];
-    ok('printer changed → the old cut order is cancelled, a new one placed with Choudhary', !er && w['pt_vendorOrders/P1/' + first.id].status === 'Cancelled' && p2 && p2.vendorName === 'Choudhary Hand Block' && p2.lines[0].sku === 'CPC-02', er || Object.keys(w).join());
+    ok('printer changed → the old cut order is cancelled, a new one placed with Choudhary', !er && w['pt_vendorOrders/P1/' + first.id + '/status'] === 'Cancelled' && p2 && p2.vendorName === 'Choudhary Hand Block' && p2.lines[0].sku === 'CPC-02', er || Object.keys(w).join());
     D.flowPpcOpen('AMZ-1', 'CPC-02'); D.els.flpUndo = { checked: true };
     er = await D.ctx.__dlg.onSave(); w = D.writes[2] || {};
-    ok('plan undone → its vendor order cancelled too', !er && Object.values(w).some(o => o && o.id === p2.id && o.status === 'Cancelled'), er || Object.keys(w).join());
+    ok('plan undone → its vendor order cancelled too', !er && w['pt_vendorOrders/P2/' + p2.id + '/status'] === 'Cancelled', er || Object.keys(w).join());
   }
 
   console.log('== accessories reserved by themselves when PPC raises the plan ==');
