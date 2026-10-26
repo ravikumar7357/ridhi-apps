@@ -203,6 +203,19 @@ function p1WaitCard(k) {
     </tbody></table></div></div>`;
 }
 
+/** The SKU card's places, the same place twice made one (Ravi, 26 Oct: "isn't this looking messy"): one challan's lines
+ *  for the same orders came out as two identical rows. */
+function p1WipRows(wip) {
+  const m = new Map();
+  wip.forEach(w => { const k = [w.stage, w.who, w.orderNo, w.since, w.unit].join('|'), e = m.get(k); if (e) e.pcs += w.pcs; else m.set(k, Object.assign({}, w)); });
+  return [...m.values()];
+}
+/** A list of orders: the first two, and "+N more" that opens the rest in place. */
+function p1Ords(list) {
+  const os = String(list || '').split(/\s*[,+]\s*/).map(x => x.trim()).filter(Boolean);
+  if (os.length <= 2) return `<span class="muted ords">${esc(os.join(', '))}</span>`;
+  return `<span class="muted ords">${esc(os.slice(0, 2).join(', '))} <details class="more-ords"><summary>+${os.length - 2} more</summary><span>${esc(os.slice(2).join(', '))}</span></details></span>`;
+}
 /** The SKU's card above the ledger: its balance, where its pieces are and who has them, and its next steps. */
 function p1SkuCard(sku, ev) {
   const mine = ev.filter(e => e.sku === sku && e.unit !== 'm'), sum = ks => mine.filter(e => ks.includes(e.k)).reduce((t, e) => t + e.pcs, 0);
@@ -217,8 +230,8 @@ function p1SkuCard(sku, ev) {
       <span style="display:flex;gap:8px">${P1.f.sku === sku ? '' : `<button type="button" class="lg-go" data-p1only="${esc(sku)}">Only this SKU in the ledger</button>`}<button type="button" class="lg-go" data-p1close>× Close</button></span></div>
     <div class="sk-tiles">${[['Ordered (all time)', sum(['IN']), ''], ['Not planned', np, 'var(--bad)'], ['In production', mk, ''], ['Passed QC, not in FG', rd, 'var(--accent)'], ['Finished Goods in store', fg, ''], ['Sent from production', sum(['FBA', 'SHIP']), 'var(--accent)']]
       .map(t => `<div><b style="${t[2] ? 'color:' + t[2] : ''}">${p1N(t[1])}</b><span>${t[0]}</span></div>`).join('')}</div>
-    <div class="sk-row"><div class="sk-where"><div class="lg-h">Where it is now — and who has it</div>${wip.map(w => { const d = p1Days(w.since);
-        return `<div class="lg-mv"><span class="pl mv-make">${esc(w.stage)}</span><b>${p1N(w.pcs)}${w.unit === 'm' ? ' m' : ''}</b><span>${esc(w.who)}</span><span class="muted">${esc(w.orderNo)}</span><span class="muted" style="margin-left:auto${d != null && d > 7 ? ';color:var(--bad);font-weight:700' : ''}">${w.since ? p1Day(w.since) + ' · ' + d + ' d' : ''}</span></div>`; }).join('') || '<div class="muted">Nothing of it is in production now.</div>'}</div>
+    <div class="sk-row"><div class="sk-where"><div class="lg-h">Where it is now — and who has it</div>${p1WipRows(wip).map(w => { const d = p1Days(w.since);
+        return `<div class="lg-mv"><span class="pl mv-make">${esc(w.stage)}</span><b>${p1N(w.pcs)}${w.unit === 'm' ? ' m' : ''}</b><span class="who">${esc(w.who)}</span>${p1Ords(w.orderNo)}<span class="muted" style="margin-left:auto;white-space:nowrap${d != null && d > 7 ? ';color:var(--bad);font-weight:700' : ''}">${w.since ? p1Day(w.since) + ' · ' + d + ' d' : ''}</span></div>`; }).join('') || '<div class="muted">Nothing of it is in production now.</div>'}</div>
       ${acts.length ? `<div class="sk-acts"><div class="lg-h">Next for this SKU</div>${acts.map(a => `<button type="button" class="lg-yes" data-p1add="${a[0]}" data-p1add-sku="${esc(sku)}">${esc(a[1])}</button>`).join('')}</div>` : ''}</div></div>`;
 }
 
@@ -280,7 +293,7 @@ function p1DrawInv() {
   let all = [], wip = [];
   try { all = p1Inv(); wip = p1Wip(); } catch (e) { el.innerHTML = `<div class="p1-head"><h1 class="lm-h">PPC</h1></div><div class="card"><div class="empty" style="color:var(--bad)">Could not read the lines: ${esc(e.message || e)}</div></div>`; return; }
   const holds = new Map(); wip.forEach(w => { (holds.get(w.sku) || holds.set(w.sku, []).get(w.sku)).push(w); });
-  all.forEach(r => { r.holds = (holds.get(r.sku) || []).sort((a, b) => String(a.since || '9').localeCompare(String(b.since || '9')));
+  all.forEach(r => { r.holds = p1WipRows(holds.get(r.sku) || []).sort((a, b) => String(a.since || '9').localeCompare(String(b.since || '9')));
     r.stages = new Set(r.holds.map(w => P1_STAGE_OF[w.stage]).filter(Boolean)); if (r.notPlanned) r.stages.add('plan');
     r.next = p1NextOf(r, P1.stage); r.late = r.holds.some(w => (p1Days(w.since) || 0) > 7);
     r.due = r.lines.map(x => String((x.s.plan && x.s.plan.dates && x.s.plan.dates.ready) || x.r.mtoDue || '')).filter(Boolean).sort()[0] || ''; });

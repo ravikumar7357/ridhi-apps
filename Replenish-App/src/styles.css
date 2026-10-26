@@ -2064,5 +2064,13 @@ html.mob #frMeeraMenu{right:14px;bottom:144px}
 #p1Home .p1-go:hover{filter:brightness(.92)}
 #p1Home tr.p1x > td{background:var(--soft);padding:6px 14px 14px}
 #p1Home tr.p1x .lg-skucard{margin:6px 0 0;box-shadow:var(--sh-2)}
+#p1Home .lg-mv{flex-wrap:wrap;align-items:flex-start}
+#p1Home .lg-mv .who{font-weight:600}
+#p1Home .ords{flex:1;min-width:0}
+#p1Home details.more-ords{display:inline}
+#p1Home details.more-ords summary{display:inline;cursor:pointer;color:var(--brand-ink);font-weight:700;list-style:none}
+#p1Home details.more-ords summary::-webkit-details-marker{display:none}
+#p1Home details.more-ords[open] summary{color:var(--muted)}
+#p1Home details.more-ords[open] > span{display:block;margin-top:4px;line-height:1.6}
 /* The old PPC link is off the menu: this page is "PPC" now (its screen and code stay — the Demand buttons open it). */
 #tabFlow{display:none!important}
