@@ -1,0 +1,48 @@
+# THE TEST ERP: every push to preview/r-one publishes R-one (and Sellora) on GitHub Pages, with saving switched off.
+#   https://ravikumar7357.github.io/ridhi-apps/replenish/
+# Ravi, 26 Oct: the Pages test page carries R-one's design and features (it carried the dev branch until now).
+# The real ERP is not touched: it still goes live from main only.
+# What the build changes in its own copy (and only there) is explained in Replenish-App/tests/build-test-erp.js.
+name: test ERP
+
+on:
+  push:
+    branches: ['preview/r-one']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: test-erp
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Pages match their source
+        run: |
+          node Replenish-App/tests/assemble.js --check
+      # Sellora's page is copied as it is (public/index.html); on this branch it has hand edits its src/ lacks, so it is not checked here
+      - name: Build the test ERP (saving off)
+        run: node Replenish-App/tests/build-test-erp.js
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
