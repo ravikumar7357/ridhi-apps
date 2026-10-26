@@ -78840,6 +78840,7 @@ function p1Draw() {
   const el = $('p1Home'); if (!el || !P1.shown) return;
   if (P1.loading && !P1.built) { el.innerHTML = '<div class="p1-head"><h1 class="lm-h">PPC</h1><span class="muted">Reading the order book, plans and registers…</span></div>'; return; }
   if (P1.view === 'ledger') p1DrawLedger(); else p1DrawInv();
+  if (P1.built) p1MeeraFirst();
 }
 function p1DrawLedger() {
   const el = $('p1Home'); if (!el || !P1.shown) return;
@@ -78911,6 +78912,43 @@ function p1Wire(el) {
   on('[data-p1lim]', () => { P1.lim += 700; p1Draw(); });
   on('[data-p1r]', (b, e) => { e.preventDefault(); p1Load(true); });
   const q = el.querySelector('#p1Q'); if (q) q.oninput = () => { P1.q = q.value; clearTimeout(P1.qt); P1.qt = setTimeout(() => { redraw(); const n = $('p1Q'); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } }, 300); };
+}
+/* ---------- Meera on this page (Ravi, 26 Oct: "design meera for this page too") ----------
+ * Her walk-rounds of both views (guide.js reads GUIDE_TOURS by name), the first one on a person's first visit while the
+ * helper is on; and she knows this page is the one in front — "ye screen kya hai", Show me and her buttons all mean PPC
+ * here (gaHere / gaGo / gaTabName / guideMayOpen are wrapped, Meera's own files are not changed). Her written answers
+ * about this page are in meera-ppc.js, merged into her answer bank. */
+if (typeof GUIDE_TOURS !== 'undefined') {
+  GUIDE_TOURS.ppc = [
+    { en: 'This is <b>PPC</b> — every SKU in production on one page, planned SKU by SKU: all the open orders of a SKU together.', hi: 'यह <b>PPC</b> है — प्रोडक्शन में हर SKU एक ही पेज पर, SKU के हिसाब से प्लान: एक SKU के सारे खुले ऑर्डर एक साथ।' },
+    { sel: '#p1Home .p1-stages', en: 'These boxes count the SKUs at each stage — to plan, fabric & printer, cutting, with karigars, QC, ready. Click one to see only those.', hi: 'ये बॉक्स हर स्टेज के SKU गिनते हैं — प्लान, फ़ैब्रिक और प्रिंटर, कटिंग, कारीगर, QC, तैयार। किसी पर क्लिक करें तो सिर्फ़ वही दिखेंगे।' },
+    { sel: '#p1Home tr.p1r td.ord', en: '<b>Orders</b>: how many pieces are ordered, on how many orders, and how many are <b>not planned</b> yet (in red).', hi: '<b>Orders</b>: कितने पीस ऑर्डर हैं, कितने ऑर्डर में, और कितने अभी <b>प्लान नहीं</b> हुए (लाल में)।' },
+    { sel: '#p1Home tr.p1r td.where', en: '<b>Where it is now — and who has it</b>: the printer, cutting, each karigar by name, QC — with how many days it has been there. Red means more than 7 days.', hi: '<b>अभी कहाँ है — और किसके पास</b>: प्रिंटर, कटिंग, हर कारीगर का नाम, QC — और कितने दिन से वहाँ है। लाल मतलब 7 दिन से ज़्यादा।' },
+    { sel: '#p1Home tr.p1r td.due', en: '<b>Due</b> is the ready date from the plan. Late SKUs come first, with a red edge on the left.', hi: '<b>Due</b> प्लान की तैयार होने की तारीख़ है। देर वाले SKU सबसे ऊपर आते हैं, बाईं तरफ़ लाल पट्टी के साथ।' },
+    { sel: '#p1Home .p1-go', en: 'One button per SKU — its <b>next step</b>: Plan, Make challan, Receive printed, Enter cutting, Give to karigar, Receive, Check in QC or Accept. It opens the real form, filled in.', hi: 'हर SKU का एक बटन — उसका <b>अगला काम</b>: Plan, Make challan, Receive printed, Enter cutting, Give to karigar, Receive, Check in QC या Accept। असली फ़ॉर्म भरा हुआ खुलता है।' },
+    { sel: '#p1Home tr.p1r', en: 'Click a line to open the SKU\'s card under it: its figures, every place its pieces are, and a button for every step waiting.', hi: 'किसी लाइन पर क्लिक करें तो उसके नीचे SKU का कार्ड खुलता है: उसके आँकड़े, उसके पीस कहाँ-कहाँ हैं, और हर बाकी काम का बटन।' },
+    { sel: '#p1Q', en: 'Search finds a SKU, an order, a karigar or a printer.', hi: 'सर्च में SKU, ऑर्डर, कारीगर या प्रिंटर का नाम लिखें।' },
+    { sel: '#p1Home .p1-views', en: '<b>PPC ledger</b> shows every step of every SKU — who did what, and when. Ask me anything about this page with my round button.', hi: '<b>PPC ledger</b> में हर SKU का हर कदम है — किसने क्या किया, कब। इस पेज के बारे में कुछ भी पूछना हो तो मेरे गोल बटन से पूछें।' }];
+  GUIDE_TOURS.ppcledger = [
+    { en: 'This is the <b>PPC ledger</b> — every step of every SKU, newest first, like the Greige Desk\'s fabric ledger.', hi: 'यह <b>PPC ledger</b> है — हर SKU का हर कदम, नया सबसे ऊपर, ग्रेज डेस्क के फ़ैब्रिक लेजर की तरह।' },
+    { sel: '#p1Home .lg-addrow', en: '<b>Add a movement</b>: press a step to see only what is waiting for it, each with the button that opens its form.', hi: '<b>Add a movement</b>: किसी कदम पर दबाएँ तो सिर्फ़ उसका बाकी काम दिखेगा, हर एक के साथ उसका फ़ॉर्म खोलने वाला बटन।' },
+    { sel: '#p1Home .lg-filt', en: 'Filter by day, movement, SKU, order or person — Today, 7 days and 30 days are one click.', hi: 'दिन, कदम, SKU, ऑर्डर या व्यक्ति से छाँटें — Today, 7 days, 30 days एक क्लिक में।' },
+    { sel: '#p1Home .lg-t', en: 'Each line: when, the SKU and order, what happened, how many, the printer or karigar, and <b>who entered it</b>. The three right-hand columns are the SKU\'s balance after that step.', hi: 'हर लाइन: कब, SKU और ऑर्डर, क्या हुआ, कितने, प्रिंटर या कारीगर, और <b>किसने डाला</b>। दाईं तरफ़ के तीन कॉलम उस कदम के बाद SKU का बैलेंस हैं।' },
+    { sel: '#p1Home .lg-sku', en: 'Click a SKU to open its card right under that line.', hi: 'किसी SKU पर क्लिक करें तो उसी लाइन के नीचे उसका कार्ड खुलता है।' }];
+}
+(function p1Meera(n) {
+  if (typeof gaHere !== 'function' || typeof guideStart !== 'function') { if (n > 0) setTimeout(() => p1Meera(n - 1), 500); return; }
+  const here = gaHere; gaHere = function () { return P1.shown ? (P1.view === 'ledger' ? 'ppcledger' : 'ppc') : here.apply(this, arguments); };
+  if (typeof gaGo === 'function') { const go = gaGo; gaGo = function (tab) { if (tab === 'ppc' || tab === 'ppcledger') { P1.view = tab === 'ppcledger' ? 'ledger' : 'inv'; return p1Show(); } return go.apply(this, arguments); }; }
+  if (typeof gaTabName === 'function') { const nm = gaTabName; gaTabName = function (tab) { return tab === 'ppc' ? 'PPC' : tab === 'ppcledger' ? 'PPC ledger' : nm.apply(this, arguments); }; }
+  if (typeof guideMayOpen === 'function') { const may = guideMayOpen; guideMayOpen = function (tab) { return tab === 'ppc' || tab === 'ppcledger' ? p1May() : may.apply(this, arguments); }; }
+})(40);
+/** Her walk-round, the first time a person opens a view (while the helper is on), once the lines are on the page. */
+function p1MeeraFirst() {
+  if (typeof guideIsOn !== 'function' || !guideIsOn() || typeof guideSeen !== 'function') return;
+  const name = P1.view === 'ledger' ? 'ppcledger' : 'ppc';
+  if (guideSeen().includes(name)) return;
+  setTimeout(() => { if (P1.shown && P1.built && !(typeof GUIDE !== 'undefined' && GUIDE.tour) && ((P1.view === 'ledger') === (name === 'ppcledger'))) { guideMarkSeen(name); guideStart(name, false); } }, 1500);
 }
 async function p1Load(force) {
   if (P1.loading) return;
