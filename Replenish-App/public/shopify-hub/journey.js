@@ -84,26 +84,45 @@
    * line takes from FBA when FBA covers its send quantity (MCF comes first), else from India when India covers it; a
    * line marked out of stock takes nothing. Returns { orderNo: { line: { need, fba, india, fbaHeld, indiaHeld, takes } } }
    * — fba / india = what is left for THAT line, *Held = what older orders already hold. A suggestion, as in the ERP. */
-  function allocate(orders, stock) {
+  /* WHERE THE STOCK FIGURE COMES FROM. The ERP's own figures when the ERP page sent them (erp.skus, "store|SKU": FBA in
+   * that store's Amazon account, India Finished Goods), else the hub's Stock list, else the line's own figure.
+   * Returns (order, item) → { fba, india } or null. */
+  function stockLookup(list, erp) {
+    return (o, it) => {
+      /* TEST orders never count against the real stock: they keep the Stock list / their own figures. */
+      const e = o.source === 'shopify' && erp && erp.skus && erp.skus[o.store + '|' + String(it.sku || '').trim().toUpperCase()];
+      if (e) return { fba: e.fba == null ? 0 : e.fba, india: e.india == null ? 0 : e.india };
+      const s = (list || []).find(x => x.sku === it.sku);
+      return s ? { fba: s.fba, india: s.india } : null;
+    };
+  }
+  /* `look` = stockLookup(…) (an array is read as the Stock list). FBA is per Amazon account, so its pool is per store;
+   * India is one warehouse for both. */
+  function allocate(orders, look) {
+    if (typeof look !== 'function') look = stockLookup(look, null);
     const left = { fba: {}, india: {} }, out = {};
-    const level = (kind, it) => { const s = (stock || []).find(x => x.sku === it.sku); return s && s[kind] != null ? Number(s[kind]) || 0 : Number(it[kind]) || 0; };
-    const pool = (kind, it) => { if (!it.sku) return null; if (left[kind][it.sku] == null) left[kind][it.sku] = level(kind, it); return left[kind]; };
+    let cur = null;                                                  // the order being shared out to
+    const level = (kind, it, o) => { const s = look(o || cur, it); return s && s[kind] != null ? Number(s[kind]) || 0 : Number(it[kind]) || 0; };
+    /* Real orders share the real stock; TEST orders share a pretend one of their own, so they never hold real pieces. */
+    const keyOf = (kind, it) => (cur.source === 'shopify' ? '' : 'test|') + (kind === 'fba' ? cur.store + '|' : '') + String(it.sku).trim().toUpperCase();
+    const pool = (kind, it) => { if (!it.sku) return null; const k = keyOf(kind, it); if (left[kind][k] == null) left[kind][k] = level(kind, it); return { m: left[kind], k }; };
     const list = orders.filter(o => !o.cancelled).slice().sort((a, b) => (a.at - b.at) || String(a.no).localeCompare(String(b.no)));
-    list.forEach(o => o.pkgs.forEach(pk => {
+    list.forEach(o => { cur = o; o.pkgs.forEach(pk => {
       if (pk.src !== 'india' || pk.route) return;
-      pk.items.forEach(i => { const it = o.items[i], p = pool('india', it); if (p) p[it.sku] -= sendQty(it); });
-    }));
+      pk.items.forEach(i => { const it = o.items[i], p = pool('india', it); if (p) p.m[p.k] -= sendQty(it); });
+    }); });
     list.forEach(o => {
+      cur = o;
       const mine = out[o.no] = {};
       o.items.forEach((it, i) => {
         if (it.pk != null) return;
         const need = sendQty(it), pf = pool('fba', it), pi = pool('india', it);
-        const fba = pf ? Math.max(0, pf[it.sku]) : Number(it.fba) || 0, india = pi ? Math.max(0, pi[it.sku]) : Number(it.india) || 0;
+        const fba = pf ? Math.max(0, pf.m[pf.k]) : Number(it.fba) || 0, india = pi ? Math.max(0, pi.m[pi.k]) : Number(it.india) || 0;
         const a = mine[i] = { need, fba, india, fbaHeld: Math.max(0, level('fba', it) - fba), indiaHeld: Math.max(0, level('india', it) - india), takes: '' };
         if (!need) { a.takes = 'skip'; return; }
         if (it.oos) { a.takes = 'make'; return; }
-        if (fba >= need) { a.takes = 'mcf'; if (pf) pf[it.sku] -= need; }
-        else if (india >= need) { a.takes = 'india'; if (pi) pi[it.sku] -= need; }
+        if (fba >= need) { a.takes = 'mcf'; if (pf) pf.m[pf.k] -= need; }
+        else if (india >= need) { a.takes = 'india'; if (pi) pi.m[pi.k] -= need; }
         else a.takes = 'make';
       });
     });
@@ -126,5 +145,5 @@
   }
 
   return { DAY, PHASES, STAGES, STAGE_BTN, TARGET, CAUSES, RSTEPS, CARRIERS, STATUS_OFF, SHOPIFY_EVENT, FLAGS,
-    isMcf, prodLen, total, off, carName, steps, phaseOf, stageStart, inStage, isLateStage, statusOf, actionOf, phaseText, retAction, undecided, flagOf, sendQty, allocate };
+    isMcf, prodLen, total, off, carName, steps, phaseOf, stageStart, inStage, isLateStage, statusOf, actionOf, phaseText, retAction, undecided, flagOf, sendQty, allocate, stockLookup };
 });

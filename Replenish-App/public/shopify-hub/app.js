@@ -343,7 +343,7 @@ function pageOrders() {
  * FBA and from India after the older orders, worked out once per state from the hub. `a` below is one line's share:
  * { need (its send quantity), fba, india (left for it), fbaHeld, indiaHeld (held by older orders), takes }. */
 let ALLOC_OF = null, ALLOC = {};
-const allocOf = o => { if (ALLOC_OF !== S) { ALLOC_OF = S; ALLOC = J.allocate(S.orders, S.stock); } return ALLOC[o.no] || {}; };
+const allocOf = o => { if (ALLOC_OF !== S) { ALLOC_OF = S; ALLOC = J.allocate(S.orders, J.stockLookup(S.stock, S.erp)); } return ALLOC[o.no] || {}; };
 const held = n => n ? ` · ${n} held by older orders` : '';
 const SECTIONS = [
   { k: 'mcf', name: 'MCF', how: 'Amazon FBA has it · ships from the US', foot: 'Amazon ships in 4–5 days · the fee shows before you send', go: 'Send to MCF',
@@ -366,8 +366,51 @@ function planOf(o) {
  * button at the bottom. An item moves with its quiet "Move…" menu. With more than one card, "Accept all" sits on top
  * and is the only filled button; the cards' own buttons stay plain. */
 const thumb = it => { const k = Object.keys(COLOR).find(c => (String(it.v) + ' ' + String(it.t)).includes(c)); return `<span class="od-th" style="background:${k ? COLOR[k] : '#98A1AE'}" aria-hidden="true"></span>`; };
-const itemRow = (it, chip, end, tip) => `<div class="od-row">${thumb(it)}<div class="od-it"><div class="n">${esc(it.t)}</div><div class="s-sm s-muted">${esc([it.v, it.sku].filter(Boolean).join(' · '))}</div></div>
-  ${chip ? `<span class="od-chip ${it.oos ? 'oos' : ''}"${tip ? ` title="${esc(tip)}"` : ''}>${chip}</span>` : '<span></span>'}<span class="od-q">${qtyText(it)}</span>${end || '<span></span>'}</div>`;
+/* ONE ITEM, EVERYTHING ABOUT IT (Ravi, 26 Oct: "I don't know MCF has how many and India inventory has how many").
+ * Line 1: photo, name, size, SKU and the Amazon code when it differs, price × quantity, the Change menu.
+ * Line 2: FBA (this store's Amazon account) and India stock — always both — then the shelf, other sizes in stock,
+ * production already open, and what was typed against the line. "Details" opens the ERP's fields: send qty,
+ * shelf · qty, line status, adjustment. The figures are the ERP's own (S.erp, sent by the ERP page), else the hub's. */
+const numId = g => String(g || '').replace(/^.*\//, '');
+const erpOf = (o, it) => (o.source === 'shopify' && S.erp && S.erp.skus && S.erp.skus[o.store + '|' + String(it.sku || '').trim().toUpperCase()]) || null;
+const erpLine = (o, it) => (S.erp && S.erp.lines && o.gid && it.lid && S.erp.lines[numId(o.gid) + '|' + numId(it.lid)]) || null;
+const OPEN_ROW = new Set();
+const SHELVES = ['A.1', 'A.2', 'A.3', 'B.1', 'B.2', 'B.3', 'C.1', 'C.2', 'C.3', 'D.1', 'D.2', 'D.3', '3000', '4000', '5000'];
+function itemRow(o, i, opt) {
+  opt = opt || {};
+  const it = o.items[i], e = erpOf(o, it), a = opt.a, sec = opt.sec || '', ln = erpLine(o, it);
+  const fba = a ? a.fba : e ? e.fba : it.fba, india = a ? a.india : e ? e.india : it.india;
+  const chip = (t, cls, tip) => `<span class="od-chip ${cls || ''}"${tip ? ` title="${esc(tip)}"` : ''}>${t}</span>`;
+  const fig = (name, n, held, more) => n == null ? chip(`${name} —`, '', `Not stocked in ${name === 'FBA' ? o.store + "'s Amazon account" : 'India Finished Goods'}`)
+    : chip(`${name} ${n}`, n <= 0 ? 'zero' : sec === (name === 'FBA' ? 'mcf' : 'india') ? 'on-' + sec : '', `${n} ${a ? 'left for this order' : 'in stock'}${held ? ` · ${held} held by older orders` : ''}${more || ''}`);
+  const bin = it.shelf || (e && e.shelf) || '';
+  const alts = e && e.alts && e.alts.length && (sec === 'make' || it.oos) ? e.alts : [];
+  const chips = [
+    fig('FBA', e && e.fba == null && !a ? null : fba, a && a.fbaHeld, ''),
+    fig('India', e && e.india == null && !a ? null : india, a && a.indiaHeld, e && e.pack > 1 ? ` · ${e.pieces} pieces, pack of ${e.pack}` : ''),
+    bin || it.shelfQty != null ? chip(`Shelf ${esc(bin || '—')}${it.shelfQty != null ? ' · ' + it.shelfQty : ''}`, it.shelfQty != null && it.shelfQty < J.sendQty(it) ? 'warn' : '', 'Bin, and how many are on that shelf') : '',
+    it.oos ? chip('marked out of stock', 'oos') : '',
+    it.rq ? chip(`${it.rq} refunded`, 'warn') : '',
+    alts.length ? chip(`Other sizes: ${alts.slice(0, 2).map(x => `${esc(x.size || x.sku)}${x.shape ? ' ' + esc(x.shape) : ''} (${x.fba ? x.fba + ' FBA' : x.india + ' India'})`).join(', ')}${alts.length > 2 ? ' +' + (alts.length - 2) : ''}`, 'alt', alts.map(x => `${x.sku}: ${x.fba} FBA · ${x.india} India`).join('\n')) : '',
+    ln && ln.prod ? chip(`Production open · ${esc(ln.prod)}`, 'ok', 'Production already has this line open in the ERP') : '',
+    it.lineStatus ? chip(esc(it.lineStatus), 'st') : '',
+    it.adj ? chip(`Adjustment: ${esc(it.adj)}`, 'warn') : '',
+  ].filter(Boolean);
+  const key = o.no + '|' + i, open = OPEN_ROW.has(key), waiting = it.pk == null;
+  const ph = it.img ? `<img class="od-th" src="${esc(it.img)}" alt="" loading="lazy">` : thumb(it);
+  const sub = [it.v, it.sku || 'no SKU on Shopify', e && e.amz ? 'Amazon ' + e.amz : ''].filter(Boolean).join(' · ');
+  return `<div class="od-item ${open ? 'open' : ''}">
+    <div class="od-row">${ph}<div class="od-it"><div class="n">${esc(it.t)}</div><div class="s-sm s-muted">${esc(sub)}</div></div>
+      <span class="od-q"><span class="s-muted s-sm">${money(it.price)}</span> ${qtyText(it)}</span>${opt.end || '<span></span>'}</div>
+    <div class="od-l2">${chips.join('')}<button class="s-link od-more" type="button" data-row="${i}" aria-expanded="${open}">${open ? 'Hide details' : 'Details'}</button></div>
+    ${open ? `<div class="od-drawer">
+      ${waiting && it.q > 1 ? `<label>Send qty<input type="number" min="0" max="${it.q}" step="1" value="${J.sendQty(it)}" data-lf="sq" data-i="${i}"></label>` : `<label>Send qty<input value="${J.sendQty(it)} of ${it.q}" disabled></label>`}
+      <label>Shelf<input list="shelves" value="${esc(it.shelf || '')}" placeholder="${esc((e && e.shelf) || 'bin')}" data-lf="shelf" data-i="${i}"></label>
+      <label>Qty on shelf<input type="number" min="0" step="1" value="${it.shelfQty != null ? it.shelfQty : ''}" placeholder="—" data-lf="shelfQty" data-i="${i}"></label>
+      <label>Line status<input value="${esc(it.lineStatus || '')}" placeholder="cut, stitched, packed…" data-lf="status" data-i="${i}"></label>
+      <label class="w2">Adjustment<input value="${esc(it.adj || '')}" placeholder="short or wrong size — e.g. 1 short, King instead of Queen" data-lf="adj" data-i="${i}"></label>
+    </div>` : ''}</div>`;
+}
 /* The item's quiet menu: move it to another card (only where the stock left for it allows), the ERP's out-of-stock
  * mark, its send quantity, or not sending it at all. */
 const itemMenu = (o, i, s, a) => { const it = o.items[i], to = SECTIONS.filter(x => x.k !== s.k && x.can(it, a));
@@ -386,10 +429,10 @@ function linesCard(o) {
     ${secs.map(({ s, lines }) => `<section class="od-card" id="pl-${s.k}">
       <header class="od-h"><span class="od-badge b-${s.k}">${s.name} · ${lines.length}</span><span class="s-muted s-sm">${s.how}</span>
         ${s.k === 'mcf' ? `<label class="od-auto s-sm" title="New orders whose items Amazon FBA has go to MCF by themselves"><input type="checkbox" data-automcf ${auto ? 'checked' : ''}> Auto-send</label>` : ''}</header>
-      ${lines.map(i => itemRow(o.items[i], s.stock(o.items[i], a(i)), itemMenu(o, i, s, a(i)), s.tip(a(i)))).join('')}
+      ${lines.map(i => itemRow(o, i, { a: a(i), sec: s.k, end: itemMenu(o, i, s, a(i)) })).join('')}
       <footer class="od-f"><span class="s-muted s-sm">${s.foot}</span><button class="s-btn ${many ? 'ghost' : ''}" type="button" data-go="${s.k}">${s.go}</button></footer></section>`).join('')}
     ${off0.length ? `<section class="od-card od-off" id="pl-off"><header class="od-h"><span class="od-badge">Not being sent · ${off0.length}</span><span class="s-muted s-sm">send quantity 0 — stays on the order, nothing goes out</span></header>
-      ${off0.map(i => itemRow(o.items[i], '', `<button class="s-link" type="button" data-sendagain="${i}">Send it again</button>`)).join('')}</section>` : ''}</div>`;
+      ${off0.map(i => itemRow(o, i, { end: `<button class="s-link" type="button" data-sendagain="${i}">Send it again</button>` })).join('')}</section>` : ''}</div>`;
 }
 /* Accept: one window with what each section will do (MCF speed and fee, production priority), then everything at once. */
 async function planDlg(o) {
@@ -467,7 +510,7 @@ function partPanel(o, pk, n) {
   ].filter(Boolean);
   return `<section class="od-card s-part ${FLASH.has(o.no) ? 's-flash' : ''}" id="pk${n}">
     <header class="od-h"><span class="od-badge b-${badge[1]}">${esc(badge[0])}</span><span class="s-muted s-sm">${esc(stText(pk))}${pk.rush ? ' · rush' : ''}</span><span class="r">${btn.join('')}</span></header>
-    ${pk.items.map(i => itemRow(o.items[i], '')).join('')}
+    ${pk.items.map(i => itemRow(o, i, { sec: isMcf(pk) ? 'mcf' : pk.src === 'india' ? 'india' : '' })).join('')}
     ${strip(pk, f)}
     <details class="pp-steps" ${pk.block || f || isLateStage(pk) ? 'open' : ''}><summary>All steps</summary>${table([[''], ['Step', 'tl'], ['Place'], ['Date']], rows)}</details>
     <footer class="od-f od-facts"><span class="s-sm">${facts.join(' · ')}</span></footer>
@@ -500,6 +543,7 @@ function pageOrder(no) {
         ${linesCard(o)}
         ${o.pkgs.map((pk, n) => partPanel(o, pk, n)).join('')}
         ${o.rets.length ? `<div class="s-panel" id="rets"><div class="s-ph">Returns</div>${table([['Lines'], ['Reason'], ['Outcome'], ['Status'], ['Return tracking'], ['Opened'], ['', 'act']], o.rets.map((r, n) => returnRow(o, r, n)))}</div>` : ''}
+        <datalist id="shelves">${SHELVES.map(x => `<option value="${x}">`).join('')}</datalist>
       </div>
       <aside class="od-side">
         ${o.note ? `<div class="od-card od-box od-note"><b>Note from Shopify</b><p>${esc(o.note)}</p></div>` : ''}
@@ -1469,6 +1513,12 @@ function render() {
           '<button class="s-btn" type="button" id="go">Save</button>', () => $('go').addEventListener('click', () => act('lineSet', { no: o.no, i, sq: +$('sqN').value })));
       }));
       on('[data-sendagain]', b => act('lineSet', { no: o.no, i: +b.dataset.sendagain, sq: o.items[+b.dataset.sendagain].q }));
+      /* Details: open / close an item's fields; each field saves when it is changed. */
+      on('[data-row]', b => { const k = o.no + '|' + b.dataset.row; OPEN_ROW.has(k) ? OPEN_ROW.delete(k) : OPEN_ROW.add(k); render(); });
+      page.querySelectorAll('[data-lf]').forEach(el => el.addEventListener('change', () => {
+        const f = el.dataset.lf, i = +el.dataset.i, v = el.value.trim();
+        act('lineSet', { no: o.no, i, [f]: f === 'sq' ? Number(v) : v });
+      }));
       page.querySelectorAll('[data-automcf]').forEach(c => c.addEventListener('change', () => {
         const on = c.checked; c.checked = !on;
         dialog(on ? 'Turn on Auto-send to MCF?' : 'Turn off Auto-send?', on

@@ -73284,10 +73284,46 @@ if (SHUB_ON && $('secShopify') && $('paneShop')) {
       .then(d => ({ orders: d.orders || [], more: !!d.more }), e => ({ error: e.message || String(e) }));
     try {
       const [Ridhi, CPC] = await Promise.all([one(''), one('CPC')]);
-      fr.contentWindow.postMessage({ type: 'shub-orders', got: { Ridhi, CPC } }, shubOrigin());
+      let info = null;
+      try { $('shubState').textContent = 'Reading stock from the ERP…'; info = await shubInfo({ Ridhi, CPC }); } catch (e) { info = { error: e.message || String(e) }; }
+      fr.contentWindow.postMessage({ type: 'shub-orders', got: { Ridhi, CPC, info } }, shubOrigin());
       const n = x => x.error ? 'not read' : x.orders.length + ' open';
       $('shubState').textContent = `Shopify via Pricing API · Ridhi ${n(Ridhi)} · CPC ${n(CPC)} · ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
     } finally { shubBusy = false; }
+  }
+  /* THE ERP'S OWN FIGURES FOR EACH ITEM (Ravi, 26 Oct: "I don't know MCF has how many and India inventory has how
+   * many"), sent with the orders. READ ONLY — the same reads the Shopify Orders tab makes, done only if that tab has not
+   * already done them, and nothing is written anywhere: FBA in the order's own account (loadShopStock / soFbaIn), India
+   * Finished Goods in sellable units (loadShopIndia / soIndiaOf), the Amazon code when it differs (soAmzSku), the shelf
+   * bin (loadShopSku / soLocOf), the same design in other sizes with stock (soSizeAlternatives), and an open production
+   * line for the order (the order book, PTG.ob, by Shopify order id and SKU — as the Orders tab's Production column). */
+  async function shubInfo(got) {
+    await Promise.all([
+      typeof loadShopStock === 'function' && !SHOP_STOCK_LOADED ? loadShopStock().catch(() => {}) : null,
+      typeof loadShopIndia === 'function' ? loadShopIndia().catch(() => {}) : null,
+      typeof loadShopSku === 'function' && !Object.keys(SHOP_SKU || {}).length ? loadShopSku().catch(() => {}) : null,
+      typeof ptLoadGates === 'function' ? ptLoadGates(false, true).catch(() => {}) : null,
+    ]);
+    const up = s => String(s == null ? '' : s).trim().toUpperCase();
+    const at = d => (d && d.toISOString ? d.toISOString() : '');
+    const out = { at: Date.now(), skus: {}, lines: {},
+      stockAt: { Ridhi: at(SHOP_STOCK_AT.SP), CPC: at(SHOP_STOCK_AT.CPC) }, indiaAt: SHOP_INDIA_AT || '', indiaErr: SHOP_INDIA_ERR || '' };
+    [['Ridhi', 'SP'], ['CPC', 'CPC']].forEach(([store, brand]) => ((got[store] || {}).orders || []).forEach(o => (o.items || []).forEach(i => {
+      const sku = up(i.sku); if (!sku) return;
+      let amz = ''; try { amz = soAmzSku(sku) || ''; } catch (e) { /* no mapping */ }
+      const amzKey = up(amz), key = store + '|' + sku;
+      if (!out.skus[key]) {
+        const fba = amzKey ? soFbaIn(brand, amzKey) : null, ind = soIndiaOf(sku);
+        let alts = []; try { alts = soSizeAlternatives(sku, brand).map(a => ({ sku: a.sku, size: a.size, shape: a.shape, fba: a.fba, india: a.india })); } catch (e) { /* no master yet */ }
+        out.skus[key] = { amz: amzKey && amzKey !== sku ? amz : '', fba: fba == null ? null : Number(fba) || 0,
+          india: ind ? Number(ind[0]) || 0 : null, pieces: ind ? Number(ind[1]) || 0 : null, pack: ind ? Number(ind[2]) || 0 : null,
+          shelf: soLocOf(sku) || '', alts };
+      }
+      const ks = [sku, amzKey].filter(Boolean);
+      const open = (PTG.ob || []).find(r => r && String(r.shopOrderId || '') === String(o.id) && ks.includes(up(r.sku)));
+      if (open) out.lines[o.id + '|' + i.lid] = { prod: String(open.orderNo || open.id || '') };
+    })));
+    return out;
   }
   /* Tracking by Shopify (Ravi, 26 Oct): the hub asks this page to talk to Shopify for it, through the Pricing API
    * (Pricing-API/ShopifyHub.gs) — Shopify's own tracking of each parcel, a dry run of "mark these lines shipped", and

@@ -120,26 +120,45 @@ HUBMOD("journey", function (module, exports, require, __dirname, process, Buffer
    * line takes from FBA when FBA covers its send quantity (MCF comes first), else from India when India covers it; a
    * line marked out of stock takes nothing. Returns { orderNo: { line: { need, fba, india, fbaHeld, indiaHeld, takes } } }
    * — fba / india = what is left for THAT line, *Held = what older orders already hold. A suggestion, as in the ERP. */
-  function allocate(orders, stock) {
+  /* WHERE THE STOCK FIGURE COMES FROM. The ERP's own figures when the ERP page sent them (erp.skus, "store|SKU": FBA in
+   * that store's Amazon account, India Finished Goods), else the hub's Stock list, else the line's own figure.
+   * Returns (order, item) → { fba, india } or null. */
+  function stockLookup(list, erp) {
+    return (o, it) => {
+      /* TEST orders never count against the real stock: they keep the Stock list / their own figures. */
+      const e = o.source === 'shopify' && erp && erp.skus && erp.skus[o.store + '|' + String(it.sku || '').trim().toUpperCase()];
+      if (e) return { fba: e.fba == null ? 0 : e.fba, india: e.india == null ? 0 : e.india };
+      const s = (list || []).find(x => x.sku === it.sku);
+      return s ? { fba: s.fba, india: s.india } : null;
+    };
+  }
+  /* `look` = stockLookup(…) (an array is read as the Stock list). FBA is per Amazon account, so its pool is per store;
+   * India is one warehouse for both. */
+  function allocate(orders, look) {
+    if (typeof look !== 'function') look = stockLookup(look, null);
     const left = { fba: {}, india: {} }, out = {};
-    const level = (kind, it) => { const s = (stock || []).find(x => x.sku === it.sku); return s && s[kind] != null ? Number(s[kind]) || 0 : Number(it[kind]) || 0; };
-    const pool = (kind, it) => { if (!it.sku) return null; if (left[kind][it.sku] == null) left[kind][it.sku] = level(kind, it); return left[kind]; };
+    let cur = null;                                                  // the order being shared out to
+    const level = (kind, it, o) => { const s = look(o || cur, it); return s && s[kind] != null ? Number(s[kind]) || 0 : Number(it[kind]) || 0; };
+    /* Real orders share the real stock; TEST orders share a pretend one of their own, so they never hold real pieces. */
+    const keyOf = (kind, it) => (cur.source === 'shopify' ? '' : 'test|') + (kind === 'fba' ? cur.store + '|' : '') + String(it.sku).trim().toUpperCase();
+    const pool = (kind, it) => { if (!it.sku) return null; const k = keyOf(kind, it); if (left[kind][k] == null) left[kind][k] = level(kind, it); return { m: left[kind], k }; };
     const list = orders.filter(o => !o.cancelled).slice().sort((a, b) => (a.at - b.at) || String(a.no).localeCompare(String(b.no)));
-    list.forEach(o => o.pkgs.forEach(pk => {
+    list.forEach(o => { cur = o; o.pkgs.forEach(pk => {
       if (pk.src !== 'india' || pk.route) return;
-      pk.items.forEach(i => { const it = o.items[i], p = pool('india', it); if (p) p[it.sku] -= sendQty(it); });
-    }));
+      pk.items.forEach(i => { const it = o.items[i], p = pool('india', it); if (p) p.m[p.k] -= sendQty(it); });
+    }); });
     list.forEach(o => {
+      cur = o;
       const mine = out[o.no] = {};
       o.items.forEach((it, i) => {
         if (it.pk != null) return;
         const need = sendQty(it), pf = pool('fba', it), pi = pool('india', it);
-        const fba = pf ? Math.max(0, pf[it.sku]) : Number(it.fba) || 0, india = pi ? Math.max(0, pi[it.sku]) : Number(it.india) || 0;
+        const fba = pf ? Math.max(0, pf.m[pf.k]) : Number(it.fba) || 0, india = pi ? Math.max(0, pi.m[pi.k]) : Number(it.india) || 0;
         const a = mine[i] = { need, fba, india, fbaHeld: Math.max(0, level('fba', it) - fba), indiaHeld: Math.max(0, level('india', it) - india), takes: '' };
         if (!need) { a.takes = 'skip'; return; }
         if (it.oos) { a.takes = 'make'; return; }
-        if (fba >= need) { a.takes = 'mcf'; if (pf) pf[it.sku] -= need; }
-        else if (india >= need) { a.takes = 'india'; if (pi) pi[it.sku] -= need; }
+        if (fba >= need) { a.takes = 'mcf'; if (pf) pf.m[pf.k] -= need; }
+        else if (india >= need) { a.takes = 'india'; if (pi) pi.m[pi.k] -= need; }
         else a.takes = 'make';
       });
     });
@@ -162,7 +181,7 @@ HUBMOD("journey", function (module, exports, require, __dirname, process, Buffer
   }
 
   return { DAY, PHASES, STAGES, STAGE_BTN, TARGET, CAUSES, RSTEPS, CARRIERS, STATUS_OFF, SHOPIFY_EVENT, FLAGS,
-    isMcf, prodLen, total, off, carName, steps, phaseOf, stageStart, inStage, isLateStage, statusOf, actionOf, phaseText, retAction, undecided, flagOf, sendQty, allocate };
+    isMcf, prodLen, total, off, carName, steps, phaseOf, stageStart, inStage, isLateStage, statusOf, actionOf, phaseText, retAction, undecided, flagOf, sendQty, allocate, stockLookup };
 });
 
 });
@@ -311,7 +330,7 @@ function lineState(o, i, alloc) {
 }
 /** Orders with at least one line that can go today, every line with its state (so "2 ready, 1 not ready" shows). */
 function candidates(db) {
-  const alloc = J.allocate(db.orders, db.stock);
+  const alloc = J.allocate(db.orders, J.stockLookup(db.stock, db.erp));
   return db.orders.map(o => {
     const lines = o.items.map((it, i) => Object.assign({ i, sku: it.sku, t: it.t, v: it.v, q: J.sendQty(it), price: it.price }, lineState(o, i, alloc))).filter(l => l.k !== 'skip');
     return { no: o.no, store: o.store, at: o.at, source: o.source, cust: o.cust.n, country: o.addr.country, lines, ready: lines.filter(l => l.ok).length };
@@ -333,7 +352,7 @@ function build(db, draft, opts) {
   const tax = TAX_OPTIONS.includes(draft.tax) ? draft.tax : CO.taxOption;
   const rows = [], fxRows = [], fxMps = [], report = [];
   let seq = 0, fxSeq = 0, nx = String(draft.nextInv || st.nextInv || '').trim();
-  const alloc = J.allocate(db.orders, db.stock);
+  const alloc = J.allocate(db.orders, J.stockLookup(db.stock, db.erp));
   (draft.ships || []).forEach(sd => {
     const o = db.orders.find(x => x.no === sd.no);
     const bad = [], warn = [], info = [];
@@ -1228,8 +1247,18 @@ const notOos = (o, lines) => lines.forEach(i => { if (o.items[i].oos) throw new 
 function lineSet(db, a) {
   const o = find(db, a.no), it = o.items[a.i];
   if (!it) throw new Error('No such line.');
-  if (it.pk != null) throw new Error(it.t + ' is already on its way — its settings cannot change now.');
+  if ((a.oos != null || a.sq != null) && it.pk != null) throw new Error(it.t + ' is already on its way — its send quantity and stock mark cannot change now.');
   const said = [];
+  /* What a person types against the line (the ERP's Shelf · qty, Line status and Adjustment) — kept with this order's
+   * line only, never the SKU, and allowed at any time. */
+  const text = (v, n) => String(v == null ? '' : v).trim().slice(0, n || 80);
+  if (a.shelf != null || a.shelfQty != null) {
+    if (a.shelf != null) it.shelf = text(a.shelf, 20) || undefined;
+    if (a.shelfQty != null) { const n = a.shelfQty === '' ? null : Math.floor(Number(a.shelfQty)); if (n != null && !(n >= 0)) throw new Error('Shelf qty: a number.'); it.shelfQty = n == null ? undefined : n; }
+    said.push(`shelf ${it.shelf || '—'}${it.shelfQty != null ? ' · ' + it.shelfQty : ''}`);
+  }
+  if (a.status != null) { it.lineStatus = text(a.status) || undefined; said.push(`status "${it.lineStatus || '—'}"`); }
+  if (a.adj != null) { it.adj = text(a.adj, 120) || undefined; said.push(it.adj ? `adjustment: ${it.adj}` : 'adjustment cleared'); }
   if (a.oos != null) { it.oos = a.oos === true || undefined; said.push(it.oos ? 'marked out of stock — goes to production' : 'out-of-stock mark cleared'); }
   if (a.sq != null) {
     const n = Math.floor(Number(a.sq));
@@ -1323,7 +1352,7 @@ function prefs(db, a) {
 async function autoRoute(db, o) {
   if (!(db.prefs && db.prefs.autoMcf)) return;
   /* Only what the stock, shared oldest order first, gives this order from FBA. */
-  const mine = J.allocate(db.orders, db.stock)[o.no] || {};
+  const mine = J.allocate(db.orders, J.stockLookup(db.stock, db.erp))[o.no] || {};
   const lines = J.undecided(o).filter(i => mine[i] && mine[i].takes === 'mcf');
   if (!lines.length) return;
   try { await decide(db, { no: o.no, route: 'mcf', lines, speed: 'Standard' }); note(o, 'APP', 'Auto-sent to MCF: the items Amazon FBA has'); }
@@ -1626,15 +1655,32 @@ async function importOrders(db) {
  * stores with the signed-in user's access and hands the answer to this page; no key ever reaches the hub. Read only:
  * marking lines shipped still goes through the hub's queue (and its allowWrites switch).
  * `got` = { Ridhi: <Pricing API answer>, CPC: <…> } — each answer's orders as Shopify.gs shopifyOrders_ shapes them. */
+/* The ERP's own figures per item, sent by the ERP page with the orders (shopify-hub-local.js shubInfo): FBA in the
+ * store's Amazon account, India Finished Goods, the Amazon code, the shelf bin, other sizes, and an open production line.
+ * Kept in db.erp (newest wins per SKU), and every real order's lines take their FBA / India figure from it. */
+function takeErpInfo(db, info) {
+  if (!info || typeof info !== 'object' || info.error || !info.skus) return info && info.error ? `ERP stock not read (${String(info.error).slice(0, 80)})` : '';
+  const old = db.erp || {};
+  db.erp = { at: Number(info.at) || Date.now(), stockAt: info.stockAt || {}, indiaAt: String(info.indiaAt || ''), indiaErr: String(info.indiaErr || ''),
+    skus: Object.assign({}, old.skus, info.skus), lines: Object.assign({}, old.lines, info.lines) };
+  db.orders.forEach(o => { if (o.source !== 'shopify') return; o.items.forEach(it => {
+    const e = db.erp.skus[o.store + '|' + String(it.sku || '').trim().toUpperCase()];
+    if (e) { it.fba = e.fba == null ? 0 : e.fba; it.india = e.india == null ? 0 : e.india; }
+  }); });
+  return '';
+}
 async function importFromPricing(db, got) {
   let added = 0; const notes = [], since = Date.now() - 14 * 86400000;
+  const erpNote = takeErpInfo(db, got && got.info); if (erpNote) notes.push(erpNote);
+  const erpOf = (store, sku) => (db.erp && db.erp.skus && db.erp.skus[store + '|' + String(sku || '').trim().toUpperCase()]) || null;
   for (const store of ['Ridhi', 'CPC']) {
     const ans = got && got[store];
     if (!ans) { notes.push(`${store}: not read`); continue; }
     if (ans.error) { notes.push(`${store}: ${String(ans.error).slice(0, 120)}`); continue; }
     for (const s of Array.isArray(ans.orders) ? ans.orders : []) {
       if (!s || !/^\d+$/.test(String(s.id)) || s.gone || s.cancelledAt || String(s.ff).toLowerCase() === 'fulfilled') continue;
-      const gid = 'gid://shopify/Order/' + s.id, at = Date.parse(s.at + 'T12:00:00Z');
+      /* The Pricing API gives the day only: midday UTC, never later than now (so today's order is not "in the future"). */
+      const gid = 'gid://shopify/Order/' + s.id, at = Math.min(Date.parse(s.at + 'T12:00:00Z'), Date.now());
       if (!(at >= since) || db.orders.some(o => o.gid === gid)) continue;
       /* What is left on each line after refunds and order edits (cq), and how much of it Shopify still has to ship (fq). */
       const lines = (s.items || []).map(l => Object.assign({}, l, { left: l.cq != null ? Number(l.cq) : Math.max(0, (Number(l.qty) || 0) - (Number(l.rq) || 0)) })).filter(l => l.left > 0);
@@ -1646,8 +1692,12 @@ async function importFromPricing(db, got) {
         cust: { n: a.name || 'Customer', e: s.email || '', ph: a.phone || '', k: 1 },
         addr: { a1: a.a1 || '', a2: a.a2 || '', city: a.city || '', state: a.state || '', zip: a.zip || '', country: a.country || '', phone: a.phone || '' },
         ship: 0, note: s.note || '', pkgs: [], tl: [], rets: [],
-        items: lines.map(l => ({ lid: 'gid://shopify/LineItem/' + l.lid, t: l.name || l.sku || 'Item', v: l.variant || '', sku: String(l.sku || ''), price: Number(l.price) || 0,
-          q: l.left, fba: stock(l.sku).fba || 0, india: stock(l.sku).india || 0, pk: null })) };
+        /* What Shopify's order page also shows: payment status, currency and total, tags. */
+        fin: String(s.fin || ''), cur: String(s.cur || 'USD'), total: Number(s.total) || 0, tags: String(s.tags || ''),
+        items: lines.map(l => { const e = erpOf(store, l.sku), st = stock(l.sku);
+          return { lid: 'gid://shopify/LineItem/' + l.lid, t: l.name || l.sku || 'Item', v: l.variant || '', sku: String(l.sku || ''), price: Number(l.price) || 0,
+            q: l.left, rq: Number(l.rq) || 0, img: String(l.img || ''),
+            fba: e ? (e.fba == null ? 0 : e.fba) : st.fba || 0, india: e ? (e.india == null ? 0 : e.india) : st.india || 0, pk: null }; }) };
       if (config.amazon(store)) {
         try { const f = await amazon.fbaStock(store, o.items.map(i => i.sku).filter(Boolean)); o.items.forEach(i => { if (f[i.sku] != null) i.fba = f[i.sku]; }); }
         catch (e) { notes.push(`${store}: FBA stock not read (${e.message})`); }
@@ -2050,7 +2100,7 @@ function connections() {
 }
 function state() {
   const d = db();
-  return { ok: true, now: Date.now(), v: store.version(), orders: d.orders, stock: d.stock, prefs: d.prefs || {}, queue: d.queue.slice(-200).reverse(), lastTrack: d.lastTrack || null,
+  return { ok: true, now: Date.now(), v: store.version(), orders: d.orders, stock: d.stock, prefs: d.prefs || {}, erp: d.erp || null, queue: d.queue.slice(-200).reverse(), lastTrack: d.lastTrack || null,
     connections: connections(), health: d.health || {}, customs: csb.state(d).sku, hsDefault: csb.CO.hsExport, nextInv: csb.state(d).nextInv,
     settings: { web: !!config.WEB, writes: config.shopifyWrites(), realMcf: config.realMcf(), trackMinutes: config.trackMinutes(),
       fedexShip: config.fedexShip() ? { on: true, sandbox: config.fedexShip().sandbox } : { on: false } } };

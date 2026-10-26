@@ -48,12 +48,27 @@ body.busy button{pointer-events:none;opacity:.6}
 .b-make{background:#EEEDFE;color:#3C3489}
 .b-done{background:var(--accent-bg);color:var(--accent)}
 .b-bad{background:var(--bad-bg);color:var(--bad)}
-.od-row{display:grid;grid-template-columns:36px minmax(0,1fr) auto auto auto;gap:12px;align-items:center;padding:9px 14px;border-top:1px solid var(--line);font-size:13px}
+.od-row{display:grid;grid-template-columns:36px minmax(0,1fr) auto auto;gap:12px;align-items:center;padding:9px 14px;border-top:1px solid var(--line);font-size:13px}
 .od-th{width:36px;height:36px;border-radius:8px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)}
 .od-it .n{font-weight:600}
 .od-chip{font-size:11.5px;padding:2px 8px;border-radius:8px;background:var(--soft);color:var(--muted);white-space:nowrap}
 .od-q{font-weight:700;white-space:nowrap}
-.od-chip.oos{background:var(--bad-bg);color:var(--bad)}
+.od-chip.oos,.od-chip.zero{background:var(--bad-bg);color:var(--bad)}
+.od-chip.on-mcf{background:#FAEEDA;color:#633806}
+.od-chip.on-india{background:#E6F1FB;color:#0C447C}
+.od-chip.alt{background:var(--brand-bg);color:var(--brand);white-space:normal}
+.od-chip.ok{background:var(--accent-bg);color:var(--accent)}
+.od-chip.warn{background:var(--warn-bg);color:var(--warn-ink)}
+.od-chip.st{background:var(--soft);color:var(--ink)}
+.od-item{border-top:1px solid var(--line)}
+.od-item .od-row{border-top:0;padding-bottom:4px}
+img.od-th{object-fit:cover;background:var(--soft)}
+.od-l2{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:0 14px 10px 62px}
+.od-more{margin-left:auto;font-size:12px}
+.od-drawer{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px 12px;margin:0 14px 12px 62px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--soft)}
+.od-drawer label{display:flex;flex-direction:column;gap:4px;margin:0;font-size:12px;color:var(--muted)}
+.od-drawer input{height:32px;font-size:12.5px}
+.od-drawer .w2{grid-column:1/-1}
 .od-off{opacity:.8}
 .od-off .od-row .od-it .n{color:var(--muted)}
 select.od-move{height:30px;padding:0 8px;font-size:12px;border-radius:8px;width:auto;color:var(--muted);background:transparent}
@@ -75,7 +90,7 @@ select.od-move{height:30px;padding:0 8px;font-size:12px;border-radius:8px;width:
 .od-side .s-cmt input{height:32px;font-size:12.5px}
 .od-card .s-scans summary{border-top:1px solid var(--line)}
 @media (max-width:900px){ .od-grid{grid-template-columns:1fr} }
-@media (max-width:600px){ .od-row{grid-template-columns:36px minmax(0,1fr) auto} .od-row .od-chip{grid-column:2} .od-row select.od-move{grid-column:2 / -1;justify-self:start} }
+@media (max-width:600px){ .od-l2{padding-left:14px} .od-drawer{margin-left:14px;grid-template-columns:1fr 1fr} .od-row{grid-template-columns:36px minmax(0,1fr) auto} .od-row .od-chip{grid-column:2} .od-row select.od-move{grid-column:2 / -1;justify-self:start} }
 
 /* A part at a glance, the full step list folded under it */
 .pp-strip{display:flex;gap:4px;list-style:none;margin:0;padding:12px 14px 10px;flex-wrap:wrap}
