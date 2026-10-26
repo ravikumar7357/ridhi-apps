@@ -12067,6 +12067,9 @@ const PKS = {
   panel: ""         // "dims" or "finish" while that panel is open: a save landing must not redraw it away
 };
 const PKS_GAP_MS = 900;     // a label not read for this long has left the camera (21 Oct; see pksFrame)
+const PKS_GONE_MS = 250;    // unread this long and back somewhere else: it may be the next piece (26 Oct; see pksFrame)
+const PKS_LEFT_MS = 120;    // …or this long, when it was last seen on its way out
+const PKS_MOVE = 0.2;       // this far across the box on screen is another place: the label moved, not shook
 const PKS_AGREE = 2;
 const PKS_RETRY_MS = 15000;
 const PKS_HIST_KEEP = 80;
@@ -12103,22 +12106,60 @@ function pksBoxOf(p, n) {
  * label was in sight). Every read of it, however patchy, keeps it in sight. The rule before (19 Oct) let a slightly blurred
  * or tilted label, read every 0.2–0.4 s, count again and again: 7–10 times in six seconds.
  * `need` reads must agree before it counts: a Code 128 label carries its own check digit, so one read of a code on the
- * FNSKU list is enough (the caller says so); anything else needs PKS_AGREE. */
+ * FNSKU list is enough (the caller says so); anything else needs PKS_AGREE.
+ *
+ * WHERE THE LABEL SITS (26 Oct, Ravi: "it was scanning every product properly before, not now"). The 0.9 s wait above
+ * missed the next identical piece: swapped in under a second, or read once while moving, and 4 of 5 pieces were lost.
+ * Waiting alone cannot tell a label held still that blurs for half a second from the next piece put in its place, so the
+ * readers now say where the label is (st.aim, set by pksAimed; null from a reader that cannot tell). The label's place
+ * is kept (`home`, following it as the hand drifts). The same code is the next piece when, after PKS_GONE_MS unread, it
+ * comes back somewhere else (PKS_MOVE from home), or, after PKS_LEFT_MS, when it was last seen on its way out; then two
+ * reads in one place count it, so a label read once while sliding out never counts. Back in its old place without being
+ * seen leave, it is the same piece, as before: a piece put down exactly where the last one was still waits PKS_GAP_MS. */
 function pksFrame(code, t, st, need) {
   st = st || PKS;
-  const f = st.frameMs || 0, s = st.seen, agree = need || PKS_AGREE;
+  const f = st.frameMs || 0, s = st.seen, agree = need || PKS_AGREE, at = st.aim || null;
   if (s && s.code === code) {
     const iv = t - s.last, hold = Math.max(PKS_GAP_MS, 6 * f, 2.5 * (s.ivMax || 0));
+    const next = (s.away && iv > Math.max(PKS_LEFT_MS, 1.5 * f)) || (iv > Math.max(PKS_GONE_MS, 2.2 * f) && pksApart(s.home, at) >= PKS_MOVE);
+    if (next) {
+      st.seen = { code, last: t, hits: 1, counted: false, need: 2, settle: at, home: at, away: false, farN: 0, ivMax: 0 };
+      return false;
+    }
     if (iv <= hold) {
       if (iv > 0) s.ivMax = Math.max(s.ivMax || 0, Math.min(iv, 1600));
       s.last = t;
-      s.hits++;
-      if (!s.counted && s.hits >= agree) { s.counted = true; return true; }
+      if (at) pksTrack(s, at);
+      /* a piece being settled counts on two reads in one place: one read while it slides in starts again */
+      if (!s.counted && s.settle && at) {
+        const still = pksApart(s.settle, at) < PKS_MOVE / 2;
+        s.settle = at;
+        s.hits = still ? s.hits + 1 : 1;
+      } else s.hits++;
+      if (!s.counted && s.hits >= (s.need || agree)) { s.counted = true; return true; }
       return false;
     }
   }
-  st.seen = { code, last: t, hits: 1, counted: agree <= 1, ivMax: 0 };
+  st.seen = { code, last: t, hits: 1, counted: agree <= 1, need: agree, home: at, away: false, farN: 0, ivMax: 0 };
   return agree <= 1;
+}
+/** How far apart two places in the box on screen are (shares of its width and height); 0 when either is not known. */
+function pksApart(a, b) {
+  return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
+}
+/** One read at `at`: near home, home follows it (a hand drifts); away from home, the label is on its way out, unless it
+ * stays still there for three reads in a row, which is a piece moved to a new place without leaving. */
+function pksTrack(s, at) {
+  if (!s.home) { s.home = at; s.away = false; s.farN = 0; return; }
+  if (pksApart(s.home, at) < PKS_MOVE) {
+    s.home = { x: s.home.x * 0.8 + at.x * 0.2, y: s.home.y * 0.8 + at.y * 0.2 };
+    s.away = false; s.farN = 0;
+    return;
+  }
+  s.farN = s.farN && pksApart(s.farAt, at) < PKS_MOVE / 2 ? s.farN + 1 : 1;
+  s.farAt = at;
+  if (s.farN >= 3) { s.home = at; s.away = false; s.farN = 0; }
+  else s.away = true;
 }
 /** A piece counted some other way (hand scanner, typed): the same label in front of the camera is not counted again. */
 function pksSeenNow(code) {
@@ -12522,8 +12563,11 @@ function pksAimed(got, v) {
   /* ONE LABEL IN VIEW IS THAT LABEL (21 Oct, Ravi's S24 video: a clear label in the box, nothing read for 20 s). Where a
      phone's reader puts a label is not the same on every phone, so a lone label is never refused for where it is; the
      box on screen only decides between two or more. */
+  /* where the label is, as shares of the box on screen, for pksFrame to tell the next piece from this one (26 Oct) */
+  const place = (b) => b && isFinite(b.x) && isFinite(b.y) ? { x: (b.x + (b.width || 0) / 2 - r.x) / (r.w || W), y: (b.y + (b.height || 0) / 2 - r.y) / (r.h || H) } : null;
+  PKS.aim = null;
   const all = (got || []).filter((x) => x.rawValue);
-  if (all.length === 1) return all[0].rawValue;
+  if (all.length === 1) { PKS.aim = place(all[0].boundingBox); return all[0].rawValue; }
   let best = null, bestD = Infinity;
   (got || []).forEach((x) => {
     const b = x.boundingBox;
@@ -12531,7 +12575,7 @@ function pksAimed(got, v) {
     const cx = b.x + b.width / 2, cy = b.y + b.height / 2;
     if (cx < r.x || cx > r.x + r.w || cy < r.y + r.h * 0.1 || cy > r.y + r.h * 0.9) return;
     const d = Math.hypot((cx - mx) / (r.w || W), (cy - my) / (r.h || H));
-    if (d < bestD) { bestD = d; best = x.rawValue; }
+    if (d < bestD) { bestD = d; best = x.rawValue; PKS.aim = place(b); }
   });
   return best;
 }
@@ -12564,6 +12608,7 @@ async function pksLoop(run) {
   if (!PKS.on || !PKS.stream || run !== PKS_RUN) return;
   const v = $("pksVid");
   let code = null;
+  PKS.aim = null;     // where this picture's label is: set by pksAimed; the ZXing JS reader cannot tell
   try {
     if (PKS.det) {
       /* A PHONE'S OWN READER THAT FAILS ON EVERY PICTURE ("Barcode detection service unavailable" on some Androids):
