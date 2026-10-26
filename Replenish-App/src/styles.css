@@ -1705,3 +1705,7 @@ html.mob #gdMenu{right:14px;bottom:144px}
 #gdBubble #gdOff{border:1px solid var(--line,#E8EDF3);border-radius:8px;padding:0 12px;height:30px;min-height:30px;font-weight:600;color:var(--muted,#5A6472);text-decoration:none}
 #gdBubble #gdOff:hover{background:var(--soft,#F7F9FB);color:var(--ink,#14181F)}
 @media print{#gdLaunch,#gdMenu{display:none}}
+/* Ask Meera: an admin's open tickets, each with a box to answer it */
+#gdAsk .ga-tk{margin-top:8px;padding:8px;border:1px solid var(--line,#E8EDF3);border-radius:8px;background:#fff;display:flex;flex-direction:column;gap:6px}
+#gdAsk .ga-tk small{color:var(--muted,#5A6472)}
+#gdAsk .ga-tk textarea{width:100%;font:inherit;font-size:13px;border:1px solid var(--line,#E8EDF3);border-radius:6px;padding:6px}

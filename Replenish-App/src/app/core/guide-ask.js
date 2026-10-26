@@ -839,6 +839,7 @@ function gaBankLoad() {
   if (GA_BANK) return Promise.resolve(GA_BANK);
   if (!GA_BANK_P) GA_BANK_P = fetch('/guide/meera-bank.json', { cache: 'no-cache' })
     .then(r => (r.ok ? r.json() : [])).catch(() => [])
+    .then(list => (typeof gaAiLearned === 'function' ? gaAiLearned(Array.isArray(list) ? list : []) : list))
     .then(list => (GA_BANK = gaBankIndex(Array.isArray(list) ? list : [])))
     .then(b => { gaWordsLoad().then(() => setTimeout(gaSemIndex, 0)); return b; });
   return GA_BANK_P;
@@ -1089,6 +1090,7 @@ function gaSay(html, acts, after) {
 }
 async function gaAsk(q) {
   gaMine(q);
+  if (typeof gaAiCommand === 'function' && await gaAiCommand(q)) return;
   GA.lastQ = q;
   if (GA_WHEREAMI_RE.test(q) && gaHere()) {
     const lg = gaRead(q).lang, LL = (en, hi, hg) => (lg === 'hi' ? hi : lg === 'hg' ? (hg || en) : en), name = esc(gaTabName(gaHere()));
@@ -1104,10 +1106,14 @@ async function gaAsk(q) {
   if (r.miss) gaMissKeep(q, r.miss === true ? 'none' : r.miss);
   const lg = gaRead(q).lang, LL = (en, hi, hg) => (lg === 'hi' ? hi : lg === 'hg' ? hg : en);
   const fb = r.bank ? `<div class="ga-fb"><span>${LL('Did this help?', 'क्या इससे मदद मिली?', 'Kya isse madad mili?')}</span><button type="button" class="ga-fbb" data-ga="fb" data-id="up:${esc(r.bank)}" aria-label="Yes">👍</button><button type="button" class="ga-fbb" data-ga="fb" data-id="down:${esc(r.bank)}" aria-label="No">👎</button></div>` : '';
-  gaSay(r.html, r.acts, (r.after || '') + fb);
+  const ai = r.miss && typeof gaAiOn === 'function' && gaAiOn() ? [{ t: 'ai', label: LL('Ask AI', 'AI से पूछें', 'AI se poochhiye') }] : [];
+  gaSay(r.html, ai.concat(r.acts || []), (r.after || '') + fb);
   if (r.miss) gaChipsDraw();
 }
 function gaAct(t, id, tab) {
+  if (t === 'ai') { gaAiAsk(GA.lastQ || ''); return; }
+  if (t === 'aifb') { gaAiFeedback(id); return; }
+  if (t === 'aians') { gaAiAnswer(id); return; }
   if (t === 'fb') {
     const up = id.startsWith('up:'), lg = gaRead(GA.lastQ || '').lang, LL = (en, hi, hg) => (lg === 'hi' ? hi : lg === 'hg' ? hg : en);
     if (!up) gaMissKeep(GA.lastQ || '', 'not-helpful ' + id.slice(5));
