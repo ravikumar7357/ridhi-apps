@@ -73234,7 +73234,7 @@ if (SHUB_ON && $('secShopify') && $('paneShop')) {
   pane.id = 'paneShub'; pane.className = 'hide';
   pane.innerHTML = `<div class="card" style="padding:12px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
       <span style="font-weight:700">Shopify hub</span>
-      <span class="muted" style="font-size:12.5px">Local test · runs from Ridhihome/shopify-hub · temp orders, nothing is saved to the ERP</span>
+      <span class="muted" style="font-size:12.5px">Local test · runs from Ridhihome/shopify-hub · Shopify read through the Pricing API · nothing is saved to the ERP</span>
       <span id="shubState" class="muted" style="font-size:12.5px;margin-left:auto"></span>
       <button type="button" class="ghost" id="shubReload" style="padding:7px 13px;font-size:12.5px">Reload</button>
       <a class="ghost" href="${SHUB_URL}" target="_blank" rel="noopener" style="padding:7px 13px;font-size:12.5px;border-radius:12px;text-decoration:none;color:var(--ink);background:var(--card);box-shadow:var(--sh-1);font-weight:600">Open in its own tab ↗</a>
@@ -73255,6 +73255,39 @@ if (SHUB_ON && $('secShopify') && $('paneShop')) {
     if (up && (force || !$('shubFrame').src)) $('shubFrame').src = SHUB_URL + '?embed=1#orders';
   }
   $('shubReload').onclick = () => shubLoad(true);
+
+  /* Shopify through the Pricing API (Ravi, 26 Oct: "pricing api has shopify access also … make this read that access").
+   * The hub on this computer has no ERP keys; this page reads ?shopify=orders for both stores — the same read the
+   * Shopify tab makes, with the signed-in user's access — and hands the orders to the hub frame. Read only: nothing is
+   * written to Shopify from here. When the frame loads it is told the ERP can do this, and the orders are sent once;
+   * after that the hub's "Fetch orders" asks for them again. Messages go only to, and are taken only from, the hub. */
+  const SHUB_ORIGIN = new URL(SHUB_URL).origin;
+  let shubSent = false, shubBusy = false;
+  async function shubSendOrders() {
+    const fr = $('shubFrame');
+    if (shubBusy || !fr.contentWindow) return;
+    shubBusy = true; $('shubState').textContent = 'Reading Shopify through the Pricing API…';
+    const day = ms => new Date(ms).toISOString().slice(0, 10);
+    const win = { start: day(Date.now() - 14 * 86400000), end: day(Date.now()), open: '1', nophoto: '1' };
+    const one = shop => prGet(Object.assign({ shopify: 'orders' }, shop ? { shop } : {}, win), { timeoutMs: 150000 })
+      .then(d => ({ orders: d.orders || [], more: !!d.more }), e => ({ error: e.message || String(e) }));
+    try {
+      const [Ridhi, CPC] = await Promise.all([one(''), one('CPC')]);
+      fr.contentWindow.postMessage({ type: 'shub-orders', got: { Ridhi, CPC } }, SHUB_ORIGIN);
+      const n = x => x.error ? 'not read' : x.orders.length + ' open';
+      $('shubState').textContent = `Shopify via Pricing API · Ridhi ${n(Ridhi)} · CPC ${n(CPC)} · ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    } finally { shubBusy = false; }
+  }
+  $('shubFrame').addEventListener('load', () => {
+    const fr = $('shubFrame');
+    if (!fr.src || !fr.contentWindow) return;
+    fr.contentWindow.postMessage({ type: 'shub-erp' }, SHUB_ORIGIN);
+    if (!shubSent) { shubSent = true; shubSendOrders(); }
+  });
+  window.addEventListener('message', e => {
+    if (e.origin !== SHUB_ORIGIN || e.source !== $('shubFrame').contentWindow || !e.data) return;
+    if (e.data.type === 'shub-want-orders') shubSendOrders();
+  });
 
   /* The one extra page: showTab opens it itself, and hands every other page to the real showTab. */
   const showTabReal = showTab;
