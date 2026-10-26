@@ -26,12 +26,18 @@ const OUT = path.join(ROOT, '_site');
 const SHA = (process.env.GITHUB_SHA || 'local').slice(0, 7);
 const BRANCH = process.env.GITHUB_REF_NAME || 'local';
 const WHEN = new Date().toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
+/* THE ONE WRITE THE TEST ERP MAY BE ALLOWED (Ravi, 26 Oct: everything tracked by Shopify). The Shopify hub (test) marks
+ * order lines shipped with their tracking numbers through the Pricing API (POST shopify=fulfilLines), so Shopify can track
+ * the parcels. That is a real change to a live store and a shipping e-mail to the customer. OFF until the stores' Shopify
+ * tokens have the fulfilment permissions and Ravi says to switch it on; then true, and only that one POST goes through —
+ * every other write stays stopped. */
+const HUB_SHOPIFY_WRITES = false;
 
 /* ---- what runs first on every page of the test ERP ---- */
 const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-test-erp.js; not in the real ERP. */
 (function () {
   var MSG = 'Saving is off in the TEST ERP \\u2014 nothing was saved.';
-  window.__TEST_ERP = { sha: ${JSON.stringify(SHA)}, branch: ${JSON.stringify(BRANCH)}, built: ${JSON.stringify(WHEN)}, blocked: 0 };
+  window.__TEST_ERP = { sha: ${JSON.stringify(SHA)}, branch: ${JSON.stringify(BRANCH)}, built: ${JSON.stringify(WHEN)}, blocked: 0, hubShopifyWrites: ${HUB_SHOPIFY_WRITES} };
   function tell(what) {
     window.__TEST_ERP.blocked++;
     try { console.warn('[TEST ERP] blocked: ' + what); } catch (e) {}
@@ -53,6 +59,10 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
     if (/firebasedatabase\\.app|firebaseio\\.com/.test(url) && method !== 'GET' && method !== 'HEAD') { write = true; what = 'database ' + method; }
     else if (/identitytoolkit\\.googleapis\\.com\\/v1\\/accounts:(signUp|update|delete|sendOobCode|setAccountInfo)/.test(url)) { write = true; what = 'login change'; }
     else if (/script\\.google(usercontent)?\\.com/.test(url) && (method !== 'GET' || BACKEND_GET_WRITES.test(url))) { write = true; what = 'backend ' + method; }
+    /* The Shopify hub's "mark these lines shipped", and nothing else — only when HUB_SHOPIFY_WRITES is on. */
+    if (write && window.__TEST_ERP.hubShopifyWrites && method === 'POST' && /script\\.google\\.com/.test(url)) {
+      try { var b = JSON.parse(String((init && init.body) || '')); if (b && b.shopify === 'fulfilLines' && Object.keys(b).every(function (k) { return /^(shopify|shop|orderId|lines|company|numbers|notify|key|idToken)$/.test(k); })) write = false; } catch (e) { /* not that request: stays stopped */ }
+    }
     if (write) return window.__testErpBlock(what + ' ' + url.replace(/[?#].*$/, '').slice(0, 120));
     if (url.indexOf('accounts:signInWithPassword') >= 0) slStart('sign-in');
     /* Firestore's listen / write channels stay open for good: not waited for, or no screen would ever be "done". */

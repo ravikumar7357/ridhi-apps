@@ -491,7 +491,9 @@ async function run(db, opts) {
     const o = db.orders.find(x => x.no === q.orderNo);
     if (!o) { q.status = 'failed'; q.last = 'The order is no longer in the hub'; continue; }
     if (!config.shopify(q.store)) { q.status = 'held'; q.last = `Shopify (${q.store}) is not connected`; out.held++; continue; }
-    if (!config.shopifyWrites()) { q.status = 'held'; q.last = 'Sending is switched off (shopify.allowWrites = false)'; out.held++; continue; }
+    if (!config.shopifyWrites()) { q.status = 'held'; q.last = config.WEB ? 'Sending to Shopify is switched off on the test ERP' : 'Sending is switched off (shopify.allowWrites = false)'; out.held++; continue; }
+    /* The test-site copy sends only some kinds of change (web/shopify.js); the rest wait for the hub on a computer. */
+    if (shopify.canSend && !shopify.canSend(q.kind)) { q.status = 'held'; q.last = 'Not sent from the test site — only marking lines shipped is'; out.held++; continue; }
     const pk = q.data.part != null ? o.pkgs[q.data.part] : null;
     try {
       if (q.kind === 'mcf') {
@@ -710,193 +712,6 @@ const STOCK = [
 ].map(r => ({ t: r[0], v: r[1], sku: r[2], store: r[3], shop: r[4], fba: r[5], india: r[6], sold: r[7] }));
 
 module.exports = { build, STOCK, demoOrder };
-
-});
-
-HUBMOD("shopify", function (module, exports, require, __dirname, process, Buffer) {
-/* =====================================================================================
- * SHOPIFY — Admin GraphQL API. Reads orders; writes the changes the hub queues
- * (split + in progress + note for MCF, tags, fulfil with every tracking number, delivery events).
- *
- * GraphQL answers 200 OK with the failure INSIDE the body (`errors`, or `userErrors` on a mutation),
- * so every call checks both — a write that quietly did nothing is the worst outcome.
- * ===================================================================================== */
-const { request, sleep, clip } = require('./util');
-const config = require('./config');
-
-async function gql(store, query, variables) {
-  const s = config.shopify(store);
-  if (!s) throw new Error(`Shopify (${store}) is not connected — fill shopify.stores.${store} in config.local.json`);
-  for (let attempt = 0; attempt < 4; attempt++) {
-    const r = await request('POST', `https://${s.domain}/admin/api/${s.version}/graphql.json`, {
-      headers: { 'X-Shopify-Access-Token': s.token }, body: { query, variables: variables || {} } });
-    if (r.status === 429) { await sleep(2000 * (attempt + 1)); continue; }
-    if (r.status === 401 || r.status === 403) throw new Error(`Shopify ${r.status}: the token was refused or lacks a permission — ${clip(r.text, 200)}`);
-    if (r.status >= 300) throw new Error(`Shopify ${r.status}: ${clip(r.text, 300)}`);
-    const d = r.json || {};
-    if (d.errors && d.errors.length) {
-      const throttled = d.errors.some(e => e.extensions && e.extensions.code === 'THROTTLED');
-      if (throttled) { await sleep(2000 * (attempt + 1)); continue; }
-      throw new Error('Shopify: ' + clip(d.errors.map(e => e.message).join('; '), 300));
-    }
-    return d.data || {};
-  }
-  throw new Error('Shopify kept saying "too many requests" — try again in a minute.');
-}
-function userErrors(payload, what) {
-  const errs = ((payload || {}).userErrors || []).map(e => e.message).filter(Boolean);
-  if (errs.length) throw new Error(`Shopify refused ${what}: ${clip(errs.join('; '), 300)}`);
-}
-
-/* ---------------- reads ---------------- */
-async function check(store) {
-  const d = await gql(store, `{ shop { name myshopifyDomain } currentAppInstallation { accessScopes { handle } } }`);
-  return { name: d.shop.name, domain: d.shop.myshopifyDomain, scopes: (d.currentAppInstallation.accessScopes || []).map(x => x.handle) };
-}
-/* What each job needs (checked against the stores on 24 Oct): reading orders and Shopify's own tracking needs only
- * read_orders; marking lines shipped with the tracking number needs the merchant-managed fulfilment-order pair;
- * notes and tags need write_orders. */
-const NEED_SCOPES = ['read_orders', 'read_merchant_managed_fulfillment_orders', 'write_merchant_managed_fulfillment_orders', 'write_orders'];
-const NEED_FOR_TEST_ORDERS = ['write_draft_orders'];
-
-/* Shopify's fulfilments: what has already shipped, with the tracking number, and Shopify's own tracking of it
- * (status, scans with place and time, expected and delivered dates) — Shopify follows DHL Express, FedEx, UPS,
- * USPS and Amazon Logistics US parcels itself when the carrier name is written exactly. */
-const FULFILMENT_FIELDS = `fulfillments(first: 10) { id status displayStatus createdAt inTransitAt deliveredAt estimatedDeliveryAt
-    trackingInfo(first: 5) { company number }
-    fulfillmentLineItems(first: 50) { nodes { quantity lineItem { id } } }
-    events(first: 40) { nodes { status happenedAt city province country message } } }`;
-const ORDER_FIELDS = `id name createdAt cancelledAt note email phone displayFinancialStatus displayFulfillmentStatus
-  totalShippingPriceSet { shopMoney { amount } }
-  shippingAddress { name address1 address2 city provinceCode zip countryCodeV2 phone }
-  lineItems(first: 50) { nodes { id sku title variantTitle quantity currentQuantity unfulfilledQuantity originalUnitPriceSet { shopMoney { amount } } } }
-  ${FULFILMENT_FIELDS}`;
-
-/** Recent open orders — what the hub imports. */
-async function recentOrders(store, days) {
-  const since = new Date(Date.now() - (days || 14) * 86400000).toISOString().slice(0, 10);
-  const d = await gql(store, `query($q: String!) { orders(first: 50, sortKey: CREATED_AT, reverse: true, query: $q) { nodes { ${ORDER_FIELDS} } } }`,
-    { q: `created_at:>=${since} -fulfillment_status:fulfilled -status:cancelled` });
-  return d.orders.nodes;
-}
-/** The order as Shopify has it right now — checked before anything is done to it. */
-async function freshOrder(store, gid) {
-  const d = await gql(store, `query($id: ID!) { order(id: $id) { id name cancelledAt displayFulfillmentStatus note tags
-    shippingAddress { address1 city zip countryCodeV2 } } }`, { id: gid });
-  if (!d.order) throw new Error('Shopify has no such order any more');
-  return d.order;
-}
-/** The order's fulfilments with Shopify's tracking — what the tracking check reads. Read-only. */
-async function fulfilments(store, gid) {
-  const d = await gql(store, `query($id: ID!) { order(id: $id) { ${FULFILMENT_FIELDS} } }`, { id: gid });
-  return d.order ? d.order.fulfillments : [];
-}
-async function fulfillmentOrders(store, gid) {
-  const d = await gql(store, `query($id: ID!) { order(id: $id) { fulfillmentOrders(first: 20) { nodes { id status
-    lineItems(first: 50) { nodes { id remainingQuantity lineItem { id } } } } } } }`, { id: gid });
-  return (d.order ? d.order.fulfillmentOrders.nodes : []).filter(f => ['OPEN', 'IN_PROGRESS', 'SCHEDULED'].includes(f.status));
-}
-/** The open fulfilment-order lines that carry these order lines. */
-function linesFor(fos, lineGids) {
-  const out = [];
-  fos.forEach(fo => fo.lineItems.nodes.forEach(li => {
-    if (lineGids.includes(li.lineItem.id) && li.remainingQuantity > 0) out.push({ fo: fo.id, id: li.id, qty: li.remainingQuantity });
-  }));
-  return out;
-}
-
-/* ---------------- writes ---------------- */
-async function appendNote(store, gid, line) {
-  const o = await freshOrder(store, gid);
-  const note = (o.note ? o.note + '\n' : '') + line;           // the customer's own note is kept, ours is added under it
-  const d = await gql(store, `mutation($input: OrderInput!) { orderUpdate(input: $input) { order { id } userErrors { field message } } }`,
-    { input: { id: gid, note } });
-  userErrors(d.orderUpdate, 'the note');
-}
-async function addTags(store, gid, tags) {
-  if (!tags || !tags.length) return;
-  const d = await gql(store, `mutation($id: ID!, $tags: [String!]!) { tagsAdd(id: $id, tags: $tags) { node { id } userErrors { message } } }`, { id: gid, tags });
-  userErrors(d.tagsAdd, 'the tags');
-}
-async function removeTags(store, gid, tags) {
-  if (!tags || !tags.length) return;
-  const d = await gql(store, `mutation($id: ID!, $tags: [String!]!) { tagsRemove(id: $id, tags: $tags) { node { id } userErrors { message } } }`, { id: gid, tags });
-  userErrors(d.tagsRemove, 'removing tags');
-}
-/**
- * MCF part: give these lines a fulfilment order of their own (split), and mark it in progress.
- * Returns the fulfilment order id that now holds them.
- */
-async function splitAndProgress(store, gid, lineGids) {
-  let fos = await fulfillmentOrders(store, gid);
-  let lines = linesFor(fos, lineGids);
-  if (!lines.length) throw new Error('these lines have nothing left to fulfil in Shopify');
-  const foIds = [...new Set(lines.map(l => l.fo))];
-  const whole = foIds.length === 1 && fos.find(f => f.id === foIds[0]).lineItems.nodes.every(li => !li.remainingQuantity || lineGids.includes(li.lineItem.id));
-  let target = foIds[0];
-  if (!whole) {
-    const d = await gql(store, `mutation($s: [FulfillmentOrderSplitInput!]!) { fulfillmentOrderSplit(fulfillmentOrderSplits: $s) {
-        fulfillmentOrderSplits { fulfillmentOrder { id } remainingFulfillmentOrder { id } } userErrors { field message } } }`,
-      { s: foIds.map(fo => ({ fulfillmentOrderId: fo, fulfillmentOrderLineItems: lines.filter(l => l.fo === fo).map(l => ({ id: l.id, quantity: l.qty })) })) });
-    userErrors(d.fulfillmentOrderSplit, 'the split');
-    /* Which half holds our lines is read back rather than assumed. */
-    fos = await fulfillmentOrders(store, gid);
-    const mine = fos.find(f => f.lineItems.nodes.filter(li => li.remainingQuantity > 0).every(li => lineGids.includes(li.lineItem.id)) && f.lineItems.nodes.some(li => li.remainingQuantity > 0));
-    if (!mine) throw new Error('split done, but the part could not be found on its own afterwards');
-    target = mine.id;
-  }
-  const p = await gql(store, `mutation($id: ID!) { fulfillmentOrderReportProgress(id: $id) { fulfillmentOrder { id status } userErrors { field message } } }`, { id: target });
-  userErrors(p.fulfillmentOrderReportProgress, '"in progress"');
-  return target;
-}
-/** Mark these lines fulfilled with every tracking number. Returns the fulfilment id (for delivery events). */
-async function fulfil(store, gid, lineGids, company, numbers, notify) {
-  const fos = await fulfillmentOrders(store, gid);
-  const lines = linesFor(fos, lineGids);
-  if (!lines.length) return { already: true };
-  const byFo = {};
-  lines.forEach(l => { (byFo[l.fo] = byFo[l.fo] || []).push({ id: l.id, quantity: l.qty }); });
-  const d = await gql(store, `mutation($f: FulfillmentInput!) { fulfillmentCreate(fulfillment: $f) { fulfillment { id status } userErrors { field message } } }`,
-    { f: { notifyCustomer: !!notify, trackingInfo: { company, numbers }, lineItemsByFulfillmentOrder: Object.keys(byFo).map(fo => ({ fulfillmentOrderId: fo, fulfillmentOrderLineItems: byFo[fo] })) } });
-  userErrors(d.fulfillmentCreate, 'the fulfilment');
-  return { id: d.fulfillmentCreate.fulfillment.id };
-}
-/** Take back a fulfilment (the FedEx shipment behind it was cancelled), so the lines are open again. */
-async function cancelFulfilment(store, fulfillmentId) {
-  const d = await gql(store, `mutation($id: ID!) { fulfillmentCancel(id: $id) { fulfillment { id status } userErrors { field message } } }`, { id: fulfillmentId });
-  userErrors(d.fulfillmentCancel, 'cancelling the fulfilment');
-}
-async function deliveryEvent(store, fulfillmentId, status, happenedAt, message) {
-  const d = await gql(store, `mutation($e: FulfillmentEventInput!) { fulfillmentEventCreate(fulfillmentEvent: $e) { fulfillmentEvent { status } userErrors { field message } } }`,
-    { e: { fulfillmentId, status, happenedAt: new Date(happenedAt).toISOString(), message: message || undefined } });
-  userErrors(d.fulfillmentEventCreate, 'the delivery event');
-}
-/** A test order in a TEST store: a draft order with custom lines, completed. Needs write_draft_orders. */
-async function createTestOrder(store, o) {
-  const d = await gql(store, `mutation($input: DraftOrderInput!) { draftOrderCreate(input: $input) { draftOrder { id } userErrors { field message } } }`, { input: {
-    email: o.email, note: 'Test order made by the Shopify hub', tags: ['hub-test'],
-    shippingAddress: o.address,
-    lineItems: o.lines.map(l => ({ title: l.title, sku: l.sku, quantity: l.qty || 1, requiresShipping: true, taxable: false,
-      originalUnitPriceWithCurrency: { amount: l.price, currencyCode: 'USD' } })),
-  } });
-  userErrors(d.draftOrderCreate, 'the test order');
-  const c = await gql(store, `mutation($id: ID!) { draftOrderComplete(id: $id) { draftOrder { order { id name } } userErrors { field message } } }`, { id: d.draftOrderCreate.draftOrder.id });
-  userErrors(c.draftOrderComplete, 'completing the test order');
-  return c.draftOrderComplete.draftOrder.order;
-}
-
-/**
- * DRY RUN of "mark these lines shipped": reads what Shopify still has open for the lines and says exactly what
- * the hub would send — which fulfilment order, which lines, how many, which carrier and number. Sends nothing.
- */
-async function previewFulfil(store, gid, lineGids, company, numbers) {
-  const fos = await fulfillmentOrders(store, gid);
-  const lines = linesFor(fos, lineGids);
-  if (!lines.length) return { ok: false, note: 'Shopify has nothing left open on these lines — they are already shipped there (or the order was changed).' };
-  return { ok: true, note: `Would mark ${lines.reduce((n, l) => n + l.qty, 0)} unit(s) on ${[...new Set(lines.map(l => l.fo))].length} fulfilment order(s) shipped with ${company} ${numbers.join(', ')}`, lines };
-}
-
-module.exports = { check, NEED_SCOPES, NEED_FOR_TEST_ORDERS, recentOrders, freshOrder, fulfilments, previewFulfil, appendNote, addTags, removeTags, splitAndProgress, fulfil, cancelFulfilment, deliveryEvent, createTestOrder };
 
 });
 
@@ -1845,6 +1660,16 @@ async function run(db, opts) {
   const sim = !!(opts && opts.simulate), only = opts && opts.no ? opts : null, out = { moved: 0, checked: 0, errors: [] };
   const nos = opts && Array.isArray(opts.nos) ? new Set(opts.nos) : null;     // "Check tracking now" on ticked orders
   const cache = {};                                                          // one Shopify read per order per run
+  /* Where Shopify is read many orders at a time (the test site, through the Pricing API), read them all first. */
+  if (shopify.fulfilmentsMany) {
+    for (const store of ['Ridhi', 'CPC']) {
+      const want = db.orders.filter(o => o.store === store && o.source === 'shopify' && o.gid && config.shopify(store) && (!nos || nos.has(o.no)) && (!only || o.no === only.no)
+        && o.pkgs.some(pk => !J.isMcf(pk) && pk.trk.length && J.off(pk) >= 1 && J.off(pk) <= 5 && !config.carrier(pk.car)));
+      if (!want.length) continue;
+      try { const got = await shopify.fulfilmentsMany(store, want.map(o => o.gid)); want.forEach(o => { cache[o.no] = got[o.gid] || []; }); }
+      catch (e) { out.errors.push(`${store} Shopify: ${e.message}`); want.forEach(o => { cache[o.no] = []; }); }
+    }
+  }
   for (const o of db.orders) for (const pk of o.pkgs) {
     if (only && (o.no !== only.no || o.pkgs.indexOf(pk) !== Number(only.part))) continue;
     if (nos && !nos.has(o.no)) continue;
@@ -1886,14 +1711,17 @@ module.exports = { run, moveTo };
 
 HUBMOD("config", function (module, exports, require, __dirname, process, Buffer) {
 /* THE HUB ON THE TEST SITE — in place of lib/config.js (tools/build-web.js swaps it in).
- * No keys at all: a published page can hold none. Shopify orders come from the ERP page, read through its Pricing API
- * (importFromPricing); MCF and tracking are simulated; FedEx labels, Amazon and carrier calls are off; nothing is ever
- * sent to Shopify (allowWrites false — changes wait in the queue as "held"). */
+ * No keys at all: a published page can hold none. Shopify is reached through the ERP page around the hub, which asks the
+ * Pricing API with the signed-in person's access (web/shopify.js): so a store counts as connected while the hub is open
+ * inside the ERP, and sending to Shopify is on only when the ERP says the test ERP lets writes through. Amazon, the
+ * carriers and FedEx labels are off: MCF and carrier tracking are simulated; Shopify's own tracking is real. */
 const CFG = { shopify: { stores: {}, allowWrites: false }, amazon: { accounts: {}, allowRealMcf: false }, carriers: {}, tracking: {} };
+const viaErp = () => !!HUB_WEB.erp;
 module.exports = {
   WEB: true, load: () => CFG, cfg: () => CFG,
-  shopify: () => null, amazon: () => null, carrier: () => null, fedexShip: () => null,
-  shopifyWrites: () => false, realMcf: () => false, trackMinutes: () => 30, port: () => 0, shopDomain: s => String(s || ''),
+  shopify: store => (viaErp() ? { domain: `${store} · through the ERP's Pricing API`, bridge: true } : null),
+  amazon: () => null, carrier: () => null, fedexShip: () => null,
+  shopifyWrites: () => viaErp() && !!HUB_WEB.writes, realMcf: () => false, trackMinutes: () => 30, port: () => 0, shopDomain: s => String(s || ''),
 };
 
 });
@@ -1939,6 +1767,67 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const clip = (s, n) => String(s == null ? '' : s).slice(0, n || 300);
 
 module.exports = { request, sleep, clip };
+
+});
+
+HUBMOD("shopify", function (module, exports, require, __dirname, process, Buffer) {
+/* THE HUB ON THE TEST SITE — in place of lib/shopify.js (tools/build-web.js swaps it in).
+ *
+ * The test site holds no Shopify token. What the hub needs from Shopify goes through the ERP page around it, which
+ * asks the Pricing API (Pricing-API/ShopifyHub.gs) with the signed-in person's access:
+ *   freshOrder                      is the order still live (read)                 → ?shopify=orders&ids= (exists)
+ *   fulfilments / fulfilmentsMany   Shopify's own tracking of each parcel (read)   → ?shopify=tracking
+ *   previewFulfil                   what "mark shipped" would send (read)          → ?shopify=fulfilCheck
+ *   fulfil                          mark only these lines shipped, every number   → POST fulfilLines (only when the
+ *                                   test ERP lets writes through; queue.js holds it otherwise)
+ * Everything else the local hub can do in Shopify (notes, tags, the MCF split, delivery events, cancelling a
+ * fulfilment, test orders) is not offered here: canSend() keeps those changes "held" in the queue. */
+const ask = (kind, args) => HUB_WEB.ask(kind, args);
+const num = gid => String(gid || '').replace(/^.*\//, '');
+const NEED_SCOPES = ['read_orders', 'read_merchant_managed_fulfillment_orders', 'write_merchant_managed_fulfillment_orders'];
+const NEED_FOR_TEST_ORDERS = [];
+const SENDS = ['fulfil'];
+const notHere = what => () => Promise.reject(new Error(`${what} is not done from the test site — only marking lines shipped is.`));
+
+/** Shopify's tracking of many orders in one go (50 a call): { <gid>: [fulfilment, …] }. */
+async function fulfilmentsMany(store, gids) {
+  const out = {};
+  for (let i = 0; i < gids.length; i += 50) {
+    const part = gids.slice(i, i + 50), d = await ask('track', { store, ids: part.map(num) });
+    part.forEach(g => { out[g] = (d.orders || {})[num(g)] || []; });
+  }
+  return out;
+}
+async function fulfilments(store, gid) { return (await fulfilmentsMany(store, [gid]))[gid]; }
+
+/** The order as Shopify has it now — checked before a file is made or a parcel booked (actions.js freshCheck). Read
+ * through the Pricing API's existing order read, by id. */
+async function freshOrder(store, gid) {
+  const d = await ask('order', { store, id: num(gid) }), o = (d.orders || []).find(x => String(x.id) === num(gid));
+  if (!o) throw new Error('Shopify has no such order any more');
+  return { id: gid, name: o.no, cancelledAt: o.cancelledAt || null, note: o.note || '', tags: o.tags || '' };
+}
+async function previewFulfil(store, gid, lineGids, company, numbers) {
+  const d = await ask('fulfilCheck', { store, orderId: num(gid), lines: lineGids.map(num), company, numbers });
+  if (d.already) return { ok: false, note: d.note };
+  return { ok: true, note: d.note };
+}
+async function fulfil(store, gid, lineGids, company, numbers, notify) {
+  const d = await ask('fulfil', { store, orderId: num(gid), lines: lineGids.map(num), company, numbers, notify: notify !== false });
+  return d.already ? { already: true } : { id: d.id };
+}
+async function check() {
+  throw new Error('Checked through the ERP: the Pricing API holds this store\'s token. Use "Check with Shopify (read only)" to try it.');
+}
+
+module.exports = {
+  check, NEED_SCOPES, NEED_FOR_TEST_ORDERS, freshOrder, fulfilments, fulfilmentsMany, previewFulfil, fulfil,
+  canSend: kind => SENDS.includes(kind),
+  recentOrders: notHere('Reading orders with a token'),
+  appendNote: notHere('Adding a note'), addTags: notHere('Tagging'), removeTags: notHere('Tagging'),
+  splitAndProgress: notHere('The MCF split'), cancelFulfilment: notHere('Cancelling a fulfilment'),
+  deliveryEvent: notHere('A delivery event'), createTestOrder: notHere('A test order'),
+};
 
 });
 
@@ -2243,8 +2132,29 @@ module.exports = { api };
   const step = (mode, fn) => open().then(d => new Promise((ok, no) => { const q = fn(d.transaction('kv', mode).objectStore('kv')); q.onsuccess = () => ok(q.result); q.onerror = () => no(q.error); }));
   /* Saves go one after another, newest last; a failed save is said once, and the hub keeps working from memory. */
   let saving = Promise.resolve(), warned = false;
+  /* Talking to Shopify through the ERP page around the hub: a question goes up, its answer comes back with the same id.
+   * Only the page this one sits in is listened to, and only from the ERP's addresses. */
+  const ERP_ORIGIN = /^(https:\/\/ravikumar7357\.github\.io|http:\/\/(localhost|127\.0\.0\.1):\d+)$/;
+  const waiting = {};
+  let askN = 0, erpOrigin = '';
+  window.addEventListener('message', e => {
+    if (window.parent === window || e.source !== window.parent || !ERP_ORIGIN.test(e.origin) || !e.data || typeof e.data !== 'object') return;
+    if (e.data.type === 'shub-erp') { HUB_WEB.erp = true; HUB_WEB.writes = e.data.writes === true; erpOrigin = e.origin; }
+    if (e.data.type === 'shub-answer' && waiting[e.data.id]) {
+      const w = waiting[e.data.id]; delete waiting[e.data.id]; clearTimeout(w.t);
+      e.data.ok ? w.ok(e.data.data || {}) : w.no(new Error(e.data.error || 'The ERP said no'));
+    }
+  });
   window.HUB_WEB = {
-    preload: null,
+    preload: null, erp: false, writes: false,
+    ask(kind, args) {
+      if (!HUB_WEB.erp) return Promise.reject(new Error('Open the hub from the ERP (Shopify → Shopify hub (test)) — Shopify is reached through it.'));
+      const id = ++askN;
+      return new Promise((ok, no) => {
+        waiting[id] = { ok, no, t: setTimeout(() => { delete waiting[id]; no(new Error('The ERP did not answer in 3 minutes')); }, 180000) };
+        window.parent.postMessage({ type: 'shub-ask', id, kind, args }, erpOrigin);
+      });
+    },
     put(db) {
       const copy = JSON.parse(JSON.stringify(db));
       saving = saving.then(() => step('readwrite', s => s.put(copy, 'db'))).catch(e => { if (!warned) { warned = true; console.warn('Shopify hub: could not save in this browser —', e && e.message); } });

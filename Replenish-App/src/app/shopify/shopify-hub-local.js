@@ -81,15 +81,37 @@ if (SHUB_ON && $('secShopify') && $('paneShop')) {
       $('shubState').textContent = `Shopify via Pricing API · Ridhi ${n(Ridhi)} · CPC ${n(CPC)} · ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
     } finally { shubBusy = false; }
   }
+  /* Tracking by Shopify (Ravi, 26 Oct): the hub asks this page to talk to Shopify for it, through the Pricing API
+   * (Pricing-API/ShopifyHub.gs) — Shopify's own tracking of each parcel, a dry run of "mark these lines shipped", and
+   * the real thing. The real thing is a write to the live stores, so it goes only when the test ERP lets it through
+   * (build-test-erp.js HUB_SHOPIFY_WRITES, off until the Shopify tokens have the fulfilment permissions); the hub is
+   * told which in the hello below and keeps its changes "held" until then. */
+  const shubWrites = () => !!(window.__TEST_ERP && window.__TEST_ERP.hubShopifyWrites);
+  const shubCsv = v => (Array.isArray(v) ? v : []).map(String).join(',');
+  async function shubAnswer(kind, a) {
+    const shop = a.store === 'CPC' ? 'CPC' : '';
+    if (kind === 'order') return prGet({ shopify: 'orders', shop, ids: String(a.id || ''), open: '0', nophoto: '1' }, { timeoutMs: 120000 });
+    if (kind === 'track') return prGet({ shopify: 'tracking', shop, ids: shubCsv(a.ids) }, { timeoutMs: 120000 });
+    if (kind === 'fulfilCheck') return prGet({ shopify: 'fulfilCheck', shop, orderId: a.orderId, lines: shubCsv(a.lines), company: a.company, numbers: shubCsv(a.numbers) }, { timeoutMs: 120000 });
+    if (kind === 'fulfil') {
+      if (!shubWrites()) throw new Error('Sending to Shopify is switched off on the test ERP.');
+      return apiPost({ shopify: 'fulfilLines', shop, orderId: a.orderId, lines: a.lines, company: a.company, numbers: a.numbers, notify: a.notify !== false });
+    }
+    throw new Error('The ERP does not know the request "' + kind + '".');
+  }
   $('shubFrame').addEventListener('load', () => {
     const fr = $('shubFrame');
     if (!fr.src || !fr.contentWindow) return;
-    fr.contentWindow.postMessage({ type: 'shub-erp' }, shubOrigin());
+    fr.contentWindow.postMessage({ type: 'shub-erp', writes: shubWrites() }, shubOrigin());
     if (!shubSent) { shubSent = true; shubSendOrders(); }
   });
   window.addEventListener('message', e => {
     if (e.origin !== shubOrigin() || e.source !== $('shubFrame').contentWindow || !e.data) return;
     if (e.data.type === 'shub-want-orders') shubSendOrders();
+    if (e.data.type === 'shub-ask' && typeof e.data.kind === 'string') {
+      const { id, kind } = e.data, reply = m => { try { e.source.postMessage(Object.assign({ type: 'shub-answer', id }, m), shubOrigin()); } catch (x) { /* frame gone */ } };
+      shubAnswer(kind, e.data.args || {}).then(data => reply({ ok: true, data }), err => reply({ ok: false, error: err.message || String(err) }));
+    }
   });
 
   /* The one extra page: showTab opens it itself, and hands every other page to the real showTab. */

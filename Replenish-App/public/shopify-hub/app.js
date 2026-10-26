@@ -181,7 +181,7 @@ function shell(active) {
   const live = Object.keys(S.connections).filter(k => S.connections[k] === 'live');
   const bar = $('modeBar');
   bar.className = 's-proto' + (live.length ? ' live' : '');
-  bar.innerHTML = S.settings.web ? 'TEST SITE · Shopify orders read through the ERP\'s Pricing API · kept in this browser only · nothing is sent to Shopify, Amazon or the carriers (MCF and tracking simulated)'
+  bar.innerHTML = S.settings.web ? `TEST SITE · Shopify read through the ERP's Pricing API${live.length ? '' : ' (open this from the ERP)'} · kept in this browser only · marking orders shipped in Shopify ${S.settings.writes ? '<b>ON</b>' : 'off'} · Amazon and carriers simulated`
     : live.length ? `Local hub · live: ${esc(live.join(', '))} · sending to Shopify ${S.settings.writes ? '<b>ON</b>' : 'off'} · real MCF ${S.settings.realMcf ? '<b>ON</b>' : 'off'}${S.settings.fedexShip.on ? ' · FedEx labels ' + (S.settings.fedexShip.sandbox ? 'sandbox' : '<b>REAL</b>') : ''} · <a href="#setup">Setup</a>`
     : 'TEST MODE · temp orders, simulated MCF and tracking · nothing is sent anywhere · fill your keys on <a href="#setup">Setup</a>';
   liveLabel();
