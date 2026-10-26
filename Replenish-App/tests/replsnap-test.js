@@ -1,7 +1,8 @@
 // Pricing-API ReplSnap.gs (25 Oct): the Replenish snapshot built from FabriCrush Inventory. Runs InvSync.gs + ReplSnap.gs in node against a fake store. node tests/replsnap-test.js
 const fs = require('fs'), vm = require('vm');
 const P = require('path').join(__dirname, '..', '..', 'Pricing-API') + '/';
-const SRC = fs.readFileSync(P + 'InvSync.gs', 'utf8') + '\n' + fs.readFileSync(P + 'ReplSnap.gs', 'utf8');
+const SRC = "var ORDERS_DATA_IDS = ['RIDHI-ORD', 'CPC-ORD'], RIDHI_SHEET_ID = 'RIDHI-MAIN', CPC_SHEET_ID = 'CPC-MAIN';\n"
+  + fs.readFileSync(P + 'InvSync.gs', 'utf8') + '\n' + fs.readFileSync(P + 'ReplSnap.gs', 'utf8') + '\n' + fs.readFileSync(P + 'FriBooks.gs', 'utf8');
 const FRI = {}, WRITES = []; let pass = 0, fail = 0;
 const ok = (n, c, i) => { if (c) { pass++; console.log('  PASS ' + n); } else { fail++; console.log('  FAIL ' + n + (i ? '  ' + i : '')); } };
 const friBase = 'https://firestore.googleapis.com/v1/projects/fabricrush-inventory/databases/(default)/documents';
@@ -44,7 +45,7 @@ put('idx/ship_SP', { n: 1, count: 1, cols: [] });
 put('ship/SP_0', [[now - 40 * DAY, now + 10 * DAY, '', 'STAR-9', 'Q1', 30, 'AWD', 'Shipped', 80, 'STAR-9', 'created']]);
 put('idx/cat_SP', { n: 1, count: 3 }); put('cat/SP_0', [['a1'], ['Q1'], ['a1']]);
 const ms = [[ym(-45), -45], [ym(-80), -80], [ym(-120), -120]];
-put('idx/ord_SP', { months: Object.fromEntries(ms.map(([k]) => [k, 1])), at: now });
+put('idx/ord_SP', { months: Object.fromEntries(ms.map(([k]) => [k, 2])), at: now });
 ms.forEach(([k, off]) => {
   put('idx/ord_SP_' + k, { n: 1 });
   const d = new Date(now + off * DAY).toISOString();
@@ -77,4 +78,12 @@ const shopHdr = WRITES.find(x => x.update && x.update.name.endsWith('/replshop/S
 ok('the shop copy carries SKU -> fulfillable', shopHdr.ful.mapValue.fields.A1.integerValue === '80');
 const steps = vm.runInContext("invStepsFor_('refresh', 'all').map(function (s) { return s.fn + s.b; }).join(',')", ctx);
 ok('a refresh ends with the Replenish snapshot for both brands', /replSP,replCPC$/.test(steps), steps);
+// FriBooks.gs: the Orders Data / Catalog workbooks answered from the stored sets (Step 2, Sellora's readers)
+const ob = vm.runInContext("bookOpen_('RIDHI-ORD')", ctx), osh = ob.getSheetByName('Orders');
+ok('books: the Ridhi orders book has the Orders tab only, never "CPC Orders" (a reader trying both counted the brand twice)', !!osh && ob.getSheetByName('CPC Orders') === null);
+const ov = osh.getRange(1, 1, osh.getLastRow(), 10).getValues();
+ok('books: a header, then 6 order lines oldest first, in the sheet columns (MCF as text)', ov.length === 7 && ov[0][0] === 'Order ID' && ov[1][9] === 'Amazon' && ov.some(r => r[9] === 'MCF') && ov[1][2] <= ov[ov.length - 1][2], JSON.stringify(ov.slice(0, 3)));
+ok('books: friFirstRow skips to a month', osh.friFirstRow(ms[0][0] + '-01') === 2 + 4, String(osh.friFirstRow(ms[0][0] + '-01')));
+const cb = vm.runInContext("bookOpen_('RIDHI-MAIN')", ctx).getSheetByName('Catalog');
+ok('books: the catalogue tab, header first', cb.getRange(1, 1, 1, 2).getValues()[0][0] === 'SKU' && cb.getLastRow() === 4, String(cb.getLastRow()));
 console.log('\n' + pass + ' passed, ' + fail + ' failed'); process.exit(fail ? 1 : 0);

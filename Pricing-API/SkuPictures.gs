@@ -20,7 +20,7 @@ function skuAsinMap_() {
     var note = { brand: brand, tab: tab, n: 0 };
     diag.push(note);
     try {
-      var ss = SpreadsheetApp.openById(id);
+      var ss = bookOpen_(id);
       var sh = ss.getSheetByName(tab);
       if (!sh) {
         note.error = 'no tab named "' + tab + '"';

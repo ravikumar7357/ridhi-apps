@@ -28,7 +28,7 @@ function saCatalog_(brand) {
   var bookId = isCpc ? CPC_SHEET_ID : RIDHI_SHEET_ID;
   var tab = isCpc ? 'CPC Catalog' : 'Catalog';
   var ss = null, sh = null;
-  try { ss = SpreadsheetApp.openById(bookId); sh = ss.getSheetByName(tab); }
+  try { ss = bookOpen_(bookId); sh = ss.getSheetByName(tab); }
   catch (e) { return { ok: false, error: 'Could not open the ' + (isCpc ? 'CPC' : 'Ridhi') + ' workbook: ' + e }; }
   if (!sh) return { ok: false, error: 'No "' + tab + '" tab in the ' + (isCpc ? 'CPC' : 'Ridhi') + ' workbook.' };
   if (sh.getLastRow() < 2) return { ok: true, map: {}, n: 0, tab: sh.getName() };
@@ -56,7 +56,7 @@ function saChunk_(bookIx, startRow, nRows) {
   var id = ORDERS_DATA_IDS[ix];
   if (!id) return { ok: false, error: 'No orders workbook #' + ix + '.' };
   var ss;
-  try { ss = SpreadsheetApp.openById(id); }
+  try { ss = bookOpen_(id); }
   catch (e) { return { ok: false, error: 'Could not open orders workbook #' + ix + ': ' + e }; }
 
   var sh = null;

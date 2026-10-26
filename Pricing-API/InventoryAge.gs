@@ -91,7 +91,7 @@ function catalogParents_() {
   try {
     var id = (ACTIVE_PREFIX === 'CPC') ? CPC_SHEET_ID : RIDHI_SHEET_ID;
     var tab = (ACTIVE_PREFIX === 'CPC') ? 'CPC Catalog' : 'Catalog';
-    var sh = SpreadsheetApp.openById(id).getSheetByName(tab);
+    var sh = bookOpen_(id).getSheetByName(tab);
     if (!sh || sh.getLastRow() < 2) return out;
     sh.getRange(2, 1, sh.getLastRow() - 1, 4).getValues().forEach(function (row) {
       var sku = String(row[0] || '').trim();

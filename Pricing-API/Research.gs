@@ -239,10 +239,13 @@ function sales30ByAsin_(wantSet) {
   var todayStr = Utilities.formatDate(new Date(), ORDERS_PT, 'yyyy-MM-dd');
   var cutoff = new Date(todayStr + 'T00:00:00Z').getTime() - 30 * 86400000;
   ORDERS_DATA_IDS.forEach(function (id) {
-    var ss; try { ss = SpreadsheetApp.openById(id); } catch (e) { Logger.log('openById ' + id + ': ' + e); return; }
+    var ss; try { ss = bookOpen_(id); } catch (e) { Logger.log('openById ' + id + ': ' + e); return; }
     ['Orders', 'CPC Orders'].forEach(function (tab) {          // each workbook holds only its brand's tab
       var sh = ss.getSheetByName(tab); if (!sh || sh.getLastRow() < 2) return;
-      var data = sh.getRange(2, 1, sh.getLastRow() - 1, 10).getValues();
+      /* FabriCrush Inventory's orders (FriBooks.gs) start at the month of the cutoff, not at 2025 */
+      var from = sh.friFirstRow ? Math.max(2, sh.friFirstRow(Utilities.formatDate(new Date(cutoff), 'UTC', 'yyyy-MM-dd'))) : 2;
+      if (from > sh.getLastRow()) return;
+      var data = sh.getRange(from, 1, sh.getLastRow() - from + 1, 10).getValues();
       for (var i = 0; i < data.length; i++) {
         var r = data[i];
         var asin = String(r[4] || '').trim().toUpperCase(); if (!asin || (!all && !wantSet[asin])) continue;
@@ -299,7 +302,7 @@ function sales30Chunk_(bookIx, startRow, nRows) {
   if (!id) return { ok: false, error: 'No orders workbook #' + ix + ' (there are ' + ORDERS_DATA_IDS.length + ').' };
 
   var ss;
-  try { ss = SpreadsheetApp.openById(id); }
+  try { ss = bookOpen_(id); }
   catch (e) { return { ok: false, error: 'Could not open orders workbook #' + ix + ': ' + e }; }
 
   // Each workbook holds only its own brand's tab, so the first one that exists is the right one.
