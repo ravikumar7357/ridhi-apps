@@ -279,6 +279,12 @@ function guideGo(d) {
   const n = GUIDE.i + d;
   if (n < 0) return;
   GUIDE.dir = d < 0 ? -1 : 1;
+  /* "Show me how" (guide-walks.js): a step that only opens a form or a view is pressed by Meera herself, then on */
+  const cur = GUIDE.tour.steps[GUIDE.i], btn = d > 0 && GUIDE.tour.show && cur && cur.open && guideTarget(cur);
+  /* only a button that reads as opening something; one that saves, sends or changes anything is never pressed */
+  const said = btn ? (btn.textContent || btn.value || btn.title || '').trim() : '';
+  const opener = btn && /^\+|\b(new|open|edit|view|more|show|details|change|set up|correct)\b|▾/i.test(said) && !/\b(save|delete|remove|cancel|approve|reject|send|start|accept|receive|issue|pass|done|close|move|place|raise|upload|import|clear|undo|release|reserve|freeze|authori[sz]e|mark)\b/i.test(said) ? btn : null;
+  if (opener) { GUIDE.selfClick = true; try { opener.click(); } finally { GUIDE.selfClick = false; } const t = GUIDE.tour; setTimeout(() => { if (GUIDE.tour === t) { GUIDE.i = n; guideShow(); } }, 700); return; }
   if (n >= GUIDE.tour.steps.length) { const t = GUIDE.tour; guideClose(); if (t.kind === 'lesson' && t.steps[0].el && t.steps[0].el.focus) try { t.steps[0].el.focus(); } catch (e) { /* not a box */ } return; }
   GUIDE.i = n;
   guideShow();
