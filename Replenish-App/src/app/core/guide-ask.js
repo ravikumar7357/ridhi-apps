@@ -485,7 +485,9 @@ function gaDiagnose(lang, L) {
   }
   if (empty.length) html += `<div class="ga-empty">${L('Still empty:', 'अभी खाली:', 'Abhi khali:')} ${empty.map(e => '<b>' + esc(gaBoxName(e)) + '</b>').join(', ')}</div>`;
   const task = GUIDE_TASKS.find(t => t.steps.some(st => st.tab === tab) && t.steps.some(st => st.sel && open && (() => { const el = guideTarget(st); return el && open.contains(el); })()));
-  if (task) acts.push({ t: 'task', id: task.id, label: L('Guide me through it', 'स्टेप-बाय-स्टेप करवाएँ', 'Step-by-step karwaiye') });
+  const half = typeof gaWalkHere === 'function' ? gaWalkHere() : null;   // the form is part done: carry on from its first empty box
+  if (half) acts.push({ t: 'wresume', id: half.t.id, label: L('Carry on with me', 'मेरे साथ आगे करें', 'Mere saath aage kijiye') });
+  else if (task) acts.push({ t: 'task', id: task.id, label: L('Guide me through it', 'स्टेप-बाय-स्टेप करवाएँ', 'Step-by-step karwaiye') });
   return { html, acts };
 }
 /** A message typed or pasted into Ask Meera: what it means, and where it comes from. */
@@ -714,6 +716,8 @@ async function gaAnswer(q) {
   if (/^(meera\s+)?(unanswered|missed|miss)(\s+(questions|list))?\s*$/i.test(q.trim())) return gaMissList(L);
   await gaBankLoad();
   { const row = gaRowFind(q); if (row) return gaRowAnswer(row, lang, L); }
+  /* "ab kya karu", "what next", "atak gaya" with a form half filled in: its next box */
+  if (typeof GA_NEXT_RE !== 'undefined' && GA_NEXT_RE.test(q)) { const n = gaWalkNext(lang, L); if (n) return n; }
   if (!means.length) return { html: L('Tell me a little more — what are you trying to do?', 'थोड़ा और बताइए — आप क्या करना चाहते हैं?', 'Thoda aur bataiye — aap kya karna chahte hain?'), acts: [] };
   /* "why isn't it saving / error kyu / kaam pura nahi ho raha": the screen itself is the best answer */
   /* Only a question that names no topic of its own reads the screen ("error kyu", "problem hai", "save nahi ho raha"):
@@ -840,6 +844,7 @@ function gaBankLoad() {
   if (!GA_BANK_P) GA_BANK_P = fetch('/guide/meera-bank.json', { cache: 'no-cache' })
     .then(r => (r.ok ? r.json() : [])).catch(() => [])
     .then(list => (typeof gaAiLearned === 'function' ? gaAiLearned(Array.isArray(list) ? list : []) : list))
+    .then(list => (typeof gaWalksLoad === 'function' ? gaWalksLoad().then(() => list, () => list) : list))   // the walk-throughs (guide-walks.js)
     .then(list => (GA_BANK = gaBankIndex(Array.isArray(list) ? list : [])))
     .then(b => { gaWordsLoad().then(() => setTimeout(gaSemIndex, 0)); return b; });
   return GA_BANK_P;
@@ -1020,8 +1025,10 @@ function gaBankAnswer(e, lang, L, near) {
   if (e.admin) html += `<div class="ga-note">${L('Only an admin can do this — please ask your admin.', 'यह काम सिर्फ़ एडमिन कर सकते हैं — कृपया अपने एडमिन से कहें।', 'Ye kaam sirf admin kar sakte hain — kripya apne admin se kahiye.')}</div>`;
   const here = gaHere();
   const acts = [];
-  if (e.task && GUIDE_TASKS.some(t => t.id === e.task)) acts.push({ t: 'task', id: e.task, label: L('Guide me step by step', 'स्टेप-बाय-स्टेप करवाएँ', 'Step-by-step karwaiye') });
-  if (e.sel && (!e.tab || e.tab === here) && guideTarget({ sel: e.sel })) acts.push({ t: 'fix', id: e.sel, label: L('Show me', 'दिखाएँ', 'Dikhaiye') });
+  const walk = typeof gaWalkFor === 'function' ? gaWalkFor(e) : null;   // a job with a walk-through: Do it with me, Show me
+  if (walk) acts.push(...gaWalkActs(walk, L));
+  else if (e.task && GUIDE_TASKS.some(t => t.id === e.task)) acts.push({ t: 'task', id: e.task, label: L('Guide me step by step', 'स्टेप-बाय-स्टेप करवाएँ', 'Step-by-step karwaiye') });
+  if (!walk && e.sel && (!e.tab || e.tab === here) && guideTarget({ sel: e.sel })) acts.push({ t: 'fix', id: e.sel, label: L('Show me', 'दिखाएँ', 'Dikhaiye') });
   [e.tab, e.tab2].forEach(tb => {
     if (tb && tb !== here && guideMayOpen(tb) && acts.length < 3) acts.push({ t: 'open', tab: tb, label: L(`Open ${gaTabName(tb)}`, `${gaTabName(tb)} खोलें`, `${gaTabName(tb)} kholiye`) });
   });
@@ -1150,6 +1157,7 @@ function gaAct(t, id, tab) {
     return;
   }
   if (t === 'task') { guideAskClose(); guideTaskStart(id, GA.lastQ); }
+  else if (t === 'wdo' || t === 'wshow' || t === 'wresume') gaWalkStart(id, t.slice(1), GA.lastQ);
   else if (t === 'tour') { guideAskClose(); if (gaHere() !== tab && guideMayOpen(tab)) { gaGo(tab); setTimeout(() => guideStart(tab, true), 600); } else guideStart(tab, true); }
   else if (t === 'open') { guideAskClose(); if (guideMayOpen(tab)) gaGo(tab); }
   else if (t === 'guide') window.open('/guide/#' + tab, '_blank');
