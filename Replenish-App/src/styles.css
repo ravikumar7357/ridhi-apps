@@ -1678,16 +1678,30 @@ html.mob #gdAsk{right:8px;left:8px;width:auto;bottom:72px;max-height:calc(100vh 
 #gdAsk .ga-fbb{height:26px;width:30px;padding:0;border:1px solid var(--line);border-radius:8px;background:#fff;cursor:pointer;box-shadow:none;font-size:13px}
 #gdAsk .ga-fbb:hover{border-color:var(--brand)}
 #gdAsk .ga-miss{max-height:220px;overflow:auto;font-size:12px}
-/* Ask Meera as a launcher (26 Oct): her face bottom-right, a dark label beside it; the top-bar button gives way to it */
-#gdAskBtn{display:none!important}
-#gdLaunch{position:fixed;right:20px;bottom:20px;z-index:10055;display:flex;align-items:center;gap:10px;padding:0;border:0;background:none;box-shadow:none;cursor:pointer}
+/* Meera's round button and its menu (26 Oct, R-one's way): bottom-right, "Ask Meera" on hover; the top bar's
+   Ask Meera / Show me / Helper give way to it (the menu has all three); "Skip" in her box */
+#gdAskBtn,#gdCtl{display:none!important}
+#gdLaunch{position:fixed;right:22px;bottom:22px;z-index:10050;width:58px;height:58px;border-radius:50%;padding:0;border:3px solid #fff;background:var(--brand,#4A6A92);
+  box-shadow:0 8px 24px rgba(20,24,31,.25);cursor:pointer;display:grid;place-items:center;transition:transform .15s ease}
 #gdLaunch.hide{display:none}
-#gdRoot:not(.hide) ~ #gdLaunch{display:none}   /* a walk-round or a lesson has the corner */
-#gdLaunch .gd-lab{background:#111827;color:#fff;font-size:13px;font-weight:600;line-height:1;padding:8px 12px;border-radius:8px;box-shadow:0 4px 14px rgba(15,23,42,.25);white-space:nowrap}
-#gdLaunch .gd-face{width:52px;height:52px;border:3px solid #fff;box-shadow:0 6px 18px rgba(15,23,42,.28);transition:transform .15s}
-#gdLaunch:hover .gd-face{transform:scale(1.06)}
-#gdLaunch:focus-visible .gd-face{outline:3px solid var(--brand);outline-offset:2px}
-html.mob #gdLaunch{right:12px;bottom:76px}
-html.mob #gdLaunch .gd-lab{font-size:12px;padding:7px 10px}
-html.mob #gdLaunch .gd-face{width:46px;height:46px}
-@media print{#gdLaunch{display:none}}
+#gdLaunch:hover{transform:scale(1.06)}
+#gdLaunch .gd-face{width:100%;height:100%;border-radius:50%;box-shadow:none}
+#gdLaunch .gd-lab{position:absolute;right:66px;top:50%;transform:translateY(-50%);background:#14181F;color:#fff;font-size:12.5px;font-weight:700;border-radius:8px;padding:5px 10px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .15s ease}
+#gdLaunch:hover .gd-lab,#gdLaunch:focus-visible .gd-lab{opacity:1}
+html.mob #gdLaunch{bottom:84px;right:14px;width:50px;height:50px}
+#gdMenu{position:fixed;right:22px;bottom:92px;z-index:10055;width:270px;background:#fff;border-radius:14px;box-shadow:0 16px 40px rgba(20,24,31,.22);padding:6px;display:flex;flex-direction:column}
+#gdMenu.hide{display:none}
+#gdMenu button{display:flex;align-items:center;gap:12px;border:0;background:none;text-align:left;padding:9px 10px;border-radius:10px;cursor:pointer;font:inherit;font-size:16px;box-shadow:none;height:auto}
+#gdMenu button:hover{background:var(--soft,#F7F9FB)}
+#gdMenu span{display:flex;flex-direction:column;gap:1px}
+#gdMenu b{font-size:13.5px;color:var(--ink,#14181F)}
+#gdMenu small{font-size:12px;color:var(--muted,#5A6472)}
+#gdMenu button + button{border-top:1px solid var(--line,#E8EDF3);border-radius:0}
+.gd-sw{position:relative;width:30px;height:18px;border-radius:999px;background:#C9D2DE;flex:0 0 auto}
+.gd-sw::after{content:'';position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:left .15s ease}
+.gd-sw.on{background:var(--accent,#4A5A3C)}
+.gd-sw.on::after{left:14px}
+html.mob #gdMenu{right:14px;bottom:144px}
+#gdBubble #gdOff{border:1px solid var(--line,#E8EDF3);border-radius:8px;padding:0 12px;height:30px;min-height:30px;font-weight:600;color:var(--muted,#5A6472);text-decoration:none}
+#gdBubble #gdOff:hover{background:var(--soft,#F7F9FB);color:var(--ink,#14181F)}
+@media print{#gdLaunch,#gdMenu{display:none}}
