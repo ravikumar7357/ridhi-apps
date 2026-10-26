@@ -2663,6 +2663,12 @@ console.log('\n== the vendor portal ==');
       const rows = A.vpVsRows([o0]);
       ok('the download: one row a batch — date, time, qty, who, and struck off', rows.length === 2 && rows[0].join() === 'Order,For order(s),SKU / fabric,Fabric,Direction,Colour,Size,Date,Time,Qty,Unit,Entered by,Struck off'
         && rows[1][9] === ord && /^\d\d:\d\d$/.test(rows[1][8]) && /^yes/.test(rows[1][12]), JSON.stringify(rows));
+      for (const [view, name] of [['', 'table'], ['orders', 'cards'], ['product', 'By product']]) {
+        els.vpView.value = view; A.renderVp(); const hv = els.vpBody.innerHTML;
+        ok(`…the ${name} view has Vendor sent too — the total, the batch (struck off here), and the box to add one`,
+          /Vendor sent/.test(hv) && /0 batches<\/summary>/.test(hv) && /struck off/.test(hv) && hv.includes(`data-vsq="${o0.id}" data-i="${i}"`) && hv.includes(`data-vsadd="${o0.id}" data-i="${i}"`), [/Vendor sent/.test(hv), /1 batch</.test(hv), hv.includes(`data-vsq="${o0.id}" data-i="${i}"`), (hv.match(/data-vsq="[^"]*" data-i="\d+"/g) || []).slice(0, 4), o0.id, i, A.VP().tab].join(' | '));
+      }
+      els.vpView.value = 'board';
       A.VP().viewAs = true; A.renderVp();
       ok('an admin looking "as printer" sees Vendor sent but cannot add or strike off',
         /Vendor sent/.test(els.vpBody.innerHTML) && !/data-vsadd=|data-vsdel=/.test(els.vpBody.innerHTML));
@@ -8095,11 +8101,11 @@ console.log('\n== what a vendor is shown, and what they can narrow it to ==');
     const rowCells = html.split(/<tr[^>]*>/).slice(1).map(r => (r.split('</tr>')[0].match(/<td[ >]/g) || []).length);
     const lineRows = rowCells.filter(n => n > 1);
     ok('one heading for every cell in a line row',
-       heads === 10 && lineRows.length > 0 && lineRows.every(n => n === heads),
+       heads === 11 && lineRows.length > 0 && lineRows.every(n => n === heads),
        heads + ' headings vs ' + [...new Set(lineRows)].join('/'));
     /* A bar and a colour heading each span the whole table, so they must name the same number. */
     ok('and every spanning row spans exactly that many',
-       (html.match(/colspan="\d+"/g) || []).every(c => c === 'colspan="10"'),
+       (html.match(/colspan="\d+"/g) || []).every(c => c === 'colspan="11"'),
        [...new Set(html.match(/colspan="\d+"/g) || [])].join(' '));
 
     /* The card view is still there for anybody who wants it. */

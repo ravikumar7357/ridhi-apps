@@ -533,7 +533,7 @@ function vpShopTable(rows, f) {
   const COLS = ['SKU', 'Image', 'Article', 'Size', 'Customer orders', 'Ordered', 'Sent so far',
     'Balance', 'Your date', 'Sending now'];
   const head = COLS
-    .map(h => `<th${['Ordered', 'Sent so far', 'Balance', 'Sending now'].indexOf(h) >= 0 ? ' class="num"' : ''}>${esc(h)}</th>`).join('');
+    .map(h => `<th${['Ordered', 'Sent so far', 'Vendor sent', 'Balance', 'Sending now'].indexOf(h) >= 0 ? ' class="num"' : ''}>${esc(h)}</th>`).join('');
 
   const body = rows.map(o => {
     const st = o.status || 'Placed';
@@ -716,18 +716,20 @@ const vpVsSum = list => Math.round(list.filter(b => !b.removed).reduce((a, b) =>
 const vpVsCan = () => !!(VP.code && !VP.viewAs && spIsVendor());
 const vpVsWhen = (iso, year) => { const d = new Date(iso); if (isNaN(d)) return String(iso || '');
   return d.toLocaleDateString('en-GB', Object.assign({ day: '2-digit', month: 'short' }, year ? { year: 'numeric' } : {})) + ', ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); };
-/** Under a line on the colour board: what the printer said it sent, its batches, and (their own sign-in) a box to add one. */
-function vpVsHtml(o, l, i, ord, unit) {
+/** What the printer said it sent for a line, its batches, and (their own sign-in) a box to add one. shape: '' a strip under
+ * a board line · 'td' a table cell (table and cards views) · 'flat' a strip with no picture beside it (By product). */
+function vpVsHtml(o, l, i, ord, unit, shape) {
   const list = vpVsOf(o, l), vs = vpVsSum(list), left = Math.max(0, Math.round((ord - vs) * 100) / 100), q = n => nf(Math.round((+n || 0) * 100) / 100);
   const me = String(ME.email || '').toLowerCase();
   const batches = list.map(b => `<div class="vpb-vsb${b.removed ? ' off' : ''}"><span>${esc(vpVsWhen(b.at))}</span><b>${q(b.qty)} ${unit}</b>`
     + (b.removed ? '<span class="muted">struck off</span>' : vpVsCan() && String(b.by || '').toLowerCase() === me ? `<a href="#" data-vsdel="${esc(o.id)}" data-k="${esc(b.key)}">strike off</a>` : '')
     + '</div>').join('');
-  const live = list.filter(b => !b.removed).length;
-  return `<div class="vpb-vs"><span class="muted">Vendor sent</span> <b>${vs > 0 ? q(vs) + ' ' + unit : '—'}</b>`
+  const live = list.filter(b => !b.removed).length, td = shape === 'td';
+  return (td ? '<td class="vpvs-td">' : `<div class="vpb-vs${shape === 'flat' ? ' flat' : ''}">`)
+    + (td ? `<b>${vs > 0 ? q(vs) : '<span class="muted">—</span>'}</b>` : `<span class="muted">Vendor sent</span> <b>${vs > 0 ? q(vs) + ' ' + unit : '—'}</b>`)
     + (list.length ? ` <details><summary>${nf(live)} batch${live === 1 ? '' : 'es'}</summary>${batches}</details>` : '')
-    + (vpVsCan() && left > 0 ? `<span style="flex:1"></span><input data-vsq="${esc(o.id)}" data-i="${i}" type="number" min="0" max="${left}" step="${unit === 'm' ? '0.01' : '1'}" placeholder="qty" aria-label="Quantity sent">`
-      + `<button class="ghost" data-vsadd="${esc(o.id)}" data-i="${i}">Add</button>` : '') + '</div>';
+    + (vpVsCan() && left > 0 && !l.cancelled ? `${td ? '' : '<span style="flex:1"></span>'}<span class="vpvs-add"><input data-vsq="${esc(o.id)}" data-i="${i}" type="number" min="0" max="${left}" step="${unit === 'm' ? '0.01' : '1'}" placeholder="qty" aria-label="Quantity sent">`
+      + `<button class="ghost" data-vsadd="${esc(o.id)}" data-i="${i}">Add</button></span>` : '') + (td ? '</td>' : '</div>');
 }
 async function vpVsAdd(id, i) {
   const o = (VP.rows || []).find(x => x && x.id === id), l = o && voLines(o)[+i];
@@ -851,11 +853,11 @@ function vpProductBoard(rows, f) {
     const keep = voLines(o).map((l, i) => ({ l, i })).filter(({ l }) => !l.cancelled && (!on || voLineMatches(l, f)) && vpPartOk(o, l) && vpQOk(o, l, f));
     if (!keep.length) return;
     const ctx = vpRawCtx(o);
-    keep.forEach(({ l }) => {
+    keep.forEach(({ l, i }) => {
       const key = (run ? 'R|' + [obUC(l.sku || l.fabricType), String(l.printDirection || '').toLowerCase(), vpColour(l).toLowerCase()].join('|') : 'C|' + obUC(l.sku));
       const g = groups.get(key) || { key, run, l, items: [], pri: 9, want: '' };
       const rw = vpLineRaw(o, l, ctx), w = voWant(l);
-      g.items.push({ o, l, st, ord: vpQty(o, l), raw: rw.raw, sent: rw.sent, want: w });
+      g.items.push({ o, l, i, st, ord: vpQty(o, l), raw: rw.raw, sent: rw.sent, vs: vpVsSum(vpVsOf(o, l)), want: w });
       g.pri = Math.min(g.pri, vpPriRank(l));
       if (w && (!g.want || w < g.want)) g.want = w;
       groups.set(key, g);
@@ -865,7 +867,7 @@ function vpProductBoard(rows, f) {
   const list = [...groups.values()].sort((a, b) => a.pri - b.pri || String(a.want || '9').localeCompare(String(b.want || '9')) || a.key.localeCompare(b.key));
   const cards = list.map(g => {
     const l = g.l, run = g.run, unit = run ? 'm' : 'pcs';
-    const sum = k => g.items.reduce((t, x) => t + (+x[k] || 0), 0), ord = sum('ord'), sent = sum('sent'), rawKnown = g.items.some(x => x.raw != null), raw = sum('raw');
+    const sum = k => g.items.reduce((t, x) => t + (+x[k] || 0), 0), ord = sum('ord'), sent = sum('sent'), vs = sum('vs'), rawKnown = g.items.some(x => x.raw != null), raw = sum('raw');
     const orders = [...new Set(g.items.map(x => x.o.orderNo || x.o.id))];
     const pic = run ? vpRunPic(l, 44) : ptImgSpan(l.sku, 44);
     const what = run ? [l.fabricType, l.printDirection].filter(Boolean).join(' · ') : [l.articleSubtype || l.articleType, l.size].filter(Boolean).join(' · ');
@@ -875,12 +877,13 @@ function vpProductBoard(rows, f) {
       const chip = x.raw == null ? '' : x.raw <= 0 ? '<span class="vpb-no">no raw yet</span>' : `<span class="vpb-raw">raw ${q(x.raw)}</span>`;
       return `<div class="vpb-line" style="align-items:flex-start"><div class="vpb-what"><b style="font-size:12.5px">${esc(x.o.orderNo || x.o.id)}</b>`
         + `<span class="muted">${esc(forOf(x))}${forOf(x) ? ' · ' : ''}raised ${esc(x.o.orderDate || '—')}${x.want ? ' · wanted ' + day(x.want) : ''}</span></div>`
-        + `<div class="vpb-n"><b>${q(x.ord)}</b><span class="muted">${x.sent > 0 ? 'sent ' + q(x.sent) : 'none sent'}</span>${chip}</div></div>`;
+        + `<div class="vpb-n"><b>${q(x.ord)}</b><span class="muted">${x.sent > 0 ? 'sent ' + q(x.sent) : 'none sent'}</span>${chip}</div></div>`
+        + vpVsHtml(x.o, x.l, x.i, x.ord, unit, 'flat');
     }).join('');
     return `<div class="vpb-card"><div class="vpb-line" style="border-top:0;padding-top:0">${pic}<div class="vpb-what"><span class="vpb-sku">${esc(run ? (l.sku || l.fabricType) : l.sku)}</span>`
       + `<span class="muted">${esc(what)}</span><b style="font-size:13.5px">${esc(vpColour(l) || '')}</b></div>${pri ? `<span class="vpb-pri">${esc(pri)}</span>` : ''}</div>`
       + `<div class="vpb-tot"><div><span>Ordered</span><b>${q(ord)}</b></div><div class="r"><span>Raw</span><b>${rawKnown ? q(raw) : '—'}</b></div>`
-      + `<div class="s"><span>Sent</span><b>${q(sent)}</b></div><div class="b"><span>Balance</span><b>${q(Math.max(0, ord - sent))}</b></div></div>`
+      + `<div class="s"><span>Sent</span><b>${q(sent)}</b></div><div class="v"><span>Vendor sent</span><b>${q(vs)}</b></div><div class="b"><span>Balance</span><b>${q(Math.max(0, ord - sent))}</b></div></div>`
       + `<details${orders.length === 1 ? '' : ''}><summary style="cursor:pointer;font-size:12.5px;font-weight:600;color:var(--brand)">${nf(orders.length)} order${orders.length === 1 ? '' : 's'} · ${unit}${g.want ? ' · first wanted ' + day(g.want) : ''}</summary>${rowsH}</details></div>`;
   }).join('');
   return `<div class="card vpb-wrap"><div class="vpb-order"><b style="font-size:15px">By product</b><span class="muted" style="font-size:12px">${nf(list.length)} product(s) across ${nf(rows.length)} order(s) — open a card's list to see which orders it is for.${vpViewAll() ? '' : ' Record a send on "By order" or "Every line".'}</span></div><div class="vpb-grid">${cards}</div></div>`;
@@ -889,10 +892,10 @@ function vpTable(rows, f) {
   /* Ten columns, not thirteen. The colour and the priority moved up into the group heading, and the
    * order number was on every row of an order whose bar already named it. View only (vpViewAll()): eight — no date of
    * the printer's own, nothing being sent. */
-  const COLS = ['SKU / fabric', 'Image', 'Article', 'Size', 'Ordered', 'Sent so far',
+  const COLS = ['SKU / fabric', 'Image', 'Article', 'Size', 'Ordered', 'Sent so far', 'Vendor sent',
     'Balance', 'Wanted by'].concat(vpViewAll() ? [] : ['Your date', 'Sending now']);
   const head = COLS
-    .map(h => `<th${['Ordered', 'Sent so far', 'Balance', 'Sending now'].indexOf(h) >= 0 ? ' class="num"' : ''}>${esc(h)}</th>`).join('');
+    .map(h => `<th${['Ordered', 'Sent so far', 'Vendor sent', 'Balance', 'Sending now'].indexOf(h) >= 0 ? ' class="num"' : ''}>${esc(h)}</th>`).join('');
 
   const body = rows.map(o => {
     const st = o.status || 'Placed';
@@ -954,6 +957,7 @@ function vpTable(rows, f) {
         + `<td class="num" style="font-weight:700">${nf(ord)} <span class="muted" style="font-weight:400;font-size:10px">${unit}</span></td>`
         + `<td class="num" style="color:#166534">${done ? nf(done) : '<span class="muted">—</span>'}`
           + `${dels.length ? `<div class="muted" style="font-size:10px">${dels.map(d => nf(parseFloat(d.qty) || 0) + (d.date ? ' @ ' + esc(d.date) : '')).join(' · ')}</div>` : ''}</td>`
+        + vpVsHtml(o, l, i, ord, unit, 'td')
         + `<td class="num">${dead ? '<span class="pill pill-out">cancelled</span>'
             : (bal > 0 ? `<span style="font-weight:700;color:var(--bad)">${nf(bal)}</span>` : '<span class="pill pill-ok">done</span>')}</td>`
         + `<td class="muted" style="font-size:12px">${voWant(l) ? esc(dShow(voWant(l))) : '—'}</td>`
@@ -989,9 +993,9 @@ function vpCard(o, f) {
   /* WANTED BY was not on this screen at all — the vendor was being asked to hit a date nobody had
    * shown them. It is here now, next to the box where they answer it. */
   const head = (run ? ['Fabric', 'Colour', 'Print'] : ['SKU', 'Image', 'Item'])
-    .concat(['Priority', 'Ordered', 'Sent so far', 'Balance', 'Wanted by', 'Your date'])
+    .concat(['Priority', 'Ordered', 'Sent so far', 'Vendor sent', 'Balance', 'Wanted by', 'Your date'])
     .concat(can ? ['Sending now'] : [])
-    .map(h => `<th${['Ordered', 'Sent so far', 'Balance', 'Sending now'].indexOf(h) >= 0 ? ' class="num"' : ''}>${h}</th>`).join('');
+    .map(h => `<th${['Ordered', 'Sent so far', 'Vendor sent', 'Balance', 'Sending now'].indexOf(h) >= 0 ? ' class="num"' : ''}>${h}</th>`).join('');
   const body = keep.map(({ l, i }) => {
     const ord = vpQty(o, l), done = vpDone(l), bal = Math.max(0, ord - done);
     const dead = l.cancelled === true;
@@ -1006,6 +1010,7 @@ function vpCard(o, f) {
       + `<td class="num" style="color:#166534">${done ? nf(done) : '<span class="muted">—</span>'}`
       /* The rounds themselves, so a vendor can see what they have already told us. */
       + `${dels.length ? `<div class="muted" style="font-size:10px">${dels.map(d => nf(parseFloat(d.qty) || 0) + (d.date ? ' @ ' + esc(d.date) : '')).join(' · ')}</div>` : ''}</td>`
+      + vpVsHtml(o, l, i, ord, unit, 'td')
       + `<td class="num">${dead ? '<span class="pill pill-out">cancelled</span>'
         : (bal > 0 ? `<span style="font-weight:700;color:var(--bad)">${nf(bal)}</span>` : '<span class="pill pill-ok">done</span>')}</td>`
       /* What the buyer asked for, and the box where this vendor says what they can really do. */
@@ -1041,7 +1046,7 @@ function vpCard(o, f) {
   </div>`;
 }
 
-const vpSay = (id, msg, bad) => { const el = document.querySelector(`[data-vpmsg="${id}"]`);
+const vpSay = (id, msg, bad) => { const el = document.querySelector(`[data-vpmsg="${id}"]`) || $('vpMsg');   // By product has no line of its own per order
   if (el) { el.className = bad ? 'err' : 'muted'; el.textContent = msg; } };
 
 /** Write the order back to its own branch, and keep the copy this screen holds in step. */
