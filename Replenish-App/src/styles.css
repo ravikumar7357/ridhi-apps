@@ -1302,12 +1302,18 @@
 .vpb-card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:10px}
 .vpb-head{display:flex;align-items:center;gap:8px;font-size:15px}
 .vpb-pri{font-size:12px;font-weight:700;color:var(--accent)}
-.vpb-tot{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;text-align:center}
+.vpb-tot{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;text-align:center}
 .vpb-tot>div{background:var(--soft);border-radius:10px;padding:6px 4px;display:flex;flex-direction:column}
 .vpb-tot span{font-size:10.5px;color:var(--muted)}.vpb-tot b{font-variant-numeric:tabular-nums}
 .vpb-tot .r{background:var(--brand-bg)}.vpb-tot .r span,.vpb-tot .r b{color:var(--brand-ink)}
 .vpb-tot .s{background:var(--accent-bg)}.vpb-tot .s span,.vpb-tot .s b{color:var(--accent)}
 .vpb-tot .b{background:var(--bad-bg)}.vpb-tot .b span,.vpb-tot .b b{color:var(--bad)}
+/* the printer's own "Vendor sent" (26 Oct): a tile, and a strip under each line with its batches and the box to add one */
+.vpb-tot .v{background:#f3e8ff}.vpb-tot .v span,.vpb-tot .v b{color:#6b21a8}
+.vpb-vs{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12px;margin:4px 0 2px 54px}.vpb-vs>b{color:#6b21a8}
+.vpb-vs details{font-size:11.5px}.vpb-vs summary{cursor:pointer;color:var(--brand)}
+.vpb-vs input{width:78px;text-align:right;padding:3px 6px}.vpb-vs button{width:auto;padding:3px 10px;font-size:12px}
+.vpb-vsb{display:flex;gap:8px;align-items:baseline;padding:1px 0}.vpb-vsb.off{text-decoration:line-through;opacity:.6}
 .vpb-line{display:flex;gap:10px;align-items:center;border-top:1px solid var(--line);padding-top:8px}
 .vpb-pic,.vpb-line [data-img] img{width:44px;height:44px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
 .vpb-what{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;font-size:12.5px}

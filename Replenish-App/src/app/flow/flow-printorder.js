@@ -261,6 +261,9 @@ function flowVoLines(o, planOf) {
   out.cut = merge(out.cut, l => obUC(l.sku), 'qty');
   return out;
 }
+/* AN ORDER ALREADY PLACED IS CHANGED FIELD BY FIELD (26 Oct): the printer writes onto it too — what they say they sent
+ * (vSent, vendor-portal.js) — and a whole-record write from the office would wipe a batch entered since this screen read it. */
+const voFieldWrites = (patch, o, fields) => fields.forEach(k => { patch[`pt_vendorOrders/${o.vendorCode}/${o.id}/${k}`] = o[k]; });
 /**
  * The Vendor Order writes for the flow print orders `nos` (already updated in `local`). Mutates `local[no].vo` and puts the
  * link into `patch` the safe way (inside a whole-record write when the same save writes the whole record).
@@ -279,7 +282,7 @@ function flowVoSync(local, nos, patch, planOf) {
       if (!lines.length) {
         if (existing && existing.status !== 'Cancelled') {
           const c = Object.assign({}, existing, { status: 'Cancelled', staffUpdatedAt: now });
-          patch[`pt_vendorOrders/${ref.code}/${ref.id}`] = c; placed.push(c); said.push(`${existing.orderNo} cancelled`); }
+          voFieldWrites(patch, c, ['status', 'staffUpdatedAt']); placed.push(c); said.push(`${existing.orderNo} cancelled`); }
         return;
       }
       const prev = {}; if (existing) voLines(existing).forEach(l => { if (l.flowPart) prev[l.flowPart] = l; });
@@ -289,7 +292,9 @@ function flowVoSync(local, nos, patch, planOf) {
         : { id: 'vpo_flow_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7), orderNo: voNewOrderNo(), vendorCode: o.printer.code, vendorName: o.printer.name,
             service: 'Block print', ...(want.channel ? { channel: want.channel } : {}), orderType: kind, orderDate: voTodayDMY(), status: 'Placed',
             notes: `From the PPC plan — ${o.orderNo} (${o.no})`, lines: ln, createdBy: ME.email || '', createdAt: now, demandSource: 'ppc', flowPrintOrder: o.no };
-      patch[`pt_vendorOrders/${order.vendorCode}/${order.id}`] = order; placed.push(order);
+      if (existing) voFieldWrites(patch, order, ['lines', 'status', 'staffUpdatedAt']);
+      else patch[`pt_vendorOrders/${order.vendorCode}/${order.id}`] = order;
+      placed.push(order);
       vo[kind] = { code: order.vendorCode, id: order.id, orderNo: order.orderNo };
       if (!existing) VO.rows = (VO.rows || []).concat([order]);   // so the next number drawn this save is a different one
       said.push(existing ? `${order.orderNo} updated` : `Vendor Order ${order.orderNo} placed with ${o.printer.name}`);
