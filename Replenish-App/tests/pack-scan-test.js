@@ -74,6 +74,53 @@ function load(opts) {
   ok('changing box, keeping a piece aside, or a QC accept do not forget the label in view (no second count)',
     ['pksGoBox', 'pksNextBox', 'pksKeptAside'].every(f => body(f) && !body(f).includes('PKS.seen = null')) && /pksSeenNow\(code\);[^\n]*\n\s*pksHit\(code, "qc"\)/.test(SRC.replace(/\r\n/g, '\n')));
 
+  console.log('== 26 Oct: where the label sits tells the next piece from the same one ==');
+  {
+    /* five pieces of one SKU; `aim` is where the label is in the box on screen, as pksAimed sets it */
+    const go = (A, code, t, aim) => { A.PKS.aim = aim; return A.pksFrame(code, t, A.PKS, 1); };
+    const C = { x: 0.5, y: 0.5 }, L = { x: 0.25, y: 0.45 }, R = { x: 0.75, y: 0.55 };
+    A = load(); A.PKS.frameMs = 33;
+    let n = 0, t = 7e6;
+    for (const spot of [C, L, R, L, R]) {          // each piece 0.6 s in view, lifted, the next put down 0.4 s later
+      for (let k = 0; k < 18; k++, t += 33) if (go(A, 'X0045G8P3B', t, { x: spot.x + (k % 3 - 1) * 0.02, y: spot.y })) n++;
+      t += 400;
+    }
+    ok('the next piece put down elsewhere 0.4 s later counts: 5 of 5 (live counted 1)', n === 5, String(n));
+    A = load(); A.PKS.frameMs = 33; n = 0; t = 8e6;
+    for (let p = 0; p < 5; p++) {                   // slid out to the right, the next slid in from the left, 0.3 s
+      for (let k = 0; k < 18; k++, t += 33) if (go(A, 'X0045G8P3B', t, C)) n++;
+      for (let k = 1; k <= 3; k++, t += 33) if (go(A, 'X0045G8P3B', t, { x: 0.5 + k * 0.12, y: 0.5 })) n++;
+      t += 100;
+      if (p < 4) for (let k = 3; k >= 1; k--, t += 33) if (go(A, 'X0045G8P3B', t, { x: 0.5 - k * 0.12, y: 0.5 })) n++;
+    }
+    ok('slid out and the next slid in, 0.3 s: 5 of 5', n === 5, String(n));
+    A = load(); A.PKS.frameMs = 120; n = 0; t = 9e6;
+    for (let k = 0; t < 9e6 + 4000; k++, t += 120) {   // one piece, shaking, three blurs of 0.5 s
+      if ([1000, 2000, 3000].some(b => t - 9e6 > b && t - 9e6 < b + 500)) continue;
+      if (go(A, 'X0045G8P3B', t, { x: 0.5 + (k % 5 - 2) * 0.02, y: 0.5 + (k % 3 - 1) * 0.02 })) n++;
+    }
+    ok('one piece held, shaking, blurred three times: still 1', n === 1, String(n));
+    A = load(); A.PKS.frameMs = 33;
+    go(A, 'X0045G8P3B', 1e7, C); go(A, 'X0045G8P3B', 1e7 + 33, C);
+    ok('read once while sliding in is not yet a piece; twice in one place is',
+      go(A, 'X0045G8P3B', 1e7 + 600, L) === false && go(A, 'X0045G8P3B', 1e7 + 633, { x: 0.27, y: 0.45 }) === true);
+    A = load(); A.PKS.frameMs = 33;
+    go(A, 'X0045G8P3B', 1e7, C);
+    const sameSoon = go(A, 'X0045G8P3B', 1e7 + 500, C);
+    A = load(); A.PKS.frameMs = 33;
+    go(A, 'X0045G8P3B', 1e7, C);
+    ok('put down on the very same spot, it waits the 0.9 s as before', sameSoon === false && go(A, 'X0045G8P3B', 1e7 + 1000, C) === true);
+    A = load(); A.PKS.frameMs = 33;
+    for (let k = 0; k < 6; k++) go(A, 'X0045G8P3B', 1e7 + k * 33, k < 3 ? C : R);
+    ok('a held piece moved to a new place without leaving is not counted, there or after a blur',
+      A.PKS.seen.counted && go(A, 'X0045G8P3B', 1e7 + 900, { x: 0.76, y: 0.55 }) === false);
+    ok('the camera marks where its label is', /PKS\.aim = place\(/.test(SRC) && /PKS\.aim = null;/.test(SRC));
+    A = load();
+    const vid2 = { videoWidth: 1080, videoHeight: 1920, clientWidth: 400, clientHeight: 190 };
+    A.pksAimed([{ rawValue: 'X003W2O642', boundingBox: { x: 440, y: 930, width: 200, height: 60 } }], vid2);
+    ok('pksAimed says where: the middle of the box on screen is 0.5, 0.5', A.PKS.aim && Math.abs(A.PKS.aim.x - 0.5) < 0.01 && Math.abs(A.PKS.aim.y - 0.5) < 0.01, JSON.stringify(A.PKS.aim));
+  }
+
   console.log('== 21 Oct, S24 video: a clear label in the box, nothing read ==');
   A = load();
   const vid = { videoWidth: 1080, videoHeight: 1920, clientWidth: 400, clientHeight: 190 };
