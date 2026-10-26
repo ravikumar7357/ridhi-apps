@@ -77201,6 +77201,7 @@ function gaBankLoad() {
   if (GA_BANK) return Promise.resolve(GA_BANK);
   if (!GA_BANK_P) GA_BANK_P = fetch('/guide/meera-bank.json', { cache: 'no-cache' })
     .then(r => (r.ok ? r.json() : [])).catch(() => [])
+    .then(list => (typeof gaAiLearned === 'function' ? gaAiLearned(Array.isArray(list) ? list : []) : list))
     .then(list => (GA_BANK = gaBankIndex(Array.isArray(list) ? list : [])))
     .then(b => { gaWordsLoad().then(() => setTimeout(gaSemIndex, 0)); return b; });
   return GA_BANK_P;
@@ -77278,8 +77279,20 @@ function gaSemScores(q) {
   return best;
 }
 /** Each answer's ways of asking, as meanings; and how rare each meaning is across the bank (a rare one decides more). */
+/* Every part of the app (a button, column, box, option or hover note) comes compact — [label, kind, en, hi, hg, sel] —
+ * and is opened out here: its ways of asking made from its own label, its answer from its one line. */
+const GA_PART_KIND = { button: ['button', 'बटन', 'button'], column: ['column', 'कॉलम', 'column'], box: ['box', 'बॉक्स', 'box'], option: ['option', 'विकल्प', 'option'], note: ['note', 'जानकारी', 'note'] };
+function gaPartOpen(e) {
+  const [L, kind, en, hi, hg, sel] = e.p, K = GA_PART_KIND[kind] || ['part', 'हिस्सा', 'part'], scr = e.tab ? gaTabName(e.tab) : '';
+  e.q = { en: [L, `what is ${L}`, `what does ${L} do`, `${L} meaning`, `${L} ${K[0]}`], hi: [`${L} क्या है`, `${L} का मतलब`, `${L} क्या करता है`],
+    hg: [`${L} kya hai`, `${L} kya karta hai`, `${L} ka matlab`, `${L} ${K[2]}`] };
+  const where = { en: scr ? ` — ${K[0]} on ${scr}` : '', hi: scr ? ` — ${scr} पर ${K[1]}` : '', hg: scr ? ` — ${scr} par ${K[2]}` : '' };
+  e.a = { en: `<b>${esc(L)}</b>${esc(where.en)}: ${esc(en)}`, hi: `<b>${esc(L)}</b>${esc(where.hi)}: ${esc(hi || en)}`, hg: `<b>${esc(L)}</b>${esc(where.hg)}: ${esc(hg || en)}` };
+  if (sel) e.sel = sel;
+}
 function gaBankIndex(list) {
   const df = new Map();
+  list.forEach(e => { if (e.p && !e.q) gaPartOpen(e); });
   gaSkelAdd(Object.keys(GUIDE_SYN));
   list.forEach(e => { const q = e.q || {}; gaSkelAdd([].concat(q.en || [], q.hg || [], gaPlain((e.a || {}).en)).flatMap(t => gaWords(t))); });
   GA_MEAN.clear();
@@ -77290,9 +77303,14 @@ function gaBankIndex(list) {
     e.body = gaMeans(gaPlain((e.a || {}).en) + ' ' + gaPlain((e.a || {}).hg));
     e.raw = new Set([].concat(q.en || [], q.hi || [], q.hg || []).flatMap(t => gaWords(t)));
     e.all.forEach(m => df.set(m, (df.get(m) || 0) + 1));
+    if (e.p) { e.pn = ' ' + gaWords(e.p[0]).join(' ') + ' '; e.pw = new Set(gaWords(e.p[0])); }
   });
   return { list, df, n: list.length || 1 };
 }
+/* The words that only make a question of a part's name: "<label> kya karta hai", "what happens if I press <label>". */
+const GA_PART_ASK = new Set(('what does do happens happen press click tap mean meaning means show shows kya karta karti hai kis kaam ka ke liye kisliye ' +
+  'kyun kyu ye yeh is ka matlab hota hoti dabane dabau dabaun dabaya par pe se button column box option note field tab ' +
+  'क्या करता करती है किस काम का के लिए किसलिए मतलब होता यह ये दबाने बटन कॉलम').split(' '));
 /* The screens by what people call them: a question that names one leans to that screen's answers. */
 const GA_TAB_SAY = [['ord', /order console/], ['pbase', /job ?work|jobwork|जॉब वर्क/], ['ppress', /\bpress\b|प्रेस/], ['pack', /packing|scan to pack|\bpack\b/],
   ['qc', /\bqc\b|quality|क्यूसी/], ['att', /attendance|hajri|haziri|हाजिरी/], ['pcut', /cutting|कटिंग/], ['fgi', /finished goods|\bfg\b/], ['fba', /\bfba\b/],
@@ -77310,6 +77328,11 @@ function gaBankFind(means, words, q) {
   const tab = gaHere();
   const said = gaTabsSaid(q);
   if (GA_HERE_RE.test(String(q || ''))) said.add(tab);
+  /* A question that is a part's name and nothing more ("SKU kya karta hai") is about that part — the one on this screen
+   * first, and the longest name that fits ("Placed today", not "Placed"). */
+  const qw = gaWords(q), qn = ' ' + qw.join(' ') + ' ';
+  let longest = 0;
+  for (const e of B.list) if (e.pn && e.pn.length > longest && qn.includes(e.pn)) longest = e.pn.length;
   const out = [];
   for (let ei = 0; ei < B.list.length; ei++) {
     const e = B.list[ei];
@@ -77321,7 +77344,13 @@ function gaBankFind(means, words, q) {
       if (inter) best = Math.max(best, inter / Math.sqrt(qW * pW));
     }
     const near = sem ? sem[ei] : 0;
-    if (!best && near < 0.5) continue;
+    let named = 0;
+    if (longest && e.pn && e.pn.length === longest && qn.includes(e.pn)) {
+      const rest = qw.filter(x => !e.pw.has(x) && !GA_PART_ASK.has(x) && !GUIDE_STOP.has(x)).length;
+      named = rest === 0 ? 0.35 : rest === 1 ? 0.12 : 0;
+      if (named && e.tab && e.tab === tab) named += 0.12;
+    }
+    if (!best && !named && near < 0.5) continue;
     /* a word not in any way of asking, but in the answer itself, still counts a little */
     best += 0.04 * means.filter(m => !e.all.has(m) && e.body.has(m)).length;
     if (e.tab && e.tab === tab) best += 0.05;
@@ -77329,7 +77358,7 @@ function gaBankFind(means, words, q) {
     best += 0.015 * (words || []).filter(x => !GUIDE_STOP.has(x) && e.raw.has(x)).length;
     /* meaning: added on top of the word match, so a question in other words still finds it */
     if (sem) best = (best + GA_SEM_W * near) / (1 + GA_SEM_W * 0.6);
-    out.push({ e, s: best });
+    out.push({ e, s: best + named });
   }
   return out.sort((a, b) => b.s - a.s).slice(0, GA_TOPK);
 }
@@ -77451,6 +77480,7 @@ function gaSay(html, acts, after) {
 }
 async function gaAsk(q) {
   gaMine(q);
+  if (typeof gaAiCommand === 'function' && await gaAiCommand(q)) return;
   GA.lastQ = q;
   if (GA_WHEREAMI_RE.test(q) && gaHere()) {
     const lg = gaRead(q).lang, LL = (en, hi, hg) => (lg === 'hi' ? hi : lg === 'hg' ? (hg || en) : en), name = esc(gaTabName(gaHere()));
@@ -77466,10 +77496,14 @@ async function gaAsk(q) {
   if (r.miss) gaMissKeep(q, r.miss === true ? 'none' : r.miss);
   const lg = gaRead(q).lang, LL = (en, hi, hg) => (lg === 'hi' ? hi : lg === 'hg' ? hg : en);
   const fb = r.bank ? `<div class="ga-fb"><span>${LL('Did this help?', 'क्या इससे मदद मिली?', 'Kya isse madad mili?')}</span><button type="button" class="ga-fbb" data-ga="fb" data-id="up:${esc(r.bank)}" aria-label="Yes">👍</button><button type="button" class="ga-fbb" data-ga="fb" data-id="down:${esc(r.bank)}" aria-label="No">👎</button></div>` : '';
-  gaSay(r.html, r.acts, (r.after || '') + fb);
+  const ai = r.miss && typeof gaAiOn === 'function' && gaAiOn() ? [{ t: 'ai', label: LL('Ask AI', 'AI से पूछें', 'AI se poochhiye') }] : [];
+  gaSay(r.html, ai.concat(r.acts || []), (r.after || '') + fb);
   if (r.miss) gaChipsDraw();
 }
 function gaAct(t, id, tab) {
+  if (t === 'ai') { gaAiAsk(GA.lastQ || ''); return; }
+  if (t === 'aifb') { gaAiFeedback(id); return; }
+  if (t === 'aians') { gaAiAnswer(id); return; }
   if (t === 'fb') {
     const up = id.startsWith('up:'), lg = gaRead(GA.lastQ || '').lang, LL = (en, hi, hg) => (lg === 'hi' ? hi : lg === 'hg' ? hg : en);
     if (!up) gaMissKeep(GA.lastQ || '', 'not-helpful ' + id.slice(5));
