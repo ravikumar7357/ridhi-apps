@@ -460,6 +460,7 @@ function showTab(which) {
   topbarSync();
   /* On a phone: the tab bar lights this screen, and the header carries its name (core/mobile.js). */
   if (typeof mobSync === 'function') mobSync(which);
+  try { guideScreen(which); } catch (e) { /* the guide character (guide.js) is not on the page yet — the screen still opens */ }
   /* The screen's name where a name belongs when it is not on the page: the browser tab. */
   try { document.title = ($('pageTitle').textContent || '') + ($('pageTitle').textContent ? ' · ' : '') + 'Ridhi Home & Living'; } catch (e) { /* nothing depends on it */ }
   /* There is no drawer to close any more: the menu is the bar across the top, on every width. */
