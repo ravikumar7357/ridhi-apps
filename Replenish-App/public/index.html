@@ -78652,13 +78652,15 @@ function p1WipBuild() {
 const p1Mv = e => `<span class="pl ${P1_MV[e.k][1]}">${P1_MV[e.k][0]}</span>`;
 const P1_ADD = [
   ['PLAN', 'Plan', 'flppc', x => x.s.bucket === 'ppc'],
-  ['RFD', 'Fabric to printer', 'fldem', x => x.s.needFab && x.s.route !== 'stitch'],
+  /* only a line still waiting for its cloth (Demand) — a line already made from cloth given earlier is not asked for a challan */
+  ['RFD', 'Fabric to printer', 'fldem', x => x.s.bucket === 'demand' && x.s.needFab && x.s.route !== 'stitch'],
   ['PRN', 'Printed back', 'flchl', x => x.s.printed && x.s.given > 0 && x.s.back < (+x.r.qty || 0)],
   ['CUT', 'Cut', 'pcut', x => x.s.canCut > 0 && ['cut', 'fabric', 'emb'].includes(x.s.bucket)],
   ['ISS', 'Give to karigar', 'pbase', x => typeof flowIssuable === 'function' && flowIssuable(x.r, x.s) > 0 && !['ppc', 'back', 'demand', 'vendor'].includes(x.s.bucket)],
   ['REC', 'Back from karigar', 'pbase', x => p1OpenIss(x.r).length > 0],
   ['QC', 'QC check', 'qc', x => { try { return flowQcWaiting(x.r, x.s) > 0; } catch (e) { return false; } }],
-  ['FG', 'Into Finished Goods', 'fgi', x => x.s.bucket === 'fgin']];
+  ['FG', 'Into Finished Goods', 'fgi', x => x.s.bucket === 'fgin'],
+  ['SHIP', 'Hand to shipping', 'ord', x => x.s.bucket === 'ship']];
 /** The Job Work issues still out with a karigar, per order line — indexed once (flowOpenIssues walks the whole register
  *  for every line, which on the real register made the page crawl). */
 let P1_ISS = { src: null, n: -1, map: new Map() };
@@ -78689,9 +78691,10 @@ function p1Pcs(k, x) {
   if (k === 'QC') { try { return flowQcWaiting(x.r, x.s); } catch (e) { return 0; } }
   if (k === 'PRN') return Math.max(0, (+x.r.qty || 0) - x.s.back);
   if (k === 'FG') return Math.max(0, x.s.made - x.s.india);
+  if (k === 'SHIP') return +x.r.qty || 0;
   return +x.r.qty || 0;
 }
-const P1_DO = { PLAN: 'Plan', RFD: 'Make challan', PRN: 'Receive', CUT: 'Enter cutting', ISS: 'Issue', REC: 'Receive', QC: 'Check in QC', FG: 'Accept' };
+const P1_DO = { PLAN: 'Plan', RFD: 'Make challan', PRN: 'Receive', CUT: 'Enter cutting', ISS: 'Issue', REC: 'Receive', QC: 'Check in QC', FG: 'Accept', SHIP: 'Hand over' };
 /** The real entry form for one waiting group. */
 function p1Do(k, xs) {
   const x = xs[0], leave = fn => { p1Hide(); setTimeout(fn, 30); };
@@ -78703,6 +78706,7 @@ function p1Do(k, xs) {
   else if (k === 'QC') leave(() => showTab('qc'));
   else if (k === 'FG') leave(() => { if (typeof frFgView === 'function') frFgView('pending'); else showTab('fgi'); });
   else if (k === 'PRN') leave(() => { FLOW_VIEW = 'dhist'; showTab('flow'); });
+  else if (k === 'SHIP') leave(() => showTab('ord'));   // the Order Console's Production to shipping, where the shipping team takes it
 }
 /** What is waiting for the chosen step, on the page itself. */
 function p1WaitCard(k) {
@@ -78780,10 +78784,14 @@ const P1_STEPS = [['plan', 'To plan', 'PLAN'], ['fab', 'Fabric & printer', 'RFD'
 const P1_STAGE_OF = { Printer: 'fab', Embroidery: 'fab', Cutting: 'cut', 'Raw cutting in store': 'cut', 'With karigar': 'kar', QC: 'qc', 'Finished Goods to accept': 'ready', 'To hand to shipping': 'ready' };
 const P1_STAGE_INK = { fab: ['#EEEAFB', '#5B3FD0'], cut: ['#FFF3D6', '#8A5A12'], kar: ['#FDECE2', '#9A4B16'], qc: ['#E3F4F1', '#1F6F5C'], ready: ['#EDF0E7', '#4A5A3C'] };
 /** The one next step of a SKU: the first that is waiting, in the order the work goes — [movement, label, lines]. */
-function p1NextOf(r) {
+/* The steps of each stage box: with a stage picked, a line's button is that stage's step (Ravi, 26 Oct: "if they are in
+ * ready stage then why are they showing Make challan, Plan 125") — not the earliest step of some other order of the SKU. */
+const P1_STAGE_STEPS = { plan: ['PLAN'], fab: ['RFD', 'PRN'], cut: ['CUT', 'ISS'], kar: ['REC', 'ISS'], qc: ['QC'], ready: ['FG', 'SHIP'] };
+const P1_LABEL = { PLAN: 'Plan', RFD: 'Make challan', PRN: 'Receive printed', CUT: 'Enter cutting', ISS: 'Give to karigar', REC: 'Receive from karigar', QC: 'Check in QC', FG: 'Accept in FG', SHIP: 'Hand to shipping' };
+function p1NextOf(r, stage) {
   const n = k => { const a = P1_ADD.find(x => x[0] === k); return a && p1MayTab(a[2]) ? r.lines.filter(x => a[3](x)) : []; };
-  for (const [k, label] of [['PLAN', 'Plan'], ['RFD', 'Make challan'], ['PRN', 'Receive printed'], ['CUT', 'Enter cutting'], ['ISS', 'Give to karigar'], ['REC', 'Receive from karigar'], ['QC', 'Check in QC'], ['FG', 'Accept in FG']]) {
-    const ls = n(k); if (ls.length) return [k, label, ls];
+  for (const k of stage && P1_STAGE_STEPS[stage] ? P1_STAGE_STEPS[stage] : ['PLAN', 'RFD', 'PRN', 'CUT', 'ISS', 'REC', 'QC', 'FG', 'SHIP']) {
+    const ls = n(k); if (ls.length) return [k, P1_LABEL[k], ls];
   }
   return null;
 }
@@ -78794,7 +78802,7 @@ function p1DrawInv() {
   const holds = new Map(); wip.forEach(w => { (holds.get(w.sku) || holds.set(w.sku, []).get(w.sku)).push(w); });
   all.forEach(r => { r.holds = (holds.get(r.sku) || []).sort((a, b) => String(a.since || '9').localeCompare(String(b.since || '9')));
     r.stages = new Set(r.holds.map(w => P1_STAGE_OF[w.stage]).filter(Boolean)); if (r.notPlanned) r.stages.add('plan');
-    r.next = p1NextOf(r); r.late = r.holds.some(w => (p1Days(w.since) || 0) > 7);
+    r.next = p1NextOf(r, P1.stage); r.late = r.holds.some(w => (p1Days(w.since) || 0) > 7);
     r.due = r.lines.map(x => String((x.s.plan && x.s.plan.dates && x.s.plan.dates.ready) || x.r.mtoDue || '')).filter(Boolean).sort()[0] || ''; });
   const q = P1.q.trim().toUpperCase();
   const rows = all.filter(r => (!P1.stage || r.stages.has(P1.stage)) && (!q || (r.sku + ' ' + r.what + ' ' + [...r.orders].join(' ') + ' ' + r.holds.map(w => w.who).join(' ')).toUpperCase().includes(q)))
@@ -78821,7 +78829,7 @@ function p1DrawInv() {
   on('[data-p1st]', b => { P1.stage = b.dataset.p1st; P1.inv = ''; P1.lim = 300; p1Draw(); });
   on('[data-p1row]', (b, e) => { if (e.target.closest('button')) return; P1.inv = P1.inv === b.dataset.p1row ? '' : b.dataset.p1row; p1Draw(); });
   on('[data-p1next]', b => { const r = R(b.dataset.p1next), nx = r && r.next; if (!nx) return;
-    if (nx[0] === 'PLAN' || nx[0] === 'RFD' || nx[2].length === 1 || ['QC', 'FG', 'PRN'].includes(nx[0])) return p1Do(nx[0], nx[2]);
+    if (nx[0] === 'PLAN' || nx[0] === 'RFD' || nx[2].length === 1 || ['QC', 'FG', 'PRN', 'SHIP'].includes(nx[0])) return p1Do(nx[0], nx[2]);
     P1.inv = r.sku; p1Draw(); });                                    // several lines for one step: the SKU's card, each line there
   /* the SKU card's own buttons */
   on('[data-p1add]', b => { const k = b.dataset.p1add, sku = b.dataset.p1addSku || '', gs = p1Groups(k, sku);
@@ -78875,7 +78883,7 @@ function p1DrawLedger() {
   const range = [['Today', today, today], ['7 days', ago(7), ''], ['30 days', ago(30), ''], ['All', '', '']];
   el.innerHTML = `<div class="lg-top">${p1ViewSeg()}<div><h1>PPC ledger</h1><div class="lg-note" style="margin:2px 0 0">Every step of every SKU — from the order coming in to leaving production — with who did it and when.</div></div>
       <input class="lg-q" id="p1Q" placeholder="Search SKU, order, karigar, printer, person…" value="${esc(P1.q)}"><span class="lg-when">${P1.loading ? 'Reading…' : 'Read ' + (P1.at || '—')} · <a data-p1r>↻ Refresh</a></span></div>
-    <div class="lg-addrow"><span class="lg-note" style="margin:0">Add a movement:</span>${P1_ADD.filter(a => p1MayTab(a[2])).map(a => { const n = ['QC', 'FG', 'PRN'].includes(a[0]) ? p1Waiting(a[0]).length : new Set(p1Waiting(a[0]).map(x => a[0] === 'PLAN' || a[0] === 'RFD' ? obUC(x.r.sku) : x.s.key)).size;
+    <div class="lg-addrow"><span class="lg-note" style="margin:0">Add a movement:</span>${P1_ADD.filter(a => p1MayTab(a[2])).map(a => { const n = ['QC', 'FG', 'PRN', 'SHIP'].includes(a[0]) ? p1Waiting(a[0]).length : new Set(p1Waiting(a[0]).map(x => a[0] === 'PLAN' || a[0] === 'RFD' ? obUC(x.r.sku) : x.s.key)).size;
       return `<button type="button" class="lg-add${P1.act === a[0] ? ' on' : ''}" data-p1add="${a[0]}"><span class="pl ${P1_MV[a[0]][1]}" style="padding:0 6px">+</span>${esc(a[1])}${n ? ` <i>${p1N(n)}</i>` : ''}</button>`; }).join('')}</div>
     ${P1.act ? p1WaitCard(P1.act) : ''}
     <div class="lg-card lg-filt"><div class="lg-range">${range.map(r => `<button type="button" class="${f.from === r[1] && f.to === r[2] ? 'on' : ''}" data-p1rg="${r[1]}|${r[2]}">${r[0]}</button>`).join('')}</div>
