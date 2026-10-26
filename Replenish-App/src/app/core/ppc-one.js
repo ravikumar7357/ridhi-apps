@@ -335,12 +335,111 @@ function p1DrawInv() {
   const qi = el.querySelector('#p1Q'); if (qi) qi.oninput = () => { P1.q = qi.value; clearTimeout(P1.qt); P1.qt = setTimeout(() => { P1.lim = 300; p1Draw(); const n = $('p1Q'); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } }, 300); };
 }
 
-const p1ViewSeg = () => `<div class="seg p1-views">${[['inv', 'Production'], ['ledger', 'PPC ledger']].map(v => `<button type="button" class="segbtn${P1.view === v[0] ? ' on' : ''}" data-p1view="${v[0]}">${v[1]}</button>`).join('')}</div>`;
+/* ---------- PPC REPORT (Ravi, 26 Oct: "create a report page for ppc too where I can check what is the work I have given
+ * and all") ----------
+ * For a period: what was planned, sent out and came back — tiles for each step; the work given out by party (each printer,
+ * each karigar, cutting) with what went, what came back and what is still out now, oldest first; who entered what; and the
+ * day-by-day. Every figure is read from the same movements as the PPC ledger. Download gives the tables as a CSV file. */
+const P1_RANGES = [['today', 'Today'], ['7', '7 days'], ['30', '30 days'], ['month', 'This month'], ['all', 'All'], ['custom', 'Pick dates']];
+function p1RangeDates() {
+  const iso = d => d.toISOString().slice(0, 10), now = new Date(), r = P1.rr || '7';
+  if (r === 'today') return [iso(now), iso(now)];
+  if (r === 'month') return [iso(new Date(now.getFullYear(), now.getMonth(), 1, 12)), iso(now)];
+  if (r === 'all') return ['', ''];
+  if (r === 'custom') return [P1.rf || '', P1.rt || ''];
+  return [iso(new Date(Date.now() - (+r - 1) * 864e5)), iso(now)];
+}
+/** The report's figures for the period: tiles, parties, people, days. */
+function p1Report() {
+  const [from, to] = p1RangeDates(), ev = p1Events().filter(e => (!from || e.day >= from) && (!to || e.day <= to));
+  const pcs = k => ev.filter(e => e.k === k && e.unit !== 'm').reduce((t, e) => t + e.pcs, 0), mtr = k => ev.filter(e => e.k === k && e.unit === 'm').reduce((t, e) => t + e.pcs, 0);
+  const tiles = [['IN', 'Orders in', pcs('IN')], ['PLAN', 'Planned', pcs('PLAN')], ['RFD', 'Fabric to printers', pcs('RFD'), mtr('RFD')], ['PRN', 'Printed back', pcs('PRN'), mtr('PRN')],
+    ['CUT', 'Cut', pcs('CUT')], ['ISS', 'Given to karigars', pcs('ISS')], ['REC', 'Back from karigars', pcs('REC')], ['QC', 'QC passed', pcs('QC')], ['REJ', 'QC rejected', pcs('REJ')],
+    ['FG', 'Into Finished Goods', pcs('FG')], ['SHIP', 'Handed to shipping', pcs('SHIP') + pcs('FBA')]];
+  /* the parties: printers (fabric out → printed back), karigars (issued → received), cutting */
+  const parties = new Map(), P = (kind, name) => { const k = kind + '|' + (name || '—'); return parties.get(k) || parties.set(k, { kind, name: name || '—', given: 0, back: 0, unit: kind === 'Printer' ? '' : 'pcs', lines: new Set(), skus: new Set() }).get(k); };
+  ev.forEach(e => {
+    if (e.k === 'RFD') { const p = P('Printer', e.party); p.given += e.pcs; p.unit = p.unit || e.unit; p.lines.add(e.orderNo + '|' + e.sku); p.skus.add(e.sku); }
+    else if (e.k === 'PRN') { const p = P('Printer', e.party); p.back += e.pcs; p.unit = p.unit || e.unit; }
+    else if (e.k === 'ISS') { const p = P('Karigar', e.party); p.given += e.pcs; p.lines.add(e.orderNo + '|' + e.sku); p.skus.add(e.sku); }
+    else if (e.k === 'REC') { const p = P('Karigar', e.party); p.back += e.pcs; }
+    else if (e.k === 'CUT') { const p = P('Cutting', 'Cutting department'); p.given += e.pcs; p.lines.add(e.orderNo + '|' + e.sku); p.skus.add(e.sku); }
+  });
+  /* still out now (whatever the period): from where the pieces are today */
+  const out = new Map();
+  p1Wip().forEach(w => { const kind = w.stage === 'Printer' ? 'Printer' : w.stage === 'With karigar' ? 'Karigar' : null; if (!kind) return;
+    const k = kind + '|' + (w.who || '—'), o = out.get(k) || out.set(k, { pcs: 0, oldest: '', items: [] }).get(k);
+    o.pcs += w.pcs; o.items.push(w); if (w.since && (!o.oldest || w.since < o.oldest)) o.oldest = w.since;
+    if (!parties.has(k)) P(kind, w.who); });
+  const rows = [...parties.values()].map(p => Object.assign(p, { out: out.get(p.kind + '|' + p.name) || { pcs: 0, oldest: '', items: [] } }))
+    .sort((a, b) => ['Printer', 'Karigar', 'Cutting'].indexOf(a.kind) - ['Printer', 'Karigar', 'Cutting'].indexOf(b.kind) || (b.out.pcs - a.out.pcs) || (b.given - a.given));
+  /* who entered what */
+  const people = new Map(), KS = ['PLAN', 'RFD', 'PRN', 'CUT', 'ISS', 'REC', 'QC', 'FG'];
+  ev.forEach(e => { if (!e.by || !KS.includes(e.k)) return; const p = people.get(e.by) || people.set(e.by, { by: e.by, n: 0 }).get(e.by); p[e.k] = (p[e.k] || 0) + 1; p.n++; });
+  /* day by day */
+  const days = new Map(); ev.forEach(e => { if (!['PLAN', 'CUT', 'ISS', 'REC', 'QC', 'FG'].includes(e.k) || e.unit === 'm') return; const d = days.get(e.day) || days.set(e.day, { day: e.day }).get(e.day); d[e.k] = (d[e.k] || 0) + e.pcs; });
+  return { from, to, n: ev.length, tiles, rows, people: [...people.values()].sort((a, b) => b.n - a.n), KS, days: [...days.values()].sort((a, b) => b.day.localeCompare(a.day)) };
+}
+function p1DrawReport() {
+  const el = $('p1Home');
+  let R; try { R = p1Report(); } catch (e) { el.innerHTML = `<div class="p1-head"><h1 class="lm-h">PPC</h1>${p1ViewSeg()}</div><div class="card"><div class="empty" style="color:var(--bad)">Could not read the registers: ${esc(e.message || e)}</div></div>`; return; }
+  const q = P1.q.trim().toUpperCase(), kinds = ['Printer', 'Karigar', 'Cutting'];
+  const rows = R.rows.filter(p => (!P1.rk || p.kind === P1.rk) && (!q || p.name.toUpperCase().includes(q) || [...p.skus].some(s => s.includes(q))));
+  const u = p => p.kind === 'Printer' && p.unit === 'm' ? ' m' : '';
+  const per = R.from || R.to ? `${R.from ? p1Day(R.from) : 'the start'} – ${R.to ? p1Day(R.to) : 'today'}` : 'all time';
+  el.innerHTML = `<div class="p1-head"><h1 class="lm-h">PPC</h1>${p1ViewSeg()}<input type="search" class="p1-q" id="p1Q" placeholder="Search a printer, karigar or SKU…" value="${esc(P1.q)}"></div>
+    <div class="p1-segrow" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="seg">${P1_RANGES.map(r => `<button type="button" class="segbtn${(P1.rr || '7') === r[0] ? ' on' : ''}" data-p1rr="${r[0]}">${r[1]}</button>`).join('')}</div>
+      ${(P1.rr || '7') === 'custom' ? `<label class="rp-date">From <input type="date" data-p1rd="rf" value="${esc(P1.rf || '')}"></label><label class="rp-date">To <input type="date" data-p1rd="rt" value="${esc(P1.rt || '')}"></label>` : ''}
+      <span class="muted" style="font-size:12.5px">${esc(per)} · ${p1N(R.n)} movements</span><span style="flex:1"></span><button type="button" class="ghost" data-p1csv>Download (CSV)</button></div>
+    <div class="rp-tiles">${R.tiles.map(t => `<div><b>${t[3] && !t[2] ? p1N(t[3]) + '<small> m</small>' : p1N(t[2]) + (t[3] ? `<small> pcs · ${p1N(t[3])} m</small>` : '')}</b><span>${esc(t[1])}</span></div>`).join('')}</div>
+    <div class="card" style="padding:0;overflow:hidden"><div class="rp-cap"><b>Work given out — and what came back</b><span class="muted"> · given and back in the period; still out is today</span>
+      <span style="flex:1"></span><div class="seg">${[['', 'All'], ['Printer', 'Printers'], ['Karigar', 'Karigars'], ['Cutting', 'Cutting']].map(k => `<button type="button" class="segbtn${(P1.rk || '') === k[0] ? ' on' : ''}" data-p1rk="${k[0]}">${k[1]} <span class="n">${R.rows.filter(p => !k[0] || p.kind === k[0]).length}</span></button>`).join('')}</div></div>
+    <div class="ff-grid" style="max-height:none"><table class="xl"><thead><tr><th class="frz" style="text-align:left">Given to</th><th>Type</th><th>Given</th><th>Back</th><th>Still out now</th><th>Oldest out</th><th>SKUs</th><th></th></tr></thead><tbody>
+    ${rows.map((p, i) => { const open = P1.rexp === p.kind + '|' + p.name, d = p1Days(p.out.oldest);
+      return `<tr><td class="frz" style="text-align:left"><b>${esc(p.name)}</b></td><td><span class="pl ${p.kind === 'Printer' ? 'mv-mat' : p.kind === 'Karigar' ? 'mv-make' : 'mv-plan'}">${p.kind}</span></td>
+        <td class="num">${p.given ? p1N(p.given) + u(p) : '—'}</td><td class="num">${p.back ? p1N(p.back) + u(p) : '—'}</td>
+        <td class="num"><b${p.out.pcs ? ' style="color:var(--bad)"' : ''}>${p.out.pcs ? p1N(p.out.pcs) + u(p) : '—'}</b></td>
+        <td class="num">${p.out.oldest ? `${p1Day(p.out.oldest)} · <b${d > 7 ? ' style="color:var(--bad)"' : ''}>${d} d</b>` : '—'}</td><td class="num">${p.skus.size || p.out.items.length ? p1N(new Set([...p.skus, ...p.out.items.map(w => w.sku)]).size) : '—'}</td>
+        <td>${p.out.items.length ? `<button type="button" class="cellbtn${open ? ' on' : ''}" data-p1rexp="${esc(p.kind + '|' + p.name)}">${open ? 'Hide' : 'What is out'} <span class="caret">${open ? '▴' : '▾'}</span></button>` : ''}</td></tr>
+        ${open ? `<tr class="invdet"><td colspan="8"><div class="invdrop"><div class="sect">Still out with ${esc(p.name)}</div><div class="box scroll"><table class="ct li"><thead><tr><th>SKU</th><th>Order</th><th class="num">Pcs</th><th>Since</th><th class="num">Days</th><th>Reference</th></tr></thead><tbody>
+          ${p.out.items.sort((a, b) => String(a.since || '9').localeCompare(String(b.since || '9'))).map(w => { const dd = p1Days(w.since); return `<tr><td class="b">${esc(w.sku)}</td><td>${p1Ords(w.orderNo)}</td><td class="num b">${p1N(w.pcs)}${w.unit === 'm' ? ' m' : ''}</td><td>${p1Day(w.since)}</td><td class="num"${dd > 7 ? ' style="color:var(--bad);font-weight:700"' : ''}>${dd == null ? '—' : dd}</td><td class="muted">${esc(w.ref || '')}</td></tr>`; }).join('')}
+          </tbody></table></div></div></td></tr>` : ''}`; }).join('') || '<tr><td colspan="8" class="empty">No work given out in this period.</td></tr>'}
+    </tbody></table></div></div>
+    <div class="rp-two"><div class="card" style="padding:0;overflow:hidden"><div class="rp-cap"><b>Who entered what</b><span class="muted"> · entries in the period</span></div>
+      <div class="ff-grid" style="max-height:420px"><table class="xl"><thead><tr><th class="frz" style="text-align:left">Person</th>${R.KS.map(k => `<th>${esc(P1_MV[k][0])}</th>`).join('')}<th>Total</th></tr></thead><tbody>
+      ${R.people.map(p => `<tr><td class="frz" style="text-align:left"><b>${esc(p.by)}</b></td>${R.KS.map(k => `<td class="num">${p[k] ? p1N(p[k]) : '<span class="muted">—</span>'}</td>`).join('')}<td class="num"><b>${p1N(p.n)}</b></td></tr>`).join('') || `<tr><td colspan="${R.KS.length + 2}" class="empty">Nobody entered anything in this period.</td></tr>`}</tbody></table></div></div>
+    <div class="card" style="padding:0;overflow:hidden"><div class="rp-cap"><b>Day by day</b><span class="muted"> · pieces</span></div>
+      <div class="ff-grid" style="max-height:420px"><table class="xl"><thead><tr><th class="frz" style="text-align:left">Day</th><th>Planned</th><th>Cut</th><th>To karigars</th><th>Back</th><th>QC passed</th><th>Into FG</th></tr></thead><tbody>
+      ${R.days.map(d => `<tr><td class="frz" style="text-align:left">${p1Day(d.day)}</td>${['PLAN', 'CUT', 'ISS', 'REC', 'QC', 'FG'].map(k => `<td class="num">${d[k] ? p1N(d[k]) : '<span class="muted">—</span>'}</td>`).join('')}</tr>`).join('') || '<tr><td colspan="7" class="empty">Nothing in this period.</td></tr>'}</tbody></table></div></div></div>`;
+  const on = (sel, fn, ev2 = 'onclick') => el.querySelectorAll(sel).forEach(b => { b[ev2] = e => fn(b, e); });
+  on('[data-p1view]', b => { P1.view = b.dataset.p1view; P1.lim = 300; p1Draw(); window.scrollTo(0, 0); });
+  on('[data-p1rr]', b => { P1.rr = b.dataset.p1rr; P1.rexp = ''; p1Draw(); });
+  on('[data-p1rd]', b => { P1[b.dataset.p1rd] = b.value; p1Draw(); }, 'onchange');
+  on('[data-p1rk]', b => { P1.rk = b.dataset.p1rk; P1.rexp = ''; p1Draw(); });
+  on('[data-p1rexp]', b => { P1.rexp = P1.rexp === b.dataset.p1rexp ? '' : b.dataset.p1rexp; p1Draw(); });
+  on('[data-p1csv]', () => p1ReportCsv(R));
+  const qi = el.querySelector('#p1Q'); if (qi) qi.oninput = () => { P1.q = qi.value; clearTimeout(P1.qt); P1.qt = setTimeout(() => { p1Draw(); const n = $('p1Q'); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } }, 300); };
+}
+/** The report as a CSV file: the work given out, then who entered what, then day by day. */
+function p1ReportCsv(R) {
+  const c = v => { const s = String(v == null ? '' : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }, L = [];
+  L.push(['PPC report', R.from || 'start', R.to || 'today'].map(c).join(','), '');
+  L.push(['Given to', 'Type', 'Given', 'Back', 'Still out now', 'Oldest out', 'Days', 'SKUs'].map(c).join(','));
+  R.rows.forEach(p => L.push([p.name, p.kind, p.given, p.back, p.out.pcs, p.out.oldest, p1Days(p.out.oldest) ?? '', new Set([...p.skus, ...p.out.items.map(w => w.sku)]).size].map(c).join(',')));
+  L.push('', ['Person'].concat(R.KS.map(k => P1_MV[k][0]), ['Total']).map(c).join(','));
+  R.people.forEach(p => L.push([p.by].concat(R.KS.map(k => p[k] || 0), [p.n]).map(c).join(',')));
+  L.push('', ['Day', 'Planned', 'Cut', 'To karigars', 'Back', 'QC passed', 'Into FG'].map(c).join(','));
+  R.days.forEach(d => L.push([d.day].concat(['PLAN', 'CUT', 'ISS', 'REC', 'QC', 'FG'].map(k => d[k] || 0)).map(c).join(',')));
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + L.join('\r\n')], { type: 'text/csv' }));
+  a.download = `PPC report ${R.from || 'start'} to ${R.to || new Date().toISOString().slice(0, 10)}.csv`; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+
+const p1ViewSeg = () => `<div class="seg p1-views">${[['inv', 'Production'], ['ledger', 'PPC ledger'], ['report', 'Report']].map(v => `<button type="button" class="segbtn${P1.view === v[0] ? ' on' : ''}" data-p1view="${v[0]}">${v[1]}</button>`).join('')}</div>`;
 
 function p1Draw() {
   const el = $('p1Home'); if (!el || !P1.shown) return;
   if (P1.loading && !P1.built) { el.innerHTML = '<div class="p1-head"><h1 class="lm-h">PPC</h1><span class="muted">Reading the order book, plans and registers…</span></div>'; return; }
-  if (P1.view === 'ledger') p1DrawLedger(); else p1DrawInv();
+  if (P1.view === 'ledger') p1DrawLedger(); else if (P1.view === 'report') p1DrawReport(); else p1DrawInv();
   if (P1.built) p1MeeraFirst();
 }
 function p1DrawLedger() {
@@ -430,6 +529,12 @@ if (typeof GUIDE_TOURS !== 'undefined') {
     { sel: '#p1Home tr.p1r', en: 'Click a line to open the SKU\'s card under it: its figures, every place its pieces are, and a button for every step waiting.', hi: 'किसी लाइन पर क्लिक करें तो उसके नीचे SKU का कार्ड खुलता है: उसके आँकड़े, उसके पीस कहाँ-कहाँ हैं, और हर बाकी काम का बटन।' },
     { sel: '#p1Q', en: 'Search finds a SKU, an order, a karigar or a printer.', hi: 'सर्च में SKU, ऑर्डर, कारीगर या प्रिंटर का नाम लिखें।' },
     { sel: '#p1Home .p1-views', en: '<b>PPC ledger</b> shows every step of every SKU — who did what, and when. Ask me anything about this page with my round button.', hi: '<b>PPC ledger</b> में हर SKU का हर कदम है — किसने क्या किया, कब। इस पेज के बारे में कुछ भी पूछना हो तो मेरे गोल बटन से पूछें।' }];
+  GUIDE_TOURS.ppcreport = [
+    { en: 'This is the <b>PPC report</b> — the work given out in a period, and what came back.', hi: 'यह <b>PPC report</b> है — किसी समय में दिया गया काम, और क्या वापस आया।' },
+    { sel: '#p1Home .p1-segrow', en: 'Pick the period — today, 7 days, 30 days, this month, all, or your own dates. <b>Download</b> saves the tables as a CSV file.', hi: 'समय चुनें — आज, 7 दिन, 30 दिन, इस महीने, सब, या अपनी तारीखें। <b>Download</b> से टेबल CSV फ़ाइल में सेव होती है।' },
+    { sel: '#p1Home .rp-tiles', en: 'Each box counts one step in the period: orders in, planned, fabric to printers, printed back, cut, to karigars, back, QC, into Finished Goods, handed over.', hi: 'हर बॉक्स उस समय का एक कदम गिनता है: ऑर्डर आए, प्लान, प्रिंटर को फ़ैब्रिक, प्रिंट होकर वापस, कटिंग, कारीगर को, वापस, QC, Finished Goods में, सौंपे गए।' },
+    { sel: '#p1Home .rp-cap', en: '<b>Work given out</b>: each printer, each karigar and cutting — what was given and what came back in the period, and what is <b>still out today</b> with the oldest date. <b>What is out</b> lists it line by line.', hi: '<b>Work given out</b>: हर प्रिंटर, हर कारीगर और कटिंग — उस समय में कितना दिया और कितना वापस आया, और <b>आज कितना बाहर है</b> सबसे पुरानी तारीख़ के साथ। <b>What is out</b> लाइन-दर-लाइन दिखाता है।' },
+    { sel: '#p1Home .rp-two', en: '<b>Who entered what</b> counts each person’s entries; <b>Day by day</b> shows the pieces each day.', hi: '<b>Who entered what</b> हर व्यक्ति की एंट्री गिनता है; <b>Day by day</b> हर दिन के पीस दिखाता है।' }];
   GUIDE_TOURS.ppcledger = [
     { en: 'This is the <b>PPC ledger</b> — every step of every SKU, newest first, like the Greige Desk\'s fabric ledger.', hi: 'यह <b>PPC ledger</b> है — हर SKU का हर कदम, नया सबसे ऊपर, ग्रेज डेस्क के फ़ैब्रिक लेजर की तरह।' },
     { sel: '#p1Home .lg-addrow', en: '<b>Add a movement</b>: press a step to see only what is waiting for it, each with the button that opens its form.', hi: '<b>Add a movement</b>: किसी कदम पर दबाएँ तो सिर्फ़ उसका बाकी काम दिखेगा, हर एक के साथ उसका फ़ॉर्म खोलने वाला बटन।' },
@@ -439,17 +544,17 @@ if (typeof GUIDE_TOURS !== 'undefined') {
 }
 (function p1Meera(n) {
   if (typeof gaHere !== 'function' || typeof guideStart !== 'function') { if (n > 0) setTimeout(() => p1Meera(n - 1), 500); return; }
-  const here = gaHere; gaHere = function () { return P1.shown ? (P1.view === 'ledger' ? 'ppcledger' : 'ppc') : here.apply(this, arguments); };
-  if (typeof gaGo === 'function') { const go = gaGo; gaGo = function (tab) { if (tab === 'ppc' || tab === 'ppcledger') { P1.view = tab === 'ppcledger' ? 'ledger' : 'inv'; return p1Show(); } return go.apply(this, arguments); }; }
-  if (typeof gaTabName === 'function') { const nm = gaTabName; gaTabName = function (tab) { return tab === 'ppc' ? 'PPC' : tab === 'ppcledger' ? 'PPC ledger' : nm.apply(this, arguments); }; }
-  if (typeof guideMayOpen === 'function') { const may = guideMayOpen; guideMayOpen = function (tab) { return tab === 'ppc' || tab === 'ppcledger' ? p1May() : may.apply(this, arguments); }; }
+  const here = gaHere; gaHere = function () { return P1.shown ? (P1.view === 'ledger' ? 'ppcledger' : P1.view === 'report' ? 'ppcreport' : 'ppc') : here.apply(this, arguments); };
+  if (typeof gaGo === 'function') { const go = gaGo; gaGo = function (tab) { if (tab === 'ppc' || tab === 'ppcledger' || tab === 'ppcreport') { P1.view = tab === 'ppcledger' ? 'ledger' : tab === 'ppcreport' ? 'report' : 'inv'; return p1Show(); } return go.apply(this, arguments); }; }
+  if (typeof gaTabName === 'function') { const nm = gaTabName; gaTabName = function (tab) { return tab === 'ppc' ? 'PPC' : tab === 'ppcledger' ? 'PPC ledger' : tab === 'ppcreport' ? 'PPC report' : nm.apply(this, arguments); }; }
+  if (typeof guideMayOpen === 'function') { const may = guideMayOpen; guideMayOpen = function (tab) { return tab === 'ppc' || tab === 'ppcledger' || tab === 'ppcreport' ? p1May() : may.apply(this, arguments); }; }
 })(40);
 /** Her walk-round, the first time a person opens a view (while the helper is on), once the lines are on the page. */
 function p1MeeraFirst() {
   if (typeof guideIsOn !== 'function' || !guideIsOn() || typeof guideSeen !== 'function') return;
-  const name = P1.view === 'ledger' ? 'ppcledger' : 'ppc';
+  const name = P1.view === 'ledger' ? 'ppcledger' : P1.view === 'report' ? 'ppcreport' : 'ppc';
   if (guideSeen().includes(name)) return;
-  setTimeout(() => { if (P1.shown && P1.built && !(typeof GUIDE !== 'undefined' && GUIDE.tour) && ((P1.view === 'ledger') === (name === 'ppcledger'))) { guideMarkSeen(name); guideStart(name, false); } }, 1500);
+  setTimeout(() => { if (P1.shown && P1.built && !(typeof GUIDE !== 'undefined' && GUIDE.tour) && (({ ledger: 'ppcledger', report: 'ppcreport' })[P1.view] || 'ppc') === name) { guideMarkSeen(name); guideStart(name, false); } }, 1500);
 }
 async function p1Load(force) {
   if (P1.loading) return;
