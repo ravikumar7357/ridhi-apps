@@ -119,9 +119,14 @@ const GUIDE_STOP = new Set(('a an the is are was were be to of in on at for by i
   'kar karna karu karun kare karo karte karta karti krna kr kro kiya kiye raha rahi rahe rha rhi rhe hota hoti hote hua hui gaya gayi gya gyi ' +
   'do does did get want need use using kindly just aa aata aati aate rha ' +
   'please plz pls sir ji bhai yaar aur ya par pe bhi abhi kuch koi ek sab toh to sakta sakti sakte skta chahiye chahta chahti ' +
-  'है हैं था थी का की के को से में मैं मुझे यह वह कर करना करें करो रहा रही हो गया गई भी और या कुछ कोई').split(/\s+/));
+  'है हैं था थी का की के को से में मैं मुझे यह वह कर करना करें करो रहा रही हो गया गई भी और या कुछ कोई ' +
+  'here am yahan yaha yahaan idhar idar यहाँ यहां इधर').split(/\s+/));
+/* A question about the screen in front: "filter here", "is page pe", "yahan ka button". Its answers lean to that screen. */
+const GA_HERE_RE = /\b(here|yahan|yaha|yahaan|idhar|idar|(this|is|ye|yeh|iss) (screen|page|pej)|is pe|is par|isme|is me)\b|यहाँ|यहां|इधर|इस (स्क्रीन|पेज)|इसमें/i;
+/* "Which page am I on?" — answered with the screen's name, never with a guess from the bank. */
+const GA_WHEREAMI_RE = /\b(which|what|kaun ?s[ia]|kaunsi|konsi|kis)\s+(page|screen|pej)\b.*\b(am i|i am|i'?m|hoon|hu|hun|hai|h|on)\b|\b(page|screen)\s+(i am|i'?m|im)\s+on\b|\bwhere am i\b|\b(main|mai|me)\s+(kahan|kaha|kidhar)\s+(hoon|hu|hun)\b|मैं कहाँ हूँ|कौन सी (स्क्रीन|पेज)|किस (स्क्रीन|पेज) पर/i;
 /* Hinglish is told from English by these: a question with one of them in Latin letters is answered in Hinglish. */
-const GUIDE_HG = new Set('kaise kese kya kyu kyun nahi nahin nhi hai ho karna kar ko ka ki ke mein me kahan kaha raha rahi de dena wapas vapas bata batao mujhe kaun kon aap tum ji bhai yaar galat galti theek thik dikh dikhta khul khulta band karu kare hota hua gaya gayi dhanyavad dhanyawad shukriya banaye banana lagana sakti'.split(' '));
+const GUIDE_HG = new Set('kaise kese kya kyu kyun nahi nahin nhi hai ho karna kar ko ka ki ke mein me kahan kaha raha rahi de dena wapas vapas bata batao mujhe kaun kon aap tum ji bhai yaar galat galti theek thik dikh dikhta khul khulta band karu kare hota hua gaya gayi dhanyavad dhanyawad shukriya banaye banana lagana sakti hoon hu hun kis par pe kahan kaha kaunsi konsi kaise kese'.split(' '));
 
 /* ---------- everyday trouble with the site ---------- */
 const GUIDE_FAQ = [
@@ -891,6 +896,7 @@ function gaBankFind(means, words, q) {
   const qW = means.reduce((a, m) => a + w(m), 0);
   const tab = gaHere();
   const said = gaTabsSaid(q);
+  if (GA_HERE_RE.test(String(q || ''))) said.add(tab);
   const out = [];
   for (let ei = 0; ei < B.list.length; ei++) {
     const e = B.list[ei];
@@ -1032,6 +1038,12 @@ function gaSay(html, acts, after) {
 async function gaAsk(q) {
   gaMine(q);
   GA.lastQ = q;
+  if (GA_WHEREAMI_RE.test(q) && gaHere()) {
+    const lg = gaRead(q).lang, LL = (en, hi, hg) => (lg === 'hi' ? hi : lg === 'hg' ? (hg || en) : en), name = esc(gaTabName(gaHere()));
+    const a = gaScreenAnswer(gaHere(), lg, LL);
+    gaSay(LL(`You are on <b>${name}</b>.`, `आप <b>${name}</b> पर हैं।`, `Aap <b>${name}</b> par hain.`) + '<br>' + a.html, a.acts);
+    return;
+  }
   /* "this screen" means the one open now — when that is all the question asks ("ye screen kya hai"), not "keyboard
    * shortcut kya hai is page ke", which has an answer of its own */
   const rest = gaRead(q).means.filter(m => !['what', 'screen', 'show', 'help', 'about', 'how'].includes(m) && !/^(page|pej|पेज|about|samjha|samjhao|batao|bataiye|tell|explain)$/.test(m));
