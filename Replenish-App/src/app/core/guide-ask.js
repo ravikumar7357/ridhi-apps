@@ -656,6 +656,55 @@ function gaGuideFind(means) {
 }
 
 /** The answer to one question: { html, acts: [{t:'task'|'tour'|'open'|'guide', id|tab, label}] }. */
+/* ---------- a line on the screen ("what is this 92 Dark Salmon Pink", "ye RQL354-K wali line kya hai") ----------
+ * Only what the person already sees: the visible rows of the screen in front. A row is taken when the question's own
+ * words — the ones that are not everyday ERP words — are found in it, a number exactly, a word by its start ("pin" in
+ * "Pink"), and they make up most of what was asked. */
+const GA_ROW_SKIP = new Set(['line', 'row', 'item', 'entry', 'wali', 'wala', 'vala', 'wale', 'ye', 'yeh', 'this', 'that', 'is', 'kya', 'what', 'matlab', 'mean', 'meaning', 'about', 'batao', 'bataiye', 'tell', 'me', 'hai', 'h', 'ka', 'ki', 'ke', 'here', 'yahan', 'yaha', 'screen', 'page']);
+function gaRowFind(q) {
+  const here = gaHere();
+  const root = (here === 'mywork' && $('frHome')) || (typeof guidePane === 'function' && guidePane(here)) || null;
+  if (!root) return null;
+  const B = GA_BANK;
+  const words = gaWords(q).filter(w => !GUIDE_STOP.has(w) && !GA_ROW_SKIP.has(w) && w.length >= 2);
+  if (!words.length) return null;
+  /* at least one word that names a thing, not the ERP: a number, or a word the answers hardly use */
+  const own = w => /\d/.test(w) || !B || (B.df.get(gaMean(w)) || 0) <= 3;
+  if (!words.some(own)) return null;
+  const rows = [...root.querySelectorAll('tbody tr, .ml-row')].filter(x => x.offsetParent !== null).slice(0, 4000);
+  let best = null, bs = 0, bown = 0, ties = [];
+  for (const row of rows) {
+    const t = ' ' + (row.textContent || '').toLowerCase().replace(/[^\p{L}\p{M}\p{N}]+/gu, ' ') + ' ';
+    let hit = 0, hitOwn = 0;
+    for (const w of words) if (/^\d+$/.test(w) ? t.includes(' ' + w + ' ') : t.includes(' ' + w)) { hit++; if (own(w)) hitOwn++; }
+    if (hit > bs || (hit === bs && hitOwn > bown)) { bs = hit; bown = hitOwn; best = row; ties = [row]; }
+    else if (hit && hit === bs && hitOwn === bown) ties.push(row);
+  }
+  if (!best || !bown || bs < Math.min(2, words.length) || bs / words.length < 0.6) return null;
+  best.gaTies = ties;
+  return best;
+}
+function gaRowAnswer(row, lang, L) {
+  const name = esc(gaTabName(gaHere()));
+  const ties = row.gaTies || [row];
+  if (ties.length > 1) {
+    const first = x => ((x.tagName === 'TR' ? x.children[0] : x) || x).textContent.replace(/\s+/g, ' ').trim().slice(0, 60);
+    const names = [...new Set(ties.map(first))];
+    if (names.length > 1) return { html: L(`${ties.length} lines on <b>${name}</b> fit that. Which one do you mean? Ask again with its full name, for example:`, `<b>${name}</b> की ${ties.length} लाइनें इससे मिलती हैं। कौन-सी? उसका पूरा नाम लिखकर फिर पूछें, जैसे:`, `<b>${name}</b> ki ${ties.length} lines isse milti hain. Kaunsi? Uska poora naam likh kar phir poochiye, jaise:`)
+      + gaNearHtml(names.slice(0, 4).map(n => ({ e: { q: { en: [n], hi: [n], hg: [n] } } })), lang, ''), acts: [], row: true };
+  }
+  const table = row.closest('table');
+  const heads = table ? [...table.querySelectorAll('thead th')].map(th => th.textContent.replace(/\s+/g, ' ').trim()) : [];
+  const cells = row.tagName === 'TR' ? [...row.children].map(td => td.textContent.replace(/\s+/g, ' ').trim()) : [row.textContent.replace(/\s+/g, ' ').trim()];
+  const lead = cells.find(c => c && !/^[\d\s.,—–-]*$/.test(c)) || cells[0] || '';
+  const parts = cells.map((c, i) => (c && c !== lead ? (heads[i] ? `<li><b>${esc(heads[i])}</b>: ${esc(c)}</li>` : `<li>${esc(c)}</li>`) : '')).filter(Boolean);
+  const tour = GUIDE_TOURS[gaHere()], intro = tour && tour[0] && !tour[0].sel ? (lang === 'hi' ? tour[0].hi : tour[0].en) : '';
+  GA.fix = [row];
+  return { html: L(`That is a line on <b>${name}</b>: <b>${esc(lead)}</b>.`, `यह <b>${name}</b> की एक लाइन है: <b>${esc(lead)}</b>।`, `Ye <b>${name}</b> ki ek line hai: <b>${esc(lead)}</b>.`)
+      + (parts.length ? `<div class="ga-do"><b>${L('What it shows', 'इसमें क्या है', 'Isme kya hai')}</b><ul>${parts.slice(0, 10).join('')}</ul></div>` : '')
+      + (intro ? `<div class="ga-why"><b>${L('This screen', 'यह स्क्रीन', 'Ye screen')}</b>${intro}</div>` : ''),
+    acts: [{ t: 'fixel', id: '0', label: L('Show me the line', 'लाइन दिखाएँ', 'Line dikhaiye') }], row: true };
+}
 async function gaAnswer(q) {
   const { lang, means, words } = gaRead(q);
   const L = (en, hi, hg) => (lang === 'hi' ? hi : lang === 'hg' ? (hg || en) : en);
@@ -663,6 +712,8 @@ async function gaAnswer(q) {
     'माफ़ कीजिए, साइट या मैं कैसे बनी हूँ, या कंपनी की पॉलिसी (जैसे प्राइवेसी) के बारे में मैं बात नहीं कर सकती। इसके लिए एडमिन या मैनेजमेंट से पूछें। ERP चलाने में — कोई भी स्क्रीन, कोई भी काम, कोई भी दिक्कत — मैं खुशी से मदद करूँगी।',
     'Sorry, site ya main kaise bani hoon, ya company ki policy (jaise privacy) ke baare me main baat nahi kar sakti. Iske liye admin ya management se poochiye. ERP chalane me — koi bhi screen, koi bhi kaam, koi bhi dikkat — main khushi se help karungi.'), acts: [] };
   if (/^(meera\s+)?(unanswered|missed|miss)(\s+(questions|list))?\s*$/i.test(q.trim())) return gaMissList(L);
+  await gaBankLoad();
+  { const row = gaRowFind(q); if (row) return gaRowAnswer(row, lang, L); }
   if (!means.length) return { html: L('Tell me a little more — what are you trying to do?', 'थोड़ा और बताइए — आप क्या करना चाहते हैं?', 'Thoda aur bataiye — aap kya karna chahte hain?'), acts: [] };
   /* "why isn't it saving / error kyu / kaam pura nahi ho raha": the screen itself is the best answer */
   /* Only a question that names no topic of its own reads the screen ("error kyu", "problem hai", "save nahi ho raha"):
