@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Shopify · Ridhi Home &amp; Living</title>
+<!-- The Shopify section, working against the local hub backend (server.js).
+     Look: look.css (the approved design, matched to the live ERP's Shopify screens) + hub.css (what only the hub has:
+     DHL CSB, Setup, FedEx). Rules shared with the backend: journey.js. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Libre+Caslon+Text:wght@400;700&display=swap">
+<link rel="stylesheet" href="look.css">
+<link rel="stylesheet" href="hub.css">
+<!-- Inside the ERP's "Shopify hub (test)" page (?embed=1) the ERP already shows its own menu bar. -->
+<script>if (/[?&]embed=1\b/.test(location.search)) document.documentElement.classList.add('embed');</script>
+</head>
+<body data-page="orders">
+<div class="s-proto" id="modeBar">Connecting to the local hub…</div>
+<div class="shell">
+  <header class="side">
+    <div class="brand"><span class="brandname">Ridhi<span class="brandsub">Home &amp; Living</span></span></div>
+    <div class="navwrap"><button class="navgrp here" type="button"><span class="caret">&#9656;</span> Shopify</button></div>
+  </header>
+
+  <main class="s-wrap">
+    <!-- As on the live Shopify Orders screen: the blue band (name and store left, figures right), then the line of
+         filters under it in the same card. The other pages keep only the filter line. -->
+    <div class="s-head">
+      <div class="s-band">
+        <div class="s-title"><span>SHOPIFY</span><b id="ptitle">Orders</b></div>
+        <div class="seg" id="storeBand"></div>
+        <div class="s-figs" id="figs"></div>
+      </div>
+      <div class="s-tools">
+        <nav class="s-tabs" id="tabs" aria-label="Shopify pages"></nav>
+        <div class="seg s-barseg" id="storeBar"></div>
+        <button class="s-ordonly s-bucket" id="bucketBtn" type="button" title="Lines not yet routed to MCF, production or India">Bucket <b id="bucketN"></b></button>
+        <button class="s-ordonly s-bulkbtn" id="bulkBtn" type="button" title="Every order with something ready to ship (made, or in India stock): tick, weigh, make the DHL / FedEx files">Bulk order <b id="bulkN"></b></button>
+        <label class="s-search">
+          <input id="q" type="search" placeholder="Filter order / SKU / name / tracking" aria-label="Search" aria-keyshortcuts="/">
+        </label>
+        <span class="s-ordonly s-stockat" id="trackAt"></span>
+        <button class="s-live on" id="liveBtn" type="button"><i></i>Live tracking · on</button>
+        <button class="s-tbtn" id="present" type="button" title="Plays the whole flow on a demo order, step by step, with captions (and voice if you turn it on)">▶ Present</button>
+        <button class="s-ordonly s-fetch" id="fetchBtn" type="button">Fetch orders</button>
+      </div>
+    </div>
+
+    <!-- The current page is drawn here by app.js. -->
+    <div id="page"><div class="s-card s-empty">Loading…</div></div>
+  </main>
+</div>
+
+<nav class="s-bottom" id="bottom" aria-label="Shopify pages"></nav>
+<div id="dlg"></div>
+<div id="tourHost"></div>
+<script src="journey.js"></script>
+<script src="hub-web.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
