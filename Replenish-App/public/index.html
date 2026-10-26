@@ -78563,7 +78563,7 @@ const P1_END = new Set(['FG', 'FBA', 'SHIP']);
 /* ---------- reading the registers ---------- */
 
 /** Every step on record, oldest first: { k, ms, day, orderNo, sku, pcs, unit, by, party, ref }. Cached on its sources. */
-let P1_EV = { key: null, list: [] };
+let P1_EV = { key: null, list: [], last: new Map() };
 function p1Events() {
   const src = [PTG.ob, PT.cut, PT.base, PTG.press, FLOW.ppc, FLOW.ch, typeof QC !== 'undefined' ? QC.checks : null, typeof FGI !== 'undefined' ? FGI.rows : null, PTG.shopProd];
   if (P1_EV.key && src.every((s, i) => s === P1_EV.key[i])) return P1_EV.list;
@@ -78603,14 +78603,25 @@ function p1Events() {
   /* hand-overs to the shipping team (made-to-order lines) */
   try { shpHandRegister().forEach(h => add('SHIP', h.at, h, h.pcs, h.acceptedBy || h.by, 'Shipping team', h.shop ? 'Shopify ' + h.shop : 'Hand-over')); } catch (e) { /* not loaded */ }
   out.sort((a, b) => a.ms - b.ms);
-  P1_EV = { key: src, list: out };
+  /* the newest step of each kind for each line, looked up in one go (Ravi, 26 Oct: "really slow" — "since when" used to
+   * search every movement again for every line) */
+  const last = new Map(); out.forEach(e => last.set(e.k + '|' + e.orderNo + '|' + e.sku, e));
+  P1_EV = { key: src, list: out, last };
   return out;
 }
 
 /** Every piece in production right now: { stage, sku, orderNo, pcs, unit, who, since, ref }. */
+let P1_WIPC = { key: null, out: [] }, P1_INVC = { key: null, out: [] };
+/** What both lists are worked out from: when none of it changes, neither does the answer. */
+const p1SrcKey = () => [flowRows(), p1Events(), PT.base, typeof QC !== 'undefined' ? QC.checks : null, typeof FGI !== 'undefined' ? FGI.rows : null, FLOW.ch];
+const p1Same = (a, b) => !!a && a.length === b.length && a.every((x, i) => x === b[i]);
 function p1Wip() {
+  const key = p1SrcKey(); if (p1Same(P1_WIPC.key, key)) return P1_WIPC.out;
+  const res = p1WipBuild(); P1_WIPC = { key, out: res }; return res;
+}
+function p1WipBuild() {
   const out = [], rows = flowRows().filter(x => !x.r.__t && x.s.bucket !== 'done'), open = new Set(rows.map(x => obUC(x.r.orderNo) + '|' + obUC(x.r.sku)));
-  const lastOf = (k, o, s) => { const ev = p1Events(); for (let i = ev.length - 1; i >= 0; i--) { const e = ev[i]; if (e.k === k && e.orderNo === o && e.sku === s) return e; } return null; };
+  p1Events(); const lastOf = (k, o, s) => P1_EV.last.get(k + '|' + o + '|' + s) || null;
   /* with the printer: what each open challan has sent and not had back */
   Object.values(FLOW.ch || {}).forEach(c => { if (!c || c.cancelled || c.closed) return; const recv = flowChRecv(c);
     (c.lines || []).forEach(l => { if (l.ruffleOnly || flowChMoved(c, l)) return; const left = flowR2(flowChSent(l) - (recv[l.key] || 0));
@@ -78645,9 +78656,22 @@ const P1_ADD = [
   ['PRN', 'Printed back', 'flchl', x => x.s.printed && x.s.given > 0 && x.s.back < (+x.r.qty || 0)],
   ['CUT', 'Cut', 'pcut', x => x.s.canCut > 0 && ['cut', 'fabric', 'emb'].includes(x.s.bucket)],
   ['ISS', 'Give to karigar', 'pbase', x => typeof flowIssuable === 'function' && flowIssuable(x.r, x.s) > 0 && !['ppc', 'back', 'demand', 'vendor'].includes(x.s.bucket)],
-  ['REC', 'Back from karigar', 'pbase', x => typeof flowOpenIssues === 'function' && flowOpenIssues(x.r).length > 0],
+  ['REC', 'Back from karigar', 'pbase', x => p1OpenIss(x.r).length > 0],
   ['QC', 'QC check', 'qc', x => { try { return flowQcWaiting(x.r, x.s) > 0; } catch (e) { return false; } }],
   ['FG', 'Into Finished Goods', 'fgi', x => x.s.bucket === 'fgin']];
+/** The Job Work issues still out with a karigar, per order line — indexed once (flowOpenIssues walks the whole register
+ *  for every line, which on the real register made the page crawl). */
+let P1_ISS = { src: null, n: -1, map: new Map() };
+function p1OpenIss(r) {
+  const src = PT.base || [];
+  if (P1_ISS.src !== src || P1_ISS.n !== src.length) {
+    const map = new Map();
+    src.forEach(b => { if (!b || b.frozen || !(ptNum(b.issuePieces) - ptNum(b.receivedPieces) - ptNum(b.rejectionPieces) > 0)) return;
+      const k = obUC(b.orderNo) + '|' + obUC(b.sku); (map.get(k) || map.set(k, []).get(k)).push(b); });
+    P1_ISS = { src, n: src.length, map };
+  }
+  return P1_ISS.map.get(obUC(r.orderNo) + '|' + obUC(r.sku)) || [];
+}
 const p1MayTab = t => !!(ME && (ME.admin || (ME.tabs || []).includes(t)));
 function p1Waiting(k) { const a = P1_ADD.find(x => x[0] === k); return a ? flowRows().filter(x => !x.r.__t && x.s.bucket !== 'done' && a[3](x)) : []; }
 
@@ -78661,7 +78685,7 @@ function p1Groups(k, sku) {
 function p1Pcs(k, x) {
   if (k === 'CUT') return x.s.canCut;
   if (k === 'ISS') return flowIssuable(x.r, x.s);
-  if (k === 'REC') return flowOpenIssues(x.r).reduce((t, b) => t + ptNum(b.issuePieces) - ptNum(b.receivedPieces) - ptNum(b.rejectionPieces), 0);
+  if (k === 'REC') return p1OpenIss(x.r).reduce((t, b) => t + ptNum(b.issuePieces) - ptNum(b.receivedPieces) - ptNum(b.rejectionPieces), 0);
   if (k === 'QC') { try { return flowQcWaiting(x.r, x.s); } catch (e) { return 0; } }
   if (k === 'PRN') return Math.max(0, (+x.r.qty || 0) - x.s.back);
   if (k === 'FG') return Math.max(0, x.s.made - x.s.india);
@@ -78684,7 +78708,7 @@ function p1Do(k, xs) {
 function p1WaitCard(k) {
   const a = P1_ADD.find(x => x[0] === k), q = P1.q.trim().toUpperCase();
   const gs = P1.groups = p1Groups(k, P1.f.sku).filter(([s, xs]) => !q || (s + ' ' + xs.map(x => x.r.orderNo).join(' ')).toUpperCase().includes(q));
-  const who = xs => k === 'REC' ? flowOpenIssues(xs[0].r).map(b => b.empName).join(', ') : (xs[0].s.plan && xs[0].s.plan.printer) || '';
+  const who = xs => k === 'REC' ? p1OpenIss(xs[0].r).map(b => b.empName).join(', ') : (xs[0].s.plan && xs[0].s.plan.printer) || '';
   const tot = gs.reduce((t, [, xs]) => t + xs.reduce((u, x) => u + p1Pcs(k, x), 0), 0);
   return `<div class="lg-card lg-wait"><div class="lg-cap lg-waith"><span class="pl ${P1_MV[k][1]}">${esc(a[1])}</span><b>${p1N(gs.length)}</b> ${k === 'PLAN' || k === 'RFD' ? 'SKUs' : 'lines'} waiting · <b>${p1N(tot)}</b> pcs${P1.f.sku ? ' · ' + esc(P1.f.sku) : ''}
       <span style="margin-left:auto;color:var(--muted)">Below: the ledger of this step only</span><button type="button" class="lg-go sm" data-p1act-off>× Show everything</button></div>
@@ -78718,6 +78742,10 @@ function p1SkuCard(sku, ev) {
 const p1Art = r => String(r.articleType || String(r.articleSubtype || r.itemName || '').split(/\s+/)[0] || 'Other').trim() || 'Other';
 /** The open lines, SKU by SKU, with what sits in each column. */
 function p1Inv() {
+  const key = p1SrcKey(); if (p1Same(P1_INVC.key, key)) return P1_INVC.out;
+  const res = p1InvBuild(); P1_INVC = { key, out: res }; return res;
+}
+function p1InvBuild() {
   let rc = { line: {} }; try { rc = flowRfdCover(); } catch (e) { /* not loaded */ }
   const by = new Map();
   flowRows().forEach(x => {
@@ -78738,7 +78766,9 @@ function p1Inv() {
   });
   (PT.base || []).forEach(b => { if (!b || b.frozen) return; const e = by.get(obUC(b.sku)); if (!e || !e.orders.has(obUC(b.orderNo))) return;
     e.kar += Math.max(0, ptNum(b.issuePieces) - ptNum(b.receivedPieces) - ptNum(b.rejectionPieces)); });
-  return [...by.values()].map(e => Object.assign(e, { fg: typeof fgiOf === 'function' ? Math.max(0, fgiOf(e.sku).current || 0) : 0, tot: e.fab + e.cut + e.raw + e.kar + e.qc + e.ready }))
+  /* Finished Goods stock: the whole ledger added up once, not once per SKU (fgiOf re-adds all of it every call) */
+  let fgs = null; try { fgs = typeof fgiStock === 'function' ? fgiStock() : null; } catch (err) { fgs = null; }
+  return [...by.values()].map(e => Object.assign(e, { fg: fgs && fgs.get(e.sku) ? Math.max(0, fgs.get(e.sku).current || 0) : 0, tot: e.fab + e.cut + e.raw + e.kar + e.qc + e.ready }))
     .sort((a, b) => (b.notPlanned > 0) - (a.notPlanned > 0) || b.tot - a.tot || b.ordered - a.ordered || a.sku.localeCompare(b.sku));
 }
 /* ---------- PRODUCTION, SIMPLE (Ravi, 24 Oct: "it's not refined — make it refined, easy to use, with all information on
@@ -78831,9 +78861,10 @@ function p1DrawLedger() {
     idx.push(i); }
   const inP = idx.reduce((a, i) => a + (ev[i].k === 'IN' ? ev[i].pcs : 0), 0), outP = idx.reduce((a, i) => a + (P1_END.has(ev[i].k) ? ev[i].pcs : 0), 0);
   const shown = idx.slice(0, P1.lim);
+  const perDay = new Map(); idx.forEach(j => perDay.set(ev[j].day, (perDay.get(ev[j].day) || 0) + 1));
   let lastDay = '', body = '';
   shown.forEach(i => { const e = ev[i], b = after[i], sign = e.k === 'IN' ? '+' : P1_END.has(e.k) || e.k === 'BACK' ? '−' : '';
-    if (e.day !== lastDay) { lastDay = e.day; const dayN = idx.filter(j => ev[j].day === e.day).length;
+    if (e.day !== lastDay) { lastDay = e.day; const dayN = perDay.get(e.day) || 0;
       body += `<tr class="lg-day"><td colspan="11"><b>${e.day ? new Date(e.day + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) : 'No date'}</b><span>${dayN} movement${dayN > 1 ? 's' : ''}</span></td></tr>`; }
     body += `<tr><td class="nw muted">${e.t ? new Date(e.ms).toTimeString().slice(0, 5) : ''}</td><td><a class="lg-sku${P1.openAt === i ? ' on' : ''}" data-p1sku="${esc(e.sku)}" data-p1at="${i}">${esc(e.sku)}</a></td><td>${e.orderNo ? `<a class="lg-ord" data-p1ord="${esc(e.orderNo)}">${esc(e.orderNo)}</a>` : '<span class="muted">—</span>'}</td><td>${p1Mv(e)}</td>
       <td class="num"><b class="${sign === '+' ? 'q-in' : sign === '−' ? 'q-out' : ''}">${sign}${p1N(e.pcs)}</b>${e.unit === 'm' ? ' m' : ''}</td><td>${e.party ? esc(e.party) : '<span class="muted">—</span>'}</td><td class="muted">${esc(e.ref)}</td><td>${e.by ? `<span class="av">${esc(e.by.slice(0, 2).toUpperCase())}</span> ${esc(e.by)}` : '<span class="muted">—</span>'}</td>
