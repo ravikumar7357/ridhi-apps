@@ -1714,4 +1714,10 @@ html.mob #gdLaunch{bottom:84px;right:14px;width:50px;height:50px}
 html.mob #gdMenu{right:14px;bottom:144px}
 #gdBubble #gdOff{border:1px solid var(--line,#E8EDF3);border-radius:8px;padding:0 12px;height:30px;min-height:30px;font-weight:600;color:var(--muted,#5A6472);text-decoration:none}
 #gdBubble #gdOff:hover{background:var(--soft,#F7F9FB);color:var(--ink,#14181F)}
-@media print{#gdLaunch,#gdMenu{display:none}}
+/* Meera's quiet offer when someone is stuck (guide-walks.js), just above her round button */
+#gdNudge{position:fixed;right:22px;bottom:92px;z-index:10050;max-width:300px;background:#fff;border:1px solid var(--line,#E8EDF3);border-radius:12px;box-shadow:0 8px 24px rgba(20,24,31,.16);padding:10px 12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:13.5px}
+#gdNudge.hide{display:none}
+#gdNudge span{flex:1 1 100%;color:#14181F}
+#gdNudge button{width:auto;padding:5px 12px;font-size:13px}
+html.mob #gdNudge{right:14px;left:14px;max-width:none;bottom:144px}
+@media print{#gdLaunch,#gdMenu,#gdNudge{display:none}}

@@ -161,3 +161,4 @@ core/guide.js
 core/guide-errors.js
 core/guide-ask.js
 core/guide-fill.js
+core/guide-walks.js
