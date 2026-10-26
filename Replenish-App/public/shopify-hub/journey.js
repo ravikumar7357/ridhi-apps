@@ -73,7 +73,42 @@
     if (r.pos === 2) return { k: 'rclose', b: 'Close', t: 'Close the return' };
     return null;
   }
-  const undecided = o => o.items.map((it, i) => i).filter(i => o.items[i].pk == null);
+  /* SEND QUANTITY (as the ERP's send qty): how many of a line go out — the ordered quantity unless a person set it
+   * lower; 0 = this line is not being sent. A line not being sent is not waiting for a decision either. */
+  const sendQty = it => it.sq == null ? it.q : Math.max(0, Math.min(it.q, Number(it.sq) || 0));
+  const undecided = o => o.items.map((it, i) => i).filter(i => o.items[i].pk == null && sendQty(o.items[i]) > 0);
+
+  /* STOCK SHARED OUT, OLDEST ORDER FIRST (as the ERP's soAllocIndia, for FBA too): two orders can never both be
+   * promised the same 3 quilts. Per SKU, the stock (the Stock list, else the line's own figure) goes first to India
+   * items already picked and not yet shipped, then to the waiting lines of the oldest order, then the next. A waiting
+   * line takes from FBA when FBA covers its send quantity (MCF comes first), else from India when India covers it; a
+   * line marked out of stock takes nothing. Returns { orderNo: { line: { need, fba, india, fbaHeld, indiaHeld, takes } } }
+   * — fba / india = what is left for THAT line, *Held = what older orders already hold. A suggestion, as in the ERP. */
+  function allocate(orders, stock) {
+    const left = { fba: {}, india: {} }, out = {};
+    const level = (kind, it) => { const s = (stock || []).find(x => x.sku === it.sku); return s && s[kind] != null ? Number(s[kind]) || 0 : Number(it[kind]) || 0; };
+    const pool = (kind, it) => { if (!it.sku) return null; if (left[kind][it.sku] == null) left[kind][it.sku] = level(kind, it); return left[kind]; };
+    const list = orders.filter(o => !o.cancelled).slice().sort((a, b) => (a.at - b.at) || String(a.no).localeCompare(String(b.no)));
+    list.forEach(o => o.pkgs.forEach(pk => {
+      if (pk.src !== 'india' || pk.route) return;
+      pk.items.forEach(i => { const it = o.items[i], p = pool('india', it); if (p) p[it.sku] -= sendQty(it); });
+    }));
+    list.forEach(o => {
+      const mine = out[o.no] = {};
+      o.items.forEach((it, i) => {
+        if (it.pk != null) return;
+        const need = sendQty(it), pf = pool('fba', it), pi = pool('india', it);
+        const fba = pf ? Math.max(0, pf[it.sku]) : Number(it.fba) || 0, india = pi ? Math.max(0, pi[it.sku]) : Number(it.india) || 0;
+        const a = mine[i] = { need, fba, india, fbaHeld: Math.max(0, level('fba', it) - fba), indiaHeld: Math.max(0, level('india', it) - india), takes: '' };
+        if (!need) { a.takes = 'skip'; return; }
+        if (it.oos) { a.takes = 'make'; return; }
+        if (fba >= need) { a.takes = 'mcf'; if (pf) pf[it.sku] -= need; }
+        else if (india >= need) { a.takes = 'india'; if (pi) pi[it.sku] -= need; }
+        else a.takes = 'make';
+      });
+    });
+    return out;
+  }
 
   /* A parcel that needs a person, read from its last scan. 72 h without a scan, not 48: India → US parcels
    * often go two or three days quiet between flights, weekends and customs. */
@@ -91,5 +126,5 @@
   }
 
   return { DAY, PHASES, STAGES, STAGE_BTN, TARGET, CAUSES, RSTEPS, CARRIERS, STATUS_OFF, SHOPIFY_EVENT, FLAGS,
-    isMcf, prodLen, total, off, carName, steps, phaseOf, stageStart, inStage, isLateStage, statusOf, actionOf, phaseText, retAction, undecided, flagOf };
+    isMcf, prodLen, total, off, carName, steps, phaseOf, stageStart, inStage, isLateStage, statusOf, actionOf, phaseText, retAction, undecided, flagOf, sendQty, allocate };
 });

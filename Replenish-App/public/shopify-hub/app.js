@@ -216,7 +216,9 @@ $('bulkBtn').addEventListener('click', () => bulkShipDlg(readyOrders(), 'Bulk or
 /* Ship from, in the live column's words: one answer for the order, with MCF and India stock under it. */
 function shipFrom(o) {
   const u = undecided(o), P = o.pkgs;
-  const lines = o.items.length, fba = o.items.filter(i => i.fba >= i.q).length, ind = o.items.filter(i => i.india >= i.q).length;
+  /* What the stock left for this order covers, after older orders (allocOf) — waiting lines only; others by their figures. */
+  const A = allocOf(o), lines = o.items.length;
+  const fba = o.items.filter((it, i) => A[i] ? A[i].fba >= A[i].need : it.fba >= it.q).length, ind = o.items.filter((it, i) => A[i] ? A[i].india >= A[i].need : it.india >= it.q).length;
   const stock = `MCF ${stockWord(fba, lines)} · India ${stockWord(ind, lines)}`;
   const made = P.filter(p => p.src === 'make'), madeDone = made.filter(p => phaseOf(p) > 0);
   let main;
@@ -337,40 +339,57 @@ function pageOrders() {
  * section by itself — and we accept it"). Every line not yet on its way is put in a section from the stock:
  * Amazon FBA has it → MCF; else India has it → India stock (shipped by DHL / FedEx from Bulk order); else Production.
  * Any line can be moved to another section it has stock for; "Accept" does every section at once. */
+/* STOCK, SHARED OLDEST ORDER FIRST (journey.js allocate, as the ERP's soAllocIndia): what each waiting line can have from
+ * FBA and from India after the older orders, worked out once per state from the hub. `a` below is one line's share:
+ * { need (its send quantity), fba, india (left for it), fbaHeld, indiaHeld (held by older orders), takes }. */
+let ALLOC_OF = null, ALLOC = {};
+const allocOf = o => { if (ALLOC_OF !== S) { ALLOC_OF = S; ALLOC = J.allocate(S.orders, S.stock); } return ALLOC[o.no] || {}; };
+const held = n => n ? ` · ${n} held by older orders` : '';
 const SECTIONS = [
   { k: 'mcf', name: 'MCF', how: 'Amazon FBA has it · ships from the US', foot: 'Amazon ships in 4–5 days · the fee shows before you send', go: 'Send to MCF',
-    can: it => (it.fba || 0) >= it.q, stock: it => `FBA ${it.fba || 0}` },
+    can: (it, a) => !it.oos && a.fba >= a.need, stock: (it, a) => `FBA ${a.fba}`, tip: a => `${a.fba} left in FBA for this order${held(a.fbaHeld)}` },
   { k: 'india', name: 'India', how: 'India stock has it · DHL or FedEx', foot: 'Goes in the next DHL / FedEx file', go: 'Add to Bulk order',
-    can: it => (it.india || 0) >= it.q, stock: it => `India ${it.india || 0}` },
-  { k: 'make', name: 'Production', how: 'no stock anywhere · to be made', foot: 'Cut, print, press, QC · about 6 days', go: 'Send to production',
-    can: () => true, stock: () => 'to make' },
+    can: (it, a) => !it.oos && a.india >= a.need, stock: (it, a) => `India ${a.india}`, tip: a => `${a.india} left in India for this order${held(a.indiaHeld)}` },
+  { k: 'make', name: 'Production', how: 'no stock for it · to be made', foot: 'Cut, print, press, QC · about 6 days', go: 'Send to production',
+    can: () => true, stock: it => it.oos ? 'marked out of stock' : 'to make', tip: a => `FBA ${a.fba}${held(a.fbaHeld)} · India ${a.india}${held(a.indiaHeld)}` },
 ];
-const suggest = it => SECTIONS.find(s => s.can(it)).k;
-/** Each undecided line's section: the person's move if it still has stock, else the suggestion. */
+const qtyText = it => J.sendQty(it) < it.q ? `× ${J.sendQty(it)} of ${it.q}` : `× ${it.q}`;
+const suggest = (it, a) => a && a.takes && a.takes !== 'skip' ? a.takes : 'make';
+/** Each undecided line's section: the person's move if the stock left for it allows, else the suggestion. */
 function planOf(o) {
-  const ch = CHOICE[o.no] || (CHOICE[o.no] = {}), u = undecided(o), out = {};
+  const ch = CHOICE[o.no] || (CHOICE[o.no] = {}), u = undecided(o), out = {}, A = allocOf(o);
   Object.keys(ch).forEach(k => { if (!u.includes(+k)) delete ch[k]; });
-  u.forEach(i => { const it = o.items[i], mine = SECTIONS.find(s => s.k === ch[i]); out[i] = mine && mine.can(it) ? mine.k : suggest(it); });
+  u.forEach(i => { const it = o.items[i], a = A[i] || { need: J.sendQty(it), fba: 0, india: 0 }, mine = SECTIONS.find(s => s.k === ch[i]); out[i] = mine && mine.can(it, a) ? mine.k : suggest(it, a); });
   return out;
 }
 /* One card per way out, as Shopify shows an order's fulfilments: a coloured badge with the count, the items, and one
  * button at the bottom. An item moves with its quiet "Move…" menu. With more than one card, "Accept all" sits on top
  * and is the only filled button; the cards' own buttons stay plain. */
 const thumb = it => { const k = Object.keys(COLOR).find(c => (String(it.v) + ' ' + String(it.t)).includes(c)); return `<span class="od-th" style="background:${k ? COLOR[k] : '#98A1AE'}" aria-hidden="true"></span>`; };
-const itemRow = (it, chip, end) => `<div class="od-row">${thumb(it)}<div class="od-it"><div class="n">${esc(it.t)}</div><div class="s-sm s-muted">${esc([it.v, it.sku].filter(Boolean).join(' · '))}</div></div>
-  ${chip ? `<span class="od-chip">${chip}</span>` : '<span></span>'}<span class="od-q">× ${it.q}</span>${end || '<span></span>'}</div>`;
+const itemRow = (it, chip, end, tip) => `<div class="od-row">${thumb(it)}<div class="od-it"><div class="n">${esc(it.t)}</div><div class="s-sm s-muted">${esc([it.v, it.sku].filter(Boolean).join(' · '))}</div></div>
+  ${chip ? `<span class="od-chip ${it.oos ? 'oos' : ''}"${tip ? ` title="${esc(tip)}"` : ''}>${chip}</span>` : '<span></span>'}<span class="od-q">${qtyText(it)}</span>${end || '<span></span>'}</div>`;
+/* The item's quiet menu: move it to another card (only where the stock left for it allows), the ERP's out-of-stock
+ * mark, its send quantity, or not sending it at all. */
+const itemMenu = (o, i, s, a) => { const it = o.items[i], to = SECTIONS.filter(x => x.k !== s.k && x.can(it, a));
+  return `<select class="od-move" data-move="${i}" aria-label="Change ${esc(it.t)}"><option value="">Change…</option>
+    ${to.map(x => `<option value="to:${x.k}">Move to ${x.name}</option>`).join('')}
+    <option value="oos:${it.oos ? 0 : 1}">${it.oos ? 'Clear out of stock' : 'Mark out of stock'}</option>
+    ${it.q > 1 ? '<option value="sq">Send quantity…</option>' : ''}<option value="sq:0">Don't send this item</option></select>`; };
 function linesCard(o) {
-  const u = undecided(o); if (!u.length) return '';
-  const P = planOf(o), secs = SECTIONS.map(s => ({ s, lines: u.filter(i => P[i] === s.k) })).filter(x => x.lines.length), many = secs.length > 1;
-  const auto = !!(S.prefs && S.prefs.autoMcf);
+  const u = undecided(o), off0 = o.items.map((it, i) => i).filter(i => o.items[i].pk == null && !J.sendQty(o.items[i]));
+  if (!u.length && !off0.length) return '';
+  const A = allocOf(o), P = planOf(o), secs = SECTIONS.map(s => ({ s, lines: u.filter(i => P[i] === s.k) })).filter(x => x.lines.length), many = secs.length > 1;
+  const auto = !!(S.prefs && S.prefs.autoMcf), a = i => A[i] || { need: J.sendQty(o.items[i]), fba: 0, india: 0, fbaHeld: 0, indiaHeld: 0 };
+  const heldNote = u.some(i => a(i).fbaHeld || a(i).indiaHeld) ? ' · older orders get the stock first' : '';
   return `<div id="lines" class="od-plan">
-    ${many ? `<div class="od-acc" id="decide-bar"><span class="s-muted s-sm">Sorted by stock — move an item if you want</span><button class="s-btn" type="button" data-plan="accept">Accept all ${secs.length}</button></div>` : ''}
+    ${many ? `<div class="od-acc" id="decide-bar"><span class="s-muted s-sm">Sorted by stock${heldNote} — change an item if you want</span><button class="s-btn" type="button" data-plan="accept">Accept all ${secs.length}</button></div>` : ''}
     ${secs.map(({ s, lines }) => `<section class="od-card" id="pl-${s.k}">
       <header class="od-h"><span class="od-badge b-${s.k}">${s.name} · ${lines.length}</span><span class="s-muted s-sm">${s.how}</span>
         ${s.k === 'mcf' ? `<label class="od-auto s-sm" title="New orders whose items Amazon FBA has go to MCF by themselves"><input type="checkbox" data-automcf ${auto ? 'checked' : ''}> Auto-send</label>` : ''}</header>
-      ${lines.map(i => { const it = o.items[i], to = SECTIONS.filter(x => x.k !== s.k && x.can(it));
-        return itemRow(it, s.stock(it), `<select class="od-move" data-move="${i}" aria-label="Move ${esc(it.t)}"><option value="">Move…</option>${to.map(x => `<option value="${x.k}">to ${x.name}</option>`).join('')}</select>`); }).join('')}
-      <footer class="od-f"><span class="s-muted s-sm">${s.foot}</span><button class="s-btn ${many ? 'ghost' : ''}" type="button" data-go="${s.k}">${s.go}</button></footer></section>`).join('')}</div>`;
+      ${lines.map(i => itemRow(o.items[i], s.stock(o.items[i], a(i)), itemMenu(o, i, s, a(i)), s.tip(a(i)))).join('')}
+      <footer class="od-f"><span class="s-muted s-sm">${s.foot}</span><button class="s-btn ${many ? 'ghost' : ''}" type="button" data-go="${s.k}">${s.go}</button></footer></section>`).join('')}
+    ${off0.length ? `<section class="od-card od-off" id="pl-off"><header class="od-h"><span class="od-badge">Not being sent · ${off0.length}</span><span class="s-muted s-sm">send quantity 0 — stays on the order, nothing goes out</span></header>
+      ${off0.map(i => itemRow(o.items[i], '', `<button class="s-link" type="button" data-sendagain="${i}">Send it again</button>`)).join('')}</section>` : ''}</div>`;
 }
 /* Accept: one window with what each section will do (MCF speed and fee, production priority), then everything at once. */
 async function planDlg(o) {
@@ -380,7 +399,7 @@ async function planDlg(o) {
     try { opts = (await call('/api/mcf-preview', { no: o.no, lines: mcf })).options.filter(x => x.ok); } catch (e) { return toast(e.message, true); }
     if (!opts.length) return toast('Amazon cannot ship the MCF items — move them to India or Production.', true);
   }
-  const names = l => esc(l.map(i => o.items[i].t + (o.items[i].q > 1 ? ' × ' + o.items[i].q : '')).join(', '));
+  const names = l => esc(l.map(i => o.items[i].t + (o.items[i].q > 1 || J.sendQty(o.items[i]) < o.items[i].q ? ' ' + qtyText(o.items[i]) : '')).join(', '));
   const draw = () => dialog(`Accept · #${o.no}`, `<div class="pl-acc">
       ${mcf.length ? `<div class="pl-a pl-mcf"><div><b>MCF</b> · ${names(mcf)}</div>
         <div class="s-route">${opts.map((s, i) => `<button class="s-ro ${k === i ? 'on' : ''}" type="button" data-sp="${i}"><b>${esc(s.speed)}</b><span>${esc(s.by)} · ${money(s.fee)}</span></button>`).join('')}</div>
@@ -997,7 +1016,12 @@ function readyOf(o, only) {
     const pk = it.pk == null ? null : o.pkgs[it.pk];
     if (pk && isMcf(pk)) return;
     let why = '';
-    if (!pk) why = (it.india || 0) >= it.q ? '' : 'not routed';
+    if (!pk) {
+      /* Not decided yet: it goes in a box only when India's stock, after older orders, covers it and FBA does not. */
+      const a = allocOf(o)[i] || {};
+      if (a.takes === 'skip') return;
+      why = a.takes === 'india' ? '' : it.oos ? 'marked out of stock' : a.takes === 'mcf' ? 'goes by MCF' : a.indiaHeld ? 'India stock held by older orders' : 'not in stock';
+    }
     else if (pk.booked && !pk.route) why = `waiting for its ${pk.booked.car} tracking number`;
     else if (phaseOf(pk) === 0) why = pk.block ? `on hold: ${pk.block.why}` : `in production (${pk.pos === 0 ? 'not started' : STAGES[pk.pos]})`;
     else if (off(pk) > 0 || pk.src === 'fba') return;
@@ -1435,8 +1459,16 @@ function render() {
         if (k === 'mcf') mcfDlg(o, lines); else if (k === 'make') prodDlg(o, lines); else act('plan', { no: o.no, india: lines });
       });
       page.querySelectorAll('[data-move]').forEach(sel => sel.addEventListener('change', () => {
-        if (!sel.value) return; (CHOICE[o.no] || (CHOICE[o.no] = {}))[sel.dataset.move] = sel.value; render();
+        const v = sel.value, i = +sel.dataset.move, it = o.items[i]; if (!v) return;
+        if (v.startsWith('to:')) { (CHOICE[o.no] || (CHOICE[o.no] = {}))[i] = v.slice(3); return render(); }
+        if (v.startsWith('oos:')) return act('lineSet', { no: o.no, i, oos: v === 'oos:1' });
+        if (v === 'sq:0') return act('lineSet', { no: o.no, i, sq: 0 });
+        sel.value = '';
+        dialog(`Send quantity · ${it.t}`, `<label>How many of the ${it.q} ordered go out<input id="sqN" type="number" min="1" max="${it.q}" step="1" value="${J.sendQty(it)}"></label>
+          <span class="s-sm s-muted">The rest stay on the order and are not sent. Stock and the carrier files use this number.</span>`,
+          '<button class="s-btn" type="button" id="go">Save</button>', () => $('go').addEventListener('click', () => act('lineSet', { no: o.no, i, sq: +$('sqN').value })));
       }));
+      on('[data-sendagain]', b => act('lineSet', { no: o.no, i: +b.dataset.sendagain, sq: o.items[+b.dataset.sendagain].q }));
       page.querySelectorAll('[data-automcf]').forEach(c => c.addEventListener('change', () => {
         const on = c.checked; c.checked = !on;
         dialog(on ? 'Turn on Auto-send to MCF?' : 'Turn off Auto-send?', on

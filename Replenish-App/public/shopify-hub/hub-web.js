@@ -109,7 +109,42 @@ HUBMOD("journey", function (module, exports, require, __dirname, process, Buffer
     if (r.pos === 2) return { k: 'rclose', b: 'Close', t: 'Close the return' };
     return null;
   }
-  const undecided = o => o.items.map((it, i) => i).filter(i => o.items[i].pk == null);
+  /* SEND QUANTITY (as the ERP's send qty): how many of a line go out — the ordered quantity unless a person set it
+   * lower; 0 = this line is not being sent. A line not being sent is not waiting for a decision either. */
+  const sendQty = it => it.sq == null ? it.q : Math.max(0, Math.min(it.q, Number(it.sq) || 0));
+  const undecided = o => o.items.map((it, i) => i).filter(i => o.items[i].pk == null && sendQty(o.items[i]) > 0);
+
+  /* STOCK SHARED OUT, OLDEST ORDER FIRST (as the ERP's soAllocIndia, for FBA too): two orders can never both be
+   * promised the same 3 quilts. Per SKU, the stock (the Stock list, else the line's own figure) goes first to India
+   * items already picked and not yet shipped, then to the waiting lines of the oldest order, then the next. A waiting
+   * line takes from FBA when FBA covers its send quantity (MCF comes first), else from India when India covers it; a
+   * line marked out of stock takes nothing. Returns { orderNo: { line: { need, fba, india, fbaHeld, indiaHeld, takes } } }
+   * — fba / india = what is left for THAT line, *Held = what older orders already hold. A suggestion, as in the ERP. */
+  function allocate(orders, stock) {
+    const left = { fba: {}, india: {} }, out = {};
+    const level = (kind, it) => { const s = (stock || []).find(x => x.sku === it.sku); return s && s[kind] != null ? Number(s[kind]) || 0 : Number(it[kind]) || 0; };
+    const pool = (kind, it) => { if (!it.sku) return null; if (left[kind][it.sku] == null) left[kind][it.sku] = level(kind, it); return left[kind]; };
+    const list = orders.filter(o => !o.cancelled).slice().sort((a, b) => (a.at - b.at) || String(a.no).localeCompare(String(b.no)));
+    list.forEach(o => o.pkgs.forEach(pk => {
+      if (pk.src !== 'india' || pk.route) return;
+      pk.items.forEach(i => { const it = o.items[i], p = pool('india', it); if (p) p[it.sku] -= sendQty(it); });
+    }));
+    list.forEach(o => {
+      const mine = out[o.no] = {};
+      o.items.forEach((it, i) => {
+        if (it.pk != null) return;
+        const need = sendQty(it), pf = pool('fba', it), pi = pool('india', it);
+        const fba = pf ? Math.max(0, pf[it.sku]) : Number(it.fba) || 0, india = pi ? Math.max(0, pi[it.sku]) : Number(it.india) || 0;
+        const a = mine[i] = { need, fba, india, fbaHeld: Math.max(0, level('fba', it) - fba), indiaHeld: Math.max(0, level('india', it) - india), takes: '' };
+        if (!need) { a.takes = 'skip'; return; }
+        if (it.oos) { a.takes = 'make'; return; }
+        if (fba >= need) { a.takes = 'mcf'; if (pf) pf[it.sku] -= need; }
+        else if (india >= need) { a.takes = 'india'; if (pi) pi[it.sku] -= need; }
+        else a.takes = 'make';
+      });
+    });
+    return out;
+  }
 
   /* A parcel that needs a person, read from its last scan. 72 h without a scan, not 48: India → US parcels
    * often go two or three days quiet between flights, weekends and customs. */
@@ -127,7 +162,7 @@ HUBMOD("journey", function (module, exports, require, __dirname, process, Buffer
   }
 
   return { DAY, PHASES, STAGES, STAGE_BTN, TARGET, CAUSES, RSTEPS, CARRIERS, STATUS_OFF, SHOPIFY_EVENT, FLAGS,
-    isMcf, prodLen, total, off, carName, steps, phaseOf, stageStart, inStage, isLateStage, statusOf, actionOf, phaseText, retAction, undecided, flagOf };
+    isMcf, prodLen, total, off, carName, steps, phaseOf, stageStart, inStage, isLateStage, statusOf, actionOf, phaseText, retAction, undecided, flagOf, sendQty, allocate };
 });
 
 });
@@ -256,9 +291,18 @@ function state(db) {
  * Everything else says why not — in production (which stage, or the hold), already in a file waiting for its
  * tracking number, already shipped, or going by Amazon MCF.
  */
-function lineState(o, i) {
+/* `alloc` (J.allocate): India stock shared out oldest order first, MCF before India — so a line goes in a box only when
+ * the stock left for THIS order covers its send quantity, and FBA does not already cover it (then it goes by MCF). */
+function lineState(o, i, alloc) {
   const it = o.items[i], pk = it.pk == null ? null : o.pkgs[it.pk];
-  if (!pk) return (it.india || 0) >= it.q ? { k: 'india', ok: true, why: `India stock (${it.india})` } : { k: 'route', ok: false, why: 'Not routed — no India stock; route it on the order (Make)' };
+  if (!pk) {
+    const a = ((alloc || {})[o.no] || {})[i] || {};
+    if (a.takes === 'skip') return { k: 'skip', ok: false, why: 'Not being sent (send quantity 0)' };
+    if (it.oos) return { k: 'route', ok: false, why: 'Marked out of stock — goes to production' };
+    if (a.takes === 'india') return { k: 'india', ok: true, why: `India stock (${a.india} left for this order)` };
+    if (a.takes === 'mcf') return { k: 'route', ok: false, why: 'Amazon FBA has it — goes by MCF (move it to India on the order to box it)' };
+    return { k: 'route', ok: false, why: a.indiaHeld ? `India stock is held by older orders (${a.india} left, need ${a.need}) — production` : 'Not in India stock — route it on the order (Production)' };
+  }
   if (J.isMcf(pk)) return { k: 'mcf', ok: false, why: 'Goes by Amazon MCF' };
   if (pk.booked && !pk.route) return { k: 'booked', ok: false, why: `In ${pk.booked.id} (${pk.booked.car}) — waiting for its tracking number` };
   if (J.phaseOf(pk) === 0) return { k: 'prod', ok: false, why: pk.block ? `On hold at ${J.STAGES[pk.pos]}: ${pk.block.why}` : pk.pos === 0 ? 'Production not started' : `In production — ${J.STAGES[pk.pos]} (${pk.pos} of 4 done)` };
@@ -267,8 +311,9 @@ function lineState(o, i) {
 }
 /** Orders with at least one line that can go today, every line with its state (so "2 ready, 1 not ready" shows). */
 function candidates(db) {
+  const alloc = J.allocate(db.orders, db.stock);
   return db.orders.map(o => {
-    const lines = o.items.map((it, i) => Object.assign({ i, sku: it.sku, t: it.t, v: it.v, q: it.q, price: it.price }, lineState(o, i)));
+    const lines = o.items.map((it, i) => Object.assign({ i, sku: it.sku, t: it.t, v: it.v, q: J.sendQty(it), price: it.price }, lineState(o, i, alloc))).filter(l => l.k !== 'skip');
     return { no: o.no, store: o.store, at: o.at, source: o.source, cust: o.cust.n, country: o.addr.country, lines, ready: lines.filter(l => l.ok).length };
   }).filter(c => c.ready > 0).sort((a, b) => a.at - b.at);
 }
@@ -288,14 +333,15 @@ function build(db, draft, opts) {
   const tax = TAX_OPTIONS.includes(draft.tax) ? draft.tax : CO.taxOption;
   const rows = [], fxRows = [], fxMps = [], report = [];
   let seq = 0, fxSeq = 0, nx = String(draft.nextInv || st.nextInv || '').trim();
+  const alloc = J.allocate(db.orders, db.stock);
   (draft.ships || []).forEach(sd => {
     const o = db.orders.find(x => x.no === sd.no);
     const bad = [], warn = [], info = [];
     const car = CARRIERS.includes(sd.car) ? sd.car : 'DHL Express', fx = car === 'FedEx';
     if (!o) { report.push({ no: sd.no, car, bad: ['This order is no longer in the hub'], warn, rows: 0 }); return; }
-    const lines = (sd.lines || []).filter(l => l.on !== false && o.items[l.i]).map(l => Object.assign({}, l, { qty: o.items[l.i].q }));
+    const lines = (sd.lines || []).filter(l => l.on !== false && o.items[l.i]).map(l => Object.assign({}, l, { qty: J.sendQty(o.items[l.i]) }));
     if (!lines.length) bad.push('No items ticked — tick what goes in this box');
-    if (!(opts && opts.again)) lines.forEach(l => { const s = lineState(o, l.i); if (!s.ok) bad.push(`${o.items[l.i].sku || o.items[l.i].t}: not ready — ${s.why}`); });
+    if (!(opts && opts.again)) lines.forEach(l => { const s = lineState(o, l.i, alloc); if (!s.ok) bad.push(`${o.items[l.i].sku || o.items[l.i].t}: not ready — ${s.why}`); });
 
     /* Boxes: weights and sizes. More than one box is written the way DHL's sample does: "5,5,5". */
     const boxes = (sd.boxes && sd.boxes.length ? sd.boxes : [{}]).map(b => ({ kg: num(b.kg, 0), l: num(b.l, CO.boxL), w: num(b.w, CO.boxW), h: num(b.h, CO.boxH) }));
@@ -506,7 +552,7 @@ async function run(db, opts) {
       } else if (q.kind === 'note') {
         await shopify.appendNote(o.store, o.gid, q.data.line);
       } else if (q.kind === 'fulfil') {
-        const r = await shopify.fulfil(o.store, o.gid, q.data.lines, q.data.company, q.data.numbers, q.data.notify !== false);
+        const r = await shopify.fulfil(o.store, o.gid, q.data.lines, q.data.company, q.data.numbers, q.data.notify !== false, q.data.qty);
         if (r.id) pk.fulfilId = r.id;
         if (r.already) q.last = 'Shopify had nothing left open on these lines';
       } else if (q.kind === 'unfulfil') {
@@ -964,6 +1010,7 @@ const fs = require('fs'), path = require('path');
 const config = require('./config');
 const { request, clip } = require('./util');
 const csb = require('./csb');
+const J = require('./journey');
 
 const LABELS = path.join(__dirname, '..', 'labels');
 const host = c => c.sandbox ? 'https://apis-sandbox.fedex.com' : 'https://apis.fedex.com';
@@ -1018,10 +1065,11 @@ function receiver(o) {
 function goods(db, o, items, lines, box, cur) {
   const mem = csb.state(db).sku, by = {};
   (lines || []).forEach(l => { by[l.i] = l; });
-  const units = items.reduce((n, i) => n + o.items[i].q, 0);
+  /* Each line's send quantity (journey.js sendQty), which is what goes in the box. */
+  const units = items.reduce((n, i) => n + J.sendQty(o.items[i]), 0);
   let kgLeft = r2(box.kg);
   return items.map((i, n) => {
-    const it = o.items[i], l = by[i] || {}, m = mem[it.sku] || {};
+    const it = Object.assign({}, o.items[i], { q: J.sendQty(o.items[i]) }), l = by[i] || {}, m = mem[it.sku] || {};
     const desc = cut(l.desc || m.desc || [it.t, it.v].filter(Boolean).join(' '), 450);
     const hs = String(l.hs || m.hs || csb.CO.hsExport).replace(/\D/g, '');
     const rate = r2(Number(l.rate != null && l.rate !== '' ? l.rate : it.price) || 0);
@@ -1151,6 +1199,10 @@ function advance(pk, n, place, at) { for (let i = 0; i < (n || 1); i++) { pk.ts[
 const itemsText = (o, pk) => pk.items.map(i => o.items[i].t).join(' + ');
 const skus = (o, items) => items.map(i => o.items[i].sku).join(', ');
 const lineGids = (o, items) => items.map(i => o.items[i].lid).filter(Boolean);
+/* How many go of each line (J.sendQty): the ordered quantity unless a person set a lower send quantity. */
+const need = it => J.sendQty(it);
+/* For Shopify: the lines going out with fewer than were ordered, { line id: quantity } — the rest stay open there. */
+const lineQty = (o, items) => { const m = {}; items.forEach(i => { const it = o.items[i]; if (it.lid && need(it) < it.q) m[it.lid] = need(it); }); return m; };
 
 function newPart(o, src, items) {
   const pk = { src, items: items.slice(), pos: src === 'make' ? 0 : 1, route: null, car: '', trk: [], eta: '', late: false, ts: [], ev: {}, rep: false, block: null,
@@ -1162,7 +1214,32 @@ function newPart(o, src, items) {
 }
 function checkLines(o, lines) {
   if (!Array.isArray(lines) || !lines.length) throw new Error('Pick at least one line.');
-  lines.forEach(i => { if (!o.items[i]) throw new Error('No such line.'); if (o.items[i].pk != null) throw new Error(o.items[i].t + ' has already been sent.'); });
+  lines.forEach(i => {
+    if (!o.items[i]) throw new Error('No such line.');
+    if (o.items[i].pk != null) throw new Error(o.items[i].t + ' has already been sent.');
+    if (!need(o.items[i])) throw new Error(o.items[i].t + ' is set to not be sent (send quantity 0).');
+  });
+}
+/* A line a person marked out of stock is made, whatever the stock figures say (as in the ERP). */
+const notOos = (o, lines) => lines.forEach(i => { if (o.items[i].oos) throw new Error(`${o.items[i].t} is marked out of stock — it goes to production. Clear the mark first.`); });
+
+/* One line's own settings, set on the order page before it goes anywhere (the ERP's send qty and OOS mark):
+ * { oos: true|false } and/or { sq: 0..ordered } (the ordered quantity clears it). */
+function lineSet(db, a) {
+  const o = find(db, a.no), it = o.items[a.i];
+  if (!it) throw new Error('No such line.');
+  if (it.pk != null) throw new Error(it.t + ' is already on its way — its settings cannot change now.');
+  const said = [];
+  if (a.oos != null) { it.oos = a.oos === true || undefined; said.push(it.oos ? 'marked out of stock — goes to production' : 'out-of-stock mark cleared'); }
+  if (a.sq != null) {
+    const n = Math.floor(Number(a.sq));
+    if (!(n >= 0 && n <= it.q)) throw new Error(`Send quantity: 0 to ${it.q}.`);
+    it.sq = n === it.q ? undefined : n;
+    said.push(n === 0 ? 'not being sent' : n === it.q ? `send all ${it.q}` : `send ${n} of ${it.q}`);
+  }
+  if (!said.length) throw new Error('Nothing to change.');
+  note(o, 'YOU', `${it.t}: ${said.join(', ')}`);
+  return `${it.t}: ${said.join(', ')}`;
 }
 /* Before anything is done to a real order, ask Shopify how it is NOW. */
 async function freshCheck(o) {
@@ -1173,11 +1250,11 @@ async function freshCheck(o) {
 
 /* ---------------- deciding each line ---------------- */
 async function sendMcf(db, o, lines, speed, isRep) {
-  if (!isRep) lines.forEach(i => { if ((o.items[i].fba || 0) < o.items[i].q) throw new Error(`FBA does not have ${o.items[i].q} of ${o.items[i].t}.`); });
+  if (!isRep) { notOos(o, lines); lines.forEach(i => { if ((o.items[i].fba || 0) < need(o.items[i])) throw new Error(`FBA does not have ${need(o.items[i])} of ${o.items[i].t}.`); }); }
   await freshCheck(o);
   const n = o.pkgs.length + 1, id = amazon.mcfId(o.no, n);
   const real = o.source === 'shopify' && config.realMcf() && !!config.amazon(o.store);
-  if (real) await amazon.create(o.store, o, lines.map(i => ({ sku: o.items[i].sku, q: o.items[i].q })), speed, id);
+  if (real) await amazon.create(o.store, o, lines.map(i => ({ sku: o.items[i].sku, q: isRep ? o.items[i].q : need(o.items[i]) })), speed, id);
   const pk = isRep ? null : newPart(o, 'fba', lines);
   return { pk, id, real };
 }
@@ -1202,7 +1279,8 @@ async function decide(db, a) {
     return 'Production requested';
   }
   if (a.route === 'india') {
-    a.lines.forEach(i => { if ((o.items[i].india || 0) < o.items[i].q) throw new Error(`India does not have ${o.items[i].q} of ${o.items[i].t}.`); });
+    notOos(o, a.lines);
+    a.lines.forEach(i => { if ((o.items[i].india || 0) < need(o.items[i])) throw new Error(`India does not have ${need(o.items[i])} of ${o.items[i].t}.`); });
     if (!J.CARRIERS.includes(a.car)) throw new Error('Pick the carrier.');
     if (!String(a.trk || '').trim()) throw new Error('Type the tracking number.');
     await freshCheck(o);
@@ -1222,7 +1300,8 @@ async function plan(db, a) {
   const mcf = pick('mcf'), make = pick('make'), india = pick('india'), all = mcf.concat(make, india);
   checkLines(o, all);
   if (new Set(all).size !== all.length) throw new Error('A line is in two sections.');
-  india.forEach(i => { if ((o.items[i].india || 0) < o.items[i].q) throw new Error(`India does not have ${o.items[i].q} of ${o.items[i].t}.`); });
+  notOos(o, mcf.concat(india));
+  india.forEach(i => { if ((o.items[i].india || 0) < need(o.items[i])) throw new Error(`India does not have ${need(o.items[i])} of ${o.items[i].t}.`); });
   const done = [];
   if (mcf.length) done.push(await decide(db, { no: o.no, route: 'mcf', lines: mcf, speed: a.speed || 'Standard' }));
   if (make.length) done.push(await decide(db, { no: o.no, route: 'make', lines: make, rush: !!a.rush, note: a.note }));
@@ -1243,7 +1322,9 @@ function prefs(db, a) {
 }
 async function autoRoute(db, o) {
   if (!(db.prefs && db.prefs.autoMcf)) return;
-  const lines = J.undecided(o).filter(i => (o.items[i].fba || 0) >= o.items[i].q);
+  /* Only what the stock, shared oldest order first, gives this order from FBA. */
+  const mine = J.allocate(db.orders, db.stock)[o.no] || {};
+  const lines = J.undecided(o).filter(i => mine[i] && mine[i].takes === 'mcf');
   if (!lines.length) return;
   try { await decide(db, { no: o.no, route: 'mcf', lines, speed: 'Standard' }); note(o, 'APP', 'Auto-sent to MCF: the items Amazon FBA has'); }
   catch (e) { note(o, 'APP', 'Auto-send to MCF did not go: ' + e.message); }
@@ -1282,7 +1363,7 @@ function shipPart(db, o, pk, car, trk, notify) {
   advance(pk, 2, 'Ridhi warehouse, New Delhi');
   pk.fulfilQueued = true;
   note(o, 'APP', `Packed and booked with ${car} · ${trk}`);
-  queue.enqueue(db, o, 'fulfil', { part: o.pkgs.indexOf(pk), lines: lineGids(o, pk.items), company: car === 'DHL Express' ? 'DHL Express' : car, numbers: [trk], notify: notify !== false },
+  queue.enqueue(db, o, 'fulfil', { part: o.pkgs.indexOf(pk), lines: lineGids(o, pk.items), qty: lineQty(o, pk.items), company: car === 'DHL Express' ? 'DHL Express' : car, numbers: [trk], notify: notify !== false },
     `Mark ${skus(o, pk.items)} fulfilled with ${car} ${trk}${notify !== false ? ', email the customer' : ''}`);
   return `Shipped with ${car}`;
 }
@@ -1303,8 +1384,8 @@ function fedexItems(o, a) {
     if (!pk || J.actionOf(pk) == null || J.actionOf(pk).k !== 'ship') throw new Error('This part is not ready to ship.');
     return { pk, items: pk.items };
   }
-  checkLines(o, a.lines);
-  a.lines.forEach(i => { if ((o.items[i].india || 0) < o.items[i].q) throw new Error(`India does not have ${o.items[i].q} of ${o.items[i].t}.`); });
+  checkLines(o, a.lines); notOos(o, a.lines);
+  a.lines.forEach(i => { if ((o.items[i].india || 0) < need(o.items[i])) throw new Error(`India does not have ${need(o.items[i])} of ${o.items[i].t}.`); });
   return { pk: null, items: a.lines };
 }
 async function fedexRates(db, a) {
@@ -1391,7 +1472,7 @@ function awbOne(db, b, s, trk) {
     while (J.off(pk) < 2) advance(pk, 1, '');
     pk.fulfilQueued = true;
     /* The carrier name exactly as Shopify knows it, so Shopify follows the parcel itself. */
-    queue.enqueue(db, o, 'fulfil', { part: o.pkgs.indexOf(pk), lines: lineGids(o, pk.items), company: s.car, numbers: [trk], notify: true },
+    queue.enqueue(db, o, 'fulfil', { part: o.pkgs.indexOf(pk), lines: lineGids(o, pk.items), qty: lineQty(o, pk.items), company: s.car, numbers: [trk], notify: true },
       `Mark ${skus(o, pk.items)} fulfilled with ${s.car} ${trk}, email the customer`);
   });
   s.awb = trk; s.awbAt = Date.now();
@@ -1621,13 +1702,13 @@ async function testOrder(db, a) {
 async function mcfPreview(db, a) {
   const o = find(db, a.no);
   if (o.source === 'shopify' && config.amazon(o.store)) {
-    const p = await amazon.preview(o.store, o, a.lines.map(i => ({ sku: o.items[i].sku, q: o.items[i].q })));
+    const p = await amazon.preview(o.store, o, a.lines.map(i => ({ sku: o.items[i].sku, q: need(o.items[i]) })));
     return { real: true, options: p };
   }
   return { real: false, options: [{ speed: 'Standard', ok: true, fee: 8.40, by: '4–5 days' }, { speed: 'Expedited', ok: true, fee: 13.10, by: '2–3 days' }, { speed: 'Priority', ok: true, fee: 21.75, by: '1–2 days' }] };
 }
 
-module.exports = { cleanNo, decide, plan, prefs, stage, block, unblock, ship, fedexRates, fedexShip, fedexCancel, dispatchMake, dispatchAwb, dispatchForget, markStep, returnStart, returnStep, comment, bulkNote, chase, importOrders, importFromPricing, testOrder, mcfPreview, note, advance, find, H };
+module.exports = { cleanNo, decide, plan, prefs, lineSet, lineQty, stage, block, unblock, ship, fedexRates, fedexShip, fedexCancel, dispatchMake, dispatchAwb, dispatchForget, markStep, returnStart, returnStep, comment, bulkNote, chase, importOrders, importFromPricing, testOrder, mcfPreview, note, advance, find, H };
 
 });
 
@@ -1676,7 +1757,8 @@ function moveTo(db, o, pk, target, info) {
     if (J.isMcf(pk) && x === 3 && !pk.fulfilQueued) {
       pk.fulfilQueued = true;
       /* "Amazon Logistics US", exactly: Shopify tracks parcels under that name and not under "Amazon Logistics" (seen on 24 Oct). */
-      queue.enqueue(db, o, 'fulfil', { part: o.pkgs.indexOf(pk), lines: lineGids(o, pk.items), company: 'Amazon Logistics US', numbers: pk.trk.slice(), notify: true },
+      const qty = {}; pk.items.forEach(i => { const it = o.items[i]; if (it.lid && J.sendQty(it) < it.q) qty[it.lid] = J.sendQty(it); });
+      queue.enqueue(db, o, 'fulfil', { part: o.pkgs.indexOf(pk), lines: lineGids(o, pk.items), qty, company: 'Amazon Logistics US', numbers: pk.trk.slice(), notify: true },
         `Mark ${pk.items.map(i => o.items[i].sku).join(', ')} fulfilled with ${pk.trk.length} Amazon tracking number(s): ${pk.trk.join(', ')}`);
     }
     /* Not when the news came from Shopify itself: it already has it, and would show every step twice. */
@@ -1867,13 +1949,15 @@ async function freshOrder(store, gid) {
   if (!o) throw new Error('Shopify has no such order any more');
   return { id: gid, name: o.no, cancelledAt: o.cancelledAt || null, note: o.note || '', tags: o.tags || '' };
 }
-async function previewFulfil(store, gid, lineGids, company, numbers) {
-  const d = await ask('fulfilCheck', { store, orderId: num(gid), lines: lineGids.map(num), company, numbers });
+/* A line sent in part goes as "<line id>:<quantity>" (Pricing-API ShopifyHub.gs reads both forms). */
+const linesArg = (lineGids, qty) => lineGids.map(g => num(g) + (qty && qty[g] != null ? ':' + qty[g] : ''));
+async function previewFulfil(store, gid, lineGids, company, numbers, qty) {
+  const d = await ask('fulfilCheck', { store, orderId: num(gid), lines: linesArg(lineGids, qty), company, numbers });
   if (d.already) return { ok: false, note: d.note };
   return { ok: true, note: d.note };
 }
-async function fulfil(store, gid, lineGids, company, numbers, notify) {
-  const d = await ask('fulfil', { store, orderId: num(gid), lines: lineGids.map(num), company, numbers, notify: notify !== false });
+async function fulfil(store, gid, lineGids, company, numbers, notify, qty) {
+  const d = await ask('fulfil', { store, orderId: num(gid), lines: linesArg(lineGids, qty), company, numbers, notify: notify !== false });
   return d.already ? { already: true } : { id: d.id };
 }
 async function check() {
@@ -1995,7 +2079,7 @@ setInterval(() => {
 
 /* ---------------- the API ---------------- */
 const ACTIONS = {
-  decide: actions.decide, plan: actions.plan, prefs: actions.prefs, stage: actions.stage, block: actions.block, unblock: actions.unblock, ship: actions.ship,
+  decide: actions.decide, plan: actions.plan, prefs: actions.prefs, lineSet: actions.lineSet, stage: actions.stage, block: actions.block, unblock: actions.unblock, ship: actions.ship,
   returnStart: actions.returnStart, returnStep: actions.returnStep, comment: actions.comment,
   fedexShip: actions.fedexShip, fedexCancel: actions.fedexCancel, bulkNote: actions.bulkNote, chase: actions.chase,
   dispatchAwb: actions.dispatchAwb, dispatchForget: actions.dispatchForget, markStep: actions.markStep,
@@ -2083,7 +2167,7 @@ async function api(route, body) {
     let ok = 0, bad = 0;
     for (const q of items) {
       const o = d.orders.find(x => x.no === q.orderNo);
-      try { const p = await shopify.previewFulfil(o.store, o.gid, q.data.lines, q.data.company, q.data.numbers); q.preview = { ok: p.ok, note: p.note, at: Date.now() }; p.ok ? ok++ : bad++; }
+      try { const p = await shopify.previewFulfil(o.store, o.gid, q.data.lines, q.data.company, q.data.numbers, q.data.qty); q.preview = { ok: p.ok, note: p.note, at: Date.now() }; p.ok ? ok++ : bad++; }
       catch (e) { q.preview = { ok: false, note: e.message, at: Date.now() }; bad++; }
     }
     await store.serial(async () => store.save());
