@@ -1213,6 +1213,20 @@ async function plan(db, a) {
   return done.join(' · ');
 }
 
+/* Settings kept with the hub's data. autoMcf (off unless switched on, on the order page's MCF card): when a NEW order comes
+ * in, the items Amazon FBA has go to MCF by themselves, at standard speed. Orders already in the hub are never touched. */
+function prefs(db, a) {
+  db.prefs = Object.assign({}, db.prefs, { autoMcf: a.autoMcf === true });
+  return db.prefs.autoMcf ? 'Auto-send to MCF is on for new orders' : 'Auto-send to MCF is off';
+}
+async function autoRoute(db, o) {
+  if (!(db.prefs && db.prefs.autoMcf)) return;
+  const lines = J.undecided(o).filter(i => (o.items[i].fba || 0) >= o.items[i].q);
+  if (!lines.length) return;
+  try { await decide(db, { no: o.no, route: 'mcf', lines, speed: 'Standard' }); note(o, 'APP', 'Auto-sent to MCF: the items Amazon FBA has'); }
+  catch (e) { note(o, 'APP', 'Auto-send to MCF did not go: ' + e.message); }
+}
+
 /* ---------------- production ---------------- */
 function stage(db, a) {
   const o = find(db, a.no), pk = o.pkgs[a.part];
@@ -1499,6 +1513,7 @@ async function importOrders(db) {
       o.tl.push({ t: o.at, who: 'SHOPIFY', m: `Order placed · pulled from ${store} Shopify` });
       shippedInShopify(o, s, lines);
       db.orders.push(o); added++;
+      await autoRoute(db, o);
     }
   }
   return `${added} new order(s) pulled from Shopify${notes.length ? ' · ' + notes.join(' · ') : ''}`;
@@ -1547,6 +1562,7 @@ async function importFromPricing(db, got) {
       const part = lines.filter(l => open(l) > 0 && open(l) < l.left);
       if (part.length) note(o, 'SHOPIFY', `Shipped in part in Shopify: ${part.map(l => `${l.sku || l.name} (${open(l)} of ${l.left} still to ship)`).join(', ')}`);
       db.orders.push(o); added++;
+      await autoRoute(db, o);
     }
     if (ans.more) notes.push(`${store}: more orders than one read — press Fetch again`);
   }
@@ -1589,7 +1605,7 @@ async function mcfPreview(db, a) {
   return { real: false, options: [{ speed: 'Standard', ok: true, fee: 8.40, by: '4–5 days' }, { speed: 'Expedited', ok: true, fee: 13.10, by: '2–3 days' }, { speed: 'Priority', ok: true, fee: 21.75, by: '1–2 days' }] };
 }
 
-module.exports = { cleanNo, decide, plan, stage, block, unblock, ship, fedexRates, fedexShip, fedexCancel, dispatchMake, dispatchAwb, dispatchForget, markStep, returnStart, returnStep, comment, bulkNote, chase, importOrders, importFromPricing, testOrder, mcfPreview, note, advance, find, H };
+module.exports = { cleanNo, decide, plan, prefs, stage, block, unblock, ship, fedexRates, fedexShip, fedexCancel, dispatchMake, dispatchAwb, dispatchForget, markStep, returnStart, returnStep, comment, bulkNote, chase, importOrders, importFromPricing, testOrder, mcfPreview, note, advance, find, H };
 
 });
 
@@ -1926,7 +1942,7 @@ function connections() {
 }
 function state() {
   const d = db();
-  return { ok: true, now: Date.now(), v: store.version(), orders: d.orders, stock: d.stock, queue: d.queue.slice(-200).reverse(), lastTrack: d.lastTrack || null,
+  return { ok: true, now: Date.now(), v: store.version(), orders: d.orders, stock: d.stock, prefs: d.prefs || {}, queue: d.queue.slice(-200).reverse(), lastTrack: d.lastTrack || null,
     connections: connections(), health: d.health || {}, customs: csb.state(d).sku, hsDefault: csb.CO.hsExport, nextInv: csb.state(d).nextInv,
     settings: { web: !!config.WEB, writes: config.shopifyWrites(), realMcf: config.realMcf(), trackMinutes: config.trackMinutes(),
       fedexShip: config.fedexShip() ? { on: true, sandbox: config.fedexShip().sandbox } : { on: false } } };
@@ -1955,7 +1971,7 @@ setInterval(() => {
 
 /* ---------------- the API ---------------- */
 const ACTIONS = {
-  decide: actions.decide, plan: actions.plan, stage: actions.stage, block: actions.block, unblock: actions.unblock, ship: actions.ship,
+  decide: actions.decide, plan: actions.plan, prefs: actions.prefs, stage: actions.stage, block: actions.block, unblock: actions.unblock, ship: actions.ship,
   returnStart: actions.returnStart, returnStep: actions.returnStep, comment: actions.comment,
   fedexShip: actions.fedexShip, fedexCancel: actions.fedexCancel, bulkNote: actions.bulkNote, chase: actions.chase,
   dispatchAwb: actions.dispatchAwb, dispatchForget: actions.dispatchForget, markStep: actions.markStep,

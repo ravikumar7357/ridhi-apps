@@ -338,9 +338,12 @@ function pageOrders() {
  * Amazon FBA has it → MCF; else India has it → India stock (shipped by DHL / FedEx from Bulk order); else Production.
  * Any line can be moved to another section it has stock for; "Accept" does every section at once. */
 const SECTIONS = [
-  { k: 'mcf', name: 'Amazon MCF', how: 'Ships from Amazon FBA in the US', go: 'Send to MCF…', can: it => (it.fba || 0) >= it.q, stock: it => `FBA ${it.fba || 0}` },
-  { k: 'india', name: 'India stock', how: 'Packed in India · DHL or FedEx from Bulk order', go: 'Ship now…', can: it => (it.india || 0) >= it.q, stock: it => `India ${it.india || 0}` },
-  { k: 'make', name: 'Production', how: 'Made in the factory, then shipped from India', go: 'Send to production…', can: () => true, stock: () => 'to make' },
+  { k: 'mcf', name: 'Amazon MCF', how: 'ships from FBA in the US', foot: 'Amazon ships in 4–5 days · the fee shows before you send', go: 'Send to MCF',
+    can: it => (it.fba || 0) >= it.q, stock: it => `FBA ${it.fba || 0}` },
+  { k: 'india', name: 'Ship from India', how: 'DHL or FedEx', foot: 'Goes in the next DHL / FedEx file', go: 'Add to Bulk order',
+    can: it => (it.india || 0) >= it.q, stock: it => `India ${it.india || 0}` },
+  { k: 'make', name: 'Production', how: 'no stock to send', foot: 'Cut, print, press, QC · about 6 days', go: 'Send to production',
+    can: () => true, stock: () => 'to make' },
 ];
 const suggest = it => SECTIONS.find(s => s.can(it)).k;
 /** Each undecided line's section: the person's move if it still has stock, else the suggestion. */
@@ -350,22 +353,24 @@ function planOf(o) {
   u.forEach(i => { const it = o.items[i], mine = SECTIONS.find(s => s.k === ch[i]); out[i] = mine && mine.can(it) ? mine.k : suggest(it); });
   return out;
 }
+/* One card per way out, as Shopify shows an order's fulfilments: a coloured badge with the count, the items, and one
+ * button at the bottom. An item moves with its quiet "Move…" menu. With more than one card, "Accept all" sits on top
+ * and is the only filled button; the cards' own buttons stay plain. */
+const thumb = it => { const k = Object.keys(COLOR).find(c => (String(it.v) + ' ' + String(it.t)).includes(c)); return `<span class="od-th" style="background:${k ? COLOR[k] : '#98A1AE'}" aria-hidden="true"></span>`; };
+const itemRow = (it, chip, end) => `<div class="od-row">${thumb(it)}<div class="od-it"><div class="n">${esc(it.t)}</div><div class="s-sm s-muted">${esc([it.v, it.sku].filter(Boolean).join(' · '))}</div></div>
+  ${chip ? `<span class="od-chip">${chip}</span>` : '<span></span>'}<span class="od-q">× ${it.q}</span>${end || '<span></span>'}</div>`;
 function linesCard(o) {
   const u = undecided(o); if (!u.length) return '';
-  const P = planOf(o), moved = i => (CHOICE[o.no] || {})[i] === P[i] && P[i] !== suggest(o.items[i]);
-  const secs = SECTIONS.map(s => ({ s, lines: u.filter(i => P[i] === s.k) })).filter(x => x.lines.length);
-  return `<div class="s-panel pl" id="lines">
-    <div class="s-ph pl-head"><div><b>How this order ships</b><span class="s-muted s-sm"> · sorted by stock — move any item if you want</span></div>
-      <button class="s-btn" type="button" id="plAccept" data-plan="accept">Accept${secs.length > 1 ? ' all ' + secs.length + ' sections' : ''}</button></div>
-    ${secs.map(({ s, lines }) => `<div class="pl-sec pl-${s.k}" id="pl-${s.k}">
-      <div class="pl-h"><i class="pl-dot"></i><b>${s.name}</b><span class="s-muted s-sm">${s.how} · ${linesOf(lines.length)}</span>
-        <button class="s-link" type="button" data-go="${s.k}">${s.go}</button></div>
-      ${lines.map(i => { const it = o.items[i];
-        return `<div class="pl-ln" data-line="${i}">${prodCell(it, [it.v, it.sku].filter(Boolean).join(' · '))}<span class="pl-q">× ${it.q}</span>
-          <span class="pl-stock s-sm s-muted">${SECTIONS.map(x => x.k === 'make' ? '' : x.stock(it)).filter(Boolean).join(' · ')}</span>
-          <span class="pl-move" role="group" aria-label="Section for ${esc(it.t)}">${SECTIONS.map(x => `<button class="s-r ${P[i] === x.k ? 'on' : ''}" type="button" data-pick="${i}|${x.k}" ${x.can(it) ? '' : 'disabled'} title="${x.can(it) ? x.name : 'Not enough in stock'}">${x.k === 'mcf' ? 'MCF' : x.k === 'india' ? 'India' : 'Make'}</button>`).join('')}</span>
-          ${moved(i) ? '<span class="s-sm s-muted">moved</span>' : ''}</div>`; }).join('')}</div>`).join('')}
-    <footer class="s-cf" id="decide-bar"><span class="s-muted s-sm">${secs.map(x => `${x.s.name}: ${x.lines.length}`).join(' · ')}</span></footer></div>`;
+  const P = planOf(o), secs = SECTIONS.map(s => ({ s, lines: u.filter(i => P[i] === s.k) })).filter(x => x.lines.length), many = secs.length > 1;
+  const auto = !!(S.prefs && S.prefs.autoMcf);
+  return `<div id="lines" class="od-plan">
+    ${many ? `<div class="od-acc" id="decide-bar"><span class="s-muted s-sm">Sorted by stock — move an item if you want</span><button class="s-btn" type="button" data-plan="accept">Accept all ${secs.length}</button></div>` : ''}
+    ${secs.map(({ s, lines }) => `<section class="od-card" id="pl-${s.k}">
+      <header class="od-h"><span class="od-badge b-${s.k}">${s.name} · ${lines.length}</span><span class="s-muted s-sm">${s.how}</span>
+        ${s.k === 'mcf' ? `<label class="od-auto s-sm" title="New orders whose items Amazon FBA has go to MCF by themselves"><input type="checkbox" data-automcf ${auto ? 'checked' : ''}> Auto-send</label>` : ''}</header>
+      ${lines.map(i => { const it = o.items[i], to = SECTIONS.filter(x => x.k !== s.k && x.can(it));
+        return itemRow(it, s.stock(it), `<select class="od-move" data-move="${i}" aria-label="Move ${esc(it.t)}"><option value="">Move…</option>${to.map(x => `<option value="${x.k}">to ${x.name}</option>`).join('')}</select>`); }).join('')}
+      <footer class="od-f"><span class="s-muted s-sm">${s.foot}</span><button class="s-btn ${many ? 'ghost' : ''}" type="button" data-go="${s.k}">${s.go}</button></footer></section>`).join('')}</div>`;
 }
 /* Accept: one window with what each section will do (MCF speed and fee, production priority), then everything at once. */
 async function planDlg(o) {
@@ -403,8 +408,8 @@ function partPanel(o, pk, n) {
   const a = actionOf(pk), isProd = phaseOf(pk) === 0, f = flagOf(pk);
   const btn = [];
   if (isProd && pk.block) btn.push(`<button class="s-btn ghost" type="button" data-do="unblock" data-pk="${n}">Resolve hold</button>`);
-  else if (a) { if (isProd) btn.push(`<button class="s-link" type="button" data-do="block" data-pk="${n}">Put on hold</button>`); btn.push(`<button class="s-btn" type="button" data-do="${a.k}" data-pk="${n}">${esc(a.b.replace('…', ''))}</button>`); }
-  if (pk.booked && !pk.route) btn.push(`<button class="s-btn" type="button" data-do="awb" data-pk="${n}">Enter tracking number</button>`);
+  else if (a) { if (isProd) btn.push(`<button class="s-link" type="button" data-do="block" data-pk="${n}">Put on hold</button>`); btn.push(`<button class="s-btn ghost" type="button" data-do="${a.k}" data-pk="${n}">${esc(a.b.replace('…', ''))}</button>`); }
+  if (pk.booked && !pk.route) btn.push(`<button class="s-btn ghost" type="button" data-do="awb" data-pk="${n}">Enter tracking number</button>`);
   if (f) btn.push(`<button class="s-btn ${chasedSince(pk) ? 'ghost' : 'bad'}" type="button" data-do="chase" data-pk="${n}">${chasedSince(pk) ? 'Chase again' : 'Chase carrier'}</button>`);
   if (pk.fedex) { btn.push(fxDocs(pk.fedex)); if (off(pk) <= 2) btn.push(`<button class="s-link" type="button" data-do="fxcancel" data-pk="${n}">Cancel label</button>`); }
   const rows = [];
@@ -431,20 +436,26 @@ function partPanel(o, pk, n) {
   const marks = [[3, isMcf(pk) ? 'Shipped by Amazon' : 'Picked up'], [4, 'In transit'], [5, 'Out for delivery'], [6, 'Delivered']].filter(m => m[0] > off(pk));
   const url = CARRIER_URL[carName(pk)];
   const scans = (pk.scans || []).map(s => `<tr><td class="s-nowrap s-muted">${fmt(s.at)}</td><td class="tl">${esc(s.text)}</td><td class="s-muted">${esc(s.place)}</td></tr>`);
-  return `<div class="s-panel s-part ${FLASH.has(o.no) ? 's-flash' : ''}" id="pk${n}">
-    <div class="s-ph s-pph"><b>Part ${n + 1}</b><span class="s-muted">${srcName(pk)}${pk.rush ? ' · rush' : ''}</span>${stPill(pk)}<span class="r">${btn.join('')}</span></div>
-    <div class="s-pbody"><div class="s-tl">${strip(pk, f)}
-      <details class="pp-steps" ${phaseOf(pk) === 0 || f ? 'open' : ''}><summary>All steps · ${esc(stText(pk))}</summary>${table([[''], ['Step', 'tl'], ['Place'], ['Date']], rows)}</details></div>
-      <div><dl class="s-kv"><dt>Items</dt><dd>${pk.items.map(i => esc(o.items[i].t) + ' × ' + o.items[i].q).join('<br>')}</dd>
-        <dt>Carrier</dt><dd>${pk.route ? esc(carName(pk)) + (pk.mcfId ? ` · ${esc(pk.mcfId)}${pk.mcfReal ? '' : ' (simulated)'}` : '') : 'Chosen at dispatch'}</dd>
-        <dt>Tracking</dt><dd>${pk.trk.length ? pk.trk.map(t => `<span class="s-trk">${esc(t)}</span> <button class="s-link" type="button" data-copy="${esc(t)}">Copy</button>${url ? `<a class="s-link" href="${esc(url(t))}" target="_blank" rel="noopener">Open ↗</a>` : ''}`).join('<br>') : pk.route ? 'Issued when Amazon ships' : '—'}</dd>
-        <dt>${phaseOf(pk) === 4 ? 'Delivered' : pk.late ? 'Was due' : 'Expected'}</dt><dd class="${pk.late ? 's-bad' : ''}">${esc(phaseOf(pk) === 4 ? day(pk.ts[pk.pos - 1]) : pk.eta || '—')}</dd>
-        <dt>Customer sees</dt><dd>${cust}</dd>${pk.fedex ? `<dt>FedEx</dt><dd>${esc(pk.fedex.service)} · invoice ${esc(pk.fedex.inv)}${pk.fedex.sandbox ? ' · <b>sandbox</b>' : ''}</dd>` : ''}</dl>
-        ${pk.booked && !pk.route ? `<footer class="s-cf"><span class="s-muted">Packed · in ${esc(pk.booked.id)} · upload the file, then enter the ${esc(pk.booked.car)} tracking number</span></footer>`
-          : off(pk) >= 1 && off(pk) <= 5 && pk.route ? `<footer class="s-cf c-track"><span class="s-muted">${byCarrier ? `Tracked by ${esc(carName(pk))}` : byShopify ? 'Tracked by Shopify' : realOrder ? 'Shopify follows it once it has the tracking number (sent from the hub) — until then, mark by hand' : o.source === 'test' ? 'Test order — not tracked; mark the steps by hand' : 'Not tracked automatically — mark the steps by hand'}${pk.checkedAt ? ' · checked ' + fmt(pk.checkedAt) : ''}</span>
-            ${live ? `<button class="s-btn ghost" type="button" data-upd="${n}" data-live="1">Check for updates</button>` : ''}
-            <span class="c-marks">${live ? '' : '<span class="s-sm s-muted">Mark:</span>'}${marks.map(m => `<button class="s-link" type="button" data-mark="${n}|${m[0]}">${esc(m[1])}</button>`).join('')}</span></footer>` : ''}</div></div>
-    ${scans.length ? `<details class="s-scans"><summary>Carrier scans · ${scans.length} · ${esc(carName(pk))}</summary>${table([['Date'], ['Scan', 'tl'], ['Place']], scans)}</details>` : ''}</div>`;
+  /* The card's badge says what this part is now, in one or two words, in its section's colour. */
+  const done = phaseOf(pk) === 4, badge = isProd ? (pk.block ? ['On hold', 'bad'] : ['Production', 'make']) : isMcf(pk) ? ['Amazon MCF', 'mcf']
+    : !pk.route ? [pk.src === 'make' ? 'Made · ready to ship' : 'Ship from India', 'india'] : [done ? 'Delivered' : 'Shipped · ' + carName(pk), f ? 'bad' : 'done'];
+  const facts = [
+    pk.trk.length ? pk.trk.map(t => `<span class="s-trk">${esc(t)}</span> <button class="s-link" type="button" data-copy="${esc(t)}">Copy</button>${url ? ` <a class="s-link" href="${esc(url(t))}" target="_blank" rel="noopener">Open ↗</a>` : ''}`).join(' ') : '',
+    pk.mcfId ? `${esc(pk.mcfId)}${pk.mcfReal ? '' : ' (simulated)'}` : '',
+    done ? 'Delivered ' + esc(day(pk.ts[pk.pos - 1])) : pk.eta && pk.route ? `<span class="${pk.late ? 's-bad' : ''}">${pk.late ? 'Was due' : 'Expected'} ${esc(pk.eta)}</span>` : '',
+    `Customer sees: ${cust}`,
+    pk.fedex ? `FedEx ${esc(pk.fedex.service)} · invoice ${esc(pk.fedex.inv)}${pk.fedex.sandbox ? ' · sandbox' : ''}` : '',
+  ].filter(Boolean);
+  return `<section class="od-card s-part ${FLASH.has(o.no) ? 's-flash' : ''}" id="pk${n}">
+    <header class="od-h"><span class="od-badge b-${badge[1]}">${esc(badge[0])}</span><span class="s-muted s-sm">${esc(stText(pk))}${pk.rush ? ' · rush' : ''}</span><span class="r">${btn.join('')}</span></header>
+    ${pk.items.map(i => itemRow(o.items[i], '')).join('')}
+    ${strip(pk, f)}
+    <details class="pp-steps" ${pk.block || f || isLateStage(pk) ? 'open' : ''}><summary>All steps</summary>${table([[''], ['Step', 'tl'], ['Place'], ['Date']], rows)}</details>
+    <footer class="od-f od-facts"><span class="s-sm">${facts.join(' · ')}</span></footer>
+    ${pk.booked && !pk.route ? `<footer class="od-f"><span class="s-muted s-sm">Packed · in ${esc(pk.booked.id)} · upload the file, then enter the ${esc(pk.booked.car)} tracking number</span></footer>`
+      : off(pk) >= 1 && off(pk) <= 5 && pk.route ? `<footer class="od-f c-track"><span class="s-muted s-sm">${byCarrier ? `Tracked by ${esc(carName(pk))}` : byShopify ? 'Tracked by Shopify' : realOrder ? 'Shopify tracks it once it has the tracking number — until then, mark by hand' : o.source === 'test' ? 'Test order — mark the steps by hand' : 'Not tracked — mark the steps by hand'}${pk.checkedAt ? ' · checked ' + fmt(pk.checkedAt) : ''}</span>
+        <span class="c-marks">${live ? `<button class="s-btn ghost" type="button" data-upd="${n}" data-live="1">Check for updates</button>` : '<span class="s-sm s-muted">Mark:</span>'}${marks.map(m => `<button class="s-link" type="button" data-mark="${n}|${m[0]}">${esc(m[1])}</button>`).join('')}</span></footer>` : ''}
+    ${scans.length ? `<details class="s-scans"><summary>Carrier scans · ${scans.length}</summary>${table([['Date'], ['Scan', 'tl'], ['Place']], scans)}</details>` : ''}</section>`;
 }
 function returnRow(o, r, n) {
   const a = J.retAction(r);
@@ -460,28 +471,26 @@ function pageOrder(no) {
   const out = o.pkgs.filter(p => p.route && off(p) >= (isMcf(p) ? 3 : 1)), trk = o.pkgs.flatMap(p => p.trk);
   const all = !undecided(o).length && o.pkgs.length && out.length === o.pkgs.length;
   const tags = [...new Set([...o.pkgs.filter(p => p.route === 'mcf').map(() => 'MCF'), ...o.pkgs.filter(p => phaseOf(p) === 0).map(() => 'In production'), ...o.pkgs.filter(p => p.src === 'make' && off(p) === 0).map(() => 'Ready to ship')])];
-  const ev = activity(o).slice(0, 14).map(e => `<tr><td class="s-nowrap s-muted">${fmt(e.t)}</td><td><span class="s-src ${e.who === 'BLOCKED' ? 'bad' : ''}">${e.who === 'BLOCKED' ? 'HOLD' : esc(e.who)}</span></td><td class="tl">${esc(e.m)}</td></tr>`);
   const qn = S.queue.filter(q => q.orderNo === o.no), qc = k => qn.filter(q => q.status === k).length;
   return `<div class="s-omodal" id="omodal"><div class="s-odlg" role="dialog" aria-modal="true" aria-label="Order #${esc(o.no)}">
     <div class="s-ohead" id="o-head"><div class="t"><h2>Order #${esc(o.no)}</h2>${testTag(o)}${st(all ? 'Shipped' : out.length ? 'Part shipped' : 'Not shipped', all ? 'approved' : out.length ? 'pending' : 'draft')}
         ${st(trk.length ? 'Tracking ' + trk[0] : 'No tracking yet', 'draft')}<a class="s-x" href="#orders" aria-label="Close">×</a></div>
       <div class="m">${esc(o.cust.n)} · ${esc(addrText(o))} · ${isoDay(o.at)} · ${esc(o.store)}</div></div>
-    <div class="s-obody">
-      ${linesCard(o)}
-      ${o.pkgs.map((pk, n) => partPanel(o, pk, n)).join('')}
-      ${o.rets.length ? `<div class="s-panel" id="rets"><div class="s-ph">Returns</div>${table([['Lines'], ['Reason'], ['Outcome'], ['Status'], ['Return tracking'], ['Opened'], ['', 'act']], o.rets.map((r, n) => returnRow(o, r, n)))}</div>` : ''}
-      <div class="s-two">
-        <div class="s-panel"><div class="s-ph">History</div><div class="s-cmt"><input id="cmt" placeholder="Note — optional" aria-label="Note"><button class="s-btn ghost" type="button" data-do="cmt">Add</button></div>
-          ${table([['Date'], ['Source'], ['Event']], ev)}</div>
-        <div class="s-panel"><div class="s-ph">Customer and payment</div><dl class="s-kv">
-          <dt>Customer</dt><dd>${esc(o.cust.n)}<span class="s-muted"> · ${o.cust.k > 1 ? o.cust.k + ' orders' : 'first order'}</span></dd>
-          <dt>Contact</dt><dd>${esc(o.cust.e || '—')}<br>${esc(o.cust.ph || o.addr.phone || '')}</dd>
-          <dt>Ship to</dt><dd>${esc(addrText(o))}</dd>
-          ${o.note ? `<dt>Customer note</dt><dd>${esc(o.note)}</dd>` : ''}
-          <dt>Items</dt><dd>${money(sum)}</dd><dt>Shipping</dt><dd>${money(o.ship)}</dd><dt><b>Paid</b></dt><dd><b>${money(sum + o.ship)}</b></dd>
-          <dt>Shopify tags</dt><dd>${tags.length ? tags.map(t => `<span class="s-tag">${t}</span>`).join(' ') : '—'}</dd>
-          <dt>To Shopify</dt><dd>${o.source === 'test' ? `<span class="s-muted">Temp test order — nothing is sent (${qn.length} would be)</span>` : qn.length ? `${qc('sent')} sent · ${qc('waiting')} waiting · ${qc('held')} held${qc('failed') ? ` · <span class="s-bad">${qc('failed')} failed</span>` : ''} · <a class="s-link" href="#setup">see all</a>` : 'Nothing yet'}</dd></dl></div>
+    <div class="s-obody od-grid">
+      <div class="od-main">
+        ${linesCard(o)}
+        ${o.pkgs.map((pk, n) => partPanel(o, pk, n)).join('')}
+        ${o.rets.length ? `<div class="s-panel" id="rets"><div class="s-ph">Returns</div>${table([['Lines'], ['Reason'], ['Outcome'], ['Status'], ['Return tracking'], ['Opened'], ['', 'act']], o.rets.map((r, n) => returnRow(o, r, n)))}</div>` : ''}
       </div>
+      <aside class="od-side">
+        ${o.note ? `<div class="od-card od-box od-note"><b>Note from Shopify</b><p>${esc(o.note)}</p></div>` : ''}
+        <div class="od-card od-box"><b>Customer</b><p>${esc(o.cust.n)}<span class="s-muted"> · ${o.cust.k > 1 ? o.cust.k + ' orders' : 'first order'}</span><br><span class="s-muted">${esc(o.cust.e || '')}${o.cust.e ? '<br>' : ''}${esc(o.cust.ph || o.addr.phone || '')}</span></p>
+          <b>Ship to</b><p class="s-muted">${esc(addrText(o))}</p></div>
+        <div class="od-card od-box"><div class="od-sum"><span class="s-muted">Items</span><span>${money(sum)}</span><span class="s-muted">Shipping</span><span>${money(o.ship)}</span><b>Paid</b><b>${money(sum + o.ship)}</b></div></div>
+        <div class="od-card od-box"><b>Shopify</b><p class="s-sm">${tags.length ? tags.map(t => `<span class="s-tag">${t}</span>`).join(' ') + '<br>' : ''}<span class="s-muted">${o.source === 'test' ? `Test order — nothing is sent (${qn.length} would be)` : qn.length ? `${qc('sent')} sent · ${qc('waiting')} waiting · ${qc('held')} held${qc('failed') ? ` · <span class="s-bad">${qc('failed')} failed</span>` : ''}` : 'Nothing sent yet'}</span></p></div>
+        <div class="od-card od-box"><b>History</b><div class="s-cmt"><input id="cmt" placeholder="Add a note" aria-label="Note"><button class="s-btn ghost" type="button" data-do="cmt">Add</button></div>
+          <ul class="od-hist">${activity(o).slice(0, 8).map(e => `<li><span class="s-muted s-sm">${fmt(e.t)}</span>${e.who === 'BLOCKED' ? '<span class="s-bad"> hold</span>' : ''} ${esc(e.m)}</li>`).join('')}</ul></div>
+      </aside>
     </div>
     <div class="s-ofoot"><span class="s-muted">${linesOf(o.items.length)} · ${units(o)} pc${units(o) > 1 ? 's' : ''}</span>
       <a class="s-btn ghost" href="#orders">Close</a><button class="s-btn ghost" type="button" data-do="ret">Start return</button></div>
@@ -1217,10 +1226,10 @@ const TOUR = [
     run: async () => { FILTER = ''; Q = ''; $('q').value = ''; await post('/api/demo/start'); await sleep(300); },
     say: 'A new Shopify order has just come in: D1001, from Sarah in Austin. A kantha quilt, a cushion cover set and a block print throw. Its row tells us what to do next: route the lines.' },
   { k: 'The order', go: 'order/' + DEMO, spot: '#lines',
-    say: 'Opening the order. For every item we see the stock, in Amazon FBA and in India. We decide how each item goes: Amazon MCF, make it in production, or ship it from India stock. The app never decides for us.' },
-  { k: 'Half now, half in production', go: 'order/' + DEMO, spot: '#decide-bar',
-    run: async () => { await clickOn('[data-pick="0|india"]'); await clickOn('[data-pick="1|india"]'); await clickOn('[data-pick="2|make"]'); },
-    say: 'The quilt and the cushion covers are in India stock, so they ship now. The throw is not in stock anywhere, so it goes to production.' },
+    say: 'Opening the order. Like Shopify, the items are grouped in cards by how they leave: Amazon MCF when FBA has it, ship from India when India has it, and production when nobody has it. The app sorts them by the stock; we can move any item, and nothing happens until we accept.' },
+  { k: 'Half now, half in production', go: 'order/' + DEMO, spot: '#lines',
+    run: async () => { const c = CHOICE[DEMO] || (CHOICE[DEMO] = {}); c[0] = 'india'; c[1] = 'india'; c[2] = 'make'; render(); await sleep(500); },
+    say: 'The quilt and the cushion covers ship now from India stock. The throw is not in stock anywhere, so it is in the production card.' },
   { k: 'Production', go: 'order/' + DEMO, spot: () => '#pk' + makePart(),
     run: async () => { await clickOn('[data-go="make"]'); await sleep(600); await clickOn('#go'); await sleep(400); },
     say: 'One click sends the throw to production. The factory gets the request, and the Shopify order is tagged: in production.' },
@@ -1231,8 +1240,8 @@ const TOUR = [
     run: async () => { await act('block', { no: DEMO, part: makePart(), why: 'Waiting for fabric' }); },
     say: 'If something holds it up, it goes on hold with the reason. Here: waiting for fabric. It shows in red on the order, and the Orders page shows the main bottleneck across all orders.' },
   { k: 'Ship the ready half', go: 'order/' + DEMO, spot: '#dlg .s-dlg',
-    run: async () => { await act('unblock', { no: DEMO, part: makePart() }); await sleep(400); await clickOn('[data-go="india"]'); await sleep(500); await typeInto('#dlg .sh-kg', '2.6'); },
-    say: 'Now the half that is ready. Ship opens one simple window: what goes in the box, DHL already chosen, and the weight of the box. We have no DHL API, and we do not need one.' },
+    run: async () => { await act('unblock', { no: DEMO, part: makePart() }); await sleep(400); await clickOn('[data-go="india"]'); await sleep(600); await clickOn(`[data-do="ship"][data-pk="${indiaPart()}"]`); await sleep(500); await typeInto('#dlg .sh-kg', '2.6'); },
+    say: 'Now the half that is ready. Add to Bulk order picks it, and Ship opens one simple window: what goes in the box, DHL already chosen, and the weight of the box. We have no DHL API, and we do not need one.' },
   { k: 'The DHL CSB file', go: null, spot: '#dlg .s-dlg',
     run: async () => { await clickOn('#go'); for (let k = 0; k < 20 && !el('#shTrk'); k++) await sleep(300); },
     say: 'One click makes DHL\'s own CSB-V file, already filled in: the customer, the invoice, the HS codes and the weight. It downloads, and we upload it on the DHL website exactly as it is.' },
@@ -1422,8 +1431,19 @@ function render() {
       on('[data-plan]', () => planDlg(o));
       on('[data-go]', b => {
         const k = b.dataset.go, P = planOf(o), lines = undecided(o).filter(i => P[i] === k);
-        if (k === 'mcf') mcfDlg(o, lines); else if (k === 'make') prodDlg(o, lines); else shipDlg(o, { lines });
+        /* India items: picked now, and they wait in Bulk order for the next DHL / FedEx file. */
+        if (k === 'mcf') mcfDlg(o, lines); else if (k === 'make') prodDlg(o, lines); else act('plan', { no: o.no, india: lines });
       });
+      page.querySelectorAll('[data-move]').forEach(sel => sel.addEventListener('change', () => {
+        if (!sel.value) return; (CHOICE[o.no] || (CHOICE[o.no] = {}))[sel.dataset.move] = sel.value; render();
+      }));
+      page.querySelectorAll('[data-automcf]').forEach(c => c.addEventListener('change', () => {
+        const on = c.checked; c.checked = !on;
+        dialog(on ? 'Turn on Auto-send to MCF?' : 'Turn off Auto-send?', on
+          ? `<span>From now on, when a new order comes in, the items Amazon FBA has go to MCF by themselves (standard speed). Orders already here are not touched. ${S.settings.realMcf ? '<b class="s-bad">Real MCF is on: each one is a real Amazon order with its fee.</b>' : 'MCF is simulated here — no real Amazon order is placed.'}</span>`
+          : '<span>New orders wait for you again before anything goes to MCF.</span>',
+          `<button class="s-btn" type="button" id="go">${on ? 'Turn on' : 'Turn off'}</button>`, () => $('go').addEventListener('click', () => act('prefs', { autoMcf: on })));
+      }));
       on('[data-do]', b => {
         const k = b.dataset.do, n = +b.dataset.pk, rn = +b.dataset.r;
         if (k === 'ship') shipPart(o, n);

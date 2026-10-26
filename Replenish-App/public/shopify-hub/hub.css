@@ -35,6 +35,45 @@ body.busy button{pointer-events:none;opacity:.6}
 .pl-a.pl-mcf{border-left-color:#E5A33B}
 .pl-a.pl-india{border-left-color:var(--brand)}
 .pl-a.pl-make{border-left-color:var(--accent)}
+/* THE ORDER, AS SHOPIFY LAYS IT OUT: cards on the left (one per way out, then each part on its way), the customer,
+ * note, payment and history on the right. Quiet on purpose: thin borders, small badges, one filled button at most. */
+.od-grid{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;align-items:start}
+.od-main,.od-side,.od-plan{display:flex;flex-direction:column;gap:12px;min-width:0}
+.od-card{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.od-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 14px 8px}
+.od-h .r{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.od-badge{font-size:12px;font-weight:700;padding:3px 10px;border-radius:8px;background:var(--chip);color:var(--ink)}
+.b-mcf{background:#FAEEDA;color:#633806}
+.b-india{background:#E6F1FB;color:#0C447C}
+.b-make{background:#EEEDFE;color:#3C3489}
+.b-done{background:var(--accent-bg);color:var(--accent)}
+.b-bad{background:var(--bad-bg);color:var(--bad)}
+.od-row{display:grid;grid-template-columns:36px minmax(0,1fr) auto auto auto;gap:12px;align-items:center;padding:9px 14px;border-top:1px solid var(--line);font-size:13px}
+.od-th{width:36px;height:36px;border-radius:8px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)}
+.od-it .n{font-weight:600}
+.od-chip{font-size:11.5px;padding:2px 8px;border-radius:8px;background:var(--soft);color:var(--muted);white-space:nowrap}
+.od-q{font-weight:700;white-space:nowrap}
+select.od-move{height:30px;padding:0 8px;font-size:12px;border-radius:8px;width:auto;color:var(--muted);background:transparent}
+.od-f{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:10px 14px;border-top:1px solid var(--line);background:var(--soft)}
+.od-facts{background:transparent}
+.od-acc{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.od-auto{display:inline-flex;align-items:center;gap:6px;margin:0 0 0 auto;color:var(--muted);cursor:pointer}
+.od-auto input{width:auto;margin:0}
+.od-box{padding:12px 14px;font-size:13px}
+.od-box b{display:block;margin-bottom:4px}
+.od-box p{margin:0 0 10px;overflow-wrap:anywhere}
+.od-box p:last-child{margin-bottom:0}
+.od-note{background:var(--warn-bg);border-color:transparent}
+.od-sum{display:grid;grid-template-columns:1fr auto;gap:4px 10px}
+.od-sum b{margin:4px 0 0}
+.od-hist{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:6px;font-size:12.5px}
+.od-hist li span:first-child{margin-right:6px}
+.od-side .s-cmt{display:flex;gap:6px}
+.od-side .s-cmt input{height:32px;font-size:12.5px}
+.od-card .s-scans summary{border-top:1px solid var(--line)}
+@media (max-width:900px){ .od-grid{grid-template-columns:1fr} }
+@media (max-width:600px){ .od-row{grid-template-columns:36px minmax(0,1fr) auto} .od-row .od-chip{grid-column:2} .od-row select.od-move{grid-column:2 / -1;justify-self:start} }
+
 /* A part at a glance, the full step list folded under it */
 .pp-strip{display:flex;gap:4px;list-style:none;margin:0;padding:12px 14px 10px;flex-wrap:wrap}
 .pp-strip li{flex:1 1 0;min-width:76px;font-size:11.5px;font-weight:600;color:var(--muted);padding-top:8px;border-top:4px solid var(--line)}
