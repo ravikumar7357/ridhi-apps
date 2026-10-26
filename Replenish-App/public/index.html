@@ -75563,7 +75563,7 @@ function guideTypeAll() {
 
 /** What the person was working in: the last box they typed in or chose from, and the last button they pressed. */
 function guideWatch() {
-  const ours = el => el.closest && el.closest('#gdRoot, #gdCtl, #gdResume, #gdAsk');
+  const ours = el => el.closest && el.closest('#gdRoot, #gdCtl, #gdResume, #gdAsk, #gdLaunch, #gdMenu');
   const inBox = el => GUIDE.live && GUIDE.el && GUIDE.el.contains(el);
   /* A press outside the lit box does nothing while a "your turn" step waits (the dim no longer catches it). */
   const hold = e => { if (GUIDE.tour && GUIDE.live && !ours(e.target) && !inBox(e.target)) { e.preventDefault(); e.stopPropagation(); } };
