@@ -42635,8 +42635,11 @@ function renderSox() {
       <div class="metric"><div class="v"${missing ? ' style="color:var(--bad)"' : ''}>${nf(missing)}</div><div class="l">Approved SKUs missing from the order book</div></div>
     </div></div>`;
 
-  const head = '<thead><tr>' + ['Order', 'Date', 'Channel', 'Buyer', 'Status', 'SKUs', 'Pieces', 'Cut', 'Made', 'In order book', 'Delivery', '']
-    .map((h, i) => `<th${i === 0 ? ' class="frz"' : (i >= 5 && i <= 8 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
+  /* WHO RAISED IT, IN A COLUMN OF ITS OWN on the B2B list (Ravi, 27 Oct) — the brand is the buyer, the person is beside it. */
+  const byCol = soIsB2B(ch);
+  const head = '<thead><tr>' + ['Order', 'Date', 'Channel', 'Buyer'].concat(byCol ? ['Raised by'] : [])
+    .concat(['Status', 'SKUs', 'Pieces', 'Cut', 'Made', 'In order book', 'Delivery', ''])
+    .map((h, i) => `<th${i === 0 ? ' class="frz"' : (['SKUs', 'Pieces', 'Cut', 'Made'].includes(h) ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
   $('sxTable').innerHTML = head + '<tbody>' + rows.map(({ o, s }) => {
     const sd = SO_STATUS[soStatus(o)] || SO_STATUS.draft;
     const bar = (pct, col) => `<div style="font-weight:700;color:${col}">${pct}%</div>`
@@ -42647,6 +42650,7 @@ function renderSox() {
       + `<td class="frz" style="text-align:left;font-weight:600">${esc(o._id)}</td>`
       + `<td>${esc(o.orderDate)}${o.saleMonth ? `<div class="muted" style="font-size:11px">for ${esc(soMonthTxt(o.saleMonth))}</div>` : ''}</td><td>${esc(o.channel)}${soShipMode(o) ? ` <span class="pill" style="font-size:11px">${esc(soShipMode(o))}</span>` : ''}</td>`
       + `<td style="text-align:left${soIsB2B(o.channel) && soBrandOf(o) ? ';font-weight:600' : ''}"${soIsB2B(o.channel) && soBrandOf(o) && o.buyerName ? ` title="Raised by ${esc(o.buyerName)}"` : ''}>${esc(soBuyerTxt(o)) || '<span class="muted">—</span>'}</td>`
+      + (byCol ? `<td style="text-align:left">${esc(o.buyerName) || '<span class="muted">—</span>'}</td>` : '')
       + `<td><span class="pill ${sd.cls}">${esc(sd.label)}</span></td>`
       + `<td class="num">${nf(s.skus)}${s.skus !== s.lines ? ` <span class="muted" style="font-size:11px">of ${nf(s.lines)}</span>` : ''}</td>`
       + `<td class="num" style="font-weight:700">${nf(s.qty)}</td>`
