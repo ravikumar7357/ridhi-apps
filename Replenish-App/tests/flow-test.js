@@ -1150,6 +1150,18 @@ const K = 'AMZ-1__S1';
       ok('…a challan of 12 m and 5 m back → given 12 m on TRFD-9, received 5 m on 17 Oct', pg.given === 12 && pg.back === 5 && pg.challans[0].no === 'TRFD-9' && pg.receipts[0].date === '2026-10-17' && pg.receipts[0].qty === 5, JSON.stringify(pg));
       ok('…and per print-order line (items), for the colour board: 12 given, 5 back on that line', pg.items[key] && pg.items[key].given === 12 && pg.items[key].back === 5, JSON.stringify(pg.items));
       ok('…a challan to another printer, or for another order, is not counted', (() => { C.FLOW().ch['TRFD-9'].vendor.code = 'P2'; const x = C.flowVoProgOf(po, 'running'); C.FLOW().ch['TRFD-9'].vendor.code = 'P1'; return x.given === 0; })()); }
+    { /* A COMBINED CHALLAN (Ravi, 27 Oct): one challan for two orders — RFD-202610-070 was "SHP-RBP7558, SHP-RBP7606" and neither print order's card showed it */
+      const po = Object.values(C.FLOW().po || {}).find(o => o && o.test), key = Object.keys(po.items).find(k => po.items[k] && po.items[k].unit !== 'pcs'), keep = C.FLOW().ch;
+      const mk = (orders, orderNo) => C.setFLOW(Object.assign(C.FLOW(), { ch: { 'TRFD-C': { no: 'TRFD-C', date: '2026-10-24', orderNo, orders, vendor: { code: 'P1', name: 'Sanganer Prints' },
+        lines: [{ key, sku: 'X', metres: 7 }, { key: 'OTHER-ORDER__Y', sku: 'Y', metres: 9 }], receipts: { r1: { date: '2026-10-27', items: { [key]: 7, 'OTHER-ORDER__Y': 9 } } } } } }));
+      mk(['OTHER-ORDER', po.orderNo], 'OTHER-ORDER, ' + po.orderNo);
+      const pg = C.flowVoProgOf(po, 'running');
+      ok('a challan for several orders counts for each of them: this print order is given 7 m and has 7 m back — not the 9 m of the other order', pg.given === 7 && pg.back === 7 && pg.challans.length === 1, JSON.stringify(pg));
+      mk(['OTHER-ORDER', 'THIRD-ORDER'], 'OTHER-ORDER, THIRD-ORDER');
+      ok('…and a combined challan that does not name this order is still not counted', C.flowVoProgOf(po, 'running').given === 0);
+      mk(undefined, 'OTHER-ORDER, ' + po.orderNo);
+      ok('…an old challan with only the joined text and no list is read the same way', C.flowVoProgOf(po, 'running').given === 7);
+      C.setFLOW(Object.assign(C.FLOW(), { ch: keep })); }
     { /* a REAL print order: the office's screen writes the summary onto the printer's vendor order, once */
       const S = load({ me: { admin: true }, mdb, fsCat });
       S.setFLOW(Object.assign(S.FLOW(), { po: { 'PRN-1': { no: 'PRN-1', orderNo: 'AMZ-9', printer: { code: 'P1', name: 'Sanganer Prints' }, items: { 'AMZ-9__S1': { sku: 'S1', unit: 'm', metres: 10 } },
