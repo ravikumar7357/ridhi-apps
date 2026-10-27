@@ -12600,6 +12600,12 @@ console.log('\n== finished goods: who may change the store ==');
   A.setVP(Object.assign({}, wasVP || {}, { code: 'VND001' }));
   ok('a printer never can, whatever is ticked on their account', A.fgiCanEdit() === false);
   A.setVP(vp0);
+  /* FROM QC — TO ACCEPT ONLY (Ravi, 27 Oct: "From QC — to accept - access me jodo"): the box on its own opens this screen on that one list. */
+  ME.fgiEdit = false; ME.fgAccOnly = true; els.fgView.value = 'stock';
+  try { A.renderFgi(); } catch (e) { /* the list itself needs the flow's data — what is checked is the screen around it */ }
+  ok('"From QC — to accept" alone: the screen is on that list, the other store views out of reach',
+    els.fgView.value === 'flow' && els.fgView._hidden === true && els.fgKpis.innerHTML === '', els.fgView.value + ' ' + els.fgView._hidden);
+  ME.fgAccOnly = false; els.fgView.value = 'stock';
   ME.admin = was.admin; ME.fgiEdit = was.fgiEdit;
 }
 

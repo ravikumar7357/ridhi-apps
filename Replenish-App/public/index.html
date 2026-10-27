@@ -5052,7 +5052,7 @@ const REPL_TABS = ['repl', 'article', 'target', 'top', 'shopify', 'pack',
    * never built, and pt_cxOrders was never written to. Its pane stays in the page, unreachable. */
   /* Quality Control is three jobs, not one: 'qc' is the checks, 'qcalt' is sending rejects out for
    * alteration, 'qcret' is taking them back. One tab, three grants. */
-  'pmdb', 'mst', 'att', 'pbase', 'pcut', 'ppress', 'qc', 'qcalt', 'qcret', 'ord', 'so', 'vord', 'vreq', 'rfd', 'vend', 'vlog', 'palloc', 'fgi', 'fba', 'fab', 'acc', 'rep', 'pa', 'ka', 'hr',
+  'pmdb', 'mst', 'att', 'pbase', 'pcut', 'ppress', 'qc', 'qcalt', 'qcret', 'ord', 'so', 'vord', 'vreq', 'rfd', 'vend', 'vlog', 'palloc', 'fgi', 'fgacc', 'fba', 'fab', 'acc', 'rep', 'pa', 'ka', 'hr',
   'shop', 'adj', 'shopprod', 'shopret', 'dash',
   /* Production flow (test, 2026-10-10): one right per bucket — the same keys as FLOW_BUCKETS in flow/flow-core.js. */
   'flppc', 'fldem', 'flacc', 'flchl', 'flcut', 'flraw', 'flwip',
@@ -5167,6 +5167,15 @@ onAuthStateChanged(auth, async user => {
   if (ME.email === 'ravi@thefabricrush.com') ME.admin = true;
   if (ME.admin) { ME.tabs = REPL_TABS.slice(); ME.projEdit = true; ME.prodEdit = true; ME.rateApprove = true; ME.shopAssign = true; ME.b2bAssign = true;
     ME.accEntry = true; ME.accEdit = true; ME.vlogAccept = true; ME.soApprove = true; ME.mdbEdit = true; ME.attendMark = true; ME.vreqApprove = true; ME.rfdApprove = true; ME.rfdSend = true; ME.fgiEdit = true; ME.fgiEntry = true; ME.empEdit = true; ME.hrEmpOnly = false; }
+  /* FROM QC — TO ACCEPT (Ravi, 27 Oct: "From QC — to accept - access me jodo"): its own box in Access, for whoever accepts what
+   * passed QC into the India store and does nothing else there. A grant, not a screen: on its own it opens Finished Goods on that
+   * one list (ME.fgAccOnly, finished-goods.js); with Finished Goods ticked as well it adds nothing. */
+  ME.fgAccOnly = false;
+  if (ME.tabs.includes('fgacc')) {
+    const only = !ME.admin && !ME.tabs.includes('fgi');
+    ME.tabs = ME.tabs.filter(t => t !== 'fgacc');
+    if (only) { ME.tabs = ME.tabs.concat('fgi'); ME.fgAccOnly = true; }
+  }
 
   /* THE SHOPIFY VIEW OF REPLENISHMENT (Ravi, 2026-10-14). An account that works the Shopify screens and holds no planning
    * screen — and is not an admin — gets Replenishment too, but only as the Shopify view: what a SKU is and what Amazon
@@ -50078,6 +50087,11 @@ function renderFgi() {
     </div></div>`;
   $('fgPendBadge').textContent = pend.length ? nf(pend.length) : '';
   $('fgPendBadge').classList.toggle('hide', !pend.length);
+  /* FROM QC — TO ACCEPT ONLY (core/auth.js, ME.fgAccOnly): the one list this account works, without the store's other views. */
+  if (ME.fgAccOnly) {
+    $('fgView').value = 'flow'; $('fgKpis').innerHTML = '';
+    ['fgView', 'fgPendBadge', 'fgiLstBadge', 'fgiCorrBadge', 'fgiOverBadge'].forEach(id => { const b = $(id); if (b && b.classList) b.classList.add('hide'); });
+  }
 
   const view = $('fgView').value;
   ['fgD1', 'fgD2'].forEach(i => $(i).classList.toggle('hide', view !== 'ledger'));
