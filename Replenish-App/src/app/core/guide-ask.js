@@ -1141,8 +1141,12 @@ async function gaAsk(q) {
   if (r.miss) gaMissKeep(q, r.miss === true ? 'none' : r.miss);
   const lg = gaRead(q).lang, LL = (en, hi, hg) => (lg === 'hi' ? hi : lg === 'hg' ? hg : en);
   const fb = r.bank ? `<div class="ga-fb"><span>${LL('Did this help?', 'क्या इससे मदद मिली?', 'Kya isse madad mili?')}</span><button type="button" class="ga-fbb" data-ga="fb" data-id="up:${esc(r.bank)}" aria-label="Yes">👍</button><button type="button" class="ga-fbb" data-ga="fb" data-id="down:${esc(r.bank)}" aria-label="No">👎</button></div>` : '';
-  const ai = r.miss && typeof gaAiOn === 'function' && gaAiOn() ? [{ t: 'ai', label: LL('Ask AI', 'AI से पूछें', 'AI se poochhiye') }] : [];
-  gaSay(r.html, ai.concat(r.acts || []), (r.after || '') + fb);
+  /* not sure: she asks the AI herself, within the day's limit (guide-ai.js) — no answer at all: the AI's alone; a few close
+   * ones offered: those, then the AI's below them. Without AI, or over the limit: as before. */
+  const auto = !!r.miss && typeof gaAiAuto === 'function' && gaAiAuto();
+  if (auto && r.miss === true) { gaAiAsk(q, { html: r.html, acts: r.acts }); gaChipsDraw(); return; }
+  gaSay(r.html, r.acts || [], (r.after || '') + fb);
+  if (auto) gaAiAsk(q);
   if (r.miss) gaChipsDraw();
 }
 function gaAct(t, id, tab) {

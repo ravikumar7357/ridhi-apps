@@ -1,6 +1,7 @@
 /* ================= MEERA ASKS A MODEL — through her router (meera-router/, a Cloudflare Worker), 26 Oct =================
  *
- * OFF until GA_AI_URL is set. Then, when Meera is not sure of her own answer, she offers "Ask AI": the question is
+ * OFF until GA_AI_URL is set. Then, when Meera is not sure of her own answer, she asks by herself (Ravi, 27 Oct: no button,
+ * "until it hits our decided limit" — 10 a person, 500 the company, a day; over it, she answers on her own): the question is
  * cleaned here first (order numbers, phones, emails, tax numbers and the karigars' names taken out — the router cleans it
  * again), sent with this person's ERP sign-in, and the router asks a free model using only Meera's own nearest answers as
  * its notes. What no model can answer becomes a ticket for an admin; what an admin answers or approves comes back here
@@ -9,6 +10,12 @@ const GA_AI_URL = '';   // e.g. 'https://meera-router.<account>.workers.dev' —
 
 function gaAiOn() {
   try { return !!GA_AI_URL && typeof auth !== 'undefined' && !!(auth && auth.currentUser); } catch (e) { return false; }
+}
+/* Over today's limit (the router said 429): no more asking from this device until tomorrow. */
+const gaAiDay = () => new Date().toISOString().slice(0, 10);
+function gaAiAuto() {
+  if (!gaAiOn()) return false;
+  try { return localStorage.getItem('guideAiFull') !== gaAiDay(); } catch (e) { return true; }
 }
 /* The same cleaning as the router's (meera-router/src/redact.js): change one, change both. */
 function gaClean(text, names) {
@@ -37,8 +44,9 @@ async function gaAiCall(path, body, method = 'POST') {
 const gaMd = s => esc(String(s || '')).replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
 const gaLL = lang => (en, hi, hg) => (lang === 'hi' ? hi : lang === 'hg' ? hg : en);
 
-/** "Ask AI": the question, cleaned, to the router; the answer, a ticket, or why not. */
-async function gaAiAsk(q) {
+/** The question, cleaned, to the router; the answer, a ticket, or — when there is neither — `own`, Meera's own reply
+ * ({html, acts}), shown as it would have been without AI. */
+async function gaAiAsk(q, own) {
   const { lang, means, words } = gaRead(q), L = gaLL(lang);
   await gaBankLoad();
   const ids = gaBankFind(means, words, q).map(h => h.e.id).filter(id => !/^learned-/.test(id)).slice(0, 5);
@@ -59,6 +67,7 @@ async function gaAiAsk(q) {
     gaSay(html, [], fb);
     return;
   }
+  if (r.status === 429) { try { localStorage.setItem('guideAiFull', gaAiDay()); } catch (e) { /* asks again next time */ } }
   if (b.ticket) {
     gaSay(r.status === 429
       ? L(`Today's AI questions are used up. I have sent your question to the admin team (ticket #${+b.ticket}).`, `आज के AI सवाल पूरे हो गए। मैंने आपका सवाल एडमिन टीम को भेज दिया है (टिकट #${+b.ticket})।`, `Aaj ke AI sawaal poore ho gaye. Maine aapka sawaal admin team ko bhej diya hai (ticket #${+b.ticket}).`)
@@ -66,6 +75,7 @@ async function gaAiAsk(q) {
     return;
   }
   gaMissKeep(q, 'ai-unavailable');
+  if (own) { if (own.html) gaSay(own.html, own.acts || []); return; }   // her own answer, as without AI
   gaSay(L('AI is not available right now. I have noted your question here.', 'AI अभी उपलब्ध नहीं है। मैंने आपका सवाल यहाँ नोट कर लिया है।', 'AI abhi uplabdh nahi hai. Maine aapka sawaal yahan note kar liya hai.'), []);
 }
 async function gaAiFeedback(id) {
