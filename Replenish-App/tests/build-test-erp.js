@@ -59,9 +59,14 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
     if (/firebasedatabase\\.app|firebaseio\\.com/.test(url) && method !== 'GET' && method !== 'HEAD') { write = true; what = 'database ' + method; }
     else if (/identitytoolkit\\.googleapis\\.com\\/v1\\/accounts:(signUp|update|delete|sendOobCode|setAccountInfo)/.test(url)) { write = true; what = 'login change'; }
     else if (/script\\.google(usercontent)?\\.com/.test(url) && (method !== 'GET' || BACKEND_GET_WRITES.test(url))) { write = true; what = 'backend ' + method; }
-    /* The Shopify hub's "mark these lines shipped", and nothing else — only when HUB_SHOPIFY_WRITES is on. */
-    if (write && window.__TEST_ERP.hubShopifyWrites && method === 'POST' && /script\\.google\\.com/.test(url)) {
-      try { var b = JSON.parse(String((init && init.body) || '')); if (b && b.shopify === 'fulfilLines' && Object.keys(b).every(function (k) { return /^(shopify|shop|orderId|lines|company|numbers|notify|key|idToken)$/.test(k); })) write = false; } catch (e) { /* not that request: stays stopped */ }
+    /* The Shopify hub's "mark these lines shipped" (only when HUB_SHOPIFY_WRITES is on), and its two Amazon MCF READS —
+     * fees (mcf preview) and status — which change nothing on Amazon. Nothing else; an MCF parcel stays stopped. */
+    if (write && method === 'POST' && /script\\.google\\.com/.test(url)) {
+      try {
+        var b = JSON.parse(String((init && init.body) || '')), only = function (re) { return Object.keys(b).every(function (k) { return re.test(k); }); };
+        if (b && window.__TEST_ERP.hubShopifyWrites && b.shopify === 'fulfilLines' && only(/^(shopify|shop|orderId|lines|company|numbers|notify|key|idToken)$/)) write = false;
+        if (b && (b.mcf === 'preview' || b.mcf === 'status') && only(/^(mcf|order|mcfId|brand|key|idToken)$/)) write = false;
+      } catch (e) { /* not that request: stays stopped */ }
     }
     if (write) return window.__testErpBlock(what + ' ' + url.replace(/[?#].*$/, '').slice(0, 120));
     if (url.indexOf('accounts:signInWithPassword') >= 0) slStart('sign-in');

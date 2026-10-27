@@ -92,6 +92,10 @@ select.od-move{height:30px;padding:0 8px;font-size:12px;border-radius:8px;width:
 @media (max-width:900px){ .od-grid{grid-template-columns:1fr} }
 @media (max-width:600px){ .od-l2{padding-left:14px} .od-drawer{margin-left:14px;grid-template-columns:1fr 1fr} .od-row{grid-template-columns:36px minmax(0,1fr) auto} .od-row .od-chip{grid-column:2} .od-row select.od-move{grid-column:2 / -1;justify-self:start} }
 
+/* Sign in to the shared Shopify database (web/sync.js) */
+.s-signin{position:fixed;inset:0;z-index:500;display:grid;place-items:center;background:var(--bg);padding:16px}
+.s-signin .s-card{max-width:360px;padding:22px;display:flex;flex-direction:column;gap:10px;text-align:center}
+
 /* A part at a glance, the full step list folded under it */
 .pp-strip{display:flex;gap:4px;list-style:none;margin:0;padding:12px 14px 10px;flex-wrap:wrap}
 .pp-strip li{flex:1 1 0;min-width:76px;font-size:11.5px;font-weight:600;color:var(--muted);padding-top:8px;border-top:4px solid var(--line)}

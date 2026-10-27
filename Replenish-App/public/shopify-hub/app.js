@@ -181,7 +181,7 @@ function shell(active) {
   const live = Object.keys(S.connections).filter(k => S.connections[k] === 'live');
   const bar = $('modeBar');
   bar.className = 's-proto' + (live.length ? ' live' : '');
-  bar.innerHTML = S.settings.web ? `TEST SITE · Shopify read through the ERP's Pricing API${live.length ? '' : ' (open this from the ERP)'} · kept in this browser only · marking orders shipped in Shopify ${S.settings.writes ? '<b>ON</b>' : 'off'} · Amazon and carriers simulated`
+  bar.innerHTML = S.settings.web ? `TEST SITE · Shopify read through the ERP's Pricing API${live.length ? '' : ' (open this from the ERP)'} · ${S.settings.shared ? 'shared: ' + esc(S.settings.shared) : 'kept in this browser only'} · marking orders shipped in Shopify ${S.settings.writes ? '<b>ON</b>' : 'off'} · Amazon and carriers simulated`
     : live.length ? `Local hub · live: ${esc(live.join(', '))} · sending to Shopify ${S.settings.writes ? '<b>ON</b>' : 'off'} · real MCF ${S.settings.realMcf ? '<b>ON</b>' : 'off'}${S.settings.fedexShip.on ? ' · FedEx labels ' + (S.settings.fedexShip.sandbox ? 'sandbox' : '<b>REAL</b>') : ''} · <a href="#setup">Setup</a>`
     : 'TEST MODE · temp orders, simulated MCF and tracking · nothing is sent anywhere · fill your keys on <a href="#setup">Setup</a>';
   liveLabel();
@@ -198,16 +198,31 @@ $('bucketBtn').addEventListener('click', () => { FILTER = FILTER === 'decide' ? 
  * with its own tokens, as before. */
 const ERP_ORIGIN = /^(https:\/\/ravikumar7357\.github\.io|http:\/\/(localhost|127\.0\.0\.1):\d+)$/;
 let ERP_OK = false;
+let ERP_ASKED = false;
 window.addEventListener('message', e => {
   if (window.parent === window || e.source !== window.parent || !ERP_ORIGIN.test(e.origin) || !e.data || typeof e.data !== 'object') return;
-  if (e.data.type === 'shub-erp') ERP_OK = true;
+  /* The ERP says hello when the frame loads: ask for the orders once, right away. */
+  if (e.data.type === 'shub-erp') { ERP_OK = true; if (!ERP_ASKED) { ERP_ASKED = true; askErp(); } }
   if (e.data.type === 'shub-orders' && e.data.got && typeof e.data.got === 'object') post('/api/shopify/import-pr', { got: e.data.got });
 });
+/* The ERP reads the last 14 days still to ship, AND every order the hub is still working on, by id — so an order the hub
+ * already has is brought up to date even when it left the 14-day window or Shopify marked it shipped (refunds,
+ * cancellations, edits, shipped outside the hub). Cancelled and delivered orders are not asked again. */
+function askErp() {
+  if (!S) { setTimeout(askErp, 300); return; }        // the ERP's hello can come before the hub has loaded its orders
+  const ids = { Ridhi: [], CPC: [] };
+  S.orders.forEach(o => {
+    if (o.source !== 'shopify' || !o.gid || o.cancelled) return;
+    if (o.pkgs.length && !undecided(o).length && o.pkgs.every(p => phaseOf(p) === 4)) return;
+    (ids[o.store] || []).push(String(o.gid).replace(/^.*\//, ''));
+  });
+  window.parent.postMessage({ type: 'shub-want-orders', ids: { Ridhi: ids.Ridhi.slice(0, 500), CPC: ids.CPC.slice(0, 500) } }, '*');
+}
 function fetchOrders() {
   if (!ERP_OK && S.settings.web) return toast('Open this from the ERP (Shopify → Shopify hub (test)) — it reads Shopify through the ERP\'s Pricing API.', true);
   if (!ERP_OK) return post('/api/shopify/import');
   toast('Reading Shopify through the ERP…');
-  window.parent.postMessage({ type: 'shub-want-orders' }, '*');
+  askErp();
 }
 $('fetchBtn').addEventListener('click', fetchOrders);
 $('bulkBtn').addEventListener('click', () => bulkShipDlg(readyOrders(), 'Bulk order'));
@@ -222,6 +237,7 @@ function shipFrom(o) {
   const stock = `MCF ${stockWord(fba, lines)} · India ${stockWord(ind, lines)}`;
   const made = P.filter(p => p.src === 'make'), madeDone = made.filter(p => phaseOf(p) > 0);
   let main;
+  if (o.cancelled) return st('Cancelled in Shopify', 'rejected') + sub('nothing is sent');
   if (u.length) main = st(`Needs routing · ${linesOf(u.length)}`, 'rejected', 'Choose MCF, production or India for each line');
   else if (made.some(p => phaseOf(p) === 0)) {
     const ln = made.reduce((s, p) => s + p.items.length, 0), dn = madeDone.reduce((s, p) => s + p.items.length, 0);
@@ -240,6 +256,7 @@ function shopifyCol(o) {
 }
 function statusCol(o) {
   const b = o.pkgs.find(p => p.block), f = o.pkgs.find(p => flagOf(p)), r = o.rets.find(x => x.pos < 3);
+  if (o.cancelled) return st('Cancelled', 'rejected') + sub('in Shopify');
   if (b) return st('On hold', 'rejected', b.block.why) + sub(esc(b.block.why));
   if (f) return st(J.FLAGS[flagOf(f)], 'rejected') + sub(f.chased ? 'Followed up ' + fmt(f.chased) : esc(carName(f)) + (f.eta ? ' · was due ' + esc(f.eta) : ''));
   if (r) return st('Return open', 'pending') + sub(esc(RSTEPS[r.pos]));
@@ -272,6 +289,7 @@ function whereNow(o) {
 const chasedSince = pk => pk.chased && pk.chased > ((pk.last || {}).at || 0);
 function nextAction(o) {
   const P = o.pkgs, find = f => P.findIndex(f);
+  if (o.cancelled) return null;
   if (undecided(o).length) return { k: 'route', label: 'Route lines', urg: 5, why: `${linesOf(undecided(o).length)} not routed` };
   let n = find(p => p.block); if (n >= 0) return { k: 'unhold', n, label: 'Resolve hold', urg: 4, bad: 1, why: P[n].block.why };
   n = find(p => flagOf(p) && !chasedSince(p)); if (n >= 0) return { k: 'chase', n, label: 'Chase carrier', urg: 4, bad: 1, why: J.FLAGS[flagOf(P[n])] };
@@ -420,6 +438,7 @@ const itemMenu = (o, i, s, a) => { const it = o.items[i], to = SECTIONS.filter(x
     ${it.q > 1 ? '<option value="sq">Send quantity…</option>' : ''}<option value="sq:0">Don't send this item</option></select>`; };
 function linesCard(o) {
   const u = undecided(o), off0 = o.items.map((it, i) => i).filter(i => o.items[i].pk == null && !J.sendQty(o.items[i]));
+  if (o.cancelled) return `<div id="lines" class="od-plan"><section class="od-card"><header class="od-h"><span class="od-badge b-bad">Cancelled in Shopify</span><span class="s-muted s-sm">nothing on this order is sent — parts already on their way are shown below</span></header></section></div>`;
   if (!u.length && !off0.length) return '';
   const A = allocOf(o), P = planOf(o), secs = SECTIONS.map(s => ({ s, lines: u.filter(i => P[i] === s.k) })).filter(x => x.lines.length), many = secs.length > 1;
   const auto = !!(S.prefs && S.prefs.autoMcf), a = i => A[i] || { need: J.sendQty(o.items[i]), fba: 0, india: 0, fbaHeld: 0, indiaHeld: 0 };
@@ -432,7 +451,7 @@ function linesCard(o) {
       ${lines.map(i => itemRow(o, i, { a: a(i), sec: s.k, end: itemMenu(o, i, s, a(i)) })).join('')}
       <footer class="od-f"><span class="s-muted s-sm">${s.foot}</span><button class="s-btn ${many ? 'ghost' : ''}" type="button" data-go="${s.k}">${s.go}</button></footer></section>`).join('')}
     ${off0.length ? `<section class="od-card od-off" id="pl-off"><header class="od-h"><span class="od-badge">Not being sent · ${off0.length}</span><span class="s-muted s-sm">send quantity 0 — stays on the order, nothing goes out</span></header>
-      ${off0.map(i => itemRow(o, i, { end: `<button class="s-link" type="button" data-sendagain="${i}">Send it again</button>` })).join('')}</section>` : ''}</div>`;
+      ${off0.map(i => itemRow(o, i, { end: o.items[i].gone ? '<span class="s-sm s-muted">removed in Shopify</span>' : `<button class="s-link" type="button" data-sendagain="${i}">Send it again</button>` })).join('')}</section>` : ''}</div>`;
 }
 /* Accept: one window with what each section will do (MCF speed and fee, production priority), then everything at once. */
 async function planDlg(o) {
@@ -535,7 +554,7 @@ function pageOrder(no) {
   const tags = [...new Set([...o.pkgs.filter(p => p.route === 'mcf').map(() => 'MCF'), ...o.pkgs.filter(p => phaseOf(p) === 0).map(() => 'In production'), ...o.pkgs.filter(p => p.src === 'make' && off(p) === 0).map(() => 'Ready to ship')])];
   const qn = S.queue.filter(q => q.orderNo === o.no), qc = k => qn.filter(q => q.status === k).length;
   return `<div class="s-omodal" id="omodal"><div class="s-odlg" role="dialog" aria-modal="true" aria-label="Order #${esc(o.no)}">
-    <div class="s-ohead" id="o-head"><div class="t"><h2>Order #${esc(o.no)}</h2>${testTag(o)}${st(all ? 'Shipped' : out.length ? 'Part shipped' : 'Not shipped', all ? 'approved' : out.length ? 'pending' : 'draft')}
+    <div class="s-ohead" id="o-head"><div class="t"><h2>Order #${esc(o.no)}</h2>${testTag(o)}${o.cancelled ? st('Cancelled in Shopify', 'rejected') : ''}${o.fin ? st(o.fin.replace(/_/g, ' ').replace(/^./, c => c.toUpperCase()), /refund|void/i.test(o.fin) ? 'rejected' : /paid/i.test(o.fin) ? 'approved' : 'pending') : ''}${st(all ? 'Shipped' : out.length ? 'Part shipped' : 'Not shipped', all ? 'approved' : out.length ? 'pending' : 'draft')}
         ${st(trk.length ? 'Tracking ' + trk[0] : 'No tracking yet', 'draft')}<a class="s-x" href="#orders" aria-label="Close">×</a></div>
       <div class="m">${esc(o.cust.n)} · ${esc(addrText(o))} · ${isoDay(o.at)} · ${esc(o.store)}</div></div>
     <div class="s-obody od-grid">

@@ -75,8 +75,9 @@
   }
   /* SEND QUANTITY (as the ERP's send qty): how many of a line go out — the ordered quantity unless a person set it
    * lower; 0 = this line is not being sent. A line not being sent is not waiting for a decision either. */
-  const sendQty = it => it.sq == null ? it.q : Math.max(0, Math.min(it.q, Number(it.sq) || 0));
-  const undecided = o => o.items.map((it, i) => i).filter(i => o.items[i].pk == null && sendQty(o.items[i]) > 0);
+  /* A line removed or refunded in Shopify (it.gone) sends nothing; a cancelled order has nothing waiting. */
+  const sendQty = it => it.gone ? 0 : it.sq == null ? it.q : Math.max(0, Math.min(it.q, Number(it.sq) || 0));
+  const undecided = o => o.cancelled ? [] : o.items.map((it, i) => i).filter(i => o.items[i].pk == null && sendQty(o.items[i]) > 0);
 
   /* STOCK SHARED OUT, OLDEST ORDER FIRST (as the ERP's soAllocIndia, for FBA too): two orders can never both be
    * promised the same 3 quilts. Per SKU, the stock (the Stock list, else the line's own figure) goes first to India

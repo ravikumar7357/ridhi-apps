@@ -65,17 +65,31 @@ if (SHUB_ON && $('secShopify') && $('paneShop')) {
    * written to Shopify from here. When the frame loads it is told the ERP can do this, and the orders are sent once;
    * after that the hub's "Fetch orders" asks for them again. Messages go only to, and are taken only from, the hub. */
   const shubOrigin = () => new URL(SHUB_URL).origin;
-  let shubSent = false, shubBusy = false;
-  async function shubSendOrders() {
+  let shubBusy = false;
+  /* `want` = { Ridhi: [order ids], CPC: [...] }: the orders the hub is still working on. They are read again by id (any
+   * status), so a cancellation, refund, edit or a shipment made outside the hub reaches the hub even after the order has
+   * left the 14-day window or is marked shipped — the window alone only brings orders still to ship. Read only. */
+  async function shubSendOrders(want) {
     const fr = $('shubFrame');
     if (shubBusy || !fr.contentWindow) return;
     shubBusy = true; $('shubState').textContent = 'Reading Shopify through the Pricing API…';
     const day = ms => new Date(ms).toISOString().slice(0, 10);
     const win = { start: day(Date.now() - 14 * 86400000), end: day(Date.now()), open: '1', nophoto: '1' };
-    const one = shop => prGet(Object.assign({ shopify: 'orders' }, shop ? { shop } : {}, win), { timeoutMs: 150000 })
-      .then(d => ({ orders: d.orders || [], more: !!d.more }), e => ({ error: e.message || String(e) }));
+    const ids = list => (Array.isArray(list) ? list : []).map(String).filter(x => /^\d+$/.test(x)).slice(0, 500);
+    const one = async (shop, store) => {
+      try {
+        const d = await prGet(Object.assign({ shopify: 'orders' }, shop ? { shop } : {}, win), { timeoutMs: 150000 });
+        const orders = d.orders || [], have = new Set(orders.map(o => String(o.id)));
+        const more = ids((want || {})[store]).filter(x => !have.has(x));
+        for (let i = 0; i < more.length; i += 100) {
+          const r = await prGet(Object.assign({ shopify: 'orders', ids: more.slice(i, i + 100).join(','), open: '0', nophoto: '1' }, shop ? { shop } : {}), { timeoutMs: 150000 });
+          orders.push(...(r.orders || []));
+        }
+        return { orders, more: !!d.more, rechecked: more.length };
+      } catch (e) { return { error: e.message || String(e) }; }
+    };
     try {
-      const [Ridhi, CPC] = await Promise.all([one(''), one('CPC')]);
+      const [Ridhi, CPC] = await Promise.all([one('', 'Ridhi'), one('CPC', 'CPC')]);
       let info = null;
       try { $('shubState').textContent = 'Reading stock from the ERP…'; info = await shubInfo({ Ridhi, CPC }); } catch (e) { info = { error: e.message || String(e) }; }
       fr.contentWindow.postMessage({ type: 'shub-orders', got: { Ridhi, CPC, info } }, shubOrigin());
@@ -94,6 +108,7 @@ if (SHUB_ON && $('secShopify') && $('paneShop')) {
       typeof loadShopStock === 'function' && !SHOP_STOCK_LOADED ? loadShopStock().catch(() => {}) : null,
       typeof loadShopIndia === 'function' ? loadShopIndia().catch(() => {}) : null,
       typeof loadShopSku === 'function' && !Object.keys(SHOP_SKU || {}).length ? loadShopSku().catch(() => {}) : null,
+      typeof loadShopMeta === 'function' && !SHOP_META_LOADED ? loadShopMeta().catch(() => {}) : null,
       typeof ptLoadGates === 'function' ? ptLoadGates(false, true).catch(() => {}) : null,
     ]);
     const up = s => String(s == null ? '' : s).trim().toUpperCase();
@@ -113,7 +128,10 @@ if (SHUB_ON && $('secShopify') && $('paneShop')) {
       }
       const ks = [sku, amzKey].filter(Boolean);
       const open = (PTG.ob || []).find(r => r && String(r.shopOrderId || '') === String(o.id) && ks.includes(up(r.sku)));
-      if (open) out.lines[o.id + '|' + i.lid] = { prod: String(open.orderNo || open.id || '') };
+      /* Sent to Amazon MCF from this ERP already (the Orders tab's "MCF done"): the hub must never send it again. */
+      const meta = (typeof SHOP_META === 'object' && SHOP_META && SHOP_META[o.id]) || {};
+      let mcf = ''; try { mcf = meta.mcfId && soMcfHas(o.id, i.sku) ? String(meta.mcfId) : ''; } catch (e) { mcf = meta.mcfId && !Array.isArray(meta.mcfSkus) ? String(meta.mcfId) : ''; }
+      if (open || mcf) out.lines[o.id + '|' + i.lid] = Object.assign(open ? { prod: String(open.orderNo || open.id || '') } : {}, mcf ? { mcf } : {});
     })));
     return out;
   }
@@ -129,6 +147,14 @@ if (SHUB_ON && $('secShopify') && $('paneShop')) {
     if (kind === 'order') return prGet({ shopify: 'orders', shop, ids: String(a.id || ''), open: '0', nophoto: '1' }, { timeoutMs: 120000 });
     if (kind === 'track') return prGet({ shopify: 'tracking', shop, ids: shubCsv(a.ids) }, { timeoutMs: 120000 });
     if (kind === 'fulfilCheck') return prGet({ shopify: 'fulfilCheck', shop, orderId: a.orderId, lines: shubCsv(a.lines), company: a.company, numbers: shubCsv(a.numbers) }, { timeoutMs: 120000 });
+    /* Amazon MCF through the Pricing API (Mcf.gs). Fees and status only read Amazon; the test ERP lets those two
+     * through. A real parcel (mcfCreate) only when the test ERP allows MCF writes — it does not. */
+    if (kind === 'mcfPreview') return apiPost({ mcf: 'preview', order: a.order });
+    if (kind === 'mcfStatus') return apiPost({ mcf: 'status', mcfId: String(a.mcfId || ''), brand: a.brand === 'CPC' ? 'CPC' : 'SP' });
+    if (kind === 'mcfCreate') {
+      if (!(window.__TEST_ERP && window.__TEST_ERP.hubMcfWrites)) throw new Error('Real MCF parcels are not sent from the test ERP — send MCF from the ERP\'s Shopify tab.');
+      return apiPost({ mcf: 'create', order: a.order });
+    }
     if (kind === 'fulfil') {
       if (!shubWrites()) throw new Error('Sending to Shopify is switched off on the test ERP.');
       return apiPost({ shopify: 'fulfilLines', shop, orderId: a.orderId, lines: a.lines, company: a.company, numbers: a.numbers, notify: a.notify !== false });
@@ -138,12 +164,12 @@ if (SHUB_ON && $('secShopify') && $('paneShop')) {
   $('shubFrame').addEventListener('load', () => {
     const fr = $('shubFrame');
     if (!fr.src || !fr.contentWindow) return;
+    /* The hub answers this hello by asking for the orders, with the ids it is still working on. */
     fr.contentWindow.postMessage({ type: 'shub-erp', writes: shubWrites() }, shubOrigin());
-    if (!shubSent) { shubSent = true; shubSendOrders(); }
   });
   window.addEventListener('message', e => {
     if (e.origin !== shubOrigin() || e.source !== $('shubFrame').contentWindow || !e.data) return;
-    if (e.data.type === 'shub-want-orders') shubSendOrders();
+    if (e.data.type === 'shub-want-orders') shubSendOrders(e.data.ids && typeof e.data.ids === 'object' ? e.data.ids : null);
     if (e.data.type === 'shub-ask' && typeof e.data.kind === 'string') {
       const { id, kind } = e.data, reply = m => { try { e.source.postMessage(Object.assign({ type: 'shub-answer', id }, m), shubOrigin()); } catch (x) { /* frame gone */ } };
       shubAnswer(kind, e.data.args || {}).then(data => reply({ ok: true, data }), err => reply({ ok: false, error: err.message || String(err) }));

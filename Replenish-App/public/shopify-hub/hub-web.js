@@ -111,8 +111,9 @@ HUBMOD("journey", function (module, exports, require, __dirname, process, Buffer
   }
   /* SEND QUANTITY (as the ERP's send qty): how many of a line go out — the ordered quantity unless a person set it
    * lower; 0 = this line is not being sent. A line not being sent is not waiting for a decision either. */
-  const sendQty = it => it.sq == null ? it.q : Math.max(0, Math.min(it.q, Number(it.sq) || 0));
-  const undecided = o => o.items.map((it, i) => i).filter(i => o.items[i].pk == null && sendQty(o.items[i]) > 0);
+  /* A line removed or refunded in Shopify (it.gone) sends nothing; a cancelled order has nothing waiting. */
+  const sendQty = it => it.gone ? 0 : it.sq == null ? it.q : Math.max(0, Math.min(it.q, Number(it.sq) || 0));
+  const undecided = o => o.cancelled ? [] : o.items.map((it, i) => i).filter(i => o.items[i].pk == null && sendQty(o.items[i]) > 0);
 
   /* STOCK SHARED OUT, OLDEST ORDER FIRST (as the ERP's soAllocIndia, for FBA too): two orders can never both be
    * promised the same 3 quilts. Per SKU, the stock (the Stock list, else the line's own figure) goes first to India
@@ -502,7 +503,9 @@ function make(db, draft, parts) {
     });
   });
   const final = build(db, Object.assign({}, draft, { ships }), { again: true });
-  const id = 'DSP-' + todayIST().replace(/-/g, '') + '-' + String(st.batches.length + 1).padStart(3, '0');
+  /* draft.batchId: a number handed out by the shared counter (the hub on the test site, web/sync.js), so two people
+   * making files the same day never get the same file id. Otherwise the next number in this hub's own list. */
+  const id = draft.batchId || 'DSP-' + todayIST().replace(/-/g, '') + '-' + String(st.batches.length + 1).padStart(3, '0');
   const batch = { id, at: Date.now(), cur: draft.cur, tax: draft.tax, files: {},
     ships: ships.map((s, k) => ({ no: s.no, car: CARRIERS.includes(s.car) ? s.car : 'DHL Express', pack: s.pack || '', inv: s.inv, invDate: s.invDate, phone: s.phone || '', contents: s.contents || '', boxes: s.boxes,
       parts: (parts && parts[k]) || [], awb: '',
@@ -542,7 +545,8 @@ const config = require('./config');
 const { clip } = require('./util');
 
 function enqueue(db, order, kind, data, desc) {
-  const item = { id: (db.seq = (db.seq || 0) + 1), at: Date.now(), orderNo: order.no, store: order.store, kind, data: data || {}, desc,
+  /* An id no other person's hub can also make (the queue is shared once the hub keeps its data in Firestore). */
+  const item = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7), at: Date.now(), orderNo: order.no, store: order.store, kind, data: data || {}, desc,
     status: order.source === 'shopify' ? 'waiting' : 'test', tries: 0, last: order.source === 'shopify' ? '' : 'Temp test order — not in Shopify, so nothing is sent' };
   db.queue.push(item);
   if (db.queue.length > 500) db.queue = db.queue.filter(q => q.status !== 'sent' && q.status !== 'test').concat(db.queue.filter(q => q.status === 'sent' || q.status === 'test').slice(-300));
@@ -799,117 +803,6 @@ const STOCK = [
 ].map(r => ({ t: r[0], v: r[1], sku: r[2], store: r[3], shop: r[4], fba: r[5], india: r[6], sold: r[7] }));
 
 module.exports = { build, STOCK, demoOrder, sixItems };
-
-});
-
-HUBMOD("amazon", function (module, exports, require, __dirname, process, Buffer) {
-/* =====================================================================================
- * AMAZON — SP-API: MCF (preview, create, status), package tracking, FBA stock.
- * Same calls the Pricing-API script makes (Mcf.gs), so moving this to Apps Script later is a copy.
- *
- * CREATE IS GUARDED TWICE: amazon.allowRealMcf must be true in config.local.json, and the order must
- * come from a real store. Otherwise the MCF order is simulated — no parcel, no fee.
- * ===================================================================================== */
-const { request, clip } = require('./util');
-const config = require('./config');
-
-const TOKENS = {};
-async function token(store) {
-  const a = config.amazon(store);
-  if (!a) throw new Error(`Amazon (${store}) is not connected — fill amazon.accounts.${store} in config.local.json`);
-  const t = TOKENS[store];
-  if (t && t.exp > Date.now() + 60000) return { a, at: t.at };
-  const r = await request('POST', 'https://api.amazon.com/auth/o2/token', { form: { grant_type: 'refresh_token', refresh_token: a.refreshToken, client_id: a.clientId, client_secret: a.clientSecret } });
-  if (r.status !== 200 || !r.json || !r.json.access_token) throw new Error(`Amazon login refused (${r.status}): ${clip(r.text, 200)}`);
-  TOKENS[store] = { at: r.json.access_token, exp: Date.now() + (r.json.expires_in || 3600) * 1000 };
-  return { a, at: r.json.access_token };
-}
-async function sp(store, method, path, body) {
-  const { a, at } = await token(store);
-  const r = await request(method, `https://${a.host}${path}`, { headers: { 'x-amz-access-token': at }, body });
-  if (r.status >= 300) {
-    const msg = r.json && r.json.errors ? r.json.errors.map(e => e.code + ': ' + e.message).join('; ') : r.text;
-    const err = new Error(`Amazon ${r.status}: ${clip(msg, 300)}`); err.code = r.status; err.body = msg; throw err;
-  }
-  return r.json || {};
-}
-
-const mcfId = (orderNo, n) => `SHOP-${String(orderNo).replace(/[^A-Za-z0-9]/g, '').toUpperCase()}-${n}`;
-function body(order, lines) {
-  const a = order.addr || {};
-  if (!a.a1 || !a.city || !a.country) throw new Error('The order has no usable shipping address.');
-  return {
-    destinationAddress: { name: String(order.cust.n).slice(0, 50), addressLine1: String(a.a1).slice(0, 60), addressLine2: a.a2 ? String(a.a2).slice(0, 60) : undefined,
-      city: String(a.city).slice(0, 50), stateOrRegion: a.state || '', postalCode: a.zip || '', countryCode: String(a.country).slice(0, 2).toUpperCase(), phone: a.phone || undefined },
-    items: lines.map((l, i) => ({ sellerSku: l.sku, sellerFulfillmentOrderItemId: String(i + 1), quantity: l.q })),
-  };
-}
-async function check(store) {
-  await token(store);
-  const r = await sp(store, 'GET', '/fba/outbound/2020-07-01/fulfillmentOrders?queryStartDate=' + encodeURIComponent(new Date(Date.now() - 7 * 864e5).toISOString()));
-  return { mcf: true, recent: ((r.payload || {}).fulfillmentOrders || []).length };
-}
-async function preview(store, order, lines) {
-  const b = body(order, lines), a = config.amazon(store);
-  const r = await sp(store, 'POST', '/fba/outbound/2020-07-01/fulfillmentOrders/preview', { marketplaceId: a.marketplaceId, address: b.destinationAddress, items: b.items, shippingSpeedCategories: ['Standard', 'Expedited', 'Priority'] });
-  return ((r.payload || {}).fulfillmentPreviews || []).map(p => ({
-    speed: p.shippingSpeedCategory, ok: p.isFulfillable !== false,
-    fee: Math.round((p.estimatedFees || []).reduce((s, f) => s + Number((f.amount && f.amount.value) || 0), 0) * 100) / 100,
-    by: ((p.fulfillmentPreviewShipments || []).map(s => String(s.latestArrivalDate || '').slice(0, 10)).sort().pop()) || '',
-  }));
-}
-/** Place the shipment. The id comes from the order number, so a repeat is refused by Amazon, not doubled. */
-async function create(store, order, lines, speed, id) {
-  const b = body(order, lines), a = config.amazon(store);
-  try {
-    await sp(store, 'POST', '/fba/outbound/2020-07-01/fulfillmentOrders', { marketplaceId: a.marketplaceId, sellerFulfillmentOrderId: id,
-      displayableOrderId: String(order.no).slice(0, 40), displayableOrderDate: new Date(order.at).toISOString(), displayableOrderComment: 'Thank you for your order.',
-      shippingSpeedCategory: speed || 'Standard', destinationAddress: b.destinationAddress, items: b.items });
-  } catch (e) {
-    if (String(e.body || e.message).includes('DuplicateRequest')) return { id, already: true };
-    throw e;
-  }
-  return { id, already: false };
-}
-/** What Amazon has done: status, tracking numbers, package numbers, and each package's latest scan. */
-async function status(store, id) {
-  const r = await sp(store, 'GET', '/fba/outbound/2020-07-01/fulfillmentOrders/' + encodeURIComponent(id));
-  const p = r.payload || {}, st = String((p.fulfillmentOrder || {}).fulfillmentOrderStatus || '').toUpperCase();
-  const pk = [];
-  (p.fulfillmentShipments || []).forEach(s => (s.fulfillmentShipmentPackage || []).forEach(k => pk.push({ no: k.packageNumber, trk: k.trackingNumber, car: k.carrierCode })));
-  const scans = [];
-  for (const k of pk.slice(0, 5)) {
-    try {
-      const t = (await sp(store, 'GET', '/fba/outbound/2020-07-01/tracking?packageNumber=' + encodeURIComponent(k.no))).payload || {};
-      scans.push({ cur: String(t.currentStatus || '').toUpperCase(), eta: t.estimatedArrivalDate || '', events: (t.trackingEvents || []).map(e => ({ at: Date.parse(e.eventDate), code: e.eventCode, text: e.eventDescription || e.eventCode,
-        place: [e.eventAddress && e.eventAddress.city, e.eventAddress && e.eventAddress.state].filter(Boolean).join(', ') })) });
-    } catch (e) { /* tracking for one package missing is not a failure of the order */ }
-  }
-  return { status: st, packages: pk, scans };
-}
-/** Where an MCF part is, in the hub's common words. */
-function normalise(s) {
-  const all = s.scans.map(x => x.cur);
-  if (all.length && all.every(x => x === 'DELIVERED')) return 'delivered';
-  if (all.includes('OUT_FOR_DELIVERY')) return 'out_for_delivery';
-  if (all.some(x => x === 'IN_TRANSIT' || x === 'DELIVERED')) return 'in_transit';
-  if (s.status === 'COMPLETE' || s.status === 'COMPLETE_PARTIALLED' || s.packages.length) return 'picked_up';
-  if (['RECEIVED', 'PLANNING', 'PROCESSING'].includes(s.status)) return 'accepted';
-  if (['INVALID', 'UNFULFILLABLE', 'CANCELLED'].includes(s.status)) return 'problem';
-  return 'sent';
-}
-/** FBA stock per SKU (fulfillable units), for the "Decide" table. */
-async function fbaStock(store, skus) {
-  const a = config.amazon(store), out = {};
-  for (let i = 0; i < skus.length; i += 50) {
-    const q = `/fba/inventory/v1/summaries?details=false&granularityType=Marketplace&granularityId=${a.marketplaceId}&marketplaceIds=${a.marketplaceId}&sellerSkus=${encodeURIComponent(skus.slice(i, i + 50).join(','))}`;
-    const r = await sp(store, 'GET', q);
-    ((r.payload || {}).inventorySummaries || []).forEach(s => { out[s.sellerSku] = Number(s.totalQuantity != null ? s.totalQuantity : s.inventoryDetails && s.inventoryDetails.fulfillableQuantity) || 0; });
-  }
-  return out;
-}
-
-module.exports = { check, preview, create, status, normalise, fbaStock, mcfId };
 
 });
 
@@ -1232,6 +1125,7 @@ function newPart(o, src, items) {
   return pk;
 }
 function checkLines(o, lines) {
+  if (o.cancelled) throw new Error(`#${o.no} was cancelled in Shopify — nothing can be sent.`);
   if (!Array.isArray(lines) || !lines.length) throw new Error('Pick at least one line.');
   lines.forEach(i => {
     if (!o.items[i]) throw new Error('No such line.');
@@ -1669,8 +1563,68 @@ function takeErpInfo(db, info) {
   }); });
   return '';
 }
+/* Items the ERP's own Shopify tab already sent to Amazon MCF (db.erp.lines "<order id>|<line id>".mcf = its MCF id):
+ * they become an MCF part here, marked as sent by the ERP, so the hub never offers them to MCF again — Amazon would take
+ * a second parcel under the hub's own id. Shopify is told by the ERP's own write-back, not by the hub. */
+function fromErpMcf(db, o) {
+  const L = db.erp && db.erp.lines, num = g => String(g || '').replace(/^.*\//, '');
+  if (!L || o.source !== 'shopify') return 0;
+  const by = {};
+  o.items.forEach((it, i) => { const e = it.pk == null && L[num(o.gid) + '|' + num(it.lid)]; if (e && e.mcf) (by[e.mcf] = by[e.mcf] || []).push(i); });
+  Object.keys(by).forEach(id => {
+    const pk = newPart(o, 'fba', by[id]); pk.route = 'mcf'; pk.mcfId = id; pk.mcfReal = true; pk.fulfilQueued = true; pk.byErp = true;
+    advance(pk, 1, 'Amazon FBA');
+    note(o, 'APP', `Already sent to Amazon MCF from the ERP (${id}): ${by[id].map(i => o.items[i].t).join(', ')}`);
+  });
+  return Object.keys(by).length;
+}
+/* One order the hub already has, as Shopify has it now. Returns true when something changed (each change is noted on
+ * the order). Lines not yet on their way follow Shopify; a line already on its way is never changed, only flagged. */
+function refreshOrder(db, o, s, store, erpOf) {
+  const said = [];
+  if (s.gone === 'voided' || (s.cancelledAt && !o.cancelled)) {
+    o.cancelled = s.cancelledAt || 'voided';
+    said.push(`Cancelled in Shopify${s.cancelReason ? ' (' + s.cancelReason + ')' : ''}`);
+    db.queue.forEach(q => { if (q.orderNo === o.no && ['waiting', 'held'].includes(q.status)) { q.status = 'discarded'; q.last = 'The order was cancelled in Shopify — not sent'; } });
+  }
+  if (s.gone) { if (said.length) note(o, 'SHOPIFY', said.join(' · ')); return !!said.length; }
+  ['fin', 'note', 'tags'].forEach(k => { if (s[k] != null && String(s[k]) !== String(o[k] || '')) { o[k] = String(s[k]); if (k === 'note') said.push('Order note changed'); } });
+  if (s.total != null) o.total = Number(s.total) || 0;
+  const left = l => l.cq != null ? Number(l.cq) : Math.max(0, (Number(l.qty) || 0) - (Number(l.rq) || 0));
+  const open = l => l.fq == null ? left(l) : Math.min(left(l), Number(l.fq) || 0);
+  const shipped = [];
+  (s.items || []).forEach(l => {
+    const lid = 'gid://shopify/LineItem/' + l.lid, it = o.items.find(x => x.lid === lid), n = left(l);
+    if (!it) {
+      if (n <= 0) return;
+      const e = erpOf(store, l.sku);
+      o.items.push({ lid, t: l.name || l.sku || 'Item', v: l.variant || '', sku: String(l.sku || ''), price: Number(l.price) || 0, q: n, rq: Number(l.rq) || 0,
+        img: String(l.img || ''), fba: e ? e.fba || 0 : 0, india: e ? e.india || 0 : 0, pk: null });
+      said.push(`Line added in Shopify: ${l.name || l.sku} × ${n}`);
+      if (open(l) === 0) shipped.push(o.items.length - 1);
+      return;
+    }
+    it.rq = Number(l.rq) || 0;
+    if (n !== it.q && !it.gone) {
+      if (it.pk == null) {
+        said.push(n === 0 ? `${it.t}: removed or refunded in Shopify — not sent` : `${it.t}: now × ${n} in Shopify (was × ${it.q})`);
+        if (n === 0) it.gone = true; else { it.q = n; if (it.sq != null && it.sq > n) it.sq = n; }
+      } else if (n < it.q) said.push(`${it.t}: Shopify now says × ${n} (was × ${it.q}) but it is already on its way — check its part`);
+    }
+    if (it.pk == null && !it.gone && n > 0 && open(l) === 0) shipped.push(o.items.indexOf(it));
+  });
+  /* Lines shipped in Shopify outside the hub become a part with Shopify's carrier and numbers, as on import. */
+  if (shipped.length) {
+    const pk = shopTrack.partFrom(o, { id: '', status: 'SUCCESS', displayStatus: '', createdAt: s.shippedAt ? s.shippedAt + 'T12:00:00Z' : '',
+      trackingInfo: (s.trk || []).map(n => ({ company: s.trkCo || '', number: n })), events: { nodes: [] } }, shipped);
+    o.pkgs.push(pk); shipped.forEach(i => { o.items[i].pk = o.pkgs.length - 1; });
+    said.push(`Shipped in Shopify outside the hub: ${shipped.map(i => o.items[i].t).join(', ')} · ${pk.car} ${pk.trk.join(', ') || '(no tracking number)'}`);
+  }
+  if (said.length) note(o, 'SHOPIFY', said.join(' · '));
+  return said.length > 0;
+}
 async function importFromPricing(db, got) {
-  let added = 0; const notes = [], since = Date.now() - 14 * 86400000;
+  let added = 0, changed = 0; const notes = [], since = Date.now() - 14 * 86400000;
   const erpNote = takeErpInfo(db, got && got.info); if (erpNote) notes.push(erpNote);
   const erpOf = (store, sku) => (db.erp && db.erp.skus && db.erp.skus[store + '|' + String(sku || '').trim().toUpperCase()]) || null;
   for (const store of ['Ridhi', 'CPC']) {
@@ -1678,10 +1632,15 @@ async function importFromPricing(db, got) {
     if (!ans) { notes.push(`${store}: not read`); continue; }
     if (ans.error) { notes.push(`${store}: ${String(ans.error).slice(0, 120)}`); continue; }
     for (const s of Array.isArray(ans.orders) ? ans.orders : []) {
-      if (!s || !/^\d+$/.test(String(s.id)) || s.gone || s.cancelledAt || String(s.ff).toLowerCase() === 'fulfilled') continue;
+      if (!s || !/^\d+$/.test(String(s.id))) continue;
+      /* An order the hub already has is brought up to date — Shopify is the master (cancelled, refunded, edited, shipped
+       * outside the hub, note, payment status). Our own work on it (routing, parts, notes) is never thrown away. */
+      const known = db.orders.find(o => o.gid === 'gid://shopify/Order/' + s.id);
+      if (known) { if (refreshOrder(db, known, s, store, erpOf) | (known.cancelled ? 0 : fromErpMcf(db, known))) changed++; continue; }
+      if (s.gone || s.cancelledAt || String(s.ff).toLowerCase() === 'fulfilled') continue;
       /* The Pricing API gives the day only: midday UTC, never later than now (so today's order is not "in the future"). */
       const gid = 'gid://shopify/Order/' + s.id, at = Math.min(Date.parse(s.at + 'T12:00:00Z'), Date.now());
-      if (!(at >= since) || db.orders.some(o => o.gid === gid)) continue;
+      if (!(at >= since)) continue;
       /* What is left on each line after refunds and order edits (cq), and how much of it Shopify still has to ship (fq). */
       const lines = (s.items || []).map(l => Object.assign({}, l, { left: l.cq != null ? Number(l.cq) : Math.max(0, (Number(l.qty) || 0) - (Number(l.rq) || 0)) })).filter(l => l.left > 0);
       if (!lines.length) continue;
@@ -1714,12 +1673,13 @@ async function importFromPricing(db, got) {
       }
       const part = lines.filter(l => open(l) > 0 && open(l) < l.left);
       if (part.length) note(o, 'SHOPIFY', `Shipped in part in Shopify: ${part.map(l => `${l.sku || l.name} (${open(l)} of ${l.left} still to ship)`).join(', ')}`);
+      fromErpMcf(db, o);
       db.orders.push(o); added++;
       await autoRoute(db, o);
     }
     if (ans.more) notes.push(`${store}: more orders than one read — press Fetch again`);
   }
-  return `${added} new order(s) pulled from Shopify through the ERP${notes.length ? ' · ' + notes.join(' · ') : ''}`;
+  return `${added} new order(s) pulled from Shopify through the ERP${changed ? ` · ${changed} updated from Shopify` : ''}${notes.length ? ' · ' + notes.join(' · ') : ''}`;
 }
 /* Lines your team already shipped in Shopify become a part with Shopify's carrier, number and tracking, so the hub
  * shows them and never offers them for shipping again. A line shipped only in part stays open (Shopify still has
@@ -1911,8 +1871,12 @@ const CFG = { shopify: { stores: {}, allowWrites: false }, amazon: { accounts: {
 const viaErp = () => !!HUB_WEB.erp;
 module.exports = {
   WEB: true, load: () => CFG, cfg: () => CFG,
+  /* Where the data is kept, for the bar at the top: the shared database (and who is signed in), or this browser. */
+  shared: () => (HUB_WEB.sync ? `${HUB_WEB.sync.name} · ${HUB_WEB.sync.user()}${HUB_WEB.leader ? ' · this window sends to Shopify and checks tracking' : ''}` : '') + (HUB_WEB.syncError ? ' · ' + HUB_WEB.syncError : ''),
   shopify: store => (viaErp() ? { domain: `${store} · through the ERP's Pricing API`, bridge: true } : null),
-  amazon: () => null, carrier: () => null, fedexShip: () => null,
+  /* Amazon through the ERP's Pricing API (web/amazon.js): fees and status are real; a real MCF parcel is not made
+   * from the test site (realMcf stays off) — MCF parcels are still sent from the ERP's own Shopify tab. */
+  amazon: store => (viaErp() ? { bridge: true, store } : null), carrier: () => null, fedexShip: () => null,
   shopifyWrites: () => viaErp() && !!HUB_WEB.writes, realMcf: () => false, trackMinutes: () => 30, port: () => 0, shopDomain: s => String(s || ''),
 };
 
@@ -1920,9 +1884,11 @@ module.exports = {
 
 HUBMOD("store", function (module, exports, require, __dirname, process, Buffer) {
 /* THE HUB ON THE TEST SITE — in place of lib/store.js (tools/build-web.js swaps it in).
- * The same calls, but the data lives in this browser (IndexedDB "shopify-hub"), not in data/db.json: each person's
- * test hub is their own, on their own computer, and nothing is saved anywhere else. boot.js reads the saved copy
- * before the hub starts (HUB_WEB.preload) and writes each save back (HUB_WEB.put). */
+ * The same calls, but the data lives in the browser, not in data/db.json: boot-tail.js reads it before the hub starts
+ * (HUB_WEB.preload) and every save goes back (HUB_WEB.put) — to this browser (IndexedDB), or, once the Shopify Firebase
+ * project is set up, to the shared database (web/sync.js) so the whole team works on the same orders.
+ * With the shared database there is also ONE counter for GST invoice numbers and file numbers (reserve / setCounter /
+ * casCounter), used by server.js so two people can never be given the same number. */
 let db = null;
 let ver = Date.now();
 
@@ -1943,7 +1909,20 @@ function serial(fn) {
   return run;
 }
 
-module.exports = { load, save, replace, get, serial, FILE: 'this browser', version: () => ver };
+/* For web/sync.js: news from someone else is merged in turn with this person's own changes, then the page redraws. */
+HUB_WEB.serial = serial;
+HUB_WEB.touch = () => { ver++; };
+HUB_WEB.db = () => db;
+
+const out = { load, save, replace, get, serial, FILE: 'this browser', version: () => ver };
+if (HUB_WEB.sync) Object.assign(out, {
+  FILE: 'the shared Shopify database',
+  reserve: a => HUB_WEB.sync.reserve(a),
+  setCounter: v => HUB_WEB.sync.setCounter(v),
+  casCounter: (from, to) => HUB_WEB.sync.casCounter(from, to),
+  isLeader: () => !!HUB_WEB.leader,
+});
+module.exports = out;
 
 });
 
@@ -2025,6 +2004,61 @@ module.exports = {
 
 });
 
+HUBMOD("amazon", function (module, exports, require, __dirname, process, Buffer) {
+/* THE HUB ON THE TEST SITE — in place of lib/amazon.js (tools/build-web.js swaps it in).
+ * Amazon MCF through the ERP page and the Pricing API (Pricing-API/Mcf.gs), which holds the Amazon keys:
+ *   preview   fees and arrival per speed — read only on Amazon        → POST mcf=preview (let through the test ERP)
+ *   status    what Amazon has done, tracking numbers — read only       → POST mcf=status  (let through the test ERP)
+ *   create    a REAL parcel — only when the test ERP allows it (it does not: web/config realMcf is off)
+ * THE MCF ID. Amazon refuses a repeat only by id, and the ERP's own MCF uses one id per ORDER (SHOP-RBP7750). The hub
+ * sends one per PART, SHOP-RBP7750P1, P2… — never the ERP's — and items the ERP already sent are taken from the ERP
+ * (actions.js importFromPricing) and never offered again. Amazon is asked for the AMAZON code the ERP maps the SKU to.
+ * FBA stock comes with the ERP's figures, not from here. */
+const num = g => String(g || '').replace(/^.*\//, '');
+const brandOf = store => (store === 'CPC' ? 'CPC' : 'SP');
+const mcfId = (orderNo, n) => `SHOP-${String(orderNo).replace(/[^A-Za-z0-9]/g, '').toUpperCase()}P${n}`;
+function amzCode(o, sku) {
+  const db = HUB_WEB.db && HUB_WEB.db(), e = db && db.erp && db.erp.skus && db.erp.skus[o.store + '|' + String(sku || '').trim().toUpperCase()];
+  return (e && e.amz) || sku;
+}
+function payload(store, o, lines, no) {
+  const a = o.addr || {};
+  return { no: no || o.no, id: num(o.gid), at: new Date(o.at).toISOString().slice(0, 10), brand: brandOf(store), shop: store === 'CPC' ? 'CPC' : '',
+    ship: { name: (o.cust || {}).n || '', a1: a.a1, a2: a.a2, city: a.city, state: a.state, zip: a.zip, country: a.country, phone: a.phone || (o.cust || {}).ph || '' },
+    items: lines.map(l => ({ sku: amzCode(o, l.sku), qty: l.q })) };
+}
+async function preview(store, o, lines) {
+  const d = await HUB_WEB.ask('mcfPreview', { order: payload(store, o, lines) });
+  return (d.previews || []).map(p => ({ speed: p.speed, ok: p.ok !== false, fee: Number(p.fee) || 0, by: p.arriveBy || '' }));
+}
+async function create(store, o, lines, speed, id) {
+  const d = await HUB_WEB.ask('mcfCreate', { order: Object.assign(payload(store, o, lines, id.replace(/^SHOP-/, '')), { speed: speed || 'Standard' }) });
+  if (d.mcfId && d.mcfId !== id) throw new Error(`Amazon was given ${d.mcfId}, not ${id} — check it in Seller Central before anything else.`);
+  return { id, already: !!d.already };
+}
+/* Mcf.gs status gives the order's status and its tracking numbers (no scans): Shopify's own tracking adds those once
+ * the parcel is marked shipped there. */
+async function status(store, id) {
+  const d = await HUB_WEB.ask('mcfStatus', { mcfId: id, brand: brandOf(store) });
+  return { status: String(d.status || '').toUpperCase(), packages: (d.trk || []).map(t => ({ no: '', trk: t, car: d.trkCo || '' })), scans: [] };
+}
+function normalise(s) {
+  const all = s.scans.map(x => x.cur);
+  if (all.length && all.every(x => x === 'DELIVERED')) return 'delivered';
+  if (all.includes('OUT_FOR_DELIVERY')) return 'out_for_delivery';
+  if (all.some(x => x === 'IN_TRANSIT' || x === 'DELIVERED')) return 'in_transit';
+  if (s.status === 'COMPLETE' || s.status === 'COMPLETE_PARTIALLED' || s.packages.length) return 'picked_up';
+  if (['RECEIVED', 'PLANNING', 'PROCESSING'].includes(s.status)) return 'accepted';
+  if (['INVALID', 'UNFULFILLABLE', 'CANCELLED'].includes(s.status)) return 'problem';
+  return 'sent';
+}
+const fbaStock = async () => ({});
+const check = async () => { throw new Error('Amazon is reached through the ERP\'s Pricing API — its keys are there.'); };
+
+module.exports = { check, preview, create, status, normalise, fbaStock, mcfId };
+
+});
+
 HUBMOD("server", function (module, exports, require, __dirname, process, Buffer) {
 /* =====================================================================================
  * SHOPIFY HUB — local backend. No packages: plain Node.
@@ -2102,7 +2136,7 @@ function state() {
   const d = db();
   return { ok: true, now: Date.now(), v: store.version(), orders: d.orders, stock: d.stock, prefs: d.prefs || {}, erp: d.erp || null, queue: d.queue.slice(-200).reverse(), lastTrack: d.lastTrack || null,
     connections: connections(), health: d.health || {}, customs: csb.state(d).sku, hsDefault: csb.CO.hsExport, nextInv: csb.state(d).nextInv,
-    settings: { web: !!config.WEB, writes: config.shopifyWrites(), realMcf: config.realMcf(), trackMinutes: config.trackMinutes(),
+    settings: { web: !!config.WEB, shared: config.shared ? config.shared() : '', writes: config.shopifyWrites(), realMcf: config.realMcf(), trackMinutes: config.trackMinutes(),
       fedexShip: config.fedexShip() ? { on: true, sandbox: config.fedexShip().sandbox } : { on: false } } };
 }
 
@@ -2115,17 +2149,31 @@ function csbState() {
 }
 
 /* ---------------- background work ---------------- */
+/* WHO DOES THE BACKGROUND WORK. With the shared database several people can have the hub open; only one of them — the
+ * one holding the shared lock (web/sync.js) — sends the Shopify queue and checks tracking, so nothing is sent twice.
+ * The hub on a computer is always its own leader. */
+const leader = () => !store.isLeader || store.isLeader();
 let queueTimer = null;
 function runQueueSoon() {
+  if (!leader()) return;
   clearTimeout(queueTimer);
   queueTimer = setTimeout(() => store.serial(async () => { await queue.run(db()); store.save(); }).catch(e => console.error('queue:', e.message)), 300);
 }
 /* Shopify counts: a connected store's own tracking follows DHL / FedEx / UPS parcels with no carrier key. */
 const anyLiveTracking = () => ['Ridhi', 'CPC'].some(s => config.amazon(s) || config.shopify(s)) || ['DHL Express', 'FedEx', 'UPS'].some(n => config.carrier(n));
+/* Every minute: changes waiting for Shopify go out, and tracking is checked when the last check (anyone's — it is kept
+ * with the data) is older than the tracking interval. So a check also happens soon after someone opens the hub. */
+let tracking = false;
 setInterval(() => {
-  if (!anyLiveTracking()) return;
-  store.serial(async () => { await track.run(db(), { simulate: false }); store.save(); }).then(runQueueSoon).catch(e => console.error('tracking:', e.message));
-}, config.trackMinutes() * 60000);
+  if (!leader()) return;
+  if (db() && db().queue.some(q => q.status === 'waiting')) runQueueSoon();
+  if (tracking || !anyLiveTracking()) return;
+  const last = (db() && db().lastTrack && db().lastTrack.at) || 0;
+  if (Date.now() - last < config.trackMinutes() * 60000) return;
+  tracking = true;
+  store.serial(async () => { await track.run(db(), { simulate: false }); store.save(); }).then(runQueueSoon)
+    .catch(e => console.error('tracking:', e.message)).finally(() => { tracking = false; });
+}, 60000);
 
 /* ---------------- the API ---------------- */
 const ACTIONS = {
@@ -2199,14 +2247,38 @@ async function api(route, body) {
   if (route === 'GET /api/csb') return csbState();
   if (route === 'POST /api/csb/check') return Object.assign({ ok: true }, csb.build(db(), body.draft || {}));
   if (route === 'POST /api/csb/make') {
-    const r = await store.serial(async () => { const x = await actions.dispatchMake(db(), body.draft || {}); store.save(); return x; });
+    /* With a shared counter (the test-site hub on Firestore, web/sync.js): the GST invoice numbers and the file number
+     * are handed out in one transaction first, so two people can never be given the same ones. */
+    const draft = body.draft || {};
+    let given = null;
+    if (store.reserve) {
+      const need = (draft.ships || []).filter(s => !String(s.inv || '').trim() && (db().orders.find(o => o.no === s.no) || {}).source !== 'test').length;
+      const r = await store.reserve({ inv: need, seed: String(draft.nextInv || csb.state(db()).nextInv || '').trim(), day: csb.todayIST().replace(/-/g, '') });
+      if (need) { draft.nextInv = r.firstInv; let end = r.firstInv; for (let i = 0; i < need; i++) end = csb.nextInv(end); given = { first: r.firstInv, end }; }
+      draft.batchId = r.batchId;
+    }
+    let r;
+    try { r = await store.serial(async () => { const x = await actions.dispatchMake(db(), draft); store.save(); return x; }); }
+    catch (e) {
+      /* Nothing was made: the numbers just handed out go back, unless someone has taken one since — no gap in the series. */
+      if (given) await store.casCounter(given.end, given.first).catch(() => {});
+      throw e;
+    }
     const n = c => r.batch.ships.filter(s => s.car === c).length;
     return Object.assign(state(), csbState(), r, { msg: `${r.batch.id} made · ${n('DHL Express')} DHL · ${n('FedEx')} FedEx — upload, then type the tracking numbers` });
   }
   if (route === 'POST /api/csb/again') return Object.assign(csbState(), csb.again(db(), body.id));
   if (route === 'POST /api/csb/awb' || route === 'POST /api/csb/forget') {
     const fn = route.endsWith('awb') ? actions.dispatchAwb : actions.dispatchForget;
-    const msg = await store.serial(async () => { const m = fn(db(), body); store.save(); return m; });
+    const before = csb.state(db()).nextInv;
+    let msg = await store.serial(async () => { const m = fn(db(), body); store.save(); return m; });
+    /* Taking back the newest file gives its invoice numbers back — on the shared counter only if nobody has taken a
+     * number since; otherwise the series moves on and those numbers stay unused. */
+    const after = csb.state(db()).nextInv;
+    if (store.casCounter && after !== before && !(await store.casCounter(before, after))) {
+      await store.serial(async () => { csb.state(db()).nextInv = before; store.save(); });
+      msg += ' · the invoice numbers were not given back: someone has made a file since';
+    }
     runQueueSoon();
     return Object.assign(state(), csbState(), { msg });
   }
@@ -2224,6 +2296,7 @@ async function api(route, body) {
     return Object.assign(state(), { msg: items.length ? `Checked ${items.length} change(s) against Shopify (read only): ${ok} would go through · ${bad} would not` : 'Nothing waiting to be marked shipped in Shopify' });
   }
   if (route === 'POST /api/csb/next') {
+    if (store.setCounter) await store.setCounter(String(body.nextInv || '').trim());
     await store.serial(async () => { csb.state(db()).nextInv = String(body.nextInv || '').trim(); store.save(); });
     return csbState();
   }
@@ -2318,6 +2391,246 @@ module.exports = { api };
 
 });
 
+/* THE HUB ON THE TEST SITE — the shared database (Ravi, 27 Oct: data in one browser only, GST numbers could repeat).
+ *
+ * Once the Shopify Firebase project exists (web/firebase-config.json → window.SHUB_FIREBASE), the hub keeps its data in
+ * Firestore instead of this browser, so the whole team works on the same orders, parts, files and queue:
+ *   hub_meta/main            the contents page: { days: { "<store>_<yyyy-mm-dd>": last change ms }, j: settings JSON }
+ *                            (Stock list, preferences, the ERP's figures, customs memory, files made, tracking stamp)
+ *   hub_days/<store>_<day>   one store's orders placed that day (India time) and their Shopify queue: { j: JSON }
+ *   hub_meta/gst             THE counter: { next: next GST invoice no, dsp: { yyyymmdd: files made that day } }
+ * Every save is a transaction per day document that keeps the newer copy of each order (order.u), so two people
+ * working on different orders never overwrite each other; the contents page is written after. Everyone listens to the
+ * contents page and the counter only, and reads a day again only when it changed. GST invoice and file numbers are
+ * handed out inside a transaction on the counter: two people can never get the same number.
+ * Same shape as the ERP's own Shopify copy (Pricing-API/ShopifyCache.gs: one document per store per day, contents
+ * page written last) — a few dozen reads to open, not one per order.
+ *
+ * `fs` is { name, user(), get(path), tx(path, fn(current) → { data, out }), listen(path, cb) }: Firestore (firebaseFs)
+ * or, for testing two people in one browser, a stand-in kept in localStorage (fakeFs, only with ?fakefs=1). */
+window.HUB_SYNC = (function () {
+  const VER = 1;
+  const SETTINGS = ['stock', 'prefs', 'erp', 'csb', 'health', 'lastTrack'];
+  const parse = s => { try { return JSON.parse(s); } catch (e) { return null; } };
+  const isoDay = ms => new Date(ms + 5.5 * 3600000).toISOString().slice(0, 10);
+  const dayKey = o => (o.store || 'Ridhi') + '_' + isoDay(o.at || Date.now());
+  const plain = o => JSON.stringify(Object.assign({}, o, { u: undefined }));
+  const RANK = { sent: 5, failed: 4, discarded: 3, held: 2, waiting: 1, test: 0 };
+
+  function make(fs) {
+    const sent = {}, sentQ = {}, known = {};
+    let sentSettings = '', seenSettings = '', timer = null, pending = null, saving = Promise.resolve();
+    const settingsOf = db => JSON.stringify(Object.fromEntries(SETTINGS.map(k => [k, db[k]])));
+    /* Files made, customs memory: everyone's kept; the rest: the newest save. */
+    function mergeSettings(theirs, mine) {
+      const out = Object.assign({}, theirs, mine), a = (theirs && theirs.csb) || {}, b = (mine && mine.csb) || {};
+      const ids = new Set(), batches = [];
+      (b.batches || []).concat(a.batches || []).forEach(x => { if (x && !ids.has(x.id)) { ids.add(x.id); batches.push(x); } });
+      batches.sort((x, y) => (y.at || 0) - (x.at || 0));
+      out.csb = Object.assign({}, a, b, { sku: Object.assign({}, a.sku, b.sku), batches: batches.slice(0, 300) });
+      return out;
+    }
+    /* Someone else's copy of a day, merged into this hub: newer orders replace, new ones join, queue items join. */
+    function absorb(k, doc) {
+      const db = HUB_WEB.db(); if (!db || !doc) return false;
+      let moved = false;
+      sent[k] = sent[k] || {};
+      /* sent = what the shared copy holds: a local copy that is newer differs from it, so the next save sends it. */
+      Object.values(doc.orders || {}).forEach(r => {
+        const i = db.orders.findIndex(o => o.no === r.no);
+        if (i < 0) { db.orders.push(r); moved = true; }
+        else if ((r.u || 0) > (db.orders[i].u || 0)) { db.orders[i] = r; moved = true; }
+        sent[k][r.no] = plain(r);
+      });
+      (doc.queue || []).forEach(r => {
+        const i = db.queue.findIndex(q => q.id === r.id);
+        if (i < 0) { db.queue.push(r); moved = true; }
+        else if ((RANK[r.status] || 0) > (RANK[db.queue[i].status] || 0)) { db.queue[i] = r; moved = true; }
+        sentQ[r.id] = JSON.stringify(r);
+      });
+      if (moved) db.orders.sort((a, b) => b.at - a.at);
+      return moved;
+    }
+
+    async function load() {
+      const meta = await fs.get('hub_meta/main');
+      if (!meta) return null;
+      const days = meta.days || {};
+      const docs = await Promise.all(Object.keys(days).map(k => fs.get('hub_days/' + k).then(d => [k, d])));
+      const db = Object.assign({ orders: [], queue: [], stock: [], seq: 0, health: {} }, parse(meta.j) || {});
+      docs.forEach(([k, d]) => {
+        known[k] = days[k]; sent[k] = {};
+        const x = d ? parse(d.j) : null; if (!x) return;
+        Object.values(x.orders || {}).forEach(o => { db.orders.push(o); sent[k][o.no] = plain(o); });
+        (x.queue || []).forEach(q => { db.queue.push(q); sentQ[q.id] = JSON.stringify(q); });
+      });
+      db.orders.sort((a, b) => b.at - a.at);
+      const g = await fs.get('hub_meta/gst');
+      if (g && g.next != null) { db.csb = db.csb || { nextInv: '', sku: {}, batches: [] }; db.csb.nextInv = g.next; }
+      sentSettings = seenSettings = settingsOf(db);
+      return db;
+    }
+
+    function put(db) { pending = db; clearTimeout(timer); timer = setTimeout(flush, 400); }
+    function flush() {
+      const db = pending; if (!db) return;
+      saving = saving.then(() => push(db)).then(() => say(''), e => say('Not saved to the shared database: ' + (e && e.message || e)));
+    }
+    const say = t => { HUB_WEB.syncError = t; if (t) console.warn('Shopify hub:', t); };
+
+    async function push(db) {
+      const now = Date.now(), byDay = {}, dayOfNo = {};
+      db.orders.forEach(o => {
+        const k = dayKey(o); dayOfNo[o.no] = k;
+        if ((sent[k] || {})[o.no] !== plain(o)) { o.u = now; (byDay[k] = byDay[k] || { orders: [], queue: [] }).orders.push(o); }
+      });
+      db.queue.forEach(q => {
+        const k = dayOfNo[q.orderNo]; if (!k) return;
+        if (sentQ[q.id] !== JSON.stringify(q)) (byDay[k] = byDay[k] || { orders: [], queue: [] }).queue.push(q);
+      });
+      const keys = Object.keys(byDay);
+      for (const k of keys) {
+        const mine = byDay[k];
+        const doc = await fs.tx('hub_days/' + k, cur => {
+          const d = (cur && parse(cur.j)) || { orders: {}, queue: [] };
+          mine.orders.forEach(o => { const r = d.orders[o.no]; if (!r || (r.u || 0) <= (o.u || 0)) d.orders[o.no] = o; });
+          const q = new Map((d.queue || []).map(x => [x.id, x]));
+          mine.queue.forEach(x => { const r = q.get(x.id); if (!r || (RANK[x.status] || 0) >= (RANK[r.status] || 0)) q.set(x.id, x); });
+          d.queue = [...q.values()];
+          return { data: { j: JSON.stringify(d), v: VER, at: now, by: fs.user() }, out: d };
+        });
+        sent[k] = sent[k] || {};
+        mine.orders.forEach(o => { sent[k][o.no] = plain(o); });
+        mine.queue.forEach(x => { sentQ[x.id] = JSON.stringify(x); });
+        if (absorb(k, doc)) HUB_WEB.touch();
+      }
+      const settings = settingsOf(db), settingsMoved = settings !== sentSettings;
+      if (!keys.length && !settingsMoved) return;
+      const meta = await fs.tx('hub_meta/main', cur => {
+        const m = Object.assign({ days: {} }, cur || {});
+        m.days = Object.assign({}, m.days); keys.forEach(k => { m.days[k] = now; });
+        if (settingsMoved) m.j = JSON.stringify(mergeSettings(parse(m.j) || {}, JSON.parse(settings)));
+        m.v = VER; m.at = now; m.by = fs.user();
+        return { data: m, out: m };
+      });
+      keys.forEach(k => { known[k] = now; });
+      sentSettings = settings;
+      /* The shared copy that came back may hold someone else's changes (a file they made): take those in too. */
+      if (meta.j && meta.j !== seenSettings) await applySettings(meta.j);
+    }
+    /* Settings from the shared copy merged into this hub: files made and customs memory from everyone; Stock list,
+     * preferences and the ERP's figures as last saved (the ERP's figures: the newer read wins). */
+    function applySettings(j) {
+      seenSettings = j;
+      return HUB_WEB.serial(() => {
+        const db = HUB_WEB.db(); if (!db) return;
+        const theirs = parse(j) || {}, merged = mergeSettings(theirs, JSON.parse(settingsOf(db)));
+        ['stock', 'prefs', 'erp'].forEach(k => { if (theirs[k] != null) merged[k] = theirs[k]; });
+        if (theirs.erp && db.erp && (db.erp.at || 0) > (theirs.erp.at || 0)) merged.erp = db.erp;
+        const before = settingsOf(db);
+        SETTINGS.forEach(k => { if (merged[k] !== undefined) db[k] = merged[k]; });
+        /* sentSettings is left as it is: anything of this hub's not in the shared copy yet goes with the next save. */
+        if (settingsOf(db) !== before) HUB_WEB.touch();
+      });
+    }
+
+    /* THE LEADER (hub_meta/lock): one open hub at a time sends the Shopify queue and checks tracking (server.js asks
+     * store.isLeader), so nothing goes to Shopify twice. Held for 2 minutes, renewed every minute; a closed or asleep
+     * window loses it, and another open hub takes over. */
+    const me = Math.random().toString(36).slice(2, 10);
+    function lead() {
+      const now = Date.now();
+      fs.tx('hub_meta/lock', cur => (!cur || (cur.until || 0) < now || cur.id === me)
+        ? { data: { id: me, by: fs.user(), until: now + 120000 }, out: true } : { data: cur, out: false })
+        .then(ok => { if (HUB_WEB.leader !== ok) { HUB_WEB.leader = ok; HUB_WEB.touch(); } }, () => { HUB_WEB.leader = false; });
+    }
+    /* News from the others: a day whose time moved is read again; changed settings are merged; the counter is shown. */
+    function start() {
+      lead(); setInterval(lead, 60000);
+      window.addEventListener('pagehide', () => { if (HUB_WEB.leader) fs.tx('hub_meta/lock', cur => (cur && cur.id === me ? { data: Object.assign({}, cur, { until: 0 }), out: true } : { data: cur || {}, out: false })).catch(() => {}); });
+      fs.listen('hub_meta/main', m => {
+        if (!m) return;
+        const days = m.days || {};
+        Object.keys(days).forEach(k => {
+          if ((days[k] || 0) <= (known[k] || 0)) return;
+          known[k] = days[k];
+          fs.get('hub_days/' + k).then(d => HUB_WEB.serial(() => { if (absorb(k, d ? parse(d.j) : null)) HUB_WEB.touch(); }));
+        });
+        if (m.j && m.j !== seenSettings) applySettings(m.j);
+      });
+      fs.listen('hub_meta/gst', g => {
+        if (!g || g.next == null) return;
+        HUB_WEB.serial(() => { const db = HUB_WEB.db(); if (!db) return; db.csb = db.csb || { nextInv: '', sku: {}, batches: [] };
+          if (db.csb.nextInv !== g.next) { db.csb.nextInv = g.next; sentSettings = ''; HUB_WEB.touch(); } });
+      });
+    }
+
+    /* THE COUNTER. reserve: n GST invoice numbers (from `seed` when the counter has none yet) and the day's next file
+     * number, in one transaction. setCounter: "Next GST invoice no" typed on Dispatch. casCounter: give numbers back
+     * only if nobody has taken one since. */
+    const nextInv = s => HUBREQ('csb').nextInv(s);
+    function reserve(a) {
+      const db = HUB_WEB.db(), mineToday = ((db && db.csb && db.csb.batches) || []).filter(b => String(b.id).startsWith('DSP-' + a.day + '-')).length;
+      return fs.tx('hub_meta/gst', cur => {
+        const c = cur || {};
+        let next = String(c.next || a.seed || '').trim();
+        if (a.inv && !next) throw new Error('Set the next GST invoice number first (Dispatch → Next GST invoice no).');
+        const first = next;
+        for (let i = 0; i < (a.inv || 0); i++) next = nextInv(next);
+        const dsp = Object.assign({}, c.dsp), n = Math.max(dsp[a.day] || 0, mineToday) + 1;
+        dsp[a.day] = n;
+        return { data: { next, dsp, at: Date.now(), by: fs.user() }, out: { firstInv: first, batchId: 'DSP-' + a.day + '-' + String(n).padStart(3, '0') } };
+      });
+    }
+    const setCounter = v => fs.tx('hub_meta/gst', cur => ({ data: Object.assign({}, cur, { next: String(v || ''), at: Date.now(), by: fs.user() }), out: true }));
+    const casCounter = (from, to) => fs.tx('hub_meta/gst', cur => {
+      const c = cur || {};
+      return String(c.next || '') === String(from || '') ? { data: Object.assign({}, c, { next: to, at: Date.now(), by: fs.user() }), out: true } : { data: c, out: false };
+    });
+    return { name: fs.name, user: fs.user, load, put, start, reserve, setCounter, casCounter, flush: () => { clearTimeout(timer); flush(); return saving; } };
+  }
+
+  /* Firestore, through the Firebase web SDK (compat build from Google's own site), after Google sign-in. */
+  async function firebaseFs(cfg) {
+    const B = 'https://www.gstatic.com/firebasejs/10.14.1/';
+    const load = src => new Promise((ok, no) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => no(new Error('could not load ' + src)); document.head.appendChild(s); });
+    await load(B + 'firebase-app-compat.js'); await load(B + 'firebase-auth-compat.js'); await load(B + 'firebase-firestore-compat.js');
+    const app = firebase.initializeApp(cfg, 'shopify-hub'), auth = app.auth(), store = app.firestore();
+    let user = await new Promise(ok => { const off = auth.onAuthStateChanged(u => { off(); ok(u); }); });
+    if (!user) user = await signIn(auth);
+    const ref = p => store.doc(p);
+    return {
+      name: 'Shopify database (' + cfg.projectId + ')', user: () => (auth.currentUser || {}).email || '',
+      get: async p => { const s = await ref(p).get(); return s.exists ? s.data() : null; },
+      tx: (p, fn) => store.runTransaction(async t => { const s = await t.get(ref(p)); const r = fn(s.exists ? s.data() : null); t.set(ref(p), r.data); return r.out; }),
+      listen: (p, cb) => ref(p).onSnapshot(s => cb(s.exists ? s.data() : null), e => console.warn('Shopify hub: cannot listen to', p, '—', e.message)),
+    };
+  }
+  function signIn(auth) {
+    return new Promise(done => {
+      const box = document.createElement('div');
+      box.className = 's-signin';
+      box.innerHTML = '<div class="s-card"><b>Shopify hub</b><p class="s-muted">Sign in with your company Google account to open the shared orders.</p>'
+        + '<button class="s-btn" type="button">Sign in with Google</button><p class="s-bad s-sm" hidden></p></div>';
+      document.body.appendChild(box);
+      const err = box.querySelector('p.s-bad');
+      box.querySelector('button').addEventListener('click', () => auth.signInWithPopup(new firebase.auth.GoogleAuthProvider())
+        .then(r => { box.remove(); done(r.user); }, e => { err.hidden = false; err.textContent = e.message; }));
+    });
+  }
+  /* For testing only (?fakefs=1): the same calls, kept in this browser's localStorage, shared between windows of it. */
+  function fakeFs() {
+    const K = p => 'fakefs:' + p, read = p => parse(localStorage.getItem(K(p))), subs = {};
+    const tell = p => (subs[p] || []).forEach(cb => setTimeout(() => cb(read(p))));
+    window.addEventListener('storage', e => { if (e.key && e.key.startsWith('fakefs:')) tell(e.key.slice(7)); });
+    const who = (new URLSearchParams(location.search).get('as') || 'tester') + '@example.com';
+    return { name: 'stand-in database (this browser, for testing)', user: () => who, get: async p => read(p),
+      tx: async (p, fn) => { const r = fn(read(p)); localStorage.setItem(K(p), JSON.stringify(r.data)); tell(p); return r.out; },
+      listen: (p, cb) => { (subs[p] = subs[p] || []).push(cb); setTimeout(() => cb(read(p))); } };
+  }
+  return { make, firebaseFs, fakeFs };
+})();
+
 /* THE HUB ON THE TEST SITE — start it, and answer the page's /api/... calls with the server's own api(). */
 (function () {
   const open = () => new Promise((ok, no) => {
@@ -2356,9 +2669,28 @@ module.exports = { api };
       saving = saving.then(() => step('readwrite', s => s.put(copy, 'db'))).catch(e => { if (!warned) { warned = true; console.warn('Shopify hub: could not save in this browser —', e && e.message); } });
     },
   };
+  /* Where the data lives: the shared Shopify database when its config is here (web/sync.js; ?fakefs=1 = the testing
+   * stand-in), else this browser. The first time the shared database is used and still empty, this browser's data
+   * goes into it. If the shared database cannot be reached, the hub says so and stays on this browser. */
   const ready = (async () => {
-    try { window.HUB_WEB.preload = (await step('readonly', s => s.get('db'))) || null; } catch (e) { console.warn('Shopify hub: nothing saved could be read —', e && e.message); }
-    return HUBREQ('server');
+    let sync = null;
+    const cfg = window.SHUB_FIREBASE, fake = /[?&]fakefs=1\b/.test(location.search);
+    if (cfg || fake) {
+      try { sync = HUB_SYNC.make(fake ? HUB_SYNC.fakeFs() : await HUB_SYNC.firebaseFs(cfg)); }
+      catch (e) { HUB_WEB.syncError = 'The shared database could not be opened (' + (e && e.message) + ') — working in this browser only.'; console.warn('Shopify hub:', HUB_WEB.syncError); }
+    }
+    if (sync) {
+      try { window.HUB_WEB.preload = await sync.load(); }
+      catch (e) { HUB_WEB.syncError = 'The shared database could not be read (' + (e && e.message) + ') — working in this browser only.'; sync = null; }
+    }
+    if (!sync || !window.HUB_WEB.preload) {
+      try { window.HUB_WEB.preload = (await step('readonly', s => s.get('db'))) || window.HUB_WEB.preload || null; } catch (e) { console.warn('Shopify hub: nothing saved could be read —', e && e.message); }
+    }
+    if (sync) { HUB_WEB.sync = sync; HUB_WEB.put = db => sync.put(db); }
+    const server = HUBREQ('server');
+    /* Listen to the others; and send anything not in the shared copy yet (the first time: everything). */
+    if (sync) { sync.start(); if (HUB_WEB.db()) sync.put(HUB_WEB.db()); }
+    return server;
   })();
 
   const realFetch = window.fetch.bind(window);
