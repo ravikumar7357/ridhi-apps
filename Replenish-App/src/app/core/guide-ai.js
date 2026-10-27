@@ -6,7 +6,7 @@
  * again), sent with this person's ERP sign-in, and the router asks a free model using only Meera's own nearest answers as
  * its notes. What no model can answer becomes a ticket for an admin; what an admin answers or approves comes back here
  * (GET /learned) and joins Meera's own answers. Nothing here reads or writes the ERP's data. */
-const GA_AI_URL = '';   // e.g. 'https://meera-router.<account>.workers.dev' — empty: Meera answers on her own, as before
+const GA_AI_URL = 'https://meera-router.erp-9a0.workers.dev';   // e.g. 'https://meera-router.<account>.workers.dev' — empty: Meera answers on her own, as before
 
 function gaAiOn() {
   try { return !!GA_AI_URL && typeof auth !== 'undefined' && !!(auth && auth.currentUser); } catch (e) { return false; }
