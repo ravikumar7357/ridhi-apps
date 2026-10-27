@@ -102,6 +102,8 @@ select.od-move{height:30px;padding:0 8px;font-size:12px;border-radius:8px;width:
 .pp-strip li.d{border-top-color:var(--accent);color:var(--ink)}
 .pp-strip li.c{border-top-color:var(--brand);color:var(--brand)}
 .pp-strip li.c.bad{border-top-color:var(--bad);color:var(--bad)}
+.pp-route{padding:2px 14px 8px;line-height:1.6}
+.pp-route .s-muted:first-child{margin-right:6px}
 .pp-steps summary{padding:6px 14px 10px;cursor:pointer;font-size:12.5px;font-weight:600;color:var(--brand)}
 @media (max-width:760px){ .pl-ln{grid-template-columns:minmax(0,1fr) auto;padding-left:0} .pl-stock{grid-column:1/-1} .pl-move{grid-column:1/-1} }
 

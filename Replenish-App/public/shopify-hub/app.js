@@ -108,7 +108,39 @@ const etaText = pk => (pk.late ? 'Was due ' : 'Expected ') + pk.eta;
 const itemsText = (o, pk) => pk.items.map(i => o.items[i].t).join(' + ');
 const linesOf = n => n + ' line' + (n === 1 ? '' : 's');
 const addrText = o => { const a = o.addr || {}; return [a.a1, a.a2, [a.city, [a.state, a.zip].filter(Boolean).join(' ')].filter(Boolean).join(', '), a.country].filter(Boolean).join(', '); };
-const orderVal = o => o.items.reduce((s, i) => s + i.price * i.q, 0) + o.ship;
+/* A carrier's place, as a person would say it: "DELHI (NEW DELHI), DL, IN" → "Delhi, India", "Greenville, SC, US" →
+ * "Greenville, SC", "US" → "United States". Places typed in the hub ("Ridhi factory, Jaipur") stay as they are.
+ * Two parts are "city, country" from DHL / FedEx / UPS but "city, state" from a US scan ("Raleigh, NC"), so a US
+ * state code there means the US — except IN and DE, which on our road are India and Germany (DHL's Leipzig hub). */
+const US_STATES = new Set('AL AK AZ AR CA CO CT DC FL GA HI ID IL IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY PR'.split(' '));
+const COUNTRY = (() => { try { return new Intl.DisplayNames(['en'], { type: 'region' }); } catch (e) { return null; } })();
+const countryName = c => { try { return (COUNTRY && COUNTRY.of(c)) || c; } catch (e) { return c; } };
+const titleCase = s => s === s.toUpperCase() ? s.toLowerCase().replace(/(^|[\s\-/'.])(\p{L})/gu, (m, a, b) => a + b.toUpperCase()) : s;
+function placeParts(p) {
+  const bits = String(p || '').split(',').map(s => s.trim()).filter(Boolean);
+  if (!bits.length) return null;
+  const cc = /^[A-Z]{2}$/.test(bits[bits.length - 1]) ? bits.pop() : '';
+  if (!cc) return null;
+  if (bits.length === 1 && US_STATES.has(cc)) return { city: titleCase(bits[0]), state: cc, cc: 'US' };
+  const city = bits.length ? titleCase(bits[0].replace(/\s*\(.*\)\s*$/, '').trim()) : '';
+  return { city, state: bits[1] || '', cc };
+}
+function placeText(p) {
+  const x = placeParts(p);
+  if (!x) return String(p || '');
+  if (!x.city) return countryName(x.cc);
+  return x.cc === 'US' ? [x.city, x.state].filter(Boolean).join(', ') : x.city + ', ' + countryName(x.cc);
+}
+/* The cities a parcel has passed through, oldest first, each once in a row: "Jaipur → Delhi → Leipzig". */
+function routeOf(pk) {
+  const stops = [];
+  (pk.scans || []).slice().sort((a, b) => (a.at || 0) - (b.at || 0)).forEach(s => {
+    const x = placeParts(s.place), name = x ? x.city || countryName(x.cc) : '';
+    if (name && stops[stops.length - 1] !== name) stops.push(name);
+  });
+  return stops.length > 7 ? [stops[0], '…'].concat(stops.slice(-5)) : stops;
+}
+const orderVal = o =>o.items.reduce((s, i) => s + i.price * i.q, 0) + o.ship;
 const units = o => o.items.reduce((s, i) => s + i.q, 0);
 const ageOf = o => Math.floor((now() - o.at) / DAY);
 const testTag = o => o.source === 'test' ? ' <span class="st st-draft" title="A temp test order — nothing is sent to Shopify">TEST</span>' : '';
@@ -277,7 +309,7 @@ function whereNow(o) {
     if (pk.booked && !pk.route) return `${tag}<b>Packed</b> · ${esc(pk.booked.car)}${sub(`waiting for the tracking number · ${esc(pk.booked.id)}`)}`;
     const f = flagOf(pk), L = pk.last;
     const what = phaseOf(pk) === 4 ? 'Delivered' : f && f !== 'stale' ? J.FLAGS[f] : L && L.text ? L.text : off(pk) === 5 ? 'Out for delivery' : J.steps(pk).flat()[pk.pos - 1];
-    const place = L ? L.place : pk.ev[pk.pos - 1] || '', at = L ? L.at : pk.ts[pk.pos - 1];
+    const place = placeText(L ? L.place : pk.ev[pk.pos - 1] || ''), at = L ? L.at : pk.ts[pk.pos - 1];
     return `${tag}<b class="${phaseOf(pk) === 4 ? 's-ok' : f ? 's-bad' : ''}">${esc(what)}</b> · ${esc(carName(pk))}${sub(esc(place) + (at ? (place ? ' · ' : '') + fmt(at) : '') + (f === 'stale' ? ' · <b class="no">no scan for 3 days</b>' : pk.late && pk.eta ? ' · was due ' + esc(pk.eta) : ''))}`;
   };
   const rows = o.pkgs.map((pk, n) => `<div class="s-where">${one(pk, n)}</div>`);
@@ -503,8 +535,8 @@ function partPanel(o, pk, n) {
       note = `${done ? 'took' : 'for'} ${days1(took)} · target ${TARGET[i]} d${took > TARGET[i] ? ' · <span class="s-bad">over</span>' : ''}`;
     }
     if (cur) note = (pk.block && isProd ? `<span class="s-bad">On hold: ${esc(pk.block.why)} since ${day(pk.block.at)}</span>` : isProd ? '<b>Now</b>' : 'Next step') + (note ? ' · ' + note : '');
-    rows.push(`<tr class="${done ? 'd' : cur ? 'c' : 'f'}"><td class="s-dotc"><i></i></td><td class="tl">${esc(lab)}${note ? `<div class="s-sm">${note}</div>` : ''}</td><td class="s-muted">${done && pk.ev[i] ? esc(pk.ev[i]) : ''}</td><td class="s-nowrap s-muted">${done && pk.ts[i] ? fmt(pk.ts[i]) : ''}</td></tr>`);
-    if (i === pk.pos - 1 && f) rows.push(`<tr class="c bad"><td class="s-dotc"><i></i></td><td class="tl"><span class="s-bad">${esc(J.FLAGS[f])}</span>${pk.last && pk.last.text ? `<div class="s-sm s-muted">${esc(pk.last.text)}</div>` : ''}</td><td class="s-muted">${esc((pk.last || {}).place || '')}</td><td class="s-nowrap s-muted">${pk.last && pk.last.at ? fmt(pk.last.at) : ''}</td></tr>`);
+    rows.push(`<tr class="${done ? 'd' : cur ? 'c' : 'f'}"><td class="s-dotc"><i></i></td><td class="tl">${esc(lab)}${note ? `<div class="s-sm">${note}</div>` : ''}</td><td class="s-muted">${done && pk.ev[i] ? esc(placeText(pk.ev[i])) : ''}</td><td class="s-nowrap s-muted">${done && pk.ts[i] ? fmt(pk.ts[i]) : ''}</td></tr>`);
+    if (i === pk.pos - 1 && f) rows.push(`<tr class="c bad"><td class="s-dotc"><i></i></td><td class="tl"><span class="s-bad">${esc(J.FLAGS[f])}</span>${pk.last && pk.last.text ? `<div class="s-sm s-muted">${esc(pk.last.text)}</div>` : ''}</td><td class="s-muted">${esc(placeText((pk.last || {}).place))}</td><td class="s-nowrap s-muted">${pk.last && pk.last.at ? fmt(pk.last.at) : ''}</td></tr>`);
   });
   const cust = phaseOf(pk) === 4 ? 'Delivered' : f ? 'Running late' : phaseOf(pk) === 3 ? 'Out for delivery' : phaseOf(pk) === 2 ? 'On its way' + (pk.eta ? ', arriving ' + pk.eta : '') : pk.src === 'make' && isProd ? 'Being made' : 'Preparing to ship';
   /* Who follows this parcel: the carrier's own key, else Shopify (a real order, once Shopify has the number), else nobody —
@@ -516,7 +548,8 @@ function partPanel(o, pk, n) {
   const live = byCarrier || byShopify;
   const marks = [[3, isMcf(pk) ? 'Shipped by Amazon' : 'Picked up'], [4, 'In transit'], [5, 'Out for delivery'], [6, 'Delivered']].filter(m => m[0] > off(pk));
   const url = CARRIER_URL[carName(pk)];
-  const scans = (pk.scans || []).map(s => `<tr><td class="s-nowrap s-muted">${fmt(s.at)}</td><td class="tl">${esc(s.text)}</td><td class="s-muted">${esc(s.place)}</td></tr>`);
+  const scans = (pk.scans || []).map(s => `<tr><td class="s-nowrap s-muted">${fmt(s.at)}</td><td class="tl">${esc(s.text)}</td><td class="s-muted">${esc(placeText(s.place))}</td></tr>`);
+  const route = routeOf(pk);
   /* The card's badge says what this part is now, in one or two words, in its section's colour. */
   const done = phaseOf(pk) === 4, badge = isProd ? (pk.block ? ['Production · on hold', 'bad'] : ['Production', 'make']) : isMcf(pk) ? ['MCF', 'mcf']
     : !pk.route ? [pk.src === 'make' ? 'Production · made' : 'India', pk.src === 'make' ? 'make' : 'india'] : [done ? 'Delivered' : 'Shipped · ' + carName(pk), f ? 'bad' : 'done'];
@@ -531,6 +564,7 @@ function partPanel(o, pk, n) {
     <header class="od-h"><span class="od-badge b-${badge[1]}">${esc(badge[0])}</span><span class="s-muted s-sm">${esc(stText(pk))}${pk.rush ? ' · rush' : ''}</span><span class="r">${btn.join('')}</span></header>
     ${pk.items.map(i => itemRow(o, i, { sec: isMcf(pk) ? 'mcf' : pk.src === 'india' ? 'india' : '' })).join('')}
     ${strip(pk, f)}
+    ${route.length > 1 ? `<div class="pp-route s-sm"><span class="s-muted">Route</span> ${route.map((c, i) => i === route.length - 1 && !done ? `<b>${esc(c)}</b>` : esc(c)).join(' <span class="s-faint">→</span> ')}${done ? '' : ' <span class="s-muted">(now)</span>'}</div>` : ''}
     <details class="pp-steps" ${pk.block || f || isLateStage(pk) ? 'open' : ''}><summary>All steps</summary>${table([[''], ['Step', 'tl'], ['Place'], ['Date']], rows)}</details>
     <footer class="od-f od-facts"><span class="s-sm">${facts.join(' · ')}</span></footer>
     ${pk.booked && !pk.route ? `<footer class="od-f"><span class="s-muted s-sm">Packed · in ${esc(pk.booked.id)} · upload the file, then enter the ${esc(pk.booked.car)} tracking number</span></footer>`
@@ -1043,7 +1077,7 @@ function chaseDlg(o, n) {
   const msg = `Hi ${String(o.cust.n).split(' ')[0]}, your order #${o.no} is with ${carName(pk)} and ${why}. We have asked ${carName(pk)} about it and will email you as soon as it moves. Tracking: ${t}`;
   dialog(`Chase carrier · #${o.no}`, `<dl class="s-kv s-kv-dlg"><dt>Carrier</dt><dd><b>${esc(carName(pk))}</b></dd>
       <dt>Tracking</dt><dd><span class="s-trk">${esc(t)}</span> <button class="s-link" type="button" id="cpy">Copy</button>${url && t ? ` · <a class="s-link" href="${esc(url(t))}" target="_blank" rel="noopener">Open on ${esc(carName(pk))} ↗</a>` : ''}</dd>
-      <dt>Last scan</dt><dd><span class="s-bad">${esc(L.text || J.FLAGS[f] || stText(pk))}</span>${L.place ? ' · ' + esc(L.place) : ''}${L.at ? ' · ' + fmt(L.at) : ''}</dd>
+      <dt>Last scan</dt><dd><span class="s-bad">${esc(L.text || J.FLAGS[f] || stText(pk))}</span>${L.place ? ' · ' + esc(placeText(L.place)) : ''}${L.at ? ' · ' + fmt(L.at) : ''}</dd>
       ${pk.eta ? `<dt>Was due</dt><dd>${esc(pk.eta)}</dd>` : ''}</dl>
     <div><label for="cmsg">Message to the customer</label><textarea id="cmsg" rows="4">${esc(msg)}</textarea></div>
     <div><label for="cnote">What the carrier said (kept on the order)</label><input id="cnote" placeholder="e.g. Case 4471, release expected 25 Oct"></div>`,
