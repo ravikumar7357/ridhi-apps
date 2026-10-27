@@ -78325,6 +78325,20 @@ function gaNudgeWatch() {
 }
 /* started here, not from guideBuild (guide.js runs first, before this file's own values exist) */
 gaNudgeWatch();
+
+/* ---------- loaded early (Ravi, 27 Oct: "make meera a bit fast in loading") ----------
+ * Her answers, walk-throughs and meaning file (about 2 MB in all) were fetched only when Ask Meera first opened, so the
+ * first answer waited for them. Now they are fetched in the background a few seconds after someone is signed in, when
+ * the browser is idle. The browser keeps them: on later visits it only asks the site whether they changed. */
+const gaLater = (fn, ms) => { const t = setTimeout(fn, ms); if (t && t.unref) t.unref(); };   // never keeps a test run open
+function gaPreload(tries) {
+  let signedIn = false;
+  try { signedIn = typeof auth !== 'undefined' && !!(auth && auth.currentUser); } catch (e) { /* not signed in yet */ }
+  if (!signedIn) { if (tries < 30) gaLater(() => gaPreload(tries + 1), 10000); return; }   // waits for the sign-in (up to 5 min)
+  const go = () => { gaWordsLoad(); gaBankLoad(); };
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(go, { timeout: 8000 }); else gaLater(go, 1000);
+}
+gaLater(() => gaPreload(0), 4000);
 /* ============================== FILE: src/app/core/guide-ai.js ============================== */
 /* ================= MEERA ASKS A MODEL — through her router (meera-router/, a Cloudflare Worker), 26 Oct =================
  *
