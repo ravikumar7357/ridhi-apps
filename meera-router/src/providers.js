@@ -58,7 +58,7 @@ export function readReply(text) {
   let o;
   try { o = JSON.parse(s.slice(i, j + 1)); } catch (e) { return null; }
   const str = v => (typeof v === 'string' ? v.trim().slice(0, 1200) : '');
-  const out = { found: o.found !== false && !!str(o.a), a: str(o.a), why: str(o.why), steps: Array.isArray(o.steps) ? o.steps.map(str).filter(Boolean).slice(0, 6) : [] };
+  const out = { found: o.found !== false && o.off_topic !== true && !!str(o.a), offTopic: o.off_topic === true, a: str(o.a), why: str(o.why), steps: Array.isArray(o.steps) ? o.steps.map(str).filter(Boolean).slice(0, 6) : [] };
   return out;
 }
 

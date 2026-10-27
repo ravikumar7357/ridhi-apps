@@ -54,7 +54,7 @@ async function fakeFetch(url, opt = {}) {
   const res = (status, body) => ({ ok: status < 300, status, json: async () => body });
   if (url.includes('securetoken@system.gserviceaccount.com')) return res(200, { keys: [jwk] });
   if (url.includes('meera-bank.json')) return res(200, BANK);
-  if (url.includes('api.groq.com')) { calls.push({ who: 'groq', body: JSON.parse(opt.body) }); return groqMode === 'down' ? res(503, {}) : res(200, { choices: [{ message: { content: modelReply(groqMode !== 'nofind') } }] }); }
+  if (url.includes('api.groq.com')) { calls.push({ who: 'groq', body: JSON.parse(opt.body) }); return groqMode === 'down' ? res(503, {}) : res(200, { choices: [{ message: { content: groqMode === 'offtopic' ? '{"found": false, "off_topic": true}' : modelReply(groqMode !== 'nofind') } }] }); }
   if (url.includes('generativelanguage.googleapis.com')) { calls.push({ who: 'gemini', body: JSON.parse(opt.body) }); return geminiMode === 'down' ? res(500, {}) : res(200, { candidates: [{ content: { parts: [{ text: modelReply() }] } }] }); }
   return res(404, {});
 }
@@ -144,6 +144,13 @@ const sent = () => JSON.stringify(calls.map(c => c.body));
   const s = setup(); groqMode = 'nofind';
   const r = await s.call('/ask', { body: { q: 'aaj mausam kaisa hai', ids: [] } });
   ok(r.body.found === false && r.body.ticket > 0, 'the model says the notes do not answer → a ticket, no made-up answer');
+}
+
+{
+  const s = setup(); groqMode = 'offtopic';
+  const r = await s.call('/ask', { body: { q: 'kal ka match kaun jeeta', ids: [] } });
+  ok(r.body.found === false && r.body.offTopic === true && !r.body.ticket, 'not about the ERP: said so, no ticket: ' + JSON.stringify(r.body));
+  ok(s.db.raw.prepare('SELECT COUNT(*) AS n FROM tickets').get().n === 0, 'and nothing waits for an admin');
 }
 
 /* ---------- 6. limits ---------- */

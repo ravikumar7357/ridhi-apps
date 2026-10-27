@@ -67,6 +67,7 @@ async function gaAiAsk(q, own) {
     gaSay(html, [], fb);
     return;
   }
+  if (b.offTopic) { gaSay(L('Sorry, I can\'t answer that — it isn\'t about the ERP. Ask me about any screen, job or problem in the ERP.', 'माफ़ कीजिए, इसका जवाब मैं नहीं दे सकती — यह ERP के बारे में नहीं है। ERP की किसी भी स्क्रीन, काम या दिक्कत के बारे में पूछें।', 'Sorry, iska jawaab main nahi de sakti — ye ERP ke baare me nahi hai. ERP ki kisi bhi screen, kaam ya dikkat ke baare me poochiye.'), []); return; }
   if (r.status === 429) { try { localStorage.setItem('guideAiFull', gaAiDay()); } catch (e) { /* asks again next time */ } }
   if (b.ticket) {
     gaSay(r.status === 429
