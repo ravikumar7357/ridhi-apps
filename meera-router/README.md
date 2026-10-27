@@ -27,6 +27,7 @@ Admin: "tickets" in Ask Meera → writes the answer → it joins Meera's own ans
    - Workers & Pages → D1 → Create database, name `meera`. Copy its **Database ID** into `wrangler.toml` (`database_id`).
    - My Profile → API Tokens → Create token → "Edit Cloudflare Workers" template; add **D1: Edit**. Keep the token.
    - Note your **Account ID** (right side of the Workers & Pages page).
+   - Workers & Pages → **Subdomain** → set a name once (e.g. ridhihome). Without it the deploy stops with "You need to register a workers.dev subdomain".
 2. **Groq** (free, console.groq.com) → API Keys → create one.
 3. **Gemini** (optional, free, aistudio.google.com) → Get API key.
 4. **GitHub** → this repository → Settings → Secrets and variables → Actions → New repository secret, four times:
