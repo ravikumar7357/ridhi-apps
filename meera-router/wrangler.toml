@@ -1,0 +1,38 @@
+# Meera's router — a Cloudflare Worker (free plan). Deployed by GitHub (.github/workflows/meera-router.yml) when a
+# push to main changes meera-router/, and only once the Cloudflare secrets are in the repository's settings.
+name = "meera-router"
+main = "src/worker.js"
+# Ravi's Cloudflare account (erp@ridhihome.com). Not a secret: it only names the account; the token is the key.
+account_id = "9a01c041fd44e0d34dc483b6ada6c300"
+compatibility_date = "2026-10-01"
+
+# Cloudflare Workers AI: the second model, no key needed (free daily allowance).
+[ai]
+binding = "AI"
+
+# D1: limits, saved answers, tickets. Make it once in the Cloudflare dashboard (Workers & Pages → D1 → Create, name
+# "meera"), then put its Database ID here.
+[[d1_databases]]
+binding = "DB"
+database_name = "meera"
+database_id = "eb3168f8-7da4-4f78-876f-07045d80712f"   # made by Ravi, 27 Oct
+
+[vars]
+# "true" to answer; anything else and the router says it is off (Meera then works on her own, as today).
+ENABLED = "true"
+FIREBASE_PROJECT_ID = "price-research-48ff3"
+ALLOWED_ORIGINS = "https://fabricrush-replenish.web.app https://fabricrush-replenish.firebaseapp.com"
+# Meera's own answers, published with the ERP: the only notes a model is given.
+BANK_URL = "https://fabricrush-replenish.web.app/guide/meera-bank.json"
+# Who can see tickets and approve answers (comma-separated sign-in emails).
+ADMIN_EMAILS = "ravi@thefabricrush.com"
+# Questions to a model per person per day, and for the whole company.
+USER_DAILY = "10"
+COMPANY_DAILY = "500"
+# The models. Check each provider's list before switching on — names change; a missing or retired one is skipped.
+GROQ_MODEL = "openai/gpt-oss-120b"   # Groq's list, 27 Oct (Llama 3.3 70B no longer listed)
+CF_AI_MODEL = "@cf/meta/llama-3.1-8b-instruct"
+GEMINI_MODEL = "gemini-2.5-flash"
+# The keys are NOT here (this repository is public): GROQ_API_KEY (and GEMINI_API_KEY, not used for now) are Worker
+# secrets — typed straight into Cloudflare (Worker → Settings → Variables and Secrets), or sent by the GitHub workflow
+# from the repository's secrets when they are there.

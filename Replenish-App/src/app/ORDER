@@ -162,3 +162,4 @@ core/guide-errors.js
 core/guide-ask.js
 core/guide-fill.js
 core/guide-walks.js
+core/guide-ai.js

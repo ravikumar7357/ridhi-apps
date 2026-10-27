@@ -1,0 +1,100 @@
+# MEERA'S ROUTER GOES TO CLOUDFLARE FROM GITHUB (Ravi, 26 Oct: "cloud ya git pe rakh de taaki hamesha chalta rahe").
+#
+#   main   a push that changes meera-router/ is tested, then deployed to Cloudflare as the Worker "meera-router",
+#          its D1 tables made (safe to repeat) and its keys set from this repository's secrets.
+#
+# Nothing is deployed when a test fails, or while the Cloudflare secrets are missing (the tests still run and say so).
+# The ERP itself is not touched by this workflow (replenish-hosting.yml does the ERP).
+# Secrets (Settings → Secrets and variables → Actions):
+#   CLOUDFLARE_API_TOKEN   a token with "Workers Scripts: Edit" and "D1: Edit"
+#   GROQ_API_KEY           from console.groq.com (free) — or typed straight into Cloudflare instead
+#   GEMINI_API_KEY         from aistudio.google.com (free; optional — without it Gemini is skipped)
+name: Meera router — test, deploy
+
+on:
+  push:
+    branches: [main]
+    paths: ['meera-router/**', 'Replenish-App/src/app/core/guide-ai.js', '.github/workflows/meera-router.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: meera-router
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      HAS_CF: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
+      HAS_GROQ: ${{ secrets.GROQ_API_KEY != '' }}
+      HAS_GEMINI: ${{ secrets.GEMINI_API_KEY != '' }}
+    defaults:
+      run:
+        working-directory: meera-router
+    steps:
+      - uses: actions/checkout@v4
+
+      # node:sqlite (the tests' stand-in for D1) needs a recent Node
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Tests (no internet, no accounts)
+        run: |
+          node test/router.test.mjs
+          node test/same-cleaning.test.mjs
+
+      - name: The D1 database ID is filled in
+        if: env.HAS_CF == 'true'
+        run: |
+          if grep -q 'PUT-THE-D1-DATABASE-ID-HERE' wrangler.toml; then
+            echo "::error::Make the D1 database 'meera' in Cloudflare and put its ID in meera-router/wrangler.toml"; exit 1; fi
+
+      - name: D1 tables (only what is missing)
+        if: env.HAS_CF == 'true'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          workingDirectory: meera-router
+          command: d1 execute meera --remote --file=schema.sql
+
+      - name: Deploy the Worker
+        if: env.HAS_CF == 'true'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          workingDirectory: meera-router
+          command: deploy
+
+      # A key goes to Cloudflare only when it is in GitHub: a key typed straight into Cloudflare is never blanked.
+      - name: Groq key (only if it is in GitHub)
+        if: env.HAS_CF == 'true' && env.HAS_GROQ == 'true'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          workingDirectory: meera-router
+          command: deploy
+          secrets: |
+            GROQ_API_KEY
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+
+      - name: Gemini key (only if it is in GitHub)
+        if: env.HAS_CF == 'true' && env.HAS_GEMINI == 'true'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          workingDirectory: meera-router
+          command: deploy
+          secrets: |
+            GEMINI_API_KEY
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+      - name: No Cloudflare key yet
+        if: env.HAS_CF != 'true'
+        run: echo "::warning::No Cloudflare secrets are set — the tests ran, nothing was deployed."
