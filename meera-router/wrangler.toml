@@ -5,6 +5,8 @@ main = "src/worker.js"
 # Ravi's Cloudflare account (erp@ridhihome.com). Not a secret: it only names the account; the token is the key.
 account_id = "9a01c041fd44e0d34dc483b6ada6c300"
 compatibility_date = "2026-10-01"
+# Its address: https://meera-router.erp-9a0.workers.dev (the account's workers.dev name, set 27 Oct).
+workers_dev = true
 
 # Cloudflare Workers AI: the second model, no key needed (free daily allowance).
 [ai]
