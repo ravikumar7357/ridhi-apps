@@ -77564,12 +77564,14 @@ let GA_BANK = null, GA_BANK_P = null;
 function gaBankLoad() {
   if (GA_BANK) return Promise.resolve(GA_BANK);
   if (!GA_BANK_P) GA_BANK_P = fetch('/guide/meera-bank.json', { cache: 'no-cache' })
-    .then(r => (r.ok ? r.json() : [])).catch(() => [])
+    .then(r => (r.ok ? r.json() : null)).catch(() => null)
+    .then(list => { if (!Array.isArray(list)) { GA_BANK_P = null; throw new Error('bank not loaded'); } return list; })   // tried again next time
     .then(list => (typeof gaAiLearned === 'function' ? gaAiLearned(Array.isArray(list) ? list : []) : list))
     .then(list => (typeof gaWalksLoad === 'function' ? gaWalksLoad().then(() => list, () => list) : list))   // the walk-throughs (guide-walks.js)
     .then(list => (GA_BANK = gaBankIndex(Array.isArray(list) ? list : [])))
     .then(b => { gaWordsLoad().then(() => setTimeout(gaSemIndex, 0)); return b; });
-  return GA_BANK_P;
+  /* a question asked while it failed is answered from the short built-in lists, as without the bank */
+  return GA_BANK_P.catch(() => (GA_BANK || gaBankIndex([])));
 }
 /* ---------- meaning search (/guide/meera-words.bin) ----------
  * The bank above matches words. This matches MEANING: every word Meera's answers use (and the 3,000 commonest others) has a
@@ -77585,7 +77587,7 @@ function gaWordsLoad() {
   if (GA_W !== null) return Promise.resolve(GA_W);
   if (!GA_W_P) GA_W_P = fetch('/guide/meera-words.bin', { cache: 'no-cache' })
     .then(r => (r.ok ? r.arrayBuffer() : null)).catch(() => null)
-    .then(buf => { try { GA_W = buf ? gaWordsParse(buf) : false; } catch (e) { GA_W = false; } return GA_W; });
+    .then(buf => { if (!buf) { GA_W_P = null; return null; } try { GA_W = gaWordsParse(buf); } catch (e) { GA_W = false; } return GA_W; });
   return GA_W_P;
 }
 /** The file: a header (the words), each word's 256 numbers as small whole numbers, each row's scale, and its piece count. */
@@ -78328,14 +78330,19 @@ gaNudgeWatch();
 
 /* ---------- loaded early (Ravi, 27 Oct: "make meera a bit fast in loading") ----------
  * Her answers, walk-throughs and meaning file (about 2 MB in all) were fetched only when Ask Meera first opened, so the
- * first answer waited for them. Now they are fetched in the background a few seconds after someone is signed in, when
- * the browser is idle. The browser keeps them: on later visits it only asks the site whether they changed. */
+ * first answer waited for them. Now they are downloaded in the background a few seconds after someone is signed in, when
+ * the browser is idle — downloaded only, into the browser's cache: nothing is read or worked out on the page until Ask
+ * Meera opens (building her search index takes about a second, more on a phone, and must not slow anyone's work). Not
+ * for a printer's sign-in, nor on a phone saving data. On later visits the browser only asks whether they changed. */
 const gaLater = (fn, ms) => { const t = setTimeout(fn, ms); if (t && t.unref) t.unref(); };   // never keeps a test run open
 function gaPreload(tries) {
   let signedIn = false;
   try { signedIn = typeof auth !== 'undefined' && !!(auth && auth.currentUser); } catch (e) { /* not signed in yet */ }
   if (!signedIn) { if (tries < 30) gaLater(() => gaPreload(tries + 1), 10000); return; }   // waits for the sign-in (up to 5 min)
-  const go = () => { gaWordsLoad(); gaBankLoad(); };
+  try { if (typeof spIsVendor === 'function' && spIsVendor()) return; } catch (e) { /* not known: go on */ }
+  try { if (navigator.connection && navigator.connection.saveData) return; } catch (e) { /* not known: go on */ }
+  const go = () => ['/guide/meera-bank.json', '/guide/meera-walks.json', '/guide/meera-words.bin']
+    .forEach(u => fetch(u, { cache: 'no-cache' }).then(r => r.arrayBuffer()).catch(() => null));
   if (typeof requestIdleCallback === 'function') requestIdleCallback(go, { timeout: 8000 }); else gaLater(go, 1000);
 }
 gaLater(() => gaPreload(0), 4000);

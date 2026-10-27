@@ -218,14 +218,19 @@ gaNudgeWatch();
 
 /* ---------- loaded early (Ravi, 27 Oct: "make meera a bit fast in loading") ----------
  * Her answers, walk-throughs and meaning file (about 2 MB in all) were fetched only when Ask Meera first opened, so the
- * first answer waited for them. Now they are fetched in the background a few seconds after someone is signed in, when
- * the browser is idle. The browser keeps them: on later visits it only asks the site whether they changed. */
+ * first answer waited for them. Now they are downloaded in the background a few seconds after someone is signed in, when
+ * the browser is idle — downloaded only, into the browser's cache: nothing is read or worked out on the page until Ask
+ * Meera opens (building her search index takes about a second, more on a phone, and must not slow anyone's work). Not
+ * for a printer's sign-in, nor on a phone saving data. On later visits the browser only asks whether they changed. */
 const gaLater = (fn, ms) => { const t = setTimeout(fn, ms); if (t && t.unref) t.unref(); };   // never keeps a test run open
 function gaPreload(tries) {
   let signedIn = false;
   try { signedIn = typeof auth !== 'undefined' && !!(auth && auth.currentUser); } catch (e) { /* not signed in yet */ }
   if (!signedIn) { if (tries < 30) gaLater(() => gaPreload(tries + 1), 10000); return; }   // waits for the sign-in (up to 5 min)
-  const go = () => { gaWordsLoad(); gaBankLoad(); };
+  try { if (typeof spIsVendor === 'function' && spIsVendor()) return; } catch (e) { /* not known: go on */ }
+  try { if (navigator.connection && navigator.connection.saveData) return; } catch (e) { /* not known: go on */ }
+  const go = () => ['/guide/meera-bank.json', '/guide/meera-walks.json', '/guide/meera-words.bin']
+    .forEach(u => fetch(u, { cache: 'no-cache' }).then(r => r.arrayBuffer()).catch(() => null));
   if (typeof requestIdleCallback === 'function') requestIdleCallback(go, { timeout: 8000 }); else gaLater(go, 1000);
 }
 gaLater(() => gaPreload(0), 4000);

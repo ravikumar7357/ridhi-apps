@@ -858,12 +858,14 @@ let GA_BANK = null, GA_BANK_P = null;
 function gaBankLoad() {
   if (GA_BANK) return Promise.resolve(GA_BANK);
   if (!GA_BANK_P) GA_BANK_P = fetch('/guide/meera-bank.json', { cache: 'no-cache' })
-    .then(r => (r.ok ? r.json() : [])).catch(() => [])
+    .then(r => (r.ok ? r.json() : null)).catch(() => null)
+    .then(list => { if (!Array.isArray(list)) { GA_BANK_P = null; throw new Error('bank not loaded'); } return list; })   // tried again next time
     .then(list => (typeof gaAiLearned === 'function' ? gaAiLearned(Array.isArray(list) ? list : []) : list))
     .then(list => (typeof gaWalksLoad === 'function' ? gaWalksLoad().then(() => list, () => list) : list))   // the walk-throughs (guide-walks.js)
     .then(list => (GA_BANK = gaBankIndex(Array.isArray(list) ? list : [])))
     .then(b => { gaWordsLoad().then(() => setTimeout(gaSemIndex, 0)); return b; });
-  return GA_BANK_P;
+  /* a question asked while it failed is answered from the short built-in lists, as without the bank */
+  return GA_BANK_P.catch(() => (GA_BANK || gaBankIndex([])));
 }
 /* ---------- meaning search (/guide/meera-words.bin) ----------
  * The bank above matches words. This matches MEANING: every word Meera's answers use (and the 3,000 commonest others) has a
@@ -879,7 +881,7 @@ function gaWordsLoad() {
   if (GA_W !== null) return Promise.resolve(GA_W);
   if (!GA_W_P) GA_W_P = fetch('/guide/meera-words.bin', { cache: 'no-cache' })
     .then(r => (r.ok ? r.arrayBuffer() : null)).catch(() => null)
-    .then(buf => { try { GA_W = buf ? gaWordsParse(buf) : false; } catch (e) { GA_W = false; } return GA_W; });
+    .then(buf => { if (!buf) { GA_W_P = null; return null; } try { GA_W = gaWordsParse(buf); } catch (e) { GA_W = false; } return GA_W; });
   return GA_W_P;
 }
 /** The file: a header (the words), each word's 256 numbers as small whole numbers, each row's scale, and its piece count. */
