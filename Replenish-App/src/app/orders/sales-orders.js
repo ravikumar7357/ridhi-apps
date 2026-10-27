@@ -44,6 +44,16 @@ const soStatus = o => o.status || 'draft';
 /* The number is what the factory reads, so its -AIR / -SEA wins over what is kept beside it (17 Oct). */
 const soShipMode = o => String((typeof soModeOf === 'function' ? soModeOf(o && o._id) : '') || (o && o.shipMode) || '').toUpperCase();
 const soCount = x => (Array.isArray(x) ? x.length : Object.keys(x || {}).length);
+/* THE BUYER OF A B2B ORDER IS THE BRAND (Ravi, 27 Oct: "brand name under the buyer column instead of uploaded by whom",
+ * B2B only). The Brand Name off the uploaded sheet, from the order's own lines — two named, the rest counted. buyerName
+ * is who raised it: kept on the order, shown in the order itself and as the tip on the cell. */
+function soBrandOf(o) {
+  const seen = [];
+  soLines(o).forEach(l => { const b = String((l && l.brand) || '').trim(); if (b && !seen.includes(b)) seen.push(b); });
+  return seen.slice(0, 2).join(' / ') + (seen.length > 2 ? ' +' + (seen.length - 2) : '');
+}
+/** What the Buyer column says: the brand on a B2B order that carries one, else who raised it. */
+const soBuyerTxt = o => (soIsB2B(o.channel) && soBrandOf(o)) || o.buyerName || '';
 
 /** Order + SKU → net cut and pressed, built once. Per-SKU lookups would rescan 4,000 rows 1,200 times. */
 function soWork() {
@@ -131,7 +141,7 @@ function renderSox() {
     .filter(o => !smo || o.saleMonth === smo)
     .filter(o => ptInRange(o && o.orderDate, sxD1, sxD2))
     .map(o => ({ o, s: soSummary(o, w) }))
-    .filter(({ o, s }) => !q || [o._id, o.buyerName, o.buyerEmail, o.channel, soStatus(o)].join(' ').toLowerCase().includes(q)
+    .filter(({ o, s }) => !q || [o._id, o.buyerName, o.buyerEmail, o.channel, soStatus(o), soBrandOf(o)].join(' ').toLowerCase().includes(q)
       || s.groups.some(g => g.sku.toLowerCase().includes(q)))
     .sort((a, b) => String(b.o.orderDate || '').localeCompare(String(a.o.orderDate || ''))
       || String(b.o._id || '').localeCompare(String(a.o._id || '')));
@@ -161,7 +171,7 @@ function renderSox() {
     return '<tr>'
       + `<td class="frz" style="text-align:left;font-weight:600">${esc(o._id)}</td>`
       + `<td>${esc(o.orderDate)}${o.saleMonth ? `<div class="muted" style="font-size:11px">for ${esc(soMonthTxt(o.saleMonth))}</div>` : ''}</td><td>${esc(o.channel)}${soShipMode(o) ? ` <span class="pill" style="font-size:11px">${esc(soShipMode(o))}</span>` : ''}</td>`
-      + `<td style="text-align:left">${esc(o.buyerName) || '<span class="muted">—</span>'}</td>`
+      + `<td style="text-align:left${soIsB2B(o.channel) && soBrandOf(o) ? ';font-weight:600' : ''}"${soIsB2B(o.channel) && soBrandOf(o) && o.buyerName ? ` title="Raised by ${esc(o.buyerName)}"` : ''}>${esc(soBuyerTxt(o)) || '<span class="muted">—</span>'}</td>`
       + `<td><span class="pill ${sd.cls}">${esc(sd.label)}</span></td>`
       + `<td class="num">${nf(s.skus)}${s.skus !== s.lines ? ` <span class="muted" style="font-size:11px">of ${nf(s.lines)}</span>` : ''}</td>`
       + `<td class="num" style="font-weight:700">${nf(s.qty)}</td>`
@@ -187,42 +197,152 @@ function renderSox() {
     + (missing ? ` ${nf(missing)} approved SKU(s) never reached the order book, so nothing can be cut or pressed against them.` : '');
 }
 
-function soOpen(id) {
+/* ---- B2B: SIZE, COLOUR, QUALITY AND DELIVERY ON A LINE (Ravi, 27 Oct) ----
+ * What the buyer's sheet said can be put right on the order itself, one SKU at a time, without raising it again.
+ * Quality is the sheet's Material column (Sheeting, Cambric). No reason is asked — Ravi took that box out — but every
+ * change is kept on the order beside who made it and when. */
+const SO_DETAIL = [
+  { k: 'size', t: 'Size' }, { k: 'color', t: 'Colour' }, { k: 'material', t: 'Quality' }, { k: 'deliveryDate', t: 'Delivery' },
+];
+let SOD = { id: '', sku: '' };   // the one line open for editing in the order dialog
+
+/** May this person change a B2B line? Whoever may edit the order while it is theirs, and whoever approves orders after. */
+const soDetailMay = o => !!o && soIsB2B(o.channel) && (soCanEdit(o) || soCanApprove());
+
+/** A SKU's own description on this order — the first line of it speaks for all, as it does in the order book. */
+function soDetailOf(o, sku) {
+  const ls = soLinesOf(o, sku), l = (ls[0] || {}).l || {};
+  return { itemName: l.itemName || '', size: l.size || '', color: l.color || '', material: l.material || '',
+    deliveryDate: l.deliveryDate || (o.deliveryMode === 'complete' ? o.deliveryDate || '' : '') };
+}
+
+/** One SKU's row in the order dialog: as it reads, or open for editing. */
+function soDlgRow(o, g, opt) {
+  const owed = Math.max(0, g.qty - g.press);
+  const b2b = soIsB2B(o.channel), d = b2b ? soDetailOf(o, g.sku) : null;
+  const editing = b2b && opt.mayEdit && SOD.id === o._id && SOD.sku === g.sku;
+  /* CUT PIECES ARE CUT. Once anything is cut, received or pressed against the line, its size, colour and quality stay —
+   * changing them would leave pieces on the floor that match no order. The delivery date can still move. */
+  const done = b2b && opt.mayEdit ? soDoneOn(o._id, g.sku) : null;
+  const locked = !!(done && done.floor);
+  const changed = b2b && Object.values(o.detailChanges || {}).some(c => c && obUC(c.sku) === g.sku);
+  const box = (k, type) => `<input data-sod="${k}" data-was="${esc(d[k])}"${type ? ` type="${type}"` : ''} value="${esc(d[k])}"`
+    + `${k === 'material' ? ' list="sodQual"' : ''} style="height:30px;font-size:12.5px;padding:0 8px;width:100%;min-width:${type ? 130 : 90}px">`
+    + `<div class="muted sod-was" style="font-size:11px;margin-top:2px;text-align:left"></div>`;
+  const cell = k => (editing && !(locked && k !== 'deliveryDate')) ? `<td>${box(k, k === 'deliveryDate' ? 'date' : '')}</td>`
+    : `<td${k === 'color' ? ' style="text-align:left"' : ''}>${esc(d[k]) || '<span class="muted">—</span>'}</td>`;
+  const act = [];
+  if (editing) act.push(`<button data-sod-save="${esc(g.sku)}" style="padding:3px 11px;font-size:12px">Save</button>`,
+    `<button class="ghost" data-sod-cancel="1" style="padding:3px 9px;font-size:12px">Cancel</button>`);
+  else {
+    if (b2b && opt.mayEdit) act.push(locked
+      ? `<span class="muted" style="font-size:11px">${nf(done.floor)} cut · </span><button class="ghost" data-sod-edit="${esc(g.sku)}" style="padding:3px 9px;font-size:12px" title="Size, colour and quality are fixed once pieces are cut">Edit date</button>`
+      : `<button class="ghost" data-sod-edit="${esc(g.sku)}" style="padding:3px 9px;font-size:12px">Edit</button>`);
+    if (opt.mayQty) act.push(`<button class="ghost" data-so-qty="${esc(o._id)}|${esc(g.sku)}" style="padding:3px 9px;font-size:12px">Change qty</button>`);
+  }
+  return `<tr data-sod-row="${esc(g.sku)}"${editing ? ' style="background:#eff6ff"' : (g.inBook ? '' : ' style="background:var(--bad-bg)"')}>`
+    + `<td style="font-family:ui-monospace,monospace;text-align:left">${esc(g.sku)}`
+    + `${g.lines > 1 ? ` <span class="muted" style="font-size:11px">${nf(g.lines)} lines</span>` : ''}`
+    + `${g.adjusted ? ' <span class="pill pill-low">qty changed</span>' : ''}`
+    + `${changed ? ' <span class="pill pill-low">changed</span>' : ''}</td>`
+    + ptImgCell(g.sku)
+    + (b2b ? `<td style="text-align:left">${esc(d.itemName) || '<span class="muted">—</span>'}</td>` + cell('size') + cell('color') + cell('material') : '')
+    + `<td class="num" style="font-weight:700">${nf(g.qty)}</td>`
+    + `<td class="num" style="color:#7f6000">${nf(g.cut)}</td>`
+    + `<td class="num" style="color:#166534">${nf(g.press)}</td>`
+    /* A B2B order leaves out Owed and Priority (its lines carry no priority) so the size, colour and quality fit
+     * beside the figures, with Save in sight. */
+    + (b2b ? cell('deliveryDate') : `<td class="num"${owed ? ' style="color:var(--bad);font-weight:700"' : ''}>${owed ? nf(owed) : '<span class="muted">—</span>'}</td>`
+      + `<td>${esc(g.delivery) || '<span class="muted">—</span>'}</td><td>${esc(g.priority) || '<span class="muted">—</span>'}</td>`)
+    + `<td style="font-weight:700;color:${g.inBook ? 'var(--accent)' : 'var(--bad)'}">${g.inBook ? 'yes' : 'NO'}</td>`
+    /* The buttons stay pinned to the right edge, so Save is in sight however wide the order runs. */
+    + (opt.mayEdit || opt.mayQty ? `<td style="white-space:nowrap${b2b ? ';position:sticky;right:0;background:' + (editing ? '#eff6ff' : 'var(--card)') + ';box-shadow:-6px 0 6px -6px rgba(15,23,42,.25)' : ''}">${act.join(' ')}</td>` : '')
+    + '</tr>';
+}
+
+/**
+ * SAVE A B2B LINE'S DETAILS — every line of the SKU on the order, and the order-book row with it, in one write, so
+ * production never reads a size the order no longer says. Returns '' or why not.
+ */
+async function soDetailRun(o, sku, want) {
+  if (!soDetailMay(o)) return 'This order is not yours to change.';
+  const ls = soLinesOf(o, sku);
+  if (!ls.length) return 'That SKU is not on this order.';
+  const was = soDetailOf(o, sku);
+  const moved = SO_DETAIL.filter(f => want[f.k] != null && String(want[f.k]).trim() !== String(was[f.k] || '').trim());
+  if (!moved.length) return 'Nothing was changed.';
+  const done = soDoneOn(o._id, sku);
+  if (done.floor && moved.some(f => f.k !== 'deliveryDate'))
+    return nf(done.floor) + ' piece(s) are already cut against this line, so its size, colour and quality stay. The date can still move.';
+  if (moved.some(f => f.k === 'deliveryDate') && !String(want.deliveryDate || '').trim()) return 'Pick the delivery date.';
+  const now = new Date().toISOString(), base = 'pt_salesOrders/' + o._id + '/', patch = {};
+  moved.forEach(f => ls.forEach(x => { patch[base + 'lines/' + x.i + '/' + f.k] = String(want[f.k]).trim(); }));
+  /* ONE DATE FOR THE WHOLE ORDER, AND NOW ONE LINE DIFFERS. The order turns per-line, and every line that leaned on the
+   * order's date is given it, so no line is left with no date to be made by. */
+  if (moved.some(f => f.k === 'deliveryDate') && o.deliveryMode === 'complete') {
+    patch[base + 'deliveryMode'] = soStatus(o) === 'approved' ? 'partial' : 'lines';
+    if (o.deliveryDate) soLines(o).forEach((l, i) => { if (!l.deliveryDate && patch[base + 'lines/' + i + '/deliveryDate'] === undefined) patch[base + 'lines/' + i + '/deliveryDate'] = o.deliveryDate; });
+  }
+  moved.forEach((f, n) => {
+    const id = 'det_' + Date.now() + '_' + n + '_' + Math.random().toString(36).slice(2, 6);
+    patch[base + 'detailChanges/' + id] = { id, sku: obUC(sku), field: f.k, from: String(was[f.k] || ''), to: String(want[f.k]).trim(), by: ME.email, at: now };
+  });
+  patch[base + 'updatedAt'] = now;
+  const bookId = soBookId(o._id, sku), book = (PTG.ob || []).find(r => r && r.id === bookId);
+  if (book) moved.filter(f => f.k !== 'deliveryDate').forEach(f => { patch['pt_orderBook/' + bookId + '/' + f.k] = String(want[f.k]).trim(); });
+  try { await ptPatch(patch); }
+  catch (e) { return 'Not saved: ' + (e.message || e); }
+  /* THE SCREEN FROM WHAT WAS WRITTEN. */
+  const lines = soLines(o).map((l, i) => {
+    const set = {};
+    SO_DETAIL.forEach(f => { const v = patch[base + 'lines/' + i + '/' + f.k]; if (v !== undefined) set[f.k] = v; });
+    return Object.keys(set).length ? Object.assign({}, l, set) : l;
+  });
+  const det = Object.assign({}, o.detailChanges || {});
+  Object.keys(patch).filter(k => k.startsWith(base + 'detailChanges/')).forEach(k => { det[k.slice((base + 'detailChanges/').length)] = patch[k]; });
+  const next = Object.assign({}, o, { lines, detailChanges: det, updatedAt: now },
+    patch[base + 'deliveryMode'] ? { deliveryMode: patch[base + 'deliveryMode'] } : {});
+  SOX.rows = (SOX.rows || []).map(x => (x._id === o._id ? next : x));
+  if (book) PTG.ob = (PTG.ob || []).map(r => {
+    if (!r || r.id !== bookId) return r;
+    const set = {}; ['size', 'color', 'material'].forEach(k => { const v = patch['pt_orderBook/' + bookId + '/' + k]; if (v !== undefined) set[k] = v; });
+    return Object.assign({}, r, set);
+  });
+  return '';
+}
+
+function soOpen(id, msg) {
   const o = (SOX.rows || []).find(x => x._id === id); if (!o) return;
+  if (SOD.id !== id) SOD = { id: '', sku: '' };
   const s = soSummary(o, soWork());
   const shown = s.groups.slice(0, 400);
+  const b2b = soIsB2B(o.channel);
   /* WHO MAY MOVE A QUANTITY: whoever approved the order in the first place. */
   const mayQty = soCanApprove() && soStatus(o) === 'approved';
-  const head = ['SKU', 'Image', 'Qty', 'Cut', 'Made', 'Owed', 'Delivery', 'Priority', 'In order book']
-    .concat(mayQty ? [''] : [])
-    .map((h, i) => `<th${i >= 2 && i <= 5 ? ' class="num"' : ''}>${h}</th>`).join('');
-  const body = shown.map(g => {
-    const owed = Math.max(0, g.qty - g.press);
-    return `<tr${g.inBook ? '' : ' style="background:var(--bad-bg)"'}>`
-      + `<td style="font-family:ui-monospace,monospace;text-align:left">${esc(g.sku)}`
-      + `${g.lines > 1 ? ` <span class="muted" style="font-size:11px">${nf(g.lines)} lines</span>` : ''}`
-      + `${g.adjusted ? ' <span class="pill pill-low">qty changed</span>' : ''}</td>`
-      + ptImgCell(g.sku)
-      + `<td class="num" style="font-weight:700">${nf(g.qty)}</td>`
-      + `<td class="num" style="color:#7f6000">${nf(g.cut)}</td>`
-      + `<td class="num" style="color:#166534">${nf(g.press)}</td>`
-      + `<td class="num"${owed ? ' style="color:var(--bad);font-weight:700"' : ''}>${owed ? nf(owed) : '<span class="muted">—</span>'}</td>`
-      + `<td>${esc(g.delivery) || '<span class="muted">—</span>'}</td>`
-      + `<td>${esc(g.priority) || '<span class="muted">—</span>'}</td>`
-      + `<td style="font-weight:700;color:${g.inBook ? 'var(--accent)' : 'var(--bad)'}">${g.inBook ? 'yes' : 'NO'}</td>`
-      + (mayQty ? `<td><button class="ghost" data-so-qty="${esc(o._id)}|${esc(g.sku)}" style="padding:3px 9px;font-size:12px">Change qty</button></td>` : '')
-      + '</tr>';
-  }).join('');
+  const mayEdit = soDetailMay(o);
+  const cols = ['SKU', 'Image'].concat(b2b ? ['Article', 'Size', 'Colour', 'Quality'] : [])
+    .concat(b2b ? ['Qty', 'Cut', 'Made', 'Delivery', 'In order book'] : ['Qty', 'Cut', 'Made', 'Owed', 'Delivery', 'Priority', 'In order book']).concat(mayQty || mayEdit ? [''] : []);
+  const head = cols.map((h, i) => `<th${['Qty', 'Cut', 'Made', 'Owed'].includes(h) ? ' class="num"' : ''}${b2b && !h && i === cols.length - 1 ? ' style="position:sticky;right:0;z-index:2"' : ''}>${h}</th>`).join('');
+  const body = shown.map(g => soDlgRow(o, g, { mayQty, mayEdit })).join('');
+  /* Every quality the order already uses, offered first; anything else can still be typed. */
+  const quals = [...new Set(['Sheeting', 'Cambric'].concat(soLines(o).map(l => String((l && l.material) || '').trim())).filter(Boolean))];
   const removed = (Array.isArray(o.lineRemovals) ? o.lineRemovals : Object.values(o.lineRemovals || {}))
     .filter(Boolean).reduce((n, r) => n + (parseInt(r.count, 10) || soCount(r.lines)), 0);
   /* EVERY QUANTITY THAT MOVED, newest first. A figure that changed and cannot be explained three
    * weeks later is the reason this is kept at all. */
   const adj = Object.values(o.qtyAdjustments || {}).filter(Boolean)
     .sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
+  const det = Object.values(o.detailChanges || {}).filter(Boolean)
+    .sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
+  const fieldTxt = k => (SO_DETAIL.find(f => f.k === k) || { t: k }).t;
+  const brand = b2b ? soBrandOf(o) : '';
   ptOpenDialog({
     title: 'Sales order ' + o._id,
-    subtitle: `${o.channel || ''}${o.buyerName ? '  ·  ' + o.buyerName : ''}${o.buyerEmail ? '  ·  ' + o.buyerEmail : ''}`,
-    note: `${nf(s.skus)} SKU(s) · ${nf(s.qty)} piece(s) · cut ${s.cutPct}% · made ${s.mfgPct}%.`
+    wide: b2b,
+    subtitle: brand ? `${o.channel || ''}  ·  ${brand}${o.buyerName ? '  ·  raised by ' + o.buyerName : ''}`
+      : `${o.channel || ''}${o.buyerName ? '  ·  ' + o.buyerName : ''}${o.buyerEmail ? '  ·  ' + o.buyerEmail : ''}`,
+    /* What was just saved goes first, where it is seen — the line below the table can be scrolled out of sight. */
+    note: (msg ? msg + ' ' : '') + `${nf(s.skus)} SKU(s) · ${nf(s.qty)} piece(s) · cut ${s.cutPct}% · made ${s.mfgPct}%.`
       + (soStatus(o) === 'approved'
         ? (s.missing ? ` ${nf(s.missing)} SKU(s) are NOT in the order book, so nothing can be booked against them.`
                      : ' Every SKU reached the order book.')
@@ -233,7 +353,16 @@ function soOpen(id) {
       + (o.saRemarks ? ` Remarks: ${o.saRemarks}` : ''),
     html: `<div class="xlwrap" style="max-height:52vh;border:1px solid var(--line);border-radius:10px">`
       + `<table class="xl" id="sxDlgTable"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`
+      + (b2b ? `<datalist id="sodQual">${quals.map(q => `<option value="${esc(q)}">`).join('')}</datalist>` : '')
       + (s.groups.length > 400 ? `<div class="muted" style="margin-top:8px;font-size:12px">Showing the first 400 of ${nf(s.groups.length)} SKUs. Export gives you all of them.</div>` : '')
+      + (det.length ? '<div style="margin-top:10px;font-weight:600;font-size:13px">Details changed on this order</div>'
+        + '<table class="xl" style="margin-top:4px"><thead><tr><th>When</th><th>SKU</th><th>What</th><th>From</th><th>To</th><th>By</th></tr></thead><tbody>'
+        + det.slice(0, 40).map(c => `<tr><td style="text-align:left">${esc(ptIsoDate(c.at) || '')}</td>`
+          + `<td style="text-align:left;font-family:ui-monospace,monospace">${esc(c.sku)}</td>`
+          + `<td>${esc(fieldTxt(c.field))}</td><td>${esc(c.from) || '<span class="muted">—</span>'}</td>`
+          + `<td style="font-weight:700;color:#166534">${esc(c.to)}</td>`
+          + `<td>${esc(String(c.by || '').split('@')[0])}</td></tr>`).join('')
+        + '</tbody></table>' : '')
       + (adj.length ? '<div style="margin-top:10px;font-weight:600;font-size:13px">Quantities changed after approval</div>'
         + '<table class="xl" style="margin-top:4px"><thead><tr><th>When</th><th>SKU</th><th class="num">From</th><th class="num">To</th><th>Why</th><th>By</th></tr></thead><tbody>'
         + adj.slice(0, 40).map(a => `<tr><td style="text-align:left">${esc(ptIsoDate(a.at) || '')}</td>`
@@ -245,6 +374,37 @@ function soOpen(id) {
         + '</tbody></table>' : ''),
   });
   ptImgFill(shown.map(g => g.sku), false, ptImgPatch);
+  const box = $('sxDlgTable');
+  if (!box || !b2b || !mayEdit) return;
+  /* Only the row clicked opens or closes — the rest of the order, and where it is scrolled to, stay put. */
+  const redraw = sku => {
+    const g = s.groups.find(x => x.sku === sku), tr = box.querySelector(`tr[data-sod-row="${CSS.escape(sku)}"]`);
+    if (g && tr) { tr.outerHTML = soDlgRow(o, g, { mayQty, mayEdit }); ptImgFill([sku], false, ptImgPatch); }
+  };
+  box.onclick = async e => {
+    const ed = e.target.closest('[data-sod-edit]');
+    if (ed) { const was = SOD.sku; SOD = { id: o._id, sku: ed.getAttribute('data-sod-edit') }; if (was) redraw(was); redraw(SOD.sku); ptDlgMsg(''); return; }
+    if (e.target.closest('[data-sod-cancel]')) { const was = SOD.sku; SOD = { id: '', sku: '' }; redraw(was); ptDlgMsg(''); return; }
+    const sv = e.target.closest('[data-sod-save]'); if (!sv) return;
+    const sku = sv.getAttribute('data-sod-save'), tr = sv.closest('tr'), want = {};
+    tr.querySelectorAll('[data-sod]').forEach(i => { want[i.getAttribute('data-sod')] = i.value; });
+    sv.disabled = true; ptDlgMsg('Saving…');
+    const err = await soDetailRun((SOX.rows || []).find(x => x._id === o._id) || o, sku, want);
+    if (err) { sv.disabled = false; ptDlgMsg(err, true); return; }
+    const was = soDetailOf(o, sku), is = soDetailOf((SOX.rows || []).find(x => x._id === o._id) || o, sku);
+    const said = SO_DETAIL.filter(f => String(was[f.k] || '') !== String(is[f.k] || ''))
+      .map(f => `${f.t.toLowerCase()} ${was[f.k] || '—'} → ${is[f.k]}`).join(', ');
+    SOD = { id: '', sku: '' };
+    renderSox();
+    soOpen(o._id, 'Saved · ' + sku + (said ? ': ' + said : '') + '.');
+  };
+  /* A box that no longer says what it did turns blue and says what it was. */
+  box.oninput = e => {
+    const i = e.target.closest('[data-sod]'); if (!i) return;
+    const was = i.getAttribute('data-was') || '', moved = i.value.trim() !== was.trim();
+    i.style.border = moved ? '1.5px solid #2563eb' : '';
+    const w = i.parentNode.querySelector('.sod-was'); if (w) w.textContent = moved ? 'was ' + (was || '—') : '';
+  };
 }
 
 /**
