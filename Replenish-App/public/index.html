@@ -76822,7 +76822,7 @@ const GUIDE_SYN = (() => {
 /* Words that carry no meaning of their own, in all three languages. */
 const GUIDE_STOP = new Set(('a an the is are was were be to of in on at for by it this that these my me i we our your and or but so if ' +
   'hai h ha he hain ho hoga hogi tha thi the ka ki ke ko se me mein mai main mera meri mere mujhe muje mujhko hum ham ye yeh wo woh ' +
-  'kar karna karu karun kare karo karte karta karti krna kr kro kiya kiye raha rahi rahe rha rhi rhe hota hoti hote hua hui gaya gayi gya gyi ' +
+  'kar karna karu karun kare karo karte karta karti krna kr kro kiya kiye raha rahi rahe rha rhi rhe hota hoti hote hua hui gaya gayi gya gyi gaye gye ab ' +
   'do does did get want need use using kindly just aa aata aati aate rha ' +
   'please plz pls sir ji bhai yaar aur ya par pe bhi abhi kuch koi ek sab toh to sakta sakti sakte skta chahiye chahta chahti ' +
   'है हैं था थी का की के को से में मैं मुझे यह वह कर करना करें करो रहा रही हो गया गई भी और या कुछ कोई ' +
@@ -77269,7 +77269,17 @@ function gaRead(q) {
   const words = gaWords(q);
   const lang = /[ऀ-ॿ]/.test(q) ? 'hi' : words.some(w => GUIDE_HG.has(w)) ? 'hg' : 'en';
   const people = gaPeople();
-  const means = [...new Set(words.filter(w => !GUIDE_STOP.has(w) && !/^\d+$/.test(w)).map(w => people.has(w) ? 'karigar' : gaMean(w)))];
+  let means = [...new Set(words.filter(w => !GUIDE_STOP.has(w) && !/^\d+$/.test(w)).map(w => people.has(w) ? 'karigar' : gaMean(w)))];
+  /* "maal aa gaya", "आ गया": it came in — a receipt (both words are fillers on their own) */
+  const came = /\b(aa|a)\s+(gaya|gya|gayi|gyi|gaye|gye|chuka|chuki|chuke)\b|आ\s*(गया|गई|गए|चुका|चुकी)/i.test(q);
+  if (came && !means.includes('receive')) means.push('receive');
+  /* both ways in one question ("jo kaam diya tha uska maal wapas aa gaya"): coming back wins — unless it is sent back TO
+   * someone ("karigar ko wapas dena", "send it back to the karigar") */
+  const toThem = /\bko\b[^,.?]*\b(wapas|vapas|waapas|wapis)\s+(de|dena|dene|dedo|bhej)|को[^,.?]*वापस\s*(दे|भेज)|\b(send|give)\b[^,.?]*\bback\b|\bback\s+to\b/i.test(q);
+  if (means.includes('receive') && means.includes('issue') && (came || /wapas|vapas|waapas|wapis|वापस|\bback\b|\breturn/i.test(q)) && !toThem)
+    means = means.filter(m => m !== 'issue');
+  /* sent back to them: giving, though it says "wapas" */
+  if (toThem && means.includes('issue')) means = means.filter(m => m !== 'receive');
   return { lang, means, words };
 }
 /** The karigars' names, from the ERP's own list: "Ramesh ko…" is about a karigar. */
