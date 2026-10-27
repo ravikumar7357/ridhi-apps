@@ -759,7 +759,9 @@ async function gaAnswer(q) {
   cands.sort((a, b) => b.s - a.s);
   const top = cands[0];
   await gaBankLoad();
-  if (GA_W === null) await Promise.race([gaWordsLoad(), new Promise(ok => setTimeout(ok, 1500))]);
+  /* the first question waits for the meaning file (about 3 MB; on the live site it can take 2–3 s): answered on words
+   * alone, "maal wapas aa gaya" got a QC answer (27 Oct). Up to 4 s, once — after that it is in. */
+  if (GA_W === null) await Promise.race([gaWordsLoad(), new Promise(ok => setTimeout(ok, 4000))]);
   const hits = gaBankFind(means, words, q);
   if (!(top && top.kind === 'talk' && top.s >= 1.4) && hits[0] && hits[0].s >= (GA_W ? GA_BANK_SURE_SEM : GA_BANK_SURE)) {
     /* two answers fit almost equally ("short by kya hai": the screen, or its Short by column): ask which, never guess */
