@@ -2,6 +2,8 @@
 # push to main changes meera-router/, and only once the Cloudflare secrets are in the repository's settings.
 name = "meera-router"
 main = "src/worker.js"
+# Ravi's Cloudflare account (erp@ridhihome.com). Not a secret: it only names the account; the token is the key.
+account_id = "9a01c041fd44e0d34dc483b6ada6c300"
 compatibility_date = "2026-10-01"
 
 # Cloudflare Workers AI: the second model, no key needed (free daily allowance).

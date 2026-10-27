@@ -30,7 +30,7 @@ Admin: "tickets" in Ask Meera → writes the answer → it joins Meera's own ans
 2. **Groq** (free, console.groq.com) → API Keys → create one.
 3. **Gemini** (optional, free, aistudio.google.com) → Get API key.
 4. **GitHub** → this repository → Settings → Secrets and variables → Actions → New repository secret, four times:
-   `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `GROQ_API_KEY`, `GEMINI_API_KEY`.
+   `CLOUDFLARE_API_TOKEN` and `GROQ_API_KEY` (and `GEMINI_API_KEY` if Gemini is wanted). The account ID is in `wrangler.toml`.
    The keys never go into the code: this repository is public.
 5. In `wrangler.toml` set `ENABLED = "true"`. Check the three model names against Groq's, Cloudflare's and Google's current lists.
 6. Push to `main`. GitHub runs the tests, makes the D1 tables and deploys the Worker. Its address appears in the run as `https://meera-router.<your-name>.workers.dev`.

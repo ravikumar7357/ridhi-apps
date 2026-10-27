@@ -7,7 +7,6 @@
 # The ERP itself is not touched by this workflow (replenish-hosting.yml does the ERP).
 # Secrets (Settings → Secrets and variables → Actions):
 #   CLOUDFLARE_API_TOKEN   a token with "Workers Scripts: Edit" and "D1: Edit"
-#   CLOUDFLARE_ACCOUNT_ID  the Cloudflare account ID
 #   GROQ_API_KEY           from console.groq.com (free) — or typed straight into Cloudflare instead
 #   GEMINI_API_KEY         from aistudio.google.com (free; optional — without it Gemini is skipped)
 name: Meera router — test, deploy
@@ -30,7 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      HAS_CF: ${{ secrets.CLOUDFLARE_API_TOKEN != '' && secrets.CLOUDFLARE_ACCOUNT_ID != '' }}
+      HAS_CF: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
       HAS_GROQ: ${{ secrets.GROQ_API_KEY != '' }}
       HAS_GEMINI: ${{ secrets.GEMINI_API_KEY != '' }}
     defaults:
@@ -60,7 +59,6 @@ jobs:
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: meera-router
           command: d1 execute meera --remote --file=schema.sql
 
@@ -69,7 +67,6 @@ jobs:
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: meera-router
           command: deploy
 
@@ -79,7 +76,6 @@ jobs:
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: meera-router
           command: deploy
           secrets: |
@@ -92,7 +88,6 @@ jobs:
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: meera-router
           command: deploy
           secrets: |
