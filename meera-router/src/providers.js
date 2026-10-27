@@ -20,7 +20,9 @@ export const PROVIDERS = [
     ready: env => !!env.GROQ_API_KEY,
     async ask(env, sys, user, fetcher) {
       const j = await post(fetcher, 'https://api.groq.com/openai/v1/chat/completions', { authorization: 'Bearer ' + env.GROQ_API_KEY }, {
-        model: env.GROQ_MODEL, temperature: 0.2, max_tokens: 700, response_format: { type: 'json_object' },
+        model: env.GROQ_MODEL, temperature: 0.2, max_tokens: 1500, response_format: { type: 'json_object' },
+        /* a thinking model (GPT OSS): a short think, so the answer is not cut off by the token limit */
+        ...(/gpt-oss/.test(env.GROQ_MODEL || '') ? { reasoning_effort: 'low' } : {}),
         messages: [{ role: 'system', content: sys }, { role: 'user', content: user }] });
       return j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
     },

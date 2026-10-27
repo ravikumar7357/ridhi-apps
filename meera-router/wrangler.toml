@@ -13,7 +13,7 @@ binding = "AI"
 [[d1_databases]]
 binding = "DB"
 database_name = "meera"
-database_id = "PUT-THE-D1-DATABASE-ID-HERE"
+database_id = "eb3168f8-7da4-4f78-876f-07045d80712f"   # made by Ravi, 27 Oct
 
 [vars]
 # "true" to answer; anything else and the router says it is off (Meera then works on her own, as today).
@@ -28,8 +28,9 @@ ADMIN_EMAILS = "ravi@thefabricrush.com"
 USER_DAILY = "10"
 COMPANY_DAILY = "500"
 # The models. Check each provider's list before switching on — names change; a missing or retired one is skipped.
-GROQ_MODEL = "llama-3.3-70b-versatile"
+GROQ_MODEL = "openai/gpt-oss-120b"   # Groq's list, 27 Oct (Llama 3.3 70B no longer listed)
 CF_AI_MODEL = "@cf/meta/llama-3.1-8b-instruct"
 GEMINI_MODEL = "gemini-2.5-flash"
-# The keys are NOT here (this repository is public): GROQ_API_KEY and GEMINI_API_KEY are Worker secrets, set by the
-# GitHub workflow from the repository's secrets.
+# The keys are NOT here (this repository is public): GROQ_API_KEY (and GEMINI_API_KEY, not used for now) are Worker
+# secrets — typed straight into Cloudflare (Worker → Settings → Variables and Secrets), or sent by the GitHub workflow
+# from the repository's secrets when they are there.
