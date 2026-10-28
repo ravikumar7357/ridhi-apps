@@ -131,7 +131,7 @@ function shpbItem(r) {
     + '<div class="muted" style="font-size:11px">' + esc(what) + ' · <span style="font-family:ui-monospace,monospace">' + esc(r.sku) + '</span></div></div></div></td>';
 }
 /** THE LINE'S WHOLE WAY, as a strip: done (green), here now (orange), partly done (amber), still ahead (grey). */
-function shpbFlow(r, s) {
+function shpbFlowSpans(r, s) {
   const q = +r.qty || 0, plan = shpbPlanOf(r), fl = shpbFlowOf(r);
   const st = (a, w, d) => (!a && !d) ? 'future' : (w === 0 && d >= q ? 'done' : (d > 0 ? 'part' : 'active'));
   const steps = [['Plan', plan ? 'done' : 'na', 'PPC plan'], ['Printer', fl ? (fl.printer ? 'done' : 'active') : 'na', 'Printer given'],
@@ -139,9 +139,10 @@ function shpbFlow(r, s) {
     ['Issue', st(s.issA, s.issW, s.issD), 'Issued to a karigar'], ['Recv', st(s.recA, s.recW, s.recD), 'Received from the karigar'], ['QC', st(s.qcA, s.qcW, s.qcD), 'Passed QC'],
     ['Press', st(s.prsA, s.prsW, s.prsD), 'Pressed'], ['Ship', st(s.handA, s.handW, s.handD), 'Accepted by shipping']];
   const look = { done: 'background:#dcfce7;color:#166534', part: 'background:#fef3c7;color:#92400e', active: 'background:#f59e0b;color:#fff;font-weight:700', future: 'background:#f1f5f9;color:#94a3b8' };
-  return '<td style="' + SHPB_PAD + 'text-align:left;white-space:nowrap">' + steps.filter(x => x[1] !== 'na').map(x =>
-    `<span title="${esc(x[2])}" style="font-size:10px;padding:1px 5px;border-radius:7px;${look[x[1]]}">${x[1] === 'done' ? '✓ ' : ''}${esc(x[0])}</span>`).join('<span class="muted" style="font-size:9px"> ›</span>') + '</td>';
+  return steps.filter(x => x[1] !== 'na').map(x =>
+    `<span title="${esc(x[2])}" style="font-size:10px;padding:1px 5px;border-radius:7px;${look[x[1]]}">${x[1] === 'done' ? '✓ ' : ''}${esc(x[0])}</span>`).join('<span class="muted" style="font-size:9px"> ›</span>');
 }
+const shpbFlow = (r, s) => '<td style="' + SHPB_PAD + 'text-align:left;white-space:nowrap">' + shpbFlowSpans(r, s) + '</td>';
 
 /** One order line: date, order, ready date, item, flow, pieces, printer, then the stages. */
 function shpbRow(r) {
@@ -380,8 +381,63 @@ function shpbNotRecvOpen(key) {
   });
 }
 
+/* ---- THE ORDER'S FLOW (Ravi, 28 Oct: "order id par click krne ke bad flow is bucket me aay — abhi jo banaya wo nahi") ----
+ * A click on an Order ID here opens THIS, not the Order Console's start-to-finish: for each line of the order the flow strip, and under
+ * it every step with what was done, by whom, and when — printer, printed cloth back, cut, issued to which karigar, received, QC, press,
+ * shipping — and where the line is waiting now. Read from the same registers the cells read. */
+const shpbDay = v => { const m = String(v || '').match(/^(\d{4}-\d{2}-\d{2})/) || String(v || '').match(/^(\d{2})\/(\d{2})\/(\d{4})/); return !m ? '' : (m.length === 2 ? shpbDmy(m[1]) : m[1] + '-' + m[2] + '-' + m[3]); };
+function shpbSteps(r) {
+  const s = shpbStages([r]), q = +r.qty || 0, key = shpbKey(r.orderNo, r.sku), plan = shpbPlanOf(r), fl = shpbFlowOf(r), out = [];
+  const st = (a, w, d) => (!a && !d) ? 'future' : (w === 0 && d >= q ? 'done' : (d > 0 ? 'part' : 'active'));
+  const add = (step, state, what, when) => out.push({ step, state, what, when });
+  add('Ordered', 'done', nf(q) + ' pcs', shpbDmy(ptIsoDate(r.orderDate)) + (r.openIso ? ' · opened in production ' + shpbDmy(r.openIso) : ''));
+  add('PPC plan', plan ? 'done' : 'na', plan ? 'route ' + (plan.route || '') + (shpbPrinterOf(r) ? ' · printer ' + shpbPrinterOf(r) : '') + (plan.dates && plan.dates.ready ? ' · ready ' + shpbDmy(plan.dates.ready) : '') : 'no plan (an older order)', plan ? shpbDay(plan.at) + (plan.by ? ' · ' + String(plan.by).split('@')[0] : '') : '');
+  if (fl) {
+    const chs = Object.values((typeof FLOW !== 'undefined' && FLOW && FLOW.ch) || {}).filter(c => c && !c.cancelled && (c.lines || []).some(l => l.key === key));
+    add('Printer receive', st(s.prcA, s.prcW, s.prcD), nf(s.prcD) + ' of ' + nf(q) + ' back from the printer' + (chs.length ? ' · ' + chs.map(c => c.no).join(', ') : ' · no challan yet'),
+      chs.map(c => { const rc = Object.values(c.receipts || {}).filter(x => x && x.items && x.items[key]); return rc.length ? shpbDay(rc[rc.length - 1].date) : ''; }).filter(Boolean).join(', '));
+  }
+  if (r.cutReq) {
+    const cs = (PT.cut || []).filter(c => c && obUC(c.orderNo) === r.orderNo && obUC(c.sku) === r.sku);
+    add('Cut', st(s.cutA, s.cutW, s.cutD), nf(s.cutD) + ' of ' + nf(q) + ' cut' + (cs.length ? ' · ' + cs.map(c => nf(ptNum(c.pieces))).join(' + ') : ''), cs.length ? shpbDay(cs[cs.length - 1].cutDate) : '');
+  }
+  const bs = (PT.base || []).filter(b => b && obUC(b.orderNo) === r.orderNo && obUC(b.sku) === r.sku);
+  add('Issued', st(s.issA, s.issW, s.issD), nf(s.issD) + ' of ' + nf(q) + ' issued' + (bs.length ? ' · ' + bs.map(b => b.empName + ' ' + nf(ptNum(b.issuePieces))).join(', ') : ''), bs.length ? shpbDay(bs[bs.length - 1].issueDate) : '');
+  add('Received', st(s.recA, s.recW, s.recD), nf(s.recD) + ' of ' + nf(q) + ' back from karigars' + (bs.some(b => ptNum(b.receivedPieces)) ? ' · ' + bs.filter(b => ptNum(b.receivedPieces)).map(b => b.empName + ' ' + nf(ptNum(b.receivedPieces))).join(', ') : ''),
+    bs.filter(b => b.receivingDate).length ? shpbDay(bs.filter(b => b.receivingDate).pop().receivingDate) : '');
+  const qcs = ((typeof QC !== 'undefined' && QC.checks) || []).filter(c => c && obUC(c.orderNo) === r.orderNo && qcNorm(c.sku) === r.sku && ptNum(c.ok) > 0);
+  add('QC passed', s.qcW ? (s.qcD ? 'part' : (s.qcA ? 'active' : 'future')) : (s.qcA ? 'done' : 'future'), nf(s.qcD) + ' of ' + nf(q) + ' passed' + (qcs.length ? ' · by ' + [...new Set(qcs.map(c => c.checkedBy || String(c.addedBy || '').split('@')[0]))].join(', ') : ''), qcs.length ? shpbDay(qcs[qcs.length - 1].date) : '');
+  const px = (SHPB.pressBy || {})[key] || {}, pe = Object.values(SHPB.press || {}).filter(e => e && shpbKey(e.orderNo, e.sku) === key);
+  add('Press', st(s.prsA, s.prsW, s.prsD), nf(s.prsD) + ' of ' + nf(q) + ' pressed' + (pe.length ? ' · ' + pe.map(e => e.pressman + ' ' + nf(e.pieces)).join(', ') : ''), px.last ? shpbDmy(px.last) : '');
+  const sp = (typeof spOf === 'function' ? spOf(r.orderNo, r.sku) : null) || {}, ns = (SHPB.ship || {})[key];
+  add('Shipping', r.handedAt ? 'done' : st(s.handA, s.handW, s.handD),
+    (r.handedAt ? 'handed over' : nf(s.handD) + ' accepted') + (s.handW ? ' · ' + nf(s.handW) + ' waiting to accept' : '') + (ns && ns.state === 'notrecv' ? ' · NOT RECEIVED' + (ns.note ? ' (' + ns.note + ')' : '') : ''),
+    shpbDay(r.handedAt || (Array.isArray(sp.handLog) && sp.handLog.length ? sp.handLog[sp.handLog.length - 1].at : '')));
+  return out.filter(x => x.state !== 'na');
+}
+function shpbJourneyOpen(orderNo) {
+  const no = obUC(orderNo), lines = ordLines().filter(r => r.orderNo === no);
+  if (!lines.length) return;
+  const dot = { done: ['#dcfce7', '#166534', '✓'], part: ['#fef3c7', '#92400e', '◐'], active: ['#f59e0b', '#fff', '●'], future: ['#f1f5f9', '#94a3b8', '○'] };
+  const html = lines.map(r => {
+    const s = shpbStages([r]), steps = shpbSteps(r), now = steps.find(x => x.state === 'active' || x.state === 'part');
+    return `<div style="border:1px solid var(--line,#e2e8f0);border-radius:10px;padding:8px 10px;margin:0 0 10px">`
+      + `<div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><div><b>${esc(r.articleSubtype || r.articleType || r.itemName || '')}</b> <span class="muted">${esc([r.color, r.size].filter(Boolean).join(' • '))} · ${esc(r.sku)} · ${nf(r.qty)} pcs</span></div>`
+      + `<div style="font-size:12px;font-weight:700;color:${now ? '#b45309' : '#166534'}">${now ? 'Now at: ' + esc(now.step) : (r.open ? 'Everything done' : 'Complete')}</div></div>`
+      + `<div style="margin:6px 0">${shpbFlowSpans(r, s)}</div>`
+      + '<table style="width:100%;border-collapse:collapse;font-size:12px">' + steps.map(x => { const d = dot[x.state] || dot.future;
+        return `<tr><td style="padding:2px 6px;width:22px"><span style="display:inline-block;min-width:18px;text-align:center;border-radius:9px;background:${d[0]};color:${d[1]}">${d[2]}</span></td>`
+          + `<td style="padding:2px 6px;white-space:nowrap;font-weight:700">${esc(x.step)}</td><td style="padding:2px 6px;text-align:left">${esc(x.what)}</td><td style="padding:2px 6px;white-space:nowrap;color:#64748b">${esc(x.when)}</td></tr>`; }).join('') + '</table></div>';
+  }).join('');
+  ptOpenDialog({ title: 'Order ' + (lines[0].shopOrderNo || no) + ' — flow', subtitle: nf(lines.length) + ' line(s). ✓ done · ◐ partly done · ● waiting here now · ○ not reached yet.', html, wide: true });
+}
+
 if (SHPB_ON && $('odView') && $('odView').insertAdjacentHTML) $('odView').insertAdjacentHTML('beforeend', '<option value="shpboard">SHP board — test</option>');
 if ($('odTable') && $('odTable').addEventListener) {
+  $('odTable').addEventListener('click', e => {
+    if (typeof ordView !== 'function' || ordView() !== 'shpboard') return;
+    const oj = e.target.closest && e.target.closest('[data-ordj]'); if (oj) { e.preventDefault(); e.stopPropagation(); shpbJourneyOpen(oj.getAttribute('data-ordj')); }
+  }, true);
   $('odTable').addEventListener('click', e => {
     if (typeof ordView !== 'function' || ordView() !== 'shpboard') return;
     const a = e.target.closest && e.target.closest('[data-shpb-act]'); if (a) { e.preventDefault(); shpbDialog(a.dataset.shpbAct, a.dataset.key); }
