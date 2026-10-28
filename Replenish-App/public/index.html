@@ -26684,9 +26684,11 @@ function ordTrackRows() {
  * Press entries and "not received" notes are kept on TEST nodes (pt_shpBoardPress, pt_shpBoardShip): the live registers (the press
  * register has been closed since 5 Oct) are not written. The ready date of each order is on pt_shpBoardTest/<order>__<sku>.
  *
- * TEST ONLY: the view is offered on a preview link (host name with "--") or where localStorage shpBoard = '1'. It is not on the
- * live app. */
-const SHPB_ON = (() => { try { return /--/.test(location.hostname) || localStorage.getItem('shpBoard') === '1'; } catch (e) { return false; } })();
+ * LIVE since 28 Oct (Ravi: "ab isko live kardo"). It shows only the Shopify orders the board OWNS — dated from FLOW_BOARD_FROM on
+ * (flow-core.js) — and those are planned HERE, not in PPC: the Plan button opens the plan form (flowPpcOpen) and a line with no plan
+ * waits in the 'To plan' bucket, never in PPC's. Press entries, "not received" notes and ready dates are on pt_shpBoardPress /
+ * pt_shpBoardShip / pt_shpBoardTest (the names date from the test window; the data is real). */
+const SHPB_ON = (() => { try { return localStorage.getItem('shpBoard') !== '0'; } catch (e) { return true; } })();   // on for everyone; shpBoard = '0' hides it on one computer
 const SHPB_NODE = 'pt_shpBoardTest', SHPB_PRESS = 'pt_shpBoardPress', SHPB_SHIP = 'pt_shpBoardShip';
 const SHPB_PRESSMEN = ['Keshav', 'Jagdish', 'Anokhi', 'Mangal', 'Om Prakash', 'Deepak', 'Chetram', 'Kuldeep', 'Shankar'];
 let SHPB = { tab: 'pending', stage: '', ready: {}, press: {}, ship: {}, pressBy: {}, readyAt: 0, busy: false, err: '' };
@@ -26695,6 +26697,8 @@ const shpbDmy = iso => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d
 const shpbCanEdit = () => !!(ME.admin || (typeof ptCanEdit === 'function' && ptCanEdit()));
 const shpbToday = () => (typeof dToday === 'function' ? dToday() : new Date().toISOString().slice(0, 10));
 
+/** The orders this board owns: Shopify, dated from FLOW_BOARD_FROM on, made by Ridhi. */
+const shpbOwns = r => flowBoardOwns(r) && shpbIsMine(r);
 /** The date typed for a line, else the date PPC planned it ready, else its make-to-order due date. */
 function shpbReadyOf(r) {
   const k = shpbKey(r.orderNo, r.sku), set = SHPB.ready[k];
@@ -26747,7 +26751,7 @@ function shpbFlowOf(r) {
 /** The stage figures of a set of lines. For each stage: A = what has ARRIVED (can be worked on), D = what it has DONE and moved on, W = what waits here. */
 function shpbStages(lines) {
   const s = { pcs: 0, cutX: 0, cutMv: 0, cutNone: 0, toCut: 0, issX: 0, issMv: 0, toIssue: 0, recX: 0, recMv: 0, qcX: 0, qcMv: 0, ready: 0,
-    prcA: 0, prcW: 0, prcD: 0, cutA: 0, cutW: 0, cutD: 0, issA: 0, issW: 0, issD: 0, recA: 0, recW: 0, recD: 0, qcA: 0, qcW: 0, qcD: 0,
+    planA: 0, planW: 0, planD: 0, prcA: 0, prcW: 0, prcD: 0, cutA: 0, cutW: 0, cutD: 0, issA: 0, issW: 0, issD: 0, recA: 0, recW: 0, recD: 0, qcA: 0, qcW: 0, qcD: 0,
     prsA: 0, prsW: 0, prsD: 0, handA: 0, handW: 0, handD: 0 };
   lines.forEach(r => {
     const q = +r.qty || 0, cap = n => Math.max(0, Math.min(q, +n || 0));
@@ -26761,6 +26765,7 @@ function shpbStages(lines) {
     s.recX += rec; s.recMv += Math.min(rec, qc);
     s.qcX += qc; s.qcMv += qc;
     s.ready += Math.max(0, qc - got);
+    s.planA += q; if (shpbPlanOf(r)) s.planD += q; else s.planW += q;      // planned here: the plan form (printer, fabric, dates)
     /* A line that goes to a printer can be cut / issued only as far as the printed cloth has come back (flowState does the same). */
     const fl = shpbFlowOf(r), base = fl ? fl.back : q;
     if (fl) { s.prcA += q; s.prcD += fl.back; s.prcW += q - fl.back; }
@@ -26777,7 +26782,7 @@ function shpbStages(lines) {
 
 const SHPB_STAGE_BG = 'background:#fdf0e8', SHPB_PAD = 'padding:3px 7px;';
 /* THE STAGES, in the order the work moves — [id, label, action, waiting, done, arrived]. */
-const SHPB_STAGES = [['prcv', 'Printer receive', 'prcv', 'prcW', 'prcD', 'prcA'], ['cut', 'Cut', 'cut', 'cutW', 'cutD', 'cutA'], ['issue', 'Issue', 'issue', 'issW', 'issD', 'issA'],
+const SHPB_STAGES = [['plan', 'To plan', 'plan', 'planW', 'planD', 'planA'], ['prcv', 'Printer receive', 'prcv', 'prcW', 'prcD', 'prcA'], ['cut', 'Cut', 'cut', 'cutW', 'cutD', 'cutA'], ['issue', 'Issue', 'issue', 'issW', 'issD', 'issA'],
   ['receive', 'Receive', 'receive', 'recW', 'recD', 'recA'], ['qc', 'QC pass', 'qc', 'qcW', 'qcD', 'qcA'], ['press', 'Press', 'press', 'prsW', 'prsD', 'prsA'],
   ['hand', 'Shipping to accept', 'accept', 'handW', 'handD', 'handA']];
 /** One stage cell: "waiting − (done moved)", and the button for the work that is waiting. */
@@ -26826,8 +26831,8 @@ function shpbRow(r) {
     + (rd.how ? ' <span class="muted" style="font-size:10px">' + (rd.how === 'set' ? 'set' + (rd.by ? ' · ' + esc(rd.by) : '') : esc(rd.how)) + '</span>' : '') + '</div></td>'
     + shpbItem(r)
     + `<td class="num" style="${SHPB_PAD}"><b>${nf(r.qty)}</b></td>`
-    + `<td style="${SHPB_PAD}text-align:left;font-size:11.5px;white-space:nowrap;line-height:1.25">${prn ? '<b>' + esc(prn) + '</b>' : '<span class="muted">no printer</span>'}`
-    + `<div><button type="button" class="ghost" data-shpb-act="print" data-key="${esc(k)}" style="width:auto;padding:0 7px;font-size:10.5px;line-height:18px" title="Printing order and printer — the PPC plan of this line">${prn ? 'Change' : 'Printing'}</button></div></td>`
+    + `<td style="${SHPB_PAD}text-align:left;font-size:11.5px;white-space:nowrap;line-height:1.25">${prn ? '<b>' + esc(prn) + '</b>' : (shpbPlanOf(r) ? '<span class="muted">no printer</span>' : '<b style="color:#b91c1c">not planned</b>')}`
+    + `<div><button type="button" class="ghost" data-shpb-act="print" data-key="${esc(k)}" style="width:auto;padding:0 7px;font-size:10.5px;line-height:18px" title="The plan of this line: printer, fabric, accessories, dates — planned here, not in PPC">${shpbPlanOf(r) ? (prn ? 'Change' : 'Plan') : 'Plan'}</button></div></td>`
     + shpbCell(s.prcA, s.prcW, s.prcD, 'prcv', 'Receive', k, tips.prcv)
     + (!r.cutReq ? `<td class="num" style="${SHPB_STAGE_BG};${SHPB_PAD}"><span class="muted" style="font-size:11px">not needed</span></td>` : shpbCell(s.cutA, s.cutW, s.cutD, 'cut', 'Cut', k, tips.cut))
     + shpbCell(s.issA, s.issW, s.issD, 'issue', 'Issue', k, tips.issue)
@@ -26838,7 +26843,7 @@ function shpbRow(r) {
 
 /** What the board shows now. PENDING = lines with pieces not yet pressed; COMPLETE = lines pressed (waiting for shipping, or handed over) and closed ones. */
 function shpbView() {
-  const f = ordFilters(), all = ordLines().filter(r => /^SHP-/.test(r.orderNo) && shpbIsMine(r)), shown = ordApply(all, f);
+  const f = ordFilters(), all = ordLines().filter(shpbOwns), shown = ordApply(all, f);
   const sOf = r => shpbStages([r]);
   const pend = shown.filter(r => r.open && sOf(r).prsD < (+r.qty || 0));
   const done = shown.filter(r => { if (!r.open) return true; return sOf(r).prsD > 0; });
@@ -26868,7 +26873,7 @@ function renderShpBoard() {
   $('odMsg').className = SHPB.err ? 'err' : 'muted';
   $('odMsg').textContent = SHPB.err || (tab === 'done'
     ? 'Pressed pieces wait here for shipping: Accept takes them in, Not received says they did not arrive. Handed-over lines follow, newest day first.'
-    : 'One row per order line. Each stage reads "waiting − (done moved)"; its button does that work here. Click an Order ID for its flow. Press needs the pressman; once pressed the line moves to Complete.');
+    : 'One row per order line. Each stage reads "waiting − (done moved)"; its button does that work here. A line with no plan is planned here (Plan button). Click an Order ID for its flow. Press needs the pressman; once pressed the line moves to Complete.');
 
   if (tab === 'done') return renderShpBoardDone(list);
   if (!list.length) { ptEmpty('odTable', SHPB.stage ? 'No line is waiting at that stage.' : 'No Shopify order is pending.'); return; }
@@ -26973,7 +26978,7 @@ const shpbAfter = () => { try { renderOrd(); } catch (e) { /* the next draw show
 function shpbDialog(act, key) {
   const r = shpbLineOf(key); if (!r) return;
   const s = shpbStages([r]), who = (r.shopOrderNo || r.orderNo) + ' · ' + r.sku;
-  if (act === 'print') { if (typeof flowPpcOpen === 'function') flowPpcOpen(r.orderNo, r.sku); return; }
+  if (act === 'print' || act === 'plan') { if (typeof flowPpcOpen === 'function') flowPpcOpen(r.orderNo, r.sku); return; }
   if (act === 'accept') return shpbAcceptOpen(key);
   if (act === 'notrecv') return shpbNotRecvOpen(key);
   if (act === 'prcv') {
@@ -27101,7 +27106,7 @@ function shpbJourneyOpen(orderNo) {
   ptOpenDialog({ title: 'Order ' + (lines[0].shopOrderNo || no) + ' — flow', subtitle: nf(lines.length) + ' line(s). ✓ done · ◐ partly done · ● waiting here now · ○ not reached yet.', html, wide: true });
 }
 
-if (SHPB_ON && $('odView') && $('odView').insertAdjacentHTML) $('odView').insertAdjacentHTML('beforeend', '<option value="shpboard">SHP board — test</option>');
+if (SHPB_ON && $('odView') && $('odView').insertAdjacentHTML) $('odView').insertAdjacentHTML('beforeend', '<option value="shpboard">SHP board — Shopify orders</option>');
 if ($('odTable') && $('odTable').addEventListener) {
   $('odTable').addEventListener('click', e => {
     if (typeof ordView !== 'function' || ordView() !== 'shpboard') return;
@@ -28026,6 +28031,19 @@ const FLOW_NO_REAL = Object.freeze([]);
  * The day is the day the line was OPENED (openIso), not the day the customer ordered: an order opened today from last
  * week is still new. localStorage flowMto = '0' turns it off on one computer. */
 const FLOW_MTO_FROM = '2026-10-15';
+/* THE SHP BOARD PLANS ITS OWN ORDERS (Ravi, 28 Oct: "aaj or is time ke bad jo order aayenge sirf wo hi dikhenge or ye order ppc se plan nahi
+ * honge yanhi se plan honge"). A Shopify order dated from FLOW_BOARD_FROM on belongs to the SHP board (Order Console → "SHP board"): it
+ * is planned there — the board's Plan button opens the same plan form — and it never waits in PPC's own bucket. Once planned it runs the
+ * flow like any line (Demand, challans, printed fabric in). Older Shopify orders, and every Amazon / B2B order, stay with PPC. */
+const FLOW_BOARD_FROM = '2026-10-28';
+function flowBoardDay(r) {
+  const m = String((r && r.orderDate) || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return typeof ptIsoDate === 'function' ? String(ptIsoDate(r && r.orderDate) || '') : '';
+  let mo = +m[2], d = +m[3];
+  if (mo > 12 && d <= 12) { const t = mo; mo = d; d = t; }          // a few order dates are written year-day-month
+  return m[1] + '-' + String(mo).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+}
+const flowBoardOwns = r => !!(r && !r.__t && /^SHP-/i.test(String(r.orderNo || '')) && flowBoardDay(r) >= FLOW_BOARD_FROM);
 const FLOW_MTO_LIVE = (() => { try { return localStorage.getItem('flowMto') !== '0'; } catch (e) { return true; } })();
 /** A real line put on the book from FLOW_MTO_FROM on. With FLOW_REAL every such line is new (15 Oct: the open orders were
  * deleted and uploaded again, many with an order date from before flowFrom() — the day they came onto the book is what
@@ -28367,7 +28385,7 @@ function flowState(r) {
   s.startedNoPlan = isNew && !p && flowRemFrac(r, s) < 1;
   s.bucket =
       (r.handedAt || r.shopDoneAt) ? 'done'
-    : (isNew && !p) ? (flowIsBack(r) ? 'back' : 'ppc')
+    : (isNew && !p) ? (flowBoardOwns(r) ? 'board' : (flowIsBack(r) ? 'back' : 'ppc'))   // 'board' is in no flow list: the SHP board plans it
     : (route === 'outsource') ? (s.india < qty ? 'out' : 'done')
     : (s.needFab || s.needAcc) ? 'demand'
     : (printed && s.given < qty) ? 'vendor'
