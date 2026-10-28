@@ -144,12 +144,8 @@ function renderShpBoard() {
     return `<button type="button" data-shpb-stage="${x[0]}" title="Show only the lines waiting at ${esc(x[1])}" style="padding:8px 14px;border-radius:12px;font:inherit;cursor:pointer;box-shadow:none;transform:none;text-align:left;`
       + (on ? 'background:#b45309;color:#fff;border:1px solid #b45309' : 'background:#fdf0e8;color:#17202B;border:1px solid #f0cdb5') + `"><b>${esc(x[1])}</b> <span style="font-weight:700">(${nf(new Set(ls.map(r => r.orderNo)).size)})</span>`
       + `<div style="font-size:11px;opacity:.85">orders · ${nf(pcs)} pcs</div></button>`; };
-  $('odKpis').innerHTML = '<div class="jw-kpiname">SHP board — TEST window (preview link only; nothing here is on the live app)</div><div class="jw-kpis">'
-    + ordKpiCard(nf(pend.length), 'Order lines pending', 'list', 'blue', nf(new Set(pend.map(r => r.sku)).size) + ' SKUs')
-    + ordKpiCard(nf(st.pcs), 'Pieces pending', 'box', 'blue', 'ordered, not handed over')
-    + ordKpiCard(nf(withDate), 'Have a ready date', 'doc', 'blue', nf(pend.length - withDate) + ' without one')
-    + ordKpiCard(nf(lateN), 'Past their ready date', 'alert', 'amber', 'still open') + '</div>'
-    + `<div style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 4px"><span class="muted" style="align-self:center;font-weight:700">Waiting at:</span>${SHPB_STAGES.map(bucket).join('')}</div>`
+  /* No title and no KPI cards here (Ravi, 28 Oct: "remove this for only this bucket") — the buckets are the summary. */
+  $('odKpis').innerHTML = ''    + `<div style="display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 4px"><span class="muted" style="align-self:center;font-weight:700">Waiting at:</span>${SHPB_STAGES.map(bucket).join('')}</div>`
     + `<div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0">${tabBtn('pending', 'Order pending · ' + nf(pend.length))}${tabBtn('done', 'SHP order complete · ' + nf(done.length))}</div>`;
   $('odMsg').className = SHPB.err ? 'err' : 'muted';
   $('odMsg').textContent = SHPB.err || 'One row per order line. Each stage reads "waiting − (done moved)": "1 − (0 moved)" until the work is done, then "0 − (1 moved)". The button in a cell does that work, here. Export downloads what is shown.';
