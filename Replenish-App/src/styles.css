@@ -2137,7 +2137,7 @@ html.mob #frMeeraMenu{right:14px;bottom:144px}
 #p1Home .p1-lotno.sm{font-size:13px}
 #p1Home .p1-lotno.new{font-family:inherit;font-size:11px;font-weight:800;color:var(--bad);background:#FDECEC;border-radius:999px;padding:2px 8px;letter-spacing:0}
 #p1Home table.p1t > tbody > tr.p1r > td.lot{white-space:nowrap;cursor:pointer}
-#p1Home td.lot .caret{color:var(--faint);font-size:11px}
+#p1Home td.lot .caret{color:var(--muted);font-size:13px;margin-left:2px}
 #p1Home .p1-lot{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:2px 0 6px}
 #p1Home .p1-lot-h{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;font-size:13px}
 #p1Home .p1-lot-h .p1-lotno{font-size:18px}
@@ -2151,3 +2151,13 @@ html.mob #frMeeraMenu{right:14px;bottom:144px}
 #p1Home .p1-journey > summary{cursor:pointer;font-size:12.5px;font-weight:700;color:var(--accent);padding:4px 0}
 #p1Home .lg-lot{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-weight:700;color:var(--ink);cursor:pointer;text-decoration:underline dotted;white-space:nowrap}
 #p1Home .lg-t td.nw{white-space:nowrap}
+/* Page fixes (28 Oct): an opened lot must not stretch the Production table (Due and Next step went off the screen) —
+ * the drop takes the row's width and its WIP table scrolls inside it; the ledger at the page's size, SKUs on one line */
+#p1Home tr.p1x > td > .p1-lot{width:0;min-width:100%;box-sizing:border-box}
+#p1Home .p1-lot .p1-wip{overflow-x:auto}
+#p1Home table.p1t b.sku{white-space:nowrap}
+#p1Home .lg-t td{font-size:13px}
+#p1Home .lg-t .lg-sku,#p1Home .lg-t .lg-ord{white-space:nowrap}
+#p1Home .lg-lot{font-size:12.5px}
+#p1Home .lg-t td.ref{min-width:170px;font-size:12.5px}
+#p1Home .lg-t td{padding:8px 9px}

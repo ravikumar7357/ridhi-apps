@@ -2192,7 +2192,7 @@ html.mob #frMeeraMenu{right:14px;bottom:144px}
 #p1Home .p1-lotno.sm{font-size:13px}
 #p1Home .p1-lotno.new{font-family:inherit;font-size:11px;font-weight:800;color:var(--bad);background:#FDECEC;border-radius:999px;padding:2px 8px;letter-spacing:0}
 #p1Home table.p1t > tbody > tr.p1r > td.lot{white-space:nowrap;cursor:pointer}
-#p1Home td.lot .caret{color:var(--faint);font-size:11px}
+#p1Home td.lot .caret{color:var(--muted);font-size:13px;margin-left:2px}
 #p1Home .p1-lot{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:2px 0 6px}
 #p1Home .p1-lot-h{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;font-size:13px}
 #p1Home .p1-lot-h .p1-lotno{font-size:18px}
@@ -2206,6 +2206,16 @@ html.mob #frMeeraMenu{right:14px;bottom:144px}
 #p1Home .p1-journey > summary{cursor:pointer;font-size:12.5px;font-weight:700;color:var(--accent);padding:4px 0}
 #p1Home .lg-lot{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-weight:700;color:var(--ink);cursor:pointer;text-decoration:underline dotted;white-space:nowrap}
 #p1Home .lg-t td.nw{white-space:nowrap}
+/* Page fixes (28 Oct): an opened lot must not stretch the Production table (Due and Next step went off the screen) —
+ * the drop takes the row's width and its WIP table scrolls inside it; the ledger at the page's size, SKUs on one line */
+#p1Home tr.p1x > td > .p1-lot{width:0;min-width:100%;box-sizing:border-box}
+#p1Home .p1-lot .p1-wip{overflow-x:auto}
+#p1Home table.p1t b.sku{white-space:nowrap}
+#p1Home .lg-t td{font-size:13px}
+#p1Home .lg-t .lg-sku,#p1Home .lg-t .lg-ord{white-space:nowrap}
+#p1Home .lg-lot{font-size:12.5px}
+#p1Home .lg-t td.ref{min-width:170px;font-size:12.5px}
+#p1Home .lg-t td{padding:8px 9px}
 </style>
 
 <!-- ============ LOGIN ============ -->
@@ -79938,7 +79948,7 @@ function p1WipCard() {
   let D; try { D = p1WipData(); } catch (e) { return `<div class="card"><div class="empty" style="color:var(--bad)">Could not work out the WIP: ${esc(e.message || e)}</div></div>`; }
   const q = P1.q.trim().toUpperCase();
   const rows = D.rows.filter(({ r }) => !q || (r.sku + ' ' + (r.lot ? r.lot.no : '') + ' ' + [...r.orders].join(' ')).toUpperCase().includes(q))
-    .map(({ r, w }) => ({ lead: [`<b class="p1-lotno sm">${r.lot ? esc(p1LotTxt(r.lot)) : 'To plan'}</b>`, `<b>${esc(r.sku)}</b>`, esc(r.art), p1Ords([...r.orders])], w }));
+    .map(({ r, w }) => ({ lead: [`<b class="p1-lotno sm${r.lot ? '' : ' new'}">${r.lot ? esc(p1LotTxt(r.lot)) : 'To plan'}</b>`, `<b>${esc(r.sku)}</b>`, esc(r.art), p1Ords([...r.orders])], w }));
   return `<div class="card" style="padding:0;overflow:hidden"><div class="rp-cap"><b>Work in progress — lot by lot</b><span class="muted"> · today, whatever the period; the ledger sheet of the file is the period</span>
       <span style="flex:1"></span><button type="button" class="ghost" data-p1wpage>Open as a page</button><button type="button" class="p1-go" data-p1wxl style="margin-left:6px">Download WIP (Excel)</button></div>
     ${p1WipTable(rows, { lead: [['Lot', 1], ['SKU', 1], ['Item', 1], ['Orders', 1]], max: '520px' })}</div>`;
@@ -80072,12 +80082,13 @@ function p1DrawLedger() {
   /* THE WIP SHEET'S LEDGER (Ravi, 28 Oct, WIP.xlsx Sheet3): date, voucher, type, process, particulars, lot, SKU, item,
    * family, pieces, metres, order and its date, reference — one movement a line, newest first */
   let body = '';
+  const thisMon = p1Local().slice(2, 4) + p1Local().slice(5, 7);   // a lot of this month is just 001-GR, as on Production
   shown.forEach(i => { const e = ev[i], sign = e.k === 'IN' ? '+' : P1_END.has(e.k) || e.k === 'BACK' ? '−' : '';
     body += `<tr><td class="nw">${e.day ? p1Day(e.day) : '<span class="muted">—</span>'}${e.t ? ` <span class="muted">${new Date(e.ms).toTimeString().slice(0, 5)}</span>` : ''}</td><td class="muted nw">${esc(e.vr || '')}</td><td>${p1Mv(e)}</td><td class="nw">${esc(P1_PROC[e.k] || '')}</td>
-      <td>${e.party ? esc(e.party) : '<span class="muted">—</span>'}</td><td class="nw">${e.lot ? `<a class="lg-lot" data-p1lot="${esc(e.lotId)}" title="Every movement of this lot">${esc(e.lotMon + ' ' + e.lot)}</a>` : '<span class="muted">—</span>'}</td>
-      <td><a class="lg-sku${P1.openAt === p1EvId(e) ? ' on' : ''}" data-p1sku="${esc(e.sku)}" data-p1at="${esc(p1EvId(e))}">${esc(e.sku)}</a></td><td>${esc(e.item)}</td><td class="muted">${esc(e.fam)}</td>
+      <td>${e.party ? esc(e.party) : '<span class="muted">—</span>'}</td><td class="nw">${e.lot ? `<a class="lg-lot" data-p1lot="${esc(e.lotId)}" title="Every movement of this lot">${esc(String(e.lotId).slice(0, 4) === thisMon ? e.lot : e.lotMon + ' ' + e.lot)}</a>` : '<span class="muted">—</span>'}</td>
+      <td><a class="lg-sku${P1.openAt === p1EvId(e) ? ' on' : ''}" data-p1sku="${esc(e.sku)}" data-p1at="${esc(p1EvId(e))}">${esc(e.sku)}</a></td><td class="nw">${esc(e.item)}</td><td class="muted nw">${esc(e.fam)}</td>
       <td class="num">${e.unit === 'm' ? '' : `<b class="${sign === '+' ? 'q-in' : sign === '−' ? 'q-out' : ''}">${sign}${p1N(e.pcs)}</b>`}</td><td class="num">${e.unit === 'm' ? `<b>${p1N(e.pcs)}</b>` : ''}</td>
-      <td class="nw">${e.orderNo ? `<a class="lg-ord" data-p1ord="${esc(e.orderNo)}">${esc(e.orderNo)}</a>` : '<span class="muted">—</span>'}</td><td class="nw muted">${e.odate ? p1Day(e.odate) : ''}</td><td class="muted">${esc(e.ref)}</td>
+      <td class="nw">${e.orderNo ? `<a class="lg-ord" data-p1ord="${esc(e.orderNo)}">${esc(e.orderNo)}</a>` : '<span class="muted">—</span>'}</td><td class="nw muted">${e.odate ? p1Day(e.odate) : ''}</td><td class="muted ref">${esc(e.ref)}</td>
       <td class="nw">${e.by ? `<span class="av">${esc(e.by.slice(0, 2).toUpperCase())}</span> ${esc(e.by)}` : '<span class="muted">—</span>'}</td></tr>`;
     if (P1.openAt === p1EvId(e)) body += `<tr class="lg-exp"><td colspan="15">${p1SkuCard(e.sku, ev)}</td></tr>`; });
   const skus = [...new Set(ev.map(e => e.sku))].sort(), today = p1Local(), ago = d => p1Local(Date.now() - d * 864e5);
