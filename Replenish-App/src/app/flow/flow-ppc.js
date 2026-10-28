@@ -497,7 +497,10 @@ function flowPpcOpen(orderNo, onlySku, keys) {
         /* In hand: no RFD raised — the metres stay, so the cutting table knows what the line takes (16 Oct). */
         if ((p.route === 'stitch' || p.route === 'emb') && p.fabric && p.fabric.noRfd) p.fabric = Object.assign({}, p.fabric, { fromPrinted: 0, noRfd: true });
         if (p.route === 'emb' && p.fabric && p.fabric.noRfd) { p.printer = null; p.rufflePrinter = null; }   // in hand: no printer
-        const rec = Object.assign({}, p, { at: now, by: ME.email || '' }); delete rec.gaps;
+        /* THE LOT KEEPS ITS NUMBER (Ravi, 28 Oct: production lots 001-GR…, ppc-one.js): the time the line was first planned
+         * is kept, so a re-plan does not move it to a new lot number. */
+        const was = rows[i] && rows[i].s && rows[i].s.plan;
+        const rec = Object.assign({}, p, { at: now, by: ME.email || '', lotAt: (was && (was.lotAt || was.at)) || now }); delete rec.gaps;
         patch['pt_ppc/' + flowKey(p.orderNo, p.sku)] = rec;
       });
       /* A re-plan: what it undoes downstream, written in the same save and said. */

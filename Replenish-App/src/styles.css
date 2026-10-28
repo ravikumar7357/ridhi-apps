@@ -2132,3 +2132,22 @@ html.mob #frMeeraMenu{right:14px;bottom:144px}
 @media (max-width:1100px){#p1Home .rp-two{grid-template-columns:1fr}}
 /* The old PPC link is off the menu: this page is "PPC" now (its screen and code stay — the Demand buttons open it). */
 #tabFlow{display:none!important}
+/* Production lots and the WIP sheet (Ravi, 28 Oct) */
+#p1Home .p1-lotno{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:14.5px;font-weight:800;color:var(--ink);letter-spacing:.02em;white-space:nowrap}
+#p1Home .p1-lotno.sm{font-size:13px}
+#p1Home .p1-lotno.new{font-family:inherit;font-size:11px;font-weight:800;color:var(--bad);background:#FDECEC;border-radius:999px;padding:2px 8px;letter-spacing:0}
+#p1Home table.p1t > tbody > tr.p1r > td.lot{white-space:nowrap;cursor:pointer}
+#p1Home td.lot .caret{color:var(--faint);font-size:11px}
+#p1Home .p1-lot{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:2px 0 6px}
+#p1Home .p1-lot-h{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;font-size:13px}
+#p1Home .p1-lot-h .p1-lotno{font-size:18px}
+#p1Home .p1-parts{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
+#p1Home .p1-parts span{background:var(--soft,#F7F9FB);border:1px solid var(--line);border-radius:8px;padding:4px 9px;font-size:12.5px}
+#p1Home .p1-parts i{font-style:normal;color:var(--muted);font-weight:700;margin-right:6px}
+#p1Home .p1-wip{border:1px solid var(--line);border-radius:10px}
+#p1Home .p1-wip table.xl > tbody > tr > td{white-space:nowrap}
+#p1Home .p1-wip tr.p1-wtot > td{background:#EDF0E7;font-weight:700}
+#p1Home .p1-journey{margin-top:10px}
+#p1Home .p1-journey > summary{cursor:pointer;font-size:12.5px;font-weight:700;color:var(--accent);padding:4px 0}
+#p1Home .lg-lot{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-weight:700;color:var(--ink);cursor:pointer;text-decoration:underline dotted;white-space:nowrap}
+#p1Home .lg-t td.nw{white-space:nowrap}
