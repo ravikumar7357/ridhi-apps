@@ -26722,10 +26722,21 @@ async function shpbSetReady(key, date) {
   return '';
 }
 
+/** What the Production flow says of a line that goes to a printer: the printer, the pieces owed and the pieces back (the challan person's receipts). */
+let SHPB_FM = { src: null, map: null };
+function shpbFlowOf(r) {
+  let rows; try { rows = typeof flowRows === 'function' ? flowRows() : null; } catch (e) { rows = null; }
+  if (!rows) return null;
+  if (SHPB_FM.src !== rows) SHPB_FM = { src: rows, map: new Map(rows.map(x => [x.r.orderNo + '|' + x.r.sku, x.s])) };
+  const s = SHPB_FM.map.get(r.orderNo + '|' + r.sku);
+  if (!s || !s.plan || !flowPrinted(s.route) || s.fromStock || flowInHand(s.plan)) return null;
+  const q = +r.qty || 0;
+  return { printer: (s.plan.printer && (s.plan.printer.code || s.plan.printer.name)) || '', back: Math.max(0, Math.min(q, +s.back || 0)) };
+}
 /** The stage figures of a set of lines. Each stage: what got there (x), what has moved on to the next stage (mv), what is waiting here (x − mv). */
 function shpbStages(lines) {
   const s = { pcs: 0, cutX: 0, cutMv: 0, cutNone: 0, toCut: 0, issX: 0, issMv: 0, toIssue: 0, recX: 0, recMv: 0, qcX: 0, qcMv: 0, ready: 0,
-    cutA: 0, cutW: 0, cutD: 0, issA: 0, issW: 0, issD: 0, recA: 0, recW: 0, recD: 0, qcA: 0, qcW: 0, qcD: 0, handA: 0, handW: 0, handD: 0 };
+    prcA: 0, prcW: 0, prcD: 0, cutA: 0, cutW: 0, cutD: 0, issA: 0, issW: 0, issD: 0, recA: 0, recW: 0, recD: 0, qcA: 0, qcW: 0, qcD: 0, handA: 0, handW: 0, handD: 0 };
   lines.forEach(r => {
     const q = +r.qty || 0, cap = n => Math.max(0, Math.min(q, +n || 0));
     const iss = cap(r.issued), rec = cap(r.received), qc = cap(r.pressed);
@@ -26738,8 +26749,11 @@ function shpbStages(lines) {
     s.qcX += qc; s.qcMv += qc;                                  // a piece that passed QC is in Press, ready to hand over, by itself
     s.ready += Math.max(0, qc - got);
     /* arrived (A) / waiting here (W) / done and moved on (D) at each stage — what the cells and the buckets read */
-    const cutDone = r.cutReq ? cap(r.cut) : q;
-    if (r.cutReq) { s.cutA += q; s.cutD += cutDone; s.cutW += q - cutDone; }
+    /* A line that goes to a printer can be cut / issued only as far as the printed cloth has come back (flowState does the same). */
+    const fl = shpbFlowOf(r), base = fl ? fl.back : q;
+    if (fl) { s.prcA += q; s.prcD += fl.back; s.prcW += q - fl.back; }
+    const cutDone = r.cutReq ? cap(r.cut) : base;
+    if (r.cutReq) { s.cutA += base; s.cutD += cap(r.cut); s.cutW += Math.max(0, base - cap(r.cut)); }
     s.issA += cutDone; s.issD += iss; s.issW += Math.max(0, cutDone - iss);
     s.recA += iss; s.recD += rec; s.recW += Math.max(0, iss - rec);
     s.qcA += rec; s.qcD += qc; s.qcW += Math.max(0, rec - qc);
@@ -26752,7 +26766,7 @@ const SHPB_STAGE_BG = 'background:#fdf0e8';
 /* THE FIVE STAGES, in the order the work moves. `a` = what has ARRIVED at the stage (can be worked on), `d` = what the stage has
  * DONE and moved on, `w` = what still waits here. A cell reads "waiting − (done moved)": "1 − (0 moved)" until the work is
  * done, "0 − (1 moved)" once it is (Ravi, 28 Oct). */
-const SHPB_STAGES = [['cut', 'Cut', 'cut', 'cutW', 'cutD', 'cutA'], ['issue', 'Issue', 'issue', 'issW', 'issD', 'issA'], ['receive', 'Receive', 'receive', 'recW', 'recD', 'recA'],
+const SHPB_STAGES = [['prcv', 'Printer receive', 'prcv', 'prcW', 'prcD', 'prcA'], ['cut', 'Cut', 'cut', 'cutW', 'cutD', 'cutA'], ['issue', 'Issue', 'issue', 'issW', 'issD', 'issA'], ['receive', 'Receive', 'receive', 'recW', 'recD', 'recA'],
   ['qc', 'QC pass', 'qc', 'qcW', 'qcD', 'qcA'], ['hand', 'Hand to shipping', 'hand', 'handW', 'handD', 'handA']];
 /** One stage cell: "waiting − (done moved)", and the button for the work that is waiting. */
 function shpbCell(a, w, d, act, label, key, title) {
@@ -26769,7 +26783,7 @@ const shpbPrinterOf = r => { const p = shpbPlanOf(r), pr = p && p.printer; retur
 function shpbRow(r) {
   const k = shpbKey(r.orderNo, r.sku), s = shpbStages([r]), rd = shpbReadyOf(r), edit = shpbCanEdit(), late = rd.date && rd.date < dToday();
   const prn = shpbPrinterOf(r);
-  const tips = { cut: 'Still to cut − cut so far', issue: 'Cut and not yet issued − issued to karigars', receive: 'Out with karigars − received back', qc: 'Received, not checked − passed QC', hand: 'Passed QC, not with shipping − handed over' };
+  const tips = { prcv: 'Owed by the printer − printed cloth received back on the challan', cut: 'Still to cut − cut so far', issue: 'Cut and not yet issued − issued to karigars', receive: 'Out with karigars − received back', qc: 'Received, not checked − passed QC', hand: 'Passed QC, not with shipping − handed over' };
   return '<tr><td class="frz" style="text-align:left;white-space:nowrap">' + esc(shpbDmy(ptIsoDate(r.orderDate))) + '</td>'
     + '<td style="text-align:left;white-space:nowrap"><a href="#" data-ordj="' + esc(r.orderNo) + '" style="color:inherit;text-decoration:underline dotted;font-weight:700">'
     + esc(String(r.shopOrderNo || r.orderNo).replace(/^#\s*/, '')) + '</a>'
@@ -26780,6 +26794,7 @@ function shpbRow(r) {
     + `<td class="num"><b>${nf(r.qty)}</b></td>`
     + `<td style="text-align:left;font-size:12px;white-space:nowrap">${prn ? '<b>' + esc(prn) + '</b>' : '<span class="muted">no printer</span>'}`
     + `<div><button type="button" class="ghost" data-shpb-act="print" data-key="${esc(k)}" style="width:auto;padding:1px 8px;font-size:11px;margin-top:2px" title="Printing order and printer — the PPC plan of this line">${prn ? 'Change' : 'Printing'}</button></div></td>`
+    + shpbCell(s.prcA, s.prcW, s.prcD, 'prcv', 'Receive', k, tips.prcv)
     + (!r.cutReq ? `<td class="num" style="${SHPB_STAGE_BG}"><span class="muted" style="font-size:11.5px">not needed</span></td>` : shpbCell(s.cutA, s.cutW, s.cutD, 'cut', 'Cut', k, tips.cut))
     + shpbCell(s.issA, s.issW, s.issD, 'issue', 'Issue', k, tips.issue)
     + shpbCell(s.recA, s.recW, s.recD, 'receive', 'Receive', k, tips.receive)
@@ -26787,9 +26802,12 @@ function shpbRow(r) {
     + shpbCell(s.handA, s.handW, s.handD, 'hand', 'Hand to shipping', k, tips.hand) + '</tr>';
 }
 
+const shpbIsMine = r => { try { const m = typeof mdbOf === 'function' ? mdbOf(r.sku) : null; return !(m && typeof mdbIsReady === 'function' && mdbIsReady(m)); } catch (e) { return true; } };
 /** What the board shows now: the filters of the bar, the tab, and the stage bucket picked. */
 function shpbView() {
-  const f = ordFilters(), all = ordLines().filter(r => /^SHP-/.test(r.orderNo)), shown = ordApply(all, f);
+  /* ONLY WHAT RIDHI MAKES (Ravi, 28 Oct: "jinka manufacture ridhi h wo hi sirf yaha production me order open ho otherwise nahi"): a SKU whose master
+   * names another manufacturer is a ready product — bought in, not made — and is not production's. */
+  const f = ordFilters(), all = ordLines().filter(r => /^SHP-/.test(r.orderNo) && shpbIsMine(r)), shown = ordApply(all, f);
   const pend = shown.filter(r => r.open), done = shown.filter(r => !r.open);
   const stg = SHPB_STAGES.find(x => x[0] === SHPB.stage);
   const list = SHPB.tab === 'done' ? done : (stg ? pend.filter(r => shpbStages([r])[stg[3]] > 0) : pend);
@@ -26823,21 +26841,21 @@ function renderShpBoard() {
   if (!list.length) { ptEmpty('odTable', SHPB.stage ? 'No line is waiting at that stage.' : 'No Shopify order is pending.'); return; }
   const rows = ordNewest(list.slice().sort((a, b) => String(a.orderDate).localeCompare(String(b.orderDate)) || a.orderNo.localeCompare(b.orderNo) || a.sku.localeCompare(b.sku)));
   const head = '<thead><tr><th class="frz" style="text-align:left">Date</th><th style="text-align:left">Order ID · ready on</th><th style="text-align:left">Item</th><th class="num">Pieces</th><th style="text-align:left">Printer</th>'
-    + ['Cut', 'Issued', 'Received', 'QC passed', 'Press — ready to hand'].map(h => `<th class="num" style="${SHPB_STAGE_BG}">${h}</th>`).join('') + '</tr></thead>';
+    + ['Printer receive', 'Cut', 'Issued', 'Received', 'QC passed', 'Press — ready to hand'].map(h => `<th class="num" style="${SHPB_STAGE_BG}">${h}</th>`).join('') + '</tr></thead>';
   $('odTable').innerHTML = head + '<tbody>' + rows.slice(0, 300).map(shpbRow).join('') + '</tbody>'
-    + (rows.length > 300 ? '<tfoot><tr><td colspan="10" class="muted" style="padding:10px;text-align:left">Showing the first 300 of ' + nf(rows.length) + ' lines — search or filter to narrow them. Export has all of them.</td></tr></tfoot>' : '');
+    + (rows.length > 300 ? '<tfoot><tr><td colspan="11" class="muted" style="padding:10px;text-align:left">Showing the first 300 of ' + nf(rows.length) + ' lines — search or filter to narrow them. Export has all of them.</td></tr></tfoot>' : '');
 }
 
 /** Export: every line shown (the bar's filters, the tab, the stage bucket) — one CSV row per order line, which Excel opens. */
 function shpbExport() {
   const { list } = shpbView(); if (!list.length) return;
   const head = ['Order date', 'Order ID', 'Order', 'SKU', 'Article', 'Subtype', 'Colour', 'Size', 'Pieces', 'Ready on', 'Ready date from', 'Printer',
-    'Cut: waiting', 'Cut: done', 'Issue: waiting', 'Issued: done', 'Receive: waiting', 'Received: done', 'QC: waiting', 'QC passed', 'Ready to hand over', 'Handed to shipping', 'Handed / closed on', 'Status'];
+    'Printer receive: waiting', 'Printer receive: back', 'Cut: waiting', 'Cut: done', 'Issue: waiting', 'Issued: done', 'Receive: waiting', 'Received: done', 'QC: waiting', 'QC passed', 'Ready to hand over', 'Handed to shipping', 'Handed / closed on', 'Status'];
   const lines = [head.map(csvCell).join(',')];
   list.slice().sort((a, b) => String(a.orderDate).localeCompare(String(b.orderDate)) || a.orderNo.localeCompare(b.orderNo)).forEach(r => {
     const s = shpbStages([r]), rd = shpbReadyOf(r), at = ptIsoDate(r.handedAt || r.shopDoneAt) || '';
     lines.push([ptIsoDate(r.orderDate) || '', r.shopOrderNo || '', r.orderNo, r.sku, r.articleType || r.itemName || '', r.articleSubtype || '', r.color || '', r.size || '', r.qty, rd.date, rd.how === 'set' ? 'typed here' : rd.how, shpbPrinterOf(r),
-      r.cutReq ? s.cutW : 'not needed', r.cutReq ? s.cutD : '', s.issW, s.issD, s.recW, s.recD, s.qcW, s.qcD, s.handW, s.handD, at,
+      s.prcA ? s.prcW : '', s.prcA ? s.prcD : '', r.cutReq ? s.cutW : 'not needed', r.cutReq ? s.cutD : '', s.issW, s.issD, s.recW, s.recD, s.qcW, s.qcD, s.handW, s.handD, at,
       r.open ? 'Pending' : (r.handedAt ? 'Handed over' : (typeof SHP_DONE_TXT === 'function' ? SHP_DONE_TXT(r.shopDoneWhy) : 'Closed'))].map(csvCell).join(','));
   });
   ptDownload('shp-board-' + (SHPB.tab === 'done' ? 'complete' : (SHPB.stage ? 'waiting-' + SHPB.stage : 'pending')), lines);
@@ -26903,6 +26921,11 @@ function shpbDialog(act, key) {
   const s = shpbStages([r]), who = (r.shopOrderNo || r.orderNo) + ' · ' + r.sku;
   if (act === 'print') { if (typeof flowPpcOpen === 'function') flowPpcOpen(r.orderNo, r.sku); return; }
   if (act === 'hand') return shpbHandOpen(key);
+  if (act === 'prcv') {
+    const fl = shpbFlowOf(r);
+    if (!fl || !fl.printer || typeof flowDueRecvOpen !== 'function') { $('odMsg').className = 'err'; $('odMsg').textContent = 'This line has no printer in the PPC plan.'; return; }
+    return flowDueRecvOpen(fl.printer);   // the printer's open lines, with search — the same dialog as Printed fabric in
+  }
   if (act === 'cut') {
     const planFab = (shpbPlanOf(r) || {}).fabric, fabs = typeof cutFabrics === 'function' ? cutFabrics() : [];
     const def = (planFab && fabs.find(x => String(x).toLowerCase() === String(planFab.name || '').toLowerCase())) || '';
@@ -70009,6 +70032,10 @@ function shpSheetAllows(o) {
   return String((o && o.at) || '') > r.at;
 }
 let SHP_BUCKET_IX = { sig: null, list: null };
+/* ONLY WHAT RIDHI MAKES OPENS IN PRODUCTION (Ravi, 28 Oct: "jinka manufacture ridhi h wo hi sirf yaha production me order open ho otherwise
+ * nahi"): a SKU whose master names another manufacturer is a READY PRODUCT — bought in, shipped as it is — so it never enters the
+ * bucket and cannot be opened from it. Blank manufacturer = Ridhi (mdbIsReady). */
+const shpReadyProduct = sku => { try { const m = typeof mdbOf === 'function' ? mdbOf(sku) : null; return !!(m && typeof mdbIsReady === 'function' && mdbIsReady(m)); } catch (e) { return false; } };
 function shpBucket() {
   const sig = [SO_ALL_ROWS, (SO_ALL_ROWS || []).length, PTG.ob, (PTG.ob || []).length, SHOP_STOCK_LOADED, SHOP_INDIA_LOADED, SHOP_INDIA_ERR, SO_INDIA_TAKEN, SHOP_META];
   if (SHP_BUCKET_IX.list && SHP_BUCKET_IX.sig.every((x, i) => x === sig[i])) return SHP_BUCKET_IX.list;
@@ -70027,7 +70054,7 @@ function shpBucketMake() {
   const out = [];
   (SO_ALL_ROWS || []).forEach(o => {
     if (!o || !o.id || o.cancelled || o.shipped || !(o.handled || soIsPending(o)) || !shpSheetAllows(o)) return;
-    shpNeeds(o, undefined, { evenHandled: true }).forEach(w => { if (!opened.has(String(o.id) + '|' + w.sku)) out.push({ id: String(o.id), sku: w.sku, kind: 'make' }); });
+    shpNeeds(o, undefined, { evenHandled: true }).forEach(w => { if (shpReadyProduct(w.sku)) return; if (!opened.has(String(o.id) + '|' + w.sku)) out.push({ id: String(o.id), sku: w.sku, kind: 'make' }); });
   });
   return out;
 }
@@ -70043,6 +70070,7 @@ function shpBucketBuild(opts) {
     const mine = new Set();
     const noted = o.handled ? ' · the order is marked done (' + (o.handledWhy || 'a note says so') + ') — check it is not already made before opening' : '';
     shpNeeds(o, undefined, { evenHandled: true }).forEach(w => {
+      if (shpReadyProduct(w.sku)) return;   // a ready product is not production's
       mine.add(w.sku);
       if (!isOpen(w.sku)) out.push(Object.assign({ o, id, sheetOk, key: id + '|' + w.sku, sku: w.sku, qty: w.qty, pcs: w.pcs, shopQty: w.shopQty, kind: 'make',
         why: (w.why || []).join(' + ') + noted, noted: !!noted, name: w.name || '', img: w.img || '', adj: w.adjId || '' }, shpStockOf(o, w.sku)));
@@ -70076,6 +70104,8 @@ async function shpBucketRun(keys, reason) {
   const by = new Map(shpBucketAll().map(x => [x.key, x]));   // the order's dialog and a pending sheet may open past the bucket's rule
   const picks = [...new Set(keys || [])].map(k => by.get(k)).filter(Boolean);
   if (!picks.length) return 'Tick at least one line.';
+  const rp = picks.filter(x => shpReadyProduct(x.sku));
+  if (rp.length) return 'Not made by Ridhi — ' + rp.slice(0, 5).map(x => x.sku).join(', ') + (rp.length > 5 ? ' and ' + nf(rp.length - 5) + ' more' : '') + ' ' + (rp.length > 1 ? 'are ready products' : 'is a ready product') + ' (the Master Database names another manufacturer), so production does not open them.';
   /* One reason for all (the dialog), or one per line (the Excel): Map key → reason. */
   const whyOf = k => String((reason instanceof Map ? reason.get(k) : reason) || '').trim();
   const noWhy = picks.filter(x => x.kind === 'covered' && !whyOf(x.key));
