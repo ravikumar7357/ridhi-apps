@@ -30876,6 +30876,12 @@ function flowCloseShortOpen(no) {
  * 1. Printer Allocation: the printer fed against that brand + colour (the colour IS the design)
  * 2. else the printer this colour was last given to — a vendor order with one of its SKUs, or an earlier challan
  * Nothing found → blank, and PPC picks. */
+/** A date as YYYY-MM-DD, whichever way it was written: a vendor order says 24/10/2026, a challan 2026-10-24 (comparing the two as text put
+ * 30/09/2026 after 24/10/2026 — Ravi, 28 Oct: Apatite Blue was last given to A R Textile Printer, and PPC still suggested Bhavya). */
+function flowIsoDay(v) {
+  const t = String(v || '').trim(); let m = t.match(/^(\d{4})-(\d{2})-(\d{2})/); if (m) return m[0];
+  m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/); return m ? m[3] + '-' + String(m[2]).padStart(2, '0') + '-' + String(m[1]).padStart(2, '0') : '';
+}
 function flowPrinterFor(r) {
   const m = cutSkuOf(r.sku) || {}, color = String(m.color || r.color || '').trim(), brand = m.brand || '';
   let vens = []; try { vens = flowChVendors(); } catch (e) { vens = []; }
@@ -30886,9 +30892,9 @@ function flowPrinterFor(r) {
     try { const info = palInfoOf(palKey(brand, color)); const v = find(info && info.printer); if (v) return as(v, `Printer Allocation: ${color} is allocated to this printer`); } catch (e) { /* allocation not read */ }
     let best = null;
     try { (VO.rows || []).forEach(o => voLines(o).forEach(l => { const lm = l.sku && cutSkuOf(l.sku);
-      if (lm && String(lm.color || '').trim() === color && (!best || String(o.orderDate || '') > String(best.date))) best = { code: o.vendorCode, date: String(o.orderDate || '') }; })); } catch (e) { /* vendor orders not read */ }
+      if (lm && String(lm.color || '').trim() === color && (!best || flowIsoDay(o.orderDate) > best.date)) best = { code: o.vendorCode, date: flowIsoDay(o.orderDate) }; })); } catch (e) { /* vendor orders not read */ }
     Object.values(FLOW.ch || {}).forEach(c => (c.lines || []).forEach(l => { const lm = cutSkuOf(l.sku);
-      if (lm && String(lm.color || '').trim() === color && (!best || String(c.date || '') > best.date)) best = { code: c.vendor && c.vendor.code, date: String(c.date || '') }; }));
+      if (lm && String(lm.color || '').trim() === color && (!best || flowIsoDay(c.date) > best.date)) best = { code: c.vendor && c.vendor.code, date: flowIsoDay(c.date) }; }));
     const v = best && find(best.code); if (v) return as(v, `last given ${color} (${best.date.slice(0, 10)})`);
   }
   return { code: '', name: '', why: color ? `no printer allocated to ${color} yet` : 'no colour on the master' };

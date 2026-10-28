@@ -535,6 +535,13 @@ const K = 'AMZ-1__S1';
     ok('the colour allocated in Printer Allocation → that printer, and why', sg.printer.code === 'P1' && /Printer Allocation/.test(sg.printer.why));
     sg = A.flowSuggest(L({ sku: 'S2' }));
     ok('not allocated → the printer that last got that colour', sg.printer.code === 'V9' && /last given Ocean Vine/.test(sg.printer.why));
+    /* 28 Oct (Ravi): Apatite Blue last went to A R Textile Printer on 24/10, yet PPC suggested Bhavya (30/09) — vendor orders write dd/mm/yyyy,
+     * and as text "30/09/2026" is after "24/10/2026". The newest day wins, however it was written. */
+    { const B = load({ mdb, vo: [{ vendorCode: 'V9', orderDate: '30/09/2026', lines: [{ sku: 'S9' }] }, { vendorCode: 'P1', orderDate: '24/10/2026', lines: [{ sku: 'S9' }] }] });
+      ok('the colour last given on 24/10/2026 beats one given on 30/09/2026 (dd/mm/yyyy dates)', B.flowSuggest(L({ sku: 'S2' })).printer.code === 'P1', JSON.stringify(B.flowSuggest(L({ sku: 'S2' })).printer));
+      const C = load({ mdb, vo: [{ vendorCode: 'V9', orderDate: '30/09/2026', lines: [{ sku: 'S9' }] }] });
+      C.setFLOW(Object.assign({}, C.FLOW(), { ch: { 'RFD-1': { no: 'RFD-1', date: '2026-10-28', vendor: { code: 'P1' }, lines: [{ sku: 'S9' }] } } }));
+      ok('…and a challan dated 2026-10-28 beats a vendor order dated 30/09/2026 — the two kinds of date compare', C.flowSuggest(L({ sku: 'S2' })).printer.code === 'P1', JSON.stringify(C.flowSuggest(L({ sku: 'S2' })).printer)); }
     ok('nothing known → blank, said', A.flowSuggest(L({ sku: 'S3' })).printer.code === '' && /no printer allocated to Nobody/.test(A.flowSuggest(L({ sku: 'S3' })).printer.why));
     A = load({ me: { admin: true }, mdb, lines: [L()], pal: { 'SP|Light Steel Blue': { printer: 'P1' } } });
     A.setView('ppc'); A.renderFlow();
