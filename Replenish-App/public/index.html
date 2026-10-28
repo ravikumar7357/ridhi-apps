@@ -26670,8 +26670,11 @@ function ordTrackRows() {
 /* ================= SHP BOARD — Shopify orders, stage by stage (TEST WINDOW) =================
  *
  * Ravi, 28 Oct: "Ek test window banao for only SHP … sath sath me mention kar saku ki ye order kab ready hoga (live nahi karna
- * h, test window m rakhna h)". His sheet: one row per SKU — Date · Order ID · Item · Orders · Pieces, then a column for each
- * stage (cut · Issued · Received · Q.C Passed · Press) and "Handed to shipping", which belongs in the Complete tab, date wise.
+ * h, test window m rakhna h)". His sheet: Date · Order ID · Item · Pieces, then a column for each stage (cut · Issued · Received ·
+ * Q.C Passed · Press) and "Handed to shipping", which belongs in the Complete tab, date wise. Same day, on the first version:
+ * "Yaha indivisual line item dikhe with date bhi and printer karigar issue receive q.c pass press sab yanhi se manage kar
+ * saku" — so ONE ROW PER ORDER LINE, and every step is done from the row, in a dialog, through the SAME forms and checks the
+ * registers use (the cutting form, the Job Work issue form, Receive, Waiting for QC, the shipping hand-over, the PPC plan).
  *
  * Each stage cell says what reached that stage and how much of it has MOVED ON to the next one — "4 − (4 moved)" — and what
  * is still sitting there is the work to do, with the button for that work in the same cell:
@@ -26739,28 +26742,39 @@ function shpbStages(lines) {
 
 const SHPB_STAGE_BG = 'background:#fdf0e8';
 /** One stage cell: what is here, what moved on, and the button for the work that is waiting. */
-function shpbCell(x, mv, waiting, act, label, sku, title) {
+function shpbCell(x, mv, waiting, act, label, key, title) {
+  const btn = waiting ? '<div><button type="button" class="ghost" data-shpb-act="' + act + '" data-key="' + esc(key) + '" style="width:auto;padding:1px 8px;font-size:11px;margin-top:2px">'
+    + esc(label) + ' · ' + nf(waiting) + '</button></div>' : '';
   if (!x && !waiting) return '<td class="num" style="' + SHPB_STAGE_BG + '"><span class="muted">—</span></td>';
   const here = Math.max(0, x - mv);
   return '<td class="num" style="' + SHPB_STAGE_BG + ';white-space:nowrap" title="' + esc(title || '') + '"><b>' + nf(x) + '</b>'
     + (x ? ' <span class="muted" style="font-size:11.5px">− (' + nf(mv) + ' moved)</span>' : '')
-    + (here ? '<div style="font-size:11px;color:#b45309;font-weight:700">' + nf(here) + ' here</div>' : '')
-    + (waiting && act ? '<div><button type="button" class="ghost" data-shpb-act="' + act + '" data-sku="' + esc(sku) + '" style="width:auto;padding:1px 8px;font-size:11px;margin-top:2px">'
-      + esc(label) + ' · ' + nf(waiting) + '</button></div>' : '') + '</td>';
+    + (here ? '<div style="font-size:11px;color:#b45309;font-weight:700">' + nf(here) + ' here</div>' : '') + btn + '</td>';
 }
+const shpbLineOf = key => { const [o, k] = String(key).split('__'); return ordLines().find(r => r.orderNo === obUC(o) && r.sku === obUC(k)) || null; };
+const shpbPlanOf = r => ((typeof FLOW !== 'undefined' && FLOW && FLOW.ppc) || {})[typeof flowKey === 'function' ? flowKey(r.orderNo, r.sku) : ''] || null;
+const shpbPrinterOf = r => { const p = shpbPlanOf(r), pr = p && p.printer; return (pr && (pr.name || pr.code)) || r.printer || ''; };
 
-function shpbOrdersCell(lines, sku, many) {
-  const showAll = SHPB.open.has(sku), list = lines.slice().sort((a, b) => String(a.orderDate).localeCompare(String(b.orderDate)) || a.orderNo.localeCompare(b.orderNo));
-  const edit = shpbCanEdit();
-  return '<td style="text-align:left;font-size:12px;min-width:210px">' + list.slice(0, showAll ? list.length : 6).map(r => {
-    const rd = shpbReadyOf(r), k = shpbKey(r.orderNo, r.sku);
-    const late = rd.date && rd.date < dToday() && r.open;
-    return '<div style="white-space:nowrap;margin-bottom:2px"><a href="#" data-ordj="' + esc(r.orderNo) + '" style="color:inherit;text-decoration:underline dotted;font-weight:700">'
-      + esc(String(r.shopOrderNo || r.orderNo).replace(/^#\s*/, '')) + '</a><span class="muted"> ×' + nf(r.qty) + '</span> '
-      + (edit ? '<input type="date" data-shpb-ready="' + esc(k) + '" value="' + esc(rd.date) + '" style="width:122px;padding:1px 3px;font-size:11.5px' + (late ? ';color:#b91c1c' : '') + '" title="When this order will be ready">'
-        : '<span>' + esc(shpbDmy(rd.date) || '—') + '</span>')
-      + (rd.how ? ' <span class="muted" style="font-size:10.5px">' + (rd.how === 'set' ? 'set' + (rd.by ? ' · ' + esc(rd.by) : '') : esc(rd.how)) + '</span>' : '') + '</div>';
-  }).join('') + (list.length > 6 ? '<a href="#" data-shpb-more="' + esc(sku) + '" class="muted" style="font-size:11.5px">' + (showAll ? 'show fewer' : '+' + (list.length - 6) + ' more') + '</a>' : '') + '</td>';
+/** One order line: date, order, ready date, item, pieces, printer, then the five stages. */
+function shpbRow(r) {
+  const k = shpbKey(r.orderNo, r.sku), s = shpbStages([r]), rd = shpbReadyOf(r), edit = shpbCanEdit(), late = rd.date && rd.date < dToday();
+  const prn = shpbPrinterOf(r);
+  return '<tr><td class="frz" style="text-align:left;white-space:nowrap">' + esc(shpbDmy(ptIsoDate(r.orderDate))) + '</td>'
+    + '<td style="text-align:left;white-space:nowrap"><a href="#" data-ordj="' + esc(r.orderNo) + '" style="color:inherit;text-decoration:underline dotted;font-weight:700">'
+    + esc(String(r.shopOrderNo || r.orderNo).replace(/^#\s*/, '')) + '</a>'
+    + '<div style="margin-top:3px">' + (edit ? '<input type="date" data-shpb-ready="' + esc(k) + '" value="' + esc(rd.date) + '" style="width:124px;padding:1px 3px;font-size:11.5px' + (late ? ';color:#b91c1c' : '') + '" title="When this order will be ready">'
+      : '<span>' + esc(shpbDmy(rd.date) || '—') + '</span>')
+    + (rd.how ? '<div class="muted" style="font-size:10.5px">' + (rd.how === 'set' ? 'set' + (rd.by ? ' · ' + esc(rd.by) : '') : esc(rd.how)) + '</div>' : '') + '</div></td>'
+    + ordItemCell(r, null, '')
+    + `<td class="num"><b>${nf(r.qty)}</b></td>`
+    + `<td style="text-align:left;font-size:12px;white-space:nowrap">${prn ? '<b>' + esc(prn) + '</b>' : '<span class="muted">no printer</span>'}`
+    + `<div><button type="button" class="ghost" data-shpb-act="print" data-key="${esc(k)}" style="width:auto;padding:1px 8px;font-size:11px;margin-top:2px" title="Printing order and printer — the PPC plan of this line">${prn ? 'Change' : 'Printing'}</button></div></td>`
+    + (!r.cutReq ? `<td class="num" style="${SHPB_STAGE_BG}"><span class="muted" style="font-size:11.5px">not needed</span></td>`
+      : shpbCell(s.cutX, s.cutMv, s.toCut, 'cut', 'Cut', k, 'Cut, and how much of it has been issued to a karigar'))
+    + shpbCell(s.issX, s.issMv, s.toIssue, 'issue', 'Issue', k, 'Issued to karigars, and how much has come back')
+    + shpbCell(s.recX, s.recMv, s.issX - s.recX, 'receive', 'Receive', k, 'Received from karigars, and how much has gone to QC')
+    + shpbCell(s.qcX, s.qcMv, s.recX - s.qcX, 'qc', 'QC pass', k, 'Passed QC — goes to Press by itself')
+    + `<td class="num" style="${SHPB_STAGE_BG}">${s.ready ? `<b style="color:#166534">${nf(s.ready)}</b> <span class="muted" style="font-size:11px">ready</span><div><button type="button" data-shpb-act="hand" data-key="${esc(k)}" style="width:auto;padding:1px 8px;font-size:11px;margin-top:2px">Hand to shipping</button></div>` : '<span class="muted">—</span>'}</td></tr>`;
 }
 
 function renderShpBoard() {
@@ -26778,37 +26792,22 @@ function renderShpBoard() {
   const tabBtn = (v, t) => `<button type="button" data-shpb-tab="${v}" style="height:38px;padding:0 16px;border-radius:999px;font:inherit;font-weight:700;cursor:pointer;box-shadow:none;transform:none;`
     + (tab === v ? 'background:#15803D;color:#fff;border:1px solid #15803D' : 'background:#fff;color:#17202B;border:1px solid #D5DCE5') + `">${t}</button>`;
   $('odKpis').innerHTML = '<div class="jw-kpiname">SHP board — TEST window (preview link only; nothing here is on the live app)</div><div class="jw-kpis">'
-    + ordKpiCard(nf(new Set(pend.map(r => r.sku)).size), 'SKUs pending', 'list', 'blue', nf(pend.length) + ' order lines')
+    + ordKpiCard(nf(pend.length), 'Order lines pending', 'list', 'blue', nf(new Set(pend.map(r => r.sku)).size) + ' SKUs')
     + ordKpiCard(nf(st.pcs), 'Pieces pending', 'box', 'blue', 'ordered, not handed over')
     + ordKpiCard(nf(st.ready), 'Ready to hand over', 'box', 'green', 'passed QC, not with shipping yet')
     + ordKpiCard(nf(withDate), 'Have a ready date', 'doc', 'blue', nf(pend.length - withDate) + ' without one')
     + ordKpiCard(nf(lateN), 'Past their ready date', 'alert', 'amber', 'still open') + '</div>'
     + `<div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0">${tabBtn('pending', 'Order pending · ' + nf(pend.length))}${tabBtn('done', 'SHP order complete · ' + nf(done.length))}</div>`;
-  $('odMsg').className = 'muted';
-  $('odMsg').textContent = (SHPB.err || 'Stage cells read "reached − (moved on)"; the number "here" is what still waits at that stage, with its button. Ready dates: type one on an order; until then the PPC plan\'s date (or the 5 working days) shows.');
+  $('odMsg').className = SHPB.err ? 'err' : 'muted';
+  $('odMsg').textContent = SHPB.err || 'One row per order line. Stage cells read "reached − (moved on)"; "N here" waits at that stage and its button does the work, here. Ready date: type one on the order; until then the PPC plan\'s date (or the 5 working days) shows.';
 
   if (tab === 'done') return renderShpBoardDone(done);
   if (!pend.length) { ptEmpty('odTable', 'No Shopify order is pending.'); return; }
-  const by = new Map(); pend.forEach(r => { const e = by.get(r.sku) || by.set(r.sku, []).get(r.sku); e.push(r); });
-  const groups = [...by.entries()].map(([sku, ls]) => ({ sku, ls, date: ls.map(r => String(r.orderDate || '')).filter(Boolean).sort()[0] || '' }))
-    .sort((a, b) => a.date.localeCompare(b.date) || a.sku.localeCompare(b.sku));
-  const head = '<thead><tr><th class="frz" style="text-align:left">Date</th><th style="text-align:left">Order ID · ready on</th><th style="text-align:left">Item</th><th class="num">Orders</th><th class="num">Pieces</th>'
+  const rows = ordNewest(pend.slice().sort((a, b) => String(a.orderDate).localeCompare(String(b.orderDate)) || a.orderNo.localeCompare(b.orderNo) || a.sku.localeCompare(b.sku)));
+  const head = '<thead><tr><th class="frz" style="text-align:left">Date</th><th style="text-align:left">Order ID · ready on</th><th style="text-align:left">Item</th><th class="num">Pieces</th><th style="text-align:left">Printer</th>'
     + ['Cut', 'Issued', 'Received', 'QC passed', 'Press — ready to hand'].map(h => `<th class="num" style="${SHPB_STAGE_BG}">${h}</th>`).join('') + '</tr></thead>';
-  const body = groups.slice(0, 400).map(g => {
-    const s = shpbStages(g.ls), rep = g.ls[0];
-    return '<tr><td class="frz" style="text-align:left;white-space:nowrap">' + esc(shpbDmy(ptIsoDate(g.date))) + '</td>'
-      + shpbOrdersCell(g.ls, g.sku)
-      + ordItemCell(rep, null, '')
-      + `<td class="num">${nf(g.ls.length)}</td>`
-      + `<td class="num"><b>${nf(s.pcs)}</b><div><button type="button" class="ghost" data-shpb-act="print" data-sku="${esc(g.sku)}" style="width:auto;padding:1px 8px;font-size:11px;margin-top:2px" title="Printing order — Production flow, this SKU">Printing</button></div></td>`
-      + (s.cutNone && !s.cutX && !s.toCut ? `<td class="num" style="${SHPB_STAGE_BG}"><span class="muted" style="font-size:11.5px">not needed</span></td>`
-        : shpbCell(s.cutX, s.cutMv, s.toCut, 'cut', 'Cut', g.sku, 'Cut, and how much of it has been issued to a karigar'))
-      + shpbCell(s.issX, s.issMv, s.toIssue, 'issue', 'Issue', g.sku, 'Issued to karigars, and how much has come back')
-      + shpbCell(s.recX, s.recMv, s.issX - s.recX, 'receive', 'Receive', g.sku, 'Received from karigars, and how much has gone to QC')
-      + shpbCell(s.qcX, s.qcMv, s.recX - s.qcX, 'qc', 'QC', g.sku, 'Passed QC — goes to Press by itself')
-      + `<td class="num" style="${SHPB_STAGE_BG}">${s.ready ? `<b style="color:#166534">${nf(s.ready)}</b> <span class="muted" style="font-size:11px">ready</span><div><button type="button" data-shpb-act="hand" data-sku="${esc(g.sku)}" style="width:auto;padding:1px 8px;font-size:11px;margin-top:2px">Hand to shipping</button></div>` : '<span class="muted">—</span>'}</td></tr>`;
-  }).join('');
-  $('odTable').innerHTML = head + '<tbody>' + body + '</tbody>';
+  $('odTable').innerHTML = head + '<tbody>' + rows.slice(0, 300).map(shpbRow).join('') + '</tbody>'
+    + (rows.length > 300 ? '<tfoot><tr><td colspan="10" class="muted" style="padding:10px;text-align:left">Showing the first 300 of ' + nf(rows.length) + ' lines — search or filter to narrow them.</td></tr></tfoot>' : '');
 }
 
 /** SHP order complete: one line per hand-over, newest day first — "Handed to shipping" date wise. */
@@ -26831,28 +26830,93 @@ function renderShpBoardDone(done) {
   $('odTable').innerHTML = head + '<tbody>' + body + '</tbody>';
 }
 
-/** The work itself is done on the screen that owns it — opened on this SKU. Hand-over is done right here. */
-function shpbGo(act, sku) {
-  const search = (tab, id) => { showTab(tab); const el = $(id); if (el) { el.value = sku; el.dispatchEvent(new Event('input', { bubbles: true })); } };
-  if (act === 'cut') return search('pcut', 'pcQ');
-  if (act === 'issue' || act === 'receive') return search('pbase', 'pbQ');
-  if (act === 'qc') return search('qc', 'qcQ');
-  if (act === 'print') return search('flow', 'flQ');
-  if (act === 'hand') return shpbHandOpen(sku);
+/* ---- the work, done from the row ------------------------------------------------------------------------------------
+ * Cutting and the Job Work issue are written by the same save buttons of their own forms (the form's boxes are filled and its
+ * Save pressed), so every check they make — the order's cap, a month frozen, a zipper short, the same issue twice — answers
+ * here too. A refusal is the form's own message. */
+const shpbToday = () => (typeof dToday === 'function' ? dToday() : new Date().toISOString().slice(0, 10));
+async function shpbDrive(set, saveId, msgId) {
+  Object.entries(set).forEach(([id, v]) => { const el = $(id); if (el) el.value = v; });
+  await $(saveId).onclick();
+  const m = $(msgId);
+  return m && m.className === 'err' ? (m.textContent || 'Not saved.') : '';
 }
-function shpbHandOpen(sku) {
-  if (typeof shpReadyLines !== 'function' || !shpCanReceive()) { $('odMsg').className = 'err'; $('odMsg').textContent = 'Handing over to shipping needs the Shopify tab.'; return; }
-  const lines = shpReadyLines().filter(x => x.sku === obUC(sku));
-  if (!lines.length) return;
+async function shpbCutSave(r, v) {
+  const pcs = parseInt(v.pcs, 10);
+  if (!(pcs > 0)) return 'Type how many pieces were cut.';
+  await ensureCutForm();
+  $('cwSku').value = r.sku; $('cwSku').dataset.typed = '1'; renderCutPick(); renderCutForm();
+  return shpbDrive({ cwOrd: r.orderNo, cwPcs: String(pcs), cwFabric: v.fabric || '', cwDate: v.date || shpbToday() }, 'cwSave', 'cwMsg');
+}
+async function shpbIssueSave(r, v) {
+  const pcs = parseInt(v.pcs, 10), name = String(v.emp || '').trim();
+  if (!name) return 'Pick the karigar.';
+  if (!(pcs > 0)) return 'Type how many pieces are being issued.';
+  const emp = (PTE.emp || []).find(e => String(e[1]).trim().toLowerCase() === name.toLowerCase());
+  if (!emp) return `"${name}" is not on the employee list.`;
+  await ensureBdForm();
+  $('bwSku').value = r.sku; $('bwSku').dataset.typed = '1';
+  $('bwType').value = String(emp[0] || '').trim(); renderBdForm(); bdSkuTyped();
+  $('bwType').value = String(emp[0] || '').trim();
+  $('bwEmp').value = String(emp[1]).trim();
+  $('bwOrd').value = r.orderNo; $('bwPcs').value = String(pcs); $('bwDate').value = v.date || shpbToday(); $('bwDate').dataset.auto = '';
+  if (typeof bdMatFill === 'function') bdMatFill();
+  return shpbDrive({}, 'bwSave', 'bwMsg');
+}
+const shpbAfter = () => { try { renderOrd(); } catch (e) { /* the next draw shows it */ } };
+
+function shpbDialog(act, key) {
+  const r = shpbLineOf(key); if (!r) return;
+  const s = shpbStages([r]), who = (r.shopOrderNo || r.orderNo) + ' · ' + r.sku;
+  if (act === 'print') { if (typeof flowPpcOpen === 'function') flowPpcOpen(r.orderNo, r.sku); return; }
+  if (act === 'hand') return shpbHandOpen(key);
+  if (act === 'cut') {
+    const planFab = (shpbPlanOf(r) || {}).fabric, fabs = typeof cutFabrics === 'function' ? cutFabrics() : [];
+    const def = (planFab && fabs.find(x => String(x).toLowerCase() === String(planFab.name || '').toLowerCase())) || '';
+    return ptOpenDialog({ title: 'Cut — ' + who, subtitle: nf(s.toCut) + ' still to cut of ' + nf(r.qty) + '. Saved in Cutting Data, against this order.',
+      fields: [{ key: 'pcs', label: 'Pieces cut', type: 'number', min: 1, value: s.toCut || '' },
+        { key: 'fabric', label: 'Fabric', type: 'select', options: [['', '— pick —']].concat(fabs.map(x => [x, x])), value: def },
+        { key: 'date', label: 'Cutting date', type: 'date', value: shpbToday() }],
+      saveLabel: 'Save cutting', onSave: async v => { const err = await shpbCutSave(r, v); if (!err) shpbAfter(); return err; } });
+  }
+  if (act === 'issue') {
+    const go = () => ptOpenDialog({ title: 'Issue to a karigar — ' + who, subtitle: nf(s.toIssue) + ' can be issued now. Saved in the Job Work register, against this order.',
+      fields: [{ key: 'emp', label: 'Karigar / contractor', list: (PTE.emp || []).map(e => String(e[1]).trim()).filter(Boolean), value: '' },
+        { key: 'pcs', label: 'Pieces issued', type: 'number', min: 1, value: s.toIssue || '' }, { key: 'date', label: 'Issue date', type: 'date', value: shpbToday() }],
+      saveLabel: 'Issue', onSave: async v => { const err = await shpbIssueSave(r, v); if (!err) shpbAfter(); return err; } });
+    if (PTE.emp) return go();
+    return ptLoadEmp().then(go).catch(e => { $('odMsg').className = 'err'; $('odMsg').textContent = 'Could not read the employee list: ' + (e.message || e); });
+  }
+  if (act === 'receive') {
+    const open = (PT.base || []).filter(b => b && !b.frozen && obUC(b.orderNo) === r.orderNo && obUC(b.sku) === r.sku && ptNum(b.pendingPieces) > 0);
+    return ptOpenDialog({ title: 'Receive from karigar — ' + who, subtitle: open.length ? 'Pick the entry the pieces came back on.' : 'Nothing is out with a karigar on this line.',
+      html: open.map(b => `<div style="display:flex;align-items:center;gap:10px;margin:6px 0"><div style="flex:1"><b>${esc(b.empName)}</b> <span class="muted">· ${nf(ptNum(b.issuePieces))} issued ${esc(String(b.issueDate || '').slice(0, 10))} · ${nf(ptNum(b.receivedPieces))} back · <b>${nf(ptNum(b.pendingPieces))} out</b></span></div>`
+        + `<button type="button" data-shpb-recv="${esc(b.id)}" style="width:auto">Receive</button></div>`).join('') });
+  }
+  if (act === 'qc') {
+    return Promise.resolve(typeof ensureQc === 'function' ? ensureQc() : null).then(() => {
+      const rows = qcInboxRows().filter(x => obUC(x.r.orderNo) === r.orderNo && obUC(x.r.sku) === r.sku);
+      ptOpenDialog({ title: 'QC pass — ' + who, subtitle: rows.length ? 'Pieces received and waiting for QC. Type what passes now.' : 'Nothing is waiting for QC on this line.',
+        fields: rows.map((x, i) => ({ key: 'q' + i, label: `${x.r.empName || ''} · ${nf(x.wait)} waiting`, type: 'number', min: 0, value: x.wait })),
+        saveLabel: 'QC pass',
+        onSave: rows.length ? async v => {
+          let n = 0;
+          for (let i = 0; i < rows.length; i++) { const q = parseInt(v['q' + i], 10) || 0; if (!(q > 0)) continue; const err = await qcInboxAccept(rows[i].r.id, q, ''); if (err) return err; n++; }
+          if (!n) return 'Type how many pieces pass.'; shpbAfter(); return '';
+        } : undefined });
+    });
+  }
+}
+function shpbHandOpen(key) {
+  const r = shpbLineOf(key);
+  if (!r || typeof shpReadyLines !== 'function' || !shpCanReceive()) { $('odMsg').className = 'err'; $('odMsg').textContent = 'Handing over to shipping needs the Shopify tab.'; return; }
+  const x = shpReadyLines().find(y => y.orderNo === r.orderNo && y.sku === r.sku);
+  if (!x) return;
   ptOpenDialog({
-    title: 'Hand to shipping — ' + obUC(sku), subtitle: 'What passed QC and is not with shipping yet. Type what shipping is taking now.',
-    html: '<div class="ptgrid" style="grid-template-columns:1fr 90px">' + lines.map((x, i) => `<div>${esc(String(x.shop).replace(/^#\s*/, ''))} <span class="muted">· ${nf(x.ready)} ready of ${nf(x.qty)}</span></div><input type="number" min="0" max="${x.ready}" value="${x.ready}" id="shpbH${i}">`).join('') + '</div>',
-    saveLabel: 'Hand over',
-    onSave: async () => {
-      const items = lines.map((x, i) => ({ orderNo: x.orderNo, sku: x.sku, qty: Math.min(x.ready, Math.round(+$('shpbH' + i).value || 0)) })).filter(i => i.qty > 0);
-      if (!items.length) return 'Type how many pieces shipping is taking.';
-      const err = await shpReceive(items); if (!err) renderOrd(); return err;
-    },
+    title: 'Hand to shipping — ' + (r.shopOrderNo || r.orderNo) + ' · ' + r.sku, subtitle: 'Passed QC and not with shipping yet: ' + nf(x.ready) + '. Type what shipping is taking now.',
+    fields: [{ key: 'q', label: 'Pieces handed over', type: 'number', min: 1, value: x.ready }], saveLabel: 'Hand over',
+    onSave: async v => { const q = Math.min(x.ready, Math.round(+v.q || 0)); if (!(q > 0)) return 'Type how many pieces shipping is taking.';
+      const err = await shpReceive([{ orderNo: x.orderNo, sku: x.sku, qty: q }]); if (!err) shpbAfter(); return err; },
   });
 }
 
@@ -26860,8 +26924,7 @@ if (SHPB_ON && $('odView') && $('odView').insertAdjacentHTML) $('odView').insert
 if ($('odTable') && $('odTable').addEventListener) {
   $('odTable').addEventListener('click', e => {
     if (typeof ordView !== 'function' || ordView() !== 'shpboard') return;
-    const a = e.target.closest && e.target.closest('[data-shpb-act]'); if (a) { e.preventDefault(); shpbGo(a.dataset.shpbAct, a.dataset.sku); return; }
-    const m = e.target.closest && e.target.closest('[data-shpb-more]'); if (m) { e.preventDefault(); const k = m.dataset.shpbMore; if (SHPB.open.has(k)) SHPB.open.delete(k); else SHPB.open.add(k); renderShpBoard(); }
+    const a = e.target.closest && e.target.closest('[data-shpb-act]'); if (a) { e.preventDefault(); shpbDialog(a.dataset.shpbAct, a.dataset.key); }
   });
   $('odTable').addEventListener('change', async e => {
     const i = e.target.closest && e.target.closest('[data-shpb-ready]'); if (!i || ordView() !== 'shpboard') return;
@@ -26869,6 +26932,9 @@ if ($('odTable') && $('odTable').addEventListener) {
     if (err) { $('odMsg').className = 'err'; $('odMsg').textContent = err; } else renderShpBoard();
   });
 }
+if ($('ptDlgBody') && $('ptDlgBody').addEventListener) $('ptDlgBody').addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('[data-shpb-recv]'); if (b) { const id = b.dataset.shpbRecv; ptDlgClose(); jwRecvOpen(id); }
+});
 if ($('odKpis') && $('odKpis').addEventListener) $('odKpis').addEventListener('click', e => {
   const t = e.target.closest && e.target.closest('[data-shpb-tab]'); if (t && ordView() === 'shpboard') { SHPB.tab = t.dataset.shpbTab; renderShpBoard(); }
 });
