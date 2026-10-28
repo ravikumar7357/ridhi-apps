@@ -466,6 +466,9 @@ function flowPpcOpen(orderNo, onlySku, keys) {
       /* The print order goes to the printer now — so a printed line has to say which printer. */
       /* What still goes to a printer once printed stock is taken: the body not covered, or a ruffle cloth not covered. */
       const printsAt = (i, which) => { const c = cover[i] || { fab: 0, unit: 'm', extra: {} }, p = plans[i], qty = +p.qty || 0, m = flowR2((+p.fabric.perPc || 0) * qty);
+        /* Cut / issued in full before anything went to a printer (27 Oct): nothing prints, so no printer and no direction is asked
+         * for — the same rule as the print order itself (flowPrintsSomething). */
+        if (!flowPrintsSomething(rows[i].r, Object.assign({}, p, { fabric: Object.assign({}, p.fabric, { fromPrinted: 0, metres: m }) }))) return which ? '' : false;
         const bodyLeft = c.unit === 'pcs' ? qty - (c.fab || 0) : m - (c.fab || 0);
         const rufLeft = (p.extra || []).some((x, j) => /^Ruffle — /.test(String(x.what || '')) && (+x.qty || 0) - ((c.extra || {})[j] || 0) > 0.01);
         if (which) return bodyLeft > 0.01 ? 'body' : rufLeft ? 'ruffle' : '';   // only the ruffle prints → the ruffle printer is enough
@@ -517,9 +520,11 @@ function flowPpcOpen(orderNo, onlySku, keys) {
           const had = (FLOW.res || {})[x.s.key], dropped = had && patch['pt_accReserve/' + x.s.key] === null;
           if (had && !dropped) return;   // already reserved and the accessories did not change
           if (had) Object.entries(flowHeld(x.s.key, x.s.issued, +x.r.qty || 0)).forEach(([c, n]) => { if (free[c]) free[c].free += n; });   // its own old hold
-          const short = Object.entries(items).filter(([c, n]) => ((free[c] || {}).free || 0) - (took[c] || 0) < n);
+          /* What the hold really takes: the share of the line not yet issued (flowHeld) — pieces issued already took their zippers. */
+          const lq = +x.r.qty || 0, lleft = lq > 0 ? Math.max(0, 1 - (+x.s.issued || 0) / lq) : 0, want = Object.fromEntries(Object.entries(items).map(([c, n]) => [c, Math.ceil(n * lleft)]));
+          const short = Object.entries(want).filter(([c, n]) => ((free[c] || {}).free || 0) - (took[c] || 0) < n);
           if (short.length) { said.push(`${x.s.sku || obUC(x.r.sku)}: ${short.map(([c, n]) => `${c} short ${n - Math.max(0, ((free[c] || {}).free || 0) - (took[c] || 0))}`).join(', ')} — waits in Demand · Accessories`); return; }
-          Object.entries(items).forEach(([c, n]) => { took[c] = (took[c] || 0) + n; });
+          Object.entries(want).forEach(([c, n]) => { took[c] = (took[c] || 0) + n; });
           patch['pt_accReserve/' + x.s.key] = { orderNo: x.r.orderNo, sku: obUC(x.r.sku), items, at: now, by: ME.email || '', auto: true };
           said.push(`${obUC(x.r.sku)}: accessories reserved`); }); }
       /* The print orders, in the same write. */
@@ -635,7 +640,7 @@ function flowPpcOpen(orderNo, onlySku, keys) {
       }
       /* Job Work straight away: no cloth is raised for it — accessories only. */
       if (fname && route !== 'jobwork' && !noRfd) { const k = flowFabKey(fname), before = (com.fab[k] || 0) + (run.fab[k] || 0); names['f|' + k] = fname;
-        h.push(flowMatRow(`RFD · <b>${esc(fname)}</b>${doneP > 0 ? ` <span class="muted">(${nf(doneP)} pcs already cut — for the other ${nf(qtyP - doneP)})</span>` : rfdNeed < metres ? ' <span class="muted">(the rest)</span>' : ''}`, rfdNeed, flowRfdStock(fname), before, ' m', flowFabKnown(fname)));
+        h.push(flowMatRow(`RFD · <b>${esc(fname)}</b>${doneP > 0 ? ` <span class="muted">(${nf(doneP)} pcs already cut or issued — for the other ${nf(qtyP - doneP)})</span>` : rfdNeed < metres ? ' <span class="muted">(the rest)</span>' : ''}`, rfdNeed, flowRfdStock(fname), before, ' m', flowFabKnown(fname)));
         run.fab[k] = flowR2((run.fab[k] || 0) + rfdNeed); }
       (p.extra || []).forEach((x, j) => {
         if (route === 'jobwork' && x.unit === 'm') return;   // no cloth for a line going straight to job work
@@ -656,8 +661,11 @@ function flowPpcOpen(orderNo, onlySku, keys) {
         const before = (com.extra[k] || 0) + (run.extra[k] || 0); if (ruf) names['x|' + k] = name;
         h.push(flowMatRow(ruf ? `RFD · <b>${esc(name)}</b> <span class="muted">(ruffle${need < (+x.qty || 0) ? ', the rest' : ''})</span>` : `<b>${esc(x.what)}</b>`, need, ruf ? flowRfdStock(name) : 0, before, ' m', ruf && flowFabKnown(name)));
         run.extra[k] = flowR2((run.extra[k] || 0) + need); });
-      (p.acc || []).forEach((a, j) => { const c = accCode(a.code), need = +(val(i, 'acc.' + j + '.qty') ?? a.qty) || 0, before = (com.acc[c] || 0) + (run.acc[c] || 0); names['a|' + c] = a.what;
-        h.push(flowMatRow(`${esc(a.what)} <span class="muted">(code ${esc(a.code)})</span>`, need, shelf[c] || 0, before, '', c in shelf));
+      /* ZIPPERS GO OUT WITH THE ISSUE (27 Oct): pieces Job Work has already issued on the line took theirs off the shelf, so the
+       * plan holds only the share not yet issued — the same share a reservation holds (flowHeld). */
+      const issP = rows[i].s ? +rows[i].s.issued || 0 : 0, qtyL = +rows[i].r.qty || 0, accLeft = qtyL > 0 ? Math.max(0, 1 - issP / qtyL) : 1;
+      (p.acc || []).forEach((a, j) => { const c = accCode(a.code), full = +(val(i, 'acc.' + j + '.qty') ?? a.qty) || 0, need = Math.ceil(full * accLeft), before = (com.acc[c] || 0) + (run.acc[c] || 0); names['a|' + c] = a.what;
+        h.push(flowMatRow(`${esc(a.what)} <span class="muted">(code ${esc(a.code)}${issP > 0 && need < full ? ` · ${nf(issP)} pcs already issued — for the other ${nf(Math.max(0, qtyL - issP))}` : ''})</span>`, need, shelf[c] || 0, before, '', c in shelf));
         run.acc[c] = (run.acc[c] || 0) + need; });
       mat.innerHTML = h.join('') || '<tr><td colspan="4" class="muted" style="text-align:left">nothing to raise</td></tr>';
       /* What this line sends to the printer once the store has given what it can — for the order's combined demand. */

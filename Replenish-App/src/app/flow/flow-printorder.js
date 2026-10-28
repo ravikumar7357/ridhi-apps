@@ -10,8 +10,14 @@
  *   pt_flowPrintOrders/<no> = { no, date, orderNo, printer:{code,name}, items:{ <line>: {sku, item, print, extras, pcs,
  *                               metres, unit} }, at, by, cancelled? }  */
 
-/** Whether a planned line still sends anything to a printer once printed stock is taken: body or ruffle cloth. */
-const flowPrintsSomething = (r, p) => { if (flowInHand(p)) return false;   // printed cloth in hand: nothing goes to a printer
+/** Whether a planned line still sends anything to a printer once printed stock is taken: body or ruffle cloth.
+ * rem: the share of the line still to make (flowRemFrac) — nothing at all once the registers cover it (27 Oct: a line issued in
+ * full from Job Work before PPC planned it raises no print order). Read from the line when not given. */
+const flowPrintsSomething = (r, p, rem) => { if (flowInHand(p)) return false;   // printed cloth in hand: nothing goes to a printer
+  /* A line already on a print order or a challan stays there: editing its plan later must not take it off (and cancel the order). */
+  if (rem == null) { try { const k = flowKey(r.orderNo, r.sku), px = flowPoIndex(), cxi = flowChIndex();
+    rem = px[k] || px[k + FLOW_RUF] || cxi[k] || cxi[k + FLOW_RUF] ? 1 : flowRemFrac(r, flowState(r)); } catch (e) { rem = 1; } }
+  if (!(rem > 0)) return false;
   const w = flowPrintWhat(r, p), tp = flowToPrint(r, p);
   return (w.kind === 'sku' ? tp.pcs > 0 : tp.metres > 0.01) || flowPrintExtras(r, p).length > 0; };
 /** Which print order holds each line: { lineKey: no } — cached on FLOW.po. */

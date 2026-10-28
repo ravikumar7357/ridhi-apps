@@ -504,7 +504,9 @@ function showTab(which) {
   if (which === 'hr') ensureHr();
   if (which === 'shop') ensureShop();
   if (which === 'adj') ensureAdj();
-  if (which === 'flow') ensureFlow();
+  /* PPC re-reads the registers when it is opened and they are over ten minutes old (ptOpenFresh), as Job Work does: a line issued
+   * from the Job Work Register on another computer shows on PPC without a Refresh (27 Oct). */
+  if (which === 'flow') ptOpenFresh('flow', ensureFlow);
   if (which === 'gdesk' && FLOW_ON) GD.open();
 }
 $('tabDash').onclick = () => showTab('dash');

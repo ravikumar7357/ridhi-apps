@@ -66,7 +66,7 @@ function load(opts) {
     FAB: { rows: opts.fabRows || [] },
     STORE: { rows: opts.store ? [] : null }, stMoves: () => opts.store || [], stBalances: mv => mv, fabKey: v => String(v || '').trim().toUpperCase(), fabAll: () => opts.fabRows || [], ptList: x => x || [], fabAutoLoad: async () => {}, GD: opts.gd, mdbOf: opts.mdbOf, MDBX: opts.mdbx, fabState: r => String((r && r.state) || (/RFD/.test(String(r && r.txnType)) ? 'RFD' : 'PRINTED')).toUpperCase(), fabKnown: t => ['OPENING_RFD', 'RFD_TO_PRINTER', 'ISSUE_TO_CUTTING', 'RECEIVE_RFD', 'PURCHASE_RFD', 'ADJUST'].includes(t), fabMove: r => (+r.qty || 0) * (['RFD_TO_PRINTER', 'ISSUE_TO_CUTTING'].includes(r.txnType) ? -1 : 1), fabStockOf: (name, st) => (st === 'RFD' ? (opts.rfd || {})[String(name).toUpperCase()] || 0 : 0),
   };
-  const api = new Function(...Object.keys(ctx), SRC + '\n;return { flowDrfdLineRows, flowFabOwed, flowRfdStock, flowFabKnown, flowMatRow, flowGdNote, flowPpcDraftSave, flowPpcDraftApply, flowPpcDraftDrop, flowPpcHasDraft, flowBackOpen, flowAgainOpen, flowIsBack, flowBackLines, flowBackPill, FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW_ROUTES, flowPlanRouteOf, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChTotals, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestCutOpen, flowTestIssueOpen, flowTestRecvOpen, flowTestVos, flowVoProgOf, flowVoProgSync, flowVlogRows, flowDocsOf, flowVoExtra, flowVpViewOnly, flowFgAcceptOpen, flowFgAccept, flowFgRejectOpen, flowFgReject, flowFgLines, flowFgRender, flowQcLine, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowRecvCross, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowCutEntry, flowIssueEntry, flowRecvEntry, flowQcEntry, flowIssuable, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowVoLines, flowSwatchOf, flowSizeFifo, flowSizeChallanOpen, flowBySizeData, flowPpcXlRows, flowPpcXlRead, flowXlDate, FLOW_XL_COLS, VOrows:()=>VO.rows, setVOrows:v=>{VO.rows=v}, flowUnplan, flowPoResync, flowPlanQcDirect, flowChSizeLive, flowEmbedRows, FLOW_EMB_SHOWN:()=>FLOW_EMB_SHOWN, flowChLineWhat, flowRecvRows, flowRecvDayTable, FLOW_HD, flowDueRows, flowDueTable, flowReads, flowDueRecvOpen, flowDueRecvSave, flowRfdChallanOut, flowEarlierOf, flowRecordEarlier, flowChangePrinterSave, flowStanding, flowStandBack, flowStandUse, flowStandTargets, flowRfdChallanOut, flowHistTable, flowChGroups, flowChXlRead, flowChQueue, flowEmbIndex, flowEmbCells, flowEmbSendOpen, flowEmbRecvOpen, flowEmbWho, flowEmbCancel, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v}, flowEmbedRender, FLOW_EMB:()=>FLOW_EMB, flowScreenAllowed, flowOwnsOrder, flowOwnedIn, flowVoIsFlow, flowFgOwns, flowDupViewsOff, renderView:()=>{ if (["cut","raw","wip","new","pord","vendor","fabric"].includes(FLOW_VIEW)) { const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly(); const rows = flowRows().filter(x => (!only || x.r.__t) && (FLOW_VIEW === "new" ? x.recent : flowInView(FLOW_VIEW, x.s))); $("flTable").innerHTML = flowTable(FLOW_VIEW, rows); } else renderFlow(); } };')(...Object.values(ctx));
+  const api = new Function(...Object.keys(ctx), SRC + '\n;return { flowPoParts, flowDrfdLineRows, flowFabOwed, flowRfdStock, flowFabKnown, flowMatRow, flowGdNote, flowPpcDraftSave, flowPpcDraftApply, flowPpcDraftDrop, flowPpcHasDraft, flowBackOpen, flowAgainOpen, flowIsBack, flowBackLines, flowBackPill, FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW_ROUTES, flowPlanRouteOf, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChTotals, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestCutOpen, flowTestIssueOpen, flowTestRecvOpen, flowTestVos, flowVoProgOf, flowVoProgSync, flowVlogRows, flowDocsOf, flowVoExtra, flowVpViewOnly, flowFgAcceptOpen, flowFgAccept, flowFgRejectOpen, flowFgReject, flowFgLines, flowFgRender, flowQcLine, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowRecvCross, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowCutEntry, flowIssueEntry, flowRecvEntry, flowQcEntry, flowIssuable, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowVoLines, flowSwatchOf, flowSizeFifo, flowSizeChallanOpen, flowBySizeData, flowPpcXlRows, flowPpcXlRead, flowXlDate, FLOW_XL_COLS, VOrows:()=>VO.rows, setVOrows:v=>{VO.rows=v}, flowUnplan, flowPoResync, flowPlanQcDirect, flowChSizeLive, flowEmbedRows, FLOW_EMB_SHOWN:()=>FLOW_EMB_SHOWN, flowChLineWhat, flowRecvRows, flowRecvDayTable, FLOW_HD, flowDueRows, flowDueTable, flowReads, flowDueRecvOpen, flowDueRecvSave, flowRfdChallanOut, flowEarlierOf, flowRecordEarlier, flowChangePrinterSave, flowStanding, flowStandBack, flowStandUse, flowStandTargets, flowRfdChallanOut, flowHistTable, flowChGroups, flowChXlRead, flowChQueue, flowEmbIndex, flowEmbCells, flowEmbSendOpen, flowEmbRecvOpen, flowEmbWho, flowEmbCancel, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v}, flowEmbedRender, FLOW_EMB:()=>FLOW_EMB, flowScreenAllowed, flowOwnsOrder, flowOwnedIn, flowVoIsFlow, flowFgOwns, flowDupViewsOff, renderView:()=>{ if (["cut","raw","wip","new","pord","vendor","fabric"].includes(FLOW_VIEW)) { const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly(); const rows = flowRows().filter(x => (!only || x.r.__t) && (FLOW_VIEW === "new" ? x.recent : flowInView(FLOW_VIEW, x.s))); $("flTable").innerHTML = flowTable(FLOW_VIEW, rows); } else renderFlow(); } };')(...Object.values(ctx));
   api.setFLOW(Object.assign(api.FLOW(), { ppc: opts.ppc || {}, dem: opts.dem || {}, res: opts.res || {} }));
   return Object.assign(api, { els, writes, W, ctx });
 }
@@ -90,6 +90,42 @@ const K = 'AMZ-1__S1';
   let A = load();
   const b = r => A.flowState(r).bucket;
   ok('a new order with no plan is in PPC', b(L()) === 'ppc');
+  /* 27 Oct: issued from the Job Work Register before PPC planned it — PPC must show it, and plan only the rest. */
+  {
+    const J = load({ me: { admin: true }, lines: [L({ issued: 40 })],
+      base: [{ id: 'j1', orderNo: 'AMZ-1', sku: 'S1', issuePieces: 25, receivedPieces: 0, empName: 'Ramesh' }, { id: 'j2', orderNo: 'AMZ-1', sku: 'S1', issuePieces: 15, receivedPieces: 0, empName: 'Suresh' },
+        { id: 'j3', orderNo: 'AMZ-2', sku: 'S1', issuePieces: 9, receivedPieces: 0, empName: 'Other order' }] });
+    const st = J.flowState(L({ issued: 40 }));
+    ok('part issued from Job Work, no plan → still in PPC, marked as started', st.bucket === 'ppc' && st.startedNoPlan === true, JSON.stringify(st.bucket));
+    J.setView('ppc'); J.renderFlow();
+    const h = J.els.flTable.innerHTML;
+    ok('…the PPC list says what is issued, to whom, and what is left to plan', /Already started: issued <b>40<\/b> to Ramesh \(25\), Suresh \(15\)/.test(h) && /plan the other <b>60<\/b> pcs/.test(h) && !/Other order/.test(h), h.slice(0, 400));
+    ok('a line nobody has started says nothing extra', !/Already started/.test((() => { const K2 = load({ me: { admin: true }, lines: [L()] }); K2.setView('ppc'); K2.renderFlow(); return K2.els.flTable.innerHTML; })()));
+    /* Ravi, 27 Oct: a line issued in full before it is planned stays in PPC until it is planned, marked nothing left to make. */
+    ok('all of it issued from Job Work, no plan → stays in PPC until planned', b(L({ issued: 100 })) === 'ppc');
+    ok('all of it cut, no plan → stays in PPC too', b(L({ cutReq: true, cut: 100 })) === 'ppc');
+    { const F = load({ me: { admin: true }, lines: [L({ issued: 100 })], base: [{ id: 'f1', orderNo: 'AMZ-1', sku: 'S1', issuePieces: 100, receivedPieces: 0, empName: 'Ramesh' }] });
+      F.setView('ppc'); F.renderFlow();
+      ok('…marked on the PPC list: all issued — nothing left to make', /issued <b>100<\/b> to Ramesh \(100\)/.test(F.els.flTable.innerHTML) && /all issued — nothing left to make/.test(F.els.flTable.innerHTML)); }
+    { const P = load({ ppc: { [K]: plan() }, lines: [L({ issued: 100 })] });
+      const sp = P.flowState(L({ issued: 100 }));
+      ok('planned once all issued: no cloth, no print order — the line moves on to WIP', sp.bucket === 'wip' && !sp.needFab && P.flowPoParts(L({ issued: 100 }), plan()).length === 0, JSON.stringify([sp.bucket, sp.needFab])); }
+    { const P = load({ ppc: { [K]: plan() }, lines: [L({ issued: 100 })] });
+      P.setFLOW(Object.assign(P.FLOW(), { po: { 'PRN-202610-001': { no: 'PRN-202610-001', orderNo: 'AMZ-1', printer: { code: 'P1', name: 'Sanganer Prints' }, items: { [K]: { sku: 'S1', pcs: 100, metres: 50, unit: 'm' } } } } }));
+      const sp = P.flowState(L({ issued: 100 }));
+      ok('a line already on a print order, then issued in full: editing its plan keeps it on the print order', P.flowPoParts(L({ issued: 100 }), plan()).length === 1 && !sp.noneLeft && !sp.fromStock, JSON.stringify([sp.noneLeft, sp.fromStock])); }
+    { const P = load({ ppc: { [K]: plan() }, lines: [L({ issued: 40 })] });
+      ok('…while a line only part issued still prints (its print order is raised)', P.flowPoParts(L({ issued: 40 }), plan()).length === 1); }
+    { const Q = load({ lines: [L({ issued: 100 })], mdb: { S1: { cons: 0.5, fab: 'Cotton' } } });
+      Q.flowPpcOpen('AMZ-1'); const e = await Q.ctx.__dlg.onSave();
+      ok('planning a line issued in full asks for no printer — and writes no print order', !e && Q.writes.length > 0 && !!Q.writes[0]['pt_ppc/' + K] && !Object.keys(Q.writes[0] || {}).some(k => /pt_flowPrintOrders/.test(k)), e); }
+    { const Q = load({ lines: [L({ issued: 40 })], mdb: { S1: { cons: 0.5, fab: 'Cotton' } } });
+      Q.flowPpcOpen('AMZ-1'); const e = await Q.ctx.__dlg.onSave();
+      ok('…a line only part issued still has to name its printer', /Which printer/.test(e || ''), e); }
+    { const T = load({ lines: [] }); const tl = L({ __t: { qty: 100, issued: 100 }, issued: 100 });
+      ok('a test line issued in full prints nothing either (one rule with flowState)', T.flowPoParts(tl, plan()).length === 0); }
+    ok('…sent back to sales stays with the sales team', b(L({ issued: 100, ppcBack: { at: '2026-10-13T10:00', why: 'master' } })) === 'back');
+  }
   A = load({ ppc: { [K]: plan() } });
   ok('planned, fabric not ready → Demand', b(L()) === 'demand');
   A = load({ ppc: { [K]: plan() }, dem: { [K]: { fabricReady: { at: 'x' } } } });
@@ -2023,6 +2059,10 @@ const K = 'AMZ-1__S1';
   ok('a held reservation lets go as the line is issued (60 issued → 40 held)', JSON.stringify(A.flowHeld(K, 60, 100)) === '{"18":40}');
   ok('fully issued holds nothing — the zipper was taken at issue, not twice', Object.keys(A.flowHeld(K, 100, 100)).length === 0);
   ok('release frees it', !(await A.flowUnreserve(A.flowState(L()))) && A.flowAccFree()['18'].free === 150);
+  /* 27 Oct: 60 already issued from Job Work before the plan — their zippers went with them; 40 free is enough for the other 40. */
+  A = load({ lines: [L({ issued: 60 })], ppc: accPlan, shelf: [{ code: '18', name: '18" zip', qty: 40 }] });
+  { const er = await A.flowReserve(L({ issued: 60 }), A.flowState(L({ issued: 60 })));
+    ok('part issued before the plan: the zippers are reserved for the pieces not yet issued only', !er && A.flowAccFree()['18'].held === 40 && A.flowAccFree()['18'].free === 0, er); }
   A = load({ lines: [L()], ppc: { [K]: plan() } });
   ok('nothing to reserve is said', /Nothing to reserve/.test(await A.flowReserve(L(), A.flowState(L()))));
 

@@ -5825,7 +5825,9 @@ function showTab(which) {
   if (which === 'hr') ensureHr();
   if (which === 'shop') ensureShop();
   if (which === 'adj') ensureAdj();
-  if (which === 'flow') ensureFlow();
+  /* PPC re-reads the registers when it is opened and they are over ten minutes old (ptOpenFresh), as Job Work does: a line issued
+   * from the Job Work Register on another computer shows on PPC without a Refresh (27 Oct). */
+  if (which === 'flow') ptOpenFresh('flow', ensureFlow);
   if (which === 'gdesk' && FLOW_ON) GD.open();
 }
 $('tabDash').onclick = () => showTab('dash');
@@ -27848,7 +27850,12 @@ function flowState(r) {
     s.fabHave = flowR2(have); s.fabTotal = total;
     if (route === 'emb' && flowInHand(p) && flowEmbByVendor(p)) s.fabHave = flowR2(+(p.fabric && p.fabric.metres) || 0);   // in hand: all of it, for embroidery
     /* ALL FROM PRINTED STOCK: nothing to print, nothing to send — given and back in full, straight to Cutting. */
-    s.fromStock = !flowPrintsSomething(r, p);
+    /* NOTHING LEFT TO MAKE (27 Oct): a line cut / issued in full before anything went to a printer prints nothing. One already
+     * on a print order or a challan keeps it — the printer's work and the cloth coming back still count. */
+    /* embroidery always cuts (below): its cut pieces count even where the master says no cutting */
+    const remP = (po || cx) ? 1 : flowRemFrac(r, route === 'emb' ? Object.assign({}, s, { cut: cap(r.cut) }) : s);
+    s.noneLeft = !(remP > 0);
+    s.fromStock = !flowPrintsSomething(r, p, remP);
     if (s.fromStock) { s.given = qty; s.back = qty; }
     else if (po || cx) {
       s.given = qty;
@@ -27887,8 +27894,13 @@ function flowState(r) {
   const accNeed = !!p && route !== 'outsource' && (p.acc || []).some(a => a.code && +a.qty > 0);
   const handReady = !!(d && d.fabricReady && !d.fabricReady.challan);
   s.needFab = isNew && !!p && route !== 'outsource' && route !== 'jobwork' && !handReady && !flowInHand(p)
-    && (flowPrinted(route) ? (flowFabOwed({ qty }, s).left > 0.01 || (flowPrintExtras(r, p).length > 0 && !(flowRufflePrinter(p) ? flowChIndex()[k + FLOW_RUF] : cx))) : (!(d && d.fabricReady) && flowRemFrac(r, s) > 0));   // the ruffle cloth goes too, on the first challan
+    && (flowPrinted(route) ? (flowFabOwed({ qty }, s).left > 0.01 || (flowRemFrac(r, s) > 0 && flowPrintExtras(r, p).length > 0 && !(flowRufflePrinter(p) ? flowChIndex()[k + FLOW_RUF] : cx))) : (!(d && d.fabricReady) && flowRemFrac(r, s) > 0));   // the ruffle cloth goes too, on the first challan
   s.needAcc = isNew && accNeed && !res;
+  /* STARTED BEFORE PPC PLANNED IT (Ravi, 27 Oct: a line still waiting in PPC was issued to a karigar from the Job Work Register,
+   * and PPC showed nothing of it). PPC lists what is already cut / issued / passed on the line (flowStartedHtml) and plans only
+   * the rest. A line the registers cover in full still waits in PPC, marked "nothing left to make" (Ravi, 27 Oct: kept there
+   * until it is planned) — its plan raises no cloth, print order or zippers, and the line then moves on to where the work is. */
+  s.startedNoPlan = isNew && !p && flowRemFrac(r, s) < 1;
   s.bucket =
       (r.handedAt || r.shopDoneAt) ? 'done'
     : (isNew && !p) ? (flowIsBack(r) ? 'back' : 'ppc')
@@ -28399,6 +28411,9 @@ function flowPpcOpen(orderNo, onlySku, keys) {
       /* The print order goes to the printer now — so a printed line has to say which printer. */
       /* What still goes to a printer once printed stock is taken: the body not covered, or a ruffle cloth not covered. */
       const printsAt = (i, which) => { const c = cover[i] || { fab: 0, unit: 'm', extra: {} }, p = plans[i], qty = +p.qty || 0, m = flowR2((+p.fabric.perPc || 0) * qty);
+        /* Cut / issued in full before anything went to a printer (27 Oct): nothing prints, so no printer and no direction is asked
+         * for — the same rule as the print order itself (flowPrintsSomething). */
+        if (!flowPrintsSomething(rows[i].r, Object.assign({}, p, { fabric: Object.assign({}, p.fabric, { fromPrinted: 0, metres: m }) }))) return which ? '' : false;
         const bodyLeft = c.unit === 'pcs' ? qty - (c.fab || 0) : m - (c.fab || 0);
         const rufLeft = (p.extra || []).some((x, j) => /^Ruffle — /.test(String(x.what || '')) && (+x.qty || 0) - ((c.extra || {})[j] || 0) > 0.01);
         if (which) return bodyLeft > 0.01 ? 'body' : rufLeft ? 'ruffle' : '';   // only the ruffle prints → the ruffle printer is enough
@@ -28450,9 +28465,11 @@ function flowPpcOpen(orderNo, onlySku, keys) {
           const had = (FLOW.res || {})[x.s.key], dropped = had && patch['pt_accReserve/' + x.s.key] === null;
           if (had && !dropped) return;   // already reserved and the accessories did not change
           if (had) Object.entries(flowHeld(x.s.key, x.s.issued, +x.r.qty || 0)).forEach(([c, n]) => { if (free[c]) free[c].free += n; });   // its own old hold
-          const short = Object.entries(items).filter(([c, n]) => ((free[c] || {}).free || 0) - (took[c] || 0) < n);
+          /* What the hold really takes: the share of the line not yet issued (flowHeld) — pieces issued already took their zippers. */
+          const lq = +x.r.qty || 0, lleft = lq > 0 ? Math.max(0, 1 - (+x.s.issued || 0) / lq) : 0, want = Object.fromEntries(Object.entries(items).map(([c, n]) => [c, Math.ceil(n * lleft)]));
+          const short = Object.entries(want).filter(([c, n]) => ((free[c] || {}).free || 0) - (took[c] || 0) < n);
           if (short.length) { said.push(`${x.s.sku || obUC(x.r.sku)}: ${short.map(([c, n]) => `${c} short ${n - Math.max(0, ((free[c] || {}).free || 0) - (took[c] || 0))}`).join(', ')} — waits in Demand · Accessories`); return; }
-          Object.entries(items).forEach(([c, n]) => { took[c] = (took[c] || 0) + n; });
+          Object.entries(want).forEach(([c, n]) => { took[c] = (took[c] || 0) + n; });
           patch['pt_accReserve/' + x.s.key] = { orderNo: x.r.orderNo, sku: obUC(x.r.sku), items, at: now, by: ME.email || '', auto: true };
           said.push(`${obUC(x.r.sku)}: accessories reserved`); }); }
       /* The print orders, in the same write. */
@@ -28568,7 +28585,7 @@ function flowPpcOpen(orderNo, onlySku, keys) {
       }
       /* Job Work straight away: no cloth is raised for it — accessories only. */
       if (fname && route !== 'jobwork' && !noRfd) { const k = flowFabKey(fname), before = (com.fab[k] || 0) + (run.fab[k] || 0); names['f|' + k] = fname;
-        h.push(flowMatRow(`RFD · <b>${esc(fname)}</b>${doneP > 0 ? ` <span class="muted">(${nf(doneP)} pcs already cut — for the other ${nf(qtyP - doneP)})</span>` : rfdNeed < metres ? ' <span class="muted">(the rest)</span>' : ''}`, rfdNeed, flowRfdStock(fname), before, ' m', flowFabKnown(fname)));
+        h.push(flowMatRow(`RFD · <b>${esc(fname)}</b>${doneP > 0 ? ` <span class="muted">(${nf(doneP)} pcs already cut or issued — for the other ${nf(qtyP - doneP)})</span>` : rfdNeed < metres ? ' <span class="muted">(the rest)</span>' : ''}`, rfdNeed, flowRfdStock(fname), before, ' m', flowFabKnown(fname)));
         run.fab[k] = flowR2((run.fab[k] || 0) + rfdNeed); }
       (p.extra || []).forEach((x, j) => {
         if (route === 'jobwork' && x.unit === 'm') return;   // no cloth for a line going straight to job work
@@ -28589,8 +28606,11 @@ function flowPpcOpen(orderNo, onlySku, keys) {
         const before = (com.extra[k] || 0) + (run.extra[k] || 0); if (ruf) names['x|' + k] = name;
         h.push(flowMatRow(ruf ? `RFD · <b>${esc(name)}</b> <span class="muted">(ruffle${need < (+x.qty || 0) ? ', the rest' : ''})</span>` : `<b>${esc(x.what)}</b>`, need, ruf ? flowRfdStock(name) : 0, before, ' m', ruf && flowFabKnown(name)));
         run.extra[k] = flowR2((run.extra[k] || 0) + need); });
-      (p.acc || []).forEach((a, j) => { const c = accCode(a.code), need = +(val(i, 'acc.' + j + '.qty') ?? a.qty) || 0, before = (com.acc[c] || 0) + (run.acc[c] || 0); names['a|' + c] = a.what;
-        h.push(flowMatRow(`${esc(a.what)} <span class="muted">(code ${esc(a.code)})</span>`, need, shelf[c] || 0, before, '', c in shelf));
+      /* ZIPPERS GO OUT WITH THE ISSUE (27 Oct): pieces Job Work has already issued on the line took theirs off the shelf, so the
+       * plan holds only the share not yet issued — the same share a reservation holds (flowHeld). */
+      const issP = rows[i].s ? +rows[i].s.issued || 0 : 0, qtyL = +rows[i].r.qty || 0, accLeft = qtyL > 0 ? Math.max(0, 1 - issP / qtyL) : 1;
+      (p.acc || []).forEach((a, j) => { const c = accCode(a.code), full = +(val(i, 'acc.' + j + '.qty') ?? a.qty) || 0, need = Math.ceil(full * accLeft), before = (com.acc[c] || 0) + (run.acc[c] || 0); names['a|' + c] = a.what;
+        h.push(flowMatRow(`${esc(a.what)} <span class="muted">(code ${esc(a.code)}${issP > 0 && need < full ? ` · ${nf(issP)} pcs already issued — for the other ${nf(Math.max(0, qtyL - issP))}` : ''})</span>`, need, shelf[c] || 0, before, '', c in shelf));
         run.acc[c] = (run.acc[c] || 0) + need; });
       mat.innerHTML = h.join('') || '<tr><td colspan="4" class="muted" style="text-align:left">nothing to raise</td></tr>';
       /* What this line sends to the printer once the store has given what it can — for the order's combined demand. */
@@ -28818,7 +28838,9 @@ async function flowReserve(r, s) {
   const items = {};
   ((s.plan && s.plan.acc) || []).forEach(a => { if (a.code && +a.qty > 0) items[accCode(a.code)] = (items[accCode(a.code)] || 0) + (+a.qty); });
   if (!Object.keys(items).length) return 'Nothing to reserve: the plan raised no accessory from the shelf.';
-  const free = flowAccFree(), short = Object.entries(items).filter(([c, n]) => !free[c] || free[c].free < n);
+  /* Only for the pieces not yet issued (27 Oct): those issued took their zippers already — the hold is that share too (flowHeld). */
+  const q = +r.qty || 0, left = q > 0 ? Math.max(0, 1 - (+s.issued || 0) / q) : 0;
+  const free = flowAccFree(), short = Object.entries(items).map(([c, n]) => [c, Math.ceil(n * left)]).filter(([c, n]) => n > 0 && (!free[c] || free[c].free < n));
   if (short.length) return 'Short: ' + short.map(([c, n]) => `${c} needs ${n}, ${free[c] ? Math.max(0, free[c].free) : 0} free`).join(' · ') + ' — buy or free some first.';
   const rec = { orderNo: r.orderNo, sku: obUC(r.sku), items, at: new Date().toISOString(), by: ME.email || '' };
   const g = await flowGuard('acc'); if (g) return g;   // the shelf is shared: two reservations at once must not both take the same zips
@@ -30397,8 +30419,14 @@ function flowPrinterFor(r) {
  *   pt_flowPrintOrders/<no> = { no, date, orderNo, printer:{code,name}, items:{ <line>: {sku, item, print, extras, pcs,
  *                               metres, unit} }, at, by, cancelled? }  */
 
-/** Whether a planned line still sends anything to a printer once printed stock is taken: body or ruffle cloth. */
-const flowPrintsSomething = (r, p) => { if (flowInHand(p)) return false;   // printed cloth in hand: nothing goes to a printer
+/** Whether a planned line still sends anything to a printer once printed stock is taken: body or ruffle cloth.
+ * rem: the share of the line still to make (flowRemFrac) — nothing at all once the registers cover it (27 Oct: a line issued in
+ * full from Job Work before PPC planned it raises no print order). Read from the line when not given. */
+const flowPrintsSomething = (r, p, rem) => { if (flowInHand(p)) return false;   // printed cloth in hand: nothing goes to a printer
+  /* A line already on a print order or a challan stays there: editing its plan later must not take it off (and cancel the order). */
+  if (rem == null) { try { const k = flowKey(r.orderNo, r.sku), px = flowPoIndex(), cxi = flowChIndex();
+    rem = px[k] || px[k + FLOW_RUF] || cxi[k] || cxi[k + FLOW_RUF] ? 1 : flowRemFrac(r, flowState(r)); } catch (e) { rem = 1; } }
+  if (!(rem > 0)) return false;
   const w = flowPrintWhat(r, p), tp = flowToPrint(r, p);
   return (w.kind === 'sku' ? tp.pcs > 0 : tp.metres > 0.01) || flowPrintExtras(r, p).length > 0; };
 /** Which print order holds each line: { lineKey: no } — cached on FLOW.po. */
@@ -32312,7 +32340,7 @@ function flowCutFrom(x) {
   if (!p || !flowPrinted(x.s.route)) return '<span class="muted">—</span>';
   const w = flowPrintWhat(x.r, p), m = flowR2(+(p.fabric && p.fabric.metres) || 0), fp = +(p.fabric && p.fabric.fromPrinted) || 0;
   return `${w.kind === 'sku' ? `<b>${esc(w.code)}</b> printed pieces` : flowPrintTxt(w)}<div class="muted" style="font-size:10.5px">${w.kind === 'sku' ? nf(x.r.qty) + ' pcs' : nf(m) + ' m'} for ${nf(x.r.qty)} pcs`
-    + (x.s.fromStock ? ' · <b style="color:#166534">all from printed stock in the store</b>' : fp > 0 ? ` · ${nf(fp)} ${p.fabric.printedUnit === 'pcs' ? 'pcs' : 'm'} from printed stock, the rest from the printer` : ' · from the printer') + '</div>'
+    + (x.s.noneLeft ? ' · <b style="color:#166534">nothing to print — the whole line was cut or issued already</b>' : x.s.fromStock ? ' · <b style="color:#166534">all from printed stock in the store</b>' : fp > 0 ? ` · ${nf(fp)} ${p.fabric.printedUnit === 'pcs' ? 'pcs' : 'm'} from printed stock, the rest from the printer` : ' · from the printer') + '</div>'
     + (x.s.bucket === 'fabric' ? `<div style="font-size:11px;color:#b45309"><b>${nf(x.s.canCut)} pcs can be cut now</b> — printed fabric back for ${nf(x.s.back)} of ${nf(x.r.qty)} pcs, the rest still with the printer</div>` : '');
 }
 /* THE WASTE OF THE CUTTING TABLE (Ravi, 11 Oct: "yadi kuch waste ho to wo show ho Raw cutting in store me"). Every cutting
@@ -32352,6 +32380,22 @@ const flowChTag = s => { const fr = s.demand && s.demand.fabricReady; return fr 
 const FLOW_GO = { out: ['fgi', 'Finished Goods (receive)'], vendor: ['vreq', 'Vendor requests'], fabric: ['vlog', 'History (accept)'], cut: ['pcut', 'Cutting'], raw: ['pbase', 'Job Work (issue)'],
   wip: ['qc', 'QC'], fgin: ['fgi', 'Finished Goods (receive)'] };
 
+/* ALREADY STARTED, NOT PLANNED (Ravi, 27 Oct): a PPC line somebody has cut or issued from the Job Work Register says so —
+ * what is cut, who it is with, what is back and passed — and how much the plan is still for (flowState s.startedNoPlan). */
+function flowStartedHtml(x) {
+  if (!x || !x.s || !x.s.startedNoPlan) return '';
+  const r = x.r, s = x.s, q = +r.qty || 0, left = Math.round(q * flowRemFrac(r, s));
+  const who = new Map();
+  (PT.base || []).forEach(b => { const pcs = +(b && b.issuePieces) || 0;
+    if (pcs > 0 && obUC(b.orderNo) === obUC(r.orderNo) && obUC(b.sku) === obUC(r.sku)) { const n = String(b.empName || '').trim() || 'karigar'; who.set(n, (who.get(n) || 0) + pcs); } });
+  const parts = [
+    +r.cut > 0 && `cut <b>${nf(+r.cut)}</b>`,
+    s.issuedAll > 0 && `issued <b>${nf(s.issuedAll)}</b>${who.size ? ' to ' + [...who].map(([n, p]) => `${esc(n)} (${nf(p)})`).join(', ') : ''}`,
+    s.receivedAll > 0 && `back <b>${nf(s.receivedAll)}</b>`,
+    s.made > 0 && `passed <b>${nf(s.made)}</b>`].filter(Boolean);
+  return `<div style="font-size:12px;color:#1d4ed8;margin-top:3px;white-space:normal">Already started: ${parts.join(' · ')}`
+    + ` — ${left > 0 ? `plan the other <b>${nf(left)}</b> pcs` : `<b>all ${s.issuedAll >= q ? 'issued' : (+r.cut || 0) >= q ? 'cut' : 'done'} — nothing left to make</b>`}</div>`;
+}
 function flowTable(view, rows) {
   const pic = sku => { const u = typeof ptImgOf === 'function' ? ptImgOf(sku) : ''; return u ? `<img src="${esc(ptImgSrc(u, 34))}" alt="" style="width:34px;height:34px;object-fit:contain;background:#fff;border-radius:5px">` : ''; };
   /* COMPACT (Ravi, 14 Oct: "compact this"): the order column has a width it wraps in, and the order's name, badge, delete
@@ -32411,7 +32455,7 @@ function flowTable(view, rows) {
       prevNo = null;
       return `<tr style="background:#f5f3ff"><td class="frz" style="text-align:left;width:250px;max-width:250px;white-space:normal;vertical-align:top">
           <span class="jw-st prog">Combined · ${nf(g.length)} orders</span><div class="muted" style="font-size:12px;margin-top:3px">same SKU, ordered ${esc(ptIsoDate(x0.r.orderDate) || '')}</div>
-          ${g.map(x => `<div style="font-size:12.5px">${x.r.__t ? `<b>${esc(x.r.orderNo)}</b>` : `<a href="#" data-ordj="${esc(x.r.orderNo)}">${esc(x.r.orderNo)}</a>`} · <b>${nf(x.r.qty)}</b> <span class="muted">${esc(x.r.src || '')}</span></div>`).join('')}</td>
+          ${g.map(x => `<div style="font-size:12.5px">${x.r.__t ? `<b>${esc(x.r.orderNo)}</b>` : `<a href="#" data-ordj="${esc(x.r.orderNo)}">${esc(x.r.orderNo)}</a>`} · <b>${nf(x.r.qty)}</b> <span class="muted">${esc(x.r.src || '')}</span></div>${flowStartedHtml(x)}`).join('')}</td>
         <td style="text-align:left;white-space:nowrap;vertical-align:top"><div style="display:flex;gap:8px;align-items:flex-start">${pic(x0.r.sku)}<div style="line-height:1.5">
           <b style="font-family:ui-monospace,monospace">${esc(x0.r.sku)}</b>${[x0.r.articleSubtype || x0.r.articleType, x0.r.color, x0.r.size].filter(Boolean).map(t => `<div class="muted" style="font-size:12px">${esc(t)}</div>`).join('')}</div></div></td>
         <td class="num" style="vertical-align:top"><b>${nf(tot)}</b><div class="muted" style="font-size:11px">${g.map(x => nf(x.r.qty)).join(' + ')}</div></td>
@@ -32427,7 +32471,7 @@ function flowTable(view, rows) {
         <div>Fabric: <b>${esc(sg.fabric.name || '?')}</b> · ${sg.fabric.metres ? nf(sg.fabric.metres) + ' m' : '<b style="color:#b91c1c">metres not known</b>'}</div>
         <div>${sg.print.need ? `Print: <b>${esc(sg.printer.name || 'printer not chosen')}</b>${sg.printer.why ? `<div class="muted" style="font-size:12px">${esc(sg.printer.why)}</div>` : ''}` : 'No printing — straight to cutting'}</div>
         ${sg.acc.length ? `<div>Accessories: ${sg.acc.map(a => esc(a.code) + ' × ' + nf(a.qty)).join(', ')}</div>` : ''}
-        ${sg.gaps.length ? `<div style="font-size:12px;color:#92400e">${esc(sg.gaps[0])}${sg.gaps.length > 1 ? ' (+' + (sg.gaps.length - 1) + ')' : ''}</div>` : ''}</td>
+        ${sg.gaps.length ? `<div style="font-size:12px;color:#92400e">${esc(sg.gaps[0])}${sg.gaps.length > 1 ? ' (+' + (sg.gaps.length - 1) + ')' : ''}</div>` : ''}${flowStartedHtml(x)}</td>
         <td style="white-space:nowrap;vertical-align:top"><div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start">${flowPpcHasDraft(x.s.key) ? '<span class="jw-st prog" title="Started in PPC and saved as a draft on this computer — open it to carry on">Draft saved</span>' : ''}${first ? `<button data-flppc="${esc(x.r.orderNo)}" style="width:auto;padding:3px 10px;font-size:12px">Plan this PO</button>` : ''}
           <button class="ghost" data-flppc="${esc(x.r.orderNo)}" data-sku="${esc(x.r.sku)}" style="width:auto;padding:2px 8px;font-size:11.5px">This line</button>
           ${backBtn([x])}</div></td></tr>`; }).join('');
