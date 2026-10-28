@@ -155,7 +155,7 @@ function shpbRow(r) {
     + '<div>' + (edit ? '<input type="date" data-shpb-ready="' + esc(k) + '" value="' + esc(rd.date) + '" style="width:118px;padding:0 3px;font-size:11px;height:22px' + (late ? ';color:#b91c1c' : '') + '" title="When this order will be ready">'
       : '<span style="font-size:11.5px">' + esc(shpbDmy(rd.date) || '—') + '</span>')
     + (rd.how ? ' <span class="muted" style="font-size:10px">' + (rd.how === 'set' ? 'set' + (rd.by ? ' · ' + esc(rd.by) : '') : esc(rd.how)) + '</span>' : '') + '</div></td>'
-    + shpbItem(r) + shpbFlow(r, s)
+    + shpbItem(r)
     + `<td class="num" style="${SHPB_PAD}"><b>${nf(r.qty)}</b></td>`
     + `<td style="${SHPB_PAD}text-align:left;font-size:11.5px;white-space:nowrap;line-height:1.25">${prn ? '<b>' + esc(prn) + '</b>' : '<span class="muted">no printer</span>'}`
     + `<div><button type="button" class="ghost" data-shpb-act="print" data-key="${esc(k)}" style="width:auto;padding:0 7px;font-size:10.5px;line-height:18px" title="Printing order and printer — the PPC plan of this line">${prn ? 'Change' : 'Printing'}</button></div></td>`
@@ -199,17 +199,17 @@ function renderShpBoard() {
   $('odMsg').className = SHPB.err ? 'err' : 'muted';
   $('odMsg').textContent = SHPB.err || (tab === 'done'
     ? 'Pressed pieces wait here for shipping: Accept takes them in, Not received says they did not arrive. Handed-over lines follow, newest day first.'
-    : 'One row per order line. Each stage reads "waiting − (done moved)"; its button does that work here. The FLOW strip shows where the line has been (green) and where it is (orange). Press needs the pressman; once pressed the line moves to Complete.');
+    : 'One row per order line. Each stage reads "waiting − (done moved)"; its button does that work here. Click an Order ID for its flow. Press needs the pressman; once pressed the line moves to Complete.');
 
   if (tab === 'done') return renderShpBoardDone(list);
   if (!list.length) { ptEmpty('odTable', SHPB.stage ? 'No line is waiting at that stage.' : 'No Shopify order is pending.'); return; }
   const rows = ordNewest(list.slice().sort((a, b) => String(a.orderDate).localeCompare(String(b.orderDate)) || a.orderNo.localeCompare(b.orderNo) || a.sku.localeCompare(b.sku)));
   const th = (t, c) => `<th class="${c || ''}" style="${SHPB_PAD}${c === 'num' ? SHPB_STAGE_BG : ''}">${t}</th>`;
-  const head = '<thead><tr><th class="frz" style="' + SHPB_PAD + 'text-align:left">Date</th><th style="' + SHPB_PAD + 'text-align:left">Order ID · ready on</th><th style="' + SHPB_PAD + 'text-align:left">Item</th><th style="' + SHPB_PAD + 'text-align:left">Flow</th>'
+  const head = '<thead><tr><th class="frz" style="' + SHPB_PAD + 'text-align:left">Date</th><th style="' + SHPB_PAD + 'text-align:left">Order ID · ready on</th><th style="' + SHPB_PAD + 'text-align:left">Item</th>'
     + '<th class="num" style="' + SHPB_PAD + '">Pcs</th><th style="' + SHPB_PAD + 'text-align:left">Printer</th>'
     + ['Printer receive', 'Cut', 'Issued', 'Received', 'QC passed', 'Press'].map(h => th(h, 'num')).join('') + '</tr></thead>';
   $('odTable').innerHTML = head + '<tbody>' + rows.slice(0, 300).map(shpbRow).join('') + '</tbody>'
-    + (rows.length > 300 ? '<tfoot><tr><td colspan="12" class="muted" style="padding:10px;text-align:left">Showing the first 300 of ' + nf(rows.length) + ' lines — search or filter to narrow them. Export has all of them.</td></tr></tfoot>' : '');
+    + (rows.length > 300 ? '<tfoot><tr><td colspan="11" class="muted" style="padding:10px;text-align:left">Showing the first 300 of ' + nf(rows.length) + ' lines — search or filter to narrow them. Export has all of them.</td></tr></tfoot>' : '');
 }
 
 /** COMPLETE: pressed lines waiting for shipping (Accept / Not received), then handed-over lines, newest day first. */
