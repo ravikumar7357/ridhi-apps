@@ -16997,6 +16997,12 @@ $('cwSku').addEventListener('input', cutSkuTyped);
 });
 $('cwOrd').addEventListener('change', renderCutForm);
 
+/* A CUT MADE FROM OTHER CLOTH (Ravi, 28 Oct: "yadi hum us fabric me se nahi banwa rahe h kisi or rejected tablecloth ya wastage fabric me se banwa rahe h
+ * wo aay"). The SKU's own fabric is what a cut is taken from; when it is made from a rejected tablecloth or from wastage cloth instead, the entry
+ * says so (clothFrom) and the store takes NO printed cloth off for it (inventory/store.js stCutting). Set by the SHP board's Cut dialog just
+ * before it presses Save, and cleared again; the cutting form itself offers only the Fabric Type master. */
+const CUT_OTHER_CLOTH = { rejected: 'Rejected tablecloth', waste: 'Wastage fabric' };
+let CUT_FROM = '', CUT_OWN_OK = '';   // CUT_OWN_OK: the SKU's own fabric (from its master row / PPC plan) when the Fabric Type master does not list it
 $('cwSave').onclick = async () => {
   const sku = $('cwSku').value.trim();
   const m = cutSkuOf(sku);
@@ -17012,7 +17018,7 @@ $('cwSave').onclick = async () => {
   if (!fabric) return cutFormMsg('Pick the fabric.', true);
   /* From the master and nowhere else — a spelling the master does not have is a new fabric nobody
    * has agreed exists. */
-  if (cutFabrics().indexOf(fabric) < 0)
+  if (!CUT_FROM && !(CUT_OWN_OK && fabric === CUT_OWN_OK) && cutFabrics().indexOf(fabric) < 0)
     return cutFormMsg(`"${fabric}" is not in the Fabric Type master. Add it there first.`, true);
   if (!date) return cutFormMsg('Enter the cutting date.', true);
 
@@ -17032,7 +17038,8 @@ $('cwSave').onclick = async () => {
     articleType: at, articleSubtype: sub, color: col, size: sz,
     pieces: pcs,
     cutDate: ptStampDate(date),
-    fabricWidth: fabric,
+    fabricWidth: CUT_FROM ? (CUT_OTHER_CLOTH[CUT_FROM] || fabric) : fabric,
+    ...(CUT_FROM ? { clothFrom: CUT_FROM } : {}),
     ...cutFabFields(),
     orderNo,
     remarks: $('cwRemarks').value.trim(),
@@ -26940,12 +26947,19 @@ async function shpbDrive(set, saveId, msgId) {
   const m = $(msgId);
   return m && m.className === 'err' ? (m.textContent || 'Not saved.') : '';
 }
+/** The fabric this SKU is cut from: the PPC plan's, else the master row's (flowSuggest). */
+function shpbOwnFabric(r) { try { return String(((shpbPlanOf(r) || {}).fabric || {}).name || flowSuggest(r).fabric.name || '').trim(); } catch (e) { return ''; } }
 async function shpbCutSave(r, v) {
   const pcs = parseInt(v.pcs, 10);
   if (!(pcs > 0)) return 'Type how many pieces were cut.';
   await ensureCutForm();
   $('cwSku').value = r.sku; $('cwSku').dataset.typed = '1'; renderCutPick(); renderCutForm();
-  return shpbDrive({ cwOrd: r.orderNo, cwPcs: String(pcs), cwFabric: v.fabric || '', cwDate: v.date || shpbToday() }, 'cwSave', 'cwMsg');
+  /* The cloth: the SKU's own fabric, a rejected tablecloth, wastage cloth, or another fabric of the master. */
+  const other = Object.keys(CUT_OTHER_CLOTH).find(k => CUT_OTHER_CLOTH[k] === v.fabric) || '';
+  if (!v.fabric) return 'Pick the cloth this was cut from.';
+  CUT_FROM = other; CUT_OWN_OK = (!other && v.fabric === shpbOwnFabric(r)) ? v.fabric : '';
+  try { return await shpbDrive({ cwOrd: r.orderNo, cwPcs: String(pcs), cwFabric: other ? CUT_OTHER_CLOTH[other] : v.fabric, cwDate: v.date || shpbToday() }, 'cwSave', 'cwMsg'); }
+  finally { CUT_FROM = ''; CUT_OWN_OK = ''; }
 }
 async function shpbIssueSave(r, v) {
   const pcs = parseInt(v.pcs, 10), name = String(v.emp || '').trim();
@@ -26993,11 +27007,14 @@ function shpbDialog(act, key) {
       saveLabel: 'Save press entry', onSave: async v => { const err = await shpbPressSave(r, v); if (!err) shpbAfter(); return err; } });
   }
   if (act === 'cut') {
-    const planFab = (shpbPlanOf(r) || {}).fabric, fabs = typeof cutFabrics === 'function' ? cutFabrics() : [];
-    const def = (planFab && fabs.find(x => String(x).toLowerCase() === String(planFab.name || '').toLowerCase())) || '';
+    /* THE SKU'S OWN FABRIC comes in by itself — the plan's, else the master row's — and is the default; a rejected tablecloth or wastage cloth is one pick away. */
+    const fabs = typeof cutFabrics === 'function' ? cutFabrics() : [];
+    const ownIn = shpbOwnFabric(r);
+    const opts = (ownIn ? [[ownIn, ownIn + ' — this SKU\'s fabric']] : []).concat(Object.values(CUT_OTHER_CLOTH).map(x => [x, x + ' (not from the SKU\'s fabric)']), fabs.filter(x => String(x).toLowerCase() !== ownIn.toLowerCase()).map(x => [x, x]));
+    const def = ownIn;
     return ptOpenDialog({ title: 'Cut — ' + who, subtitle: nf(s.cutW) + ' can be cut now (of ' + nf(r.qty) + '). Saved in Cutting Data, against this order.',
       fields: [{ key: 'pcs', label: 'Pieces cut', type: 'number', min: 1, value: s.cutW || '' },
-        { key: 'fabric', label: 'Fabric', type: 'select', options: [['', '— pick —']].concat(fabs.map(x => [x, x])), value: def },
+        { key: 'fabric', label: 'Cloth it is cut from', type: 'select', options: ownIn ? opts : [['', '— pick —']].concat(opts), value: def },
         { key: 'date', label: 'Cutting date', type: 'date', value: shpbToday() }],
       saveLabel: 'Save cutting', onSave: async v => { const err = await shpbCutSave(r, v); if (!err) shpbAfter(); return err; } });
   }
@@ -64191,6 +64208,8 @@ function stCutting(c) {
   /* A piece whose cloth is printed AFTER cutting leaves the store when the printer is given it, and
    * comes back as the printer's delivery — so the cutting itself moves nothing here. */
   const running = !!m && ptPrintIssueAs(m) === 'running';
+  /* Cut from a rejected tablecloth or wastage cloth (clothFrom, look-alike-skus.js): no printed cloth left the store for it. */
+  if (c.clothFrom) return { running: false, pcs, fabric: '', colour: c.color || '', metres: 0, waste: 0, wasteWidth: 0 };
   const typed = parseFloat(c.fabricUsed);
   let fabric = String(c.fabricWidth || '').trim(), metres = isFinite(typed) && typed > 0 ? typed : 0;
   if (!metres || !fabric) {

@@ -394,6 +394,12 @@ $('cwSku').addEventListener('input', cutSkuTyped);
 });
 $('cwOrd').addEventListener('change', renderCutForm);
 
+/* A CUT MADE FROM OTHER CLOTH (Ravi, 28 Oct: "yadi hum us fabric me se nahi banwa rahe h kisi or rejected tablecloth ya wastage fabric me se banwa rahe h
+ * wo aay"). The SKU's own fabric is what a cut is taken from; when it is made from a rejected tablecloth or from wastage cloth instead, the entry
+ * says so (clothFrom) and the store takes NO printed cloth off for it (inventory/store.js stCutting). Set by the SHP board's Cut dialog just
+ * before it presses Save, and cleared again; the cutting form itself offers only the Fabric Type master. */
+const CUT_OTHER_CLOTH = { rejected: 'Rejected tablecloth', waste: 'Wastage fabric' };
+let CUT_FROM = '', CUT_OWN_OK = '';   // CUT_OWN_OK: the SKU's own fabric (from its master row / PPC plan) when the Fabric Type master does not list it
 $('cwSave').onclick = async () => {
   const sku = $('cwSku').value.trim();
   const m = cutSkuOf(sku);
@@ -409,7 +415,7 @@ $('cwSave').onclick = async () => {
   if (!fabric) return cutFormMsg('Pick the fabric.', true);
   /* From the master and nowhere else — a spelling the master does not have is a new fabric nobody
    * has agreed exists. */
-  if (cutFabrics().indexOf(fabric) < 0)
+  if (!CUT_FROM && !(CUT_OWN_OK && fabric === CUT_OWN_OK) && cutFabrics().indexOf(fabric) < 0)
     return cutFormMsg(`"${fabric}" is not in the Fabric Type master. Add it there first.`, true);
   if (!date) return cutFormMsg('Enter the cutting date.', true);
 
@@ -429,7 +435,8 @@ $('cwSave').onclick = async () => {
     articleType: at, articleSubtype: sub, color: col, size: sz,
     pieces: pcs,
     cutDate: ptStampDate(date),
-    fabricWidth: fabric,
+    fabricWidth: CUT_FROM ? (CUT_OTHER_CLOTH[CUT_FROM] || fabric) : fabric,
+    ...(CUT_FROM ? { clothFrom: CUT_FROM } : {}),
     ...cutFabFields(),
     orderNo,
     remarks: $('cwRemarks').value.trim(),

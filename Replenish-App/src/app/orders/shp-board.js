@@ -271,12 +271,19 @@ async function shpbDrive(set, saveId, msgId) {
   const m = $(msgId);
   return m && m.className === 'err' ? (m.textContent || 'Not saved.') : '';
 }
+/** The fabric this SKU is cut from: the PPC plan's, else the master row's (flowSuggest). */
+function shpbOwnFabric(r) { try { return String(((shpbPlanOf(r) || {}).fabric || {}).name || flowSuggest(r).fabric.name || '').trim(); } catch (e) { return ''; } }
 async function shpbCutSave(r, v) {
   const pcs = parseInt(v.pcs, 10);
   if (!(pcs > 0)) return 'Type how many pieces were cut.';
   await ensureCutForm();
   $('cwSku').value = r.sku; $('cwSku').dataset.typed = '1'; renderCutPick(); renderCutForm();
-  return shpbDrive({ cwOrd: r.orderNo, cwPcs: String(pcs), cwFabric: v.fabric || '', cwDate: v.date || shpbToday() }, 'cwSave', 'cwMsg');
+  /* The cloth: the SKU's own fabric, a rejected tablecloth, wastage cloth, or another fabric of the master. */
+  const other = Object.keys(CUT_OTHER_CLOTH).find(k => CUT_OTHER_CLOTH[k] === v.fabric) || '';
+  if (!v.fabric) return 'Pick the cloth this was cut from.';
+  CUT_FROM = other; CUT_OWN_OK = (!other && v.fabric === shpbOwnFabric(r)) ? v.fabric : '';
+  try { return await shpbDrive({ cwOrd: r.orderNo, cwPcs: String(pcs), cwFabric: other ? CUT_OTHER_CLOTH[other] : v.fabric, cwDate: v.date || shpbToday() }, 'cwSave', 'cwMsg'); }
+  finally { CUT_FROM = ''; CUT_OWN_OK = ''; }
 }
 async function shpbIssueSave(r, v) {
   const pcs = parseInt(v.pcs, 10), name = String(v.emp || '').trim();
@@ -324,11 +331,14 @@ function shpbDialog(act, key) {
       saveLabel: 'Save press entry', onSave: async v => { const err = await shpbPressSave(r, v); if (!err) shpbAfter(); return err; } });
   }
   if (act === 'cut') {
-    const planFab = (shpbPlanOf(r) || {}).fabric, fabs = typeof cutFabrics === 'function' ? cutFabrics() : [];
-    const def = (planFab && fabs.find(x => String(x).toLowerCase() === String(planFab.name || '').toLowerCase())) || '';
+    /* THE SKU'S OWN FABRIC comes in by itself — the plan's, else the master row's — and is the default; a rejected tablecloth or wastage cloth is one pick away. */
+    const fabs = typeof cutFabrics === 'function' ? cutFabrics() : [];
+    const ownIn = shpbOwnFabric(r);
+    const opts = (ownIn ? [[ownIn, ownIn + ' — this SKU\'s fabric']] : []).concat(Object.values(CUT_OTHER_CLOTH).map(x => [x, x + ' (not from the SKU\'s fabric)']), fabs.filter(x => String(x).toLowerCase() !== ownIn.toLowerCase()).map(x => [x, x]));
+    const def = ownIn;
     return ptOpenDialog({ title: 'Cut — ' + who, subtitle: nf(s.cutW) + ' can be cut now (of ' + nf(r.qty) + '). Saved in Cutting Data, against this order.',
       fields: [{ key: 'pcs', label: 'Pieces cut', type: 'number', min: 1, value: s.cutW || '' },
-        { key: 'fabric', label: 'Fabric', type: 'select', options: [['', '— pick —']].concat(fabs.map(x => [x, x])), value: def },
+        { key: 'fabric', label: 'Cloth it is cut from', type: 'select', options: ownIn ? opts : [['', '— pick —']].concat(opts), value: def },
         { key: 'date', label: 'Cutting date', type: 'date', value: shpbToday() }],
       saveLabel: 'Save cutting', onSave: async v => { const err = await shpbCutSave(r, v); if (!err) shpbAfter(); return err; } });
   }
