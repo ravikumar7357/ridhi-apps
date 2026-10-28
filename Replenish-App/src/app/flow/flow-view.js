@@ -106,6 +106,7 @@ function renderFlow() {
   FLOW.shownDrfd = FLOW_VIEW === 'drfd' ? rows : [];     // every line the filters let through, not only the 800 drawn
   ['flXlOut', 'flXlIn'].forEach(id => { const b = $(id); if (b && b.classList) b.classList.toggle('hide', FLOW_VIEW !== 'ppc'); });
   try { flowXlBtn(); } catch (e) { /* not drawn */ }
+  try { flowRepBtn(); } catch (e) { /* not drawn */ }
   /* DEMAND HAS TWO ANGLES (Ravi, 10 Oct: "keep this section in a different angle"): the lines, or the stock by
    * fabric / accessory against them — one at a time, never stacked. */
   if (FLOW.stock) {

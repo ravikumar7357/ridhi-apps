@@ -485,6 +485,9 @@ function flowPpcOpen(orderNo, onlySku, keys) {
       const patch = {}, now = new Date().toISOString();
       const noFab = plans.filter((p, i) => pick(i) && p.route !== 'outsource' && !String(p.fabric.name || '').trim()).map(p => p.sku);
       if (noFab.length) return `Which fabric? Type it for ${noFab.join(', ')} before raising the plan.`;
+      /* READY DATE REQUIRED (28 Oct): the PPC report measures a line's delay against it — a plan without one could never be late. */
+      const noReady = plans.filter((p, i) => pick(i) && !String((p.dates || {}).ready || '').trim()).map(p => p.sku);
+      if (noReady.length) return `When is it ready? Pick the Ready date for ${noReady.join(', ')}.`;
       plans.forEach((p, i) => {
         if (!pick(i)) return;   // left in PPC for now
         p.fabric.metres = flowR2(p.fabric.perPc * p.qty); delete p.fabric.was;
@@ -500,7 +503,9 @@ function flowPpcOpen(orderNo, onlySku, keys) {
         /* In hand: no RFD raised — the metres stay, so the cutting table knows what the line takes (16 Oct). */
         if ((p.route === 'stitch' || p.route === 'emb') && p.fabric && p.fabric.noRfd) p.fabric = Object.assign({}, p.fabric, { fromPrinted: 0, noRfd: true });
         if (p.route === 'emb' && p.fabric && p.fabric.noRfd) { p.printer = null; p.rufflePrinter = null; }   // in hand: no printer
-        const rec = Object.assign({}, p, { at: now, by: ME.email || '' }); delete rec.gaps;
+        /* THE DAY IT WAS FIRST PLANNED (28 Oct, the PPC report): kept through every re-plan; a plan from before then starts from its last save. */
+        const was = rows[i].s.plan;
+        const rec = Object.assign({}, p, { firstAt: (was && (was.firstAt || was.at)) || now, at: now, by: ME.email || '' }); delete rec.gaps;
         patch['pt_ppc/' + flowKey(p.orderNo, p.sku)] = rec;
       });
       /* A re-plan: what it undoes downstream, written in the same save and said. */

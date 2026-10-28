@@ -2,7 +2,7 @@
  *   node tests/flow-test.js      (FLOW_DIR=<dir> to test another copy — teeth/teeth-flow.js does) */
 const fs = require('fs'), path = require('path');
 const DIR = process.env.FLOW_DIR || path.join(__dirname, '..', 'src', 'app', 'flow');
-const SRC = ['flow-core.js', 'flow-ppc.js', 'flow-demand.js', 'flow-challan.js', 'flow-test-order.js', 'flow-receive.js', 'flow-printorder.js', 'flow-vendor.js', 'flow-edit.js', 'flow-back.js', 'flow-entries.js', 'flow-qcfg.js', 'flow-emb.js', 'flow-view.js'].map(f => fs.readFileSync(path.join(DIR, f), 'utf8')).join('\n');
+const SRC = ['flow-core.js', 'flow-ppc.js', 'flow-demand.js', 'flow-challan.js', 'flow-test-order.js', 'flow-receive.js', 'flow-printorder.js', 'flow-vendor.js', 'flow-edit.js', 'flow-back.js', 'flow-entries.js', 'flow-qcfg.js', 'flow-emb.js', 'flow-view.js', 'flow-report.js'].map(f => fs.readFileSync(path.join(DIR, f), 'utf8')).join('\n');
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => { if (cond) { pass++; console.log('  PASS ' + name); } else { fail++; console.log('  FAIL ' + name + (extra ? ' — ' + extra : '')); } };
 
@@ -53,7 +53,7 @@ function load(opts) {
       return { row: Object.assign({}, row, { rejectionPieces: val, pendingPieces: iss - recv - val, frozen: iss - recv - val <= 0 }) }; },
     ptLoadEmp: async () => {}, ptEmpTypes: () => ['Company Contractor', 'External Contractor'],
     ptEmpsOfType: t => ({ 'Company Contractor': [['Company Contractor', 'Ramesh'], ['Company Contractor', 'Suresh']], 'External Contractor': [['External Contractor', 'Pradeep']] })[t] || [],
-    cutFabrics: () => ['Canvas', 'Cotton', 'Sheeting 82'], ptDlgClose: () => {}, PT: { base: opts.base || [] }, ORD_IX: {}, palKey: (b, c) => (b || '') + '|' + c, palInfoOf: k => (opts.pal || {})[k] || {}, VO: { rows: opts.vo || [] }, voLines: o => (Array.isArray(o.lines) ? o.lines : Object.values(o.lines || {})), voNewOrderNo: (() => { let n = 0; return () => 'VPO-261010-T' + (++n); })(), voTodayDMY: () => '10/10/2026', ordCutReq: sku => !/NOCUT/.test(sku), confirm: q => { (ctx.__asked = ctx.__asked || []).push(q); return !opts.confirmNo; }, PTG: { mdb: [] }, setTimeout, clearTimeout,
+    cutFabrics: () => ['Canvas', 'Cotton', 'Sheeting 82'], ptDlgClose: () => {}, PT: { base: opts.base || [] }, ORD_IX: {}, palKey: (b, c) => (b || '') + '|' + c, palInfoOf: k => (opts.pal || {})[k] || {}, VO: { rows: opts.vo || [] }, voLines: o => (Array.isArray(o.lines) ? o.lines : Object.values(o.lines || {})), voNewOrderNo: (() => { let n = 0; return () => 'VPO-261010-T' + (++n); })(), voTodayDMY: () => '10/10/2026', ordCutReq: sku => !/NOCUT/.test(sku), confirm: q => { (ctx.__asked = ctx.__asked || []).push(q); return !opts.confirmNo; }, PTG: { mdb: [] }, soZip: f => f, soXml: v => String(v), soColName: i => String.fromCharCode(65 + i), setTimeout, clearTimeout,
     voAllVendors: () => [{ code: 'V9', desc: 'Kalu Mill', category: 'Mill' }, { code: 'P1', desc: 'Sanganer Prints', category: 'Printer' }, { code: 'P2', desc: 'Choudhary Hand Block', category: 'Printer' }],
     window: { open: () => (opts.popupBlocked ? null : { document: { open() {}, write(h) { (ctx.__win = ctx.__win || []).push(h); }, close() {} } }) }, GPO: { settings: { company: 'Ridhi Home & Living' } },
     ordPrintAsPcs: m => !!(m && m.asPcs), ptPrintFabric: m => (m && m.pfab) || '', ptPrintDir: m => (m && m.dir) || '',
@@ -66,11 +66,11 @@ function load(opts) {
     FAB: { rows: opts.fabRows || [] },
     STORE: { rows: opts.store ? [] : null }, stMoves: () => opts.store || [], stBalances: mv => mv, fabKey: v => String(v || '').trim().toUpperCase(), fabAll: () => opts.fabRows || [], ptList: x => x || [], fabAutoLoad: async () => {}, GD: opts.gd, mdbOf: opts.mdbOf, MDBX: opts.mdbx, fabState: r => String((r && r.state) || (/RFD/.test(String(r && r.txnType)) ? 'RFD' : 'PRINTED')).toUpperCase(), fabKnown: t => ['OPENING_RFD', 'RFD_TO_PRINTER', 'ISSUE_TO_CUTTING', 'RECEIVE_RFD', 'PURCHASE_RFD', 'ADJUST'].includes(t), fabMove: r => (+r.qty || 0) * (['RFD_TO_PRINTER', 'ISSUE_TO_CUTTING'].includes(r.txnType) ? -1 : 1), fabStockOf: (name, st) => (st === 'RFD' ? (opts.rfd || {})[String(name).toUpperCase()] || 0 : 0),
   };
-  const api = new Function(...Object.keys(ctx), SRC + '\n;return { flowPoParts, flowDrfdLineRows, flowFabOwed, flowRfdStock, flowFabKnown, flowMatRow, flowGdNote, flowPpcDraftSave, flowPpcDraftApply, flowPpcDraftDrop, flowPpcHasDraft, flowBackOpen, flowAgainOpen, flowIsBack, flowBackLines, flowBackPill, FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW_ROUTES, flowPlanRouteOf, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChTotals, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestCutOpen, flowTestIssueOpen, flowTestRecvOpen, flowTestVos, flowVoProgOf, flowVoProgSync, flowVlogRows, flowDocsOf, flowVoExtra, flowVpViewOnly, flowFgAcceptOpen, flowFgAccept, flowFgRejectOpen, flowFgReject, flowFgLines, flowFgRender, flowQcLine, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowRecvCross, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowCutEntry, flowIssueEntry, flowRecvEntry, flowQcEntry, flowIssuable, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowVoLines, flowSwatchOf, flowSizeFifo, flowSizeChallanOpen, flowBySizeData, flowPpcXlRows, flowPpcXlRead, flowXlDate, FLOW_XL_COLS, VOrows:()=>VO.rows, setVOrows:v=>{VO.rows=v}, flowUnplan, flowPoResync, flowPlanQcDirect, flowChSizeLive, flowEmbedRows, FLOW_EMB_SHOWN:()=>FLOW_EMB_SHOWN, flowChLineWhat, flowRecvRows, flowRecvDayTable, FLOW_HD, flowDueRows, flowDueTable, flowReads, flowDueRecvOpen, flowDueRecvSave, flowRfdChallanOut, flowEarlierOf, flowRecordEarlier, flowChangePrinterSave, flowStanding, flowStandBack, flowStandUse, flowStandTargets, flowRfdChallanOut, flowHistTable, flowChGroups, flowChXlRead, flowChQueue, flowEmbIndex, flowEmbCells, flowEmbSendOpen, flowEmbRecvOpen, flowEmbWho, flowEmbCancel, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v}, flowEmbedRender, FLOW_EMB:()=>FLOW_EMB, flowScreenAllowed, flowOwnsOrder, flowOwnedIn, flowVoIsFlow, flowFgOwns, flowDupViewsOff, renderView:()=>{ if (["cut","raw","wip","new","pord","vendor","fabric"].includes(FLOW_VIEW)) { const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly(); const rows = flowRows().filter(x => (!only || x.r.__t) && (FLOW_VIEW === "new" ? x.recent : flowInView(FLOW_VIEW, x.s))); $("flTable").innerHTML = flowTable(FLOW_VIEW, rows); } else renderFlow(); } };')(...Object.values(ctx));
+  const api = new Function(...Object.keys(ctx), SRC + '\n;return { flowRepLines, flowRepSummary, flowRepSheets, flowRepDelay, flowRepDue, flowRepAllowed, flowRepXlsx, flowRepChannel, flowRepDay, flowRepBtn, flowPoParts, flowDrfdLineRows, flowFabOwed, flowRfdStock, flowFabKnown, flowMatRow, flowGdNote, flowPpcDraftSave, flowPpcDraftApply, flowPpcDraftDrop, flowPpcHasDraft, flowBackOpen, flowAgainOpen, flowIsBack, flowBackLines, flowBackPill, FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW_ROUTES, flowPlanRouteOf, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChTotals, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestCutOpen, flowTestIssueOpen, flowTestRecvOpen, flowTestVos, flowVoProgOf, flowVoProgSync, flowVlogRows, flowDocsOf, flowVoExtra, flowVpViewOnly, flowFgAcceptOpen, flowFgAccept, flowFgRejectOpen, flowFgReject, flowFgLines, flowFgRender, flowQcLine, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowRecvCross, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowCutEntry, flowIssueEntry, flowRecvEntry, flowQcEntry, flowIssuable, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowVoLines, flowSwatchOf, flowSizeFifo, flowSizeChallanOpen, flowBySizeData, flowPpcXlRows, flowPpcXlRead, flowXlDate, FLOW_XL_COLS, VOrows:()=>VO.rows, setVOrows:v=>{VO.rows=v}, flowUnplan, flowPoResync, flowPlanQcDirect, flowChSizeLive, flowEmbedRows, FLOW_EMB_SHOWN:()=>FLOW_EMB_SHOWN, flowChLineWhat, flowRecvRows, flowRecvDayTable, FLOW_HD, flowDueRows, flowDueTable, flowReads, flowDueRecvOpen, flowDueRecvSave, flowRfdChallanOut, flowEarlierOf, flowRecordEarlier, flowChangePrinterSave, flowStanding, flowStandBack, flowStandUse, flowStandTargets, flowRfdChallanOut, flowHistTable, flowChGroups, flowChXlRead, flowChQueue, flowEmbIndex, flowEmbCells, flowEmbSendOpen, flowEmbRecvOpen, flowEmbWho, flowEmbCancel, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v}, flowEmbedRender, FLOW_EMB:()=>FLOW_EMB, flowScreenAllowed, flowOwnsOrder, flowOwnedIn, flowVoIsFlow, flowFgOwns, flowDupViewsOff, renderView:()=>{ if (["cut","raw","wip","new","pord","vendor","fabric"].includes(FLOW_VIEW)) { const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly(); const rows = flowRows().filter(x => (!only || x.r.__t) && (FLOW_VIEW === "new" ? x.recent : flowInView(FLOW_VIEW, x.s))); $("flTable").innerHTML = flowTable(FLOW_VIEW, rows); } else renderFlow(); } };')(...Object.values(ctx));
   api.setFLOW(Object.assign(api.FLOW(), { ppc: opts.ppc || {}, dem: opts.dem || {}, res: opts.res || {} }));
   return Object.assign(api, { els, writes, W, ctx });
 }
-const plan = (o) => Object.assign({ orderNo: 'AMZ-1', sku: 'S1', qty: 100, fabric: { name: 'Cotton', perPc: 0.5, metres: 50 }, acc: [], print: { need: true }, dates: {} }, o);
+const plan = (o) => Object.assign({ orderNo: 'AMZ-1', sku: 'S1', qty: 100, fabric: { name: 'Cotton', perPc: 0.5, metres: 50 }, acc: [], print: { need: true }, dates: { ready: '2026-10-23' } }, o);
 const K = 'AMZ-1__S1';
 
 (async () => {
@@ -901,7 +901,7 @@ const K = 'AMZ-1__S1';
     ok('…and the RFD for the whole order in one row: Sheeting 92, 20 m', /RFD · <b>Sheeting 92<\/b><\/td><td class="num">20 m/.test(cb), cb);
     /* the Vendor Order the printer sees: one line for RBPSF327-V-92 */
     const it = (sku, m) => ({ sku, print: { kind: 'fabric', code: 'RBPSF327-V-92', label: 'Light Steel Blue · Sheeting 92 · Vertical', mode: 'Running fabric' }, extras: [], unit: 'm', pcs: 20, metres: m });
-    const K1 = 'AMZ-2__RTC327-6060', K2 = 'AMZ-2__RTC327-6090', pl = { fabric: { name: 'Sheeting 92' }, print: { dir: 'Vertical' }, dates: {} };
+    const K1 = 'AMZ-2__RTC327-6060', K2 = 'AMZ-2__RTC327-6090', pl = { fabric: { name: 'Sheeting 92' }, print: { dir: 'Vertical' }, dates: { ready: '2026-10-23' } };
     const vl = B.flowVoLines({ no: 'PRN-202610-009', orderNo: 'AMZ-2', items: { [K1]: it('RTC327-6060', 2), [K2]: it('RTC327-6090', 18) } }, () => pl);
     ok('the Vendor Order has ONE running line for RBPSF327-V-92: 20 m, for both SKUs', vl.running.length === 1 && vl.running[0].meters === 20 && vl.running[0].sku === 'RBPSF327-V-92'
       && vl.running[0].flowPart === [K1 + '|body', K2 + '|body'].sort().join('+') && /RTC327-6060, RTC327-6090/.test(vl.running[0].notes) && vl.running[0].forOrders.length === 1 && vl.running[0].forOrders[0].qty === 40, JSON.stringify(vl.running));
@@ -2414,6 +2414,63 @@ const K = 'AMZ-1__S1';
     ok('who embroiders: our department, or a vendor whose category says Embroidery', S.flowEmbWho('').code === 'EMBDEPT' && S.flowEmbWho('P1').name === 'Sanganer Prints');
   }
 
+  console.log('== PPC report (28 Oct) ==');
+  {
+    const KA = 'AMZ-1__S1', KB = 'SHP-2__S2', KC = 'B2B-3__S3';
+    const mdbR = { S1: { articleType: 'Cushion Cover', subtype: 'Cushion Cover 16x16', parentAsin: 'B0PARENT01', color: 'Rust', size: '16x16', fabric: 'Cotton' } };
+    const R = load({ mdb: mdbR, lines: [L(), L({ orderNo: 'SHP-2', sku: 'S2', qty: 40, mtoDue: '2026-10-11', orderDate: '2026-10-05' }), L({ orderNo: 'B2B-3', sku: 'S3', qty: 60, orderDate: '2026-10-12' }),
+        L({ orderNo: 'AMZ-9', sku: 'S9', qty: 10, orderDate: '2026-10-11' })],
+      base: [{ orderNo: 'AMZ-1', sku: 'S1', issuePieces: 25, empName: 'Ramesh' }],
+      ppc: { [KA]: plan({ printer: { code: 'P1', name: 'Sanganer Prints' }, firstAt: '2026-10-08T05:00:00Z', at: '2026-10-12T05:00:00Z', dates: { ready: '2026-10-10' } }),
+        [KB]: plan({ orderNo: 'SHP-2', sku: 'S2', qty: 40, route: 'stitch', at: '2026-10-09T05:00:00Z', dates: { ready: '2026-10-20' } }),
+        [KC]: plan({ orderNo: 'B2B-3', sku: 'S3', qty: 60, at: '2026-10-13T05:00:00Z', firstAt: '2026-10-13T05:00:00Z', dates: { ready: '2026-10-30' } }) } });
+    const wk = R.flowRepLines({ from: '2026-10-07', to: '2026-10-13', on: 'planned', today: '2026-10-13' });
+    const a = wk.find(x => x.sku === 'S1') || {}, b = wk.find(x => x.sku === 'S2') || {}, c = wk.find(x => x.sku === 'S3') || {};
+    ok('planned on these days: the three planned lines, never the unplanned one', wk.length === 3 && !wk.some(x => x.sku === 'S9'), wk.map(x => x.sku).join());
+    ok('planned on = the FIRST save, not the last edit', a.planned === '2026-10-08' && a.lastSaved === '2026-10-12' && a.plannedKnown === true);
+    ok('a plan from before 28 Oct (no first save kept) is dated by its last save and says so', b.planned === '2026-10-09' && b.plannedKnown === false
+      && /\(last saved\)/.test(R.flowRepSheets([b], 'sku')[0].rows[1][0]));
+    ok('a first save outside the days leaves the line out, though it was edited inside them', R.flowRepLines({ from: '2026-10-11', to: '2026-10-13', on: 'planned', today: '2026-10-13' }).every(x => x.sku !== 'S1'));
+    ok('category, sub-category and parent ASIN from the master', a.category === 'Cushion Cover' && a.subCategory === 'Cushion Cover 16x16' && a.parent === 'B0PARENT01');
+    ok('who: the printer on the plan, and the karigars Job Work issued it to', a.who === 'Sanganer Prints, Ramesh (25)', a.who);
+    ok('Amazon has no due date of its own → its due is the PPC Ready date, and 3 days past it is LATE', a.due === '2026-10-10' && a.dueFrom === 'PPC ready date' && a.delay === 'LATE · 3 days' && a.late === 3, JSON.stringify([a.due, a.dueFrom, a.delay]));
+    ok('Shopify: due 5 working days from opening (the made-to-order date), not the Ready date', b.due === '2026-10-11' && /Shopify/.test(b.dueFrom) && b.late === 2 && b.submitBy === '2026-10-20');
+    ok('a sales order\'s own delivery date comes first', R.flowRepDue({ orderNo: 'B2B-3', sku: 'S3' }, { dates: { ready: '2026-10-30' } }, new Map([['B2B-3|S3', '2026-11-05']])).due === '2026-11-05');
+    ok('not due yet → days left', c.delay === '17 days left' && c.late === 0, c.delay);
+    ok('delay words: due today, made, no date set', R.flowRepDelay('2026-10-13', false, '2026-10-13').txt === 'due today' && R.flowRepDelay('2026-10-01', true, '2026-10-13').txt === 'made'
+      && R.flowRepDelay('', false, '2026-10-13').txt === 'no date set' && R.flowRepDelay('2026-10-12', false, '2026-10-13').txt === 'LATE · 1 day');
+    ok('channel from the order number', R.flowRepChannel({ orderNo: 'AMZ-1' }) === 'Amazon' && R.flowRepChannel({ orderNo: 'SHP-2' }) === 'Shopify' && R.flowRepChannel({ orderNo: 'B2B-3' }) === 'B2B');
+    const came = R.flowRepLines({ from: '2026-10-11', to: '2026-10-11', on: 'came', today: '2026-10-13' });
+    ok('came into PPC: by order date, planned or not', came.length === 1 && came[0].sku === 'S9');
+    const wait = R.flowRepLines({ from: '2026-10-13', to: '2026-10-13', on: 'waiting', today: '2026-10-13' });
+    ok('still waiting: the unplanned line whatever the days, with how long it has waited', wait.length === 1 && wait[0].sku === 'S9' && wait[0].waitDays === 2, JSON.stringify(wait.map(x => [x.sku, x.where, x.waitDays])));
+    const T = load({ lines: [L({ orderNo: 'TEST-1', __t: true })], ppc: { 'TEST-1__S1': plan({ orderNo: 'TEST-1', at: '2026-10-12T05:00:00Z' }) } });
+    ok('a TEST line never reaches the report', T.flowRepLines({ from: '2026-10-01', to: '2026-10-13', on: 'planned', today: '2026-10-13' }).length === 0);
+    const sum = R.flowRepSummary(wk.concat([Object.assign({}, a, { orderNo: 'AMZ-7', pcs: 50, late: 0 })]), 'sku'), s1 = sum.find(e => e.label === 'S1') || {};
+    ok('summary by SKU adds the pieces of every order of it (Row Labels / Sum of PCS)', s1.pcs === 150 && s1.lines === 2 && s1.late === 1, JSON.stringify(s1));
+    const sh = R.flowRepSheets(wk, 'sku');
+    ok('the workbook: Lines (Sheet3 layout) and Summary, ending in Grand Total', sh.map(x => x.name).join() === 'Lines,Summary' && sh[0].rows[0][0] === 'Planned on'
+      && sh[0].rows[0].includes('Due date') && sh[0].rows[0].includes('Delay') && sh[0].rows.length === 4 && JSON.stringify(sh[1].rows[sh[1].rows.length - 1]) === JSON.stringify(['Grand Total', 200, 3, 2]),
+      JSON.stringify(sh[1].rows));
+    const files = R.flowRepXlsx(sh);
+    ok('…written as a two-sheet Excel, pieces as numbers', files.some(f => f[0] === 'xl/worksheets/sheet2.xml') && /<sheet name="Summary"/.test(files.find(f => f[0] === 'xl/workbook.xml')[1])
+      && /<c r="M2"><v>100<\/v><\/c>/.test(files.find(f => f[0] === 'xl/worksheets/sheet1.xml')[1]));
+    ok('who may download: admins and the Reports right only', load({ me: { admin: true } }).flowRepAllowed() && load({ me: { tabs: ['rep'] } }).flowRepAllowed() && !load({ me: { tabs: ['flppc'] } }).flowRepAllowed());
+
+    /* The plan form: the first save is kept; a plan cannot be saved without a Ready date. */
+    const F = load({ me: { admin: true }, mdb: { S1: { cons: 1, fab: 'Cotton' } }, lines: [L()], ppc: { [KA]: plan({ route: 'stitch', print: { need: false }, at: '2026-10-05T05:00:00Z', firstAt: '2026-10-02T05:00:00Z' }) } });
+    F.flowPpcOpen('AMZ-1', 'S1'); F.ctx.document.querySelectorAll = () => []; F.els.flpUndo = { checked: false };
+    let er = await F.ctx.__dlg.onSave(); let pw = (F.writes[0] || {})['pt_ppc/' + KA] || {};
+    ok('re-planning keeps the day it was first planned', !er && pw.firstAt === '2026-10-02T05:00:00Z' && pw.at !== '2026-10-05T05:00:00Z', er || JSON.stringify([pw.firstAt, pw.at]));
+    const F0 = load({ me: { admin: true }, mdb: { S1: { cons: 1, fab: 'Cotton' } }, lines: [L()], ppc: { [KA]: plan({ route: 'stitch', print: { need: false }, at: '2026-10-05T05:00:00Z' }) } });
+    F0.flowPpcOpen('AMZ-1', 'S1'); F0.ctx.document.querySelectorAll = () => []; F0.els.flpUndo = { checked: false };
+    er = await F0.ctx.__dlg.onSave(); pw = (F0.writes[0] || {})['pt_ppc/' + KA] || {};
+    ok('a plan saved before 28 Oct, re-planned: its first day becomes the save it had', !er && pw.firstAt === '2026-10-05T05:00:00Z', er);
+    const F1 = load({ me: { admin: true }, mdb: { S1: { cons: 1, fab: 'Cotton' } }, lines: [L()], ppc: { [KA]: plan({ route: 'stitch', print: { need: false }, dates: { cut: '2026-10-14' } }) } });
+    F1.flowPpcOpen('AMZ-1', 'S1'); F1.ctx.document.querySelectorAll = () => []; F1.els.flpUndo = { checked: false };
+    er = await F1.ctx.__dlg.onSave();
+    ok('no Ready date → not saved, and it says which line', /Pick the Ready date for S1/.test(er || '') && !F1.writes.length, er);
+  }
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })();
