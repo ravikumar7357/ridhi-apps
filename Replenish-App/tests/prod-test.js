@@ -6755,6 +6755,18 @@ console.log('\n== Order Console: what the vendors hold, order by order ==');
     ok('an article that is not cut has no cutting figures; its pieces wait to be issued', none.cutX === 0 && none.toCut === 0 && none.toIssue === 2 && none.cutNone === 4, JSON.stringify(none));
     const two = A.shpbStages([L({ orderNo: 'SHP-1', qty: 2, cut: 2 }), L({ orderNo: 'SHP-2', qty: 2, cut: 1 })]);
     ok('two orders of one SKU add up: 4 pieces, 3 cut, 1 still to cut', two.pcs === 4 && two.cutX === 3 && two.toCut === 1, JSON.stringify(two));
+    /* "waiting − (done moved)": 1 − (0 moved) until the work is done, then 0 − (1 moved) (Ravi, 28 Oct) */
+    const fresh = A.shpbStages([L({ qty: 1 })]);
+    ok('nothing done yet: cut 1 − 0, and nothing has reached Issue', fresh.cutW === 1 && fresh.cutD === 0 && fresh.issA === 0 && fresh.issW === 0, JSON.stringify(fresh));
+    const cutIt = A.shpbStages([L({ qty: 1, cut: 1 })]);
+    ok('cut: 0 − (1 moved), and 1 now waits to be issued: 1 − 0', cutIt.cutW === 0 && cutIt.cutD === 1 && cutIt.issW === 1 && cutIt.issD === 0, JSON.stringify(cutIt));
+    const issuedIt = A.shpbStages([L({ qty: 1, cut: 1, issued: 1 })]);
+    ok('issued: 0 − (1 moved), and 1 now waits to be received', issuedIt.issW === 0 && issuedIt.issD === 1 && issuedIt.recW === 1 && issuedIt.recD === 0, JSON.stringify(issuedIt));
+    const mixed = A.shpbStages([L({ cut: 4, issued: 3, received: 1, pressed: 0 })]);
+    ok('cut 4, issued 3, received 1: issue 1 − 3, receive 2 − 1, QC 1 − 0, nothing to hand over',
+       mixed.issW === 1 && mixed.issD === 3 && mixed.recW === 2 && mixed.recD === 1 && mixed.qcW === 1 && mixed.qcD === 0 && mixed.handW === 0, JSON.stringify(mixed));
+    const readyH = A.shpbStages([L({ cut: 4, issued: 4, received: 4, pressed: 4 })]);
+    ok('all four passed QC: QC 0 − 4 and 4 ready to hand over', readyH.qcW === 0 && readyH.qcD === 4 && readyH.handW === 4 && readyH.handD === 0, JSON.stringify(readyH));
     const keepS = A.SHPB();
     A.setSHPB(Object.assign({}, keepS, { ready: {} }));
     ok('with no date typed the board shows the 5-working-day due date', A.shpbReadyOf({ orderNo: 'SHP-1', sku: 'S-A', mtoDue: '2026-11-05' }).date === '2026-11-05' && A.shpbReadyOf({ orderNo: 'SHP-1', sku: 'S-A', mtoDue: '2026-11-05' }).how === '5 working days');

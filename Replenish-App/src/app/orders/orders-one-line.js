@@ -465,6 +465,7 @@ function ordFabSides(fabric, colour, dir, code) {
   return out;
 }
 $('odExport').onclick = () => {
+  if (ordView() === 'shpboard' && typeof shpbExport === 'function') return shpbExport();   // the SHP board (TEST window): what it shows
   const rows = ORD.rows || []; if (!rows.length) return;
   const v = ordView();
   if (v === 'track') {

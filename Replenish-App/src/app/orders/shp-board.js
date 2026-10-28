@@ -19,7 +19,7 @@
  * live app. */
 const SHPB_ON = (() => { try { return /--/.test(location.hostname) || localStorage.getItem('shpBoard') === '1'; } catch (e) { return false; } })();
 const SHPB_NODE = 'pt_shpBoardTest';
-let SHPB = { tab: 'pending', ready: {}, readyAt: 0, busy: false, err: '', open: new Set() };
+let SHPB = { tab: 'pending', stage: '', ready: {}, readyAt: 0, busy: false, err: '' };
 const shpbKey = (orderNo, sku) => obUC(orderNo) + '__' + obUC(sku);
 const shpbDmy = iso => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? m[3] + '-' + m[2] + '-' + m[1] : ''; };
 const shpbCanEdit = () => !!(ME.admin || (typeof ptCanEdit === 'function' && ptCanEdit()));
@@ -55,7 +55,8 @@ async function shpbSetReady(key, date) {
 
 /** The stage figures of a set of lines. Each stage: what got there (x), what has moved on to the next stage (mv), what is waiting here (x − mv). */
 function shpbStages(lines) {
-  const s = { pcs: 0, cutX: 0, cutMv: 0, cutNone: 0, toCut: 0, issX: 0, issMv: 0, toIssue: 0, recX: 0, recMv: 0, qcX: 0, qcMv: 0, ready: 0 };
+  const s = { pcs: 0, cutX: 0, cutMv: 0, cutNone: 0, toCut: 0, issX: 0, issMv: 0, toIssue: 0, recX: 0, recMv: 0, qcX: 0, qcMv: 0, ready: 0,
+    cutA: 0, cutW: 0, cutD: 0, issA: 0, issW: 0, issD: 0, recA: 0, recW: 0, recD: 0, qcA: 0, qcW: 0, qcD: 0, handA: 0, handW: 0, handD: 0 };
   lines.forEach(r => {
     const q = +r.qty || 0, cap = n => Math.max(0, Math.min(q, +n || 0));
     const iss = cap(r.issued), rec = cap(r.received), qc = cap(r.pressed);
@@ -67,20 +68,29 @@ function shpbStages(lines) {
     s.recX += rec; s.recMv += Math.min(rec, qc);
     s.qcX += qc; s.qcMv += qc;                                  // a piece that passed QC is in Press, ready to hand over, by itself
     s.ready += Math.max(0, qc - got);
+    /* arrived (A) / waiting here (W) / done and moved on (D) at each stage — what the cells and the buckets read */
+    const cutDone = r.cutReq ? cap(r.cut) : q;
+    if (r.cutReq) { s.cutA += q; s.cutD += cutDone; s.cutW += q - cutDone; }
+    s.issA += cutDone; s.issD += iss; s.issW += Math.max(0, cutDone - iss);
+    s.recA += iss; s.recD += rec; s.recW += Math.max(0, iss - rec);
+    s.qcA += rec; s.qcD += qc; s.qcW += Math.max(0, rec - qc);
+    s.handA += qc; s.handD += got; s.handW += Math.max(0, qc - got);
   });
   return s;
 }
 
 const SHPB_STAGE_BG = 'background:#fdf0e8';
-/** One stage cell: what is here, what moved on, and the button for the work that is waiting. */
-function shpbCell(x, mv, waiting, act, label, key, title) {
-  const btn = waiting ? '<div><button type="button" class="ghost" data-shpb-act="' + act + '" data-key="' + esc(key) + '" style="width:auto;padding:1px 8px;font-size:11px;margin-top:2px">'
-    + esc(label) + ' · ' + nf(waiting) + '</button></div>' : '';
-  if (!x && !waiting) return '<td class="num" style="' + SHPB_STAGE_BG + '"><span class="muted">—</span></td>';
-  const here = Math.max(0, x - mv);
-  return '<td class="num" style="' + SHPB_STAGE_BG + ';white-space:nowrap" title="' + esc(title || '') + '"><b>' + nf(x) + '</b>'
-    + (x ? ' <span class="muted" style="font-size:11.5px">− (' + nf(mv) + ' moved)</span>' : '')
-    + (here ? '<div style="font-size:11px;color:#b45309;font-weight:700">' + nf(here) + ' here</div>' : '') + btn + '</td>';
+/* THE FIVE STAGES, in the order the work moves. `a` = what has ARRIVED at the stage (can be worked on), `d` = what the stage has
+ * DONE and moved on, `w` = what still waits here. A cell reads "waiting − (done moved)": "1 − (0 moved)" until the work is
+ * done, "0 − (1 moved)" once it is (Ravi, 28 Oct). */
+const SHPB_STAGES = [['cut', 'Cut', 'cut', 'cutW', 'cutD', 'cutA'], ['issue', 'Issue', 'issue', 'issW', 'issD', 'issA'], ['receive', 'Receive', 'receive', 'recW', 'recD', 'recA'],
+  ['qc', 'QC pass', 'qc', 'qcW', 'qcD', 'qcA'], ['hand', 'Hand to shipping', 'hand', 'handW', 'handD', 'handA']];
+/** One stage cell: "waiting − (done moved)", and the button for the work that is waiting. */
+function shpbCell(a, w, d, act, label, key, title) {
+  if (!a && !d) return '<td class="num" style="' + SHPB_STAGE_BG + '"><span class="muted">—</span></td>';
+  return '<td class="num" style="' + SHPB_STAGE_BG + ';white-space:nowrap" title="' + esc(title || '') + '">'
+    + (w ? '<b style="color:#b45309">' + nf(w) + '</b>' : '<b style="color:#166534">0</b>') + ' <span class="muted" style="font-size:11.5px">− (' + nf(d) + ' moved)</span>'
+    + (w ? '<div><button type="button" class="ghost" data-shpb-act="' + act + '" data-key="' + esc(key) + '" style="width:auto;padding:1px 8px;font-size:11px;margin-top:2px">' + esc(label) + '</button></div>' : '') + '</td>';
 }
 const shpbLineOf = key => { const [o, k] = String(key).split('__'); return ordLines().find(r => r.orderNo === obUC(o) && r.sku === obUC(k)) || null; };
 const shpbPlanOf = r => ((typeof FLOW !== 'undefined' && FLOW && FLOW.ppc) || {})[typeof flowKey === 'function' ? flowKey(r.orderNo, r.sku) : ''] || null;
@@ -90,6 +100,7 @@ const shpbPrinterOf = r => { const p = shpbPlanOf(r), pr = p && p.printer; retur
 function shpbRow(r) {
   const k = shpbKey(r.orderNo, r.sku), s = shpbStages([r]), rd = shpbReadyOf(r), edit = shpbCanEdit(), late = rd.date && rd.date < dToday();
   const prn = shpbPrinterOf(r);
+  const tips = { cut: 'Still to cut − cut so far', issue: 'Cut and not yet issued − issued to karigars', receive: 'Out with karigars − received back', qc: 'Received, not checked − passed QC', hand: 'Passed QC, not with shipping − handed over' };
   return '<tr><td class="frz" style="text-align:left;white-space:nowrap">' + esc(shpbDmy(ptIsoDate(r.orderDate))) + '</td>'
     + '<td style="text-align:left;white-space:nowrap"><a href="#" data-ordj="' + esc(r.orderNo) + '" style="color:inherit;text-decoration:underline dotted;font-weight:700">'
     + esc(String(r.shopOrderNo || r.orderNo).replace(/^#\s*/, '')) + '</a>'
@@ -100,45 +111,71 @@ function shpbRow(r) {
     + `<td class="num"><b>${nf(r.qty)}</b></td>`
     + `<td style="text-align:left;font-size:12px;white-space:nowrap">${prn ? '<b>' + esc(prn) + '</b>' : '<span class="muted">no printer</span>'}`
     + `<div><button type="button" class="ghost" data-shpb-act="print" data-key="${esc(k)}" style="width:auto;padding:1px 8px;font-size:11px;margin-top:2px" title="Printing order and printer — the PPC plan of this line">${prn ? 'Change' : 'Printing'}</button></div></td>`
-    + (!r.cutReq ? `<td class="num" style="${SHPB_STAGE_BG}"><span class="muted" style="font-size:11.5px">not needed</span></td>`
-      : shpbCell(s.cutX, s.cutMv, s.toCut, 'cut', 'Cut', k, 'Cut, and how much of it has been issued to a karigar'))
-    + shpbCell(s.issX, s.issMv, s.toIssue, 'issue', 'Issue', k, 'Issued to karigars, and how much has come back')
-    + shpbCell(s.recX, s.recMv, s.issX - s.recX, 'receive', 'Receive', k, 'Received from karigars, and how much has gone to QC')
-    + shpbCell(s.qcX, s.qcMv, s.recX - s.qcX, 'qc', 'QC pass', k, 'Passed QC — goes to Press by itself')
-    + `<td class="num" style="${SHPB_STAGE_BG}">${s.ready ? `<b style="color:#166534">${nf(s.ready)}</b> <span class="muted" style="font-size:11px">ready</span><div><button type="button" data-shpb-act="hand" data-key="${esc(k)}" style="width:auto;padding:1px 8px;font-size:11px;margin-top:2px">Hand to shipping</button></div>` : '<span class="muted">—</span>'}</td></tr>`;
+    + (!r.cutReq ? `<td class="num" style="${SHPB_STAGE_BG}"><span class="muted" style="font-size:11.5px">not needed</span></td>` : shpbCell(s.cutA, s.cutW, s.cutD, 'cut', 'Cut', k, tips.cut))
+    + shpbCell(s.issA, s.issW, s.issD, 'issue', 'Issue', k, tips.issue)
+    + shpbCell(s.recA, s.recW, s.recD, 'receive', 'Receive', k, tips.receive)
+    + shpbCell(s.qcA, s.qcW, s.qcD, 'qc', 'QC pass', k, tips.qc)
+    + shpbCell(s.handA, s.handW, s.handD, 'hand', 'Hand to shipping', k, tips.hand) + '</tr>';
+}
+
+/** What the board shows now: the filters of the bar, the tab, and the stage bucket picked. */
+function shpbView() {
+  const f = ordFilters(), all = ordLines().filter(r => /^SHP-/.test(r.orderNo)), shown = ordApply(all, f);
+  const pend = shown.filter(r => r.open), done = shown.filter(r => !r.open);
+  const stg = SHPB_STAGES.find(x => x[0] === SHPB.stage);
+  const list = SHPB.tab === 'done' ? done : (stg ? pend.filter(r => shpbStages([r])[stg[3]] > 0) : pend);
+  return { f, all, pend, done, list };
 }
 
 function renderShpBoard() {
   if (!$('odTable')) return;
   if (!SHPB.readyAt && !SHPB.busy) shpbLoad(true);
-  const f = ordFilters(), all = ordLines().filter(r => /^SHP-/.test(r.orderNo));
+  const { f, all, pend, done, list } = shpbView(), tab = SHPB.tab;
   ptFill('odArt', ordApply(all, f, 'art').map(r => r.articleType), 'All articles');
   ptFill('odSub', ordApply(all, f, 'sub').map(r => r.articleSubtype), 'All subtypes');
   ptFill('odCol', ordApply(all, f, 'col').map(r => r.color), 'All colors');
   ptFill('odSz', ordApply(all, f, 'sz').map(r => r.size), 'All sizes');
-  const shown = ordApply(all, f), tab = SHPB.tab;
-  const pend = shown.filter(r => r.open), done = shown.filter(r => !r.open);
   const st = shpbStages(pend);
   const today = dToday(), withDate = pend.filter(r => shpbReadyOf(r).date).length, lateN = pend.filter(r => { const d = shpbReadyOf(r).date; return d && d < today; }).length;
   const tabBtn = (v, t) => `<button type="button" data-shpb-tab="${v}" style="height:38px;padding:0 16px;border-radius:999px;font:inherit;font-weight:700;cursor:pointer;box-shadow:none;transform:none;`
     + (tab === v ? 'background:#15803D;color:#fff;border:1px solid #15803D' : 'background:#fff;color:#17202B;border:1px solid #D5DCE5') + `">${t}</button>`;
+  /* THE BUCKETS: how many orders wait at each stage, and how many pieces. A click shows only those lines; click again for all. */
+  const bucket = x => { const ls = pend.filter(r => shpbStages([r])[x[3]] > 0), pcs = ls.reduce((a, r) => a + shpbStages([r])[x[3]], 0), on = SHPB.stage === x[0] && tab === 'pending';
+    return `<button type="button" data-shpb-stage="${x[0]}" title="Show only the lines waiting at ${esc(x[1])}" style="padding:8px 14px;border-radius:12px;font:inherit;cursor:pointer;box-shadow:none;transform:none;text-align:left;`
+      + (on ? 'background:#b45309;color:#fff;border:1px solid #b45309' : 'background:#fdf0e8;color:#17202B;border:1px solid #f0cdb5') + `"><b>${esc(x[1])}</b> <span style="font-weight:700">(${nf(new Set(ls.map(r => r.orderNo)).size)})</span>`
+      + `<div style="font-size:11px;opacity:.85">orders · ${nf(pcs)} pcs</div></button>`; };
   $('odKpis').innerHTML = '<div class="jw-kpiname">SHP board — TEST window (preview link only; nothing here is on the live app)</div><div class="jw-kpis">'
     + ordKpiCard(nf(pend.length), 'Order lines pending', 'list', 'blue', nf(new Set(pend.map(r => r.sku)).size) + ' SKUs')
     + ordKpiCard(nf(st.pcs), 'Pieces pending', 'box', 'blue', 'ordered, not handed over')
-    + ordKpiCard(nf(st.ready), 'Ready to hand over', 'box', 'green', 'passed QC, not with shipping yet')
     + ordKpiCard(nf(withDate), 'Have a ready date', 'doc', 'blue', nf(pend.length - withDate) + ' without one')
     + ordKpiCard(nf(lateN), 'Past their ready date', 'alert', 'amber', 'still open') + '</div>'
+    + `<div style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 4px"><span class="muted" style="align-self:center;font-weight:700">Waiting at:</span>${SHPB_STAGES.map(bucket).join('')}</div>`
     + `<div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0">${tabBtn('pending', 'Order pending · ' + nf(pend.length))}${tabBtn('done', 'SHP order complete · ' + nf(done.length))}</div>`;
   $('odMsg').className = SHPB.err ? 'err' : 'muted';
-  $('odMsg').textContent = SHPB.err || 'One row per order line. Stage cells read "reached − (moved on)"; "N here" waits at that stage and its button does the work, here. Ready date: type one on the order; until then the PPC plan\'s date (or the 5 working days) shows.';
+  $('odMsg').textContent = SHPB.err || 'One row per order line. Each stage reads "waiting − (done moved)": "1 − (0 moved)" until the work is done, then "0 − (1 moved)". The button in a cell does that work, here. Export downloads what is shown.';
 
-  if (tab === 'done') return renderShpBoardDone(done);
-  if (!pend.length) { ptEmpty('odTable', 'No Shopify order is pending.'); return; }
-  const rows = ordNewest(pend.slice().sort((a, b) => String(a.orderDate).localeCompare(String(b.orderDate)) || a.orderNo.localeCompare(b.orderNo) || a.sku.localeCompare(b.sku)));
+  if (tab === 'done') return renderShpBoardDone(list);
+  if (!list.length) { ptEmpty('odTable', SHPB.stage ? 'No line is waiting at that stage.' : 'No Shopify order is pending.'); return; }
+  const rows = ordNewest(list.slice().sort((a, b) => String(a.orderDate).localeCompare(String(b.orderDate)) || a.orderNo.localeCompare(b.orderNo) || a.sku.localeCompare(b.sku)));
   const head = '<thead><tr><th class="frz" style="text-align:left">Date</th><th style="text-align:left">Order ID · ready on</th><th style="text-align:left">Item</th><th class="num">Pieces</th><th style="text-align:left">Printer</th>'
     + ['Cut', 'Issued', 'Received', 'QC passed', 'Press — ready to hand'].map(h => `<th class="num" style="${SHPB_STAGE_BG}">${h}</th>`).join('') + '</tr></thead>';
   $('odTable').innerHTML = head + '<tbody>' + rows.slice(0, 300).map(shpbRow).join('') + '</tbody>'
-    + (rows.length > 300 ? '<tfoot><tr><td colspan="10" class="muted" style="padding:10px;text-align:left">Showing the first 300 of ' + nf(rows.length) + ' lines — search or filter to narrow them.</td></tr></tfoot>' : '');
+    + (rows.length > 300 ? '<tfoot><tr><td colspan="10" class="muted" style="padding:10px;text-align:left">Showing the first 300 of ' + nf(rows.length) + ' lines — search or filter to narrow them. Export has all of them.</td></tr></tfoot>' : '');
+}
+
+/** Export: every line shown (the bar's filters, the tab, the stage bucket) — one CSV row per order line, which Excel opens. */
+function shpbExport() {
+  const { list } = shpbView(); if (!list.length) return;
+  const head = ['Order date', 'Order ID', 'Order', 'SKU', 'Article', 'Subtype', 'Colour', 'Size', 'Pieces', 'Ready on', 'Ready date from', 'Printer',
+    'Cut: waiting', 'Cut: done', 'Issue: waiting', 'Issued: done', 'Receive: waiting', 'Received: done', 'QC: waiting', 'QC passed', 'Ready to hand over', 'Handed to shipping', 'Handed / closed on', 'Status'];
+  const lines = [head.map(csvCell).join(',')];
+  list.slice().sort((a, b) => String(a.orderDate).localeCompare(String(b.orderDate)) || a.orderNo.localeCompare(b.orderNo)).forEach(r => {
+    const s = shpbStages([r]), rd = shpbReadyOf(r), at = ptIsoDate(r.handedAt || r.shopDoneAt) || '';
+    lines.push([ptIsoDate(r.orderDate) || '', r.shopOrderNo || '', r.orderNo, r.sku, r.articleType || r.itemName || '', r.articleSubtype || '', r.color || '', r.size || '', r.qty, rd.date, rd.how === 'set' ? 'typed here' : rd.how, shpbPrinterOf(r),
+      r.cutReq ? s.cutW : 'not needed', r.cutReq ? s.cutD : '', s.issW, s.issD, s.recW, s.recD, s.qcW, s.qcD, s.handW, s.handD, at,
+      r.open ? 'Pending' : (r.handedAt ? 'Handed over' : (typeof SHP_DONE_TXT === 'function' ? SHP_DONE_TXT(r.shopDoneWhy) : 'Closed'))].map(csvCell).join(','));
+  });
+  ptDownload('shp-board-' + (SHPB.tab === 'done' ? 'complete' : (SHPB.stage ? 'waiting-' + SHPB.stage : 'pending')), lines);
 }
 
 /** SHP order complete: one line per hand-over, newest day first — "Handed to shipping" date wise. */
@@ -267,5 +304,7 @@ if ($('ptDlgBody') && $('ptDlgBody').addEventListener) $('ptDlgBody').addEventLi
   const b = e.target.closest && e.target.closest('[data-shpb-recv]'); if (b) { const id = b.dataset.shpbRecv; ptDlgClose(); jwRecvOpen(id); }
 });
 if ($('odKpis') && $('odKpis').addEventListener) $('odKpis').addEventListener('click', e => {
-  const t = e.target.closest && e.target.closest('[data-shpb-tab]'); if (t && ordView() === 'shpboard') { SHPB.tab = t.dataset.shpbTab; renderShpBoard(); }
+  if (ordView() !== 'shpboard') return;
+  const t = e.target.closest && e.target.closest('[data-shpb-tab]'); if (t) { SHPB.tab = t.dataset.shpbTab; if (SHPB.tab === 'done') SHPB.stage = ''; renderShpBoard(); return; }
+  const g = e.target.closest && e.target.closest('[data-shpb-stage]'); if (g) { SHPB.stage = SHPB.stage === g.dataset.shpbStage ? '' : g.dataset.shpbStage; SHPB.tab = 'pending'; renderShpBoard(); }
 });
