@@ -199,12 +199,11 @@ function renderShpBoard() {
       + (on ? 'background:#b45309;color:#fff;border:1px solid #b45309' : 'background:#fdf0e8;color:#17202B;border:1px solid #f0cdb5') + `"><b>${esc(x[1])}</b> <span style="font-weight:700">(${nf(new Set(ls.map(r => r.orderNo)).size)})</span>`
       + `<div style="font-size:10.5px;opacity:.85">orders · ${nf(pcs)} pcs</div></button>`; };
   /* No title and no KPI cards (Ravi, 28 Oct) — the buckets are the summary. */
-  $('odKpis').innerHTML = `<div style="display:flex;gap:8px;flex-wrap:wrap;margin:4px 0"><span class="muted" style="align-self:center;font-weight:700">Waiting at:</span>${SHPB_STAGES.map(bucket).join('')}</div>`
-    + `<div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0">${tabBtn('pending', 'Order pending · ' + nf(pend.length))}${tabBtn('done', 'Complete · ' + nf(done.length))}</div>`;
+  /* ONE LINE: the stage buckets, and the two tabs at the right end (Ravi, 28 Oct: no "Waiting at:", no long note, the tabs up with the buckets). */
+  $('odKpis').innerHTML = `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:2px 0 8px">${SHPB_STAGES.map(bucket).join('')}`
+    + `<div style="display:flex;gap:8px;margin-left:auto">${tabBtn('pending', 'Order pending · ' + nf(pend.length))}${tabBtn('done', 'Complete · ' + nf(done.length))}</div></div>`;
   $('odMsg').className = SHPB.err ? 'err' : 'muted';
-  $('odMsg').textContent = SHPB.err || (tab === 'done'
-    ? 'Pressed pieces wait here for shipping: Accept takes them in, Not received says they did not arrive. Handed-over lines follow, newest day first.'
-    : 'One row per order line. Each stage reads "waiting − (done moved)"; its button does that work here. A line with no plan is planned here (Plan button). Click an Order ID for its flow. Press needs the pressman; once pressed the line moves to Complete.');
+  $('odMsg').textContent = SHPB.err || '';
 
   if (tab === 'done') return renderShpBoardDone(list);
   if (!list.length) { ptEmpty('odTable', SHPB.stage ? 'No line is waiting at that stage.' : 'No Shopify order is pending.'); return; }
