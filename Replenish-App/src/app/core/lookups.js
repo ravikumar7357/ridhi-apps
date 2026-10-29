@@ -186,7 +186,7 @@ function obPcsPerPack(sku, articleType, articleSubtype) {
     const n = s.match(/-(\d{1,2})$/);
     if (n && +n[1] >= 1 && +n[1] <= 48) return +n[1];
     /* A CPC NAPKIN CODE WITH NO SIZE AFTER IT IS A SET OF FOUR (Ravi, 29 Oct: CPCN007 = 4 pcs, CPCN005-12 = 12 pcs). */
-    if (/^CPCN/.test(s)) return 4;
+    if (/^CPCN/.test(s) && !/-\d+$/.test(s)) return 4;
   }
   const fam = obPackFamily(s);
   const sib = obPackSiblings().get(fam);
