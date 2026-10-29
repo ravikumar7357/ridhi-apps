@@ -19,8 +19,12 @@ const PX_PAGE = 100;
 let PX = {
   mode: 'range', level: 'parent', brand: 'ALL', metric: 'rev', dkey: 'd7', lo: '', hi: '',
   pc: { n: 4, len: 7, end: '', preset: null }, hide: [], q: '', chip: 'all', sk: 'rev', sd: -1,
-  open: new Set(), pop: null, draft: null, show: PX_PAGE, msg: '', loading: false, anim: false,
+  open: new Set(), kidN: {}, pop: null, draft: null, show: PX_PAGE, msg: '', loading: false, anim: false,
 };
+/* An opened parent shows its biggest sizes first and only this many — a 246-size tablecloth opened in
+ * full buries every other product under it. Per parent; 0 means all. */
+const PX_KID_STEPS = [10, 20, 50, 100, 0];
+const pxKidLimit = key => (PX.kidN[key] != null ? PX.kidN[key] : 10);
 // Only the choices are remembered, never dates: a remembered "12–26 Oct" would be stale by Monday.
 try {
   const s = JSON.parse(localStorage.getItem(PX_KEY) || '{}');
@@ -305,9 +309,21 @@ function pxRangeCells(o, tot) {
   };
   return PX_RCOLS.filter(x => pxShown(x[0])).map(x => c[x[0]]).join('');
 }
-function pxKids(e) {
-  // The children of a parent row, biggest first, each a one-ASIN entity of its own.
-  return e.asins.map(a => ({ key: a, asins: [a], title: wTitle(a) })).filter(k => k.key !== e.key || e.asins.length > 1);
+/** The children of an opened parent: biggest sellers in the shown dates first, cut to the chosen count. */
+function pxKids(e, ctx) {
+  const all = e.asins.map(a => ({ key: a, asins: [a], title: wTitle(a), st: pxStats([a], ctx.span, true) }))
+    .sort((a, b) => (b.st.rev || 0) - (a.st.rev || 0));
+  const n = pxKidLimit(e.key);
+  return { kids: n ? all.slice(0, n) : all, total: all.length };
+}
+/** The "showing 10 of 246 sizes · 10 20 50 100 All" line under an opened parent. */
+function pxKidBar(e, total) {
+  if (total <= PX_KID_STEPS[0]) return '';
+  const n = pxKidLimit(e.key), shown = n ? Math.min(n, total) : total;
+  return `<tr class="px-kidbar"><td colspan="99"><div class="px-kidbar-in"><span>Showing <b>${shown}</b> of ${total} sizes, best sellers first</span>`
+    + '<div class="px-seg px-segsm" role="group" aria-label="How many sizes">'
+    + PX_KID_STEPS.filter(s => !s || s < total).map(s => `<button data-pxkn="${pxEsc(e.key)}|${s}" aria-pressed="${n === s}">${s || 'All'}</button>`).join('')
+    + '</div></div></td></tr>';
 }
 function pxRangeTable(rows, ctx, tot) {
   const sku = PX.level === 'child', vis = PX_RCOLS.filter(x => pxShown(x[0]));
@@ -316,8 +332,8 @@ function pxRangeTable(rows, ctx, tot) {
   const body = rows.map(e => {
     let h = `<tr><td class="l stick">${pxProd(e)}</td>${sku ? `<td class="l px-sku">${pxEsc(e.sku)}</td>` : ''}${pxRangeCells(e.st)}</tr>`;
     if (!sku && PX.open.has(e.key) && e.asins.length > 1) {
-      h += pxKids(e).map(k => ({ k, st: pxStats(k.asins, ctx.span, true) })).sort((a, b) => (b.st.rev || 0) - (a.st.rev || 0))
-        .map(({ k, st }) => `<tr class="px-child"><td class="l stick">${pxProd(k, true)}</td>${pxRangeCells(st)}</tr>`).join('');
+      const { kids, total } = pxKids(e, ctx);
+      h += kids.map(k => `<tr class="px-child"><td class="l stick">${pxProd(k, true)}</td>${pxRangeCells(k.st)}</tr>`).join('') + pxKidBar(e, total);
     }
     return h;
   }).join('');
@@ -349,7 +365,10 @@ function pxColTable(rows, ctx) {
   const allAsins = ctx.found.flatMap(e => e.asins);
   const body = rows.map(e => {
     let h = row(e);
-    if (!sku && PX.open.has(e.key) && e.asins.length > 1) h += pxKids(e).map(k => row(k, 'px-child', true)).join('');
+    if (!sku && PX.open.has(e.key) && e.asins.length > 1) {
+      const { kids, total } = pxKids(e, ctx);
+      h += kids.map(k => row(k, 'px-child', true)).join('') + pxKidBar(e, total);
+    }
     return h;
   }).join('');
   return `<table class="px-tbl"><thead>${head}</thead><tbody>${row({ asins: allAsins }, 'px-total')}${body || `<tr><td class="l px-dim" colspan="20">Nothing matches.</td></tr>`}</tbody></table>`;
@@ -497,6 +516,7 @@ function pxWire() {
     if (d.pxdk) { PX.dkey = d.pxdk; PX.pop = null; return go(true); }
     if (d.pxchip) { PX.chip = d.pxchip; PX.show = PX_PAGE; return go(); }
     if (d.pxopen) { const k = d.pxopen; PX.open.has(k) ? PX.open.delete(k) : PX.open.add(k); return go(); }
+    if (d.pxkn) { const cut = d.pxkn.lastIndexOf('|'); PX.kidN[d.pxkn.slice(0, cut)] = +d.pxkn.slice(cut + 1); return go(); }
     if (d.pxm) { PX.metric = d.pxm; if (PX.sk.startsWith('c:') || PX.sk === 'chg') PX.sk = 'rev'; return go(true); }
     if (d.pxsort) {
       const k = d.pxsort;
