@@ -24,8 +24,12 @@ const idsIn = sel => [...String(sel || '').replace(/\[[^\]]*\]/g, '').matchAll(/
 const known = (ids, src, id) => ids.has(id) || (/^ptf_/.test(id) && src.includes("'ptf_' +")) || /^mobL-/.test(id);
 
 async function main() {
-  const M = await load({ root: ROOT });
-  const run = c => M.run(c);
+  /* --bundle --on=design,…: the same list on meera.js with her switches on (Phase 3: a look-only switch keeps every check) */
+  const args = process.argv.slice(2), bundle = args.includes('--bundle');
+  const switches = ((args.find(a => a.startsWith('--on=')) || '').slice(5)).split(',').filter(Boolean);
+  const M = await load({ root: ROOT, bundle, switches, handle: bundle });
+  const run = bundle ? c => M.ctx.__meeraTest(c) : c => M.run(c);
+  if (bundle) console.log('checking meera.js' + (switches.length ? ', switches on: ' + switches.join(', ') : ''));
   const { ids, src } = appIds();
 
   /* 1. first-visit walk-rounds (14 screens have written ones on 29 Oct; the rest get one read off the screen): every screen's tour, every box it lights, is in the app */
@@ -82,7 +86,7 @@ async function main() {
   ok(!walkMissing.length, 'every walk-through box is in the app' + (walkMissing.length ? ': ' + walkMissing.slice(0, 8).join(', ') : ''));
 
   /* 9. Stuck? offer: 3 × No thanks = off */
-  ok(/>= 3/.test(run('gaNudgeOff.toString()')), 'Stuck? offer: three "No thanks" turn it off');
+  ok(/>=\s*3/.test(run('gaNudgeOff.toString()')), 'Stuck? offer: three "No thanks" turn it off');
 
   /* 10. AI fallback with strict rules */
   ok(/meera-router\.erp-9a0\.workers\.dev/.test(run('GA_AI_URL')), 'AI fallback points at the router');

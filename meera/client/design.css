@@ -1,0 +1,126 @@
+/* MEERA'S NEW LOOK (v2 rebuild, Phase 3, 29 Oct 2026) — switch "design", inside her own sealed box (Shadow DOM) only.
+   Order in the box: this file's first part (her own colours, buttons and boxes: nothing borrowed from the ERP), then
+   meera.css (her look until now), then the second part (the new look). The ERP's professional, table-first style:
+   white, thin lines, the ERP's slate blue, no playful shapes. */
+
+/* ---------- 1. her own ground: colours, type, buttons, boxes ---------- */
+:host{all:initial;
+  --bg:#F3F5F8;--card:#fff;--ink:#14181F;--muted:#5A6472;--faint:#98A1AE;--line:#E8EDF3;--input:#fff;--soft:#F7F9FB;--chip:#EFF2F6;--hover:#EFF2F6;
+  --brand:#4A6A92;--brand-bg:#E9EFF6;--brand-ink:#3A5573;--accent:#4A5A3C;
+  --amber:#8A5A00;--amber-bg:#FFF6E0;--amber-line:#F5D48A;--red:#B42318;--red-bg:#FEF3F2;--red-line:#F4C7C3;
+  --r-ctl:8px;--r-pill:999px;--sh-1:0 2px 10px rgba(20,24,31,.05);--sh-2:0 4px 16px rgba(20,24,31,.08);--sh-3:0 24px 64px rgba(20,24,31,.20);
+  --ring:0 0 0 3px rgba(110,144,181,.28);--ring-line:#6E90B5}
+*,*::before,*::after{box-sizing:border-box}
+#gdRoot,#gdAsk,#gdLaunch,#gdMenu,#gdNudge,#gdResume,#gdRing,#mdReady{font:14px/1.45 "Plus Jakarta Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink);
+  -webkit-font-smoothing:antialiased;text-align:left}
+.hide{display:none!important}
+button{font:inherit;font-weight:600;cursor:pointer;border:0;border-radius:var(--r-ctl);padding:8px 14px;background:var(--brand);color:#fff;line-height:1.2;
+  box-shadow:none;transition:background .12s,box-shadow .12s}
+button:hover{background:var(--brand-ink)}
+button:focus-visible{outline:none;box-shadow:var(--ring)}
+button:disabled{opacity:.5;cursor:default}
+button.ghost{background:#fff;color:var(--ink);border:1px solid var(--line)}
+button.ghost:hover{background:var(--soft)}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--input);border:1px solid var(--line);border-radius:var(--r-ctl);padding:8px 10px;width:100%}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--ring-line);box-shadow:var(--ring)}
+input::placeholder,textarea::placeholder{color:var(--faint)}
+b,strong{font-weight:700}
+ol,ul{margin:0}
+
+/*__MEERA_CSS__*/
+
+/* ---------- 2. the new look ---------- */
+/* the Ask box: a plain white panel, header with the language switch */
+#gdAsk{width:min(400px,calc(100vw - 24px));border-radius:12px;box-shadow:0 16px 40px rgba(20,24,31,.16);bottom:86px;animation:none}
+#gdAsk .ga-head{background:#fff;padding:10px 12px}
+#gdAsk .ga-head .gd-face{width:28px;height:28px;box-shadow:0 0 0 1px var(--line)}
+#gdAsk .ga-who{flex-direction:row;align-items:center;gap:10px}
+#gdAsk .ga-who b{font-size:14px;white-space:nowrap}
+#gdAsk .ga-who small{display:none}
+.md-seg{display:inline-flex;margin-left:auto;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.md-seg button{border:0;border-radius:0;background:#fff;color:var(--muted);font-size:11.5px;font-weight:500;padding:3px 9px}
+.md-seg button+button{border-left:1px solid var(--line)}
+.md-seg button.on{background:var(--brand-bg);color:var(--brand-ink);font-weight:700}
+#gdAsk .ga-x{width:28px;height:28px;font-size:18px;color:var(--faint);background:none}
+#gdAsk .ga-log{padding:12px;gap:10px}
+#gdAsk .ga-msg{max-width:100%;font-size:13.5px}
+#gdAsk .ga-me{max-width:85%;border-radius:10px 10px 2px 10px;padding:6px 10px;font-size:13px}
+#gdAsk .ga-she{background:#fff;border:0;padding:0}
+#gdAsk .ga-she:not(.md-has-card){padding:8px 10px;background:var(--soft);border-radius:10px}
+/* getting ready: a thin line while her files arrive; typing works meanwhile */
+#mdReady{display:flex;align-items:center;gap:8px;padding:6px 12px;font-size:12px;color:var(--muted);background:var(--soft);border-bottom:1px solid var(--line)}
+#mdReady i{flex:1;height:3px;border-radius:2px;background:var(--line);overflow:hidden;position:relative}
+#mdReady i::after{content:"";position:absolute;inset:0;width:40%;background:var(--brand);border-radius:2px;animation:mdGo 1.2s ease-in-out infinite}
+@keyframes mdGo{from{transform:translateX(-100%)}to{transform:translateX(260%)}}
+/* the answer card: where it came from, one bold line, one main button, the rest folded */
+#gdAsk .md-card{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}
+#gdAsk .md-src{display:flex;align-items:center;gap:6px;padding:5px 10px;font-size:11.5px;font-weight:600;color:var(--brand-ink);background:var(--brand-bg)}
+#gdAsk .md-src.ai{color:var(--amber);background:var(--amber-bg)}
+#gdAsk .md-src .md-where{margin-left:auto;font-weight:500;color:var(--muted)}
+#gdAsk .md-card .ga-a{padding:10px 12px 2px;font-weight:400;font-size:14px}
+#gdAsk .md-card .ga-a b{font-weight:700}
+#gdAsk .md-card>.ga-a:first-line{font-weight:600}
+#gdAsk .md-card .ga-acts{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;margin:0;padding:8px 12px 10px}
+#gdAsk .md-card .ga-act{height:auto;border:0;background:none;color:var(--brand);padding:6px 2px;font-size:13px;font-weight:600}
+#gdAsk .md-card .ga-act:hover{background:none;text-decoration:underline}
+#gdAsk .md-card .ga-act.md-main,#gdAsk .md-card .ga-act:first-child.md-main{background:var(--brand);color:#fff;border-radius:8px;padding:7px 14px}
+#gdAsk .md-card .ga-act.md-main:hover{background:var(--brand-ink);text-decoration:none}
+#gdAsk .md-more{border-top:1px solid var(--line)}
+#gdAsk .md-more summary{list-style:none;cursor:pointer;padding:7px 12px;font-size:12.5px;color:var(--muted);display:flex;justify-content:space-between}
+#gdAsk .md-more summary::-webkit-details-marker{display:none}
+#gdAsk .md-more summary::after{content:"▾"}
+#gdAsk .md-more[open] summary::after{content:"▴"}
+#gdAsk .md-more .ga-do,#gdAsk .md-more .ga-why{margin:0 12px 10px}
+#gdAsk .md-more .ga-why{padding:7px 10px;background:var(--soft);border-radius:8px}
+#gdAsk .md-card .ga-note{margin:0 12px 10px}
+#gdAsk .md-card.ai .ga-note{background:var(--amber-bg);color:var(--amber)}
+#gdAsk .md-card .ga-fb{margin:0;padding:6px 12px;border-top:1px solid var(--line)}
+#gdAsk .ga-und{border:0;margin:0 0 6px;padding:0}
+/* lists are rows, not chips: related questions, did-you-mean, common on this screen */
+#gdAsk .ga-rel{display:block;margin-top:10px}
+#gdAsk .ga-rel>span,#gdAsk .md-h{display:block;font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin:0 0 6px}
+#gdAsk .ga-rel .ga-chip,#gdAsk .md-rows .ga-chip{display:flex;width:100%;height:auto;align-items:center;border:1px solid var(--line);border-top-width:0;border-radius:0;
+  background:#fff;color:var(--ink);text-align:left;padding:8px 12px;font-size:13px;font-weight:400}
+#gdAsk .ga-rel .ga-chip:first-of-type,#gdAsk .md-rows .ga-chip:first-child{border-top-width:1px;border-radius:10px 10px 0 0}
+#gdAsk .ga-rel .ga-chip:last-child,#gdAsk .md-rows .ga-chip:last-child{border-radius:0 0 10px 10px}
+#gdAsk .ga-rel .ga-chip:only-of-type,#gdAsk .md-rows .ga-chip:only-child{border-radius:10px}
+#gdAsk .ga-rel .ga-chip::after,#gdAsk .md-rows .ga-chip::after{content:"›";margin-left:auto;padding-left:8px;color:var(--faint);font-size:16px}
+#gdAsk .ga-rel .ga-chip:hover,#gdAsk .md-rows .ga-chip:hover{background:var(--soft);color:var(--ink)}
+#gdAsk .ga-chips{display:block;padding:0 12px 10px}
+#gdAsk .ga-chips:empty,#gdAsk .ga-chips.md-quiet{display:none}
+/* what she sees on the screen: the red message, and the way to help with it */
+#gdAsk .md-seen{border:1px solid var(--red-line);background:var(--red-bg);border-radius:10px;padding:9px 12px;font-size:13px}
+#gdAsk .md-seen .md-msg{margin:4px 0 8px;padding-left:8px;border-left:3px solid var(--red);color:var(--red);font-size:12.5px}
+#gdAsk .md-seen button{padding:6px 12px;font-size:12.5px}
+/* the form row */
+#gdAsk .ga-form{padding:10px 12px}
+#gdAsk .ga-form input{height:36px;border-radius:8px}
+#gdAsk .ga-form button{height:36px;border-radius:8px}
+/* her round face, bottom right; the menu */
+#gdLaunch{width:52px;height:52px;border:2px solid #fff;box-shadow:0 4px 14px rgba(20,24,31,.22),0 0 0 1px var(--line)}
+#gdMenu{border:1px solid var(--line);border-radius:12px;box-shadow:0 16px 40px rgba(20,24,31,.16)}
+/* stuck: a small note next to her face; nothing on the page is blocked */
+#gdNudge{right:84px;bottom:26px;max-width:320px;padding:8px 10px 8px 12px;border-radius:10px;font-size:13px;gap:6px 8px;align-items:center}
+#gdNudge span{flex:1 1 auto}
+#gdNudge button{padding:5px 10px;font-size:12.5px}
+/* walk-rounds: her full figure only on a first visit's walk-round; elsewhere her round face, in the bubble */
+#gdChar{display:none}
+#gdRoot.md-fig #gdChar{display:block}
+/* without her figure the bubble keeps her side rule: bottom-left, or bottom-right when the box itself is bottom-left */
+#gdRoot:not(.md-fig) #gdBubble{left:24px;right:auto;bottom:24px}
+#gdRoot:not(.md-fig) #gdBubble.gd-right{left:auto;right:24px}
+#gdRoot:not(.md-fig) #gdBubble.gd-up{bottom:auto;top:76px}
+#gdBubble{border-radius:12px;box-shadow:0 16px 40px rgba(20,24,31,.22)}
+/* during a walk-round her round button steps aside (it would sit on the bubble) */
+#gdRoot:not(.hide) ~ #gdLaunch,#gdRoot:not(.hide) ~ #gdNudge{display:none}
+
+/* ---------- 3. the phone: sheets from the bottom ---------- */
+:host(.mob) #gdAsk{left:0;right:0;bottom:0;width:auto;max-height:86vh;border-radius:16px 16px 0 0;border-bottom:0}
+:host(.mob) #gdAsk::before{content:"";display:block;width:40px;height:4px;border-radius:2px;background:#D5DBE3;margin:8px auto 0;flex:none}
+:host(.mob) #gdLaunch{right:14px;bottom:74px;width:46px;height:46px}
+:host(.mob) #gdNudge{left:12px;right:70px;bottom:78px;max-width:none}
+:host(.mob) #gdChar{display:none!important}
+:host(.mob) #gdBubble,:host(.mob) #gdRoot:not(.md-fig) #gdBubble,:host(.mob) #gdBubble.gd-right{left:0;right:0;bottom:0;top:auto;width:auto;max-height:46vh;overflow:auto;
+  border-radius:16px 16px 0 0;border-bottom:0;padding:14px 16px 12px}
+:host(.mob) #gdBubble.gd-up,:host(.mob) #gdRoot:not(.md-fig) #gdBubble.gd-up,:host(.mob) #gdRoot.md-fig #gdBubble.gd-up{top:0;bottom:auto;border-radius:0 0 16px 16px;border-top:0;border-bottom:1px solid var(--line)}
+:host(.mob) #gdArrow{display:none}

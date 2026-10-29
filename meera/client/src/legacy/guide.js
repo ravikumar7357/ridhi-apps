@@ -42,6 +42,10 @@ function guideMarkSeen(tab) { const s = guideSeen(); if (!s.includes(tab)) { s.p
 const GUIDE_ART = `<img class="gd-pic" src="${GUIDE_IMG}" alt="" draggable="false">`;
 const GUIDE_FACE = `<span class="gd-face" style="background-image:url(${GUIDE_IMG})" aria-hidden="true"></span>`;
 
+/* Where her pieces go: the page — or, with her new look (Phase 3, switch "design"), her own sealed box (meera/client/src/design.ts).
+ * And what a click or key really landed on: inside her sealed box the page sees only the box itself, so the page-wide
+ * listeners below ask for the first thing on the event's path (on the page as it is today, that is e.target). */
+const gdTarget = e => (e.composedPath && e.composedPath()[0]) || e.target;
 /** The pieces on the page: the dim, the lit box, the arrow, Meera and her bubble, and the top-bar switch. */
 function guideBuild() {
   if (GUIDE.built || typeof document === 'undefined' || !document.body) return;
@@ -69,12 +73,12 @@ function guideBuild() {
         <button type="button" id="gdNext"></button>
       </div>
     </div>`;
-  document.body.appendChild(root);
+  (typeof meeraLayer === 'function' ? meeraLayer() : document.body).appendChild(root);
   /* THE RING: a glow round one box with the page left working — after "Try it" and "Fix it now". And the pill
    * that brings the walk-round back after a "Try it". */
-  const ring = document.createElement('div'); ring.id = 'gdRing'; ring.className = 'hide'; document.body.appendChild(ring);
+  const ring = document.createElement('div'); ring.id = 'gdRing'; ring.className = 'hide'; (typeof meeraLayer === 'function' ? meeraLayer() : document.body).appendChild(ring);
   const pill = document.createElement('button'); pill.id = 'gdResume'; pill.type = 'button'; pill.className = 'hide';
-  pill.innerHTML = GUIDE_FACE + '<span></span>'; document.body.appendChild(pill);
+  pill.innerHTML = GUIDE_FACE + '<span></span>'; (typeof meeraLayer === 'function' ? meeraLayer() : document.body).appendChild(pill);
   pill.onclick = () => { const r = GUIDE.paused; guideRingOff(); pill.classList.add('hide'); if (r) { GUIDE.tour = r.tour; GUIDE.i = r.i; guideGo(1); } };
   $('gdNext').onclick = () => guideGo(1);
   $('gdBack').onclick = () => guideGo(-1);
@@ -87,7 +91,7 @@ function guideBuild() {
   });
   /* The walk-round holds the keyboard too: Enter / → on, ← back, Esc closes. */
   document.addEventListener('keydown', e => {
-    if (e.key === '?' && !GUIDE.tour && !(e.target.closest && e.target.closest('input, textarea, select, [contenteditable]'))) { e.preventDefault(); guideAskOpen(); return; }
+    if (e.key === '?' && !GUIDE.tour && !(gdTarget(e).closest && gdTarget(e).closest('input, textarea, select, [contenteditable]'))) { e.preventDefault(); guideAskOpen(); return; }
     if (!GUIDE.tour) return;
     if (GUIDE.live) { if (e.key === 'Escape') { e.preventDefault(); guideClose(); } return; }   // the person is typing in the page
     if (e.key === 'Escape') { e.preventDefault(); guideClose(); }
@@ -119,12 +123,12 @@ function guideBuild() {
   go.title = 'Ask Meera — English, Hindi or Hinglish (or press ?)';
   go.setAttribute('aria-label', 'Ask Meera');
   go.innerHTML = `${GUIDE_FACE}<span class="gd-lab">Ask Meera</span>`;
-  document.body.appendChild(go);
+  (typeof meeraLayer === 'function' ? meeraLayer() : document.body).appendChild(go);
   const menu = document.createElement('div');
   menu.id = 'gdMenu';
   menu.className = 'hide';
   menu.setAttribute('role', 'menu');
-  document.body.appendChild(menu);
+  (typeof meeraLayer === 'function' ? meeraLayer() : document.body).appendChild(menu);
   const shut = () => menu.classList.add('hide');
   const draw = () => {
     const hi = guideLang() === 'hi', on = guideIsOn();
@@ -140,13 +144,13 @@ function guideBuild() {
     if (b.dataset.m === 'ask') guideAskOpen();
     else $('gdShow').click();
   };
-  document.addEventListener('click', e => { if (!menu.classList.contains('hide') && !e.target.closest('#gdMenu, #gdLaunch')) shut(); });
+  document.addEventListener('click', e => { if (!menu.classList.contains('hide') && !(gdTarget(e).closest && gdTarget(e).closest('#gdMenu, #gdLaunch'))) shut(); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') shut(); });
   /* A click outside her box ends a walk-round (the click itself still does nothing on the page, as before). A "your
    * turn" step keeps its lit box usable, and a lesson or a task guide stays until it is finished or closed. */
   document.addEventListener('click', e => {
     if (!GUIDE.tour || GUIDE.tour.kind !== 'tour' || GUIDE.selfClick || !e.isTrusted) return;
-    const t = e.target;
+    const t = gdTarget(e);
     if (t.closest && t.closest('#gdBubble, #gdAsk, #gdCtl, #gdResume, #gdLaunch, #gdMenu, #ptDlg')) return;
     if (GUIDE.live && GUIDE.el && GUIDE.el.contains(t)) return;
     guideClose();
@@ -256,7 +260,7 @@ function guideStart(tab, asked) {
   guideRingOff(); GUIDE.paused = null; if ($('gdResume')) $('gdResume').classList.add('hide');
   const steps = guideSteps(tab).filter(s => !(s.sel || s.el) || s.later || guideTarget(s));
   if (!steps.length) return;
-  GUIDE.tour = { tab, steps, kind: 'tour' };
+  GUIDE.tour = { tab, steps, kind: 'tour', first: !asked };   // first: opened by itself on a first visit
   GUIDE.i = 0;
   if (!asked) guideMarkSeen(tab);   // seen once it has started: a Skip is an answer too
   guideShow();
@@ -316,6 +320,7 @@ const guideCanTry = el => !!(el && el.matches && el.matches('input, select, text
 
 function guideShow() {
   const t = GUIDE.tour; if (!t) return;
+  if (typeof meeraDesignShow === 'function') meeraDesignShow(t);
   const s = t.steps[GUIDE.i], hi = guideLang() === 'hi', last = GUIDE.i === t.steps.length - 1, lesson = t.kind === 'lesson', task = t.kind === 'task';
   guideWaitOff();
   if (task) {
@@ -546,6 +551,7 @@ function guidePlace() {
   const bh = bub.getBoundingClientRect().height, foot = GUIDE.foot || GUIDE_FOOT;
   const hidBelow = r ? Math.max(0, r.bottom - (innerHeight - foot)) : 0, hidAbove = r ? Math.max(0, (76 + bh + 10) - r.top) : 0;
   bub.classList.toggle('gd-up', !!(r && hidBelow > 0 && hidAbove < hidBelow));
+  if (typeof meeraDesignPlace === 'function') meeraDesignPlace(el, r, bub);
 }
 
 /** The words appear a few letters at a time (tags whole), and Meera glows while they do. */
@@ -575,21 +581,21 @@ function guideWatch() {
   const ours = el => el.closest && el.closest('#gdRoot, #gdCtl, #gdResume, #gdAsk, #gdLaunch, #gdMenu');
   const inBox = el => GUIDE.live && GUIDE.el && GUIDE.el.contains(el);
   /* A press outside the lit box does nothing while a "your turn" step waits (the dim no longer catches it). */
-  const hold = e => { if (GUIDE.tour && GUIDE.live && !ours(e.target) && !inBox(e.target)) { e.preventDefault(); e.stopPropagation(); } };
+  const hold = e => { if (GUIDE.tour && GUIDE.live && !ours(gdTarget(e)) && !inBox(gdTarget(e))) { e.preventDefault(); e.stopPropagation(); } };
   document.addEventListener('pointerdown', hold, true);
   document.addEventListener('mousedown', hold, true);
   document.addEventListener('focusin', e => {
-    const el = e.target;
+    const el = gdTarget(e);
     if (el && el.matches && el.matches('input, select, textarea') && !ours(el)) GUIDE.field = { el, at: Date.now() };
   }, true);
   /* A red line counts only just after the person did something (a click, a key, a hand-scanner read): a load that
    * fails, or a screen retrying by itself, is not their mistake. */
-  const acted = e => { if (e.isTrusted && !ours(e.target)) GUIDE.act = Date.now(); };
+  const acted = e => { if (e.isTrusted && !ours(gdTarget(e))) GUIDE.act = Date.now(); };
   document.addEventListener('pointerdown', acted, true);
   document.addEventListener('keydown', acted, true);
   document.addEventListener('click', e => {
-    if (GUIDE.tour && !GUIDE.selfClick && !ours(e.target) && !inBox(e.target)) { e.preventDefault(); e.stopPropagation(); return; }   // the walk-round holds the page (not Meera's own press of an Open button)
-    const b = e.target.closest && e.target.closest('button, [role=button], input[type=button], input[type=submit]');
+    if (GUIDE.tour && !GUIDE.selfClick && !ours(gdTarget(e)) && !inBox(gdTarget(e))) { e.preventDefault(); e.stopPropagation(); return; }   // the walk-round holds the page (not Meera's own press of an Open button)
+    const b = gdTarget(e).closest && gdTarget(e).closest('button, [role=button], input[type=button], input[type=submit]');
     if (b && !ours(b)) GUIDE.btn = { el: b, at: Date.now() };
   }, true);
   /* A box the browser itself refuses (a required box left empty, a number out of range). */

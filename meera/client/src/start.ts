@@ -14,7 +14,9 @@ declare const __MEERA_CSS__: string;
 
 const ERP_MEERA: ErpMeera = (window as any).ERP_MEERA;
 /** a box on the page by its id — the same as the page's own $ */
-const $ = (id: string): any => document.getElementById(id);
+/* her sealed box (Phase 3, switch "design": design.ts) — looked in first, then the page */
+let MEERA_SHADOW: ShadowRoot | null = null;
+const $ = (id: string): any => (MEERA_SHADOW && MEERA_SHADOW.getElementById(id)) || document.getElementById(id);
 /** text made safe to put inside HTML — the same as the page's own esc */
 const esc = (s: unknown): string =>
   String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' } as Record<string, string>)[c]);

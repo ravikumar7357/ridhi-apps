@@ -108,7 +108,10 @@ async function load(opts = {}) {
     delete sandbox.$; delete sandbox.esc;
     const bridge = path.join(app, 'src', 'app', 'core', 'meera-bridge.js'), file = path.join(app, 'public', 'meera', 'meera.js');
     vm.runInContext(fs.readFileSync(bridge, 'utf8'), ctx, { filename: 'meera-bridge.js' });
-    vm.runInContext(fs.readFileSync(file, 'utf8'), ctx, { filename: 'https://local.test/meera/meera.js' });
+    /* opts.handle: a test handle into meera.js's closed box (window.__meeraTest), for the never-break list — tests only */
+    let js = fs.readFileSync(file, 'utf8');
+    if (opts.handle) { const end = js.lastIndexOf('})();'); js = js.slice(0, end) + ';window.__meeraTest = c => eval(c);\n' + js.slice(end); }
+    vm.runInContext(js, ctx, { filename: 'https://local.test/meera/meera.js' });
     if (!ctx.MEERA) throw new Error('meera.js did not start');
     await ctx.MEERA.ready();
     const tidy = r => ({ text: String(r.html || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim(),

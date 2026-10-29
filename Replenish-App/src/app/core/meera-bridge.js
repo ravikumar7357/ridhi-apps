@@ -71,6 +71,9 @@ const MEERA_SWITCHES = {
   /* Phase 2 — she reads spelling mistakes ("karigr", "maaal", "pakking") and says how she read the question.
    * Works in meera.js only, so it needs "lazy" on too: ?meera=lazy,spell */
   spell: false,
+  /* Phase 3 — her new look: answer card, source label, English / हिंदी switch, phone sheets, her own sealed box
+   * (Shadow DOM). meera.js only, so it needs "lazy" on too: ?meera=lazy,design */
+  design: false,
 };
 function meeraOn(name) {
   try {

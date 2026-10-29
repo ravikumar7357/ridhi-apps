@@ -64,7 +64,7 @@ async function gaAiAsk(q, own) {
       + (a.steps && a.steps.length ? `<div class="ga-do"><b>${L('What to do', 'क्या करें', 'Kya karein')}</b><ol>${a.steps.map(s => `<li>${gaMd(s)}</li>`).join('')}</ol></div>` : '')
       + `<div class="ga-note">${b.source === 'saved' ? L('Answer checked by an admin.', 'एडमिन का जाँचा हुआ जवाब।', 'Admin ka jaancha hua jawaab.') : L('Written by AI from Meera\'s notes — not yet checked by an admin.', 'मीरा के नोट्स से AI का लिखा — एडमिन ने अभी जाँचा नहीं।', 'Meera ke notes se AI ka likha — admin ne abhi jaancha nahi.')}</div>`;
     const fb = `<div class="ga-fb"><span>${L('Did this help?', 'क्या इससे मदद मिली?', 'Kya isse madad mili?')}</span><button type="button" class="ga-fbb" data-ga="aifb" data-id="up:${+b.answerId || 0}" aria-label="Yes">👍</button><button type="button" class="ga-fbb" data-ga="aifb" data-id="down:${+b.answerId || 0}" aria-label="No">👎</button></div>`;
-    gaSay(html, [], fb);
+    gaSay(html, [], fb, b.source === 'saved' ? 'checked' : 'ai');
     return;
   }
   if (b.offTopic) { gaSay(L('Sorry, I can\'t answer that — it isn\'t about the ERP. Ask me about any screen, job or problem in the ERP.', 'माफ़ कीजिए, इसका जवाब मैं नहीं दे सकती — यह ERP के बारे में नहीं है। ERP की किसी भी स्क्रीन, काम या दिक्कत के बारे में पूछें।', 'Sorry, iska jawaab main nahi de sakti — ye ERP ke baare me nahi hai. ERP ki kisi bhi screen, kaam ya dikkat ke baare me poochiye.'), []); return; }

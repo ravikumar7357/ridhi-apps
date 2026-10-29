@@ -3,7 +3,7 @@
  *   node meera/client/build.cjs           → Replenish-App/public/meera/meera.js and meera.webp
  *   node meera/client/build.cjs --check   only says whether those files are what the sources make (exit 1 if not)
  *
- * meera.js = src/start.ts + src/understand.ts (Phase 2) + her files (the "@meera/…" lines of Replenish-App/src/app/ORDER, in that order — the very
+ * meera.js = src/start.ts + src/understand.ts (Phase 2) + src/design.ts (Phase 3, with design.css) + her files (the "@meera/…" lines of Replenish-App/src/app/ORDER, in that order — the very
  * files the page joins while the "lazy" switch is off; her picture file excepted) + src/finish.ts, in one closed box,
  * with her look (meera.css) inside. TypeScript is turned into JavaScript by the repo's own esbuild (no type check
  * here: npm is blocked on the office PC; the type check runs on GitHub). Nothing is renamed, so an error still names
@@ -19,15 +19,19 @@ function build() {
   const art = order.find(f => /guide-art\.js$/.test(f));
   const files = order.filter(f => f !== art).map(f => path.join(__dirname, 'src', f.slice(7)));
   const css = fs.readFileSync(path.join(__dirname, 'meera.css'), 'utf8');
+  /* her new look (Phase 3): design.css with meera.css inside it, for her sealed box — the page's html.mob becomes the box's
+   * own .mob (design.ts mirrors it) */
+  const designCss = fs.readFileSync(path.join(__dirname, 'design.css'), 'utf8').replace('/*__MEERA_CSS__*/', () => css.replace(/html.mob /g, ':host(.mob) '));
   const legacy = files.map(f => `/* ---- ${path.relative(ROOT, f).replace(/\\/g, '/')} ---- */\n` + fs.readFileSync(f, 'utf8').replace(/\r\n/g, '\n')).join('\n');
   const ts = (name, define) => esbuild.transformSync(fs.readFileSync(path.join(__dirname, 'src', name), 'utf8'), { loader: 'ts', define, legalComments: 'none' }).code;
   /* the version: what the sources say, so the same sources always make the same file */
-  const version = crypto.createHash('sha256').update(legacy + css + ['start.ts', 'understand.ts', 'finish.ts'].map(n => fs.readFileSync(path.join(__dirname, 'src', n), 'utf8')).join('')).digest('hex').slice(0, 12);
+  const version = crypto.createHash('sha256').update(legacy + css + designCss + ['start.ts', 'understand.ts', 'design.ts', 'finish.ts'].map(n => fs.readFileSync(path.join(__dirname, 'src', n), 'utf8')).join('')).digest('hex').slice(0, 12);
   const whole = '(function () {\n"use strict";\n'
     + 'if (!window.ERP_MEERA || window.__MEERA_STARTED) return;   // no bridge (not the ERP), or already started\n'
     + 'window.__MEERA_STARTED = true;\n'
     + ts('start.ts', { __MEERA_CSS__: JSON.stringify(css) }) + '\n'
     + ts('understand.ts', {}) + '\n'   // Phase 2: how she reads spelling mistakes (switch "spell")
+    + ts('design.ts', { __MEERA_DESIGN_CSS__: JSON.stringify(designCss) }) + '\n'   // Phase 3: her new look (switch "design")
     + legacy + '\n'
     + ts('finish.ts', { __MEERA_VERSION__: JSON.stringify(version) })
     + '})();\n';

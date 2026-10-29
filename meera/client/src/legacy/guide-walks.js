@@ -173,7 +173,7 @@ function gaNudgeShow(key, why) {
   GA_NUDGE.told.add(key); GA_NUDGE.shown = true;
   const hi = guideLang() === 'hi';
   let n = $('gdNudge');
-  if (!n) { n = document.createElement('div'); n.id = 'gdNudge'; n.setAttribute('role', 'status'); document.body.appendChild(n); }
+  if (!n) { n = document.createElement('div'); n.id = 'gdNudge'; n.setAttribute('role', 'status'); (typeof meeraLayer === 'function' ? meeraLayer() : document.body).appendChild(n); }
   n.innerHTML = `<span>${why === 'red' ? (hi ? 'यह फिर रुक गया? मैं वजह बता सकती हूँ।' : 'Stopped again? I can tell you why.') : (hi ? 'अटक गए? बाकी मैं साथ में करवा सकती हूँ।' : 'Stuck? I can take you through the rest.')}</span>`
     + `<button type="button" data-n="yes">${hi ? 'हाँ, मदद करें' : 'Yes, help me'}</button><button type="button" class="ghost" data-n="no">${hi ? 'नहीं, धन्यवाद' : 'No thanks'}</button>`;
   n.classList.remove('hide');

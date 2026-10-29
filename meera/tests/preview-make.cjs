@@ -9,7 +9,9 @@ const fs = require('fs'), path = require('path');
 const ROOT = path.join(__dirname, '..', '..');
 const DIST = path.join(ROOT, 'Replenish-App', 'dist'), OUT = path.join(ROOT, 'meera', '.preview');
 if (!fs.existsSync(path.join(DIST, 'index.html'))) throw new Error('run node tests/build-dist.js in Replenish-App first');
-fs.rmSync(OUT, { recursive: true, force: true });
+/* emptied, not removed: Windows will not remove a folder a program is standing in */
+fs.mkdirSync(OUT, { recursive: true });
+for (const f of fs.readdirSync(OUT)) fs.rmSync(path.join(OUT, f), { recursive: true, force: true });
 fs.cpSync(DIST, OUT, { recursive: true });
 let s = fs.readFileSync(path.join(OUT, 'index.html'), 'utf8');
 /* at the very start: the built page has no <head> tag, and "<head" also appears inside the app's own code */
@@ -30,4 +32,10 @@ if (a < 0) throw new Error('no module script in the page');
 const b = s.indexOf('</script>', a);
 s = s.slice(0, b) + hook + s.slice(b);
 fs.writeFileSync(path.join(OUT, 'index.html'), s);
+/* PREVIEW ONLY: a test handle into meera.js (her code runs in a closed box), so the screenshot script can open each scene —
+ * this copy is never deployed */
+for (const f of fs.readdirSync(path.join(OUT, 'meera')).filter(f => /^meera(\.[0-9a-f]{12})?\.js$/.test(f))) {
+  const p = path.join(OUT, 'meera', f), js = fs.readFileSync(p, 'utf8'), end = js.lastIndexOf('})();');
+  fs.writeFileSync(p, js.slice(0, end) + ';window.__meeraTest = c => eval(c);\n' + js.slice(end));
+}
 console.log('preview copy made:', path.relative(ROOT, OUT));

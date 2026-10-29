@@ -50,3 +50,4 @@ Pricing-App/src/deps.json
 
 # Meera v2: the offline timing copy (meera/tests/preview-make.cjs)
 meera/.preview/
+meera/docs/phase3/

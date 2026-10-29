@@ -563,7 +563,8 @@ function gaMeanOf(w) {
 }
 function gaRead(q) {
   const words = gaWords(q);
-  const lang = /[ऀ-ॿ]/.test(q) ? 'hi' : words.some(w => GUIDE_HG.has(w)) ? 'hg' : 'en';
+  let lang = /[ऀ-ॿ]/.test(q) ? 'hi' : words.some(w => GUIDE_HG.has(w)) ? 'hg' : 'en';
+  if (typeof meeraDesignLang === 'function' && meeraDesignLang() === 'hi') lang = 'hi';   // her new look: हिंदी chosen in the Ask box
   const people = gaPeople();
   let means = [...new Set(words.filter(w => !GUIDE_STOP.has(w) && !/^\d+$/.test(w)).map(w => people.has(w) ? 'karigar' : gaMean(w)))];
   /* "maal aa gaya", "आ गया": it came in — a receipt (both words are fillers on their own) */
@@ -1171,7 +1172,7 @@ function guideAskBuild() {
     <div id="gaChips" class="ga-chips"></div>
     <form id="gaForm" class="ga-form" autocomplete="off"><input id="gaQ" maxlength="300" placeholder="Ask anything… e.g. karigar ko kaam kaise de">
       <button type="submit" id="gaSend">Ask</button></form>`;
-  document.body.appendChild(box);
+  (typeof meeraLayer === 'function' ? meeraLayer() : document.body).appendChild(box);
   $('gaClose').onclick = guideAskClose;
   $('gaForm').onsubmit = e => { e.preventDefault(); const q = $('gaQ').value.trim(); if (q) { $('gaQ').value = ''; gaAsk(q); } };
   box.addEventListener('click', e => {
@@ -1194,6 +1195,7 @@ function guideAskOpen(q) {
     gaGuideLoad();
     gaBankLoad();
   }
+  if (typeof meeraDesignAskOpen === 'function') meeraDesignAskOpen();
   if (q) gaAsk(q);
   setTimeout(() => { try { $('gaQ').focus(); } catch (e) { /* closed again */ } }, 30);
 }
@@ -1205,13 +1207,16 @@ function gaChipsDraw() {
   chips.unshift(hi ? 'यह सेव क्यों नहीं हो रहा?' : 'Why isn\'t this working?');
   chips.push(...(hi ? ['यह स्क्रीन क्या है?', 'स्क्रीन धीमी है', 'गलत एंट्री हो गई'] : ['What is this screen?', 'Screen is slow', 'I made a wrong entry']));
   $('gaChips').innerHTML = chips.slice(0, 5).map(c => `<button type="button" class="ga-chip" data-gq="${esc(c)}">${esc(c)}</button>`).join('');
+  if (typeof meeraDesignChips === 'function') meeraDesignChips();
 }
 function gaMine(t) { const d = document.createElement('div'); d.className = 'ga-msg ga-me'; d.textContent = t; $('gaLog').appendChild(d); $('gaLog').scrollTop = $('gaLog').scrollHeight; }
-function gaSay(html, acts, after) {
+/** One message from her. src: where the answer came from — 'guide' (her answers), 'ai', 'checked' (an AI answer an admin checked). */
+function gaSay(html, acts, after, src) {
   const d = document.createElement('div');
   d.className = 'ga-msg ga-she';
   d.innerHTML = html + (acts && acts.length ? '<div class="ga-acts">' + acts.map(a => `<button type="button" class="ga-act" data-ga="${a.t}" data-id="${esc(a.id || '')}" data-tab="${esc(a.tab || '')}">${esc(a.label)}</button>`).join('') + '</div>' : '') + (after || '');
   $('gaLog').appendChild(d);
+  if (typeof meeraDesignSay === 'function') meeraDesignSay(d, src || '');
   $('gaLog').scrollTop = $('gaLog').scrollHeight;
 }
 async function gaAsk(q) {
@@ -1239,7 +1244,7 @@ async function gaAsk(q) {
   /* spelling (Phase 2): she says how she read the question, with a way back to it as typed */
   const und = r.understood ? `<div class="ga-und">${LL('Showing results for', 'इसके नतीजे', 'Iske results')} <b>${esc(r.understood.text)}</b>${LL(' — did you mean something else?', ' — कुछ और पूछना था?', ' — kuch aur poochna tha?')}`
     + ` <button type="button" class="ga-und-b" data-ga="astyped">${LL('Search what I typed', 'जैसा लिखा वैसा खोजें', 'Jaisa likha waisa khojiye')}</button></div>` : '';
-  gaSay(und + r.html, r.acts || [], (r.after || '') + fb);
+  gaSay(und + r.html, r.acts || [], (r.after || '') + fb, r.bank ? 'guide' : '');
   if (auto) gaAiAsk(q);
   if (r.miss) gaChipsDraw();
 }

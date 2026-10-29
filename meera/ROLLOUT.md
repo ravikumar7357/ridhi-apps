@@ -54,6 +54,26 @@ How to see it:
 - She learns the names only from what this person's screens already have loaded (the karigar list, the master lists);
   they are used only to leave such words alone — never shown, never sent anywhere.
 
+## 1c. The new look (Phase 3) on the test link — add `?meera=lazy,spell,design`
+
+Compare with `?meera=lazy,spell` (today's look) on an office computer and on a phone. Sign in as usual.
+
+| # | Do this | With design on she should |
+|---|---|---|
+| 1 | Look bottom-right | a small round face; nothing else of hers on the page |
+| 2 | Click the face → Ask Meera, at once | a thin "Getting ready… you can type now" line for a moment; typing works meanwhile |
+| 3 | Open Ask on a screen showing a red message | "I can see this message on the screen" with the message and a **Help with this** button; under it "Common on <screen>" with 3 questions as rows |
+| 4 | Ask `karigar ko kaam kaise de` | a card: "✓ From the ERP guide" + the screen's name, one bold line, **Do it with me** as the one blue button, "Steps and why (6)" folded |
+| 5 | Open "Steps and why" | the steps and the why, as before |
+| 6 | Click **हिंदी** in the header, ask again | everything in Hindi — buttons, labels, the answer |
+| 7 | Back to **English**, ask in Hinglish (`kariger ko maaal kaise de`) | the answer in Hinglish, the buttons in English |
+| 8 | Ask something she cannot answer (`GST invoice me HSN code kaise badle`) when AI is on | the AI's answer marked in amber "⚠ Suggested — please check" |
+| 9 | Stay idle on a half-filled form with a red line | the "Stuck?" note small, beside her face; the page still works |
+| 10 | Open a screen for the first time (or Show me this screen) | first visit: her full figure beside the bubble; "Show me this screen": her round face in the bubble only |
+| 11 | Phone: Ask | a sheet from the bottom with a handle; the page above it |
+| 12 | Phone: a walk-round | the bubble is a sheet at the bottom; the lit box always above it (or the sheet moves to the top); her round button hidden meanwhile |
+| 13 | The ERP itself: three or four screens you use every day, with the look on | buttons, boxes, menus look and work exactly as without it (her styles are sealed in her own box) |
+
 ## 2. Rollout on live — each step only on Ravi's "live karo" (order set 29 Oct)
 
 1. **The meera.js cache fix** (and Phase 2 code, switches still off): merge to main. Live behaves as today; nobody has

@@ -60,7 +60,12 @@ function writeBaseline(now) {
 async function main() {
   const args = process.argv.slice(2);
   const bundle = args.includes('--bundle');
-  const now = await measure({ bundle });
+  /* --on=design,…: her switches on (meera.js only) — a look-only switch must give the very same answers */
+  const switches = ((args.find(a => a.startsWith('--on=')) || '').slice(5)).split(',').filter(Boolean);
+  if (switches.length && !bundle) { console.log('switches work in meera.js only: add --bundle'); process.exit(2); }
+  if (switches.length && args.includes('--accept')) { console.log('the baseline is recorded with every switch off'); process.exit(2); }
+  const now = await measure({ bundle, switches });
+  if (switches.length) console.log('switches on: ' + switches.join(', '));
   if (bundle) console.log('checking meera.js — Meera as her own file');
   if (args.includes('--baseline')) {
     writeBaseline(now);
