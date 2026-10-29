@@ -591,7 +591,7 @@ function gaPeople() {
  * names and the ERP's own names (SKUs, brands, colours, parties: ERP_MEERA.words()). She never corrects into those. */
 let GA_DICT = null;
 function gaDict() {
-  const known = new Set(), pairs = new Set(), freq = new Map(), add = (w, n) => { known.add(w); if (n) freq.set(w, (freq.get(w) || 0) + n); };
+  const known = new Set(), pairs = new Set(), names = new Set(), freq = new Map(), add = (w, n) => { known.add(w); if (n) freq.set(w, (freq.get(w) || 0) + n); };
   (GA_BANK ? GA_BANK.list : []).forEach(e => {
     const q = e.q || {};
     [].concat(q.en || [], q.hg || [], q.hi || []).forEach(t => { const ws = gaWords(t); ws.forEach((w, i) => { add(w, 2); if (i) pairs.add(ws[i - 1] + ' ' + w); }); });
@@ -600,13 +600,32 @@ function gaDict() {
   });
   Object.keys(GUIDE_SYN).forEach(w => add(w, 1));
   GUIDE_STOP.forEach(w => add(w, 0));
-  gaPeople().forEach(w => add(w, 0));
+  gaPeople().forEach(w => { add(w, 0); names.add(w); });
   GUIDE_SCREENS.forEach(([, names]) => gaWords(names).forEach(w => add(w, 2)));
   try { [...document.querySelectorAll('button, a.nav, th, label, .navgrp')].slice(0, 4000).forEach(el => gaWords(el.textContent).forEach(w => add(w, 1))); } catch (e) { /* no page */ }
-  try { (ERP_MEERA.words ? ERP_MEERA.words() : []).forEach(t => gaWords(t).forEach(w => add(w, 0))); } catch (e) { /* an older ERP: no names */ }
+  try { (ERP_MEERA.words ? ERP_MEERA.words() : []).forEach(t => gaWords(t).forEach(w => { add(w, 0); if (!freq.get(w)) names.add(w); })); } catch (e) { /* an older ERP: no names */ }
   /* a Hindi-script word her meaning list knows ("लिखूं") she already understands: left as typed */
   if (GA_W && GA_W.at) GA_W.at.forEach((i, w) => { if (/[ऀ-ॿ]/.test(w)) add(w, 0); });
-  return { known, freq, pairs };
+  return { known, freq, pairs, names };
+}
+/* CLEARLY SURE AFTER A CORRECTION (Ravi, 29 Oct). When she had to change a word to understand the question, she answers
+ * outright only when clearly sure — the best answer high AND well ahead of the next; otherwise she offers the top
+ * choices ("did you mean"). A guess on top of a guess is not an answer. Set on spelling set 1 and the normal test sets
+ * only; the held-back sets are for scoring. */
+let GA_SPELL_FIXED = false, GA_SPELL_SURE = 0.8, GA_SPELL_GAP = 0.06;
+function gaSpellCap(hits) {
+  if (!GA_SPELL_FIXED || !hits.length) return hits;
+  const [a, b] = hits;
+  if (a.s >= GA_SPELL_SURE && (!b || b.e.id === a.e.id || a.s - b.s >= GA_SPELL_GAP)) return hits;
+  const bar = (GA_W ? GA_BANK_SURE_SEM : GA_BANK_SURE) - 0.001;   // just under "sure": still offered, never answered outright
+  hits.forEach(h => { h.s = Math.min(h.s, bar); });
+  return hits;
+}
+/** the bank search on a question as she understood it (for her tests and window.MEERA.find) */
+function gaSpellFind(q) {
+  const u = gaSpell(q);
+  GA_SPELL_FIXED = u.changes.length > 0;
+  try { const r = gaRead(u.text); return gaBankFind(r.means, r.words, u.text); } finally { GA_SPELL_FIXED = false; }
 }
 function gaSpell(q) {
   const none = { text: q, changes: [] };
@@ -754,7 +773,9 @@ function gaRowAnswer(row, lang, L) {
 async function gaAnswer(q) {
   let understood = null;
   if (typeof muUnderstand === 'function' && meeraOn('spell') && !gaAnswer.asTyped) { await gaBankLoad(); const u = gaSpell(q); if (u.changes.length) { understood = u; q = u.text; } }
-  const r = await gaAnswer1(q);
+  GA_SPELL_FIXED = !!understood;
+  let r;
+  try { r = await gaAnswer1(q); } finally { GA_SPELL_FIXED = false; }
   if (understood && r) r.understood = understood;
   return r;
 }
@@ -1073,7 +1094,7 @@ function gaBankFind(means, words, q) {
     if (sem) best = (best + GA_SEM_W * near) / (1 + GA_SEM_W * 0.6);
     out.push({ e, s: best + named });
   }
-  return out.sort((a, b) => b.s - a.s).slice(0, GA_TOPK);
+  return gaSpellCap(out.sort((a, b) => b.s - a.s).slice(0, GA_TOPK));
 }
 /* How many answers a search returns; how sure she must be to answer outright (with the meaning table the scores run
  * higher, so the bar is higher); and how close an answer must be to be offered as "did you mean". */

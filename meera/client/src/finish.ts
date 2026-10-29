@@ -4,6 +4,7 @@
  * and for support: window.MEERA. */
 declare function guideScreen(tab: string): void;
 declare function gaAnswer(q: string): Promise<{ html?: string; acts?: { t: string; id?: string; tab?: string }[]; bank?: string; miss?: unknown; off?: boolean }>;
+declare function gaSpellFind(q: string): { e: { id: string }; s: number }[];
 declare function gaSpell(q: string): { text: string; changes: { from: string; to: string }[] };
 declare function gaRead(q: string): { means: string[]; words: string[]; lang: string };
 declare function gaBankFind(means: string[], words: string[], q: string): { e: { id: string }; s: number }[];
@@ -21,6 +22,6 @@ try { const tab = ERP_MEERA.screen(); if (tab) guideScreen(tab); } catch (e) { /
   answer: (q: string) => gaAnswer(q),
   /* how she reads a question (spelling, Phase 2): the text she understood and each word she changed */
   understand: (q: string) => gaSpell(q),
-  find: (q: string) => { q = gaSpell(q).text; const r = gaRead(q); return gaBankFind(r.means, r.words, q).map(h => ({ id: h.e.id, s: h.s })); },
+  find: (q: string) => gaSpellFind(q).map(h => ({ id: h.e.id, s: h.s })),
   ready: async () => { await gaBankLoad(); await gaWordsLoad(); gaSemIndex(); return true; },
 };

@@ -6,9 +6,14 @@
 (() => {
   'use strict';
   const IMG = '/meera/meera.webp';
-  let lang = 'hg', bank = null, scene = 'answer', today = false;
-  const L = (en, hi, hg) => (lang === 'hi' ? hi : lang === 'hg' ? (hg || en) : en);
-  const pick = o => (o ? o[lang] || o.en || '' : '');
+  /* Ravi, 29 Oct: buttons and labels follow the switch — English or हिंदी; Hinglish only in an answer to a question typed
+   * in Hinglish. lang = the switch (labels); said = the language of the answer itself. */
+  let lang = 'en', said = 'en', bank = null, scene = 'answer', today = false;
+  const L = (en, hi) => (lang === 'hi' ? hi : en);
+  const C = (en, hi, hg) => (said === 'hi' ? hi : said === 'hg' ? hg : en);
+  const pick = o => (o ? o[said] || o.en || '' : '');
+  const HG = /\b(kaise|kese|kya|kaha|kahan|hai|hain|ho|ko|ka|ki|ke|nahi|nhi|kare|kre|karna|karu|de|dena|diya|mein|me|se|wala|wale|kab|kyu|kyun|chahiye|raha|rha|gaya|gya|kaun|kitna)\b/i;
+  const saidFor = q => (lang === 'hi' ? 'hi' : /^[\x00-\x7F]*$/.test(q) && HG.test(q) ? 'hg' : 'en');
   const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' })[c]);
   const phone = () => innerWidth < 700;
 
@@ -158,12 +163,12 @@ button{font:inherit;cursor:pointer}
 
   /* ---------- pieces ---------- */
   const head = () => `<div class="grab"></div><div class="head"><span class="face"></span><span class="t">${phone() ? 'Meera' : L('Ask Meera', 'मीरा से पूछें', 'Meera se poochiye')}</span>
-    <span class="seg">${[['en', phone() ? 'EN' : 'English'], ['hi', 'हिंदी'], ['hg', 'Hinglish']].map(([k, n]) => `<button data-lang="${k}" class="${lang === k ? 'on' : ''}">${n}</button>`).join('')}</span>
+    <span class="seg">${[['en', 'English'], ['hi', 'हिंदी']].map(([k, n]) => `<button data-lang="${k}" class="${lang === k ? 'on' : ''}">${n}</button>`).join('')}</span>
     <button class="x" data-go="close" aria-label="Close">×</button></div>`;
   const ready = () => `<div class="ready"><span>${L('Getting ready… you can type now', 'तैयार हो रही हूँ… आप लिखना शुरू करें', 'Taiyaar ho rahi hoon… aap likhna shuru kariye')}</span><i></i></div>`;
   const askRow = (v = '') => `<form class="ask"><input placeholder="${L('Ask anything — e.g. karigar ko kaam kaise de', 'कुछ भी पूछें — जैसे कारीगर को काम कैसे दें', 'Kuch bhi poochiye — jaise karigar ko kaam kaise de')}" value="${esc(v)}"><button>${L('Ask', 'पूछें', 'Poochiye')}</button></form>`;
   function card(e, opts = {}) {
-    const steps = (e.steps && (e.steps[lang] || e.steps.en)) || [];
+    const steps = (e.steps && (e.steps[said] || e.steps.en)) || [];
     const ai = !!opts.ai;
     return `<div class="card"><div class="src ${ai ? 'ai' : ''}">${ai ? '⚠ ' + L('Suggested — please check', 'सुझाव — कृपया जाँच लें', 'Sujhav — please check kar lijiye') : '✓ ' + L('From the ERP guide', 'ERP गाइड से', 'ERP guide se')}
         <span class="where">${esc(opts.where || '')}</span></div>
@@ -172,7 +177,7 @@ button{font:inherit;cursor:pointer}
         <button class="do">${L('Do it with me', 'मेरे साथ करें', 'Mere saath kijiye')}</button>
         <button class="lnk">${L('Show me', 'करके दिखाएँ', 'Karke dikhaiye')}</button></div>`}
       ${steps.length || e.why ? `<details class="more"><summary>${L('Steps and why', 'स्टेप और क्यों', 'Steps aur kyun')} (${steps.length})</summary>
-        <ol>${steps.map(s => `<li>${s}</li>`).join('')}</ol>${e.why ? `<div class="why"><b>${L('Why', 'क्यों', 'Kyun')}:</b> ${pick(e.why)}</div>` : ''}</details>` : ''}
+        <ol>${steps.map(s => `<li>${s}</li>`).join('')}</ol>${e.why ? `<div class="why"><b>${L('Why', 'क्यों')}:</b> ${pick(e.why)}</div>` : ''}</details>` : ''}
       <div class="foot">${L('Did this help?', 'क्या मदद मिली?', 'Madad mili?')} <button>👍</button><button>👎</button></div></div>`;
   }
   const rows = list => `<div class="rows">${list.map(e => `<button data-q="${esc((e.q[lang] || e.q.en || [])[0] || '')}">${esc((e.q[lang] || e.q.en || [])[0] || e.id)}</button>`).join('')}</div>`;
@@ -194,7 +199,9 @@ button{font:inherit;cursor:pointer}
     await loadBank();
     const launch = `<button class="launch" data-go="open" aria-label="${L('Ask Meera', 'मीरा से पूछें', 'Meera se poochiye')}"><span class="face"></span></button>`;
     let inner = '';
+    said = lang;
     if (scene === 'answer') {
+      said = saidFor(lastQ);
       const { hits, u } = await search(lastQ);
       const sure = hits[0] && hits[0].s >= 0.75 && !(hits[1] && hits[0].s - hits[1].s < 0.04);
       const e = sure && byId(hits[0].id);
@@ -207,11 +214,13 @@ button{font:inherit;cursor:pointer}
     } else if (scene === 'screen') {
       const red = redSeen() || 'Could not read it: Failed to fetch';
       inner = `<div class="seen"><b>${L('I can see this message on the screen', 'स्क्रीन पर यह मैसेज दिख रहा है', 'Screen par ye message dikh raha hai')}</b><div class="msg">${esc(red)}</div>
-          <button class="do">${L('Help me with this', 'इसमें मदद करें', 'Isme madad kijiye')}</button></div>
+          <button class="do">${L('Help with this', 'इसमें मदद करें')}</button></div>
         <div class="h">${L('Common on', 'अक्सर पूछे गए —', 'Aksar poochhe gaye —')} ${esc(screenName())}</div>` + rows(forScreen(screenId()));
     } else if (scene === 'ai') {
-      inner = `<div class="q">GST invoice me HSN code kaise badle</div>`
-        + card({ text: L('Open Setup → Products, find the item, change the HSN code and press Save. New invoices use the new code; old ones keep theirs.',
+      const aiQ = lang === 'hi' ? 'GST बिल में HSN कोड कैसे बदलें' : 'GST invoice me HSN code kaise badle';
+      said = saidFor(aiQ);
+      inner = `<div class="q">${esc(aiQ)}</div>`
+        + card({ text: C('Open Setup → Products, find the item, change the HSN code and press Save. New invoices use the new code; old ones keep theirs.',
           'Setup → Products खोलें, आइटम ढूँढें, HSN कोड बदलें और Save दबाएँ। नए इनवॉइस नया कोड लेंगे; पुराने वैसे ही रहेंगे।',
           'Setup → Products kholiye, item dhoondhiye, HSN code badaliye aur Save dabaiye. Naye invoice naya code lenge; purane waise hi rahenge.') }, { ai: true, where: L('AI', 'AI', 'AI') });
     }

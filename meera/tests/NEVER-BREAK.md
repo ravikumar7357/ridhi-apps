@@ -26,3 +26,7 @@ The items marked **by hand** need a real screen. Check them on the test link (pr
 
 Known before v2 (not to be "fixed" by accident — only on purpose, with Ravi):
 - "परसों की हाज़िरी अब भर सकते हैं क्या, टाइम डालना है" is answered with the current time (she reads "time" as asking the time).
+
+12. **Spelling keeps names as typed** (Phase 2, switch "spell"): a misspelled karigar, party or SKU is never turned into a
+    name, and no name appears that was not typed; an ordinary slip ("pakking") is still read right. Checked by
+    never-break.cjs with made-up names.

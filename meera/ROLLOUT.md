@@ -42,6 +42,18 @@ console on the ERP page and run `localStorage.setItem('meera.lazy','1')`; to und
 | 10 | Same questions **without** `,spell` (`?meera=lazy`) | no "Iske results" line anywhere — as today |
 | 11 | Phone: the "Iske results" line and its button fit the Ask box | |
 
+**Names stay as typed** (karigars, parties, SKUs). Type a name with a letter wrong — a karigar's name missing a letter
+("Ramsh ko maal diya"), a party's name ("Shre Printrs ka order"), a SKU with one character changed ("RCN14B ka stock").
+How to see it:
+- **On screen:** the "Iske results …" line is the only place she shows a question changed. The name must appear there
+  exactly as you typed it — never "corrected" into a name, and never any name or SKU you did not type. (An ordinary word
+  next to it may be fixed, e.g. "Printrs" → printers: that is a word of her own answers, not the party's name.)
+- **Exactly:** open the browser console (F12 → Console) on the test link and type
+  `MEERA.understand('Ramsh ko maal diya')` — it shows the text she understood and `changes`, the list of every word
+  she changed. A name must never be in `changes`.
+- She learns the names only from what this person's screens already have loaded (the karigar list, the master lists);
+  they are used only to leave such words alone — never shown, never sent anywhere.
+
 ## 2. Rollout on live — each step only on Ravi's "live karo" (order set 29 Oct)
 
 1. **The meera.js cache fix** (and Phase 2 code, switches still off): merge to main. Live behaves as today; nobody has

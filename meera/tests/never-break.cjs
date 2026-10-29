@@ -95,6 +95,14 @@ async function main() {
   ok(!noRight.acts.some(a => /^w(do|show):/.test(a)), 'no walk offered on a screen the person cannot open');
   run('ME.admin = true; ME.tabs = [];');
 
+  /* 12. spelling (Phase 2, switch "spell"): a misspelled karigar, party or SKU stays as typed — never turned into a name,
+   *     never a name nobody typed (meera.js, with made-up names where the ERP keeps them) */
+  const S = await load({ root: ROOT, bundle: true, switches: ['spell'] });
+  S.ctx.PTE.emp = [[1, 'Ramesh Kumar']];
+  S.ctx.PTG = { masters: { vendor: { v1: { code: 'SHP', name: 'Shree Printers' } } }, mdb: [{ sku: 'RCN148', brand: 'Ridhi' }] };
+  const asTyped = ['Ramsh ko maal diya', 'Shre ka order kaha hai', 'RCN14B ka stock'].every(q => S.ctx.MEERA.understand(q).text === q);
+  ok(asTyped && S.ctx.MEERA.understand('pakking list kaha hai').text === 'packing list kaha hai', 'spelling: names, parties and SKUs stay as typed; ordinary slips are read right');
+
   console.log(`never-break: ${pass} passed, ${fail} failed`);
   if (fail) process.exit(1);
 }

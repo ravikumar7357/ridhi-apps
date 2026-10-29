@@ -24,6 +24,9 @@ interface MeeraDict {
   freq: Map<string, number>;
   /** two words her answers use side by side ("job work") — a word is split only into such a pair */
   pairs: Set<string>;
+  /** people's and the ERP's own names (karigars, staff, parties, SKUs, brands, colours): never a correction, and a word
+   *  close to one is left exactly as typed — "Ramsh" stays "Ramsh", it never becomes a name or a word nobody typed */
+  names: Set<string>;
 }
 interface MeeraUnderstood { text: string; changes: { from: string; to: string }[] }
 
@@ -59,11 +62,19 @@ function muDistance(a: string, b: string, max: number): number {
 }
 
 /** what a dictionary needs worked out once: words by sound, and by length for the close-spelling search */
-interface MeeraDictIndex { dict: MeeraDict; bySound: Map<string, string>; bySoundHi: Map<string, string>; byLen: Map<number, string[]>; cache: Map<string, string | null> }
+interface MeeraDictIndex { dict: MeeraDict; nameSound: Set<string>; nameByLen: Map<number, string[]>; bySound: Map<string, string>; bySoundHi: Map<string, string>; byLen: Map<number, string[]>; cache: Map<string, string | null> }
 function muIndex(dict: MeeraDict): MeeraDictIndex {
   const bySound = new Map<string, string>(), bySoundHi = new Map<string, string>(), byLen = new Map<number, string[]>();
   const f = (w: string) => dict.freq.get(w) || 0;
+  const nameSound = new Set<string>(), nameByLen = new Map<number, string[]>();
+  for (const w of dict.names) {
+    if (!/^[a-z]{3,}$/.test(w)) continue;
+    nameSound.add(muSound(w));
+    if (!nameByLen.has(w.length)) nameByLen.set(w.length, []);
+    nameByLen.get(w.length)!.push(w);
+  }
   for (const w of dict.known) {
+    if (dict.names.has(w)) continue;   // a name is never a correction
     if (/^[ऀ-ॿ]{2,}$/.test(w) && f(w) > 0) { const k = muSoundHi(w), had = bySoundHi.get(k); if (!had || f(w) > f(had)) bySoundHi.set(k, w); continue; }
     if (!/^[a-z]{3,}$/.test(w)) continue;
     const s = muSound(w), had = bySound.get(s);
@@ -71,7 +82,7 @@ function muIndex(dict: MeeraDict): MeeraDictIndex {
     if (!byLen.has(w.length)) byLen.set(w.length, []);
     byLen.get(w.length)!.push(w);
   }
-  return { dict, bySound, bySoundHi, byLen, cache: new Map() };
+  return { dict, nameSound, nameByLen, bySound, bySoundHi, byLen, cache: new Map() };
 }
 
 /** the word she thinks was meant, or null to leave it as it is */
@@ -79,6 +90,10 @@ function muFix(w: string, ix: MeeraDictIndex): string | null {
   if (ix.cache.has(w)) return ix.cache.get(w)!;
   const { dict } = ix, f = (x: string) => dict.freq.get(x) || 0;
   let out: string | null = null;
+  /* 0. close to a name (one letter off, or the same sound): left exactly as typed */
+  const nearName = ix.nameSound.has(muSound(w))
+    || [w.length - 1, w.length, w.length + 1].some(L => (ix.nameByLen.get(L) || []).some(n => muDistance(w, n, 1) <= 1));
+  if (nearName) { ix.cache.set(w, null); return null; }
   /* 1. the same sound */
   const s = muSound(w), same = w.length >= 4 ? ix.bySound.get(s) : undefined;
   if (same && same !== w) out = same;
