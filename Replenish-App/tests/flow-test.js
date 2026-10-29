@@ -2466,18 +2466,20 @@ const K = 'AMZ-1__S1';
     const sh = R.flowRepSheets(wk), cv = c0 => (c0 && typeof c0 === 'object' ? c0.v : c0);
     const tot = sh[0].rows[0], grp = sh[0].rows[1].map(cv), hd = sh[0].rows[2].map(cv);
     ok('two sheets: Lines and Summary — no late-lines sheet', sh.map(x => x.name).join() === 'Lines,Summary', sh.map(x => x.name).join());
-    ok('Lines: the headings of v6, in its order', hd.join('|') === 'Plan date|Order no|Order date|Channel|SKU|Category|Sub-category|Parent ASIN|Colour|Size|Fabric|Process|Ordered|Printing|Printer|Cutting|Cut|Cut, in store|Stitching|Given|Received|QC|Passed|Rejected|Press|Pressed|Due|Exp. completion|Days late|Last moved|Last step', hd.join('|'));
-    ok('…the groups over them, each name merged over its columns', ['Order', 'Product', 'Qty', 'Printing', 'Cutting', 'Stitching', 'QC', 'Press', 'Dates'].join() === grp.filter(Boolean).join()
-      && ['A2:D2', 'E2:L2', 'M2', 'N2:O2', 'P2:R2', 'S2:U2', 'V2:X2', 'Y2:Z2', 'AA2:AE2'].every(m => sh[0].merges.includes(m)), sh[0].merges.join());
-    ok('…row 1 adds the counts with SUBTOTAL (a filter re-adds them), from row 4 down', cv(tot[0]) === 'Total (shown lines)' && tot[12].f === 'SUBTOTAL(109,M4:M6)' && tot[25].f === 'SUBTOTAL(109,Z4:Z6)' && !tot[13].f && !tot[26].f,
-      JSON.stringify([tot[12], tot[13]]));
-    ok('…filters on the headings; frozen through SKU and the three heading rows', sh[0].filter === 'A3:AE6' && sh[0].freeze.x === 5 && sh[0].freeze.y === 3);
+    /* 29 Oct (Ravi): one column a stage — Printing (with Printing in store beside it), Cutting, Karigar (was Stitching), QC, Press; no Rejected. */
+    ok('Lines: the headings, in order', hd.join('|') === 'Plan date|Order no|Order date|Channel|SKU|Category|Sub-category|Parent ASIN|Colour|Size|Fabric|Process|Ordered|Printing|Printing in store|Cutting|Cut, in store|Karigar|Received|QC|Press|Due|Exp. completion|Days late|Last moved|Last step', hd.join('|'));
+    ok('…the groups over them, each name merged over its columns — Stitching is now Karigar', ['Order', 'Product', 'Qty', 'Printing', 'Cutting', 'Karigar', 'QC', 'Press', 'Dates'].join() === grp.filter(Boolean).join()
+      && ['A2:D2', 'E2:L2', 'M2', 'N2:O2', 'P2:Q2', 'R2:S2', 'T2', 'U2', 'V2:Z2'].every(m => sh[0].merges.includes(m)), sh[0].merges.join());
+    ok('…row 1 adds the counts with SUBTOTAL (a filter re-adds them) — the pieces of a stage under way too, never the printer column',
+      cv(tot[0]) === 'Total (shown lines)' && tot[12].f === 'SUBTOTAL(109,M4:M6)' && tot[14].f === 'SUBTOTAL(109,O4:O6)' && tot[17].f === 'SUBTOTAL(109,R4:R6)' && !tot[13].f && !tot[21].f,
+      JSON.stringify([tot[12], tot[13], tot[17]]));
+    ok('…filters on the headings; frozen through SKU and the three heading rows', sh[0].filter === 'A3:Z6' && sh[0].freeze.x === 5 && sh[0].freeze.y === 3, sh[0].filter);
     const r4 = sh[0].rows[3];
     ok('…dates as real Excel dates (dd-mmm-yy), counts blank when nothing', r4[0].v === R.flowRepSerial('2026-10-08') && r4[0].st.fmt === 165 && r4[16].v === '', JSON.stringify([r4[0], r4[16]]));
-    ok('…a late line tinted, its days late in red', r4[1].st.fill === 'FCEBEB' && r4[28].v === 3 && r4[28].st.color === 'A32D2D', JSON.stringify([r4[1].st, r4[28]]));
-    ok('…each status in v6\'s colours', r4[13].v === 'Not started' && r4[13].st.fill === 'F1EFE8' && r4[15].v === 'Not needed' && r4[15].st.color === '888780', JSON.stringify([r4[13], r4[15]]));
+    ok('…a late line tinted, its days late in red', r4[1].st.fill === 'FCEBEB' && r4[23].v === 3 && r4[23].st.color === 'A32D2D', JSON.stringify([r4[1].st, r4[23]]));
+    ok('…each stage in v6\'s colours', r4[13].v === 'Not started' && r4[13].st.fill === 'F1EFE8' && r4[15].v === 'Not needed' && r4[15].st.color === '888780', JSON.stringify([r4[13], r4[15]]));
     const files = R.flowRepXlsx(sh), x1 = files.find(f => f[0] === 'xl/worksheets/sheet1.xml')[1], wb = files.find(f => f[0] === 'xl/workbook.xml')[1];
-    ok('written as Excel: SUBTOTAL formulas, filter, frozen panes, the date format, two sheets', /<f>SUBTOTAL\(109,M4:M6\)<\/f>/.test(x1) && /<autoFilter ref="A3:AE6"\/>/.test(x1)
+    ok('written as Excel: SUBTOTAL formulas, filter, frozen panes, the date format, two sheets', /<f>SUBTOTAL\(109,M4:M6\)<\/f>/.test(x1) && /<autoFilter ref="A3:Z6"\/>/.test(x1)
       && /xSplit="5" ySplit="3"/.test(x1) && /formatCode="dd-mmm-yy"/.test(files.find(f => f[0] === 'xl/styles.xml')[1]) && !/<sheet name="Late lines"/.test(wb) && /_xlnm._FilterDatabase/.test(wb) && /fullCalcOnLoad="1"/.test(wb));
     /* The stages: Printing, Cutting, Stitching, QC (Passed), Press — Done / In progress / Not started / Not needed, and the pieces. */
     ok('a printed line, nothing back: printing, stitching, QC and press not started; no cutting', a.print.status === 'Not started' && a.cut.status === 'Not needed'
@@ -2495,10 +2497,16 @@ const K = 'AMZ-1__S1';
     const q0 = Q.flowRepLines({ from: '2026-10-12', to: '2026-10-12', on: 'planned', today: '2026-10-13' })[0] || {};
     ok('all passed QC and pressed → QC "Passed", Press Done, 100 completed, no delay', q0.qc.status === 'Passed' && q0.qc.passed === 100 && q0.press.status === 'Done' && q0.press.pressed === 100
       && q0.completed === 100 && !(q0.late > 0), JSON.stringify([q0.qc, q0.press, q0.completed, q0.late]));
-    /* A stage done shows "-" in its count (Ravi, 28 Oct): Cut, Given, Passed, Pressed. */
-    const rD = R.flowRepSheets([d0])[0].rows[3].map(cv), rQ = R.flowRepSheets([q0])[0].rows[3].map(cv);
-    ok('cutting Done → Cut "-"; stitching still under way → Given 100, Received 60', rD[16] === '-' && rD[19] === 100 && rD[20] === 60, JSON.stringify(rD.slice(15, 21)));
-    ok('QC Passed and Press Done → Passed "-", Pressed "-"; the given / received counts stay', rQ[22] === '-' && rQ[25] === '-' && rQ[19] === '-' && rQ[20] === 100, JSON.stringify(rQ.slice(18, 26)));
+    /* One column a stage (Ravi, 29 Oct): Done (QC: Passed) · the printer / the pieces while under way · Not needed · Not started. */
+    const rowOf = x => R.flowRepSheets([x])[0].rows[3], rD = rowOf(d0), rQ = rowOf(q0), rC = rowOf(c30);
+    ok('cutting done, 60 of 100 back from the karigars → Cutting "Done", Karigar 100 (given, amber), Received 60', cv(rD[15]) === 'Done' && cv(rD[17]) === 100
+      && rD[17].st.fill === 'FAC775' && cv(rD[18]) === 60 && cv(rD[13]) === 'Not needed', JSON.stringify(rD.slice(13, 21).map(cv)));
+    ok('all passed and pressed → QC "Passed", Press "Done", Karigar "Done"', cv(rQ[19]) === 'Passed' && cv(rQ[20]) === 'Done' && cv(rQ[17]) === 'Done' && rQ[20].st.fill === 'C0DD97', JSON.stringify(rQ.slice(13, 21).map(cv)));
+    ok('printing under way → the printer\'s name in the Printing column; Cutting 30 (pieces cut so far)', cv(rC[13]) === 'Sanganer Prints' || cv(rC[13]) === 'In progress', JSON.stringify(rC.slice(13, 18).map(cv)));
+    ok('…and Cutting under way shows the pieces cut (30), 10 of them in store', cv(rC[15]) === 30 && cv(rC[16]) === 10 && rC[15].st.fill === 'FAC775', JSON.stringify(rC.slice(13, 18).map(cv)));
+    const P = load({ lines: [L({ cutReq: true, cut: 20 })], vendor: { 'AMZ-1|S1': { given: 100, back: 60 } }, ppc: { [K]: plan({ printer: { code: 'P1', name: 'Sanganer Prints' }, at: '2026-10-12T05:00:00Z' }) } });
+    const p0 = P.flowRepLines({ from: '2026-10-12', to: '2026-10-12', on: 'planned', today: '2026-10-13' })[0] || { print: {} };
+    ok('60 printed back, 20 of them cut → Printing in store 40', p0.print.store === 40, JSON.stringify(p0.print));
     const O = load({ lines: [L()], ppc: { [KA]: plan({ route: 'outsource', outVendor: 'Kalu', at: '2026-10-12T05:00:00Z' }) } });
     const o0 = O.flowRepLines({ from: '2026-10-12', to: '2026-10-12', on: 'planned', today: '2026-10-13' })[0] || {};
     ok('outsourced: every making stage Not needed', ['print', 'cut', 'stitch', 'qc', 'press'].every(k => o0[k].status === 'Not needed'), JSON.stringify(o0));

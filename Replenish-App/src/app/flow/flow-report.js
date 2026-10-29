@@ -6,8 +6,9 @@
  *
  *   Plan date     the day the plan was FIRST saved (plan.firstAt, kept from 28 Oct). A plan saved before then has only its
  *                 last save (plan.at).
- *   Stages        (Ravi, 28 Oct, his v6 workbook): Printing, Cutting, Stitching, QC and Press, each a status in colour
- *                 (Done / Passed, In progress, Not started, Not needed) with its pieces beside it (flowRepStages).
+ *   Stages        (Ravi, 28–29 Oct, his v6 workbook): Printing, Cutting, Karigar, QC and Press — one column each, coloured by
+ *                 status: Done (QC: Passed), the printer / pieces while under way, Not needed, Not started (flowRepStages);
+ *                 beside them what waits: printed in store, cut in store, received.
  *   Sheets        Lines — row 1 adds the counts with SUBTOTAL (a filter re-adds them), row 2 names the groups, row 3 has
  *                 the filters — and Summary, a pivot by SKU: ordered, completed, pending, lines, late lines, Grand Total.
  *   Last moved    the last thing that happened to the line, its day and its step (flowRepLastMoved).
@@ -70,7 +71,9 @@ function flowRepStages(r, s, p) {
   const ch = s.challan || null;
   return {
     print: { status: flowRepSt(printOn, printed, printed > 0 || +s.fabSent > 0 || !!ch, qty),
-      printer: printOn ? ((p.printer && (p.printer.name || p.printer.code)) || (ch && ch.vendor) || '') : '' },
+      printer: printOn ? ((p.printer && (p.printer.name || p.printer.code)) || (ch && ch.vendor) || '') : '',
+      /* printed and back from the printer, not cut yet — waiting in the store */
+      store: printOn ? Math.max(0, cap(s.back) - cutC) : 0 },
     cut: { status: flowRepSt(!!s.cutReq && !outside, cutC, cutC > 0, qty), cut, store: s.cutReq ? Math.max(0, cut - Math.max(0, +s.issuedNet || 0)) : 0 },
     stitch: { status: flowRepSt(!outside, stitched, given > 0 || stitched > 0, qty), given, received },
     qc: { status: flowRepSt(!outside, Math.max(passed + Math.min(rejected, qty), pressed), passed + rejected > 0 || pressed > 0, qty, 'Passed'), passed, rejected },
@@ -132,22 +135,25 @@ function flowRepLines(o) {
 /* ---- the workbook, cell for cell as Ravi's v6 ---- */
 /* The groups over the columns: [name, fill, text colour] — the colours of his sheet. */
 const FLOW_REP_GRP = { Order: ['E6F1FB', '0C447C'], Product: ['F1EFE8', '444441'], Qty: ['EEEDFE', '3C3489'], Pieces: ['EEEDFE', '3C3489'],
-  Printing: ['FBEAF0', '72243E'], Cutting: ['FAEEDA', '633806'], Stitching: ['E1F5EE', '085041'], QC: ['EAF3DE', '27500A'], Press: ['EEEDFE', '3C3489'], Dates: ['FAECE7', '712B13'] };
+  Printing: ['FBEAF0', '72243E'], Cutting: ['FAEEDA', '633806'], Karigar: ['E1F5EE', '085041'], QC: ['EAF3DE', '27500A'], Press: ['EEEDFE', '3C3489'], Dates: ['FAECE7', '712B13'] };
 const FLOW_REP_TONE = { Done: ['C0DD97', '173404', 1], Passed: ['C0DD97', '173404', 1], 'In progress': ['FAC775', '412402'], 'Not started': ['F1EFE8', '444441'], 'Not needed': ['FFFFFF', '888780'] };
-/* A STAGE DONE SHOWS "-" (Ravi, 28 Oct): once Cutting / Stitching / QC / Press is done, its Cut / Given / Passed / Pressed cell says
- * "-" rather than the count — the status beside it already says it is all through. */
-const flowRepDash = (status, n) => status === FLOW_REP_DONE || status === 'Passed' ? '-' : n;
-/* Lines sheet: [group, heading, value, kind, width]; kind: date · num (a count, blank when 0) · qty · st (a status) · late · sku */
+/* ONE COLUMN A STAGE (Ravi, 29 Oct: "if the printing is done show done, else if in progress show the printer name, and if not
+ * needed show not needed — similarly cutting and cut, stitching and given, QC and passed, press and pressed"): Done (QC:
+ * Passed), the printer / the pieces while it is under way, Not needed, Not started — coloured by the stage's status. */
+const flowRepMerged = (st, busy) => st.status === FLOW_REP_WIP ? (busy === '' || busy == null ? FLOW_REP_WIP : busy) : st.status;
+/* Lines sheet: [group, heading, value, kind, width, status]; kind: date · num (a count, blank when 0) · qty · st (a stage, coloured by
+ * its status) · stn (the same, its pieces added in the total row) · late · sku */
 const FLOW_REP_COLS = [
   ['Order', 'Plan date', x => x.planned, 'date', 13.5], ['Order', 'Order no', x => x.orderNo, '', 13], ['Order', 'Order date', x => x.orderDate, 'date', 13.5], ['Order', 'Channel', x => x.channel, '', 12],
   ['Product', 'SKU', x => x.sku, 'sku', 14], ['Product', 'Category', x => x.category, '', 16], ['Product', 'Sub-category', x => x.subCategory, '', 15], ['Product', 'Parent ASIN', x => x.parent, '', 14],
   ['Product', 'Colour', x => x.colour, '', 15], ['Product', 'Size', x => x.size, '', 12], ['Product', 'Fabric', x => x.fabric, '', 12], ['Product', 'Process', x => x.process, '', 12],
   ['Qty', 'Ordered', x => x.pcs, 'qty', 12],
-  ['Printing', 'Printing', x => x.print.status, 'st', 15], ['Printing', 'Printer', x => x.print.printer, '', 15],
-  ['Cutting', 'Cutting', x => x.cut.status, 'st', 15], ['Cutting', 'Cut', x => flowRepDash(x.cut.status, x.cut.cut), 'num', 12], ['Cutting', 'Cut, in store', x => x.cut.store, 'num', 13.4],
-  ['Stitching', 'Stitching', x => x.stitch.status, 'st', 15], ['Stitching', 'Given', x => flowRepDash(x.stitch.status, x.stitch.given), 'num', 12], ['Stitching', 'Received', x => x.stitch.received, 'num', 12],
-  ['QC', 'QC', x => x.qc.status, 'st', 15], ['QC', 'Passed', x => flowRepDash(x.qc.status, x.qc.passed), 'num', 12], ['QC', 'Rejected', x => x.qc.rejected, 'num', 12],
-  ['Press', 'Press', x => x.press.status, 'st', 15], ['Press', 'Pressed', x => flowRepDash(x.press.status, x.press.pressed), 'num', 12],
+  ['Printing', 'Printing', x => flowRepMerged(x.print, x.print.printer), 'st', 16, x => x.print.status], ['Printing', 'Printing in store', x => x.print.store, 'num', 13],
+  ['Cutting', 'Cutting', x => flowRepMerged(x.cut, x.cut.cut), 'stn', 13, x => x.cut.status], ['Cutting', 'Cut, in store', x => x.cut.store, 'num', 13.4],
+  /* "Stitching" is called Karigar (Ravi, 29 Oct) — the pieces given while they are with the karigars */
+  ['Karigar', 'Karigar', x => flowRepMerged(x.stitch, x.stitch.given), 'stn', 13, x => x.stitch.status], ['Karigar', 'Received', x => x.stitch.received, 'num', 12],
+  ['QC', 'QC', x => flowRepMerged(x.qc, x.qc.passed), 'stn', 13, x => x.qc.status],
+  ['Press', 'Press', x => flowRepMerged(x.press, x.press.pressed), 'stn', 13, x => x.press.status],
   ['Dates', 'Due', x => x.due, 'date', 13.5], ['Dates', 'Exp. completion', x => x.completion, 'date', 13.5], ['Dates', 'Days late', x => x.late || '', 'late', 12],
   ['Dates', 'Last moved', x => x.moved && x.moved.day, 'date', 13.5], ['Dates', 'Last step', x => x.moved && x.moved.step, '', 24]];
 /** The Summary sheet's rows: one a SKU — how many ordered, how many completed, how many still pending (Ravi, 28 Oct: "what SKU,
@@ -175,7 +181,7 @@ function flowRepPivot(lines) {
 function flowRepGrid(name, cols, items, o) {
   o = o || {};
   const n = items.length, last = 3 + Math.max(n, 1), starts = new Set(cols.map((c, i) => (i === 0 || cols[i - 1][0] !== c[0]) ? i : -1).filter(i => i >= 0));
-  const sumCol = c => c[3] === 'num' || c[3] === 'qty';
+  const sumCol = c => c[3] === 'num' || c[3] === 'qty' || c[3] === 'stn';
   const edge = i => ({ bl: starts.has(i) || cols[i][3] === 'sku', br: cols[i][3] === 'sku' });
   const tot = cols.map((c, i) => i === 0 ? { v: 'Total (shown lines)', st: { b: 1, fill: 'F1EFE8' } }
     : sumCol(c) ? { f: `SUBTOTAL(109,${soColName(i)}4:${soColName(i)}${last})`, st: { b: 1, fill: 'F1EFE8', fmt: 3 } } : { v: '', st: { fill: 'F1EFE8' } });
@@ -185,9 +191,9 @@ function flowRepGrid(name, cols, items, o) {
     return { v: c[1], st: Object.assign({ b: 1, color: g[1], fill: g[0], bb: 1, wrap: 1, v: 'bottom', h: ['num', 'qty', 'late'].includes(c[3]) ? 'right' : 'left' }, edge(i)) }; });
   const body = items.map(x => { const tint = o.tint && x.late > 0 ? 'FCEBEB' : '';
     return cols.map((c, i) => { let v = c[2](x); const e = edge(i), base = Object.assign({ fill: tint }, e);
-      if (c[3] === 'st') { const t = FLOW_REP_TONE[v] || FLOW_REP_TONE['Not started']; return { v, st: { fill: t[0], color: t[1], b: t[2] || 0, h: 'center', bl: 1 } }; }
+      if (c[3] === 'st' || c[3] === 'stn') { const t = FLOW_REP_TONE[c[5] ? c[5](x) : v] || FLOW_REP_TONE['Not started'];
+        return { v, st: Object.assign({ fill: t[0], color: t[1], b: t[2] || 0, h: 'center', bl: 1 }, typeof v === 'number' ? { fmt: 3 } : {}) }; }
       if (c[3] === 'date') return { v: v ? flowRepSerial(v) : '', st: Object.assign(base, { fmt: 165, h: 'left' }) };
-      if (v === '-') return { v, st: Object.assign(base, { h: 'right' }) };
       if (c[3] === 'num' || c[3] === 'qty') return { v: +v > 0 ? +v : '', st: Object.assign(base, { fmt: 3 }) };
       if (c[3] === 'late') return { v: +v > 0 ? +v : '', st: Object.assign(base, { fmt: 1 }, +v > 0 ? { b: 1, color: 'A32D2D' } : {}) };
       if (c[3] === 'sku') return { v, st: Object.assign(base, { b: 1 }) };
@@ -261,8 +267,8 @@ function flowRepBody() {
   const late = lines.filter(x => x.late > 0).length, orders = new Set(lines.map(x => x.orderNo)).size, old = lines.filter(x => x.planned && !x.plannedKnown).length;
   const rng = FLOW_REP.on === 'waiting' ? 'waiting in PPC today' : `${flowRepShow(FLOW_REP.from)} – ${flowRepShow(FLOW_REP.to)}`;
   const groups = []; FLOW_REP_COLS.forEach(c => { const l = groups[groups.length - 1]; if (l && l[0] === c[0]) l[1]++; else groups.push([c[0], 1]); });
-  const show = (v, c) => v === '-' ? v : c[3] === 'date' ? flowRepShow(v) : (c[3] === 'num' || c[3] === 'late') ? (+v > 0 ? nf(+v) : '') : c[3] === 'qty' ? nf(+v || 0) : (v == null ? '' : v);
-  const td = (v, c, x) => { const t = c[3] === 'st' && FLOW_REP_TONE[v];
+  const show = (v, c) => typeof v === 'number' && (c[3] === 'st' || c[3] === 'stn') ? nf(v) : c[3] === 'date' ? flowRepShow(v) : (c[3] === 'num' || c[3] === 'late') ? (+v > 0 ? nf(+v) : '') : c[3] === 'qty' ? nf(+v || 0) : (v == null ? '' : v);
+  const td = (v, c, x) => { const t = (c[3] === 'st' || c[3] === 'stn') && FLOW_REP_TONE[c[5] ? c[5](x) : v];
     return `<td style="white-space:nowrap${['num', 'qty', 'late'].includes(c[3]) ? ';text-align:right' : ''}${t ? `;text-align:center;background:#${t[0]};color:#${t[1]}${t[2] ? ';font-weight:700' : ''}` : x.late > 0 ? ';background:#fcebeb' : ''}${c[3] === 'late' && x.late > 0 ? ';color:#a32d2d;font-weight:700' : ''}${c[3] === 'sku' ? ';font-weight:600' : ''}">${esc(show(v, c))}</td>`; };
   return `<div style="display:flex;gap:22px;flex-wrap:wrap;background:var(--hover,#f8fafc);border-radius:8px;padding:8px 12px;margin:6px 0 10px">
       <div><b style="font-size:15px">${nf(lines.length)}</b> lines</div><div><b style="font-size:15px">${nf(skus)}</b> SKUs</div><div><b style="font-size:15px">${nf(tot)}</b> pieces</div><div><b style="font-size:15px">${nf(orders)}</b> orders</div>

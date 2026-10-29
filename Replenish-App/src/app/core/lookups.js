@@ -27,6 +27,8 @@ function mdbIndex() {
 }
 /** The master row for a SKU, or undefined. Replaces (PTG.mdb||[]).find(…) in the hot paths. */
 const mdbOf = sku => mdbIndex().get(obUC(sku));
+/** A PILLOW INSERT NEVER OPENS IN PRODUCTION (Ravi, 29 Oct): it is filling, not a made line — whatever channel it came from. */
+const shpInsertProduct = sku => { try { const m = typeof mdbOf === 'function' ? mdbOf(sku) : null; return !!m && /pillow insert/i.test(String(m.articleType || '') + ' ' + String(m.subtype || '')); } catch (e) { return false; } };
 /**
  * A SKU this page's copy of the master does not have, asked of the database itself (2026-10-01). The copy is re-read
  * only every 30 minutes (PTG_MDB_STALE_MS), so a SKU added to the master a minute ago was refused as "not in the master
@@ -183,6 +185,8 @@ function obPcsPerPack(sku, articleType, articleSubtype) {
   if (/napkin|placemat|place mat|table ?mat/i.test(hay) || /^(RCN|RCCN|CPCN|RTME)/.test(s)) {
     const n = s.match(/-(\d{1,2})$/);
     if (n && +n[1] >= 1 && +n[1] <= 48) return +n[1];
+    /* A CPC NAPKIN CODE WITH NO SIZE AFTER IT IS A SET OF FOUR (Ravi, 29 Oct: CPCN007 = 4 pcs, CPCN005-12 = 12 pcs). */
+    if (/^CPCN/.test(s)) return 4;
   }
   const fam = obPackFamily(s);
   const sib = obPackSiblings().get(fam);

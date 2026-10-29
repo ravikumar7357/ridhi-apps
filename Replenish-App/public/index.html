@@ -16327,6 +16327,8 @@ function mdbIndex() {
 }
 /** The master row for a SKU, or undefined. Replaces (PTG.mdb||[]).find(…) in the hot paths. */
 const mdbOf = sku => mdbIndex().get(obUC(sku));
+/** A PILLOW INSERT NEVER OPENS IN PRODUCTION (Ravi, 29 Oct): it is filling, not a made line — whatever channel it came from. */
+const shpInsertProduct = sku => { try { const m = typeof mdbOf === 'function' ? mdbOf(sku) : null; return !!m && /pillow insert/i.test(String(m.articleType || '') + ' ' + String(m.subtype || '')); } catch (e) { return false; } };
 /**
  * A SKU this page's copy of the master does not have, asked of the database itself (2026-10-01). The copy is re-read
  * only every 30 minutes (PTG_MDB_STALE_MS), so a SKU added to the master a minute ago was refused as "not in the master
@@ -16483,6 +16485,8 @@ function obPcsPerPack(sku, articleType, articleSubtype) {
   if (/napkin|placemat|place mat|table ?mat/i.test(hay) || /^(RCN|RCCN|CPCN|RTME)/.test(s)) {
     const n = s.match(/-(\d{1,2})$/);
     if (n && +n[1] >= 1 && +n[1] <= 48) return +n[1];
+    /* A CPC NAPKIN CODE WITH NO SIZE AFTER IT IS A SET OF FOUR (Ravi, 29 Oct: CPCN007 = 4 pcs, CPCN005-12 = 12 pcs). */
+    if (/^CPCN/.test(s)) return 4;
   }
   const fam = obPackFamily(s);
   const sib = obPackSiblings().get(fam);
@@ -26700,6 +26704,29 @@ const SHPB_NODE = 'pt_shpBoardTest', SHPB_PRESS = 'pt_shpBoardPress', SHPB_SHIP 
 const SHPB_PRESSMEN = ['Keshav', 'Jagdish', 'Anokhi', 'Mangal', 'Om Prakash', 'Deepak', 'Chetram', 'Kuldeep', 'Shankar'];
 let SHPB = { tab: 'pending', stage: '', ready: {}, press: {}, ship: {}, pressBy: {}, readyAt: 0, busy: false, err: '' };
 const shpbKey = (orderNo, sku) => obUC(orderNo) + '__' + obUC(sku);
+/* STATUS and READY DATE of a line, at the END of its row (Ravi, 29 Oct: "press ke end me status ka option chahiye like OOS, and ready date dal sake").
+ * Both live on pt_shpBoardTest/<ORDER__SKU> with the pieces taken from ready stock (stockQty): { orderNo, sku, date, status, stockQty, by, at }. */
+const SHPB_STATUS = [['', 'In production'], ['OOS', 'OOS — out of stock'], ['Need from printer', 'Need from printer']];
+/** A TABLECLOTH that production has marked OOS or Need from printer goes the printer way — plan it, give it to the printer, receive it back, then the rest —
+ *  so until it has a plan it waits in "To plan" and nothing downstream is open for it (Ravi, 29 Oct). Only while no work has started on it. */
+const shpbIsCloth = r => /tablecloth/i.test(String(r.articleType || r.articleSubtype || r.itemName || ''));
+const shpbGated = r => ((shpbIsCloth(r) && shpbStatusOf(r) === 'OOS') || shpbStatusOf(r) === 'Need from printer') && !(+r.cut > 0) && !(+r.issued > 0) && !shpbPlanOf(r);
+const shpbStatusOf = r => String((((SHPB || {}).ready || {})[shpbKey(r.orderNo, r.sku)] || {}).status || '');
+/** Pieces of this line completed from the India store's ready stock (never more than the line). */
+const shpbStockOf = r => Math.max(0, Math.min(+r.qty || 0, parseInt((((SHPB || {}).ready || {})[shpbKey(r.orderNo, r.sku)] || {}).stockQty, 10) || 0));
+/** THE STATUS THAT FOLLOWS THE ORDER (Ravi, 29 Oct): OOS / Need from printer is set by hand ONCE; from then on the line's status is the furthest step
+ *  its pieces have reached — Printer received, Cut, Issued, Received, QC passed, Pressed, Accepted by shipping — or At printer / Planned once it has a plan.
+ *  { label, auto } — auto false means nothing has moved yet, so the hand-set status (or In production) still shows and can be changed. */
+function shpbStatusInfo(r, s) {
+  s = s || shpbStages([r]);
+  const steps = [['handD', 'Accepted by shipping'], ['prsD', 'Pressed'], ['qcD', 'QC passed'], ['recD', 'Received'], ['issD', 'Issued'], ['cutD', 'Cut'], ['prcD', 'Printer received']];
+  const hit = steps.find(x => s[x[0]] > 0);
+  if (hit) return { label: hit[1], auto: true };
+  if (s.stk) return { label: 'From stock', auto: true };
+  if (shpbPlanOf(r)) return { label: s.prcA ? 'At printer' : 'Planned', auto: true };
+  return { label: shpbStatusOf(r) || 'In production', auto: false };
+}
+let SHPB_STK = null;   // sku → India store row, taken once per draw (fgiStock is not cheap); null until the ledger is read
 const shpbDmy = iso => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? m[3] + '-' + m[2] + '-' + m[1] : ''; };
 const shpbCanEdit = () => !!(ME.admin || (typeof ptCanEdit === 'function' && ptCanEdit()));
 const shpbToday = () => (typeof dToday === 'function' ? dToday() : new Date().toISOString().slice(0, 10));
@@ -26729,18 +26756,21 @@ async function shpbLoad(force) {
   const get = async n => { try { return (await ptGet(n)) || {}; } catch (e) { SHPB.err = 'Some of the board\'s own records could not be read (' + (e.message || e) + ') — ready dates, press entries and "not received" notes may be missing.'; return {}; } };
   SHPB.err = '';
   [SHPB.ready, SHPB.press, SHPB.ship] = await Promise.all([get(SHPB_NODE), get(SHPB_PRESS), get(SHPB_SHIP)]);
+  /* The India store's ledger, once, so the board can say how many pieces of a SKU are ready to complete an order from. */
+  if (!Array.isArray(FGI.rows)) { try { FGI.rows = ptList(await ptGet('pt_fgiLedger')); } catch (e) { /* the stock button still reads it when pressed */ } }
   SHPB.pressBy = shpbIndexPress(SHPB.press);
   SHPB.busy = false; SHPB.readyAt = Date.now();
   if (typeof ordView === 'function' && ordView() === 'shpboard') renderShpBoard();
 }
-async function shpbSetReady(key, date) {
-  const [orderNo, sku] = key.split('__');
+async function shpbSetReady(key, patch) {
+  const [orderNo, sku] = key.split('__'), now = new Date().toISOString();
+  const next = Object.assign({}, SHPB.ready[key] || {}, patch, { orderNo, sku, by: ME.email, at: now });
+  const empty = !next.date && !next.status && !(parseInt(next.stockQty, 10) > 0);
   try {
-    if (date) await ptPut(SHPB_NODE + '/' + key, { orderNo, sku, date, by: ME.email, at: new Date().toISOString() });
-    else await ptDelete(SHPB_NODE + '/' + key);
+    if (empty) await ptDelete(SHPB_NODE + '/' + key); else await ptPut(SHPB_NODE + '/' + key, next);
   } catch (e) { return 'Not saved: ' + (e.message || e); }
   SHPB.ready = Object.assign({}, SHPB.ready);
-  if (date) SHPB.ready[key] = { orderNo, sku, date, by: ME.email, at: new Date().toISOString() }; else delete SHPB.ready[key];
+  if (empty) delete SHPB.ready[key]; else SHPB.ready[key] = next;
   return '';
 }
 
@@ -26759,30 +26789,32 @@ function shpbFlowOf(r) {
 function shpbStages(lines) {
   const s = { pcs: 0, cutX: 0, cutMv: 0, cutNone: 0, toCut: 0, issX: 0, issMv: 0, toIssue: 0, recX: 0, recMv: 0, qcX: 0, qcMv: 0, ready: 0,
     planA: 0, planW: 0, planD: 0, prcA: 0, prcW: 0, prcD: 0, cutA: 0, cutW: 0, cutD: 0, issA: 0, issW: 0, issD: 0, recA: 0, recW: 0, recD: 0, qcA: 0, qcW: 0, qcD: 0,
-    prsA: 0, prsW: 0, prsD: 0, handA: 0, handW: 0, handD: 0 };
+    prsA: 0, prsW: 0, prsD: 0, handA: 0, handW: 0, handD: 0, stk: 0 };
   lines.forEach(r => {
-    const q = +r.qty || 0, cap = n => Math.max(0, Math.min(q, +n || 0));
+    /* q = what is still to be MADE: the line less the pieces completed from ready stock (those go straight to shipping). */
+    const q0 = +r.qty || 0, stk = shpbStockOf(r), q = q0 - stk, cap = n => Math.max(0, Math.min(q, +n || 0));
     const iss = cap(r.issued), rec = cap(r.received), qc = cap(r.pressed);
-    const sp = (typeof spOf === 'function' ? spOf(r.orderNo, r.sku) : null) || {}, got = Math.min(q, Number(sp.handedQty) || (r.handedAt ? q : 0));
+    const sp = (typeof spOf === 'function' ? spOf(r.orderNo, r.sku) : null) || {}, got = Math.min(q0, Number(sp.handedQty) || (r.handedAt ? q0 : 0));
     const prs = Math.min(qc, cap(((SHPB.pressBy || {})[shpbKey(r.orderNo, r.sku)] || {}).pcs));
-    s.pcs += q;
+    s.pcs += q0; s.stk += stk;
     if (r.cutReq) { const c = cap(r.cut); s.cutX += c; s.cutMv += Math.min(c, iss); s.toCut += Math.max(0, q - c); s.toIssue += Math.max(0, c - iss); }
     else { s.cutNone += q; s.toIssue += Math.max(0, q - iss); }
     s.issX += iss; s.issMv += Math.min(iss, rec);
     s.recX += rec; s.recMv += Math.min(rec, qc);
     s.qcX += qc; s.qcMv += qc;
     s.ready += Math.max(0, qc - got);
-    s.planA += q; if (shpbPlanOf(r)) s.planD += q; else s.planW += q;      // planned here: the plan form (printer, fabric, dates)
+    /* TO PLAN holds only what production sent to the printer (status Need from printer, or a tablecloth marked OOS) and nobody has planned yet; every other line sits at its own stage. */
+    if (shpbGated(r)) { s.planA += q; s.planW += q; }
     /* A line that goes to a printer can be cut / issued only as far as the printed cloth has come back (flowState does the same). */
-    const fl = shpbFlowOf(r), base = fl ? fl.back : q;
-    if (fl) { s.prcA += q; s.prcD += fl.back; s.prcW += q - fl.back; }
+    const fl = shpbFlowOf(r), base = shpbGated(r) ? 0 : (fl ? Math.min(q, fl.back) : q);
+    if (fl) { const back = Math.min(q, fl.back); s.prcA += q; s.prcD += back; s.prcW += q - back; }
     const cutDone = r.cutReq ? cap(r.cut) : base;
     if (r.cutReq) { s.cutA += base; s.cutD += cap(r.cut); s.cutW += Math.max(0, base - cap(r.cut)); }
     s.issA += cutDone; s.issD += iss; s.issW += Math.max(0, cutDone - iss);
     s.recA += iss; s.recD += rec; s.recW += Math.max(0, iss - rec);
     s.qcA += rec; s.qcD += qc; s.qcW += Math.max(0, rec - qc);
     s.prsA += qc; s.prsD += prs; s.prsW += Math.max(0, qc - prs);          // passed QC → the pressman presses it
-    s.handA += prs; s.handD += Math.min(got, prs || got); s.handW += Math.max(0, prs - got);   // pressed → shipping accepts it
+    s.handA += prs + stk; s.handD += Math.min(got, (prs + stk) || got); s.handW += Math.max(0, prs + stk - got);   // pressed → shipping accepts it
   });
   return s;
 }
@@ -26802,7 +26834,7 @@ function shpbCell(a, w, d, act, label, key, title) {
 const shpbLineOf = key => { const [o, k] = String(key).split('__'); return ordLines().find(r => r.orderNo === obUC(o) && r.sku === obUC(k)) || null; };
 const shpbPlanOf = r => ((typeof FLOW !== 'undefined' && FLOW && FLOW.ppc) || {})[typeof flowKey === 'function' ? flowKey(r.orderNo, r.sku) : ''] || null;
 const shpbPrinterOf = r => { const p = shpbPlanOf(r), pr = p && p.printer; return (pr && (pr.name || pr.code)) || r.printer || ''; };
-const shpbIsMine = r => { try { const m = typeof mdbOf === 'function' ? mdbOf(r.sku) : null; return !(m && typeof mdbIsReady === 'function' && mdbIsReady(m)); } catch (e) { return true; } };
+const shpbIsMine = r => { try { const m = typeof mdbOf === 'function' ? mdbOf(r.sku) : null; return !(m && typeof mdbIsReady === 'function' && mdbIsReady(m)) && !(typeof shpInsertProduct === 'function' && shpInsertProduct(r.sku)); } catch (e) { return true; } };
 
 /** The item, compact: a small picture, what it is, colour • size, the code. */
 function shpbItem(r) {
@@ -26813,12 +26845,12 @@ function shpbItem(r) {
 }
 /** THE LINE'S WHOLE WAY, as a strip: done (green), here now (orange), partly done (amber), still ahead (grey). */
 function shpbFlowSpans(r, s) {
-  const q = +r.qty || 0, plan = shpbPlanOf(r), fl = shpbFlowOf(r);
-  const st = (a, w, d) => (!a && !d) ? 'future' : (w === 0 && d >= q ? 'done' : (d > 0 ? 'part' : 'active'));
+  const qf = +r.qty || 0, q = qf - shpbStockOf(r), plan = shpbPlanOf(r), fl = shpbFlowOf(r);
+  const st = (a, w, d, qq) => (!a && !d) ? 'future' : (w === 0 && d >= (qq == null ? q : qq) ? 'done' : (d > 0 ? 'part' : 'active'));
   const steps = [['Plan', plan ? 'done' : 'na', 'PPC plan'], ['Printer', fl ? (fl.printer ? 'done' : 'active') : 'na', 'Printer given'],
     ['P.recv', fl ? st(s.prcA, s.prcW, s.prcD) : 'na', 'Printed cloth back from the printer'], ['Cut', r.cutReq ? st(s.cutA, s.cutW, s.cutD) : 'na', 'Cut'],
     ['Issue', st(s.issA, s.issW, s.issD), 'Issued to a karigar'], ['Recv', st(s.recA, s.recW, s.recD), 'Received from the karigar'], ['QC', st(s.qcA, s.qcW, s.qcD), 'Passed QC'],
-    ['Press', st(s.prsA, s.prsW, s.prsD), 'Pressed'], ['Ship', st(s.handA, s.handW, s.handD), 'Accepted by shipping']];
+    ['Press', st(s.prsA, s.prsW, s.prsD), 'Pressed'], ['Ship', st(s.handA, s.handW, s.handD, qf), 'Accepted by shipping']];
   const look = { done: 'background:#dcfce7;color:#166534', part: 'background:#fef3c7;color:#92400e', active: 'background:#f59e0b;color:#fff;font-weight:700', future: 'background:#f1f5f9;color:#94a3b8' };
   return steps.filter(x => x[1] !== 'na').map(x =>
     `<span title="${esc(x[2])}" style="font-size:10px;padding:1px 5px;border-radius:7px;${look[x[1]]}">${x[1] === 'done' ? '✓ ' : ''}${esc(x[0])}</span>`).join('<span class="muted" style="font-size:9px"> ›</span>');
@@ -26833,9 +26865,7 @@ function shpbRow(r) {
   return '<tr><td class="frz" style="' + SHPB_PAD + 'text-align:left;white-space:nowrap;font-size:12px">' + esc(shpbDmy(ptIsoDate(r.orderDate))) + '</td>'
     + '<td style="' + SHPB_PAD + 'text-align:left;white-space:nowrap;line-height:1.25"><a href="#" data-ordj="' + esc(r.orderNo) + '" style="color:inherit;text-decoration:underline dotted;font-weight:700">'
     + esc(String(r.shopOrderNo || r.orderNo).replace(/^#\s*/, '')) + '</a>'
-    + '<div>' + (edit ? '<input type="date" data-shpb-ready="' + esc(k) + '" value="' + esc(rd.date) + '" style="width:118px;padding:0 3px;font-size:11px;height:22px' + (late ? ';color:#b91c1c' : '') + '" title="When this order will be ready">'
-      : '<span style="font-size:11.5px">' + esc(shpbDmy(rd.date) || '—') + '</span>')
-    + (rd.how ? ' <span class="muted" style="font-size:10px">' + (rd.how === 'set' ? 'set' + (rd.by ? ' · ' + esc(rd.by) : '') : esc(rd.how)) + '</span>' : '') + '</div></td>'
+    + '</td>'
     + shpbItem(r)
     + `<td class="num" style="${SHPB_PAD}"><b>${nf(r.qty)}</b></td>`
     + `<td style="${SHPB_PAD}text-align:left;font-size:11.5px;white-space:nowrap;line-height:1.25">${prn ? '<b>' + esc(prn) + '</b>' : (shpbPlanOf(r) ? '<span class="muted">no printer</span>' : '<b style="color:#b91c1c">not planned</b>')}`
@@ -26845,15 +26875,31 @@ function shpbRow(r) {
     + shpbCell(s.issA, s.issW, s.issD, 'issue', 'Issue', k, tips.issue)
     + shpbCell(s.recA, s.recW, s.recD, 'receive', 'Receive', k, tips.receive)
     + shpbCell(s.qcA, s.qcW, s.qcD, 'qc', 'QC pass', k, tips.qc)
-    + shpbCell(s.prsA, s.prsW, s.prsD, 'press', 'Press', k, tips.press) + '</tr>';
+    + shpbCell(s.prsA, s.prsW, s.prsD, 'press', 'Press', k, tips.press)
+    + shpbStatusCell(r, k, rd, late, edit) + '</tr>';
+}
+/** THE LAST COLUMN: the line's status (In production / OOS / Delayed / On hold), the date it will be ready, and the way to complete it from ready stock. */
+function shpbStatusCell(r, k, rd, late, edit) {
+  const sx = shpbStages([r]), inf = shpbStatusInfo(r, sx), st = inf.auto ? '' : shpbStatusOf(r), stk = shpbStockOf(r), have = SHPB_STK ? Math.floor(((SHPB_STK.get(obUC(r.sku)) || {}).current) || 0) : null;
+  const left = Math.max(0, (+r.qty || 0) - stk - sx.prsD);
+  const badge = inf.auto ? `<b style="color:#166534" title="Follows the order by itself">${esc(inf.label)}</b>` : (st ? `<b style="color:${st === 'OOS' ? '#b91c1c' : '#b45309'}">${esc(st)}</b>` : '<span class="muted">In production</span>');
+  return '<td style="' + SHPB_PAD + 'text-align:left;white-space:nowrap;line-height:1.3">'
+    + (edit && !inf.auto ? '<select data-shpb-status="' + esc(k) + '" style="font-size:11px;height:22px;padding:0 3px;width:auto;' + (st === 'OOS' ? 'color:#b91c1c;font-weight:700' : '') + '" title="Where this order stands">'
+      + SHPB_STATUS.map(o => '<option value="' + esc(o[0]) + '"' + (o[0] === st ? ' selected' : '') + '>' + esc(o[1]) + '</option>').join('') + '</select>' : badge)
+    + '<div>' + (edit ? '<input type="date" data-shpb-ready="' + esc(k) + '" value="' + esc(rd.date) + '" style="width:118px;padding:0 3px;font-size:11px;height:22px' + (late ? ';color:#b91c1c' : '') + '" title="When production will have this order ready">'
+        : '<span style="font-size:11.5px">' + esc(shpbDmy(rd.date) || '—') + '</span>')
+      + (rd.how ? ' <span class="muted" style="font-size:10px">' + (rd.how === 'set' ? 'set' + (rd.by ? ' · ' + esc(rd.by) : '') : esc(rd.how)) + '</span>' : '') + '</div>'
+    + (stk ? '<div><span class="pill" style="background:#dcfce7;color:#166534" title="Completed from the ready stock in the India store, handed to shipping">' + nf(stk) + ' from stock</span></div>' : '')
+    + (edit && left > 0 && have !== 0 ? '<div><button type="button" class="ghost" data-shpb-act="stock" data-key="' + esc(k) + '" style="width:auto;padding:0 7px;font-size:10.5px;line-height:18px" title="Complete this order from pieces already made and held in the India store">From stock' + (have ? ' (' + nf(have) + ')' : '') + '</button></div>' : '')
+    + '</td>';
 }
 
 /** What the board shows now. PENDING = lines with pieces not yet pressed; COMPLETE = lines pressed (waiting for shipping, or handed over) and closed ones. */
 function shpbView() {
   const f = ordFilters(), all = ordLines().filter(shpbOwns), shown = ordApply(all, f);
   const sOf = r => shpbStages([r]);
-  const pend = shown.filter(r => r.open && sOf(r).prsD < (+r.qty || 0));
-  const done = shown.filter(r => { if (!r.open) return true; return sOf(r).prsD > 0; });
+  const pend = shown.filter(r => r.open && sOf(r).prsD + sOf(r).stk < (+r.qty || 0));
+  const done = shown.filter(r => { if (!r.open) return true; return sOf(r).prsD > 0 || sOf(r).stk > 0; });
   const stg = SHPB_STAGES.find(x => x[0] === SHPB.stage);
   const list = SHPB.tab === 'done' ? (stg && stg[0] === 'hand' ? done.filter(r => sOf(r)[stg[3]] > 0) : done) : (stg && stg[0] !== 'hand' ? pend.filter(r => sOf(r)[stg[3]] > 0) : pend);
   return { f, all, pend, done, list };
@@ -26862,6 +26908,7 @@ function shpbView() {
 function renderShpBoard() {
   if (!$('odTable')) return;
   if (!SHPB.readyAt && !SHPB.busy) shpbLoad(true);
+  SHPB_STK = Array.isArray(FGI.rows) ? fgiStock() : null;
   const { f, all, pend, done, list } = shpbView(), tab = SHPB.tab;
   ptFill('odArt', ordApply(all, f, 'art').map(r => r.articleType), 'All articles');
   ptFill('odSub', ordApply(all, f, 'sub').map(r => r.articleSubtype), 'All subtypes');
@@ -26885,9 +26932,9 @@ function renderShpBoard() {
   if (!list.length) { ptEmpty('odTable', SHPB.stage ? 'No line is waiting at that stage.' : 'No Shopify order is pending.'); return; }
   const rows = ordNewest(list.slice().sort((a, b) => String(a.orderDate).localeCompare(String(b.orderDate)) || a.orderNo.localeCompare(b.orderNo) || a.sku.localeCompare(b.sku)));
   const th = (t, c) => `<th class="${c || ''}" style="${SHPB_PAD}${c === 'num' ? SHPB_STAGE_BG : ''}">${t}</th>`;
-  const head = '<thead><tr><th class="frz" style="' + SHPB_PAD + 'text-align:left">Date</th><th style="' + SHPB_PAD + 'text-align:left">Order ID · ready on</th><th style="' + SHPB_PAD + 'text-align:left">Item</th>'
+  const head = '<thead><tr><th class="frz" style="' + SHPB_PAD + 'text-align:left">Date</th><th style="' + SHPB_PAD + 'text-align:left">Order ID</th><th style="' + SHPB_PAD + 'text-align:left">Item</th>'
     + '<th class="num" style="' + SHPB_PAD + '">Pcs</th><th style="' + SHPB_PAD + 'text-align:left">Printer</th>'
-    + ['Printer receive', 'Cut', 'Issued', 'Received', 'QC passed', 'Press'].map(h => th(h, 'num')).join('') + '</tr></thead>';
+    + ['Printer receive', 'Cut', 'Issued', 'Received', 'QC passed', 'Press'].map(h => th(h, 'num')).join('') + '<th style="' + SHPB_PAD + 'text-align:left">Status · ready by</th></tr></thead>';
   $('odTable').innerHTML = head + '<tbody>' + rows.slice(0, 300).map(shpbRow).join('') + '</tbody>'
     + (rows.length > 300 ? '<tfoot><tr><td colspan="11" class="muted" style="padding:10px;text-align:left">Showing the first 300 of ' + nf(rows.length) + ' lines — search or filter to narrow them. Export has all of them.</td></tr></tfoot>' : '');
 }
@@ -26901,7 +26948,8 @@ function renderShpBoardDone(list) {
   const th = t => `<th style="${SHPB_PAD}text-align:left">${t}</th>`;
   const head = `<thead><tr>${th('Date')}${th('Order ID')}${th('Item')}<th class="num" style="${SHPB_PAD}">Pcs</th>${th('Pressed')}<th class="num" style="${SHPB_PAD}">Accepted</th>${th('Shipping')}</tr></thead>`;
   const common = r => { const s = shpbStages([r]), px = (SHPB.pressBy || {})[shpbKey(r.orderNo, r.sku)] || {};
-    return { s, press: px.pcs ? `<b>${nf(Math.min(px.pcs, +r.qty || 0))}</b> <span class="muted" style="font-size:11px">${esc((px.men || []).join(', '))}${px.last ? ' · ' + esc(shpbDmy(px.last)) : ''}</span>` : '<span class="muted">—</span>' }; };
+    const stk = shpbStockOf(r), pr = px.pcs ? `<b>${nf(Math.min(px.pcs, +r.qty || 0))}</b> <span class="muted" style="font-size:11px">${esc((px.men || []).join(', '))}${px.last ? ' · ' + esc(shpbDmy(px.last)) : ''}</span>` : '';
+    return { s, press: pr + (stk ? `<div style="font-size:11px"><b>${nf(stk)}</b> from stock</div>` : '') || '<span class="muted">—</span>' }; };
   const link = r => `<a href="#" data-ordj="${esc(r.orderNo)}" style="color:inherit;text-decoration:underline dotted;font-weight:700">${esc(String(r.shopOrderNo || r.orderNo).replace(/^#\s*/, ''))}</a>`;
   const wRow = r => { const { s, press } = common(r), k = shpbKey(r.orderNo, r.sku), ns = (SHPB.ship || {})[k], pd = ((SHPB.pressBy || {})[k] || {}).last || '';
     return `<tr><td style="${SHPB_PAD}white-space:nowrap;font-size:12px">${esc(shpbDmy(pd || ptIsoDate(r.orderDate)))}</td><td style="${SHPB_PAD}text-align:left">${link(r)}</td>${shpbItem(r)}<td class="num" style="${SHPB_PAD}"><b>${nf(r.qty)}</b></td>`
@@ -26923,14 +26971,14 @@ function renderShpBoardDone(list) {
 /** Export: every line shown (the bar's filters, the tab, the stage bucket) — one CSV row per order line, which Excel opens. */
 function shpbExport() {
   const { list } = shpbView(); if (!list.length) return;
-  const head = ['Order date', 'Order ID', 'Order', 'SKU', 'Article', 'Subtype', 'Colour', 'Size', 'Pieces', 'Ready on', 'Ready date from', 'Printer',
+  const head = ['Order date', 'Order ID', 'Order', 'SKU', 'Article', 'Subtype', 'Colour', 'Size', 'Pieces', 'Ready on', 'Ready date from', 'Status', 'Printer',
     'Printer receive: waiting', 'Printer receive: back', 'Cut: waiting', 'Cut: done', 'Issue: waiting', 'Issued: done', 'Receive: waiting', 'Received: done', 'QC: waiting', 'QC passed',
-    'Press: waiting', 'Pressed', 'Pressman', 'Shipping to accept', 'Accepted by shipping', 'Handed / closed on', 'Status'];
+    'Press: waiting', 'Pressed', 'Pressman', 'From stock', 'Shipping to accept', 'Accepted by shipping', 'Handed / closed on', 'Status'];
   const lines = [head.map(csvCell).join(',')];
   list.slice().sort((a, b) => String(a.orderDate).localeCompare(String(b.orderDate)) || a.orderNo.localeCompare(b.orderNo)).forEach(r => {
     const s = shpbStages([r]), rd = shpbReadyOf(r), at = ptIsoDate(r.handedAt || r.shopDoneAt) || '', px = (SHPB.pressBy || {})[shpbKey(r.orderNo, r.sku)] || {};
-    lines.push([ptIsoDate(r.orderDate) || '', r.shopOrderNo || '', r.orderNo, r.sku, r.articleType || r.itemName || '', r.articleSubtype || '', r.color || '', r.size || '', r.qty, rd.date, rd.how === 'set' ? 'typed here' : rd.how, shpbPrinterOf(r),
-      s.prcA ? s.prcW : '', s.prcA ? s.prcD : '', r.cutReq ? s.cutW : 'not needed', r.cutReq ? s.cutD : '', s.issW, s.issD, s.recW, s.recD, s.qcW, s.qcD, s.prsW, s.prsD, (px.men || []).join(' / '), s.handW, s.handD, at,
+    lines.push([ptIsoDate(r.orderDate) || '', r.shopOrderNo || '', r.orderNo, r.sku, r.articleType || r.itemName || '', r.articleSubtype || '', r.color || '', r.size || '', r.qty, rd.date, rd.how === 'set' ? 'typed here' : rd.how, shpbStatusInfo(r).label, shpbPrinterOf(r),
+      s.prcA ? s.prcW : '', s.prcA ? s.prcD : '', r.cutReq ? s.cutW : 'not needed', r.cutReq ? s.cutD : '', s.issW, s.issD, s.recW, s.recD, s.qcW, s.qcD, s.prsW, s.prsD, (px.men || []).join(' / '), s.stk || '', s.handW, s.handD, at,
       r.open ? 'Pending' : (r.handedAt ? 'Handed over' : (typeof SHP_DONE_TXT === 'function' ? SHP_DONE_TXT(r.shopDoneWhy) : 'Closed'))].map(csvCell).join(','));
   });
   ptDownload('shp-board-' + (SHPB.tab === 'done' ? 'complete' : (SHPB.stage ? 'waiting-' + SHPB.stage : 'pending')), lines);
@@ -26948,6 +26996,28 @@ async function shpbDrive(set, saveId, msgId) {
 }
 /** The fabric this SKU is cut from: the PPC plan's, else the master row's (flowSuggest). */
 function shpbOwnFabric(r) { try { return String(((shpbPlanOf(r) || {}).fabric || {}).name || flowSuggest(r).fabric.name || '').trim(); } catch (e) { return ''; } }
+/** COMPLETE FROM READY STOCK (Ravi, 29 Oct): pieces already made and held in the India store complete this order. The store gives them up
+ *  (an ISSUE row in the Finished Goods ledger, naming the order), the line is told how many came from stock (stockQty — the making stages
+ *  then ask for that many fewer) and shipping is handed the pieces (shpReceive, the real hand-over). The ledger row and the note are ONE write. */
+async function shpbStockSave(r, v) {
+  const pcs = parseInt(v.pcs, 10), key = shpbKey(r.orderNo, r.sku), s = shpbStages([r]);
+  if (!(pcs > 0)) return 'Type how many pieces come from stock.';
+  if (typeof shpReceive !== 'function' || !shpCanReceive()) return 'Handing pieces to shipping needs the Shopify tab.';
+  const need = Math.max(0, (+r.qty || 0) - s.stk - s.prsD);
+  if (pcs > need) return `Only ${nf(need)} piece(s) of this line still need to be made.`;
+  const short = fgiOutCheck(obUC(r.sku), pcs, 'ISSUE', 0); if (short) return short;
+  const now = new Date().toISOString(), d = new Date(), p2 = x => String(x).padStart(2, '0');
+  const issue = { _id: fgiNewId('ISS'), txnType: 'ISSUE', sku: obUC(r.sku), qty: pcs, date: p2(d.getDate()) + '/' + p2(d.getMonth() + 1) + '/' + d.getFullYear(),
+    issuedFor: 'Shopify order ' + (r.shopOrderNo || r.orderNo), reason: 'SHP board — completed from ready stock', remarks: String(v.note || '').trim(), shpOrderNo: r.orderNo,
+    createdAt: now, createdBy: ME.email };
+  const next = Object.assign({}, SHPB.ready[key] || {}, { orderNo: r.orderNo, sku: r.sku, stockQty: s.stk + pcs, by: ME.email, at: now });
+  try { await ptPatch({ ['pt_fgiLedger/' + issue._id]: issue, [SHPB_NODE + '/' + key]: next }); } catch (x) { return 'Not saved: ' + (x.message || x); }
+  FGI.rows = (FGI.rows || []).concat(issue); SHPB.ready = Object.assign({}, SHPB.ready, { [key]: next });
+  /* The pieces have left the store. If the hand-over is refused the line says so and Accept finishes it — this dialog must not be pressed twice. */
+  const err = await shpReceive([{ orderNo: r.orderNo, sku: r.sku, qty: pcs }]);
+  if (err) { $('odMsg').className = 'err'; $('odMsg').textContent = `${nf(pcs)} piece(s) were issued from the store, but handing them to shipping failed (${err}) — press Accept on the line.`; }
+  shpbAfter(); return '';
+}
 async function shpbCutSave(r, v) {
   const pcs = parseInt(v.pcs, 10);
   if (!(pcs > 0)) return 'Type how many pieces were cut.';
@@ -26992,6 +27062,16 @@ function shpbDialog(act, key) {
   const r = shpbLineOf(key); if (!r) return;
   const s = shpbStages([r]), who = (r.shopOrderNo || r.orderNo) + ' · ' + r.sku;
   if (act === 'print' || act === 'plan') { if (typeof flowPpcOpen === 'function') flowPpcOpen(r.orderNo, r.sku); return; }
+  if (act === 'stock') {
+    return (async () => {
+      try { if (!Array.isArray(FGI.rows)) FGI.rows = ptList(await ptGet('pt_fgiLedger')); } catch (e) { $('odMsg').className = 'err'; $('odMsg').textContent = 'Could not read the India store: ' + (e.message || e); return; }
+      const have = Math.max(0, Math.floor(fgiOf(r.sku).current)), s2 = shpbStages([r]), need = Math.max(0, (+r.qty || 0) - s2.stk - s2.prsD), top = Math.min(have, need);
+      if (!(top > 0)) return ptOpenDialog({ title: 'From stock — ' + who, subtitle: have > 0 ? 'Nothing more of this line needs to be made.' : `${r.sku} has no pieces in the India store, so nothing can be completed from stock.` });
+      ptOpenDialog({ title: 'Complete from ready stock — ' + who, subtitle: `${nf(have)} piece(s) of ${r.sku} in the India store · this line still needs ${nf(need)}. The store gives the pieces up and shipping is handed them.`,
+        fields: [{ key: 'pcs', label: 'Pieces from stock', type: 'number', min: 1, max: top, value: top }, { key: 'note', label: 'Note (optional)', value: '' }],
+        saveLabel: 'Complete from stock', onSave: v => shpbStockSave(r, v) });
+    })();
+  }
   if (act === 'accept') return shpbAcceptOpen(key);
   if (act === 'notrecv') return shpbNotRecvOpen(key);
   if (act === 'prcv') {
@@ -27077,10 +27157,11 @@ function shpbNotRecvOpen(key) {
  * shipping — and where the line is waiting now. Read from the same registers the cells read. */
 const shpbDay = v => { const m = String(v || '').match(/^(\d{4}-\d{2}-\d{2})/) || String(v || '').match(/^(\d{2})\/(\d{2})\/(\d{4})/); return !m ? '' : (m.length === 2 ? shpbDmy(m[1]) : m[1] + '-' + m[2] + '-' + m[3]); };
 function shpbSteps(r) {
-  const s = shpbStages([r]), q = +r.qty || 0, key = shpbKey(r.orderNo, r.sku), plan = shpbPlanOf(r), fl = shpbFlowOf(r), out = [];
-  const st = (a, w, d) => (!a && !d) ? 'future' : (w === 0 && d >= q ? 'done' : (d > 0 ? 'part' : 'active'));
+  const s = shpbStages([r]), qf = +r.qty || 0, q = qf - s.stk, key = shpbKey(r.orderNo, r.sku), plan = shpbPlanOf(r), fl = shpbFlowOf(r), out = [], rdy = shpbReadyOf(r), stt = shpbStatusOf(r);
+  const st = (a, w, d, qq) => (!a && !d) ? 'future' : (w === 0 && d >= (qq == null ? q : qq) ? 'done' : (d > 0 ? 'part' : 'active'));
   const add = (step, state, what, when) => out.push({ step, state, what, when });
-  add('Ordered', 'done', nf(q) + ' pcs', shpbDmy(ptIsoDate(r.orderDate)) + (r.openIso ? ' · opened in production ' + shpbDmy(r.openIso) : ''));
+  add('Ordered', 'done', nf(qf) + ' pcs' + (stt ? ' · set as ' + stt : '') + (rdy.date ? ' · ready by ' + shpbDmy(rdy.date) : ''), shpbDmy(ptIsoDate(r.orderDate)) + (r.openIso ? ' · opened in production ' + shpbDmy(r.openIso) : ''));
+  if (s.stk) add('From stock', 'done', nf(s.stk) + ' of ' + nf(qf) + ' completed from ready stock in the India store, handed to shipping', shpbDay((SHPB.ready[key] || {}).at));
   add('PPC plan', plan ? 'done' : 'na', plan ? 'route ' + (plan.route || '') + (shpbPrinterOf(r) ? ' · printer ' + shpbPrinterOf(r) : '') + (plan.dates && plan.dates.ready ? ' · ready ' + shpbDmy(plan.dates.ready) : '') : 'no plan (an older order)', plan ? shpbDay(plan.at) + (plan.by ? ' · ' + String(plan.by).split('@')[0] : '') : '');
   if (fl) {
     const chs = Object.values((typeof FLOW !== 'undefined' && FLOW && FLOW.ch) || {}).filter(c => c && !c.cancelled && (c.lines || []).some(l => l.key === key));
@@ -27100,7 +27181,7 @@ function shpbSteps(r) {
   const px = (SHPB.pressBy || {})[key] || {}, pe = Object.values(SHPB.press || {}).filter(e => e && shpbKey(e.orderNo, e.sku) === key);
   add('Press', st(s.prsA, s.prsW, s.prsD), nf(s.prsD) + ' of ' + nf(q) + ' pressed' + (pe.length ? ' · ' + pe.map(e => e.pressman + ' ' + nf(e.pieces)).join(', ') : ''), px.last ? shpbDmy(px.last) : '');
   const sp = (typeof spOf === 'function' ? spOf(r.orderNo, r.sku) : null) || {}, ns = (SHPB.ship || {})[key];
-  add('Shipping', r.handedAt ? 'done' : st(s.handA, s.handW, s.handD),
+  add('Shipping', r.handedAt ? 'done' : st(s.handA, s.handW, s.handD, qf),
     (r.handedAt ? 'handed over' : nf(s.handD) + ' accepted') + (s.handW ? ' · ' + nf(s.handW) + ' waiting to accept' : '') + (ns && ns.state === 'notrecv' ? ' · NOT RECEIVED' + (ns.note ? ' (' + ns.note + ')' : '') : ''),
     shpbDay(r.handedAt || (Array.isArray(sp.handLog) && sp.handLog.length ? sp.handLog[sp.handLog.length - 1].at : '')));
   return out.filter(x => x.state !== 'na');
@@ -27133,8 +27214,11 @@ if ($('odTable') && $('odTable').addEventListener) {
     const a = e.target.closest && e.target.closest('[data-shpb-act]'); if (a) { e.preventDefault(); shpbDialog(a.dataset.shpbAct, a.dataset.key); }
   });
   $('odTable').addEventListener('change', async e => {
-    const i = e.target.closest && e.target.closest('[data-shpb-ready]'); if (!i || ordView() !== 'shpboard') return;
-    const err = await shpbSetReady(i.dataset.shpbReady, i.value);
+    if (typeof ordView !== 'function' || ordView() !== 'shpboard') return;
+    const sel = e.target.closest && e.target.closest('[data-shpb-status]');
+    if (sel) { const err = await shpbSetReady(sel.dataset.shpbStatus, { status: sel.value }); if (err) { $('odMsg').className = 'err'; $('odMsg').textContent = err; } else renderShpBoard(); return; }
+    const i = e.target.closest && e.target.closest('[data-shpb-ready]'); if (!i) return;
+    const err = await shpbSetReady(i.dataset.shpbReady, { date: i.value });
     if (err) { $('odMsg').className = 'err'; $('odMsg').textContent = err; } else renderShpBoard();
   });
 }
@@ -33324,8 +33408,9 @@ async function flowFgOpen() {
  *
  *   Plan date     the day the plan was FIRST saved (plan.firstAt, kept from 28 Oct). A plan saved before then has only its
  *                 last save (plan.at).
- *   Stages        (Ravi, 28 Oct, his v6 workbook): Printing, Cutting, Stitching, QC and Press, each a status in colour
- *                 (Done / Passed, In progress, Not started, Not needed) with its pieces beside it (flowRepStages).
+ *   Stages        (Ravi, 28–29 Oct, his v6 workbook): Printing, Cutting, Karigar, QC and Press — one column each, coloured by
+ *                 status: Done (QC: Passed), the printer / pieces while under way, Not needed, Not started (flowRepStages);
+ *                 beside them what waits: printed in store, cut in store, received.
  *   Sheets        Lines — row 1 adds the counts with SUBTOTAL (a filter re-adds them), row 2 names the groups, row 3 has
  *                 the filters — and Summary, a pivot by SKU: ordered, completed, pending, lines, late lines, Grand Total.
  *   Last moved    the last thing that happened to the line, its day and its step (flowRepLastMoved).
@@ -33388,7 +33473,9 @@ function flowRepStages(r, s, p) {
   const ch = s.challan || null;
   return {
     print: { status: flowRepSt(printOn, printed, printed > 0 || +s.fabSent > 0 || !!ch, qty),
-      printer: printOn ? ((p.printer && (p.printer.name || p.printer.code)) || (ch && ch.vendor) || '') : '' },
+      printer: printOn ? ((p.printer && (p.printer.name || p.printer.code)) || (ch && ch.vendor) || '') : '',
+      /* printed and back from the printer, not cut yet — waiting in the store */
+      store: printOn ? Math.max(0, cap(s.back) - cutC) : 0 },
     cut: { status: flowRepSt(!!s.cutReq && !outside, cutC, cutC > 0, qty), cut, store: s.cutReq ? Math.max(0, cut - Math.max(0, +s.issuedNet || 0)) : 0 },
     stitch: { status: flowRepSt(!outside, stitched, given > 0 || stitched > 0, qty), given, received },
     qc: { status: flowRepSt(!outside, Math.max(passed + Math.min(rejected, qty), pressed), passed + rejected > 0 || pressed > 0, qty, 'Passed'), passed, rejected },
@@ -33450,22 +33537,25 @@ function flowRepLines(o) {
 /* ---- the workbook, cell for cell as Ravi's v6 ---- */
 /* The groups over the columns: [name, fill, text colour] — the colours of his sheet. */
 const FLOW_REP_GRP = { Order: ['E6F1FB', '0C447C'], Product: ['F1EFE8', '444441'], Qty: ['EEEDFE', '3C3489'], Pieces: ['EEEDFE', '3C3489'],
-  Printing: ['FBEAF0', '72243E'], Cutting: ['FAEEDA', '633806'], Stitching: ['E1F5EE', '085041'], QC: ['EAF3DE', '27500A'], Press: ['EEEDFE', '3C3489'], Dates: ['FAECE7', '712B13'] };
+  Printing: ['FBEAF0', '72243E'], Cutting: ['FAEEDA', '633806'], Karigar: ['E1F5EE', '085041'], QC: ['EAF3DE', '27500A'], Press: ['EEEDFE', '3C3489'], Dates: ['FAECE7', '712B13'] };
 const FLOW_REP_TONE = { Done: ['C0DD97', '173404', 1], Passed: ['C0DD97', '173404', 1], 'In progress': ['FAC775', '412402'], 'Not started': ['F1EFE8', '444441'], 'Not needed': ['FFFFFF', '888780'] };
-/* A STAGE DONE SHOWS "-" (Ravi, 28 Oct): once Cutting / Stitching / QC / Press is done, its Cut / Given / Passed / Pressed cell says
- * "-" rather than the count — the status beside it already says it is all through. */
-const flowRepDash = (status, n) => status === FLOW_REP_DONE || status === 'Passed' ? '-' : n;
-/* Lines sheet: [group, heading, value, kind, width]; kind: date · num (a count, blank when 0) · qty · st (a status) · late · sku */
+/* ONE COLUMN A STAGE (Ravi, 29 Oct: "if the printing is done show done, else if in progress show the printer name, and if not
+ * needed show not needed — similarly cutting and cut, stitching and given, QC and passed, press and pressed"): Done (QC:
+ * Passed), the printer / the pieces while it is under way, Not needed, Not started — coloured by the stage's status. */
+const flowRepMerged = (st, busy) => st.status === FLOW_REP_WIP ? (busy === '' || busy == null ? FLOW_REP_WIP : busy) : st.status;
+/* Lines sheet: [group, heading, value, kind, width, status]; kind: date · num (a count, blank when 0) · qty · st (a stage, coloured by
+ * its status) · stn (the same, its pieces added in the total row) · late · sku */
 const FLOW_REP_COLS = [
   ['Order', 'Plan date', x => x.planned, 'date', 13.5], ['Order', 'Order no', x => x.orderNo, '', 13], ['Order', 'Order date', x => x.orderDate, 'date', 13.5], ['Order', 'Channel', x => x.channel, '', 12],
   ['Product', 'SKU', x => x.sku, 'sku', 14], ['Product', 'Category', x => x.category, '', 16], ['Product', 'Sub-category', x => x.subCategory, '', 15], ['Product', 'Parent ASIN', x => x.parent, '', 14],
   ['Product', 'Colour', x => x.colour, '', 15], ['Product', 'Size', x => x.size, '', 12], ['Product', 'Fabric', x => x.fabric, '', 12], ['Product', 'Process', x => x.process, '', 12],
   ['Qty', 'Ordered', x => x.pcs, 'qty', 12],
-  ['Printing', 'Printing', x => x.print.status, 'st', 15], ['Printing', 'Printer', x => x.print.printer, '', 15],
-  ['Cutting', 'Cutting', x => x.cut.status, 'st', 15], ['Cutting', 'Cut', x => flowRepDash(x.cut.status, x.cut.cut), 'num', 12], ['Cutting', 'Cut, in store', x => x.cut.store, 'num', 13.4],
-  ['Stitching', 'Stitching', x => x.stitch.status, 'st', 15], ['Stitching', 'Given', x => flowRepDash(x.stitch.status, x.stitch.given), 'num', 12], ['Stitching', 'Received', x => x.stitch.received, 'num', 12],
-  ['QC', 'QC', x => x.qc.status, 'st', 15], ['QC', 'Passed', x => flowRepDash(x.qc.status, x.qc.passed), 'num', 12], ['QC', 'Rejected', x => x.qc.rejected, 'num', 12],
-  ['Press', 'Press', x => x.press.status, 'st', 15], ['Press', 'Pressed', x => flowRepDash(x.press.status, x.press.pressed), 'num', 12],
+  ['Printing', 'Printing', x => flowRepMerged(x.print, x.print.printer), 'st', 16, x => x.print.status], ['Printing', 'Printing in store', x => x.print.store, 'num', 13],
+  ['Cutting', 'Cutting', x => flowRepMerged(x.cut, x.cut.cut), 'stn', 13, x => x.cut.status], ['Cutting', 'Cut, in store', x => x.cut.store, 'num', 13.4],
+  /* "Stitching" is called Karigar (Ravi, 29 Oct) — the pieces given while they are with the karigars */
+  ['Karigar', 'Karigar', x => flowRepMerged(x.stitch, x.stitch.given), 'stn', 13, x => x.stitch.status], ['Karigar', 'Received', x => x.stitch.received, 'num', 12],
+  ['QC', 'QC', x => flowRepMerged(x.qc, x.qc.passed), 'stn', 13, x => x.qc.status],
+  ['Press', 'Press', x => flowRepMerged(x.press, x.press.pressed), 'stn', 13, x => x.press.status],
   ['Dates', 'Due', x => x.due, 'date', 13.5], ['Dates', 'Exp. completion', x => x.completion, 'date', 13.5], ['Dates', 'Days late', x => x.late || '', 'late', 12],
   ['Dates', 'Last moved', x => x.moved && x.moved.day, 'date', 13.5], ['Dates', 'Last step', x => x.moved && x.moved.step, '', 24]];
 /** The Summary sheet's rows: one a SKU — how many ordered, how many completed, how many still pending (Ravi, 28 Oct: "what SKU,
@@ -33493,7 +33583,7 @@ function flowRepPivot(lines) {
 function flowRepGrid(name, cols, items, o) {
   o = o || {};
   const n = items.length, last = 3 + Math.max(n, 1), starts = new Set(cols.map((c, i) => (i === 0 || cols[i - 1][0] !== c[0]) ? i : -1).filter(i => i >= 0));
-  const sumCol = c => c[3] === 'num' || c[3] === 'qty';
+  const sumCol = c => c[3] === 'num' || c[3] === 'qty' || c[3] === 'stn';
   const edge = i => ({ bl: starts.has(i) || cols[i][3] === 'sku', br: cols[i][3] === 'sku' });
   const tot = cols.map((c, i) => i === 0 ? { v: 'Total (shown lines)', st: { b: 1, fill: 'F1EFE8' } }
     : sumCol(c) ? { f: `SUBTOTAL(109,${soColName(i)}4:${soColName(i)}${last})`, st: { b: 1, fill: 'F1EFE8', fmt: 3 } } : { v: '', st: { fill: 'F1EFE8' } });
@@ -33503,9 +33593,9 @@ function flowRepGrid(name, cols, items, o) {
     return { v: c[1], st: Object.assign({ b: 1, color: g[1], fill: g[0], bb: 1, wrap: 1, v: 'bottom', h: ['num', 'qty', 'late'].includes(c[3]) ? 'right' : 'left' }, edge(i)) }; });
   const body = items.map(x => { const tint = o.tint && x.late > 0 ? 'FCEBEB' : '';
     return cols.map((c, i) => { let v = c[2](x); const e = edge(i), base = Object.assign({ fill: tint }, e);
-      if (c[3] === 'st') { const t = FLOW_REP_TONE[v] || FLOW_REP_TONE['Not started']; return { v, st: { fill: t[0], color: t[1], b: t[2] || 0, h: 'center', bl: 1 } }; }
+      if (c[3] === 'st' || c[3] === 'stn') { const t = FLOW_REP_TONE[c[5] ? c[5](x) : v] || FLOW_REP_TONE['Not started'];
+        return { v, st: Object.assign({ fill: t[0], color: t[1], b: t[2] || 0, h: 'center', bl: 1 }, typeof v === 'number' ? { fmt: 3 } : {}) }; }
       if (c[3] === 'date') return { v: v ? flowRepSerial(v) : '', st: Object.assign(base, { fmt: 165, h: 'left' }) };
-      if (v === '-') return { v, st: Object.assign(base, { h: 'right' }) };
       if (c[3] === 'num' || c[3] === 'qty') return { v: +v > 0 ? +v : '', st: Object.assign(base, { fmt: 3 }) };
       if (c[3] === 'late') return { v: +v > 0 ? +v : '', st: Object.assign(base, { fmt: 1 }, +v > 0 ? { b: 1, color: 'A32D2D' } : {}) };
       if (c[3] === 'sku') return { v, st: Object.assign(base, { b: 1 }) };
@@ -33579,8 +33669,8 @@ function flowRepBody() {
   const late = lines.filter(x => x.late > 0).length, orders = new Set(lines.map(x => x.orderNo)).size, old = lines.filter(x => x.planned && !x.plannedKnown).length;
   const rng = FLOW_REP.on === 'waiting' ? 'waiting in PPC today' : `${flowRepShow(FLOW_REP.from)} – ${flowRepShow(FLOW_REP.to)}`;
   const groups = []; FLOW_REP_COLS.forEach(c => { const l = groups[groups.length - 1]; if (l && l[0] === c[0]) l[1]++; else groups.push([c[0], 1]); });
-  const show = (v, c) => v === '-' ? v : c[3] === 'date' ? flowRepShow(v) : (c[3] === 'num' || c[3] === 'late') ? (+v > 0 ? nf(+v) : '') : c[3] === 'qty' ? nf(+v || 0) : (v == null ? '' : v);
-  const td = (v, c, x) => { const t = c[3] === 'st' && FLOW_REP_TONE[v];
+  const show = (v, c) => typeof v === 'number' && (c[3] === 'st' || c[3] === 'stn') ? nf(v) : c[3] === 'date' ? flowRepShow(v) : (c[3] === 'num' || c[3] === 'late') ? (+v > 0 ? nf(+v) : '') : c[3] === 'qty' ? nf(+v || 0) : (v == null ? '' : v);
+  const td = (v, c, x) => { const t = (c[3] === 'st' || c[3] === 'stn') && FLOW_REP_TONE[c[5] ? c[5](x) : v];
     return `<td style="white-space:nowrap${['num', 'qty', 'late'].includes(c[3]) ? ';text-align:right' : ''}${t ? `;text-align:center;background:#${t[0]};color:#${t[1]}${t[2] ? ';font-weight:700' : ''}` : x.late > 0 ? ';background:#fcebeb' : ''}${c[3] === 'late' && x.late > 0 ? ';color:#a32d2d;font-weight:700' : ''}${c[3] === 'sku' ? ';font-weight:600' : ''}">${esc(show(v, c))}</td>`; };
   return `<div style="display:flex;gap:22px;flex-wrap:wrap;background:var(--hover,#f8fafc);border-radius:8px;padding:8px 12px;margin:6px 0 10px">
       <div><b style="font-size:15px">${nf(lines.length)}</b> lines</div><div><b style="font-size:15px">${nf(skus)}</b> SKUs</div><div><b style="font-size:15px">${nf(tot)}</b> pieces</div><div><b style="font-size:15px">${nf(orders)}</b> orders</div>
@@ -70306,6 +70396,8 @@ let SHP_BUCKET_IX = { sig: null, list: null };
  * nahi"): a SKU whose master names another manufacturer is a READY PRODUCT — bought in, shipped as it is — so it never enters the
  * bucket and cannot be opened from it. Blank manufacturer = Ridhi (mdbIsReady). */
 const shpReadyProduct = sku => { try { const m = typeof mdbOf === 'function' ? mdbOf(sku) : null; return !!(m && typeof mdbIsReady === 'function' && mdbIsReady(m)); } catch (e) { return false; } };
+/** shpInsertProduct (core/lookups.js) — a pillow insert never opens in production. */
+const shpIsInsert = sku => typeof shpInsertProduct === 'function' && shpInsertProduct(sku);
 function shpBucket() {
   const sig = [SO_ALL_ROWS, (SO_ALL_ROWS || []).length, PTG.ob, (PTG.ob || []).length, SHOP_STOCK_LOADED, SHOP_INDIA_LOADED, SHOP_INDIA_ERR, SO_INDIA_TAKEN, SHOP_META];
   if (SHP_BUCKET_IX.list && SHP_BUCKET_IX.sig.every((x, i) => x === sig[i])) return SHP_BUCKET_IX.list;
@@ -70324,7 +70416,7 @@ function shpBucketMake() {
   const out = [];
   (SO_ALL_ROWS || []).forEach(o => {
     if (!o || !o.id || o.cancelled || o.shipped || !(o.handled || soIsPending(o)) || !shpSheetAllows(o)) return;
-    shpNeeds(o, undefined, { evenHandled: true }).forEach(w => { if (shpReadyProduct(w.sku)) return; if (!opened.has(String(o.id) + '|' + w.sku)) out.push({ id: String(o.id), sku: w.sku, kind: 'make' }); });
+    shpNeeds(o, undefined, { evenHandled: true }).forEach(w => { if (shpReadyProduct(w.sku) || shpIsInsert(w.sku)) return; if (!opened.has(String(o.id) + '|' + w.sku)) out.push({ id: String(o.id), sku: w.sku, kind: 'make' }); });
   });
   return out;
 }
@@ -70340,7 +70432,7 @@ function shpBucketBuild(opts) {
     const mine = new Set();
     const noted = o.handled ? ' · the order is marked done (' + (o.handledWhy || 'a note says so') + ') — check it is not already made before opening' : '';
     shpNeeds(o, undefined, { evenHandled: true }).forEach(w => {
-      if (shpReadyProduct(w.sku)) return;   // a ready product is not production's
+      if (shpReadyProduct(w.sku) || shpIsInsert(w.sku)) return;   // a ready product or a pillow insert is not production's
       mine.add(w.sku);
       if (!isOpen(w.sku)) out.push(Object.assign({ o, id, sheetOk, key: id + '|' + w.sku, sku: w.sku, qty: w.qty, pcs: w.pcs, shopQty: w.shopQty, kind: 'make',
         why: (w.why || []).join(' + ') + noted, noted: !!noted, name: w.name || '', img: w.img || '', adj: w.adjId || '' }, shpStockOf(o, w.sku)));
@@ -70374,6 +70466,8 @@ async function shpBucketRun(keys, reason) {
   const by = new Map(shpBucketAll().map(x => [x.key, x]));   // the order's dialog and a pending sheet may open past the bucket's rule
   const picks = [...new Set(keys || [])].map(k => by.get(k)).filter(Boolean);
   if (!picks.length) return 'Tick at least one line.';
+  const ins = picks.filter(x => shpIsInsert(x.sku));
+  if (ins.length) return 'Pillow insert never opens in production — ' + ins.slice(0, 5).map(x => x.sku).join(', ') + (ins.length > 5 ? ' and ' + nf(ins.length - 5) + ' more' : '') + '.';
   const rp = picks.filter(x => shpReadyProduct(x.sku));
   if (rp.length) return 'Not made by Ridhi — ' + rp.slice(0, 5).map(x => x.sku).join(', ') + (rp.length > 5 ? ' and ' + nf(rp.length - 5) + ' more' : '') + ' ' + (rp.length > 1 ? 'are ready products' : 'is a ready product') + ' (the Master Database names another manufacturer), so production does not open them.';
   /* One reason for all (the dialog), or one per line (the Excel): Map key → reason. */
