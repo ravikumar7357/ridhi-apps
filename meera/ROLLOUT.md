@@ -26,17 +26,33 @@ appears, and the time of the first answer from cold.
 **Turn lazy on for one computer for the whole week** (instead of adding `?meera=lazy` each time): open the browser's
 console on the ERP page and run `localStorage.setItem('meera.lazy','1')`; to undo: `localStorage.removeItem('meera.lazy')`.
 
-## 2. Rollout of "lazy" — each step only on Ravi's "live karo"
+## 1b. Spelling (Phase 2) on the test link — add `?meera=lazy,spell`
 
-1. **Merge to main with lazy OFF.** Live behaves exactly as today; meera.js and meera.webp are just there. (This push
-   also redeploys the router — see section 3.)
-2. **Switch on for everyone:** `MEERA_SWITCHES.lazy = true` in `Replenish-App/src/app/core/meera-bridge.js`, push.
-   Undo in a minute: set it back to `false` and push (or one person: `localStorage.setItem('meera.lazy','0')`).
+| # | Type this in Ask Meera | She should |
+|---|---|---|
+| 1 | `pakking list kaha hai` | show "Iske results **packing list kaha hai** — kuch aur poochna tha?" above the answer |
+| 2 | `kariger ko maaal kaise de` | read it as karigar / maal, answer the job-work issue |
+| 3 | `qualty chek kaha hota hai` | read "quality check" |
+| 4 | `dispach kaise kare` | read "dispatch" |
+| 5 | Press **Jaisa likha waisa khojiye** under any of these | answer again exactly as typed, no "Iske results" line |
+| 6 | `truck`, `chai kab aayegi`, a karigar's name, a SKU code, a vendor's name | left exactly as typed (no "Iske results" line) |
+| 7 | `अभी कितने बजे हैं` / `what time is it` | the time; `what does Date show` must NOT give today's date |
+| 8 | `परसों की हाज़िरी अब भर सकते हैं क्या, टाइम डालना है` | attendance answers, not the time of day |
+| 9 | `कारीगर को काम कैसे दे` (Hindi) | the job-work answer, in Hindi |
+| 10 | Same questions **without** `,spell` (`?meera=lazy`) | no "Iske results" line anywhere — as today |
+| 11 | Phone: the "Iske results" line and its button fit the Ask box | |
+
+## 2. Rollout on live — each step only on Ravi's "live karo" (order set 29 Oct)
+
+1. **The meera.js cache fix** (and Phase 2 code, switches still off): merge to main. Live behaves as today; nobody has
+   lazy or spell. Check after: `/meera/meera.version.json` loads, and `/meera/meera.<version>.js` is kept by the browser.
+2. **Lazy on for everyone:** `MEERA_SWITCHES.lazy = true` in `Replenish-App/src/app/core/meera-bridge.js`, push.
+   Undo in a minute: back to `false`, push (or one person: `localStorage.setItem('meera.lazy','0')`).
 3. **Watch one week:** her face appears for everyone, no "Meera stopped" in the browser console, staff report nothing
    missing, the never-break list by hand once.
-4. **Remove the old in-page Meera:** the `@meera/…` lines leave `Replenish-App/src/app/ORDER` (the page joins only
-   the bridge), her look leaves the page's styles; meera.js becomes the only Meera. The page gets 157 KB lighter
-   (compressed). Undo: put the lines back and push.
+4. **Spell on for everyone:** `MEERA_SWITCHES.spell = true`, push. Undo the same way (`'meera.spell'`).
+5. Later, on its own "live karo": remove the old in-page Meera (the `@meera/…` lines leave
+   `Replenish-App/src/app/ORDER`, her look leaves the page's styles) — the page gets 157 KB lighter (compressed).
 
 ## 3. The router move (meera-router/ → meera/router/)
 
