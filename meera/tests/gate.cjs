@@ -3,6 +3,7 @@
  *   node meera/tests/gate.cjs --baseline     record today's numbers and golden answers (Phase 0, once)
  *   node meera/tests/gate.cjs                compare now against the baseline: fails if any score drops or any golden
  *                                            answer changes
+ *   node meera/tests/gate.cjs --bundle       the same, for meera.js — Meera as her own file (Phase 1)
  *   node meera/tests/gate.cjs --allow <file>  golden changes listed in <file> (one key per line) are allowed — a change
  *                                            that was MEANT to improve those answers; every one is printed for Ravi
  *
@@ -39,7 +40,9 @@ function goldenDiff(base, now, allowed) {
 
 async function main() {
   const args = process.argv.slice(2);
-  const now = await measure();
+  /* --bundle: check meera.js (Meera as her own file) against the same baseline and golden answers */
+  const now = await measure({ bundle: args.includes('--bundle') });
+  if (args.includes('--bundle')) console.log('checking meera.js — Meera as her own file');
   if (args.includes('--baseline')) {
     fs.mkdirSync(DIR, { recursive: true });
     const { golden, typoList, ...nums } = now;

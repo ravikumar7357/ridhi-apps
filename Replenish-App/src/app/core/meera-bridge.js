@@ -40,6 +40,7 @@ const ERP_MEERA = {
   people: () => meeraSafe(() => (PTE.emp || []).map(e => String(e[1] || '').trim()).filter(Boolean), []),
   phone: () => meeraSafe(() => typeof mobOn === 'function' && !!mobOn(), false),
   on: (event, fn) => { (MEERA_EVENTS[event] = MEERA_EVENTS[event] || []).push(fn); },
+  switchOn: name => meeraSafe(() => meeraOn(name), false),   // her switches, for meera.js
 };
 try { window.ERP_MEERA = ERP_MEERA; } catch (e) { /* no window: the page itself still has it */ }
 
@@ -72,3 +73,26 @@ function meeraOn(name) {
   } catch (e) { /* no address: the defaults */ }
   return !!MEERA_SWITCHES[name];
 }
+
+/* WHERE MEERA LIVES (Phase 1). Switch "lazy" off — today: her files are part of this page and start with it.
+ * On: they stay quiet here, and once the page has loaded and the computer is idle, meera.js (her own file, built from
+ * the same files — meera/client/build.cjs) is fetched and starts her. If it cannot be fetched she is simply not there;
+ * the ERP is not affected either way. */
+function meeraHere() { return !meeraOn('lazy'); }
+function meeraLoadFile() {
+  if (meeraLoadFile.done) return;
+  meeraLoadFile.done = true;
+  try {
+    const s = document.createElement('script');
+    s.src = '/meera/meera.js';
+    s.async = true;
+    s.onerror = () => { try { console.warn('Meera: meera.js could not be loaded — the ERP carries on without her'); } catch (e) { /* no console */ } };
+    document.head.appendChild(s);
+  } catch (e) { /* no page: nothing to load */ }
+}
+try {
+  if (meeraOn('lazy')) {
+    const go = () => (typeof requestIdleCallback === 'function' ? requestIdleCallback(meeraLoadFile, { timeout: 4000 }) : setTimeout(meeraLoadFile, 1500));
+    if (document.readyState === 'complete') go(); else window.addEventListener('load', go);
+  }
+} catch (e) { /* no page (the test suites): Meera stays in the page as before */ }

@@ -214,7 +214,7 @@ function gaNudgeWatch() {
   if (iv && iv.unref) iv.unref();   // a test run of the page in node is not kept open by it
 }
 /* started here, not from guideBuild (guide.js runs first, before this file's own values exist) */
-gaNudgeWatch();
+if (meeraHere()) gaNudgeWatch();   // she starts where she lives (meeraHere, bridge)
 
 /* ---------- loaded early (Ravi, 27 Oct: "make meera a bit fast in loading") ----------
  * Her answers, walk-throughs and meaning file (about 2 MB in all) were fetched only when Ask Meera first opened, so the
@@ -233,4 +233,4 @@ function gaPreload(tries) {
     .forEach(u => fetch(u, { cache: 'no-cache' }).then(r => r.arrayBuffer()).catch(() => null));
   if (typeof requestIdleCallback === 'function') requestIdleCallback(go, { timeout: 8000 }); else gaLater(go, 1000);
 }
-gaLater(() => gaPreload(0), 4000);
+if (meeraHere()) gaLater(() => gaPreload(0), 4000);   // she starts where she lives (meeraHere, bridge)

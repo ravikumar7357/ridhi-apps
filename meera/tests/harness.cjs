@@ -98,13 +98,32 @@ async function load(opts = {}) {
   const ctx = vm.createContext(sandbox);
   /* the screen open now: the page keeps it in TAB_NOW */
   vm.runInContext('var TAB_NOW = "' + state.tab + '";', ctx);
+  const run = code => vm.runInContext(code, ctx);
+  /* opts.bundle (Phase 1): Meera as her own file — the ERP side is only its bridge (core/meera-bridge.js, which reads
+   * the ERP's ME, TAB_NOW, showTab… given above); then public/meera/meera.js, which brings its own $ and esc and talks
+   * to the ERP through the bridge alone. Her answers come out through window.MEERA. */
+  if (opts.bundle) {
+    delete sandbox.$; delete sandbox.esc;
+    const bridge = path.join(app, 'src', 'app', 'core', 'meera-bridge.js'), file = path.join(app, 'public', 'meera', 'meera.js');
+    vm.runInContext(fs.readFileSync(bridge, 'utf8'), ctx, { filename: 'meera-bridge.js' });
+    vm.runInContext(fs.readFileSync(file, 'utf8'), ctx, { filename: 'https://local.test/meera/meera.js' });
+    if (!ctx.MEERA) throw new Error('meera.js did not start');
+    await ctx.MEERA.ready();
+    const tidy = r => ({ text: String(r.html || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim(),
+      acts: (r.acts || []).map(a => a.t + ':' + (a.id || a.tab || '')), bank: r.bank || null, miss: r.miss || null, off: !!r.off });
+    return {
+      ctx, run, state, bundle: true,
+      setTab(t) { state.tab = t; run('TAB_NOW = ' + JSON.stringify(t)); },
+      async answer(q, tab) { if (tab) this.setTab(tab); return tidy(await ctx.MEERA.answer(q)); },
+      find(q, tab) { if (tab) this.setTab(tab); return ctx.MEERA.find(q); },
+    };
+  }
   const files = opts.files || meeraFiles(app);
   for (const f of files) {
     const code = fs.readFileSync(f, 'utf8');
     try { vm.runInContext(code, ctx, { filename: path.relative(root, f) }); }
     catch (e) { throw new Error('Meera did not start: ' + path.relative(root, f) + ': ' + e.message); }
   }
-  const run = code => vm.runInContext(code, ctx);
   await run('gaBankLoad()');
   await run('gaWordsLoad()');
   run('gaSemIndex()');

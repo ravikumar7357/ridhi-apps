@@ -72,9 +72,9 @@ function sizes() {
   return out;
 }
 
-async function measure() {
+async function measure(opts = {}) {
   const t0 = Date.now();
-  const M = await load({ root: ROOT });
+  const M = await load({ root: ROOT, bundle: !!opts.bundle });   // bundle: Meera as her own file, meera.js (Phase 1)
   const loadMs = Date.now() - t0;
   const sets = { eval: readEval('eval'), eval2: readEval('eval2'), parts: readEval('eval-parts') };
   const scores = {};

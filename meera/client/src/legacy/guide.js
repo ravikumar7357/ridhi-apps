@@ -170,7 +170,8 @@ function guideSwitch(on) {
 
 /* ---------- the walk-round ---------- */
 
-ERP_MEERA.on('screen', tab => guideScreen(tab));
+/* she starts here only where she lives: in the page (switch "lazy" off) or in meera.js (on) — meeraHere(), bridge */
+if (meeraHere()) ERP_MEERA.on('screen', tab => guideScreen(tab));
 /** Called through the bridge (nav.js → meeraBridgeEmit('screen', tab)) every time a screen opens. The walk-round only on a first visit, and only when on. */
 function guideScreen(tab) {
   guideBuild();
@@ -647,4 +648,4 @@ function guideWorkedIn(msgEl) {
   return null;
 }
 
-guideBuild();
+if (meeraHere()) guideBuild();   // she starts where she lives (meeraHere, bridge)
