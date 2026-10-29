@@ -161,7 +161,7 @@ const ACCESS_GROUPS = [
   { key: 'other' },
 ];
 function accessTabBoxes() {
-  const usable = TABS.filter(t => !HIDDEN_TABS.includes(t));
+  const usable = TABS.filter(t => !HIDDEN_TABS.includes(t) && !TAB_INHERIT[t]);
   const replKeys = REPL_SECTIONS.map(([k]) => k);
   const replLabel = k => (REPL_SECTIONS.find(([x]) => x === k) || [k, k])[1];
   const takenS = new Set(), takenR = new Set();
