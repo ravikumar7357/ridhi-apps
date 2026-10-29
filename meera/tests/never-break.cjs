@@ -14,7 +14,8 @@ const ok = (cond, what) => { if (cond) pass++; else { fail++; console.log('  FAI
 /* every id the app's page and code can show — what a tour or a walk may light up */
 function appIds() {
   const walk = d => fs.readdirSync(d, { withFileTypes: true }).flatMap(x => (x.isDirectory() ? walk(path.join(d, x.name)) : [path.join(d, x.name)]));
-  const src = [path.join(APP, 'src/index.html'), ...walk(path.join(APP, 'src/app')).filter(f => f.endsWith('.js'))].map(f => fs.readFileSync(f, 'utf8')).join('\n');
+  const src = [path.join(APP, 'src/index.html'), ...walk(path.join(APP, 'src/app')).filter(f => f.endsWith('.js')),
+    ...walk(path.join(ROOT, 'meera/client/src')).filter(f => /\.(js|ts)$/.test(f))].map(f => fs.readFileSync(f, 'utf8')).join('\n');
   const ids = new Set([...src.matchAll(/\bid=\\?["']([\w-]+)\\?["']/g)].map(m => m[1]));
   [...src.matchAll(/\.id\s*=\s*['"]([\w-]+)['"]/g)].forEach(m => ids.add(m[1]));
   return { ids, src };

@@ -62,12 +62,13 @@ function sizes() {
   const out = {};
   for (const f of ['meera-bank.json', 'meera-words.bin', 'meera-walks.json']) out[f] = one(path.join(app, 'public', 'guide', f));
   /* her code inside the page itself (every page load): the guide*.js files, and the picture within them */
-  const order = fs.readFileSync(path.join(app, 'src/app/ORDER'), 'utf8').split(/\r?\n/).map(s => s.trim()).filter(s => /^core\/guide/.test(s));
-  const code = order.map(f => fs.readFileSync(path.join(app, 'src/app', f)));
+  const order = fs.readFileSync(path.join(app, 'src/app/ORDER'), 'utf8').split(/\r?\n/).map(s => s.trim()).filter(s => /^core\/(guide|meera)|^@meera\//.test(s));
+  const where = f => (f.startsWith('@meera/') ? path.join(ROOT, 'meera', 'client', 'src', f.slice(7)) : path.join(app, 'src/app', f));
+  const code = order.map(f => fs.readFileSync(where(f)));
   const all = Buffer.concat(code);
   out['code in the page'] = { raw: all.length, gzip: zlib.gzipSync(all, { level: 9 }).length, files: order.length };
-  const art = path.join(app, 'src/app/core/guide-art.js');
-  if (fs.existsSync(art)) out['picture (guide-art.js)'] = one(art);
+  const art = [path.join(ROOT, 'meera/client/src/legacy/guide-art.js'), path.join(app, 'src/app/core/guide-art.js')].find(f => fs.existsSync(f));
+  if (art) out['picture (guide-art.js)'] = one(art);
   return out;
 }
 

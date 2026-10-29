@@ -5,7 +5,7 @@
 const fs = require('fs'), path = require('path');
 const ROOT = path.join(__dirname, '..', '..'), APP = path.join(ROOT, 'Replenish-App', 'src', 'app');
 const order = fs.readFileSync(path.join(APP, 'ORDER'), 'utf8').split(/\r?\n/).map(s => s.trim()).filter(Boolean);
-const isMeera = f => /^core\/(guide|meera)/.test(f);
+const isMeera = f => /^core\/(guide|meera)|^@meera\//.test(f);
 const strip = s => s.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:\\])\/\/[^\n]*/g, '$1 ')
   .replace(/`(?:\\[\s\S]|\$\{[^}]*\}|[^`\\])*`/g, m => m.replace(/[^${}\w]+/g, ' '))   // keep ${…} code in templates
   .replace(/'(?:\\.|[^'\\\n])*'|"(?:\\.|[^"\\\n])*"/g, ' ');
@@ -19,7 +19,7 @@ const defs = code => {
 const appDefs = new Map(), meeraDefs = new Set();
 let meeraCode = '';
 for (const f of order) {
-  const p = f.startsWith('@shared/') ? path.join(ROOT, 'shared', f.slice(8)) : path.join(APP, f);
+  const p = f.startsWith('@shared/') ? path.join(ROOT, 'shared', f.slice(8)) : f.startsWith('@meera/') ? path.join(ROOT, 'meera', 'client', 'src', f.slice(7)) : path.join(APP, f);
   if (!fs.existsSync(p)) continue;
   const code = fs.readFileSync(p, 'utf8');
   if (isMeera(f)) { defs(code).forEach(n => meeraDefs.add(n)); meeraCode += '\n' + strip(code); }

@@ -14,7 +14,9 @@ const fs = require('fs'), path = require('path'), vm = require('vm');
  * caller names (opts.files). */
 function meeraFiles(app) {
   const order = fs.readFileSync(path.join(app, 'src/app/ORDER'), 'utf8').split(/\r?\n/).map(s => s.trim()).filter(Boolean);
-  return order.filter(f => /^core\/(guide|meera)/.test(f)).map(f => path.join(app, 'src/app', f));
+  /* the bridge (inside the ERP) and Meera's own files (meera/client/src, "@meera/…" since Phase 1) */
+  return order.filter(f => /^core\/(guide|meera)|^@meera\//.test(f))
+    .map(f => (f.startsWith('@meera/') ? path.join(app, '..', 'meera', 'client', 'src', f.slice(7)) : path.join(app, 'src/app', f)));
 }
 
 /* A tiny page: enough for Meera's code to start and answer; every box she looks for is simply not there. */
