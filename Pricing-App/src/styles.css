@@ -604,9 +604,6 @@
   .px-tbl tr.px-child td{background:var(--soft);font-size:12.5px;color:var(--muted);padding-top:6px;padding-bottom:6px}
   .px-tbl tr.px-child td:first-child{box-shadow:inset 3px 0 0 var(--brand),1px 0 0 var(--line)}
   .px-child .px-prod{padding-left:22px}
-  .px-tbl tr.px-kidbar td{background:var(--soft);padding:6px 12px 8px;text-align:left;box-shadow:inset 3px 0 0 var(--brand)}
-  .px-kidbar-in{position:sticky;left:12px;display:inline-flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);padding-left:22px}
-  .px-kidbar-in b{color:var(--ink)}
   .px-child .px-prod b{font-weight:500;color:var(--ink);font-size:12.5px}
   .px-neg{color:var(--bad)}.px-pos{color:var(--px-good)}.px-dim{color:var(--faint)}
   .px-obar{display:inline-flex;align-items:center;gap:8px}
