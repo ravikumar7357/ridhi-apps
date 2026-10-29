@@ -13,6 +13,7 @@ function load(mdbRows, replRows, opts) {
     obUC: s => String(s || '').trim().toUpperCase(),
     mdbOf: s => (mdbRows || []).find(r => String(r.sku).toUpperCase() === String(s).toUpperCase()),
     ptImgOf: s => (opts.img || {})[s] || '',
+    REPL_STOP_RE: /discontinu|use ?in ?mix/i,
   };
   const api = new Function(...Object.keys(ctx), code + '\n;return { replMasterSync, replMasterRow };')(...Object.values(ctx));
   return Object.assign(api, { ctx });
@@ -42,6 +43,16 @@ console.log('== the master is the product detail ==');
   const A = load(null, [{ sku: 'S2', color: 'Old' }], { replMdb: [{ sku: 'S2', color: 'New' }] });
   A.replMasterSync();
   ok('an account whose sign-in did not read the master uses the copy this tab read (REPL_MDB)', A.ctx.REPL.SP.rows[0].color === 'New');
+}
+{ /* 25 Oct ("master data base me set karenge"): the India listing status comes from the master */
+  const snap = [{ sku: 'D1', status: '', stopped: false }, { sku: 'L1', status: '', stopped: false }, { sku: 'W1', subcat: 'Women', status: 'Discontinued', stopped: true, stopReason: '"Women" is listed on Amazon but not stocked in India' }, { sku: 'N1' }];
+  const A = load([{ sku: 'D1', listingStatus: 'Discontinue' }, { sku: 'L1', listingStatus: 'Listed' }, { sku: 'W1', listingStatus: 'Listed' }, { sku: 'N1' }], snap);
+  A.replMasterSync();
+  const [d, l, w, n] = A.ctx.REPL.SP.rows;
+  ok('Discontinue in the master stops the SKU in Replenishment, saying where it came from', d.status === 'Discontinue' && d.stopped === true && /Master Database/.test(d.stopReason), JSON.stringify(d));
+  ok('…Listed shows and does not stop it', l.status === 'Listed' && !l.stopped);
+  ok('…a sub-category never stocked in India stays stopped, whatever the status', w.status === 'Listed' && w.stopped === true, JSON.stringify(w));
+  ok('…no status in the master leaves the snapshot’s', n.status === undefined && !n.stopped);
 }
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

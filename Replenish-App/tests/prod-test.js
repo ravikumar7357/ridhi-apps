@@ -43,7 +43,7 @@ const IDS = ('ptmBrand ptmArt ptmSub ptmCol ptmSz ptmCut ptmMaker ptmQ ptmBrandF
   + 'tabPa tabKa panePa paneKa paWk paFabWeeks paTarget paBasis paGo paMsg paBody kaMetric kaGroup kaWeeks kaBands kaLevelsBtn kaDept qcwMode qcwAt qcwSub qcwCol qcwSz qcwSkuList kaQ kaExport kaGo kaMsg kaDetail kaTable '
   + 'pcPlat cwToggle cwBox cwAt cwSub cwCol cwSz cwSkuNote cwSku cwSkuList cwOrd cwPcs cwFabric cwUsed cwWaste cwWasteW cwFab cwDate cwRemarks cwSave cwWho cwLeft cwMsg '
   + 'bwToggle bwBox bwType bwEmp bwEmpList bwSku bwSkuList2 bwOrd bwPcs bwDate bwRemarks bwSave bwWho bwLeft bwMsg '
-  + 'bwMat bwZip bwZipWrap bwZipName bwRuf bwRufWrap bwRufFab bwMatNote bwCustom bwOrdWrap bwAt bwSub bwCol bwColTxt bwSz bwSzTxt bwSkuNote bwClear '
+  + 'bwMat bwZip bwZipWrap bwZipName bwRuf bwRufWrap bwRufFab bwMatNote bwCustom bwOrdWrap bwCustOrd bwAtTxt bwSubTxt bwAtList bwSubList bwColList bwSzList bwAt bwSub bwCol bwColTxt bwSz bwSzTxt bwSkuNote bwClear '
   + 'bdModal bdmClose bdmWho bdmFrozen bdmName bdmType bdmIssue bdmRecv bdmRej bdmRemarks bdmAdminSku bdmSku bdmDatesRead bdmDatesTxt bdmAdminDates bdmIssueDate bdmRecvDate bdmMsg bdmDelete bdmAsk pbApv bdmCancel bdmSave '
   + 'ppOrd ppArt ppSub ppCol ppSz ppQ ppD1 ppD2 ppClear ppExport ppGo ppMsg ppKpis ppTable '
   + 'pwToggle pwBox pwOrd pwAt pwSub pwCol pwSz pwSku pwPcs pwDate pwRemarks pwSave pwLeft pwMsg '
@@ -209,7 +209,7 @@ const apiPost = async b => { APIPOST.push(b); if (APIPOST.fail) throw new Error(
  * flowReal = 0: the old screens these tests cover take every order; the flow runs real orders since 15 Oct (flow-test.js). */
 const localStorage = { getItem: k => (Object.assign({ storeAuto: '1', flowReal: '0', vpEntry: '1' }, global.__kaStore || {})[k] ?? null), setItem: () => {} };
 const ctx = { AUDIT_OFF: true, BASE_SPLIT_OFF: true, REPL, apiPost, localStorage, URL: URL_, window, SHOP_ONLY, $, esc, nf, csvCell, dToday, parseCsv, colIdx, getDoc, setDoc, doc, db: dbx, serverTimestamp, PRAPI, prGet, document, Blob, fetch, AbortController, auth, ME, PUTS, NET, confirm, pkReadFile, replRowMap, INDIA_LOADED, INDIA_ROWS, loadIndiaStock, signInWithEmailAndPassword, SETDOCS, FB_KEY: 'stub-key', console, setTimeout, clearTimeout, Set, Map, Date, Number, String, Object, Array, JSON, Math, isFinite, parseInt, encodeURIComponent };
-const fn = new Function(...Object.keys(ctx), block + '\n;return {PT:()=>PT, setPT:v=>{PT=v}, ptDtMs, ptList, ptNum, whoCell, whoTouched, whoList, spCanAssign, renderPmdb, renderPbase, renderPcut, ensurePmdb, ensurePbase, ensurePcut, bdKpi:()=>PT_BD_KPI, setBdKpi:v=>{PT_BD_KPI=v}, PTG:()=>PTG, setPTG:v=>{PTG=v}, cutGuard, cutFabrics, cutFillFabrics, renderCutPick, cutSkuTyped, ptConsumeZippers, ptUnconsumeZippers, ptConsumeRuffle, ptUnconsumeRuffle, ptIsRuffle, ptRuffleOf, ruffleCombos, ruffleRuleSave, renderMst, MST:()=>MST, obOrderedQty, obCutQty, cutOrdersFor, validateAgainstMasters, ptStampDate, cutMonthFrozen, ptMonthKey, obUC, bdGuard, bdApplyRecv, bdApplyRej, bdOrdersFor, obIssueUsed, obPressQty, ptZipCheck, PTE:()=>PTE, setPTE:v=>{PTE=v}, ptFindExistingSku, ptGenCustomSku, ptCustomPrefix, bdMaterialsFor, bdMaterialsTxt, bdMatFill, bdMatEntry, bdZipTyped, ptIsRuffle, ptRuffleOf, mdbZipQty, accCode, bdOpenOrders, bdEdit, bdSkuTyped, renderBdForm, bdClearForm, ptCanEdit, PT_NO_EDIT, ptPath, ptGet, ptPut, ptDelete, apvAsk, apvAnswer, apvOpen, apvLoad, APV:()=>APV, setAPV:v=>{APV=v}, pressEdit_:pressEdit, waNum, waSubstitute, waMsg, waWhyBlocked, waCell, waSendRow, WA_TPL_DEFAULT, waCutoffMs, WA:()=>WA, setWA:v=>{WA=v}, resRows, resWho, resRender, resSend, RES_PICK:()=>RES_PICK, voDemandMap, voExistingMap, voCutAllowed, resSourceMap, resSrcText, resTotals, soChannels, mdbRenamePlan, mdbRenameFromRows, mdbRenameRun, mdbRenamePaths, mdbRenameWhyBad, obLines, ptStampFrom, ptIsoDate, pressGuard, renderPpress, pressEdit, cutEdit, ptOpenDialog, qcParts, qcAvailToCheck, qcAvailToIssue, qcAltTotal, qcIssuedTotal, qcCheckable, qcIssuable, qcDeptEmps, qcEditCheck, qcEditIssue, ATT:()=>ATT, setATT:v=>{ATT=v}, attSave, attPunch, attAbsent, attPeople, attOfDay, attHours, attState, attId, attNameKey, attCanMark, renderAtt, ensureAtt, qcSaveReturn, qcRetOf, qcViewsAllowed, qcView, QC_VIEWS, cutFabPlan, renderCutFab, cutFabFields, qcPendingOf, qcOutstanding, renderQcRetForm, renderQc, mdbUsage, mdbValidate, fsSku, fsCodeOf, fsColourCodes, fsLinesFor, fsRows, fsOf, renderMdbFabric, FS_WIDTHS, mdbRecord, mdbEdit, mdbAddNew, mdbZipQty, mdbFromCsv, mdbYes, ptImgOf, ptImgCell, ordLines, ordOrphans, ordCutReq, ordBuyerOf, renderOrd, ordFilters, ordApply, ptInRange, ptRangeOf, shppLines, shppBySku, shppApply, renderOrdShopify, spSave, spHandover, spIssueReal, spReceiveReal, spIsQuilt, spQuiltHand, spAssignPicked, spPrinters, spIsPrinterCode, spPrinterByText, spPrintSheetRows, spPrintSheetEntries, spPrintPlan, spPrintRun, spSkuKeys, spSkuPicked, spSkuToggle, spAssignPickedOpen, spBulkPlan, spBulkApply, spBulkState, spBulkWho, spBulkDate, spBulkSheetEntries, spBulkSheetRows, spBulkEntries, setSPBULK:v=>{SP_BULK_VALS=v}, paWeekFacts, paNeed, paAvgBase, paTeamSize, paTeamSave, paVerdict, paWeeks, setPA:v=>{PA=v}, renderPa, renderKa, kaTable, kaDetail, kaMix, kaLevelOf, kaLevelKey, kaLevelsSave, kaArticles, renderKaMix, renderQcCheckForm, KA:()=>KA, PA:()=>PA, KA:()=>KA, obPcsPerPack, obPieces, obOrderedQty, ordKpiApply, ORD_KPI:()=>ORD_KPI, setORD_KPI:v=>{ORD_KPI=v}, spOpen, spCutReal, spPressReal, spBaseRows, spIssuedReal, spRecvReal, spHandoverPicked, spAssign, spPrint, spCanPrint, spCanSee, spIsVendor, spPrinter, ORD:()=>ORD, setORD_:v=>{ORD=v}, spOf, spKey, spKeySafe, spMirror, spShopOrderId, spShopOrderNo, spHanded, ordView, ehHours, rateFor, hrRateCheck, hrEmpUsage, hrRateFields, hrRateKnown, hrRateRec, prCheck, prRec, prKey, prStatus, prApproved, prCanApprove, prSetOk, prRateCell, prWhat, prUnit, prRateFor, prUsage, prFields, prFromRows, prPlan, prVendorCode, PR_COLS, prKnown, ptDlgValues, PR_SERVICES, prSvc, prIsFill, prIsPrinting, prCols, prColSpec, prColCovers, prColOverlap, prColLabel, prColIsLabel, prSvcKey, PR_SVC_ALIAS, PR_SVC_AMBIGUOUS, PR_NOT_JOBWORK, prLineMatches, prLineServices, prLineWant, prNameKey, prSizeKey, prNorm, PR_SPELL, prRateRowFor, vpayRows, vpayInWindow, renderVpay, vpayShowDrill, prRateWhy, prLineFiller, PR_COL_ANY, voIsFilling, vpayLive, vpaySetFreeze, VPAY_TYPE, payFreezeKey, ordVendorAlloc, ordVendorOf, ordWaitingAt, ordJourney, ensureOrd, voStampOrders, ordBookCsv, qcOrdersFor, ordQcOf, ordFgAt, ordShareBySku, fbaState, ORD_KPI_FIELDS, spHandover, setORD_KPI:v=>{ORD_KPI=v}, bdTwinOf, voOnServicePick, voPlace,  voAllVendors, voCatOf, VENDOR_CATS, ehFrozen, ehMonthKey, renderHr, payRows, payFrozen, payAdvance, payAdvanceTotal, renderPayout, renderAdvance, renderSlip, ehStamp, payDrill, payWindow, payShowDrill, fabMove, fabKnown, fabBalances, JW_PICK:()=>JW_PICK, jwBulkPlan, jwBulkReceive, jwRow, jwKpiCards, jwStatus, jwRecvOpen, jwRecvCell, jwWaButtons, pbaseApply, pbaseFilters, mdbFromCsv, mdbMerge, mdbIsReady, mdbPackType, mdbFormOf, mdbRecipeSays, mdbAddNew, skcFull, skcCodeOf, skcCodeOwner, skcTable, skcPlanNew, skcCreate, skcSaveRow, skcSheetEntries, skcUploadPlan, skcUploadRun, skcSheetRows, skcSibling, SKC:()=>SKC, STORE:()=>STORE, setSTORE:v=>{STORE=v}, stMoves, stBalances, qcInboxRows, qcInboxAccept, qcDeptRows, qcDeptBack, qcLedgerRows, indiaFromFg, repQcByWindow, repManpowerCard, ordCanClose, ordCloseRun, ordReopenRun, ordCloseSheetRun, ORD_CLOSE_COLS, ordStatePill, mtgBuild, mtgFreightPlan, mtgFreightSave, mtgSummary, mtgActions, mtgAddAction, mtgToggleAction, mtgSaveNote, mtgFreeze, renderMtg, mtgShipments, mtgPreOrder, MTG:()=>MTG, setMTG:v=>{MTG=v}, pcutUseMap, pcutUseOf, pcutUseKind, pcutWaitRows, renderPcutWait, stOrderRows, renderStoreOrd, stPrinterSku, vlOrderPlan, vlOrdersParse, stStart, stCutting, stSave, stSheetEntries, stSheetPlan, stSheetRun, stChecked, stCheckSet, stToCheck, stName, renderStore, stFromPrinter, stNotFromPrinter, fabAutoRows, fabCutPerPiece, fabSizes, fabEntryCut, fabRfdStart, fabAll, fabAutoLoad, FAB_AUTO:()=>FAB_AUTO, voRunningOpenOf, voDupQuestion, voDupAsk, JWC:()=>JWC, setJWC:v=>{JWC=v}, jwCorrAsk, jwCorrApprove, jwCorrReject, jwCorrBadge, jwCanAsk, jwCorrPlan, jwCorrDiff, kaMonths, kaMonthRange, kaDaily, kaRange, kaCustom, paDayIso, kaTargetOf, kaTargetRows, kaTargetsSave, KA_TGT_STATUS, renderKaDaily, renderKaTarget, mstSheetRows, mstSheetPlan, mstSheetRun, mstSheetCols, GPO:()=>GPO, setGPO:v=>{GPO=v}, fabGreigeOf, fabRfdOfGreige, fabGreigeSave, gpoFabrics, gpoMills, gpoPlan, gpoSave, gpoCancel, gpoProgress, gpoStatus, gpoTotals, gpoLineMoney, gpoHtml, gpoEmail, gpoNewNo, renderGpo, gpoSettingsSave, fabEntryOpen, renderFab, fabSave, fabCsvRows, fabCsvRun, fabState, fabStockOf, fabWithProcessor, fabFlowRows, fabLots, fabLot, fabNextLot, fabLotsWithGreige, fabLotsOut, fabLotsOfFabric, accMove, accBalances, accLow, renderAcc, accEditTxn, accListNow, accLedgerNow, ptAccBalance, ptConsumeZippers, accOutWith, accCanEntry, accCanEdit, vlCanAccept, soCanApprove, mdbCanEdit, soApproveRun, soReturnRun, mdbRenameRun, vlAcceptWrite, accCat, accUnit, accReturnable, accWho, accTxnCheck, accCsvRows, accCsvRun, accItemRec, accTakeBack, accWhoList, ACC_TYPES, ACC_CATS, ACC:()=>ACC, setACC:v=>{ACC=v}, soLines, soStatus, soWork, soQtyPlan, soQtyRun, soDoneOn, soQtySheetRead, soQtyBulkPlan, ordQtyAdj, ordQtyUnseen, ordQtyUnseenAll, ordQtyBadge, ordQtyApprove, ordQtyReject, ordQtyAnswerRun, ordQtyCanApprove, ordQtyListOpen, soQtyStage, ordQtyPill, soQtyBulkRun, soQtyTemplate, SO_QTY_COLS, soQtyOf, soLinesOf, soBookId, soQtyOpen, SO_NO_APPROVE_:()=>SO_NO_APPROVE, soSkus, soSummary, renderSox, SOX:()=>SOX, setSOX:v=>{SOX=v}, voName, voKnown, voLines, voRunning, voUnit, voQty, voDels, voDone, voStale, voSummary, renderVo, voDayOf, voDayKey, voLogRows, renderVlog, vlCanAccept, vlOk, vlNo, vlOver, vlQtyOf, vlFind, voSqm, voFabWidthM, vlInHand, vlNoWrite, vlAcceptWrite, vlAcceptOne, vlAcceptPicked, VL_PICKED:()=>VL_PICKED, ensureVlog, vlogApply, vlogFilters, VLOG:()=>VLOG, setVLOG:v=>{VLOG=v}, voEditRead, voEditSave, voEditRow, voOpen, voSaveQty, voCancelPicked, voWhyNoCancel, voPicked, voWant, voProm, voPromFirst, voDue, voDays, voGap, voSlip, voMoves, voLateBy, voDueCell, dShow, vpPromise, vpCard, voClaimed, voConfirmed, voPriBadge, VOE:()=>VOE, voDelete, renderVoCards, voLineMatches, voOrderPri, voAttrOn, VO_CARD_LINES, voDeletePicked, voDeliveredCount, VO_PICKED:()=>VO_PICKED, ptImgOf, ptImgCell, setPTIMG:v=>{PTIMG=v}, setVOE:v=>{VOE=v}, VO:()=>VO, setVO:v=>{VO=v}, soChannels, soDateTag, soGenId, soB2BRows, soB2BMint, soIsB2B, soCurrentNetQty, soCanEdit, soFormOpen, soFormSave, soFormLines, soParseDMY, soNormType, soBulkFile, soReview, soApproveRun, soReturnRun, soDeleteOrder, SOF:()=>SOF, setSOF:v=>{SOF=v}, voVendors, voMasterList, voCutAllowed, voDemandMap, voExistingMap, voValidateCut, voCapMsg, voHolders, voNewOrderNo, voTodayDMY, voFormOpen, voSetKind, voFabricCatalogue, voFabricSkuTyped, voFabricFromFields, vrqSubmit, vrqApprove, vrqReject, vrqWithdraw, vrqCopy, vrqStage, vrqOrder, renderVrq, vrqCanApprove, vrqBadge, repManpower, repRecvParts, bdIssueDay, repIsInsert, repUndatedRows, repGap, repNeedsCutting, repPrinterCut, repManpowerCard, AUDIT:()=>AUDIT, auditRestore, BASE:()=>BASE, baseArchivePlan, baseArchiveRun, baseDayOf, baseAutoMove, audLoad, audRender, auditTrash, soFreeId, bdSaveRow, setPB_CAP:v=>{PB_CAP=v}, setPC_CAP:v=>{PC_CAP=v}, ptPrintDir, ordFabSkuOf, ordFabSides, cutSkuOf, ptCustomOf, voChannelFetch, voFetchRun, setREP_HEADS:v=>{REP_HEADS=v}, shpReadyLines, shpReceive, mtoAddWorkDays, mtoWorkDaysAfter, ordIsMto, shpHandRegister, shpHandShip, shpHandTotals, shpHandSheetRows, custNewMasterRec, custFixRows, custFixPlan, custMergePaths, custFixSheet, VO_UP:()=>VO_UP, voCheckFileRows, voCustomRecs, voChannelWants, VO_CHANNELS, ordSrcChips, ordSheetRows, renderOrdSheet, vpLineIsDone, vpBuyerOf, ordPrnPlatRows, ordPlatOf, renderOrdPrnPlat, vpPlatformOf, renderOrdPipe, renderOrdTeam, ordEvents, ordPipeRows, ordTeamTables, ordTeamEvents, setPT_:v=>{PT=v}, skuLookalike, skuFillPlan, skuFillPatch, obWhat, vrqSkuLines, vrqSkuTotals, vrqSkuTotRows, vrqSkuLineRows, VRQ_SKU_TOT_COLS, VRQ:()=>VRQ, RFD:()=>RFD, setRFD:v=>{RFD=v}, rfdLineNeed, rfdOrderNeed, rfdFabrics, rfdAllowed, rfdReqsOf, rfdStage, rfdAuto, rfdSubmit, rfdWithdraw, rfdDecide, rfdMarkSent, rfdRows, rfdFind, rfdRecord, rfdSeq, rfdCanSee, rfdCanApprove, rfdCanSend, rfdDecisionOf, rfdSentQty, rfdRound, rfdPieceLines, rfdPieceOf, rfdPcsAllowed, rfdSubmitPcs, rfdSizeGroups, rfdSizeRaw, rfdSizeOf, rfdFabKey, rfdKeyUnit, rfdRoomFor, rfdUsedM, rfdSubmit, rfdAllowed, rfdVendorOf, rfdStockRow, rfdSizeKey, rfdStockKey, rfdSpread, rfdSubmitSize, rfdStockSave, rfdStockOf, rfdStockHere, rfdStockForSku, rfdUsedPcs, setRFD_:v=>{RFD=v}, rfdSentFor, rfdSentPcsFor, rfdSentSeen, rfdSubmitOrder, vpRfdSends, vpRfdOrder, vpRfdOrders, rfdPcsTxt, rfdUnit, rfdWant, rfdQtyTxt, rfdIssueAs, rfdIssueRuled, vpRfdRender, renderRfd, ensureRfd, rfdWithPrinter, rfdToSend, rfdApply, rfdRefusable, rfdPickToggle, rfdPickAll, rfdPickPrune, rfdRefuseMany, RFD_PICK:()=>RFD_PICK, setRFD_PICK:v=>{RFD_PICK=v}, rfdFilters, vpRfdRows, RFD_STAGE, rfdBadge, setVRQ:v=>{VRQ=v}, setVRQ_KPI:v=>{VRQ_KPI=v}, voAddLine, voOnVendorPick, voOnServicePick, voDraftPrinting, voIsPrinting, voServiceOf, voCheckDraft, voDraft, voSkuInfo, voBulkFile, voTemplate, voPlace, voSetStatus, voMoveTo, voMoveLog, voMovePill, VOF:()=>VOF, setVOF:v=>{VOF=v}, vpPhone, vpQty, vpDone, renderVp, vpCard, vpTable, vpProductBoard, vpExportRows, vpGroups, vpPriRank, vpVisible, voWhenMs, vpOrderMatches, vpFillFilters, vpF, vpFlow, vpIsShop, vpShopTable, vpHistRows, vpHistTable, vpDeliver, vpDeliverWith, vpRecordAll, vpPromiseAll, vpSave, ensureVp, voSyncAccess, VP:()=>VP, setVP:v=>{VP=v}, vmValid, vmReal, vfNeeded, vfInvented, pinEmails, PIN_DOMAINS, VM_PLACEHOLDER, vmOpen, vmSave, vpEmailKey, pinEmail, pinWhyBad, pinWhyNoLogin, pinRoute, pinCanLink, pinLink, voMasterRow, pinRandom, pinGrant, pinChange, pinOpenChange, vpOnPin, vendTabRule, fgiStock, fgiOf, fgiPressLeft, fgiPending, renderFgi, fgiTransferOpen, fgiTransferSave, fgiReceiveOpen, fgiReceiveSave, fgiReturnSave, fgiIssueOpen, fgiOpeningOpen, fgiOpeningParse, fgiOpeningSave, fgiNewId, FGI:()=>FGI, setFGI:v=>{FGI=v}, FGT:()=>FGT, setFGT:v=>{FGT=v}, fgiEntryOpen, fgiEntrySave, fgiNum, fgiSetOpen, fgiStatus, fgiSeen, PTE:()=>PTE, setPTE:v=>{PTE=v}, fgiFbaOpen, fgiReceiveNewOpen, fgiDelete, fgiDeleteAsk, fgiSeedOpen, fgiSeedSave, fgiWipeOpen, fgiWipeRun, fgiCanEdit, fgiEffect, fgiDeletePlan, fgiDeleteRun, fgiEditOpen, fgiEditSave, fgiEditLocked, fgiBulkEditOpen, fgiBulkEditSave, fgiBulkDeleteAsk, fgiSkuEditOpen, fgiSkuEditSave, fgiSkuBulkEditOpen, fgiSkuBulkEditSave, fgiSkuDeleteAsk, fgiPickCount, FGI_PICK:()=>FGI_PICK, setFGI_PICK:v=>{FGI_PICK=v}, fgiLoad, fbaCan, fbaLegacy, fbaState, fbaAll, fbaRows, renderFba, fbaBadge, fbaAccept, fbaShipOpen, fbaShipSave, fbaReturnOpen, fbaReturnSave, fbaUndo, fbaShipXlRead, fbaShipXlPlan, fbaShipXlRun, fbaStale, FBA_PICK:()=>FBA_PICK, setFBA_PICK:v=>{FBA_PICK=v}, FBA:()=>FBA, PTD_:()=>PTD, cxAmz, cxIndia, renderCx, cxOpen, cxSet, cxFromIndia, cxDelete, cxUploadOpen, cxUploadRead, cxUploadSave, CX:()=>CX, setCX:v=>{CX=v}, CXU:()=>CXU, setCXU:v=>{CXU=v}, vmNextKey, vmNextCode, vmAddPrinter, mstRows, mstDef, mstNextKey, mstUsage, renderMst, mstEdit, mstSave, MST:()=>MST, setMST:v=>{MST=v}, repPack, repAt, repBrand, repBrands, repInhouse, repWeekly, repWeekLabel, repSurplus, renderRep, ensureRep, repWow, repByWeek, repWkShift, repWkRange, repLastFullWeek, repRenderWow, repFillWeeks, repTrendSvg, repShareSvg, repSparkSvg, repNice, repChartsOff, repPctCell, repWeekStart, repWkIso, repByWindow, repLive, repLiveStart, repDaysIn, repRenderLive, ptImgSrc, ptImgInner, REP:()=>REP, setREP:v=>{REP=v}, FAB:()=>FAB, setFAB:v=>{FAB=v}, HR:()=>HR, setHR:v=>{HR=v}, hrPutList, hrCanon, PAL:()=>PAL, setPAL:v=>{PAL=v}, palDesigns, palGroups, palPlan, palGroupOf, palFamily, palKey, palNum, palSetGroup, palSetBlocks, palSetHave, palPrinterSave, palPrinterDelete, palPrinterOpen, palBlocksOpen, palCanEdit, palGroupBlocks, palBlocksNeed, palBlocksHave, palPrinters, palCapacity, palCapWhy, palRateOf, palRateShared, palVendorOf, palGroupNames, palTakes, palLiveOf, palSetLive, palSheetRows, palSheetRead, palSheetPlan, palSheetRun, PAL_SHEET_COLS, palLoad, PAL_NO_EDIT_:()=>PAL_NO_EDIT, palYm, palMonthPart, renderPal, palExport, palCellSave, palNeedSplit, palNeedWhy, ptPrintNeeded, ptPrintFabric, ptCutOf, ptLayOn, ptConsPlan, ptLayOf, PT_LAYS, ptFabricWidths, PT_MARGIN_IN, renderMdbCons, mdbConsApply, RECIPE_FIELDS, recKey, recipeOf, recipeMap, recipeValue, recipeFill, recipeSays, recipeCombos, recipeSeedPlan, recipeSeedRun, recipeSave, recipeApplyPlan, recipeApplyRun, renderMdbRecipe, recipeEdit, recipeRows, recipeSheetRows, recipeSheetEntries, recipeUploadPlan, recipeUploadRun, mdbFields, mdbYnFix, pmdbRefresh, ptLoadGates, repShopDispatch, repShipVia, repShopState, repShopLeft, fgiRecvOrderCheck, fgiRecvXlRead, fgiRecvXlPlan, fgiRecvXlSave, setFGI_XL:v=>{FGI_XL=v}, FGI_XL_COLS, fgiXlRead, fgiIssXlPlan, fgiOutCheck, FGI_XL_ISS_COLS, fgiOutParts, fgiOutRank, fgiOutOrders, fgiOutAlloc, fgiOutOrderCheck, fgiOutTxt, vpRfdRaisePlan, vpRfdRaiseRun, ordTrackStage, ordTrackRows, renderOrdTrack, ORD_TRACK, ordItemCell, voSortMs, voIsStanding, demRunGive, palClearRun, palSetInfo, palSetGroupPrinter, palGroupSplit, palInfoOf, palAssignable, palAssignPick, PAL_STATUS, demBasketAdd, demBasketPlace, fsBuiltSkus, fsManualCheck, fsManualPlan, fsManualSave, FS_MAN_COLS, fabListOr, pdIso, ordDueIndex, ordProdRows, RECIPE_FAB, recipeEdit, recipeSheetHead, SOX:()=>SOX, setSOX_:v=>{SOX=v}, pmdbTools, PMDB_TOOLS, ptPrintIssueAs, ptPrintRuleOf, ptPrintRules, ptColourPrints, printCombos, printRuleSave, colourPrintSave, renderPrintRules, fabWidthIn, fabWidthMap, fabWidthSave, fgiScanOpen, fgiScanAdd, fgiScanSave, fgiScanRender, fgiScanResolve, fgiScanAuto, fgiScanHead, fgiScanFlush, fgiScanUndo, fgiScanState, fnParse, fnFromRows, fnSave, fnSaveFromPaste, fnLoad, FN:()=>FN, setFN:v=>{FN=v}, FGS:()=>FGS, setFGS:v=>{FGS=v}, fgiFbaAcctFor, FGI_FBA_ACCOUNTS, fgiExtOrder, fgiExtNewNo, fgiRenderOver, fgiOverReview, fgiOverBadge, fgiEditApply, fgiCorrOpen, fgiCorrSave, fgiCorrApprove, fgiCorrReject, fgiRenderCorr, fgiCorrCell, fgiCorrLoad, fgiCorrCanAsk, FGC:()=>FGC, setFGC:v=>{FGC=v}, pafNeed, pafHistory, pafWeekOf, ensureVo, ordPrintAsPcs, mdbM2, mdbM2Txt, mdbRecord, ordDemandColRows, renderOrdDemandCol, accSaveItems, ordDemandRows, ordDemandRfd, ordDemandAtPrinters, renderOrdDemand, ORD_DEM:()=>ORD_DEM, setORD_DEM:v=>{ORD_DEM=v}, repWkIso, repWkShift, paWeekStart, voSqm, voFabWidthM, voLogRows, ordSrcOf, ordBrandOf, ordCustomBrands, spCanAssign, bkCanAssign, spCanAssignOrder, spNoAssignFor, MDBX:()=>MDBX, setMDBX:v=>{MDBX=v}, ordQcOf, ordFgOf, fgiCanEntry, fgiOrdersFor, fgiOrderKnown, fgiOrdFill, fgiRecvOnOrder, lstParse, lstOf, lstKey, lstLoad, lstAlertFor, lstClose, lstRenderAlerts, lstOpen, lstBadge, lstCanRefresh, LST:()=>LST, setLST:v=>{LST=v}, odrId, odrCanAsk, odrCanAnswer, odrAskOpen, odrAskSave, odrListOpen, odrDeleteRun, odrKeepRun, odrBadge, odrPendingOf, ODR:()=>ODR, setODR:v=>{ODR=v}, hrEditEmp, hrCanEmpDelete, hrEmpOnly, setHrSeen:v=>{HR_SEEN=v; if (!Object.keys(v || {}).length) PR_SNAP = {};}, HR_SEEN:()=>HR_SEEN, hrSavePrRate, prRowsOf, prSnapTake, PR_SNAP:()=>PR_SNAP, ptPatch, prEdit, ensureHr, mdbAsinCheck, mdbAsinWrites, mdbAsinWrite, MDB_ASIN:()=>MDB_ASIN, MDB_IMPORT_COLS, ptOpenFresh, ffFacts, renderFabFlowOne, ensureFabFlow, FFLOW:()=>FFLOW, setFFLOW:v=>{FFLOW=v}, renderDash, ensureDash, dashFacts, DASH:()=>DASH, voAckOf, rfdTracked, rfdOrderLedger, rfdOrderUsed, rfdStoreOf, rfdOfficeSend, rfdRecvSave, rfdRecvQty, rfdRecvLot, rfdSizePlan, rfdOrderRows, renderRfdLedger, RFD_TRACK_FROM, vpRfdSends,ORD:()=>ORD, setORD:v=>{ORD=v}, QC:()=>QC, setQC:v=>{QC=v}, PP:()=>PP, setPP:v=>{PP=v}, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, setREP_SRC:v=>{REP_SRC=v}, repQcUnits, flowState, flowRows, flowKey, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowBucketsAllowed, flowTable, FLOW_BUCKETS, FLOW_TABS, renderFlow, els:null};');
+const fn = new Function(...Object.keys(ctx), block + '\n;return {PT:()=>PT, setPT:v=>{PT=v}, ptDtMs, ptList, ptNum, whoCell, whoTouched, whoList, spCanAssign, renderPmdb, renderPbase, renderPcut, ensurePmdb, ensurePbase, ensurePcut, bdKpi:()=>PT_BD_KPI, setBdKpi:v=>{PT_BD_KPI=v}, PTG:()=>PTG, setPTG:v=>{PTG=v}, cutGuard, cutFabrics, cutFillFabrics, renderCutPick, cutSkuTyped, ptConsumeZippers, ptUnconsumeZippers, ptConsumeRuffle, ptUnconsumeRuffle, ptIsRuffle, ptRuffleOf, ruffleCombos, ruffleRuleSave, renderMst, MST:()=>MST, obOrderedQty, obCutQty, cutOrdersFor, validateAgainstMasters, ptStampDate, cutMonthFrozen, ptMonthKey, obUC, bdGuard, bdApplyRecv, bdApplyRej, bdOrdersFor, obIssueUsed, obPressQty, ptZipCheck, PTE:()=>PTE, setPTE:v=>{PTE=v}, ptFindExistingSku, ptGenCustomSku, ptCustomPrefix, bdMaterialsFor, bdMaterialsTxt, bdMatFill, bdMatEntry, bdZipTyped, ptIsRuffle, ptRuffleOf, mdbZipQty, accCode, bdOpenOrders, bdEdit, bdSkuTyped, renderBdForm, bdClearForm, ptCanEdit, PT_NO_EDIT, ptPath, ptGet, ptPut, ptDelete, apvAsk, apvAnswer, apvOpen, apvLoad, APV:()=>APV, setAPV:v=>{APV=v}, pressEdit_:pressEdit, waNum, waSubstitute, waMsg, waWhyBlocked, waCell, waSendRow, WA_TPL_DEFAULT, waCutoffMs, WA:()=>WA, setWA:v=>{WA=v}, resRows, resWho, resRender, resSend, RES_PICK:()=>RES_PICK, voDemandMap, voExistingMap, voCutAllowed, resSourceMap, resSrcText, resTotals, soChannels, mdbRenamePlan, mdbRenameFromRows, mdbRenameRun, mdbRenamePaths, mdbRenameWhyBad, obLines, ptStampFrom, ptIsoDate, pressGuard, renderPpress, pressEdit, cutEdit, ptOpenDialog, qcParts, qcAvailToCheck, qcAvailToIssue, qcAltTotal, qcIssuedTotal, qcCheckable, qcIssuable, qcDeptEmps, qcEditCheck, qcEditIssue, ATT:()=>ATT, setATT:v=>{ATT=v}, attSave, attPunch, attAbsent, attPeople, attOfDay, attHours, attState, attId, attNameKey, attCanMark, renderAtt, ensureAtt, qcSaveReturn, qcRetOf, qcViewsAllowed, qcView, QC_VIEWS, cutFabPlan, renderCutFab, cutFabFields, qcPendingOf, qcOutstanding, renderQcRetForm, renderQc, mdbUsage, mdbValidate, fsSku, fsCodeOf, fsColourCodes, fsLinesFor, fsRows, fsOf, renderMdbFabric, FS_WIDTHS, mdbRecord, mdbEdit, mdbAddNew, mdbZipQty, mdbFromCsv, mdbYes, ptImgOf, ptImgCell, ordLines, ordOrphans, ordCutReq, ordBuyerOf, renderOrd, ordFilters, ordApply, ptInRange, ptRangeOf, shppLines, shppBySku, shppApply, renderOrdShopify, spSave, spHandover, spIssueReal, spReceiveReal, spIsQuilt, spQuiltHand, spAssignPicked, spPrinters, spIsPrinterCode, spPrinterByText, spPrintSheetRows, spPrintSheetEntries, spPrintPlan, spPrintRun, spSkuKeys, spSkuPicked, spSkuToggle, spAssignPickedOpen, spBulkPlan, spBulkApply, spBulkState, spBulkWho, spBulkDate, spBulkSheetEntries, spBulkSheetRows, spBulkEntries, setSPBULK:v=>{SP_BULK_VALS=v}, paWeekFacts, paNeed, paAvgBase, paTeamSize, paTeamSave, paVerdict, paWeeks, setPA:v=>{PA=v}, renderPa, renderKa, kaTable, kaDetail, kaMix, kaLevelOf, kaLevelKey, kaLevelsSave, kaArticles, renderKaMix, renderQcCheckForm, KA:()=>KA, PA:()=>PA, KA:()=>KA, obPcsPerPack, obPieces, obOrderedQty, ordKpiApply, ORD_KPI:()=>ORD_KPI, setORD_KPI:v=>{ORD_KPI=v}, spOpen, spCutReal, spPressReal, spBaseRows, spIssuedReal, spRecvReal, spHandoverPicked, spAssign, spPrint, spCanPrint, spCanSee, spIsVendor, spPrinter, ORD:()=>ORD, setORD_:v=>{ORD=v}, spOf, spKey, spKeySafe, spMirror, spShopOrderId, spShopOrderNo, spHanded, ordView, ehHours, rateFor, hrRateCheck, hrEmpUsage, hrRateFields, hrRateKnown, hrRateRec, prCheck, prRec, prKey, prStatus, prApproved, prCanApprove, prSetOk, prRateCell, prWhat, prUnit, prRateFor, prUsage, prFields, prFromRows, prPlan, prVendorCode, PR_COLS, prKnown, ptDlgValues, PR_SERVICES, prSvc, prIsFill, prIsPrinting, prCols, prColSpec, prColCovers, prColOverlap, prColLabel, prColIsLabel, prSvcKey, PR_SVC_ALIAS, PR_SVC_AMBIGUOUS, PR_NOT_JOBWORK, prLineMatches, prLineServices, prLineWant, prNameKey, prSizeKey, prNorm, PR_SPELL, prRateRowFor, vpayRows, vpayInWindow, renderVpay, vpayShowDrill, prRateWhy, prLineFiller, PR_COL_ANY, voIsFilling, vpayLive, vpaySetFreeze, VPAY_TYPE, payFreezeKey, ordVendorAlloc, ordVendorOf, ordWaitingAt, ordJourney, ensureOrd, voStampOrders, ordBookCsv, shpbStages, shpbReadyOf, shpbKey, shpbIsMine, shpbOwnFabric, shpbPressSave, shpbSteps, shpbJourneyOpen, shpbIssueSave, shpbCutSave, shpbRow, renderShpBoard, SHPB:()=>SHPB, setSHPB:v=>{SHPB=v}, qcOrdersFor, qcOrderAvail, qcTookOf, ordQcOf, ordFgAt, ordShareBySku, fbaState, ORD_KPI_FIELDS, spHandover, setORD_KPI:v=>{ORD_KPI=v}, bdTwinOf, voOnServicePick, voPlace,  voAllVendors, voCatOf, VENDOR_CATS, ehFrozen, ehMonthKey, renderHr, payRows, payFrozen, payAdvance, payAdvanceTotal, renderPayout, renderAdvance, renderSlip, ehStamp, payDrill, payWindow, payShowDrill, fabMove, fabKnown, fabBalances, JW_PICK:()=>JW_PICK, jwBulkPlan, jwBulkReceive, jwRow, jwKpiCards, jwStatus, jwRecvOpen, jwRecvCell, jwWaButtons, pbaseApply, pbaseFilters, mdbFromCsv, mdbMerge, mdbIsReady, mdbPackType, mdbFormOf, mdbRecipeSays, mdbAddNew, skcFull, skcCodeOf, skcCodeOwner, skcTable, skcPlanNew, skcCreate, skcSaveRow, skcSheetEntries, skcUploadPlan, skcUploadRun, skcSheetRows, skcSibling, SKC:()=>SKC, STORE:()=>STORE, setSTORE:v=>{STORE=v}, stMoves, stBalances, qcInboxRows, qcInboxAccept, qcDeptRows, qcDeptBack, qcLedgerRows, indiaFromFg, repQcByWindow, repManpowerCard, ordCanClose, ordCloseRun, ordReopenRun, ordCloseSheetRun, ORD_CLOSE_COLS, ordStatePill, mtgBuild, mtgCustom, mtgFreightPlan, mtgFreightSave, mtgSummary, mtgActions, mtgAddAction, mtgToggleAction, mtgSaveNote, mtgFreeze, renderMtg, mtgShipments, mtgPreOrder, MTG:()=>MTG, setMTG:v=>{MTG=v}, pcutUseMap, pcutUseOf, pcutUseKind, pcutWaitRows, renderPcutWait, stOrderRows, renderStoreOrd, stPrinterSku, vlOrderPlan, vlOrdersParse, stStart, stCutting, stSave, stSheetEntries, stSheetPlan, stSheetRun, stChecked, stCheckSet, stToCheck, stName, renderStore, stFromPrinter, stNotFromPrinter, fabAutoRows, fabCutPerPiece, fabSizes, fabEntryCut, fabRfdStart, fabAll, fabAutoLoad, FAB_AUTO:()=>FAB_AUTO, voRunningOpenOf, voDupQuestion, voDupAsk, JWC:()=>JWC, setJWC:v=>{JWC=v}, jwCorrAsk, jwCorrApprove, jwCorrReject, jwCorrBadge, jwCanAsk, jwCorrPlan, jwCorrDiff, kaMonths, kaMonthRange, kaDaily, kaRange, kaCustom, paDayIso, kaTargetOf, kaTargetRows, kaTargetsSave, KA_TGT_STATUS, renderKaDaily, renderKaTarget, mstSheetRows, mstSheetPlan, mstSheetRun, mstSheetCols, GPO:()=>GPO, setGPO:v=>{GPO=v}, fabGreigeOf, fabRfdOfGreige, fabGreigeSave, gpoFabrics, gpoMills, gpoPlan, gpoSave, gpoCancel, gpoProgress, gpoStatus, gpoTotals, gpoLineMoney, gpoHtml, gpoEmail, gpoNewNo, renderGpo, gpoSettingsSave, fabEntryOpen, renderFab, fabSave, fabCsvRows, fabCsvRun, fabState, fabStockOf, fabWithProcessor, fabFlowRows, fabLots, fabLot, fabNextLot, fabLotsWithGreige, fabLotsOut, fabLotsOfFabric, accMove, accBalances, accLow, renderAcc, accEditTxn, accListNow, accLedgerNow, ptAccBalance, ptConsumeZippers, accOutWith, accCanEntry, accCanEdit, vlCanAccept, soCanApprove, mdbCanEdit, soApproveRun, soReturnRun, mdbRenameRun, vlAcceptWrite, accCat, accUnit, accReturnable, accWho, accTxnCheck, accCsvRows, accCsvRun, accItemRec, accTakeBack, accWhoList, ACC_TYPES, ACC_CATS, ACC:()=>ACC, setACC:v=>{ACC=v}, soLines, soStatus, soWork, soQtyPlan, soQtyRun, soDoneOn, soQtySheetRead, soQtyBulkPlan, ordQtyAdj, ordQtyUnseen, ordQtyUnseenAll, ordQtyBadge, ordQtyApprove, ordQtyReject, ordQtyAnswerRun, ordQtyCanApprove, ordQtyListOpen, soQtyStage, ordQtyPill, soQtyBulkRun, soQtyTemplate, soSkuHint, SO_QTY_COLS, soQtyOf, soLinesOf, soBookId, soQtyOpen, SO_NO_APPROVE_:()=>SO_NO_APPROVE, soSkus, soSummary, renderSox, SOX:()=>SOX, setSOX:v=>{SOX=v}, voName, voKnown, voLines, voRunning, voUnit, voQty, voDels, voDone, voStale, voSummary, renderVo, voDayOf, voDayKey, voLogRows, renderVlog, vlCanAccept, vlOk, vlNo, vlOver, vlQtyOf, vlFind, voSqm, voFabWidthM, vlInHand, vlNoWrite, vlAcceptWrite, vlAcceptOne, vlAcceptPicked, VL_PICKED:()=>VL_PICKED, ensureVlog, vlogApply, vlogFilters, VLOG:()=>VLOG, setVLOG:v=>{VLOG=v}, voEditRead, voEditSave, voEditRow, voOpen, voSaveQty, voCancelPicked, voWhyNoCancel, voPicked, voWant, voProm, voPromFirst, voDue, voDays, voGap, voSlip, voMoves, voLateBy, voDueCell, dShow, vpPromise, vpCard, voClaimed, voConfirmed, voPriBadge, VOE:()=>VOE, voDelete, renderVoCards, voLineMatches, voOrderPri, voAttrOn, VO_CARD_LINES, voDeletePicked, voDeliveredCount, VO_PICKED:()=>VO_PICKED, ptImgOf, ptImgCell, setPTIMG:v=>{PTIMG=v}, setVOE:v=>{VOE=v}, VO:()=>VO, setVO:v=>{VO=v}, soChannels, soDateTag, soGenId, soB2BRows, soB2BMint, soIsB2B, soCurrentNetQty, soCanEdit, soFormOpen, soFormSave, soFormLines, soParseDMY, soNormType, soBulkFile, soReview, soApproveRun, soReturnRun, soDeleteOrder, SOF:()=>SOF, setSOF:v=>{SOF=v}, voVendors, voMasterList, voCutAllowed, voDemandMap, voExistingMap, voValidateCut, voCapMsg, voHolders, voNewOrderNo, voTodayDMY, voFormOpen, voSetKind, voFabricCatalogue, voFabricSkuTyped, voFabricFromFields, vrqSubmit, vrqApprove, vrqReject, vrqWithdraw, vrqCopy, vrqStage, vrqOrder, renderVrq, vrqCanApprove, vrqBadge, repManpower, repRecvParts, bdIssueDay, repIsInsert, repUndatedRows, repGap, repNeedsCutting, repPrinterCut, repManpowerCard, AUDIT:()=>AUDIT, auditRestore, BASE:()=>BASE, baseArchivePlan, baseArchiveRun, baseDayOf, baseAutoMove, audLoad, audRender, auditTrash, soFreeId, bdSaveRow, setPB_CAP:v=>{PB_CAP=v}, setPC_CAP:v=>{PC_CAP=v}, ptPrintDir, ordFabSkuOf, ordFabSides, cutSkuOf, ptCustomOf, voChannelFetch, voFetchRun, setREP_HEADS:v=>{REP_HEADS=v}, shpReadyLines, shpReceive, mtoAddWorkDays, mtoWorkDaysAfter, ordIsMto, shpHandRegister, shpHandShip, shpHandTotals, shpHandSheetRows, custNewMasterRec, custFixRows, custFixPlan, custMergePaths, custFixSheet, VO_UP:()=>VO_UP, voCheckFileRows, voCustomRecs, voChannelWants, VO_CHANNELS, ordSrcChips, ordSheetRows, renderOrdSheet, vpLineIsDone, vpBuyerOf, ordPrnPlatRows, ordPlatOf, renderOrdPrnPlat, vpPlatformOf, renderOrdPipe, renderOrdTeam, ordEvents, ordPipeRows, ordTeamTables, ordTeamEvents, setPT_:v=>{PT=v}, skuLookalike, skuFillPlan, skuFillPatch, obWhat, vrqSkuLines, vrqSkuTotals, vrqSkuTotRows, vrqSkuLineRows, VRQ_SKU_TOT_COLS, VRQ:()=>VRQ, RFD:()=>RFD, setRFD:v=>{RFD=v}, rfdLineNeed, rfdOrderNeed, rfdFabrics, rfdAllowed, rfdReqsOf, rfdStage, rfdAuto, rfdSubmit, rfdWithdraw, rfdDecide, rfdMarkSent, rfdRows, rfdFind, rfdRecord, rfdSeq, rfdCanSee, rfdCanApprove, rfdCanSend, rfdDecisionOf, rfdSentQty, rfdRound, rfdPieceLines, rfdPieceOf, rfdPcsAllowed, rfdSubmitPcs, rfdSizeGroups, rfdSizeRaw, rfdSizeOf, rfdFabKey, rfdKeyUnit, rfdRoomFor, rfdUsedM, rfdSubmit, rfdAllowed, rfdVendorOf, rfdStockRow, rfdSizeKey, rfdStockKey, rfdSpread, rfdSubmitSize, rfdStockSave, rfdStockOf, rfdStockHere, rfdStockForSku, rfdUsedPcs, setRFD_:v=>{RFD=v}, rfdSentFor, rfdSentPcsFor, rfdSentSeen, rfdSubmitOrder, vpRfdSends, vpRfdOrder, vpRfdOrders, rfdPcsTxt, rfdUnit, rfdWant, rfdQtyTxt, rfdIssueAs, rfdIssueRuled, vpRfdRender, renderRfd, ensureRfd, rfdWithPrinter, rfdToSend, rfdApply, rfdRefusable, rfdPickToggle, rfdPickAll, rfdPickPrune, rfdRefuseMany, RFD_PICK:()=>RFD_PICK, setRFD_PICK:v=>{RFD_PICK=v}, rfdFilters, vpRfdRows, RFD_STAGE, rfdBadge, setVRQ:v=>{VRQ=v}, setVRQ_KPI:v=>{VRQ_KPI=v}, voAddLine, voOnVendorPick, voOnServicePick, voDraftPrinting, voIsPrinting, voServiceOf, voCheckDraft, voDraft, voSkuInfo, voBulkFile, voTemplate, voPlace, voSetStatus, voMoveTo, voMoveLog, voMovePill, VOF:()=>VOF, setVOF:v=>{VOF=v}, vpPhone, vpQty, vpDone, vpVsAdd, vpVsDel, vpVsRows, vpVsOf, vpVsSum, renderVp, vpCard, vpTable, vpProductBoard, vpExportRows, vpGroups, vpPriRank, vpVisible, voWhenMs, vpOrderMatches, vpFillFilters, vpF, vpFlow, vpIsShop, vpShopTable, vpHistRows, vpHistTable, vpDeliver, vpDeliverWith, vpRecordAll, vpPromiseAll, vpSave, ensureVp, voSyncAccess, VP:()=>VP, setVP:v=>{VP=v}, vmValid, vmReal, vfNeeded, vfInvented, pinEmails, PIN_DOMAINS, VM_PLACEHOLDER, vmOpen, vmSave, vpEmailKey, pinEmail, pinWhyBad, pinWhyNoLogin, pinRoute, pinCanLink, pinLink, voMasterRow, pinRandom, pinGrant, pinChange, pinOpenChange, vpOnPin, vendTabRule, fgiStock, fgiOf, fgiPressLeft, fgiPending, renderFgi, fgiTransferOpen, fgiTransferSave, fgiReceiveOpen, fgiReceiveSave, fgiReturnSave, fgiIssueOpen, fgiOpeningOpen, fgiOpeningParse, fgiOpeningSave, fgiNewId, FGI:()=>FGI, setFGI:v=>{FGI=v}, FGT:()=>FGT, setFGT:v=>{FGT=v}, fgiEntryOpen, fgiEntrySave, fgiNum, fgiSetOpen, fgiStatus, fgiSeen, PTE:()=>PTE, setPTE:v=>{PTE=v}, fgiFbaOpen, fgiReceiveNewOpen, fgiDelete, fgiDeleteAsk, fgiSeedOpen, fgiSeedSave, fgiWipeOpen, fgiWipeRun, fgiCanEdit, fgiEffect, fgiDeletePlan, fgiDeleteRun, fgiEditOpen, fgiEditSave, fgiEditLocked, fgiBulkEditOpen, fgiBulkEditSave, fgiBulkDeleteAsk, fgiSkuEditOpen, fgiSkuEditSave, fgiSkuBulkEditOpen, fgiSkuBulkEditSave, fgiSkuDeleteAsk, fgiPickCount, FGI_PICK:()=>FGI_PICK, setFGI_PICK:v=>{FGI_PICK=v}, fgiLoad, fbaCan, fbaLegacy, fbaState, fbaAll, fbaRows, renderFba, fbaBadge, fbaAccept, fbaShipOpen, fbaShipSave, fbaReturnOpen, fbaReturnSave, fbaUndo, fbaShipXlRead, fbaShipXlPlan, fbaShipXlRun, fbaStale, FBA_PICK:()=>FBA_PICK, setFBA_PICK:v=>{FBA_PICK=v}, FBA:()=>FBA, PTD_:()=>PTD, cxAmz, cxIndia, renderCx, cxOpen, cxSet, cxFromIndia, cxDelete, cxUploadOpen, cxUploadRead, cxUploadSave, CX:()=>CX, setCX:v=>{CX=v}, CXU:()=>CXU, setCXU:v=>{CXU=v}, vmNextKey, vmNextCode, vmAddPrinter, mstRows, mstDef, mstNextKey, mstUsage, renderMst, mstEdit, mstSave, MST:()=>MST, setMST:v=>{MST=v}, repPack, repAt, repBrand, repBrands, repInhouse, repWeekly, repWeekLabel, repSurplus, renderRep, ensureRep, repWow, repByWeek, repWkShift, repWkRange, repLastFullWeek, repRenderWow, repFillWeeks, repTrendSvg, repShareSvg, repSparkSvg, repNice, repChartsOff, repPctCell, repWeekStart, repWkIso, repByWindow, repLive, repLiveStart, repDaysIn, repRenderLive, ptImgSrc, ptImgInner, REP:()=>REP, setREP:v=>{REP=v}, FAB:()=>FAB, setFAB:v=>{FAB=v}, HR:()=>HR, setHR:v=>{HR=v}, hrPutList, hrCanon, PAL:()=>PAL, setPAL:v=>{PAL=v}, palDesigns, palGroups, palPlan, palGroupOf, palFamily, palKey, palNum, palSetGroup, palSetBlocks, palSetHave, palPrinterSave, palPrinterDelete, palPrinterOpen, palBlocksOpen, palCanEdit, palGroupBlocks, palBlocksNeed, palBlocksHave, palPrinters, palCapacity, palCapWhy, palRateOf, palRateShared, palVendorOf, palGroupNames, palTakes, palLiveOf, palSetLive, palSheetRows, palSheetRead, palSheetPlan, palSheetRun, PAL_SHEET_COLS, palLoad, PAL_NO_EDIT_:()=>PAL_NO_EDIT, palYm, palMonthPart, renderPal, palExport, palCellSave, palNeedSplit, palNeedWhy, ptPrintNeeded, ptPrintFabric, ptCutOf, ptLayOn, ptConsPlan, ptLayOf, PT_LAYS, ptFabricWidths, PT_MARGIN_IN, renderMdbCons, mdbConsApply, RECIPE_FIELDS, recKey, recipeOf, recipeMap, recipeValue, recipeFill, recipeSays, recipeCombos, recipeSeedPlan, recipeSeedRun, recipeSave, recipeApplyPlan, recipeApplyRun, renderMdbRecipe, recipeEdit, recipeRows, recipeSheetRows, recipeSheetEntries, recipeUploadPlan, recipeUploadRun, mdbFields, mdbYnFix, pmdbRefresh, ptLoadGates, repShopDispatch, repShipVia, repShopState, repShopLeft, fgiRecvOrderCheck, fgiRecvXlRead, fgiRecvXlPlan, fgiRecvXlSave, setFGI_XL:v=>{FGI_XL=v}, FGI_XL_COLS, fgiXlRead, fgiIssXlPlan, fgiOutCheck, FGI_XL_ISS_COLS, fgiOutParts, fgiOutRank, fgiOutOrders, fgiOutAlloc, fgiOutOrderCheck, fgiOutTxt, vpRfdRaisePlan, vpRfdRaiseRun, ordTrackStage, ordTrackRows, renderOrdTrack, ORD_TRACK, ordItemCell, voSortMs, voIsStanding, demRunGive, palClearRun, palSetInfo, palSetGroupPrinter, palGroupSplit, palInfoOf, palAssignable, palAssignPick, PAL_STATUS, demBasketAdd, demBasketPlace, fsBuiltSkus, fsManualCheck, fsManualPlan, fsManualSave, FS_MAN_COLS, fabListOr, pdIso, ordDueIndex, ordProdRows, RECIPE_FAB, recipeEdit, recipeSheetHead, SOX:()=>SOX, setSOX_:v=>{SOX=v}, pmdbTools, PMDB_TOOLS, ptPrintIssueAs, ptPrintRuleOf, ptPrintRules, ptColourPrints, printCombos, printRuleSave, colourPrintSave, renderPrintRules, fabWidthIn, fabWidthMap, fabWidthSave, fgiScanOpen, fgiScanAdd, fgiScanSave, fgiScanRender, fgiScanResolve, fgiScanAuto, fgiScanHead, fgiScanFlush, fgiScanUndo, fgiScanState, fnParse, fnFromRows, fnSave, fnSaveFromPaste, fnLoad, FN:()=>FN, setFN:v=>{FN=v}, FGS:()=>FGS, setFGS:v=>{FGS=v}, fgiFbaAcctFor, FGI_FBA_ACCOUNTS, fgiExtOrder, fgiExtNewNo, fgiRenderOver, fgiOverReview, fgiOverBadge, fgiEditApply, fgiCorrOpen, fgiCorrSave, fgiCorrApprove, fgiCorrReject, fgiRenderCorr, fgiCorrCell, fgiCorrLoad, fgiCorrCanAsk, FGC:()=>FGC, setFGC:v=>{FGC=v}, pafNeed, pafHistory, pafWeekOf, ensureVo, ordPrintAsPcs, mdbM2, mdbM2Txt, mdbRecord, ordDemandColRows, renderOrdDemandCol, accSaveItems, ordDemandRows, ordDemandRfd, ordDemandAtPrinters, renderOrdDemand, ORD_DEM:()=>ORD_DEM, setORD_DEM:v=>{ORD_DEM=v}, repWkIso, repWkShift, paWeekStart, voSqm, voFabWidthM, voLogRows, ordSrcOf, ordBrandOf, ordCustomBrands, spCanAssign, bkCanAssign, spCanAssignOrder, spNoAssignFor, MDBX:()=>MDBX, setMDBX:v=>{MDBX=v}, ordQcOf, ordFgOf, fgiCanEntry, fgiOrdersFor, fgiOrderKnown, fgiOrdFill, fgiRecvOnOrder, lstParse, lstOf, lstKey, lstLoad, lstAlertFor, lstClose, lstRenderAlerts, lstOpen, lstBadge, lstCanRefresh, LST:()=>LST, setLST:v=>{LST=v}, odrId, odrCanAsk, odrCanAnswer, odrAskOpen, odrAskSave, odrListOpen, odrDeleteRun, odrKeepRun, odrBadge, odrPendingOf, flowBackCard, flowBackDelOpen, ODR:()=>ODR, setODR:v=>{ODR=v}, hrEditEmp, hrCanEmpDelete, hrEmpOnly, setHrSeen:v=>{HR_SEEN=v; if (!Object.keys(v || {}).length) PR_SNAP = {};}, HR_SEEN:()=>HR_SEEN, hrSavePrRate, prRowsOf, prSnapTake, PR_SNAP:()=>PR_SNAP, ptPatch, prEdit, ensureHr, mdbAsinCheck, mdbAsinWrites, mdbAsinWrite, MDB_ASIN:()=>MDB_ASIN, MDB_IMPORT_COLS, ptOpenFresh, ffFacts, renderFabFlowOne, ensureFabFlow, FFLOW:()=>FFLOW, setFFLOW:v=>{FFLOW=v}, renderDash, ensureDash, dashFacts, DASH:()=>DASH, voAckOf, rfdTracked, rfdOrderLedger, rfdOrderUsed, rfdStoreOf, rfdOfficeSend, rfdRecvSave, rfdRecvQty, rfdRecvLot, rfdSizePlan, rfdOrderRows, renderRfdLedger, RFD_TRACK_FROM, vpRfdSends,ORD:()=>ORD, setORD:v=>{ORD=v}, QC:()=>QC, setQC:v=>{QC=v}, PP:()=>PP, setPP:v=>{PP=v}, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, setFLOW_VIEW:v=>{FLOW_VIEW=v}, setFLOW_ANGLE:(v,x)=>{FLOW_ANGLE[v]=x}, setREP_SRC:v=>{REP_SRC=v}, repQcUnits, flowState, flowRows, flowKey, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowBucketsAllowed, flowTable, FLOW_BUCKETS, FLOW_TABS, renderFlow, els:null};');
 const A = fn(...Object.values(ctx));
 /* The weekly report counts QC passed since 2026-10-11; the sections written for Job Work receipts keep testing that count. */
 A.setREP_SRC('recv');
@@ -572,10 +572,12 @@ console.log('\n== the issue gate ==');
     // A legacy order with NO cutting at all: unknown history, so the cut rule must not freeze it.
     A.setPTG(Object.assign(A.PTG(), { ob: [{ orderNo: 'LEG-77', sku, qty: 100 }], press: [] }));
     A.setPT(Object.assign(A.PT(), { base: [], cut: [] }));
-    ok('a LEG- order with no cutting recorded is not frozen by the cut rule', A.bdGuard('LEG-77', sku, 100) === '');
-    ok('…but the ordered cap still holds it', A.bdGuard('LEG-77', sku, 101) !== '');
-    A.setPT(Object.assign(A.PT(), { cut: [{ orderNo: 'LEG-77', sku, pieces: 5 }] }));
-    ok('once ANY cutting exists on a LEG- order, the cut rule applies again', A.bdGuard('LEG-77', sku, 6) !== '');
+    /* 24 Oct (Ravi: "leg order sirf humne pahli pending entry complete krne ke liye kiya tha"): a legacy order takes no new
+     * issue or cutting at all — 56 quilts cut for new orders had landed on LEG-17102026-01. Editing a row already on it still works. */
+    ok('a LEG- order takes no new issue', /legacy order/.test(A.bdGuard('LEG-77', sku, 1)), A.bdGuard('LEG-77', sku, 1));
+    ok('…nor new cutting', /legacy order/.test(A.cutGuard('LEG-77', sku, 1)), A.cutGuard('LEG-77', sku, 1));
+    ok('…and no cutting or issue form offers it', !A.cutOrdersFor(sku).some(o => o.orderNo === 'LEG-77') && !A.bdOrdersFor(sku).some(o => o.orderNo === 'LEG-77'));
+    ok('…but a row already on it can still be corrected', !/legacy order/.test(A.bdGuard('LEG-77', sku, 1, 'some-row')));
   }
 
   A.setPTG(Object.assign(A.PTG(), { ob, mdb, press: A.ptList(db.pt_pressInventory) }));
@@ -790,6 +792,49 @@ console.log('\n== the order list follows the typed SKU ==');
   els.bwCustom.checked = false;
   els.bwSku.value = '';
   els.bwSku.dataset.typed = '';
+
+  { /* 24 Oct: a custom code lives in the Job Work register, not the master — the next one counts it, the same item reuses it */
+    const wasBase = A.PT().base, d = new Date(), day = String(d.getFullYear()).slice(2) + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
+    const first = A.ptGenCustomSku('Table Cloth');
+    A.setPT(Object.assign(A.PT(), { base: (wasBase || []).concat([{ id: 'cu1', sku: first, articleType: 'Table Cloth', articleSubtype: 'Printed', color: 'Teal', size: '9x9', isCustom: true }]) }));
+    const second = A.ptGenCustomSku('Table Cloth');
+    ok('a second custom item the same day gets the next number, not the first one again', first !== second && second.endsWith('-02') && first.includes('-CUST-' + day + '-'), first + ' ' + second);
+    ok('…and the same item again reuses its code', A.ptFindExistingSku('Table Cloth', 'Printed', 'teal', '9X9') === first, String(A.ptFindExistingSku('Table Cloth', 'Printed', 'teal', '9X9')));
+    A.setPT(Object.assign(A.PT(), { base: wasBase }));
+  }
+  /* run in the async part below (search custOrderTest) */
+  global.custOrderTest = async () => { /* 24 Oct ("order id m khud likhu ya dropdown me etsy, shopify, B2B, online … sku auto match or yadi masterdata me nahi h to
+     * auto masterdata me save"): a Custom Order issue keeps its Order ID and channel, and puts a new SKU in the master */
+    const wasPTE = A.PTE(), wasPTG = A.PTG(), wasPT = A.PT(), wasBase = A.PT().base, wasNet = NET.on, wasAdmin = ME.admin;
+    ME.admin = true; NET.on = true; NET.store = {}; NET.calls = [];
+    A.setPTE(Object.assign(A.PTE(), { emp: [['Company Contractor', 'Ramesh Kumar', 'Stitching', '']] }));
+    A.setPTG(Object.assign({}, wasPTG, { mdb: [{ _key: 'm1', sku: 'TC-1', articleType: 'Table Cloth', subtype: 'Printed', color: 'Blue', size: '60x60' }] }));
+    A.setPT(Object.assign(A.PT(), { base: [] }));
+    els.bwCustom.checked = true; els.bwSku.dataset.typed = '';
+    els.bwCustOrd.value = 'etsy-4471'; els.bwType.value = 'Company Contractor'; els.bwEmp.value = 'Ramesh Kumar';
+    els.bwAtTxt.value = 'table cloth'; els.bwSubTxt.value = 'printed'; els.bwColTxt.value = 'Teal'; els.bwSzTxt.value = '9x9';
+    A.renderBdForm();
+    ok('custom: the article and subtype typed in another case take the master\'s spelling, and a new SKU is made for the new colour', /-CUST-/.test(els.bwSku.value), els.bwSku.value);
+    ok('…the boxes offer the master\'s articles to pick from', /value="Table Cloth"/.test(els.bwAtList.innerHTML));
+    const sku = els.bwSku.value;
+    { /* "sku id dalte hi auto fatch hona chahiye": a known SKU typed in Custom Order fills the four boxes */
+      const keep = [els.bwAtTxt.value, els.bwSubTxt.value, els.bwColTxt.value, els.bwSzTxt.value];
+      els.bwSku.value = 'tc-1'; A.bdSkuTyped();
+      ok('custom: typing a SKU the master knows fills article, subtype, colour and size', els.bwAtTxt.value === 'Table Cloth' && els.bwSubTxt.value === 'Printed' && els.bwColTxt.value === 'Blue' && els.bwSzTxt.value === '60x60',
+        [els.bwAtTxt.value, els.bwSubTxt.value, els.bwColTxt.value, els.bwSzTxt.value].join('|'));
+      [els.bwAtTxt.value, els.bwSubTxt.value, els.bwColTxt.value, els.bwSzTxt.value] = keep; els.bwSku.value = sku; els.bwSku.dataset.typed = '';
+    }
+    els.bwPcs.value = '5';
+    await els.bwSave.onclick();
+    const bd = Object.entries(NET.store).find(([k]) => /^pt_baseData\//.test(k)), md = Object.entries(NET.store).find(([k]) => /^pt_masterDB\//.test(k));
+    ok('…the entry keeps the Order ID and its channel, never as an order-book Order ID', bd && bd[1].custOrder === 'etsy-4471' && bd[1].custChannel === 'ETSY' && !bd[1].orderNo
+      && bd[1].articleType === 'Table Cloth' && bd[1].articleSubtype === 'Printed' && bd[1].isCustom === true, JSON.stringify(bd && bd[1]) + ' ' + els.bwMsg.textContent);
+    ok('…and the new SKU goes into the master database, with what it is', md && md[1].sku === sku && md[1].color === 'Teal' && md[1].size === '9x9' && md[1].isCustom && md[1].customOrder === 'etsy-4471', JSON.stringify(md && md[1]));
+    ok('…a custom issue with no Order ID is refused', await (async () => { els.bwCustOrd.value = ''; els.bwColTxt.value = 'Teal'; els.bwSzTxt.value = '9x9'; els.bwPcs.value = '2'; NET.store = {}; await els.bwSave.onclick();
+      return /Type the Order ID/.test(els.bwMsg.textContent) && !Object.keys(NET.store).some(k => /^pt_baseData\//.test(k)); })(), els.bwMsg.textContent);
+    els.bwCustom.checked = false; ['bwCustOrd', 'bwAtTxt', 'bwSubTxt', 'bwColTxt', 'bwSzTxt', 'bwPcs', 'bwEmp', 'bwType'].forEach(id => { els[id].value = ''; });
+    A.setPTE(wasPTE); A.setPTG(wasPTG); A.setPT(Object.assign(wasPT, { base: wasBase })); NET.on = wasNet; ME.admin = wasAdmin;
+  };
 
   /* CLEAR. Until now the only way to empty this form was to close and reopen it, and even that left
    * the line underneath standing. */
@@ -2590,6 +2635,45 @@ console.log('\n== the vendor portal ==');
     ok('colour board: one card per colour, each line with its picture, ordered, raw and sent; four totals on the card',
       /class="vpb-card"/.test(bd) && /data-img="/.test(bd) && /vpb-tot/.test(bd) && /<span>Raw<\/span>/.test(bd) && /ordered/.test(bd) && /(sent [\d,.]+|none sent)/.test(bd), bd.slice(0, 400));
     ok('…a cut line with no RFD sent against its SKU says "no raw yet"', /no raw yet/.test(bd));
+    /* VENDOR SENT (Ravi, 26 Oct: "sent ki side me 1 column or add ho vendor sent ka jisme vendor apni qty mention kar sake and
+     * date and time and qty batch dekh saku or download kare"): the printer's own word, batch by batch, apart from Sent. */
+    ok('…a "Vendor sent" tile on every card, and a box under each open line for the printer to add a batch',
+      /<span>Vendor sent<\/span>/.test(bd) && /data-vsadd=/.test(bd), bd.slice(0, 300));
+    {
+      const ln = A.voLines(o0), i = ln.findIndex(l => l && !l.cancelled && A.vpQty(o0, l) > 0), l = ln[i], ord = A.vpQty(o0, l);
+      const box = { value: String(ord + 50), disabled: false }, wasNet = NET.on, wasC = CONFIRM;
+      QS[`[data-vsq="${o0.id}"][data-i="${i}"]`] = box;
+      NET.on = true; NET.calls = [];
+      await A.vpVsAdd(o0.id, i);
+      const put = NET.calls.find(c => c.method === 'PUT' && /\/vSent\/vs_/.test(c.url));
+      ok('the printer adds a batch: on its own order under vSent, with date and time, capped at what was ordered',
+        !!put && netPath(put.url).indexOf('pt_vendorOrders/VND002/' + o0.id + '/vSent/vs_') === 0 && put.body.qty === ord && /T\d\d:\d\d/.test(put.body.at) && put.body.by === ME.email,
+        JSON.stringify(NET.calls.map(c => [c.method, netPath(c.url), c.body && c.body.qty])));
+      ok('…only that one batch is written — never the whole order', NET.calls.filter(c => c.method !== 'GET').length === 1);
+      const h2 = els.vpBody.innerHTML;
+      ok('…the card counts it as Vendor sent, with 1 batch, and Sent (what the office received) is untouched',
+        A.vpVsSum(A.vpVsOf(o0, l)) === ord && /1 batch</.test(h2) && A.vpDone(l) === 0, h2.slice(0, 200));
+      ok('…all of it said sent: no box left on that line', !h2.includes(`data-vsq="${o0.id}" data-i="${i}"`));
+      const k = Object.keys(o0.vSent)[0];
+      CONFIRM = true; NET.calls = [];
+      await A.vpVsDel(o0.id, k);
+      ok('a wrong batch is struck off — "removed" written, never deleted, and it stops counting',
+        NET.calls.some(c => c.method === 'PUT' && /\/vSent\/vs_[^/]+\/removed$/.test(netPath(c.url))) && !NET.calls.some(c => c.method === 'DELETE')
+        && A.vpVsSum(A.vpVsOf(o0, l)) === 0 && !!o0.vSent[k].removed);
+      const rows = A.vpVsRows([o0]);
+      ok('the download: one row a batch — date, time, qty, who, and struck off', rows.length === 2 && rows[0].join() === 'Order,For order(s),SKU / fabric,Fabric,Direction,Colour,Size,Date,Time,Qty,Unit,Entered by,Struck off'
+        && rows[1][9] === ord && /^\d\d:\d\d$/.test(rows[1][8]) && /^yes/.test(rows[1][12]), JSON.stringify(rows));
+      for (const [view, name] of [['', 'table'], ['orders', 'cards'], ['product', 'By product']]) {
+        els.vpView.value = view; A.renderVp(); const hv = els.vpBody.innerHTML;
+        ok(`…the ${name} view has Vendor sent too — the total, the batch (struck off here), and the box to add one`,
+          /Vendor sent/.test(hv) && /0 batches<\/summary>/.test(hv) && /struck off/.test(hv) && hv.includes(`data-vsq="${o0.id}" data-i="${i}"`) && hv.includes(`data-vsadd="${o0.id}" data-i="${i}"`), [/Vendor sent/.test(hv), /1 batch</.test(hv), hv.includes(`data-vsq="${o0.id}" data-i="${i}"`), (hv.match(/data-vsq="[^"]*" data-i="\d+"/g) || []).slice(0, 4), o0.id, i, A.VP().tab].join(' | '));
+      }
+      els.vpView.value = 'board';
+      A.VP().viewAs = true; A.renderVp();
+      ok('an admin looking "as printer" sees Vendor sent but cannot add or strike off',
+        /Vendor sent/.test(els.vpBody.innerHTML) && !/data-vsadd=|data-vsdel=/.test(els.vpBody.innerHTML));
+      A.VP().viewAs = false; delete o0.vSent; delete QS[`[data-vsq="${o0.id}"][data-i="${i}"]`]; NET.on = wasNet; CONFIRM = wasC;
+    }
     ok('…no "past your date" in the strip while view only', !/past your date|no date from you/.test(els.vpKpis.innerHTML));
     els.vpView.value = '';
     delete o0.flowProg;
@@ -2669,6 +2753,10 @@ console.log('\n== by product: one card per SKU, the orders in a dropdown (17 Oct
   const o1 = { id: 'p1', vendorCode: 'VND002', orderNo: 'VPO-261017-MES', orderType: 'cut', status: 'Placed', orderDate: '17/10/2026', channel: 'CPC Shopify', lines: [ln('CPC014-60102', 1, 'SHP-7801')] };
   const o2 = { id: 'p2', vendorCode: 'VND002', orderNo: 'VPO-261017-X9T', orderType: 'cut', status: 'Placed', orderDate: '17/10/2026', channel: 'CPC Shopify', lines: [ln('CPC014-60102', 1, 'SHP-7802'), ln('CPC014-60120', 2, 'SHP-7802')] };
   const h = A.vpProductBoard([o1, o2]);
+  /* 22 Oct ("mene particular sku search kiya but result me bahut kuch dikha rha h"): a SKU searched shows only its card */
+  const hq = A.vpProductBoard([o2], { q: 'cpc014-60120' });   // the orders the search found (vpOrderMatches): only o2 has it
+  ok('search CPC014-60120 → only that SKU\'s card, not every product of the orders it is on', (hq.match(/class="vpb-card"/g) || []).length === 1 && /CPC014-60120/.test(hq) && !/CPC014-60102/.test(hq), hq.slice(0, 400));
+  ok('…an order searched by its number still shows all its lines', (A.vpProductBoard([o2], { q: 'vpo-261017-x9t' }).match(/class="vpb-card"/g) || []).length === 2);
   const cards = (h.match(/class="vpb-card"/g) || []).length;
   ok('by product: the same SKU on two vendor orders is ONE card; another SKU its own — 2 cards', cards === 2, h.slice(0, 600));
   ok('…the card adds them up (Ordered 2) and its dropdown names both vendor orders and their customer orders', /<span>Ordered<\/span><b>2<\/b>/.test(h) && /2 orders/.test(h) && /VPO-261017-MES/.test(h) && /VPO-261017-X9T/.test(h) && /SHP-7801/.test(h) && /SHP-7802/.test(h) && /<details/.test(h), h.slice(0, 1500));
@@ -4903,9 +4991,12 @@ console.log('\n== a percentage needs something to be a percentage of ==');
     /new/.test(A.repPctCell(w.rows[0])) && !/Infinity|NaN|%/.test(A.repPctCell(w.rows[0])),
     A.repPctCell(w.rows[0]));
 
-  /* And on screen, the whole report must not carry an Infinity anywhere. */
+  /* And on screen, the whole report must not carry an Infinity anywhere. Since 11 Oct the weekly report counts what QC
+   * passed, so the screen is given a QC pass in the week picked (the receipts above feed repWow's own figures). */
+  const wasQcW = A.QC();
+  A.setQC(Object.assign({}, wasQcW, { checks: (wasQcW.checks || []).concat([{ id: 'qwow1', date: '31/08/2026, 10:00', sku: 'N1', articleType: 'Runner', orderNo: 'WOW-1', checked: 320, ok: 320, rejected: 0, forAlteration: 0 }]) }));
   els.repView.value = 'wow'; els.repBrand.value = '';
-  A.renderRep();
+  A.renderRep(); els.repWk.value = '2026-08-30'; A.renderRep();
   const h = els.repTable.innerHTML + els.repKpis.innerHTML;
   ok('nothing on the screen says Infinity or NaN', !/Infinity|NaN/.test(h), h.slice(0, 200));
   ok('the week picker offers finished weeks only, newest first',
@@ -4927,6 +5018,7 @@ console.log('\n== a percentage needs something to be a percentage of ==');
     ok('every header has one cell under it', th > 0 && th === td, th + ' headers vs ' + td + ' cells');
     ok('and the totals row lines up too', th === ftd, th + ' headers vs ' + ftd + ' total cells');
   }
+  A.setQC(wasQcW);
 }
 
 console.log('\n== two weeks with nothing in them ==');
@@ -6614,6 +6706,23 @@ console.log('\n== Order Console: what the vendors hold, order by order ==');
     try { A.renderQcCheckForm(); } catch (e) { /* fails below */ }
     ok('a SKU on exactly one order fills the box in by itself', els.qcwOrd.value === 'O-3', els.qcwOrd.value);
     ok('…and the box says it is required', /\*/.test(els.qcwOrd.placeholder || ''), els.qcwOrd.placeholder);
+    /* AN ORDER'S OWN PIECES (Ravi, 27 Oct: "jo order jiske ke liye aaya h wo usi order me jana chahiye"): 166 RTBX72 were passed
+     * on an order that had nothing back from a karigar, because the form measured the SKU's total. */
+    ok('an order is offered for what came back on IT: O-2 received 5, 3 checked, 2 waiting', A.qcOrderAvail('O-2', 'S-A') === 2 && A.qcOrderAvail('O-1', 'S-A') === 20,
+       A.qcOrderAvail('O-2', 'S-A') + ' / ' + A.qcOrderAvail('O-1', 'S-A'));
+    fill('S-A', 'O-2', 4);
+    r = await save();
+    ok('…a check past that is refused even though the SKU has pieces waiting on another order', r.puts.length === 0 && /only 2 piece/.test(r.msg || ''), JSON.stringify(r));
+    ok('…and it says which order holds them', /O-1 \(20\)/.test(r.msg || ''), r.msg);
+    fill('S-A', 'O-1', 4);
+    r = await save();
+    ok('…the same check on the order that received them is saved there', r.puts.length === 1 && r.puts[0].body.orderNo === 'O-1', JSON.stringify(r));
+    els.qcwSku.value = 'S-A'; els.qcwSku.dataset.typed = '1'; els.qcwOrd.value = ''; els.qcwChecked.value = '';
+    try { A.renderQcCheckForm(); } catch (e) { /* fails below */ }
+    ok('the order list says what is waiting on each, the one holding pieces first',
+       /O-1">[^<]*16 waiting for QC/.test(els.qcwOrdList.innerHTML) && els.qcwOrdList.innerHTML.indexOf('O-1') < els.qcwOrdList.innerHTML.indexOf('O-2'), els.qcwOrdList.innerHTML);
+    checks([{ id: 'k1', sku: 'S-A', orderNo: 'O-1', baseId: 'q1', checked: 6, ok: 6 }, { id: 'k2', sku: 'S-A', orderNo: 'O-1', baseId: 'q1', refId: 'k1', checked: 0, ok: 6 }]);
+    ok('what QC took off one Job Work entry is known, a return from spotting not counted twice', A.qcTookOf('q1') === 6 && A.qcTookOf('q2') === 0, String(A.qcTookOf('q1')));
     NET.on = keepNet; NET.store = keepStore; A.setQC(keepQC);
   }
 
@@ -6631,6 +6740,115 @@ console.log('\n== Order Console: what the vendors hold, order by order ==');
     ok('a custom order, which names no order, is caught the same way', !!A.bdTwinOf(Object.assign({}, e, { orderNo: '' })));
     A.setPT(Object.assign(A.PT(), { base: keepBase }));
   }
+
+  /* ================= SHP BOARD (test window, 28 Oct): a row per SKU, each stage "reached − (moved on)" ================= */
+  console.log('\n== SHP board: stage cells and the ready date ==');
+  {
+    const L = (o) => Object.assign({ orderNo: 'SHP-1', sku: 'S-A', qty: 4, cutReq: true, cut: 0, issued: 0, received: 0, pressed: 0 }, o);
+    const all = A.shpbStages([L({ cut: 4, issued: 4, received: 4, pressed: 4 })]);
+    ok('all four made: cut 4 moved 4, issued 4 moved 4, received 4 moved 4, QC 4 moved to Press, 4 ready to hand over',
+       all.cutX === 4 && all.cutMv === 4 && all.issMv === 4 && all.recMv === 4 && all.qcX === 4 && all.qcMv === 4 && all.ready === 4 && all.toCut === 0 && all.toIssue === 0, JSON.stringify(all));
+    const part = A.shpbStages([L({ cut: 4, issued: 3, received: 1, pressed: 0 })]);
+    ok('cut 4, issued 3 (1 still to issue), received 1: 2 are with the karigar, 1 is waiting to be checked',
+       part.toIssue === 1 && part.issX === 3 && part.issMv === 1 && part.recX === 1 && part.recMv === 0 && part.ready === 0, JSON.stringify(part));
+    const none = A.shpbStages([L({ cutReq: false, issued: 2 })]);
+    ok('an article that is not cut has no cutting figures; its pieces wait to be issued', none.cutX === 0 && none.toCut === 0 && none.toIssue === 2 && none.cutNone === 4, JSON.stringify(none));
+    const two = A.shpbStages([L({ orderNo: 'SHP-1', qty: 2, cut: 2 }), L({ orderNo: 'SHP-2', qty: 2, cut: 1 })]);
+    ok('two orders of one SKU add up: 4 pieces, 3 cut, 1 still to cut', two.pcs === 4 && two.cutX === 3 && two.toCut === 1, JSON.stringify(two));
+    /* "waiting − (done moved)": 1 − (0 moved) until the work is done, then 0 − (1 moved) (Ravi, 28 Oct) */
+    const fresh = A.shpbStages([L({ qty: 1 })]);
+    ok('nothing done yet: cut 1 − 0, and nothing has reached Issue', fresh.cutW === 1 && fresh.cutD === 0 && fresh.issA === 0 && fresh.issW === 0, JSON.stringify(fresh));
+    const cutIt = A.shpbStages([L({ qty: 1, cut: 1 })]);
+    ok('cut: 0 − (1 moved), and 1 now waits to be issued: 1 − 0', cutIt.cutW === 0 && cutIt.cutD === 1 && cutIt.issW === 1 && cutIt.issD === 0, JSON.stringify(cutIt));
+    const issuedIt = A.shpbStages([L({ qty: 1, cut: 1, issued: 1 })]);
+    ok('issued: 0 − (1 moved), and 1 now waits to be received', issuedIt.issW === 0 && issuedIt.issD === 1 && issuedIt.recW === 1 && issuedIt.recD === 0, JSON.stringify(issuedIt));
+    const mixed = A.shpbStages([L({ cut: 4, issued: 3, received: 1, pressed: 0 })]);
+    ok('cut 4, issued 3, received 1: issue 1 − 3, receive 2 − 1, QC 1 − 0, nothing to hand over',
+       mixed.issW === 1 && mixed.issD === 3 && mixed.recW === 2 && mixed.recD === 1 && mixed.qcW === 1 && mixed.qcD === 0 && mixed.handW === 0, JSON.stringify(mixed));
+    const readyH = A.shpbStages([L({ cut: 4, issued: 4, received: 4, pressed: 4 })]);
+    ok('all four passed QC: QC 0 − 4, and 4 wait for the pressman — nothing is with shipping yet', readyH.qcW === 0 && readyH.qcD === 4 && readyH.prsW === 4 && readyH.prsD === 0 && readyH.handW === 0, JSON.stringify(readyH));
+    /* PRESS (Ravi, 28 Oct): a press entry by a pressman moves pieces to shipping's list; shipping accepts or says not received */
+    { const keepP = A.SHPB(), ln = L({ cut: 4, issued: 4, received: 4, pressed: 4 });
+      A.setSHPB(Object.assign({}, keepP, { pressBy: { [A.shpbKey('SHP-1', 'S-A')]: { pcs: 3, last: '2026-10-28', men: ['Keshav'] } } }));
+      const pr = A.shpbStages([ln]);
+      ok('3 of 4 pressed: press 1 − 3, and 3 wait for shipping to accept: 3 − 0', pr.prsW === 1 && pr.prsD === 3 && pr.handW === 3 && pr.handD === 0, JSON.stringify(pr));
+      A.setSHPB(Object.assign({}, keepP, { pressBy: { [A.shpbKey('SHP-1', 'S-A')]: { pcs: 9, last: '', men: [] } } }));
+      ok('a press entry can never count for more than the line ordered or QC passed', A.shpbStages([ln]).prsD === 4, String(A.shpbStages([ln]).prsD));
+      A.setSHPB(keepP); }
+    /* ONLY WHAT RIDHI MAKES (Ravi, 28 Oct): another manufacturer in the master = a ready product, not production's */
+    { const keepG = A.PTG();
+      A.setPTG(Object.assign({}, keepG, { mdb: [{ sku: 'RS-1', manufacturer: 'Bhavya' }, { sku: 'RS-2', manufacturer: 'Ridhi' }, { sku: 'RS-3', manufacturer: '' }, { sku: 'RS-4', manufacturer: 'ridhi home' }] }));
+      ok('a SKU made by another manufacturer is left off the board; Ridhi, blank and "ridhi home" stay',
+         !A.shpbIsMine({ sku: 'RS-1' }) && A.shpbIsMine({ sku: 'RS-2' }) && A.shpbIsMine({ sku: 'RS-3' }) && A.shpbIsMine({ sku: 'RS-4' }) && A.shpbIsMine({ sku: 'NOT-IN-MASTER' }));
+      A.setPTG(keepG); }
+    /* THE ORDER'S FLOW (Ravi, 28 Oct): each step of a line, who did it and when */
+    { const keepP = A.PT(), ln = L({ cut: 4, issued: 4, received: 2, pressed: 0 });
+      A.setPT(Object.assign({}, keepP, { cut: [{ orderNo: 'SHP-1', sku: 'S-A', pieces: 4, cutDate: '2026-10-20' }], base: [{ orderNo: 'SHP-1', sku: 'S-A', empName: 'Lokesh', issuePieces: 4, receivedPieces: 2, issueDate: '21/10/2026, 10:00' }] }));
+      const st = A.shpbSteps(ln), by = n => st.find(x => x.step === n) || {};
+      ok('the flow lists the steps with who and when: cut 4 on 20-10, issued to Lokesh, received 2 of 4 = part done',
+         by('Cut').state === 'done' && /4 of 4 cut/.test(by('Cut').what) && by('Cut').when === '20-10-2026' && /Lokesh 4/.test(by('Issued').what) && by('Issued').state === 'done'
+         && by('Received').state === 'part' && /2 of 4/.test(by('Received').what) && by('QC passed').state === 'active', JSON.stringify(st.map(x => [x.step, x.state])));
+      ok('…and a line with no PPC plan has no plan or printer step', !st.some(x => x.step === 'Printer receive') && by('PPC plan').state === undefined);
+      A.setPT(keepP); }
+    const keepS = A.SHPB();
+    A.setSHPB(Object.assign({}, keepS, { ready: {} }));
+    ok('with no date typed the board shows the 5-working-day due date', A.shpbReadyOf({ orderNo: 'SHP-1', sku: 'S-A', mtoDue: '2026-11-05' }).date === '2026-11-05' && A.shpbReadyOf({ orderNo: 'SHP-1', sku: 'S-A', mtoDue: '2026-11-05' }).how === '5 working days');
+    A.setSHPB(Object.assign({}, keepS, { ready: { [A.shpbKey('SHP-1', 'S-A')]: { date: '2026-11-20', by: 'ravi@x.com' } } }));
+    const rd = A.shpbReadyOf({ orderNo: 'shp-1', sku: 's-a', mtoDue: '2026-11-05' });
+    ok('a date typed on the order beats the plan and the due date, however the order was written', rd.date === '2026-11-20' && rd.how === 'set' && rd.by === 'ravi', JSON.stringify(rd));
+    A.setSHPB(keepS);
+  }
+
+  /* THE SHP BOARD ISSUES FROM THE ROW (28 Oct, Ravi: "issue receive q.c pass press sab yanhi se manage kar saku"): the Job Work form's own save */
+  { const keepNet = NET.on, keepStore = NET.store, keepG = A.PTG(), keepP = A.PT(), keepE = A.PTE(); NET.on = true; NET.store = {};
+    A.setPTG(Object.assign({}, keepG, { ob: [{ orderNo: 'ORD-A', sku: 'FLT-1', qty: 100 }], press: [], mdb: [{ sku: 'FLT-1', articleType: 'Tablecloth', subtype: 'Round', color: 'Red', size: '60', cuttingRequired: false }] }));
+    A.setPT(Object.assign({}, keepP, { base: [], cut: [] }));
+    A.setPTE(Object.assign({}, keepE, { emp: [['Company Contractor', 'Lokesh Mahawar', 'Stitching', '']] }));
+    const at = NET.calls.length;
+    const err = await A.shpbIssueSave({ orderNo: 'ORD-A', sku: 'FLT-1' }, { emp: 'Lokesh Mahawar', pcs: '5', date: '2026-10-28' });
+    const put = NET.calls.slice(at).filter(c => c.method === 'PUT' && /pt_baseData/.test(c.url)).pop();
+    ok('an issue made from the board is saved by the Job Work form: 5 pcs to the karigar, against the order',
+       !err && !!put && put.body.orderNo === 'ORD-A' && put.body.empName === 'Lokesh Mahawar' && put.body.issuePieces === 5 && put.body.sku === 'FLT-1', String(err) + ' ' + JSON.stringify(put && put.body).slice(0, 240));
+    ok('…a karigar who is not on the list is refused', /not on the employee list/.test(await A.shpbIssueSave({ orderNo: 'ORD-A', sku: 'FLT-1' }, { emp: 'Nobody', pcs: '5' })));
+    ok('…and no pieces typed is refused', /how many pieces/.test(await A.shpbIssueSave({ orderNo: 'ORD-A', sku: 'FLT-1' }, { emp: 'Lokesh Mahawar', pcs: '' })));
+    const over = await A.shpbIssueSave({ orderNo: 'ORD-A', sku: 'FLT-1' }, { emp: 'Lokesh Mahawar', pcs: '5000', date: '2026-10-28' });
+    ok('…and more than the order allows is refused with the form own words', !!over && /issuable|only|more than|cap|ordered/i.test(over), String(over));
+    { const ln = { orderNo: 'ORD-A', sku: 'FLT-1', qty: 100, cutReq: false, cut: 0, issued: 5, received: 5, pressed: 5 }, atP = NET.calls.length;
+      ok('a press entry needs a pressman from the list', /Pick the pressman/.test(await A.shpbPressSave(ln, { man: 'Nobody', pcs: '2' })));
+      ok('…and cannot be more than has passed QC and is not pressed', /Only 5 piece/.test(await A.shpbPressSave(ln, { man: 'Keshav', pcs: '6' })));
+      const perr = await A.shpbPressSave(ln, { man: 'Keshav', pcs: '3', date: '2026-10-28' });
+      const pput = NET.calls.slice(atP).filter(c => c.method === 'PUT' && /pt_shpBoardPress/.test(c.url)).pop();
+      ok('a press entry is saved on the test node with the pressman, pieces and order — the live press register is not written',
+         !perr && !!pput && pput.body.pressman === 'Keshav' && pput.body.pieces === 3 && pput.body.orderNo === 'ORD-A' && !NET.calls.slice(atP).some(c => c.method === 'PUT' && /pt_pressInventory/.test(c.url)), String(perr) + JSON.stringify(pput && pput.body).slice(0, 200)); }
+    /* …and a cutting entry from the row goes through the cutting form: its fabric, its date, its order cap */
+    A.setPTG(Object.assign({}, A.PTG(), { masters: { fabricType: [{ desc: 'Cambric', active: true }] } }));
+    const at2 = NET.calls.length;
+    const cerr = await A.shpbCutSave({ orderNo: 'ORD-A', sku: 'FLT-1' }, { pcs: '7', fabric: 'Cambric', date: '2026-10-28' });
+    const cput = NET.calls.slice(at2).filter(c => c.method === 'PUT' && /pt_cuttingData/.test(c.url)).pop();
+    ok('a cutting entry made from the board is saved by the cutting form: 7 pcs, the fabric, against the order',
+       !cerr && !!cput && cput.body.orderNo === 'ORD-A' && cput.body.pieces === 7 && cput.body.fabricWidth === 'Cambric' && cput.body.sku === 'FLT-1', String(cerr) + ' ' + JSON.stringify(cput && cput.body).slice(0, 240));
+    /* A CUT FROM OTHER CLOTH (Ravi, 28 Oct): a rejected tablecloth / wastage cloth is a choice of the cloth, saved with clothFrom */
+    const at3 = NET.calls.length;
+    const rerr = await A.shpbCutSave({ orderNo: 'ORD-A', sku: 'FLT-1' }, { pcs: '2', fabric: 'Rejected tablecloth', date: '2026-10-28' });
+    const rput = NET.calls.slice(at3).filter(c => c.method === 'PUT' && /pt_cuttingData/.test(c.url)).pop();
+    ok('cut from a rejected tablecloth: saved with the cloth named and clothFrom = rejected — though it is not in the Fabric Type master',
+       !rerr && !!rput && rput.body.fabricWidth === 'Rejected tablecloth' && rput.body.clothFrom === 'rejected' && rput.body.pieces === 2, String(rerr) + JSON.stringify(rput && rput.body).slice(0, 220));
+    const at4 = NET.calls.length;
+    ok('…and wastage cloth the same', !(await A.shpbCutSave({ orderNo: 'ORD-A', sku: 'FLT-1' }, { pcs: '1', fabric: 'Wastage fabric', date: '2026-10-28' }))
+       && NET.calls.slice(at4).some(c => c.method === 'PUT' && /pt_cuttingData/.test(c.url) && c.body.clothFrom === 'waste'));
+    ok('…and the store takes no printed cloth off for a cut from other cloth', A.stCutting({ sku: 'FLT-1', pieces: 5, fabricWidth: 'Rejected tablecloth', clothFrom: 'rejected', fabricUsed: 3 }).metres === 0 && A.stCutting({ sku: 'FLT-1', pieces: 5, fabricWidth: 'Rejected tablecloth', clothFrom: 'rejected' }).running === false);
+    ok('…and the next ordinary cut is not marked, and a fabric the master does not have is still refused', /Fabric Type master/.test(await A.shpbCutSave({ orderNo: 'ORD-A', sku: 'FLT-1' }, { pcs: '1', fabric: 'Mystery cloth', date: '2026-10-28' })));
+    /* the SKU's own fabric comes in by itself — even one the Fabric Type master does not list (Sheeting 82) */
+    { const keepF = A.FLOW(), kk = A.flowKey('ORD-A', 'FLT-1');
+      A.setFLOW(Object.assign({}, keepF, { ppc: { [kk]: { fabric: { name: 'Sheeting 82' } } } }));
+      ok('the Cut dialog starts with the SKU fabric from its plan', A.shpbOwnFabric({ orderNo: 'ORD-A', sku: 'FLT-1' }) === 'Sheeting 82', A.shpbOwnFabric({ orderNo: 'ORD-A', sku: 'FLT-1' }));
+      const at5 = NET.calls.length, e5 = await A.shpbCutSave({ orderNo: 'ORD-A', sku: 'FLT-1' }, { pcs: '1', fabric: 'Sheeting 82', date: '2026-10-28' });
+      const p5 = NET.calls.slice(at5).filter(c => c.method === 'PUT' && /pt_cuttingData/.test(c.url)).pop();
+      ok('…and is saved as it is (not marked as other cloth) though the master list lacks it', !e5 && !!p5 && p5.body.fabricWidth === 'Sheeting 82' && !p5.body.clothFrom, String(e5));
+      ok('…but another unlisted fabric is still refused', /Fabric Type master/.test(await A.shpbCutSave({ orderNo: 'ORD-A', sku: 'FLT-1' }, { pcs: '1', fabric: 'Sheeting 99', date: '2026-10-28' })));
+      A.setFLOW(keepF); }
+    ok('…no cloth picked is refused', /cloth/i.test(await A.shpbCutSave({ orderNo: 'ORD-A', sku: 'FLT-1' }, { pcs: '7', fabric: '', date: '2026-10-28' })));
+    A.setPTG(keepG); A.setPT(keepP); A.setPTE(keepE); NET.on = keepNet; NET.store = keepStore; }
 
   /* ---- the export carries what the screen shows ---- */
   vo(orders());
@@ -8009,11 +8227,11 @@ console.log('\n== what a vendor is shown, and what they can narrow it to ==');
     const rowCells = html.split(/<tr[^>]*>/).slice(1).map(r => (r.split('</tr>')[0].match(/<td[ >]/g) || []).length);
     const lineRows = rowCells.filter(n => n > 1);
     ok('one heading for every cell in a line row',
-       heads === 10 && lineRows.length > 0 && lineRows.every(n => n === heads),
+       heads === 11 && lineRows.length > 0 && lineRows.every(n => n === heads),
        heads + ' headings vs ' + [...new Set(lineRows)].join('/'));
     /* A bar and a colour heading each span the whole table, so they must name the same number. */
     ok('and every spanning row spans exactly that many',
-       (html.match(/colspan="\d+"/g) || []).every(c => c === 'colspan="10"'),
+       (html.match(/colspan="\d+"/g) || []).every(c => c === 'colspan="11"'),
        [...new Set(html.match(/colspan="\d+"/g) || [])].join(' '));
 
     /* The card view is still there for anybody who wants it. */
@@ -8818,7 +9036,7 @@ console.log('\n== the fabric on a cutting entry is picked from the master ==');
     /* AND THE COLOUR-BEARING FIELDS ARE UNTOUCHED — this changed two fields, not the form. */
     ok('the rest of the form is as it was',
        fieldOf(null, 'consumption').type === 'number' && fieldOf(null, 'cuttingRequired').type === 'select'
-       && (A.mdbFields(null) || []).length === 28, String((A.mdbFields(null) || []).length) + ' fields');   // + manufacturer, piping fabric, packing, its material (2026-10-10)   // + piping dori, its metres (2026-09-22); + ASIN, Parent ASIN (2026-09-26)
+       && (A.mdbFields(null) || []).length === 29, String((A.mdbFields(null) || []).length) + ' fields');   // + listing status (2026-10-25)   // + manufacturer, piping fabric, packing, its material (2026-10-10)   // + piping dori, its metres (2026-09-22); + ASIN, Parent ASIN (2026-09-26)
     A.setPTG(Object.assign({}, A.PTG(), { masters: wasM }));
   }
 
@@ -9790,6 +10008,28 @@ console.log('\n== B2B sales orders: the buyer\'s own columns, and new items on t
   NET.on = wasNet; ME.admin = wasAdmin;
 }
 
+{ /* 24 Oct ("ye sabhi sku master data me h but it's showing not available"): the error names what the master has */
+  const K = new Set(['RTCR296-110R', 'RTCR296-60R', 'RTC296-5270', 'RTC296-6060']);
+  ok('a sales-order SKU the master has with an R names it', A.soSkuHint('RTCR296-110', K) === ' — the master has RTCR296-110R', A.soSkuHint('RTCR296-110', K));
+  ok('…one whose size is not there names the sizes that are', A.soSkuHint('RTC296-5454', K) === ' — the master has RTC296 in 5270, 6060', A.soSkuHint('RTC296-5454', K));
+  ok('…and an unknown product says nothing more', A.soSkuHint('ZZZ1-10', K) === ''); }
+{ /* 24 Oct ("legacy order se entry ki thi kareegaro ki usme bhi koi glitch"): a legacy order owes no cutting */
+  const wasPTG = A.PTG(), wasPT = A.PT(), wasBase = A.PT().base, wasCut = A.PT().cut;
+  A.setPTG(Object.assign({}, wasPTG, { press: [], shopProd: {}, mdb: [{ sku: 'AEDB909-1220', articleType: 'Pillow Cover', subtype: 'Piping', size: '12x20', cuttingRequired: true, packOf: '1' }],
+    ob: [{ id: 'l1', orderNo: 'LEG-17102026-01', sku: 'AEDB909-1220', qty: 15, src: 'LEG', orderDate: '2026-10-17' }, { id: 'l2', orderNo: 'AMZ-01102026-01', sku: 'AEDB909-1220', qty: 15, src: 'SO', orderDate: '2026-10-01' }] }));
+  A.setPT(Object.assign(A.PT(), { cut: [], base: [{ id: 'b1', orderNo: 'LEG-17102026-01', sku: 'AEDB909-1220', issuePieces: 15, receivedPieces: 15, issueDate: '08/10/2026, 10:00', receivingDate: '08/10/2026, 16:00' }] }));
+  const ls = A.ordLines(), leg = ls.find(l => l.orderNo === 'LEG-17102026-01'), amz = ls.find(l => l.orderNo === 'AMZ-01102026-01');
+  ok('a legacy order line made on the floor owes no cutting (was "15 to cut" for ever); an ordinary order of the same SKU still does', leg && leg.pendingCut === 0 && amz && amz.pendingCut === 15,
+    JSON.stringify([leg && leg.pendingCut, amz && amz.pendingCut]));
+  /* …and its pieces back before QC began (5 Oct) still wait for QC — they were never listed, so the lines stayed open */
+  const wasQC = A.QC(); A.setQC(Object.assign({}, wasQC, { checks: [] }));
+  A.setPT(Object.assign(A.PT(), { base: [{ id: 'b1', orderNo: 'LEG-17102026-01', sku: 'AEDB909-1220', issuePieces: 15, receivedPieces: 15, issueDate: '02/10/2026, 10:00', receivingDate: '02/10/2026, 18:00', receipts: [{ at: '02/10/2026, 18:00', qty: 15 }] },
+    { id: 'b2', orderNo: 'AMZ-01102026-01', sku: 'AEDB909-1220', issuePieces: 5, receivedPieces: 5, issueDate: '02/10/2026, 10:00', receivingDate: '02/10/2026, 18:00', receipts: [{ at: '02/10/2026, 18:00', qty: 5 }] }] }));
+  const qw = A.qcInboxRows();
+  ok('a legacy order\'s pieces received 2 Oct wait for QC; an ordinary order\'s from before 5 Oct still do not', qw.some(x => x.r.id === 'b1' && x.wait === 15) && !qw.some(x => x.r.id === 'b2'), JSON.stringify(qw.map(x => [x.r.id, x.wait])));
+  A.setQC(wasQC);
+  A.setPTG(wasPTG); A.setPT(Object.assign(wasPT, { base: wasBase, cut: wasCut }));
+}
 console.log('\n== a Shopify order is packs, the factory makes pieces ==');
 {
   /* "pillow cover always pack of 2 me bante h but abhi dikha rha h 1 pcs ... napkin me sku ke peeche
@@ -9805,6 +10045,8 @@ console.log('\n== a Shopify order is packs, the factory makes pieces ==');
     { sku: 'CPCCRU045-1220', articleType: 'Pillow Cover', subtype: 'Ruffle Pillow Cover', size: '12x20', packOf: '1' },
     { sku: 'RCNE502-6', articleType: 'Napkin', subtype: 'Embroidery Napkin', size: '18x18', packOf: '6' },
     { sku: 'RCNB9-20', articleType: 'Napkin', subtype: 'Border Napkin', size: '20x20', packOf: '4' },
+    { sku: 'R-CP-327', articleType: 'Seat Pad', size: '16x16', packOf: '2' },
+    { sku: 'R-CC-327', articleType: 'Bag', size: '10x6x6', packOf: '' },
   ], ob: [
     { id: 'p1', orderNo: 'SHP-3408', sku: 'RPCRU212-2424', qty: 1, src: 'SHP', orderDate: '2026-09-10', shopOrderNo: '#3408', articleType: 'Pillow Cover' },
     { id: 'p2', orderNo: 'SHP-3500', sku: 'RCNB374-12', qty: 2, src: 'SHP', orderDate: '2026-09-10', shopOrderNo: '#3500' },
@@ -9823,6 +10065,8 @@ console.log('\n== a Shopify order is packs, the factory makes pieces ==');
      A.obPcsPerPack('RPCRU34-1220', 'Pillow Cover') === 1, String(A.obPcsPerPack('RPCRU34-1220', 'Pillow Cover')));
   ok('a pillow cover nobody has listed is a pack of 2',A.obPcsPerPack('RPCZZ9-1818', 'Pillow Cover') === 2);
   ok('a tablecloth is one piece', A.obPcsPerPack('RTC23-6060', 'Tablecloth') === 1);
+  ok('a Ridhi cosmetic bag is one piece — not a pair because the seat pad of its colour is (24 Oct, R-CC-327: 66 ordered, 132 shown)',
+    A.obPcsPerPack('R-CC-327', 'Bag') === 1 && A.obPcsPerPack('R-CP-327', 'Seat Pad') === 2 && A.obPcsPerPack('RPCRU34-2424') === 2, String(A.obPcsPerPack('R-CC-327', 'Bag')));
 
   ok('one pack of 2 is owed as 2 pieces', A.obOrderedQty('SHP-3408', 'RPCRU212-2424') === 2);
   ok('two sets of 12 napkins are 24 pieces', A.obOrderedQty('SHP-3500', 'RCNB374-12') === 24);
@@ -11508,6 +11752,9 @@ console.log('\n== karigar article mix: easy / medium / hard as Ravi sets them ==
   /* "article wise kis karigar ne kitne pcs banaye ... kaun easy, kaun hard, uska %" — and "not just mark
    * easy article, I will let you know which is easy or hard." */
   const D = __dirname + '/mix/';
+  /* The live pull in tests/mix/ never goes to GitHub (employee names and rates): without it this part is skipped, as the
+   * tests/pa/ part above is (22 Oct, deploying from GitHub). */
+  if (!fs.existsSync(D + 'pt_baseData.json')) console.log('  skipped — no live pull in tests/mix/ on this computer'); else {
   const raw = JSON.parse(fs.readFileSync(D + 'pt_baseData.json', 'utf8'));
   const base = (Array.isArray(raw) ? raw : Object.values(raw)).filter(Boolean);
   const emp = JSON.parse(fs.readFileSync(D + 'pt_empList.json', 'utf8')).filter(Boolean);
@@ -11569,6 +11816,7 @@ console.log('\n== karigar article mix: easy / medium / hard as Ravi sets them ==
 
   A.setPT(wasPT); A.setPTE(wasPTE); A.setHR(wasHR); A.setPA(wasPA); Object.assign(A.KA(), { levels: wasKA.levels, mixSort: null });
   NET.on = wasNet; ME.admin = wasAdmin;
+  }
 }
 
 console.log('\n== quality control: item pickers and an SKU box, like the Job Work Register ==');
@@ -12461,6 +12709,12 @@ console.log('\n== finished goods: who may change the store ==');
   A.setVP(Object.assign({}, wasVP || {}, { code: 'VND001' }));
   ok('a printer never can, whatever is ticked on their account', A.fgiCanEdit() === false);
   A.setVP(vp0);
+  /* FROM QC — TO ACCEPT ONLY (Ravi, 27 Oct: "From QC — to accept - access me jodo"): the box on its own opens this screen on that one list. */
+  ME.fgiEdit = false; ME.fgAccOnly = true; els.fgView.value = 'stock';
+  try { A.renderFgi(); } catch (e) { /* the list itself needs the flow's data — what is checked is the screen around it */ }
+  ok('"From QC — to accept" alone: the screen is on that list, the other store views out of reach',
+    els.fgView.value === 'flow' && els.fgView._hidden === true && els.fgKpis.innerHTML === '', els.fgView.value + ' ' + els.fgView._hidden);
+  ME.fgAccOnly = false; els.fgView.value = 'stock';
   ME.admin = was.admin; ME.fgiEdit = was.fgiEdit;
 }
 
@@ -12766,6 +13020,11 @@ console.log('\n== FBA Dispatch ==');
   ok('…and a return on it cannot be deleted from the store', A.fgiDeletePlan([back.split('/')[1]]).gone.length === 0);
 
   ok('undo takes a shipment back to accepted', (await A.fbaUndo('f1')) === '' && st('f1').st === 'accepted' && !A.FGI().rows.find(r => r._id === 'f1').fbaShipment);
+  p = NET.calls.filter(c => c.method === 'PATCH').pop().body;
+  ok('…and takes the 3 it left behind out of the store again, in the same write',
+    p[back] === null && p['pt_fgiLedger/f1/fbaReturned'] === 5 && !A.FGI().rows.find(r => r._id === back.split('/')[1]));
+  ok('…so f1 has 15 open again and the store is where it was before the shipment',
+    st('f1').open === 15 && A.fgiOf(SKU).current === stockBefore + 5);
   sync();
   ok('…then to waiting', (await A.fbaUndo('f1')) === '' && st('f1').st === 'waiting');
   sync();
@@ -12954,6 +13213,28 @@ console.log('\n== asking the sales team to delete an order line ==');
   ok('a request already answered cannot be answered again', /no longer waiting/.test(await (async () => {
     NET.store['pt_obDeleteReqs'][id5] = Object.assign({}, NET.store['pt_obDeleteReqs'][id5], { status: 'deleted' });
     return A.odrDeleteRun([id5]); })()));
+
+  /* 22 Oct ("need delete option here"): a line PPC sent back can be deleted from the Sent back by PPC card */
+  {
+    const back = { at: '2026-10-22T05:00:00Z', by: 'vikram@x.com', why: 'sku', note: 'Allready fulfil by MCF' };
+    const rows = ob().filter(r => r.sku === 'KEEP-1').map(r => Object.assign(r, { ppcBack: back }));
+    A.setPTG(Object.assign({}, A.PTG(), { ob: rows }));
+    NET.store['pt_orderBook'] = Object.fromEntries(rows.map(r => { const c = Object.assign({}, r); delete c._key; return [r._key, c]; }));
+    const card = A.flowBackCard();
+    ok('the Sent back by PPC card has Delete beside Fixed — send to PPC', /data-flbdel="AMZ-02092026-01\|KEEP-1"/.test(card) && /data-flagain=/.test(card), card.slice(0, 300));
+    A.flowBackDelOpen('AMZ-02092026-01', 'KEEP-1');
+    ok('…it asks first, the reason filled in from the note PPC wrote', /Delete AMZ-02092026-01 · KEEP-1/.test(A.PTD_().title) && /Allready fulfil by MCF/.test(A.PTD_().html));
+    els.flbdWhy = { value: 'fulfilled by MCF' };
+    NET.calls = [];
+    const rid = A.odrId('AMZ-02092026-01', 'KEEP-1');
+    /* the mock server does not apply a PATCH: the request written first is put where the re-read finds it, as the database would */
+    NET.store['pt_obDeleteReqs'] = Object.assign({}, NET.store['pt_obDeleteReqs'], { [rid]: { id: rid, status: 'pending', orderNo: 'AMZ-02092026-01', sku: 'KEEP-1', qty: 10, why: 'x' } });
+    const er = await A.PTD_().onSave();
+    const pp = NET.calls.filter(c => c.method === 'PATCH').map(c => c.body), last = pp[pp.length - 1] || {};
+    ok('…deleting removes its order-book row and files it as a deleted request, with the reason', er === '' && last['pt_orderBook/ob_so_AMZ-02092026-01_KEEP-1'] === null
+      && last['pt_obDeleteReqs/' + rid + '/status'] === 'deleted' && /fulfilled by MCF/.test(pp[0]['pt_obDeleteReqs/' + rid].why), (er || '') + JSON.stringify(pp).slice(0, 500));
+    ok('…and the card no longer lists it', !/KEEP-1/.test(A.flowBackCard()));
+  }
 
   const vpBad = Object.assign({}, vp || {}, { code: 'VND001' });
   A.setVP(vpBad);
@@ -19843,6 +20124,22 @@ console.log('\n== SKU codes: a new colour\'s SKUs ==');
   ok('a base code used twice is refused', /already the base code/.test(await A.skcSaveRow('', { article: 'Tablecloth', subtype: 'X', size: '1x1', base: 'RTC-6060' })));
   A.setPTG(wasPTG); ME.prodEdit = wasEdit; ME.admin = wasAdmin; ME.mdbEdit = wasMdbEdit; NET.on = wasNet; NET.store = {}; NET.calls.length = 0;
 }
+console.log('\n== Cutting Data: an entry with no Order ID gets one from Edit (24 Oct, the cuttings taken off LEG-17102026-01) ==');
+{
+  const wasPTG = A.PTG(), wasPT = A.PT(), wasCut = A.PT().cut, wasNet = NET.on, wasAdmin = ME.admin, wasEdit = ME.prodEdit;
+  ME.admin = true; ME.prodEdit = true; NET.on = true; NET.store = {};
+  A.setPTG(Object.assign({}, wasPTG, { press: [], ob: [{ id: 'o1', orderNo: 'AMZ-1', sku: 'RQL327-Q', qty: 10, src: 'SO', orderDate: '2026-10-20' }, { id: 'o2', orderNo: 'LEG-17102026-01', sku: 'RQL327-Q', qty: 56, src: 'LEG', orderDate: '2026-10-17' }] }));
+  A.setPT(Object.assign(A.PT(), { cut: [{ id: 'c1', _key: 'c1', orderNo: '', orderWas: 'LEG-17102026-01', sku: 'RQL327-Q', pieces: 6, fabricWidth: 'Voil 92', cutDate: '23/10/2026, 22:12' }] }));
+  A.cutEdit('c1');
+  const f = (A.PTD_().fields || []).find(x => x.key === 'orderNo') || {};
+  ok('the Edit box offers the SKU\'s orders with room — never the legacy order', f.type === 'select' && f.options.some(o => o[0] === 'AMZ-1') && !f.options.some(o => o[0] === 'LEG-17102026-01'), JSON.stringify(f.options));
+  ok('…more pieces than the order has room for is refused', /already cut|at most|ordered/i.test(await A.PTD_().onSave({ orderNo: 'AMZ-1', pieces: 11, fabricWidth: 'Voil 92' })));
+  ok('…and picking it puts the entry on that order, saying where it was', (await A.PTD_().onSave({ orderNo: 'AMZ-1', pieces: 6, fabricWidth: 'Voil 92' })) === ''
+    && NET.store['pt_cuttingData/c1'] && NET.store['pt_cuttingData/c1'].orderNo === 'AMZ-1' && NET.store['pt_cuttingData/c1'].orderWas === '', JSON.stringify(NET.store['pt_cuttingData/c1']));
+  A.setPTG(wasPTG); A.setPT(Object.assign(wasPT, { cut: wasCut })); NET.on = wasNet; ME.admin = wasAdmin; ME.prodEdit = wasEdit;
+}
+console.log('\n== Job Work: Custom Order with its own Order ID, the master spelling and a master row (24 Oct) ==');
+await global.custOrderTest();
 console.log('\n== Job Work: the date range, by issue or by receipt ==');
 {
   /* "jab me date filter kar raha hu to only issued related entry hi show ho rahi h" — 2026-09-22. */
@@ -19925,8 +20222,13 @@ console.log('\n== Piping dori on the master ==');
   ok('the form asks for it', (A.mdbFields(null) || []).some(f => f.key === 'isPiping') && (A.mdbFields(null) || []).some(f => f.key === 'pipingMeters'));
   const src = fs.readFileSync(APP, 'utf8');
   ok('the template and the export carry it — and the export now has Filling qty and Valuation price, so an export uploaded again blanks nothing',
-     /'Ruffle fabric', 'Piping dori', 'Piping dori metres', 'Filler fabric', 'Filling qty', 'Valuation price', 'Image', 'ASIN', 'Parent ASIN',\s*'Manufacturer', 'Piping fabric', 'Packing type', 'Packing material'\]/.test(src)
-     && /'Piping dori', 'Piping dori metres',\s*'Filler fabric', 'Filling qty', 'Valuation price', 'Image', 'ASIN', 'Parent ASIN', 'Manufacturer', 'Piping fabric', 'Packing type', 'Packing material'\]\.map\(csvCell\)/.test(src));
+     /'Ruffle fabric', 'Piping dori', 'Piping dori metres', 'Filler fabric', 'Filling qty', 'Valuation price', 'Image', 'ASIN', 'Parent ASIN',\s*'Manufacturer', 'Piping fabric', 'Packing type', 'Packing material', 'Listing status'\]/.test(src)
+     && /'Piping dori', 'Piping dori metres',\s*'Filler fabric', 'Filling qty', 'Valuation price', 'Image', 'ASIN', 'Parent ASIN', 'Manufacturer', 'Piping fabric', 'Packing type', 'Packing material', 'Listing status'\]\.map\(csvCell\)/.test(src));
+  { /* 25 Oct ("master data base me set karenge"): the India listing status is a master field, kept by an edit and an import */
+    const r1 = A.mdbRecord(Object.assign({}, base, { listingStatus: 'discontinued' }), false);
+    ok('the master keeps the listing status, in the spelling of the list', r1.listingStatus === 'Discontinue' && A.mdbRecord(Object.assign({}, base, { listingStatus: 'use in mix' }), false).listingStatus === 'Use In Mix'
+      && A.mdbRecord(base, false).listingStatus === '' && (A.mdbFields(null) || []).some(f => f.key === 'listingStatus' && f.type === 'select'), JSON.stringify(r1.listingStatus));
+  }
   const ix = { sku: 0, piping: -1, pipingm: -1 };
   ok('a file with no piping column says nothing about it', A.mdbFromCsv(['PD-1'], ix).isPiping === undefined);
   ok('…and the import keeps what the SKU had', A.mdbMerge({ isPiping: undefined, fabric: 'Cambric' },
@@ -20298,6 +20600,19 @@ console.log('\n== Waiting for QC: received pieces go to QC, which accepts all or
   els.qcView.value = 'inbox';
   A.renderQc();
   ok('the screen says nothing is waiting', /Nothing waiting/.test(els.qcTable.innerHTML), els.qcTable.innerHTML.slice(0, 200));
+  /* 21 Oct (Ravi: "pahle fabric print then embroidery then cut and then Q.C"): embroidered pieces have no karigar — the
+   * cutting entry marked qcDirect waits here by itself; an ordinary cutting entry does not. */
+  {
+    const keep = A.PT();
+    A.setPT(Object.assign({}, keep, { cut: (keep.cut || []).concat([{ id: 'cq1', sku: 'E-1', orderNo: 'EO-1', pieces: 9, cutDate: '21/10/2026, 10:00', qcDirect: true },
+      { id: 'cq2', sku: 'E-2', orderNo: 'EO-2', pieces: 5, cutDate: '21/10/2026, 10:00' }]) }));
+    const w = A.qcInboxRows();
+    ok('pieces cut after embroidery (qcDirect) wait for QC with no karigar — an ordinary cut does not', w.some(x => x.r.id === 'cq1' && x.wait === 9 && x.r.fromCut) && !w.some(x => x.r.id === 'cq2'),
+      JSON.stringify(w.map(x => [x.r.id, x.wait])));
+    ok('…QC accepts them against the cutting entry, for the order', (await A.qcInboxAccept('cq1', 9)) === '' && !A.qcInboxRows().some(x => x.r.id === 'cq1')
+      && ((A.QC().checks || []).find(c => c.baseId === 'cq1') || {}).orderNo === 'EO-1');
+    A.setPT(keep);
+  }
   A.setPT(wasPT); A.setQC(wasQC); NET.on = wasNet; ME.admin = wasAdmin;
 }
 console.log('\n== QC: spotting, touching and the day-wise ledger (2026-10-06) ==');
@@ -20391,6 +20706,19 @@ console.log('\n== Production meeting (Reports, 2026-10-07) ==');
   A.setMTG(Object.assign(A.MTG(), { busy: false, err: [], shop: { wk: '2026-10-04', orders: [
     { id: 'o1', no: '#1', at: '2026-10-01', shippedAt: '2026-10-05T10:00:00Z', trkCo: 'FedEx', shopBrand: 'SP', items: [] },
     { id: 'o2', no: '#2', at: '2026-09-20', shippedAt: '2026-10-06', trkCo: 'DHL', shopBrand: 'CPC', items: [] }], errs: [] } }));
+  { /* 24 Oct ("ye mera data production meeting me kam aata h"): Custom Order entries by their own Order ID */
+    const wasPT = A.PT(), wasBase = A.PT().base, wasQC = A.QC();
+    A.setPT(Object.assign(A.PT(), { base: (wasBase || []).concat([
+      { id: 'cx1', sku: 'TC-CUST-261006-01', isCustom: true, custOrder: 'ETSY-4471', custChannel: 'ETSY', issuePieces: 5, receivedPieces: 3, rejectionPieces: 0, pendingPieces: 2,
+        issueDate: '06/10/2026, 10:00', receivingDate: '07/10/2026, 11:00', receipts: [{ at: '07/10/2026, 11:00', qty: 3 }] },
+      { id: 'cx2', sku: 'TC-CUST-261006-02', isCustom: true, custOrder: 'ETSY-4471', custChannel: 'ETSY', issuePieces: 4, receivedPieces: 0, rejectionPieces: 0, pendingPieces: 4, issueDate: '01/10/2026, 10:00' }]) }));
+    A.setQC(Object.assign({}, wasQC, { checks: (wasQC.checks || []).concat([{ baseId: 'cx1', sku: 'TC-CUST-261006-01', ok: 3, checked: 3, date: '08/10/2026, 12:00' }]) }));
+    const C = A.mtgCustom('2026-10-04', '');
+    ok('meeting: custom orders by their Order ID — issued 5 this week (4 the week before), 3 back, 3 QC passed, 6 still with karigars',
+      /ETSY-4471/.test(C.html) && /<td class="num">5<\/td><td class="num">3<\/td><td class="num"><b>3<\/b><\/td><td class="num">6<\/td>/.test(C.html) && /Custom orders: issued 5, back 3, QC passed 3, still with karigars 6/.test(C.text), C.html.slice(0, 900));
+    ok('…and it is in the Production section the meeting opens with', /Custom orders \(Job Work/.test(A.mtgBuild('2026-10-04', '').prod.html));
+    A.setPT(Object.assign(wasPT, { base: wasBase })); A.setQC(wasQC);
+  }
   const S = A.mtgBuild('2026-10-04', '');
   ok('every one of the eight sections is worked out', ['prod', 'people', 'open', 'd2c', 'supply', 'ship', 'pre', 'shop'].every(k => S[k] && S[k].html && !/Could not be worked out/.test(S[k].html)),
      JSON.stringify(Object.keys(S).filter(k => /Could not be worked out/.test(S[k].html)).map(k => [k, S[k].html.slice(0, 160)])));
@@ -22174,7 +22502,7 @@ console.log('\n== custom-order codes onto real SKUs, and no more Custom Order (R
   ok('a merge moves every register row and the order book to the real SKU', upd['pt_baseData/b9/sku'] === 'RTCS12-6060' && upd['pt_pressInventory/p9/sku'] === 'RTCS12-6060' && upd['pt_orderBook/o9/sku'] === 'RTCS12-6060' && upd['pt_baseData/b9/skuWas'] === 'TC-CUST-260820-09', JSON.stringify(upd));
   ok('…and marks the custom master row merged — it is not deleted', upd['pt_masterDB/m1/mergedInto'] === 'RTCS12-6060' && !Object.keys(upd).some(k => upd[k] === null) && upd['pt_masterDB/m1/sku'] === undefined);
   const src = require('fs').readFileSync(APP, 'utf8');
-  ok('the Job Work form no longer offers Custom Order', /<label class="hide" style="display:none;[^"]*">\s*<input type="checkbox" id="bwCustom" style="width:auto" disabled>/.test(src.replace(/\r\n/g, '\n')));
+  ok('the Job Work form offers Custom Order again (24 Oct), unticked until somebody ticks it', /<label style="display:flex;[^"]*">\s*<input type="checkbox" id="bwCustom" style="width:auto">/.test(src.replace(/\r\n/g, '\n')));
   A.setPTG(wasPTG); A.setPT_(wasPT);
 }
 console.log('\n== from production to shipping, by itself (Ravi, 28 Sep: "auto handed over … shipping team sirf accept kare or qty fill kare")');

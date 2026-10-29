@@ -164,9 +164,13 @@ function obPackSiblings() {
 }
 /* RPC… and CPCC… are pillow covers; RCN…, RCCN… and CPCN… napkins; RTME… table mats. */
 const obIsPillowSku = sku => /^(RPC|CPCC)/.test(obUC(sku));
+/* THE PRODUCT IS EVERY LETTER BLOCK BEFORE THE NUMBERS (Ravi, 24 Oct: SHP-RBP7620 R-CC-327, 66 cosmetic bags, showed 132). "R-CC-327"
+ * was family R|327 — every Ridhi product in colour 327 — so the seat pad R-CP-327 (a pair) made the bag a pair too. Now R-CC|327:
+ * the cosmetic bag's own colours. RPC147-1818 stays RPC|1818. Measured on the master: 29 SKUs change, all bags, photo frames,
+ * note pad holders and desk organizers going 2 → 1. */
 function obPackFamily(sku) {
   const s = obUC(sku);
-  const m = s.match(/^([A-Z]+)[^-]*-(.+)$/);
+  const m = s.match(/^([A-Z]+(?:-[A-Z]+)*)[^-]*-(.+)$/);
   return m ? m[1] + '|' + m[2].split('-').pop() : '';
 }
 function obPcsPerPack(sku, articleType, articleSubtype) {

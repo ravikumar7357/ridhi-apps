@@ -461,8 +461,9 @@ function showTab(which) {
   topbarSync();
   /* On a phone: the tab bar lights this screen, and the header carries its name (core/mobile.js). */
   if (typeof mobSync === 'function') mobSync(which);
+  try { guideScreen(which); } catch (e) { /* the guide character (guide.js) is not on the page yet — the screen still opens */ }
   /* The screen's name where a name belongs when it is not on the page: the browser tab. */
-  try { document.title = ($('pageTitle').textContent || '') + ($('pageTitle').textContent ? ' · ' : '') + 'Ridhi Home & Living'; } catch (e) { /* nothing depends on it */ }
+  try { document.title = ($('pageTitle').textContent || '') + ($('pageTitle').textContent ? ' · ' : '') + 'R-one'; } catch (e) { /* nothing depends on it */ }
   /* There is no drawer to close any more: the menu is the bar across the top, on every width. */
   if (which === 'dash') ensureDash();
   /* THE REPLENISHMENT SCREENS READ THEIR OWN SNAPSHOT (2026-09-26). Sign-in used to read the full copy and draw the
@@ -509,7 +510,9 @@ function showTab(which) {
   if (which === 'hr') ensureHr();
   if (which === 'shop') ensureShop();
   if (which === 'adj') ensureAdj();
-  if (which === 'flow') ensureFlow();
+  /* PPC re-reads the registers when it is opened and they are over ten minutes old (ptOpenFresh), as Job Work does: a line issued
+   * from the Job Work Register on another computer shows on PPC without a Refresh (27 Oct). */
+  if (which === 'flow') ptOpenFresh('flow', ensureFlow);
   if (which === 'gdesk' && FLOW_ON) GD.open();
 }
 $('tabDash').onclick = () => showTab('dash');

@@ -30,7 +30,9 @@ async function flowReserve(r, s) {
   const items = {};
   ((s.plan && s.plan.acc) || []).forEach(a => { if (a.code && +a.qty > 0) items[accCode(a.code)] = (items[accCode(a.code)] || 0) + (+a.qty); });
   if (!Object.keys(items).length) return 'Nothing to reserve: the plan raised no accessory from the shelf.';
-  const free = flowAccFree(), short = Object.entries(items).filter(([c, n]) => !free[c] || free[c].free < n);
+  /* Only for the pieces not yet issued (27 Oct): those issued took their zippers already — the hold is that share too (flowHeld). */
+  const q = +r.qty || 0, left = q > 0 ? Math.max(0, 1 - (+s.issued || 0) / q) : 0;
+  const free = flowAccFree(), short = Object.entries(items).map(([c, n]) => [c, Math.ceil(n * left)]).filter(([c, n]) => n > 0 && (!free[c] || free[c].free < n));
   if (short.length) return 'Short: ' + short.map(([c, n]) => `${c} needs ${n}, ${free[c] ? Math.max(0, free[c].free) : 0} free`).join(' · ') + ' — buy or free some first.';
   const rec = { orderNo: r.orderNo, sku: obUC(r.sku), items, at: new Date().toISOString(), by: ME.email || '' };
   const g = await flowGuard('acc'); if (g) return g;   // the shelf is shared: two reservations at once must not both take the same zips
@@ -106,7 +108,12 @@ function flowRfdChallanOut(name, fromDay) {
     if (!c || c.cancelled) return;
     const d = String(c.date || ptIsoDate(c.at) || '').slice(0, 10);
     if (fromDay && d < fromDay) return;
-    (c.lines || []).forEach(l => { if (l && flowFabKey(l.fabric) === k) out += +l.metres || 0; });
+    /* a challan made from cloth already standing with the printer took nothing from the store (flowStandUseOpen) */
+    /* …nor a record of cloth given earlier without a challan (flowRecordEarlier) — it left the store then — unless asked to */
+    if (!c.standing && !(c.recordOnly && !c.deduct)) (c.lines || []).forEach(l => { if (l && flowFabKey(l.fabric) === k) out += +l.metres || 0; });
+    /* standing cloth that came back to the store unprinted is RFD again (flowStandBackOpen) */
+    Object.values(c.moved || {}).forEach(m => Object.values((m && m.settles) || {}).forEach(x => {
+      if (x && x.how === 'store' && x.as === 'rfd' && flowFabKey(m.fabric) === k) out -= +x.metres || 0; }));
   });
   return flowR2(out);
 }
@@ -141,7 +148,7 @@ function flowRfdCover() {
     .sort((a, b) => String(a.r.orderDate || '').localeCompare(String(b.r.orderDate || '')) || String(a.r.orderNo).localeCompare(String(b.r.orderNo)))
     .forEach(({ s }) => {
       const p = s.plan || {}, name = p.fabric && p.fabric.name;
-      const need = s.route === 'inhouse' ? flowFabOwed({ qty: p.qty || 0 }, s).metres : flowR2(flowToPrint({ qty: p.qty || 0 }, p).metres * flowRemFrac({ qty: p.qty || 0 }, s));
+      const need = flowPrinted(s.route) ? flowFabOwed({ qty: p.qty || 0 }, s).metres : flowR2(flowToPrint({ qty: p.qty || 0 }, p).metres * flowRemFrac({ qty: p.qty || 0 }, s));
       if (!name) { line[s.key] = { name: '', need, short: need, avail: 0 }; return; }
       const f = F(name), avail = Math.max(0, f.stock - f.held - f.need);
       line[s.key] = { name: f.name, need, avail: flowR2(avail), short: flowR2(Math.max(0, need - avail)) };

@@ -10,7 +10,11 @@ const head = src.slice(0, cutAt).replace(/__dirname/g, JSON.stringify(pathm.join
 const A = new Function('require', 'process', 'global', head + '\n;return { A, els, ME };')(require, process, global);
 const app = A.A, L = app.ptList;
 app.setPTG(Object.assign(app.PTG(), { ob: L(B.pt_orderBook), mdb: L(B.pt_masterDB), press: L(B.pt_pressInventory), shopProd: B.pt_shopProd || {} }));
-app.setPT(Object.assign(app.PT(), { base: L(B.pt_baseData), cut: L(B.pt_cuttingData) }));
+/* JOB WORK IS TWO NODES (job-work-split.js): the open entries in pt_baseData, the finished ones in pt_baseDone/<day>/<id>.
+ * Reading only the first is what made the 15 Oct clean-up see 203 entries of 5,925 — 301 lines deleted with work on them,
+ * 162 cut too low (found and the 162 put right 22 Oct). Both, as baseReadAll() joins them. */
+const baseAll = Object.assign({}, B.pt_baseDone ? Object.assign({}, ...Object.values(B.pt_baseDone).filter(d => d && typeof d === 'object')) : {}, B.pt_baseData || {});
+app.setPT(Object.assign(app.PT(), { base: L(baseAll), cut: L(B.pt_cuttingData) }));
 app.setQC(Object.assign({}, app.QC(), { checks: L(B.pt_qcChecks), issue: [], ret: [] }));
 app.setORD({ req: {}, busy: false, at: '', rows: [] });
 const lines = app.ordLines();

@@ -40,7 +40,10 @@ async function loadReplCache(wantFull) {
    * bhi nahi") — the table then drew a snapshot with no image, status or warehouse figures. */
   if (REPL_LOADING) { try { await REPL_LOADING.p; } catch (e) { /* the full read below stands on its own */ } }
   if (REPL_MODE === 'full') return;
-  const p = loadReplCacheRun(full).then(() => { REPL_MODE = full ? 'full' : 'slim'; try { replMasterSync(); } catch (e) { /* the snapshot's details stay */ } }).finally(() => { if (REPL_LOADING && REPL_LOADING.p === p) REPL_LOADING = null; });
+  const p = loadReplCacheRun(full).then(() => { REPL_MODE = full ? 'full' : 'slim'; try { replMasterSync(); } catch (e) { /* the snapshot's details stay */ }
+    /* a full read after a slim one listens to the full header instead */
+    try { if (REPL_WATCH && full) { REPL_WATCH.forEach(u => { try { u(); } catch (e) {} }); REPL_WATCH = null; } replWatch(); }
+    catch (e) { /* no listening (or a test page without it): the next read is fresh anyway */ } }).finally(() => { if (REPL_LOADING && REPL_LOADING.p === p) REPL_LOADING = null; });
   REPL_LOADING = { full, p };
   return p;
 }
@@ -105,8 +108,13 @@ function replMasterSync() {
       if (!m) return r;
       let img = String(m.imageUrl || '').trim();
       if (!img && typeof ptImgOf === 'function') { try { img = ptImgOf(r.sku) || ''; } catch (e) { img = ''; } }
+      /* THE LISTING STATUS IS THE MASTER'S (Ravi, 25 Oct: "master data base me set karenge") — the India Stock tab of the
+       * sheet is gone. Discontinue / Use In Mix stops the SKU; a manual override (applyStatus) still wins over it. */
+      const ls = String(m.listingStatus || '').trim();
+      const st = ls ? { status: ls, stopped: REPL_STOP_RE.test(ls) || (!!r.stopped && /not stocked in India/.test(r.stopReason || '')),
+        stopReason: REPL_STOP_RE.test(ls) ? `Master Database: listing status "${ls}"` : (r.stopped && /not stocked in India/.test(r.stopReason || '') ? r.stopReason : '') } : {};
       return Object.assign({}, r, { asin: pick(m.asin, r.asin), parent: pick(m.parentAsin, r.parent), color: pick(m.color, r.color),
-        size: pick(m.size, r.size), subcat: pick(m.subtype, r.subcat), image: img || r.image || '' });
+        size: pick(m.size, r.size), subcat: pick(m.subtype, r.subcat), image: img || r.image || '' }, st);
     });
     X.rowsSnap = src; X.rows = out; X.rowsMaster = out; X.mdbSig = sig; changed = true;
   };
@@ -306,40 +314,44 @@ async function ensureRepl() {
   renderRepl();
 }
 
+/* FROM FABRICRUSH INVENTORY, BY ITSELF (Ravi, 25 Oct: "abhi jo inventory google sheet se aati h usase data na lekar is firebase
+ * app se lena h and sab jagah auto karna h manual kuch nahi"). The snapshot is no longer read from the sheet and saved by this
+ * page: the backend (Pricing-API ReplSnap.gs) builds it from FabriCrush Inventory after every inventory refresh — every three
+ * hours — and writes it here; replWatch() redraws the moment it lands. Refresh only asks for a fresh round now. */
 $('rGo').onclick = async () => {
   const btn = $('rGo'); btn.disabled = true; btn.innerHTML = '<span class="spin"></span>…';
-  const failed = [], statusNote = [];
-  for (const b of ['SP', 'CPC']) {
-    try {
-      rMsg(`${BRAND_NAME[b]}: reading the Inventory sheet…`);
-      const say = t => rMsg(`${BRAND_NAME[b]}: ${t}`);
-      let d;
-      try { d = await replPull(b, say); }
-      catch (e) {
-        /* The backend could not keep the read in its cache (it says so by name). Then — and only
-         * then — the old one-piece read is tried. */
-        if (!(e.data && e.data.cacheFull)) throw e;
-        say('reading the sheet in one piece…');
-        d = await apiGetRetry({ repl: 'list', brand: b }, 3,
-          (n, of) => say(`Google lost the answer — asking again (${n} of ${of})…`), 150000);
-      }
-      REPL[b] = { at: new Date(), rows: d.rows || [], recCols: d.recCols || [], catalogSkus: d.catalogSkus || [] };
-      console.info(`[repl] ${b}: ${(d.rows || []).length} rows · status filled ${d.statusN ?? '?'} · stopped ${d.stoppedN ?? '?'}`);
-      statusNote.push(`${BRAND_NAME[b]} status ${d.statusN ?? '?'}/${(d.rows || []).length}`);
-      /* The year sales history feeds the out-of-stock rate. When it stops short of today, say so here —
-       * on 15 Sep it had silently been six weeks old. */
-      const hd = d.histDiag || {};
-      if (hd.histCurrent === false) {
-        failed.push(`${BRAND_NAME[b]}: the year sales history ends ${hd.histEnd ? hd.histEnd.slice(0, 10) : '(unknown)'}, so out-of-stock SKUs are rated on old sales. Rebuild it from the Amazon Report menu (“Rebuild sales-history cache”).`);
-      }
-      renderRepl();                                   // show immediately, then cache in chunks
-      await saveReplCache(b, d.rows || [], d.recCols || [], d.catalogSkus || []);
-    } catch (e) { failed.push(`${BRAND_NAME[b]}: ${e.message || e}`); }
-  }
-  REPL_LOADED = true; REPL_MODE = 'full';
-  rMsg(failed.length ? failed.join('  ·  ') : `Updated from the sheet. (${statusNote.join(' · ')})`, failed.length > 0);
-  btn.disabled = false; btn.textContent = 'Refresh from sheet';
+  try {
+    await prGet({ inv: 'run', job: 'refresh', brand: 'all', by: ME.email || '' });
+    rMsg('Asked FabriCrush Inventory for fresh Amazon figures — orders, shipments, inventory, then this table. It takes a few minutes; the table updates by itself when it is ready.');
+    REPL_ASKED_AT = Date.now();
+  } catch (e) { rMsg('Could not ask for a refresh: ' + (e.message || e) + ' — the table still updates by itself every three hours.', true); }
+  btn.disabled = false; btn.textContent = 'Refresh';
 };
+let REPL_ASKED_AT = 0;
+/** Listen to the snapshot's header documents; a newer one is read and drawn at once. Started after the first read. */
+let REPL_WATCH = null;
+function replWatch() {
+  if (REPL_WATCH || typeof onSnapshot !== 'function') return;
+  const coll = REPL_MODE === 'full' ? 'repl' : REPL_MODE === 'shop' || ME.shopDataOnly ? 'replshop' : 'replslim';
+  REPL_WATCH = ['SP', 'CPC'].map(b => onSnapshot(doc(db, coll, b), snap => {
+    if (!snap.exists()) return;
+    const d = snap.data(), at = d.at && d.at.toDate ? d.at.toDate() : null, have = REPL[b] && REPL[b].at;
+    if (!at || (have && at <= have)) return;
+    replReload(coll);
+  }, () => { /* no right to listen: the next sign-in reads the newest anyway */ }));
+}
+let REPL_RELOAD_T = null;
+function replReload(coll) {
+  clearTimeout(REPL_RELOAD_T);
+  REPL_RELOAD_T = setTimeout(async () => {
+    const full = REPL_MODE === 'full';
+    if (coll === 'replshop') { REPL_SHOP = { SP: null, CPC: null }; }
+    REPL_MODE = '';
+    try { await loadReplCache(full); } catch (e) { return; }
+    if (REPL_ASKED_AT) { rMsg('Updated from FabriCrush Inventory.'); REPL_ASKED_AT = 0; }
+    try { renderRepl(); } catch (e) { /* drawn when the tab is next opened */ }
+  }, 1500);
+}
 
 // Typing in a filter box fires per keystroke, and every render walks the whole snapshot — so the SKU
 // boxes on all four tabs go through this. 200ms is below the "did it hear me" threshold and collapses

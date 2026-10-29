@@ -22,7 +22,10 @@
  * sheeting or voil with no direction chosen says so — it is never shown as both. */
 function flowPrintWhat(r, plan) {
   const m = cutSkuOf(r.sku) || {};
-  if (m.cuttingRequired === false)
+  /* EMBROIDERY IS DONE ON THE RUNNING CLOTH (Ravi, 21 Oct): a line on Printing + Embroidery is printed as fabric, whatever the
+   * master says about cutting — the pieces are cut out after the embroidery. */
+  const emb = !!plan && flowRouteOf(plan) === 'emb';
+  if (m.cuttingRequired === false && !emb)
     return { kind: 'sku', code: obUC(r.sku), mode: 'Cut pieces', label: 'printed on the SKU itself (no cutting)', unit: 'pcs' };
   const fab = String((plan && plan.fabric && plan.fabric.name) || m.fabric || '').trim();
   const colour = String(m.color || r.color || '').trim(), cc = ordColCodeOf(r.sku);
@@ -30,7 +33,7 @@ function flowPrintWhat(r, plan) {
   let dir = (plan && plan.print && plan.print.dir) || flowDirDefault(m, fab);
   if (!dir && dirs.length === 1) dir = dirs[0];
   let rule = ''; try { rule = ptPrintIssueAs(m) || ''; } catch (e) { rule = ''; }
-  const mode = rule === 'cut' ? 'Cut pieces (cut here from the printed fabric)' : 'Running fabric';
+  const mode = emb ? 'Running fabric — for embroidery' : rule === 'cut' ? 'Cut pieces (cut here from the printed fabric)' : 'Running fabric';
   if (!dir && dirs.length > 1)
     return { kind: 'fabric', code: '', needDir: true, mode, label: [colour, fab].filter(Boolean).join(' · '), unit: 'm' };
   /* FRONT AND BACK (Ravi, 10 Oct: "quilt ka total 5 m, 2.5 front aur 2.5 back"). A voil comes as a Front SKU and a Back
@@ -48,7 +51,7 @@ function flowPrintWhat(r, plan) {
  * plan's "Ruffle — <fabric>", from the master row / recipe / ruffle rule) goes to the same printer as the body: its
  * printed fabric SKU, in metres. Only for a printed line. */
 function flowPrintExtras(r, plan) {
-  if (!plan || flowRouteOf(plan) !== 'inhouse') return [];
+  if (!plan || !flowPrinted(flowRouteOf(plan))) return [];
   const m = cutSkuOf(r.sku) || {}, colour = String(m.color || r.color || '').trim(), cc = ordColCodeOf(r.sku);
   return (plan.extra || []).filter(x => x.unit === 'm' && /^Ruffle — /.test(String(x.what || '')) && +x.qty > 0).map(x => {
     const fab = String(x.what).replace(/^Ruffle — /, '').trim(), dirs = flowFabDirs(fab, colour, cc);
@@ -100,7 +103,7 @@ function flowToPrint(r, p) {
  * aaya tha"). The printed fabric SKU(s) a line is cut from — '' when nothing is printed as cloth for it (stitching only,
  * or the SKU itself is printed). A quilt names its Front and Back. */
 function flowCutFabricOf(r, p) {
-  if (!p || flowRouteOf(p) !== 'inhouse') return { code: '', label: '' };
+  if (!p || !flowPrinted(flowRouteOf(p))) return { code: '', label: '' };
   let w = null; try { w = flowPrintWhat(r, p); } catch (e) { w = null; }
   if (!w || w.kind === 'sku') return { code: '', label: '' };
   return { code: w.sides && w.sides.length ? w.sides.map(sd => sd.code).join(' + ') : (w.code || ''), label: w.label || '', w };
@@ -138,7 +141,7 @@ const flowChVendors = () => {
 const flowPlanPrinter = s => (s.plan && s.plan.printer && s.plan.printer.code) || '';
 /** A line's ruffle going to its own printer, not sent yet: { printer, extras, metres, fabric } or null. */
 function flowRuffleOwed(x) {
-  const p = x.s.plan, rp = flowRufflePrinter(p); if (!rp || x.s.route !== 'inhouse') return null;
+  const p = x.s.plan, rp = flowRufflePrinter(p); if (!rp || !flowPrinted(x.s.route)) return null;
   if (flowChIndex()[x.s.key + FLOW_RUF]) return null;   // sent already
   const xs = flowPrintExtras(x.r, p); if (!xs.length) return null;
   const ruf = (p.extra || []).find(e => /^Ruffle — /.test(String(e.what || '')));
@@ -161,6 +164,63 @@ function flowChallanForKeys(keys) {
   const pcs = [...new Set(rows.map(x => flowPlanPrinter(x.s)).filter(Boolean))];
   return flowChallanDialog(rows, pcs.length === 1 ? pcs[0] : null);
 }
+/* CLOTH GIVEN EARLIER, WITHOUT A CHALLAN (Ravi, 22 Oct, AMZ-15102026-01 · CPC007-04: "400 pcs already made against this order but
+ * mene abhi fabric nahi bheja mujhe fabric bhejkar old entry close karni h" — the 400 are real; their cloth went to the printer
+ * before the flow had a challan for it). A RECORD-ONLY challan says so: that cloth, to that printer, on the day it went, already
+ * printed and back (the pieces are made) — closed as it is made. It takes nothing off the RFD count unless asked (the cloth
+ * left the store then), and the line's fabric is then counted in full: only what is truly still owed is offered. */
+/** What of a line was made from cloth no challan records: { qty (in the line's unit), pcs, metres } — 0s when nothing. */
+function flowEarlierOf(x) {
+  const s = x.s, p = s.plan || {}; if (!p || !flowPrinted(s.route)) return { qty: 0, pcs: 0, metres: 0 };
+  const q = +x.r.qty || 0, done = Math.round(q * (1 - flowRemFrac(x.r, s))), per = +(p.fabric && p.fabric.perPc) || 0;
+  const pcsWise = s.fabUnit === 'pcs', need = s.fabNeed || 0, sent = s.fabSent || 0;
+  const doneU = pcsWise ? done : flowR2(done * per), qty = flowR2(Math.max(0, Math.min(doneU, need - sent)));
+  const pcs = pcsWise ? qty : (per ? Math.round(qty / per) : 0);
+  return { qty, pcs, metres: flowR2(pcsWise ? pcs * per : qty) };
+}
+async function flowRecordEarlier(key, o) {
+  const x = flowRows().find(y => y.s.key === key); if (!x) return 'That line is not here any more — press Refresh.';
+  const e = flowEarlierOf(x), pcsWise = x.s.fabUnit === 'pcs', p = x.s.plan || {}, per = +(p.fabric && p.fabric.perPc) || 0;
+  const pcs = Math.round(+o.pcs || 0);
+  if (!(pcs >= 1) || pcs > (pcsWise ? e.qty : e.pcs)) return `Type the pieces made from that cloth — at most ${nf(pcsWise ? e.qty : e.pcs)}.`;
+  const pr = (p.printer && p.printer.code) ? p.printer : null; if (!pr) return 'This line has no printer planned — pick it with "edit plan" first.';
+  const metres = flowR2(+o.metres > 0 ? +o.metres : pcs * per), qty = pcsWise ? pcs : metres, now = new Date().toISOString(), date = o.date || dToday();
+  let no = flowChallanNo(dToday(), !!x.r.__t);
+  const ch = { no, date, orderNo: x.r.orderNo, orders: [x.r.orderNo], vendor: { code: pr.code, name: pr.name }, at: now, by: ME.email || '',
+    recordOnly: true, deduct: !!o.deduct, note: `Given earlier without a challan — record only. ${nf(pcs)} pcs made already${o.note ? ' · ' + o.note : ''}`,
+    lines: [{ key, sku: obUC(x.r.sku), item: flowChItem(x.r), print: flowPrintWhat(x.r, p), extras: [], fabric: (p.fabric && p.fabric.name) || '', pcs, metres }],
+    receipts: { r0: { date, at: now, by: ME.email || '', items: { [key]: qty }, note: 'made already — the cloth was given earlier' } },
+    closed: { at: now, by: ME.email || '', why: 'given earlier, already made — record only' } };
+  for (let k = 0, taken = []; ; k++) {
+    let er = ''; try { er = await flowClaim('pt_flowChallans/' + no, ch); } catch (err) { return 'Could not save: ' + (err.message || err); }
+    if (!er) break;
+    if (k >= 15) return 'Could not get a free challan number — press Refresh and try again.';
+    taken.push(no); no = flowChallanNo(dToday(), !!x.r.__t, taken); ch.no = no;
+  }
+  if (typeof ptCas !== 'function') { try { await ptPatch({ ['pt_flowChallans/' + no]: ch }); } catch (err) { return 'Could not save: ' + (err.message || err); } }
+  FLOW.ch = Object.assign({}, FLOW.ch, { [no]: ch });
+  flowRecordEarlier.no = no;
+  return '';
+}
+function flowRecordEarlierOpen(key) {
+  const x = flowRows().find(y => y.s.key === key); if (!x) return;
+  const e = flowEarlierOf(x), pcsWise = x.s.fabUnit === 'pcs', p = x.s.plan || {};
+  ptOpenDialog({
+    title: `Record cloth given earlier — ${x.r.orderNo} · ${obUC(x.r.sku)}`,
+    subtitle: `${nf(e.pcs)} pcs of this line are made, but no challan says their cloth went to ${(p.printer && p.printer.name) || 'the printer'}. This records it — closed at once, the pieces being made — so only what is truly still owed stays in Demand.`,
+    html: `<div class="ptgrid" style="grid-template-columns:1fr 1fr 1fr"><label>Pieces made from it<input id="flreP" type="number" min="1" step="1" value="${esc(e.pcs)}"></label>
+      <label>Metres of cloth<input id="flreM" type="number" min="0" step="0.01" value="${esc(e.metres)}"></label>
+      <label>Given on<input id="flreD" type="date" value="${esc(dToday())}"></label></div>
+      <label style="display:flex;gap:6px;align-items:center;margin-top:8px"><input id="flreX" type="checkbox" style="width:auto"> Also take it off the RFD stock now (only if the store still counts that cloth)</label>
+      <label style="display:block;margin-top:8px">Note<input id="flreN" placeholder="e.g. given on the old process"></label>`,
+    saveLabel: 'Record it',
+    onSave: async () => {
+      const er = await flowRecordEarlier(key, { pcs: $('flreP').value, metres: $('flreM').value, date: $('flreD').value, deduct: !!$('flreX').checked, note: ($('flreN').value || '').trim() });
+      if (er) return er;
+      renderFlow(); $('flMsg').className = 'muted'; $('flMsg').textContent = `Recorded on ${flowRecordEarlier.no} (closed) — the line now owes only what is still to make.`; return '';
+    },
+  });
+}
 /** Under a challan line: "of 446 · 400 already made / with karigars" when part of the order needs no fabric (19 Oct). */
 function flowDoneTxt(x) {
   const q = +x.r.qty || 0, d = Math.round(q * (1 - flowRemFrac(x.r, x.s)));
@@ -179,11 +239,32 @@ function flowChTotals(n) {
   return `Ticked: ${nf(lines)} line(s)${pcs ? ` · ${nf(pcs)} pcs` : ''} · ${nf(flowR2(m))} m`;
 }
 let FLOW_CH_N = 0;
+/* THE REVIEW, BY SIZE (Ravi, 22 Oct: "yaha jab ham challan ka review kare tab size combine hokar dikhe"): what is ticked on the
+ * form, added up by fabric and size — pieces and metres — as it will go; it changes as a line is ticked or a figure typed.
+ * FLOW_CH_SZ[i] = { fabric, size } for the form's line i (a ruffle line has no size). */
+let FLOW_CH_SZ = [];
+function flowChSizeLive(n) {
+  if (typeof document === 'undefined' || typeof document.querySelector !== 'function') return '';
+  const by = new Map();
+  for (let i = 0; i < n; i++) {
+    const chk = document.querySelector(`[data-chk="${i}"]`); if (!chk || !chk.checked) continue;
+    const z = FLOW_CH_SZ[i] || {}, pcs = +((document.querySelector(`[data-chp="${i}"]`) || {}).value || 0) || +z.pcs || 0, m = +((document.querySelector(`[data-chm="${i}"]`) || {}).value || 0);
+    const k = String(z.fabric || '').toUpperCase() + '|' + (typeof flowSizeKey === 'function' ? flowSizeKey(z.size) : String(z.size || '').toLowerCase());
+    const g = by.get(k) || { fabric: z.fabric || '—', size: z.size || (z.ruffle ? 'ruffle cloth' : '—'), lines: 0, pcs: 0, m: 0 };
+    g.lines++; g.pcs += z.ruffle ? 0 : pcs; g.m = flowR2(g.m + m); by.set(k, g);
+  }
+  const list = [...by.values()].sort((a, b) => a.fabric.localeCompare(b.fabric) || (typeof flowSizeSort === 'function' ? flowSizeSort(a.size, b.size) : String(a.size).localeCompare(String(b.size))));
+  if (!list.length) return '';
+  return `<div style="font-size:12px;font-weight:700;margin:2px 0 4px">By size — what goes on this challan</div><table class="xl" style="width:auto"><thead><tr><th style="text-align:left">Fabric</th><th style="text-align:left">Size</th><th>Lines</th><th>Pcs</th><th>Metres</th></tr></thead><tbody>`
+    + list.map(g => `<tr><td style="text-align:left">${esc(g.fabric)}</td><td style="text-align:left"><b>${esc(g.size)}</b></td><td class="num">${nf(g.lines)}</td><td class="num"><b>${g.pcs ? nf(g.pcs) : '—'}</b></td><td class="num">${nf(g.m)}</td></tr>`).join('')
+    + `</tbody></table>`;
+}
 if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') ['input', 'change'].forEach(ev => document.addEventListener(ev, e => {
   const t = e.target; if (!t || !t.closest || !t.closest('[data-chk],[data-chp],[data-chm]')) return;
   const box = document.getElementById && document.getElementById('flcTot'); if (box) box.textContent = flowChTotals(FLOW_CH_N);
+  const sz = document.getElementById && document.getElementById('flcSize'); if (sz) sz.innerHTML = flowChSizeLive(FLOW_CH_N);
 }));
-function flowChallanDialog(rows, pcode, rufRows, pre) {
+function flowChallanDialog(rows, pcode, rufRows, pre, after) {
   /* pre (18 Oct, the size challan): what to send on each line, worked out FIFO — those lines come ticked with those figures. */
   const preOf = x => (pre && x && x.s ? pre.get(x.s.key) : null);
   const cv = flowRfdCover();
@@ -197,6 +278,9 @@ function flowChallanDialog(rows, pcode, rufRows, pre) {
       <td class="num"><input data-chm="${i}" type="number" step="0.01" value="${esc(o.metres || '')}" style="width:72px;padding:3px 6px;font-size:12px"></td>
       <td style="font-size:11px"><span class="muted">ruffle cloth</span></td></tr>`; }).join('');
   rows = rows.concat(rufRows); const isRuf = i => i >= nM; FLOW_CH_N = rows.length;
+  FLOW_CH_SZ = rows.map((x, i) => { let m = {}; try { m = cutSkuOf(x.r.sku) || {}; } catch (e) { m = {}; }
+    return isRuf(i) ? { fabric: (flowRuffleOwed(x) || {}).fabric || '', size: '', ruffle: true }
+      : { fabric: (x.s.plan && x.s.plan.fabric && x.s.plan.fabric.name) || '', size: String(m.size || x.r.size || '').trim(), pcs: x.s.fabUnit === 'pcs' ? 0 : (+x.r.qty || 0) }; });
   const orders = [...new Set(rows.map(x => x.r.orderNo))], orderNo = orders.join(', '), isTest = rows.every(x => !!x.r.__t);
   const vens = flowChVendors();
   /* The printer PPC planned for these lines comes ready picked. */
@@ -225,6 +309,7 @@ function flowChallanDialog(rows, pcode, rufRows, pre) {
       <table class="xl" style="margin-top:10px;width:100%;table-layout:fixed"><colgroup><col style="width:34px"><col><col style="width:100px"><col style="width:84px"><col style="width:92px"><col style="width:104px"></colgroup>
         <thead><tr><th></th><th style="text-align:left">Item</th><th style="text-align:left">Fabric</th><th>Pcs</th><th>Metres</th><th>RFD</th></tr></thead><tbody>${lineHtml}</tbody></table>
       <div id="flcTot" style="margin-top:8px;font-size:13px;font-weight:600"></div>
+      <div id="flcSize" style="margin-top:8px"></div>
       <label style="display:block;margin-top:8px">Note (vehicle, who carried it…)<input id="flcNote"></label>`,
     saveLabel: 'Make the challan',
     onSave: async () => {
@@ -273,6 +358,7 @@ function flowChallanDialog(rows, pcode, rufRows, pre) {
       renderFlow();
       const err = flowChallanPrint(no);
       if (err) { $('flMsg').className = 'err'; $('flMsg').textContent = `Challan ${no} saved. ${err}`; }
+      if (typeof after === 'function') setTimeout(after, 0);   // the next challan of a bulk run (flowChQueue)
       return '';
     },
   });
@@ -285,6 +371,7 @@ function flowChallanDialog(rows, pcode, rufRows, pre) {
   });
   /* design A: the totals of what is ticked, and each line's photo */
   const tot = document.getElementById && document.getElementById('flcTot'); if (tot) tot.textContent = flowChTotals(rows.length);
+  const szb = document.getElementById && document.getElementById('flcSize'); if (szb) szb.innerHTML = flowChSizeLive(rows.length);
   if (typeof ptImgFill === 'function') ptImgFill(rows.map(x => obUC(x.r.sku)), false, typeof ptImgPatch === 'function' ? ptImgPatch : null);
 }
 

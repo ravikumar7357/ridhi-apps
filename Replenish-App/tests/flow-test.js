@@ -2,7 +2,7 @@
  *   node tests/flow-test.js      (FLOW_DIR=<dir> to test another copy — teeth/teeth-flow.js does) */
 const fs = require('fs'), path = require('path');
 const DIR = process.env.FLOW_DIR || path.join(__dirname, '..', 'src', 'app', 'flow');
-const SRC = ['flow-core.js', 'flow-ppc.js', 'flow-demand.js', 'flow-challan.js', 'flow-test-order.js', 'flow-receive.js', 'flow-printorder.js', 'flow-vendor.js', 'flow-edit.js', 'flow-back.js', 'flow-entries.js', 'flow-qcfg.js', 'flow-view.js'].map(f => fs.readFileSync(path.join(DIR, f), 'utf8')).join('\n');
+const SRC = ['flow-core.js', 'flow-ppc.js', 'flow-demand.js', 'flow-challan.js', 'flow-test-order.js', 'flow-receive.js', 'flow-printorder.js', 'flow-vendor.js', 'flow-edit.js', 'flow-back.js', 'flow-entries.js', 'flow-qcfg.js', 'flow-emb.js', 'flow-view.js', 'flow-report.js'].map(f => fs.readFileSync(path.join(DIR, f), 'utf8')).join('\n');
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => { if (cond) { pass++; console.log('  PASS ' + name); } else { fail++; console.log('  FAIL ' + name + (extra ? ' — ' + extra : '')); } };
 
@@ -53,7 +53,7 @@ function load(opts) {
       return { row: Object.assign({}, row, { rejectionPieces: val, pendingPieces: iss - recv - val, frozen: iss - recv - val <= 0 }) }; },
     ptLoadEmp: async () => {}, ptEmpTypes: () => ['Company Contractor', 'External Contractor'],
     ptEmpsOfType: t => ({ 'Company Contractor': [['Company Contractor', 'Ramesh'], ['Company Contractor', 'Suresh']], 'External Contractor': [['External Contractor', 'Pradeep']] })[t] || [],
-    cutFabrics: () => ['Canvas', 'Cotton', 'Sheeting 82'], ptDlgClose: () => {}, PT: { base: opts.base || [] }, ORD_IX: {}, palKey: (b, c) => (b || '') + '|' + c, palInfoOf: k => (opts.pal || {})[k] || {}, VO: { rows: opts.vo || [] }, voLines: o => (Array.isArray(o.lines) ? o.lines : Object.values(o.lines || {})), voNewOrderNo: (() => { let n = 0; return () => 'VPO-261010-T' + (++n); })(), voTodayDMY: () => '10/10/2026', ordCutReq: sku => !/NOCUT/.test(sku), confirm: q => { (ctx.__asked = ctx.__asked || []).push(q); return !opts.confirmNo; }, PTG: { mdb: [] }, setTimeout, clearTimeout,
+    cutFabrics: () => ['Canvas', 'Cotton', 'Sheeting 82'], ptDlgClose: () => {}, PT: { base: opts.base || [] }, ORD_IX: {}, palKey: (b, c) => (b || '') + '|' + c, palInfoOf: k => (opts.pal || {})[k] || {}, VO: { rows: opts.vo || [] }, voLines: o => (Array.isArray(o.lines) ? o.lines : Object.values(o.lines || {})), voNewOrderNo: (() => { let n = 0; return () => 'VPO-261010-T' + (++n); })(), voTodayDMY: () => '10/10/2026', ordCutReq: sku => !/NOCUT/.test(sku), confirm: q => { (ctx.__asked = ctx.__asked || []).push(q); return !opts.confirmNo; }, PTG: { mdb: [] }, soZip: f => f, soXml: v => String(v), soColName: i => { let c = ''; for (i++; i; i = Math.floor((i - 1) / 26)) c = String.fromCharCode(65 + (i - 1) % 26) + c; return c; }, setTimeout, clearTimeout,
     voAllVendors: () => [{ code: 'V9', desc: 'Kalu Mill', category: 'Mill' }, { code: 'P1', desc: 'Sanganer Prints', category: 'Printer' }, { code: 'P2', desc: 'Choudhary Hand Block', category: 'Printer' }],
     window: { open: () => (opts.popupBlocked ? null : { document: { open() {}, write(h) { (ctx.__win = ctx.__win || []).push(h); }, close() {} } }) }, GPO: { settings: { company: 'Ridhi Home & Living' } },
     ordPrintAsPcs: m => !!(m && m.asPcs), ptPrintFabric: m => (m && m.pfab) || '', ptPrintDir: m => (m && m.dir) || '',
@@ -66,11 +66,11 @@ function load(opts) {
     FAB: { rows: opts.fabRows || [] },
     STORE: { rows: opts.store ? [] : null }, stMoves: () => opts.store || [], stBalances: mv => mv, fabKey: v => String(v || '').trim().toUpperCase(), fabAll: () => opts.fabRows || [], ptList: x => x || [], fabAutoLoad: async () => {}, GD: opts.gd, mdbOf: opts.mdbOf, MDBX: opts.mdbx, fabState: r => String((r && r.state) || (/RFD/.test(String(r && r.txnType)) ? 'RFD' : 'PRINTED')).toUpperCase(), fabKnown: t => ['OPENING_RFD', 'RFD_TO_PRINTER', 'ISSUE_TO_CUTTING', 'RECEIVE_RFD', 'PURCHASE_RFD', 'ADJUST'].includes(t), fabMove: r => (+r.qty || 0) * (['RFD_TO_PRINTER', 'ISSUE_TO_CUTTING'].includes(r.txnType) ? -1 : 1), fabStockOf: (name, st) => (st === 'RFD' ? (opts.rfd || {})[String(name).toUpperCase()] || 0 : 0),
   };
-  const api = new Function(...Object.keys(ctx), SRC + '\n;return { flowFabOwed, flowRfdStock, flowFabKnown, flowMatRow, flowGdNote, flowPpcDraftSave, flowPpcDraftApply, flowPpcDraftDrop, flowPpcHasDraft, flowBackOpen, flowAgainOpen, flowIsBack, flowBackLines, flowBackPill, FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW_ROUTES, flowPlanRouteOf, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChTotals, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestCutOpen, flowTestIssueOpen, flowTestRecvOpen, flowTestVos, flowVoProgOf, flowVoProgSync, flowVlogRows, flowDocsOf, flowVoExtra, flowVpViewOnly, flowFgAcceptOpen, flowFgAccept, flowFgRejectOpen, flowFgReject, flowFgLines, flowFgRender, flowQcLine, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowRecvCross, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowCutEntry, flowIssueEntry, flowRecvEntry, flowQcEntry, flowIssuable, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowVoLines, flowSwatchOf, flowSizeFifo, flowSizeChallanOpen, flowBySizeData, flowPpcXlRows, flowPpcXlRead, flowXlDate, FLOW_XL_COLS, VOrows:()=>VO.rows, setVOrows:v=>{VO.rows=v}, flowUnplan, flowPoResync, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v}, flowEmbedRender, FLOW_EMB:()=>FLOW_EMB, flowScreenAllowed, flowOwnsOrder, flowOwnedIn, flowVoIsFlow, flowFgOwns, flowDupViewsOff, renderView:()=>{ if (["cut","raw","wip","new","pord","vendor","fabric"].includes(FLOW_VIEW)) { const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly(); const rows = flowRows().filter(x => (!only || x.r.__t) && (FLOW_VIEW === "new" ? x.recent : flowInView(FLOW_VIEW, x.s))); $("flTable").innerHTML = flowTable(FLOW_VIEW, rows); } else renderFlow(); } };')(...Object.values(ctx));
+  const api = new Function(...Object.keys(ctx), SRC + '\n;return { flowBoardOwns, FLOW_BOARD_FROM, flowRepSkus, flowRepSerial, flowRepLines, flowRepSheets, flowRepDelay, flowRepDue, flowRepAllowed, flowRepXlsx, flowRepChannel, flowRepDay, flowRepBtn, flowPoParts, flowDrfdLineRows, flowFabOwed, flowRfdStock, flowFabKnown, flowMatRow, flowGdNote, flowPpcDraftSave, flowPpcDraftApply, flowPpcDraftDrop, flowPpcHasDraft, flowBackOpen, flowAgainOpen, flowIsBack, flowBackLines, flowBackPill, FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW_ROUTES, flowPlanRouteOf, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChTotals, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestCutOpen, flowTestIssueOpen, flowTestRecvOpen, flowTestVos, flowVoProgOf, flowVoProgSync, flowVlogRows, flowDocsOf, flowVoExtra, flowVpViewOnly, flowFgAcceptOpen, flowFgAccept, flowFgRejectOpen, flowFgReject, flowFgLines, flowFgRender, flowQcLine, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowRecvCross, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowCutEntry, flowIssueEntry, flowRecvEntry, flowQcEntry, flowIssuable, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowVoLines, flowSwatchOf, flowSizeFifo, flowSizeChallanOpen, flowBySizeData, flowPpcXlRows, flowPpcXlRead, flowXlDate, FLOW_XL_COLS, VOrows:()=>VO.rows, setVOrows:v=>{VO.rows=v}, flowUnplan, flowPoResync, flowPlanQcDirect, flowChSizeLive, flowEmbedRows, FLOW_EMB_SHOWN:()=>FLOW_EMB_SHOWN, flowChLineWhat, flowRecvRows, flowRecvDayTable, FLOW_HD, flowDueRows, flowDueTable, flowReads, flowDueRecvOpen, flowDueRecvSave, flowRfdChallanOut, flowEarlierOf, flowRecordEarlier, flowChangePrinterSave, flowStanding, flowStandBack, flowStandUse, flowStandTargets, flowRfdChallanOut, flowHistTable, flowChGroups, flowChXlRead, flowChQueue, flowEmbIndex, flowEmbCells, flowEmbSendOpen, flowEmbRecvOpen, flowEmbWho, flowEmbCancel, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v}, flowEmbedRender, FLOW_EMB:()=>FLOW_EMB, flowScreenAllowed, flowOwnsOrder, flowOwnedIn, flowVoIsFlow, flowFgOwns, flowDupViewsOff, renderView:()=>{ if (["cut","raw","wip","new","pord","vendor","fabric"].includes(FLOW_VIEW)) { const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly(); const rows = flowRows().filter(x => (!only || x.r.__t) && (FLOW_VIEW === "new" ? x.recent : flowInView(FLOW_VIEW, x.s))); $("flTable").innerHTML = flowTable(FLOW_VIEW, rows); } else renderFlow(); } };')(...Object.values(ctx));
   api.setFLOW(Object.assign(api.FLOW(), { ppc: opts.ppc || {}, dem: opts.dem || {}, res: opts.res || {} }));
   return Object.assign(api, { els, writes, W, ctx });
 }
-const plan = (o) => Object.assign({ orderNo: 'AMZ-1', sku: 'S1', qty: 100, fabric: { name: 'Cotton', perPc: 0.5, metres: 50 }, acc: [], print: { need: true }, dates: {} }, o);
+const plan = (o) => Object.assign({ orderNo: 'AMZ-1', sku: 'S1', qty: 100, fabric: { name: 'Cotton', perPc: 0.5, metres: 50 }, acc: [], print: { need: true }, dates: { ready: '2026-10-23' } }, o);
 const K = 'AMZ-1__S1';
 
 (async () => {
@@ -81,7 +81,7 @@ const K = 'AMZ-1__S1';
 
   console.log('== each bucket its own right ==');
   ok('seven rights — New orders, Print orders, Vendor allocation, Outsourced, QC, Finished Goods and Printed fabric in are gone from the flow', load().FLOW_TABS.length === 7 && new Set(load().FLOW_TABS).size === 7 && !['flnew', 'flpo', 'flven', 'flout', 'flqc', 'flrdy', 'flfg', 'flfab'].some(t => load().FLOW_TABS.includes(t)));
-  ok('an admin sees every bucket', load({ me: { admin: true } }).flowBucketsAllowed().length === 9 && load({ me: { admin: true } }).flowScreenAllowed().map(b => b[0]).join() === 'ppc,ppcdone,back,drfd,dhist,dacc');
+  ok('an admin sees every bucket', load({ me: { admin: true } }).flowBucketsAllowed().length === 10 && load({ me: { admin: true } }).flowScreenAllowed().map(b => b[0]).join() === 'ppc,ppcdone,back,drfd,demb,dhist,dacc');
   ok('PPC staff see PPC, PPC completed and Back to sales team only', load({ me: { tabs: ['flppc', 'ord'] } }).flowBucketsAllowed().map(b => b[0]).join() === 'ppc,ppcdone,back');
   ok('nobody with no right sees any', load({ me: { tabs: ['ord'] } }).flowBucketsAllowed().length === 0);
   ok('a key is safe for the database (no . # $ [ ] /)', load().flowKey('amz/1.2', 's#1') === 'AMZ_1_2__S_1');
@@ -90,6 +90,51 @@ const K = 'AMZ-1__S1';
   let A = load();
   const b = r => A.flowState(r).bucket;
   ok('a new order with no plan is in PPC', b(L()) === 'ppc');
+  /* THE SHP BOARD PLANS ITS OWN ORDERS (Ravi, 28 Oct): a Shopify order dated 28 Oct or later never waits in PPC */
+  { const shp = (o) => L(Object.assign({ orderNo: 'SHP-9001', src: 'SHP', orderDate: '2026-10-28' }, o));
+    ok('a Shopify order dated today has no plan and is NOT in PPC — it waits for the SHP board', b(shp()) === 'board', b(shp()));
+    ok('…and a later one the same', b(shp({ orderDate: '2026-11-03' })) === 'board');
+    ok('a Shopify order dated the day before stays with PPC', b(shp({ orderDate: '2026-10-27' })) === 'ppc', b(shp({ orderDate: '2026-10-27' })));
+    ok('an Amazon order dated today stays with PPC', b(L({ orderDate: '2026-10-28' })) === 'ppc');
+    ok('an order date written year-day-month (2026-28-10) is read as 28 Oct', A.flowBoardOwns(shp({ orderDate: '2026-28-10' })) === true && A.flowBoardOwns(shp({ orderDate: '2026-19-10' })) === false);
+    ok('a test order is never the board', A.flowBoardOwns(shp({ __t: { given: 0 } })) === false);
+  }
+  /* 27 Oct: issued from the Job Work Register before PPC planned it — PPC must show it, and plan only the rest. */
+  {
+    const J = load({ me: { admin: true }, lines: [L({ issued: 40 })],
+      base: [{ id: 'j1', orderNo: 'AMZ-1', sku: 'S1', issuePieces: 25, receivedPieces: 0, empName: 'Ramesh' }, { id: 'j2', orderNo: 'AMZ-1', sku: 'S1', issuePieces: 15, receivedPieces: 0, empName: 'Suresh' },
+        { id: 'j3', orderNo: 'AMZ-2', sku: 'S1', issuePieces: 9, receivedPieces: 0, empName: 'Other order' }] });
+    const st = J.flowState(L({ issued: 40 }));
+    ok('part issued from Job Work, no plan → still in PPC, marked as started', st.bucket === 'ppc' && st.startedNoPlan === true, JSON.stringify(st.bucket));
+    J.setView('ppc'); J.renderFlow();
+    const h = J.els.flTable.innerHTML;
+    ok('…the PPC list says what is issued, to whom, and what is left to plan', /Already started: issued <b>40<\/b> to Ramesh \(25\), Suresh \(15\)/.test(h) && /plan the other <b>60<\/b> pcs/.test(h) && !/Other order/.test(h), h.slice(0, 400));
+    ok('a line nobody has started says nothing extra', !/Already started/.test((() => { const K2 = load({ me: { admin: true }, lines: [L()] }); K2.setView('ppc'); K2.renderFlow(); return K2.els.flTable.innerHTML; })()));
+    /* Ravi, 27 Oct: a line issued in full before it is planned stays in PPC until it is planned, marked nothing left to make. */
+    ok('all of it issued from Job Work, no plan → stays in PPC until planned', b(L({ issued: 100 })) === 'ppc');
+    ok('all of it cut, no plan → stays in PPC too', b(L({ cutReq: true, cut: 100 })) === 'ppc');
+    { const F = load({ me: { admin: true }, lines: [L({ issued: 100 })], base: [{ id: 'f1', orderNo: 'AMZ-1', sku: 'S1', issuePieces: 100, receivedPieces: 0, empName: 'Ramesh' }] });
+      F.setView('ppc'); F.renderFlow();
+      ok('…marked on the PPC list: all issued — nothing left to make', /issued <b>100<\/b> to Ramesh \(100\)/.test(F.els.flTable.innerHTML) && /all issued — nothing left to make/.test(F.els.flTable.innerHTML)); }
+    { const P = load({ ppc: { [K]: plan() }, lines: [L({ issued: 100 })] });
+      const sp = P.flowState(L({ issued: 100 }));
+      ok('planned once all issued: no cloth, no print order — the line moves on to WIP', sp.bucket === 'wip' && !sp.needFab && P.flowPoParts(L({ issued: 100 }), plan()).length === 0, JSON.stringify([sp.bucket, sp.needFab])); }
+    { const P = load({ ppc: { [K]: plan() }, lines: [L({ issued: 100 })] });
+      P.setFLOW(Object.assign(P.FLOW(), { po: { 'PRN-202610-001': { no: 'PRN-202610-001', orderNo: 'AMZ-1', printer: { code: 'P1', name: 'Sanganer Prints' }, items: { [K]: { sku: 'S1', pcs: 100, metres: 50, unit: 'm' } } } } }));
+      const sp = P.flowState(L({ issued: 100 }));
+      ok('a line already on a print order, then issued in full: editing its plan keeps it on the print order', P.flowPoParts(L({ issued: 100 }), plan()).length === 1 && !sp.noneLeft && !sp.fromStock, JSON.stringify([sp.noneLeft, sp.fromStock])); }
+    { const P = load({ ppc: { [K]: plan() }, lines: [L({ issued: 40 })] });
+      ok('…while a line only part issued still prints (its print order is raised)', P.flowPoParts(L({ issued: 40 }), plan()).length === 1); }
+    { const Q = load({ lines: [L({ issued: 100 })], mdb: { S1: { cons: 0.5, fab: 'Cotton' } } });
+      Q.flowPpcOpen('AMZ-1'); const e = await Q.ctx.__dlg.onSave();
+      ok('planning a line issued in full asks for no printer — and writes no print order', !e && Q.writes.length > 0 && !!Q.writes[0]['pt_ppc/' + K] && !Object.keys(Q.writes[0] || {}).some(k => /pt_flowPrintOrders/.test(k)), e); }
+    { const Q = load({ lines: [L({ issued: 40 })], mdb: { S1: { cons: 0.5, fab: 'Cotton' } } });
+      Q.flowPpcOpen('AMZ-1'); const e = await Q.ctx.__dlg.onSave();
+      ok('…a line only part issued still has to name its printer', /Which printer/.test(e || ''), e); }
+    { const T = load({ lines: [] }); const tl = L({ __t: { qty: 100, issued: 100 }, issued: 100 });
+      ok('a test line issued in full prints nothing either (one rule with flowState)', T.flowPoParts(tl, plan()).length === 0); }
+    ok('…sent back to sales stays with the sales team', b(L({ issued: 100, ppcBack: { at: '2026-10-13T10:00', why: 'master' } })) === 'back');
+  }
   A = load({ ppc: { [K]: plan() } });
   ok('planned, fabric not ready → Demand', b(L()) === 'demand');
   A = load({ ppc: { [K]: plan() }, dem: { [K]: { fabricReady: { at: 'x' } } } });
@@ -211,13 +256,133 @@ const K = 'AMZ-1__S1';
     if (!g) throw new Error('no size group');
     ok('…its orders oldest first: AMZ-5 (11 Oct), SHP-9 (12 Oct), AMZ-7 (13 Oct)', g.lines.map(l => l.x.r.orderNo).join() === 'AMZ-5,SHP-9,AMZ-7', g.lines.map(l => l.x.r.orderNo).join());
     const pre = F.flowSizeFifo(pr.list, { [g.gk]: 15 });
+    /* RFD BY LINE IN EXCEL (21 Oct: "need export button here") */
+    const sh = F.flowDrfdLineRows(rows), H = sh[0], col = n => H.indexOf(n), r1 = sh.find(r => r[0] === 'AMZ-5') || [];
+    ok('RFD by line sheet: a row a line, with printer, fabric, metres to send and covered / short', sh.length === 4 && r1[col('SKU')] === 'T2' && r1[col('Printer')] === 'Sanganer Prints'
+      && r1[col('Fabric')] === 'Sheeting 62' && r1[col('To send (m)')] === 15 && r1[col('RFD')] === 'Covered' && r1[col('Qty')] === 10 && r1[col('Route')] === 'Printing', JSON.stringify([H, r1]));
     ok('FIFO: 15 pcs fill AMZ-5 (10, all), then SHP-9 (5 of 10); AMZ-7 waits', pre.get('AMZ-5__T2').pcs === 10 && pre.get('SHP-9__T1').pcs === 5 && !pre.has('AMZ-7__T3') && pre.get('SHP-9__T1').metres === 7.5, JSON.stringify([...pre]));
     F.flowSizeChallanOpen('P1');
     ok('Make challan asks the pieces per size, with what each order would get', /Challan by size/.test(F.ctx.__dlg.title) && /data-szq=/.test(F.ctx.__dlg.html) && /AMZ-5/.test(F.ctx.__dlg.html), F.ctx.__dlg.title);
     const er = await F.ctx.__dlg.onSave(); await new Promise(r => setTimeout(r, 5));
     ok('…Review challan opens the ordinary challan form with the FIFO lines and figures in it', er === '' && /RFD challan/.test(F.ctx.__dlg.title) && /value="15"/.test(F.ctx.__dlg.html), (F.ctx.__dlg.title || '') + ' ' + (er || ''));
+    /* MANY ORDERS, ONE CHALLAN (21 Oct: "bulk me challan bhi bana saku excel se and multiple order ko 1 hi challan me bhej saku") */
+    const gr = F.flowChGroups(rows.map(x => x.s.key));
+    ok('lines of three orders, one printer → ONE challan form, oldest order first', gr.groups.length === 1 && gr.groups[0].pcode === 'P1' && gr.groups[0].rows.map(x => x.r.orderNo).join() === 'AMZ-5,SHP-9,AMZ-7', JSON.stringify(gr.groups.map(g => [g.pcode, g.rows.map(x => x.r.orderNo)])));
+    const shY = F.flowDrfdLineRows(rows), HY = shY[0], cY = n => HY.indexOf(n);
+    ok('the sheet has the columns to fill: Send now (pcs), Send now (m), Make challan (yes/no), Line ID', ['Send now (pcs)', 'Send now (m)', 'Make challan (yes/no)', 'Line ID'].every(n => cY(n) >= 0) && shY[1][cY('Line ID')] && shY[1][cY('Send now (m)')] > 0);
+    shY.slice(1).forEach(r => { if (r[0] !== 'AMZ-7') r[cY('Make challan (yes/no)')] = 'yes'; if (r[0] === 'SHP-9') r[cY('Send now (m)')] = 9; });
+    const rdY = F.flowChXlRead(shY);
+    ok('read back: the two rows marked yes, with the metres typed (SHP-9: 9 m) or what is owed (AMZ-5: 15 m)', rdY.keys.length === 2 && rdY.pre.get('SHP-9__T1').metres === 9 && rdY.pre.get('AMZ-5__T2').metres === 15 && !rdY.errs.length, JSON.stringify([rdY.keys, [...rdY.pre], rdY.errs, rdY.skipped]));
+    const bad = shY.map(r => r.slice()); bad[1][cY('Make challan (yes/no)')] = 'yes'; bad[1][cY('Send now (m)')] = 'abc';
+    ok('…a row with a mistake is named, not sent', F.flowChXlRead(bad).errs.length === 1, JSON.stringify(F.flowChXlRead(bad).errs));
+    ok('…a sheet without the columns is refused', !!F.flowChXlRead([['PO', 'SKU'], ['A', 'B']]).err);
+    { /* 22 Oct ("dono ka jaha se bhi assign karu bahi se sahi ho"): the Printer typed in the sheet is the printer */
+      const shP = shY.map(r => r.slice()), cP = cY('Printer');
+      shP.slice(1).forEach(r => { r[cY('Make challan (yes/no)')] = 'yes'; if (r[0] === 'AMZ-7') r[cP] = 'choudhary hand block'; });
+      const rdP = F.flowChXlRead(shP), mv = rdP.pre.get('AMZ-7__T3') || {};
+      ok('a Printer changed in the sheet is a change of printer: AMZ-7 → Choudhary Hand Block (P2), from Sanganer Prints', mv.to && mv.to.code === 'P2' && mv.to.from === 'Sanganer Prints' && !rdP.pre.get('AMZ-5__T2').to, JSON.stringify([...rdP.pre]));
+      const grP = F.flowChGroups(rdP.keys, rdP.pre).groups;
+      ok('…so it goes on the Choudhary challan, not the plan\'s printer\'s', grP.length === 2 && grP.find(g => g.pcode === 'P2').rows.map(x => x.r.orderNo).join() === 'AMZ-7' && grP.find(g => g.pcode === 'P1').rows.length === 2, JSON.stringify(grP.map(g => [g.pcode, g.rows.map(x => x.r.orderNo)])));
+      shP.forEach(r => { if (r[0] === 'AMZ-7') r[cP] = 'Nobody Prints'; });
+      ok('…a printer the vendor list has not got is named, and that row is not sent', F.flowChXlRead(shP).errs.length === 1 && /Nobody Prints/.test(F.flowChXlRead(shP).errs[0]) && !F.flowChXlRead(shP).keys.includes('AMZ-7__T3'));
+    }
+    F.ctx.document.querySelector = q => /data-chk/.test(q) ? { checked: true } : /data-chm="(\d+)"/.test(q) ? { value: '15' } : null;
+    F.els.flcVen = Object.assign(F.els.flcVen || {}, { value: 'P1' });
+    let opened = 0; F.flowChQueue(F.flowChGroups(rdY.keys, rdY.pre).groups, () => { opened++; });
+    ok('…the form opens with the two orders on it', /RFD challan — AMZ-5, SHP-9/.test(F.ctx.__dlg.title), F.ctx.__dlg.title);
+    /* 22 Oct ("challan ka review kare tab size combine hokar dikhe") */
+    const szH = F.flowChSizeLive(2);
+    ok('…the review adds the ticked lines up by size: Sheeting 62 · 60x60 · 2 lines · 20 pcs · 30 m', /Sheeting 62<\/td><td style="text-align:left"><b>60x60<\/b><\/td><td class="num">2<\/td><td class="num"><b>20<\/b><\/td><td class="num">30<\/td>/i.test(szH), szH);
+    const erY = await F.ctx.__dlg.onSave(); await new Promise(r => setTimeout(r, 5));
+    const chY = Object.values(F.FLOW().ch).find(c => (c.orders || []).length === 2) || {};
+    ok('…saved as ONE challan for both orders, to the one printer', erY === '' && chY.vendor && chY.vendor.code === 'P1' && chY.orders.join() === 'AMZ-5,SHP-9' && chY.lines.length === 2 && opened === 1, (erY || '') + JSON.stringify(Object.values(F.FLOW().ch).map(c => [c.no, c.orders])));
+    { /* 22 Oct, "it's looking very odd": a challan of 20 orders and 20 lines folds them in the history */
+      const H = load({ me: { admin: true } }), os = Array.from({ length: 20 }, (_, k) => 'SHP-' + (7000 + k));
+      H.setFLOW(Object.assign(H.FLOW(), { ch: { 'RFD-202610-038': { no: 'RFD-202610-038', date: '2026-10-22', orderNo: os.join(', '), orders: os, vendor: { code: 'P1', name: 'RBP-Bagru' },
+        lines: os.map((o, k) => ({ key: o + '__S' + k, sku: 'S' + k, pcs: 1, metres: 2, print: { kind: 'fabric' } })) } } }));
+      const ht = H.flowHistTable('', false);
+      ok('a challan of 20 orders shows "20 orders", the first 3 and "+17 more orders"; its 20 lines the first 5 and "+15 more lines"', /20 orders/.test(ht) && /\+17 more orders/.test(ht) && /\+15 more lines/.test(ht) && !ht.includes(os.join(', ')), ht.slice(0, 600));
+    }
+    { /* 22 Oct ("date wise printing history … aaj ki date me ye goods received hua h"): receipts by the date they came */
+      const H = load({ me: { admin: true } }), ln = (k, o, m) => ({ key: o + '__' + k, sku: k, orderNo: o, pcs: 5, metres: m, fabric: 'Sheeting 62', print: { kind: 'fabric', code: 'PF-' + k, label: 'Rose · x' } });
+      H.setFLOW(Object.assign(H.FLOW(), { ch: {
+        'RFD-1': { no: 'RFD-1', orderNo: 'SHP-1', vendor: { code: 'P1', name: 'AR Textile' }, lines: [ln('A1', 'SHP-1', 10), ln('A2', 'SHP-2', 6)],
+          receipts: { r1: { date: '2026-10-21', at: '2026-10-21T06:00:00Z', by: 'ram@x.com', items: { 'SHP-1__A1': 4 } }, r2: { date: '2026-10-22', at: '2026-10-22T07:00:00Z', by: 'ram@x.com', items: { 'SHP-1__A1': 6, 'SHP-2__A2': 0 } } } },
+        'RFD-2': { no: 'RFD-2', orderNo: 'SHP-3', vendor: { code: 'P2', name: 'SS Hand Block' }, lines: [ln('B1', 'SHP-3', 3)], receipts: { r3: { date: '2026-10-22', at: '2026-10-22T09:00:00Z', items: { 'SHP-3__B1': 3 } } } },
+        'RFD-3': { no: 'RFD-3', cancelled: { at: 'x' }, vendor: { name: 'Gone' }, lines: [ln('C1', 'SHP-4', 3)], receipts: { r4: { date: '2026-10-22', items: { 'SHP-4__C1': 3 } } } } } }));
+      const rr = H.flowRecvRows('', false);
+      ok('received by date: one row per line received (a 0 and a cancelled challan are not)', rr.length === 3 && rr.map(r => r.day + ' ' + r.no + ' ' + r.qty).join() === '2026-10-22 RFD-2 3,2026-10-22 RFD-1 6,2026-10-21 RFD-1 4', JSON.stringify(rr.map(r => [r.day, r.no, r.qty])));
+      H.FLOW_HD.from = H.FLOW_HD.to = '2026-10-22';
+      const dt = H.flowRecvDayTable('', false);
+      ok('…22 Oct: 9 m on 2 challans — AR Textile 6 m, SS Hand Block 3 m; 21 Oct not in it', /9 m<\/b>|— 9 m received on 2 challan/.test(dt) && /AR Textile<\/b> 6 m \(1\)/.test(dt) && /SS Hand Block<\/b> 3 m/.test(dt) && !/2026-10-21/.test(dt), dt.slice(0, 900));
+      ok('…the printed fabric SKU and its colour say what came', /PF-A1<\/b> · Rose/.test(dt));
+      ok('…a search narrows it (printer)', H.flowRecvRows('ss hand', false).length === 1);
+      H.FLOW_HD.from = '2026-10-21'; H.FLOW_HD.to = '2026-10-22';
+      ok('…a span of two days has all three', (H.flowRecvDayTable('', false).match(/data-flchp=/g) || []).length === 3);
+      H.FLOW_HD.from = H.FLOW_HD.to = '2026-10-20';
+      ok('…a day with nothing says so', /Nothing was received on 2026-10-20/.test(H.flowRecvDayTable('', false)));
+      H.FLOW_HD.from = H.FLOW_HD.to = '';
+    }
+    { /* 23 Oct ("challan wale bande ko always pata rahe ki printing se ye mal aane wala h chah rfd wala band bheje ya n bheje") */
+      const DU = load({ me: { admin: true }, rfd: { 'SHEETING 62': 500 }, lines: [L({ orderNo: 'AMZ-5', sku: 'T2', qty: 10 }), L({ orderNo: 'AMZ-7', sku: 'T3', qty: 10 })],
+        ppc: { 'AMZ-5__T2': Object.assign(plS('T2'), { orderNo: 'AMZ-5' }), 'AMZ-7__T3': Object.assign(plS('T3'), { orderNo: 'AMZ-7' }) } });
+      DU.setFLOW(Object.assign(DU.FLOW(), { ch: { 'RFD-9': { no: 'RFD-9', orderNo: 'AMZ-5', vendor: { code: 'P1', name: 'Sanganer Prints' },
+        lines: [{ key: 'AMZ-5__T2', sku: 'T2', pcs: 10, metres: 15, print: DU.flowPrintWhat(DU.flowRows()[0].r, DU.FLOW().ppc['AMZ-5__T2']), fabric: 'Sheeting 62' }],
+        receipts: { r1: { date: '2026-10-22', items: { 'AMZ-5__T2': 5 } } } } } }));
+      const du = DU.flowDueRows('', false), a5 = du.find(x => x.orderNo === 'AMZ-5') || {}, a7 = du.find(x => x.orderNo === 'AMZ-7') || {};
+      ok('coming from printers: a line on a challan (cloth with the printer, part back) AND one whose RFD has not gone yet', du.length === 2 && a5.challan === 'RFD-9' && a5.back === 5 && a5.withPrinter === a5.sent - 5 && a5.notSent === 0
+        && a7.printer === 'Sanganer Prints' && !a7.challan && a7.notSent === a7.need && a7.left === a7.need, JSON.stringify(du.map(x => [x.orderNo, x.need, x.sent, x.back, x.withPrinter, x.notSent, x.left, x.challan])));
+      const dt = DU.flowDueTable('', false);
+      ok('…the table says what each printer owes, and marks RFD not sent yet', /Owed by the printers/.test(dt) && /RFD not sent yet/.test(dt) && /data-flchp="RFD-9"/.test(dt));
+      ok('…a search narrows it', DU.flowDueRows('amz-7', false).length === 1);
+      DU.setAngle('dhist', 'due'); DU.setView('dhist'); DU.renderFlow();
+      ok('…it is the "Coming from printers" switch of Printed fabric in, with its Excel', /data-flang="due"/.test(DU.els.flPanel.innerHTML) && /data-fldxl/.test(DU.els.flPanel.innerHTML) && /Still to come/.test(DU.els.flTable.innerHTML));
+    ok('…it is where Printed fabric in opens, with Receive for each printer', (() => { const D2 = load({ me: { admin: true } }); D2.setView('dhist'); D2.renderFlow(); return /data-flang="due" class=""/.test(D2.els.flPanel.innerHTML); })() && /data-fldrc="P1"/.test(dt));
+    /* 23 Oct ("bahi par challan wala banda receiving le"): received from the printer against the order */
+    DU.flowDueRecvOpen('P1');
+    ok('…the Receive dialog has a search box, each line findable by order, SKU and colour', /id="fldrQ"/.test(DU.ctx.__dlg.html) && /data-hay="amz-7 t3[^"]*"/i.test(DU.ctx.__dlg.html) && /data-fldq="1"/.test(DU.ctx.__dlg.html), (DU.ctx.__dlg.html.match(/data-hay="[^"]*"/g) || []).join(' '));
+    ok('…more than is still to come is refused', /more than/.test(await DU.flowDueRecvSave('P1', { 'AMZ-5__T2': a5.left + 50 }, {})));
+    const out0 = DU.flowRfdChallanOut('Sheeting 62');
+    const erR = await DU.flowDueRecvSave('P1', { 'AMZ-5__T2': 2, 'AMZ-7__T3': 3 }, { date: '2026-10-23', note: 'lot 4' });
+    const chs = Object.values(DU.FLOW().ch), rec = chs.find(c => c.noChallan) || {};
+    const r9 = Object.values(DU.FLOW().ch['RFD-9'].receipts || {}).find(x => x.date === '2026-10-23') || {};
+    ok('…what came for a line on a challan is received on that challan', erR === '' && r9.items && r9.items['AMZ-5__T2'] === 2, (erR || '') + JSON.stringify(DU.FLOW().ch['RFD-9'].receipts));
+    ok('…what came with no RFD challan goes on one record challan to that printer: given and received, closed, off RFD stock', rec.recordOnly && rec.deduct && rec.closed && rec.vendor.code === 'P1'
+      && rec.lines.length === 1 && rec.lines[0].key === 'AMZ-7__T3' && rec.receipts.r0.items['AMZ-7__T3'] === 3 && DU.flowRfdChallanOut('Sheeting 62') > out0, JSON.stringify(rec).slice(0, 400));
+    const a7b = DU.flowDueRows('', false).find(x => x.orderNo === 'AMZ-7') || {};
+    ok('…and the line owes 3 less', Math.abs(a7b.left - (a7.left - 3)) < 0.01 && a7b.back === 3, JSON.stringify([a7.left, a7b.left, a7b.back]));
+    ok('…it shows in Received by date on its day', DU.flowRecvRows('', false).filter(x => x.day === '2026-10-23').length === 2);
+    { /* 26 Oct: the up-to-10% over on cloth that went on a challan is that challan's — it left RFD stock once already */
+      const DV = load({ me: { admin: true }, rfd: { 'SHEETING 62': 500 }, lines: [L({ orderNo: 'AMZ-5', sku: 'T2', qty: 10 })],
+        ppc: { 'AMZ-5__T2': Object.assign(plS('T2'), { orderNo: 'AMZ-5' }) } });
+      DV.setFLOW(Object.assign(DV.FLOW(), { ch: { 'RFD-9': { no: 'RFD-9', orderNo: 'AMZ-5', vendor: { code: 'P1', name: 'Sanganer Prints' },
+        lines: [{ key: 'AMZ-5__T2', sku: 'T2', pcs: 10, metres: 15, print: DV.flowPrintWhat(DV.flowRows()[0].r, DV.FLOW().ppc['AMZ-5__T2']), fabric: 'Sheeting 62' }],
+        receipts: { r1: { date: '2026-10-22', items: { 'AMZ-5__T2': 5 } } } } } }));
+      const v5 = DV.flowDueRows('', false)[0] || {}, outV = DV.flowRfdChallanOut('Sheeting 62'), q = Math.round(v5.left * 1.05 * 100) / 100;
+      const erV = await DV.flowDueRecvSave('P1', { 'AMZ-5__T2': q }, { date: '2026-10-26' });
+      const rV = Object.values(DV.FLOW().ch['RFD-9'].receipts || {}).find(x => x.date === '2026-10-26') || {};
+      ok('…a little over on a line on a challan is received on that challan, not a no-RFD record, and RFD stock is not taken twice',
+        erV === '' && !Object.values(DV.FLOW().ch).some(c => c.noChallan) && rV.items && Math.abs(rV.items['AMZ-5__T2'] - q) < 0.01 && DV.flowRfdChallanOut('Sheeting 62') === outV,
+        (erV || '') + JSON.stringify([v5.left, v5.notSent, q, rV.items, outV, DV.flowRfdChallanOut('Sheeting 62')])); }
   }
+  }
+  { /* 23 Oct ("data load hone me bahut jyada time lag raha h"): what is still being read is said, and a failed read never leaves the screen stuck */
+    const RD = load({ me: { admin: true } });
+    let release; const slow = new Promise(r => { release = r; });
+    const pr = RD.flowReads([['plans and challans', slow], ['the Greige Desk', Promise.reject(new Error('timed out'))], ['nothing', null]]);
+    await new Promise(r => setTimeout(r, 5));
+    ok('while reading, the line under the toolbar names what is still coming', /Reading plans and challans… \d+ s/.test(RD.els.flMsg.textContent) && !/nothing/.test(RD.els.flMsg.textContent), RD.els.flMsg.textContent);
+    release(); const errs = await pr;
+    ok('…a read that fails is named, the others still finish', errs.length === 1 && /the Greige Desk \(timed out\)/.test(errs[0]), JSON.stringify(errs));
+    RD.FLOW().readErr = errs; RD.renderFlow();
+    ok('…and the screen is drawn, saying what could not be read', /Could not read the Greige Desk/.test(RD.els.flMsg.textContent) && RD.els.flMsg.className === 'err', RD.els.flMsg.textContent); }
+  { const HV = load({ me: { admin: true } }); HV.setView('dhist'); HV.renderFlow();
+    ok('Printed fabric in: By challan | Received by date', /data-flang="challan"/.test(HV.els.flPanel.innerHTML) && /data-flang="day"/.test(HV.els.flPanel.innerHTML) && !/data-flhd=/.test(HV.els.flPanel.innerHTML), HV.els.flPanel.innerHTML.slice(0, 300));
+    HV.setAngle('dhist', 'day'); HV.renderFlow();
+    ok('…by date: From / To (today), a day back / on, Excel', /data-flhd="from"/.test(HV.els.flPanel.innerHTML) && /data-flhdxl/.test(HV.els.flPanel.innerHTML) && /Received on/.test(HV.els.flTable.innerHTML), HV.els.flPanel.innerHTML.slice(0, 400)); }
   A.setAngle('drfd', 'line'); A.renderFlow();
+  ok('RFD By line has its Download Excel', /data-flpivxl="line"/.test(A.els.flPanel.innerHTML));
+  ok('…and Challans from Excel, Challan for ticked, and a pick tick on each line', /data-flchxl/.test(A.els.flPanel.innerHTML) && /data-flchpick/.test(A.els.flPanel.innerHTML) && /data-flchk=/.test(A.els.flTable.innerHTML));
   ok('accessories are not in the RFD department', !/Reserve/.test(A.els.flTable.innerHTML));
   A = load({ me: { tabs: ['flacc'] }, lines: [L()], ppc: { [K]: pl('S1', 60, { acc: [{ code: '18', qty: 100 }] }) }, shelf: [{ code: '18', name: '18in zip', qty: 70 }] });
   A.setView('dacc'); A.renderFlow();
@@ -283,9 +448,9 @@ const K = 'AMZ-1__S1';
       dem: { [K]: { fabricReady: { at: 'x', challan: 'RFD-202610-001' } }, 'AMZ-1__S2': { fabricReady: { at: 'x', challan: 'RFD-202610-001' } } } };
     A = load(base); A.setFLOW(Object.assign(A.FLOW(), { ch: JSON.parse(JSON.stringify(chs)) }));
     ok('a line on a challan is given in full and waits for its printed fabric', A.flowState(L()).given === 100 && A.flowState(L()).bucket === 'fabric');
-    A.setView('dhist'); A.renderFlow();
+    A.setAngle('dhist', 'challan'); A.setView('dhist'); A.renderFlow();
     ok('Demand history lists the open challan with Receive / Close short / Print', /RFD-202610-001/.test(A.els.flTable.innerHTML) && /data-flchr=/.test(A.els.flTable.innerHTML) && /data-flchc=/.test(A.els.flTable.innerHTML) && /data-flchp=/.test(A.els.flTable.innerHTML));
-    ok('its tab in Demand counts open challans', /Printed fabric in · history <b>1<\/b>/.test(A.els.flPanel.innerHTML) && /data-flb="demand"/.test(A.els.flBuckets.innerHTML), A.els.flPanel.innerHTML);
+    ok('its tab in Demand counts open challans', /Printed fabric in <b>1<\/b>/.test(A.els.flPanel.innerHTML) && /data-flb="demand"/.test(A.els.flBuckets.innerHTML), A.els.flPanel.innerHTML);
     let QS = { '[data-flrm="0"]': { value: '' }, '[data-flrm="1"]': { value: '' } };
     A.ctx.document.querySelector = sel => QS[sel] || null;
     A.flowReceiveOpen('RFD-202610-001'); A.els.flrDate = { value: '2026-10-12' }; A.els.flrNote = { value: 'lot 7' };
@@ -305,7 +470,7 @@ const K = 'AMZ-1__S1';
     ok('the rest back → the challan closes by itself', !(await A.ctx.__dlg.onSave()) && A.writes[2]['pt_flowChallans/RFD-202610-001/closed'].why === 'all received');
     ok('…and the lines move to the store (Cutting / Raw)', A.flowState(L({ cutReq: true })).bucket === 'cut' && A.flowState(L({ sku: 'S2', qty: 40 })).bucket === 'raw');
     A.renderFlow();
-    ok('a closed challan has no Receive button and the count is 0', !/data-flchr=/.test(A.els.flTable.innerHTML) && /closed/.test(A.els.flTable.innerHTML) && /Printed fabric in · history <b>0<\/b>/.test(A.els.flPanel.innerHTML));
+    ok('a closed challan has no Receive button and the count is 0', !/data-flchr=/.test(A.els.flTable.innerHTML) && /closed/.test(A.els.flTable.innerHTML) && /Printed fabric in <b>0<\/b>/.test(A.els.flPanel.innerHTML));
     A = load(base); A.setFLOW(Object.assign(A.FLOW(), { ch: JSON.parse(JSON.stringify(chs)) }));
     A.flowCloseShortOpen('RFD-202610-001'); A.els.flcWhy = { value: '' };
     ok('close short needs a reason', /Say why/.test(await A.ctx.__dlg.onSave()) && !A.writes.length);
@@ -342,7 +507,8 @@ const K = 'AMZ-1__S1';
     const h = A.ctx.__dlg.html;
     ok('the form says how each line was given: CPC-02 cut pieces, 45 pcs (105.75 m cloth shown beside)', /Cut pieces/.test(h) && /<b>45 pcs<\/b>/.test(h) && /105\.75 m cloth/.test(h));
     ok('…the cloth line in metres', /Printed cloth/.test(h) && /<b>5\.3 m<\/b>/.test(h));
-    ok('…and the box is prefilled with what is still out: 45 (pcs) and 5.3 (m)', /data-flrm="0" type="number" step="1" min="0" value="45"/.test(h) && /data-flrm="1" type="number" step="0.01" min="0" value="5.3"/.test(h));
+    ok('…and the box starts at 0 (22 Oct: "auto 0 aana chahiye"), what is still out said beside it: 45 pcs, 5.3 m', /data-flrm="0" type="number" step="1" min="0" value="0" title="still to come: 45 pcs"/.test(h) && /data-flrm="1" type="number" step="0.01" min="0" value="0" title="still to come: 5.3 m"/.test(h), h.slice(h.indexOf('data-flrm="0"') - 10, h.indexOf('data-flrm="0"') + 200));
+    ok('…left at 0 everywhere, nothing is received', /Type what came back/.test(await (async () => { const was = A.ctx.document.querySelector; A.ctx.document.querySelector = s => /data-flrm/.test(s) ? { value: '0' } : null; const r = await A.ctx.__dlg.onSave(); A.ctx.document.querySelector = was; return r; })()));
     let q = { '[data-flrm="0"]': { value: '10.5' }, '[data-flrm="1"]': { value: '' } };
     A.ctx.document.querySelector = s => q[s] || null; A.els.flrDate = { value: '2026-10-12' }; A.els.flrNote = { value: '' };
     ok('pieces are whole', /Pieces are whole: CPC-02/.test(await A.ctx.__dlg.onSave()) && !A.writes.length);
@@ -350,8 +516,11 @@ const K = 'AMZ-1__S1';
     ok('more pieces back than given → refused (no 10% for pieces)', /More came back than was given for CPC-02/.test(await A.ctx.__dlg.onSave()) && !A.writes.length);
     q['[data-flrm="0"]'].value = '10';
     ok('10 of 45 pieces back → 10 pieces of the line are in', !(await A.ctx.__dlg.onSave()) && A.flowState(L({ orderNo: 'TEST-AMZ-10102026-02', sku: 'CPC-02', qty: 45 })).back === 10);
-    A.setView('dhist'); A.renderFlow();
-    ok('Demand history says it in both units: sent 5.3 m · 45 pcs, received 10 pcs', /5\.3 m · 45 pcs/.test(A.els.flTable.innerHTML) && /CPC-02 · 45 pcs <span style="color:#166534">\(10 pcs back\)/.test(A.els.flTable.innerHTML));
+    A.setAngle('dhist', 'challan'); A.setView('dhist'); A.renderFlow();
+    ok('Demand history says it in both units: sent 5.3 m · 45 pcs, received 10 pcs', /5\.3 m · 45 pcs/.test(A.els.flTable.innerHTML) && /CPC-02<\/b>.{0,60} · 45 pcs <span style="color:#166534">\(10 pcs back\)/.test(A.els.flTable.innerHTML), A.els.flTable.innerHTML.slice(A.els.flTable.innerHTML.indexOf('CPC-02') - 80, A.els.flTable.innerHTML.indexOf('CPC-02') + 200));
+    /* 22 Oct ("printed fabric print hokar aayega to printed fabric sku and color name show hona chahiye") */
+    ok('a running-cloth line says the printed fabric SKU and its colour, then the product it is for', /<b style="font-weight:600">CPCSF007-V-82<\/b> · Apatite Blue <span class="muted">Sheeting 82<\/span> <span class="muted">for CPCRU007-6R<\/span>/.test(A.flowChLineWhat({ sku: 'CPCRU007-6R', fabric: 'Sheeting 82', print: { kind: 'fabric', code: 'CPCSF007-V-82', label: 'Apatite Blue · Sheeting 82 · Vertical' } })),
+      A.flowChLineWhat({ sku: 'CPCRU007-6R', fabric: 'Sheeting 82', print: { kind: 'fabric', code: 'CPCSF007-V-82', label: 'Apatite Blue · Sheeting 82 · Vertical' } }));
     A.flowReceiveOpen('TRFD-202610-001');
     q = { '[data-flrm="0"]': { value: '35' }, '[data-flrm="1"]': { value: '5.3' } };
     A.ctx.document.querySelector = s => q[s] || null;
@@ -366,6 +535,13 @@ const K = 'AMZ-1__S1';
     ok('the colour allocated in Printer Allocation → that printer, and why', sg.printer.code === 'P1' && /Printer Allocation/.test(sg.printer.why));
     sg = A.flowSuggest(L({ sku: 'S2' }));
     ok('not allocated → the printer that last got that colour', sg.printer.code === 'V9' && /last given Ocean Vine/.test(sg.printer.why));
+    /* 28 Oct (Ravi): Apatite Blue last went to A R Textile Printer on 24/10, yet PPC suggested Bhavya (30/09) — vendor orders write dd/mm/yyyy,
+     * and as text "30/09/2026" is after "24/10/2026". The newest day wins, however it was written. */
+    { const B = load({ mdb, vo: [{ vendorCode: 'V9', orderDate: '30/09/2026', lines: [{ sku: 'S9' }] }, { vendorCode: 'P1', orderDate: '24/10/2026', lines: [{ sku: 'S9' }] }] });
+      ok('the colour last given on 24/10/2026 beats one given on 30/09/2026 (dd/mm/yyyy dates)', B.flowSuggest(L({ sku: 'S2' })).printer.code === 'P1', JSON.stringify(B.flowSuggest(L({ sku: 'S2' })).printer));
+      const C = load({ mdb, vo: [{ vendorCode: 'V9', orderDate: '30/09/2026', lines: [{ sku: 'S9' }] }] });
+      C.setFLOW(Object.assign({}, C.FLOW(), { ch: { 'RFD-1': { no: 'RFD-1', date: '2026-10-28', vendor: { code: 'P1' }, lines: [{ sku: 'S9' }] } } }));
+      ok('…and a challan dated 2026-10-28 beats a vendor order dated 30/09/2026 — the two kinds of date compare', C.flowSuggest(L({ sku: 'S2' })).printer.code === 'P1', JSON.stringify(C.flowSuggest(L({ sku: 'S2' })).printer)); }
     ok('nothing known → blank, said', A.flowSuggest(L({ sku: 'S3' })).printer.code === '' && /no printer allocated to Nobody/.test(A.flowSuggest(L({ sku: 'S3' })).printer.why));
     A = load({ me: { admin: true }, mdb, lines: [L()], pal: { 'SP|Light Steel Blue': { printer: 'P1' } } });
     A.setView('ppc'); A.renderFlow();
@@ -741,7 +917,7 @@ const K = 'AMZ-1__S1';
     ok('…and the RFD for the whole order in one row: Sheeting 92, 20 m', /RFD · <b>Sheeting 92<\/b><\/td><td class="num">20 m/.test(cb), cb);
     /* the Vendor Order the printer sees: one line for RBPSF327-V-92 */
     const it = (sku, m) => ({ sku, print: { kind: 'fabric', code: 'RBPSF327-V-92', label: 'Light Steel Blue · Sheeting 92 · Vertical', mode: 'Running fabric' }, extras: [], unit: 'm', pcs: 20, metres: m });
-    const K1 = 'AMZ-2__RTC327-6060', K2 = 'AMZ-2__RTC327-6090', pl = { fabric: { name: 'Sheeting 92' }, print: { dir: 'Vertical' }, dates: {} };
+    const K1 = 'AMZ-2__RTC327-6060', K2 = 'AMZ-2__RTC327-6090', pl = { fabric: { name: 'Sheeting 92' }, print: { dir: 'Vertical' }, dates: { ready: '2026-10-23' } };
     const vl = B.flowVoLines({ no: 'PRN-202610-009', orderNo: 'AMZ-2', items: { [K1]: it('RTC327-6060', 2), [K2]: it('RTC327-6090', 18) } }, () => pl);
     ok('the Vendor Order has ONE running line for RBPSF327-V-92: 20 m, for both SKUs', vl.running.length === 1 && vl.running[0].meters === 20 && vl.running[0].sku === 'RBPSF327-V-92'
       && vl.running[0].flowPart === [K1 + '|body', K2 + '|body'].sort().join('+') && /RTC327-6060, RTC327-6090/.test(vl.running[0].notes) && vl.running[0].forOrders.length === 1 && vl.running[0].forOrders[0].qty === 40, JSON.stringify(vl.running));
@@ -774,6 +950,89 @@ const K = 'AMZ-1__S1';
     ok('resync: an order planned to a printer with no print order gets one, through the same code as the PPC save', er === '' && Object.keys(w).some(k => /^pt_flowPrintOrders\//.test(k)), er + ' ' + JSON.stringify(Object.keys(w)));
     const N = load({ me: { admin: false }, mdb: mdbR, lines: [L({ orderNo: 'AMZ-55', sku: 'RPC9-A' })], ppc: { 'AMZ-55__RPC9-A': plan({ orderNo: 'AMZ-55', sku: 'RPC9-A', route: 'inhouse', printer: pr }) } });
     ok('…only an admin may resync', /Only an admin/.test(await N.flowPoResync('AMZ-55')) && !N.writes.length);
+  }
+
+  console.log('== change the printer after the fabric went (22 Oct: "us fabric ko stand dikhay … but fabric abhi stand h") ==');
+  {
+    const pr = { code: 'P1', name: 'Sanganer Prints' }, K = 'AMZ-55__RPC9-A';
+    const mdbR = { 'RPC9-A': { color: 'Basil Green', fabric: 'Cotton', cuttingRequired: true } };
+    const mk = receipts => { const R = load({ me: { admin: true }, mdb: mdbR, lines: [L({ orderNo: 'AMZ-55', sku: 'RPC9-A' })],
+        ppc: { [K]: plan({ orderNo: 'AMZ-55', sku: 'RPC9-A', route: 'inhouse', printer: pr, fabric: { name: 'Cotton', perPc: 0.5, metres: 50 } }) } });
+      R.flowTestOnlySet(false);
+      const sy = R.flowPoSync([{ r: R.W.lines[0], p: R.FLOW().ppc[K] }], '2026-10-20');
+      R.setFLOW(Object.assign(R.FLOW(), { po: sy.local, ch: { 'RFD-202610-001': { no: 'RFD-202610-001', date: '2026-10-20', orderNo: 'AMZ-55', vendor: pr,
+        lines: [{ key: K, sku: 'RPC9-A', fabric: 'Cotton', metres: 50, print: { kind: 'fabric' } }], receipts: receipts || {} } } }));
+      return R; };
+    let R = mk(), s = R.flowRows()[0].s;
+    ok('before: the line is on RFD-202610-001 with Sanganer — its fabric locked', !!s.challan && s.challan.no === 'RFD-202610-001' && Object.values(R.FLOW().po).some(o => o.printer && o.printer.code === 'P1'));
+    const er = await R.flowChangePrinterSave(K, 'P2', 'no capacity'), w = Object.assign({}, ...R.writes), mv = w['pt_flowChallans/RFD-202610-001/moved/' + K] || {};
+    ok('changed to Choudhary: the line comes off the challan as moved — 50 m standing with Sanganer', er === '' && mv.metres === 50 && mv.to && mv.to.code === 'P2' && mv.why === 'no capacity', er + ' ' + JSON.stringify(Object.keys(w)));
+    ok('…nothing else was to come on the challan → it closes', !!w['pt_flowChallans/RFD-202610-001/closed']);
+    ok('…the plan says the new printer and why', (w['pt_ppc/' + K + '/printer'] || {}).code === 'P2' && /changed from Sanganer Prints/.test((w['pt_ppc/' + K + '/printer'] || {}).why));
+    ok('…its print order moves to the new printer', Object.values(R.FLOW().po).some(o => o && o.printer && o.printer.code === 'P2' && (o.items || {})[K]) && !Object.values(R.FLOW().po).some(o => o && o.printer && o.printer.code === 'P1' && (o.items || {})[K]),
+      JSON.stringify(Object.values(R.FLOW().po).map(o => [o.no, o.printer && o.printer.code, Object.keys(o.items || {}).filter(k => (o.items || {})[k])])));
+    s = R.flowRows()[0].s;
+    ok('…the line is back in Demand · RFD for the new printer, 50 m to send, no longer locked', !s.challan && s.bucket === 'demand' && R.flowInView('drfd', s) && R.flowFabOwed(R.flowRows()[0].r, s).metres === 50, JSON.stringify([s.bucket, s.challan, s.fabSent]));
+    const st = R.flowStanding();
+    ok('Standing with printers: Sanganer Prints · Cotton · 50 m, given on RFD-202610-001 for AMZ-55 · RPC9-A, moved to Choudhary', st.length === 1 && st[0].printer === 'Sanganer Prints' && st[0].qty === 50 && st[0].fabric === 'Cotton' && st[0].no === 'RFD-202610-001' && /Choudhary/.test(st[0].to), JSON.stringify(st));
+    ok('…the history line says so', /order moved to Choudhary Hand Block — cloth standing/.test(R.flowHistTable('', false)));
+    ok('…the old challan is no longer among the line\'s papers', !R.flowDocsOf(R.flowRows()[0]).some(d => d.no === 'RFD-202610-001'));
+    R = mk({ r1: { items: { [K]: 10 } } });
+    ok('printed cloth already back for it on the challan → refused: close it short instead', /close that challan short/.test(await R.flowChangePrinterSave(K, 'P2', '')) && !R.writes.length);
+    ok('the same printer → refused', /already with/.test(await mk().flowChangePrinterSave(K, 'P1', '')));
+
+    /* SETTLING THE STANDING CLOTH (22 Oct: "is fabric ka sattlement bhi kar saku" — back to the store, or for another order; admins only) */
+    const K2 = 'AMZ-56__RPC9-A';
+    const mk2 = admin => { const S = load({ me: { admin }, mdb: mdbR, lines: [L({ orderNo: 'AMZ-55', sku: 'RPC9-A' }), L({ orderNo: 'AMZ-56', sku: 'RPC9-A' })],
+        ppc: { [K]: plan({ orderNo: 'AMZ-55', sku: 'RPC9-A', route: 'inhouse', printer: { code: 'P2', name: 'Choudhary Hand Block' }, fabric: { name: 'Cotton', perPc: 0.5, metres: 50 } }),
+          [K2]: plan({ orderNo: 'AMZ-56', sku: 'RPC9-A', route: 'inhouse', printer: pr, fabric: { name: 'Cotton', perPc: 0.5, metres: 50 } }) } });
+      S.flowTestOnlySet(false);
+      S.setFLOW(Object.assign(S.FLOW(), { ch: { 'RFD-202610-001': { no: 'RFD-202610-001', date: '2026-10-20', orderNo: 'AMZ-55', vendor: pr, lines: [{ key: K, sku: 'RPC9-A', fabric: 'Cotton', metres: 50, print: { kind: 'fabric' } }], receipts: {},
+        moved: { [K]: { at: '2026-10-22T05:00:00Z', from: pr, to: { code: 'P2', name: 'Choudhary Hand Block' }, metres: 50, unit: 'm', fabric: 'Cotton', sku: 'RPC9-A', orderNo: 'AMZ-55', why: 'x' } }, closed: { at: 'x' } } } }));
+      return S; };
+    let S = mk2(true);
+    const out0 = S.flowRfdChallanOut('Cotton', '');
+    let se = await S.flowStandBack('RFD-202610-001', K, 20, 'rfd', 'came back by tempo');
+    ok('back to the store: 20 m of the 50 m unprinted → 30 m still standing, and the RFD out of the store is 20 m less', se === '' && S.flowStanding()[0].qty === 30 && S.flowStanding()[0].settled === 20 && S.flowRfdChallanOut('Cotton', '') === out0 - 20,
+      se + JSON.stringify([S.flowStanding(), out0, S.flowRfdChallanOut('Cotton', '')]));
+    ok('…more than stands is refused', /at most the 30 m/.test(await S.flowStandBack('RFD-202610-001', K, 31, 'rfd', '')));
+    ok('…printed cloth back is recorded but does not come back as RFD', (await S.flowStandBack('RFD-202610-001', K, 5, 'printed', '')) === '' && S.flowStanding()[0].qty === 25 && S.flowRfdChallanOut('Cotton', '') === out0 - 20);
+    const tg = S.flowStandTargets(S.flowStanding()[0]);
+    ok('another order: the lines waiting for Cotton with Sanganer are offered — AMZ-56', tg.map(y => y.s.key).join() === K2, JSON.stringify(tg.map(y => y.s.key)));
+    se = await S.flowStandUse('RFD-202610-001', K, K2, 25, '');
+    const nc = S.FLOW().ch[S.flowStandUse.no] || {}, s2 = S.flowRows().find(y => y.s.key === K2).s;
+    ok('…used: a challan to Sanganer for AMZ-56 from the standing cloth, 25 m given to the line, nothing standing left', se === '' && nc.standing && nc.standing.from === 'RFD-202610-001' && nc.vendor.code === 'P1' && s2.fabSent === 25 && !S.flowStanding().length,
+      se + JSON.stringify([nc.no, nc.standing, s2.fabSent, S.flowStanding()]));
+    ok('…and that challan took nothing from the store', S.flowRfdChallanOut('Cotton', '') === out0 - 20, String(S.flowRfdChallanOut('Cotton', '')));
+    ok('…the settled cloth is still in the record (all = true)', S.flowStanding(true).length === 1 && S.flowStanding(true)[0].settled === 50);
+    ok('only an admin settles', /Only an admin/.test(await mk2(false).flowStandBack('RFD-202610-001', K, 5, 'rfd', '')) && /Only an admin/.test(await mk2(false).flowStandUse('RFD-202610-001', K, K2, 5, '')));
+  }
+
+  console.log('== cloth given earlier without a challan (22 Oct, AMZ-15102026-01 · CPC007-04: "mujhe fabric bhejkar old entry close karni h") ==');
+  {
+    const KE = 'AMZ-15102026-01__CPC007-04', pr = { code: 'P1', name: 'Sanganer Prints' };
+    const mdbE = { 'CPC007-04': { color: 'Apatite Blue', fabric: 'Sheeting 62', consumption: 1.58, cuttingRequired: false } };
+    const mkE = () => { const E = load({ me: { admin: true }, mdb: mdbE, lines: [L({ orderNo: 'AMZ-15102026-01', sku: 'CPC007-04', qty: 446, issued: 400, received: 400 })],
+        qc: { 'AMZ-15102026-01|CPC007-04': { ok: 400 } },
+        ppc: { [KE]: plan({ orderNo: 'AMZ-15102026-01', sku: 'CPC007-04', qty: 446, route: 'inhouse', printer: pr, fabric: { name: 'Sheeting 62', perPc: 1.58, metres: 704.68 } }) } });
+      E.flowTestOnlySet(false);
+      E.setFLOW(Object.assign(E.FLOW(), { ch: { 'RFD-202610-044': { no: 'RFD-202610-044', date: '2026-10-21', orderNo: 'AMZ-15102026-01', vendor: pr,
+        lines: [{ key: KE, sku: 'CPC007-04', fabric: 'Sheeting 62', pcs: 46, metres: 72.68, print: { kind: 'sku', code: 'CPC007-04' } }], receipts: {} } } }));
+      return E; };
+    let E = mkE(), x = E.flowRows()[0];
+    const ea = E.flowEarlierOf(x), out0 = E.flowRfdChallanOut('Sheeting 62', '');
+    ok('400 made, 46 sent on RFD-202610-044 → 400 pcs were made from cloth no challan records', ea.pcs === 400 && ea.metres === 632, JSON.stringify(ea));
+    let er = await E.flowRecordEarlier(KE, { pcs: 400, date: '2026-10-15' });
+    const rc = E.FLOW().ch[E.flowRecordEarlier.no] || {};
+    x = E.flowRows()[0];
+    ok('recorded: a record-only challan to the printer, 400 pcs · 632 m, received and closed at once', er === '' && rc.recordOnly && rc.closed && rc.lines[0].pcs === 400 && rc.lines[0].metres === 632 && rc.receipts.r0.items[KE] === 400 && rc.date === '2026-10-15',
+      er + JSON.stringify(rc));
+    ok('…the line\'s cloth is now in full (446 of 446) — nothing more is offered, it leaves Demand · RFD', x.s.fabSent === 446 && E.flowFabOwed(x.r, x.s).left === 0 && !E.flowInView('drfd', x.s), JSON.stringify([x.s.fabSent, E.flowFabOwed(x.r, x.s), x.s.bucket]));
+    ok('…and it takes nothing off the RFD stock (the cloth left the store then)', E.flowRfdChallanOut('Sheeting 62', '') === out0);
+    ok('…no "record earlier" button is left for it', E.flowEarlierOf(x).pcs === 0);
+    E = mkE(); er = await E.flowRecordEarlier(KE, { pcs: 400, deduct: true });
+    ok('asked to, it does take it off the RFD stock', er === '' && Math.abs(E.flowRfdChallanOut('Sheeting 62', '') - (out0 + 632)) < 0.01, er + ' ' + E.flowRfdChallanOut('Sheeting 62', '') + ' vs ' + (out0 + 632));
+    ok('more pieces than were made without cloth is refused', /at most 400/.test(await mkE().flowRecordEarlier(KE, { pcs: 401 })));
   }
 
   console.log('== one printed fabric, several orders → one challan ==');
@@ -901,14 +1160,15 @@ const K = 'AMZ-1__S1';
     A.ctx.document.querySelectorAll = () => [{ addEventListener() {}, dataset: { fp: '0', k: 'fabric.perPc' }, type: 'number', value: '0.6' }, PRF(0, 'P1')];
     A.els.flpUndo = { checked: false };
     er = await A.ctx.__dlg.onSave(); w = A.writes[1] || {};
-    const run2 = w['pt_vendorOrders/P1/' + run.id];
-    ok('re-plan (0.6 m/pc): the SAME vendor order is updated — 6 m, its line id kept', !er && run2 && run2.orderNo === run.orderNo && run2.lines.find(l => l.sku === 'RBP-CANVAS-327').meters === 6 && run2.lines.find(l => l.sku === 'RBP-CANVAS-327').lineId === lid, er);
+    const run2 = w['pt_vendorOrders/P1/' + run.id + '/lines'];
+    ok('re-plan (0.6 m/pc): the SAME vendor order is updated — 6 m, its line id kept', !er && run2 && !w['pt_vendorOrders/P1/' + run.id] && run2.find(l => l.sku === 'RBP-CANVAS-327').meters === 6 && run2.find(l => l.sku === 'RBP-CANVAS-327').lineId === lid, er);
+    ok('…field by field (lines, status, staffUpdatedAt) — never the whole order, so the printer’s own "Vendor sent" batches stay', Object.keys(w).filter(k => k.startsWith('pt_vendorOrders/P1/' + run.id)).sort().join() === ['lines', 'staffUpdatedAt', 'status'].map(k => 'pt_vendorOrders/P1/' + run.id + '/' + k).join(), Object.keys(w).join());
     /* the printer has started: never rewritten from here */
     A.setVOrows(A.VOrows().map(o => o.id === run.id ? Object.assign({}, o, { lines: o.lines.map((l, i) => i === 0 ? Object.assign({}, l, { deliveries: [{ qty: 2 }] }) : l) }) : o));
     A.flowPpcOpen('AMZ-1', 'RPC327-1818');
     A.ctx.document.querySelectorAll = () => [{ addEventListener() {}, dataset: { fp: '0', k: 'fabric.perPc' }, type: 'number', value: '0.7' }, PRF(0, 'P1')];
     er = await A.ctx.__dlg.onSave(); w = A.writes[2] || {};
-    ok('once the printer has delivered on it, the vendor order is left alone — said', !er && !w['pt_vendorOrders/P1/' + run.id] && /has deliveries already/.test(A.els.flMsg.textContent + ' ' + JSON.stringify(A.ctx.__said || '')) || !w['pt_vendorOrders/P1/' + run.id]);
+    ok('once the printer has delivered on it, the vendor order is left alone — said', !er && !Object.keys(w).some(k => k.startsWith('pt_vendorOrders/P1/' + run.id)));
     /* declined: nothing at all is written */
     const B = mk({ confirmNo: true });
     B.flowPpcOpen('AMZ-1'); B.ctx.document.querySelectorAll = () => [PRF(0, 'P1'), PRF(1, 'P1'), PRF(2, 'P1')];
@@ -942,6 +1202,18 @@ const K = 'AMZ-1__S1';
       ok('…a challan of 12 m and 5 m back → given 12 m on TRFD-9, received 5 m on 17 Oct', pg.given === 12 && pg.back === 5 && pg.challans[0].no === 'TRFD-9' && pg.receipts[0].date === '2026-10-17' && pg.receipts[0].qty === 5, JSON.stringify(pg));
       ok('…and per print-order line (items), for the colour board: 12 given, 5 back on that line', pg.items[key] && pg.items[key].given === 12 && pg.items[key].back === 5, JSON.stringify(pg.items));
       ok('…a challan to another printer, or for another order, is not counted', (() => { C.FLOW().ch['TRFD-9'].vendor.code = 'P2'; const x = C.flowVoProgOf(po, 'running'); C.FLOW().ch['TRFD-9'].vendor.code = 'P1'; return x.given === 0; })()); }
+    { /* A COMBINED CHALLAN (Ravi, 27 Oct): one challan for two orders — RFD-202610-070 was "SHP-RBP7558, SHP-RBP7606" and neither print order's card showed it */
+      const po = Object.values(C.FLOW().po || {}).find(o => o && o.test), key = Object.keys(po.items).find(k => po.items[k] && po.items[k].unit !== 'pcs'), keep = C.FLOW().ch;
+      const mk = (orders, orderNo) => C.setFLOW(Object.assign(C.FLOW(), { ch: { 'TRFD-C': { no: 'TRFD-C', date: '2026-10-24', orderNo, orders, vendor: { code: 'P1', name: 'Sanganer Prints' },
+        lines: [{ key, sku: 'X', metres: 7 }, { key: 'OTHER-ORDER__Y', sku: 'Y', metres: 9 }], receipts: { r1: { date: '2026-10-27', items: { [key]: 7, 'OTHER-ORDER__Y': 9 } } } } } }));
+      mk(['OTHER-ORDER', po.orderNo], 'OTHER-ORDER, ' + po.orderNo);
+      const pg = C.flowVoProgOf(po, 'running');
+      ok('a challan for several orders counts for each of them: this print order is given 7 m and has 7 m back — not the 9 m of the other order', pg.given === 7 && pg.back === 7 && pg.challans.length === 1, JSON.stringify(pg));
+      mk(['OTHER-ORDER', 'THIRD-ORDER'], 'OTHER-ORDER, THIRD-ORDER');
+      ok('…and a combined challan that does not name this order is still not counted', C.flowVoProgOf(po, 'running').given === 0);
+      mk(undefined, 'OTHER-ORDER, ' + po.orderNo);
+      ok('…an old challan with only the joined text and no list is read the same way', C.flowVoProgOf(po, 'running').given === 7);
+      C.setFLOW(Object.assign(C.FLOW(), { ch: keep })); }
     { /* a REAL print order: the office's screen writes the summary onto the printer's vendor order, once */
       const S = load({ me: { admin: true }, mdb, fsCat });
       S.setFLOW(Object.assign(S.FLOW(), { po: { 'PRN-1': { no: 'PRN-1', orderNo: 'AMZ-9', printer: { code: 'P1', name: 'Sanganer Prints' }, items: { 'AMZ-9__S1': { sku: 'S1', unit: 'm', metres: 10 } },
@@ -962,10 +1234,10 @@ const K = 'AMZ-1__S1';
     D.flowPpcOpen('AMZ-1', 'CPC-02'); D.ctx.document.querySelectorAll = () => [PRF(0, 'P2')]; D.els.flpUndo = { checked: false };
     er = await D.ctx.__dlg.onSave(); w = D.writes[1] || {};
     const p2 = Object.keys(w).filter(k => /^pt_vendorOrders\/P2\//.test(k)).map(k => w[k])[0];
-    ok('printer changed → the old cut order is cancelled, a new one placed with Choudhary', !er && w['pt_vendorOrders/P1/' + first.id].status === 'Cancelled' && p2 && p2.vendorName === 'Choudhary Hand Block' && p2.lines[0].sku === 'CPC-02', er || Object.keys(w).join());
+    ok('printer changed → the old cut order is cancelled, a new one placed with Choudhary', !er && w['pt_vendorOrders/P1/' + first.id + '/status'] === 'Cancelled' && p2 && p2.vendorName === 'Choudhary Hand Block' && p2.lines[0].sku === 'CPC-02', er || Object.keys(w).join());
     D.flowPpcOpen('AMZ-1', 'CPC-02'); D.els.flpUndo = { checked: true };
     er = await D.ctx.__dlg.onSave(); w = D.writes[2] || {};
-    ok('plan undone → its vendor order cancelled too', !er && Object.values(w).some(o => o && o.id === p2.id && o.status === 'Cancelled'), er || Object.keys(w).join());
+    ok('plan undone → its vendor order cancelled too', !er && w['pt_vendorOrders/P2/' + p2.id + '/status'] === 'Cancelled', er || Object.keys(w).join());
   }
 
   console.log('== accessories reserved by themselves when PPC raises the plan ==');
@@ -1089,6 +1361,14 @@ const K = 'AMZ-1__S1';
     ok('a new plan on the Cutting route starts ticked "already printed — take no RFD" (17 Oct)', sg.route === 'stitch' && sg.fabric.noRfd === true, JSON.stringify(sg.fabric));
     ok('import: dates as the sheet may hold them', X.flowXlDate('2026-10-21') === '2026-10-21' && X.flowXlDate('21-10-2026') === '2026-10-21' && X.flowXlDate(46315) === '2026-10-20' && X.flowXlDate('') === '' && X.flowXlDate('soon') === null, X.flowXlDate(46316));
     ok('import: a sheet without Line ID / Raise is refused whole', !!X.flowPpcXlRead([['PO', 'SKU'], ['a', 'b']]).err);
+    /* 22 Oct ("ye decide nahi ho rha h ki ye order kis dapartment me bhejna h like cutting job work … and embroidery") */
+    ok('the sheet has "Embroidery by" beside the printers', col('Embroidery by') === col('Ruffle printer') + 1 && col('Outsource vendor') === col('Embroidery by') + 1);
+    const re = X.flowPpcXlRead([H, R({ 'Line ID': key, 'How it is made': 'Embroidery', 'Embroidery by': 'Kalu Mill', 'Raise (yes/no)': 'yes' })]), ve = (re.drafts || {})[key] || {};
+    ok('import: "Embroidery" sends the line to embroidery, "Embroidery by" a vendor by name → its code', ve.route === 'emb' && ve['emb.code'] === 'V9', JSON.stringify([ve, re.errs]));
+    const rd2 = X.flowPpcXlRead([H, R({ 'Line ID': key, 'How it is made': 'Embroidery', 'Embroidery by': 'in-house', 'Raise (yes/no)': 'yes' })]);
+    ok('…"in-house" / "department" is our own embroidery department', ((rd2.drafts || {})[key] || {})['emb.code'] === 'EMBDEPT');
+    ok('…an embroiderer nobody knows is refused by row', /Embroidery by/.test((X.flowPpcXlRead([H, R({ 'Line ID': key, 'How it is made': 'Embroidery', 'Embroidery by': 'Nobody & Co', 'Raise (yes/no)': 'yes' })]).errs || [])[0] || ''));
+    ok('…every department reads back: Printing, Embroidery, Cutting, Job Work, Outsourced', ['Printing', 'Embroidery', 'Cutting', 'Job Work', 'Outsourced'].map(d => ((X.flowPpcXlRead([H, R({ 'Line ID': key, 'How it is made': d, 'Outsource vendor': 'X', 'Raise (yes/no)': 'yes' })]).drafts || {})[key] || {}).route).join() === 'inhouse,emb,stitch,jobwork,outsource');
   }
 
   console.log('== a plan saved before the master-data fix is flagged, not hidden ==');
@@ -1171,7 +1451,7 @@ const K = 'AMZ-1__S1';
     A.els.flpUndo = { checked: false };
     await A.ctx.__dlg.onSave(); w = A.writes[0] || {};
     ok('…the rest still saves; the locked fabric stays as it was', w['pt_ppc/' + K].note === 'rush' && w['pt_ppc/' + K].fabric.perPc === 1);
-    A.setView('dhist'); A.renderFlow();
+    A.setAngle('dhist', 'challan'); A.setView('dhist'); A.renderFlow();
     ok('a challan with nothing received offers Edit and Cancel', /data-flche=/.test(A.els.flTable.innerHTML) && /data-flchx=/.test(A.els.flTable.innerHTML));
     const QS = { '[data-cek="0"]': { checked: true }, '[data-cem="0"]': { value: '90' }, '[data-cek="1"]': { checked: false }, '[data-cem="1"]': { value: '50' } };
     A.ctx.document.querySelector = sel => QS[sel] || null;
@@ -1186,15 +1466,15 @@ const K = 'AMZ-1__S1';
     A.els.flccWhy.value = 'wrong printer';
     er = await A.ctx.__dlg.onSave();
     ok('cancelled: the number stays, both lines back in Demand · RFD, nothing given', !er && A.FLOW().ch['RFD-202610-001'].cancelled.why === 'wrong printer' && A.flowInView('drfd', A.flowState(L())) && A.flowState(L()).given === 0);
-    A.setView('dhist'); A.renderFlow();
-    ok('…not shown in the history at all (19 Oct), not counted open, and its number not reused', !/RFD-202610-001/.test(A.els.flTable.innerHTML) && !/data-flchr=/.test(A.els.flTable.innerHTML) && /Printed fabric in · history <b>0<\/b>/.test(A.els.flPanel.innerHTML) && A.flowChallanNo('2026-10-12') === 'RFD-202610-002');
+    A.setAngle('dhist', 'challan'); A.setView('dhist'); A.renderFlow();
+    ok('…not shown in the history at all (19 Oct), not counted open, and its number not reused', !/RFD-202610-001/.test(A.els.flTable.innerHTML) && !/data-flchr=/.test(A.els.flTable.innerHTML) && /Printed fabric in <b>0<\/b>/.test(A.els.flPanel.innerHTML) && A.flowChallanNo('2026-10-12') === 'RFD-202610-002');
     A = mk();
     let rq = { '[data-flrm="0"]': { value: '100' }, '[data-flrm="1"]': { value: '50' } };
     A.ctx.document.querySelector = sel => rq[sel] || null;
     A.flowReceiveOpen('RFD-202610-001'); A.els.flrDate = { value: '2026-10-12' }; A.els.flrNote = { value: '' };
     await A.ctx.__dlg.onSave();
     ok('(all received → closed, lines in the store)', A.FLOW().ch['RFD-202610-001'].closed && A.flowState(L()).bucket === 'raw');
-    A.setView('dhist'); A.renderFlow();
+    A.setAngle('dhist', 'challan'); A.setView('dhist'); A.renderFlow();
     ok('received: no Edit / Cancel any more, but Undo last receipt', !/data-flche=/.test(A.els.flTable.innerHTML) && /data-flchu=/.test(A.els.flTable.innerHTML));
     A.flowChallanEditOpen('RFD-202610-001');
     ok('…and Edit itself refuses, saying why', /undo the receipt first/.test(A.els.flMsg.textContent));
@@ -1217,8 +1497,8 @@ const K = 'AMZ-1__S1';
     A.setView('ppc'); A.renderFlow();
     ok('PPC holds only the test order, not the real AMZ-1', /TEST-AMZ-10102026-01/.test(A.els.flTable.innerHTML) && !/AMZ-1<\/a>/.test(A.els.flTable.innerHTML) && /Showing test orders only/.test(A.els.flMsg.textContent));
     ok('the counts are the test order\u2019s: PPC 1 (the real AMZ-1 is not counted); no WIP bucket here', /<span class="fl-n">1<\/span><span>PPC/.test(A.els.flBuckets.innerHTML) && !/data-flb="wip"/.test(A.els.flBuckets.innerHTML), A.els.flBuckets.innerHTML);
-    A.setView('dhist'); A.renderFlow();
-    ok('Demand history shows only the test challan', /TRFD-202610-001/.test(A.els.flTable.innerHTML) && !/>RFD-202610-001</.test(A.els.flTable.innerHTML) && /Printed fabric in · history <b>1<\/b>/.test(A.els.flPanel.innerHTML));
+    A.setAngle('dhist', 'challan'); A.setView('dhist'); A.renderFlow();
+    ok('Demand history shows only the test challan', /TRFD-202610-001/.test(A.els.flTable.innerHTML) && !/>RFD-202610-001</.test(A.els.flTable.innerHTML) && /Printed fabric in <b>1<\/b>/.test(A.els.flPanel.innerHTML));
     A.flowTestOnlySet(false); A.setView('wip'); A.renderView();
     ok('switched off: everything again (the real SHP line is in WIP)', /SHP-5717/.test(A.els.flTable.innerHTML));
     ok('no test order → the switch starts OFF', load({ me: { admin: true } }).flowTestOnly() === false);
@@ -1380,6 +1660,14 @@ const K = 'AMZ-1__S1';
     F.els.flSrc.value = ''; F.els.flFArt.value = ''; F.els.flFPo.value = 'SHP-B'; F.renderFlow();
     ok('PO = SHP-B → only that order (Ravi, 16 Oct: "filter me PO add karo")', !/AMZ-A/.test(F.els.flTable.innerHTML) && /SHP-B/.test(F.els.flTable.innerHTML) && F.els.flFiltN.textContent === '1');
     F.els.flFPo.value = '';
+    /* 22 Oct ("jese humne SHP par filter lagaya to SHP me jitne article h sirf bahi dikhne chahiye all nahi") */
+    const artList = () => ((F.ctx.__fills || {}).flFArt || []).map(p => p[0]).join();
+    F.els.flQ.value = 'shp'; F.renderFlow();
+    ok('search "shp" → the Article list holds only the Shopify line\'s article (Pillow Cover), with its count', artList() === 'Pillow Cover' && /\(1\)/.test(((F.ctx.__fills || {}).flFArt || [])[0][1]), artList());
+    F.els.flQ.value = ''; F.els.flSrc.value = 'SHP'; F.renderFlow();
+    ok('…the same with the platform picked: SHP → Pillow Cover only; the platform list itself still offers both', artList() === 'Pillow Cover' && ((F.ctx.__fills || {}).flSrc || []).length === 2, artList());
+    F.els.flSrc.value = ''; F.renderFlow();
+    ok('…nothing picked → every article again', artList() === 'Pillow Cover,Tablecloth', artList());
     /* The PO list holds the POs of the bucket on screen only (17 Oct). */
     const G = load({ me: { admin: true }, mdb: { S1: { cons: 1, fab: 'Cotton' }, S2: { cons: 1, fab: 'Cotton' } }, lines: [L({ orderNo: 'AMZ-A', sku: 'S1' }), L({ orderNo: 'AMZ-P', sku: 'S2' })],
       ppc: { 'AMZ-P__S2': plan({ orderNo: 'AMZ-P', sku: 'S2' }) } });
@@ -1654,7 +1942,7 @@ const K = 'AMZ-1__S1';
     D.setView('drfd'); D.renderFlow();
     ok('inside the one menu item: PPC › Demand — no New orders, Print orders, Vendor allocation, Outsourced, Cutting, Raw cutting or WIP', /data-flb="ppc"[^]*data-flb="demand"/.test(D.els.flBuckets.innerHTML)
       && !/data-flb="(new|pord|vendor|out|cut|raw|wip)"/.test(D.els.flBuckets.innerHTML) && /class="fl-b on" data-flb="demand"/.test(D.els.flBuckets.innerHTML), D.els.flBuckets.innerHTML.slice(0, 300));
-    ok('…Demand has its tabs: RFD fabric · out to printers (1, open) · Printed fabric in · history · Accessories', /data-fldem="drfd" class=""[^>]*>RFD fabric · out to printers <b>1<\/b>/.test(D.els.flPanel.innerHTML)
+    ok('…Demand has its tabs: RFD fabric · out to printers (1, open) · Printed fabric in · Accessories', /data-fldem="drfd" class=""[^>]*>RFD fabric · out to printers <b>1<\/b>/.test(D.els.flPanel.innerHTML)
       && /data-fldem="dhist"/.test(D.els.flPanel.innerHTML) && /data-fldem="dacc"/.test(D.els.flPanel.innerHTML), D.els.flPanel.innerHTML.slice(0, 400));
     /* Job Work Register: Raw cutting in store and WIP as its tabs */
     const R = load({ me: { admin: true }, ppc: { [K]: plan({ print: { need: false } }) }, dem: { [K]: { fabricReady: { at: 'x' } } }, lines: [L()] });
@@ -1677,6 +1965,19 @@ const K = 'AMZ-1__S1';
     ok('platform = SHP → only the Shopify line, and the line under it says 1 of 2', !/AMZ-1/.test(E.els.flEmbT_pbase.innerHTML) && /SHP-9/.test(E.els.flEmbT_pbase.innerHTML) && /1 of 2 line/.test(E.els.flEmbMsg_pbase.textContent), E.els.flEmbMsg_pbase.textContent);
     E.els.flEmbSrc_pbase.value = ''; E.els.flEmbQ_pbase.value = 'amz-1'; await E.flowEmbedRender('pbase');
     ok('…and the search finds a PO', /AMZ-1/.test(E.els.flEmbT_pbase.innerHTML) && !/SHP-9/.test(E.els.flEmbT_pbase.innerHTML));
+    /* 22 Oct ("yaha par bhi export button ho and filter me color article subtype add krdo") */
+    const E2 = load({ me: { admin: true }, ppc: { [K]: plan({ print: { need: false } }), [K2]: plan({ orderNo: 'SHP-9', print: { need: false } }) },
+      dem: { [K]: { fabricReady: { at: 'x' } }, [K2]: { fabricReady: { at: 'x' } } },
+      lines: [L({ articleType: 'Pillow Cover', articleSubtype: 'Piping Pillow Cover', color: 'Poppy Pink' }), L({ orderNo: 'SHP-9', src: 'SHP', articleType: 'Pillow Cover', articleSubtype: 'Ruffle Pillow Cover', color: 'Ocean Vine' })] });
+    E2.ctx.$('panePbase').children = []; E2.ctx.$('flSeg_pbase'); E2.ctx.$('flEmb_pbase'); E2.FLOW_EMB().pbase = 'raw';
+    await E2.flowEmbedRender('pbase');
+    ok('the subtype and colour lists are what the lines carry', (E2.ctx.__fills.flEmbSub_pbase || []).map(x => x[0]).join() === 'Piping Pillow Cover,Ruffle Pillow Cover' && (E2.ctx.__fills.flEmbCol_pbase || []).map(x => x[0]).join() === 'Ocean Vine,Poppy Pink',
+      JSON.stringify([E2.ctx.__fills.flEmbSub_pbase, E2.ctx.__fills.flEmbCol_pbase]));
+    E2.els.flEmbSub_pbase.value = 'Ruffle Pillow Cover'; await E2.flowEmbedRender('pbase');
+    ok('subtype = Ruffle Pillow Cover → only SHP-9, and the colour list narrows to its colour', /SHP-9/.test(E2.els.flEmbT_pbase.innerHTML) && !/AMZ-1/.test(E2.els.flEmbT_pbase.innerHTML)
+      && (E2.ctx.__fills.flEmbCol_pbase || []).map(x => x[0]).join() === 'Ocean Vine', JSON.stringify(E2.ctx.__fills.flEmbCol_pbase));
+    const shE = E2.flowEmbedRows('raw', E2.FLOW_EMB_SHOWN().pbase.rows);
+    ok('Download Excel: the lines on screen, with article, subtype, colour and the step\'s figures', shE.length === 2 && shE[1][shE[0].indexOf('Subtype')] === 'Ruffle Pillow Cover' && shE[1][shE[0].indexOf('Colour')] === 'Ocean Vine' && shE[0].includes('In store, to issue'), JSON.stringify(shE));
   }
 
   console.log('== every number made for a line, on the line (Ravi, 12 Oct: "isme hi vendor bhi add kar do") ==');
@@ -1774,6 +2075,10 @@ const K = 'AMZ-1__S1';
   ok('a held reservation lets go as the line is issued (60 issued → 40 held)', JSON.stringify(A.flowHeld(K, 60, 100)) === '{"18":40}');
   ok('fully issued holds nothing — the zipper was taken at issue, not twice', Object.keys(A.flowHeld(K, 100, 100)).length === 0);
   ok('release frees it', !(await A.flowUnreserve(A.flowState(L()))) && A.flowAccFree()['18'].free === 150);
+  /* 27 Oct: 60 already issued from Job Work before the plan — their zippers went with them; 40 free is enough for the other 40. */
+  A = load({ lines: [L({ issued: 60 })], ppc: accPlan, shelf: [{ code: '18', name: '18" zip', qty: 40 }] });
+  { const er = await A.flowReserve(L({ issued: 60 }), A.flowState(L({ issued: 60 })));
+    ok('part issued before the plan: the zippers are reserved for the pieces not yet issued only', !er && A.flowAccFree()['18'].held === 40 && A.flowAccFree()['18'].free === 0, er); }
   A = load({ lines: [L()], ppc: { [K]: plan() } });
   ok('nothing to reserve is said', /Nothing to reserve/.test(await A.flowReserve(L(), A.flowState(L()))));
 
@@ -2033,6 +2338,201 @@ const K = 'AMZ-1__S1';
     ok('all cut → nothing waits in Demand → RFD', !C.flowRows()[0].s.needFab && C.flowRows()[0].s.bucket !== 'demand');
   }
 
+  console.log('\n== embroidery (Ravi, 21 Oct: "pahle fabric print then embroidery then cut and then Q.C") ==');
+  {
+    const mdb = { RCNE1: { subtype: 'Embroidery Napkin', cuttingRequired: false, fabric: 'Sheeting 82', consumption: 0.13, color: 'Ruby Red' },
+      RCN2: { subtype: 'Napkin', cuttingRequired: false, fabric: 'Sheeting 82', consumption: 0.13, color: 'Ruby Red' } };
+    const fsku = { 'Sheeting 82|Ruby Red||1': 'RBP-SH82-RR' }, K = 'AMZ-1__RCNE1';
+    const line = o => L(Object.assign({ sku: 'RCNE1', qty: 10, cutReq: false }, o));
+    /* the embroidery CHALLAN path is a vendor's (Kalu Mill here); our own department goes by Job Work (22 Oct, tested below) */
+    const pe = plan({ sku: 'RCNE1', qty: 10, route: 'emb', emb: { code: 'V9', name: 'Kalu Mill' }, printer: { code: 'P1', name: 'Sanganer Prints' },
+      fabric: { name: 'Sheeting 82', perPc: 0.13, metres: 1.3 }, print: { need: true } });
+    const rfdCh = { 'RFD-202610-001': { no: 'RFD-202610-001', orderNo: 'AMZ-1', vendor: { code: 'P1', name: 'Sanganer Prints' }, lines: [{ key: K, sku: 'RCNE1', metres: 1.3, print: { kind: 'fabric', code: 'RBP-SH82-RR' } }],
+      receipts: { r1: { items: { [K]: 1.3 } } }, closed: { at: 'x' } } };
+    const embCh = (back, extra) => ({ 'EMB-202610-001': Object.assign({ no: 'EMB-202610-001', kind: 'emb', orderNo: 'AMZ-1', vendor: { code: 'V9', name: 'Kalu Mill' },
+      lines: [{ key: K, sku: 'RCNE1', metres: 1.3, pcs: 10 }], receipts: back ? { a: { items: { [K]: back } } } : {} }, extra || {}) });
+    const at = (o, ch, emb) => { const F = load(Object.assign({ me: { admin: true }, mdb, fsku, lines: [line(o && o.line)], ppc: { [K]: pe } }, o && o.opts)); F.setFLOW(Object.assign(F.FLOW(), { ch: ch || {}, emb: emb || {} })); return F; };
+
+    const S = load({ me: { admin: true }, mdb, fsku });
+    const sg = S.flowSuggest(line()), sn = S.flowSuggest(L({ sku: 'RCN2', qty: 10 }));
+    ok('an Embroidery subtype starts on Printing + Embroidery, embroidered by our own department; a plain napkin stays on Printing', sg.route === 'emb' && sg.emb && sg.emb.code === 'EMBDEPT' && sn.route === 'inhouse' && !sn.emb, JSON.stringify([sg.route, sg.emb, sn.route]));
+    ok('the route is offered in PPC as "Embroidery"', S.FLOW_ROUTES.some(r => r[0] === 'emb' && r[2] === 'Embroidery'));
+    ok('embroidery is done on the running cloth: the printer prints the fabric SKU even where the master says no cutting', S.flowPrintWhat(line(), pe).kind === 'fabric' && S.flowPrintWhat(line(), pe).code === 'RBP-SH82-RR'
+      && S.flowPrintWhat(line(), Object.assign({}, pe, { route: 'inhouse' })).kind === 'sku', JSON.stringify(S.flowPrintWhat(line(), pe)));
+
+    let F = at();
+    ok('planned, cloth not given → Demand → RFD, like any printed line', F.flowRows()[0].s.bucket === 'demand' && F.flowInView('drfd', F.flowRows()[0].s));
+    F = at(null, rfdCh);
+    let s = F.flowRows()[0].s;
+    ok('printed cloth back on its challan → Demand → Embroidery, 1.3 m to send, nothing to cut yet', s.bucket === 'emb' && F.flowInView('demb', s) && s.embCanSend === 1.3 && !F.flowInView('cut', s) && !F.flowInView('raw', s), JSON.stringify([s.bucket, s.embCanSend, s.fabHave]));
+    ok('…its row offers "Send to embroidery"', /data-flembs="AMZ-1"/.test(F.flowEmbCells(F.flowRows()[0], true)));
+
+    /* sending: the dialog's boxes, as the fabric team fills them */
+    F.ctx.document.querySelector = q => /data-emk/.test(q) ? { checked: true } : /data-emm/.test(q) ? { value: '1.3' } : /data-emp/.test(q) ? { value: '10' } : null;
+    F.els.flemVen = { value: 'V9' };
+    F.flowEmbSendOpen('AMZ-1');
+    ok('Send to embroidery opens the challan form for the order', /Embroidery challan — AMZ-1/.test((F.ctx.__dlg || {}).title || ''));
+    let er = await F.ctx.__dlg.onSave();
+    const w = F.writes.find(x => x['pt_flowChallans/EMB-202610-001']) || {}, ch = w['pt_flowChallans/EMB-202610-001'] || {};
+    ok('…saved as EMB-202610-001 in the challans node, kind emb, 1.3 m and 10 pcs to the vendor', er === '' && ch.kind === 'emb' && ch.lines[0].metres === 1.3 && ch.lines[0].pcs === 10 && ch.vendor.code === 'V9', er || JSON.stringify(F.writes));
+    ok('…the challan opens to print as an EMBROIDERY CHALLAN', (F.ctx.__win || []).some(h => /EMBROIDERY CHALLAN/.test(h) && /EMB-202610-001/.test(h)));
+    s = F.flowRows()[0].s;
+    ok('…the line stays in Embroidery with nothing more to send, waiting for the pieces', s.bucket === 'emb' && s.embSent === 1.3 && s.embCanSend === 0 && s.embBack === 0, JSON.stringify([s.bucket, s.embSent, s.embCanSend]));
+    ok('…and no RFD challan list sees it', !Object.keys(F.FLOW().ch).some(k => /^EMB/.test(k)) && Object.keys(F.FLOW().emb).includes('EMB-202610-001'));
+
+    /* receiving part */
+    F.ctx.document.querySelector = q => /data-emr/.test(q) ? { value: '6' } : null;
+    F.flowEmbRecvOpen('EMB-202610-001');
+    er = await F.ctx.__dlg.onSave();
+    s = F.flowRows()[0].s;
+    ok('6 of 10 embroidered pieces back → 6 ready to cut, the line still in Embroidery for the rest', er === '' && s.embBack === 6 && s.canCut === 6 && s.bucket === 'emb' && F.flowInView('cut', s) && F.flowInView('demb', s), er || JSON.stringify([s.embBack, s.canCut, s.bucket]));
+    ok('…the challan stays open', !F.FLOW().emb['EMB-202610-001'].closed);
+    F.ctx.document.querySelector = q => /data-emr/.test(q) ? { value: '4' } : null;
+    F.flowEmbRecvOpen('EMB-202610-001'); er = await F.ctx.__dlg.onSave();
+    s = F.flowRows()[0].s;
+    ok('all 10 back → the challan closes by itself and the line moves to Cutting', er === '' && !!F.FLOW().emb['EMB-202610-001'].closed && s.bucket === 'cut' && s.canCut === 10, er || JSON.stringify([s.bucket, s.canCut]));
+
+    F = at({ line: { cut: 10 } }, rfdCh, embCh(10, { closed: { at: 'x' } }));
+    s = F.flowRows()[0].s;
+    ok('cut 10 → straight to QC (no karigar, never in Raw cutting): 10 waiting for QC', s.bucket === 'qcb' && !F.flowInView('raw', s) && s.receivedAll === 10 && s.canIssue === 0, JSON.stringify([s.bucket, s.receivedAll, s.canIssue]));
+    F = at({ line: { cut: 10 }, opts: { qcChecks: [{ orderNo: 'AMZ-1', sku: 'RCNE1', checked: 10, ok: 8, rejected: 2 }], qc: { 'AMZ-1|RCNE1': { ok: 8 } } } }, rfdCh, embCh(10, { closed: { at: 'x' } }));
+    s = F.flowRows()[0].s;
+    ok('QC passes 8 and rejects 2 → the 2 are embroidered again: the line is back in Embroidery', s.bucket === 'emb' && s.embOk === 8 && s.qcRej === 2, JSON.stringify([s.bucket, s.embOk, s.qcRej]));
+    F = at({ line: { cut: 10 }, opts: { qcChecks: [{ orderNo: 'AMZ-1', sku: 'RCNE1', checked: 10, ok: 10, rejected: 0 }], qc: { 'AMZ-1|RCNE1': { ok: 10 } } } }, rfdCh, embCh(10, { closed: { at: 'x' } }));
+    ok('QC passes all 10 → Ready → India stock (Finished Goods accepts)', F.flowRows()[0].s.bucket === 'fgin', F.flowRows()[0].s.bucket);
+
+    /* the two kinds of challan are kept apart as they are read */
+    const G = load({ me: { admin: true }, mdb, fsku, lines: [line()], ppc: { [K]: pe }, db: { pt_ppc: { [K]: pe }, pt_flowChallans: Object.assign({}, rfdCh, embCh(0)) } });
+    await G.flowLoad(true);
+    ok('read from the database: RFD challans in FLOW.ch, embroidery challans in FLOW.emb', Object.keys(G.FLOW().ch).join() === 'RFD-202610-001' && Object.keys(G.FLOW().emb).join() === 'EMB-202610-001',
+      JSON.stringify([Object.keys(G.FLOW().ch), Object.keys(G.FLOW().emb || {})]));
+    ok('a cancelled embroidery challan gave nothing', at(null, rfdCh, embCh(0, { cancelled: { at: 'x' } })).flowRows()[0].s.embCanSend === 1.3);
+    /* 22 Oct ("mere pas fabric h m direct embroidery me bhejna chahta hu"): printed cloth in hand → no printer, straight to Embroidery */
+    const peH = Object.assign({}, pe, { printer: null, fabric: { name: 'Sheeting 82', perPc: 0.13, metres: 1.3, noRfd: true } });
+    const H = load({ me: { admin: true }, mdb, fsku, lines: [line()], ppc: { [K]: peH } });
+    H.setFLOW(Object.assign(H.FLOW(), { ch: {}, emb: {} }));
+    const sH = H.flowRows()[0].s;
+    ok('in hand (vendor): no RFD, no printer — straight to Demand → Embroidery with all 1.3 m to send', sH.bucket === 'emb' && !sH.needFab && sH.embCanSend === 1.3 && H.flowInView('demb', sH) && !H.flowInView('drfd', sH), JSON.stringify([sH.bucket, sH.needFab, sH.embCanSend]));
+    ok('…and no print order is made for it', !Object.keys(H.flowPoSync([{ r: H.W.lines[0], p: peH }], '2026-10-22').patch).some(k => /^pt_flowPrintOrders\//.test(k) && H.flowPoSync([{ r: H.W.lines[0], p: peH }], '2026-10-22').patch[k]));
+    /* OUR OWN EMBROIDERY IS KARIGAR WORK (22 Oct: "embroidery department bhi mere karigar banate h … karigar issue receive se hi chalega", "cutt need h") */
+    const peD = Object.assign({}, pe, { emb: { code: 'EMBDEPT', name: 'Embroidery department (in-house)' } });
+    const D = at({ line: { cut: 0 }, opts: { ppc: { [K]: peD } } }, rfdCh);
+    let sD = D.flowRows()[0].s;
+    ok('our department: printed cloth back → To cut (never the embroidery challan list)', sD.bucket === 'cut' && sD.embDept && sD.canCut === 10 && !D.flowInView('demb', sD), JSON.stringify([sD.bucket, sD.canCut]));
+    const D2 = at({ line: { cut: 10 }, opts: { ppc: { [K]: peD } } }, rfdCh);
+    sD = D2.flowRows()[0].s;
+    ok('…cut 10 → Raw cutting in store, to issue to the embroidery karigar on Job Work', sD.bucket === 'raw' && sD.canIssue === 10 && D2.flowInView('raw', sD), JSON.stringify([sD.bucket, sD.canIssue]));
+    const D3 = at({ line: { cut: 10, issued: 10, received: 4 }, opts: { ppc: { [K]: peD } } }, rfdCh);
+    ok('…issued 10, 4 back from the karigar → those 4 wait for QC as any karigar’s pieces do', D3.flowRows()[0].s.receivedAll === 4, JSON.stringify(D3.flowRows()[0].s.bucket));
+    ok('…and its cutting entry is NOT marked straight-to-QC; a vendor’s is', !D.flowPlanQcDirect('AMZ-1', 'RCNE1') && at().flowPlanQcDirect('AMZ-1', 'RCNE1'));
+    const DH = at({ opts: { ppc: { [K]: Object.assign({}, peD, { printer: null, fabric: { name: 'Sheeting 82', perPc: 0.13, metres: 1.3, noRfd: true } }) } } });
+    ok('…cloth in hand, our department → straight to To cut, no printer, no RFD', DH.flowRows()[0].s.bucket === 'cut' && !DH.flowRows()[0].s.needFab, DH.flowRows()[0].s.bucket);
+    ok('who embroiders: our department, or a vendor whose category says Embroidery', S.flowEmbWho('').code === 'EMBDEPT' && S.flowEmbWho('P1').name === 'Sanganer Prints');
+  }
+
+  console.log('== PPC report (28 Oct) ==');
+  {
+    const KA = 'AMZ-1__S1', KB = 'SHP-2__S2', KC = 'B2B-3__S3';
+    const mdbR = { S1: { articleType: 'Cushion Cover', subtype: 'Cushion Cover 16x16', parentAsin: 'B0PARENT01', color: 'Rust', size: '16x16', fabric: 'Cotton' } };
+    const R = load({ mdb: mdbR, lines: [L(), L({ orderNo: 'SHP-2', sku: 'S2', qty: 40, mtoDue: '2026-10-11', orderDate: '2026-10-05' }), L({ orderNo: 'B2B-3', sku: 'S3', qty: 60, orderDate: '2026-10-12' }),
+        L({ orderNo: 'AMZ-9', sku: 'S9', qty: 10, orderDate: '2026-10-11' })],
+      base: [{ orderNo: 'AMZ-1', sku: 'S1', issuePieces: 25, empName: 'Ramesh' }],
+      ppc: { [KA]: plan({ printer: { code: 'P1', name: 'Sanganer Prints' }, firstAt: '2026-10-08T05:00:00Z', at: '2026-10-12T05:00:00Z', dates: { ready: '2026-10-10' } }),
+        [KB]: plan({ orderNo: 'SHP-2', sku: 'S2', qty: 40, route: 'stitch', at: '2026-10-09T05:00:00Z', dates: { ready: '2026-10-20' } }),
+        [KC]: plan({ orderNo: 'B2B-3', sku: 'S3', qty: 60, at: '2026-10-13T05:00:00Z', firstAt: '2026-10-13T05:00:00Z', dates: { ready: '2026-10-30' } }) } });
+    const wk = R.flowRepLines({ from: '2026-10-07', to: '2026-10-13', on: 'planned', today: '2026-10-13' });
+    const a = wk.find(x => x.sku === 'S1') || {}, b = wk.find(x => x.sku === 'S2') || {}, c = wk.find(x => x.sku === 'S3') || {};
+    ok('planned on these days: the three planned lines, never the unplanned one', wk.length === 3 && !wk.some(x => x.sku === 'S9'), wk.map(x => x.sku).join());
+    ok('planned on = the FIRST save, not the last edit', a.planned === '2026-10-08' && a.plannedKnown === true);
+    ok('a plan from before 28 Oct (no first save kept) is dated by its last save — the sheet shows the date alone', b.planned === '2026-10-09' && b.plannedKnown === false
+      && R.flowRepSheets([b])[0].rows[3][0].v === R.flowRepSerial('2026-10-09'));
+    ok('a first save outside the days leaves the line out, though it was edited inside them', R.flowRepLines({ from: '2026-10-11', to: '2026-10-13', on: 'planned', today: '2026-10-13' }).every(x => x.sku !== 'S1'));
+    ok('category, sub-category and parent ASIN from the master', a.category === 'Cushion Cover' && a.subCategory === 'Cushion Cover 16x16' && a.parent === 'B0PARENT01');
+    ok('the printer on the plan, beside Printing', a.print.printer === 'Sanganer Prints', JSON.stringify(a.print));
+    ok('Amazon has no due date of its own → its due is the PPC Ready date, and 3 days past it is LATE', a.due === '2026-10-10' && a.dueFrom === 'PPC ready date' && a.delay === 'LATE · 3 days' && a.late === 3, JSON.stringify([a.due, a.dueFrom, a.delay]));
+    ok('Shopify: due 5 working days from opening (the made-to-order date), not the Ready date', b.due === '2026-10-11' && /Shopify/.test(b.dueFrom) && b.late === 2 && b.completion === '2026-10-20');
+    ok('a sales order\'s own delivery date comes first', R.flowRepDue({ orderNo: 'B2B-3', sku: 'S3' }, { dates: { ready: '2026-10-30' } }, new Map([['B2B-3|S3', '2026-11-05']])).due === '2026-11-05');
+    ok('not due yet → days left', c.delay === '17 days left' && c.late === 0, c.delay);
+    ok('delay words: due today, made, no date set', R.flowRepDelay('2026-10-13', false, '2026-10-13').txt === 'due today' && R.flowRepDelay('2026-10-01', true, '2026-10-13').txt === 'made'
+      && R.flowRepDelay('', false, '2026-10-13').txt === 'no date set' && R.flowRepDelay('2026-10-12', false, '2026-10-13').txt === 'LATE · 1 day');
+    ok('channel from the order number', R.flowRepChannel({ orderNo: 'AMZ-1' }) === 'Amazon' && R.flowRepChannel({ orderNo: 'SHP-2' }) === 'Shopify' && R.flowRepChannel({ orderNo: 'B2B-3' }) === 'B2B');
+    const came = R.flowRepLines({ from: '2026-10-11', to: '2026-10-11', on: 'came', today: '2026-10-13' });
+    ok('came into PPC: by order date, planned or not', came.length === 1 && came[0].sku === 'S9');
+    const wait = R.flowRepLines({ from: '2026-10-13', to: '2026-10-13', on: 'waiting', today: '2026-10-13' });
+    ok('still waiting: the unplanned line whatever the days, with how long it has waited', wait.length === 1 && wait[0].sku === 'S9' && wait[0].waitDays === 2, JSON.stringify(wait.map(x => [x.sku, x.waitDays])));
+    const T = load({ lines: [L({ orderNo: 'TEST-1', __t: true })], ppc: { 'TEST-1__S1': plan({ orderNo: 'TEST-1', at: '2026-10-12T05:00:00Z' }) } });
+    ok('a TEST line never reaches the report', T.flowRepLines({ from: '2026-10-01', to: '2026-10-13', on: 'planned', today: '2026-10-13' }).length === 0);
+    /* THE WORKBOOK: Lines as Ravi's v6 (ppc-report-v6-sample.xlsx), Summary as the first report's pivot; no late-lines sheet. */
+    const sh = R.flowRepSheets(wk), cv = c0 => (c0 && typeof c0 === 'object' ? c0.v : c0);
+    const tot = sh[0].rows[0], grp = sh[0].rows[1].map(cv), hd = sh[0].rows[2].map(cv);
+    ok('two sheets: Lines and Summary — no late-lines sheet', sh.map(x => x.name).join() === 'Lines,Summary', sh.map(x => x.name).join());
+    ok('Lines: the headings of v6, in its order', hd.join('|') === 'Plan date|Order no|Order date|Channel|SKU|Category|Sub-category|Parent ASIN|Colour|Size|Fabric|Process|Ordered|Printing|Printer|Cutting|Cut|Cut, in store|Stitching|Given|Received|QC|Passed|Rejected|Press|Pressed|Due|Exp. completion|Days late|Last moved|Last step', hd.join('|'));
+    ok('…the groups over them, each name merged over its columns', ['Order', 'Product', 'Qty', 'Printing', 'Cutting', 'Stitching', 'QC', 'Press', 'Dates'].join() === grp.filter(Boolean).join()
+      && ['A2:D2', 'E2:L2', 'M2', 'N2:O2', 'P2:R2', 'S2:U2', 'V2:X2', 'Y2:Z2', 'AA2:AE2'].every(m => sh[0].merges.includes(m)), sh[0].merges.join());
+    ok('…row 1 adds the counts with SUBTOTAL (a filter re-adds them), from row 4 down', cv(tot[0]) === 'Total (shown lines)' && tot[12].f === 'SUBTOTAL(109,M4:M6)' && tot[25].f === 'SUBTOTAL(109,Z4:Z6)' && !tot[13].f && !tot[26].f,
+      JSON.stringify([tot[12], tot[13]]));
+    ok('…filters on the headings; frozen through SKU and the three heading rows', sh[0].filter === 'A3:AE6' && sh[0].freeze.x === 5 && sh[0].freeze.y === 3);
+    const r4 = sh[0].rows[3];
+    ok('…dates as real Excel dates (dd-mmm-yy), counts blank when nothing', r4[0].v === R.flowRepSerial('2026-10-08') && r4[0].st.fmt === 165 && r4[16].v === '', JSON.stringify([r4[0], r4[16]]));
+    ok('…a late line tinted, its days late in red', r4[1].st.fill === 'FCEBEB' && r4[28].v === 3 && r4[28].st.color === 'A32D2D', JSON.stringify([r4[1].st, r4[28]]));
+    ok('…each status in v6\'s colours', r4[13].v === 'Not started' && r4[13].st.fill === 'F1EFE8' && r4[15].v === 'Not needed' && r4[15].st.color === '888780', JSON.stringify([r4[13], r4[15]]));
+    const files = R.flowRepXlsx(sh), x1 = files.find(f => f[0] === 'xl/worksheets/sheet1.xml')[1], wb = files.find(f => f[0] === 'xl/workbook.xml')[1];
+    ok('written as Excel: SUBTOTAL formulas, filter, frozen panes, the date format, two sheets', /<f>SUBTOTAL\(109,M4:M6\)<\/f>/.test(x1) && /<autoFilter ref="A3:AE6"\/>/.test(x1)
+      && /xSplit="5" ySplit="3"/.test(x1) && /formatCode="dd-mmm-yy"/.test(files.find(f => f[0] === 'xl/styles.xml')[1]) && !/<sheet name="Late lines"/.test(wb) && /_xlnm._FilterDatabase/.test(wb) && /fullCalcOnLoad="1"/.test(wb));
+    /* The stages: Printing, Cutting, Stitching, QC (Passed), Press — Done / In progress / Not started / Not needed, and the pieces. */
+    ok('a printed line, nothing back: printing, stitching, QC and press not started; no cutting', a.print.status === 'Not started' && a.cut.status === 'Not needed'
+      && a.stitch.status === 'Not started' && a.qc.status === 'Not started' && a.press.status === 'Not started', JSON.stringify([a.print, a.cut, a.stitch, a.qc, a.press]));
+    const D = load({ lines: [L({ issued: 100, received: 60, cutReq: true, cut: 100 })], ppc: { [KA]: plan({ route: 'stitch', print: { need: false }, at: '2026-10-12T05:00:00Z' }) } });
+    const d0 = D.flowRepLines({ from: '2026-10-12', to: '2026-10-12', on: 'planned', today: '2026-10-13' })[0] || {};
+    ok('cut in full, 60 back from the karigars → printing not needed, cutting Done (100 cut, 0 in store), stitching In progress (given 100, received 60)',
+      d0.print.status === 'Not needed' && d0.cut.status === 'Done' && d0.cut.cut === 100 && d0.cut.store === 0 && d0.stitch.status === 'In progress' && d0.stitch.given === 100
+      && d0.stitch.received === 60 && d0.qc.status === 'Not started', JSON.stringify([d0.cut, d0.stitch, d0.qc]));
+    const C30 = load({ lines: [L({ cutReq: true, cut: 30, issued: 20, received: 12 })], ppc: { [KA]: plan({ at: '2026-10-12T05:00:00Z' }) } });
+    const c30 = C30.flowRepLines({ from: '2026-10-12', to: '2026-10-12', on: 'planned', today: '2026-10-13' })[0] || {};
+    ok('30 of 100 cut, 20 given: printing In progress (a piece cut was printed), cutting In progress, 10 cut in store', c30.print.status === 'In progress' && c30.cut.status === 'In progress'
+      && c30.cut.cut === 30 && c30.cut.store === 10 && c30.stitch.given === 20 && c30.stitch.received === 12, JSON.stringify([c30.print, c30.cut, c30.stitch]));
+    const Q = load({ lines: [L({ issued: 100, received: 100, pressed: 100 })], qc: { 'AMZ-1|S1': { ok: 100 } }, ppc: { [KA]: plan({ route: 'jobwork', print: { need: false }, at: '2026-10-12T05:00:00Z' }) } });
+    const q0 = Q.flowRepLines({ from: '2026-10-12', to: '2026-10-12', on: 'planned', today: '2026-10-13' })[0] || {};
+    ok('all passed QC and pressed → QC "Passed", Press Done, 100 completed, no delay', q0.qc.status === 'Passed' && q0.qc.passed === 100 && q0.press.status === 'Done' && q0.press.pressed === 100
+      && q0.completed === 100 && !(q0.late > 0), JSON.stringify([q0.qc, q0.press, q0.completed, q0.late]));
+    /* A stage done shows "-" in its count (Ravi, 28 Oct): Cut, Given, Passed, Pressed. */
+    const rD = R.flowRepSheets([d0])[0].rows[3].map(cv), rQ = R.flowRepSheets([q0])[0].rows[3].map(cv);
+    ok('cutting Done → Cut "-"; stitching still under way → Given 100, Received 60', rD[16] === '-' && rD[19] === 100 && rD[20] === 60, JSON.stringify(rD.slice(15, 21)));
+    ok('QC Passed and Press Done → Passed "-", Pressed "-"; the given / received counts stay', rQ[22] === '-' && rQ[25] === '-' && rQ[19] === '-' && rQ[20] === 100, JSON.stringify(rQ.slice(18, 26)));
+    const O = load({ lines: [L()], ppc: { [KA]: plan({ route: 'outsource', outVendor: 'Kalu', at: '2026-10-12T05:00:00Z' }) } });
+    const o0 = O.flowRepLines({ from: '2026-10-12', to: '2026-10-12', on: 'planned', today: '2026-10-13' })[0] || {};
+    ok('outsourced: every making stage Not needed', ['print', 'cut', 'stitch', 'qc', 'press'].every(k => o0[k].status === 'Not needed'), JSON.stringify(o0));
+    ok('a line not planned yet: printing Not needed', wait[0] && wait[0].print.status === 'Not needed');
+    /* Summary: a row a SKU — how many ordered, how many completed, how many still pending (Ravi, 28 Oct), each stage. */
+    const sk = R.flowRepSkus([q0, Object.assign({}, a, { orderNo: 'AMZ-7' }), a]), e1 = sk.find(e => e.sku === 'S1') || {};
+    ok('summary: S1 on 3 lines — 300 ordered, 100 completed, 200 pending; 2 late', e1.lines === 3 && e1.pcs === 300 && e1.completed === 100 && e1.pending === 200 && e1.late === 2, JSON.stringify(e1));
+    const pv = R.flowRepSheets([q0, a, c])[1], pr = pv.rows.map(r => r.map(cv));
+    ok('…laid out as the first report\'s pivot: Row Labels, Ordered, Completed, Pending, Lines, Late lines', pr[0].join('|') === 'Row Labels (SKU)|Ordered|Completed|Pending|Lines|Late lines', pr[0].join('|'));
+    const xs = R.flowRepXlsx(R.flowRepSheets([q0, a]));
+    ok('…no empty merged-cells list in any sheet (Excel will not open a file with one)', xs.filter(f => /worksheets/.test(f[0])).every(f => !/<mergeCells count="0"/.test(f[1])));
+    ok('…a row a SKU, then Grand Total', pr.length === 4 && pr[1].join('|') === 'S1|200|100|100|2|1' && pr[2].join('|') === 'S3|60|0|60|1|0'
+      && pr[3].join('|') === 'Grand Total|260|100|160|3|1', JSON.stringify(pr));
+    /* Last moved: the newest of the plan, its papers, cutting, the karigars, QC, the hand-over — with the step's name. */
+    const M = load({ lines: [L({ issued: 20, received: 10 })], base: [{ orderNo: 'AMZ-1', sku: 'S1', issuePieces: 20, receivedPieces: 10, empName: 'Ramesh', issueDate: '2026-10-11', receivingDate: '2026-10-13' }],
+      ppc: { [KA]: plan({ at: '2026-10-12T05:00:00Z' }) } });
+    const m0 = M.flowRepLines({ from: '2026-10-12', to: '2026-10-12', on: 'planned', today: '2026-10-13' })[0] || {};
+    ok('last moved: 13 Oct, "Received from karigar" — after the plan (12 Oct) and the issue (11 Oct)', m0.moved && m0.moved.day === '2026-10-13' && m0.moved.step === 'Received from karigar', JSON.stringify(m0.moved));
+    ok('who may download: admins and the Reports right only', load({ me: { admin: true } }).flowRepAllowed() && load({ me: { tabs: ['rep'] } }).flowRepAllowed() && !load({ me: { tabs: ['flppc'] } }).flowRepAllowed());
+
+    /* The plan form: the first save is kept; a plan cannot be saved without a Ready date. */
+    const F = load({ me: { admin: true }, mdb: { S1: { cons: 1, fab: 'Cotton' } }, lines: [L()], ppc: { [KA]: plan({ route: 'stitch', print: { need: false }, at: '2026-10-05T05:00:00Z', firstAt: '2026-10-02T05:00:00Z' }) } });
+    F.flowPpcOpen('AMZ-1', 'S1'); F.ctx.document.querySelectorAll = () => []; F.els.flpUndo = { checked: false };
+    let er = await F.ctx.__dlg.onSave(); let pw = (F.writes[0] || {})['pt_ppc/' + KA] || {};
+    ok('re-planning keeps the day it was first planned', !er && pw.firstAt === '2026-10-02T05:00:00Z' && pw.at !== '2026-10-05T05:00:00Z', er || JSON.stringify([pw.firstAt, pw.at]));
+    const F0 = load({ me: { admin: true }, mdb: { S1: { cons: 1, fab: 'Cotton' } }, lines: [L()], ppc: { [KA]: plan({ route: 'stitch', print: { need: false }, at: '2026-10-05T05:00:00Z' }) } });
+    F0.flowPpcOpen('AMZ-1', 'S1'); F0.ctx.document.querySelectorAll = () => []; F0.els.flpUndo = { checked: false };
+    er = await F0.ctx.__dlg.onSave(); pw = (F0.writes[0] || {})['pt_ppc/' + KA] || {};
+    ok('a plan saved before 28 Oct, re-planned: its first day becomes the save it had', !er && pw.firstAt === '2026-10-05T05:00:00Z', er);
+    const F1 = load({ me: { admin: true }, mdb: { S1: { cons: 1, fab: 'Cotton' } }, lines: [L()], ppc: { [KA]: plan({ route: 'stitch', print: { need: false }, dates: { cut: '2026-10-14' } }) } });
+    F1.flowPpcOpen('AMZ-1', 'S1'); F1.ctx.document.querySelectorAll = () => []; F1.els.flpUndo = { checked: false };
+    er = await F1.ctx.__dlg.onSave();
+    ok('no Ready date → not saved, and it says which line', /Pick the Ready date for S1/.test(er || '') && !F1.writes.length, er);
+  }
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })();

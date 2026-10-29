@@ -1,7 +1,7 @@
 /* The "a newer version is live" bar, run for real: the script is cut out of index.html between its two
  * markers and evaluated against a stub browser whose ETag this file controls. */
 const fs = require('fs');
-const html = fs.readFileSync('C:/AMAZON/Amazon Inventory/Replenish-App/public/index.html', 'utf8');
+const html = fs.readFileSync(require('path').join(__dirname, '..', 'public', 'index.html'), 'utf8');   // here, not C:/… (GitHub runs it too)
 const a = html.indexOf('/* ==== APP VERSION'), b = html.indexOf('/* ==== END APP VERSION ==== */');
 let pass = 0, fail = 0;
 const ok = (name, cond, detail) => { if (cond) { pass++; console.log('  PASS ' + name); } else { fail++; console.log('  FAIL ' + name + (detail ? ' — ' + detail : '')); } };

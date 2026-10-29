@@ -175,10 +175,17 @@ function renderFgi() {
     </div></div>`;
   $('fgPendBadge').textContent = pend.length ? nf(pend.length) : '';
   $('fgPendBadge').classList.toggle('hide', !pend.length);
+  /* FROM QC — TO ACCEPT ONLY (core/auth.js, ME.fgAccOnly): the one list this account works, without the store's other views. */
+  if (ME.fgAccOnly) {
+    $('fgView').value = 'flow'; $('fgKpis').innerHTML = '';
+    ['fgView', 'fgPendBadge', 'fgiLstBadge', 'fgiCorrBadge', 'fgiOverBadge'].forEach(id => { const b = $(id); if (b && b.classList) b.classList.add('hide'); });
+  }
 
   const view = $('fgView').value;
   ['fgD1', 'fgD2'].forEach(i => $(i).classList.toggle('hide', view !== 'ledger'));
-  ['fgBrand', 'fgStat', 'fgTag', 'fgAmz'].forEach(i => $(i).classList.toggle('hide', view !== 'stock'));
+  ['fgBrand', 'fgTag', 'fgAmz'].forEach(i => $(i).classList.toggle('hide', view !== 'stock'));
+  // Status also narrows Every movement: the movements of the SKUs that are in stock, low or out now.
+  $('fgStat').classList.toggle('hide', view !== 'stock' && view !== 'ledger');
   $('fgLstRefresh').classList.toggle('hide', !lstCanRefresh());
   $('fgLstRefresh').disabled = !!LST.busy;
   // The label has its own id rather than being reached through the checkbox's parent — a wrapper
@@ -339,10 +346,11 @@ function fgiRenderLedger() {
   const from = d1 ? new Date(d1 + 'T00:00:00').getTime() : 0;
   const to = d2 ? new Date(d2 + 'T23:59:59').getTime() : Infinity;
   const kpi = FGI_KPI_ROWS[FGI_KPI];
+  const fStat = $('fgStat').value;
   const rows = (FGI.rows || [])
     .filter(r => !kpi || kpi.is(r))
     .filter(r => { const m = ms(r); return !m || (m >= from && m <= to); })
-    .filter(r => !$('fgStat').value || true)
+    .filter(r => !fStat || fgiStatus(r.sku, fgiOf(r.sku).current).txt === fStat)
     .filter(r => !q || [r.sku, r.txnType, r.issuedFor, r.receivedFrom, r.reason, r.remarks, r.createdBy].join(' ').toLowerCase().includes(q))
     .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
   FGI.shown = rows;
@@ -700,7 +708,7 @@ $('fgTable').addEventListener('click', e => {
     /* One SKU, everything that ever happened to it — the question this screen is opened with. */
     $('fgView').value = 'ledger';
     $('fgQ').value = mv.getAttribute('data-fgmoves');
-    $('fgD1').value = ''; $('fgD2').value = '';
+    $('fgD1').value = ''; $('fgD2').value = ''; $('fgStat').value = '';
     return renderFgi();
   }
   const n = e.target.closest('[data-fgentry]'); if (n) return fgiEntryOpen('ISSUE', n.getAttribute('data-fgentry'));

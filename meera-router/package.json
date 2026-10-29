@@ -1,0 +1,1 @@
+{"type":"module","private":true,"name":"meera-router","scripts":{"test":"node test/router.test.mjs"}}

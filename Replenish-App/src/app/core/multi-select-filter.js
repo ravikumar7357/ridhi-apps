@@ -19,12 +19,28 @@ function msInit(id, label, opts) {
     + '<div class="ms-list"></div></div>';
   el.querySelector('.ms-btn').onclick = e => { e.stopPropagation(); msToggle(id); };
   el.querySelector('.ms-search').oninput = () => msPaint(id);
-  el.querySelector('.ms-all').onclick = () => { MS[id].sel = new Set(); msPaint(id); msChanged(id); };
-  el.querySelector('.ms-none').onclick = () => { MS[id].sel = new Set(MS[id].opts); msPaint(id); msChanged(id); };
+  el.querySelector('.ms-all').onclick = () => msAllNone(id, true);
+  el.querySelector('.ms-none').onclick = () => msAllNone(id, false);
   // Clicks inside the panel must not reach the document handler that closes it.
   el.querySelector('.ms-panel').onclick = e => e.stopPropagation();
   msPaint(id);
 }
+
+/* ALL AND NONE WORK ON WHAT THE LIST IS SHOWING. With a search typed, All ticks every value the
+ * search found and None unticks them, the way Excel's filter does — so "red" then All picks every red.
+ * With no search, both start the filter over: nothing ticked, which here means everything is shown.
+ * (None used to tick every box, which read as a filter on and still showed everything.) */
+function msAllNone(id, all) {
+  const m = MS[id], el = $(id);
+  const q = (el.querySelector('.ms-search').value || '').trim().toLowerCase();
+  if (!q) m.sel = new Set();
+  else m.opts.filter(o => o.toLowerCase().includes(q)).forEach(o => (all ? m.sel.add(o) : m.sel.delete(o)));
+  msTidy(m);
+  msPaint(id); msChanged(id);
+}
+/* Every value ticked is the same as none ticked — kept as none, so the button says "All" and does not
+ * show as a filter that is on when nothing is being left out. */
+function msTidy(m) { if (m.sel.size && m.opts.length && m.opts.every(o => m.sel.has(o))) m.sel = new Set(); }
 
 function msToggle(id, force) {
   const open = force != null ? force : !MS[id].open;

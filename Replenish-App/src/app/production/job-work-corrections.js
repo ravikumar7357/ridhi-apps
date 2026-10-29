@@ -115,6 +115,8 @@ async function jwCorrApprove(id) {
   if (!r) return 'The entry it is about has been deleted — reject the request.';
   const plan = jwCorrPlan(r, q.change);
   if (plan.err) return 'Cannot be applied as it stands now: ' + plan.err;
+  if (ptNum(plan.next.receivedPieces) < qcTookOf(r.id))
+    return `Cannot be applied: QC has already taken ${nf(qcTookOf(r.id))} piece(s) of this entry — received cannot be less than that.`;
   const now = new Date().toISOString();
   const next = Object.assign(plan.next, { editedBy: ME.email, editedAt: now, correctedBy: q.by, correctionId: id });
   const done = Object.assign({}, q, { status: 'approved', answeredBy: ME.email, answeredAt: now });
@@ -269,6 +271,10 @@ $('bdmSave').onclick = async () => {
     if (gErr) return bdModalMsg(gErr, true);
   }
 
+  /* QC'S PIECES STAY ON THEIR ENTRY (27 Oct): received cannot drop below what QC has already taken off this entry — the
+   * checks would point at pieces nobody received, and the order would read made with nothing back. */
+  if (recv < qcTookOf(r.id))
+    return bdModalMsg(`QC has already taken ${nf(qcTookOf(r.id))} piece(s) of this entry — received cannot be less than that.`, true);
   const pending = Math.max(0, issued - recv - rej);
   /* MORE RECEIVED THROUGH EDIT IS A RECEIPT TOO (2026-10-08): dated now, so Waiting for QC and the weekly reports see it
    * on the day it came back, exactly as if Receive had been pressed. A lower figure logs nothing — the reports cap the
@@ -390,7 +396,13 @@ async function apvAnswer(key, approve, note) {
   if (approve) {
     const live = (PT.base || []).find(x => x && x.id === id);
     if (!live) { await apvDrop(key); return 'That entry is already gone. The request has been cleared.'; }
-    try { await ptDelete('pt_baseData/' + id); }
+    if (qcTookOf(id) > 0) return `QC has already taken ${nf(qcTookOf(id))} piece(s) of this entry — it cannot be deleted. Correct its figures instead.`;
+    try {
+      await ptDelete('pt_baseData/' + id);
+      // Same as the Delete button: the zippers and ruffle cloth it spent go back to stock with it.
+      await ptUnconsumeZippers(id);
+      await ptUnconsumeRuffle(id);
+    }
     catch (e) { return 'Not deleted: ' + (e.message || e); }
     PT.base = (PT.base || []).filter(x => x && x.id !== id);
   }
@@ -418,6 +430,7 @@ $('bdmAsk').onclick = async () => {
 
 $('bdmDelete').onclick = async () => {
   const r = BD_M; if (!r || !ME.admin) return;
+  if (qcTookOf(r.id) > 0) return bdModalMsg(`QC has already taken ${nf(qcTookOf(r.id))} piece(s) of this entry — it cannot be deleted. Correct its figures instead.`, true);
   /* Deleting a production record removes pieces from every count built on it — payroll included —
    * so the confirmation says exactly what is going, not "are you sure?". */
   const what = `${nf(ptNum(r.issuePieces))} piece(s) of ${r.sku} issued to ${r.empName}`

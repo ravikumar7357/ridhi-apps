@@ -39,7 +39,10 @@ const PKS = {
   track: null,      // Track order scan: { last, recent }
   panel: ""         // "dims" or "finish" while that panel is open: a save landing must not redraw it away
 };
-const PKS_GAP_MS = 400;
+const PKS_GAP_MS = 900;     // a label not read for this long has left the camera (21 Oct; see pksFrame)
+const PKS_GONE_MS = 250;    // unread this long and back somewhere else: it may be the next piece (26 Oct; see pksFrame)
+const PKS_LEFT_MS = 120;    // …or this long, when it was last seen on its way out
+const PKS_MOVE = 0.2;       // this far across the box on screen is another place: the label moved, not shook
 const PKS_AGREE = 2;
 const PKS_RETRY_MS = 15000;
 const PKS_HIST_KEEP = 80;
@@ -69,26 +72,71 @@ function pksBoxOf(p, n) {
   }
   return b;
 }
-/** One read of `code` at time `t`: true when it counts as a new piece. Two reads must agree, and the same label counts
- * again only after it has been out of sight. Only a STEADY run of reads keeps a label "in sight": a lone read while the
- * packer swaps pieces (19 Oct) used to keep the old label in sight, so the next identical piece never counted. The waits
- * follow how fast this phone reads (st.frameMs), so a slow phone holding a label still does not count it twice. */
-function pksFrame(code, t, st) {
+/** One read of `code` at time `t`: true when it counts as a new piece.
+ * ONE LABEL, ONE PIECE (21 Oct, Ravi: "scanning delayed … bohot mushkil se scan … kai phonon main scan bhi nahi"). A label
+ * is in sight from its first read until it has gone unread for longer than a label held in front of the camera ever goes
+ * between reads — at least PKS_GAP_MS, more on a phone that reads slowly or patchily (2.5 × the longest gap seen while this
+ * label was in sight). Every read of it, however patchy, keeps it in sight. The rule before (19 Oct) let a slightly blurred
+ * or tilted label, read every 0.2–0.4 s, count again and again: 7–10 times in six seconds.
+ * `need` reads must agree before it counts: a Code 128 label carries its own check digit, so one read of a code on the
+ * FNSKU list is enough (the caller says so); anything else needs PKS_AGREE.
+ *
+ * WHERE THE LABEL SITS (26 Oct, Ravi: "it was scanning every product properly before, not now"). The 0.9 s wait above
+ * missed the next identical piece: swapped in under a second, or read once while moving, and 4 of 5 pieces were lost.
+ * Waiting alone cannot tell a label held still that blurs for half a second from the next piece put in its place, so the
+ * readers now say where the label is (st.aim, set by pksAimed; null from a reader that cannot tell). The label's place
+ * is kept (`home`, following it as the hand drifts). The same code is the next piece when, after PKS_GONE_MS unread, it
+ * comes back somewhere else (PKS_MOVE from home), or, after PKS_LEFT_MS, when it was last seen on its way out; then two
+ * reads in one place count it, so a label read once while sliding out never counts. Back in its old place without being
+ * seen leave, it is the same piece, as before: a piece put down exactly where the last one was still waits PKS_GAP_MS. */
+function pksFrame(code, t, st, need) {
   st = st || PKS;
-  const f = st.frameMs || 0, gap = Math.max(PKS_GAP_MS, 4.5 * f), steady = Math.max(150, 2.5 * f);
-  const s = st.seen;
-  /* a new piece: the label was out of sight long enough, and this read does not carry on from the read just before */
-  if (!s || s.code !== code || (t - s.last > gap && t - s.prev > steady)) st.seen = { code, last: t, prev: t, hits: 1, counted: false };
-  else {
-    if (t - s.prev <= steady) s.last = t;
-    s.prev = t;
-    s.hits++;
+  const f = st.frameMs || 0, s = st.seen, agree = need || PKS_AGREE, at = st.aim || null;
+  if (s && s.code === code) {
+    const iv = t - s.last, hold = Math.max(PKS_GAP_MS, 6 * f, 2.5 * (s.ivMax || 0));
+    const next = (s.away && iv > Math.max(PKS_LEFT_MS, 1.5 * f)) || (iv > Math.max(PKS_GONE_MS, 2.2 * f) && pksApart(s.home, at) >= PKS_MOVE);
+    if (next) {
+      st.seen = { code, last: t, hits: 1, counted: false, need: 2, settle: at, home: at, away: false, farN: 0, ivMax: 0 };
+      return false;
+    }
+    if (iv <= hold) {
+      if (iv > 0) s.ivMax = Math.max(s.ivMax || 0, Math.min(iv, 1600));
+      s.last = t;
+      if (at) pksTrack(s, at);
+      /* a piece being settled counts on two reads in one place: one read while it slides in starts again */
+      if (!s.counted && s.settle && at) {
+        const still = pksApart(s.settle, at) < PKS_MOVE / 2;
+        s.settle = at;
+        s.hits = still ? s.hits + 1 : 1;
+      } else s.hits++;
+      if (!s.counted && s.hits >= (s.need || agree)) { s.counted = true; return true; }
+      return false;
+    }
   }
-  if (!st.seen.counted && st.seen.hits >= PKS_AGREE) {
-    st.seen.counted = true;
-    return true;
+  st.seen = { code, last: t, hits: 1, counted: agree <= 1, need: agree, home: at, away: false, farN: 0, ivMax: 0 };
+  return agree <= 1;
+}
+/** How far apart two places in the box on screen are (shares of its width and height); 0 when either is not known. */
+function pksApart(a, b) {
+  return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
+}
+/** One read at `at`: near home, home follows it (a hand drifts); away from home, the label is on its way out, unless it
+ * stays still there for three reads in a row, which is a piece moved to a new place without leaving. */
+function pksTrack(s, at) {
+  if (!s.home) { s.home = at; s.away = false; s.farN = 0; return; }
+  if (pksApart(s.home, at) < PKS_MOVE) {
+    s.home = { x: s.home.x * 0.8 + at.x * 0.2, y: s.home.y * 0.8 + at.y * 0.2 };
+    s.away = false; s.farN = 0;
+    return;
   }
-  return false;
+  s.farN = s.farN && pksApart(s.farAt, at) < PKS_MOVE / 2 ? s.farN + 1 : 1;
+  s.farAt = at;
+  if (s.farN >= 3) { s.home = at; s.away = false; s.farN = 0; }
+  else s.away = true;
+}
+/** A piece counted some other way (hand scanner, typed): the same label in front of the camera is not counted again. */
+function pksSeenNow(code) {
+  PKS.seen = { code: obUC(code), last: Date.now(), hits: PKS_AGREE, counted: true, ivMax: 0 };
 }
 
 /* ---- 1. kept on this phone until the server has it ---- */
@@ -226,7 +274,6 @@ function pksGoBox(n) {
   PKS.box = +n;
   pksBoxOf(PKS.p, PKS.box);
   PKS.last = null;
-  PKS.seen = null;
   pksSay(`Box ${PKS.box} open — scans now go into it`);
   pksDraw();
 }
@@ -239,7 +286,6 @@ function pksNextBox(dims) {
   if (dims && pkNum(dims.gross) > 0) b.grossWtOverride = pkNum(dims.gross);
   PKS.box = Math.max(...(PKS.p.boxes || []).map((x) => +x.n), PKS.box) + 1;
   pksBoxOf(PKS.p, PKS.box);
-  PKS.seen = null;
   pksSaveSoon(0);
 }
 function pksSaveSoon(ms) {
@@ -256,9 +302,13 @@ async function pksSaveNow() {
   pksSavedMark();
   const p = Object.assign({}, PKS.p, { boxes: (PKS.p.boxes || []).filter((b) => (b.items || []).length || +b.n < PKS.box) });
   try {
-    await savePkOne(p);
+    /* NO NETWORK IS NOT "SAVED" (21 Oct): an offline write never fails, it only waits — so the screen said "Saving…" for
+       ever and Close said "saved". No network, or no answer in 12 s, is now a failed save: the scans stay on this phone
+       and are sent again every 15 s and when the network comes back. */
+    if (typeof navigator !== "undefined" && navigator.onLine === false) throw new Error("no network");
+    await Promise.race([savePkOne(p), new Promise((_, rej) => setTimeout(() => rej(new Error("no answer from the server")), 12000))]);
     PKS.err = "";
-    if (!PKS.dirty) pksBackupClear(PKS.p.id);   // the server has all of it; nothing left only on the phone
+    if (!PKS.dirty) pksBackupClear(p.id);   // the server has all of it; nothing left only on the phone
   } catch (e) {
     PKS.err = "Not saved yet (" + (e.message || e) + "). Every scan is kept on this phone and is saved as soon as the network is back.";
     PKS.dirty = true;
@@ -283,16 +333,33 @@ async function pksCamStart() {
     pksSay("This browser cannot open the camera here — use a hand scanner or type the code below.", true);
     return;
   }
+  /* ONE CAMERA AT A TIME (21 Oct): a start that finishes after the list was closed, or after a newer start, lets its camera
+     go at once — before, it stayed on in the background. */
+  const gen = (PKS.camGen = (PKS.camGen || 0) + 1);
+  if (PKS.stream) { PKS.stream.getTracks().forEach((t) => t.stop()); PKS.stream = null; }
+  let stream;
   try {
     /* 1080p where the phone has it: a small FNSKU label is read from further away, where the camera can focus (19 Oct) */
-    PKS.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
   } catch (e) {
     /* A laptop or desktop with no camera is a hand-scanner station, not a fault: the camera box goes, the code box is
        ready, and nothing is said in red (19 Oct: "we are going to connect a scanner with our laptop or desktop"). */
     if (e && (e.name === "NotFoundError" || e.name === "OverconstrainedError")) return pksDeskMode();
-    pksSay("The camera did not open (" + (e.name || e.message || e) + "). Allow the camera for this site, or use a hand scanner / type the code.", true);
+    pksSay(e && e.name === "NotAllowedError" ? "The camera is not allowed for this site — allow it in the browser settings, or use a hand scanner / type the code."
+      : e && e.name === "NotReadableError" ? "The camera is busy in another app — close that app, then close and reopen this list."
+      : "The camera did not open (" + (e.name || e.message || e) + "). Allow the camera for this site, or use a hand scanner / type the code.", true);
     return;
   }
+  if (!PKS.on || gen !== PKS.camGen || !$("pksVid")) { stream.getTracks().forEach((t) => t.stop()); return; }
+  PKS.stream = stream;
+  /* a camera taken away (a call, another app) is opened again, once it can be */
+  const tr0 = stream.getVideoTracks()[0];
+  if (tr0 && tr0.addEventListener) tr0.addEventListener("ended", () => {
+    if (!PKS.on || PKS.stream !== stream || document.visibilityState !== "visible") return;
+    pksSay("The camera stopped — opening it again…", true);
+    pksCamStop();
+    setTimeout(() => { if (PKS.on && !PKS.stream) pksCamStart().then(pksFocus); }, 600);
+  });
   v.srcObject = PKS.stream;
   v.setAttribute("playsinline", "");
   v.muted = true;
@@ -309,19 +376,26 @@ async function pksCamStart() {
     PKS.det = null;
   }
   if (!PKS.det) {
-    try {
-      await pksZxLoad();
-    } catch (e) {
-      pksSay("The barcode reader did not load — use a hand scanner or type the code.", true);
-      return;
+    /* the better reader first; if it is not ready in 5 s (slow network, first open) the small one reads meanwhile */
+    const wz = pksWzLoad().catch(() => false);
+    if (!(await Promise.race([wz, new Promise((r) => setTimeout(() => r(false), 5000))]))) {
+      try {
+        await pksZxLoad();
+      } catch (e) {
+        if (!(await wz)) { pksSay("The barcode reader did not load — use a hand scanner or type the code.", true); return; }
+      }
     }
   }
+  if (!PKS.stream || gen !== PKS.camGen) return;
   const track = PKS.stream.getVideoTracks()[0];
   const caps = track && track.getCapabilities ? track.getCapabilities() : {};
-  $("pksTorch").classList.toggle("hide", !caps.torch);
+  if ($("pksTorch")) $("pksTorch").classList.toggle("hide", !caps.torch);
   PKS.hasTorch = !!caps.torch;
   PKS.torch = false; PKS.torchAuto = false; PKS.torchHand = false; PKS.darkSaid = false; PKS.lightAt = 0;
-  pksSay(PKS.det ? "Point at the FNSKU label" : "Point at the FNSKU label (reader: ZXing)");
+  PKS.fit = null; PKS.zxN = 0; PKS.readAt = Date.now(); PKS.frameMs = 0; PKS.loopAt = 0; PKS.detErr = 0;
+  /* the better reader is fetched now on every phone, not after 2.5 s of nothing: ready when the phone's own one misses */
+  if (PKS.det) pksWzLoad().catch(() => {});
+  pksSay("Point at the FNSKU label");
   pksLoop();
 }
 /** No camera here: scan with the hand scanner. The screen stays as it is (Ravi, 19 Oct: "the previous UI … showing the
@@ -350,17 +424,103 @@ function pksZxLoad() {
     document.head.appendChild(s);
   });
 }
+/* THE BETTER READER (21 Oct, Ravi: "jaise yeh image hai isko toh scan hi nahi kar paya" — an FNSKU label stuck upright on
+ * striped cloth). ZXing JS read 0 of 8 pictures of it; zxing-cpp — the C++ ZXing, kept up by ZXing's own maintainers —
+ * built for the browser (zxing-wasm 3.1.5, in /vendor, nothing fetched from outside) reads it. It reads a label at any
+ * turn, finds it among stripes and print, and says where each label is, so the one aimed at is chosen. ~1 MB, loaded on
+ * first use and cached after; ZXing JS stays as the reader when it cannot load. */
+function pksWzLoad() {
+  if (PKS.wzP) return PKS.wzP;
+  PKS.wzP = new Promise((res, rej) => {
+    const s = document.createElement("script");
+    s.src = "/vendor/zxing-wasm-reader.js";
+    s.onload = res;
+    s.onerror = rej;
+    document.head.appendChild(s);
+  }).then(() => window.ZXingWASM.prepareZXingModule({
+    overrides: { locateFile: (f, pre) => (f.endsWith(".wasm") ? "/vendor/" + f : pre + f) },
+    fireImmediately: true,
+  })).then(() => { PKS.wz = window.ZXingWASM; return true; });
+  PKS.wzP.catch(() => { PKS.wzP = null; PKS.wzFailAt = Date.now(); });     // tried again, but not before 30 s
+  return PKS.wzP;
+}
+const PKS_WZ_OPT = { formats: ["Code128"], tryHarder: true, tryRotate: true, tryInvert: false, tryDownscale: true, maxNumberOfSymbols: 4 };
+/* A LABEL HELD AT A SLANT: a barcode reader reads bars up to about 12° off straight (tryRotate adds the quarter turns).
+ * Measured 21 Oct: at 15°, 45°, 75° … nothing read. So the picture is also read turned 22.5°, 45° and −22.5° — every
+ * other picture straight, the turned ones in between — which leaves no angle unread. */
+const PKS_WZ_TURN = [0, 22.5, 0, 45, 0, -22.5];
+/** What shows in the box on screen, with a quarter of its height more above and below (an upright label runs past the
+ * box), turned as PKS_WZ_TURN says, read by zxing-cpp; of the labels found, the one aimed at (pksAimed). */
+async function pksWzRead(v) {
+  const W = v.videoWidth, H = v.videoHeight;
+  if (!W || !H) return null;
+  const r = pksSeenRect(v), pad = r.h * 0.25;
+  const sx = Math.round(r.x), sy = Math.round(Math.max(0, r.y - pad)), sw = Math.round(r.w), sh = Math.round(Math.min(H, r.y + r.h + pad) - sy);
+  const deg = PKS_WZ_TURN[(PKS.wzN = (PKS.wzN || 0) + 1) % PKS_WZ_TURN.length], a = deg * Math.PI / 180, cs = Math.cos(a), sn = Math.sin(a);
+  const cw = Math.ceil(Math.abs(sw * cs) + Math.abs(sh * sn)), ch = Math.ceil(Math.abs(sw * sn) + Math.abs(sh * cs));
+  const c = PKS.wcv || (PKS.wcv = document.createElement("canvas"));
+  const g = c.getContext("2d", { willReadFrequently: true });
+  if (c.width !== cw) c.width = cw;
+  if (c.height !== ch) c.height = ch;
+  if (deg) { g.fillStyle = "#808080"; g.fillRect(0, 0, cw, ch); }
+  g.setTransform(cs, sn, -sn, cs, cw / 2, ch / 2);
+  g.drawImage(v, sx, sy, sw, sh, -sw / 2, -sh / 2, sw, sh);
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  const got = await PKS.wz.readBarcodes(g.getImageData(0, 0, cw, ch), PKS_WZ_OPT);
+  /* each label's middle, turned back into the camera picture */
+  return pksAimed((got || []).filter((x) => x.isValid && x.text).map((x) => {
+    const q = x.position, dx = (q.topLeft.x + q.topRight.x + q.bottomLeft.x + q.bottomRight.x) / 4 - cw / 2,
+      dy = (q.topLeft.y + q.topRight.y + q.bottomLeft.y + q.bottomRight.y) / 4 - ch / 2;
+    return { rawValue: x.text, boundingBox: { x: sx + sw / 2 + cs * dx + sn * dy, y: sy + sh / 2 - sn * dx + cs * dy, width: 0, height: 0 } };
+  }), v);
+}
+/** The part of the camera picture the packer actually sees in the box on screen (the video is drawn to cover the box, so
+ * on a phone held upright only a strip across the middle shows), in the picture's own pixels. Worked out once per size. */
+function pksSeenRect(v) {
+  const W = v.videoWidth, H = v.videoHeight, cw = v.clientWidth || 0, ch = v.clientHeight || 0;
+  const key = W + "x" + H + "/" + cw + "x" + ch;
+  if (PKS.fit && PKS.fit.key === key) return PKS.fit;
+  let r = { x: 0, y: 0, w: W, h: H };
+  if (cw > 0 && ch > 0 && W && H) {
+    const s = Math.max(cw / W, ch / H), w = Math.min(W, cw / s), h = Math.min(H, ch / s);
+    r = { x: (W - w) / 2, y: (H - h) / 2, w, h };
+  }
+  PKS.fit = Object.assign(r, { key });
+  return r;
+}
+/* READING WITHOUT THE PHONE'S OWN READER — iPhones, laptops and the many Android phones that have none (21 Oct).
+ * Measured on 14 generated FNSKU labels (sizes, blur, dark, tilt, two labels side by side): the 19 Oct reader read 3 —
+ * it squeezed the 1080p picture to 1280 wide, which breaks the bars. At full sharpness it read 8; with ZXing's "try
+ * harder" on every fourth picture, 10; a 2/3-size copy every fourth picture catches labels printed at an odd bar width.
+ * Only the band the packer is aiming with is read: the middle 60% of what shows on screen. */
 function pksZxRead(v) {
   const W = v.videoWidth, H = v.videoHeight;
   if (!W || !H) return null;
+  const r = pksSeenRect(v), k = (PKS.zxN = (PKS.zxN || 0) + 1) % 4;
   const c = PKS.cv || (PKS.cv = document.createElement("canvas"));
-  const cw = Math.min(1280, W), ch = Math.round(H * 0.45), sy = Math.round((H - ch) / 2);
-  c.width = cw;
-  c.height = ch;
-  c.getContext("2d", { willReadFrequently: true }).drawImage(v, 0, sy, W, ch, 0, 0, cw, ch);
+  const g = c.getContext("2d", { willReadFrequently: true });
+  if (k === 2) {
+    /* A LABEL STUCK ON UPRIGHT (21 Oct, Ravi's photo of X0055RALOT): its bars run across the picture, which this reader
+       cannot read, and on a phone held upright most of it is above and below the box on screen. Every fourth picture a
+       band down the middle of the WHOLE picture is turned on its side and read. */
+    const bw = Math.max(40, Math.round(r.w * 0.6)), sx = Math.round(r.x + (r.w - bw) / 2);
+    if (c.width !== H) c.width = H;
+    if (c.height !== bw) c.height = bw;
+    g.setTransform(0, -1, 1, 0, 0, bw);
+    g.drawImage(v, sx, 0, bw, H, 0, 0, bw, H);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+  } else {
+    const bh = Math.max(40, Math.round(r.h * 0.6)), sy = Math.round(r.y + (r.h - bh) / 2);
+    const scale = k === 1 ? 2 / 3 : 1, cw = Math.round(r.w * scale), ch = Math.round(bh * scale);
+    if (c.width !== cw) c.width = cw;
+    if (c.height !== ch) c.height = ch;
+    g.drawImage(v, Math.round(r.x), sy, Math.round(r.w), bh, 0, 0, cw, ch);
+  }
   if (!PKS.zx) PKS.zx = new ZXing.Code128Reader();
+  let hints = null;
+  if (k === 3) { hints = PKS.zxHard || (PKS.zxHard = new Map()); hints.set(ZXing.DecodeHintType.TRY_HARDER, true); }
   try {
-    return PKS.zx.decode(new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(new ZXing.HTMLCanvasElementLuminanceSource(c)))).getText();
+    return PKS.zx.decode(new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(new ZXing.HTMLCanvasElementLuminanceSource(c))), hints || undefined).getText();
   } catch (e) {
     return null;
   }
@@ -371,16 +531,47 @@ function pksZxRead(v) {
  * wrong label (19 Oct). */
 function pksAimed(got, v) {
   const W = v.videoWidth || 1, H = v.videoHeight || 1;
+  /* only a label that shows in the box on screen (21 Oct: one the packer could not see was counted) */
+  const r = pksSeenRect(v), mx = r.x + r.w / 2, my = r.y + r.h / 2;
+  /* ONE LABEL IN VIEW IS THAT LABEL (21 Oct, Ravi's S24 video: a clear label in the box, nothing read for 20 s). Where a
+     phone's reader puts a label is not the same on every phone, so a lone label is never refused for where it is; the
+     box on screen only decides between two or more. */
+  /* where the label is, as shares of the box on screen, for pksFrame to tell the next piece from this one (26 Oct) */
+  const place = (b) => b && isFinite(b.x) && isFinite(b.y) ? { x: (b.x + (b.width || 0) / 2 - r.x) / (r.w || W), y: (b.y + (b.height || 0) / 2 - r.y) / (r.h || H) } : null;
+  PKS.aim = null;
+  const all = (got || []).filter((x) => x.rawValue);
+  if (all.length === 1) { PKS.aim = place(all[0].boundingBox); return all[0].rawValue; }
   let best = null, bestD = Infinity;
   (got || []).forEach((x) => {
     const b = x.boundingBox;
     if (!x.rawValue || !b) return;
     const cx = b.x + b.width / 2, cy = b.y + b.height / 2;
-    if (cy < H * 0.25 || cy > H * 0.75) return;
-    const d = Math.hypot((cx - W / 2) / W, (cy - H / 2) / H);
-    if (d < bestD) { bestD = d; best = x.rawValue; }
+    if (cx < r.x || cx > r.x + r.w || cy < r.y + r.h * 0.1 || cy > r.y + r.h * 0.9) return;
+    const d = Math.hypot((cx - mx) / (r.w || W), (cy - my) / (r.h || H));
+    if (d < bestD) { bestD = d; best = x.rawValue; PKS.aim = place(b); }
   });
   return best;
+}
+/* WHAT THE SCANNER SEES, for finding out why a phone does not read (21 Oct): open the app with ?scandebug=1 and a
+   line over the camera picture shows the reader, the picture sizes, labels found, the last read and the last error. */
+const PKS_DEBUG = typeof location !== "undefined" && /[?&]scandebug=1/.test(location.search || "");
+function pksDebugShow(v, code) {
+  if (code) PKS.dbgLast = code;
+  if (Date.now() - (PKS.dbgAt || 0) < 300) return;
+  PKS.dbgAt = Date.now();
+  const cam = v.parentNode;
+  if (!cam) return;
+  let el = cam.querySelector(".pks-dbg");
+  if (!el) {
+    el = document.createElement("div");
+    el.className = "pks-dbg";
+    el.style.cssText = "position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.65);color:#fde68a;font:11px/1.35 monospace;padding:3px 6px;pointer-events:none;white-space:pre-wrap";
+    cam.appendChild(el);
+  }
+  const r = pksSeenRect(v);
+  el.textContent = `reader ${PKS.det ? "phone" : PKS.wz ? "zxing-cpp" : window.ZXing ? "zxing-js" : "none"}${PKS.wz ? " +cpp" : PKS.wzP ? " (cpp loading)" : ""}`
+    + ` · video ${v.videoWidth}x${v.videoHeight} · box ${v.clientWidth}x${v.clientHeight} · seen ${Math.round(r.x)},${Math.round(r.y)} ${Math.round(r.w)}x${Math.round(r.h)}`
+    + ` · ${Math.round(PKS.frameMs || 0)} ms/picture · found ${PKS.dbgN == null ? "-" : PKS.dbgN} · last ${PKS.dbgLast || "-"}${PKS.dbgErr ? " · error " + PKS.dbgErr : ""}`;
 }
 /* each camera start is a new run: a picture callback left from the run before (the app went to the background and came
    back) ends instead of starting a second reader beside the new one */
@@ -390,27 +581,54 @@ async function pksLoop(run) {
   if (!PKS.on || !PKS.stream || run !== PKS_RUN) return;
   const v = $("pksVid");
   let code = null;
+  PKS.aim = null;     // where this picture's label is: set by pksAimed; the ZXing JS reader cannot tell
   try {
     if (PKS.det) {
-      code = pksAimed(await PKS.det.detect(v), v);
-    } else code = pksZxRead(v);
+      /* A PHONE'S OWN READER THAT FAILS ON EVERY PICTURE ("Barcode detection service unavailable" on some Androids):
+         before, every picture was lost and the other reader never ran. Five failures in a row and it is set aside. */
+      let got = null;
+      try {
+        got = await PKS.det.detect(v);
+        PKS.detErr = 0;
+      } catch (e) {
+        PKS.dbgErr = (e && (e.name + ": " + e.message)) || String(e);
+        if (++PKS.detErr >= 5) { PKS.det = null; pksWzLoad().catch(() => pksZxLoad().catch(() => {})); }
+      }
+      if (got) PKS.dbgN = got.length;
+      code = got ? pksAimed(got, v) : null;
+      /* SOME PHONES' OWN READER SEES LITTLE (21 Oct: "kai phonon main scan bhi nahi"): a picture it reads nothing in,
+         every other one, goes to the better reader too */
+      if (!code && (PKS.zxN = (PKS.zxN || 0) + 1) % 2 === 0) {
+        if (PKS.wz) code = await pksWzRead(v);
+        else if (!PKS.wzP && Date.now() - (PKS.wzFailAt || 0) > 30000) pksWzLoad().catch(() => {});
+      }
+    } else code = PKS.wz ? await pksWzRead(v) : window.ZXing ? pksZxRead(v) : null;
   } catch (e) {
+    PKS.dbgErr = (e && (e.name + ": " + e.message)) || String(e);
     code = null;
   }
+  if (run !== PKS_RUN || !PKS.on) return;     // the camera was closed while this picture was being read
   /* how fast this phone reads: the pksFrame waits follow it */
   const now = Date.now();
   if (PKS.loopAt && now - PKS.loopAt < 2000) PKS.frameMs = PKS.frameMs ? PKS.frameMs * 0.8 + (now - PKS.loopAt) * 0.2 : now - PKS.loopAt;
   PKS.loopAt = now;
-  if (code && pksFrame(obUC(code), now)) pksHit(code, "camera");
+  if (code) {
+    PKS.readAt = now;
+    const c = obUC(code);
+    /* one read of a code on the FNSKU list / a known SKU counts — Code 128 checks itself; an unknown one needs two */
+    if (pksFrame(c, now, PKS, pksResolve(c).sku ? 1 : PKS_AGREE)) pksHit(code, "camera");
+  }
   if (v) pksLightCheck(v, PKS.hasTorch);
-  /* the phone's own reader looks at each new picture as it arrives (no fixed wait), so the two frames that must agree
-     come in sooner; the ZXing reader keeps its pace — it works on the page itself */
+  if (PKS_DEBUG && v) pksDebugShow(v, code);
+  /* the phone's own reader looks at each new picture as it arrives; the other readers take the next picture as soon as
+     they are done with this one (it waited 140 ms before — 21 Oct, "scanning delayed") */
   if (PKS.det && v && typeof v.requestVideoFrameCallback === "function") { PKS.timer = 0; v.requestVideoFrameCallback(() => pksLoop(run)); }
-  else PKS.timer = setTimeout(() => pksLoop(run), PKS.det ? 90 : 140);
+  else PKS.timer = setTimeout(() => pksLoop(run), PKS.det ? 60 : 30);
 }
 function pksCamStop() {
   clearTimeout(PKS.timer);
   PKS_RUN++;
+  PKS.camGen = (PKS.camGen || 0) + 1;     // a start still waiting for the camera lets it go
   if (PKS.stream) PKS.stream.getTracks().forEach((t) => t.stop());
   PKS.stream = null;
 }
@@ -423,7 +641,7 @@ async function pksFocus() {
     if ((caps.focusMode || []).includes("continuous")) want.focusMode = "continuous";
     if ((caps.exposureMode || []).includes("continuous")) want.exposureMode = "continuous";
     if ((caps.whiteBalanceMode || []).includes("continuous")) want.whiteBalanceMode = "continuous";
-    if (Object.keys(want).length) await t.applyConstraints({ advanced: [want] });
+    for (const k of Object.keys(want)) { try { await t.applyConstraints({ advanced: [{ [k]: want[k] }] }); } catch (e) { /* this phone does not take this one */ } }
   } catch (e) {
   }
 }
@@ -460,7 +678,9 @@ async function pksTorchSet(on, auto) {
     PKS.torch = on;
     PKS.torchAuto = on && auto;
     if ($("pksTorch")) $("pksTorch").classList.toggle("on", on);
+    return true;
   } catch (e) {
+    return false;
   }
 }
 function pksLightCheck(v, hasTorch) {
@@ -472,16 +692,25 @@ function pksLightCheck(v, hasTorch) {
   if (mean == null) return;
   if (PKS.torchHand) return;                          // the packer chose; leave it
   const step = pksLightStep(mean, !!PKS.torch, !!PKS.torchAuto, hasTorch);
-  if (step === "on") { pksTorchSet(true, true); pksSay("Low light — torch on"); }
+  if (step === "on") pksTorchSet(true, true).then((ok) => { if (ok) pksSay("Low light — torch on"); else PKS.hasTorch = false; });
   else if (step === "off") pksTorchSet(false, false);
   else if (!hasTorch && mean < PKS_DARK && !PKS.darkSaid) { PKS.darkSaid = true; pksSay("Too dark to read — move the label into more light", true); }
   else if (mean >= PKS_DARK && PKS.darkSaid) { PKS.darkSaid = false; pksSay("Point at the FNSKU label"); }
 }
 let PKS_AC = null;
 /** good: one short high beep · bad: a low buzz · done: two rising beeps. */
+/** iPhone only plays sound from a context started by a tap: woken on the scan screen's taps, and again after sleep. */
+function pksAudioWake() {
+  try {
+    PKS_AC = PKS_AC || new (window.AudioContext || window.webkitAudioContext)();
+    if (PKS_AC.state === "suspended" && PKS_AC.resume) PKS_AC.resume();
+  } catch (e) {
+  }
+}
 function pksBeep(good, kind) {
   try {
     PKS_AC = PKS_AC || new (window.AudioContext || window.webkitAudioContext)();
+    if (PKS_AC.state === "suspended" && PKS_AC.resume) PKS_AC.resume();
     const tone = (f, at, len, type, vol) => {
       const o = PKS_AC.createOscillator(), g = PKS_AC.createGain();
       o.type = type;
@@ -583,7 +812,7 @@ if (typeof document.addEventListener === "function") document.addEventListener("
     PKS.keyBuf = "";
     if (c.length >= 4) {
       e.preventDefault();
-      PKS.seen = null;
+      pksSeenNow(pksClean(c));
       pksHit(pksClean(c), "scanner");
     }
     return;
@@ -635,7 +864,6 @@ function pksHit(code, via) {
 function pksKeptAside() {
   PKS.hold = false;
   PKS.bad = null;
-  PKS.seen = null;
   pksSay("Carry on — scan the next piece");
   pksDraw();
 }
@@ -825,7 +1053,7 @@ async function pksTrackOpen() {
   const go = () => {
     const c = $("pksCode").value.trim();
     if (c) {
-      PKS.seen = null;
+      pksSeenNow(pksClean(c));
       pksHit(pksClean(c), "typed");
     }
     $("pksCode").value = "";
@@ -930,6 +1158,8 @@ function pksShow() {
     <div class="pks-type"><input id="pksCode" placeholder="Hand scanner / type the FNSKU and press Enter" autocomplete="off" autocapitalize="characters"><button id="pksGo" class="pks-ghost">Add</button></div>
     <div id="pksBox"></div>`;
   PKS.on = true;
+  pksAudioWake();
+  ov.addEventListener("pointerdown", pksAudioWake);
   $("pksClose").onclick = pksFinishAsk;
   $("pksUndo").onclick = () => {
     if (PKS.hold) return pksSay('Tap "Kept aside" first.', true);
@@ -945,7 +1175,7 @@ function pksShow() {
   const go = () => {
     const c = $("pksCode").value.trim();
     if (c) {
-      PKS.seen = null;
+      pksSeenNow(pksClean(c));
       pksHit(pksClean(c), "typed");
     }
     $("pksCode").value = "";
@@ -1196,7 +1426,7 @@ async function pksQcPress(btn) {
     const code = PKS.bad.code;
     PKS.hold = false;
     PKS.bad = null;
-    PKS.seen = null;
+    pksSeenNow(code);     // the label is still in front of the camera: this one count is its count
     pksHit(code, "qc");
   }
 }
@@ -1223,11 +1453,20 @@ function pksFinishAsk() {
     PKS.panel = "";
     pksDraw();
   };
-  if (!done) $("pksDoneBtn").onclick = () => pksDone();
+  if (!done) $("pksDoneBtn").onclick = (e) => {
+    /* ONE TAP, ONE WRITE (21 Oct): a second tap while the first was still writing wrote the Send to FBA rows twice */
+    const b = e && e.currentTarget; if (PKS.doneBusy) return;
+    if (b) b.disabled = true;
+    pksDone().finally(() => { if (b && b.isConnected) b.disabled = false; });
+  };
 }
 async function pksDone() {
   const p = PKS.p;
-  if (!p) return;
+  if (!p || PKS.doneBusy) return;
+  PKS.doneBusy = true;
+  try { await pksDoneRun(p); } finally { PKS.doneBusy = false; }
+}
+async function pksDoneRun(p) {
   const acc = $("pksDoneAcc") ? $("pksDoneAcc").value : p.account;
   if (FGI_FBA_ACCOUNTS.indexOf(acc) < 0) {
     pksSay("Pick the FBA account — " + FGI_FBA_ACCOUNTS.join(" or ") + ".", true);

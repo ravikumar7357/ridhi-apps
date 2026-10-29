@@ -70,7 +70,7 @@ function weeklySalesChunk_(bookIx, startRow, nRows, weeks, withDays) {
   if (!id) return { ok: false, error: 'No orders workbook #' + ix + '.' };
 
   var ss;
-  try { ss = SpreadsheetApp.openById(id); }
+  try { ss = bookOpen_(id); }
   catch (e) { return { ok: false, error: 'Could not open orders workbook #' + ix + ': ' + e }; }
 
   var sh = null;
@@ -153,7 +153,7 @@ function dailySalesChunk_(bookIx, startRow, nRows, days) {
   if (!id) return { ok: false, error: 'No orders workbook #' + ix + '.' };
 
   var ss;
-  try { ss = SpreadsheetApp.openById(id); }
+  try { ss = bookOpen_(id); }
   catch (e) { return { ok: false, error: 'Could not open orders workbook #' + ix + ': ' + e }; }
 
   var sh = null;
@@ -239,7 +239,7 @@ function dailyRecent_(days) {
     var brand = ix === 0 ? 'SP' : 'CPC';
     var sh = null;
     try {
-      var ss = SpreadsheetApp.openById(ORDERS_DATA_IDS[ix]);
+      var ss = bookOpen_(ORDERS_DATA_IDS[ix]);
       ['Orders', 'CPC Orders'].forEach(function (t) { if (!sh) sh = ss.getSheetByName(t); });
     } catch (e) { continue; }
     if (!sh) continue;

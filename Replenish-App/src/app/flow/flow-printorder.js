@@ -10,8 +10,15 @@
  *   pt_flowPrintOrders/<no> = { no, date, orderNo, printer:{code,name}, items:{ <line>: {sku, item, print, extras, pcs,
  *                               metres, unit} }, at, by, cancelled? }  */
 
-/** Whether a planned line still sends anything to a printer once printed stock is taken: body or ruffle cloth. */
-const flowPrintsSomething = (r, p) => { const w = flowPrintWhat(r, p), tp = flowToPrint(r, p);
+/** Whether a planned line still sends anything to a printer once printed stock is taken: body or ruffle cloth.
+ * rem: the share of the line still to make (flowRemFrac) — nothing at all once the registers cover it (27 Oct: a line issued in
+ * full from Job Work before PPC planned it raises no print order). Read from the line when not given. */
+const flowPrintsSomething = (r, p, rem) => { if (flowInHand(p)) return false;   // printed cloth in hand: nothing goes to a printer
+  /* A line already on a print order or a challan stays there: editing its plan later must not take it off (and cancel the order). */
+  if (rem == null) { try { const k = flowKey(r.orderNo, r.sku), px = flowPoIndex(), cxi = flowChIndex();
+    rem = px[k] || px[k + FLOW_RUF] || cxi[k] || cxi[k + FLOW_RUF] ? 1 : flowRemFrac(r, flowState(r)); } catch (e) { rem = 1; } }
+  if (!(rem > 0)) return false;
+  const w = flowPrintWhat(r, p), tp = flowToPrint(r, p);
   return (w.kind === 'sku' ? tp.pcs > 0 : tp.metres > 0.01) || flowPrintExtras(r, p).length > 0; };
 /** Which print order holds each line: { lineKey: no } — cached on FLOW.po. */
 let FLOW_POX = { src: null, map: {} };
@@ -46,7 +53,7 @@ function flowPoItem(r, p, part) {
 const flowPoItemPrints = it => (it.unit === 'pcs' ? it.pcs > 0 : it.metres > 0.01) || (it.extras || []).length > 0;
 /** What one planned line puts on print orders: [{ part: '' | '~ruffle', printer, item }]. */
 function flowPoParts(r, p) {
-  if (!p || flowRouteOf(p) !== 'inhouse' || !flowPrintsSomething(r, p)) return [];
+  if (!p || !flowPrinted(flowRouteOf(p)) || !flowPrintsSomething(r, p)) return [];
   const rp = flowRufflePrinter(p), out = [], body = flowPoItem(r, p, rp ? 'body' : '');
   if (flowPoItemPrints(body)) out.push({ part: '', printer: p.printer || null, item: body });
   if (rp) { const ruf = flowPoItem(r, p, 'ruffle'); if (ruf.extras.length) out.push({ part: FLOW_RUF, printer: rp, item: ruf }); }
@@ -104,7 +111,12 @@ function flowVoProgOf(o, kind) {
   const unit = kind === 'cut' ? 'pcs' : 'm', keys = new Set(Object.keys(o.items || {}).filter(k => o.items[k]));
   const code = String((o.printer && o.printer.code) || ''), challans = [], receipts = [], items = {};
   Object.values(FLOW.ch || {}).forEach(c => {
-    if (!c || c.cancelled || obUC(c.orderNo) !== obUC(o.orderNo) || String((c.vendor && c.vendor.code) || '') !== code) return;
+    if (!c || c.cancelled || String((c.vendor && c.vendor.code) || '') !== code) return;
+    /* A CHALLAN CAN CARRY SEVERAL ORDERS (Ravi, 27 Oct: RTC72-60120 — "7 orders, Raw 0, Sent 0, Balance 7" on the printer's card while the
+     * challan had gone and been received): RFD-202610-070 is orderNo "SHP-RBP7558, SHP-RBP7606", so comparing the whole string with one
+     * print order's number never matched, and a printer whose cloth went on a combined challan was shown nothing sent. It counts when
+     * the order is any of the challan's; its lines are then picked by this print order's own line keys, below. */
+    if (!(c.orders && c.orders.length ? c.orders : String(c.orderNo || '').split(/,\s*/)).some(n => obUC(n) === obUC(o.orderNo))) return;
     const ls = (c.lines || []).filter(l => flowChUnit(l) === unit && (keys.has(l.key) || keys.has(l.key + FLOW_RUF)));
     if (!ls.length) return;
     const lk = new Set(ls.map(l => l.key));
@@ -260,6 +272,9 @@ function flowVoLines(o, planOf) {
   out.cut = merge(out.cut, l => obUC(l.sku), 'qty');
   return out;
 }
+/* AN ORDER ALREADY PLACED IS CHANGED FIELD BY FIELD (26 Oct): the printer writes onto it too — what they say they sent
+ * (vSent, vendor-portal.js) — and a whole-record write from the office would wipe a batch entered since this screen read it. */
+const voFieldWrites = (patch, o, fields) => fields.forEach(k => { patch[`pt_vendorOrders/${o.vendorCode}/${o.id}/${k}`] = o[k]; });
 /**
  * The Vendor Order writes for the flow print orders `nos` (already updated in `local`). Mutates `local[no].vo` and puts the
  * link into `patch` the safe way (inside a whole-record write when the same save writes the whole record).
@@ -278,7 +293,7 @@ function flowVoSync(local, nos, patch, planOf) {
       if (!lines.length) {
         if (existing && existing.status !== 'Cancelled') {
           const c = Object.assign({}, existing, { status: 'Cancelled', staffUpdatedAt: now });
-          patch[`pt_vendorOrders/${ref.code}/${ref.id}`] = c; placed.push(c); said.push(`${existing.orderNo} cancelled`); }
+          voFieldWrites(patch, c, ['status', 'staffUpdatedAt']); placed.push(c); said.push(`${existing.orderNo} cancelled`); }
         return;
       }
       const prev = {}; if (existing) voLines(existing).forEach(l => { if (l.flowPart) prev[l.flowPart] = l; });
@@ -288,7 +303,9 @@ function flowVoSync(local, nos, patch, planOf) {
         : { id: 'vpo_flow_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7), orderNo: voNewOrderNo(), vendorCode: o.printer.code, vendorName: o.printer.name,
             service: 'Block print', ...(want.channel ? { channel: want.channel } : {}), orderType: kind, orderDate: voTodayDMY(), status: 'Placed',
             notes: `From the PPC plan — ${o.orderNo} (${o.no})`, lines: ln, createdBy: ME.email || '', createdAt: now, demandSource: 'ppc', flowPrintOrder: o.no };
-      patch[`pt_vendorOrders/${order.vendorCode}/${order.id}`] = order; placed.push(order);
+      if (existing) voFieldWrites(patch, order, ['lines', 'status', 'staffUpdatedAt']);
+      else patch[`pt_vendorOrders/${order.vendorCode}/${order.id}`] = order;
+      placed.push(order);
       vo[kind] = { code: order.vendorCode, id: order.id, orderNo: order.orderNo };
       if (!existing) VO.rows = (VO.rows || []).concat([order]);   // so the next number drawn this save is a different one
       said.push(existing ? `${order.orderNo} updated` : `Vendor Order ${order.orderNo} placed with ${o.printer.name}`);
@@ -346,6 +363,7 @@ function flowDocsOf(x) {
   Object.values(FLOW.ch || {}).forEach(c => {
     if (!c || c.cancelled) return;
     const mine = (c.lines || []).filter(l => l && l.key === key); if (!mine.length) return;
+    if (mine.every(l => flowChMoved(c, l))) return;   // moved to another printer: no longer this line's paper
     out.push({ kind: mine.every(l => l.ruffleOnly) ? 'Ruffle challan' : 'RFD challan', no: c.no, who: (c.vendor && c.vendor.name) || '', link: 'ch', closed: !!c.closed });
   });
   return out;

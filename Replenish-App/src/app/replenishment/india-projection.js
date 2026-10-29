@@ -92,7 +92,7 @@ function indiaProjRows() {
 
 function renderIndiaProj() {
   if (!FC_PLAN.length) {
-    $('inProjTable').innerHTML = '<tbody><tr><td class="muted" style="padding:14px">No forecast yet — open Replenishment and hit “Refresh from sheet” first.</td></tr></tbody>';
+    $('inProjTable').innerHTML = '<tbody><tr><td class="muted" style="padding:14px">No forecast yet — it is built by itself from FabriCrush Inventory every three hours.</td></tr></tbody>';
     return;
   }
   const rows = indiaProjRows();
@@ -161,7 +161,7 @@ function renderIndiaProj() {
   }).join('');
 
   $('inProjTable').innerHTML = head + '<tbody>' + (sub + body
-    || `<tr><td colspan="${cols.length}" class="muted" style="padding:14px">Nothing to project — nothing in Finished Goods, or run “Refresh from sheet” on Replenishment.</td></tr>`)
+    || `<tr><td colspan="${cols.length}" class="muted" style="padding:14px">Nothing to project — nothing in Finished Goods, or the snapshot from FabriCrush Inventory has not been built yet.</td></tr>`)
     + '</tbody>';
   $('inMsg').textContent = rows.length > 300
     ? `showing first 300 of ${nf(rows.length)} — filter to narrow (subtotal and KPIs cover all ${nf(rows.length)})`

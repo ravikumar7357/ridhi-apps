@@ -11,6 +11,7 @@
  * registered, and have their own entry.
  */
 let SP_QUIET = false;                     // true while a bulk entry runs: one redraw at the end, not one per piece
+let SP_WA_NOTE = '';                      // what the last single issue's WhatsApp did, for the line under it
 let SP_BULK_VALS = {};                    // what has been typed into the grid, by "SKU|field"
 
 /** The lines a bulk entry for one SKU is shared across: open Shopify lines, not quilts, oldest first. */
@@ -787,10 +788,10 @@ function spOpen(orderNo, sku) {
     `${nf(ptNum($('spCutPcs').value))} piece(s) cut.`);
   $('spIssGo').onclick = async () => after(
     await spIssueReal(orderNo, sku, $('spIssType').value, $('spIssEmp').value, $('spIssPcs').value, $('spIssDate').value, ''),
-    `${nf(ptNum($('spIssPcs').value))} piece(s) issued to ${$('spIssEmp').value}.`);
+    `${nf(ptNum($('spIssPcs').value))} piece(s) issued to ${$('spIssEmp').value}.` + SP_WA_NOTE);
   $('spRecGo').onclick = async () => after(
     await spReceiveReal(orderNo, sku, $('spRecPcs').value, $('spRecDate').value),
-    `${nf(ptNum($('spRecPcs').value))} piece(s) back.`);
+    `${nf(ptNum($('spRecPcs').value))} piece(s) back.` + SP_WA_NOTE);
   $('spPrsGo').onclick = async () => after(
     await spPressReal(orderNo, sku, $('spPrsPcs').value, $('spPrsDate').value, ''),
     `${nf(ptNum($('spPrsPcs').value))} piece(s) pressed.`);
@@ -1009,6 +1010,7 @@ function renderOrd() {
   if (v === 'track') return renderOrdTrack();
   if (v === 'shppipe') return renderOrdPipe();
   if (v === 'team') return renderOrdTeam();
+  if (v === 'shpboard' && typeof renderShpBoard === 'function') return renderShpBoard();   // TEST window (orders/shp-board.js)
   if (v === 'prnplat') return renderOrdPrnPlat();
   if (!isBook) { const out = renderOrdShopify(v === 'shopsku', v === 'shopdone' || (v === 'shopsku' && !!ORD.skuDone)); if (bulkOk) spBulkRender(); return out; }
 
