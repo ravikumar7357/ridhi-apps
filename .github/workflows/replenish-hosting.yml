@@ -15,7 +15,7 @@ name: Replenish app — test, build, deploy
 on:
   push:
     branches: [main, 'preview/**']
-    paths: ['Replenish-App/**', 'shared/**', '.github/workflows/replenish-hosting.yml']
+    paths: ['Replenish-App/**', 'shared/**', 'meera/**', '.github/workflows/replenish-hosting.yml']
   workflow_dispatch:
 
 # one deploy at a time per branch; a newer push waits for the one running, it does not cut it short
@@ -69,6 +69,13 @@ jobs:
             if node "tests/$t-test.js" > "/tmp/$t.log" 2>&1; then echo "$t: $(tail -1 /tmp/$t.log)"
             else echo "::error::$t-test failed"; grep -E "FAIL|Error" "/tmp/$t.log" | head -40; tail -5 "/tmp/$t.log"; exit 1; fi
           done
+
+      # MEERA'S GATE (v2 rebuild, 29 Oct 2026): her never-break list, and her scores and 580 golden answers against the
+      # baseline in meera/bank/baseline/ — nothing is deployed if she got worse (meera/tests/NEVER-BREAK.md).
+      - name: Meera — never-break list and no-worse gate
+        run: |
+          node ../meera/tests/never-break.cjs
+          node ../meera/tests/gate.cjs
 
       - name: Build the deployed copy (dist/)
         run: node tests/build-dist.js
