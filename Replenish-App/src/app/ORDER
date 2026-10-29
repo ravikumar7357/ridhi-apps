@@ -157,6 +157,7 @@ core/filter-by.js
 core/installed-app.js
 core/version-check.js
 core/mobile.js
+core/meera-switches.js
 core/guide-art.js
 core/guide-tours.js
 core/guide.js
