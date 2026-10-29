@@ -60,7 +60,7 @@ function shpBucketMake() {
   const out = [];
   (SO_ALL_ROWS || []).forEach(o => {
     if (!o || !o.id || o.cancelled || o.shipped || !(o.handled || soIsPending(o)) || !shpSheetAllows(o)) return;
-    shpNeeds(o, undefined, { evenHandled: true }).forEach(w => { if (shpReadyProduct(w.sku)) return; if (!opened.has(String(o.id) + '|' + w.sku)) out.push({ id: String(o.id), sku: w.sku, kind: 'make' }); });
+    shpNeeds(o, undefined, { evenHandled: true }).forEach(w => { if (shpReadyProduct(w.sku) || shpInsertProduct(w.sku)) return; if (!opened.has(String(o.id) + '|' + w.sku)) out.push({ id: String(o.id), sku: w.sku, kind: 'make' }); });
   });
   return out;
 }
@@ -76,7 +76,7 @@ function shpBucketBuild(opts) {
     const mine = new Set();
     const noted = o.handled ? ' · the order is marked done (' + (o.handledWhy || 'a note says so') + ') — check it is not already made before opening' : '';
     shpNeeds(o, undefined, { evenHandled: true }).forEach(w => {
-      if (shpReadyProduct(w.sku)) return;   // a ready product is not production's
+      if (shpReadyProduct(w.sku) || shpInsertProduct(w.sku)) return;   // a ready product or a pillow insert is not production's
       mine.add(w.sku);
       if (!isOpen(w.sku)) out.push(Object.assign({ o, id, sheetOk, key: id + '|' + w.sku, sku: w.sku, qty: w.qty, pcs: w.pcs, shopQty: w.shopQty, kind: 'make',
         why: (w.why || []).join(' + ') + noted, noted: !!noted, name: w.name || '', img: w.img || '', adj: w.adjId || '' }, shpStockOf(o, w.sku)));
@@ -110,6 +110,8 @@ async function shpBucketRun(keys, reason) {
   const by = new Map(shpBucketAll().map(x => [x.key, x]));   // the order's dialog and a pending sheet may open past the bucket's rule
   const picks = [...new Set(keys || [])].map(k => by.get(k)).filter(Boolean);
   if (!picks.length) return 'Tick at least one line.';
+  const ins = picks.filter(x => shpInsertProduct(x.sku));
+  if (ins.length) return 'Pillow insert never opens in production — ' + ins.slice(0, 5).map(x => x.sku).join(', ') + (ins.length > 5 ? ' and ' + nf(ins.length - 5) + ' more' : '') + '.';
   const rp = picks.filter(x => shpReadyProduct(x.sku));
   if (rp.length) return 'Not made by Ridhi — ' + rp.slice(0, 5).map(x => x.sku).join(', ') + (rp.length > 5 ? ' and ' + nf(rp.length - 5) + ' more' : '') + ' ' + (rp.length > 1 ? 'are ready products' : 'is a ready product') + ' (the Master Database names another manufacturer), so production does not open them.';
   /* One reason for all (the dialog), or one per line (the Excel): Map key → reason. */

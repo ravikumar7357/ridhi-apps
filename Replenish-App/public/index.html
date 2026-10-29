@@ -16327,6 +16327,8 @@ function mdbIndex() {
 }
 /** The master row for a SKU, or undefined. Replaces (PTG.mdb||[]).find(…) in the hot paths. */
 const mdbOf = sku => mdbIndex().get(obUC(sku));
+/** A PILLOW INSERT NEVER OPENS IN PRODUCTION (Ravi, 29 Oct): it is filling, not a made line — whatever channel it came from. */
+const shpInsertProduct = sku => { try { const m = typeof mdbOf === 'function' ? mdbOf(sku) : null; return !!m && /pillow insert/i.test(String(m.articleType || '') + ' ' + String(m.subtype || '')); } catch (e) { return false; } };
 /**
  * A SKU this page's copy of the master does not have, asked of the database itself (2026-10-01). The copy is re-read
  * only every 30 minutes (PTG_MDB_STALE_MS), so a SKU added to the master a minute ago was refused as "not in the master
@@ -16483,6 +16485,8 @@ function obPcsPerPack(sku, articleType, articleSubtype) {
   if (/napkin|placemat|place mat|table ?mat/i.test(hay) || /^(RCN|RCCN|CPCN|RTME)/.test(s)) {
     const n = s.match(/-(\d{1,2})$/);
     if (n && +n[1] >= 1 && +n[1] <= 48) return +n[1];
+    /* A CPC NAPKIN CODE WITH NO SIZE AFTER IT IS A SET OF FOUR (Ravi, 29 Oct: CPCN007 = 4 pcs, CPCN005-12 = 12 pcs). */
+    if (/^CPCN/.test(s)) return 4;
   }
   const fam = obPackFamily(s);
   const sib = obPackSiblings().get(fam);
@@ -26830,7 +26834,7 @@ function shpbCell(a, w, d, act, label, key, title) {
 const shpbLineOf = key => { const [o, k] = String(key).split('__'); return ordLines().find(r => r.orderNo === obUC(o) && r.sku === obUC(k)) || null; };
 const shpbPlanOf = r => ((typeof FLOW !== 'undefined' && FLOW && FLOW.ppc) || {})[typeof flowKey === 'function' ? flowKey(r.orderNo, r.sku) : ''] || null;
 const shpbPrinterOf = r => { const p = shpbPlanOf(r), pr = p && p.printer; return (pr && (pr.name || pr.code)) || r.printer || ''; };
-const shpbIsMine = r => { try { const m = typeof mdbOf === 'function' ? mdbOf(r.sku) : null; return !(m && typeof mdbIsReady === 'function' && mdbIsReady(m)); } catch (e) { return true; } };
+const shpbIsMine = r => { try { const m = typeof mdbOf === 'function' ? mdbOf(r.sku) : null; return !(m && typeof mdbIsReady === 'function' && mdbIsReady(m)) && !(typeof shpInsertProduct === 'function' && shpInsertProduct(r.sku)); } catch (e) { return true; } };
 
 /** The item, compact: a small picture, what it is, colour • size, the code. */
 function shpbItem(r) {
@@ -70404,7 +70408,7 @@ function shpBucketMake() {
   const out = [];
   (SO_ALL_ROWS || []).forEach(o => {
     if (!o || !o.id || o.cancelled || o.shipped || !(o.handled || soIsPending(o)) || !shpSheetAllows(o)) return;
-    shpNeeds(o, undefined, { evenHandled: true }).forEach(w => { if (shpReadyProduct(w.sku)) return; if (!opened.has(String(o.id) + '|' + w.sku)) out.push({ id: String(o.id), sku: w.sku, kind: 'make' }); });
+    shpNeeds(o, undefined, { evenHandled: true }).forEach(w => { if (shpReadyProduct(w.sku) || shpInsertProduct(w.sku)) return; if (!opened.has(String(o.id) + '|' + w.sku)) out.push({ id: String(o.id), sku: w.sku, kind: 'make' }); });
   });
   return out;
 }
@@ -70420,7 +70424,7 @@ function shpBucketBuild(opts) {
     const mine = new Set();
     const noted = o.handled ? ' · the order is marked done (' + (o.handledWhy || 'a note says so') + ') — check it is not already made before opening' : '';
     shpNeeds(o, undefined, { evenHandled: true }).forEach(w => {
-      if (shpReadyProduct(w.sku)) return;   // a ready product is not production's
+      if (shpReadyProduct(w.sku) || shpInsertProduct(w.sku)) return;   // a ready product or a pillow insert is not production's
       mine.add(w.sku);
       if (!isOpen(w.sku)) out.push(Object.assign({ o, id, sheetOk, key: id + '|' + w.sku, sku: w.sku, qty: w.qty, pcs: w.pcs, shopQty: w.shopQty, kind: 'make',
         why: (w.why || []).join(' + ') + noted, noted: !!noted, name: w.name || '', img: w.img || '', adj: w.adjId || '' }, shpStockOf(o, w.sku)));
@@ -70454,6 +70458,8 @@ async function shpBucketRun(keys, reason) {
   const by = new Map(shpBucketAll().map(x => [x.key, x]));   // the order's dialog and a pending sheet may open past the bucket's rule
   const picks = [...new Set(keys || [])].map(k => by.get(k)).filter(Boolean);
   if (!picks.length) return 'Tick at least one line.';
+  const ins = picks.filter(x => shpInsertProduct(x.sku));
+  if (ins.length) return 'Pillow insert never opens in production — ' + ins.slice(0, 5).map(x => x.sku).join(', ') + (ins.length > 5 ? ' and ' + nf(ins.length - 5) + ' more' : '') + '.';
   const rp = picks.filter(x => shpReadyProduct(x.sku));
   if (rp.length) return 'Not made by Ridhi — ' + rp.slice(0, 5).map(x => x.sku).join(', ') + (rp.length > 5 ? ' and ' + nf(rp.length - 5) + ' more' : '') + ' ' + (rp.length > 1 ? 'are ready products' : 'is a ready product') + ' (the Master Database names another manufacturer), so production does not open them.';
   /* One reason for all (the dialog), or one per line (the Excel): Map key → reason. */
