@@ -1,0 +1,6 @@
+{
+ "made": "2026-10-29",
+ "how": "Offline copy of the deployed page (meera/tests/preview-make.cjs) in the browser pane on the office PC, files served from this computer; live-network times from the live site on 27 Oct.",
+ "offlineCopy": { "pageKB": 4375, "pageReadyMs": 1954, "firstAnswerMs": 716, "nextAnswerMs": 22 },
+ "liveNetwork27Oct": { "meera-bank.json": "617 KB, 5.9 s", "meera-walks.json": "90 KB, 1.0 s", "meera-words.bin": "1304 KB, 12.9 s", "firstAnswerAfterBackgroundLoad": "977 ms" }
+}

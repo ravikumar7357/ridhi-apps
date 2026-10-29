@@ -1,0 +1,57 @@
+{
+ "made": "2026-10-29",
+ "scores": {
+  "eval": {
+   "right": 112,
+   "offered": 59,
+   "wrong": 12,
+   "none": 37
+  },
+  "eval2": {
+   "right": 54,
+   "offered": 66,
+   "wrong": 6,
+   "none": 34
+  },
+  "parts": {
+   "right": 187,
+   "offered": 10,
+   "wrong": 2,
+   "none": 1
+  }
+ },
+ "typos": {
+  "count": 238,
+  "right": 83,
+  "offered": 116,
+  "wrong": 8,
+  "none": 31
+ },
+ "sizes": {
+  "meera-bank.json": {
+   "raw": 3385462,
+   "gzip": 856694
+  },
+  "meera-words.bin": {
+   "raw": 1591833,
+   "gzip": 1355628
+  },
+  "meera-walks.json": {
+   "raw": 613134,
+   "gzip": 118316
+  },
+  "code in the page": {
+   "raw": 388288,
+   "gzip": 169911,
+   "files": 8
+  },
+  "picture (guide-art.js)": {
+   "raw": 108086,
+   "gzip": 81423
+  }
+ },
+ "timing": {
+  "loadMs": 1382,
+  "msPerAnswer": 37.6
+ }
+}

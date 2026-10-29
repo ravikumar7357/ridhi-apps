@@ -13,6 +13,7 @@
 !/Inventory-App/
 !/.github/
 !/meera-router/
+!/meera/
 
 # Firebase's local deploy cache, and anything installed.
 .firebase/
@@ -46,3 +47,6 @@ Pricing-App/src/deps.json
 /Replenish-App/tests/sku-audit/
 /Replenish-App/tests/probes/store-beyond.json
 /Pricing-App/tests/image-audit/*.csv
+
+# Meera v2: the offline timing copy (meera/tests/preview-make.cjs)
+meera/.preview/
