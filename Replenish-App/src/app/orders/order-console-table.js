@@ -87,11 +87,13 @@ function ordStatePill0(r) {
     + (canC ? `<a href="#" data-ordclose="${key}" class="pill pill-ok" style="text-decoration:none" title="Shopify is done with it — close the line">Ready to close · Close</a> ` : '') + ordStatePillWork(r);
   if (canC && r.open) return ordStatePillWork(r) + ` <a href="#" data-ordclose="${key}" style="font-size:11.5px" title="Close this line with a reason">close</a>`;
   if (canC && !r.open && r.shopDoneAt && !r.handedAt) return ordStatePillWork(r) + ` <a href="#" data-ordreopen="${key}" style="font-size:11.5px" title="${esc((r.shopDoneBy ? 'Closed by ' + r.shopDoneBy : '') + (r.shopDoneNote ? ' — ' + r.shopDoneNote : ''))}">reopen</a>`;
+  /* A sales-team line (not Shopify / Online) can be completed by hand from ready stock in the India store (orders/complete-from-stock.js). */
+  if (r.open && !ordIsMto(r.orderNo) && typeof ordStockCan === 'function' && ordStockCan()) return ordStatePillWork(r) + ` <a href="#" data-ordstock="${key}" style="font-size:11.5px" title="Complete this line from pieces already made and held in the India store">from stock</a>`;
   return ordStatePillWork(r);
 }
 function ordStatePillWork(r) {
   if (!r.open && r.shopDoneAt && !r.handedAt) return '<span class="jw-st done" title="Closed from Shopify ' + esc(ptIsoDate(r.shopDoneAt) || '') + '">' + esc(SHP_DONE_TXT(r.shopDoneWhy)) + '</span>';
-  if (!r.open) return '<span class="jw-st done">Complete</span>';
+  if (!r.open) return '<span class="jw-st done">Complete' + (r.fromStock ? ' · ' + nf(r.fromStock) + ' from stock' : '') + '</span>';
   if (r.pendingCut > 0) return '<span class="jw-st pend">' + nf(r.pendingCut) + ' to cut</span>';
   if (r.pendingMake > 0) return '<span class="jw-st prog">' + nf(r.pendingMake) + ' to make</span>';
   /* Saying "0 to make" here would be silence in a louder font. */

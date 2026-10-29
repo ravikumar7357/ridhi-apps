@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <!-- ================================================================================================
-     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 165 files of src/ joined into one page.
+     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 166 files of src/ joined into one page.
      The real, grouped source: Replenish-App/src/   (map and workflow: src/README.md)
        src/index.html   page markup        src/styles.css   stylesheet        src/app/ORDER   join order
        src/app/<group>/ the code, by group: core, replenishment, masters, production, vendors, orders, shopify, flow, dashboard, people-pay, inventory, reports, shared, meera
@@ -22919,6 +22919,7 @@ function ordLinesBuild() {
     /* PIECES, not packs. A Shopify line keeps what the customer ordered alongside, so the screen can
      * say "1 pack of 2" rather than leave somebody wondering where the second piece came from. */
     e.qty += obPieces(r);
+    e.fromStock = (e.fromStock || 0) + (parseInt(r.stockDone, 10) || 0);   // pieces completed from ready stock (orders/complete-from-stock.js)
     if (obIsShop(r)) { e.packs += obShopUnits(r); e.pcsPer = e.packs ? Math.round(e.qty / e.packs) : 1; }
     if (!e.orderDate && r.orderDate) e.orderDate = r.orderDate;
   });
@@ -22956,7 +22957,7 @@ function ordLinesBuild() {
      * cutting table by its plan (bdGuard reads the same route). */
     const cutReq = ordCutReq(l.sku) && !/^LEG-/i.test(l.orderNo)
       && !(typeof flowPlanRouteOf === 'function' && flowPlanRouteOf(l.orderNo, l.sku) === 'jobwork');
-    const cutPct = l.qty > 0 ? (cut / l.qty) * 100 : 0;
+    const cutPct = l.qty > 0 ? ((cut + Math.min(l.qty, l.fromStock || 0)) / l.qty) * 100 : 0;
     const cutDone = !cutReq || cutPct >= ORD_THRESHOLD(l.qty);
     /* MADE IS WHAT CAME BACK — the received figure from Base Data, and nothing else.
      *
@@ -22968,10 +22969,11 @@ function ordLinesBuild() {
      *
      * Pressing is NOT added in here. It still decides "Complete" below, which is the other question:
      * whether the line can ship. */
-    const made = received;
+    /* PIECES COMPLETED FROM READY STOCK count as made and pressed, and as cut — the floor owes nothing for them. */
+    const stk = Math.min(l.qty, l.fromStock || 0), made = received + stk;
     return Object.assign({}, l, {
-      cut, pressed, issued, received, made, cutReq, cutPct, cutDone,
-      pendingCut: cutReq ? Math.max(0, l.qty - cut) : 0,
+      cut, pressed: pressed + stk, issued, received, made, cutReq, cutPct, cutDone,
+      pendingCut: cutReq ? Math.max(0, l.qty - cut - stk) : 0,
       pendingMake: Math.max(0, l.qty - made),
       /* MORE CAME BACK THAN WAS ORDERED. "Still to make" is floored at zero per line, because extra
        * pieces of one SKU cannot fill a shortfall in another — so the line totals do not equal
@@ -22982,7 +22984,7 @@ function ordLinesBuild() {
        * pieces nobody has made yet, which on a line is invisible (the pill only appears once the
        * line is fully made) and in a total is simply wrong — it once read 140,129 against 16,525
        * pieces actually made. */
-      madeToPress: Math.max(0, made - pressed),
+      madeToPress: Math.max(0, made - pressed - stk),
       /* HANDED OVER IS THE END. Pressed alone is not: a pressed piece still sitting on the table is
        * not off this screen's list, and the shipping team taking it is the moment it is. For
        * everything that is not a Shopify line, nothing changes — there is no handover to wait for. */
@@ -23000,7 +23002,7 @@ function ordLinesBuild() {
       spRemarks: shp0 ? String(shp0.remarks || '') : '',
       /* A SHOPIFY LINE IS OPEN UNTIL PRODUCTION HANDS IT OVER (2026-10-05) — with or without its own record. It used to
        * close on "made in full" when nobody had written a record for it (20 lines), skipping the hand-over. */
-      open: l.shopDoneAt ? false : (mto ? !spHanded(shp0) : pressed < l.qty),
+      open: l.shopDoneAt ? false : (mto ? !spHanded(shp0) : pressed + stk < l.qty),
       mto, mtoOpen: mto ? (l.openIso || '') : '', mtoDue: mto && l.openIso ? mtoAddWorkDays(l.openIso, MTO_DAYS) : '',
     });
   }).map(l => {
@@ -24071,11 +24073,13 @@ function ordStatePill0(r) {
     + (canC ? `<a href="#" data-ordclose="${key}" class="pill pill-ok" style="text-decoration:none" title="Shopify is done with it — close the line">Ready to close · Close</a> ` : '') + ordStatePillWork(r);
   if (canC && r.open) return ordStatePillWork(r) + ` <a href="#" data-ordclose="${key}" style="font-size:11.5px" title="Close this line with a reason">close</a>`;
   if (canC && !r.open && r.shopDoneAt && !r.handedAt) return ordStatePillWork(r) + ` <a href="#" data-ordreopen="${key}" style="font-size:11.5px" title="${esc((r.shopDoneBy ? 'Closed by ' + r.shopDoneBy : '') + (r.shopDoneNote ? ' — ' + r.shopDoneNote : ''))}">reopen</a>`;
+  /* A sales-team line (not Shopify / Online) can be completed by hand from ready stock in the India store (orders/complete-from-stock.js). */
+  if (r.open && !ordIsMto(r.orderNo) && typeof ordStockCan === 'function' && ordStockCan()) return ordStatePillWork(r) + ` <a href="#" data-ordstock="${key}" style="font-size:11.5px" title="Complete this line from pieces already made and held in the India store">from stock</a>`;
   return ordStatePillWork(r);
 }
 function ordStatePillWork(r) {
   if (!r.open && r.shopDoneAt && !r.handedAt) return '<span class="jw-st done" title="Closed from Shopify ' + esc(ptIsoDate(r.shopDoneAt) || '') + '">' + esc(SHP_DONE_TXT(r.shopDoneWhy)) + '</span>';
-  if (!r.open) return '<span class="jw-st done">Complete</span>';
+  if (!r.open) return '<span class="jw-st done">Complete' + (r.fromStock ? ' · ' + nf(r.fromStock) + ' from stock' : '') + '</span>';
   if (r.pendingCut > 0) return '<span class="jw-st pend">' + nf(r.pendingCut) + ' to cut</span>';
   if (r.pendingMake > 0) return '<span class="jw-st prog">' + nf(r.pendingMake) + ' to make</span>';
   /* Saying "0 to make" here would be silence in a louder font. */
@@ -24811,6 +24815,59 @@ if (typeof document !== 'undefined' && document.addEventListener) document.addEv
 }, true);
 
 if ($('odClose')) $('odClose').onclick = () => ordCloseOpen();
+/* ============================== FILE: src/app/orders/complete-from-stock.js ============================== */
+/* ================= COMPLETE A SALES-TEAM ORDER LINE FROM READY STOCK =================
+ *
+ * Ravi, 29 Oct: "koi inventory production store me already ready h to usko jo sales team se order aaya h usko direct production store se fulfil kar
+ * saku ... manually order complete kar saku". An open line of a sales / B2B / Amazon order (not a Shopify or Online one — the SHP board does the
+ * same for those) can be completed by hand, in full or in part, from pieces already made and held in the India store (Finished Goods):
+ *   - the store gives them up: an ISSUE row in pt_fgiLedger naming the order,
+ *   - the line is credited: stockDone (+ stockLog) on its order-book row, so the pieces count as made AND pressed and the line stops asking
+ *     the floor for them. Both go in ONE write.
+ * Cut, issued, received, QC and press registers are never touched. */
+const ordStockCan = () => !spIsVendor() && !!(ME.admin || (ME.tabs || []).indexOf('ord') >= 0);
+const ordStockRows = (orderNo, sku) => (PTG.ob || []).filter(r => r && obUC(r.orderNo) === obUC(orderNo) && obUC(r.sku) === obUC(sku));
+/** What the store could still give this line: never more than the line still owes. */
+const ordStockOwed = l => Math.max(0, (+l.qty || 0) - Math.max(+l.made || 0, +l.pressed || 0));   // made and pressed already include what came from stock
+
+async function ordStockSave(l, v) {
+  if (!ordStockCan()) return 'Completing a line from stock needs the Order Console.';
+  if (ordIsMto(l.orderNo)) return 'Shopify and Online lines are completed from the SHP board or by shipping.';
+  const pcs = parseInt(v.pcs, 10);
+  if (!(pcs > 0)) return 'Type how many pieces come from stock.';
+  const owed = ordStockOwed(l);
+  if (pcs > owed) return `Only ${nf(owed)} piece(s) of this line are still owed.`;
+  const short = fgiOutCheck(obUC(l.sku), pcs, 'ISSUE', 0); if (short) return short;
+  const rows = ordStockRows(l.orderNo, l.sku), row = rows[0], key = row && (row.id || row._key);
+  if (!key) return 'Its order-book row is gone — press Refresh.';
+  const now = new Date().toISOString(), d = new Date(), p2 = x => String(x).padStart(2, '0');
+  const issue = { _id: fgiNewId('ISS'), txnType: 'ISSUE', sku: obUC(l.sku), qty: pcs, date: p2(d.getDate()) + '/' + p2(d.getMonth() + 1) + '/' + d.getFullYear(),
+    issuedFor: 'Order ' + l.orderNo, reason: 'Order Console — completed from ready stock', remarks: String(v.note || '').trim(), stockForOrder: l.orderNo, createdAt: now, createdBy: ME.email };
+  const done = (parseInt(row.stockDone, 10) || 0) + pcs;
+  const log = (Array.isArray(row.stockLog) ? row.stockLog.slice(-19) : []).concat([{ qty: pcs, at: now, by: ME.email, fgi: issue._id, note: issue.remarks }]);
+  try { await ptPatch({ ['pt_fgiLedger/' + issue._id]: issue, ['pt_orderBook/' + key + '/stockDone']: done, ['pt_orderBook/' + key + '/stockLog']: log }); }
+  catch (x) { return 'Not saved: ' + (x.message || x); }
+  FGI.rows = (FGI.rows || []).concat(issue);
+  PTG.ob = (PTG.ob || []).map(r => (r && (r.id || r._key) === key ? Object.assign({}, r, { stockDone: done, stockLog: log }) : r));
+  if (typeof renderOrd === 'function') { try { renderOrd(); } catch (e) { /* the next draw shows it */ } }
+  return '';
+}
+async function ordStockOpen(key) {
+  const [no, sku] = String(key).split('|'), l = ordLines().find(x => x.orderNo === obUC(no) && x.sku === obUC(sku));
+  if (!l) return;
+  const msg = t => { if ($('odMsg')) { $('odMsg').className = 'err'; $('odMsg').textContent = t; } };
+  if (!ordStockCan()) return msg('Completing a line from stock needs the Order Console.');
+  try { if (!Array.isArray(FGI.rows)) FGI.rows = ptList(await ptGet('pt_fgiLedger')); } catch (e) { return msg('Could not read the India store: ' + (e.message || e)); }
+  const have = Math.max(0, Math.floor(fgiOf(l.sku).current)), owed = ordStockOwed(l), top = Math.min(have, owed), who = l.orderNo + ' · ' + l.sku;
+  if (!(top > 0)) return ptOpenDialog({ title: 'From stock — ' + who, subtitle: have > 0 ? 'Nothing more of this line is owed.' : `${l.sku} has no pieces in the India store, so nothing can be completed from stock.` });
+  ptOpenDialog({ title: 'Complete from ready stock — ' + who, subtitle: `${nf(have)} piece(s) of ${l.sku} in the India store · this line is still owed ${nf(owed)}. The store gives the pieces up and the line counts them as made.`,
+    fields: [{ key: 'pcs', label: 'Pieces from stock', type: 'number', min: 1, max: top, value: top }, { key: 'note', label: 'Note (optional)', value: '' }],
+    saveLabel: 'Complete from stock', onSave: v => ordStockSave(l, v) });
+}
+if (typeof document !== 'undefined' && document.addEventListener) document.addEventListener('click', e => {
+  const a = e.target.closest && e.target.closest('[data-ordstock]'); if (!a) return;
+  e.preventDefault(); e.stopPropagation(); ordStockOpen(a.getAttribute('data-ordstock'));
+}, true);
 
 /* ####################################################################################################
  * GROUP: src/app/shopify/

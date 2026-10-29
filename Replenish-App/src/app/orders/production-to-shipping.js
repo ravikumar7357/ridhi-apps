@@ -215,6 +215,7 @@ function ordLinesBuild() {
     /* PIECES, not packs. A Shopify line keeps what the customer ordered alongside, so the screen can
      * say "1 pack of 2" rather than leave somebody wondering where the second piece came from. */
     e.qty += obPieces(r);
+    e.fromStock = (e.fromStock || 0) + (parseInt(r.stockDone, 10) || 0);   // pieces completed from ready stock (orders/complete-from-stock.js)
     if (obIsShop(r)) { e.packs += obShopUnits(r); e.pcsPer = e.packs ? Math.round(e.qty / e.packs) : 1; }
     if (!e.orderDate && r.orderDate) e.orderDate = r.orderDate;
   });
@@ -252,7 +253,7 @@ function ordLinesBuild() {
      * cutting table by its plan (bdGuard reads the same route). */
     const cutReq = ordCutReq(l.sku) && !/^LEG-/i.test(l.orderNo)
       && !(typeof flowPlanRouteOf === 'function' && flowPlanRouteOf(l.orderNo, l.sku) === 'jobwork');
-    const cutPct = l.qty > 0 ? (cut / l.qty) * 100 : 0;
+    const cutPct = l.qty > 0 ? ((cut + Math.min(l.qty, l.fromStock || 0)) / l.qty) * 100 : 0;
     const cutDone = !cutReq || cutPct >= ORD_THRESHOLD(l.qty);
     /* MADE IS WHAT CAME BACK — the received figure from Base Data, and nothing else.
      *
@@ -264,10 +265,11 @@ function ordLinesBuild() {
      *
      * Pressing is NOT added in here. It still decides "Complete" below, which is the other question:
      * whether the line can ship. */
-    const made = received;
+    /* PIECES COMPLETED FROM READY STOCK count as made and pressed, and as cut — the floor owes nothing for them. */
+    const stk = Math.min(l.qty, l.fromStock || 0), made = received + stk;
     return Object.assign({}, l, {
-      cut, pressed, issued, received, made, cutReq, cutPct, cutDone,
-      pendingCut: cutReq ? Math.max(0, l.qty - cut) : 0,
+      cut, pressed: pressed + stk, issued, received, made, cutReq, cutPct, cutDone,
+      pendingCut: cutReq ? Math.max(0, l.qty - cut - stk) : 0,
       pendingMake: Math.max(0, l.qty - made),
       /* MORE CAME BACK THAN WAS ORDERED. "Still to make" is floored at zero per line, because extra
        * pieces of one SKU cannot fill a shortfall in another — so the line totals do not equal
@@ -278,7 +280,7 @@ function ordLinesBuild() {
        * pieces nobody has made yet, which on a line is invisible (the pill only appears once the
        * line is fully made) and in a total is simply wrong — it once read 140,129 against 16,525
        * pieces actually made. */
-      madeToPress: Math.max(0, made - pressed),
+      madeToPress: Math.max(0, made - pressed - stk),
       /* HANDED OVER IS THE END. Pressed alone is not: a pressed piece still sitting on the table is
        * not off this screen's list, and the shipping team taking it is the moment it is. For
        * everything that is not a Shopify line, nothing changes — there is no handover to wait for. */
@@ -296,7 +298,7 @@ function ordLinesBuild() {
       spRemarks: shp0 ? String(shp0.remarks || '') : '',
       /* A SHOPIFY LINE IS OPEN UNTIL PRODUCTION HANDS IT OVER (2026-10-05) — with or without its own record. It used to
        * close on "made in full" when nobody had written a record for it (20 lines), skipping the hand-over. */
-      open: l.shopDoneAt ? false : (mto ? !spHanded(shp0) : pressed < l.qty),
+      open: l.shopDoneAt ? false : (mto ? !spHanded(shp0) : pressed + stk < l.qty),
       mto, mtoOpen: mto ? (l.openIso || '') : '', mtoDue: mto && l.openIso ? mtoAddWorkDays(l.openIso, MTO_DAYS) : '',
     });
   }).map(l => {
