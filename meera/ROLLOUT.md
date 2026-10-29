@@ -1,0 +1,53 @@
+# Meera v2 — test link, rollout and the router move
+
+## 1. On the test link (preview/meera-v2)
+
+Open the test link twice: once as it is (lazy **off**, Meera inside the page as on live today) and once with
+`?meera=lazy` added to the end of the address (lazy **on**, Meera as her own file). Do it on an office computer and on a
+phone. Sign in as usual.
+
+| # | Check | Lazy off | Lazy on |
+|---|---|---|---|
+| 1 | Her round face appears bottom-right (on lazy on, a second or two after the page settles) | ☐ | ☐ |
+| 2 | Click the face: menu with Ask Meera / Show me this screen / Helper on-off | ☐ | ☐ |
+| 3 | Ask "karigar ko kaam kaise de" — answer with Mere saath kijiye / Karke dikhaiye | ☐ | ☐ |
+| 4 | Ask in Hindi "कारीगर को काम कैसे दें" — answer in Hindi | ☐ | ☐ |
+| 5 | Ask "who won the cricket match" — "isn't about the ERP" | ☐ | ☐ |
+| 6 | Press Karke dikhaiye — the light moves box by box, nothing is saved | ☐ | ☐ |
+| 7 | Show me this screen — the walk-round lights the right boxes; Next / Skip work; a click outside ends it | ☐ | ☐ |
+| 8 | Press **?** on the keyboard (not in a box) — Ask opens; typing **?** inside the Ask box just types it | ☐ | ☐ |
+| 9 | Open a screen you have never opened before — its walk-round starts by itself | ☐ | ☐ |
+| 10 | Phone: her face sits above the bottom tabs; the Ask box fits the screen | ☐ | ☐ |
+| 11 | The ERP itself: open three or four screens you use every day — they work as on live | ☐ | ☐ |
+
+**What I measure on the test link** (lazy off and on): page download size, when the page is ready, when her face
+appears, and the time of the first answer from cold.
+
+**Turn lazy on for one computer for the whole week** (instead of adding `?meera=lazy` each time): open the browser's
+console on the ERP page and run `localStorage.setItem('meera.lazy','1')`; to undo: `localStorage.removeItem('meera.lazy')`.
+
+## 2. Rollout of "lazy" — each step only on Ravi's "live karo"
+
+1. **Merge to main with lazy OFF.** Live behaves exactly as today; meera.js and meera.webp are just there. (This push
+   also redeploys the router — see section 3.)
+2. **Switch on for everyone:** `MEERA_SWITCHES.lazy = true` in `Replenish-App/src/app/core/meera-bridge.js`, push.
+   Undo in a minute: set it back to `false` and push (or one person: `localStorage.setItem('meera.lazy','0')`).
+3. **Watch one week:** her face appears for everyone, no "Meera stopped" in the browser console, staff report nothing
+   missing, the never-break list by hand once.
+4. **Remove the old in-page Meera:** the `@meera/…` lines leave `Replenish-App/src/app/ORDER` (the page joins only
+   the bridge), her look leaves the page's styles; meera.js becomes the only Meera. The page gets 157 KB lighter
+   (compressed). Undo: put the lines back and push.
+
+## 3. The router move (meera-router/ → meera/router/)
+
+- The router's deploy (`.github/workflows/meera-router.yml`) runs **only on a push to main** that changes
+  `meera/router/` — so the first merge of this work to main **redeploys the Worker** "meera-router" at the same address,
+  with the same code, settings, database and keys. Test-link pushes never touch it.
+- **Ravi is told before that push.** Right after it:
+  - health link: https://meera-router.erp-9a0.workers.dev/health — must show `{"ok":true,"groq":true,"workersAi":true,…}`
+  - one real "Ask AI" question on live answers or makes a ticket, as before.
+- **Roll back** (any one of these):
+  - Cloudflare dashboard → Workers & Pages → meera-router → Deployments → the previous version → "Rollback" (a minute,
+    no push); or
+  - switch the AI off for everyone: `ENABLED = "false"` in `meera/router/wrangler.toml`, push (Meera answers on her own);
+  - or empty `GA_AI_URL` in `meera/client/src/legacy/guide-ai.js`, push.
