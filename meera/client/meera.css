@@ -195,6 +195,10 @@ html.mob #gdAsk{right:8px;left:8px;width:auto;bottom:72px;max-height:calc(100vh 
 #gdBubble .gd-note.gd-ok{background:#ECFDF3;border-color:#ABEFC6;color:#054F31}
 /* Ask Meera, answers from the bank (22 Oct): the answer, why, what to do, related questions, did it help */
 #gdAsk .ga-a{font-weight:600;color:var(--ink)}
+/* spelling (Phase 2): how she read the question */
+#gdAsk .ga-und{margin:0 0 8px;padding-bottom:6px;border-bottom:1px solid var(--line,#e5e7eb);font-size:12px;color:var(--muted)}
+#gdAsk .ga-und b{color:inherit;font-weight:600}
+#gdAsk .ga-und-b{border:0;background:none;padding:0;color:var(--brand);font:inherit;text-decoration:underline;cursor:pointer}
 #gdAsk .ga-why{margin-top:8px;font-size:13px;color:var(--muted)}
 #gdAsk .ga-why b,#gdAsk .ga-do>b{display:block;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--brand-ink);margin-bottom:2px}
 #gdAsk .ga-do{margin-top:8px;font-size:13px}

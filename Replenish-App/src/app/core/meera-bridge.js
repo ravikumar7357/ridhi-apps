@@ -60,6 +60,9 @@ try { window.ERP_MEERA = ERP_MEERA; } catch (e) { /* no window: the page itself 
 const MEERA_SWITCHES = {
   /* Phase 1 — Meera loaded as her own file (meera.js) after the ERP is ready, instead of inside the page */
   lazy: false,
+  /* Phase 2 — she reads spelling mistakes ("karigr", "maaal", "pakking") and says how she read the question.
+   * Works in meera.js only, so it needs "lazy" on too: ?meera=lazy,spell */
+  spell: false,
 };
 function meeraOn(name) {
   try {

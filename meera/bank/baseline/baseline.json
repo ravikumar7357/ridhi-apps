@@ -41,9 +41,9 @@
    "gzip": 118316
   },
   "code in the page": {
-   "raw": 388288,
-   "gzip": 169911,
-   "files": 8
+   "raw": 397146,
+   "gzip": 173857,
+   "files": 9
   },
   "picture (guide-art.js)": {
    "raw": 108086,
@@ -51,7 +51,7 @@
   }
  },
  "timing": {
-  "loadMs": 1382,
-  "msPerAnswer": 37.6
+  "loadMs": 1384,
+  "msPerAnswer": 40
  }
 }

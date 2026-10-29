@@ -846,10 +846,10 @@
   "off": false
  },
  "eval|shop|परसों की हाज़िरी अब भर सकते हैं क्या, टाइम डालना है": {
-  "text": "अभी 10:30 am बजे हैं।",
+  "text": "मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? कल की हाज़िरी कैसे भरें दो फ़ोन से एक ही आदमी का दो बार पंच Punch कॉलम नहीं दिख रहा",
   "acts": [],
   "bank": null,
-  "miss": null,
+  "miss": "near",
   "off": false
  },
  "eval|shop|new helper joined today, his name is not in attendance": {
@@ -1917,10 +1917,10 @@
   "off": false
  },
  "eval2|shop|what's this AMZ-dash-date-dash-01 type number at the top of the form": {
-  "text": "Today is Thursday, 29 October 2026 .",
+  "text": "I'm not fully sure what you mean. Is it one of these? how to change date Type the order number how is order number made",
   "acts": [],
   "bank": null,
-  "miss": null,
+  "miss": "near",
   "off": false
  },
  "eval2|shop|ek order me 5 line likha hai, line ka kya matlab": {
@@ -3295,7 +3295,7 @@
   "off": false
  },
  "parts|gdesk|what does Date show": {
-  "text": "Today is Thursday, 29 October 2026 .",
+  "text": "Your question fits more than one answer. Which one do you mean? Date * Date Date",
   "acts": [],
   "bank": null,
   "miss": null,
@@ -3925,9 +3925,11 @@
   "off": false
  },
  "parts|shop|Placed today ka kya matlab hota hai": {
-  "text": "Aaj Thursday, 29 October 2026 hai.",
-  "acts": [],
-  "bank": null,
+  "text": "Placed today — Shopify Orders par option: Aaj aaye order dikhata hai.",
+  "acts": [
+   "tour:shop"
+  ],
+  "bank": "c-shop-867",
   "miss": null,
   "off": false
  },
@@ -4496,9 +4498,11 @@
   "off": false
  },
  "parts|so|what happens if i press Order date": {
-  "text": "Today is Thursday, 29 October 2026 .",
-  "acts": [],
-  "bank": null,
+  "text": "Order date — box on Sales Orders: The order date; required, and part of the order number (CHANNEL-DDMMYYYY-NN).",
+  "acts": [
+   "tour:so"
+  ],
+  "bank": "c-so-1779",
   "miss": null,
   "off": false
  },
@@ -4619,7 +4623,7 @@
   "off": false
  },
  "parts|flow|what does Date show": {
-  "text": "Today is Thursday, 29 October 2026 .",
+  "text": "Your question fits more than one answer. Which one do you mean? Date Date Date",
   "acts": [],
   "bank": null,
   "miss": null,

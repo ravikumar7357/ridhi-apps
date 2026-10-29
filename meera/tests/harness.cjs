@@ -103,6 +103,8 @@ async function load(opts = {}) {
    * the ERP's ME, TAB_NOW, showTab… given above); then public/meera/meera.js, which brings its own $ and esc and talks
    * to the ERP through the bridge alone. Her answers come out through window.MEERA. */
   if (opts.bundle) {
+    /* opts.switches: her switches on for this run, as one computer would have them (localStorage) */
+    for (const s of opts.switches || []) page.localStorage.setItem('meera.' + s, '1');
     delete sandbox.$; delete sandbox.esc;
     const bridge = path.join(app, 'src', 'app', 'core', 'meera-bridge.js'), file = path.join(app, 'public', 'meera', 'meera.js');
     vm.runInContext(fs.readFileSync(bridge, 'utf8'), ctx, { filename: 'meera-bridge.js' });

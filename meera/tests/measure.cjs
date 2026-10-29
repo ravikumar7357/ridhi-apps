@@ -74,7 +74,7 @@ function sizes() {
 
 async function measure(opts = {}) {
   const t0 = Date.now();
-  const M = await load({ root: ROOT, bundle: !!opts.bundle });   // bundle: Meera as her own file, meera.js (Phase 1)
+  const M = await load({ root: ROOT, bundle: !!opts.bundle, switches: opts.switches });   // bundle: Meera as her own file, meera.js (Phase 1)
   const loadMs = Date.now() - t0;
   const sets = { eval: readEval('eval'), eval2: readEval('eval2'), parts: readEval('eval-parts') };
   const scores = {};
@@ -92,7 +92,7 @@ async function measure(opts = {}) {
 }
 module.exports = { measure, classify, typoSet, sizes };
 
-if (require.main === module) measure().then(m => {
+if (require.main === module) measure({ bundle: process.argv.includes('--bundle'), switches: (process.argv.find(a => a.startsWith('--on=')) || '').slice(5).split(',').filter(Boolean) }).then(m => {
   const short = o => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, { right: v.right, offered: v.offered, wrong: v.wrong, none: v.none }]));
   console.log(JSON.stringify({ scores: short(m.scores), typos: { count: m.typos.count, right: m.typos.right, offered: m.typos.offered, wrong: m.typos.wrong, none: m.typos.none }, sizes: m.sizes, timing: m.timing, golden: Object.keys(m.golden).length }, null, 1));
 }).catch(e => { console.error(e); process.exit(1); });

@@ -65,7 +65,7 @@ const GUIDE_SYN = (() => {
   add('save', 'save saved saving sev सेव');
   add('off', 'off band bandh disable बंद');
   add('show', 'dikhao dikhana dikhaiye tour दिखाओ');
-  add('time', 'time samay baje टाइम समय');
+  add('time', 'time samay baje टाइम समय बजे');
   add('date', 'date tareekh tarikh tarik today aaj तारीख आज');
   add('hello', 'hi hii hiii hello helo hlo hey namaste namaskar namskar hy salaam ram नमस्ते नमस्कार हेलो');
   add('morning', 'morning subah सुबह');
@@ -88,7 +88,7 @@ const GUIDE_SYN = (() => {
   add('make', 'make making create creating new naya nayi banana banao banaye banaen banau banate lagana lagao lagaye lagaen लगाना लगाएँ लगाएं लगाओ बनाना बनाएँ बनाएं बनाओ नया नई');
   add('courier', 'courier curier kuriar courior dhl fedex shiprocket delhivery कूरियर');
   add('excel', 'file files फ़ाइल फाइल');
-  add('attendance', 'अटेंडेंस अटेंडन्स');
+  add('attendance', 'अटेंडेंस अटेंडन्स हाज़िरी हाज़री');   // with the dot (nukta), as phones often type it
   add('slow', 'धीमी धीमे स्लो');
   add('stock', 'स्टॉक');
   add('shipment', 'shipment shipments shipping शिपमेंट');
@@ -243,8 +243,10 @@ const GUIDE_TALK = [
     en: 'I cannot see the weather — I only know this ERP. Ask me about any screen or job.',
     hi: 'मौसम मैं नहीं देख सकती — मुझे सिर्फ़ यह ERP आता है। किसी भी स्क्रीन या काम के बारे में पूछें।',
     hg: 'Mausam main nahi dekh sakti — mujhe sirf ye ERP aata hai. Kisi bhi screen ya kaam ke baare me poochiye.' },
-  { id: 'time', need: ['time'], k: ['time', 'what'], fn: 'time' },
-  { id: 'date', need: ['date'], k: ['date', 'what'], fn: 'date' },
+  /* the clock and the calendar only when that is ALL the question asks (Phase 2, 29 Oct: "परसों की हाज़िरी … टाइम डालना
+   * है" got the time of day, and "what does Date show" today's date) */
+  { id: 'time', need: ['time'], k: ['time', 'what'], only: ['time', 'what', 'count', 'current', 'tell', 'now', 'अभी', 'हुआ', 'hua'], fn: 'time' },
+  { id: 'date', need: ['date'], k: ['date', 'what'], only: ['date', 'what', 'day', 'help', 'today', 'current', 'tell', 'now'], fn: 'date' },
   { id: 'joke', need: ['joke'], k: ['joke'],
     en: 'Why did the tablecloth never get lost? Because it always had its SKU on it. 😄 Now — what can I help you with?',
     hi: 'मेज़पोश कभी खोता क्यों नहीं? क्योंकि उस पर हमेशा उसका SKU लगा रहता है। 😄 अब बताइए — क्या मदद करूँ?',
@@ -581,6 +583,29 @@ function gaPeople() {
   try { return new Set(ERP_MEERA.people().flatMap(n => n.toLowerCase().split(/\s+/).filter(w => w.length >= 3))); }
   catch (e) { return new Set(); }
 }
+/* SPELLING (v2 rebuild, Phase 2, 29 Oct 2026). With the "spell" switch on, a question is first read the way she
+ * understands it — "karigr ko kaam kaise de" as "karigar ko kaam kaise de" (meera/client/src/understand.ts, which is
+ * only inside meera.js). Switch off, or Meera inside the page: the question is read exactly as typed. Her word list:
+ * every word of her answers and their ways of asking, her own word list, filler words and the karigars' names. */
+let GA_DICT = null;
+function gaDict() {
+  const known = new Set(), pairs = new Set(), freq = new Map(), add = (w, n) => { known.add(w); if (n) freq.set(w, (freq.get(w) || 0) + n); };
+  (GA_BANK ? GA_BANK.list : []).forEach(e => {
+    const q = e.q || {};
+    [].concat(q.en || [], q.hg || [], q.hi || []).forEach(t => { const ws = gaWords(t); ws.forEach((w, i) => { add(w, 2); if (i) pairs.add(ws[i - 1] + ' ' + w); }); });
+    gaWords(gaPlain((e.a || {}).en) + ' ' + gaPlain((e.a || {}).hg)).forEach(w => add(w, 1));
+    if (e.p) gaWords(e.p[0]).forEach(w => add(w, 2));
+  });
+  Object.keys(GUIDE_SYN).forEach(w => add(w, 1));
+  GUIDE_STOP.forEach(w => add(w, 0));
+  gaPeople().forEach(w => add(w, 0));
+  return { known, freq, pairs };
+}
+function gaSpell(q) {
+  const none = { text: q, changes: [] };
+  if (typeof muUnderstand !== 'function' || !meeraOn('spell') || !GA_BANK) return none;
+  try { if (!GA_DICT) GA_DICT = muIndex(gaDict()); return muUnderstand(q, GA_DICT); } catch (e) { return none; }
+}
 /** How well an entry fits: its key meanings found in the question, a must-have meaning, and words left over. */
 function gaScore(e, means) {
   const has = new Set(means);
@@ -588,6 +613,7 @@ function gaScore(e, means) {
   if (e.all && e.all.length && !e.all.every(n => has.has(n))) return 0;
   if (e.avoid && e.avoid.some(n => has.has(n))) return 0;
   if (e.also && !e.also.some(n => has.has(n))) return 0;
+  if (e.only && means.some(m => !e.only.includes(m))) return 0;   // nothing asked beyond these
   const hit = (e.k || []).filter(k => has.has(k)).length;
   const left = means.filter(m => !(e.k || []).includes(m)).length;
   return hit * 2 - left * 0.25;
@@ -718,6 +744,13 @@ function gaRowAnswer(row, lang, L) {
     acts: [{ t: 'fixel', id: '0', label: L('Show me the line', 'लाइन दिखाएँ', 'Line dikhaiye') }], row: true };
 }
 async function gaAnswer(q) {
+  let understood = null;
+  if (typeof muUnderstand === 'function' && meeraOn('spell') && !gaAnswer.asTyped) { await gaBankLoad(); const u = gaSpell(q); if (u.changes.length) { understood = u; q = u.text; } }
+  const r = await gaAnswer1(q);
+  if (understood && r) r.understood = understood;
+  return r;
+}
+async function gaAnswer1(q) {
   const { lang, means, words } = gaRead(q);
   const L = (en, hi, hg) => (lang === 'hi' ? hi : lang === 'hg' ? (hg || en) : en);
   if (gaPrivate(q)) return { html: L('Sorry, I can\'t talk about how the site or I am built, or about company policies like privacy. For those, please ask your admin or management. I\'m happy to help with using the ERP — any screen, any job, any problem.',
@@ -862,7 +895,7 @@ function gaBankLoad() {
     .then(list => { if (!Array.isArray(list)) { GA_BANK_P = null; throw new Error('bank not loaded'); } return list; })   // tried again next time
     .then(list => (typeof gaAiLearned === 'function' ? gaAiLearned(Array.isArray(list) ? list : []) : list))
     .then(list => (typeof gaWalksLoad === 'function' ? gaWalksLoad().then(() => list, () => list) : list))   // the walk-throughs (guide-walks.js)
-    .then(list => (GA_BANK = gaBankIndex(Array.isArray(list) ? list : [])))
+    .then(list => { GA_DICT = null; return (GA_BANK = gaBankIndex(Array.isArray(list) ? list : [])); })
     .then(b => { gaWordsLoad().then(() => setTimeout(gaSemIndex, 0)); return b; });
   /* a question asked while it failed is answered from the short built-in lists, as without the bank */
   return GA_BANK_P.catch(() => (GA_BANK || gaBankIndex([])));
@@ -1174,12 +1207,16 @@ async function gaAsk(q) {
    * ones offered: those, then the AI's below them. Without AI, or over the limit: as before. */
   const auto = !!r.miss && !r.off && typeof gaAiAuto === 'function' && gaAiAuto();   // not about the ERP: never to the AI
   if (auto && r.miss === true) { gaAiAsk(q, { html: r.html, acts: r.acts }); gaChipsDraw(); return; }
-  gaSay(r.html, r.acts || [], (r.after || '') + fb);
+  /* spelling (Phase 2): she says how she read the question, with a way back to it as typed */
+  const und = r.understood ? `<div class="ga-und">${LL('Showing results for', 'इसके नतीजे', 'Iske results')} <b>${esc(r.understood.text)}</b>${LL(' — did you mean something else?', ' — कुछ और पूछना था?', ' — kuch aur poochna tha?')}`
+    + ` <button type="button" class="ga-und-b" data-ga="astyped">${LL('Search what I typed', 'जैसा लिखा वैसा खोजें', 'Jaisa likha waisa khojiye')}</button></div>` : '';
+  gaSay(und + r.html, r.acts || [], (r.after || '') + fb);
   if (auto) gaAiAsk(q);
   if (r.miss) gaChipsDraw();
 }
 function gaAct(t, id, tab) {
   if (t === 'ai') { gaAiAsk(GA.lastQ || ''); return; }
+  if (t === 'astyped') { gaAnswer.asTyped = true; gaAsk(GA.lastQ || '').finally(() => { gaAnswer.asTyped = false; }); return; }
   if (t === 'aifb') { gaAiFeedback(id); return; }
   if (t === 'aians') { gaAiAnswer(id); return; }
   if (t === 'fb') {
