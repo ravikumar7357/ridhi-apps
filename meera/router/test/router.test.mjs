@@ -188,5 +188,68 @@ const sent = () => JSON.stringify(calls.map(c => c.body));
   ok((await s.call('/learned', { method: 'GET' })).body.answers.length === 2, 'approved, it joins the list');
 }
 
+/* ---------- 8. learning from staff (Phase 4) ---------- */
+{
+  const s = setup({ LEARN_DAILY: '5' });
+  const staff = await token(), admin = await token({ email: 'ravi@x.com', sub: 'a1' });
+  const names = ['Ramesh Kumar', 'Raju'];
+  /* nothing personal is kept: names, phones, order numbers, amounts, emails — and no email, name or sign-in id of the asker */
+  const r1 = await s.call('/learn', { tok: staff, body: { kind: 'missed', q: 'Ramesh Kumar ko ₹4,500 diye order 1234 ke liye, phone 98765 43210, mail a@b.com', screen: 'pbase', lang: 'hg', role: 'staff', names } });
+  ok(r1.status === 200 && r1.body.id > 0, 'a missed question is kept');
+  const row = s.db.raw.prepare('SELECT * FROM learn WHERE id = ?').get(r1.body.id);
+  ok(row.question === '[NAME] ko [AMOUNT] diye order [ORDER] ke liye, phone [PHONE], mail [EMAIL]', 'cleaned: ' + row.question);
+  ok(!JSON.stringify(row).match(/staff@x\.com|u1|Ramesh|4,500|1234|98765|a@b\.com/), 'no email, sign-in id, name, amount, order or phone in the row');
+  ok(row.role === 'staff' && row.screen === 'pbase' && row.lang === 'hg' && row.kind === 'missed', 'with the screen, the language and the role only');
+  ok(!JSON.stringify(s.db.raw.prepare('SELECT * FROM usage').all()).includes('u1'), 'the daily count does not keep the sign-in id either');
+  /* a 👎 and its one-line note — only with its own key */
+  const d = await s.call('/learn', { tok: staff, body: { kind: 'down', q: 'karigar ko kaam kaise de', answer: 'pr-jw-issue', screen: 'pbase' } });
+  ok(d.body.key && d.body.key.length === 20, 'a 👎 gets a key for its note');
+  ok(!(await s.call('/learn/note', { tok: staff, body: { id: d.body.id, key: 'wrong-key-wrong-key0', note: 'x' } })).body.ok, 'a note without the key is refused');
+  ok((await s.call('/learn/note', { tok: staff, body: { id: d.body.id, key: d.body.key, note: 'Raju ka hisab chahiye tha', names } })).body.ok, 'the note is added');
+  ok(s.db.raw.prepare('SELECT note FROM learn WHERE id = ?').get(d.body.id).note === '[NAME] ka hisab chahiye tha', 'the note is cleaned too');
+  ok(!(await s.call('/learn/note', { tok: staff, body: { id: d.body.id, key: d.body.key, note: 'again' } })).body.ok, 'one note only');
+  /* a spelling */
+  const sp = await s.call('/learn', { tok: staff, body: { kind: 'spelling', q: 'kariger ko maaal kaise de', answer: 'pr-jw-issue' } });
+  ok(sp.body.id > 0, 'a misspelling and the answer chosen are kept');
+  ok((await s.call('/learn', { tok: staff, body: { kind: 'other', q: 'x' } })).status === 400, 'only the four kinds');
+  /* the daily limit: 5 a person */
+  await s.call('/learn', { tok: staff, body: { kind: 'unsure', q: 'packing list kya hai' } });
+  await s.call('/learn', { tok: staff, body: { kind: 'unsure', q: 'Packing list kya hai?' } });   // the 5th of the day
+  ok((await s.call('/learn', { tok: staff, body: { kind: 'missed', q: 'one too many' } })).status === 429, 'over the daily limit: refused');
+  ok((await s.call('/learn', { tok: await token({ sub: 'u9' }), body: { kind: 'missed', q: 'packing list kya hai' } })).status === 200, 'another person has their own limit');
+  /* admins only */
+  ok((await s.call('/admin/learn', { method: 'GET', tok: staff })).status === 403, 'staff cannot open the learning page');
+  const v = await s.call('/admin/learn', { method: 'GET', tok: admin });
+  ok(v.status === 200 && v.body.unanswered.length === 2 && v.body.spellings.length === 1 && v.body.down.length === 1 && Array.isArray(v.body.tickets), 'an admin sees unanswered, spellings, 👎 and tickets');
+  const pk = v.body.unanswered.find(x => /packing list/i.test(x.question));
+  ok(pk && pk.n === 3 && pk.unsure === 2, 'the same question counted once, asked three times');
+  /* nothing joins her answers until approved */
+  ok((await s.call('/learned', { method: 'GET' })).body.answers.length === 0, 'nothing joins her answers without an admin');
+  await s.call('/admin/learn', { tok: admin, body: { ids: v.body.spellings[0].ids, action: 'approve' } });
+  const add = await s.call('/admin/answer', { tok: admin, body: { q: 'packing list kya hai', a: 'Packing List shows what to pack today.', lang: 'hg', screen: 'pack', learnIds: pk.ids } });
+  ok(add.body.ok, 'an admin adds an answer for it');
+  const v2 = await s.call('/admin/learn', { method: 'GET', tok: admin });
+  ok(v2.body.unanswered.length === 1 && v2.body.spellings.length === 0, 'answered and approved ones leave the list');
+  ok((await s.call('/admin/learn', { tok: staff, body: { ids: [1], action: 'reject' } })).status === 403, 'staff cannot decide');
+  /* the weekly build step's export: only with its key */
+  ok((await s.call('/export', { method: 'GET', origin: null, tok: null })).status === 403, 'export closed without a key set');
+  const e = setup({ EXPORT_KEY: 'k'.repeat(30) });
+  ok((await e.call('/export', { method: 'GET', origin: null, tok: null })).status === 403, 'export closed without the key');
+  const ex = await handle(new Request('https://router.example/export', { headers: { 'x-export-key': 'k'.repeat(30) } }), e.env, { fetch: fakeFetch, store: store(e.db) });
+  const exb = await ex.json();
+  ok(ex.status === 200 && Array.isArray(exb.answers) && Array.isArray(exb.spellings), 'export with the key: approved answers and spellings');
+  const exs = await handle(new Request('https://router.example/export', { headers: { 'x-export-key': 'k'.repeat(30) } }), s.env, { fetch: fakeFetch, store: store(s.db) });
+  ok(exs.status === 403, 'export is closed where no key is set');
+  /* 90 days */
+  s.db.raw.prepare("UPDATE learn SET created = '2020-01-01T00:00:00.000Z' WHERE id = ?").run(r1.body.id);
+  await store(s.db).learnPurge(Date.now());
+  ok(!s.db.raw.prepare('SELECT id FROM learn WHERE id = ?').get(r1.body.id), 'older than 90 days: removed');
+}
+/* the new cleaning rules (Phase 4): amounts and short order numbers; pieces and sizes stay */
+{
+  ok(clean('Rs. 1200 ka bill no 77, 500 rupaye, 1200/- pending, order #312') === '[AMOUNT] ka bill no [ORDER], [AMOUNT], [AMOUNT] pending, order # [ORDER]', 'amounts and short order numbers cleaned');
+  ok(clean('50 piece 16x16 cushion cover 10 days') === '50 piece 16x16 cushion cover 10 days', 'pieces, sizes and days stay');
+}
+
 console.log(`meera-router: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

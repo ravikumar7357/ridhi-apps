@@ -136,10 +136,11 @@ function guideBuild() {
       + `<button type="button" data-m="show">🧭<span><b>${hi ? 'यह स्क्रीन दिखाओ' : 'Show me this screen'}</b><small>${hi ? 'एक-एक स्टेप, घुमाकर' : 'A walk round, step by step'}</small></span></button>`
       + `<button type="button" data-m="help" role="switch" aria-checked="${on}"><i class="gd-sw${on ? ' on' : ''}"></i><span><b>Helper ${on ? 'on' : 'off'}</b><small>${on ? (hi ? 'नई स्क्रीन पर साथ चलती है' : 'Walks new screens with you') : (hi ? 'सिर्फ़ पूछने पर' : 'Only when you ask')}</small></span></button>`;
   };
-  go.onclick = e => { e.stopPropagation(); if (menu.classList.contains('hide')) { draw(); menu.classList.remove('hide'); } else shut(); };
+  go.onclick = e => { e.stopPropagation(); if (menu.classList.contains('hide')) { draw(); if (typeof meeraLearnMenu === 'function') menu.insertAdjacentHTML('beforeend', meeraLearnMenu()); menu.classList.remove('hide'); } else shut(); };
   menu.onclick = e => {
     const b = e.target.closest('[data-m]'); if (!b) return;
-    if (b.dataset.m === 'help') { guideSwitch(!guideIsOn()); draw(); return; }
+    if (b.dataset.m === 'help') { guideSwitch(!guideIsOn()); draw(); if (typeof meeraLearnMenu === 'function') menu.insertAdjacentHTML('beforeend', meeraLearnMenu()); return; }
+    if (b.dataset.m === 'learn') { shut(); if (typeof meeraLearnAdmin === 'function') meeraLearnAdmin(); return; }   // Phase 4: admins only
     shut();
     if (b.dataset.m === 'ask') guideAskOpen();
     else $('gdShow').click();
@@ -151,7 +152,7 @@ function guideBuild() {
   document.addEventListener('click', e => {
     if (!GUIDE.tour || GUIDE.tour.kind !== 'tour' || GUIDE.selfClick || !e.isTrusted) return;
     const t = gdTarget(e);
-    if (t.closest && t.closest('#gdBubble, #gdAsk, #gdCtl, #gdResume, #gdLaunch, #gdMenu, #ptDlg')) return;
+    if (t.closest && t.closest('#gdBubble, #gdAsk, #gdCtl, #gdResume, #gdLaunch, #gdMenu, #ptDlg, #mlAdmin')) return;
     if (GUIDE.live && GUIDE.el && GUIDE.el.contains(t)) return;
     guideClose();
   }, true);
@@ -578,7 +579,7 @@ function guideTypeAll() {
 
 /** What the person was working in: the last box they typed in or chose from, and the last button they pressed. */
 function guideWatch() {
-  const ours = el => el.closest && el.closest('#gdRoot, #gdCtl, #gdResume, #gdAsk, #gdLaunch, #gdMenu');
+  const ours = el => el.closest && el.closest('#gdRoot, #gdCtl, #gdResume, #gdAsk, #gdLaunch, #gdMenu, #mlAdmin');
   const inBox = el => GUIDE.live && GUIDE.el && GUIDE.el.contains(el);
   /* A press outside the lit box does nothing while a "your turn" step waits (the dim no longer catches it). */
   const hold = e => { if (GUIDE.tour && GUIDE.live && !ours(gdTarget(e)) && !inBox(gdTarget(e))) { e.preventDefault(); e.stopPropagation(); } };

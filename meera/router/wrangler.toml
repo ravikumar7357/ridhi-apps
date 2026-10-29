@@ -31,6 +31,9 @@ ADMIN_EMAILS = "ravi@thefabricrush.com"
 # Questions to a model per person per day, and for the whole company.
 USER_DAILY = "10"
 COMPANY_DAILY = "500"
+# Phase 4: learning records (missed, not sure, 👎, spellings) per person per day; kept 90 days.
+LEARN_DAILY = "30"
+# EXPORT_KEY (a secret, 24+ characters, in Cloudflare and in GitHub): the weekly build step reads what admins approved.
 # The models. Check each provider's list before switching on — names change; a missing or retired one is skipped.
 GROQ_MODEL = "openai/gpt-oss-120b"   # Groq's list, 27 Oct (Llama 3.3 70B no longer listed)
 CF_AI_MODEL = "@cf/meta/llama-3.1-8b-instruct"

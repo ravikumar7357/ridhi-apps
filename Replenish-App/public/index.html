@@ -76343,6 +76343,9 @@ const MEERA_SWITCHES = {
   /* Phase 3 — her new look: answer card, source label, English / हिंदी switch, phone sheets, her own sealed box
    * (Shadow DOM). meera.js only, so it needs "lazy" on too: ?meera=lazy,design */
   design: false,
+  /* Phase 4 — learning from staff: missed / not sure / 👎 / spellings go (cleaned, role only) to her router for an
+   * admin; "Meera's learning" page for admins. meera.js only: ?meera=lazy,learn */
+  learn: false,
 };
 function meeraOn(name) {
   try {
@@ -76740,10 +76743,11 @@ function guideBuild() {
       + `<button type="button" data-m="show">🧭<span><b>${hi ? 'यह स्क्रीन दिखाओ' : 'Show me this screen'}</b><small>${hi ? 'एक-एक स्टेप, घुमाकर' : 'A walk round, step by step'}</small></span></button>`
       + `<button type="button" data-m="help" role="switch" aria-checked="${on}"><i class="gd-sw${on ? ' on' : ''}"></i><span><b>Helper ${on ? 'on' : 'off'}</b><small>${on ? (hi ? 'नई स्क्रीन पर साथ चलती है' : 'Walks new screens with you') : (hi ? 'सिर्फ़ पूछने पर' : 'Only when you ask')}</small></span></button>`;
   };
-  go.onclick = e => { e.stopPropagation(); if (menu.classList.contains('hide')) { draw(); menu.classList.remove('hide'); } else shut(); };
+  go.onclick = e => { e.stopPropagation(); if (menu.classList.contains('hide')) { draw(); if (typeof meeraLearnMenu === 'function') menu.insertAdjacentHTML('beforeend', meeraLearnMenu()); menu.classList.remove('hide'); } else shut(); };
   menu.onclick = e => {
     const b = e.target.closest('[data-m]'); if (!b) return;
-    if (b.dataset.m === 'help') { guideSwitch(!guideIsOn()); draw(); return; }
+    if (b.dataset.m === 'help') { guideSwitch(!guideIsOn()); draw(); if (typeof meeraLearnMenu === 'function') menu.insertAdjacentHTML('beforeend', meeraLearnMenu()); return; }
+    if (b.dataset.m === 'learn') { shut(); if (typeof meeraLearnAdmin === 'function') meeraLearnAdmin(); return; }   // Phase 4: admins only
     shut();
     if (b.dataset.m === 'ask') guideAskOpen();
     else $('gdShow').click();
@@ -76755,7 +76759,7 @@ function guideBuild() {
   document.addEventListener('click', e => {
     if (!GUIDE.tour || GUIDE.tour.kind !== 'tour' || GUIDE.selfClick || !e.isTrusted) return;
     const t = gdTarget(e);
-    if (t.closest && t.closest('#gdBubble, #gdAsk, #gdCtl, #gdResume, #gdLaunch, #gdMenu, #ptDlg')) return;
+    if (t.closest && t.closest('#gdBubble, #gdAsk, #gdCtl, #gdResume, #gdLaunch, #gdMenu, #ptDlg, #mlAdmin')) return;
     if (GUIDE.live && GUIDE.el && GUIDE.el.contains(t)) return;
     guideClose();
   }, true);
@@ -77182,7 +77186,7 @@ function guideTypeAll() {
 
 /** What the person was working in: the last box they typed in or chose from, and the last button they pressed. */
 function guideWatch() {
-  const ours = el => el.closest && el.closest('#gdRoot, #gdCtl, #gdResume, #gdAsk, #gdLaunch, #gdMenu');
+  const ours = el => el.closest && el.closest('#gdRoot, #gdCtl, #gdResume, #gdAsk, #gdLaunch, #gdMenu, #mlAdmin');
   const inBox = el => GUIDE.live && GUIDE.el && GUIDE.el.contains(el);
   /* A press outside the lit box does nothing while a "your turn" step waits (the dim no longer catches it). */
   const hold = e => { if (GUIDE.tour && GUIDE.live && !ours(gdTarget(e)) && !inBox(gdTarget(e))) { e.preventDefault(); e.stopPropagation(); } };
@@ -79033,7 +79037,7 @@ function guideAskBuild() {
   box.addEventListener('click', e => {
     const a = e.target.closest('[data-ga]');
     if (a) { if (a.dataset.ga === 'fb' && a.closest('.ga-fb')) a.closest('.ga-fb').remove(); gaAct(a.dataset.ga, a.dataset.id || '', a.dataset.tab || ''); return; }
-    const c = e.target.closest('[data-gq]'); if (c) gaAsk(c.dataset.gq);
+    const c = e.target.closest('[data-gq]'); if (c) { if (typeof meeraLearnTap === 'function') meeraLearnTap(c.dataset.gq); gaAsk(c.dataset.gq); }
   });
   box.addEventListener('keydown', e => { if (e.key === 'Escape') guideAskClose(); });
 }
@@ -79090,6 +79094,7 @@ async function gaAsk(q) {
   const here = !rest.length && (/\b(this|is|yeh|ye|yah)\s+(screen|page)\b|यह स्क्रीन|ye screen|is screen/i.test(q)) && gaHere();
   const r = here && /what|kya|क्या|about|samjha|batao/i.test(q) ? gaScreenAnswer(here, gaRead(q).lang, (en, hi, hg) => { const l = gaRead(q).lang; return l === 'hi' ? hi : l === 'hg' ? (hg || en) : en; }) : await gaAnswer(q);
   if (r.miss) gaMissKeep(q, r.miss === true ? 'none' : r.miss);
+  if (typeof meeraLearnAnswered === 'function') meeraLearnAnswered(q, r);   // Phase 4, switch "learn": a miss or "not sure" kept (cleaned)
   const lg = gaRead(q).lang, LL = (en, hi, hg) => (lg === 'hi' ? hi : lg === 'hg' ? hg : en);
   const fb = r.bank ? `<div class="ga-fb"><span>${LL('Did this help?', 'क्या इससे मदद मिली?', 'Kya isse madad mili?')}</span><button type="button" class="ga-fbb" data-ga="fb" data-id="up:${esc(r.bank)}" aria-label="Yes">👍</button><button type="button" class="ga-fbb" data-ga="fb" data-id="down:${esc(r.bank)}" aria-label="No">👎</button></div>` : '';
   /* not sure: she asks the AI herself, within the day's limit (guide-ai.js) — no answer at all: the AI's alone; a few close
@@ -79111,6 +79116,7 @@ function gaAct(t, id, tab) {
   if (t === 'fb') {
     const up = id.startsWith('up:'), lg = gaRead(GA.lastQ || '').lang, LL = (en, hi, hg) => (lg === 'hi' ? hi : lg === 'hg' ? hg : en);
     if (!up) gaMissKeep(GA.lastQ || '', 'not-helpful ' + id.slice(5));
+    if (!up && typeof meeraLearnDown === 'function') meeraLearnDown(GA.lastQ || '', id.slice(5));   // Phase 4: kept, and "What were you looking for?"
     gaSay(up ? LL('Thank you! 🙏', 'धन्यवाद! 🙏', 'Dhanyavaad! 🙏')
       : LL('Sorry that did not help. I have noted your question. Please try asking in other words, or tell your admin what you needed.', 'माफ़ कीजिए, इससे मदद नहीं मिली। मैंने आपका सवाल नोट कर लिया है। दूसरे शब्दों में पूछकर देखें, या अपने एडमिन को बताएँ कि क्या चाहिए था।', 'Maaf kijiye, isse madad nahi mili. Maine aapka sawaal note kar liya hai. Doosre shabdon me poochh kar dekhiye, ya apne admin ko bataiye ki kya chahiye tha.'), []);
     return;
@@ -79594,6 +79600,9 @@ function gaClean(text, names) {
     .replace(/\b\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]\b/gi, '[TAX-ID]').replace(/\b[A-Z]{5}\d{4}[A-Z]\b/gi, '[TAX-ID]')
     .replace(/\b(?:SHP|AMZ|ORD|SPY|LEG|CUST|GPO|PO|SO|INV)-[A-Z0-9][A-Z0-9-]{2,}\b|#[A-Z]{2,4}\d{3,}\b/gi, '[ORDER]')
     .replace(/\+?\d[\d\s-]{8,}\d/g, m => (m.replace(/\D/g, '').length >= 10 ? '[PHONE]' : m))
+    /* amounts of money and short order numbers (Phase 4, 29 Oct) */
+    .replace(/(?:₹|\brs\.?|\binr)\s*\d[\d,]*(?:\.\d+)?|\b\d[\d,]*(?:\.\d+)?\s*(?:\/-|₹|(?:rs|inr|rupees?|rupaye|rupay|rupiya|rupiye)\b\.?)/gi, '[AMOUNT]')
+    .replace(/\b(order|ordr|odr|ord|challan|invoice|bill|awb|po|so)(\s*(?:no\.?|number|num|nr)?\s*[:#.-]?\s*)\d{2,}\b/gi, (m, w, mid) => w + mid.replace(/\s+$/, '') + ' [ORDER]')
     .replace(/\b\d{5,}\b/g, '[NUMBER]');
   const list = [...new Set((names || []).filter(n => n && n.length >= 3))].sort((a, b) => b.length - a.length);
   for (const n of list) s = s.replace(new RegExp('(^|[^\\p{L}])' + n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?=$|[^\\p{L}])', 'giu'), '$1[NAME]');
@@ -79662,7 +79671,8 @@ async function gaAiLearned(list) {
   if (!gaAiOn()) return list;
   try {
     const r = await Promise.race([gaAiCall('/learned', null, 'GET'), new Promise((_, no) => setTimeout(() => no(new Error('slow')), 3000))]);
-    const got = (r.body && r.body.answers) || [];
+    const have = new Set(list.map(e => e.id));   // already in her file (the weekly build step, Phase 4): not twice
+    const got = ((r.body && r.body.answers) || []).filter(x => !have.has('learned-' + x.id));
     return list.concat(got.map(x => {
       const a = x.answer || {}, one = v => ({ en: v, hi: v, hg: v });
       return { id: 'learned-' + x.id, tab: x.screen || '', q: { en: [x.question], hi: [x.question], hg: [x.question] }, a: one(gaMd(a.a)),

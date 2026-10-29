@@ -24,6 +24,9 @@ function gaClean(text, names) {
     .replace(/\b\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]\b/gi, '[TAX-ID]').replace(/\b[A-Z]{5}\d{4}[A-Z]\b/gi, '[TAX-ID]')
     .replace(/\b(?:SHP|AMZ|ORD|SPY|LEG|CUST|GPO|PO|SO|INV)-[A-Z0-9][A-Z0-9-]{2,}\b|#[A-Z]{2,4}\d{3,}\b/gi, '[ORDER]')
     .replace(/\+?\d[\d\s-]{8,}\d/g, m => (m.replace(/\D/g, '').length >= 10 ? '[PHONE]' : m))
+    /* amounts of money and short order numbers (Phase 4, 29 Oct) */
+    .replace(/(?:₹|\brs\.?|\binr)\s*\d[\d,]*(?:\.\d+)?|\b\d[\d,]*(?:\.\d+)?\s*(?:\/-|₹|(?:rs|inr|rupees?|rupaye|rupay|rupiya|rupiye)\b\.?)/gi, '[AMOUNT]')
+    .replace(/\b(order|ordr|odr|ord|challan|invoice|bill|awb|po|so)(\s*(?:no\.?|number|num|nr)?\s*[:#.-]?\s*)\d{2,}\b/gi, (m, w, mid) => w + mid.replace(/\s+$/, '') + ' [ORDER]')
     .replace(/\b\d{5,}\b/g, '[NUMBER]');
   const list = [...new Set((names || []).filter(n => n && n.length >= 3))].sort((a, b) => b.length - a.length);
   for (const n of list) s = s.replace(new RegExp('(^|[^\\p{L}])' + n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?=$|[^\\p{L}])', 'giu'), '$1[NAME]');
@@ -92,7 +95,8 @@ async function gaAiLearned(list) {
   if (!gaAiOn()) return list;
   try {
     const r = await Promise.race([gaAiCall('/learned', null, 'GET'), new Promise((_, no) => setTimeout(() => no(new Error('slow')), 3000))]);
-    const got = (r.body && r.body.answers) || [];
+    const have = new Set(list.map(e => e.id));   // already in her file (the weekly build step, Phase 4): not twice
+    const got = ((r.body && r.body.answers) || []).filter(x => !have.has('learned-' + x.id));
     return list.concat(got.map(x => {
       const a = x.answer || {}, one = v => ({ en: v, hi: v, hg: v });
       return { id: 'learned-' + x.id, tab: x.screen || '', q: { en: [x.question], hi: [x.question], hg: [x.question] }, a: one(gaMd(a.a)),

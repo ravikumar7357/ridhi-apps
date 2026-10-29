@@ -71,6 +71,14 @@ export async function handle(req, env, deps = {}) {
   const h = cors(req, env);
   if (req.method === 'OPTIONS') return h ? new Response(null, { status: 204, headers: h }) : new Response(null, { status: 403 });
   if (url.pathname === '/health') return reply({ ok: true, groq: !!env.GROQ_API_KEY, workersAi: !!(env.AI && env.CF_AI_MODEL), gemini: !!env.GEMINI_API_KEY }, 200, h);
+  /* ---- the weekly build step (Phase 4): what admins approved, for meera-bank.json — GitHub's job only, with its own
+   * key (secret EXPORT_KEY, in Cloudflare and in GitHub); no key set: closed ---- */
+  if (url.pathname === '/export' && req.method === 'GET') {
+    const key = String(env.EXPORT_KEY || ''), got = req.headers.get('x-export-key') || '';
+    if (key.length < 24 || got.length !== key.length || !timingSafeSame(got, key)) return reply({ error: 'key' }, 403);
+    const db = deps.store || store(env.DB);
+    return reply({ answers: await db.learned(), spellings: await db.spellings() }, 200);
+  }
   if (!h) return reply({ error: 'origin' }, 403);
   if (String(env.ENABLED || '') !== 'true') return reply({ error: 'off' }, 503, h);
 
@@ -130,6 +138,28 @@ export async function handle(req, env, deps = {}) {
   /* ---- what admins approved: it joins Meera's own answers in every browser ---- */
   if (url.pathname === '/learned' && req.method === 'GET') return reply({ answers: await db.learned() }, 200, h);
 
+  /* ---- LEARNING FROM STAFF (Phase 4, the browser's switch "learn") ----
+   * A missed or "not sure" question, a 👎, or a misspelt question and the answer then chosen. Cleaned again here; kept
+   * with the role only (no email, no name, no sign-in id); at most LEARN_DAILY a person a day; gone after 90 days. */
+  if (url.pathname === '/learn' && req.method === 'POST') {
+    const kind = ['missed', 'unsure', 'down', 'spelling'].includes(body.kind) ? body.kind : '';
+    const q = clean(body.q, names);
+    if (!kind || !q) return reply({ error: 'kind and q' }, 400, h);
+    if (now - LEARN_PURGED > 3600e3) { LEARN_PURGED = now; try { await db.learnPurge(now); } catch (e) { /* next time */ } }
+    const who8 = 'L:' + (await hash(who.uid + '|' + new Date(now).toISOString().slice(0, 10))).slice(0, 16);   // a new hash each day: days cannot be linked
+    if (!(await db.learnTake(who8, +env.LEARN_DAILY || 30, now))) return reply({ error: 'limit' }, 429, h);
+    const role = who.admin ? 'admin' : ['staff', 'vendor'].includes(body.role) ? body.role : 'staff';
+    const answer = (Array.isArray(body.answer) ? body.answer : [body.answer]).map(x => String(x || '').replace(/[^\w:.-]/g, '').slice(0, 60)).filter(Boolean).slice(0, 3).join(',');
+    const key = kind === 'down' ? (await hash(crypto.randomUUID())).slice(0, 20) : '';
+    const id = await db.learnAdd({ kind, question: q, qkey: questionKey(q), screen, lang, role, answer, key }, now);
+    return reply({ ok: true, id, key: key || undefined }, 200, h);
+  }
+  if (url.pathname === '/learn/note' && req.method === 'POST') {
+    const note = clean(String(body.note || '').slice(0, 300), names);
+    const ok = note ? await db.learnNote(+body.id || 0, String(body.key || ''), note) : false;
+    return reply({ ok }, 200, h);
+  }
+
   /* ---- admins ---- */
   if (url.pathname.startsWith('/admin/')) {
     if (!who.admin) return reply({ error: 'admin' }, 403, h);
@@ -146,10 +176,27 @@ export async function handle(req, env, deps = {}) {
       const ans = { a: a.slice(0, 1200), why: String(body.why || '').slice(0, 600), steps: (Array.isArray(body.steps) ? body.steps : []).map(String).slice(0, 6) };
       const id = await db.addAnswer({ qkey: questionKey(q) + '|' + lang, question: q, lang, screen, answer: ans, source: 'admin', status: 'approved', email: who.email }, now);
       if (body.ticketId) await db.closeTicket(+body.ticketId, id);
+      if (Array.isArray(body.learnIds)) await db.learnSet(body.learnIds, 'done');   // the questions this answers (Phase 4)
       return reply({ ok: true, answerId: id }, 200, h);
+    }
+    /* Phase 4: the learning page — this week's unanswered, suggested spellings, 👎s, open tickets; and decisions */
+    if (url.pathname === '/admin/learn' && req.method === 'GET') return reply({ ...(await db.learnView(now)), tickets: await db.tickets('open') }, 200, h);
+    if (url.pathname === '/admin/learn' && req.method === 'POST') {
+      const action = { approve: 'approved', reject: 'rejected', done: 'done' }[body.action];
+      if (!action || !Array.isArray(body.ids)) return reply({ error: 'ids and action' }, 400, h);
+      return reply({ ok: true, n: await db.learnSet(body.ids, action) }, 200, h);
     }
   }
   return reply({ error: 'not found' }, 404, h);
 }
+
+/* Phase 4 helpers: when old learning rows were last removed (once an hour at most), a one-way hash (a person's sign-in id
+ * only ever counted, never kept), and a comparison of keys that takes the same time whatever they hold */
+let LEARN_PURGED = 0;
+async function hash(s) {
+  const d = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(s))));
+  return Array.from(d, b => b.toString(16).padStart(2, '0')).join('');
+}
+function timingSafeSame(a, b) { let x = 0; for (let i = 0; i < a.length; i++) x |= a.charCodeAt(i) ^ b.charCodeAt(i); return x === 0; }
 
 export default { fetch: (req, env) => handle(req, env) };

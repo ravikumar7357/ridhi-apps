@@ -39,3 +39,24 @@ CREATE TABLE IF NOT EXISTS tickets (
   answer_id INTEGER
 );
 CREATE INDEX IF NOT EXISTS tickets_status ON tickets (status, created);
+
+-- LEARNING FROM STAFF (Phase 4, 29 Oct 2026; Meera's switch "learn"). What she could not answer, was not sure of, a 👎,
+-- and a misspelt question followed by the answer the person then chose. The question is cleaned twice (the browser,
+-- then here: names, phones, order numbers, amounts…); no email, no name, no sign-in id — only the role. Nothing here
+-- reaches her answers until an admin approves it. Rows older than 90 days are removed.
+CREATE TABLE IF NOT EXISTS learn (
+  id       INTEGER PRIMARY KEY AUTOINCREMENT,
+  created  TEXT NOT NULL,
+  kind     TEXT NOT NULL,     -- missed / unsure / down / spelling
+  question TEXT NOT NULL,     -- cleaned
+  qkey     TEXT NOT NULL,     -- the cleaned question, normalised: the same question counted once
+  screen   TEXT,
+  lang     TEXT,
+  role     TEXT,              -- staff / admin / vendor
+  answer   TEXT,              -- what she gave (her answer ids), or for a spelling the answer chosen
+  note     TEXT,              -- "What were you looking for?" after a 👎 (cleaned, optional)
+  status   TEXT NOT NULL DEFAULT 'new',   -- new / done / approved / rejected
+  key      TEXT               -- lets the browser that sent a 👎 add its one-line note, nothing else
+);
+CREATE INDEX IF NOT EXISTS learn_kind ON learn (kind, status, created);
+CREATE INDEX IF NOT EXISTS learn_created ON learn (created);

@@ -18,6 +18,7 @@ const Q = [
   'GSTIN 27ABCDE1234F1Z5 PAN ABCDE1234F',
   'CPC008-04 ke 50 piece Ikram Khan ko de diye, AWB 123456789',
   'sita ne LEG-17102026-01 pe cutting ki', 'kaise kare 10 20 30 pieces', 'cover days kaise nikalta hai',
+  'Ramesh Kumar ko ₹4,500 diye order 1234 ke liye', 'Rs. 1200 ka bill no 77, 500 rupaye, 1200/- pending', 'challan no: 88 ka maal, invoice #312',
 ];
 let fail = 0;
 for (const q of Q) { const x = clean(q, names), y = gaClean(q, names); if (x !== y) { fail++; console.log('FAIL differs:\n  router:', x, '\n  page:  ', y); } }

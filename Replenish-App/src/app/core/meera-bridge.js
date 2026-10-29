@@ -74,6 +74,9 @@ const MEERA_SWITCHES = {
   /* Phase 3 — her new look: answer card, source label, English / हिंदी switch, phone sheets, her own sealed box
    * (Shadow DOM). meera.js only, so it needs "lazy" on too: ?meera=lazy,design */
   design: false,
+  /* Phase 4 — learning from staff: missed / not sure / 👎 / spellings go (cleaned, role only) to her router for an
+   * admin; "Meera's learning" page for admins. meera.js only: ?meera=lazy,learn */
+  learn: false,
 };
 function meeraOn(name) {
   try {

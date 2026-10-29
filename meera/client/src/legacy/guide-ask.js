@@ -1178,7 +1178,7 @@ function guideAskBuild() {
   box.addEventListener('click', e => {
     const a = e.target.closest('[data-ga]');
     if (a) { if (a.dataset.ga === 'fb' && a.closest('.ga-fb')) a.closest('.ga-fb').remove(); gaAct(a.dataset.ga, a.dataset.id || '', a.dataset.tab || ''); return; }
-    const c = e.target.closest('[data-gq]'); if (c) gaAsk(c.dataset.gq);
+    const c = e.target.closest('[data-gq]'); if (c) { if (typeof meeraLearnTap === 'function') meeraLearnTap(c.dataset.gq); gaAsk(c.dataset.gq); }
   });
   box.addEventListener('keydown', e => { if (e.key === 'Escape') guideAskClose(); });
 }
@@ -1235,6 +1235,7 @@ async function gaAsk(q) {
   const here = !rest.length && (/\b(this|is|yeh|ye|yah)\s+(screen|page)\b|यह स्क्रीन|ye screen|is screen/i.test(q)) && gaHere();
   const r = here && /what|kya|क्या|about|samjha|batao/i.test(q) ? gaScreenAnswer(here, gaRead(q).lang, (en, hi, hg) => { const l = gaRead(q).lang; return l === 'hi' ? hi : l === 'hg' ? (hg || en) : en; }) : await gaAnswer(q);
   if (r.miss) gaMissKeep(q, r.miss === true ? 'none' : r.miss);
+  if (typeof meeraLearnAnswered === 'function') meeraLearnAnswered(q, r);   // Phase 4, switch "learn": a miss or "not sure" kept (cleaned)
   const lg = gaRead(q).lang, LL = (en, hi, hg) => (lg === 'hi' ? hi : lg === 'hg' ? hg : en);
   const fb = r.bank ? `<div class="ga-fb"><span>${LL('Did this help?', 'क्या इससे मदद मिली?', 'Kya isse madad mili?')}</span><button type="button" class="ga-fbb" data-ga="fb" data-id="up:${esc(r.bank)}" aria-label="Yes">👍</button><button type="button" class="ga-fbb" data-ga="fb" data-id="down:${esc(r.bank)}" aria-label="No">👎</button></div>` : '';
   /* not sure: she asks the AI herself, within the day's limit (guide-ai.js) — no answer at all: the AI's alone; a few close
@@ -1256,6 +1257,7 @@ function gaAct(t, id, tab) {
   if (t === 'fb') {
     const up = id.startsWith('up:'), lg = gaRead(GA.lastQ || '').lang, LL = (en, hi, hg) => (lg === 'hi' ? hi : lg === 'hg' ? hg : en);
     if (!up) gaMissKeep(GA.lastQ || '', 'not-helpful ' + id.slice(5));
+    if (!up && typeof meeraLearnDown === 'function') meeraLearnDown(GA.lastQ || '', id.slice(5));   // Phase 4: kept, and "What were you looking for?"
     gaSay(up ? LL('Thank you! 🙏', 'धन्यवाद! 🙏', 'Dhanyavaad! 🙏')
       : LL('Sorry that did not help. I have noted your question. Please try asking in other words, or tell your admin what you needed.', 'माफ़ कीजिए, इससे मदद नहीं मिली। मैंने आपका सवाल नोट कर लिया है। दूसरे शब्दों में पूछकर देखें, या अपने एडमिन को बताएँ कि क्या चाहिए था।', 'Maaf kijiye, isse madad nahi mili. Maine aapka sawaal note kar liya hai. Doosre shabdon me poochh kar dekhiye, ya apne admin ko bataiye ki kya chahiye tha.'), []);
     return;

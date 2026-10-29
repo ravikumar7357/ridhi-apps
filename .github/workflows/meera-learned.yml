@@ -1,0 +1,70 @@
+# WHAT ADMINS APPROVED JOINS MEERA'S ANSWER FILE — weekly (v2 rebuild, Phase 4, 29 Oct 2026; until Phase 5 moves her
+# answers into her router's database).
+#
+# Every Monday 07:00 India time (and by hand: Actions → this workflow → Run): reads what admins approved in "Meera's
+# learning" (her router, GET /export, with its own key), adds it to Replenish-App/public/guide/meera-bank.json
+# (meera/tools/learned-to-bank.cjs), runs her gate, and opens a pull request "Meera learned …" with the gate's result.
+# Nothing reaches the live site until Ravi merges it (merging is the "live karo"). Approved answers already show in
+# every browser straight away (GET /learned); this puts them in her file, where her own search and the gate see them.
+#
+# Secret (Settings → Secrets and variables → Actions): EXPORT_KEY — the same 24+ character key as the router's own
+# Worker secret EXPORT_KEY. Without it this does nothing and says so.
+name: Meera learned — weekly into her answer file
+
+on:
+  schedule:
+    - cron: '30 1 * * 1'   # Monday 01:30 UTC = 07:00 India
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  learned:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      HAS_KEY: ${{ secrets.EXPORT_KEY != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: No key yet
+        if: env.HAS_KEY != 'true'
+        run: echo "::warning::No EXPORT_KEY secret — nothing read."
+      - name: Approved answers and spellings into meera-bank.json
+        id: merge
+        if: env.HAS_KEY == 'true'
+        env:
+          EXPORT_KEY: ${{ secrets.EXPORT_KEY }}
+        run: node meera/tools/learned-to-bank.cjs
+      - name: Her gate (is she still no worse?)
+        if: env.HAS_KEY == 'true' && steps.merge.outputs.changed != '0'
+        id: gate
+        working-directory: Replenish-App
+        run: |
+          set +e
+          node ../meera/tests/gate.cjs > ../gate.txt 2>&1
+          echo "code=$?" >> "$GITHUB_OUTPUT"
+          cat ../gate.txt
+      - name: A pull request for Ravi
+        if: env.HAS_KEY == 'true' && steps.merge.outputs.changed != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          b="meera-learned-$(date -u +%Y%m%d)"
+          git config user.name "meera-learned"
+          git config user.email "meera-learned@users.noreply.github.com"
+          git checkout -b "$b"
+          git add Replenish-App/public/guide/meera-bank.json
+          git commit -m "Meera learned: ${{ steps.merge.outputs.summary }}"
+          git push origin "$b"
+          { echo "What admins approved in Meera's learning this week: ${{ steps.merge.outputs.summary }}."
+            echo
+            if [ "${{ steps.gate.outputs.code }}" = "0" ]; then echo "Her gate: **passed** — no worse than before."; else
+              echo "Her gate: **changed answers** — read below; if meant: node meera/tests/gate.cjs --accept \"why\" on this branch."; fi
+            echo; echo '```'; tail -40 gate.txt; echo '```'
+            echo; echo "Merging puts it on the live site (live karo)."; } > body.md
+          gh pr create --title "Meera learned: ${{ steps.merge.outputs.summary }}" --body-file body.md --base main --head "$b"
