@@ -120,7 +120,7 @@ function meeraDesignSay(d: HTMLElement, src: string): void {
     card.appendChild(a);
     const acts = d.querySelector(':scope > .ga-acts');
     if (acts) { card.appendChild(acts); const first = acts.querySelector('.ga-act'); if (first) first.classList.add('md-main'); }
-    const fold = [...d.querySelectorAll(':scope > .ga-do'), ...d.querySelectorAll(':scope > .ga-why')];
+    const fold = Array.from(d.querySelectorAll(':scope > .ga-do')).concat(Array.from(d.querySelectorAll(':scope > .ga-why')));
     if (fold.length) {
       const n = d.querySelectorAll(':scope > .ga-do li').length;
       const more = document.createElement('details');
@@ -157,7 +157,7 @@ function mdHead(): void {
       const b = (ev.target as HTMLElement).closest<HTMLElement>('[data-md-lang]'); if (!b) return;
       try { localStorage.setItem('guideLang', b.dataset.mdLang || 'en'); } catch (e) { /* this visit only */ }
       mdHead();
-      const log = $('gaLog');
+      const log: HTMLElement | null = $('gaLog');
       if (log) log.querySelectorAll<HTMLElement>('.ga-msg.ga-she').forEach(m => mdRelabelMsg(m));
       gaChipsDraw();
     });
@@ -213,13 +213,13 @@ function mdSeen(): void {
 function meeraDesignChips(): void {
   if (!MEERA_DESIGN) return;
   try {
-    const box = $('gaChips'); if (!box) return;
+    const box: HTMLElement | null = $('gaChips'); if (!box) return;
     box.classList.remove('md-quiet');
     const tab = gaHere(), hi = guideLang() === 'hi';
     const list = (GA_BANK ? GA_BANK.list : []).filter(e => e.tab === tab && e.q).slice(0, 3)
       .map(e => ((hi ? e.q!.hi : e.q!.en) || e.q!.en || [])[0]).filter(Boolean) as string[];
     if (!list.length) {   // her answers not here yet: the first three of the usual suggestions
-      const old = [...box.querySelectorAll<HTMLElement>('.ga-chip')].slice(0, 3).map(b => b.dataset.gq || '');
+      const old = Array.from(box.querySelectorAll<HTMLElement>('.ga-chip')).slice(0, 3).map(b => b.dataset.gq || '');
       list.push(...old.filter(Boolean));
     }
     const name = tab ? gaTabName(tab) : '';
