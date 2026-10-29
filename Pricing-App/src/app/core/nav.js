@@ -1,8 +1,8 @@
 /* ---------- tabs ---------- */
-const TABS = ['link', 'new', 'pr', 'sales', 'profit', 'sa', 'plaudit', 'shop', 'adj', 'kw', 'ba', 'age', 'health', 'lrules', 'audit', 'bsr', 'weekly', 'ppcn', 'trends', 'st', 'plc', 'deals', 'tiktok', 'carousel', 'opt', 'img', 'lerr', 'basket'];
+const TABS = ['link', 'new', 'pr', 'sales', 'profit', 'sa', 'plaudit', 'shop', 'adj', 'kw', 'ba', 'age', 'health', 'lrules', 'audit', 'bsr', 'weekly', 'trends', 'st', 'plc', 'deals', 'tiktok', 'carousel', 'opt', 'img', 'lerr', 'basket'];
 const capId = t => t[0].toUpperCase() + t.slice(1);
 const TAB_TITLE = { link: 'By Amazon Link', new: 'New Product', pr: 'Product Research', kw: 'Keywords', ba: 'Analytics',
-  age: 'Inventory Age', health: 'Listing Health', lrules: 'Listing Rules', audit: 'Listing Audit', bsr: 'BSR Audit', weekly: 'PPC & Organic', ppcn: 'PPC & Organic · New',
+  age: 'Inventory Age', health: 'Listing Health', lrules: 'Listing Rules', audit: 'Listing Audit', bsr: 'BSR Audit', weekly: 'PPC & Organic',
   trends: 'Ad Console', st: 'Search Terms', plc: 'Placement', deals: 'Deal Calendar', sales: 'Sales Dashboard',
   profit: 'Profit & Margin', sa: 'Sales Analysis', plaudit: 'Parent Listing Review', shop: 'Shopify Orders', adj: 'Adjustments', tiktok: 'TikTok Toolkit', carousel: 'Carousel Builder', opt: 'Listing Optimiser', img: 'Image Manager', lerr: 'Listing Errors', basket: 'Bought Together' };
 
@@ -10,11 +10,6 @@ const TAB_TITLE = { link: 'By Amazon Link', new: 'New Product', pr: 'Product Res
 // this list and that tab is back, no other change needed.
 const HIDDEN_TABS = ['link', 'kw', 'ba'];
 HIDDEN_TABS.forEach(t => $('tab' + capId(t)).classList.add('hide'));
-
-// Tabs nobody is granted on their own: they come with another tab. PPC & Organic · New reads exactly
-// the documents PPC & Organic reads, and the Firestore rules gate those on `weekly` — so granting the
-// new tab by itself would only ever open an empty screen. Kept out of the Access form for that reason.
-const TAB_INHERIT = { ppcn: 'weekly' };
 
 /* ---------- sidebar: collapsible groups + the 3-line menu button ---------- */
 // Read straight off the markup, so adding a group is an HTML edit and nothing here changes.
@@ -112,7 +107,6 @@ function showTab(which) {
   if (which === 'audit') ensureAudit();
   if (which === 'bsr') ensureBsr();
   if (which === 'weekly') ensureWeekly();
-  if (which === 'ppcn') ensurePpcn();
   if (which === 'trends') ensureTrends();
   if (which === 'st') ensureSt();
   if (which === 'plc') ensurePlc();
