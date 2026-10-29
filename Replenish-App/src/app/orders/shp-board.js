@@ -30,7 +30,7 @@ const SHPB_STATUS = [['', 'In production'], ['OOS', 'OOS — out of stock'], ['N
 /** A TABLECLOTH that production has marked OOS or Need from printer goes the printer way — plan it, give it to the printer, receive it back, then the rest —
  *  so until it has a plan it waits in "To plan" and nothing downstream is open for it (Ravi, 29 Oct). Only while no work has started on it. */
 const shpbIsCloth = r => /tablecloth/i.test(String(r.articleType || r.articleSubtype || r.itemName || ''));
-const shpbGated = r => shpbIsCloth(r) && (shpbStatusOf(r) === 'OOS' || shpbStatusOf(r) === 'Need from printer') && !(+r.cut > 0) && !(+r.issued > 0) && !shpbPlanOf(r);
+const shpbGated = r => ((shpbIsCloth(r) && shpbStatusOf(r) === 'OOS') || shpbStatusOf(r) === 'Need from printer') && !(+r.cut > 0) && !(+r.issued > 0) && !shpbPlanOf(r);
 const shpbStatusOf = r => String((((SHPB || {}).ready || {})[shpbKey(r.orderNo, r.sku)] || {}).status || '');
 /** Pieces of this line completed from the India store's ready stock (never more than the line). */
 const shpbStockOf = r => Math.max(0, Math.min(+r.qty || 0, parseInt((((SHPB || {}).ready || {})[shpbKey(r.orderNo, r.sku)] || {}).stockQty, 10) || 0));
@@ -111,7 +111,8 @@ function shpbStages(lines) {
     s.recX += rec; s.recMv += Math.min(rec, qc);
     s.qcX += qc; s.qcMv += qc;
     s.ready += Math.max(0, qc - got);
-    s.planA += q; if (shpbPlanOf(r)) s.planD += q; else s.planW += q;      // planned here: the plan form (printer, fabric, dates)
+    /* TO PLAN holds only what production sent to the printer (status Need from printer, or a tablecloth marked OOS) and nobody has planned yet; every other line sits at its own stage. */
+    if (shpbGated(r)) { s.planA += q; s.planW += q; }
     /* A line that goes to a printer can be cut / issued only as far as the printed cloth has come back (flowState does the same). */
     const fl = shpbFlowOf(r), base = shpbGated(r) ? 0 : (fl ? Math.min(q, fl.back) : q);
     if (fl) { const back = Math.min(q, fl.back); s.prcA += q; s.prcD += back; s.prcW += q - back; }

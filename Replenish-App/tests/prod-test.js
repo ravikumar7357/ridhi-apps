@@ -6821,6 +6821,9 @@ console.log('\n== Order Console: what the vendors hold, order by order ==');
       ok('…but one still In production goes straight to Issue as before', A.shpbStages([tc()]).issW === 4);
       A.setSHPB(Object.assign({}, A.SHPB(), { ready: { [key]: { status: 'OOS' } } }));
       ok('…and a non-tablecloth marked OOS is not held back', A.shpbStages([L({ articleType: 'Quilt', cutReq: false, qty: 4 })]).issW === 4);
+      ok('To plan holds only those lines: a quilt In production has no plan stage, one marked Need from printer has', A.shpbStages([L({ articleType: 'Quilt', cutReq: false, qty: 4 })]).planW === 0);
+      A.setSHPB(Object.assign({}, A.SHPB(), { ready: { [key]: { status: 'Need from printer' } } }));
+      ok('…a quilt marked Need from printer goes to To plan', A.shpbStages([L({ articleType: 'Quilt', cutReq: false, qty: 4 })]).planW === 4);
       ok('the status choices are In production, OOS and Need from printer', JSON.stringify(A.SHPB_STATUS.map(x => x[0])) === '["","OOS","Need from printer"]');
       A.setSHPB(Object.assign({}, A.SHPB(), { ready: { [key]: { date: '2026-11-03', status: 'OOS', stockQty: 4 } } })); }
     const html = A.shpbRow(L());
