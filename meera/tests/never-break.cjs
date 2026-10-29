@@ -86,7 +86,7 @@ async function main() {
 
   /* 10. AI fallback with strict rules */
   ok(/meera-router\.erp-9a0\.workers\.dev/.test(run('GA_AI_URL')), 'AI fallback points at the router');
-  const worker = fs.readFileSync(path.join(ROOT, 'meera-router/src/worker.js'), 'utf8');
+  const worker = fs.readFileSync(path.join(ROOT, 'meera/router/src/worker.js'), 'utf8');
   ok(/Every statement must be said in a note/.test(worker) && /off_topic/.test(worker), 'router keeps the strict rules (notes only; off-topic)');
 
   /* 11. access rights: no walk on a screen the person cannot open */

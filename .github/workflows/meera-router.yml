@@ -1,6 +1,6 @@
 # MEERA'S ROUTER GOES TO CLOUDFLARE FROM GITHUB (Ravi, 26 Oct: "cloud ya git pe rakh de taaki hamesha chalta rahe").
 #
-#   main   a push that changes meera-router/ is tested, then deployed to Cloudflare as the Worker "meera-router",
+#   main   a push that changes meera/router/ (Meera's router, moved there 29 Oct) is tested, then deployed to Cloudflare as the Worker "meera-router",
 #          its D1 tables made (safe to repeat) and its keys set from this repository's secrets.
 #
 # Nothing is deployed when a test fails, or while the Cloudflare secrets are missing (the tests still run and say so).
@@ -14,7 +14,7 @@ name: Meera router — test, deploy
 on:
   push:
     branches: [main]
-    paths: ['meera-router/**', 'Replenish-App/src/app/core/guide-ai.js', '.github/workflows/meera-router.yml']
+    paths: ['meera/router/**', 'meera/client/src/legacy/guide-ai.js', '.github/workflows/meera-router.yml']
   workflow_dispatch:
 
 concurrency:
@@ -34,7 +34,7 @@ jobs:
       HAS_GEMINI: ${{ secrets.GEMINI_API_KEY != '' }}
     defaults:
       run:
-        working-directory: meera-router
+        working-directory: meera/router
     steps:
       - uses: actions/checkout@v4
 
@@ -52,14 +52,14 @@ jobs:
         if: env.HAS_CF == 'true'
         run: |
           if grep -q 'PUT-THE-D1-DATABASE-ID-HERE' wrangler.toml; then
-            echo "::error::Make the D1 database 'meera' in Cloudflare and put its ID in meera-router/wrangler.toml"; exit 1; fi
+            echo "::error::Make the D1 database 'meera' in Cloudflare and put its ID in meera/router/wrangler.toml"; exit 1; fi
 
       - name: D1 tables (only what is missing)
         if: env.HAS_CF == 'true'
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          workingDirectory: meera-router
+          workingDirectory: meera/router
           command: d1 execute meera --remote --file=schema.sql
 
       # Wrangler run straight, so that on a failure its own error lines become notes on the run that anyone can read
@@ -85,7 +85,7 @@ jobs:
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          workingDirectory: meera-router
+          workingDirectory: meera/router
           command: deploy
           secrets: |
             GROQ_API_KEY
@@ -97,7 +97,7 @@ jobs:
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          workingDirectory: meera-router
+          workingDirectory: meera/router
           command: deploy
           secrets: |
             GEMINI_API_KEY

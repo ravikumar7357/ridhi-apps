@@ -8,19 +8,8 @@
  * of its own (meera.webp, kept by the browser, not 80 KB inside every page), her look, and a safety net: an error from
  * her file hides her button and stops her; the ERP carries on. */
 
-/** The bridge the ERP gives her (Replenish-App/src/app/core/meera-bridge.js). */
-interface ErpMeera {
-  v: number;
-  user(): { email: string; admin: boolean; tabs: string[]; vendor: boolean };
-  signedIn(): boolean;
-  token(): Promise<string | null>;
-  screen(): string;
-  openScreen(tab: string): boolean;
-  people(): string[];
-  phone(): boolean;
-  on(event: string, fn: (...args: any[]) => void): void;
-  switchOn(name: string): boolean;
-}
+/// <reference path="../../shared/bridge.d.ts" />
+/* the bridge the ERP gives her: its contract is meera/shared/bridge.d.ts */
 declare const __MEERA_CSS__: string;
 
 const ERP_MEERA: ErpMeera = (window as any).ERP_MEERA;
