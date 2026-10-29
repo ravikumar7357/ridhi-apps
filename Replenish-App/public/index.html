@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <!-- ================================================================================================
-     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 164 files of src/ joined into one page.
+     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 167 files of src/ joined into one page.
      The real, grouped source: Replenish-App/src/   (map and workflow: src/README.md)
        src/index.html   page markup        src/styles.css   stylesheet        src/app/ORDER   join order
        src/app/<group>/ the code, by group: core, replenishment, masters, production, vendors, orders, shopify, flow, dashboard, people-pay, inventory, reports, shared
@@ -1777,6 +1777,11 @@ html.mob #gdMenu{right:14px;bottom:144px}
 html.mob #gdNudge{right:14px;left:14px;max-width:none;bottom:144px}
 @media print{#gdLaunch,#gdMenu,#gdNudge{display:none}}
 
+/* Ask Meera: an admin's open tickets, each with a box to answer it */
+#gdAsk .ga-tk{margin-top:8px;padding:8px;border:1px solid var(--line,#E8EDF3);border-radius:8px;background:#fff;display:flex;flex-direction:column;gap:6px}
+#gdAsk .ga-tk small{color:var(--muted,#5A6472)}
+#gdAsk .ga-tk textarea{width:100%;font:inherit;font-size:13px;border:1px solid var(--line,#E8EDF3);border-radius:6px;padding:6px}
+
 /* ================= MY WORK TODAY + SEARCH EVERYTHING (friendly add-on, friendly.js) ================= */
 /* The menu's first item. */
 .fr-homenav{display:flex;align-items:center;gap:6px;border:0;background:var(--brand-bg,#E9EFF6);color:var(--brand-ink,#3A5573);font-weight:700;
@@ -3541,6 +3546,8 @@ html.mob #frMeeraMenu{right:14px;bottom:144px}
           <button id="flXlOut" class="ghost hide" style="width:auto" title="The PPC lines on screen, with what the form would open with">Excel</button>
           <button id="flXlIn" class="ghost hide" style="width:auto" title="Upload the filled PPC sheet — rows marked Raise = yes open in the form, ready to raise">Import plan</button>
           <button id="flXlNext" class="hide" style="width:auto"></button>
+          <!-- PPC REPORT (Ravi, 28 Oct): the lines planned on chosen days, to Excel — admins and the Reports right (flow/flow-report.js). -->
+          <button id="flRep" class="ghost hide" style="width:auto" title="Download what PPC planned on the days you pick — every line, and the total by SKU">PPC report</button>
           <input id="flXlFile" type="file" accept=".xlsx,.csv" class="hide">
           <!-- NO TEST ORDERS ANY MORE (Ravi, 16 Oct: "test ab chahiye hi nahi remove test"): the "+ Test order" button and the
                "Only test orders" switch are gone from the page. -->
@@ -5492,7 +5499,7 @@ const REPL_TABS = ['repl', 'article', 'target', 'top', 'shopify', 'pack',
    * never built, and pt_cxOrders was never written to. Its pane stays in the page, unreachable. */
   /* Quality Control is three jobs, not one: 'qc' is the checks, 'qcalt' is sending rejects out for
    * alteration, 'qcret' is taking them back. One tab, three grants. */
-  'pmdb', 'mst', 'att', 'pbase', 'pcut', 'ppress', 'qc', 'qcalt', 'qcret', 'ord', 'so', 'vord', 'vreq', 'rfd', 'vend', 'vlog', 'palloc', 'fgi', 'fba', 'fab', 'acc', 'rep', 'pa', 'ka', 'hr',
+  'pmdb', 'mst', 'att', 'pbase', 'pcut', 'ppress', 'qc', 'qcalt', 'qcret', 'ord', 'so', 'vord', 'vreq', 'rfd', 'vend', 'vlog', 'palloc', 'fgi', 'fgacc', 'fba', 'fab', 'acc', 'rep', 'pa', 'ka', 'hr',
   'shop', 'adj', 'shopprod', 'shopret', 'dash',
   /* Production flow (test, 2026-10-10): one right per bucket — the same keys as FLOW_BUCKETS in flow/flow-core.js. */
   'flppc', 'fldem', 'flacc', 'flchl', 'flcut', 'flraw', 'flwip',
@@ -5607,6 +5614,15 @@ onAuthStateChanged(auth, async user => {
   if (ME.email === 'ravi@thefabricrush.com') ME.admin = true;
   if (ME.admin) { ME.tabs = REPL_TABS.slice(); ME.projEdit = true; ME.prodEdit = true; ME.rateApprove = true; ME.shopAssign = true; ME.b2bAssign = true;
     ME.accEntry = true; ME.accEdit = true; ME.vlogAccept = true; ME.soApprove = true; ME.mdbEdit = true; ME.attendMark = true; ME.vreqApprove = true; ME.rfdApprove = true; ME.rfdSend = true; ME.fgiEdit = true; ME.fgiEntry = true; ME.empEdit = true; ME.hrEmpOnly = false; }
+  /* FROM QC — TO ACCEPT (Ravi, 27 Oct: "From QC — to accept - access me jodo"): its own box in Access, for whoever accepts what
+   * passed QC into the India store and does nothing else there. A grant, not a screen: on its own it opens Finished Goods on that
+   * one list (ME.fgAccOnly, finished-goods.js); with Finished Goods ticked as well it adds nothing. */
+  ME.fgAccOnly = false;
+  if (ME.tabs.includes('fgacc')) {
+    const only = !ME.admin && !ME.tabs.includes('fgi');
+    ME.tabs = ME.tabs.filter(t => t !== 'fgacc');
+    if (only) { ME.tabs = ME.tabs.concat('fgi'); ME.fgAccOnly = true; }
+  }
 
   /* THE SHOPIFY VIEW OF REPLENISHMENT (Ravi, 2026-10-14). An account that works the Shopify screens and holds no planning
    * screen — and is not an admin — gets Replenishment too, but only as the Shopify view: what a SKU is and what Amazon
@@ -6251,7 +6267,9 @@ function showTab(which) {
   if (which === 'hr') ensureHr();
   if (which === 'shop') ensureShop();
   if (which === 'adj') ensureAdj();
-  if (which === 'flow') ensureFlow();
+  /* PPC re-reads the registers when it is opened and they are over ten minutes old (ptOpenFresh), as Job Work does: a line issued
+   * from the Job Work Register on another computer shows on PPC without a Refresh (27 Oct). */
+  if (which === 'flow') ptOpenFresh('flow', ensureFlow);
   if (which === 'gdesk' && FLOW_ON) GD.open();
 }
 $('tabDash').onclick = () => showTab('dash');
@@ -17419,6 +17437,12 @@ $('cwSku').addEventListener('input', cutSkuTyped);
 });
 $('cwOrd').addEventListener('change', renderCutForm);
 
+/* A CUT MADE FROM OTHER CLOTH (Ravi, 28 Oct: "yadi hum us fabric me se nahi banwa rahe h kisi or rejected tablecloth ya wastage fabric me se banwa rahe h
+ * wo aay"). The SKU's own fabric is what a cut is taken from; when it is made from a rejected tablecloth or from wastage cloth instead, the entry
+ * says so (clothFrom) and the store takes NO printed cloth off for it (inventory/store.js stCutting). Set by the SHP board's Cut dialog just
+ * before it presses Save, and cleared again; the cutting form itself offers only the Fabric Type master. */
+const CUT_OTHER_CLOTH = { rejected: 'Rejected tablecloth', waste: 'Wastage fabric' };
+let CUT_FROM = '', CUT_OWN_OK = '';   // CUT_OWN_OK: the SKU's own fabric (from its master row / PPC plan) when the Fabric Type master does not list it
 $('cwSave').onclick = async () => {
   const sku = $('cwSku').value.trim();
   const m = cutSkuOf(sku);
@@ -17434,7 +17458,7 @@ $('cwSave').onclick = async () => {
   if (!fabric) return cutFormMsg('Pick the fabric.', true);
   /* From the master and nowhere else — a spelling the master does not have is a new fabric nobody
    * has agreed exists. */
-  if (cutFabrics().indexOf(fabric) < 0)
+  if (!CUT_FROM && !(CUT_OWN_OK && fabric === CUT_OWN_OK) && cutFabrics().indexOf(fabric) < 0)
     return cutFormMsg(`"${fabric}" is not in the Fabric Type master. Add it there first.`, true);
   if (!date) return cutFormMsg('Enter the cutting date.', true);
 
@@ -17454,7 +17478,8 @@ $('cwSave').onclick = async () => {
     articleType: at, articleSubtype: sub, color: col, size: sz,
     pieces: pcs,
     cutDate: ptStampDate(date),
-    fabricWidth: fabric,
+    fabricWidth: CUT_FROM ? (CUT_OTHER_CLOTH[CUT_FROM] || fabric) : fabric,
+    ...(CUT_FROM ? { clothFrom: CUT_FROM } : {}),
     ...cutFabFields(),
     orderNo,
     remarks: $('cwRemarks').value.trim(),
@@ -19168,6 +19193,8 @@ async function jwCorrApprove(id) {
   if (!r) return 'The entry it is about has been deleted — reject the request.';
   const plan = jwCorrPlan(r, q.change);
   if (plan.err) return 'Cannot be applied as it stands now: ' + plan.err;
+  if (ptNum(plan.next.receivedPieces) < qcTookOf(r.id))
+    return `Cannot be applied: QC has already taken ${nf(qcTookOf(r.id))} piece(s) of this entry — received cannot be less than that.`;
   const now = new Date().toISOString();
   const next = Object.assign(plan.next, { editedBy: ME.email, editedAt: now, correctedBy: q.by, correctionId: id });
   const done = Object.assign({}, q, { status: 'approved', answeredBy: ME.email, answeredAt: now });
@@ -19322,6 +19349,10 @@ $('bdmSave').onclick = async () => {
     if (gErr) return bdModalMsg(gErr, true);
   }
 
+  /* QC'S PIECES STAY ON THEIR ENTRY (27 Oct): received cannot drop below what QC has already taken off this entry — the
+   * checks would point at pieces nobody received, and the order would read made with nothing back. */
+  if (recv < qcTookOf(r.id))
+    return bdModalMsg(`QC has already taken ${nf(qcTookOf(r.id))} piece(s) of this entry — received cannot be less than that.`, true);
   const pending = Math.max(0, issued - recv - rej);
   /* MORE RECEIVED THROUGH EDIT IS A RECEIPT TOO (2026-10-08): dated now, so Waiting for QC and the weekly reports see it
    * on the day it came back, exactly as if Receive had been pressed. A lower figure logs nothing — the reports cap the
@@ -19443,6 +19474,7 @@ async function apvAnswer(key, approve, note) {
   if (approve) {
     const live = (PT.base || []).find(x => x && x.id === id);
     if (!live) { await apvDrop(key); return 'That entry is already gone. The request has been cleared.'; }
+    if (qcTookOf(id) > 0) return `QC has already taken ${nf(qcTookOf(id))} piece(s) of this entry — it cannot be deleted. Correct its figures instead.`;
     try {
       await ptDelete('pt_baseData/' + id);
       // Same as the Delete button: the zippers and ruffle cloth it spent go back to stock with it.
@@ -19476,6 +19508,7 @@ $('bdmAsk').onclick = async () => {
 
 $('bdmDelete').onclick = async () => {
   const r = BD_M; if (!r || !ME.admin) return;
+  if (qcTookOf(r.id) > 0) return bdModalMsg(`QC has already taken ${nf(qcTookOf(r.id))} piece(s) of this entry — it cannot be deleted. Correct its figures instead.`, true);
   /* Deleting a production record removes pieces from every count built on it — payroll included —
    * so the confirmation says exactly what is going, not "are you sure?". */
   const what = `${nf(ptNum(r.issuePieces))} piece(s) of ${r.sku} issued to ${r.empName}`
@@ -20136,6 +20169,24 @@ function qcParts(sku) {
 const qcReceived = sku => (PT.base || []).reduce((a, r) => a + (qcNorm(r.sku) === qcNorm(sku) ? ptNum(r.receivedPieces) : 0), 0);
 const qcChecked = sku => (QC.checks || []).reduce((a, r) => a + (qcNorm(r.sku) === qcNorm(sku) ? ptNum(r.checked) : 0), 0);
 const qcAvailToCheck = sku => qcReceived(sku) - qcChecked(sku);
+/* AN ORDER'S OWN PIECES (Ravi, 27 Oct: "jo order jiske ke liye aaya h wo usi order me jana chahiye"). The SKU total above let
+ * a check name ANY order of the SKU: 166 RTBX72 were passed on AMZ-16092026-02, which had nothing back from a karigar, while
+ * the pieces had been received on AMZ-25082026-01 — one line read made with nothing received, the other received with nothing
+ * passed. 54 checks (3,128 pcs) went to an order that way. A check now names an order only for what came back ON it and is
+ * not checked yet: the line's received (Job Work, or a quilt's old counters) plus pieces cut straight to QC (embroidery). */
+function qcOrderRecv(orderNo, sku) {
+  const o = obUC(orderNo), s = qcNorm(sku);
+  const b = obBaseIndex().get(obKeyOf(o, s)), l = ordLines().find(x => x.orderNo === o && x.sku === s);
+  let n = Math.max(b ? b.received : 0, l ? ptNum(l.received) : 0);
+  (PT.cut || []).forEach(c => { if (c && c.qcDirect && obUC(c.orderNo) === o && qcNorm(c.sku) === s) n += ptNum(c.pieces); });
+  return n;
+}
+const qcOrderChecked = (orderNo, sku) => { const o = obUC(orderNo), s = qcNorm(sku);
+  return (QC.checks || []).reduce((a, r) => a + (r && obUC(r.orderNo) === o && qcNorm(r.sku) === s ? ptNum(r.checked) : 0), 0); };
+const qcOrderAvail = (orderNo, sku) => Math.max(0, qcOrderRecv(orderNo, sku) - qcOrderChecked(orderNo, sku));
+/** Pieces QC has already taken off one Job Work entry — that entry cannot go below it, or lose them by being deleted. */
+const qcTookOf = baseId => ((typeof QC !== 'undefined' && QC.checks && QC.checks.length ? QC.checks : PTG.qc) || [])
+  .reduce((a, c) => a + (c && !c.refId && String(c.baseId || '') === String(baseId) ? ptNum(c.checked) : 0), 0);
 const qcAltTotal = sku => (QC.checks || []).reduce((a, r) => a + (qcNorm(r.sku) === qcNorm(sku) ? ptNum(r.forAlteration) : 0), 0);
 const qcIssuedTotal = sku => (QC.issue || []).reduce((a, r) => a + (qcNorm(r.sku) === qcNorm(sku) ? ptNum(r.pieces) : 0), 0);
 const qcAvailToIssue = sku => qcAltTotal(sku) - qcIssuedTotal(sku);
@@ -20457,15 +20508,18 @@ function renderQcCheckForm() {
   /* The orders this SKU is actually on, newest first — the same list the cutting form offers. */
   if ($('qcwOrdList')) {
     const sku0 = qcNorm(($('qcwSku') || {}).value);
-    const on = sku0 ? qcOrdersFor(sku0) : [];
+    /* What is waiting on each order first — that is the order the inspector is holding. */
+    const on = (sku0 ? qcOrdersFor(sku0) : []).map(o => Object.assign({}, o, { wait: qcOrderAvail(o.orderNo, sku0) }))
+      .sort((a, b) => (b.wait - a.wait) || (b.received - a.received) || a.orderNo.localeCompare(b.orderNo));
     $('qcwOrdList').innerHTML = on
-      .map(o => `<option value="${esc(o.orderNo)}">${esc(o.date || '')} · ${nf(o.ordered)} ordered · ${nf(o.received)} received</option>`).join('');
+      .map(o => `<option value="${esc(o.orderNo)}">${esc(o.date || '')} · ${nf(o.ordered)} ordered · ${nf(o.received)} received · ${nf(o.wait)} waiting for QC</option>`).join('');
     /* THE BOX SAYS WHETHER IT IS NEEDED, and fills itself in when there is only one answer — asking
      * somebody to type the one order a SKU is on is how a box comes to be left empty 245 times. */
     const box = $('qcwOrd');
     if (box) {
       box.placeholder = !sku0 ? 'Order No' : (on.length ? 'Order No *' : 'Order No — this SKU is on no order');
-      if (on.length === 1 && !String(box.value || '').trim()) box.value = on[0].orderNo;
+      const waiting = on.filter(o => o.wait > 0);
+      if (!String(box.value || '').trim() && (on.length === 1 || waiting.length === 1)) box.value = (waiting[0] || on[0]).orderNo;
       if (on.length && String(box.value || '').trim() && !on.some(o => o.orderNo === obUC(box.value))) box.value = '';
     }
   }
@@ -20500,6 +20554,9 @@ function renderQcCheckForm() {
   let warn = '';
   if (sku && !parts.has(qcNorm(sku))) warn = any ? `${qcNorm(sku)} is not in the master database.` : `${qcNorm(sku)} has nothing received in Job Work waiting to be checked.`;
   else if (!any && sku && ch > qcAvailToCheck(sku)) warn = `Pieces checked (${ch}) is more than the ${nf(qcAvailToCheck(sku))} available.`;
+  else if (sku && ch > 0 && obUC(($('qcwOrd') || {}).value) && qcOrdersFor(sku).length
+      && ch > qcOrderAvail(obUC($('qcwOrd').value), sku))
+    warn = `Order ${obUC($('qcwOrd').value)} has only ${nf(qcOrderAvail(obUC($('qcwOrd').value), sku))} piece(s) received and not checked yet.`;
   else if (ch > 0 && al + rj > ch) warn = `For alteration + rejected (${al + rj}) is more than the ${ch} checked.`;
   $('qcwInfo').textContent = warn || note || skuNote;
   $('qcwInfo').className = warn ? 'err' : 'muted';
@@ -20546,9 +20603,20 @@ $('qcwSave').onclick = async () => {
   /* AN ORDER, WHEREVER THERE IS ONE TO NAME. Every other register is keyed by order, and the Order
    * Console shows this figure as an order's own QC — a check with no order is invisible there. */
   const onOrders = qcOrdersFor(sku), ordTyped = obUC(($('qcwOrd') || {}).value);
-  if (onOrders.length && !ordTyped) return qcCheckMsg(`${sku} is on ${nf(onOrders.length)} order(s) — pick which one these pieces are for.`, true);
+  const waitOn = onOrders.filter(o => qcOrderAvail(o.orderNo, sku) > 0);
+  /* A free inspection of pieces no order has received (the "any" source) may go on no order — it is shared out by SKU on the
+   * console, never past what an order received. Anything else names its order. */
+  if (onOrders.length && !ordTyped && !(any && !waitOn.length))
+    return qcCheckMsg(`${sku} is on ${nf(onOrders.length)} order(s) — pick which one these pieces are for.`, true);
   if (ordTyped && onOrders.length && !onOrders.some(o => o.orderNo === ordTyped))
     return qcCheckMsg(`Order ${ordTyped} has no line for ${sku}. It is on: ${onOrders.slice(0, 4).map(o => o.orderNo).join(', ')}${onOrders.length > 4 ? '…' : ''}.`, true);
+  if (ordTyped && onOrders.length && checked > qcOrderAvail(ordTyped, sku)) {
+    const others = waitOn.filter(o => o.orderNo !== ordTyped);
+    return qcCheckMsg(`Order ${ordTyped} has only ${nf(qcOrderAvail(ordTyped, sku))} piece(s) of ${sku} received and not checked yet `
+      + `(received ${nf(qcOrderRecv(ordTyped, sku))}, already checked ${nf(qcOrderChecked(ordTyped, sku))}). `
+      + (others.length ? `Pieces are waiting on ${others.slice(0, 4).map(o => o.orderNo + ' (' + nf(qcOrderAvail(o.orderNo, sku)) + ')').join(', ')} — pick that order.`
+        : 'Receive them in Job Work against this order first.'), true);
+  }
 
   const p = qcParts(sku);
   const rec = {
@@ -26292,6 +26360,7 @@ function renderOrd() {
   if (v === 'track') return renderOrdTrack();
   if (v === 'shppipe') return renderOrdPipe();
   if (v === 'team') return renderOrdTeam();
+  if (v === 'shpboard' && typeof renderShpBoard === 'function') return renderShpBoard();   // TEST window (orders/shp-board.js)
   if (v === 'prnplat') return renderOrdPrnPlat();
   if (!isBook) { const out = renderOrdShopify(v === 'shopsku', v === 'shopdone' || (v === 'shopsku' && !!ORD.skuDone)); if (bulkOk) spBulkRender(); return out; }
 
@@ -27152,6 +27221,480 @@ function ordTrackRows() {
   return [...by.values()].map(o => Object.assign(o, { days: o.date ? Math.max(0, Math.floor((now - (ptDtMs(o.date) || now)) / 864e5)) : null }))
     .sort((a, b) => a.stage - b.stage || (ptDtMs(a.date) || 0) - (ptDtMs(b.date) || 0));
 }
+/* ============================== FILE: src/app/orders/shp-board.js ============================== */
+/* ================= SHP BOARD — Shopify orders, stage by stage (TEST WINDOW) =================
+ *
+ * Ravi, 28 Oct: "Ek test window banao for only SHP … sath sath me mention kar saku ki ye order kab ready hoga (live nahi karna
+ * h, test window m rakhna h)". One row per ORDER LINE, with a column for each stage — printer receive · cut · issued · received ·
+ * QC passed · press — and every step is done from the row, in a dialog, through the SAME forms and checks the registers use
+ * (the PPC plan, the cutting form, the Job Work issue form, Receive, Waiting for QC, the shipping hand-over).
+ *
+ * A stage cell reads "waiting − (done moved)": "1 − (0 moved)" until the work is done, "0 − (1 moved)" once it is. The buckets on
+ * top count the orders waiting at each stage. A strip in the row (FLOW) shows the whole way of the line — which steps it has been
+ * through (green), where it is now (orange), what is still ahead (grey).
+ *
+ * PRESS (Ravi, 28 Oct: "pressman add karo … press entry hote hi order showing in complete, and complete me hi shipping team accept
+ * or not received kar sake"): after QC the pressman presses the pieces — a press entry names who (Keshav, Jagdish, …). From then
+ * the line is in the COMPLETE tab, where shipping accepts the pieces (the real hand-over, shpReceive) or says "not received".
+ * Press entries and "not received" notes are kept on TEST nodes (pt_shpBoardPress, pt_shpBoardShip): the live registers (the press
+ * register has been closed since 5 Oct) are not written. The ready date of each order is on pt_shpBoardTest/<order>__<sku>.
+ *
+ * LIVE since 28 Oct (Ravi: "ab isko live kardo"). It shows only the Shopify orders the board OWNS — dated from FLOW_BOARD_FROM on
+ * (flow-core.js) — and those are planned HERE, not in PPC: the Plan button opens the plan form (flowPpcOpen) and a line with no plan
+ * waits in the 'To plan' bucket, never in PPC's. Press entries, "not received" notes and ready dates are on pt_shpBoardPress /
+ * pt_shpBoardShip / pt_shpBoardTest (the names date from the test window; the data is real). */
+const SHPB_ON = (() => { try { return localStorage.getItem('shpBoard') !== '0'; } catch (e) { return true; } })();   // on for everyone; shpBoard = '0' hides it on one computer
+const SHPB_NODE = 'pt_shpBoardTest', SHPB_PRESS = 'pt_shpBoardPress', SHPB_SHIP = 'pt_shpBoardShip';
+const SHPB_PRESSMEN = ['Keshav', 'Jagdish', 'Anokhi', 'Mangal', 'Om Prakash', 'Deepak', 'Chetram', 'Kuldeep', 'Shankar'];
+let SHPB = { tab: 'pending', stage: '', ready: {}, press: {}, ship: {}, pressBy: {}, readyAt: 0, busy: false, err: '' };
+const shpbKey = (orderNo, sku) => obUC(orderNo) + '__' + obUC(sku);
+const shpbDmy = iso => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? m[3] + '-' + m[2] + '-' + m[1] : ''; };
+const shpbCanEdit = () => !!(ME.admin || (typeof ptCanEdit === 'function' && ptCanEdit()));
+const shpbToday = () => (typeof dToday === 'function' ? dToday() : new Date().toISOString().slice(0, 10));
+
+/** The orders this board owns: Shopify, dated from FLOW_BOARD_FROM on, made by Ridhi. */
+const shpbOwns = r => flowBoardOwns(r) && shpbIsMine(r);
+/** The date typed for a line, else the date PPC planned it ready, else its make-to-order due date. */
+function shpbReadyOf(r) {
+  const k = shpbKey(r.orderNo, r.sku), set = SHPB.ready[k];
+  if (set && set.date) return { date: set.date, how: 'set', by: String(set.by || '').split('@')[0] };
+  const plan = ((typeof FLOW !== 'undefined' && FLOW && FLOW.ppc) || {})[typeof flowKey === 'function' ? flowKey(r.orderNo, r.sku) : k];
+  const pd = plan && plan.dates && plan.dates.ready;
+  if (pd) return { date: String(pd).slice(0, 10), how: 'PPC plan' };
+  if (r.mtoDue) return { date: r.mtoDue, how: '5 working days' };
+  return { date: '', how: '' };
+}
+/** Press entries added up per line: { pcs, last (day), men: [names] }. */
+function shpbIndexPress(press) {
+  const by = {};
+  Object.values(press || {}).forEach(e => { if (!e || !e.orderNo) return; const k = shpbKey(e.orderNo, e.sku), x = by[k] || (by[k] = { pcs: 0, last: '', men: [] });
+    x.pcs += Math.max(0, +e.pieces || 0); if (String(e.date || '') > x.last) x.last = String(e.date || ''); if (e.pressman && !x.men.includes(e.pressman)) x.men.push(e.pressman); });
+  return by;
+}
+async function shpbLoad(force) {
+  if (SHPB.busy || (!force && SHPB.readyAt && Date.now() - SHPB.readyAt < 60e3)) return;
+  SHPB.busy = true;
+  const get = async n => { try { return (await ptGet(n)) || {}; } catch (e) { SHPB.err = 'Some of the board\'s own records could not be read (' + (e.message || e) + ') — ready dates, press entries and "not received" notes may be missing.'; return {}; } };
+  SHPB.err = '';
+  [SHPB.ready, SHPB.press, SHPB.ship] = await Promise.all([get(SHPB_NODE), get(SHPB_PRESS), get(SHPB_SHIP)]);
+  SHPB.pressBy = shpbIndexPress(SHPB.press);
+  SHPB.busy = false; SHPB.readyAt = Date.now();
+  if (typeof ordView === 'function' && ordView() === 'shpboard') renderShpBoard();
+}
+async function shpbSetReady(key, date) {
+  const [orderNo, sku] = key.split('__');
+  try {
+    if (date) await ptPut(SHPB_NODE + '/' + key, { orderNo, sku, date, by: ME.email, at: new Date().toISOString() });
+    else await ptDelete(SHPB_NODE + '/' + key);
+  } catch (e) { return 'Not saved: ' + (e.message || e); }
+  SHPB.ready = Object.assign({}, SHPB.ready);
+  if (date) SHPB.ready[key] = { orderNo, sku, date, by: ME.email, at: new Date().toISOString() }; else delete SHPB.ready[key];
+  return '';
+}
+
+/** What the Production flow says of a line that goes to a printer: the printer, the pieces owed and the pieces back (the challan person's receipts). */
+let SHPB_FM = { src: null, map: null };
+function shpbFlowOf(r) {
+  let rows; try { rows = typeof flowRows === 'function' ? flowRows() : null; } catch (e) { rows = null; }
+  if (!rows) return null;
+  if (SHPB_FM.src !== rows) SHPB_FM = { src: rows, map: new Map(rows.map(x => [x.r.orderNo + '|' + x.r.sku, x.s])) };
+  const s = SHPB_FM.map.get(r.orderNo + '|' + r.sku);
+  if (!s || !s.plan || !flowPrinted(s.route) || s.fromStock || flowInHand(s.plan)) return null;
+  const q = +r.qty || 0;
+  return { printer: (s.plan.printer && (s.plan.printer.code || s.plan.printer.name)) || '', back: Math.max(0, Math.min(q, +s.back || 0)) };
+}
+/** The stage figures of a set of lines. For each stage: A = what has ARRIVED (can be worked on), D = what it has DONE and moved on, W = what waits here. */
+function shpbStages(lines) {
+  const s = { pcs: 0, cutX: 0, cutMv: 0, cutNone: 0, toCut: 0, issX: 0, issMv: 0, toIssue: 0, recX: 0, recMv: 0, qcX: 0, qcMv: 0, ready: 0,
+    planA: 0, planW: 0, planD: 0, prcA: 0, prcW: 0, prcD: 0, cutA: 0, cutW: 0, cutD: 0, issA: 0, issW: 0, issD: 0, recA: 0, recW: 0, recD: 0, qcA: 0, qcW: 0, qcD: 0,
+    prsA: 0, prsW: 0, prsD: 0, handA: 0, handW: 0, handD: 0 };
+  lines.forEach(r => {
+    const q = +r.qty || 0, cap = n => Math.max(0, Math.min(q, +n || 0));
+    const iss = cap(r.issued), rec = cap(r.received), qc = cap(r.pressed);
+    const sp = (typeof spOf === 'function' ? spOf(r.orderNo, r.sku) : null) || {}, got = Math.min(q, Number(sp.handedQty) || (r.handedAt ? q : 0));
+    const prs = Math.min(qc, cap(((SHPB.pressBy || {})[shpbKey(r.orderNo, r.sku)] || {}).pcs));
+    s.pcs += q;
+    if (r.cutReq) { const c = cap(r.cut); s.cutX += c; s.cutMv += Math.min(c, iss); s.toCut += Math.max(0, q - c); s.toIssue += Math.max(0, c - iss); }
+    else { s.cutNone += q; s.toIssue += Math.max(0, q - iss); }
+    s.issX += iss; s.issMv += Math.min(iss, rec);
+    s.recX += rec; s.recMv += Math.min(rec, qc);
+    s.qcX += qc; s.qcMv += qc;
+    s.ready += Math.max(0, qc - got);
+    s.planA += q; if (shpbPlanOf(r)) s.planD += q; else s.planW += q;      // planned here: the plan form (printer, fabric, dates)
+    /* A line that goes to a printer can be cut / issued only as far as the printed cloth has come back (flowState does the same). */
+    const fl = shpbFlowOf(r), base = fl ? fl.back : q;
+    if (fl) { s.prcA += q; s.prcD += fl.back; s.prcW += q - fl.back; }
+    const cutDone = r.cutReq ? cap(r.cut) : base;
+    if (r.cutReq) { s.cutA += base; s.cutD += cap(r.cut); s.cutW += Math.max(0, base - cap(r.cut)); }
+    s.issA += cutDone; s.issD += iss; s.issW += Math.max(0, cutDone - iss);
+    s.recA += iss; s.recD += rec; s.recW += Math.max(0, iss - rec);
+    s.qcA += rec; s.qcD += qc; s.qcW += Math.max(0, rec - qc);
+    s.prsA += qc; s.prsD += prs; s.prsW += Math.max(0, qc - prs);          // passed QC → the pressman presses it
+    s.handA += prs; s.handD += Math.min(got, prs || got); s.handW += Math.max(0, prs - got);   // pressed → shipping accepts it
+  });
+  return s;
+}
+
+const SHPB_STAGE_BG = 'background:#fdf0e8', SHPB_PAD = 'padding:3px 7px;';
+/* THE STAGES, in the order the work moves — [id, label, action, waiting, done, arrived]. */
+const SHPB_STAGES = [['plan', 'To plan', 'plan', 'planW', 'planD', 'planA'], ['prcv', 'Printer receive', 'prcv', 'prcW', 'prcD', 'prcA'], ['cut', 'Cut', 'cut', 'cutW', 'cutD', 'cutA'], ['issue', 'Issue', 'issue', 'issW', 'issD', 'issA'],
+  ['receive', 'Receive', 'receive', 'recW', 'recD', 'recA'], ['qc', 'QC pass', 'qc', 'qcW', 'qcD', 'qcA'], ['press', 'Press', 'press', 'prsW', 'prsD', 'prsA'],
+  ['hand', 'Shipping to accept', 'accept', 'handW', 'handD', 'handA']];
+/** One stage cell: "waiting − (done moved)", and the button for the work that is waiting. */
+function shpbCell(a, w, d, act, label, key, title) {
+  if (!a && !d) return '<td class="num" style="' + SHPB_STAGE_BG + ';' + SHPB_PAD + '"><span class="muted">—</span></td>';
+  return '<td class="num" style="' + SHPB_STAGE_BG + ';' + SHPB_PAD + 'white-space:nowrap;line-height:1.25" title="' + esc(title || '') + '">'
+    + (w ? '<b style="color:#b45309">' + nf(w) + '</b>' : '<b style="color:#166534">0</b>') + '<span class="muted" style="font-size:11px"> − (' + nf(d) + ' moved)</span>'
+    + (w ? '<div><button type="button" class="ghost" data-shpb-act="' + act + '" data-key="' + esc(key) + '" style="width:auto;padding:0 7px;font-size:10.5px;line-height:18px">' + esc(label) + '</button></div>' : '') + '</td>';
+}
+const shpbLineOf = key => { const [o, k] = String(key).split('__'); return ordLines().find(r => r.orderNo === obUC(o) && r.sku === obUC(k)) || null; };
+const shpbPlanOf = r => ((typeof FLOW !== 'undefined' && FLOW && FLOW.ppc) || {})[typeof flowKey === 'function' ? flowKey(r.orderNo, r.sku) : ''] || null;
+const shpbPrinterOf = r => { const p = shpbPlanOf(r), pr = p && p.printer; return (pr && (pr.name || pr.code)) || r.printer || ''; };
+const shpbIsMine = r => { try { const m = typeof mdbOf === 'function' ? mdbOf(r.sku) : null; return !(m && typeof mdbIsReady === 'function' && mdbIsReady(m)); } catch (e) { return true; } };
+
+/** The item, compact: a small picture, what it is, colour • size, the code. */
+function shpbItem(r) {
+  const what = [r.color, r.size].filter(Boolean).join(' • ');
+  return '<td style="' + SHPB_PAD + 'text-align:left;max-width:250px"><div style="display:flex;gap:7px;align-items:center">' + (typeof ptImgSpan === 'function' ? ptImgSpan(r.sku, 30) : '')
+    + '<div style="line-height:1.25;min-width:0"><div style="font-weight:600;font-size:12.5px">' + esc(r.articleSubtype || r.articleType || r.itemName || '—') + '</div>'
+    + '<div class="muted" style="font-size:11px">' + esc(what) + ' · <span style="font-family:ui-monospace,monospace">' + esc(r.sku) + '</span></div></div></div></td>';
+}
+/** THE LINE'S WHOLE WAY, as a strip: done (green), here now (orange), partly done (amber), still ahead (grey). */
+function shpbFlowSpans(r, s) {
+  const q = +r.qty || 0, plan = shpbPlanOf(r), fl = shpbFlowOf(r);
+  const st = (a, w, d) => (!a && !d) ? 'future' : (w === 0 && d >= q ? 'done' : (d > 0 ? 'part' : 'active'));
+  const steps = [['Plan', plan ? 'done' : 'na', 'PPC plan'], ['Printer', fl ? (fl.printer ? 'done' : 'active') : 'na', 'Printer given'],
+    ['P.recv', fl ? st(s.prcA, s.prcW, s.prcD) : 'na', 'Printed cloth back from the printer'], ['Cut', r.cutReq ? st(s.cutA, s.cutW, s.cutD) : 'na', 'Cut'],
+    ['Issue', st(s.issA, s.issW, s.issD), 'Issued to a karigar'], ['Recv', st(s.recA, s.recW, s.recD), 'Received from the karigar'], ['QC', st(s.qcA, s.qcW, s.qcD), 'Passed QC'],
+    ['Press', st(s.prsA, s.prsW, s.prsD), 'Pressed'], ['Ship', st(s.handA, s.handW, s.handD), 'Accepted by shipping']];
+  const look = { done: 'background:#dcfce7;color:#166534', part: 'background:#fef3c7;color:#92400e', active: 'background:#f59e0b;color:#fff;font-weight:700', future: 'background:#f1f5f9;color:#94a3b8' };
+  return steps.filter(x => x[1] !== 'na').map(x =>
+    `<span title="${esc(x[2])}" style="font-size:10px;padding:1px 5px;border-radius:7px;${look[x[1]]}">${x[1] === 'done' ? '✓ ' : ''}${esc(x[0])}</span>`).join('<span class="muted" style="font-size:9px"> ›</span>');
+}
+const shpbFlow = (r, s) => '<td style="' + SHPB_PAD + 'text-align:left;white-space:nowrap">' + shpbFlowSpans(r, s) + '</td>';
+
+/** One order line: date, order, ready date, item, flow, pieces, printer, then the stages. */
+function shpbRow(r) {
+  const k = shpbKey(r.orderNo, r.sku), s = shpbStages([r]), rd = shpbReadyOf(r), edit = shpbCanEdit(), late = rd.date && rd.date < dToday();
+  const prn = shpbPrinterOf(r);
+  const tips = { prcv: 'Owed by the printer − printed cloth received back on the challan', cut: 'Still to cut − cut so far', issue: 'Cut and not yet issued − issued to karigars', receive: 'Out with karigars − received back', qc: 'Received, not checked − passed QC', press: 'Passed QC, not pressed − pressed' };
+  return '<tr><td class="frz" style="' + SHPB_PAD + 'text-align:left;white-space:nowrap;font-size:12px">' + esc(shpbDmy(ptIsoDate(r.orderDate))) + '</td>'
+    + '<td style="' + SHPB_PAD + 'text-align:left;white-space:nowrap;line-height:1.25"><a href="#" data-ordj="' + esc(r.orderNo) + '" style="color:inherit;text-decoration:underline dotted;font-weight:700">'
+    + esc(String(r.shopOrderNo || r.orderNo).replace(/^#\s*/, '')) + '</a>'
+    + '<div>' + (edit ? '<input type="date" data-shpb-ready="' + esc(k) + '" value="' + esc(rd.date) + '" style="width:118px;padding:0 3px;font-size:11px;height:22px' + (late ? ';color:#b91c1c' : '') + '" title="When this order will be ready">'
+      : '<span style="font-size:11.5px">' + esc(shpbDmy(rd.date) || '—') + '</span>')
+    + (rd.how ? ' <span class="muted" style="font-size:10px">' + (rd.how === 'set' ? 'set' + (rd.by ? ' · ' + esc(rd.by) : '') : esc(rd.how)) + '</span>' : '') + '</div></td>'
+    + shpbItem(r)
+    + `<td class="num" style="${SHPB_PAD}"><b>${nf(r.qty)}</b></td>`
+    + `<td style="${SHPB_PAD}text-align:left;font-size:11.5px;white-space:nowrap;line-height:1.25">${prn ? '<b>' + esc(prn) + '</b>' : (shpbPlanOf(r) ? '<span class="muted">no printer</span>' : '<b style="color:#b91c1c">not planned</b>')}`
+    + `<div><button type="button" class="ghost" data-shpb-act="print" data-key="${esc(k)}" style="width:auto;padding:0 7px;font-size:10.5px;line-height:18px" title="The plan of this line: printer, fabric, accessories, dates — planned here, not in PPC">${shpbPlanOf(r) ? (prn ? 'Change' : 'Plan') : 'Plan'}</button></div></td>`
+    + shpbCell(s.prcA, s.prcW, s.prcD, 'prcv', 'Receive', k, tips.prcv)
+    + (!r.cutReq ? `<td class="num" style="${SHPB_STAGE_BG};${SHPB_PAD}"><span class="muted" style="font-size:11px">not needed</span></td>` : shpbCell(s.cutA, s.cutW, s.cutD, 'cut', 'Cut', k, tips.cut))
+    + shpbCell(s.issA, s.issW, s.issD, 'issue', 'Issue', k, tips.issue)
+    + shpbCell(s.recA, s.recW, s.recD, 'receive', 'Receive', k, tips.receive)
+    + shpbCell(s.qcA, s.qcW, s.qcD, 'qc', 'QC pass', k, tips.qc)
+    + shpbCell(s.prsA, s.prsW, s.prsD, 'press', 'Press', k, tips.press) + '</tr>';
+}
+
+/** What the board shows now. PENDING = lines with pieces not yet pressed; COMPLETE = lines pressed (waiting for shipping, or handed over) and closed ones. */
+function shpbView() {
+  const f = ordFilters(), all = ordLines().filter(shpbOwns), shown = ordApply(all, f);
+  const sOf = r => shpbStages([r]);
+  const pend = shown.filter(r => r.open && sOf(r).prsD < (+r.qty || 0));
+  const done = shown.filter(r => { if (!r.open) return true; return sOf(r).prsD > 0; });
+  const stg = SHPB_STAGES.find(x => x[0] === SHPB.stage);
+  const list = SHPB.tab === 'done' ? (stg && stg[0] === 'hand' ? done.filter(r => sOf(r)[stg[3]] > 0) : done) : (stg && stg[0] !== 'hand' ? pend.filter(r => sOf(r)[stg[3]] > 0) : pend);
+  return { f, all, pend, done, list };
+}
+
+function renderShpBoard() {
+  if (!$('odTable')) return;
+  if (!SHPB.readyAt && !SHPB.busy) shpbLoad(true);
+  const { f, all, pend, done, list } = shpbView(), tab = SHPB.tab;
+  ptFill('odArt', ordApply(all, f, 'art').map(r => r.articleType), 'All articles');
+  ptFill('odSub', ordApply(all, f, 'sub').map(r => r.articleSubtype), 'All subtypes');
+  ptFill('odCol', ordApply(all, f, 'col').map(r => r.color), 'All colors');
+  ptFill('odSz', ordApply(all, f, 'sz').map(r => r.size), 'All sizes');
+  const tabBtn = (v, t) => `<button type="button" data-shpb-tab="${v}" style="height:36px;padding:0 16px;border-radius:999px;font:inherit;font-weight:700;cursor:pointer;box-shadow:none;transform:none;`
+    + (tab === v ? 'background:#15803D;color:#fff;border:1px solid #15803D' : 'background:#fff;color:#17202B;border:1px solid #D5DCE5') + `">${t}</button>`;
+  /* THE BUCKETS: how many orders wait at each stage, and how many pieces. A click shows only those lines; click again for all. */
+  const bucket = x => { const src = x[0] === 'hand' ? done : pend, ls = src.filter(r => shpbStages([r])[x[3]] > 0), pcs = ls.reduce((a, r) => a + shpbStages([r])[x[3]], 0), on = SHPB.stage === x[0];
+    return `<button type="button" data-shpb-stage="${x[0]}" title="Show only the lines waiting at ${esc(x[1])}" style="padding:6px 12px;border-radius:12px;font:inherit;cursor:pointer;box-shadow:none;transform:none;text-align:left;line-height:1.25;`
+      + (on ? 'background:#b45309;color:#fff;border:1px solid #b45309' : 'background:#fdf0e8;color:#17202B;border:1px solid #f0cdb5') + `"><b>${esc(x[1])}</b> <span style="font-weight:700">(${nf(new Set(ls.map(r => r.orderNo)).size)})</span>`
+      + `<div style="font-size:10.5px;opacity:.85">orders · ${nf(pcs)} pcs</div></button>`; };
+  /* No title and no KPI cards (Ravi, 28 Oct) — the buckets are the summary. */
+  /* ONE LINE: the stage buckets, and the two tabs at the right end (Ravi, 28 Oct: no "Waiting at:", no long note, the tabs up with the buckets). */
+  $('odKpis').innerHTML = `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:2px 0 8px">${SHPB_STAGES.map(bucket).join('')}`
+    + `<div style="display:flex;gap:8px;margin-left:auto">${tabBtn('pending', 'Order pending · ' + nf(pend.length))}${tabBtn('done', 'Complete · ' + nf(done.length))}</div></div>`;
+  $('odMsg').className = SHPB.err ? 'err' : 'muted';
+  $('odMsg').textContent = SHPB.err || '';
+
+  if (tab === 'done') return renderShpBoardDone(list);
+  if (!list.length) { ptEmpty('odTable', SHPB.stage ? 'No line is waiting at that stage.' : 'No Shopify order is pending.'); return; }
+  const rows = ordNewest(list.slice().sort((a, b) => String(a.orderDate).localeCompare(String(b.orderDate)) || a.orderNo.localeCompare(b.orderNo) || a.sku.localeCompare(b.sku)));
+  const th = (t, c) => `<th class="${c || ''}" style="${SHPB_PAD}${c === 'num' ? SHPB_STAGE_BG : ''}">${t}</th>`;
+  const head = '<thead><tr><th class="frz" style="' + SHPB_PAD + 'text-align:left">Date</th><th style="' + SHPB_PAD + 'text-align:left">Order ID · ready on</th><th style="' + SHPB_PAD + 'text-align:left">Item</th>'
+    + '<th class="num" style="' + SHPB_PAD + '">Pcs</th><th style="' + SHPB_PAD + 'text-align:left">Printer</th>'
+    + ['Printer receive', 'Cut', 'Issued', 'Received', 'QC passed', 'Press'].map(h => th(h, 'num')).join('') + '</tr></thead>';
+  $('odTable').innerHTML = head + '<tbody>' + rows.slice(0, 300).map(shpbRow).join('') + '</tbody>'
+    + (rows.length > 300 ? '<tfoot><tr><td colspan="11" class="muted" style="padding:10px;text-align:left">Showing the first 300 of ' + nf(rows.length) + ' lines — search or filter to narrow them. Export has all of them.</td></tr></tfoot>' : '');
+}
+
+/** COMPLETE: pressed lines waiting for shipping (Accept / Not received), then handed-over lines, newest day first. */
+function renderShpBoardDone(list) {
+  if (!list.length) { ptEmpty('odTable', SHPB.stage === 'hand' ? 'Nothing is waiting for shipping to accept.' : 'Nothing is pressed or handed over yet.'); return; }
+  const waiting = list.filter(r => r.open && shpbStages([r]).handW > 0).sort((a, b) => String(a.orderDate).localeCompare(String(b.orderDate)) || a.orderNo.localeCompare(b.orderNo));
+  const rest = list.filter(r => !waiting.includes(r)).map(r => ({ r, at: String(r.handedAt || r.shopDoneAt || '') })).sort((a, b) => b.at.localeCompare(a.at) || a.r.orderNo.localeCompare(b.r.orderNo)).slice(0, 500);
+  const edit = shpbCanEdit();
+  const th = t => `<th style="${SHPB_PAD}text-align:left">${t}</th>`;
+  const head = `<thead><tr>${th('Date')}${th('Order ID')}${th('Item')}<th class="num" style="${SHPB_PAD}">Pcs</th>${th('Pressed')}<th class="num" style="${SHPB_PAD}">Accepted</th>${th('Shipping')}</tr></thead>`;
+  const common = r => { const s = shpbStages([r]), px = (SHPB.pressBy || {})[shpbKey(r.orderNo, r.sku)] || {};
+    return { s, press: px.pcs ? `<b>${nf(Math.min(px.pcs, +r.qty || 0))}</b> <span class="muted" style="font-size:11px">${esc((px.men || []).join(', '))}${px.last ? ' · ' + esc(shpbDmy(px.last)) : ''}</span>` : '<span class="muted">—</span>' }; };
+  const link = r => `<a href="#" data-ordj="${esc(r.orderNo)}" style="color:inherit;text-decoration:underline dotted;font-weight:700">${esc(String(r.shopOrderNo || r.orderNo).replace(/^#\s*/, ''))}</a>`;
+  const wRow = r => { const { s, press } = common(r), k = shpbKey(r.orderNo, r.sku), ns = (SHPB.ship || {})[k], pd = ((SHPB.pressBy || {})[k] || {}).last || '';
+    return `<tr><td style="${SHPB_PAD}white-space:nowrap;font-size:12px">${esc(shpbDmy(pd || ptIsoDate(r.orderDate)))}</td><td style="${SHPB_PAD}text-align:left">${link(r)}</td>${shpbItem(r)}<td class="num" style="${SHPB_PAD}"><b>${nf(r.qty)}</b></td>`
+      + `<td style="${SHPB_PAD}text-align:left;white-space:nowrap">${press}</td><td class="num" style="${SHPB_PAD}">${nf(s.handD)}</td>`
+      + `<td style="${SHPB_PAD}text-align:left;white-space:nowrap">${nf(s.handW)} to accept `
+      + (ns && ns.state === 'notrecv' ? `<span class="pill pill-out" title="${esc((ns.by || '').split('@')[0] + ' · ' + (ns.note || ''))}">not received${ns.note ? ' · ' + esc(String(ns.note).slice(0, 30)) : ''}</span> ` : '')
+      + (edit ? `<button type="button" data-shpb-act="accept" data-key="${esc(k)}" style="width:auto;padding:0 9px;font-size:11px;line-height:20px">Accept</button> <button type="button" class="ghost" data-shpb-act="notrecv" data-key="${esc(k)}" style="width:auto;padding:0 9px;font-size:11px;line-height:20px">Not received</button>` : '') + '</td></tr>'; };
+  let prev = '';
+  const hRow = ({ r, at }) => { const day = ptIsoDate(at) || '', first = day !== prev, c = common(r); prev = day;
+    return (first ? `<tr><td colspan="7" style="${SHPB_PAD}text-align:left;background:#eef2f7;font-weight:700;font-size:12px">${esc(shpbDmy(day) || 'no date')} — handed to shipping</td></tr>` : '')
+      + `<tr><td style="${SHPB_PAD}white-space:nowrap;font-size:12px">${esc(shpbDmy(day))}</td><td style="${SHPB_PAD}text-align:left">${link(r)}</td>${shpbItem(r)}<td class="num" style="${SHPB_PAD}">${nf(r.qty)}</td>`
+      + `<td style="${SHPB_PAD}text-align:left">${c.press}</td><td class="num" style="${SHPB_PAD}">${nf(Math.min(+r.qty || 0, r.handedAt ? +r.qty || 0 : c.s.handD))}</td>`
+      + `<td style="${SHPB_PAD}text-align:left;font-size:12px">${r.handedAt ? 'Handed over' + (r.handedBy ? ' · ' + esc(String(r.handedBy).split('@')[0]) : '') : esc(typeof SHP_DONE_TXT === 'function' ? SHP_DONE_TXT(r.shopDoneWhy) : 'Closed')}</td></tr>`; };
+  $('odTable').innerHTML = head + '<tbody>'
+    + (waiting.length ? `<tr><td colspan="7" style="${SHPB_PAD}text-align:left;background:#fdf0e8;font-weight:700;font-size:12px">Waiting for shipping to accept — ${nf(waiting.length)} line(s)</td></tr>` + waiting.map(wRow).join('') : '')
+    + rest.map(hRow).join('') + '</tbody>';
+}
+
+/** Export: every line shown (the bar's filters, the tab, the stage bucket) — one CSV row per order line, which Excel opens. */
+function shpbExport() {
+  const { list } = shpbView(); if (!list.length) return;
+  const head = ['Order date', 'Order ID', 'Order', 'SKU', 'Article', 'Subtype', 'Colour', 'Size', 'Pieces', 'Ready on', 'Ready date from', 'Printer',
+    'Printer receive: waiting', 'Printer receive: back', 'Cut: waiting', 'Cut: done', 'Issue: waiting', 'Issued: done', 'Receive: waiting', 'Received: done', 'QC: waiting', 'QC passed',
+    'Press: waiting', 'Pressed', 'Pressman', 'Shipping to accept', 'Accepted by shipping', 'Handed / closed on', 'Status'];
+  const lines = [head.map(csvCell).join(',')];
+  list.slice().sort((a, b) => String(a.orderDate).localeCompare(String(b.orderDate)) || a.orderNo.localeCompare(b.orderNo)).forEach(r => {
+    const s = shpbStages([r]), rd = shpbReadyOf(r), at = ptIsoDate(r.handedAt || r.shopDoneAt) || '', px = (SHPB.pressBy || {})[shpbKey(r.orderNo, r.sku)] || {};
+    lines.push([ptIsoDate(r.orderDate) || '', r.shopOrderNo || '', r.orderNo, r.sku, r.articleType || r.itemName || '', r.articleSubtype || '', r.color || '', r.size || '', r.qty, rd.date, rd.how === 'set' ? 'typed here' : rd.how, shpbPrinterOf(r),
+      s.prcA ? s.prcW : '', s.prcA ? s.prcD : '', r.cutReq ? s.cutW : 'not needed', r.cutReq ? s.cutD : '', s.issW, s.issD, s.recW, s.recD, s.qcW, s.qcD, s.prsW, s.prsD, (px.men || []).join(' / '), s.handW, s.handD, at,
+      r.open ? 'Pending' : (r.handedAt ? 'Handed over' : (typeof SHP_DONE_TXT === 'function' ? SHP_DONE_TXT(r.shopDoneWhy) : 'Closed'))].map(csvCell).join(','));
+  });
+  ptDownload('shp-board-' + (SHPB.tab === 'done' ? 'complete' : (SHPB.stage ? 'waiting-' + SHPB.stage : 'pending')), lines);
+}
+
+/* ---- the work, done from the row ------------------------------------------------------------------------------------
+ * Cutting and the Job Work issue are written by the same save buttons of their own forms (the form's boxes are filled and its
+ * Save pressed), so every check they make — the order's cap, a month frozen, a zipper short, the same issue twice — answers
+ * here too. A refusal is the form's own message. */
+async function shpbDrive(set, saveId, msgId) {
+  Object.entries(set).forEach(([id, v]) => { const el = $(id); if (el) el.value = v; });
+  await $(saveId).onclick();
+  const m = $(msgId);
+  return m && m.className === 'err' ? (m.textContent || 'Not saved.') : '';
+}
+/** The fabric this SKU is cut from: the PPC plan's, else the master row's (flowSuggest). */
+function shpbOwnFabric(r) { try { return String(((shpbPlanOf(r) || {}).fabric || {}).name || flowSuggest(r).fabric.name || '').trim(); } catch (e) { return ''; } }
+async function shpbCutSave(r, v) {
+  const pcs = parseInt(v.pcs, 10);
+  if (!(pcs > 0)) return 'Type how many pieces were cut.';
+  await ensureCutForm();
+  $('cwSku').value = r.sku; $('cwSku').dataset.typed = '1'; renderCutPick(); renderCutForm();
+  /* The cloth: the SKU's own fabric, a rejected tablecloth, wastage cloth, or another fabric of the master. */
+  const other = Object.keys(CUT_OTHER_CLOTH).find(k => CUT_OTHER_CLOTH[k] === v.fabric) || '';
+  if (!v.fabric) return 'Pick the cloth this was cut from.';
+  CUT_FROM = other; CUT_OWN_OK = (!other && v.fabric === shpbOwnFabric(r)) ? v.fabric : '';
+  try { return await shpbDrive({ cwOrd: r.orderNo, cwPcs: String(pcs), cwFabric: other ? CUT_OTHER_CLOTH[other] : v.fabric, cwDate: v.date || shpbToday() }, 'cwSave', 'cwMsg'); }
+  finally { CUT_FROM = ''; CUT_OWN_OK = ''; }
+}
+async function shpbIssueSave(r, v) {
+  const pcs = parseInt(v.pcs, 10), name = String(v.emp || '').trim();
+  if (!name) return 'Pick the karigar.';
+  if (!(pcs > 0)) return 'Type how many pieces are being issued.';
+  const emp = (PTE.emp || []).find(e => String(e[1]).trim().toLowerCase() === name.toLowerCase());
+  if (!emp) return `"${name}" is not on the employee list.`;
+  await ensureBdForm();
+  $('bwSku').value = r.sku; $('bwSku').dataset.typed = '1';
+  $('bwType').value = String(emp[0] || '').trim(); renderBdForm(); bdSkuTyped();
+  $('bwType').value = String(emp[0] || '').trim();
+  $('bwEmp').value = String(emp[1]).trim();
+  $('bwOrd').value = r.orderNo; $('bwPcs').value = String(pcs); $('bwDate').value = v.date || shpbToday(); $('bwDate').dataset.auto = '';
+  if (typeof bdMatFill === 'function') bdMatFill();
+  return shpbDrive({}, 'bwSave', 'bwMsg');
+}
+/** A press entry: the pressman, the pieces, the day. Never more than passed QC and is not yet pressed. */
+async function shpbPressSave(r, v) {
+  const man = String(v.man || '').trim(), pcs = parseInt(v.pcs, 10), s = shpbStages([r]);
+  if (!SHPB_PRESSMEN.includes(man)) return 'Pick the pressman.';
+  if (!(pcs > 0)) return 'Type how many pieces were pressed.';
+  if (pcs > s.prsW) return `Only ${nf(s.prsW)} piece(s) have passed QC and are not pressed yet.`;
+  const id = 'sbp_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), e = { id, orderNo: r.orderNo, sku: r.sku, pieces: pcs, pressman: man, date: v.date || shpbToday(), by: ME.email, at: new Date().toISOString() };
+  try { await ptPut(SHPB_PRESS + '/' + id, e); } catch (x) { return 'Not saved: ' + (x.message || x); }
+  SHPB.press = Object.assign({}, SHPB.press, { [id]: e }); SHPB.pressBy = shpbIndexPress(SHPB.press);
+  return '';
+}
+const shpbAfter = () => { try { renderOrd(); } catch (e) { /* the next draw shows it */ } };
+
+function shpbDialog(act, key) {
+  const r = shpbLineOf(key); if (!r) return;
+  const s = shpbStages([r]), who = (r.shopOrderNo || r.orderNo) + ' · ' + r.sku;
+  if (act === 'print' || act === 'plan') { if (typeof flowPpcOpen === 'function') flowPpcOpen(r.orderNo, r.sku); return; }
+  if (act === 'accept') return shpbAcceptOpen(key);
+  if (act === 'notrecv') return shpbNotRecvOpen(key);
+  if (act === 'prcv') {
+    const fl = shpbFlowOf(r);
+    if (!fl || !fl.printer || typeof flowDueRecvOpen !== 'function') { $('odMsg').className = 'err'; $('odMsg').textContent = 'This line has no printer in the PPC plan.'; return; }
+    return flowDueRecvOpen(fl.printer);   // the printer's open lines, with search — the same dialog as Printed fabric in
+  }
+  if (act === 'press') {
+    return ptOpenDialog({ title: 'Press — ' + who, subtitle: nf(s.prsW) + ' passed QC and not pressed yet. After this entry the line is in Complete, for shipping to accept.',
+      fields: [{ key: 'man', label: 'Pressman', type: 'select', options: [['', '— pick —']].concat(SHPB_PRESSMEN.map(x => [x, x])), value: '' },
+        { key: 'pcs', label: 'Pieces pressed', type: 'number', min: 1, value: s.prsW || '' }, { key: 'date', label: 'Press date', type: 'date', value: shpbToday() }],
+      saveLabel: 'Save press entry', onSave: async v => { const err = await shpbPressSave(r, v); if (!err) shpbAfter(); return err; } });
+  }
+  if (act === 'cut') {
+    /* THE SKU'S OWN FABRIC comes in by itself — the plan's, else the master row's — and is the default; a rejected tablecloth or wastage cloth is one pick away. */
+    const fabs = typeof cutFabrics === 'function' ? cutFabrics() : [];
+    const ownIn = shpbOwnFabric(r);
+    const opts = (ownIn ? [[ownIn, ownIn + ' — this SKU\'s fabric']] : []).concat(Object.values(CUT_OTHER_CLOTH).map(x => [x, x + ' (not from the SKU\'s fabric)']), fabs.filter(x => String(x).toLowerCase() !== ownIn.toLowerCase()).map(x => [x, x]));
+    const def = ownIn;
+    return ptOpenDialog({ title: 'Cut — ' + who, subtitle: nf(s.cutW) + ' can be cut now (of ' + nf(r.qty) + '). Saved in Cutting Data, against this order.',
+      fields: [{ key: 'pcs', label: 'Pieces cut', type: 'number', min: 1, value: s.cutW || '' },
+        { key: 'fabric', label: 'Cloth it is cut from', type: 'select', options: ownIn ? opts : [['', '— pick —']].concat(opts), value: def },
+        { key: 'date', label: 'Cutting date', type: 'date', value: shpbToday() }],
+      saveLabel: 'Save cutting', onSave: async v => { const err = await shpbCutSave(r, v); if (!err) shpbAfter(); return err; } });
+  }
+  if (act === 'issue') {
+    const go = () => ptOpenDialog({ title: 'Issue to a karigar — ' + who, subtitle: nf(s.issW) + ' can be issued now. Saved in the Job Work register, against this order.',
+      fields: [{ key: 'emp', label: 'Karigar / contractor', list: (PTE.emp || []).map(e => String(e[1]).trim()).filter(Boolean), value: '' },
+        { key: 'pcs', label: 'Pieces issued', type: 'number', min: 1, value: s.issW || '' }, { key: 'date', label: 'Issue date', type: 'date', value: shpbToday() }],
+      saveLabel: 'Issue', onSave: async v => { const err = await shpbIssueSave(r, v); if (!err) shpbAfter(); return err; } });
+    if (PTE.emp) return go();
+    return ptLoadEmp().then(go).catch(e => { $('odMsg').className = 'err'; $('odMsg').textContent = 'Could not read the employee list: ' + (e.message || e); });
+  }
+  if (act === 'receive') {
+    const open = (PT.base || []).filter(b => b && !b.frozen && obUC(b.orderNo) === r.orderNo && obUC(b.sku) === r.sku && ptNum(b.pendingPieces) > 0);
+    return ptOpenDialog({ title: 'Receive from karigar — ' + who, subtitle: open.length ? 'Pick the entry the pieces came back on.' : 'Nothing is out with a karigar on this line.',
+      html: open.map(b => `<div style="display:flex;align-items:center;gap:10px;margin:6px 0"><div style="flex:1"><b>${esc(b.empName)}</b> <span class="muted">· ${nf(ptNum(b.issuePieces))} issued ${esc(String(b.issueDate || '').slice(0, 10))} · ${nf(ptNum(b.receivedPieces))} back · <b>${nf(ptNum(b.pendingPieces))} out</b></span></div>`
+        + `<button type="button" data-shpb-recv="${esc(b.id)}" style="width:auto">Receive</button></div>`).join('') });
+  }
+  if (act === 'qc') {
+    return Promise.resolve(typeof ensureQc === 'function' ? ensureQc() : null).then(() => {
+      const rows = qcInboxRows().filter(x => obUC(x.r.orderNo) === r.orderNo && obUC(x.r.sku) === r.sku);
+      ptOpenDialog({ title: 'QC pass — ' + who, subtitle: rows.length ? 'Pieces received and waiting for QC. Type what passes now.' : 'Nothing is waiting for QC on this line.',
+        fields: rows.map((x, i) => ({ key: 'q' + i, label: `${x.r.empName || ''} · ${nf(x.wait)} waiting`, type: 'number', min: 0, value: x.wait })),
+        saveLabel: 'QC pass',
+        onSave: rows.length ? async v => {
+          let n = 0;
+          for (let i = 0; i < rows.length; i++) { const q = parseInt(v['q' + i], 10) || 0; if (!(q > 0)) continue; const err = await qcInboxAccept(rows[i].r.id, q, ''); if (err) return err; n++; }
+          if (!n) return 'Type how many pieces pass.'; shpbAfter(); return '';
+        } : undefined });
+    });
+  }
+}
+/** Shipping accepts the pressed pieces — the real hand-over (shpReceive), never more than was pressed. A "not received" note is cleared. */
+function shpbAcceptOpen(key) {
+  const r = shpbLineOf(key), s = r && shpbStages([r]);
+  if (!r || typeof shpReceive !== 'function' || !shpCanReceive()) { $('odMsg').className = 'err'; $('odMsg').textContent = 'Accepting needs the Shopify tab.'; return; }
+  if (!(s.handW > 0)) return;
+  ptOpenDialog({
+    title: 'Shipping accepts — ' + (r.shopOrderNo || r.orderNo) + ' · ' + r.sku, subtitle: 'Pressed and not accepted yet: ' + nf(s.handW) + '. Type what shipping has received.',
+    fields: [{ key: 'q', label: 'Pieces received', type: 'number', min: 1, value: s.handW }], saveLabel: 'Accept',
+    onSave: async v => { const q = Math.min(s.handW, Math.round(+v.q || 0)); if (!(q > 0)) return 'Type how many pieces shipping received.';
+      const err = await shpReceive([{ orderNo: r.orderNo, sku: r.sku, qty: q }]);
+      if (!err && (SHPB.ship || {})[key]) { try { await ptDelete(SHPB_SHIP + '/' + key); } catch (e) { /* the note stays */ } SHPB.ship = Object.assign({}, SHPB.ship); delete SHPB.ship[key]; }
+      if (!err) shpbAfter(); return err; },
+  });
+}
+/** Shipping says the pressed pieces did not arrive: a note on the line, so production sees it. Nothing else changes. */
+function shpbNotRecvOpen(key) {
+  const r = shpbLineOf(key), s = r && shpbStages([r]); if (!r || !(s.handW > 0)) return;
+  ptOpenDialog({
+    title: 'Not received — ' + (r.shopOrderNo || r.orderNo) + ' · ' + r.sku, subtitle: nf(s.handW) + ' pressed piece(s) have not reached shipping. The line stays here, marked.',
+    fields: [{ key: 'note', label: 'What is wrong (optional)', value: '' }], saveLabel: 'Mark not received',
+    onSave: async v => { const e = { state: 'notrecv', orderNo: r.orderNo, sku: r.sku, qty: s.handW, note: String(v.note || '').trim(), by: ME.email, at: new Date().toISOString() };
+      try { await ptPut(SHPB_SHIP + '/' + key, e); } catch (x) { return 'Not saved: ' + (x.message || x); }
+      SHPB.ship = Object.assign({}, SHPB.ship, { [key]: e }); shpbAfter(); return ''; },
+  });
+}
+
+/* ---- THE ORDER'S FLOW (Ravi, 28 Oct: "order id par click krne ke bad flow is bucket me aay — abhi jo banaya wo nahi") ----
+ * A click on an Order ID here opens THIS, not the Order Console's start-to-finish: for each line of the order the flow strip, and under
+ * it every step with what was done, by whom, and when — printer, printed cloth back, cut, issued to which karigar, received, QC, press,
+ * shipping — and where the line is waiting now. Read from the same registers the cells read. */
+const shpbDay = v => { const m = String(v || '').match(/^(\d{4}-\d{2}-\d{2})/) || String(v || '').match(/^(\d{2})\/(\d{2})\/(\d{4})/); return !m ? '' : (m.length === 2 ? shpbDmy(m[1]) : m[1] + '-' + m[2] + '-' + m[3]); };
+function shpbSteps(r) {
+  const s = shpbStages([r]), q = +r.qty || 0, key = shpbKey(r.orderNo, r.sku), plan = shpbPlanOf(r), fl = shpbFlowOf(r), out = [];
+  const st = (a, w, d) => (!a && !d) ? 'future' : (w === 0 && d >= q ? 'done' : (d > 0 ? 'part' : 'active'));
+  const add = (step, state, what, when) => out.push({ step, state, what, when });
+  add('Ordered', 'done', nf(q) + ' pcs', shpbDmy(ptIsoDate(r.orderDate)) + (r.openIso ? ' · opened in production ' + shpbDmy(r.openIso) : ''));
+  add('PPC plan', plan ? 'done' : 'na', plan ? 'route ' + (plan.route || '') + (shpbPrinterOf(r) ? ' · printer ' + shpbPrinterOf(r) : '') + (plan.dates && plan.dates.ready ? ' · ready ' + shpbDmy(plan.dates.ready) : '') : 'no plan (an older order)', plan ? shpbDay(plan.at) + (plan.by ? ' · ' + String(plan.by).split('@')[0] : '') : '');
+  if (fl) {
+    const chs = Object.values((typeof FLOW !== 'undefined' && FLOW && FLOW.ch) || {}).filter(c => c && !c.cancelled && (c.lines || []).some(l => l.key === key));
+    add('Printer receive', st(s.prcA, s.prcW, s.prcD), nf(s.prcD) + ' of ' + nf(q) + ' back from the printer' + (chs.length ? ' · ' + chs.map(c => c.no).join(', ') : ' · no challan yet'),
+      chs.map(c => { const rc = Object.values(c.receipts || {}).filter(x => x && x.items && x.items[key]); return rc.length ? shpbDay(rc[rc.length - 1].date) : ''; }).filter(Boolean).join(', '));
+  }
+  if (r.cutReq) {
+    const cs = (PT.cut || []).filter(c => c && obUC(c.orderNo) === r.orderNo && obUC(c.sku) === r.sku);
+    add('Cut', st(s.cutA, s.cutW, s.cutD), nf(s.cutD) + ' of ' + nf(q) + ' cut' + (cs.length ? ' · ' + cs.map(c => nf(ptNum(c.pieces))).join(' + ') : ''), cs.length ? shpbDay(cs[cs.length - 1].cutDate) : '');
+  }
+  const bs = (PT.base || []).filter(b => b && obUC(b.orderNo) === r.orderNo && obUC(b.sku) === r.sku);
+  add('Issued', st(s.issA, s.issW, s.issD), nf(s.issD) + ' of ' + nf(q) + ' issued' + (bs.length ? ' · ' + bs.map(b => b.empName + ' ' + nf(ptNum(b.issuePieces))).join(', ') : ''), bs.length ? shpbDay(bs[bs.length - 1].issueDate) : '');
+  add('Received', st(s.recA, s.recW, s.recD), nf(s.recD) + ' of ' + nf(q) + ' back from karigars' + (bs.some(b => ptNum(b.receivedPieces)) ? ' · ' + bs.filter(b => ptNum(b.receivedPieces)).map(b => b.empName + ' ' + nf(ptNum(b.receivedPieces))).join(', ') : ''),
+    bs.filter(b => b.receivingDate).length ? shpbDay(bs.filter(b => b.receivingDate).pop().receivingDate) : '');
+  const qcs = ((typeof QC !== 'undefined' && QC.checks) || []).filter(c => c && obUC(c.orderNo) === r.orderNo && qcNorm(c.sku) === r.sku && ptNum(c.ok) > 0);
+  add('QC passed', s.qcW ? (s.qcD ? 'part' : (s.qcA ? 'active' : 'future')) : (s.qcA ? 'done' : 'future'), nf(s.qcD) + ' of ' + nf(q) + ' passed' + (qcs.length ? ' · by ' + [...new Set(qcs.map(c => c.checkedBy || String(c.addedBy || '').split('@')[0]))].join(', ') : ''), qcs.length ? shpbDay(qcs[qcs.length - 1].date) : '');
+  const px = (SHPB.pressBy || {})[key] || {}, pe = Object.values(SHPB.press || {}).filter(e => e && shpbKey(e.orderNo, e.sku) === key);
+  add('Press', st(s.prsA, s.prsW, s.prsD), nf(s.prsD) + ' of ' + nf(q) + ' pressed' + (pe.length ? ' · ' + pe.map(e => e.pressman + ' ' + nf(e.pieces)).join(', ') : ''), px.last ? shpbDmy(px.last) : '');
+  const sp = (typeof spOf === 'function' ? spOf(r.orderNo, r.sku) : null) || {}, ns = (SHPB.ship || {})[key];
+  add('Shipping', r.handedAt ? 'done' : st(s.handA, s.handW, s.handD),
+    (r.handedAt ? 'handed over' : nf(s.handD) + ' accepted') + (s.handW ? ' · ' + nf(s.handW) + ' waiting to accept' : '') + (ns && ns.state === 'notrecv' ? ' · NOT RECEIVED' + (ns.note ? ' (' + ns.note + ')' : '') : ''),
+    shpbDay(r.handedAt || (Array.isArray(sp.handLog) && sp.handLog.length ? sp.handLog[sp.handLog.length - 1].at : '')));
+  return out.filter(x => x.state !== 'na');
+}
+function shpbJourneyOpen(orderNo) {
+  const no = obUC(orderNo), lines = ordLines().filter(r => r.orderNo === no);
+  if (!lines.length) return;
+  const dot = { done: ['#dcfce7', '#166534', '✓'], part: ['#fef3c7', '#92400e', '◐'], active: ['#f59e0b', '#fff', '●'], future: ['#f1f5f9', '#94a3b8', '○'] };
+  const html = lines.map(r => {
+    const s = shpbStages([r]), steps = shpbSteps(r), now = steps.find(x => x.state === 'active' || x.state === 'part');
+    return `<div style="border:1px solid var(--line,#e2e8f0);border-radius:10px;padding:8px 10px;margin:0 0 10px">`
+      + `<div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><div><b>${esc(r.articleSubtype || r.articleType || r.itemName || '')}</b> <span class="muted">${esc([r.color, r.size].filter(Boolean).join(' • '))} · ${esc(r.sku)} · ${nf(r.qty)} pcs</span></div>`
+      + `<div style="font-size:12px;font-weight:700;color:${now ? '#b45309' : '#166534'}">${now ? 'Now at: ' + esc(now.step) : (r.open ? 'Everything done' : 'Complete')}</div></div>`
+      + `<div style="margin:6px 0">${shpbFlowSpans(r, s)}</div>`
+      + '<table style="width:100%;border-collapse:collapse;font-size:12px">' + steps.map(x => { const d = dot[x.state] || dot.future;
+        return `<tr><td style="padding:2px 6px;width:22px"><span style="display:inline-block;min-width:18px;text-align:center;border-radius:9px;background:${d[0]};color:${d[1]}">${d[2]}</span></td>`
+          + `<td style="padding:2px 6px;white-space:nowrap;font-weight:700">${esc(x.step)}</td><td style="padding:2px 6px;text-align:left">${esc(x.what)}</td><td style="padding:2px 6px;white-space:nowrap;color:#64748b">${esc(x.when)}</td></tr>`; }).join('') + '</table></div>';
+  }).join('');
+  ptOpenDialog({ title: 'Order ' + (lines[0].shopOrderNo || no) + ' — flow', subtitle: nf(lines.length) + ' line(s). ✓ done · ◐ partly done · ● waiting here now · ○ not reached yet.', html, wide: true });
+}
+
+if (SHPB_ON && $('odView') && $('odView').insertAdjacentHTML) $('odView').insertAdjacentHTML('beforeend', '<option value="shpboard">SHP board — Shopify orders</option>');
+if ($('odTable') && $('odTable').addEventListener) {
+  $('odTable').addEventListener('click', e => {
+    if (typeof ordView !== 'function' || ordView() !== 'shpboard') return;
+    const oj = e.target.closest && e.target.closest('[data-ordj]'); if (oj) { e.preventDefault(); e.stopPropagation(); shpbJourneyOpen(oj.getAttribute('data-ordj')); }
+  }, true);
+  $('odTable').addEventListener('click', e => {
+    if (typeof ordView !== 'function' || ordView() !== 'shpboard') return;
+    const a = e.target.closest && e.target.closest('[data-shpb-act]'); if (a) { e.preventDefault(); shpbDialog(a.dataset.shpbAct, a.dataset.key); }
+  });
+  $('odTable').addEventListener('change', async e => {
+    const i = e.target.closest && e.target.closest('[data-shpb-ready]'); if (!i || ordView() !== 'shpboard') return;
+    const err = await shpbSetReady(i.dataset.shpbReady, i.value);
+    if (err) { $('odMsg').className = 'err'; $('odMsg').textContent = err; } else renderShpBoard();
+  });
+}
+if ($('ptDlgBody') && $('ptDlgBody').addEventListener) $('ptDlgBody').addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('[data-shpb-recv]'); if (b) { const id = b.dataset.shpbRecv; ptDlgClose(); jwRecvOpen(id); }
+});
+if ($('odKpis') && $('odKpis').addEventListener) $('odKpis').addEventListener('click', e => {
+  if (ordView() !== 'shpboard') return;
+  const t = e.target.closest && e.target.closest('[data-shpb-tab]'); if (t) { SHPB.tab = t.dataset.shpbTab; SHPB.stage = ''; renderShpBoard(); return; }
+  const g = e.target.closest && e.target.closest('[data-shpb-stage]');
+  if (g) { SHPB.stage = SHPB.stage === g.dataset.shpbStage ? '' : g.dataset.shpbStage; SHPB.tab = SHPB.stage === 'hand' ? 'done' : 'pending'; renderShpBoard(); }
+});
 /* ============================== FILE: src/app/orders/shopify-pipeline-team.js ============================== */
 /* ==== SHOPIFY PIPELINE AND TEAM WORK (Ravi, 2026-09-28) ====
  * "shopify ka mera pas kya order aaya h and abhi kis stage par hai — cut, issue, receive, printing, press … meri team ka
@@ -27901,6 +28444,7 @@ function ordFabSides(fabric, colour, dir, code) {
   return out;
 }
 $('odExport').onclick = () => {
+  if (ordView() === 'shpboard' && typeof shpbExport === 'function') return shpbExport();   // the SHP board (TEST window): what it shows
   const rows = ORD.rows || []; if (!rows.length) return;
   const v = ordView();
   if (v === 'track') {
@@ -28051,6 +28595,19 @@ const FLOW_NO_REAL = Object.freeze([]);
  * The day is the day the line was OPENED (openIso), not the day the customer ordered: an order opened today from last
  * week is still new. localStorage flowMto = '0' turns it off on one computer. */
 const FLOW_MTO_FROM = '2026-10-15';
+/* THE SHP BOARD PLANS ITS OWN ORDERS (Ravi, 28 Oct: "aaj or is time ke bad jo order aayenge sirf wo hi dikhenge or ye order ppc se plan nahi
+ * honge yanhi se plan honge"). A Shopify order dated from FLOW_BOARD_FROM on belongs to the SHP board (Order Console → "SHP board"): it
+ * is planned there — the board's Plan button opens the same plan form — and it never waits in PPC's own bucket. Once planned it runs the
+ * flow like any line (Demand, challans, printed fabric in). Older Shopify orders, and every Amazon / B2B order, stay with PPC. */
+const FLOW_BOARD_FROM = '2026-10-28';
+function flowBoardDay(r) {
+  const m = String((r && r.orderDate) || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return typeof ptIsoDate === 'function' ? String(ptIsoDate(r && r.orderDate) || '') : '';
+  let mo = +m[2], d = +m[3];
+  if (mo > 12 && d <= 12) { const t = mo; mo = d; d = t; }          // a few order dates are written year-day-month
+  return m[1] + '-' + String(mo).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+}
+const flowBoardOwns = r => !!(r && !r.__t && /^SHP-/i.test(String(r.orderNo || '')) && flowBoardDay(r) >= FLOW_BOARD_FROM);
 const FLOW_MTO_LIVE = (() => { try { return localStorage.getItem('flowMto') !== '0'; } catch (e) { return true; } })();
 /** A real line put on the book from FLOW_MTO_FROM on. With FLOW_REAL every such line is new (15 Oct: the open orders were
  * deleted and uploaded again, many with an order date from before flowFrom() — the day they came onto the book is what
@@ -28339,7 +28896,12 @@ function flowState(r) {
     s.fabHave = flowR2(have); s.fabTotal = total;
     if (route === 'emb' && flowInHand(p) && flowEmbByVendor(p)) s.fabHave = flowR2(+(p.fabric && p.fabric.metres) || 0);   // in hand: all of it, for embroidery
     /* ALL FROM PRINTED STOCK: nothing to print, nothing to send — given and back in full, straight to Cutting. */
-    s.fromStock = !flowPrintsSomething(r, p);
+    /* NOTHING LEFT TO MAKE (27 Oct): a line cut / issued in full before anything went to a printer prints nothing. One already
+     * on a print order or a challan keeps it — the printer's work and the cloth coming back still count. */
+    /* embroidery always cuts (below): its cut pieces count even where the master says no cutting */
+    const remP = (po || cx) ? 1 : flowRemFrac(r, route === 'emb' ? Object.assign({}, s, { cut: cap(r.cut) }) : s);
+    s.noneLeft = !(remP > 0);
+    s.fromStock = !flowPrintsSomething(r, p, remP);
     if (s.fromStock) { s.given = qty; s.back = qty; }
     else if (po || cx) {
       s.given = qty;
@@ -28378,11 +28940,16 @@ function flowState(r) {
   const accNeed = !!p && route !== 'outsource' && (p.acc || []).some(a => a.code && +a.qty > 0);
   const handReady = !!(d && d.fabricReady && !d.fabricReady.challan);
   s.needFab = isNew && !!p && route !== 'outsource' && route !== 'jobwork' && !handReady && !flowInHand(p)
-    && (flowPrinted(route) ? (flowFabOwed({ qty }, s).left > 0.01 || (flowPrintExtras(r, p).length > 0 && !(flowRufflePrinter(p) ? flowChIndex()[k + FLOW_RUF] : cx))) : (!(d && d.fabricReady) && flowRemFrac(r, s) > 0));   // the ruffle cloth goes too, on the first challan
+    && (flowPrinted(route) ? (flowFabOwed({ qty }, s).left > 0.01 || (flowRemFrac(r, s) > 0 && flowPrintExtras(r, p).length > 0 && !(flowRufflePrinter(p) ? flowChIndex()[k + FLOW_RUF] : cx))) : (!(d && d.fabricReady) && flowRemFrac(r, s) > 0));   // the ruffle cloth goes too, on the first challan
   s.needAcc = isNew && accNeed && !res;
+  /* STARTED BEFORE PPC PLANNED IT (Ravi, 27 Oct: a line still waiting in PPC was issued to a karigar from the Job Work Register,
+   * and PPC showed nothing of it). PPC lists what is already cut / issued / passed on the line (flowStartedHtml) and plans only
+   * the rest. A line the registers cover in full still waits in PPC, marked "nothing left to make" (Ravi, 27 Oct: kept there
+   * until it is planned) — its plan raises no cloth, print order or zippers, and the line then moves on to where the work is. */
+  s.startedNoPlan = isNew && !p && flowRemFrac(r, s) < 1;
   s.bucket =
       (r.handedAt || r.shopDoneAt) ? 'done'
-    : (isNew && !p) ? (flowIsBack(r) ? 'back' : 'ppc')
+    : (isNew && !p) ? (flowBoardOwns(r) ? 'board' : (flowIsBack(r) ? 'back' : 'ppc'))   // 'board' is in no flow list: the SHP board plans it
     : (route === 'outsource') ? (s.india < qty ? 'out' : 'done')
     : (s.needFab || s.needAcc) ? 'demand'
     : (printed && s.given < qty) ? 'vendor'
@@ -28890,6 +29457,9 @@ function flowPpcOpen(orderNo, onlySku, keys) {
       /* The print order goes to the printer now — so a printed line has to say which printer. */
       /* What still goes to a printer once printed stock is taken: the body not covered, or a ruffle cloth not covered. */
       const printsAt = (i, which) => { const c = cover[i] || { fab: 0, unit: 'm', extra: {} }, p = plans[i], qty = +p.qty || 0, m = flowR2((+p.fabric.perPc || 0) * qty);
+        /* Cut / issued in full before anything went to a printer (27 Oct): nothing prints, so no printer and no direction is asked
+         * for — the same rule as the print order itself (flowPrintsSomething). */
+        if (!flowPrintsSomething(rows[i].r, Object.assign({}, p, { fabric: Object.assign({}, p.fabric, { fromPrinted: 0, metres: m }) }))) return which ? '' : false;
         const bodyLeft = c.unit === 'pcs' ? qty - (c.fab || 0) : m - (c.fab || 0);
         const rufLeft = (p.extra || []).some((x, j) => /^Ruffle — /.test(String(x.what || '')) && (+x.qty || 0) - ((c.extra || {})[j] || 0) > 0.01);
         if (which) return bodyLeft > 0.01 ? 'body' : rufLeft ? 'ruffle' : '';   // only the ruffle prints → the ruffle printer is enough
@@ -28906,6 +29476,9 @@ function flowPpcOpen(orderNo, onlySku, keys) {
       const patch = {}, now = new Date().toISOString();
       const noFab = plans.filter((p, i) => pick(i) && p.route !== 'outsource' && !String(p.fabric.name || '').trim()).map(p => p.sku);
       if (noFab.length) return `Which fabric? Type it for ${noFab.join(', ')} before raising the plan.`;
+      /* READY DATE REQUIRED (28 Oct): the PPC report measures a line's delay against it — a plan without one could never be late. */
+      const noReady = plans.filter((p, i) => pick(i) && !String((p.dates || {}).ready || '').trim()).map(p => p.sku);
+      if (noReady.length) return `When is it ready? Pick the Ready date for ${noReady.join(', ')}.`;
       plans.forEach((p, i) => {
         if (!pick(i)) return;   // left in PPC for now
         p.fabric.metres = flowR2(p.fabric.perPc * p.qty); delete p.fabric.was;
@@ -28921,10 +29494,10 @@ function flowPpcOpen(orderNo, onlySku, keys) {
         /* In hand: no RFD raised — the metres stay, so the cutting table knows what the line takes (16 Oct). */
         if ((p.route === 'stitch' || p.route === 'emb') && p.fabric && p.fabric.noRfd) p.fabric = Object.assign({}, p.fabric, { fromPrinted: 0, noRfd: true });
         if (p.route === 'emb' && p.fabric && p.fabric.noRfd) { p.printer = null; p.rufflePrinter = null; }   // in hand: no printer
-        /* THE LOT KEEPS ITS NUMBER (Ravi, 28 Oct: production lots 001-GR…, ppc-one.js): the time the line was first planned
-         * is kept, so a re-plan does not move it to a new lot number. */
+        /* THE DAY IT WAS FIRST PLANNED (28 Oct, the PPC report) and THE LOT KEEPS ITS NUMBER (production lots 001-GR…, ppc-one.js):
+         * both kept through every re-plan; a plan from before then starts from its last save. */
         const was = rows[i] && rows[i].s && rows[i].s.plan;
-        const rec = Object.assign({}, p, { at: now, by: ME.email || '', lotAt: (was && (was.lotAt || was.at)) || now }); delete rec.gaps;
+        const rec = Object.assign({}, p, { firstAt: (was && (was.firstAt || was.at)) || now, at: now, by: ME.email || '', lotAt: (was && (was.lotAt || was.at)) || now }); delete rec.gaps;
         patch['pt_ppc/' + flowKey(p.orderNo, p.sku)] = rec;
       });
       /* A re-plan: what it undoes downstream, written in the same save and said. */
@@ -28944,9 +29517,11 @@ function flowPpcOpen(orderNo, onlySku, keys) {
           const had = (FLOW.res || {})[x.s.key], dropped = had && patch['pt_accReserve/' + x.s.key] === null;
           if (had && !dropped) return;   // already reserved and the accessories did not change
           if (had) Object.entries(flowHeld(x.s.key, x.s.issued, +x.r.qty || 0)).forEach(([c, n]) => { if (free[c]) free[c].free += n; });   // its own old hold
-          const short = Object.entries(items).filter(([c, n]) => ((free[c] || {}).free || 0) - (took[c] || 0) < n);
+          /* What the hold really takes: the share of the line not yet issued (flowHeld) — pieces issued already took their zippers. */
+          const lq = +x.r.qty || 0, lleft = lq > 0 ? Math.max(0, 1 - (+x.s.issued || 0) / lq) : 0, want = Object.fromEntries(Object.entries(items).map(([c, n]) => [c, Math.ceil(n * lleft)]));
+          const short = Object.entries(want).filter(([c, n]) => ((free[c] || {}).free || 0) - (took[c] || 0) < n);
           if (short.length) { said.push(`${x.s.sku || obUC(x.r.sku)}: ${short.map(([c, n]) => `${c} short ${n - Math.max(0, ((free[c] || {}).free || 0) - (took[c] || 0))}`).join(', ')} — waits in Demand · Accessories`); return; }
-          Object.entries(items).forEach(([c, n]) => { took[c] = (took[c] || 0) + n; });
+          Object.entries(want).forEach(([c, n]) => { took[c] = (took[c] || 0) + n; });
           patch['pt_accReserve/' + x.s.key] = { orderNo: x.r.orderNo, sku: obUC(x.r.sku), items, at: now, by: ME.email || '', auto: true };
           said.push(`${obUC(x.r.sku)}: accessories reserved`); }); }
       /* The print orders, in the same write. */
@@ -29062,7 +29637,7 @@ function flowPpcOpen(orderNo, onlySku, keys) {
       }
       /* Job Work straight away: no cloth is raised for it — accessories only. */
       if (fname && route !== 'jobwork' && !noRfd) { const k = flowFabKey(fname), before = (com.fab[k] || 0) + (run.fab[k] || 0); names['f|' + k] = fname;
-        h.push(flowMatRow(`RFD · <b>${esc(fname)}</b>${doneP > 0 ? ` <span class="muted">(${nf(doneP)} pcs already cut — for the other ${nf(qtyP - doneP)})</span>` : rfdNeed < metres ? ' <span class="muted">(the rest)</span>' : ''}`, rfdNeed, flowRfdStock(fname), before, ' m', flowFabKnown(fname)));
+        h.push(flowMatRow(`RFD · <b>${esc(fname)}</b>${doneP > 0 ? ` <span class="muted">(${nf(doneP)} pcs already cut or issued — for the other ${nf(qtyP - doneP)})</span>` : rfdNeed < metres ? ' <span class="muted">(the rest)</span>' : ''}`, rfdNeed, flowRfdStock(fname), before, ' m', flowFabKnown(fname)));
         run.fab[k] = flowR2((run.fab[k] || 0) + rfdNeed); }
       (p.extra || []).forEach((x, j) => {
         if (route === 'jobwork' && x.unit === 'm') return;   // no cloth for a line going straight to job work
@@ -29083,8 +29658,11 @@ function flowPpcOpen(orderNo, onlySku, keys) {
         const before = (com.extra[k] || 0) + (run.extra[k] || 0); if (ruf) names['x|' + k] = name;
         h.push(flowMatRow(ruf ? `RFD · <b>${esc(name)}</b> <span class="muted">(ruffle${need < (+x.qty || 0) ? ', the rest' : ''})</span>` : `<b>${esc(x.what)}</b>`, need, ruf ? flowRfdStock(name) : 0, before, ' m', ruf && flowFabKnown(name)));
         run.extra[k] = flowR2((run.extra[k] || 0) + need); });
-      (p.acc || []).forEach((a, j) => { const c = accCode(a.code), need = +(val(i, 'acc.' + j + '.qty') ?? a.qty) || 0, before = (com.acc[c] || 0) + (run.acc[c] || 0); names['a|' + c] = a.what;
-        h.push(flowMatRow(`${esc(a.what)} <span class="muted">(code ${esc(a.code)})</span>`, need, shelf[c] || 0, before, '', c in shelf));
+      /* ZIPPERS GO OUT WITH THE ISSUE (27 Oct): pieces Job Work has already issued on the line took theirs off the shelf, so the
+       * plan holds only the share not yet issued — the same share a reservation holds (flowHeld). */
+      const issP = rows[i].s ? +rows[i].s.issued || 0 : 0, qtyL = +rows[i].r.qty || 0, accLeft = qtyL > 0 ? Math.max(0, 1 - issP / qtyL) : 1;
+      (p.acc || []).forEach((a, j) => { const c = accCode(a.code), full = +(val(i, 'acc.' + j + '.qty') ?? a.qty) || 0, need = Math.ceil(full * accLeft), before = (com.acc[c] || 0) + (run.acc[c] || 0); names['a|' + c] = a.what;
+        h.push(flowMatRow(`${esc(a.what)} <span class="muted">(code ${esc(a.code)}${issP > 0 && need < full ? ` · ${nf(issP)} pcs already issued — for the other ${nf(Math.max(0, qtyL - issP))}` : ''})</span>`, need, shelf[c] || 0, before, '', c in shelf));
         run.acc[c] = (run.acc[c] || 0) + need; });
       mat.innerHTML = h.join('') || '<tr><td colspan="4" class="muted" style="text-align:left">nothing to raise</td></tr>';
       /* What this line sends to the printer once the store has given what it can — for the order's combined demand. */
@@ -29312,7 +29890,9 @@ async function flowReserve(r, s) {
   const items = {};
   ((s.plan && s.plan.acc) || []).forEach(a => { if (a.code && +a.qty > 0) items[accCode(a.code)] = (items[accCode(a.code)] || 0) + (+a.qty); });
   if (!Object.keys(items).length) return 'Nothing to reserve: the plan raised no accessory from the shelf.';
-  const free = flowAccFree(), short = Object.entries(items).filter(([c, n]) => !free[c] || free[c].free < n);
+  /* Only for the pieces not yet issued (27 Oct): those issued took their zippers already — the hold is that share too (flowHeld). */
+  const q = +r.qty || 0, left = q > 0 ? Math.max(0, 1 - (+s.issued || 0) / q) : 0;
+  const free = flowAccFree(), short = Object.entries(items).map(([c, n]) => [c, Math.ceil(n * left)]).filter(([c, n]) => n > 0 && (!free[c] || free[c].free < n));
   if (short.length) return 'Short: ' + short.map(([c, n]) => `${c} needs ${n}, ${free[c] ? Math.max(0, free[c].free) : 0} free`).join(' · ') + ' — buy or free some first.';
   const rec = { orderNo: r.orderNo, sku: obUC(r.sku), items, at: new Date().toISOString(), by: ME.email || '' };
   const g = await flowGuard('acc'); if (g) return g;   // the shelf is shared: two reservations at once must not both take the same zips
@@ -30861,6 +31441,12 @@ function flowCloseShortOpen(no) {
  * 1. Printer Allocation: the printer fed against that brand + colour (the colour IS the design)
  * 2. else the printer this colour was last given to — a vendor order with one of its SKUs, or an earlier challan
  * Nothing found → blank, and PPC picks. */
+/** A date as YYYY-MM-DD, whichever way it was written: a vendor order says 24/10/2026, a challan 2026-10-24 (comparing the two as text put
+ * 30/09/2026 after 24/10/2026 — Ravi, 28 Oct: Apatite Blue was last given to A R Textile Printer, and PPC still suggested Bhavya). */
+function flowIsoDay(v) {
+  const t = String(v || '').trim(); let m = t.match(/^(\d{4})-(\d{2})-(\d{2})/); if (m) return m[0];
+  m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/); return m ? m[3] + '-' + String(m[2]).padStart(2, '0') + '-' + String(m[1]).padStart(2, '0') : '';
+}
 function flowPrinterFor(r) {
   const m = cutSkuOf(r.sku) || {}, color = String(m.color || r.color || '').trim(), brand = m.brand || '';
   let vens = []; try { vens = flowChVendors(); } catch (e) { vens = []; }
@@ -30871,9 +31457,9 @@ function flowPrinterFor(r) {
     try { const info = palInfoOf(palKey(brand, color)); const v = find(info && info.printer); if (v) return as(v, `Printer Allocation: ${color} is allocated to this printer`); } catch (e) { /* allocation not read */ }
     let best = null;
     try { (VO.rows || []).forEach(o => voLines(o).forEach(l => { const lm = l.sku && cutSkuOf(l.sku);
-      if (lm && String(lm.color || '').trim() === color && (!best || String(o.orderDate || '') > String(best.date))) best = { code: o.vendorCode, date: String(o.orderDate || '') }; })); } catch (e) { /* vendor orders not read */ }
+      if (lm && String(lm.color || '').trim() === color && (!best || flowIsoDay(o.orderDate) > best.date)) best = { code: o.vendorCode, date: flowIsoDay(o.orderDate) }; })); } catch (e) { /* vendor orders not read */ }
     Object.values(FLOW.ch || {}).forEach(c => (c.lines || []).forEach(l => { const lm = cutSkuOf(l.sku);
-      if (lm && String(lm.color || '').trim() === color && (!best || String(c.date || '') > best.date)) best = { code: c.vendor && c.vendor.code, date: String(c.date || '') }; }));
+      if (lm && String(lm.color || '').trim() === color && (!best || flowIsoDay(c.date) > best.date)) best = { code: c.vendor && c.vendor.code, date: flowIsoDay(c.date) }; }));
     const v = best && find(best.code); if (v) return as(v, `last given ${color} (${best.date.slice(0, 10)})`);
   }
   return { code: '', name: '', why: color ? `no printer allocated to ${color} yet` : 'no colour on the master' };
@@ -30891,8 +31477,14 @@ function flowPrinterFor(r) {
  *   pt_flowPrintOrders/<no> = { no, date, orderNo, printer:{code,name}, items:{ <line>: {sku, item, print, extras, pcs,
  *                               metres, unit} }, at, by, cancelled? }  */
 
-/** Whether a planned line still sends anything to a printer once printed stock is taken: body or ruffle cloth. */
-const flowPrintsSomething = (r, p) => { if (flowInHand(p)) return false;   // printed cloth in hand: nothing goes to a printer
+/** Whether a planned line still sends anything to a printer once printed stock is taken: body or ruffle cloth.
+ * rem: the share of the line still to make (flowRemFrac) — nothing at all once the registers cover it (27 Oct: a line issued in
+ * full from Job Work before PPC planned it raises no print order). Read from the line when not given. */
+const flowPrintsSomething = (r, p, rem) => { if (flowInHand(p)) return false;   // printed cloth in hand: nothing goes to a printer
+  /* A line already on a print order or a challan stays there: editing its plan later must not take it off (and cancel the order). */
+  if (rem == null) { try { const k = flowKey(r.orderNo, r.sku), px = flowPoIndex(), cxi = flowChIndex();
+    rem = px[k] || px[k + FLOW_RUF] || cxi[k] || cxi[k + FLOW_RUF] ? 1 : flowRemFrac(r, flowState(r)); } catch (e) { rem = 1; } }
+  if (!(rem > 0)) return false;
   const w = flowPrintWhat(r, p), tp = flowToPrint(r, p);
   return (w.kind === 'sku' ? tp.pcs > 0 : tp.metres > 0.01) || flowPrintExtras(r, p).length > 0; };
 /** Which print order holds each line: { lineKey: no } — cached on FLOW.po. */
@@ -30986,7 +31578,12 @@ function flowVoProgOf(o, kind) {
   const unit = kind === 'cut' ? 'pcs' : 'm', keys = new Set(Object.keys(o.items || {}).filter(k => o.items[k]));
   const code = String((o.printer && o.printer.code) || ''), challans = [], receipts = [], items = {};
   Object.values(FLOW.ch || {}).forEach(c => {
-    if (!c || c.cancelled || obUC(c.orderNo) !== obUC(o.orderNo) || String((c.vendor && c.vendor.code) || '') !== code) return;
+    if (!c || c.cancelled || String((c.vendor && c.vendor.code) || '') !== code) return;
+    /* A CHALLAN CAN CARRY SEVERAL ORDERS (Ravi, 27 Oct: RTC72-60120 — "7 orders, Raw 0, Sent 0, Balance 7" on the printer's card while the
+     * challan had gone and been received): RFD-202610-070 is orderNo "SHP-RBP7558, SHP-RBP7606", so comparing the whole string with one
+     * print order's number never matched, and a printer whose cloth went on a combined challan was shown nothing sent. It counts when
+     * the order is any of the challan's; its lines are then picked by this print order's own line keys, below. */
+    if (!(c.orders && c.orders.length ? c.orders : String(c.orderNo || '').split(/,\s*/)).some(n => obUC(n) === obUC(o.orderNo))) return;
     const ls = (c.lines || []).filter(l => flowChUnit(l) === unit && (keys.has(l.key) || keys.has(l.key + FLOW_RUF)));
     if (!ls.length) return;
     const lk = new Set(ls.map(l => l.key));
@@ -32411,6 +33008,7 @@ function renderFlow() {
   FLOW.shownDrfd = FLOW_VIEW === 'drfd' ? rows : [];     // every line the filters let through, not only the 800 drawn
   ['flXlOut', 'flXlIn'].forEach(id => { const b = $(id); if (b && b.classList) b.classList.toggle('hide', FLOW_VIEW !== 'ppc'); });
   try { flowXlBtn(); } catch (e) { /* not drawn */ }
+  try { flowRepBtn(); } catch (e) { /* not drawn */ }
   /* DEMAND HAS TWO ANGLES (Ravi, 10 Oct: "keep this section in a different angle"): the lines, or the stock by
    * fabric / accessory against them — one at a time, never stacked. */
   if (FLOW.stock) {
@@ -32801,7 +33399,7 @@ function flowCutFrom(x) {
   if (!p || !flowPrinted(x.s.route)) return '<span class="muted">—</span>';
   const w = flowPrintWhat(x.r, p), m = flowR2(+(p.fabric && p.fabric.metres) || 0), fp = +(p.fabric && p.fabric.fromPrinted) || 0;
   return `${w.kind === 'sku' ? `<b>${esc(w.code)}</b> printed pieces` : flowPrintTxt(w)}<div class="muted" style="font-size:10.5px">${w.kind === 'sku' ? nf(x.r.qty) + ' pcs' : nf(m) + ' m'} for ${nf(x.r.qty)} pcs`
-    + (x.s.fromStock ? ' · <b style="color:#166534">all from printed stock in the store</b>' : fp > 0 ? ` · ${nf(fp)} ${p.fabric.printedUnit === 'pcs' ? 'pcs' : 'm'} from printed stock, the rest from the printer` : ' · from the printer') + '</div>'
+    + (x.s.noneLeft ? ' · <b style="color:#166534">nothing to print — the whole line was cut or issued already</b>' : x.s.fromStock ? ' · <b style="color:#166534">all from printed stock in the store</b>' : fp > 0 ? ` · ${nf(fp)} ${p.fabric.printedUnit === 'pcs' ? 'pcs' : 'm'} from printed stock, the rest from the printer` : ' · from the printer') + '</div>'
     + (x.s.bucket === 'fabric' ? `<div style="font-size:11px;color:#b45309"><b>${nf(x.s.canCut)} pcs can be cut now</b> — printed fabric back for ${nf(x.s.back)} of ${nf(x.r.qty)} pcs, the rest still with the printer</div>` : '');
 }
 /* THE WASTE OF THE CUTTING TABLE (Ravi, 11 Oct: "yadi kuch waste ho to wo show ho Raw cutting in store me"). Every cutting
@@ -32841,6 +33439,22 @@ const flowChTag = s => { const fr = s.demand && s.demand.fabricReady; return fr 
 const FLOW_GO = { out: ['fgi', 'Finished Goods (receive)'], vendor: ['vreq', 'Vendor requests'], fabric: ['vlog', 'History (accept)'], cut: ['pcut', 'Cutting'], raw: ['pbase', 'Job Work (issue)'],
   wip: ['qc', 'QC'], fgin: ['fgi', 'Finished Goods (receive)'] };
 
+/* ALREADY STARTED, NOT PLANNED (Ravi, 27 Oct): a PPC line somebody has cut or issued from the Job Work Register says so —
+ * what is cut, who it is with, what is back and passed — and how much the plan is still for (flowState s.startedNoPlan). */
+function flowStartedHtml(x) {
+  if (!x || !x.s || !x.s.startedNoPlan) return '';
+  const r = x.r, s = x.s, q = +r.qty || 0, left = Math.round(q * flowRemFrac(r, s));
+  const who = new Map();
+  (PT.base || []).forEach(b => { const pcs = +(b && b.issuePieces) || 0;
+    if (pcs > 0 && obUC(b.orderNo) === obUC(r.orderNo) && obUC(b.sku) === obUC(r.sku)) { const n = String(b.empName || '').trim() || 'karigar'; who.set(n, (who.get(n) || 0) + pcs); } });
+  const parts = [
+    +r.cut > 0 && `cut <b>${nf(+r.cut)}</b>`,
+    s.issuedAll > 0 && `issued <b>${nf(s.issuedAll)}</b>${who.size ? ' to ' + [...who].map(([n, p]) => `${esc(n)} (${nf(p)})`).join(', ') : ''}`,
+    s.receivedAll > 0 && `back <b>${nf(s.receivedAll)}</b>`,
+    s.made > 0 && `passed <b>${nf(s.made)}</b>`].filter(Boolean);
+  return `<div style="font-size:12px;color:#1d4ed8;margin-top:3px;white-space:normal">Already started: ${parts.join(' · ')}`
+    + ` — ${left > 0 ? `plan the other <b>${nf(left)}</b> pcs` : `<b>all ${s.issuedAll >= q ? 'issued' : (+r.cut || 0) >= q ? 'cut' : 'done'} — nothing left to make</b>`}</div>`;
+}
 function flowTable(view, rows) {
   const pic = sku => { const u = typeof ptImgOf === 'function' ? ptImgOf(sku) : ''; return u ? `<img src="${esc(ptImgSrc(u, 34))}" alt="" style="width:34px;height:34px;object-fit:contain;background:#fff;border-radius:5px">` : ''; };
   /* COMPACT (Ravi, 14 Oct: "compact this"): the order column has a width it wraps in, and the order's name, badge, delete
@@ -32900,7 +33514,7 @@ function flowTable(view, rows) {
       prevNo = null;
       return `<tr style="background:#f5f3ff"><td class="frz" style="text-align:left;width:250px;max-width:250px;white-space:normal;vertical-align:top">
           <span class="jw-st prog">Combined · ${nf(g.length)} orders</span><div class="muted" style="font-size:12px;margin-top:3px">same SKU, ordered ${esc(ptIsoDate(x0.r.orderDate) || '')}</div>
-          ${g.map(x => `<div style="font-size:12.5px">${x.r.__t ? `<b>${esc(x.r.orderNo)}</b>` : `<a href="#" data-ordj="${esc(x.r.orderNo)}">${esc(x.r.orderNo)}</a>`} · <b>${nf(x.r.qty)}</b> <span class="muted">${esc(x.r.src || '')}</span></div>`).join('')}</td>
+          ${g.map(x => `<div style="font-size:12.5px">${x.r.__t ? `<b>${esc(x.r.orderNo)}</b>` : `<a href="#" data-ordj="${esc(x.r.orderNo)}">${esc(x.r.orderNo)}</a>`} · <b>${nf(x.r.qty)}</b> <span class="muted">${esc(x.r.src || '')}</span></div>${flowStartedHtml(x)}`).join('')}</td>
         <td style="text-align:left;white-space:nowrap;vertical-align:top"><div style="display:flex;gap:8px;align-items:flex-start">${pic(x0.r.sku)}<div style="line-height:1.5">
           <b style="font-family:ui-monospace,monospace">${esc(x0.r.sku)}</b>${[x0.r.articleSubtype || x0.r.articleType, x0.r.color, x0.r.size].filter(Boolean).map(t => `<div class="muted" style="font-size:12px">${esc(t)}</div>`).join('')}</div></div></td>
         <td class="num" style="vertical-align:top"><b>${nf(tot)}</b><div class="muted" style="font-size:11px">${g.map(x => nf(x.r.qty)).join(' + ')}</div></td>
@@ -32916,7 +33530,7 @@ function flowTable(view, rows) {
         <div>Fabric: <b>${esc(sg.fabric.name || '?')}</b> · ${sg.fabric.metres ? nf(sg.fabric.metres) + ' m' : '<b style="color:#b91c1c">metres not known</b>'}</div>
         <div>${sg.print.need ? `Print: <b>${esc(sg.printer.name || 'printer not chosen')}</b>${sg.printer.why ? `<div class="muted" style="font-size:12px">${esc(sg.printer.why)}</div>` : ''}` : 'No printing — straight to cutting'}</div>
         ${sg.acc.length ? `<div>Accessories: ${sg.acc.map(a => esc(a.code) + ' × ' + nf(a.qty)).join(', ')}</div>` : ''}
-        ${sg.gaps.length ? `<div style="font-size:12px;color:#92400e">${esc(sg.gaps[0])}${sg.gaps.length > 1 ? ' (+' + (sg.gaps.length - 1) + ')' : ''}</div>` : ''}</td>
+        ${sg.gaps.length ? `<div style="font-size:12px;color:#92400e">${esc(sg.gaps[0])}${sg.gaps.length > 1 ? ' (+' + (sg.gaps.length - 1) + ')' : ''}</div>` : ''}${flowStartedHtml(x)}</td>
         <td style="white-space:nowrap;vertical-align:top"><div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start">${flowPpcHasDraft(x.s.key) ? '<span class="jw-st prog" title="Started in PPC and saved as a draft on this computer — open it to carry on">Draft saved</span>' : ''}${first ? `<button data-flppc="${esc(x.r.orderNo)}" style="width:auto;padding:3px 10px;font-size:12px">Plan this PO</button>` : ''}
           <button class="ghost" data-flppc="${esc(x.r.orderNo)}" data-sku="${esc(x.r.sku)}" style="width:auto;padding:2px 8px;font-size:11.5px">This line</button>
           ${backBtn([x])}</div></td></tr>`; }).join('');
@@ -33250,6 +33864,343 @@ async function flowFgOpen() {
   showTab('fgi'); if ($('fgView')) $('fgView').value = 'flow';
   if (typeof ensureFgi === 'function') await ensureFgi(); else renderFgi();
 }
+/* ============================== FILE: src/app/flow/flow-report.js ============================== */
+/* ================================================================
+ * PPC REPORT (Ravi, 28 Oct: "a report system so that a person can download it on the basis of days or choosing the date
+ * from calendar — this is the ppc report of it", in the layout of Sheet3 of his WIP workbook: one row a line, then the
+ * Row Labels / Sum of PCS summary). Nothing is read for it but the sales orders' due dates: the lines, plans, print orders,
+ * challans and Job Work issues are the ones the PPC screen has already read, so opening it costs the database nothing.
+ *
+ *   Plan date     the day the plan was FIRST saved (plan.firstAt, kept from 28 Oct). A plan saved before then has only its
+ *                 last save (plan.at).
+ *   Stages        (Ravi, 28 Oct, the design he approved): for each of Greige, RFD, Printing, Embroidery, Cutting, Job work,
+ *                 QC and Finished a Status (Done / In progress / Not started / Not needed, in colour), the Pcs through it
+ *                 ("-" before it starts) and its paper beside it (flowRepStages). A Stage board sheet says where work waits.
+ *   Last moved    the last thing that happened to the line and its day (flowRepLastMoved).
+ *   Completion date  the plan's Ready date — PPC must give one to save a plan (28 Oct).
+ *   Due date      the sales order's delivery date; for a Shopify / online line, 5 working days from when it opened (the
+ *                 made-to-order rule of Production to Shipping); for the rest (Amazon), the Ready date — Amazon gives none.
+ *   Delay         today against the due date, for a line not yet made; a made line says "made".
+ *   Who           admins, and whoever holds the Reports right.
+ * ================================================================ */
+const FLOW_REP = { from: '', to: '', on: 'planned', by: 'sku', soErr: '', gpo: null };
+const flowRepAllowed = () => !!(ME.admin || (ME.tabs || []).includes('rep'));
+/* Made — passed QC: nothing left to be late on. */
+const FLOW_REP_MADE = ['ship', 'fgin', 'done'];
+const flowRepPad = n => String(n).padStart(2, '0');
+/** A saved time (ISO, UTC) as the calendar day it was here. */
+const flowRepDay = at => { if (!at) return ''; const d = new Date(at); return isNaN(d) ? String(at).slice(0, 10) : d.getFullYear() + '-' + flowRepPad(d.getMonth() + 1) + '-' + flowRepPad(d.getDate()); };
+const flowRepShow = iso => { const q = String(iso || '').slice(0, 10).split('-'); return q.length === 3 && q[0] ? q[2] + '/' + q[1] + '/' + q[0] : ''; };
+const flowRepAdd = (iso, n) => { const q = String(iso).split('-').map(Number), d = new Date(q[0], q[1] - 1, q[2] + n); return d.getFullYear() + '-' + flowRepPad(d.getMonth() + 1) + '-' + flowRepPad(d.getDate()); };
+const flowRepDaysBetween = (a, b) => { const p = s => { const q = String(s).split('-').map(Number); return Date.UTC(q[0], q[1] - 1, q[2]); }; return Math.round((p(b) - p(a)) / 864e5); };
+const FLOW_REP_CHANNEL = { AMZ: 'Amazon', SHP: 'Shopify', ONL: 'Online', B2B: 'B2B', SO: 'Sales order', FBA: 'Amazon' };
+const flowRepChannel = r => { const pre = obUC(String(r.orderNo || '').split('-')[0]); return FLOW_REP_CHANNEL[pre] || FLOW_REP_CHANNEL[obUC(r.src)] || String(r.src || pre || ''); };
+
+/** The quick choices: [label, from, to]. */
+function flowRepRanges() {
+  const t = dToday(), m = t.slice(0, 8) + '01';
+  return [['Today', t, t], ['Yesterday', flowRepAdd(t, -1), flowRepAdd(t, -1)], ['Last 7 days', flowRepAdd(t, -6), t], ['Last 30 days', flowRepAdd(t, -29), t], ['This month', m, t]];
+}
+
+/** Due date and where it came from — the sales order's, the made-to-order rule's, or PPC's own Ready date. */
+function flowRepDue(r, p, soDue) {
+  const so = soDue && soDue.get(obUC(r.orderNo) + '|' + obUC(r.sku));
+  if (so) return { due: so, from: 'sales order' };
+  if (r.mtoDue) return { due: String(r.mtoDue).slice(0, 10), from: 'Shopify · 5 working days' };
+  const ready = p && p.dates && p.dates.ready;
+  if (ready) return { due: String(ready).slice(0, 10), from: 'PPC ready date' };
+  return { due: '', from: '' };
+}
+/** "LATE · 2 days" / "3 days left" / "due today" / "made" / "no date set" — and the days late as a number (0 when not late). */
+function flowRepDelay(due, made, today) {
+  if (made) return { txt: 'made', late: 0 };
+  if (!due) return { txt: 'no date set', late: 0 };
+  const d = flowRepDaysBetween(due, today);
+  if (d > 0) return { txt: `LATE · ${d} day${d > 1 ? 's' : ''}`, late: d };
+  if (d === 0) return { txt: 'due today', late: 0 };
+  return { txt: `${-d} day${d < -1 ? 's' : ''} left`, late: 0 };
+}
+/** Who has the work: the printer (or embroiderer / outside vendor) on the plan, then the karigars Job Work issued it to. */
+function flowRepWho(r, p) {
+  const out = [];
+  if (p && p.printer && (p.printer.name || p.printer.code)) out.push(p.printer.name || p.printer.code);
+  if (p && p.emb && (p.emb.name || p.emb.code)) out.push(p.emb.name || p.emb.code);
+  if (p && p.route === 'outsource' && String(p.outVendor || '').trim()) out.push(String(p.outVendor).trim());
+  const kar = new Map();
+  (PT.base || []).forEach(b => { const n = +(b && b.issuePieces) || 0;
+    if (n > 0 && obUC(b.orderNo) === obUC(r.orderNo) && obUC(b.sku) === obUC(r.sku)) { const w = String(b.empName || '').trim() || 'karigar'; kar.set(w, (kar.get(w) || 0) + n); } });
+  kar.forEach((n, w) => out.push(`${w} (${n})`));
+  return out.join(', ');
+}
+/* THE STAGES OF A LINE (Ravi, 28 Oct: "one [column] to tell done / not done … if the process is not done show '-' … if the
+ * process is work in progress show the actual count of pieces"). Each stage is { need, done }: need false = the line does
+ * not go through it ("Not needed"); done = the pieces through it so far. A piece past a stage has been through it — a piece
+ * cut was printed, one back from the karigar was cut — so each stage counts what any later stage has.
+ *   Greige     pieces whose RFD cloth is in stock or already sent (Demand · RFD, flowRfdCover); greige is bought per fabric.
+ *   RFD        pieces whose cloth has gone to the printer (printed lines, flowFabOwed), or is ready (cutting lines).
+ *   Printing   printed pieces back.  Embroidery  embroidered pieces back.  Cutting  pieces cut.
+ *   Job work   pieces back from the karigars.  QC  pieces passed.  Finished  in India stock / handed to shipping. */
+const FLOW_REP_STAGES = [['greige', 'Greige', 'Greige PO'], ['rfd', 'RFD', 'RFD challan'], ['print', 'Printing', 'Print order'], ['emb', 'Embroidery', 'Emb challan'],
+  ['cut', 'Cutting', ''], ['job', 'Job work', 'Karigar (pcs)'], ['qc', 'QC', ''], ['fin', 'Finished', '']];
+function flowRepStages(r, s, p, cover) {
+  const qty = +r.qty || 0, cap = n => Math.max(0, Math.min(qty, Math.floor((+n || 0) + 1e-9)));
+  const no = { need: false, done: 0 }, at = n => ({ need: true, done: cap(n) });
+  const fin = cap(s.india);
+  if (!p) return { greige: no, rfd: no, print: no, emb: no, cut: no, job: no, qc: no, fin: at(fin) };
+  const route = s.route, outside = route === 'outsource', embVen = route === 'emb' && flowEmbByVendor(p);
+  const perPc = +(p.fabric && p.fabric.perPc) || (qty ? (+(p.fabric && p.fabric.metres) || 0) / qty : 0);
+  const toPcs = m => perPc > 0 ? Math.ceil(m / perPc - 1e-9) : 0;
+  const qc = Math.max(cap(s.made), fin), job = Math.max(cap(s.received), qc);
+  const cut = Math.max(cap(s.cut), cap(s.issuedNet || 0), job);
+  const printOn = flowPrinted(route) && !s.fromStock, print = Math.max(cap(s.back), cut);
+  const emb = embVen ? Math.max(cap(s.embOk || 0), cut) : job;
+  /* cloth: none for job work / outsourced, nor for cloth already in hand or a line made all from printed stock */
+  const usesRfd = !outside && route !== 'jobwork' && !flowInHand(p) && !s.fromStock;
+  let rfd = 0;
+  if (usesRfd) {
+    if (flowPrinted(route)) { const o = flowFabOwed(r, s); rfd = qty - (o.unit === 'pcs' ? Math.ceil(o.left - 1e-9) : toPcs(o.left)); }
+    else rfd = (s.demand && s.demand.fabricReady) || s.cut > 0 || s.issued > 0 ? qty : qty - Math.ceil(qty * flowRemFrac(r, s) - 1e-9);
+    rfd = Math.max(cap(rfd), printOn ? print : cut);
+  }
+  const c = cover && cover.line[s.key];
+  const greige = rfd >= qty || !(c && c.short > 0) ? qty : Math.max(rfd, qty - toPcs(c.short));
+  return {
+    greige: usesRfd ? at(greige) : no, rfd: usesRfd ? at(rfd) : no, print: printOn ? at(print) : no, emb: route === 'emb' ? at(emb) : no,
+    cut: s.cutReq && !outside ? at(cut) : no, job: outside || embVen ? no : at(job), qc: outside ? no : at(qc), fin: at(fin),
+  };
+}
+/** "Done" · "In progress" · "Not started" · "Not needed" — and the pieces: the count while it is under way or done, "-" before. */
+const flowRepStatus = (x, qty) => !x.need ? 'Not needed' : x.done >= qty && qty > 0 ? 'Done' : x.done > 0 ? 'In progress' : 'Not started';
+const flowRepPcs = x => x.need && x.done > 0 ? x.done : '-';
+/** The karigars Job Work issued the line to, with their pieces: "Ramesh (25), Suresh (15)". */
+function flowRepKarigars(r) {
+  const kar = new Map();
+  (PT.base || []).forEach(b => { const n = +(b && b.issuePieces) || 0;
+    if (n > 0 && obUC(b.orderNo) === obUC(r.orderNo) && obUC(b.sku) === obUC(r.sku)) { const w = String(b.empName || '').trim() || 'karigar'; kar.set(w, (kar.get(w) || 0) + n); } });
+  return [...kar].map(([w, n]) => `${w} (${n})`).join(', ');
+}
+/** The open greige POs for a fabric (Greige Desk, read once when the report opens): newest first, at most two. */
+function flowRepGreigePo(fabric) {
+  const k = flowFabKey(fabric); if (!k) return '';
+  return (FLOW_REP.gpo || []).filter(po => po && po.status !== 'cancelled' && !po.closed && (po.lines || []).some(l => l && flowFabKey(l.rfd) === k))
+    .sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))).slice(0, 2).map(po => po.poNo).filter(Boolean).join(', ');
+}
+/** The last thing that happened to the line, and when: the plan, its print order, a challan or printed cloth back, cutting,
+ * a karigar issue or receipt, a QC check, the hand-over. */
+function flowRepLastMoved(r, s, p) {
+  let best = { day: '', what: '' };
+  const see = (d, what) => { const day = String(ptIsoDate(d) || '').slice(0, 10); if (/^\d{4}-\d\d-\d\d$/.test(day) && day >= best.day) best = { day, what }; };
+  const mine = x => x && obUC(x.orderNo) === obUC(r.orderNo) && obUC(x.sku) === obUC(r.sku);
+  if (p) see(flowRepDay(p.at), 'plan');
+  Object.values(FLOW.po || {}).forEach(o => { if (o && !o.cancelled && o.items && o.items[s.key]) see(o.date, 'print order'); });
+  Object.values(FLOW.ch || {}).forEach(c => { if (!c || c.cancelled || !(c.lines || []).some(l => l && l.key === s.key)) return;
+    see(c.date, 'RFD challan'); Object.values(c.receipts || {}).forEach(rc => { if (rc && rc.items && +rc.items[s.key] > 0) see(rc.date, 'printed back'); }); });
+  (PT.cut || []).forEach(x => { if (mine(x)) see(x.cutDate, 'cut'); });
+  (PT.base || []).forEach(x => { if (!mine(x)) return; see(x.issueDate, 'karigar issue'); if (+x.receivedPieces > 0) see(x.receivingDate, 'karigar back'); });
+  ((typeof QC !== 'undefined' && QC.checks) || []).forEach(x => { if (mine(x)) see(x.date, 'QC'); });
+  if (r.handedAt) see(r.handedAt, 'handed');
+  return best;
+}
+
+/** The report's lines: o = { from, to, on: planned|came|waiting, today, soDue }. Real orders only — never a TEST line. */
+function flowRepLines(o) {
+  const today = o.today || dToday(), soDue = o.soDue || null;
+  const mdb = new Map(((typeof PTG !== 'undefined' && PTG.mdb) || []).map(m => [obUC(m && m.sku), m]));
+  let cover = null; try { cover = flowRfdCover(); } catch (e) { cover = null; }   // the RFD stock against each line, as Demand shows it
+  const lines = FLOW_REAL ? ordLines() : flowMtoLines();
+  const inRange = d => !!d && d >= o.from && d <= o.to;
+  const out = [];
+  (lines || []).forEach(r => {
+    if (!r || r.__t) return;
+    const s = flowState(r), p = s.plan || null;
+    const first = p ? flowRepDay(p.firstAt || p.at) : '';
+    const keep = o.on === 'waiting' ? s.bucket === 'ppc'
+      : o.on === 'came' ? inRange(ptIsoDate(r.orderDate))
+      : !!p && inRange(first);
+    if (!keep) return;
+    const m = mdb.get(obUC(r.sku)) || cutSkuOf(r.sku) || {};
+    const due = flowRepDue(r, p, soDue), made = FLOW_REP_MADE.includes(s.bucket), dl = flowRepDelay(due.due, made, today);
+    const route = p ? flowRouteOf(p) : '', fabric = String((p && p.fabric && p.fabric.name) || m.fabric || '');
+    const docs = p ? flowDocsOf({ s }) : [], docOf = re => [...new Set(docs.filter(d => re.test(d.kind)).map(d => d.no))].join(', ');
+    const st = flowRepStages(r, s, p, cover), mv = flowRepLastMoved(r, s, p);
+    out.push({
+      key: s.key, planned: first, plannedKnown: !!(p && p.firstAt), orderNo: String(r.orderNo || ''), orderDate: ptIsoDate(r.orderDate) || '',
+      channel: flowRepChannel(r), sku: obUC(r.sku),
+      category: String(m.articleType || r.articleType || ''), subCategory: String(m.subtype || m.articleSubtype || r.articleSubtype || ''),
+      parent: String(m.parentAsin || ''), colour: String(m.color || r.color || ''), size: String(m.size || r.size || ''),
+      fabric, pcs: +r.qty || 0, process: route ? ((FLOW_ROUTES.find(x => x[0] === route) || [])[2] || route) : '', who: flowRepWho(r, p),
+      st, paper: { greige: st.greige.need && st.greige.done < (+r.qty || 0) ? flowRepGreigePo(fabric) : '', rfd: docOf(/challan/i), print: docOf(/^Print order/),
+        emb: (s.embNos || []).join(', '), job: flowRepKarigars(r) },
+      completion: p && p.dates && p.dates.ready ? String(p.dates.ready).slice(0, 10) : '',
+      due: due.due, dueFrom: due.from, delay: dl.txt, late: dl.late, made, moved: mv,
+      waitDays: s.bucket === 'ppc' && r.orderDate ? Math.max(0, flowRepDaysBetween(ptIsoDate(r.orderDate), today)) : 0,
+    });
+  });
+  return out.sort((a, b) => (a.planned || a.orderDate).localeCompare(b.planned || b.orderDate) || a.orderNo.localeCompare(b.orderNo) || a.sku.localeCompare(b.sku));
+}
+
+/* THE LINE SHEET (Ravi, 28 Oct, the approved design): the line itself, then each stage — Status, Pcs, and its paper beside
+ * it — then the dates. [group, heading, value, style]; style 'st' colours a stage status, 'late' a late delay. */
+const FLOW_REP_COLS = [
+  ['', 'Plan date', x => flowRepShow(x.planned)], ['', 'Order no', x => x.orderNo], ['', 'Order date', x => flowRepShow(x.orderDate)], ['', 'Channel', x => x.channel],
+  ['', 'SKU', x => x.sku], ['', 'Category', x => x.category], ['', 'Sub-category', x => x.subCategory], ['', 'Parent ASIN', x => x.parent],
+  ['', 'Colour', x => x.colour], ['', 'Size', x => x.size], ['', 'Fabric', x => x.fabric], ['', 'PCS', x => x.pcs], ['', 'Process', x => x.process]]
+  .concat(...FLOW_REP_STAGES.map(([k, name, paper]) => [[name, 'Status', x => flowRepStatus(x.st[k], x.pcs), 'st'], [name, 'Pcs', x => flowRepPcs(x.st[k])]]
+    .concat(paper ? [[name, paper, x => x.paper[k] || '']] : [])))
+  .concat([['Dates', 'Completion', x => flowRepShow(x.completion)], ['Dates', 'Due', x => flowRepShow(x.due)], ['Dates', 'Delay', x => x.delay, 'late'],
+    ['Dates', 'Last moved', x => x.moved && x.moved.day ? flowRepShow(x.moved.day) + ' · ' + x.moved.what : '']]);
+const FLOW_REP_BY = [['sku', 'SKU'], ['order', 'SKU and order'], ['day', 'Day and SKU'], ['who', 'Printer / karigar'], ['category', 'Category']];
+/** The summary: Row Labels / Sum of PCS (and lines, late lines), grouped as asked. */
+function flowRepSummary(lines, by) {
+  const label = x => by === 'order' ? x.sku + ' · ' + x.orderNo : by === 'day' ? flowRepShow(x.planned || x.orderDate) + ' · ' + x.sku
+    : by === 'who' ? (x.who || '(nobody yet)') : by === 'category' ? (x.category || '(no category)') : x.sku;
+  const m = new Map();
+  lines.forEach(x => { const k = label(x), e = m.get(k) || { label: k, pcs: 0, lines: 0, late: 0 }; e.pcs += x.pcs; e.lines++; if (x.late > 0) e.late++; m.set(k, e); });
+  return [...m.values()].sort((a, b) => a.label.localeCompare(b.label));
+}
+/** THE STAGE BOARD: where the work is stuck — per stage, its lines not started / in progress / done, the pieces still to come
+ * through it, and the late lines waiting there (a line waits at the first stage it needs that is not done). */
+function flowRepBoard(lines) {
+  return FLOW_REP_STAGES.map(([k, name]) => {
+    const e = { name, not: 0, wip: 0, done: 0, waiting: 0, late: 0 };
+    lines.forEach(x => { const t = x.st[k]; if (!t || !t.need) return;
+      const sv = flowRepStatus(t, x.pcs); if (sv === 'Done') e.done++; else if (sv === 'In progress') e.wip++; else e.not++;
+      e.waiting += Math.max(0, x.pcs - t.done);
+      const at = FLOW_REP_STAGES.find(([kk]) => x.st[kk].need && x.st[kk].done < x.pcs);
+      if (x.late > 0 && at && at[0] === k) e.late++; });
+    return e;
+  });
+}
+
+/* The workbook — the app's own writer (no library): numbers as numbers, two heading rows with the stage names over their
+ * columns, each status in its colour, the headings frozen. A cell is a value, or { v, s } with a style below. */
+const FLOW_REP_XS = { head: 1, group: 2, Done: 3, 'In progress': 4, 'Not started': 5, 'Not needed': 6, late: 7, body: 8 };
+function flowRepXlsx(sheets) {
+  const cell = (c, ref) => {
+    const v = c && typeof c === 'object' ? c.v : c, s = c && typeof c === 'object' && c.s ? ` s="${c.s}"` : ` s="${FLOW_REP_XS.body}"`;
+    if (typeof v === 'number' && isFinite(v)) return `<c r="${ref}"${s}><v>${v}</v></c>`;
+    const t = String(v == null ? '' : v);
+    return t === '' ? `<c r="${ref}"${s}/>` : `<c r="${ref}" t="inlineStr"${s}><is><t xml:space="preserve">${soXml(t)}</t></is></c>`; };
+  const ws = sh => { const fz = sh.freeze || 1, rows = sh.rows, hd = rows[fz - 1] || [];
+    return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+    + `<sheetViews><sheetView workbookViewId="0"><pane ySplit="${fz}" topLeftCell="A${fz + 1}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>`
+    + '<cols>' + hd.map((h, i) => { const t = String(h && typeof h === 'object' ? h.v : h);
+      return `<col min="${i + 1}" max="${i + 1}" width="${(sh.widths || {})[i] || Math.min(30, Math.max(9, t.length + 3))}" customWidth="1"/>`; }).join('') + '</cols>'
+    + '<sheetData>' + rows.map((r, i) => `<row r="${i + 1}">${r.map((v, j) => cell(v, soColName(j) + (i + 1))).join('')}</row>`).join('') + '</sheetData>'
+    + ((sh.merges || []).length ? `<mergeCells count="${sh.merges.length}">${sh.merges.map(m => `<mergeCell ref="${m}"/>`).join('')}</mergeCells>` : '') + '</worksheet>'; };
+  const ct = 'application/vnd.openxmlformats-officedocument.spreadsheetml', rel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+  const font = (c, b) => `<font>${b ? '<b/>' : ''}<sz val="11"/>${c ? `<color rgb="FF${c}"/>` : ''}<name val="Calibri"/></font>`;
+  const fill = c => `<fill><patternFill patternType="solid"><fgColor rgb="FF${c}"/><bgColor indexed="64"/></patternFill></fill>`;
+  const xf = (f, fl, al) => `<xf numFmtId="0" fontId="${f}" fillId="${fl}" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"${al ? ' applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>' : '/>'}`;
+  const styles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+    + `<fonts count="8">${font('', 0)}${font('', 1)}${font('FFFFFF', 1)}${font('166534', 1)}${font('92400E', 1)}${font('991B1B', 0)}${font('9CA3AF', 0)}${font('B91C1C', 1)}</fonts>`
+    + `<fills count="8"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>${['E5E7EB', '1F2937', 'DCFCE7', 'FEF3C7', 'FEE2E2', 'F3F4F6'].map(fill).join('')}</fills>`
+    + '<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border>' + ['left', 'right', 'top', 'bottom'].map(e => `<${e} style="thin"><color rgb="FFD1D5DB"/></${e}>`).join('') + '<diagonal/></border></borders>'
+    + '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
+    + `<cellXfs count="9"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>${xf(1, 2)}${xf(2, 3, 1)}${xf(3, 4, 1)}${xf(4, 5, 1)}${xf(5, 6, 1)}${xf(6, 7, 1)}${xf(7, 0)}${xf(0, 0)}</cellXfs></styleSheet>`;
+  return soZip([
+    ['[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>'
+      + `<Override PartName="/xl/workbook.xml" ContentType="${ct}.sheet.main+xml"/>` + sheets.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="${ct}.worksheet+xml"/>`).join('')
+      + `<Override PartName="/xl/styles.xml" ContentType="${ct}.styles+xml"/></Types>`],
+    ['_rels/.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${rel}/officeDocument" Target="xl/workbook.xml"/></Relationships>`],
+    ['xl/workbook.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="${rel}"><sheets>`
+      + sheets.map((s, i) => `<sheet name="${soXml(s.name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('') + '</sheets></workbook>'],
+    ['xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+      + sheets.map((_, i) => `<Relationship Id="rId${i + 1}" Type="${rel}/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('')
+      + `<Relationship Id="rId${sheets.length + 1}" Type="${rel}/styles" Target="styles.xml"/></Relationships>`],
+    ...sheets.map((s, i) => ['xl/worksheets/sheet' + (i + 1) + '.xml', ws(s)]),
+    ['xl/styles.xml', styles]]);
+}
+/** The workbook's three sheets — Lines (two heading rows), Stage board, Summary by SKU — as rows of cells. */
+function flowRepSheets(lines, by) {
+  const H = FLOW_REP_XS, sum = flowRepSummary(lines, by), tot = lines.reduce((a, x) => a + x.pcs, 0), byName = (FLOW_REP_BY.find(b => b[0] === by) || FLOW_REP_BY[0])[1];
+  /* the stage names over their columns, one merged cell each */
+  const g = FLOW_REP_COLS.map(c => ({ v: c[0], s: c[0] ? H.group : H.head })), merges = [];
+  for (let i = 0; i < FLOW_REP_COLS.length;) { let j = i; while (j + 1 < FLOW_REP_COLS.length && FLOW_REP_COLS[j + 1][0] === FLOW_REP_COLS[i][0]) j++;
+    if (FLOW_REP_COLS[i][0] && j > i) { merges.push(soColName(i) + '1:' + soColName(j) + '1'); for (let k = i + 1; k <= j; k++) g[k] = { v: '', s: H.group }; }
+    i = j + 1; }
+  const body = x => FLOW_REP_COLS.map(c => { const v = c[2](x);
+    return c[3] === 'st' ? { v, s: H[v] } : c[3] === 'late' && x.late > 0 ? { v, s: H.late } : v; });
+  const board = flowRepBoard(lines);
+  return [
+    { name: 'Lines', freeze: 2, merges, rows: [g, FLOW_REP_COLS.map(c => ({ v: c[1], s: H.head }))].concat(lines.map(body)) },
+    { name: 'Stage board', rows: [['Stage', 'Not started (lines)', 'In progress (lines)', 'Done (lines)', 'Pcs waiting', 'Late lines waiting here'].map(v => ({ v, s: H.head }))]
+      .concat(board.map(e => [{ v: e.name, s: H.head }, e.not, e.wip, e.done, e.waiting, e.late > 0 ? { v: e.late, s: H.late } : e.late])) },
+    { name: 'Summary', rows: [['Row Labels (' + byName + ')', 'Sum of PCS', 'Lines', 'Late lines'].map(v => ({ v, s: H.head }))]
+      .concat(sum.map(e => [e.label, e.pcs, e.lines, e.late]), [[{ v: 'Grand Total', s: H.head }, { v: tot, s: H.head }, { v: lines.length, s: H.head }, { v: lines.filter(x => x.late > 0).length, s: H.head }]]) }];
+}
+
+/* ---- the panel ---- */
+const FLOW_REP_ON = [['planned', 'Planned in PPC (plans first saved on these days)'], ['came', 'Came into PPC (orders dated these days)'], ['waiting', 'Still waiting in PPC (today — the dates do not apply)']];
+const FLOW_REP_TINT = { Done: 'background:#dcfce7;color:#166534;font-weight:700', 'In progress': 'background:#fef3c7;color:#92400e;font-weight:700',
+  'Not started': 'background:#fee2e2;color:#991b1b', 'Not needed': 'background:#f3f4f6;color:#9ca3af' };
+function flowRepSoDue() { try { return typeof SOX !== 'undefined' && SOX.rows && typeof ordDueIndex === 'function' ? ordDueIndex() : null; } catch (e) { return null; } }
+function flowRepNow() { return flowRepLines({ from: FLOW_REP.from, to: FLOW_REP.to, on: FLOW_REP.on, soDue: flowRepSoDue() }); }
+function flowRepBody() {
+  const lines = flowRepNow(), sum = flowRepSummary(lines, FLOW_REP.by), tot = lines.reduce((a, x) => a + x.pcs, 0);
+  const late = lines.filter(x => x.late > 0).length, orders = new Set(lines.map(x => x.orderNo)).size, old = lines.filter(x => x.planned && !x.plannedKnown).length;
+  const rng = FLOW_REP.on === 'waiting' ? 'waiting in PPC today' : `${flowRepShow(FLOW_REP.from)} – ${flowRepShow(FLOW_REP.to)}`;
+  const groups = []; FLOW_REP_COLS.forEach(c => { const l = groups[groups.length - 1]; if (l && l[0] === c[0]) l[1]++; else groups.push([c[0], 1]); });
+  const td = (v, c, x) => `<td style="white-space:nowrap${typeof v === 'number' ? ';text-align:right' : ''}${c[3] === 'st' ? ';text-align:center;' + (FLOW_REP_TINT[v] || '') : ''}${c[3] === 'late' && x.late > 0 ? ';color:var(--bad);font-weight:600' : ''}">${esc(typeof v === 'number' ? nf(v) : v)}</td>`;
+  return `<div style="display:flex;gap:22px;flex-wrap:wrap;background:var(--hover,#f8fafc);border-radius:8px;padding:8px 12px;margin:6px 0 10px">
+      <div><b style="font-size:15px">${nf(sum.length)}</b> rows</div><div><b style="font-size:15px">${nf(tot)}</b> pieces</div><div><b style="font-size:15px">${nf(orders)}</b> orders</div>
+      <div><b style="font-size:15px;${late ? 'color:var(--bad)' : ''}">${nf(late)}</b> late</div><div><b>${esc(rng)}</b></div></div>`
+    + (FLOW_REP.soErr ? `<div class="muted" style="font-size:12px;margin-bottom:6px">⚠ ${esc(FLOW_REP.soErr)}</div>` : '')
+    + (old ? `<div class="muted" style="font-size:12px;margin-bottom:6px">${nf(old)} plan(s) were saved before 28 Oct 2026: their plan date is the day they were last saved.</div>` : '')
+    + (lines.length ? `<div style="overflow:auto;max-height:46vh"><table class="xl" style="font-size:12px"><thead>`
+      + `<tr>${groups.map(([n, k]) => `<th colspan="${k}" style="text-align:center;${n ? 'background:#1f2937;color:#fff' : ''}">${esc(n)}</th>`).join('')}</tr>`
+      + `<tr>${FLOW_REP_COLS.map(c => `<th style="white-space:nowrap">${esc(c[1])}</th>`).join('')}</tr></thead><tbody>`
+      + lines.slice(0, 300).map(x => `<tr>${FLOW_REP_COLS.map(c => td(c[2](x), c, x)).join('')}</tr>`).join('')
+      + `</tbody></table></div>${lines.length > 300 ? `<div class="muted" style="font-size:12px">Showing 300 of ${nf(lines.length)} lines — the Excel has them all.</div>` : ''}`
+      : '<div class="muted" style="padding:14px 0">No lines for these days.</div>');
+}
+function flowRepPaint() {
+  const box = $('flRepOut'); if (box) box.innerHTML = flowRepBody();
+  document.querySelectorAll('[data-flrepq]').forEach(b => { const r = flowRepRanges()[+b.dataset.flrepq]; b.className = r && r[1] === FLOW_REP.from && r[2] === FLOW_REP.to ? '' : 'ghost'; });
+}
+async function flowRepOpen() {
+  if (!flowRepAllowed()) return;
+  if (!FLOW_REP.from) { const r = flowRepRanges()[2]; FLOW_REP.from = r[1]; FLOW_REP.to = r[2]; }
+  const sel = (id, list, v) => `<select id="${id}" style="width:auto">${list.map(([k, l]) => `<option value="${k}"${k === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
+  ptOpenDialog({
+    title: 'PPC report', wide: true,
+    subtitle: 'Pick the days, check the lines, download the Excel (Lines, Stage board, Summary).',
+    html: `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px">${flowRepRanges().map((r, i) => `<button type="button" class="ghost" data-flrepq="${i}" style="width:auto;padding:4px 12px;font-size:12.5px">${esc(r[0])}</button>`).join('')}</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:13px">
+        From <input type="date" id="flRepFrom" value="${esc(FLOW_REP.from)}" style="width:auto"> To <input type="date" id="flRepTo" value="${esc(FLOW_REP.to)}" style="width:auto">
+        <span style="margin-left:8px">Report on</span> ${sel('flRepOn', FLOW_REP_ON, FLOW_REP.on)} <span>Summary by</span> ${sel('flRepBy', FLOW_REP_BY, FLOW_REP.by)}</div>
+      <div id="flRepOut">${flowRepBody()}</div>`,
+    saveLabel: 'Download Excel',
+    onSave: async () => {
+      const lines = flowRepNow();
+      if (!lines.length) return 'Nothing to download for these days.';
+      const bytes = flowRepXlsx(flowRepSheets(lines, FLOW_REP.by));
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+      a.download = 'ppc-report-' + (FLOW_REP.on === 'waiting' ? 'waiting-' + dToday() : FLOW_REP.from + '-to-' + FLOW_REP.to) + '.xlsx';
+      a.click(); URL.revokeObjectURL(a.href);
+      return '';
+    },
+  });
+  const day = () => { const f = $('flRepFrom').value, t = $('flRepTo').value; if (f && t) { FLOW_REP.from = f <= t ? f : t; FLOW_REP.to = f <= t ? t : f; } flowRepPaint(); };
+  $('flRepFrom').onchange = day; $('flRepTo').onchange = day;
+  $('flRepOn').onchange = () => { FLOW_REP.on = $('flRepOn').value; flowRepPaint(); };
+  $('flRepBy').onchange = () => { FLOW_REP.by = $('flRepBy').value; flowRepPaint(); };
+  document.querySelectorAll('[data-flrepq]').forEach(b => { b.onclick = () => { const r = flowRepRanges()[+b.dataset.flrepq];
+    FLOW_REP.from = r[1]; FLOW_REP.to = r[2]; $('flRepFrom').value = r[1]; $('flRepTo').value = r[2]; flowRepPaint(); }; });
+  flowRepPaint();
+  /* Read once, only here: the sales orders' delivery dates (when no other screen has read them), and the Greige Desk's POs
+   * (its own node — the desk keeps them inside its sealed screen) for the Greige PO beside Greige. A read refused leaves
+   * that column blank, nothing else. */
+  const reads = [];
+  if (typeof SOX !== 'undefined' && SOX.rows == null) reads.push(ptGet('pt_salesOrders').then(v => { SOX.rows = ptList(v); FLOW_REP.soErr = ''; })
+    .catch(e => { FLOW_REP.soErr = 'Could not read the sales orders, so their due dates are missing here (' + (e.message || e) + ').'; }));
+  if (FLOW_REP.gpo == null) reads.push(ptGet('pt_gdTest/gpo').then(v => { FLOW_REP.gpo = Object.values(v || {}); }).catch(() => { FLOW_REP.gpo = []; }));
+  if (reads.length) { await Promise.all(reads); flowRepPaint(); }
+}
+/** The toolbar button: on the Production flow screen, for admins and the Reports right. */
+function flowRepBtn() { const b = $('flRep'); if (b && b.classList) b.classList.toggle('hide', !flowRepAllowed()); }
+if ($('flRep')) $('flRep').onclick = () => { flowRepOpen().catch(e => { $('flMsg').className = 'err'; $('flMsg').textContent = 'Could not open the report: ' + (e.message || e); }); };
 /* ============================== FILE: src/app/flow/greige-desk.js ============================== */
 /* ================= GREIGE DESK (2026-10-13; real working since 15 Oct) — built by tools/greige-desk/make-app.js, do not edit by hand =================
  *
@@ -43018,6 +43969,16 @@ const soStatus = o => o.status || 'draft';
 /* The number is what the factory reads, so its -AIR / -SEA wins over what is kept beside it (17 Oct). */
 const soShipMode = o => String((typeof soModeOf === 'function' ? soModeOf(o && o._id) : '') || (o && o.shipMode) || '').toUpperCase();
 const soCount = x => (Array.isArray(x) ? x.length : Object.keys(x || {}).length);
+/* THE BUYER OF A B2B ORDER IS THE BRAND (Ravi, 27 Oct: "brand name under the buyer column instead of uploaded by whom",
+ * B2B only). The Brand Name off the uploaded sheet, from the order's own lines — two named, the rest counted. buyerName
+ * is who raised it: kept on the order, shown in the order itself and as the tip on the cell. */
+function soBrandOf(o) {
+  const seen = [];
+  soLines(o).forEach(l => { const b = String((l && l.brand) || '').trim(); if (b && !seen.includes(b)) seen.push(b); });
+  return seen.slice(0, 2).join(' / ') + (seen.length > 2 ? ' +' + (seen.length - 2) : '');
+}
+/** What the Buyer column says: the brand on a B2B order that carries one, else who raised it. */
+const soBuyerTxt = o => (soIsB2B(o.channel) && soBrandOf(o)) || o.buyerName || '';
 
 /** Order + SKU → net cut and pressed, built once. Per-SKU lookups would rescan 4,000 rows 1,200 times. */
 function soWork() {
@@ -43105,7 +44066,7 @@ function renderSox() {
     .filter(o => !smo || o.saleMonth === smo)
     .filter(o => ptInRange(o && o.orderDate, sxD1, sxD2))
     .map(o => ({ o, s: soSummary(o, w) }))
-    .filter(({ o, s }) => !q || [o._id, o.buyerName, o.buyerEmail, o.channel, soStatus(o)].join(' ').toLowerCase().includes(q)
+    .filter(({ o, s }) => !q || [o._id, o.buyerName, o.buyerEmail, o.channel, soStatus(o), soBrandOf(o)].join(' ').toLowerCase().includes(q)
       || s.groups.some(g => g.sku.toLowerCase().includes(q)))
     .sort((a, b) => String(b.o.orderDate || '').localeCompare(String(a.o.orderDate || ''))
       || String(b.o._id || '').localeCompare(String(a.o._id || '')));
@@ -43124,8 +44085,11 @@ function renderSox() {
       <div class="metric"><div class="v"${missing ? ' style="color:var(--bad)"' : ''}>${nf(missing)}</div><div class="l">Approved SKUs missing from the order book</div></div>
     </div></div>`;
 
-  const head = '<thead><tr>' + ['Order', 'Date', 'Channel', 'Buyer', 'Status', 'SKUs', 'Pieces', 'Cut', 'Made', 'In order book', 'Delivery', '']
-    .map((h, i) => `<th${i === 0 ? ' class="frz"' : (i >= 5 && i <= 8 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
+  /* WHO RAISED IT, IN A COLUMN OF ITS OWN on the B2B list (Ravi, 27 Oct) — the brand is the buyer, the person is beside it. */
+  const byCol = soIsB2B(ch);
+  const head = '<thead><tr>' + ['Order', 'Date', 'Channel', 'Buyer'].concat(byCol ? ['Raised by'] : [])
+    .concat(['Status', 'SKUs', 'Pieces', 'Cut', 'Made', 'In order book', 'Delivery', ''])
+    .map((h, i) => `<th${i === 0 ? ' class="frz"' : (['SKUs', 'Pieces', 'Cut', 'Made'].includes(h) ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
   $('sxTable').innerHTML = head + '<tbody>' + rows.map(({ o, s }) => {
     const sd = SO_STATUS[soStatus(o)] || SO_STATUS.draft;
     const bar = (pct, col) => `<div style="font-weight:700;color:${col}">${pct}%</div>`
@@ -43135,7 +44099,8 @@ function renderSox() {
     return '<tr>'
       + `<td class="frz" style="text-align:left;font-weight:600">${esc(o._id)}</td>`
       + `<td>${esc(o.orderDate)}${o.saleMonth ? `<div class="muted" style="font-size:11px">for ${esc(soMonthTxt(o.saleMonth))}</div>` : ''}</td><td>${esc(o.channel)}${soShipMode(o) ? ` <span class="pill" style="font-size:11px">${esc(soShipMode(o))}</span>` : ''}</td>`
-      + `<td style="text-align:left">${esc(o.buyerName) || '<span class="muted">—</span>'}</td>`
+      + `<td style="text-align:left${soIsB2B(o.channel) && soBrandOf(o) ? ';font-weight:600' : ''}"${soIsB2B(o.channel) && soBrandOf(o) && o.buyerName ? ` title="Raised by ${esc(o.buyerName)}"` : ''}>${esc(soBuyerTxt(o)) || '<span class="muted">—</span>'}</td>`
+      + (byCol ? `<td style="text-align:left">${esc(o.buyerName) || '<span class="muted">—</span>'}</td>` : '')
       + `<td><span class="pill ${sd.cls}">${esc(sd.label)}</span></td>`
       + `<td class="num">${nf(s.skus)}${s.skus !== s.lines ? ` <span class="muted" style="font-size:11px">of ${nf(s.lines)}</span>` : ''}</td>`
       + `<td class="num" style="font-weight:700">${nf(s.qty)}</td>`
@@ -43161,42 +44126,152 @@ function renderSox() {
     + (missing ? ` ${nf(missing)} approved SKU(s) never reached the order book, so nothing can be cut or pressed against them.` : '');
 }
 
-function soOpen(id) {
+/* ---- B2B: SIZE, COLOUR, QUALITY AND DELIVERY ON A LINE (Ravi, 27 Oct) ----
+ * What the buyer's sheet said can be put right on the order itself, one SKU at a time, without raising it again.
+ * Quality is the sheet's Material column (Sheeting, Cambric). No reason is asked — Ravi took that box out — but every
+ * change is kept on the order beside who made it and when. */
+const SO_DETAIL = [
+  { k: 'size', t: 'Size' }, { k: 'color', t: 'Colour' }, { k: 'material', t: 'Quality' }, { k: 'deliveryDate', t: 'Delivery' },
+];
+let SOD = { id: '', sku: '' };   // the one line open for editing in the order dialog
+
+/** May this person change a B2B line? Whoever may edit the order while it is theirs, and whoever approves orders after. */
+const soDetailMay = o => !!o && soIsB2B(o.channel) && (soCanEdit(o) || soCanApprove());
+
+/** A SKU's own description on this order — the first line of it speaks for all, as it does in the order book. */
+function soDetailOf(o, sku) {
+  const ls = soLinesOf(o, sku), l = (ls[0] || {}).l || {};
+  return { itemName: l.itemName || '', size: l.size || '', color: l.color || '', material: l.material || '',
+    deliveryDate: l.deliveryDate || (o.deliveryMode === 'complete' ? o.deliveryDate || '' : '') };
+}
+
+/** One SKU's row in the order dialog: as it reads, or open for editing. */
+function soDlgRow(o, g, opt) {
+  const owed = Math.max(0, g.qty - g.press);
+  const b2b = soIsB2B(o.channel), d = b2b ? soDetailOf(o, g.sku) : null;
+  const editing = b2b && opt.mayEdit && SOD.id === o._id && SOD.sku === g.sku;
+  /* CUT PIECES ARE CUT. Once anything is cut, received or pressed against the line, its size, colour and quality stay —
+   * changing them would leave pieces on the floor that match no order. The delivery date can still move. */
+  const done = b2b && opt.mayEdit ? soDoneOn(o._id, g.sku) : null;
+  const locked = !!(done && done.floor);
+  const changed = b2b && Object.values(o.detailChanges || {}).some(c => c && obUC(c.sku) === g.sku);
+  const box = (k, type) => `<input data-sod="${k}" data-was="${esc(d[k])}"${type ? ` type="${type}"` : ''} value="${esc(d[k])}"`
+    + `${k === 'material' ? ' list="sodQual"' : ''} style="height:30px;font-size:12.5px;padding:0 8px;width:100%;min-width:${type ? 130 : 90}px">`
+    + `<div class="muted sod-was" style="font-size:11px;margin-top:2px;text-align:left"></div>`;
+  const cell = k => (editing && !(locked && k !== 'deliveryDate')) ? `<td>${box(k, k === 'deliveryDate' ? 'date' : '')}</td>`
+    : `<td${k === 'color' ? ' style="text-align:left"' : ''}>${esc(d[k]) || '<span class="muted">—</span>'}</td>`;
+  const act = [];
+  if (editing) act.push(`<button data-sod-save="${esc(g.sku)}" style="padding:3px 11px;font-size:12px">Save</button>`,
+    `<button class="ghost" data-sod-cancel="1" style="padding:3px 9px;font-size:12px">Cancel</button>`);
+  else {
+    if (b2b && opt.mayEdit) act.push(locked
+      ? `<span class="muted" style="font-size:11px">${nf(done.floor)} cut · </span><button class="ghost" data-sod-edit="${esc(g.sku)}" style="padding:3px 9px;font-size:12px" title="Size, colour and quality are fixed once pieces are cut">Edit date</button>`
+      : `<button class="ghost" data-sod-edit="${esc(g.sku)}" style="padding:3px 9px;font-size:12px">Edit</button>`);
+    if (opt.mayQty) act.push(`<button class="ghost" data-so-qty="${esc(o._id)}|${esc(g.sku)}" style="padding:3px 9px;font-size:12px">Change qty</button>`);
+  }
+  return `<tr data-sod-row="${esc(g.sku)}"${editing ? ' style="background:#eff6ff"' : (g.inBook ? '' : ' style="background:var(--bad-bg)"')}>`
+    + `<td style="font-family:ui-monospace,monospace;text-align:left">${esc(g.sku)}`
+    + `${g.lines > 1 ? ` <span class="muted" style="font-size:11px">${nf(g.lines)} lines</span>` : ''}`
+    + `${g.adjusted ? ' <span class="pill pill-low">qty changed</span>' : ''}`
+    + `${changed ? ' <span class="pill pill-low">changed</span>' : ''}</td>`
+    + ptImgCell(g.sku)
+    + (b2b ? `<td style="text-align:left">${esc(d.itemName) || '<span class="muted">—</span>'}</td>` + cell('size') + cell('color') + cell('material') : '')
+    + `<td class="num" style="font-weight:700">${nf(g.qty)}</td>`
+    + `<td class="num" style="color:#7f6000">${nf(g.cut)}</td>`
+    + `<td class="num" style="color:#166534">${nf(g.press)}</td>`
+    /* A B2B order leaves out Owed and Priority (its lines carry no priority) so the size, colour and quality fit
+     * beside the figures, with Save in sight. */
+    + (b2b ? cell('deliveryDate') : `<td class="num"${owed ? ' style="color:var(--bad);font-weight:700"' : ''}>${owed ? nf(owed) : '<span class="muted">—</span>'}</td>`
+      + `<td>${esc(g.delivery) || '<span class="muted">—</span>'}</td><td>${esc(g.priority) || '<span class="muted">—</span>'}</td>`)
+    + `<td style="font-weight:700;color:${g.inBook ? 'var(--accent)' : 'var(--bad)'}">${g.inBook ? 'yes' : 'NO'}</td>`
+    /* The buttons stay pinned to the right edge, so Save is in sight however wide the order runs. */
+    + (opt.mayEdit || opt.mayQty ? `<td style="white-space:nowrap${b2b ? ';position:sticky;right:0;background:' + (editing ? '#eff6ff' : 'var(--card)') + ';box-shadow:-6px 0 6px -6px rgba(15,23,42,.25)' : ''}">${act.join(' ')}</td>` : '')
+    + '</tr>';
+}
+
+/**
+ * SAVE A B2B LINE'S DETAILS — every line of the SKU on the order, and the order-book row with it, in one write, so
+ * production never reads a size the order no longer says. Returns '' or why not.
+ */
+async function soDetailRun(o, sku, want) {
+  if (!soDetailMay(o)) return 'This order is not yours to change.';
+  const ls = soLinesOf(o, sku);
+  if (!ls.length) return 'That SKU is not on this order.';
+  const was = soDetailOf(o, sku);
+  const moved = SO_DETAIL.filter(f => want[f.k] != null && String(want[f.k]).trim() !== String(was[f.k] || '').trim());
+  if (!moved.length) return 'Nothing was changed.';
+  const done = soDoneOn(o._id, sku);
+  if (done.floor && moved.some(f => f.k !== 'deliveryDate'))
+    return nf(done.floor) + ' piece(s) are already cut against this line, so its size, colour and quality stay. The date can still move.';
+  if (moved.some(f => f.k === 'deliveryDate') && !String(want.deliveryDate || '').trim()) return 'Pick the delivery date.';
+  const now = new Date().toISOString(), base = 'pt_salesOrders/' + o._id + '/', patch = {};
+  moved.forEach(f => ls.forEach(x => { patch[base + 'lines/' + x.i + '/' + f.k] = String(want[f.k]).trim(); }));
+  /* ONE DATE FOR THE WHOLE ORDER, AND NOW ONE LINE DIFFERS. The order turns per-line, and every line that leaned on the
+   * order's date is given it, so no line is left with no date to be made by. */
+  if (moved.some(f => f.k === 'deliveryDate') && o.deliveryMode === 'complete') {
+    patch[base + 'deliveryMode'] = soStatus(o) === 'approved' ? 'partial' : 'lines';
+    if (o.deliveryDate) soLines(o).forEach((l, i) => { if (!l.deliveryDate && patch[base + 'lines/' + i + '/deliveryDate'] === undefined) patch[base + 'lines/' + i + '/deliveryDate'] = o.deliveryDate; });
+  }
+  moved.forEach((f, n) => {
+    const id = 'det_' + Date.now() + '_' + n + '_' + Math.random().toString(36).slice(2, 6);
+    patch[base + 'detailChanges/' + id] = { id, sku: obUC(sku), field: f.k, from: String(was[f.k] || ''), to: String(want[f.k]).trim(), by: ME.email, at: now };
+  });
+  patch[base + 'updatedAt'] = now;
+  const bookId = soBookId(o._id, sku), book = (PTG.ob || []).find(r => r && r.id === bookId);
+  if (book) moved.filter(f => f.k !== 'deliveryDate').forEach(f => { patch['pt_orderBook/' + bookId + '/' + f.k] = String(want[f.k]).trim(); });
+  try { await ptPatch(patch); }
+  catch (e) { return 'Not saved: ' + (e.message || e); }
+  /* THE SCREEN FROM WHAT WAS WRITTEN. */
+  const lines = soLines(o).map((l, i) => {
+    const set = {};
+    SO_DETAIL.forEach(f => { const v = patch[base + 'lines/' + i + '/' + f.k]; if (v !== undefined) set[f.k] = v; });
+    return Object.keys(set).length ? Object.assign({}, l, set) : l;
+  });
+  const det = Object.assign({}, o.detailChanges || {});
+  Object.keys(patch).filter(k => k.startsWith(base + 'detailChanges/')).forEach(k => { det[k.slice((base + 'detailChanges/').length)] = patch[k]; });
+  const next = Object.assign({}, o, { lines, detailChanges: det, updatedAt: now },
+    patch[base + 'deliveryMode'] ? { deliveryMode: patch[base + 'deliveryMode'] } : {});
+  SOX.rows = (SOX.rows || []).map(x => (x._id === o._id ? next : x));
+  if (book) PTG.ob = (PTG.ob || []).map(r => {
+    if (!r || r.id !== bookId) return r;
+    const set = {}; ['size', 'color', 'material'].forEach(k => { const v = patch['pt_orderBook/' + bookId + '/' + k]; if (v !== undefined) set[k] = v; });
+    return Object.assign({}, r, set);
+  });
+  return '';
+}
+
+function soOpen(id, msg) {
   const o = (SOX.rows || []).find(x => x._id === id); if (!o) return;
+  if (SOD.id !== id) SOD = { id: '', sku: '' };
   const s = soSummary(o, soWork());
   const shown = s.groups.slice(0, 400);
+  const b2b = soIsB2B(o.channel);
   /* WHO MAY MOVE A QUANTITY: whoever approved the order in the first place. */
   const mayQty = soCanApprove() && soStatus(o) === 'approved';
-  const head = ['SKU', 'Image', 'Qty', 'Cut', 'Made', 'Owed', 'Delivery', 'Priority', 'In order book']
-    .concat(mayQty ? [''] : [])
-    .map((h, i) => `<th${i >= 2 && i <= 5 ? ' class="num"' : ''}>${h}</th>`).join('');
-  const body = shown.map(g => {
-    const owed = Math.max(0, g.qty - g.press);
-    return `<tr${g.inBook ? '' : ' style="background:var(--bad-bg)"'}>`
-      + `<td style="font-family:ui-monospace,monospace;text-align:left">${esc(g.sku)}`
-      + `${g.lines > 1 ? ` <span class="muted" style="font-size:11px">${nf(g.lines)} lines</span>` : ''}`
-      + `${g.adjusted ? ' <span class="pill pill-low">qty changed</span>' : ''}</td>`
-      + ptImgCell(g.sku)
-      + `<td class="num" style="font-weight:700">${nf(g.qty)}</td>`
-      + `<td class="num" style="color:#7f6000">${nf(g.cut)}</td>`
-      + `<td class="num" style="color:#166534">${nf(g.press)}</td>`
-      + `<td class="num"${owed ? ' style="color:var(--bad);font-weight:700"' : ''}>${owed ? nf(owed) : '<span class="muted">—</span>'}</td>`
-      + `<td>${esc(g.delivery) || '<span class="muted">—</span>'}</td>`
-      + `<td>${esc(g.priority) || '<span class="muted">—</span>'}</td>`
-      + `<td style="font-weight:700;color:${g.inBook ? 'var(--accent)' : 'var(--bad)'}">${g.inBook ? 'yes' : 'NO'}</td>`
-      + (mayQty ? `<td><button class="ghost" data-so-qty="${esc(o._id)}|${esc(g.sku)}" style="padding:3px 9px;font-size:12px">Change qty</button></td>` : '')
-      + '</tr>';
-  }).join('');
+  const mayEdit = soDetailMay(o);
+  const cols = ['SKU', 'Image'].concat(b2b ? ['Article', 'Size', 'Colour', 'Quality'] : [])
+    .concat(b2b ? ['Qty', 'Cut', 'Made', 'Delivery', 'In order book'] : ['Qty', 'Cut', 'Made', 'Owed', 'Delivery', 'Priority', 'In order book']).concat(mayQty || mayEdit ? [''] : []);
+  const head = cols.map((h, i) => `<th${['Qty', 'Cut', 'Made', 'Owed'].includes(h) ? ' class="num"' : ''}${b2b && !h && i === cols.length - 1 ? ' style="position:sticky;right:0;z-index:2"' : ''}>${h}</th>`).join('');
+  const body = shown.map(g => soDlgRow(o, g, { mayQty, mayEdit })).join('');
+  /* Every quality the order already uses, offered first; anything else can still be typed. */
+  const quals = [...new Set(['Sheeting', 'Cambric'].concat(soLines(o).map(l => String((l && l.material) || '').trim())).filter(Boolean))];
   const removed = (Array.isArray(o.lineRemovals) ? o.lineRemovals : Object.values(o.lineRemovals || {}))
     .filter(Boolean).reduce((n, r) => n + (parseInt(r.count, 10) || soCount(r.lines)), 0);
   /* EVERY QUANTITY THAT MOVED, newest first. A figure that changed and cannot be explained three
    * weeks later is the reason this is kept at all. */
   const adj = Object.values(o.qtyAdjustments || {}).filter(Boolean)
     .sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
+  const det = Object.values(o.detailChanges || {}).filter(Boolean)
+    .sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
+  const fieldTxt = k => (SO_DETAIL.find(f => f.k === k) || { t: k }).t;
+  const brand = b2b ? soBrandOf(o) : '';
   ptOpenDialog({
     title: 'Sales order ' + o._id,
-    subtitle: `${o.channel || ''}${o.buyerName ? '  ·  ' + o.buyerName : ''}${o.buyerEmail ? '  ·  ' + o.buyerEmail : ''}`,
-    note: `${nf(s.skus)} SKU(s) · ${nf(s.qty)} piece(s) · cut ${s.cutPct}% · made ${s.mfgPct}%.`
+    wide: b2b,
+    subtitle: brand ? `${o.channel || ''}  ·  ${brand}${o.buyerName ? '  ·  raised by ' + o.buyerName : ''}`
+      : `${o.channel || ''}${o.buyerName ? '  ·  ' + o.buyerName : ''}${o.buyerEmail ? '  ·  ' + o.buyerEmail : ''}`,
+    /* What was just saved goes first, where it is seen — the line below the table can be scrolled out of sight. */
+    note: (msg ? msg + ' ' : '') + `${nf(s.skus)} SKU(s) · ${nf(s.qty)} piece(s) · cut ${s.cutPct}% · made ${s.mfgPct}%.`
       + (soStatus(o) === 'approved'
         ? (s.missing ? ` ${nf(s.missing)} SKU(s) are NOT in the order book, so nothing can be booked against them.`
                      : ' Every SKU reached the order book.')
@@ -43207,7 +44282,16 @@ function soOpen(id) {
       + (o.saRemarks ? ` Remarks: ${o.saRemarks}` : ''),
     html: `<div class="xlwrap" style="max-height:52vh;border:1px solid var(--line);border-radius:10px">`
       + `<table class="xl" id="sxDlgTable"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`
+      + (b2b ? `<datalist id="sodQual">${quals.map(q => `<option value="${esc(q)}">`).join('')}</datalist>` : '')
       + (s.groups.length > 400 ? `<div class="muted" style="margin-top:8px;font-size:12px">Showing the first 400 of ${nf(s.groups.length)} SKUs. Export gives you all of them.</div>` : '')
+      + (det.length ? '<div style="margin-top:10px;font-weight:600;font-size:13px">Details changed on this order</div>'
+        + '<table class="xl" style="margin-top:4px"><thead><tr><th>When</th><th>SKU</th><th>What</th><th>From</th><th>To</th><th>By</th></tr></thead><tbody>'
+        + det.slice(0, 40).map(c => `<tr><td style="text-align:left">${esc(ptIsoDate(c.at) || '')}</td>`
+          + `<td style="text-align:left;font-family:ui-monospace,monospace">${esc(c.sku)}</td>`
+          + `<td>${esc(fieldTxt(c.field))}</td><td>${esc(c.from) || '<span class="muted">—</span>'}</td>`
+          + `<td style="font-weight:700;color:#166534">${esc(c.to)}</td>`
+          + `<td>${esc(String(c.by || '').split('@')[0])}</td></tr>`).join('')
+        + '</tbody></table>' : '')
       + (adj.length ? '<div style="margin-top:10px;font-weight:600;font-size:13px">Quantities changed after approval</div>'
         + '<table class="xl" style="margin-top:4px"><thead><tr><th>When</th><th>SKU</th><th class="num">From</th><th class="num">To</th><th>Why</th><th>By</th></tr></thead><tbody>'
         + adj.slice(0, 40).map(a => `<tr><td style="text-align:left">${esc(ptIsoDate(a.at) || '')}</td>`
@@ -43219,6 +44303,37 @@ function soOpen(id) {
         + '</tbody></table>' : ''),
   });
   ptImgFill(shown.map(g => g.sku), false, ptImgPatch);
+  const box = $('sxDlgTable');
+  if (!box || !b2b || !mayEdit) return;
+  /* Only the row clicked opens or closes — the rest of the order, and where it is scrolled to, stay put. */
+  const redraw = sku => {
+    const g = s.groups.find(x => x.sku === sku), tr = box.querySelector(`tr[data-sod-row="${CSS.escape(sku)}"]`);
+    if (g && tr) { tr.outerHTML = soDlgRow(o, g, { mayQty, mayEdit }); ptImgFill([sku], false, ptImgPatch); }
+  };
+  box.onclick = async e => {
+    const ed = e.target.closest('[data-sod-edit]');
+    if (ed) { const was = SOD.sku; SOD = { id: o._id, sku: ed.getAttribute('data-sod-edit') }; if (was) redraw(was); redraw(SOD.sku); ptDlgMsg(''); return; }
+    if (e.target.closest('[data-sod-cancel]')) { const was = SOD.sku; SOD = { id: '', sku: '' }; redraw(was); ptDlgMsg(''); return; }
+    const sv = e.target.closest('[data-sod-save]'); if (!sv) return;
+    const sku = sv.getAttribute('data-sod-save'), tr = sv.closest('tr'), want = {};
+    tr.querySelectorAll('[data-sod]').forEach(i => { want[i.getAttribute('data-sod')] = i.value; });
+    sv.disabled = true; ptDlgMsg('Saving…');
+    const err = await soDetailRun((SOX.rows || []).find(x => x._id === o._id) || o, sku, want);
+    if (err) { sv.disabled = false; ptDlgMsg(err, true); return; }
+    const was = soDetailOf(o, sku), is = soDetailOf((SOX.rows || []).find(x => x._id === o._id) || o, sku);
+    const said = SO_DETAIL.filter(f => String(was[f.k] || '') !== String(is[f.k] || ''))
+      .map(f => `${f.t.toLowerCase()} ${was[f.k] || '—'} → ${is[f.k]}`).join(', ');
+    SOD = { id: '', sku: '' };
+    renderSox();
+    soOpen(o._id, 'Saved · ' + sku + (said ? ': ' + said : '') + '.');
+  };
+  /* A box that no longer says what it did turns blue and says what it was. */
+  box.oninput = e => {
+    const i = e.target.closest('[data-sod]'); if (!i) return;
+    const was = i.getAttribute('data-was') || '', moved = i.value.trim() !== was.trim();
+    i.style.border = moved ? '1.5px solid #2563eb' : '';
+    const w = i.parentNode.querySelector('.sod-was'); if (w) w.textContent = moved ? 'was ' + (was || '—') : '';
+  };
 }
 
 /**
@@ -50586,6 +51701,11 @@ function renderFgi() {
     </div></div>`;
   $('fgPendBadge').textContent = pend.length ? nf(pend.length) : '';
   $('fgPendBadge').classList.toggle('hide', !pend.length);
+  /* FROM QC — TO ACCEPT ONLY (core/auth.js, ME.fgAccOnly): the one list this account works, without the store's other views. */
+  if (ME.fgAccOnly) {
+    $('fgView').value = 'flow'; $('fgKpis').innerHTML = '';
+    ['fgView', 'fgPendBadge', 'fgiLstBadge', 'fgiCorrBadge', 'fgiOverBadge'].forEach(id => { const b = $(id); if (b && b.classList) b.classList.add('hide'); });
+  }
 
   const view = $('fgView').value;
   ['fgD1', 'fgD2'].forEach(i => $(i).classList.toggle('hide', view !== 'ledger'));
@@ -63636,6 +64756,8 @@ function stCutting(c) {
   /* A piece whose cloth is printed AFTER cutting leaves the store when the printer is given it, and
    * comes back as the printer's delivery — so the cutting itself moves nothing here. */
   const running = !!m && ptPrintIssueAs(m) === 'running';
+  /* Cut from a rejected tablecloth or wastage cloth (clothFrom, look-alike-skus.js): no printed cloth left the store for it. */
+  if (c.clothFrom) return { running: false, pcs, fabric: '', colour: c.color || '', metres: 0, waste: 0, wasteWidth: 0 };
   const typed = parseFloat(c.fabricUsed);
   let fabric = String(c.fabricWidth || '').trim(), metres = isFinite(typed) && typed > 0 ? typed : 0;
   if (!metres || !fabric) {
@@ -69743,6 +70865,10 @@ function shpSheetAllows(o) {
   return String((o && o.at) || '') > r.at;
 }
 let SHP_BUCKET_IX = { sig: null, list: null };
+/* ONLY WHAT RIDHI MAKES OPENS IN PRODUCTION (Ravi, 28 Oct: "jinka manufacture ridhi h wo hi sirf yaha production me order open ho otherwise
+ * nahi"): a SKU whose master names another manufacturer is a READY PRODUCT — bought in, shipped as it is — so it never enters the
+ * bucket and cannot be opened from it. Blank manufacturer = Ridhi (mdbIsReady). */
+const shpReadyProduct = sku => { try { const m = typeof mdbOf === 'function' ? mdbOf(sku) : null; return !!(m && typeof mdbIsReady === 'function' && mdbIsReady(m)); } catch (e) { return false; } };
 function shpBucket() {
   const sig = [SO_ALL_ROWS, (SO_ALL_ROWS || []).length, PTG.ob, (PTG.ob || []).length, SHOP_STOCK_LOADED, SHOP_INDIA_LOADED, SHOP_INDIA_ERR, SO_INDIA_TAKEN, SHOP_META];
   if (SHP_BUCKET_IX.list && SHP_BUCKET_IX.sig.every((x, i) => x === sig[i])) return SHP_BUCKET_IX.list;
@@ -69761,7 +70887,7 @@ function shpBucketMake() {
   const out = [];
   (SO_ALL_ROWS || []).forEach(o => {
     if (!o || !o.id || o.cancelled || o.shipped || !(o.handled || soIsPending(o)) || !shpSheetAllows(o)) return;
-    shpNeeds(o, undefined, { evenHandled: true }).forEach(w => { if (!opened.has(String(o.id) + '|' + w.sku)) out.push({ id: String(o.id), sku: w.sku, kind: 'make' }); });
+    shpNeeds(o, undefined, { evenHandled: true }).forEach(w => { if (shpReadyProduct(w.sku)) return; if (!opened.has(String(o.id) + '|' + w.sku)) out.push({ id: String(o.id), sku: w.sku, kind: 'make' }); });
   });
   return out;
 }
@@ -69777,6 +70903,7 @@ function shpBucketBuild(opts) {
     const mine = new Set();
     const noted = o.handled ? ' · the order is marked done (' + (o.handledWhy || 'a note says so') + ') — check it is not already made before opening' : '';
     shpNeeds(o, undefined, { evenHandled: true }).forEach(w => {
+      if (shpReadyProduct(w.sku)) return;   // a ready product is not production's
       mine.add(w.sku);
       if (!isOpen(w.sku)) out.push(Object.assign({ o, id, sheetOk, key: id + '|' + w.sku, sku: w.sku, qty: w.qty, pcs: w.pcs, shopQty: w.shopQty, kind: 'make',
         why: (w.why || []).join(' + ') + noted, noted: !!noted, name: w.name || '', img: w.img || '', adj: w.adjId || '' }, shpStockOf(o, w.sku)));
@@ -69810,6 +70937,8 @@ async function shpBucketRun(keys, reason) {
   const by = new Map(shpBucketAll().map(x => [x.key, x]));   // the order's dialog and a pending sheet may open past the bucket's rule
   const picks = [...new Set(keys || [])].map(k => by.get(k)).filter(Boolean);
   if (!picks.length) return 'Tick at least one line.';
+  const rp = picks.filter(x => shpReadyProduct(x.sku));
+  if (rp.length) return 'Not made by Ridhi — ' + rp.slice(0, 5).map(x => x.sku).join(', ') + (rp.length > 5 ? ' and ' + nf(rp.length - 5) + ' more' : '') + ' ' + (rp.length > 1 ? 'are ready products' : 'is a ready product') + ' (the Master Database names another manufacturer), so production does not open them.';
   /* One reason for all (the dialog), or one per line (the Excel): Map key → reason. */
   const whyOf = k => String((reason instanceof Map ? reason.get(k) : reason) || '').trim();
   const noWhy = picks.filter(x => x.kind === 'covered' && !whyOf(x.key));
@@ -76062,6 +77191,12 @@ function guideGo(d) {
   const n = GUIDE.i + d;
   if (n < 0) return;
   GUIDE.dir = d < 0 ? -1 : 1;
+  /* "Show me how" (guide-walks.js): a step that only opens a form or a view is pressed by Meera herself, then on */
+  const cur = GUIDE.tour.steps[GUIDE.i], btn = d > 0 && GUIDE.tour.show && cur && cur.open && guideTarget(cur);
+  /* only a button that reads as opening something; one that saves, sends or changes anything is never pressed */
+  const said = btn ? (btn.textContent || btn.value || btn.title || '').trim() : '';
+  const opener = btn && /^\+|\b(new|open|edit|view|more|show|details|change|set up|correct)\b|▾/i.test(said) && !/\b(save|delete|remove|cancel|approve|reject|send|start|accept|receive|issue|pass|done|close|move|place|raise|upload|import|clear|undo|release|reserve|freeze|authori[sz]e|mark)\b/i.test(said) ? btn : null;
+  if (opener) { GUIDE.selfClick = true; try { opener.click(); } finally { GUIDE.selfClick = false; } const t = GUIDE.tour; setTimeout(() => { if (GUIDE.tour === t) { GUIDE.i = n; guideShow(); } }, 700); return; }
   if (n >= GUIDE.tour.steps.length) { const t = GUIDE.tour; guideClose(); if (t.kind === 'lesson' && t.steps[0].el && t.steps[0].el.focus) try { t.steps[0].el.focus(); } catch (e) { /* not a box */ } return; }
   GUIDE.i = n;
   guideShow();
@@ -77136,7 +78271,7 @@ const GUIDE_SYN = (() => {
 /* Words that carry no meaning of their own, in all three languages. */
 const GUIDE_STOP = new Set(('a an the is are was were be to of in on at for by it this that these my me i we our your and or but so if ' +
   'hai h ha he hain ho hoga hogi tha thi the ka ki ke ko se me mein mai main mera meri mere mujhe muje mujhko hum ham ye yeh wo woh ' +
-  'kar karna karu karun kare karo karte karta karti krna kr kro kiya kiye raha rahi rahe rha rhi rhe hota hoti hote hua hui gaya gayi gya gyi ' +
+  'kar karna karu karun kare karo karte karta karti krna kr kro kiya kiye raha rahi rahe rha rhi rhe hota hoti hote hua hui gaya gayi gya gyi gaye gye ab ' +
   'do does did get want need use using kindly just aa aata aati aate rha ' +
   'please plz pls sir ji bhai yaar aur ya par pe bhi abhi kuch koi ek sab toh to sakta sakti sakte skta chahiye chahta chahti ' +
   'है हैं था थी का की के को से में मैं मुझे यह वह कर करना करें करो रहा रही हो गया गई भी और या कुछ कोई ' +
@@ -77583,7 +78718,17 @@ function gaRead(q) {
   const words = gaWords(q);
   const lang = /[ऀ-ॿ]/.test(q) ? 'hi' : words.some(w => GUIDE_HG.has(w)) ? 'hg' : 'en';
   const people = gaPeople();
-  const means = [...new Set(words.filter(w => !GUIDE_STOP.has(w) && !/^\d+$/.test(w)).map(w => people.has(w) ? 'karigar' : gaMean(w)))];
+  let means = [...new Set(words.filter(w => !GUIDE_STOP.has(w) && !/^\d+$/.test(w)).map(w => people.has(w) ? 'karigar' : gaMean(w)))];
+  /* "maal aa gaya", "आ गया": it came in — a receipt (both words are fillers on their own) */
+  const came = /\b(aa|a)\s+(gaya|gya|gayi|gyi|gaye|gye|chuka|chuki|chuke)\b|आ\s*(गया|गई|गए|चुका|चुकी)/i.test(q);
+  if (came && !means.includes('receive')) means.push('receive');
+  /* both ways in one question ("jo kaam diya tha uska maal wapas aa gaya"): coming back wins — unless it is sent back TO
+   * someone ("karigar ko wapas dena", "send it back to the karigar") */
+  const toThem = /\bko\b[^,.?]*\b(wapas|vapas|waapas|wapis)\s+(de|dena|dene|dedo|bhej)|को[^,.?]*वापस\s*(दे|भेज)|\b(send|give)\b[^,.?]*\bback\b|\bback\s+to\b/i.test(q);
+  if (means.includes('receive') && means.includes('issue') && (came || /wapas|vapas|waapas|wapis|वापस|\bback\b|\breturn/i.test(q)) && !toThem)
+    means = means.filter(m => m !== 'issue');
+  /* sent back to them: giving, though it says "wapas" */
+  if (toThem && means.includes('issue')) means = means.filter(m => m !== 'receive');
   return { lang, means, words };
 }
 /** The karigars' names, from the ERP's own list: "Ramesh ko…" is about a karigar. */
@@ -77738,6 +78883,10 @@ async function gaAnswer(q) {
   { const row = gaRowFind(q); if (row) return gaRowAnswer(row, lang, L); }
   /* "ab kya karu", "what next", "atak gaya" with a form half filled in: its next box */
   if (typeof GA_NEXT_RE !== 'undefined' && GA_NEXT_RE.test(q)) { const n = gaWalkNext(lang, L); if (n) return n; }
+  /* Not about the ERP at all (Ravi, 27 Oct: "unrelated to erp ... khud hi bolde"): said at once — no AI, no ticket. */
+  if (gaOffTopic(means)) return { html: L('Sorry, I can\'t answer that — it isn\'t about the ERP. Ask me about any screen, job or problem in the ERP.',
+    'माफ़ कीजिए, इसका जवाब मैं नहीं दे सकती — यह ERP के बारे में नहीं है। ERP की किसी भी स्क्रीन, काम या दिक्कत के बारे में पूछें।',
+    'Sorry, iska jawaab main nahi de sakti — ye ERP ke baare me nahi hai. ERP ki kisi bhi screen, kaam ya dikkat ke baare me poochiye.'), acts: [], miss: 'offtopic', off: true };
   if (!means.length) return { html: L('Tell me a little more — what are you trying to do?', 'थोड़ा और बताइए — आप क्या करना चाहते हैं?', 'Thoda aur bataiye — aap kya karna chahte hain?'), acts: [] };
   /* "why isn't it saving / error kyu / kaam pura nahi ho raha": the screen itself is the best answer */
   /* Only a question that names no topic of its own reads the screen ("error kyu", "problem hai", "save nahi ho raha"):
@@ -77765,7 +78914,9 @@ async function gaAnswer(q) {
   cands.sort((a, b) => b.s - a.s);
   const top = cands[0];
   await gaBankLoad();
-  if (GA_W === null) await Promise.race([gaWordsLoad(), new Promise(ok => setTimeout(ok, 1500))]);
+  /* the first question waits for the meaning file (about 3 MB; on the live site it can take 2–3 s): answered on words
+   * alone, "maal wapas aa gaya" got a QC answer (27 Oct). Up to 4 s, once — after that it is in. */
+  if (GA_W === null) await Promise.race([gaWordsLoad(), new Promise(ok => setTimeout(ok, 4000))]);
   const hits = gaBankFind(means, words, q);
   if (!(top && top.kind === 'talk' && top.s >= 1.4) && hits[0] && hits[0].s >= (GA_W ? GA_BANK_SURE_SEM : GA_BANK_SURE)) {
     /* two answers fit almost equally ("short by kya hai": the screen, or its Short by column): ask which, never guess */
@@ -77862,12 +79013,14 @@ let GA_BANK = null, GA_BANK_P = null;
 function gaBankLoad() {
   if (GA_BANK) return Promise.resolve(GA_BANK);
   if (!GA_BANK_P) GA_BANK_P = fetch('/guide/meera-bank.json', { cache: 'no-cache' })
-    .then(r => (r.ok ? r.json() : [])).catch(() => [])
+    .then(r => (r.ok ? r.json() : null)).catch(() => null)
+    .then(list => { if (!Array.isArray(list)) { GA_BANK_P = null; throw new Error('bank not loaded'); } return list; })   // tried again next time
     .then(list => (typeof gaAiLearned === 'function' ? gaAiLearned(Array.isArray(list) ? list : []) : list))
     .then(list => (typeof gaWalksLoad === 'function' ? gaWalksLoad().then(() => list, () => list) : list))   // the walk-throughs (guide-walks.js)
     .then(list => (GA_BANK = gaBankIndex(Array.isArray(list) ? list : [])))
     .then(b => { gaWordsLoad().then(() => setTimeout(gaSemIndex, 0)); return b; });
-  return GA_BANK_P;
+  /* a question asked while it failed is answered from the short built-in lists, as without the bank */
+  return GA_BANK_P.catch(() => (GA_BANK || gaBankIndex([])));
 }
 /* ---------- meaning search (/guide/meera-words.bin) ----------
  * The bank above matches words. This matches MEANING: every word Meera's answers use (and the 3,000 commonest others) has a
@@ -77883,7 +79036,7 @@ function gaWordsLoad() {
   if (GA_W !== null) return Promise.resolve(GA_W);
   if (!GA_W_P) GA_W_P = fetch('/guide/meera-words.bin', { cache: 'no-cache' })
     .then(r => (r.ok ? r.arrayBuffer() : null)).catch(() => null)
-    .then(buf => { try { GA_W = buf ? gaWordsParse(buf) : false; } catch (e) { GA_W = false; } return GA_W; });
+    .then(buf => { if (!buf) { GA_W_P = null; return null; } try { GA_W = gaWordsParse(buf); } catch (e) { GA_W = false; } return GA_W; });
   return GA_W_P;
 }
 /** The file: a header (the words), each word's 256 numbers as small whole numbers, each row's scale, and its piece count. */
@@ -77974,6 +79127,17 @@ function gaBankIndex(list) {
 const GA_PART_ASK = new Set(('what does do happens happen press click tap mean meaning means show shows kya karta karti hai kis kaam ka ke liye kisliye ' +
   'kyun kyu ye yeh is ka matlab hota hoti dabane dabau dabaun dabaya par pe se button column box option note field tab ' +
   'क्या करता करती है किस काम का के लिए किसलिए मतलब होता यह ये दबाने बटन कॉलम').split(' '));
+/* NOT ABOUT THE ERP (27 Oct): a word none of Meera's answers ever uses (weather, cricket, pizza, bitcoin…) and fewer than
+ * two words her answers do use, leaving out the asking words below. Set on 380 test questions, 200 part questions and
+ * 11,335 made from every part's name: none of them refused; 12 of the 41 she cannot answer caught (the rest are
+ * about the business — GST, Flipkart — and go on to the AI and a ticket). */
+const GA_OFF_IGNORE = new Set(["what","how","where","why","not","can","help","ok","date","time","tomorrow","yesterday","good","best","tell","give","make","want","need","see","show","new","one","all","more","last","week","month","day","year","name","you","who","hello","thanks","bye","joke","language","meera","about","writ","count","correct","open","find","screen","button","do","get","please","work","job","wala","wali","wale","वाली","वाला","kab","milega","aayegi","rahega","raha","kaisa","ऐसा","ऐसे","वैसा","जबकि","क्यों","kyu","kyun","bhai","yaar","sir","ji","madam","plz","acha","accha","theek","haan","nahi","किसलिए","किसलिये","kisliye","kislie","kisliy","किस","लिए","liye","क्यूँ","क्यूं","कैसा","कैसी","कौनसा","कौन","konsa","kaunsa","matlab","मतलब","बताओ","बताइए","batao","bataiye","samjhao","समझाओ","hota","होता","hoti","होती","karta","करता","karti","करती"]);
+function gaOffTopic(means) {
+  const B = GA_BANK; if (!B || !B.list.length) return false;
+  const ms = means.filter(m => !GA_OFF_IGNORE.has(m) && !/^\d+$/.test(m));
+  const known = ms.filter(m => (B.df.get(m) || 0) >= 3).length, unknown = ms.filter(m => !B.df.has(m) && m.length >= 3).length;
+  return unknown > 0 && known < 2;
+}
 /* The screens by what people call them: a question that names one leans to that screen's answers. */
 const GA_TAB_SAY = [['ord', /order console/], ['pbase', /job ?work|jobwork|जॉब वर्क/], ['ppress', /\bpress\b|प्रेस/], ['pack', /packing|scan to pack|\bpack\b/],
   ['qc', /\bqc\b|quality|क्यूसी/], ['att', /attendance|hajri|haziri|हाजिरी/], ['pcut', /cutting|कटिंग/], ['fgi', /finished goods|\bfg\b/], ['fba', /\bfba\b/],
@@ -78161,8 +79325,12 @@ async function gaAsk(q) {
   if (r.miss) gaMissKeep(q, r.miss === true ? 'none' : r.miss);
   const lg = gaRead(q).lang, LL = (en, hi, hg) => (lg === 'hi' ? hi : lg === 'hg' ? hg : en);
   const fb = r.bank ? `<div class="ga-fb"><span>${LL('Did this help?', 'क्या इससे मदद मिली?', 'Kya isse madad mili?')}</span><button type="button" class="ga-fbb" data-ga="fb" data-id="up:${esc(r.bank)}" aria-label="Yes">👍</button><button type="button" class="ga-fbb" data-ga="fb" data-id="down:${esc(r.bank)}" aria-label="No">👎</button></div>` : '';
-  const ai = r.miss && typeof gaAiOn === 'function' && gaAiOn() ? [{ t: 'ai', label: LL('Ask AI', 'AI से पूछें', 'AI se poochhiye') }] : [];
-  gaSay(r.html, ai.concat(r.acts || []), (r.after || '') + fb);
+  /* not sure: she asks the AI herself, within the day's limit (guide-ai.js) — no answer at all: the AI's alone; a few close
+   * ones offered: those, then the AI's below them. Without AI, or over the limit: as before. */
+  const auto = !!r.miss && !r.off && typeof gaAiAuto === 'function' && gaAiAuto();   // not about the ERP: never to the AI
+  if (auto && r.miss === true) { gaAiAsk(q, { html: r.html, acts: r.acts }); gaChipsDraw(); return; }
+  gaSay(r.html, r.acts || [], (r.after || '') + fb);
+  if (auto) gaAiAsk(q);
   if (r.miss) gaChipsDraw();
 }
 function gaAct(t, id, tab) {
@@ -78409,6 +79577,8 @@ function guideFillFromQuestion(t, q) {
  * all after three "No thanks".
  */
 let GA_WALK_OF = new Map(), GA_WALKS_P = null;
+/* a button that starts a job (its walk's first press, e.g. #acNewItem): its own one-line answer offers the walk too */
+const GA_WALK_SEL = new Map();
 function gaWalksLoad() {
   if (!GA_WALKS_P) GA_WALKS_P = fetch('/guide/meera-walks.json', { cache: 'no-cache' })
     .then(r => (r.ok ? r.json() : [])).catch(() => [])
@@ -78422,6 +79592,8 @@ function gaWalksLoad() {
         if (id === w.id && Array.isArray(w.steps) && w.steps.length && !GUIDE_TASKS.some(t => t.id === w.id))
           GUIDE_TASKS.push({ id: w.id, k: [], need: ['-'], title: w.title, steps: w.steps, admin: !!w.admin, walk: true });
         (w.from || []).forEach(b => { if (!GA_WALK_OF.has(b)) GA_WALK_OF.set(b, id); });
+        const go = (w.steps || []).find(s => s.sel && s.wait === 'click');
+        if (go && /^#[\w-]+$/.test(go.sel) && !GA_WALK_SEL.has(go.sel)) GA_WALK_SEL.set(go.sel, id);
       });
       return GA_WALK_OF;
     });
@@ -78429,7 +79601,7 @@ function gaWalksLoad() {
 }
 /** The walk for a bank answer, if it has one this account can follow. */
 function gaWalkFor(e) {
-  const id = (e.task && GUIDE_TASKS.some(t => t.id === e.task)) ? e.task : GA_WALK_OF.get(e.id);
+  const id = (e.task && GUIDE_TASKS.some(t => t.id === e.task)) ? e.task : GA_WALK_OF.get(e.id) || (e.sel && GA_WALK_SEL.get(e.sel));
   const t = id && GUIDE_TASKS.find(x => x.id === id);
   if (!t || (t.admin && typeof ME !== 'undefined' && ME && !ME.admin)) return null;
   return t.steps.some(s => s.tab && !guideMayOpen(s.tab)) ? null : t;
@@ -78459,7 +79631,9 @@ function gaWalkStartAt(t) {
   const i = t.steps.findIndex(s => (s.wait === 'value' && gaStepEl(s) && !gaFilled(gaStepEl(s))) || (s.save && gaStepEl(s)));
   return i < 0 ? 0 : i;
 }
-/** "Show me": the same steps, nothing waited for but the press that opens a form, and the Save only pointed at. */
+/** "Show me": the same steps, nothing waited for. A press that only opens a form or a view, Meera makes herself on Next;
+ * a press that saves, sends, deletes or asks to confirm is only pointed at (live, 26 Oct: Start, Cancel, Approve waited). */
+const GA_SHOW_NOT_OPEN = /for real|saves|असली|delete|cancel|approve|reject|send|start|ask sales|fixed|strike|हटा|कैंसल/i;
 function gaShowSteps(t) {
   return t.steps.map(s => {
     const c = Object.assign({}, s);
@@ -78467,13 +79641,45 @@ function gaShowSteps(t) {
       delete c.wait; delete c.save;
       c.en = 'When you do it for real, you press this — it saves. Not now: this is only a look round. ' + (s.en || '');
       c.hi = 'असली में करते समय यह दबाना है — इससे सेव होता है। अभी नहीं: यह सिर्फ़ दिखाने के लिए है। ' + (s.hi || s.en || '');
-    } else if (!(c.wait === 'click' && c.skip)) delete c.wait;
+    } else {
+      if (c.wait === 'click' && !GA_SHOW_NOT_OPEN.test(s.en || '')) c.open = true;   // pressed by Meera only if the button itself reads as an opener (guideGo)
+      else if (c.wait === 'click') {
+        c.en = 'In the real job you press this. Not now: this is only a look round. ' + (s.en || '');
+        c.hi = 'असली काम में यह दबाना है। अभी नहीं: यह सिर्फ़ दिखाने के लिए है। ' + (s.hi || s.en || '');
+      }
+      delete c.wait;
+    }
     return c;
   });
+}
+/** The walk's first button is not on this person's screen (live, 26 Oct: Finished Goods' Scan in / out is hidden without
+ * the entry right): say so, rather than pass over the steps that need it. A button on a line: there is no line yet. */
+function gaWalkMissing(t) {
+  const first = t.steps.find(x => x.sel && x.wait === 'click');
+  if (!first || (first.tab && gaHere() !== first.tab)) return null;
+  return guideTarget(first) || (first.skip && guideTarget({ sel: first.skip })) ? null : first;
+}
+function gaWalkSayMissing(first) {
+  const name = ((first.en || '').match(/<b>(.*?)<\/b>/) || [])[1] || '', hi = guideLang() === 'hi', row = /\[data-/.test(first.sel);
+  guideAskOpen();
+  gaSay(row ? (hi ? `यहाँ अभी कोई लाइन नहीं है जिस पर यह काम हो — <b>${name}</b> लाइन पर तभी दिखता है जब कोई लाइन हो।` : `There is no line here to do this on yet — <b>${name}</b> shows on a line once there is one.`)
+    : (hi ? `आपकी स्क्रीन पर <b>${name}</b> नहीं दिख रहा। यह सिर्फ़ उन लोगों को दिखता है जिनके पास इस काम का अधिकार है — ज़रूरत हो तो एडमिन से कहें।` : `I can't see <b>${name}</b> on your screen. It shows only for people with the right for this job — ask your admin if you need it.`), []);
+}
+/** On the walk's screen already: asked before it starts. Opened by the walk: looked at once the screen is up — the walk
+ * may have passed over every step and closed by then, so a walk of its own still running is the only thing that stops it. */
+function gaWalkCheck(t) {
+  const tour = GUIDE.tour;
+  setTimeout(() => {
+    if (GUIDE.tour && GUIDE.tour !== tour) return;   // the person started something else
+    const first = gaWalkMissing(t); if (!first) return;
+    if (GUIDE.tour === tour) guideClose();
+    gaWalkSayMissing(first);
+  }, 1600);
 }
 /** Start a job's walk: 'do' (with me, from the start), 'show' (a look round), 'resume' (from where the form has got to). */
 function gaWalkStart(id, mode, q) {
   const t = GUIDE_TASKS.find(x => x.id === id); if (!t) return;
+  if (mode !== 'resume') { const miss = gaWalkMissing(t); if (miss) { gaWalkSayMissing(miss); return; } }   // its first button is not on this screen
   guideAskClose();
   if (mode === 'show') {
     guideBuild();
@@ -78481,9 +79687,11 @@ function gaWalkStart(id, mode, q) {
     GUIDE.tour = { kind: 'task', id, title: t.title, steps: gaShowSteps(t), show: true };
     GUIDE.i = 0; GUIDE.dir = 1;
     guideShow();
+    gaWalkCheck(t);
     return;
   }
   guideTaskStart(id, q);
+  if (mode === 'do') gaWalkCheck(t);
   if (mode === 'resume' && GUIDE.tour && GUIDE.tour.id === id) {
     const at = gaWalkStartAt(GUIDE.tour);
     if (at > 0) {
@@ -78568,6 +79776,149 @@ function gaNudgeWatch() {
 }
 /* started here, not from guideBuild (guide.js runs first, before this file's own values exist) */
 gaNudgeWatch();
+
+/* ---------- loaded early (Ravi, 27 Oct: "make meera a bit fast in loading") ----------
+ * Her answers, walk-throughs and meaning file (about 2 MB in all) were fetched only when Ask Meera first opened, so the
+ * first answer waited for them. Now they are downloaded in the background a few seconds after someone is signed in, when
+ * the browser is idle — downloaded only, into the browser's cache: nothing is read or worked out on the page until Ask
+ * Meera opens (building her search index takes about a second, more on a phone, and must not slow anyone's work). Not
+ * for a printer's sign-in, nor on a phone saving data. On later visits the browser only asks whether they changed. */
+const gaLater = (fn, ms) => { const t = setTimeout(fn, ms); if (t && t.unref) t.unref(); };   // never keeps a test run open
+function gaPreload(tries) {
+  let signedIn = false;
+  try { signedIn = typeof auth !== 'undefined' && !!(auth && auth.currentUser); } catch (e) { /* not signed in yet */ }
+  if (!signedIn) { if (tries < 30) gaLater(() => gaPreload(tries + 1), 10000); return; }   // waits for the sign-in (up to 5 min)
+  try { if (typeof spIsVendor === 'function' && spIsVendor()) return; } catch (e) { /* not known: go on */ }
+  try { if (navigator.connection && navigator.connection.saveData) return; } catch (e) { /* not known: go on */ }
+  const go = () => ['/guide/meera-bank.json', '/guide/meera-walks.json', '/guide/meera-words.bin']
+    .forEach(u => fetch(u, { cache: 'no-cache' }).then(r => r.arrayBuffer()).catch(() => null));
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(go, { timeout: 8000 }); else gaLater(go, 1000);
+}
+gaLater(() => gaPreload(0), 4000);
+/* ============================== FILE: src/app/core/guide-ai.js ============================== */
+/* ================= MEERA ASKS A MODEL — through her router (meera-router/, a Cloudflare Worker), 26 Oct =================
+ *
+ * OFF until GA_AI_URL is set. Then, when Meera is not sure of her own answer, she asks by herself (Ravi, 27 Oct: no button,
+ * "until it hits our decided limit" — 10 a person, 500 the company, a day; over it, she answers on her own): the question is
+ * cleaned here first (order numbers, phones, emails, tax numbers and the karigars' names taken out — the router cleans it
+ * again), sent with this person's ERP sign-in, and the router asks a free model using only Meera's own nearest answers as
+ * its notes. What no model can answer becomes a ticket for an admin; what an admin answers or approves comes back here
+ * (GET /learned) and joins Meera's own answers. Nothing here reads or writes the ERP's data. */
+const GA_AI_URL = 'https://meera-router.erp-9a0.workers.dev';   // e.g. 'https://meera-router.<account>.workers.dev' — empty: Meera answers on her own, as before
+
+function gaAiOn() {
+  try { return !!GA_AI_URL && typeof auth !== 'undefined' && !!(auth && auth.currentUser); } catch (e) { return false; }
+}
+/* Over today's limit (the router said 429): no more asking from this device until tomorrow. */
+const gaAiDay = () => new Date().toISOString().slice(0, 10);
+function gaAiAuto() {
+  if (!gaAiOn()) return false;
+  try { return localStorage.getItem('guideAiFull') !== gaAiDay(); } catch (e) { return true; }
+}
+/* The same cleaning as the router's (meera-router/src/redact.js): change one, change both. */
+function gaClean(text, names) {
+  let s = String(text || '').slice(0, 500);
+  s = s.replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[EMAIL]')
+    .replace(/\b\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]\b/gi, '[TAX-ID]').replace(/\b[A-Z]{5}\d{4}[A-Z]\b/gi, '[TAX-ID]')
+    .replace(/\b(?:SHP|AMZ|ORD|SPY|LEG|CUST|GPO|PO|SO|INV)-[A-Z0-9][A-Z0-9-]{2,}\b|#[A-Z]{2,4}\d{3,}\b/gi, '[ORDER]')
+    .replace(/\+?\d[\d\s-]{8,}\d/g, m => (m.replace(/\D/g, '').length >= 10 ? '[PHONE]' : m))
+    .replace(/\b\d{5,}\b/g, '[NUMBER]');
+  const list = [...new Set((names || []).filter(n => n && n.length >= 3))].sort((a, b) => b.length - a.length);
+  for (const n of list) s = s.replace(new RegExp('(^|[^\\p{L}])' + n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?=$|[^\\p{L}])', 'giu'), '$1[NAME]');
+  return s.replace(/\s+/g, ' ').trim();
+}
+function gaNames() {
+  try { return (PTE.emp || []).map(e => String(e[1] || '').trim()).filter(n => n.length >= 3); } catch (e) { return []; }
+}
+async function gaAiCall(path, body, method = 'POST') {
+  const tok = await auth.currentUser.getIdToken();
+  const r = await fetch(GA_AI_URL.replace(/\/$/, '') + path, { method, headers: { authorization: 'Bearer ' + tok, 'content-type': 'application/json' },
+    body: method === 'POST' ? JSON.stringify(body || {}) : undefined });
+  let j = null;
+  try { j = await r.json(); } catch (e) { /* not JSON */ }
+  return { status: r.status, body: j || {} };
+}
+/* A model's or an admin's words are text: escaped, with **bold** for button names. */
+const gaMd = s => esc(String(s || '')).replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+const gaLL = lang => (en, hi, hg) => (lang === 'hi' ? hi : lang === 'hg' ? hg : en);
+
+/** The question, cleaned, to the router; the answer, a ticket, or — when there is neither — `own`, Meera's own reply
+ * ({html, acts}), shown as it would have been without AI. */
+async function gaAiAsk(q, own) {
+  const { lang, means, words } = gaRead(q), L = gaLL(lang);
+  await gaBankLoad();
+  const ids = gaBankFind(means, words, q).map(h => h.e.id).filter(id => !/^learned-/.test(id)).slice(0, 5);
+  gaSay(L('Asking… one moment.', 'पूछ रही हूँ… एक पल।', 'Poochh rahi hoon… ek pal.'), []);
+  const wait = $('gaLog').lastElementChild;
+  let r;
+  try { r = await gaAiCall('/ask', { q: gaClean(q, gaNames()), lang, screen: gaHere(), ids, names: gaNames() }); }
+  catch (e) { r = { status: 0, body: {} }; }
+  if (wait) wait.remove();
+  const b = r.body || {};
+  if (r.status === 200 && b.answer) {
+    const a = b.answer;
+    const html = `<div class="ga-a">${gaMd(a.a)}</div>`
+      + (a.why ? `<div class="ga-why"><b>${L('Why', 'क्यों', 'Kyun')}</b>${gaMd(a.why)}</div>` : '')
+      + (a.steps && a.steps.length ? `<div class="ga-do"><b>${L('What to do', 'क्या करें', 'Kya karein')}</b><ol>${a.steps.map(s => `<li>${gaMd(s)}</li>`).join('')}</ol></div>` : '')
+      + `<div class="ga-note">${b.source === 'saved' ? L('Answer checked by an admin.', 'एडमिन का जाँचा हुआ जवाब।', 'Admin ka jaancha hua jawaab.') : L('Written by AI from Meera\'s notes — not yet checked by an admin.', 'मीरा के नोट्स से AI का लिखा — एडमिन ने अभी जाँचा नहीं।', 'Meera ke notes se AI ka likha — admin ne abhi jaancha nahi.')}</div>`;
+    const fb = `<div class="ga-fb"><span>${L('Did this help?', 'क्या इससे मदद मिली?', 'Kya isse madad mili?')}</span><button type="button" class="ga-fbb" data-ga="aifb" data-id="up:${+b.answerId || 0}" aria-label="Yes">👍</button><button type="button" class="ga-fbb" data-ga="aifb" data-id="down:${+b.answerId || 0}" aria-label="No">👎</button></div>`;
+    gaSay(html, [], fb);
+    return;
+  }
+  if (b.offTopic) { gaSay(L('Sorry, I can\'t answer that — it isn\'t about the ERP. Ask me about any screen, job or problem in the ERP.', 'माफ़ कीजिए, इसका जवाब मैं नहीं दे सकती — यह ERP के बारे में नहीं है। ERP की किसी भी स्क्रीन, काम या दिक्कत के बारे में पूछें।', 'Sorry, iska jawaab main nahi de sakti — ye ERP ke baare me nahi hai. ERP ki kisi bhi screen, kaam ya dikkat ke baare me poochiye.'), []); return; }
+  if (r.status === 429) { try { localStorage.setItem('guideAiFull', gaAiDay()); } catch (e) { /* asks again next time */ } }
+  if (b.ticket) {
+    gaSay(r.status === 429
+      ? L(`Today's AI questions are used up. I have sent your question to the admin team (ticket #${+b.ticket}).`, `आज के AI सवाल पूरे हो गए। मैंने आपका सवाल एडमिन टीम को भेज दिया है (टिकट #${+b.ticket})।`, `Aaj ke AI sawaal poore ho gaye. Maine aapka sawaal admin team ko bhej diya hai (ticket #${+b.ticket}).`)
+      : L(`I don't have a sure answer to this. I have sent it to the admin team (ticket #${+b.ticket}); they will answer when they are online, and I will know it next time.`, `इसका पक्का जवाब मेरे पास नहीं है। मैंने इसे एडमिन टीम को भेज दिया है (टिकट #${+b.ticket}); वे ऑनलाइन आकर जवाब देंगे, और अगली बार मुझे पता होगा।`, `Iska pakka jawaab mere paas nahi hai. Maine ise admin team ko bhej diya hai (ticket #${+b.ticket}); woh online aakar jawaab denge, aur agli baar mujhe pata hoga.`), []);
+    return;
+  }
+  gaMissKeep(q, 'ai-unavailable');
+  if (own) { if (own.html) gaSay(own.html, own.acts || []); return; }   // her own answer, as without AI
+  gaSay(L('AI is not available right now. I have noted your question here.', 'AI अभी उपलब्ध नहीं है। मैंने आपका सवाल यहाँ नोट कर लिया है।', 'AI abhi uplabdh nahi hai. Maine aapka sawaal yahan note kar liya hai.'), []);
+}
+async function gaAiFeedback(id) {
+  const up = id.startsWith('up:'), lang = gaRead(GA.lastQ || '').lang, L = gaLL(lang);
+  let t = null;
+  try { const r = await gaAiCall('/feedback', { answerId: +id.slice(id.indexOf(':') + 1) || 0, up, q: gaClean(GA.lastQ || '', gaNames()), screen: gaHere(), lang }); t = r.body && r.body.ticket; } catch (e) { /* noted below */ }
+  gaSay(up ? L('Thank you! 🙏', 'धन्यवाद! 🙏', 'Dhanyavaad! 🙏')
+    : L(`Sorry. I have sent this to the admin team${t ? ` (ticket #${+t})` : ''}.`, `माफ़ कीजिए। मैंने इसे एडमिन टीम को भेज दिया है${t ? ` (टिकट #${+t})` : ''}।`, `Maaf kijiye. Maine ise admin team ko bhej diya hai${t ? ` (ticket #${+t})` : ''}.`), []);
+}
+
+/** What admins answered or approved: joins Meera's own answers (as learned-<id>). Never holds up her own list. */
+async function gaAiLearned(list) {
+  if (!gaAiOn()) return list;
+  try {
+    const r = await Promise.race([gaAiCall('/learned', null, 'GET'), new Promise((_, no) => setTimeout(() => no(new Error('slow')), 3000))]);
+    const got = (r.body && r.body.answers) || [];
+    return list.concat(got.map(x => {
+      const a = x.answer || {}, one = v => ({ en: v, hi: v, hg: v });
+      return { id: 'learned-' + x.id, tab: x.screen || '', q: { en: [x.question], hi: [x.question], hg: [x.question] }, a: one(gaMd(a.a)),
+        why: a.why ? one(gaMd(a.why)) : undefined, steps: a.steps && a.steps.length ? one(a.steps.map(gaMd)) : undefined };
+    }));
+  } catch (e) { return list; }
+}
+
+/** For admins, in Ask Meera: "tickets" lists the open ones, each with a box to answer it. */
+async function gaAiCommand(q) {
+  if (!/^\s*(meera\s+)?tickets?\s*$/i.test(q) || !gaAiOn()) return false;
+  const r = await gaAiCall('/admin/tickets', null, 'GET').catch(() => ({ status: 0, body: {} }));
+  if (r.status === 403) { gaSay('Only an admin can see tickets.', []); return true; }
+  const list = (r.body && r.body.tickets) || [];
+  GA.tickets = new Map(list.map(t => [String(t.id), t]));
+  gaSay(list.length ? `<b>${list.length} open ticket(s)</b>` + list.slice(0, 20).map(t => `<div class="ga-tk"><small>#${+t.id} · ${esc(t.screen || '-')} · ${esc(t.why || '')} · ${esc(String(t.created || '').slice(0, 16))}</small>`
+      + `<div>${esc(t.question)}</div><textarea id="gaTk${+t.id}" rows="2" placeholder="Write the answer (it joins Meera's answers)"></textarea>`
+      + `<button type="button" class="ga-act" data-ga="aians" data-id="${+t.id}">Save answer</button></div>`).join('')
+    : (r.status === 200 ? 'No open tickets.' : 'Could not read the tickets.'), []);
+  return true;
+}
+async function gaAiAnswer(id) {
+  const t = GA.tickets && GA.tickets.get(String(id)), box = $('gaTk' + id);
+  if (!t || !box || !box.value.trim()) return;
+  const r = await gaAiCall('/admin/answer', { ticketId: +id, q: t.question, screen: t.screen, lang: gaRead(t.question).lang, a: box.value.trim() }).catch(() => ({ status: 0 }));
+  if (r.status === 200) { box.closest('.ga-tk').innerHTML = `<small>#${+id} answered — it joins Meera's answers.</small>`; GA_BANK = null; GA_BANK_P = null; GA_SEM = null; }
+  else gaSay('Could not save that answer.', []);
+}
 /* ============================== FILE: src/app/core/r1-roles.js ============================== */
 /* ================= R-ONE ROLES: READY-MADE ACCESS (2026-10-22) =================
  *
@@ -79549,7 +80900,7 @@ function p1Wip() {
   const res = p1WipBuild(); P1_WIPC = { key, out: res }; return res;
 }
 function p1WipBuild() {
-  const out = [], rows = flowRows().filter(x => !x.r.__t && x.s.bucket !== 'done'), open = new Set(rows.map(x => obUC(x.r.orderNo) + '|' + obUC(x.r.sku)));
+  const out = [], rows = flowRows().filter(x => !x.r.__t && x.s.bucket !== 'done' && x.s.bucket !== 'board'), open = new Set(rows.map(x => obUC(x.r.orderNo) + '|' + obUC(x.r.sku)));
   p1Events(); const lastOf = (k, o, s) => P1_EV.last.get(k + '|' + o + '|' + s) || null;
   /* with the printer: what each open challan has sent and not had back */
   Object.values(FLOW.ch || {}).forEach(c => { if (!c || c.cancelled || c.closed) return; const recv = flowChRecv(c);
@@ -79674,7 +81025,7 @@ function p1Ords(list) {
 /** The SKU's card above the ledger: its balance, where its pieces are and who has them, and its next steps. */
 function p1SkuCard(sku, ev) {
   const mine = ev.filter(e => e.sku === sku && e.unit !== 'm'), sum = ks => mine.filter(e => ks.includes(e.k)).reduce((t, e) => t + e.pcs, 0);
-  const rows = flowRows().filter(x => !x.r.__t && obUC(x.r.sku) === sku && x.s.bucket !== 'done');
+  const rows = flowRows().filter(x => !x.r.__t && obUC(x.r.sku) === sku && x.s.bucket !== 'done' && x.s.bucket !== 'board');
   const np = rows.filter(x => x.s.bucket === 'ppc' || x.s.bucket === 'back').reduce((t, x) => t + (+x.r.qty || 0), 0);
   const mk = rows.filter(x => !['ppc', 'back'].includes(x.s.bucket)).reduce((t, x) => t + Math.max(0, (+x.r.qty || 0) - x.s.qc), 0);
   const rd = rows.reduce((t, x) => t + Math.max(0, Math.min(+x.r.qty || 0, x.s.qc) - x.s.india), 0);
@@ -79703,7 +81054,7 @@ function p1InvBuild() {
   const by = new Map(), lineG = new Map(), L = p1Lots();
   const wipOf = new Map(); p1Wip().forEach(h => { const k = h.orderNo + '|' + h.sku; (wipOf.get(k) || wipOf.set(k, []).get(k)).push(h); });
   flowRows().forEach(x => {
-    if (x.r.__t || x.s.bucket === 'done') return;
+    if (x.r.__t || x.s.bucket === 'done' || x.s.bucket === 'board') return;   // 'board': a new Shopify order the SHP board plans (live, 28 Oct)
     const k = obUC(x.r.sku), q = +x.r.qty || 0, s = x.s, lot = L.byLine.get(s.key) || null, gk = lot ? lot.id : 'NEW|' + k;
     const e = by.get(gk) || { gk, lot, sku: k, art: p1Art(x.r), fam: String(x.r.articleSubtype || ''), wl: [], what: [x.r.articleSubtype || x.r.articleType || x.r.itemName, x.r.color, x.r.size].filter(Boolean).join(' · '), lines: [], orders: new Set(),
       ordered: 0, notPlanned: 0, short: 0, fab: 0, fabM: 0, cut: 0, raw: 0, kar: 0, qc: 0, ready: 0, isNew: false };

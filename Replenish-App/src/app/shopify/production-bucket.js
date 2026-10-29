@@ -38,6 +38,10 @@ function shpSheetAllows(o) {
   return String((o && o.at) || '') > r.at;
 }
 let SHP_BUCKET_IX = { sig: null, list: null };
+/* ONLY WHAT RIDHI MAKES OPENS IN PRODUCTION (Ravi, 28 Oct: "jinka manufacture ridhi h wo hi sirf yaha production me order open ho otherwise
+ * nahi"): a SKU whose master names another manufacturer is a READY PRODUCT — bought in, shipped as it is — so it never enters the
+ * bucket and cannot be opened from it. Blank manufacturer = Ridhi (mdbIsReady). */
+const shpReadyProduct = sku => { try { const m = typeof mdbOf === 'function' ? mdbOf(sku) : null; return !!(m && typeof mdbIsReady === 'function' && mdbIsReady(m)); } catch (e) { return false; } };
 function shpBucket() {
   const sig = [SO_ALL_ROWS, (SO_ALL_ROWS || []).length, PTG.ob, (PTG.ob || []).length, SHOP_STOCK_LOADED, SHOP_INDIA_LOADED, SHOP_INDIA_ERR, SO_INDIA_TAKEN, SHOP_META];
   if (SHP_BUCKET_IX.list && SHP_BUCKET_IX.sig.every((x, i) => x === sig[i])) return SHP_BUCKET_IX.list;
@@ -56,7 +60,7 @@ function shpBucketMake() {
   const out = [];
   (SO_ALL_ROWS || []).forEach(o => {
     if (!o || !o.id || o.cancelled || o.shipped || !(o.handled || soIsPending(o)) || !shpSheetAllows(o)) return;
-    shpNeeds(o, undefined, { evenHandled: true }).forEach(w => { if (!opened.has(String(o.id) + '|' + w.sku)) out.push({ id: String(o.id), sku: w.sku, kind: 'make' }); });
+    shpNeeds(o, undefined, { evenHandled: true }).forEach(w => { if (shpReadyProduct(w.sku)) return; if (!opened.has(String(o.id) + '|' + w.sku)) out.push({ id: String(o.id), sku: w.sku, kind: 'make' }); });
   });
   return out;
 }
@@ -72,6 +76,7 @@ function shpBucketBuild(opts) {
     const mine = new Set();
     const noted = o.handled ? ' · the order is marked done (' + (o.handledWhy || 'a note says so') + ') — check it is not already made before opening' : '';
     shpNeeds(o, undefined, { evenHandled: true }).forEach(w => {
+      if (shpReadyProduct(w.sku)) return;   // a ready product is not production's
       mine.add(w.sku);
       if (!isOpen(w.sku)) out.push(Object.assign({ o, id, sheetOk, key: id + '|' + w.sku, sku: w.sku, qty: w.qty, pcs: w.pcs, shopQty: w.shopQty, kind: 'make',
         why: (w.why || []).join(' + ') + noted, noted: !!noted, name: w.name || '', img: w.img || '', adj: w.adjId || '' }, shpStockOf(o, w.sku)));
@@ -105,6 +110,8 @@ async function shpBucketRun(keys, reason) {
   const by = new Map(shpBucketAll().map(x => [x.key, x]));   // the order's dialog and a pending sheet may open past the bucket's rule
   const picks = [...new Set(keys || [])].map(k => by.get(k)).filter(Boolean);
   if (!picks.length) return 'Tick at least one line.';
+  const rp = picks.filter(x => shpReadyProduct(x.sku));
+  if (rp.length) return 'Not made by Ridhi — ' + rp.slice(0, 5).map(x => x.sku).join(', ') + (rp.length > 5 ? ' and ' + nf(rp.length - 5) + ' more' : '') + ' ' + (rp.length > 1 ? 'are ready products' : 'is a ready product') + ' (the Master Database names another manufacturer), so production does not open them.';
   /* One reason for all (the dialog), or one per line (the Excel): Map key → reason. */
   const whyOf = k => String((reason instanceof Map ? reason.get(k) : reason) || '').trim();
   const noWhy = picks.filter(x => x.kind === 'covered' && !whyOf(x.key));

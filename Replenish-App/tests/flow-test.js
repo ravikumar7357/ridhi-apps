@@ -2,7 +2,7 @@
  *   node tests/flow-test.js      (FLOW_DIR=<dir> to test another copy — teeth/teeth-flow.js does) */
 const fs = require('fs'), path = require('path');
 const DIR = process.env.FLOW_DIR || path.join(__dirname, '..', 'src', 'app', 'flow');
-const SRC = ['flow-core.js', 'flow-ppc.js', 'flow-demand.js', 'flow-challan.js', 'flow-test-order.js', 'flow-receive.js', 'flow-printorder.js', 'flow-vendor.js', 'flow-edit.js', 'flow-back.js', 'flow-entries.js', 'flow-qcfg.js', 'flow-emb.js', 'flow-view.js'].map(f => fs.readFileSync(path.join(DIR, f), 'utf8')).join('\n');
+const SRC = ['flow-core.js', 'flow-ppc.js', 'flow-demand.js', 'flow-challan.js', 'flow-test-order.js', 'flow-receive.js', 'flow-printorder.js', 'flow-vendor.js', 'flow-edit.js', 'flow-back.js', 'flow-entries.js', 'flow-qcfg.js', 'flow-emb.js', 'flow-view.js', 'flow-report.js'].map(f => fs.readFileSync(path.join(DIR, f), 'utf8')).join('\n');
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => { if (cond) { pass++; console.log('  PASS ' + name); } else { fail++; console.log('  FAIL ' + name + (extra ? ' — ' + extra : '')); } };
 
@@ -53,7 +53,7 @@ function load(opts) {
       return { row: Object.assign({}, row, { rejectionPieces: val, pendingPieces: iss - recv - val, frozen: iss - recv - val <= 0 }) }; },
     ptLoadEmp: async () => {}, ptEmpTypes: () => ['Company Contractor', 'External Contractor'],
     ptEmpsOfType: t => ({ 'Company Contractor': [['Company Contractor', 'Ramesh'], ['Company Contractor', 'Suresh']], 'External Contractor': [['External Contractor', 'Pradeep']] })[t] || [],
-    cutFabrics: () => ['Canvas', 'Cotton', 'Sheeting 82'], ptDlgClose: () => {}, PT: { base: opts.base || [] }, ORD_IX: {}, palKey: (b, c) => (b || '') + '|' + c, palInfoOf: k => (opts.pal || {})[k] || {}, VO: { rows: opts.vo || [] }, voLines: o => (Array.isArray(o.lines) ? o.lines : Object.values(o.lines || {})), voNewOrderNo: (() => { let n = 0; return () => 'VPO-261010-T' + (++n); })(), voTodayDMY: () => '10/10/2026', ordCutReq: sku => !/NOCUT/.test(sku), confirm: q => { (ctx.__asked = ctx.__asked || []).push(q); return !opts.confirmNo; }, PTG: { mdb: [] }, setTimeout, clearTimeout,
+    cutFabrics: () => ['Canvas', 'Cotton', 'Sheeting 82'], ptDlgClose: () => {}, PT: { base: opts.base || [] }, ORD_IX: {}, palKey: (b, c) => (b || '') + '|' + c, palInfoOf: k => (opts.pal || {})[k] || {}, VO: { rows: opts.vo || [] }, voLines: o => (Array.isArray(o.lines) ? o.lines : Object.values(o.lines || {})), voNewOrderNo: (() => { let n = 0; return () => 'VPO-261010-T' + (++n); })(), voTodayDMY: () => '10/10/2026', ordCutReq: sku => !/NOCUT/.test(sku), confirm: q => { (ctx.__asked = ctx.__asked || []).push(q); return !opts.confirmNo; }, PTG: { mdb: [] }, soZip: f => f, soXml: v => String(v), soColName: i => String.fromCharCode(65 + i), setTimeout, clearTimeout,
     voAllVendors: () => [{ code: 'V9', desc: 'Kalu Mill', category: 'Mill' }, { code: 'P1', desc: 'Sanganer Prints', category: 'Printer' }, { code: 'P2', desc: 'Choudhary Hand Block', category: 'Printer' }],
     window: { open: () => (opts.popupBlocked ? null : { document: { open() {}, write(h) { (ctx.__win = ctx.__win || []).push(h); }, close() {} } }) }, GPO: { settings: { company: 'Ridhi Home & Living' } },
     ordPrintAsPcs: m => !!(m && m.asPcs), ptPrintFabric: m => (m && m.pfab) || '', ptPrintDir: m => (m && m.dir) || '',
@@ -66,11 +66,11 @@ function load(opts) {
     FAB: { rows: opts.fabRows || [] },
     STORE: { rows: opts.store ? [] : null }, stMoves: () => opts.store || [], stBalances: mv => mv, fabKey: v => String(v || '').trim().toUpperCase(), fabAll: () => opts.fabRows || [], ptList: x => x || [], fabAutoLoad: async () => {}, GD: opts.gd, mdbOf: opts.mdbOf, MDBX: opts.mdbx, fabState: r => String((r && r.state) || (/RFD/.test(String(r && r.txnType)) ? 'RFD' : 'PRINTED')).toUpperCase(), fabKnown: t => ['OPENING_RFD', 'RFD_TO_PRINTER', 'ISSUE_TO_CUTTING', 'RECEIVE_RFD', 'PURCHASE_RFD', 'ADJUST'].includes(t), fabMove: r => (+r.qty || 0) * (['RFD_TO_PRINTER', 'ISSUE_TO_CUTTING'].includes(r.txnType) ? -1 : 1), fabStockOf: (name, st) => (st === 'RFD' ? (opts.rfd || {})[String(name).toUpperCase()] || 0 : 0),
   };
-  const api = new Function(...Object.keys(ctx), SRC + '\n;return { flowDrfdLineRows, flowFabOwed, flowRfdStock, flowFabKnown, flowMatRow, flowGdNote, flowPpcDraftSave, flowPpcDraftApply, flowPpcDraftDrop, flowPpcHasDraft, flowBackOpen, flowAgainOpen, flowIsBack, flowBackLines, flowBackPill, FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW_ROUTES, flowPlanRouteOf, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChTotals, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestCutOpen, flowTestIssueOpen, flowTestRecvOpen, flowTestVos, flowVoProgOf, flowVoProgSync, flowVlogRows, flowDocsOf, flowVoExtra, flowVpViewOnly, flowFgAcceptOpen, flowFgAccept, flowFgRejectOpen, flowFgReject, flowFgLines, flowFgRender, flowQcLine, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowRecvCross, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowCutEntry, flowIssueEntry, flowRecvEntry, flowQcEntry, flowIssuable, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowVoLines, flowSwatchOf, flowSizeFifo, flowSizeChallanOpen, flowBySizeData, flowPpcXlRows, flowPpcXlRead, flowXlDate, FLOW_XL_COLS, VOrows:()=>VO.rows, setVOrows:v=>{VO.rows=v}, flowUnplan, flowPoResync, flowPlanQcDirect, flowChSizeLive, flowEmbedRows, FLOW_EMB_SHOWN:()=>FLOW_EMB_SHOWN, flowChLineWhat, flowRecvRows, flowRecvDayTable, FLOW_HD, flowDueRows, flowDueTable, flowReads, flowDueRecvOpen, flowDueRecvSave, flowRfdChallanOut, flowEarlierOf, flowRecordEarlier, flowChangePrinterSave, flowStanding, flowStandBack, flowStandUse, flowStandTargets, flowRfdChallanOut, flowHistTable, flowChGroups, flowChXlRead, flowChQueue, flowEmbIndex, flowEmbCells, flowEmbSendOpen, flowEmbRecvOpen, flowEmbWho, flowEmbCancel, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v}, flowEmbedRender, FLOW_EMB:()=>FLOW_EMB, flowScreenAllowed, flowOwnsOrder, flowOwnedIn, flowVoIsFlow, flowFgOwns, flowDupViewsOff, renderView:()=>{ if (["cut","raw","wip","new","pord","vendor","fabric"].includes(FLOW_VIEW)) { const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly(); const rows = flowRows().filter(x => (!only || x.r.__t) && (FLOW_VIEW === "new" ? x.recent : flowInView(FLOW_VIEW, x.s))); $("flTable").innerHTML = flowTable(FLOW_VIEW, rows); } else renderFlow(); } };')(...Object.values(ctx));
+  const api = new Function(...Object.keys(ctx), SRC + '\n;return { flowBoardOwns, FLOW_BOARD_FROM, flowRepStatus, flowRepPcs, flowRepBoard, flowRepGreigePo, FLOW_REP: () => FLOW_REP, flowRepLines, flowRepSummary, flowRepSheets, flowRepDelay, flowRepDue, flowRepAllowed, flowRepXlsx, flowRepChannel, flowRepDay, flowRepBtn, flowPoParts, flowDrfdLineRows, flowFabOwed, flowRfdStock, flowFabKnown, flowMatRow, flowGdNote, flowPpcDraftSave, flowPpcDraftApply, flowPpcDraftDrop, flowPpcHasDraft, flowBackOpen, flowAgainOpen, flowIsBack, flowBackLines, flowBackPill, FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW_ROUTES, flowPlanRouteOf, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChTotals, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestCutOpen, flowTestIssueOpen, flowTestRecvOpen, flowTestVos, flowVoProgOf, flowVoProgSync, flowVlogRows, flowDocsOf, flowVoExtra, flowVpViewOnly, flowFgAcceptOpen, flowFgAccept, flowFgRejectOpen, flowFgReject, flowFgLines, flowFgRender, flowQcLine, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowRecvCross, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowCutEntry, flowIssueEntry, flowRecvEntry, flowQcEntry, flowIssuable, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowVoLines, flowSwatchOf, flowSizeFifo, flowSizeChallanOpen, flowBySizeData, flowPpcXlRows, flowPpcXlRead, flowXlDate, FLOW_XL_COLS, VOrows:()=>VO.rows, setVOrows:v=>{VO.rows=v}, flowUnplan, flowPoResync, flowPlanQcDirect, flowChSizeLive, flowEmbedRows, FLOW_EMB_SHOWN:()=>FLOW_EMB_SHOWN, flowChLineWhat, flowRecvRows, flowRecvDayTable, FLOW_HD, flowDueRows, flowDueTable, flowReads, flowDueRecvOpen, flowDueRecvSave, flowRfdChallanOut, flowEarlierOf, flowRecordEarlier, flowChangePrinterSave, flowStanding, flowStandBack, flowStandUse, flowStandTargets, flowRfdChallanOut, flowHistTable, flowChGroups, flowChXlRead, flowChQueue, flowEmbIndex, flowEmbCells, flowEmbSendOpen, flowEmbRecvOpen, flowEmbWho, flowEmbCancel, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v}, flowEmbedRender, FLOW_EMB:()=>FLOW_EMB, flowScreenAllowed, flowOwnsOrder, flowOwnedIn, flowVoIsFlow, flowFgOwns, flowDupViewsOff, renderView:()=>{ if (["cut","raw","wip","new","pord","vendor","fabric"].includes(FLOW_VIEW)) { const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly(); const rows = flowRows().filter(x => (!only || x.r.__t) && (FLOW_VIEW === "new" ? x.recent : flowInView(FLOW_VIEW, x.s))); $("flTable").innerHTML = flowTable(FLOW_VIEW, rows); } else renderFlow(); } };')(...Object.values(ctx));
   api.setFLOW(Object.assign(api.FLOW(), { ppc: opts.ppc || {}, dem: opts.dem || {}, res: opts.res || {} }));
   return Object.assign(api, { els, writes, W, ctx });
 }
-const plan = (o) => Object.assign({ orderNo: 'AMZ-1', sku: 'S1', qty: 100, fabric: { name: 'Cotton', perPc: 0.5, metres: 50 }, acc: [], print: { need: true }, dates: {} }, o);
+const plan = (o) => Object.assign({ orderNo: 'AMZ-1', sku: 'S1', qty: 100, fabric: { name: 'Cotton', perPc: 0.5, metres: 50 }, acc: [], print: { need: true }, dates: { ready: '2026-10-23' } }, o);
 const K = 'AMZ-1__S1';
 
 (async () => {
@@ -90,6 +90,51 @@ const K = 'AMZ-1__S1';
   let A = load();
   const b = r => A.flowState(r).bucket;
   ok('a new order with no plan is in PPC', b(L()) === 'ppc');
+  /* THE SHP BOARD PLANS ITS OWN ORDERS (Ravi, 28 Oct): a Shopify order dated 28 Oct or later never waits in PPC */
+  { const shp = (o) => L(Object.assign({ orderNo: 'SHP-9001', src: 'SHP', orderDate: '2026-10-28' }, o));
+    ok('a Shopify order dated today has no plan and is NOT in PPC — it waits for the SHP board', b(shp()) === 'board', b(shp()));
+    ok('…and a later one the same', b(shp({ orderDate: '2026-11-03' })) === 'board');
+    ok('a Shopify order dated the day before stays with PPC', b(shp({ orderDate: '2026-10-27' })) === 'ppc', b(shp({ orderDate: '2026-10-27' })));
+    ok('an Amazon order dated today stays with PPC', b(L({ orderDate: '2026-10-28' })) === 'ppc');
+    ok('an order date written year-day-month (2026-28-10) is read as 28 Oct', A.flowBoardOwns(shp({ orderDate: '2026-28-10' })) === true && A.flowBoardOwns(shp({ orderDate: '2026-19-10' })) === false);
+    ok('a test order is never the board', A.flowBoardOwns(shp({ __t: { given: 0 } })) === false);
+  }
+  /* 27 Oct: issued from the Job Work Register before PPC planned it — PPC must show it, and plan only the rest. */
+  {
+    const J = load({ me: { admin: true }, lines: [L({ issued: 40 })],
+      base: [{ id: 'j1', orderNo: 'AMZ-1', sku: 'S1', issuePieces: 25, receivedPieces: 0, empName: 'Ramesh' }, { id: 'j2', orderNo: 'AMZ-1', sku: 'S1', issuePieces: 15, receivedPieces: 0, empName: 'Suresh' },
+        { id: 'j3', orderNo: 'AMZ-2', sku: 'S1', issuePieces: 9, receivedPieces: 0, empName: 'Other order' }] });
+    const st = J.flowState(L({ issued: 40 }));
+    ok('part issued from Job Work, no plan → still in PPC, marked as started', st.bucket === 'ppc' && st.startedNoPlan === true, JSON.stringify(st.bucket));
+    J.setView('ppc'); J.renderFlow();
+    const h = J.els.flTable.innerHTML;
+    ok('…the PPC list says what is issued, to whom, and what is left to plan', /Already started: issued <b>40<\/b> to Ramesh \(25\), Suresh \(15\)/.test(h) && /plan the other <b>60<\/b> pcs/.test(h) && !/Other order/.test(h), h.slice(0, 400));
+    ok('a line nobody has started says nothing extra', !/Already started/.test((() => { const K2 = load({ me: { admin: true }, lines: [L()] }); K2.setView('ppc'); K2.renderFlow(); return K2.els.flTable.innerHTML; })()));
+    /* Ravi, 27 Oct: a line issued in full before it is planned stays in PPC until it is planned, marked nothing left to make. */
+    ok('all of it issued from Job Work, no plan → stays in PPC until planned', b(L({ issued: 100 })) === 'ppc');
+    ok('all of it cut, no plan → stays in PPC too', b(L({ cutReq: true, cut: 100 })) === 'ppc');
+    { const F = load({ me: { admin: true }, lines: [L({ issued: 100 })], base: [{ id: 'f1', orderNo: 'AMZ-1', sku: 'S1', issuePieces: 100, receivedPieces: 0, empName: 'Ramesh' }] });
+      F.setView('ppc'); F.renderFlow();
+      ok('…marked on the PPC list: all issued — nothing left to make', /issued <b>100<\/b> to Ramesh \(100\)/.test(F.els.flTable.innerHTML) && /all issued — nothing left to make/.test(F.els.flTable.innerHTML)); }
+    { const P = load({ ppc: { [K]: plan() }, lines: [L({ issued: 100 })] });
+      const sp = P.flowState(L({ issued: 100 }));
+      ok('planned once all issued: no cloth, no print order — the line moves on to WIP', sp.bucket === 'wip' && !sp.needFab && P.flowPoParts(L({ issued: 100 }), plan()).length === 0, JSON.stringify([sp.bucket, sp.needFab])); }
+    { const P = load({ ppc: { [K]: plan() }, lines: [L({ issued: 100 })] });
+      P.setFLOW(Object.assign(P.FLOW(), { po: { 'PRN-202610-001': { no: 'PRN-202610-001', orderNo: 'AMZ-1', printer: { code: 'P1', name: 'Sanganer Prints' }, items: { [K]: { sku: 'S1', pcs: 100, metres: 50, unit: 'm' } } } } }));
+      const sp = P.flowState(L({ issued: 100 }));
+      ok('a line already on a print order, then issued in full: editing its plan keeps it on the print order', P.flowPoParts(L({ issued: 100 }), plan()).length === 1 && !sp.noneLeft && !sp.fromStock, JSON.stringify([sp.noneLeft, sp.fromStock])); }
+    { const P = load({ ppc: { [K]: plan() }, lines: [L({ issued: 40 })] });
+      ok('…while a line only part issued still prints (its print order is raised)', P.flowPoParts(L({ issued: 40 }), plan()).length === 1); }
+    { const Q = load({ lines: [L({ issued: 100 })], mdb: { S1: { cons: 0.5, fab: 'Cotton' } } });
+      Q.flowPpcOpen('AMZ-1'); const e = await Q.ctx.__dlg.onSave();
+      ok('planning a line issued in full asks for no printer — and writes no print order', !e && Q.writes.length > 0 && !!Q.writes[0]['pt_ppc/' + K] && !Object.keys(Q.writes[0] || {}).some(k => /pt_flowPrintOrders/.test(k)), e); }
+    { const Q = load({ lines: [L({ issued: 40 })], mdb: { S1: { cons: 0.5, fab: 'Cotton' } } });
+      Q.flowPpcOpen('AMZ-1'); const e = await Q.ctx.__dlg.onSave();
+      ok('…a line only part issued still has to name its printer', /Which printer/.test(e || ''), e); }
+    { const T = load({ lines: [] }); const tl = L({ __t: { qty: 100, issued: 100 }, issued: 100 });
+      ok('a test line issued in full prints nothing either (one rule with flowState)', T.flowPoParts(tl, plan()).length === 0); }
+    ok('…sent back to sales stays with the sales team', b(L({ issued: 100, ppcBack: { at: '2026-10-13T10:00', why: 'master' } })) === 'back');
+  }
   A = load({ ppc: { [K]: plan() } });
   ok('planned, fabric not ready → Demand', b(L()) === 'demand');
   A = load({ ppc: { [K]: plan() }, dem: { [K]: { fabricReady: { at: 'x' } } } });
@@ -490,6 +535,13 @@ const K = 'AMZ-1__S1';
     ok('the colour allocated in Printer Allocation → that printer, and why', sg.printer.code === 'P1' && /Printer Allocation/.test(sg.printer.why));
     sg = A.flowSuggest(L({ sku: 'S2' }));
     ok('not allocated → the printer that last got that colour', sg.printer.code === 'V9' && /last given Ocean Vine/.test(sg.printer.why));
+    /* 28 Oct (Ravi): Apatite Blue last went to A R Textile Printer on 24/10, yet PPC suggested Bhavya (30/09) — vendor orders write dd/mm/yyyy,
+     * and as text "30/09/2026" is after "24/10/2026". The newest day wins, however it was written. */
+    { const B = load({ mdb, vo: [{ vendorCode: 'V9', orderDate: '30/09/2026', lines: [{ sku: 'S9' }] }, { vendorCode: 'P1', orderDate: '24/10/2026', lines: [{ sku: 'S9' }] }] });
+      ok('the colour last given on 24/10/2026 beats one given on 30/09/2026 (dd/mm/yyyy dates)', B.flowSuggest(L({ sku: 'S2' })).printer.code === 'P1', JSON.stringify(B.flowSuggest(L({ sku: 'S2' })).printer));
+      const C = load({ mdb, vo: [{ vendorCode: 'V9', orderDate: '30/09/2026', lines: [{ sku: 'S9' }] }] });
+      C.setFLOW(Object.assign({}, C.FLOW(), { ch: { 'RFD-1': { no: 'RFD-1', date: '2026-10-28', vendor: { code: 'P1' }, lines: [{ sku: 'S9' }] } } }));
+      ok('…and a challan dated 2026-10-28 beats a vendor order dated 30/09/2026 — the two kinds of date compare', C.flowSuggest(L({ sku: 'S2' })).printer.code === 'P1', JSON.stringify(C.flowSuggest(L({ sku: 'S2' })).printer)); }
     ok('nothing known → blank, said', A.flowSuggest(L({ sku: 'S3' })).printer.code === '' && /no printer allocated to Nobody/.test(A.flowSuggest(L({ sku: 'S3' })).printer.why));
     A = load({ me: { admin: true }, mdb, lines: [L()], pal: { 'SP|Light Steel Blue': { printer: 'P1' } } });
     A.setView('ppc'); A.renderFlow();
@@ -865,7 +917,7 @@ const K = 'AMZ-1__S1';
     ok('…and the RFD for the whole order in one row: Sheeting 92, 20 m', /RFD · <b>Sheeting 92<\/b><\/td><td class="num">20 m/.test(cb), cb);
     /* the Vendor Order the printer sees: one line for RBPSF327-V-92 */
     const it = (sku, m) => ({ sku, print: { kind: 'fabric', code: 'RBPSF327-V-92', label: 'Light Steel Blue · Sheeting 92 · Vertical', mode: 'Running fabric' }, extras: [], unit: 'm', pcs: 20, metres: m });
-    const K1 = 'AMZ-2__RTC327-6060', K2 = 'AMZ-2__RTC327-6090', pl = { fabric: { name: 'Sheeting 92' }, print: { dir: 'Vertical' }, dates: {} };
+    const K1 = 'AMZ-2__RTC327-6060', K2 = 'AMZ-2__RTC327-6090', pl = { fabric: { name: 'Sheeting 92' }, print: { dir: 'Vertical' }, dates: { ready: '2026-10-23' } };
     const vl = B.flowVoLines({ no: 'PRN-202610-009', orderNo: 'AMZ-2', items: { [K1]: it('RTC327-6060', 2), [K2]: it('RTC327-6090', 18) } }, () => pl);
     ok('the Vendor Order has ONE running line for RBPSF327-V-92: 20 m, for both SKUs', vl.running.length === 1 && vl.running[0].meters === 20 && vl.running[0].sku === 'RBPSF327-V-92'
       && vl.running[0].flowPart === [K1 + '|body', K2 + '|body'].sort().join('+') && /RTC327-6060, RTC327-6090/.test(vl.running[0].notes) && vl.running[0].forOrders.length === 1 && vl.running[0].forOrders[0].qty === 40, JSON.stringify(vl.running));
@@ -1150,6 +1202,18 @@ const K = 'AMZ-1__S1';
       ok('…a challan of 12 m and 5 m back → given 12 m on TRFD-9, received 5 m on 17 Oct', pg.given === 12 && pg.back === 5 && pg.challans[0].no === 'TRFD-9' && pg.receipts[0].date === '2026-10-17' && pg.receipts[0].qty === 5, JSON.stringify(pg));
       ok('…and per print-order line (items), for the colour board: 12 given, 5 back on that line', pg.items[key] && pg.items[key].given === 12 && pg.items[key].back === 5, JSON.stringify(pg.items));
       ok('…a challan to another printer, or for another order, is not counted', (() => { C.FLOW().ch['TRFD-9'].vendor.code = 'P2'; const x = C.flowVoProgOf(po, 'running'); C.FLOW().ch['TRFD-9'].vendor.code = 'P1'; return x.given === 0; })()); }
+    { /* A COMBINED CHALLAN (Ravi, 27 Oct): one challan for two orders — RFD-202610-070 was "SHP-RBP7558, SHP-RBP7606" and neither print order's card showed it */
+      const po = Object.values(C.FLOW().po || {}).find(o => o && o.test), key = Object.keys(po.items).find(k => po.items[k] && po.items[k].unit !== 'pcs'), keep = C.FLOW().ch;
+      const mk = (orders, orderNo) => C.setFLOW(Object.assign(C.FLOW(), { ch: { 'TRFD-C': { no: 'TRFD-C', date: '2026-10-24', orderNo, orders, vendor: { code: 'P1', name: 'Sanganer Prints' },
+        lines: [{ key, sku: 'X', metres: 7 }, { key: 'OTHER-ORDER__Y', sku: 'Y', metres: 9 }], receipts: { r1: { date: '2026-10-27', items: { [key]: 7, 'OTHER-ORDER__Y': 9 } } } } } }));
+      mk(['OTHER-ORDER', po.orderNo], 'OTHER-ORDER, ' + po.orderNo);
+      const pg = C.flowVoProgOf(po, 'running');
+      ok('a challan for several orders counts for each of them: this print order is given 7 m and has 7 m back — not the 9 m of the other order', pg.given === 7 && pg.back === 7 && pg.challans.length === 1, JSON.stringify(pg));
+      mk(['OTHER-ORDER', 'THIRD-ORDER'], 'OTHER-ORDER, THIRD-ORDER');
+      ok('…and a combined challan that does not name this order is still not counted', C.flowVoProgOf(po, 'running').given === 0);
+      mk(undefined, 'OTHER-ORDER, ' + po.orderNo);
+      ok('…an old challan with only the joined text and no list is read the same way', C.flowVoProgOf(po, 'running').given === 7);
+      C.setFLOW(Object.assign(C.FLOW(), { ch: keep })); }
     { /* a REAL print order: the office's screen writes the summary onto the printer's vendor order, once */
       const S = load({ me: { admin: true }, mdb, fsCat });
       S.setFLOW(Object.assign(S.FLOW(), { po: { 'PRN-1': { no: 'PRN-1', orderNo: 'AMZ-9', printer: { code: 'P1', name: 'Sanganer Prints' }, items: { 'AMZ-9__S1': { sku: 'S1', unit: 'm', metres: 10 } },
@@ -2011,6 +2075,10 @@ const K = 'AMZ-1__S1';
   ok('a held reservation lets go as the line is issued (60 issued → 40 held)', JSON.stringify(A.flowHeld(K, 60, 100)) === '{"18":40}');
   ok('fully issued holds nothing — the zipper was taken at issue, not twice', Object.keys(A.flowHeld(K, 100, 100)).length === 0);
   ok('release frees it', !(await A.flowUnreserve(A.flowState(L()))) && A.flowAccFree()['18'].free === 150);
+  /* 27 Oct: 60 already issued from Job Work before the plan — their zippers went with them; 40 free is enough for the other 40. */
+  A = load({ lines: [L({ issued: 60 })], ppc: accPlan, shelf: [{ code: '18', name: '18" zip', qty: 40 }] });
+  { const er = await A.flowReserve(L({ issued: 60 }), A.flowState(L({ issued: 60 })));
+    ok('part issued before the plan: the zippers are reserved for the pieces not yet issued only', !er && A.flowAccFree()['18'].held === 40 && A.flowAccFree()['18'].free === 0, er); }
   A = load({ lines: [L()], ppc: { [K]: plan() } });
   ok('nothing to reserve is said', /Nothing to reserve/.test(await A.flowReserve(L(), A.flowState(L()))));
 
@@ -2362,6 +2430,107 @@ const K = 'AMZ-1__S1';
     ok('who embroiders: our department, or a vendor whose category says Embroidery', S.flowEmbWho('').code === 'EMBDEPT' && S.flowEmbWho('P1').name === 'Sanganer Prints');
   }
 
+  console.log('== PPC report (28 Oct) ==');
+  {
+    const KA = 'AMZ-1__S1', KB = 'SHP-2__S2', KC = 'B2B-3__S3';
+    const mdbR = { S1: { articleType: 'Cushion Cover', subtype: 'Cushion Cover 16x16', parentAsin: 'B0PARENT01', color: 'Rust', size: '16x16', fabric: 'Cotton' } };
+    const R = load({ mdb: mdbR, lines: [L(), L({ orderNo: 'SHP-2', sku: 'S2', qty: 40, mtoDue: '2026-10-11', orderDate: '2026-10-05' }), L({ orderNo: 'B2B-3', sku: 'S3', qty: 60, orderDate: '2026-10-12' }),
+        L({ orderNo: 'AMZ-9', sku: 'S9', qty: 10, orderDate: '2026-10-11' })],
+      base: [{ orderNo: 'AMZ-1', sku: 'S1', issuePieces: 25, empName: 'Ramesh' }],
+      ppc: { [KA]: plan({ printer: { code: 'P1', name: 'Sanganer Prints' }, firstAt: '2026-10-08T05:00:00Z', at: '2026-10-12T05:00:00Z', dates: { ready: '2026-10-10' } }),
+        [KB]: plan({ orderNo: 'SHP-2', sku: 'S2', qty: 40, route: 'stitch', at: '2026-10-09T05:00:00Z', dates: { ready: '2026-10-20' } }),
+        [KC]: plan({ orderNo: 'B2B-3', sku: 'S3', qty: 60, at: '2026-10-13T05:00:00Z', firstAt: '2026-10-13T05:00:00Z', dates: { ready: '2026-10-30' } }) } });
+    const wk = R.flowRepLines({ from: '2026-10-07', to: '2026-10-13', on: 'planned', today: '2026-10-13' });
+    const a = wk.find(x => x.sku === 'S1') || {}, b = wk.find(x => x.sku === 'S2') || {}, c = wk.find(x => x.sku === 'S3') || {};
+    ok('planned on these days: the three planned lines, never the unplanned one', wk.length === 3 && !wk.some(x => x.sku === 'S9'), wk.map(x => x.sku).join());
+    ok('planned on = the FIRST save, not the last edit', a.planned === '2026-10-08' && a.plannedKnown === true);
+    ok('a plan from before 28 Oct (no first save kept) is dated by its last save — the sheet shows the date alone', b.planned === '2026-10-09' && b.plannedKnown === false
+      && R.flowRepSheets([b], 'sku')[0].rows[2][0] === '09/10/2026');
+    ok('a first save outside the days leaves the line out, though it was edited inside them', R.flowRepLines({ from: '2026-10-11', to: '2026-10-13', on: 'planned', today: '2026-10-13' }).every(x => x.sku !== 'S1'));
+    ok('category, sub-category and parent ASIN from the master', a.category === 'Cushion Cover' && a.subCategory === 'Cushion Cover 16x16' && a.parent === 'B0PARENT01');
+    ok('the karigars Job Work issued it to, beside Job work', a.paper.job === 'Ramesh (25)', JSON.stringify(a.paper));
+    ok('Amazon has no due date of its own → its due is the PPC Ready date, and 3 days past it is LATE', a.due === '2026-10-10' && a.dueFrom === 'PPC ready date' && a.delay === 'LATE · 3 days' && a.late === 3, JSON.stringify([a.due, a.dueFrom, a.delay]));
+    ok('Shopify: due 5 working days from opening (the made-to-order date), not the Ready date', b.due === '2026-10-11' && /Shopify/.test(b.dueFrom) && b.late === 2 && b.completion === '2026-10-20');
+    ok('a sales order\'s own delivery date comes first', R.flowRepDue({ orderNo: 'B2B-3', sku: 'S3' }, { dates: { ready: '2026-10-30' } }, new Map([['B2B-3|S3', '2026-11-05']])).due === '2026-11-05');
+    ok('not due yet → days left', c.delay === '17 days left' && c.late === 0, c.delay);
+    ok('delay words: due today, made, no date set', R.flowRepDelay('2026-10-13', false, '2026-10-13').txt === 'due today' && R.flowRepDelay('2026-10-01', true, '2026-10-13').txt === 'made'
+      && R.flowRepDelay('', false, '2026-10-13').txt === 'no date set' && R.flowRepDelay('2026-10-12', false, '2026-10-13').txt === 'LATE · 1 day');
+    ok('channel from the order number', R.flowRepChannel({ orderNo: 'AMZ-1' }) === 'Amazon' && R.flowRepChannel({ orderNo: 'SHP-2' }) === 'Shopify' && R.flowRepChannel({ orderNo: 'B2B-3' }) === 'B2B');
+    const came = R.flowRepLines({ from: '2026-10-11', to: '2026-10-11', on: 'came', today: '2026-10-13' });
+    ok('came into PPC: by order date, planned or not', came.length === 1 && came[0].sku === 'S9');
+    const wait = R.flowRepLines({ from: '2026-10-13', to: '2026-10-13', on: 'waiting', today: '2026-10-13' });
+    ok('still waiting: the unplanned line whatever the days, with how long it has waited', wait.length === 1 && wait[0].sku === 'S9' && wait[0].waitDays === 2, JSON.stringify(wait.map(x => [x.sku, x.where, x.waitDays])));
+    const T = load({ lines: [L({ orderNo: 'TEST-1', __t: true })], ppc: { 'TEST-1__S1': plan({ orderNo: 'TEST-1', at: '2026-10-12T05:00:00Z' }) } });
+    ok('a TEST line never reaches the report', T.flowRepLines({ from: '2026-10-01', to: '2026-10-13', on: 'planned', today: '2026-10-13' }).length === 0);
+    const sum = R.flowRepSummary(wk.concat([Object.assign({}, a, { orderNo: 'AMZ-7', pcs: 50, late: 0 })]), 'sku'), s1 = sum.find(e => e.label === 'S1') || {};
+    ok('summary by SKU adds the pieces of every order of it (Row Labels / Sum of PCS)', s1.pcs === 150 && s1.lines === 2 && s1.late === 1, JSON.stringify(s1));
+    const sh = R.flowRepSheets(wk, 'sku');
+    const cv = c0 => (c0 && typeof c0 === 'object' ? c0.v : c0), hd = sh[0].rows[1].map(cv), grp = sh[0].rows[0].map(cv);
+    ok('the workbook: Lines, Stage board, Summary (ending in Grand Total)', sh.map(x => x.name).join() === 'Lines,Stage board,Summary' && hd[0] === 'Plan date'
+      && sh[0].rows.length === 5 && JSON.stringify(sh[2].rows[sh[2].rows.length - 1].map(cv)) === JSON.stringify(['Grand Total', 200, 3, 2]), JSON.stringify(sh[2].rows.slice(-1)));
+    ok('the line columns as Ravi listed them (28 Oct)', hd.slice(0, 13).join('|') === 'Plan date|Order no|Order date|Channel|SKU|Category|Sub-category|Parent ASIN|Colour|Size|Fabric|PCS|Process', hd.slice(0, 13).join('|'));
+    ok('gone: fabric metres, planned on / last changed, printer-karigar, where now, days late, due from, idle days, progress',
+      ['Fabric mtr', 'Planned on', 'Last changed', 'Printer / karigar', 'Where now', 'Days late', 'Due from', 'Idle days', 'Done %', 'Stuck at', 'Submit by'].every(h => !hd.includes(h)), hd.join('|'));
+    const at = name => grp.indexOf(name);
+    ok('each stage: Status, Pcs, then its paper, under the stage name', ['Greige', 'RFD', 'Printing', 'Embroidery', 'Cutting', 'Job work', 'QC', 'Finished'].every(n => at(n) >= 0 && hd[at(n)] === 'Status' && hd[at(n) + 1] === 'Pcs')
+      && hd[at('Greige') + 2] === 'Greige PO' && hd[at('RFD') + 2] === 'RFD challan' && hd[at('Printing') + 2] === 'Print order' && hd[at('Embroidery') + 2] === 'Emb challan' && hd[at('Job work') + 2] === 'Karigar (pcs)', grp.join('|'));
+    ok('dates last: Completion, Due, Delay, Last moved', hd.slice(-4).join('|') === 'Completion|Due|Delay|Last moved' && grp[hd.length - 4] === 'Dates', hd.slice(-4).join('|'));
+    ok('the stage names are merged over their columns', sh[0].merges.includes('N1:P1') && sh[0].merges.length === 9, sh[0].merges.join());
+    const files = R.flowRepXlsx(sh), x1 = files.find(f => f[0] === 'xl/worksheets/sheet1.xml')[1];
+    ok('…written as a three-sheet Excel: pieces as numbers, statuses coloured, the two heading rows frozen', files.some(f => f[0] === 'xl/worksheets/sheet3.xml')
+      && /<sheet name="Stage board"/.test(files.find(f => f[0] === 'xl/workbook.xml')[1]) && /<c r="L3" s="8"><v>100<\/v><\/c>/.test(x1)
+      && /<c r="N3" t="inlineStr" s="5"><is><t xml:space="preserve">Not started<\/t>/.test(x1) && /ySplit="2"/.test(x1) && /<mergeCell ref="N1:P1"\/>/.test(x1)
+      && /FFDCFCE7/.test(files.find(f => f[0] === 'xl/styles.xml')[1]));
+    /* The stages: Done / In progress / Not started / Not needed, and the pieces through it ("-" before it starts). */
+    const stOf = (x, k) => [R.flowRepStatus(x.st[k], x.pcs), R.flowRepPcs(x.st[k])].join(' ');
+    ok('a printed line, no cloth sent: RFD, printing, job work, QC, finished not started ("-"); cutting and embroidery not needed',
+      ['rfd', 'print', 'job', 'qc', 'fin'].every(k => stOf(a, k) === 'Not started -') && stOf(a, 'cut') === 'Not needed -' && stOf(a, 'emb') === 'Not needed -', JSON.stringify(a.st));
+    ok('…no RFD in stock for it → greige not started either', stOf(a, 'greige') === 'Not started -');
+    const G = load({ rfd: { COTTON: 500 }, lines: [L()], ppc: { [KA]: plan({ at: '2026-10-12T05:00:00Z' }) } });
+    const g0 = G.flowRepLines({ from: '2026-10-12', to: '2026-10-12', on: 'planned', today: '2026-10-13' })[0] || { st: {} };
+    ok('RFD in stock covers the line → greige Done 100; RFD still not sent', stOf(g0, 'greige') === 'Done 100' && stOf(g0, 'rfd') === 'Not started -', JSON.stringify(g0.st));
+    const D = load({ lines: [L({ issued: 100, received: 60, cutReq: true, cut: 100 })], ppc: { [KA]: plan({ route: 'stitch', print: { need: false }, at: '2026-10-12T05:00:00Z' }) } });
+    const d0 = D.flowRepLines({ from: '2026-10-12', to: '2026-10-12', on: 'planned', today: '2026-10-13' })[0] || { st: {} };
+    ok('cut in full, 60 back from the karigars → cutting Done 100, job work In progress 60, QC not started, printing not needed',
+      stOf(d0, 'greige') === 'Done 100' && stOf(d0, 'rfd') === 'Done 100' && stOf(d0, 'cut') === 'Done 100' && stOf(d0, 'job') === 'In progress 60'
+      && stOf(d0, 'qc') === 'Not started -' && stOf(d0, 'print') === 'Not needed -', JSON.stringify(d0.st));
+    const O = load({ lines: [L()], ppc: { [KA]: plan({ route: 'outsource', outVendor: 'Kalu', at: '2026-10-12T05:00:00Z' }) } });
+    const o0 = O.flowRepLines({ from: '2026-10-12', to: '2026-10-12', on: 'planned', today: '2026-10-13' })[0] || { st: {} };
+    ok('outsourced: every making stage Not needed, only Finished counts', ['greige', 'rfd', 'print', 'emb', 'cut', 'job', 'qc'].every(k => stOf(o0, k) === 'Not needed -') && stOf(o0, 'fin') === 'Not started -', JSON.stringify(o0.st));
+    ok('a line not planned yet: its stages Not needed', wait[0] && stOf(wait[0], 'rfd') === 'Not needed -' && stOf(wait[0], 'print') === 'Not needed -');
+    const C30 = load({ lines: [L({ cutReq: true, cut: 30, issued: 20, received: 12 })], ppc: { [KA]: plan({ at: '2026-10-12T05:00:00Z' }) } });
+    const c30 = C30.flowRepLines({ from: '2026-10-12', to: '2026-10-12', on: 'planned', today: '2026-10-13' })[0] || { st: {} };
+    ok('30 of 100 cut → printing and cutting In progress 30 (a piece cut was printed), job work 12', stOf(c30, 'print') === 'In progress 30' && stOf(c30, 'cut') === 'In progress 30'
+      && stOf(c30, 'job') === 'In progress 12' && stOf(c30, 'rfd') === 'In progress 30', JSON.stringify(c30.st));
+    /* The stage board: where the work waits. */
+    const bd = R.flowRepBoard([a, d0]), bR = bd.find(e => e.name === 'RFD'), bJ = bd.find(e => e.name === 'Job work');
+    ok('stage board: lines not started / in progress / done and pieces waiting, per stage', bR.not === 1 && bR.done === 1 && bR.waiting === 100 && bJ.wip === 1 && bJ.not === 1 && bJ.waiting === 140, JSON.stringify([bR, bJ]));
+    ok('…a late line counts where it waits — the first stage it needs that is not done', bd.find(e => e.name === 'Greige').late === 1 && bR.late === 0, JSON.stringify(bd.map(e => e.late)));
+    /* Last moved: the newest of the plan, its papers, cutting, the karigars, QC, the hand-over. */
+    const M = load({ lines: [L({ issued: 20, received: 10 })], base: [{ orderNo: 'AMZ-1', sku: 'S1', issuePieces: 20, receivedPieces: 10, empName: 'Ramesh', issueDate: '2026-10-11', receivingDate: '2026-10-13' }],
+      ppc: { [KA]: plan({ at: '2026-10-12T05:00:00Z' }) } });
+    const m0 = M.flowRepLines({ from: '2026-10-12', to: '2026-10-12', on: 'planned', today: '2026-10-13' })[0] || {};
+    ok('last moved: the karigar\'s receipt on 13 Oct, after the plan (12 Oct) and the issue (11 Oct)', m0.moved && m0.moved.day === '2026-10-13' && m0.moved.what === 'karigar back', JSON.stringify(m0.moved));
+    /* Greige PO: the open greige POs for the line's fabric, only while greige is not done. */
+    R.FLOW_REP().gpo = [{ poNo: 'RIDHI/PO/GREIG/014', date: '2026-10-20', lines: [{ rfd: 'Cotton' }] }, { poNo: 'RIDHI/PO/GREIG/009', date: '2026-10-01', status: 'cancelled', lines: [{ rfd: 'Cotton' }] },
+      { poNo: 'RIDHI/PO/GREIG/010', date: '2026-10-02', lines: [{ rfd: 'Cambric' }] }];
+    ok('greige PO: the open POs for that fabric, never a cancelled one or another fabric\'s', R.flowRepGreigePo('Cotton') === 'RIDHI/PO/GREIG/014', R.flowRepGreigePo('Cotton'));
+    ok('who may download: admins and the Reports right only', load({ me: { admin: true } }).flowRepAllowed() && load({ me: { tabs: ['rep'] } }).flowRepAllowed() && !load({ me: { tabs: ['flppc'] } }).flowRepAllowed());
+
+    /* The plan form: the first save is kept; a plan cannot be saved without a Ready date. */
+    const F = load({ me: { admin: true }, mdb: { S1: { cons: 1, fab: 'Cotton' } }, lines: [L()], ppc: { [KA]: plan({ route: 'stitch', print: { need: false }, at: '2026-10-05T05:00:00Z', firstAt: '2026-10-02T05:00:00Z' }) } });
+    F.flowPpcOpen('AMZ-1', 'S1'); F.ctx.document.querySelectorAll = () => []; F.els.flpUndo = { checked: false };
+    let er = await F.ctx.__dlg.onSave(); let pw = (F.writes[0] || {})['pt_ppc/' + KA] || {};
+    ok('re-planning keeps the day it was first planned', !er && pw.firstAt === '2026-10-02T05:00:00Z' && pw.at !== '2026-10-05T05:00:00Z', er || JSON.stringify([pw.firstAt, pw.at]));
+    const F0 = load({ me: { admin: true }, mdb: { S1: { cons: 1, fab: 'Cotton' } }, lines: [L()], ppc: { [KA]: plan({ route: 'stitch', print: { need: false }, at: '2026-10-05T05:00:00Z' }) } });
+    F0.flowPpcOpen('AMZ-1', 'S1'); F0.ctx.document.querySelectorAll = () => []; F0.els.flpUndo = { checked: false };
+    er = await F0.ctx.__dlg.onSave(); pw = (F0.writes[0] || {})['pt_ppc/' + KA] || {};
+    ok('a plan saved before 28 Oct, re-planned: its first day becomes the save it had', !er && pw.firstAt === '2026-10-05T05:00:00Z', er);
+    const F1 = load({ me: { admin: true }, mdb: { S1: { cons: 1, fab: 'Cotton' } }, lines: [L()], ppc: { [KA]: plan({ route: 'stitch', print: { need: false }, dates: { cut: '2026-10-14' } }) } });
+    F1.flowPpcOpen('AMZ-1', 'S1'); F1.ctx.document.querySelectorAll = () => []; F1.els.flpUndo = { checked: false };
+    er = await F1.ctx.__dlg.onSave();
+    ok('no Ready date → not saved, and it says which line', /Pick the Ready date for S1/.test(er || '') && !F1.writes.length, er);
+  }
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })();

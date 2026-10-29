@@ -50,6 +50,18 @@ FLOW_NODES.forEach(n => { const h = BY_HAND[n] || (BY_HAND[n] = {}); h.tabs = (h
  * $other, as every register is. */
 BY_HAND.pt_gdTest = { tabs: GD_RIGHTS.concat(FLOW_RIGHTS) };
 
+/* FROM QC — TO ACCEPT (Ravi, 27 Oct: "From QC — to accept - access me jodo"). Its own box: on its own it opens Finished Goods
+ * on the "From QC — to accept" list (Replenish core/auth.js → ME.fgAccOnly). That screen reads what Finished Goods reads, and
+ * the list itself is built from the flow's records (flowEnsureData) and the QC checks — so 'fgacc' reads both. */
+const FGACC_NODES = [...new Set(Object.keys(MAP.nodes).filter(n => ((MAP.nodes[n] || {}).tabs || []).indexOf('fgi') >= 0).concat(FLOW_NODES))];
+FGACC_NODES.forEach(n => { const h = BY_HAND[n] || (BY_HAND[n] = {}); h.tabs = (h.tabs || []).concat('fgacc'); });
+
+/* THE SHP BOARD (28 Oct, live): the Shopify orders' board in the Order Console keeps its own records — each order's ready date
+ * (pt_shpBoardTest), the press entries with the pressman (pt_shpBoardPress) and shipping's "not received" notes (pt_shpBoardShip).
+ * Read by whoever has the Order Console (ord), its Shopify view (shopprod) or the Shopify tab that accepts at shipping (shopify);
+ * written by staff through "$other", as every register is. */
+['pt_shpBoardTest', 'pt_shpBoardPress', 'pt_shpBoardShip'].forEach(n => { BY_HAND[n] = { tabs: ['ord', 'shopprod', 'shopify'] }; });
+
 /* "CAN ADD AND DELETE EMPLOYEES" OPENS FINANCE & HR WITHOUT THE TAB (hrEmpOnly): the employee list, the extra
  * hours that count where a name is used, and the shared plumbing every factory screen loads. ensureHr
  * deliberately SKIPS the rest for such an account — so the right is given every node the hr tab reaches

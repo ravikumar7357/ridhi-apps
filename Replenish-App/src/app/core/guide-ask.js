@@ -116,7 +116,7 @@ const GUIDE_SYN = (() => {
 /* Words that carry no meaning of their own, in all three languages. */
 const GUIDE_STOP = new Set(('a an the is are was were be to of in on at for by it this that these my me i we our your and or but so if ' +
   'hai h ha he hain ho hoga hogi tha thi the ka ki ke ko se me mein mai main mera meri mere mujhe muje mujhko hum ham ye yeh wo woh ' +
-  'kar karna karu karun kare karo karte karta karti krna kr kro kiya kiye raha rahi rahe rha rhi rhe hota hoti hote hua hui gaya gayi gya gyi ' +
+  'kar karna karu karun kare karo karte karta karti krna kr kro kiya kiye raha rahi rahe rha rhi rhe hota hoti hote hua hui gaya gayi gya gyi gaye gye ab ' +
   'do does did get want need use using kindly just aa aata aati aate rha ' +
   'please plz pls sir ji bhai yaar aur ya par pe bhi abhi kuch koi ek sab toh to sakta sakti sakte skta chahiye chahta chahti ' +
   'है हैं था थी का की के को से में मैं मुझे यह वह कर करना करें करो रहा रही हो गया गई भी और या कुछ कोई ' +
@@ -563,7 +563,17 @@ function gaRead(q) {
   const words = gaWords(q);
   const lang = /[ऀ-ॿ]/.test(q) ? 'hi' : words.some(w => GUIDE_HG.has(w)) ? 'hg' : 'en';
   const people = gaPeople();
-  const means = [...new Set(words.filter(w => !GUIDE_STOP.has(w) && !/^\d+$/.test(w)).map(w => people.has(w) ? 'karigar' : gaMean(w)))];
+  let means = [...new Set(words.filter(w => !GUIDE_STOP.has(w) && !/^\d+$/.test(w)).map(w => people.has(w) ? 'karigar' : gaMean(w)))];
+  /* "maal aa gaya", "आ गया": it came in — a receipt (both words are fillers on their own) */
+  const came = /\b(aa|a)\s+(gaya|gya|gayi|gyi|gaye|gye|chuka|chuki|chuke)\b|आ\s*(गया|गई|गए|चुका|चुकी)/i.test(q);
+  if (came && !means.includes('receive')) means.push('receive');
+  /* both ways in one question ("jo kaam diya tha uska maal wapas aa gaya"): coming back wins — unless it is sent back TO
+   * someone ("karigar ko wapas dena", "send it back to the karigar") */
+  const toThem = /\bko\b[^,.?]*\b(wapas|vapas|waapas|wapis)\s+(de|dena|dene|dedo|bhej)|को[^,.?]*वापस\s*(दे|भेज)|\b(send|give)\b[^,.?]*\bback\b|\bback\s+to\b/i.test(q);
+  if (means.includes('receive') && means.includes('issue') && (came || /wapas|vapas|waapas|wapis|वापस|\bback\b|\breturn/i.test(q)) && !toThem)
+    means = means.filter(m => m !== 'issue');
+  /* sent back to them: giving, though it says "wapas" */
+  if (toThem && means.includes('issue')) means = means.filter(m => m !== 'receive');
   return { lang, means, words };
 }
 /** The karigars' names, from the ERP's own list: "Ramesh ko…" is about a karigar. */
@@ -718,6 +728,10 @@ async function gaAnswer(q) {
   { const row = gaRowFind(q); if (row) return gaRowAnswer(row, lang, L); }
   /* "ab kya karu", "what next", "atak gaya" with a form half filled in: its next box */
   if (typeof GA_NEXT_RE !== 'undefined' && GA_NEXT_RE.test(q)) { const n = gaWalkNext(lang, L); if (n) return n; }
+  /* Not about the ERP at all (Ravi, 27 Oct: "unrelated to erp ... khud hi bolde"): said at once — no AI, no ticket. */
+  if (gaOffTopic(means)) return { html: L('Sorry, I can\'t answer that — it isn\'t about the ERP. Ask me about any screen, job or problem in the ERP.',
+    'माफ़ कीजिए, इसका जवाब मैं नहीं दे सकती — यह ERP के बारे में नहीं है। ERP की किसी भी स्क्रीन, काम या दिक्कत के बारे में पूछें।',
+    'Sorry, iska jawaab main nahi de sakti — ye ERP ke baare me nahi hai. ERP ki kisi bhi screen, kaam ya dikkat ke baare me poochiye.'), acts: [], miss: 'offtopic', off: true };
   if (!means.length) return { html: L('Tell me a little more — what are you trying to do?', 'थोड़ा और बताइए — आप क्या करना चाहते हैं?', 'Thoda aur bataiye — aap kya karna chahte hain?'), acts: [] };
   /* "why isn't it saving / error kyu / kaam pura nahi ho raha": the screen itself is the best answer */
   /* Only a question that names no topic of its own reads the screen ("error kyu", "problem hai", "save nahi ho raha"):
@@ -745,7 +759,9 @@ async function gaAnswer(q) {
   cands.sort((a, b) => b.s - a.s);
   const top = cands[0];
   await gaBankLoad();
-  if (GA_W === null) await Promise.race([gaWordsLoad(), new Promise(ok => setTimeout(ok, 1500))]);
+  /* the first question waits for the meaning file (about 3 MB; on the live site it can take 2–3 s): answered on words
+   * alone, "maal wapas aa gaya" got a QC answer (27 Oct). Up to 4 s, once — after that it is in. */
+  if (GA_W === null) await Promise.race([gaWordsLoad(), new Promise(ok => setTimeout(ok, 4000))]);
   const hits = gaBankFind(means, words, q);
   if (!(top && top.kind === 'talk' && top.s >= 1.4) && hits[0] && hits[0].s >= (GA_W ? GA_BANK_SURE_SEM : GA_BANK_SURE)) {
     /* two answers fit almost equally ("short by kya hai": the screen, or its Short by column): ask which, never guess */
@@ -842,12 +858,14 @@ let GA_BANK = null, GA_BANK_P = null;
 function gaBankLoad() {
   if (GA_BANK) return Promise.resolve(GA_BANK);
   if (!GA_BANK_P) GA_BANK_P = fetch('/guide/meera-bank.json', { cache: 'no-cache' })
-    .then(r => (r.ok ? r.json() : [])).catch(() => [])
+    .then(r => (r.ok ? r.json() : null)).catch(() => null)
+    .then(list => { if (!Array.isArray(list)) { GA_BANK_P = null; throw new Error('bank not loaded'); } return list; })   // tried again next time
     .then(list => (typeof gaAiLearned === 'function' ? gaAiLearned(Array.isArray(list) ? list : []) : list))
     .then(list => (typeof gaWalksLoad === 'function' ? gaWalksLoad().then(() => list, () => list) : list))   // the walk-throughs (guide-walks.js)
     .then(list => (GA_BANK = gaBankIndex(Array.isArray(list) ? list : [])))
     .then(b => { gaWordsLoad().then(() => setTimeout(gaSemIndex, 0)); return b; });
-  return GA_BANK_P;
+  /* a question asked while it failed is answered from the short built-in lists, as without the bank */
+  return GA_BANK_P.catch(() => (GA_BANK || gaBankIndex([])));
 }
 /* ---------- meaning search (/guide/meera-words.bin) ----------
  * The bank above matches words. This matches MEANING: every word Meera's answers use (and the 3,000 commonest others) has a
@@ -863,7 +881,7 @@ function gaWordsLoad() {
   if (GA_W !== null) return Promise.resolve(GA_W);
   if (!GA_W_P) GA_W_P = fetch('/guide/meera-words.bin', { cache: 'no-cache' })
     .then(r => (r.ok ? r.arrayBuffer() : null)).catch(() => null)
-    .then(buf => { try { GA_W = buf ? gaWordsParse(buf) : false; } catch (e) { GA_W = false; } return GA_W; });
+    .then(buf => { if (!buf) { GA_W_P = null; return null; } try { GA_W = gaWordsParse(buf); } catch (e) { GA_W = false; } return GA_W; });
   return GA_W_P;
 }
 /** The file: a header (the words), each word's 256 numbers as small whole numbers, each row's scale, and its piece count. */
@@ -954,6 +972,17 @@ function gaBankIndex(list) {
 const GA_PART_ASK = new Set(('what does do happens happen press click tap mean meaning means show shows kya karta karti hai kis kaam ka ke liye kisliye ' +
   'kyun kyu ye yeh is ka matlab hota hoti dabane dabau dabaun dabaya par pe se button column box option note field tab ' +
   'क्या करता करती है किस काम का के लिए किसलिए मतलब होता यह ये दबाने बटन कॉलम').split(' '));
+/* NOT ABOUT THE ERP (27 Oct): a word none of Meera's answers ever uses (weather, cricket, pizza, bitcoin…) and fewer than
+ * two words her answers do use, leaving out the asking words below. Set on 380 test questions, 200 part questions and
+ * 11,335 made from every part's name: none of them refused; 12 of the 41 she cannot answer caught (the rest are
+ * about the business — GST, Flipkart — and go on to the AI and a ticket). */
+const GA_OFF_IGNORE = new Set(["what","how","where","why","not","can","help","ok","date","time","tomorrow","yesterday","good","best","tell","give","make","want","need","see","show","new","one","all","more","last","week","month","day","year","name","you","who","hello","thanks","bye","joke","language","meera","about","writ","count","correct","open","find","screen","button","do","get","please","work","job","wala","wali","wale","वाली","वाला","kab","milega","aayegi","rahega","raha","kaisa","ऐसा","ऐसे","वैसा","जबकि","क्यों","kyu","kyun","bhai","yaar","sir","ji","madam","plz","acha","accha","theek","haan","nahi","किसलिए","किसलिये","kisliye","kislie","kisliy","किस","लिए","liye","क्यूँ","क्यूं","कैसा","कैसी","कौनसा","कौन","konsa","kaunsa","matlab","मतलब","बताओ","बताइए","batao","bataiye","samjhao","समझाओ","hota","होता","hoti","होती","karta","करता","karti","करती"]);
+function gaOffTopic(means) {
+  const B = GA_BANK; if (!B || !B.list.length) return false;
+  const ms = means.filter(m => !GA_OFF_IGNORE.has(m) && !/^\d+$/.test(m));
+  const known = ms.filter(m => (B.df.get(m) || 0) >= 3).length, unknown = ms.filter(m => !B.df.has(m) && m.length >= 3).length;
+  return unknown > 0 && known < 2;
+}
 /* The screens by what people call them: a question that names one leans to that screen's answers. */
 const GA_TAB_SAY = [['ord', /order console/], ['pbase', /job ?work|jobwork|जॉब वर्क/], ['ppress', /\bpress\b|प्रेस/], ['pack', /packing|scan to pack|\bpack\b/],
   ['qc', /\bqc\b|quality|क्यूसी/], ['att', /attendance|hajri|haziri|हाजिरी/], ['pcut', /cutting|कटिंग/], ['fgi', /finished goods|\bfg\b/], ['fba', /\bfba\b/],
@@ -1141,8 +1170,12 @@ async function gaAsk(q) {
   if (r.miss) gaMissKeep(q, r.miss === true ? 'none' : r.miss);
   const lg = gaRead(q).lang, LL = (en, hi, hg) => (lg === 'hi' ? hi : lg === 'hg' ? hg : en);
   const fb = r.bank ? `<div class="ga-fb"><span>${LL('Did this help?', 'क्या इससे मदद मिली?', 'Kya isse madad mili?')}</span><button type="button" class="ga-fbb" data-ga="fb" data-id="up:${esc(r.bank)}" aria-label="Yes">👍</button><button type="button" class="ga-fbb" data-ga="fb" data-id="down:${esc(r.bank)}" aria-label="No">👎</button></div>` : '';
-  const ai = r.miss && typeof gaAiOn === 'function' && gaAiOn() ? [{ t: 'ai', label: LL('Ask AI', 'AI से पूछें', 'AI se poochhiye') }] : [];
-  gaSay(r.html, ai.concat(r.acts || []), (r.after || '') + fb);
+  /* not sure: she asks the AI herself, within the day's limit (guide-ai.js) — no answer at all: the AI's alone; a few close
+   * ones offered: those, then the AI's below them. Without AI, or over the limit: as before. */
+  const auto = !!r.miss && !r.off && typeof gaAiAuto === 'function' && gaAiAuto();   // not about the ERP: never to the AI
+  if (auto && r.miss === true) { gaAiAsk(q, { html: r.html, acts: r.acts }); gaChipsDraw(); return; }
+  gaSay(r.html, r.acts || [], (r.after || '') + fb);
+  if (auto) gaAiAsk(q);
   if (r.miss) gaChipsDraw();
 }
 function gaAct(t, id, tab) {

@@ -16,6 +16,8 @@
  * all after three "No thanks".
  */
 let GA_WALK_OF = new Map(), GA_WALKS_P = null;
+/* a button that starts a job (its walk's first press, e.g. #acNewItem): its own one-line answer offers the walk too */
+const GA_WALK_SEL = new Map();
 function gaWalksLoad() {
   if (!GA_WALKS_P) GA_WALKS_P = fetch('/guide/meera-walks.json', { cache: 'no-cache' })
     .then(r => (r.ok ? r.json() : [])).catch(() => [])
@@ -29,6 +31,8 @@ function gaWalksLoad() {
         if (id === w.id && Array.isArray(w.steps) && w.steps.length && !GUIDE_TASKS.some(t => t.id === w.id))
           GUIDE_TASKS.push({ id: w.id, k: [], need: ['-'], title: w.title, steps: w.steps, admin: !!w.admin, walk: true });
         (w.from || []).forEach(b => { if (!GA_WALK_OF.has(b)) GA_WALK_OF.set(b, id); });
+        const go = (w.steps || []).find(s => s.sel && s.wait === 'click');
+        if (go && /^#[\w-]+$/.test(go.sel) && !GA_WALK_SEL.has(go.sel)) GA_WALK_SEL.set(go.sel, id);
       });
       return GA_WALK_OF;
     });
@@ -36,7 +40,7 @@ function gaWalksLoad() {
 }
 /** The walk for a bank answer, if it has one this account can follow. */
 function gaWalkFor(e) {
-  const id = (e.task && GUIDE_TASKS.some(t => t.id === e.task)) ? e.task : GA_WALK_OF.get(e.id);
+  const id = (e.task && GUIDE_TASKS.some(t => t.id === e.task)) ? e.task : GA_WALK_OF.get(e.id) || (e.sel && GA_WALK_SEL.get(e.sel));
   const t = id && GUIDE_TASKS.find(x => x.id === id);
   if (!t || (t.admin && typeof ME !== 'undefined' && ME && !ME.admin)) return null;
   return t.steps.some(s => s.tab && !guideMayOpen(s.tab)) ? null : t;
@@ -66,7 +70,9 @@ function gaWalkStartAt(t) {
   const i = t.steps.findIndex(s => (s.wait === 'value' && gaStepEl(s) && !gaFilled(gaStepEl(s))) || (s.save && gaStepEl(s)));
   return i < 0 ? 0 : i;
 }
-/** "Show me": the same steps, nothing waited for but the press that opens a form, and the Save only pointed at. */
+/** "Show me": the same steps, nothing waited for. A press that only opens a form or a view, Meera makes herself on Next;
+ * a press that saves, sends, deletes or asks to confirm is only pointed at (live, 26 Oct: Start, Cancel, Approve waited). */
+const GA_SHOW_NOT_OPEN = /for real|saves|असली|delete|cancel|approve|reject|send|start|ask sales|fixed|strike|हटा|कैंसल/i;
 function gaShowSteps(t) {
   return t.steps.map(s => {
     const c = Object.assign({}, s);
@@ -74,13 +80,45 @@ function gaShowSteps(t) {
       delete c.wait; delete c.save;
       c.en = 'When you do it for real, you press this — it saves. Not now: this is only a look round. ' + (s.en || '');
       c.hi = 'असली में करते समय यह दबाना है — इससे सेव होता है। अभी नहीं: यह सिर्फ़ दिखाने के लिए है। ' + (s.hi || s.en || '');
-    } else if (!(c.wait === 'click' && c.skip)) delete c.wait;
+    } else {
+      if (c.wait === 'click' && !GA_SHOW_NOT_OPEN.test(s.en || '')) c.open = true;   // pressed by Meera only if the button itself reads as an opener (guideGo)
+      else if (c.wait === 'click') {
+        c.en = 'In the real job you press this. Not now: this is only a look round. ' + (s.en || '');
+        c.hi = 'असली काम में यह दबाना है। अभी नहीं: यह सिर्फ़ दिखाने के लिए है। ' + (s.hi || s.en || '');
+      }
+      delete c.wait;
+    }
     return c;
   });
+}
+/** The walk's first button is not on this person's screen (live, 26 Oct: Finished Goods' Scan in / out is hidden without
+ * the entry right): say so, rather than pass over the steps that need it. A button on a line: there is no line yet. */
+function gaWalkMissing(t) {
+  const first = t.steps.find(x => x.sel && x.wait === 'click');
+  if (!first || (first.tab && gaHere() !== first.tab)) return null;
+  return guideTarget(first) || (first.skip && guideTarget({ sel: first.skip })) ? null : first;
+}
+function gaWalkSayMissing(first) {
+  const name = ((first.en || '').match(/<b>(.*?)<\/b>/) || [])[1] || '', hi = guideLang() === 'hi', row = /\[data-/.test(first.sel);
+  guideAskOpen();
+  gaSay(row ? (hi ? `यहाँ अभी कोई लाइन नहीं है जिस पर यह काम हो — <b>${name}</b> लाइन पर तभी दिखता है जब कोई लाइन हो।` : `There is no line here to do this on yet — <b>${name}</b> shows on a line once there is one.`)
+    : (hi ? `आपकी स्क्रीन पर <b>${name}</b> नहीं दिख रहा। यह सिर्फ़ उन लोगों को दिखता है जिनके पास इस काम का अधिकार है — ज़रूरत हो तो एडमिन से कहें।` : `I can't see <b>${name}</b> on your screen. It shows only for people with the right for this job — ask your admin if you need it.`), []);
+}
+/** On the walk's screen already: asked before it starts. Opened by the walk: looked at once the screen is up — the walk
+ * may have passed over every step and closed by then, so a walk of its own still running is the only thing that stops it. */
+function gaWalkCheck(t) {
+  const tour = GUIDE.tour;
+  setTimeout(() => {
+    if (GUIDE.tour && GUIDE.tour !== tour) return;   // the person started something else
+    const first = gaWalkMissing(t); if (!first) return;
+    if (GUIDE.tour === tour) guideClose();
+    gaWalkSayMissing(first);
+  }, 1600);
 }
 /** Start a job's walk: 'do' (with me, from the start), 'show' (a look round), 'resume' (from where the form has got to). */
 function gaWalkStart(id, mode, q) {
   const t = GUIDE_TASKS.find(x => x.id === id); if (!t) return;
+  if (mode !== 'resume') { const miss = gaWalkMissing(t); if (miss) { gaWalkSayMissing(miss); return; } }   // its first button is not on this screen
   guideAskClose();
   if (mode === 'show') {
     guideBuild();
@@ -88,9 +126,11 @@ function gaWalkStart(id, mode, q) {
     GUIDE.tour = { kind: 'task', id, title: t.title, steps: gaShowSteps(t), show: true };
     GUIDE.i = 0; GUIDE.dir = 1;
     guideShow();
+    gaWalkCheck(t);
     return;
   }
   guideTaskStart(id, q);
+  if (mode === 'do') gaWalkCheck(t);
   if (mode === 'resume' && GUIDE.tour && GUIDE.tour.id === id) {
     const at = gaWalkStartAt(GUIDE.tour);
     if (at > 0) {
@@ -175,3 +215,22 @@ function gaNudgeWatch() {
 }
 /* started here, not from guideBuild (guide.js runs first, before this file's own values exist) */
 gaNudgeWatch();
+
+/* ---------- loaded early (Ravi, 27 Oct: "make meera a bit fast in loading") ----------
+ * Her answers, walk-throughs and meaning file (about 2 MB in all) were fetched only when Ask Meera first opened, so the
+ * first answer waited for them. Now they are downloaded in the background a few seconds after someone is signed in, when
+ * the browser is idle — downloaded only, into the browser's cache: nothing is read or worked out on the page until Ask
+ * Meera opens (building her search index takes about a second, more on a phone, and must not slow anyone's work). Not
+ * for a printer's sign-in, nor on a phone saving data. On later visits the browser only asks whether they changed. */
+const gaLater = (fn, ms) => { const t = setTimeout(fn, ms); if (t && t.unref) t.unref(); };   // never keeps a test run open
+function gaPreload(tries) {
+  let signedIn = false;
+  try { signedIn = typeof auth !== 'undefined' && !!(auth && auth.currentUser); } catch (e) { /* not signed in yet */ }
+  if (!signedIn) { if (tries < 30) gaLater(() => gaPreload(tries + 1), 10000); return; }   // waits for the sign-in (up to 5 min)
+  try { if (typeof spIsVendor === 'function' && spIsVendor()) return; } catch (e) { /* not known: go on */ }
+  try { if (navigator.connection && navigator.connection.saveData) return; } catch (e) { /* not known: go on */ }
+  const go = () => ['/guide/meera-bank.json', '/guide/meera-walks.json', '/guide/meera-words.bin']
+    .forEach(u => fetch(u, { cache: 'no-cache' }).then(r => r.arrayBuffer()).catch(() => null));
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(go, { timeout: 8000 }); else gaLater(go, 1000);
+}
+gaLater(() => gaPreload(0), 4000);

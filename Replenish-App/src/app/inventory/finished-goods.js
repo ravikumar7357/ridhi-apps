@@ -150,6 +150,11 @@ function renderFgi() {
     </div></div>`;
   $('fgPendBadge').textContent = pend.length ? nf(pend.length) : '';
   $('fgPendBadge').classList.toggle('hide', !pend.length);
+  /* FROM QC — TO ACCEPT ONLY (core/auth.js, ME.fgAccOnly): the one list this account works, without the store's other views. */
+  if (ME.fgAccOnly) {
+    $('fgView').value = 'flow'; $('fgKpis').innerHTML = '';
+    ['fgView', 'fgPendBadge', 'fgiLstBadge', 'fgiCorrBadge', 'fgiOverBadge'].forEach(id => { const b = $(id); if (b && b.classList) b.classList.add('hide'); });
+  }
 
   const view = $('fgView').value;
   ['fgD1', 'fgD2'].forEach(i => $(i).classList.toggle('hide', view !== 'ledger'));

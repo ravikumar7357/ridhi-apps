@@ -150,7 +150,7 @@ function p1Wip() {
   const res = p1WipBuild(); P1_WIPC = { key, out: res }; return res;
 }
 function p1WipBuild() {
-  const out = [], rows = flowRows().filter(x => !x.r.__t && x.s.bucket !== 'done'), open = new Set(rows.map(x => obUC(x.r.orderNo) + '|' + obUC(x.r.sku)));
+  const out = [], rows = flowRows().filter(x => !x.r.__t && x.s.bucket !== 'done' && x.s.bucket !== 'board'), open = new Set(rows.map(x => obUC(x.r.orderNo) + '|' + obUC(x.r.sku)));
   p1Events(); const lastOf = (k, o, s) => P1_EV.last.get(k + '|' + o + '|' + s) || null;
   /* with the printer: what each open challan has sent and not had back */
   Object.values(FLOW.ch || {}).forEach(c => { if (!c || c.cancelled || c.closed) return; const recv = flowChRecv(c);
@@ -275,7 +275,7 @@ function p1Ords(list) {
 /** The SKU's card above the ledger: its balance, where its pieces are and who has them, and its next steps. */
 function p1SkuCard(sku, ev) {
   const mine = ev.filter(e => e.sku === sku && e.unit !== 'm'), sum = ks => mine.filter(e => ks.includes(e.k)).reduce((t, e) => t + e.pcs, 0);
-  const rows = flowRows().filter(x => !x.r.__t && obUC(x.r.sku) === sku && x.s.bucket !== 'done');
+  const rows = flowRows().filter(x => !x.r.__t && obUC(x.r.sku) === sku && x.s.bucket !== 'done' && x.s.bucket !== 'board');
   const np = rows.filter(x => x.s.bucket === 'ppc' || x.s.bucket === 'back').reduce((t, x) => t + (+x.r.qty || 0), 0);
   const mk = rows.filter(x => !['ppc', 'back'].includes(x.s.bucket)).reduce((t, x) => t + Math.max(0, (+x.r.qty || 0) - x.s.qc), 0);
   const rd = rows.reduce((t, x) => t + Math.max(0, Math.min(+x.r.qty || 0, x.s.qc) - x.s.india), 0);
@@ -304,7 +304,7 @@ function p1InvBuild() {
   const by = new Map(), lineG = new Map(), L = p1Lots();
   const wipOf = new Map(); p1Wip().forEach(h => { const k = h.orderNo + '|' + h.sku; (wipOf.get(k) || wipOf.set(k, []).get(k)).push(h); });
   flowRows().forEach(x => {
-    if (x.r.__t || x.s.bucket === 'done') return;
+    if (x.r.__t || x.s.bucket === 'done' || x.s.bucket === 'board') return;   // 'board': a new Shopify order the SHP board plans (live, 28 Oct)
     const k = obUC(x.r.sku), q = +x.r.qty || 0, s = x.s, lot = L.byLine.get(s.key) || null, gk = lot ? lot.id : 'NEW|' + k;
     const e = by.get(gk) || { gk, lot, sku: k, art: p1Art(x.r), fam: String(x.r.articleSubtype || ''), wl: [], what: [x.r.articleSubtype || x.r.articleType || x.r.itemName, x.r.color, x.r.size].filter(Boolean).join(' · '), lines: [], orders: new Set(),
       ordered: 0, notPlanned: 0, short: 0, fab: 0, fabM: 0, cut: 0, raw: 0, kar: 0, qc: 0, ready: 0, isNew: false };

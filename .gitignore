@@ -12,6 +12,7 @@
 !/shared/
 !/Inventory-App/
 !/.github/
+!/meera-router/
 
 # Firebase's local deploy cache, and anything installed.
 .firebase/

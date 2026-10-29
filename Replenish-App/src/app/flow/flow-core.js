@@ -49,6 +49,19 @@ const FLOW_NO_REAL = Object.freeze([]);
  * The day is the day the line was OPENED (openIso), not the day the customer ordered: an order opened today from last
  * week is still new. localStorage flowMto = '0' turns it off on one computer. */
 const FLOW_MTO_FROM = '2026-10-15';
+/* THE SHP BOARD PLANS ITS OWN ORDERS (Ravi, 28 Oct: "aaj or is time ke bad jo order aayenge sirf wo hi dikhenge or ye order ppc se plan nahi
+ * honge yanhi se plan honge"). A Shopify order dated from FLOW_BOARD_FROM on belongs to the SHP board (Order Console → "SHP board"): it
+ * is planned there — the board's Plan button opens the same plan form — and it never waits in PPC's own bucket. Once planned it runs the
+ * flow like any line (Demand, challans, printed fabric in). Older Shopify orders, and every Amazon / B2B order, stay with PPC. */
+const FLOW_BOARD_FROM = '2026-10-28';
+function flowBoardDay(r) {
+  const m = String((r && r.orderDate) || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return typeof ptIsoDate === 'function' ? String(ptIsoDate(r && r.orderDate) || '') : '';
+  let mo = +m[2], d = +m[3];
+  if (mo > 12 && d <= 12) { const t = mo; mo = d; d = t; }          // a few order dates are written year-day-month
+  return m[1] + '-' + String(mo).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+}
+const flowBoardOwns = r => !!(r && !r.__t && /^SHP-/i.test(String(r.orderNo || '')) && flowBoardDay(r) >= FLOW_BOARD_FROM);
 const FLOW_MTO_LIVE = (() => { try { return localStorage.getItem('flowMto') !== '0'; } catch (e) { return true; } })();
 /** A real line put on the book from FLOW_MTO_FROM on. With FLOW_REAL every such line is new (15 Oct: the open orders were
  * deleted and uploaded again, many with an order date from before flowFrom() — the day they came onto the book is what
@@ -337,7 +350,12 @@ function flowState(r) {
     s.fabHave = flowR2(have); s.fabTotal = total;
     if (route === 'emb' && flowInHand(p) && flowEmbByVendor(p)) s.fabHave = flowR2(+(p.fabric && p.fabric.metres) || 0);   // in hand: all of it, for embroidery
     /* ALL FROM PRINTED STOCK: nothing to print, nothing to send — given and back in full, straight to Cutting. */
-    s.fromStock = !flowPrintsSomething(r, p);
+    /* NOTHING LEFT TO MAKE (27 Oct): a line cut / issued in full before anything went to a printer prints nothing. One already
+     * on a print order or a challan keeps it — the printer's work and the cloth coming back still count. */
+    /* embroidery always cuts (below): its cut pieces count even where the master says no cutting */
+    const remP = (po || cx) ? 1 : flowRemFrac(r, route === 'emb' ? Object.assign({}, s, { cut: cap(r.cut) }) : s);
+    s.noneLeft = !(remP > 0);
+    s.fromStock = !flowPrintsSomething(r, p, remP);
     if (s.fromStock) { s.given = qty; s.back = qty; }
     else if (po || cx) {
       s.given = qty;
@@ -376,11 +394,16 @@ function flowState(r) {
   const accNeed = !!p && route !== 'outsource' && (p.acc || []).some(a => a.code && +a.qty > 0);
   const handReady = !!(d && d.fabricReady && !d.fabricReady.challan);
   s.needFab = isNew && !!p && route !== 'outsource' && route !== 'jobwork' && !handReady && !flowInHand(p)
-    && (flowPrinted(route) ? (flowFabOwed({ qty }, s).left > 0.01 || (flowPrintExtras(r, p).length > 0 && !(flowRufflePrinter(p) ? flowChIndex()[k + FLOW_RUF] : cx))) : (!(d && d.fabricReady) && flowRemFrac(r, s) > 0));   // the ruffle cloth goes too, on the first challan
+    && (flowPrinted(route) ? (flowFabOwed({ qty }, s).left > 0.01 || (flowRemFrac(r, s) > 0 && flowPrintExtras(r, p).length > 0 && !(flowRufflePrinter(p) ? flowChIndex()[k + FLOW_RUF] : cx))) : (!(d && d.fabricReady) && flowRemFrac(r, s) > 0));   // the ruffle cloth goes too, on the first challan
   s.needAcc = isNew && accNeed && !res;
+  /* STARTED BEFORE PPC PLANNED IT (Ravi, 27 Oct: a line still waiting in PPC was issued to a karigar from the Job Work Register,
+   * and PPC showed nothing of it). PPC lists what is already cut / issued / passed on the line (flowStartedHtml) and plans only
+   * the rest. A line the registers cover in full still waits in PPC, marked "nothing left to make" (Ravi, 27 Oct: kept there
+   * until it is planned) — its plan raises no cloth, print order or zippers, and the line then moves on to where the work is. */
+  s.startedNoPlan = isNew && !p && flowRemFrac(r, s) < 1;
   s.bucket =
       (r.handedAt || r.shopDoneAt) ? 'done'
-    : (isNew && !p) ? (flowIsBack(r) ? 'back' : 'ppc')
+    : (isNew && !p) ? (flowBoardOwns(r) ? 'board' : (flowIsBack(r) ? 'back' : 'ppc'))   // 'board' is in no flow list: the SHP board plans it
     : (route === 'outsource') ? (s.india < qty ? 'out' : 'done')
     : (s.needFab || s.needAcc) ? 'demand'
     : (printed && s.given < qty) ? 'vendor'

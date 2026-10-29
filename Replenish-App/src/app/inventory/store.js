@@ -100,6 +100,8 @@ function stCutting(c) {
   /* A piece whose cloth is printed AFTER cutting leaves the store when the printer is given it, and
    * comes back as the printer's delivery — so the cutting itself moves nothing here. */
   const running = !!m && ptPrintIssueAs(m) === 'running';
+  /* Cut from a rejected tablecloth or wastage cloth (clothFrom, look-alike-skus.js): no printed cloth left the store for it. */
+  if (c.clothFrom) return { running: false, pcs, fabric: '', colour: c.color || '', metres: 0, waste: 0, wasteWidth: 0 };
   const typed = parseFloat(c.fabricUsed);
   let fabric = String(c.fabricWidth || '').trim(), metres = isFinite(typed) && typed > 0 ? typed : 0;
   if (!metres || !fabric) {

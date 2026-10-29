@@ -1010,6 +1010,7 @@ function renderOrd() {
   if (v === 'track') return renderOrdTrack();
   if (v === 'shppipe') return renderOrdPipe();
   if (v === 'team') return renderOrdTeam();
+  if (v === 'shpboard' && typeof renderShpBoard === 'function') return renderShpBoard();   // TEST window (orders/shp-board.js)
   if (v === 'prnplat') return renderOrdPrnPlat();
   if (!isBook) { const out = renderOrdShopify(v === 'shopsku', v === 'shopdone' || (v === 'shopsku' && !!ORD.skuDone)); if (bulkOk) spBulkRender(); return out; }
 
