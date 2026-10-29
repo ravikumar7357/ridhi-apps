@@ -2166,3 +2166,15 @@ html.mob #frMeeraMenu{right:14px;bottom:144px}
 #p1Home .lg-lot{font-size:12.5px}
 #p1Home .lg-t td.ref{min-width:170px;font-size:12.5px}
 #p1Home .lg-t td{padding:8px 9px}
+/* Late and stuck, first (29 Oct): a plain list above the lots */
+#p1Home .p1-att{padding:0;overflow:hidden;margin-bottom:14px}
+#p1Home .p1-att-h{padding:12px 16px;border-bottom:1px solid var(--line);font-size:13.5px}
+#p1Home .p1-att-ok{padding:12px 16px;font-size:13.5px}
+#p1Home table.p1at td{padding:8px 12px;font-size:13px;vertical-align:middle}
+#p1Home table.p1at th{padding:8px 12px}
+#p1Home table.p1at tr.p1a{cursor:pointer}
+#p1Home table.p1at tr.p1a:hover td{background:var(--soft)}
+#p1Home table.p1at td.bad{color:var(--bad);font-weight:700}
+#p1Home table.p1at td.nx{text-align:right;white-space:nowrap}
+#p1Home table.p1at td{white-space:nowrap}
+#p1Home table.p1at td:nth-child(2) .sm{white-space:normal}

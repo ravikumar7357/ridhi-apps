@@ -361,12 +361,30 @@ function p1DrawInv() {
     /* in lot order (Ravi, 28 Oct: the serial number first): what is still to plan on top, then 001, 002… month by month */
     .sort((a, b) => !!a.lot - !!b.lot || String(a.lot ? a.lot.id : '').localeCompare(String(b.lot ? b.lot.id : '')) || a.sku.localeCompare(b.sku));
   const shown = rows.slice(0, P1.lim), today = p1Local(), ev = p1Events();
+  /* LATE AND STUCK, FIRST (Ravi, 29 Oct: what a PPC manager sees first) — a plain list of the lots to chase today: past the
+   * due date, or pieces held at one place for more than 7 days. One line a lot, the worst first: where it is held, with whom,
+   * how many pieces, for how many days, the due date and by how much it is late, and its next step. */
+  const att = all.map(r => { const late = r.due && r.due < today ? p1Days(r.due) : 0, held = r.holds.filter(w => (p1Days(w.since) || 0) > 7)
+      .sort((x, y) => (p1Days(y.since) || 0) - (p1Days(x.since) || 0)), at = held[0] || r.holds[0] || null;
+    return late || held.length ? { r, late, at, days: at ? p1Days(at.since) : null, nx: (at && p1NextOf(r, P1_STAGE_OF[at.stage])) || r.next } : null; }).filter(Boolean)
+    .sort((x, y) => y.late - x.late || (y.days || 0) - (x.days || 0));
+  const attShown = P1.attAll ? att : att.slice(0, 8);
+  const attRow = ({ r, late, at, days, nx }) => `<tr class="p1a" data-p1go="${esc(r.gk)}"><td><b class="p1-lotno sm${r.lot ? '' : ' new'}">${r.lot ? esc(p1LotTxt(r.lot)) : 'To plan'}</b></td>
+      <td><b>${esc(r.sku)}</b><div class="muted sm">${esc(r.what)}</div></td><td>${at ? esc(at.stage) : '<span class="muted">—</span>'}</td><td>${at ? esc(at.who) : ''}</td>
+      <td class="num">${at ? p1N(at.pcs) + (at.unit === 'm' ? ' m' : '') : ''}</td><td class="num${(days || 0) > 7 ? ' bad' : ''}">${days != null ? days + ' d' : '—'}</td>
+      <td>${r.due ? p1Day(r.due) : '<span class="muted">—</span>'}</td><td class="num${late ? ' bad' : ''}">${late ? late + ' d' : '<span class="muted">—</span>'}</td>
+      <td class="nx">${nx ? `<button type="button" class="p1-go" data-p1att-do="${esc(r.gk)}" data-p1att-st="${esc(at ? P1_STAGE_OF[at.stage] || '' : '')}">${esc(nx[1])}</button>` : ''}</td></tr>`;   /* the step of the place it is held: a karigar's lot says Receive */
+  const attCard = att.length ? `<div class="card p1-att"><div class="p1-att-h"><b>Late and stuck</b><span class="muted"> · ${p1N(att.filter(x => x.late).length)} past the due date · ${p1N(att.filter(x => (x.days || 0) > 7).length)} held more than 7 days at one place</span></div>
+    <table class="p1t p1at"><thead><tr><th>Lot</th><th>SKU</th><th>Held at</th><th>With</th><th class="num">Pcs</th><th class="num">Days there</th><th>Due</th><th class="num">Late by</th><th></th></tr></thead>
+    <tbody>${attShown.map(attRow).join('')}</tbody></table>${att.length > attShown.length ? `<button type="button" class="lg-more" data-p1att>Show all ${p1N(att.length)}</button>` : ''}</div>`
+    : '<div class="card p1-att p1-att-ok"><b>Nothing is late or stuck.</b> <span class="muted">Every lot is within its due date and no place has held pieces for more than 7 days.</span></div>';
   const chip = w => { const st = P1_STAGE_OF[w.stage] || 'cut', c = P1_STAGE_INK[st], d = p1Days(w.since);
     return `<span class="hold${d != null && d > 7 ? ' late' : ''}" style="background:${c[0]};color:${c[1]}"><b>${p1N(w.pcs)}${w.unit === 'm' ? ' m' : ''}</b> ${esc(w.stage === 'With karigar' ? w.who : w.stage === 'Printer' ? w.who : w.stage)}${d != null ? ` · ${d}d` : ''}</span>`; };
   el.innerHTML = `<div class="p1-head"><h1 class="lm-h">PPC</h1>${p1ViewSeg()}<input type="search" class="p1-q" id="p1Q" placeholder="Search lot, SKU, order, karigar, printer…" value="${esc(P1.q)}"></div>
     <div class="p1-stages"><button type="button" class="st${!P1.stage ? ' on' : ''}" data-p1st=""><b>${p1N(all.length)}</b><span>All lots</span></button>${P1_STEPS.map(s => { const n = all.filter(r => r.stages.has(s[0])).length;
       return `<button type="button" class="st${P1.stage === s[0] ? ' on' : ''}" data-p1st="${s[0]}"><b>${p1N(n)}</b><span>${esc(s[1])}</span></button>`; }).join('')}
       <span class="p1-read">${P1.err ? `<b style="color:var(--bad)">Could not read everything: ${esc(P1.err)}</b> · ` : ''}${P1.loading ? 'Reading…' : 'Read ' + (P1.at || '—')} · <a data-p1r>↻ Refresh</a></span></div>
+    ${attCard}
     <div class="card p1-list"><table class="p1t"><thead><tr><th>Lot</th><th>SKU</th><th>Orders</th><th>Where it is now — and who has it</th><th>Due</th><th>Next step</th></tr></thead><tbody>
     ${shown.map(r => { const open = P1.inv === r.gk, nx = r.next, more = r.holds.length - 4;
       return `<tr class="p1r${open ? ' open' : ''}${r.late ? ' late' : ''}" data-p1row="${esc(r.gk)}">
@@ -381,6 +399,12 @@ function p1DrawInv() {
   const on = (sel, fn, ev2 = 'onclick') => el.querySelectorAll(sel).forEach(b => { b[ev2] = e => fn(b, e); });
   const R = gk => all.find(r => r.gk === gk);
   on('[data-p1st]', b => { P1.stage = b.dataset.p1st; P1.inv = ''; P1.lim = 300; p1Draw(); });
+  on('[data-p1att]', () => { P1.attAll = true; p1Draw(); });
+  on('[data-p1att-do]', b => { const r = all.find(x => x.gk === b.dataset.p1attDo), nx = r && (p1NextOf(r, b.dataset.p1attSt) || r.next); if (!nx) return;
+    if (nx[0] === 'PLAN' || nx[0] === 'RFD' || nx[2].length === 1 || ['QC', 'FG', 'PRN', 'SHIP'].includes(nx[0])) return p1Do(nx[0], nx[2]);
+    p1WaitFor(nx[0], r.sku); });
+  on('[data-p1go]', (b, e) => { if (e.target.closest('button')) return; P1.inv = b.dataset.p1go; P1.stage = ''; p1Draw();   // the lot, opened in the list below
+    const t = el.querySelector(`tr[data-p1row="${CSS.escape(b.dataset.p1go)}"]`); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
   on('[data-p1row]', (b, e) => { if (e.target.closest('button')) return; P1.inv = P1.inv === b.dataset.p1row ? '' : b.dataset.p1row; p1Draw(); });
   on('[data-p1next]', b => { const r = R(b.dataset.p1next), nx = r && r.next; if (!nx) return;
     if (nx[0] === 'PLAN' || nx[0] === 'RFD' || nx[2].length === 1 || ['QC', 'FG', 'PRN', 'SHIP'].includes(nx[0])) return p1Do(nx[0], nx[2]);
@@ -745,6 +769,7 @@ if (typeof GUIDE_TOURS !== 'undefined') {
   GUIDE_TOURS.ppc = [
     { en: 'This is <b>PPC</b> — every production lot on one page. A lot is one SKU’s plan: the orders planned together for it.', hi: 'यह <b>PPC</b> है — हर प्रोडक्शन लॉट एक ही पेज पर। लॉट मतलब एक SKU का प्लान: उसके साथ प्लान हुए ऑर्डर।' },
     { sel: '#p1Home tr.p1r td.lot', en: '<b>Lot</b> — 001, 002… from the 1st of each month. The ending says where it starts: <b>GR</b> greige, <b>CT</b> cutting, <b>JW</b> Job Work, <b>OS</b> outsourced. Click it to see where every piece and part of the lot is.', hi: '<b>Lot</b> — हर महीने की 1 तारीख़ से 001, 002…। आख़िर के अक्षर बताते हैं कहाँ से शुरू: <b>GR</b> ग्रेज, <b>CT</b> कटिंग, <b>JW</b> जॉब वर्क, <b>OS</b> बाहर से। क्लिक करें तो लॉट का हर पीस और हिस्सा कहाँ है, दिखेगा।' },
+    { sel: '#p1Home .p1-att', en: '<b>Late and stuck</b> comes first: the lots past their due date, and the lots whose pieces have sat at one place for more than 7 days — where they are held, with whom, for how many days and by how much they are late, worst first. Click a line to open that lot below; the button is its next step.', hi: '<b>Late and stuck</b> सबसे ऊपर: जिन लॉट की तारीख़ निकल गई, और जिनके पीस किसी एक जगह 7 दिन से ज़्यादा रुके हैं — कहाँ रुके, किसके पास, कितने दिन से और कितने दिन लेट, सबसे बुरे पहले। लाइन पर क्लिक करें तो वह लॉट नीचे खुलेगा; बटन उसका अगला काम है।' },
     { sel: '#p1Home .p1-stages', en: 'These boxes count the SKUs at each stage — to plan, fabric & printer, cutting, with karigars, QC, ready. Click one to see only those.', hi: 'ये बॉक्स हर स्टेज के SKU गिनते हैं — प्लान, फ़ैब्रिक और प्रिंटर, कटिंग, कारीगर, QC, तैयार। किसी पर क्लिक करें तो सिर्फ़ वही दिखेंगे।' },
     { sel: '#p1Home tr.p1r td.ord', en: '<b>Orders</b>: how many pieces are ordered, on how many orders, and how many are <b>not planned</b> yet (in red).', hi: '<b>Orders</b>: कितने पीस ऑर्डर हैं, कितने ऑर्डर में, और कितने अभी <b>प्लान नहीं</b> हुए (लाल में)।' },
     { sel: '#p1Home tr.p1r td.where', en: '<b>Where it is now — and who has it</b>: the printer, cutting, each karigar by name, QC — with how many days it has been there. Red means more than 7 days.', hi: '<b>अभी कहाँ है — और किसके पास</b>: प्रिंटर, कटिंग, हर कारीगर का नाम, QC — और कितने दिन से वहाँ है। लाल मतलब 7 दिन से ज़्यादा।' },
