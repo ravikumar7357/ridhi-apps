@@ -33324,17 +33324,18 @@ async function flowFgOpen() {
  *
  *   Plan date     the day the plan was FIRST saved (plan.firstAt, kept from 28 Oct). A plan saved before then has only its
  *                 last save (plan.at).
- *   Stages        (Ravi, 28 Oct, the design he approved): for each of Greige, RFD, Printing, Embroidery, Cutting, Job work,
- *                 QC and Finished a Status (Done / In progress / Not started / Not needed, in colour), the Pcs through it
- *                 ("-" before it starts) and its paper beside it (flowRepStages). A Stage board sheet says where work waits.
- *   Last moved    the last thing that happened to the line and its day (flowRepLastMoved).
- *   Completion date  the plan's Ready date — PPC must give one to save a plan (28 Oct).
+ *   Stages        (Ravi, 28 Oct, his v6 workbook): Printing, Cutting, Stitching, QC and Press, each a status in colour
+ *                 (Done / Passed, In progress, Not started, Not needed) with its pieces beside it (flowRepStages).
+ *   Sheets        Lines — row 1 adds the counts with SUBTOTAL (a filter re-adds them), row 2 names the groups, row 3 has
+ *                 the filters — and Summary, a pivot by SKU: ordered, completed, pending, lines, late lines, Grand Total.
+ *   Last moved    the last thing that happened to the line, its day and its step (flowRepLastMoved).
+ *   Exp. completion  the plan's Ready date — PPC must give one to save a plan (28 Oct).
  *   Due date      the sales order's delivery date; for a Shopify / online line, 5 working days from when it opened (the
  *                 made-to-order rule of Production to Shipping); for the rest (Amazon), the Ready date — Amazon gives none.
  *   Delay         today against the due date, for a line not yet made; a made line says "made".
  *   Who           admins, and whoever holds the Reports right.
  * ================================================================ */
-const FLOW_REP = { from: '', to: '', on: 'planned', by: 'sku', soErr: '', gpo: null };
+const FLOW_REP = { from: '', to: '', on: 'planned', soErr: '' };
 const flowRepAllowed = () => !!(ME.admin || (ME.tabs || []).includes('rep'));
 /* Made — passed QC: nothing left to be late on. */
 const FLOW_REP_MADE = ['ship', 'fgin', 'done'];
@@ -33371,73 +33372,34 @@ function flowRepDelay(due, made, today) {
   if (d === 0) return { txt: 'due today', late: 0 };
   return { txt: `${-d} day${d < -1 ? 's' : ''} left`, late: 0 };
 }
-/** Who has the work: the printer (or embroiderer / outside vendor) on the plan, then the karigars Job Work issued it to. */
-function flowRepWho(r, p) {
-  const out = [];
-  if (p && p.printer && (p.printer.name || p.printer.code)) out.push(p.printer.name || p.printer.code);
-  if (p && p.emb && (p.emb.name || p.emb.code)) out.push(p.emb.name || p.emb.code);
-  if (p && p.route === 'outsource' && String(p.outVendor || '').trim()) out.push(String(p.outVendor).trim());
-  const kar = new Map();
-  (PT.base || []).forEach(b => { const n = +(b && b.issuePieces) || 0;
-    if (n > 0 && obUC(b.orderNo) === obUC(r.orderNo) && obUC(b.sku) === obUC(r.sku)) { const w = String(b.empName || '').trim() || 'karigar'; kar.set(w, (kar.get(w) || 0) + n); } });
-  kar.forEach((n, w) => out.push(`${w} (${n})`));
-  return out.join(', ');
-}
-/* THE STAGES OF A LINE (Ravi, 28 Oct: "one [column] to tell done / not done … if the process is not done show '-' … if the
- * process is work in progress show the actual count of pieces"). Each stage is { need, done }: need false = the line does
- * not go through it ("Not needed"); done = the pieces through it so far. A piece past a stage has been through it — a piece
- * cut was printed, one back from the karigar was cut — so each stage counts what any later stage has.
- *   Greige     pieces whose RFD cloth is in stock or already sent (Demand · RFD, flowRfdCover); greige is bought per fabric.
- *   RFD        pieces whose cloth has gone to the printer (printed lines, flowFabOwed), or is ready (cutting lines).
- *   Printing   printed pieces back.  Embroidery  embroidered pieces back.  Cutting  pieces cut.
- *   Job work   pieces back from the karigars.  QC  pieces passed.  Finished  in India stock / handed to shipping. */
-const FLOW_REP_STAGES = [['greige', 'Greige', 'Greige PO'], ['rfd', 'RFD', 'RFD challan'], ['print', 'Printing', 'Print order'], ['emb', 'Embroidery', 'Emb challan'],
-  ['cut', 'Cutting', ''], ['job', 'Job work', 'Karigar (pcs)'], ['qc', 'QC', ''], ['fin', 'Finished', '']];
-function flowRepStages(r, s, p, cover) {
+/* THE STAGES OF A LINE (Ravi, 28 Oct — his v6 workbook, ppc-report-v6-sample.xlsx): Printing, Cutting, Stitching, QC and
+ * Press, each with a status — Done (QC: Passed), In progress, Not started, Not needed — and the pieces beside it. A piece
+ * past a stage has been through it (a piece cut was printed), so a stage counts what any later stage has. */
+const FLOW_REP_DONE = 'Done', FLOW_REP_WIP = 'In progress', FLOW_REP_NOT = 'Not started', FLOW_REP_NA = 'Not needed';
+const flowRepSt = (need, done, started, qty, doneWord) => !need ? FLOW_REP_NA : qty > 0 && done >= qty ? (doneWord || FLOW_REP_DONE) : started ? FLOW_REP_WIP : FLOW_REP_NOT;
+function flowRepStages(r, s, p) {
   const qty = +r.qty || 0, cap = n => Math.max(0, Math.min(qty, Math.floor((+n || 0) + 1e-9)));
-  const no = { need: false, done: 0 }, at = n => ({ need: true, done: cap(n) });
-  const fin = cap(s.india);
-  if (!p) return { greige: no, rfd: no, print: no, emb: no, cut: no, job: no, qc: no, fin: at(fin) };
-  const route = s.route, outside = route === 'outsource', embVen = route === 'emb' && flowEmbByVendor(p);
-  const perPc = +(p.fabric && p.fabric.perPc) || (qty ? (+(p.fabric && p.fabric.metres) || 0) / qty : 0);
-  const toPcs = m => perPc > 0 ? Math.ceil(m / perPc - 1e-9) : 0;
-  const qc = Math.max(cap(s.made), fin), job = Math.max(cap(s.received), qc);
-  const cut = Math.max(cap(s.cut), cap(s.issuedNet || 0), job);
-  const printOn = flowPrinted(route) && !s.fromStock, print = Math.max(cap(s.back), cut);
-  const emb = embVen ? Math.max(cap(s.embOk || 0), cut) : job;
-  /* cloth: none for job work / outsourced, nor for cloth already in hand or a line made all from printed stock */
-  const usesRfd = !outside && route !== 'jobwork' && !flowInHand(p) && !s.fromStock;
-  let rfd = 0;
-  if (usesRfd) {
-    if (flowPrinted(route)) { const o = flowFabOwed(r, s); rfd = qty - (o.unit === 'pcs' ? Math.ceil(o.left - 1e-9) : toPcs(o.left)); }
-    else rfd = (s.demand && s.demand.fabricReady) || s.cut > 0 || s.issued > 0 ? qty : qty - Math.ceil(qty * flowRemFrac(r, s) - 1e-9);
-    rfd = Math.max(cap(rfd), printOn ? print : cut);
-  }
-  const c = cover && cover.line[s.key];
-  const greige = rfd >= qty || !(c && c.short > 0) ? qty : Math.max(rfd, qty - toPcs(c.short));
+  const route = s.route, outside = route === 'outsource';
+  const pressed = cap(r.pressed), passed = cap(s.qc), rejected = Math.max(0, +s.qcRej || 0);
+  const given = Math.max(0, +s.issuedAll || 0), received = Math.max(0, +s.receivedAll || 0);
+  const stitched = Math.max(cap(received), passed, pressed), cutC = Math.max(cap(s.cut), cap(s.issuedNet || 0), stitched);
+  const cut = Math.max(0, +r.cut || 0) || (s.cutReq ? cap(s.cut) : 0);
+  const printOn = !!p && flowPrinted(route) && !s.fromStock, printed = Math.max(cap(s.back), cutC);
+  const ch = s.challan || null;
   return {
-    greige: usesRfd ? at(greige) : no, rfd: usesRfd ? at(rfd) : no, print: printOn ? at(print) : no, emb: route === 'emb' ? at(emb) : no,
-    cut: s.cutReq && !outside ? at(cut) : no, job: outside || embVen ? no : at(job), qc: outside ? no : at(qc), fin: at(fin),
+    print: { status: flowRepSt(printOn, printed, printed > 0 || +s.fabSent > 0 || !!ch, qty),
+      printer: printOn ? ((p.printer && (p.printer.name || p.printer.code)) || (ch && ch.vendor) || '') : '' },
+    cut: { status: flowRepSt(!!s.cutReq && !outside, cutC, cutC > 0, qty), cut, store: s.cutReq ? Math.max(0, cut - Math.max(0, +s.issuedNet || 0)) : 0 },
+    stitch: { status: flowRepSt(!outside, stitched, given > 0 || stitched > 0, qty), given, received },
+    qc: { status: flowRepSt(!outside, Math.max(passed + Math.min(rejected, qty), pressed), passed + rejected > 0 || pressed > 0, qty, 'Passed'), passed, rejected },
+    press: { status: flowRepSt(!outside, pressed, pressed > 0, qty), pressed },
+    /* completed = made: passed QC and pressed (or, for a line made outside, received finished) */
+    completed: outside ? cap(s.india) : Math.max(pressed, Math.min(passed, cap(s.made))),
   };
 }
-/** "Done" · "In progress" · "Not started" · "Not needed" — and the pieces: the count while it is under way or done, "-" before. */
-const flowRepStatus = (x, qty) => !x.need ? 'Not needed' : x.done >= qty && qty > 0 ? 'Done' : x.done > 0 ? 'In progress' : 'Not started';
-const flowRepPcs = x => x.need && x.done > 0 ? x.done : '-';
-/** The karigars Job Work issued the line to, with their pieces: "Ramesh (25), Suresh (15)". */
-function flowRepKarigars(r) {
-  const kar = new Map();
-  (PT.base || []).forEach(b => { const n = +(b && b.issuePieces) || 0;
-    if (n > 0 && obUC(b.orderNo) === obUC(r.orderNo) && obUC(b.sku) === obUC(r.sku)) { const w = String(b.empName || '').trim() || 'karigar'; kar.set(w, (kar.get(w) || 0) + n); } });
-  return [...kar].map(([w, n]) => `${w} (${n})`).join(', ');
-}
-/** The open greige POs for a fabric (Greige Desk, read once when the report opens): newest first, at most two. */
-function flowRepGreigePo(fabric) {
-  const k = flowFabKey(fabric); if (!k) return '';
-  return (FLOW_REP.gpo || []).filter(po => po && po.status !== 'cancelled' && !po.closed && (po.lines || []).some(l => l && flowFabKey(l.rfd) === k))
-    .sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))).slice(0, 2).map(po => po.poNo).filter(Boolean).join(', ');
-}
-/** The last thing that happened to the line, and when: the plan, its print order, a challan or printed cloth back, cutting,
- * a karigar issue or receipt, a QC check, the hand-over. */
+/* The last thing that happened to the line, in the floor's words. */
+const FLOW_REP_STEP = { plan: 'Planned', 'print order': 'Print order', 'RFD challan': 'RFD challan', 'printed back': 'Back from printer', cut: 'Cut',
+  'karigar issue': 'Given to karigar', 'karigar back': 'Received from karigar', QC: 'QC', handed: 'Made' };
 function flowRepLastMoved(r, s, p) {
   let best = { day: '', what: '' };
   const see = (d, what) => { const day = String(ptIsoDate(d) || '').slice(0, 10); if (/^\d{4}-\d\d-\d\d$/.test(day) && day >= best.day) best = { day, what }; };
@@ -33450,14 +33412,13 @@ function flowRepLastMoved(r, s, p) {
   (PT.base || []).forEach(x => { if (!mine(x)) return; see(x.issueDate, 'karigar issue'); if (+x.receivedPieces > 0) see(x.receivingDate, 'karigar back'); });
   ((typeof QC !== 'undefined' && QC.checks) || []).forEach(x => { if (mine(x)) see(x.date, 'QC'); });
   if (r.handedAt) see(r.handedAt, 'handed');
-  return best;
+  return { day: best.day, step: FLOW_REP_STEP[best.what] || best.what };
 }
 
 /** The report's lines: o = { from, to, on: planned|came|waiting, today, soDue }. Real orders only — never a TEST line. */
 function flowRepLines(o) {
   const today = o.today || dToday(), soDue = o.soDue || null;
   const mdb = new Map(((typeof PTG !== 'undefined' && PTG.mdb) || []).map(m => [obUC(m && m.sku), m]));
-  let cover = null; try { cover = flowRfdCover(); } catch (e) { cover = null; }   // the RFD stock against each line, as Demand shows it
   const lines = FLOW_REAL ? ordLines() : flowMtoLines();
   const inRange = d => !!d && d >= o.from && d <= o.to;
   const out = [];
@@ -33471,136 +33432,164 @@ function flowRepLines(o) {
     if (!keep) return;
     const m = mdb.get(obUC(r.sku)) || cutSkuOf(r.sku) || {};
     const due = flowRepDue(r, p, soDue), made = FLOW_REP_MADE.includes(s.bucket), dl = flowRepDelay(due.due, made, today);
-    const route = p ? flowRouteOf(p) : '', fabric = String((p && p.fabric && p.fabric.name) || m.fabric || '');
-    const docs = p ? flowDocsOf({ s }) : [], docOf = re => [...new Set(docs.filter(d => re.test(d.kind)).map(d => d.no))].join(', ');
-    const st = flowRepStages(r, s, p, cover), mv = flowRepLastMoved(r, s, p);
-    out.push({
+    const route = p ? flowRouteOf(p) : '', mv = flowRepLastMoved(r, s, p);
+    out.push(Object.assign({
       key: s.key, planned: first, plannedKnown: !!(p && p.firstAt), orderNo: String(r.orderNo || ''), orderDate: ptIsoDate(r.orderDate) || '',
       channel: flowRepChannel(r), sku: obUC(r.sku),
       category: String(m.articleType || r.articleType || ''), subCategory: String(m.subtype || m.articleSubtype || r.articleSubtype || ''),
       parent: String(m.parentAsin || ''), colour: String(m.color || r.color || ''), size: String(m.size || r.size || ''),
-      fabric, pcs: +r.qty || 0, process: route ? ((FLOW_ROUTES.find(x => x[0] === route) || [])[2] || route) : '', who: flowRepWho(r, p),
-      st, paper: { greige: st.greige.need && st.greige.done < (+r.qty || 0) ? flowRepGreigePo(fabric) : '', rfd: docOf(/challan/i), print: docOf(/^Print order/),
-        emb: (s.embNos || []).join(', '), job: flowRepKarigars(r) },
+      fabric: String((p && p.fabric && p.fabric.name) || m.fabric || ''), pcs: +r.qty || 0, process: route ? ((FLOW_ROUTES.find(x => x[0] === route) || [])[2] || route) : '',
       completion: p && p.dates && p.dates.ready ? String(p.dates.ready).slice(0, 10) : '',
-      due: due.due, dueFrom: due.from, delay: dl.txt, late: dl.late, made, moved: mv,
+      due: due.due, dueFrom: due.from, delay: dl.txt, late: dl.late, made, moved: made && mv.day ? { day: mv.day, step: 'Made' } : mv,
       waitDays: s.bucket === 'ppc' && r.orderDate ? Math.max(0, flowRepDaysBetween(ptIsoDate(r.orderDate), today)) : 0,
-    });
+    }, flowRepStages(r, s, p), made ? { completed: +r.qty || 0 } : {}));
   });
   return out.sort((a, b) => (a.planned || a.orderDate).localeCompare(b.planned || b.orderDate) || a.orderNo.localeCompare(b.orderNo) || a.sku.localeCompare(b.sku));
 }
 
-/* THE LINE SHEET (Ravi, 28 Oct, the approved design): the line itself, then each stage — Status, Pcs, and its paper beside
- * it — then the dates. [group, heading, value, style]; style 'st' colours a stage status, 'late' a late delay. */
+/* ---- the workbook, cell for cell as Ravi's v6 ---- */
+/* The groups over the columns: [name, fill, text colour] — the colours of his sheet. */
+const FLOW_REP_GRP = { Order: ['E6F1FB', '0C447C'], Product: ['F1EFE8', '444441'], Qty: ['EEEDFE', '3C3489'], Pieces: ['EEEDFE', '3C3489'],
+  Printing: ['FBEAF0', '72243E'], Cutting: ['FAEEDA', '633806'], Stitching: ['E1F5EE', '085041'], QC: ['EAF3DE', '27500A'], Press: ['EEEDFE', '3C3489'], Dates: ['FAECE7', '712B13'] };
+const FLOW_REP_TONE = { Done: ['C0DD97', '173404', 1], Passed: ['C0DD97', '173404', 1], 'In progress': ['FAC775', '412402'], 'Not started': ['F1EFE8', '444441'], 'Not needed': ['FFFFFF', '888780'] };
+/* A STAGE DONE SHOWS "-" (Ravi, 28 Oct): once Cutting / Stitching / QC / Press is done, its Cut / Given / Passed / Pressed cell says
+ * "-" rather than the count — the status beside it already says it is all through. */
+const flowRepDash = (status, n) => status === FLOW_REP_DONE || status === 'Passed' ? '-' : n;
+/* Lines sheet: [group, heading, value, kind, width]; kind: date · num (a count, blank when 0) · qty · st (a status) · late · sku */
 const FLOW_REP_COLS = [
-  ['', 'Plan date', x => flowRepShow(x.planned)], ['', 'Order no', x => x.orderNo], ['', 'Order date', x => flowRepShow(x.orderDate)], ['', 'Channel', x => x.channel],
-  ['', 'SKU', x => x.sku], ['', 'Category', x => x.category], ['', 'Sub-category', x => x.subCategory], ['', 'Parent ASIN', x => x.parent],
-  ['', 'Colour', x => x.colour], ['', 'Size', x => x.size], ['', 'Fabric', x => x.fabric], ['', 'PCS', x => x.pcs], ['', 'Process', x => x.process]]
-  .concat(...FLOW_REP_STAGES.map(([k, name, paper]) => [[name, 'Status', x => flowRepStatus(x.st[k], x.pcs), 'st'], [name, 'Pcs', x => flowRepPcs(x.st[k])]]
-    .concat(paper ? [[name, paper, x => x.paper[k] || '']] : [])))
-  .concat([['Dates', 'Completion', x => flowRepShow(x.completion)], ['Dates', 'Due', x => flowRepShow(x.due)], ['Dates', 'Delay', x => x.delay, 'late'],
-    ['Dates', 'Last moved', x => x.moved && x.moved.day ? flowRepShow(x.moved.day) + ' · ' + x.moved.what : '']]);
-const FLOW_REP_BY = [['sku', 'SKU'], ['order', 'SKU and order'], ['day', 'Day and SKU'], ['who', 'Printer / karigar'], ['category', 'Category']];
-/** The summary: Row Labels / Sum of PCS (and lines, late lines), grouped as asked. */
-function flowRepSummary(lines, by) {
-  const label = x => by === 'order' ? x.sku + ' · ' + x.orderNo : by === 'day' ? flowRepShow(x.planned || x.orderDate) + ' · ' + x.sku
-    : by === 'who' ? (x.who || '(nobody yet)') : by === 'category' ? (x.category || '(no category)') : x.sku;
+  ['Order', 'Plan date', x => x.planned, 'date', 13.5], ['Order', 'Order no', x => x.orderNo, '', 13], ['Order', 'Order date', x => x.orderDate, 'date', 13.5], ['Order', 'Channel', x => x.channel, '', 12],
+  ['Product', 'SKU', x => x.sku, 'sku', 14], ['Product', 'Category', x => x.category, '', 16], ['Product', 'Sub-category', x => x.subCategory, '', 15], ['Product', 'Parent ASIN', x => x.parent, '', 14],
+  ['Product', 'Colour', x => x.colour, '', 15], ['Product', 'Size', x => x.size, '', 12], ['Product', 'Fabric', x => x.fabric, '', 12], ['Product', 'Process', x => x.process, '', 12],
+  ['Qty', 'Ordered', x => x.pcs, 'qty', 12],
+  ['Printing', 'Printing', x => x.print.status, 'st', 15], ['Printing', 'Printer', x => x.print.printer, '', 15],
+  ['Cutting', 'Cutting', x => x.cut.status, 'st', 15], ['Cutting', 'Cut', x => flowRepDash(x.cut.status, x.cut.cut), 'num', 12], ['Cutting', 'Cut, in store', x => x.cut.store, 'num', 13.4],
+  ['Stitching', 'Stitching', x => x.stitch.status, 'st', 15], ['Stitching', 'Given', x => flowRepDash(x.stitch.status, x.stitch.given), 'num', 12], ['Stitching', 'Received', x => x.stitch.received, 'num', 12],
+  ['QC', 'QC', x => x.qc.status, 'st', 15], ['QC', 'Passed', x => flowRepDash(x.qc.status, x.qc.passed), 'num', 12], ['QC', 'Rejected', x => x.qc.rejected, 'num', 12],
+  ['Press', 'Press', x => x.press.status, 'st', 15], ['Press', 'Pressed', x => flowRepDash(x.press.status, x.press.pressed), 'num', 12],
+  ['Dates', 'Due', x => x.due, 'date', 13.5], ['Dates', 'Exp. completion', x => x.completion, 'date', 13.5], ['Dates', 'Days late', x => x.late || '', 'late', 12],
+  ['Dates', 'Last moved', x => x.moved && x.moved.day, 'date', 13.5], ['Dates', 'Last step', x => x.moved && x.moved.step, '', 24]];
+/** The Summary sheet's rows: one a SKU — how many ordered, how many completed, how many still pending (Ravi, 28 Oct: "what SKU,
+ * how many completed and how many ordered"), on how many lines, how many of them late. */
+function flowRepSkus(lines) {
   const m = new Map();
-  lines.forEach(x => { const k = label(x), e = m.get(k) || { label: k, pcs: 0, lines: 0, late: 0 }; e.pcs += x.pcs; e.lines++; if (x.late > 0) e.late++; m.set(k, e); });
-  return [...m.values()].sort((a, b) => a.label.localeCompare(b.label));
+  lines.forEach(x => { const e = m.get(x.sku) || m.set(x.sku, { sku: x.sku, lines: 0, pcs: 0, completed: 0, late: 0 }).get(x.sku);
+    e.lines++; e.pcs += +x.pcs || 0; e.completed += +x.completed || 0; if (x.late > 0) e.late++; });
+  return [...m.values()].sort((a, b) => a.sku.localeCompare(b.sku)).map(e => Object.assign(e, { pending: Math.max(0, e.pcs - e.completed) }));
 }
-/** THE STAGE BOARD: where the work is stuck — per stage, its lines not started / in progress / done, the pieces still to come
- * through it, and the late lines waiting there (a line waits at the first stage it needs that is not done). */
-function flowRepBoard(lines) {
-  return FLOW_REP_STAGES.map(([k, name]) => {
-    const e = { name, not: 0, wip: 0, done: 0, waiting: 0, late: 0 };
-    lines.forEach(x => { const t = x.st[k]; if (!t || !t.need) return;
-      const sv = flowRepStatus(t, x.pcs); if (sv === 'Done') e.done++; else if (sv === 'In progress') e.wip++; else e.not++;
-      e.waiting += Math.max(0, x.pcs - t.done);
-      const at = FLOW_REP_STAGES.find(([kk]) => x.st[kk].need && x.st[kk].done < x.pcs);
-      if (x.late > 0 && at && at[0] === k) e.late++; });
-    return e;
-  });
+/** The Summary as the first report had it — a pivot: Row Labels, the sums beside them, Grand Total at the foot. */
+function flowRepPivot(lines) {
+  const sk = flowRepSkus(lines), H = ['Row Labels (SKU)', 'Ordered', 'Completed', 'Pending', 'Lines', 'Late lines'];
+  const head = { b: 1, fill: 'DDEBF7', bb: 1 }, n = sk.length, tot = k => sk.reduce((a, e) => a + e[k], 0);
+  const num = (v, st) => ({ v, st: Object.assign({ fmt: 3 }, st || {}) });
+  return { name: 'Summary', freeze: { x: 1, y: 1 }, widths: [22, 12, 12, 12, 10, 11], merges: [], heights: {}, filter: `A1:F${n + 1}`,
+    rows: [H.map((v, i) => ({ v, st: Object.assign({ h: i ? 'right' : 'left' }, head) }))]
+      .concat(sk.map(e => [{ v: e.sku, st: { b: 1 } }, num(e.pcs), num(e.completed), num(e.pending), num(e.lines), num(e.late, e.late > 0 ? { b: 1, color: 'A32D2D' } : {})]))
+      .concat([[{ v: 'Grand Total', st: head }].concat(['pcs', 'completed', 'pending', 'lines', 'late'].map(k => num(tot(k), head)))]) };
 }
 
-/* The workbook — the app's own writer (no library): numbers as numbers, two heading rows with the stage names over their
- * columns, each status in its colour, the headings frozen. A cell is a value, or { v, s } with a style below. */
-const FLOW_REP_XS = { head: 1, group: 2, Done: 3, 'In progress': 4, 'Not started': 5, 'Not needed': 6, late: 7, body: 8 };
+/** A sheet as Ravi's v6 lays it out: row 1 the totals of the counts (SUBTOTAL, so a filter re-adds them), row 2 the groups,
+ * row 3 the headings with the filter, then the rows; a thick line where each group starts; late lines tinted on the Lines
+ * sheet. Cells come back as { v, f, st } — st is a style the writer turns into Excel's. */
+function flowRepGrid(name, cols, items, o) {
+  o = o || {};
+  const n = items.length, last = 3 + Math.max(n, 1), starts = new Set(cols.map((c, i) => (i === 0 || cols[i - 1][0] !== c[0]) ? i : -1).filter(i => i >= 0));
+  const sumCol = c => c[3] === 'num' || c[3] === 'qty';
+  const edge = i => ({ bl: starts.has(i) || cols[i][3] === 'sku', br: cols[i][3] === 'sku' });
+  const tot = cols.map((c, i) => i === 0 ? { v: 'Total (shown lines)', st: { b: 1, fill: 'F1EFE8' } }
+    : sumCol(c) ? { f: `SUBTOTAL(109,${soColName(i)}4:${soColName(i)}${last})`, st: { b: 1, fill: 'F1EFE8', fmt: 3 } } : { v: '', st: { fill: 'F1EFE8' } });
+  const grp = cols.map((c, i) => { const g = FLOW_REP_GRP[c[0]] || ['F1EFE8', '444441'];
+    return starts.has(i) ? { v: c[0], st: { b: 1, color: g[1], fill: g[0], h: 'center' } } : { v: '', st: { fill: g[0] } }; });
+  const head = cols.map((c, i) => { const g = FLOW_REP_GRP[c[0]] || ['F1EFE8', '444441'];
+    return { v: c[1], st: Object.assign({ b: 1, color: g[1], fill: g[0], bb: 1, wrap: 1, v: 'bottom', h: ['num', 'qty', 'late'].includes(c[3]) ? 'right' : 'left' }, edge(i)) }; });
+  const body = items.map(x => { const tint = o.tint && x.late > 0 ? 'FCEBEB' : '';
+    return cols.map((c, i) => { let v = c[2](x); const e = edge(i), base = Object.assign({ fill: tint }, e);
+      if (c[3] === 'st') { const t = FLOW_REP_TONE[v] || FLOW_REP_TONE['Not started']; return { v, st: { fill: t[0], color: t[1], b: t[2] || 0, h: 'center', bl: 1 } }; }
+      if (c[3] === 'date') return { v: v ? flowRepSerial(v) : '', st: Object.assign(base, { fmt: 165, h: 'left' }) };
+      if (v === '-') return { v, st: Object.assign(base, { h: 'right' }) };
+      if (c[3] === 'num' || c[3] === 'qty') return { v: +v > 0 ? +v : '', st: Object.assign(base, { fmt: 3 }) };
+      if (c[3] === 'late') return { v: +v > 0 ? +v : '', st: Object.assign(base, { fmt: 1 }, +v > 0 ? { b: 1, color: 'A32D2D' } : {}) };
+      if (c[3] === 'sku') return { v, st: Object.assign(base, { b: 1 }) };
+      return { v: v == null ? '' : v, st: base }; }); });
+  return { name, rows: [tot, grp, head].concat(body), freeze: { x: o.xSplit == null ? 5 : o.xSplit, y: 3 }, widths: cols.map(c => c[4] || 12),
+    merges: [...starts].map(i => { let j = i; while (j + 1 < cols.length && cols[j + 1][0] === cols[i][0]) j++; return soColName(i) + '2' + (j > i ? ':' + soColName(j) + '2' : ''); }),
+    filter: `A3:${soColName(cols.length - 1)}${last}`, heights: { 3: 30 } };
+}
+/** A day as Excel counts it (days from 30 Dec 1899), so it sorts and filters as a date. */
+const flowRepSerial = iso => { const q = String(iso).slice(0, 10).split('-').map(Number); return q.length === 3 && q[0] ? Math.round((Date.UTC(q[0], q[1] - 1, q[2]) - Date.UTC(1899, 11, 30)) / 864e5) : ''; };
+/** The workbook: Lines (Ravi's v6 sheet) and Summary (the pivot by SKU). No late-lines sheet (Ravi, 28 Oct). */
+function flowRepSheets(lines) {
+  return [flowRepGrid('Lines', FLOW_REP_COLS, lines, { tint: true }), flowRepPivot(lines)];
+}
+
+/* The app's own writer (no library). Styles are made as the cells ask for them: { b, color, fill, bl, br, bb, fmt, h, v, wrap }. */
 function flowRepXlsx(sheets) {
-  const cell = (c, ref) => {
-    const v = c && typeof c === 'object' ? c.v : c, s = c && typeof c === 'object' && c.s ? ` s="${c.s}"` : ` s="${FLOW_REP_XS.body}"`;
-    if (typeof v === 'number' && isFinite(v)) return `<c r="${ref}"${s}><v>${v}</v></c>`;
-    const t = String(v == null ? '' : v);
-    return t === '' ? `<c r="${ref}"${s}/>` : `<c r="${ref}" t="inlineStr"${s}><is><t xml:space="preserve">${soXml(t)}</t></is></c>`; };
-  const ws = sh => { const fz = sh.freeze || 1, rows = sh.rows, hd = rows[fz - 1] || [];
-    return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
-    + `<sheetViews><sheetView workbookViewId="0"><pane ySplit="${fz}" topLeftCell="A${fz + 1}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>`
-    + '<cols>' + hd.map((h, i) => { const t = String(h && typeof h === 'object' ? h.v : h);
-      return `<col min="${i + 1}" max="${i + 1}" width="${(sh.widths || {})[i] || Math.min(30, Math.max(9, t.length + 3))}" customWidth="1"/>`; }).join('') + '</cols>'
-    + '<sheetData>' + rows.map((r, i) => `<row r="${i + 1}">${r.map((v, j) => cell(v, soColName(j) + (i + 1))).join('')}</row>`).join('') + '</sheetData>'
-    + ((sh.merges || []).length ? `<mergeCells count="${sh.merges.length}">${sh.merges.map(m => `<mergeCell ref="${m}"/>`).join('')}</mergeCells>` : '') + '</worksheet>'; };
+  const fonts = ['<font><sz val="11"/><name val="Calibri"/></font>'], fills = ['<fill><patternFill patternType="none"/></fill>', '<fill><patternFill patternType="gray125"/></fill>'];
+  const borders = [], xfs = ['<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'], seen = {};
+  const idx = (list, xml) => { let i = list.indexOf(xml); if (i < 0) { list.push(xml); i = list.length - 1; } return i; };
+  const side = (e, thick) => thick ? `<${e} style="medium"><color rgb="FF888780"/></${e}>` : `<${e} style="thin"><color rgb="FFD3D1C7"/></${e}>`;
+  const style = st => { st = st || {}; const k = JSON.stringify(st); if (seen[k] != null) return seen[k];
+    const font = idx(fonts, `<font>${st.b ? '<b/>' : ''}<sz val="11"/>${st.color ? `<color rgb="FF${st.color}"/>` : ''}<name val="Calibri"/></font>`);
+    const fill = st.fill ? idx(fills, `<fill><patternFill patternType="solid"><fgColor rgb="FF${st.fill}"/><bgColor indexed="64"/></patternFill></fill>`) : 0;
+    const border = idx(borders, '<border>' + side('left', st.bl) + side('right', st.br) + side('top') + side('bottom', st.bb) + '<diagonal/></border>');
+    const al = st.h || st.v || st.wrap ? `<alignment${st.h ? ` horizontal="${st.h}"` : ''}${st.v ? ` vertical="${st.v}"` : ''}${st.wrap ? ' wrapText="1"' : ''}/>` : '';
+    xfs.push(`<xf numFmtId="${st.fmt || 0}" fontId="${font}" fillId="${fill}" borderId="${border}" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1"${al ? ' applyAlignment="1">' + al + '</xf>' : '/>'}`);
+    return (seen[k] = xfs.length - 1); };
+  const cell = (c, ref) => { const s = ` s="${style(c.st)}"`;
+    if (c.f) return `<c r="${ref}"${s}><f>${soXml(c.f)}</f></c>`;
+    if (typeof c.v === 'number' && isFinite(c.v)) return `<c r="${ref}"${s}><v>${c.v}</v></c>`;
+    const t = String(c.v == null ? '' : c.v); return t === '' ? `<c r="${ref}"${s}/>` : `<c r="${ref}" t="inlineStr"${s}><is><t xml:space="preserve">${soXml(t)}</t></is></c>`; };
+  const ws = sh => { const fx = sh.freeze.x, fy = sh.freeze.y, tl = soColName(fx) + (fy + 1);
+    return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+    + '<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>'
+    + `<sheetViews><sheetView zoomScale="90" zoomScaleNormal="90" workbookViewId="0"><pane${fx ? ` xSplit="${fx}"` : ''} ySplit="${fy}" topLeftCell="${tl}" activePane="${fx ? 'bottomRight' : 'bottomLeft'}" state="frozen"/></sheetView></sheetViews>`
+    + '<sheetFormatPr defaultRowHeight="15"/><cols>' + sh.widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('') + '</cols>'
+    + '<sheetData>' + sh.rows.map((r, i) => `<row r="${i + 1}"${sh.heights[i + 1] ? ` ht="${sh.heights[i + 1]}" customHeight="1"` : ''}>${r.map((c, j) => cell(c, soColName(j) + (i + 1))).join('')}</row>`).join('') + '</sheetData>'
+    + `<autoFilter ref="${sh.filter}"/>` + (sh.merges.length ? `<mergeCells count="${sh.merges.length}">${sh.merges.map(m => `<mergeCell ref="${m}"/>`).join('')}</mergeCells>` : '')   // an empty list is refused by Excel
+    + '<pageMargins left="0.4" right="0.4" top="0.5" bottom="0.5" header="0.3" footer="0.3"/><pageSetup orientation="landscape" fitToWidth="1" fitToHeight="0"/></worksheet>'; };
+  const sheetXml = sheets.map(ws);   // first, so every style the cells ask for exists before the style sheet is written
   const ct = 'application/vnd.openxmlformats-officedocument.spreadsheetml', rel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
-  const font = (c, b) => `<font>${b ? '<b/>' : ''}<sz val="11"/>${c ? `<color rgb="FF${c}"/>` : ''}<name val="Calibri"/></font>`;
-  const fill = c => `<fill><patternFill patternType="solid"><fgColor rgb="FF${c}"/><bgColor indexed="64"/></patternFill></fill>`;
-  const xf = (f, fl, al) => `<xf numFmtId="0" fontId="${f}" fillId="${fl}" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"${al ? ' applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>' : '/>'}`;
   const styles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
-    + `<fonts count="8">${font('', 0)}${font('', 1)}${font('FFFFFF', 1)}${font('166534', 1)}${font('92400E', 1)}${font('991B1B', 0)}${font('9CA3AF', 0)}${font('B91C1C', 1)}</fonts>`
-    + `<fills count="8"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>${['E5E7EB', '1F2937', 'DCFCE7', 'FEF3C7', 'FEE2E2', 'F3F4F6'].map(fill).join('')}</fills>`
-    + '<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border>' + ['left', 'right', 'top', 'bottom'].map(e => `<${e} style="thin"><color rgb="FFD1D5DB"/></${e}>`).join('') + '<diagonal/></border></borders>'
-    + '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
-    + `<cellXfs count="9"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>${xf(1, 2)}${xf(2, 3, 1)}${xf(3, 4, 1)}${xf(4, 5, 1)}${xf(5, 6, 1)}${xf(6, 7, 1)}${xf(7, 0)}${xf(0, 0)}</cellXfs></styleSheet>`;
+    + '<numFmts count="1"><numFmt numFmtId="165" formatCode="dd-mmm-yy"/></numFmts>'
+    + `<fonts count="${fonts.length}">${fonts.join('')}</fonts><fills count="${fills.length}">${fills.join('')}</fills><borders count="${borders.length}">${borders.join('')}</borders>`
+    + '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' + `<cellXfs count="${xfs.length}">${xfs.join('')}</cellXfs></styleSheet>`;
+  const q = n => "'" + String(n).replace(/'/g, "''") + "'";
   return soZip([
     ['[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>'
       + `<Override PartName="/xl/workbook.xml" ContentType="${ct}.sheet.main+xml"/>` + sheets.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="${ct}.worksheet+xml"/>`).join('')
       + `<Override PartName="/xl/styles.xml" ContentType="${ct}.styles+xml"/></Types>`],
     ['_rels/.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${rel}/officeDocument" Target="xl/workbook.xml"/></Relationships>`],
     ['xl/workbook.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="${rel}"><sheets>`
-      + sheets.map((s, i) => `<sheet name="${soXml(s.name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('') + '</sheets></workbook>'],
+      + sheets.map((s, i) => `<sheet name="${soXml(s.name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('') + '</sheets><definedNames>'
+      + sheets.map((s, i) => `<definedName name="_xlnm._FilterDatabase" localSheetId="${i}" hidden="1">${soXml(q(s.name))}!${s.filter.replace(/([A-Z]+)(\d+)/g, '$$$1$$$2')}</definedName>`
+        + `<definedName name="_xlnm.Print_Titles" localSheetId="${i}">${soXml(q(s.name))}!$1:$3</definedName>`).join('')
+      + '</definedNames><calcPr calcId="191029" fullCalcOnLoad="1"/></workbook>'],
     ['xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
       + sheets.map((_, i) => `<Relationship Id="rId${i + 1}" Type="${rel}/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('')
       + `<Relationship Id="rId${sheets.length + 1}" Type="${rel}/styles" Target="styles.xml"/></Relationships>`],
-    ...sheets.map((s, i) => ['xl/worksheets/sheet' + (i + 1) + '.xml', ws(s)]),
+    ...sheetXml.map((x, i) => ['xl/worksheets/sheet' + (i + 1) + '.xml', x]),
     ['xl/styles.xml', styles]]);
-}
-/** The workbook's three sheets — Lines (two heading rows), Stage board, Summary by SKU — as rows of cells. */
-function flowRepSheets(lines, by) {
-  const H = FLOW_REP_XS, sum = flowRepSummary(lines, by), tot = lines.reduce((a, x) => a + x.pcs, 0), byName = (FLOW_REP_BY.find(b => b[0] === by) || FLOW_REP_BY[0])[1];
-  /* the stage names over their columns, one merged cell each */
-  const g = FLOW_REP_COLS.map(c => ({ v: c[0], s: c[0] ? H.group : H.head })), merges = [];
-  for (let i = 0; i < FLOW_REP_COLS.length;) { let j = i; while (j + 1 < FLOW_REP_COLS.length && FLOW_REP_COLS[j + 1][0] === FLOW_REP_COLS[i][0]) j++;
-    if (FLOW_REP_COLS[i][0] && j > i) { merges.push(soColName(i) + '1:' + soColName(j) + '1'); for (let k = i + 1; k <= j; k++) g[k] = { v: '', s: H.group }; }
-    i = j + 1; }
-  const body = x => FLOW_REP_COLS.map(c => { const v = c[2](x);
-    return c[3] === 'st' ? { v, s: H[v] } : c[3] === 'late' && x.late > 0 ? { v, s: H.late } : v; });
-  const board = flowRepBoard(lines);
-  return [
-    { name: 'Lines', freeze: 2, merges, rows: [g, FLOW_REP_COLS.map(c => ({ v: c[1], s: H.head }))].concat(lines.map(body)) },
-    { name: 'Stage board', rows: [['Stage', 'Not started (lines)', 'In progress (lines)', 'Done (lines)', 'Pcs waiting', 'Late lines waiting here'].map(v => ({ v, s: H.head }))]
-      .concat(board.map(e => [{ v: e.name, s: H.head }, e.not, e.wip, e.done, e.waiting, e.late > 0 ? { v: e.late, s: H.late } : e.late])) },
-    { name: 'Summary', rows: [['Row Labels (' + byName + ')', 'Sum of PCS', 'Lines', 'Late lines'].map(v => ({ v, s: H.head }))]
-      .concat(sum.map(e => [e.label, e.pcs, e.lines, e.late]), [[{ v: 'Grand Total', s: H.head }, { v: tot, s: H.head }, { v: lines.length, s: H.head }, { v: lines.filter(x => x.late > 0).length, s: H.head }]]) }];
 }
 
 /* ---- the panel ---- */
 const FLOW_REP_ON = [['planned', 'Planned in PPC (plans first saved on these days)'], ['came', 'Came into PPC (orders dated these days)'], ['waiting', 'Still waiting in PPC (today — the dates do not apply)']];
-const FLOW_REP_TINT = { Done: 'background:#dcfce7;color:#166534;font-weight:700', 'In progress': 'background:#fef3c7;color:#92400e;font-weight:700',
-  'Not started': 'background:#fee2e2;color:#991b1b', 'Not needed': 'background:#f3f4f6;color:#9ca3af' };
 function flowRepSoDue() { try { return typeof SOX !== 'undefined' && SOX.rows && typeof ordDueIndex === 'function' ? ordDueIndex() : null; } catch (e) { return null; } }
 function flowRepNow() { return flowRepLines({ from: FLOW_REP.from, to: FLOW_REP.to, on: FLOW_REP.on, soDue: flowRepSoDue() }); }
 function flowRepBody() {
-  const lines = flowRepNow(), sum = flowRepSummary(lines, FLOW_REP.by), tot = lines.reduce((a, x) => a + x.pcs, 0);
+  const lines = flowRepNow(), tot = lines.reduce((a, x) => a + x.pcs, 0), skus = new Set(lines.map(x => x.sku)).size;
   const late = lines.filter(x => x.late > 0).length, orders = new Set(lines.map(x => x.orderNo)).size, old = lines.filter(x => x.planned && !x.plannedKnown).length;
   const rng = FLOW_REP.on === 'waiting' ? 'waiting in PPC today' : `${flowRepShow(FLOW_REP.from)} – ${flowRepShow(FLOW_REP.to)}`;
   const groups = []; FLOW_REP_COLS.forEach(c => { const l = groups[groups.length - 1]; if (l && l[0] === c[0]) l[1]++; else groups.push([c[0], 1]); });
-  const td = (v, c, x) => `<td style="white-space:nowrap${typeof v === 'number' ? ';text-align:right' : ''}${c[3] === 'st' ? ';text-align:center;' + (FLOW_REP_TINT[v] || '') : ''}${c[3] === 'late' && x.late > 0 ? ';color:var(--bad);font-weight:600' : ''}">${esc(typeof v === 'number' ? nf(v) : v)}</td>`;
+  const show = (v, c) => v === '-' ? v : c[3] === 'date' ? flowRepShow(v) : (c[3] === 'num' || c[3] === 'late') ? (+v > 0 ? nf(+v) : '') : c[3] === 'qty' ? nf(+v || 0) : (v == null ? '' : v);
+  const td = (v, c, x) => { const t = c[3] === 'st' && FLOW_REP_TONE[v];
+    return `<td style="white-space:nowrap${['num', 'qty', 'late'].includes(c[3]) ? ';text-align:right' : ''}${t ? `;text-align:center;background:#${t[0]};color:#${t[1]}${t[2] ? ';font-weight:700' : ''}` : x.late > 0 ? ';background:#fcebeb' : ''}${c[3] === 'late' && x.late > 0 ? ';color:#a32d2d;font-weight:700' : ''}${c[3] === 'sku' ? ';font-weight:600' : ''}">${esc(show(v, c))}</td>`; };
   return `<div style="display:flex;gap:22px;flex-wrap:wrap;background:var(--hover,#f8fafc);border-radius:8px;padding:8px 12px;margin:6px 0 10px">
-      <div><b style="font-size:15px">${nf(sum.length)}</b> rows</div><div><b style="font-size:15px">${nf(tot)}</b> pieces</div><div><b style="font-size:15px">${nf(orders)}</b> orders</div>
+      <div><b style="font-size:15px">${nf(lines.length)}</b> lines</div><div><b style="font-size:15px">${nf(skus)}</b> SKUs</div><div><b style="font-size:15px">${nf(tot)}</b> pieces</div><div><b style="font-size:15px">${nf(orders)}</b> orders</div>
       <div><b style="font-size:15px;${late ? 'color:var(--bad)' : ''}">${nf(late)}</b> late</div><div><b>${esc(rng)}</b></div></div>`
     + (FLOW_REP.soErr ? `<div class="muted" style="font-size:12px;margin-bottom:6px">⚠ ${esc(FLOW_REP.soErr)}</div>` : '')
     + (old ? `<div class="muted" style="font-size:12px;margin-bottom:6px">${nf(old)} plan(s) were saved before 28 Oct 2026: their plan date is the day they were last saved.</div>` : '')
     + (lines.length ? `<div style="overflow:auto;max-height:46vh"><table class="xl" style="font-size:12px"><thead>`
-      + `<tr>${groups.map(([n, k]) => `<th colspan="${k}" style="text-align:center;${n ? 'background:#1f2937;color:#fff' : ''}">${esc(n)}</th>`).join('')}</tr>`
-      + `<tr>${FLOW_REP_COLS.map(c => `<th style="white-space:nowrap">${esc(c[1])}</th>`).join('')}</tr></thead><tbody>`
+      + `<tr>${groups.map(([n, k]) => { const g = FLOW_REP_GRP[n] || ['F1EFE8', '444441']; return `<th colspan="${k}" style="text-align:center;background:#${g[0]};color:#${g[1]}">${esc(n)}</th>`; }).join('')}</tr>`
+      + `<tr>${FLOW_REP_COLS.map(c => { const g = FLOW_REP_GRP[c[0]] || ['F1EFE8', '444441']; return `<th style="white-space:nowrap;background:#${g[0]};color:#${g[1]}">${esc(c[1])}</th>`; }).join('')}</tr></thead><tbody>`
       + lines.slice(0, 300).map(x => `<tr>${FLOW_REP_COLS.map(c => td(c[2](x), c, x)).join('')}</tr>`).join('')
       + `</tbody></table></div>${lines.length > 300 ? `<div class="muted" style="font-size:12px">Showing 300 of ${nf(lines.length)} lines — the Excel has them all.</div>` : ''}`
       : '<div class="muted" style="padding:14px 0">No lines for these days.</div>');
@@ -33615,17 +33604,17 @@ async function flowRepOpen() {
   const sel = (id, list, v) => `<select id="${id}" style="width:auto">${list.map(([k, l]) => `<option value="${k}"${k === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
   ptOpenDialog({
     title: 'PPC report', wide: true,
-    subtitle: 'Pick the days, check the lines, download the Excel (Lines, Stage board, Summary).',
+    subtitle: 'Pick the days, check the lines, download the Excel (Lines, Summary).',
     html: `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px">${flowRepRanges().map((r, i) => `<button type="button" class="ghost" data-flrepq="${i}" style="width:auto;padding:4px 12px;font-size:12.5px">${esc(r[0])}</button>`).join('')}</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:13px">
         From <input type="date" id="flRepFrom" value="${esc(FLOW_REP.from)}" style="width:auto"> To <input type="date" id="flRepTo" value="${esc(FLOW_REP.to)}" style="width:auto">
-        <span style="margin-left:8px">Report on</span> ${sel('flRepOn', FLOW_REP_ON, FLOW_REP.on)} <span>Summary by</span> ${sel('flRepBy', FLOW_REP_BY, FLOW_REP.by)}</div>
+        <span style="margin-left:8px">Report on</span> ${sel('flRepOn', FLOW_REP_ON, FLOW_REP.on)}</div>
       <div id="flRepOut">${flowRepBody()}</div>`,
     saveLabel: 'Download Excel',
     onSave: async () => {
       const lines = flowRepNow();
       if (!lines.length) return 'Nothing to download for these days.';
-      const bytes = flowRepXlsx(flowRepSheets(lines, FLOW_REP.by));
+      const bytes = flowRepXlsx(flowRepSheets(lines));
       const a = document.createElement('a');
       a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
       a.download = 'ppc-report-' + (FLOW_REP.on === 'waiting' ? 'waiting-' + dToday() : FLOW_REP.from + '-to-' + FLOW_REP.to) + '.xlsx';
@@ -33636,18 +33625,15 @@ async function flowRepOpen() {
   const day = () => { const f = $('flRepFrom').value, t = $('flRepTo').value; if (f && t) { FLOW_REP.from = f <= t ? f : t; FLOW_REP.to = f <= t ? t : f; } flowRepPaint(); };
   $('flRepFrom').onchange = day; $('flRepTo').onchange = day;
   $('flRepOn').onchange = () => { FLOW_REP.on = $('flRepOn').value; flowRepPaint(); };
-  $('flRepBy').onchange = () => { FLOW_REP.by = $('flRepBy').value; flowRepPaint(); };
   document.querySelectorAll('[data-flrepq]').forEach(b => { b.onclick = () => { const r = flowRepRanges()[+b.dataset.flrepq];
     FLOW_REP.from = r[1]; FLOW_REP.to = r[2]; $('flRepFrom').value = r[1]; $('flRepTo').value = r[2]; flowRepPaint(); }; });
   flowRepPaint();
-  /* Read once, only here: the sales orders' delivery dates (when no other screen has read them), and the Greige Desk's POs
-   * (its own node — the desk keeps them inside its sealed screen) for the Greige PO beside Greige. A read refused leaves
-   * that column blank, nothing else. */
-  const reads = [];
-  if (typeof SOX !== 'undefined' && SOX.rows == null) reads.push(ptGet('pt_salesOrders').then(v => { SOX.rows = ptList(v); FLOW_REP.soErr = ''; })
-    .catch(e => { FLOW_REP.soErr = 'Could not read the sales orders, so their due dates are missing here (' + (e.message || e) + ').'; }));
-  if (FLOW_REP.gpo == null) reads.push(ptGet('pt_gdTest/gpo').then(v => { FLOW_REP.gpo = Object.values(v || {}); }).catch(() => { FLOW_REP.gpo = []; }));
-  if (reads.length) { await Promise.all(reads); flowRepPaint(); }
+  /* The sales orders' delivery dates: read once, only here, and only when no other screen has read them already. */
+  if (typeof SOX !== 'undefined' && SOX.rows == null) {
+    try { SOX.rows = ptList(await ptGet('pt_salesOrders')); FLOW_REP.soErr = ''; }
+    catch (e) { FLOW_REP.soErr = 'Could not read the sales orders, so their due dates are missing here (' + (e.message || e) + ').'; }
+    flowRepPaint();
+  }
 }
 /** The toolbar button: on the Production flow screen, for admins and the Reports right. */
 function flowRepBtn() { const b = $('flRep'); if (b && b.classList) b.classList.toggle('hide', !flowRepAllowed()); }
