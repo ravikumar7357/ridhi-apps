@@ -2510,7 +2510,7 @@ const K = 'AMZ-1__S1';
     ok('…and "Completed" in Days late and Last step (Ravi, 29 Oct), never "Made"', cv(rF[24]) === 'Completed' && cv(rF[26]) === 'Completed', JSON.stringify([cv(rF[24]), cv(rF[26])]));
     ok('no printer column under Printing — Printed by carries the printer (Ravi, 29 Oct)', R.flowRepSheets([fin0])[0].rows[2].filter(c => cv(c) === 'Printing').length === 0);
     /* Printed by (Ravi, 29 Oct): the printer PPC planned, only on a line whose process is Printing. */
-    ok('Printed by: blank while the line is still at RFD (not at printing yet)', a.process === 'RFD' && a.printedBy === '', JSON.stringify([a.process, a.printedBy]));
+    ok('Printed by: the assigned printer, even while the line is still at RFD (Ravi, 30 Oct)', a.process === 'RFD' && a.printedBy === 'Sanganer Prints', JSON.stringify([a.process, a.printedBy]));
     ok('…blank on a line that is not Printing (Cutting / Job work), and on a line not planned yet', d0.printedBy === '' && q0.printedBy === '' && wait[0].printedBy === '', JSON.stringify([d0.printedBy, q0.printedBy]));
     /* RFD (Ravi, 29 Oct): Send to printer once its RFD challan is made, else On RFD — a drop-down column. */
     ok('RFD: a Printing line with no RFD challan yet → "On RFD"', a.rfd === 'On RFD', a.rfd);
@@ -2561,7 +2561,7 @@ const K = 'AMZ-1__S1';
     ok('…every piece pressed → "Completed"; handed over → "Completed"', q0.process === 'Completed' && fin0.process === 'Completed', JSON.stringify([q0.process, fin0.process]));
     ok('…cloth with the printer → "Printing"; not planned yet → "PPC"', ra0.process === 'Printing' && wait[0].process === 'PPC', JSON.stringify([ra0.process, wait[0].process]));
     ok('RFD fills only when the Process is RFD — a completed line, a line at the karigars or with the printer: blank', [q0, fin0, d0, ra0, wait[0]].every(l => l.process === 'RFD' || l.rfd === '') && a.process === 'RFD' && a.rfd === 'On RFD', JSON.stringify([a.process, a.rfd, ra0.process, ra0.rfd]));
-    ok('Printed by fills only when the Process is Printing: the printer then, blank at every other stage', ra0.process === 'Printing' && ra0.printedBy === 'Sanganer Prints' && [q0, fin0, d0, wait[0]].every(l => l.printedBy === ''), JSON.stringify([ra0.process, ra0.printedBy]));
+    ok('Printed by: the assigned printer at any stage; blank where no printer is assigned (cutting / job work lines, a line not planned)', ra0.printedBy === 'Sanganer Prints' && [q0, fin0, d0, wait[0]].every(l => l.printedBy === ''), JSON.stringify([ra0.printedBy, d0.printedBy]));
     ok('a completed line (all pressed) says Completed in Last step too', q0.process === 'Completed' && (!q0.moved.day || q0.moved.step === 'Completed'), JSON.stringify(q0.moved));
     ok('who may download: admins and the Reports right only', load({ me: { admin: true } }).flowRepAllowed() && load({ me: { tabs: ['rep'] } }).flowRepAllowed() && !load({ me: { tabs: ['flppc'] } }).flowRepAllowed());
 

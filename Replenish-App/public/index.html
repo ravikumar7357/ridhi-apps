@@ -33509,9 +33509,9 @@ function flowRepLastMoved(r, s, p) {
   return { day: best.day, step: FLOW_REP_STEP[best.what] || best.what };
 }
 
-/** PRINTED BY (Ravi, 29 Oct: "name it Printed by, and only what I asked for"): the printer PPC planned, on a line whose
- * process is Printing — blank for every other line. */
-const flowRepPrintedBy = (s, p) => p && flowRouteOf(p) === 'inhouse' ? String((p.printer && (p.printer.name || p.printer.code)) || (s.challan && s.challan.vendor) || '').trim() : '';
+/** PRINTED BY (Ravi, 30 Oct: "in Printed by add the printer name if assigned"): the printer assigned to the line — on its PPC plan,
+ * else the one its RFD challan went to — at whatever stage the line is; blank when no printer is assigned. */
+const flowRepPrintedBy = (s, p) => String((p && p.printer && (p.printer.name || p.printer.code)) || (s.challan && s.challan.vendor) || '').trim();
 /** RFD (Ravi, 29 Oct: "RFD — Send to printer and On RFD, a drop-down column; when the RFD challan is made it turns to Send to
  * printer by itself, otherwise On RFD"): for a line whose cloth goes from RFD to a printer. Blank where no RFD goes out —
  * job work, outsourced, cloth already in hand, all from printed stock. */
@@ -33569,8 +33569,6 @@ function flowRepLines(o) {
     /* a completed line's last step says Completed (Ravi, 29 Oct), whatever its last register entry was */
     if (x.process === 'Completed' && x.moved && x.moved.day) x.moved = { day: x.moved.day, step: 'Completed' };
     if (x.process !== 'RFD') x.rfd = '';
-    /* …and Printed by only while the PROCESS is Printing (Ravi, 29 Oct: "show printed by when they are at printing"). */
-    if (x.process !== 'Printing') x.printedBy = '';
     out.push(x);
   });
   return out.sort((a, b) => (a.planned || a.orderDate).localeCompare(b.planned || b.orderDate) || a.orderNo.localeCompare(b.orderNo) || a.sku.localeCompare(b.sku));
