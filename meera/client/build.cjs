@@ -37,16 +37,25 @@ function build() {
   const artSrc = fs.readFileSync(path.join(__dirname, 'src', art.slice(7)), 'utf8');
   const m = artSrc.match(/data:image\/webp;base64,([A-Za-z0-9+/=]+)/);
   if (!m) throw new Error('her picture was not found in ' + art);
-  return { 'meera.js': Buffer.from(head + js, 'utf8'), 'meera.webp': Buffer.from(m[1], 'base64'), version };
+  const file = Buffer.from(head + js, 'utf8');
+  /* VERSIONED (29 Oct, measured on live: the site never answers "unchanged" for meera.js, so "check every time" meant
+   * "download 64 KB every time"). meera.<version>.js may be kept by the browser for good; the tiny meera.version.json
+   * (checked every load, ~50 bytes) says which one is current — so a new Meera still needs no ERP change. meera.js
+   * stays as the fallback when the version file cannot be read. */
+  return { 'meera.js': file, [`meera.${version}.js`]: file, 'meera.version.json': Buffer.from(JSON.stringify({ v: version }) + '\n'),
+    'meera.webp': Buffer.from(m[1], 'base64'), version };
 }
 
 const out = build();
+const names = Object.keys(out).filter(k => k !== 'version');
 if (process.argv.includes('--check')) {
-  const stale = ['meera.js', 'meera.webp'].filter(f => !fs.existsSync(path.join(OUT, f)) || !fs.readFileSync(path.join(OUT, f)).equals(out[f]));
+  const stale = names.filter(f => !fs.existsSync(path.join(OUT, f)) || !fs.readFileSync(path.join(OUT, f)).equals(out[f]));
   if (stale.length) { console.log('Replenish-App/public/meera/' + stale.join(', ') + ' is NOT what meera/client makes — run node meera/client/build.cjs'); process.exit(1); }
   console.log('meera.js is what meera/client makes (' + out.version + ')');
 } else {
   fs.mkdirSync(OUT, { recursive: true });
-  for (const f of ['meera.js', 'meera.webp']) fs.writeFileSync(path.join(OUT, f), out[f]);
-  console.log(`built meera.js ${out.version}: ${Math.round(out['meera.js'].length / 1024)} KB, meera.webp ${Math.round(out['meera.webp'].length / 1024)} KB`);
+  /* older versioned files go: only the current one is published */
+  for (const f of fs.readdirSync(OUT)) if (/^meera\.[0-9a-f]{12}\.js$/.test(f) && !names.includes(f)) fs.unlinkSync(path.join(OUT, f));
+  for (const f of names) fs.writeFileSync(path.join(OUT, f), out[f]);
+  console.log(`built meera.${out.version}.js: ${Math.round(out['meera.js'].length / 1024)} KB, meera.webp ${Math.round(out['meera.webp'].length / 1024)} KB`);
 }

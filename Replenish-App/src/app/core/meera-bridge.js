@@ -82,13 +82,21 @@ function meeraHere() { return !meeraOn('lazy'); }
 function meeraLoadFile() {
   if (meeraLoadFile.done) return;
   meeraLoadFile.done = true;
+  const add = src => {
+    try {
+      const s = document.createElement('script');
+      s.src = src;
+      s.async = true;
+      s.onerror = () => { try { console.warn('Meera: ' + src + ' could not be loaded — the ERP carries on without her'); } catch (e) { /* no console */ } };
+      document.head.appendChild(s);
+    } catch (e) { /* no page: nothing to load */ }
+  };
+  /* which meera.<version>.js is current (a tiny file, checked every time); that file the browser keeps for good.
+   * If the version cannot be read: meera.js, the same code under a plain name. */
   try {
-    const s = document.createElement('script');
-    s.src = '/meera/meera.js';
-    s.async = true;
-    s.onerror = () => { try { console.warn('Meera: meera.js could not be loaded — the ERP carries on without her'); } catch (e) { /* no console */ } };
-    document.head.appendChild(s);
-  } catch (e) { /* no page: nothing to load */ }
+    fetch('/meera/meera.version.json', { cache: 'no-cache' }).then(r => (r.ok ? r.json() : null)).catch(() => null)
+      .then(j => add(j && /^[0-9a-f]{12}$/.test(j.v) ? '/meera/meera.' + j.v + '.js' : '/meera/meera.js'));
+  } catch (e) { add('/meera/meera.js'); }
 }
 try {
   if (meeraOn('lazy')) {
