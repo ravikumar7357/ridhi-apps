@@ -27,6 +27,22 @@
   "wrong": 8,
   "none": 31
  },
+ "extra": {
+  "held": {
+   "count": 447,
+   "right": 189,
+   "offered": 165,
+   "wrong": 12,
+   "none": 81
+  },
+  "hindi": {
+   "count": 114,
+   "right": 50,
+   "offered": 40,
+   "wrong": 0,
+   "none": 24
+  }
+ },
  "sizes": {
   "meera-bank.json": {
    "raw": 3385462,
@@ -41,8 +57,8 @@
    "gzip": 118316
   },
   "code in the page": {
-   "raw": 397146,
-   "gzip": 173857,
+   "raw": 399829,
+   "gzip": 174861,
    "files": 9
   },
   "picture (guide-art.js)": {
@@ -51,7 +67,7 @@
   }
  },
  "timing": {
-  "loadMs": 1384,
-  "msPerAnswer": 40
+  "loadMs": 1372,
+  "msPerAnswer": 40.7
  }
 }

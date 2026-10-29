@@ -2,12 +2,15 @@
  *
  *   scores   the three test sets (eval, eval2, parts): right first time / offered among the top 3 / wrong / not sure
  *   typos    the same questions with made-up spelling mistakes (the same mistakes every run)
+ *   held     a second spelling set, made another way and frozen (typo-sets.cjs) — never used while tuning, scoring only
+ *   hindi    Hindi-script spelling mistakes (frozen, typo-sets.cjs) — reported on their own
  *   golden   Meera's whole answer to every test question — the text, her buttons, which answer — to spot ANY change
  *   sizes    what a computer downloads for her
  *
  * The scoring is the one used since 24 Oct: "sure" = top score ≥ 0.75 and ahead of the next by 0.04. */
 const fs = require('fs'), path = require('path'), zlib = require('zlib');
 const { load } = require('./harness.cjs');
+const frozen = require('./typo-sets.cjs');
 const ROOT = path.join(__dirname, '..', '..');
 const EVALS = path.join(__dirname, '..', 'bank', 'evals');
 const readEval = n => JSON.parse(fs.readFileSync(path.join(EVALS, n + '.json'), 'utf8'));
@@ -81,6 +84,8 @@ async function measure(opts = {}) {
   for (const [k, list] of Object.entries(sets)) scores[k] = await score(M, list);
   const typos = typoSet();
   const typoScore = await score(M, typos);
+  const extra = {};
+  for (const [k, list] of Object.entries(frozen.load())) extra[k] = { count: list.length, ...(await score(M, list)) };
   const t1 = Date.now();
   const golden = {};
   for (const [k, list] of Object.entries(sets)) for (const x of list) {
@@ -88,11 +93,11 @@ async function measure(opts = {}) {
     golden[key] = await M.answer(x.q, x.tab || 'shop');
   }
   const perQ = (Date.now() - t1) / Object.values(sets).reduce((a, l) => a + l.length, 0);
-  return { scores, typos: { count: typos.length, ...typoScore }, golden, sizes: sizes(), timing: { loadMs, msPerAnswer: Math.round(perQ * 10) / 10 }, typoList: typos };
+  return { scores, typos: { count: typos.length, ...typoScore }, extra, golden, sizes: sizes(), timing: { loadMs, msPerAnswer: Math.round(perQ * 10) / 10 }, typoList: typos };
 }
 module.exports = { measure, classify, typoSet, sizes };
 
 if (require.main === module) measure({ bundle: process.argv.includes('--bundle'), switches: (process.argv.find(a => a.startsWith('--on=')) || '').slice(5).split(',').filter(Boolean) }).then(m => {
   const short = o => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, { right: v.right, offered: v.offered, wrong: v.wrong, none: v.none }]));
-  console.log(JSON.stringify({ scores: short(m.scores), typos: { count: m.typos.count, right: m.typos.right, offered: m.typos.offered, wrong: m.typos.wrong, none: m.typos.none }, sizes: m.sizes, timing: m.timing, golden: Object.keys(m.golden).length }, null, 1));
+  console.log(JSON.stringify({ scores: short(m.scores), typos: { count: m.typos.count, right: m.typos.right, offered: m.typos.offered, wrong: m.typos.wrong, none: m.typos.none }, extra: short(m.extra), sizes: m.sizes, timing: m.timing, golden: Object.keys(m.golden).length }, null, 1));
 }).catch(e => { console.error(e); process.exit(1); });

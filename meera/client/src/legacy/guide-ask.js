@@ -586,7 +586,9 @@ function gaPeople() {
 /* SPELLING (v2 rebuild, Phase 2, 29 Oct 2026). With the "spell" switch on, a question is first read the way she
  * understands it — "karigr ko kaam kaise de" as "karigar ko kaam kaise de" (meera/client/src/understand.ts, which is
  * only inside meera.js). Switch off, or Meera inside the page: the question is read exactly as typed. Her word list:
- * every word of her answers and their ways of asking, her own word list, filler words and the karigars' names. */
+ * every word of her answers and their ways of asking, her own word list, filler words, the screens' names and the
+ * buttons, columns and labels on the page — words she may correct towards — and, only to be left as typed, the karigars'
+ * names and the ERP's own names (SKUs, brands, colours, parties: ERP_MEERA.words()). She never corrects into those. */
 let GA_DICT = null;
 function gaDict() {
   const known = new Set(), pairs = new Set(), freq = new Map(), add = (w, n) => { known.add(w); if (n) freq.set(w, (freq.get(w) || 0) + n); };
@@ -599,12 +601,18 @@ function gaDict() {
   Object.keys(GUIDE_SYN).forEach(w => add(w, 1));
   GUIDE_STOP.forEach(w => add(w, 0));
   gaPeople().forEach(w => add(w, 0));
+  GUIDE_SCREENS.forEach(([, names]) => gaWords(names).forEach(w => add(w, 2)));
+  try { [...document.querySelectorAll('button, a.nav, th, label, .navgrp')].slice(0, 4000).forEach(el => gaWords(el.textContent).forEach(w => add(w, 1))); } catch (e) { /* no page */ }
+  try { (ERP_MEERA.words ? ERP_MEERA.words() : []).forEach(t => gaWords(t).forEach(w => add(w, 0))); } catch (e) { /* an older ERP: no names */ }
+  /* a Hindi-script word her meaning list knows ("लिखूं") she already understands: left as typed */
+  if (GA_W && GA_W.at) GA_W.at.forEach((i, w) => { if (/[ऀ-ॿ]/.test(w)) add(w, 0); });
   return { known, freq, pairs };
 }
 function gaSpell(q) {
   const none = { text: q, changes: [] };
   if (typeof muUnderstand !== 'function' || !meeraOn('spell') || !GA_BANK) return none;
-  try { if (!GA_DICT) GA_DICT = muIndex(gaDict()); return muUnderstand(q, GA_DICT); } catch (e) { return none; }
+  /* made again once the meaning list has arrived (it comes after the bank) */
+  try { if (!GA_DICT || GA_DICT.words !== !!GA_W) { GA_DICT = muIndex(gaDict()); GA_DICT.words = !!GA_W; } return muUnderstand(q, GA_DICT); } catch (e) { return none; }
 }
 /** How well an entry fits: its key meanings found in the question, a must-have meaning, and words left over. */
 function gaScore(e, means) {

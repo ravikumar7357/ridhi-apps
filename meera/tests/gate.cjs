@@ -20,10 +20,13 @@ const CI = !!process.env.GITHUB_ACTIONS;
 
 function compare(base, now) {
   const fails = [], notes = [];
-  const sets = Object.keys(base.scores).concat(['typos']);
-  const name = { eval: 'test set 1', eval2: 'test set 2', parts: 'button/column questions', typos: 'spelling-mistake questions' };
+  const sets = Object.keys(base.scores).concat(['typos'], Object.keys(base.extra || {}));
+  const name = { eval: 'test set 1', eval2: 'test set 2', parts: 'button/column questions', typos: 'spelling-mistake questions',
+    held: 'spelling set 2 (held back, scoring only)', hindi: 'Hindi-script spelling mistakes' };
+  const get = (o, k) => (k === 'typos' ? o.typos : o.scores[k] || (o.extra || {})[k]);
   for (const k of sets) {
-    const b = k === 'typos' ? base.typos : base.scores[k], n = k === 'typos' ? now.typos : now.scores[k];
+    const b = get(base, k), n = get(now, k);
+    if (!n) { fails.push({ line: `${name[k] || k}: missing now`, why: `${name[k] || k} was not measured` }); continue; }
     const line = `${name[k] || k}: right ${b.right}→${n.right}, offered ${b.offered}→${n.offered}, wrong ${b.wrong}→${n.wrong}, not sure ${b.none}→${n.none}`;
     if (n.right < b.right) fails.push({ line, why: `${name[k] || k}: ${b.right - n.right} fewer answered right first time (${b.right} → ${n.right})` });
     else if (n.right + n.offered < b.right + b.offered) fails.push({ line, why: `${name[k] || k}: fewer answered right or offered (${b.right + b.offered} → ${n.right + n.offered})` });
@@ -48,6 +51,7 @@ function writeBaseline(now) {
   const { golden, typoList, ...nums } = now;
   for (const k of Object.keys(nums.scores)) delete nums.scores[k].per;
   delete nums.typos.per;
+  for (const k of Object.keys(nums.extra || {})) delete nums.extra[k].per;
   fs.writeFileSync(f('baseline.json'), JSON.stringify({ made: new Date().toISOString().slice(0, 10), ...nums }, null, 1) + '\n');
   fs.writeFileSync(f('golden.json'), JSON.stringify(golden, null, 1) + '\n');
   fs.writeFileSync(f('typo-set.json'), JSON.stringify(typoList, null, 1) + '\n');

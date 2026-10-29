@@ -23,3 +23,7 @@ Each entry: when, why, and what it changed. Made by `node meera/tests/gate.cjs -
   - before: - · Today is Thursday, 29 October 2026 .
   - after: - · Your question fits more than one answer. Which one do you mean? Date Date Date
 
+## 2026-10-29 08:42 — Phase 2 checks: the baseline now also records spelling set 2 (447, held back, scoring only) and Hindi-script spelling mistakes (114) — with the spell switch off, as everyone has it. No answer changed.
+
+- no score or answer changed (only the record refreshed)
+

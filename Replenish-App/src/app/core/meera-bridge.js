@@ -10,6 +10,8 @@
  *   ERP_MEERA.screen()        the screen open now ('pbase', 'shop' …)
  *   ERP_MEERA.openScreen(t)   open a screen, by the ERP's own rules
  *   ERP_MEERA.people()        the karigars' and staff names (to recognise "Ramesh ko …")
+ *   ERP_MEERA.words()         the ERP's own names — SKUs, brands, colours, sizes, parties, every master list (v2, Phase 2):
+ *                             only so her spelling step leaves them as typed; she never shows or sends them
  *   ERP_MEERA.phone()         true on the phone layout
  *   ERP_MEERA.on(event, fn)   'screen' — a screen just opened (the ERP calls meeraBridgeEmit('screen', tab))
  *
@@ -26,7 +28,7 @@ function meeraBridgeEmit(event, ...args) {
 /* declared in the page (Meera's files inside the page see it, also where there is no real window, e.g. the test
  * suites), and handed to the window for meera.js, which lives in a file of its own */
 const ERP_MEERA = {
-  v: 1,
+  v: 2,
   user: () => meeraSafe(() => ({
     email: (ME && ME.email) || '',
     admin: !!(ME && ME.admin),
@@ -39,6 +41,12 @@ const ERP_MEERA = {
   openScreen: tab => meeraSafe(() => { showTab(tab); return true; }, false),
   people: () => meeraSafe(() => (PTE.emp || []).map(e => String(e[1] || '').trim()).filter(Boolean), []),
   phone: () => meeraSafe(() => typeof mobOn === 'function' && !!mobOn(), false),
+  words: () => meeraSafe(() => {
+    const out = new Set(), add = v => { if (typeof v === 'string' && v.length < 80) out.add(v); };
+    Object.values((PTG && PTG.masters) || {}).forEach(list => Object.values(list || {}).forEach(e => { if (e && typeof e === 'object') ['name', 'desc', 'code', 'label'].forEach(k => add(e[k])); else add(e); }));
+    ((PTG && PTG.mdb) || []).forEach(r => { if (r) ['sku', 'brand', 'color', 'colour'].forEach(k => add(r[k])); });
+    return [...out];
+  }, []),
   on: (event, fn) => { (MEERA_EVENTS[event] = MEERA_EVENTS[event] || []).push(fn); },
   switchOn: name => meeraSafe(() => meeraOn(name), false),   // her switches, for meera.js
 };

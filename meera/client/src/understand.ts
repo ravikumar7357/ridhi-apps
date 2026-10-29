@@ -13,6 +13,8 @@
  *                       "chai"): up to 5 letters only two letters swapped or a vowel dropped ("mial", "krte");
  *                       6–8 letters, 1 letter off; 9 and more, 2 off if the first letter is right ("untouched" stays)
  *   3. joined / split — "jobwork" → "job work", "scan ner" → "scanner"
+ *   Hindi script: the same sound — short or long matra (ि/ी, ु/ू, े/ै, ो/ौ), the dot (nukta), a halant — matched to
+ *   her answers' Hindi words ("कहँ" → कहाँ is left: a missing matra is not a sound slip).
  * Switched on by "spell" (core/meera-bridge.js); off, she reads questions exactly as before. */
 
 interface MeeraDict {
@@ -31,6 +33,10 @@ function muSound(w: string): string {
     .replace(/ee/g, 'i').replace(/oo/g, 'u').replace(/ph/g, 'f').replace(/ck/g, 'k').replace(/q/g, 'k').replace(/c(?!h)/g, 'k')
     .replace(/w/g, 'v').replace(/z/g, 'j').replace(/x/g, 'ks')
     .replace(/(.)\1+/g, '$1');
+}
+/** the sound of a Hindi-script word: the spellings phones mix up made the same */
+function muSoundHi(w: string): string {
+  return w.replace(/़/g, '').replace(/ी/g, 'ि').replace(/ू/g, 'ु').replace(/ै/g, 'े').replace(/ौ/g, 'ो').replace(/्/g, '');
 }
 /** letters apart, a swap of two neighbours counting as one (Damerau); stops early past `max` */
 function muDistance(a: string, b: string, max: number): number {
@@ -53,18 +59,19 @@ function muDistance(a: string, b: string, max: number): number {
 }
 
 /** what a dictionary needs worked out once: words by sound, and by length for the close-spelling search */
-interface MeeraDictIndex { dict: MeeraDict; bySound: Map<string, string>; byLen: Map<number, string[]>; cache: Map<string, string | null> }
+interface MeeraDictIndex { dict: MeeraDict; bySound: Map<string, string>; bySoundHi: Map<string, string>; byLen: Map<number, string[]>; cache: Map<string, string | null> }
 function muIndex(dict: MeeraDict): MeeraDictIndex {
-  const bySound = new Map<string, string>(), byLen = new Map<number, string[]>();
+  const bySound = new Map<string, string>(), bySoundHi = new Map<string, string>(), byLen = new Map<number, string[]>();
   const f = (w: string) => dict.freq.get(w) || 0;
   for (const w of dict.known) {
+    if (/^[ऀ-ॿ]{2,}$/.test(w) && f(w) > 0) { const k = muSoundHi(w), had = bySoundHi.get(k); if (!had || f(w) > f(had)) bySoundHi.set(k, w); continue; }
     if (!/^[a-z]{3,}$/.test(w)) continue;
     const s = muSound(w), had = bySound.get(s);
     if (f(w) > 0 && (!had || f(w) > f(had))) bySound.set(s, w);   // only her answers' words are corrections
     if (!byLen.has(w.length)) byLen.set(w.length, []);
     byLen.get(w.length)!.push(w);
   }
-  return { dict, bySound, byLen, cache: new Map() };
+  return { dict, bySound, bySoundHi, byLen, cache: new Map() };
 }
 
 /** the word she thinks was meant, or null to leave it as it is */
@@ -106,11 +113,17 @@ function muUnderstand(q: string, ix: MeeraDictIndex): MeeraUnderstood {
   const parts = String(q || '').split(/(\s+)/);   // the spaces kept, so the question reads the same
   const changes: { from: string; to: string }[] = [];
   const known = (w: string) => ix.dict.known.has(w);
-  const word = (p: string) => p.toLowerCase().replace(/[’']/g, '').replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
+  const word = (p: string) => p.toLowerCase().replace(/[’']/g, '').replace(/^[^\p{L}\p{M}\p{N}]+|[^\p{L}\p{M}\p{N}]+$/gu, '');
   const plain = (w: string) => /^[a-z]{3,}$/.test(w);
   for (let i = 0; i < parts.length; i += 2) {
     const w = word(parts[i]);
-    if (!plain(w) || known(w)) continue;
+    if (known(w)) continue;
+    if (/^[ऀ-ॿ]{2,}$/.test(w)) {   // Hindi script: the same sound only
+      const to = ix.bySoundHi.get(muSoundHi(w));
+      if (to && to !== w) { changes.push({ from: parts[i], to }); parts[i] = to; }
+      continue;
+    }
+    if (!plain(w)) continue;
     /* 3a. two words written as one: "jobwork" → "job work" */
     let split: string | null = null;
     if (w.length >= 6) for (let k = 3; k <= w.length - 3; k++) {

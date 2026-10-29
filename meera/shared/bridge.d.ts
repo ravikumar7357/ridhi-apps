@@ -28,6 +28,8 @@ interface ErpMeera {
   openScreen(tab: string): boolean;
   /** karigars' and staff names, to recognise "Ramesh ko …" */
   people(): string[];
+  /** the ERP's own names (SKUs, brands, colours, parties, master lists) — her spelling step leaves these as typed (v2) */
+  words(): string[];
   /** true on the phone layout */
   phone(): boolean;
   /** 'screen' (tab) — a screen just opened */
