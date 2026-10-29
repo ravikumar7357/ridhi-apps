@@ -16,9 +16,11 @@
  *   Due date      the sales order's delivery date; for a Shopify / online line, 5 working days from when it opened (the
  *                 made-to-order rule of Production to Shipping); for the rest (Amazon), the Ready date — Amazon gives none.
  *   Delay         today against the due date, for a line not yet made; a made line says "made".
+ *   SHP report    the same sheet for the Shopify orders the SHP board owns, read from the board (flowRepShpFill) — the toolbar's
+ *                 PPC report button is a drop-down: PPC report · SHP board report; each Shopify line is in one of the two, never both.
  *   Who           admins, and whoever holds the Reports right.
  * ================================================================ */
-const FLOW_REP = { from: '', to: '', on: 'planned', soErr: '' };
+const FLOW_REP = { from: '', to: '', on: 'planned', kind: 'ppc', soErr: '' };
 const flowRepAllowed = () => !!(ME.admin || (ME.tabs || []).includes('rep'));
 /* Made — passed QC: nothing left to be late on. */
 const FLOW_REP_MADE = ['ship', 'fgin', 'done'];
@@ -130,18 +132,46 @@ function flowRepAt(x, r, s) {
   return x.rfd ? 'RFD' : x.print.printer ? 'Printing' : x.print.store ? 'Printed, in store' : x.cut.toCut ? 'Cutting' : x.cut.store ? 'Cut, in store'
     : x.stitch.withKarigar ? 'Karigar' : x.stitch.toQc ? 'QC' : x.qc.toPress ? 'Press' : (FLOW_REP_AT[s.bucket] || '');
 }
+/** THE SHP REPORT (Ravi, 30 Oct: "a drop-down in the PPC report button where we can switch to the SHP report — the report of the SHP
+ * board in the same format"). The Shopify orders the SHP board owns (dated from FLOW_BOARD_FROM) are worked there, often with no PPC
+ * plan, so they are read from the board's own stage figures (shpbStages) — what waits at each stage — into the same columns:
+ *   printer receive → Printing (the printer) · printed back, to cut → Printed, in store · to cut → Cutting · cut, to issue → Cut, in
+ *   store · issued, not back → Karigar · back, to pass → QC · passed, to press → Press · pressed, shipping to accept → (Press)
+ * Completed = pressed or taken from ready stock; Exp. completion = the board's ready date; a line with nothing moving shows the
+ * board's own status (In production, OOS, Need from printer, Planned). */
+function flowRepShpFill(x, st, o) {
+  o = o || {};
+  const q0 = +x.pcs || 0, printerLine = st.prcA > 0;
+  x.printedBy = String(o.printer || x.printedBy || '').trim();
+  x.print = { printer: st.prcW > 0 ? (x.printedBy || 'Printer') : '', store: printerLine ? st.cutW : 0 };
+  x.cut = { toCut: printerLine ? 0 : st.cutW, store: st.cutA > 0 || st.cutD > 0 ? st.issW : 0 };
+  x.stitch = { withKarigar: st.recW, toQc: st.qcW };
+  x.qc = { toPress: st.prsW };
+  x.press = { toFinish: st.handW };
+  x.completed = Math.min(q0, st.prsD + st.stk);
+  x.made = q0 > 0 && x.completed >= q0;
+  if (o.ready) x.completion = String(o.ready).slice(0, 10);
+  x.process = x.made ? 'Completed' : x.rfd ? 'RFD' : st.planW > 0 ? 'To plan' : x.print.printer ? 'Printing' : x.print.store ? 'Printed, in store'
+    : x.cut.toCut ? 'Cutting' : x.cut.store ? 'Cut, in store' : x.stitch.withKarigar ? 'Karigar' : x.stitch.toQc ? 'QC' : x.qc.toPress ? 'Press'
+    : (o.status || 'In production');
+  return x;
+}
 /** The report's lines: o = { from, to, on: planned|came|waiting, today, soDue }. Real orders only — never a TEST line. */
 function flowRepLines(o) {
-  const today = o.today || dToday(), soDue = o.soDue || null;
+  const today = o.today || dToday(), soDue = o.soDue || null, shp = o.kind === 'shp';
   const mdb = new Map(((typeof PTG !== 'undefined' && PTG.mdb) || []).map(m => [obUC(m && m.sku), m]));
   const lines = FLOW_REAL ? ordLines() : flowMtoLines();
   const inRange = d => !!d && d >= o.from && d <= o.to;
   const out = [];
   (lines || []).forEach(r => {
     if (!r || r.__t) return;
+    /* each Shopify line in ONE report: the SHP board's in the SHP report, the rest in PPC's */
+    const board = flowBoardOwns(r) && (typeof shpbIsMine !== 'function' || shpbIsMine(r));
+    if (shp ? !board : board) return;
     const s = flowState(r), p = s.plan || null;
     const first = p ? flowRepDay(p.firstAt || p.at) : '';
-    const keep = o.on === 'waiting' ? s.bucket === 'ppc'
+    const keep = shp ? (o.on === 'waiting' || inRange(ptIsoDate(r.orderDate)))
+      : o.on === 'waiting' ? s.bucket === 'ppc'
       : o.on === 'came' ? inRange(ptIsoDate(r.orderDate))
       : !!p && inRange(first);
     if (!keep) return;
@@ -159,6 +189,14 @@ function flowRepLines(o) {
       waitDays: s.bucket === 'ppc' && r.orderDate ? Math.max(0, flowRepDaysBetween(ptIsoDate(r.orderDate), today)) : 0,
     }, flowRepStages(r, s, p), made ? { completed: +r.qty || 0 } : {});
     x.process = flowRepAt(x, r, s);
+    if (shp) {
+      x.rfd = flowRepRfd(r, s, p);
+      const st = typeof shpbStages === 'function' ? shpbStages([r]) : o.shpStages && o.shpStages(r);
+      if (st) flowRepShpFill(x, st, { printer: typeof shpbPrinterOf === 'function' ? shpbPrinterOf(r) : '', ready: typeof shpbReadyOf === 'function' ? shpbReadyOf(r).date : '',
+        status: typeof shpbStatusInfo === 'function' ? shpbStatusInfo(r, st).label : '' });
+      const d2 = flowRepDelay(x.due, x.made, today); x.delay = d2.txt; x.late = d2.late;
+      if (o.on === 'waiting' && x.process === 'Completed') return;   // still open: what is not completed yet
+    }
     /* RFD fills only while the PROCESS is RFD (Ravi, 29 Oct): Send to printer once Sultan's RFD challan is made, else On RFD. */
     /* a completed line's last step says Completed (Ravi, 29 Oct), whatever its last register entry was */
     if (x.process === 'Completed' && x.moved && x.moved.day) x.moved = { day: x.moved.day, step: 'Completed' };
@@ -291,12 +329,14 @@ function flowRepXlsx(sheets) {
 
 /* ---- the panel ---- */
 const FLOW_REP_ON = [['planned', 'Planned in PPC (plans first saved on these days)'], ['came', 'Came into PPC (orders dated these days)'], ['waiting', 'Still waiting in PPC (today — the dates do not apply)']];
+const FLOW_REP_SHP_ON = [['came', 'Orders dated these days'], ['waiting', 'Still open (today — the dates do not apply)']];
+const flowRepOnList = () => FLOW_REP.kind === 'shp' ? FLOW_REP_SHP_ON : FLOW_REP_ON;
 function flowRepSoDue() { try { return typeof SOX !== 'undefined' && SOX.rows && typeof ordDueIndex === 'function' ? ordDueIndex() : null; } catch (e) { return null; } }
-function flowRepNow() { return flowRepLines({ from: FLOW_REP.from, to: FLOW_REP.to, on: FLOW_REP.on, soDue: flowRepSoDue() }); }
+function flowRepNow() { return flowRepLines({ from: FLOW_REP.from, to: FLOW_REP.to, on: FLOW_REP.on, kind: FLOW_REP.kind, soDue: flowRepSoDue() }); }
 function flowRepBody() {
   const lines = flowRepNow(), tot = lines.reduce((a, x) => a + x.pcs, 0), skus = new Set(lines.map(x => x.sku)).size;
   const late = lines.filter(x => x.late > 0).length, orders = new Set(lines.map(x => x.orderNo)).size, old = lines.filter(x => x.planned && !x.plannedKnown).length;
-  const rng = FLOW_REP.on === 'waiting' ? 'waiting in PPC today' : `${flowRepShow(FLOW_REP.from)} – ${flowRepShow(FLOW_REP.to)}`;
+  const rng = FLOW_REP.on === 'waiting' ? (FLOW_REP.kind === 'shp' ? 'open on the SHP board today' : 'waiting in PPC today') : `${flowRepShow(FLOW_REP.from)} – ${flowRepShow(FLOW_REP.to)}`;
   const groups = []; FLOW_REP_COLS.forEach(c => { const l = groups[groups.length - 1]; if (l && l[0] === c[0]) l[1]++; else groups.push([c[0], 1]); });
   const show = (v, c) => c[3] === 'date' ? flowRepShow(v) : (c[3] === 'num' || c[3] === 'late') ? (typeof v === 'string' && v ? v : +v > 0 ? nf(+v) : '') : c[3] === 'qty' ? nf(+v || 0) : (v == null ? '' : v);
   const td = (v, c, x) => `<td style="white-space:nowrap${['num', 'qty', 'late'].includes(c[3]) ? ';text-align:right' : ''}${x.late > 0 ? ';background:#fcebeb' : ''}${c[3] === 'late' && x.late > 0 ? ';color:#a32d2d;font-weight:700' : ''}${c[3] === 'sku' ? ';font-weight:600' : ''}">${esc(show(v, c))}</td>`;
@@ -316,17 +356,19 @@ function flowRepPaint() {
   const box = $('flRepOut'); if (box) box.innerHTML = flowRepBody();
   document.querySelectorAll('[data-flrepq]').forEach(b => { const r = flowRepRanges()[+b.dataset.flrepq]; b.className = r && r[1] === FLOW_REP.from && r[2] === FLOW_REP.to ? '' : 'ghost'; });
 }
-async function flowRepOpen() {
+async function flowRepOpen(kind) {
   if (!flowRepAllowed()) return;
+  FLOW_REP.kind = kind === 'shp' ? 'shp' : 'ppc';
+  if (!flowRepOnList().some(([k]) => k === FLOW_REP.on)) FLOW_REP.on = flowRepOnList()[0][0];
   if (!FLOW_REP.from) { const r = flowRepRanges()[2]; FLOW_REP.from = r[1]; FLOW_REP.to = r[2]; }
   const sel = (id, list, v) => `<select id="${id}" style="width:auto">${list.map(([k, l]) => `<option value="${k}"${k === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
   ptOpenDialog({
-    title: 'PPC report', wide: true,
+    title: FLOW_REP.kind === 'shp' ? 'SHP board report' : 'PPC report', wide: true,
     subtitle: 'Pick the days, check the lines, download the Excel (Lines, Summary).',
     html: `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px">${flowRepRanges().map((r, i) => `<button type="button" class="ghost" data-flrepq="${i}" style="width:auto;padding:4px 12px;font-size:12.5px">${esc(r[0])}</button>`).join('')}</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:13px">
         From <input type="date" id="flRepFrom" value="${esc(FLOW_REP.from)}" style="width:auto"> To <input type="date" id="flRepTo" value="${esc(FLOW_REP.to)}" style="width:auto">
-        <span style="margin-left:8px">Report on</span> ${sel('flRepOn', FLOW_REP_ON, FLOW_REP.on)}</div>
+        <span style="margin-left:8px">Report on</span> ${sel('flRepOn', flowRepOnList(), FLOW_REP.on)}</div>
       <div id="flRepOut">${flowRepBody()}</div>`,
     saveLabel: 'Download Excel',
     onSave: async () => {
@@ -335,7 +377,7 @@ async function flowRepOpen() {
       const bytes = flowRepXlsx(flowRepSheets(lines));
       const a = document.createElement('a');
       a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
-      a.download = 'ppc-report-' + (FLOW_REP.on === 'waiting' ? 'waiting-' + dToday() : FLOW_REP.from + '-to-' + FLOW_REP.to) + '.xlsx';
+      a.download = (FLOW_REP.kind === 'shp' ? 'shp-report-' : 'ppc-report-') + (FLOW_REP.on === 'waiting' ? 'waiting-' + dToday() : FLOW_REP.from + '-to-' + FLOW_REP.to) + '.xlsx';
       a.click(); URL.revokeObjectURL(a.href);
       return '';
     },
@@ -343,6 +385,8 @@ async function flowRepOpen() {
   const day = () => { const f = $('flRepFrom').value, t = $('flRepTo').value; if (f && t) { FLOW_REP.from = f <= t ? f : t; FLOW_REP.to = f <= t ? t : f; } flowRepPaint(); };
   $('flRepFrom').onchange = day; $('flRepTo').onchange = day;
   $('flRepOn').onchange = () => { FLOW_REP.on = $('flRepOn').value; flowRepPaint(); };
+  /* the SHP board report reads the board's own records (ready dates, press entries) once */
+  if (FLOW_REP.kind === 'shp' && typeof shpbLoad === 'function') { try { await shpbLoad(); } catch (e) { /* the report says what it has */ } flowRepPaint(); }
   document.querySelectorAll('[data-flrepq]').forEach(b => { b.onclick = () => { const r = flowRepRanges()[+b.dataset.flrepq];
     FLOW_REP.from = r[1]; FLOW_REP.to = r[2]; $('flRepFrom').value = r[1]; $('flRepTo').value = r[2]; flowRepPaint(); }; });
   flowRepPaint();
@@ -353,6 +397,13 @@ async function flowRepOpen() {
     flowRepPaint();
   }
 }
-/** The toolbar button: on the Production flow screen, for admins and the Reports right. */
-function flowRepBtn() { const b = $('flRep'); if (b && b.classList) b.classList.toggle('hide', !flowRepAllowed()); }
-if ($('flRep')) $('flRep').onclick = () => { flowRepOpen().catch(e => { $('flMsg').className = 'err'; $('flMsg').textContent = 'Could not open the report: ' + (e.message || e); }); };
+/** The toolbar button — a drop-down (Ravi, 30 Oct: "I want the dropdown where I encircled"): PPC report · SHP board report.
+ *  On the Production flow screen, for admins and the Reports right. */
+function flowRepBtn() { const b = $('flRepWrap'); if (b && b.classList) b.classList.toggle('hide', !flowRepAllowed()); }
+if ($('flRep')) {
+  const menu = $('flRepMenu');
+  $('flRep').onclick = e => { if (e && e.stopPropagation) e.stopPropagation(); if (menu && menu.classList) menu.classList.toggle('hide'); };
+  document.querySelectorAll('[data-flrepkind]').forEach(b => { b.onclick = () => { if (menu && menu.classList) menu.classList.add('hide');
+    flowRepOpen(b.dataset.flrepkind).catch(e => { $('flMsg').className = 'err'; $('flMsg').textContent = 'Could not open the report: ' + (e.message || e); }); }; });
+  if (typeof document.addEventListener === 'function') document.addEventListener('click', e => { if (menu && menu.classList && !(e.target && e.target.closest && e.target.closest('#flRepWrap'))) menu.classList.add('hide'); });
+}
