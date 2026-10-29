@@ -158,6 +158,7 @@ core/installed-app.js
 core/version-check.js
 core/mobile.js
 core/meera-switches.js
+core/meera-bridge.js
 core/guide-art.js
 core/guide-tours.js
 core/guide.js

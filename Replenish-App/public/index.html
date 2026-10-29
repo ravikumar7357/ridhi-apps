@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <!-- ================================================================================================
-     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 165 files of src/ joined into one page.
+     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 166 files of src/ joined into one page.
      The real, grouped source: Replenish-App/src/   (map and workflow: src/README.md)
        src/index.html   page markup        src/styles.css   stylesheet        src/app/ORDER   join order
        src/app/<group>/ the code, by group: core, replenishment, masters, production, vendors, orders, shopify, flow, dashboard, people-pay, inventory, reports, shared
@@ -5783,7 +5783,7 @@ function showTab(which) {
   topbarSync();
   /* On a phone: the tab bar lights this screen, and the header carries its name (core/mobile.js). */
   if (typeof mobSync === 'function') mobSync(which);
-  try { guideScreen(which); } catch (e) { /* the guide character (guide.js) is not on the page yet — the screen still opens */ }
+  try { meeraBridgeEmit('screen', which); } catch (e) { /* Meera (through her bridge) is not on the page yet — the screen still opens */ }
   /* The screen's name where a name belongs when it is not on the page: the browser tab. */
   try { document.title = ($('pageTitle').textContent || '') + ($('pageTitle').textContent ? ' · ' : '') + 'Ridhi Home & Living'; } catch (e) { /* nothing depends on it */ }
   /* There is no drawer to close any more: the menu is the bar across the top, on every width. */
@@ -76166,6 +76166,51 @@ function meeraOn(name) {
   } catch (e) { /* no address: the defaults */ }
   return !!MEERA_SWITCHES[name];
 }
+/* ============================== FILE: src/app/core/meera-bridge.js ============================== */
+/* ================= THE DOOR BETWEEN THE ERP AND MEERA (v2 rebuild, 29 Oct 2026) =================
+ *
+ * Meera used to reach straight into the ERP's own variables (ME, TAB_NOW, showTab, auth, PTE.emp, mobOn, spIsVendor).
+ * Now she asks here, and only here — so the ERP can change inside without breaking her, and she can live in her own
+ * file (meera.js, plan Phase 1) without knowing how the ERP is built. This file is the ONLY Meera file the ERP keeps.
+ *
+ *   ERP_MEERA.user()          { email, admin, tabs, vendor }        who is signed in, and what they may open
+ *   ERP_MEERA.signedIn()      true once someone is signed in
+ *   ERP_MEERA.token()         a promise of their sign-in token (for her router), or null
+ *   ERP_MEERA.screen()        the screen open now ('pbase', 'shop' …)
+ *   ERP_MEERA.openScreen(t)   open a screen, by the ERP's own rules
+ *   ERP_MEERA.people()        the karigars' and staff names (to recognise "Ramesh ko …")
+ *   ERP_MEERA.phone()         true on the phone layout
+ *   ERP_MEERA.on(event, fn)   'screen' — a screen just opened (the ERP calls meeraBridgeEmit('screen', tab))
+ *
+ * Every answer here is wrapped: if the ERP is half-loaded or something inside it throws, Meera gets a safe default
+ * (nobody signed in, no screen, no names) and carries on — and the ERP never sees her errors.
+ */
+const MEERA_EVENTS = {};
+function meeraSafe(fn, otherwise) {
+  try { const v = fn(); return v === undefined ? otherwise : v; } catch (e) { return otherwise; }
+}
+function meeraBridgeEmit(event, ...args) {
+  (MEERA_EVENTS[event] || []).forEach(fn => { try { fn(...args); } catch (e) { try { console.warn('Meera:', e); } catch (x) { /* no console */ } } });
+}
+/* declared in the page (Meera's files inside the page see it, also where there is no real window, e.g. the test
+ * suites), and handed to the window for meera.js, which lives in a file of its own */
+const ERP_MEERA = {
+  v: 1,
+  user: () => meeraSafe(() => ({
+    email: (ME && ME.email) || '',
+    admin: !!(ME && ME.admin),
+    tabs: ME && Array.isArray(ME.tabs) ? ME.tabs.slice() : [],
+    vendor: typeof spIsVendor === 'function' && !!spIsVendor(),
+  }), { email: '', admin: false, tabs: [], vendor: false }),
+  signedIn: () => meeraSafe(() => !!(auth && auth.currentUser), false),
+  token: () => { try { return auth && auth.currentUser ? auth.currentUser.getIdToken() : Promise.resolve(null); } catch (e) { return Promise.resolve(null); } },
+  screen: () => meeraSafe(() => TAB_NOW, '') || '',
+  openScreen: tab => meeraSafe(() => { showTab(tab); return true; }, false),
+  people: () => meeraSafe(() => (PTE.emp || []).map(e => String(e[1] || '').trim()).filter(Boolean), []),
+  phone: () => meeraSafe(() => typeof mobOn === 'function' && !!mobOn(), false),
+  on: (event, fn) => { (MEERA_EVENTS[event] = MEERA_EVENTS[event] || []).push(fn); },
+};
+try { window.ERP_MEERA = ERP_MEERA; } catch (e) { /* no window: the page itself still has it */ }
 /* ============================== FILE: src/app/core/guide-art.js ============================== */
 /* MEERA'S PICTURE (22 Oct 2026). Our own character, drawn for Ridhi in Bloom from the brand (ridhiblockprint.com): a cream
  * block-print kurta with slate-blue paisley and butis, a brown printed stole, pointing up at what she explains. Ravi picked
@@ -76408,7 +76453,7 @@ const GUIDE_TYPE_STEP = 4;                 // …four a tick: a long sentence is
 const GUIDE = { tour: null, i: 0, typing: 0, miss: {}, field: null, btn: null, seenErr: new Map(), built: false };
 
 /** Kept per person, so two people sharing a computer each get their own walk-rounds. */
-function guideKey(k) { return k + ':' + ((typeof ME !== 'undefined' && ME && ME.email) || 'anon'); }
+function guideKey(k) { return k + ':' + (ERP_MEERA.user().email || 'anon'); }
 function guideGet(k, d) { try { const v = localStorage.getItem(guideKey(k)); return v == null ? d : v; } catch (e) { return d; } }
 function guideSet(k, v) { try { localStorage.setItem(guideKey(k), v); } catch (e) { /* private window: it still works this visit */ } }
 const guideIsOn = () => guideGet('guideOff', '') !== '1';
@@ -76482,12 +76527,12 @@ function guideBuild() {
   ctl.innerHTML = `<button type="button" id="gdAskBtn" title="Ask Meera anything — English, Hindi or Hinglish (or press ?)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.3"/><path d="M12 16.5h.01"/></svg><span>Ask Meera</span></button>`
     + `<button type="button" id="gdShow" title="Walk me round this screen · इस स्क्रीन को समझाओ">${GUIDE_FACE}<span>Show me</span></button>`
     + `<button type="button" id="gdSwitch" role="switch" title="The helper: first-visit walk-rounds and help after repeated mistakes"><i></i><span></span></button>`;
-  const host = $('topActs'), phone = typeof mobOn === 'function' && mobOn() && $('mobHead');
+  const host = $('topActs'), phone = ERP_MEERA.phone() && $('mobHead');
   if (phone) phone.appendChild(ctl);   // a phone hides the top bar; its header is where the switch can be seen
   else if (host && host.parentNode) host.parentNode.insertBefore(ctl, host.nextSibling);
   else document.body.appendChild(ctl);
   /* the page in front: a screen, or a page that is not one (R-one's My work today) — gaHere, guide-ask.js */
-  $('gdShow').onclick = () => guideStart(typeof gaHere === 'function' ? gaHere() : typeof TAB_NOW !== 'undefined' ? TAB_NOW : '', true);
+  $('gdShow').onclick = () => guideStart(typeof gaHere === 'function' ? gaHere() : ERP_MEERA.screen(), true);
   $('gdSwitch').onclick = () => guideSwitch(!guideIsOn());
   $('gdAskBtn').onclick = () => guideAskOpen();
   /* HER ROUND BUTTON, bottom-right ("Ask Meera" on hover), and its menu: Ask Meera, Show me this screen, Helper on/off.
@@ -76549,7 +76594,8 @@ function guideSwitch(on) {
 
 /* ---------- the walk-round ---------- */
 
-/** Called by showTab (nav.js) every time a screen opens. The walk-round only on a first visit, and only when on. */
+ERP_MEERA.on('screen', tab => guideScreen(tab));
+/** Called through the bridge (nav.js → meeraBridgeEmit('screen', tab)) every time a screen opens. The walk-round only on a first visit, and only when on. */
 function guideScreen(tab) {
   guideBuild();
   guideSwitchDraw();   // drawn before sign-in under no name; now it is this person's own setting
@@ -76561,7 +76607,7 @@ function guideScreen(tab) {
   clearTimeout(GUIDE.wait);
   /* Let the screen draw first, and never on top of a window somebody already has open. */
   GUIDE.wait = setTimeout(() => {
-    if (typeof TAB_NOW !== 'undefined' && TAB_NOW !== tab) return;
+    if (ERP_MEERA.screen() !== tab) return;
     if (GUIDE.tour || guideBusy()) return;
     guideStart(tab, false);
   }, 400);
@@ -76582,7 +76628,7 @@ function guideSteps(tab) {
      * after the opening line, its search, filters, a line and the way to the computer layout. The list is drawn once its
      * data is in — often after a first-visit tour has started — so these steps are kept ("later") and looked for when
      * their turn comes; one that is still not there is passed over then. */
-    if (typeof mobOn === 'function' && mobOn()) st.splice(st[0] && !st[0].sel ? 1 : 0, 0,
+    if (ERP_MEERA.phone()) st.splice(st[0] && !st[0].sel ? 1 : 0, 0,
       { later: true, sel: `#mobL-${tab} .ml-search`, en: 'Type here to find a line — a name, SKU or order number.', hi: 'कोई लाइन ढूँढने के लिए यहाँ लिखें — नाम, SKU या ऑर्डर नंबर।' },
       { later: true, sel: `#mobL-${tab} .ml-chips`, en: 'These narrow the list. They only change what you see, never the data.', hi: 'इनसे लिस्ट छोटी होती है। ये सिर्फ़ दिखना बदलते हैं, डेटा नहीं।' },
       { later: true, sel: `#mobL-${tab} .ml-row`, en: 'Each card is one line. Tap it to open it.', hi: 'हर कार्ड एक लाइन है। खोलने के लिए उस पर टैप करें।' },
@@ -76697,9 +76743,9 @@ function guideShow() {
   guideWaitOff();
   if (task) {
     /* A step on another screen: that screen opens first (the menu's own access rule), then the step shows. */
-    if (s.tab && typeof TAB_NOW !== 'undefined' && TAB_NOW !== s.tab) {
+    if (s.tab && ERP_MEERA.screen() !== s.tab) {
       if (!guideMayOpen(s.tab)) { guideTaskNoAccess(s.tab); return; }
-      if (!s._went) { s._went = true; showTab(s.tab); setTimeout(() => { if (GUIDE.tour === t) guideShow(); }, 650); return; }
+      if (!s._went) { s._went = true; ERP_MEERA.openScreen(s.tab); setTimeout(() => { if (GUIDE.tour === t) guideShow(); }, 650); return; }
     }
     /* Already done on the screen (the form is open), or its box is not there for this account: on to the next one. */
     const filledNow = GUIDE.fast && !GUIDE.note && s.wait === 'value' && guideTarget(s) && String(guideTarget(s).value || '').trim() !== '';
@@ -76845,7 +76891,7 @@ function guideDoDraw() {
 /** A task needs a screen this account does not have: say so, instead of landing somewhere else. */
 function guideTaskNoAccess(tab) {
   const name = typeof gaTabName === 'function' ? gaTabName(tab) : tab;
-  GUIDE.tour = { kind: 'tour', tab: typeof TAB_NOW !== 'undefined' ? TAB_NOW : '', steps: [{
+  GUIDE.tour = { kind: 'tour', tab: ERP_MEERA.screen(), steps: [{
     en: 'This guide needs <b>' + esc(name) + '</b>, and your account does not have that screen. Ask your admin to add it.',
     hi: 'इस गाइड के लिए <b>' + esc(name) + '</b> चाहिए, और यह स्क्रीन आपके अकाउंट में नहीं है। एडमिन से जुड़वाएँ।' }] };
   GUIDE.i = 0;
@@ -78088,7 +78134,7 @@ function gaDiagnose(lang, L) {
   const red = gaRedLines()[0];
   const open = red ? gaFormOf(red) : [...document.querySelectorAll('.ptmodal, [id$="Box"]')].find(b => !b.classList.contains('hide') && guideVisible(b) && gaEmptyBoxes(b).length);
   const empty = gaEmptyBoxes(open).slice(0, 4);
-  const tab = typeof TAB_NOW !== 'undefined' ? TAB_NOW : '';
+  const tab = ERP_MEERA.screen();
   const acts = [];
   let html = '';
   if (red) {
@@ -78200,7 +78246,7 @@ function gaRead(q) {
 }
 /** The karigars' names, from the ERP's own list: "Ramesh ko…" is about a karigar. */
 function gaPeople() {
-  try { return new Set((PTE.emp || []).flatMap(e => String(e[1] || '').toLowerCase().split(/\s+/).filter(w => w.length >= 3))); }
+  try { return new Set(ERP_MEERA.people().flatMap(n => n.toLowerCase().split(/\s+/).filter(w => w.length >= 3))); }
   catch (e) { return new Set(); }
 }
 /** How well an entry fits: its key meanings found in the question, a must-have meaning, and words left over. */
@@ -78281,7 +78327,7 @@ function gaGuideFind(means) {
   for (const g of list) {
     let sc = 0;
     for (const m of content) { if (g.head.has(m)) sc += 2 * w(m); else if (g.means.has(m)) sc += w(m); }
-    if (sc && typeof TAB_NOW !== 'undefined' && g.sec === TAB_NOW) sc += 1;
+    if (sc && g.sec === ERP_MEERA.screen()) sc += 1;
     if (sc > bs) { bs = sc; best = g; }
   }
   /* enough: the question's own words carry it, not one common word */
@@ -78709,11 +78755,11 @@ function gaMissList(L) {
 /** The page in front of the person: a screen, or a page of its own that is not one (R-one's "My work today"). */
 function gaHere() {
   try { if (typeof FR !== 'undefined' && FR && FR.shown) return 'mywork'; } catch (e) { /* no such page here */ }
-  return typeof TAB_NOW !== 'undefined' ? TAB_NOW : '';
+  return ERP_MEERA.screen();
 }
 /** Open a screen — or that page. */
 function gaGo(tab) {
-  if (tab === 'mywork' && typeof frHomeShow === 'function') frHomeShow(); else showTab(tab);
+  if (tab === 'mywork' && typeof frHomeShow === 'function') frHomeShow(); else ERP_MEERA.openScreen(tab);
 }
 /* ---------- the chat box ---------- */
 let GA = { built: false, greeted: false };
@@ -78834,8 +78880,9 @@ function guideTaskStart(id, q) {
 function guideMayOpen(tab) {
   if (tab === 'mywork') return typeof frHomeShow === 'function';
   try {
-    if (!ME || ME.admin || !ME.tabs || !ME.tabs.length) return true;
-    return ME.tabs.includes(tab) || (tab === 'shop' && ME.tabs.includes('shopret')) || (tab === 'ord' && ME.tabs.includes('shopprod'));
+    const me = ERP_MEERA.user();
+    if (me.admin || !me.tabs.length) return true;
+    return me.tabs.includes(tab) || (tab === 'shop' && me.tabs.includes('shopret')) || (tab === 'ord' && me.tabs.includes('shopprod'));
   } catch (e) { return true; }
 }
 /* ============================== FILE: src/app/core/guide-fill.js ============================== */
@@ -79070,7 +79117,7 @@ function gaWalksLoad() {
 function gaWalkFor(e) {
   const id = (e.task && GUIDE_TASKS.some(t => t.id === e.task)) ? e.task : GA_WALK_OF.get(e.id) || (e.sel && GA_WALK_SEL.get(e.sel));
   const t = id && GUIDE_TASKS.find(x => x.id === id);
-  if (!t || (t.admin && typeof ME !== 'undefined' && ME && !ME.admin)) return null;
+  if (!t || (t.admin && !ERP_MEERA.user().admin)) return null;
   return t.steps.some(s => s.tab && !guideMayOpen(s.tab)) ? null : t;
 }
 /** A step's box as it is now: there, and filled or not. */
@@ -79253,9 +79300,9 @@ gaNudgeWatch();
 const gaLater = (fn, ms) => { const t = setTimeout(fn, ms); if (t && t.unref) t.unref(); };   // never keeps a test run open
 function gaPreload(tries) {
   let signedIn = false;
-  try { signedIn = typeof auth !== 'undefined' && !!(auth && auth.currentUser); } catch (e) { /* not signed in yet */ }
+  try { signedIn = ERP_MEERA.signedIn(); } catch (e) { /* not signed in yet */ }
   if (!signedIn) { if (tries < 30) gaLater(() => gaPreload(tries + 1), 10000); return; }   // waits for the sign-in (up to 5 min)
-  try { if (typeof spIsVendor === 'function' && spIsVendor()) return; } catch (e) { /* not known: go on */ }
+  try { if (ERP_MEERA.user().vendor) return; } catch (e) { /* not known: go on */ }
   try { if (navigator.connection && navigator.connection.saveData) return; } catch (e) { /* not known: go on */ }
   const go = () => ['/guide/meera-bank.json', '/guide/meera-walks.json', '/guide/meera-words.bin']
     .forEach(u => fetch(u, { cache: 'no-cache' }).then(r => r.arrayBuffer()).catch(() => null));
@@ -79274,7 +79321,7 @@ gaLater(() => gaPreload(0), 4000);
 const GA_AI_URL = 'https://meera-router.erp-9a0.workers.dev';   // e.g. 'https://meera-router.<account>.workers.dev' — empty: Meera answers on her own, as before
 
 function gaAiOn() {
-  try { return !!GA_AI_URL && typeof auth !== 'undefined' && !!(auth && auth.currentUser); } catch (e) { return false; }
+  try { return !!GA_AI_URL && ERP_MEERA.signedIn(); } catch (e) { return false; }
 }
 /* Over today's limit (the router said 429): no more asking from this device until tomorrow. */
 const gaAiDay = () => new Date().toISOString().slice(0, 10);
@@ -79295,10 +79342,10 @@ function gaClean(text, names) {
   return s.replace(/\s+/g, ' ').trim();
 }
 function gaNames() {
-  try { return (PTE.emp || []).map(e => String(e[1] || '').trim()).filter(n => n.length >= 3); } catch (e) { return []; }
+  try { return ERP_MEERA.people().filter(n => n.length >= 3); } catch (e) { return []; }
 }
 async function gaAiCall(path, body, method = 'POST') {
-  const tok = await auth.currentUser.getIdToken();
+  const tok = await ERP_MEERA.token();
   const r = await fetch(GA_AI_URL.replace(/\/$/, '') + path, { method, headers: { authorization: 'Bearer ' + tok, 'content-type': 'application/json' },
     body: method === 'POST' ? JSON.stringify(body || {}) : undefined });
   let j = null;

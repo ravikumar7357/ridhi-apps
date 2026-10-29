@@ -29,7 +29,7 @@ const GUIDE_TYPE_STEP = 4;                 // …four a tick: a long sentence is
 const GUIDE = { tour: null, i: 0, typing: 0, miss: {}, field: null, btn: null, seenErr: new Map(), built: false };
 
 /** Kept per person, so two people sharing a computer each get their own walk-rounds. */
-function guideKey(k) { return k + ':' + ((typeof ME !== 'undefined' && ME && ME.email) || 'anon'); }
+function guideKey(k) { return k + ':' + (ERP_MEERA.user().email || 'anon'); }
 function guideGet(k, d) { try { const v = localStorage.getItem(guideKey(k)); return v == null ? d : v; } catch (e) { return d; } }
 function guideSet(k, v) { try { localStorage.setItem(guideKey(k), v); } catch (e) { /* private window: it still works this visit */ } }
 const guideIsOn = () => guideGet('guideOff', '') !== '1';
@@ -103,12 +103,12 @@ function guideBuild() {
   ctl.innerHTML = `<button type="button" id="gdAskBtn" title="Ask Meera anything — English, Hindi or Hinglish (or press ?)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.3"/><path d="M12 16.5h.01"/></svg><span>Ask Meera</span></button>`
     + `<button type="button" id="gdShow" title="Walk me round this screen · इस स्क्रीन को समझाओ">${GUIDE_FACE}<span>Show me</span></button>`
     + `<button type="button" id="gdSwitch" role="switch" title="The helper: first-visit walk-rounds and help after repeated mistakes"><i></i><span></span></button>`;
-  const host = $('topActs'), phone = typeof mobOn === 'function' && mobOn() && $('mobHead');
+  const host = $('topActs'), phone = ERP_MEERA.phone() && $('mobHead');
   if (phone) phone.appendChild(ctl);   // a phone hides the top bar; its header is where the switch can be seen
   else if (host && host.parentNode) host.parentNode.insertBefore(ctl, host.nextSibling);
   else document.body.appendChild(ctl);
   /* the page in front: a screen, or a page that is not one (R-one's My work today) — gaHere, guide-ask.js */
-  $('gdShow').onclick = () => guideStart(typeof gaHere === 'function' ? gaHere() : typeof TAB_NOW !== 'undefined' ? TAB_NOW : '', true);
+  $('gdShow').onclick = () => guideStart(typeof gaHere === 'function' ? gaHere() : ERP_MEERA.screen(), true);
   $('gdSwitch').onclick = () => guideSwitch(!guideIsOn());
   $('gdAskBtn').onclick = () => guideAskOpen();
   /* HER ROUND BUTTON, bottom-right ("Ask Meera" on hover), and its menu: Ask Meera, Show me this screen, Helper on/off.
@@ -170,7 +170,8 @@ function guideSwitch(on) {
 
 /* ---------- the walk-round ---------- */
 
-/** Called by showTab (nav.js) every time a screen opens. The walk-round only on a first visit, and only when on. */
+ERP_MEERA.on('screen', tab => guideScreen(tab));
+/** Called through the bridge (nav.js → meeraBridgeEmit('screen', tab)) every time a screen opens. The walk-round only on a first visit, and only when on. */
 function guideScreen(tab) {
   guideBuild();
   guideSwitchDraw();   // drawn before sign-in under no name; now it is this person's own setting
@@ -182,7 +183,7 @@ function guideScreen(tab) {
   clearTimeout(GUIDE.wait);
   /* Let the screen draw first, and never on top of a window somebody already has open. */
   GUIDE.wait = setTimeout(() => {
-    if (typeof TAB_NOW !== 'undefined' && TAB_NOW !== tab) return;
+    if (ERP_MEERA.screen() !== tab) return;
     if (GUIDE.tour || guideBusy()) return;
     guideStart(tab, false);
   }, 400);
@@ -203,7 +204,7 @@ function guideSteps(tab) {
      * after the opening line, its search, filters, a line and the way to the computer layout. The list is drawn once its
      * data is in — often after a first-visit tour has started — so these steps are kept ("later") and looked for when
      * their turn comes; one that is still not there is passed over then. */
-    if (typeof mobOn === 'function' && mobOn()) st.splice(st[0] && !st[0].sel ? 1 : 0, 0,
+    if (ERP_MEERA.phone()) st.splice(st[0] && !st[0].sel ? 1 : 0, 0,
       { later: true, sel: `#mobL-${tab} .ml-search`, en: 'Type here to find a line — a name, SKU or order number.', hi: 'कोई लाइन ढूँढने के लिए यहाँ लिखें — नाम, SKU या ऑर्डर नंबर।' },
       { later: true, sel: `#mobL-${tab} .ml-chips`, en: 'These narrow the list. They only change what you see, never the data.', hi: 'इनसे लिस्ट छोटी होती है। ये सिर्फ़ दिखना बदलते हैं, डेटा नहीं।' },
       { later: true, sel: `#mobL-${tab} .ml-row`, en: 'Each card is one line. Tap it to open it.', hi: 'हर कार्ड एक लाइन है। खोलने के लिए उस पर टैप करें।' },
@@ -318,9 +319,9 @@ function guideShow() {
   guideWaitOff();
   if (task) {
     /* A step on another screen: that screen opens first (the menu's own access rule), then the step shows. */
-    if (s.tab && typeof TAB_NOW !== 'undefined' && TAB_NOW !== s.tab) {
+    if (s.tab && ERP_MEERA.screen() !== s.tab) {
       if (!guideMayOpen(s.tab)) { guideTaskNoAccess(s.tab); return; }
-      if (!s._went) { s._went = true; showTab(s.tab); setTimeout(() => { if (GUIDE.tour === t) guideShow(); }, 650); return; }
+      if (!s._went) { s._went = true; ERP_MEERA.openScreen(s.tab); setTimeout(() => { if (GUIDE.tour === t) guideShow(); }, 650); return; }
     }
     /* Already done on the screen (the form is open), or its box is not there for this account: on to the next one. */
     const filledNow = GUIDE.fast && !GUIDE.note && s.wait === 'value' && guideTarget(s) && String(guideTarget(s).value || '').trim() !== '';
@@ -466,7 +467,7 @@ function guideDoDraw() {
 /** A task needs a screen this account does not have: say so, instead of landing somewhere else. */
 function guideTaskNoAccess(tab) {
   const name = typeof gaTabName === 'function' ? gaTabName(tab) : tab;
-  GUIDE.tour = { kind: 'tour', tab: typeof TAB_NOW !== 'undefined' ? TAB_NOW : '', steps: [{
+  GUIDE.tour = { kind: 'tour', tab: ERP_MEERA.screen(), steps: [{
     en: 'This guide needs <b>' + esc(name) + '</b>, and your account does not have that screen. Ask your admin to add it.',
     hi: 'इस गाइड के लिए <b>' + esc(name) + '</b> चाहिए, और यह स्क्रीन आपके अकाउंट में नहीं है। एडमिन से जुड़वाएँ।' }] };
   GUIDE.i = 0;

@@ -466,7 +466,7 @@ function gaDiagnose(lang, L) {
   const red = gaRedLines()[0];
   const open = red ? gaFormOf(red) : [...document.querySelectorAll('.ptmodal, [id$="Box"]')].find(b => !b.classList.contains('hide') && guideVisible(b) && gaEmptyBoxes(b).length);
   const empty = gaEmptyBoxes(open).slice(0, 4);
-  const tab = typeof TAB_NOW !== 'undefined' ? TAB_NOW : '';
+  const tab = ERP_MEERA.screen();
   const acts = [];
   let html = '';
   if (red) {
@@ -578,7 +578,7 @@ function gaRead(q) {
 }
 /** The karigars' names, from the ERP's own list: "Ramesh ko…" is about a karigar. */
 function gaPeople() {
-  try { return new Set((PTE.emp || []).flatMap(e => String(e[1] || '').toLowerCase().split(/\s+/).filter(w => w.length >= 3))); }
+  try { return new Set(ERP_MEERA.people().flatMap(n => n.toLowerCase().split(/\s+/).filter(w => w.length >= 3))); }
   catch (e) { return new Set(); }
 }
 /** How well an entry fits: its key meanings found in the question, a must-have meaning, and words left over. */
@@ -659,7 +659,7 @@ function gaGuideFind(means) {
   for (const g of list) {
     let sc = 0;
     for (const m of content) { if (g.head.has(m)) sc += 2 * w(m); else if (g.means.has(m)) sc += w(m); }
-    if (sc && typeof TAB_NOW !== 'undefined' && g.sec === TAB_NOW) sc += 1;
+    if (sc && g.sec === ERP_MEERA.screen()) sc += 1;
     if (sc > bs) { bs = sc; best = g; }
   }
   /* enough: the question's own words carry it, not one common word */
@@ -1087,11 +1087,11 @@ function gaMissList(L) {
 /** The page in front of the person: a screen, or a page of its own that is not one (R-one's "My work today"). */
 function gaHere() {
   try { if (typeof FR !== 'undefined' && FR && FR.shown) return 'mywork'; } catch (e) { /* no such page here */ }
-  return typeof TAB_NOW !== 'undefined' ? TAB_NOW : '';
+  return ERP_MEERA.screen();
 }
 /** Open a screen — or that page. */
 function gaGo(tab) {
-  if (tab === 'mywork' && typeof frHomeShow === 'function') frHomeShow(); else showTab(tab);
+  if (tab === 'mywork' && typeof frHomeShow === 'function') frHomeShow(); else ERP_MEERA.openScreen(tab);
 }
 /* ---------- the chat box ---------- */
 let GA = { built: false, greeted: false };
@@ -1212,7 +1212,8 @@ function guideTaskStart(id, q) {
 function guideMayOpen(tab) {
   if (tab === 'mywork') return typeof frHomeShow === 'function';
   try {
-    if (!ME || ME.admin || !ME.tabs || !ME.tabs.length) return true;
-    return ME.tabs.includes(tab) || (tab === 'shop' && ME.tabs.includes('shopret')) || (tab === 'ord' && ME.tabs.includes('shopprod'));
+    const me = ERP_MEERA.user();
+    if (me.admin || !me.tabs.length) return true;
+    return me.tabs.includes(tab) || (tab === 'shop' && me.tabs.includes('shopret')) || (tab === 'ord' && me.tabs.includes('shopprod'));
   } catch (e) { return true; }
 }
