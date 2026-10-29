@@ -70,7 +70,7 @@ async function loadMyPerms(user) {
 }
 
 function applyPerms() {
-  const allowed = t => ME.admin || ME.tabs.includes(t);
+  const allowed = t => ME.admin || ME.tabs.includes(t) || (!!TAB_INHERIT[t] && ME.tabs.includes(TAB_INHERIT[t]));
   TABS.forEach(t => {
     const hide = HIDDEN_TABS.includes(t) || !allowed(t);
     $('tab' + capId(t)).classList.toggle('hide', hide);
