@@ -11394,14 +11394,13 @@ console.log('\n== the printer\'s custom orders, combined but still traceable =='
   A.renderVp();
   const html = els.vpBody.innerHTML;
   ok('the custom tab holds the Shopify work, and only that',
-     /VPO-SHOP-VND001/.test(html) && !/VPO-260911-BRG/.test(html));
-  /* ONE ROW PER PRODUCT. Two customer orders for the same tablecloth are one thing to print. */
-  const skuCells = s => (html.match(new RegExp('>' + s + '</td>', 'g')) || []).length;
-  ok('the same product is one row, not two', skuCells('RTC350-80120') === 1, String(skuCells('RTC350-80120')));
-  ok('…with the pieces added up', /3 <span class="muted"[^>]*>pcs<\/span>/.test(html), html.slice(0, 0) || 'no 3 pcs cell');
-  /* AND STILL TRACEABLE. The order numbers are on the row — that is the whole point of combining. */
-  ok('…and every customer order named on it', /#3538/.test(html) && /#3589/.test(html));
-  ok('a product ordered once is still its own row', skuCells('RTCR384-90') === 1, String(skuCells('RTCR384-90')));
+     /#3538/.test(html) && !/VPO-260911-BRG/.test(html));
+  /* THE CLEAN SHEET (Ravi, 30 Oct): one row per line, eight columns, nothing else. */
+  const heads = (html.match(/<th[^>]*>([^<]*)<\/th>/g) || []).map(x => x.replace(/<[^>]+>/g, ''));
+  ok('the custom tab is the eight-column sheet: Date, Order Number, Image, Article, Size, Ordered, Vendor Sent, Vendor Date',
+     heads.join('|') === 'Date|Order Number|Image|Article|Size|Ordered|Vendor Sent|Vendor Date', heads.join('|'));
+  ok('…one row per customer order line, each with its own order number', /#3538/.test(html) && /#3589/.test(html) && (html.match(/<tr>/g) || []).length >= 4);
+  ok('…and none of the old extras: no order bar, no colour group, no Balance column', !/pill/.test(html.replace(/vpvs[^"]*/g, '')) || !/Balance|Customer orders|Sending now/.test(html));
 
   /* One date on the row is the date for every order on it: printed together, finished together. */
   Object.keys(QS).forEach(k => delete QS[k]);
