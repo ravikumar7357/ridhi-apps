@@ -538,24 +538,35 @@ function vpHistTable(rows) {
  */
 function vpCustomSheet(rows, f) {
   const COLS = ['Date', 'Order Number', 'Image', 'Article', 'Size', 'Ordered', 'Vendor Sent', 'Vendor Date'];
-  const on = !!(f && vpLineOn(f)), seen = new Set(), out = [];
-  rows.slice().sort((a, b) => String(a.orderDate || '').localeCompare(String(b.orderDate || '')) || String(a.orderNo || a.id).localeCompare(String(b.orderNo || b.id))).forEach(o => {
+  const on = !!(f && vpLineOn(f)), seen = new Set(), items = [];
+  /* ONE LIST, A TO Z BY COLOUR (Ravi, 30 Oct: "1 a-z series me dikhe color wise"): every line of every order in one run, colour A→Z, then
+   * article and size, then the oldest order first; a line with no colour goes last. */
+  rows.forEach(o => voLines(o).forEach((l, i) => {
+    if (!l || l.cancelled || !vpPartOk(o, l) || !vpQOk(o, l, f) || (on && !voLineMatches(l, f))) return;
+    items.push({ o, l, i });
+  }));
+  const col = x => String(x.l.color || '').trim().toLowerCase(), art = x => String(x.o.orderType === 'running' ? (x.l.fabricType || '') : (x.l.articleSubtype || x.l.articleType || '')).toLowerCase();
+  items.sort((a, b) => (!col(a) - !col(b)) || col(a).localeCompare(col(b)) || art(a).localeCompare(art(b))
+    || String(a.l.size || '').localeCompare(String(b.l.size || ''), undefined, { numeric: true })
+    || String(a.o.orderDate || '').localeCompare(String(b.o.orderDate || '')) || String(a.o.orderNo || a.o.id).localeCompare(String(b.o.orderNo || b.o.id)));
+  const out = items.map(({ o, l, i }) => {
     const run = o.orderType === 'running', unit = run ? 'm' : 'pcs';
-    voLines(o).forEach((l, i) => {
-      if (!l || l.cancelled || !vpPartOk(o, l) || !vpQOk(o, l, f) || (on && !voLineMatches(l, f))) return;
-      const ord = vpQty(o, l), bal = Math.max(0, ord - vpDone(l)), first = !seen.has(o.id); seen.add(o.id);
-      out.push('<tr>'
-        + `<td style="text-align:left;white-space:nowrap;font-size:12px">${esc(o.orderDate) || '<span class="muted">—</span>'}</td>`
-        + `<td style="text-align:left;font-weight:700;font-size:12.5px">${esc(vpIsShop(o) && (l.shopRef || l.shopOrderNo) ? (l.shopRef || l.shopOrderNo) : (o.orderNo || o.id))}${first ? `<div data-vpmsg="${esc(o.id)}" class="muted" style="font-size:11px;font-weight:400"></div>` : ''}</td>`
-        + ptImgCell(l.sku)
-        + `<td style="text-align:left;font-size:12.5px">${esc(l.articleSubtype || l.articleType || '') || '<span class="muted">—</span>'}</td>`
-        + `<td style="font-size:12.5px">${esc(l.size || '') || '<span class="muted">—</span>'}</td>`
-        + `<td class="num" style="font-weight:700">${nf(ord)} <span class="muted" style="font-weight:400;font-size:10px">${unit}</span></td>`
-        + vpVsHtml(o, l, i, ord, unit, 'td')
-        + `<td>${vpViewAll() || flowVpViewOnly(o) || bal <= 0 ? `<span style="font-size:12px">${esc(voProm(l) ? dShow(voProm(l)) : '') || '<span class="muted">—</span>'}</span>`
-            : `<input data-vpprom="${esc(o.id)}" data-i="${i}" type="date" value="${esc(voProm(l))}" style="width:146px">`}</td>`
-        + '</tr>');
-    });
+    const ord = vpQty(o, l), bal = Math.max(0, ord - vpDone(l)), first = !seen.has(o.id); seen.add(o.id);
+    /* WHAT IT IS: a cut line is its article; a running (cloth) line is its fabric and print. The colour and the SKU sit under it, small. */
+    const what = run ? [l.fabricType, l.printDirection].filter(Boolean).join(' · ') : (l.articleSubtype || l.articleType || '');
+    const sub = [l.color, run ? (l.sku || '') : l.sku].filter(Boolean).join(' · ');
+    const pic = l.img ? ptImgCellSrc(l.sku, l.img) : (run ? vpRunPic(l, 38, true) : ptImgCell(l.sku));
+    return '<tr>'
+      + `<td style="text-align:left;white-space:nowrap;font-size:12px">${esc(o.orderDate) || '<span class="muted">—</span>'}</td>`
+      + `<td style="text-align:left;font-weight:700;font-size:12.5px">${esc(vpIsShop(o) && (l.shopRef || l.shopOrderNo) ? (l.shopRef || l.shopOrderNo) : (o.orderNo || o.id))}${first ? `<div data-vpmsg="${esc(o.id)}" class="muted" style="font-size:11px;font-weight:400"></div>` : ''}</td>`
+      + pic
+      + `<td style="text-align:left;font-size:12.5px;line-height:1.35">${esc(what) || '<span class="muted">—</span>'}${sub ? `<div class="muted" style="font-size:11px">${esc(sub)}</div>` : ''}</td>`
+      + `<td style="font-size:12.5px">${esc(run ? '' : (l.size || '')) || '<span class="muted">—</span>'}</td>`
+      + `<td class="num" style="font-weight:700">${nf(ord)} <span class="muted" style="font-weight:400;font-size:10px">${unit}</span></td>`
+      + vpVsHtml(o, l, i, ord, unit, 'td')
+      + `<td>${vpViewAll() || flowVpViewOnly(o) || bal <= 0 ? `<span style="font-size:12px">${esc(voProm(l) ? dShow(voProm(l)) : '') || '<span class="muted">—</span>'}</span>`
+          : `<input data-vpprom="${esc(o.id)}" data-i="${i}" type="date" value="${esc(voProm(l))}" style="width:146px">`}</td>`
+      + '</tr>';
   });
   if (!out.length) return '<div class="card" style="padding:34px;text-align:center;color:var(--muted)">No custom order line to show.</div>';
   return `<div class="card xlwrap" style="padding:0"><table class="xl"><thead><tr>${COLS.map(h => `<th${h === 'Ordered' ? ' class="num"' : ''}>${esc(h)}</th>`).join('')}</tr></thead><tbody>${out.join('')}</tbody></table></div>`;

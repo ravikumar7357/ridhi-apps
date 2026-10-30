@@ -11400,6 +11400,7 @@ console.log('\n== the printer\'s custom orders, combined but still traceable =='
   ok('the custom tab is the eight-column sheet: Date, Order Number, Image, Article, Size, Ordered, Vendor Sent, Vendor Date',
      heads.join('|') === 'Date|Order Number|Image|Article|Size|Ordered|Vendor Sent|Vendor Date', heads.join('|'));
   ok('…one row per customer order line, each with its own order number', /#3538/.test(html) && /#3589/.test(html) && (html.match(/<tr>/g) || []).length >= 4);
+  ok('…one list, colour A to Z (Dark Salmon Pink before Sea Green), the colour and SKU under the article', html.indexOf('Dark Salmon Pink') > 0 && html.indexOf('Dark Salmon Pink') < html.indexOf('Sea Green') && /Dark Salmon Pink · RTC350-80120/.test(html));
   ok('…and none of the old extras: no order bar, no colour group, no Balance column', !/pill/.test(html.replace(/vpvs[^"]*/g, '')) || !/Balance|Customer orders|Sending now/.test(html));
 
   /* One date on the row is the date for every order on it: printed together, finished together. */
