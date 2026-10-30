@@ -90,7 +90,7 @@ const VP_FLOW = { Placed: 'Acknowledged', Acknowledged: 'In Production' };
  */
 function vendTabRule(isVendor) {
   if (isVendor) return 'yes';
-  const asked = !!(ME.tabsExplicit && !ME.admin && (ME.tabs || []).indexOf('vend') >= 0);
+  const asked = !!(ME.tabsExplicit && !ME.admin && !ME.vpView && (ME.tabs || []).indexOf('vend') >= 0);   // the view-only box opens the portal by its own link, not the Vendors heading
   return asked ? 'ask' : 'no';
 }
 

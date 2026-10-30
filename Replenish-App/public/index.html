@@ -5070,7 +5070,7 @@ const REPL_TABS = ['repl', 'article', 'target', 'top', 'shopify', 'pack',
    * never built, and pt_cxOrders was never written to. Its pane stays in the page, unreachable. */
   /* Quality Control is three jobs, not one: 'qc' is the checks, 'qcalt' is sending rejects out for
    * alteration, 'qcret' is taking them back. One tab, three grants. */
-  'pmdb', 'mst', 'att', 'pbase', 'pcut', 'ppress', 'qc', 'qcalt', 'qcret', 'ord', 'so', 'vord', 'vreq', 'rfd', 'vend', 'vlog', 'palloc', 'fgi', 'fgacc', 'shpacc', 'fba', 'fab', 'acc', 'rep', 'pa', 'ka', 'hr',
+  'pmdb', 'mst', 'att', 'pbase', 'pcut', 'ppress', 'qc', 'qcalt', 'qcret', 'ord', 'so', 'vord', 'vreq', 'rfd', 'vend', 'vlog', 'palloc', 'fgi', 'fgacc', 'shpacc', 'vpview', 'fba', 'fab', 'acc', 'rep', 'pa', 'ka', 'hr',
   'shop', 'adj', 'shopprod', 'shopret', 'dash',
   /* Production flow (test, 2026-10-10): one right per bucket — the same keys as FLOW_BUCKETS in flow/flow-core.js. */
   'flppc', 'fldem', 'flacc', 'flchl', 'flcut', 'flraw', 'flwip',
@@ -5204,6 +5204,12 @@ onAuthStateChanged(auth, async user => {
     ME.tabs = ME.tabs.filter(t => t !== 'shpacc');
     if (only) { ME.tabs = ME.tabs.concat('ord'); ME.shpAccOnly = true; }
   }
+
+  /* PRINTER'S PORTAL, VIEW ONLY (Ravi, 30 Oct): its own box in Access. It adds the portal's tab so the screen can open, and ME.vpView, which
+   * shows the "Printer's portal (view)" link and the printer picker (flow/flow-vendor.js) to this account as it does to an admin. The portal
+   * stays view only: nothing is typed there while a printer is picked. 'vpview' stays in the list so the Production heading is shown. */
+  ME.vpView = false;
+  if (ME.tabs.includes('vpview') && !ME.admin) { ME.vpView = true; ME.tabs = ME.tabs.filter(t => t !== 'vpview' && t !== 'vend').concat('vend', 'vpview'); }   // both last, so the first tab is always a screen
 
   /* THE SHOPIFY VIEW OF REPLENISHMENT (Ravi, 2026-10-14). An account that works the Shopify screens and holds no planning
    * screen — and is not an admin — gets Replenishment too, but only as the Shopify view: what a SKU is and what Amazon
@@ -5452,7 +5458,7 @@ const NAV_PROD_ONLY = (function navProductionOnly() {
   cols.forEach(c => sec.appendChild(c));
   cols[1].appendChild(vpAs);
   sec.appendChild(off);
-  $('grpProd').dataset.tabs = 'flow,flppc,fldem,flacc,flchl,flcut,flraw,flwip,palloc,pcut,pbase,ppress,qc';
+  $('grpProd').dataset.tabs = 'flow,flppc,fldem,flacc,flchl,flcut,flraw,flwip,palloc,pcut,pbase,ppress,qc,vpview';
 
   const vend = $('grpVendors');
   if (vend) { vend.dataset.tabs = 'vend'; vend.lastChild.textContent = ' Vendors'; }
@@ -5600,7 +5606,7 @@ function syncNavGroups() {
     g.head.classList.toggle('hide', dead);
     g.sec.classList.toggle('hide', dead);
   });
-  if ($('tabVpAs')) $('tabVpAs').style.display = ME && ME.admin && !NAV_IS_VENDOR ? '' : 'none';   // the printer's view: admins
+  if ($('tabVpAs')) $('tabVpAs').style.display = ME && (ME.admin || ME.vpView) && !NAV_IS_VENDOR ? '' : 'none';   // the printer's view: admins, and the 'vpview' box
 }
 
 /* The hamburger hides the sidebar outright on a wide screen and slides it over the page on a narrow
@@ -31592,7 +31598,7 @@ let FLOW_VP_AS = null;   // { code, name } while an admin looks as a printer
 async function flowVpAfterLoad() {
   if (!FLOW_ON || typeof VP === 'undefined') return;
   VP.viewAs = false;
-  if (FLOW_VP_AS && ME.admin) {
+  if (FLOW_VP_AS && (ME.admin || ME.vpView)) {
     VP.code = FLOW_VP_AS.code; VP.name = FLOW_VP_AS.name; VP.viewAs = true;
     try { VP.rows = ptList(await ptGet('pt_vendorOrders/' + VP.code)); } catch (e) { VP.rows = []; }
   }
@@ -31605,7 +31611,7 @@ async function flowVpAfterLoad() {
 }
 /** The "View as printer" picker above the portal — an admin, on the preview only. */
 async function flowVpBar() {
-  if (!FLOW_ON || !ME.admin || !$('vpBody') || $('flVpAs')) return;
+  if (!FLOW_ON || !(ME.admin || ME.vpView) || !$('vpBody') || $('flVpAs')) return;
   $('vpBody').insertAdjacentHTML('beforebegin', `<div class="card" style="padding:8px 12px;margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;border:1px dashed #7c3aed">
     <span style="color:#7c3aed;font-weight:600;font-size:12.5px">PRINTER'S VIEW</span>
     <label style="display:flex;gap:6px;align-items:center;margin:0;font-size:12.5px">See the portal as printer
@@ -48931,7 +48937,7 @@ const VP_FLOW = { Placed: 'Acknowledged', Acknowledged: 'In Production' };
  */
 function vendTabRule(isVendor) {
   if (isVendor) return 'yes';
-  const asked = !!(ME.tabsExplicit && !ME.admin && (ME.tabs || []).indexOf('vend') >= 0);
+  const asked = !!(ME.tabsExplicit && !ME.admin && !ME.vpView && (ME.tabs || []).indexOf('vend') >= 0);   // the view-only box opens the portal by its own link, not the Vendors heading
   return asked ? 'ask' : 'no';
 }
 

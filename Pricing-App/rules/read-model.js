@@ -67,6 +67,12 @@ FGACC_NODES.forEach(n => { const h = BY_HAND[n] || (BY_HAND[n] = {}); h.tabs = (
 const SHPACC_NODES = [...new Set(Object.keys(MAP.nodes).filter(n => ((MAP.nodes[n] || {}).tabs || []).indexOf('ord') >= 0)
   .concat(FLOW_NODES, ['pt_shpBoardTest', 'pt_shpBoardPress', 'pt_shpBoardShip']))];
 SHPACC_NODES.forEach(n => { const h = BY_HAND[n] || (BY_HAND[n] = {}); h.tabs = (h.tabs || []).concat('shpacc'); });
+/* PRINTER'S PORTAL, VIEW ONLY (Ravi, 30 Oct): an admin-only link until now. The box 'vpview' reads what the portal reads, every printer's orders
+ * (the printer picked from pt_vendorMap), and the flow's records the portal's "as printer" view loads. Writing stays a staff matter through "$other";
+ * the screen itself is view only. */
+const VPVIEW_NODES = [...new Set(Object.keys(MAP.nodes).filter(n => ((MAP.nodes[n] || {}).tabs || []).indexOf('vend') >= 0)
+  .concat(FLOW_NODES, ['pt_vendorOrders', 'pt_vendorMap']))];
+VPVIEW_NODES.forEach(n => { const h = BY_HAND[n] || (BY_HAND[n] = {}); h.tabs = (h.tabs || []).concat('vpview'); });
 
 /* "CAN ADD AND DELETE EMPLOYEES" OPENS FINANCE & HR WITHOUT THE TAB (hrEmpOnly): the employee list, the extra
  * hours that count where a name is used, and the shared plumbing every factory screen loads. ensureHr

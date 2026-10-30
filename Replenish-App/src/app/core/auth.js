@@ -123,6 +123,12 @@ onAuthStateChanged(auth, async user => {
     if (only) { ME.tabs = ME.tabs.concat('ord'); ME.shpAccOnly = true; }
   }
 
+  /* PRINTER'S PORTAL, VIEW ONLY (Ravi, 30 Oct): its own box in Access. It adds the portal's tab so the screen can open, and ME.vpView, which
+   * shows the "Printer's portal (view)" link and the printer picker (flow/flow-vendor.js) to this account as it does to an admin. The portal
+   * stays view only: nothing is typed there while a printer is picked. 'vpview' stays in the list so the Production heading is shown. */
+  ME.vpView = false;
+  if (ME.tabs.includes('vpview') && !ME.admin) { ME.vpView = true; ME.tabs = ME.tabs.filter(t => t !== 'vpview' && t !== 'vend').concat('vend', 'vpview'); }   // both last, so the first tab is always a screen
+
   /* THE SHOPIFY VIEW OF REPLENISHMENT (Ravi, 2026-10-14). An account that works the Shopify screens and holds no planning
    * screen — and is not an admin — gets Replenishment too, but only as the Shopify view: what a SKU is and what Amazon
    * holds of it (replenishment.js → renderReplShop). Admins and planners keep the full screen. */
