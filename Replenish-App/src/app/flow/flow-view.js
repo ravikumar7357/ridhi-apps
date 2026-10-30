@@ -574,7 +574,7 @@ function flowTable(view, rows) {
     return `<td class="frz" style="text-align:left;width:250px;max-width:250px;white-space:normal;vertical-align:top">${h}${flowDocsHtml(x)}${x.r.__t && first
       ? `<a href="#" data-fltdel="${esc(x.r.orderNo)}" style="font-size:11.5px;color:#b91c1c">delete test</a>` : ''}</td>
     <td style="text-align:left;white-space:nowrap;vertical-align:top"><div style="display:flex;gap:8px;align-items:flex-start">${pic(x.r.sku)}<div style="line-height:1.5">
-      <b style="font-family:ui-monospace,monospace">${esc(x.r.sku)}</b>${[x.r.articleSubtype || x.r.articleType, x.r.color, x.r.size].filter(Boolean)
+      <b style="font-family:ui-monospace,monospace">${esc(x.r.sku)}</b>${(x.r.articleSubtype || x.r.articleType ? [x.r.articleSubtype || x.r.articleType, x.r.color, x.r.size] : [x.r.itemName, x.r.material, x.r.color, x.r.size]).filter(Boolean)
         .map(t => `<div class="muted" style="font-size:12px">${esc(t)}</div>`).join('')}</div></div></td>
     <td class="num" style="vertical-align:top"><b>${nf(x.r.qty)}</b></td>`; };
   /* A test line has no register entry to make: its button stands in for that entry. */

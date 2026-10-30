@@ -2317,6 +2317,9 @@ const K = 'AMZ-1__S1';
     const cutHtml = A.flowTable('cut', A.flowRows());
     ok('To cut says what it is cut from: Sheeting 82, printed, in hand, 25 m — not "—"', /<b>Sheeting 82<\/b>/.test(cutHtml) && /printed, in hand/.test(cutHtml) && /25 m for 100 pcs/.test(cutHtml), cutHtml.slice(0, 900));
     ok('To cut says how many pieces are still to cut — on the line and in a total on top (100 pcs, none cut yet)', /Pending to cut/.test(cutHtml) && /Cutting pending: <b>100 pcs<\/b> on 1 line/.test(cutHtml) && /<b style="font-size:15px">100<\/b> pcs/.test(cutHtml), cutHtml.slice(0, 1200));
+    { const C = load({ me: { admin: true }, lines: [L({ orderNo: 'B2B-1', sku: 'CPCTR033-1290', qty: 16, itemName: 'Runner', material: 'Sheeting', color: 'Meadow Vine', size: '12x90' })] });
+      const ph = C.flowTable('ppc', C.flowRows());
+      ok('PPC says what a custom SKU is, as the Order Console does: item name, material, colour, size', /Runner/.test(ph) && /Sheeting/.test(ph) && /Meadow Vine/.test(ph) && /12x90/.test(ph)); }
     const B = load({ me: { tabs: ['flppc'] }, mdb, lines: [L({ sku: 'S1', qty: 100 })] });
     B.flowPpcOpen('AMZ-1');
     B.ctx.document.querySelectorAll = sel => sel === '[data-fp]' ? [box('route', 'inhouse'), box('printer.code', 'P1'), box('fabric.noRfd', '', 'checkbox', true)] : [];
