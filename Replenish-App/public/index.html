@@ -5070,7 +5070,7 @@ const REPL_TABS = ['repl', 'article', 'target', 'top', 'shopify', 'pack',
    * never built, and pt_cxOrders was never written to. Its pane stays in the page, unreachable. */
   /* Quality Control is three jobs, not one: 'qc' is the checks, 'qcalt' is sending rejects out for
    * alteration, 'qcret' is taking them back. One tab, three grants. */
-  'pmdb', 'mst', 'att', 'pbase', 'pcut', 'ppress', 'qc', 'qcalt', 'qcret', 'ord', 'so', 'vord', 'vreq', 'rfd', 'vend', 'vlog', 'palloc', 'fgi', 'fgacc', 'fba', 'fab', 'acc', 'rep', 'pa', 'ka', 'hr',
+  'pmdb', 'mst', 'att', 'pbase', 'pcut', 'ppress', 'qc', 'qcalt', 'qcret', 'ord', 'so', 'vord', 'vreq', 'rfd', 'vend', 'vlog', 'palloc', 'fgi', 'fgacc', 'shpacc', 'fba', 'fab', 'acc', 'rep', 'pa', 'ka', 'hr',
   'shop', 'adj', 'shopprod', 'shopret', 'dash',
   /* Production flow (test, 2026-10-10): one right per bucket — the same keys as FLOW_BUCKETS in flow/flow-core.js. */
   'flppc', 'fldem', 'flacc', 'flchl', 'flcut', 'flraw', 'flwip',
@@ -5193,6 +5193,16 @@ onAuthStateChanged(auth, async user => {
     const only = !ME.admin && !ME.tabs.includes('fgi');
     ME.tabs = ME.tabs.filter(t => t !== 'fgacc');
     if (only) { ME.tabs = ME.tabs.concat('fgi'); ME.fgAccOnly = true; }
+  }
+
+  /* SHIPPING TO ACCEPT (Ravi, 30 Oct): its own box in Access, for the shipping team member who accepts what production pressed and does
+   * nothing else in the Order Console. A grant, not a screen: on its own it opens the Order Console on the SHP board's "Shipping to
+   * accept" list (ME.shpAccOnly, orders/shp-board.js); with the Order Console ticked as well it adds nothing. */
+  ME.shpAccOnly = false;
+  if (ME.tabs.includes('shpacc')) {
+    const only = !ME.admin && !ME.tabs.includes('ord');
+    ME.tabs = ME.tabs.filter(t => t !== 'shpacc');
+    if (only) { ME.tabs = ME.tabs.concat('ord'); ME.shpAccOnly = true; }
   }
 
   /* THE SHOPIFY VIEW OF REPLENISHMENT (Ravi, 2026-10-14). An account that works the Shopify screens and holds no planning
@@ -22741,7 +22751,7 @@ function shpReadyLines() {
   }).filter(x => x.ready > 0).sort((a, b) => String(a.l.orderDate || '').localeCompare(String(b.l.orderDate || '')) || a.key.localeCompare(b.key));
 }
 /** The shipping team takes the goods: whoever works the Shopify tab, anybody who records production, an admin. */
-const shpCanReceive = () => !spIsVendor() && !!(ME.admin || ptCanEdit() || (ME.tabs || []).indexOf('shopify') >= 0);
+const shpCanReceive = () => !spIsVendor() && !!(ME.admin || ptCanEdit() || ME.shpAccOnly || (ME.tabs || []).indexOf('shopify') >= 0);
 /** items: [{ orderNo, sku, qty }] — what arrived. Never more than the line still owes. */
 async function shpReceive(items) {
   if (!shpCanReceive()) return 'Taking goods from production needs the Shopify tab.';
@@ -25845,6 +25855,8 @@ $('odTable').addEventListener('click', async e => {
 const ordView = () => (($('odView') || {}).value || 'shopsku');
 
 function renderOrd() {
+  /* SHIPPING TO ACCEPT ONLY (core/auth.js, ME.shpAccOnly): the Order Console is the SHP board, and nothing else. */
+  if (ME.shpAccOnly && $('odView') && $('odView').value !== 'shpboard') $('odView').value = 'shpboard';
   /* The brands that appear on the book, so the filter never offers one with nothing behind it. */
   if ($('odBrand')) ptFillSelect('odBrand', [...new Set((PTG.ob || []).map(r => ordBrandOf(r && r.sku)).filter(Boolean))]
     .sort().map(b => [b, b]), 'All brands');
@@ -26975,6 +26987,9 @@ function shpbView() {
 
 function renderShpBoard() {
   if (!$('odTable')) return;
+  /* SHIPPING TO ACCEPT ONLY: the one list this account works — pieces pressed and waiting for shipping — without the buckets, the tabs, the view
+   * picker or Close lines. */
+  if (ME.shpAccOnly) { SHPB.tab = 'done'; SHPB.stage = 'hand'; ['odView', 'odClose', 'odExport'].forEach(id => { const b = $(id); if (b && b.classList) b.classList.add('hide'); }); }
   if (!SHPB.readyAt && !SHPB.busy) shpbLoad(true);
   SHPB_STK = Array.isArray(FGI.rows) ? fgiStock() : null;
   const { f, all, pend, done, list } = shpbView(), tab = SHPB.tab;
@@ -26991,7 +27006,8 @@ function renderShpBoard() {
       + `<div style="font-size:10.5px;opacity:.85">orders · ${nf(pcs)} pcs</div></button>`; };
   /* No title and no KPI cards (Ravi, 28 Oct) — the buckets are the summary. */
   /* ONE LINE: the stage buckets, and the two tabs at the right end (Ravi, 28 Oct: no "Waiting at:", no long note, the tabs up with the buckets). */
-  $('odKpis').innerHTML = `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:2px 0 8px">${SHPB_STAGES.map(bucket).join('')}`
+  $('odKpis').innerHTML = ME.shpAccOnly ? `<div style="margin:2px 0 8px;font-weight:700;font-size:15px">Shipping to accept · ${nf(done.filter(r => r.open && shpbStages([r]).handW > 0).length)} line(s)</div>`
+    : `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:2px 0 8px">${SHPB_STAGES.map(bucket).join('')}`
     + `<div style="display:flex;gap:8px;margin-left:auto">${tabBtn('pending', 'Order pending · ' + nf(pend.length))}${tabBtn('done', 'Complete · ' + nf(done.length))}</div></div>`;
   $('odMsg').className = SHPB.err ? 'err' : 'muted';
   $('odMsg').textContent = SHPB.err || '';
@@ -27012,7 +27028,7 @@ function renderShpBoardDone(list) {
   if (!list.length) { ptEmpty('odTable', SHPB.stage === 'hand' ? 'Nothing is waiting for shipping to accept.' : 'Nothing is pressed or handed over yet.'); return; }
   const waiting = list.filter(r => r.open && shpbStages([r]).handW > 0).sort((a, b) => String(a.orderDate).localeCompare(String(b.orderDate)) || a.orderNo.localeCompare(b.orderNo));
   const rest = list.filter(r => !waiting.includes(r)).map(r => ({ r, at: String(r.handedAt || r.shopDoneAt || '') })).sort((a, b) => b.at.localeCompare(a.at) || a.r.orderNo.localeCompare(b.r.orderNo)).slice(0, 500);
-  const edit = shpbCanEdit();
+  const edit = shpbCanEdit() || !!ME.shpAccOnly;
   const th = t => `<th style="${SHPB_PAD}text-align:left">${t}</th>`;
   const head = `<thead><tr>${th('Date')}${th('Order ID')}${th('Item')}<th class="num" style="${SHPB_PAD}">Pcs</th>${th('Pressed')}<th class="num" style="${SHPB_PAD}">Accepted</th>${th('Shipping')}</tr></thead>`;
   const common = r => { const s = shpbStages([r]), px = (SHPB.pressBy || {})[shpbKey(r.orderNo, r.sku)] || {};

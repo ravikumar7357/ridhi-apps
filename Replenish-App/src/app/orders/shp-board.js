@@ -227,6 +227,9 @@ function shpbView() {
 
 function renderShpBoard() {
   if (!$('odTable')) return;
+  /* SHIPPING TO ACCEPT ONLY: the one list this account works — pieces pressed and waiting for shipping — without the buckets, the tabs, the view
+   * picker or Close lines. */
+  if (ME.shpAccOnly) { SHPB.tab = 'done'; SHPB.stage = 'hand'; ['odView', 'odClose', 'odExport'].forEach(id => { const b = $(id); if (b && b.classList) b.classList.add('hide'); }); }
   if (!SHPB.readyAt && !SHPB.busy) shpbLoad(true);
   SHPB_STK = Array.isArray(FGI.rows) ? fgiStock() : null;
   const { f, all, pend, done, list } = shpbView(), tab = SHPB.tab;
@@ -243,7 +246,8 @@ function renderShpBoard() {
       + `<div style="font-size:10.5px;opacity:.85">orders · ${nf(pcs)} pcs</div></button>`; };
   /* No title and no KPI cards (Ravi, 28 Oct) — the buckets are the summary. */
   /* ONE LINE: the stage buckets, and the two tabs at the right end (Ravi, 28 Oct: no "Waiting at:", no long note, the tabs up with the buckets). */
-  $('odKpis').innerHTML = `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:2px 0 8px">${SHPB_STAGES.map(bucket).join('')}`
+  $('odKpis').innerHTML = ME.shpAccOnly ? `<div style="margin:2px 0 8px;font-weight:700;font-size:15px">Shipping to accept · ${nf(done.filter(r => r.open && shpbStages([r]).handW > 0).length)} line(s)</div>`
+    : `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:2px 0 8px">${SHPB_STAGES.map(bucket).join('')}`
     + `<div style="display:flex;gap:8px;margin-left:auto">${tabBtn('pending', 'Order pending · ' + nf(pend.length))}${tabBtn('done', 'Complete · ' + nf(done.length))}</div></div>`;
   $('odMsg').className = SHPB.err ? 'err' : 'muted';
   $('odMsg').textContent = SHPB.err || '';
@@ -264,7 +268,7 @@ function renderShpBoardDone(list) {
   if (!list.length) { ptEmpty('odTable', SHPB.stage === 'hand' ? 'Nothing is waiting for shipping to accept.' : 'Nothing is pressed or handed over yet.'); return; }
   const waiting = list.filter(r => r.open && shpbStages([r]).handW > 0).sort((a, b) => String(a.orderDate).localeCompare(String(b.orderDate)) || a.orderNo.localeCompare(b.orderNo));
   const rest = list.filter(r => !waiting.includes(r)).map(r => ({ r, at: String(r.handedAt || r.shopDoneAt || '') })).sort((a, b) => b.at.localeCompare(a.at) || a.r.orderNo.localeCompare(b.r.orderNo)).slice(0, 500);
-  const edit = shpbCanEdit();
+  const edit = shpbCanEdit() || !!ME.shpAccOnly;
   const th = t => `<th style="${SHPB_PAD}text-align:left">${t}</th>`;
   const head = `<thead><tr>${th('Date')}${th('Order ID')}${th('Item')}<th class="num" style="${SHPB_PAD}">Pcs</th>${th('Pressed')}<th class="num" style="${SHPB_PAD}">Accepted</th>${th('Shipping')}</tr></thead>`;
   const common = r => { const s = shpbStages([r]), px = (SHPB.pressBy || {})[shpbKey(r.orderNo, r.sku)] || {};

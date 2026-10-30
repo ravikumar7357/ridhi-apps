@@ -37,7 +37,7 @@ function shpReadyLines() {
   }).filter(x => x.ready > 0).sort((a, b) => String(a.l.orderDate || '').localeCompare(String(b.l.orderDate || '')) || a.key.localeCompare(b.key));
 }
 /** The shipping team takes the goods: whoever works the Shopify tab, anybody who records production, an admin. */
-const shpCanReceive = () => !spIsVendor() && !!(ME.admin || ptCanEdit() || (ME.tabs || []).indexOf('shopify') >= 0);
+const shpCanReceive = () => !spIsVendor() && !!(ME.admin || ptCanEdit() || ME.shpAccOnly || (ME.tabs || []).indexOf('shopify') >= 0);
 /** items: [{ orderNo, sku, qty }] — what arrived. Never more than the line still owes. */
 async function shpReceive(items) {
   if (!shpCanReceive()) return 'Taking goods from production needs the Shopify tab.';
