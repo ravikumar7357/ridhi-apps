@@ -332,25 +332,81 @@ function flowDueRows(q, testOnly) {
   return out.filter(x => !q || hay(x).includes(q))
     .sort((a, b) => a.printer.localeCompare(b.printer) || String(a.orderDate).localeCompare(String(b.orderDate)) || a.orderNo.localeCompare(b.orderNo));
 }
+/* THE RECEIVING SHEET (Ravi, 30 Oct: "ye window bhi excel jese saf dikhni chahiye, printer ke liye filter add kr dena, printer chuno or mal dekho"; "date auto select
+ * when order received"): one row per line a printer still owes, eight columns and nothing else — Date, Order Number, Image, Article, Size, Ordered,
+ * Vendor Sent, Received. Vendor Sent is the printer's own word from its portal (vSent); Received is typed here, and Save received takes it in on the open
+ * challans exactly as the Receive dialog does, dated TODAY by itself. Date shows the day the line was last received. A printer is picked above. */
+const FLOW_DUE = { printer: '', typed: {} };
+/** What the printer said it sent for this line (its portal's batches), shared over the vendor-order lines that stand for it; null when not known. */
+function flowVendorSentOf(x) {
+  try {
+    if (typeof vpVsOf !== 'function' || typeof VO === 'undefined') return null;
+    const po = (FLOW.po || {})[x.po], ref = po && po.vo && po.vo[x.unit === 'pcs' ? 'cut' : 'running']; if (!ref) return null;
+    const o = (VO.rows || []).find(r => r && r.vendorCode === ref.code && r.id === ref.id); if (!o) return null;
+    let sum = 0, hit = false;
+    voLines(o).forEach(l => {
+      const parts = (Array.isArray(l.parts) ? l.parts : String(l.flowPart || '').split('+')).map(p => String(p).split('|')[0]).filter(Boolean);
+      if (!parts.includes(x.l.key)) return;
+      hit = true; sum += vpVsSum(vpVsOf(o, l)) / new Set(parts).size;
+    });
+    return hit ? flowR2(sum) : null;
+  } catch (e) { return null; }
+}
+/** The day this line was last received on any challan. */
+function flowDueLastRecv(key) {
+  let day = '';
+  Object.values(FLOW.ch || {}).forEach(c => { if (!c || c.cancelled) return;
+    Object.values(c.receipts || {}).forEach(r => { if (r && r.items && +r.items[key] > 0) { const d = String(r.date || String(r.at || '').slice(0, 10)).slice(0, 10); if (d > day) day = d; } }); });
+  return day;
+}
+const flowDueDay = iso => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? m[3] + '-' + m[2] + '-' + m[1] : ''; };
+function flowDuePrinters(testOnly) {
+  const m = new Map(); flowDueRows('', testOnly).forEach(x => m.set(x.code || x.printer, x.printer));
+  return [...m.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+}
 function flowDueTable(q, testOnly) {
-  const rows = flowDueRows(q, testOnly);
-  const by = new Map(); rows.forEach(x => { const e = by.get(x.printer) || by.set(x.printer, { w: [], n: [], lines: 0 }).get(x.printer); e.lines++; if (x.withPrinter) e.w.push([x.withPrinter, x.unit]); if (x.notSent) e.n.push([x.notSent, x.unit]); });
-  const sum = rows.length ? `<tr><td colspan="9" style="text-align:left;background:#eff6ff;font-size:12.5px;white-space:normal"><b>Owed by the printers</b> — `
-    + [...by.entries()].map(([p, e]) => `<b>${esc(p)}</b> ${nf(e.lines)} line(s): ${e.w.length ? flowMixTxt(e.w) + ' cloth with them' : ''}${e.w.length && e.n.length ? ' · ' : ''}${e.n.length ? `<span style="color:#b45309">${flowMixTxt(e.n)} RFD not sent yet</span>` : ''}`).join(' &nbsp;|&nbsp; ') + '</td></tr>' : '';
+  const all = flowDueRows(q, testOnly), rows = FLOW_DUE.printer ? all.filter(x => (x.code || x.printer) === FLOW_DUE.printer) : all;
   let prev = '';
-  const body = rows.map(x => { const head = x.printer !== prev; prev = x.printer;
-    return `<tr${head ? ' style="border-top:2px solid #cbd5e1"' : ''}><td class="frz" style="text-align:left;vertical-align:top">${head ? `<b>${esc(x.printer)}</b><div><button data-fldrc="${esc(x.code || x.printer)}" style="width:auto;padding:3px 10px;font-size:12px;margin-top:4px">Receive</button></div>` : ''}</td>
-    <td style="text-align:left">${esc(x.orderNo)}${x.test ? ' <span class="navbadge" style="background:#7c3aed;position:static">TEST</span>' : ''}<div class="muted" style="font-size:10.5px">${esc(x.orderDate)}</div></td>
-    <td style="text-align:left;font-size:12px;white-space:normal;min-width:220px">${flowChLineWhat(x.l)}</td>
-    <td class="num">${flowQtyTxt(x.need, x.unit)}</td>
-    <td class="num">${x.withPrinter ? `<b>${flowQtyTxt(x.withPrinter, x.unit)}</b>` : '<span class="muted">—</span>'}${x.challan ? `<div style="font-size:10.5px"><a href="#" data-flchp="${esc(x.challan)}">${esc(x.challan)}</a></div>` : ''}</td>
-    <td class="num">${x.notSent ? `<b style="color:#b45309">${flowQtyTxt(x.notSent, x.unit)}</b><div class="muted" style="font-size:10.5px">RFD not sent yet</div>` : '<span class="muted">—</span>'}</td>
-    <td class="num">${x.back ? flowQtyTxt(x.back, x.unit) : '<span class="muted">0</span>'}</td>
-    <td class="num"><b>${flowQtyTxt(x.left, x.unit)}</b></td>
-    <td style="text-align:left;font-size:11.5px">${esc(x.po)}</td></tr>`; }).join('');
-  return `<thead><tr><th class="frz" style="text-align:left">Printer</th><th style="text-align:left">Order</th><th style="text-align:left">What comes back</th><th>To print</th>`
-    + `<th>Cloth with printer</th><th>Not sent yet</th><th>Back so far</th><th>Still to come</th><th style="text-align:left">Print order</th></tr></thead><tbody>` + sum
-    + (body || `<tr><td colspan="9" class="muted" style="padding:16px">Nothing is owed by a printer${q ? ` for “${esc(q)}”` : ''}.</td></tr>`) + '</tbody>';
+  const body = rows.map(x => { const pk = x.code || x.printer, id = pk + '|' + x.l.key, vs = flowVendorSentOf(x), day = flowDueLastRecv(x.l.key), m = (typeof mdbOf === 'function' && mdbOf(x.sku)) || {};
+    const head = !FLOW_DUE.printer && x.printer !== prev ? `<tr><td colspan="8" style="text-align:left;background:#eef2f7;font-weight:700;font-size:12.5px;padding:5px 10px">${esc(x.printer)}</td></tr>` : ''; prev = x.printer;
+    return head + `<tr><td style="text-align:left;white-space:nowrap;font-size:12px">${day ? esc(flowDueDay(day)) : '<span class="muted">—</span>'}</td>
+      <td style="text-align:left;font-weight:700;font-size:12.5px">${esc(x.orderNo)}${x.test ? ' <span class="navbadge" style="background:#7c3aed;position:static">TEST</span>' : ''}</td>
+      <td>${typeof ptImgSpan === 'function' ? ptImgSpan(x.sku, 36) : ''}</td>
+      <td style="text-align:left;font-size:12.5px">${esc(x.r.articleSubtype || m.subtype || x.r.articleType || m.articleType || '') || '<span class="muted">—</span>'}</td>
+      <td style="font-size:12.5px">${esc(x.r.size || m.size || '') || '<span class="muted">—</span>'}</td>
+      <td class="num" style="font-weight:700">${flowQtyTxt(x.need, x.unit)}</td>
+      <td class="num">${vs ? `<b>${flowQtyTxt(vs, x.unit)}</b>` : '<span class="muted">—</span>'}</td>
+      <td class="num"><input data-fldrq="${esc(id)}" type="number" min="0" step="${x.unit === 'pcs' ? 1 : 0.01}" value="${esc(FLOW_DUE.typed[id] || '')}" placeholder="${esc(String(x.left))}" onfocus="this.select()" style="width:84px;padding:3px 6px;font-size:12px;text-align:right" title="${esc(flowQtyTxt(x.left, x.unit))} still to come"></td></tr>`; }).join('');
+  if (typeof ptImgFill === 'function' && typeof setTimeout === 'function') setTimeout(() => { try { ptImgFill(rows.map(x => x.sku), false, typeof ptImgPatch === 'function' ? ptImgPatch : null); } catch (e) { /* the pictures follow */ } }, 0);
+  return `<thead><tr><th style="text-align:left">Date</th><th style="text-align:left">Order Number</th><th>Image</th><th style="text-align:left">Article</th><th>Size</th><th>Ordered</th><th>Vendor Sent</th><th>Received</th></tr></thead><tbody>`
+    + (body || `<tr><td colspan="8" class="muted" style="padding:16px">Nothing is owed by ${FLOW_DUE.printer ? 'that printer' : 'a printer'}${q ? ` for “${esc(q)}”` : ''}.</td></tr>`) + '</tbody>';
+}
+/** The printer picker and the Save button that sit over the sheet. */
+function flowDueBar(testOnly) {
+  const n = Object.values(FLOW_DUE.typed).filter(v => +v > 0).length;
+  return `<select data-fldprn style="width:auto;margin-left:8px;padding:4px 8px;font-size:12.5px" title="Pick a printer to see only its goods"><option value="">All printers</option>`
+    + flowDuePrinters(testOnly).map(([k, nm]) => `<option value="${esc(k)}"${k === FLOW_DUE.printer ? ' selected' : ''}>${esc(nm)}</option>`).join('') + '</select>'
+    + ` <button type="button" data-fldsave="1" style="width:auto;padding:4px 14px;font-size:12.5px;margin-left:6px"${n ? '' : ' disabled'}>Save received${n ? ' (' + nf(n) + ')' : ''}</button>`;
+}
+/** Take in everything typed on the sheet: one receipt per printer, dated today, through the same save the Receive dialog uses. */
+async function flowDueSaveTyped() {
+  const by = new Map();
+  Object.entries(FLOW_DUE.typed).forEach(([id, v]) => { const q = +v; if (!(q > 0)) return; const [pk, lk] = id.split('|'); const e = by.get(pk) || by.set(pk, {}).get(pk); e[lk] = q; });
+  if (!by.size) return 'Type what came back on at least one line.';
+  const said = [];
+  for (const [pk, got] of by) {
+    const er = await flowDueRecvSave(pk, got, { date: dToday(), note: '', deduct: true });
+    if (er) return er + (said.length ? ' (saved before this: ' + said.join('; ') + ')' : '');
+    said.push(flowDueRecvSave.said); Object.keys(got).forEach(lk => { delete FLOW_DUE.typed[pk + '|' + lk]; });
+  }
+  FLOW.said = said.join(' · '); return '';
+}
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+  document.addEventListener('input', e => { const t = e.target; if (t && t.dataset && t.dataset.fldrq != null) { FLOW_DUE.typed[t.dataset.fldrq] = t.value;
+    const b = document.querySelector && document.querySelector('[data-fldsave]'); if (b) { const n = Object.values(FLOW_DUE.typed).filter(v => +v > 0).length; b.disabled = !n; b.textContent = 'Save received' + (n ? ' (' + nf(n) + ')' : ''); } } });
+  document.addEventListener('change', e => { const t = e.target; if (t && t.dataset && t.dataset.fldprn != null) { FLOW_DUE.printer = t.value; renderFlow(); } });
+  document.addEventListener('click', async e => { const b = e.target && e.target.closest && e.target.closest('[data-fldsave]'); if (!b || b.disabled) return; e.preventDefault(); b.disabled = true;
+    const er = await flowDueSaveTyped(); renderFlow(); $('flMsg').className = er ? 'err' : 'muted'; $('flMsg').textContent = er || FLOW.said || 'Saved.'; });
 }
 /* RECEIVED HERE, AGAINST THE ORDER (Ravi, 23 Oct: "printed fabric in me wo sare order dikhne chahiye jo mene printero ko order
  * kiye hue h and bahi par challan wala banda receiving le"). Receive from a printer: every line it owes, each starting at 0.

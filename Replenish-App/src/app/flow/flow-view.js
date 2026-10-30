@@ -131,7 +131,7 @@ function renderFlow() {
     + (FLOW_VIEW === 'dhist' ? `<div class="seg" style="display:inline-flex;gap:4px">${[['due', 'Orders with printers · receive'], ['challan', 'By challan'], ['day', 'Received by date']].map(([k, l]) =>
       `<button data-flang="${k}" class="${(FLOW_ANGLE.dhist || 'due') === k ? '' : 'ghost'}" style="width:auto;padding:4px 12px;font-size:12.5px">${l}</button>`).join('')}</div>`
       + (FLOW_ANGLE.dhist === 'day' ? flowRecvDayBar(q, only) : '')
-      + ((FLOW_ANGLE.dhist || 'due') === 'due' ? ' <button type="button" class="ghost" data-fldxl="1" style="width:auto;padding:4px 12px;font-size:12.5px;margin-left:6px">Download Excel</button>' : '') + flowStandingHtml() : '');
+      + ((FLOW_ANGLE.dhist || 'due') === 'due' ? flowDueBar(only) + ' <button type="button" class="ghost" data-fldxl="1" style="width:auto;padding:4px 12px;font-size:12.5px;margin-left:6px">Download Excel</button>' : flowStandingHtml()) : '');
   /* RFD short? The Greige Desk shows the greige to order for it (Ravi, 13 Oct: Greige Desk joined to the PPC flow). */
   if (FLOW_VIEW === 'drfd' && typeof GD !== 'undefined' && gdAllowed()) FLOW.panel = (FLOW.panel || '') + '<button type="button" class="ghost" data-gdgo="inv" style="width:auto;padding:5px 14px;font-size:13px;margin-left:10px">Greige Desk · PPC demand</button>';
   /* RFD stock is the Greige Desk's count: not read here, the Demand figures say so instead of showing a false "short". */
