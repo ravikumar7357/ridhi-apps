@@ -28286,7 +28286,7 @@ function otkRender() {
   if (one === OTK.sig) { box.classList.remove('hide'); return; }
   OTK.sig = one;
   /* Two copies side by side, moved left by one copy's width — the loop has no seam. Speed follows the length. */
-  box.innerHTML = `<div class="otk-run" style="animation-duration:${Math.max(30, Math.round(items.length * 4.5))}s"><div class="otk-set">${one}</div><div class="otk-set" aria-hidden="true">${one}</div></div>`;
+  box.innerHTML = `<div class="otk-run" style="animation-duration:${Math.max(70, Math.round(items.length * 10))}s"><div class="otk-set">${one}</div><div class="otk-set" aria-hidden="true">${one}</div></div>`;
   box.classList.remove('hide');
 }
 function otkTick() {
