@@ -108,7 +108,7 @@ const NAV_PROD_ONLY = (function navProductionOnly() {
   cols.forEach(c => sec.appendChild(c));
   cols[1].appendChild(vpAs);
   sec.appendChild(off);
-  $('grpProd').dataset.tabs = 'flow,flppc,fldem,flacc,flchl,flcut,flraw,flwip,palloc,pcut,pbase,ppress,qc';
+  $('grpProd').dataset.tabs = 'flow,flppc,fldem,flacc,flchl,flcut,flraw,flwip,palloc,pcut,pbase,ppress,qc,vpview';
 
   const vend = $('grpVendors');
   if (vend) { vend.dataset.tabs = 'vend'; vend.lastChild.textContent = ' Vendors'; }
@@ -256,7 +256,7 @@ function syncNavGroups() {
     g.head.classList.toggle('hide', dead);
     g.sec.classList.toggle('hide', dead);
   });
-  if ($('tabVpAs')) $('tabVpAs').style.display = ME && ME.admin && !NAV_IS_VENDOR ? '' : 'none';   // the printer's view: admins
+  if ($('tabVpAs')) $('tabVpAs').style.display = ME && (ME.admin || ME.vpView) && !NAV_IS_VENDOR ? '' : 'none';   // the printer's view: admins, and the 'vpview' box
 }
 
 /* The hamburger hides the sidebar outright on a wide screen and slides it over the page on a narrow
@@ -461,7 +461,7 @@ function showTab(which) {
   topbarSync();
   /* On a phone: the tab bar lights this screen, and the header carries its name (core/mobile.js). */
   if (typeof mobSync === 'function') mobSync(which);
-  try { guideScreen(which); } catch (e) { /* the guide character (guide.js) is not on the page yet — the screen still opens */ }
+  try { meeraBridgeEmit('screen', which); } catch (e) { /* Meera (through her bridge) is not on the page yet — the screen still opens */ }
   /* The screen's name where a name belongs when it is not on the page: the browser tab. */
   try { document.title = ($('pageTitle').textContent || '') + ($('pageTitle').textContent ? ' · ' : '') + 'R-one'; } catch (e) { /* nothing depends on it */ }
   /* There is no drawer to close any more: the menu is the bar across the top, on every width. */

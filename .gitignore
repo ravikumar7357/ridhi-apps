@@ -17,6 +17,7 @@
 !/Inventory-App/
 !/.github/
 !/meera-router/
+!/meera/
 
 # Firebase's local deploy cache, and anything installed.
 .firebase/
@@ -53,3 +54,5 @@ Pricing-App/src/deps.json
 
 # the test ERP build (GitHub Pages)
 _site/
+# Meera v2: the offline timing copy (meera/tests/preview-make.cjs)
+meera/.preview/

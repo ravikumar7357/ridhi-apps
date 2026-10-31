@@ -1373,7 +1373,14 @@
           <button id="flXlIn" class="ghost hide" style="width:auto" title="Upload the filled PPC sheet — rows marked Raise = yes open in the form, ready to raise">Import plan</button>
           <button id="flXlNext" class="hide" style="width:auto"></button>
           <!-- PPC REPORT (Ravi, 28 Oct): the lines planned on chosen days, to Excel — admins and the Reports right (flow/flow-report.js). -->
-          <button id="flRep" class="ghost hide" style="width:auto" title="Download what PPC planned on the days you pick — every line, and the total by SKU">PPC report</button>
+          <!-- 30 Oct: one button, a drop-down — the PPC report or the SHP board's (Shopify orders from 28 Oct), same sheet (flow/flow-report.js). -->
+          <span id="flRepWrap" class="hide" style="position:relative;display:inline-block">
+            <button id="flRep" class="ghost" style="width:auto" title="Download the PPC report or the SHP board report for the days you pick">PPC report ▾</button>
+            <div id="flRepMenu" class="hide" style="position:absolute;top:100%;left:0;z-index:50;margin-top:4px;background:var(--card,#fff);border:1px solid var(--line,#e5e7eb);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);padding:4px;min-width:230px">
+              <button type="button" class="ghost" data-flrepkind="ppc" style="width:100%;text-align:left;border:0;padding:8px 12px">PPC report</button>
+              <button type="button" class="ghost" data-flrepkind="shp" style="width:100%;text-align:left;border:0;padding:8px 12px">SHP board report <span class="muted" style="font-size:12px">· Shopify from 28 Oct</span></button>
+            </div>
+          </span>
           <input id="flXlFile" type="file" accept=".xlsx,.csv" class="hide">
           <!-- NO TEST ORDERS ANY MORE (Ravi, 16 Oct: "test ab chahiye hi nahi remove test"): the "+ Test order" button and the
                "Only test orders" switch are gone from the page. -->

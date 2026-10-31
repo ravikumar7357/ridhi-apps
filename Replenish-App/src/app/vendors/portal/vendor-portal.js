@@ -90,7 +90,7 @@ const VP_FLOW = { Placed: 'Acknowledged', Acknowledged: 'In Production' };
  */
 function vendTabRule(isVendor) {
   if (isVendor) return 'yes';
-  const asked = !!(ME.tabsExplicit && !ME.admin && (ME.tabs || []).indexOf('vend') >= 0);
+  const asked = !!(ME.tabsExplicit && !ME.admin && !ME.vpView && (ME.tabs || []).indexOf('vend') >= 0);   // the view-only box opens the portal by its own link, not the Vendors heading
   return asked ? 'ask' : 'no';
 }
 
@@ -368,7 +368,8 @@ function renderVp() {
   /* One strip, not a card of four nineteen-pixel figures. Everything a printer needs to know about
    * where they stand, in the space the old heading alone used to take. */
   const amt = (p, m) => [p ? nf(p) + ' pcs' : '', m ? nf(m) + ' m' : ''].filter(Boolean).join(' · ') || '—';
-  $('vpKpis').innerHTML = `<div class="vpbar">
+  /* CUSTOM ORDERS ARE A CLEAN SHEET (Ravi, 30 Oct): no strip above it. */
+  if (VP.tab === 'shop') $('vpKpis').innerHTML = ''; else $('vpKpis').innerHTML = `<div class="vpbar">
     <span><b>${esc(VP.name)}</b> <span class="muted">· ${esc(VP.code)}</span></span>
     <span class="sep"></span>
     <span><b>${nf(open)}</b> open<span class="muted">${done ? ' · ' + nf(done) + ' done' : ''} of ${nf(rows.length)}</span></span>
@@ -400,7 +401,7 @@ function renderVp() {
   if ($('vpTabRfd')) $('vpTabRfd').classList.toggle('hide', vpViewAll());
   const rfdTab = VP.tab === 'rfd';
   ['vpBar2', 'vpBar3'].forEach(id => { if ($(id)) $(id).classList.toggle('hide', rfdTab || (id === 'vpBar3' && vpViewAll())); });
-  ['vpView', 'vpStatus', 'vpType', 'vpQ', 'vpExport'].forEach(id => { if ($(id)) $(id).classList.toggle('hide', rfdTab); });
+  ['vpView', 'vpStatus', 'vpType', 'vpQ', 'vpExport'].forEach(id => { if ($(id)) $(id).classList.toggle('hide', rfdTab || (VP.tab === 'shop' && (id === 'vpView' || id === 'vpType'))); });
   if (rfdTab) { vpRfdRender(matched, nag); return; }
 
   if (VP.tab === 'hist') {
@@ -442,7 +443,7 @@ function renderVp() {
     all.length ? 'No order matches those filters.' : 'No orders yet.'}</div>`;
   body.innerHTML = nag + (rows.length
     ? doneTab ? (rows.some(o => !vpIsShop(o)) ? vpTable(rows.filter(o => !vpIsShop(o)), f) : '') + (rows.some(vpIsShop) ? vpShopTable(rows.filter(vpIsShop), f) : '')
-    : (VP.tab === 'shop' ? (rows.some(vpIsShop) ? vpShopTable(rows.filter(vpIsShop), f) : '') + (rows.some(vpIsPpcShop) ? vpViewOf(rows.filter(vpIsPpcShop), f) : '')
+    : (VP.tab === 'shop' ? vpCustomSheet(rows, f)
       : vpViewOf(rows, f))
     : empty);
   if ($('vpPin')) $('vpPin').onclick = pinOpenChange;
@@ -527,6 +528,48 @@ function vpHistTable(rows) {
       + '</tr>';
   }).join('');
   return `<div class="xlwrap"><table class="xl"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+}
+
+/**
+ * THE CUSTOM ORDERS SHEET (Ravi, 30 Oct: "custom order ka view aise chahiye — neat and clean, koi other information nahi"): one row per line,
+ * eight columns and nothing else — Date, Order Number, Image, Article, Size, Ordered, Vendor Sent, Vendor Date. Vendor Sent is the printer's
+ * own word (the same batches vpVsHtml keeps; the box to add one is theirs alone) and Vendor Date is the date they promise it — the same
+ * promise date every other view writes (data-vpprom).
+ */
+function vpCustomSheet(rows, f) {
+  const COLS = ['Date', 'Order Number', 'Image', 'Article', 'Size', 'Ordered', 'Vendor Sent', 'Vendor Date'];
+  const on = !!(f && vpLineOn(f)), seen = new Set(), items = [];
+  /* ONE LIST, A TO Z BY COLOUR (Ravi, 30 Oct: "1 a-z series me dikhe color wise"): every line of every order in one run, colour A→Z, then
+   * article and size, then the oldest order first; a line with no colour goes last. */
+  rows.forEach(o => voLines(o).forEach((l, i) => {
+    if (!l || l.cancelled || !vpPartOk(o, l) || !vpQOk(o, l, f) || (on && !voLineMatches(l, f))) return;
+    items.push({ o, l, i });
+  }));
+  const col = x => String(x.l.color || '').trim().toLowerCase(), art = x => String(x.o.orderType === 'running' ? (x.l.fabricType || '') : (x.l.articleSubtype || x.l.articleType || '')).toLowerCase();
+  items.sort((a, b) => (!col(a) - !col(b)) || col(a).localeCompare(col(b)) || art(a).localeCompare(art(b))
+    || String(a.l.size || '').localeCompare(String(b.l.size || ''), undefined, { numeric: true })
+    || String(a.o.orderDate || '').localeCompare(String(b.o.orderDate || '')) || String(a.o.orderNo || a.o.id).localeCompare(String(b.o.orderNo || b.o.id)));
+  const out = items.map(({ o, l, i }) => {
+    const run = o.orderType === 'running', unit = run ? 'm' : 'pcs';
+    const ord = vpQty(o, l), bal = Math.max(0, ord - vpDone(l)), first = !seen.has(o.id); seen.add(o.id);
+    /* WHAT IT IS: a cut line is its article; a running (cloth) line is its fabric and print. The colour and the SKU sit under it, small. */
+    const what = run ? [l.fabricType, l.printDirection].filter(Boolean).join(' · ') : (l.articleSubtype || l.articleType || '');
+    const sub = [l.color, run ? (l.sku || '') : l.sku].filter(Boolean).join(' · ');
+    const pic = l.img ? ptImgCellSrc(l.sku, l.img) : (run ? vpRunPic(l, 38, true) : ptImgCell(l.sku));
+    return '<tr>'
+      + `<td style="text-align:left;white-space:nowrap;font-size:12px">${esc(o.orderDate) || '<span class="muted">—</span>'}</td>`
+      + `<td style="text-align:left;font-weight:700;font-size:12.5px">${esc(vpIsShop(o) && (l.shopRef || l.shopOrderNo) ? (l.shopRef || l.shopOrderNo) : (o.orderNo || o.id))}${first ? `<div data-vpmsg="${esc(o.id)}" class="muted" style="font-size:11px;font-weight:400"></div>` : ''}</td>`
+      + pic
+      + `<td style="text-align:left;font-size:12.5px;line-height:1.35">${esc(what) || '<span class="muted">—</span>'}${sub ? `<div class="muted" style="font-size:11px">${esc(sub)}</div>` : ''}</td>`
+      + `<td style="font-size:12.5px">${esc(run ? '' : (l.size || '')) || '<span class="muted">—</span>'}</td>`
+      + `<td class="num" style="font-weight:700">${nf(ord)} <span class="muted" style="font-weight:400;font-size:10px">${unit}</span></td>`
+      + vpVsHtml(o, l, i, ord, unit, 'td')
+      + `<td>${vpViewAll() || flowVpViewOnly(o) || bal <= 0 ? `<span style="font-size:12px">${esc(voProm(l) ? dShow(voProm(l)) : '') || '<span class="muted">—</span>'}</span>`
+          : `<input data-vpprom="${esc(o.id)}" data-i="${i}" type="date" value="${esc(voProm(l))}" style="width:146px">`}</td>`
+      + '</tr>';
+  });
+  if (!out.length) return '<div class="card" style="padding:34px;text-align:center;color:var(--muted)">No custom order line to show.</div>';
+  return `<div class="card xlwrap" style="padding:0"><table class="xl"><thead><tr>${COLS.map(h => `<th${h === 'Ordered' ? ' class="num"' : ''}>${esc(h)}</th>`).join('')}</tr></thead><tbody>${out.join('')}</tbody></table></div>`;
 }
 
 function vpShopTable(rows, f) {

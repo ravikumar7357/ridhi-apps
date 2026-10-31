@@ -1,0 +1,2428 @@
+[
+ {
+  "q": "password bhul haya sir ab login kaise kru",
+  "from": "password bhul gaya sir ab login kaise kru",
+  "id": "gn-forgot-password"
+ },
+ {
+  "q": "i clicked forgo password but no mail came in inbox, waited 10 min",
+  "from": "i clicked forgot password but no mail came in inbox, waited 10 min",
+  "id": "gn-reset-mail-missing"
+ },
+ {
+  "q": "mera pin yaaad nhi aa rha kya kru",
+  "from": "mera pin yaad nhi aa rha kya kru",
+  "id": "gn-pin-forgot"
+ },
+ {
+  "q": "it xayw too many tries and wont let me log in",
+  "from": "it says too many tries and wont let me log in",
+  "id": "gn-too-many"
+ },
+ {
+  "q": "login ho gya par koi screen nhi dikh rhi, no acces likha aa rha",
+  "from": "login ho gya par koi screen nhi dikh rhi, no access likha aa rha",
+  "id": "gn-no-access"
+ },
+ {
+  "q": "admin just gave me the cutting screen but i syill dont see it",
+  "from": "admin just gave me the cutting screen but i still dont see it",
+  "id": "gn-right-just-given"
+ },
+ {
+  "q": "upar laaal patt aa rhi hai naya version wali, kya kre",
+  "from": "upar laal patti aa rhi hai naya version wali, kya kre",
+  "id": "gn-new-version-bar"
+ },
+ {
+  "q": "list khli diih rhi hai ek bhi row nhi aa rhi",
+  "from": "list khali dikh rhi hai ek bhi row nhi aa rhi",
+  "id": "gn-blank"
+ },
+ {
+  "q": "my colleague entere stock 2 min ago but its not on my screen",
+  "from": "my colleague entered stock 2 min ago but its not on my screen",
+  "id": "gn-see-latest"
+ },
+ {
+  "q": "net chala gaya tha beech me, xave hua ki nhi pata nhi",
+  "from": "net chala gaya tha beech me, save hua ki nhi pata nhi",
+  "id": "gn-no-internet"
+ },
+ {
+  "q": "export keeyapar file kha gyi dikh nhi rhi",
+  "from": "export kiya par file kha gyi dikh nhi rhi",
+  "id": "gn-download-where"
+ },
+ {
+  "q": "excel upload fails every time, says wrong firmat",
+  "from": "excel upload fails every time, says wrong format",
+  "id": "gn-upload-error"
+ },
+ {
+  "q": "phone me zcan pe camera nhi khul rha",
+  "from": "phone me scan pe camera nhi khul rha",
+  "id": "gn-camera-allow"
+ },
+ {
+  "q": "we have a barcod gun, can i use that instead of the phne camera",
+  "from": "we have a barcode gun, can i use that instead of the phone camera",
+  "id": "gn-hand-scanner"
+ },
+ {
+  "q": "phone ki home screen pe app ka icon kause lagaye",
+  "from": "phone ki home screen pe app ka icon kaise lagaye",
+  "id": "gn-install-app"
+ },
+ {
+  "q": "how do i remove all the filters at oncw",
+  "from": "how do i remove all the filters at once",
+  "id": "gn-filter-clear"
+ },
+ {
+  "q": "sir gzlti se entry delete ho gyi waoas aa skti hai kya urgent",
+  "from": "sir galti se entry delete ho gyi wapas aa skti hai kya urgent",
+  "id": "gn-restore-deleted"
+ },
+ {
+  "q": "ye meera baar baar aa jati hai bndkaise kre",
+  "from": "ye meera baar baar aa jati hai band kaise kre",
+  "id": "gn-helper-off"
+ },
+ {
+  "q": "can i keep two szreens open in different tabs",
+  "from": "can i keep two screens open in different tabs",
+  "id": "gn-new-tab"
+ },
+ {
+  "q": "phone pe notification chalu ktma hai naye kaam ka",
+  "from": "phone pe notification chalu krna hai naye kaam ka",
+  "id": "gn-phone-alerts"
+ },
+ {
+  "q": "errr says month is frozen but i need to put an entry for last month",
+  "from": "error says month is frozen but i need to put an entry for last month",
+  "id": "gn-month-frozen"
+ },
+ {
+  "q": "Rzmesh se 40 piece wapas aaye, kaha chadhu",
+  "from": "Ramesh se 40 piece wapas aaye, kaha chadhau",
+  "id": "pr-jw-receive"
+ },
+ {
+  "q": "naye karigar ka naam list me nhi aa rha isse krte time",
+  "from": "naye karigar ka naam list me nhi aa rha issue krte time",
+  "id": "pr-jw-emp-missing"
+ },
+ {
+  "q": "job worksays sku not in master, what do i do",
+  "from": "job work says sku not in master, what do i do",
+  "id": "pr-jw-not-master"
+ },
+ {
+  "q": "issue nhi ho rha bol rha at most itne hi qllowed",
+  "from": "issue nhi ho rha bol rha at most itne hi allowed",
+  "id": "pr-jw-over-order"
+ },
+ {
+  "q": "zip wala cyshion issue nhi ho rha, zipper stock ka error",
+  "from": "zip wala cushion issue nhi ho rha, zipper stock ka error",
+  "id": "pr-jw-zipper"
+ },
+ {
+  "q": "receiving 50 back but it says received plus rejected mre than issued",
+  "from": "receiving 50 back but it says received plus rejected more than issued",
+  "id": "pr-jw-recv-over"
+ },
+ {
+  "q": "ek saath 10 ehtryreceive krni hai, ek ek karke nhi",
+  "from": "ek saath 10 entry receive krni hai, ek ek karke nhi",
+  "id": "pr-jw-bulk-receive"
+ },
+ {
+  "q": "row pe change asked likha hai iskakya matlab",
+  "from": "row pe change asked likha hai iska kya matlab",
+  "id": "pr-jw-change-asked"
+ },
+ {
+  "q": "whatsapp didn ppenafter issue, says no number",
+  "from": "whatsapp didnt open after issue, says no number",
+  "id": "pr-jw-wa-no-number"
+ },
+ {
+  "q": "karigar se receive kiya, ab wo piece aaage kis scren pe milenge",
+  "from": "karigar se receive kiya, ab wo piece aage kis screen pe milenge",
+  "id": "pr-jw-after-receive"
+ },
+ {
+  "q": "need all job work eata in excl for the month",
+  "from": "need all job work data in excel for the month",
+  "id": "pr-jw-export"
+ },
+ {
+  "q": "AB-TBL-RED-M ka stock kitna hai kqise dekhu",
+  "from": "AB-TBL-RED-M ka stock kitna hai kaise dekhu",
+  "id": "gn-stock-check"
+ },
+ {
+  "q": "fba bhejne ki entry kha se kre finished goods me",
+  "from": "fba bhejne ki entry kaha se kre finished goods me",
+  "id": "in-fg-send-fba"
+ },
+ {
+  "q": "scanning shows uhknosn code in scan in / out",
+  "from": "scanning shows unknown code in scan in / out",
+  "id": "in-fg-scan-unknown"
+ },
+ {
+  "q": "fnsku leest update kaise kre, nahe labels nhi pehchan rha",
+  "from": "fnsku list update kaise kre, naye labels nhi pehchan rha",
+  "id": "in-fg-fnsku-list"
+ },
+ {
+  "q": "order se zyda piece aa gaye, save nhi ho rha reason maang rha",
+  "from": "order se zyada piece aa gaye, save nhi ho rha reason maang rha",
+  "id": "in-fg-over"
+ },
+ {
+  "q": "finished goods me galat entr ho gyi, rdquestcorrection kaise dalte hai",
+  "from": "finished goods me galat entry ho gyi, request correction kaise dalte hai",
+  "id": "in-fg-corr-request"
+ },
+ {
+  "q": "did a physical count, store phigureis different, how do i update it",
+  "from": "did a physical count, store figure is different, how do i update it",
+  "id": "in-fg-physical-count"
+ },
+ {
+  "q": "stock me low aur out ka jtlbkya hai",
+  "from": "stock me low aur out ka mtlb kya hai",
+  "id": "in-fg-colours"
+ },
+ {
+  "q": "how to see the full in and out hiatory of one sku in store",
+  "from": "how to see the full in and out history of one sku in store",
+  "id": "in-fg-sku-history"
+ },
+ {
+  "q": "pack & verify wala button kis liyr hai bhi",
+  "from": "pack & verify wala button kis liye hai bhai",
+  "id": "in-fg-pack-verify"
+ },
+ {
+  "q": "ordecinsole kis kaam aata hai",
+  "from": "order console kis kaam aata hai",
+  "id": "or-ord-what"
+ },
+ {
+  "q": "स्टेटस में 25 to maake का मतलब क्या है",
+  "from": "स्टेटस में 25 to make का मतलब क्या है",
+  "id": "or-ord-status"
+ },
+ {
+  "q": "mera orde kaha atka hai kaise pta kre",
+  "from": "mera order kaha atka hai kaise pta kre",
+  "id": "or-ord-journey"
+ },
+ {
+  "q": "sales change the quantity, where do i approve it",
+  "from": "sales changed the quantity, where do i approve it",
+  "id": "or-ord-qty-approve"
+ },
+ {
+  "q": "order book se line hatani hai, sales ko kaise boloo",
+  "from": "order book se line hatani hai, sales ko kaise bolu",
+  "id": "or-ord-del-ask"
+ },
+ {
+  "q": "a sgopifyorder came 2 days back but order consle doesnt have it",
+  "from": "a shopify order came 2 days back but order console doesnt have it",
+  "id": "or-ord-shop-empty"
+ },
+ {
+  "q": "order ke liye kitna kapda chahiye wo report kahz hai",
+  "from": "orders ke liye kitna kapda chahiye wo report kaha hai",
+  "id": "or-ord-demand"
+ },
+ {
+  "q": "shopify ke naye order kaise kayescreen pe",
+  "from": "shopify ke naye order kaise laye screen pe",
+  "id": "or-shop-fetch"
+ },
+ {
+  "q": "only want to see rredhiorders not cpc",
+  "from": "only want to see ridhi orders not cpc",
+  "id": "or-shop-store"
+ },
+ {
+  "q": "sheepfrom column me MCF ready ka kya matlab",
+  "from": "ship from column me MCF ready ka kya matlab",
+  "id": "or-shop-shipfrom"
+ },
+ {
+  "q": "theres a smll pencil icon beside the ordr number?",
+  "from": "theres a small pencil icon beside the order number?",
+  "id": "or-shop-pencil"
+ },
+ {
+  "q": "date ke aage 8d laal kyu dilh rha",
+  "from": "date ke aage 8d laal kyu dikh rha",
+  "id": "or-shop-age"
+ },
+ {
+  "q": "order me shl bin number kaise daale",
+  "from": "order me shelf bin number kaise daale",
+  "id": "or-shop-shelf"
+ },
+ {
+  "q": "where do i get the tracking no for an mcf orde",
+  "from": "where do i get the tracking no for an mcf order",
+  "id": "or-shop-mcf-status"
+ },
+ {
+  "q": "line pe no sku ljkha aa rha shopify se",
+  "from": "line pe no sku likha aa rha shopify se",
+  "id": "or-shop-nosku"
+ },
+ {
+  "q": "need dhl csv file for todayz orders",
+  "from": "need dhl csv file for todays orders",
+  "id": "or-shop-courier"
+ },
+ {
+  "q": "dhl file nhi ban rhi, invicenumber aur hs code maang rha",
+  "from": "dhl file nhi ban rhi, invoice number aur hs code maang rha",
+  "id": "or-shop-dhl-refuse"
+ },
+ {
+  "q": "customer ne rrturnbheja hai entry kaise kre",
+  "from": "customer ne return bheja hai entry kaise kre",
+  "id": "or-shop-return"
+ },
+ {
+  "q": "customer got a daamaged piece, need to send a replacemen",
+  "from": "customer got a damaged piece, need to send a replacement",
+  "id": "or-shop-replace"
+ },
+ {
+  "q": "US zip code pe kitne din me delivery hogi kise dekhe",
+  "from": "US zip code pe kitne din me delivery hogi kaise dekhe",
+  "id": "or-shop-days"
+ },
+ {
+  "q": "adjustment productin ko de diya, mark kaise kre",
+  "from": "adjustment production ko de diya, mark kaise kre",
+  "id": "or-adj-sent"
+ },
+ {
+  "q": "why are some adjuztmeht rows red",
+  "from": "why are some adjustment rows red",
+  "id": "or-adj-late"
+ },
+ {
+  "q": "amazon ke liye order daalna hai sales orde wala, qahase shuru kru",
+  "from": "amazon ke liye order daalna hai sales order wala, kaha se shuru kru",
+  "id": "or-so-new"
+ },
+ {
+  "q": "sales order wont save, its aawkingair or sea",
+  "from": "sales order wont save, its asking air or sea",
+  "id": "or-so-airsea"
+ },
+ {
+  "q": "apna sales ordr edit nhi ho rha approve hone ke baad",
+  "from": "apna sales order edit nhi ho rha approve hone ke baad",
+  "id": "or-so-locked"
+ },
+ {
+  "q": "how much of my sales order has been cut and mde so far",
+  "from": "how much of my sales order has been cut and made so far",
+  "id": "or-so-progress"
+ },
+ {
+  "q": "customer orders ki file uplad ktni hai",
+  "from": "customer orders ki file upload krni hai",
+  "id": "or-cx-upload"
+ },
+ {
+  "q": "customer order line - how do i choose to send it from indi stock",
+  "from": "customer order line - how do i choose to send it from india stock",
+  "id": "or-cx-decide"
+ },
+ {
+  "q": "cutting me fabric list me nhi hai, fabric type master wala efror",
+  "from": "cutting me fabric list me nhi hai, fabric type master wala error",
+  "id": "pr-cut-fabric-master"
+ },
+ {
+  "q": "waste % shoqing red in cutting data",
+  "from": "waste % showing red in cutting data",
+  "id": "pr-cut-waste-tiles"
+ },
+ {
+  "q": "kitna cut paada hai jo abhi karigar ko nhi gaya",
+  "from": "kitna cut pada hai jo abhi karigar ko nhi gaya",
+  "id": "pr-cut-not-issued"
+ },
+ {
+  "q": "press ki wntry save nhi ho rhi ab",
+  "from": "press ki entry save nhi ho rhi ab",
+  "id": "pr-press-stopped"
+ },
+ {
+  "q": "daag wale pice spottin me kaise bheje",
+  "from": "daag wale piece spotting me kaise bheje",
+  "id": "pr-qc-spot-touch"
+ },
+ {
+  "q": "received pieces from karigar but they are not in waitin for qc",
+  "from": "received pieces from karigar but they are not in waiting for qc",
+  "id": "pr-qc-not-waiting"
+ },
+ {
+  "q": "qc se aalteration ke liye piece karigar ko dena hai",
+  "from": "qc se alteration ke liye piece karigar ko dena hai",
+  "id": "pr-qc-alt-issue"
+ },
+ {
+  "q": "need a day wize qc sjmmary",
+  "from": "need a day wise qc summary",
+  "id": "pr-qc-ledger"
+ },
+ {
+  "q": "attendance me in time kais lagaye",
+  "from": "attendance me in time kaise lagaye",
+  "id": "pr-att-punch"
+ },
+ {
+  "q": "new helper joine today, his nane is not in attendance",
+  "from": "new helper joined today, his name is not in attendance",
+  "id": "pr-att-new-person"
+ },
+ {
+  "q": "PO ka ppc plan kaisd raidekre",
+  "from": "PO ka ppc plan kaise raise kre",
+  "id": "pr-flow-ppc-plan"
+ },
+ {
+  "q": "what are the options in how it is mde",
+  "from": "what are the options in how it is made",
+  "id": "pr-flow-route"
+ },
+ {
+  "q": "printer ko rfd kaapda challan bana ke bhejna hai",
+  "from": "printer ko rfd kapda challan bana ke bhejna hai",
+  "id": "pr-flow-rfd-challan"
+ },
+ {
+  "q": "printer sent baack the pri nted fabric, where do i receive it",
+  "from": "printer sent back the printed fabric, where do i receive it",
+  "id": "pr-flow-receive-printed"
+ },
+ {
+  "q": "rfd me laal rang me short lkha aa rha",
+  "from": "rfd me laal rang me short likha aa rha",
+  "id": "pr-flow-short"
+ },
+ {
+  "q": "geeigeka PO kaise banate hai",
+  "from": "greige ka PO kaise banate hai",
+  "id": "pr-gd-new-po"
+ },
+ {
+  "q": "greige bales arrived phrom the mill, how to enter them",
+  "from": "greige bales arrived from the mill, how to enter them",
+  "id": "pr-gd-receive-greige"
+ },
+ {
+  "q": "supplier ka gstin gala bata rha 13 character wala",
+  "from": "supplier ka gstin galat bata rha 13 character wala",
+  "id": "pr-gd-gstin"
+ },
+ {
+  "q": "fba dispatch ka malhaath me aa gya accept kaise kre",
+  "from": "fba dispatch ka maal haath me aa gya accept kaise kre",
+  "id": "in-fba-accept"
+ },
+ {
+  "q": "how to put the shipment id on fba dkspatc",
+  "from": "how to put the shipment id on fba dispatch",
+  "id": "in-fba-ship"
+ },
+ {
+  "q": "fba dispatch me kuch lnelaal ho gyi hai 4 din se",
+  "from": "fba dispatch me kuch line laal ho gyi hai 4 din se",
+  "id": "in-fba-stale"
+ },
+ {
+  "q": "make a packing list from a box sheet fle",
+  "from": "make a packing list from a box sheet file",
+  "id": "in-pk-new-file"
+ },
+ {
+  "q": "carton pe lagane wale box label kaise peint kre",
+  "from": "carton pe lagane wale box label kaise print kre",
+  "id": "in-pk-labels"
+ },
+ {
+  "q": "scan to pack kaise chaalu kre",
+  "from": "scan to pack kaise chalu kre",
+  "id": "in-pk-scan"
+ },
+ {
+  "q": "box is full, how do i start the nectcarton",
+  "from": "box is full, how do i start the next carton",
+  "id": "in-pk-box-done"
+ },
+ {
+  "q": "glti se ek extra piece scn ho gya",
+  "from": "galti se ek extra piece scan ho gya",
+  "id": "in-pk-undo"
+ },
+ {
+  "q": "done packing all boxes, what next to ckosr it",
+  "from": "done packing all boxes, what next to close it",
+  "id": "in-pk-finish"
+ },
+ {
+  "q": "printed kapda store me kzise chadhaye fabric inventory me",
+  "from": "printed kapda store me kaise chadhaye fabric inventory me",
+  "id": "in-fab-store-entry"
+ },
+ {
+  "q": "fabreec inventory balance is in minuzand red, whats wrong",
+  "from": "fabric inventory balance is in minus and red, whats wrong",
+  "id": "in-fab-red"
+ },
+ {
+  "q": "accessory me minus quantity nhi daaal pa rha",
+  "from": "accessory me minus quantity nhi daal pa rha",
+  "id": "in-acc-negative"
+ },
+ {
+  "q": "india ztock kab khatam hoga month wise dekhna hai",
+  "from": "india stock kab khatam hoga month wise dekhna hai",
+  "id": "in-india-proj"
+ },
+ {
+  "q": "how does shopify stock worq out the send quantity",
+  "from": "how does shopify stock work out the send quantity",
+  "id": "in-sh-send"
+ },
+ {
+  "q": "shopify stock se seedha sales order bana sktw hai kya",
+  "from": "shopify stock se seedha sales order bana skte hai kya",
+  "id": "in-sh-open-so"
+ },
+ {
+  "q": "replenishment me latest stock aur slekaise lye",
+  "from": "replenishment me latest stock aur sale kaise laye",
+  "id": "pl-repl-refresh"
+ },
+ {
+  "q": "what does runs out in men",
+  "from": "what does runs out in mean",
+  "id": "pl-repl-runsout"
+ },
+ {
+  "q": "lead days ka box kya hai prod diso eala",
+  "from": "lead days ka box kya hai prod disp wala",
+  "id": "pl-repl-lead"
+ },
+ {
+  "q": "can i manually change next months prjection figure",
+  "from": "can i manually change next months projection figure",
+  "id": "pl-repl-proj-edit"
+ },
+ {
+  "q": "sku band krnaa hai, discontinue kaise kre",
+  "from": "sku band krna hai, discontinue kaise kre",
+  "id": "pl-repl-status"
+ },
+ {
+  "q": "cat A B C D kya hta hai",
+  "from": "cat A B C D kya hota hai",
+  "id": "pl-repl-cat"
+ },
+ {
+  "q": "meeting me jo dekidehua wo note kaha likhe artcle review me",
+  "from": "meeting me jo decide hua wo note kaha likhe article review me",
+  "id": "pl-ar-mom"
+ },
+ {
+  "q": "a sku is missing from article reviw",
+  "from": "a sku is missing from article review",
+  "id": "pl-ar-missing"
+ },
+ {
+  "q": "is mahine ka revenue taarget kaide dale",
+  "from": "is mahine ka revenue target kaise dale",
+  "id": "pl-tg-how"
+ },
+ {
+  "q": "if i set the revenue targwt will replenishment numbers change",
+  "from": "if i set the revenue target will replenishment numbers change",
+  "id": "pl-tg-planning-only"
+ },
+ {
+  "q": "meraa PO obgoing purchase order me nhi dikh rha",
+  "from": "mera PO ongoing purchase order me nhi dikh rha",
+  "id": "pl-fu-notshown"
+ },
+ {
+  "q": "goods came in, how to closr the po as receive",
+  "from": "goods came in, how to close the po as received",
+  "id": "pl-fu-edit"
+ },
+ {
+  "q": "top aseensali table khali hai",
+  "from": "top asin wali table khali hai",
+  "id": "pl-top-empty"
+ },
+ {
+  "q": "in production screen what does shlrt by men",
+  "from": "in production screen what does short by mean",
+  "id": "pl-pd-whattodo"
+ },
+ {
+  "q": "sku pe wrong prduction kyu likha hai",
+  "from": "sku pe wrong production kyu likha hai",
+  "id": "pl-pd-wrong"
+ },
+ {
+  "q": "pichle hafte qc pass ki report kaha meelegi",
+  "from": "pichle hafte qc pass ki report kaha milegi",
+  "id": "pl-rep-wow"
+ },
+ {
+  "q": "report for value of finished goods zgock",
+  "from": "report for value of finished goods stock",
+  "id": "pl-rep-fgval"
+ },
+ {
+  "q": "meeting report me action point iaise joce",
+  "from": "meeting report me action point kaise jode",
+  "id": "pl-rep-mtg-actions"
+ },
+ {
+  "q": "chngewekly production target from 20000",
+  "from": "change weekly production target from 20000",
+  "id": "pl-pa-target"
+ },
+ {
+  "q": "20 hazar ka tzrget hai, kitne log lagenge ye ksisepta chalega",
+  "from": "20 hazar ka target hai, kitne log lagenge ye kaise pta chalega",
+  "id": "pl-pa-karigars"
+ },
+ {
+  "q": "ek karogar ki puri detail dekhni hai",
+  "from": "ek karigar ki puri detail dekhni hai",
+  "id": "pl-ka-detail"
+ },
+ {
+  "q": "vendor orders menu se gsyabho gya",
+  "from": "vendor orders menu se gayab ho gya",
+  "id": "vm-vord-where"
+ },
+ {
+  "q": "why does mine say request vendor order instesd of new",
+  "from": "why does mine say request vendor order instead of new",
+  "id": "vm-vord-request-button"
+ },
+ {
+  "q": "vendor ordeme over the cap aa rha",
+  "from": "vendor order me over the cap aa rha",
+  "id": "vm-vord-over-cap"
+ },
+ {
+  "q": "printer still owes us how many metres, whrecan i check",
+  "from": "printer still owes us how many metres, where can i check",
+  "id": "vm-vord-track"
+ },
+ {
+  "q": "order duzre printer ko shif krna hai",
+  "from": "order dusre printer ko shift krna hai",
+  "id": "vm-vord-move"
+ },
+ {
+  "q": "printer ko login dena hai pin baanake",
+  "from": "printer ko login dena hai pin bana ke",
+  "id": "vm-vord-setup-pin"
+ },
+ {
+  "q": "filling order asking which fille",
+  "from": "filling order asking which filler",
+  "id": "vm-vord-filler"
+ },
+ {
+  "q": "how do i reject a vendor orde request",
+  "from": "how do i reject a vendor order request",
+  "id": "vm-vreq-reject"
+ },
+ {
+  "q": "rfd requirements sxreen kha milegi",
+  "from": "rfd requirements screen kha milegi",
+  "id": "vm-rfd-where"
+ },
+ {
+  "q": "mark rfd cloth as snt to the prnter",
+  "from": "mark rfd cloth as sent to the printer",
+  "id": "vm-rfd-mark-sent"
+ },
+ {
+  "q": "new pin not accepted, vhat are the ruls",
+  "from": "new pin not accepted, what are the rules",
+  "id": "vm-vend-pin-rules"
+ },
+ {
+  "q": "vendor portal me acknowledge ka btton nhi hai",
+  "from": "vendor portal me acknowledge ka button nhi hai",
+  "id": "vm-vend-view-only"
+ },
+ {
+  "q": "i want to see exaktly what the printer sees on his portal",
+  "from": "i want to see exactly what the printer sees on his portal",
+  "id": "vm-vend-admin-view"
+ },
+ {
+  "q": "printer delivery accept krte time qitna rakha kitna wapas kise bhare",
+  "from": "printer delivery accept krte time kitna rakha kitna wapas kaise bhare",
+  "id": "vm-vlog-accept-one"
+ },
+ {
+  "q": "difference between short and returnd",
+  "from": "difference between short and returned",
+  "id": "vm-vlog-returned-vs-short"
+ },
+ {
+  "q": "har printer mahine me kitna kar skta hai wo figoore kaise aata hai",
+  "from": "har printer mahine me kitna kar skta hai wo figure kaise aata hai",
+  "id": "vm-pal-capacity"
+ },
+ {
+  "q": "allocation says nomeof the printers has space left for this colour group",
+  "from": "allocation says none of the printers has space left for this colour group",
+  "id": "vm-pal-no-room"
+ },
+ {
+  "q": "can i delete an old sku from msster",
+  "from": "can i delete an old sku from master",
+  "id": "vm-pmdb-delete"
+ },
+ {
+  "q": "asin dalte teeme error not an asin",
+  "from": "asin dalte time error not an asin",
+  "id": "vm-pmdb-asin-invalid"
+ },
+ {
+  "q": "new ciliur launched, need to create all its skus",
+  "from": "new colour launched, need to create all its skus",
+  "id": "vm-pmdb-sku-codes"
+ },
+ {
+  "q": "zip yes kiya to chain lngth mang rha",
+  "from": "zip yes kiya to chain length maang rha",
+  "id": "vm-pmdb-zip-ruffle"
+ },
+ {
+  "q": "masters me naya colour add krnzhai",
+  "from": "masters me naya colour add krna hai",
+  "id": "vm-mst-add"
+ },
+ {
+  "q": "where do i put fbric width in ibches",
+  "from": "where do i put fabric width in inches",
+  "id": "vm-mst-fabric-width"
+ },
+ {
+  "q": "nzya karigar employee list me kais jode",
+  "from": "naya karigar employee list me kaise jode",
+  "id": "vm-hr-new-employee"
+ },
+ {
+  "q": "payout says no rate for somwlines",
+  "from": "payout says no rate for some lines",
+  "id": "vm-hr-no-rate"
+ },
+ {
+  "q": "sab log sku sku bllte rehre h, iska matlab kya hua",
+  "from": "sab log sku sku bolte rehte h, iska matlab kya hua",
+  "id": "bs-sku"
+ },
+ {
+  "q": "the sticker with the X00 barcld on every piece, what is that called",
+  "from": "the sticker with the X00 barcode on every piece, what is that called",
+  "id": "bs-fnsku"
+ },
+ {
+  "q": "sku asn fnsku teen me confuse ho gaya hu, kaun sa kya h",
+  "from": "sku asin fnsku teeno me confuse ho gaya hu, kaun sa kya h",
+  "id": "bs-sku-asin-fnsku-diff"
+ },
+ {
+  "q": "what's this AMZ-dash-date-dash-01 type number at the top of the rorm",
+  "from": "what's this AMZ-dash-date-dash-01 type number at the top of the form",
+  "id": "bs-order-id"
+ },
+ {
+  "q": "ek order me 5 lne likha hai, leene ka kya matlab",
+  "from": "ek order me 5 line likha hai, line ka kya matlab",
+  "id": "bs-order-line"
+ },
+ {
+  "q": "karigar matlab dqrzi hi na? ya koi aur",
+  "from": "karigar matlab darzi hi na? ya koi aur",
+  "id": "bs-karigar"
+ },
+ {
+  "q": "first week here, some onesaid do the job work, what does that mean",
+  "from": "first week here, someone said do the job work, what does that mean",
+  "id": "bs-job-work"
+ },
+ {
+  "q": "maaalissue karna aur receive karna me kya antar h",
+  "from": "maal issue karna aur receive karna me kya antar h",
+  "id": "bs-issue-receive"
+ },
+ {
+  "q": "reject wale piece kize bolte h",
+  "from": "reject wale piece kise bolte h",
+  "id": "bs-reject"
+ },
+ {
+  "q": "qc stndsfor what?",
+  "from": "qc stands for what?",
+  "id": "bs-qc"
+ },
+ {
+  "q": "piece alteration me bheja, matlab knarab hai kya",
+  "from": "piece alteration me bheja, matlab kharab hai kya",
+  "id": "bs-alteration"
+ },
+ {
+  "q": "fba bllte h wo kaunsa godown h",
+  "from": "fba bolte h wo kaunsa godown h",
+  "id": "bs-fba"
+ },
+ {
+  "q": "shopify order says MCF ready, what dors mcf even mean",
+  "from": "shopify order says MCF ready, what does mcf even mean",
+  "id": "bs-mcf"
+ },
+ {
+  "q": "awd wlawarehouse kaha hai, kya cheez hai ye",
+  "from": "awd wala warehouse kaha hai, kya cheez hai ye",
+  "id": "bs-awd"
+ },
+ {
+  "q": "eferyone keps saying the line is stuck in ppc. what is ppc",
+  "from": "everyone keeps saying the line is stuck in ppc. what is ppc",
+  "id": "bs-ppc"
+ },
+ {
+  "q": "rfd dloth means?",
+  "from": "rfd cloth means?",
+  "id": "bs-rfd"
+ },
+ {
+  "q": "printer gawe me a paper slip with the goods, is that a challan? what do i do with it",
+  "from": "printer gave me a paper slip with the goods, is that a challan? what do i do with it",
+  "id": "bs-challan"
+ },
+ {
+  "q": "the xolumn just says cover, what does that number tell me",
+  "from": "the column just says cover, what does that number tell me",
+  "id": "bs-cover-days"
+ },
+ {
+  "q": "replenishment wali scren kis kam ki hai",
+  "from": "replenishment wali screen kis kaam ki hai",
+  "id": "bs-replenishment"
+ },
+ {
+  "q": "ridhi aur cpc alg alg brand h kya",
+  "from": "ridhi aur cpc alag alag brand h kya",
+  "id": "bs-brands"
+ },
+ {
+  "q": "what's the difference betweearticle typeand subtype",
+  "from": "what's the difference between article type and subtype",
+  "id": "bs-article-subtype"
+ },
+ {
+  "q": "custom orde valatick kab lagate h",
+  "from": "custom order wala tick kab lagate h",
+  "id": "bs-custom-order"
+ },
+ {
+  "q": "P1 P2 on artikle review, wheech one is urgent",
+  "from": "P1 P2 on article review, which one is urgent",
+  "id": "bs-priority"
+ },
+ {
+  "q": "master database aur masters dnoalag h kya",
+  "from": "master database aur masters dono alag h kya",
+  "id": "bs-master"
+ },
+ {
+  "q": "ye chhota arrow wala dabba kaise khlteh",
+  "from": "ye chhota arrow wala dabba kaise kholte h",
+  "id": "bs-dropdown"
+ },
+ {
+  "q": "how do i select 3 colours toget herin the colour folter",
+  "from": "how do i select 3 colours together in the colour filter",
+  "id": "bs-multi-dropdown"
+ },
+ {
+  "q": "mark sent dabaya to bol raha phle row select karo",
+  "from": "mark sent dabaya to bol raha pehle row select karo",
+  "id": "bs-tick-rows-buttons"
+ },
+ {
+  "q": "srry very new to computers, how do i press a button on this",
+  "from": "sorry very new to computers, how do i press a button on this",
+  "id": "bs-button-what"
+ },
+ {
+  "q": "box me kuvh type hi nahi ho raha, likh nahi pa raha",
+  "from": "box me kuch type hi nahi ho raha, likh nahi pa raha",
+  "id": "bs-type-in-box"
+ },
+ {
+  "q": "leest me ek jarigar ka naam dhundhna h kaise",
+  "from": "list me ek karigar ka naam dhundhna h kaise",
+  "id": "bs-search-box"
+ },
+ {
+  "q": "got a red lne under the form agteri clicked",
+  "from": "got a red line under the form after i clicked",
+  "id": "bs-red-green-box"
+ },
+ {
+  "q": "button halka sa fika dikh raha h, dab hi nhk raha",
+  "from": "button halka sa fika dikh raha h, dab hi nahi raha",
+  "id": "bs-greyed-button"
+ },
+ {
+  "q": "remark liih deeya par save button hi nahi h, hua ya nahi?",
+  "from": "remark likh diya par save button hi nahi h, hua ya nahi?",
+  "id": "bs-saves-on-leave"
+ },
+ {
+  "q": "if I hit clear will my old entry get deletek",
+  "from": "if I hit clear will my old entry get deleted",
+  "id": "bs-clear"
+ },
+ {
+  "q": "saving... likha aa raha h kzafi der se, dobara dabau?",
+  "from": "saving... likha aa raha h kaafi der se, dobara dabau?",
+  "id": "bs-saving-wait"
+ },
+ {
+  "q": "galtse tab band ho gaya, jo bhara tha sab gaya kya",
+  "from": "galti se tab band ho gaya, jo bhara tha sab gaya kya",
+  "id": "bs-close-tab-lost"
+ },
+ {
+  "q": "electricity cut in the meeddle of saving, now what",
+  "from": "electricity cut in the middle of saving, now what",
+  "id": "bs-light-gone"
+ },
+ {
+  "q": "mujhse kuch galat ho taya to pura system kharab ho jayega kya, daarr lagta h",
+  "from": "mujhse kuch galat ho gaya to pura system kharab ho jayega kya, darr lagta h",
+  "id": "bs-break-something"
+ },
+ {
+  "q": "upar jo bade number wale dabbe h unpe clck karne se kya hota h",
+  "from": "upar jo bade number wale dabbe h unpe click karne se kya hota h",
+  "id": "bs-tiles-click"
+ },
+ {
+  "q": "is there a way to see more info aabooota number without clicking on it",
+  "from": "is there a way to see more info about a number without clicking on it",
+  "id": "bs-hover"
+ },
+ {
+  "q": "list me sirf kooch sau row aa rahi h, baaki kaha gayi",
+  "from": "list me sirf kuch sau row aa rahi h, baaki kaha gayi",
+  "id": "bs-only-first-rows"
+ },
+ {
+  "q": "lettwrare tiny on my screen, cant read anything",
+  "from": "letters are tiny on my screen, cant read anything",
+  "id": "bs-zoom-computer"
+ },
+ {
+  "q": "it won't let me type 10.5 pkecs",
+  "from": "it won't let me type 10.5 pieces",
+  "id": "bs-numbers-only"
+ },
+ {
+  "q": "qaun kaun se khane bharna zaroori h, sab bharna padega?",
+  "from": "kaun kaun se khane bharna zaroori h, sab bharna padega?",
+  "id": "bs-required-box"
+ },
+ {
+  "q": "pressed wrnt up but To make didn't droo at all, why",
+  "from": "pressed went up but To make didn't drop at all, why",
+  "id": "do-ord-tomake-formula"
+ },
+ {
+  "q": "over-received wale piecdusri line ki kami puri kar sakte h kya",
+  "from": "over-received wale piece dusri line ki kami puri kar sakte h kya",
+  "id": "do-ord-overrecv"
+ },
+ {
+  "q": "newer recorded वाली टाइल में लाइनें क्यों आ रही हैं, माल तो चला गया",
+  "from": "never recorded वाली टाइल में लाइनें क्यों आ रही हैं, माल तो चला गया",
+  "id": "do-ord-never-recorded"
+ },
+ {
+  "q": "shopify line showd 3d late, how are those days counted, is sunday included?",
+  "from": "shopify line shows 3d late, how are those days counted, is sunday included?",
+  "id": "do-ord-mto-due"
+ },
+ {
+  "q": "ready for shipping tle me number kaise aata h, kya ghatta h usme se",
+  "from": "ready for shipping tile me number kaise aata h, kya ghatta h usme se",
+  "id": "do-ord-ready-shipping"
+ },
+ {
+  "q": "QC check got saved without any order number, vhich order gets those piekes",
+  "from": "QC check got saved without any order number, which order gets those pieces",
+  "id": "do-ord-qc-shared"
+ },
+ {
+  "q": "shopify pe cancelled dikha raha par console me line abgibhi khul h",
+  "from": "shopify pe cancelled dikha raha par console me line abhi bhi khuli h",
+  "id": "do-ord-shopify-says"
+ },
+ {
+  "q": "close lines left hlf my rows untouched, zaysthe reason doesn't fit",
+  "from": "close lines left half my rows untouched, says the reason doesn't fit",
+  "id": "do-ord-close-rules"
+ },
+ {
+  "q": "produktion ne shipping ko handover kar diya galti se, wapas opwn kaise karu",
+  "from": "production ne shipping ko handover kar diya galti se, wapas open kaise karu",
+  "id": "do-ord-reopen-limit"
+ },
+ {
+  "q": "printing column shows 40 back of 60 with a naamrunder it, what is that",
+  "from": "printing column shows 40 back of 60 with a name under it, what is that",
+  "id": "do-ord-printing-col"
+ },
+ {
+  "q": "ek hi din ke do sles order, dusre wle ko 02 kyun mila",
+  "from": "ek hi din ke do sales order, dusre wale ko 02 kyun mila",
+  "id": "do-so-number-series"
+ },
+ {
+  "q": "cpc ke shopify order pe ridhi ka fba stock count hota h kya mcf radyke liye",
+  "from": "cpc ke shopify order pe ridhi ka fba stock count hota h kya mcf ready ke liye",
+  "id": "do-shop-mcf-ready-rule"
+ },
+ {
+  "q": "karigar ne 20 wapas kar diye to wo 20 phir se issue kyu nhi ho rahe usi order pe",
+  "from": "karigar ne 20 wapas kar diye to wo 20 phir se issue kyu nahi ho rahe usi order pe",
+  "id": "dp-jw-never-twice"
+ },
+ {
+  "q": "issue blockd saying zippers short on the shelf, how is that balance figoored",
+  "from": "issue blocked saying zippers short on the shelf, how is that balance figured",
+  "id": "dp-jw-zip-stock"
+ },
+ {
+  "q": "what does the coloured ring percntage on eacg job work row show",
+  "from": "what does the coloured ring percentage on each job work row show",
+  "id": "dp-jw-ring-cards"
+ },
+ {
+  "q": "whatsapp sent ka nishaan h par karigar bol raha msg aya hi nahi",
+  "from": "whatsapp sent ka nishaan h par karigar bol raha msg aaya hi nahi",
+  "id": "dp-jw-wa-sent-meaning"
+ },
+ {
+  "q": "if i tick rws and receive them all together, does it count any rejects",
+  "from": "if i tick rows and receive them all together, does it count any rejects",
+  "id": "dp-jw-bulk-good"
+ },
+ {
+  "q": "कटिंग एंट्री पर Used, Partly, Unusd कैसे तय होता है",
+  "from": "कटिंग एंट्री पर Used, Partly, Unused कैसे तय होता है",
+  "id": "dp-cut-used-fill"
+ },
+ {
+  "q": "cutting card pe wast % kaise nikala, kuch entry me kapda naap hi nahi tha",
+  "from": "cutting card pe waste % kaise nikala, kuch entry me kapda naapa hi nahi tha",
+  "id": "dp-cut-waste-avg"
+ },
+ {
+  "q": "embroidery oinegot cut but never went to any karigar, where are those pieces now",
+  "from": "embroidery line got cut but never went to any karigar, where are those pieces now",
+  "id": "dp-cut-emb-qc"
+ },
+ {
+  "q": "touching ke liye gaye maaal ka still there number kaise banta h",
+  "from": "touching ke liye gaye maal ka still there number kaise banta h",
+  "id": "dp-qc-dept-count"
+ },
+ {
+  "q": "8:30 se 5 baje tak 8.5 ghante kaise, khne ka break naahi kata?",
+  "from": "8:30 se 5 baje tak 8.5 ghante kaise, khane ka break nahi kata?",
+  "id": "dp-att-hours"
+ },
+ {
+  "q": "प्रिंटर से कपड़ा दिए से ज़्यादा वापस आया, रिसीव करने पर efror आ रहा",
+  "from": "प्रिंटर से कपड़ा दिए से ज़्यादा वापस आया, रिसीव करने पर error आ रहा",
+  "id": "dp-flow-challan-receive"
+ },
+ {
+  "q": "shrinkag % on the greige desk, how is it computed and wyathappens above 5",
+  "from": "shrinkage % on the greige desk, how is it computed and what happens above 5",
+  "id": "dp-gd-shrink"
+ },
+ {
+  "q": "how does finished guds arrive at the in-stock fgure for one sku",
+  "from": "how does finished goods arrive at the in-stock figure for one sku",
+  "id": "di-fg-formula"
+ },
+ {
+  "q": "ek receive entry delete ki aur stxkkam ho gaya, aisa kyu",
+  "from": "ek receive entry delete ki aur stock kam ho gaya, aisa kyu",
+  "id": "di-fg-delete-moves-stock"
+ },
+ {
+  "q": "stoc is showing -12 in red for one sku",
+  "from": "stock is showing -12 in red for one sku",
+  "id": "di-fg-negative"
+ },
+ {
+  "q": "re-order level set nyi kiya to low status kabhi dikhega?",
+  "from": "re-order level set nahi kiya to low status kabhi dikhega?",
+  "id": "di-fg-status-rule"
+ },
+ {
+  "q": "order was 50, 48 already czme in, now 6 more arrived. how much counts as extra",
+  "from": "order was 50, 48 already came in, now 6 more arrived. how much counts as extra",
+  "id": "di-fg-over-calc"
+ },
+ {
+  "q": "the deletw button on a sku row in undia store, how much does it wipe",
+  "from": "the delete button on a sku row in india store, how much does it wipe",
+  "id": "di-fg-delete-sku"
+ },
+ {
+  "q": "return wala galat lag gaya fba dispatc me, undo sirf ek step peeche jaata h, return kaise hatau",
+  "from": "return wala galat lag gaya fba dispatch me, undo sirf ek step peeche jaata h, return kaise hatau",
+  "id": "di-fba-undo-return"
+ },
+ {
+  "q": "gross weight on the packing list, vhere eoes the extra 1.5 come from",
+  "from": "gross weight on the packing list, where does the extra 1.5 come from",
+  "id": "di-pk-weights"
+ },
+ {
+  "q": "file se packin list banayi to FG ka stock ghata kya",
+  "from": "file se packing list banayi to FG ka stock ghata kya",
+  "id": "di-pk-file-no-stock"
+ },
+ {
+  "q": "accessories ka balance kaeese banta h, return aur in alag kyu likhte",
+  "from": "accessories ka balance kaise banta h, return aur in alag kyu likhte",
+  "id": "di-acc-balance"
+ },
+ {
+  "q": "avg/day C category wlesku ke liye kaise lete h",
+  "from": "avg/day C category wale sku ke liye kaise lete h",
+  "id": "dl-repl-avgday"
+ },
+ {
+  "q": "air req fills cover up to how mny days? and sea?",
+  "from": "air req fills cover up to how many days? and sea?",
+  "id": "dl-repl-req-netted"
+ },
+ {
+  "q": "negative excess in june, does that sgortage get added to july",
+  "from": "negative excess in june, does that shortage get added to july",
+  "id": "dl-repl-excess-carry"
+ },
+ {
+  "q": "PO pehle hi daal diya zupplier ko phir bhi air req utna hi dikha raha",
+  "from": "PO pehle hi daal diya supplier ko phir bhi air req utna hi dikha raha",
+  "id": "dl-repl-po-double"
+ },
+ {
+  "q": "I set a sku to discontinue, what elze stops for it",
+  "from": "I set a sku to discontinue, what else stops for it",
+  "id": "dl-repl-stop-effects"
+ },
+ {
+  "q": "the req qty i typd on article review, wll create po pick it up",
+  "from": "the req qty i typed on article review, will create po pick it up",
+  "id": "dl-ar-reqqty-po"
+ },
+ {
+  "q": "rwvenuetarget me vs run rate 2.5x laal dikha raha, maatlab kya",
+  "from": "revenue target me vs run rate 2.5x laal dikha raha, matlab kya",
+  "id": "dl-tg-runrate"
+ },
+ {
+  "q": "po pending qty shovs 0 even though nothing frm that po has arrived",
+  "from": "po pending qty shows 0 even though nothing from that po has arrived",
+  "id": "dl-fu-pending-shared"
+ },
+ {
+  "q": "production analyss says enough karigars but not enough pieces a day, what does that mean",
+  "from": "production analysis says enough karigars but not enough pieces a day, what does that mean",
+  "id": "dl-pa-verdict"
+ },
+ {
+  "q": "labour value is 0 for sme articles in karigar analysis",
+  "from": "labour value is 0 for some articles in karigar analysis",
+  "id": "dl-ka-labour"
+ },
+ {
+  "q": "rate list has no rate for this exact article, which rate dods the payout fall back to",
+  "from": "rate list has no rate for this exact article, which rate does the payout fall back to",
+  "id": "dv-hr-rate-lookup"
+ },
+ {
+  "q": "phull month me rate column me 'mixed' lkha h",
+  "from": "full month me rate column me 'mixed' likha h",
+  "id": "dv-hr-full-month"
+ },
+ {
+  "q": "after freezing a fortnight, if I chaange a raate does the payout move",
+  "from": "after freezing a fortnight, if I change a rate does the payout move",
+  "id": "dv-hr-freeze-effect"
+ },
+ {
+  "q": "register me 240 piece hai par pyout me 210 hi, baaki kaha gaye",
+  "from": "register me 240 piece hai par payout me 210 hi, baaki kaha gaye",
+  "id": "dv-hr-drill-excluded"
+ },
+ {
+  "q": "night shift dxtra hours 22:00 to 02:00, will it count or error",
+  "from": "night shift extra hours 22:00 to 02:00, will it count or error",
+  "id": "dv-hr-extra-hours-calc"
+ },
+ {
+  "q": "vend fortnight won't freeze, it complains about a rate",
+  "from": "vendor fortnight won't freeze, it complains about a rate",
+  "id": "dv-vpay-freeze-norate"
+ },
+ {
+  "q": "printer ko kitna mzal de sakte h, wo limit 10% upar kaise lagti h",
+  "from": "printer ko kitna maal de sakte h, wo limit 10% upar kaise lagti h",
+  "id": "dv-vord-cap-formula"
+ },
+ {
+  "q": "goods never shoved up frpmthe printer, should i accept 0 or something else",
+  "from": "goods never showed up from the printer, should i accept 0 or something else",
+  "id": "dv-vlog-never-vs-zero"
+ },
+ {
+  "q": "renamed a colour in mast ers but old entries still show the old name",
+  "from": "renamed a colour in masters but old entries still show the old name",
+  "id": "dv-mst-rename-records"
+ },
+ {
+  "q": "amazon ka order shuru se FBA bhejne tak kaun kaaun si screen se guzarta h",
+  "from": "amazon ka order shuru se FBA bhejne tak kaun kaun si screen se guzarta h",
+  "id": "dx-amz-order-life"
+ },
+ {
+  "q": "wholesale buyer order, what's its route through the system tll it's sent",
+  "from": "wholesale buyer order, what's its route through the system till it's sent",
+  "id": "dx-b2b-order-life"
+ },
+ {
+  "q": "karigar ko maaal de diya par cutting chadhayi hi nahi thi, ab syste rok raha",
+  "from": "karigar ko maal de diya par cutting chadhayi hi nahi thi, ab system rok raha",
+  "id": "dx-step-skipped"
+ },
+ {
+  "q": "register total says 500 issued but order konsole shows only 380 issued",
+  "from": "register total says 500 issued but order console shows only 380 issued",
+  "id": "dx-no-order-id-gap"
+ },
+ {
+  "q": "har svreen pe alag syock aa raha, kis pe bharosa karu",
+  "from": "har screen pe alag stock aa raha, kis pe bharosa karu",
+  "id": "dx-which-number-trust"
+ },
+ {
+  "q": "karigar returned half the pieces but his payout sgows noth ing for that row yet",
+  "from": "karigar returned half the pieces but his payout shows nothing for that row yet",
+  "id": "dx-pay-vs-received"
+ },
+ {
+  "q": "printer typed 100 in his portal but we acceoted 92, qhich one gets paid",
+  "from": "printer typed 100 in his portal but we accepted 92, which one gets paid",
+  "id": "dx-printer-delivery-truth"
+ },
+ {
+  "q": "maine chaangemaanga tha, ab khud approve kyu nahi kar pa raaha",
+  "from": "maine change maanga tha, ab khud approve kyu nahi kar pa raha",
+  "id": "dx-no-self-approve"
+ },
+ {
+  "q": "deleted a pack inlist by mistake and it's not in the recycle bin",
+  "from": "deleted a packing list by mistake and it's not in the recycle bin",
+  "id": "dx-not-in-recycle-bin"
+ },
+ {
+  "q": "pichle jahine ki cutting entry galat h par month freez ho gaya, ab?",
+  "from": "pichle mahine ki cutting entry galat h par month freeze ho gaya, ab?",
+  "id": "dx-correct-closed-period"
+ },
+ {
+  "q": "+ New SKU bootton kya karta h",
+  "from": "+ New SKU button kya karta h",
+  "id": "c-pmdb-745",
+  "tab": "pmdb"
+ },
+ {
+  "q": "ye Re-order level kis kzamka hai",
+  "from": "ye Re-order level kis kaam ka hai",
+  "id": "c-fgi-1485",
+  "tab": "fgi"
+ },
+ {
+  "q": "what happens if i pres Days open",
+  "from": "what happens if i press Days open",
+  "id": "c-ord-1711",
+  "tab": "ord"
+ },
+ {
+  "q": "Open ka kya matlab hta hai",
+  "from": "Open ka kya matlab hota hai",
+  "id": "c-so-1827",
+  "tab": "so"
+ },
+ {
+  "q": "what does Raixe an adjustment shw",
+  "from": "what does Raise an adjustment show",
+  "id": "c-cx-1719",
+  "tab": "cx"
+ },
+ {
+  "q": "Order Console order bjtton kya karta h",
+  "from": "Order Console orders button kya karta h",
+  "id": "c-fgi-1566",
+  "tab": "fgi"
+ },
+ {
+  "q": "ye Maark checked kis kaam ka hai",
+  "from": "ye Mark checked kis kaam ka hai",
+  "id": "c-fab-1600",
+  "tab": "fab"
+ },
+ {
+  "q": "what happ ens if i press Reason on the entry",
+  "from": "what happens if i press Reason on the entry",
+  "id": "c-fgi-1493",
+  "tab": "fgi"
+ },
+ {
+  "q": "₹ / poece किसलिए है",
+  "from": "₹ / piece किसलिए है",
+  "id": "c-mst-1641",
+  "tab": "mst"
+ },
+ {
+  "q": "Estka kya matlab hota hai",
+  "from": "Edit ka kya matlab hota hai",
+  "id": "c-fgi-1550",
+  "tab": "fgi"
+ },
+ {
+  "q": "what does Pidces shipped whow",
+  "from": "what does Pieces shipped show",
+  "id": "c-fba-1465",
+  "tab": "fba"
+ },
+ {
+  "q": "Track buttob kya qarta h",
+  "from": "Track button kya karta h",
+  "id": "c-fab-1603",
+  "tab": "fab"
+ },
+ {
+  "q": "ye Cancelled after this was takn in. Still owed. kis kaam ka hai",
+  "from": "ye Cancelled after this was taken in. Still owed. kis kaam ka hai",
+  "id": "c-hr-1862",
+  "tab": "hr"
+ },
+ {
+  "q": "wjat happenzif i press SKU",
+  "from": "what happens if i press SKU",
+  "id": "c-article-1908",
+  "tab": "article"
+ },
+ {
+  "q": "To qooilt teaj किसलिए है",
+  "from": "To quilt team किसलिए है",
+  "id": "c-ord-1758",
+  "tab": "ord"
+ },
+ {
+  "q": "— lave as it is — ka kya matlab hota hai",
+  "from": "— leave as it is — ka kya matlab hota hai",
+  "id": "c-fgi-1486",
+  "tab": "fgi"
+ },
+ {
+  "q": "vhat does Date show",
+  "from": "what does Date show",
+  "id": "c-gdesk-1345",
+  "tab": "gdesk"
+ },
+ {
+  "q": "Transpor / LR button kya karta h",
+  "from": "Transport / LR button kya karta h",
+  "id": "c-gdesk-1346",
+  "tab": "gdesk"
+ },
+ {
+  "q": "ye leave as it is kis kam ka hai",
+  "from": "ye leave as it is kis kaam ka hai",
+  "id": "c-fgi-1477",
+  "tab": "fgi"
+ },
+ {
+  "q": "what happens if i press pieces of ths order in the India Store",
+  "from": "what happens if i press pieces of this order in the India Store",
+  "id": "c-fgi-1584",
+  "tab": "fgi"
+ },
+ {
+  "q": "Our RFD chqllan no. किसलिए है",
+  "from": "Our RFD challan no. किसलिए है",
+  "id": "c-gdesk-1308",
+  "tab": "gdesk"
+ },
+ {
+  "q": "By PO ' + nf((DB.gpo || []).length) + ' ka kya matl hota hai",
+  "from": "By PO ' + nf((DB.gpo || []).length) + ' ka kya matlab hota hai",
+  "id": "c-gdesk-1360",
+  "tab": "gdesk"
+ },
+ {
+  "q": "what coes Work booked show",
+  "from": "what does Work booked show",
+  "id": "c-so-1728",
+  "tab": "so"
+ },
+ {
+  "q": "Shov … more button kya kart h",
+  "from": "Show … more button kya karta h",
+  "id": "c-ord-1761",
+  "tab": "ord"
+ },
+ {
+  "q": "ye Ordered kis kanka hai",
+  "from": "ye Ordered kis kaam ka hai",
+  "id": "c-fgi-1578",
+  "tab": "fgi"
+ },
+ {
+  "q": "what happens if i oress Start ahother session",
+  "from": "what happens if i press Start another session",
+  "id": "c-fgi-1595",
+  "tab": "fgi"
+ },
+ {
+  "q": "Uoload किसलिए है",
+  "from": "Upload किसलिए है",
+  "id": "c-so-1790",
+  "tab": "so"
+ },
+ {
+  "q": "In the app ka kya matlab hlga hai",
+  "from": "In the app ka kya matlab hota hai",
+  "id": "c-mst-1667",
+  "tab": "mst"
+ },
+ {
+  "q": "whag does W cm shoe",
+  "from": "what does W cm show",
+  "id": "c-fgi-1587",
+  "tab": "fgi"
+ },
+ {
+  "q": "+ Supple ment PO for ' + m1(extra) + ' m buttn kya karta h",
+  "from": "+ Supplement PO for ' + m1(extra) + ' m button kya karta h",
+  "id": "c-gdesk-1375",
+  "tab": "gdesk"
+ },
+ {
+  "q": "ye ' + (group === 'article' ? 'Article' : group === 'dept' ? 'Department' : 'Karigar') + ' kis kaaam ka hai",
+  "from": "ye ' + (group === 'article' ? 'Article' : group === 'dept' ? 'Department' : 'Karigar') + ' kis kaam ka hai",
+  "id": "c-mst-1635",
+  "tab": "mst"
+ },
+ {
+  "q": "whaathappens if i pres Reference",
+  "from": "what happens if i press Reference",
+  "id": "c-so-1786",
+  "tab": "so"
+ },
+ {
+  "q": "Color ka kya matlab hta hai",
+  "from": "Color ka kya matlab hota hai",
+  "id": "c-so-1805",
+  "tab": "so"
+ },
+ {
+  "q": "what does The printer still holds pieces for that very order — the delivety has not been entered in show",
+  "from": "what does The printer still holds pieces for that very order — the delivery has not been entered in show",
+  "id": "c-fab-1605",
+  "tab": "fab"
+ },
+ {
+  "q": "All depaartments button kya karta h",
+  "from": "All departments button kya karta h",
+  "id": "c-mst-1632",
+  "tab": "mst"
+ },
+ {
+  "q": "ye Terms of delivery kis jaam ka hai",
+  "from": "ye Terms of delivery kis kaam ka hai",
+  "id": "c-gdesk-1306",
+  "tab": "gdesk"
+ },
+ {
+  "q": "wht hqppens if i press Reopen",
+  "from": "what happens if i press Reopen",
+  "id": "c-fgi-1585",
+  "tab": "fgi"
+ },
+ {
+  "q": "All colprs ka kya matlab nota hai",
+  "from": "All colors ka kya matlab hota hai",
+  "id": "c-pbase-795",
+  "tab": "pbase"
+ },
+ {
+  "q": "wht does DHL CSV show",
+  "from": "what does DHL CSV show",
+  "id": "c-shop-882",
+  "tab": "shop"
+ },
+ {
+  "q": "Challn buttn kya karta h",
+  "from": "Challan button kya karta h",
+  "id": "c-flow-1169",
+  "tab": "flow"
+ },
+ {
+  "q": "ye … · iwsued … on … · … still out kis kaam ka hai",
+  "from": "ye … · issued … on … · … still out kis kaam ka hai",
+  "id": "c-flow-1123",
+  "tab": "flow"
+ },
+ {
+  "q": "what happens if i press Maqe challan",
+  "from": "what happens if i press Make challan",
+  "id": "c-flow-1226",
+  "tab": "flow"
+ },
+ {
+  "q": "Select all ka kya matla hota hai",
+  "from": "Select all ka kya matlab hota hai",
+  "id": "c-so-1813",
+  "tab": "so"
+ },
+ {
+  "q": "what does e.g. Greeege Sheeting 67 show",
+  "from": "what does e.g. Greige Sheeting 67 show",
+  "id": "c-mst-1676",
+  "tab": "mst"
+ },
+ {
+  "q": "Auto — oldest orders first button kya iarta h",
+  "from": "Auto — oldest orders first button kya karta h",
+  "id": "c-fgi-1508",
+  "tab": "fgi"
+ },
+ {
+  "q": "ye L cm kis kam ka hai",
+  "from": "ye L cm kis kaam ka hai",
+  "id": "c-fgi-1586",
+  "tab": "fgi"
+ },
+ {
+  "q": "what happens if i presw Anyone's entry",
+  "from": "what happens if i press Anyone's entry",
+  "id": "c-pbase-791",
+  "tab": "pbase"
+ },
+ {
+  "q": "Waiting to be cou nted in किसलिए है",
+  "from": "Waiting to be counted in किसलिए है",
+  "id": "c-fgi-367",
+  "tab": "fgi"
+ },
+ {
+  "q": "Reject ka kya matlab hotaa hai",
+  "from": "Reject ka kya matlab hota hai",
+  "id": "c-pbase-1874",
+  "tab": "pbase"
+ },
+ {
+  "q": "what does Refresh syow",
+  "from": "what does Refresh show",
+  "id": "c-mst-228",
+  "tab": "mst"
+ },
+ {
+  "q": "FBA aaccount … `).join('')} button kya karta h",
+  "from": "FBA account … `).join('')} button kya karta h",
+  "id": "c-fgi-1562",
+  "tab": "fgi"
+ },
+ {
+  "q": "ye All soobtypes kis kaan ka hai",
+  "from": "ye All subtypes kis kaam ka hai",
+  "id": "c-pcut-824",
+  "tab": "pcut"
+ },
+ {
+  "q": "what hppens if i press Sign out",
+  "from": "what happens if i press Sign out",
+  "id": "c-any-17",
+  "tab": ""
+ },
+ {
+  "q": "Idsued किसलिए है",
+  "from": "Issued किसलिए है",
+  "id": "c-pbase-803",
+  "tab": "pbase"
+ },
+ {
+  "q": "Import ka kya matlzb hota hai",
+  "from": "Import ka kya matlab hota hai",
+  "id": "c-india-157",
+  "tab": "india"
+ },
+ {
+  "q": "wht des Closed from Shopify ' + esc(ptIsoDate(r.shopDoneAt) || '') + ' show",
+  "from": "what does Closed from Shopify ' + esc(ptIsoDate(r.shopDoneAt) || '') + ' show",
+  "id": "c-ord-1742",
+  "tab": "ord"
+ },
+ {
+  "q": "Every article btton kya krta h",
+  "from": "Every article button kya karta h",
+  "id": "c-flow-1270",
+  "tab": "flow"
+ },
+ {
+  "q": "ye Net kis kamka hai",
+  "from": "ye Net kis kaam ka hai",
+  "id": "c-pack-1945",
+  "tab": "pack"
+ },
+ {
+  "q": "what happens if i press ⇄ Move ffomAWD",
+  "from": "what happens if i press ⇄ Move from AWD",
+  "id": "c-repl-29",
+  "tab": "repl"
+ },
+ {
+  "q": "📦 Snip from India किसलिए है",
+  "from": "📦 Ship from India किसलिए है",
+  "id": "c-prod-188",
+  "tab": "prod"
+ },
+ {
+  "q": "Order Condole ka kya matlab hota hai",
+  "from": "Order Console ka kya matlab hota hai",
+  "id": "c-fgi-1500",
+  "tab": "fgi"
+ },
+ {
+  "q": "what does Invoice # shov",
+  "from": "what does Invoice # show",
+  "id": "c-pack-2045",
+  "tab": "pack"
+ },
+ {
+  "q": "e.g. 07001 button kya kzrta h",
+  "from": "e.g. 07001 button kya karta h",
+  "id": "c-india-1973",
+  "tab": "india"
+ },
+ {
+  "q": "ye Ordere kis kaam ka hai",
+  "from": "ye Ordered kis kaam ka hai",
+  "id": "c-gdesk-1337",
+  "tab": "gdesk"
+ },
+ {
+  "q": "what hsppens if i press Dne — write Send to FBA",
+  "from": "what happens if i press Done — write Send to FBA",
+  "id": "c-pack-2034",
+  "tab": "pack"
+ },
+ {
+  "q": "Not in the Amazon snapshot AND not in the Cat alog — check the SKU spelling, or it reaally i किसलिए है",
+  "from": "Not in the Amazon snapshot AND not in the Catalog — check the SKU spelling, or it really i किसलिए है",
+  "id": "c-india-1970",
+  "tab": "india"
+ },
+ {
+  "q": "Change my PIN ka kya maatlb hota hai",
+  "from": "Change my PIN ka kya matlab hota hai",
+  "id": "c-vend-268",
+  "tab": "vend"
+ },
+ {
+  "q": "what does Filter id / order / SKU / pro duct shw",
+  "from": "what does Filter id / order / SKU / product show",
+  "id": "c-adj-900",
+  "tab": "adj"
+ },
+ {
+  "q": "Export butto kya qarta h",
+  "from": "Export button kya karta h",
+  "id": "c-repl-34",
+  "tab": "repl"
+ },
+ {
+  "q": "ye Sheepment daate to kis kaam ka hai",
+  "from": "ye Shipment date to kis kaam ka hai",
+  "id": "c-pack-197",
+  "tab": "pack"
+ },
+ {
+  "q": "what happens if i pfess Move completed entries",
+  "from": "what happens if i press Move completed entries",
+  "id": "c-pbase-809",
+  "tab": "pbase"
+ },
+ {
+  "q": "For which order * Auto — oldest orders first ka kya matlab hoga hai",
+  "from": "For which order * Auto — oldest orders first ka kya matlab hota hai",
+  "id": "c-fgi-1507",
+  "tab": "fgi"
+ },
+ {
+  "q": "what does By product one crd per SKU show",
+  "from": "what does By product one card per SKU show",
+  "id": "c-vend-259",
+  "tab": "vend"
+ },
+ {
+  "q": "Fixed — send to PPC button kya krta h",
+  "from": "Fixed — send to PPC button kya karta h",
+  "id": "c-flow-1081",
+  "tab": "flow"
+ },
+ {
+  "q": "ye The warehouse list is still being read. kis kaan ka hai",
+  "from": "ye The warehouse list is still being read. kis kaam ka hai",
+  "id": "c-follow-2054",
+  "tab": "follow"
+ },
+ {
+  "q": "what happens if i pres Greige has come on tgis line, so its fabric stays.",
+  "from": "what happens if i press Greige has come on this line, so its fabric stays.",
+  "id": "c-gdesk-1376",
+  "tab": "gdesk"
+ },
+ {
+  "q": "Filled in from the itm on the left. Typing a SKU here works too and villsthe item back. किसलिए है",
+  "from": "Filled in from the item on the left. Typing a SKU here works too and fills the item back. किसलिए है",
+  "id": "c-pcut-840",
+  "tab": "pcut"
+ },
+ {
+  "q": "Not found on Anazon (not in the Replenishment snapshot) — needs a listing ka kya matlab hota hai",
+  "from": "Not found on Amazon (not in the Replenishment snapshot) — needs a listing ka kya matlab hota hai",
+  "id": "c-follow-1957",
+  "tab": "follow"
+ },
+ {
+  "q": "what does ' + esc(ln.st ? `………` : 'Nothing recordef yet.') + ' show",
+  "from": "what does ' + esc(ln.st ? `………` : 'Nothing recorded yet.') + ' show",
+  "id": "c-india-2001",
+  "tab": "india"
+ },
+ {
+  "q": "Paswed QC, not in India stock yet — accept or reject them button kya karta h",
+  "from": "Passed QC, not in India stock yet — accept or reject them button kya karta h",
+  "id": "c-flow-1150",
+  "tab": "flow"
+ },
+ {
+  "q": "ye Order (a new list) kis kaam ka hai",
+  "from": "ye Orders (a new list) kis kaam ka hai",
+  "id": "c-pack-2011",
+  "tab": "pack"
+ },
+ {
+  "q": "what happens if i press Search ofder no, SKU, fbric",
+  "from": "what happens if i press Search order no, SKU, fabric",
+  "id": "c-vend-267",
+  "tab": "vend"
+ },
+ {
+  "q": "Lead times used to decide whether a month's shortfal can still be covered by sea, or has किसलिए है",
+  "from": "Lead times used to decide whether a month's shortfall can still be covered by sea, or has किसलिए है",
+  "id": "c-repl-42",
+  "tab": "repl"
+ },
+ {
+  "q": "+ Add vendor ka kya matlab hotahai",
+  "from": "+ Add vendor ka kya matlab hota hai",
+  "id": "c-mst-1665",
+  "tab": "mst"
+ },
+ {
+  "q": "what does Type a number, or leave empty to go bakk to the calculated pfojection show",
+  "from": "what does Type a number, or leave empty to go back to the calculated projection show",
+  "id": "c-repl-2063",
+  "tab": "repl"
+ },
+ {
+  "q": "Capacity from history — m² a week bjttonkya karta h",
+  "from": "Capacity from history — m² a week button kya karta h",
+  "id": "c-palloc-406",
+  "tab": "palloc"
+ },
+ {
+  "q": "ye Blank uses net + packing weight. Fill it in only from a scale. kis kamka hai",
+  "from": "ye Blank uses net + packing weight. Fill it in only from a scale. kis kaam ka hai",
+  "id": "c-pack-1949",
+  "tab": "pack"
+ },
+ {
+  "q": "what happnz if i press Sign in",
+  "from": "what happens if i press Sign in",
+  "id": "c-any-2",
+  "tab": ""
+ },
+ {
+  "q": "Ropen the PO किसलिए है",
+  "from": "Reopen the PO किसलिए है",
+  "id": "c-gdesk-1352",
+  "tab": "gdesk"
+ },
+ {
+  "q": "Placed today ka kya matlab hotaa hai",
+  "from": "Placed today ka kya matlab hota hai",
+  "id": "c-shop-867",
+  "tab": "shop"
+ },
+ {
+  "q": "what does Cancel thizline show",
+  "from": "what does Cancel this line show",
+  "id": "c-cx-1720",
+  "tab": "cx"
+ },
+ {
+  "q": "+ A new pscking list button kya kart h",
+  "from": "+ A new packing list button kya karta h",
+  "id": "c-pack-2006",
+  "tab": "pack"
+ },
+ {
+  "q": "ye Use the maste data kis kaam ka hai",
+  "from": "ye Use the master data kis kaam ka hai",
+  "id": "c-flow-1133",
+  "tab": "flow"
+ },
+ {
+  "q": "whaathappens if i press ' + esc(why) + '",
+  "from": "what happens if i press ' + esc(why) + '",
+  "id": "c-india-2005",
+  "tab": "india"
+ },
+ {
+  "q": "who yok the pieces किसलिए है",
+  "from": "who took the pieces किसलिए है",
+  "id": "c-fgi-1536",
+  "tab": "fgi"
+ },
+ {
+  "q": "… open line(s) behind this SKU ka kya matlab hotaahai",
+  "from": "… open line(s) behind this SKU ka kya matlab hota hai",
+  "id": "c-ord-1747",
+  "tab": "ord"
+ },
+ {
+  "q": "what doezThis article is not cut — nothing to record show",
+  "from": "what does This article is not cut — nothing to record show",
+  "id": "c-ord-1750",
+  "tab": "ord"
+ },
+ {
+  "q": "Dsktop view the computer layout, scaldbutton kya karta h",
+  "from": "Desktop view the computer layout, scaled button kya karta h",
+  "id": "c-any-1056",
+  "tab": ""
+ },
+ {
+  "q": "ye Rrceived kis kaanka hai",
+  "from": "ye Received kis kaam ka hai",
+  "id": "c-gdesk-1338",
+  "tab": "gdesk"
+ },
+ {
+  "q": "what haappens if i press Employment type",
+  "from": "what happens if i press Employment type",
+  "id": "c-qc-664",
+  "tab": "qc"
+ },
+ {
+  "q": "Artikle किसलिए है",
+  "from": "Article किसलिए है",
+  "id": "c-target-2064",
+  "tab": "target"
+ },
+ {
+  "q": "India stock does not stretc to the end of this month ka kya matlab hota hai",
+  "from": "India stock does not stretch to the end of this month ka kya matlab hota hai",
+  "id": "c-target-2091",
+  "tab": "target"
+ },
+ {
+  "q": "what coes All sizes show",
+  "from": "what does All sizes show",
+  "id": "c-pcut-826",
+  "tab": "pcut"
+ },
+ {
+  "q": "Pas sword bytton kya karta h",
+  "from": "Password button kya karta h",
+  "id": "c-any-1",
+  "tab": ""
+ },
+ {
+  "q": "ye Savdall kis qaam ka hai",
+  "from": "ye Save all kis kaam ka hai",
+  "id": "c-ord-2225",
+  "tab": "ord"
+ },
+ {
+  "q": "vhat happens if i prss Mark fabric ready",
+  "from": "what happens if i press Mark fabric ready",
+  "id": "c-flow-1253",
+  "tab": "flow"
+ },
+ {
+  "q": "Nid = Air + Sea Req किसलिए है",
+  "from": "Need = Air + Sea Req किसलिए है",
+  "id": "c-prod-1961",
+  "tab": "prod"
+ },
+ {
+  "q": "Balance ka kya matlab hta hai",
+  "from": "Balance ka kya matlab hota hai",
+  "id": "c-ord-2427",
+  "tab": "ord"
+ },
+ {
+  "q": "what does Exyrahours show",
+  "from": "what does Extra hours show",
+  "id": "c-hr-535",
+  "tab": "hr"
+ },
+ {
+  "q": "Returned to the stor button kya kaftah",
+  "from": "Returned to the store button kya karta h",
+  "id": "c-fba-428",
+  "tab": "fba"
+ },
+ {
+  "q": "ye Delivery dtekis qaamka hai",
+  "from": "ye Delivery date kis kaam ka hai",
+  "id": "c-adj-1012",
+  "tab": "adj"
+ },
+ {
+  "q": "what hqpp ens if i press Pack & verify",
+  "from": "what happens if i press Pack & verify",
+  "id": "c-fgi-393",
+  "tab": "fgi"
+ },
+ {
+  "q": "FromIndia · DHL / FefEx किसलिए है",
+  "from": "From India · DHL / FedEx किसलिए है",
+  "id": "c-india-1972",
+  "tab": "india"
+ },
+ {
+  "q": "SKU ka kya matlab hotaahai",
+  "from": "SKU ka kya matlab hota hai",
+  "id": "c-adj-1021",
+  "tab": "adj"
+ },
+ {
+  "q": "wht does Article zhow",
+  "from": "what does Article show",
+  "id": "c-shopify-2101",
+  "tab": "shopify"
+ },
+ {
+  "q": "Iyem button kya karta h",
+  "from": "Item button kya karta h",
+  "id": "c-shop-2184",
+  "tab": "shop"
+ },
+ {
+  "q": "ye By kis kaaam ka hai",
+  "from": "ye By kis kaam ka hai",
+  "id": "c-pack-2043",
+  "tab": "pack"
+ },
+ {
+  "q": "what happens if i press Sunday to Saturday, the same week as Lazt week · received",
+  "from": "what happens if i press Sunday to Saturday, the same weeks as Last week · received",
+  "id": "c-rep-491",
+  "tab": "rep"
+ },
+ {
+  "q": "= q0 ? '' : ' disabled'}>Fulfil from Indaa किसलिए है",
+  "from": "= q0 ? '' : ' disabled'}>Fulfil from India किसलिए है",
+  "id": "c-cx-1718",
+  "tab": "cx"
+ },
+ {
+  "q": "This order, start to fibish ka kya matlab hta hai",
+  "from": "This order, start to finish ka kya matlab hota hai",
+  "id": "c-ord-1736",
+  "tab": "ord"
+ },
+ {
+  "q": "what drsAdd a note (e.g. 'Fabric ordered', 'Production started', 'Ready to ship') show",
+  "from": "what does Add a note (e.g. 'Fabric ordered', 'Production started', 'Ready to ship') show",
+  "id": "c-adj-1044",
+  "tab": "adj"
+ },
+ {
+  "q": "Clear button kya qarta h",
+  "from": "Clear button kya karta h",
+  "id": "c-pcut-832",
+  "tab": "pcut"
+ },
+ {
+  "q": "ye Show what makes ths up kis kaam ka hai",
+  "from": "ye Show what makes this up kis kaam ka hai",
+  "id": "c-gdesk-1416",
+  "tab": "gdesk"
+ },
+ {
+  "q": "wht happens if i press Export selected",
+  "from": "what happens if i press Export selected",
+  "id": "c-pbase-1903",
+  "tab": "pbase"
+ },
+ {
+  "q": "Kep it ka kya matlab hota hai",
+  "from": "Keep it ka kya matlab hota hai",
+  "id": "c-pbase-1907",
+  "tab": "pbase"
+ },
+ {
+  "q": "what does Download thse rows shw",
+  "from": "what does Download these rows show",
+  "id": "c-rep-2135",
+  "tab": "rep"
+ },
+ {
+  "q": "Use for another order bootton kya karta h",
+  "from": "Use for another order button kya karta h",
+  "id": "c-flow-1159",
+  "tab": "flow"
+ },
+ {
+  "q": "ye Nothin of this was pressed the week before, so there is no percentage to give. kis kaam ka hai",
+  "from": "ye Nothing of this was pressed the week before, so there is no percentage to give. kis kaam ka hai",
+  "id": "c-rep-2119",
+  "tab": "rep"
+ },
+ {
+  "q": "what hzppens if i peess + Store entry",
+  "from": "what happens if i press + Store entry",
+  "id": "c-fab-513",
+  "tab": "fab"
+ },
+ {
+  "q": "Mpnth किसलिए है",
+  "from": "Month किसलिए है",
+  "id": "c-rep-2137",
+  "tab": "rep"
+ },
+ {
+  "q": "SKU lnes ⤓ ka kya matlab hotaa hai",
+  "from": "SKU lines ⤓ ka kya matlab hota hai",
+  "id": "c-vreq-315",
+  "tab": "vreq"
+ },
+ {
+  "q": "whtdoes Add the … mossing show",
+  "from": "what does Add the … missing show",
+  "id": "c-so-1830",
+  "tab": "so"
+ },
+ {
+  "q": "Spotting & touchin button kya karta h",
+  "from": "Spotting & touching button kya karta h",
+  "id": "c-qc-633",
+  "tab": "qc"
+ },
+ {
+  "q": "ye Evry msrketplace is showing. Switch the picker back to “US marketplace only” to hide the kis kaam ka hai",
+  "from": "ye Every marketplace is showing. Switch the picker back to “US marketplace only” to hide the kis kaam ka hai",
+  "id": "c-repl-2052",
+  "tab": "repl"
+ },
+ {
+  "q": "what happens if i prss Search design / grou / printer",
+  "from": "what happens if i press Search design / group / printer",
+  "id": "c-palloc-413",
+  "tab": "palloc"
+ },
+ {
+  "q": "Hidden SKUz किसलिए है",
+  "from": "Hidden SKUs किसलिए है",
+  "id": "c-repl-36",
+  "tab": "repl"
+ },
+ {
+  "q": "Guide · गाइड ka kya matlzb htahai",
+  "from": "Guide · गाइड ka kya matlab hota hai",
+  "id": "c-fab-524",
+  "tab": "fab"
+ },
+ {
+  "q": "what does Printer shov",
+  "from": "what does Printer show",
+  "id": "c-flow-1127",
+  "tab": "flow"
+ },
+ {
+  "q": "Cover (d) butto kya ksrta h",
+  "from": "Cover (d) button kya karta h",
+  "id": "c-article-1922",
+  "tab": "article"
+ },
+ {
+  "q": "ye Folter SKU kis kaan ka hai",
+  "from": "ye Filter SKU kis kaam ka hai",
+  "id": "c-prod-192",
+  "tab": "prod"
+ },
+ {
+  "q": "what happdns if i press Express / overnight",
+  "from": "what happens if i press Express / overnight",
+  "id": "c-india-1983",
+  "tab": "india"
+ },
+ {
+  "q": "All otders ka kya maatlabhota hai",
+  "from": "All orders ka kya matlab hota hai",
+  "id": "c-pcut-822",
+  "tab": "pcut"
+ },
+ {
+  "q": "what dosoptional show",
+  "from": "what does optional show",
+  "id": "c-fgi-1518",
+  "tab": "fgi"
+ },
+ {
+  "q": "All orders button kya ksrta h",
+  "from": "All orders button kya karta h",
+  "id": "c-prod-179",
+  "tab": "prod"
+ },
+ {
+  "q": "ye Trcking kis kaam ka hai",
+  "from": "ye Tracking kis kaam ka hai",
+  "id": "c-shop-2189",
+  "tab": "shop"
+ },
+ {
+  "q": "vhat happens if i press Any state",
+  "from": "what happens if i press Any state",
+  "id": "c-fab-504",
+  "tab": "fab"
+ },
+ {
+  "q": "Fabric · cooour किसलिए है",
+  "from": "Fabric · colour किसलिए है",
+  "id": "c-ord-1769",
+  "tab": "ord"
+ },
+ {
+  "q": "Working days ka kya mtlab hota hai",
+  "from": "Working days ka kya matlab hota hai",
+  "id": "c-rep-2130",
+  "tab": "rep"
+ },
+ {
+  "q": "what does Opn order ahow",
+  "from": "what does Open order show",
+  "id": "c-flow-1080",
+  "tab": "flow"
+ },
+ {
+  "q": "App rove button kya qarta h",
+  "from": "Approve button kya karta h",
+  "id": "c-pbase-1873",
+  "tab": "pbase"
+ },
+ {
+  "q": "ye Send to a printer kis kaaam ka hai",
+  "from": "ye Send to a printer kis kaam ka hai",
+  "id": "c-so-1814",
+  "tab": "so"
+ },
+ {
+  "q": "what happens if i prezs Over 20 days",
+  "from": "what happens if i press Over 20 days",
+  "id": "c-flow-625",
+  "tab": "flow"
+ },
+ {
+  "q": "Pro duct ka kya mqtlab hota hai",
+  "from": "Product ka kya matlab hota hai",
+  "id": "c-india-1985",
+  "tab": "india"
+ },
+ {
+  "q": "vhat does Needed shpw",
+  "from": "what does Needed show",
+  "id": "c-so-1815",
+  "tab": "so"
+ },
+ {
+  "q": "I hve confirmed it — check again button kya kzrta h",
+  "from": "I have confirmed it — check again button kya karta h",
+  "id": "c-any-20",
+  "tab": ""
+ },
+ {
+  "q": "ye Export kis kaaajka hai",
+  "from": "ye Export kis kaam ka hai",
+  "id": "c-rep-493",
+  "tab": "rep"
+ },
+ {
+  "q": "vhathappens if i prssOrder date",
+  "from": "what happens if i press Order date",
+  "id": "c-so-1779",
+  "tab": "so"
+ },
+ {
+  "q": "Both brand किसलिए है",
+  "from": "Both brands किसलिए है",
+  "id": "c-repl-21",
+  "tab": "repl"
+ },
+ {
+  "q": "… of … issued ka kya matlab htz hai",
+  "from": "… of … issued ka kya matlab hota hai",
+  "id": "c-vord-2522",
+  "tab": "vord"
+ },
+ {
+  "q": "what does Invoice # dhow",
+  "from": "what does Invoice # show",
+  "id": "c-fgi-1563",
+  "tab": "fgi"
+ },
+ {
+  "q": "All subtype button kya kart h",
+  "from": "All subtypes button kya karta h",
+  "id": "c-ord-576",
+  "tab": "ord"
+ },
+ {
+  "q": "ye MOM kis kam ka hai",
+  "from": "ye MOM kis kaam ka hai",
+  "id": "c-article-1928",
+  "tab": "article"
+ },
+ {
+  "q": "what hap pens if i press + Greige PO",
+  "from": "what happens if i press + Greige PO",
+  "id": "c-fab-515",
+  "tab": "fab"
+ },
+ {
+  "q": "Has ths cutting gone to a karigar? The order's issues fill its xutting oldest first. किसलिए है",
+  "from": "Has this cutting gone to a karigar? The order's issues fill its cutting oldest first. किसलिए है",
+  "id": "c-pcut-815",
+  "tab": "pcut"
+ },
+ {
+  "q": "On ordeka kya matlab hpta hai",
+  "from": "On order ka kya matlab hota hai",
+  "id": "c-vend-2454",
+  "tab": "vend"
+ },
+ {
+  "q": "what doez … orders` : 'Challan'} dhow",
+  "from": "what does … orders` : 'Challan'} show",
+  "id": "c-flow-1231",
+  "tab": "flow"
+ },
+ {
+  "q": "Opened 30+ daays ago bitton kya karta h",
+  "from": "Opened 30+ days ago button kya karta h",
+  "id": "c-ord-1695",
+  "tab": "ord"
+ },
+ {
+  "q": "ye Custm dates kis kaam ka hai",
+  "from": "ye Custom dates kis kaam ka hai",
+  "id": "c-mst-1634",
+  "tab": "mst"
+ },
+ {
+  "q": "what happenz if i press Sale minth",
+  "from": "what happens if i press Sale month",
+  "id": "c-so-1780",
+  "tab": "so"
+ },
+ {
+  "q": "Dletionrrquests किसलिए है",
+  "from": "Deletion requests किसलिए है",
+  "id": "c-so-246",
+  "tab": "so"
+ },
+ {
+  "q": "Sawequantities ka kya matlab hota hai",
+  "from": "Save quantities ka kya matlab hota hai",
+  "id": "c-ord-2398",
+  "tab": "ord"
+ },
+ {
+  "q": "what soes Dte show",
+  "from": "what does Date show",
+  "id": "c-flow-1265",
+  "tab": "flow"
+ },
+ {
+  "q": "Scan hrrdbutton kya karta h",
+  "from": "Scan here button kya karta h",
+  "id": "c-fgi-1572",
+  "tab": "fgi"
+ },
+ {
+  "q": "ye How many of these you already hacefor THIS order. It comes off what is left to ask for on kis qaamka hai",
+  "from": "ye How many of these you already have for THIS order. It comes off what is left to ask for on kis kaam ka hai",
+  "id": "c-vend-2465",
+  "tab": "vend"
+ },
+ {
+  "q": "what happens if i press Itm",
+  "from": "what happens if i press Item",
+  "id": "c-mst-1686",
+  "tab": "mst"
+ },
+ {
+  "q": "CC pzyout किसलिए है",
+  "from": "CC payout किसलिए है",
+  "id": "c-hr-527",
+  "tab": "hr"
+ },
+ {
+  "q": "Where this oeder can ship from. Tick as many as you like; nothing ticked means all of them ka kya matlab hota hai",
+  "from": "Where this order can ship from. Tick as many as you like; nothing ticked means all of them ka kya matlab hota hai",
+  "id": "c-shop-857",
+  "tab": "shop"
+ },
+ {
+  "q": "what ds Low show",
+  "from": "what does Low show",
+  "id": "c-adj-1016",
+  "tab": "adj"
+ },
+ {
+  "q": "Askd by btton kya karta h",
+  "from": "Asked by button kya karta h",
+  "id": "c-gdesk-1401",
+  "tab": "gdesk"
+ },
+ {
+  "q": "ye All arti cles kis kaam ka hai",
+  "from": "ye All articles kis kaam ka hai",
+  "id": "c-pbase-793",
+  "tab": "pbase"
+ },
+ {
+  "q": "what happns if i press Set targets",
+  "from": "what happens if i press Set targets",
+  "id": "c-ka-464",
+  "tab": "ka"
+ },
+ {
+  "q": "No printer order was placed for that order, or lss than was issued. ka kya matlab hota hai",
+  "from": "No printer order was placed for that order, or less than was issued. ka kya matlab hota hai",
+  "id": "c-fab-1606",
+  "tab": "fab"
+ },
+ {
+  "q": "what does Ftom the Ready Good sheet show",
+  "from": "what does From the Ready Goods sheet show",
+  "id": "c-fba-429",
+  "tab": "fba"
+ },
+ {
+  "q": "Feombjtton kya karta h",
+  "from": "From button kya karta h",
+  "id": "c-so-1834",
+  "tab": "so"
+ },
+ {
+  "q": "ye Frm kis kaam ka hai",
+  "from": "ye From kis kaam ka hai",
+  "id": "c-gdesk-1357",
+  "tab": "gdesk"
+ },
+ {
+  "q": "what happens if i press Direcyion * — Horizontal Vertical",
+  "from": "what happens if i press Direction * — Horizontal Vertical",
+  "id": "c-ord-2413",
+  "tab": "ord"
+ },
+ {
+  "q": "More cloth has gone out under this name than ever came in — is its opening stck entered u किसलिए है",
+  "from": "More cloth has gone out under this name than ever came in — is its opening stock entered u किसलिए है",
+  "id": "c-ord-1774",
+  "tab": "ord"
+ },
+ {
+  "q": "Both brandz ka kya matlab hota hai",
+  "from": "Both brands ka kya matlab hota hai",
+  "id": "c-prod-176",
+  "tab": "prod"
+ },
+ {
+  "q": "what does Add shiw",
+  "from": "what does Add show",
+  "id": "c-rep-2169",
+  "tab": "rep"
+ },
+ {
+  "q": "Arrived now button kya krta h",
+  "from": "Arrived now button kya karta h",
+  "id": "c-shop-2194",
+  "tab": "shop"
+ },
+ {
+  "q": "ye Thizis the whole lot back (close it) kis kaam ka hai",
+  "from": "ye This is the whole lot back (close it) kis kaam ka hai",
+  "id": "c-gdesk-1394",
+  "tab": "gdesk"
+ }
+]

@@ -21,11 +21,14 @@ function ptImgSpanSrc(sku, url, px) {
 /** The product: picture, what it is, colour • size, then the code. */
 function ordItemCell(r, img, extra, frz) {
   const what = [r.color, r.size].filter(Boolean).join(' • ');
-  return '<td' + (frz ? ' class="frz"' : '') + ' style="text-align:left"><div class="jw-item">' + (img == null ? ptImgSpan(r.sku, 42) : img)
+  /* A LONG SPEC IN THE COLOUR OR SIZE BOX (30 Oct: a custom bed-dust-ruffle order put a whole paragraph there and one column took the page): the
+   * cell has a width, the line wraps inside it and is cut at 120 letters, the full text on hover. */
+  const whatShort = what.length > 120 ? what.slice(0, 117) + '…' : what;
+  return '<td' + (frz ? ' class="frz"' : '') + ' style="text-align:left;max-width:340px;white-space:normal;overflow-wrap:break-word"><div class="jw-item">' + (img == null ? ptImgSpan(r.sku, 42) : img)
     + '<div style="min-width:0"><div style="font-weight:600">' + (esc(r.articleSubtype || r.articleType || r.itemName) || '<span class="muted">—</span>') + '</div>'
     + (!r.articleSubtype && !r.articleType && r.itemName && r.material ? '<div class="jw-sub">' + esc(r.material) + '</div>' : '')
     + (r.articleSubtype && r.articleType ? '<div class="jw-sub">' + esc(r.articleType) + '</div>' : '')
-    + '<div class="jw-sub">' + (esc(what) || '—') + '</div>'
+    + '<div class="jw-sub" style="white-space:normal"' + (what.length > 120 ? ' title="' + esc(what) + '"' : '') + '>' + (esc(whatShort) || '—') + '</div>'
     + '<div class="jw-sku">' + esc(r.sku) + '</div>' + (extra || '') + '</div></div></td>';
 }
 /* THE BUYER OF A B2B ORDER (Ravi, 20 Oct: "b2b orders me buyer ka name bhi add krdo order number me" — shown beside the
@@ -87,11 +90,13 @@ function ordStatePill0(r) {
     + (canC ? `<a href="#" data-ordclose="${key}" class="pill pill-ok" style="text-decoration:none" title="Shopify is done with it — close the line">Ready to close · Close</a> ` : '') + ordStatePillWork(r);
   if (canC && r.open) return ordStatePillWork(r) + ` <a href="#" data-ordclose="${key}" style="font-size:11.5px" title="Close this line with a reason">close</a>`;
   if (canC && !r.open && r.shopDoneAt && !r.handedAt) return ordStatePillWork(r) + ` <a href="#" data-ordreopen="${key}" style="font-size:11.5px" title="${esc((r.shopDoneBy ? 'Closed by ' + r.shopDoneBy : '') + (r.shopDoneNote ? ' — ' + r.shopDoneNote : ''))}">reopen</a>`;
+  /* A sales-team line (not Shopify / Online) can be completed by hand from ready stock in the India store (orders/complete-from-stock.js). */
+  if (r.open && !ordIsMto(r.orderNo) && typeof ordStockCan === 'function' && ordStockCan()) return ordStatePillWork(r) + ` <a href="#" data-ordstock="${key}" style="font-size:11.5px" title="Complete this line from pieces already made and held in the India store">from stock</a>`;
   return ordStatePillWork(r);
 }
 function ordStatePillWork(r) {
   if (!r.open && r.shopDoneAt && !r.handedAt) return '<span class="jw-st done" title="Closed from Shopify ' + esc(ptIsoDate(r.shopDoneAt) || '') + '">' + esc(SHP_DONE_TXT(r.shopDoneWhy)) + '</span>';
-  if (!r.open) return '<span class="jw-st done">Complete</span>';
+  if (!r.open) return '<span class="jw-st done">Complete' + (r.fromStock ? ' · ' + nf(r.fromStock) + ' from stock' : '') + '</span>';
   if (r.pendingCut > 0) return '<span class="jw-st pend">' + nf(r.pendingCut) + ' to cut</span>';
   if (r.pendingMake > 0) return '<span class="jw-st prog">' + nf(r.pendingMake) + ' to make</span>';
   /* Saying "0 to make" here would be silence in a louder font. */

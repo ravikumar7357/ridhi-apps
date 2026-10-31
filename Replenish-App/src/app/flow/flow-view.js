@@ -134,7 +134,7 @@ function renderFlow() {
     + (FLOW_VIEW === 'dhist' ? `<div class="seg" style="display:inline-flex;gap:4px">${[['due', 'Orders with printers · receive'], ['challan', 'By challan'], ['day', 'Received by date']].map(([k, l]) =>
       `<button data-flang="${k}" class="${(FLOW_ANGLE.dhist || 'due') === k ? '' : 'ghost'}" style="width:auto;padding:4px 12px;font-size:12.5px">${l}</button>`).join('')}</div>`
       + (FLOW_ANGLE.dhist === 'day' ? flowRecvDayBar(q, only) : '')
-      + ((FLOW_ANGLE.dhist || 'due') === 'due' ? ' <button type="button" class="ghost" data-fldxl="1" style="width:auto;padding:4px 12px;font-size:12.5px;margin-left:6px">Download Excel</button>' : '') + flowStandingHtml() : '');
+      + ((FLOW_ANGLE.dhist || 'due') === 'due' ? flowDueBar(only) + ' <button type="button" class="ghost" data-fldxl="1" style="width:auto;padding:4px 12px;font-size:12.5px;margin-left:6px">Download Excel</button>' : flowStandingHtml()) : '');
   /* RFD short? The Greige Desk shows the greige to order for it (Ravi, 13 Oct: Greige Desk joined to the PPC flow). */
   if (FLOW_VIEW === 'drfd' && typeof GD !== 'undefined' && gdAllowed()) FLOW.panel = (FLOW.panel || '') + '<button type="button" class="ghost" data-gdgo="inv" style="width:auto;padding:5px 14px;font-size:13px;margin-left:10px">Greige Desk · PPC demand</button>';
   /* RFD stock is the Greige Desk's count: not read here, the Demand figures say so instead of showing a false "short". */
@@ -577,7 +577,7 @@ function flowTable(view, rows) {
     return `<td class="frz" style="text-align:left;width:250px;max-width:250px;white-space:normal;vertical-align:top">${h}${flowDocsHtml(x)}${x.r.__t && first
       ? `<a href="#" data-fltdel="${esc(x.r.orderNo)}" style="font-size:11.5px;color:#b91c1c">delete test</a>` : ''}</td>
     <td style="text-align:left;white-space:nowrap;vertical-align:top"><div style="display:flex;gap:8px;align-items:flex-start">${pic(x.r.sku)}<div style="line-height:1.5">
-      <b style="font-family:ui-monospace,monospace">${esc(x.r.sku)}</b>${[x.r.articleSubtype || x.r.articleType, x.r.color, x.r.size].filter(Boolean)
+      <b style="font-family:ui-monospace,monospace">${esc(x.r.sku)}</b>${(x.r.articleSubtype || x.r.articleType ? [x.r.articleSubtype || x.r.articleType, x.r.color, x.r.size] : [x.r.itemName, x.r.material, x.r.color, x.r.size]).filter(Boolean)
         .map(t => `<div class="muted" style="font-size:12px">${esc(t)}</div>`).join('')}</div></div></td>
     <td class="num" style="vertical-align:top"><b>${nf(x.r.qty)}</b></td>`; };
   /* A test line has no register entry to make: its button stands in for that entry. */

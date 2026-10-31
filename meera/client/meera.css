@@ -1,0 +1,252 @@
+/* ================= THE GUIDE CHARACTER (guide.js, 2026-10-21) =================
+   Above everything, the scanner included (9999): the dim, the lit box, the arrow, Master ji and his bubble. */
+#gdRoot{position:fixed;inset:0;z-index:10050;pointer-events:none}
+#gdBlock{position:fixed;inset:0;pointer-events:auto;background:transparent}
+#gdSpot{position:fixed;border-radius:14px;box-shadow:0 0 0 9999px rgba(15,23,42,.62),0 0 0 3px #FFD45A,0 0 26px 6px rgba(255,212,90,.55);
+  transition:top .28s ease,left .28s ease,width .28s ease,height .28s ease;pointer-events:none;animation:gdGlow 1.6s ease-in-out infinite}
+#gdSpot.gd-full{top:50%!important;left:50%!important;width:0!important;height:0!important;box-shadow:0 0 0 9999px rgba(15,23,42,.62);animation:none}
+#gdRoot.gd-lesson #gdSpot{box-shadow:0 0 0 9999px rgba(15,23,42,.70),0 0 0 3px #F05252,0 0 26px 6px rgba(240,82,82,.55)}
+@keyframes gdGlow{50%{filter:brightness(1.25)}}
+#gdArrow{position:fixed;width:32px;height:36px;pointer-events:none;transition:left .28s,top .28s}
+#gdArrow::before{content:"";position:absolute;inset:0;background:#FFD45A;clip-path:polygon(30% 0,70% 0,70% 52%,100% 52%,50% 100%,0 52%,30% 52%);filter:drop-shadow(0 2px 3px rgba(0,0,0,.4))}
+#gdArrow.gd-down{animation:gdBobDown .8s ease-in-out infinite}
+#gdArrow.gd-up{animation:gdBobUp .8s ease-in-out infinite}
+#gdArrow.gd-up::before{transform:rotate(180deg)}
+#gdRoot.gd-lesson #gdArrow::before{background:#F05252}
+@keyframes gdBobDown{50%{transform:translateY(8px)}}
+@keyframes gdBobUp{50%{transform:translateY(-8px)}}
+#gdChar{position:fixed;left:6px;bottom:0;width:210px;pointer-events:none;filter:drop-shadow(0 10px 24px rgba(0,0,0,.45));
+  animation:gdIn .22s cubic-bezier(.2,1.5,.5,1) both,gdIdle 2.6s ease-in-out .3s infinite;transition:filter .2s}
+#gdChar .gd-pic{width:100%;height:auto;display:block;user-select:none}
+#gdChar.gd-talk{filter:drop-shadow(0 10px 24px rgba(0,0,0,.45)) drop-shadow(0 0 10px rgba(255,212,90,.75))}
+#gdRoot.gd-lesson #gdChar{filter:drop-shadow(0 10px 24px rgba(0,0,0,.45)) drop-shadow(0 0 10px rgba(240,82,82,.8))}
+@keyframes gdIdle{50%{transform:translateY(-4px)}}
+@keyframes gdTalk{50%{transform:scaleY(.45)}}
+@keyframes gdBlink{0%,94%,100%{transform:scaleY(1)}97%{transform:scaleY(.1)}}
+@keyframes gdIn{from{transform:translateY(60%) scale(.8);opacity:0}}
+#gdBubble{position:fixed;left:226px;bottom:24px;width:min(440px,calc(100vw - 246px));pointer-events:auto;background:#fff;color:var(--ink);
+  border-radius:16px;padding:16px 18px 14px;box-shadow:0 18px 50px rgba(15,23,42,.35);border:2px solid #FFD45A;overflow:hidden;animation:gdPop .18s ease-out both}
+#gdBubble::before{content:"";position:absolute;left:-14px;bottom:34px;border:9px solid transparent;border-right:12px solid #FFD45A}
+#gdRoot.gd-lesson #gdBubble{border-color:#F05252}
+#gdRoot.gd-lesson #gdBubble::before{border-right-color:#F05252}
+#gdChar.gd-right{left:auto;right:6px}
+#gdChar.gd-right .gd-pic{transform:scaleX(-1)}
+#gdBubble.gd-up{bottom:auto;top:76px}
+#gdBubble.gd-up::before{display:none}
+#gdBubble.gd-right{left:auto;right:226px}
+#gdBubble.gd-right::before{left:auto;right:-14px;border-right-color:transparent;border-left:12px solid #FFD45A}
+#gdRoot.gd-lesson #gdBubble.gd-right::before{border-left-color:#F05252}
+#gdBubble .gd-top{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+#gdName{font-size:13px;color:#B4501F;letter-spacing:.02em}
+#gdBubble .gd-count{font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums}
+#gdBubble .gd-lang{margin-left:auto;display:flex;border-radius:var(--r-pill);background:var(--chip);padding:2px}
+#gdBubble .gd-lang button{border:0;background:transparent;color:var(--muted);font-size:12px;padding:3px 9px;border-radius:var(--r-pill);height:auto;min-height:0;box-shadow:none;cursor:pointer}
+#gdBubble .gd-lang button.on{background:#fff;color:var(--ink);font-weight:700;box-shadow:var(--sh-1)}
+#gdText{font-size:15px;line-height:1.5;min-height:46px;cursor:pointer}
+#gdText .gd-quote{display:block;margin:8px 0;padding:8px 10px;border-radius:10px;background:var(--bad-bg);color:var(--bad);font-size:13px}
+#gdBubble .gd-acts{display:flex;align-items:center;gap:8px;margin-top:10px}
+#gdBubble .gd-link{border:0;background:none;color:var(--muted);font-size:12px;text-decoration:underline;padding:0;height:auto;min-height:0;box-shadow:none;cursor:pointer}
+/* The switch, in the top bar. */
+#gdCtl{display:flex;align-items:center;gap:6px;margin-left:8px}
+#gdCtl button{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 10px;border-radius:var(--r-pill);font-size:12px;white-space:nowrap}
+#gdShow{background:var(--brand-bg);color:var(--brand-ink);border:0}
+.gd-face{display:inline-block;flex:none;border-radius:50%;background-size:290%;background-position:47% 3%;background-repeat:no-repeat;background-color:#E4E5D4}
+#gdShow .gd-face{width:26px;height:26px}
+#gdSwitch{background:var(--chip);color:var(--muted);border:0}
+#gdSwitch i{width:28px;height:16px;border-radius:9px;background:var(--faint);position:relative;transition:background .2s}
+#gdSwitch i::after{content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#fff;transition:left .2s}
+#gdSwitch.on{color:var(--accent)}
+#gdSwitch.on i{background:var(--accent)}
+#gdSwitch.on i::after{left:14px}
+html.mob #gdCtl{position:absolute;top:50%;right:8px;transform:translateY(-50%);z-index:5;margin:0;gap:4px}
+html.mob #gdCtl button{height:30px;padding:0 6px}
+html.mob #gdSwitch i{margin:0}
+html.mob #gdCtl button>span:not(.gd-face){display:none}
+html.mob #gdChar{width:112px;left:0;bottom:64px}
+html.mob #gdChar.gd-right{left:auto;right:8px}
+html.mob #gdBubble{left:112px;right:8px;width:auto;bottom:84px}
+html.mob #gdBubble::before,html.mob #gdBubble.gd-right::before{display:none}
+html.mob #gdBubble.gd-right{left:8px;right:112px}
+html.mob #gdBubble.gd-up{bottom:auto;top:52px}
+@media (prefers-reduced-motion:reduce){#gdRoot *,#gdRoot *::before{animation:none!important;transition:none!important}}
+/* The look, round 2 (Ravi: "a bit slow… not much catchy and actionable"): a progress bar, a step label that says what
+   kind of box it is, a bolder line, and "Try it" / "Fix it now" that hand the page back with the box glowing. */
+@keyframes gdPop{from{transform:translateY(10px) scale(.97);opacity:0}}
+#gdBubble .gd-bar{position:absolute;left:0;right:0;top:0;height:4px;background:var(--chip)}
+#gdBubble .gd-bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#FFB020,#FFD45A);transition:width .25s ease}
+#gdRoot.gd-lesson #gdBubble .gd-bar i{background:#F05252}
+#gdBubble .gd-chip{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#fff;background:var(--brand);padding:4px 10px;border-radius:var(--r-pill)}
+#gdRoot.gd-lesson #gdBubble .gd-chip{background:#C81E1E}
+#gdText{font-size:16px;font-weight:500;line-height:1.5;min-height:48px}
+#gdText b{color:var(--brand-ink)}
+#gdBubble .gd-acts button:not(.gd-link){height:36px;padding:0 16px;border-radius:10px;font-weight:700}
+#gdBubble .gd-try{background:#FFD45A;color:#3A2A00;border:0}
+#gdBubble .gd-try:hover{background:#FFC62E}
+#gdBubble .gd-try.gd-main{background:#C81E1E;color:#fff}
+#gdRing{position:fixed;z-index:10040;border-radius:12px;pointer-events:none;box-shadow:0 0 0 3px #FFD45A,0 0 0 8px rgba(255,212,90,.35);animation:gdRing 1.1s ease-in-out infinite}
+@keyframes gdRing{50%{box-shadow:0 0 0 3px #FFD45A,0 0 0 14px rgba(255,212,90,0)}}
+#gdResume{position:fixed;left:14px;bottom:16px;z-index:10045;display:flex;align-items:center;gap:8px;height:48px;padding:0 16px 0 6px;border:0;border-radius:var(--r-pill);
+  background:var(--brand);color:#fff;font-weight:700;box-shadow:var(--sh-3);cursor:pointer;animation:gdPop .18s ease-out both}
+#gdResume .gd-face{width:38px;height:38px;border:2px solid #FFD45A}
+html.mob #gdResume{bottom:84px}
+
+/* The look, round 3 (Ravi, 22 Oct: "can we make it a bit professional"). The app's own slate blue instead of game
+   gold; a plain white card with her name and role; a thin focus ring instead of a glowing frame; a smaller, still
+   figure; a quiet arrow. Overrides the rules above, which stay as the earlier look. */
+#gdSpot{border-radius:10px;box-shadow:0 0 0 9999px rgba(15,23,42,.55),0 0 0 2px #fff,0 0 0 5px rgba(74,106,146,.55);animation:none}
+#gdSpot.gd-full{box-shadow:0 0 0 9999px rgba(15,23,42,.55)}
+#gdRoot.gd-lesson #gdSpot{box-shadow:0 0 0 9999px rgba(15,23,42,.6),0 0 0 2px #fff,0 0 0 5px rgba(180,35,24,.6)}
+#gdArrow{width:22px;height:24px}
+#gdArrow::before{background:#fff;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35))}
+#gdRoot.gd-lesson #gdArrow::before{background:#fff}
+@keyframes gdBobDown{50%{transform:translateY(4px)}}
+@keyframes gdBobUp{50%{transform:translateY(-4px)}}
+#gdChar{width:150px;left:12px;filter:drop-shadow(0 8px 18px rgba(15,23,42,.35));animation:gdIn .2s ease-out both}
+#gdChar.gd-talk,#gdRoot.gd-lesson #gdChar{filter:drop-shadow(0 8px 18px rgba(15,23,42,.35))}
+#gdChar.gd-right{right:12px}
+@keyframes gdIn{from{transform:translateY(16px);opacity:0}}
+#gdBubble{left:172px;bottom:24px;width:min(420px,calc(100vw - 192px));border:1px solid var(--line);border-radius:14px;padding:16px 18px 14px;
+  box-shadow:0 20px 48px rgba(15,23,42,.28)}
+#gdBubble.gd-right{right:172px}
+#gdBubble::before,#gdBubble.gd-right::before{display:none}
+#gdRoot.gd-lesson #gdBubble{border-color:var(--line);box-shadow:inset 4px 0 0 #B42318,0 20px 48px rgba(15,23,42,.28)}
+#gdBubble .gd-bar{height:3px;background:var(--line)}
+#gdBubble .gd-bar i{background:var(--brand)}
+#gdRoot.gd-lesson #gdBubble .gd-bar i{background:#B42318}
+#gdBubble .gd-top{gap:10px;margin-bottom:10px;align-items:center}
+#gdBubble .gd-top>.gd-face{width:34px;height:34px;box-shadow:0 0 0 2px #fff,0 0 0 3px var(--line)}
+#gdBubble .gd-who{display:flex;flex-direction:column;line-height:1.25;min-width:0}
+#gdBubble .gd-who b{font-size:14px;color:var(--ink)}
+#gdBubble .gd-role{font-size:12px;color:var(--muted)}
+#gdBubble .gd-chip{background:none;color:var(--muted);padding:0;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;border-radius:0}
+#gdRoot.gd-lesson #gdBubble .gd-chip{background:none;color:#B42318}
+#gdBubble .gd-count{display:none}
+#gdText{font-size:15px;font-weight:400;line-height:1.55;color:var(--ink)}
+#gdText b{color:var(--ink);font-weight:600}
+#gdText .gd-quote{border-radius:8px;background:#FEF3F2;color:#912018;border:1px solid #FECDCA}
+#gdBubble .gd-acts{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+#gdBubble .gd-acts button:not(.gd-link){height:34px;padding:0 14px;border-radius:8px;font-weight:600;font-size:13px}
+#gdNext{background:var(--brand);color:#fff;border:1px solid var(--brand)}
+#gdNext.ghost,#gdBack{background:#fff;color:var(--ink);border:1px solid var(--line)}
+#gdBubble .gd-try{background:#fff;color:var(--brand-ink);border:1px solid var(--brand)}
+#gdBubble .gd-try:hover{background:var(--brand-bg)}
+#gdBubble .gd-try.gd-main{background:#B42318;color:#fff;border-color:#B42318}
+#gdBubble .gd-link{text-decoration:none}
+#gdBubble .gd-link:hover{text-decoration:underline}
+#gdRing{border-radius:10px;box-shadow:0 0 0 2px var(--brand),0 0 0 6px rgba(74,106,146,.2);animation:none}
+#gdResume{background:#fff;color:var(--brand-ink);border:1px solid var(--line);font-weight:600;box-shadow:var(--sh-2);height:44px}
+#gdResume .gd-face{width:32px;height:32px;border:0}
+#gdShow .gd-face{box-shadow:0 0 0 1px var(--line)}
+html.mob #gdChar{width:96px;left:0;bottom:64px}
+html.mob #gdBubble{left:96px;right:8px}
+html.mob #gdBubble.gd-right{left:8px;right:96px}
+
+/* ================= ASK MEERA AND TASK GUIDES (guide-ask.js, 2026-10-22) =================
+   The chat box sits bottom-right, out of Meera's corner; it never dims the page. A task step that waits for the
+   person lets the page be pressed (inside the lit box only — guide.js holds the rest). */
+#gdRoot.gd-live #gdBlock{pointer-events:none}
+#gdBubble .gd-do{margin-top:10px;padding:8px 10px;border-radius:8px;background:var(--brand-bg);color:var(--brand-ink);font-size:13px;font-weight:600}
+#gdBubble .gd-do.gd-done{background:#ECFDF3;color:#067647}
+#gdAskBtn{background:var(--brand);color:#fff;border:0}
+#gdAskBtn svg{flex:none}
+#gdAsk{position:fixed;right:20px;bottom:20px;z-index:10060;width:min(390px,calc(100vw - 24px));max-height:min(620px,calc(100vh - 40px));display:flex;flex-direction:column;
+  background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 24px 60px rgba(15,23,42,.28);overflow:hidden;animation:gdPop .18s ease-out both}
+#gdAsk .ga-head{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line);background:var(--soft)}
+#gdAsk .ga-head .gd-face{width:36px;height:36px;box-shadow:0 0 0 2px #fff,0 0 0 3px var(--line)}
+#gdAsk .ga-who{display:flex;flex-direction:column;line-height:1.25;flex:1;min-width:0}
+#gdAsk .ga-who b{font-size:14px}
+#gdAsk .ga-who small{font-size:11px;color:var(--muted)}
+#gdAsk .ga-x{border:0;background:none;font-size:22px;line-height:1;color:var(--muted);width:32px;height:32px;padding:0;border-radius:8px;cursor:pointer;box-shadow:none}
+#gdAsk .ga-x:hover{background:var(--hover)}
+#gdAsk .ga-log{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px;min-height:120px}
+#gdAsk .ga-msg{max-width:88%;font-size:14px;line-height:1.5;padding:9px 12px;border-radius:12px}
+#gdAsk .ga-msg ul{margin:6px 0 0;padding-left:18px}
+#gdAsk .ga-msg li{margin:2px 0}
+#gdAsk .ga-me{align-self:flex-end;background:var(--brand);color:#fff;border-bottom-right-radius:4px;white-space:pre-wrap}
+#gdAsk .ga-she{align-self:flex-start;background:var(--soft);border:1px solid var(--line);border-bottom-left-radius:4px}
+#gdAsk .ga-quote{margin-top:6px;padding:8px 10px;border-left:3px solid var(--brand);background:#fff;border-radius:0 8px 8px 0;font-size:13px}
+#gdAsk .ga-quote .where{font-weight:600}
+#gdAsk .ga-acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+#gdAsk .ga-act{height:30px;padding:0 12px;border-radius:8px;border:1px solid var(--brand);background:#fff;color:var(--brand-ink);font-size:12px;font-weight:600;cursor:pointer;box-shadow:none}
+#gdAsk .ga-act:first-child{background:var(--brand);color:#fff}
+#gdAsk .ga-chips{display:flex;flex-wrap:wrap;gap:6px;padding:0 14px 10px}
+#gdAsk .ga-chip{height:28px;padding:0 10px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--ink);font-size:12px;cursor:pointer;box-shadow:none}
+#gdAsk .ga-chip:hover{border-color:var(--brand);color:var(--brand-ink)}
+#gdAsk .ga-form{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--line)}
+#gdAsk .ga-form input{flex:1;min-width:0;height:38px;border-radius:10px}
+#gdAsk .ga-form button{height:38px;padding:0 16px;border-radius:10px;background:var(--brand);color:#fff;border:0;font-weight:600}
+html.mob #gdAsk{right:8px;left:8px;width:auto;bottom:72px;max-height:calc(100vh - 140px)}
+/* Why it did not work (22 Oct): the note above a task step after a failed Save, and the empty boxes in Ask Meera. */
+#gdBubble .gd-note{margin:0 0 10px;padding:9px 11px;border-radius:8px;background:#FEF3F2;border:1px solid #FECDCA;color:#7A271A;font-size:13.5px;line-height:1.5}
+#gdBubble .gd-note .gd-quote{display:block;margin:4px 0;background:#fff;border:1px solid #FECDCA}
+#gdAsk .ga-empty{margin-top:8px;padding:7px 10px;border-radius:8px;background:#FFFAEB;border:1px solid #FEDF89;color:#7A2E0E;font-size:13px}
+/* Meera helps fill the form (guide-fill.js, 22 Oct): a box's choices as buttons; the quick ways in at the start of a job. */
+#gdBubble .gd-pick{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
+#gdBubble .gd-pickhead{font-size:12px;color:var(--muted);font-weight:600;margin-bottom:6px}
+#gdBubble .gd-opts{display:flex;flex-wrap:wrap;gap:6px;max-height:148px;overflow-y:auto}
+#gdBubble .gd-opt{min-height:34px;height:auto;padding:6px 12px;border-radius:8px;border:1px solid var(--brand);background:#fff;color:var(--brand-ink);font-size:13px;font-weight:600;cursor:pointer;box-shadow:none;text-align:left;line-height:1.3}
+#gdBubble .gd-opt:hover{background:var(--brand-bg)}
+#gdBubble .gd-last{width:100%;margin-bottom:8px;background:var(--brand-bg)}
+#gdBubble .gd-optq{width:100%;height:36px;margin-bottom:6px;border-radius:8px;font-size:13px}
+#gdBubble .gd-say{display:flex;gap:6px;align-items:flex-start}
+#gdBubble .gd-say .gd-optq{flex:1;margin:0}
+#gdBubble .gd-fillsay{background:var(--brand);color:#fff;height:36px}
+#gdBubble .gd-more{font-size:12px;color:var(--muted);align-self:center}
+#gdBubble .gd-note.gd-ok{background:#ECFDF3;border-color:#ABEFC6;color:#054F31}
+/* Ask Meera, answers from the bank (22 Oct): the answer, why, what to do, related questions, did it help */
+#gdAsk .ga-a{font-weight:600;color:var(--ink)}
+/* spelling (Phase 2): how she read the question */
+#gdAsk .ga-und{margin:0 0 8px;padding-bottom:6px;border-bottom:1px solid var(--line,#e5e7eb);font-size:12px;color:var(--muted)}
+#gdAsk .ga-und b{color:inherit;font-weight:600}
+#gdAsk .ga-und-b{border:0;background:none;padding:0;color:var(--brand);font:inherit;text-decoration:underline;cursor:pointer}
+#gdAsk .ga-why{margin-top:8px;font-size:13px;color:var(--muted)}
+#gdAsk .ga-why b,#gdAsk .ga-do>b{display:block;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--brand-ink);margin-bottom:2px}
+#gdAsk .ga-do{margin-top:8px;font-size:13px}
+#gdAsk .ga-do ol{margin:2px 0 0;padding-left:20px}
+#gdAsk .ga-do li{margin:3px 0}
+#gdAsk .ga-note{margin-top:8px;padding:6px 10px;border-radius:8px;background:#F2F4F7;font-size:12px;color:var(--muted)}
+#gdAsk .ga-rel{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:10px}
+#gdAsk .ga-rel>span{font-size:11px;color:var(--muted);width:100%}
+#gdAsk .ga-rel>span:empty{display:none}
+#gdAsk .ga-fb{display:flex;align-items:center;gap:4px;margin-top:8px;font-size:12px;color:var(--muted)}
+#gdAsk .ga-fbb{height:26px;width:30px;padding:0;border:1px solid var(--line);border-radius:8px;background:#fff;cursor:pointer;box-shadow:none;font-size:13px}
+#gdAsk .ga-fbb:hover{border-color:var(--brand)}
+#gdAsk .ga-miss{max-height:220px;overflow:auto;font-size:12px}
+/* Meera's round button and its menu (26 Oct, R-one's way): bottom-right, "Ask Meera" on hover; the top bar's
+   Ask Meera / Show me / Helper give way to it (the menu has all three); "Skip" in her box */
+#gdAskBtn,#gdCtl{display:none!important}
+#gdLaunch{position:fixed;right:22px;bottom:22px;z-index:10050;width:58px;height:58px;border-radius:50%;padding:0;border:3px solid #fff;background:var(--brand,#4A6A92);
+  box-shadow:0 8px 24px rgba(20,24,31,.25);cursor:pointer;display:grid;place-items:center;transition:transform .15s ease}
+#gdLaunch.hide{display:none}
+#gdLaunch:hover{transform:scale(1.06)}
+#gdLaunch .gd-face{width:100%;height:100%;border-radius:50%;box-shadow:none}
+#gdLaunch .gd-lab{position:absolute;right:66px;top:50%;transform:translateY(-50%);background:#14181F;color:#fff;font-size:12.5px;font-weight:700;border-radius:8px;padding:5px 10px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .15s ease}
+#gdLaunch:hover .gd-lab,#gdLaunch:focus-visible .gd-lab{opacity:1}
+html.mob #gdLaunch{bottom:84px;right:14px;width:50px;height:50px}
+#gdMenu{position:fixed;right:22px;bottom:92px;z-index:10055;width:270px;background:#fff;border-radius:14px;box-shadow:0 16px 40px rgba(20,24,31,.22);padding:6px;display:flex;flex-direction:column}
+#gdMenu.hide{display:none}
+#gdMenu button{display:flex;align-items:center;gap:12px;border:0;background:none;text-align:left;padding:9px 10px;border-radius:10px;cursor:pointer;font:inherit;font-size:16px;box-shadow:none;height:auto}
+#gdMenu button:hover{background:var(--soft,#F7F9FB)}
+#gdMenu span{display:flex;flex-direction:column;gap:1px}
+#gdMenu b{font-size:13.5px;color:var(--ink,#14181F)}
+#gdMenu small{font-size:12px;color:var(--muted,#5A6472)}
+#gdMenu button + button{border-top:1px solid var(--line,#E8EDF3);border-radius:0}
+.gd-sw{position:relative;width:30px;height:18px;border-radius:999px;background:#C9D2DE;flex:0 0 auto}
+.gd-sw::after{content:'';position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:left .15s ease}
+.gd-sw.on{background:var(--accent,#4A5A3C)}
+.gd-sw.on::after{left:14px}
+html.mob #gdMenu{right:14px;bottom:144px}
+#gdBubble #gdOff{border:1px solid var(--line,#E8EDF3);border-radius:8px;padding:0 12px;height:30px;min-height:30px;font-weight:600;color:var(--muted,#5A6472);text-decoration:none}
+#gdBubble #gdOff:hover{background:var(--soft,#F7F9FB);color:var(--ink,#14181F)}
+/* Meera's quiet offer when someone is stuck (guide-walks.js), just above her round button */
+#gdNudge{position:fixed;right:22px;bottom:92px;z-index:10050;max-width:300px;background:#fff;border:1px solid var(--line,#E8EDF3);border-radius:12px;box-shadow:0 8px 24px rgba(20,24,31,.16);padding:10px 12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:13.5px}
+#gdNudge.hide{display:none}
+#gdNudge span{flex:1 1 100%;color:#14181F}
+#gdNudge button{width:auto;padding:5px 12px;font-size:13px}
+html.mob #gdNudge{right:14px;left:14px;max-width:none;bottom:144px}
+@media print{#gdLaunch,#gdMenu,#gdNudge{display:none}}
+
+/* Ask Meera: an admin's open tickets, each with a box to answer it */
+#gdAsk .ga-tk{margin-top:8px;padding:8px;border:1px solid var(--line,#E8EDF3);border-radius:8px;background:#fff;display:flex;flex-direction:column;gap:6px}
+#gdAsk .ga-tk small{color:var(--muted,#5A6472)}
+#gdAsk .ga-tk textarea{width:100%;font:inherit;font-size:13px;border:1px solid var(--line,#E8EDF3);border-radius:6px;padding:6px}

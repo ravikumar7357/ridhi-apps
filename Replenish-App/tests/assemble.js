@@ -26,14 +26,18 @@ function walk(dir, rel = '') {
 }
 /* "@shared/x.js" in ORDER is Amazon Inventory/shared/x.js — one copy both apps join in (step 4, 2026-10-01). */
 const SHARED = path.join(ROOT, '..', 'shared');
-const appPath = f => (f.startsWith('@shared/') ? path.join(SHARED, f.slice(8)) : path.join(SRC, 'app', f));
+/* "@meera/x.js" is Amazon Inventory/meera/client/src/x.js — Meera, the assistant, in a folder of her own (v2 rebuild,
+ * 29 Oct 2026); the page joins her files from there while she is still part of it, and her look (meera/client/meera.css)
+ * goes after the app's own styles. One copy of her: the same files also make meera/client's meera.js. */
+const MEERA = path.join(ROOT, '..', 'meera', 'client');
+const appPath = f => (f.startsWith('@shared/') ? path.join(SHARED, f.slice(8)) : f.startsWith('@meera/') ? path.join(MEERA, 'src', f.slice(7)) : path.join(SRC, 'app', f));
 function appFiles() {
   const APP = path.join(SRC, 'app'), ORDER = path.join(APP, 'ORDER');
   if (!fs.existsSync(ORDER)) return fs.readdirSync(APP).filter(f => /^\d{4}-[a-z0-9-]+\.js$/.test(f)).sort();
   const listed = fs.readFileSync(ORDER, 'utf8').split(/\r?\n/).map(l => l.trim()).filter(l => l && !l.startsWith('#'));
   const there = new Set(walk(APP));
   const dup = listed.filter((f, i) => listed.indexOf(f) !== i);
-  const missing = listed.filter(f => (f.startsWith('@shared/') ? !fs.existsSync(appPath(f)) : !there.has(f)));
+  const missing = listed.filter(f => (/^@(shared|meera)\//.test(f) ? !fs.existsSync(appPath(f)) : !there.has(f)));
   const unlisted = [...there].filter(f => !listed.includes(f));
   if (dup.length || missing.length || unlisted.length)
     throw new Error('src/app/ORDER does not match the files: '
@@ -47,9 +51,9 @@ function appFiles() {
  * starts with a comment naming it, a new group folder starts with a group heading, and the page opens with a
  * banner. Comments only: each file parses on its own and ends in a newline (checked), so a comment between two
  * files cannot change what the code does; build-dist.js strips every comment, so the deployed page is unchanged. */
-const fileMark = f => `/* ${'='.repeat(30)} FILE: ${f.startsWith('@shared/') ? 'shared/' + f.slice(8) : 'src/app/' + f} ${'='.repeat(30)} */\n`;
-const groupOf = f => (f.startsWith('@shared/') ? 'shared' : f.split('/')[0]);
-const groupMark = g => `\n/* ${'#'.repeat(100)}\n * GROUP: ${g === 'shared' ? 'Amazon Inventory/shared/  (joined into both apps)' : 'src/app/' + g + '/'}\n * ${'#'.repeat(100)} */\n`;
+const fileMark = f => `/* ${'='.repeat(30)} FILE: ${f.startsWith('@shared/') ? 'shared/' + f.slice(8) : f.startsWith('@meera/') ? 'meera/client/src/' + f.slice(7) : 'src/app/' + f} ${'='.repeat(30)} */\n`;
+const groupOf = f => (f.startsWith('@shared/') ? 'shared' : f.startsWith('@meera/') ? 'meera' : f.split('/')[0]);
+const groupMark = g => `\n/* ${'#'.repeat(100)}\n * GROUP: ${g === 'shared' ? 'Amazon Inventory/shared/  (joined into both apps)' : g === 'meera' ? 'Amazon Inventory/meera/client/src/  (Meera, the assistant)' : 'src/app/' + g + '/'}\n * ${'#'.repeat(100)} */\n`;
 function joinApp(files) {
   let last = '', out = '';
   for (const f of files) {
@@ -75,7 +79,8 @@ function assemble() {
   const shell = fs.readFileSync(path.join(SRC, 'index.html'), 'utf8');
   const files = appFiles();
   const parts = {
-    'styles.css': () => fs.readFileSync(path.join(SRC, 'styles.css'), 'utf8'),
+    'styles.css': () => fs.readFileSync(path.join(SRC, 'styles.css'), 'utf8')
+      + (files.some(f => f.startsWith('@meera/')) && fs.existsSync(path.join(MEERA, 'meera.css')) ? fs.readFileSync(path.join(MEERA, 'meera.css'), 'utf8') : ''),
     'appv.js': () => fs.readFileSync(path.join(SRC, 'appv.js'), 'utf8'),
     'app/': () => joinApp(files),
   };
