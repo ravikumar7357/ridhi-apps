@@ -101,7 +101,14 @@ function obCutQty(orderNo, sku, exclId) {
 }
 
 /** The tool's own guard, for kind 'cut'. Same numbers, same wording. */
+/* A LEGACY ORDER TAKES NO NEW WORK (Ravi, 24 Oct: "ye quilt ki cutting mene new orders ke liye cutt kiya tha but ye direct
+ * LEG-17102026 me chali gyi but leg order sirf humne pahli pending entry complete krne ke liye kiya tha"). LEG-… holds the pieces
+ * made on the floor 1–15 Oct with no order of their own; it had no cutting entries, so every one of its lines looked like room
+ * to cut — 56 quilts cut on 23 Oct for new orders landed there. It is offered by no cutting or Job Work form, and refused. */
+const obIsLegacy = no => /^LEG-/i.test(String(no || '').trim());
+const OB_LEGACY_SHUT = no => `${obUC(no)} is the legacy order — it only holds the pieces made before 15 Oct and takes no new cutting or issue. Pick the order these pieces are for.`;
 function cutGuard(orderNo, sku, qty, exclId, allowExtra) {
+  if (obIsLegacy(orderNo) && !exclId) return OB_LEGACY_SHUT(orderNo);
   const ordered = obOrderedQty(orderNo, sku);
   if (!ordered) return `Order ${orderNo} has no line for SKU ${obUC(sku)} — pick the correct Order ID.`;
   /* Extra, with a reason recorded on the row: the ordered cap is the thing being knowingly passed. */
@@ -220,7 +227,7 @@ const cutSkuOf = sku => mdbOf(sku) || ptCustomOf(sku) || null;
 function cutOrdersFor(sku) {
   if (!sku) return [];
   const seen = new Set();
-  return obLines().filter(l => l.sku === obUC(sku)).filter(l => {
+  return obLines().filter(l => l.sku === obUC(sku) && !obIsLegacy(l.orderNo)).filter(l => {
     if (seen.has(l.orderNo)) return false; seen.add(l.orderNo); return true;
   }).map(l => {
     const ordered = obOrderedQty(l.orderNo, sku), used = obCutQty(l.orderNo, sku);
@@ -387,6 +394,12 @@ $('cwSku').addEventListener('input', cutSkuTyped);
 });
 $('cwOrd').addEventListener('change', renderCutForm);
 
+/* A CUT MADE FROM OTHER CLOTH (Ravi, 28 Oct: "yadi hum us fabric me se nahi banwa rahe h kisi or rejected tablecloth ya wastage fabric me se banwa rahe h
+ * wo aay"). The SKU's own fabric is what a cut is taken from; when it is made from a rejected tablecloth or from wastage cloth instead, the entry
+ * says so (clothFrom) and the store takes NO printed cloth off for it (inventory/store.js stCutting). Set by the SHP board's Cut dialog just
+ * before it presses Save, and cleared again; the cutting form itself offers only the Fabric Type master. */
+const CUT_OTHER_CLOTH = { rejected: 'Rejected tablecloth', waste: 'Wastage fabric' };
+let CUT_FROM = '', CUT_OWN_OK = '';   // CUT_OWN_OK: the SKU's own fabric (from its master row / PPC plan) when the Fabric Type master does not list it
 $('cwSave').onclick = async () => {
   const sku = $('cwSku').value.trim();
   const m = cutSkuOf(sku);
@@ -402,7 +415,7 @@ $('cwSave').onclick = async () => {
   if (!fabric) return cutFormMsg('Pick the fabric.', true);
   /* From the master and nowhere else — a spelling the master does not have is a new fabric nobody
    * has agreed exists. */
-  if (cutFabrics().indexOf(fabric) < 0)
+  if (!CUT_FROM && !(CUT_OWN_OK && fabric === CUT_OWN_OK) && cutFabrics().indexOf(fabric) < 0)
     return cutFormMsg(`"${fabric}" is not in the Fabric Type master. Add it there first.`, true);
   if (!date) return cutFormMsg('Enter the cutting date.', true);
 
@@ -422,10 +435,14 @@ $('cwSave').onclick = async () => {
     articleType: at, articleSubtype: sub, color: col, size: sz,
     pieces: pcs,
     cutDate: ptStampDate(date),
-    fabricWidth: fabric,
+    fabricWidth: CUT_FROM ? (CUT_OTHER_CLOTH[CUT_FROM] || fabric) : fabric,
+    ...(CUT_FROM ? { clothFrom: CUT_FROM } : {}),
     ...cutFabFields(),
     orderNo,
     remarks: $('cwRemarks').value.trim(),
+    /* EMBROIDERED PIECES GO STRAIGHT TO QC (Ravi, 21 Oct): a Production flow line on Printing + Embroidery has no karigar —
+     * the entry says so, and Quality Control lists its pieces in Waiting for QC (quality-control.js qcInboxRows). */
+    ...(typeof flowPlanQcDirect === 'function' && flowPlanQcDirect(orderNo, sku) ? { qcDirect: true } : {}),
     addedBy: ME.email, addedAt: new Date().toISOString(),
   };
 

@@ -276,18 +276,20 @@ fs.writeFileSync(path.join(OUT, '.nojekyll'), '');
   ['logo.png', 'manifest.webmanifest', 'apple-touch-icon.png', 'wordmark.png'].forEach(f => {
     html = must(html, new RegExp(`(href|src)="/${f.replace('.', '\\.')}"`, 'g'), `$1="${f}"`, null, 'factory ERP ' + f);
   });
+  /* R-one: its wordmark, the barcode reader and the guide are also loaded from the site root */
+  html = must(html, /(["'])\/(r-one-wordmark\.png|vendor\/|guide\/)/g, "$1$2", null, 'factory ERP sub-folder paths');
   html = must(html, "navigator.serviceWorker.register('/sw.js')", 'Promise.resolve()', 1, 'factory ERP service worker');
   html = must(html, "fetch('/', { method: 'HEAD'", "fetch('./', { method: 'HEAD'", 1, 'factory ERP version check');
   /* R1: the test ERP's own name and mark, so nobody mistakes it for the real one. Screens only: documents (POs,
    * challans) keep the company name, which is what a vendor must see. */
-  html = must(html, '<title>Ridhi Home &amp; Living</title>', '<title>R1</title>', 1, 'factory ERP title');
-  html = must(html, '<link rel="icon" href="logo.png">', '<link rel="icon" href="r1-icon.svg" type="image/svg+xml">', 1, 'factory ERP tab icon');
-  html = must(html, '<link rel="apple-touch-icon" href="apple-touch-icon.png">', '<link rel="apple-touch-icon" href="r1-icon.svg">', 1, 'factory ERP phone icon');
-  html = must(html, 'src="wordmark.png" alt="Ridhi Home &amp; Living"', 'src="r1-logo.svg" alt="R1 test ERP"', 1, 'factory ERP sign-in logo');
+  html = must(html, '<title>Ridhi Home &amp; Living</title>', '<title>R1</title>', null, 'factory ERP title');
+  html = must(html, '<link rel="icon" href="logo.png">', '<link rel="icon" href="r1-icon.svg" type="image/svg+xml">', null, 'factory ERP tab icon');
+  html = must(html, '<link rel="apple-touch-icon" href="apple-touch-icon.png">', '<link rel="apple-touch-icon" href="r1-icon.svg">', null, 'factory ERP phone icon');
+  html = must(html, 'src="wordmark.png" alt="Ridhi Home &amp; Living"', 'src="r1-logo.svg" alt="R1 test ERP"', null, 'factory ERP sign-in logo');
   html = must(html, '<span class="brandname">Ridhi<span class="brandsub">Home &amp; Living</span></span>',
-    '<span class="brandname">R1<span class="brandsub">Test ERP</span></span>', 1, 'factory ERP header name');
+    '<span class="brandname">R1<span class="brandsub">Test ERP</span></span>', null, 'factory ERP header name');
   html = must(html, "+ 'Ridhi Home & Living'; } catch (e) { /* nothing depends on it */ }",
-    "+ 'R1'; } catch (e) { /* nothing depends on it */ }", 1, 'factory ERP tab name');
+    "+ 'R1'; } catch (e) { /* nothing depends on it */ }", null, 'factory ERP tab name');
   fs.writeFileSync(path.join(dst, 'index.html'), html);
   fs.writeFileSync(path.join(dst, 'r1-icon.svg'), R1_ICON);
   fs.writeFileSync(path.join(dst, 'r1-logo.svg'), R1_LOGO);

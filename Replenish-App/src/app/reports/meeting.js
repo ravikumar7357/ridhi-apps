@@ -81,7 +81,7 @@ function mtgProduction(wk, brand) {
   let waiting = 0; try { waiting = qcInboxRows().reduce((t, x) => t + x.wait, 0); } catch (e) { /* QC not readable */ }
   QC.checks = wasChecks;
   const d = Q.ok - Qp.ok;
-  const html = mtgMetrics([
+  let html = mtgMetrics([
     ['QC passed — production', nf(Q.ok), '#166534', `${d >= 0 ? '▲' : '▼'} ${nf(Math.abs(d))} vs last week (${nf(Qp.ok)})`],
     ['Of the ' + nf(tgt) + ' target', pc(Q.ok, tgt), Q.ok >= tgt ? '#166534' : 'var(--bad)', nf(Math.max(0, tgt - Q.ok)) + ' short'],
     ['Made (received from karigars)', nf(Math.round(madeTot)), '', 'passed ' + pc(Q.ok, madeTot) + ' of made'],
@@ -93,9 +93,38 @@ function mtgProduction(wk, brand) {
     + mtgTable(['Karigar (QC passed)', 'Pcs'], [...kar.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12).map(([k, v]) => [esc(k), nf(v)]),
       'only pieces taken from Waiting for QC carry the karigar') + '</div>'
     + repManpowerCard(wk, brand);
-  return { html, text: `1) Production (QC passed): ${nf(Q.ok)} pcs (${d >= 0 ? '+' : '−'}${nf(Math.abs(d))} vs last week) · ${pc(Q.ok, tgt)} of ${nf(tgt)} · made ${nf(Math.round(madeTot))} · rejected ${nf(Q.rej)}, alteration ${nf(Q.alt)} · waiting for QC ${nf(waiting)}`,
+  const CU = mtgCustom(wk, brand);
+  html += CU.html;
+  return { html, text: `1) Production (QC passed): ${nf(Q.ok)} pcs (${d >= 0 ? '+' : '−'}${nf(Math.abs(d))} vs last week) · ${pc(Q.ok, tgt)} of ${nf(tgt)} · made ${nf(Math.round(madeTot))} · rejected ${nf(Q.rej)}, alteration ${nf(Q.alt)} · waiting for QC ${nf(waiting)}` + (CU.text ? ' · ' + CU.text : ''),
     csv: [['Production', 'QC passed', Q.ok], ['Production', 'QC passed last week', Qp.ok], ['Production', 'Made', Math.round(madeTot)], ['Production', 'Rejected', Q.rej], ['Production', 'For alteration', Q.alt], ['Production', 'Waiting for QC', waiting]]
-      .concat(arts.map(x => ['Production by article', x.a, x.qc, Math.round(x.made), x.prev])) };
+      .concat(arts.map(x => ['Production by article', x.a, x.qc, Math.round(x.made), x.prev])).concat(CU.csv) };
+}
+/* CUSTOM ORDERS (Ravi, 24 Oct: "ye mera data production meeting me kam aata h to report me data fatch hona chahiye"). Job Work's
+ * Custom Order entries — no order-book line, an Order ID of their own (custOrder: typed, or ETSY / SHOPIFY / B2B / ONLINE) — by
+ * that Order ID: issued this week, back from the karigars this week, QC passed this week, and what is still with karigars. An
+ * older custom entry (a -CUST- code, before the Order ID box) is counted under "no Order ID". */
+function mtgCustom(wk, brand) {
+  const from = mtgMs(wk), to = from + 7 * 864e5, by = new Map(), ofRow = new Map();
+  (PT.base || []).forEach(r => {
+    if (!r || r.orderNo || !(r.custOrder || (r.isCustom && /-CUST-/i.test(r.sku || '')))) return;
+    if (brand && repBrand(r.sku) !== brand) return;
+    const k = String(r.custOrder || '').trim().toUpperCase() || '(no Order ID)', e = by.get(k) || { k, ch: r.custChannel || '', skus: new Set(), iss: 0, recv: 0, qc: 0, out: 0 };
+    e.skus.add(r.sku);
+    if (mtgIn(ptDtMs(r.issueDate), from)) e.iss += ptNum(r.issuePieces);
+    repRecvParts(r).forEach(x => { if (x.ms >= from && x.ms < to) e.recv += x.pcs; });
+    e.out += r.pendingPieces != null ? ptNum(r.pendingPieces) : Math.max(0, ptNum(r.issuePieces) - ptNum(r.receivedPieces) - ptNum(r.rejectionPieces));
+    by.set(k, e); if (r.id) ofRow.set(r.id, e);
+  });
+  repQcRows().forEach(c => { const e = c && ofRow.get(c.baseId); if (e && mtgIn(ptDtMs(c.date), from)) e.qc += ptNum(c.ok); });
+  const rows = [...by.values()].filter(e => e.iss || e.recv || e.qc || e.out).sort((a, b) => (b.iss + b.recv + b.qc) - (a.iss + a.recv + a.qc) || b.out - a.out);
+  const T = rows.reduce((t, e) => ({ iss: t.iss + e.iss, recv: t.recv + e.recv, qc: t.qc + e.qc, out: t.out + e.out }), { iss: 0, recv: 0, qc: 0, out: 0 });
+  const html = '<div style="margin-top:10px"><div style="font-weight:700;margin:4px 0">Custom orders (Job Work, no order-book line)</div>'
+    + mtgTable(['Custom order', 'Channel', 'SKUs', 'Issued', 'Back from karigars', 'QC passed', 'Still with karigars'],
+      rows.slice(0, 40).map(e => [esc(e.k), esc(e.ch || ''), nf(e.skus.size), nf(e.iss), nf(e.recv), `<b>${nf(e.qc)}</b>`, nf(e.out)])
+        .concat(rows.length ? [['<b>Total</b>', '', '', `<b>${nf(T.iss)}</b>`, `<b>${nf(T.recv)}</b>`, `<b>${nf(T.qc)}</b>`, `<b>${nf(T.out)}</b>`]] : []),
+      'issued, back and QC passed in this week; still with karigars as it stands now') + '</div>';
+  return { html, text: rows.length ? `Custom orders: issued ${nf(T.iss)}, back ${nf(T.recv)}, QC passed ${nf(T.qc)}, still with karigars ${nf(T.out)}` : '',
+    csv: rows.map(e => ['Custom order', e.k, e.ch || '', e.iss, e.recv, e.qc, e.out]) };
 }
 
 function mtgPeople(wk, brand) {

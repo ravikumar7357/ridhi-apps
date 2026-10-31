@@ -349,26 +349,27 @@ function recipeXlsx(rows, opts) {
     const c = soColName(ix);
     return `<dataValidation type="list" allowBlank="1" showErrorMessage="0" sqref="${c}2:${c}${last}"><formula1>${name}</formula1></dataValidation>`;
   }).join('');
-  const extra = O.list && (O.list.values || []).length ? O.list : null;     // one more dropdown of the caller's own
+  /* The caller's own dropdowns: opts.list (one) and / or opts.lists (more — 22 Oct, the PPC sheet's department, printers and
+   * embroiderers), each a column of the hidden Lists sheet from C on. */
+  const extras = [].concat(O.list ? [O.list] : [], O.lists || []).filter(x => x && (x.values || []).length);
   const dvs = dvFor('yn', 'YesNo') + (fabs.length ? dvFor('fab', 'Fabrics') : '')
-    + (extra ? extra.cols.filter(i => i >= 0).map(ix => { const c = soColName(ix);
-      return `<dataValidation type="list" allowBlank="1" showErrorMessage="0" sqref="${c}2:${c}${last}"><formula1>${extra.name}</formula1></dataValidation>`; }).join('') : '');
-  const dvN = colsOf('yn').length + (fabs.length ? colsOf('fab').length : 0) + (extra ? extra.cols.filter(i => i >= 0).length : 0);
+    + extras.map(x => x.cols.filter(i => i >= 0).map(ix => { const c = soColName(ix);
+      return `<dataValidation type="list" allowBlank="1" showErrorMessage="0" sqref="${c}2:${c}${last}"><formula1>${x.name}</formula1></dataValidation>`; }).join('')).join('');
+  const dvN = colsOf('yn').length + (fabs.length ? colsOf('fab').length : 0) + extras.reduce((a, x) => a + x.cols.filter(i => i >= 0).length, 0);
   const sheet1 = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
     + `<sheetViews><sheetView workbookViewId="0"><pane xSplit="${O.freeze == null ? 3 : O.freeze}" ySplit="1" topLeftCell="${soColName(O.freeze == null ? 3 : O.freeze)}2" activePane="bottomRight" state="frozen"/></sheetView></sheetViews>`
     + '<cols>' + rows[0].map((h, i) => `<col min="${i + 1}" max="${i + 1}" width="${O.cols ? Math.min(30, Math.max(11, String(h).length + 4)) : (i < 3 ? 22 : (i < 4 ? 8 : (i < 4 + RECIPE_FIELDS.length ? 16 : 26)))}" customWidth="1"/>`).join('') + '</cols>'
     + '<sheetData>' + rows.map((r, i) => `<row r="${i + 1}">${r.map((v, j) => cellX(v, soColName(j) + (i + 1), i === 0)).join('')}</row>`).join('') + '</sheetData>'
     + (dvN ? `<dataValidations count="${dvN}">${dvs}</dataValidations>` : '') + '</worksheet>';
-  const exV = extra ? extra.values : [];
-  const nL = Math.max(2, fabs.length, exV.length);
+  const nL = Math.max(2, fabs.length, ...extras.map(x => x.values.length));
   const sheet2 = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>'
-    + Array.from({ length: nL }, (_, i) => `<row r="${i + 1}">${i < 2 ? cellX(i ? 'no' : 'yes', 'A' + (i + 1)) : ''}${cellX(fabs[i], 'B' + (i + 1))}${cellX(exV[i], 'C' + (i + 1))}</row>`).join('')
+    + Array.from({ length: nL }, (_, i) => `<row r="${i + 1}">${i < 2 ? cellX(i ? 'no' : 'yes', 'A' + (i + 1)) : ''}${cellX(fabs[i], 'B' + (i + 1))}${extras.map((x, k) => cellX(x.values[i], soColName(2 + k) + (i + 1))).join('')}</row>`).join('')
     + '</sheetData></worksheet>';
   const workbook = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
     + `<sheets><sheet name="${soXml(O.name || 'Recipes')}" sheetId="1" r:id="rId1"/><sheet name="Lists" sheetId="2" state="hidden" r:id="rId2"/></sheets>`
     + '<definedNames><definedName name="YesNo">Lists!$A$1:$A$2</definedName>'
     + (fabs.length ? '<definedName name="Fabrics">Lists!$B$1:$B$' + fabs.length + '</definedName>' : '')
-    + (extra ? '<definedName name="' + soXml(extra.name) + '">Lists!$C$1:$C$' + exV.length + '</definedName>' : '')
+    + extras.map((x, k) => { const L = soColName(2 + k); return '<definedName name="' + soXml(x.name) + '">Lists!$' + L + '$1:$' + L + '$' + x.values.length + '</definedName>'; }).join('')
     + '</definedNames></workbook>';
   const styles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
     + '<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>'

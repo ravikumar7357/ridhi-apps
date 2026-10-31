@@ -1,0 +1,104 @@
+# THE REPLENISH APP GOES LIVE FROM GITHUB (Ravi, 22 Oct: "mujhe abhi ka firebase host direct github ki main branch se krna hai").
+#
+#   main          every push that touches Replenish-App/ (or shared/) is tested, built and deployed to the live site,
+#                 https://fabricrush-replenish.web.app — whoever pushed it, from whichever computer.
+#   preview/<x>   a branch named preview/something gets its own test link (7 days), the live site untouched — the way
+#                 a feature waits for Ravi's "live karo". Merging it into main puts it live.
+#
+# Nothing is deployed when a test fails. The key is the repository secret FIREBASE_SERVICE_ACCOUNT, or the
+# FIREBASE_SERVICE_ACCOUNT_PRICE_RESEARCH_48FF3 that `firebase init hosting:github` makes; without one the tests and the
+# build still run and say so, and nothing is deployed.
+# Set up 22 Oct by `firebase init hosting:github`: service account github-action-1397622174 (Firebase Hosting Admin), its key in
+# the secret FIREBASE_SERVICE_ACCOUNT_PRICE_RESEARCH_48FF3. The workflow file that command writes is not used — this one is.
+name: Replenish app — test, build, deploy
+
+on:
+  push:
+    branches: [main, 'preview/**']
+    paths: ['Replenish-App/**', 'shared/**', '.github/workflows/replenish-hosting.yml']
+  workflow_dispatch:
+
+# one deploy at a time per branch; a newer push waits for the one running, it does not cut it short
+concurrency:
+  group: replenish-hosting-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # only WHETHER a key is there — the key itself goes to the deploy steps alone, never into the install or test steps
+      HAS_KEY: ${{ (secrets.FIREBASE_SERVICE_ACCOUNT || secrets.FIREBASE_SERVICE_ACCOUNT_PRICE_RESEARCH_48FF3) != '' }}
+    defaults:
+      run:
+        working-directory: Replenish-App
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: Replenish-App/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      # shop-test opens the Excel the app writes with a real spreadsheet library (openpyxl)
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install openpyxl
+        run: python3 -m pip install --quiet openpyxl
+
+      - name: The page is what src/ makes
+        run: node tests/assemble.js --check
+
+      # prod-test is not here: it reads a backup of the live production data (C:/AMAZON/backups/…), which never goes to
+      # GitHub — this repository is public. It is run on the office computer before every push to main.
+      - name: Tests
+        run: |
+          set -e
+          for t in flow shop pack-scan pack-verify pack-core barcode-read barcode-wasm appv b2b-pictures repl-master replsnap; do
+            if node "tests/$t-test.js" > "/tmp/$t.log" 2>&1; then echo "$t: $(tail -1 /tmp/$t.log)"
+            else echo "::error::$t-test failed"; grep -E "FAIL|Error" "/tmp/$t.log" | head -40; tail -5 "/tmp/$t.log"; exit 1; fi
+          done
+
+      - name: Build the deployed copy (dist/)
+        run: node tests/build-dist.js
+
+      - name: Deploy — live site
+        if: github.ref == 'refs/heads/main' && env.HAS_KEY == 'true'
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT || secrets.FIREBASE_SERVICE_ACCOUNT_PRICE_RESEARCH_48FF3 }}
+          projectId: price-research-48ff3
+          channelId: live
+          entryPoint: Replenish-App
+
+      - name: Test link name
+        id: ch
+        if: startsWith(github.ref, 'refs/heads/preview/')
+        run: echo "name=$(echo "${GITHUB_REF_NAME#preview/}" | tr -c 'a-zA-Z0-9-' '-' | cut -c1-30 | sed 's/-*$//')" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy — test link
+        if: startsWith(github.ref, 'refs/heads/preview/') && env.HAS_KEY == 'true'
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT || secrets.FIREBASE_SERVICE_ACCOUNT_PRICE_RESEARCH_48FF3 }}
+          projectId: price-research-48ff3
+          channelId: ${{ steps.ch.outputs.name }}
+          expires: 7d
+          entryPoint: Replenish-App
+
+      - name: No deploy key yet
+        if: env.HAS_KEY != 'true'
+        run: echo "::warning::No Firebase key secret is set — the tests and the build ran, nothing was deployed."

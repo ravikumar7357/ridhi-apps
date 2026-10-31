@@ -109,6 +109,8 @@ function stCutting(c) {
   /* A piece whose cloth is printed AFTER cutting leaves the store when the printer is given it, and
    * comes back as the printer's delivery — so the cutting itself moves nothing here. */
   const running = !!m && ptPrintIssueAs(m) === 'running';
+  /* Cut from a rejected tablecloth or wastage cloth (clothFrom, look-alike-skus.js): no printed cloth left the store for it. */
+  if (c.clothFrom) return { running: false, pcs, fabric: '', colour: c.color || '', metres: 0, waste: 0, wasteWidth: 0 };
   const typed = parseFloat(c.fabricUsed);
   let fabric = String(c.fabricWidth || '').trim(), metres = isFinite(typed) && typed > 0 ? typed : 0;
   if (!metres || !fabric) {
@@ -151,7 +153,7 @@ function stFlowMoves() {
   /* OUT — what each PPC plan took from the store, and what it took per line (for the cutting below) */
   const took = {};
   Object.entries(FLOW.ppc || {}).forEach(([key, p]) => {
-    if (!stPlanTookOut(p) || /^TEST-/.test(String(p.orderNo || '')) || (p.route && p.route !== 'inhouse')) return;
+    if (!stPlanTookOut(p) || /^TEST-/.test(String(p.orderNo || '')) || (p.route && p.route !== 'inhouse' && p.route !== 'emb')) return;
     const colour = colOf(p.sku), fp = +(p.fabric && p.fabric.fromPrinted) || 0;
     const base = { src: 'plan', date: day(p.at), at: p.at, who: p.by || '', remark: (p.orderNo || '') + ' · ' + (p.sku || '') };
     if (fp > 0) {
@@ -176,7 +178,7 @@ function stFlowMoves() {
     const key = typeof flowKey === 'function' ? flowKey(c.orderNo || '', c.sku || '') : '', p = (FLOW.ppc || {})[key];
     /* PPC sent it to Cutting / Job Work: cut from RFD — unless PPC said the cloth was printed already and is in hand
      * (fabric.noRfd): then it is cut from the printed store, and comes off here. */
-    if (p && p.route && p.route !== 'inhouse' && !(p.route === 'stitch' && p.fabric && p.fabric.noRfd)) return;
+    if (p && p.route && p.route !== 'inhouse' && p.route !== 'emb' && !(p.route === 'stitch' && p.fabric && p.fabric.noRfd)) return;
     const covered = Math.max(0, (took[key] || 0) - (used[key] || 0)), fromPlan = Math.min(covered, k.metres);
     used[key] = (used[key] || 0) + fromPlan;
     const q = Math.round((k.metres - fromPlan) * 100) / 100;

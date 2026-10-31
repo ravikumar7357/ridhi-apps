@@ -132,6 +132,9 @@ function doGet(e) {
       if (p.fuldiag) return json_(fulfilDiag_(p.days));
     }
 
+    // FabriCrush Inventory app (InvSync.gs): Amazon → the fabricrush-inventory Firestore, no sheets.
+    if (p.inv) return json_(invRoute_(p));
+
     if (p.ping) {
       getToken_();                                  // throws if the credentials are wrong
       return json_({ ok: true, pong: true, marketplace: marketplaceId_(), host: spHost_() });

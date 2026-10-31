@@ -78,6 +78,7 @@ function mdbRecord(v, isCustom) {
     /* AMAZON'S IDS (Ravi, 2026-09-26). An edit and an import both write the WHOLE record, so a field left out of
      * here is a field every edit wipes. */
     asin: obUC(v.asin), parentAsin: obUC(v.parentAsin),
+    listingStatus: mdbListing(v.listingStatus),
     isCustom: !!isCustom,
   };
 }
@@ -115,6 +116,11 @@ const YESNO = ['yes', 'no'];
 /** The Fabric Type master, with whatever this row already says kept at the top of it. */
 const fabListOr = cur => [...new Set([String(cur || '').trim()].filter(Boolean).concat(cutFabrics()))];
 /** The dialog's fields, shared by add and edit so the two cannot drift. */
+const MDB_LISTING = ['', 'Listed', 'Need Listing', 'Discontinue', 'Use In Mix'];
+/** A typed status in the list's own spelling ("discontinued" → Discontinue); '' when it is none of them. */
+const mdbListing = v => { const t = String(v == null ? '' : v).trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!t) return ''; if (/discontinu/.test(t)) return 'Discontinue'; if (/use ?in ?mix/.test(t)) return 'Use In Mix';
+  if (/need/.test(t)) return 'Need Listing'; if (/list/.test(t)) return 'Listed'; return ''; };
 function mdbFields(r) {
   const m = (k, d) => (r ? (r[k] == null ? d : r[k]) : d);
   const yn = b => (b ? 'yes' : 'no');
@@ -128,6 +134,9 @@ function mdbFields(r) {
       list: ['Ridhi'].concat((PTG.mdb || []).map(x => String((x && x.manufacturer) || '').trim())) },
     { key: 'asin', label: 'ASIN', value: m('asin', '') },
     { key: 'parentAsin', label: 'Parent ASIN', value: m('parentAsin', '') },
+    /* THE INDIA LISTING STATUS (Ravi, 25 Oct: "master data base me set karenge") — it was the sheet's India Stock tab.
+     * Discontinue or Use In Mix stops the SKU in Replenishment: nothing more is planned for it. */
+    { key: 'listingStatus', label: 'Listing status', type: 'select', value: m('listingStatus', ''), options: MDB_LISTING },
     { key: 'articleType', label: 'Article type', type: 'select', value: m('articleType', ''),
       options: [''].concat(listOr('articleType', m('articleType', ''))) },
     { key: 'subtype', label: 'Article subtype', type: 'select', value: m('subtype', ''),
@@ -448,7 +457,7 @@ $('ptmImgs').onclick = () => mdbImgFill(true);
 const MDB_IMPORT_COLS = ['SKU', 'Brand', 'Article', 'Subtype', 'Color', 'Size', 'Fabric', 'Consumption',
   'Pack of', 'Cutting required', 'Zip', 'Zips per piece', 'Zip size', 'Ruffle', 'Ruffle metres',
   'Ruffle fabric', 'Piping dori', 'Piping dori metres', 'Filler fabric', 'Filling qty', 'Valuation price', 'Image', 'ASIN', 'Parent ASIN',
-  'Manufacturer', 'Piping fabric', 'Packing type', 'Packing material'];
+  'Manufacturer', 'Piping fabric', 'Packing type', 'Packing material', 'Listing status'];
 
 /** The recipe template: every combination, its recipe so far, and what its SKUs say. */
 function recipeTemplateDownload() {

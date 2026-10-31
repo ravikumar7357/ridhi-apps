@@ -64,6 +64,24 @@ const qcIxOf = sku => QC_IX.get(qcNorm(sku)) || { rec: 0, chk: 0, alt: 0, iss: 0
 const qcReceived = sku => (QC_IX ? qcIxOf(sku).rec : (PT.base || []).reduce((a, r) => a + (qcNorm(r.sku) === qcNorm(sku) ? ptNum(r.receivedPieces) : 0), 0));
 const qcChecked = sku => (QC_IX ? qcIxOf(sku).chk : (QC.checks || []).reduce((a, r) => a + (qcNorm(r.sku) === qcNorm(sku) ? ptNum(r.checked) : 0), 0));
 const qcAvailToCheck = sku => qcReceived(sku) - qcChecked(sku);
+/* AN ORDER'S OWN PIECES (Ravi, 27 Oct: "jo order jiske ke liye aaya h wo usi order me jana chahiye"). The SKU total above let
+ * a check name ANY order of the SKU: 166 RTBX72 were passed on AMZ-16092026-02, which had nothing back from a karigar, while
+ * the pieces had been received on AMZ-25082026-01 — one line read made with nothing received, the other received with nothing
+ * passed. 54 checks (3,128 pcs) went to an order that way. A check now names an order only for what came back ON it and is
+ * not checked yet: the line's received (Job Work, or a quilt's old counters) plus pieces cut straight to QC (embroidery). */
+function qcOrderRecv(orderNo, sku) {
+  const o = obUC(orderNo), s = qcNorm(sku);
+  const b = obBaseIndex().get(obKeyOf(o, s)), l = ordLines().find(x => x.orderNo === o && x.sku === s);
+  let n = Math.max(b ? b.received : 0, l ? ptNum(l.received) : 0);
+  (PT.cut || []).forEach(c => { if (c && c.qcDirect && obUC(c.orderNo) === o && qcNorm(c.sku) === s) n += ptNum(c.pieces); });
+  return n;
+}
+const qcOrderChecked = (orderNo, sku) => { const o = obUC(orderNo), s = qcNorm(sku);
+  return (QC.checks || []).reduce((a, r) => a + (r && obUC(r.orderNo) === o && qcNorm(r.sku) === s ? ptNum(r.checked) : 0), 0); };
+const qcOrderAvail = (orderNo, sku) => Math.max(0, qcOrderRecv(orderNo, sku) - qcOrderChecked(orderNo, sku));
+/** Pieces QC has already taken off one Job Work entry — that entry cannot go below it, or lose them by being deleted. */
+const qcTookOf = baseId => ((typeof QC !== 'undefined' && QC.checks && QC.checks.length ? QC.checks : PTG.qc) || [])
+  .reduce((a, c) => a + (c && !c.refId && String(c.baseId || '') === String(baseId) ? ptNum(c.checked) : 0), 0);
 const qcAltTotal = sku => (QC_IX ? qcIxOf(sku).alt : (QC.checks || []).reduce((a, r) => a + (qcNorm(r.sku) === qcNorm(sku) ? ptNum(r.forAlteration) : 0), 0));
 const qcIssuedTotal = sku => (QC_IX ? qcIxOf(sku).iss : (QC.issue || []).reduce((a, r) => a + (qcNorm(r.sku) === qcNorm(sku) ? ptNum(r.pieces) : 0), 0));
 const qcAvailToIssue = sku => qcAltTotal(sku) - qcIssuedTotal(sku);
@@ -387,15 +405,18 @@ function renderQcCheckForm() {
   /* The orders this SKU is actually on, newest first — the same list the cutting form offers. */
   if ($('qcwOrdList')) {
     const sku0 = qcNorm(($('qcwSku') || {}).value);
-    const on = sku0 ? qcOrdersFor(sku0) : [];
+    /* What is waiting on each order first — that is the order the inspector is holding. */
+    const on = (sku0 ? qcOrdersFor(sku0) : []).map(o => Object.assign({}, o, { wait: qcOrderAvail(o.orderNo, sku0) }))
+      .sort((a, b) => (b.wait - a.wait) || (b.received - a.received) || a.orderNo.localeCompare(b.orderNo));
     $('qcwOrdList').innerHTML = on
-      .map(o => `<option value="${esc(o.orderNo)}">${esc(o.date || '')} · ${nf(o.ordered)} ordered · ${nf(o.received)} received</option>`).join('');
+      .map(o => `<option value="${esc(o.orderNo)}">${esc(o.date || '')} · ${nf(o.ordered)} ordered · ${nf(o.received)} received · ${nf(o.wait)} waiting for QC</option>`).join('');
     /* THE BOX SAYS WHETHER IT IS NEEDED, and fills itself in when there is only one answer — asking
      * somebody to type the one order a SKU is on is how a box comes to be left empty 245 times. */
     const box = $('qcwOrd');
     if (box) {
       box.placeholder = !sku0 ? 'Order No' : (on.length ? 'Order No *' : 'Order No — this SKU is on no order');
-      if (on.length === 1 && !String(box.value || '').trim()) box.value = on[0].orderNo;
+      const waiting = on.filter(o => o.wait > 0);
+      if (!String(box.value || '').trim() && (on.length === 1 || waiting.length === 1)) box.value = (waiting[0] || on[0]).orderNo;
       if (on.length && String(box.value || '').trim() && !on.some(o => o.orderNo === obUC(box.value))) box.value = '';
     }
   }
@@ -430,6 +451,9 @@ function renderQcCheckForm() {
   let warn = '';
   if (sku && !parts.has(qcNorm(sku))) warn = any ? `${qcNorm(sku)} is not in the master database.` : `${qcNorm(sku)} has nothing received in Job Work waiting to be checked.`;
   else if (!any && sku && ch > qcAvailToCheck(sku)) warn = `Pieces checked (${ch}) is more than the ${nf(qcAvailToCheck(sku))} available.`;
+  else if (sku && ch > 0 && obUC(($('qcwOrd') || {}).value) && qcOrdersFor(sku).length
+      && ch > qcOrderAvail(obUC($('qcwOrd').value), sku))
+    warn = `Order ${obUC($('qcwOrd').value)} has only ${nf(qcOrderAvail(obUC($('qcwOrd').value), sku))} piece(s) received and not checked yet.`;
   else if (ch > 0 && al + rj > ch) warn = `For alteration + rejected (${al + rj}) is more than the ${ch} checked.`;
   $('qcwInfo').textContent = warn || note || skuNote;
   $('qcwInfo').className = warn ? 'err' : 'muted';
@@ -476,9 +500,20 @@ $('qcwSave').onclick = async () => {
   /* AN ORDER, WHEREVER THERE IS ONE TO NAME. Every other register is keyed by order, and the Order
    * Console shows this figure as an order's own QC — a check with no order is invisible there. */
   const onOrders = qcOrdersFor(sku), ordTyped = obUC(($('qcwOrd') || {}).value);
-  if (onOrders.length && !ordTyped) return qcCheckMsg(`${sku} is on ${nf(onOrders.length)} order(s) — pick which one these pieces are for.`, true);
+  const waitOn = onOrders.filter(o => qcOrderAvail(o.orderNo, sku) > 0);
+  /* A free inspection of pieces no order has received (the "any" source) may go on no order — it is shared out by SKU on the
+   * console, never past what an order received. Anything else names its order. */
+  if (onOrders.length && !ordTyped && !(any && !waitOn.length))
+    return qcCheckMsg(`${sku} is on ${nf(onOrders.length)} order(s) — pick which one these pieces are for.`, true);
   if (ordTyped && onOrders.length && !onOrders.some(o => o.orderNo === ordTyped))
     return qcCheckMsg(`Order ${ordTyped} has no line for ${sku}. It is on: ${onOrders.slice(0, 4).map(o => o.orderNo).join(', ')}${onOrders.length > 4 ? '…' : ''}.`, true);
+  if (ordTyped && onOrders.length && checked > qcOrderAvail(ordTyped, sku)) {
+    const others = waitOn.filter(o => o.orderNo !== ordTyped);
+    return qcCheckMsg(`Order ${ordTyped} has only ${nf(qcOrderAvail(ordTyped, sku))} piece(s) of ${sku} received and not checked yet `
+      + `(received ${nf(qcOrderRecv(ordTyped, sku))}, already checked ${nf(qcOrderChecked(ordTyped, sku))}). `
+      + (others.length ? `Pieces are waiting on ${others.slice(0, 4).map(o => o.orderNo + ' (' + nf(qcOrderAvail(o.orderNo, sku)) + ')').join(', ')} — pick that order.`
+        : 'Receive them in Job Work against this order first.'), true);
+  }
 
   const p = qcParts(sku);
   const rec = {
@@ -695,12 +730,26 @@ function qcInboxRows() {
      * receipts do not cover on the receiving date. Pieces received through Edit carried no receipt and never showed
      * here (2026-10-08, Ravi: "5 OCT KE BAD WALI ENTRY ABHI DIRECT WAITING FOR QC ME SHOW NAHI HO RHA H") — 70 entries. */
     let since = 0, last = 0;
-    repRecvParts(r).forEach(p => { if (p.ms >= from) { since += p.pcs; if (p.ms > last) last = p.ms; } });
+    /* THE LEGACY ORDER'S PIECES WAIT TOO (Ravi, 24 Oct: "Legacy order ki 88 lines (1,423 pcs) pending show nhi ho rhi h"):
+     * LEG-… holds the pieces made on the floor before the app had orders for them; 1,207 of them came back 1–4 Oct, before QC
+     * began, so the date line kept them out of here for good and their lines open for ever. Every receipt of theirs counts. */
+    const legacy = /^LEG-/i.test(String(r.orderNo || ''));
+    repRecvParts(r).forEach(p => { if (legacy || p.ms >= from) { since += p.pcs; if (p.ms > last) last = p.ms; } });
     /* Never more than the row says came back — a correction may have lowered it after the receipt was logged. */
     since = Math.min(since, ptNum(r.receivedPieces));
     const accepted = took.get(r.id) || 0, wait = since - accepted;
     if (!(wait > 0)) return;
     out.push({ r, since, accepted, wait, last });
+  });
+  /* EMBROIDERED, CUT, STRAIGHT TO QC (Ravi, 21 Oct): a Production flow line on Printing + Embroidery has no karigar, so its
+   * pieces come here from the cutting entry (marked qcDirect) — one row per entry, taken off it the way a karigar's are. */
+  (PT.cut || []).forEach(c => {
+    const id = c && (c.id || c._key); if (!id || !c.qcDirect || !c.orderNo) return;
+    const ms = ptDtMs(c.cutDate) || ptDtMs(c.addedAt) || 0; if (ms && ms < from) return;
+    const pcs = ptNum(c.pieces), accepted = took.get(id) || 0, wait = pcs - accepted;
+    if (!(wait > 0)) return;
+    out.push({ r: { id, sku: c.sku, orderNo: c.orderNo, articleType: c.articleType || '', articleSubtype: c.articleSubtype || '', color: c.color || '', size: c.size || '',
+      empName: 'Cut after embroidery', empType: 'no karigar — straight to QC', receivedPieces: pcs, fromCut: true }, since: pcs, accepted, wait, last: ms || Date.now() });
   });
   out.sort((a, b) => a.last - b.last);
   /* CHECKED ON THE OLD FORM: a check that names the order and SKU but no Job Work entry (the Checks form) has already

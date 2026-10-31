@@ -303,7 +303,8 @@ $('sxQtyFile').onchange = async e => {
       title: 'Change these quantities?',
       subtitle: `${nf(plan.ok.length)} line(s) · ${nf(up.length)} up · ${nf(down.length)} down`,
       /* THE ORDER BOOK MOVES WITH THEM — said here, because that is the part that reaches the floor. */
-      note: 'The order book moves with the sales order, in the same write. A line the order book never '
+      note: 'Each row is sent for approval — nothing changes until it is approved in the Order Console. '
+        + 'Then the order book moves with the sales order, in the same write; a line the order book never '
         + 'got changes on the order only. Nothing goes below what has already been cut, received or pressed.',
       html: '<div class="muted" style="font-size:12.5px;line-height:1.7">'
         + (up.length ? `<b style="color:#166534">Going up</b><br>${show(up)}`
@@ -320,7 +321,8 @@ $('sxQtyFile').onchange = async e => {
         renderSox();
         if (out.err) return out.err;
         $('sxMsg').className = 'muted';
-        $('sxMsg').textContent = `${nf(out.done)} quantit${out.done > 1 ? 'ies' : 'y'} changed, and the order book says the same.`
+        /* ASKED, NOT CHANGED — soQtyBulkRun writes requests only, like the Change qty button. */
+        $('sxMsg').textContent = `${nf(out.done)} quantity change${out.done > 1 ? 's' : ''} asked. The orders and the order book stay as they are until each is approved in the Order Console.`
           + (plan.skip.length ? ` ${nf(plan.skip.length)} row(s) were refused and left alone.` : '');
         return '';
       },

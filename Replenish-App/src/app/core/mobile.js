@@ -60,7 +60,7 @@ function mobBuild() {
   if (!app || !main) return;
   const head = document.createElement('div');
   head.id = 'mobHead';
-  head.innerHTML = '<span class="mob-brand">Ridhi</span><b id="mobTitle"></b>';
+  head.innerHTML = '<span class="mob-brand"><img src="/r-one-wordmark.png" alt="R-one" class="r1-mob"></span><b id="mobTitle"></b>';
   main.insertBefore(head, main.firstChild);
 
   const bar = document.createElement('nav');

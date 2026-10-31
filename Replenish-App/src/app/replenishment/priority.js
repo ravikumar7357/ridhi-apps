@@ -223,7 +223,19 @@ async function saveHidden(patch) {
   }
 }
 
-$('rHide').onclick = () => { $('hidePaste').value = ''; $('hideMsg').textContent = ''; renderHideList(); $('hideModal').classList.remove('hide'); };
+let REPL_SHOW_HIDDEN = false;
+/* The Hidden SKUs button now opens them in the Replenishment table itself (Ravi, 25 Oct) — pressed again, back to all SKUs. The
+ * list of hidden SKUs is kept and edited from "Edit hidden list". */
+$('rHide').onclick = () => {
+  REPL_SHOW_HIDDEN = !REPL_SHOW_HIDDEN;
+  const n = Object.keys(HIDDEN).filter(k => HIDDEN[k]).length;
+  $('rHide').textContent = REPL_SHOW_HIDDEN ? '← All SKUs' : 'Hidden SKUs';
+  $('rHide').classList.toggle('ghost', !REPL_SHOW_HIDDEN);
+  R_VER++;
+  renderRepl();
+  rMsg(REPL_SHOW_HIDDEN ? `Showing the ${nf(n)} hidden SKU(s), with their real stock and sales. They are still kept out of everything else — press "← All SKUs" to go back.` : '');
+};
+$('rHideEdit').onclick = () => { $('hidePaste').value = ''; $('hideMsg').textContent = ''; renderHideList(); $('hideModal').classList.remove('hide'); };
 $('hideClose').onclick = () => $('hideModal').classList.add('hide');
 $('hideAdd').onclick = async () => {
   const raw = $('hidePaste').value.split(/[\n,;\t]+/).map(x => skuKey(x)).filter(Boolean);

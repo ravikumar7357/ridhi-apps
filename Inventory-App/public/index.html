@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FabriCrush Inventory</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#16181d;--mute:#6b7280;--line:#e5e8ee;--acc:#4f46e5;--accs:#eef2ff;
+--red:#fecaca;--redi:#991b1b;--amb:#fed7aa;--ambi:#9a3412;--yel:#fef08a;--yeli:#854d0e;--grn:#bbf7d0;--grni:#166534;--vio:#ede9fe;--vioi:#6d28d9}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1115;--card:#171a21;--ink:#e8eaee;--mute:#9aa1ad;--line:#2a2f3a;--acc:#818cf8;--accs:#1e2140;
+--red:#4c1d1d;--redi:#fecaca;--amb:#4a2a12;--ambi:#fed7aa;--yel:#3f3a0f;--yeli:#fef08a;--grn:#123a22;--grni:#bbf7d0;--vio:#2a2045;--vioi:#ddd6fe}}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+button,select,input{font:inherit;color:inherit}
+.top{position:sticky;top:0;z-index:20;background:var(--card);border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px 16px}
+.brand{font-weight:700;font-size:16px;margin-right:6px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:0;background:transparent;padding:6px 12px;cursor:pointer}.seg button.on{background:var(--acc);color:#fff}
+.btn{border:1px solid var(--line);background:var(--card);border-radius:8px;padding:6px 12px;cursor:pointer}
+.btn.pri{background:var(--acc);border-color:var(--acc);color:#fff}.btn:disabled{opacity:.5;cursor:default}
+.sp{flex:1}.mute{color:var(--mute)}.small{font-size:12px}
+.tabs{display:flex;gap:4px;padding:8px 16px 0;flex-wrap:wrap}
+.tabs button{border:0;background:transparent;padding:8px 12px;border-radius:8px 8px 0 0;cursor:pointer;color:var(--mute)}
+.tabs button.on{background:var(--card);color:var(--ink);font-weight:600;border:1px solid var(--line);border-bottom-color:var(--card)}
+main{padding:0 16px 40px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:0 10px 10px 10px;padding:12px}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+.bar input[type=search]{border:1px solid var(--line);border-radius:8px;padding:6px 10px;min-width:220px;background:var(--card)}
+.bar select{border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--card)}
+.wrap{overflow:auto;max-height:calc(100vh - 230px);border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;font-variant-numeric:tabular-nums;width:max-content;min-width:100%}
+th,td{border-bottom:1px solid var(--line);padding:5px 8px;text-align:right;white-space:nowrap}
+th{position:sticky;top:0;background:var(--card);z-index:2;cursor:pointer;font-size:12px;color:var(--mute);font-weight:600;user-select:none}
+tr.tot td{position:sticky;top:29px;background:var(--accs);font-weight:700;z-index:1}
+td.l,th.l{text-align:left}td.sku{font-weight:600}
+td img{width:36px;height:36px;object-fit:cover;border-radius:4px;vertical-align:middle}
+.c-red{background:var(--red);color:var(--redi)}.c-amb{background:var(--amb);color:var(--ambi)}.c-yel{background:var(--yel);color:var(--yeli)}
+.c-grn{background:var(--grn);color:var(--grni)}.c-vio{background:var(--vio);color:var(--vioi)}
+td[contenteditable]{outline:1px dashed var(--line);text-align:left;min-width:80px}td.edited{background:var(--accs)}
+.chip{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:12px}
+.dot{width:8px;height:8px;border-radius:50%;background:#94a3b8}.dot.run{background:#f59e0b;animation:p 1s infinite}.dot.ok{background:#16a34a}.dot.err{background:#dc2626}
+@keyframes p{50%{opacity:.3}}
+.panel{position:absolute;right:16px;top:56px;width:min(440px,calc(100vw - 32px));background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;box-shadow:0 10px 30px rgba(0,0,0,.15);z-index:30}
+.panel h4{margin:6px 0}.panel ol{margin:4px 0;padding-left:18px}.panel li{margin:2px 0}
+.menu{position:absolute;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:4px;z-index:40;box-shadow:0 8px 24px rgba(0,0,0,.12)}
+.menu button{display:block;width:100%;text-align:left;border:0;background:transparent;padding:7px 12px;border-radius:6px;cursor:pointer}.menu button:hover{background:var(--accs)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.field label{display:block;font-size:12px;color:var(--mute)}.field input{width:100%;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--card)}
+.login{max-width:380px;margin:12vh auto;text-align:center;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:28px}
+.note{padding:8px 10px;border-left:3px solid var(--acc);background:var(--accs);border-radius:6px;margin:8px 0}
+.err{color:#dc2626}.hide{display:none!important}
+</style>
+</head>
+<body>
+<div id="login" class="login hide">
+  <h2 style="margin-top:0">FabriCrush Inventory</h2>
+  <p class="mute">Amazon inventory, shipments and orders — straight from Amazon, no Google Sheets.</p>
+  <form id="pwForm" style="display:grid;gap:8px;text-align:left">
+    <div class="field"><label>Email</label><input id="em" type="email" autocomplete="username" required></div>
+    <div class="field"><label>Password</label><input id="pw" type="password" autocomplete="current-password" required></div>
+    <button class="btn pri" type="submit">Sign in</button>
+  </form>
+  <p class="small"><a href="#" id="forgot">Forgot password?</a> · <a href="#" id="signin">Sign in with Google</a></p>
+  <p id="loginMsg" class="err small"></p>
+  <p id="verifyBox" class="small hide"><button class="btn" id="sendVerify">Send verification email</button> <button class="btn" id="signout2">Use another account</button></p>
+</div>
+
+<div id="app" class="hide">
+  <div class="top">
+    <span class="brand">FabriCrush Inventory</span>
+    <div class="seg" id="brandSeg"><button data-b="SP" class="on">Ridhi</button><button data-b="CPC">CPC</button></div>
+    <span class="sp"></span>
+    <span class="chip" id="statusChip" title="What the backend is doing"><span class="dot" id="statusDot"></span><span id="statusTxt">…</span></span>
+    <button class="btn pri" id="refreshBtn">↻ Refresh ▾</button>
+    <span class="small mute" id="who"></span>
+    <button class="btn" id="signout">Sign out</button>
+  </div>
+  <div id="panel" class="panel hide"></div>
+  <div class="tabs" id="tabs">
+    <button data-t="inv" class="on">Inventory</button><button data-t="ship">Shipments</button>
+    <button data-t="ord">Orders</button><button data-t="cat">Catalog</button><button data-t="set">Settings</button>
+    <button data-t="acc" class="hide" id="accTab">Access</button>
+  </div>
+  <main><div class="card" id="view"></div></main>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc, deleteDoc, onSnapshot, collection, getDocs, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const fb = initializeApp({ apiKey: "AIzaSyCcR9PG1wTMq3StEOGKhXE37hJXg6BjIyc", authDomain: "fabricrush-inventory.firebaseapp.com",
+  projectId: "fabricrush-inventory", storageBucket: "fabricrush-inventory.firebasestorage.app", messagingSenderId: "833030566335",
+  appId: "1:833030566335:web:62e9df6f8481b7237cb10a" });
+const auth = getAuth(fb), db = getFirestore(fb);
+const ADMIN = 'ravi@thefabricrush.com';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const nf = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }), mf = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+const fmtAt = ms => ms ? new Date(ms).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
+const fmtDay = ms => ms ? new Date(ms).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+const parseJ = snap => { const d = snap.exists() ? snap.data() : null; return d && d.json ? JSON.parse(d.json) : null; };
+const BRAND = { SP: 'Ridhi', CPC: 'CPC' };
+
+let ME = '', isAdmin = false, brand = localStorage.getItem('inv_brand') || 'SP', tab = 'inv';
+let STATUS = null, BACKEND = null, SETTINGS = null;
+const SETS = {};          // name -> { idx, rows }
+const unsubs = [];
+
+/* ---------- sign-in ---------- */
+const AUTH_MSG = { 'auth/invalid-credential': 'Wrong email or password.', 'auth/wrong-password': 'Wrong email or password.', 'auth/user-not-found': 'No account with that email. Ask Ravi to add you.',
+  'auth/too-many-requests': 'Too many tries. Wait a few minutes, or use "Forgot password?".', 'auth/invalid-email': 'That email address is not valid.' };
+$('pwForm').onsubmit = async e => {
+  e.preventDefault(); $('loginMsg').textContent = '';
+  try { await signInWithEmailAndPassword(auth, $('em').value.trim(), $('pw').value); }
+  catch (err) { $('loginMsg').textContent = AUTH_MSG[err.code] || err.message; }
+};
+$('forgot').onclick = async e => {
+  e.preventDefault(); const em = $('em').value.trim();
+  if (!em) { $('loginMsg').textContent = 'Type your email first, then press "Forgot password?".'; return; }
+  try { await sendPasswordResetEmail(auth, em); $('loginMsg').textContent = 'A password reset link has been sent to ' + em + '.'; }
+  catch (err) { $('loginMsg').textContent = AUTH_MSG[err.code] || err.message; }
+};
+$('sendVerify').onclick = async () => {
+  try { await sendEmailVerification(auth.currentUser); $('loginMsg').textContent = 'Verification email sent to ' + auth.currentUser.email + '. Click the link in it, then sign in again.'; }
+  catch (err) { $('loginMsg').textContent = err.message; }
+};
+$('signout2').onclick = () => signOut(auth);
+$('signin').onclick = async e => {
+  e.preventDefault(); $('loginMsg').textContent = '';
+  try { await signInWithPopup(auth, new GoogleAuthProvider()); }
+  catch (e) { $('loginMsg').textContent = e.code === 'auth/operation-not-allowed' || e.code === 'auth/configuration-not-found'
+      ? 'Google sign-in is not switched on for this project yet (Firebase console → Authentication → Google).' : (e.message || e); }
+};
+$('signout').onclick = () => signOut(auth);
+onAuthStateChanged(auth, async user => {
+  unsubs.splice(0).forEach(u => u());
+  $('verifyBox').classList.add('hide'); $('pwForm').classList.toggle('hide', !!user);
+  if (!user) { $('app').classList.add('hide'); $('login').classList.remove('hide'); return; }
+  ME = (user.email || '').toLowerCase(); isAdmin = ME === ADMIN;
+  try { await getDoc(doc(db, 'meta', 'status')); }
+  catch (e) {
+    $('app').classList.add('hide'); $('login').classList.remove('hide');
+    // Only Ravi's own account is let in unverified; everybody else must click the link in the verification email.
+    if (!user.emailVerified && !isAdmin) { $('loginMsg').textContent = ME + ': please verify your email first.'; $('verifyBox').classList.remove('hide'); return; }
+    $('loginMsg').textContent = ME + ' does not have access yet. Ask Ravi to add you in Access.'; $('verifyBox').classList.remove('hide');
+    return;
+  }
+  $('login').classList.add('hide'); $('app').classList.remove('hide');
+  $('who').textContent = ME; $('accTab').classList.toggle('hide', !isAdmin);
+  unsubs.push(onSnapshot(doc(db, 'meta', 'status'), s => { STATUS = parseJ(s); drawStatus(); }));
+  unsubs.push(onSnapshot(doc(db, 'meta', 'settings'), s => { SETTINGS = parseJ(s); if (tab === 'set') render(); }));
+  getDoc(doc(db, 'config', 'backend')).then(s => { BACKEND = parseJ(s); }).catch(() => {});
+  setBrand(brand);
+});
+
+/* ---------- live data: listen to idx/<name>, reload its chunks when it changes ---------- */
+function watchSet(coll, base, idxName) {
+  const key = idxName;
+  if (SETS[key] && SETS[key].watching) return SETS[key];
+  const S = SETS[key] = { idx: null, rows: null, watching: true, loading: true };
+  unsubs.push(onSnapshot(doc(db, 'idx', idxName), async snap => {
+    const idx = parseJ(snap);
+    if (!idx) { S.idx = null; S.rows = []; S.loading = false; render(); return; }
+    if (S.idx && S.idx.at === idx.at && S.rows) return;
+    S.loading = true;
+    const parts = await Promise.all(Array.from({ length: idx.n }, (_, i) => getDoc(doc(db, coll, base + '_' + i)).then(parseJ)));
+    S.idx = idx; S.rows = parts.flatMap(p => p || []); S.loading = false;
+    render();
+  }, e => { S.error = e.message; S.loading = false; render(); }));
+  return S;
+}
+function setBrand(b) {
+  brand = b; localStorage.setItem('inv_brand', b);
+  document.querySelectorAll('#brandSeg button').forEach(x => x.classList.toggle('on', x.dataset.b === b));
+  ['inv', 'ship', 'cat'].forEach(c => watchSet(c, b, c + '_' + b));
+  watchSet('idx', 'x', 'ord_' + b);            // only the month list; months load on demand
+  watchCatEdits(b);
+  render();
+}
+const CATEDIT = {};
+function watchCatEdits(b) {
+  if (CATEDIT[b]) return;
+  CATEDIT[b] = {};
+  unsubs.push(onSnapshot(doc(db, 'catedit', b), s => { CATEDIT[b] = parseJ(s) || {}; if (tab === 'cat' || tab === 'inv') render(); }));
+}
+document.querySelectorAll('#brandSeg button').forEach(x => x.onclick = () => setBrand(x.dataset.b));
+document.querySelectorAll('#tabs button').forEach(x => x.onclick = () => {
+  tab = x.dataset.t; document.querySelectorAll('#tabs button').forEach(y => y.classList.toggle('on', y === x)); render();
+});
+
+/* ---------- status + refresh ---------- */
+const JOBS = [['refresh', 'Everything (orders → shipments → inventory)'], ['inventory', 'Inventory only'], ['shipments', 'Shipments + inventory'],
+  ['orders', 'Orders (last 20 days)'], ['catalog', 'Catalog'], ['history', 'Full order history from Jan 2025 (slow)']];
+function drawStatus() {
+  const s = STATUS || {}, job = s.job, run = !!s.running;
+  const errs = Object.keys(s.errors || {});
+  $('statusDot').className = 'dot ' + (run ? 'run' : errs.length ? 'err' : 'ok');
+  if (run && job) { const st = job.steps[job.i] || {}; $('statusTxt').textContent = (st.label || 'Working') + (st.msg ? ' — ' + st.msg : '…'); }
+  else $('statusTxt').textContent = errs.length ? errs.length + ' problem' + (errs.length > 1 ? 's' : '') + ' — click' : 'Up to date · ' + fmtAt(Math.max(0, ...Object.values(s.last || {})));
+  if (!$('panel').classList.contains('hide')) drawPanel();
+}
+function drawPanel() {
+  const s = STATUS || {}, job = s.job, last = s.last || {}, errs = s.errors || {};
+  const names = { ord: 'Orders', ship: 'Shipments', inv: 'Inventory', cat: 'Catalog', hist: 'Order history' };
+  let h = '<h4>Last updated</h4><table style="width:100%"><tr><th class="l">Data</th><th>Ridhi</th><th>CPC</th></tr>';
+  Object.keys(names).forEach(k => { h += `<tr><td class="l">${names[k]}</td><td>${fmtAt(last[k + '_SP'])}</td><td>${fmtAt(last[k + '_CPC'])}</td></tr>`; });
+  h += '</table>';
+  if (Object.keys(errs).length) h += '<h4 class="err">Problems</h4><ul>' + Object.keys(errs).map(k => `<li><b>${esc(k)}</b> ${fmtAt(errs[k].at)}: ${esc(errs[k].err)}</li>`).join('') + '</ul>';
+  if (job) {
+    h += `<h4>${s.running ? 'Running now' : 'Last job'} <span class="mute small">(${esc(job.by || '')}, ${fmtAt(job.started)})</span></h4><ol>`;
+    job.steps.forEach((st, i) => { h += `<li>${i < job.i ? (st.ok ? '✅' : '❌') : i === job.i && s.running ? '⏳' : '·'} ${esc(st.label)} <span class="mute small">${esc(st.msg || '')}</span>${st.err ? ' <span class="err small">' + esc(st.err) + '</span>' : ''}</li>`; });
+    h += '</ol>';
+  }
+  h += `<p class="small mute">Auto: orders every 6 h · shipments + inventory at 9:00 and 17:00 · catalog at 6:00 (IST). ${s.sched && s.sched.off ? '<b class="err">Auto is OFF.</b>' : ''}</p>`;
+  $('panel').innerHTML = h;
+}
+$('statusChip').onclick = () => { $('panel').classList.toggle('hide'); drawPanel(); };
+async function callBackend(params) {
+  if (!BACKEND) BACKEND = parseJ(await getDoc(doc(db, 'config', 'backend')));
+  if (!BACKEND || !BACKEND.url) throw new Error('Backend not set up yet (config/backend).');
+  const q = new URLSearchParams({ key: BACKEND.key, by: ME, ...params });
+  const r = await fetch(BACKEND.url + '?' + q.toString());
+  const t = await r.text();
+  try { return JSON.parse(t); } catch (e) { throw new Error('Backend answered with a page, not data (is it busy or signed out?)'); }
+}
+$('refreshBtn').onclick = ev => {
+  ev.stopPropagation();
+  closeMenus();
+  const m = document.createElement('div'); m.className = 'menu'; m.id = 'refreshMenu';
+  const r = $('refreshBtn').getBoundingClientRect();
+  m.style.top = (r.bottom + window.scrollY + 4) + 'px'; m.style.right = (window.innerWidth - r.right) + 'px';
+  m.innerHTML = JOBS.map(([k, l]) => `<button data-j="${k}">${l}</button>`).join('') +
+    `<div class="small mute" style="padding:4px 12px">Both brands. Hold Shift for ${BRAND[brand]} only.</div>`;
+  m.onclick = async e => {
+    const j = e.target.dataset.j; if (!j) return;
+    if (j === 'history' && !confirm('Pull the full order history from Amazon (Jan 2025 → today)? It runs in the background for 1–2 hours.')) return;
+    closeMenus();
+    $('statusTxt').textContent = 'Asking Amazon…'; $('statusDot').className = 'dot run';
+    try { const res = await callBackend({ inv: 'run', job: j, brand: e.shiftKey ? brand : 'all' }); if (!res.ok) throw new Error(res.error); }
+    catch (err) { alert('Refresh could not start: ' + err.message); drawStatus(); }
+  };
+  document.body.appendChild(m);
+};
+function closeMenus() { const m = $('refreshMenu'); if (m) m.remove(); }
+document.addEventListener('click', e => { if (!e.target.closest('.menu')) closeMenus(); if (!e.target.closest('#panel,#statusChip')) $('panel').classList.add('hide'); });
+
+/* ---------- generic table ---------- */
+const VIEW = { inv: { q: '', sort: null, dir: -1, limit: 300 }, ship: { q: '', sort: null, dir: -1, limit: 500 }, ord: { q: '', sort: null, dir: -1, limit: 500, month: '', status: '', mcf: '' }, cat: { q: '', sort: null, dir: 1, limit: 300 } };
+function filterSort(rows, cols, v, keyCols) {
+  const q = v.q.trim().toLowerCase();
+  let out = q ? rows.filter(r => keyCols.some(i => String(r[i] ?? '').toLowerCase().includes(q))) : rows.slice();
+  if (v.sort != null) {
+    const i = v.sort;
+    out.sort((a, b) => { const x = a[i], y = b[i]; return (typeof x === 'number' && typeof y === 'number' ? x - y : String(x ?? '').localeCompare(String(y ?? ''))) * v.dir; });
+  }
+  return out;
+}
+function bar(v, extra = '') {
+  return `<div class="bar"><input type="search" id="q" placeholder="Search SKU, ASIN, colour…" value="${esc(v.q)}">${extra}<span class="sp"></span><span class="small mute" id="cnt"></span><button class="btn" id="csv">Export CSV</button></div>`;
+}
+function hookBar(v, rowsForCsv, colsForCsv, fileName) {
+  const q = $('q');
+  q.oninput = () => { v.q = q.value; v.limit = (tab === "ord" || tab === "ship") ? 500 : 300; const pos = q.selectionStart; render(); const n = $('q'); n.focus(); n.setSelectionRange(pos, pos); };
+  $('csv').onclick = () => {
+    const lines = [colsForCsv.join(',')].concat(rowsForCsv().map(r => r.map(x => { const s = String(x ?? ''); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }).join(',')));
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' })); a.download = fileName; a.click();
+  };
+}
+function hookSort(v) {
+  document.querySelectorAll('th[data-i]').forEach(th => th.onclick = () => {
+    const i = +th.dataset.i; if (v.sort === i) v.dir = -v.dir; else { v.sort = i; v.dir = -1; } render();
+  });
+  const more = $('more'); if (more) more.onclick = () => { v.limit += 1000; render(); };
+}
+const head = (cols, v, cls = () => '') => '<tr>' + cols.map((c, i) => `<th data-i="${i}" class="${cls(i)}">${esc(c)}${v.sort === i ? (v.dir > 0 ? ' ▲' : ' ▼') : ''}</th>`).join('') + '</tr>';
+const moreRow = (shown, total, ncol) => shown < total ? `<tr><td colspan="${ncol}" class="l"><button class="btn" id="more">Show more (${nf.format(total - shown)} left)</button></td></tr>` : '';
+function waiting(S, what) {
+  if (!S || S.loading) return `<p class="mute">Loading ${what}…</p>`;
+  if (S.error) return `<p class="err">${esc(S.error)}</p>`;
+  if (!S.idx) return `<p class="mute">No ${what} yet for ${BRAND[brand]}. Use <b>Refresh</b> to bring it from Amazon.</p>`;
+  return '';
+}
+
+/* ---------- Inventory ---------- */
+function catOver(b) { return CATEDIT[b] || {}; }
+function renderInv() {
+  const S = SETS['inv_' + brand], w = waiting(S, 'inventory'); if (w) return w;
+  const v = VIEW.inv, cols = S.idx.cols, ix = n => cols.indexOf(n), ed = catOver(brand);
+  const rows = S.rows.map(r => { const e = ed[r[0]]; if (!e) return r; const x = r.slice(); [['color', 'Color'], ['size', 'Size'], ['subcat', 'Sub-Category'], ['parent', 'Parent ASIN'], ['image', 'Image']].forEach(([k, c]) => { if (e[k]) x[ix(c)] = e[k]; }); return x; });
+  const list = filterSort(rows, cols, v, [0, 2, 3, 4, 5, 6]);
+  const iF = ix('fulfillable'), iL = ix('Last 30 Days'), iW = ix('warehouse'), iA = ix('AWD Available'), iR = ix('inbound_receiving'), i90 = ix('Last 90 Days');
+  const noSum = new Set([0, 1, 2, 3, 4, 5, 6, ix('Air DoS'), ix('Sea DoS')]);
+  const tot = cols.map((c, i) => noSum.has(i) ? '' : list.reduce((t, r) => t + (Number(r[i]) || 0), 0));
+  const shown = list.slice(0, v.limit);
+  const cell = (r, i) => {
+    const x = r[i];
+    if (i === 1) return `<td>${x ? `<img loading="lazy" src="${esc(x)}" alt="">` : ''}</td>`;
+    if (i <= 6) return `<td class="l${i === 0 ? ' sku' : ''}">${esc(x)}</td>`;
+    let c = '';
+    if (i === iF) { const f = r[iF], l = r[iL]; c = f === 0 ? 'c-red' : l > 0 && f <= l ? 'c-amb' : l > 0 && f <= 2 * l ? 'c-yel' : 'c-grn'; }
+    if ((cols[i] === 'Air DoS' || cols[i] === 'Sea DoS') && r[iW] === 0 && r[iA] > 0) c = 'c-vio';
+    if (i === iA) { const cover = r[i90] === r[iL] ? r[iL] : r[i90] / 3; if (r[iA] > 0 && cover > 0 && r[iW] + r[iR] < cover) c = 'c-yel'; }
+    const txt = x === '' || x == null ? '' : cols[i] === 'Last 90 Days $' ? mf.format(x) : nf.format(x);
+    return `<td class="${c}">${txt}</td>`;
+  };
+  setTimeout(() => { $('cnt').textContent = nf.format(list.length) + ' SKUs · built ' + fmtAt(S.idx.at) + (S.idx.awdErr ? ' · AWD: ' + S.idx.awdErr : ''); hookBar(v, () => list, cols, `inventory-${BRAND[brand]}.csv`); hookSort(v); });
+  return bar(v) + `<p class="small mute" style="margin:0 0 8px">fulfillable colour = cover vs last 30 days (red 0 · amber ≤1 month · yellow 1–2 · green &gt;2). Violet DoS = stock only in AWD. Yellow AWD = move AWD → FBA (FBA side under 30 days). Sales skip MCF + cancelled.</p>
+  <div class="wrap"><table>${head(cols, v, i => i <= 6 ? 'l' : '')}
+  <tr class="tot">${cols.map((c, i) => `<td class="${i <= 6 ? 'l' : ''}">${i === 0 ? 'TOTAL' : tot[i] === '' ? '' : c === 'Last 90 Days $' ? mf.format(tot[i]) : nf.format(tot[i])}</td>`).join('')}</tr>
+  ${shown.map(r => '<tr>' + cols.map((c, i) => cell(r, i)).join('') + '</tr>').join('')}${moreRow(shown.length, list.length, cols.length)}</table></div>`;
+}
+
+/* ---------- Shipments ---------- */
+function renderShip() {
+  const S = SETS['ship_' + brand], w = waiting(S, 'shipments'); if (w) return w;
+  const v = VIEW.ship, cols = ['Ship Date', 'ETA', 'Selling Month', 'FBA ID', 'SKU', 'Qty', 'Mode', 'Status', 'Transit Days', 'Shipment Name', 'Date From'];
+  const rows = S.rows.map(r => [r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[9], r[10]]);
+  const list = filterSort(rows, cols, v, [3, 4, 6, 7, 9]);
+  const shown = list.slice(0, v.limit), monthTxt = ym => { if (!ym) return ''; const d = new Date(ym + '-01T00:00:00'); return d.toLocaleString('en-US', { month: 'long', year: 'numeric' }); };
+  const qtyTot = list.reduce((t, r) => t + r[5], 0);
+  setTimeout(() => { $('cnt').textContent = nf.format(list.length) + ' lines · ' + nf.format(qtyTot) + ' units · built ' + fmtAt(S.idx.at) + (S.idx.awdErr ? ' · AWD: ' + S.idx.awdErr : '');
+    hookBar(v, () => list.map(r => [fmtDay(r[0]), fmtDay(r[1]), monthTxt(r[2])].concat(r.slice(3))), cols, `shipments-${BRAND[brand]}.csv`); hookSort(v); });
+  return bar(v) + `<p class="small mute" style="margin:0 0 8px">Last ${5} months · Working / Ready to Ship / Shipped / In Transit / Checked In, AWD Created / Shipped. ETA = ship date + transit days; after the ${SETTINGS?.cutoff ?? 20}th it sells next month. "first seen" = the name had no date.</p>
+  <div class="wrap"><table>${head(cols, v, i => [3, 4, 6, 7, 9, 10].includes(i) ? 'l' : '')}
+  ${shown.map(r => `<tr><td>${fmtDay(r[0])}</td><td>${fmtDay(r[1])}</td><td>${esc(monthTxt(r[2]))}</td><td class="l">${esc(r[3])}</td><td class="l sku">${esc(r[4])}</td><td>${nf.format(r[5])}</td><td class="l">${esc(r[6])}</td><td class="l">${esc(r[7])}</td><td>${r[8]}</td><td class="l">${esc(r[9])}</td><td class="l mute">${esc(r[10])}</td></tr>`).join('')}
+  ${moreRow(shown.length, list.length, cols.length)}</table></div>`;
+}
+
+/* ---------- Orders (one month at a time) ---------- */
+const ORDM = {};
+function loadMonth(b, ym) {
+  const k = b + '_' + ym;
+  if (!ORDM[k]) ORDM[k] = watchSet('ord', k, 'ord_' + k);
+  return ORDM[k];
+}
+function renderOrd() {
+  const M = SETS['ord_' + brand];
+  if (!M || M.loading) return '<p class="mute">Loading orders…</p>';
+  const months = Object.keys((M.idx || {}).months || {}).sort().reverse();
+  if (!months.length) return `<p class="mute">No orders yet for ${BRAND[brand]}. Refresh → "Full order history" brings Jan 2025 → today.</p>`;
+  const v = VIEW.ord; if (!months.includes(v.month)) v.month = months[0];
+  const S = loadMonth(brand, v.month);
+  const opts = months.map(m => `<option value="${m}" ${m === v.month ? 'selected' : ''}>${new Date(m + '-01T00:00:00').toLocaleString('en-US', { month: 'short', year: 'numeric' })} (${nf.format(M.idx.months[m])})</option>`).join('');
+  const extra = `<select id="om">${opts}</select><select id="os"><option value="">All statuses</option>${['Shipped', 'Pending', 'Cancelled', 'Unshipped', 'Shipping'].map(s => `<option ${v.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select>
+    <select id="oc"><option value="">Amazon + MCF</option><option value="0" ${v.mcf === '0' ? 'selected' : ''}>Amazon only</option><option value="1" ${v.mcf === '1' ? 'selected' : ''}>MCF only</option></select>`;
+  const after = () => {
+    $('om').onchange = e => { v.month = e.target.value; render(); };
+    $('os').onchange = e => { v.status = e.target.value; render(); };
+    $('oc').onchange = e => { v.mcf = e.target.value; render(); };
+  };
+  if (!S.rows || S.loading) { setTimeout(after); return bar(v, extra) + '<p class="mute">Loading month…</p>'; }
+  const cols = S.idx.cols;
+  let rows = S.rows;
+  if (v.status) rows = rows.filter(r => String(r[7]).toLowerCase() === v.status.toLowerCase());
+  if (v.mcf) rows = rows.filter(r => String(r[9]) === v.mcf);
+  const list = filterSort(rows, cols, v, [0, 3, 4, 7]);
+  const units = list.reduce((t, r) => t + (Number(r[5]) || 0), 0), rev = list.reduce((t, r) => t + (Number(r[6]) || 0), 0);
+  const shown = list.slice(0, v.limit);
+  setTimeout(() => { after(); $('cnt').textContent = nf.format(list.length) + ' lines · ' + nf.format(units) + ' units · ' + mf.format(rev) + ' · updated ' + fmtAt(S.idx.at);
+    hookBar(v, () => list.map(r => r.slice(0, 9).concat([r[9] ? 'MCF' : 'Amazon'])), cols, `orders-${BRAND[brand]}-${v.month}.csv`); hookSort(v); });
+  return bar(v, extra) + `<div class="wrap"><table>${head(cols, v, i => [0, 1, 2, 3, 4, 7, 8, 9].includes(i) ? 'l' : '')}
+    ${shown.map(r => `<tr><td class="l">${esc(r[0])}</td><td class="l mute">${esc(r[1])}</td><td class="l">${esc(r[2])}</td><td class="l sku">${esc(r[3])}</td><td class="l">${esc(r[4])}</td><td>${nf.format(r[5])}</td><td>${mf.format(r[6])}</td><td class="l">${esc(r[7])}</td><td class="l">${esc(r[8])}</td><td class="l">${r[9] ? 'MCF' : 'Amazon'}</td></tr>`).join('')}
+    ${moreRow(shown.length, list.length, cols.length)}</table></div>`;
+}
+
+/* ---------- Catalog (editable values win, like the sheet's hand edits) ---------- */
+const CAT_EDIT = { 3: 'parent', 4: 'title', 7: 'color', 8: 'size', 9: 'subcat', 12: 'parentTitle' };
+function renderCat() {
+  const S = SETS['cat_' + brand], w = waiting(S, 'catalog'); if (w) return w;
+  const v = VIEW.cat, cols = S.idx.cols, ed = catOver(brand);
+  const rows = S.rows.map(r => { const e = ed[r[0]]; if (!e) return r; const x = r.slice(); Object.entries(CAT_EDIT).forEach(([i, k]) => { if (e[k]) x[i] = e[k]; }); if (e.image) x[6] = e.image; return x; });
+  const list = filterSort(rows, cols, v, [0, 1, 2, 3, 4, 7, 8, 9, 12]);
+  const shown = list.slice(0, v.limit);
+  setTimeout(() => {
+    $('cnt').textContent = nf.format(list.length) + ' listings · ' + fmtAt(S.idx.at) + (S.idx.seededFromSheet && !S.idx.cols ? '' : '');
+    hookBar(v, () => list, cols, `catalog-${BRAND[brand]}.csv`); hookSort(v);
+    document.querySelectorAll('td[contenteditable]').forEach(td => td.onblur = () => saveCatEdit(td));
+  });
+  const cell = (r, i) => {
+    if (i === 6) return `<td>${r[6] ? `<img loading="lazy" src="${esc(r[6])}" alt="">` : ''}</td>`;
+    if (i === 10) return `<td class="mute">${fmtDay(r[10])}</td>`;
+    if (CAT_EDIT[i]) { const e = (ed[r[0]] || {})[CAT_EDIT[i]]; return `<td contenteditable="true" data-sku="${esc(r[0])}" data-k="${CAT_EDIT[i]}" class="${e ? 'edited' : ''}">${esc(r[i])}</td>`; }
+    return `<td class="l${i === 0 ? ' sku' : ''}">${esc(r[i])}</td>`;
+  };
+  return bar(v) + `<p class="small mute" style="margin:0 0 8px">Click a dotted cell to correct it. Your value always wins over Amazon's, exactly like the hand edits in the sheet. Highlighted = corrected here.</p>
+    <div class="wrap"><table>${head(cols, v, i => i === 6 || i === 10 ? '' : 'l')}${shown.map(r => '<tr>' + cols.map((c, i) => cell(r, i)).join('') + '</tr>').join('')}
+    ${moreRow(shown.length, list.length, cols.length)}</table></div>`;
+}
+async function saveCatEdit(td) {
+  const sku = td.dataset.sku, k = td.dataset.k, val = td.textContent.trim(), b = brand;
+  const cur = ((CATEDIT[b] || {})[sku] || {})[k] || '';
+  const S = SETS['cat_' + b], base = (S.rows.find(r => r[0] === sku) || [])[+Object.keys(CAT_EDIT).find(i => CAT_EDIT[i] === k)] || '';
+  if (val === (cur || base)) return;
+  try {
+    await runTransaction(db, async tx => {
+      const ref = doc(db, 'catedit', b), snap = await tx.get(ref), m = parseJ(snap) || {};
+      m[sku] = m[sku] || {};
+      if (val && val !== base) m[sku][k] = val; else delete m[sku][k];
+      if (!Object.keys(m[sku]).length) delete m[sku];
+      tx.set(ref, { json: JSON.stringify(m), at: Date.now(), by: ME });
+    });
+  } catch (e) { alert('Not saved: ' + e.message); }
+}
+
+/* ---------- Settings ---------- */
+function renderSet() {
+  const s = SETTINGS || {};
+  const F = [['air', 'Air transit days', 15], ['sea', 'Sea transit days', 80], ['awd', 'AWD transit days', 7], ['cutoff', 'Month cutoff day', 20], ['safety', 'Safety stock days', 30], ['growth', 'YoY growth %', 0]];
+  setTimeout(() => {
+    if (!isAdmin) return;
+    $('saveSet').onclick = async () => {
+      const o = { ...s }; F.forEach(([k]) => { o[k] = Number($('s_' + k).value); }); o.by = ME;
+      try { await setDoc(doc(db, 'meta', 'settings'), { json: JSON.stringify(o), at: Date.now() }); $('setMsg').textContent = 'Saved. Shipments and inventory use it from the next refresh.'; }
+      catch (e) { $('setMsg').textContent = 'Not saved: ' + e.message; }
+    };
+    $('autoBtn').onclick = async () => { const off = !(STATUS && STATUS.sched && STATUS.sched.off); try { await callBackend({ inv: 'auto', on: off ? '0' : '1' }); } catch (e) { alert(e.message); } };
+    $('seedBtn').onclick = async () => { if (!confirm('Copy the Catalog tabs (with every hand-typed value) and Settings from the sheets again? Corrections made here stay on top.')) return;
+      $('setMsg').textContent = 'Copying…'; try { const r = await callBackend({ inv: 'seed' }); $('setMsg').textContent = r.ok ? 'Copied: ' + r.seeded.join(', ') : r.error; } catch (e) { $('setMsg').textContent = e.message; } };
+  });
+  const auto = STATUS && STATUS.sched && STATUS.sched.off ? 'OFF' : 'ON';
+  return `<div class="grid2">${F.map(([k, l, d]) => `<div class="field"><label>${l}</label><input id="s_${k}" type="number" value="${s[k] ?? d}" ${isAdmin ? '' : 'disabled'}></div>`).join('')}</div>
+    ${isAdmin ? `<p><button class="btn pri" id="saveSet">Save settings</button> <span id="setMsg" class="small mute"></span></p>
+    <div class="note">Auto refresh is <b>${auto}</b>: orders every 6 hours, shipments + inventory at 9:00 and 17:00, catalog at 6:00 (IST). <button class="btn" id="autoBtn">Turn ${auto === 'ON' ? 'off' : 'on'}</button></div>
+    <p class="small mute">One-time copy from the old sheets: <button class="btn" id="seedBtn">Copy Catalog + Settings from sheets</button></p>` : '<p class="mute small">Only Ravi can change settings.</p>'}
+    <h4>Rules this app follows</h4><ul class="small">
+    <li>Orders: Amazon All Orders report by purchase date (US Pacific). Each sync re-pulls the last 20 days and replaces them; older days stay frozen. Same Order ID + SKU twice → the latest copy is kept.</li>
+    <li>Sales figures skip MCF (sales channel Non-Amazon) and Cancelled lines.</li>
+    <li>warehouse = fulfillable + reserved + researching − reserved for customer orders. <code>amzn.*</code> SKUs are dropped.</li>
+    <li>Shipments: last 5 months; Mode from the name (ocean/sea → Sea, air → Air, else AWD). A Checked In shipment is counted once — units already in inbound_receiving are not added to Rec. again.</li>
+    <li>A name with no date takes the AWD created date, or the day the app first saw the shipment.</li>
+    <li>If an FBA inventory page fails 4 times, the refresh stops and the previous inventory stays — never zeros.</li>
+    <li>Air/Sea plan: run rate L90÷90 (L30÷30 for a new SKU), 90-day target, sea transit + 10 days safety; lampshade/quilt/chair pad/seat cushion/insert never by air. India stock columns are not here (India stock lives in the factory app).</li></ul>`;
+}
+
+/* ---------- Access (Ravi only) ---------- */
+async function renderAccAsync() {
+  const snap = await getDocs(collection(db, 'users'));
+  const list = snap.docs.map(d => d.id).sort();
+  // A new person: Firebase console → Authentication → Add user (email + password), then add the email here.
+  // They sign in, press "Send verification email" once, click the link, and sign in again.
+  $('view').innerHTML = `<div class="bar"><input type="search" id="newUser" placeholder="name@thefabricrush.com" style="min-width:280px"><button class="btn pri" id="addUser">Give access</button></div>
+    <p class="small mute">People here can see everything and correct Catalog values. Only ${ADMIN} changes settings and access.</p>
+    <p class="note small">To add someone: <b>1.</b> Firebase console → Authentication → Add user (their email + a password). <b>2.</b> Add the same email here. <b>3.</b> They sign in, press <i>Send verification email</i>, click the link in that email, and sign in again.</p>
+    <table><tr><th class="l">Email</th><th></th></tr>${list.map(e => `<tr><td class="l">${esc(e)}</td><td><button class="btn" data-del="${esc(e)}">Remove</button></td></tr>`).join('') || '<tr><td class="l mute">Nobody else yet.</td><td></td></tr>'}</table>`;
+  $('addUser').onclick = async () => { const e = $('newUser').value.trim().toLowerCase(); if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) return alert('Type a full email address.');
+    await setDoc(doc(db, 'users', e), { by: ME, at: Date.now() }); renderAccAsync(); };
+  document.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => { if (!confirm('Remove ' + b.dataset.del + '?')) return; await deleteDoc(doc(db, 'users', b.dataset.del)); renderAccAsync(); });
+}
+
+function render() {
+  if ($('app').classList.contains('hide')) return;
+  if (tab === 'acc') { if (isAdmin) renderAccAsync(); return; }
+  const fn = { inv: renderInv, ship: renderShip, ord: renderOrd, cat: renderCat, set: renderSet }[tab];
+  $('view').innerHTML = fn();
+}
+</script>
+</body>
+</html>

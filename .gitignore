@@ -14,6 +14,9 @@
 !/Repl-API/
 !/Repl-API-CPC/
 !/shared/
+!/Inventory-App/
+!/.github/
+!/meera-router/
 
 # Firebase's local deploy cache, and anything installed.
 .firebase/
@@ -47,3 +50,6 @@ Pricing-App/src/deps.json
 /Replenish-App/tests/sku-audit/
 /Replenish-App/tests/probes/store-beyond.json
 /Pricing-App/tests/image-audit/*.csv
+
+# the test ERP build (GitHub Pages)
+_site/

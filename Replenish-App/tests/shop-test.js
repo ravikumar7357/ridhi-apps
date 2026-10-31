@@ -14,7 +14,7 @@
  *   - the multi-select widget, which is this app's copy now rather than a second one.
  */
 const fs = require('fs');
-const APP = 'C:/AMAZON/Amazon Inventory/Replenish-App/public/index.html';
+const APP = require('path').join(__dirname, '..', 'public', 'index.html');   // here, not C:/… — the suites also run on GitHub (22 Oct)
 
 const html = fs.readFileSync(APP, 'utf8');
 const mod = html.match(/<script type="module">([\s\S]*?)<\/script>/)[1];
@@ -1228,7 +1228,7 @@ console.log('\n== bulk update: Location, At location, Line status ==');
   fs.writeFileSync(XFILE, bytes);
 
   /* Opened by a real spreadsheet library, not by the code that wrote it. */
-  const py = require('child_process').spawnSync('python', ['-c', [
+  const py = require('child_process').spawnSync(process.platform === 'win32' ? 'python' : 'python3', ['-c', [
     'import openpyxl, json, sys',
     'wb = openpyxl.load_workbook(sys.argv[1])',
     'ws = wb["Update"]',

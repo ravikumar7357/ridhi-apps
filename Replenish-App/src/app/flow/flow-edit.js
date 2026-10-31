@@ -49,6 +49,74 @@ async function flowPoResync(orderNo) {
   flowPoResync.said = `${orderNo}: printer orders resynced — ${[...pos.said, ...vop.said].join('; ') || 'the papers already matched the plans'}.`;
   return '';
 }
+/* ---- CHANGE THE PRINTER OF A LINE WHOSE FABRIC ALREADY WENT (Ravi, 22 Oct: "me yaha printer change kar saku and but uske
+ * baha rfd fabric bolega uske liye provision" — then "us fabric ko stand dikhay ki ye order diya tha ab cancel ho gya but
+ * fabric abhi stand h", and the old printer's papers move to the new one). The line comes off every challan it is on
+ * (moved), the cloth it took stands with the old printer (Printed fabric in → Standing with printers), the line goes back
+ * to Demand · RFD for the new printer, and its print order and Vendor Order move to the new printer. Not once printed cloth
+ * has come back for it on those challans — that is closed short instead. ---- */
+function flowChangePrinterPlan(key, code) {
+  const x = flowRows().find(y => y.s.key === key);
+  if (!x || !x.s.plan) return { err: 'That line is not planned any more — press Refresh.' };
+  if (!flowPrinted(x.s.route)) return { err: 'This line is not printed — it has no printer to change.' };
+  const v = flowChVendors().find(y => String(y.code) === String(code));
+  if (!v) return { err: 'Pick the new printer.' };
+  const old = x.s.plan.printer || {};
+  if (String(old.code || '') === String(v.code)) return { err: `${obUC(x.r.sku)} is already with ${v.desc || v.name || v.code}.` };
+  const chs = Object.values(FLOW.ch || {}).filter(c => c && !c.cancelled && (c.lines || []).some(l => l.key === key && !l.ruffleOnly && !flowChMoved(c, l)));
+  const back = chs.filter(c => (flowChRecv(c)[key] || 0) > 0);
+  if (back.length) return { err: `Printed cloth for ${obUC(x.r.sku)} has come back on ${back.map(c => c.no).join(', ')} — close that challan short instead of changing the printer.` };
+  return { x, v, old, chs };
+}
+async function flowChangePrinterSave(key, code, why) {
+  const pl = flowChangePrinterPlan(key, code); if (pl.err) return pl.err;
+  const { x, v, old, chs } = pl, now = new Date().toISOString(), vname = v.desc || v.name || v.code, to = { code: String(v.code), name: vname };
+  const patch = {}, said = [];
+  chs.forEach(c => {
+    const l = (c.lines || []).find(y => y.key === key && !y.ruffleOnly);
+    patch[`pt_flowChallans/${c.no}/moved/${key}`] = { at: now, by: ME.email || '', from: c.vendor || {}, to, metres: flowChSent(l), unit: flowChUnit(l), fabric: l.fabric || '', sku: obUC(x.r.sku), orderNo: x.r.orderNo, why: why || 'printer changed' };
+    /* nothing left to come on the challan → it closes, the moved cloth standing with the printer */
+    const recv = flowChRecv(c), rest = (c.lines || []).filter(y => y !== l && !flowChMoved(c, y));
+    if (!c.closed && rest.every(y => (recv[y.key] || 0) >= flowChSent(y) - 0.01)) patch[`pt_flowChallans/${c.no}/closed`] = { at: now, by: ME.email || '', why: 'all received or moved to another printer' };
+    said.push(`${flowQtyTxt(flowChSent(l), flowChUnit(l))} on ${c.no} stands with ${(c.vendor && c.vendor.name) || old.name || 'the old printer'}`);
+  });
+  const nu = Object.assign({}, x.s.plan, { printer: { code: to.code, name: vname, why: `changed from ${old.name || old.code || '—'} on ${dToday()}${why ? ' — ' + why : ''}` } });
+  patch[`pt_ppc/${key}/printer`] = nu.printer;
+  if (x.s.demand && x.s.demand.fabricReady && x.s.demand.fabricReady.challan) patch[`pt_flowDemand/${key}/fabricReady`] = null;
+  /* the print order and the Vendor Order move with it — through the same code the PPC form's save uses */
+  const pos = flowPoSync([{ r: x.r, p: nu }], dToday());
+  Object.assign(patch, pos.patch);
+  const vop = await flowVoPrepare(pos.local, patch, k => (k === key ? nu : (FLOW.ppc || {})[k]));
+  if (vop.ask && !confirm(vop.ask)) { vop.undo(); return 'Not changed — the Vendor Order was left as it is.'; }
+  for (const k of Object.keys(patch).filter(k => /^pt_flowPrintOrders\/[^/]+$/.test(k) && !(FLOW.po || {})[k.split('/')[1]])) {
+    let er = ''; try { er = await flowClaim(k, patch[k]); } catch (e) { er = e.message || String(e); }
+    if (er) { vop.undo(); return `Print order ${k.split('/')[1]} was raised by somebody else at the same moment — try again.`; }
+  }
+  try { await ptPatch(patch); } catch (e) { vop.undo(); return 'Could not save: ' + (e.message || e); }
+  FLOW.po = pos.local; flowVoAfter(vop.placed);
+  FLOW.ppc = Object.assign({}, FLOW.ppc, { [key]: nu });
+  if (patch[`pt_flowDemand/${key}/fabricReady`] === null) FLOW.dem = Object.assign({}, FLOW.dem, { [key]: Object.assign({}, (FLOW.dem || {})[key], { fabricReady: null }) });
+  const ch = Object.assign({}, FLOW.ch);
+  chs.forEach(c => { ch[c.no] = Object.assign({}, c, { moved: Object.assign({}, c.moved, { [key]: patch[`pt_flowChallans/${c.no}/moved/${key}`] }) },
+    patch[`pt_flowChallans/${c.no}/closed`] ? { closed: patch[`pt_flowChallans/${c.no}/closed`] } : {}); });
+  FLOW.ch = ch;
+  flowChangePrinterSave.said = `${x.r.orderNo} · ${obUC(x.r.sku)} → ${vname}: ${said.join('; ')}. The line is back in Demand · RFD for ${vname}${vop.said.length ? ' · ' + vop.said.join('; ') : ''}.`;
+  return '';
+}
+function flowChangePrinterOpen(key) {
+  const x = flowRows().find(y => y.s.key === key); if (!x || !x.s.plan) return;
+  const chs = Object.values(FLOW.ch || {}).filter(c => c && !c.cancelled && (c.lines || []).some(l => l.key === key && !l.ruffleOnly && !flowChMoved(c, l)));
+  const vens = flowChVendors(), cur = (x.s.plan.printer || {}).code || '';
+  ptOpenDialog({
+    title: `Change printer — ${x.r.orderNo} · ${obUC(x.r.sku)}`,
+    subtitle: `Now with ${(x.s.plan.printer || {}).name || '—'}. The cloth already given ${chs.map(c => { const l = c.lines.find(y => y.key === key && !y.ruffleOnly); return `on ${c.no} (${flowQtyTxt(flowChSent(l), flowChUnit(l))})`; }).join(', ')} stays with that printer and shows as standing in Printed fabric in. The line goes back to Demand · RFD for the new printer, and its print order and Vendor Order move to it.`,
+    html: `<div class="ptgrid" style="grid-template-columns:1fr 1fr"><label>New printer<select id="flcpVen"><option value="">— pick —</option>${vens.filter(v => String(v.code) !== String(cur)).map(v => `<option value="${esc(v.code)}">${esc((v.desc || v.name || v.code) + (v.category ? ' · ' + v.category : ''))}</option>`).join('')}</select></label>
+      <label>Why<input id="flcpWhy" placeholder="e.g. RBP-Bagru has no capacity"></label></div>`,
+    saveLabel: 'Change printer',
+    onSave: async () => { const er = await flowChangePrinterSave(key, $('flcpVen').value, ($('flcpWhy').value || '').trim()); if (er) return er;
+      renderFlow(); $('flMsg').className = 'muted'; $('flMsg').textContent = flowChangePrinterSave.said; return ''; },
+  });
+}
 /** Undo a plan: the line goes back to PPC. Not while its fabric is on a challan. */
 async function flowUnplan(s) {
   if (flowFabLocked(s)) return `Its fabric is on challan ${s.challan.no} — cancel that challan first (Demand history).`;

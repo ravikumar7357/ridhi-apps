@@ -57,6 +57,7 @@ orders/close-lines.js
 shopify/bulk-entry.js
 orders/demand.js
 orders/tracking.js
+orders/shp-board.js
 orders/shopify-pipeline-team.js
 orders/orders-one-line.js
 flow/flow-core.js
@@ -71,7 +72,9 @@ flow/flow-edit.js
 flow/flow-back.js
 flow/flow-entries.js
 flow/flow-qcfg.js
+flow/flow-emb.js
 flow/flow-view.js
+flow/flow-report.js
 flow/greige-desk.js
 dashboard/management-dashboard.js
 people-pay/finance-hr.js
@@ -156,3 +159,14 @@ core/installed-app.js
 core/version-check.js
 core/mobile.js
 shopify/shopify-hub-local.js
+core/guide-art.js
+core/guide-tours.js
+core/guide.js
+core/guide-errors.js
+core/guide-ask.js
+core/guide-fill.js
+core/guide-walks.js
+core/guide-ai.js
+core/r1-roles.js
+core/friendly.js
+core/ppc-one.js
