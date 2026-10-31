@@ -560,6 +560,17 @@
   .px-chipf b{font-size:11px;color:var(--muted)}
   #panePpcn .px-chipf[aria-pressed="true"]{background:var(--accent-bg);border-color:transparent;color:var(--accent)}
   #panePpcn .px-chipf[aria-pressed="true"] b{color:var(--accent)}
+  .px-pcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(150px,45%),1fr));gap:10px}
+  #panePpcn .px-pcard{display:grid;gap:6px;text-align:left;padding:12px 14px;border-radius:14px;background:var(--card);border:1px solid var(--line);box-shadow:inset 0 3px 0 var(--brand);cursor:pointer}
+  #panePpcn .px-pcard:hover{background:var(--hover)}
+  #panePpcn .px-pcard[aria-pressed="true"]{border-color:var(--brand);background:var(--brand-bg)}
+  .px-pc-h{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:2px 8px}
+  .px-pc-h b{font-size:13.5px}
+  .px-pc-h small{font-size:11px;color:var(--muted);white-space:nowrap}
+  .px-pc-big{font-size:20px;font-weight:800;font-variant-numeric:tabular-nums}
+  .px-pc-l{display:grid;gap:1px;font-size:13px}
+  .px-pc-l small{color:var(--muted);font-weight:600;font-size:11.5px}
+  .px-pc-l b{font-variant-numeric:tabular-nums;white-space:nowrap}
   .px-strip{display:flex;flex-wrap:wrap}
   .px-strip>div{flex:1 1 130px;padding:12px 18px;display:grid;gap:1px;border-right:1px solid var(--line)}
   .px-strip>div:last-child{border-right:0}
@@ -614,6 +625,11 @@
   .px-tbl tr.px-total td{background:var(--brand-bg);font-weight:800;color:var(--brand-ink)}
   .px-tbl .stick{position:sticky;left:0;z-index:1;box-shadow:1px 0 0 var(--line)}
   .px-tbl th.stick{z-index:3}
+  .px-tbl tr.px-grp th{top:0;height:28px;padding:6px 10px 0;text-align:center;border-bottom:0;vertical-align:bottom;letter-spacing:.08em}
+  .px-tbl tr.px-grp th span{display:block;padding-bottom:4px;border-bottom:2px solid var(--line)}
+  .px-tbl tr.px-grp th.px-g-ads span{border-color:#C98A4B}
+  .px-tbl tr.px-grp th.px-g-organic span{border-color:var(--px-org)}
+  .px-tbl tr.px-grp + tr th{top:28px}
   .px-prod{display:flex;align-items:center;gap:12px;min-width:270px}
   .px-prod b{display:block;font-weight:600;font-size:13.5px;line-height:1.3;white-space:normal}
   .px-prod small{font:500 11px ui-monospace,monospace;color:var(--faint)}
@@ -16401,39 +16417,95 @@ function pxPlan(lo, hi) {
 }
 const pxPrevPlan = p => { const L = pxLen(p.lo, p.hi); return pxPlan(sdShift(p.lo, -L), sdShift(p.lo, -1)); };
 
+/* ---------- orders and ad units: figures the old tab never carried ----------
+ * Written by the SECOND worker (V2Nightly.gs) into its own caches, so the main nightly and every old page
+ * are untouched: orders per ASIN at [2] of 'v2_weekly' / 'v2_dailyAsin', ad units at [5] of 'v2_adsAsin' /
+ * 'v2_adsAsinDay'. The account's UNIQUE orders come from [2] of the main 'daily' cache, as before.
+ * A cache that is missing or lacks the position stores nothing, and the page shows "—", never 0. */
+let PXN = { wk: {}, day: {}, acct: {}, miss: [], run: 0 };
+async function pxExtra() {
+  const brands = adBrands(), wk = {}, day = {}, acct = {}, miss = [];
+  const put = (store, a, key, i, v) => {
+    if (v == null) return;
+    const r = store[a] || (store[a] = {}), c = r[key] || (r[key] = [null, null]);
+    c[i] = v;
+  };
+  const read = async (name, fn) => { try { const r = await baCall({ cache: name }); fn(r.data || {}); } catch (e) { /* that piece shows "—" */ } };
+  const each = (src, fn) => brands.forEach(b => Object.entries(src[b] || {}).forEach(([a, byK]) =>
+    Object.entries(byK || {}).forEach(([k, v]) => fn(a, k, v || [], b))));
+  // A window Amazon would not deliver (`missing`, per brand) gives that brand NO ad units on those dates —
+  // a week touching it included — so the page shows "—" there rather than a total that is quietly short.
+  const gap = (d, b, lo, hi) => (d.missing || []).some(m => m.brand === b && lo <= m.end && hi >= m.start);
+  const wkEnd = k => new Date(Date.parse(k + 'T00:00:00Z') + 6 * 86400000).toISOString().slice(0, 10);
+  await Promise.all([
+    read('v2_weekly', d => each(d.rows || {}, (a, k, v) => put(wk, a, k, 0, v[2]))),
+    read('v2_dailyAsin', d => each(d.d || {}, (a, k, v) => put(day, a, k, 0, v[2]))),
+    read('v2_adsAsin', d => { miss.push(...(d.missing || [])); each(d.d || {}, (a, k, v, b) => { if (!gap(d, b, k, wkEnd(k))) put(wk, a, k, 1, v[5]); }); }),
+    read('v2_adsAsinDay', d => { miss.push(...(d.missing || [])); each(d.d || {}, (a, k, v, b) => { if (!gap(d, b, k, k)) put(day, a, k, 1, v[5]); }); }),
+    read('daily', d => brands.forEach(b => {
+      const o = acct[b] = {};
+      Object.entries((d.d || {})[b] || {}).forEach(([k, v]) => { if (v && v[2] != null) o[k] = v[2]; });
+    })),
+  ]);
+  PXN = { wk, day, acct, miss, run: Date.now() };
+}
+/* The account's UNIQUE orders over a plan — never ASIN orders added up (an order holding two sizes is
+ * one order). Only for whole brands: a searched list has no unique count to give, so "—". */
+function pxAcctOrders(p) {
+  if (!p || p.src === 'none' || PX.q.trim()) return null;
+  const bs = PX.brand === 'ALL' ? adBrands() : [PX.brand];
+  let n = null;
+  wDaysBetween(p.lo, p.hi).forEach(d => bs.forEach(b => {
+    const v = (PXN.acct[b] || {})[d]; if (v != null) n = (n || 0) + v;
+  }));
+  return n;
+}
+
 let PX_MEMO = new Map();
+const PX_ADD = ['o', 'adO', 'adU'];
 function pxSumAsin(a, p) {
   const k = a + '|' + p.id;
   if (PX_MEMO.has(k)) return PX_MEMO.get(k);
-  const o = { u: 0, rev: 0, spend: null, adSales: null, has: false };
+  const o = { u: 0, rev: 0, spend: null, adSales: null, o: null, adO: null, adU: null, has: false };
   if (p.src !== 'none') {
     const store = p.src === 'day' ? (WDAY.rows[a] || {}).days : (WEEKLY.rows[a] || {}).weeks;
+    const xs = (p.src === 'day' ? PXN.day : PXN.wk)[a] || {};
     if (store) p.keys.forEach(key => {
       const c = store[key]; if (!c) return;
       o.has = true; o.u += c.u || 0; o.rev += c.rev || 0;
       if (c.spend != null) o.spend = (o.spend || 0) + c.spend;
       if (c.adSales != null) o.adSales = (o.adSales || 0) + c.adSales;
+      if (c.adOrders != null) o.adO = (o.adO || 0) + c.adOrders;
+      const x = xs[key];
+      if (x && x[0] != null) o.o = (o.o || 0) + x[0];
+      if (x && x[1] != null) o.adU = (o.adU || 0) + x[1];
     });
+    // Any part of these dates inside a window Amazon did not deliver for this ASIN's brand: the total
+    // would be short, so there is no ad-units figure for the range at all.
+    const b = (WEEKLY.rows[a] || {}).brand || (pxLookup()[a] || {}).brand;
+    if (o.adU != null && PXN.miss.some(m => m.brand === b && p.lo <= m.end && p.hi >= m.start)) o.adU = null;
   }
   PX_MEMO.set(k, o);
   return o;
 }
 // Summed field by field, ratios worked out afterwards from the totals — never an average of ratios.
 function pxDerive(o) {
-  if (!o.has) return Object.assign(o, { os: null, op: null, acos: null, tacos: null });
+  if (!o.has) return Object.assign(o, { os: null, op: null, acos: null, tacos: null, ou: null });
   o.os = o.adSales == null ? null : Math.max(0, o.rev - o.adSales);
+  o.ou = o.adU == null ? null : Math.max(0, o.u - o.adU);
   o.op = o.os == null || !o.rev ? null : o.os / o.rev * 100;
   o.acos = o.spend == null || !o.adSales ? null : o.spend / o.adSales * 100;
   o.tacos = o.spend == null || !o.rev ? null : o.spend / o.rev * 100;
   return o;
 }
 function pxStats(asins, p, withPrev) {
-  const o = { u: 0, rev: 0, spend: null, adSales: null, has: false };
+  const o = { u: 0, rev: 0, spend: null, adSales: null, o: null, adO: null, adU: null, has: false };
   asins.forEach(a => {
     const s = pxSumAsin(a, p); if (!s.has) return;
     o.has = true; o.u += s.u; o.rev += s.rev;
     if (s.spend != null) o.spend = (o.spend || 0) + s.spend;
     if (s.adSales != null) o.adSales = (o.adSales || 0) + s.adSales;
+    PX_ADD.forEach(k => { if (s[k] != null) o[k] = (o[k] || 0) + s[k]; });
   });
   pxDerive(o);
   if (withPrev) {
@@ -16519,12 +16591,19 @@ const PX_FILTERS = {
   fall: ['Falling 30%+', o => o.vp != null && o.vp <= -30],
   grow: ['Growing', o => o.vp != null && o.vp > 0],
 };
-const PX_RCOLS = [['u', 'Units'], ['rev', 'Sales'], ['spend', 'Ad spend'], ['adSales', 'Ad sales'], ['os', 'Organic sales'],
-  ['op', 'Organic share'], ['acos', 'ACoS'], ['tacos', 'TACoS'], ['vp', 'vs prev']];
-const PX_METRICS = { rev: 'Sales', u: 'Units', spend: 'Ad spend', op: 'Organic %', acos: 'ACoS', tacos: 'TACoS' };
+const PX_RCOLS = [['o', 'Total orders'], ['u', 'Units'], ['rev', 'Sales'],
+  ['spend', 'Ad spend'], ['adSales', 'Ad sales'], ['adO', 'Ad orders'], ['adU', 'Ad units'], ['acos', 'ACoS'], ['tacos', 'TACoS'],
+  ['ou', 'Organic units'], ['os', 'Organic sales'], ['op', 'Organic share'], ['vp', 'vs prev']];
+// The header groups over those columns, as in the design (Traffic · Ads · Organic).
+const PX_GROUPS = [['Traffic', ['o', 'u', 'rev']], ['Ads', ['spend', 'adSales', 'adO', 'adU', 'acos', 'tacos']],
+  ['Organic', ['ou', 'os', 'op']], ['', ['vp']]];
+const PX_METRICS = { rev: 'Sales', u: 'Units', o: 'Orders', adU: 'Ad units', ou: 'Organic units',
+  spend: 'Ad spend', op: 'Organic %', acos: 'ACoS', tacos: 'TACoS' };
 const pxIsPct = m => m === 'op' || m === 'acos' || m === 'tacos';
+const pxIsCount = m => m === 'u' || m === 'o' || m === 'adO' || m === 'adU' || m === 'ou';
 const pxLowGood = m => m === 'acos' || m === 'tacos';
-const pxFmtM = (m, v) => (v == null ? '—' : pxIsPct(m) ? v.toFixed(1) + '%' : m === 'u' ? Math.round(v).toLocaleString('en-US') : pxShort(v));
+const pxN = v => (v == null ? '—' : Math.round(v).toLocaleString('en-US'));
+const pxFmtM = (m, v) => (v == null ? '—' : pxIsPct(m) ? v.toFixed(1) + '%' : pxIsCount(m) ? pxN(v) : pxShort(v));
 const pxShown = k => !PX.hide.includes(k);
 
 /* ---------- render ---------- */
@@ -16561,7 +16640,8 @@ function pxChange(e, ctx) {
   const cs = ctx.cols || [], today = sdToday();
   let i = cs.length - 1; while (i >= 0 && cs[i].hi >= today) i--;
   if (i < 1) return null;
-  const a = pxStats(e.asins, cs[i])[PX.metric], b = pxStats(e.asins, cs[i - 1])[PX.metric];
+  const val = c => (e.total && PX.metric === 'o' ? pxAcctOrders(c) : pxStats(e.asins, c)[PX.metric]);
+  const a = val(cs[i]), b = val(cs[i - 1]);
   if (a == null || b == null) return null;
   return pxIsPct(PX.metric) ? { v: a - b, pt: true } : b ? { v: (a - b) / b * 100 } : null;
 }
@@ -16593,7 +16673,12 @@ function pxProd(e, kid) {
   return `<div class="px-prod">${pxPic([e.key].concat(e.asins), e.title)}<div><b>${pxEsc(e.title || e.key)}${tag}</b><small>${pxEsc(e.key)}</small></div></div>`;
 }
 function pxRangeCells(o, tot) {
+  const cnt = v => (v == null ? '<span class="px-dim">—</span>' : pxN(v));
   const c = {
+    o: `<td>${cnt(o.o)}</td>`,
+    adO: `<td class="px-dim">${cnt(o.adO)}</td>`,
+    adU: `<td>${cnt(o.adU)}</td>`,
+    ou: `<td>${cnt(o.ou)}</td>`,
     u: `<td>${o.has ? Math.round(o.u).toLocaleString('en-US') : '—'}</td>`,
     rev: `<td>${o.has ? (tot ? pxMoney(o.rev) : '<b>' + pxMoney(o.rev) + '</b>') : '<span class="px-dim">—</span>'}</td>`,
     spend: `<td>${pxMoney(o.spend)}</td>`,
@@ -16612,7 +16697,10 @@ function pxKids(e) {
 }
 function pxRangeTable(rows, ctx, tot) {
   const sku = PX.level === 'child', vis = PX_RCOLS.filter(x => pxShown(x[0]));
-  const head = '<tr>' + pxTh('Product', 't', 'l stick') + (sku ? pxTh('SKU', 'sku', 'l') : '') + vis.map(x => pxTh(x[1], x[0])).join('') + '</tr>';
+  // Group labels over the visible columns only; PX_RCOLS is already in group order, so spans line up.
+  const grp = '<tr class="px-grp"><th class="l stick"></th>' + (sku ? '<th></th>' : '')
+    + PX_GROUPS.map(([g, ks]) => { const n = ks.filter(pxShown).length; return n ? `<th colspan="${n}" class="px-g-${(g || 'none').toLowerCase()}">${g ? `<span>${g}</span>` : ''}</th>` : ''; }).join('') + '</tr>';
+  const head = grp + '<tr>' + pxTh('Product', 't', 'l stick') + (sku ? pxTh('SKU', 'sku', 'l') : '') + vis.map(x => pxTh(x[1], x[0])).join('') + '</tr>';
   const totRow = `<tr class="px-total"><td class="l stick">All ${ctx.found.length.toLocaleString('en-US')} ${sku ? 'child ASINs' : 'parents'}</td>${sku ? '<td></td>' : ''}${pxRangeCells(tot, true)}</tr>`;
   const body = rows.map(e => {
     let h = `<tr><td class="l stick">${pxProd(e)}</td>${sku ? `<td class="l px-sku">${pxEsc(e.sku)}</td>` : ''}${pxRangeCells(e.st)}</tr>`;
@@ -16632,7 +16720,8 @@ function pxColTable(rows, ctx) {
       return pxTh(pxColLabel(c.lo, c.hi), 'c:' + k, live ? 'px-part' : '', c.src === 'none' ? 'no data' : live ? 'so far' : d === 1 ? '1 day' : d + ' days'); }).join('')
     + (cs.length > 1 ? pxTh('vs column before', 'chg', '', 'last full column') : '') + '</tr>';
   const row = (e, cls, kid) => {
-    const vals = cs.map(c => pxStats(e.asins, c)[m]);
+    // The total row's orders are the account's UNIQUE orders, never its products' orders added up.
+    const vals = cs.map(c => (e.total && m === 'o' ? pxAcctOrders(c) : pxStats(e.asins, c)[m]));
     const mx = Math.max(0, ...vals.filter(v => v != null));
     const cells = vals.map((v, k) => {
       const w = v == null ? 0 : pxIsPct(m) ? (m === 'tacos' ? Math.min(v, 50) * 2 : Math.min(v, 100)) : mx ? v / mx * 100 : 0;
@@ -16653,7 +16742,7 @@ function pxColTable(rows, ctx) {
     if (!sku && PX.open.has(e.key) && e.asins.length > 1) h += pxKids(e).map(k => row(k, 'px-child', true)).join('');
     return h;
   }).join('');
-  return `<table class="px-tbl"><thead>${head}</thead><tbody>${row({ asins: allAsins }, 'px-total')}${body || `<tr><td class="l px-dim" colspan="20">Nothing matches.</td></tr>`}</tbody></table>`;
+  return `<table class="px-tbl"><thead>${head}</thead><tbody>${row({ asins: allAsins, total: true }, 'px-total')}${body || `<tr><td class="l px-dim" colspan="20">Nothing matches.</td></tr>`}</tbody></table>`;
 }
 
 function pxDatePop() {
@@ -16681,6 +16770,27 @@ function pxShowPop() {
     + '<div class="px-pop-f"><button class="px-btn" data-px="showall">Show all</button><button class="px-btn px-dark" data-px="cancel">Done</button></div></div>';
 }
 
+/* The five period cards (Today · Yesterday · 7 · 14 · 30 days), as in the design. They follow the brand
+ * and search like the strip below. P&L, refunds, ROI and margin wait for the Finances job, so they are
+ * left off rather than shown as made-up numbers. */
+const PX_PCARDS = ['today', 'yest', 'd7', 'd14', 'd30'];
+function pxCards(asins) {
+  const t = sdToday();
+  return '<div class="px-pcards" role="group" aria-label="Periods">' + PX_PCARDS.map(k => {
+    const [lo, hi] = PX_DATES[k][1](t), p = pxPlan(lo, hi), o = pxStats(asins, p);
+    o.o = pxAcctOrders(p);
+    const on = PX.mode === 'range' && PX.dkey === k;
+    const line = (l, v) => `<span class="px-pc-l"><small>${l}</small><b>${v}</b></span>`;
+    return `<button class="px-pcard" data-pxcard="${k}" aria-pressed="${on}">`
+      + `<span class="px-pc-h"><b>${PX_DATES[k][0]}</b><small>${pxFmtRange(lo, hi)}</small></span>`
+      + `<span class="px-pc-big">${o.has ? pxMoney(o.rev) : '—'}</span>`
+      + line('Orders / Units', pxN(o.o) + ' / ' + (o.has ? pxN(o.u) : '—'))
+      + line('PPC Orders / PPC Units', pxN(o.adO) + ' / ' + pxN(o.adU))
+      + line('ACoS · TACoS', pxPct(o.acos) + ' · ' + pxPct(o.tacos))
+      + '</button>';
+  }).join('') + '</div>';
+}
+
 function pxRender(focusSel) {
   const pane = $('panePpcn'); if (!pane) return;
   PX_MEMO = new Map();
@@ -16691,7 +16801,9 @@ function pxRender(focusSel) {
   const filtered = ctx.found.filter(e => PX_FILTERS[PX.chip][1](e.st));
   const sorted = pxSorted(filtered, ctx);
   const shown = sorted.slice(0, PX.show);
-  const tot = pxStats(ctx.found.flatMap(e => e.asins), ctx.span, true);
+  const allAsins = ctx.found.flatMap(e => e.asins);
+  const tot = pxStats(allAsins, ctx.span, true);
+  tot.o = pxAcctOrders(ctx.span);                  // unique order ids, not the rows added up
 
   const allowed = adBrands();
   const brandSeg = allowed.length > 1
@@ -16705,8 +16817,9 @@ function pxRender(focusSel) {
   const chips = '<span class="px-lbl">Quick filters</span>' + Object.entries(PX_FILTERS).map(([k, v]) =>
     `<button class="px-chipf" data-pxchip="${k}" aria-pressed="${PX.chip === k}">${v[0]} <b>${ctx.found.filter(e => v[1](e.st)).length}</b></button>`).join('');
 
-  const strip = `<div class="px-card px-clip"><div class="px-strip">
+  const strip = `${pxCards(allAsins)}<div class="px-card px-clip"><div class="px-strip">
     <div><small>Sales</small><b>${tot.has ? pxMoney(tot.rev) : '—'}</b><em class="${tot.vp == null ? 'px-dim' : tot.vp < 0 ? 'px-neg' : 'px-pos'}">${pxSgn(tot.vp)} vs prev</em></div>
+    <div><small>Orders / Units</small><b>${pxN(tot.o)} / ${tot.has ? pxN(tot.u) : '—'}</b><em class="px-dim">ad units ${pxN(tot.adU)} · organic ${pxN(tot.ou)}</em></div>
     <div><small>Ad spend</small><b>${pxMoney(tot.spend)}</b><em class="px-dim">ad sales ${pxMoney(tot.adSales)}</em></div>
     <div><small>Organic share</small><b>${pxPct(tot.op)}</b><em class="px-dim">${pxMoney(tot.os)} organic</em></div>
     <div><small>ACoS</small><b>${pxPct(tot.acos)}</b><em class="px-dim">spend ÷ ad sales</em></div>
@@ -16770,9 +16883,11 @@ function pxCsv() {
     head = ['ASIN', 'Title'].concat(sku ? ['SKU'] : []).concat(ctx.cols.map(c => PX_METRICS[PX.metric] + ' ' + c.lo + '..' + c.hi));
     rows = list.map(e => [e.key, e.title].concat(sku ? [e.sku] : []).concat(ctx.cols.map(c => num(pxStats(e.asins, c)[PX.metric], 2))));
   } else {
-    head = ['ASIN', 'Title'].concat(sku ? ['SKU'] : []).concat(['Units', 'Sales', 'Ad spend', 'Ad sales', 'Organic sales', 'Organic %', 'ACoS %', 'TACoS %', 'vs prev %']);
+    head = ['ASIN', 'Title'].concat(sku ? ['SKU'] : []).concat(['Total orders', 'Units', 'Sales', 'Ad spend', 'Ad sales', 'Ad orders', 'Ad units',
+      'Organic units', 'Organic sales', 'Organic %', 'ACoS %', 'TACoS %', 'vs prev %']);
     rows = list.map(e => { const s = e.st; return [e.key, e.title].concat(sku ? [e.sku] : [])
-      .concat([num(s.u, 0), num(s.rev, 2), num(s.spend, 2), num(s.adSales, 2), num(s.os, 2), num(s.op, 1), num(s.acos, 1), num(s.tacos, 1), num(s.vp, 1)]); });
+      .concat([num(s.o, 0), num(s.u, 0), num(s.rev, 2), num(s.spend, 2), num(s.adSales, 2), num(s.adO, 0), num(s.adU, 0),
+        num(s.ou, 0), num(s.os, 2), num(s.op, 1), num(s.acos, 1), num(s.tacos, 1), num(s.vp, 1)]); });
   }
   const csv = [head].concat(rows).map(r => r.map(q).join(',')).join('\n');
   const a = document.createElement('a');
@@ -16796,6 +16911,7 @@ function pxWire() {
     if (d.pxbrand) { PX.brand = d.pxbrand; PX.show = PX_PAGE; return go(); }
     if (d.pxlevel) { PX.level = d.pxlevel; PX.show = PX_PAGE; if (PX.sk === 'sku' && PX.level === 'parent') PX.sk = 'rev'; return go(true); }
     if (d.pxdk) { PX.dkey = d.pxdk; PX.pop = null; return go(true); }
+    if (d.pxcard) { PX.mode = 'range'; PX.dkey = d.pxcard; PX.pop = null; if (PX.sk.startsWith('c:') || PX.sk === 'chg') PX.sk = 'rev'; return go(true); }
     if (d.pxchip) { PX.chip = d.pxchip; PX.show = PX_PAGE; return go(); }
     if (d.pxopen) { const k = d.pxopen; PX.open.has(k) ? PX.open.delete(k) : PX.open.add(k); return go(); }
     if (d.pxm) { PX.metric = d.pxm; if (PX.sk.startsWith('c:') || PX.sk === 'chg') PX.sk = 'rev'; return go(true); }
@@ -16876,6 +16992,8 @@ async function ensurePpcn() {
   if (!H_LOADED) await loadHealthCache();          // ASIN → brand, title, parent and SKU come from here
   PX_LOOK = null;
   if (!WEEKLY.weeks.length && !Object.keys(WEEKLY.rows).length) await loadWeekly();
+  // Orders and ad units: their own read of the nightly caches, same ten-minute throttle as wNightly.
+  if (Date.now() - PXN.run > 600000) { try { await pxExtra(); } catch (e) { /* "—" until the next open */ } }
   PX.loading = false;
   pxRender();
   pxImages();                                       // pictures fill in when they arrive
