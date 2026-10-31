@@ -160,8 +160,8 @@ const shpbIsMine = r => { try { const m = typeof mdbOf === 'function' ? mdbOf(r.
 function shpbItem(r) {
   const what = [r.color, r.size].filter(Boolean).join(' • ');
   /* A LONG NAME WRAPS INSIDE ITS CELL (30 Oct: a Shopify title over the Pcs and Printer columns): the cell has a width, the text breaks to fit it. */
-  return '<td style="' + SHPB_PAD + 'text-align:left;width:260px;max-width:260px;white-space:normal"><div style="display:flex;gap:7px;align-items:center">' + (typeof ptImgSpan === 'function' ? ptImgSpan(r.sku, 30) : '')
-    + '<div style="line-height:1.25;min-width:0;overflow-wrap:anywhere"><div style="font-weight:600;font-size:12.5px">' + esc(r.articleSubtype || r.articleType || r.itemName || '—') + '</div>'
+  return '<td style="' + SHPB_PAD + 'text-align:left;min-width:240px;width:260px;max-width:280px;white-space:normal"><div style="display:flex;gap:7px;align-items:center">' + (typeof ptImgSpan === 'function' ? ptImgSpan(r.sku, 30) : '')
+    + '<div style="line-height:1.25;min-width:180px;overflow-wrap:break-word"><div style="font-weight:600;font-size:12.5px">' + esc(r.articleSubtype || r.articleType || r.itemName || '—') + '</div>'
     + '<div class="muted" style="font-size:11px">' + esc(what) + ' · <span style="font-family:ui-monospace,monospace">' + esc(r.sku) + '</span></div></div></div></td>';
 }
 /** THE LINE'S WHOLE WAY, as a strip: done (green), here now (orange), partly done (amber), still ahead (grey). */
