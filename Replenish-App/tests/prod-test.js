@@ -21912,8 +21912,9 @@ console.log('\n== Reports: Shopify dispatch ==');
   const src = fs.readFileSync(APP, 'utf8');
   ok('Reports offers it', /<option value="shpd">Shopify dispatch<\/option>/.test(src));
   /* 28 Sep: five views — Ravi crossed out the rest. */
-  ok('the Order Console offers five views: Shopify combined first, the order book, the three Demand reports',
-     /<select id="odView"[^>]*>\s*<option value="shopsku">Shopify \/ Online — by SKU, combined<\/option>\s*<option value="book">Order book — pending<\/option>\s*<option value="demand">[^<]*<\/option>\s*<option value="democol">[^<]*<\/option>\s*<option value="demtot">[^<]*<\/option>\s*<\/select>/.test(src.replace(/\r\n/g, '\n')));
+  /* 31 Oct: the complete order book is back (Ravi: "jo order complete ho chuke h wo kaha show honge" → "jod do"). */
+  ok('the Order Console offers six views: Shopify combined first, the order book pending and complete, the three Demand reports',
+     /<select id="odView"[^>]*>\s*<option value="shopsku">Shopify \/ Online — by SKU, combined<\/option>\s*<option value="book">Order book — pending<\/option>\s*<option value="bookdone">Order book — complete &amp; handed over<\/option>\s*<option value="demand">[^<]*<\/option>\s*<option value="democol">[^<]*<\/option>\s*<option value="demtot">[^<]*<\/option>\s*<\/select>/.test(src.replace(/\r\n/g, '\n')));
 }
 console.log('\n== Master Database: ASIN and Parent ASIN from Amazon ==');
 await (async () => {
