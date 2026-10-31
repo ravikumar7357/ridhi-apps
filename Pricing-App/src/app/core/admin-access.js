@@ -1,16 +1,31 @@
+/* ================= CORE · ADMIN ACCESS: the Access screen, where an admin grants and revokes rights =================
+ * Screens: Settings → Access (accessCard): the people table, the person dropdown, the cards of checkboxes
+ * (one card per area of the two apps) and the form under them. Admins only.
+ * Does: loads the perms collection into the table (loadAccessList), builds the checkbox cards from the
+ * tab and section lists (accessTabBoxes), keeps each card's "3 of 6" count (accessCounts), writes the
+ * summary of what a person can open (accessSummary) and fills the form for editing (fillAccessForm).
+ * Saving the form and the vendor warning live in core/settings.js.
+ * Main lists: FACTORY_SECTIONS, REPL_SECTIONS (the Replenishment app's sections), ACCESS_GROUPS (which
+ * card holds which section), AD_TABS.
+ * Main functions: loadAccessList, accessTabBoxes, accessCounts, accessSummary, fillAccessForm. */
+
 /* ----- admin: grant and revoke ----- */
+// The people in the table as loaded: [{ email, admin, tabs, replTabs, … }], sorted by email.
 let ACCESS_ROWS = [];
+// Picking a person in the dropdown puts their rights in the form and scrolls to it.
 $('accessPick').onchange = e => {
   const r = ACCESS_ROWS.find(x => x.email === e.target.value);
   fillAccessForm(r || null);
   if (r) $('accessEmail').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 };
 
+// Fill the people table and the person dropdown from Firestore perms/*, and wire each row's Edit and Remove.
 async function loadAccessList() {
   if (!ME.admin) return;
   const box = $('accessRows');
   box.innerHTML = '<tr><td colspan="4" class="muted">Loading…</td></tr>';
   try {
+    // --- load from the server ---
     /* FROM THE SERVER ONLY (2026-09-25). getDocs falls back to the local cache when Firestore cannot be reached, and
      * an empty cache read as "Nobody has been granted access yet" while 50 people had it. A failed read now lands in
      * the catch below and says so. */
@@ -20,11 +35,13 @@ async function loadAccessList() {
     rows.sort((a, b) => a.email.localeCompare(b.email));
     ACCESS_ROWS = rows;
     const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+    // --- the person dropdown ---
     /* The same people as the table, in a dropdown. What is being edited stays picked across a reload. */
     const pick = $('accessPick'), was = $('accessEmail').value.trim().toLowerCase();
     pick.innerHTML = '<option value="">— New person (type the email below) —</option>'
       + rows.map(r => `<option value="${esc(r.email)}">${esc(r.email)}${r.admin ? ' · Admin' : ''}</option>`).join('');
     pick.value = rows.some(r => r.email === was) ? was : '';
+    // --- the table ---
     box.innerHTML = rows.length ? rows.map(r => `<tr>
         <td>${esc(r.email)}</td>
         <td>${accessSummary(r)}</td>
@@ -32,10 +49,14 @@ async function loadAccessList() {
         <td><button class="xbtn" data-del-perm="${esc(r.email)}">Remove</button></td>
       </tr>`).join('')
       : '<tr><td colspan="4" class="muted">Nobody has been granted access yet.</td></tr>';
-    box.querySelectorAll('[data-edit-perm]').forEach(b => b.onclick = () => fillAccessForm(rows.find(r => r.email === b.dataset.editPerm)));
-    box.querySelectorAll('[data-del-perm]').forEach(b => b.onclick = async () => {
-      const who = b.dataset.delPerm;
-      if (who === ME.email) { $('accessMsg').textContent = 'You cannot remove your own access.'; return; }
+    // --- each row's Edit and Remove ---
+    box.querySelectorAll('[data-edit-perm]').forEach(btn => btn.onclick = () => fillAccessForm(rows.find(r => r.email === btn.dataset.editPerm)));
+    box.querySelectorAll('[data-del-perm]').forEach(btn => btn.onclick = async () => {
+      const who = btn.dataset.delPerm;
+      if (who === ME.email) {
+        $('accessMsg').textContent = 'You cannot remove your own access.';
+        return;
+      }
       await deleteDoc(doc(db, 'perms', who));
       let gone = '';
       try { await permMirror(who, null); } catch (e) { gone = e.message || String(e); }
@@ -169,28 +190,37 @@ const ACCESS_GROUPS = [
   { key: 'stock', sellora: ['age', 'tiktok', 'carousel', 'ba'] },
   { key: 'other' },
 ];
+// Build the checkbox cards: every Sellora tab and every Replenishment section goes on the card ACCESS_GROUPS
+// names for it, anything left over lands in "Other", and each card's items become one checkbox each.
+// An item is [kind, key, label]: kind 's' = a Sellora tab, 'r' = a Replenishment section.
 function accessTabBoxes() {
   const usable = TABS.filter(t => !HIDDEN_TABS.includes(t) && !TAB_INHERIT[t]);
   const replKeys = REPL_SECTIONS.map(([k]) => k);
   const replLabel = k => (REPL_SECTIONS.find(([x]) => x === k) || [k, k])[1];
+  // --- place each tab and section on its card (the first card that names it wins) ---
   const takenS = new Set(), takenR = new Set();
   ACCESS_GROUPS.forEach(g => {
-    const s = (g.sellora || []).filter(t => usable.includes(t) && !takenS.has(t));
-    const r = (g.repl || []).filter(k => replKeys.includes(k) && !takenR.has(k));
-    s.forEach(t => takenS.add(t)); r.forEach(k => takenR.add(k));
-    g.items = s.map(t => ['s', t, TAB_TITLE[t]]).concat(r.map(k => ['r', k, replLabel(k)]));
+    const sTabs = (g.sellora || []).filter(t => usable.includes(t) && !takenS.has(t));
+    const rKeys = (g.repl || []).filter(k => replKeys.includes(k) && !takenR.has(k));
+    sTabs.forEach(t => takenS.add(t));
+    rKeys.forEach(k => takenR.add(k));
+    g.items = sTabs.map(t => ['s', t, TAB_TITLE[t]]).concat(rKeys.map(k => ['r', k, replLabel(k)]));
   });
+  // --- whatever no card named goes to Other ---
   const other = ACCESS_GROUPS.find(g => g.key === 'other');
   other.items = other.items.concat(usable.filter(t => !takenS.has(t)).map(t => ['s', t, TAB_TITLE[t]]),
     replKeys.filter(k => !takenR.has(k)).map(k => ['r', k, replLabel(k)]));
+  // --- draw the checkboxes ---
   ACCESS_GROUPS.forEach(g => {
     const sec = document.querySelector('#accessGroups [data-accg="' + g.key + '"]');
     if (!sec) return;
     g.title = (sec.querySelector('h4') || {}).textContent || g.key;
     /* The same name in both apps — Shopify Orders, Adjustments — says which app it opens. */
-    const twice = l => g.items.filter(i => i[2] === l).length > 1;
+    const twice = label => g.items.filter(i => i[2] === label).length > 1;
     sec.querySelector('.accg-boxes').innerHTML = g.items.map(([kind, k, label]) => {
-      const shown = label + (twice(label) ? (kind === 's' ? ' <span class="muted">· Sellora</span>' : ' <span class="muted">· Replenishment app</span>') : '');
+      const shown = label + (twice(label)
+        ? (kind === 's' ? ' <span class="muted">· Sellora</span>' : ' <span class="muted">· Replenishment app</span>')
+        : '');
       return kind === 's'
         ? `<label class="accg-box"><input type="checkbox" data-tab="${k}"> <span>${shown}</span></label>`
         : `<label class="accg-box"><input type="checkbox" class="repltab" data-rt="${k}"> <span>${shown}</span></label>`;
@@ -216,9 +246,10 @@ function accessSummary(r) {
   const lines = [];
   if (r.repl && !(r.replTabs || []).length) lines.push('<b>Replenishment app</b>: everything');
   ACCESS_GROUPS.forEach(g => {
-    const twice = l => (g.items || []).filter(i => i[2] === l).length > 1;
+    // --- the sections ticked on this card, then the extra rights that belong to it ---
+    const twice = label => (g.items || []).filter(i => i[2] === label).length > 1;
     const names = (g.items || []).filter(([kind, k]) => (kind === 's' ? (r.tabs || []) : (r.replTabs || [])).includes(k))
-      .map(([kind, , l]) => l + (twice(l) ? (kind === 's' ? ' (Sellora)' : ' (Replenishment app)') : ''));
+      .map(([kind, , label]) => label + (twice(label) ? (kind === 's' ? ' (Sellora)' : ' (Replenishment app)') : ''));
     const rights = [];
     if (g.key === 'shopify' && r.shopAssign) rights.push('assigns printers');
     if (g.key === 'plan' && r.replProj) rights.push('edits projections');
@@ -242,7 +273,7 @@ function accessSummary(r) {
     if (g.key === 'other' && r.prod) rights.push('old production app');
     if (names.length || rights.length) {
       lines.push('<b>' + esc(g.title || g.key) + '</b>: ' + esc(names.join(', '))
-        + rights.map(x => ' <span class="st st-approved">' + esc(x) + '</span>').join(''));
+        + rights.map(right => ' <span class="st st-approved">' + esc(right) + '</span>').join(''));
     }
   });
   return lines.length ? '<div class="accsum">' + lines.join('<br>') + '</div>' : '<span class="muted">nothing</span>';
@@ -250,6 +281,7 @@ function accessSummary(r) {
 /* The advertising tabs, as one thing. Named here rather than typed into the click handler so the
  * set has somewhere to live when a fifth ad tab arrives. */
 const AD_TABS = ['weekly', 'trends', 'st', 'plc'];
+// The "Advertising only" shortcut: tick the four ad tabs and clear everything else, in both apps.
 $('accessAdOnly').onclick = () => {
   $('accessGroups').querySelectorAll('[data-tab]').forEach(c => { c.checked = AD_TABS.includes(c.dataset.tab); });
   // Admin outranks every tab list there is, so leaving it ticked would hand over the whole app.
@@ -260,6 +292,7 @@ $('accessAdOnly').onclick = () => {
   $('accessMsg').textContent = 'Advertising tabs ticked, everything else cleared in both apps. Now tick ONE brand in the Advertising card, then Save access.';
 };
 
+// Put one person's rights into the form (r = a row of ACCESS_ROWS), or clear the form when r is null.
 function fillAccessForm(r) {
   $('accessEmail').value = r?.email || '';
   /* The dropdown follows whoever is in the form, however they got there (Edit button, Clear, pick). */

@@ -2726,12 +2726,23 @@
  * GROUP: src/app/core/
  * #################################################################################################### */
 /* ============================== FILE: src/app/core/setup.js ============================== */
+/* ================= CORE · SETUP: the Firebase SDK and the project it talks to =================
+ * Screens: none of its own. This is the first file of the joined script (see app/ORDER); every screen
+ * runs on what it makes.
+ * Does: loads the Firebase SDK (app, auth, Firestore) straight from Google's CDN — no build step, no
+ * node_modules — holds the project's Firebase config, and creates the two objects the rest of the app
+ * shares: `app` and `auth`.
+ * Main names: firebaseConfig, app, auth. (The Firestore handle `db` and the helpers $, money and pct are
+ * created in core/rights-mirror.js, the next file.) */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendEmailVerification }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, addDoc, query, orderBy, limit, getDocs, getDocsFromServer, serverTimestamp }
+import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, addDoc, query, orderBy, limit, getDocs,
+  getDocsFromServer, serverTimestamp }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
+// The Firebase project. A web app's Firebase config is not a secret: it only names the project, and the
+// Firestore rules plus sign-in are what protect the data.
 const firebaseConfig = {
   apiKey: "AIzaSyCBHVKB0bXdawmz2dpAncrWonDZjfRjgqM",
   authDomain: "price-research-48ff3.firebaseapp.com",
@@ -2740,10 +2751,20 @@ const firebaseConfig = {
   messagingSenderId: "998139754721",
   appId: "1:998139754721:web:83bc28cd1f7548ab055fa0"
 };
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
+const app = initializeApp(firebaseConfig);   // the Firebase app
+const auth = getAuth(app);                   // sign-in state; auth.currentUser is whoever is signed in
 
 /* ============================== FILE: src/app/core/rights-mirror.js ============================== */
+/* ================= CORE · RIGHTS MIRROR, plus the helpers and defaults the whole app shares =================
+ * Screens: Settings → Access (the mirror); every other screen uses the shared pieces below.
+ * Does, in two parts:
+ *   1. The rights mirror: every access right saved in Firestore is copied to the factory's Realtime
+ *      Database as pt_perms/<email>, because that database's rules cannot read Firestore.
+ *   2. Shared pieces that happen to live here: the Firestore handle `db`, the DOM helper `$`, the
+ *      formatters `money` and `pct`, the costing defaults (DEFAULTS, KEYS, DEF_CATS, DEF_TIERS) and the
+ *      three holders filled after sign-in: SET (settings), API (backend address and key), API_ERR.
+ * Main functions: permKey, permMirrorOf, permMirror; helpers $, money, pct. */
+
 /* ---- the production database's own copy of the rights ----
  *
  * The factory's data is in the Realtime Database, and its rules decide who may write the rate lists,
@@ -2754,7 +2775,9 @@ const auth = getAuth(app);
  * The shape is the one rules/rules-tool.js (beside this app) builds from Firestore and compares against:
  * every field that is exactly true becomes a right, replTabs become tabs. Change one, change both. */
 const PT_RTDB = 'https://price-research-48ff3-default-rtdb.asia-southeast1.firebasedatabase.app';
+// The node name for one person: the email in lower case with every dot turned into a comma (a key may not hold a dot).
 const permKey = e => String(e || '').toLowerCase().split('.').join(',');
+// One perms document in the mirror's shape: { admin, r: {right: true, …}, t: {tab: true, …} } — r and t only when not empty.
 function permMirrorOf(d) {
   const m = { admin: d.admin === true }, r = {}, t = {};
   Object.keys(d).forEach(k => { if (k !== 'admin' && d[k] === true) r[k] = true; });
@@ -2767,17 +2790,30 @@ function permMirrorOf(d) {
 async function permMirror(email, d) {
   const tok = await auth.currentUser.getIdToken();
   const res = await fetch(`${PT_RTDB}/pt_perms/${encodeURIComponent(permKey(email))}.json?auth=${tok}`, {
-    method: d ? 'PUT' : 'DELETE', headers: { 'Content-Type': 'application/json' },
-    body: d ? JSON.stringify(Object.assign(permMirrorOf(d), { at: new Date().toISOString(), by: ME.email })) : undefined });
+    method: d ? 'PUT' : 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: d ? JSON.stringify(Object.assign(permMirrorOf(d), { at: new Date().toISOString(), by: ME.email })) : undefined
+  });
   if (!res.ok) throw new Error('the production database answered ' + res.status + ' for its copy of these rights');
 }
+
+/* ---------- shared helpers: the Firestore handle, DOM lookup, number formats ---------- */
 const db = getFirestore(app);
 
+// The element with this id, or null when there is none.
 const $ = id => document.getElementById(id);
-const money = (n, c = '$') => (n < 0 ? '-' : '') + c + Math.abs(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+// A money string: sign, then the currency mark (default $), then the amount with two decimals in Indian
+// digit groups (en-IN: 1,23,456.00).
+const money = (n, c = '$') => (n < 0 ? '-' : '') + c
+  + Math.abs(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+// A ratio as a percentage with one decimal: 0.1234 → "12.3%".
 const pct = n => (n * 100).toFixed(1) + '%';
 
+/* ---------- costing defaults: edited on the Settings screen, used by research/costing-maths.js ---------- */
 // Defaults mirror the user's costing sheet ("Need Selling Price…xlsx").
+// The keys are the Settings fields (input id s_<key>): profit = Target Profit %, tacos = TACOS %, return = Return
+// Loss %, oh = Amazon OH %, salary = Emp. Salary %, ship = Shipping % of product cost, duty = Duty & Tax % of base
+// cost, fx = USD → INR, factoh = Factory Overhead %, pm = P.M (markup ×; see baseDivisor in costing-maths.js).
 const DEFAULTS = { profit: 20, tacos: 16, return: 3, oh: 10, salary: 10, ship: 30, duty: 15, fx: 90, factoh: 10, pm: 1.25 };
 const KEYS = Object.keys(DEFAULTS);
 
@@ -2800,6 +2836,9 @@ const DEF_TIERS = [
   { name: 'Large bulky', maxL: 59, maxW: 33, maxH: 33, maxWt: 50, fee: 0 },
   { name: 'Extra-large', maxL: 108, maxW: 33, maxH: 33, maxWt: 150, fee: 0 },
 ];
+
+/* ---------- filled in after sign-in (core/auth.js) ---------- */
+// The saved settings over the defaults — loadSettings() in core/settings.js fills it.
 let SET = { ...DEFAULTS };
 let API = null;          // { url, key } — read from Firestore AFTER sign-in, never in this source
 let API_ERR = '';        // why that read failed, carried to whichever tab reports it
@@ -2842,7 +2881,18 @@ function computeTarget(price, referral, fba, s) {
  * GROUP: src/app/core/
  * #################################################################################################### */
 /* ============================== FILE: src/app/core/auth.js ============================== */
+/* ================= CORE · AUTH: sign-in, sign-out, email confirmation, and the start of a session =================
+ * Screens: the login view (loginView), the "confirm your email address" box at the top of the app view
+ * (verifyBox), and the start of every session — the onAuthStateChanged handler at the end is where the
+ * app comes to life after sign-in.
+ * Does: wires Sign in / Sign out; decides whether a signed-in account must confirm its email address
+ * (vfNeeded) and wires that box (vfWire); on every sign-in loads the account's permissions, builds the
+ * menu, reads the backend address and key (Firestore config/api) and then the settings.
+ * Main functions: vfInvented, vfNeeded, vfWire, and the onAuthStateChanged handler. */
+
 /* ---------- auth ---------- */
+// Sign in with the typed email and password. A wrong pair gets one plain sentence; anything else shows
+// the raw message from Firebase.
 $('loginBtn').onclick = async () => {
   $('loginErr').classList.add('hide');
   $('loginBtn').disabled = true;
@@ -2855,7 +2905,9 @@ $('loginBtn').onclick = async () => {
   }
   $('loginBtn').disabled = false;
 };
+// Enter in the password box presses Sign in.
 $('pass').addEventListener('keydown', e => { if (e.key === 'Enter') $('loginBtn').click(); });
+// Sign out; onAuthStateChanged below then shows the login view again.
 $('logoutBtn').onclick = () => signOut(auth);
 
 /* The address this app invents for a phone-and-PIN vendor. No mailbox exists for it, so it can never
@@ -2866,6 +2918,7 @@ const VF_MADE_UP = '@vendors-tfr.app';
  * — @vendors-tfr.app for a vendor, @thefabricrush.com for staff who sign in with a PIN. No mailbox
  * exists behind any of them, so nobody can ever answer one. The shape is what makes it invented. */
 const vfInvented = e => /^pd{10}@/.test(String(e || '').trim().toLowerCase());
+// Must this account still confirm its email address? Not when it is confirmed already, invented, or a vendor's.
 function vfNeeded(user) {
   if (!user || user.emailVerified) return false;
   const e = String(user.email || '').trim().toLowerCase();
@@ -2873,15 +2926,20 @@ function vfNeeded(user) {
   return true;
 }
 
+// Wire the confirm-email box: "Sign out", "Send the email" and "I have confirmed it".
 function vfWire() {
   const msg = $('verifyMsg');
   $('verifyOut').onclick = () => signOut(auth);
+  // --- send the confirmation email ---
   $('verifySend').onclick = async () => {
-    const u = auth.currentUser; if (!u) return;
-    $('verifySend').disabled = true; msg.style.color = ''; msg.textContent = 'Sending…';
+    const user = auth.currentUser;
+    if (!user) return;
+    $('verifySend').disabled = true;
+    msg.style.color = '';
+    msg.textContent = 'Sending…';
     try {
-      await sendEmailVerification(u);
-      msg.textContent = 'Sent to ' + u.email + '. Open the link, then press "I have confirmed it". '
+      await sendEmailVerification(user);
+      msg.textContent = 'Sent to ' + user.email + '. Open the link, then press "I have confirmed it". '
         + 'Look in the spam folder too — it arrives from Firebase, not from us.';
     } catch (e) {
       msg.style.color = '#b91c1c';
@@ -2891,31 +2949,43 @@ function vfWire() {
     }
     $('verifySend').disabled = false;
   };
+  // --- "I have confirmed it": ask Firebase again, and reload the page once the address is confirmed ---
   $('verifyAgain').onclick = async () => {
-    const u = auth.currentUser; if (!u) return;
-    $('verifyAgain').disabled = true; msg.style.color = ''; msg.textContent = 'Checking…';
+    const user = auth.currentUser;
+    if (!user) return;
+    $('verifyAgain').disabled = true;
+    msg.style.color = '';
+    msg.textContent = 'Checking…';
     try {
       /* Confirming happens in another tab; a reload is what brings the new answer back to this one. */
-      await u.reload();
+      await user.reload();
       if (auth.currentUser && auth.currentUser.emailVerified) { location.reload(); return; }
       msg.style.color = '#b91c1c';
       msg.textContent = 'Not confirmed yet. Open the link in the email first — then press this again.';
-    } catch (e) { msg.style.color = '#b91c1c'; msg.textContent = 'Could not check: ' + (e.message || e); }
+    } catch (e) {
+      msg.style.color = '#b91c1c';
+      msg.textContent = 'Could not check: ' + (e.message || e);
+    }
     $('verifyAgain').disabled = false;
   };
 }
 vfWire();
 
+// Runs at page load with the remembered account, and after every sign-in and sign-out: shows the login
+// view or the app view, and on sign-in starts the session — permissions, menu, email check, backend
+// address and key, settings.
 onAuthStateChanged(auth, async user => {
   $('loginView').classList.toggle('hide', !!user);
   $('appView').classList.toggle('hide', !user);
   if (!user) return;
 
+  // --- permissions and menu ---
   // Permissions FIRST — the menu is built from them, and everything below needs to know whether
   // this account is allowed to read it at all.
   await loadMyPerms(user);
   applyPerms();
 
+  // --- email confirmation ---
   /* AN ADDRESS IS NOT PROOF OF ANYTHING UNTIL SOMEBODY ANSWERS IT. Access here is granted by typing
    * one, so until it has been confirmed it proves only that somebody typed it. An admin is warned
    * rather than stopped: the account that grants access must not be the one that cannot get in. */
@@ -2929,16 +2999,26 @@ onAuthStateChanged(auth, async user => {
       ? 'Your own email address is not confirmed'
       : 'Confirm your email address';
   }
-  if (vfBlocked) { ME.tabs = []; applyPerms(); return; }   // nothing loads on the way past
+  if (vfBlocked) {   // nothing loads on the way past
+    ME.tabs = [];
+    applyPerms();
+    return;
+  }
 
   if (!ME.tabs.length && !ME.admin) return;      // nothing granted: the notice is already showing
 
+  // --- the backend's address and key: Firestore config/api = { url, key, writeKey } ---
   try {
-    const c = await getDoc(doc(db, 'config', 'api'));
+    const snap = await getDoc(doc(db, 'config', 'api'));
     // Trim both: a stray space/newline pasted into the Firestore fields is invisible but would
     // break the key match (or the URL) with a confusing "Unauthorized".
-    if (c.exists()) { const d = c.data(); API = { url: String(d.url || '').trim(), key: String(d.key || '').trim(), writeKey: String(d.writeKey || '').trim() }; }
-    else { API_ERR = 'the Firestore document config/api does not exist'; showMsg('⚠️ Backend not configured — create the Firestore doc config/api with {url, key}.', true); }
+    if (snap.exists()) {
+      const cfg = snap.data();
+      API = { url: String(cfg.url || '').trim(), key: String(cfg.key || '').trim(), writeKey: String(cfg.writeKey || '').trim() };
+    } else {
+      API_ERR = 'the Firestore document config/api does not exist';
+      showMsg('⚠️ Backend not configured — create the Firestore doc config/api with {url, key}.', true);
+    }
   } catch (e) {
     // KEPT, not just shown. showMsg puts this at the top of the page, and every tab that later
     // fails says only "Backend not configured" — so the one sentence that explains why was on
@@ -2949,10 +3029,20 @@ onAuthStateChanged(auth, async user => {
       : (e.message || String(e));
     showMsg('Could not read config: ' + API_ERR, true);
   }
+  // --- settings (core/settings.js): the costing numbers, category fees and size tiers, New Product defaults ---
   await loadSettings();
 });
 
 /* ============================== FILE: src/app/core/access.js ============================== */
+/* ================= CORE · ACCESS: who is signed in, and which tabs and brands they may see =================
+ * Screens: the sidebar menu (which tab buttons show), the "no access" notice (noAccess), and the brand
+ * pickers on the four advertising tabs.
+ * Does: holds ME, the signed-in account's permissions, read from Firestore perms/{email} by loadMyPerms.
+ * applyPerms then shows and hides the tab buttons and menu groups, trims the ad brand pickers and opens
+ * the first tab the account may see. myBrands / adBrands answer "which brands?" for the catalogue tabs
+ * (always both) and for the advertising tabs (only the ticked ones).
+ * Main functions: myBrands, adBrands, applyBrandPicker, loadMyPerms, applyPerms. */
+
 /* ---------- who is signed in, and what may they see ---------- */
 /*
  * Access lives in perms/{email} = { admin, tabs: [...] }, and the FIRESTORE RULES are what actually
@@ -2963,6 +3053,7 @@ onAuthStateChanged(auth, async user => {
  * Default is DENY: an account with no perms doc sees nothing. Adding a user in the Firebase console
  * is no longer the same thing as granting them the whole app.
  */
+// The signed-in account: email, admin flag, the approve right, the tabs granted and the ad brands ticked.
 let ME = { email: '', admin: false, approve: false, tabs: [], brands: [] };
 
 /**
@@ -2994,52 +3085,66 @@ function adBrands() {
   if (ME.admin || !ME.brands.length) return ['SP', 'CPC'];
   return ME.brands.filter(b => b === 'SP' || b === 'CPC');
 }
+// The same answer under the name the Ad Console and Placement tabs call it by.
 const tBrands = () => adBrands();
 /** Trim a brand <select> to what this account may see, and lock it when only one is left. */
 function applyBrandPicker(id) {
-  const el = $(id); if (!el) return;
+  const el = $(id);
+  if (!el) return;
   const allowed = adBrands();
   if (allowed.length === 2) return;
-  [...el.options].forEach(o => { if (o.value === 'ALL' || !allowed.includes(o.value)) o.remove(); });
+  [...el.options].forEach(opt => { if (opt.value === 'ALL' || !allowed.includes(opt.value)) opt.remove(); });
   if (el.options.length === 1) el.disabled = true;
   el.value = allowed[0];
 }
 
+// Read perms/{email} into ME. No document, or one this account may not read, means no access at all.
 async function loadMyPerms(user) {
   ME = { email: (user.email || '').toLowerCase(), admin: false, approve: false, tabs: [], brands: [] };
   try {
     const snap = await getDoc(doc(db, 'perms', ME.email));
     if (snap.exists()) {
-      const d = snap.data();
-      ME.admin = d.admin === true;
-      ME.approve = d.approve === true;
-      ME.tabs = Array.isArray(d.tabs) ? d.tabs : [];
-      ME.brands = Array.isArray(d.brands) ? d.brands : [];
+      const data = snap.data();
+      ME.admin = data.admin === true;
+      ME.approve = data.approve === true;
+      ME.tabs = Array.isArray(data.tabs) ? data.tabs : [];
+      ME.brands = Array.isArray(data.brands) ? data.brands : [];
     }
   } catch (e) { /* unreadable perms = no perms; the notice below explains it */ }
   // The owner is always an admin so the account can never lock itself out. Keep this in step with
   // OWNER_EMAIL in firestore.rules — the rules are what actually grant it.
   if (ME.email === 'ravi@thefabricrush.com') ME.admin = true;
   // An admin can always approve; otherwise it is granted explicitly.
-  if (ME.admin) { ME.tabs = TABS.slice(); ME.approve = true; }
+  if (ME.admin) {
+    ME.tabs = TABS.slice();
+    ME.approve = true;
+  }
 }
 
+// Build the menu from ME: show the granted tab buttons, trim the ad brand pickers, drop menu groups with
+// nothing left in them, and open the first tab allowed — or the "no access" notice when there is none.
 function applyPerms() {
+  // May this account open tab t? An admin may; so may anyone granted it, or granted the tab it comes with.
   const allowed = t => ME.admin || ME.tabs.includes(t) || (!!TAB_INHERIT[t] && ME.tabs.includes(TAB_INHERIT[t]));
+  // --- tab buttons ---
   TABS.forEach(t => {
     const hide = HIDDEN_TABS.includes(t) || !allowed(t);
     $('tab' + capId(t)).classList.toggle('hide', hide);
   });
+  // --- ad brand pickers ---
   // The brand pickers on the FOUR ADVERTISING TABS, trimmed to what this account may see. Done once
   // here rather than in each tab's render, so an ad tab added later cannot quietly forget it.
   // The other pickers — Deal Calendar, Listing Audit, Listing Health, BSR, Age — are deliberately
   // NOT in this list: the restriction is about ad figures, not about the catalogue.
   ['tBrand', 'wBrand', 'stBrand', 'plcBrand']
     .forEach(id => { try { applyBrandPicker(id); } catch (e) { /* that tab may not exist */ } });
+  // --- menu groups, and the tab to open ---
   syncNavGroups(allowed);
   const first = TABS.find(t => !HIDDEN_TABS.includes(t) && allowed(t));
-  if (first) { $('noAccess').classList.add('hide'); showTab(first); }
-  else {
+  if (first) {
+    $('noAccess').classList.add('hide');
+    showTab(first);
+  } else {
     // Signed in but granted nothing. Say so plainly instead of showing an empty shell that looks broken.
     TABS.forEach(t => $('pane' + capId(t)).classList.add('hide'));
     $('settingsCard').classList.add('hide');
@@ -3050,19 +3155,34 @@ function applyPerms() {
 }
 
 /* ============================== FILE: src/app/core/admin-access.js ============================== */
+/* ================= CORE · ADMIN ACCESS: the Access screen, where an admin grants and revokes rights =================
+ * Screens: Settings → Access (accessCard): the people table, the person dropdown, the cards of checkboxes
+ * (one card per area of the two apps) and the form under them. Admins only.
+ * Does: loads the perms collection into the table (loadAccessList), builds the checkbox cards from the
+ * tab and section lists (accessTabBoxes), keeps each card's "3 of 6" count (accessCounts), writes the
+ * summary of what a person can open (accessSummary) and fills the form for editing (fillAccessForm).
+ * Saving the form and the vendor warning live in core/settings.js.
+ * Main lists: FACTORY_SECTIONS, REPL_SECTIONS (the Replenishment app's sections), ACCESS_GROUPS (which
+ * card holds which section), AD_TABS.
+ * Main functions: loadAccessList, accessTabBoxes, accessCounts, accessSummary, fillAccessForm. */
+
 /* ----- admin: grant and revoke ----- */
+// The people in the table as loaded: [{ email, admin, tabs, replTabs, … }], sorted by email.
 let ACCESS_ROWS = [];
+// Picking a person in the dropdown puts their rights in the form and scrolls to it.
 $('accessPick').onchange = e => {
   const r = ACCESS_ROWS.find(x => x.email === e.target.value);
   fillAccessForm(r || null);
   if (r) $('accessEmail').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 };
 
+// Fill the people table and the person dropdown from Firestore perms/*, and wire each row's Edit and Remove.
 async function loadAccessList() {
   if (!ME.admin) return;
   const box = $('accessRows');
   box.innerHTML = '<tr><td colspan="4" class="muted">Loading…</td></tr>';
   try {
+    // --- load from the server ---
     /* FROM THE SERVER ONLY (2026-09-25). getDocs falls back to the local cache when Firestore cannot be reached, and
      * an empty cache read as "Nobody has been granted access yet" while 50 people had it. A failed read now lands in
      * the catch below and says so. */
@@ -3072,11 +3192,13 @@ async function loadAccessList() {
     rows.sort((a, b) => a.email.localeCompare(b.email));
     ACCESS_ROWS = rows;
     const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+    // --- the person dropdown ---
     /* The same people as the table, in a dropdown. What is being edited stays picked across a reload. */
     const pick = $('accessPick'), was = $('accessEmail').value.trim().toLowerCase();
     pick.innerHTML = '<option value="">— New person (type the email below) —</option>'
       + rows.map(r => `<option value="${esc(r.email)}">${esc(r.email)}${r.admin ? ' · Admin' : ''}</option>`).join('');
     pick.value = rows.some(r => r.email === was) ? was : '';
+    // --- the table ---
     box.innerHTML = rows.length ? rows.map(r => `<tr>
         <td>${esc(r.email)}</td>
         <td>${accessSummary(r)}</td>
@@ -3084,10 +3206,14 @@ async function loadAccessList() {
         <td><button class="xbtn" data-del-perm="${esc(r.email)}">Remove</button></td>
       </tr>`).join('')
       : '<tr><td colspan="4" class="muted">Nobody has been granted access yet.</td></tr>';
-    box.querySelectorAll('[data-edit-perm]').forEach(b => b.onclick = () => fillAccessForm(rows.find(r => r.email === b.dataset.editPerm)));
-    box.querySelectorAll('[data-del-perm]').forEach(b => b.onclick = async () => {
-      const who = b.dataset.delPerm;
-      if (who === ME.email) { $('accessMsg').textContent = 'You cannot remove your own access.'; return; }
+    // --- each row's Edit and Remove ---
+    box.querySelectorAll('[data-edit-perm]').forEach(btn => btn.onclick = () => fillAccessForm(rows.find(r => r.email === btn.dataset.editPerm)));
+    box.querySelectorAll('[data-del-perm]').forEach(btn => btn.onclick = async () => {
+      const who = btn.dataset.delPerm;
+      if (who === ME.email) {
+        $('accessMsg').textContent = 'You cannot remove your own access.';
+        return;
+      }
       await deleteDoc(doc(db, 'perms', who));
       let gone = '';
       try { await permMirror(who, null); } catch (e) { gone = e.message || String(e); }
@@ -3221,28 +3347,37 @@ const ACCESS_GROUPS = [
   { key: 'stock', sellora: ['age', 'tiktok', 'carousel', 'ba'] },
   { key: 'other' },
 ];
+// Build the checkbox cards: every Sellora tab and every Replenishment section goes on the card ACCESS_GROUPS
+// names for it, anything left over lands in "Other", and each card's items become one checkbox each.
+// An item is [kind, key, label]: kind 's' = a Sellora tab, 'r' = a Replenishment section.
 function accessTabBoxes() {
   const usable = TABS.filter(t => !HIDDEN_TABS.includes(t) && !TAB_INHERIT[t]);
   const replKeys = REPL_SECTIONS.map(([k]) => k);
   const replLabel = k => (REPL_SECTIONS.find(([x]) => x === k) || [k, k])[1];
+  // --- place each tab and section on its card (the first card that names it wins) ---
   const takenS = new Set(), takenR = new Set();
   ACCESS_GROUPS.forEach(g => {
-    const s = (g.sellora || []).filter(t => usable.includes(t) && !takenS.has(t));
-    const r = (g.repl || []).filter(k => replKeys.includes(k) && !takenR.has(k));
-    s.forEach(t => takenS.add(t)); r.forEach(k => takenR.add(k));
-    g.items = s.map(t => ['s', t, TAB_TITLE[t]]).concat(r.map(k => ['r', k, replLabel(k)]));
+    const sTabs = (g.sellora || []).filter(t => usable.includes(t) && !takenS.has(t));
+    const rKeys = (g.repl || []).filter(k => replKeys.includes(k) && !takenR.has(k));
+    sTabs.forEach(t => takenS.add(t));
+    rKeys.forEach(k => takenR.add(k));
+    g.items = sTabs.map(t => ['s', t, TAB_TITLE[t]]).concat(rKeys.map(k => ['r', k, replLabel(k)]));
   });
+  // --- whatever no card named goes to Other ---
   const other = ACCESS_GROUPS.find(g => g.key === 'other');
   other.items = other.items.concat(usable.filter(t => !takenS.has(t)).map(t => ['s', t, TAB_TITLE[t]]),
     replKeys.filter(k => !takenR.has(k)).map(k => ['r', k, replLabel(k)]));
+  // --- draw the checkboxes ---
   ACCESS_GROUPS.forEach(g => {
     const sec = document.querySelector('#accessGroups [data-accg="' + g.key + '"]');
     if (!sec) return;
     g.title = (sec.querySelector('h4') || {}).textContent || g.key;
     /* The same name in both apps — Shopify Orders, Adjustments — says which app it opens. */
-    const twice = l => g.items.filter(i => i[2] === l).length > 1;
+    const twice = label => g.items.filter(i => i[2] === label).length > 1;
     sec.querySelector('.accg-boxes').innerHTML = g.items.map(([kind, k, label]) => {
-      const shown = label + (twice(label) ? (kind === 's' ? ' <span class="muted">· Sellora</span>' : ' <span class="muted">· Replenishment app</span>') : '');
+      const shown = label + (twice(label)
+        ? (kind === 's' ? ' <span class="muted">· Sellora</span>' : ' <span class="muted">· Replenishment app</span>')
+        : '');
       return kind === 's'
         ? `<label class="accg-box"><input type="checkbox" data-tab="${k}"> <span>${shown}</span></label>`
         : `<label class="accg-box"><input type="checkbox" class="repltab" data-rt="${k}"> <span>${shown}</span></label>`;
@@ -3268,9 +3403,10 @@ function accessSummary(r) {
   const lines = [];
   if (r.repl && !(r.replTabs || []).length) lines.push('<b>Replenishment app</b>: everything');
   ACCESS_GROUPS.forEach(g => {
-    const twice = l => (g.items || []).filter(i => i[2] === l).length > 1;
+    // --- the sections ticked on this card, then the extra rights that belong to it ---
+    const twice = label => (g.items || []).filter(i => i[2] === label).length > 1;
     const names = (g.items || []).filter(([kind, k]) => (kind === 's' ? (r.tabs || []) : (r.replTabs || [])).includes(k))
-      .map(([kind, , l]) => l + (twice(l) ? (kind === 's' ? ' (Sellora)' : ' (Replenishment app)') : ''));
+      .map(([kind, , label]) => label + (twice(label) ? (kind === 's' ? ' (Sellora)' : ' (Replenishment app)') : ''));
     const rights = [];
     if (g.key === 'shopify' && r.shopAssign) rights.push('assigns printers');
     if (g.key === 'plan' && r.replProj) rights.push('edits projections');
@@ -3294,7 +3430,7 @@ function accessSummary(r) {
     if (g.key === 'other' && r.prod) rights.push('old production app');
     if (names.length || rights.length) {
       lines.push('<b>' + esc(g.title || g.key) + '</b>: ' + esc(names.join(', '))
-        + rights.map(x => ' <span class="st st-approved">' + esc(x) + '</span>').join(''));
+        + rights.map(right => ' <span class="st st-approved">' + esc(right) + '</span>').join(''));
     }
   });
   return lines.length ? '<div class="accsum">' + lines.join('<br>') + '</div>' : '<span class="muted">nothing</span>';
@@ -3302,6 +3438,7 @@ function accessSummary(r) {
 /* The advertising tabs, as one thing. Named here rather than typed into the click handler so the
  * set has somewhere to live when a fifth ad tab arrives. */
 const AD_TABS = ['weekly', 'trends', 'st', 'plc'];
+// The "Advertising only" shortcut: tick the four ad tabs and clear everything else, in both apps.
 $('accessAdOnly').onclick = () => {
   $('accessGroups').querySelectorAll('[data-tab]').forEach(c => { c.checked = AD_TABS.includes(c.dataset.tab); });
   // Admin outranks every tab list there is, so leaving it ticked would hand over the whole app.
@@ -3312,6 +3449,7 @@ $('accessAdOnly').onclick = () => {
   $('accessMsg').textContent = 'Advertising tabs ticked, everything else cleared in both apps. Now tick ONE brand in the Advertising card, then Save access.';
 };
 
+// Put one person's rights into the form (r = a row of ACCESS_ROWS), or clear the form when r is null.
 function fillAccessForm(r) {
   $('accessEmail').value = r?.email || '';
   /* The dropdown follows whoever is in the form, however they got there (Edit button, Clear, pick). */
@@ -3346,13 +3484,30 @@ function fillAccessForm(r) {
 }
 
 /* ============================== FILE: src/app/core/nav.js ============================== */
+/* ================= CORE · NAV: the tab list, the sidebar menu and switching screens =================
+ * Screens: the sidebar (tab buttons in collapsible groups, the hamburger button, the guide button) and
+ * the page title; every screen is opened through showTab.
+ * Does: names every tab (TABS, TAB_TITLE, HIDDEN_TABS, TAB_INHERIT); reads the menu groups off the markup
+ * (NAV_GROUPS) and opens and closes them; shows and hides the sidebar (setNavOpen); and switches screens
+ * (showTab), which also calls each screen's ensure… loader so a screen loads when first opened.
+ * Main functions: capId, setGroupOpen, syncNavGroups, setNavOpen, showTab. */
+
 /* ---------- tabs ---------- */
-const TABS = ['link', 'new', 'pr', 'sales', 'profit', 'sa', 'plaudit', 'shop', 'adj', 'kw', 'ba', 'age', 'health', 'lrules', 'audit', 'bsr', 'weekly', 'ppcn', 'trends', 'st', 'plc', 'deals', 'tiktok', 'carousel', 'opt', 'img', 'lerr', 'basket'];
+// Every tab by key. Button id = 'tab' + capId(key), pane id = 'pane' + capId(key). The order matters only
+// for which tab opens first: the first one the account is allowed.
+const TABS = ['link', 'new', 'pr', 'sales', 'profit', 'sa', 'plaudit', 'shop', 'adj', 'kw', 'ba', 'age', 'health',
+  'lrules', 'audit', 'bsr', 'weekly', 'ppcn', 'trends', 'st', 'plc', 'deals', 'tiktok', 'carousel', 'opt', 'img',
+  'lerr', 'basket'];
+// 'health' → 'Health': a tab key as it appears inside element ids.
 const capId = t => t[0].toUpperCase() + t.slice(1);
+// The title shown at the top of the page for each tab.
 const TAB_TITLE = { link: 'By Amazon Link', new: 'New Product', pr: 'Product Research', kw: 'Keywords', ba: 'Analytics',
-  age: 'Inventory Age', health: 'Listing Health', lrules: 'Listing Rules', audit: 'Listing Audit', bsr: 'BSR Audit', weekly: 'PPC & Organic', ppcn: 'PPC & Organic · New',
+  age: 'Inventory Age', health: 'Listing Health', lrules: 'Listing Rules', audit: 'Listing Audit', bsr: 'BSR Audit',
+  weekly: 'PPC & Organic', ppcn: 'PPC & Organic · New',
   trends: 'Ad Console', st: 'Search Terms', plc: 'Placement', deals: 'Deal Calendar', sales: 'Sales Dashboard',
-  profit: 'Profit & Margin', sa: 'Sales Analysis', plaudit: 'Parent Listing Review', shop: 'Shopify Orders', adj: 'Adjustments', tiktok: 'TikTok Toolkit', carousel: 'Carousel Builder', opt: 'Listing Optimiser', img: 'Image Manager', lerr: 'Listing Errors', basket: 'Bought Together' };
+  profit: 'Profit & Margin', sa: 'Sales Analysis', plaudit: 'Parent Listing Review', shop: 'Shopify Orders',
+  adj: 'Adjustments', tiktok: 'TikTok Toolkit', carousel: 'Carousel Builder', opt: 'Listing Optimiser',
+  img: 'Image Manager', lerr: 'Listing Errors', basket: 'Bought Together' };
 
 // Tabs hidden from the sidebar. Everything (panes, JS, backend) stays wired up — take a name out of
 // this list and that tab is back, no other change needed.
@@ -3366,33 +3521,44 @@ const TAB_INHERIT = { ppcn: 'weekly' };
 
 /* ---------- sidebar: collapsible groups + the 3-line menu button ---------- */
 // Read straight off the markup, so adding a group is an HTML edit and nothing here changes.
+// (That note is about NAV_GROUPS below.) The guide button opens the guide in a new tab, at the screen on view.
 $('guideBtn').onclick = () => window.open('/guide/' + (TAB_NOW ? '#' + TAB_NOW : ''), '_blank');
 
-const NAV_GROUPS = [...document.querySelectorAll('.navgrp')].map(h => ({
-  key: h.dataset.grp, head: h, sec: $('sec' + capId(h.dataset.grp)), tabs: h.dataset.tabs.split(',') }));
+// The menu groups: one entry per .navgrp heading button in the sidebar, with its section of tab buttons.
+const NAV_GROUPS = [...document.querySelectorAll('.navgrp')].map(heading => ({
+  key: heading.dataset.grp,                          // 'research', 'sales', 'listing', …
+  head: heading,                                     // the heading button
+  sec: $('sec' + capId(heading.dataset.grp)),        // the section under it, holding the tab buttons
+  tabs: heading.dataset.tabs.split(',') }));         // the tab keys inside the group
 
+// Open or close one menu group (the heading and its section together).
 function setGroupOpen(g, open) {
   g.head.classList.toggle('open', open);
   g.head.setAttribute('aria-expanded', String(open));
   g.sec.classList.toggle('open', open);
 }
+// Empty on purpose: the open groups were once remembered across visits and are not any more. Nothing calls it.
 function saveGroups() { /* a menu is not a shape to remember */ }
 /* ONE MENU OPEN AT A TIME, and it closes as soon as something is picked, the page is clicked, or
  * Escape is pressed. A panel hangs over the work, so it does not linger. */
+// Click a heading: open its group (closing the others), or close it when it was the open one.
 NAV_GROUPS.forEach(g => g.head.onclick = e => {
   e.stopPropagation();
   const opening = !g.head.classList.contains('open');
-  NAV_GROUPS.forEach(x => setGroupOpen(x, x === g ? opening : false));
+  NAV_GROUPS.forEach(grp => setGroupOpen(grp, grp === g ? opening : false));
 });
+// Picking a tab inside a group closes every group.
 NAV_GROUPS.forEach(g => g.sec.addEventListener('click', e => {
-  if (e.target.closest('.nav')) NAV_GROUPS.forEach(x => setGroupOpen(x, false));
+  if (e.target.closest('.nav')) NAV_GROUPS.forEach(grp => setGroupOpen(grp, false));
 }));
+// So does a click anywhere else on the page …
 document.addEventListener('click', e => {
   if (e.target.closest('.navgrp') || e.target.closest('.navsec')) return;
-  NAV_GROUPS.forEach(x => setGroupOpen(x, false));
+  NAV_GROUPS.forEach(grp => setGroupOpen(grp, false));
 });
+// … and the Escape key.
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') NAV_GROUPS.forEach(x => setGroupOpen(x, false));
+  if (e.key === 'Escape') NAV_GROUPS.forEach(grp => setGroupOpen(grp, false));
 });
 /* NOTHING IS RESTORED ON LOAD. A sidebar's open groups were worth remembering; a dropdown that
  * opened by itself would be a panel over the work nobody asked for. */
@@ -3411,7 +3577,9 @@ syncNavGroups(null);
 
 // The hamburger hides the sidebar outright on a wide screen and slides it over the page on a narrow
 // one — same button, and the CSS decides which. Only the wide-screen choice is worth remembering.
+// Is this the narrow (phone) layout, where the sidebar slides over the page?
 const NARROW = () => window.matchMedia('(max-width:860px)').matches;
+// Show or hide the sidebar. On a wide screen the choice is remembered (localStorage navShut) unless remember is false.
 function setNavOpen(open, remember) {
   $('appView').classList.toggle('navshut', !open);
   $('hambBtn').setAttribute('aria-expanded', String(open));
@@ -3419,15 +3587,18 @@ function setNavOpen(open, remember) {
     try { localStorage.setItem('navShut', open ? '0' : '1'); } catch (e) {}
   }
 }
+// The hamburger toggles the sidebar; the close button and the scrim (the shade over the page on a phone) close it.
 $('hambBtn').onclick = () => setNavOpen($('appView').classList.contains('navshut'));
 $('navClose').onclick = () => setNavOpen(false);
 $('navScrim').onclick = () => setNavOpen(false);
+// On load: closed on a phone; on a wide screen, as it was left (open unless navShut was saved as '1').
 (() => {
   let shut = null;
   try { shut = localStorage.getItem('navShut'); } catch (e) {}
   setNavOpen(NARROW() ? false : shut !== '1', false);
 })();
 
+/* ---------- switching screens ---------- */
 const FIRST_TAB = TABS.find(t => !HIDDEN_TABS.includes(t)) || 'new';
 showTab(FIRST_TAB);                       // open on the first tab that's actually visible
 
@@ -3435,8 +3606,11 @@ showTab(FIRST_TAB);                       // open on the first tab that's actual
 // overlaps when it opens.
 /* var, not let: showTab runs while the page is still being set up, before a let would exist. */
 var TAB_NOW = '';
+// Open one tab: mark its button, show its pane and hide every other pane and panel, set the page title,
+// mark the menu group it sits in, and call its ensure… loader (each screen's own file) so it fills itself.
 function showTab(which) {
   TAB_NOW = which;
+  // --- buttons and panes ---
   TABS.forEach(t => {
     $('tab' + capId(t)).classList.toggle('on', which === t);
     $('pane' + capId(t)).classList.toggle('hide', which !== t);
@@ -3446,13 +3620,18 @@ function showTab(which) {
   $('noAccess').classList.add('hide');
   $('toggleSettings').classList.remove('on');
   $('pageTitle').textContent = TAB_TITLE[which] || '';
+  // --- the menu ---
   // Never leave the open tab sitting inside a collapsed group, and on a phone get the drawer out of
   // the way now that a choice has been made.
   /* The menu that holds this screen is MARKED, not opened: opening it would drop a panel over the
    * screen somebody has just asked for. */
   const grp = NAV_GROUPS.find(g => g.tabs.includes(which));
-  NAV_GROUPS.forEach(g => { setGroupOpen(g, false); g.head.classList.toggle('here', g === grp); });
+  NAV_GROUPS.forEach(g => {
+    setGroupOpen(g, false);
+    g.head.classList.toggle('here', g === grp);
+  });
   if (NARROW()) setNavOpen(false, false);
+  // --- the screen's own loader: each ensure… lives in that screen's file and loads it on the first visit ---
   if (which === 'kw') loadNiches();       // lazy-load the niche list the first time
   if (which === 'age') ensureAge();       // show the cached snapshot without hitting Amazon
   if (which === 'health') ensureHealth();
@@ -3485,14 +3664,32 @@ function showTab(which) {
 TABS.forEach(t => { $('tab' + capId(t)).onclick = () => showTab(t); });
 
 /* ============================== FILE: src/app/core/settings.js ============================== */
+/* ================= CORE · SETTINGS: the Settings screen, and saving the Access form =================
+ * Screens: Settings (settingsCard), opened by the sidebar's Settings button, and the Access card inside
+ * it (accessCard, admins only).
+ * Does: opens the Settings pane (the toggleSettings handler). For the Access card: warns when the Vendor
+ * Portal is ticked together with other sections (accessVendCheck), keeps the counts and that warning
+ * current as boxes are ticked, and saves one person's rights to Firestore perms/{email} and to the
+ * factory database's copy (the accessSave handler). loadSettings reads settings/default into SET and
+ * fills the Settings fields; readSettings reads them back. The Settings fields' own Save button is wired
+ * in research/fee-tables.js.
+ * Main functions: accessVendCheck, loadSettings, readSettings, and the toggleSettings / accessSave handlers. */
+
 /* ---------- settings ---------- */
+// The Settings button: hide every tab pane, show the Settings pane and, for an admin, the Access card freshly loaded.
 $('toggleSettings').onclick = () => {
-  TABS.forEach(t => { $('pane' + capId(t)).classList.add('hide'); $('tab' + capId(t)).classList.remove('on'); });
+  TABS.forEach(t => {
+    $('pane' + capId(t)).classList.add('hide');
+    $('tab' + capId(t)).classList.remove('on');
+  });
   $('noAccess').classList.add('hide');
   $('settingsCard').classList.remove('hide');
   // The Access panel lives with Settings and only exists for admins.
   $('accessCard').classList.toggle('hide', !ME.admin);
-  if (ME.admin) { accessTabBoxes(); loadAccessList(); }
+  if (ME.admin) {
+    accessTabBoxes();
+    loadAccessList();
+  }
   $('toggleSettings').classList.add('on');
   $('pageTitle').textContent = 'Settings';
   if (NARROW()) setNavOpen(false, false);
@@ -3508,13 +3705,21 @@ $('toggleSettings').onclick = () => {
  * is the one that hurts: it is the planning board, with every SKU, every reorder and the revenue
  * behind them.
  */
+// Show or hide the vendor warning under the Access cards, from what is ticked right now.
 function accessVendCheck() {
-  const el = $('accessVendWarn'); if (!el) return;
+  const el = $('accessVendWarn');
+  if (!el) return;
+  // --- what is ticked ---
   const ticked = [...$('accessGroups').querySelectorAll('.repltab')].filter(c => c.checked);
   const hasVend = ticked.some(c => c.dataset.rt === 'vend');
   const others = ticked.filter(c => c.dataset.rt !== 'vend');
   const all = $('accessRepl').checked;
-  if (!hasVend) { el.classList.add('hide'); el.innerHTML = ''; return; }
+  if (!hasVend) {
+    el.classList.add('hide');
+    el.innerHTML = '';
+    return;
+  }
+  // --- the warning, in up to two parts ---
   const bits = [];
   bits.push('<b>Vendor Portal is ticked.</b> That says this account may OPEN the portal. It does not '
     + 'make it a vendor — that link is made in the Replenishment app under <b>Vendor Orders → '
@@ -3527,7 +3732,8 @@ function accessVendCheck() {
     /* ONCE THE ACCOUNT IS A REAL VENDOR, THE OTHER SECTIONS DO NOTHING. Every one of them reads
      * something the database refuses a vendor, so the app shows them the portal alone rather than a
      * row of tabs that can only say "permission denied" with their name on it. */
-    bits.push('It is ticked <b>together with ' + others.map(c => '&ldquo;' + c.parentElement.textContent.trim().split('\n')[0] + '&rdquo;').join(', ')
+    bits.push('It is ticked <b>together with '
+      + others.map(c => '&ldquo;' + c.parentElement.textContent.trim().split('\n')[0] + '&rdquo;').join(', ')
       + '</b>. Once this account is linked to a firm, <b>those sections will not open for them</b> — '
       + 'every one reads the whole factory\u2019s records, which the database refuses a vendor, so the '
       + 'app shows them the Vendor Portal alone. <b>A printer\u2019s own history is already in the '
@@ -3541,20 +3747,37 @@ function accessVendCheck() {
   el.innerHTML = bits.join('<br><br>');
   el.classList.remove('hide');
 }
-$('accessGroups').addEventListener('change', () => { accessCounts(); accessVendCheck(); });
-$('accessCard').addEventListener('change', e => { if (e.target && e.target.closest && e.target.closest('.accg-top')) accessCounts(); });
-$('accessGroups').addEventListener('click', e => {
-  const b = e.target.closest('.accg-all, .accg-none'); if (!b) return;
-  const on = b.classList.contains('accg-all');
-  b.closest('.accg').querySelectorAll('.accg-boxes input').forEach(c => { c.checked = on; });
-  accessCounts(); accessVendCheck();
+// Any box on the cards ticked or unticked: refresh the counts and the vendor warning.
+$('accessGroups').addEventListener('change', () => {
+  accessCounts();
+  accessVendCheck();
 });
+// A change in the Admin / "Replenishment app" boxes at the top of the Access card (accg-top) recounts the cards.
+$('accessCard').addEventListener('change', e => {
+  if (e.target && e.target.closest && e.target.closest('.accg-top')) accessCounts();
+});
+// A card's "All" / "None" button ticks or clears every box on that card.
+$('accessGroups').addEventListener('click', e => {
+  const btn = e.target.closest('.accg-all, .accg-none');
+  if (!btn) return;
+  const on = btn.classList.contains('accg-all');
+  btn.closest('.accg').querySelectorAll('.accg-boxes input').forEach(c => { c.checked = on; });
+  accessCounts();
+  accessVendCheck();
+});
+// Ticking "Replenishment app" (every section) changes what the vendor warning has to say.
 $('accessRepl').addEventListener('change', accessVendCheck);
 
+// Clear: empty the form.
 $('accessClear').onclick = () => fillAccessForm(null);
+// Save access: read the form, refuse the obvious mistakes, then write perms/{email} and the factory database's copy.
 $('accessSave').onclick = async () => {
+  // --- read the form ---
   const email = $('accessEmail').value.trim().toLowerCase();
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { $('accessMsg').textContent = 'Enter a valid email address.'; return; }
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    $('accessMsg').textContent = 'Enter a valid email address.';
+    return;
+  }
   const tabs = [...$('accessGroups').querySelectorAll('[data-tab]')].filter(c => c.checked).map(c => c.dataset.tab);
   const admin = $('accessAdmin').checked;
   const replTabs = [...$('accessGroups').querySelectorAll('.repltab')].filter(c => c.checked).map(c => c.dataset.rt);
@@ -3562,10 +3785,18 @@ $('accessSave').onclick = async () => {
   // off, exactly as the production-tracker accounts were granted by hand.
   const repl = $('accessRepl').checked || replTabs.some(t => !FACTORY_SECTIONS.includes(t));
   const prod = $('accessProd').checked;
-  if (!admin && !tabs.length && !repl && !prod && !replTabs.length && !$('accessEmpEdit').checked) { $('accessMsg').textContent = 'Tick at least one section, or Admin.'; return; }
+  // --- refuse the obvious mistakes ---
+  if (!admin && !tabs.length && !repl && !prod && !replTabs.length && !$('accessEmpEdit').checked) {
+    $('accessMsg').textContent = 'Tick at least one section, or Admin.';
+    return;
+  }
   // Losing your own admin rights would leave nobody able to grant them back.
-  if (email === ME.email && !admin) { $('accessMsg').textContent = 'You cannot remove your own admin rights.'; return; }
+  if (email === ME.email && !admin) {
+    $('accessMsg').textContent = 'You cannot remove your own admin rights.';
+    return;
+  }
   try {
+    // --- the extra rights, one checkbox each ---
     // replProj = may CHANGE the monthly projections (everyone with app access can still see them).
     const replProj = $('accessReplProj').checked;
     // prodEdit = may CHANGE an existing production entry. Adding one needs no right beyond the tab.
@@ -3606,13 +3837,17 @@ $('accessSave').onclick = async () => {
     // both brands would look like a rule that had been thought about when it is simply the default.
     let brands = [...document.querySelectorAll('.accbrand')].filter(c => c.checked).map(c => c.dataset.br);
     if (brands.length === 2) brands = [];
-    const rights = { admin, approve: $('accessApprove').checked, repl, replTabs, replProj, prodEdit, fgiEdit, fgiEntry, rateApprove, shopAssign, b2bAssign, accEntry, accEdit, mdbEdit, soApprove, vlogAccept,
+    // --- save: perms/{email} in Firestore, then the factory database's copy ---
+    const rights = {
+      admin, approve: $('accessApprove').checked, repl, replTabs, replProj, prodEdit, fgiEdit, fgiEntry, rateApprove,
+      shopAssign, b2bAssign, accEntry, accEdit, mdbEdit, soApprove, vlogAccept,
       vreqApprove, rfdApprove, rfdSend, attendMark, empEdit, prod, tabs, brands };
     await setDoc(doc(db, 'perms', email), Object.assign({}, rights, { at: serverTimestamp(), by: ME.email }));
     /* AND THE DATABASE'S COPY. A failure here is said out loud and not swallowed: the screen would
      * show a right the database does not honour, and the person would be refused with no reason. */
     let mirrorErr = '';
     try { await permMirror(email, rights); } catch (e) { mirrorErr = e.message || String(e); }
+    // --- say what was saved ---
     const factoryOnly = replTabs.length && !repl;
     $('accessMsg').textContent = `Saved. ${email} ${admin ? 'is an admin.' : 'now has what the list below shows.'}`
       + (factoryOnly ? ' Factory sections only, so this account reads nothing else in Firestore —'
@@ -3623,13 +3858,18 @@ $('accessSave').onclick = async () => {
       + '. Until it is, the factory app will refuse ' + email + ' what this screen says they have. Press Save again.';
     fillAccessForm(null);
     loadAccessList();
-  } catch (e) { $('accessMsg').textContent = 'Could not save: ' + (e.message || e); }
+  } catch (e) {
+    $('accessMsg').textContent = 'Could not save: ' + (e.message || e);
+  }
 };
 
+/* ---------- the Settings fields ---------- */
+// Read settings/default over the defaults into SET, then fill the Settings fields, the category and size-tier
+// tables and the New Product form's defaults.
 async function loadSettings() {
   try {
-    const s = await getDoc(doc(db, 'settings', 'default'));
-    SET = s.exists() ? { ...DEFAULTS, ...s.data() } : { ...DEFAULTS };
+    const snap = await getDoc(doc(db, 'settings', 'default'));
+    SET = snap.exists() ? { ...DEFAULTS, ...snap.data() } : { ...DEFAULTS };
   } catch { SET = { ...DEFAULTS }; }
   KEYS.forEach(k => $('s_' + k).value = SET[k]);
   drawCats(SET.cats && SET.cats.length ? SET.cats : DEF_CATS);
@@ -3637,11 +3877,17 @@ async function loadSettings() {
   fillNewDefaults();
   noteMult();
 }
+// The Settings fields as a settings object — a field that is not a number falls back to its default — plus the
+// category and size-tier tables as drawn.
 function readSettings() {
-  const s = {};
-  KEYS.forEach(k => { const v = parseFloat($('s_' + k).value); s[k] = isNaN(v) ? DEFAULTS[k] : v; });
-  s.cats = readCats(); s.tiers = readTiers();
-  return s;
+  const settings = {};
+  KEYS.forEach(k => {
+    const num = parseFloat($('s_' + k).value);
+    settings[k] = isNaN(num) ? DEFAULTS[k] : num;
+  });
+  settings.cats = readCats();
+  settings.tiers = readTiers();
+  return settings;
 }
 
 
@@ -3737,26 +3983,45 @@ $('saveSettings').onclick = async () => {
  * GROUP: src/app/core/
  * #################################################################################################### */
 /* ============================== FILE: src/app/core/backend.js ============================== */
+/* ================= CORE · BACKEND: the message line, and one Amazon lookup through the backend =================
+ * Screens: By Amazon Link (its message line, msg — also where sign-in's config errors are written) and New
+ * Product, which calls the lookup.
+ * Does: showMsg writes one line into that message slot, grey or red. callApi asks the backend at API.url,
+ * with its key, about one ASIN or Amazon URL and returns the JSON it answers with.
+ * Main functions: showMsg, callApi. */
+
 /* ---------- backend call ---------- */
-function showMsg(t, bad) { const m = $('msg'); m.textContent = t; m.className = bad ? 'err' : 'muted'; }
+// Write one line into the message slot (#msg, on the By Amazon Link screen): grey normally, red when bad is true.
+function showMsg(text, bad) {
+  const el = $('msg');
+  el.textContent = text;
+  el.className = bad ? 'err' : 'muted';
+}
 
 /** One Amazon lookup through the backend. Throws on any failure (incl. `ok:false` in the payload). */
 async function callApi(asinOrUrl, priceOverride) {
   if (!API || !API.url) throw new Error('Backend not configured — ' + (API_ERR || 'config/api was not read'));
-  const u = new URL(API.url);
-  u.searchParams.set('key', API.key);
-  u.searchParams.set('asin', asinOrUrl);
-  if (priceOverride > 0) u.searchParams.set('price', priceOverride);
-  const r = await fetch(u, { redirect: 'follow' });
-  const d = await r.json();
-  if (!d.ok) throw new Error(d.error || 'Lookup failed');
-  return d;
+  const url = new URL(API.url);
+  url.searchParams.set('key', API.key);
+  url.searchParams.set('asin', asinOrUrl);
+  if (priceOverride > 0) url.searchParams.set('price', priceOverride);
+  const res = await fetch(url, { redirect: 'follow' });
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || 'Lookup failed');
+  return data;
 }
 
 /* ============================== FILE: src/app/core/stock-doc.js ============================== */
+/* ================= CORE · STOCK DOC: the Amazon stock figures saved for the Replenish app =================
+ * Screens: none of its own — Listing Health and Parent Listing Review call it from their refresh buttons.
+ * Does: writes one brand's Amazon stock per SKU to Firestore stock/{brand}, and refuses an empty report.
+ * Main function: saveStockDoc(brand, map) → the number of SKUs saved. */
+
 /* ================= AMAZON STOCK, SAVED FOR THE REPLENISH APP =================
  * Listing Health's and Parent Listing Review's refresh save the Amazon stock per SKU to Firestore stock/{brand}; the
  * Replenish app's Shopify screen reads it. Kept here when the hidden Shopify Orders code left Sellora (2026-10-01). */
+// Save { sku: quantity } for one brand as stock/{brand} = { m: the map, n: how many SKUs, at: when }. Throws when
+// the map is empty, so a report that came back blank never wipes the quantities already saved.
 async function saveStockDoc(brand, map) {
   const n = Object.keys(map || {}).length;
   if (!n) {
@@ -17014,6 +17279,12 @@ async function ensurePpcn() {
  * GROUP: src/app/core/
  * #################################################################################################### */
 /* ============================== FILE: src/app/core/version-check.js ============================== */
+/* ================= CORE · VERSION CHECK: "A new version of Sellora is ready" =================
+ * Screens: every screen — the update bar (updBar) is added to the page body, whichever screen is open.
+ * Does: every three minutes, and whenever the tab comes back to the front, asks the server for the page's
+ * fingerprint; once it changes, shows a bar with an "Update now" button that reloads. Only over https.
+ * Main pieces: one self-running block holding tag (fetch the fingerprint), show (the bar) and check. */
+
 /* ================= A NEW VERSION IS OUT =================
  * A tab left open for days still runs the version it opened with, which is how a fix can be live and
  * the screen still show the old one. Every few minutes, and whenever the tab comes back to the front,
@@ -17021,22 +17292,40 @@ async function ensurePpcn() {
  * changed, a bar offers to reload. */
 (() => {
   try {
-    if (typeof document.getElementById !== 'function' || typeof fetch !== 'function' || location.protocol !== 'https:') return;
-    let first = null;
-    const tag = () => fetch('/', { method: 'HEAD', cache: 'no-store' }).then(r => r.headers.get('etag') || r.headers.get('last-modified') || '').catch(() => '');
+    // Only in a real browser, over https — never on a local file or in a test runner.
+    if (typeof document.getElementById !== 'function' || typeof fetch !== 'function'
+      || location.protocol !== 'https:') return;
+    let first = null;   // the fingerprint this tab opened with
+    // The page's fingerprint: its ETag or Last-Modified header, from a HEAD request; '' when the request fails.
+    const tag = () => fetch('/', { method: 'HEAD', cache: 'no-store' })
+      .then(res => res.headers.get('etag') || res.headers.get('last-modified') || '')
+      .catch(() => '');
+    // Put the update bar on the page, once.
     const show = () => {
       if (document.getElementById('updBar')) return;
-      const b = document.createElement('div');
-      b.id = 'updBar';
-      b.innerHTML = '<span>A new version of Sellora is ready.</span><button type="button">Update now</button>';
-      b.querySelector('button').onclick = () => location.reload();
-      document.body.appendChild(b);
+      const bar = document.createElement('div');
+      bar.id = 'updBar';
+      bar.innerHTML = '<span>A new version of Sellora is ready.</span><button type="button">Update now</button>';
+      bar.querySelector('button').onclick = () => location.reload();
+      document.body.appendChild(bar);
     };
-    const check = async () => { const t = await tag(); if (!t) return; if (first === null) { first = t; return; } if (t !== first) show(); };
+    // Compare the fingerprint now with the first one seen; a change means a new version is live.
+    const check = async () => {
+      const latest = await tag();
+      if (!latest) return;
+      if (first === null) {
+        first = latest;
+        return;
+      }
+      if (latest !== first) show();
+    };
+    // Now, every three minutes, and whenever the tab comes back to the front.
     check();
     setInterval(check, 3 * 60 * 1000);
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); });
-  } catch (e) { console.warn('[app] update check off:', e); }
+  } catch (e) {
+    console.warn('[app] update check off:', e);
+  }
 })();
 </script>
 </body>
