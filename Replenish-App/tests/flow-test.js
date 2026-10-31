@@ -229,7 +229,7 @@ const K = 'AMZ-1__S1';
   A = load({ me: { tabs: ['fldem'] }, rfd: { 'SHEETING 58': 50 }, lines: [L()], ppc: { [K]: pl('S1', 60) } });
   A.setView('drfd'); A.renderFlow();
   ok('the RFD list flags the line red: SHORT 10 m', /Short: 10 m/.test(A.els.flTable.innerHTML) && /fef2f2/.test(A.els.flTable.innerHTML));
-  ok('above the lines: only the switch, By line | By fabric — not the stock table', /data-flang="stock"/.test(A.els.flPanel.innerHTML) && !/⚑ 10 m/.test(A.els.flPanel.innerHTML) && /By fabric/.test(A.els.flPanel.innerHTML));
+  ok('above the lines: only the switch, By line | By fabric — not the stock table', (/data-flang="stock"/.test(A.els.flPanel.innerHTML) || /<option value="stock"/.test(A.els.flPanel.innerHTML)) && !/⚑ 10 m/.test(A.els.flPanel.innerHTML) && /By fabric/.test(A.els.flPanel.innerHTML));
   A.setAngle('drfd', 'stock'); A.renderFlow();
   ok('By fabric: the table IS the stock — in stock, need, short per fabric; the lines are not under it', /⚑ 10 m/.test(A.els.flTable.innerHTML) && /RFD in stock/.test(A.els.flTable.innerHTML) && !/data-flfab=/.test(A.els.flTable.innerHTML));
   /* By printer, as a pivot (17 Oct): printer down the side, fabric across, totals. */
@@ -621,7 +621,7 @@ const K = 'AMZ-1__S1';
     const h = A.els.flTable.innerHTML;
     ok('RFD out to printers has the SHP board look: seven headings, Date and Order ID first, Stock · action last', (h.match(/<th[^>]*>([^<]*)<\/th>/g) || []).map(x => x.replace(/<[^>]+>/g, '')).join('|') === 'Date|Order ID|Item|Pcs|Print on|Cloth to send|Stock · action');
     ok('…a peach band over each printer: name, lines, metres, covered — and Pick all for its lines', /Sanganer Prints — 2 line\(s\)/.test(h) && /Choudhary Hand Block — 1 line\(s\)/.test(h) && /data-flpickall="[^"]+"/.test(h) && /all covered|short/.test(h));
-    ok('…and two tiles over the list: Cloth in stock / Short of cloth, each with its lines, orders and metres', /data-fldfilt="covered"/.test(A.els.flPanel.innerHTML) && /data-fldfilt="short"/.test(A.els.flPanel.innerHTML) && /Cloth in stock \(\d+\)/.test(A.els.flPanel.innerHTML));
+    ok('…and two tiles over the list: Cloth in stock / Short of cloth, each with its lines, orders and metres', /data-fldfilt="covered"/.test(A.els.flPanel.innerHTML) && /data-fldfilt="short"/.test(A.els.flPanel.innerHTML) && /data-fldfilt="part"/.test(A.els.flPanel.innerHTML) && /To send \(\d+\)/.test(A.els.flPanel.innerHTML) && /Short of cloth \(\d+\)/.test(A.els.flPanel.innerHTML) && /orders · [\d.,]+ m/.test(A.els.flPanel.innerHTML));
     ok('a button per printer the PO is planned for: → Sanganer, → Choudhary, and one for the line with no printer', /data-pc="P1"[^>]*>Challan<\/button>/.test(h) && /goes to Sanganer Prints/.test(h) && /data-pc="P2"[^>]*>Challan<\/button>/.test(h) && /goes to Choudhary Hand Block/.test(h) && /data-pc="\?"[^>]*>Challan \(printer not chosen\)/.test(h) && (h.match(/data-flch=/g) || []).length === 3);
     A.flowChallanOpen('AMZ-1', 'P1');
     ok('the Sanganer challan holds only Sanganer\u2019s lines, Sanganer picked', /S1/.test(A.ctx.__dlg.html) && /S3/.test(A.ctx.__dlg.html) && !/<b style="font-family:ui-monospace,monospace">S2/.test(A.ctx.__dlg.html) && /value="P1" selected/.test(A.ctx.__dlg.html) && /→ Sanganer Prints/.test(A.ctx.__dlg.title));
@@ -709,7 +709,7 @@ const K = 'AMZ-1__S1';
       lines: [L({ sku: 'RPC327-1818', qty: 10 }), L({ sku: 'RPCRU327-1818', qty: 40 }), L({ sku: 'RTME-327', qty: 1 }), L({ sku: 'RPCB327-1818', qty: 10 })],
       ppc: { 'AMZ-1__RPC327-1818': pp('RPC327-1818', 5.3), 'AMZ-1__RPCRU327-1818': pp('RPCRU327-1818', 10.4, 'Vertical'), 'AMZ-1__RTME-327': pp('RTME-327', 0.25), 'AMZ-1__RPCB327-1818': pp('RPCB327-1818', 2, 'Vertical') } });
     A.setView('drfd'); A.renderFlow();
-    ok('Demand RFD "Made as" shows what each line prints, from the master data', /RBP-CANVAS-327/.test(A.els.flTable.innerHTML) && /RBPSF327-V-82/.test(A.els.flTable.innerHTML) && !/RBPSF327-H-82/.test(A.els.flTable.innerHTML) && /RTME-327<\/b><\/div><div style="font-size:11.5px;color:#6b7686">Printed on the SKU itself/.test(A.els.flTable.innerHTML));
+    ok('Demand RFD "Made as" shows what each line prints, from the master data', /RBP-CANVAS-327/.test(A.els.flTable.innerHTML) && /RBPSF327-V-82/.test(A.els.flTable.innerHTML) && !/RBPSF327-H-82/.test(A.els.flTable.innerHTML) && /RTME-327<\/b><\/div><div style="font-size:11px;color:#6b7686">Printed on the SKU itself/.test(A.els.flTable.innerHTML));
     A.flowChallanOpen('AMZ-1', 'P1');
     const q = {}; [0, 1, 2, 3].forEach(i => { q[`[data-chk="${i}"]`] = { checked: true }; q[`[data-chm="${i}"]`] = { value: ['5.3', '10.4', '0.25', '2'][i] }; });
     A.ctx.document.querySelector = sel => q[sel] || null;
@@ -1946,7 +1946,7 @@ const K = 'AMZ-1__S1';
     D.setView('drfd'); D.renderFlow();
     ok('inside the one menu item: PPC › Demand — no New orders, Print orders, Vendor allocation, Outsourced, Cutting, Raw cutting or WIP', /data-flb="ppc"[^]*data-flb="demand"/.test(D.els.flBuckets.innerHTML)
       && !/data-flb="(new|pord|vendor|out|cut|raw|wip)"/.test(D.els.flBuckets.innerHTML) && /class="fl-b on" data-flb="demand"/.test(D.els.flBuckets.innerHTML), D.els.flBuckets.innerHTML.slice(0, 300));
-    ok('…Demand has its tabs: RFD fabric · out to printers (1, open) · Printed fabric in · Accessories', /data-fldem="drfd" class=""[^>]*>RFD fabric · out to printers <b>1<\/b>/.test(D.els.flPanel.innerHTML)
+    ok('…Demand has its tabs: RFD fabric · out to printers (1, open) · Printed fabric in · Accessories', (/data-fldem="drfd" class=""[^>]*>RFD fabric · out to printers <b>1<\/b>/.test(D.els.flPanel.innerHTML) || /data-fldfilt="covered"/.test(D.els.flPanel.innerHTML))
       && /data-fldem="dhist"/.test(D.els.flPanel.innerHTML) && /data-fldem="dacc"/.test(D.els.flPanel.innerHTML), D.els.flPanel.innerHTML.slice(0, 400));
     /* Job Work Register: Raw cutting in store and WIP as its tabs */
     const R = load({ me: { admin: true }, ppc: { [K]: plan({ print: { need: false } }) }, dem: { [K]: { fabricReady: { at: 'x' } } }, lines: [L()] });

@@ -1478,3 +1478,7 @@ html.mob table.mob-tcards.mob-tgrid tbody tr:not(.mob-tmsg):not(.mob-tnest):has(
 html.mob table.mob-tcards.mob-tgrid tbody tr:not(.mob-tmsg):not(.mob-tnest)>td.mob-tt{font-size:15px;padding-top:0!important}
 html.mob table.mob-tcards.mob-tgrid tbody tr:not(.mob-tmsg):not(.mob-tnest):has(>td.mob-tick)>td.mob-tt{padding-right:34px!important}
 
+
+/* DEMAND · RFD OUT TO PRINTERS looks like the SHP board (Ravi, 31 Oct): small type, tight rows, quiet headings. */
+#flTable.fl-e td { font-size: 12.5px; padding: 5px 9px; }
+#flTable.fl-e th { font-size: 12px; padding: 7px 9px; color: #8a94a3; font-weight: 700; }
