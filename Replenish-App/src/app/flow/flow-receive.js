@@ -376,7 +376,7 @@ function flowDueTable(q, testOnly) {
       const typed = +FLOW_DUE.typed[id] > 0, colour = x.r.color || m.color || '';
       return `<tr><td style="text-align:left;white-space:nowrap;font-size:12px;vertical-align:middle">${typed ? `<b>${esc(today)}</b>` : day ? esc(flowDueDay(day)) : '<span class="muted">—</span>'}</td>
       <td style="text-align:left;vertical-align:middle"><b style="font-size:13.5px;text-decoration:underline dotted">${esc(x.orderNo)}</b>${x.test ? ' <span class="navbadge" style="background:#7c3aed;position:static">TEST</span>' : ''}</td>
-      <td style="text-align:left;vertical-align:middle;min-width:260px"><div style="display:flex;gap:8px;align-items:center">${typeof ptImgSpan === 'function' ? ptImgSpan(x.sku, 36) : ''}<div style="line-height:1.3"><div style="font-weight:600;font-size:12.5px">${esc(x.r.articleSubtype || m.subtype || x.r.articleType || m.articleType || '—')}</div>
+      <td style="text-align:left;vertical-align:middle;min-width:260px;max-width:380px;white-space:normal"><div style="display:flex;gap:8px;align-items:center">${typeof ptImgSpan === 'function' ? ptImgSpan(x.sku, 36) : ''}<div style="line-height:1.3"><div style="font-weight:600;font-size:12.5px">${esc(x.r.articleSubtype || m.subtype || x.r.articleType || m.articleType || '—')}</div>
         <div style="font-size:11px;color:#6b7686">${colour ? esc(colour) + ' · ' : ''}<span style="font-family:ui-monospace,monospace">${esc(x.sku)}</span></div></div></div></td>
       <td style="font-size:12.5px;vertical-align:middle">${esc(x.r.size || m.size || '') || '<span class="muted">—</span>'}</td>
       <td class="num" style="font-weight:700;vertical-align:middle">${flowQtyTxt(x.need, x.unit)}</td>

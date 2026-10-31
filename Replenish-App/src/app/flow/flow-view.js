@@ -102,6 +102,8 @@ function renderFlow() {
   FLOW.held = FLOW_VIEW === 'dacc' ? shown.filter(x => x.s.res && !x.s.issued && x.s.bucket !== 'done') : [];
   $('flTable').innerHTML = flowTable(FLOW_VIEW, rows.slice(0, 800));
   $('flTable').classList.toggle('fl-e', FLOW_VIEW === 'drfd' && (FLOW_ANGLE[FLOW_VIEW] || 'line') === 'line');
+  /* The receive sheet hugs its content (Ravi, 31 Oct: "bahut jyada space"): no stretched Item column with Size and Ordered at the far edge. */
+  $('flTable').classList.toggle('fl-due', FLOW_VIEW === 'dhist' && (FLOW_ANGLE.dhist || 'due') === 'due');
   /* PPC in Excel: on the PPC bucket only — the lines on screen are what the sheet holds. */
   FLOW.shownPpc = FLOW_VIEW === 'ppc' ? rows : [];
   FLOW.shownDrfd = FLOW_VIEW === 'drfd' ? rows : [];     // every line the filters let through, not only the 800 drawn
