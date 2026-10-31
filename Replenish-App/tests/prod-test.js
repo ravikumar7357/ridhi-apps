@@ -10141,6 +10141,9 @@ console.log('\n== a Shopify order is packs, the factory makes pieces ==');
     A.setFGI(Object.assign({}, A.FGI(), { rows: A.FGI().rows.concat([{ _id: 'OPN-10', txnType: 'OPENING', sku: 'FLT-9', qty: 4, date: '02/10/2026', createdAt: '2026-10-02T00:00:00Z' }]) }));
     { const e2 = await A.ordStockSave(ln(), { pcs: '4' }); ok('the rest from stock completes the line', !e2 && ln().open === false && ln().pendingMake === 0, String(e2) + JSON.stringify([ln().open, ln().pendingMake, ln().fromStock])); }
     A.setPTG(keepG); A.setFGI(keepF); NET.on = wasN; ME.admin = wasA; }
+  { const big = 'Top/base: 36 x 75 in white cotton sheeting Ruffle: Gathered coral stripe fabric Ruffle drop: 18 from the top of the box spring to the floor Ruffle: Three sides of each bed Back/inner side: We can either use white cotton sheeting, or use the coral stripe sheeting fabric';
+    const cell = A.ordItemCell({ sku: 'SO-261029-01', itemName: 'Bed dust ruffles', color: 'Pink stripe', size: big }, '', '', false);
+    ok('a whole paragraph in the size box is cut and wrapped, not left to widen the table (full text on hover)', /white-space:normal/.test(cell) && !cell.replace(/title=\"[^\"]*\"/, '').includes(big.slice(0, 200)) && cell.includes('…') && /title="/.test(cell) && /max-width:340px/.test(cell)); }
   ok('a CPC napkin code with no size after it is a set of four, and a size after it wins', A.obPcsPerPack('CPCN007') === 4 && A.obPcsPerPack('CPCN005') === 4 && A.obPcsPerPack('CPCN005-12') === 12 && A.obPcsPerPack('CPCN005-6') === 6);
   { const keepG = A.PTG(); A.setPTG(Object.assign({}, keepG, { mdb: (keepG.mdb || []).concat([{ sku: 'RPI-TEST1', articleType: 'Pillow Insert' }]) }));
     ok('a pillow insert never opens in production, and is not the SHP board own', A.shpInsertProduct('RPI-TEST1') === true && A.shpbIsMine({ sku: 'RPI-TEST1' }) === false && A.shpInsertProduct('CPCN007') === false);

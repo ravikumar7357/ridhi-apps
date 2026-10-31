@@ -24023,11 +24023,14 @@ function ptImgSpanSrc(sku, url, px) {
 /** The product: picture, what it is, colour • size, then the code. */
 function ordItemCell(r, img, extra, frz) {
   const what = [r.color, r.size].filter(Boolean).join(' • ');
-  return '<td' + (frz ? ' class="frz"' : '') + ' style="text-align:left"><div class="jw-item">' + (img == null ? ptImgSpan(r.sku, 42) : img)
+  /* A LONG SPEC IN THE COLOUR OR SIZE BOX (30 Oct: a custom bed-dust-ruffle order put a whole paragraph there and one column took the page): the
+   * cell has a width, the line wraps inside it and is cut at 120 letters, the full text on hover. */
+  const whatShort = what.length > 120 ? what.slice(0, 117) + '…' : what;
+  return '<td' + (frz ? ' class="frz"' : '') + ' style="text-align:left;max-width:340px;white-space:normal;overflow-wrap:break-word"><div class="jw-item">' + (img == null ? ptImgSpan(r.sku, 42) : img)
     + '<div style="min-width:0"><div style="font-weight:600">' + (esc(r.articleSubtype || r.articleType || r.itemName) || '<span class="muted">—</span>') + '</div>'
     + (!r.articleSubtype && !r.articleType && r.itemName && r.material ? '<div class="jw-sub">' + esc(r.material) + '</div>' : '')
     + (r.articleSubtype && r.articleType ? '<div class="jw-sub">' + esc(r.articleType) + '</div>' : '')
-    + '<div class="jw-sub">' + (esc(what) || '—') + '</div>'
+    + '<div class="jw-sub" style="white-space:normal"' + (what.length > 120 ? ' title="' + esc(what) + '"' : '') + '>' + (esc(whatShort) || '—') + '</div>'
     + '<div class="jw-sku">' + esc(r.sku) + '</div>' + (extra || '') + '</div></div></td>';
 }
 /* THE BUYER OF A B2B ORDER (Ravi, 20 Oct: "b2b orders me buyer ka name bhi add krdo order number me" — shown beside the
