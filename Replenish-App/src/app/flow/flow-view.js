@@ -104,6 +104,7 @@ function renderFlow() {
   $('flTable').classList.toggle('fl-e', FLOW_VIEW === 'drfd' && (FLOW_ANGLE[FLOW_VIEW] || 'line') === 'line');
   /* The receive sheet hugs its content (Ravi, 31 Oct: "bahut jyada space"): no stretched Item column with Size and Ordered at the far edge. */
   $('flTable').classList.toggle('fl-due', FLOW_VIEW === 'dhist' && (FLOW_ANGLE.dhist || 'due') === 'due');
+  $('flTable').classList.toggle('fl-ppc', FLOW_VIEW === 'ppc');
   /* PPC in Excel: on the PPC bucket only — the lines on screen are what the sheet holds. */
   FLOW.shownPpc = FLOW_VIEW === 'ppc' ? rows : [];
   FLOW.shownDrfd = FLOW_VIEW === 'drfd' ? rows : [];     // every line the filters let through, not only the 800 drawn
@@ -626,40 +627,53 @@ function flowTable(view, rows) {
     body = rows.map(x => `<tr>${base(x)}<td style="text-align:left">${esc(now(x.s))}${x.s.res && !x.s.issued && flowBucketsAllowed().some(b => b[0] === 'dacc')
       ? ` <button class="ghost" data-flunres="${esc(x.s.key)}" style="width:auto;padding:1px 7px;font-size:11px">Release accessories</button>` : ''}</td></tr>`).join('');
   } else if (view === 'ppc') {
-    head = ['PO', 'SKU', 'Qty', 'What the plan will hold', ''];
+    /* PPC, REDESIGNED (Ravi, 31 Oct: "premium SaaS ERP … fix the Product Details section first"). Seven columns — Date, Order ID, Product details,
+     * Qty, Fabric, Printer, Actions — each saying one thing. Product details: the name, then design · size, then the SKU, then the line's state as a
+     * coloured badge (green nothing left to make, blue started, orange needs attention, grey draft). Every button and fact of the old table stays:
+     * Plan this PO, This line, Back to sales, Plan together, the draft mark, accessories, the printer's reason, the started detail. */
     const seen = new Set();
-    /* SAME SKU, SAME DAY, COMBINED (Ravi, 15 Oct: "yadi mere pas 1 SKU ka same day order aay to wo sare order combine hokar
-     * dikhe PPC team ko"). Two or more orders of one day asking for one SKU are one row: the orders and their quantities,
-     * the total, what the plan holds for the total, and "Plan together" — each line still gets its own plan. */
     const grpOf = x => obUC(x.r.sku) + '|' + String(ptIsoDate(x.r.orderDate) || '') + '|' + (x.r.__t ? 'T' : 'R');
-    /* BACK TO THE SALES TEAM (flow-back.js): a line PPC cannot plan goes back with a reason. */
-    const backBtn = g => flowCanBack() && !g.some(x => x.r.__t) ? `<button class="ghost" data-flback="${esc(g.map(x => x.s.key).join(','))}" title="Something is wrong with the order or its master — send it back to the sales team with a reason" style="width:auto;padding:2px 8px;font-size:11.5px;color:#b91c1c;border-color:#fca5a5">Back to sales</button>` : '';
+    const backBtn = g => flowCanBack() && !g.some(x => x.r.__t) ? `<button class="ppc-btn ppc-out" data-flback="${esc(g.map(x => x.s.key).join(','))}" title="Something is wrong with the order or its master — send it back to the sales team with a reason">Back to sales</button>` : '';
     const grps = new Map(); rows.forEach(x => { const k = grpOf(x); (grps.get(k) || grps.set(k, []).get(k)).push(x); });
     const drawn = new Set();
+    const dmyOf = r => { const d = ptIsoDate(r.orderDate) || ''; return d ? d.slice(8, 10) + '-' + d.slice(5, 7) + '-' + d.slice(0, 4) : ''; };
+    const dateCell = r => { const a = flowDays(r.orderDate); return `<td class="frz ppc-date">${esc(dmyOf(r))}${a != null ? `<div class="ppc-sub">${nf(a)} days</div>` : ''}</td>`; };
+    const idLink = x => x.r.__t ? `<b>${esc(x.r.orderNo)}</b> <span class="navbadge" style="background:#7c3aed;position:static">TEST</span>` : `<a href="#" class="ppc-id" data-ordj="${esc(x.r.orderNo)}">${esc(x.r.orderNo)}</a>`;
+    const idCell = x => { const buyer = typeof ordBuyerOf === 'function' ? ordBuyerOf(x.r.orderNo) : '', first = !seen.has(x.r.orderNo); seen.add(x.r.orderNo);
+      /* The order is named in full once; its next lines carry the number small (14 Oct, "compact"). */
+      if (!first) return `<td class="ppc-ord"><div class="ppc-sub">${esc(x.r.orderNo)}</div></td>`;
+      return `<td class="ppc-ord">${idLink(x)}${buyer ? `<div class="ppc-sub" style="font-weight:600;color:#17202b">${esc(buyer)}</div>` : ''}<div class="ppc-sub">${esc(flowSrcOf(x))}</div>`
+        + (x.r.fromSo ? `<div class="ppc-sub">Copy of sales order ${esc(x.r.fromSo)}</div>` : '')
+        + (x.r.__t && first ? `<a href="#" data-fltdel="${esc(x.r.orderNo)}" style="font-size:11.5px;color:#b91c1c">delete test</a>` : '') + '</td>'; };
+    /* The line's state, as badges: started (blue, or green when nothing is left), what needs attention (orange), a saved draft (grey). */
+    const badges = (x, sg) => { const out = [];
+      if (x.s.startedNoPlan) { const left = Math.round((+x.r.qty || 0) * flowRemFrac(x.r, x.s)); out.push(left > 0 ? '<span class="ppc-badge b-blue">Already started</span>' : '<span class="ppc-badge b-green">Nothing left to make</span>'); }
+      if (sg && sg.gaps && sg.gaps.length) out.push(`<span class="ppc-badge b-orange" title="${esc(sg.gaps.join(' · '))}">Needs attention${sg.gaps.length > 1 ? ' · ' + nf(sg.gaps.length) : ''}</span>`);
+      if (flowPpcHasDraft(x.s.key)) out.push('<span class="ppc-badge b-grey" title="Started in PPC and saved as a draft on this computer — open it to carry on">Draft saved</span>');
+      return out.length ? `<div class="ppc-badges">${out.join('')}</div>` : ''; };
+    const product = (x, sg, extra) => `<td class="ppc-prod"><div class="ppc-pr">${pic(x.r.sku)}<div style="min-width:0">
+        <div class="ppc-name">${esc(x.r.articleSubtype || x.r.articleType || x.r.itemName || '—')}</div>
+        <div class="ppc-var">${esc([x.r.articleSubtype || x.r.articleType ? '' : x.r.material, x.r.color, x.r.size].filter(Boolean).join(' · '))}</div>
+        <div class="ppc-sku">${esc(x.r.sku)}</div>${badges(x, sg)}${flowStartedHtml(x)}
+        ${sg && sg.gaps && sg.gaps.length ? `<div class="ppc-warn">${esc(sg.gaps[0])}${sg.gaps.length > 1 ? ' (+' + (sg.gaps.length - 1) + ')' : ''}</div>` : ''}${extra || ''}</div></div></td>`;
+    const fabricCell = sg => `<td class="ppc-fab">${sg.fabric.name ? `<b>${esc(sg.fabric.name)}</b>` : '<b class="ppc-red">Fabric not known</b>'}<div class="${sg.fabric.metres ? 'ppc-sub' : 'ppc-red'}">${sg.fabric.metres ? nf(sg.fabric.metres) + ' m' : 'metres not known'}</div>`
+      + (sg.acc.length ? `<div class="ppc-sub">Accessories: ${sg.acc.map(a => esc(a.code) + ' × ' + nf(a.qty)).join(', ')}</div>` : '') + '</td>';
+    const printerCell = sg => `<td class="ppc-prn">${sg.print.need ? `<b>${esc(sg.printer.name || 'printer not chosen')}</b>${sg.printer.why ? `<div class="ppc-sub">${esc(sg.printer.why)}</div>` : ''}` : '<span class="ppc-sub">No printing — straight to cutting</span>'}</td>`;
     const combined = g => { const x0 = g[0], tot = g.reduce((a, x) => a + (+x.r.qty || 0), 0), sg = flowSuggest(Object.assign({}, x0.r, { qty: tot }));
       prevNo = null;
-      return `<tr style="background:#f5f3ff"><td class="frz" style="text-align:left;width:250px;max-width:250px;white-space:normal;vertical-align:top">
-          <span class="jw-st prog">Combined · ${nf(g.length)} orders</span><div class="muted" style="font-size:12px;margin-top:3px">same SKU, ordered ${esc(ptIsoDate(x0.r.orderDate) || '')}</div>
-          ${g.map(x => `<div style="font-size:12.5px">${x.r.__t ? `<b>${esc(x.r.orderNo)}</b>` : `<a href="#" data-ordj="${esc(x.r.orderNo)}">${esc(x.r.orderNo)}</a>`} · <b>${nf(x.r.qty)}</b> <span class="muted">${esc(x.r.src || '')}</span></div>${flowStartedHtml(x)}`).join('')}</td>
-        <td style="text-align:left;white-space:nowrap;vertical-align:top"><div style="display:flex;gap:8px;align-items:flex-start">${pic(x0.r.sku)}<div style="line-height:1.5">
-          <b style="font-family:ui-monospace,monospace">${esc(x0.r.sku)}</b>${[x0.r.articleSubtype || x0.r.articleType, x0.r.color, x0.r.size].filter(Boolean).map(t => `<div class="muted" style="font-size:12px">${esc(t)}</div>`).join('')}</div></div></td>
-        <td class="num" style="vertical-align:top"><b>${nf(tot)}</b><div class="muted" style="font-size:11px">${g.map(x => nf(x.r.qty)).join(' + ')}</div></td>
-        <td style="text-align:left;font-size:13px;line-height:1.55;white-space:normal;min-width:240px;vertical-align:top">
-          <div>Fabric: <b>${esc(sg.fabric.name || '?')}</b> · ${sg.fabric.metres ? nf(sg.fabric.metres) + ' m' : '<b style="color:#b91c1c">metres not known</b>'}</div>
-          <div>${sg.print.need ? `Print: <b>${esc(sg.printer.name || 'printer not chosen')}</b>` : 'No printing — straight to cutting'}</div></td>
-        <td style="white-space:nowrap;vertical-align:top"><div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start"><button data-flppck="${esc(g.map(x => x.s.key).join(','))}" style="width:auto;padding:3px 10px;font-size:12px">Plan together · ${nf(g.length)} orders</button>
-          ${backBtn(g)}</div></td></tr>`; };
+      return `<tr class="ppc-comb">${dateCell(x0.r)}<td class="ppc-ord"><span class="ppc-badge b-blue">Combined · ${nf(g.length)} orders</span>`
+        + g.map(x => `<div style="margin-top:4px">${idLink(x)} <span class="ppc-sub">· ${nf(x.r.qty)} pcs · ${esc(x.r.src || '')}</span></div>${flowStartedHtml(x)}`).join('') + '</td>'
+        + product(x0, sg, '<div class="ppc-sub">same SKU, same order day</div>')
+        + `<td class="ppc-qty"><b>${nf(tot)}</b><div class="ppc-sub">${g.map(x => nf(x.r.qty)).join(' + ')}</div></td>`
+        + fabricCell(sg) + printerCell(sg)
+        + `<td class="ppc-act"><div class="ppc-acts"><button class="ppc-btn ppc-pri" data-flppck="${esc(g.map(x => x.s.key).join(','))}">Plan together · ${nf(g.length)}</button>${backBtn(g)}</div></td></tr>`; };
     body = rows.map(x => { const g = grps.get(grpOf(x));
       if (g.length > 1) { const k = grpOf(x); if (drawn.has(k)) return ''; drawn.add(k); return combined(g); }
-      const sg = flowSuggest(x.r), first = !seen.has(x.r.orderNo); seen.add(x.r.orderNo);
-      return `<tr>${base(x)}<td style="text-align:left;font-size:13px;line-height:1.55;white-space:normal;min-width:240px;vertical-align:top">
-        <div>Fabric: <b>${esc(sg.fabric.name || '?')}</b> · ${sg.fabric.metres ? nf(sg.fabric.metres) + ' m' : '<b style="color:#b91c1c">metres not known</b>'}</div>
-        <div>${sg.print.need ? `Print: <b>${esc(sg.printer.name || 'printer not chosen')}</b>${sg.printer.why ? `<div class="muted" style="font-size:12px">${esc(sg.printer.why)}</div>` : ''}` : 'No printing — straight to cutting'}</div>
-        ${sg.acc.length ? `<div>Accessories: ${sg.acc.map(a => esc(a.code) + ' × ' + nf(a.qty)).join(', ')}</div>` : ''}
-        ${sg.gaps.length ? `<div style="font-size:12px;color:#92400e">${esc(sg.gaps[0])}${sg.gaps.length > 1 ? ' (+' + (sg.gaps.length - 1) + ')' : ''}</div>` : ''}${flowStartedHtml(x)}</td>
-        <td style="white-space:nowrap;vertical-align:top"><div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start">${flowPpcHasDraft(x.s.key) ? '<span class="jw-st prog" title="Started in PPC and saved as a draft on this computer — open it to carry on">Draft saved</span>' : ''}${first ? `<button data-flppc="${esc(x.r.orderNo)}" style="width:auto;padding:3px 10px;font-size:12px">Plan this PO</button>` : ''}
-          <button class="ghost" data-flppc="${esc(x.r.orderNo)}" data-sku="${esc(x.r.sku)}" style="width:auto;padding:2px 8px;font-size:11.5px">This line</button>
-          ${backBtn([x])}</div></td></tr>`; }).join('');
+      const sg = flowSuggest(x.r), first = !seen.has(x.r.orderNo);
+      return `<tr>${dateCell(x.r)}${idCell(x)}${product(x, sg)}<td class="ppc-qty"><b>${nf(x.r.qty)}</b></td>${fabricCell(sg)}${printerCell(sg)}
+        <td class="ppc-act"><div class="ppc-acts">${first ? `<button class="ppc-btn ppc-pri" data-flppc="${esc(x.r.orderNo)}">Plan this PO</button>` : ''}<button class="ppc-btn ppc-sec" data-flppc="${esc(x.r.orderNo)}" data-sku="${esc(x.r.sku)}">This line</button>${backBtn([x])}</div></td></tr>`; }).join('');
+    return '<thead><tr><th class="frz" style="text-align:left">Date</th><th style="text-align:left">Order ID</th><th style="text-align:left">Product details</th><th style="text-align:center">Qty</th><th style="text-align:left">Fabric</th><th style="text-align:left">Printer</th><th style="text-align:left">Actions</th></tr></thead><tbody>'
+      + (body || '<tr><td colspan="7" class="muted" style="padding:16px">Nothing in this bucket.</td></tr>') + '</tbody>';
   } else if (view === 'back') {
     /* What PPC sent back, why, and who has it now: the sales team sends it again from Sales Orders (or PPC takes it back). */
     head = ['PO', 'SKU', 'Qty', 'What is wrong', 'Sent back', ''];

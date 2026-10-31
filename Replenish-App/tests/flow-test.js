@@ -546,7 +546,7 @@ const K = 'AMZ-1__S1';
     ok('nothing known → blank, said', A.flowSuggest(L({ sku: 'S3' })).printer.code === '' && /no printer allocated to Nobody/.test(A.flowSuggest(L({ sku: 'S3' })).printer.why));
     A = load({ me: { admin: true }, mdb, lines: [L()], pal: { 'SP|Light Steel Blue': { printer: 'P1' } } });
     A.setView('ppc'); A.renderFlow();
-    ok('the PPC list says which printer, not "printed in-house"', /Print: <b>Sanganer Prints/.test(A.els.flTable.innerHTML) && !/printed in-house/.test(A.els.flTable.innerHTML));
+    ok('the PPC list says which printer, not "printed in-house"', /ppc-prn"><b>Sanganer Prints/.test(A.els.flTable.innerHTML) && !/printed in-house/.test(A.els.flTable.innerHTML));
     A.flowPpcOpen('AMZ-1');
     ok('the form offers the printers, the suggested one picked', /value="P1" selected/.test(A.ctx.__dlg.html));
     A.ctx.document.querySelectorAll = () => [{ addEventListener() {}, dataset: { fp: '0', k: 'printer.code' }, type: 'select-one', value: 'P1' }];
@@ -1556,7 +1556,7 @@ const K = 'AMZ-1__S1';
     ok('the new test order is put in the search box, so it is the one on screen', S.els.flQ.value === 'TEST-AMZ-13102026-01');
     S.els.flQ.value = ''; S.setView('ppc'); S.renderFlow();
     ok('PPC shows the real sales order and the test copy, which says what it copies', /AMZ-900/.test(S.els.flTable.innerHTML) && /copy of sales order AMZ-900/i.test(S.els.flTable.innerHTML) && /data-ordj="AMZ-900"/.test(S.els.flTable.innerHTML));
-    ok('compact: an order of two lines is named once — one delete link, one copy note, the second line carries the order no small', (S.els.flTable.innerHTML.match(/data-fltdel="TEST-AMZ-13102026-01"/g) || []).length === 1 && (S.els.flTable.innerHTML.match(/copy of sales order AMZ-900/ig) || []).length === 1 && /<div class="muted" style="font-size:11px">TEST-AMZ-13102026-01<\/div>/.test(S.els.flTable.innerHTML));
+    ok('compact: an order of two lines is named once — one delete link, one copy note, the second line carries the order no small', (S.els.flTable.innerHTML.match(/data-fltdel="TEST-AMZ-13102026-01"/g) || []).length === 1 && (S.els.flTable.innerHTML.match(/copy of sales order AMZ-900/ig) || []).length === 1 && /<div class="ppc-sub">TEST-AMZ-13102026-01<\/div>/.test(S.els.flTable.innerHTML));
   }
 
   console.log('== PPC completed: one cell under every heading (Ravi, 14 Oct: "too hotch potch") ==');
@@ -2322,7 +2322,10 @@ const K = 'AMZ-1__S1';
     ok('To cut says how many pieces are still to cut — on the line and in a total on top (100 pcs, none cut yet)', /Pending to cut/.test(cutHtml) && /Cutting pending: <b>100 pcs<\/b> on 1 line/.test(cutHtml) && /<b style="font-size:15px">100<\/b> pcs/.test(cutHtml), cutHtml.slice(0, 1200));
     { const C = load({ me: { admin: true }, lines: [L({ orderNo: 'B2B-1', sku: 'CPCTR033-1290', qty: 16, itemName: 'Runner', material: 'Sheeting', color: 'Meadow Vine', size: '12x90' })] });
       const ph = C.flowTable('ppc', C.flowRows());
-      ok('PPC says what a custom SKU is, as the Order Console does: item name, material, colour, size', /Runner/.test(ph) && /Sheeting/.test(ph) && /Meadow Vine/.test(ph) && /12x90/.test(ph)); }
+      ok('PPC says what a custom SKU is, as the Order Console does: item name, material, colour, size', /Runner/.test(ph) && /Sheeting/.test(ph) && /Meadow Vine/.test(ph) && /12x90/.test(ph));
+      ok('PPC is the redesigned table: Date, Order ID, Product details, Qty, Fabric, Printer, Actions', (ph.match(/<th[^>]*>([^<]*)<\/th>/g) || []).map(x => x.replace(/<[^>]+>/g, '')).join('|') === 'Date|Order ID|Product details|Qty|Fabric|Printer|Actions');
+      ok('…product name, then design · size, then the SKU, each on its own line', /class="ppc-name">Runner</.test(ph) && /class="ppc-var">Sheeting · Meadow Vine · 12x90</.test(ph) && /class="ppc-sku">CPCTR033-1290</.test(ph));
+      ok('…and the three actions keep their jobs: Plan this PO (primary), This line, Back to sales', /class="ppc-btn ppc-pri" data-flppc="B2B-1">Plan this PO/.test(ph) && /class="ppc-btn ppc-sec" data-flppc="B2B-1" data-sku="CPCTR033-1290">This line/.test(ph)); }
     const B = load({ me: { tabs: ['flppc'] }, mdb, lines: [L({ sku: 'S1', qty: 100 })] });
     B.flowPpcOpen('AMZ-1');
     B.ctx.document.querySelectorAll = sel => sel === '[data-fp]' ? [box('route', 'inhouse'), box('printer.code', 'P1'), box('fabric.noRfd', '', 'checkbox', true)] : [];
