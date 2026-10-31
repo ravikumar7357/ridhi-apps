@@ -376,14 +376,15 @@ function flowDueTable(q, testOnly) {
       const typed = +FLOW_DUE.typed[id] > 0, colour = x.r.color || m.color || '';
       return `<tr><td style="text-align:left;white-space:nowrap;font-size:12px;vertical-align:middle">${typed ? `<b>${esc(today)}</b>` : day ? esc(flowDueDay(day)) : '<span class="muted">—</span>'}</td>
       <td style="text-align:left;vertical-align:middle"><b style="font-size:13.5px;text-decoration:underline dotted">${esc(x.orderNo)}</b>${x.test ? ' <span class="navbadge" style="background:#7c3aed;position:static">TEST</span>' : ''}</td>
-      <td style="text-align:left;vertical-align:middle;min-width:260px;max-width:380px;white-space:normal"><div style="display:flex;gap:8px;align-items:center">${typeof ptImgSpan === 'function' ? ptImgSpan(x.sku, 36) : ''}<div style="line-height:1.3"><div style="font-weight:600;font-size:12.5px">${esc(x.r.articleSubtype || m.subtype || x.r.articleType || m.articleType || '—')}</div>
+      <td style="text-align:left;vertical-align:middle"><div style="display:flex;gap:8px;align-items:center">${typeof ptImgSpan === 'function' ? ptImgSpan(x.sku, 36) : ''}<div style="line-height:1.3"><div style="font-weight:600;font-size:12.5px">${esc(x.r.articleSubtype || m.subtype || x.r.articleType || m.articleType || '—')}</div>
         <div style="font-size:11px;color:#6b7686">${colour ? esc(colour) + ' · ' : ''}<span style="font-family:ui-monospace,monospace">${esc(x.sku)}</span></div></div></div></td>
-      <td style="font-size:12.5px;vertical-align:middle">${esc(x.r.size || m.size || '') || '<span class="muted">—</span>'}</td>
+      <td style="font-size:12.5px;vertical-align:middle;text-align:center"${String(x.r.size || m.size || '').length > 40 ? ` title="${esc(x.r.size || m.size)}"` : ''}>${esc((s => s.length > 40 ? s.slice(0, 38) + '…' : s)(String(x.r.size || m.size || ''))) || '<span class="muted">—</span>'}</td>
       <td class="num" style="font-weight:700;vertical-align:middle">${flowQtyTxt(x.need, x.unit)}</td>
       <td class="num" style="vertical-align:middle">${vs ? `<b>${flowQtyTxt(vs, x.unit)}</b>` : '<span class="muted">—</span>'}</td>
       <td class="num" style="vertical-align:middle"><input data-fldrq="${esc(id)}" type="number" min="0" step="${x.unit === 'pcs' ? 1 : 0.01}" value="${esc(FLOW_DUE.typed[id] || '')}" placeholder="${esc(String(x.left))}" onfocus="this.select()" style="width:84px;padding:3px 6px;font-size:12px;text-align:right" title="${esc(flowQtyTxt(x.left, x.unit))} still to come"></td></tr>`; }).join('')).join('');
   if (typeof ptImgFill === 'function' && typeof setTimeout === 'function') setTimeout(() => { try { ptImgFill(rows.map(x => x.sku), false, typeof ptImgPatch === 'function' ? ptImgPatch : null); } catch (e) { /* the pictures follow */ } }, 0);
-  return `<thead><tr><th style="text-align:left">Date</th><th style="text-align:left">Order ID</th><th style="text-align:left">Item</th><th>Size</th><th>Ordered</th><th>Vendor sent</th><th>Received</th></tr></thead><tbody>`
+  return '<colgroup><col style="width:9%"><col style="width:11%"><col style="width:38%"><col style="width:11%"><col style="width:10%"><col style="width:9%"><col style="width:12%"></colgroup>'
+    + `<thead><tr><th style="text-align:left">Date</th><th style="text-align:left">Order ID</th><th style="text-align:left">Item</th><th>Size</th><th>Ordered</th><th>Vendor sent</th><th>Received</th></tr></thead><tbody>`
     + (body || `<tr><td colspan="7" class="muted" style="padding:16px">Nothing is owed by ${FLOW_DUE.printer ? 'that printer' : 'a printer'}${q ? ` for “${esc(q)}”` : ''}.</td></tr>`) + '</tbody>';
 }
 /** The printer dropdown (name and its lines), the day it is received on, and Save received — the bar over the sheet. */

@@ -1482,6 +1482,8 @@ html.mob table.mob-tcards.mob-tgrid tbody tr:not(.mob-tmsg):not(.mob-tnest):has(
 /* DEMAND · RFD OUT TO PRINTERS looks like the SHP board (Ravi, 31 Oct): small type, tight rows, quiet headings. */
 #flTable.fl-e td { font-size: 12.5px; padding: 5px 9px; }
 #flTable.fl-e th { font-size: 12px; padding: 7px 9px; color: #8a94a3; font-weight: 700; }
-#flTable.fl-due { width: auto; min-width: 0; }
-#flTable.fl-due td { font-size: 12.5px; padding: 5px 14px; }
+/* Full width, the columns in fixed shares (31 Oct: "all printers looking very odd", "one printer: space on the right"): one long size or name wraps in
+ * its own column instead of stretching the table. */
+#flTable.fl-due { width: 100%; table-layout: fixed; }
+#flTable.fl-due td { font-size: 12.5px; padding: 5px 14px; white-space: normal; overflow-wrap: break-word; }
 #flTable.fl-due th { font-size: 12px; padding: 7px 14px; color: #8a94a3; font-weight: 700; }
