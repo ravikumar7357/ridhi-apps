@@ -1516,3 +1516,18 @@ html.mob table.mob-tcards.mob-tgrid tbody tr:not(.mob-tmsg):not(.mob-tnest):has(
 #flTable.fl-ppc .ppc-sec { background: #fff; border: 1px solid #d5dce5; color: #17202b; }
 #flTable.fl-ppc .ppc-out { background: #fff; border: 1px solid #f3c9c4; color: #b42318; }
 #flTable.fl-ppc .ppc-pri:hover { background: #3d5577; } #flTable.fl-ppc .ppc-sec:hover { background: #f3f5f8; } #flTable.fl-ppc .ppc-out:hover { background: #fdf3f2; }
+
+/* ORDER TICKER (orders/order-ticker.js, 31 Oct): the running strip of pending and critical orders under the page title. */
+.otk{overflow:hidden;background:#4a6389;color:#fff;border-radius:12px;margin:0 0 12px;height:38px;display:flex;align-items:center;position:relative}
+.otk.hide{display:none}
+.otk-run{display:flex;width:max-content;animation:otkMove linear infinite}
+.otk:hover .otk-run{animation-play-state:paused}
+.otk-set{display:flex;align-items:center;flex:none}
+.otk-it{display:inline-flex;align-items:center;gap:8px;white-space:nowrap;font-size:13.5px;padding:0 6px;color:#fff;background:none;border:0;width:auto;margin:0;font-weight:500;cursor:default}
+.otk-sum b{font-weight:700}.otk-sum span{opacity:.85}
+button.otk-it{cursor:pointer}button.otk-it:hover{text-decoration:underline}
+.otk-it em{font-style:normal;font-weight:700;font-size:11.5px;padding:3px 9px;border-radius:999px;letter-spacing:.02em}
+.otk-late em{background:#fde2e1;color:#9b1c1c}.otk-due em{background:#fdf0e8;color:#9a3f06}
+.otk-dot{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,.55);margin:0 22px;flex:none}
+@keyframes otkMove{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+@media (prefers-reduced-motion:reduce){.otk{overflow-x:auto}.otk-run{animation:none}}
