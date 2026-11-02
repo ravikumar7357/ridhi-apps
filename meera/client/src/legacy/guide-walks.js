@@ -42,7 +42,7 @@ function gaWalksLoad() {
 function gaWalkFor(e) {
   const id = (e.task && GUIDE_TASKS.some(t => t.id === e.task)) ? e.task : GA_WALK_OF.get(e.id) || (e.sel && GA_WALK_SEL.get(e.sel));
   const t = id && GUIDE_TASKS.find(x => x.id === id);
-  if (!t || (t.admin && typeof ME !== 'undefined' && ME && !ME.admin)) return null;
+  if (!t || (t.admin && !ERP_MEERA.user().admin)) return null;
   return t.steps.some(s => s.tab && !guideMayOpen(s.tab)) ? null : t;
 }
 /** A step's box as it is now: there, and filled or not. */
@@ -214,7 +214,7 @@ function gaNudgeWatch() {
   if (iv && iv.unref) iv.unref();   // a test run of the page in node is not kept open by it
 }
 /* started here, not from guideBuild (guide.js runs first, before this file's own values exist) */
-gaNudgeWatch();
+if (meeraHere()) gaNudgeWatch();   // she starts where she lives (meeraHere, bridge)
 
 /* ---------- loaded early (Ravi, 27 Oct: "make meera a bit fast in loading") ----------
  * Her answers, walk-throughs and meaning file (about 2 MB in all) were fetched only when Ask Meera first opened, so the
@@ -225,12 +225,12 @@ gaNudgeWatch();
 const gaLater = (fn, ms) => { const t = setTimeout(fn, ms); if (t && t.unref) t.unref(); };   // never keeps a test run open
 function gaPreload(tries) {
   let signedIn = false;
-  try { signedIn = typeof auth !== 'undefined' && !!(auth && auth.currentUser); } catch (e) { /* not signed in yet */ }
+  try { signedIn = ERP_MEERA.signedIn(); } catch (e) { /* not signed in yet */ }
   if (!signedIn) { if (tries < 30) gaLater(() => gaPreload(tries + 1), 10000); return; }   // waits for the sign-in (up to 5 min)
-  try { if (typeof spIsVendor === 'function' && spIsVendor()) return; } catch (e) { /* not known: go on */ }
+  try { if (ERP_MEERA.user().vendor) return; } catch (e) { /* not known: go on */ }
   try { if (navigator.connection && navigator.connection.saveData) return; } catch (e) { /* not known: go on */ }
   const go = () => ['/guide/meera-bank.json', '/guide/meera-walks.json', '/guide/meera-words.bin']
     .forEach(u => fetch(u, { cache: 'no-cache' }).then(r => r.arrayBuffer()).catch(() => null));
   if (typeof requestIdleCallback === 'function') requestIdleCallback(go, { timeout: 8000 }); else gaLater(go, 1000);
 }
-gaLater(() => gaPreload(0), 4000);
+if (meeraHere()) gaLater(() => gaPreload(0), 4000);   // she starts where she lives (meeraHere, bridge)

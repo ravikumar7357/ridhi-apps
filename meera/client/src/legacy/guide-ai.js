@@ -1,4 +1,4 @@
-/* ================= MEERA ASKS A MODEL — through her router (meera-router/, a Cloudflare Worker), 26 Oct =================
+/* ================= MEERA ASKS A MODEL — through her router (meera/router/, a Cloudflare Worker), 26 Oct =================
  *
  * OFF until GA_AI_URL is set. Then, when Meera is not sure of her own answer, she asks by herself (Ravi, 27 Oct: no button,
  * "until it hits our decided limit" — 10 a person, 500 the company, a day; over it, she answers on her own): the question is
@@ -9,7 +9,7 @@
 const GA_AI_URL = 'https://meera-router.erp-9a0.workers.dev';   // e.g. 'https://meera-router.<account>.workers.dev' — empty: Meera answers on her own, as before
 
 function gaAiOn() {
-  try { return !!GA_AI_URL && typeof auth !== 'undefined' && !!(auth && auth.currentUser); } catch (e) { return false; }
+  try { return !!GA_AI_URL && ERP_MEERA.signedIn(); } catch (e) { return false; }
 }
 /* Over today's limit (the router said 429): no more asking from this device until tomorrow. */
 const gaAiDay = () => new Date().toISOString().slice(0, 10);
@@ -17,7 +17,7 @@ function gaAiAuto() {
   if (!gaAiOn()) return false;
   try { return localStorage.getItem('guideAiFull') !== gaAiDay(); } catch (e) { return true; }
 }
-/* The same cleaning as the router's (meera-router/src/redact.js): change one, change both. */
+/* The same cleaning as the router's (meera/router/src/redact.js): change one, change both. */
 function gaClean(text, names) {
   let s = String(text || '').slice(0, 500);
   s = s.replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[EMAIL]')
@@ -30,10 +30,10 @@ function gaClean(text, names) {
   return s.replace(/\s+/g, ' ').trim();
 }
 function gaNames() {
-  try { return (PTE.emp || []).map(e => String(e[1] || '').trim()).filter(n => n.length >= 3); } catch (e) { return []; }
+  try { return ERP_MEERA.people().filter(n => n.length >= 3); } catch (e) { return []; }
 }
 async function gaAiCall(path, body, method = 'POST') {
-  const tok = await auth.currentUser.getIdToken();
+  const tok = await ERP_MEERA.token();
   const r = await fetch(GA_AI_URL.replace(/\/$/, '') + path, { method, headers: { authorization: 'Bearer ' + tok, 'content-type': 'application/json' },
     body: method === 'POST' ? JSON.stringify(body || {}) : undefined });
   let j = null;

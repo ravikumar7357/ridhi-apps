@@ -147,6 +147,8 @@ const MOB_SELF_GATED = ['flow', 'gdesk'];
 const mobLinkOk = a => {
   const k = String(a.getAttribute('href') || '').replace(/^#/, '');
   if (!k || a.classList.contains('hide') || a.style.display === 'none') return false;
+  /* The old printing screens were taken off the menu on 15 Oct (nav.js puts them in a hidden .nav-off box): the phone leaves them out too — 31 Oct */
+  if (a.closest && a.closest('.nav-off')) return false;
   /* the Vendors group is hidden on purpose for production accounts (nav.js, NAV_PROD_ONLY): it stays hidden here too */
   const g = a.closest('.navwrap') && a.closest('.navwrap').querySelector('.navgrp');
   if (g && g.dataset.grp === 'vendors' && g.classList.contains('hide')) return false;

@@ -62,7 +62,7 @@ async function loadAccessList() {
  * backend key. An outside printer holding only the Vendor Portal must never pick that up on the way
  * past, which is what happened while any ticked section set the flag. */
 const FACTORY_SECTIONS = ['pmdb', 'mst', 'pbase', 'pcut', 'ppress', 'qc', 'qcalt', 'qcret', 'ord', 'so', 'vord', 'vreq', 'rfd', 'att',
-  'vend', 'cx', 'fgi', 'fgacc', 'fba', 'fab', 'acc', 'rep', 'pa', 'ka', 'hr',
+  'vend', 'cx', 'fgi', 'fgacc', 'shpacc', 'vpview', 'fba', 'fab', 'acc', 'rep', 'pa', 'ka', 'hr',
   /* History and Printer Allocation were missing, so ticking History alone set perms.repl — and with it
    * the Amazon backend key and the replenishment snapshot. Found 2026-09-21 on a vendor login. */
   'vlog', 'palloc',
@@ -119,6 +119,12 @@ const REPL_SECTIONS = [
   /* FROM QC — TO ACCEPT (Ravi, 27 Oct: "From QC — to accept - access me jodo"): accepting what passed QC into the India store,
    * and nothing else there. On its own it opens Finished Goods on that one list; Finished Goods already includes it. */
   ['fgacc', 'Finished Goods — From QC, to accept'],
+  /* SHIPPING TO ACCEPT (Ravi, 30 Oct): the shipping team accepts the pieces production pressed and hands over — the SHP board's
+   * "Shipping to accept" list, and nothing else of the Order Console. On its own it opens the Order Console on that one list. */
+  ['shpacc', 'Order Console — SHP board, Shipping to accept'],
+  /* PRINTER'S PORTAL, VIEW ONLY (Ravi, 30 Oct: "Printer's portal (view)" was admin-only): the portal as a printer sees it, any printer picked from
+   * a list, nothing that can be changed. Reads every printer's orders, so it is its own box. */
+  ['vpview', "Production — Printer's portal (view only)"],
   /* What the store sends to FBA: the FBA team accepts it, ships it, or returns it to the store. */
   ['fba', 'FBA Dispatch (accept, ship or return what the store sent)'],
   ['fab', 'Fabric Inventory'],
@@ -152,7 +158,7 @@ const ACCESS_GROUPS = [
   { key: 'shopify', sellora: ['shop', 'adj'], repl: ['shop', 'adj', 'shopify', 'shopprod', 'shopret'] },
   { key: 'plan', repl: ['repl', 'article', 'target', 'top', 'pack'] },
   /* The same order as the Replenishment app's sidebar, which is the order work moves through the floor. */
-  { key: 'prod', repl: ['so', 'ord', 'pcut', 'pbase', 'ppress', 'qc', 'qcalt', 'qcret', 'fgi', 'fgacc', 'fba', 'fab', 'acc', 'gdesk', 'gdled', 'gdledit', 'gdappr', 'flppc', 'fldem', 'flacc', 'flchl', 'flcut', 'flraw', 'flwip', 'pmdb', 'mst', 'cx'] },
+  { key: 'prod', repl: ['so', 'ord', 'pcut', 'pbase', 'ppress', 'qc', 'qcalt', 'qcret', 'fgi', 'fgacc', 'shpacc', 'vpview', 'fba', 'fab', 'acc', 'gdesk', 'gdled', 'gdledit', 'gdappr', 'flppc', 'fldem', 'flacc', 'flchl', 'flcut', 'flraw', 'flwip', 'pmdb', 'mst', 'cx'] },
   { key: 'vendors', repl: ['vreq', 'vord', 'rfd', 'vend', 'vlog', 'palloc'] },
   { key: 'people', repl: ['att', 'hr'] },
   { key: 'reports', repl: ['rep', 'pa', 'ka'] },

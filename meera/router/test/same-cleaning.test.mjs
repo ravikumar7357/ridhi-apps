@@ -1,4 +1,4 @@
-/* The page cleans a question before it leaves (Replenish-App/src/app/core/guide-ai.js, gaClean) and the router cleans it
+/* The page cleans a question before it leaves (meera/client/src/legacy/guide-ai.js, gaClean) and the router cleans it
  * again (src/redact.js, clean). They must agree: this runs both on the same questions.  node meera-router/test/same-cleaning.test.mjs */
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -6,7 +6,7 @@ import path from 'node:path';
 import { clean } from '../src/redact.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const src = readFileSync(path.join(HERE, '..', '..', 'Replenish-App', 'src', 'app', 'core', 'guide-ai.js'), 'utf8');
+const src = readFileSync(path.join(HERE, '..', '..', 'client', 'src', 'legacy', 'guide-ai.js'), 'utf8');
 const a = src.indexOf('function gaClean('), b = src.indexOf('\nfunction gaNames(');
 if (a < 0 || b < 0) { console.log('FAIL gaClean not found in guide-ai.js'); process.exit(1); }
 const gaClean = new Function(src.slice(a, b) + '\nreturn gaClean;')();

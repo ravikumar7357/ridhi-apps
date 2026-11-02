@@ -1,0 +1,24 @@
+# MEERA'S CODE CHECKS (v2 rebuild, 29 Oct 2026). The TypeScript type check of her new files, on every push that touches
+# meera/. It never deploys anything and does not hold up the ERP's deploy: her no-worse gate (replenish-hosting.yml) does
+# that. npm is blocked on the office PC, so this is where the type check runs.
+name: Meera — code checks
+
+on:
+  push:
+    paths: ['meera/**', '.github/workflows/meera-checks.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  types:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: TypeScript type check (meera/client)
+        run: npx --yes -p typescript@5.6.3 tsc -p meera/client/tsconfig.json

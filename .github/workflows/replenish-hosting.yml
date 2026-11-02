@@ -15,7 +15,7 @@ name: Replenish app — test, build, deploy
 on:
   push:
     branches: [main, 'preview/**']
-    paths: ['Replenish-App/**', 'shared/**', '.github/workflows/replenish-hosting.yml']
+    paths: ['Replenish-App/**', 'shared/**', 'meera/**', '.github/workflows/replenish-hosting.yml']
   workflow_dispatch:
 
 # one deploy at a time per branch; a newer push waits for the one running, it does not cut it short
@@ -40,6 +40,8 @@ jobs:
         working-directory: Replenish-App
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # Meera's gate compares this push with the commit before it
 
       - uses: actions/setup-node@v4
         with:
@@ -69,6 +71,15 @@ jobs:
             if node "tests/$t-test.js" > "/tmp/$t.log" 2>&1; then echo "$t: $(tail -1 /tmp/$t.log)"
             else echo "::error::$t-test failed"; grep -E "FAIL|Error" "/tmp/$t.log" | head -40; tail -5 "/tmp/$t.log"; exit 1; fi
           done
+
+      # MEERA'S GATE (v2 rebuild, 29 Oct 2026): meera/tests/ci-gate.cjs. When this push touches Meera (meera/, her answers,
+      # the bridge) or a screen box she points at, it can block the deploy if she got worse, with a plain message saying
+      # which check failed and why; any other ERP change only gets a warning, so an urgent fix is never stuck. A meant
+      # change: node meera/tests/gate.cjs --accept "why", commit meera/bank/baseline/.
+      - name: Meera — never-break list and no-worse gate
+        env:
+          MEERA_BASE: ${{ github.event.before }}
+        run: node ../meera/tests/ci-gate.cjs
 
       - name: Build the deployed copy (dist/)
         run: node tests/build-dist.js

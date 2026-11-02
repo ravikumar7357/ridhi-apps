@@ -1690,9 +1690,9 @@ function renderShop() {
    * the bucket is opened, not on every draw of this tab (Ravi, 2026-09-26: "ye lagg ho rha h"). */
   const bucketMake = shpBucketMake();
   const inBucket = new Set(bucketMake.map(x => x.id));
-  if ($('soBucket')) { const rd = typeof shpReadyLines === 'function' ? shpReadyLines().length : 0;
+  if ($('soBucket')) { const ns = typeof shpNoSkuLines === 'function' ? shpNoSkuLines().length : 0;
     /* An icon now (14 Oct): its words and counts are its tooltip; opening it shows what is inside. */
-    const tip = 'Production bucket' + (bucketMake.length ? ` — ${nf(bucketMake.length)} order(s) waiting` : ' — nothing waiting') + (rd ? ` · ${nf(rd)} ready to take` : '');
+    const tip = 'Production bucket' + (bucketMake.length ? ` — ${nf(bucketMake.length)} order(s) waiting` : ' — nothing waiting') + (ns ? ` · ${nf(ns)} line(s) without SKU` : '');
     if ($('soBucket').title !== tip) { $('soBucket').title = tip; if ($('soBucket').setAttribute) $('soBucket').setAttribute('aria-label', tip); }
     /* Design B: the count on the button itself ("Bucket 21"); empty hides it. */
     if ($('soBucketN')) $('soBucketN').textContent = bucketMake.length ? nf(bucketMake.length) : ''; }

@@ -60,7 +60,7 @@ let FLOW_VP_AS = null;   // { code, name } while an admin looks as a printer
 async function flowVpAfterLoad() {
   if (!FLOW_ON || typeof VP === 'undefined') return;
   VP.viewAs = false;
-  if (FLOW_VP_AS && ME.admin) {
+  if (FLOW_VP_AS && (ME.admin || ME.vpView)) {
     VP.code = FLOW_VP_AS.code; VP.name = FLOW_VP_AS.name; VP.viewAs = true;
     try { VP.rows = ptList(await ptGet('pt_vendorOrders/' + VP.code)); } catch (e) { VP.rows = []; }
   }
@@ -73,7 +73,7 @@ async function flowVpAfterLoad() {
 }
 /** The "View as printer" picker above the portal — an admin, on the preview only. */
 async function flowVpBar() {
-  if (!FLOW_ON || !ME.admin || !$('vpBody') || $('flVpAs')) return;
+  if (!FLOW_ON || !(ME.admin || ME.vpView) || !$('vpBody') || $('flVpAs')) return;
   $('vpBody').insertAdjacentHTML('beforebegin', `<div class="card" style="padding:8px 12px;margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;border:1px dashed #7c3aed">
     <span style="color:#7c3aed;font-weight:600;font-size:12.5px">PRINTER'S VIEW</span>
     <label style="display:flex;gap:6px;align-items:center;margin:0;font-size:12.5px">See the portal as printer
