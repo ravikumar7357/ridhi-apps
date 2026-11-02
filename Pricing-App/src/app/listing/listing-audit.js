@@ -1,3 +1,10 @@
+/* ================= LISTING · LISTING AUDIT (document types and page state): what the Listing Audit screen files and remembers =================
+ * Screens: Listing Audit (tab 'audit'). The screen itself — loading, the grid, the KPI cards, the version dialog, Export —
+ *          is in launch.js (loadAuditCache, ensureAudit, renderAudit, openAuditEditor). This file holds only what that code reads.
+ * Does: the document types in process order (AUDIT_DOCS), the status labels (AUDIT_STATUS) and the page state
+ *       (AUDIT, AUDIT_MANUAL, AUDIT_LOADED, AUDIT_SORT, AUDIT_RENDER, AUDIT_EDIT). AUDIT_MANUAL — the hand-typed parents —
+ *       is also read by Inventory Age and Listing Rules.
+ * Main functions: none; constants and state only. */
 /* ---------- Listing audit ---------- */
 /*
  * Supporting documents per PARENT ASIN. The files themselves stay in the user's own Dropbox — this

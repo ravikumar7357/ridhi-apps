@@ -1,3 +1,10 @@
+/* ================= LISTING · LISTING HEALTH (rules, limits, page state): what the Listing Health screen scores against and remembers =================
+ * Screens: Listing Health (tab 'health'). The screen itself — loading the snapshot, the content sweep, the table — is in
+ *          listing-health-data.js, and the scoring function healthOf is in listing-rules.js. This file holds only what those read.
+ * Does: the scoring thresholds (H_RULES), what is left out (H_BUNDLE_RE, H_FBA_RE), the run limits (H_CONTENT_MAX, H_PAGE,
+ *       H_SWEEP_PAR, H_APLUS_MAX) and the page state (HEALTH, H_LOADED, H_SORT, H_RENDER, H_VIEW, H_SCOPE_NOTE, H_LAST_RUN).
+ *       HEALTH and H_LOADED are also read by the ads screens, Parent Listing Review, Profit & Margin and Listing Rules.
+ * Main functions: hMsg — the status line under the toolbar. */
 /* ---------- Listing health ---------- */
 /*
  * Two questions, deliberately kept apart because they need different fixes:
@@ -34,8 +41,14 @@ let H_VIEW = 'child';         // 'child' = one row per listing, 'parent' = rolle
 let H_SCOPE_NOTE = [];        // what was excluded / truncated — surfaced under "Raw fields"
 let H_LAST_RUN = [];          // the last refresh's informational notes, same place
 
-function hMsg(t, bad) { const m = $('hMsg'); m.textContent = t || ''; m.className = bad ? 'err' : 'muted'; }
+// Status line under the Listing Health toolbar: red for an error, grey otherwise.
+function hMsg(text, bad) {
+  const msg = $('hMsg');
+  msg.textContent = text || '';
+  msg.className = bad ? 'err' : 'muted';
+}
 
+// The block below describes healthOf, which is in listing-rules.js (the next file in ORDER); nothing follows it here.
 /**
  * Score one listing. Returns { score, grade, blocking[], content[] }.
  * `c` (content) may be missing — a listing whose catalog data hasn't been fetched is scored on the
