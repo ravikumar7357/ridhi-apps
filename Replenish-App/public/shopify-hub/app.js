@@ -185,7 +185,10 @@ const PAGES = {
   production: { name: 'Production', tabs: ['orders'],            buckets: ['make'],                             first: 'make' },
 };
 const PAGE = PAGES[new URLSearchParams(location.search).get('page')] || null;
-const TABS = PAGE ? TABS_ALL.filter(t => PAGE.tabs.includes(t[0])) : TABS_ALL;
+/* Inside the ERP (?embed=1) there is no Stock, no Setup and no "To route" (Ravi, 2 Nov: "remove it"): the ERP has its
+ * own Shopify Stock page and its own settings. The hub opened on its own keeps them (Setup holds its keys). */
+const EMBED = /[?&]embed=1\b/.test(location.search);
+const TABS = (PAGE ? TABS_ALL.filter(t => PAGE.tabs.includes(t[0])) : TABS_ALL).filter(t => !EMBED || (t[0] !== 'stock' && t[0] !== 'setup'));
 if (PAGE) document.documentElement.dataset.team = PAGE.name.toLowerCase();
 function counts() {
   return {
@@ -222,6 +225,7 @@ function shell(active) {
   /* The Bucket (lines not routed yet) is Shipping's work: shown on Shipping and on the whole hub only. */
   const notShip = !!PAGE && PAGE.name !== 'Shipping';
   $('bucketBtn').style.display = $('bulkBtn').style.display = notShip ? 'none' : '';
+  if (EMBED) $('bucketBtn').style.display = 'none';
   const seg = [['', 'Both'], ['Ridhi', 'Ridhi'], ['CPC', 'CPC']].map(s => `<button class="segbtn ${STORE === s[0] ? 'on' : ''}" type="button" data-s="${s[0]}">${s[1]}</button>`).join('');
   $('storeBand').innerHTML = seg; $('storeBar').innerHTML = seg;
   $('bucketN').textContent = vis().reduce((s, o) => s + undecided(o).length, 0);
@@ -1499,6 +1503,7 @@ function render() {
   if (r === 'production' || r === 'shipments') { FILTER = r === 'production' ? 'make' : 'carrier'; return location.replace('#orders'); }
   /* A team page opens only its own tabs; anything else goes to its Orders. */
   if (PAGE && r !== 'order' && r !== 'orders' && !PAGE.tabs.includes(r)) return location.replace('#orders');
+  if (EMBED && (r === 'stock' || r === 'setup')) return location.replace('#orders');
   let html, tab = r;
   if (r === 'order') { html = pageOrders() + pageOrder(a); tab = 'orders'; }   // as live: the order opens over the list
   else if (r === 'returns') html = pageReturns();
