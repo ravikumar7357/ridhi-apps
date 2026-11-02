@@ -66,7 +66,7 @@ function load(opts) {
     FAB: { rows: opts.fabRows || [] },
     STORE: { rows: opts.store ? [] : null }, stMoves: () => opts.store || [], stBalances: mv => mv, fabKey: v => String(v || '').trim().toUpperCase(), fabAll: () => opts.fabRows || [], ptList: x => x || [], fabAutoLoad: async () => {}, GD: opts.gd, mdbOf: opts.mdbOf, MDBX: opts.mdbx, fabState: r => String((r && r.state) || (/RFD/.test(String(r && r.txnType)) ? 'RFD' : 'PRINTED')).toUpperCase(), fabKnown: t => ['OPENING_RFD', 'RFD_TO_PRINTER', 'ISSUE_TO_CUTTING', 'RECEIVE_RFD', 'PURCHASE_RFD', 'ADJUST'].includes(t), fabMove: r => (+r.qty || 0) * (['RFD_TO_PRINTER', 'ISSUE_TO_CUTTING'].includes(r.txnType) ? -1 : 1), fabStockOf: (name, st) => (st === 'RFD' ? (opts.rfd || {})[String(name).toUpperCase()] || 0 : 0),
   };
-  const api = new Function(...Object.keys(ctx), SRC + '\n;return { flowBoardOwns, FLOW_BOARD_FROM, flowRepSkus, flowRepSerial, flowRepLines, flowRepSheets, flowRepDelay, flowRepDue, flowRepAllowed, flowRepXlsx, flowRepChannel, flowRepDay, flowRepBtn, flowPoParts, flowDrfdLineRows, flowFabOwed, flowRfdStock, flowFabKnown, flowMatRow, flowGdNote, flowPpcDraftSave, flowPpcDraftApply, flowPpcDraftDrop, flowPpcHasDraft, flowBackOpen, flowAgainOpen, flowIsBack, flowBackLines, flowBackPill, FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW_ROUTES, flowPlanRouteOf, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChTotals, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestCutOpen, flowTestIssueOpen, flowTestRecvOpen, flowTestVos, flowVoProgOf, flowVoProgSync, flowVlogRows, flowDocsOf, flowVoExtra, flowVpViewOnly, flowFgAcceptOpen, flowFgAccept, flowFgRejectOpen, flowFgReject, flowFgLines, flowFgRender, flowQcLine, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowRecvCross, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowCutEntry, flowIssueEntry, flowRecvEntry, flowQcEntry, flowIssuable, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowVoLines, flowSwatchOf, flowSizeFifo, flowSizeChallanOpen, flowBySizeData, flowPpcXlRows, flowPpcXlRead, flowXlDate, FLOW_XL_COLS, VOrows:()=>VO.rows, setVOrows:v=>{VO.rows=v}, flowUnplan, flowPoResync, flowPlanQcDirect, flowChSizeLive, flowEmbedRows, FLOW_EMB_SHOWN:()=>FLOW_EMB_SHOWN, flowChLineWhat, flowRecvRows, flowRecvDayTable, FLOW_HD, flowDueRows, flowDueTable, flowReads, flowDueRecvOpen, flowDueRecvSave, flowRfdChallanOut, flowEarlierOf, flowRecordEarlier, flowChangePrinterSave, flowStanding, flowStandBack, flowStandUse, flowStandTargets, flowRfdChallanOut, flowHistTable, flowChGroups, flowChXlRead, flowChQueue, flowEmbIndex, flowEmbCells, flowEmbSendOpen, flowEmbRecvOpen, flowEmbWho, flowEmbCancel, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v}, flowEmbedRender, FLOW_EMB:()=>FLOW_EMB, flowScreenAllowed, flowOwnsOrder, flowOwnedIn, flowVoIsFlow, flowFgOwns, flowDupViewsOff, renderView:()=>{ if (["cut","raw","wip","new","pord","vendor","fabric"].includes(FLOW_VIEW)) { const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly(); const rows = flowRows().filter(x => (!only || x.r.__t) && (FLOW_VIEW === "new" ? x.recent : flowInView(FLOW_VIEW, x.s))); $("flTable").innerHTML = flowTable(FLOW_VIEW, rows); } else renderFlow(); } };')(...Object.values(ctx));
+  const api = new Function(...Object.keys(ctx), SRC + '\n;return { flowBoardOwns, FLOW_BOARD_FROM, flowRepShpFill, flowRepOpen, flowRepSkus, flowRepSerial, flowRepLines, flowRepSheets, flowRepDelay, flowRepDue, flowRepAllowed, flowRepXlsx, flowRepChannel, flowRepDay, flowRepBtn, flowPoParts, flowDrfdLineRows, flowFabOwed, flowRfdStock, flowFabKnown, flowMatRow, flowGdNote, flowPpcDraftSave, flowPpcDraftApply, flowPpcDraftDrop, flowPpcHasDraft, flowBackOpen, flowAgainOpen, flowIsBack, flowBackLines, flowBackPill, FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW_ROUTES, flowPlanRouteOf, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChTotals, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestCutOpen, flowTestIssueOpen, flowTestRecvOpen, flowTestVos, flowVoProgOf, flowVoProgSync, flowVlogRows, flowDocsOf, flowVoExtra, flowVpViewOnly, flowFgAcceptOpen, flowFgAccept, flowFgRejectOpen, flowFgReject, flowFgLines, flowFgRender, flowQcLine, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowRecvCross, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowCutEntry, flowIssueEntry, flowRecvEntry, flowQcEntry, flowIssuable, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowVoLines, flowSwatchOf, flowSizeFifo, flowSizeChallanOpen, flowBySizeData, flowPpcXlRows, flowPpcXlRead, flowXlDate, FLOW_XL_COLS, VOrows:()=>VO.rows, setVOrows:v=>{VO.rows=v}, flowUnplan, flowPoResync, flowPlanQcDirect, flowChSizeLive, flowEmbedRows, FLOW_EMB_SHOWN:()=>FLOW_EMB_SHOWN, flowChLineWhat, flowRecvRows, flowRecvDayTable, FLOW_HD, flowDueRows, flowDueTable, FLOW_DUE:()=>FLOW_DUE, flowReads, flowDueRecvOpen, flowDueRecvSave, flowRfdChallanOut, flowEarlierOf, flowRecordEarlier, flowChangePrinterSave, flowStanding, flowStandBack, flowStandUse, flowStandTargets, flowRfdChallanOut, flowHistTable, flowChGroups, flowChXlRead, flowChQueue, flowEmbIndex, flowEmbCells, flowEmbSendOpen, flowEmbRecvOpen, flowEmbWho, flowEmbCancel, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v}, flowEmbedRender, FLOW_EMB:()=>FLOW_EMB, flowScreenAllowed, flowOwnsOrder, flowOwnedIn, flowVoIsFlow, flowFgOwns, flowDupViewsOff, renderView:()=>{ if (["cut","raw","wip","new","pord","vendor","fabric"].includes(FLOW_VIEW)) { const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly(); const rows = flowRows().filter(x => (!only || x.r.__t) && (FLOW_VIEW === "new" ? x.recent : flowInView(FLOW_VIEW, x.s))); $("flTable").innerHTML = flowTable(FLOW_VIEW, rows); } else renderFlow(); } };')(...Object.values(ctx));
   api.setFLOW(Object.assign(api.FLOW(), { ppc: opts.ppc || {}, dem: opts.dem || {}, res: opts.res || {} }));
   return Object.assign(api, { els, writes, W, ctx });
 }
@@ -229,7 +229,7 @@ const K = 'AMZ-1__S1';
   A = load({ me: { tabs: ['fldem'] }, rfd: { 'SHEETING 58': 50 }, lines: [L()], ppc: { [K]: pl('S1', 60) } });
   A.setView('drfd'); A.renderFlow();
   ok('the RFD list flags the line red: SHORT 10 m', /Short: 10 m/.test(A.els.flTable.innerHTML) && /fef2f2/.test(A.els.flTable.innerHTML));
-  ok('above the lines: only the switch, By line | By fabric — not the stock table', /data-flang="stock"/.test(A.els.flPanel.innerHTML) && !/⚑ 10 m/.test(A.els.flPanel.innerHTML) && /By fabric/.test(A.els.flPanel.innerHTML));
+  ok('above the lines: only the switch, By line | By fabric — not the stock table', (/data-flang="stock"/.test(A.els.flPanel.innerHTML) || /<option value="stock"/.test(A.els.flPanel.innerHTML)) && !/⚑ 10 m/.test(A.els.flPanel.innerHTML) && /By fabric/.test(A.els.flPanel.innerHTML));
   A.setAngle('drfd', 'stock'); A.renderFlow();
   ok('By fabric: the table IS the stock — in stock, need, short per fabric; the lines are not under it', /⚑ 10 m/.test(A.els.flTable.innerHTML) && /RFD in stock/.test(A.els.flTable.innerHTML) && !/data-flfab=/.test(A.els.flTable.innerHTML));
   /* By printer, as a pivot (17 Oct): printer down the side, fabric across, totals. */
@@ -333,11 +333,12 @@ const K = 'AMZ-1__S1';
       ok('coming from printers: a line on a challan (cloth with the printer, part back) AND one whose RFD has not gone yet', du.length === 2 && a5.challan === 'RFD-9' && a5.back === 5 && a5.withPrinter === a5.sent - 5 && a5.notSent === 0
         && a7.printer === 'Sanganer Prints' && !a7.challan && a7.notSent === a7.need && a7.left === a7.need, JSON.stringify(du.map(x => [x.orderNo, x.need, x.sent, x.back, x.withPrinter, x.notSent, x.left, x.challan])));
       const dt = DU.flowDueTable('', false);
-      ok('…the table says what each printer owes, and marks RFD not sent yet', /Owed by the printers/.test(dt) && /RFD not sent yet/.test(dt) && /data-flchp="RFD-9"/.test(dt));
+      ok('…the table is the clean receiving sheet: Date, Order Number, Image, Article, Size, Ordered, Vendor Sent, Received, a row a line, a box to type what came', (dt.match(/<th[^>]*>([^<]*)<\/th>/g) || []).map(x => x.replace(/<[^>]+>/g, '')).join('|') === 'Date|Order ID|Item|Size|Ordered|Vendor sent|Received' && /AMZ-5/.test(dt) && /AMZ-7/.test(dt) && /data-fldrq=/.test(dt));
+      ok('…and picking one printer shows only its goods', (() => { DU.FLOW_DUE().printer = 'P1'; const t = DU.flowDueTable('', false); DU.FLOW_DUE().printer = 'NOBODY'; const t2 = DU.flowDueTable('', false); DU.FLOW_DUE().printer = ''; return /AMZ-5/.test(t) && /AMZ-7/.test(t) && !/AMZ-5/.test(t2) && /that printer/.test(t2); })());
       ok('…a search narrows it', DU.flowDueRows('amz-7', false).length === 1);
       DU.setAngle('dhist', 'due'); DU.setView('dhist'); DU.renderFlow();
-      ok('…it is the "Coming from printers" switch of Printed fabric in, with its Excel', /data-flang="due"/.test(DU.els.flPanel.innerHTML) && /data-fldxl/.test(DU.els.flPanel.innerHTML) && /Still to come/.test(DU.els.flTable.innerHTML));
-    ok('…it is where Printed fabric in opens, with Receive for each printer', (() => { const D2 = load({ me: { admin: true } }); D2.setView('dhist'); D2.renderFlow(); return /data-flang="due" class=""/.test(D2.els.flPanel.innerHTML); })() && /data-fldrc="P1"/.test(dt));
+      ok('…it is the "Coming from printers" switch of Printed fabric in, with its Excel', /data-flang="due"/.test(DU.els.flPanel.innerHTML) && /data-fldxl/.test(DU.els.flPanel.innerHTML) && /data-fldprn/.test(DU.els.flPanel.innerHTML) && /data-fldsave/.test(DU.els.flPanel.innerHTML) && /Vendor sent/.test(DU.els.flTable.innerHTML));
+    ok('…it is where Printed fabric in opens, with Receive for each printer', (() => { const D2 = load({ me: { admin: true } }); D2.setView('dhist'); D2.renderFlow(); return /data-flang="due" class=""/.test(D2.els.flPanel.innerHTML); })() && /data-fldrq="P1\|/.test(dt));
     /* 23 Oct ("bahi par challan wala banda receiving le"): received from the printer against the order */
     DU.flowDueRecvOpen('P1');
     ok('…the Receive dialog has a search box, each line findable by order, SKU and colour', /id="fldrQ"/.test(DU.ctx.__dlg.html) && /data-hay="amz-7 t3[^"]*"/i.test(DU.ctx.__dlg.html) && /data-fldq="1"/.test(DU.ctx.__dlg.html), (DU.ctx.__dlg.html.match(/data-hay="[^"]*"/g) || []).join(' '));
@@ -545,7 +546,7 @@ const K = 'AMZ-1__S1';
     ok('nothing known → blank, said', A.flowSuggest(L({ sku: 'S3' })).printer.code === '' && /no printer allocated to Nobody/.test(A.flowSuggest(L({ sku: 'S3' })).printer.why));
     A = load({ me: { admin: true }, mdb, lines: [L()], pal: { 'SP|Light Steel Blue': { printer: 'P1' } } });
     A.setView('ppc'); A.renderFlow();
-    ok('the PPC list says which printer, not "printed in-house"', /Print: <b>Sanganer Prints/.test(A.els.flTable.innerHTML) && !/printed in-house/.test(A.els.flTable.innerHTML));
+    ok('the PPC list says which printer, not "printed in-house"', /ppc-prn"><b>Sanganer Prints/.test(A.els.flTable.innerHTML) && !/printed in-house/.test(A.els.flTable.innerHTML));
     A.flowPpcOpen('AMZ-1');
     ok('the form offers the printers, the suggested one picked', /value="P1" selected/.test(A.ctx.__dlg.html));
     A.ctx.document.querySelectorAll = () => [{ addEventListener() {}, dataset: { fp: '0', k: 'printer.code' }, type: 'select-one', value: 'P1' }];
@@ -618,7 +619,10 @@ const K = 'AMZ-1__S1';
         'AMZ-1__S3': pp('S3', { printer: pr('P1', 'Sanganer Prints') }), 'AMZ-1__S4': pp('S4', { route: 'stitch', print: { need: false } }), 'AMZ-1__S5': pp('S5') } });
     A.setView('drfd'); A.renderFlow();
     const h = A.els.flTable.innerHTML;
-    ok('a button per printer the PO is planned for: → Sanganer, → Choudhary, and one for the line with no printer', /data-pc="P1"[^>]*>Challan → Sanganer Prints/.test(h) && /data-pc="P2"[^>]*>Challan → Choudhary Hand Block/.test(h) && /data-pc="\?"[^>]*>Challan \(printer not chosen\)/.test(h) && (h.match(/data-flch=/g) || []).length === 3);
+    ok('RFD out to printers has the SHP board look: seven headings, Date and Order ID first, Stock · action last', (h.match(/<th[^>]*>([^<]*)<\/th>/g) || []).map(x => x.replace(/<[^>]+>/g, '')).join('|') === 'Date|Order ID|Item|Pcs|Print on|Cloth to send|Stock · action');
+    ok('…a peach band over each printer: name, lines, metres, covered — and Pick all for its lines', /Sanganer Prints — 2 line\(s\)/.test(h) && /Choudhary Hand Block — 1 line\(s\)/.test(h) && /data-flpickall="[^"]+"/.test(h) && /all covered|short/.test(h));
+    ok('…and two tiles over the list: Cloth in stock / Short of cloth, each with its lines, orders and metres', /data-fldfilt="covered"/.test(A.els.flPanel.innerHTML) && /data-fldfilt="short"/.test(A.els.flPanel.innerHTML) && /data-fldfilt="part"/.test(A.els.flPanel.innerHTML) && /To send \(\d+\)/.test(A.els.flPanel.innerHTML) && /Short of cloth \(\d+\)/.test(A.els.flPanel.innerHTML) && /orders · [\d.,]+ m/.test(A.els.flPanel.innerHTML));
+    ok('a button per printer the PO is planned for: → Sanganer, → Choudhary, and one for the line with no printer', /data-pc="P1"[^>]*>Challan<\/button>/.test(h) && /goes to Sanganer Prints/.test(h) && /data-pc="P2"[^>]*>Challan<\/button>/.test(h) && /goes to Choudhary Hand Block/.test(h) && /data-pc="\?"[^>]*>Challan \(printer not chosen\)/.test(h) && (h.match(/data-flch=/g) || []).length === 3);
     A.flowChallanOpen('AMZ-1', 'P1');
     ok('the Sanganer challan holds only Sanganer\u2019s lines, Sanganer picked', /S1/.test(A.ctx.__dlg.html) && /S3/.test(A.ctx.__dlg.html) && !/<b style="font-family:ui-monospace,monospace">S2/.test(A.ctx.__dlg.html) && /value="P1" selected/.test(A.ctx.__dlg.html) && /→ Sanganer Prints/.test(A.ctx.__dlg.title));
     ok('a stitching-only line is on no challan', !/<b style="font-family:ui-monospace,monospace">S4/.test(A.ctx.__dlg.html));
@@ -705,7 +709,7 @@ const K = 'AMZ-1__S1';
       lines: [L({ sku: 'RPC327-1818', qty: 10 }), L({ sku: 'RPCRU327-1818', qty: 40 }), L({ sku: 'RTME-327', qty: 1 }), L({ sku: 'RPCB327-1818', qty: 10 })],
       ppc: { 'AMZ-1__RPC327-1818': pp('RPC327-1818', 5.3), 'AMZ-1__RPCRU327-1818': pp('RPCRU327-1818', 10.4, 'Vertical'), 'AMZ-1__RTME-327': pp('RTME-327', 0.25), 'AMZ-1__RPCB327-1818': pp('RPCB327-1818', 2, 'Vertical') } });
     A.setView('drfd'); A.renderFlow();
-    ok('Demand RFD "Made as" shows what each line prints, from the master data', /RBP-CANVAS-327/.test(A.els.flTable.innerHTML) && /RBPSF327-V-82/.test(A.els.flTable.innerHTML) && !/RBPSF327-H-82/.test(A.els.flTable.innerHTML) && /RTME-327<\/b><\/div><div class="muted" style="font-size:12px">Printed on the SKU itself/.test(A.els.flTable.innerHTML));
+    ok('Demand RFD "Made as" shows what each line prints, from the master data', /RBP-CANVAS-327/.test(A.els.flTable.innerHTML) && /RBPSF327-V-82/.test(A.els.flTable.innerHTML) && !/RBPSF327-H-82/.test(A.els.flTable.innerHTML) && /RTME-327<\/b><\/div><div style="font-size:11px;color:#6b7686">Printed on the SKU itself/.test(A.els.flTable.innerHTML));
     A.flowChallanOpen('AMZ-1', 'P1');
     const q = {}; [0, 1, 2, 3].forEach(i => { q[`[data-chk="${i}"]`] = { checked: true }; q[`[data-chm="${i}"]`] = { value: ['5.3', '10.4', '0.25', '2'][i] }; });
     A.ctx.document.querySelector = sel => q[sel] || null;
@@ -1552,7 +1556,7 @@ const K = 'AMZ-1__S1';
     ok('the new test order is put in the search box, so it is the one on screen', S.els.flQ.value === 'TEST-AMZ-13102026-01');
     S.els.flQ.value = ''; S.setView('ppc'); S.renderFlow();
     ok('PPC shows the real sales order and the test copy, which says what it copies', /AMZ-900/.test(S.els.flTable.innerHTML) && /copy of sales order AMZ-900/i.test(S.els.flTable.innerHTML) && /data-ordj="AMZ-900"/.test(S.els.flTable.innerHTML));
-    ok('compact: an order of two lines is named once — one delete link, one copy note, the second line carries the order no small', (S.els.flTable.innerHTML.match(/data-fltdel="TEST-AMZ-13102026-01"/g) || []).length === 1 && (S.els.flTable.innerHTML.match(/copy of sales order AMZ-900/ig) || []).length === 1 && /<div class="muted" style="font-size:11px">TEST-AMZ-13102026-01<\/div>/.test(S.els.flTable.innerHTML));
+    ok('compact: an order of two lines is named once — one delete link, one copy note, the second line carries the order no small', (S.els.flTable.innerHTML.match(/data-fltdel="TEST-AMZ-13102026-01"/g) || []).length === 1 && (S.els.flTable.innerHTML.match(/copy of sales order AMZ-900/ig) || []).length === 1 && /<div class="ppc-sub">TEST-AMZ-13102026-01<\/div>/.test(S.els.flTable.innerHTML));
   }
 
   console.log('== PPC completed: one cell under every heading (Ravi, 14 Oct: "too hotch potch") ==');
@@ -1942,7 +1946,7 @@ const K = 'AMZ-1__S1';
     D.setView('drfd'); D.renderFlow();
     ok('inside the one menu item: PPC › Demand — no New orders, Print orders, Vendor allocation, Outsourced, Cutting, Raw cutting or WIP', /data-flb="ppc"[^]*data-flb="demand"/.test(D.els.flBuckets.innerHTML)
       && !/data-flb="(new|pord|vendor|out|cut|raw|wip)"/.test(D.els.flBuckets.innerHTML) && /class="fl-b on" data-flb="demand"/.test(D.els.flBuckets.innerHTML), D.els.flBuckets.innerHTML.slice(0, 300));
-    ok('…Demand has its tabs: RFD fabric · out to printers (1, open) · Printed fabric in · Accessories', /data-fldem="drfd" class=""[^>]*>RFD fabric · out to printers <b>1<\/b>/.test(D.els.flPanel.innerHTML)
+    ok('…Demand has its tabs: RFD fabric · out to printers (1, open) · Printed fabric in · Accessories', (/data-fldem="drfd" class=""[^>]*>RFD fabric · out to printers <b>1<\/b>/.test(D.els.flPanel.innerHTML) || /data-fldfilt="covered"/.test(D.els.flPanel.innerHTML))
       && /data-fldem="dhist"/.test(D.els.flPanel.innerHTML) && /data-fldem="dacc"/.test(D.els.flPanel.innerHTML), D.els.flPanel.innerHTML.slice(0, 400));
     /* Job Work Register: Raw cutting in store and WIP as its tabs */
     const R = load({ me: { admin: true }, ppc: { [K]: plan({ print: { need: false } }) }, dem: { [K]: { fabricReady: { at: 'x' } } }, lines: [L()] });
@@ -2316,6 +2320,12 @@ const K = 'AMZ-1__S1';
     const cutHtml = A.flowTable('cut', A.flowRows());
     ok('To cut says what it is cut from: Sheeting 82, printed, in hand, 25 m — not "—"', /<b>Sheeting 82<\/b>/.test(cutHtml) && /printed, in hand/.test(cutHtml) && /25 m for 100 pcs/.test(cutHtml), cutHtml.slice(0, 900));
     ok('To cut says how many pieces are still to cut — on the line and in a total on top (100 pcs, none cut yet)', /Pending to cut/.test(cutHtml) && /Cutting pending: <b>100 pcs<\/b> on 1 line/.test(cutHtml) && /<b style="font-size:15px">100<\/b> pcs/.test(cutHtml), cutHtml.slice(0, 1200));
+    { const C = load({ me: { admin: true }, lines: [L({ orderNo: 'B2B-1', sku: 'CPCTR033-1290', qty: 16, itemName: 'Runner', material: 'Sheeting', color: 'Meadow Vine', size: '12x90' })] });
+      const ph = C.flowTable('ppc', C.flowRows());
+      ok('PPC says what a custom SKU is, as the Order Console does: item name, material, colour, size', /Runner/.test(ph) && /Sheeting/.test(ph) && /Meadow Vine/.test(ph) && /12x90/.test(ph));
+      ok('PPC is the redesigned table: Date, Order ID, Product details, Qty, Fabric, Printer, Actions', (ph.match(/<th[^>]*>([^<]*)<\/th>/g) || []).map(x => x.replace(/<[^>]+>/g, '')).join('|') === 'Date|Order ID|Product details|Qty|Fabric|Printer|Actions');
+      ok('…product name, then design · size, then the SKU, each on its own line', /class="ppc-name">Runner</.test(ph) && /class="ppc-var">Sheeting · Meadow Vine · 12x90</.test(ph) && /class="ppc-sku">CPCTR033-1290</.test(ph));
+      ok('…and the three actions keep their jobs: Plan this PO (primary), This line, Back to sales', /class="ppc-btn ppc-pri" data-flppc="B2B-1">Plan this PO/.test(ph) && /class="ppc-btn ppc-sec" data-flppc="B2B-1" data-sku="CPCTR033-1290">This line/.test(ph)); }
     const B = load({ me: { tabs: ['flppc'] }, mdb, lines: [L({ sku: 'S1', qty: 100 })] });
     B.flowPpcOpen('AMZ-1');
     B.ctx.document.querySelectorAll = sel => sel === '[data-fp]' ? [box('route', 'inhouse'), box('printer.code', 'P1'), box('fabric.noRfd', '', 'checkbox', true)] : [];
@@ -2510,7 +2520,7 @@ const K = 'AMZ-1__S1';
     ok('…and "Completed" in Days late and Last step (Ravi, 29 Oct), never "Made"', cv(rF[24]) === 'Completed' && cv(rF[26]) === 'Completed', JSON.stringify([cv(rF[24]), cv(rF[26])]));
     ok('no printer column under Printing — Printed by carries the printer (Ravi, 29 Oct)', R.flowRepSheets([fin0])[0].rows[2].filter(c => cv(c) === 'Printing').length === 0);
     /* Printed by (Ravi, 29 Oct): the printer PPC planned, only on a line whose process is Printing. */
-    ok('Printed by: blank while the line is still at RFD (not at printing yet)', a.process === 'RFD' && a.printedBy === '', JSON.stringify([a.process, a.printedBy]));
+    ok('Printed by: the assigned printer, even while the line is still at RFD (Ravi, 30 Oct)', a.process === 'RFD' && a.printedBy === 'Sanganer Prints', JSON.stringify([a.process, a.printedBy]));
     ok('…blank on a line that is not Printing (Cutting / Job work), and on a line not planned yet', d0.printedBy === '' && q0.printedBy === '' && wait[0].printedBy === '', JSON.stringify([d0.printedBy, q0.printedBy]));
     /* RFD (Ravi, 29 Oct): Send to printer once its RFD challan is made, else On RFD — a drop-down column. */
     ok('RFD: a Printing line with no RFD challan yet → "On RFD"', a.rfd === 'On RFD', a.rfd);
@@ -2561,8 +2571,42 @@ const K = 'AMZ-1__S1';
     ok('…every piece pressed → "Completed"; handed over → "Completed"', q0.process === 'Completed' && fin0.process === 'Completed', JSON.stringify([q0.process, fin0.process]));
     ok('…cloth with the printer → "Printing"; not planned yet → "PPC"', ra0.process === 'Printing' && wait[0].process === 'PPC', JSON.stringify([ra0.process, wait[0].process]));
     ok('RFD fills only when the Process is RFD — a completed line, a line at the karigars or with the printer: blank', [q0, fin0, d0, ra0, wait[0]].every(l => l.process === 'RFD' || l.rfd === '') && a.process === 'RFD' && a.rfd === 'On RFD', JSON.stringify([a.process, a.rfd, ra0.process, ra0.rfd]));
-    ok('Printed by fills only when the Process is Printing: the printer then, blank at every other stage', ra0.process === 'Printing' && ra0.printedBy === 'Sanganer Prints' && [q0, fin0, d0, wait[0]].every(l => l.printedBy === ''), JSON.stringify([ra0.process, ra0.printedBy]));
+    ok('Printed by: the assigned printer at any stage; blank where no printer is assigned (cutting / job work lines, a line not planned)', ra0.printedBy === 'Sanganer Prints' && [q0, fin0, d0, wait[0]].every(l => l.printedBy === ''), JSON.stringify([ra0.printedBy, d0.printedBy]));
     ok('a completed line (all pressed) says Completed in Last step too', q0.process === 'Completed' && (!q0.moved.day || q0.moved.step === 'Completed'), JSON.stringify(q0.moved));
+    /* THE SHP REPORT (Ravi, 30 Oct): the SHP board's Shopify orders (dated from 28 Oct), in the same sheet, read from the board. */
+    const SH = load({ lines: [L({ orderNo: 'SHP-RBP7376', sku: 'CPC-01', qty: 4, orderDate: '2026-10-29', src: 'SHP' }), L({ orderNo: 'SHP-RBP600', sku: 'CPC-02', qty: 2, orderDate: '2026-10-20', src: 'SHP' }),
+      L({ orderNo: 'AMZ-9', sku: 'S9', qty: 10, orderDate: '2026-10-29' })], ppc: { 'SHP-RBP600__CPC-02': plan({ orderNo: 'SHP-RBP600', sku: 'CPC-02', qty: 2, at: '2026-10-21T05:00:00Z' }) } });
+    const zero = { planA: 0, planW: 0, planD: 0, prcA: 0, prcW: 0, prcD: 0, cutA: 0, cutW: 0, cutD: 0, issA: 0, issW: 0, issD: 0, recA: 0, recW: 0, recD: 0, qcA: 0, qcW: 0, qcD: 0, prsA: 0, prsW: 0, prsD: 0, handA: 0, handW: 0, handD: 0, stk: 0 };
+    const stg = o => Object.assign({}, zero, o);
+    const shpL = SH.flowRepLines({ from: '2026-10-28', to: '2026-10-31', on: 'came', kind: 'shp', today: '2026-10-30', shpStages: () => stg({ issA: 4, issD: 4, recA: 4, recD: 1, recW: 3 }) });
+    ok('SHP report: the board\'s Shopify order SHP-RBP7376 (dated 29 Oct, no PPC plan) is in it — by order date', shpL.length === 1 && shpL[0].orderNo === 'SHP-RBP7376' && shpL[0].planned === '', JSON.stringify(shpL.map(x => x.orderNo)));
+    ok('…from the board\'s stages: 3 with the karigars, 1 back → Process "Karigar"', shpL[0].stitch.withKarigar === 3 && shpL[0].process === 'Karigar', JSON.stringify([shpL[0].stitch, shpL[0].process]));
+    const ppcL = SH.flowRepLines({ from: '2026-10-01', to: '2026-10-31', on: 'came', today: '2026-10-30' });
+    ok('…and never in the PPC report; a Shopify order from before 28 Oct and other channels stay in PPC\'s', !ppcL.some(x => x.orderNo === 'SHP-RBP7376') && ppcL.some(x => x.orderNo === 'SHP-RBP600') && ppcL.some(x => x.orderNo === 'AMZ-9'),
+      JSON.stringify(ppcL.map(x => x.orderNo)));
+    const base = () => ({ pcs: 4, rfd: '', printedBy: '' });
+    const f1 = R.flowRepShpFill(base(), stg({ prcA: 4, prcW: 4 }), { printer: 'Bagru' });
+    ok('SHP: cloth with the printer → Printing, the printer in Printed by and Printing', f1.process === 'Printing' && f1.print.printer === 'Bagru' && f1.printedBy === 'Bagru', JSON.stringify(f1));
+    const f2 = R.flowRepShpFill(base(), stg({ prcA: 4, prcD: 4, cutA: 4, cutW: 4 }), { printer: 'Bagru' });
+    ok('…printed and back, not cut → "Printed, in store" 4', f2.process === 'Printed, in store' && f2.print.store === 4 && f2.cut.toCut === 0, JSON.stringify([f2.process, f2.print, f2.cut]));
+    const f3 = R.flowRepShpFill(base(), stg({ cutA: 4, cutD: 4, issA: 4, issW: 4 }));
+    ok('…cut, not given → "Cut, in store" 4', f3.process === 'Cut, in store' && f3.cut.store === 4, JSON.stringify([f3.process, f3.cut]));
+    const f4 = R.flowRepShpFill(base(), stg({ qcA: 4, qcD: 4, prsA: 4, prsW: 4 }));
+    ok('…passed QC, not pressed → "Press" 4', f4.process === 'Press' && f4.qc.toPress === 4, JSON.stringify([f4.process, f4.qc]));
+    const f5 = R.flowRepShpFill(base(), stg({ prsA: 4, prsD: 4, handA: 4, handW: 4 }));
+    ok('…all pressed → "Completed", 4 completed (shipping still to accept them)', f5.process === 'Completed' && f5.completed === 4 && f5.made === true, JSON.stringify([f5.process, f5.completed]));
+    const f6 = R.flowRepShpFill(base(), stg({ stk: 4, handA: 4, handW: 4 }));
+    ok('…all taken from ready stock → "Completed"', f6.process === 'Completed' && f6.completed === 4, JSON.stringify([f6.process, f6.completed]));
+    const f7 = R.flowRepShpFill(base(), stg({ planA: 4, planW: 4 }), { status: 'Need from printer' });
+    ok('…waiting for a plan → "To plan"; nothing moving → the board\'s status (OOS / In production)', f7.process === 'To plan'
+      && R.flowRepShpFill(base(), stg({}), { status: 'OOS' }).process === 'OOS' && R.flowRepShpFill(base(), stg({})).process === 'In production', f7.process);
+    ok('…the board\'s ready date is the Exp. completion', R.flowRepShpFill(Object.assign(base(), { completion: '' }), stg({}), { ready: '2026-11-03' }).completion === '2026-11-03');
+    const shpOpen = SH.flowRepLines({ from: '2026-10-28', to: '2026-10-28', on: 'waiting', kind: 'shp', today: '2026-10-30', shpStages: () => stg({ prsA: 4, prsD: 4 }) });
+    ok('…"Still open" leaves out the completed ones', shpOpen.length === 0, JSON.stringify(shpOpen.map(x => x.process)));
+    const MO = load({ me: { admin: true }, lines: [L()] });
+    await MO.flowRepOpen('shp'); const t1 = MO.ctx.__dlg && MO.ctx.__dlg.title, h1 = MO.ctx.__dlg && MO.ctx.__dlg.html;
+    await MO.flowRepOpen('ppc'); const t2 = MO.ctx.__dlg && MO.ctx.__dlg.title;
+    ok('the PPC report button is a drop-down: SHP board report opens the SHP report (its own choices), PPC report the PPC one', t1 === 'SHP board report' && /Orders dated these days/.test(h1) && !/flRepKind/.test(h1) && t2 === 'PPC report', JSON.stringify([t1, t2]));
     ok('who may download: admins and the Reports right only', load({ me: { admin: true } }).flowRepAllowed() && load({ me: { tabs: ['rep'] } }).flowRepAllowed() && !load({ me: { tabs: ['flppc'] } }).flowRepAllowed());
 
     /* The plan form: the first save is kept; a plan cannot be saved without a Ready date. */

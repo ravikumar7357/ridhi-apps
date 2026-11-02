@@ -970,6 +970,8 @@ $('odTable').addEventListener('click', async e => {
 const ordView = () => (($('odView') || {}).value || 'shopsku');
 
 function renderOrd() {
+  /* SHIPPING TO ACCEPT ONLY (core/auth.js, ME.shpAccOnly): the Order Console is the SHP board, and nothing else. */
+  if (ME.shpAccOnly && $('odView') && $('odView').value !== 'shpboard') $('odView').value = 'shpboard';
   /* The brands that appear on the book, so the filter never offers one with nothing behind it. */
   if ($('odBrand')) ptFillSelect('odBrand', [...new Set((PTG.ob || []).map(r => ordBrandOf(r && r.sku)).filter(Boolean))]
     .sort().map(b => [b, b]), 'All brands');
@@ -1009,7 +1011,7 @@ function renderOrd() {
   if (v === 'track') return renderOrdTrack();
   if (v === 'shppipe') return renderOrdPipe();
   if (v === 'team') return renderOrdTeam();
-  if (v === 'shpboard' && typeof renderShpBoard === 'function') return renderShpBoard();   // TEST window (orders/shp-board.js)
+  if (typeof shpbIsBoard === 'function' && shpbIsBoard(v) && typeof renderShpBoard === 'function') return renderShpBoard();   // TEST window (orders/shp-board.js)
   if (v === 'prnplat') return renderOrdPrnPlat();
   if (!isBook) { const out = renderOrdShopify(v === 'shopsku', v === 'shopdone' || (v === 'shopsku' && !!ORD.skuDone)); if (bulkOk) spBulkRender(); return out; }
 
@@ -1144,8 +1146,8 @@ function renderOrd() {
                 + (v.shared ? '\n\nThis SKU is on more than one order, so the vendor\u2019s pieces are shared out between them once — open orders first, oldest first.' : ''))}">`
               + `<b>${nf(v.back)}</b> <span class="muted">back of ${nf(v.given)} given</span>`
               + (v.given < r.qty ? ` <span class="muted">· ${nf(r.qty - v.given)} not given</span>` : '')
-              + `<div class="muted" style="font-size:11px">${esc([...new Set(v.parts.map(p => voName(p.vendorCode)))].join(', '))}${v.shared ? ' · shared' : (v.parts.every(p => p.stamped) ? ' · for this order' : '')}</div></span>`
-            : '<span class="muted">not given to a vendor</span>'))(ordVendorOf(r.orderNo, r.sku))}</td>`)
+              + `<div class="muted" style="font-size:11px">${esc([...new Set(v.parts.map(p => voName(p.vendorCode)))].join(', '))}${v.shared ? ' · shared' : (v.parts.every(p => p.stamped) ? ' · for this order' : '')}${v.onChallan ? ' · back on the RFD challan' : ''}</div></span>`
+            : '<span class="muted">not given to a vendor</span>'))(ordVendorShown(r))}</td>`)
         /* THE ACTIONS CELL IS ALWAYS THERE, whether or not the Printing column is — its heading always is (2026-09-28). */
         /* ENTRY BELONGS ON EVERY ORDER, NOT ONLY SHOPIFY'S (Ravi, 2026-09-23: "jo hum shopify ke orders
          * ke liye yahi se karigar ko issue rec. karte h to wesa hi system B2B orders ke liye bana do").

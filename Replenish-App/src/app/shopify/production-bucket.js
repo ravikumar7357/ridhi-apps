@@ -66,6 +66,27 @@ function shpBucketMake() {
   });
   return out;
 }
+/* ORDERS WITHOUT A SKU (Ravi, 2 Nov: "order without SKU button … inside production bucket", then "add a feature of
+ * entering sku in these without sku orders"). Every line Shopify sent with no SKU that is still owed, on the orders the
+ * bucket looks at. Nothing is stored: a SKU typed here is the order dialog's typed code (SHOP_META[id].mk), so once it is
+ * saved the line has a SKU and leaves this list for Needs production. The stock is not needed to list them. */
+function shpNoSkuLines() {
+  const opened = new Set((PTG.ob || []).filter(x => x && x.shopOrderId).map(x => String(x.shopOrderId) + '|' + obUC(x.sku)));
+  const out = [];
+  (SO_ALL_ROWS || []).forEach(o => {
+    if (!o || !o.id || o.cancelled || o.shipped || !(o.handled || soIsPending(o)) || !shpSheetAllows(o)) return;
+    const id = String(o.id);
+    (o.items || []).forEach(i => {
+      if (!i || obUC(i.sku) || shpLineShipped(i)) return;   // a typed SKU is on i.sku already (soApplyTypedSkus)
+      let qty; try { qty = Number(soLive(i)) || 0; } catch (e) { qty = Number(i.qty) || 0; }
+      if (!(qty > 0)) return;
+      const k = shpNoSkuKey(i), g = shpSkuFromTitle(i.name, i.variant), guess = g ? obUC(g.sku) : '';
+      out.push({ o, id, k, key: id + '|' + k, qty, name: String(i.name || ''), variant: String(i.variant || ''), img: i.img || i.image || '',
+        guess, inProd: !!(guess && opened.has(id + '|' + guess)) });
+    });
+  });
+  return out.sort((a, b) => String(b.o.at || '').localeCompare(String(a.o.at || '')) || a.key.localeCompare(b.key));
+}
 function shpBucketBuild(opts) {
   const out = [], all = !!(opts && opts.all);
   if (!SHOP_STOCK_LOADED || !SHOP_INDIA_LOADED || SHOP_INDIA_ERR) return out;

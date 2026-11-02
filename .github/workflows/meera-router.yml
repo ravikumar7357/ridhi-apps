@@ -12,12 +12,15 @@
 name: Meera router — test, deploy
 
 on:
-  push:
-    branches: [main]
-    # Phase 5: her search runs on the router too — a change to her answers or her search code redeploys it
-    paths: ['meera/router/**', 'meera/client/src/legacy/guide-ai.*', '.github/workflows/meera-router.yml',
-            'meera/client/src/understand.ts', 'meera/client/src/legacy/guide-ask.*', 'meera/client/src/legacy/guide-tours.*',
-            'Replenish-App/public/guide/meera-bank.json', 'Replenish-App/public/guide/meera-walks.json', 'Replenish-App/public/guide/meera-words.bin']
+  # HELD BACK (Ravi, 2 Nov 2026: Phases 3–6 live, router later). Her router stays as it is on Cloudflare until the account is
+  # on Workers Paid and Ravi says so; then these push lines are switched back on (or the run started by hand). Until then
+  # nothing here deploys by itself.
+# push:
+#   branches: [main]
+#   # Phase 5: her search runs on the router too — a change to her answers or her search code redeploys it
+#   paths: ['meera/router/**', 'meera/client/src/legacy/guide-ai.*', '.github/workflows/meera-router.yml',
+#           'meera/client/src/understand.ts', 'meera/client/src/legacy/guide-ask.*', 'meera/client/src/legacy/guide-tours.*',
+#           'Replenish-App/public/guide/meera-bank.json', 'Replenish-App/public/guide/meera-walks.json', 'Replenish-App/public/guide/meera-words.bin']
   workflow_dispatch:
 
 concurrency:

@@ -1,7 +1,7 @@
 /* EVERY ERROR THE ERP CAN SHOW, for Meera: [the message's longest fixed piece, lower case; the screen it belongs to].
  * Read off the screens' own code (every red message line, and every rule a form checks before it saves), so when
  * someone pastes or asks about a message, Meera knows which screen it is from and why it happens (gaWhy in
- * guide-ask.ts). 606 messages. MADE BY meera/tools/make-errors.cjs — do not edit; when screens change, it is
+ * guide-ask.ts). 611 messages. MADE BY meera/tools/make-errors.cjs — do not edit; when screens change, it is
  * made again (her gate says so on every push). */
 const GUIDE_ERRS = [
   ["⚠️ backend not configured — create firestore doc config/replapi with {url, key}.", ""],
@@ -88,6 +88,7 @@ const GUIDE_ERRS = [
   ["pick the order line it goes to.", "flow"],
   ["(what stands, and what the line still needs).", "flow"],
   ["nothing was received on those days.", "flow"],
+  ["type what came back on at least one line.", "flow"],
   ["nothing is owed by that printer any more — press refresh.", "flow"],
   ["type what came back for at least one line.", "flow"],
   ["nothing is owed by a printer.", "flow"],
@@ -254,6 +255,10 @@ const GUIDE_ERRS = [
   ["article and subtype are both needed.", "pmdb"],
   ["that looks like a full sku — the base code has no colour code in it (e.g. rtc-6060, not rt", "pmdb"],
   ["done — see the note above the reason.", "ord"],
+  ["completing a line from stock needs the order console.", ""],
+  ["shopify and online lines are completed from the shp board or by shipping.", ""],
+  ["type how many pieces come from stock.", ""],
+  ["piece(s) of this line are still owed.", ""],
   ["upload the filled sheet first.", "ord"],
   ["fix the rows the check found, and upload again.", "ord"],
   ["both the old and the new sku are needed.", "ord"],
@@ -341,7 +346,6 @@ const GUIDE_ERRS = [
   ["this order is not yours to change.", "so"],
   ["that sku is not on this order.", "so"],
   ["pick the delivery date.", "so"],
-  ["type how many pieces come from stock.", ""],
   ["handing pieces to shipping needs the shopify tab.", ""],
   ["piece(s) of this line still need to be made.", ""],
   ["type how many pieces were cut.", ""],
@@ -491,6 +495,7 @@ const GUIDE_ERRS = [
   ["no row in that file says open = yes", "shop"],
   ["could not read the file", "shop"],
   ["nothing on the sheet can be opened now — see the list.", "shop"],
+  ["type a sku on at least one line first.", "shop"],
   ["the production order book could not be read, so the bucket cannot say what is already open", "shop"],
   ["nothing was sent to production.", "shop"],
   ["only a quilt goes to the quilt team.", "shop"],
