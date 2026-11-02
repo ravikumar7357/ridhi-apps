@@ -83,6 +83,11 @@ async function main() {
   let walkMissing = [];
   for (const w of walks) for (const s of w.steps || []) for (const id of idsIn(s.sel).concat(idsIn(s.skip))) if (!known(ids, src, id)) walkMissing.push(w.id + ' → #' + id);
   ok(walks.length >= 200, `${walks.length} walk-throughs`);
+  /* Phase 6: every answer's "Show me" box, and every part of a screen she explains, is still in the app */
+  const bankAll = JSON.parse(fs.readFileSync(path.join(APP, 'public/guide/meera-bank.json'), 'utf8'));
+  const showMissing = [];
+  for (const e of bankAll) for (const id of idsIn(e.sel).concat(e.p ? idsIn(e.p[5]) : [])) if (!known(ids, src, id)) showMissing.push(e.id + ' → #' + id);
+  ok(!showMissing.length, 'every answer\'s "Show me" box is in the app' + (showMissing.length ? ': ' + showMissing.slice(0, 8).join(', ') : ''));
   ok(!walkMissing.length, 'every walk-through box is in the app' + (walkMissing.length ? ': ' + walkMissing.slice(0, 8).join(', ') : ''));
 
   /* 9. Stuck? offer: 3 × No thanks = off */

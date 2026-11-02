@@ -20,8 +20,8 @@ for a in "" "--bundle"; do
   nb=$(node meera/tests/never-break.cjs $a | tail -1); echo "never-break $a: $nb"
   echo "$nb" | grep -q " 0 failed" || { echo "NEVER-BREAK FAILED"; exit 1; }
 done
-git add -A Replenish-App/src/app/ORDER Replenish-App/public/index.html Replenish-App/public/meera meera/client meera/router/src/search.gen.js meera/router/build-search.cjs meera/tools
-git commit -q -m "Meera Phase 6: ${MSG:-$name is TypeScript now} — the type checks are clean, all 580 answers identical, never-break 29/29 (in the page and as meera.js)
+git add -A Replenish-App/src/app/ORDER Replenish-App/public/index.html Replenish-App/public/meera meera/client meera/router/src/search.gen.js meera/router/build-search.cjs meera/tools meera/tests
+git commit -q -m "Meera Phase 6: ${MSG:-$name is TypeScript now} — the type checks are clean, all 580 answers identical, never-break all passed (in the page and as meera.js)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 git log --oneline -1

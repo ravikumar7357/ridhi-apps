@@ -48,6 +48,12 @@ function scope(base) {
 }
 
 const CHECKS = [
+  /* Phase 6 */
+  { name: 'her answers are well-formed', cmd: ['meera/tests/answers-check.cjs'], fix: 'fix the answers named above in Replenish-App/public/guide/' },
+  { name: 'guide-errors is up to date with the screens', cmd: ['meera/tools/make-errors.cjs', '--check'], fix: 'run: node meera/tools/make-errors.cjs, then her gate, and commit meera/client/src/legacy/guide-errors.ts', warnOnly: true },
+  { name: 'her router\'s tests', cmd: ['meera/router/test/router.test.mjs'], fix: 'a router test failed (see the FAIL lines)' },
+  { name: 'the page and the router clean questions alike', cmd: ['meera/router/test/same-cleaning.test.mjs'], fix: 'gaClean (guide-ai.ts) and clean (meera/router/src/redact.js) must change together' },
+  { name: 'privacy: nothing personal is kept or sent', cmd: ['meera/tools/phase4-privacy.mjs'], fix: 'a privacy check failed (see the FAIL lines) — never ship this' },
   { name: 'meera.js is what her sources make', cmd: ['meera/client/build.cjs', '--check'], fix: 'run: node meera/client/build.cjs, and commit Replenish-App/public/meera/' },
   { name: 'never-break list', cmd: ['meera/tests/never-break.cjs'], fix: 'a never-break item failed (see the FAIL lines): fix it — these must always work' },
   { name: 'no-worse gate, Meera in the page', cmd: ['meera/tests/gate.cjs'], fix: 'if the change is meant: node meera/tests/gate.cjs --accept "why", commit meera/bank/baseline/' },
@@ -65,9 +71,11 @@ for (const c of CHECKS) {
   if (r.status !== 0) failed.push(c);
 }
 if (!failed.length) { console.log('\nMEERA: all checks passed.'); process.exit(0); }
-console.log(`\n${sc.full ? 'MEERA BLOCKED THIS DEPLOY' : 'MEERA WARNING (the deploy goes ahead)'} — ${failed.length} check(s) failed:`);
+/* a check marked warnOnly (guide-errors out of date after a screen changed) never blocks: it says what to do */
+const blocks = sc.full && failed.some(c => !c.warnOnly);
+console.log(`\n${blocks ? 'MEERA BLOCKED THIS DEPLOY' : 'MEERA WARNING (the deploy goes ahead)'} — ${failed.length} check(s) failed:`);
 for (const c of failed) {
-  console.log(`  • ${c.name} — ${c.fix}`);
-  if (process.env.GITHUB_ACTIONS) console.log(`::${sc.full ? 'error' : 'warning'} title=Meera: ${c.name}::${c.fix}`);
+  console.log(`  • ${c.name}${c.warnOnly ? ' (a warning only)' : ''} — ${c.fix}`);
+  if (process.env.GITHUB_ACTIONS) console.log(`::${sc.full && !c.warnOnly ? 'error' : 'warning'} title=Meera: ${c.name}::${c.fix}`);
 }
-process.exit(sc.full ? 1 : 0);
+process.exit(blocks ? 1 : 0);
